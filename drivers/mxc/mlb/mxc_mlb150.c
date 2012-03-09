@@ -154,16 +154,12 @@
 #define MLB150_CAT_MODE_INBOUND_DMA	(0x1 << 8)
 #define MLB150_CAT_MODE_OUTBOUND_DMA	(0x1 << 9)
 
-
-static u32 mlb150_fs_phy_ch_num_per_frm[8] = {
-	8, 16, 32, 58, 87, 117, 161, 215
-};
-
-#define MLB150_CH_SYNC_BUF_DEP		(215 * 4 * 4)
+#define MLB150_CH_SYNC_BUF_DEP		(128 * 4 * 4)
 #define MLB150_CH_CTRL_BUF_DEP		(64)
-#define MLB150_CH_ASYNC_BUF_DEP		(1536)
+#define MLB150_CH_ASYNC_BUF_DEP		(2048)
 #define MLB150_CH_ISOC_BLK_SIZE		(196)
-#define MLB150_CH_ISOC_BUF_DEP		(MLB150_CH_ISOC_BLK_SIZE * 3)
+#define MLB150_CH_ISOC_BLK_NUM		(3)
+#define MLB150_CH_ISOC_BUF_DEP		(MLB150_CH_ISOC_BLK_SIZE * MLB150_CH_ISOC_BLK_NUM)
 
 #define MLB150_CH_SYNC_DBR_BUF_OFFSET	(0x0)
 #define MLB150_CH_CTRL_DBR_BUF_OFFSET	(MLB150_CH_SYNC_DBR_BUF_OFFSET + 2 * MLB150_CH_SYNC_BUF_DEP)
@@ -270,7 +266,7 @@ static u32 mlb150_ch_packet_buf_size[4] = {
 #define CTRL_PACKET_SIZE	64
 #define TRANS_RING_NODES	10
 
-#define MLB_IRAM_SIZE		(MLB_MINOR_DEVICES * (PING_BUF_MAX_SIZE + PONG_BUF_MAX_SIZE) * 2)
+#define MLB_IRAM_SIZE		(MLB_MINOR_DEVICES * (PING_BUF_MAX_SIZE + PONG_BUF_MAX_SIZE))
 #define _get_txchan(dev)	mlb_devinfo[dev].channels[TX_CHANNEL]
 #define _get_rxchan(dev)	mlb_devinfo[dev].channels[RX_CHANNEL]
 
@@ -311,16 +307,13 @@ enum MLB150_CLK_SPEED {
 	r->rpos = (r->rpos + 1) % TRANS_RING_NODES;	\
 }
 
-
-struct mlb_ringnode {
-	u32 size;
-	u8 *data;
-};
-
-struct mlb_ringbuffer {
+struct mlb_ringbuf {
 	u32 wpos;
 	u32 rpos;
-	struct mlb_ringnode node[TRANS_RING_NODES];
+	u32 size;
+	/* Last buffer is for package drop */
+	u8  *virt_bufs[TRANS_RING_NODES + 1];
+	u32 phy_addrs[TRANS_RING_NODES + 1];
 };
 
 struct mlb_channel_info {
@@ -341,6 +334,8 @@ struct mlb_channel_info {
 	u32 buf_size;
 	/* channel buffer current ptr */
 	u32 buf_ptr;
+	/* channel buffer phy addr */
+	u32 buf_phy_addr;
 	/* packet start indicator */
 	u32 ps_ind;
 	/* packet remain size */
@@ -360,15 +355,11 @@ struct mlb_dev_info {
 	/* channel info for tx/rx */
 	struct mlb_channel_info channels[2];
 	/* rx ring buffer */
-	struct mlb_ringnode rx_bufs[TRANS_RING_NODES];
-	/* rx ring buffer read/write ptr */
-	int rx_rdpos, rx_wtpos;
-	/* tx ring buffer */
-	struct mlb_ringnode tx_bufs[TRANS_RING_NODES];
-	/* tx ring buffer read/write ptr */
-	int tx_rdpos, tx_wtpos;
+	struct mlb_ringbuf rx_bufs;
 	/* exception event */
 	unsigned long ex_event;
+	/* tx busy indicator */
+	unsigned long tx_busy;
 	/* channel started up or not */
 	atomic_t on;
 	/* device open count */
@@ -539,6 +530,86 @@ static void mlb150_dev_dump_reg(void)
 	DUMP_REG(MLB150_REG_ACMR0);
 	DUMP_REG(MLB150_REG_ACMR1);
 }
+
+static void mlb150_dev_dump_hex(const u8 *buf, u32 len)
+{
+	u32 i, remain, round_len;
+
+	pr_debug("buf: 0x%08x, len: %d\n", (u32)buf, len);
+	remain = len & 0x7;
+	round_len = len - remain;
+	for (i = 0; i < round_len; i += 8) {
+		pr_debug("%02x %02x %02x %02x %02x %02x %02x %02x\n",
+			*(buf + i),
+			*(buf + i + 1),
+			*(buf + i + 2),
+			*(buf + i + 3),
+			*(buf + i + 4),
+			*(buf + i + 5),
+			*(buf + i + 6),
+			*(buf + i + 7));
+	}
+
+	if (remain) {
+		i = round_len;
+		switch (remain) {
+		case 1:
+			pr_debug("%02x\n",
+				*(buf + i));
+			break;
+		case 2:
+			pr_debug("%02x %02x\n",
+				*(buf + i),
+				*(buf + i + 1));
+			break;
+		case 3:
+			pr_debug("%02x %02x %02x\n",
+				*(buf + i),
+				*(buf + i + 1),
+				*(buf + i + 2));
+			break;
+		case 4:
+			pr_debug("%02x %02x %02x %02x\n",
+				*(buf + i),
+				*(buf + i + 1),
+				*(buf + i + 2),
+				*(buf + i + 3));
+			break;
+		case 5:
+			pr_debug("%02x %02x %02x %02x %02x\n",
+				*(buf + i),
+				*(buf + i + 1),
+				*(buf + i + 2),
+				*(buf + i + 3),
+				*(buf + i + 4));
+			break;
+		case 6:
+			pr_debug("%02x %02x %02x %02x %02x %02x\n",
+				*(buf + i),
+				*(buf + i + 1),
+				*(buf + i + 2),
+				*(buf + i + 3),
+				*(buf + i + 4),
+				*(buf + i + 5));
+			break;
+		case 7:
+			pr_debug("%02x %02x %02x %02x %02x %02x %02x\n",
+				*(buf + i),
+				*(buf + i + 1),
+				*(buf + i + 2),
+				*(buf + i + 3),
+				*(buf + i + 4),
+				*(buf + i + 5),
+				*(buf + i + 6));
+			break;
+		default:
+			break;
+		}
+	}
+
+	if (i % 8 != 0)
+		pr_debug("\n");
+}
 #endif
 
 static inline void mlb150_dev_enable_ctr_write(u32 mdat0_bits_en,
@@ -576,13 +647,14 @@ static inline u8 mlb150_dev_dbr_read(u32 dbr_addr)
 	return dbr_val;
 }
 
-static inline s32 mlb150_dev_dbr_write(u32 dbr_addr, u32 dbr_val)
+static inline s32 mlb150_dev_dbr_write(u32 dbr_addr, u8 dbr_val)
 {
 	s32 timeout = 1000;
+	u32 mdat0 = dbr_val & 0x000000ff;
 	unsigned long flags;
 
 	spin_lock_irqsave(&ctr_lock, flags);
-	__raw_writel(dbr_val, mlb_base + MLB150_REG_MDAT0);
+	__raw_writel(mdat0, mlb_base + MLB150_REG_MDAT0);
 
 	__raw_writel(MLB150_MADR_WNR | MLB150_MADR_TB | dbr_addr,
 			mlb_base + MLB150_REG_MADR);
@@ -684,6 +756,38 @@ static s32 mlb150_dev_ctr_write(u32 ctr_offset, const u32 *ctr_val)
 	return 0;
 }
 
+static s32 mlb150_dev_get_adt_sts(u32 ch)
+{
+	s32 timeout = 1000;
+	unsigned long flags;
+	u32 reg;
+
+	spin_lock_irqsave(&ctr_lock, flags);
+	__raw_writel(MLB150_BUF_ADT_OFFSET + ch,
+			mlb_base + MLB150_REG_MADR);
+
+	while ((!(__raw_readl(mlb_base + MLB150_REG_MCTL)
+			& MLB150_MCTL_XCMP)) &&
+			timeout--)
+		;
+
+	if (unlikely(timeout <= 0)) {
+		pr_debug("mxc_mlb150: Read CTR timeout\n");
+		return -ETIME;
+	}
+
+	reg = __raw_readl(mlb_base + MLB150_REG_MDAT1);
+
+	__raw_writel(0, mlb_base + MLB150_REG_MCTL);
+	spin_unlock_irqrestore(&ctr_lock, flags);
+
+#ifdef DEBUG_ADT
+	pr_debug("mxc_mlb150: Get ch %d adt sts: 0x%08x\n", ch, reg);
+#endif
+
+	return reg;
+}
+
 static s32 mlb150_dev_cat_write(u32 ctr_offset, u32 ch, const u16 cat_val)
 {
 	u16 ctr_val[8] = { 0 };
@@ -698,8 +802,12 @@ static s32 mlb150_dev_cat_write(u32 ctr_offset, u32 ch, const u16 cat_val)
 	return 0;
 }
 
+#define mlb150_dev_cat_mlb_read(ch, cat_val)	\
+	mlb150_dev_cat_read(MLB150_BUF_CAT_MLB_OFFSET + (ch >> 3), ch, cat_val)
 #define mlb150_dev_cat_mlb_write(ch, cat_val)	\
 	mlb150_dev_cat_write(MLB150_BUF_CAT_MLB_OFFSET + (ch >> 3), ch, cat_val)
+#define mlb150_dev_cat_hbi_read(ch, cat_val)	\
+	mlb150_dev_cat_read(MLB150_BUF_CAT_HBI_OFFSET + (ch >> 3), ch, cat_val)
 #define mlb150_dev_cat_hbi_write(ch, cat_val)	\
 	mlb150_dev_cat_write(MLB150_BUF_CAT_HBI_OFFSET + (ch >> 3), ch, cat_val)
 
@@ -738,7 +846,7 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
 
 	pr_debug("mxc_mlb150: CAT MLB Table");
 	for (i = MLB150_BUF_CAT_MLB_OFFSET + (ch_start >> 3);
-			i < MLB150_BUF_CAT_MLB_OFFSET + (ch_end >> 3);
+			i < MLB150_BUF_CAT_MLB_OFFSET + (ch_end >> 3) + 1;
 			++i) {
 		mlb150_dev_ctr_read(i, ctr_val);
 		pr_debug("CTR 0x%02x: 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
@@ -747,7 +855,7 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
 
 	pr_debug("mxc_mlb150: CAT HBI Table");
 	for (i = MLB150_BUF_CAT_HBI_OFFSET + (ch_start >> 3);
-			i < MLB150_BUF_CAT_HBI_OFFSET + (ch_end >> 3);
+			i < MLB150_BUF_CAT_HBI_OFFSET + (ch_end >> 3) + 1;
 			++i) {
 		mlb150_dev_ctr_read(i, ctr_val);
 		pr_debug("CTR 0x%02x: 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
@@ -826,6 +934,44 @@ static inline s32 mlb150_dev_enable_ir_mlb(u32 enable)
 	return 0;
 }
 
+static inline int mlb150_enable_pll(void)
+{
+	u32 c0_val;
+
+	__raw_writel(MLB150_MLBPC1_VAL,
+			mlb_base + MLB150_REG_MLBPC1);
+
+	c0_val = __raw_readl(mlb_base + MLB150_REG_MLBC0);
+	if (c0_val & MLB150_MLBC0_MLBPEN) {
+		c0_val &= ~MLB150_MLBC0_MLBPEN;
+		__raw_writel(c0_val,
+				mlb_base + MLB150_REG_MLBC0);
+	}
+
+	clk_enable(mlb_pll_clk);
+
+	c0_val |= (MLB150_MLBC0_MLBPEN);
+	__raw_writel(c0_val, mlb_base + MLB150_REG_MLBC0);
+
+	return 0;
+}
+
+static inline int mlb150_disable_pll(void)
+{
+	u32 c0_val;
+
+	clk_disable(mlb_pll_clk);
+
+	c0_val = __raw_readl(mlb_base + MLB150_REG_MLBC0);
+
+	__raw_writel(0x0, mlb_base + MLB150_REG_MLBPC1);
+
+	c0_val &= ~MLB150_MLBC0_MLBPEN;
+	__raw_writel(c0_val, mlb_base + MLB150_REG_MLBC0);
+
+	return 0;
+}
+
 static void mlb150_dev_init(void)
 {
 	u32 c0_val, hctl_val;
@@ -874,6 +1020,8 @@ static s32 mlb150_dev_init_ch_cdt(u32 ch, enum MLB_CTYPE ctype, u32 ch_func)
 	u32 cdt_val[4] = { 0 };
 
 	/* a. Set the 14-bit base address (BA) */
+	pr_debug("mxc_mlb150: ctype: %d, ch: %d, dbr_buf_head: 0x%08x",
+		ctype, ch, mlb_devinfo[ctype].channels[ch_func].dbr_buf_head);
 	cdt_val[3] = (mlb_devinfo[ctype].channels[ch_func].dbr_buf_head)
 			<< CDT_BA_SHIFT;
 
@@ -882,8 +1030,7 @@ static s32 mlb150_dev_init_ch_cdt(u32 ch, enum MLB_CTYPE ctype, u32 ch_func)
 	switch (ctype) {
 	case MLB_CTYPE_SYNC:
 		/* For synchronous channels: (BD + 1) = 4 * m * bpf */
-		cdt_val[3] |= ((4 * mlb150_fs_phy_ch_num_per_frm[mlb_devinfo[0].fps] * 4) - 1)
-				<< CDT_BD_SHIFT;
+		cdt_val[3] |= (MLB150_CH_SYNC_BUF_DEP - 1) << CDT_BD_SHIFT;
 		break;
 	case MLB_CTYPE_CTRL:
 		/* For control channels: (BD + 1) >= max packet length (64) */
@@ -958,6 +1105,9 @@ static s32 mlb150_dev_init_ch_cat(u32 ch, u32 cat_mode, enum MLB_CTYPE ctype)
 	if (MLB_CTYPE_SYNC == ctype)
 		cat_val |= CAT_MT;
 
+	pr_debug("mxc_mlb150: set CAT val of channel %d, type: %d: 0x%04x\n",
+			ch, ctype, cat_val);
+
 	switch (cat_mode) {
 	case MLB150_CAT_MODE_RX | MLB150_CAT_MODE_INBOUND_DMA:
 	case MLB150_CAT_MODE_TX | MLB150_CAT_MODE_OUTBOUND_DMA:
@@ -1022,9 +1172,6 @@ static s32 mlb150_dev_reset_cat(void)
 
 static s32 mlb150_dev_init_rfb(u32 rx_ch, u32 tx_ch, enum MLB_CTYPE ctype)
 {
-	mlb150_dev_enable_ctr_write(0xffffffff, 0xffffffff,
-			0xffffffff, 0xffffffff);
-
 	/* Step 1, Initialize all bits of CAT to '0' */
 	mlb150_dev_reset_cat();
 	mlb150_dev_reset_cdt();
@@ -1062,10 +1209,9 @@ static s32 mlb150_dev_reset_adt(void)
 	return 0;
 }
 
-static s32 mlb150_dev_set_ch_amba_ahb(u32 ch, enum MLB_CTYPE ctype, u32 dne_sts)
+static inline s32 mlb150_dev_set_ch_amba_ahb(u32 ch, enum MLB_CTYPE ctype,
+					u32 dne_sts, u32 buf_addr)
 {
-	/* Only set MDAT1 in this function */
-	/* In MDWE, only MDWE1 should be enabled */
 	u32 ctr_val[4] = { 0 };
 
 	if (MLB_CTYPE_ASYNC == ctype ||
@@ -1076,10 +1222,13 @@ static s32 mlb150_dev_set_ch_amba_ahb(u32 ch, enum MLB_CTYPE ctype, u32 dne_sts)
 
 	/* Clear DNE1 and ERR1 */
 	/* Set the page ready bit (RDY1) */
-	if (dne_sts & ADT_DNE1)
+	if (dne_sts & ADT_DNE1) {
 		ctr_val[1] |= ADT_RDY2;
-	else
+		ctr_val[3] = buf_addr;
+	} else {
 		ctr_val[1] |= ADT_RDY1;
+		ctr_val[2] = buf_addr;
+	}
 
 #ifdef DEBUG_ADT
 	pr_debug("mxc_mlb150: Set ADT val of channel %d, ctype: %d: "
@@ -1090,10 +1239,14 @@ static s32 mlb150_dev_set_ch_amba_ahb(u32 ch, enum MLB_CTYPE ctype, u32 dne_sts)
 	if (unlikely(mlb150_dev_adt_write(ch, ctr_val)))
 		return -ETIME;
 
-#ifdef DEBUG_ADT
+#ifdef DEBUG_ADT_N
 	{
 		u32 ctr_rd[4] = { 0 };
 		if (likely(!mlb150_dev_adt_read(ch, ctr_rd))) {
+			pr_debug("mxc_mlb150: ADT val of channel %d: "
+				"0x%08x 0x%08x 0x%08x 0x%08x\n",
+				ch, ctr_rd[3], ctr_rd[2],
+				ctr_rd[1], ctr_rd[0]);
 			if (ctr_rd[3] == ctr_val[3] &&
 				ctr_rd[2] == ctr_val[2] &&
 				ctr_rd[1] == ctr_val[1] &&
@@ -1133,6 +1286,11 @@ static s32 mlb150_dev_init_ch_amba_ahb(struct mlb_channel_info *chinfo,
 
 	ctr_val[0] |= (ADT_LE | ADT_CE);
 
+	pr_debug("mxc_mlb150: Set ADT val of channel %d, ctype: %d: "
+		"0x%08x 0x%08x 0x%08x 0x%08x\n",
+		chinfo->address, ctype, ctr_val[3], ctr_val[2],
+		ctr_val[1], ctr_val[0]);
+
 	if (unlikely(mlb150_dev_adt_write(chinfo->address, ctr_val)))
 		return -ETIME;
 
@@ -1168,9 +1326,6 @@ static s32 mlb150_dev_init_ch_amba_ahb(struct mlb_channel_info *chinfo,
 static s32 mlb150_dev_init_amba_ahb(struct mlb_channel_info *rx_chinfo,
 		struct mlb_channel_info *tx_chinfo, enum MLB_CTYPE ctype)
 {
-	mlb150_dev_enable_ctr_write(0xffffffff, 0xffffffff,
-				0xffffffff, 0xffffffff);
-
 	/* Step 1, Initialize all bits of the ADT to '0' */
 	mlb150_dev_reset_adt();
 
@@ -1232,26 +1387,20 @@ static void mlb150_dev_exit(void)
  * load phy_head to next buf register to start next rx
  * here use single-packet buffer, set start=end
  */
-static void mlb_start_rx(int cdev_id, u32 dne_sts)
+static inline void mlb_start_rx(u32 ch, s32 ctype, u32 dne_sts, u32 buf_addr)
 {
-	struct mlb_channel_info *chinfo = &_get_rxchan(cdev_id);
-	unsigned int ctype = mlb_devinfo[cdev_id].channel_type;
-
 	/*  Set ADT for RX */
-	mlb150_dev_set_ch_amba_ahb(chinfo->address, ctype, dne_sts);
+	mlb150_dev_set_ch_amba_ahb(ch, ctype, dne_sts, buf_addr);
 }
 
 /*!
  * MLB transmit start function
  * make sure aquiring the rw buf_lock, when calling this
  */
-static void mlb_start_tx(int cdev_id, u32 dne_sts)
+static inline void mlb_start_tx(u32 ch, s32 ctype, u32 dne_sts, u32 buf_addr)
 {
-	struct mlb_channel_info *chinfo = &_get_txchan(cdev_id);
-	unsigned int ctype = mlb_devinfo[cdev_id].channel_type;
-
 	/*  Set ADT for TX */
-	mlb150_dev_set_ch_amba_ahb(chinfo->address, ctype, dne_sts);
+	mlb150_dev_set_ch_amba_ahb(ch, ctype, dne_sts, buf_addr);
 }
 
 /*!
@@ -1259,13 +1408,13 @@ static void mlb_start_tx(int cdev_id, u32 dne_sts)
  */
 static void mlb_channel_enable(int chan_dev_id, int on)
 {
-	u32 c0_val = 0;
+	struct mlb_dev_info *pdevinfo = &mlb_devinfo[chan_dev_id];
 	/*!
 	 * setup the direction, enable, channel type,
 	 * mode select, channel address and mask buf start
 	 */
 	if (on) {
-		u32 ctype = mlb_devinfo[chan_dev_id].channel_type;
+		u32 ctype = pdevinfo->channel_type;
 		struct mlb_channel_info *tx_chinfo = &_get_txchan(chan_dev_id);
 		struct mlb_channel_info *rx_chinfo = &_get_rxchan(chan_dev_id);
 		u32 tx_ch = tx_chinfo->address;
@@ -1285,29 +1434,19 @@ static void mlb_channel_enable(int chan_dev_id, int on)
 				ADT_ERR1 | ADT_PS1 |
 				ADT_MEP1 | ADT_RDY2 | ADT_DNE2 | ADT_ERR2 |
 				ADT_PS2 | ADT_MEP2,
-				0x0, 0x0);
+				0xffffffff, 0xffffffff);
 
-		if (mlb_devinfo[chan_dev_id].fps >= MLB150_CLK_2048FS) {
-			c0_val = __raw_readl(mlb_base + MLB150_REG_MLBC0);
+		if (pdevinfo->fps >= MLB150_CLK_2048FS)
+			mlb150_enable_pll();
 
-			__raw_writel(MLB150_MLBPC1_VAL,
-					mlb_base + MLB150_REG_MLBPC1);
+		atomic_set(&pdevinfo->on, 1);
 
-			if (c0_val & MLB150_MLBC0_MLBPEN) {
-				c0_val &= ~MLB150_MLBC0_MLBPEN;
-				__raw_writel(c0_val,
-						mlb_base + MLB150_REG_MLBC0);
-			}
-
-			c0_val |= MLB150_MLBC0_MLBPEN;
-			__raw_writel(c0_val, mlb_base + MLB150_REG_MLBC0);
-
-			clk_enable(mlb_pll_clk);
-		}
-
-		atomic_set(&mlb_devinfo[chan_dev_id].on, 1);
-
-		mlb_start_rx(chan_dev_id, ADT_DNE2);
+#ifdef DEBUG
+		mlb150_dev_dump_reg();
+		mlb150_dev_dump_ctr_tbl(0, tx_chinfo->address + 1);
+#endif
+		mlb_start_rx(rx_ch, ctype, ADT_DNE2,
+				pdevinfo->rx_bufs.phy_addrs[0]);
 	} else {
 		mlb150_dev_enable_dma_irq(0);
 		mlb150_dev_enable_ir_mlb(0);
@@ -1316,16 +1455,8 @@ static void mlb_channel_enable(int chan_dev_id, int on)
 
 		atomic_set(&mlb_devinfo[chan_dev_id].on, 0);
 
-		if (mlb_devinfo[chan_dev_id].fps >= MLB150_CLK_2048FS) {
-			c0_val = __raw_readl(mlb_base + MLB150_REG_MLBC0);
-
-			__raw_writel(0x0, mlb_base + MLB150_REG_MLBPC1);
-
-			c0_val &= ~MLB150_MLBC0_MLBPEN;
-			__raw_writel(c0_val, mlb_base + MLB150_REG_MLBC0);
-
-			clk_disable(mlb_pll_clk);
-		}
+		if (mlb_devinfo[chan_dev_id].fps >= MLB150_CLK_2048FS)
+			mlb150_disable_pll();
 	}
 }
 
@@ -1334,84 +1465,66 @@ static void mlb_channel_enable(int chan_dev_id, int on)
  */
 static void mlb_tx_isr(int minor)
 {
-	struct mlb_channel_info *pchinfo = &_get_txchan(minor);
-	u32 adt_val[4] = { 0 };
+	struct mlb_dev_info *pdevinfo = &mlb_devinfo[minor];
 
-	mlb150_dev_adt_read(pchinfo->address, adt_val);
+	pdevinfo->tx_busy = 0;
 
-	/* Select another buffer to tx */
-	if (adt_val[1] & ADT_DNE1)
-		pchinfo->buf_ptr = pchinfo->pong_buf_head;
-	else if (adt_val[1] & ADT_DNE2)
-		pchinfo->buf_ptr = pchinfo->ping_buf_head;
-	else {
-		panic("No DNE bit detected!\n");
-		return;
-	}
-
-	wake_up_interruptible(&mlb_devinfo[minor].wt_wq);
+	wake_up_interruptible(&pdevinfo->wt_wq);
 }
 
 static void mlb_rx_isr(int minor)
 {
-	struct mlb_channel_info *pchinfo = &_get_rxchan(minor);
 	struct mlb_dev_info *pdevinfo = &mlb_devinfo[minor];
-	u32 len;
-	u32 adt_val[4] = { 0 };
-	s32 wpos, rpos;
-	u8 *adt_buf_ptr = (u8 *)pchinfo->buf_ptr;
+	struct mlb_channel_info *pchinfo = &_get_rxchan(minor);
+	struct mlb_ringbuf *rx_rbuf = &pdevinfo->rx_bufs;
+	s32 wpos, rpos, adt_sts;
+	u32 rx_ring_buf = 0;
+	s32 ctype = pdevinfo->channel_type;
+	u32 ch_addr = pchinfo->address;
 
-	mlb150_dev_adt_read(pchinfo->address, adt_val);
-	/* Decide which buffer to copy data from.
-	 * Not setting ahb */
-	if (adt_val[1] & ADT_DNE1)
-		adt_buf_ptr = (u8 *)pchinfo->ping_buf_head;
-	else if (adt_val[1] & ADT_DNE2)
-		adt_buf_ptr = (u8 *)pchinfo->pong_buf_head;
-	else {
-		panic("No DNE bit detected!\n");
-		return;
-	}
+#ifdef DEBUG_RX
+	pr_debug("mxc_mlb150: mlb_rx_isr\n");
+#endif
 
-	rpos = pdevinfo->rx_rdpos;
-	wpos = pdevinfo->rx_wtpos;
+	rpos = rx_rbuf->rpos;
+	wpos = rx_rbuf->wpos;
 
-	len = pchinfo->buf_size;
+#ifdef DEBUG_RX
+	pr_debug("adt_buf_ptr: 0x%08x\n", (u32)adt_buf_ptr);
+#endif
 
 	/*!
 	 * Copy packet from IRAM buf to ring buf.
 	 * if the wpos++ == rpos, drop this packet
 	 */
 	if (((wpos + 1) % TRANS_RING_NODES) != rpos) {
-		u8 *rx_ring_buf = pdevinfo->rx_bufs[wpos].data;
+		rx_ring_buf = rx_rbuf->phy_addrs[(wpos + 1) % TRANS_RING_NODES];
 #ifdef DEBUG_RX
-		if (len > mlb150_ch_packet_buf_size[pdevinfo->channel_type])
+		if (len > mlb150_ch_packet_buf_size[ctype])
 			pr_debug("mxc_mlb150: packet overflow, "
-				"packet type: %d\n", pdevinfo->channel_type);
+				"packet type: %d\n", ctype);
 #endif
 
-		memcpy(rx_ring_buf, (const void *)adt_buf_ptr, len);
-
-		pdevinfo->rx_bufs[wpos].size = len;
-
 		/* update the ring wpos */
-		pdevinfo->rx_wtpos = (wpos + 1) % TRANS_RING_NODES;
+		rx_rbuf->wpos = (wpos + 1) % TRANS_RING_NODES;
 
 		/* wake up the reader */
 		wake_up_interruptible(&pdevinfo->rd_wq);
 
 #ifdef DEBUG_RX
 		pr_debug("recv package, len:%d, rx_rdpos: %d, rx_wtpos: %d\n",
-			 len, rpos, pdevinfo->rx_wtpos);
+			 len, rpos, pdevinfo->rx_bufs.wpos);
 #endif
 	} else {
+		rx_ring_buf = pdevinfo->rx_bufs.phy_addrs[TRANS_RING_NODES];
+
 		pr_debug
 		    ("drop package, due to no space, (%d,%d)\n",
-		     rpos, pdevinfo->rx_wtpos);
+		     rpos, pdevinfo->rx_bufs.wpos);
 	}
 
-	/* start next rx */
-	mlb_start_rx(minor, adt_val[1]);
+	adt_sts = mlb150_dev_get_adt_sts(ch_addr);
+	mlb_start_rx(ch_addr, ctype, adt_sts, rx_ring_buf);
 }
 
 static irqreturn_t mlb_ahb_isr(int irq, void *dev_id)
@@ -1429,8 +1542,6 @@ static irqreturn_t mlb_ahb_isr(int irq, void *dev_id)
 
 	hcer0 = __raw_readl(mlb_base + MLB150_REG_HCER0);
 	hcer1 = __raw_readl(mlb_base + MLB150_REG_HCER1);
-
-	pr_debug("mlb_ahb_isr: acsr0: 0x%08x, acsr1: 0x%08x\n", acsr0, acsr1);
 
 	/* Step 6, If ACTL.SCE = 1, write the result of step 5 back to ACSR0
 	 * and ACSR1 to clear the interrupt */
@@ -1496,6 +1607,10 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 		rx_int_sts = (_get_rxchan(minor).address < 31) ? ms0 : ms1;
 		tx_int_sts = (_get_txchan(minor).address < 31) ? ms0 : ms1;
 
+		pr_debug("mxc_mlb150: channel interrupt: "
+				"tx: 0x%08x, rx: 0x%08x\n",
+			(u32)tx_int_sts, (u32)rx_int_sts);
+
 		/* Get tx channel interrupt status */
 		if (tx_int_sts & (1 << (_get_txchan(minor).address % 32))) {
 			mlb150_dev_cdt_read(_get_txchan(minor).address,
@@ -1517,8 +1632,8 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 				break;
 			case MLB_CTYPE_CTRL:
 			case MLB_CTYPE_ASYNC:
-				tx_cis =
-					(cdt_val[2] & ~CDT_CTRL_ASYNC_WSTS_MASK)
+				tx_cis = (cdt_val[2] &
+					~CDT_CTRL_ASYNC_WSTS_MASK)
 					>> CDT_CTRL_ASYNC_WSTS_SHIFT;
 				tx_cis = (cdt_val[3] & CDT_CTRL_ASYNC_WSTS_1) ?
 					(tx_cis | (0x1 << 4)) : tx_cis;
@@ -1554,8 +1669,8 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 				break;
 			case MLB_CTYPE_CTRL:
 			case MLB_CTYPE_ASYNC:
-				tx_cis = (cdt_val[2] &
-					~CDT_CTRL_ASYNC_RSTS_MASK)
+				tx_cis =
+					(cdt_val[2] & ~CDT_CTRL_ASYNC_RSTS_MASK)
 					>> CDT_CTRL_ASYNC_RSTS_SHIFT;
 				tx_cis = (cdt_val[3] & CDT_CTRL_ASYNC_RSTS_1) ?
 					(tx_cis | (0x1 << 4)) : tx_cis;
@@ -1589,8 +1704,12 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 
 static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 {
-	int minor;
+	int minor, ring_buf_size, buf_size, j, ret;
+	void __iomem *buf_addr;
+	ulong phyaddr;
 	struct mxc_mlb_platform_data *plat_data;
+	struct mlb_dev_info *pdevinfo = NULL;
+	struct mlb_channel_info *pchinfo = NULL;
 
 	plat_data = container_of(inode->i_cdev, struct mxc_mlb_platform_data,
 				cdev);
@@ -1605,12 +1724,46 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 	if (unlikely(atomic_cmpxchg(&mlb_devinfo[minor].opencnt, 0, 1) != 0))
 		return -EBUSY;
 
+	pdevinfo = &mlb_devinfo[minor];
+	pchinfo = &_get_txchan(minor);
+
+	ring_buf_size = mlb150_ch_packet_buf_size[minor];
+	buf_size = ring_buf_size * (TRANS_RING_NODES + 1) + PING_BUF_MAX_SIZE;
+	buf_addr = iram_alloc(buf_size, &phyaddr);
+	memset(buf_addr, 0, buf_size);
+	if (unlikely(buf_addr == NULL)) {
+		ret = -ENOMEM;
+		dev_err(plat_data->dev, "can not alloc rx buffers\n");
+		return ret;
+	}
+
+	dev_dbg(plat_data->dev, "ch_type: %d, RX ring buf virt base: 0x%08x "
+			"phy base: 0x%08x\n",
+			pdevinfo->channel_type, (u32)buf_addr, (u32)phyaddr);
+
+	for (j = 0; j < TRANS_RING_NODES + 1;
+		++j, buf_addr += ring_buf_size, phyaddr += ring_buf_size) {
+		pdevinfo->rx_bufs.virt_bufs[j] = buf_addr;
+		pdevinfo->rx_bufs.phy_addrs[j] = phyaddr;
+		pdevinfo->rx_bufs.size = pchinfo->buf_size;
+	}
+
+	/* set the virtual and physical buf head address */
+	pchinfo->ping_buf_head = pchinfo->pong_buf_head = (u32)buf_addr;
+	pchinfo->ping_phy_head = pchinfo->pong_phy_head = phyaddr;
+
+	pchinfo->buf_ptr = (u32)buf_addr;
+	pchinfo->buf_phy_addr = phyaddr;
+
+	dev_dbg(plat_data->dev, "ctype: %d, tx phy_head: 0x%08x, "
+		"buf_head: 0x%08x\n",
+		pchinfo->address,
+		(u32)pchinfo->buf_phy_addr,
+		(u32)pchinfo->buf_ptr);
+
 	/* reset the buffer read/write ptr */
-	_get_txchan(minor).buf_ptr = _get_txchan(minor).ping_buf_head;
-	_get_rxchan(minor).buf_ptr = _get_rxchan(minor).ping_buf_head;
-	mlb_devinfo[minor].rx_rdpos = mlb_devinfo[minor].rx_wtpos = 0;
-	mlb_devinfo[minor].tx_rdpos = mlb_devinfo[minor].tx_wtpos = 0;
-	mlb_devinfo[minor].ex_event = 0;
+	pdevinfo->rx_bufs.rpos = pdevinfo->rx_bufs.wpos = 0;
+	pdevinfo->ex_event = 0;
 
 	return 0;
 }
@@ -1618,11 +1771,23 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 static int mxc_mlb150_release(struct inode *inode, struct file *filp)
 {
 	int minor;
+	u32 buf_size;
 
 	minor = MINOR(inode->i_rdev);
 
+#ifdef DEBUG
+	mlb150_dev_dump_reg();
+	mlb150_dev_dump_ctr_tbl(0, _get_txchan(minor).address + 1);
+	mlb150_dev_dump_hex((const u8 *)mlb_devinfo[minor].rx_bufs.virt_bufs[0],
+			mlb_devinfo[minor].rx_bufs.size);
+#endif
+
 	/* clear channel settings and info */
 	mlb_channel_enable(minor, 0);
+
+	buf_size = mlb150_ch_packet_buf_size[minor] *
+			(TRANS_RING_NODES + 1) + PING_BUF_MAX_SIZE;
+	iram_free(mlb_devinfo[minor].rx_bufs.phy_addrs[0], buf_size);
 
 	/* decrease the open count */
 	atomic_set(&mlb_devinfo[minor].opencnt, 0);
@@ -1640,8 +1805,6 @@ static long mxc_mlb150_ioctl(struct file *filp,
 	struct mxc_mlb_platform_data *plat_data = filp->private_data;
 
 	minor = MINOR(inode->i_rdev);
-
-	pr_debug("mxc_mlb150: minor: %d\n", minor);
 
 	switch (cmd) {
 	case MLB_CHAN_SETADDR:
@@ -1810,7 +1973,8 @@ static ssize_t mxc_mlb150_read(struct file *filp, char __user *buf,
 {
 	int minor, ret;
 	int size, rdpos;
-	struct mlb_ringnode *rxbuf = NULL;
+	struct mlb_ringbuf *rx_rbuf = NULL;
+	struct mlb_dev_info *pdevinfo = NULL;
 
 #ifdef DEBUG_RX
 	pr_debug("mxc_mlb150: mxc_mlb150_read\n");
@@ -1818,37 +1982,39 @@ static ssize_t mxc_mlb150_read(struct file *filp, char __user *buf,
 
 	minor = MINOR(filp->f_dentry->d_inode->i_rdev);
 
-	rdpos = mlb_devinfo[minor].rx_rdpos;
-	rxbuf = mlb_devinfo[minor].rx_bufs;
+	pdevinfo = &mlb_devinfo[minor];
+
+	rdpos = pdevinfo->rx_bufs.rpos;
+	rx_rbuf = &pdevinfo->rx_bufs;
 
 	/* check the current rx buffer is available or not */
-	if (rdpos == mlb_devinfo[minor].rx_wtpos) {
+	if (rdpos == rx_rbuf->wpos) {
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
 		/* if !O_NONBLOCK, we wait for recv packet */
-		ret = wait_event_interruptible(mlb_devinfo[minor].rd_wq,
-						(mlb_devinfo[minor].rx_wtpos !=
-						rdpos));
+		ret = wait_event_interruptible(pdevinfo->rd_wq,
+						(rx_rbuf->wpos != rdpos));
 		if (ret < 0)
 			return ret;
 	}
 
-	size = rxbuf[rdpos].size;
+	size = mlb150_ch_packet_buf_size[minor];
 	if (unlikely(size > count)) {
 		/* the user buffer is too small */
 		pr_warning
-		    ("mxc_mlb150: received data size is bigger than count\n");
+			("mxc_mlb150: received data size is bigger than "
+			"size: %d, count: %d\n", size, count);
 		return -EINVAL;
 	}
 
 	/* copy rx buffer data to user buffer */
-	if (unlikely(copy_to_user(buf, rxbuf[rdpos].data, size))) {
+	if (likely(copy_to_user(buf, rx_rbuf->virt_bufs[rdpos], size))) {
 		pr_err("mxc_mlb150: copy from user failed\n");
 		return -EFAULT;
 	}
 
 	/* update the read ptr */
-	mlb_devinfo[minor].rx_rdpos = (rdpos + 1) % TRANS_RING_NODES;
+	rx_rbuf->rpos = (rdpos + 1) % TRANS_RING_NODES;
 
 	*f_pos = 0;
 
@@ -1867,7 +2033,7 @@ static ssize_t mxc_mlb150_write(struct file *filp, const char __user *buf,
 	s32 minor = 0, ret = 0;
 	struct mlb_channel_info *pchinfo = NULL;
 	struct mlb_dev_info *pdevinfo = NULL;
-	u32 adt_val[4] = { 0 };
+	u32 adt_sts = 0;
 
 	minor = MINOR(filp->f_dentry->d_inode->i_rdev);
 	pchinfo = &_get_txchan(minor);
@@ -1881,13 +2047,32 @@ static ssize_t mxc_mlb150_write(struct file *filp, const char __user *buf,
 
 	*f_pos = 0;
 
-	memcpy((void *)pchinfo->buf_ptr, buf, count);
+	/* check the current tx buffer is used or not */
+	if (1 == pdevinfo->tx_busy) {
+		if (filp->f_flags & O_NONBLOCK)
+			return -EAGAIN;
 
-	mlb150_dev_adt_read(pchinfo->address, adt_val);
-	mlb_start_tx(minor, adt_val[1]);
+		ret = wait_event_interruptible(pdevinfo->wt_wq,
+				0 == pdevinfo->tx_busy);
+
+		if (ret < 0)
+			goto out;
+	}
+
+	if (copy_from_user((void *)pchinfo->buf_ptr, buf, count)) {
+		pr_err("mxc_mlb: copy from user failed\n");
+		ret = -EFAULT;
+		goto out;
+	}
+
+	adt_sts = mlb150_dev_get_adt_sts(pchinfo->address);
+	pdevinfo->tx_busy = 1;
+	mlb_start_tx(pchinfo->address, pdevinfo->channel_type,
+			adt_sts, pchinfo->buf_phy_addr);
 
 	ret = count;
 
+out:
 	return ret;
 }
 
@@ -1896,22 +2081,25 @@ static unsigned int mxc_mlb150_poll(struct file *filp,
 {
 	int minor;
 	unsigned int ret = 0;
+	struct mlb_dev_info *pdevinfo = NULL;
 
 	minor = MINOR(filp->f_dentry->d_inode->i_rdev);
 
-	poll_wait(filp, &mlb_devinfo[minor].rd_wq, wait);
-	poll_wait(filp, &mlb_devinfo[minor].wt_wq, wait);
+	pdevinfo = &mlb_devinfo[minor];
+
+	poll_wait(filp, &pdevinfo->rd_wq, wait);
+	poll_wait(filp, &pdevinfo->wt_wq, wait);
 
 	/* check the tx buffer is avaiable or not */
-	if (mlb_devinfo[minor].tx_rdpos != mlb_devinfo[minor].tx_wtpos)
+	if (0 == pdevinfo->tx_busy)
 		ret |= POLLOUT | POLLWRNORM;
 
 	/* check the rx buffer filled or not */
-	if (mlb_devinfo[minor].rx_rdpos != mlb_devinfo[minor].rx_wtpos)
+	if (pdevinfo->rx_bufs.rpos != pdevinfo->rx_bufs.wpos)
 		ret |= POLLIN | POLLRDNORM;
 
 	/* check the exception event */
-	if (mlb_devinfo[minor].ex_event)
+	if (pdevinfo->ex_event)
 		ret |= POLLIN | POLLRDNORM;
 
 	return ret;
@@ -1936,42 +2124,14 @@ static const struct file_operations mxc_mlb150_fops = {
  */
 static int __devinit mxc_mlb150_probe(struct platform_device *pdev)
 {
-	int ret, mlb_major, i, j;
+	int ret, mlb_major, i;
 	struct mxc_mlb_platform_data *plat_data;
 	struct resource *res;
-	void __iomem *base, *bufaddr;
-	unsigned long phyaddr;
+	void __iomem *base;
 
-	plat_data = (struct mxc_mlb_platform_data *)pdev->dev.platform_data;
+	plat_data =
+		(struct mxc_mlb_platform_data *)pdev->dev.platform_data;
 	plat_data->dev = &pdev->dev;
-
-	/* malloc the Rx ring buffer firstly */
-	for (i = 0; i < MLB_MINOR_DEVICES; ++i) {
-		char *buf;
-		int bufsize;
-
-		bufsize =
-			mlb150_ch_packet_buf_size[mlb_devinfo[i].channel_type];
-		buf = kmalloc(bufsize * TRANS_RING_NODES * 2, GFP_KERNEL);
-		if (unlikely(buf == NULL)) {
-			ret = -ENOMEM;
-			dev_err(plat_data->dev, "can not alloc rx buffers\n");
-			goto err3;
-		}
-
-		dev_dbg(plat_data->dev, "ch_type: %d, ring buf base: 0x%08x\n",
-				mlb_devinfo[i].channel_type, (u32)buf);
-
-		for (j = 0; j < TRANS_RING_NODES; ++j) {
-			mlb_devinfo[i].rx_bufs[j].data = buf;
-			buf += bufsize;
-		}
-
-		for (j = 0; j < TRANS_RING_NODES; ++j) {
-			mlb_devinfo[i].tx_bufs[j].data = buf;
-			buf += bufsize;
-		}
-	}
 
 	/**
 	 * Register MLB lld as four character devices
@@ -2079,77 +2239,6 @@ static int __devinit mxc_mlb150_probe(struct platform_device *pdev)
 
 	dev_dbg(plat_data->dev, "mlb reg base: 0x%08x\n", mlb_base);
 
-	/*!
-	 * get rx/tx buffer address from platform data
-	 * make sure the buf_address is 4bytes aligned
-	 *
-	 * -------------------   <-- plat_data->buf_address
-	 * | minor 0 tx buf  |
-	 *  -----------------
-	 * | minor 0 rx buf  |
-	 *  -----------------
-	 * |    ....         |
-	 *  -----------------
-	 * | minor n tx buf  |
-	 *  -----------------
-	 * | minor n rx buf  |
-	 * -------------------
-	 */
-	bufaddr = iram_alloc(MLB_IRAM_SIZE, &iram_base);
-	plat_data->buf_addr = (u32)bufaddr;
-	plat_data->phy_addr = phyaddr = iram_base;
-
-	dev_dbg(plat_data->dev, "iram buf base: 0x%08x, phy base: 0x%08x\n",
-			plat_data->buf_addr, plat_data->phy_addr);
-
-	for (i = 0; i < MLB_MINOR_DEVICES; i++) {
-		/* set the virtual and physical buf head address */
-		_get_txchan(i).ping_buf_head = (u32)bufaddr;
-		_get_txchan(i).ping_phy_head = phyaddr;
-
-		bufaddr += PING_BUF_MAX_SIZE;
-		phyaddr += PING_BUF_MAX_SIZE;
-
-		_get_rxchan(i).ping_buf_head = (u32)bufaddr;
-		_get_rxchan(i).ping_phy_head = phyaddr;
-
-		bufaddr += PING_BUF_MAX_SIZE;
-		phyaddr += PING_BUF_MAX_SIZE;
-
-		_get_txchan(i).pong_buf_head = (u32)bufaddr;
-		_get_txchan(i).pong_phy_head = phyaddr;
-
-		bufaddr += PONG_BUF_MAX_SIZE;
-		phyaddr += PONG_BUF_MAX_SIZE;
-
-		_get_rxchan(i).pong_buf_head = (u32)bufaddr;
-		_get_rxchan(i).pong_phy_head = phyaddr;
-
-		bufaddr += PONG_BUF_MAX_SIZE;
-		phyaddr += PONG_BUF_MAX_SIZE;
-
-		dev_dbg(plat_data->dev, "ctype: %d, tx phy_head: ping(0x%08x), "
-				"pong(0x%08x)\n",
-			i,
-			(u32)_get_txchan(i).ping_phy_head,
-			(u32)_get_txchan(i).pong_phy_head);
-		dev_dbg(plat_data->dev, "ctype: %d, tx buf_head: ping(0x%08x), "
-				"pong(0x%08x)\n",
-			i,
-			(u32)_get_txchan(i).ping_buf_head,
-			(u32)_get_txchan(i).pong_buf_head);
-		dev_dbg(plat_data->dev, "ctype: %d, rx phy_head: ping(0x%08x), "
-				"pong(0x%08x)\n",
-			i,
-			(u32)_get_rxchan(i).ping_phy_head,
-			(u32)_get_rxchan(i).pong_phy_head);
-		dev_dbg(plat_data->dev, "ctype: %d, rx buf_head: ping(0x%08x), "
-				"pong(0x%08x)\n",
-			i,
-			(u32)_get_rxchan(i).ping_buf_head,
-			(u32)_get_rxchan(i).pong_buf_head);
-	}
-
 	if (plat_data->reg_nvcc) {
 		/* power on MLB */
 		reg_nvcc = regulator_get(plat_data->dev, plat_data->reg_nvcc);
@@ -2205,9 +2294,6 @@ err1:
 	class_destroy(mlb_class);
 err2:
 	unregister_chrdev_region(dev, MLB_MINOR_DEVICES);
-err3:
-	for (i = 0; i < MLB_MINOR_DEVICES; i++)
-		kfree(mlb_devinfo[i].rx_bufs[0].data);
 
 	return ret;
 }
@@ -2239,11 +2325,6 @@ static int __devexit mxc_mlb150_remove(struct platform_device *pdev)
 	/* inactive GPIO */
 	gpio_mlb_inactive();
 
-	if (iram_base) {
-		iram_free(iram_base, MLB_IRAM_SIZE);
-		iram_base = 0;
-	}
-
 	/* iounmap */
 	if (mlb_base) {
 		iounmap((void *)mlb_base);
@@ -2265,9 +2346,6 @@ static int __devexit mxc_mlb150_remove(struct platform_device *pdev)
 
 	/* Unregister the two MLB devices */
 	unregister_chrdev_region(dev, MLB_MINOR_DEVICES);
-
-	for (i = 0; i < MLB_MINOR_DEVICES; i++)
-		kfree(mlb_devinfo[i].rx_bufs[0].data);
 
 	return 0;
 }
