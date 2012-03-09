@@ -56,8 +56,6 @@ static iomux_v3_cfg_t mx6dl_sabreauto_pads[] = {
 	/* MCLK for csi0 */
 	MX6DL_PAD_GPIO_0__CCM_CLKO,
 	/*MX6DL_PAD_GPIO_3__CCM_CLKO2,i*/
-	MX6DL_PAD_GPIO_3__I2C3_SCL,
-	MX6DL_PAD_GPIO_16__I2C3_SDA,
 
 	/* Android GPIO keys */
 	MX6DL_PAD_SD2_CMD__GPIO_1_11, /* home */
@@ -330,4 +328,16 @@ static iomux_v3_cfg_t mx6dl_gpmi_nand[] __initdata = {
 	MX6DL_PAD_SD4_CMD__RAWNAND_RDN,
 	MX6DL_PAD_SD4_CLK__RAWNAND_WRN,
 	MX6DL_PAD_NANDF_WP_B__RAWNAND_RESETN,
+};
+
+static iomux_v3_cfg_t mx6dl_i2c3_pads_rev_a[] __initdata = {
+	MX6DL_PAD_GPIO_3__I2C3_SCL,
+	MX6DL_PAD_GPIO_16__I2C3_SDA,
+};
+
+static iomux_v3_cfg_t mx6dl_i2c3_pads_rev_b[] __initdata = {
+	MX6DL_PAD_GPIO_3__I2C3_SCL,
+	MX6DL_PAD_EIM_D18__I2C3_SDA,
+	MX6DL_PAD_EIM_A24__GPIO_5_4,
+	MX6DL_PAD_GPIO_16__ENET_ANATOP_ETHERNET_REF_OUT,
 };
