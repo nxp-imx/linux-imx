@@ -1061,22 +1061,31 @@ static int _clk_pll_mlb_main_enable(struct clk *clk)
 	reg = __raw_readl(pllbase);
 	reg &= ~ANADIG_PLL_BYPASS;
 
-	reg = 0x0da20000;
+	reg = 0x0da20800;
 	__raw_writel(reg, pllbase);
 
-	/* Wait for PLL to lock */
-	if (!WAIT(__raw_readl(pllbase) & ANADIG_PLL_LOCK,
-		SPIN_DELAY))
-		panic("pll enable failed\n");
-
 	return 0;
+}
+
+static int _clk_pll_mlb_main_disable(struct clk *clk)
+{
+	unsigned int reg;
+	void __iomem *pllbase;
+
+	pllbase = _get_pll_base(clk);
+
+	reg = __raw_readl(pllbase);
+
+	reg |= ANADIG_PLL_BYPASS;
+
+	__raw_writel(reg, pllbase);
 }
 
 static struct clk pll6_mlb150_main_clk = {
 	__INIT_CLK_DEBUG(pll6_mlb150_main_clk)
 	.parent = &osc_clk,
 	.enable = _clk_pll_mlb_main_enable,
-	.disable = _clk_pll_disable,
+	.disable = _clk_pll_mlb_main_disable,
 };
 
 static unsigned long _clk_pll7_usb_otg_get_rate(struct clk *clk)
