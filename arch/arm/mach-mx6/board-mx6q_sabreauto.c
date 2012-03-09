@@ -102,6 +102,7 @@
 #define SABREAUTO_DISP0_DET_INT		IMX_GPIO_NR(3, 31)
 #define SABREAUTO_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define SABREAUTO_DISP0_RESET		IMX_GPIO_NR(5, 0)
+#define SABREAUTO_I2C3_STEER		IMX_GPIO_NR(5, 4)
 #define SABREAUTO_ANDROID_VOLDOWN	IMX_GPIO_NR(5, 14)
 #define SABREAUTO_PMIC_INT		IMX_GPIO_NR(5, 16)
 #define SABREAUTO_SD1_WP		IMX_GPIO_NR(5, 20)
@@ -128,6 +129,7 @@
 #define SABREAUTO_CAN_EN		SABREAUTO_IO_EXP_GPIO2(6)
 #define SABREAUTO_USB_HOST1_PWR		SABREAUTO_IO_EXP_GPIO2(7)
 #define SABREAUTO_USB_OTG_PWR		SABREAUTO_IO_EXP_GPIO3(2)
+#define BMCR_PDOWN			0x0800 /* PHY Powerdown */
 
 static struct clk *sata_clk;
 static int mipi_sensor;
@@ -296,17 +298,43 @@ static inline void mx6q_sabreauto_init_uart(void)
 
 static int mx6q_sabreauto_fec_phy_init(struct phy_device *phydev)
 {
-/* prefer master mode, 1000 Base-T capable */
-	phy_write(phydev, 0x9, 0x0f00);
+	unsigned short val;
 
-	/* min rx data delay */
-	phy_write(phydev, 0x0b, 0x8105);
-	phy_write(phydev, 0x0c, 0x0000);
+	if (!board_is_mx6_sabreauto_reva()) {
+		/* To enable AR8031 ouput a 125MHz clk from CLK_25M */
+		phy_write(phydev, 0xd, 0x7);
+		phy_write(phydev, 0xe, 0x8016);
+		phy_write(phydev, 0xd, 0x4007);
+		val = phy_read(phydev, 0xe);
 
-	/* max rx/tx clock delay, min rx/tx control delay */
-	phy_write(phydev, 0x0b, 0x8104);
-	phy_write(phydev, 0x0c, 0xf0f0);
-	phy_write(phydev, 0x0b, 0x104);
+		val &= 0xffe3;
+		val |= 0x18;
+		phy_write(phydev, 0xe, val);
+
+		/* Introduce tx clock delay */
+		phy_write(phydev, 0x1d, 0x5);
+		val = phy_read(phydev, 0x1e);
+		val |= 0x0100;
+		phy_write(phydev, 0x1e, val);
+
+		/*check phy power*/
+		val = phy_read(phydev, 0x0);
+
+		if (val & BMCR_PDOWN)
+			phy_write(phydev, 0x0, (val & ~BMCR_PDOWN));
+	} else {
+		/* prefer master mode, 1000 Base-T capable */
+		phy_write(phydev, 0x9, 0x0f00);
+
+		/* min rx data delay */
+		phy_write(phydev, 0x0b, 0x8105);
+		phy_write(phydev, 0x0c, 0x0000);
+
+		/* max rx/tx clock delay, min rx/tx control delay */
+		phy_write(phydev, 0x0b, 0x8104);
+		phy_write(phydev, 0x0c, 0xf0f0);
+		phy_write(phydev, 0x0b, 0x104);
+	}
 
 	return 0;
 }
@@ -1185,11 +1213,13 @@ static void __init mx6_board_init(void)
 	iomux_v3_cfg_t *can0_pads = NULL;
 	iomux_v3_cfg_t *can1_pads = NULL;
 	iomux_v3_cfg_t *mipi_sensor_pads = NULL;
+	iomux_v3_cfg_t *i2c3_pads = NULL;
 
 	int common_pads_cnt;
 	int can0_pads_cnt;
 	int can1_pads_cnt;
 	int mipi_sensor_pads_cnt;
+	int i2c3_pads_cnt;
 
 	if (cpu_is_mx6q()) {
 		common_pads = mx6q_sabreauto_pads;
@@ -1201,6 +1231,13 @@ static void __init mx6_board_init(void)
 		can0_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can0_pads);
 		can1_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can1_pads);
 		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_mipi_sensor_pads);
+		if (board_is_mx6_sabreauto_reva()) {
+			i2c3_pads = mx6q_i2c3_pads_rev_a;
+			i2c3_pads_cnt = ARRAY_SIZE(mx6q_i2c3_pads_rev_a);
+		} else {
+			i2c3_pads = mx6q_i2c3_pads_rev_b;
+			i2c3_pads_cnt = ARRAY_SIZE(mx6q_i2c3_pads_rev_b);
+		}
 	} else if (cpu_is_mx6dl()) {
 		common_pads = mx6dl_sabreauto_pads;
 		can0_pads = mx6dl_sabreauto_can0_pads;
@@ -1211,10 +1248,19 @@ static void __init mx6_board_init(void)
 		can0_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can0_pads);
 		can1_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can1_pads);
 		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_mipi_sensor_pads);
+		if (board_is_mx6_sabreauto_reva()) {
+			i2c3_pads = mx6dl_i2c3_pads_rev_a;
+			i2c3_pads_cnt = ARRAY_SIZE(mx6dl_i2c3_pads_rev_a);
+		} else {
+			i2c3_pads = mx6dl_i2c3_pads_rev_b;
+			i2c3_pads_cnt = ARRAY_SIZE(mx6dl_i2c3_pads_rev_b);
+		}
 	}
 
 	BUG_ON(!common_pads);
 	mxc_iomux_v3_setup_multiple_pads(common_pads, common_pads_cnt);
+	BUG_ON(!i2c3_pads);
+	mxc_iomux_v3_setup_multiple_pads(i2c3_pads, i2c3_pads_cnt);
 
 	if (!uart2_en) {
 		if (can0_enable) {
@@ -1229,6 +1275,19 @@ static void __init mx6_board_init(void)
 	/* assert i2c-rst  */
 	gpio_request(SABREAUTO_I2C_EXP_RST, "i2c-rst");
 	gpio_direction_output(SABREAUTO_I2C_EXP_RST, 1);
+
+	if (!board_is_mx6_sabreauto_reva()) {
+		/* enable i2c3_sda route path */
+		gpio_request(SABREAUTO_I2C3_STEER, "i2c3-steer");
+		gpio_direction_output(SABREAUTO_I2C3_STEER, 1);
+		/* Set GPIO_16 input for IEEE-1588 ts_clk and
+		 * RMII reference clk
+		 * For MX6 GPR1 bit21 meaning:
+		 * Bit21:   0 - GPIO_16 pad output
+		 *          1 - GPIO_16 pad input
+		 */
+		mxc_iomux_set_gpr_register(1, 21, 1, 1);
+	}
 
 	if (mipi_sensor) {
 		BUG_ON(!mipi_sensor_pads);
