@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -811,7 +811,7 @@ static int isl29023_init_client(struct i2c_client *client)
 	isl29023_set_resolution(client, ISL29023_RES_16);
 	isl29023_set_mode(client, ISL29023_ALS_ONCE_MODE);
 	isl29023_set_int_flag(client, 0);
-	isl29023_set_power_state(client, 0);
+	isl29023_set_power_state(client, ISL29023_PD_MODE);
 
 	return 0;
 }
@@ -866,7 +866,7 @@ static int __devinit isl29023_probe(struct i2c_client *client,
 	if (!data)
 		return -ENOMEM;
 
-	ls_data = (struct mxc_lightsensor_platform_data *)
+	ls_data = (struct fsl_mxc_lightsensor_platform_data *)
 	    (client->dev).platform_data;
 
 	data->client = client;
@@ -945,7 +945,7 @@ static int __devexit isl29023_remove(struct i2c_client *client)
 	input_unregister_device(data->input);
 	input_free_device(data->input);
 	sysfs_remove_group(&client->dev.kobj, &isl29023_attr_group);
-	isl29023_set_power_state(client, 0);
+	isl29023_set_power_state(client, ISL29023_PD_MODE);
 	kfree(i2c_get_clientdata(client));
 
 	return 0;

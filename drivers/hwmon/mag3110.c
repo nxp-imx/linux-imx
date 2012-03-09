@@ -40,10 +40,11 @@
 #define MAG3110_AC_OFFSET       0
 #define MAG3110_DR_MODE_MASK    (0x7 << 5)
 #define MAG3110_DR_MODE_OFFSET  5
-#define MAG3110_IRQ_USED	0
+#define MAG3110_IRQ_USED	1
 
-#define POLL_INTERVAL_MAX	500
-#define POLL_INTERVAL		100
+#define POLL_INTERVAL_MIN	100
+#define POLL_INTERVAL_MAX	1000
+#define POLL_INTERVAL		500
 #define INT_TIMEOUT		1000
 /* register enum for mag3110 registers */
 enum {
@@ -429,6 +430,7 @@ static int __devinit mag3110_probe(struct i2c_client *client,
 	}
 	data->poll_dev->poll = mag3110_dev_poll;
 	data->poll_dev->poll_interval = POLL_INTERVAL;
+	data->poll_dev->poll_interval_min = POLL_INTERVAL_MIN;
 	data->poll_dev->poll_interval_max = POLL_INTERVAL_MAX;
 	idev = data->poll_dev->input;
 	idev->name = MAG3110_DRV_NAME;
