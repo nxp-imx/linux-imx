@@ -40,6 +40,8 @@
 #include "ipu_prp_sw.h"
 
 #define init_MUTEX(sem)         sema_init(sem, 1)
+#define MXC_SENSOR_NUM 2
+static int sensor_index;
 
 static int video_nr = -1, local_buf_num;
 static cam_data *g_cam;
@@ -308,7 +310,7 @@ static int mxc_v4l2_prepare_bufs(cam_data *cam, struct v4l2_buffer *buf)
 	pr_debug("In MVC:mxc_v4l2_prepare_bufs\n");
 
 	if (buf->index < 0 || buf->index >= FRAME_NUM || buf->length <
-			PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage)) {
+			cam->v2f.fmt.pix.sizeimage) {
 		pr_err("ERROR: v4l2 capture: mxc_v4l2_prepare_bufs buffers "
 			"not allocated,index=%d, length=%d\n", buf->index,
 			buf->length);
@@ -1033,8 +1035,9 @@ static int mxc_v4l2_g_ctrl(cam_data *cam, struct v4l2_control *c)
  */
 static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 {
-	int ret = 0;
+	int i, ret = 0;
 	int tmp_rotation = IPU_ROTATE_NONE;
+	struct sensor_data *sensor_data;
 
 	pr_debug("In MVC:mxc_v4l2_s_ctrl\n");
 
@@ -1203,6 +1206,25 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 		ipu_csi_flash_strobe(true);
 #endif
 		break;
+	case V4L2_CID_MXC_SWITCH_CAM:
+		if (cam->sensor != cam->all_sensors[c->value]) {
+			/* power down other cameraes before enable new one */
+			for (i = 0; i < sensor_index; i++) {
+				if (i != c->value) {
+					vidioc_int_dev_exit(cam->all_sensors[i]);
+					vidioc_int_s_power(cam->all_sensors[i], 0);
+				}
+			}
+			sensor_data = cam->all_sensors[c->value]->priv;
+			if (sensor_data->io_init)
+				sensor_data->io_init();
+			cam->sensor = cam->all_sensors[c->value];
+			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, true, true);
+			vidioc_int_s_power(cam->sensor, 1);
+			vidioc_int_dev_init(cam->sensor);
+			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, false, false);
+		}
+		break;
 	default:
 		pr_debug("   default case\n");
 		ret = -EINVAL;
@@ -1227,6 +1249,7 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 	struct v4l2_format cam_fmt;
 	struct v4l2_streamparm currentparm;
 	ipu_csi_signal_cfg_t csi_param;
+	u32 current_fps, parm_fps;
 	int err = 0;
 
 	pr_debug("In mxc_v4l2_s_param\n");
@@ -1251,18 +1274,18 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 		goto exit;
 	}
 
+	current_fps = currentparm.parm.capture.timeperframe.denominator
+			/ currentparm.parm.capture.timeperframe.numerator;
+	parm_fps = parm->parm.capture.timeperframe.denominator
+			/ parm->parm.capture.timeperframe.numerator;
+
 	pr_debug("   Current capabilities are %x\n",
 			currentparm.parm.capture.capability);
 	pr_debug("   Current capturemode is %d  change to %d\n",
 			currentparm.parm.capture.capturemode,
 			parm->parm.capture.capturemode);
 	pr_debug("   Current framerate is %d  change to %d\n",
-			currentparm.parm.capture.timeperframe.denominator,
-			parm->parm.capture.timeperframe.denominator);
-
-	if (parm->parm.capture.capturemode == currentparm.parm.capture.capturemode) {
-		return 0;
-	}
+			current_fps, parm_fps);
 
 	/* This will change any camera settings needed. */
 	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, true, true);
@@ -1293,10 +1316,16 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 	csi_param.csi = 0;
 	csi_param.mclk = 0;
 
-	/* This may not work on other platforms. Check when adding a new one.*/
+	/*This may not work on other platforms. Check when adding a new one.*/
+	/*The mclk clock was never set correclty in the ipu register*/
+	/*for now we are going to use this mclk as pixel clock*/
+	/*to set csi0_data_dest register.*/
+	/*This is a workaround which should be fixed*/
 	pr_debug("   clock_curr=mclk=%d\n", ifparm.u.bt656.clock_curr);
 	if (ifparm.u.bt656.clock_curr == 0) {
 		csi_param.clk_mode = IPU_CSI_CLK_MODE_CCIR656_INTERLACED;
+		/*protocol bt656 use 27Mhz pixel clock */
+		csi_param.mclk = 27000000;
 	} else {
 		csi_param.clk_mode = IPU_CSI_CLK_MODE_GATED_CLK;
 	}
@@ -1566,6 +1595,7 @@ static int mxc_v4l_open(struct file *file)
 		csi_param.pack_tight = 0;
 		csi_param.force_eof = 0;
 		csi_param.data_en_pol = 0;
+
 		csi_param.mclk = ifparm.u.bt656.clock_curr;
 
 		csi_param.pixclk_pol = ifparm.u.bt656.latch_clk_inv;
@@ -2810,15 +2840,30 @@ static int mxc_v4l2_master_attach(struct v4l2_int_device *slave)
 {
 	cam_data *cam = slave->u.slave->master->priv;
 	struct v4l2_format cam_fmt;
+	int i;
 
 	pr_debug("In MVC: mxc_v4l2_master_attach\n");
 	pr_debug("   slave.name = %s\n", slave->name);
 	pr_debug("   master.name = %s\n", slave->u.slave->master->name);
 
-	cam->sensor = slave;
 	if (slave == NULL) {
 		pr_err("ERROR: v4l2 capture: slave parameter not valid.\n");
 		return -1;
+	}
+
+	cam->sensor = slave;
+
+	if (sensor_index < MXC_SENSOR_NUM) {
+		cam->all_sensors[sensor_index] = slave;
+		sensor_index++;
+	} else {
+		pr_err("ERROR: v4l2 capture: slave number exceeds the maximum.\n");
+		return -1;
+	}
+
+	for (i = 0; i < sensor_index - 1; i++) {
+		vidioc_int_dev_exit(cam->all_sensors[i]);
+		vidioc_int_s_power(cam->all_sensors[i], 0);
 	}
 
 	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, true, true);

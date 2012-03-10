@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -79,27 +79,7 @@ struct ov5642_mode_info {
 /*!
  * Maintains the information on the current state of the sesor.
  */
-struct sensor {
-	const struct ov5642_platform_data *platform_data;
-	struct v4l2_int_device *v4l2_int_device;
-	struct i2c_client *i2c_client;
-	struct v4l2_pix_format pix;
-	struct v4l2_captureparm streamcap;
-	bool on;
-
-	/* control settings */
-	int brightness;
-	int hue;
-	int contrast;
-	int saturation;
-	int red;
-	int green;
-	int blue;
-	int ae_mode;
-
-	u32 mclk;
-	int csi;
-} ov5642_data;
+struct sensor_data ov5642_data;
 
 static struct reg_value ov5642_rotate_none_VGA[] = {
 	{0x3818, 0xc1, 0x00, 0x00}, {0x3621, 0x87, 0x00, 0x00},
@@ -1881,6 +1861,7 @@ err:
 }
 static int ov5642_init_mode(enum ov5642_frame_rate frame_rate,
 		enum ov5642_mode mode);
+static int ov5642_write_snapshot_para(void);
 static int ov5642_change_mode(enum ov5642_frame_rate frame_rate,
 		enum ov5642_mode new_mode,  enum ov5642_mode orig_mode)
 {
@@ -1906,10 +1887,10 @@ static int ov5642_change_mode(enum ov5642_frame_rate frame_rate,
 		ov5642_data.pix.height = 480;
 		return 0;
 	} else if (new_mode == ov5642_mode_QSXGA_2592_1944 && orig_mode == ov5642_mode_VGA_640_480) {
-		pModeSetting = ov5642_setting_15fps_QSXGA_2592_1944;
-		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_15fps_QSXGA_2592_1944);
 		ov5642_data.pix.width = 2592;
 		ov5642_data.pix.height = 1944;
+		retval = ov5642_write_snapshot_para();
+		return retval;
 	} else if (new_mode == ov5642_mode_VGA_640_480 && orig_mode == ov5642_mode_QSXGA_2592_1944) {
 		pModeSetting = ov5642_setting_QSXGA_2_VGA;
 		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_QSXGA_2_VGA);
@@ -2154,7 +2135,7 @@ static int ioctl_g_ifparm(struct v4l2_int_device *s, struct v4l2_ifparm *p)
  */
 static int ioctl_s_power(struct v4l2_int_device *s, int on)
 {
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 
 	if (on && !sensor->on) {
 		if (io_regulator)
@@ -2182,6 +2163,9 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 			regulator_disable(io_regulator);
 		if (gpo_regulator)
 			regulator_disable(gpo_regulator);
+
+		if (camera_plat->pwdn)
+			camera_plat->pwdn(1);
 	}
 
 	sensor->on = on;
@@ -2198,7 +2182,7 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
  */
 static int ioctl_g_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 {
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 	struct v4l2_captureparm *cparm = &a->parm.capture;
 	int ret = 0;
 
@@ -2243,7 +2227,7 @@ static int ioctl_g_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
  */
 static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 {
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 	struct v4l2_fract *timeperframe = &a->parm.capture.timeperframe;
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov5642_frame_rate frame_rate;
@@ -2325,7 +2309,7 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
  */
 static int ioctl_g_fmt_cap(struct v4l2_int_device *s, struct v4l2_format *f)
 {
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 
 	f->fmt.pix = sensor->pix;
 
@@ -2386,7 +2370,7 @@ static int ioctl_g_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 {
 	int retval = 0;
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 	__u32 captureMode = sensor->streamcap.capturemode;
 
 	pr_debug("In ov5642:ioctl_s_ctrl %d\n",
@@ -2560,7 +2544,7 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	u8 RegVal = 0;
 	int retval = 0;
 
-	struct sensor *sensor = s->priv;
+	struct sensor_data *sensor = s->priv;
 	u32 tgt_xclk;	/* target xclk */
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov5642_frame_rate frame_rate;
@@ -2688,6 +2672,7 @@ static int ov5642_probe(struct i2c_client *client,
 	ov5642_data.mclk = 24000000; /* 6 - 54 MHz, typical 24MHz */
 	ov5642_data.mclk = plat_data->mclk;
 	ov5642_data.csi = plat_data->csi;
+	ov5642_data.io_init = plat_data->io_init;
 
 	ov5642_data.i2c_client = client;
 	ov5642_data.pix.pixelformat = V4L2_PIX_FMT_YUYV;
@@ -2756,9 +2741,6 @@ static int ov5642_probe(struct i2c_client *client,
 
 	if (plat_data->io_init)
 		plat_data->io_init();
-
-	if (plat_data->pwdn)
-		plat_data->pwdn(0);
 
 	camera_plat = plat_data;
 

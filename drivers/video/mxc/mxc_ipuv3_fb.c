@@ -266,6 +266,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	if (retval) {
 		dev_err(fbi->device,
 			"ipu_init_channel_buffer error %d\n", retval);
+		return retval;
 	}
 
 	/* update u/v offset */
@@ -443,8 +444,10 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	}
 
 	retval = _setup_disp_channel2(fbi);
-	if (retval)
+	if (retval) {
+		ipu_uninit_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
 		return retval;
+	}
 
 	ipu_enable_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
 

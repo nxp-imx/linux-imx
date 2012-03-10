@@ -76,14 +76,6 @@ config MXC_CAMERA_OV5640
 	---help---
 	  If you plan to use the ov5640 Camera with your MXC system, say Y here.
 
-config MXC_CAMERA_OV5640_MIPI
-	tristate "OmniVision ov5640 camera support using mipi"
-	depends on !VIDEO_MXC_EMMA_CAMERA
-	depends on ARCH_MX6Q
-	select MXC_MIPI_CSI2 if ARCH_MX6Q
-	---help---
-	  If you plan to use the ov5640 Camera with mipi interface in your MXC system, say Y here.
-
 config MXC_CAMERA_OV8820_MIPI
 	tristate "OmniVision ov8820 camera support using mipi"
 	depends on !VIDEO_MXC_EMMA_CAMERA
@@ -100,11 +92,21 @@ config MXC_CAMERA_OV5642
 
 config MXC_TVIN_ADV7180
 	tristate "Analog Device adv7180 TV Decoder Input support"
-	depends on (MACH_MX35_3DS || MACH_MX51_3DS)
+	depends on (MACH_MX35_3DS || MACH_MX51_3DS || MACH_MX6Q_SABREAUTO || MACH_MX6Q_ARM2)
 	---help---
 	  If you plan to use the adv7180 video decoder with your MXC system, say Y here.
 
 endchoice
+
+config MXC_CAMERA_OV5640_MIPI
+	tristate "OmniVision ov5640 camera support using mipi"
+	depends on !VIDEO_MXC_EMMA_CAMERA
+	depends on ARCH_MX6Q
+	depends on VIDEO_MXC_CAMERA
+	select MXC_MIPI_CSI2 if ARCH_MX6Q
+	---help---
+	  If you plan to use the ov5640 Camera with mipi interface in your MXC system, say Y here.
+
 
 config MXC_IPU_PRP_VF_SDC
 	tristate "Pre-Processor VF SDC library"
