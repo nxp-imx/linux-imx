@@ -105,6 +105,7 @@
 #define SABREAUTO_I2C3_STEER		IMX_GPIO_NR(5, 4)
 #define SABREAUTO_ANDROID_VOLDOWN	IMX_GPIO_NR(5, 14)
 #define SABREAUTO_PMIC_INT		IMX_GPIO_NR(5, 16)
+#define SABREAUTO_ALS_INT		IMX_GPIO_NR(5, 17)
 #define SABREAUTO_SD1_WP		IMX_GPIO_NR(5, 20)
 #define SABREAUTO_CSI0_PWN		IMX_GPIO_NR(5, 23)
 #define SABREAUTO_USB_HOST1_OC		IMX_GPIO_NR(5, 0)
@@ -609,6 +610,10 @@ static struct mxc_audio_codec_platform_data cs42888_data = {
 			SNDRV_PCM_RATE_192000),
 };
 
+static struct fsl_mxc_lightsensor_platform_data ls_data = {
+	.rext = 499,
+};
+
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("max7310", 0x30),
@@ -625,6 +630,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	}, {
 		I2C_BOARD_INFO("ov3640", 0x3c),
 		.platform_data = (void *)&camera_data,
+	},
+	{
+		I2C_BOARD_INFO("isl29023", 0x44),
+		.irq  = gpio_to_irq(SABREAUTO_ALS_INT),
+		.platform_data = &ls_data,
 	},
 };
 
