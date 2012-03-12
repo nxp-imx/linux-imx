@@ -803,17 +803,17 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 		.default_bpp		= 16,
 		.int_clk		= false,
 	}, {
-		.disp_dev		= "lcd",
-		.interface_pix_fmt	= IPU_PIX_FMT_RGB565,
-		.mode_str		= "CLAA-WVGA",
-		.default_bpp		= 16,
-		.int_clk		= false,
-	}, {
 		.disp_dev		= "ldb",
 		.interface_pix_fmt	= IPU_PIX_FMT_RGB666,
 		.mode_str		= "LDB-XGA",
 		.default_bpp		= 16,
 		.int_clk		= false,
+	}, {
+		.disp_dev               = "lcd",
+		.interface_pix_fmt      = IPU_PIX_FMT_RGB565,
+		.mode_str               = "CLAA-WVGA",
+		.default_bpp            = 16,
+		.int_clk                = false,
 	},
 };
 
@@ -1309,7 +1309,10 @@ static void __init mx6_board_init(void)
 		mipi_dsi_pdata.disp_id = 1;
 		ldb_data.ipu_id = 0;
 		ldb_data.disp_id = 0;
-		for (i = 0; i < ARRAY_SIZE(sabr_fb_data) / 2; i++)
+		ldb_data.sec_ipu_id = 0;
+		ldb_data.sec_disp_id = 1;
+		hdmi_core_data.disp_id = 1;
+		for (i = 0; i < (ARRAY_SIZE(sabr_fb_data) + 1) / 2; i++)
 			imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
 	} else
 		for (i = 0; i < ARRAY_SIZE(sabr_fb_data); i++)
