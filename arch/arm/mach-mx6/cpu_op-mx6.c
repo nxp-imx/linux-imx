@@ -97,7 +97,30 @@ static struct cpu_op mx6_cpu_op[] = {
 	 .cpu_voltage = 850000,},
 };
 
-/* working point(wp): 0 - 1GHzMHz; 1 - 800MHz, 3 - 400MHz, 4  - 200MHz */
+/* working point(wp): 0 - 1.2GHz; 1 - 800MHz, 2 - 400MHz, 3  - 200MHz */
+static struct cpu_op mx6dl_cpu_op_1_2G[] = {
+	{
+	 .pll_rate = 1200000000,
+	 .cpu_rate = 1200000000,
+	 .cpu_podf = 0,
+	 .cpu_voltage = 1275000,},
+	{
+	 .pll_rate = 792000000,
+	 .cpu_rate = 792000000,
+	 .cpu_podf = 0,
+	 .cpu_voltage = 1100000,},
+	 {
+	  .pll_rate = 792000000,
+	  .cpu_rate = 396000000,
+	  .cpu_podf = 1,
+	  .cpu_voltage = 1000000,},
+	{
+	 .pll_rate = 792000000,
+	 .cpu_rate = 198000000,
+	 .cpu_podf = 3,
+	 .cpu_voltage = 1000000,},
+};
+/* working point(wp): 0 - 1GHz; 1 - 800MHz, 2 - 400MHz, 3  - 200MHz */
 static struct cpu_op mx6dl_cpu_op_1G[] = {
 	{
 	 .pll_rate = 996000000,
@@ -175,7 +198,10 @@ static struct dvfs_op *mx6_get_dvfs_core_table(int *wp)
 struct cpu_op *mx6_get_cpu_op(int *op)
 {
 	if (cpu_is_mx6dl()) {
-		if (arm_max_freq == CPU_AT_1GHz) {
+		if (arm_max_freq == CPU_AT_1_2GHz) {
+			*op =  num_cpu_op = ARRAY_SIZE(mx6dl_cpu_op_1_2G);
+			return mx6dl_cpu_op_1_2G;
+		} else if (arm_max_freq == CPU_AT_1GHz) {
 			*op =  num_cpu_op = ARRAY_SIZE(mx6dl_cpu_op_1G);
 			return mx6dl_cpu_op_1G;
 		} else {
