@@ -92,6 +92,10 @@ extern unsigned int system_rev;
 	board_is_rev(IMX_BOARD_REV_2))
 #define board_is_mx6q_sabre_auto() (cpu_is_mx6q() && \
 	board_is_rev(IMX_BOARD_REV_3))
+#define board_is_mx6_sabreauto_reva() \
+	board_is_rev(IMX_BOARD_REV_2)
+#define board_is_mx6_sabreauto_revb() \
+	board_is_rev(IMX_BOARD_REV_1)
 #endif
 
 #ifndef __ASSEMBLY__
