@@ -112,17 +112,11 @@
 #define SABRESD_GPS_EN		IMX_GPIO_NR(3, 0)
 #define SABRESD_AUX_3V15_EN	IMX_GPIO_NR(6, 9)
 
-void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 static int mma8451_position = 3;
 static int mag3110_position;
 
 extern char *gp_reg_id;
-
-extern struct regulator *(*get_cpu_regulator)(void);
-extern void (*put_cpu_regulator)(void);
-extern void mx6_cpu_regulator_init(void);
-extern int __init mx6q_sabresd_init_pfuze100(u32 int_gpio);
 
 static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/* AUDMUX */
