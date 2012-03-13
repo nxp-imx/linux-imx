@@ -79,40 +79,71 @@
 #include "board-mx6q_sabresd.h"
 #include "board-mx6dl_sabresd.h"
 
-#define SABRESD_SD2_CD		IMX_GPIO_NR(2, 2)
-#define SABRESD_SD2_WP		IMX_GPIO_NR(2, 3)
-#define SABRESD_SD3_CD		IMX_GPIO_NR(2, 0)
-#define SABRESD_SD3_WP		IMX_GPIO_NR(2, 1)
-#define SABRESD_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
-#define SABRESD_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
-#define SABRESD_CAP_TCH_INT1	IMX_GPIO_NR(6, 7)
-#define SABRESD_CAP_TCH_INT0	IMX_GPIO_NR(6, 8)
-#define SABRESD_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
-#define SABRESD_CAN1_STBY	IMX_GPIO_NR(1, 2)
-#define SABRESD_CAN1_EN		IMX_GPIO_NR(1, 4)
+#define SABRESD_USR_DEF_GRN_LED	IMX_GPIO_NR(1, 1)
+#define SABRESD_USR_DEF_RED_LED	IMX_GPIO_NR(1, 2)
 #define SABRESD_VOLUME_UP	IMX_GPIO_NR(1, 4)
 #define SABRESD_VOLUME_DN	IMX_GPIO_NR(1, 5)
-#define SABRESD_POWER_OFF	IMX_GPIO_NR(3, 29)
-#define SABRESD_PFUZE_INT	IMX_GPIO_NR(7, 13)
-#define SABRESD_CSI0_RST	IMX_GPIO_NR(1, 17)
+#define SABRESD_MICROPHONE_DET	IMX_GPIO_NR(1, 9)
 #define SABRESD_CSI0_PWN	IMX_GPIO_NR(1, 16)
-#define SABRESD_MIPICSI_RST	IMX_GPIO_NR(1, 20)
+#define SABRESD_CSI0_RST	IMX_GPIO_NR(1, 17)
+#define SABRESD_ACCL_INT	IMX_GPIO_NR(1, 18)
 #define SABRESD_MIPICSI_PWN	IMX_GPIO_NR(1, 19)
-#define SABRESD_AUX_5V_EN	IMX_GPIO_NR(6, 10)
-#define SABRESD_SENSOR_EN	IMX_GPIO_NR(2, 31)
-#define SABRESD_eCOMPASS_INT	IMX_GPIO_NR(3, 16)
-#define SABRESD_ALS_INT		IMX_GPIO_NR(3, 9)
-
-#define SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
-#define SABRESD_CHARGE_CHG_1_B	IMX_GPIO_NR(3, 23)
-#define SABRESD_CHARGE_FLT_2_B	IMX_GPIO_NR(3, 14)
-#define SABRESD_CHARGE_CHG_2_B	IMX_GPIO_NR(3, 13)
+#define SABRESD_MIPICSI_RST	IMX_GPIO_NR(1, 20)
+#define SABRESD_RGMII_RST	IMX_GPIO_NR(1, 25)
+#define SABRESD_RGMII_INT	IMX_GPIO_NR(1, 26)
 #define SABRESD_CHARGE_UOK_B	IMX_GPIO_NR(1, 27)
+#define SABRESD_USBH1_PWR_EN	IMX_GPIO_NR(1, 29)
+#define SABRESD_DISP0_PWR_EN	IMX_GPIO_NR(1, 30)
+
+#define SABRESD_SD3_CD		IMX_GPIO_NR(2, 0)
+#define SABRESD_SD3_WP		IMX_GPIO_NR(2, 1)
+#define SABRESD_SD2_CD		IMX_GPIO_NR(2, 2)
+#define SABRESD_SD2_WP		IMX_GPIO_NR(2, 3)
 #define SABRESD_CHARGE_DOK_B	IMX_GPIO_NR(2, 24)
-#define SABRESD_WM8958_4V2_EN	IMX_GPIO_NR(4, 10)
-#define SABRESD_WM8958_HP_DET	IMX_GPIO_NR(7, 8)
-#define SABRESD_GPS_EN		IMX_GPIO_NR(3, 0)
+#define SABRESD_GPS_RESET	IMX_GPIO_NR(2, 28)
+#define SABRESD_SENSOR_EN	IMX_GPIO_NR(2, 31)
+
+#define SABRESD_GPS_EN	IMX_GPIO_NR(3, 0)
+#define SABRESD_DISP0_RST_B	IMX_GPIO_NR(3, 8)
+#define SABRESD_ALS_INT		IMX_GPIO_NR(3, 9)
+#define SABRESD_CHARGE_CHG_2_B	IMX_GPIO_NR(3, 13)
+#define SABRESD_CHARGE_FLT_2_B	IMX_GPIO_NR(3, 14)
+#define SABRESD_BAR0_INT	IMX_GPIO_NR(3, 15)
+#define SABRESD_eCOMPASS_INT	IMX_GPIO_NR(3, 16)
+#define SABRESD_GPS_PPS		IMX_GPIO_NR(3, 18)
+#define SABRESD_PCIE_PWR_EN	IMX_GPIO_NR(3, 19)
+#define SABRESD_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
+#define SABRESD_CHARGE_CHG_1_B	IMX_GPIO_NR(3, 23)
+#define SABRESD_TS_INT		IMX_GPIO_NR(3, 26)
+#define SABRESD_DISP0_RD	IMX_GPIO_NR(3, 28)
+#define SABRESD_POWER_OFF	IMX_GPIO_NR(3, 29)
+
+#define SABRESD_CAN1_STBY	IMX_GPIO_NR(4, 5)
+#define SABRESD_ECSPI1_CS0  IMX_GPIO_NR(4, 9)
+#define SABRESD_CODEC_PWR_EN	IMX_GPIO_NR(4, 10)
+#define SABRESD_HDMI_CEC_IN	IMX_GPIO_NR(4, 11)
+#define SABRESD_PCIE_DIS_B	IMX_GPIO_NR(4, 14)
+
+#define SABRESD_DI0_D0_CS	IMX_GPIO_NR(5, 0)
+#define SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
+#define SABRESD_PCIE_WAKE_B	IMX_GPIO_NR(5, 20)
+
+#define SABRESD_CAP_TCH_INT1	IMX_GPIO_NR(6, 7)
+#define SABRESD_CAP_TCH_INT0	IMX_GPIO_NR(6, 8)
+#define SABRESD_DISP_RST_B	IMX_GPIO_NR(6, 11)
+#define SABRESD_DISP_PWR_EN	IMX_GPIO_NR(6, 14)
+#define SABRESD_CABC_EN0	IMX_GPIO_NR(6, 15)
+#define SABRESD_CABC_EN1	IMX_GPIO_NR(6, 16)
 #define SABRESD_AUX_3V15_EN	IMX_GPIO_NR(6, 9)
+#define SABRESD_DISP0_WR_REVB	IMX_GPIO_NR(6, 9)
+#define SABRESD_AUX_5V_EN	IMX_GPIO_NR(6, 10)
+#define SABRESD_DI1_D0_CS	IMX_GPIO_NR(6, 31)
+
+#define SABRESD_HEADPHONE_DET	IMX_GPIO_NR(7, 8)
+#define SABRESD_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
+#define SABRESD_PCIE_RST_B_REVB	IMX_GPIO_NR(7, 12)
+#define SABRESD_PMIC_INT_B	IMX_GPIO_NR(7, 13)
+#define SABRESD_PFUZE_INT	IMX_GPIO_NR(7, 13)
 
 static struct clk *sata_clk;
 static int mma8451_position = 3;
@@ -177,7 +208,7 @@ static struct fec_platform_data fec_data __initdata = {
 };
 
 static int mx6q_sabresd_spi_cs[] = {
-	SABRESD_ECSPI1_CS1,
+	SABRESD_ECSPI1_CS0,
 };
 
 static const struct spi_imx_master mx6q_sabresd_spi_data __initconst = {
@@ -237,7 +268,7 @@ static struct mxc_audio_platform_data wm8958_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
-	.hp_gpio = SABRESD_WM8958_HP_DET,
+	.hp_gpio = SABRESD_HEADPHONE_DET,
 	.hp_active_low = 1,
 };
 
@@ -273,10 +304,10 @@ static int mxc_wm8958_init(void)
 	clk_set_rate(clko, rate);
 
 	/* enable wm8958 4.2v power supply */
-	gpio_request(SABRESD_WM8958_4V2_EN, "aud_4v2");
-	gpio_direction_output(SABRESD_WM8958_4V2_EN, 1);
+	gpio_request(SABRESD_CODEC_PWR_EN, "aud_4v2");
+	gpio_direction_output(SABRESD_CODEC_PWR_EN, 1);
 	msleep(1);
-	gpio_set_value(SABRESD_WM8958_4V2_EN, 1);
+	gpio_set_value(SABRESD_CODEC_PWR_EN, 1);
 
 	return 0;
 }
@@ -526,10 +557,8 @@ static struct ahci_platform_data mx6q_sabresd_sata_data = {
 static void mx6q_sabresd_flexcan0_switch(int enable)
 {
 	if (enable) {
-		gpio_set_value(SABRESD_CAN1_EN, 1);
 		gpio_set_value(SABRESD_CAN1_STBY, 1);
 	} else {
-		gpio_set_value(SABRESD_CAN1_EN, 0);
 		gpio_set_value(SABRESD_CAN1_STBY, 0);
 	}
 }
