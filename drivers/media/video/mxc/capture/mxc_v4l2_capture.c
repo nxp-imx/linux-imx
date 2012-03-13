@@ -1667,9 +1667,6 @@ static int mxc_v4l_open(struct file *file)
 		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
 				       true, true);
 		vidioc_int_init(cam->sensor);
-
-		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-				       false, false);
 }
 
 	file->private_data = dev;
@@ -1711,6 +1708,9 @@ static int mxc_v4l_close(struct file *file)
 	}
 
 	if (--cam->open_count == 0) {
+		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
+			false, false);
+
 		wait_event_interruptible(cam->power_queue,
 					 cam->low_power == false);
 		pr_info("mxc_v4l_close: release resource\n");
