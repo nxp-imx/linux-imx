@@ -87,8 +87,8 @@ unsigned int pfuze_get_flags(struct mc_pfuze *mc_pfuze);
 #define PFUZE100_VGEN6		15
 #define PFUZE100_SW2_VOL6	1
 #define PFUZE100_SW3_VOL6	0
-#define PFUZE100_SW4_VOL6	0
-#define PFUZE100_FIRST_VERSION
+#define PFUZE100_SW4_VOL6	1
+/*#define PFUZE100_FIRST_VERSION*/
 
 struct regulator_init_data;
 struct pfuze_regulator_init_data {
