@@ -378,7 +378,7 @@ static void mx6q_csi0_io_init(void)
 
 	/* Camera reset */
 	gpio_request(SABRESD_CSI0_RST, "cam-reset");
-	gpio_direction_output(SABRESD_MIPICSI_RST, 1);
+	gpio_direction_output(SABRESD_CSI0_RST, 1);
 
 	/* Camera power down */
 	gpio_request(SABRESD_CSI0_PWN, "cam-pwdn");
@@ -386,7 +386,8 @@ static void mx6q_csi0_io_init(void)
 	msleep(1);
 	gpio_set_value(SABRESD_CSI0_PWN, 0);
 
-	/* For MX6Q GPR1 bit19 and bit20 meaning:
+	/* For MX6Q:
+	 * GPR1 bit19 and bit20 meaning:
 	 * Bit19:       0 - Enable mipi to IPU1 CSI0
 	 *                      virtual channel is fixed to 0
 	 *              1 - Enable parallel interface to IPU1 CSI0
@@ -397,8 +398,16 @@ static void mx6q_csi0_io_init(void)
 	 *      virtual channel is fixed to 1
 	 * IPU2 CSI0 directly connect to mipi csi2,
 	 *      virtual channel is fixed to 2
+	 *
+	 * For MX6DL:
+	 * GPR13 bit 0-2 IPU_CSI0_MUX
+	 *   000 MIPI_CSI0
+	 *   100 IPU CSI0
 	 */
-	mxc_iomux_set_gpr_register(1, 19, 1, 1);
+	if (cpu_is_mx6q())
+		mxc_iomux_set_gpr_register(1, 19, 1, 1);
+	else if (cpu_is_mx6dl())
+		mxc_iomux_set_gpr_register(13, 0, 3, 4);
 }
 
 static struct fsl_mxc_camera_platform_data camera_data = {
@@ -435,7 +444,11 @@ static void mx6q_mipi_sensor_io_init(void)
 	msleep(1);
 	gpio_set_value(SABRESD_MIPICSI_PWN, 0);
 
-	mxc_iomux_set_gpr_register(1, 19, 1, 0);
+	if (cpu_is_mx6q())
+		mxc_iomux_set_gpr_register(1, 19, 1, 0);
+	if (cpu_is_mx6dl()) {
+		mxc_iomux_set_gpr_register(13, 0, 3, 0);
+	}
 }
 
 static struct fsl_mxc_camera_platform_data mipi_csi2_data = {
