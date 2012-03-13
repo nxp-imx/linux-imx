@@ -41,13 +41,13 @@
 
  /*SWBST*/
 #define PFUZE100_SW1ASTANDBY    33
-#define PFUZE100_SW1ASTANDBY_STBY_VAL   (0x14)
+#define PFUZE100_SW1ASTANDBY_STBY_VAL   (0x18)
 #define PFUZE100_SW1ASTANDBY_STBY_M     (0x3f<<0)
 #define PFUZE100_SW1BSTANDBY   40
-#define PFUZE100_SW1BSTANDBY_STBY_VAL  (0x14)
+#define PFUZE100_SW1BSTANDBY_STBY_VAL  (0x18)
 #define PFUZE100_SW1BSTANDBY_STBY_M    (0x3f<<0)
 #define PFUZE100_SW1CSTANDBY    47
-#define PFUZE100_SW1CSTANDBY_STBY_VAL   (0x14)
+#define PFUZE100_SW1CSTANDBY_STBY_VAL   (0x18)
 #define PFUZE100_SW1CSTANDBY_STBY_M     (0x3f<<0)
 #define PFUZE100_SW2STANDBY     54
 #define PFUZE100_SW2STANDBY_STBY_VAL    0x0
@@ -392,11 +392,6 @@ static struct regulator_init_data vgen6_init = {
 static int pfuze100_init(struct mc_pfuze *pfuze)
 {
 	int ret;
-	ret = pfuze_reg_rmw(pfuze, PFUZE100_SWBSTCON1,
-			    PFUZE100_SWBSTCON1_SWBSTMOD_M,
-			    PFUZE100_SWBSTCON1_SWBSTMOD_VAL);
-	if (ret)
-		goto err;
 	ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1ASTANDBY,
 			    PFUZE100_SW1ASTANDBY_STBY_M,
 			    PFUZE100_SW1ASTANDBY_STBY_VAL);
