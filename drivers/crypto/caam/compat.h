@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  */
 
 #ifndef CAAM_COMPAT_H
@@ -31,5 +31,6 @@
 #include <crypto/aead.h>
 #include <crypto/authenc.h>
 #include <crypto/scatterwalk.h>
+#include <crypto/internal/skcipher.h>
 
 #endif /* !defined(CAAM_COMPAT_H) */
