@@ -1765,7 +1765,6 @@ static int _clk_gpu2d_axi_set_parent(struct clk *clk, struct clk *parent)
 static struct clk gpu2d_axi_clk = {
 	__INIT_CLK_DEBUG(gpu2d_axi_clk)
 	.parent = &axi_clk,
-	.secondary = &openvg_axi_clk,
 	.set_parent = _clk_gpu2d_axi_set_parent,
 };
 
@@ -4371,12 +4370,8 @@ static struct clk gpu2d_core_clk[] = {
 	.set_rate = _clk_gpu2d_core_set_rate,
 	.get_rate = _clk_gpu2d_core_get_rate,
 	.round_rate = _clk_gpu2d_core_round_rate,
-	.secondary = &gpu2d_core_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	},
-	{
-	.parent = &gpu2d_axi_clk,
 	.secondary = &mx6fast1_clk,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 };
 
@@ -5192,7 +5187,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		clk_set_parent(&gpu3d_axi_clk, &mmdc_ch0_axi_clk[0]);
 		/* on mx6dl gpu2d_axi_clk source from mmdc0 directly */
 		clk_set_parent(&gpu2d_axi_clk, &mmdc_ch0_axi_clk[0]);
-		gpu2d_axi_clk.secondary = NULL;
 
 		/* set axi_clk parent to pll3_pfd_540M */
 		clk_set_parent(&axi_clk, &pll3_pfd_540M);
