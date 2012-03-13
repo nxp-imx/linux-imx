@@ -1319,12 +1319,6 @@ static void __init mx6_board_init(void)
 	gp_reg_id = sabreauto_dvfscore_data.reg_id;
 	mx6q_sabreauto_init_uart();
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
-	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
-
-	imx6q_add_ipuv3(0, &ipu_data[0]);
-	if (cpu_is_mx6q())
-		imx6q_add_ipuv3(1, &ipu_data[1]);
-
 	if (cpu_is_mx6dl()) {
 		mipi_dsi_pdata.ipu_id = 0;
 		mipi_dsi_pdata.disp_id = 1;
@@ -1333,10 +1327,16 @@ static void __init mx6_board_init(void)
 		ldb_data.sec_ipu_id = 0;
 		ldb_data.sec_disp_id = 1;
 		hdmi_core_data.disp_id = 1;
-		for (i = 0; i < (ARRAY_SIZE(sabr_fb_data) + 1) / 2; i++)
-			imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
-	} else
+	}
+	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
+
+	imx6q_add_ipuv3(0, &ipu_data[0]);
+	if (cpu_is_mx6q()) {
+		imx6q_add_ipuv3(1, &ipu_data[1]);
 		for (i = 0; i < ARRAY_SIZE(sabr_fb_data); i++)
+			imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
+	} else if (cpu_is_mx6dl())
+		for (i = 0; i < (ARRAY_SIZE(sabr_fb_data) + 1) / 2; i++)
 			imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
 
 	imx6q_add_mipi_dsi(&mipi_dsi_pdata);
