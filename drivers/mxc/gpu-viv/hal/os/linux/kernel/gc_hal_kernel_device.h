@@ -89,7 +89,8 @@ typedef struct _gckGALDEVICE
     struct clk         *clk_3d_core;
     struct clk         *clk_3d_shader;
     struct clk         *clk_2d_core;
-    gctBOOL clk_flag[gcdCORE_COUNT];
+    struct clk         *clk_2d_axi;
+    struct clk         *clk_vg_axi;
 
 #if gcdPOWEROFF_TIMEOUT
     struct task_struct  *pmThreadCtxts;

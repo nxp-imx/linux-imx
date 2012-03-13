@@ -6848,29 +6848,24 @@ gckOS_SetGPUPower(
     struct clk *clk_3dcore = Os->device->clk_3d_core;
     struct clk *clk_3dshader = Os->device->clk_3d_shader;
     struct clk *clk_2dcore = Os->device->clk_2d_core;
+    struct clk *clk_2d_axi = Os->device->clk_2d_axi;
+    struct clk *clk_vg_axi = Os->device->clk_vg_axi;
 
     gcmkHEADER_ARG("Os=0x%X Core=%d Clock=%d Power=%d", Os, Core, Clock, Power);
     if (Clock == gcvTRUE) {
         switch (Core) {
         case gcvCORE_MAJOR:
-            if (!Os->device->clk_flag[gcvCORE_MAJOR]) {
-                clk_enable(clk_3dcore);
-                if (cpu_is_mx6q())
-                    clk_enable(clk_3dshader);
-            }
-            Os->device->clk_flag[gcvCORE_MAJOR] = gcvTRUE;
+            clk_enable(clk_3dcore);
+            if (cpu_is_mx6q())
+                clk_enable(clk_3dshader);
             break;
         case gcvCORE_2D:
-            if (!(Os->device->clk_flag[gcvCORE_2D] || Os->device->clk_flag[gcvCORE_VG])) {
-                clk_enable(clk_2dcore);
-            }
-            Os->device->clk_flag[gcvCORE_2D] = gcvTRUE;
+            clk_enable(clk_2dcore);
+            clk_enable(clk_2d_axi);
             break;
         case gcvCORE_VG:
-            if (!(Os->device->clk_flag[gcvCORE_2D] || Os->device->clk_flag[gcvCORE_VG])) {
-                clk_enable(clk_2dcore);
-            }
-            Os->device->clk_flag[gcvCORE_VG] = gcvTRUE;
+            clk_enable(clk_2dcore);
+            clk_enable(clk_vg_axi);
             break;
         default:
             break;
@@ -6878,24 +6873,17 @@ gckOS_SetGPUPower(
     } else {
         switch (Core) {
         case gcvCORE_MAJOR:
-            if (Os->device->clk_flag[gcvCORE_MAJOR]) {
-                if (cpu_is_mx6q())
-                    clk_disable(clk_3dshader);
-                clk_disable(clk_3dcore);
-            }
-            Os->device->clk_flag[gcvCORE_MAJOR] = gcvFALSE;
+            if (cpu_is_mx6q())
+                clk_disable(clk_3dshader);
+            clk_disable(clk_3dcore);
             break;
         case gcvCORE_2D:
-            if (Os->device->clk_flag[gcvCORE_2D] && (!Os->device->clk_flag[gcvCORE_VG])) {
-                clk_disable(clk_2dcore);
-            }
-            Os->device->clk_flag[gcvCORE_2D] = gcvFALSE;
+            clk_disable(clk_2dcore);
+            clk_disable(clk_2d_axi);
             break;
         case gcvCORE_VG:
-            if ((!Os->device->clk_flag[gcvCORE_2D]) && Os->device->clk_flag[gcvCORE_VG]) {
-                clk_disable(clk_2dcore);
-            }
-            Os->device->clk_flag[gcvCORE_VG] = gcvFALSE;
+            clk_disable(clk_2dcore);
+            clk_disable(clk_vg_axi);
             break;
         default:
             break;
