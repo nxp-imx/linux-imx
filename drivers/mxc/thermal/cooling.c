@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 
 #define	CPUx		"/sys/devices/system/cpu/cpu"
 #define MAX_GOVERNOR_NAME_LEN 12
-#define MAX_CPU_FREQ_LEN 6
+#define MAX_CPU_FREQ_LEN 7
 #define MAX_CPU_ONLINE_LEN 1
 
 /* Save the last hot point trigger temperature */
