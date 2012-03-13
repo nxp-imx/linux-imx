@@ -1071,15 +1071,15 @@ static struct ipuv3_fb_platform_data sabresd_fb_data[] = {
 	.default_bpp = 16,
 	.int_clk = false,
 	}, {
-	.disp_dev = "lcd",
-	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	.mode_str = "CLAA-WVGA",
+	.disp_dev = "ldb",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
+	.mode_str = "LDB-XGA",
 	.default_bpp = 16,
 	.int_clk = false,
 	}, {
-	.disp_dev = "ldb",
-	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
-	.mode_str = "LDB-SVGA",
+	.disp_dev = "lcd",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
+	.mode_str = "CLAA-WVGA",
 	.default_bpp = 16,
 	.int_clk = false,
 	}, {
