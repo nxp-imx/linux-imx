@@ -405,7 +405,24 @@ gckGALDEVICE_Construct(
             IrqLine2D = -1;
             IrqLineVG = -1;
             device->clk_2d_core = NULL;
-            gckOS_Print("galcore: clk_get 2d clock failed, disable 2d/vg!\n");
+            gckOS_Print("galcore: clk_get 2d core clock failed, disable 2d/vg!\n");
+        } else {
+	    if (IrqLine2D != -1) {
+                device->clk_2d_axi = clk_get(NULL, "gpu2d_axi_clk");
+                if (IS_ERR(device->clk_2d_axi)) {
+                    device->clk_2d_axi = NULL;
+                    IrqLine2D = -1;
+                    gckOS_Print("galcore: clk_get 2d axi clock failed, disable 2d\n");
+                }
+            }
+            if (IrqLineVG != -1) {
+                device->clk_vg_axi = clk_get(NULL, "openvg_axi_clk");
+                if (IS_ERR(device->clk_vg_axi)) {
+                    IrqLineVG = -1;
+	                device->clk_vg_axi = NULL;
+	                gckOS_Print("galcore: clk_get vg clock failed, disable vg!\n");
+                }
+            }
         }
     }
 
@@ -994,6 +1011,16 @@ gckGALDEVICE_Destroy(
            clk_put(Device->clk_2d_core);
            Device->clk_2d_core = NULL;
         }
+        if (Device->clk_2d_axi) {
+           clk_put(Device->clk_2d_axi);
+           Device->clk_2d_axi = NULL;
+        }
+        if (Device->clk_vg_axi) {
+           clk_put(Device->clk_vg_axi);
+           Device->clk_vg_axi = NULL;
+        }
+
+
 
         /* Destroy the gckOS object. */
         if (Device->os != gcvNULL)
