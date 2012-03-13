@@ -92,4 +92,5 @@ extern int mxs_reset_block(void __iomem *);
 extern void early_console_setup(unsigned long base, struct clk *clk);
 extern void mx6_cpu_regulator_init(void);
 extern int mx6q_sabreauto_init_pfuze100(u32 int_gpio);
+extern int mx6q_sabresd_init_pfuze100(u32 int_gpio);
 #endif
