@@ -77,40 +77,40 @@
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 
-#define MX6Q_SABRESD_SD2_CD		IMX_GPIO_NR(2, 2)
-#define MX6Q_SABRESD_SD2_WP		IMX_GPIO_NR(2, 3)
-#define MX6Q_SABRESD_SD3_CD		IMX_GPIO_NR(2, 0)
-#define MX6Q_SABRESD_SD3_WP		IMX_GPIO_NR(2, 1)
-#define MX6Q_SABRESD_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
-#define MX6Q_SABRESD_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
-#define MX6Q_SABRESD_CAP_TCH_INT1	IMX_GPIO_NR(6, 7)
-#define MX6Q_SABRESD_CAP_TCH_INT0       IMX_GPIO_NR(6, 8)
-#define MX6Q_SABRESD_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
-#define MX6Q_SABRESD_CAN1_STBY	IMX_GPIO_NR(1, 2)
-#define MX6Q_SABRESD_CAN1_EN		IMX_GPIO_NR(1, 4)
-#define MX6Q_SABRESD_VOLUME_UP		IMX_GPIO_NR(1, 4)
-#define MX6Q_SABRESD_VOLUME_DN		IMX_GPIO_NR(1, 5)
-#define MX6Q_SABRESD_POWER_OFF		IMX_GPIO_NR(3, 29)
-#define MX6Q_SABRESD_PFUZE_INT	IMX_GPIO_NR(7, 13)
-#define MX6Q_SABRESD_CSI0_RST		IMX_GPIO_NR(1, 17)
-#define MX6Q_SABRESD_CSI0_PWN		IMX_GPIO_NR(1, 16)
-#define MX6Q_SABRESD_MIPICSI_RST	IMX_GPIO_NR(1, 20)
-#define MX6Q_SABRESD_MIPICSI_PWN	IMX_GPIO_NR(1, 19)
-#define MX6Q_SABRESD_AUX_5V_EN		IMX_GPIO_NR(6, 10)
-#define MX6Q_SABRESD_SENSOR_EN		IMX_GPIO_NR(2, 31)
-#define MX6Q_SABRESD_eCOMPASS_INT	IMX_GPIO_NR(3, 16)
-#define MX6Q_SABRESD_ALS_INT		IMX_GPIO_NR(3, 9)
+#define SABRESD_SD2_CD		IMX_GPIO_NR(2, 2)
+#define SABRESD_SD2_WP		IMX_GPIO_NR(2, 3)
+#define SABRESD_SD3_CD		IMX_GPIO_NR(2, 0)
+#define SABRESD_SD3_WP		IMX_GPIO_NR(2, 1)
+#define SABRESD_ECSPI1_CS1	IMX_GPIO_NR(3, 19)
+#define SABRESD_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
+#define SABRESD_CAP_TCH_INT1	IMX_GPIO_NR(6, 7)
+#define SABRESD_CAP_TCH_INT0	IMX_GPIO_NR(6, 8)
+#define SABRESD_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
+#define SABRESD_CAN1_STBY	IMX_GPIO_NR(1, 2)
+#define SABRESD_CAN1_EN		IMX_GPIO_NR(1, 4)
+#define SABRESD_VOLUME_UP	IMX_GPIO_NR(1, 4)
+#define SABRESD_VOLUME_DN	IMX_GPIO_NR(1, 5)
+#define SABRESD_POWER_OFF	IMX_GPIO_NR(3, 29)
+#define SABRESD_PFUZE_INT	IMX_GPIO_NR(7, 13)
+#define SABRESD_CSI0_RST	IMX_GPIO_NR(1, 17)
+#define SABRESD_CSI0_PWN	IMX_GPIO_NR(1, 16)
+#define SABRESD_MIPICSI_RST	IMX_GPIO_NR(1, 20)
+#define SABRESD_MIPICSI_PWN	IMX_GPIO_NR(1, 19)
+#define SABRESD_AUX_5V_EN	IMX_GPIO_NR(6, 10)
+#define SABRESD_SENSOR_EN	IMX_GPIO_NR(2, 31)
+#define SABRESD_eCOMPASS_INT	IMX_GPIO_NR(3, 16)
+#define SABRESD_ALS_INT		IMX_GPIO_NR(3, 9)
 
-#define MX6Q_SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
-#define MX6Q_SABRESD_CHARGE_CHG_1_B	IMX_GPIO_NR(3, 23)
-#define MX6Q_SABRESD_CHARGE_FLT_2_B	IMX_GPIO_NR(3, 14)
-#define MX6Q_SABRESD_CHARGE_CHG_2_B	IMX_GPIO_NR(3, 13)
-#define MX6Q_SABRESD_CHARGE_UOK_B	IMX_GPIO_NR(1, 27)
-#define MX6Q_SABRESD_CHARGE_DOK_B	IMX_GPIO_NR(2, 24)
-#define MX6Q_SABRESD_WM8958_4V2_EN	IMX_GPIO_NR(4, 10)
-#define MX6Q_SABRESD_WM8958_HP_DET	IMX_GPIO_NR(7, 8)
-#define MX6Q_SABRESD_GPS_EN             IMX_GPIO_NR(3, 0)
-#define MX6Q_SABRESD_AUX_3V15_EN        IMX_GPIO_NR(6, 9)
+#define SABRESD_CHARGE_FLT_1_B	IMX_GPIO_NR(5, 2)
+#define SABRESD_CHARGE_CHG_1_B	IMX_GPIO_NR(3, 23)
+#define SABRESD_CHARGE_FLT_2_B	IMX_GPIO_NR(3, 14)
+#define SABRESD_CHARGE_CHG_2_B	IMX_GPIO_NR(3, 13)
+#define SABRESD_CHARGE_UOK_B	IMX_GPIO_NR(1, 27)
+#define SABRESD_CHARGE_DOK_B	IMX_GPIO_NR(2, 24)
+#define SABRESD_WM8958_4V2_EN	IMX_GPIO_NR(4, 10)
+#define SABRESD_WM8958_HP_DET	IMX_GPIO_NR(7, 8)
+#define SABRESD_GPS_EN		IMX_GPIO_NR(3, 0)
+#define SABRESD_AUX_3V15_EN	IMX_GPIO_NR(6, 9)
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
@@ -377,16 +377,16 @@ static iomux_v3_cfg_t mx6q_sabresd_mipi_sensor_pads[] = {
 };
 
 static const struct esdhc_platform_data mx6q_sabresd_sd2_data __initconst = {
-	.cd_gpio = MX6Q_SABRESD_SD2_CD,
-	.wp_gpio = MX6Q_SABRESD_SD2_WP,
+	.cd_gpio = SABRESD_SD2_CD,
+	.wp_gpio = SABRESD_SD2_WP,
 	.keep_power_at_suspend = 1,
 	.support_8bit = 1,
 	.delay_line = 0,
 };
 
 static const struct esdhc_platform_data mx6q_sabresd_sd3_data __initconst = {
-	.cd_gpio = MX6Q_SABRESD_SD3_CD,
-	.wp_gpio = MX6Q_SABRESD_SD3_WP,
+	.cd_gpio = SABRESD_SD3_CD,
+	.wp_gpio = SABRESD_SD3_WP,
 	.keep_power_at_suspend = 1,
 	.support_8bit = 1,
 	.delay_line = 0,
@@ -433,7 +433,7 @@ static struct fec_platform_data fec_data __initdata = {
 };
 
 static int mx6q_sabresd_spi_cs[] = {
-	MX6Q_SABRESD_ECSPI1_CS1,
+	SABRESD_ECSPI1_CS1,
 };
 
 static const struct spi_imx_master mx6q_sabresd_spi_data __initconst = {
@@ -493,7 +493,7 @@ static struct mxc_audio_platform_data wm8958_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
-	.hp_gpio = MX6Q_SABRESD_WM8958_HP_DET,
+	.hp_gpio = SABRESD_WM8958_HP_DET,
 	.hp_active_low = 1,
 };
 
@@ -529,10 +529,10 @@ static int mxc_wm8958_init(void)
 	clk_set_rate(clko, rate);
 
 	/* enable wm8958 4.2v power supply */
-	gpio_request(MX6Q_SABRESD_WM8958_4V2_EN, "aud_4v2");
-	gpio_direction_output(MX6Q_SABRESD_WM8958_4V2_EN, 1);
+	gpio_request(SABRESD_WM8958_4V2_EN, "aud_4v2");
+	gpio_direction_output(SABRESD_WM8958_4V2_EN, 1);
 	msleep(1);
-	gpio_set_value(MX6Q_SABRESD_WM8958_4V2_EN, 1);
+	gpio_set_value(SABRESD_WM8958_4V2_EN, 1);
 
 	return 0;
 }
@@ -540,9 +540,9 @@ static int mxc_wm8958_init(void)
 static void mx6q_csi0_cam_powerdown(int powerdown)
 {
 	if (powerdown)
-		gpio_set_value(MX6Q_SABRESD_CSI0_PWN, 1);
+		gpio_set_value(SABRESD_CSI0_PWN, 1);
 	else
-		gpio_set_value(MX6Q_SABRESD_CSI0_PWN, 0);
+		gpio_set_value(SABRESD_CSI0_PWN, 0);
 }
 
 static void mx6q_csi0_io_init(void)
@@ -551,14 +551,14 @@ static void mx6q_csi0_io_init(void)
 			ARRAY_SIZE(mx6q_sabresd_csi0_sensor_pads));
 
 	/* Camera reset */
-	gpio_request(MX6Q_SABRESD_CSI0_RST, "cam-reset");
-	gpio_direction_output(MX6Q_SABRESD_MIPICSI_RST, 1);
+	gpio_request(SABRESD_CSI0_RST, "cam-reset");
+	gpio_direction_output(SABRESD_MIPICSI_RST, 1);
 
 	/* Camera power down */
-	gpio_request(MX6Q_SABRESD_CSI0_PWN, "cam-pwdn");
-	gpio_direction_output(MX6Q_SABRESD_CSI0_PWN, 1);
+	gpio_request(SABRESD_CSI0_PWN, "cam-pwdn");
+	gpio_direction_output(SABRESD_CSI0_PWN, 1);
 	msleep(1);
-	gpio_set_value(MX6Q_SABRESD_CSI0_PWN, 0);
+	gpio_set_value(SABRESD_CSI0_PWN, 0);
 
 	/* For MX6Q GPR1 bit19 and bit20 meaning:
 	 * Bit19:       0 - Enable mipi to IPU1 CSI0
@@ -585,9 +585,9 @@ static struct fsl_mxc_camera_platform_data camera_data = {
 static void mx6q_mipi_powerdown(int powerdown)
 {
 	if (powerdown)
-		gpio_set_value(MX6Q_SABRESD_MIPICSI_PWN, 1);
+		gpio_set_value(SABRESD_MIPICSI_PWN, 1);
 	else
-		gpio_set_value(MX6Q_SABRESD_MIPICSI_PWN, 0);
+		gpio_set_value(SABRESD_MIPICSI_PWN, 0);
 }
 
 static void mx6q_mipi_sensor_io_init(void)
@@ -596,14 +596,14 @@ static void mx6q_mipi_sensor_io_init(void)
 			ARRAY_SIZE(mx6q_sabresd_mipi_sensor_pads));
 
 	/* Camera reset */
-	gpio_request(MX6Q_SABRESD_MIPICSI_RST, "cam-reset");
-	gpio_direction_output(MX6Q_SABRESD_MIPICSI_RST, 1);
+	gpio_request(SABRESD_MIPICSI_RST, "cam-reset");
+	gpio_direction_output(SABRESD_MIPICSI_RST, 1);
 
 	/* Camera power down */
-	gpio_request(MX6Q_SABRESD_MIPICSI_PWN, "cam-pwdn");
-	gpio_direction_output(MX6Q_SABRESD_MIPICSI_PWN, 1);
+	gpio_request(SABRESD_MIPICSI_PWN, "cam-pwdn");
+	gpio_direction_output(SABRESD_MIPICSI_PWN, 1);
 	msleep(1);
-	gpio_set_value(MX6Q_SABRESD_MIPICSI_PWN, 0);
+	gpio_set_value(SABRESD_MIPICSI_PWN, 0);
 
 	mxc_iomux_set_gpr_register(1, 19, 1, 0);
 }
@@ -648,23 +648,23 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x4),
-		.irq = gpio_to_irq(MX6Q_SABRESD_CAP_TCH_INT0),
+		.irq = gpio_to_irq(SABRESD_CAP_TCH_INT0),
 	},
 };
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x4),
-		.irq = gpio_to_irq(MX6Q_SABRESD_CAP_TCH_INT1),
+		.irq = gpio_to_irq(SABRESD_CAP_TCH_INT1),
 	},
 	{
 		I2C_BOARD_INFO("mag3110", 0x0e),
-		.irq = gpio_to_irq(MX6Q_SABRESD_eCOMPASS_INT),
+		.irq = gpio_to_irq(SABRESD_eCOMPASS_INT),
 		.platform_data = (void *)&mag3110_position,
 	},
 	{
 		I2C_BOARD_INFO("isl29023", 0x44),
-		.irq  = gpio_to_irq(MX6Q_SABRESD_ALS_INT),
+		.irq  = gpio_to_irq(SABRESD_ALS_INT),
 		.platform_data = &ls_data,
 	},
 };
@@ -672,9 +672,9 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 static void imx6q_sabresd_usbotg_vbus(bool on)
 {
 	if (on)
-		gpio_set_value(MX6Q_SABRESD_USB_OTG_PWR, 1);
+		gpio_set_value(SABRESD_USB_OTG_PWR, 1);
 	else
-		gpio_set_value(MX6Q_SABRESD_USB_OTG_PWR, 0);
+		gpio_set_value(SABRESD_USB_OTG_PWR, 0);
 }
 
 static void __init imx6q_sabresd_init_usb(void)
@@ -685,13 +685,13 @@ static void __init imx6q_sabresd_init_usb(void)
 	/* disable external charger detect,
 	 * or it will affect signal quality at dp .
 	 */
-	ret = gpio_request(MX6Q_SABRESD_USB_OTG_PWR, "usb-pwr");
+	ret = gpio_request(SABRESD_USB_OTG_PWR, "usb-pwr");
 	if (ret) {
-		pr_err("failed to get GPIO MX6Q_SABRESD_USB_OTG_PWR: %d\n",
+		pr_err("failed to get GPIO SABRESD_USB_OTG_PWR: %d\n",
 			ret);
 		return;
 	}
-	gpio_direction_output(MX6Q_SABRESD_USB_OTG_PWR, 0);
+	gpio_direction_output(SABRESD_USB_OTG_PWR, 0);
 	mxc_iomux_set_gpr_register(1, 13, 1, 1);
 
 	mx6_set_otghost_vbus_func(imx6q_sabresd_usbotg_vbus);
@@ -774,11 +774,11 @@ static struct ahci_platform_data mx6q_sabresd_sata_data = {
 static void mx6q_sabresd_flexcan0_switch(int enable)
 {
 	if (enable) {
-		gpio_set_value(MX6Q_SABRESD_CAN1_EN, 1);
-		gpio_set_value(MX6Q_SABRESD_CAN1_STBY, 1);
+		gpio_set_value(SABRESD_CAN1_EN, 1);
+		gpio_set_value(SABRESD_CAN1_STBY, 1);
 	} else {
-		gpio_set_value(MX6Q_SABRESD_CAN1_EN, 0);
-		gpio_set_value(MX6Q_SABRESD_CAN1_STBY, 0);
+		gpio_set_value(SABRESD_CAN1_EN, 0);
+		gpio_set_value(SABRESD_CAN1_STBY, 0);
 	}
 }
 
@@ -870,10 +870,10 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 };
 
 static struct max8903_pdata charger1_data = {
-	.dok = MX6Q_SABRESD_CHARGE_DOK_B,
-	.uok = MX6Q_SABRESD_CHARGE_UOK_B,
-	.chg = MX6Q_SABRESD_CHARGE_CHG_1_B,
-	.flt = MX6Q_SABRESD_CHARGE_FLT_1_B,
+	.dok = SABRESD_CHARGE_DOK_B,
+	.uok = SABRESD_CHARGE_UOK_B,
+	.chg = SABRESD_CHARGE_CHG_1_B,
+	.flt = SABRESD_CHARGE_FLT_1_B,
 	.dcm_always_high = true,
 	.dc_valid = true,
 	.usb_valid = true,
@@ -901,14 +901,14 @@ static void sabresd_suspend_enter(void)
 {
 	/* suspend preparation */
 	/* Disable AUX 5V */
-	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 0);
+	gpio_set_value(SABRESD_AUX_5V_EN, 0);
 }
 
 static void sabresd_suspend_exit(void)
 {
 	/* resume restore */
 	/* Enable AUX 5V */
-	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 1);
+	gpio_set_value(SABRESD_AUX_5V_EN, 1);
 }
 static const struct pm_platform_data mx6q_sabresd_pm_data __initconst = {
 	.name = "imx_pm",
@@ -955,15 +955,15 @@ static int imx6q_init_audio(void)
 static void gps_power_on(bool on)
 {
 	/* Enable/disable aux_3v15 */
-	gpio_request(MX6Q_SABRESD_AUX_3V15_EN, "aux_3v15_en");
-	gpio_direction_output(MX6Q_SABRESD_AUX_3V15_EN, 1);
-	gpio_set_value(MX6Q_SABRESD_AUX_3V15_EN, on);
-	gpio_free(MX6Q_SABRESD_AUX_3V15_EN);
+	gpio_request(SABRESD_AUX_3V15_EN, "aux_3v15_en");
+	gpio_direction_output(SABRESD_AUX_3V15_EN, 1);
+	gpio_set_value(SABRESD_AUX_3V15_EN, on);
+	gpio_free(SABRESD_AUX_3V15_EN);
 	/*Enable/disable gps_en*/
-	gpio_request(MX6Q_SABRESD_GPS_EN, "gps_en");
-	gpio_direction_output(MX6Q_SABRESD_GPS_EN, 1);
-	gpio_set_value(MX6Q_SABRESD_GPS_EN, on);
-	gpio_free(MX6Q_SABRESD_GPS_EN);
+	gpio_request(SABRESD_GPS_EN, "gps_en");
+	gpio_direction_output(SABRESD_GPS_EN, 1);
+	gpio_set_value(SABRESD_GPS_EN, on);
+	gpio_free(SABRESD_GPS_EN);
 
 }
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
@@ -978,9 +978,9 @@ static void gps_power_on(bool on)
 }
 
 static struct gpio_keys_button imx6q_buttons[] = {
-	GPIO_BUTTON(MX6Q_SABRESD_VOLUME_UP, KEY_VOLUMEUP, 1, "volume-up", 0),
-	GPIO_BUTTON(MX6Q_SABRESD_VOLUME_DN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
-	GPIO_BUTTON(MX6Q_SABRESD_POWER_OFF, KEY_POWER, 1, "power", 1),
+	GPIO_BUTTON(SABRESD_VOLUME_UP, KEY_VOLUMEUP, 1, "volume-up", 0),
+	GPIO_BUTTON(SABRESD_VOLUME_DN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+	GPIO_BUTTON(SABRESD_POWER_OFF, KEY_POWER, 1, "power", 1),
 };
 
 static struct gpio_keys_platform_data imx6q_button_data = {
@@ -1098,13 +1098,13 @@ static void __init mx6_sabresd_board_init(void)
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
-	ret = gpio_request(MX6Q_SABRESD_PFUZE_INT, "pFUZE-int");
+	ret = gpio_request(SABRESD_PFUZE_INT, "pFUZE-int");
 	if (ret) {
 		printk(KERN_ERR"request pFUZE-int error!!\n");
 		return;
 	} else {
-		gpio_direction_input(MX6Q_SABRESD_PFUZE_INT);
-		mx6q_sabresd_init_pfuze100(MX6Q_SABRESD_PFUZE_INT);
+		gpio_direction_input(SABRESD_PFUZE_INT);
+		mx6q_sabresd_init_pfuze100(SABRESD_PFUZE_INT);
 	}
 
 	/* SPI */
@@ -1130,7 +1130,7 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_asrc(&imx_asrc_data);
 
 	/* release USB Hub reset */
-	gpio_set_value(MX6Q_SABRESD_USB_HUB_RESET, 1);
+	gpio_set_value(SABRESD_USB_HUB_RESET, 1);
 
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm(1);
@@ -1149,15 +1149,15 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_device_buttons();
 
 	/* enable sensor 3v3 and 1v8 */
-	gpio_request(MX6Q_SABRESD_SENSOR_EN, "sensor-en");
-	gpio_direction_output(MX6Q_SABRESD_SENSOR_EN, 1);
+	gpio_request(SABRESD_SENSOR_EN, "sensor-en");
+	gpio_direction_output(SABRESD_SENSOR_EN, 1);
 
 	/* enable ecompass intr */
-	gpio_request(MX6Q_SABRESD_eCOMPASS_INT, "ecompass-int");
-	gpio_direction_input(MX6Q_SABRESD_eCOMPASS_INT);
+	gpio_request(SABRESD_eCOMPASS_INT, "ecompass-int");
+	gpio_direction_input(SABRESD_eCOMPASS_INT);
 	/* enable light sensor intr */
-	gpio_request(MX6Q_SABRESD_ALS_INT, "als-int");
-	gpio_direction_input(MX6Q_SABRESD_ALS_INT);
+	gpio_request(SABRESD_ALS_INT, "als-int");
+	gpio_direction_input(SABRESD_ALS_INT);
 
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
@@ -1185,9 +1185,9 @@ static void __init mx6_sabresd_board_init(void)
 	clk_enable(clko2);
 
 	/* Enable Aux_5V */
-	gpio_request(MX6Q_SABRESD_AUX_5V_EN, "aux_5v_en");
-	gpio_direction_output(MX6Q_SABRESD_AUX_5V_EN, 1);
-	gpio_set_value(MX6Q_SABRESD_AUX_5V_EN, 1);
+	gpio_request(SABRESD_AUX_5V_EN, "aux_5v_en");
+	gpio_direction_output(SABRESD_AUX_5V_EN, 1);
+	gpio_set_value(SABRESD_AUX_5V_EN, 1);
 
 	gps_power_on(true);
 	/* Register charger chips */
@@ -1228,7 +1228,7 @@ static void __init mx6q_sabresd_reserve()
 /*
  * initialize __mach_desc_MX6Q_SABRESD data structure.
  */
-MACHINE_START(MX6Q_SABRESD, "Freescale i.MX 6Quad Sabre-SD Board")
+MACHINE_START(MX6Q_SABRESD, "Freescale i.MX 6Quad/DualLite/Solo Sabre-SD Board")
 	/* Maintainer: Freescale Semiconductor, Inc. */
 	.boot_params = MX6_PHYS_OFFSET + 0x100,
 	.fixup = fixup_mxc_board,
