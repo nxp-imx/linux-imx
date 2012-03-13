@@ -77,6 +77,7 @@
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 #include "board-mx6q_sabresd.h"
+#include "board-mx6dl_sabresd.h"
 
 #define SABRESD_SD2_CD		IMX_GPIO_NR(2, 2)
 #define SABRESD_SD2_WP		IMX_GPIO_NR(2, 3)
@@ -290,8 +291,12 @@ static void mx6q_csi0_cam_powerdown(int powerdown)
 
 static void mx6q_csi0_io_init(void)
 {
-	mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_csi0_sensor_pads,
+	if (cpu_is_mx6q())
+		mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_csi0_sensor_pads,
 			ARRAY_SIZE(mx6q_sabresd_csi0_sensor_pads));
+	else if (cpu_is_mx6dl())
+		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabresd_csi0_sensor_pads,
+			ARRAY_SIZE(mx6dl_sabresd_csi0_sensor_pads));
 
 	/* Camera reset */
 	gpio_request(SABRESD_CSI0_RST, "cam-reset");
@@ -335,8 +340,12 @@ static void mx6q_mipi_powerdown(int powerdown)
 
 static void mx6q_mipi_sensor_io_init(void)
 {
-	mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_mipi_sensor_pads,
+	if (cpu_is_mx6q())
+		mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_mipi_sensor_pads,
 			ARRAY_SIZE(mx6q_sabresd_mipi_sensor_pads));
+	else if (cpu_is_mx6dl())
+		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabresd_mipi_sensor_pads,
+			ARRAY_SIZE(mx6dl_sabresd_mipi_sensor_pads));
 
 	/* Camera reset */
 	gpio_request(SABRESD_MIPICSI_RST, "cam-reset");
@@ -803,8 +812,12 @@ static void __init mx6_sabresd_board_init(void)
 	struct clk *new_parent;
 	int rate;
 
-	mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_pads,
-					ARRAY_SIZE(mx6q_sabresd_pads));
+	if (cpu_is_mx6q())
+		mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_pads,
+			ARRAY_SIZE(mx6q_sabresd_pads));
+	else if (cpu_is_mx6dl())
+		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabresd_pads,
+			ARRAY_SIZE(mx6dl_sabresd_pads));
 
 #ifdef CONFIG_FEC_1588
 	/* Set GPIO_16 input for IEEE-1588 ts_clk and RMII reference clock
@@ -817,13 +830,31 @@ static void __init mx6_sabresd_board_init(void)
 
 	gp_reg_id = sabresd_dvfscore_data.reg_id;
 	mx6q_sabresd_init_uart();
+
+	/*
+	 * MX6DL/Solo only supports single IPU
+	 * The following codes are used to change ipu id
+	 * and display id information for MX6DL/Solo. Then
+	 * register 1 IPU device and up to 2 displays for
+	 * MX6DL/Solo
+	 */
+	if (cpu_is_mx6dl()) {
+		ldb_data.ipu_id = 0;
+		ldb_data.disp_id = 0;
+		ldb_data.sec_ipu_id = 0;
+		ldb_data.sec_disp_id = 1;
+		hdmi_core_data.disp_id = 1;
+	}
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
 	imx6q_add_ipuv3(0, &ipu_data[0]);
-	imx6q_add_ipuv3(1, &ipu_data[1]);
-
-	for (i = 0; i < ARRAY_SIZE(sabresd_fb_data); i++)
-		imx6q_add_ipuv3fb(i, &sabresd_fb_data[i]);
+	if (cpu_is_mx6q()) {
+		imx6q_add_ipuv3(1, &ipu_data[1]);
+		for (i = 0; i < ARRAY_SIZE(sabresd_fb_data); i++)
+			imx6q_add_ipuv3fb(i, &sabresd_fb_data[i]);
+	} else
+		for (i = 0; i < (ARRAY_SIZE(sabresd_fb_data) + 1) / 2; i++)
+			imx6q_add_ipuv3fb(i, &sabresd_fb_data[i]);
 
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
@@ -864,7 +895,9 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabresd_sd4_data);
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6q_sabresd_init_usb();
-	imx6q_add_ahci(0, &mx6q_sabresd_sata_data);
+	/* SATA is not supported by MX6DL/Solo */
+	if (cpu_is_mx6q())
+		imx6q_add_ahci(0, &mx6q_sabresd_sata_data);
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&sabresd_vmmc_reg_devices);
