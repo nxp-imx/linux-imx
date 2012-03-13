@@ -4821,6 +4821,9 @@ static unsigned long _clk_clko_round_rate(struct clk *clk,
 	 */
 	if (div == 0)
 		div++;
+	else if (parent_rate % rate)
+		div++;
+
 	if (div > 8)
 		div = 8;
 	return parent_rate / div;
