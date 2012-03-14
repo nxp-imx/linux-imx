@@ -1067,7 +1067,7 @@ static int _clk_pll_mlb_main_enable(struct clk *clk)
 	return 0;
 }
 
-static int _clk_pll_mlb_main_disable(struct clk *clk)
+static void _clk_pll_mlb_main_disable(struct clk *clk)
 {
 	unsigned int reg;
 	void __iomem *pllbase;
@@ -1079,8 +1079,6 @@ static int _clk_pll_mlb_main_disable(struct clk *clk)
 	reg |= ANADIG_PLL_BYPASS;
 
 	__raw_writel(reg, pllbase);
-
-	return 0;
 }
 
 static struct clk pll6_mlb150_main_clk = {
