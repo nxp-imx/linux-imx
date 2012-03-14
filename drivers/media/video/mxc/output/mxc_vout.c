@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1459,6 +1459,8 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type 
 
 		ret = videobuf_streamoff(&vout->vbq);
 	}
+	INIT_LIST_HEAD(&vout->queue_list);
+	INIT_LIST_HEAD(&vout->active_list);
 
 	return ret;
 }
