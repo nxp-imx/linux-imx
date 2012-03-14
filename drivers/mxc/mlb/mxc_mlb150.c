@@ -486,7 +486,6 @@ static struct class *mlb_class;	/* device class */
 static struct device *class_dev;
 static u32 mlb_base;	/* mlb module base address */
 static u32 ahb0_irq, ahb1_irq, mlb_irq;
-static unsigned long iram_base;
 
 DEFINE_SPINLOCK(ctr_lock);
 
