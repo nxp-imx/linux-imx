@@ -1079,6 +1079,8 @@ static int _clk_pll_mlb_main_disable(struct clk *clk)
 	reg |= ANADIG_PLL_BYPASS;
 
 	__raw_writel(reg, pllbase);
+
+	return 0;
 }
 
 static struct clk pll6_mlb150_main_clk = {
