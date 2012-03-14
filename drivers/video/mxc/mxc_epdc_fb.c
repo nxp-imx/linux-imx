@@ -60,6 +60,7 @@
 #define NUM_SCREENS_MIN	2
 #define EPDC_NUM_LUTS 16
 #define EPDC_MAX_NUM_UPDATES 20
+#define EPDC_MAX_NUM_BUFFERS	2
 #define INVALID_LUT -1
 
 #define DEFAULT_TEMP_INDEX	0
@@ -159,6 +160,10 @@ struct mxc_epdc_fb_data {
 	u32 *working_buffer_virt;
 	u32 working_buffer_phys;
 	u32 working_buffer_size;
+	dma_addr_t *phys_addr_updbuf;
+	void **virt_addr_updbuf;
+	u32 upd_buffer_num;
+	u32 max_num_buffers;
 	dma_addr_t phys_addr_copybuf;	/* Phys address of copied update data */
 	void *virt_addr_copybuf;	/* Used for PxP SW workaround */
 	u32 order_cnt;
@@ -2143,6 +2148,15 @@ static void epdc_submit_work_func(struct work_struct *work)
 		return;
 	}
 
+	/* Select from PxP output buffers */
+	upd_data_list->phys_addr =
+		fb_data->phys_addr_updbuf[fb_data->upd_buffer_num];
+	upd_data_list->virt_addr =
+		fb_data->virt_addr_updbuf[fb_data->upd_buffer_num];
+	fb_data->upd_buffer_num++;
+	if (fb_data->upd_buffer_num > fb_data->max_num_buffers-1)
+		fb_data->upd_buffer_num = 0;
+
 	/* Release buffer queues */
 	mutex_unlock(&fb_data->queue_mutex);
 
@@ -2368,6 +2382,9 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	}
 
 	if (fb_data->upd_scheme == UPDATE_SCHEME_SNAPSHOT) {
+		int count = 0;
+		struct update_data_list *plist;
+
 		/*
 		 * If next update is a FULL mode update, then we must
 		 * ensure that all pending & active updates are complete
@@ -2381,11 +2398,14 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 			mutex_lock(&fb_data->queue_mutex);
 		}
 
-		/*
-		 * Get available intermediate (PxP output) buffer to hold
-		 * processed update region
-		 */
-		if (list_empty(&fb_data->upd_buf_free_list)) {
+		/* Count buffers in free buffer list */
+		list_for_each_entry(plist, &fb_data->upd_buf_free_list, list)
+			count++;
+
+		/* Use count to determine if we have enough
+		 * free buffers to handle this update request */
+		if (count + fb_data->max_num_buffers
+			<= EPDC_MAX_NUM_UPDATES) {
 			dev_err(fb_data->dev,
 				"No free intermediate buffers available.\n");
 			mutex_unlock(&fb_data->queue_mutex);
@@ -2466,6 +2486,15 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	 * will ultimately use when telling EPDC where to update on panel
 	 */
 	screen_upd_region = &upd_desc->upd_data.update_region;
+
+	/* Select from PxP output buffers */
+	upd_data_list->phys_addr =
+		fb_data->phys_addr_updbuf[fb_data->upd_buffer_num];
+	upd_data_list->virt_addr =
+		fb_data->virt_addr_updbuf[fb_data->upd_buffer_num];
+	fb_data->upd_buffer_num++;
+	if (fb_data->upd_buffer_num > fb_data->max_num_buffers-1)
+		fb_data->upd_buffer_num = 0;
 
 	ret = epdc_process_update(upd_data_list, fb_data);
 	if (ret) {
@@ -3825,6 +3854,8 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	fb_data->fb_offset = 0;
 	fb_data->eof_sync_period = 0;
 
+	fb_data->max_num_buffers = EPDC_MAX_NUM_BUFFERS;
+
 	/*
 	 * Initialize lists for pending updates,
 	 * active update requests, update collisions,
@@ -3840,29 +3871,38 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		upd_list = kzalloc(sizeof(*upd_list), GFP_KERNEL);
 		if (upd_list == NULL) {
 			ret = -ENOMEM;
-			goto out_upd_buffers;
+			goto out_upd_lists;
 		}
 
+		/* Add newly allocated buffer to free list */
+		list_add(&upd_list->list, &fb_data->upd_buf_free_list);
+	}
+
+	fb_data->virt_addr_updbuf =
+		kzalloc(sizeof(void *) * fb_data->max_num_buffers, GFP_KERNEL);
+	fb_data->phys_addr_updbuf =
+		kzalloc(sizeof(dma_addr_t) * fb_data->max_num_buffers,
+			GFP_KERNEL);
+	for (i = 0; i < fb_data->max_num_buffers; i++) {
 		/*
 		 * Allocate memory for PxP output buffer.
 		 * Each update buffer is 1 byte per pixel, and can
 		 * be as big as the full-screen frame buffer
 		 */
-		upd_list->virt_addr =
+		fb_data->virt_addr_updbuf[i] =
 		    dma_alloc_coherent(fb_data->info.device, fb_data->max_pix_size,
-				       &upd_list->phys_addr, GFP_DMA);
-		if (upd_list->virt_addr == NULL) {
-			kfree(upd_list);
+				       &fb_data->phys_addr_updbuf[i], GFP_DMA);
+		if (fb_data->virt_addr_updbuf[i] == NULL) {
 			ret = -ENOMEM;
 			goto out_upd_buffers;
 		}
 
-		/* Add newly allocated buffer to free list */
-		list_add(&upd_list->list, &fb_data->upd_buf_free_list);
-
 		dev_dbg(fb_data->info.device, "allocated %d bytes @ 0x%08X\n",
-			fb_data->max_pix_size, upd_list->phys_addr);
+			fb_data->max_pix_size, fb_data->phys_addr_updbuf[i]);
 	}
+
+	/* Counter indicating which update buffer should be used next. */
+	fb_data->upd_buffer_num = 0;
 
 	/*
 	 * Allocate memory for PxP SW workaround buffer
@@ -3930,9 +3970,11 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 		fb_data->lut_update_order[i] = 0;
 
 	INIT_DELAYED_WORK(&fb_data->epdc_done_work, epdc_done_work_func);
-	fb_data->epdc_submit_workqueue = create_rt_workqueue("EPDC Submit");
+	fb_data->epdc_submit_workqueue =
+		__create_workqueue(("EPDC Submit"), 1, 0, 1);
 	INIT_WORK(&fb_data->epdc_submit_work, epdc_submit_work_func);
-	fb_data->epdc_intr_workqueue = create_rt_workqueue("EPDC Interrupt");
+	fb_data->epdc_intr_workqueue =
+		__create_workqueue(("EPDC Interrupt"), 1, 0, 1);
 	INIT_WORK(&fb_data->epdc_intr_work, epdc_intr_work_func);
 
 	/* Retrieve EPDC IRQ num */
@@ -4154,12 +4196,14 @@ out_copybuffer:
 			      fb_data->virt_addr_copybuf,
 			      fb_data->phys_addr_copybuf);
 out_upd_buffers:
+	for (i = 0; i < fb_data->max_num_buffers; i++)
+		dma_free_writecombine(&pdev->dev, fb_data->max_pix_size,
+				      fb_data->virt_addr_updbuf[i],
+				      fb_data->phys_addr_updbuf[i]);
+out_upd_lists:
 	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list,
 			list) {
 		list_del(&plist->list);
-		dma_free_writecombine(&pdev->dev, fb_data->max_pix_size,
-				      plist->virt_addr,
-				      plist->phys_addr);
 		kfree(plist);
 	}
 out_dma_fb:
