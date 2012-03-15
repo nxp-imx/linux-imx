@@ -198,8 +198,8 @@
 #define SABRESD_ELAN_INT	IMX_GPIO_NR(3, 28)
 
 static struct clk *sata_clk;
-static int mma8451_position = 3;
-static int mag3110_position;
+static int mma8451_position = 1;
+static int mag3110_position = 2;
 static int max11801_mode = 1;
 static int enable_lcd_ldb;
 
