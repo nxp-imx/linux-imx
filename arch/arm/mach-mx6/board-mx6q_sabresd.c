@@ -117,8 +117,8 @@
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
-static int mma8451_position = 3;
-static int mag3110_position;
+static int mma8451_position = 1;
+static int mag3110_position = 2;
 
 extern char *gp_reg_id;
 
