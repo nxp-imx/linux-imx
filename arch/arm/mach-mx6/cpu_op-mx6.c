@@ -36,8 +36,8 @@ static struct cpu_op mx6_cpu_op_1_2G[] = {
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
 	{
-	 .pll_rate = 624000000,
-	 .cpu_rate = 624000000,
+	 .pll_rate = 672000000,
+	 .cpu_rate = 672000000,
 	 .cpu_voltage = 1100000,},
 	 {
 	  .pll_rate = 792000000,
@@ -64,8 +64,8 @@ static struct cpu_op mx6_cpu_op_1G[] = {
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
 	{
-	 .pll_rate = 624000000,
-	 .cpu_rate = 624000000,
+	 .pll_rate = 672000000,
+	 .cpu_rate = 672000000,
 	 .cpu_voltage = 1100000,},
 	 {
 	  .pll_rate = 792000000,
