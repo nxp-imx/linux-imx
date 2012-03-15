@@ -30,7 +30,6 @@
 #include <linux/delay.h>
 #include <linux/bitops.h>
 
-
 struct mpr121_touchkey_data {
 	struct i2c_client	*client;
 	struct input_dev	*input_dev;
@@ -88,8 +87,7 @@ static irqreturn_t mpr_touchkey_interrupt(int irq, void *dev_id)
 	data->statusbits = reg;
 	data->key_val = data->keycodes[key_num];
 
-	input_event(input, EV_MSC, MSC_SCAN, data->key_val);
-	input_report_key(input, data->key_val, pressed);
+	input_event(input, EV_KEY, data->key_val, !!pressed);
 	input_sync(input);
 
 	dev_dbg(&client->dev, "key %d %d %s\n", key_num, data->key_val,
@@ -125,6 +123,7 @@ static int mpr121_phys_init(struct mpr121_platform_data *pdata,
 		if (ret < 0)
 			goto err_i2c_write;
 	}
+
 	/* setup auto-register by vdd,the formula please ref:AN3889 */
 	vdd = pdata->vdd_uv / 1000;
 	usl = ((vdd - 700) * 256) / vdd;
@@ -140,7 +139,7 @@ static int mpr121_phys_init(struct mpr121_platform_data *pdata,
 	if (ret < 0)
 		goto err_i2c_write;
 	ret = i2c_smbus_write_byte_data(client, ELECTRODE_CONF_ADDR,
-					data->keycount);
+				ECR_CL_BT_5BIT_VAL | (data->keycount & 0xf));
 	if (ret < 0)
 		goto err_i2c_write;
 
@@ -203,11 +202,10 @@ static int __devinit mpr_touchkey_probe(struct i2c_client *client,
 	input_dev->keycodemax = data->keycount;
 
 	for (i = 0; i < input_dev->keycodemax; i++) {
-		__set_bit(pdata->matrix[i], input_dev->keybit);
+		input_set_capability(input_dev, EV_KEY, pdata->matrix[i]);
 		data->keycodes[i] = pdata->matrix[i];
 	}
 
-	input_set_capability(input_dev, EV_KEY, MSC_SCAN);
 	input_set_drvdata(input_dev, data);
 
 	error = request_threaded_irq(client->irq, NULL,
@@ -264,7 +262,8 @@ static int mpr_resume(struct i2c_client *client)
 	if (device_may_wakeup(&client->dev))
 		disable_irq_wake(client->irq);
 
-	i2c_smbus_write_byte_data(client, ELECTRODE_CONF_ADDR, data->keycount);
+	i2c_smbus_write_byte_data(client, ELECTRODE_CONF_ADDR,
+				ECR_CL_BT_5BIT_VAL | (data->keycount & 0xf));
 
 	return 0;
 }
