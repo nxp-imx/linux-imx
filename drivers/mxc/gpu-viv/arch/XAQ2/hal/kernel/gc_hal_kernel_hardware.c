@@ -23,7 +23,6 @@
 
 #include "gc_hal.h"
 #include "gc_hal_kernel.h"
-#include <mach/hardware.h>
 
 #define _GC_OBJ_ZONE    gcvZONE_HARDWARE
 
@@ -422,6 +421,7 @@ gckHARDWARE_Construct(
     gceSTATUS status;
     gckHARDWARE hardware = gcvNULL;
     gctUINT16 data = 0xff00;
+    gctUINT32 axi_ot;
     gctPOINTER pointer = gcvNULL;
 
     gcmkHEADER_ARG("Os=0x%x", Os);
@@ -468,6 +468,10 @@ gckHARDWARE_Construct(
     case gcv300:
     case gcv320:
         hardware->type = gcvHARDWARE_2D;
+        /*set outstanding limit*/
+        gcmkONERROR(gckOS_ReadRegisterEx(Os, Core, 0x00414, &axi_ot));
+        axi_ot = (axi_ot & (~0xFF)) | 0x10;
+        gcmkONERROR(gckOS_WriteRegisterEx(Os, Core, 0x00414, axi_ot));
         break;
 
     default:
@@ -508,16 +512,6 @@ gckHARDWARE_Construct(
     }
 
 #endif
-
-    if(cpu_is_mx6dl())
-    {
-        /*set outstanding limit on mx6dl*/
-        gctUINT32 data;
-
-        gcmkONERROR(gckOS_ReadRegisterEx(Os, Core, 0x00414, &data));
-        data = (data & (~0xFF)) | 0x10;
-        gcmkONERROR(gckOS_WriteRegisterEx(Os, Core, 0x00414, data));
-    }
 
     /* Set power state to ON. */
     hardware->chipPowerState  = gcvPOWER_ON;
