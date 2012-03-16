@@ -450,6 +450,7 @@ _AllocateTaskContainer(
                     /* Set the result. */
                     * Buffer = buffer;
 
+                    gcmkFOOTER_ARG("*Buffer=0x%x",*Buffer);
                     /* Success. */
                     return gcvSTATUS_OK;
                 }
@@ -492,6 +493,7 @@ _AllocateTaskContainer(
         /* Set the result. */
         * Buffer = buffer;
 
+        gcmkFOOTER_ARG("*Buffer=0x%x",*Buffer);
         /* Success. */
         return gcvSTATUS_OK;
     }
@@ -803,7 +805,7 @@ _HardwareToKernel(
 #if gcdDYNAMIC_MAP_RESERVED_MEMORY
     gctUINT32 nodePhysical;
 #endif
-
+    status = gcvSTATUS_OK;
     /* Assume a non-virtual node and get the pool manager object. */
     memory = Node->VidMem.memory;
 
@@ -814,7 +816,7 @@ _HardwareToKernel(
 
     if (Node->VidMem.kernelVirtual == gcvNULL)
     {
-        status = gckOS_MapReservedMemoryToKernel(Os,
+        status = gckOS_MapPhysical(Os,
                         nodePhysical,
                         Node->VidMem.bytes,
                         (gctPOINTER *)&Node->VidMem.kernelVirtual);
@@ -826,7 +828,7 @@ _HardwareToKernel(
     }
 
     offset = Address - nodePhysical;
-    *KernelPointer = Node->VidMem.kernelVirtual + offset;
+    *KernelPointer = (gctPOINTER)((gctUINT32)Node->VidMem.kernelVirtual + offset);
 #else
     /* Determine the header offset within the pool it is allocated in. */
     offset = Address - memory->baseAddress;
@@ -2875,6 +2877,7 @@ gckVGCOMMAND_Construct(
         /* Return gckVGCOMMAND object pointer. */
         *Command = command;
 
+        gcmkFOOTER_ARG("*Command=0x%x",*Command);
         /* Success. */
         return gcvSTATUS_OK;
     }
@@ -3152,6 +3155,7 @@ gckVGCOMMAND_Destroy(
         /* Free the gckVGCOMMAND structure. */
         gcmkERR_BREAK(gckOS_Free(Command->os, Command));
 
+        gcmkFOOTER_NO();
         /* Success. */
         return gcvSTATUS_OK;
     }
@@ -3492,7 +3496,7 @@ gckVGCOMMAND_Commit(
                 for (entriesQueued = 0; entriesQueued < currentLength; entriesQueued += 1)
                 {
                     /* Get the kernel pointer to the command buffer header. */
-                    gcsCMDBUFFER_PTR commandBuffer;
+                    gcsCMDBUFFER_PTR commandBuffer = gcvNULL;
                     gcmkERR_BREAK(_ConvertUserCommandBufferPointer(
                         Command,
                         userEntry->commandBuffer,

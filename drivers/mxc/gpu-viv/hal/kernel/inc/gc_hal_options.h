@@ -142,6 +142,18 @@
 #endif
 
 /*
+    gcdDUMP_FRAMERATE
+        When set to a value other than zero, averaqe frame rate will be dumped.
+        The value set is the starting frame that the average will be calculated.
+        This is needed because sometimes first few frames are too slow to be included
+        in the average. Frame count starts from 1.
+*/
+#ifndef gcdDUMP_FRAMERATE
+#   define gcdDUMP_FRAMERATE					0
+#endif
+
+
+/*
     gcdDUMP_IN_KERNEL
 
         When set to 1, all dumps will happen in the kernel.  This is handy if
@@ -351,7 +363,7 @@
 #   if gcdFPGA_BUILD
 #       define gcdGPU_TIMEOUT                   0
 #   else
-#       define gcdGPU_TIMEOUT                   2000
+#       define gcdGPU_TIMEOUT                   (2000 * 5)
 #   endif
 #endif
 
@@ -513,7 +525,7 @@
            mapped by system when allocated.
 */
 #ifndef gcdDYNAMIC_MAP_RESERVED_MEMORY
-#   define gcdDYNAMIC_MAP_RESERVED_MEMORY      0
+#   define gcdDYNAMIC_MAP_RESERVED_MEMORY      1
 #endif
 
 /*
@@ -712,6 +724,10 @@
 #   define gcdSHARED_PAGETABLE                  1
 #endif
 
+#ifndef gcdUSE_OPENCL
+#   define gcdUSE_OPENCL                        0
+#endif
+
 /*
     gcdBLOB_CACHE_ENABLED
         When non-zero, Android blob cache extension will be enabled.
@@ -720,6 +736,21 @@
 
 #ifndef gcdBLOB_CACHE_ENABLED
 #   define gcdBLOB_CACHE_ENABLED                0
+#endif
+
+/*
+    gcdSMALL_BLOCK_SIZE
+
+        When non-zero, a part of VIDMEM will be reserved for requests
+        whose requesting size is less than gcdSMALL_BLOCK_SIZE.
+
+        For Linux, it's the size of a page. If this requeset fallbacks
+        to gcvPOOL_CONTIGUOUS or gcvPOOL_VIRTUAL, memory will be wasted
+        because they allocate a page at least.
+ */
+#ifndef gcdSMALL_BLOCK_SIZE
+#   define gcdSMALL_BLOCK_SIZE                  4096
+#   define gcdRATIO_FOR_SMALL_MEMORY            32
 #endif
 
 #endif /* __gc_hal_options_h_ */

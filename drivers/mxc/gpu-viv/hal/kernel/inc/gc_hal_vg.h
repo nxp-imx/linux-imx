@@ -249,16 +249,38 @@ typedef gctTHREADFUNCRESULT (gctTHREADFUNCTYPE * gctTHREADFUNC) (
 )
 
 /* some platforms need to fix the physical address for HW to access*/
-#if (defined(__QNXNTO__) && defined(IMX6X))
+#ifdef __QNXNTO__
 
-#define gcmFIXADDRESS(address) \
-(\
-    ((address) + 0x10000000)\
-)
+gcmINLINE static gctUINT32 _qnxFixAddress(gctUINT32 Address)
+{
+    gctUINT32 baseAddress = 0;
+
+    if (gcmIS_ERROR(gcoOS_GetBaseAddress(gcvNULL, &baseAddress)))
+    {
+        baseAddress = 0;
+    }
+
+    return Address + baseAddress;
+}
+
+#define gcmFIXADDRESS       _qnxFixAddress
+
+gcmINLINE static gctUINT32 _qnxkFixAddress(gctUINT32 Address)
+{
+    extern unsigned long baseAddress;
+    return Address + baseAddress;
+}
+
+#define gcmkFIXADDRESS      _qnxkFixAddress
 
 #else
 
 #define gcmFIXADDRESS(address) \
+(\
+    (address)\
+)
+
+#define gcmkFIXADDRESS(address) \
 (\
     (address)\
 )

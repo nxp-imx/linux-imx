@@ -320,6 +320,7 @@ gckVGCOMMAND_RestartCommand(
     }
     else
     {
+        gcmkFOOTER_NO();
         return gcvSTATUS_NOT_SUPPORTED;
     }
 
@@ -392,7 +393,7 @@ gckVGCOMMAND_FetchCommand(
                 | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 20:0) - (0 ? 20:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 20:0) - (0 ? 20:0) + 1))))))) << (0 ? 20:0))) | (((gctUINT32) ((gctUINT32) (FetchCount) & ((gctUINT32) ((((1 ? 20:0) - (0 ? 20:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 20:0) - (0 ? 20:0) + 1))))))) << (0 ? 20:0)));
 
             buffer[1]
-                = gcmFIXADDRESS(FetchAddress);
+                = gcmkFIXADDRESS(FetchAddress);
         }
 
         if (Bytes != gcvNULL)
@@ -416,7 +417,7 @@ gckVGCOMMAND_FetchCommand(
                 | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 15:0) - (0 ? 15:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 15:0) - (0 ? 15:0) + 1))))))) << (0 ? 15:0))) | (((gctUINT32) ((gctUINT32) (FetchCount) & ((gctUINT32) ((((1 ? 15:0) - (0 ? 15:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 15:0) - (0 ? 15:0) + 1))))))) << (0 ? 15:0)));
 
             buffer[1]
-                = gcmFIXADDRESS(FetchAddress);
+                = gcmkFIXADDRESS(FetchAddress);
         }
 
         if (Bytes != gcvNULL)
@@ -494,7 +495,7 @@ gckVGCOMMAND_CallCommand(
                 | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 20:0) - (0 ? 20:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 20:0) - (0 ? 20:0) + 1))))))) << (0 ? 20:0))) | (((gctUINT32) ((gctUINT32) (FetchCount) & ((gctUINT32) ((((1 ? 20:0) - (0 ? 20:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 20:0) - (0 ? 20:0) + 1))))))) << (0 ? 20:0)));
 
             buffer[1]
-                = gcmFIXADDRESS(FetchAddress);
+                = gcmkFIXADDRESS(FetchAddress);
         }
 
         if (Bytes != gcvNULL)
@@ -505,6 +506,7 @@ gckVGCOMMAND_CallCommand(
     }
     else
     {
+        gcmkFOOTER_NO();
         return gcvSTATUS_NOT_SUPPORTED;
     }
 
@@ -736,6 +738,7 @@ gckVGCOMMAND_EventCommand(
                 /* Supported? */
                 if (eventSource == ~0)
                 {
+                    gcmkFOOTER_NO();
                     return gcvSTATUS_NOT_SUPPORTED;
                 }
 
@@ -752,6 +755,7 @@ gckVGCOMMAND_EventCommand(
                 /* Supported? */
                 if (eventFromFE == ~0)
                 {
+                    gcmkFOOTER_NO();
                     return gcvSTATUS_NOT_SUPPORTED;
                 }
 
@@ -767,6 +771,7 @@ gckVGCOMMAND_EventCommand(
             /* Make sure the events are directly supported for the block. */
             if (states[Block].eventSource == ~0)
             {
+                gcmkFOOTER_NO();
                 return gcvSTATUS_NOT_SUPPORTED;
             }
 

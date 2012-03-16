@@ -223,9 +223,9 @@ static gctUINT32 _debugZones = gcvZONE_NONE;
 #       define gcdOFFSET                4
 #if !defined(gcdPREFIX_LEADER)
 #           define gcdPREFIX_LEADER     gcmSIZEOF(gctUINT32)
-#           define gcdPIDFORMAT         "pid=0x%04X"
+#           define gcdPIDFORMAT         "pid=%5d"
 #       else
-#           define gcdPIDFORMAT         ", pid=0x%04X"
+#           define gcdPIDFORMAT         ", pid=%5d"
 #       endif
 #   else
 #       define gcdPIDSIZE               0
@@ -242,9 +242,9 @@ static gctUINT32 _debugZones = gcvZONE_NONE;
 #       define gcdOFFSET                4
 #if !defined(gcdPREFIX_LEADER)
 #           define gcdPREFIX_LEADER     gcmSIZEOF(gctUINT32)
-#           define gcdTIDFORMAT         "tid=0x%04X"
+#           define gcdTIDFORMAT         "tid=%5d"
 #       else
-#           define gcdTIDFORMAT         ", tid=0x%04X"
+#           define gcdTIDFORMAT         ", tid=%5d"
 #       endif
 #   else
 #       define gcdTIDSIZE               0
@@ -1782,6 +1782,24 @@ _Print(
 ********************************* Debug Macros *********************************
 \******************************************************************************/
 
+#ifdef __QNXNTO__
+
+extern volatile unsigned g_nQnxInIsrs;
+
+#define gcmDEBUGPRINT(ArgumentSize, CopyMessage, Message) \
+{ \
+    if (atomic_add_value(&g_nQnxInIsrs, 1) == 0) \
+    { \
+        gctARGUMENTS __arguments__; \
+        gcmkARGUMENTS_START(__arguments__, Message); \
+        _Print(ArgumentSize, CopyMessage, Message, __arguments__); \
+        gcmkARGUMENTS_END(__arguments__); \
+    } \
+    atomic_sub(&g_nQnxInIsrs, 1); \
+}
+
+#else
+
 #define gcmDEBUGPRINT(ArgumentSize, CopyMessage, Message) \
 { \
     gctARGUMENTS __arguments__; \
@@ -1790,6 +1808,7 @@ _Print(
     gcmkARGUMENTS_END(__arguments__); \
 }
 
+#endif
 
 /******************************************************************************\
 ********************************** Debug Code **********************************

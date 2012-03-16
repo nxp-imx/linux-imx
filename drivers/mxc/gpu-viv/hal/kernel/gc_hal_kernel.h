@@ -700,12 +700,20 @@ struct _gckMMU
     gctUINT32_PTR               pageTableLogical;
     gctUINT32                   pageTableEntries;
 
+    /* Master TLB information. */
+    gctSIZE_T                   mtlbSize;
+    gctPHYS_ADDR                mtlbPhysical;
+    gctUINT32_PTR               mtlbLogical;
+    gctUINT32                   mtlbEntries;
+
     /* Free entries. */
     gctUINT32                   heapList;
     gctBOOL                     freeNodes;
 
     gctPOINTER                  staticSTLB;
     gctBOOL                     enabled;
+
+    gctUINT32                   dynamicMappingStart;
 
 #ifdef __QNXNTO__
     /* Single linked list of all allocated nodes. */

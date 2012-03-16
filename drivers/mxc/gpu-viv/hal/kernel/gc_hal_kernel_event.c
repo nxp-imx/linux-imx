@@ -2560,3 +2560,119 @@ OnError:
     gcmkFOOTER();
     return status;
 }
+
+static void
+_PrintRecord(
+    gcsEVENT_PTR record
+    )
+{
+    switch (record->info.command)
+    {
+    case gcvHAL_FREE_NON_PAGED_MEMORY:
+        gcmkPRINT("      gcvHAL_FREE_NON_PAGED_MEMORY");
+            break;
+
+    case gcvHAL_FREE_CONTIGUOUS_MEMORY:
+        gcmkPRINT("      gcvHAL_FREE_CONTIGUOUS_MEMORY");
+            break;
+
+    case gcvHAL_FREE_VIDEO_MEMORY:
+        gcmkPRINT("      gcvHAL_FREE_VIDEO_MEMORY");
+            break;
+
+    case gcvHAL_WRITE_DATA:
+        gcmkPRINT("      gcvHAL_WRITE_DATA");
+       break;
+
+    case gcvHAL_UNLOCK_VIDEO_MEMORY:
+        gcmkPRINT("      gcvHAL_UNLOCK_VIDEO_MEMORY");
+        break;
+
+    case gcvHAL_SIGNAL:
+        gcmkPRINT("      gcvHAL_SIGNAL process=%d signal=0x%x",
+                  record->info.u.Signal.process,
+                  record->info.u.Signal.signal);
+        break;
+
+    case gcvHAL_UNMAP_USER_MEMORY:
+        gcmkPRINT("      gcvHAL_UNMAP_USER_MEMORY");
+       break;
+
+    case gcvHAL_TIMESTAMP:
+        gcmkPRINT("      gcvHAL_TIMESTAMP");
+        break;
+
+    case gcvHAL_COMMIT_DONE:
+        gcmkPRINT("      gcvHAL_COMMIT_DONE");
+        break;
+
+    default:
+        gcmkPRINT("      Illegal Event %d", record->info.command);
+        break;
+    }
+}
+
+/*******************************************************************************
+** gckEVENT_Dump
+**
+** Dump record in event queue when stuck happens.
+** No protection for the event queue.
+**/
+gceSTATUS
+gckEVENT_Dump(
+    IN gckEVENT Event
+    )
+{
+    gcsEVENT_QUEUE_PTR queueHead = Event->queueHead;
+    gcsEVENT_QUEUE_PTR queue;
+    gcsEVENT_PTR record = gcvNULL;
+    gctINT i;
+
+    gcmkHEADER_ARG("Event=0x%x", Event);
+
+    gcmkPRINT("**************************\n");
+    gcmkPRINT("***  EVENT STATE DUMP  ***\n");
+    gcmkPRINT("**************************\n");
+
+
+    gcmkPRINT("  Unsumbitted Event:");
+    while(queueHead)
+    {
+        queue = queueHead;
+        record = queueHead->head;
+
+        gcmkPRINT("    [%x]:", queue);
+        while(record)
+        {
+            _PrintRecord(record);
+            record = record->next;
+        }
+
+        if (queueHead == Event->queueTail)
+        {
+            queueHead = gcvNULL;
+        }
+        else
+        {
+            queueHead = queueHead->next;
+        }
+    }
+
+    gcmkPRINT("  Untriggered Event:");
+    for (i = 0; i < 30; i++)
+    {
+        queue = &Event->queues[i];
+        record = queue->head;
+
+        gcmkPRINT("    [%d]:", i);
+        while(record)
+        {
+            _PrintRecord(record);
+            record = record->next;
+        }
+    }
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+

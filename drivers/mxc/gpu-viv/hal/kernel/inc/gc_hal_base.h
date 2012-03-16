@@ -230,6 +230,13 @@ typedef enum _gceHOW
 }
 gceHOW;
 
+typedef enum _gceSignalHandlerType
+{
+    gcvHANDLE_SIGFPE_WHEN_SIGNAL_CODE_IS_0        = 0x1,
+}
+gceSignalHandlerType;
+
+
 #if gcdENABLE_VG
 /* gcsHAL_Limits*/
 typedef struct _gcsHAL_LIMITS
@@ -650,6 +657,14 @@ gcoOS_Allocate(
     OUT gctPOINTER * Memory
     );
 
+/* Get allocated memory size. */
+gceSTATUS
+gcoOS_GetMemorySize(
+    IN gcoOS Os,
+    IN gctPOINTER Memory,
+    OUT gctSIZE_T_PTR MemorySize
+    );
+
 /* Free allocated memory. */
 gceSTATUS
 gcoOS_Free(
@@ -943,6 +958,14 @@ gcoOS_ZeroMemory(
     IN gctSIZE_T Bytes
     );
 
+/* Same as strstr. */
+gceSTATUS
+gcoOS_StrStr(
+    IN gctCONST_STRING String,
+    IN gctCONST_STRING SubString,
+    OUT gctSTRING * Output
+    );
+
 /* Find the last occurance of a character inside a string. */
 gceSTATUS
 gcoOS_StrFindReverse(
@@ -1063,6 +1086,11 @@ gcoOS_Compact(
     IN gcoOS Os
     );
 
+gceSTATUS
+gcoOS_AddSignalHandler (
+    IN gceSignalHandlerType SignalHandlerType
+    );
+
 #if VIVANTE_PROFILER /*gcdENABLE_PROFILING*/
 gceSTATUS
 gcoOS_ProfileStart(
@@ -1093,6 +1121,12 @@ gcoOS_QueryVideoMemory(
     OUT gctSIZE_T * ExternalSize,
     OUT gctPHYS_ADDR * ContiguousAddress,
     OUT gctSIZE_T * ContiguousSize
+    );
+
+/* Detect if the process is the executable specified. */
+gceSTATUS
+gcoOS_DetectProcessByName(
+    IN gctCONST_STRING Name
     );
 
 /*----------------------------------------------------------------------------*/
@@ -1329,6 +1363,13 @@ gcoOS_CacheInvalidate(
     IN gctPOINTER Logical,
     IN gctSIZE_T Bytes
     );
+
+gceSTATUS
+gcoOS_MemoryBarrier(
+    IN gcoOS Os,
+    IN gctPOINTER Logical
+    );
+
 
 /*----------------------------------------------------------------------------*/
 /*----- Profile --------------------------------------------------------------*/
@@ -1756,6 +1797,13 @@ gcoSURF_GetFormat(
     OUT gceSURF_FORMAT * Format
     );
 
+/* Get surface tiling. */
+gceSTATUS
+gcoSURF_GetTiling(
+    IN gcoSURF Surface,
+    OUT gceTILING * Tiling
+    );
+
 /* Lock the surface. */
 gceSTATUS
 gcoSURF_Lock(
@@ -2085,6 +2133,13 @@ gcoHEAP_Allocate(
     OUT gctPOINTER * Node
     );
 
+gceSTATUS
+gcoHEAP_GetMemorySize(
+    IN gcoHEAP Heap,
+    IN gctPOINTER Memory,
+    OUT gctSIZE_T_PTR MemorySize
+    );
+
 /* Free memory. */
 gceSTATUS
 gcoHEAP_Free(
@@ -2117,8 +2172,19 @@ gcoOS_SetDebugLevel(
     );
 
 void
+gcoOS_GetDebugLevel(
+    OUT gctUINT32_PTR DebugLevel
+    );
+
+void
 gcoOS_SetDebugZone(
     IN gctUINT32 Zone
+    );
+
+void
+gcoOS_GetDebugZone(
+    IN gctUINT32 Zone,
+    OUT gctUINT32_PTR DebugZone
     );
 
 void
@@ -2137,6 +2203,11 @@ void
 gcoOS_SetDebugFile(
     IN gctCONST_STRING FileName
     );
+
+gctFILE
+gcoOS_ReplaceDebugFile(
+    IN gctFILE fp
+	);
 
 /*******************************************************************************
 **
@@ -2767,6 +2838,31 @@ gckOS_DebugFlush(
         gckOS_DebugFlush(__FUNCTION__, __LINE__, DmaAddress)
 #else
 #   define gcmkDEBUGFLUSH(DmaAddress)
+#endif
+
+/*******************************************************************************
+**
+**  gcmDUMP_FRAMERATE
+**
+**      Print average frame rate
+**
+*/
+#if gcdDUMP_FRAMERATE
+    gceSTATUS
+    gcfDumpFrameRate(
+        void
+    );
+#   define gcmDUMP_FRAMERATE        gcfDumpFrameRate
+#elif gcdHAS_ELLIPSES
+#   define gcmDUMP_FRAMERATE(...)
+#else
+    gcmINLINE static void
+    __dummy_dump_frame_rate(
+        void
+        )
+    {
+    }
+#   define gcmDUMP_FRAMERATE        __dummy_dump_frame_rate
 #endif
 
 

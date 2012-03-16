@@ -458,11 +458,13 @@ _AllocateMemory(
     gckVIDMEM videoMemory;
     gctINT loopCount;
     gcuVIDMEM_NODE_PTR node = gcvNULL;
+    gctBOOL tileStatusInVirtual;
 
     gcmkHEADER_ARG("Kernel=0x%x *Pool=%d Bytes=%lu Alignment=%lu Type=%d",
                    Kernel, *Pool, Bytes, Alignment, Type);
 
     gcmkVERIFY_ARGUMENT(Pool != gcvNULL);
+    gcmkVERIFY_ARGUMENT(Bytes != 0);
 
     /* Get initial pool. */
     switch (pool = *Pool)
@@ -485,12 +487,6 @@ _AllocateMemory(
     default:
         loopCount = 1;
         break;
-    }
-
-    /* Verify the number of bytes to allocate. */
-    if (Bytes == 0)
-    {
-        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
     }
 
     while (loopCount-- > 0)
@@ -573,10 +569,17 @@ _AllocateMemory(
         }
 
         else
-        if ((pool == gcvPOOL_CONTIGUOUS)
-        &&  (Type != gcvSURF_TILE_STATUS)
-        )
+        if (pool == gcvPOOL_CONTIGUOUS)
         {
+            tileStatusInVirtual =
+                gckHARDWARE_IsFeatureAvailable(Kernel->hardware,
+                                               gcvFEATURE_MC20);
+
+            if (Type == gcvSURF_TILE_STATUS && tileStatusInVirtual != gcvTRUE)
+            {
+                gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+            }
+
             /* Advance to virtual memory. */
             pool = gcvPOOL_VIRTUAL;
         }
@@ -642,7 +645,6 @@ gckKERNEL_Dispatch(
     )
 {
     gceSTATUS status = gcvSTATUS_OK;
-    gctUINT32 bitsPerPixel;
     gctSIZE_T bytes;
     gcuVIDMEM_NODE_PTR node;
     gctBOOL locked = gcvFALSE;
@@ -829,52 +831,9 @@ gckKERNEL_Dispatch(
         break;
 
     case gcvHAL_ALLOCATE_VIDEO_MEMORY:
-        /* Align width and height to tiles. */
-        gcmkONERROR(
-            gckHARDWARE_AlignToTile(Kernel->hardware,
-                                    Interface->u.AllocateVideoMemory.type,
-                                    &Interface->u.AllocateVideoMemory.width,
-                                    &Interface->u.AllocateVideoMemory.height,
-                                    gcvNULL));
 
-        /* Convert format into bytes per pixel and bytes per tile. */
-        gcmkONERROR(
-            gckHARDWARE_ConvertFormat(Kernel->hardware,
-                                      Interface->u.AllocateVideoMemory.format,
-                                      &bitsPerPixel,
-                                      gcvNULL));
+        gcmkONERROR(gcvSTATUS_NOT_SUPPORTED);
 
-        /* Compute number of bytes for the allocation. */
-        bytes = Interface->u.AllocateVideoMemory.width * bitsPerPixel
-              * Interface->u.AllocateVideoMemory.height
-              * Interface->u.AllocateVideoMemory.depth / 8;
-
-        /* Allocate memory. */
-        gcmkONERROR(
-            _AllocateMemory(Kernel,
-                            &Interface->u.AllocateVideoMemory.pool,
-                            bytes,
-                            64,
-                            Interface->u.AllocateVideoMemory.type,
-                            &Interface->u.AllocateVideoMemory.node));
-
-        /* Get actual size of node. */
-        node = Interface->u.AllocateLinearVideoMemory.node;
-        if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
-        {
-            bytes = node->VidMem.bytes;
-        }
-        else
-        {
-            bytes = node->Virtual.bytes;
-        }
-
-        gcmkONERROR(
-            gckKERNEL_AddProcessDB(Kernel,
-                                   processID, gcvDB_VIDEO_MEMORY,
-                                   Interface->u.AllocateVideoMemory.node,
-                                   gcvNULL,
-                                   bytes));
         break;
 
     case gcvHAL_ALLOCATE_LINEAR_VIDEO_MEMORY:
@@ -1339,6 +1298,32 @@ gckKERNEL_Dispatch(
         status = gcvSTATUS_OK;
         break;
 
+    case gcvHAL_DUMP_GPU_STATE:
+        /* Dump GPU state */
+        {
+            gceCHIPPOWERSTATE power;
+            gcmkONERROR(gckHARDWARE_QueryPowerManagementState(Kernel->hardware,
+                                                              &power));
+            if (power == gcvPOWER_ON)
+            {
+                Interface->u.ReadRegisterData.data = 1;
+                gcmkVERIFY_OK(
+                    gckOS_DumpGPUState(Kernel->os, Kernel->core));
+            }
+            else
+            {
+                Interface->u.ReadRegisterData.data = 0;
+                status = gcvSTATUS_CHIP_NOT_READY;
+            }
+        }
+        break;
+
+    case gcvHAL_DUMP_EVENT:
+        /* Dump GPU event */
+        gcmkVERIFY_OK(
+            gckEVENT_Dump(Kernel->eventObj));
+        break;
+
     case gcvHAL_CACHE:
         if (Interface->u.Cache.node == gcvNULL)
         {
@@ -1351,7 +1336,6 @@ gckKERNEL_Dispatch(
         {
             /* Video memory has no physical handles. */
             physical = gcvNULL;
-            paddr = Interface->u.Cache.physical;
         }
         else
         {
@@ -1388,6 +1372,11 @@ gckKERNEL_Dispatch(
                                            Interface->u.Cache.logical,
                                            Interface->u.Cache.bytes);
             break;
+
+	case gcvCACHE_MEMORY_BARRIER:
+	   status = gckOS_MemoryBarrier(Kernel->os,
+                                        Interface->u.Cache.logical);
+	   break;
         default:
             status = gcvSTATUS_INVALID_ARGUMENT;
             break;

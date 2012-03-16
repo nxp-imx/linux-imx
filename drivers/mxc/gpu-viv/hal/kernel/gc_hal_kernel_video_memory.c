@@ -1013,6 +1013,16 @@ gckVIDMEM_AllocateLinear(
     }
 #endif
 
+#if gcdSMALL_BLOCK_SIZE
+    if ((Memory->freeBytes < (Memory->bytes/gcdRATIO_FOR_SMALL_MEMORY))
+    &&  (Bytes >= gcdSMALL_BLOCK_SIZE)
+    )
+    {
+        /* The left memory is for small memory.*/
+        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+    }
+#endif
+
     /* Find the default bank for this surface type. */
     gcmkASSERT((gctINT) Type < gcmCOUNTOF(Memory->mapping));
     bank      = Memory->mapping[Type];
@@ -1288,7 +1298,11 @@ gckVIDMEM_Free(
                         __FUNCTION__, __LINE__,
                         Node->VidMem.kernelVirtual);
 
-                gckOS_UnmapReservedMemoryFromKernel(Node->VidMem.kernelVirtual);
+                gcmkVERIFY_OK(
+                    gckOS_UnmapPhysical(memory->os,
+                                        Node->VidMem.kernelVirtual,
+                                        Node->VidMem.bytes));
+
                 Node->VidMem.kernelVirtual = gcvNULL;
             }
 #endif
@@ -1771,11 +1785,13 @@ gckVIDMEM_Lock(
                                      Node->Virtual.pageTables[Kernel->core]));
 #endif
 
-#if gcdSHARED_PAGETABLE
-                gcmkONERROR(gckMMU_FlushAllMmuCache());
+#if gcdENABLE_VG
+                if (Kernel->core != gcvCORE_VG)
 #endif
+                {
+                    gcmkONERROR(gckMMU_Flush(Kernel->mmu));
+                }
             }
-
             gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
                            "Mapped virtual node 0x%x to 0x%08X",
                            Node,

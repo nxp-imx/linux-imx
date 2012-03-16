@@ -111,6 +111,7 @@ gceSTATUS gckVGKERNEL_Construct(
         /* Return pointer to the gckKERNEL object. */
         *Kernel = kernel;
 
+        gcmkFOOTER_ARG("*Kernel=0x%x", *Kernel);
         /* Success. */
         return gcvSTATUS_OK;
     }
@@ -142,6 +143,7 @@ gceSTATUS gckVGKERNEL_Construct(
         gcmkVERIFY_OK(gckOS_Free(Os, kernel));
     }
 
+    gcmkFOOTER();
     /* Return status. */
     return status;
 }

@@ -133,6 +133,12 @@ else
 EXTRA_CFLAGS += -DgcdPOWER_MANAGEMENT=0
 endif
 
+ifeq ($(USE_OPENCL), 1)
+EXTRA_CFLAGS += -DgcdUSE_OPENCL=1
+else
+EXTRA_CFLAGS += -DgcdUSE_OPENCL=0
+endif
+
 ifneq ($(USE_PLATFORM_DRIVER), 0)
 EXTRA_CFLAGS += -DUSE_PLATFORM_DRIVER=1
 else
@@ -217,6 +223,20 @@ ifeq ($(ENABLE_OUTER_CACHE_PATCH), 1)
 EXTRA_CFLAGS += -DgcdENABLE_OUTER_CACHE_PATCH=1
 else
 EXTRA_CFLAGS += -DgcdENABLE_OUTER_CACHE_PATCH=0
+endif
+
+ifeq ($(USE_BANK_ALIGNMENT), 1)
+    EXTRA_CFLAGS += -DgcdENABLE_BANK_ALIGNMENT=1
+    ifneq ($(BANK_BIT_START), 0)
+	        ifneq ($(BANK_BIT_END), 0)
+	            EXTRA_CFLAGS += -DgcdBANK_BIT_START=$(BANK_BIT_START)
+	            EXTRA_CFLAGS += -DgcdBANK_BIT_END=$(BANK_BIT_END)
+	        endif
+    endif
+
+    ifneq ($(BANK_CHANNEL_BIT), 0)
+        EXTRA_CFLAGS += -DgcdBANK_CHANNEL_BIT=$(BANK_CHANNEL_BIT)
+    endif
 endif
 
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/inc

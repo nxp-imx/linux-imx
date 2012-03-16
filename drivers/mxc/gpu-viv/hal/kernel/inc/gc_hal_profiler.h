@@ -190,7 +190,13 @@ extern "C" {
 #define	ES11_TRANSLATEX      			(ES11_TRANSLATEF       			+ 1)
 #define	ES11_VERTEXPOINTER   			(ES11_TRANSLATEX       			+ 1)
 #define	ES11_VIEWPORT        			(ES11_VERTEXPOINTER    			+ 1)
-#define	ES11_CALLS   					(ES11_VIEWPORT         			+ 1)
+#define ES11_BLENDEQUATIONOES           (ES11_VIEWPORT         			+ 1)
+#define ES11_BLENDFUNCSEPERATEOES       (ES11_BLENDEQUATIONOES       	+ 1)
+#define ES11_BLENDEQUATIONSEPARATEOES   (ES11_BLENDFUNCSEPERATEOES    	+ 1)
+#define ES11_GLMAPBUFFEROES             (ES11_BLENDEQUATIONSEPARATEOES 	+ 1)
+#define ES11_GLUNMAPBUFFEROES           (ES11_GLMAPBUFFEROES     		+ 1)
+#define ES11_GLGETBUFFERPOINTERVOES     (ES11_GLUNMAPBUFFEROES         	+ 1)
+#define	ES11_CALLS   					(ES11_GLGETBUFFERPOINTERVOES   	+ 1)
 #define	ES11_DRAWCALLS       			(ES11_CALLS						+ 1)
 #define	ES11_STATECHANGECALLS    		(ES11_DRAWCALLS					+ 1)
 #define	ES11_POINTCOUNT      			(ES11_STATECHANGECALLS			+ 1)
@@ -340,7 +346,22 @@ extern "C" {
 #define	ES20_VERTEXATTRIB4FV						(ES20_VERTEXATTRIB4F						+	1)
 #define	ES20_VERTEXATTRIBPOINTER					(ES20_VERTEXATTRIB4FV						+	1)
 #define	ES20_VIEWPORT								(ES20_VERTEXATTRIBPOINTER					+	1)
-#define	ES20_CALLS									(ES20_VIEWPORT								+	1)
+#define ES20_GETPROGRAMBINARYOES                    (ES20_VIEWPORT                              +   1)
+#define ES20_PROGRAMBINARYOES                       (ES20_GETPROGRAMBINARYOES                   +   1)
+#define ES20_TEXIMAGE3DOES                          (ES20_PROGRAMBINARYOES                      +   1)
+#define ES20_TEXSUBIMAGE3DOES                       (ES20_TEXIMAGE3DOES                         +   1)
+#define ES20_COPYSUBIMAGE3DOES                      (ES20_TEXSUBIMAGE3DOES                      +   1)
+#define ES20_COMPRESSEDTEXIMAGE3DOES                (ES20_COPYSUBIMAGE3DOES                     +   1)
+#define ES20_COMPRESSEDTEXSUBIMAGE3DOES             (ES20_COMPRESSEDTEXIMAGE3DOES               +   1)
+#define ES20_FRAMEBUFFERTEXTURE3DOES                (ES20_COMPRESSEDTEXSUBIMAGE3DOES            +   1)
+#define ES20_BINDVERTEXARRAYOES                     (ES20_FRAMEBUFFERTEXTURE3DOES               +   1)
+#define ES20_GENVERTEXARRAYOES                      (ES20_BINDVERTEXARRAYOES                    +   1)
+#define ES20_ISVERTEXARRAYOES                       (ES20_GENVERTEXARRAYOES                     +   1)
+#define ES20_DELETEVERTEXARRAYOES                   (ES20_ISVERTEXARRAYOES                      +   1)
+#define ES20_GLMAPBUFFEROES                         (ES20_DELETEVERTEXARRAYOES                  +   1)
+#define ES20_GLUNMAPBUFFEROES                       (ES20_GLMAPBUFFEROES                        +   1)
+#define ES20_GLGETBUFFERPOINTERVOES                 (ES20_GLUNMAPBUFFEROES                      +   1)
+#define	ES20_CALLS									(ES20_GLGETBUFFERPOINTERVOES				+	1)
 #define	ES20_DRAWCALLS								(ES20_CALLS									+	1)
 #define	ES20_STATECHANGECALLS						(ES20_DRAWCALLS								+	1)
 #define	ES20_POINTCOUNT								(ES20_STATECHANGECALLS						+	1)
@@ -1194,6 +1215,16 @@ typedef struct _gcsPROFILER
     gctUINT32       drawVertexCount;
     gctUINT32       redundantStateChangeCalls;
 #endif
+
+	gctUINT32       prevVSInstCount;
+	gctUINT32       prevVSBranchInstCount;
+	gctUINT32       prevVSTexInstCount;
+	gctUINT32       prevVSVertexCount;
+	gctUINT32       prevPSInstCount;
+	gctUINT32       prevPSBranchInstCount;
+	gctUINT32       prevPSTexInstCount;
+	gctUINT32       prevPSPixelCount;
+
 }
 gcsPROFILER;
 

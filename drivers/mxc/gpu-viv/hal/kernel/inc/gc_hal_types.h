@@ -323,6 +323,7 @@ typedef enum _gceSTATUS
     gcvSTATUS_MISSING_MAIN          =   -1006,
     gcvSTATUS_NAME_MISMATCH         =   -1007,
     gcvSTATUS_INVALID_INDEX         =   -1008,
+    gcvSTATUS_UNIFORM_TYPE_MISMATCH =   -1009,
 }
 gceSTATUS;
 
@@ -644,13 +645,13 @@ gceSTATUS;
 #   define gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, Data) \
         if (FixedPoint) \
         { \
-            gcmDUMP(StateDelta->os, "@[state.x 0x%04X 0x%08X]", \
+            gcmDUMP(gcvNULL, "@[state.x 0x%04X 0x%08X]", \
                 Address, Data \
                 ); \
         } \
         else \
         { \
-            gcmDUMP(StateDelta->os, "@[state 0x%04X 0x%08X]", \
+            gcmDUMP(gcvNULL, "@[state 0x%04X 0x%08X]", \
                 Address, Data \
                 ); \
         }

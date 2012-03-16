@@ -49,6 +49,99 @@ gcePOWER_FLAGS;
 /******************************************************************************\
 ********************************* Support Code *********************************
 \******************************************************************************/
+static gceSTATUS
+_ResetGPU(
+    IN gckOS Os
+    )
+{
+    gctUINT32 control, idle;
+    gceSTATUS status;
+
+    /* Read register. */
+    gcmkONERROR(gckOS_ReadRegisterEx(Os,
+                                     gcvCORE_VG,
+                                     0x00000,
+                                     &control));
+
+    for (;;)
+    {
+        /* Disable clock gating. */
+        gcmkONERROR(gckOS_WriteRegisterEx(Os,
+                    gcvCORE_VG,
+                    0x00104,
+                    0x00000000));
+
+        /* Wait for clock being stable. */
+        gcmkONERROR(gckOS_Delay(Os, 1));
+
+        /* Isolate the GPU. */
+        control = ((((gctUINT32) (control)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 19:19) - (0 ? 19:19) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 19:19) - (0 ? 19:19) + 1))))))) << (0 ? 19:19))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 19:19) - (0 ? 19:19) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 19:19) - (0 ? 19:19) + 1))))))) << (0 ? 19:19)));
+
+        gcmkONERROR(gckOS_WriteRegisterEx(Os,
+                                          gcvCORE_VG,
+                                          0x00000,
+                                          control));
+
+        /* Set soft reset. */
+        gcmkONERROR(gckOS_WriteRegisterEx(Os,
+                                          gcvCORE_VG,
+                                          0x00000,
+                                          ((((gctUINT32) (control)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 12:12) - (0 ? 12:12) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 12:12) - (0 ? 12:12) + 1))))))) << (0 ? 12:12))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 12:12) - (0 ? 12:12) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 12:12) - (0 ? 12:12) + 1))))))) << (0 ? 12:12)))));
+
+        /* Wait for reset. */
+        gcmkONERROR(gckOS_Delay(Os, 1));
+
+        /* Reset soft reset bit. */
+        gcmkONERROR(gckOS_WriteRegisterEx(Os,
+                                          gcvCORE_VG,
+                                          0x00000,
+                                          ((((gctUINT32) (control)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 12:12) - (0 ? 12:12) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 12:12) - (0 ? 12:12) + 1))))))) << (0 ? 12:12))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 12:12) - (0 ? 12:12) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 12:12) - (0 ? 12:12) + 1))))))) << (0 ? 12:12)))));
+
+        /* Reset GPU isolation. */
+        control = ((((gctUINT32) (control)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 19:19) - (0 ? 19:19) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 19:19) - (0 ? 19:19) + 1))))))) << (0 ? 19:19))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 19:19) - (0 ? 19:19) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 19:19) - (0 ? 19:19) + 1))))))) << (0 ? 19:19)));
+
+        gcmkONERROR(gckOS_WriteRegisterEx(Os,
+                                          gcvCORE_VG,
+                                          0x00000,
+                                          control));
+
+        /* Read idle register. */
+        gcmkONERROR(gckOS_ReadRegisterEx(Os,
+                                         gcvCORE_VG,
+                                         0x00004,
+                                         &idle));
+
+        if ((((((gctUINT32) (idle)) >> (0 ? 0:0)) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1)))))) ) == 0)
+        {
+            continue;
+        }
+
+        /* Read reset register. */
+        gcmkONERROR(gckOS_ReadRegisterEx(Os,
+                                         gcvCORE_VG,
+                                         0x00000,
+                                         &control));
+
+        if (((((((gctUINT32) (control)) >> (0 ? 16:16)) & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1)))))) ) == 0)
+        ||  ((((((gctUINT32) (control)) >> (0 ? 17:17)) & ((gctUINT32) ((((1 ? 17:17) - (0 ? 17:17) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 17:17) - (0 ? 17:17) + 1)))))) ) == 0)
+        )
+        {
+            continue;
+        }
+
+        /* GPU is idle. */
+        break;
+    }
+
+    /* Success. */
+    return gcvSTATUS_OK;
+
+OnError:
+
+    /* Return the error. */
+    return status;
+}
+
 
 static gceSTATUS
 _IdentifyHardware(
@@ -217,6 +310,14 @@ gckVGHARDWARE_Construct(
 
     do
     {
+        status = _ResetGPU(Os);
+
+        if (status != gcvSTATUS_OK)
+        {
+            gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
+                "_ResetGPU failed: status=%d\n", status);
+        }
+
         /* Identify the hardware. */
         gcmkERR_BREAK(_IdentifyHardware(Os,
             &chipModel, &chipRevision,
@@ -697,6 +798,7 @@ gckVGHARDWARE_ConvertFormat(
 
     default:
         /* Invalid format. */
+        gcmkFOOTER_NO();
         return gcvSTATUS_INVALID_ARGUMENT;
     }
 
@@ -768,6 +870,7 @@ gckVGHARDWARE_SplitMemory(
 
     default:
         /* Invalid memory type. */
+        gcmkFOOTER_NO();
         return gcvSTATUS_INVALID_ARGUMENT;
     }
 
@@ -833,7 +936,7 @@ gckVGHARDWARE_Execute(
                 Hardware->os,
                 gcvCORE_VG,
                 0x00500,
-                gcmFIXADDRESS(Address)
+                gcmkFIXADDRESS(Address)
                 ));
 
             /* Write control register. */
@@ -851,7 +954,7 @@ gckVGHARDWARE_Execute(
                 Hardware->os,
                 gcvCORE_VG,
                 0x00654,
-                gcmFIXADDRESS(Address)
+                gcmkFIXADDRESS(Address)
                 ));
 
             /* Write control register. */
@@ -865,6 +968,7 @@ gckVGHARDWARE_Execute(
         }
 
         /* Success. */
+        gcmkFOOTER();
         return gcvSTATUS_OK;
     }
     while (gcvFALSE);
@@ -993,6 +1097,7 @@ gckVGHARDWARE_ConvertLogical(
         *Address = ((((gctUINT32) (address)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 1:0) - (0 ? 1:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:0) - (0 ? 1:0) + 1))))))) << (0 ? 1:0))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 1:0) - (0 ? 1:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:0) - (0 ? 1:0) + 1))))))) << (0 ? 1:0)));
 
         /* Success. */
+        gcmkFOOTER();
         return gcvSTATUS_OK;
     }
     while (gcvFALSE);
@@ -1093,27 +1198,27 @@ gceSTATUS gckVGHARDWARE_SetMMU(
         /* Write the AQMemoryFePageTable register. */
         gcmkERR_BREAK(gckOS_WriteRegisterEx(Hardware->os, gcvCORE_VG,
                                       0x00400,
-                                      gcmFIXADDRESS(address)) );
+                                      gcmkFIXADDRESS(address)) );
 
         /* Write the AQMemoryTxPageTable register. */
         gcmkERR_BREAK(gckOS_WriteRegisterEx(Hardware->os, gcvCORE_VG,
                                       0x00404,
-                                      gcmFIXADDRESS(address)) );
+                                      gcmkFIXADDRESS(address)) );
 
         /* Write the AQMemoryPePageTable register. */
         gcmkERR_BREAK(gckOS_WriteRegisterEx(Hardware->os, gcvCORE_VG,
                                       0x00408,
-                                      gcmFIXADDRESS(address)) );
+                                      gcmkFIXADDRESS(address)) );
 
         /* Write the AQMemoryPezPageTable register. */
         gcmkERR_BREAK(gckOS_WriteRegisterEx(Hardware->os, gcvCORE_VG,
                                       0x0040C,
-                                      gcmFIXADDRESS(address)) );
+                                      gcmkFIXADDRESS(address)) );
 
         /* Write the AQMemoryRaPageTable register. */
         gcmkERR_BREAK(gckOS_WriteRegisterEx(Hardware->os, gcvCORE_VG,
                                       0x00410,
-                                      gcmFIXADDRESS(address)) );
+                                      gcmkFIXADDRESS(address)) );
     }
     while (gcvFALSE);
 
