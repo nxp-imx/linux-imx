@@ -31,5 +31,10 @@ VIVANTE_ENABLE_VG                 ?= 1
 NO_USER_DIRECT_ACCESS_FROM_KERNEL ?= 1
 VIVANTE_NO_3D                     ?= 0
 ENABLE_OUTER_CACHE_PATCH          ?= 1
+USE_BANK_ALIGNMENT                ?= 0
+BANK_BIT_START                    ?= 0
+BANK_BIT_END                      ?= 0
+BANK_CHANNEL_BIT                  ?= 0
+USE_OPENCL                        ?= 1
 ENABLE_GPU_CLOCK_BY_DRIVER        = 1
 

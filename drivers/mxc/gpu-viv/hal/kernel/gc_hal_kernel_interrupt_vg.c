@@ -449,6 +449,7 @@ gckVGINTERRUPT_Construct(
         /* Return interrupt object. */
         *Interrupt = interrupt;
 
+        gcmkFOOTER_ARG("*Interrup=0x%x", *Interrupt);
         /* Success. */
         return gcvSTATUS_OK;
     }
@@ -460,6 +461,8 @@ gckVGINTERRUPT_Construct(
         /* Free the gckVGINTERRUPT structure. */
         gcmkVERIFY_OK(gckOS_Free(interrupt->os, interrupt));
     }
+
+    gcmkFOOTER();
 
     /* Return the status. */
     return status;

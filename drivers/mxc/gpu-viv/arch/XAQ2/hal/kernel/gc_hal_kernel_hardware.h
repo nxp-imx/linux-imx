@@ -81,6 +81,8 @@ struct _gckHARDWARE
     gctSIGNAL                   powerOffSignal;
     gctUINT32                   powerOffTimeout;
 #endif
+
+    gctPOINTER                  pageTableDirty;
 };
 
 gceSTATUS

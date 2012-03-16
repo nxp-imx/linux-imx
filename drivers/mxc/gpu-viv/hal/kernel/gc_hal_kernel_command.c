@@ -326,6 +326,30 @@ OnError:
 }
 #endif
 
+static gceSTATUS
+_FlushMMU(
+    IN gckCOMMAND Command
+    )
+{
+    gceSTATUS status;
+    gctUINT32 oldValue;
+    gckHARDWARE hardware = Command->kernel->hardware;
+
+    gcmkONERROR(gckOS_AtomicExchange(Command->os,
+                                     hardware->pageTableDirty,
+                                     0,
+                                     &oldValue));
+
+    if (oldValue)
+    {
+        /* Page Table is upated, flush mmu before commit. */
+        gcmkONERROR(gckHARDWARE_FlushMMU(hardware));
+    }
+
+    return gcvSTATUS_OK;
+OnError:
+    return status;
+}
 
 /******************************************************************************\
 ****************************** gckCOMMAND API Code ******************************
@@ -1037,6 +1061,14 @@ gckCOMMAND_Commit(
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Command, gcvOBJ_COMMAND);
+
+    if (Command->kernel->core == gcvCORE_2D)
+    {
+        /* There is no context for 2D. */
+        Context = gcvNULL;
+    }
+
+    gcmkONERROR(_FlushMMU(Command));
 
     /* Acquire the command queue. */
     gcmkONERROR(gckCOMMAND_EnterCommit(Command, gcvFALSE));
@@ -2413,6 +2445,11 @@ gckCOMMAND_Stall(
             /* Advance timer. */
             timer += gcdGPU_ADVANCETIMER;
         }
+        else if (status == gcvSTATUS_INTERRUPTED)
+        {
+            gcmkONERROR(gcvSTATUS_INTERRUPTED);
+        }
+
     }
     while (gcmIS_ERROR(status)
 #if gcdGPU_TIMEOUT
@@ -2421,7 +2458,7 @@ gckCOMMAND_Stall(
            );
 
     /* Bail out on timeout. */
-    if (gcmIS_ERROR(status) && !FromPower)
+    if (gcmIS_ERROR(status))
     {
         /* Broadcast the stuck GPU. */
         gcmkONERROR(gckOS_Broadcast(
