@@ -421,7 +421,7 @@ static int __devinit gpio_keys_setup_key(struct platform_device *pdev,
 	 * then to reume the other devcies
 	 */
 	if (button->wakeup)
-		irqflags |= IRQF_EARLY_RESUME;
+		irqflags |= IRQF_NO_SUSPEND | IRQF_EARLY_RESUME;
 
 	error = request_any_context_irq(irq, gpio_keys_isr, irqflags, desc, bdata);
 	if (error < 0) {
