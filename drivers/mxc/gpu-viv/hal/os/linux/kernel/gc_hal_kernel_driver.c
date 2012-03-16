@@ -199,6 +199,20 @@ int drv_open(
             galDevice->contiguousSize,
             &data->contiguousLogical
             ));
+
+        for (i = 0; i < gcdCORE_COUNT; i++)
+        {
+            if (galDevice->kernels[i] != gcvNULL)
+            {
+                gcmkVERIFY_OK(gckKERNEL_AddProcessDB(
+                    galDevice->kernels[i],
+                    data->pidOpen,
+                    gcvDB_MAP_MEMORY,
+                    data->contiguousLogical,
+                    galDevice->contiguousPhysical,
+                    galDevice->contiguousSize));
+            }
+        }
     }
 
     filp->private_data = data;
@@ -247,6 +261,8 @@ int drv_release(
     gcsHAL_PRIVATE_DATA_PTR data;
     gckGALDEVICE device;
     gctINT i;
+    gctUINT32 processID;
+
 
     gcmkHEADER_ARG("inode=0x%08X filp=0x%08X", inode, filp);
 
@@ -291,7 +307,6 @@ int drv_release(
     {
         if (data->contiguousLogical != gcvNULL)
         {
-		    gctUINT32 processID;
             gcmkVERIFY_OK(gckOS_GetProcessID(&processID));
             gcmkONERROR(gckOS_UnmapMemoryEx(
                 galDevice->os,
@@ -315,6 +330,10 @@ int drv_release(
             data->contiguousLogical = gcvNULL;
         }
     }
+
+    /* Clean user signals if exit unnormally. */
+    gcmkVERIFY_OK(gckOS_GetProcessID(&processID));
+    gcmkVERIFY_OK(gckOS_CleanProcessSignal(galDevice->os, (gctHANDLE)processID));
 
     /* A process gets detached. */
     for (i = 0; i < gcdCORE_COUNT; i++)
@@ -479,20 +498,6 @@ long drv_ioctl(
     }
     else
     {
-        if (iface.command == gcvHAL_CACHE)
-        {
-            if (device->contiguousMapped
-                && iface.u.Cache.node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
-            {
-                iface.u.Cache.physical = (gctPOINTER)device->contiguousVidMem->baseAddress
-                                       + (iface.u.Cache.logical - data->mappedMemory);
-            }
-            else
-            {
-                iface.u.Cache.physical = 0;
-            }
-        }
-
         if (iface.hardwareType < 0 || iface.hardwareType > 7)
         {
             gcmkTRACE_ZONE(
@@ -620,7 +625,7 @@ static int drv_mmap(
     }
 
 #if !gcdPAGED_MEMORY_CACHEABLE
-    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+    vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
     vma->vm_flags    |= VM_IO | VM_DONTCOPY | VM_DONTEXPAND;
 #endif
     vma->vm_pgoff     = 0;

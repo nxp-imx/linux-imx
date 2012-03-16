@@ -85,6 +85,7 @@ gceSTATUS gckVGMMU_Construct(
             __FUNCTION__, __LINE__
             );
 
+        gcmkFOOTER();
         return status;
     }
 
@@ -102,6 +103,7 @@ gceSTATUS gckVGMMU_Construct(
         mmu->object.type = gcvOBJ_UNKNOWN;
         gcmkVERIFY_OK(gckOS_Free(os, mmu));
 
+        gcmkFOOTER();
         /* Error. */
         return status;
     }
@@ -128,6 +130,7 @@ gceSTATUS gckVGMMU_Construct(
             __FUNCTION__, __LINE__
             );
 
+        gcmkFOOTER();
         return status;
     }
 
@@ -165,6 +168,7 @@ gceSTATUS gckVGMMU_Construct(
             __FUNCTION__, __LINE__
             );
 
+        gcmkFOOTER();
         return status;
     }
 
@@ -289,6 +293,7 @@ gceSTATUS gckVGMMU_AllocatePages(
             PageCount
             );
 
+        gcmkFOOTER_NO();
         /* Not enough pages avaiable. */
         return gcvSTATUS_OUT_OF_RESOURCES;
     }
@@ -304,6 +309,7 @@ gceSTATUS gckVGMMU_AllocatePages(
             ,__FUNCTION__, __LINE__
             );
 
+        gcmkFOOTER();
         /* Error. */
         return status;
     }

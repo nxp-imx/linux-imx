@@ -150,6 +150,10 @@ typedef enum _gceHAL_COMMAND_CODES
     gcvHAL_QUERY_COMMAND_BUFFER,
 
     gcvHAL_COMMIT_DONE,
+
+    /* GPU and event dump */
+    gcvHAL_DUMP_GPU_STATE,
+    gcvHAL_DUMP_EVENT
 }
 gceHAL_COMMAND_CODES;
 
@@ -730,7 +734,7 @@ typedef struct _gcsHAL_INTERFACE
         struct _gcsHAL_CACHE
         {
             IN gceCACHEOPERATION        operation;
-            IN gctPOINTER               physical;
+            IN gctHANDLE                process;
             IN gctPOINTER               logical;
             IN gctSIZE_T                bytes;
             IN gcuVIDMEM_NODE_PTR       node;

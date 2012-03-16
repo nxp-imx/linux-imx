@@ -42,7 +42,7 @@
   ghost@aladdin.com
 
  */
-/* $Id: gc_hal_md5.h,v 1.1.6.1 2012/02/09 00:22:42 semih.demirer Exp $ */
+/* $Id: gc_hal_md5.h,v 1.1.4.1 2012/02/08 23:31:39 semih.demirer Exp $ */
 /*
   Independent implementation of MD5 (RFC 1321).
 

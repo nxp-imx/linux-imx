@@ -558,6 +558,12 @@ gckOS_AtomClearMask(
     );
 #endif
 
+gceSTATUS
+gckOS_DumpGPUState(
+    IN gckOS Os,
+    IN gceCORE Core
+    );
+
 /*******************************************************************************
 **
 **  gckOS_AtomConstruct
@@ -1804,15 +1810,6 @@ gckHARDWARE_QueryShaderCaps(
     OUT gctUINT * Varyings
     );
 
-/* Convert an API format. */
-gceSTATUS
-gckHARDWARE_ConvertFormat(
-    IN gckHARDWARE Hardware,
-    IN gceSURF_FORMAT Format,
-    OUT gctUINT32 * BitsPerPixel,
-    OUT gctUINT32 * BytesPerTile
-    );
-
 /* Split a harwdare specific address into API stuff. */
 gceSTATUS
 gckHARDWARE_SplitMemory(
@@ -1820,16 +1817,6 @@ gckHARDWARE_SplitMemory(
     IN gctUINT32 Address,
     OUT gcePOOL * Pool,
     OUT gctUINT32 * Offset
-    );
-
-/* Align size to tile boundary. */
-gceSTATUS
-gckHARDWARE_AlignToTile(
-    IN gckHARDWARE Hardware,
-    IN gceSURF_TYPE Type,
-    IN OUT gctUINT32_PTR Width,
-    IN OUT gctUINT32_PTR Height,
-    OUT gctBOOL_PTR SuperTiled
     );
 
 /* Update command queue tail pointer. */
@@ -2151,6 +2138,10 @@ gckEVENT_Interrupt(
     IN gctUINT32 IDs
     );
 
+gceSTATUS
+gckEVENT_Dump(
+    IN gckEVENT Event
+    );
 /******************************************************************************\
 ******************************* gckCOMMAND Object ******************************
 \******************************************************************************/
@@ -2321,12 +2312,10 @@ gckMMU_FreeHandleMemory(
     );
 #endif
 
-#if gcdSHARED_PAGETABLE
 gceSTATUS
-gckMMU_FlushAllMmuCache(
-    void
+gckMMU_Flush(
+    IN gckMMU Mmu
     );
-#endif
 
 
 #if VIVANTE_PROFILER

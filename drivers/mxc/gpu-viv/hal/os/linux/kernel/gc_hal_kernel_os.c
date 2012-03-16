@@ -68,7 +68,7 @@ const char * _PLATFORM = "\n\0$PLATFORM$Linux$\n";
     gcmkVERIFY_OK(gckOS_ReleaseMutex((os), (os)->memoryMapLock))
 
 /* Protection bit when mapping memroy to user sapce */
-#define gcmkPAGED_MEMROY_PROT(x)    pgprot_noncached(x)
+#define gcmkPAGED_MEMROY_PROT(x)    pgprot_writecombine(x)
 
 #if gcdNONPAGED_MEMORY_BUFFERABLE
 #define gcmkIOREMAP                 ioremap_wc
@@ -321,7 +321,8 @@ OnError:
 
 static gceSTATUS
 _DumpGPUState(
-    IN gckOS Os
+    IN gckOS Os,
+    IN gceCORE Core
     )
 {
     static gctCONST_STRING _cmdState[] =
@@ -391,7 +392,7 @@ _DumpGPUState(
     gctUINT32 dmaReqState, calState, veReqState;
     gctUINT i;
 
-    gcmkHEADER_ARG("Os=0x%X", Os);
+    gcmkHEADER_ARG("Os=0x%X, Core=%d", Os, Core);
 
     gcmkONERROR(gckOS_AcquireMutex(Os, Os->debugLock, gcvINFINITE));
     acquired = gcvTRUE;
@@ -400,9 +401,14 @@ _DumpGPUState(
     device = (gckGALDEVICE) Os->device;
 
     /* TODO: Kernel shortcut. */
-    kernel = device->kernels[gcvCORE_MAJOR];
+    kernel = device->kernels[Core];
+    gcmkPRINT_N(4, "Core = 0x%d\n",Core);
 
-    if (kernel == gcvNULL) return gcvSTATUS_OK;
+    if (kernel == gcvNULL)
+    {
+        gcmkFOOTER();
+        return gcvSTATUS_OK;
+    }
 
     /* Reset register values. */
     idle        = axi         =
@@ -686,6 +692,7 @@ FindMdlMap(
     gcmkHEADER_ARG("Mdl=0x%X ProcessID=%d", Mdl, ProcessID);
     if(Mdl == gcvNULL)
     {
+        gcmkFOOTER_NO();
         return gcvNULL;
     }
     mdlMap = Mdl->maps;
@@ -765,6 +772,16 @@ _NonContiguousAlloc(
 
     gcmkHEADER_ARG("NumPages=%lu", NumPages);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+    if (NumPages > totalram_pages)
+#else
+    if (NumPages > num_physpages)
+#endif
+    {
+        gcmkFOOTER_NO();
+        return gcvNULL;
+    }
+
     size = NumPages * sizeof(struct page *);
 
     pages = kmalloc(size, GFP_KERNEL | __GFP_NOWARN);
@@ -776,7 +793,7 @@ _NonContiguousAlloc(
         if (!pages)
         {
             gcmkFOOTER_NO();
-            return 0;
+            return gcvNULL;
         }
     }
 
@@ -788,7 +805,7 @@ _NonContiguousAlloc(
         {
             _NonContiguousFree(pages, i);
             gcmkFOOTER_NO();
-            return 0;
+            return gcvNULL;
         }
 
         pages[i] = p;
@@ -1992,12 +2009,6 @@ gckOS_AllocateNonPagedMemory(
 
     mdl->addr = addr;
 
-    /*
-     * We will not do any mapping from here.
-     * Mapping will happen from mmap method.
-     * mdl structure will be used.
-     */
-
     /* Return allocated memory. */
     *Bytes = bytes;
     *Physical = (gctPHYS_ADDR) mdl;
@@ -3103,7 +3114,7 @@ gckOS_AcquireMutex(
                 )
 #   endif
                 {
-                    gcmkVERIFY_OK(_DumpGPUState(Os));
+                    gcmkVERIFY_OK(_DumpGPUState(Os, gcvCORE_MAJOR));
 
                     gcmkPRINT(
                         "%s(%d): mutex 0x%X; forced message flush.",
@@ -4830,6 +4841,7 @@ gckOS_GetKernelLogicalEx(
 
         default:
             /* Invalid memory pool. */
+            gcmkFOOTER();
             return gcvSTATUS_INVALID_ARGUMENT;
         }
 
@@ -5528,15 +5540,18 @@ OnError:
                 pageTable[i * (PAGE_SIZE/4096) + j] = pageTable[i * (PAGE_SIZE/4096)] + 4096 * j;
             }
 
-#if gcdSHARED_PAGETABLE
-                gcmkONERROR(gckMMU_FlushAllMmuCache());
-#endif
-
             gcmkTRACE_ZONE(
                 gcvLEVEL_INFO, gcvZONE_OS,
                 "%s(%d): pageTable[%d]: 0x%X 0x%X.",
                 __FUNCTION__, __LINE__,
                 i, phys, pageTable[i]);
+        }
+
+#if gcdENABLE_VG
+        if (Core != gcvCORE_VG)
+#endif
+        {
+            gcmkONERROR(gckMMU_Flush(Os->device->kernels[Core]->mmu));
         }
 
         /* Save pointer to page table. */
@@ -6426,13 +6441,13 @@ gckOS_Broadcast(
 
     case gcvBROADCAST_GPU_STUCK:
         gcmkTRACE_N(gcvLEVEL_ERROR, 0, "gcvBROADCAST_GPU_STUCK\n");
-        gcmkONERROR(_DumpGPUState(Os));
+        gcmkONERROR(_DumpGPUState(Os, gcvCORE_MAJOR));
         gcmkONERROR(gckKERNEL_Recovery(Hardware->kernel));
         break;
 
     case gcvBROADCAST_AXI_BUS_ERROR:
         gcmkTRACE_N(gcvLEVEL_ERROR, 0, "gcvBROADCAST_AXI_BUS_ERROR\n");
-        gcmkONERROR(_DumpGPUState(Os));
+        gcmkONERROR(_DumpGPUState(Os, gcvCORE_MAJOR));
         gcmkONERROR(gckKERNEL_Recovery(Hardware->kernel));
         break;
     }
@@ -7374,7 +7389,7 @@ gckOS_WaitSignal(
                     /* Increment complain count. */
                     complained += 1;
 
-                    gcmkVERIFY_OK(_DumpGPUState(Os));
+                    gcmkVERIFY_OK(_DumpGPUState(Os, gcvCORE_MAJOR));
 
                     gcmkPRINT(
                         "%s(%d): signal 0x%X; forced message flush (%d).",
@@ -8318,58 +8333,39 @@ gckOS_VerifyThread(
     /* Success. */
     return gcvSTATUS_OK;
 }
+#endif
 
-#if gcdDYNAMIC_MAP_RESERVED_MEMORY
+/*******************************************************************************
+**
+**  gckOS_DumpGPUState
+**
+**  Dump GPU state.
+**
+**  INPUT:
+**
+**      gckOS Os
+**          Pointer to the gckOS object.
+**
+**      gceCORE Core
+**          The core type of kernel.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
 gceSTATUS
-gckOS_MapReservedMemoryToKernel(
+gckOS_DumpGPUState(
     IN gckOS Os,
-    IN gctUINT32 Physical,
-    IN gctINT Bytes,
-    IN OUT gctPOINTER *Virtual
+    IN gceCORE Core
     )
 {
-    gceSTATUS status;
-    gckGALDEVICE device;
-
-    gcmkHEADER_ARG("Os=0x%X Physical=0x%x Bytes=0x%d", Os, Physical, Bytes);
-
+    gcmkHEADER_ARG("Os=0x%X Core=%d", Os, Core);
+    /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
-    gcmkVERIFY_ARGUMENT(Physical != 0);
-    gcmkVERIFY_ARGUMENT(Bytes != 0);
-    gcmkVERIFY_ARGUMENT(Virtual != gcvNULL);
 
-    device = (gckGALDEVICE) Os->device;
-
-    /* Reserved memory should not be mapped yet. */
-    gcmkASSERT(device->contiguousBase == gcvNULL);
-
-    *Virtual = ioremap_nocache(Physical, Bytes);
-
-    if(*Virtual == gcvNULL)
-    {
-        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
-    }
+    _DumpGPUState(Os, Core);
 
     gcmkFOOTER_NO();
-    return gcvSTATUS_OK;
-
-OnError:
-    gcmkFOOTER();
-    return status;
-}
-
-gceSTATUS
-gckOS_UnmapReservedMemoryFromKernel(
-    IN gctPOINTER Virtual
-    )
-{
-    gcmkHEADER_ARG("Virtual=0x%X", Virtual);
-
-    iounmap((void *)Virtual);
-
-    gcmkFOOTER_NO();
+    /* Success. */
     return gcvSTATUS_OK;
 }
-#endif
-#endif
-
