@@ -40,7 +40,7 @@ void suspend_device_irqs(void)
 }
 EXPORT_SYMBOL_GPL(suspend_device_irqs);
 
-static void resume_irqs(bool want_early)
+void resume_irqs(bool want_early)
 {
 	struct irq_desc *desc;
 	int irq;
@@ -58,6 +58,7 @@ static void resume_irqs(bool want_early)
 		raw_spin_unlock_irqrestore(&desc->lock, flags);
 	}
 }
+EXPORT_SYMBOL_GPL(resume_irqs);
 
 /**
  * irq_pm_syscore_ops - enable interrupt lines early

@@ -870,8 +870,10 @@ int dpm_suspend_noirq(pm_message_t state)
 		put_device(dev);
 	}
 	mutex_unlock(&dpm_list_mtx);
-	if (error)
+	if (error) {
+		resume_irqs(true);
 		dpm_resume_noirq(resume_event(state));
+	}
 	else
 		dpm_show_time(starttime, state, "late");
 	return error;

@@ -216,6 +216,7 @@ extern void enable_irq(unsigned int irq);
 #ifdef CONFIG_GENERIC_HARDIRQS
 extern void suspend_device_irqs(void);
 extern void resume_device_irqs(void);
+extern void resume_irqs(bool);
 #ifdef CONFIG_PM_SLEEP
 extern int check_wakeup_irqs(void);
 #else
@@ -224,6 +225,7 @@ static inline int check_wakeup_irqs(void) { return 0; }
 #else
 static inline void suspend_device_irqs(void) { };
 static inline void resume_device_irqs(void) { };
+extern inline void resume_irqs(bool) { };
 static inline int check_wakeup_irqs(void) { return 0; }
 #endif
 
