@@ -445,7 +445,7 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 		/* on MX6Q, it need a short delay between set RUNSTOP
 		 * and set PHCD
 		 */
-		udelay(100);
+		udelay(125);
 	}
 	if (pdata->platform_suspend)
 		pdata->platform_suspend(pdata);
