@@ -143,10 +143,12 @@ config MX3_IPU_IRQS
 
 config MXC_PXP
     bool "MXC PxP support"
+    depends on ARCH_MX50
     select DMA_ENGINE
 
 config MXC_PXP_V2
     bool "MXC PxP V2 support"
+    depends on ARCH_MX6
     select DMA_ENGINE
 
 config MXC_PXP_CLIENT_DEVICE
