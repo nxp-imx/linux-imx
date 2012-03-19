@@ -68,6 +68,18 @@ struct cpufreq_governor;
 /* /sys/devices/system/cpu/cpufreq: entry point for global variables */
 extern struct kobject *cpufreq_global_kobject;
 
+/* For some peripheral devices, which will generate irq very frequently
+ * and take very short time to handle irq, in this scenario, CPUFreq will
+ * not issue cpu freq change, but the devices' performance will be impacted
+ * significantly, we need to add irq number check to be as one condition of
+ * CPU freq change. */
+#define MAX_CPUFREQ_IRQ_NUMBER 10
+struct irq_tuner {
+	unsigned int irq_number;
+	unsigned int up_threshold;
+	bool enable;
+};
+
 #define CPUFREQ_ETERNAL			(-1)
 struct cpufreq_cpuinfo {
 	unsigned int		max_freq;
