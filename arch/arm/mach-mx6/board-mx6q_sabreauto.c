@@ -128,7 +128,7 @@
 #define SABREAUTO_CAN_STBY		SABREAUTO_IO_EXP_GPIO2(5)
 #define SABREAUTO_CAN_EN		SABREAUTO_IO_EXP_GPIO2(6)
 #define SABREAUTO_USB_HOST1_PWR		SABREAUTO_IO_EXP_GPIO2(7)
-#define SABREAUTO_USB_OTG_PWR		SABREAUTO_IO_EXP_GPIO3(2)
+#define SABREAUTO_USB_OTG_PWR		SABREAUTO_IO_EXP_GPIO3(1)
 #define BMCR_PDOWN			0x0800 /* PHY Powerdown */
 
 static struct clk *sata_clk;
@@ -680,7 +680,7 @@ static void __init imx6q_sabreauto_init_usb(void)
 	}
 	gpio_direction_input(SABREAUTO_USB_HOST1_OC);
 
-	mxc_iomux_set_gpr_register(1, 13, 1, 1);
+	mxc_iomux_set_gpr_register(1, 13, 1, 0);
 	mx6_set_otghost_vbus_func(imx6q_sabreauto_usbotg_vbus);
 	mx6_usb_dr_init();
 	mx6_set_host1_vbus_func(imx6q_sabreauto_usbhost1_vbus);
