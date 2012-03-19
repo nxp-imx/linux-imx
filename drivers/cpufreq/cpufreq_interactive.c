@@ -28,6 +28,7 @@
 #include <linux/workqueue.h>
 #include <linux/kthread.h>
 #include <linux/mutex.h>
+#include <linux/kernel_stat.h>
 
 #include <asm/cputime.h>
 
@@ -77,6 +78,8 @@ static unsigned long min_sample_time;
  * The sample rate of the timer used to increase frequency
  */
 #define DEFAULT_TIMER_RATE (20 * USEC_PER_MSEC)
+#define CPUFREQ_IRQ_LEN 60
+#define CPUFREQ_NOTE_LEN 120
 static unsigned long timer_rate;
 
 static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
@@ -92,6 +95,44 @@ struct cpufreq_governor cpufreq_gov_interactive = {
 	.owner = THIS_MODULE,
 };
 
+static struct irq_tuner irq_tuner_ins[MAX_CPUFREQ_IRQ_NUMBER];
+static struct irq_desc *cpufreq_irq_desc[MAX_CPUFREQ_IRQ_NUMBER];
+
+static bool cpufreq_interactive_check_irq(void)
+{
+	bool val;
+	unsigned int irq_count, i;
+	static unsigned int irq_count_start[MAX_CPUFREQ_IRQ_NUMBER];
+	static unsigned int irq_count_end[MAX_CPUFREQ_IRQ_NUMBER];
+
+	val = false;
+	for (i = 0; i < MAX_CPUFREQ_IRQ_NUMBER; i++) {
+		if (irq_tuner_ins[i].irq_number == 0)
+			break;
+		if (!irq_tuner_ins[i].enable)
+			continue;
+		if (irq_count_start[i] == 0)
+			irq_count_start[i] = cpufreq_irq_desc[i] &&
+			cpufreq_irq_desc[i]->kstat_irqs ?
+			*per_cpu_ptr(cpufreq_irq_desc[i]->kstat_irqs, 0) : 0;
+		else if (irq_count_end[i] == 0)
+			irq_count_end[i] = cpufreq_irq_desc[i] &&
+			cpufreq_irq_desc[i]->kstat_irqs ?
+			*per_cpu_ptr(cpufreq_irq_desc[i]->kstat_irqs, 0) : 0;
+		else {
+			irq_count = irq_count_end[i] - irq_count_start[i];
+			irq_count_start[i] = irq_count_end[i];
+			irq_count_end[i] = 0;
+		}
+		if (irq_count > irq_tuner_ins[i].up_threshold) {
+			irq_count = 0;
+			val = true;
+			break;
+		}
+	}
+
+	return val;
+}
 static void cpufreq_interactive_timer(unsigned long data)
 {
 	unsigned int delta_idle;
@@ -106,6 +147,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	unsigned int new_freq;
 	unsigned int index;
 	unsigned long flags;
+	bool irq_load;
 
 	smp_rmb();
 
@@ -164,11 +206,14 @@ static void cpufreq_interactive_timer(unsigned long data)
 	if (load_since_change > cpu_load)
 		cpu_load = load_since_change;
 
-	if (cpu_load >= go_hispeed_load) {
+	irq_load = cpufreq_interactive_check_irq();
+	if (cpu_load >= go_hispeed_load || irq_load) {
 		if (pcpu->policy->cur == pcpu->policy->min)
 			new_freq = hispeed_freq;
 		else
 			new_freq = pcpu->policy->max * cpu_load / 100;
+		if (irq_load)
+			new_freq = hispeed_freq;
 	} else {
 		new_freq = pcpu->policy->cur * cpu_load / 100;
 	}
@@ -522,11 +567,56 @@ static ssize_t store_timer_rate(struct kobject *kobj,
 static struct global_attr timer_rate_attr = __ATTR(timer_rate, 0644,
 		show_timer_rate, store_timer_rate);
 
+
+static ssize_t show_irq_param(struct kobject *kobj,
+			struct attribute *attr, char *buf)
+{
+	int i, j = 0;
+	j += scnprintf(&buf[j], CPUFREQ_NOTE_LEN, "Change irq setting by echo a data, format: 0xAABBBC, AA:irq number, BBB:up_threshold, C:enable\n");
+	for (i = 0; i < MAX_CPUFREQ_IRQ_NUMBER; i++) {
+		if (irq_tuner_ins[i].irq_number != 0)
+			j += scnprintf(&buf[j], CPUFREQ_IRQ_LEN, "irq number: %d, up_threshold %d, %s\n", irq_tuner_ins[i].irq_number, irq_tuner_ins[i].up_threshold, irq_tuner_ins[i].enable ? "enabled" : "disabled");
+	}
+
+	return j;
+}
+
+static ssize_t store_irq_param(struct kobject *kobj,
+			struct attribute *attr, const char *buf, size_t count)
+{
+	int ret, i;
+	unsigned long val;
+
+	ret = strict_strtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	for (i = 0; i < MAX_CPUFREQ_IRQ_NUMBER; i++) {
+		if (irq_tuner_ins[i].irq_number == val >> 16)
+			break;
+	}
+
+	if (i >= MAX_CPUFREQ_IRQ_NUMBER) {
+		printk(KERN_WARNING "Invalid irq number!\n");
+		return -EINVAL;
+	}
+	irq_tuner_ins[i].irq_number = val >> 16;
+	irq_tuner_ins[i].up_threshold = (val & 0xFFF0) >> 4;
+	irq_tuner_ins[i].enable = (val & 0xF) ? true : false;
+
+	return count;
+}
+
+
+static struct global_attr irq_param_attr = __ATTR(irq_scaling, 0644,
+		show_irq_param, store_irq_param);
+
 static struct attribute *interactive_attributes[] = {
 	&hispeed_freq_attr.attr,
 	&go_hispeed_load_attr.attr,
 	&min_sample_time_attr.attr,
 	&timer_rate_attr.attr,
+	&irq_param_attr.attr,
 	NULL,
 };
 
@@ -665,7 +755,7 @@ static int __init cpufreq_interactive_init(void)
 
 	/* No rescuer thread, bind to CPU queuing the work for possibly
 	   warm cache (probably doesn't matter much). */
-	down_wq = alloc_workqueue("knteractive_down", 0, 1);
+	down_wq = alloc_workqueue("kinteractive_down", 0, 1);
 
 	if (!down_wq)
 		goto err_freeuptask;
@@ -686,6 +776,44 @@ err_freeuptask:
 	return -ENOMEM;
 }
 
+int cpufreq_gov_irq_tuner_register(struct irq_tuner dbs_irq_tuner)
+{
+	int i, ret;
+	static bool init_flag;
+
+	/* Init the global irq_tuner_ins structure */
+	if (!init_flag) {
+		for (i = 0; i < MAX_CPUFREQ_IRQ_NUMBER; i++) {
+			irq_tuner_ins[i].irq_number = 0;
+			irq_tuner_ins[i].up_threshold = 0;
+			irq_tuner_ins[i].enable = 0;
+		}
+		init_flag = true;
+	}
+
+	if (dbs_irq_tuner.irq_number == 0)
+		return -EINVAL;
+	/* Find an unused struct */
+	for (i = 0; i < MAX_CPUFREQ_IRQ_NUMBER; i++) {
+		if (irq_tuner_ins[i].irq_number != 0)
+			continue;
+		else
+			break;
+	}
+	/* Check index */
+	if (i >= MAX_CPUFREQ_IRQ_NUMBER) {
+		printk(KERN_WARNING "Too many irq number requested!\n");
+		return -EINVAL;
+	}
+
+	irq_tuner_ins[i].irq_number = dbs_irq_tuner.irq_number;
+	irq_tuner_ins[i].up_threshold = dbs_irq_tuner.up_threshold;
+	irq_tuner_ins[i].enable = dbs_irq_tuner.enable;
+	cpufreq_irq_desc[i] = irq_to_desc(irq_tuner_ins[i].irq_number);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(cpufreq_gov_irq_tuner_register);
 #ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
 fs_initcall(cpufreq_interactive_init);
 #else
