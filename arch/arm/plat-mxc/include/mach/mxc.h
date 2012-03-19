@@ -73,8 +73,9 @@
 
 #ifndef __ASSEMBLY__
 extern unsigned int system_rev;
-#define board_is_rev(rev)	(((system_rev & 0x0F00) == rev) ? 1 : 0)
+#define board_is_rev(rev)      (((system_rev & 0x0F00) == rev) ? 1 : 0)
 #define imx_cpu_ver()		(system_rev & 0xFF)
+
 #endif
 
 #ifdef CONFIG_ARCH_MX5
@@ -92,10 +93,15 @@ extern unsigned int system_rev;
 	board_is_rev(IMX_BOARD_REV_2))
 #define board_is_mx6q_sabre_auto() (cpu_is_mx6q() && \
 	board_is_rev(IMX_BOARD_REV_3))
-#define board_is_mx6_sabreauto_reva() \
-	board_is_rev(IMX_BOARD_REV_2)
-#define board_is_mx6_sabreauto_revb() \
+
+#define board_is_mx6_unknown() \
 	board_is_rev(IMX_BOARD_REV_1)
+#define board_is_mx6_reva() \
+	board_is_rev(IMX_BOARD_REV_2)
+#define board_is_mx6_revb() \
+	board_is_rev(IMX_BOARD_REV_3)
+#define board_is_mx6_revc() \
+	board_is_rev(IMX_BOARD_REV_4)
 #endif
 
 #ifndef __ASSEMBLY__
