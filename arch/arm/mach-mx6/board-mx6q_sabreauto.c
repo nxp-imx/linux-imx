@@ -300,7 +300,7 @@ static int mx6q_sabreauto_fec_phy_init(struct phy_device *phydev)
 {
 	unsigned short val;
 
-	if (!board_is_mx6_sabreauto_reva()) {
+	if (!board_is_mx6_reva()) {
 		/* To enable AR8031 ouput a 125MHz clk from CLK_25M */
 		phy_write(phydev, 0xd, 0x7);
 		phy_write(phydev, 0xe, 0x8016);
@@ -1231,7 +1231,7 @@ static void __init mx6_board_init(void)
 		can0_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can0_pads);
 		can1_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can1_pads);
 		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_mipi_sensor_pads);
-		if (board_is_mx6_sabreauto_reva()) {
+		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6q_i2c3_pads_rev_a;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6q_i2c3_pads_rev_a);
 		} else {
@@ -1248,7 +1248,7 @@ static void __init mx6_board_init(void)
 		can0_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can0_pads);
 		can1_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can1_pads);
 		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_mipi_sensor_pads);
-		if (board_is_mx6_sabreauto_reva()) {
+		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6dl_i2c3_pads_rev_a;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6dl_i2c3_pads_rev_a);
 		} else {
@@ -1276,7 +1276,7 @@ static void __init mx6_board_init(void)
 	gpio_request(SABREAUTO_I2C_EXP_RST, "i2c-rst");
 	gpio_direction_output(SABREAUTO_I2C_EXP_RST, 1);
 
-	if (!board_is_mx6_sabreauto_reva()) {
+	if (!board_is_mx6_reva()) {
 		/* enable i2c3_sda route path */
 		gpio_request(SABREAUTO_I2C3_STEER, "i2c3-steer");
 		gpio_direction_output(SABREAUTO_I2C3_STEER, 1);
