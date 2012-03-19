@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,10 +23,16 @@
 #include <linux/irq.h>
 #include <asm/hardware/gic.h>
 #include <mach/hardware.h>
+#ifdef CONFIG_CPU_FREQ_GOV_INTERACTIVE
+#include <linux/cpufreq.h>
+#endif
 
 int mx6q_register_gpios(void);
 unsigned int gpc_wake_irq[4];
 extern bool enable_wait_mode;
+#ifdef CONFIG_CPU_FREQ_GOV_INTERACTIVE
+extern int cpufreq_gov_irq_tuner_register(struct irq_tuner dbs_irq_tuner);
+#endif
 
 static int mx6_gic_irq_set_wake(struct irq_data *d, unsigned int enable)
 {
@@ -44,6 +50,34 @@ static int mx6_gic_irq_set_wake(struct irq_data *d, unsigned int enable)
 	}
 	return 0;
 }
+#ifdef CONFIG_CPU_FREQ_GOV_INTERACTIVE
+static struct irq_tuner mxc_irq_tuner[] = {
+	{
+	 .irq_number = 41, /* GPU 3D */
+	 .up_threshold = 0,
+	 .enable = 1,},
+	{
+	 .irq_number = 56, /* uSDHC3 */
+	 .up_threshold = 8,
+	 .enable = 1,},
+	{
+	 .irq_number = 57, /* uSDHC4 */
+	 .up_threshold = 8,
+	 .enable = 1,},
+	{
+	 .irq_number = 71, /* SATA */
+	 .up_threshold = 4,
+	 .enable = 1,},
+	{
+	 .irq_number = 75, /* OTG */
+	 .up_threshold = 10,
+	 .enable = 1,},
+	{
+	 .irq_number = 0, /* END */
+	 .up_threshold = 0,
+	 .enable = 0,},
+};
+#endif
 void mx6_init_irq(void)
 {
 	void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
@@ -72,4 +106,8 @@ void mx6_init_irq(void)
 		desc->irq_data.chip->irq_set_wake = mx6_gic_irq_set_wake;
 	}
 	mx6q_register_gpios();
+#ifdef CONFIG_CPU_FREQ_GOV_INTERACTIVE
+	for (i = 0; i < ARRAY_SIZE(mxc_irq_tuner); i++)
+		cpufreq_gov_irq_tuner_register(mxc_irq_tuner[i]);
+#endif
 }
