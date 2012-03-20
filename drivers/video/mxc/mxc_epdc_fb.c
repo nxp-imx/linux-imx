@@ -4726,9 +4726,15 @@ out_copybuffer:
 			      fb_data->phys_addr_copybuf);
 out_upd_buffers:
 	for (i = 0; i < fb_data->max_num_buffers; i++)
-		dma_free_writecombine(&pdev->dev, fb_data->max_pix_size,
-				      fb_data->virt_addr_updbuf[i],
-				      fb_data->phys_addr_updbuf[i]);
+		if (fb_data->virt_addr_updbuf[i] != NULL)
+			dma_free_writecombine(&pdev->dev,
+				fb_data->max_pix_size,
+				fb_data->virt_addr_updbuf[i],
+				fb_data->phys_addr_updbuf[i]);
+	if (fb_data->virt_addr_updbuf != NULL)
+		kfree(fb_data->virt_addr_updbuf);
+	if (fb_data->phys_addr_updbuf != NULL)
+		kfree(fb_data->phys_addr_updbuf);
 out_upd_lists:
 	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list,
 			list) {
@@ -4753,6 +4759,7 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 {
 	struct update_data_list *plist, *temp_list;
 	struct mxc_epdc_fb_data *fb_data = platform_get_drvdata(pdev);
+	int i;
 
 	mxc_epdc_fb_blank(FB_BLANK_POWERDOWN, &fb_data->info);
 
@@ -4765,6 +4772,16 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 
 	unregister_framebuffer(&fb_data->info);
 	free_irq(fb_data->epdc_irq, fb_data);
+
+	for (i = 0; i < fb_data->max_num_buffers; i++)
+		if (fb_data->virt_addr_updbuf[i] != NULL)
+			dma_free_writecombine(&pdev->dev, fb_data->max_pix_size,
+				fb_data->virt_addr_updbuf[i],
+				fb_data->phys_addr_updbuf[i]);
+	if (fb_data->virt_addr_updbuf != NULL)
+		kfree(fb_data->virt_addr_updbuf);
+	if (fb_data->phys_addr_updbuf != NULL)
+		kfree(fb_data->phys_addr_updbuf);
 
 	dma_free_writecombine(&pdev->dev, fb_data->working_buffer_size,
 				fb_data->working_buffer_virt,
@@ -4780,9 +4797,6 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 	list_for_each_entry_safe(plist, temp_list, &fb_data->upd_buf_free_list,
 			list) {
 		list_del(&plist->list);
-		dma_free_writecombine(&pdev->dev, fb_data->max_pix_size,
-				      plist->virt_addr,
-				      plist->phys_addr);
 		kfree(plist);
 	}
 #ifdef CONFIG_FB_MXC_EINK_AUTO_UPDATE_MODE
