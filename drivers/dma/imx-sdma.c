@@ -7,7 +7,7 @@
  *
  * Based on code from Freescale:
  *
- * Copyright 2004-2011 Freescale Semiconductor, Inc.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -253,9 +253,11 @@ struct sdma_channel {
 	unsigned int			num_bd;
 	struct sdma_buffer_descriptor	*bd;
 	dma_addr_t			bd_phys;
-	unsigned int			pc_from_device, pc_to_device;
+	unsigned int			pc_from_device;
+	unsigned int			pc_to_device;
+	unsigned int			device_to_device;
 	unsigned long			flags;
-	dma_addr_t			per_address;
+	dma_addr_t			per_address, per_address2;
 	u32				event_mask0, event_mask1;
 	u32				watermark_level;
 	u32				shp_addr, per_addr;
@@ -439,7 +441,6 @@ static void sdma_event_disable(struct sdma_channel *sdmac, unsigned int event)
 static void sdma_handle_channel_loop(struct sdma_channel *sdmac)
 {
 	struct sdma_buffer_descriptor *bd;
-
 	/*
 	 * loop mode. Iterate over descriptors, re-setup them and
 	 * call callback function.
@@ -542,6 +543,7 @@ static void sdma_get_pc(struct sdma_channel *sdmac,
 
 	sdmac->pc_from_device = 0;
 	sdmac->pc_to_device = 0;
+	sdmac->device_to_device = 0;
 
 	switch (peripheral_type) {
 	case IMX_DMATYPE_MEMORY:
@@ -607,6 +609,7 @@ static void sdma_get_pc(struct sdma_channel *sdmac,
 
 	sdmac->pc_from_device = per_2_emi;
 	sdmac->pc_to_device = emi_2_per;
+	sdmac->device_to_device = per_2_per;
 }
 
 static int sdma_load_context(struct sdma_channel *sdmac)
@@ -618,11 +621,16 @@ static int sdma_load_context(struct sdma_channel *sdmac)
 	struct sdma_buffer_descriptor *bd0 = sdma->channel[0].bd;
 	int ret;
 
-	if (sdmac->direction == DMA_DEV_TO_MEM) {
+
+	if (sdmac->direction == DMA_DEV_TO_MEM)
 		load_address = sdmac->pc_from_device;
-	} else {
+	else if (sdmac->direction == DMA_DEV_TO_DEV)
+		load_address = sdmac->device_to_device;
+	else if (sdmac->direction == DMA_MEM_TO_DEV)
 		load_address = sdmac->pc_to_device;
-	}
+	else
+		load_address = sdmac->pc_to_device;
+
 
 	if (load_address < 0)
 		return load_address;
@@ -701,20 +709,52 @@ static int sdma_config_channel(struct sdma_channel *sdmac)
 			(sdmac->peripheral_type != IMX_DMATYPE_DSP)) {
 		/* Handle multiple event channels differently */
 		if (sdmac->event_id1) {
-			sdmac->event_mask1 = 1 << (sdmac->event_id1 % 32);
-			if (sdmac->event_id1 > 31)
-				sdmac->watermark_level |= 1 << 29;
-			sdmac->event_mask0 = 1 << (sdmac->event_id0 % 32);
-			if (sdmac->event_id0 > 31)
+			if (sdmac->event_id0 > 31) {
 				sdmac->watermark_level |= 1 << 28;
+				sdmac->event_mask0 |= 0;
+				sdmac->event_mask1 |=
+					1 << ((sdmac->event_id0)%32);
+			} else {
+				sdmac->event_mask0 |=
+					1 << ((sdmac->event_id0)%32);
+				sdmac->event_mask1 |= 0;
+			}
+			if (sdmac->event_id1 > 31) {
+				sdmac->watermark_level |= 1 << 29;
+				sdmac->event_mask0 |= 0;
+				sdmac->event_mask1 |=
+					1 << ((sdmac->event_id1)%32);
+			} else {
+				sdmac->event_mask0 |=
+					1 << ((sdmac->event_id1)%32);
+				sdmac->event_mask1 |= 0;
+			}
+			sdmac->watermark_level |= (unsigned int)(3<<11);
+			sdmac->watermark_level |= (unsigned int)(1<<31);
+			sdmac->watermark_level |= (unsigned int)(2<<24);
 		} else {
-			sdmac->event_mask0 = 1 << sdmac->event_id0;
-			sdmac->event_mask1 = 1 << (sdmac->event_id0 - 32);
+			if (sdmac->event_id0 > 31) {
+				sdmac->event_mask0 = 0;
+				sdmac->event_mask1 =
+					1 << ((sdmac->event_id0)%32);
+			} else {
+				sdmac->event_mask0 =
+					1 << ((sdmac->event_id0)%32);
+				sdmac->event_mask1 = 0;
+			}
 		}
 		/* Watermark Level */
 		sdmac->watermark_level |= sdmac->watermark_level;
 		/* Address */
+		switch (sdmac->direction) {
+		case DMA_DEV_TO_DEV:
+			sdmac->per_addr = sdmac->per_address;
+			sdmac->shp_addr = sdmac->per_address2;
+			break;
+		default:
 		sdmac->shp_addr = sdmac->per_address;
+			break;
+		}
 	} else {
 		sdmac->watermark_level = 0; /* FIXME: M3_BASE_ADDRESS */
 	}
@@ -837,6 +877,10 @@ static int sdma_alloc_chan_resources(struct dma_chan *chan)
 
 	sdmac->peripheral_type = data->peripheral_type;
 	sdmac->event_id0 = data->dma_request;
+	if (data->dma_request_p2p > 0)
+		sdmac->event_id1 = data->dma_request_p2p;
+	else
+		sdmac->event_id1 = 0;
 	ret = sdma_request_channel(sdmac);
 	if (ret)
 		return ret;
@@ -1061,7 +1105,18 @@ static int sdma_control(struct dma_chan *chan, enum dma_ctrl_cmd cmd,
 		sdma_disable_channel(sdmac);
 		return 0;
 	case DMA_SLAVE_CONFIG:
-		if (dmaengine_cfg->direction == DMA_DEV_TO_MEM) {
+
+		sdmac->direction = dmaengine_cfg->direction;
+		if (dmaengine_cfg->direction == DMA_DEV_TO_DEV) {
+			sdmac->per_address = dmaengine_cfg->src_addr;
+			sdmac->per_address2 = dmaengine_cfg->dst_addr;
+			sdmac->watermark_level = 0;
+			sdmac->watermark_level |=
+				dmaengine_cfg->src_maxburst;
+			sdmac->watermark_level |=
+				dmaengine_cfg->dst_maxburst << 16;
+			sdmac->word_size = dmaengine_cfg->dst_addr_width;
+		} else if (dmaengine_cfg->direction == DMA_DEV_TO_MEM) {
 			sdmac->per_address = dmaengine_cfg->src_addr;
 			sdmac->watermark_level = dmaengine_cfg->src_maxburst;
 			sdmac->word_size = dmaengine_cfg->src_addr_width;
