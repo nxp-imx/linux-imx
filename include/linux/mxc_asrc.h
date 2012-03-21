@@ -128,7 +128,9 @@ enum asrc_error_status {
 
 #ifdef __KERNEL__
 
-#define ASRC_DMA_BUFFER_NUM 8
+#define ASRC_DMA_BUFFER_NUM		2
+#define ASRC_INPUTFIFO_THRESHOLD	32
+#define ASRC_OUTPUTFIFO_THRESHOLD	32
 
 #define ASRC_ASRCTR_REG 	0x00
 #define ASRC_ASRIER_REG 	0x04
@@ -162,6 +164,13 @@ enum asrc_error_status {
 #define ASRC_ASRIDRLC_REG 	0x94
 #define ASRC_ASR76K_REG 	0x98
 #define ASRC_ASR56K_REG 	0x9C
+#define ASRC_ASRMCRA_REG    0xA0
+#define ASRC_ASRFSTA_REG    0xA4
+#define ASRC_ASRMCRB_REG    0xA8
+#define ASRC_ASRFSTB_REG    0xAC
+#define ASRC_ASRMCRC_REG    0xB0
+#define ASRC_ASRFSTC_REG    0xB4
+
 
 struct dma_block {
 	unsigned int index;
@@ -190,13 +199,27 @@ struct asrc_pair_params {
 	unsigned int buffer_num;
 	unsigned int pair_hold;
 	unsigned int asrc_active;
+	unsigned int channel_nums;
+	struct dma_block input_dma_total;
 	struct dma_block input_dma[ASRC_DMA_BUFFER_NUM];
+	struct dma_block output_dma_total;
 	struct dma_block output_dma[ASRC_DMA_BUFFER_NUM];
 	struct semaphore busy_lock;
+	struct dma_async_tx_descriptor *desc_in;
+	struct dma_async_tx_descriptor *desc_out;
 };
 
 struct asrc_data {
 	struct asrc_pair asrc_pair[3];
+	struct proc_dir_entry *proc_asrc;
+	unsigned long vaddr;
+	unsigned long paddr;
+	int dmarx[3];
+	int dmatx[3];
+	struct class *asrc_class;
+	int asrc_major;
+	struct imx_asrc_platform_data *mxc_asrc_data;
+	struct device *dev;
 };
 
 extern int asrc_req_pair(int chn_num, enum asrc_pair_index *index);
@@ -205,7 +228,8 @@ extern int asrc_config_pair(struct asrc_config *config);
 extern void asrc_get_status(struct asrc_status_flags *flags);
 extern void asrc_start_conv(enum asrc_pair_index index);
 extern void asrc_stop_conv(enum asrc_pair_index index);
-
+extern u32 asrc_get_per_addr(enum asrc_pair_index index, bool i);
+extern int asrc_get_dma_request(enum asrc_pair_index index, bool i);
 #endif				/* __kERNEL__ */
 
 #endif				/* __MXC_ASRC_H__ */
