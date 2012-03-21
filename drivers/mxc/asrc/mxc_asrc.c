@@ -42,8 +42,6 @@
 #include <mach/dma.h>
 #include <mach/mxc_asrc.h>
 
-static int asrc_major;
-static struct class *asrc_class;
 #define ASRC_PROC_PATH        "driver/asrc"
 
 #define ASRC_RATIO_DECIMAL_DEPTH 26
@@ -130,15 +128,7 @@ static const unsigned char asrc_process_table[][8][2] = {
 	{{2, 2}, {2, 2}, {2, 2}, {2, 1}, {2, 1}, {2, 1}, {2, 1}, {2, 1},},
 };
 
-static struct asrc_data *g_asrc_data;
-static struct proc_dir_entry *proc_asrc;
-static unsigned long asrc_vrt_base_addr;
-static unsigned long asrc_phy_base_addr;
-static struct imx_asrc_platform_data *mxc_asrc_data;
-struct dma_async_tx_descriptor *desc_in;
-struct dma_async_tx_descriptor *desc_out;
-static int asrc_dmarx[3];
-static int asrc_dmatx[3];
+static struct asrc_data *g_asrc;
 
 /* The following tables map the relationship between asrc_inclk/asrc_outclk in
  * mxc_asrc.h and the registers of ASRCSR
@@ -162,9 +152,11 @@ static unsigned char output_clk_map_v2[] = {
 static unsigned char *input_clk_map, *output_clk_map;
 
 static struct dma_chan *imx_asrc_dma_alloc(u32 dma_req);
-struct dma_async_tx_descriptor *imx_asrc_dma_config(struct dma_chan * chan,
-					u32 dma_addr, void *buf_addr,
-					u32 buf_len, int in);
+struct dma_async_tx_descriptor *imx_asrc_dma_config(
+					struct asrc_pair_params *params,
+					struct dma_chan *chan,
+					u32 dma_addr, dma_addr_t buf_addr,
+					u32 buf_len, bool in);
 
 static int asrc_set_clock_ratio(enum asrc_pair_index index,
 				int input_sample_rate, int output_sample_rate)
@@ -194,9 +186,9 @@ static int asrc_set_clock_ratio(enum asrc_pair_index index,
 	}
 
 	__raw_writel(reg_val,
-		     (asrc_vrt_base_addr + ASRC_ASRIDRLA_REG + (index << 3)));
+		(g_asrc->vaddr + ASRC_ASRIDRLA_REG + (index << 3)));
 	__raw_writel((reg_val >> 24),
-		     (asrc_vrt_base_addr + ASRC_ASRIDRHA_REG + (index << 3)));
+		(g_asrc->vaddr + ASRC_ASRIDRHA_REG + (index << 3)));
 	return 0;
 }
 
@@ -278,12 +270,12 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 		return -1;
 	}
 
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCFG_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCFG_REG);
 	reg &= ~(0x0f << (6 + (index << 2)));
 	reg |=
 	    ((asrc_process_table[i][j][0] << (6 + (index << 2))) |
 	     (asrc_process_table[i][j][1] << (8 + (index << 2))));
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCFG_REG);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCFG_REG);
 
 	return 0;
 }
@@ -293,7 +285,9 @@ static int asrc_get_asrck_clock_divider(int samplerate)
 	unsigned int prescaler, divider;
 	unsigned int i;
 	unsigned int ratio, ra;
-	unsigned long bitclk =  clk_get_rate(mxc_asrc_data->asrc_audio_clk);
+	unsigned long bitclk;
+
+	bitclk = clk_get_rate(g_asrc->mxc_asrc_data->asrc_audio_clk);
 
 	ra = bitclk/samplerate;
 	ratio = ra;
@@ -317,34 +311,33 @@ int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 {
 	int err = 0;
 	unsigned long lock_flags;
+	struct asrc_pair *pair;
 	spin_lock_irqsave(&data_lock, lock_flags);
 
 	if (chn_num > 2) {
-		if (g_asrc_data->asrc_pair[ASRC_PAIR_C].active
-		    || (chn_num > g_asrc_data->asrc_pair[ASRC_PAIR_C].chn_max))
+		pair = &g_asrc->asrc_pair[ASRC_PAIR_C];
+		if (pair->active || (chn_num > pair->chn_max))
 			err = -EBUSY;
 		else {
 			*index = ASRC_PAIR_C;
-			g_asrc_data->asrc_pair[ASRC_PAIR_C].chn_num = chn_num;
-			g_asrc_data->asrc_pair[ASRC_PAIR_C].active = 1;
+			pair->chn_num = chn_num;
+			pair->active = 1;
 		}
 	} else {
-		if (g_asrc_data->asrc_pair[ASRC_PAIR_A].active ||
-		    (g_asrc_data->asrc_pair[ASRC_PAIR_A].chn_max == 0)) {
-			if (g_asrc_data->asrc_pair[ASRC_PAIR_B].
-			    active
-			    || (g_asrc_data->asrc_pair[ASRC_PAIR_B].
-				chn_max == 0))
+		pair = &g_asrc->asrc_pair[ASRC_PAIR_A];
+		if (pair->active || (pair->chn_max == 0)) {
+			pair = &g_asrc->asrc_pair[ASRC_PAIR_B];
+			if (pair->active || (pair->chn_max == 0))
 				err = -EBUSY;
 			else {
 				*index = ASRC_PAIR_B;
-				g_asrc_data->asrc_pair[ASRC_PAIR_B].chn_num = 2;
-				g_asrc_data->asrc_pair[ASRC_PAIR_B].active = 1;
+				pair->chn_num = 2;
+				pair->active = 1;
 			}
 		} else {
 			*index = ASRC_PAIR_A;
-			g_asrc_data->asrc_pair[ASRC_PAIR_A].chn_num = 2;
-			g_asrc_data->asrc_pair[ASRC_PAIR_A].active = 1;
+			pair->chn_num = 2;
+			pair->active = 1;
 		}
 	}
 	spin_unlock_irqrestore(&data_lock, lock_flags);
@@ -357,14 +350,16 @@ void asrc_release_pair(enum asrc_pair_index index)
 {
 	unsigned long reg;
 	unsigned long lock_flags;
+	struct asrc_pair *pair;
+	pair = &g_asrc->asrc_pair[index];
 
 	spin_lock_irqsave(&data_lock, lock_flags);
-	g_asrc_data->asrc_pair[index].active = 0;
-	g_asrc_data->asrc_pair[index].overload_error = 0;
+	pair->active = 0;
+	pair->overload_error = 0;
 	/********Disable PAIR*************/
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
 	reg &= ~(1 << (index + 1));
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 }
 
@@ -376,56 +371,53 @@ int asrc_config_pair(struct asrc_config *config)
 	int reg, tmp, channel_num;
 	unsigned long lock_flags;
 	/* Set the channel number */
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCNCR_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCNCR_REG);
 	spin_lock_irqsave(&data_lock, lock_flags);
-	g_asrc_data->asrc_pair[config->pair].chn_num = config->channel_num;
+	g_asrc->asrc_pair[config->pair].chn_num = config->channel_num;
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 	reg &=
-	    ~((0xFFFFFFFF >> (32 - mxc_asrc_data->channel_bits)) <<
-	      (mxc_asrc_data->channel_bits * config->pair));
-	if (mxc_asrc_data->channel_bits > 3)
+	    ~((0xFFFFFFFF >> (32 - g_asrc->mxc_asrc_data->channel_bits)) <<
+	      (g_asrc->mxc_asrc_data->channel_bits * config->pair));
+	if (g_asrc->mxc_asrc_data->channel_bits > 3)
 		channel_num = config->channel_num;
 	else
 		channel_num = (config->channel_num + 1) / 2;
-	tmp = channel_num << (mxc_asrc_data->channel_bits * config->pair);
+	tmp = channel_num <<
+		(g_asrc->mxc_asrc_data->channel_bits * config->pair);
 	reg |= tmp;
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCNCR_REG);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCNCR_REG);
 
 	/* Set the clock source */
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCSR_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCSR_REG);
 	tmp = ~(0x0f << (config->pair << 2));
 	reg &= tmp;
 	tmp = ~(0x0f << (12 + (config->pair << 2)));
 	reg &= tmp;
-	reg |=
-	    ((input_clk_map[config->inclk] << (config->pair << 2)) | (output_clk_map[config->
-						       outclk] << (12 +
-								  (config->
-								   pair <<
-								   2))));
+	reg |= ((input_clk_map[config->inclk] << (config->pair << 2)) |
+		(output_clk_map[config->outclk] << (12 + (config->pair << 2))));
 
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCSR_REG);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCSR_REG);
 
 	/* default setting */
 	/* automatic selection for processing mode */
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
 	reg |= (1 << (20 + config->pair));
 	reg &= ~(1 << (14 + (config->pair << 1)));
 
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
 
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRRA_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRRA_REG);
 	reg &= 0xffbfffff;
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRRA_REG);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRRA_REG);
 
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
 	reg = reg & (~(1 << 23));
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
 
 	/* Default Clock Divider Setting */
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR1_REG);
 	if (config->pair == ASRC_PAIR_A) {
-		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR1_REG);
 		reg &= 0xfc0fc0;
 		/* Input Part */
 		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
@@ -466,10 +458,10 @@ int asrc_config_pair(struct asrc_config *config)
 				err = -EFAULT;
 		}
 
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCDR1_REG);
 
 	} else if (config->pair == ASRC_PAIR_B) {
-		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR1_REG);
 		reg &= 0x03f03f;
 		/* Input Part */
 		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
@@ -510,10 +502,10 @@ int asrc_config_pair(struct asrc_config *config)
 				err = -EFAULT;
 		}
 
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR1_REG);
+		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCDR1_REG);
 
 	} else {
-		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
+		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR2_REG);
 		reg &= 0;
 		/* Input Part */
 		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
@@ -553,16 +545,16 @@ int asrc_config_pair(struct asrc_config *config)
 			else
 				err = -EFAULT;
 		}
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCDR2_REG);
+		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCDR2_REG);
 
 	}
 
 	/* check whether ideal ratio is a must */
 	if ((config->inclk & 0x0f) == INCLK_NONE) {
-		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
 		reg &= ~(1 << (20 + config->pair));
 		reg |= (0x03 << (13 + (config->pair << 1)));
-		__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
 		err = asrc_set_clock_ratio(config->pair,
 					   config->input_sample_rate,
 					   config->output_sample_rate);
@@ -578,16 +570,14 @@ int asrc_config_pair(struct asrc_config *config)
 	} else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
 		if (config->input_sample_rate == 44100
 		    || config->input_sample_rate == 88200) {
-			pr_info
-			    ("ASRC core clock cann't support sample rate %d\n",
+			pr_err("ASRC core clock cann't support sample rate %d\n",
 			     config->input_sample_rate);
 			err = -EFAULT;
 		}
 	} else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
 		if (config->output_sample_rate == 44100
 		    || config->output_sample_rate == 88200) {
-			pr_info
-			    ("ASRC core clock cann't support sample rate %d\n",
+			pr_err("ASRC core clock cann't support sample rate %d\n",
 			     config->input_sample_rate);
 			err = -EFAULT;
 		}
@@ -606,46 +596,46 @@ void asrc_start_conv(enum asrc_pair_index index)
 
 	spin_lock_irqsave(&data_lock, lock_flags);
 
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
 	if ((reg & 0x0E) == 0)
-		clk_enable(mxc_asrc_data->asrc_audio_clk);
+		clk_enable(g_asrc->mxc_asrc_data->asrc_audio_clk);
 	reg |= (1 << (1 + index));
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
 
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCFG_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCFG_REG);
 	while (!(reg & (1 << (index + 21))))
-		reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCFG_REG);
-	reg_1 = __raw_readl(asrc_vrt_base_addr + ASRC_ASRSTR_REG);
+		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCFG_REG);
+	reg_1 = __raw_readl(g_asrc->vaddr + ASRC_ASRSTR_REG);
 
 	reg = 0;
 	for (i = 0; i < 20; i++) {
 		__raw_writel(reg,
-			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     g_asrc->vaddr + ASRC_ASRDIA_REG +
 			     (index << 3));
 		__raw_writel(reg,
-			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     g_asrc->vaddr + ASRC_ASRDIA_REG +
 			     (index << 3));
 		__raw_writel(reg,
-			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     g_asrc->vaddr + ASRC_ASRDIA_REG +
 			     (index << 3));
 		__raw_writel(reg,
-			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     g_asrc->vaddr + ASRC_ASRDIA_REG +
 			     (index << 3));
 		__raw_writel(reg,
-			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     g_asrc->vaddr + ASRC_ASRDIA_REG +
 			     (index << 3));
 		__raw_writel(reg,
-			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     g_asrc->vaddr + ASRC_ASRDIA_REG +
 			     (index << 3));
 		__raw_writel(reg,
-			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     g_asrc->vaddr + ASRC_ASRDIA_REG +
 			     (index << 3));
 		__raw_writel(reg,
-			     asrc_vrt_base_addr + ASRC_ASRDIA_REG +
+			     g_asrc->vaddr + ASRC_ASRDIA_REG +
 			     (index << 3));
 	}
 
-	__raw_writel(0x40, asrc_vrt_base_addr + ASRC_ASRIER_REG);
+	__raw_writel(0x40, g_asrc->vaddr + ASRC_ASRIER_REG);
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 	return;
 }
@@ -657,16 +647,25 @@ void asrc_stop_conv(enum asrc_pair_index index)
 	int reg;
 	unsigned long lock_flags;
 	spin_lock_irqsave(&data_lock, lock_flags);
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
 	reg &= ~(1 << (1 + index));
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
 	if ((reg & 0x0E) == 0)
-		clk_disable(mxc_asrc_data->asrc_audio_clk);
+		clk_disable(g_asrc->mxc_asrc_data->asrc_audio_clk);
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 	return;
 }
 
 EXPORT_SYMBOL(asrc_stop_conv);
+
+int asrc_get_dma_request(enum asrc_pair_index index, bool in)
+{
+	if (in)
+		return g_asrc->dmarx[index];
+	else
+		return g_asrc->dmatx[index];
+}
+EXPORT_SYMBOL(asrc_get_dma_request);
 
 /*!
  * @brief asrc interrupt handler
@@ -676,59 +675,58 @@ static irqreturn_t asrc_isr(int irq, void *dev_id)
 	unsigned long status;
 	int reg = 0x40;
 
-	status = __raw_readl(asrc_vrt_base_addr + ASRC_ASRSTR_REG);
-	if (g_asrc_data->asrc_pair[ASRC_PAIR_A].active == 1) {
+	status = __raw_readl(g_asrc->vaddr + ASRC_ASRSTR_REG);
+	if (g_asrc->asrc_pair[ASRC_PAIR_A].active == 1) {
 		if (status & ASRC_ASRSTR_ATQOL)
-			g_asrc_data->asrc_pair[ASRC_PAIR_A].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_A].overload_error |=
 			    ASRC_TASK_Q_OVERLOAD;
 		if (status & ASRC_ASRSTR_AOOLA)
-			g_asrc_data->asrc_pair[ASRC_PAIR_A].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_A].overload_error |=
 			    ASRC_OUTPUT_TASK_OVERLOAD;
 		if (status & ASRC_ASRSTR_AIOLA)
-			g_asrc_data->asrc_pair[ASRC_PAIR_A].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_A].overload_error |=
 			    ASRC_INPUT_TASK_OVERLOAD;
 		if (status & ASRC_ASRSTR_AODOA)
-			g_asrc_data->asrc_pair[ASRC_PAIR_A].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_A].overload_error |=
 			    ASRC_OUTPUT_BUFFER_OVERFLOW;
 		if (status & ASRC_ASRSTR_AIDUA)
-			g_asrc_data->asrc_pair[ASRC_PAIR_A].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_A].overload_error |=
 			    ASRC_INPUT_BUFFER_UNDERRUN;
-	} else if (g_asrc_data->asrc_pair[ASRC_PAIR_B].active == 1) {
+	} else if (g_asrc->asrc_pair[ASRC_PAIR_B].active == 1) {
 		if (status & ASRC_ASRSTR_ATQOL)
-			g_asrc_data->asrc_pair[ASRC_PAIR_B].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_B].overload_error |=
 			    ASRC_TASK_Q_OVERLOAD;
 		if (status & ASRC_ASRSTR_AOOLB)
-			g_asrc_data->asrc_pair[ASRC_PAIR_B].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_B].overload_error |=
 			    ASRC_OUTPUT_TASK_OVERLOAD;
 		if (status & ASRC_ASRSTR_AIOLB)
-			g_asrc_data->asrc_pair[ASRC_PAIR_B].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_B].overload_error |=
 			    ASRC_INPUT_TASK_OVERLOAD;
 		if (status & ASRC_ASRSTR_AODOB)
-			g_asrc_data->asrc_pair[ASRC_PAIR_B].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_B].overload_error |=
 			    ASRC_OUTPUT_BUFFER_OVERFLOW;
 		if (status & ASRC_ASRSTR_AIDUB)
-			g_asrc_data->asrc_pair[ASRC_PAIR_B].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_B].overload_error |=
 			    ASRC_INPUT_BUFFER_UNDERRUN;
-	} else if (g_asrc_data->asrc_pair[ASRC_PAIR_C].active == 1) {
+	} else if (g_asrc->asrc_pair[ASRC_PAIR_C].active == 1) {
 		if (status & ASRC_ASRSTR_ATQOL)
-			g_asrc_data->asrc_pair[ASRC_PAIR_C].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_C].overload_error |=
 			    ASRC_TASK_Q_OVERLOAD;
 		if (status & ASRC_ASRSTR_AOOLC)
-			g_asrc_data->asrc_pair[ASRC_PAIR_C].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_C].overload_error |=
 			    ASRC_OUTPUT_TASK_OVERLOAD;
 		if (status & ASRC_ASRSTR_AIOLC)
-			g_asrc_data->asrc_pair[ASRC_PAIR_C].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_C].overload_error |=
 			    ASRC_INPUT_TASK_OVERLOAD;
 		if (status & ASRC_ASRSTR_AODOC)
-			g_asrc_data->asrc_pair[ASRC_PAIR_C].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_C].overload_error |=
 			    ASRC_OUTPUT_BUFFER_OVERFLOW;
 		if (status & ASRC_ASRSTR_AIDUC)
-			g_asrc_data->asrc_pair[ASRC_PAIR_C].overload_error |=
+			g_asrc->asrc_pair[ASRC_PAIR_C].overload_error |=
 			    ASRC_INPUT_BUFFER_UNDERRUN;
 	}
-
 	/* try to clean the overload error  */
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRSTR_REG);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRSTR_REG);
 
 	return IRQ_HANDLED;
 }
@@ -740,7 +738,7 @@ void asrc_get_status(struct asrc_status_flags *flags)
 
 	spin_lock_irqsave(&data_lock, lock_flags);
 	index = flags->index;
-	flags->overload_error = g_asrc_data->asrc_pair[index].overload_error;
+	flags->overload_error = g_asrc->asrc_pair[index].overload_error;
 
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 	return;
@@ -748,96 +746,54 @@ void asrc_get_status(struct asrc_status_flags *flags)
 
 EXPORT_SYMBOL(asrc_get_status);
 
+u32 asrc_get_per_addr(enum asrc_pair_index index, bool in)
+{
+	if (in)
+		return g_asrc->paddr + ASRC_ASRDIA_REG + (index << 3);
+	else
+		return g_asrc->paddr + ASRC_ASRDOA_REG + (index << 3);
+}
+EXPORT_SYMBOL(asrc_get_per_addr);
+
 static int mxc_init_asrc(void)
 {
 	/* Halt ASRC internal FP when input FIFO needs data for pair A, B, C */
-	__raw_writel(0x0001, asrc_vrt_base_addr + ASRC_ASRCTR_REG);
+	__raw_writel(0x0001, g_asrc->vaddr + ASRC_ASRCTR_REG);
 
 	/* Enable overflow interrupt */
-	__raw_writel(0x00, asrc_vrt_base_addr + ASRC_ASRIER_REG);
+	__raw_writel(0x00, g_asrc->vaddr + ASRC_ASRIER_REG);
 
 	/* Default 6: 2: 2 channel assignment */
-	__raw_writel((0x06 << mxc_asrc_data->channel_bits *
-		      2) | (0x02 << mxc_asrc_data->channel_bits) | 0x02,
-		     asrc_vrt_base_addr + ASRC_ASRCNCR_REG);
+	__raw_writel((0x06 << g_asrc->mxc_asrc_data->channel_bits *
+		      2) | (0x02 << g_asrc->mxc_asrc_data->channel_bits) | 0x02,
+		     g_asrc->vaddr + ASRC_ASRCNCR_REG);
 
 	/* Parameter Registers recommended settings */
-	__raw_writel(0x7fffff, asrc_vrt_base_addr + ASRC_ASRPM1_REG);
-	__raw_writel(0x255555, asrc_vrt_base_addr + ASRC_ASRPM2_REG);
-	__raw_writel(0xff7280, asrc_vrt_base_addr + ASRC_ASRPM3_REG);
-	__raw_writel(0xff7280, asrc_vrt_base_addr + ASRC_ASRPM4_REG);
-	__raw_writel(0xff7280, asrc_vrt_base_addr + ASRC_ASRPM5_REG);
+	__raw_writel(0x7fffff, g_asrc->vaddr + ASRC_ASRPM1_REG);
+	__raw_writel(0x255555, g_asrc->vaddr + ASRC_ASRPM2_REG);
+	__raw_writel(0xff7280, g_asrc->vaddr + ASRC_ASRPM3_REG);
+	__raw_writel(0xff7280, g_asrc->vaddr + ASRC_ASRPM4_REG);
+	__raw_writel(0xff7280, g_asrc->vaddr + ASRC_ASRPM5_REG);
 
-	__raw_writel(0x001f00, asrc_vrt_base_addr + ASRC_ASRTFR1);
+	__raw_writel(0x001f00, g_asrc->vaddr + ASRC_ASRTFR1);
 
 	/* Set the processing clock for 76KHz, 133M  */
-	__raw_writel(0x30E, asrc_vrt_base_addr + ASRC_ASR76K_REG);
+	__raw_writel(0x30E, g_asrc->vaddr + ASRC_ASR76K_REG);
 
 	/* Set the processing clock for 56KHz, 133M */
-	__raw_writel(0x0426, asrc_vrt_base_addr + ASRC_ASR56K_REG);
+	__raw_writel(0x0426, g_asrc->vaddr + ASRC_ASR56K_REG);
 
 	return 0;
-}
-
-static int asrc_get_output_buffer_size(int input_buffer_size,
-				       int input_sample_rate,
-				       int output_sample_rate)
-{
-	int i = 0;
-	int outbuffer_size = 0;
-	int outsample = output_sample_rate;
-	while (outsample >= input_sample_rate) {
-		++i;
-		outsample -= input_sample_rate;
-	}
-	outbuffer_size = i * input_buffer_size;
-	i = 1;
-	while (((input_buffer_size >> i) > 2) && (outsample != 0)) {
-		if (((outsample << 1) - input_sample_rate) >= 0) {
-			outsample = (outsample << 1) - input_sample_rate;
-			outbuffer_size += (input_buffer_size >> i);
-		} else {
-			outsample = outsample << 1;
-		}
-		i++;
-	}
-	outbuffer_size = (outbuffer_size >> 3) << 3;
-	return outbuffer_size;
 }
 
 static void asrc_input_dma_callback(void *data)
 {
 	struct asrc_pair_params *params;
-	struct dma_block *block;
 	unsigned long lock_flags;
-	u32 dma_addr;
-	void *buf_addr;
 
 	params = data;
-
 	spin_lock_irqsave(&input_int_lock, lock_flags);
 	params->input_queue_empty--;
-	if (!list_empty(&params->input_queue)) {
-		block =
-		    list_entry(params->input_queue.next,
-			       struct dma_block, queue);
-		dma_addr =
-		    (asrc_phy_base_addr + ASRC_ASRDIA_REG +
-		     (params->index << 3));
-		buf_addr = block->dma_vaddr;
-		spin_unlock_irqrestore(&input_int_lock, lock_flags);
-		desc_in = imx_asrc_dma_config(
-				params->input_dma_channel,
-				dma_addr, buf_addr,
-				block->length, 1);
-		if (!desc_in)
-			pr_err("%s:%d failed to config dma\n",
-				__func__, __LINE__);
-		spin_lock_irqsave(&input_int_lock, lock_flags);
-		list_del(params->input_queue.next);
-		list_add_tail(&block->queue, &params->input_done_queue);
-		params->input_queue_empty++;
-	}
 	params->input_counter++;
 	wake_up_interruptible(&params->input_wait_queue);
 	spin_unlock_irqrestore(&input_int_lock, lock_flags);
@@ -847,39 +803,12 @@ static void asrc_input_dma_callback(void *data)
 static void asrc_output_dma_callback(void *data)
 {
 	struct asrc_pair_params *params;
-	struct dma_block *block;
 	unsigned long lock_flags;
-	u32 dma_addr;
-	void *buf_addr;
 
 	params = data;
 
 	spin_lock_irqsave(&output_int_lock, lock_flags);
 	params->output_queue_empty--;
-
-	if (!list_empty(&params->output_queue)) {
-		block =
-		    list_entry(params->output_queue.next,
-			       struct dma_block, queue);
-
-		dma_addr =
-		    (asrc_phy_base_addr + ASRC_ASRDOA_REG +
-		     (params->index << 3));
-		buf_addr = block->dma_vaddr;
-		spin_unlock_irqrestore(&output_int_lock, lock_flags);
-		desc_out = imx_asrc_dma_config(
-				params->output_dma_channel,
-				dma_addr, buf_addr,
-				block->length, 0);
-		if (!desc_out)
-			pr_err("%s:%d failed to config dma\n",
-				__func__, __LINE__);
-		spin_lock_irqsave(&output_int_lock, lock_flags);
-
-		list_del(params->output_queue.next);
-		list_add_tail(&block->queue, &params->output_done_queue);
-		params->output_queue_empty++;
-	}
 	params->output_counter++;
 	wake_up_interruptible(&params->output_wait_queue);
 	spin_unlock_irqrestore(&output_int_lock, lock_flags);
@@ -888,21 +817,20 @@ static void asrc_output_dma_callback(void *data)
 
 static void mxc_free_dma_buf(struct asrc_pair_params *params)
 {
-	int i;
-
-	if (params->input_dma[0].dma_vaddr != NULL) {
-		kfree(params->input_dma[0].dma_vaddr);
-		for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
-			params->input_dma[i].dma_vaddr = NULL;
-			params->input_dma[i].dma_paddr = 0;
-		}
+	if (params->input_dma_total.dma_vaddr != NULL) {
+		dma_free_coherent(g_asrc->dev,
+			params->input_dma_total.length,
+			params->input_dma_total.dma_vaddr,
+			params->input_dma_total.dma_paddr);
+		params->input_dma_total.dma_vaddr = NULL;
 	}
-	if (params->output_dma[0].dma_vaddr != NULL) {
-		kfree(params->output_dma[0].dma_vaddr);
-		for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
-			params->output_dma[i].dma_vaddr = NULL;
-			params->output_dma[i].dma_paddr = 0;
-		}
+
+	if (params->output_dma_total.dma_vaddr != NULL) {
+		dma_free_coherent(g_asrc->dev,
+			params->output_dma_total.length,
+			params->output_dma_total.dma_vaddr,
+			params->output_dma_total.dma_paddr);
+		params->output_dma_total.dma_vaddr = NULL;
 	}
 
 	return;
@@ -911,56 +839,47 @@ static void mxc_free_dma_buf(struct asrc_pair_params *params)
 static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 {
 	int i;
+	struct dma_block *input_a, *output_a;
 
-	params->input_dma[0].dma_vaddr = NULL;
-	params->input_dma[0].dma_vaddr =
-		kzalloc(params->input_buffer_size * ASRC_DMA_BUFFER_NUM,
-				GFP_KERNEL);
+	input_a = &params->input_dma_total;
+	output_a = &params->output_dma_total;
 
-	if (!params->input_dma[0].dma_vaddr) {
-		mxc_free_dma_buf(params);
-		pr_info("can't allocate buff\n");
-		return -ENOBUFS;
-	}
+	input_a->dma_vaddr =
+		dma_alloc_coherent(g_asrc->dev,
+			input_a->length, &input_a->dma_paddr,
+			GFP_KERNEL | GFP_DMA);
+	if (!input_a->dma_vaddr)
+		goto exit;
 
-	for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
+	for (i = 0; i < params->buffer_num; i++) {
 		params->input_dma[i].dma_vaddr =
-			(unsigned char *)
-			((unsigned long)params->input_dma[0].dma_vaddr +
-					i * params->input_buffer_size);
+			input_a->dma_vaddr + i * params->input_buffer_size;
 		params->input_dma[i].dma_paddr =
-			virt_to_dma(NULL, params->input_dma[i].dma_vaddr);
-		if (params->input_dma[i].dma_vaddr == NULL) {
-			mxc_free_dma_buf(params);
-			pr_info("can't allocate buff\n");
-			return -ENOBUFS;
-		}
+			input_a->dma_paddr + i * params->input_buffer_size;
+		if (params->input_dma[i].dma_vaddr == NULL)
+			goto exit;
 	}
 
-	params->output_dma[0].dma_vaddr = NULL;
-	params->output_dma[0].dma_vaddr =
-		kzalloc(params->output_buffer_size * ASRC_DMA_BUFFER_NUM,
-				GFP_KERNEL);
-	if (!params->output_dma[0].dma_vaddr) {
-		mxc_free_dma_buf(params);
-		pr_info("can't allocate buff\n");
-		return -ENOBUFS;
-	}
-
-	for (i = 0; i < ASRC_DMA_BUFFER_NUM; i++) {
+	output_a->dma_vaddr =
+		dma_alloc_coherent(g_asrc->dev,
+			output_a->length, &output_a->dma_paddr,
+			GFP_KERNEL | GFP_DMA);
+	if (!output_a->dma_vaddr)
+		goto exit;
+	for (i = 0; i < params->buffer_num; i++) {
 		params->output_dma[i].dma_vaddr =
-			(unsigned char *)
-			((unsigned long)params->output_dma[0].dma_vaddr +
-						i * params->output_buffer_size);
+			output_a->dma_vaddr + i * params->output_buffer_size;
 		params->output_dma[i].dma_paddr =
-			virt_to_dma(NULL, params->output_dma[i].dma_vaddr);
-		if (params->output_dma[i].dma_vaddr == NULL) {
-			mxc_free_dma_buf(params);
-			pr_info("can't allocate buff\n");
-			return -ENOBUFS;
-		}
+			output_a->dma_paddr + i * params->output_buffer_size;
+		if (params->output_dma[i].dma_vaddr == NULL)
+			goto exit;
 	}
 	return 0;
+
+exit:
+	mxc_free_dma_buf(params);
+	pr_err("can't allocate buffer\n");
+	return -ENOBUFS;
 }
 
 static bool filter(struct dma_chan *chan, void *param)
@@ -988,41 +907,44 @@ static struct dma_chan *imx_asrc_dma_alloc(u32 dma_req)
 	return dma_request_channel(mask, filter, &dma_data);
 }
 
-struct dma_async_tx_descriptor *imx_asrc_dma_config(struct dma_chan * chan,
-					u32 dma_addr, void *buf_addr,
-					u32 buf_len, int in)
+
+struct dma_async_tx_descriptor *imx_asrc_dma_config(
+				struct asrc_pair_params *params,
+				struct dma_chan *chan,
+				u32 dma_addr, dma_addr_t buf_addr,
+				u32 buf_len, bool in)
 {
 	struct dma_slave_config slave_config;
-	struct scatterlist sg;
 	int ret;
 
 	if (in) {
-		slave_config.direction = DMA_TO_DEVICE;
+		slave_config.direction = DMA_MEM_TO_DEV;
 		slave_config.dst_addr = dma_addr;
 		slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
-		slave_config.dst_maxburst = 4;
+		slave_config.dst_maxburst =
+			ASRC_INPUTFIFO_THRESHOLD * params->channel_nums;
 	} else {
-		slave_config.direction = DMA_FROM_DEVICE;
+		slave_config.direction = DMA_DEV_TO_MEM;
 		slave_config.src_addr = dma_addr;
 		slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
-		slave_config.src_maxburst = 4;
+		slave_config.src_maxburst =
+			ASRC_OUTPUTFIFO_THRESHOLD * params->channel_nums;
+	}
+	ret = dmaengine_slave_config(chan, &slave_config);
+	if (ret) {
+		pr_err("imx_asrc_dma_config(%d) failed\r\n", in);
+		return NULL;
 	}
 
-	ret = dmaengine_slave_config(chan, &slave_config);
-	if (ret)
-		return NULL;
-
-	sg_init_one(&sg, buf_addr, buf_len);
-	ret = dma_map_sg(NULL, &sg, 1, slave_config.direction);
-	if (ret != 1)
-		return NULL;
-
-	return chan->device->device_prep_slave_sg(chan,
-					&sg, 1, slave_config.direction, 1);
+	return chan->device->device_prep_dma_cyclic(chan, buf_addr,
+			buf_len * params->buffer_num,
+			buf_len,
+			in == true ?
+			DMA_TO_DEVICE : DMA_FROM_DEVICE);
 }
 
 /*!
- * asrc interface - ioctl function
+ * asrc interface -  function
  *
  * @param inode      struct inode *
  *
@@ -1042,8 +964,6 @@ static long asrc_ioctl(struct file *file,
 	struct asrc_pair_params *params;
 	params = file->private_data;
 
-	if (down_interruptible(&params->busy_lock))
-		return -EBUSY;
 	switch (cmd) {
 	case ASRC_REQ_PAIR:
 		{
@@ -1058,6 +978,7 @@ static long asrc_ioctl(struct file *file,
 				break;
 			params->pair_hold = 1;
 			params->index = req.index;
+			params->channel_nums = req.chn_num;
 			if (copy_to_user
 			    ((void __user *)arg, &req, sizeof(struct asrc_req)))
 				err = -EFAULT;
@@ -1078,36 +999,36 @@ static long asrc_ioctl(struct file *file,
 			err = asrc_config_pair(&config);
 			if (err < 0)
 				break;
-			params->output_buffer_size =
-			    asrc_get_output_buffer_size(config.
-							dma_buffer_size,
-							config.
-							input_sample_rate,
-							config.
-							output_sample_rate);
+			params->output_buffer_size = config.dma_buffer_size;
 			params->input_buffer_size = config.dma_buffer_size;
 			if (config.buffer_num > ASRC_DMA_BUFFER_NUM)
 				params->buffer_num = ASRC_DMA_BUFFER_NUM;
 			else
 				params->buffer_num = config.buffer_num;
+
+			params->input_dma_total.length =
+				params->input_buffer_size * params->buffer_num;
+			params->output_dma_total.length =
+				params->output_buffer_size * params->buffer_num;
+
 			err = mxc_allocate_dma_buf(params);
 			if (err < 0)
 				break;
 
 			/* TBD - need to update when new SDMA interface ready */
 			if (config.pair == ASRC_PAIR_A) {
-				rx_id = asrc_dmarx[ASRC_PAIR_A];
-				tx_id = asrc_dmatx[ASRC_PAIR_A];
+				rx_id = asrc_get_dma_request(ASRC_PAIR_A, 1);
+				tx_id = asrc_get_dma_request(ASRC_PAIR_A, 0);
 				rx_name = asrc_pair_id[0];
 				tx_name = asrc_pair_id[1];
 			} else if (config.pair == ASRC_PAIR_B) {
-				rx_id = asrc_dmarx[ASRC_PAIR_B];
-				tx_id = asrc_dmatx[ASRC_PAIR_B];
+				rx_id = asrc_get_dma_request(ASRC_PAIR_B, 1);
+				tx_id = asrc_get_dma_request(ASRC_PAIR_B, 0);
 				rx_name = asrc_pair_id[2];
 				tx_name = asrc_pair_id[3];
 			} else {
-				rx_id = asrc_dmarx[ASRC_PAIR_C];
-				tx_id = asrc_dmatx[ASRC_PAIR_C];
+				rx_id = asrc_get_dma_request(ASRC_PAIR_C, 1);
+				tx_id = asrc_get_dma_request(ASRC_PAIR_C, 0);
 				rx_name = asrc_pair_id[4];
 				tx_name = asrc_pair_id[5];
 			}
@@ -1118,10 +1039,39 @@ static long asrc_ioctl(struct file *file,
 				err = -EBUSY;
 			}
 
+			params->desc_in = imx_asrc_dma_config(params,
+					params->input_dma_channel,
+					asrc_get_per_addr(params->index, 1),
+					params->input_dma[0].dma_paddr,
+					params->input_buffer_size, 1);
+			if (params->desc_in) {
+				params->desc_in->callback =
+						asrc_input_dma_callback;
+				params->desc_in->callback_param = params;
+			} else {
+				pr_err("unable to get desc_in\r\n");
+				err = -EINVAL;
+				break;
+			}
+
 			params->output_dma_channel = imx_asrc_dma_alloc(tx_id);
 			if (params->output_dma_channel == NULL) {
 				pr_err("unable to get tx channel %d\n", tx_id);
 				err = -EBUSY;
+			}
+			params->desc_out = imx_asrc_dma_config(params,
+					params->output_dma_channel,
+					asrc_get_per_addr(params->index, 0),
+					params->output_dma[0].dma_paddr,
+					params->output_buffer_size, 0);
+			if (params->desc_out) {
+				params->desc_out->callback =
+						asrc_output_dma_callback;
+				params->desc_out->callback_param = params;
+			} else {
+				pr_err("unable to get desc_out\r\n");
+				err = -EINVAL;
+				break;
 			}
 
 			params->input_queue_empty = 0;
@@ -1142,22 +1092,23 @@ static long asrc_ioctl(struct file *file,
 	case ASRC_QUERYBUF:
 		{
 			struct asrc_querybuf buffer;
+			unsigned int index_n;
 			if (copy_from_user
 			    (&buffer, (void __user *)arg,
 			     sizeof(struct asrc_querybuf))) {
 				err = -EFAULT;
 				break;
 			}
-			buffer.input_offset =
-			    (unsigned long)params->input_dma[buffer.
-							     buffer_index].
-			    dma_paddr;
+			index_n = buffer.buffer_index;
+
+			buffer.input_offset = (unsigned long)
+				params->input_dma[index_n].dma_paddr;
 			buffer.input_length = params->input_buffer_size;
-			buffer.output_offset =
-			    (unsigned long)params->output_dma[buffer.
-							      buffer_index].
-			    dma_paddr;
+
+			buffer.output_offset = (unsigned long)
+				params->output_dma[index_n].dma_paddr;
 			buffer.output_length = params->output_buffer_size;
+
 			if (copy_to_user
 			    ((void __user *)arg, &buffer,
 			     sizeof(struct asrc_querybuf)))
@@ -1188,8 +1139,6 @@ static long asrc_ioctl(struct file *file,
 		{
 			struct asrc_buffer buf;
 			struct dma_block *block;
-			u32 dma_addr;
-			void *buf_addr;
 			unsigned long lock_flags;
 			if (copy_from_user
 			    (&buf, (void __user *)arg,
@@ -1203,36 +1152,16 @@ static long asrc_ioctl(struct file *file,
 			params->input_dma[buf.index].length = buf.length;
 			list_add_tail(&params->input_dma[buf.index].
 				      queue, &params->input_queue);
-			if (params->asrc_active == 0
-			    || params->input_queue_empty == 0) {
+			if (!list_empty(&params->input_queue)) {
 				block =
 				    list_entry(params->input_queue.next,
 					       struct dma_block, queue);
-				dma_addr =
-				    (asrc_phy_base_addr + ASRC_ASRDIA_REG +
-				     (params->index << 3));
-				buf_addr = block->dma_vaddr;
-				spin_unlock_irqrestore(&input_int_lock,
-							lock_flags);
-				desc_in = imx_asrc_dma_config(
-						params->input_dma_channel,
-						dma_addr, buf_addr,
-						block->length, 1);
-				if (desc_in) {
-					desc_in->callback =
-						asrc_input_dma_callback;
-					desc_in->callback_param = params;
-				} else {
-					err = -EINVAL;
-					break;
-				}
-				spin_lock_irqsave(&input_int_lock, lock_flags);
+
 				params->input_queue_empty++;
 				list_del(params->input_queue.next);
 				list_add_tail(&block->queue,
 					      &params->input_done_queue);
 			}
-
 			spin_unlock_irqrestore(&input_int_lock, lock_flags);
 			break;
 		}
@@ -1290,8 +1219,6 @@ static long asrc_ioctl(struct file *file,
 	case ASRC_Q_OUTBUF:{
 			struct asrc_buffer buf;
 			struct dma_block *block;
-			u32 dma_addr;
-			void *buf_addr;
 			unsigned long lock_flags;
 			if (copy_from_user
 			    (&buf, (void __user *)arg,
@@ -1305,30 +1232,10 @@ static long asrc_ioctl(struct file *file,
 			params->output_dma[buf.index].length = buf.length;
 			list_add_tail(&params->output_dma[buf.index].
 				      queue, &params->output_queue);
-			if (params->asrc_active == 0
-			    || params->output_queue_empty == 0) {
+			if (!list_empty(&params->output_queue)) {
 				block =
 				    list_entry(params->output_queue.
 					       next, struct dma_block, queue);
-				dma_addr =
-				    (asrc_phy_base_addr + ASRC_ASRDOA_REG +
-				     (params->index << 3));
-				buf_addr = block->dma_vaddr;
-				spin_unlock_irqrestore(&output_int_lock,
-							lock_flags);
-				desc_out = imx_asrc_dma_config(
-						params->output_dma_channel,
-					dma_addr, buf_addr, block->length, 0);
-				if (desc_out) {
-					desc_out->callback =
-						asrc_output_dma_callback;
-					desc_out->callback_param = params;
-				} else {
-					err = -EINVAL;
-					break;
-				}
-				spin_lock_irqsave(&output_int_lock, lock_flags);
-
 				list_del(params->output_queue.next);
 				list_add_tail(&block->queue,
 					      &params->output_done_queue);
@@ -1407,10 +1314,11 @@ static long asrc_ioctl(struct file *file,
 			}
 			spin_unlock_irqrestore(&input_int_lock, lock_flags);
 			params->asrc_active = 1;
+			dmaengine_submit(params->desc_in);
+			dmaengine_submit(params->desc_out);
 
 			asrc_start_conv(index);
-			dmaengine_submit(desc_in);
-			dmaengine_submit(desc_out);
+
 			break;
 		}
 	case ASRC_STOP_CONV:{
@@ -1470,18 +1378,18 @@ static long asrc_ioctl(struct file *file,
 			dma_release_channel(params->input_dma_channel);
 			dma_release_channel(params->output_dma_channel);
 			if (params->index == ASRC_PAIR_A) {
-				rx_id = asrc_dmarx[ASRC_PAIR_A];
-				tx_id = asrc_dmatx[ASRC_PAIR_A];
+				rx_id = g_asrc->dmarx[ASRC_PAIR_A];
+				tx_id = g_asrc->dmatx[ASRC_PAIR_A];
 				rx_name = asrc_pair_id[0];
 				tx_name = asrc_pair_id[1];
 			} else if (params->index == ASRC_PAIR_B) {
-				rx_id = asrc_dmarx[ASRC_PAIR_B];
-				tx_id = asrc_dmatx[ASRC_PAIR_B];
+				rx_id = g_asrc->dmarx[ASRC_PAIR_B];
+				tx_id = g_asrc->dmatx[ASRC_PAIR_B];
 				rx_name = asrc_pair_id[2];
 				tx_name = asrc_pair_id[3];
 			} else {
-				rx_id = asrc_dmarx[ASRC_PAIR_C];
-				tx_id = asrc_dmatx[ASRC_PAIR_C];
+				rx_id = g_asrc->dmarx[ASRC_PAIR_C];
+				tx_id = g_asrc->dmatx[ASRC_PAIR_C];
 				rx_name = asrc_pair_id[4];
 				tx_name = asrc_pair_id[5];
 			}
@@ -1504,7 +1412,6 @@ static long asrc_ioctl(struct file *file,
 		break;
 	}
 
-	up(&params->busy_lock);
 	return err;
 }
 
@@ -1523,7 +1430,7 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 	int err = 0;
 	struct asrc_pair_params *pair_params;
 
-	clk_enable(mxc_asrc_data->asrc_core_clk);
+	clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	if (signal_pending(current))
 		return -EINTR;
 	pair_params = kzalloc(sizeof(struct asrc_pair_params), GFP_KERNEL);
@@ -1531,8 +1438,7 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 		pr_debug("Failed to allocate pair_params\n");
 		err = -ENOBUFS;
 	}
-
-	sema_init(&pair_params->busy_lock, 1);
+	clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	file->private_data = pair_params;
 	return err;
 }
@@ -1549,25 +1455,30 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 {
 	struct asrc_pair_params *pair_params;
 	pair_params = file->private_data;
-
-	if (pair_params->asrc_active == 1) {
-		dmaengine_terminate_all(pair_params->input_dma_channel);
-		dmaengine_terminate_all(pair_params->output_dma_channel);
-		asrc_stop_conv(pair_params->index);
-		wake_up_interruptible(&pair_params->input_wait_queue);
-		wake_up_interruptible(&pair_params->output_wait_queue);
+	if (pair_params) {
+		if (pair_params->asrc_active) {
+			dmaengine_terminate_all(
+					pair_params->input_dma_channel);
+			dmaengine_terminate_all(
+					pair_params->output_dma_channel);
+			asrc_stop_conv(pair_params->index);
+			wake_up_interruptible(&pair_params->input_wait_queue);
+			wake_up_interruptible(&pair_params->output_wait_queue);
+		}
+		if (pair_params->pair_hold) {
+			if (pair_params->input_dma_channel)
+				dma_release_channel(
+					pair_params->input_dma_channel);
+			if (pair_params->output_dma_channel)
+				dma_release_channel(
+					pair_params->output_dma_channel);
+			mxc_free_dma_buf(pair_params);
+			asrc_release_pair(pair_params->index);
+		}
+		kfree(pair_params);
+		file->private_data = NULL;
+		clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	}
-	if (pair_params->pair_hold == 1) {
-		dma_release_channel(pair_params->input_dma_channel);
-		dma_release_channel(pair_params->output_dma_channel);
-		mxc_free_dma_buf(pair_params);
-		asrc_release_pair(pair_params->index);
-	}
-
-	kfree(pair_params);
-	file->private_data = NULL;
-	clk_disable(mxc_asrc_data->asrc_core_clk);
-
 	return 0;
 }
 
@@ -1607,24 +1518,23 @@ static int asrc_read_proc_attr(char *page, char **start, off_t off,
 {
 	unsigned long reg;
 	int len = 0;
-	clk_enable(mxc_asrc_data->asrc_core_clk);
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCNCR_REG);
-	clk_disable(mxc_asrc_data->asrc_core_clk);
+	clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCNCR_REG);
+	clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
 
 	len += sprintf(page, "ANCA: %d\n",
 		       (int)(reg &
 			     (0xFFFFFFFF >>
-			      (32 - mxc_asrc_data->channel_bits))));
+			      (32 - g_asrc->mxc_asrc_data->channel_bits))));
 	len +=
 	    sprintf(page + len, "ANCB: %d\n",
-		    (int)((reg >> mxc_asrc_data->
-			   channel_bits) & (0xFFFFFFFF >> (32 -
-							   mxc_asrc_data->
-							   channel_bits))));
+		    (int)((reg >> g_asrc->mxc_asrc_data->
+			   channel_bits) & (0xFFFFFFFF >>
+				(32 - g_asrc->mxc_asrc_data->channel_bits))));
 	len +=
 	    sprintf(page + len, "ANCC: %d\n",
-		    (int)((reg >> (mxc_asrc_data->channel_bits * 2)) &
-			  (0xFFFFFFFF >> (32 - mxc_asrc_data->channel_bits))));
+		(int)((reg >> (g_asrc->mxc_asrc_data->channel_bits * 2)) &
+		(0xFFFFFFFF >> (32 - g_asrc->mxc_asrc_data->channel_bits))));
 
 	if (off > len)
 		return 0;
@@ -1649,11 +1559,11 @@ static int asrc_write_proc_attr(struct file *file, const char *buffer,
 		return -EFAULT;
 	}
 
-	clk_enable(mxc_asrc_data->asrc_core_clk);
-	reg = __raw_readl(asrc_vrt_base_addr + ASRC_ASRCNCR_REG);
-	clk_disable(mxc_asrc_data->asrc_core_clk);
+	clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCNCR_REG);
+	clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	sscanf(buf, "ANCA: %d\nANCB: %d\nANCC: %d", &na, &nb, &nc);
-	if (mxc_asrc_data->channel_bits > 3)
+	if (g_asrc->mxc_asrc_data->channel_bits > 3)
 		total = 10;
 	else
 		total = 5;
@@ -1661,12 +1571,12 @@ static int asrc_write_proc_attr(struct file *file, const char *buffer,
 		pr_info("Wrong ASRCNR settings\n");
 		return -EFAULT;
 	}
-	reg = na | (nb << mxc_asrc_data->
-		    channel_bits) | (nc << (mxc_asrc_data->channel_bits * 2));
+	reg = na | (nb << g_asrc->mxc_asrc_data->channel_bits) |
+		(nc << (g_asrc->mxc_asrc_data->channel_bits * 2));
 
-	clk_enable(mxc_asrc_data->asrc_core_clk);
-	__raw_writel(reg, asrc_vrt_base_addr + ASRC_ASRCNCR_REG);
-	clk_disable(mxc_asrc_data->asrc_core_clk);
+	clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
+	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCNCR_REG);
+	clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
 
 	return count;
 }
@@ -1674,11 +1584,11 @@ static int asrc_write_proc_attr(struct file *file, const char *buffer,
 static void asrc_proc_create(void)
 {
 	struct proc_dir_entry *proc_attr;
-	proc_asrc = proc_mkdir(ASRC_PROC_PATH, NULL);
-	if (proc_asrc) {
+	g_asrc->proc_asrc = proc_mkdir(ASRC_PROC_PATH, NULL);
+	if (g_asrc->proc_asrc) {
 		proc_attr = create_proc_entry("ChSettings",
 					      S_IFREG | S_IRUGO |
-					      S_IWUSR, proc_asrc);
+					      S_IWUSR, g_asrc->proc_asrc);
 		if (proc_attr) {
 			proc_attr->read_proc = asrc_read_proc_attr;
 			proc_attr->write_proc = asrc_write_proc_attr;
@@ -1710,50 +1620,54 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	if (!res)
 		return -ENOENT;
 
-	g_asrc_data = kzalloc(sizeof(struct asrc_data), GFP_KERNEL);
+	g_asrc = kzalloc(sizeof(struct asrc_data), GFP_KERNEL);
 
-	if (g_asrc_data == NULL) {
-		pr_info("Failed to allocate g_asrc_data\n");
+	if (g_asrc == NULL) {
+		pr_info("Failed to allocate g_asrc\n");
 		return -ENOMEM;
 	}
 
-	g_asrc_data->asrc_pair[0].chn_max = 2;
-	g_asrc_data->asrc_pair[1].chn_max = 2;
-	g_asrc_data->asrc_pair[2].chn_max = 6;
-	g_asrc_data->asrc_pair[0].overload_error = 0;
-	g_asrc_data->asrc_pair[1].overload_error = 0;
-	g_asrc_data->asrc_pair[2].overload_error = 0;
+	g_asrc->dev = &pdev->dev;
+	g_asrc->dev->coherent_dma_mask = DMA_BIT_MASK(32);
 
-	asrc_major = register_chrdev(asrc_major, "mxc_asrc", &asrc_fops);
-	if (asrc_major < 0) {
+	g_asrc->asrc_pair[0].chn_max = 2;
+	g_asrc->asrc_pair[1].chn_max = 2;
+	g_asrc->asrc_pair[2].chn_max = 6;
+	g_asrc->asrc_pair[0].overload_error = 0;
+	g_asrc->asrc_pair[1].overload_error = 0;
+	g_asrc->asrc_pair[2].overload_error = 0;
+
+	g_asrc->asrc_major =
+		register_chrdev(g_asrc->asrc_major, "mxc_asrc", &asrc_fops);
+	if (g_asrc->asrc_major < 0) {
 		pr_info("Unable to register asrc device\n");
 		err = -EBUSY;
 		goto error;
 	}
 
-	asrc_class = class_create(THIS_MODULE, "mxc_asrc");
-	if (IS_ERR(asrc_class)) {
-		err = PTR_ERR(asrc_class);
+	g_asrc->asrc_class = class_create(THIS_MODULE, "mxc_asrc");
+	if (IS_ERR(g_asrc->asrc_class)) {
+		err = PTR_ERR(g_asrc->asrc_class);
 		goto err_out_chrdev;
 	}
 
-	temp_class = device_create(asrc_class, NULL, MKDEV(asrc_major, 0),
-				   NULL, "mxc_asrc");
+	temp_class =
+		device_create(g_asrc->asrc_class, NULL,
+			MKDEV(g_asrc->asrc_major, 0), NULL, "mxc_asrc");
 	if (IS_ERR(temp_class)) {
 		err = PTR_ERR(temp_class);
 		goto err_out_class;
 	}
 
-	asrc_phy_base_addr = res->start;
-	asrc_vrt_base_addr =
+	g_asrc->paddr = res->start;
+	g_asrc->vaddr =
 	    (unsigned long)ioremap(res->start, res->end - res->start + 1);
-
-	mxc_asrc_data =
+	g_asrc->mxc_asrc_data =
 	    (struct imx_asrc_platform_data *)pdev->dev.platform_data;
 
-	clk_enable(mxc_asrc_data->asrc_core_clk);
+	clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
 
-	switch (mxc_asrc_data->clk_map_ver) {
+	switch (g_asrc->mxc_asrc_data->clk_map_ver) {
 	case 1:
 		input_clk_map = &input_clk_map_v1[0];
 		output_clk_map = &output_clk_map_v1[0];
@@ -1767,27 +1681,27 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "tx1");
 	if (res)
-		asrc_dmatx[0] = res->start;
+		g_asrc->dmatx[0] = res->start;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "rx1");
 	if (res)
-		asrc_dmarx[0] = res->start;
+		g_asrc->dmarx[0] = res->start;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "tx2");
 	if (res)
-		asrc_dmatx[1] = res->start;
+		g_asrc->dmatx[1] = res->start;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "rx2");
 	if (res)
-		asrc_dmarx[1] = res->start;
+		g_asrc->dmarx[1] = res->start;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "tx3");
 	if (res)
-		asrc_dmatx[2] = res->start;
+		g_asrc->dmatx[2] = res->start;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_DMA, "rx3");
 	if (res)
-		asrc_dmarx[2] = res->start;
+		g_asrc->dmarx[2] = res->start;
 
 	irq = platform_get_irq(pdev, 0);
 	if (request_irq(irq, asrc_isr, 0, "asrc", NULL))
@@ -1797,17 +1711,18 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	err = mxc_init_asrc();
 	if (err < 0)
 		goto err_out_class;
-	clk_disable(mxc_asrc_data->asrc_core_clk);
+
+	clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	goto out;
 
       err_out_class:
-	clk_disable(mxc_asrc_data->asrc_core_clk);
-	device_destroy(asrc_class, MKDEV(asrc_major, 0));
-	class_destroy(asrc_class);
+	clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
+	device_destroy(g_asrc->asrc_class, MKDEV(g_asrc->asrc_major, 0));
+	class_destroy(g_asrc->asrc_class);
       err_out_chrdev:
-	unregister_chrdev(asrc_major, "mxc_asrc");
+	unregister_chrdev(g_asrc->asrc_major, "mxc_asrc");
       error:
-	kfree(g_asrc_data);
+	kfree(g_asrc);
       out:
 	pr_info("mxc_asrc registered\n");
 	return err;
@@ -1823,15 +1738,14 @@ static int mxc_asrc_remove(struct platform_device *pdev)
 {
 	int irq = platform_get_irq(pdev, 0);
 	free_irq(irq, NULL);
-	kfree(g_asrc_data);
-	clk_disable(mxc_asrc_data->asrc_core_clk);
-	mxc_asrc_data = NULL;
-	iounmap((unsigned long __iomem *)asrc_vrt_base_addr);
-	remove_proc_entry("ChSettings", proc_asrc);
+	kfree(g_asrc);
+	g_asrc->mxc_asrc_data = NULL;
+	iounmap((unsigned long __iomem *)g_asrc->vaddr);
+	remove_proc_entry("ChSettings", g_asrc->proc_asrc);
 	remove_proc_entry(ASRC_PROC_PATH, NULL);
-	device_destroy(asrc_class, MKDEV(asrc_major, 0));
-	class_destroy(asrc_class);
-	unregister_chrdev(asrc_major, "mxc_asrc");
+	device_destroy(g_asrc->asrc_class, MKDEV(g_asrc->asrc_major, 0));
+	class_destroy(g_asrc->asrc_class);
+	unregister_chrdev(g_asrc->asrc_major, "mxc_asrc");
 	return 0;
 }
 
