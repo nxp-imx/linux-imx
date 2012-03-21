@@ -28,7 +28,6 @@
 #include "devices-imx6q.h"
 #include "regs-anadig.h"
 #include "usb.h"
-
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct platform_device *pdev);
 static void usbotg_clock_gate(bool on);
@@ -307,8 +306,7 @@ static void otg_wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable
 
 	pr_debug("%s, enable is %d\n", __func__, enable);
 	if (enable) {
-		__raw_writel(BM_USBPHY_CTRL_ENIDCHG_WKUP | BM_USBPHY_CTRL_ENVBUSCHG_WKUP
-				| BM_USBPHY_CTRL_ENDPDMCHG_WKUP
+		__raw_writel(BM_USBPHY_CTRL_ENDPDMCHG_WKUP
 				| BM_USBPHY_CTRL_ENAUTOSET_USBCLKS
 				| BM_USBPHY_CTRL_ENAUTOCLR_PHY_PWD
 				| BM_USBPHY_CTRL_ENAUTOCLR_CLKGATE
@@ -435,12 +433,15 @@ static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, boo
 
 static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
+	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
 	__wakeup_irq_enable(pdata, enable, ENABLED_BY_HOST);
 	if (enable) {
 		pr_debug("host wakeup enable\n");
 		USB_OTG_CTRL |= UCTRL_WKUP_ID_EN;
+		__raw_writel(BM_USBPHY_CTRL_ENIDCHG_WKUP, phy_reg + HW_USBPHY_CTRL_SET);
 	} else {
 		pr_debug("host wakeup disable\n");
+		__raw_writel(BM_USBPHY_CTRL_ENIDCHG_WKUP, phy_reg + HW_USBPHY_CTRL_CLR);
 		USB_OTG_CTRL &= ~UCTRL_WKUP_ID_EN;
 		/* The interrupt must be disabled for at least 3 clock
 		 * cycles of the standby clock(32k Hz) , that is 0.094 ms*/
@@ -489,6 +490,7 @@ static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, b
 
 static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
+	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
 	__wakeup_irq_enable(pdata, enable, ENABLED_BY_DEVICE);
 	/* if udc is not used by any gadget, we can not enable the vbus wakeup */
 	if (!pdata->port_enables) {
@@ -498,8 +500,10 @@ static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool ena
 	if (enable) {
 		pr_debug("device wakeup enable\n");
 		USB_OTG_CTRL |= UCTRL_WKUP_VBUS_EN;
+		__raw_writel(BM_USBPHY_CTRL_ENVBUSCHG_WKUP, phy_reg + HW_USBPHY_CTRL_SET);
 	} else {
 		pr_debug("device wakeup disable\n");
+		__raw_writel(BM_USBPHY_CTRL_ENVBUSCHG_WKUP, phy_reg + HW_USBPHY_CTRL_CLR);
 		USB_OTG_CTRL &= ~UCTRL_WKUP_VBUS_EN;
 	}
 }
