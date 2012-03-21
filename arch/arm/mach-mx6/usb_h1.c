@@ -187,6 +187,8 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 		USB_H1_CTRL |= (UCTRL_OWIE);
 	} else {
 		USB_H1_CTRL &= ~(UCTRL_OWIE);
+		__raw_writel(BM_USBPHY_CTRL_ENIDCHG_WKUP | BM_USBPHY_CTRL_ENVBUSCHG_WKUP
+				| BM_USBPHY_CTRL_ENDPDMCHG_WKUP, phy_reg + HW_USBPHY_CTRL_CLR);
 		/* The interrupt must be disabled for at least 3
 		* cycles of the standby clock(32k Hz) , that is 0.094 ms*/
 		udelay(100);
