@@ -1149,6 +1149,12 @@ static int __init imx6q_init_audio(void)
 	return 0;
 }
 
+static struct mxc_mlb_platform_data mx6_sabreauto_mlb150_data = {
+	.reg_nvcc		= NULL,
+	.mlb_clk		= "mlb150_clk",
+	.mlb_pll_clk		= "pll6",
+};
+
 static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
 	.reg_id			= "cpu_vddgp",
 	.clk1_id		= "cpu_clk",
@@ -1430,6 +1436,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_flexcan1(&mx6q_sabreauto_flexcan_pdata[1]);
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
+	imx6q_add_mlb150(&mx6_sabreauto_mlb150_data);
 }
 
 extern void __iomem *twd_base;
