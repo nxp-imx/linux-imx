@@ -811,24 +811,12 @@ static struct ipuv3_fb_platform_data sabresd_fb_data[] = {
 	.default_bpp = 32,
 	.int_clk = false,
 	}, {
-	.disp_dev = "lcd",
-	.interface_pix_fmt = IPU_PIX_FMT_RGB565,
-	.mode_str = "CLAA-WVGA",
-	.default_bpp = 16,
-	.int_clk = false,
-	}, {
-	.disp_dev = "ldb",
-	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
-	.mode_str = "LDB-SVGA",
+	.disp_dev = "hdmi",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB24,
+	.mode_str = "1920x1080M@60",
 	.default_bpp = 32,
 	.int_clk = false,
-	}, {
-	.disp_dev = "ldb",
-	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
-	.mode_str = "LDB-VGA",
-	.default_bpp = 32,
-	.int_clk = false,
-	},
+	}
 };
 
 static void hdmi_init(int ipu_id, int disp_id)
@@ -871,9 +859,7 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ipu_id = 1,
 	.disp_id = 1,
 	.ext_ref = 1,
-	.mode = LDB_SEP1,
-	.sec_ipu_id = 1,
-	.sec_disp_id = 0,
+	.mode = LDB_SIN1,
 };
 
 static struct max8903_pdata charger1_data = {
