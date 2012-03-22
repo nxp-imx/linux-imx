@@ -307,7 +307,7 @@ static struct imx_ssi_platform_data mx6_sabresd_ssi_pdata = {
 	.flags = IMX_SSI_DMA | IMX_SSI_SYN,
 };
 
-static struct platform_device mx6_sabresd_audio_device = {
+static struct platform_device mx6_sabresd_audio_wm8958_device = {
 	.name = "imx-wm8958",
 };
 
@@ -358,6 +358,64 @@ static int mxc_wm8958_init(void)
 
 	return 0;
 }
+
+static struct platform_device mx6_sabresd_audio_wm8962_device = {
+	.name = "imx-wm8962",
+};
+
+static struct mxc_audio_platform_data wm8962_data = {
+	.ssi_num = 1,
+	.src_port = 2,
+	.ext_port = 3,
+	.hp_gpio = SABRESD_HEADPHONE_DET,
+	.hp_active_low = 1,
+};
+
+static int mxc_wm8962_init(void)
+{
+	struct clk *clko;
+	int rate;
+
+	clko = clk_get(NULL, "clko_clk");
+	if (IS_ERR(clko)) {
+		pr_err("can't get CLKO clock.\n");
+		return PTR_ERR(clko);
+	}
+	/* both audio codec and comera use CLKO clk*/
+	rate = clk_round_rate(clko, 22000000);
+
+	wm8962_data.sysclk = rate;
+	clk_set_rate(clko, rate);
+
+	return 0;
+}
+
+static struct regulator_consumer_supply sabresd_vwm8962_consumers[] = {
+	REGULATOR_SUPPLY("SPKVDD1", "0-001a"),
+	REGULATOR_SUPPLY("SPKVDD2", "0-001a"),
+};
+
+static struct regulator_init_data sabresd_vwm8962_init = {
+	.num_consumer_supplies = ARRAY_SIZE(sabresd_vwm8962_consumers),
+	.consumer_supplies = sabresd_vwm8962_consumers,
+};
+
+static struct fixed_voltage_config sabresd_vwm8962_reg_config = {
+	.supply_name	= "SPKVDD",
+	.microvolts		= 4200000,
+	.gpio			= SABRESD_CODEC_PWR_EN,
+	.enable_high	= 1,
+	.enabled_at_boot = 1,
+	.init_data		= &sabresd_vwm8962_init,
+};
+
+static struct platform_device sabresd_vwm8962_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id		= 4,
+	.dev	= {
+		.platform_data = &sabresd_vwm8962_reg_config,
+	},
+};
 
 static void mx6q_csi0_cam_powerdown(int powerdown)
 {
@@ -648,8 +706,7 @@ static struct fsl_mxc_lightsensor_platform_data ls_data = {
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
-		I2C_BOARD_INFO("wm8958", 0x1a),
-		.platform_data = &wm8958_pdata,
+		I2C_BOARD_INFO("wm89**", 0x1a),
 	},
 	{
 		I2C_BOARD_INFO("ov5642", 0x3c),
@@ -1211,11 +1268,21 @@ static struct platform_device sabresd_vmmc_reg_devices = {
 
 static int imx6q_init_audio(void)
 {
-	mxc_register_device(&mx6_sabresd_audio_device,
-			    &wm8958_data);
-	imx6q_add_imx_ssi(1, &mx6_sabresd_ssi_pdata);
+	if (board_is_mx6_reva()) {
+		mxc_register_device(&mx6_sabresd_audio_wm8958_device,
+				    &wm8958_data);
+		imx6q_add_imx_ssi(1, &mx6_sabresd_ssi_pdata);
 
-	mxc_wm8958_init();
+		mxc_wm8958_init();
+	} else {
+		platform_device_register(&sabresd_vwm8962_reg_devices);
+		mxc_register_device(&mx6_sabresd_audio_wm8962_device,
+				    &wm8962_data);
+		imx6q_add_imx_ssi(1, &mx6_sabresd_ssi_pdata);
+
+		mxc_wm8962_init();
+	}
+
 	return 0;
 }
 
@@ -1378,6 +1445,12 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_imx_snvs_rtc();
 
+	if (board_is_mx6_reva()) {
+		strcpy(mxc_i2c0_board_info[0].type, "wm8958");
+		mxc_i2c0_board_info[0].platform_data = &wm8958_pdata;
+	} else {
+		strcpy(mxc_i2c0_board_info[0].type, "wm8962");
+	}
 	imx6q_add_imx_i2c(0, &mx6q_sabresd_i2c_data);
 	imx6q_add_imx_i2c(1, &mx6q_sabresd_i2c_data);
 	imx6q_add_imx_i2c(2, &mx6q_sabresd_i2c_data);

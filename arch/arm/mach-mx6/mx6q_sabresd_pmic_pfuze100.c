@@ -66,8 +66,9 @@
 
 
 static struct regulator_consumer_supply sw2_consumers[] = {
-       {
-	.supply = "GEN_3V3",
+	{
+		.supply	   = "MICVDD",
+		.dev_name   = "0-001a",
 	}
 };
 static struct regulator_consumer_supply sw4_consumers[] = {
@@ -91,8 +92,25 @@ static struct regulator_consumer_supply vgen2_consumers[] = {
 	}
 };
 static struct regulator_consumer_supply vgen4_consumers[] = {
-       {
-	.supply = "VGEN4_1V8",
+	{
+		.supply	   = "DBVDD",
+		.dev_name   = "0-001a",
+	},
+	{
+		.supply	   = "AVDD",
+		.dev_name   = "0-001a",
+	},
+	{
+		.supply	   = "DCVDD",
+		.dev_name   = "0-001a",
+	},
+	{
+		.supply	   = "CPVDD",
+		.dev_name   = "0-001a",
+	},
+	{
+		.supply	   = "PLLVDD",
+		.dev_name   = "0-001a",
 	}
 };
 static struct regulator_consumer_supply vgen5_consumers[] = {
