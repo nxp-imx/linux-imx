@@ -42,6 +42,10 @@
 		PAD_CTL_PUS_47K_UP  | PAD_CTL_SPEED_LOW |		\
 		PAD_CTL_DSE_80ohm   | PAD_CTL_SRE_FAST  | PAD_CTL_HYS)
 
+#define MX6DL_USDHC_PAD_CTRL_50MHZ_40OHM (PAD_CTL_PKE | PAD_CTL_PUE |		\
+		PAD_CTL_PUS_47K_UP  | PAD_CTL_SPEED_LOW |		\
+		PAD_CTL_DSE_40ohm   | PAD_CTL_SRE_FAST  | PAD_CTL_HYS)
+
 #define MX6DL_USDHC_PAD_CTRL_100MHZ (PAD_CTL_PKE | PAD_CTL_PUE |	\
 		PAD_CTL_PUS_47K_UP  | PAD_CTL_SPEED_MED |		\
 		PAD_CTL_DSE_40ohm   | PAD_CTL_SRE_FAST  | PAD_CTL_HYS)
@@ -3195,6 +3199,8 @@
 
 #define MX6DL_PAD_SD1_CLK__USDHC1_CLK                                          \
 		IOMUX_PAD(0x06C4, 0x02DC, 0, 0x0928, 1, MX6DL_USDHC_PAD_CTRL)
+#define MX6DL_PAD_SD1_CLK__USDHC1_CLK_50MHZ_40OHM                              \
+		IOMUX_PAD(0x06C4, 0x02DC, 0, 0x0928, 1, MX6DL_USDHC_PAD_CTRL_50MHZ_40OHM)
 #define MX6DL_PAD_SD1_CLK__OSC32K_32K_OUT                                      \
 		IOMUX_PAD(0x06C4, 0x02DC, 2, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_SD1_CLK__GPT_CLKIN                                           \
@@ -3206,6 +3212,8 @@
 
 #define MX6DL_PAD_SD1_CMD__USDHC1_CMD                                          \
 		IOMUX_PAD(0x06C8, 0x02E0, 0 | IOMUX_CONFIG_SION, 0x0000, 0, MX6DL_USDHC_PAD_CTRL)
+#define MX6DL_PAD_SD1_CMD__USDHC1_CMD_50MHZ_40OHM                              \
+		IOMUX_PAD(0x06C8, 0x02E0, 0 | IOMUX_CONFIG_SION, 0x0000, 0, MX6DL_USDHC_PAD_CTRL_50MHZ_40OHM)
 #define MX6DL_PAD_SD1_CMD__PWM4_PWMO                                           \
 		IOMUX_PAD(0x06C8, 0x02E0, 2, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_SD1_CMD__GPT_CMPOUT1                                         \
@@ -3217,6 +3225,8 @@
 
 #define MX6DL_PAD_SD1_DAT0__USDHC1_DAT0                                        \
 		IOMUX_PAD(0x06CC, 0x02E4, 0, 0x0000, 0, MX6DL_USDHC_PAD_CTRL)
+#define MX6DL_PAD_SD1_DAT0__USDHC1_DAT0_50MHZ_40OHM                            \
+		IOMUX_PAD(0x06CC, 0x02E4, 0, 0x0000, 0, MX6DL_USDHC_PAD_CTRL_50MHZ_40OHM)
 #define MX6DL_PAD_SD1_DAT0__CAAM_WRAPPER_RNG_OSC_OBS                           \
 		IOMUX_PAD(0x06CC, 0x02E4, 2, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_SD1_DAT0__GPT_CAPIN1                                         \
@@ -3232,6 +3242,8 @@
 
 #define MX6DL_PAD_SD1_DAT1__USDHC1_DAT1                                        \
 		IOMUX_PAD(0x06D0, 0x02E8, 0, 0x0000, 0, MX6DL_USDHC_PAD_CTRL)
+#define MX6DL_PAD_SD1_DAT1__USDHC1_DAT1_50MHZ_40OHM                            \
+		IOMUX_PAD(0x06D0, 0x02E8, 0, 0x0000, 0, MX6DL_USDHC_PAD_CTRL_50MHZ_40OHM)
 #define MX6DL_PAD_SD1_DAT1__PWM3_PWMO                                          \
 		IOMUX_PAD(0x06D0, 0x02E8, 2, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_SD1_DAT1__GPT_CAPIN2                                         \
@@ -3247,6 +3259,8 @@
 
 #define MX6DL_PAD_SD1_DAT2__USDHC1_DAT2                                        \
 		IOMUX_PAD(0x06D4, 0x02EC, 0, 0x0000, 0, MX6DL_USDHC_PAD_CTRL)
+#define MX6DL_PAD_SD1_DAT2__USDHC1_DAT2_50MHZ_40OHM                            \
+		IOMUX_PAD(0x06D4, 0x02EC, 0, 0x0000, 0, MX6DL_USDHC_PAD_CTRL_50MHZ_40OHM)
 #define MX6DL_PAD_SD1_DAT2__GPT_CMPOUT2                                        \
 		IOMUX_PAD(0x06D4, 0x02EC, 2, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_SD1_DAT2__PWM2_PWMO                                          \
@@ -3262,6 +3276,8 @@
 
 #define MX6DL_PAD_SD1_DAT3__USDHC1_DAT3                                        \
 		IOMUX_PAD(0x06D8, 0x02F0, 0, 0x0000, 0, MX6DL_USDHC_PAD_CTRL)
+#define MX6DL_PAD_SD1_DAT3__USDHC1_DAT3_50MHZ_40OHM                            \
+		IOMUX_PAD(0x06D8, 0x02F0, 0, 0x0000, 0, MX6DL_USDHC_PAD_CTRL_50MHZ_40OHM)
 #define MX6DL_PAD_SD1_DAT3__GPT_CMPOUT3                                        \
 		IOMUX_PAD(0x06D8, 0x02F0, 2, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_SD1_DAT3__PWM1_PWMO                                          \
