@@ -37,6 +37,10 @@ config IMX_HAVE_PLATFORM_IMX_SRTC
 config IMX_HAVE_PLATFORM_IMX_SNVS_RTC
 	bool
 
+config IMX_HAVE_PLATFORM_IMX_CAAM
+	bool
+	default y if SOC_IMX6Q
+
 config IMX_HAVE_PLATFORM_IMX_FB
 	bool
 	select HAVE_FB_IMX
