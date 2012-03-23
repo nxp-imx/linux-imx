@@ -2082,6 +2082,8 @@ static void __init mx6_arm2_init(void)
 
 	imx6q_add_imx_snvs_rtc();
 
+	imx6q_add_imx_caam();
+
 	imx6q_add_imx_i2c(0, &mx6_arm2_i2c0_data);
 	imx6q_add_imx_i2c(1, &mx6_arm2_i2c1_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
