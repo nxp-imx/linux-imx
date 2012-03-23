@@ -230,6 +230,8 @@ extern void asrc_start_conv(enum asrc_pair_index index);
 extern void asrc_stop_conv(enum asrc_pair_index index);
 extern u32 asrc_get_per_addr(enum asrc_pair_index index, bool i);
 extern int asrc_get_dma_request(enum asrc_pair_index index, bool i);
+extern void asrc_finish_conv(enum asrc_pair_index index);
+
 #endif				/* __kERNEL__ */
 
 #endif				/* __MXC_ASRC_H__ */
