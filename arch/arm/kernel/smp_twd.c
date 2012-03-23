@@ -43,15 +43,18 @@ static void twd_set_mode(enum clock_event_mode mode,
 		ctrl = TWD_TIMER_CONTROL_ENABLE | TWD_TIMER_CONTROL_IT_ENABLE
 			| TWD_TIMER_CONTROL_PERIODIC;
 		__raw_writel(twd_timer_rate / HZ, twd_base + TWD_TIMER_LOAD);
+		gic_enable_ppi(clk->irq);
 		break;
 	case CLOCK_EVT_MODE_ONESHOT:
 		/* period set, and timer enabled in 'next_event' hook */
 		ctrl = TWD_TIMER_CONTROL_IT_ENABLE | TWD_TIMER_CONTROL_ONESHOT;
+		gic_enable_ppi(clk->irq);
 		break;
 	case CLOCK_EVT_MODE_UNUSED:
 	case CLOCK_EVT_MODE_SHUTDOWN:
 	default:
 		ctrl = 0;
+		gic_disable_ppi(clk->irq);
 	}
 
 	__raw_writel(ctrl, twd_base + TWD_TIMER_CONTROL);
