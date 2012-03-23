@@ -3837,7 +3837,7 @@ static int wm8962_probe(struct snd_soc_codec *codec)
 			    WM8962_OSC_ENA | WM8962_PLL2_ENA | WM8962_PLL3_ENA,
 			    0);
 
-	regulator_bulk_disable(ARRAY_SIZE(wm8962->supplies), wm8962->supplies);
+/* regulator_bulk_disable(ARRAY_SIZE(wm8962->supplies), wm8962->supplies);*/
 
 	if (pdata) {
 		/* Apply static configuration for GPIOs */

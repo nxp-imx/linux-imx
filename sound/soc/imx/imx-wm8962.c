@@ -1,5 +1,5 @@
 /*
- * imx-wm8958.c
+ * imx-wm8962.c
  *
  * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
@@ -39,19 +39,18 @@
 #include <mach/audmux.h>
 
 #include "imx-ssi.h"
-#include "../codecs/wm8994.h"
-#include <linux/mfd/wm8994/registers.h>
+#include "../codecs/wm8962.h"
 
 struct imx_priv {
 	int sysclk;         /*mclk from the outside*/
 	int codec_sysclk;
 	int dai_hifi;
 	struct platform_device *pdev;
-	struct wm8994 *wm8958;
 };
+
 static struct imx_priv card_priv;
 static struct snd_soc_card snd_soc_card_imx;
-struct clk *codec_mclk;
+struct clk *wm8962_mclk;
 static struct snd_soc_jack hs_jack;
 
 /* Headphones jack detection DAPM pins */
@@ -78,7 +77,7 @@ static int imx_hifi_startup(struct snd_pcm_substream *substream)
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 
 	if (!codec_dai->active)
-		clk_enable(codec_mclk);
+		clk_enable(wm8962_mclk);
 
 	return 0;
 }
@@ -89,7 +88,7 @@ static void imx_hifi_shutdown(struct snd_pcm_substream *substream)
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 
 	if (!codec_dai->active)
-		clk_disable(codec_mclk);
+		clk_disable(wm8962_mclk);
 
 	return;
 }
@@ -102,8 +101,8 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct imx_priv *priv = &card_priv;
 	unsigned int channels = params_channels(params);
+	unsigned int sample_rate = 44100;
 	int ret = 0;
-	unsigned int pll_out;
 	u32 dai_format;
 
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
@@ -125,60 +124,54 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 	if (ret < 0)
 		return ret;
 
-	if (params_rate(params) == 8000 || params_rate(params) == 11025)
-		pll_out = params_rate(params) * 512;
-	else
-		pll_out = params_rate(params) * 256;
+	sample_rate = params_rate(params);
 
-	ret =
-	    snd_soc_dai_set_pll(codec_dai, WM8994_FLL1, WM8994_FLL_SRC_MCLK1,
-				priv->sysclk, pll_out);
+	ret = snd_soc_dai_set_pll(codec_dai, WM8962_FLL_INT,
+				  WM8962_FLL_MCLK, priv->sysclk,
+				  sample_rate * 768);
 	if (ret < 0)
-		return ret;
+		pr_err("Failed to start FLL: %d\n", ret);
 
-	ret =
-	    snd_soc_dai_set_sysclk(codec_dai, WM8994_SYSCLK_FLL1, pll_out,
-				   SND_SOC_CLOCK_IN);
-	if (ret < 0)
+	ret = snd_soc_dai_set_sysclk(codec_dai,
+					 WM8962_SYSCLK_FLL,
+					 sample_rate * 768,
+					 SND_SOC_CLOCK_IN);
+	if (ret < 0) {
+		pr_err("Failed to set SYSCLK: %d\n", ret);
 		return ret;
+	}
 
 	return 0;
 }
 
+static const struct snd_kcontrol_new controls[] = {
+	SOC_DAPM_PIN_SWITCH("Main Speaker"),
+	SOC_DAPM_PIN_SWITCH("DMIC"),
+};
+
 /* imx card dapm widgets */
 static const struct snd_soc_dapm_widget imx_dapm_widgets[] = {
-	SND_SOC_DAPM_MIC("Headset Mic", NULL),
-	SND_SOC_DAPM_MIC("Main Mic", NULL),
 	SND_SOC_DAPM_HP("Headphone Jack", NULL),
+
+	SND_SOC_DAPM_MIC("AMIC", NULL),
+
 	SND_SOC_DAPM_SPK("Ext Spk", NULL),
 };
 
 /* imx machine connections to the codec pins */
 static const struct snd_soc_dapm_route audio_map[] = {
-	/* ----input ------------------- */
-	/* Mic Jack --> MIC_IN (with automatic bias) */
-	{"MICBIAS2", NULL, "Headset Mic"},
-	{"IN1LP", NULL, "MICBIAS2"},
-	{"IN1LN", NULL, "Headset Mic"},
+	{ "Headphone Jack", NULL, "HPOUTL" },
+	{ "Headphone Jack", NULL, "HPOUTR" },
 
-	{"MICBIAS1", NULL, "Main Mic"},
-	{"IN1RP", NULL, "MICBIAS1"},
-	{"IN1RN", NULL, "Main Mic"},
+	{ "Ext Spk", NULL, "SPKOUTL" },
+	{ "Ext Spk", NULL, "SPKOUTR" },
 
-	/* ----output------------------- */
-	/* HP_OUT --> Headphone Jack */
-	{"Headphone Jack", NULL, "HPOUT1L"},
-	{"Headphone Jack", NULL, "HPOUT1R"},
-
-	/* LINE_OUT --> Ext Speaker */
-	{"Ext Spk", NULL, "SPKOUTLP"},
-	{"Ext Spk", NULL, "SPKOUTLN"},
-	{"Ext Spk", NULL, "SPKOUTRP"},
-	{"Ext Spk", NULL, "SPKOUTRN"},
+	{ "MICBIAS", NULL, "AMIC" },
+	{ "IN3R", NULL, "MICBIAS" },
 
 };
 
-static int imx_wm8958_init(struct snd_soc_pcm_runtime *rtd)
+static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
 	int ret;
@@ -191,6 +184,7 @@ static int imx_wm8958_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_add_routes(&codec->dapm, audio_map, ARRAY_SIZE(audio_map));
 
 	snd_soc_dapm_enable_pin(&codec->dapm, "Headphone Jack");
+	snd_soc_dapm_enable_pin(&codec->dapm, "AMIC");
 
 	snd_soc_dapm_sync(&codec->dapm);
 
@@ -227,17 +221,17 @@ static struct snd_soc_dai_link imx_dai[] = {
 	{
 		.name = "HiFi",
 		.stream_name = "HiFi",
-		.codec_dai_name	= "wm8994-aif1",
-		.codec_name	= "wm8994-codec",
+		.codec_dai_name	= "wm8962",
+		.codec_name	= "wm8962.0-001a",
 		.cpu_dai_name	= "imx-ssi.1",
 		.platform_name	= "imx-pcm-audio.1",
-		.init		= imx_wm8958_init,
+		.init		= imx_wm8962_init,
 		.ops		= &imx_hifi_ops,
 	},
 };
 
 static struct snd_soc_card snd_soc_card_imx = {
-	.name		= "wm8958-audio",
+	.name		= "wm8962-audio",
 	.dai_link	= imx_dai,
 	.num_links	= ARRAY_SIZE(imx_dai),
 };
@@ -266,22 +260,20 @@ static int imx_audmux_config(int slave, int master)
 /*
  * This function will register the snd_soc_pcm_link drivers.
  */
-static int __devinit imx_wm8958_probe(struct platform_device *pdev)
+static int __devinit imx_wm8962_probe(struct platform_device *pdev)
 {
 
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
 	struct imx_priv *priv = &card_priv;
-	struct wm8994 *wm8958 = plat->priv;
 	int ret = 0;
 
-	codec_mclk = clk_get(NULL, "clko_clk");
-	if (IS_ERR(codec_mclk)) {
+	wm8962_mclk = clk_get(NULL, "clko_clk");
+	if (IS_ERR(wm8962_mclk)) {
 		printk(KERN_ERR "can't get CLKO clock.\n");
-		return PTR_ERR(codec_mclk);
+		return PTR_ERR(wm8962_mclk);
 	}
 
 	priv->pdev = pdev;
-	priv->wm8958 = wm8958;
 
 	imx_audmux_config(plat->src_port, plat->ext_port);
 
@@ -297,24 +289,24 @@ static int __devinit imx_wm8958_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int __devexit imx_wm8958_remove(struct platform_device *pdev)
+static int __devexit imx_wm8962_remove(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
 
 	if (plat->finit)
 		plat->finit();
 
-	clk_disable(codec_mclk);
-	clk_put(codec_mclk);
+	clk_disable(wm8962_mclk);
+	clk_put(wm8962_mclk);
 
 	return 0;
 }
 
-static struct platform_driver imx_wm8958_driver = {
-	.probe = imx_wm8958_probe,
-	.remove = imx_wm8958_remove,
+static struct platform_driver imx_wm8962_driver = {
+	.probe = imx_wm8962_probe,
+	.remove = imx_wm8962_remove,
 	.driver = {
-		   .name = "imx-wm8958",
+		   .name = "imx-wm8962",
 		   .owner = THIS_MODULE,
 		   },
 };
@@ -325,11 +317,11 @@ static int __init imx_asoc_init(void)
 {
 	int ret;
 
-	ret = platform_driver_register(&imx_wm8958_driver);
+	ret = platform_driver_register(&imx_wm8962_driver);
 	if (ret < 0)
 		goto exit;
 
-	imx_snd_device = platform_device_alloc("soc-audio", -1);
+	imx_snd_device = platform_device_alloc("soc-audio", 5);
 	if (!imx_snd_device)
 		goto err_device_alloc;
 
@@ -343,14 +335,14 @@ static int __init imx_asoc_init(void)
 	platform_device_put(imx_snd_device);
 
 err_device_alloc:
-	platform_driver_unregister(&imx_wm8958_driver);
+	platform_driver_unregister(&imx_wm8962_driver);
 exit:
 	return ret;
 }
 
 static void __exit imx_asoc_exit(void)
 {
-	platform_driver_unregister(&imx_wm8958_driver);
+	platform_driver_unregister(&imx_wm8962_driver);
 	platform_device_unregister(imx_snd_device);
 }
 
@@ -358,5 +350,5 @@ module_init(imx_asoc_init);
 module_exit(imx_asoc_exit);
 
 /* Module information */
-MODULE_DESCRIPTION("ALSA SoC imx wm8958");
+MODULE_DESCRIPTION("ALSA SoC imx wm8962");
 MODULE_LICENSE("GPL");
