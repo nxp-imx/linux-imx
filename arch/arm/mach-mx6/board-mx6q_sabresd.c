@@ -686,12 +686,7 @@ static int __init max17135_regulator_init(struct max17135 *max17135)
 		}
 	}
 
-	/*
-	 * TODO: We cannot enable full constraints for now, since
-	 * it results in the PFUZE regulators being disabled
-	 * at the end of boot, which removes power from the board.
-	 */
-	/*regulator_has_full_constraints();*/
+	regulator_has_full_constraints();
 
 	return 0;
 }
