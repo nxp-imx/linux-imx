@@ -341,6 +341,11 @@ int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 		}
 	}
 	spin_unlock_irqrestore(&data_lock, lock_flags);
+
+	if (!err) {
+		clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
+		clk_enable(g_asrc->mxc_asrc_data->asrc_audio_clk);
+	}
 	return err;
 }
 
@@ -595,10 +600,7 @@ void asrc_start_conv(enum asrc_pair_index index)
 	int i;
 
 	spin_lock_irqsave(&data_lock, lock_flags);
-
 	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
-	if ((reg & 0x0E) == 0)
-		clk_enable(g_asrc->mxc_asrc_data->asrc_audio_clk);
 	reg |= (1 << (1 + index));
 	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
 
@@ -650,13 +652,21 @@ void asrc_stop_conv(enum asrc_pair_index index)
 	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
 	reg &= ~(1 << (1 + index));
 	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
-	if ((reg & 0x0E) == 0)
-		clk_disable(g_asrc->mxc_asrc_data->asrc_audio_clk);
 	spin_unlock_irqrestore(&data_lock, lock_flags);
+
 	return;
 }
 
 EXPORT_SYMBOL(asrc_stop_conv);
+
+void asrc_finish_conv(enum asrc_pair_index index)
+{
+	clk_disable(g_asrc->mxc_asrc_data->asrc_audio_clk);
+	clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
+
+	return;
+}
+EXPORT_SYMBOL(asrc_finish_conv);
 
 int asrc_get_dma_request(enum asrc_pair_index index, bool in)
 {
@@ -665,6 +675,7 @@ int asrc_get_dma_request(enum asrc_pair_index index, bool in)
 	else
 		return g_asrc->dmatx[index];
 }
+
 EXPORT_SYMBOL(asrc_get_dma_request);
 
 /*!
@@ -753,6 +764,7 @@ u32 asrc_get_per_addr(enum asrc_pair_index index, bool in)
 	else
 		return g_asrc->paddr + ASRC_ASRDOA_REG + (index << 3);
 }
+
 EXPORT_SYMBOL(asrc_get_per_addr);
 
 static int mxc_init_asrc(void)
@@ -1132,6 +1144,7 @@ static long asrc_ioctl(struct file *file,
 
 			mxc_free_dma_buf(params);
 			asrc_release_pair(index);
+			asrc_finish_conv(index);
 			params->pair_hold = 0;
 			break;
 		}
@@ -1430,7 +1443,6 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 	int err = 0;
 	struct asrc_pair_params *pair_params;
 
-	clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	if (signal_pending(current))
 		return -EINTR;
 	pair_params = kzalloc(sizeof(struct asrc_pair_params), GFP_KERNEL);
@@ -1438,7 +1450,6 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 		pr_debug("Failed to allocate pair_params\n");
 		err = -ENOBUFS;
 	}
-	clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	file->private_data = pair_params;
 	return err;
 }
@@ -1474,10 +1485,10 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 					pair_params->output_dma_channel);
 			mxc_free_dma_buf(pair_params);
 			asrc_release_pair(pair_params->index);
+			asrc_finish_conv(pair_params->index);
 		}
 		kfree(pair_params);
 		file->private_data = NULL;
-		clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	}
 	return 0;
 }
@@ -1712,11 +1723,9 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	if (err < 0)
 		goto err_out_class;
 
-	clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	goto out;
 
       err_out_class:
-	clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	device_destroy(g_asrc->asrc_class, MKDEV(g_asrc->asrc_major, 0));
 	class_destroy(g_asrc->asrc_class);
       err_out_chrdev:
@@ -1724,6 +1733,7 @@ static int mxc_asrc_probe(struct platform_device *pdev)
       error:
 	kfree(g_asrc);
       out:
+	clk_disable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	pr_info("mxc_asrc registered\n");
 	return err;
 }
