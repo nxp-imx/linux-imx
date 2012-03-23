@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -53,7 +53,7 @@
 #include <mach/mxc_edid.h>
 #include "mxc_dispdrv.h"
 
-#define DISPDRV_SII	"hdmi"
+#define DISPDRV_SII	"sii902x_hdmi"
 
 #define TPI_PIX_CLK_LSB                 (0x00)
 #define TPI_PIX_CLK_MSB                 (0x01)
