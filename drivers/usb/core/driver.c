@@ -1198,8 +1198,13 @@ static int usb_suspend_both(struct usb_device *udev, pm_message_t msg)
 	if (status == 0) {
 		status = usb_suspend_device(udev, msg);
 
-		/* Again, ignore errors during system sleep transitions */
-		if (!(msg.event & PM_EVENT_AUTO))
+	       /*
+		* Ignore errors from non-root-hub devices during
+		* system sleep transitions.  For the most part,
+		* these devices should go to low power anyway when
+		* the entire bus is suspended.
+		*/
+		if (udev->parent && !(msg.event & PM_EVENT_AUTO))
 			status = 0;
 	}
 
