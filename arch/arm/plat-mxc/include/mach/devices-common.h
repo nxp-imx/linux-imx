@@ -104,6 +104,18 @@ struct imx_snvs_rtc_data {
 struct platform_device *__init imx_add_snvs_rtc(
 		const struct imx_snvs_rtc_data *data);
 
+struct imx_caam_data {
+	resource_size_t iobase_caam;
+	resource_size_t irq_sec_vio;
+	resource_size_t irq_snvs;
+	resource_size_t irq_jr0;
+	resource_size_t irq_jr1;
+	resource_size_t irq_jr2;
+	resource_size_t irq_jr3;
+};
+
+struct platform_device *__init imx_add_caam(
+		const struct imx_caam_data *data);
 
 #include <mach/imxfb.h>
 struct imx_imx_fb_data {
