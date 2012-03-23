@@ -282,8 +282,6 @@ static struct regulator_init_data vgen1_init = {
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
 			.valid_modes_mask = 0,
-			.always_on = 0,
-			.boot_on = 0,
 			},
 	.num_consumer_supplies = ARRAY_SIZE(vgen1_consumers),
 	.consumer_supplies = vgen1_consumers,
@@ -316,8 +314,6 @@ static struct regulator_init_data vgen3_init = {
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
 			.valid_modes_mask = 0,
-			.always_on = 0,
-			.boot_on = 0,
 			},
 };
 
@@ -329,6 +325,8 @@ static struct regulator_init_data vgen4_init = {
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
 			.valid_modes_mask = 0,
+			.always_on = 1,
+			.boot_on = 1,
 			},
 	.num_consumer_supplies = ARRAY_SIZE(vgen4_consumers),
 	.consumer_supplies = vgen4_consumers,
@@ -342,6 +340,8 @@ static struct regulator_init_data vgen5_init = {
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
 			.valid_modes_mask = 0,
+			.always_on = 1,
+			.boot_on = 1,
 			},
 	.num_consumer_supplies = ARRAY_SIZE(vgen5_consumers),
 	.consumer_supplies = vgen5_consumers,
