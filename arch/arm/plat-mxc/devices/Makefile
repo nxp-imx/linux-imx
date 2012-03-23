@@ -10,6 +10,7 @@ obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX2_WDT) += platform-imx2-wdt.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMXDI_RTC) += platform-imxdi_rtc.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_SRTC) += platform-imx_srtc.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_SNVS_RTC) += platform-imx_snvs_rtc.o
+obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_CAAM) += platform-imx-caam.o
 obj-y += platform-imx-dma.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_FB) += platform-imx-fb.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_I2C) += platform-imx-i2c.o
