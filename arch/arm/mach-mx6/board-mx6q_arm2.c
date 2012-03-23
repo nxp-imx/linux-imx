@@ -158,6 +158,7 @@ static int esai_record;
 static int sgtl5000_en;
 static int spdif_en;
 static int flexcan_en;
+static int disable_mipi_dsi;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -826,6 +827,38 @@ static int __init max17135_regulator_init(struct max17135 *max17135)
 	return 0;
 }
 
+static int sii902x_get_pins(void)
+{
+	/* Sii902x HDMI controller */
+	gpio_request(MX6_ARM2_DISP0_RESET, "disp0-reset");
+	gpio_direction_output(MX6_ARM2_DISP0_RESET, 0);
+	gpio_request(MX6_ARM2_DISP0_DET_INT, "disp0-detect");
+	gpio_direction_input(MX6_ARM2_DISP0_DET_INT);
+	return 1;
+}
+
+static void sii902x_put_pins(void)
+{
+	gpio_free(MX6_ARM2_DISP0_RESET);
+	gpio_free(MX6_ARM2_DISP0_DET_INT);
+}
+
+static void sii902x_hdmi_reset(void)
+{
+       gpio_set_value(MX6_ARM2_DISP0_RESET, 0);
+       msleep(10);
+       gpio_set_value(MX6_ARM2_DISP0_RESET, 1);
+       msleep(10);
+}
+
+static struct fsl_mxc_lcd_platform_data sii902x_hdmi_data = {
+	.ipu_id = 0,
+	.disp_id = 0,
+	.reset = sii902x_hdmi_reset,
+	.get_pins = sii902x_get_pins,
+	.put_pins = sii902x_put_pins,
+};
+
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("cs42888", 0x48),
@@ -868,8 +901,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	}, {
 		I2C_BOARD_INFO("egalax_ts", 0x4),
 		.irq = gpio_to_irq(MX6_ARM2_CAP_TCH_INT),
+	}, {
+		I2C_BOARD_INFO("sii902x", 0x39),
+		.platform_data = &sii902x_hdmi_data,
+		.irq = gpio_to_irq(MX6_ARM2_DISP0_DET_INT),
 	},
-
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
@@ -1884,6 +1920,16 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk		= NULL, /* spdif bus clk */
 };
 
+static int __init early_disable_mipi_dsi(char *p)
+{
+	/*enable on board HDMI*/
+	/*mulplex pin with mipi disp0_reset we should disable mipi reset*/
+	disable_mipi_dsi = 1;
+	return 0;
+}
+
+early_param("disable_mipi_dsi", early_disable_mipi_dsi);
+
 /*!
  * Board specific initialization.
  */
@@ -1998,11 +2044,13 @@ static void __init mx6_arm2_init(void)
 		ldb_data.disp_id = 0;
 		for (i = 0; i < ARRAY_SIZE(sabr_fb_data) / 2; i++)
 			imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
-	} else
+	} else {
 		for (i = 0; i < ARRAY_SIZE(sabr_fb_data); i++)
 			imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
+	}
 
-	imx6q_add_mipi_dsi(&mipi_dsi_pdata);
+	if (!disable_mipi_dsi)
+		imx6q_add_mipi_dsi(&mipi_dsi_pdata);
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
@@ -2017,6 +2065,8 @@ static void __init mx6_arm2_init(void)
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	if (!spdif_en) {
+		if (disable_mipi_dsi)
+			mx6_arm2_i2c2_data.bitrate = 100000;
 		imx6q_add_imx_i2c(2, &mx6_arm2_i2c2_data);
 		i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
@@ -2054,9 +2104,10 @@ static void __init mx6_arm2_init(void)
 	gpio_direction_output(MX6_ARM2_DISP0_RESET, 0);
 
 	/* DISP0 I2C enable */
-	gpio_request(MX6_ARM2_DISP0_I2C_EN, "disp0-i2c");
-	gpio_direction_output(MX6_ARM2_DISP0_I2C_EN, 0);
-
+	if (!disable_mipi_dsi) {
+		gpio_request(MX6_ARM2_DISP0_I2C_EN, "disp0-i2c");
+		gpio_direction_output(MX6_ARM2_DISP0_I2C_EN, 0);
+	}
 	gpio_request(MX6_ARM2_DISP0_PWR, "disp0-pwr");
 	gpio_direction_output(MX6_ARM2_DISP0_PWR, 1);
 
