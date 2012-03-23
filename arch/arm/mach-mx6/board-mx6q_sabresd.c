@@ -1018,7 +1018,11 @@ static void __init imx6q_sabresd_init_usb(void)
 		return;
 	}
 	gpio_direction_output(SABRESD_USB_OTG_PWR, 0);
-	mxc_iomux_set_gpr_register(1, 13, 1, 1);
+
+	if (board_is_mx6_reva())
+		mxc_iomux_set_gpr_register(1, 13, 1, 1);
+	else
+		mxc_iomux_set_gpr_register(1, 13, 1, 0);
 
 	mx6_set_otghost_vbus_func(imx6q_sabresd_usbotg_vbus);
 	mx6_usb_dr_init();
