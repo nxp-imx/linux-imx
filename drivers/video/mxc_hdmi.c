@@ -1739,13 +1739,13 @@ static void hotplug_worker(struct work_struct *work)
 	bool hdmi_disable = false;
 	int irq = platform_get_irq(hdmi->pdev, 0);
 	unsigned long flags;
-    char event_string[16];
-    char *envp[] = { event_string, NULL };
+	char event_string[16];
+	char *envp[] = { event_string, NULL };
+
+	/* Enable clock long enough to do a few register accesses */
+	clk_enable(hdmi->hdmi_iahb_clk);
 
 	if (!hdmi->irq_enabled) {
-		/* Enable clock long enough to do a few register accesses */
-		clk_enable(hdmi->hdmi_iahb_clk);
-
 		/* Capture status - used in hotplug_worker ISR */
 		phy_int_stat = hdmi_readb(HDMI_IH_PHY_STAT0);
 		if ((phy_int_stat & HDMI_IH_PHY_STAT0_HPD) == 0) {
@@ -1764,13 +1764,13 @@ static void hotplug_worker(struct work_struct *work)
 		hdmi_writeb(HDMI_IH_PHY_STAT0_HPD, HDMI_IH_PHY_STAT0);
 
 		phy_int_pol = hdmi_readb(HDMI_PHY_POL0);
-
-		clk_disable(hdmi->hdmi_iahb_clk);
 	} else {
 		/* Use saved interrupt status, since it was cleared in IST */
 		phy_int_stat = hdmi->latest_intr_stat;
 		phy_int_pol = hdmi_readb(HDMI_PHY_POL0);
 	}
+
+	clk_disable(hdmi->hdmi_iahb_clk);
 
 	/* Re-enable HDMI irq now that our interrupts have been masked off */
 	hdmi_irq_enable(irq);
