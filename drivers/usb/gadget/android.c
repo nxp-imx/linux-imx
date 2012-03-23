@@ -30,6 +30,7 @@
 #include <linux/usb/ch9.h>
 #include <linux/usb/composite.h>
 #include <linux/usb/gadget.h>
+#include <linux/wakelock.h>
 
 #include "gadget_chips.h"
 
@@ -62,6 +63,7 @@ MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
 
 static const char longname[] = "Gadget Android";
+static struct wake_lock wakelock;
 
 /* Default vendor and product IDs, overridden by userspace */
 #define VENDOR_ID		0x18D1
@@ -1127,6 +1129,18 @@ static void android_disconnect(struct usb_gadget *gadget)
 	spin_unlock_irqrestore(&cdev->lock, flags);
 }
 
+static void android_suspend(struct usb_gadget *gadget)
+{
+	composite_suspend(gadget);
+	wake_unlock(&wakelock);
+}
+
+static void android_resume(struct usb_gadget *gadget)
+{
+	wake_lock(&wakelock);
+	composite_resume(gadget);
+}
+
 static int android_create_device(struct android_dev *dev)
 {
 	struct device_attribute **attrs = android_usb_attributes;
@@ -1178,9 +1192,12 @@ static int __init init(void)
 
 	_android_dev = dev;
 
+	wake_lock_init(&wakelock, WAKE_LOCK_SUSPEND, "gadget");
 	/* Override composite driver functions */
 	composite_driver.setup = android_setup;
 	composite_driver.disconnect = android_disconnect;
+	composite_driver.suspend = android_suspend;
+	composite_driver.resume = android_resume;
 
 	return usb_composite_probe(&android_usb_driver, android_bind);
 }
@@ -1188,6 +1205,7 @@ module_init(init);
 
 static void __exit cleanup(void)
 {
+	wake_lock_destroy(&wakelock);
 	usb_composite_unregister(&android_usb_driver);
 	class_destroy(android_class);
 	kfree(_android_dev);
