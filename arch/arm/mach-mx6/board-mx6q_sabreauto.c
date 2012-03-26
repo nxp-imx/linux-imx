@@ -132,6 +132,7 @@
 #define SABREAUTO_USB_OTG_PWR		SABREAUTO_IO_EXP_GPIO3(1)
 #define BMCR_PDOWN			0x0800 /* PHY Powerdown */
 
+static int mma8451_position = 3;
 static struct clk *sata_clk;
 static int mipi_sensor;
 static int uart2_en;
@@ -635,6 +636,10 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		I2C_BOARD_INFO("isl29023", 0x44),
 		.irq  = gpio_to_irq(SABREAUTO_ALS_INT),
 		.platform_data = &ls_data,
+	},
+	{
+		I2C_BOARD_INFO("mma8451", 0x1c),
+		.platform_data = (void *)&mma8451_position,
 	},
 };
 
