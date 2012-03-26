@@ -235,17 +235,29 @@ static inline void mx6q_sabresd_init_uart(void)
 
 static int mx6q_sabresd_fec_phy_init(struct phy_device *phydev)
 {
-	/* prefer master mode, disable 1000 Base-T capable */
-	phy_write(phydev, 0x9, 0x1c00);
+	unsigned short val;
 
-	/* min rx data delay */
-	phy_write(phydev, 0x0b, 0x8105);
-	phy_write(phydev, 0x0c, 0x0000);
+	/* To enable AR8031 ouput a 125MHz clk from CLK_25M */
+	phy_write(phydev, 0xd, 0x7);
+	phy_write(phydev, 0xe, 0x8016);
+	phy_write(phydev, 0xd, 0x4007);
+	val = phy_read(phydev, 0xe);
 
-	/* max rx/tx clock delay, min rx/tx control delay */
-	phy_write(phydev, 0x0b, 0x8104);
-	phy_write(phydev, 0x0c, 0xf0f0);
-	phy_write(phydev, 0x0b, 0x104);
+	val &= 0xffe3;
+	val |= 0x18;
+	phy_write(phydev, 0xe, val);
+
+	/* Introduce tx clock delay */
+	phy_write(phydev, 0x1d, 0x5);
+	val = phy_read(phydev, 0x1e);
+	val |= 0x0100;
+	phy_write(phydev, 0x1e, val);
+
+	/*check phy power*/
+	val = phy_read(phydev, 0x0);
+
+	if (val & BMCR_PDOWN)
+		phy_write(phydev, 0x0, (val & ~BMCR_PDOWN));
 
 	return 0;
 }
