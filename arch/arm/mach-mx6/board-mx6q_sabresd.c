@@ -114,6 +114,7 @@
 #define SABRESD_GPS_PPS		IMX_GPIO_NR(3, 18)
 #define SABRESD_PCIE_PWR_EN	IMX_GPIO_NR(3, 19)
 #define SABRESD_USB_OTG_PWR	IMX_GPIO_NR(3, 22)
+#define SABRESD_USB_H1_PWR	IMX_GPIO_NR(1, 29)
 #define SABRESD_CHARGE_CHG_1_B	IMX_GPIO_NR(3, 23)
 #define SABRESD_TS_INT		IMX_GPIO_NR(3, 26)
 #define SABRESD_DISP0_RD	IMX_GPIO_NR(3, 28)
@@ -1013,7 +1014,8 @@ static void __init imx6q_sabresd_init_usb(void)
 		return;
 	}
 	gpio_direction_output(SABRESD_USB_OTG_PWR, 0);
-
+	/* keep USB host1 VBUS always on */
+	gpio_direction_output(SABRESD_USB_H1_PWR, 1);
 	if (board_is_mx6_reva())
 		mxc_iomux_set_gpr_register(1, 13, 1, 1);
 	else
