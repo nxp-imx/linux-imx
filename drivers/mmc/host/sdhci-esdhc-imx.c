@@ -32,6 +32,7 @@
 #define SDHCI_VENDOR_SPEC		0xC0
 #define  SDHCI_VENDOR_SPEC_SDIO_QUIRK	0x00000002
 
+#define SDHCI_MIX_CTRL_AC23EN		(1 << 7)
 #define SDHCI_MIX_CTRL_EXE_TUNE		(1 << 22)
 #define SDHCI_MIX_CTRL_SMPCLK_SEL	(1 << 23)
 #define SDHCI_MIX_CTRL_AUTO_TUNE	(1 << 24)
@@ -66,6 +67,14 @@
 #define SDHCI_PROT_CTRL_4BIT		(1 << 1)
 #define SDHCI_PROT_CTRL_1BIT		(0 << 1)
 #define SDHCI_PROT_CTRL_LCTL		(1 << 0)
+
+/*
+ * There is an INT DMA ERR mis-match between eSDHC and STD SDHC SPEC:
+ * Bit25 is used in STD SPEC, and is reserved in fsl eSDHC design,
+ * but bit28 is used as the INT DMA ERR in fsl eSDHC design.
+ * Define this macro DMA error INT for fsl eSDHC
+ */
+#define SDHCI_INT_VENDOR_SPEC_DMA_ERR	0x10000000
 
 /*
  * The CMDTYPE of the CMD register (offset 0xE) should be set to
@@ -160,6 +169,27 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 		val |= 0xFF << SDHCI_MAX_CURRENT_180_SHIFT;
 	}
 
+	if (unlikely(reg == SDHCI_CAPABILITIES)) {
+		/* In FSL esdhc IC module, only bit20 is used to indicate the
+		 * ADMA2 capability of esdhc, but this bit is messed up on
+		 * some SOCs (e.g. on MX25, MX35 this bit is set, but they
+		 * don't actually support ADMA2). So set the BROKEN_ADMA
+		 * uirk on MX25/35 platforms.
+		 */
+
+		if (val & SDHCI_CAN_DO_ADMA1) {
+			val &= ~SDHCI_CAN_DO_ADMA1;
+			val |= SDHCI_CAN_DO_ADMA2;
+		}
+	}
+
+	if (unlikely(reg == SDHCI_INT_STATUS)) {
+		if (val & SDHCI_INT_VENDOR_SPEC_DMA_ERR) {
+			val &= ~SDHCI_INT_VENDOR_SPEC_DMA_ERR;
+			val |= SDHCI_INT_ADMA_ERROR;
+		}
+	}
+
 	return val;
 }
 
@@ -218,6 +248,13 @@ static void esdhc_writel_le(struct sdhci_host *host, u32 val, int reg)
 			v = readl(host->ioaddr + SDHCI_VENDOR_SPEC);
 			v &= ~SDHCI_VENDOR_SPEC_SDIO_QUIRK;
 			writel(v, host->ioaddr + SDHCI_VENDOR_SPEC);
+	}
+
+	if (unlikely(reg == SDHCI_INT_ENABLE || reg == SDHCI_SIGNAL_ENABLE)) {
+		if (val & SDHCI_INT_ADMA_ERROR) {
+			val &= ~SDHCI_INT_ADMA_ERROR;
+			val |= SDHCI_INT_VENDOR_SPEC_DMA_ERR;
+		}
 	}
 
 	writel(val, host->ioaddr + reg);
@@ -395,6 +432,10 @@ static void esdhc_writew_le(struct sdhci_host *host, u16 val, int reg)
 			writel(v, host->ioaddr + SDHCI_VENDOR_SPEC);
 		}
 		imx_data->scratchpad = val;
+
+		if (val & SDHCI_TRNS_AUTO_CMD23)
+			imx_data->scratchpad |= SDHCI_MIX_CTRL_AC23EN;
+
 		return;
 	case SDHCI_COMMAND:
 		if ((host->cmd->opcode == MMC_STOP_TRANSMISSION ||
@@ -657,7 +698,8 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 
 	if (cpu_is_mx25() || cpu_is_mx35())
 		/* Fix errata ENGcm07207 present on i.MX25 and i.MX35 */
-		host->quirks |= SDHCI_QUIRK_NO_MULTIBLOCK;
+		host->quirks |= SDHCI_QUIRK_NO_MULTIBLOCK
+			| SDHCI_QUIRK_BROKEN_ADMA;
 
 	/* write_protect can't be routed to controller, use gpio */
 	sdhci_esdhc_ops.get_ro = esdhc_pltfm_get_ro;
@@ -775,7 +817,8 @@ static void esdhc_pltfm_exit(struct sdhci_host *host)
 }
 
 struct sdhci_pltfm_data sdhci_esdhc_imx_pdata = {
-	.quirks = ESDHC_DEFAULT_QUIRKS | SDHCI_QUIRK_BROKEN_ADMA
+	.quirks = ESDHC_DEFAULT_QUIRKS | SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC
+			| SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC
 			| SDHCI_QUIRK_BROKEN_CARD_DETECTION
 			| SDHCI_QUIRK_NO_HISPD_BIT,
 	/* ADMA has issues. Might be fixable */
