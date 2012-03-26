@@ -529,7 +529,7 @@ static int max7310_u43_setup(struct i2c_client *client,
 	/*3 NAND_BT_WIFI_STEER*/
 
 	int max7310_gpio_value[] = {
-		0, 1, 0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0, 0, 0, 0,
 	};
 
 	int n;
