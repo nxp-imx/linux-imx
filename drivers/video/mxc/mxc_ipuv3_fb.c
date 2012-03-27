@@ -926,7 +926,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
 
 			if (down_timeout(&mxc_fbi->alpha_flip_sem, HZ/2)) {
-				dev_err(fbi->device, "timeout when waitting for alpha flip irq\n");
+				dev_err(fbi->device, "timeout when waiting for alpha flip irq\n");
 				retval = -ETIMEDOUT;
 				break;
 			}
@@ -1322,7 +1322,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	}
 
 	if (down_timeout(&mxc_fbi->flip_sem, HZ/2)) {
-		dev_err(info->device, "timeout when waitting for flip irq\n");
+		dev_err(info->device, "timeout when waiting for flip irq\n");
 		return -ETIMEDOUT;
 	}
 
