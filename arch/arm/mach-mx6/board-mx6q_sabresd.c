@@ -1485,9 +1485,13 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabresd_anatop_thermal_data);
 	imx6_init_fec(fec_data);
 	imx6q_add_pm_imx(0, &mx6q_sabresd_pm_data);
+
+	/* Move sd4 to first because sd4 connect to emmc.
+	   Mfgtools want emmc is mmcblk0 and other sd card is mmcblk1.
+	*/
+	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabresd_sd4_data);
 	imx6q_add_sdhci_usdhc_imx(1, &mx6q_sabresd_sd2_data);
 	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabresd_sd3_data);
-	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabresd_sd4_data);
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6q_sabresd_init_usb();
 	/* SATA is not supported by MX6DL/Solo */
