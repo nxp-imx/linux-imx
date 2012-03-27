@@ -1015,6 +1015,12 @@ static void __init imx6q_sabresd_init_usb(void)
 	}
 	gpio_direction_output(SABRESD_USB_OTG_PWR, 0);
 	/* keep USB host1 VBUS always on */
+	ret = gpio_request(SABRESD_USB_H1_PWR, "usb-h1-pwr");
+	if (ret) {
+		pr_err("failed to get GPIO SABRESD_USB_H1_PWR: %d\n",
+			ret);
+		return;
+	}
 	gpio_direction_output(SABRESD_USB_H1_PWR, 1);
 	if (board_is_mx6_reva())
 		mxc_iomux_set_gpr_register(1, 13, 1, 1);
