@@ -1293,7 +1293,7 @@ static int set_window_position(struct mxc_vout_output *vout, struct mxcfb_pos *p
 {
 	struct fb_info *fbi = vout->fbi;
 	mm_segment_t old_fs;
-	int ret;
+	int ret = 0;
 
 	if (vout->disp_support_windows) {
 		old_fs = get_fs();
