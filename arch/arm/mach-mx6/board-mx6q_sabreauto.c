@@ -1213,7 +1213,11 @@ static inline void __init mx6q_csi0_io_init(void)
 	gpio_direction_output(SABREAUTO_CSI0_PWN, 1);
 	msleep(1);
 	gpio_set_value(SABREAUTO_CSI0_PWN, 0);
-	mxc_iomux_set_gpr_register(1, 19, 1, 1);
+
+	if (cpu_is_mx6q())
+		mxc_iomux_set_gpr_register(1, 19, 1, 1);
+	else if (cpu_is_mx6dl())
+		mxc_iomux_set_gpr_register(13, 0, 3, 4);
 }
 
 static struct mxc_spdif_platform_data mxc_spdif_data = {
