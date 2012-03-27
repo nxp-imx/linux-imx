@@ -1326,7 +1326,8 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		return -ETIMEDOUT;
 	}
 
-	mxc_fbi->cur_ipu_buf = (++mxc_fbi->cur_ipu_buf) % 3;
+	++mxc_fbi->cur_ipu_buf;
+	mxc_fbi->cur_ipu_buf %= 3;
 	mxc_fbi->cur_ipu_alpha_buf = !mxc_fbi->cur_ipu_alpha_buf;
 
 	dev_dbg(info->device, "Updating SDC %s buf %d address=0x%08lX\n",
@@ -1373,8 +1374,10 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 					       IPU_INPUT_BUFFER, 1),
 			ipu_check_buffer_ready(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 					       IPU_INPUT_BUFFER, 2));
-		mxc_fbi->cur_ipu_buf = (++mxc_fbi->cur_ipu_buf) % 3;
-		mxc_fbi->cur_ipu_buf = (++mxc_fbi->cur_ipu_buf) % 3;
+		++mxc_fbi->cur_ipu_buf;
+		mxc_fbi->cur_ipu_buf %= 3;
+		++mxc_fbi->cur_ipu_buf;
+		mxc_fbi->cur_ipu_buf %= 3;
 		mxc_fbi->cur_ipu_alpha_buf = !mxc_fbi->cur_ipu_alpha_buf;
 		ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 		ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);

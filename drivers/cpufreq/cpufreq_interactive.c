@@ -101,7 +101,7 @@ static struct irq_desc *cpufreq_irq_desc[MAX_CPUFREQ_IRQ_NUMBER];
 static bool cpufreq_interactive_check_irq(void)
 {
 	bool val;
-	unsigned int irq_count, i;
+	unsigned int irq_count = 0, i;
 	static unsigned int irq_count_start[MAX_CPUFREQ_IRQ_NUMBER];
 	static unsigned int irq_count_end[MAX_CPUFREQ_IRQ_NUMBER];
 
@@ -778,7 +778,7 @@ err_freeuptask:
 
 int cpufreq_gov_irq_tuner_register(struct irq_tuner dbs_irq_tuner)
 {
-	int i, ret;
+	int i, ret = 0;
 	static bool init_flag;
 
 	/* Init the global irq_tuner_ins structure */
