@@ -1273,7 +1273,7 @@ static struct platform_device sabresd_vmmc_reg_devices = {
 	},
 };
 
-static int imx6q_init_audio(void)
+static int __init imx6q_init_audio(void)
 {
 	if (board_is_mx6_reva()) {
 		mxc_register_device(&mx6_sabresd_audio_wm8958_device,
@@ -1591,7 +1591,7 @@ static struct sys_timer mx6_sabresd_timer = {
 	.init   = mx6_sabresd_timer_init,
 };
 
-static void __init mx6q_sabresd_reserve()
+static void __init mx6q_sabresd_reserve(void)
 {
 	phys_addr_t phys;
 
