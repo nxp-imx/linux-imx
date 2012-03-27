@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -150,13 +150,14 @@ static void *otp_base;
 #define HW_OCOTP_CUSTn(n)	(0x00000030 + (n) * 0x10)
 #define BF(value, field) 	(((value) << BP_##field) & BM_##field)
 
-#define DEF_RELEX	(15)	/* > 10.5ns */
+#define REG_OTP_TIMING_RELAX		6
+#define REG_OTP_TIMING_RDBUSY		46
 
 static int set_otp_timing(void)
 {
 	struct clk *apb_clk;
 	unsigned long clk_rate = 0;
-	unsigned long relex, sclk_count, rd_busy;
+	unsigned long relax, sclk_count, rd_busy;
 	u32 timing = 0;
 
 	/* [1] get the clock. It needs the AHB clock,though doc writes APB.*/
@@ -165,16 +166,15 @@ static int set_otp_timing(void)
 		log("we can not find the clock");
 		return -1;
 	}
-	clk_rate = clk_get_rate(apb_clk);
+	clk_rate = clk_get_rate(apb_clk) / 1000000;
 
-	/* do optimization for too many zeros */
-	relex	= clk_rate / (1000000000 / DEF_RELEX) + 1;
-	sclk_count = clk_rate / (1000000000 / 5000) + 1 + DEF_RELEX;
-	rd_busy	= clk_rate / (1000000000 / 300)	+ 1;
+	relax	= (REG_OTP_TIMING_RELAX * 1000) / clk_rate;
 
-	timing = BF(relex, OCOTP_TIMING_RELAX);
+	sclk_count = ((5000 + relax) * clk_rate) / 1000;
+
+	timing = BF(REG_OTP_TIMING_RELAX, OCOTP_TIMING_RELAX);
 	timing |= BF(sclk_count, OCOTP_TIMING_SCLK_COUNT);
-	timing |= BF(rd_busy, OCOTP_TIMING_RD_BUSY);
+	timing |= BF(REG_OTP_TIMING_RDBUSY, OCOTP_TIMING_RD_BUSY);
 
 	__raw_writel(timing, REGS_OCOTP_BASE + HW_OCOTP_TIMING);
 	return 0;
