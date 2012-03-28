@@ -245,6 +245,11 @@ typedef HDC             HALNativeDisplayType;
 typedef HWND            HALNativeWindowType;
 typedef HBITMAP         HALNativePixmapType;
 
+typedef struct __BITFIELDINFO{
+    BITMAPINFO    bmi;
+    RGBQUAD       bmiColors[2];
+} BITFIELDINFO;
+
 #elif defined(LINUX) && defined(EGL_API_FB) && !defined(__APPLE__)
 /* Linux platform for FBDEV. */
 typedef struct _FBDisplay * HALNativeDisplayType;
@@ -412,8 +417,8 @@ gceSTATUS
 gcoOS_GetDisplayBackbuffer(
     IN HALNativeDisplayType Display,
     IN HALNativeWindowType Window,
-    IN gctPOINTER    context,
-    IN gcoSURF       surface,
+    OUT gctPOINTER  *  context,
+    OUT gcoSURF     *  surface,
     OUT gctUINT * Offset,
     OUT gctINT * X,
     OUT gctINT * Y
@@ -440,6 +445,49 @@ gceSTATUS
 gcoOS_DestroyDisplay(
     IN HALNativeDisplayType Display
     );
+
+gceSTATUS
+gcoOS_InitLocalDisplayInfo(
+    IN OUT gctPOINTER * localDisplay
+    );
+
+gceSTATUS
+gcoOS_DeinitLocalDisplayInfo(
+    IN OUT gctPOINTER * localDisplay
+    );
+
+gceSTATUS
+gcoOS_GetDisplayInfoEx2(
+    IN HALNativeDisplayType Display,
+    IN HALNativeWindowType Window,
+    IN gctPOINTER  localDisplay,
+    IN gctUINT DisplayInfoSize,
+    OUT halDISPLAY_INFO * DisplayInfo
+    );
+
+gceSTATUS
+gcoOS_GetDisplayBackbufferEx(
+    IN HALNativeDisplayType Display,
+    IN HALNativeWindowType Window,
+    IN gctPOINTER  localDisplay,
+    OUT gctPOINTER  *  context,
+    OUT gcoSURF     *  surface,
+    OUT gctUINT * Offset,
+    OUT gctINT * X,
+    OUT gctINT * Y
+    );
+
+gceSTATUS
+gcoOS_IsValidDisplay(
+    IN HALNativeDisplayType Display
+    );
+
+gceSTATUS
+gcoOS_GetNativeVisualId(
+    IN HALNativeDisplayType Display,
+    OUT gctINT* nativeVisualId
+    );
+
 
 /*******************************************************************************
 ** Windows. ********************************************************************
@@ -501,6 +549,34 @@ gcoOS_GetImage(
     OUT gctPOINTER * Bits
     );
 
+gceSTATUS
+gcoOS_GetWindowInfoEx(
+    IN HALNativeDisplayType Display,
+    IN HALNativeWindowType Window,
+    OUT gctINT * X,
+    OUT gctINT * Y,
+    OUT gctINT * Width,
+    OUT gctINT * Height,
+    OUT gctINT * BitsPerPixel,
+    OUT gctUINT * Offset,
+    OUT gceSURF_FORMAT * Format
+    );
+
+gceSTATUS
+gcoOS_DrawImageEx(
+    IN HALNativeDisplayType Display,
+    IN HALNativeWindowType Window,
+    IN gctINT Left,
+    IN gctINT Top,
+    IN gctINT Right,
+    IN gctINT Bottom,
+    IN gctINT Width,
+    IN gctINT Height,
+    IN gctINT BitsPerPixel,
+    IN gctPOINTER Bits,
+    IN gceSURF_FORMAT  Format
+    );
+
 /*******************************************************************************
 ** Pixmaps. ********************************************************************
 */
@@ -543,6 +619,29 @@ gceSTATUS
 gcoOS_DestroyPixmap(
     IN HALNativeDisplayType Display,
     IN HALNativePixmapType Pixmap
+    );
+
+gceSTATUS
+gcoOS_GetPixmapInfoEx(
+    IN HALNativeDisplayType Display,
+    IN HALNativePixmapType Pixmap,
+    OUT gctINT * Width,
+    OUT gctINT * Height,
+    OUT gctINT * BitsPerPixel,
+    OUT gctINT * Stride,
+    OUT gctPOINTER * Bits,
+    OUT gceSURF_FORMAT * Format
+    );
+
+gceSTATUS
+gcoOS_CopyPixmapBits(
+    IN HALNativeDisplayType Display,
+    IN HALNativePixmapType Pixmap,
+    IN gctUINT DstWidth,
+    IN gctUINT DstHeight,
+    IN gctINT DstStride,
+    IN gceSURF_FORMAT DstFormat,
+    OUT gctPOINTER DstBits
     );
 
 /*******************************************************************************

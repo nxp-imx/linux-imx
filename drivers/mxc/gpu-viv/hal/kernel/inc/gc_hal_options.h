@@ -724,10 +724,6 @@
 #   define gcdSHARED_PAGETABLE                  1
 #endif
 
-#ifndef gcdUSE_OPENCL
-#   define gcdUSE_OPENCL                        0
-#endif
-
 /*
     gcdBLOB_CACHE_ENABLED
         When non-zero, Android blob cache extension will be enabled.

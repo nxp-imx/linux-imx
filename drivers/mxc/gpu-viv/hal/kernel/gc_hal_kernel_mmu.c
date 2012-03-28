@@ -827,6 +827,12 @@ gckMMU_Construct(
 
         gcmkONERROR(_Construct(Kernel, MmuSize, &sharedPageTable->mmu));
     }
+    else if (Kernel->hardware->mmuVersion == 0)
+    {
+        /* Set page table address. */
+        gcmkONERROR(
+            gckHARDWARE_SetMMU(Kernel->hardware, (gctPOINTER) sharedPageTable->mmu->pageTableLogical));
+    }
 
     *Mmu = sharedPageTable->mmu;
 
