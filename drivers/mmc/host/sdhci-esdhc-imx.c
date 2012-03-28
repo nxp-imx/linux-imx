@@ -701,6 +701,9 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		host->quirks |= SDHCI_QUIRK_NO_MULTIBLOCK
 			| SDHCI_QUIRK_BROKEN_ADMA;
 
+	if (cpu_is_mx6())
+		host->quirks2 |= SDHCI_QUIRK_BROKEN_AUTO_CMD23,
+
 	/* write_protect can't be routed to controller, use gpio */
 	sdhci_esdhc_ops.get_ro = esdhc_pltfm_get_ro;
 
