@@ -21,6 +21,8 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/dmaengine.h>
+#include <linux/delay.h>
+#include <linux/mxc_asrc.h>
 
 #include <sound/core.h>
 #include <sound/initval.h>
@@ -31,19 +33,8 @@
 #include <mach/dma.h>
 
 #include "imx-ssi.h"
+#include "imx-pcm.h"
 
-struct imx_pcm_runtime_data {
-	int period_bytes;
-	int periods;
-	int dma;
-	unsigned long offset;
-	unsigned long size;
-	void *buf;
-	int period_time;
-	struct dma_async_tx_descriptor *desc;
-	struct dma_chan *dma_chan;
-	struct imx_dma_data dma_data;
-};
 
 static void audio_dma_irq(void *data)
 {
@@ -68,6 +59,106 @@ static bool filter(struct dma_chan *chan, void *param)
 
         return true;
 }
+#if defined(CONFIG_MXC_ASRC) || defined(CONFIG_IMX_HAVE_PLATFORM_IMX_ASRC)
+static bool asrc_filter(struct dma_chan *chan, void *param)
+{
+	struct imx_pcm_runtime_data *iprtd = param;
+	if (!imx_dma_is_general_purpose(chan))
+		return false;
+	chan->private = &iprtd->asrc_dma_data;
+	return true;
+}
+static bool asrc_p2p_filter(struct dma_chan *chan, void *param)
+{
+	struct imx_pcm_runtime_data *iprtd = param;
+	if (!imx_dma_is_general_purpose(chan))
+		return false;
+    chan->private = &iprtd->asrc_p2p_dma_data;
+    return true;
+}
+static int imx_ssi_asrc_dma_alloc(struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct imx_pcm_dma_params *dma_params;
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct imx_pcm_runtime_data *iprtd = runtime->private_data;
+	struct dma_slave_config slave_config;
+
+	dma_cap_mask_t mask;
+	enum dma_slave_buswidth buswidth;
+	int ret;
+
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_SLAVE, mask);
+
+	switch (params_format(params)) {
+	case SNDRV_PCM_FORMAT_S16_LE:
+		buswidth = DMA_SLAVE_BUSWIDTH_2_BYTES;
+		break;
+	case SNDRV_PCM_FORMAT_S20_3LE:
+	case SNDRV_PCM_FORMAT_S24_LE:
+		buswidth = DMA_SLAVE_BUSWIDTH_4_BYTES;
+		break;
+	default:
+		goto error;
+	}
+
+	dma_params = snd_soc_dai_get_dma_data(rtd->cpu_dai, substream);
+	/*config m2p dma channel*/
+	iprtd->asrc_dma_data.peripheral_type = IMX_DMATYPE_ASRC;
+	iprtd->asrc_dma_data.priority = DMA_PRIO_HIGH;
+	iprtd->asrc_dma_data.dma_request =
+			asrc_get_dma_request(iprtd->asrc_index, 1);
+	iprtd->asrc_dma_chan = dma_request_channel(mask, asrc_filter, iprtd);
+
+	if (!iprtd->asrc_dma_chan)
+		goto error;
+
+	slave_config.direction = DMA_TO_DEVICE;
+	slave_config.dst_addr = asrc_get_per_addr(iprtd->asrc_index, 1);
+	slave_config.dst_addr_width = buswidth;
+	slave_config.dst_maxburst = dma_params->burstsize * buswidth;
+
+	ret = dmaengine_slave_config(iprtd->asrc_dma_chan, &slave_config);
+	if (ret)
+		goto error;
+	/*config p2p dma channel*/
+	iprtd->asrc_p2p_dma_data.peripheral_type = IMX_DMATYPE_ASRC;
+	iprtd->asrc_p2p_dma_data.priority = DMA_PRIO_HIGH;
+	iprtd->asrc_p2p_dma_data.dma_request =
+			asrc_get_dma_request(iprtd->asrc_index, 0);
+	iprtd->asrc_p2p_dma_data.dma_request_p2p = dma_params->dma;
+	iprtd->asrc_p2p_dma_chan =
+		dma_request_channel(mask, asrc_p2p_filter, iprtd);
+	if (!iprtd->asrc_p2p_dma_chan)
+		goto error;
+
+	slave_config.direction = DMA_DEV_TO_DEV;;
+	slave_config.src_addr = asrc_get_per_addr(iprtd->asrc_index, 0);
+	slave_config.src_addr_width = buswidth;
+	slave_config.src_maxburst = dma_params->burstsize * buswidth;
+	slave_config.dst_addr = dma_params->dma_addr;
+	slave_config.dst_addr_width = buswidth;
+	slave_config.dst_maxburst = dma_params->burstsize * buswidth;
+
+	ret = dmaengine_slave_config(iprtd->asrc_p2p_dma_chan, &slave_config);
+	if (ret)
+		goto error;
+
+	return 0;
+error:
+	if (iprtd->asrc_dma_chan) {
+		dma_release_channel(iprtd->asrc_dma_chan);
+		iprtd->asrc_dma_chan = NULL;
+	}
+	if (iprtd->asrc_p2p_dma_chan) {
+		dma_release_channel(iprtd->asrc_p2p_dma_chan);
+		iprtd->asrc_p2p_dma_chan = NULL;
+	}
+	return -EINVAL;
+}
+#endif
 
 static int imx_ssi_dma_alloc(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
@@ -137,17 +228,36 @@ static int snd_imx_pcm_hw_params(struct snd_pcm_substream *substream,
 	int ret;
 
 	dma_params = snd_soc_dai_get_dma_data(rtd->cpu_dai, substream);
-	ret = imx_ssi_dma_alloc(substream, params);
-	if (ret)
-		return ret;
-	chan = iprtd->dma_chan;
+
+	if (iprtd->asrc_enable) {
+		ret = imx_ssi_asrc_dma_alloc(substream, params);
+		if (ret)
+			return ret;
+		chan = iprtd->asrc_p2p_dma_chan;
+		iprtd->asrc_p2p_desc =
+			chan->device->device_prep_dma_cyclic(chan, 0xffff,
+							64,
+							64,
+							DMA_DEV_TO_DEV);
+		if (!iprtd->asrc_p2p_desc) {
+			dev_err(&chan->dev->device,
+					"cannot prepare slave dma\n");
+			return -EINVAL;
+		}
+		chan = iprtd->asrc_dma_chan;
+	} else {
+		ret = imx_ssi_dma_alloc(substream, params);
+		if (ret)
+			return ret;
+		chan = iprtd->dma_chan;
+	}
 
 	iprtd->size = params_buffer_bytes(params);
 	iprtd->periods = params_periods(params);
 	iprtd->period_bytes = params_period_bytes(params);
 	iprtd->offset = 0;
 	iprtd->period_time = HZ / (params_rate(params) /
-			params_period_size(params));
+					params_period_size(params));
 
 	snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 
@@ -155,18 +265,37 @@ static int snd_imx_pcm_hw_params(struct snd_pcm_substream *substream,
 
 	iprtd->buf = (unsigned int *)substream->dma_buffer.area;
 
-	iprtd->desc = chan->device->device_prep_dma_cyclic(chan, dma_addr,
+	if (iprtd->asrc_enable) {
+		iprtd->asrc_desc =
+			chan->device->device_prep_dma_cyclic(chan, dma_addr,
+				iprtd->period_bytes * iprtd->periods,
+				iprtd->period_bytes,
+				substream->stream == SNDRV_PCM_STREAM_PLAYBACK ?
+				DMA_TO_DEVICE : DMA_FROM_DEVICE);
+		if (!iprtd->asrc_desc) {
+			dev_err(&chan->dev->device,
+					"cannot prepare slave dma\n");
+			return -EINVAL;
+		}
+
+		iprtd->asrc_desc->callback = audio_dma_irq;
+		iprtd->asrc_desc->callback_param = substream;
+	} else {
+		iprtd->desc = chan->device->device_prep_dma_cyclic(
+			chan, dma_addr,
 			iprtd->period_bytes * iprtd->periods,
 			iprtd->period_bytes,
 			substream->stream == SNDRV_PCM_STREAM_PLAYBACK ?
 			DMA_TO_DEVICE : DMA_FROM_DEVICE);
-	if (!iprtd->desc) {
-		dev_err(&chan->dev->device, "cannot prepare slave dma\n");
-		return -EINVAL;
-	}
+		if (!iprtd->desc) {
+			dev_err(&chan->dev->device,
+					"cannot prepare slave dma\n");
+			return -EINVAL;
+		}
 
-	iprtd->desc->callback = audio_dma_irq;
-	iprtd->desc->callback_param = substream;
+		iprtd->desc->callback = audio_dma_irq;
+		iprtd->desc->callback_param = substream;
+	}
 
 	return 0;
 }
@@ -176,9 +305,21 @@ static int snd_imx_pcm_hw_free(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct imx_pcm_runtime_data *iprtd = runtime->private_data;
 
-	if (iprtd->dma_chan) {
-		dma_release_channel(iprtd->dma_chan);
+	if (iprtd->asrc_enable) {
+		if (iprtd->asrc_dma_chan) {
+			dma_release_channel(iprtd->asrc_dma_chan);
+			iprtd->asrc_dma_chan = NULL;
+		}
+		if (iprtd->asrc_p2p_dma_chan) {
+			dma_release_channel(iprtd->asrc_p2p_dma_chan);
+			iprtd->asrc_p2p_dma_chan = NULL;
+		}
 		iprtd->dma_chan = NULL;
+	} else {
+		if (iprtd->dma_chan) {
+			dma_release_channel(iprtd->dma_chan);
+			iprtd->dma_chan = NULL;
+		}
 	}
 
 	return 0;
@@ -203,15 +344,25 @@ static int snd_imx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		dmaengine_submit(iprtd->desc);
-
+		if (iprtd->asrc_enable) {
+			dmaengine_submit(iprtd->asrc_p2p_desc);
+			dmaengine_submit(iprtd->asrc_desc);
+			asrc_start_conv(iprtd->asrc_index);
+		} else {
+			dmaengine_submit(iprtd->desc);
+		}
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-		dmaengine_terminate_all(iprtd->dma_chan);
-
+		if (iprtd->asrc_enable) {
+			dmaengine_terminate_all(iprtd->asrc_dma_chan);
+			dmaengine_terminate_all(iprtd->asrc_p2p_dma_chan);
+			asrc_stop_conv(iprtd->asrc_index);
+		} else {
+			dmaengine_terminate_all(iprtd->dma_chan);
+		}
 		break;
 	default:
 		return -EINVAL;
