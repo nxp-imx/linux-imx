@@ -93,6 +93,9 @@ struct sdhci_host {
 /* The read-only detection via SDHCI_PRESENT_STATE register is unstable */
 #define SDHCI_QUIRK_UNSTABLE_RO_DETECT			(1<<31)
 
+	unsigned int quirks2;   /* More deviations from spec. */
+#define SDHCI_QUIRK_BROKEN_AUTO_CMD23			(1<<0)
+
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
 
