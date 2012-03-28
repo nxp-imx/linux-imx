@@ -30,7 +30,7 @@
 
 #define gcvVERSION_PATCH        6
 
-#define gcvVERSION_BUILD        1381
+#define gcvVERSION_BUILD        1394
 
 #define gcvVERSION_DATE      __DATE__
 

@@ -140,7 +140,7 @@ static int threadRoutine(void *ctxt)
         static int down;
 
         down = down_interruptible(&device->semas[gcvCORE_MAJOR]);
-        if (down); /*To make gcc4.6 happy*/
+        if (down); /* To make gcc4.6 happy */
         device->dataReadys[gcvCORE_MAJOR] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -193,7 +193,7 @@ static int threadRoutine2D(void *ctxt)
         static int down;
 
         down = down_interruptible(&device->semas[gcvCORE_2D]);
-        if (down); /*To make gcc4.6 happy*/
+        if (down); /* To make gcc4.6 happy */
         device->dataReadys[gcvCORE_2D] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -244,7 +244,7 @@ static int threadRoutineVG(void *ctxt)
         static int down;
 
         down = down_interruptible(&device->semas[gcvCORE_VG]);
-        if (down); /*To make gcc4.6 happy*/
+        if (down); /* To make gcc4.6 happy */
         device->dataReadys[gcvCORE_VG] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)

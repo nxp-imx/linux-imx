@@ -282,7 +282,12 @@ gckVIDMEM_ConstructVirtual(
 
 #ifdef __QNXNTO__
     /* Register. */
-    gckMMU_InsertNode(Kernel->mmu, node);
+#if gcdENABLE_VG
+    if (Kernel->core != gcvCORE_VG)
+#endif
+    {
+        gckMMU_InsertNode(Kernel->mmu, node);
+    }
 #endif
 
     /* Return pointer to the gcuVIDMEM_NODE union. */
@@ -349,8 +354,13 @@ gckVIDMEM_DestroyVirtual(
 
 #ifdef __QNXNTO__
     /* Unregister. */
-    gcmkVERIFY_OK(
-            gckMMU_RemoveNode(Node->Virtual.kernel->mmu, Node));
+#if gcdENABLE_VG
+    if (Node->Virtual.kernel->core != gcvCORE_VG)
+#endif
+    {
+        gcmkVERIFY_OK(
+                gckMMU_RemoveNode(Node->Virtual.kernel->mmu, Node));
+    }
 #endif
 
     /* Delete the mutex. */
@@ -1306,6 +1316,14 @@ gckVIDMEM_Free(
                 Node->VidMem.kernelVirtual = gcvNULL;
             }
 #endif
+
+            /* Check if Node is already freed. */
+            if (Node->VidMem.nextFree)
+            {
+                /* Node is alread freed. */
+                gcmkONERROR(gcvSTATUS_INVALID_DATA);
+            }
+
             /* Update the number of free bytes. */
             memory->freeBytes += Node->VidMem.bytes;
 
