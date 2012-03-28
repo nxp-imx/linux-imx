@@ -288,6 +288,8 @@ OnError:
 
             if (kernel->hardware != gcvNULL)
             {
+                /* Turn off the power. */
+                gcmkVERIFY_OK(gckOS_SetGPUPower(kernel->hardware->os, kernel->hardware->core, gcvFALSE, gcvFALSE));
                 gcmkVERIFY_OK(gckHARDWARE_Destroy(kernel->hardware));
             }
         }
