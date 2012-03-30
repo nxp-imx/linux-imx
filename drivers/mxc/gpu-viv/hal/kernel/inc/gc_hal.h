@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -558,6 +558,12 @@ gckOS_AtomClearMask(
     );
 #endif
 
+gceSTATUS
+gckOS_DumpGPUState(
+    IN gckOS Os,
+    IN gceCORE Core
+    );
+
 /*******************************************************************************
 **
 **  gckOS_AtomConstruct
@@ -919,16 +925,6 @@ gckOS_DeviceControl(
     OUT gctPOINTER OutputBuffer,
     IN gctSIZE_T OutputBufferSize
     );
-
-#if gcdENABLE_BANK_ALIGNMENT
-gceSTATUS
-gckOS_GetSurfaceBankAlignment(
-    IN gckOS Os,
-    IN gceSURF_TYPE Type,
-    IN gctUINT32 BaseAddress,
-    OUT gctUINT32_PTR Alignment
-    );
-#endif
 
 /*******************************************************************************
 **
@@ -1814,15 +1810,6 @@ gckHARDWARE_QueryShaderCaps(
     OUT gctUINT * Varyings
     );
 
-/* Convert an API format. */
-gceSTATUS
-gckHARDWARE_ConvertFormat(
-    IN gckHARDWARE Hardware,
-    IN gceSURF_FORMAT Format,
-    OUT gctUINT32 * BitsPerPixel,
-    OUT gctUINT32 * BytesPerTile
-    );
-
 /* Split a harwdare specific address into API stuff. */
 gceSTATUS
 gckHARDWARE_SplitMemory(
@@ -1830,16 +1817,6 @@ gckHARDWARE_SplitMemory(
     IN gctUINT32 Address,
     OUT gcePOOL * Pool,
     OUT gctUINT32 * Offset
-    );
-
-/* Align size to tile boundary. */
-gceSTATUS
-gckHARDWARE_AlignToTile(
-    IN gckHARDWARE Hardware,
-    IN gceSURF_TYPE Type,
-    IN OUT gctUINT32_PTR Width,
-    IN OUT gctUINT32_PTR Height,
-    OUT gctBOOL_PTR SuperTiled
     );
 
 /* Update command queue tail pointer. */
@@ -2161,6 +2138,10 @@ gckEVENT_Interrupt(
     IN gctUINT32 IDs
     );
 
+gceSTATUS
+gckEVENT_Dump(
+    IN gckEVENT Event
+    );
 /******************************************************************************\
 ******************************* gckCOMMAND Object ******************************
 \******************************************************************************/
@@ -2203,7 +2184,8 @@ gckCOMMAND_Start(
 /* Stop the command queue. */
 gceSTATUS
 gckCOMMAND_Stop(
-    IN gckCOMMAND Command
+    IN gckCOMMAND Command,
+    IN gctBOOL FromRecovery
     );
 
 /* Commit a buffer to the command queue. */
@@ -2329,6 +2311,11 @@ gckMMU_FreeHandleMemory(
     IN gctUINT32 Pid
     );
 #endif
+
+gceSTATUS
+gckMMU_Flush(
+    IN gckMMU Mmu
+    );
 
 
 #if VIVANTE_PROFILER

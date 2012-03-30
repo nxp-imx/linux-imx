@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -338,10 +338,6 @@ struct _gckKERNEL
 
 #if gcdENABLE_VG
     gckVGKERNEL                 vg;
-#endif
-
-#if gcdMULTICORE_MAPPING
-    gckKERNEL                   anotherKernel;
 #endif
 };
 
@@ -704,12 +700,20 @@ struct _gckMMU
     gctUINT32_PTR               pageTableLogical;
     gctUINT32                   pageTableEntries;
 
+    /* Master TLB information. */
+    gctSIZE_T                   mtlbSize;
+    gctPHYS_ADDR                mtlbPhysical;
+    gctUINT32_PTR               mtlbLogical;
+    gctUINT32                   mtlbEntries;
+
     /* Free entries. */
     gctUINT32                   heapList;
     gctBOOL                     freeNodes;
 
     gctPOINTER                  staticSTLB;
     gctBOOL                     enabled;
+
+    gctUINT32                   dynamicMappingStart;
 
 #ifdef __QNXNTO__
     /* Single linked list of all allocated nodes. */

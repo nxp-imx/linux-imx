@@ -1,7 +1,7 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
-*    Copyright (C) 2011 Freescale Semiconductor, Inc.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -199,6 +199,20 @@ int drv_open(
             galDevice->contiguousSize,
             &data->contiguousLogical
             ));
+
+        for (i = 0; i < gcdCORE_COUNT; i++)
+        {
+            if (galDevice->kernels[i] != gcvNULL)
+            {
+                gcmkVERIFY_OK(gckKERNEL_AddProcessDB(
+                    galDevice->kernels[i],
+                    data->pidOpen,
+                    gcvDB_MAP_MEMORY,
+                    data->contiguousLogical,
+                    galDevice->contiguousPhysical,
+                    galDevice->contiguousSize));
+            }
+        }
     }
 
     filp->private_data = data;
@@ -247,6 +261,8 @@ int drv_release(
     gcsHAL_PRIVATE_DATA_PTR data;
     gckGALDEVICE device;
     gctINT i;
+    gctUINT32 processID;
+
 
     gcmkHEADER_ARG("inode=0x%08X filp=0x%08X", inode, filp);
 
@@ -291,7 +307,6 @@ int drv_release(
     {
         if (data->contiguousLogical != gcvNULL)
         {
-		    gctUINT32 processID;
             gcmkVERIFY_OK(gckOS_GetProcessID(&processID));
             gcmkONERROR(gckOS_UnmapMemoryEx(
                 galDevice->os,
@@ -315,6 +330,10 @@ int drv_release(
             data->contiguousLogical = gcvNULL;
         }
     }
+
+    /* Clean user signals if exit unnormally. */
+    gcmkVERIFY_OK(gckOS_GetProcessID(&processID));
+    gcmkVERIFY_OK(gckOS_CleanProcessSignal(galDevice->os, (gctHANDLE)processID));
 
     /* A process gets detached. */
     for (i = 0; i < gcdCORE_COUNT; i++)
@@ -606,7 +625,7 @@ static int drv_mmap(
     }
 
 #if !gcdPAGED_MEMORY_CACHEABLE
-    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+    vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
     vma->vm_flags    |= VM_IO | VM_DONTCOPY | VM_DONTEXPAND;
 #endif
     vma->vm_pgoff     = 0;
@@ -976,6 +995,23 @@ static int __devinit gpu_suspend(struct platform_device *dev, pm_message_t state
     {
         if (device->kernels[i] != gcvNULL)
         {
+            /* Store states. */
+#if gcdENABLE_VG
+            if (i == gcvCORE_VG)
+            {
+                status = gckVGHARDWARE_QueryPowerManagementState(device->kernels[i]->vg->hardware, &device->statesStored[i]);
+            }
+            else
+#endif
+            {
+                status = gckHARDWARE_QueryPowerManagementState(device->kernels[i]->hardware, &device->statesStored[i]);
+            }
+
+            if (gcmIS_ERROR(status))
+            {
+                return -1;
+            }
+
 #if gcdENABLE_VG
             if (i == gcvCORE_VG)
             {
@@ -1004,6 +1040,7 @@ static int __devinit gpu_resume(struct platform_device *dev)
     gceSTATUS status;
     gckGALDEVICE device;
     gctINT i;
+    gceCHIPPOWERSTATE   statesStored;
 
     device = platform_get_drvdata(dev);
 
@@ -1020,6 +1057,43 @@ static int __devinit gpu_resume(struct platform_device *dev)
 #endif
             {
                 status = gckHARDWARE_SetPowerManagementState(device->kernels[i]->hardware, gcvPOWER_ON);
+            }
+
+            if (gcmIS_ERROR(status))
+            {
+                return -1;
+            }
+
+            /* Convert global state to crossponding internal state. */
+            switch(device->statesStored[i])
+            {
+            case gcvPOWER_OFF:
+                statesStored = gcvPOWER_OFF_BROADCAST;
+                break;
+            case gcvPOWER_IDLE:
+                statesStored = gcvPOWER_IDLE_BROADCAST;
+                break;
+            case gcvPOWER_SUSPEND:
+                statesStored = gcvPOWER_SUSPEND_BROADCAST;
+                break;
+            case gcvPOWER_ON:
+                statesStored = gcvPOWER_ON_AUTO;
+                break;
+            default:
+                statesStored = device->statesStored[i];
+                break;
+        }
+
+            /* Restore states. */
+#if gcdENABLE_VG
+            if (i == gcvCORE_VG)
+            {
+                status = gckVGHARDWARE_SetPowerManagementState(device->kernels[i]->vg->hardware, statesStored);
+    }
+            else
+#endif
+            {
+                status = gckHARDWARE_SetPowerManagementState(device->kernels[i]->hardware, statesStored);
             }
 
             if (gcmIS_ERROR(status))

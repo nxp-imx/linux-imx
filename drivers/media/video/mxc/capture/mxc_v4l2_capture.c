@@ -1730,10 +1730,10 @@ static int mxc_v4l_close(struct file *file)
 	}
 
 	if (--cam->open_count == 0) {
+		vidioc_int_s_power(cam->sensor, 0);
 		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
 			false, false);
 
-		vidioc_int_s_power(cam->sensor, 0);
 		wait_event_interruptible(cam->power_queue,
 					 cam->low_power == false);
 		pr_info("mxc_v4l_close: release resource\n");
@@ -2931,7 +2931,28 @@ static int mxc_v4l2_master_attach(struct v4l2_int_device *slave)
  */
 static void mxc_v4l2_master_detach(struct v4l2_int_device *slave)
 {
+	unsigned int i;
+	cam_data *cam = slave->u.slave->master->priv;
+
 	pr_debug("In MVC:mxc_v4l2_master_detach\n");
+
+	if (sensor_index > 1) {
+		for (i = 0; i < sensor_index; i++) {
+			if (cam->all_sensors[i] != slave)
+				continue;
+			/* Move all the sensors behind this
+			 * sensor one step forward
+			 */
+			for (; i < sensor_index - 1; i++)
+				cam->all_sensors[i] = cam->all_sensors[i+1];
+			break;
+		}
+		/* Point current sensor to the last one */
+		cam->sensor = cam->all_sensors[sensor_index - 2];
+	} else
+		cam->sensor = NULL;
+
+	sensor_index--;
 	vidioc_int_dev_exit(slave);
 }
 

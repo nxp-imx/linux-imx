@@ -130,6 +130,11 @@ struct fsl_usb2_platform_data {
 	 * is disconnected with Host.
 	 */
 	void (*dr_discharge_line) (bool);
+	/* only set it when vbus lower very slow during OTG switch */
+	bool need_discharge_vbus;
+	void (*platform_rh_suspend)(struct fsl_usb2_platform_data *);
+	void (*platform_rh_resume)(struct fsl_usb2_platform_data *);
+	void (*platform_set_disconnect_det)(struct fsl_usb2_platform_data *, bool);
 
 	struct fsl_usb2_wakeup_platform_data *wakeup_pdata;
 	struct platform_device *pdev;
@@ -137,7 +142,7 @@ struct fsl_usb2_platform_data {
 	unsigned	ahb_burst_mode:3;
 	unsigned	lowpower:1;
 	unsigned	irq_delay:1;
-	unsigned	wakeup_event:1;
+	enum usb_wakeup_event	wakeup_event;
 	u32		pmflags;	/* PM from otg or system */
 
 	/* register save area for suspend/resume */
@@ -353,7 +358,6 @@ struct mxc_audio_platform_data {
 	int hp_active_low;	/* headphone irq is active loaw */
 
 	int sysclk;
-	int rst_gpio;
 	const char *codec_name;
 
 	int (*init) (void);	/* board specific init */
@@ -361,6 +365,12 @@ struct mxc_audio_platform_data {
 	int (*clock_enable) (int enable);
 	int (*finit) (void);	/* board specific finit */
 	void *priv;		/* used by board specific functions */
+};
+
+/* Generic parameters for audio codecs
+ */
+struct mxc_audio_codec_platform_data {
+	int rates; /* codec platform data */
 };
 
 struct mxc_pwm_platform_data {

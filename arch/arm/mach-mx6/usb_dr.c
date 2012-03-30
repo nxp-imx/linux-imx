@@ -28,8 +28,6 @@
 #include "devices-imx6q.h"
 #include "regs-anadig.h"
 #include "usb.h"
-
-
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct platform_device *pdev);
 static void usbotg_clock_gate(bool on);
@@ -45,7 +43,6 @@ static u8 otg_used;
 
 static void usbotg_wakeup_event_clear(void);
 extern int clk_get_usecount(struct clk *clk);
-
 /* Beginning of Common operation for DR port */
 
 /*
@@ -71,6 +68,51 @@ static struct fsl_usb2_wakeup_platform_data dr_wakeup_config = {
 	.usb_clock_for_pm  = usbotg_clock_gate,
 	.usb_wakeup_exhandle = usbotg_wakeup_event_clear,
 };
+
+static void fsl_platform_otg_set_usb_phy_dis(
+		struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	u32 usb_phy_ctrl_dcdt = 0;
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+	usb_phy_ctrl_dcdt = __raw_readl(
+			MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL) &
+			BM_USBPHY_CTRL_ENHOSTDISCONDETECT;
+	if (enable) {
+		if (usb_phy_ctrl_dcdt == 0) {
+			__raw_writel(BM_ANADIG_USB1_PLL_480_CTRL_EN_USB_CLKS,
+					anatop_base_addr + HW_ANADIG_USB1_PLL_480_CTRL_CLR);
+
+			__raw_writel(BM_USBPHY_PWD_RXPWDENV,
+					MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_PWD_SET);
+
+			udelay(300);
+
+			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				MX6_IO_ADDRESS(pdata->phy_regs)
+				+ HW_USBPHY_CTRL_SET);
+
+			UOG_USBSTS |= (1 << 7);
+
+			while ((UOG_USBSTS & (1 << 7)) == 0)
+				;
+
+			udelay(2);
+
+			__raw_writel(BM_USBPHY_PWD_RXPWDENV,
+					MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_PWD_CLR);
+
+			__raw_writel(BM_ANADIG_USB1_PLL_480_CTRL_EN_USB_CLKS,
+					anatop_base_addr + HW_ANADIG_USB1_PLL_480_CTRL_SET);
+
+		}
+	} else {
+		if (usb_phy_ctrl_dcdt
+				== BM_USBPHY_CTRL_ENHOSTDISCONDETECT)
+			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				MX6_IO_ADDRESS(pdata->phy_regs)
+				+ HW_USBPHY_CTRL_CLR);
+	}
+}
 
 static void usbotg_internal_phy_clock_gate(bool on)
 {
@@ -264,8 +306,7 @@ static void otg_wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable
 
 	pr_debug("%s, enable is %d\n", __func__, enable);
 	if (enable) {
-		__raw_writel(BM_USBPHY_CTRL_ENIDCHG_WKUP | BM_USBPHY_CTRL_ENVBUSCHG_WKUP
-				| BM_USBPHY_CTRL_ENDPDMCHG_WKUP
+		__raw_writel(BM_USBPHY_CTRL_ENDPDMCHG_WKUP
 				| BM_USBPHY_CTRL_ENAUTOSET_USBCLKS
 				| BM_USBPHY_CTRL_ENAUTOCLR_PHY_PWD
 				| BM_USBPHY_CTRL_ENAUTOCLR_CLKGATE
@@ -326,10 +367,30 @@ static void usbotg_wakeup_event_clear(void)
 
 #ifdef CONFIG_USB_EHCI_ARC_OTG
 /* Beginning of host related operation for DR port */
-static void _host_platform_suspend(struct fsl_usb2_platform_data *pdata)
+static void _host_platform_rh_suspend(struct fsl_usb2_platform_data *pdata)
 {
 	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
 	u32 tmp;
+	u32 index = 0;
+
+	/* before we set and then clear PWD bit,
+	 * we must wait LS to be suspend */
+	if ((UOG_PORTSC1 & (3 << 26)) != (1 << 26)) {
+		while (((UOG_PORTSC1 & PORTSC_LS_MASK) != PORTSC_LS_J_STATE) &&
+				(index < 1000)) {
+			index++;
+			udelay(4);
+		}
+	} else {
+		while (((UOG_PORTSC1 & PORTSC_LS_MASK) != PORTSC_LS_K_STATE) &&
+				(index < 1000)) {
+			index++;
+			udelay(4);
+		}
+	}
+
+	if (index >= 1000)
+		printk(KERN_INFO "%s big error\n", __func__);
 
 	tmp = (BM_USBPHY_PWD_TXPWDFS
 		| BM_USBPHY_PWD_TXPWDIBIAS
@@ -339,21 +400,30 @@ static void _host_platform_suspend(struct fsl_usb2_platform_data *pdata)
 		| BM_USBPHY_PWD_RXPWDDIFF
 		| BM_USBPHY_PWD_RXPWDRX);
 	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_SET);
+
+	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_CLR);
+
+	fsl_platform_otg_set_usb_phy_dis(pdata, 0);
 }
 
-static void _host_platform_resume(struct fsl_usb2_platform_data *pdata)
+static void _host_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
 {
-	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
-	u32 tmp;
+	u32 index = 0;
 
-	tmp = (BM_USBPHY_PWD_TXPWDFS
-		| BM_USBPHY_PWD_TXPWDIBIAS
-		| BM_USBPHY_PWD_TXPWDV2I
-		| BM_USBPHY_PWD_RXPWDENV
-		| BM_USBPHY_PWD_RXPWD1PT1
-		| BM_USBPHY_PWD_RXPWDDIFF
-		| BM_USBPHY_PWD_RXPWDRX);
-	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_CLR);
+	if ((UOG_PORTSC1 & (3 << 26)) != (2 << 26))
+		return ;
+
+	while ((UOG_PORTSC1 & PORTSC_PORT_FORCE_RESUME)
+			&& (index < 1000)) {
+		msleep(1);
+		index++;
+	}
+
+	if (index >= 1000)
+		printk(KERN_INFO "%s big error\n", __func__);
+
+	msleep(1);
+	fsl_platform_otg_set_usb_phy_dis(pdata, 1);
 }
 
 static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
@@ -363,12 +433,15 @@ static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, boo
 
 static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
+	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
 	__wakeup_irq_enable(pdata, enable, ENABLED_BY_HOST);
 	if (enable) {
 		pr_debug("host wakeup enable\n");
 		USB_OTG_CTRL |= UCTRL_WKUP_ID_EN;
+		__raw_writel(BM_USBPHY_CTRL_ENIDCHG_WKUP, phy_reg + HW_USBPHY_CTRL_SET);
 	} else {
 		pr_debug("host wakeup disable\n");
+		__raw_writel(BM_USBPHY_CTRL_ENIDCHG_WKUP, phy_reg + HW_USBPHY_CTRL_CLR);
 		USB_OTG_CTRL &= ~UCTRL_WKUP_ID_EN;
 		/* The interrupt must be disabled for at least 3 clock
 		 * cycles of the standby clock(32k Hz) , that is 0.094 ms*/
@@ -403,7 +476,6 @@ static void host_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
 	_host_phy_lowpower_suspend(pdata, false);
 	_host_wakeup_enable(pdata, false);
-	pdata->wakeup_event = 1;
 }
 /* End of host related operation for DR port */
 #endif /* CONFIG_USB_EHCI_ARC_OTG */
@@ -418,6 +490,7 @@ static void _device_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, b
 
 static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
+	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
 	__wakeup_irq_enable(pdata, enable, ENABLED_BY_DEVICE);
 	/* if udc is not used by any gadget, we can not enable the vbus wakeup */
 	if (!pdata->port_enables) {
@@ -427,8 +500,10 @@ static void _device_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool ena
 	if (enable) {
 		pr_debug("device wakeup enable\n");
 		USB_OTG_CTRL |= UCTRL_WKUP_VBUS_EN;
+		__raw_writel(BM_USBPHY_CTRL_ENVBUSCHG_WKUP, phy_reg + HW_USBPHY_CTRL_SET);
 	} else {
 		pr_debug("device wakeup disable\n");
+		__raw_writel(BM_USBPHY_CTRL_ENVBUSCHG_WKUP, phy_reg + HW_USBPHY_CTRL_CLR);
 		USB_OTG_CTRL &= ~UCTRL_WKUP_VBUS_EN;
 	}
 }
@@ -441,7 +516,7 @@ static enum usb_wakeup_event _is_device_wakeup(struct fsl_usb2_platform_data *pd
 	/* if ID=1, it is a device wakeup event */
 	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && (UOG_USBSTS & USBSTS_URI)) {
 		printk(KERN_INFO "otg udc wakeup, host sends reset signal\n");
-		return true;
+		return WAKEUP_EVENT_DPDM;
 	}
 	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) &&  \
 		((UOG_USBSTS & USBSTS_PCI) || (UOG_PORTSC1 & PORTSC_PORT_FORCE_RESUME))) {
@@ -450,16 +525,16 @@ static enum usb_wakeup_event _is_device_wakeup(struct fsl_usb2_platform_data *pd
 		 * in the USBSTS register is also set to '1'.
 		 */
 		printk(KERN_INFO "otg udc wakeup, host sends resume signal\n");
-		return true;
+		return WAKEUP_EVENT_DPDM;
 	}
 	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && (UOG_OTGSC & OTGSC_STS_A_VBUS_VALID) \
 		&& (UOG_OTGSC & OTGSC_IS_B_SESSION_VALID)) {
 		printk(KERN_INFO "otg udc vbus rising wakeup\n");
-		return true;
+		return WAKEUP_EVENT_VBUS;
 	}
 	if (wakeup_req && (UOG_OTGSC & OTGSC_STS_USB_ID) && !(UOG_OTGSC & OTGSC_STS_A_VBUS_VALID)) {
 		printk(KERN_INFO "otg udc vbus falling wakeup\n");
-		return true;
+		return WAKEUP_EVENT_VBUS;
 	}
 
 	return WAKEUP_EVENT_INVALID;
@@ -489,8 +564,9 @@ void __init mx6_usb_dr_init(void)
 #ifdef CONFIG_USB_EHCI_ARC_OTG
 	dr_utmi_config.operating_mode = DR_HOST_MODE;
 	dr_utmi_config.wake_up_enable = _host_wakeup_enable;
-	dr_utmi_config.platform_suspend = _host_platform_suspend;
-	dr_utmi_config.platform_resume  = _host_platform_resume;
+	dr_utmi_config.platform_rh_suspend = _host_platform_rh_suspend;
+	dr_utmi_config.platform_rh_resume  = _host_platform_rh_resume;
+	dr_utmi_config.platform_set_disconnect_det = fsl_platform_otg_set_usb_phy_dis;
 	dr_utmi_config.phy_lowpower_suspend = _host_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_host_wakeup;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
@@ -501,8 +577,9 @@ void __init mx6_usb_dr_init(void)
 #ifdef CONFIG_USB_GADGET_ARC
 	dr_utmi_config.operating_mode = DR_UDC_MODE;
 	dr_utmi_config.wake_up_enable = _device_wakeup_enable;
-	dr_utmi_config.platform_suspend = NULL;
-	dr_utmi_config.platform_resume  = NULL;
+	dr_utmi_config.platform_rh_suspend = NULL;
+	dr_utmi_config.platform_rh_resume  = NULL;
+	dr_utmi_config.platform_set_disconnect_det = NULL;
 	dr_utmi_config.phy_lowpower_suspend = _device_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_device_wakeup;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;

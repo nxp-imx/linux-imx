@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -27,6 +27,7 @@
 #include <linux/mm.h>
 #include <linux/mman.h>
 #include <linux/slab.h>
+#include <mach/hardware.h>
 
 #define _GC_OBJ_ZONE    gcvZONE_DEVICE
 
@@ -139,6 +140,7 @@ static int threadRoutine(void *ctxt)
         static int down;
 
         down = down_interruptible(&device->semas[gcvCORE_MAJOR]);
+        if (down); /* To make gcc4.6 happy */
         device->dataReadys[gcvCORE_MAJOR] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -191,6 +193,7 @@ static int threadRoutine2D(void *ctxt)
         static int down;
 
         down = down_interruptible(&device->semas[gcvCORE_2D]);
+        if (down); /* To make gcc4.6 happy */
         device->dataReadys[gcvCORE_2D] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -241,6 +244,7 @@ static int threadRoutineVG(void *ctxt)
         static int down;
 
         down = down_interruptible(&device->semas[gcvCORE_VG]);
+        if (down); /* To make gcc4.6 happy */
         device->dataReadys[gcvCORE_VG] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -394,13 +398,15 @@ gckGALDEVICE_Construct(
     if (IrqLine != -1) {
         device->clk_3d_core = clk_get(NULL, "gpu3d_clk");
         if (!IS_ERR(device->clk_3d_core)) {
-            device->clk_3d_shader = clk_get(NULL, "gpu3d_shader_clk");
-            if (IS_ERR(device->clk_3d_shader)) {
-                IrqLine = -1;
-                clk_put(device->clk_3d_core);
-                device->clk_3d_core = NULL;
-                device->clk_3d_shader = NULL;
-                gckOS_Print("galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
+            if (cpu_is_mx6q()) {
+	            device->clk_3d_shader = clk_get(NULL, "gpu3d_shader_clk");
+	            if (IS_ERR(device->clk_3d_shader)) {
+	                IrqLine = -1;
+	                clk_put(device->clk_3d_core);
+	                device->clk_3d_core = NULL;
+	                device->clk_3d_shader = NULL;
+	                gckOS_Print("galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
+	            }
             }
         } else {
             IrqLine = -1;
@@ -414,7 +420,24 @@ gckGALDEVICE_Construct(
             IrqLine2D = -1;
             IrqLineVG = -1;
             device->clk_2d_core = NULL;
-            gckOS_Print("galcore: clk_get 2d clock failed, disable 2d/vg!\n");
+            gckOS_Print("galcore: clk_get 2d core clock failed, disable 2d/vg!\n");
+        } else {
+	    if (IrqLine2D != -1) {
+                device->clk_2d_axi = clk_get(NULL, "gpu2d_axi_clk");
+                if (IS_ERR(device->clk_2d_axi)) {
+                    device->clk_2d_axi = NULL;
+                    IrqLine2D = -1;
+                    gckOS_Print("galcore: clk_get 2d axi clock failed, disable 2d\n");
+                }
+            }
+            if (IrqLineVG != -1) {
+                device->clk_vg_axi = clk_get(NULL, "openvg_axi_clk");
+                if (IS_ERR(device->clk_vg_axi)) {
+                    IrqLineVG = -1;
+	                device->clk_vg_axi = NULL;
+	                gckOS_Print("galcore: clk_get vg clock failed, disable vg!\n");
+                }
+            }
         }
     }
 
@@ -578,19 +601,11 @@ gckGALDEVICE_Construct(
         /* Start the command queue. */
         gcmkONERROR(gckCOMMAND_Start(device->kernels[gcvCORE_2D]->command));
 #endif
-
-#if gcdMULTICORE_MAPPING
-        device->kernels[gcvCORE_2D]->anotherKernel = device->kernels[gcvCORE_MAJOR];
-#endif
     }
     else
     {
         device->kernels[gcvCORE_2D] = gcvNULL;
     }
-
-#if gcdMULTICORE_MAPPING
-    device->kernels[gcvCORE_MAJOR]->anotherKernel = device->kernels[gcvCORE_2D];
-#endif
 
     if (IrqLineVG != -1)
     {
@@ -1011,6 +1026,16 @@ gckGALDEVICE_Destroy(
            clk_put(Device->clk_2d_core);
            Device->clk_2d_core = NULL;
         }
+        if (Device->clk_2d_axi) {
+           clk_put(Device->clk_2d_axi);
+           Device->clk_2d_axi = NULL;
+        }
+        if (Device->clk_vg_axi) {
+           clk_put(Device->clk_vg_axi);
+           Device->clk_vg_axi = NULL;
+        }
+
+
 
         /* Destroy the gckOS object. */
         if (Device->os != gcvNULL)
@@ -1415,7 +1440,7 @@ gckGALDEVICE_Start_Threads(
 
 #if gcdPOWEROFF_TIMEOUT
         /* Start the kernel thread. */
-        task = kthread_run(threadRoutinePM_2D, Device, "galcore pm thread");
+        task = kthread_run(threadRoutinePM_2D, Device, "galcore pm 2d thread");
 
         if (IS_ERR(task))
         {

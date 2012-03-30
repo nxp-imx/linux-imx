@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -150,6 +150,10 @@ typedef enum _gceHAL_COMMAND_CODES
     gcvHAL_QUERY_COMMAND_BUFFER,
 
     gcvHAL_COMMIT_DONE,
+
+    /* GPU and event dump */
+    gcvHAL_DUMP_GPU_STATE,
+    gcvHAL_DUMP_EVENT
 }
 gceHAL_COMMAND_CODES;
 

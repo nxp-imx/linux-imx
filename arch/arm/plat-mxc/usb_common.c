@@ -900,16 +900,25 @@ EXPORT_SYMBOL(usb_event_is_otg_wakeup);
 void fsl_platform_set_usb_phy_dis(struct fsl_usb2_platform_data *pdata,
 				  bool enable)
 {
+	u32 usb_phy_ctrl_dcdt = 0;
 	/* for HSIC, we do not need to enable disconnect detection */
 	if (pdata->phy_mode == FSL_USB2_PHY_HSIC)
 		return;
-
-	if (enable)
-		__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
-			MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL_SET);
-	else
-		__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
-			MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL_CLR);
+	usb_phy_ctrl_dcdt = __raw_readl(
+			MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL) &
+			BM_USBPHY_CTRL_ENHOSTDISCONDETECT;
+	if (enable) {
+		if (usb_phy_ctrl_dcdt == 0)
+			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				MX6_IO_ADDRESS(pdata->phy_regs)
+				+ HW_USBPHY_CTRL_SET);
+	} else {
+		if (usb_phy_ctrl_dcdt
+				== BM_USBPHY_CTRL_ENHOSTDISCONDETECT)
+			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				MX6_IO_ADDRESS(pdata->phy_regs)
+				+ HW_USBPHY_CTRL_CLR);
+	}
 }
 EXPORT_SYMBOL(fsl_platform_set_usb_phy_dis);
 #endif

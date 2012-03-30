@@ -430,6 +430,14 @@ static int ehci_bus_resume (struct usb_hcd *hcd)
 		spin_unlock_irq(&ehci->lock);
 		msleep(20);
 		spin_lock_irq(&ehci->lock);
+#ifdef MX6_USB_HOST_HACK
+		{
+			struct fsl_usb2_platform_data *pdata;
+			pdata = hcd->self.controller->platform_data;
+			if (pdata->platform_rh_resume)
+				pdata->platform_rh_resume(pdata);
+		}
+#endif
 	}
 
 	i = HCS_N_PORTS (ehci->hcs_params);
@@ -826,14 +834,6 @@ static int ehci_hub_control (
 				msleep(5);/* wait to leave low-power mode */
 				spin_lock_irqsave(&ehci->lock, flags);
 			}
-			#ifdef MX6_USB_HOST_HACK
-			{
-				struct fsl_usb2_platform_data *pdata;
-				pdata = hcd->self.controller->platform_data;
-				if (pdata->platform_resume)
-					pdata->platform_resume(pdata);
-			}
-			#endif
 
 			/* resume signaling for 20 msec */
 			temp &= ~(PORT_RWC_BITS | PORT_WAKE_BITS);
@@ -1079,8 +1079,8 @@ static int ehci_hub_control (
 			{
 				struct fsl_usb2_platform_data *pdata;
 				pdata = hcd->self.controller->platform_data;
-				if (pdata->platform_suspend)
-					pdata->platform_suspend(pdata);
+				if (pdata->platform_rh_suspend)
+					pdata->platform_rh_suspend(pdata);
 			}
 #endif
 			if (hostpc_reg) {

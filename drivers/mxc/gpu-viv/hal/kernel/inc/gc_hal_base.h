@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@
 #include "gc_hal_types.h"
 
 #include "gc_hal_dump.h"
+#include "gc_hal_md5.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -228,6 +229,13 @@ typedef enum _gceHOW
     gcvHOW_SEMAPHORE_STALL      = 0x3,
 }
 gceHOW;
+
+typedef enum _gceSignalHandlerType
+{
+    gcvHANDLE_SIGFPE_WHEN_SIGNAL_CODE_IS_0        = 0x1,
+}
+gceSignalHandlerType;
+
 
 #if gcdENABLE_VG
 /* gcsHAL_Limits*/
@@ -649,6 +657,14 @@ gcoOS_Allocate(
     OUT gctPOINTER * Memory
     );
 
+/* Get allocated memory size. */
+gceSTATUS
+gcoOS_GetMemorySize(
+    IN gcoOS Os,
+    IN gctPOINTER Memory,
+    OUT gctSIZE_T_PTR MemorySize
+    );
+
 /* Free allocated memory. */
 gceSTATUS
 gcoOS_Free(
@@ -692,8 +708,8 @@ gcoOS_FreeContiguous(
 
 #if gcdENABLE_BANK_ALIGNMENT
 gceSTATUS
-gcoOS_GetBankOffsetBytes(
-    IN gcoOS Os,
+gcoSURF_GetBankOffsetBytes(
+    IN gcoSURF Surfce,
     IN gceSURF_TYPE Type,
     IN gctUINT32 Stride,
     IN gctUINT32_PTR Bytes
@@ -942,6 +958,14 @@ gcoOS_ZeroMemory(
     IN gctSIZE_T Bytes
     );
 
+/* Same as strstr. */
+gceSTATUS
+gcoOS_StrStr(
+    IN gctCONST_STRING String,
+    IN gctCONST_STRING SubString,
+    OUT gctSTRING * Output
+    );
+
 /* Find the last occurance of a character inside a string. */
 gceSTATUS
 gcoOS_StrFindReverse(
@@ -1062,6 +1086,11 @@ gcoOS_Compact(
     IN gcoOS Os
     );
 
+gceSTATUS
+gcoOS_AddSignalHandler (
+    IN gceSignalHandlerType SignalHandlerType
+    );
+
 #if VIVANTE_PROFILER /*gcdENABLE_PROFILING*/
 gceSTATUS
 gcoOS_ProfileStart(
@@ -1092,6 +1121,12 @@ gcoOS_QueryVideoMemory(
     OUT gctSIZE_T * ExternalSize,
     OUT gctPHYS_ADDR * ContiguousAddress,
     OUT gctSIZE_T * ContiguousSize
+    );
+
+/* Detect if the process is the executable specified. */
+gceSTATUS
+gcoOS_DetectProcessByName(
+    IN gctCONST_STRING Name
     );
 
 /*----------------------------------------------------------------------------*/
@@ -1328,6 +1363,13 @@ gcoOS_CacheInvalidate(
     IN gctPOINTER Logical,
     IN gctSIZE_T Bytes
     );
+
+gceSTATUS
+gcoOS_MemoryBarrier(
+    IN gcoOS Os,
+    IN gctPOINTER Logical
+    );
+
 
 /*----------------------------------------------------------------------------*/
 /*----- Profile --------------------------------------------------------------*/
@@ -1755,6 +1797,13 @@ gcoSURF_GetFormat(
     OUT gceSURF_FORMAT * Format
     );
 
+/* Get surface tiling. */
+gceSTATUS
+gcoSURF_GetTiling(
+    IN gcoSURF Surface,
+    OUT gceTILING * Tiling
+    );
+
 /* Lock the surface. */
 gceSTATUS
 gcoSURF_Lock(
@@ -1893,6 +1942,13 @@ gcoSURF_CPUCacheOperation(
     IN gceCACHEOPERATION Operation
     );
 
+
+gceSTATUS
+gcoSURF_SetLinearResolveAddress(
+    IN gcoSURF Surface,
+    IN gctUINT32 Address,
+    IN gctPOINTER Memory
+    );
 /******************************************************************************\
 ********************************* gcoDUMP Object ********************************
 \******************************************************************************/
@@ -2077,6 +2133,13 @@ gcoHEAP_Allocate(
     OUT gctPOINTER * Node
     );
 
+gceSTATUS
+gcoHEAP_GetMemorySize(
+    IN gcoHEAP Heap,
+    IN gctPOINTER Memory,
+    OUT gctSIZE_T_PTR MemorySize
+    );
+
 /* Free memory. */
 gceSTATUS
 gcoHEAP_Free(
@@ -2109,8 +2172,19 @@ gcoOS_SetDebugLevel(
     );
 
 void
+gcoOS_GetDebugLevel(
+    OUT gctUINT32_PTR DebugLevel
+    );
+
+void
 gcoOS_SetDebugZone(
     IN gctUINT32 Zone
+    );
+
+void
+gcoOS_GetDebugZone(
+    IN gctUINT32 Zone,
+    OUT gctUINT32_PTR DebugZone
     );
 
 void
@@ -2129,6 +2203,11 @@ void
 gcoOS_SetDebugFile(
     IN gctCONST_STRING FileName
     );
+
+gctFILE
+gcoOS_ReplaceDebugFile(
+    IN gctFILE fp
+	);
 
 /*******************************************************************************
 **
@@ -2759,6 +2838,31 @@ gckOS_DebugFlush(
         gckOS_DebugFlush(__FUNCTION__, __LINE__, DmaAddress)
 #else
 #   define gcmkDEBUGFLUSH(DmaAddress)
+#endif
+
+/*******************************************************************************
+**
+**  gcmDUMP_FRAMERATE
+**
+**      Print average frame rate
+**
+*/
+#if gcdDUMP_FRAMERATE
+    gceSTATUS
+    gcfDumpFrameRate(
+        void
+    );
+#   define gcmDUMP_FRAMERATE        gcfDumpFrameRate
+#elif gcdHAS_ELLIPSES
+#   define gcmDUMP_FRAMERATE(...)
+#else
+    gcmINLINE static void
+    __dummy_dump_frame_rate(
+        void
+        )
+    {
+    }
+#   define gcmDUMP_FRAMERATE        __dummy_dump_frame_rate
 #endif
 
 

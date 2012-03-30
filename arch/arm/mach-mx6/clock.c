@@ -60,8 +60,6 @@ static struct clk pll8_enet_main_clk;
 static struct clk apbh_dma_clk;
 static struct clk openvg_axi_clk;
 static struct clk enfc_clk;
-static struct clk ipu1_di_clk_root;
-static struct clk ipu2_di_clk_root;
 static struct clk usdhc3_clk;
 
 static struct cpu_op *cpu_op_tbl;
@@ -98,6 +96,22 @@ static int cpu_op_nr;
 /* External clock values passed-in by the board code */
 static unsigned long external_high_reference, external_low_reference;
 static unsigned long oscillator_reference, ckih2_reference;
+static unsigned long anaclk_1_reference, anaclk_2_reference;
+
+/* For MX 6DL/S, Video PLL may be used by synchronous display devices,
+ * such as HDMI or LVDS, and also by the EPDC.  If EPDC is in use,
+ * it must use the Video PLL to achieve the clock frequencies it needs.
+ * So if EPDC is in use, the "epdc" string should be added to kernel
+ * parameters, in order to set the EPDC parent clock to the Video PLL.
+ * This will have an impact on the behavior of HDMI and LVDS.
+ */
+int epdc_enabled;
+static int __init epdc_setup(char *__unused)
+{
+	epdc_enabled = 1;
+	return 1;
+}
+__setup("epdc", epdc_setup);
 
 static void __calc_pre_post_dividers(u32 max_podf, u32 div, u32 *pre, u32 *post)
 {
@@ -266,6 +280,28 @@ static unsigned long get_ckih2_reference_clock_rate(struct clk *clk)
 	return ckih2_reference;
 }
 
+static unsigned long _clk_anaclk_1_get_rate(struct clk *clk)
+{
+	return anaclk_1_reference;
+}
+
+static int _clk_anaclk_1_set_rate(struct clk *clk, unsigned long rate)
+{
+	anaclk_1_reference = rate;
+	return 0;
+}
+
+static unsigned long _clk_anaclk_2_get_rate(struct clk *clk)
+{
+	return anaclk_2_reference;
+}
+
+static int _clk_anaclk_2_set_rate(struct clk *clk, unsigned long rate)
+{
+	anaclk_2_reference = rate;
+	return 0;
+}
+
 /* External high frequency clock */
 static struct clk ckih_clk = {
 	__INIT_CLK_DEBUG(ckih_clk)
@@ -286,6 +322,18 @@ static struct clk osc_clk = {
 static struct clk ckil_clk = {
 	__INIT_CLK_DEBUG(ckil_clk)
 	.get_rate = get_low_reference_clock_rate,
+};
+
+static struct clk anaclk_1 = {
+	__INIT_CLK_DEBUG(anaclk_1)
+	.get_rate = _clk_anaclk_1_get_rate,
+	.set_rate = _clk_anaclk_1_set_rate,
+};
+
+static struct clk anaclk_2 = {
+	__INIT_CLK_DEBUG(anaclk_2)
+	.get_rate = _clk_anaclk_2_get_rate,
+	.set_rate = _clk_anaclk_2_set_rate,
 };
 
 static unsigned long pfd_round_rate(struct clk *clk, unsigned long rate)
@@ -787,7 +835,7 @@ static unsigned long  _clk_audio_video_get_rate(struct clk *clk)
 	else
 		pllbase = PLL5_VIDEO_BASE_ADDR;
 
-	if (rev >= IMX_CHIP_REVISION_1_1) {
+	if ((rev >= IMX_CHIP_REVISION_1_1) || cpu_is_mx6dl()) {
 		test_div_sel = (__raw_readl(pllbase)
 			& ANADIG_PLL_AV_TEST_DIV_SEL_MASK)
 			>> ANADIG_PLL_AV_TEST_DIV_SEL_OFFSET;
@@ -829,7 +877,7 @@ static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
 	u32 test_div_sel = 2;
 	u32 control3 = 0;
 
-	if (rev < IMX_CHIP_REVISION_1_1)
+	if ((rev < IMX_CHIP_REVISION_1_1) && !cpu_is_mx6dl())
 		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ;
 	else if (clk == &pll4_audio_main_clk)
 		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ / 4;
@@ -845,7 +893,7 @@ static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
 		pllbase = PLL5_VIDEO_BASE_ADDR;
 
 	pre_div_rate = rate;
-	if (rev >= IMX_CHIP_REVISION_1_1) {
+	if ((rev >= IMX_CHIP_REVISION_1_1) || cpu_is_mx6dl()) {
 		while (pre_div_rate < AUDIO_VIDEO_MIN_CLK_FREQ) {
 			pre_div_rate *= 2;
 			/*
@@ -908,7 +956,7 @@ static unsigned long _clk_audio_video_round_rate(struct clk *clk,
 	unsigned long final_rate;
 	int rev = mx6q_revision();
 
-	if (rev < IMX_CHIP_REVISION_1_1)
+	if ((rev < IMX_CHIP_REVISION_1_1) && !cpu_is_mx6dl())
 		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ;
 	else if (clk == &pll4_audio_main_clk)
 		min_clk_rate = AUDIO_VIDEO_MIN_CLK_FREQ / 4;
@@ -922,7 +970,7 @@ static unsigned long _clk_audio_video_round_rate(struct clk *clk,
 		return AUDIO_VIDEO_MAX_CLK_FREQ;
 
 	pre_div_rate = rate;
-	if (rev >= IMX_CHIP_REVISION_1_1) {
+	if ((rev >= IMX_CHIP_REVISION_1_1) || cpu_is_mx6dl()) {
 		while (pre_div_rate < AUDIO_VIDEO_MIN_CLK_FREQ) {
 			pre_div_rate *= 2;
 			post_div *= 2;
@@ -948,6 +996,38 @@ static unsigned long _clk_audio_video_round_rate(struct clk *clk,
 	return final_rate;
 }
 
+static int _clk_audio_video_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 reg;
+	int mux;
+	void __iomem *pllbase;
+
+	if (clk == &pll4_audio_main_clk)
+		pllbase = PLL4_AUDIO_BASE_ADDR;
+	else
+		pllbase = PLL5_VIDEO_BASE_ADDR;
+
+	reg = __raw_readl(pllbase) & ~ANADIG_PLL_BYPASS_CLK_SRC_MASK;
+	mux = _get_mux6(parent, &osc_clk, &anaclk_1, &anaclk_2,
+				NULL, NULL, NULL);
+	reg |= mux << ANADIG_PLL_BYPASS_CLK_SRC_OFFSET;
+	__raw_writel(reg, pllbase);
+
+	/* Set anaclk_x as input */
+	if (parent == &anaclk_1) {
+		reg = __raw_readl(ANADIG_MISC1_REG);
+		reg |= (ANATOP_LVDS_CLK1_IBEN_MASK &
+				~ANATOP_LVDS_CLK1_OBEN_MASK);
+		__raw_writel(reg, ANADIG_MISC1_REG);
+	} else if (parent == &anaclk_2) {
+		reg = __raw_readl(ANADIG_MISC1_REG);
+		reg |= (ANATOP_LVDS_CLK2_IBEN_MASK &
+				~ANATOP_LVDS_CLK2_OBEN_MASK);
+		__raw_writel(reg, ANADIG_MISC1_REG);
+	}
+
+	return 0;
+}
 
 static struct clk pll4_audio_main_clk = {
 	__INIT_CLK_DEBUG(pll4_audio_main_clk)
@@ -957,8 +1037,8 @@ static struct clk pll4_audio_main_clk = {
 	.set_rate = _clk_audio_video_set_rate,
 	.get_rate = _clk_audio_video_get_rate,
 	.round_rate = _clk_audio_video_round_rate,
+	.set_parent = _clk_audio_video_set_parent,
 };
-
 
 static struct clk pll5_video_main_clk = {
 	__INIT_CLK_DEBUG(pll5_video_main_clk)
@@ -968,6 +1048,7 @@ static struct clk pll5_video_main_clk = {
 	.set_rate = _clk_audio_video_set_rate,
 	.get_rate = _clk_audio_video_get_rate,
 	.round_rate = _clk_audio_video_round_rate,
+	.set_parent = _clk_audio_video_set_parent,
 };
 
 static int _clk_pll_mlb_main_enable(struct clk *clk)
@@ -980,22 +1061,31 @@ static int _clk_pll_mlb_main_enable(struct clk *clk)
 	reg = __raw_readl(pllbase);
 	reg &= ~ANADIG_PLL_BYPASS;
 
-	reg = 0x0da20000;
+	reg = 0x0da20800;
 	__raw_writel(reg, pllbase);
 
-	/* Wait for PLL to lock */
-	if (!WAIT(__raw_readl(pllbase) & ANADIG_PLL_LOCK,
-		SPIN_DELAY))
-		panic("pll enable failed\n");
-
 	return 0;
+}
+
+static void _clk_pll_mlb_main_disable(struct clk *clk)
+{
+	unsigned int reg;
+	void __iomem *pllbase;
+
+	pllbase = _get_pll_base(clk);
+
+	reg = __raw_readl(pllbase);
+
+	reg |= ANADIG_PLL_BYPASS;
+
+	__raw_writel(reg, pllbase);
 }
 
 static struct clk pll6_mlb150_main_clk = {
 	__INIT_CLK_DEBUG(pll6_mlb150_main_clk)
 	.parent = &osc_clk,
 	.enable = _clk_pll_mlb_main_enable,
-	.disable = _clk_pll_disable,
+	.disable = _clk_pll_mlb_main_disable,
 };
 
 static unsigned long _clk_pll7_usb_otg_get_rate(struct clk *clk)
@@ -1259,7 +1349,7 @@ static int _clk_axi_set_parent(struct clk *clk, struct clk *parent)
 		/* Set the AXI_ALT_SEL mux. */
 		reg = __raw_readl(MXC_CCM_CBCDR)
 			& ~MXC_CCM_CBCDR_AXI_ALT_SEL_MASK;
-		reg = ((mux - 1) << MXC_CCM_CBCDR_AXI_ALT_SEL_OFFSET);
+		reg |= ((mux - 1) << MXC_CCM_CBCDR_AXI_ALT_SEL_OFFSET);
 		__raw_writel(reg, MXC_CCM_CBCDR);
 
 		/* Set the AXI_SEL mux */
@@ -1684,7 +1774,6 @@ static int _clk_gpu2d_axi_set_parent(struct clk *clk, struct clk *parent)
 static struct clk gpu2d_axi_clk = {
 	__INIT_CLK_DEBUG(gpu2d_axi_clk)
 	.parent = &axi_clk,
-	.secondary = &openvg_axi_clk,
 	.set_parent = _clk_gpu2d_axi_set_parent,
 };
 
@@ -2009,123 +2098,6 @@ static struct clk ipu1_clk = {
 	.set_rate = _clk_ipu1_set_rate,
 	.get_rate = _clk_ipu1_get_rate,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-};
-
-static int _clk_cko1_clk0_set_parent(struct clk *clk, struct clk *parent)
-{
-	u32 sel, reg;
-
-	if (parent == &pll3_sw_clk)
-		sel = 0;
-	else if (parent == &pll2_528_bus_main_clk)
-		sel = 1;
-	else if (parent == &pll1_sys_main_clk)
-		sel = 2;
-	else if (parent == &pll5_video_main_clk)
-		sel = 3;
-	else if (parent == &axi_clk)
-		sel = 5;
-	else if (parent == &enfc_clk)
-		sel = 6;
-	else if (parent == &ipu1_di_clk_root)
-		sel = 7;
-	else if (parent == &ipu1_di_clk_root)
-		sel = 8;
-	else if (parent == &ipu2_di_clk_root)
-		sel = 9;
-	else if (parent == &ipu2_di_clk_root)
-		sel = 10;
-	else if (parent == &ahb_clk)
-		sel = 11;
-	else if (parent == &ipg_clk)
-		sel = 12;
-	else if (parent == &ipg_perclk)
-		sel = 13;
-	else if (parent == &ckil_clk)
-		sel = 14;
-	else if (parent == &pll4_audio_main_clk)
-		sel = 15;
-	else
-		return -EINVAL;
-
-	reg = __raw_readl(MXC_CCM_CCOSR);
-	reg &= ~MXC_CCM_CCOSR_CKOL_SEL_MASK;
-	reg |= sel << MXC_CCM_CCOSR_CKOL_SEL_OFFSET;
-	__raw_writel(reg, MXC_CCM_CCOSR);
-	return 0;
-}
-
-static unsigned long _clk_cko1_round_rate(struct clk *clk,
-						unsigned long rate)
-{
-	u32 div;
-	u32 parent_rate = clk_get_rate(clk->parent);
-
-	div = parent_rate / rate;
-
-	/* Make sure rate is not greater than the maximum value for the clock.
-	 * Also prevent a div of 0.
-	 */
-	if (div == 0)
-		div++;
-
-	if (div > 8)
-		div = 8;
-
-	return parent_rate / div;
-}
-
-static int _clk_cko1_set_rate(struct clk *clk, unsigned long rate)
-{
-	u32 reg, div;
-	u32 parent_rate = clk_get_rate(clk->parent);
-
-	div = parent_rate / rate;
-	if (div == 0)
-		div++;
-	if (((parent_rate / div) != rate) || (div > 8))
-		return -EINVAL;
-
-	reg = __raw_readl(MXC_CCM_CCOSR);
-	reg &= ~MXC_CCM_CCOSR_CKOL_DIV_MASK;
-	reg |= div << MXC_CCM_CCOSR_CKOL_DIV_OFFSET;
-	__raw_writel(reg, MXC_CCM_CCOSR);
-
-	return 0;
-}
-
-static unsigned long _clk_cko1_get_rate(struct clk *clk)
-{
-	u32 reg, div;
-
-	reg = __raw_readl(MXC_CCM_CCOSR);
-	div = ((reg & MXC_CCM_CCOSR_CKOL_DIV_MASK) >>
-			MXC_CCM_CCOSR_CKOL_DIV_OFFSET) + 1;
-
-	return clk_get_rate(clk->parent) / div;
-}
-
-static int cko1_clk_enable(struct clk *clk)
-{
-	u32 reg;
-	reg = __raw_readl(clk->enable_reg);
-	reg |= clk->enable_shift;
-	__raw_writel(reg, clk->enable_reg);
-
-	return 0;
-}
-
-static struct clk cko1_clk0 = {
-	__INIT_CLK_DEBUG(cko1_clk0)
-	.parent = &ipg_clk,
-	.enable_reg = MXC_CCM_CCOSR,
-	.enable_shift = MXC_CCM_CCOSR_CKOL_EN,
-	.enable = cko1_clk_enable,
-	.disable = _clk_disable,
-	.set_parent = _clk_cko1_clk0_set_parent,
-	.round_rate = _clk_cko1_round_rate,
-	.set_rate = _clk_cko1_set_rate,
-	.get_rate = _clk_cko1_get_rate,
 };
 
 static int _clk_ipu2_set_parent(struct clk *clk, struct clk *parent)
@@ -3495,33 +3467,6 @@ static struct clk esai_clk = {
 	 .round_rate = _clk_esai_round_rate,
 };
 
-static int _clk_enet_enable(struct clk *clk)
-{
-	unsigned int reg;
-
-	/* Enable ENET ref clock */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_BYPASS;
-	reg |= ANADIG_PLL_ENABLE;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	_clk_enable(clk);
-	return 0;
-}
-
-static void _clk_enet_disable(struct clk *clk)
-{
-	unsigned int reg;
-
-	_clk_disable(clk);
-
-	/* Enable ENET ref clock */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg |= ANADIG_PLL_BYPASS;
-	reg &= ~ANADIG_PLL_ENABLE;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-}
-
 static int _clk_enet_set_rate(struct clk *clk, unsigned long rate)
 {
 	unsigned int reg, div = 1;
@@ -3582,8 +3527,8 @@ static struct clk enet_clk[] = {
 	 .parent = &pll8_enet_main_clk,
 	 .enable_reg = MXC_CCM_CCGR1,
 	 .enable_shift = MXC_CCM_CCGRx_CG5_OFFSET,
-	 .enable = _clk_enet_enable,
-	 .disable = _clk_enet_disable,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable,
 	 .set_rate = _clk_enet_set_rate,
 	 .get_rate = _clk_enet_get_rate,
 	.secondary = &enet_clk[1],
@@ -4364,11 +4309,15 @@ static int _clk_gpu2d_core_set_parent(struct clk *clk, struct clk *parent)
 
 static unsigned long _clk_gpu2d_core_get_rate(struct clk *clk)
 {
-	u32 reg, div;
+	u32 reg, div = 1;
 
 	reg = __raw_readl(MXC_CCM_CBCMR);
-	div = ((reg & MXC_CCM_CBCMR_GPU2D_CORE_PODF_MASK) >>
-			MXC_CCM_CBCMR_GPU2D_CORE_PODF_OFFSET) + 1;
+	if (cpu_is_mx6q())
+		div = ((reg & MXC_CCM_CBCMR_GPU2D_CORE_PODF_MASK) >>
+				MXC_CCM_CBCMR_GPU2D_CORE_PODF_OFFSET) + 1;
+	else if (cpu_is_mx6dl())
+		/* on i.mx6dl, gpu2d_core_clk source from gpu3d_shader_clk */
+		return clk_get_rate(clk->parent);
 
 	return clk_get_rate(clk->parent) / div;
 }
@@ -4403,12 +4352,8 @@ static struct clk gpu2d_core_clk[] = {
 	.set_rate = _clk_gpu2d_core_set_rate,
 	.get_rate = _clk_gpu2d_core_get_rate,
 	.round_rate = _clk_gpu2d_core_round_rate,
-	.secondary = &gpu2d_core_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	},
-	{
-	.parent = &gpu2d_axi_clk,
 	.secondary = &mx6fast1_clk,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 };
 
@@ -4577,37 +4522,56 @@ static struct clk pwm_clk[] = {
 	 },
 };
 
-static int _clk_pcie_enable(struct clk *clk)
+static int _clk_sata_enable(struct clk *clk)
 {
 	unsigned int reg;
 
-	/* Clear Power Down and Enable PLLs */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_ENET_POWER_DOWN;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg |= ANADIG_PLL_ENET_EN;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	/* Waiting for the PLL is locked */
-	if (!WAIT(ANADIG_PLL_ENET_LOCK & __raw_readl(PLL8_ENET_BASE_ADDR),
-				SPIN_DELAY))
-		panic("pll8 lock failed\n");
-
-	/* Disable the bypass */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_ENET_BYPASS;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	/*
-	 * Enable SATA ref clock.
-	 * PCIe needs both sides to have the same source of refernce clock,
-	 * The SATA reference clock is taken out on clk out
-	 */
+	/* Enable SATA ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
 	reg |= ANADIG_PLL_ENET_EN_SATA;
 	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	_clk_enable(clk);
+
+	return 0;
+}
+
+static void _clk_sata_disable(struct clk *clk)
+{
+	unsigned int reg;
+
+	_clk_disable(clk);
+
+	/* Disable SATA ref clock */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg &= ~ANADIG_PLL_ENET_EN_SATA;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+}
+
+static struct clk sata_clk[] = {
+	{
+	__INIT_CLK_DEBUG(sata_clk)
+	.parent = &pll8_enet_main_clk,
+	.enable = _clk_sata_enable,
+	.enable_reg = MXC_CCM_CCGR5,
+	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
+	.disable = _clk_sata_disable,
+	.secondary = &sata_clk[1],
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	},
+	{
+	.parent = &ipg_clk,
+	.secondary = &sata_clk[2],
+	},
+	{
+	.parent = &mmdc_ch0_axi_clk[0],
+	.secondary = &mx6per1_clk,
+	},
+};
+
+static int _clk_pcie_enable(struct clk *clk)
+{
+	unsigned int reg;
 
 	/* Activate LVDS CLK1 (the MiniPCIe slot clock input) */
 	reg = __raw_readl(ANADIG_MISC1_REG);
@@ -4638,7 +4602,20 @@ static void _clk_pcie_disable(struct clk *clk)
 
 	_clk_disable(clk);
 
-	/* Disable SATA ref clock */
+	/* De-activate LVDS CLK1 (the MiniPCIe slot clock input) */
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg &= ~ANATOP_LVDS_CLK1_IBEN_MASK;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg &= ~ANATOP_LVDS_CLK1_SRC_SATA;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg &= ~ANATOP_LVDS_CLK1_OBEN_MASK;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
+	/* Disable PCIE ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
 	reg &= ~ANADIG_PLL_ENET_EN_PCIE;
 	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
@@ -4656,71 +4633,18 @@ static struct clk pcie_clk[] = {
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
+	/*
+	 * Enable SATA ref clock.
+	 * PCIe needs both sides to have the same source of refernce clock,
+	 * The SATA reference clock is taken out to link partner.
+	 */
+	.parent = &sata_clk[0],
+	.secondary = &pcie_clk[2],
+	},
+	{
 	.parent = &mmdc_ch0_axi_clk[0],
 	.secondary = &mx6fast1_clk,
 	},
-};
-
-static int _clk_sata_enable(struct clk *clk)
-{
-	unsigned int reg;
-
-	/* Clear Power Down and Enable PLLs */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_ENET_POWER_DOWN;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg |= ANADIG_PLL_ENET_EN;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	/* Waiting for the PLL is locked */
-	if (!WAIT(ANADIG_PLL_ENET_LOCK & __raw_readl(PLL8_ENET_BASE_ADDR),
-				SPIN_DELAY))
-		panic("pll8 lock failed\n");
-
-	/* Disable the bypass */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_ENET_BYPASS;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	/* Enable SATA ref clock */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg |= ANADIG_PLL_ENET_EN_SATA;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-
-	_clk_enable(clk);
-
-	return 0;
-}
-
-static void _clk_sata_disable(struct clk *clk)
-{
-	unsigned int reg;
-
-	_clk_disable(clk);
-
-	/* Disable SATA ref clock */
-	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
-	reg &= ~ANADIG_PLL_ENET_EN_SATA;
-	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
-}
-
-static struct clk sata_clk[] = {
-	{
-	__INIT_CLK_DEBUG(sata_clk)
-	.parent = &ipg_clk,
-	.enable = _clk_sata_enable,
-	.enable_reg = MXC_CCM_CCGR5,
-	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
-	.disable = _clk_sata_disable,
-	.secondary = &sata_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	},
-	{
-	.parent = &mmdc_ch0_axi_clk[0],
-	.secondary = &mx6per1_clk,
-	}
 };
 
 static struct clk usboh3_clk[] = {
@@ -4849,6 +4773,9 @@ static unsigned long _clk_clko_round_rate(struct clk *clk,
 	 */
 	if (div == 0)
 		div++;
+	else if (parent_rate % rate)
+		div++;
+
 	if (div > 8)
 		div = 8;
 	return parent_rate / div;
@@ -5061,7 +4988,6 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "vpu_clk", vpu_clk[0]),
 	_REGISTER_CLOCK(NULL, "ipu1_clk", ipu1_clk),
 	_REGISTER_CLOCK(NULL, "ipu2_clk", ipu2_clk),
-	_REGISTER_CLOCK(NULL, "cko1_clk0", cko1_clk0),
 	_REGISTER_CLOCK("sdhci-esdhc-imx.0", NULL, usdhc1_clk),
 	_REGISTER_CLOCK("sdhci-esdhc-imx.1", NULL, usdhc2_clk),
 	_REGISTER_CLOCK("sdhci-esdhc-imx.2", NULL, usdhc3_clk),
@@ -5129,10 +5055,14 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
 	_REGISTER_CLOCK(NULL, "clko2_clk", clko2_clk),
 	_REGISTER_CLOCK(NULL, "pxp_axi", ipu2_clk),
+	_REGISTER_CLOCK(NULL, "epdc_axi", ipu2_clk),
+	_REGISTER_CLOCK(NULL, "epdc_pix", ipu2_di_clk[1]),
 	_REGISTER_CLOCK("mxs-perfmon.0", "perfmon", perfmon0_clk),
 	_REGISTER_CLOCK("mxs-perfmon.1", "perfmon", perfmon1_clk),
 	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
 	_REGISTER_CLOCK(NULL, "mlb150_clk", mlb150_clk),
+	_REGISTER_CLOCK(NULL, "anaclk_1", anaclk_1),
+	_REGISTER_CLOCK(NULL, "anaclk_2", anaclk_2),
 };
 
 static void clk_tree_init(void)
@@ -5207,10 +5137,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_parent(&ipu2_di_clk[0], &pll5_video_main_clk);
 	clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
 
-	clk_set_parent(&cko1_clk0, &ipg_clk);
-	clk_set_rate(&cko1_clk0, 22000000);
-	clk_enable(&cko1_clk0);
-
 	clk_set_parent(&emi_clk, &pll2_pfd_400M);
 	clk_set_rate(&emi_clk, 200000000);
 
@@ -5221,17 +5147,27 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	if (cpu_is_mx6dl()) {
 		/*on mx6dl, 2d core clock sources from 3d shader core clock*/
 		clk_set_parent(&gpu2d_core_clk[0], &gpu3d_shader_clk);
+		/* on mx6dl gpu3d_axi_clk source from mmdc0 directly */
+		clk_set_parent(&gpu3d_axi_clk, &mmdc_ch0_axi_clk[0]);
 		/* on mx6dl gpu2d_axi_clk source from mmdc0 directly */
 		clk_set_parent(&gpu2d_axi_clk, &mmdc_ch0_axi_clk[0]);
-		gpu2d_axi_clk.secondary = NULL;
+
+		/* set axi_clk parent to pll3_pfd_540M */
+		clk_set_parent(&axi_clk, &pll3_pfd_540M);
+
+		/* on mx6dl, max ipu clock is 274M */
+		clk_set_parent(&ipu1_clk, &pll3_pfd_540M);
+		clk_set_parent(&ldb_di0_clk, &pll2_pfd_352M);
+		clk_set_parent(&ldb_di1_clk, &pll2_pfd_352M);
 	}
 	if (cpu_is_mx6q())
-		 clk_set_parent(&gpu2d_core_clk[0], &pll3_usb_otg_main_clk);
+		clk_set_parent(&gpu2d_core_clk[0], &pll3_usb_otg_main_clk);
 
 	/* PCLK camera - J5 */
 	clk_set_parent(&clko2_clk, &osc_clk);
 	clk_set_rate(&clko2_clk, 2400000);
 
+	clk_set_parent(&clko_clk, &ipg_clk);
 	/*
 	 * FIXME: asrc needs to use asrc_serial(spdif1) clock to do sample
 	 * rate convertion and this clock frequency can not be too high, set
@@ -5296,6 +5232,13 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		/* Here we use OSC 24M as GPT's clock source, no need to
 		enable gpt serial clock*/
 		gpt_clk[0].secondary = NULL;
+	}
+
+	if (cpu_is_mx6dl()) {
+		if (epdc_enabled)
+			clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
+		else
+			clk_set_parent(&ipu2_di_clk[1], &pll3_pfd_540M);
 	}
 
 	base = ioremap(GPT_BASE_ADDR, SZ_4K);

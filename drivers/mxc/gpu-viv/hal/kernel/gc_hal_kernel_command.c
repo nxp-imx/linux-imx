@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -326,6 +326,30 @@ OnError:
 }
 #endif
 
+static gceSTATUS
+_FlushMMU(
+    IN gckCOMMAND Command
+    )
+{
+    gceSTATUS status;
+    gctUINT32 oldValue;
+    gckHARDWARE hardware = Command->kernel->hardware;
+
+    gcmkONERROR(gckOS_AtomicExchange(Command->os,
+                                     hardware->pageTableDirty,
+                                     0,
+                                     &oldValue));
+
+    if (oldValue)
+    {
+        /* Page Table is upated, flush mmu before commit. */
+        gcmkONERROR(gckHARDWARE_FlushMMU(hardware));
+    }
+
+    return gcvSTATUS_OK;
+OnError:
+    return status;
+}
 
 /******************************************************************************\
 ****************************** gckCOMMAND API Code ******************************
@@ -534,7 +558,7 @@ gckCOMMAND_Destroy(
     gcmkVERIFY_OBJECT(Command, gcvOBJ_COMMAND);
 
     /* Stop the command queue. */
-    gcmkVERIFY_OK(gckCOMMAND_Stop(Command));
+    gcmkVERIFY_OK(gckCOMMAND_Stop(Command, gcvFALSE));
 
     for (i = 0; i < gcdCOMMAND_QUEUES; ++i)
     {
@@ -858,7 +882,8 @@ OnError:
 */
 gceSTATUS
 gckCOMMAND_Stop(
-    IN gckCOMMAND Command
+    IN gckCOMMAND Command,
+    IN gctBOOL FromRecovery
     )
 {
     gckHARDWARE hardware;
@@ -925,7 +950,7 @@ gckCOMMAND_Stop(
 #endif
 
         /* Wait for idle. */
-        gcmkONERROR(gckHARDWARE_GetIdle(hardware, gcvTRUE, &idle));
+        gcmkONERROR(gckHARDWARE_GetIdle(hardware, !FromRecovery, &idle));
     }
 
     /* Command queue is no longer running. */
@@ -1001,10 +1026,14 @@ gckCOMMAND_Commit(
     gctSIZE_T linkBytes;
     gctSIZE_T bytes;
     gctUINT32 offset;
+#if gcdNONPAGED_MEMORY_CACHEABLE
     gctPHYS_ADDR entryPhysical;
+#endif
     gctPOINTER entryLogical;
     gctSIZE_T entryBytes;
+#if gcdNONPAGED_MEMORY_CACHEABLE
     gctPHYS_ADDR exitPhysical;
+#endif
     gctPOINTER exitLogical;
     gctSIZE_T exitBytes;
     gctPHYS_ADDR waitLinkPhysical;
@@ -1032,6 +1061,14 @@ gckCOMMAND_Commit(
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Command, gcvOBJ_COMMAND);
+
+    if (Command->kernel->core == gcvCORE_2D)
+    {
+        /* There is no context for 2D. */
+        Context = gcvNULL;
+    }
+
+    gcmkONERROR(_FlushMMU(Command));
 
     /* Acquire the command queue. */
     gcmkONERROR(gckCOMMAND_EnterCommit(Command, gcvFALSE));
@@ -1144,7 +1181,9 @@ gckCOMMAND_Commit(
         }
 
         /* Compute the entry. */
+#if gcdNONPAGED_MEMORY_CACHEABLE
         entryPhysical = (gctUINT8_PTR) commandBufferPhysical + offset;
+#endif
         entryLogical  =                commandBufferLogical  + offset;
         entryBytes    =                commandBufferSize     - offset;
     }
@@ -1177,13 +1216,17 @@ gckCOMMAND_Commit(
                 /* Compute the entry. */
                 if (Command->pipeSelect == gcvPIPE_2D)
                 {
+#if gcdNONPAGED_MEMORY_CACHEABLE
                     entryPhysical = (gctUINT8_PTR) contextBuffer->physical + pipeBytes;
+#endif
                     entryLogical  = (gctUINT8_PTR) contextBuffer->logical  + pipeBytes;
                     entryBytes    =                Context->bufferSize     - pipeBytes;
                 }
                 else
                 {
+#if gcdNONPAGED_MEMORY_CACHEABLE
                     entryPhysical = (gctUINT8_PTR) contextBuffer->physical;
+#endif
                     entryLogical  = (gctUINT8_PTR) contextBuffer->logical;
                     entryBytes    =                Context->bufferSize;
                 }
@@ -1243,13 +1286,17 @@ gckCOMMAND_Commit(
                 /* Compute the entry. */
                 if (Command->pipeSelect == gcvPIPE_2D)
                 {
+#if gcdNONPAGED_MEMORY_CACHEABLE
                     entryPhysical = (gctUINT8_PTR) contextBuffer->physical + pipeBytes;
+#endif
                     entryLogical  = (gctUINT8_PTR) contextBuffer->logical  + pipeBytes;
                     entryBytes    =                Context->entryOffset3D  - pipeBytes;
                 }
                 else
                 {
+#if gcdNONPAGED_MEMORY_CACHEABLE
                     entryPhysical = (gctUINT8_PTR) contextBuffer->physical;
+#endif
                     entryLogical  = (gctUINT8_PTR) contextBuffer->logical;
                     entryBytes    =                Context->entryOffset3D;
                 }
@@ -1319,7 +1366,9 @@ gckCOMMAND_Commit(
                     : Context->entryOffset3D;
 
                 /* Compute the entry. */
+#if gcdNONPAGED_MEMORY_CACHEABLE
                 entryPhysical = (gctUINT8_PTR) contextBuffer->physical + offset;
+#endif
                 entryLogical  = (gctUINT8_PTR) contextBuffer->logical  + offset;
                 entryBytes    =                Context->bufferSize     - offset;
 
@@ -1367,10 +1416,11 @@ gckCOMMAND_Commit(
                 /* Compute the entry. */
                 if (Command->pipeSelect == gcvPIPE_3D)
                 {
+#if gcdNONPAGED_MEMORY_CACHEABLE
                     entryPhysical
                         = (gctUINT8_PTR) contextBuffer->physical
                         + Context->entryOffsetXDFrom3D;
-
+#endif
                     entryLogical
                         = (gctUINT8_PTR) contextBuffer->logical
                         + Context->entryOffsetXDFrom3D;
@@ -1381,10 +1431,11 @@ gckCOMMAND_Commit(
                 }
                 else
                 {
+#if gcdNONPAGED_MEMORY_CACHEABLE
                     entryPhysical
                         = (gctUINT8_PTR) contextBuffer->physical
                         + Context->entryOffsetXDFrom2D;
-
+#endif
                     entryLogical
                         = (gctUINT8_PTR) contextBuffer->logical
                         + Context->entryOffsetXDFrom2D;
@@ -1469,13 +1520,17 @@ gckCOMMAND_Commit(
                 /* Compute the entry. */
                 if (Command->pipeSelect == gcvPIPE_2D)
                 {
+#if gcdNONPAGED_MEMORY_CACHEABLE
                     entryPhysical = (gctUINT8_PTR) contextBuffer->physical + pipeBytes;
+#endif
                     entryLogical  = (gctUINT8_PTR) contextBuffer->logical  + pipeBytes;
                     entryBytes    =                Context->bufferSize     - pipeBytes;
                 }
                 else
                 {
+#if gcdNONPAGED_MEMORY_CACHEABLE
                     entryPhysical = (gctUINT8_PTR) contextBuffer->physical;
+#endif
                     entryLogical  = (gctUINT8_PTR) contextBuffer->logical;
                     entryBytes    =                Context->bufferSize;
                 }
@@ -1525,13 +1580,17 @@ gckCOMMAND_Commit(
                 /* Compute the entry. */
                 if (Command->pipeSelect == gcvPIPE_2D)
                 {
+#if gcdNONPAGED_MEMORY_CACHEABLE
                     entryPhysical = (gctUINT8_PTR) contextBuffer->physical + pipeBytes;
+#endif
                     entryLogical  = (gctUINT8_PTR) contextBuffer->logical  + pipeBytes;
                     entryBytes    =                Context->entryOffset3D  - pipeBytes;
                 }
                 else
                 {
+#if gcdNONPAGED_MEMORY_CACHEABLE
                     entryPhysical = (gctUINT8_PTR) contextBuffer->physical;
+#endif
                     entryLogical  = (gctUINT8_PTR) contextBuffer->logical;
                     entryBytes    =                Context->entryOffset3D;
                 }
@@ -1589,7 +1648,9 @@ gckCOMMAND_Commit(
                     : Context->entryOffset3D;
 
                 /* Compute the entry. */
+#if gcdNONPAGED_MEMORY_CACHEABLE
                 entryPhysical = (gctUINT8_PTR) contextBuffer->physical + offset;
+#endif
                 entryLogical  = (gctUINT8_PTR) contextBuffer->logical  + offset;
                 entryBytes    =                Context->bufferSize     - offset;
 
@@ -1649,7 +1710,9 @@ gckCOMMAND_Commit(
                 }
 
                 /* Compute the entry. */
+#if gcdNONPAGED_MEMORY_CACHEABLE
                 entryPhysical = (gctUINT8_PTR) commandBufferPhysical + offset;
+#endif
                 entryLogical  =                commandBufferLogical  + offset;
                 entryBytes    =                commandBufferSize     - offset;
             }
@@ -1705,7 +1768,9 @@ gckCOMMAND_Commit(
     if (Command->newQueue)
     {
         /* New command queue, jump to the beginning of it. */
+#if gcdNONPAGED_MEMORY_CACHEABLE
         exitPhysical = Command->physical;
+#endif
         exitLogical  = Command->logical;
         exitBytes    = Command->offset + waitLinkBytes;
     }
@@ -1713,7 +1778,9 @@ gckCOMMAND_Commit(
     {
         /* Still within the preexisting command queue, jump to the new
            WAIT/LINK command sequence. */
+#if gcdNONPAGED_MEMORY_CACHEABLE
         exitPhysical = waitLinkPhysical;
+#endif
         exitLogical  = waitLinkLogical;
         exitBytes    = waitLinkBytes;
     }
@@ -2106,7 +2173,9 @@ gckCOMMAND_Execute(
     gctUINT32 waitOffset;
     gctSIZE_T waitBytes;
 
+#if gcdNONPAGED_MEMORY_CACHEABLE
     gctPHYS_ADDR execPhysical;
+#endif
     gctPOINTER execLogical;
     gctSIZE_T execBytes;
 
@@ -2144,7 +2213,9 @@ gckCOMMAND_Execute(
     if (Command->newQueue)
     {
         /* New command queue, jump to the beginning of it. */
+#if gcdNONPAGED_MEMORY_CACHEABLE
         execPhysical = Command->physical;
+#endif
         execLogical  = Command->logical;
         execBytes    = waitLinkOffset + waitLinkBytes;
     }
@@ -2152,7 +2223,9 @@ gckCOMMAND_Execute(
     {
         /* Still within the preexisting command queue, jump directly to the
            reserved area. */
+#if gcdNONPAGED_MEMORY_CACHEABLE
         execPhysical = (gctUINT8 *) Command->physical + Command->offset;
+#endif
         execLogical  = (gctUINT8 *) Command->logical  + Command->offset;
         execBytes    = RequestedBytes + waitLinkBytes;
     }
@@ -2372,6 +2445,11 @@ gckCOMMAND_Stall(
             /* Advance timer. */
             timer += gcdGPU_ADVANCETIMER;
         }
+        else if (status == gcvSTATUS_INTERRUPTED)
+        {
+            gcmkONERROR(gcvSTATUS_INTERRUPTED);
+        }
+
     }
     while (gcmIS_ERROR(status)
 #if gcdGPU_TIMEOUT

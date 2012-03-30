@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ extern "C" {
 #endif
 
 #ifndef GC_ENABLE_LOADTIME_OPT
-#define GC_ENABLE_LOADTIME_OPT      0
+#define GC_ENABLE_LOADTIME_OPT      1
 #endif
 
 /******************************* IR VERSION ******************/
@@ -109,32 +109,32 @@ typedef enum _gcSL_OPCODE
 	gcSL_STORE,							/* 0x37 */
 	gcSL_BARRIER,						/* 0x38 */
 	gcSL_STORE1,						/* 0x39 */
-	/*gcSL_COS_CL,						 0x3A */
-	/*gcSL_TAN_CL,						 0x3B */
-	/*gcSL_ACOS_CL,						 0x3C */
-	/*gcSL_ASIN_CL,						 0x3D */
-	/*gcSL_ATAN_CL,						 0x3E */
-	/*gcSL_SINH_CL,						 0x3F */
-	/*gcSL_COSH_CL,						 0x40 */
-	/*gcSL_TANH_CL,						 0x41 */
-	/*gcSL_ASINH_CL,						 0x42 */
-	/*gcSL_ACOSH_CL,						 0x43 */
-	/*gcSL_ATANH_CL,						 0x44 */
-	/*gcSL_SINPI_CL,						 0x45 */
-	/*gcSL_COSPI_CL,						 0x46 */
-	/*gcSL_TANPI_CL,						 0x47 */
-	/*gcSL_ASINPI_CL,						 0x48 */
-	/*gcSL_ACOSPI_CL,						 0x49 */
-	/*gcSL_ATANPI_CL,						 0x4A */
-	/*gcSL_ATAN2_CL,						 0x4B */
-	/*gcSL_ATAN2PI_CL,					 0x4C */
-	/*gcSL_POW_CL,						 0x4D */
-	/*gcSL_RSQ_CL,						 0x4E */
-	/*gcSL_LOG_CL,						 0x4F */
-	/*gcSL_EXP_CL,						 0x50 */
-	/*gcSL_SQRT_CL,						 0x51 */
-	/*gcSL_CBRT_CL,						 0x52 */
-	gcSL_ADDLO = 0x53,							/* 0x53 */  /* Float only. */
+	gcSL_ATOMADD,						/* 0x3A */
+	gcSL_ATOMSUB,						/* 0x3B */
+	gcSL_ATOMXCHG,						/* 0x3C */
+	gcSL_ATOMCMPXCHG,					/* 0x3D */
+	gcSL_ATOMMIN,						/* 0x3E */
+	gcSL_ATOMMAX,						/* 0x3F */
+	gcSL_ATOMOR,						/* 0x40 */
+	gcSL_ATOMAND,						/* 0x41 */
+	gcSL_ATOMXOR,						/* 0x42 */
+	/*gcSL_UNUSED,						 0x43 */
+	/*gcSL_UNUSED,						 0x44 */
+	/*gcSL_UNUSED,						 0x45 */
+	/*gcSL_UNUSED,						 0x46 */
+	/*gcSL_UNUSED,						 0x47 */
+	/*gcSL_UNUSED,						 0x48 */
+	/*gcSL_UNUSED,						 0x49 */
+	/*gcSL_UNUSED,						 0x4A */
+	/*gcSL_UNUSED,						 0x4B */
+	/*gcSL_UNUSED,					 	 0x4C */
+	/*gcSL_UNUSED,						 0x4D */
+	/*gcSL_UNUSED,						 0x4E */
+	/*gcSL_UNUSED,						 0x4F */
+	/*gcSL_UNUSED,						 0x50 */
+	/*gcSL_UNUSED,						 0x51 */
+	/*gcSL_UNUSED,						 0x52 */
+	gcSL_ADDLO = 0x53,					/* 0x53 */  /* Float only. */
 	gcSL_MULLO,							/* 0x54 */  /* Float only. */
 	gcSL_CONV,							/* 0x55 */
 	gcSL_GETEXP,						/* 0x56 */
@@ -244,6 +244,17 @@ gcSL_TYPE;
 	(gcSL_SWIZZLE_ ## Component4 << 6)   \
 )
 
+#define gcmExtractSwizzle(Swizzle, Index) \
+    ((gcSL_SWIZZLE) ((((Swizzle) >> (Index * 2)) & 0x3)))
+
+#define gcmComposeSwizzle(SwizzleX, SwizzleY, SwizzleZ, SwizzleW) \
+( \
+	((SwizzleX) << 0) | \
+	((SwizzleY) << 2) | \
+	((SwizzleZ) << 4) | \
+	((SwizzleW) << 6)   \
+)
+
 /* Possible swizzle values. */
 typedef enum _gcSL_SWIZZLE
 {
@@ -303,6 +314,12 @@ typedef enum _gcSHADER_KIND {
     gcSHADER_TYPE_PRECOMPILED,
     gcSHADER_KIND_COUNT
 } gcSHADER_KIND;
+
+typedef enum _gcGL_DRIVER_VERSION {
+    gcGL_DRIVER_ES11,    /* OpenGL ES 1.1 */
+    gcGL_DRIVER_ES20,    /* OpenGL ES 2.0 */
+    gcGL_DRIVER_ES30     /* OpenGL ES 3.0 */
+} gcGL_DRIVER_VERSION;
 
 #define gcm
 /* gcSHADER objects. */
@@ -399,6 +416,13 @@ typedef enum _gcSHADER_TYPE
 }
 gcSHADER_TYPE;
 
+typedef enum _gcSHADER_VAR_CATEGORY
+{
+    gcSHADER_VAR_CATEGORY_NORMAL  =  0, /* primitive type and its array */
+    gcSHADER_VAR_CATEGORY_STRUCT  =  1  /* structure */
+}
+gcSHADER_VAR_CATEGORY;
+
 #if GC_ENABLE_LOADTIME_OPT
 
 typedef struct _gcSHADER_TYPE_INFO
@@ -415,9 +439,10 @@ enum gceLTCDumpOption {
     gceLTC_DUMP_UNIFORM      = 0x0001,
     gceLTC_DUMP_EVALUATION   = 0x0002,
     gceLTC_DUMP_EXPESSION    = 0x0004,
+    gceLTC_DUMP_COLLECTING   = 0x0008,
 };
 
-gctBOOL _dumpOption(gctINT Opt);
+gctBOOL gcDumpOption(gctINT Opt);
 
 extern gcSHADER_TYPE_INFO shader_type_info[];
 
@@ -441,10 +466,21 @@ gcSHADER_PRECISION;
 /* Shader flags. */
 typedef enum _gceSHADER_FLAGS
 {
+    gcvSHADER_NO_OPTIMIZATION           = 0x00,
 	gcvSHADER_DEAD_CODE					= 0x01,
 	gcvSHADER_RESOURCE_USAGE			= 0x02,
 	gcvSHADER_OPTIMIZER					= 0x04,
 	gcvSHADER_USE_GL_Z					= 0x08,
+          /*
+                The GC family of GPU cores model GC860 and under require the Z
+                to be from 0 <= z <= w.
+                However, OpenGL specifies the Z to be from -w <= z <= w.  So we
+                have to a conversion here:
+
+                    z = (z + w) / 2.
+
+                So here we append two instructions to the vertex shader.
+            */
 	gcvSHADER_USE_GL_POSITION			= 0x10,
 	gcvSHADER_USE_GL_FACE				= 0x20,
 	gcvSHADER_USE_GL_POINT_COORD		= 0x40,
@@ -494,6 +530,12 @@ gceUNIFORM_FLAGS;
 									 gcvUNIFORM_KERNEL_ARG_SAMPLER | \
 									 gcvUNIFORM_KERNEL_ARG_PRIVATE | \
 									 gcvUNIFORM_KERNEL_ARG_CONSTANT)
+
+typedef enum _gceVARIABLE_UPDATE_FLAGS
+{
+    gceVARIABLE_UPDATE_NOUPDATE = 0,
+    gceVARIABLE_UPDATE_TEMPREG,
+}gceVARIABLE_UPDATE_FLAGS;
 
 /*******************************************************************************
 **  gcSHADER_SetCompilerVersion
@@ -662,7 +704,8 @@ gceSTATUS
 gcSHADER_LoadHeader(
     IN gcSHADER Shader,
     IN gctPOINTER Buffer,
-    IN gctSIZE_T BufferSize
+    IN gctSIZE_T BufferSize,
+    OUT gctUINT32 * ShaderVersion
     );
 
 /*******************************************************************************
@@ -1306,6 +1349,95 @@ gcSHADER_AddVariable(
 	IN gctUINT16 TempRegister
 	);
 
+
+/*******************************************************************************
+**  gcSHADER_AddVariableEx
+********************************************************************************
+**
+**  Add a variable to a gcSHADER object.
+**
+**  INPUT:
+**
+**      gcSHADER Shader
+**          Pointer to a gcSHADER object.
+**
+**      gctCONST_STRING Name
+**          Name of the variable to add.
+**
+**      gcSHADER_TYPE Type
+**          Type of the variable to add.
+**
+**      gctSIZE_T Length
+**          Array length of the variable to add.  'Length' must be at least 1.
+**
+**      gctUINT16 TempRegister
+**          Temporary register index that holds the variable value.
+**
+**      gcSHADER_VAR_CATEGORY varCategory
+**          Variable category, normal or struct.
+**
+**      gctUINT16 numStructureElement
+**          If struct, its element number.
+**
+**      gctINT16 parent
+**          If struct, parent index in gcSHADER.variables.
+**
+**      gctINT16 preSibling
+**          If struct, previous sibling index in gcSHADER.variables.
+**
+**      gctINT16* ThisVarIndex
+**          Returned value about variable index in gcSHADER.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gcSHADER_AddVariableEx(
+    IN gcSHADER Shader,
+    IN gctCONST_STRING Name,
+    IN gcSHADER_TYPE Type,
+    IN gctSIZE_T Length,
+    IN gctUINT16 TempRegister,
+    IN gcSHADER_VAR_CATEGORY varCategory,
+    IN gctUINT16 numStructureElement,
+    IN gctINT16 parent,
+    IN gctINT16 preSibling,
+    OUT gctINT16* ThisVarIndex
+    );
+
+/*******************************************************************************
+**  gcSHADER_UpdateVariable
+********************************************************************************
+**
+**  Update a variable to a gcSHADER object.
+**
+**  INPUT:
+**
+**		gcSHADER Shader
+**			Pointer to a gcSHADER object.
+**
+**		gctUINT Index
+**			Index of variable to retrieve.
+**
+**		gceVARIABLE_UPDATE_FLAGS flag
+**			Flag which property of variable will be updated.
+**
+**      gctUINT16 newValue
+**          New value to update.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gcSHADER_UpdateVariable(
+    IN gcSHADER Shader,
+    IN gctUINT Index,
+    IN gceVARIABLE_UPDATE_FLAGS flag,
+    IN gctUINT16 newValue
+    );
+
 /*******************************************************************************
 **							 gcSHADER_GetVariableCount
 ********************************************************************************
@@ -1571,6 +1703,46 @@ gcSHADER_AddOpcodeConditionalFormatted(
     IN gcSL_OPCODE Opcode,
     IN gcSL_CONDITION Condition,
     IN gcSL_FORMAT Format,
+    IN gctUINT Label
+    );
+
+/*******************************************************************************
+**  gcSHADER_AddOpcodeConditionalFormattedEnable
+**
+**  Add an conditional jump or call opcode to a gcSHADER object.
+**
+**  INPUT:
+**
+**      gcSHADER Shader
+**          Pointer to a gcSHADER object.
+**
+**      gcSL_OPCODE Opcode
+**          Opcode to add.
+**
+**      gcSL_CONDITION Condition
+**          Condition that needs to evaluate to gcvTRUE in order for the opcode to
+**          execute.
+**
+**      gcSL_FORMAT Format
+**          Format of conditional operands
+**
+**      gctUINT8 Enable
+**          Write enable value for the target of the opcode.
+**
+**      gctUINT Label
+**          Target label if 'Condition' evaluates to gcvTRUE.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gcSHADER_AddOpcodeConditionalFormattedEnable(
+    IN gcSHADER Shader,
+    IN gcSL_OPCODE Opcode,
+    IN gcSL_CONDITION Condition,
+    IN gcSL_FORMAT Format,
+    IN gctUINT8 Enable,
     IN gctUINT Label
     );
 
@@ -2181,6 +2353,23 @@ gceSTATUS
 gcSHADER_GetLocalMemorySize(
     IN gcSHADER Shader,
     OUT gctSIZE_T * LocalMemorySize
+    );
+
+
+/*******************************************************************************
+**  gcSHADER_CheckValidity
+**
+**  Check validity for a gcSHADER object.
+**
+**  INPUT:
+**
+**      gcSHADER Shader
+**          Pointer to a gcSHADER object.
+**
+*/
+gceSTATUS
+gcSHADER_CheckValidity(
+    IN gcSHADER Shader
     );
 
 /*******************************************************************************
@@ -3202,7 +3391,6 @@ gceSTATUS
 gcInvokeThreadWalker(
     IN gcsTHREAD_WALKER_INFO_PTR Info
     );
-
 
 #ifdef __cplusplus
 }

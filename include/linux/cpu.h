@@ -163,6 +163,7 @@ static inline void cpu_hotplug_driver_unlock(void)
 #endif		/* CONFIG_HOTPLUG_CPU */
 
 #ifdef CONFIG_PM_SLEEP_SMP
+
 extern int suspend_cpu_hotplug;
 
 extern int disable_nonboot_cpus(void);

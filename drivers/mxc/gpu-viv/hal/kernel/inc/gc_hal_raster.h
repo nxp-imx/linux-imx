@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -918,6 +918,12 @@ gco2D_SetROP(
     IN gco2D Engine,
     IN gctUINT8 FgRop,
     IN gctUINT8 BgRop
+    );
+
+gceSTATUS
+gco2D_SetGdiStretchMode(
+    IN gco2D Engine,
+    IN gctBOOL Enable
     );
 
 #ifdef __cplusplus

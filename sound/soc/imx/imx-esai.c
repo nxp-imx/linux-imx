@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -280,16 +280,12 @@ static int imx_esai_startup(struct snd_pcm_substream *substream,
 	if (!(local_esai->imx_esai_txrx_state & IMX_DAI_ESAI_TXRX)) {
 		clk_enable(esai->clk);
 
-		writel(ESAI_ECR_ERST, esai->base + ESAI_ECR);
-		writel(ESAI_ECR_ESAIEN, esai->base + ESAI_ECR);
-
 		writel(ESAI_GPIO_ESAI, esai->base + ESAI_PRRC);
 		writel(ESAI_GPIO_ESAI, esai->base + ESAI_PCRC);
 	}
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		local_esai->imx_esai_txrx_state |= IMX_DAI_ESAI_TX;
-		writel(ESAI_TCR_TPR, esai->base + ESAI_TCR);
 	} else {
 		local_esai->imx_esai_txrx_state |= IMX_DAI_ESAI_RX;
 		writel(ESAI_RCR_RPR, esai->base + ESAI_RCR);
@@ -458,7 +454,6 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			tfcr |= ESAI_TFCR_TFEN;
 			writel(tfcr, esai->base + ESAI_TFCR);
-			reg &= ~ESAI_TCR_TPR;
 			reg |= ESAI_TCR_TE(substream->runtime->channels);
 			writel(reg, esai->base + ESAI_TCR);
 		} else {
@@ -478,7 +473,6 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			reg &= ~ESAI_TCR_TE(substream->runtime->channels);
 			writel(reg, esai->base + ESAI_TCR);
-			reg |= ESAI_TCR_TPR;
 			writel(reg, esai->base + ESAI_TCR);
 			tfcr |= ESAI_TFCR_TFR;
 			tfcr &= ~ESAI_TFCR_TFEN;
@@ -660,6 +654,9 @@ static int imx_esai_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to add platform device\n");
 		goto failed_pdev_add;
 	}
+
+	writel(ESAI_ECR_ERST, esai->base + ESAI_ECR);
+	writel(ESAI_ECR_ESAIEN, esai->base + ESAI_ECR);
 
 	return 0;
 

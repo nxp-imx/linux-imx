@@ -40,13 +40,13 @@
 #define PFUZE100_I2C_ADDR         (0x08)
  /*SWBST*/
 #define PFUZE100_SW1ASTANDBY	33
-#define PFUZE100_SW1ASTANDBY_STBY_VAL	(0x14)
+#define PFUZE100_SW1ASTANDBY_STBY_VAL	(0x18)
 #define PFUZE100_SW1ASTANDBY_STBY_M	(0x3f<<0)
 #define PFUZE100_SW1BSTANDBY   40
-#define PFUZE100_SW1BSTANDBY_STBY_VAL  (0x14)
+#define PFUZE100_SW1BSTANDBY_STBY_VAL  (0x18)
 #define PFUZE100_SW1BSTANDBY_STBY_M    (0x3f<<0)
 #define PFUZE100_SW1CSTANDBY	47
-#define PFUZE100_SW1CSTANDBY_STBY_VAL	(0x14)
+#define PFUZE100_SW1CSTANDBY_STBY_VAL	(0x18)
 #define PFUZE100_SW1CSTANDBY_STBY_M	(0x3f<<0)
 #define PFUZE100_SW2STANDBY     54
 #define PFUZE100_SW2STANDBY_STBY_VAL    0x0
@@ -66,8 +66,9 @@
 
 
 static struct regulator_consumer_supply sw2_consumers[] = {
-       {
-	.supply = "GEN_3V3",
+	{
+		.supply	   = "MICVDD",
+		.dev_name   = "0-001a",
 	}
 };
 static struct regulator_consumer_supply sw4_consumers[] = {
@@ -91,8 +92,25 @@ static struct regulator_consumer_supply vgen2_consumers[] = {
 	}
 };
 static struct regulator_consumer_supply vgen4_consumers[] = {
-       {
-	.supply = "VGEN4_1V8",
+	{
+		.supply	   = "DBVDD",
+		.dev_name   = "0-001a",
+	},
+	{
+		.supply	   = "AVDD",
+		.dev_name   = "0-001a",
+	},
+	{
+		.supply	   = "DCVDD",
+		.dev_name   = "0-001a",
+	},
+	{
+		.supply	   = "CPVDD",
+		.dev_name   = "0-001a",
+	},
+	{
+		.supply	   = "PLLVDD",
+		.dev_name   = "0-001a",
 	}
 };
 static struct regulator_consumer_supply vgen5_consumers[] = {
@@ -264,8 +282,6 @@ static struct regulator_init_data vgen1_init = {
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
 			.valid_modes_mask = 0,
-			.always_on = 0,
-			.boot_on = 0,
 			},
 	.num_consumer_supplies = ARRAY_SIZE(vgen1_consumers),
 	.consumer_supplies = vgen1_consumers,
@@ -298,8 +314,6 @@ static struct regulator_init_data vgen3_init = {
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
 			.valid_modes_mask = 0,
-			.always_on = 0,
-			.boot_on = 0,
 			},
 };
 
@@ -311,6 +325,8 @@ static struct regulator_init_data vgen4_init = {
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
 			.valid_modes_mask = 0,
+			.always_on = 1,
+			.boot_on = 1,
 			},
 	.num_consumer_supplies = ARRAY_SIZE(vgen4_consumers),
 	.consumer_supplies = vgen4_consumers,
@@ -324,6 +340,8 @@ static struct regulator_init_data vgen5_init = {
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE |
 			REGULATOR_CHANGE_STATUS,
 			.valid_modes_mask = 0,
+			.always_on = 1,
+			.boot_on = 1,
 			},
 	.num_consumer_supplies = ARRAY_SIZE(vgen5_consumers),
 	.consumer_supplies = vgen5_consumers,
@@ -345,11 +363,6 @@ static struct regulator_init_data vgen6_init = {
 static int pfuze100_init(struct mc_pfuze *pfuze)
 {
 	int ret;
-	ret = pfuze_reg_rmw(pfuze, PFUZE100_SWBSTCON1,
-			    PFUZE100_SWBSTCON1_SWBSTMOD_M,
-			    PFUZE100_SWBSTCON1_SWBSTMOD_VAL);
-	if (ret)
-		goto err;
 	ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1ASTANDBY,
 			    PFUZE100_SW1ASTANDBY_STBY_M,
 			    PFUZE100_SW1ASTANDBY_STBY_VAL);

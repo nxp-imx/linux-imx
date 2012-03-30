@@ -385,6 +385,15 @@ void __cpuinit gic_enable_ppi(unsigned int irq)
 	gic_unmask_irq(irq_get_irq_data(irq));
 	local_irq_restore(flags);
 }
+void __cpuinit gic_disable_ppi(unsigned int irq)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+	irq_set_status_flags(irq, IRQ_NOPROBE);
+	gic_mask_irq(irq_get_irq_data(irq));
+	local_irq_restore(flags);
+}
 
 void save_gic_cpu_state(unsigned int gic_nr, struct gic_cpu_state *gcs)
 {

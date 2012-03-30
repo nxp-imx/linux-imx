@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -28,6 +28,7 @@
 #include <linux/smsc911x.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/regulator/consumer.h>
+#include <sound/pcm.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -254,6 +255,12 @@ static struct mxc_audio_platform_data mxc_surround_audio_data = {
 	.sysclk = 24576000,
 };
 
+static struct mxc_audio_codec_platform_data cs42888_data = {
+	.rates = (SNDRV_PCM_RATE_48000 |
+			SNDRV_PCM_RATE_96000 |
+			SNDRV_PCM_RATE_192000),
+};
+
 static int imx53_init_audio(void)
 {
 	ard_gpio_activate_esai_ports();
@@ -320,6 +327,7 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
     .type = "cs42888",
 	.addr = 0x48,
+	.platform_data = (void *)&cs42888_data,
 	},
 };
 

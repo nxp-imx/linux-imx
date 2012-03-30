@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -167,6 +167,7 @@ typedef enum _gcePRIMITIVE
     gcvPRIMITIVE_TRIANGLE_LIST,
     gcvPRIMITIVE_TRIANGLE_STRIP,
     gcvPRIMITIVE_TRIANGLE_FAN,
+    gcvPRIMITIVE_RECTANGLE,
 }
 gcePRIMITIVE;
 
@@ -383,6 +384,11 @@ gceSTATUS
 gcoSURF_SetResolvability(
     IN gcoSURF Surface,
     IN gctBOOL Resolvable
+    );
+
+gceSTATUS
+gcoSURF_IsRenderable(
+    IN gcoSURF Surface
     );
 
 /******************************************************************************\

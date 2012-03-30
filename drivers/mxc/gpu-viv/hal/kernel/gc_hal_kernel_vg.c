@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -111,6 +111,7 @@ gceSTATUS gckVGKERNEL_Construct(
         /* Return pointer to the gckKERNEL object. */
         *Kernel = kernel;
 
+        gcmkFOOTER_ARG("*Kernel=0x%x", *Kernel);
         /* Success. */
         return gcvSTATUS_OK;
     }
@@ -142,6 +143,7 @@ gceSTATUS gckVGKERNEL_Construct(
         gcmkVERIFY_OK(gckOS_Free(Os, kernel));
     }
 
+    gcmkFOOTER();
     /* Return status. */
     return status;
 }

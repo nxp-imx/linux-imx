@@ -30,6 +30,7 @@
 #include <asm/mach/map.h>
 #include <mach/hardware.h>
 #include <mach/imx-pm.h>
+#include <mach/arc_otg.h>
 #include <asm/hardware/cache-l2x0.h>
 #include <asm/hardware/gic.h>
 #ifdef CONFIG_ARCH_MX6Q
@@ -90,7 +91,68 @@ static unsigned long iram_paddr, cpaddr;
 
 static u32 ccm_ccr, ccm_clpcr, scu_ctrl;
 static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu, gpc_ctr;
-static u32 anatop[2], ccgr1, ccgr6;
+static u32 anatop[2], ccgr1, ccgr2, ccgr3, ccgr6;
+static u32 ccm_analog_pfd528;
+static bool usb_vbus_wakeup_enabled;
+
+
+/*
+ * The USB VBUS wakeup should be disabled to avoid vbus wake system
+ * up due to vbus comparator is closed at weak 2p5 mode.
+ */
+static void usb_power_down_handler(void)
+{
+	u32 temp;
+	bool usb_oh3_clk_already_on;
+	/* enable usb oh3 clock if needed*/
+	temp = __raw_readl(MXC_CCM_CCGR6);
+	usb_oh3_clk_already_on =	\
+		((temp & (MXC_CCM_CCGRx_CG_MASK << MXC_CCM_CCGRx_CG0_OFFSET))  \
+		== (MXC_CCM_CCGRx_CG_MASK << MXC_CCM_CCGRx_CG0_OFFSET));
+	if (!usb_oh3_clk_already_on) {
+		temp |= MXC_CCM_CCGRx_CG_MASK << MXC_CCM_CCGRx_CG0_OFFSET;
+		__raw_writel(temp, MXC_CCM_CCGR6);
+	}
+	/* disable vbus wakeup */
+	usb_vbus_wakeup_enabled = !!(USB_OTG_CTRL & UCTRL_WKUP_VBUS_EN);
+	if (usb_vbus_wakeup_enabled) {
+		USB_OTG_CTRL &= ~UCTRL_WKUP_VBUS_EN;
+	}
+	/* disable usb oh3 clock */
+	if (!usb_oh3_clk_already_on) {
+		temp = __raw_readl(MXC_CCM_CCGR6);
+		temp &= ~(MXC_CCM_CCGRx_CG_MASK << MXC_CCM_CCGRx_CG0_OFFSET);
+		__raw_writel(temp, MXC_CCM_CCGR6);
+	}
+}
+
+static void usb_power_up_handler(void)
+{
+	/* enable vbus wakeup at runtime if needed */
+	if (usb_vbus_wakeup_enabled) {
+		u32 temp;
+		bool usb_oh3_clk_already_on;
+		/* enable usb oh3 clock if needed*/
+		temp = __raw_readl(MXC_CCM_CCGR6);
+		usb_oh3_clk_already_on =	\
+			((temp & (MXC_CCM_CCGRx_CG_MASK << MXC_CCM_CCGRx_CG0_OFFSET))  \
+			== (MXC_CCM_CCGRx_CG_MASK << MXC_CCM_CCGRx_CG0_OFFSET));
+		if (!usb_oh3_clk_already_on) {
+			temp |= MXC_CCM_CCGRx_CG_MASK << MXC_CCM_CCGRx_CG0_OFFSET;
+			__raw_writel(temp, MXC_CCM_CCGR6);
+		}
+
+		/* restore usb wakeup enable setting */
+		USB_OTG_CTRL |= UCTRL_WKUP_VBUS_EN;
+
+		/* disable usb oh3 clock */
+		if (!usb_oh3_clk_already_on) {
+			temp = __raw_readl(MXC_CCM_CCGR6);
+			temp &= ~(MXC_CCM_CCGRx_CG_MASK << MXC_CCM_CCGRx_CG0_OFFSET);
+			__raw_writel(temp, MXC_CCM_CCGR6);
+		}
+	}
+}
 
 static void gpu_power_down(void)
 {
@@ -103,8 +165,11 @@ static void gpu_power_down(void)
 	reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
 	__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
 	/* disable clocks */
-	__raw_writel(ccgr1 & 0xf0ffffff, MXC_CCM_CCGR1);
-	__raw_writel(ccgr6 & 0x00003fff, MXC_CCM_CCGR6);
+	__raw_writel(ccgr1 &
+		     ~MXC_CCM_CCGRx_CG12_MASK &
+		     ~MXC_CCM_CCGRx_CG13_MASK, MXC_CCM_CCGR1);
+	__raw_writel(ccgr3 & ~MXC_CCM_CCGRx_CG15_MASK, MXC_CCM_CCGR3);
+	__raw_writel(ccgr6 & ~MXC_CCM_CCGRx_CG7_MASK, MXC_CCM_CCGR6);
 	/* power off pu */
 	reg = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
 	reg &= ~0x0003fe00;
@@ -122,8 +187,24 @@ static void gpu_power_up(void)
 	mdelay(10);
 
 	/* enable clocks */
-	__raw_writel(ccgr1 | 0x0f000000, MXC_CCM_CCGR1);
-	__raw_writel(ccgr6 | 0x0000c000, MXC_CCM_CCGR6);
+	/* PLL2 PFD0 and PFD1 clock enable */
+	__raw_writel(ccm_analog_pfd528 &
+		     ~ANADIG_PFD0_CLKGATE &
+		     ~ANADIG_PFD1_CLKGATE, PFD_528_BASE_ADDR);
+	/* gpu3d and gpu2d clock enable */
+	__raw_writel(ccgr1 |
+		     MXC_CCM_CCGRx_CG12_MASK |
+		     MXC_CCM_CCGRx_CG13_MASK, MXC_CCM_CCGR1);
+	/* tzasrc1 clock enable for gpu3d core clock */
+	__raw_writel(ccgr2 | MXC_CCM_CCGRx_CG11_MASK, MXC_CCM_CCGR2);
+	/* openvgaxi clock enable, mmdc_core_ipg_clk_p0 clock and
+	mmdc_core_aclk_fast_core_p0 clock enable for gpu3d core clock */
+	__raw_writel(ccgr3 |
+		     MXC_CCM_CCGRx_CG15_MASK |
+		     MXC_CCM_CCGRx_CG12_MASK |
+		     MXC_CCM_CCGRx_CG10_MASK, MXC_CCM_CCGR3);
+	/* vpu clock enable */
+	__raw_writel(ccgr6 | MXC_CCM_CCGRx_CG7_MASK, MXC_CCM_CCGR6);
 
 	/* enable power up request */
 	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
@@ -141,7 +222,10 @@ static void mx6_suspend_store(void)
 	/* save some settings before suspend */
 	ccm_ccr = __raw_readl(MXC_CCM_CCR);
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR);
+	ccm_analog_pfd528 = __raw_readl(PFD_528_BASE_ADDR);
 	ccgr1 = __raw_readl(MXC_CCM_CCGR1);
+	ccgr2 = __raw_readl(MXC_CCM_CCGR2);
+	ccgr3 = __raw_readl(MXC_CCM_CCGR3);
 	ccgr6 = __raw_readl(MXC_CCM_CCGR6);
 	scu_ctrl = __raw_readl(scu_base + SCU_CTRL_OFFSET);
 	gpc_imr[0] = __raw_readl(gpc_base + GPC_IMR1_OFFSET);
@@ -179,7 +263,10 @@ static void mx6_suspend_restore(void)
 	__raw_writel(gpc_cpu, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
 
 	__raw_writel(ccgr1, MXC_CCM_CCGR1);
+	__raw_writel(ccgr2, MXC_CCM_CCGR2);
+	__raw_writel(ccgr3, MXC_CCM_CCGR3);
 	__raw_writel(ccgr6, MXC_CCM_CCGR6);
+	__raw_writel(ccm_analog_pfd528, PFD_528_BASE_ADDR);
 }
 
 static int mx6_suspend_enter(suspend_state_t state)
@@ -209,6 +296,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 	switch (state) {
 	case PM_SUSPEND_MEM:
 		gpu_power_down();
+		usb_power_down_handler();
 		mxc_cpu_lp_set(ARM_POWER_OFF);
 		break;
 	case PM_SUSPEND_STANDBY:
@@ -238,6 +326,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 			/* restore gic registers */
 			restore_gic_dist_state(0, &gds);
 			restore_gic_cpu_state(0, &gcs);
+			usb_power_up_handler();
 			gpu_power_up();
 		}
 		mx6_suspend_restore();

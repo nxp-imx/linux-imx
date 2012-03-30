@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,6 +34,51 @@
 static struct clk *usb_oh3_clk;
 extern int clk_get_usecount(struct clk *clk);
 static struct fsl_usb2_platform_data usbh1_config;
+
+static void fsl_platform_h1_set_usb_phy_dis(
+		struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	u32 usb_phy_ctrl_dcdt = 0;
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+	usb_phy_ctrl_dcdt = __raw_readl(
+			MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL) &
+			BM_USBPHY_CTRL_ENHOSTDISCONDETECT;
+	if (enable) {
+		if (usb_phy_ctrl_dcdt == 0) {
+			__raw_writel(BM_ANADIG_USB2_PLL_480_CTRL_EN_USB_CLKS,
+					anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_CLR);
+
+			__raw_writel(BM_USBPHY_PWD_RXPWDENV,
+					MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_PWD_SET);
+
+			udelay(300);
+
+			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				MX6_IO_ADDRESS(pdata->phy_regs)
+				+ HW_USBPHY_CTRL_SET);
+
+			UH1_USBSTS |= (1 << 7);
+
+			while ((UH1_USBSTS & (1 << 7)) == 0)
+				;
+
+			udelay(2);
+
+			__raw_writel(BM_USBPHY_PWD_RXPWDENV,
+					MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_PWD_CLR);
+
+			__raw_writel(BM_ANADIG_USB2_PLL_480_CTRL_EN_USB_CLKS,
+					anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_SET);
+
+		}
+	} else {
+		if (usb_phy_ctrl_dcdt
+				== BM_USBPHY_CTRL_ENHOSTDISCONDETECT)
+			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				MX6_IO_ADDRESS(pdata->phy_regs)
+				+ HW_USBPHY_CTRL_CLR);
+	}
+}
 
 static void usbh1_internal_phy_clock_gate(bool on)
 {
@@ -142,16 +187,38 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 		USB_H1_CTRL |= (UCTRL_OWIE);
 	} else {
 		USB_H1_CTRL &= ~(UCTRL_OWIE);
+		__raw_writel(BM_USBPHY_CTRL_ENIDCHG_WKUP | BM_USBPHY_CTRL_ENVBUSCHG_WKUP
+				| BM_USBPHY_CTRL_ENDPDMCHG_WKUP, phy_reg + HW_USBPHY_CTRL_CLR);
 		/* The interrupt must be disabled for at least 3
 		* cycles of the standby clock(32k Hz) , that is 0.094 ms*/
 		udelay(100);
 	}
 }
 
-static void usbh1_platform_suspend(struct fsl_usb2_platform_data *pdata)
+static void usbh1_platform_rh_suspend(struct fsl_usb2_platform_data *pdata)
 {
 	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY1_BASE_ADDR);
 	u32 tmp;
+	u32 index = 0;
+
+	/* before we set and then clear PWD bit,
+	 * we must wait LS to be J */
+	if ((UH1_PORTSC1 & (3 << 26)) != (1 << 26)) {
+		while (((UH1_PORTSC1 & PORTSC_LS_MASK) != PORTSC_LS_J_STATE) &&
+				(index < 1000)) {
+			index++;
+			udelay(4);
+		}
+	} else {
+		while (((UH1_PORTSC1 & PORTSC_LS_MASK) != PORTSC_LS_K_STATE) &&
+				(index < 1000)) {
+			index++;
+			udelay(4);
+		}
+	}
+
+	if (index >= 1000)
+		printk(KERN_INFO "%s big error\n", __func__);
 
 	tmp = (BM_USBPHY_PWD_TXPWDFS
 		| BM_USBPHY_PWD_TXPWDIBIAS
@@ -161,21 +228,30 @@ static void usbh1_platform_suspend(struct fsl_usb2_platform_data *pdata)
 		| BM_USBPHY_PWD_RXPWDDIFF
 		| BM_USBPHY_PWD_RXPWDRX);
 	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_SET);
+
+	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_CLR);
+
+	fsl_platform_h1_set_usb_phy_dis(pdata, 0);
 }
 
-static void usbh1_platform_resume(struct fsl_usb2_platform_data *pdata)
+static void usbh1_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
 {
-	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY1_BASE_ADDR);
-	u32 tmp;
+	u32 index = 0;
 
-	tmp = (BM_USBPHY_PWD_TXPWDFS
-		| BM_USBPHY_PWD_TXPWDIBIAS
-		| BM_USBPHY_PWD_TXPWDV2I
-		| BM_USBPHY_PWD_RXPWDENV
-		| BM_USBPHY_PWD_RXPWD1PT1
-		| BM_USBPHY_PWD_RXPWDDIFF
-		| BM_USBPHY_PWD_RXPWDRX);
-	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_CLR);
+	if ((UH1_PORTSC1 & (3 << 26)) != (2 << 26))
+		return ;
+
+	while ((UH1_PORTSC1 & PORTSC_PORT_FORCE_RESUME)
+			&& (index < 1000)) {
+		msleep(1);
+		index++;
+	}
+
+	if (index >= 1000)
+		printk(KERN_INFO "%s big error\n", __func__);
+
+	msleep(1);
+	fsl_platform_h1_set_usb_phy_dis(pdata, 1);
 }
 
 static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
@@ -221,7 +297,7 @@ static enum usb_wakeup_event _is_usbh1_wakeup(struct fsl_usb2_platform_data *pda
 	u32 wakeup_req = USB_H1_CTRL & UCTRL_OWIR;
 
 	if (wakeup_req)
-		return !WAKEUP_EVENT_INVALID;
+		return WAKEUP_EVENT_DPDM;
 	pr_err("host1, %s, invalid wake up\n", __func__);
 	return WAKEUP_EVENT_INVALID;
 }
@@ -230,7 +306,6 @@ static void h1_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
 	_wake_up_enable(pdata, false);
 	_phy_lowpower_suspend(pdata, false);
-	pdata->wakeup_event = 1;
 }
 
 static void usbh1_wakeup_event_clear(void)
@@ -254,8 +329,9 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.power_budget = 500,	/* 500 mA max power */
 	.wake_up_enable = _wake_up_enable,
 	.usb_clock_for_pm  = usbh1_clock_gate,
-	.platform_suspend  = usbh1_platform_suspend,
-	.platform_resume   = usbh1_platform_resume,
+	.platform_rh_suspend  = usbh1_platform_rh_suspend,
+	.platform_rh_resume   = usbh1_platform_rh_resume,
+	.platform_set_disconnect_det = fsl_platform_h1_set_usb_phy_dis,
 	.phy_lowpower_suspend = _phy_lowpower_suspend,
 	.is_wakeup_event = _is_usbh1_wakeup,
 	.wakeup_handler = h1_wakeup_handler,

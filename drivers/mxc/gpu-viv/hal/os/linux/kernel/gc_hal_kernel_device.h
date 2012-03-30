@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2011 by Vivante Corp.
+*    Copyright (C) 2005 - 2012 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -82,11 +82,15 @@ typedef struct _gckGALDEVICE
     /* Core mapping */
     gceCORE             coreMapping[8];
 
+    /* States before suspend. */
+    gceCHIPPOWERSTATE   statesStored[gcdCORE_COUNT];
+
     /* Clock management.*/
     struct clk         *clk_3d_core;
     struct clk         *clk_3d_shader;
     struct clk         *clk_2d_core;
-    gctBOOL clk_flag[gcdCORE_COUNT];
+    struct clk         *clk_2d_axi;
+    struct clk         *clk_vg_axi;
 
 #if gcdPOWEROFF_TIMEOUT
     struct task_struct  *pmThreadCtxts[gcdCORE_COUNT];

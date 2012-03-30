@@ -485,6 +485,12 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 
 	ipu_reset(ipu);
 
+	/* Enable error interrupts by default */
+	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(5));
+	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(6));
+	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(9));
+	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(10));
+
 	ipu_disp_init(ipu);
 
 	/* Set sync refresh channels and CSI->mem channel as high priority */
@@ -629,6 +635,12 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 	_ipu_get(ipu);
 
 	_ipu_lock(ipu);
+
+	/* Re-enable error interrupts every time a channel is initialized */
+	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(5));
+	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(6));
+	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(9));
+	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(10));
 
 	if (ipu->channel_init_mask & (1L << IPU_CHAN_ID(channel))) {
 		dev_warn(ipu->dev, "Warning: channel already initialized %d\n",
