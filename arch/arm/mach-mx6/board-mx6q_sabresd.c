@@ -397,6 +397,11 @@ static struct regulator_consumer_supply sabresd_vwm8962_consumers[] = {
 };
 
 static struct regulator_init_data sabresd_vwm8962_init = {
+	.constraints = {
+		.name = "SPKVDD",
+		.valid_ops_mask =  REGULATOR_CHANGE_STATUS,
+		.boot_on = 1,
+	},
 	.num_consumer_supplies = ARRAY_SIZE(sabresd_vwm8962_consumers),
 	.consumer_supplies = sabresd_vwm8962_consumers,
 };
