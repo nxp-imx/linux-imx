@@ -86,7 +86,6 @@
 #define SABRESD_USR_DEF_RED_LED	IMX_GPIO_NR(1, 2)
 #define SABRESD_VOLUME_UP	IMX_GPIO_NR(1, 4)
 #define SABRESD_VOLUME_DN	IMX_GPIO_NR(1, 5)
-#define SABRESD_MPCIE_3V3_EN	IMX_GPIO_NR(1, 6)
 #define SABRESD_MICROPHONE_DET	IMX_GPIO_NR(1, 9)
 #define SABRESD_CSI0_PWN	IMX_GPIO_NR(1, 16)
 #define SABRESD_CSI0_RST	IMX_GPIO_NR(1, 17)
@@ -1296,16 +1295,16 @@ static int __init imx6q_init_audio(void)
 	return 0;
 }
 
-static void mpcie_3v3_power(bool on)
+static void pcie_3v3_power(bool on)
 {
-	/* Enable/disable MPCIE_3V3 */
-	gpio_request(SABRESD_MPCIE_3V3_EN, "mpcie_3v3_en");
-	gpio_direction_output(SABRESD_MPCIE_3V3_EN, 1);
+	/* Enable/disable PCIE_3V3 */
+	gpio_request(SABRESD_PCIE_PWR_EN, "pcie_3v3_en");
+	gpio_direction_output(SABRESD_PCIE_PWR_EN, 1);
 
 	if (on)
-		gpio_set_value(SABRESD_MPCIE_3V3_EN, 1);
+		gpio_set_value(SABRESD_PCIE_PWR_EN, 1);
 	else
-		gpio_set_value(SABRESD_MPCIE_3V3_EN, 0);
+		gpio_set_value(SABRESD_PCIE_PWR_EN, 0);
 
 }
 
@@ -1632,7 +1631,7 @@ static void __init mx6_sabresd_board_init(void)
 	gpio_direction_output(SABRESD_AUX_5V_EN, 1);
 	gpio_set_value(SABRESD_AUX_5V_EN, 1);
 
-	mpcie_3v3_power(true);
+	pcie_3v3_power(true);
 	gps_power_on(true);
 
 	/* Register charger chips */
