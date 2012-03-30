@@ -223,6 +223,12 @@ static iomux_v3_cfg_t mx6dl_sabresd_pads[] = {
 	/* power off */
 	MX6DL_PAD_EIM_D29__GPIO_3_29,
 
+	/* CAP_TCH_INT1 */
+	MX6DL_PAD_NANDF_CLE__GPIO_6_7,
+
+	/* CAP_TCH_INT0 */
+	MX6DL_PAD_NANDF_ALE__GPIO_6_8,
+
 	/* AUX_5V Enable */
 	MX6DL_PAD_NANDF_RB0__GPIO_6_10,
 
