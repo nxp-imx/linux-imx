@@ -40,7 +40,6 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/* ECSPI1 */
 	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
 	MX6Q_PAD_EIM_D18__ECSPI1_MOSI,
-	MX6Q_PAD_EIM_D19__GPIO_3_19,	/*SS1*/
 
 	/* ENET */
 	MX6Q_PAD_ENET_MDIO__ENET_MDIO,
@@ -60,6 +59,7 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_RGMII_RX_CTL__ENET_RGMII_RX_CTL,
 	MX6Q_PAD_ENET_TX_EN__GPIO_1_28,		/* Micrel RGMII Phy Interrupt */
 	MX6Q_PAD_EIM_D23__GPIO_3_23,		/* RGMII reset */
+	MX6Q_PAD_GPIO_16__ENET_ANATOP_ETHERNET_REF_OUT, /* Internal connect for 1588 TS Clock */
 
 	/* GPIO1 */
 	MX6Q_PAD_ENET_RX_ER__GPIO_1_24,		/* J9 - Microphone Detect */
@@ -105,6 +105,12 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_GPIO_5__GPIO_1_5,	/* Volume Down */
 	MX6Q_PAD_EIM_D29__GPIO_3_29,	/* power off */
 
+	/* CAP_TCH_INT1 */
+	MX6Q_PAD_NANDF_CLE__GPIO_6_7,
+
+	/* CAP_TCH_INT0 */
+	MX6Q_PAD_NANDF_ALE__GPIO_6_8,
+
 	/* eCompass int */
 	MX6Q_PAD_EIM_D16__GPIO_3_16,
 
@@ -129,11 +135,7 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 
 	/* I2C3 */
 	MX6Q_PAD_GPIO_3__I2C3_SCL,	/* GPIO1[3] */
-#ifdef CONFIG_FEC_1588
-	MX6Q_PAD_GPIO_16__ENET_ANATOP_ETHERNET_REF_OUT,
-#else
-	MX6Q_PAD_GPIO_16__I2C3_SDA,	/* GPIO7[11]*/
-#endif
+	MX6Q_PAD_GPIO_6__I2C3_SDA,
 
 	/* DISPLAY */
 	MX6Q_PAD_DI0_DISP_CLK__IPU1_DI0_DISP_CLK,
@@ -246,6 +248,8 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 
 	/*GPS AUX_3V15_EN*/
 	MX6Q_PAD_NANDF_WP_B__GPIO_6_9,
+
+	MX6Q_PAD_EIM_D19__GPIO_3_19, /* PCIE_PWR_EN */
 };
 
 static iomux_v3_cfg_t mx6q_sabresd_csi0_sensor_pads[] = {
