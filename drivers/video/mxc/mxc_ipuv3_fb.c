@@ -2077,7 +2077,11 @@ static int mxcfb_probe(struct platform_device *pdev)
 		mxcfbi->ipu_ch_nf_irq = IPU_IRQ_BG_SYNC_NFACK;
 		mxcfbi->ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
 		mxcfbi->ipu_ch = MEM_BG_SYNC;
-		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_UNBLANK;
+		/* Unblank the primary fb only by default */
+		if (pdev->id == 0)
+			mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_UNBLANK;
+		else
+			mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_POWERDOWN;
 
 		ipu_disp_set_global_alpha(mxcfbi->ipu, mxcfbi->ipu_ch, true, 0x80);
 		ipu_disp_set_color_key(mxcfbi->ipu, mxcfbi->ipu_ch, false, 0);
