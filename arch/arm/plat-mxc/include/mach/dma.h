@@ -55,6 +55,7 @@ enum imx_dma_prio {
 
 struct imx_dma_data {
 	int dma_request; /* DMA request line */
+	int dma_request_p2p;
 	enum sdma_peripheral_type peripheral_type;
 	int priority;
 };
