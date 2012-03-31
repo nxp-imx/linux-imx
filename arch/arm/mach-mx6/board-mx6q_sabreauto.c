@@ -135,15 +135,7 @@
 static int mma8451_position = 3;
 static struct clk *sata_clk;
 static int mipi_sensor;
-static int uart2_en;
 static int can0_enable;
-
-static int __init uart2_enable(char *p)
-{
-	uart2_en = 1;
-	return 0;
-}
-early_param("uart2", uart2_enable);
 
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
@@ -1287,15 +1279,14 @@ static void __init mx6_board_init(void)
 	BUG_ON(!i2c3_pads);
 	mxc_iomux_v3_setup_multiple_pads(i2c3_pads, i2c3_pads_cnt);
 
-	if (!uart2_en) {
-		if (can0_enable) {
-			BUG_ON(!can0_pads);
-			mxc_iomux_v3_setup_multiple_pads(can0_pads,
-							can0_pads_cnt);
-		}
-		BUG_ON(!can1_pads);
-		mxc_iomux_v3_setup_multiple_pads(can1_pads, can1_pads_cnt);
+	if (can0_enable) {
+		BUG_ON(!can0_pads);
+		mxc_iomux_v3_setup_multiple_pads(can0_pads,
+						can0_pads_cnt);
 	}
+	BUG_ON(!can1_pads);
+	mxc_iomux_v3_setup_multiple_pads(can1_pads, can1_pads_cnt);
+
 
 	/* assert i2c-rst  */
 	gpio_request(SABREAUTO_I2C_EXP_RST, "i2c-rst");
