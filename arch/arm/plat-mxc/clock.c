@@ -4,7 +4,7 @@
  * Copyright (C) 2004 - 2005 Nokia corporation
  * Written by Tuukka Tikkanen <tuukka.tikkanen@elektrobit.com>
  * Modified for omap shared clock framework by Tony Lindgren <tony@atomide.com>
- * Copyright 2007-2011 Freescale Semiconductor, Inc.
+ * Copyright 2007-2012 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -488,6 +488,15 @@ static int mxc_proc_clocks_seq_show(struct seq_file *file, void *data)
 	unsigned long  range_divisor;
 	const char     *range_units;
 	int rate = clk_get_rate(clock->reg_clk);
+	struct mxc_clk    *current_clock = NULL;
+	struct mxc_clk    *parent_clk = NULL;
+
+	/* Examine the clock list. */
+
+	list_for_each_entry(current_clock, &clocks, node) {
+		if (parent == current_clock->reg_clk)
+		    parent_clk = current_clock;
+	}
 
 	if (rate >= 1000000) {
 		range_divisor = 1000000;
@@ -499,12 +508,16 @@ static int mxc_proc_clocks_seq_show(struct seq_file *file, void *data)
 		range_divisor = 1;
 		range_units   = "Hz";
 	}
+
 	result = seq_printf(file,
-		"%s-%-d%*s  %*s  %c%c%c%c%c%c  %3d",
+		"%s-%-d%*s  %s-%-d%*s  %c%c%c%c%c%c  %3d",
 		clock->name,
 		clock->reg_clk->id,
 		longest_length - strlen(clock->name), "",
-		longest_length + 2, "",
+		(parent_clk == NULL) ? "" : parent_clk->name,
+		(parent_clk == NULL) ? 0 : parent_clk->reg_clk->id,
+		(parent_clk == NULL) ? longest_length :
+		longest_length-strlen(parent_clk->name), "",
 		(clock->reg_clk->flags & RATE_PROPAGATES)      ? 'P' : '_',
 		(clock->reg_clk->flags & ALWAYS_ENABLED)       ? 'A' : '_',
 		(clock->reg_clk->flags & RATE_FIXED)           ? 'F' : '_',

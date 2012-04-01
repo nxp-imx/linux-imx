@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -51,7 +51,7 @@ void *ddr_freq_change_iram_base;
 void __iomem *databahn_base;
 
 void (*change_ddr_freq)(void *ccm_addr, void *databahn_addr,
-			u32 freq, void *iram_ddr_settings) = NULL;
+			u32 freq, void *iram_ddr_settings, u32 pll_rate) = NULL;
 void *wait_in_iram_base;
 void (*wait_in_iram)(void *ccm_addr, void *databahn_addr, u32 sys_clk_count);
 
@@ -61,9 +61,11 @@ extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;
 extern void mx50_ddr_freq_change(u32 ccm_base,
 					u32 databahn_addr, u32 freq);
+extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 
 static void __iomem *qosc_base;
 static int ddr_settings_size;
+static u32 pll_rate;
 
 unsigned long lpddr2_databhan_regs_offsets[][2] = {
 	{0x8, 0x0},
@@ -309,14 +311,22 @@ int update_ddr_freq(int ddr_rate)
 			for (i = 0; i < iram_ddr_settings[0][0]; i++) {
 				if (iram_ddr_settings[i + 1][0] == 0x40) {
 					if (mx50_ddr_type == MX50_LPDDR2)
-						/* LPDDR2 133MHz. */
+						/* LPDDR2 133MHz(125MHz). */
 						iram_ddr_settings[i + 1][1] =
-								0x00050180;
+								0x000501d8;
 					else
-						/* mDDR 133MHz. */
+						/* mDDR 133MHz(125MHz). */
 						iram_ddr_settings[i + 1][1] =
-								0x00050208;
-					break;
+								0x000503bf;
+				} else if (iram_ddr_settings[i + 1][0] == 0x24) {
+					if (mx50_ddr_type == MX50_LPDDR2)
+						/* LPDDR2 133MHz(125MHz). */
+						iram_ddr_settings[i + 1][1] =
+								0x00222605;
+					if (mx50_ddr_type == MX50_MDDR)
+						/* mDDR 133MHz(125MHz) */
+						iram_ddr_settings[i + 1][1] =
+								0x00222602;
 				}
 			}
 		}
@@ -331,7 +341,7 @@ int update_ddr_freq(int ddr_rate)
 
 	/* Set the DDR to default freq. */
 	change_ddr_freq(ccm_base, databahn_base, ddr_rate,
-					iram_ddr_settings);
+					iram_ddr_settings, pll_rate);
 
 	/* Enable all masters to access the DDR. */
 	__raw_writel(reg, qosc_base + HW_QOS_DISABLE_CLR);
@@ -344,7 +354,11 @@ void init_ddr_settings(void)
 	unsigned long iram_paddr;
 	unsigned int reg;
 	int i;
+	struct cpu_wp *cpu_wp_tbl;
 	struct clk *ddr_clk = clk_get(NULL, "ddr_clk");
+
+	cpu_wp_tbl = get_cpu_wp(&i);
+	pll_rate = cpu_wp_tbl[0].pll_rate;
 
 	databahn_base = ioremap(MX50_DATABAHN_BASE_ADDR, SZ_16K);
 

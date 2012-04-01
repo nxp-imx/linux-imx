@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -107,6 +107,7 @@
 #define CSPI_CS2	(3*32 + 11) /*GPIO_4_11*/
 #define USB_OTG_PWR	(5*32 + 25) /*GPIO_6_25*/
 
+extern void __iomem *apll_base;
 extern int __init mx50_arm2_init_mc13892(void);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void (*set_num_cpu_wp)(int num);
@@ -398,8 +399,8 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .cpu_rate = 800000000,
 	 .pdf = 0,
 	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
+	 .mfd = 179,
+	 .mfn = 60,
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1050000,},
 	{
@@ -411,7 +412,30 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .pll_rate = 800000000,
 	 .cpu_rate = 160000000,
 	 .cpu_podf = 4,
-	 .cpu_voltage = 850000,},
+	 .cpu_voltage = 900000,},
+};
+
+/* working point(wp): 0 - 1000MHz; 1 - 500MHz, 2 - 166MHz; */
+static struct cpu_wp fast_cpu_wp_auto[] = {
+	{
+	 .pll_rate = 1000000000,
+	 .cpu_rate = 1000000000,
+	 .pdf = 0,
+	 .mfi = 10,
+	 .mfd = 179,
+	 .mfn = 75,
+	 .cpu_podf = 0,
+	 .cpu_voltage = 1275000,},
+	{
+	 .pll_rate = 1000000000,
+	 .cpu_rate = 500000000,
+	 .cpu_podf = 1,
+	 .cpu_voltage = 1050000,},
+	{
+	 .pll_rate = 1000000000,
+	 .cpu_rate = 166666666,
+	 .cpu_podf = 5,
+	 .cpu_voltage = 900000,},
 };
 
 static struct dvfs_wp *mx50_arm2_get_dvfs_core_table(int *wp)
@@ -424,6 +448,12 @@ static struct cpu_wp *mx50_arm2_get_cpu_wp(int *wp)
 {
 	*wp = num_cpu_wp;
 	return cpu_wp_auto;
+}
+
+static struct cpu_wp *mx50_arm2_get_fast_cpu_wp(int *wp)
+{
+    *wp = num_cpu_wp;
+    return fast_cpu_wp_auto;
 }
 
 static void mx50_arm2_set_num_cpu_wp(int num)
@@ -1185,6 +1215,16 @@ static void mx50_suspend_enter()
 {
 	iomux_v3_cfg_t *p = suspend_enter_pads;
 	int i;
+
+	/*
+	 * Clear the SELF_BIAS bit and power down
+	 * the band-gap.
+	 */
+	__raw_writel(MXC_ANADIG_REF_SELFBIAS_OFF,
+		apll_base + MXC_ANADIG_MISC_CLR);
+	__raw_writel(MXC_ANADIG_REF_PWD,
+		apll_base + MXC_ANADIG_MISC_SET);
+
 	/* Set PADCTRL to 0 for all IOMUX. */
 	for (i = 0; i < ARRAY_SIZE(suspend_enter_pads); i++) {
 		suspend_exit_pads[i] = *p;
@@ -1199,6 +1239,13 @@ static void mx50_suspend_enter()
 
 static void mx50_suspend_exit()
 {
+	/* Power Up the band-gap and set the SELFBIAS bit. */
+	__raw_writel(MXC_ANADIG_REF_PWD,
+		apll_base + MXC_ANADIG_MISC_CLR);
+	udelay(100);
+	__raw_writel(MXC_ANADIG_REF_SELFBIAS_OFF,
+		apll_base + MXC_ANADIG_MISC_SET);
+
 	mxc_iomux_v3_setup_multiple_pads(suspend_exit_pads,
 			ARRAY_SIZE(suspend_exit_pads));
 }
@@ -1222,12 +1269,30 @@ static struct mxc_pm_platform_data mx50_pm_data = {
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
+	struct tag *t;
+	char *str;
+	int capable_to_1GHz = 0;
+
 	mxc_set_cpu_type(MXC_CPU_MX50);
 
-	get_cpu_wp = mx50_arm2_get_cpu_wp;
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			if (str != NULL && strstr(str, "mx50_1GHz") != NULL) {
+				capable_to_1GHz = 1;
+			}
+		}
+	}
+
+	if (capable_to_1GHz) {
+		get_cpu_wp = mx50_arm2_get_fast_cpu_wp;
+		num_cpu_wp = ARRAY_SIZE(fast_cpu_wp_auto);
+	} else {
+		get_cpu_wp = mx50_arm2_get_cpu_wp;
+		num_cpu_wp = ARRAY_SIZE(cpu_wp_auto);
+	}
 	set_num_cpu_wp = mx50_arm2_set_num_cpu_wp;
 	get_dvfs_core_wp = mx50_arm2_get_dvfs_core_table;
-	num_cpu_wp = ARRAY_SIZE(cpu_wp_auto);
 }
 
 static void __init mx50_arm2_io_init(void)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -239,7 +239,7 @@ void enter_lpapm_mode_mx50()
 	spin_unlock_irqrestore(&voltage_lock, flags);
 
 	if (clk_get_usecount(pll1_sw_clk) == 1) {
-		/* Relock PLL1 to 160MHz. */
+		/* Relock PLL1 to 160MHz(166MHz). */
 		clk_set_parent(pll1_sw_clk, pll2);
 		/* Set the divider to ARM_PODF to 3. */
 		__raw_writel(0x02, MXC_CCM_CACRR);
@@ -524,17 +524,18 @@ void exit_lpapm_mode_mx50(int high_bus_freq)
 	unsigned long flags;
 
 	if (clk_get_usecount(pll1_sw_clk) == 1) {
-		/* Relock PLL1 to 800MHz. */
+		/* Relock PLL1 to 800MHz(1000MHz). */
 		clk_set_parent(pll1_sw_clk, pll2);
 		/* Set the divider to ARM_PODF to 3, cpu is at 160MHz. */
 		__raw_writel(0x02, MXC_CCM_CACRR);
 
 		clk_set_rate(pll1, cpu_wp_tbl[0].pll_rate);
 
-		/* Set the divider to ARM_PODF to 5 before
-		  * switching the parent.
-		  */
-		__raw_writel(0x4, MXC_CCM_CACRR);
+		/*
+		 * Set the divider to ARM_PODF to
+		 * cpu_wp_tbl[cpu_wp_nr-1].cpu_podf before switching the parent.
+		 */
+		__raw_writel(cpu_wp_tbl[cpu_wp_nr - 1].cpu_podf, MXC_CCM_CACRR);
 		clk_set_parent(pll1_sw_clk, pll1);
 	}
 
@@ -1019,9 +1020,12 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 			ddr_normal_rate = clk_get_rate(ddr_clk);
 			lp_med_rate = pll2_rate / 6;
 			ddr_low_rate = LP_APM_CLK;
-			if (mx50_ddr_type == MX50_LPDDR2)
-				ddr_med_rate = pll2_rate / 3;
-			else
+			if (mx50_ddr_type == MX50_LPDDR2) {
+				if (pll1_rate == 1000000000)
+					ddr_med_rate = pll1_rate / 8; /* LPDDR2@125MHz */
+				else
+					ddr_med_rate = pll1_rate / 6; /* LPDDR2@133MHz */
+			} else
 				/* mDDR @ 133Mhz currently does not work */
 				ddr_med_rate = ddr_normal_rate;
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -97,6 +97,7 @@ void __iomem *databahn;
 #define MAX_AXI_B_CLK_MX50 	200000000
 #define MAX_AHB_CLK		133333333
 #define MAX_EMI_SLOW_CLK	133000000
+#define LP_APM_CLK		24000000
 
 extern int mxc_jtag_enabled;
 extern int uart_at_24;
@@ -503,34 +504,57 @@ static void do_pll_workaround(struct clk *clk, unsigned long rate)
 	u32 reg;
 
 	/*
-	  * Need to apply the PLL1 workaround. Set the PLL initially to 864MHz
-	  * and then relock it to 800MHz.
+	  * Need to apply the PLL1 workaround. Set the PLL initially to 864MHz(1056MHz)
+	  * and then relock it to 800MHz(1000MHz).
 	  */
 	/* Disable the auto-restart bit o f PLL1. */
 	reg = __raw_readl(pll1_base + MXC_PLL_DP_CONFIG);
 	reg &= ~MXC_PLL_DP_CONFIG_AREN;
 	__raw_writel(reg, pll1_base + MXC_PLL_DP_CONFIG);
 
-	/* Configure the PLL1 to 864MHz.
-	  * MFI =8
-	  * MFN = 180
-	  * MFD = 179
-	  * PDF = 0
-	  */
-	/* MFI & PFD */
-	reg = 0x80;
-	__raw_writel(reg, pll1_base + MXC_PLL_DP_OP);
-	__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_OP);
+	if (rate >= 1000000000) {
+		/* Configure the PLL1 to 1056MHz.
+		 * MFI = 10
+		 * MFN = 180
+		 * MFD = 179
+		 * PDF = 0
+		 */
+		/* MFI & PFD */
+		reg = 0xA0;
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_OP);
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_OP);
 
-	/* MFD */
-	reg = 179;
-	__raw_writel(reg, pll1_base + MXC_PLL_DP_MFD);
-	__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_MFD);
+		/* MFD */
+		reg = 179;
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_MFD);
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_MFD);
 
-	/* MFN */
-	reg = 180;
-	__raw_writel(reg, pll1_base + MXC_PLL_DP_MFN);
-	__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_MFN);
+		/* MFN */
+		reg = 180;
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_MFN);
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_MFN);
+	} else {
+		/* Configure the PLL1 to 864MHz.
+		  * MFI =8
+		  * MFN = 180
+		  * MFD = 179
+		  * PDF = 0
+		  */
+		/* MFI & PFD */
+		reg = 0x80;
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_OP);
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_OP);
+
+		/* MFD */
+		reg = 179;
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_MFD);
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_MFD);
+
+		/* MFN */
+		reg = 180;
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_MFN);
+		__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_MFN);
+	}
 
 	/* Restart PLL1. */
 	reg = (MXC_PLL_DP_CTL_DPDCK0_2_EN
@@ -544,8 +568,11 @@ static void do_pll_workaround(struct clk *clk, unsigned long rate)
 				SPIN_DELAY))
 		panic("pll1_set_rate relock failed\n");
 
-	/* Now update the MFN so that PLL1 is at 800MHz. */
-	reg = 60;
+	/* Now update the MFN so that PLL1 is at 1000MHz/800MHz. */
+	if (rate >= 1000000000)
+		reg = 75;
+	else
+		reg = 60;
 	__raw_writel(reg, pll1_base + MXC_PLL_DP_MFN);
 	__raw_writel(reg, pll1_base + MXC_PLL_DP_HFS_MFN);
 
@@ -623,20 +650,56 @@ static int _clk_pll_set_rate(struct clk *clk, unsigned long rate)
 	s64 temp64;
 	unsigned long quad_parent_rate;
 	unsigned long pll_hfsm, dp_ctl;
+	unsigned long dp_op, dp_mfd, dp_mfn;
 
 	pllbase = _get_pll_base(clk);
 
 	quad_parent_rate = 4 * clk_get_rate(clk->parent);
-	pdf = mfi = -1;
-	while (++pdf < 16 && mfi < 5)
-		mfi = rate * (pdf+1) / quad_parent_rate;
-	if (mfi > 15)
-		return -1;
-	pdf--;
 
-	temp64 = rate*(pdf+1) - quad_parent_rate*mfi;
-	do_div(temp64, quad_parent_rate/1000000);
-	mfn = (long)temp64;
+	if (pllbase == pll1_base) {
+		/* For MX50, we only adjust pdf to change the PLL1 freq */
+		dp_ctl = __raw_readl(pllbase + MXC_PLL_DP_CTL);
+		pll_hfsm = dp_ctl & MXC_PLL_DP_CTL_HFSM;
+
+		if (pll_hfsm == 0) {
+			dp_op = __raw_readl(pllbase + MXC_PLL_DP_OP);
+			dp_mfd = __raw_readl(pllbase + MXC_PLL_DP_MFD);
+			dp_mfn = __raw_readl(pllbase + MXC_PLL_DP_MFN);
+		} else {
+			dp_op = __raw_readl(pllbase + MXC_PLL_DP_HFS_OP);
+			dp_mfd = __raw_readl(pllbase + MXC_PLL_DP_HFS_MFD);
+			dp_mfn = __raw_readl(pllbase + MXC_PLL_DP_HFS_MFN);
+		}
+
+		mfi = (dp_op & MXC_PLL_DP_OP_MFI_MASK) >> MXC_PLL_DP_OP_MFI_OFFSET;
+		mfi = (mfi <= 5) ? 5 : mfi;
+		mfd = dp_mfd & MXC_PLL_DP_MFD_MASK;
+		mfn = dp_mfn & MXC_PLL_DP_MFN_MASK;
+
+		for (pdf = 0; pdf < 16; pdf++) {
+			temp64 = quad_parent_rate;
+			temp64 *= (mfi*(mfd+1) + mfn);
+			do_div(temp64, (mfd+1)*(pdf+1));
+			if ((unsigned long)temp64 <= rate)
+				break;
+		}
+
+		if (pdf >= 16)
+			return -1;
+
+	} else {
+
+		pdf = mfi = -1;
+		while (++pdf < 16 && mfi < 5)
+			mfi = rate * (pdf+1) / quad_parent_rate;
+		if (mfi > 15)
+			return -1;
+		pdf--;
+
+		temp64 = rate*(pdf+1) - quad_parent_rate*mfi;
+		do_div(temp64, quad_parent_rate/1000000);
+		mfn = (long)temp64;
+	}
 
 	dp_ctl = __raw_readl(pllbase + MXC_PLL_DP_CTL);
 	/* use dpdck0_2 */
@@ -727,8 +790,8 @@ static int _clk_pll1_set_rate(struct clk *clk, unsigned long rate)
 
 		_clk_pll_set_rate(clk, rate);
 	} else {
-		/* Above 700MHz, only 800MHz freq is supported. */
-		if (rate != 800000000)
+		/* Above 700MHz, only 800MHz & 1000MHz freq is supported. */
+		if (rate != 800000000 && rate != 1000000000)
 			return -EINVAL;
 		do_pll_workaround(clk, rate);
 	}
@@ -902,8 +965,10 @@ static unsigned long _clk_cpu_round_rate(struct clk *clk,
 			break;
 	}
 
-	if (i > cpu_wp_nr)
+	if (i >= cpu_wp_nr)
 		wp = 0;
+	else
+		wp = i;
 
 	return cpu_wp_tbl[wp].cpu_rate;
 }
@@ -2403,13 +2468,16 @@ static unsigned long _clk_ddr_get_rate(struct clk *clk)
 {
 	u32 reg, div;
 
-	reg = __raw_readl(MXC_CCM_CLK_DDR);
-	div = (reg & MXC_CCM_CLK_DDR_DDR_DIV_PLL_MASK) >>
-		MXC_CCM_CLK_DDR_DDR_DIV_PLL_OFFSET;
-	if (div)
-		return clk_get_rate(clk->parent) / div;
-
-	return 0;
+	reg = (__raw_readl(databahn + DATABAHN_CTL_REG55)) &
+			DDR_SYNC_MODE;
+	if (reg != DDR_SYNC_MODE) {
+		reg = __raw_readl(MXC_CCM_CLK_DDR);
+		div = (reg & MXC_CCM_CLK_DDR_DDR_DIV_PLL_MASK) >>
+			MXC_CCM_CLK_DDR_DDR_DIV_PLL_OFFSET;
+		if (div)
+			return clk_get_rate(clk->parent) / div;
+	}
+	return LP_APM_CLK;
 }
 
 static int _clk_ddr_enable(struct clk *clk)

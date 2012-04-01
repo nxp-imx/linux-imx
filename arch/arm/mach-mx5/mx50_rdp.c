@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -495,8 +495,8 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .cpu_rate = 800000000,
 	 .pdf = 0,
 	 .mfi = 8,
-	 .mfd = 2,
-	 .mfn = 1,
+	 .mfd = 179,
+	 .mfn = 60,
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1050000,},
 	{
@@ -508,7 +508,30 @@ static struct cpu_wp cpu_wp_auto[] = {
 	 .pll_rate = 800000000,
 	 .cpu_rate = 160000000,
 	 .cpu_podf = 4,
-	 .cpu_voltage = 850000,},
+	 .cpu_voltage = 900000,},
+};
+
+/* working point(wp): 0 - 1000MHz; 1 - 500MHz, 2 - 166MHz; */
+static struct cpu_wp fast_cpu_wp_auto[] = {
+	{
+	 .pll_rate = 1000000000,
+	 .cpu_rate = 1000000000,
+	 .pdf = 0,
+	 .mfi = 10,
+	 .mfd = 179,
+	 .mfn = 75,
+	 .cpu_podf = 0,
+	 .cpu_voltage = 1275000,},
+	{
+	 .pll_rate = 1000000000,
+	 .cpu_rate = 500000000,
+	 .cpu_podf = 1,
+	 .cpu_voltage = 1050000,},
+	{
+	 .pll_rate = 1000000000,
+	 .cpu_rate = 166666666,
+	 .cpu_podf = 5,
+	 .cpu_voltage = 900000,},
 };
 
 static struct dvfs_wp *mx50_rdp_get_dvfs_core_table(int *wp)
@@ -521,6 +544,12 @@ static struct cpu_wp *mx50_rdp_get_cpu_wp(int *wp)
 {
 	*wp = num_cpu_wp;
 	return cpu_wp_auto;
+}
+
+static struct cpu_wp *mx50_rdp_get_fast_cpu_wp(int *wp)
+{
+    *wp = num_cpu_wp;
+    return fast_cpu_wp_auto;
 }
 
 static void mx50_rdp_set_num_cpu_wp(int num)
@@ -1796,7 +1825,7 @@ static struct mxc_pm_platform_data mx50_pm_data = {
 	.suspend_exit = mx50_suspend_exit,
 };
 
-/*!
+/*
  * Board specific fixup function. It is called by \b setup_arch() in
  * setup.c file very early on during kernel starts. It allows the user to
  * statically fill in the proper values for the passed-in parameters. None of
@@ -1810,12 +1839,30 @@ static struct mxc_pm_platform_data mx50_pm_data = {
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
+	struct tag *t;
+	char *str;
+	int capable_to_1GHz = 0;
+
 	mxc_set_cpu_type(MXC_CPU_MX50);
 
-	get_cpu_wp = mx50_rdp_get_cpu_wp;
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			if (str != NULL && strstr(str, "mx50_1GHz") != NULL) {
+				capable_to_1GHz = 1;
+			}
+		}
+	}
+
+	if (capable_to_1GHz) {
+		get_cpu_wp = mx50_rdp_get_fast_cpu_wp;
+		num_cpu_wp = ARRAY_SIZE(fast_cpu_wp_auto);
+	} else {
+		get_cpu_wp = mx50_rdp_get_cpu_wp;
+		num_cpu_wp = ARRAY_SIZE(cpu_wp_auto);
+	}
 	set_num_cpu_wp = mx50_rdp_set_num_cpu_wp;
 	get_dvfs_core_wp = mx50_rdp_get_dvfs_core_table;
-	num_cpu_wp = ARRAY_SIZE(cpu_wp_auto);
 }
 
 static void __init mx50_rdp_io_init(void)
@@ -1888,8 +1935,7 @@ static void __init mx50_rdp_io_init(void)
 	gpio_request(HDMI_RESET, "hdmi-reset");
 	gpio_direction_output(HDMI_RESET, 1);
 	gpio_request(HDMI_PWR_ENABLE, "hdmi-pwr-enable");
-	gpio_direction_output(HDMI_PWR_ENABLE, 1);
-	gpio_set_value(HDMI_PWR_ENABLE, 0);
+	gpio_direction_output(HDMI_PWR_ENABLE, 0);
 	gpio_request(HDMI_DETECT, "hdmi-detect");
 	gpio_direction_input(HDMI_DETECT);
 

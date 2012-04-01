@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,12 +26,13 @@
  *  IRQs are already disabled.
  */
 ENTRY(mx50_ddr_freq_change)
-    stmfd   sp!, {r4,r5,r6, r7, r8, r9}      @ Save registers
+    stmfd   sp!, {r4,r5,r6, r7, r8, r9, r10}      @ Save registers
 
     mov    r6, r0                       @save CCM address
     mov    r5, r1                       @save DataBahn address
     mov    r4, r2                       @save new freq requested
     mov    r8, r3                       @save the DRAM settings array
+    ldr    r10,[sp,#28]                 @save pll1 freq
 
     /* Make sure no TLB miss will occur when the DDR is in self refresh. */
     /* Invalidate TLB single entry to ensure that the address is not
@@ -153,7 +154,7 @@ LoopCKE0:
     ble    databahn_ddr_24
 
     /*Source DDR from PLL1.  Setup the dividers accordingly. */
-    ldr    r0, =800000000
+    mov    r0, r10
     ldr    r3, =1
 Loop1:
     sub    r0, r0, r4
@@ -238,11 +239,25 @@ Async_Mode:
     str     r0, [r6, #0x94]
 
     /* Set the new divider. */
+    ldr     r0, =800000000
+    cmp     r0, r10
+    blt     Div_is_5
+
+    /* New divider is 4 if PLL1=800MHz */
     ldr     r0, [r6, #0x94]
     bic    r0, r0, #0x3f
     orr     r0, r0, #4
     str     r0, [r6, #0x94]
+    b       NewDivDone
 
+    /* New divider is 5 if PLL1=1000MHz */
+Div_is_5:
+    ldr     r0, [r6, #0x94]
+    bic    r0, r0, #0x3f
+    orr     r0, r0, #5
+    str     r0, [r6, #0x94]
+
+NewDivDone:
    /* Enable SYS_PLL_CLKGATE. */
     ldr     r0, [r6, #0x94]
     orr     r0, r0, #0x30000000
@@ -265,7 +280,7 @@ Sys_Clk_Not_24:
     str    r0, [r5, #0xdc]
 
     /*Source DDR from PLL1.  Setup the dividers accordingly. */
-    ldr    r0, =800000000
+    mov    r0, r10
     ldr    r3, =1
 Loop2:
     sub    r0, r0, r4
@@ -384,7 +399,7 @@ LoopCKE1:
     str     r9,[r5, #0x50]
 
     /* Restore registers */
-    ldmfd sp!, {r4,r5,r6, r7, r8, r9}
+    ldmfd sp!, {r4,r5,r6, r7, r8, r9, r10}
     mov     pc, lr
 
     .type   mx50_do_ddr_freq_change, #object

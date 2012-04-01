@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -158,13 +158,34 @@ LoopCKE0:
     orr     r1, r1, #0x4
     str     r1, [r8, #0x0c]
 
-    /* Now do the MFN changes to relock PLL1 at 864MHz. */
+    /* Now do the MFN changes to relock PLL1 at 1056MHz. */
     ldr     r1, [r12, #MXC_PLL_DP_CONFIG]
     bic     r1, r1, #0x2
     str     r1, [r12, #MXC_PLL_DP_CONFIG] /* disable auto-restart AREN bit */
 
+     ldr     r0, [r12, #MXC_PLL_DP_OP]
+     and     r0, r0, #0x000000F0
+     ldr     r1, =0xA0
+     cmp     r0, r1
+     beq     Relock_1056MHz
+
    /* MFI = 8, MFN = 180, MFD = 179. PLL1 Freq = ~ 864MHz. */
-    ldr     r1, =0x80
+     ldr     r1, =0x80
+     str     r1, [r12, #MXC_PLL_DP_OP]
+     str     r1, [r12, #MXC_PLL_DP_HFS_OP]
+
+     ldr     r1, =180
+     str     r1, [r12, #MXC_PLL_DP_MFN]
+     str     r1, [r12, #MXC_PLL_DP_HFS_MFN]
+
+     ldr     r1, =179
+     str     r1, [r12, #MXC_PLL_DP_MFD]
+     str     r1, [r12, #MXC_PLL_DP_HFS_MFD]
+     b       RestartPLL
+
+Relock_1056MHz:
+   /* MFI = 10, MFN = 180, MFD = 179. PLL1 Freq = ~ 1056MHz. */
+    ldr     r1, =0xA0
     str     r1, [r12, #MXC_PLL_DP_OP]
     str     r1, [r12, #MXC_PLL_DP_HFS_OP]
 
@@ -176,6 +197,7 @@ LoopCKE0:
     str     r1, [r12, #MXC_PLL_DP_MFD]
     str     r1, [r12, #MXC_PLL_DP_HFS_MFD]
 
+RestartPLL:
     /* Manually restart PLL1 */
     ldr     r1, =0x00001236 /* Set PLM =1, manual restart and enable PLL*/
     str     r1, [r12, #MXC_PLL_DP_CTL]
@@ -201,11 +223,25 @@ LoopCKE0:
 	ands  r1, r1, #0x1
 	beq   1b
 
-    /* Set PLL1 to 800MHz, MFN = 60. */
-    ldr    r1, =60
+     ldr     r0, [r12, #MXC_PLL_DP_OP]
+     and     r0, r0, #0x000000F0
+     ldr     r1, =0xA0
+     cmp     r0, r1
+     beq     Relock_1000MHz
+
+     /* Set PLL1 to 800MHz, MFN = 60. */
+     ldr    r1, =60
+     str    r1, [r12, #MXC_PLL_DP_MFN]
+     str    r1, [r12, #MXC_PLL_DP_HFS_MFN]
+	 b      WaitLDREQ
+
+Relock_1000MHz:
+    /* Set PLL1 to 1000MHz, MFN = 75. */
+    ldr    r1, =75
     str   r1, [r12, #MXC_PLL_DP_MFN]
     str   r1, [r12, #MXC_PLL_DP_HFS_MFN]
 
+WaitLDREQ:
     /* Set up the LDREQ */
     ldr    r1, [r12, #MXC_PLL_DP_CONFIG]
     orr    r1, r1, #1

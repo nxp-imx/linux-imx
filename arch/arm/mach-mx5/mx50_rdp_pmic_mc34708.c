@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,7 +49,7 @@
 
 #define SW1A_MODE_MASK		(0xf << 0)
 #define SW2_MODE_MASK		(0xf << 14)
-#define SW1A_MODE_VALUE		(0xc << 0)
+#define SW1A_MODE_VALUE		(0xd << 0)
 #define SW2_MODE_VALUE		(0xc << 14)
 
 #define REG_SW_1_2_MASK	(SW1A_MODE_MASK | SW2_MODE_MASK)
