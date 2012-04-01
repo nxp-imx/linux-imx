@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -693,9 +693,24 @@ static int mc34708_sw_set_normal_voltage(struct regulator_dev *reg, int minuV,
 		voltage =
 			uv_to_bit_value(mV * 1000, SW1_MIN_UV, SW1_MAX_UV,
 				    SW1_STEP_UV);
-		register_val = BITFVAL(SW1A, voltage);
-		register_mask = BITFMASK(SW1A);
-		register1 = MC34708_REG_SW1AB;
+		if (voltage >= 32) {
+			/* change voltage after op mode for high voltage */
+			pmic_write_reg(MC34708_REG_SW_OP_MODE_1_2, 0x0D, 0x0F);
+
+			register_val = BITFVAL(SW1A, voltage);
+			register_mask = BITFMASK(SW1A);
+			register1 = MC34708_REG_SW1AB;
+		} else {
+			/* change voltage before op mode for low voltage */
+			register_val = BITFVAL(SW1A, voltage);
+			register_mask = BITFMASK(SW1A);
+			register1 = MC34708_REG_SW1AB;
+			pmic_write_reg(register1, register_val, register_mask);
+
+			register_val = 0x0C;
+			register_mask = 0x0F;
+			register1 = MC34708_REG_SW_OP_MODE_1_2;
+		}
 		break;
 	case MC34708_SW1B:
 		voltage =
