@@ -6633,7 +6633,7 @@ gckOS_AcquireSemaphore(
     /* Acquire the semaphore. */
     if (down_interruptible((struct semaphore *) Semaphore))
     {
-        gcmkONERROR(gcvSTATUS_TIMEOUT);
+        gcmkONERROR(gcvSTATUS_INTERRUPTED);
     }
 
     /* Success. */
