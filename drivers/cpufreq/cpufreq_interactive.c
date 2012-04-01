@@ -77,7 +77,7 @@ static unsigned long min_sample_time;
 /*
  * The sample rate of the timer used to increase frequency
  */
-#define DEFAULT_TIMER_RATE (20 * USEC_PER_MSEC)
+#define DEFAULT_TIMER_RATE (50 * USEC_PER_MSEC)
 #define CPUFREQ_IRQ_LEN 60
 #define CPUFREQ_NOTE_LEN 120
 static unsigned long timer_rate;
@@ -376,7 +376,6 @@ static void cpufreq_interactive_idle_end(void)
 static int cpufreq_interactive_up_task(void *data)
 {
 	unsigned int cpu;
-	cpumask_t tmp_mask;
 	unsigned long flags;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 
@@ -395,11 +394,10 @@ static int cpufreq_interactive_up_task(void *data)
 		}
 
 		set_current_state(TASK_RUNNING);
-		tmp_mask = up_cpumask;
 		cpumask_clear(&up_cpumask);
 		spin_unlock_irqrestore(&up_cpumask_lock, flags);
 
-		for_each_cpu(cpu, &tmp_mask) {
+		for_each_online_cpu(cpu) {
 			unsigned int j;
 			unsigned int max_freq = 0;
 
@@ -411,7 +409,7 @@ static int cpufreq_interactive_up_task(void *data)
 
 			mutex_lock(&set_speed_lock);
 
-			for_each_cpu(j, pcpu->policy->cpus) {
+			for_each_online_cpu(j) {
 				struct cpufreq_interactive_cpuinfo *pjcpu =
 					&per_cpu(cpuinfo, j);
 
@@ -437,16 +435,14 @@ static int cpufreq_interactive_up_task(void *data)
 static void cpufreq_interactive_freq_down(struct work_struct *work)
 {
 	unsigned int cpu;
-	cpumask_t tmp_mask;
 	unsigned long flags;
 	struct cpufreq_interactive_cpuinfo *pcpu;
 
 	spin_lock_irqsave(&down_cpumask_lock, flags);
-	tmp_mask = down_cpumask;
 	cpumask_clear(&down_cpumask);
 	spin_unlock_irqrestore(&down_cpumask_lock, flags);
 
-	for_each_cpu(cpu, &tmp_mask) {
+	for_each_online_cpu(cpu) {
 		unsigned int j;
 		unsigned int max_freq = 0;
 
@@ -458,7 +454,7 @@ static void cpufreq_interactive_freq_down(struct work_struct *work)
 
 		mutex_lock(&set_speed_lock);
 
-		for_each_cpu(j, pcpu->policy->cpus) {
+		for_each_online_cpu(j) {
 			struct cpufreq_interactive_cpuinfo *pjcpu =
 				&per_cpu(cpuinfo, j);
 
@@ -575,7 +571,7 @@ static ssize_t show_irq_param(struct kobject *kobj,
 	j += scnprintf(&buf[j], CPUFREQ_NOTE_LEN, "Change irq setting by echo a data, format: 0xAABBBC, AA:irq number, BBB:up_threshold, C:enable\n");
 	for (i = 0; i < MAX_CPUFREQ_IRQ_NUMBER; i++) {
 		if (irq_tuner_ins[i].irq_number != 0)
-			j += scnprintf(&buf[j], CPUFREQ_IRQ_LEN, "irq number: %d, up_threshold %d, %s\n", irq_tuner_ins[i].irq_number, irq_tuner_ins[i].up_threshold, irq_tuner_ins[i].enable ? "enabled" : "disabled");
+			j += scnprintf(&buf[j], CPUFREQ_IRQ_LEN, "irq number: 0x%x, up_threshold 0x%x, %s\n", irq_tuner_ins[i].irq_number, irq_tuner_ins[i].up_threshold, irq_tuner_ins[i].enable ? "enabled" : "disabled");
 	}
 
 	return j;
