@@ -1156,6 +1156,40 @@ gckCOMMAND_Commit(
         + Command->reservedTail
         - commandBufferObject->startOffset;
 
+    /* Get the current offset. */
+    offset = Command->offset;
+
+    /* Compute number of bytes left in current kernel command queue. */
+    bytes = Command->pageSize - offset;
+
+    /* Query the size of WAIT/LINK command sequence. */
+    gcmkONERROR(gckHARDWARE_WaitLink(
+        hardware,
+        gcvNULL,
+        offset,
+        &waitLinkBytes,
+        gcvNULL,
+        gcvNULL
+        ));
+
+    /* Is there enough space in the current command queue? */
+    if (bytes < waitLinkBytes)
+    {
+        /* No, create a new one. */
+        gcmkONERROR(_NewQueue(Command));
+
+        /* Get the new current offset. */
+        offset = Command->offset;
+
+        /* Recompute the number of bytes in the new kernel command queue. */
+        bytes = Command->pageSize - offset;
+        gcmkASSERT(bytes >= waitLinkBytes);
+    }
+
+    /* Compute the location if WAIT/LINK command sequence. */
+    waitLinkPhysical = (gctUINT8_PTR) Command->physical + offset;
+    waitLinkLogical  = (gctUINT8_PTR) Command->logical  + offset;
+
     /* Context switch required? */
     if (Context == gcvNULL)
     {
@@ -1729,40 +1763,6 @@ gckCOMMAND_Commit(
     gcmkONERROR(_ProcessHints(Command, ProcessID, commandBufferObject));
 #endif
 
-    /* Get the current offset. */
-    offset = Command->offset;
-
-    /* Compute number of bytes left in current kernel command queue. */
-    bytes = Command->pageSize - offset;
-
-    /* Query the size of WAIT/LINK command sequence. */
-    gcmkONERROR(gckHARDWARE_WaitLink(
-        hardware,
-        gcvNULL,
-        offset,
-        &waitLinkBytes,
-        gcvNULL,
-        gcvNULL
-        ));
-
-    /* Is there enough space in the current command queue? */
-    if (bytes < waitLinkBytes)
-    {
-        /* No, create a new one. */
-        gcmkONERROR(_NewQueue(Command));
-
-        /* Get the new current offset. */
-        offset = Command->offset;
-
-        /* Recompute the number of bytes in the new kernel command queue. */
-        bytes = Command->pageSize - offset;
-        gcmkASSERT(bytes >= waitLinkBytes);
-    }
-
-    /* Compute the location if WAIT/LINK command sequence. */
-    waitLinkPhysical = (gctUINT8_PTR) Command->physical + offset;
-    waitLinkLogical  = (gctUINT8_PTR) Command->logical  + offset;
-
     /* Determine the location to jump to for the command buffer being
     ** scheduled. */
     if (Command->newQueue)
@@ -1980,7 +1980,21 @@ gckCOMMAND_Commit(
     }
 
     /* Submit events. */
-    gcmkONERROR(gckEVENT_Submit(Command->kernel->eventObj, gcvTRUE, gcvFALSE));
+    status = (gckEVENT_Submit(Command->kernel->eventObj, gcvTRUE, gcvFALSE));
+
+    if (status == gcvSTATUS_INTERRUPTED || status == gcvSTATUS_TIMEOUT)
+    {
+        gcmkTRACE(
+            gcvLEVEL_INFO,
+            "%s(%d): Intterupted in gckEVENT_Submit",
+            __FUNCTION__, __LINE__
+            );
+        status = gcvSTATUS_OK;
+    }
+    else
+    {
+        gcmkONERROR(status);
+    }
 
     /* Unmap the command buffer pointer. */
     if (commandBufferMapped)
