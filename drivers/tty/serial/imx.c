@@ -553,8 +553,10 @@ static irqreturn_t imx_rxint(int irq, void *dev_id)
 				continue;
 		}
 
+		spin_unlock_irqrestore(&sport->port.lock, flags);
 		if (uart_handle_sysrq_char(&sport->port, (unsigned char)rx))
 			continue;
+		spin_lock_irqsave(&sport->port.lock, flags);
 
 		if (unlikely(rx & URXD_ERR)) {
 			if (rx & URXD_BRK)
