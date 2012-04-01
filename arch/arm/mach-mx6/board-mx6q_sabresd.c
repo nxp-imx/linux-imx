@@ -1412,6 +1412,17 @@ static struct mipi_csi2_platform_data mipi_csi2_pdata = {
 	.pixel_clk = "emi_clk",
 };
 
+#define SNVS_LPCR 0x38
+static void mx6_snvs_poweroff(void)
+{
+
+	void __iomem *mx6_snvs_base =  MX6_IO_ADDRESS(MX6Q_SNVS_BASE_ADDR);
+	u32 value;
+	value = readl(mx6_snvs_base + SNVS_LPCR);
+	/*set TOP and DP_EN bit*/
+	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
+}
+
 /*!
  * Board specific initialization.
  */
@@ -1597,6 +1608,8 @@ static void __init mx6_sabresd_board_init(void)
 	gps_power_on(true);
 	/* Register charger chips */
 	platform_device_register(&sabresd_max8903_charger_1);
+	pm_power_off = mx6_snvs_poweroff;
+
 }
 
 extern void __iomem *twd_base;
