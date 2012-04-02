@@ -1934,6 +1934,7 @@ static struct clk gpt_clk[] = {
 	 .enable = _clk_enable,
 	 .disable = _clk_disable,
 	 .get_rate = _clk_gpt_get_rate,
+	 .secondary = &gpt_clk[1],
 	 },
 	{
 	__INIT_CLK_DEBUG(gpt_serial_clk)
