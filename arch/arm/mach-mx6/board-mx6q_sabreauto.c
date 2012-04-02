@@ -136,6 +136,14 @@ static int mma8451_position = 3;
 static struct clk *sata_clk;
 static int mipi_sensor;
 static int can0_enable;
+static int uart3_en;
+
+static int __init uart3_enable(char *p)
+{
+	uart3_en = 1;
+	return 0;
+}
+early_param("uart3", uart3_enable);
 
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
@@ -285,8 +293,8 @@ mx6q_sabreauto_anatop_thermal_data __initconst = {
 
 static inline void mx6q_sabreauto_init_uart(void)
 {
-	imx6q_add_imx_uart(0, NULL);
 	imx6q_add_imx_uart(1, NULL);
+	imx6q_add_imx_uart(2, NULL);
 	imx6q_add_imx_uart(3, NULL);
 }
 
@@ -524,8 +532,10 @@ static int max7310_u43_setup(struct i2c_client *client,
 	int max7310_gpio_value[] = {
 		0, 0, 0, 0, 0, 0, 0, 0,
 	};
-
 	int n;
+
+	if (uart3_en)
+		max7310_gpio_value[3] = 1;
 
 	for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
 		gpio_request(gpio_base + n, "MAX7310 U43 GPIO Expander");
@@ -1416,7 +1426,8 @@ static void __init mx6_board_init(void)
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
 	imx6q_add_dma();
-	imx6q_add_gpmi(&mx6q_gpmi_nand_platform_data);
+	if (!uart3_en)
+		imx6q_add_gpmi(&mx6q_gpmi_nand_platform_data);
 
 	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
 
