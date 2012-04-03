@@ -531,6 +531,7 @@ static int _clk_pll1_enable(struct clk *clk)
 {
 	_clk_pll_enable(clk);
 	pll1_enabled = true;
+	return 0;
 }
 
 static struct clk pll1_sys_main_clk = {
@@ -5147,7 +5148,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	unsigned long ckih1, unsigned long ckih2)
 {
 	__iomem void *base;
-	unsigned int reg;
 	int i;
 
 	external_low_reference = ckil;
