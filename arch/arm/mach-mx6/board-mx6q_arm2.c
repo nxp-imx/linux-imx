@@ -2051,6 +2051,7 @@ static void __init mx6_arm2_init(void)
 
 	if (!disable_mipi_dsi)
 		imx6q_add_mipi_dsi(&mipi_dsi_pdata);
+	imx6q_add_vdoa();
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);

@@ -71,9 +71,18 @@ typedef enum {
 	CSI_PRP_ENC_MEM = _MAKE_CHAN(19, NO_DMA, NO_DMA, NO_DMA, 20),
 	CSI_PRP_VF_MEM = _MAKE_CHAN(20, NO_DMA, NO_DMA, NO_DMA, 21),
 
+	/* for vdi mem->vdi->ic->mem , add graphics plane and alpha*/
 	MEM_VDI_PRP_VF_MEM_P = _MAKE_CHAN(21, 8, 14, 17, 21),
 	MEM_VDI_PRP_VF_MEM = _MAKE_CHAN(22, 9, 14, 17, 21),
 	MEM_VDI_PRP_VF_MEM_N = _MAKE_CHAN(23, 10, 14, 17, 21),
+
+	/* for vdi mem->vdi->mem */
+	MEM_VDI_MEM_P = _MAKE_CHAN(24, 8, NO_DMA, NO_DMA, 5),
+	MEM_VDI_MEM = _MAKE_CHAN(25, 9, NO_DMA, NO_DMA, 5),
+	MEM_VDI_MEM_N = _MAKE_CHAN(26, 10, NO_DMA, NO_DMA, 5),
+
+	/* fake channel for vdoa to link with IPU */
+	MEM_VDOA_MEM =  _MAKE_CHAN(27, NO_DMA, NO_DMA, NO_DMA, NO_DMA),
 
 	MEM_PP_ADC = CHAN_NONE,
 	ADC_SYS2 = CHAN_NONE,
@@ -308,6 +317,7 @@ enum ipu_irq_line {
 	IPU_IRQ_CSI1_OUT_EOF = 1,
 	IPU_IRQ_CSI2_OUT_EOF = 2,
 	IPU_IRQ_CSI3_OUT_EOF = 3,
+	IPU_IRQ_VDIC_OUT_EOF = 5,
 	IPU_IRQ_VDI_P_IN_EOF = 8,
 	IPU_IRQ_VDI_C_IN_EOF = 9,
 	IPU_IRQ_VDI_N_IN_EOF = 10,
@@ -633,6 +643,8 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 void ipu_free_irq(struct ipu_soc *ipu, uint32_t irq, void *dev_id);
 bool ipu_get_irq_status(struct ipu_soc *ipu, uint32_t irq);
 void ipu_set_csc_coefficients(struct ipu_soc *ipu, ipu_channel_t channel, int32_t param[][3]);
+int32_t ipu_set_channel_bandmode(struct ipu_soc *ipu, ipu_channel_t channel,
+				 ipu_buffer_t type, uint32_t band_height);
 
 /* two stripe calculations */
 struct stripe_param{

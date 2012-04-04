@@ -1488,6 +1488,7 @@ static void __init mx6_sabresd_board_init(void)
 		for (i = 0; i < (ARRAY_SIZE(sabresd_fb_data) + 1) / 2; i++)
 			imx6q_add_ipuv3fb(i, &sabresd_fb_data[i]);
 
+	imx6q_add_vdoa();
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
