@@ -1344,6 +1344,7 @@ static void __init mx6_board_init(void)
 		for (i = 0; i < (ARRAY_SIZE(sabr_fb_data) + 1) / 2; i++)
 			imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
 
+	imx6q_add_vdoa();
 	imx6q_add_mipi_dsi(&mipi_dsi_pdata);
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
