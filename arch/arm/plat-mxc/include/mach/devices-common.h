@@ -633,3 +633,12 @@ struct imx_rngb_data {
 
 struct platform_device *__init imx_add_rngb(
 		const struct imx_rngb_data *data);
+
+struct imx_vdoa_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq;
+};
+struct platform_device *__init imx_add_vdoa(
+		const struct imx_vdoa_data *data);

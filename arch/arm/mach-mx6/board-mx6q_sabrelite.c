@@ -1082,6 +1082,7 @@ static void __init mx6_sabrelite_board_init(void)
 	for (i = 0; i < ARRAY_SIZE(sabrelite_fb_data); i++)
 		imx6q_add_ipuv3fb(i, &sabrelite_fb_data[i]);
 
+	imx6q_add_vdoa();
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);

@@ -1903,8 +1903,8 @@ static struct clk vdo_axi_clk = {
 static struct clk vdoa_clk = {
 	__INIT_CLK_DEBUG(vdoa_clk)
 	.id = 0,
-	.parent = &axi_clk,
-	.secondary = &mx6fast1_clk,
+	.parent = &vdo_axi_clk,
+	.secondary = &ipg_clk,
 	.enable_reg = MXC_CCM_CCGR2,
 	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
 	.enable = _clk_enable,
@@ -5113,7 +5113,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "hdmi_isfr_clk", hdmi_clk[0]),
 	_REGISTER_CLOCK(NULL, "hdmi_iahb_clk", hdmi_clk[1]),
 	_REGISTER_CLOCK(NULL, "mipi_pllref_clk", mipi_pllref_clk),
-	_REGISTER_CLOCK(NULL, NULL, vdoa_clk),
+	_REGISTER_CLOCK(NULL, "vdoa", vdoa_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz2_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
