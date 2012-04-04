@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -124,6 +124,10 @@ typedef enum {
 #define IPU_PIX_FMT_VYU444  fourcc('V', '4', '4', '4')	/*!< 24 VYU 4:4:4 */
 /* two planes -- one Y, one Cb + Cr interleaved  */
 #define IPU_PIX_FMT_NV12    fourcc('N', 'V', '1', '2') /* 12  Y/CbCr 4:2:0  */
+/* two planes -- 12  tiled Y/CbCr 4:2:0  */
+#define IPU_PIX_FMT_TILED_NV12    fourcc('T', 'N', 'V', 'P')
+#define IPU_PIX_FMT_TILED_NV12F   fourcc('T', 'N', 'V', 'F')
+
 /*! @} */
 /*! @name YUV Planar Formats */
 /*! @{ */
@@ -136,7 +140,7 @@ typedef enum {
 #define IPU_PIX_FMT_YVU422P fourcc('Y', 'V', '1', '6')	/*!< 16 YVU 4:2:2 */
 #define IPU_PIX_FMT_YUV422P fourcc('4', '2', '2', 'P')	/*!< 16 YUV 4:2:2 */
 /*! @} */
-
+#define IPU_PIX_FMT_TILED_NV12_MBALIGN	(16)
 /* IPU device */
 typedef enum {
 	RGB_CS,
@@ -244,6 +248,8 @@ enum {
 	IPU_CHECK_ERR_SPLIT_OUTPUTW_OVER,
 	IPU_CHECK_ERR_SPLIT_OUTPUTH_OVER,
 	IPU_CHECK_ERR_SPLIT_WITH_ROT,
+	IPU_CHECK_ERR_NOT_SUPPORT,
+	IPU_CHECK_ERR_NOT16ALIGN,
 };
 
 /* IOCTL commands */
