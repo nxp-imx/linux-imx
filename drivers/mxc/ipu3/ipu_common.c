@@ -53,7 +53,13 @@ static inline uint32_t channel_2_dma(ipu_channel_t ch, ipu_buffer_t type)
 
 static inline int _ipu_is_ic_chan(uint32_t dma_chan)
 {
-	return ((dma_chan >= 11) && (dma_chan <= 22) && (dma_chan != 17) && (dma_chan != 18));
+	return (((dma_chan >= 11) && (dma_chan <= 22) && (dma_chan != 17) &&
+		(dma_chan != 18)));
+}
+
+static inline int _ipu_is_vdi_out_chan(uint32_t dma_chan)
+{
+	return (dma_chan == 5);
 }
 
 static inline int _ipu_is_ic_graphic_chan(uint32_t dma_chan)
@@ -611,6 +617,12 @@ void ipu_dump_registers(struct ipu_soc *ipu)
 	       ipu_cm_read(ipu, IPU_FS_PROC_FLOW3));
 	dev_dbg(ipu->dev, "IPU_FS_DISP_FLOW1 = \t0x%08X\n",
 	       ipu_cm_read(ipu, IPU_FS_DISP_FLOW1));
+	dev_dbg(ipu->dev, "IPU_VDIC_VDI_FSIZE = \t0x%08X\n",
+	       ipu_vdi_read(ipu, VDI_FSIZE));
+	dev_dbg(ipu->dev, "IPU_VDIC_VDI_C = \t0x%08X\n",
+	       ipu_vdi_read(ipu, VDI_C));
+	dev_dbg(ipu->dev, "IPU_IC_CONF = \t0x%08X\n",
+	       ipu_ic_read(ipu, IC_CONF));
 }
 
 /*!
@@ -691,7 +703,8 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 			ret = -EINVAL;
 			goto err;
 		}
-		if (ipu->using_ic_dirct_ch == MEM_VDI_PRP_VF_MEM) {
+		if ((ipu->using_ic_dirct_ch == MEM_VDI_PRP_VF_MEM) ||
+			(ipu->using_ic_dirct_ch == MEM_VDI_MEM)) {
 			ret = -EINVAL;
 			goto err;
 		}
@@ -731,7 +744,8 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 			ret = -EINVAL;
 			goto err;
 		}
-		if (ipu->using_ic_dirct_ch == MEM_VDI_PRP_VF_MEM) {
+		if ((ipu->using_ic_dirct_ch == MEM_VDI_PRP_VF_MEM) ||
+			(ipu->using_ic_dirct_ch == MEM_VDI_MEM)) {
 			ret = -EINVAL;
 			goto err;
 		}
@@ -780,6 +794,7 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 		break;
 	case MEM_VDI_PRP_VF_MEM:
 		if ((ipu->using_ic_dirct_ch == CSI_PRP_VF_MEM) ||
+			(ipu->using_ic_dirct_ch == MEM_VDI_MEM) ||
 		     (ipu->using_ic_dirct_ch == CSI_PRP_ENC_MEM)) {
 			ret = -EINVAL;
 			goto err;
@@ -797,9 +812,22 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 		_ipu_vdi_init(ipu, channel, params);
 		break;
 	case MEM_VDI_PRP_VF_MEM_P:
+	case MEM_VDI_PRP_VF_MEM_N:
+	case MEM_VDI_MEM_P:
+	case MEM_VDI_MEM_N:
 		_ipu_vdi_init(ipu, channel, params);
 		break;
-	case MEM_VDI_PRP_VF_MEM_N:
+	case MEM_VDI_MEM:
+		if ((ipu->using_ic_dirct_ch == CSI_PRP_VF_MEM) ||
+			(ipu->using_ic_dirct_ch == MEM_VDI_PRP_VF_MEM) ||
+		     (ipu->using_ic_dirct_ch == CSI_PRP_ENC_MEM)) {
+			ret = -EINVAL;
+			goto err;
+		}
+		ipu->using_ic_dirct_ch = MEM_VDI_MEM;
+		ipu->ic_use_count++;
+		ipu->vdi_use_count++;
+		_ipu_ic_init_prpvf(ipu, params, false);
 		_ipu_vdi_init(ipu, channel, params);
 		break;
 	case MEM_ROT_VF_MEM:
@@ -1017,8 +1045,18 @@ void ipu_uninit_channel(struct ipu_soc *ipu, ipu_channel_t channel)
 		reg = ipu_cm_read(ipu, IPU_FS_PROC_FLOW1);
 		ipu_cm_write(ipu, reg & ~FS_VF_IN_VALID, IPU_FS_PROC_FLOW1);
 		break;
+	case MEM_VDI_MEM:
+		ipu->ic_use_count--;
+		ipu->vdi_use_count--;
+		if (ipu->using_ic_dirct_ch == MEM_VDI_MEM)
+			ipu->using_ic_dirct_ch = 0;
+		_ipu_ic_uninit_prpvf(ipu);
+		_ipu_vdi_uninit(ipu);
+		break;
 	case MEM_VDI_PRP_VF_MEM_P:
 	case MEM_VDI_PRP_VF_MEM_N:
+	case MEM_VDI_MEM_P:
+	case MEM_VDI_MEM_N:
 		break;
 	case MEM_ROT_VF_MEM:
 		ipu->rot_use_count--;
@@ -1198,6 +1236,12 @@ int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 		return -EINVAL;
 	}
 
+	if (_ipu_is_vdi_out_chan(dma_chan) &&
+		((width < 16) || (height < 16) || (width % 2) || (height % 4))) {
+		dev_err(ipu->dev, "vdi width/height limited err\n");
+		return -EINVAL;
+	}
+
 	/* IPUv3EX and IPUv3M support triple buffer */
 	if ((!_ipu_is_trb_chan(dma_chan)) && phyaddr_2) {
 		dev_err(ipu->dev, "Chan%d doesn't support triple buffer "
@@ -1234,7 +1278,7 @@ int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 		_ipu_ch_param_set_rotation(ipu, dma_chan, rot_mode);
 
 	/* IC and ROT channels have restriction of 8 or 16 pix burst length */
-	if (_ipu_is_ic_chan(dma_chan)) {
+	if (_ipu_is_ic_chan(dma_chan) || _ipu_is_vdi_out_chan(dma_chan)) {
 		if ((width % 16) == 0)
 			_ipu_ch_param_set_burst_size(ipu, dma_chan, 16);
 		else
@@ -1252,7 +1296,8 @@ int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 		ipu->chan_is_interlaced[dma_chan])
 		_ipu_ch_param_set_interlaced_scan(ipu, dma_chan);
 
-	if (_ipu_is_ic_chan(dma_chan) || _ipu_is_irt_chan(dma_chan)) {
+	if (_ipu_is_ic_chan(dma_chan) || _ipu_is_irt_chan(dma_chan) ||
+		_ipu_is_vdi_out_chan(dma_chan)) {
 		burst_size = _ipu_ch_param_get_burst_size(ipu, dma_chan);
 		_ipu_ic_idma_init(ipu, dma_chan, width, height, burst_size,
 			rot_mode);
@@ -1434,6 +1479,46 @@ int32_t ipu_update_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 }
 EXPORT_SYMBOL(ipu_update_channel_buffer);
 
+/*!
+ * This function is called to update the band mode setting for
+ * a logical IPU channel.
+ *
+ * @param	ipu		ipu handler
+ *
+ * @param       channel         Input parameter for the logical channel ID.
+ *
+ * @param       type            Input parameter which buffer to initialize.
+ *
+ * @param       band_height     Input parameter for band lines:
+ *				shoule be log2(4/8/16/32/64/128/256).
+ *
+ * @return      This function returns 0 on success or negative error code on
+ *              fail.
+ */
+int32_t ipu_set_channel_bandmode(struct ipu_soc *ipu, ipu_channel_t channel,
+				 ipu_buffer_t type, uint32_t band_height)
+{
+	uint32_t reg;
+	int ret = 0;
+	uint32_t dma_chan = channel_2_dma(channel, type);
+
+	if ((2 > band_height) || (8 < band_height))
+		return -EINVAL;
+
+	_ipu_lock(ipu);
+
+	reg = ipu_idmac_read(ipu, IDMAC_BAND_EN(dma_chan));
+	reg |= 1 << (dma_chan % 32);
+	ipu_idmac_write(ipu, reg, IDMAC_BAND_EN(dma_chan));
+
+	_ipu_ch_param_set_bandmode(ipu, dma_chan, band_height);
+	dev_dbg(ipu->dev, "dma_chan:%d, band_height:%d.\n\n",
+				dma_chan, 1 << band_height);
+	_ipu_unlock(ipu);
+
+	return ret;
+}
+EXPORT_SYMBOL(ipu_set_channel_bandmode);
 
 /*!
  * This function is called to initialize a buffer for logical IPU channel.
@@ -1688,6 +1773,17 @@ int32_t ipu_link_channels(struct ipu_soc *ipu, ipu_channel_t src_ch, ipu_channel
 		    proc_dest_sel[IPU_CHAN_ID(dest_ch)] <<
 		    FS_PRPVF_ROT_DEST_SEL_OFFSET;
 		break;
+	case MEM_VDOA_MEM:
+		fs_proc_flow3 &= ~FS_VDOA_DEST_SEL_MASK;
+		if (MEM_VDI_MEM == dest_ch)
+			fs_proc_flow3 |= FS_VDOA_DEST_SEL_VDI;
+		else if (MEM_PP_MEM == dest_ch)
+			fs_proc_flow3 |= FS_VDOA_DEST_SEL_IC;
+		else {
+			retval = -EINVAL;
+			goto err;
+		}
+		break;
 	default:
 		retval = -EINVAL;
 		goto err;
@@ -1696,8 +1792,11 @@ int32_t ipu_link_channels(struct ipu_soc *ipu, ipu_channel_t src_ch, ipu_channel
 	switch (dest_ch) {
 	case MEM_PP_MEM:
 		fs_proc_flow1 &= ~FS_PP_SRC_SEL_MASK;
-		fs_proc_flow1 |=
-		    proc_src_sel[IPU_CHAN_ID(src_ch)] << FS_PP_SRC_SEL_OFFSET;
+		if (MEM_VDOA_MEM == src_ch)
+			fs_proc_flow1 |= FS_PP_SRC_SEL_VDOA;
+		else
+			fs_proc_flow1 |= proc_src_sel[IPU_CHAN_ID(src_ch)] <<
+						FS_PP_SRC_SEL_OFFSET;
 		break;
 	case MEM_ROT_PP_MEM:
 		fs_proc_flow1 &= ~FS_PP_ROT_SRC_SEL_MASK;
@@ -1765,6 +1864,15 @@ int32_t ipu_link_channels(struct ipu_soc *ipu, ipu_channel_t src_ch, ipu_channel
 		fs_disp_flow1 |=
 		    disp_src_sel[IPU_CHAN_ID(src_ch)] <<
 		    FS_DP_ASYNC1_SRC_SEL_OFFSET;
+		break;
+	case MEM_VDI_MEM:
+		fs_proc_flow1 &= ~FS_VDI_SRC_SEL_MASK;
+		if (MEM_VDOA_MEM == src_ch)
+			fs_proc_flow1 |= FS_VDI_SRC_SEL_VDOA;
+		else {
+			retval = -EINVAL;
+			goto err;
+		}
 		break;
 	default:
 		retval = -EINVAL;
@@ -1851,6 +1959,9 @@ int32_t ipu_unlink_channels(struct ipu_soc *ipu, ipu_channel_t src_ch, ipu_chann
 	case MEM_ROT_VF_MEM:
 		fs_proc_flow2 &= ~FS_PRPVF_ROT_DEST_SEL_MASK;
 		break;
+	case MEM_VDOA_MEM:
+		fs_proc_flow3 &= ~FS_VDOA_DEST_SEL_MASK;
+		break;
 	default:
 		retval = -EINVAL;
 		goto err;
@@ -1895,6 +2006,9 @@ int32_t ipu_unlink_channels(struct ipu_soc *ipu, ipu_channel_t src_ch, ipu_chann
 		break;
 	case MEM_FG_ASYNC0:
 		fs_disp_flow1 &= ~FS_DP_ASYNC1_SRC_SEL_MASK;
+		break;
+	case MEM_VDI_MEM:
+		fs_proc_flow1 &= ~FS_VDI_SRC_SEL_MASK;
 		break;
 	default:
 		retval = -EINVAL;
@@ -2040,7 +2154,8 @@ int32_t ipu_enable_channel(struct ipu_soc *ipu, ipu_channel_t channel)
 	}
 
 	if (_ipu_is_ic_chan(in_dma) || _ipu_is_ic_chan(out_dma) ||
-		_ipu_is_irt_chan(in_dma) || _ipu_is_irt_chan(out_dma))
+		_ipu_is_irt_chan(in_dma) || _ipu_is_irt_chan(out_dma) ||
+		_ipu_is_vdi_out_chan(out_dma))
 		_ipu_ic_enable_task(ipu, channel);
 
 	ipu->channel_enable_mask |= 1L << IPU_CHAN_ID(channel);
@@ -2262,7 +2377,8 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 
 	/* Disable IC task */
 	if (_ipu_is_ic_chan(in_dma) || _ipu_is_ic_chan(out_dma) ||
-		_ipu_is_irt_chan(in_dma) || _ipu_is_irt_chan(out_dma))
+		_ipu_is_irt_chan(in_dma) || _ipu_is_irt_chan(out_dma) ||
+		_ipu_is_vdi_out_chan(out_dma))
 		_ipu_ic_disable_task(ipu, channel);
 
 	/* Disable DMA channel(s) */
@@ -2715,7 +2831,9 @@ uint32_t ipu_channel_status(struct ipu_soc *ipu, ipu_channel_t channel)
 	uint32_t dma_status;
 
 	_ipu_lock(ipu);
+	_ipu_get(ipu);
 	dma_status = ipu_is_channel_busy(ipu, channel);
+	_ipu_put(ipu);
 	_ipu_unlock(ipu);
 
 	dev_dbg(ipu->dev, "%s, dma_status:%d.\n", __func__, dma_status);

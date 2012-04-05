@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -128,16 +128,15 @@ struct ipu_soc {
 	u32 idma_enable_reg[2];
 	u32 buf_ready_reg[10];
 
-	/*ipu processing driver*/
-	struct list_head task_list[2];
-	struct mutex task_lock[2];
-	wait_queue_head_t waitq[2];
-	struct task_struct *thread[2];
 	struct rot_mem {
 		void *vaddr;
 		dma_addr_t paddr;
 		int size;
 	} rot_dma[2];
+
+	int	vdoa_en;
+	struct task_struct *thread[2];
+
 };
 
 struct ipu_channel {
