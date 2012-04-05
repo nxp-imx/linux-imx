@@ -54,6 +54,7 @@
 #include <linux/mfd/max17135.h>
 #include <linux/mfd/wm8994/pdata.h>
 #include <linux/mfd/wm8994/gpio.h>
+#include <sound/wm8962.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -332,7 +333,7 @@ static struct mxc_audio_platform_data wm8958_data = {
 	.hp_active_low = 1,
 };
 
-static struct wm8994_pdata wm8958_pdata = {
+static struct wm8994_pdata wm8958_config_data = {
 	.gpio_defaults = {
 		[0] = WM8994_GP_FN_GPIO | WM8994_GPN_DB,
 		[1] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
@@ -376,12 +377,21 @@ static struct platform_device mx6_sabresd_audio_wm8962_device = {
 	.name = "imx-wm8962",
 };
 
+static struct wm8962_pdata wm8962_config_data = {
+	.gpio_init = {
+		[2] = WM8962_GPIO_FN_DMICCLK,
+		[4] = 0x8000 | WM8962_GPIO_FN_DMICDAT,
+	},
+};
+
 static struct mxc_audio_platform_data wm8962_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
 	.hp_gpio = SABRESD_HEADPHONE_DET,
 	.hp_active_low = 1,
+	.mic_gpio = SABRESD_MICROPHONE_DET,
+	.mic_active_low = 1,
 };
 
 static int mxc_wm8962_init(void)
@@ -1487,9 +1497,10 @@ static void __init mx6_sabresd_board_init(void)
 
 	if (board_is_mx6_reva()) {
 		strcpy(mxc_i2c0_board_info[0].type, "wm8958");
-		mxc_i2c0_board_info[0].platform_data = &wm8958_pdata;
+		mxc_i2c0_board_info[0].platform_data = &wm8958_config_data;
 	} else {
 		strcpy(mxc_i2c0_board_info[0].type, "wm8962");
+		mxc_i2c0_board_info[0].platform_data = &wm8962_config_data;
 	}
 	imx6q_add_imx_i2c(0, &mx6q_sabresd_i2c_data);
 	imx6q_add_imx_i2c(1, &mx6q_sabresd_i2c_data);
