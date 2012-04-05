@@ -37,6 +37,7 @@ void hdmi_irq_enable(int irq);
 unsigned int hdmi_irq_disable(int irq);
 
 void hdmi_set_sample_rate(unsigned int rate);
+void hdmi_set_dma_mode(unsigned int dma_running);
 void hdmi_init_clk_regenerator(void);
 void hdmi_clk_regenerator_update_pixel_clock(void);
 
