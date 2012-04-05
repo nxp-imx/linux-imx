@@ -563,7 +563,8 @@ CONFIG_DEFAULT_TCP_CONG="cubic"
 # CONFIG_NET_DSA is not set
 # CONFIG_VLAN_8021Q is not set
 # CONFIG_DECNET is not set
-# CONFIG_LLC2 is not set
+CONFIG_LLC=y
+CONFIG_LLC2=y
 # CONFIG_IPX is not set
 # CONFIG_ATALK is not set
 # CONFIG_X25 is not set
