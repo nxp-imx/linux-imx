@@ -42,6 +42,7 @@
 #include "ipu_prv.h"
 #include "ipu_regs.h"
 #include "ipu_param_mem.h"
+#include "vdoa.h"
 
 #define CHECK_RETCODE(cont, str, err, label, ret)			\
 do {									\
@@ -113,6 +114,7 @@ do {									\
 #define	IPU_PP_CH_VF	(IPU_TASK_ID_VF - 1)
 #define	IPU_PP_CH_PP	(IPU_TASK_ID_PP - 1)
 #define MAX_PP_CH	(IPU_TASK_ID_MAX - 1)
+#define VDOA_DEF_TIMEOUT_MS	(HZ/2)
 
 /* Strucutures and variables for exporting MXC IPU as device*/
 typedef enum {
@@ -134,8 +136,18 @@ typedef enum {
 	STATE_LINK_CHAN_FAIL,
 	STATE_UNLINK_CHAN_FAIL,
 	STATE_INIT_CHAN_BUF_FAIL,
+	STATE_INIT_CHAN_BAND_FAIL,
 	STATE_SYS_NO_MEM,
+	STATE_VDOA_IRQ_TIMEOUT,
+	STATE_VDOA_IRQ_FAIL,
+	STATE_VDOA_TASK_FAIL,
 } ipu_state_t;
+
+enum {
+	INPUT_CHAN_VDI_P = 1,
+	INPUT_CHAN,
+	INPUT_CHAN_VDI_N,
+};
 
 struct ipu_state_msg {
 	int state;
@@ -159,7 +171,11 @@ struct ipu_state_msg {
 	{STATE_LINK_CHAN_FAIL, "ipu link channel fail"},
 	{STATE_UNLINK_CHAN_FAIL, "ipu unlink channel fail"},
 	{STATE_INIT_CHAN_BUF_FAIL, "ipu init channel buffer fail"},
+	{STATE_INIT_CHAN_BAND_FAIL, "ipu init channel band mode fail"},
 	{STATE_SYS_NO_MEM, "sys no mem: -ENOMEM"},
+	{STATE_VDOA_IRQ_TIMEOUT, "wait for vdoa irq timeout"},
+	{STATE_VDOA_IRQ_FAIL, "vdoa irq fail"},
+	{STATE_VDOA_TASK_FAIL, "vdoa task fail"},
 };
 
 struct stripe_setting {
@@ -186,14 +202,32 @@ struct task_set {
 #define	IC_MODE		0x1
 #define	ROT_MODE	0x2
 #define	VDI_MODE	0x4
+#define IPU_PREPROCESS_MODE_MASK	(IC_MODE | ROT_MODE | VDI_MODE)
+/* VDOA_MODE means this task use vdoa, and VDOA has two modes:
+ * BAND MODE and non-BAND MODE. Non-band mode will do transfer data
+ * to memory. BAND mode needs hareware sync with IPU, it is used default
+ * if connected to VDIC.
+ */
+#define	VDOA_MODE	0x8
+#define	VDOA_BAND_MODE	0x10
 	u8	mode;
 #define IC_VF	0x1
 #define IC_PP	0x2
 #define ROT_VF	0x4
 #define ROT_PP	0x8
 #define VDI_VF	0x10
+#define	VDOA_ONLY	0x20
 	u8	task;
-
+#define NO_SPLIT	0x0
+#define RL_SPLIT	0x1
+#define UD_SPLIT	0x2
+#define LEFT_STRIPE	0x1
+#define RIGHT_STRIPE	0x2
+#define UP_STRIPE	0x4
+#define DOWN_STRIPE	0x8
+#define SPLIT_MASK	0xF
+	u8	split_mode;
+	u8	band_lines;
 	ipu_channel_t ic_chan;
 	ipu_channel_t rot_chan;
 	ipu_channel_t vdi_ic_p_chan;
@@ -223,15 +257,6 @@ struct task_set {
 	u32 r_stride;
 	dma_addr_t r_paddr;
 
-#define NO_SPLIT	0x0
-#define RL_SPLIT	0x1
-#define UD_SPLIT	0x2
-#define LEFT_STRIPE	0x1
-#define RIGHT_STRIPE	0x2
-#define UP_STRIPE	0x4
-#define DOWN_STRIPE	0x8
-#define SPLIT_MASK	0xF
-	u8 split_mode;
 	struct stripe_setting sp_setting;
 };
 
@@ -276,10 +301,17 @@ struct ipu_task_entry {
 
 	struct ipu_task_entry *parent;
 	char *vditmpbuf[2];
-	bool buf1filled;
-	bool buf0filled;
 	u32 old_save_lines;
 	u32 old_size;
+	bool buf1filled;
+	bool buf0filled;
+
+	vdoa_handle_t vdoa_handle;
+	struct vdoa_output_mem {
+		void *vaddr;
+		dma_addr_t paddr;
+		int size;
+	} vdoa_dma;
 
 #ifdef DBG_IPU_PERF
 	struct timespec ts_queue;
@@ -294,6 +326,7 @@ struct ipu_task_entry {
 struct ipu_channel_tabel {
 	struct mutex	lock;
 	u8		used[MXC_IPU_MAX_NUM][MAX_PP_CH];
+	u8		vdoa_used;
 };
 
 struct ipu_thread_data {
@@ -336,18 +369,33 @@ static bool deinterlace_3_field(struct ipu_task_entry *t)
 		(t->input.deinterlace.motion != HIGH_MOTION));
 }
 
+static u32 tiled_filed_size(struct ipu_task_entry *t)
+{
+	u32 y_size;
+	u32 field_size;
+
+	/* note: page_align is required by VPU hw ouput buffer */
+	y_size = t->input.width * t->input.height/2;
+	field_size = ALIGN(y_size, SZ_4K) + ALIGN(y_size/2, SZ_4K);
+
+	return field_size;
+}
+
 static bool only_ic(u8 mode)
 {
+	mode = mode & IPU_PREPROCESS_MODE_MASK;
 	return ((mode == IC_MODE) || (mode == VDI_MODE));
 }
 
 static bool only_rot(u8 mode)
 {
+	mode = mode & IPU_PREPROCESS_MODE_MASK;
 	return (mode == ROT_MODE);
 }
 
 static bool ic_and_rot(u8 mode)
 {
+	mode = mode & IPU_PREPROCESS_MODE_MASK;
 	return ((mode == (IC_MODE | ROT_MODE)) ||
 		 (mode == (VDI_MODE | ROT_MODE)));
 }
@@ -420,6 +468,8 @@ cs_t colorspaceofpixel(int fmt)
 	case IPU_PIX_FMT_YUV422P:
 	case IPU_PIX_FMT_YUV444:
 	case IPU_PIX_FMT_NV12:
+	case IPU_PIX_FMT_TILED_NV12:
+	case IPU_PIX_FMT_TILED_NV12F:
 		return YUV_CS;
 		break;
 	default:
@@ -444,9 +494,9 @@ int need_csc(int ifmt, int ofmt)
 }
 EXPORT_SYMBOL_GPL(need_csc);
 
-static int soc_max_in_width(void)
+static int soc_max_in_width(u32 is_vdoa)
 {
-	return 4096;
+	return is_vdoa ? 8192 : 4096;
 }
 
 static int soc_max_in_height(void)
@@ -622,20 +672,46 @@ static void dump_check_warn(struct device *dev, int warn)
 		dev_warn(dev, "overlay u/v offset not 8 align\n");
 }
 
-static int set_crop(struct ipu_crop *crop, int width, int height)
+static int set_crop(struct ipu_crop *crop, int width, int height, int fmt)
 {
-	if (crop->w || crop->h) {
-		if (((crop->w + crop->pos.x) > width)
-		|| ((crop->h + crop->pos.y) > height))
-			return -EINVAL;
+	if ((IPU_PIX_FMT_TILED_NV12 == fmt) ||
+		(IPU_PIX_FMT_TILED_NV12F == fmt)) {
+		if (crop->w || crop->h) {
+			if (((crop->w + crop->pos.x) > width)
+			|| ((crop->h + crop->pos.y) > height)
+			|| (0 != (crop->w % IPU_PIX_FMT_TILED_NV12_MBALIGN))
+			|| (0 != (crop->h % IPU_PIX_FMT_TILED_NV12_MBALIGN))
+			|| (0 != (crop->pos.x % IPU_PIX_FMT_TILED_NV12_MBALIGN))
+			|| (0 != (crop->pos.y % IPU_PIX_FMT_TILED_NV12_MBALIGN))
+			) {
+				pr_err("set_crop error MB align.\n");
+				return -EINVAL;
+			}
+		} else {
+			crop->pos.x = 0;
+			crop->pos.y = 0;
+			crop->w = width;
+			crop->h = height;
+			if ((0 != (crop->w % IPU_PIX_FMT_TILED_NV12_MBALIGN))
+			|| (0 != (crop->h % IPU_PIX_FMT_TILED_NV12_MBALIGN))) {
+				pr_err("set_crop error w/h MB align.\n");
+				return -EINVAL;
+			}
+		}
 	} else {
-		crop->pos.x = 0;
-		crop->pos.y = 0;
-		crop->w = width;
-		crop->h = height;
+		if (crop->w || crop->h) {
+			if (((crop->w + crop->pos.x) > width)
+			|| ((crop->h + crop->pos.y) > height))
+				return -EINVAL;
+		} else {
+			crop->pos.x = 0;
+			crop->pos.y = 0;
+			crop->w = width;
+			crop->h = height;
+		}
+		crop->w -= crop->w%8;
+		crop->h -= crop->h%8;
 	}
-	crop->w -= crop->w%8;
-	crop->h -= crop->h%8;
 
 	return 0;
 }
@@ -676,6 +752,26 @@ static void update_offset(unsigned int fmt,
 		*off = pos_y * width + pos_x;
 		*uoff = (width * (height - pos_y) - pos_x)
 			+ width * pos_y/2 + pos_x;
+		break;
+	case IPU_PIX_FMT_TILED_NV12:
+		/*
+		 * tiled format, progressive:
+		 * assuming that line is aligned with MB height (aligned to 16)
+		 * offset = line * stride + (pixel / MB_width) * pixels_in_MB
+		 * = line * stride + (pixel / 16) * 256
+		 * = line * stride + pixel * 16
+		 */
+		*off = pos_y * width + (pos_x << 4);
+		*uoff = ALIGN(width * height, SZ_4K) + (*off >> 1);
+		break;
+	case IPU_PIX_FMT_TILED_NV12F:
+		/*
+		 * tiled format, interlaced:
+		 * same as above, only number of pixels in MB is 128,
+		 * instead of 256
+		 */
+		*off = (pos_y >> 1) * width + (pos_x << 3);
+		*uoff = ALIGN(width * height/2, SZ_4K) + (*off >> 1);
 		break;
 	default:
 		*off = (pos_y * width + pos_x) * fmt_to_bpp(fmt)/8;
@@ -774,8 +870,19 @@ static int check_task(struct ipu_task_entry *t)
 	int ret = IPU_CHECK_OK;
 	int timeout;
 
+	if ((IPU_PIX_FMT_TILED_NV12 == t->overlay.format) ||
+		(IPU_PIX_FMT_TILED_NV12F == t->overlay.format) ||
+		(IPU_PIX_FMT_TILED_NV12 == t->output.format) ||
+		(IPU_PIX_FMT_TILED_NV12F == t->output.format) ||
+		((IPU_PIX_FMT_TILED_NV12F == t->input.format) &&
+			!t->input.deinterlace.enable)) {
+		ret = IPU_CHECK_ERR_NOT_SUPPORT;
+		goto done;
+	}
+
 	/* check input */
-	ret = set_crop(&t->input.crop, t->input.width, t->input.height);
+	ret = set_crop(&t->input.crop, t->input.width, t->input.height,
+		t->input.format);
 	if (ret < 0) {
 		ret = IPU_CHECK_ERR_INPUT_CROP;
 		goto done;
@@ -786,7 +893,8 @@ static int check_task(struct ipu_task_entry *t)
 				&t->set.i_voff, &t->set.istride);
 
 	/* check output */
-	ret = set_crop(&t->output.crop, t->output.width, t->output.height);
+	ret = set_crop(&t->output.crop, t->output.width, t->output.height,
+		t->output.format);
 	if (ret < 0) {
 		ret = IPU_CHECK_ERR_OUTPUT_CROP;
 		goto done;
@@ -797,13 +905,32 @@ static int check_task(struct ipu_task_entry *t)
 				&t->set.o_off, &t->set.o_uoff,
 				&t->set.o_voff, &t->set.ostride);
 
+	if ((IPU_PIX_FMT_TILED_NV12 == t->input.format) ||
+		(IPU_PIX_FMT_TILED_NV12F == t->input.format)) {
+		if ((t->input.crop.w > soc_max_in_width(1)) ||
+			(t->input.crop.h > soc_max_in_height())) {
+			ret = IPU_CHECK_ERR_INPUT_OVER_LIMIT;
+			goto done;
+		}
+		/* output fmt: NV12 and YUYV, now don't support resize */
+		if (((IPU_PIX_FMT_NV12 != t->output.format) &&
+				(IPU_PIX_FMT_YUYV != t->output.format)) ||
+			(t->input.crop.w != t->output.crop.w) ||
+			(t->input.crop.h != t->output.crop.h)) {
+			ret = IPU_CHECK_ERR_NOT_SUPPORT;
+			goto done;
+		}
+	}
+
 	/* check overlay if there is */
 	if (t->overlay_en) {
 		if (t->input.deinterlace.enable) {
 			ret = IPU_CHECK_ERR_OVERLAY_WITH_VDI;
 			goto done;
 		}
-		ret = set_crop(&t->overlay.crop, t->overlay.width, t->overlay.height);
+
+		ret = set_crop(&t->overlay.crop, t->overlay.width,
+			t->overlay.height, t->overlay.format);
 		if (ret < 0) {
 			ret = IPU_CHECK_ERR_OVERLAY_CROP;
 			goto done;
@@ -834,10 +961,13 @@ static int check_task(struct ipu_task_entry *t)
 	}
 
 	/* input overflow? */
-	if ((t->input.crop.w > soc_max_in_width()) ||
-		(t->input.crop.h > soc_max_in_height())) {
-		ret = IPU_CHECK_ERR_INPUT_OVER_LIMIT;
-		goto done;
+	if (!((IPU_PIX_FMT_TILED_NV12 == t->input.format) ||
+		(IPU_PIX_FMT_TILED_NV12F == t->input.format))) {
+		if ((t->input.crop.w > soc_max_in_width(0)) ||
+			(t->input.crop.h > soc_max_in_height())) {
+				ret = IPU_CHECK_ERR_INPUT_OVER_LIMIT;
+				goto done;
+		}
 	}
 
 	/* check task mode */
@@ -877,8 +1007,20 @@ static int check_task(struct ipu_task_entry *t)
 		t->set.mode &= ~IC_MODE;
 		t->set.mode |= VDI_MODE;
 	}
+	if ((IPU_PIX_FMT_TILED_NV12 == t->input.format) ||
+		(IPU_PIX_FMT_TILED_NV12F == t->input.format)) {
+		if (t->set.mode & ROT_MODE) {
+			ret = IPU_CHECK_ERR_NOT_SUPPORT;
+			goto done;
+		}
+		t->set.mode |= VDOA_MODE;
+		if (IPU_PIX_FMT_TILED_NV12F == t->input.format)
+			t->set.mode |= VDOA_BAND_MODE;
+		t->set.mode &= ~IC_MODE;
+	}
 
-	if (t->set.mode & (IC_MODE | VDI_MODE)) {
+	if ((t->set.mode & (IC_MODE | VDI_MODE)) &&
+		(IPU_PIX_FMT_TILED_NV12F != t->input.format)) {
 		if (t->output.crop.w > soc_max_out_width())
 			t->set.split_mode |= RL_SPLIT;
 		if (t->output.crop.h > soc_max_out_height())
@@ -945,12 +1087,26 @@ static int prepare_task(struct ipu_task_entry *t)
 			t->set.task |= ROT_VF;
 	}
 
+	if (VDOA_MODE == t->set.mode) {
+		if (t->set.task != 0) {
+			dev_err(t->dev, "ERR: vdoa only task:0x%x, [0x%p].\n",
+					t->set.task, t);
+			BUG();
+		}
+		t->set.task |= VDOA_ONLY;
+	}
+
+	if (VDOA_BAND_MODE & t->set.mode) {
+		/* to save band size: 1<<3 = 8 lines */
+		t->set.band_lines = 3;
+	}
+
 	dump_task_info(t);
 
 	return ret;
 }
 
-static uint32_t ipu_vf_pp_is_busy(struct ipu_soc *ipu, bool is_vf)
+static uint32_t ic_vf_pp_is_busy(struct ipu_soc *ipu, bool is_vf)
 {
 	uint32_t	status;
 	uint32_t	status_vf;
@@ -968,32 +1124,32 @@ static uint32_t ipu_vf_pp_is_busy(struct ipu_soc *ipu, bool is_vf)
 	}
 }
 
-static void put_ipu_res(struct ipu_task_entry *tsk)
-{
-	int ret;
-	struct ipu_channel_tabel	*tbl = &ipu_ch_tbl;
-
-	if (!tsk)
-		BUG();
-	mutex_lock(&tbl->lock);
-	if (tsk) {
-		tbl->used[tsk->ipu_id][tsk->task_id - 1] = 0;
-		ret = atomic_inc_return(&tsk->res_free);
-		if (ret == 2)
-			BUG();
-	}
-	mutex_unlock(&tbl->lock);
-}
-
-static int get_ipu_res(struct ipu_task_entry *t)
+static int _get_vdoa_ipu_res(struct ipu_task_entry *t)
 {
 	int		i;
 	struct ipu_soc	*ipu;
 	u8		*used;
-	uint32_t	found = 0;
+	uint32_t	found_ipu = 0;
+	uint32_t	found_vdoa = 0;
 	struct ipu_channel_tabel	*tbl = &ipu_ch_tbl;
 
 	mutex_lock(&tbl->lock);
+	if (t->set.mode & VDOA_MODE) {
+		if (NULL != t->vdoa_handle)
+			found_vdoa = 1;
+		else {
+			found_vdoa = tbl->vdoa_used ? 0 : 1;
+			if (found_vdoa) {
+				tbl->vdoa_used = 1;
+				vdoa_get_handle(&t->vdoa_handle);
+			} else
+				/* first get vdoa->ipu resource sequence */
+				goto out;
+			if (t->set.task & VDOA_ONLY)
+				goto out;
+		}
+	}
+
 	for (i = 0; i < MXC_IPU_MAX_NUM; i++) {
 		ipu = ipu_get_soc(i);
 		if (IS_ERR(ipu))
@@ -1003,7 +1159,7 @@ static int get_ipu_res(struct ipu_task_entry *t)
 		if (t->set.mode & VDI_MODE) {
 			if (0 == *used) {
 				*used = 1;
-				found = 1;
+				found_ipu = 1;
 				break;
 			}
 		} else if ((t->set.mode & IC_MODE) || only_rot(t->set.mode)) {
@@ -1014,13 +1170,13 @@ static int get_ipu_res(struct ipu_task_entry *t)
 				if (t->set.mode & ROT_MODE)
 					t->set.task |= ROT_VF;
 				*used = 1;
-				found = 1;
+				found_ipu = 1;
 				break;
 			}
 		} else
 			BUG();
 	}
-	if (found)
+	if (found_ipu)
 		goto next;
 
 	for (i = 0; i < MXC_IPU_MAX_NUM; i++) {
@@ -1028,8 +1184,8 @@ static int get_ipu_res(struct ipu_task_entry *t)
 		if (IS_ERR(ipu))
 			BUG();
 
-		used = &tbl->used[i][IPU_PP_CH_PP];
 		if ((t->set.mode & IC_MODE) || only_rot(t->set.mode)) {
+			used = &tbl->used[i][IPU_PP_CH_PP];
 			if (0 == *used) {
 				t->task_id = IPU_TASK_ID_PP;
 				if (t->set.mode & IC_MODE)
@@ -1037,28 +1193,68 @@ static int get_ipu_res(struct ipu_task_entry *t)
 				if (t->set.mode & ROT_MODE)
 					t->set.task |= ROT_PP;
 				*used = 1;
-				found = 1;
+				found_ipu = 1;
 				break;
 			}
 		}
 	}
 
 next:
-	if (found) {
+	if (found_ipu) {
 		t->ipu = ipu;
 		t->ipu_id = i;
 		t->dev = ipu->dev;
 		if (atomic_inc_return(&t->res_get) == 2)
 			BUG();
 	}
+out:
+	dev_dbg(t->dev,
+		"%s:no:0x%x,found_vdoa:%d, found_ipu:%d\n",
+		 __func__, t->task_no, found_vdoa, found_ipu);
 	mutex_unlock(&tbl->lock);
-
-	return found;
+	if (t->set.task & VDOA_ONLY)
+		return found_vdoa;
+	else if (t->set.mode & VDOA_MODE)
+		return found_vdoa && found_ipu;
+	else
+		return found_ipu;
 }
 
-static void put_vdoa_ipu_res(struct ipu_task_entry *tsk)
+static void put_vdoa_ipu_res(struct ipu_task_entry *tsk, int vdoa_only)
 {
-	put_ipu_res(tsk);
+	int ret;
+	int rel_vdoa = 0, rel_ipu = 0;
+	struct ipu_channel_tabel	*tbl = &ipu_ch_tbl;
+
+	if (!tsk)
+		BUG();
+	mutex_lock(&tbl->lock);
+	if (tsk->set.mode & VDOA_MODE) {
+		if (!tbl->vdoa_used && tsk->vdoa_handle)
+			BUG();
+		if (tbl->vdoa_used && tsk->vdoa_handle) {
+			tbl->vdoa_used = 0;
+			vdoa_put_handle(&tsk->vdoa_handle);
+			if (tsk->ipu)
+				tsk->ipu->vdoa_en = 0;
+			rel_vdoa = 1;
+			if (vdoa_only || (tsk->set.task & VDOA_ONLY))
+				goto out;
+		}
+	}
+
+	if (tsk) {
+		tbl->used[tsk->ipu_id][tsk->task_id - 1] = 0;
+		rel_ipu = 1;
+		ret = atomic_inc_return(&tsk->res_free);
+		if (ret == 2)
+			BUG();
+	}
+out:
+	dev_dbg(tsk->dev,
+		"%s:no:0x%x,rel_vdoa:%d, rel_ipu:%d\n",
+		 __func__, tsk->task_no, rel_vdoa, rel_ipu);
+	mutex_unlock(&tbl->lock);
 }
 
 static int get_vdoa_ipu_res(struct ipu_task_entry *t)
@@ -1066,7 +1262,7 @@ static int get_vdoa_ipu_res(struct ipu_task_entry *t)
 	int		ret;
 	uint32_t	found = 0;
 
-	found = get_ipu_res(t);
+	found = _get_vdoa_ipu_res(t);
 	if (!found) {
 		t->ipu_id = -1;
 		t->ipu = NULL;
@@ -1074,7 +1270,7 @@ static int get_vdoa_ipu_res(struct ipu_task_entry *t)
 		ret = atomic_inc_return(&req_cnt);
 		dev_dbg(t->dev,
 			"wait_res:no:0x%x,req_cnt:%d\n", t->task_no, ret);
-		ret = wait_event_timeout(res_waitq, get_ipu_res(t),
+		ret = wait_event_timeout(res_waitq, _get_vdoa_ipu_res(t),
 				 msecs_to_jiffies(t->timeout - DEF_DELAY_MS));
 		if (ret == 0) {
 			dev_err(t->dev, "ERR[0x%p,no-0x%x] wait_res timeout:%dms!\n",
@@ -1083,7 +1279,7 @@ static int get_vdoa_ipu_res(struct ipu_task_entry *t)
 			t->state = STATE_RES_TIMEOUT;
 			goto out;
 		} else {
-			if (!t->ipu)
+			if (!(t->set.task & VDOA_ONLY) && (!t->ipu))
 				BUG();
 			ret = atomic_read(&req_cnt);
 			if (ret > 0)
@@ -1107,7 +1303,6 @@ static struct ipu_task_entry *create_task_entry(struct ipu_task *task)
 	tsk = kzalloc(sizeof(struct ipu_task_entry), GFP_KERNEL);
 	if (!tsk)
 		return ERR_PTR(-ENOMEM);
-
 	kref_init(&tsk->refcount);
 	tsk->state = -EINVAL;
 	tsk->ipu_id = -1;
@@ -1134,7 +1329,7 @@ static void task_mem_free(struct kref *ref)
 	kfree(tsk);
 }
 
-int ipu_queue_sp_task(struct ipu_split_task *sp_task)
+int create_split_child_task(struct ipu_split_task *sp_task)
 {
 	int ret = 0;
 	struct ipu_task_entry *tsk;
@@ -1364,9 +1559,9 @@ static int create_split_task(
 		break;
 	}
 
-	ret = ipu_queue_sp_task(sp_task);
+	ret = create_split_child_task(sp_task);
 	if (ret < 0)
-		dev_err(t->dev, "ERR:ipu_queue_sp_task() ret:%d\n", ret);
+		dev_err(t->dev, "ERR:create_split_child_task() ret:%d\n", ret);
 	return ret;
 }
 
@@ -1426,13 +1621,13 @@ err_start:
 		if (err[j] < 0) {
 			if (sp_task[j].child_task)
 				dev_err(t->dev,
-				 "sp_task[%d],no-0x%x state:%d, Q err:%d.\n",
+				 "sp_task[%d],no-0x%x fail state:%d, queue err:%d.\n",
 				j, sp_task[j].child_task->task_no,
 				sp_task[j].child_task->state, err[j]);
 			goto err_exit;
 		}
-		dev_dbg(t->dev, "sp_tsk[%d], no-0x%x state:%s, queue ret:%d.\n",
-			j, sp_task[j].child_task->task_no,
+		dev_dbg(t->dev, "[0x%p] sp_task[%d], no-0x%x state:%s, queue ret:%d.\n",
+			sp_task[j].child_task, j, sp_task[j].child_task->task_no,
 			state_msg[sp_task[j].child_task->state].msg, err[j]);
 	}
 
@@ -1451,6 +1646,170 @@ err_exit:
 	t->state = STATE_ERR;
 	return ret;
 
+}
+
+static int init_tiled_buf(struct ipu_soc *ipu, struct ipu_task_entry *t,
+				ipu_channel_t channel, uint32_t ch_type)
+{
+	int ret = 0;
+	int i;
+	uint32_t ipu_fmt;
+	dma_addr_t inbuf_base = 0;
+	u32 field_size;
+	struct vdoa_params param;
+	struct vdoa_ipu_buf buf;
+	struct ipu_soc *ipu_idx;
+	u32 ipu_stride, obuf_size;
+	u32 height, width;
+	ipu_buffer_t type;
+
+	if ((IPU_PIX_FMT_YUYV != t->output.format) &&
+		(IPU_PIX_FMT_NV12 != t->output.format)) {
+		dev_err(t->dev, "ERR:[0x%d] output format\n", t->task_no);
+		return -EINVAL;
+	}
+
+	memset(&param, 0, sizeof(param));
+	/* init channel tiled bufs */
+	if (deinterlace_3_field(t) &&
+		(IPU_PIX_FMT_TILED_NV12F == t->input.format)) {
+		field_size = tiled_filed_size(t);
+		if (INPUT_CHAN_VDI_P == ch_type) {
+			inbuf_base = t->input.paddr + field_size;
+			param.vfield_buf.prev_veba = inbuf_base + t->set.i_off;
+		} else if (INPUT_CHAN == ch_type) {
+			inbuf_base = t->input.paddr_n;
+			param.vfield_buf.cur_veba = inbuf_base + t->set.i_off;
+		} else if (INPUT_CHAN_VDI_N == ch_type) {
+			inbuf_base = t->input.paddr_n + field_size;
+			param.vfield_buf.next_veba = inbuf_base + t->set.i_off;
+		} else
+			return -EINVAL;
+		height = t->input.crop.h >> 1; /* field format for vdoa */
+		width = t->input.crop.w;
+		param.vfield_buf.vubo = t->set.i_uoff;
+		param.interlaced = 1;
+		param.scan_order = 1;
+		type = IPU_INPUT_BUFFER;
+	} else if ((IPU_PIX_FMT_TILED_NV12 == t->input.format) &&
+			(INPUT_CHAN == ch_type)) {
+		height = t->input.crop.h;
+		width = t->input.crop.w;
+		param.vframe_buf.veba = t->input.paddr + t->set.i_off;
+		param.vframe_buf.vubo = t->set.i_uoff;
+		type = IPU_INPUT_BUFFER;
+	} else
+		return -EINVAL;
+
+	param.band_mode = (t->set.mode & VDOA_BAND_MODE) ? 1 : 0;
+	if (param.band_mode && (t->set.band_lines != 3) &&
+		 (t->set.band_lines != 4) && (t->set.band_lines != 5))
+		return -EINVAL;
+	else if (param.band_mode)
+		param.band_lines = (1 << t->set.band_lines);
+	for (i = 0; i < MXC_IPU_MAX_NUM; i++) {
+		ipu_idx = ipu_get_soc(i);
+		if (!IS_ERR(ipu_idx) && ipu_idx == ipu)
+			break;
+	}
+	if (t->set.task & VDOA_ONLY)
+		/* dummy, didn't need ipu res */
+		i = 0;
+	if (MXC_IPU_MAX_NUM == i) {
+		dev_err(t->dev, "ERR:[0x%p] get ipu num\n", t);
+		return -EINVAL;
+	}
+
+	param.ipu_num = i;
+	param.vpu_stride = t->input.width;
+	param.height = height;
+	param.width = width;
+	if (IPU_PIX_FMT_NV12 == t->output.format)
+		param.pfs = VDOA_PFS_NV12;
+	else
+		param.pfs = VDOA_PFS_YUYV;
+	ipu_fmt = (param.pfs == VDOA_PFS_YUYV) ? IPU_PIX_FMT_YUYV :
+				IPU_PIX_FMT_NV12;
+	ipu_stride = param.width * bytes_per_pixel(ipu_fmt);
+	obuf_size = PAGE_ALIGN(param.width * param.height *
+				fmt_to_bpp(ipu_fmt)/8);
+	dev_dbg(t->dev, "band_mode:%d, band_lines:%d\n",
+			param.band_mode, param.band_lines);
+	if (!param.band_mode) {
+		/* note: if only for tiled -> raster convert and
+		   no other post-processing, we don't need alloc buf
+		   and use output buffer directly.
+		*/
+		if (t->set.task & VDOA_ONLY)
+			param.ieba0 = t->output.paddr;
+		else {
+			dev_err(t->dev, "ERR:[0x%d] vdoa task\n", t->task_no);
+			return -EINVAL;
+		}
+	} else {
+		if (IPU_PIX_FMT_TILED_NV12F != t->input.format) {
+			dev_err(t->dev, "ERR [0x%d] vdoa task\n", t->task_no);
+			return -EINVAL;
+		}
+	}
+	vdoa_setup(t->vdoa_handle, &param);
+	vdoa_get_output_buf(t->vdoa_handle, &buf);
+	if (t->set.task & VDOA_ONLY)
+		goto done;
+
+	ret = ipu_init_channel_buffer(ipu,
+			channel,
+			type,
+			ipu_fmt,
+			width,
+			height,
+			ipu_stride,
+			IPU_ROTATE_NONE,
+			buf.ieba0,
+			buf.ieba1,
+			0,
+			buf.iubo,
+			0);
+	if (ret < 0) {
+		t->state = STATE_INIT_CHAN_BUF_FAIL;
+		goto done;
+	}
+
+	if (param.band_mode) {
+		ret = ipu_set_channel_bandmode(ipu, channel,
+				type, t->set.band_lines);
+		if (ret < 0) {
+			t->state = STATE_INIT_CHAN_BAND_FAIL;
+			goto done;
+		}
+	}
+done:
+	return ret;
+}
+
+static int init_tiled_ch_bufs(struct ipu_soc *ipu, struct ipu_task_entry *t)
+{
+	int ret = 0;
+
+	if (IPU_PIX_FMT_TILED_NV12 == t->input.format) {
+		ret = init_tiled_buf(ipu, t, t->set.ic_chan, INPUT_CHAN);
+		CHECK_RETCODE(ret < 0, "init tiled_ch", t->state, done, ret);
+	} else if (IPU_PIX_FMT_TILED_NV12F == t->input.format) {
+		ret = init_tiled_buf(ipu, t, t->set.ic_chan, INPUT_CHAN);
+		CHECK_RETCODE(ret < 0, "init tiled_ch-c", t->state, done, ret);
+		ret = init_tiled_buf(ipu, t, t->set.vdi_ic_p_chan,
+					INPUT_CHAN_VDI_P);
+		CHECK_RETCODE(ret < 0, "init tiled_ch-p", t->state, done, ret);
+		ret = init_tiled_buf(ipu, t, t->set.vdi_ic_n_chan,
+					INPUT_CHAN_VDI_N);
+		CHECK_RETCODE(ret < 0, "init tiled_ch-n", t->state, done, ret);
+	} else {
+		ret = -EINVAL;
+		BUG();
+	}
+
+done:
+	return ret;
 }
 
 static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
@@ -1515,14 +1874,25 @@ static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		}
 	}
 
+	if (t->set.mode & VDOA_MODE)
+		ipu->vdoa_en = 1;
+
 	/* init channels */
-	ret = ipu_init_channel(ipu, t->set.ic_chan, &params);
-	if (ret < 0) {
-		t->state = STATE_INIT_CHAN_FAIL;
-		goto done;
+	if (!(t->set.task & VDOA_ONLY)) {
+		ret = ipu_init_channel(ipu, t->set.ic_chan, &params);
+		if (ret < 0) {
+			t->state = STATE_INIT_CHAN_FAIL;
+			goto done;
+		}
 	}
 
 	if (deinterlace_3_field(t)) {
+		if (IPU_DEINTERLACE_FIELD_TOP == t->input.deinterlace.field_fmt)
+			params.mem_prp_vf_mem.field_fmt = V4L2_FIELD_INTERLACED_TB;
+		else if (IPU_DEINTERLACE_FIELD_BOTTOM == t->input.deinterlace.field_fmt)
+			params.mem_prp_vf_mem.field_fmt = V4L2_FIELD_INTERLACED_BT;
+		else
+			BUG();
 		ret = ipu_init_channel(ipu, t->set.vdi_ic_p_chan, &params);
 		if (ret < 0) {
 			t->state = STATE_INIT_CHAN_FAIL;
@@ -1536,39 +1906,51 @@ static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	}
 
 	/* init channel bufs */
-	if (deinterlace_3_field(t)) {
-		inbuf_p = t->input.paddr + t->set.istride + t->set.i_off;
-		inbuf = t->input.paddr_n + t->set.i_off;
-		inbuf_n = t->input.paddr_n + t->set.istride + t->set.i_off;
-	} else
-		inbuf = t->input.paddr + t->set.i_off;
+	if ((IPU_PIX_FMT_TILED_NV12 == t->input.format) ||
+		(IPU_PIX_FMT_TILED_NV12F == t->input.format)) {
+		ret = init_tiled_ch_bufs(ipu, t);
+		if (ret < 0)
+			goto done;
+	} else {
+		if ((deinterlace_3_field(t)) &&
+			(IPU_PIX_FMT_TILED_NV12F != t->input.format)) {
+				inbuf_p = t->input.paddr + t->set.istride +
+						t->set.i_off;
+				inbuf = t->input.paddr_n + t->set.i_off;
+				inbuf_n = t->input.paddr_n + t->set.istride +
+						t->set.i_off;
+		} else
+			inbuf = t->input.paddr + t->set.i_off;
 
-	if (t->overlay_en) {
-		ovbuf = t->overlay.paddr + t->set.ov_off;
-		if (t->overlay.alpha.mode == IPU_ALPHA_MODE_LOCAL)
-			ov_alp_buf = t->overlay.alpha.loc_alp_paddr
-				+ t->set.ov_alpha_off;
+		if (t->overlay_en)
+			ovbuf = t->overlay.paddr + t->set.ov_off;
 	}
+	if (t->overlay_en && (t->overlay.alpha.mode == IPU_ALPHA_MODE_LOCAL))
+		ov_alp_buf = t->overlay.alpha.loc_alp_paddr
+			+ t->set.ov_alpha_off;
 
-	ret = ipu_init_channel_buffer(ipu,
-			t->set.ic_chan,
-			IPU_INPUT_BUFFER,
-			t->input.format,
-			t->input.crop.w,
-			t->input.crop.h,
-			t->set.istride,
-			IPU_ROTATE_NONE,
-			inbuf,
-			0,
-			0,
-			t->set.i_uoff,
-			t->set.i_voff);
-	if (ret < 0) {
-		t->state = STATE_INIT_CHAN_BUF_FAIL;
-		goto done;
+	if ((IPU_PIX_FMT_TILED_NV12 != t->input.format) &&
+		(IPU_PIX_FMT_TILED_NV12F != t->input.format)) {
+		ret = ipu_init_channel_buffer(ipu,
+				t->set.ic_chan,
+				IPU_INPUT_BUFFER,
+				t->input.format,
+				t->input.crop.w,
+				t->input.crop.h,
+				t->set.istride,
+				IPU_ROTATE_NONE,
+				inbuf,
+				0,
+				0,
+				t->set.i_uoff,
+				t->set.i_voff);
+		if (ret < 0) {
+			t->state = STATE_INIT_CHAN_BUF_FAIL;
+			goto done;
+		}
 	}
-
-	if (deinterlace_3_field(t)) {
+	if (deinterlace_3_field(t) &&
+		(IPU_PIX_FMT_TILED_NV12F != t->input.format)) {
 		ret = ipu_init_channel_buffer(ipu,
 				t->set.vdi_ic_p_chan,
 				IPU_INPUT_BUFFER,
@@ -1624,43 +2006,51 @@ static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
 			t->state = STATE_INIT_CHAN_BUF_FAIL;
 			goto done;
 		}
+	}
 
-		if (t->overlay.alpha.mode == IPU_ALPHA_MODE_LOCAL) {
-			ret = ipu_init_channel_buffer(ipu,
-					t->set.ic_chan,
-					IPU_ALPHA_IN_BUFFER,
-					IPU_PIX_FMT_GENERIC,
-					t->overlay.crop.w,
-					t->overlay.crop.h,
-					t->set.ov_alpha_stride,
-					IPU_ROTATE_NONE,
-					ov_alp_buf,
-					0,
-					0,
-					0, 0);
-			if (ret < 0) {
-				t->state = STATE_INIT_CHAN_BUF_FAIL;
-				goto done;
-			}
+	if (t->overlay.alpha.mode == IPU_ALPHA_MODE_LOCAL) {
+		ret = ipu_init_channel_buffer(ipu,
+				t->set.ic_chan,
+				IPU_ALPHA_IN_BUFFER,
+				IPU_PIX_FMT_GENERIC,
+				t->overlay.crop.w,
+				t->overlay.crop.h,
+				t->set.ov_alpha_stride,
+				IPU_ROTATE_NONE,
+				ov_alp_buf,
+				0,
+				0,
+				0, 0);
+		if (ret < 0) {
+			t->state = STATE_INIT_CHAN_BUF_FAIL;
+			goto done;
 		}
 	}
 
-	ret = ipu_init_channel_buffer(ipu,
-			t->set.ic_chan,
-			IPU_OUTPUT_BUFFER,
-			out_fmt,
-			out_w,
-			out_h,
-			out_stride,
-			out_rot,
-			outbuf,
-			0,
-			0,
-			out_uoff,
-			out_voff);
-	if (ret < 0) {
-		t->state = STATE_INIT_CHAN_BUF_FAIL;
-		goto done;
+	if (!(t->set.task & VDOA_ONLY)) {
+		ret = ipu_init_channel_buffer(ipu,
+				t->set.ic_chan,
+				IPU_OUTPUT_BUFFER,
+				out_fmt,
+				out_w,
+				out_h,
+				out_stride,
+				out_rot,
+				outbuf,
+				0,
+				0,
+				out_uoff,
+				out_voff);
+		if (ret < 0) {
+			t->state = STATE_INIT_CHAN_BUF_FAIL;
+			goto done;
+		}
+	}
+
+	if ((t->set.mode & VDOA_BAND_MODE) && (t->set.task & VDI_VF)) {
+		ret = ipu_link_channels(ipu, MEM_VDOA_MEM, t->set.ic_chan);
+		CHECK_RETCODE(ret < 0, "ipu_link_ch vdoa_ic",
+				STATE_LINK_CHAN_FAIL, done, ret);
 	}
 
 done:
@@ -1669,6 +2059,13 @@ done:
 
 static void uninit_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
 {
+	int ret;
+
+	if ((t->set.mode & VDOA_BAND_MODE) && (t->set.task & VDI_VF)) {
+		ret = ipu_unlink_channels(ipu, MEM_VDOA_MEM, t->set.ic_chan);
+		CHECK_RETCODE_CONT(ret < 0, "ipu_unlink_ch vdoa_ic",
+				STATE_UNLINK_CHAN_FAIL, ret);
+	}
 	ipu_uninit_channel(ipu, t->set.ic_chan);
 	if (deinterlace_3_field(t)) {
 		ipu_uninit_channel(ipu, t->set.vdi_ic_p_chan);
@@ -1779,6 +2176,9 @@ static int get_irq(struct ipu_task_entry *t)
 		break;
 	case MEM_PP_MEM:
 		irq = IPU_IRQ_PP_OUT_EOF;
+		break;
+	case MEM_VDI_MEM:
+		irq = IPU_IRQ_VDIC_OUT_EOF;
 		break;
 	default:
 		irq = -EINVAL;
@@ -1988,6 +2388,12 @@ static void do_task_release(struct ipu_task_entry *t, int fail)
 
 	ipu_free_irq(ipu, t->irq, t);
 
+	if (t->vdoa_dma.vaddr)
+		dma_free_coherent(t->dev,
+			t->vdoa_dma.size,
+			t->vdoa_dma.vaddr,
+			t->vdoa_dma.paddr);
+
 	if (only_ic(t->set.mode)) {
 		ret = ipu_disable_channel(ipu, t->set.ic_chan, true);
 		CHECK_RETCODE_CONT(ret < 0, "ipu_disable_ch only_ic",
@@ -2042,6 +2448,22 @@ static void do_task_release(struct ipu_task_entry *t, int fail)
 	return;
 }
 
+static void do_task_vdoa_only(struct ipu_task_entry *t)
+{
+	int ret;
+
+	ret = init_tiled_ch_bufs(NULL, t);
+	CHECK_RETCODE(ret < 0, "do_vdoa_only", STATE_ERR, out, ret);
+	ret = vdoa_start(t->vdoa_handle, VDOA_DEF_TIMEOUT_MS);
+	vdoa_stop(t->vdoa_handle);
+	CHECK_RETCODE(ret < 0, "vdoa_wait4complete, do_vdoa_only",
+			STATE_VDOA_IRQ_TIMEOUT, out, ret);
+
+	t->state = STATE_OK;
+out:
+	return;
+}
+
 static void do_task(struct ipu_task_entry *t)
 {
 	int r_size;
@@ -2051,11 +2473,13 @@ static void do_task(struct ipu_task_entry *t)
 	struct ipu_soc *ipu = t->ipu;
 
 	CHECK_PERF(&t->ts_dotask);
+
 	if (!ipu) {
 		t->state = STATE_NO_IPU;
 		return;
 	}
 
+	init_completion(&t->irq_comp);
 	dev_dbg(ipu->dev, "[0x%p]Do task no:0x%x: id %d\n", (void *)t,
 		 t->task_no, t->task_id);
 	dump_task_info(t);
@@ -2067,12 +2491,23 @@ static void do_task(struct ipu_task_entry *t)
 		t->set.ic_chan = MEM_PRP_VF_MEM;
 		dev_dbg(ipu->dev, "[0x%p]ic channel MEM_PRP_VF_MEM\n", (void *)t);
 	} else if (t->set.task & VDI_VF) {
-		t->set.ic_chan = MEM_VDI_PRP_VF_MEM;
-		if (deinterlace_3_field(t)) {
-			t->set.vdi_ic_p_chan = MEM_VDI_PRP_VF_MEM_P;
-			t->set.vdi_ic_n_chan = MEM_VDI_PRP_VF_MEM_N;
+		if (t->set.mode & VDOA_BAND_MODE) {
+			t->set.ic_chan = MEM_VDI_MEM;
+			if (deinterlace_3_field(t)) {
+				t->set.vdi_ic_p_chan = MEM_VDI_MEM_P;
+				t->set.vdi_ic_n_chan = MEM_VDI_MEM_N;
+			}
+			dev_dbg(ipu->dev, "[0x%p]ic ch MEM_VDI_MEM\n",
+					 (void *)t);
+		} else {
+			t->set.ic_chan = MEM_VDI_PRP_VF_MEM;
+			if (deinterlace_3_field(t)) {
+				t->set.vdi_ic_p_chan = MEM_VDI_PRP_VF_MEM_P;
+				t->set.vdi_ic_n_chan = MEM_VDI_PRP_VF_MEM_N;
+			}
+			dev_dbg(ipu->dev,
+				"[0x%p]ic ch MEM_VDI_PRP_VF_MEM\n", t);
 		}
-		dev_dbg(ipu->dev, "[0x%p]ic channel MEM_VDI_PRP_VF_MEM\n", (void *)t);
 	}
 
 	if (t->set.task & ROT_PP) {
@@ -2084,9 +2519,9 @@ static void do_task(struct ipu_task_entry *t)
 	}
 
 	if (t->task_id == IPU_TASK_ID_VF)
-		busy = ipu_vf_pp_is_busy(ipu, true);
+		busy = ic_vf_pp_is_busy(ipu, true);
 	else if (t->task_id == IPU_TASK_ID_PP)
-		busy = ipu_vf_pp_is_busy(ipu, false);
+		busy = ic_vf_pp_is_busy(ipu, false);
 	else
 		BUG();
 	if (busy) {
@@ -2148,7 +2583,7 @@ static void do_task(struct ipu_task_entry *t)
 						GFP_DMA | GFP_KERNEL);
 			CHECK_RETCODE(ipu->rot_dma[rot_idx].vaddr == NULL,
 					"ic_and_rot", STATE_SYS_NO_MEM,
-					chan_setup, STATE_SYS_NO_MEM);
+					chan_setup, -ENOMEM);
 		}
 		t->set.r_paddr = ipu->rot_dma[rot_idx].paddr;
 
@@ -2211,13 +2646,15 @@ static void do_task(struct ipu_task_entry *t)
 						ret);
 			}
 		}
-		if (deinterlace_3_field(t))
-			ipu_select_multi_vdi_buffer(ipu, 0);
-		else {
-			ret = ipu_select_buffer(ipu, t->set.ic_chan,
-						IPU_INPUT_BUFFER, 0);
-			CHECK_RETCODE(ret < 0, "ipu_sel_buf only_ic_i",
+		if (!(t->set.mode & VDOA_BAND_MODE)) {
+			if (deinterlace_3_field(t))
+				ipu_select_multi_vdi_buffer(ipu, 0);
+			else {
+				ret = ipu_select_buffer(ipu, t->set.ic_chan,
+							IPU_INPUT_BUFFER, 0);
+				CHECK_RETCODE(ret < 0, "ipu_sel_buf only_ic_i",
 					STATE_SEL_BUF_FAIL, chan_buf, ret);
+			}
 		}
 	} else if (only_rot(t->set.mode)) {
 		ret = ipu_enable_channel(ipu, t->set.rot_chan);
@@ -2281,6 +2718,12 @@ static void do_task(struct ipu_task_entry *t)
 	if (need_split(t))
 		t->state = STATE_IN_PROGRESS;
 
+	if (t->set.mode & VDOA_BAND_MODE) {
+		ret = vdoa_start(t->vdoa_handle, VDOA_DEF_TIMEOUT_MS);
+		CHECK_RETCODE(ret < 0, "vdoa_wait4complete, do_vdoa_band",
+				STATE_VDOA_IRQ_TIMEOUT, chan_rel, ret);
+	}
+
 	CHECK_PERF(&t->ts_waitirq);
 	ret = wait_for_completion_timeout(&t->irq_comp,
 				 msecs_to_jiffies(t->timeout - DEF_DELAY_MS));
@@ -2293,7 +2736,69 @@ chan_rel:
 chan_buf:
 chan_en:
 chan_setup:
+	if (t->set.mode & VDOA_BAND_MODE)
+		vdoa_stop(t->vdoa_handle);
 	do_task_release(t, t->state >= STATE_ERR);
+	return;
+}
+
+static void do_task_vdoa_vdi(struct ipu_task_entry *t)
+{
+	int i;
+	int ret;
+	u32 stripe_width;
+
+	/* FIXME: crop mode not support now */
+	stripe_width = t->input.width >> 1;
+	t->input.crop.pos.x = 0;
+	t->input.crop.pos.y = 0;
+	t->input.crop.w = stripe_width;
+	t->input.crop.h = t->input.height;
+	t->output.crop.w = stripe_width;
+	t->output.crop.h = t->input.height;
+
+	for (i = 0; i < 2; i++) {
+		t->input.crop.pos.x = t->input.crop.pos.x + i * stripe_width;
+		t->output.crop.pos.x = t->output.crop.pos.x + i * stripe_width;
+		/* check input */
+		ret = set_crop(&t->input.crop, t->input.width, t->input.height,
+			t->input.format);
+		if (ret < 0) {
+			ret = STATE_ERR;
+			goto done;
+		} else
+			update_offset(t->input.format,
+					t->input.width, t->input.height,
+					t->input.crop.pos.x,
+					t->input.crop.pos.y,
+					&t->set.i_off, &t->set.i_uoff,
+					&t->set.i_voff, &t->set.istride);
+		dev_dbg(t->dev, "i_off:0x%x, i_uoff:0x%x, istride:%d.\n",
+			t->set.i_off, t->set.i_uoff, t->set.istride);
+		/* check output */
+		ret = set_crop(&t->output.crop, t->input.width,
+					t->output.height, t->output.format);
+		if (ret < 0) {
+			ret = STATE_ERR;
+			goto done;
+		} else
+			update_offset(t->output.format,
+					t->output.width, t->output.height,
+					t->output.crop.pos.x,
+					t->output.crop.pos.y,
+					&t->set.o_off, &t->set.o_uoff,
+					&t->set.o_voff, &t->set.ostride);
+
+		dev_dbg(t->dev, "o_off:0x%x, o_uoff:0x%x, ostride:%d.\n",
+				t->set.o_off, t->set.o_uoff, t->set.ostride);
+
+		do_task(t);
+	}
+
+	return;
+done:
+	dev_err(t->dev, "ERR %s set_crop.\n", __func__);
+	t->state = ret;
 	return;
 }
 
@@ -2303,16 +2808,20 @@ static void get_res_do_task(struct ipu_task_entry *t)
 	uint32_t	split_child;
 	struct mutex	*lock;
 
-	init_completion(&t->irq_comp);
-
 	found = get_vdoa_ipu_res(t);
 	if (!found) {
 		BUG();
 	} else {
-		do_task(t);
-		put_vdoa_ipu_res(t);
+		if (t->set.task & VDOA_ONLY)
+			do_task_vdoa_only(t);
+		else if ((IPU_PIX_FMT_TILED_NV12F == t->input.format) &&
+				(t->set.mode & VDOA_BAND_MODE) &&
+				(t->input.crop.w > soc_max_out_width()))
+			do_task_vdoa_vdi(t);
+		else
+			do_task(t);
+		put_vdoa_ipu_res(t, 0);
 	}
-
 	if (t->state != STATE_OK) {
 		dev_err(t->dev, "ERR:[0x%p] no-0x%x state: %s\n",
 			t, t->task_no, state_msg[t->state].msg);
@@ -2382,8 +2891,8 @@ out:
 			if (IS_ERR(ipu)) {
 				BUG();
 			} else {
-				busy_vf = ipu_vf_pp_is_busy(ipu, true);
-				busy_pp = ipu_vf_pp_is_busy(ipu, false);
+				busy_vf = ic_vf_pp_is_busy(ipu, true);
+				busy_pp = ic_vf_pp_is_busy(ipu, false);
 				dev_err(parent->dev,
 					"ERR:ipu[%d] busy_vf:%d, busy_pp:%d.\n",
 					k, busy_vf, busy_pp);
@@ -2411,15 +2920,15 @@ out:
 			list_del(&tsk->node);
 			tsk->task_in_list = 0;
 			dev_dbg(tsk->dev,
-				"no-0x%x,id:%d sp_tsk timeout list_del.\n",
-				 tsk->task_no, tsk->task_id);
+				"[0x%p] no-0x%x,id:%d sp_tsk timeout list_del.\n",
+				 tsk, tsk->task_no, tsk->task_id);
 		}
 		spin_unlock_irqrestore(&ipu_task_list_lock, flags);
 		if (!tsk->ipu)
 			continue;
 		if (STATE_IN_PROGRESS == tsk->state) {
 			do_task_release(tsk, 1);
-			put_vdoa_ipu_res(tsk);
+			put_vdoa_ipu_res(tsk, 0);
 		}
 		if (tsk->state != STATE_OK) {
 			dev_err(tsk->dev,
@@ -2549,7 +3058,7 @@ static int ipu_task_thread(void *argv)
 				spin_unlock_irqrestore(&ipu_task_list_lock,
 									flags);
 				/* let the parent thread do the first sp_task */
-				/* note: ensure the correct sequence for split
+				/* FIXME: ensure the correct sequence for split
 					4size: 5/6->9/a*/
 				if (!sp_tsk0)
 					BUG();
@@ -2615,11 +3124,11 @@ int ipu_check_task(struct ipu_task *task)
 	task->input = tsk->input;
 	task->output = tsk->output;
 	task->overlay = tsk->overlay;
-
 	dump_task_info(tsk);
 
 	kref_put(&tsk->refcount, task_mem_free);
-
+	if (ret != 0)
+		pr_debug("%s ret:%d.\n", __func__, ret);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(ipu_check_task);
