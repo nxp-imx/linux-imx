@@ -355,7 +355,10 @@ struct mxc_audio_platform_data {
 	struct clk *ssi_clk[2];
 
 	int hp_gpio;
-	int hp_active_low;	/* headphone irq is active loaw */
+	int hp_active_low;	/* headphone irq is active low */
+
+	int mic_gpio;
+	int mic_active_low;	/* micphone irq is active low */
 
 	int sysclk;
 	const char *codec_name;
