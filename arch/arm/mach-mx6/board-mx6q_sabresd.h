@@ -242,9 +242,10 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_ENET_RXD0__GPIO_1_27, /* UOK_B */
 	MX6Q_PAD_EIM_CS1__GPIO_2_24,   /* DOK_B */
 
-	/* WM8958 */
+	/* Audio Codec */
 	MX6Q_PAD_KEY_COL2__GPIO_4_10,		/* CODEC_PWR_EN */
 	MX6Q_PAD_SD3_RST__GPIO_7_8,			/* HEADPHONE_DET */
+	MX6Q_PAD_GPIO_9__GPIO_1_9,			/* MICROPHONE_DET */
 
 	/*GPS AUX_3V15_EN*/
 	MX6Q_PAD_NANDF_WP_B__GPIO_6_9,
