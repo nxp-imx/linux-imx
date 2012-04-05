@@ -35,6 +35,11 @@
 #include <mach/mxc_hdmi.h>
 #include "imx-hdmi.h"
 
+#define HDMI_DMA_BURST_UNSPECIFIED_LEGNTH	0
+#define HDMI_DMA_BURST_INCR4			1
+#define HDMI_DMA_BURST_INCR8			2
+#define HDMI_DMA_BURST_INCR16			3
+
 struct imx_hdmi_dma_runtime_data {
 	struct snd_pcm_substream *tx_substream;
 
@@ -315,16 +320,16 @@ static void hdmi_dma_set_incr_type(int incr_type)
 			  HDMI_AHB_DMA_CONF0_INCR_TYPE_MASK);
 
 	switch (incr_type) {
-	case 1:
+	case HDMI_DMA_BURST_UNSPECIFIED_LEGNTH:
 		break;
-	case 4:
+	case HDMI_DMA_BURST_INCR4:
 		value |= HDMI_AHB_DMA_CONF0_BURST_MODE;
 		break;
-	case 8:
+	case HDMI_DMA_BURST_INCR8:
 		value |= HDMI_AHB_DMA_CONF0_BURST_MODE |
 			 HDMI_AHB_DMA_CONF0_INCR8;
 		break;
-	case 16:
+	case HDMI_DMA_BURST_INCR16:
 		value |= HDMI_AHB_DMA_CONF0_BURST_MODE |
 			 HDMI_AHB_DMA_CONF0_INCR16;
 		break;
@@ -359,11 +364,27 @@ static void hdmi_dma_enable_channels(int channels)
 	}
 }
 
+static void hdmi_dma_set_thrsld(void)
+{
+	int rev = hdmi_readb(HDMI_REVISION_ID);
+
+	switch (rev) {
+	case 0x0a:
+		hdmi_writeb(126, HDMI_AHB_DMA_THRSLD);
+		break;
+	default:
+		hdmi_writeb(64, HDMI_AHB_DMA_THRSLD);
+		break;
+	}
+
+	pr_debug("HDMI_AHB_DMA_THRSLD          0x%02x\n", hdmi_readb(HDMI_AHB_DMA_THRSLD));
+}
+
 static void hdmi_dma_configure_dma(int channels)
 {
 	hdmi_dma_enable_hlock(1);
-	hdmi_dma_set_incr_type(4);
-	hdmi_writeb(64, HDMI_AHB_DMA_THRSLD);
+	hdmi_dma_set_incr_type(HDMI_DMA_BURST_UNSPECIFIED_LEGNTH);
+	hdmi_dma_set_thrsld();
 	hdmi_dma_enable_channels(channels);
 }
 
@@ -548,6 +569,7 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		hdmi_dma_irq_mask(0);
 		hdmi_dma_priv->tx_active = true;
 		hdmi_dma_start();
+		hdmi_set_dma_mode(1);
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
@@ -555,6 +577,7 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		hdmi_dma_priv->tx_active = false;
 		hdmi_dma_stop();
+		hdmi_set_dma_mode(0);
 		hdmi_dma_irq_mask(1);
 		break;
 
