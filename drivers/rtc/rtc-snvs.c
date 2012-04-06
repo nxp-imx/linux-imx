@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -564,6 +564,10 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 	ioaddr = pdata->ioaddr;
 	pdata->irq = platform_get_irq(pdev, 0);
 	platform_set_drvdata(pdev, pdata);
+
+
+	/* Added to support sysfs wakealarm attribute */
+	pdev->dev.power.can_wakeup = 1;
 
 	/* initialize glitch detect */
 	__raw_writel(SNVS_LPPGDR_INIT, ioaddr + SNVS_LPPGDR);
