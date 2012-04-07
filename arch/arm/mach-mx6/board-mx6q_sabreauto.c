@@ -137,6 +137,7 @@ static struct clk *sata_clk;
 static int mipi_sensor;
 static int can0_enable;
 static int uart3_en;
+static int tuner_en;
 
 static int __init uart3_enable(char *p)
 {
@@ -144,6 +145,13 @@ static int __init uart3_enable(char *p)
 	return 0;
 }
 early_param("uart3", uart3_enable);
+
+static int __init tuner_enable(char *p)
+{
+	tuner_en = 1;
+	return 0;
+}
+early_param("tuner", tuner_enable);
 
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
@@ -658,8 +666,29 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 		I2C_BOARD_INFO("cs42888", 0x48),
 		.platform_data = (void *)&cs42888_data,
 	},
+	{
+		I2C_BOARD_INFO("si4763_i2c", 0x63),
+	},
+
+};
+struct platform_device mxc_si4763_audio_device = {
+	.name = "imx-tuner-si4763",
+	.id = 0,
 };
 
+struct platform_device si4763_codec_device = {
+	.name = "si4763",
+	.id = 0,
+};
+
+static struct imx_ssi_platform_data mx6_sabreauto_ssi1_pdata = {
+	.flags = IMX_SSI_DMA | IMX_SSI_SYN,
+};
+static struct mxc_audio_platform_data si4763_audio_data = {
+	.ssi_num = 1,
+	.src_port = 2,
+	.ext_port = 5,
+};
 static void imx6q_sabreauto_usbotg_vbus(bool on)
 {
 	if (on)
@@ -1241,23 +1270,27 @@ static void __init mx6_board_init(void)
 	iomux_v3_cfg_t *can1_pads = NULL;
 	iomux_v3_cfg_t *mipi_sensor_pads = NULL;
 	iomux_v3_cfg_t *i2c3_pads = NULL;
+	iomux_v3_cfg_t *tuner_pads = NULL;
 
 	int common_pads_cnt;
 	int can0_pads_cnt;
 	int can1_pads_cnt;
 	int mipi_sensor_pads_cnt;
 	int i2c3_pads_cnt;
+	int tuner_pads_cnt;
 
 	if (cpu_is_mx6q()) {
 		common_pads = mx6q_sabreauto_pads;
 		can0_pads = mx6q_sabreauto_can0_pads;
 		can1_pads = mx6q_sabreauto_can1_pads;
 		mipi_sensor_pads = mx6q_sabreauto_mipi_sensor_pads;
+		tuner_pads = mx6q_tuner_pads;
 
 		common_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_pads);
 		can0_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can0_pads);
 		can1_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can1_pads);
 		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_mipi_sensor_pads);
+		tuner_pads_cnt = ARRAY_SIZE(mx6q_tuner_pads);
 		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6q_i2c3_pads_rev_a;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6q_i2c3_pads_rev_a);
@@ -1270,11 +1303,13 @@ static void __init mx6_board_init(void)
 		can0_pads = mx6dl_sabreauto_can0_pads;
 		can1_pads = mx6dl_sabreauto_can1_pads;
 		mipi_sensor_pads = mx6dl_sabreauto_mipi_sensor_pads;
+		tuner_pads = mx6dl_tuner_pads;
 
 		common_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_pads);
 		can0_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can0_pads);
 		can1_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can1_pads);
 		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_mipi_sensor_pads);
+		tuner_pads_cnt = ARRAY_SIZE(mx6dl_tuner_pads);
 		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6dl_i2c3_pads_rev_a;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6dl_i2c3_pads_rev_a);
@@ -1294,9 +1329,14 @@ static void __init mx6_board_init(void)
 		mxc_iomux_v3_setup_multiple_pads(can0_pads,
 						can0_pads_cnt);
 	}
-	BUG_ON(!can1_pads);
-	mxc_iomux_v3_setup_multiple_pads(can1_pads, can1_pads_cnt);
+		BUG_ON(!can1_pads);
+		mxc_iomux_v3_setup_multiple_pads(can1_pads, can1_pads_cnt);
 
+	if (tuner_en) {
+		BUG_ON(!tuner_pads);
+		mxc_iomux_v3_setup_multiple_pads(tuner_pads,
+			tuner_pads_cnt);
+	}
 
 	/* assert i2c-rst  */
 	gpio_request(SABREAUTO_I2C_EXP_RST, "i2c-rst");
@@ -1449,6 +1489,12 @@ static void __init mx6_board_init(void)
 	imx6q_add_hdmi_soc();
 	imx6q_add_hdmi_soc_dai();
 	imx6q_add_mlb150(&mx6_sabreauto_mlb150_data);
+
+	/* Tuner audio interface */
+	imx6q_add_imx_ssi(1, &mx6_sabreauto_ssi1_pdata);
+	mxc_register_device(&si4763_codec_device, NULL);
+	mxc_register_device(&mxc_si4763_audio_device, &si4763_audio_data);
+
 }
 
 extern void __iomem *twd_base;

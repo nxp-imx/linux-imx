@@ -138,6 +138,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_DISP0_DAT18__IPU1_DISP0_DAT_18,
 	MX6Q_PAD_DISP0_DAT19__IPU1_DISP0_DAT_19,
 	MX6Q_PAD_DISP0_DAT21__IPU1_DISP0_DAT_21,
+
 	/* LITE_SENS_INT_B */
 	MX6Q_PAD_DISP0_DAT23__GPIO_5_17,
 	/*PMIC INT*/
@@ -347,3 +348,10 @@ static iomux_v3_cfg_t mx6q_i2c3_pads_rev_b[] __initdata = {
 	MX6Q_PAD_EIM_A24__GPIO_5_4,
 	MX6Q_PAD_GPIO_16__ENET_ANATOP_ETHERNET_REF_OUT,
 };
+static iomux_v3_cfg_t mx6q_tuner_pads[] __initdata = {
+	MX6Q_PAD_DISP0_DAT16__AUDMUX_AUD5_TXC,
+	MX6Q_PAD_DISP0_DAT18__AUDMUX_AUD5_TXFS,
+	MX6Q_PAD_DISP0_DAT19__AUDMUX_AUD5_RXD,
+
+};
+
