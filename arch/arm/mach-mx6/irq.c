@@ -57,12 +57,20 @@ static struct irq_tuner mxc_irq_tuner[] = {
 	 .up_threshold = 0,
 	 .enable = 1,},
 	{
+	 .irq_number = 54, /* uSDHC1 */
+	 .up_threshold = 4,
+	 .enable = 1,},
+	{
+	 .irq_number = 55, /* uSDHC2 */
+	 .up_threshold = 4,
+	 .enable = 1,},
+	{
 	 .irq_number = 56, /* uSDHC3 */
-	 .up_threshold = 8,
+	 .up_threshold = 4,
 	 .enable = 1,},
 	{
 	 .irq_number = 57, /* uSDHC4 */
-	 .up_threshold = 8,
+	 .up_threshold = 4,
 	 .enable = 1,},
 	{
 	 .irq_number = 71, /* SATA */

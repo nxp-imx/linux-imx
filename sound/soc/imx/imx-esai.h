@@ -1,7 +1,7 @@
 /*
  * imx-esai.h  --  ESAI driver header file for Freescale IMX
  *
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -19,25 +19,26 @@
 #ifdef IMX_ESAI_DUMP
 #define ESAI_DUMP() \
 	do {pr_info("dump @ %s\n", __func__); \
-	pr_info("ecr %x\n", readl(esai->base + ESAI_ECR)); \
-	pr_info("esr %x\n", readl(esai->base + ESAI_ESR)); \
-	pr_info("tfcr %x\n", readl(esai->base + ESAI_TFCR)); \
-	pr_info("tfsr %x\n", readl(esai->base + ESAI_TFSR)); \
-	pr_info("rfcr %x\n", readl(esai->base + ESAI_RFCR)); \
-	pr_info("rfsr %x\n", readl(esai->base + ESAI_RFSR)); \
-	pr_info("tsr %x\n", readl(esai->base + ESAI_TSR)); \
-	pr_info("saisr %x\n", readl(esai->base + ESAI_SAISR)); \
-	pr_info("saicr %x\n", readl(esai->base + ESAI_SAICR)); \
-	pr_info("tcr %x\n", readl(esai->base + ESAI_TCR)); \
-	pr_info("tccr %x\n", readl(esai->base + ESAI_TCCR)); \
-	pr_info("rcr %x\n", readl(esai->base + ESAI_RCR)); \
-	pr_info("rccr %x\n", readl(esai->base + ESAI_RCCR)); \
-	pr_info("tsma %x\n", readl(esai->base + ESAI_TSMA)); \
-	pr_info("tsmb %x\n", readl(esai->base + ESAI_TSMB)); \
-	pr_info("rsma %x\n", readl(esai->base + ESAI_RSMA)); \
-	pr_info("rsmb %x\n", readl(esai->base + ESAI_RSMB)); \
-	pr_info("prrc %x\n", readl(esai->base + ESAI_PRRC)); \
-	pr_info("pcrc %x\n", readl(esai->base + ESAI_PCRC)); } while (0);
+	pr_info("ESAI_ECR   0x%08x\n", readl(esai->base + ESAI_ECR)); \
+	pr_info("ESAI_ESR   0x%08x\n", readl(esai->base + ESAI_ESR)); \
+	pr_info("ESAI_TFCR  0x%08x\n", readl(esai->base + ESAI_TFCR)); \
+	pr_info("ESAI_TFSR  0x%08x\n", readl(esai->base + ESAI_TFSR)); \
+	pr_info("ESAI_RFCR  0x%08x\n", readl(esai->base + ESAI_RFCR)); \
+	pr_info("ESAI_RFSR  0x%08x\n", readl(esai->base + ESAI_RFSR)); \
+	pr_info("ESAI_TSR   0x%08x\n", readl(esai->base + ESAI_TSR)); \
+	pr_info("ESAI_SAISR 0x%08x\n", readl(esai->base + ESAI_SAISR)); \
+	pr_info("ESAI_SAICR 0x%08x\n", readl(esai->base + ESAI_SAICR)); \
+	pr_info("ESAI_TCR   0x%08x\n", readl(esai->base + ESAI_TCR)); \
+	pr_info("ESAI_TCCR  0x%08x\n", readl(esai->base + ESAI_TCCR)); \
+	pr_info("ESAI_RCR   0x%08x\n", readl(esai->base + ESAI_RCR)); \
+	pr_info("ESAI_RCCR  0x%08x\n", readl(esai->base + ESAI_RCCR)); \
+	pr_info("ESAI_TSMA  0x%08x\n", readl(esai->base + ESAI_TSMA)); \
+	pr_info("ESAI_TSMB  0x%08x\n", readl(esai->base + ESAI_TSMB)); \
+	pr_info("ESAI_RSMA  0x%08x\n", readl(esai->base + ESAI_RSMA)); \
+	pr_info("ESAI_RSMB  0x%08x\n", readl(esai->base + ESAI_RSMB)); \
+	pr_info("ESAI_PRRC  0x%08x\n", readl(esai->base + ESAI_PRRC)); \
+	pr_info("ESAI_PCRC  0x%08x\n", readl(esai->base + ESAI_PCRC)); \
+	} while (0);
 #else
 #define ESAI_DUMP()
 #endif

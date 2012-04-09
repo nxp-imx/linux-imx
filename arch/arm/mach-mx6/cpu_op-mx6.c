@@ -40,14 +40,14 @@ static struct cpu_op mx6_cpu_op_1_2G[] = {
 	 .cpu_rate = 672000000,
 	 .cpu_voltage = 1100000,},
 	 {
-	  .pll_rate = 792000000,
+	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
-	  .cpu_podf = 1,
+	  .cpu_podf = 0,
 	  .cpu_voltage = 950000,},
 	{
-	 .pll_rate = 792000000,
+	 .pll_rate = 396000000,
 	 .cpu_rate = 198000000,
-	 .cpu_podf = 3,
+	 .cpu_podf = 1,
 	 .cpu_voltage = 850000,},
 };
 
@@ -68,14 +68,14 @@ static struct cpu_op mx6_cpu_op_1G[] = {
 	 .cpu_rate = 672000000,
 	 .cpu_voltage = 1100000,},
 	 {
-	  .pll_rate = 792000000,
+	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
-	  .cpu_podf = 1,
+	  .cpu_podf = 0,
 	  .cpu_voltage = 950000,},
 	{
-	 .pll_rate = 792000000,
+	 .pll_rate = 396000000,
 	 .cpu_rate = 198000000,
-	 .cpu_podf = 3,
+	 .cpu_podf = 1,
 	 .cpu_voltage = 850000,},
 };
 
@@ -86,14 +86,14 @@ static struct cpu_op mx6_cpu_op[] = {
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
 	 {
-	  .pll_rate = 792000000,
+	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
-	  .cpu_podf = 1,
+	  .cpu_podf = 0,
 	  .cpu_voltage = 950000,},
 	{
-	 .pll_rate = 792000000,
+	 .pll_rate = 396000000,
 	 .cpu_rate = 198000000,
-	 .cpu_podf = 3,
+	 .cpu_podf = 1,
 	 .cpu_voltage = 850000,},
 };
 
@@ -110,14 +110,14 @@ static struct cpu_op mx6dl_cpu_op_1_2G[] = {
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
 	 {
-	  .pll_rate = 792000000,
+	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
-	  .cpu_podf = 1,
+	  .cpu_podf = 0,
 	  .cpu_voltage = 1000000,},
 	{
-	 .pll_rate = 792000000,
+	 .pll_rate = 396000000,
 	 .cpu_rate = 198000000,
-	 .cpu_podf = 3,
+	 .cpu_podf = 1,
 	 .cpu_voltage = 1000000,},
 };
 /* working point(wp): 0 - 1GHz; 1 - 800MHz, 2 - 400MHz, 3  - 200MHz */
@@ -133,14 +133,14 @@ static struct cpu_op mx6dl_cpu_op_1G[] = {
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
 	 {
-	  .pll_rate = 792000000,
+	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
-	  .cpu_podf = 1,
+	  .cpu_podf = 0,
 	  .cpu_voltage = 1000000,},
 	{
-	 .pll_rate = 792000000,
+	 .pll_rate = 396000000,
 	 .cpu_rate = 198000000,
-	 .cpu_podf = 3,
+	 .cpu_podf = 1,
 	 .cpu_voltage = 1000000,},
 };
 
@@ -151,35 +151,35 @@ static struct cpu_op mx6dl_cpu_op[] = {
 	 .cpu_podf = 0,
 	 .cpu_voltage = 1100000,},
 	 {
-	  .pll_rate = 792000000,
+	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
-	  .cpu_podf = 1,
+	  .cpu_podf = 0,
 	  .cpu_voltage = 1000000,},
 	{
-	 .pll_rate = 792000000,
+	 .pll_rate = 396000000,
 	 .cpu_rate = 198000000,
-	 .cpu_podf = 3,
+	 .cpu_podf = 1,
 	 .cpu_voltage = 1000000,},
 };
 
 static struct dvfs_op dvfs_core_setpoint_1_2G[] = {
 	{33, 14, 33, 10, 128, 0x10},     /* 1.2GHz*/
 	{30, 12, 33, 100, 200, 0x10},   /* 800MHz */
-	{28, 12, 33, 100, 200, 0x10},   /* 624MHz */
+	{28, 12, 33, 100, 200, 0x10},   /* 672MHz */
 	{26, 8, 33, 100, 200, 0x10},   /* 400MHz */
 	{20, 0, 33, 20, 10, 0x10} };   /* 200MHz*/
 
 static struct dvfs_op dvfs_core_setpoint_1G[] = {
 	{33, 14, 33, 10, 128, 0x10}, /* 1GHz*/
 	{30, 12, 33, 100, 200, 0x10},   /* 800MHz */
-	{28, 12, 33, 100, 200, 0x10},   /* 624MHz */
+	{28, 12, 33, 100, 200, 0x10},   /* 672MHz */
 	{26, 8, 33, 100, 200, 0x10},   /* 400MHz */
 	{20, 0, 33, 20, 10, 0x10} };   /* 200MHz*/
 
 static struct dvfs_op dvfs_core_setpoint[] = {
 	{33, 14, 33, 10, 128, 0x08},   /* 800MHz */
 	{26, 8, 33, 100, 200, 0x08},   /* 400MHz */
-	{20, 0, 33, 20, 10, 0x08} };   /* 200MHz*/
+	{20, 0, 33, 100, 10, 0x08} };   /* 200MHz*/
 
 static struct dvfs_op *mx6_get_dvfs_core_table(int *wp)
 {

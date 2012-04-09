@@ -137,15 +137,15 @@
 static int mma8451_position = 3;
 static struct clk *sata_clk;
 static int mipi_sensor;
-static int uart2_en;
 static int can0_enable;
+static int uart3_en;
 
-static int __init uart2_enable(char *p)
+static int __init uart3_enable(char *p)
 {
-	uart2_en = 1;
+	uart3_en = 1;
 	return 0;
 }
-early_param("uart2", uart2_enable);
+early_param("uart3", uart3_enable);
 
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
@@ -295,8 +295,8 @@ mx6q_sabreauto_anatop_thermal_data __initconst = {
 
 static inline void mx6q_sabreauto_init_uart(void)
 {
-	imx6q_add_imx_uart(0, NULL);
 	imx6q_add_imx_uart(1, NULL);
+	imx6q_add_imx_uart(2, NULL);
 	imx6q_add_imx_uart(3, NULL);
 }
 
@@ -534,8 +534,10 @@ static int max7310_u43_setup(struct i2c_client *client,
 	int max7310_gpio_value[] = {
 		0, 0, 0, 0, 0, 0, 0, 0,
 	};
-
 	int n;
+
+	if (uart3_en)
+		max7310_gpio_value[3] = 1;
 
 	for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
 		gpio_request(gpio_base + n, "MAX7310 U43 GPIO Expander");
@@ -1318,15 +1320,14 @@ static void __init mx6_board_init(void)
 	BUG_ON(!i2c3_pads);
 	mxc_iomux_v3_setup_multiple_pads(i2c3_pads, i2c3_pads_cnt);
 
-	if (!uart2_en) {
-		if (can0_enable) {
-			BUG_ON(!can0_pads);
-			mxc_iomux_v3_setup_multiple_pads(can0_pads,
-							can0_pads_cnt);
-		}
-		BUG_ON(!can1_pads);
-		mxc_iomux_v3_setup_multiple_pads(can1_pads, can1_pads_cnt);
+	if (can0_enable) {
+		BUG_ON(!can0_pads);
+		mxc_iomux_v3_setup_multiple_pads(can0_pads,
+						can0_pads_cnt);
 	}
+	BUG_ON(!can1_pads);
+	mxc_iomux_v3_setup_multiple_pads(can1_pads, can1_pads_cnt);
+
 
 	/* assert i2c-rst  */
 	gpio_request(SABREAUTO_I2C_EXP_RST, "i2c-rst");
@@ -1374,6 +1375,7 @@ static void __init mx6_board_init(void)
 		for (i = 0; i < (ARRAY_SIZE(sabr_fb_data) + 1) / 2; i++)
 			imx6q_add_ipuv3fb(i, &sabr_fb_data[i]);
 
+	imx6q_add_vdoa();
 	imx6q_add_mipi_dsi(&mipi_dsi_pdata);
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
@@ -1456,7 +1458,8 @@ static void __init mx6_board_init(void)
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
 	imx6q_add_dma();
-	imx6q_add_gpmi(&mx6q_gpmi_nand_platform_data);
+	if (!uart3_en)
+		imx6q_add_gpmi(&mx6q_gpmi_nand_platform_data);
 
 	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
 

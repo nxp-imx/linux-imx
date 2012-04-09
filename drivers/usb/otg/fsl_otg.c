@@ -670,7 +670,9 @@ static int fsl_otg_set_peripheral(struct otg_transceiver *otg_p,
 				  struct usb_gadget *gadget)
 {
 	struct fsl_otg *otg_dev = container_of(otg_p, struct fsl_otg, otg);
+	struct fsl_usb2_platform_data *pdata;
 
+	pdata = otg_dev->otg.dev->platform_data;
 	VDBG("otg_dev 0x%x\n", (int)otg_dev);
 	VDBG("fsl_otg_dev 0x%x\n", (int)fsl_otg_dev);
 
@@ -683,10 +685,11 @@ static int fsl_otg_set_peripheral(struct otg_transceiver *otg_p,
 		usb_gadget_vbus_disconnect(otg_dev->otg.gadget);
 		otg_dev->otg.gadget = 0;
 		otg_dev->fsm.b_bus_req = 0;
+		pdata->port_enables = 0;
 		otg_statemachine(&otg_dev->fsm);
 		return 0;
 	}
-
+	pdata->port_enables = 1;
 	otg_p->gadget = gadget;
 	otg_p->gadget->is_a_peripheral = !otg_dev->fsm.id;
 
@@ -748,7 +751,7 @@ static void fsl_otg_event(struct work_struct *work)
 		if (pdata->wake_up_enable)
 			pdata->wake_up_enable(pdata, false);
 		otg_drv_vbus(fsm, 0);
-		if (og->host_first_call == false) {
+		if ((og->host_first_call == false) && (pdata->port_enables == 1)) {
 			fsl_otg_wait_dischrg_vbus(pdata);
 			fsl_otg_wait_stable_vbus(false);
 		} else {

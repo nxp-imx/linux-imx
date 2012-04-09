@@ -276,12 +276,14 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	unsigned long   estatus;
 	unsigned long flags;
 
+	spin_lock_irqsave(&fep->hw_lock, flags);
 	if (!fep->link) {
 		/* Link is down or autonegotiation is in progress. */
+		netif_stop_queue(ndev);
+		spin_unlock_irqrestore(&fep->hw_lock, flags);
 		return NETDEV_TX_BUSY;
 	}
 
-	spin_lock_irqsave(&fep->hw_lock, flags);
 	/* Fill in a Tx ring entry */
 	bdp = fep->cur_tx;
 
@@ -292,6 +294,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		 * This should not happen, since ndev->tbusy should be set.
 		 */
 		printk("%s: tx queue full!.\n", ndev->name);
+		netif_stop_queue(ndev);
 		spin_unlock_irqrestore(&fep->hw_lock, flags);
 		return NETDEV_TX_BUSY;
 	}
@@ -311,8 +314,8 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	if (((unsigned long) bufaddr) & FEC_ALIGNMENT) {
 		unsigned int index;
 		index = bdp - fep->tx_bd_base;
-		memcpy(fep->tx_bounce[index], (void *)skb->data, skb->len);
-		bufaddr = fep->tx_bounce[index];
+		bufaddr = PTR_ALIGN(fep->tx_bounce[index], FEC_ALIGNMENT + 1);
+		memcpy(bufaddr, (void *)skb->data, skb->len);
 	}
 
 	if (fep->ptimer_present) {
@@ -382,7 +385,8 @@ fec_timeout(struct net_device *ndev)
 	ndev->stats.tx_errors++;
 
 	fec_restart(ndev, fep->full_duplex);
-	netif_wake_queue(ndev);
+	if (fep->link && !fep->tx_full)
+		netif_wake_queue(ndev);
 }
 
 static void
@@ -409,6 +413,8 @@ fec_enet_tx(struct net_device *ndev)
 		bdp->cbd_bufaddr = 0;
 
 		skb = fep->tx_skbuff[fep->skb_dirty];
+		if (!skb)
+			break;
 		/* Check for errors. */
 		if (status & (BD_ENET_TX_HB | BD_ENET_TX_LC |
 				   BD_ENET_TX_RL | BD_ENET_TX_UN |
@@ -730,9 +736,11 @@ static void fec_enet_adjust_link(struct net_device *ndev)
 	/* Link on or off change */
 	if (phy_dev->link != fep->link) {
 		fep->link = phy_dev->link;
-		if (phy_dev->link)
+		if (phy_dev->link) {
 			fec_restart(ndev, phy_dev->duplex);
-		else
+			if (!fep->tx_full)
+				netif_wake_queue(ndev);
+		} else
 			fec_stop(ndev);
 		status_change = 1;
 	}
@@ -1071,6 +1079,10 @@ static int fec_enet_alloc_buffers(struct net_device *ndev)
 	bdp = fep->tx_bd_base;
 	for (i = 0; i < TX_RING_SIZE; i++) {
 		fep->tx_bounce[i] = kmalloc(FEC_ENET_TX_FRSIZE, GFP_KERNEL);
+		if (!fep->tx_bounce[i]) {
+			fec_enet_free_buffers(ndev);
+			return -ENOMEM;
+		}
 
 		bdp->cbd_sc = 0;
 		bdp->cbd_bufaddr = 0;

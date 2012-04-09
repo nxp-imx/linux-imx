@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -194,8 +194,20 @@ static inline void _ipu_ch_param_dump(struct ipu_soc *ipu, int ch)
 		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 125, 13));
 	dev_dbg(ipu->dev, "FH %d, ",
 		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 138, 12));
+	dev_dbg(ipu->dev, "EBA0 0x%x\n",
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 0, 29) << 3);
+	dev_dbg(ipu->dev, "EBA1 0x%x\n",
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 29, 29) << 3);
 	dev_dbg(ipu->dev, "Stride %d\n",
 		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 102, 14));
+	dev_dbg(ipu->dev, "scan_order %d\n",
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 113, 1));
+	dev_dbg(ipu->dev, "uv_stride %d\n",
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 128, 14));
+	dev_dbg(ipu->dev, "u_offset 0x%x\n",
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 46, 22) << 3);
+	dev_dbg(ipu->dev, "v_offset 0x%x\n",
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 68, 22) << 3);
 
 	dev_dbg(ipu->dev, "Width0 %d+1, ",
 		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 1, 116, 3));
@@ -246,10 +258,11 @@ static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
 
 	ipu_ch_param_set_field(&params, 0, 125, 13, width - 1);
 
-	if ((ch == 8) || (ch == 9) || (ch == 10)) {
+	if (((ch == 8) || (ch == 9) || (ch == 10)) && !ipu->vdoa_en) {
 		ipu_ch_param_set_field(&params, 0, 138, 12, (height / 2) - 1);
 		ipu_ch_param_set_field(&params, 1, 102, 14, (stride * 2) - 1);
 	} else {
+		/* note: for vdoa+vdi- ch8/9/10, always use band mode */
 		ipu_ch_param_set_field(&params, 0, 138, 12, height - 1);
 		ipu_ch_param_set_field(&params, 1, 102, 14, stride - 1);
 	}
@@ -340,7 +353,11 @@ static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
 		ipu_ch_param_set_field(&params, 0, 107, 3, 3);	/* bits/pixel */
 		ipu_ch_param_set_field(&params, 1, 85, 4, 0x8);	/* pix format */
 		if ((ch == 8) || (ch == 9) || (ch == 10)) {
-			ipu_ch_param_set_field(&params, 1, 78, 7, 15);  /* burst size */
+			if (ipu->vdoa_en) {
+				ipu_ch_param_set_field(&params, 1, 78, 7, 31);
+			} else {
+				ipu_ch_param_set_field(&params, 1, 78, 7, 15);
+			}
 		} else {
 			ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
 		}
@@ -404,8 +421,14 @@ static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
 		uv_stride = stride;
 		u_offset = (u == 0) ? stride * height : u;
 		if ((ch == 8) || (ch == 9) || (ch == 10)) {
-			ipu_ch_param_set_field(&params, 1, 78, 7, 15);  /* burst size */
-			uv_stride = uv_stride*2;
+			if (ipu->vdoa_en) {
+				 /* one field buffer, memory width 64bits */
+				ipu_ch_param_set_field(&params, 1, 78, 7, 63);
+			} else {
+				ipu_ch_param_set_field(&params, 1, 78, 7, 15);
+				 /* top/bottom field in one buffer*/
+				uv_stride = uv_stride*2;
+			}
 		} else {
 			ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
 		}
@@ -819,4 +842,20 @@ static inline void _ipu_ch_params_set_alpha_width(struct ipu_soc *ipu, uint32_t 
 	ipu_ch_param_set_field_io(ipu_ch_param_addr(ipu, sub_ch), 1, 125, 3, alpha_width - 1);
 };
 
+static inline void _ipu_ch_param_set_bandmode(struct ipu_soc *ipu,
+			uint32_t ch, uint32_t band_height)
+{
+	int32_t sub_ch = 0;
+
+	ipu_ch_param_set_field_io(ipu_ch_param_addr(ipu, ch),
+					0, 114, 3, band_height - 1);
+	sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
+	if (sub_ch <= 0)
+		return;
+	ipu_ch_param_set_field_io(ipu_ch_param_addr(ipu, sub_ch),
+					0, 114, 3, band_height - 1);
+
+	dev_dbg(ipu->dev, "BNDM 0x%x, ",
+		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 114, 3));
+}
 #endif

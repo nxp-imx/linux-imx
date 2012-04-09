@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -97,6 +97,9 @@ void _ipu_ic_enable_task(struct ipu_soc *ipu, ipu_channel_t channel)
 	case MEM_VDI_PRP_VF_MEM:
 		ic_conf |= IC_CONF_PRPVF_EN;
 		break;
+	case MEM_VDI_MEM:
+		ic_conf |= IC_CONF_PRPVF_EN | IC_CONF_RWS_EN ;
+		break;
 	case MEM_ROT_VF_MEM:
 		ic_conf |= IC_CONF_PRPVF_ROT_EN;
 		break;
@@ -132,6 +135,9 @@ void _ipu_ic_disable_task(struct ipu_soc *ipu, ipu_channel_t channel)
 	case MEM_VDI_PRP_VF_MEM:
 		ic_conf &= ~IC_CONF_PRPVF_EN;
 		break;
+	case MEM_VDI_MEM:
+		ic_conf &= ~(IC_CONF_PRPVF_EN | IC_CONF_RWS_EN);
+		break;
 	case MEM_ROT_VF_MEM:
 		ic_conf &= ~IC_CONF_PRPVF_ROT_EN;
 		break;
@@ -158,6 +164,7 @@ void _ipu_vdi_init(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel_param
 {
 	uint32_t reg;
 	uint32_t pixel_fmt;
+	uint32_t pix_per_burst;
 
 	reg = ((params->mem_prp_vf_mem.in_height-1) << 16) |
 	  (params->mem_prp_vf_mem.in_width-1);
@@ -168,10 +175,13 @@ void _ipu_vdi_init(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel_param
 	if (params->mem_prp_vf_mem.in_pixel_fmt ==
 	     IPU_PIX_FMT_UYVY ||
 	     params->mem_prp_vf_mem.in_pixel_fmt ==
-	     IPU_PIX_FMT_YUYV)
+	     IPU_PIX_FMT_YUYV) {
 		pixel_fmt = VDI_C_CH_422;
-	else
+		pix_per_burst = 32;
+	 } else {
 		pixel_fmt = VDI_C_CH_420;
+		pix_per_burst = 64;
+	}
 
 	reg = ipu_vdi_read(ipu, VDI_C);
 	reg |= pixel_fmt;
@@ -184,6 +194,21 @@ void _ipu_vdi_init(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel_param
 		break;
 	case MEM_VDI_PRP_VF_MEM_N:
 		reg |= VDI_C_BURST_SIZE3_4 | VDI_C_VWM3_SET_1 | VDI_C_VWM3_CLR_2;
+		break;
+
+	case MEM_VDI_MEM:
+		reg |= (((pix_per_burst >> 2) - 1) & VDI_C_BURST_SIZE_MASK)
+				<< VDI_C_BURST_SIZE2_OFFSET;
+		break;
+	case MEM_VDI_MEM_P:
+		reg |= (((pix_per_burst >> 2) - 1) & VDI_C_BURST_SIZE_MASK)
+				<< VDI_C_BURST_SIZE1_OFFSET;
+		reg |= VDI_C_VWM1_SET_2 | VDI_C_VWM1_CLR_2;
+		break;
+	case MEM_VDI_MEM_N:
+		reg |= (((pix_per_burst >> 2) - 1) & VDI_C_BURST_SIZE_MASK)
+				<< VDI_C_BURST_SIZE3_OFFSET;
+		reg |= VDI_C_VWM3_SET_2 | VDI_C_VWM3_CLR_2;
 		break;
 	default:
 		break;
@@ -644,12 +669,16 @@ int _ipu_ic_idma_init(struct ipu_soc *ipu, int dma_chan,
 			ic_idmac_1 |= IC_IDMAC_1_CB4_BURST_16;
 		else
 			ic_idmac_1 &= ~IC_IDMAC_1_CB4_BURST_16;
+	} else if (dma_chan == 5) {	/* VDIC OUTPUT - CB7 */
+		if (burst_size == 16)
+			ic_idmac_1 |= IC_IDMAC_1_CB7_BURST_16;
+		else
+			ic_idmac_1 &= ~IC_IDMAC_1_CB7_BURST_16;
 	}
 
 	ipu_ic_write(ipu, ic_idmac_1, IC_IDMAC_1);
 	ipu_ic_write(ipu, ic_idmac_2, IC_IDMAC_2);
 	ipu_ic_write(ipu, ic_idmac_3, IC_IDMAC_3);
-
 	return 0;
 }
 

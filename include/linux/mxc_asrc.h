@@ -204,7 +204,6 @@ struct asrc_pair_params {
 	struct dma_block input_dma[ASRC_DMA_BUFFER_NUM];
 	struct dma_block output_dma_total;
 	struct dma_block output_dma[ASRC_DMA_BUFFER_NUM];
-	struct semaphore busy_lock;
 	struct dma_async_tx_descriptor *desc_in;
 	struct dma_async_tx_descriptor *desc_out;
 };

@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -34,7 +34,9 @@
 
 #define ModifyRegister32(a, b, c)	(c = (((c)&(~(a))) | (b)))
 
-#define DAM_VIRT_BASE_ADDR	IO_ADDRESS(AUDMUX_BASE_ADDR)
+#if defined(CONFIG_ARCH_MX6)
+#define DAM_VIRT_BASE_ADDR	IO_ADDRESS(MX6Q_AUDMUX_BASE_ADDR)
+#endif
 
 #ifndef _reg_DAM_PTCR1
 #define    _reg_DAM_PTCR1   (*((volatile unsigned long *) \

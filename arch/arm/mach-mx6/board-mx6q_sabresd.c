@@ -55,6 +55,7 @@
 #include <linux/mfd/max17135.h>
 #include <linux/mfd/wm8994/pdata.h>
 #include <linux/mfd/wm8994/gpio.h>
+#include <sound/wm8962.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -237,17 +238,29 @@ static inline void mx6q_sabresd_init_uart(void)
 
 static int mx6q_sabresd_fec_phy_init(struct phy_device *phydev)
 {
-	/* prefer master mode, disable 1000 Base-T capable */
-	phy_write(phydev, 0x9, 0x1c00);
+	unsigned short val;
 
-	/* min rx data delay */
-	phy_write(phydev, 0x0b, 0x8105);
-	phy_write(phydev, 0x0c, 0x0000);
+	/* To enable AR8031 ouput a 125MHz clk from CLK_25M */
+	phy_write(phydev, 0xd, 0x7);
+	phy_write(phydev, 0xe, 0x8016);
+	phy_write(phydev, 0xd, 0x4007);
+	val = phy_read(phydev, 0xe);
 
-	/* max rx/tx clock delay, min rx/tx control delay */
-	phy_write(phydev, 0x0b, 0x8104);
-	phy_write(phydev, 0x0c, 0xf0f0);
-	phy_write(phydev, 0x0b, 0x104);
+	val &= 0xffe3;
+	val |= 0x18;
+	phy_write(phydev, 0xe, val);
+
+	/* Introduce tx clock delay */
+	phy_write(phydev, 0x1d, 0x5);
+	val = phy_read(phydev, 0x1e);
+	val |= 0x0100;
+	phy_write(phydev, 0x1e, val);
+
+	/*check phy power*/
+	val = phy_read(phydev, 0x0);
+
+	if (val & BMCR_PDOWN)
+		phy_write(phydev, 0x0, (val & ~BMCR_PDOWN));
 
 	return 0;
 }
@@ -322,7 +335,7 @@ static struct mxc_audio_platform_data wm8958_data = {
 	.hp_active_low = 1,
 };
 
-static struct wm8994_pdata wm8958_pdata = {
+static struct wm8994_pdata wm8958_config_data = {
 	.gpio_defaults = {
 		[0] = WM8994_GP_FN_GPIO | WM8994_GPN_DB,
 		[1] = WM8994_GP_FN_GPIO | WM8994_GPN_DB | WM8994_GPN_PD,
@@ -366,12 +379,21 @@ static struct platform_device mx6_sabresd_audio_wm8962_device = {
 	.name = "imx-wm8962",
 };
 
+static struct wm8962_pdata wm8962_config_data = {
+	.gpio_init = {
+		[2] = WM8962_GPIO_FN_DMICCLK,
+		[4] = 0x8000 | WM8962_GPIO_FN_DMICDAT,
+	},
+};
+
 static struct mxc_audio_platform_data wm8962_data = {
 	.ssi_num = 1,
 	.src_port = 2,
 	.ext_port = 3,
 	.hp_gpio = SABRESD_HEADPHONE_DET,
 	.hp_active_low = 1,
+	.mic_gpio = SABRESD_MICROPHONE_DET,
+	.mic_active_low = 1,
 };
 
 static int mxc_wm8962_init(void)
@@ -399,6 +421,11 @@ static struct regulator_consumer_supply sabresd_vwm8962_consumers[] = {
 };
 
 static struct regulator_init_data sabresd_vwm8962_init = {
+	.constraints = {
+		.name = "SPKVDD",
+		.valid_ops_mask =  REGULATOR_CHANGE_STATUS,
+		.boot_on = 1,
+	},
 	.num_consumer_supplies = ARRAY_SIZE(sabresd_vwm8962_consumers),
 	.consumer_supplies = sabresd_vwm8962_consumers,
 };
@@ -689,7 +716,12 @@ static int __init max17135_regulator_init(struct max17135 *max17135)
 		}
 	}
 
-	regulator_has_full_constraints();
+	/*
+	 * TODO: We cannot enable full constraints for now, since
+	 * it results in the PFUZE regulators being disabled
+	 * at the end of boot, which disables critical regulators.
+	 */
+	/*regulator_has_full_constraints();*/
 
 	return 0;
 }
@@ -1438,6 +1470,17 @@ static struct mipi_csi2_platform_data mipi_csi2_pdata = {
 	.pixel_clk = "emi_clk",
 };
 
+#define SNVS_LPCR 0x38
+static void mx6_snvs_poweroff(void)
+{
+
+	void __iomem *mx6_snvs_base =  MX6_IO_ADDRESS(MX6Q_SNVS_BASE_ADDR);
+	u32 value;
+	value = readl(mx6_snvs_base + SNVS_LPCR);
+	/*set TOP and DP_EN bit*/
+	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
+}
+
 /*!
  * Board specific initialization.
  */
@@ -1499,6 +1542,7 @@ static void __init mx6_sabresd_board_init(void)
 		for (i = 0; i < (ARRAY_SIZE(sabresd_fb_data) + 1) / 2; i++)
 			imx6q_add_ipuv3fb(i, &sabresd_fb_data[i]);
 
+	imx6q_add_vdoa();
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
@@ -1508,9 +1552,10 @@ static void __init mx6_sabresd_board_init(void)
 
 	if (board_is_mx6_reva()) {
 		strcpy(mxc_i2c0_board_info[0].type, "wm8958");
-		mxc_i2c0_board_info[0].platform_data = &wm8958_pdata;
+		mxc_i2c0_board_info[0].platform_data = &wm8958_config_data;
 	} else {
 		strcpy(mxc_i2c0_board_info[0].type, "wm8962");
+		mxc_i2c0_board_info[0].platform_data = &wm8962_config_data;
 	}
 	imx6q_add_imx_i2c(0, &mx6q_sabresd_i2c_data);
 	imx6q_add_imx_i2c(1, &mx6q_sabresd_i2c_data);
@@ -1633,6 +1678,8 @@ static void __init mx6_sabresd_board_init(void)
 
 	/* Register charger chips */
 	platform_device_register(&sabresd_max8903_charger_1);
+	pm_power_off = mx6_snvs_poweroff;
+
 }
 
 extern void __iomem *twd_base;

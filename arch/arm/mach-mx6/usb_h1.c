@@ -243,14 +243,14 @@ static void usbh1_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
 
 	while ((UH1_PORTSC1 & PORTSC_PORT_FORCE_RESUME)
 			&& (index < 1000)) {
-		msleep(1);
+		udelay(500);
 		index++;
 	}
 
 	if (index >= 1000)
 		printk(KERN_INFO "%s big error\n", __func__);
 
-	msleep(1);
+	udelay(500);
 	fsl_platform_h1_set_usb_phy_dis(pdata, 1);
 }
 

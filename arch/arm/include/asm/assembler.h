@@ -231,7 +231,7 @@
  */
 #ifdef CONFIG_THUMB2_KERNEL
 
-	.macro	usraccoff, instr, reg, ptr, inc, off, cond, abort, t=T()
+	.macro	usraccoff, instr, reg, ptr, inc, off, cond, abort, t=TUSER()
 9999:
 	.if	\inc == 1
 	\instr\cond\()b\()\t\().w \reg, [\ptr, #\off]
@@ -271,7 +271,7 @@
 
 #else	/* !CONFIG_THUMB2_KERNEL */
 
-	.macro	usracc, instr, reg, ptr, inc, cond, rept, abort, t=T()
+	.macro	usracc, instr, reg, ptr, inc, cond, rept, abort, t=TUSER()
 	.rept	\rept
 9999:
 	.if	\inc == 1
@@ -298,4 +298,13 @@
 	.macro	ldrusr, reg, ptr, inc, cond=al, rept=1, abort=9001f
 	usracc	ldr, \reg, \ptr, \inc, \cond, \rept, \abort
 	.endm
+
+/* Utility macro for declaring string literals */
+	.macro	string name:req, string
+	.type \name , #object
+\name:
+	.asciz "\string"
+	.size \name , . - \name
+	.endm
+
 #endif /* __ASM_ASSEMBLER_H__ */
