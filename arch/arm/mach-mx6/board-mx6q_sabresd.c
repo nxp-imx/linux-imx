@@ -1368,7 +1368,7 @@ static void gps_power_on(bool on)
 
 static struct gpio_keys_button imx6q_buttons[] = {
 	GPIO_BUTTON(SABRESD_VOLUME_UP, KEY_VOLUMEUP, 1, "volume-up", 0),
-	GPIO_BUTTON(SABRESD_VOLUME_DN, KEY_VOLUMEDOWN, 1, "volume-down", 1),
+	GPIO_BUTTON(SABRESD_VOLUME_DN, KEY_POWER, 1, "volume-down", 1),
 	GPIO_BUTTON(SABRESD_POWER_OFF, KEY_POWER, 1, "power", 1),
 };
 
