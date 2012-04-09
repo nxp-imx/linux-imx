@@ -375,6 +375,14 @@ static int imx_esai_hw_rx_params(struct snd_pcm_substream *substream,
 		rfcr |= ESAI_WORD_LEN_16;
 		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL32_WDL16;
 		break;
+	case SNDRV_PCM_FORMAT_S20_3LE:
+		rfcr |= ESAI_WORD_LEN_20;
+		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL32_WDL20;
+		break;
+	case SNDRV_PCM_FORMAT_S24_LE:
+		rfcr |= ESAI_WORD_LEN_24;
+		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL32_WDL24;
+		break;
 	}
 
 	channels = params_channels(params);
