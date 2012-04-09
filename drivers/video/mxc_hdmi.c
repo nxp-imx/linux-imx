@@ -570,6 +570,10 @@ static void hdmi_video_packetize(struct mxc_hdmi *hdmi)
 	} else
 		return;
 
+	if (!hdmi->edid_cfg.vsd_dc_48bit && !hdmi->edid_cfg.vsd_dc_36bit &&
+		!hdmi->edid_cfg.vsd_dc_30bit && !hdmi->edid_cfg.vsd_dc_y444)
+		color_depth = 0;
+
 	/* set the packetizer registers */
 	val = ((color_depth << HDMI_VP_PR_CD_COLOR_DEPTH_OFFSET) &
 		HDMI_VP_PR_CD_COLOR_DEPTH_MASK) |
