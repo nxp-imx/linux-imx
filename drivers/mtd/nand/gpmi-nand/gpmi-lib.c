@@ -28,7 +28,8 @@
 #include "gpmi-regs.h"
 #include "bch-regs.h"
 
-static struct clk *mxs_dma_clk;
+#define FEATURE_SIZE		4	/* p1, p2, p3, p4 */
+#define NAND_CMD_SET_FEATURE	0xef
 
 struct timing_threshod timing_default_threshold = {
 	.max_data_setup_cycles       = (BM_GPMI_TIMING0_DATA_SETUP >>
@@ -39,6 +40,281 @@ struct timing_threshod timing_default_threshold = {
 	.max_dll_clock_period_in_ns  = 32,
 	.max_dll_delay_in_ns         = 16,
 };
+
+static struct clk *mxs_dma_clk;
+
+static void setup_ddr_timing_onfi(struct gpmi_nand_data *this)
+{
+	uint32_t value;
+	struct resources  *resources = &this->resources;
+
+	/* set timing 2 register */
+	value = BF_GPMI_TIMING2_DATA_PAUSE(0x6)
+		| BF_GPMI_TIMING2_CMDADD_PAUSE(0x4)
+		| BF_GPMI_TIMING2_POSTAMBLE_DELAY(0x2)
+		| BF_GPMI_TIMING2_PREAMBLE_DELAY(0x4)
+		| BF_GPMI_TIMING2_CE_DELAY(0x2)
+		| BF_GPMI_TIMING2_READ_LATENCY(0x2);
+
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_TIMING2);
+
+	/* set timing 1 register */
+	__raw_writel(BF_GPMI_TIMING1_DEVICE_BUSY_TIMEOUT(0x500),
+			resources->gpmi_regs + HW_GPMI_TIMING1);
+
+	/* Put GPMI in NAND mode, disable device reset, and make certain
+	   IRQRDY polarity is active high. */
+	value = BV_GPMI_CTRL1_GPMI_MODE__NAND
+		| BM_GPMI_CTRL1_GANGED_RDYBUSY
+		| BF_GPMI_CTRL1_WRN_DLY_SEL(0x3)
+		| (BV_GPMI_CTRL1_DEV_RESET__DISABLED << 3)
+		| (BV_GPMI_CTRL1_ATA_IRQRDY_POLARITY__ACTIVEHIGH << 2);
+
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_CTRL1_SET);
+}
+
+/* This must be called in the context of enabling necessary clocks */
+static void common_ddr_init(struct resources *resources)
+{
+	uint32_t value;
+
+	/* [6] enable both write & read DDR DLLs */
+	value = BM_GPMI_READ_DDR_DLL_CTRL_REFCLK_ON |
+		BM_GPMI_READ_DDR_DLL_CTRL_ENABLE |
+		BF_GPMI_READ_DDR_DLL_CTRL_SLV_UPDATE_INT(0x2) |
+		BF_GPMI_READ_DDR_DLL_CTRL_SLV_DLY_TARGET(0x7);
+
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+
+	/* [7] reset read */
+	__raw_writel(value | BM_GPMI_READ_DDR_DLL_CTRL_RESET,
+			resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+	value = value & ~BM_GPMI_READ_DDR_DLL_CTRL_RESET;
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+
+	value = BM_GPMI_WRITE_DDR_DLL_CTRL_REFCLK_ON |
+		BM_GPMI_WRITE_DDR_DLL_CTRL_ENABLE    |
+		BF_GPMI_WRITE_DDR_DLL_CTRL_SLV_UPDATE_INT(0x2) |
+		BF_GPMI_WRITE_DDR_DLL_CTRL_SLV_DLY_TARGET(0x7) ,
+
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+
+	/* [8] reset write */
+	__raw_writel(value | BM_GPMI_WRITE_DDR_DLL_CTRL_RESET,
+			resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+
+	/* [9] wait for locks for read and write  */
+	do {
+		uint32_t read_status, write_status;
+		uint32_t r_mask, w_mask;
+
+		read_status = __raw_readl(resources->gpmi_regs
+					+ HW_GPMI_READ_DDR_DLL_STS);
+		write_status = __raw_readl(resources->gpmi_regs
+					+ HW_GPMI_WRITE_DDR_DLL_STS);
+
+		r_mask = (BM_GPMI_READ_DDR_DLL_STS_REF_LOCK |
+				BM_GPMI_READ_DDR_DLL_STS_SLV_LOCK);
+		w_mask = (BM_GPMI_WRITE_DDR_DLL_STS_REF_LOCK |
+				BM_GPMI_WRITE_DDR_DLL_STS_SLV_LOCK);
+
+		if (((read_status & r_mask) == r_mask)
+			&& ((write_status & w_mask) == w_mask))
+				break;
+	} while (1);
+
+	/* [10] force update of read/write */
+	value = __raw_readl(resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+	__raw_writel(value | BM_GPMI_READ_DDR_DLL_CTRL_SLV_FORCE_UPD,
+			resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+
+	value = __raw_readl(resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+	__raw_writel(value | BM_GPMI_WRITE_DDR_DLL_CTRL_SLV_FORCE_UPD,
+			resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+
+	/* [11] set gate update */
+	value = __raw_readl(resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+	value |= BM_GPMI_READ_DDR_DLL_CTRL_GATE_UPDATE;
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_READ_DDR_DLL_CTRL);
+
+	value = __raw_readl(resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+	value |= BM_GPMI_WRITE_DDR_DLL_CTRL_GATE_UPDATE;
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_WRITE_DDR_DLL_CTRL);
+}
+
+static int enable_ddr_onfi(struct gpmi_nand_data *this)
+{
+	struct resources  *resources = &this->resources;
+	struct nand_chip *nand = &this->nand;
+	struct mtd_info	 *mtd = &this->mtd;
+	int saved_chip_number = 0;
+	uint8_t device_feature[FEATURE_SIZE];
+	int mode = 0;/* there is 5 mode available, default is 0 */
+
+	saved_chip_number = this->current_chip;
+	nand->select_chip(mtd, 0);
+
+	/* [0] set proper timing */
+	__raw_writel(BF_GPMI_TIMING0_ADDRESS_SETUP(0x1)
+			| BF_GPMI_TIMING0_DATA_HOLD(0x3)
+			| BF_GPMI_TIMING0_DATA_SETUP(0x3),
+			resources->gpmi_regs + HW_GPMI_TIMING0);
+
+	/* [1] send SET FEATURE commond to NAND */
+	memset(device_feature, 0, sizeof(device_feature));
+	device_feature[0] = (0x1 << 4) | (mode & 0x7);
+
+	nand->cmdfunc(mtd, NAND_CMD_RESET, -1, -1);
+	nand->cmdfunc(mtd, NAND_CMD_SET_FEATURE, 1, -1);
+	nand->write_buf(mtd, device_feature, FEATURE_SIZE);
+
+	/* [2] set clk divider */
+	__raw_writel(BM_GPMI_CTRL1_GPMI_CLK_DIV2_EN,
+			resources->gpmi_regs + HW_GPMI_CTRL1_SET);
+
+	/* [3] about the clock, pay attention! */
+	nand->select_chip(mtd, saved_chip_number);
+	{
+		struct clk *pll1;
+		pll1 = clk_get(NULL, "pll1_main_clk");
+		if (IS_ERR(pll1)) {
+			printk(KERN_INFO "No PLL1 clock\n");
+			return -EINVAL;
+		}
+		clk_set_parent(resources->clock, pll1);
+		clk_set_rate(resources->clock, 20000000);
+	}
+	nand->select_chip(mtd, 0);
+
+	/* [4] setup timing */
+	setup_ddr_timing_onfi(this);
+
+	/* [5] set to SYNC mode */
+	__raw_writel(BM_GPMI_CTRL1_TOGGLE_MODE,
+			    resources->gpmi_regs + HW_GPMI_CTRL1_CLR);
+	__raw_writel(BM_GPMI_CTRL1_SSYNCMODE | BM_GPMI_CTRL1_GANGED_RDYBUSY,
+			    resources->gpmi_regs + HW_GPMI_CTRL1_SET);
+
+	/* common DDR initialization */
+	common_ddr_init(resources);
+
+	nand->select_chip(mtd, saved_chip_number);
+
+	printk(KERN_INFO "Micron ONFI NAND enters synchronous mode %d\n", mode);
+	return 0;
+}
+
+static void setup_ddr_timing_toggle(struct gpmi_nand_data *this)
+{
+	uint32_t value;
+	struct resources  *resources = &this->resources;
+
+	/* set timing 2 register */
+	value = BF_GPMI_TIMING2_DATA_PAUSE(0x6)
+		| BF_GPMI_TIMING2_CMDADD_PAUSE(0x4)
+		| BF_GPMI_TIMING2_POSTAMBLE_DELAY(0x3)
+		| BF_GPMI_TIMING2_PREAMBLE_DELAY(0x2)
+		| BF_GPMI_TIMING2_CE_DELAY(0x2)
+		| BF_GPMI_TIMING2_READ_LATENCY(0x2);
+
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_TIMING2);
+
+	/* set timing 1 register */
+	__raw_writel(BF_GPMI_TIMING1_DEVICE_BUSY_TIMEOUT(0x500),
+			resources->gpmi_regs + HW_GPMI_TIMING1);
+
+	/* Put GPMI in NAND mode, disable device reset, and make certain
+	   IRQRDY polarity is active high. */
+	value = BV_GPMI_CTRL1_GPMI_MODE__NAND
+		| BM_GPMI_CTRL1_GANGED_RDYBUSY
+		| (BV_GPMI_CTRL1_DEV_RESET__DISABLED << 3)
+		| (BV_GPMI_CTRL1_ATA_IRQRDY_POLARITY__ACTIVEHIGH << 2);
+
+	__raw_writel(value, resources->gpmi_regs + HW_GPMI_CTRL1_SET);
+}
+
+static int enable_ddr_toggle(struct gpmi_nand_data *this)
+{
+	struct resources  *resources = &this->resources;
+	struct nand_chip *nand = &this->nand;
+	struct mtd_info	 *mtd = &this->mtd;
+	int saved_chip_number = this->current_chip;
+
+	nand->select_chip(mtd, 0);
+
+	/* [0] set proper timing */
+	__raw_writel(BF_GPMI_TIMING0_ADDRESS_SETUP(0x5)
+			| BF_GPMI_TIMING0_DATA_HOLD(0xa)
+			| BF_GPMI_TIMING0_DATA_SETUP(0xa),
+			resources->gpmi_regs + HW_GPMI_TIMING0);
+
+	/* [2] set clk divider */
+	__raw_writel(BM_GPMI_CTRL1_GPMI_CLK_DIV2_EN,
+			resources->gpmi_regs + HW_GPMI_CTRL1_SET);
+
+	/* [3] about the clock, pay attention! */
+	nand->select_chip(mtd, saved_chip_number);
+	{
+		struct clk *pll1;
+		unsigned long rate;
+
+		pll1 = clk_get(NULL, "pll1_main_clk");
+		if (IS_ERR(pll1)) {
+			printk(KERN_INFO "No PLL1 clock\n");
+			return -EINVAL;
+		}
+
+		/* toggle nand : 133/66 MHz */
+		rate = 33000000;
+		clk_set_parent(resources->clock, pll1);
+		clk_set_rate(resources->clock, rate);
+	}
+	nand->select_chip(mtd, 0);
+
+	/* [4] setup timing */
+	setup_ddr_timing_toggle(this);
+
+	/* [5] set to TOGGLE mode */
+	__raw_writel(BM_GPMI_CTRL1_SSYNCMODE,
+			    resources->gpmi_regs + HW_GPMI_CTRL1_CLR);
+	__raw_writel(BM_GPMI_CTRL1_TOGGLE_MODE | BM_GPMI_CTRL1_GANGED_RDYBUSY,
+			    resources->gpmi_regs + HW_GPMI_CTRL1_SET);
+
+	/* common DDR initialization */
+	common_ddr_init(resources);
+
+	nand->select_chip(mtd, saved_chip_number);
+
+	printk(KERN_INFO "-- Sumsung TOGGLE NAND is enabled now. --\n");
+	return 0;
+}
+
+inline bool is_board_support_ddr(struct gpmi_nand_data *this)
+{
+	 /* Only arm2 lpddr2pop board supports the DDR, */
+	 /* the common arm2 board does not. */
+	return this->pdata->enable_ddr;
+}
+
+inline bool is_ddr_nand(struct gpmi_nand_data *this)
+{
+	return this->nand.onfi_version;
+}
+
+/* To check if we need to initialize something else*/
+int extra_init(struct gpmi_nand_data *this)
+{
+	if (is_board_support_ddr(this)) {
+		if (1)
+			return enable_ddr_onfi(this);
+		if (0)
+			return enable_ddr_toggle(this);
+	}
+	return 0;
+}
 
 /*
  * Clear the bit and poll it cleared.  This is usually called with
@@ -233,11 +509,15 @@ int bch_set_geometry(struct gpmi_nand_data *this)
 	writel(BF_BCH_FLASH0LAYOUT0_NBLOCKS(block_count)
 			| BF_BCH_FLASH0LAYOUT0_META_SIZE(metadata_size)
 			| BF_BCH_FLASH0LAYOUT0_ECC0(ecc_strength, this)
+			| (is_ddr_nand(this) && is_board_support_ddr(this) ? \
+				BM_BCH_FLASH0LAYOUT0_GF13_0_GF14_1 : 0)
 			| BF_BCH_FLASH0LAYOUT0_DATA0_SIZE(block_size, this),
 			r->bch_regs + HW_BCH_FLASH0LAYOUT0);
 
 	writel(BF_BCH_FLASH0LAYOUT1_PAGE_SIZE(page_size)
 			| BF_BCH_FLASH0LAYOUT1_ECCN(ecc_strength, this)
+			| (is_ddr_nand(this) && is_board_support_ddr(this) ? \
+				BM_BCH_FLASH0LAYOUT1_GF13_0_GF14_1 : 0)
 			| BF_BCH_FLASH0LAYOUT1_DATAN_SIZE(block_size, this),
 			r->bch_regs + HW_BCH_FLASH0LAYOUT1);
 
@@ -969,10 +1249,21 @@ int gpmi_send_page(struct gpmi_nand_data *this,
 	uint32_t address;
 	uint32_t ecc_command;
 	uint32_t buffer_mask;
+	uint32_t busw;
+	uint32_t page_size;
 	struct dma_async_tx_descriptor *desc;
 	struct dma_chan *channel = get_dma_chan(this);
 	int chip = this->current_chip;
 	u32 pio[6];
+
+	/* DDR use the 16-bit for DATA transmission! */
+	if (is_board_support_ddr(this) && is_ddr_nand(this)) {
+		busw		= BV_GPMI_CTRL0_WORD_LENGTH__16_BIT;
+		page_size	= geo->page_size >> 1;
+	} else {
+		busw		= BM_GPMI_CTRL0_WORD_LENGTH;
+		page_size	= geo->page_size;
+	}
 
 	/* A DMA descriptor that does an ECC page read. */
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WRITE;
@@ -982,7 +1273,7 @@ int gpmi_send_page(struct gpmi_nand_data *this,
 				BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_AUXONLY;
 
 	pio[0] = BF_GPMI_CTRL0_COMMAND_MODE(command_mode)
-		| BM_GPMI_CTRL0_WORD_LENGTH
+		| busw
 		| BF_GPMI_CTRL0_CS(chip, this)
 		| BF_GPMI_CTRL0_LOCK_CS(LOCK_CS_ENABLE, this)
 		| BF_GPMI_CTRL0_ADDRESS(address)
@@ -991,7 +1282,7 @@ int gpmi_send_page(struct gpmi_nand_data *this,
 	pio[2] = BM_GPMI_ECCCTRL_ENABLE_ECC
 		| BF_GPMI_ECCCTRL_ECC_CMD(ecc_command)
 		| BF_GPMI_ECCCTRL_BUFFER_MASK(buffer_mask);
-	pio[3] = geo->page_size;
+	pio[3] = page_size;
 	pio[4] = payload;
 	pio[5] = auxiliary;
 
@@ -1015,18 +1306,29 @@ int gpmi_read_page(struct gpmi_nand_data *this,
 	uint32_t address;
 	uint32_t ecc_command;
 	uint32_t buffer_mask;
+	uint32_t page_size;
+	uint32_t busw;
 	struct dma_async_tx_descriptor *desc;
 	struct dma_chan *channel = get_dma_chan(this);
 	int chip = this->current_chip;
 	unsigned long flags;
 	u32 pio[6];
 
+	/* DDR use the 16-bit for DATA transmission! */
+	if (is_board_support_ddr(this) && is_ddr_nand(this)) {
+		busw		= BV_GPMI_CTRL0_WORD_LENGTH__16_BIT;
+		page_size	= geo->page_size >> 1;
+	} else {
+		busw		= BM_GPMI_CTRL0_WORD_LENGTH;
+		page_size	= geo->page_size;
+	}
+
 	/* [1] Wait for the chip to report ready. */
 	command_mode = BV_GPMI_CTRL0_COMMAND_MODE__WAIT_FOR_READY;
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
 	pio[0] =  BF_GPMI_CTRL0_COMMAND_MODE(command_mode)
-		| BM_GPMI_CTRL0_WORD_LENGTH
+		| busw
 		| BF_GPMI_CTRL0_CS(chip, this)
 		| BF_GPMI_CTRL0_LOCK_CS(LOCK_CS_ENABLE, this)
 		| BF_GPMI_CTRL0_ADDRESS(address)
@@ -1048,7 +1350,7 @@ int gpmi_read_page(struct gpmi_nand_data *this,
 			| BV_GPMI_ECCCTRL_BUFFER_MASK__BCH_AUXONLY;
 
 	pio[0] =  BF_GPMI_CTRL0_COMMAND_MODE(command_mode)
-		| BM_GPMI_CTRL0_WORD_LENGTH
+		| busw
 		| BF_GPMI_CTRL0_CS(chip, this)
 		| BF_GPMI_CTRL0_LOCK_CS(LOCK_CS_ENABLE, this)
 		| BF_GPMI_CTRL0_ADDRESS(address)
@@ -1058,7 +1360,7 @@ int gpmi_read_page(struct gpmi_nand_data *this,
 	pio[2] =  BM_GPMI_ECCCTRL_ENABLE_ECC
 		| BF_GPMI_ECCCTRL_ECC_CMD(ecc_command)
 		| BF_GPMI_ECCCTRL_BUFFER_MASK(buffer_mask);
-	pio[3] = geo->page_size;
+	pio[3] = page_size;
 	pio[4] = payload;
 	pio[5] = auxiliary;
 
@@ -1079,11 +1381,11 @@ int gpmi_read_page(struct gpmi_nand_data *this,
 	address      = BV_GPMI_CTRL0_ADDRESS__NAND_DATA;
 
 	pio[0] = BF_GPMI_CTRL0_COMMAND_MODE(command_mode)
-		| BM_GPMI_CTRL0_WORD_LENGTH
+		| busw
 		| BF_GPMI_CTRL0_CS(chip, this)
 		| BF_GPMI_CTRL0_LOCK_CS(LOCK_CS_ENABLE, this)
 		| BF_GPMI_CTRL0_ADDRESS(address)
-		| BF_GPMI_CTRL0_XFER_COUNT(geo->page_size);
+		| BF_GPMI_CTRL0_XFER_COUNT(page_size);
 	pio[1] = 0;
 	pio[2] = 0; /* set GPMI_HW_GPMI_ECCCTRL, disable the BCH */
 	desc = channel->device->device_prep_slave_sg(channel,

@@ -41,7 +41,30 @@ static struct nand_ecclayout gpmi_hw_ecclayout = {
 	.eccpos = { 0, },
 	.oobfree = { {.offset = 0, .length = 0} }
 };
+#if 0
+void gpmi_show_regs(struct gpmi_nand_data *this)
+{
+	struct resources *r = &this->resources;
+	u32 reg, bch;
+	int i;
+	int n;
 
+	n = 0xc0 / 0x10 + 1;
+
+	pr_info("-------------- Show GPMI registers ----------\n");
+	for (i = 0; i <= n; i++) {
+		reg = __raw_readl(r->gpmi_regs + i * 0x10);
+		pr_info("offset 0x%.3x : 0x%.8x\n", i * 0x10, reg);
+	}
+	pr_info("-------------- Show GPMI registers end ----------\n");
+	pr_info("-------------- Show BCH registers ----------\n");
+	for (i = 0; i <= n; i++) {
+		reg = __raw_readl(r->bch_regs + i * 0x10);
+		pr_info("offset 0x%.3x : 0x%.8x\n", i * 0x10, reg);
+	}
+	pr_info("-------------- Show BCH registers end ----------\n");
+}
+#endif
 static irqreturn_t bch_irq(int irq, void *cookie)
 {
 	struct gpmi_nand_data *this = cookie;
@@ -99,9 +122,14 @@ int common_nfc_set_geometry(struct gpmi_nand_data *this)
 
 	/* The default for the length of Galois Field. */
 	geo->gf_len = 13;
+	if (is_ddr_nand(this) && is_board_support_ddr(this))
+		geo->gf_len = 14;
 
 	/* The default for chunk size. There is no oobsize greater then 512. */
 	geo->ecc_chunk_size = 512;
+	if (is_ddr_nand(this) && is_board_support_ddr(this))
+		geo->ecc_chunk_size = 1024;
+
 	while (geo->ecc_chunk_size < mtd->oobsize)
 		geo->ecc_chunk_size *= 2; /* keep C >= O */
 
@@ -115,6 +143,10 @@ int common_nfc_set_geometry(struct gpmi_nand_data *this)
 	}
 
 	geo->page_size = mtd->writesize + mtd->oobsize;
+	if (is_ddr_nand(this) && is_board_support_ddr(this))
+		geo->page_size = mtd->writesize + geo->metadata_size
+			+ (geo->ecc_strength * geo->gf_len * 8
+			/ geo->ecc_chunk_count);
 	geo->payload_size = mtd->writesize;
 
 	/*
@@ -1414,6 +1446,25 @@ static int __devinit nand_boot_init(struct gpmi_nand_data  *this)
 	return 0;
 }
 
+#if 0
+static void show_nfc_geometry(struct bch_geometry *geo)
+{
+	pr_info("---------------------------------------\n");
+	pr_info("       NFC Geometry (used by BCH)\n");
+	pr_info("---------------------------------------\n");
+	pr_info("ECC Strength           : %u\n", geo->ecc_strength);
+	pr_info("Page Size in Bytes     : %u\n", geo->page_size);
+	pr_info("Metadata Size in Bytes : %u\n", geo->metadata_size);
+	pr_info("ECC Chunk Size in Bytes: %u\n", geo->ecc_chunk_size);
+	pr_info("ECC Chunk Count        : %u\n", geo->ecc_chunk_count);
+	pr_info("Payload Size in Bytes  : %u\n", geo->payload_size);
+	pr_info("Auxiliary Size in Bytes: %u\n", geo->auxiliary_size);
+	pr_info("Auxiliary Status Offset: %u\n", geo->auxiliary_status_offset);
+	pr_info("Block Mark Byte Offset : %u\n", geo->block_mark_byte_offset);
+	pr_info("Block Mark Bit Offset  : %u\n", geo->block_mark_bit_offset);
+}
+#endif
+
 static int __devinit gpmi_set_geometry(struct gpmi_nand_data *this)
 {
 	int ret;
@@ -1445,6 +1496,11 @@ static int gpmi_pre_bbt_scan(struct gpmi_nand_data  *this)
 	/* Set up the medium geometry */
 	ret = gpmi_set_geometry(this);
 	if (ret)
+		return ret;
+
+	/* extra init */
+	ret = extra_init(this);
+	if (ret != 0)
 		return ret;
 
 	/* NAND boot init, depends on the gpmi_set_geometry(). */
