@@ -637,7 +637,7 @@ static int __init mxs_dma_probe(struct platform_device *pdev)
 		goto err_ioremap;
 	}
 
-	mxs_dma->clk = clk_get(&pdev->dev, NULL);
+	mxs_dma->clk = clk_get(NULL, "mxs-dma-apbh");
 	if (IS_ERR(mxs_dma->clk)) {
 		ret = PTR_ERR(mxs_dma->clk);
 		goto err_clk;
