@@ -316,14 +316,23 @@ static int __init gpmi_nand_platform_init(void)
 	return mxc_iomux_v3_setup_multiple_pads(nand_pads, nand_pads_cnt);
 }
 
-static const struct gpmi_nand_platform_data
-mx6_gpmi_nand_platform_data __initconst = {
+static struct gpmi_nand_platform_data
+mx6_gpmi_nand_platform_data = {
 	.platform_init           = gpmi_nand_platform_init,
 	.min_prop_delay_in_ns    = 5,
 	.max_prop_delay_in_ns    = 9,
 	.max_chip_count          = 1,
 	.enable_bbt              = 1,
+	.enable_ddr              = 0,
 };
+
+static int __init board_support_onfi_nand(char *p)
+{
+	mx6_gpmi_nand_platform_data.enable_ddr = 1;
+	return 0;
+}
+
+early_param("onfi_support", board_support_onfi_nand);
 
 static const struct anatop_thermal_platform_data
 	mx6_arm2_anatop_thermal_data __initconst = {
