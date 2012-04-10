@@ -158,6 +158,8 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 		scr |= SSI_SCR_SYN;
 
 	writel(strcr, ssi->base + SSI_STCR);
+	if ((fmt & SND_SOC_DAIFMT_MASTER_MASK) == SND_SOC_DAIFMT_CBS_CFS)
+		strcr &= ~(SSI_STCR_TFDIR | SSI_STCR_TXDIR);
 	writel(strcr, ssi->base + SSI_SRCR);
 	writel(scr, ssi->base + SSI_SCR);
 
