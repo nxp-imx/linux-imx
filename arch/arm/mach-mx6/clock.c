@@ -521,19 +521,6 @@ static int _clk_pll1_main_set_rate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
-static void _clk_pll1_disable(struct clk *clk)
-{
-	pll1_enabled = false;
-	_clk_pll_disable(clk);
-}
-
-static int _clk_pll1_enable(struct clk *clk)
-{
-	_clk_pll_enable(clk);
-	pll1_enabled = true;
-	return 0;
-}
-
 static struct clk pll1_sys_main_clk = {
 	__INIT_CLK_DEBUG(pll1_sys_main_clk)
 	.parent = &osc_clk,
@@ -1935,7 +1922,6 @@ static struct clk gpt_clk[] = {
 	 .enable = _clk_enable,
 	 .disable = _clk_disable,
 	 .get_rate = _clk_gpt_get_rate,
-	 .secondary = &gpt_clk[1],
 	 },
 	{
 	__INIT_CLK_DEBUG(gpt_serial_clk)
