@@ -66,5 +66,6 @@ struct gpmi_nand_platform_data {
 	struct		mtd_partition *partitions;
 	unsigned	partition_count;
 	unsigned int	enable_bbt:1;
+	unsigned int	enable_ddr:1;
 };
 #endif
