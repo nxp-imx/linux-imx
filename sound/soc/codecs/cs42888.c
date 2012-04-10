@@ -478,11 +478,17 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{ "AOUT4R", NULL, "PWR" },
 
 	/* Capture */
-	{ "ADC1", NULL, "AIN1L" },
-	{ "ADC1", NULL, "AIN1R" },
+	{ "PWR", NULL, "AIN1L" },
+	{ "PWR", NULL, "AIN1R" },
 
-	{ "ADC2", NULL, "AIN2L" },
-	{ "ADC2", NULL, "AIN2R" },
+	{ "PWR", NULL, "AIN2L" },
+	{ "PWR", NULL, "AIN2R" },
+
+	{ "ADC1", NULL, "PWR" },
+	{ "ADC1", NULL, "PWR" },
+
+	{ "ADC2", NULL, "PWR" },
+	{ "ADC2", NULL, "PWR" },
 };
 
 
