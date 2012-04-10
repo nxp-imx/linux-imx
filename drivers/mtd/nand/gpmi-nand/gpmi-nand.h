@@ -235,6 +235,8 @@ struct timing_threshod {
 };
 
 /* Common Services */
+extern bool is_ddr_nand(struct gpmi_nand_data *);
+extern bool is_board_support_ddr(struct gpmi_nand_data *);
 extern int common_nfc_set_geometry(struct gpmi_nand_data *);
 extern struct dma_chan *get_dma_chan(struct gpmi_nand_data *);
 extern void prepare_data_dma(struct gpmi_nand_data *,
@@ -245,6 +247,7 @@ extern int start_dma_with_bch_irq(struct gpmi_nand_data *,
 				struct dma_async_tx_descriptor *);
 
 /* GPMI-NAND helper function library */
+extern int extra_init(struct gpmi_nand_data *);
 extern int gpmi_init(struct gpmi_nand_data *);
 extern void gpmi_clear_bch(struct gpmi_nand_data *);
 extern void gpmi_dump_info(struct gpmi_nand_data *);
