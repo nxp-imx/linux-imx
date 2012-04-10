@@ -22,10 +22,13 @@
 #include <linux/delay.h>
 #include <linux/clk.h>
 #include <mach/mxs.h>
+#include <mach/clock.h>
 
 #include "gpmi-nand.h"
 #include "gpmi-regs.h"
 #include "bch-regs.h"
+
+static struct clk *mxs_dma_clk;
 
 struct timing_threshod timing_default_threshold = {
 	.max_data_setup_cycles       = (BM_GPMI_TIMING0_DATA_SETUP >>
@@ -128,6 +131,12 @@ int gpmi_init(struct gpmi_nand_data *this)
 	struct resources *r = &this->resources;
 	int ret;
 
+	mxs_dma_clk = clk_get(NULL, "mxs-dma-apbh");
+	if (IS_ERR(mxs_dma_clk)) {
+		pr_err("can not get the dma clock\n");
+		ret = -ENOENT;
+		goto err_out;
+	}
 	ret = clk_prepare_enable(r->clock);
 	if (ret)
 		goto err_out;
@@ -719,6 +728,13 @@ void gpmi_begin(struct gpmi_nand_data *this)
 		pr_err("We failed in enable the clk\n");
 		goto err_out;
 	}
+	if (!clk_get_usecount(mxs_dma_clk)) {
+		ret = clk_prepare_enable(mxs_dma_clk);
+		if (ret) {
+			pr_err("We failed in enable the dma clk\n");
+			goto err_out;
+		}
+	}
 
 	/* set ready/busy timeout */
 	writel(0x500 << BP_GPMI_TIMING1_BUSY_TIMEOUT,
@@ -784,6 +800,8 @@ void gpmi_end(struct gpmi_nand_data *this)
 {
 	struct resources *r = &this->resources;
 	clk_disable_unprepare(r->clock);
+	if (clk_get_usecount(mxs_dma_clk))
+		clk_disable_unprepare(mxs_dma_clk);
 }
 
 /* Clears a BCH interrupt. */
