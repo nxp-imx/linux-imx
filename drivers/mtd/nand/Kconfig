@@ -428,6 +428,8 @@ config MTD_NAND_GPMI_NAND
         depends on MTD_NAND && (SOC_IMX23 || SOC_IMX28 || SOC_IMX6Q)
 	select MTD_PARTITIONS
 	select MTD_CMDLINE_PARTS
+	select MTC_CHAR
+	select MXS_DMA
         help
 	 Enables NAND Flash support for IMX23 or IMX28.
 	 The GPMI controller is very powerful, with the help of BCH
