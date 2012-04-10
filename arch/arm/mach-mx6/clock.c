@@ -5086,7 +5086,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "caam_clk", caam_clk[0]),
 	_REGISTER_CLOCK(NULL, "asrc_clk", asrc_clk[0]),
 	_REGISTER_CLOCK(NULL, "asrc_serial_clk", asrc_clk[1]),
-	_REGISTER_CLOCK("mxs-dma-apbh",	NULL, apbh_dma_clk),
+	_REGISTER_CLOCK(NULL, "mxs-dma-apbh", apbh_dma_clk),
 	_REGISTER_CLOCK(NULL, "openvg_axi_clk", openvg_axi_clk),
 	_REGISTER_CLOCK(NULL, "gpu3d_clk", gpu3d_core_clk[0]),
 	_REGISTER_CLOCK(NULL, "gpu2d_clk", gpu2d_core_clk[0]),
