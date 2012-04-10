@@ -4491,10 +4491,6 @@ static struct clk gpu3d_shader_clk = {
 	__INIT_CLK_DEBUG(gpu3d_shader_clk)
 	.parent = &pll3_pfd_720M,
 	.secondary = &mmdc_ch0_axi_clk[0],
-	.enable = _clk_enable,
-	.enable_reg = MXC_CCM_CCGR1,
-	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
-	.disable = _clk_disable,
 	.set_parent = _clk_gpu3d_shader_set_parent,
 	.set_rate = _clk_gpu3d_shader_set_rate,
 	.get_rate = _clk_gpu3d_shader_get_rate,
@@ -5204,6 +5200,12 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_parent(&emi_clk, &pll2_pfd_400M);
 	clk_set_rate(&emi_clk, 200000000);
 
+	/*
+	* on mx6dl, 2d core clock sources from 3d shader core clock,
+	* but 3d shader clock multiplexer of mx6dl is different from
+	* mx6q. For instance the equivalent of pll2_pfd_594M on mc6q
+	* is pll2_pfd_528M on mx6dl. Make a note here.
+	*/
 	clk_set_parent(&gpu3d_shader_clk, &pll2_pfd_594M);
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
 	clk_set_parent(&gpu3d_core_clk[0], &mmdc_ch0_axi_clk[0]);
