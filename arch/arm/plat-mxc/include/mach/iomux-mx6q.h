@@ -39,8 +39,6 @@ typedef enum iomux_config {
 	IOMUX_CONFIG_GPIO,      /* added to help user use GPIO mode */
 	} iomux_pin_cfg_t;
 
-#define NON_MUX_I       0x3FF
-#define NON_PAD_I       0x7FF
 #define MX6Q_CCM_CLK0_PAD_CTRL	(PAD_CTL_PKE | PAD_CTL_PUE |	\
 		PAD_CTL_PUS_47K_UP | PAD_CTL_SPEED_LOW |	\
 		PAD_CTL_DSE_80ohm | PAD_CTL_SRE_FAST | PAD_CTL_HYS)

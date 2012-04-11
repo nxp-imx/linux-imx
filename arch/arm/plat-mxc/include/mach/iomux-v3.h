@@ -86,6 +86,8 @@ typedef u64 iomux_v3_cfg_t;
  * Use to set PAD control
  */
 #define NO_PAD_CTRL			(1 << 17)
+#define NO_PAD_I			0
+#define NO_MUX_I			0
 #ifdef CONFIG_SOC_IMX6Q
 #define PAD_CTL_HYS			(1 << 16)
 
