@@ -553,10 +553,8 @@ static irqreturn_t imx_rxint(int irq, void *dev_id)
 				continue;
 		}
 
-		spin_unlock_irqrestore(&sport->port.lock, flags);
 		if (uart_handle_sysrq_char(&sport->port, (unsigned char)rx))
 			continue;
-		spin_lock_irqsave(&sport->port.lock, flags);
 
 		if (unlikely(rx & URXD_ERR)) {
 			if (rx & URXD_BRK)
@@ -1444,8 +1442,14 @@ imx_console_write(struct console *co, const char *s, unsigned int count)
 	struct imx_port *sport = imx_ports[co->index];
 	unsigned int old_ucr1, old_ucr2, ucr1;
 	unsigned long flags;
+	int locked = 1;
 
-	spin_lock_irqsave(&sport->port.lock, flags);
+	local_irq_save(flags);
+	if (sport->port.sysrq)
+		locked = 0;
+	else
+		spin_lock(&sport->port.lock);
+
 	/*
 	 *	First, save UCR1/2 and then disable interrupts
 	 */
@@ -1471,7 +1475,10 @@ imx_console_write(struct console *co, const char *s, unsigned int count)
 
 	writel(old_ucr1, sport->port.membase + UCR1);
 	writel(old_ucr2, sport->port.membase + UCR2);
-	spin_unlock_irqrestore(&sport->port.lock, flags);
+
+	if (locked)
+		spin_unlock(&sport->port.lock);
+	local_irq_restore(flags);
 }
 
 /*
