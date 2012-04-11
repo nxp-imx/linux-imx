@@ -24,21 +24,6 @@
 
 #include <mach/iomux-v3.h>
 
-/*
- * various IOMUX alternate output functions (1-7)
- */
-typedef enum iomux_config {
-	IOMUX_CONFIG_ALT0,
-	IOMUX_CONFIG_ALT1,
-	IOMUX_CONFIG_ALT2,
-	IOMUX_CONFIG_ALT3,
-	IOMUX_CONFIG_ALT4,
-	IOMUX_CONFIG_ALT5,
-	IOMUX_CONFIG_ALT6,
-	IOMUX_CONFIG_ALT7,
-	IOMUX_CONFIG_GPIO,      /* added to help user use GPIO mode */
-	} iomux_pin_cfg_t;
-
 #define MX6Q_CCM_CLK0_PAD_CTRL	(PAD_CTL_PKE | PAD_CTL_PUE |	\
 		PAD_CTL_PUS_47K_UP | PAD_CTL_SPEED_LOW |	\
 		PAD_CTL_DSE_80ohm | PAD_CTL_SRE_FAST | PAD_CTL_HYS)
