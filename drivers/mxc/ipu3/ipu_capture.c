@@ -215,9 +215,13 @@ EXPORT_SYMBOL(ipu_csi_init_interface);
  */
 int32_t ipu_csi_get_sensor_protocol(struct ipu_soc *ipu, uint32_t csi)
 {
-	return (ipu_csi_read(ipu, csi, CSI_SENS_CONF) &
+	int ret;
+	_ipu_get(ipu);
+	ret = (ipu_csi_read(ipu, csi, CSI_SENS_CONF) &
 		CSI_SENS_CONF_SENS_PRTCL_MASK) >>
 		CSI_SENS_CONF_SENS_PRTCL_SHIFT;
+	_ipu_put(ipu);
+	return ret;
 }
 EXPORT_SYMBOL(ipu_csi_get_sensor_protocol);
 
