@@ -147,6 +147,9 @@
 #define MX6_ARM2_IO_EXP_GPIO1(x)	(MX6_ARM2_MAX7310_1_BASE_ADDR + (x))
 #define MX6_ARM2_IO_EXP_GPIO2(x)	(MX6_ARM2_MAX7310_2_BASE_ADDR + (x))
 
+#define MX6_ARM2_PCIE_PWR_EN		MX6_ARM2_IO_EXP_GPIO1(2)
+#define MX6_ARM2_PCIE_RESET		MX6_ARM2_IO_EXP_GPIO2(2)
+
 #define MX6_ARM2_CAN2_STBY		MX6_ARM2_IO_EXP_GPIO2(1)
 
 
@@ -1929,6 +1932,13 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk		= NULL, /* spdif bus clk */
 };
 
+static const struct imx_pcie_platform_data mx6_arm2_pcie_data  __initconst = {
+	.pcie_pwr_en	= MX6_ARM2_PCIE_PWR_EN,
+	.pcie_rst	= MX6_ARM2_PCIE_RESET,
+	.pcie_wake_up	= -EINVAL,
+	.pcie_dis	= -EINVAL,
+};
+
 static int __init early_disable_mipi_dsi(char *p)
 {
 	/*enable on board HDMI*/
@@ -2164,6 +2174,7 @@ static void __init mx6_arm2_init(void)
 		mxc_register_device(&max17135_sensor_device, NULL);
 		imx6dl_add_imx_epdc(&epdc_data);
 	}
+	imx6q_add_pcie(&mx6_arm2_pcie_data);
 }
 
 extern void __iomem *twd_base;
