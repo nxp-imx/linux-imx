@@ -123,9 +123,6 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_EIM_A23__GPIO_6_6,	/* J12 - Boot Mode Select */
 	MX6Q_PAD_NANDF_RB0__GPIO_6_10, /* AUX_5V Enable */
 
-	/* GPIO7 */
-	MX6Q_PAD_GPIO_17__GPIO_7_12,	/* USB Hub Reset */
-
 	/* I2C1, WM8958 */
 	MX6Q_PAD_CSI0_DAT8__I2C1_SDA,
 	MX6Q_PAD_CSI0_DAT9__I2C1_SCL,
@@ -251,7 +248,11 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/*GPS AUX_3V15_EN*/
 	MX6Q_PAD_NANDF_WP_B__GPIO_6_9,
 
+	/* PCIE */
 	MX6Q_PAD_EIM_D19__GPIO_3_19, /* PCIE_PWR_EN */
+
+	MX6Q_PAD_GPIO_17__GPIO_7_12, /* PCIE_RST */
+	MX6Q_PAD_KEY_COL4__GPIO_4_14, /* PCIE_DIS */
 };
 
 static iomux_v3_cfg_t mx6q_sabresd_csi0_sensor_pads[] = {

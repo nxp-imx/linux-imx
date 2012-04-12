@@ -642,3 +642,15 @@ struct imx_vdoa_data {
 };
 struct platform_device *__init imx_add_vdoa(
 		const struct imx_vdoa_data *data);
+
+#include <mach/pcie.h>
+struct imx_pcie_data {
+	int id;
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq;
+};
+
+struct platform_device *__init imx_add_pcie(
+		const struct imx_pcie_data *data,
+		const struct imx_pcie_platform_data *pdata);

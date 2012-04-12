@@ -29,6 +29,9 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
+#include <linux/platform_device.h>
+
+#include <mach/pcie.h>
 
 #include <asm/sizes.h>
 
@@ -86,6 +89,75 @@
 /* GPR8: iomuxc_gpr8_tx_swing_low(iomuxc_gpr8[31:25]) */
 #define iomuxc_gpr8_tx_swing_low		(0x7F << 25)
 
+/* Registers of PHY */
+/* Register PHY_STS_R */
+/* PHY Status Register */
+#define PHY_STS_R (PRT_LOG_R_BaseAddress + 0x110)
+
+/* Register PHY_CTRL_R */
+/* PHY Control Register */
+#define PHY_CTRL_R (PRT_LOG_R_BaseAddress + 0x114)
+
+#define SSP_CR_SUP_DIG_MPLL_OVRD_IN_LO 0x0011
+/* FIELD: RES_ACK_IN_OVRD [15:15]
+// FIELD: RES_ACK_IN [14:14]
+// FIELD: RES_REQ_IN_OVRD [13:13]
+// FIELD: RES_REQ_IN [12:12]
+// FIELD: RTUNE_REQ_OVRD [11:11]
+// FIELD: RTUNE_REQ [10:10]
+// FIELD: MPLL_MULTIPLIER_OVRD [9:9]
+// FIELD: MPLL_MULTIPLIER [8:2]
+// FIELD: MPLL_EN_OVRD [1:1]
+// FIELD: MPLL_EN [0:0]
+*/
+
+#define SSP_CR_SUP_DIG_ATEOVRD 0x0010
+/* FIELD: ateovrd_en [2:2]
+// FIELD: ref_usb2_en [1:1]
+// FIELD: ref_clkdiv2 [0:0]
+*/
+
+#define SSP_CR_LANE0_DIG_RX_OVRD_IN_LO 0x1005
+/* FIELD: RX_LOS_EN_OVRD [13:13]
+// FIELD: RX_LOS_EN [12:12]
+// FIELD: RX_TERM_EN_OVRD [11:11]
+// FIELD: RX_TERM_EN [10:10]
+// FIELD: RX_BIT_SHIFT_OVRD [9:9]
+// FIELD: RX_BIT_SHIFT [8:8]
+// FIELD: RX_ALIGN_EN_OVRD [7:7]
+// FIELD: RX_ALIGN_EN [6:6]
+// FIELD: RX_DATA_EN_OVRD [5:5]
+// FIELD: RX_DATA_EN [4:4]
+// FIELD: RX_PLL_EN_OVRD [3:3]
+// FIELD: RX_PLL_EN [2:2]
+// FIELD: RX_INVERT_OVRD [1:1]
+// FIELD: RX_INVERT [0:0]
+*/
+
+#define SSP_CR_LANE0_DIG_RX_ASIC_OUT 0x100D
+/* FIELD: LOS [2:2]
+// FIELD: PLL_STATE [1:1]
+// FIELD: VALID [0:0]
+*/
+
+/* control bus bit definition */
+#define PCIE_CR_CTL_DATA_LOC 0
+#define PCIE_CR_CTL_CAP_ADR_LOC 16
+#define PCIE_CR_CTL_CAP_DAT_LOC 17
+#define PCIE_CR_CTL_WR_LOC 18
+#define PCIE_CR_CTL_RD_LOC 19
+#define PCIE_CR_STAT_DATA_LOC 0
+#define PCIE_CR_STAT_ACK_LOC 16
+
+#define PCIE_CAP_STRUC_BaseAddress 0x70
+
+/* Register LNK_CAP */
+/* PCIE Link cap */
+#define LNK_CAP (PCIE_CAP_STRUC_BaseAddress + 0xc)
+#define LNK_CAP_RegisterSize 32
+#define LNK_CAP_RegisterResetValue 0x011cc12
+#define LNK_CAP_RegisterResetMask 0xffffffff
+
 /* End of Register Definitions */
 
 #define PCIE_DBI_BASE_ADDR	(PCIE_ARB_END_ADDR - SZ_16K + 1)
@@ -94,9 +166,6 @@
 #define  PCIE_CONF_DEV(d)		(((d) & 0x1F) << 11)
 #define  PCIE_CONF_FUNC(f)		(((f) & 0x7) << 8)
 #define  PCIE_CONF_REG(r)		((r) & ~0x3)
-
-#define MX6_ARM2_PCIE_PWR_EN		(IMX_GPIO_NR(8, 0) + 2)
-#define MX6_ARM2_PCIE_RESET		(IMX_GPIO_NR(8, 8) + 2)
 
 static void __iomem *base;
 static void __iomem *dbi_base;
@@ -124,6 +193,10 @@ struct imx_pcie_port {
 
 static struct imx_pcie_port imx_pcie_port[1];
 static int num_pcie_ports;
+
+static int pcie_phy_cr_read(int addr, int *data);
+static int pcie_phy_cr_write(int addr, int data);
+static void change_field(int *in, int start, int end, int val);
 
 /* IMX PCIE GPR configure routines */
 static inline void imx_pcie_clrset(u32 mask, u32 val, void __iomem *addr)
@@ -194,13 +267,39 @@ static int __init imx_pcie_setup(int nr, struct pci_sys_data *sys)
 static int imx_pcie_link_up(void __iomem *dbi_base)
 {
 	/* Check the pcie link up or link down */
-	u32 rc, iterations = 0x100000;
+	int iterations = 200;
+	u32 rc, ltssm, rx_valid, temp;
 
 	do {
 		/* link is debug bit 36 debug 1 start in bit 32 */
-		rc = readl(dbi_base + DB_R1) & (0x1 << (36-32)) ;
+		rc = readl(dbi_base + DB_R1) & (0x1 << (36 - 32)) ;
 		iterations--;
-		if ((iterations % 0x100000) == 0)
+		usleep_range(2000, 3000);
+
+		/* From L0, initiate MAC entry to gen2 if EP/RC supports gen2.
+		 * Wait 2ms (LTSSM timeout is 24ms, PHY lock is ~5us in gen2).
+		 * If (MAC/LTSSM.state == Recovery.RcvrLock)
+		 * && (PHY/rx_valid==0) then pulse PHY/rx_reset. Transition
+		 * to gen2 is stuck
+		 */
+		pcie_phy_cr_read(SSP_CR_LANE0_DIG_RX_ASIC_OUT, &rx_valid);
+		ltssm = readl(dbi_base + DB_R0) & 0x3F;
+		if ((ltssm == 0x0D) && ((rx_valid & 0x01) == 0)) {
+			pr_info("Transition to gen2 is stuck, reset PHY!\n");
+			pcie_phy_cr_read(SSP_CR_LANE0_DIG_RX_OVRD_IN_LO, &temp);
+			change_field(&temp, 3, 3, 0x1);
+			change_field(&temp, 5, 5, 0x1);
+			pcie_phy_cr_write(SSP_CR_LANE0_DIG_RX_OVRD_IN_LO,
+					0x0028);
+			usleep_range(2000, 3000);
+			pcie_phy_cr_read(SSP_CR_LANE0_DIG_RX_OVRD_IN_LO, &temp);
+			change_field(&temp, 3, 3, 0x0);
+			change_field(&temp, 5, 5, 0x0);
+			pcie_phy_cr_write(SSP_CR_LANE0_DIG_RX_OVRD_IN_LO,
+					0x0000);
+		}
+
+		if ((iterations < 0))
 			pr_info("link up failed, DB_R0:0x%08x, DB_R1:0x%08x!\n"
 					, readl(dbi_base + DB_R0)
 					, readl(dbi_base + DB_R1));
@@ -351,15 +450,151 @@ static struct hw_pci imx_pci __initdata = {
 	.map_irq	= imx_pcie_map_irq,
 };
 
-static void imx_pcie_enable_controller(void)
+/* PHY CR bus acess routines */
+static int pcie_phy_cr_ack_polling(int max_iterations, int exp_val)
+{
+	u32 temp_rd_data, wait_counter = 0;
+
+	do {
+		temp_rd_data = readl(dbi_base + PHY_STS_R);
+		temp_rd_data = (temp_rd_data >> PCIE_CR_STAT_ACK_LOC) & 0x1;
+		wait_counter++;
+	} while ((wait_counter < max_iterations) && (temp_rd_data != exp_val));
+
+	if (temp_rd_data != exp_val)
+		return 0 ;
+	return 1 ;
+}
+
+static int pcie_phy_cr_cap_addr(int addr)
+{
+	u32 temp_wr_data;
+
+	/* write addr */
+	temp_wr_data = addr << PCIE_CR_CTL_DATA_LOC ;
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	/* capture addr */
+	temp_wr_data |= (0x1 << PCIE_CR_CTL_CAP_ADR_LOC);
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	/* wait for ack */
+	if (!pcie_phy_cr_ack_polling(100, 1))
+		return 0;
+
+	/* deassert cap addr */
+	temp_wr_data = addr << PCIE_CR_CTL_DATA_LOC;
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	/* wait for ack de-assetion */
+	if (!pcie_phy_cr_ack_polling(100, 0))
+		return 0 ;
+
+	return 1 ;
+}
+
+static int pcie_phy_cr_read(int addr , int *data)
+{
+	u32 temp_rd_data, temp_wr_data;
+
+	/*  write addr */
+	/* cap addr */
+	if (!pcie_phy_cr_cap_addr(addr))
+		return 0;
+
+	/* assert rd signal */
+	temp_wr_data = 0x1 << PCIE_CR_CTL_RD_LOC;
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	/* wait for ack */
+	if (!pcie_phy_cr_ack_polling(100, 1))
+		return 0;
+
+	/* after got ack return data */
+	temp_rd_data = readl(dbi_base + PHY_STS_R);
+	*data = (temp_rd_data & (0xffff << PCIE_CR_STAT_DATA_LOC)) ;
+
+	/* deassert rd signal */
+	temp_wr_data = 0x0;
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	/* wait for ack de-assetion */
+	if (!pcie_phy_cr_ack_polling(100, 0))
+		return 0 ;
+
+	return 1 ;
+
+}
+
+static int pcie_phy_cr_write(int addr, int data)
+{
+	u32 temp_wr_data;
+
+	/* write addr */
+	/* cap addr */
+	if (!pcie_phy_cr_cap_addr(addr))
+		return 0 ;
+
+	temp_wr_data = data << PCIE_CR_CTL_DATA_LOC;
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	/* capture data */
+	temp_wr_data |= (0x1 << PCIE_CR_CTL_CAP_DAT_LOC);
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	/* wait for ack */
+	if (!pcie_phy_cr_ack_polling(100, 1))
+		return 0 ;
+
+	/* deassert cap data */
+	temp_wr_data = data << PCIE_CR_CTL_DATA_LOC;
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	/* wait for ack de-assetion */
+	if (!pcie_phy_cr_ack_polling(100, 0))
+		return 0;
+
+	/* assert wr signal */
+	temp_wr_data = 0x1 << PCIE_CR_CTL_WR_LOC;
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	/* wait for ack */
+	if (!pcie_phy_cr_ack_polling(100, 1))
+		return 0;
+
+	/* deassert wr signal */
+	temp_wr_data = data << PCIE_CR_CTL_DATA_LOC;
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	/* wait for ack de-assetion */
+	if (!pcie_phy_cr_ack_polling(100, 0))
+		return 0;
+
+	temp_wr_data = 0x0 ;
+	writel(temp_wr_data, dbi_base + PHY_CTRL_R);
+
+	return 1 ;
+}
+
+static void change_field(int *in, int start, int end, int val)
+{
+	int mask;
+
+	mask = ((0xFFFFFFFF << start) ^ (0xFFFFFFFF << (end + 1))) & 0xFFFFFFFF;
+	*in = (*in & ~mask) | (val << start);
+}
+
+static void imx_pcie_enable_controller(struct device *dev)
 {
 	struct clk *pcie_clk;
+	struct imx_pcie_platform_data *pdata = dev->platform_data;
 
-	/* PCIE PWR_EN: EXP_IO2 of MAX7310_1 */
-	gpio_request(MX6_ARM2_PCIE_PWR_EN, "PCIE POWER_EN");
+	/* Enable PCIE power */
+	gpio_request(pdata->pcie_pwr_en, "PCIE POWER_EN");
 
-	/* activate PCIE_PWR_EN CTRL_2 */
-	gpio_direction_output(MX6_ARM2_PCIE_PWR_EN, 1);
+	/* activate PCIE_PWR_EN */
+	gpio_direction_output(pdata->pcie_pwr_en, 1);
+
 	imx_pcie_clrset(iomuxc_gpr1_test_powerdown, 0 << 18, IOMUXC_GPR1);
 
 	/* enable the clks */
@@ -373,23 +608,28 @@ static void imx_pcie_enable_controller(void)
 	}
 }
 
-static void card_reset(void)
+static void card_reset(struct device *dev)
 {
-	/* PCIE RESET: EXP_IO2 of MAX7310_2 */
-	gpio_request(MX6_ARM2_PCIE_RESET, "PCIE RESET");
+	struct imx_pcie_platform_data *pdata = dev->platform_data;
+
+	/* PCIE RESET */
+	gpio_request(pdata->pcie_rst, "PCIE RESET");
 
 	/* activate PERST_B */
-	gpio_direction_output(MX6_ARM2_PCIE_RESET, 0);
+	gpio_direction_output(pdata->pcie_rst, 0);
 
 	/* Add one reset to the pcie external device */
 	msleep(100);
 
 	/* deactive PERST_B */
-	gpio_direction_output(MX6_ARM2_PCIE_RESET, 1);
+	gpio_direction_output(pdata->pcie_rst, 1);
 }
 
-static void __init add_pcie_port(void __iomem *base, void __iomem *dbi_base)
+static void __init add_pcie_port(void __iomem *base, void __iomem *dbi_base,
+		struct imx_pcie_platform_data *pdata)
 {
+	struct clk *pcie_clk;
+
 	if (imx_pcie_link_up(dbi_base)) {
 		struct imx_pcie_port *pp = &imx_pcie_port[num_pcie_ports++];
 
@@ -401,23 +641,51 @@ static void __init add_pcie_port(void __iomem *base, void __iomem *dbi_base)
 		pp->dbi_base = dbi_base;
 		spin_lock_init(&pp->conf_lock);
 		memset(pp->res, 0, sizeof(pp->res));
-	} else
+	} else {
 		pr_info("IMX PCIe port: link down!\n");
+		/* Release the clocks, and disable the power */
+
+		pcie_clk = clk_get(NULL, "pcie_clk");
+		if (IS_ERR(pcie_clk))
+			pr_err("no pcie clock.\n");
+
+		clk_disable(pcie_clk);
+		clk_put(pcie_clk);
+
+		/* Disable PCIE power */
+		gpio_request(pdata->pcie_pwr_en, "PCIE POWER_EN");
+
+		/* activate PCIE_PWR_EN */
+		gpio_direction_output(pdata->pcie_pwr_en, 0);
+
+		imx_pcie_clrset(iomuxc_gpr1_test_powerdown, 1 << 18,
+				IOMUXC_GPR1);
+	}
 }
 
-static int __init imx_pcie_init(void)
+static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 {
+	struct resource *mem;
+	struct device *dev = &pdev->dev;
+	struct imx_pcie_platform_data *pdata = dev->platform_data;
+
+
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!mem) {
+		dev_err(dev, "no mmio space\n");
+		return -EINVAL;
+	}
+
 	base = ioremap_nocache(PCIE_ARB_END_ADDR - SZ_1M + 1, SZ_1M - SZ_16K);
 	if (!base) {
 		pr_err("error with ioremap in function %s\n", __func__);
 		return -EIO;
 	}
 
-	dbi_base = ioremap_nocache(PCIE_DBI_BASE_ADDR, SZ_16K);
+	dbi_base = devm_ioremap(dev, mem->start, resource_size(mem));
 	if (!dbi_base) {
-		pr_err("error with ioremap in function %s\n", __func__);
-		iounmap(base);
-		return -EIO;
+		dev_err(dev, "can't map %pR\n", mem);
+		return -ENOMEM;
 	}
 
 	/* FIXME the field name should be aligned to RM */
@@ -427,6 +695,7 @@ static int __init imx_pcie_init(void)
 	imx_pcie_clrset(iomuxc_gpr12_device_type, PCI_EXP_TYPE_ROOT_PORT << 12,
 			IOMUXC_GPR12);
 	imx_pcie_clrset(iomuxc_gpr12_los_level, 9 << 4, IOMUXC_GPR12);
+
 	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen1, 21 << 0, IOMUXC_GPR8);
 	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_3p5db, 21 << 6, IOMUXC_GPR8);
 	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_6db, 32 << 12, IOMUXC_GPR8);
@@ -434,24 +703,88 @@ static int __init imx_pcie_init(void)
 	imx_pcie_clrset(iomuxc_gpr8_tx_swing_low, 115 << 25, IOMUXC_GPR8);
 
 	/* Enable the pwr, clks and so on */
-	imx_pcie_enable_controller();
+	imx_pcie_enable_controller(dev);
 
 	imx_pcie_clrset(iomuxc_gpr1_pcie_ref_clk_en, 1 << 16, IOMUXC_GPR1);
 
 	/* togle the external card's reset */
-	card_reset() ;
-
-	/* start link up */
-	imx_pcie_clrset(iomuxc_gpr12_app_ltssm_enable, 1 << 10, IOMUXC_GPR12);
-
-	/* add the pcie port */
-	add_pcie_port(base, dbi_base);
+	card_reset(dev) ;
 
 	usleep_range(3000, 4000);
 	imx_pcie_regions_setup(dbi_base);
 	usleep_range(3000, 4000);
 
+	/* start link up */
+	imx_pcie_clrset(iomuxc_gpr12_app_ltssm_enable, 1 << 10, IOMUXC_GPR12);
+
+	/* add the pcie port */
+	add_pcie_port(base, dbi_base, pdata);
+
+
 	pci_common_init(&imx_pci);
 	return 0;
 }
-device_initcall(imx_pcie_init);
+
+static int __devexit imx_pcie_pltfm_remove(struct platform_device *pdev)
+{
+	struct clk *pcie_clk;
+	struct device *dev = &pdev->dev;
+	struct imx_pcie_platform_data *pdata = dev->platform_data;
+	struct resource *iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+
+	/* Release clocks, and disable power  */
+	pcie_clk = clk_get(NULL, "pcie_clk");
+	if (IS_ERR(pcie_clk))
+		pr_err("no pcie clock.\n");
+
+	if (pcie_clk) {
+		clk_disable(pcie_clk);
+		clk_put(pcie_clk);
+	}
+
+	/* Disable PCIE power */
+	gpio_request(pdata->pcie_pwr_en, "PCIE POWER_EN");
+
+	/* activate PCIE_PWR_EN */
+	gpio_direction_output(pdata->pcie_pwr_en, 0);
+
+	imx_pcie_clrset(iomuxc_gpr1_test_powerdown, 1 << 18, IOMUXC_GPR1);
+
+	iounmap(base);
+	iounmap(dbi_base);
+	release_mem_region(iomem->start, resource_size(iomem));
+	platform_set_drvdata(pdev, NULL);
+
+	return 0;
+}
+
+static struct platform_driver imx_pcie_pltfm_driver = {
+	.driver = {
+		.name	= "imx-pcie",
+		.owner	= THIS_MODULE,
+	},
+	.probe		= imx_pcie_pltfm_probe,
+	.remove		= __devexit_p(imx_pcie_pltfm_remove),
+};
+
+/*****************************************************************************\
+ *                                                                           *
+ * Driver init/exit                                                          *
+ *                                                                           *
+\*****************************************************************************/
+
+static int __init imx_pcie_drv_init(void)
+{
+	return platform_driver_register(&imx_pcie_pltfm_driver);
+}
+
+static void __exit imx_pcie_drv_exit(void)
+{
+	platform_driver_unregister(&imx_pcie_pltfm_driver);
+}
+
+module_init(imx_pcie_drv_init);
+module_exit(imx_pcie_drv_exit);
+
+MODULE_DESCRIPTION("i.MX PCIE platform driver");
+MODULE_LICENSE("GPL v2");

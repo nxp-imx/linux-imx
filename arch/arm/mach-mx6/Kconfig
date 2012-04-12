@@ -60,6 +60,7 @@ config MACH_MX6Q_ARM2
 	select IMX_HAVE_PLATFORM_MXC_MLB
 	select IMX_HAVE_PLATFORM_IMX_EPDC
 	select IMX_HAVE_PLATFORM_IMX_PXP
+	select IMX_HAVE_PLATFORM_IMX_PCIE
 	help
 	  Include support for i.MX 6Quad Armadillo2 platform. This includes specific
 	  configurations for the board and its peripherals.
@@ -124,6 +125,7 @@ config MACH_MX6Q_SABRESD
 	select IMX_HAVE_PLATFORM_MXC_HDMI
 	select IMX_HAVE_PLATFORM_IMX_ASRC
 	select IMX_HAVE_PLATFORM_FLEXCAN
+	select IMX_HAVE_PLATFORM_IMX_PCIE
 	help
 	  Include support for i.MX 6Quad SABRE SD platform. This includes specific
 	  configurations for the board and its peripherals.
