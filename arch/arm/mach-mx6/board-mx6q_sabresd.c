@@ -143,7 +143,6 @@
 #define SABRESD_DI1_D0_CS	IMX_GPIO_NR(6, 31)
 
 #define SABRESD_HEADPHONE_DET	IMX_GPIO_NR(7, 8)
-#define SABRESD_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
 #define SABRESD_PCIE_RST_B_REVB	IMX_GPIO_NR(7, 12)
 #define SABRESD_PMIC_INT_B	IMX_GPIO_NR(7, 13)
 #define SABRESD_PFUZE_INT	IMX_GPIO_NR(7, 13)
@@ -1433,6 +1432,13 @@ static void mx6_snvs_poweroff(void)
 	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
 }
 
+static const struct imx_pcie_platform_data mx6_sabresd_pcie_data __initconst = {
+	.pcie_pwr_en	= SABRESD_PCIE_PWR_EN,
+	.pcie_rst	= SABRESD_PCIE_RST_B_REVB,
+	.pcie_wake_up	= SABRESD_PCIE_WAKE_B,
+	.pcie_dis	= SABRESD_PCIE_DIS_B,
+};
+
 /*!
  * Board specific initialization.
  */
@@ -1549,9 +1555,6 @@ static void __init mx6_sabresd_board_init(void)
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
 
-	/* release USB Hub reset */
-	gpio_set_value(SABRESD_USB_HUB_RESET, 1);
-
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm(1);
 	imx6q_add_mxc_pwm(2);
@@ -1622,6 +1625,7 @@ static void __init mx6_sabresd_board_init(void)
 	platform_device_register(&sabresd_max8903_charger_1);
 	pm_power_off = mx6_snvs_poweroff;
 
+	imx6q_add_pcie(&mx6_sabresd_pcie_data);
 }
 
 extern void __iomem *twd_base;
