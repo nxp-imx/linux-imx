@@ -131,17 +131,17 @@ static struct cpu_op mx6dl_cpu_op_1G[] = {
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
 	 .cpu_podf = 0,
-	 .cpu_voltage = 1100000,},
+	 .cpu_voltage = 1125000,},
 	 {
 	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
 	  .cpu_podf = 0,
-	  .cpu_voltage = 1000000,},
+	  .cpu_voltage = 1025000,},
 	{
 	 .pll_rate = 396000000,
 	 .cpu_rate = 198000000,
 	 .cpu_podf = 1,
-	 .cpu_voltage = 1000000,},
+	 .cpu_voltage = 1025000,},
 };
 
 static struct cpu_op mx6dl_cpu_op[] = {
