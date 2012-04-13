@@ -308,6 +308,7 @@ int vdoa_start(vdoa_handle_t handle, int timeout_ms)
 
 	CHECK_NULL_PTR(vdoa);
 	CHECK_STATE(VDOA_GET_OBUF, return -EINVAL);
+	vdoa->state = VDOA_START;
 	init_completion(&vdoa->comp);
 	vdoa_write_register(vdoa, VDOAIST,
 			VDOAIEIST_TRANSFER_ERR | VDOAIEIST_TRANSFER_END);
@@ -318,7 +319,6 @@ int vdoa_start(vdoa_handle_t handle, int timeout_ms)
 	vdoa_write_register(vdoa, VDOASRR, VDOASRR_START_XFER);
 	dump_registers(vdoa);
 
-	vdoa->state = VDOA_START;
 	ret = wait_for_completion_timeout(&vdoa->comp,
 			msecs_to_jiffies(timeout_ms));
 
