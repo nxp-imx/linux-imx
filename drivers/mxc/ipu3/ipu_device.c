@@ -371,13 +371,10 @@ static bool deinterlace_3_field(struct ipu_task_entry *t)
 
 static u32 tiled_filed_size(struct ipu_task_entry *t)
 {
-	u32 y_size;
 	u32 field_size;
 
 	/* note: page_align is required by VPU hw ouput buffer */
-	y_size = t->input.width * t->input.height/2;
-	field_size = ALIGN(y_size, SZ_4K) + ALIGN(y_size/2, SZ_4K);
-
+	field_size = TILED_NV12_FRAME_SIZE(t->input.width, t->input.height/2);
 	return field_size;
 }
 
