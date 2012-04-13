@@ -1022,8 +1022,6 @@ static int __devinit gpu_suspend(struct platform_device *dev, pm_message_t state
             {
                 status = gckHARDWARE_SetPowerManagementState(device->kernels[i]->hardware, gcvPOWER_OFF);
             }
-            /*gpu clock must be turned on before power down*/
-            gckOS_SetGPUPower(device->os, i, gcvTRUE, gcvFALSE);
             if (gcmIS_ERROR(status))
             {
                 return -1;
