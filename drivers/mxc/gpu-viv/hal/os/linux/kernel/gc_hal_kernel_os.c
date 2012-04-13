@@ -31,6 +31,7 @@
 #include <asm/atomic.h>
 #include <linux/dma-mapping.h>
 #include <linux/slab.h>
+#include <linux/idr.h>
 #include <mach/hardware.h>
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23)
 #include <linux/math64.h>
@@ -129,6 +130,14 @@ typedef struct _gcsUSER_MAPPING
 }
 gcsUSER_MAPPING;
 
+typedef struct _gcsINTEGER_DB * gcsINTEGER_DB_PTR;
+typedef struct _gcsINTEGER_DB
+{
+    struct idr                  idr;
+    spinlock_t                  lock;
+}
+gcsINTEGER_DB;
+
 struct _gckOS
 {
     /* Object. */
@@ -151,24 +160,11 @@ struct _gckOS
     gctUINT32                   kernelProcessID;
 
     /* Signal management. */
-    struct _signal
-    {
-        /* Unused signal ID number. */
-        gctINT                  unused;
+    /* Lock. */
+    gctPOINTER                  signalMutex;
 
-        /* The pointer to the table. */
-        gctPOINTER *            table;
-
-        /* Signal table length. */
-        gctINT                  tableLen;
-
-        /* The current unused signal ID. */
-        gctINT                  currentID;
-
-        /* Lock. */
-        gctPOINTER              lock;
-    }
-    signal;
+    /* signal id database. */
+    gcsINTEGER_DB               signalDB;
 
     gcsUSER_MAPPING_PTR         userMap;
     gctPOINTER                  debugLock;
@@ -194,6 +190,10 @@ typedef struct _gcsSIGNAL
 
     /* The owner of the signal. */
     gctHANDLE process;
+
+    /* ID. */
+    gctUINT32 id;
+
 }
 gcsSIGNAL;
 
@@ -1052,6 +1052,93 @@ _FreeAllNonPagedMemoryCache(
 
 #endif /* gcdUSE_NON_PAGED_MEMORY_CACHE */
 
+ /*******************************************************************************
++** Integer Id Management.
++*/
+gceSTATUS
+_AllocateIntegerId(
+    IN gcsINTEGER_DB_PTR Database,
+    IN gctPOINTER KernelPointer,
+    OUT gctUINT32 *Id
+    )
+{
+    int result;
+
+again:
+    if (idr_pre_get(&Database->idr, GFP_KERNEL | __GFP_NOWARN) == 0)
+    {
+        return gcvSTATUS_OUT_OF_MEMORY;
+    }
+
+    spin_lock(&Database->lock);
+
+    /* Try to get a id greater than 0. */
+    result = idr_get_new_above(&Database->idr, KernelPointer, 1, Id);
+
+    spin_unlock(&Database->lock);
+
+    if (result == -EAGAIN)
+    {
+        goto again;
+    }
+
+    if (result != 0)
+    {
+        return gcvSTATUS_OUT_OF_RESOURCES;
+    }
+
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+_QueryIntegerId(
+    IN gcsINTEGER_DB_PTR Database,
+    IN gctUINT32  Id,
+    OUT gctPOINTER * KernelPointer
+    )
+{
+    gceSTATUS status;
+    gctPOINTER pointer;
+
+    spin_lock(&Database->lock);
+
+    pointer = idr_find(&Database->idr, Id);
+
+    spin_unlock(&Database->lock);
+
+    if(pointer)
+    {
+        *KernelPointer = pointer;
+        status = gcvSTATUS_OK;
+    }
+    else
+    {
+        gcmkTRACE_ZONE(
+                gcvLEVEL_ERROR, gcvZONE_OS,
+                "%s(%d) Id = %d is not found",
+                __FUNCTION__, __LINE__, Id);
+
+        status = gcvSTATUS_NOT_FOUND;
+    }
+
+    return status;
+}
+
+gceSTATUS
+_DestroyIntegerId(
+    IN gcsINTEGER_DB_PTR Database,
+    IN gctUINT32 Id
+    )
+{
+    spin_lock(&Database->lock);
+
+    idr_remove(&Database->idr, Id);
+
+    spin_unlock(&Database->lock);
+
+    return gcvSTATUS_OK;
+}
+
 /*******************************************************************************
 **
 **  gckOS_Construct
@@ -1119,35 +1206,16 @@ gckOS_Construct(
 
     /*
      * Initialize the signal manager.
-     * It creates the signals to be used in
-     * the user space.
      */
 
     /* Initialize mutex. */
-    gcmkONERROR(
-        gckOS_CreateMutex(os, &os->signal.lock));
+    gcmkONERROR(gckOS_CreateMutex(os, &os->signalMutex));
 
-    /* Initialize the signal table. */
-    os->signal.table =
-        kmalloc(gcmSIZEOF(gctPOINTER) * USER_SIGNAL_TABLE_LEN_INIT, GFP_KERNEL | __GFP_NOWARN);
+    /* Initialize signal id database lock. */
+    spin_lock_init(&os->signalDB.lock);
 
-    if (os->signal.table == gcvNULL)
-    {
-        /* Out of memory. */
-        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
-    }
-
-    gckOS_ZeroMemory(os->signal.table,
-                     gcmSIZEOF(gctPOINTER) * USER_SIGNAL_TABLE_LEN_INIT);
-
-    /* Set the signal table length. */
-    os->signal.tableLen = USER_SIGNAL_TABLE_LEN_INIT;
-
-    /* The table is empty. */
-    os->signal.unused = os->signal.tableLen;
-
-    /* Initial signal ID. */
-    os->signal.currentID = 0;
+    /* Initialize signal id database. */
+    idr_init(&os->signalDB.idr);
 
 #if gcdUSE_NON_PAGED_MEMORY_CACHE
     os->cacheSize = 0;
@@ -1163,16 +1231,10 @@ gckOS_Construct(
     return gcvSTATUS_OK;
 
 OnError:
-    /* Roll back any allocation. */
-    if (os->signal.table != gcvNULL)
-    {
-        kfree(os->signal.table);
-    }
-
-    if (os->signal.lock != gcvNULL)
+    if (os->signalMutex != gcvNULL)
     {
         gcmkVERIFY_OK(
-            gckOS_DeleteMutex(os, os->signal.lock));
+            gckOS_DeleteMutex(os, os->signalMutex));
     }
 
     if (os->heap != gcvNULL)
@@ -1242,10 +1304,8 @@ gckOS_Destroy(
      */
 
     /* Destroy the mutex. */
-    gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Os->signal.lock));
 
-    /* Free the signal table. */
-    kfree(Os->signal.table);
+    gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Os->signalMutex));
 
     if (Os->heap != gcvNULL)
     {
@@ -7022,6 +7082,7 @@ gckOS_CreateSignal(
     OUT gctSIGNAL * Signal
     )
 {
+    gceSTATUS status;
     gcsSIGNAL_PTR signal;
 
     gcmkHEADER_ARG("Os=0x%X ManualReset=%d", Os, ManualReset);
@@ -7035,18 +7096,30 @@ gckOS_CreateSignal(
 
     if (signal == gcvNULL)
     {
-        gcmkFOOTER_ARG("status=%d", gcvSTATUS_OUT_OF_MEMORY);
-        return gcvSTATUS_OUT_OF_MEMORY;
+        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
 
+    /* Save the process ID. */
+    signal->process = (gctHANDLE) _GetProcessID();
     signal->manualReset = ManualReset;
     init_completion(&signal->obj);
     atomic_set(&signal->ref, 1);
 
-    *Signal = (gctSIGNAL) signal;
+    gcmkONERROR(_AllocateIntegerId(&Os->signalDB, signal, &signal->id));
+
+    *Signal = (gctSIGNAL)signal->id;
 
     gcmkFOOTER_ARG("*Signal=0x%X", *Signal);
     return gcvSTATUS_OK;
+
+OnError:
+    if (signal != gcvNULL)
+    {
+        kfree(signal);
+    }
+
+    gcmkFOOTER_NO();
+    return status;
 }
 
 /*******************************************************************************
@@ -7073,7 +7146,9 @@ gckOS_DestroySignal(
     IN gctSIGNAL Signal
     )
 {
+    gceSTATUS status;
     gcsSIGNAL_PTR signal;
+    gctBOOL acquired = gcvFALSE;
 
     gcmkHEADER_ARG("Os=0x%X Signal=0x%X", Os, Signal);
 
@@ -7081,17 +7156,36 @@ gckOS_DestroySignal(
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
 
-    signal = (gcsSIGNAL_PTR) Signal;
+    gcmkONERROR(gckOS_AcquireMutex(Os, Os->signalMutex, gcvINFINITE));
+    acquired = gcvTRUE;
+
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+
+    gcmkASSERT(signal->id == (gctUINT32)Signal);
 
     if (atomic_dec_and_test(&signal->ref))
     {
-         /* Free the sgianl. */
-        kfree(Signal);
+        gcmkVERIFY_OK(_DestroyIntegerId(&Os->signalDB, signal->id));
+
+        /* Free the sgianl. */
+        kfree(signal);
     }
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Os, Os->signalMutex));
+    acquired = gcvFALSE;
 
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
+OnError:
+    if (acquired)
+    {
+        /* Release the mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Os, Os->signalMutex));
+    }
+
+    gcmkFOOTER();
+    return status;
 }
 
 /*******************************************************************************
@@ -7123,7 +7217,9 @@ gckOS_Signal(
     IN gctBOOL State
     )
 {
+    gceSTATUS status;
     gcsSIGNAL_PTR signal;
+    gctBOOL acquired = gcvFALSE;
 
     gcmkHEADER_ARG("Os=0x%X Signal=0x%X State=%d", Os, Signal, State);
 
@@ -7131,7 +7227,12 @@ gckOS_Signal(
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
 
-    signal = (gcsSIGNAL_PTR) Signal;
+    gcmkONERROR(gckOS_AcquireMutex(Os, Os->signalMutex, gcvINFINITE));
+    acquired = gcvTRUE;
+
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+
+    gcmkASSERT(signal->id == (gctUINT32)Signal);
 
     if (State)
     {
@@ -7144,9 +7245,22 @@ gckOS_Signal(
         INIT_COMPLETION(signal->obj);
     }
 
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Os, Os->signalMutex));
+    acquired = gcvFALSE;
+
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
+
+OnError:
+    if (acquired)
+    {
+        /* Release the mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Os, Os->signalMutex));
+    }
+
+    gcmkFOOTER();
+    return status;
 }
 
 #if gcdENABLE_VG
@@ -7299,7 +7413,9 @@ gckOS_WaitSignal(
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
 
-    signal = (gcsSIGNAL_PTR) Signal;
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+
+    gcmkASSERT(signal->id == (gctUINT32)Signal);
 
     might_sleep();
 
@@ -7428,6 +7544,7 @@ gckOS_WaitSignal(
 
     spin_unlock_irq(&signal->obj.wait.lock);
 
+OnError:
     /* Return status. */
     gcmkFOOTER_ARG("Signal=0x%X status=%d", Signal, status);
     return status;
@@ -7463,36 +7580,15 @@ gckOS_MapSignal(
     OUT gctSIGNAL * MappedSignal
     )
 {
-    gctINT signalID;
-    gcsSIGNAL_PTR signal;
     gceSTATUS status;
-    gctBOOL acquired = gcvFALSE;
+    gcsSIGNAL_PTR signal;
 
     gcmkHEADER_ARG("Os=0x%X Signal=0x%X Process=0x%X", Os, Signal, Process);
 
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
     gcmkVERIFY_ARGUMENT(MappedSignal != gcvNULL);
 
-    signalID = (gctINT) Signal - 1;
-
-    gcmkONERROR(gckOS_AcquireMutex(Os, Os->signal.lock, gcvINFINITE));
-    acquired = gcvTRUE;
-
-    if (signalID >= 0 && signalID < Os->signal.tableLen)
-    {
-        /* It is a user space signal. */
-        signal = Os->signal.table[signalID];
-
-        if (signal == gcvNULL)
-        {
-            gcmkONERROR(gcvSTATUS_NOT_FOUND);
-        }
-    }
-    else
-    {
-        /* It is a kernel space signal structure. */
-        signal = (gcsSIGNAL_PTR) Signal;
-    }
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
 
     if (atomic_inc_return(&signal->ref) <= 1)
     {
@@ -7500,24 +7596,14 @@ gckOS_MapSignal(
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
     }
 
-    /* Release the mutex. */
-    gcmkONERROR(gckOS_ReleaseMutex(Os, Os->signal.lock));
-
-    *MappedSignal = (gctSIGNAL) signal;
+    *MappedSignal = (gctSIGNAL) Signal;
 
     /* Success. */
     gcmkFOOTER_ARG("*MappedSignal=0x%X", *MappedSignal);
     return gcvSTATUS_OK;
 
 OnError:
-    if (acquired)
-    {
-        /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Os, Os->signal.lock));
-    }
-
-    /* Return the staus. */
-    gcmkFOOTER();
+    gcmkFOOTER_NO();
     return status;
 }
 
@@ -7541,68 +7627,7 @@ gckOS_UnmapSignal(
     IN gctSIGNAL Signal
     )
 {
-    gctINT signalID;
-    gcsSIGNAL_PTR signal;
-    gceSTATUS status;
-    gctBOOL acquired = gcvFALSE;
-
-    gcmkHEADER_ARG("Os=0x%X Signal=0x%X ", Os, Signal);
-
-    gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
-
-    signalID = (gctINT) Signal - 1;
-
-    gcmkONERROR(gckOS_AcquireMutex(Os, Os->signal.lock, gcvINFINITE));
-    acquired = gcvTRUE;
-
-    if (signalID >= 0 && signalID < Os->signal.tableLen)
-    {
-        /* It is a user space signal. */
-        signal = Os->signal.table[signalID];
-
-        if (signal == gcvNULL)
-        {
-            gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-        }
-
-        if (atomic_read(&signal->ref) == 1)
-        {
-            /* Update the table. */
-            Os->signal.table[signalID] = gcvNULL;
-
-            if (Os->signal.unused++ == 0)
-            {
-                Os->signal.currentID = signalID;
-            }
-        }
-
-        gcmkONERROR(gckOS_DestroySignal(Os, signal));
-    }
-    else
-    {
-        /* It is a kernel space signal structure. */
-        signal = (gcsSIGNAL_PTR) Signal;
-
-        gcmkONERROR(gckOS_DestroySignal(Os, signal));
-    }
-
-    /* Release the mutex. */
-    gcmkONERROR(gckOS_ReleaseMutex(Os, Os->signal.lock));
-
-    /* Success. */
-    gcmkFOOTER();
-    return gcvSTATUS_OK;
-
-OnError:
-    if (acquired)
-    {
-        /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Os, Os->signal.lock));
-    }
-
-    /* Return the staus. */
-    gcmkFOOTER();
-    return status;
+    return gckOS_DestroySignal(Os, Signal);
 }
 
 /*******************************************************************************
@@ -7634,107 +7659,7 @@ gckOS_CreateUserSignal(
     OUT gctINT * SignalID
     )
 {
-    gcsSIGNAL_PTR signal = gcvNULL;
-    gctINT unused, currentID, tableLen;
-    gctPOINTER * table;
-    gctINT i;
-    gceSTATUS status;
-    gctBOOL acquired = gcvFALSE;
-
-    gcmkHEADER_ARG("Os=0x%0x ManualReset=%d", Os, ManualReset);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
-    gcmkVERIFY_ARGUMENT(SignalID != gcvNULL);
-
-    /* Lock the table. */
-    gcmkONERROR(gckOS_AcquireMutex(Os, Os->signal.lock, gcvINFINITE));
-
-    acquired = gcvTRUE;
-
-    if (Os->signal.unused < 1)
-    {
-        /* Enlarge the table. */
-        table = (gctPOINTER *) kmalloc(
-                    sizeof(gctPOINTER) * (Os->signal.tableLen + USER_SIGNAL_TABLE_LEN_INIT),
-                    GFP_KERNEL | __GFP_NOWARN);
-
-        if (table == gcvNULL)
-        {
-            /* Out of memory. */
-            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
-        }
-
-        memset(table + Os->signal.tableLen, 0, sizeof(gctPOINTER) * USER_SIGNAL_TABLE_LEN_INIT);
-        memcpy(table, Os->signal.table, sizeof(gctPOINTER) * Os->signal.tableLen);
-
-        /* Release the old table. */
-        kfree(Os->signal.table);
-
-        /* Update the table. */
-        Os->signal.table = table;
-        Os->signal.currentID = Os->signal.tableLen;
-        Os->signal.tableLen += USER_SIGNAL_TABLE_LEN_INIT;
-        Os->signal.unused += USER_SIGNAL_TABLE_LEN_INIT;
-    }
-
-    table = Os->signal.table;
-    currentID = Os->signal.currentID;
-    tableLen = Os->signal.tableLen;
-    unused = Os->signal.unused;
-
-    /* Create a new signal. */
-    gcmkONERROR(
-        gckOS_CreateSignal(Os, ManualReset, (gctSIGNAL *) &signal));
-
-    /* Save the process ID. */
-    signal->process = (gctHANDLE) _GetProcessID();
-
-    table[currentID] = signal;
-
-    /* Plus 1 to avoid gcvNULL claims. */
-    *SignalID = currentID + 1;
-
-    /* Update the currentID. */
-    if (--unused > 0)
-    {
-        for (i = 0; i < tableLen; i++)
-        {
-            if (++currentID >= tableLen)
-            {
-                /* Wrap to the begin. */
-                currentID = 0;
-            }
-
-            if (table[currentID] == gcvNULL)
-            {
-                break;
-            }
-        }
-    }
-
-    Os->signal.table = table;
-    Os->signal.currentID = currentID;
-    Os->signal.tableLen = tableLen;
-    Os->signal.unused = unused;
-
-    gcmkONERROR(
-        gckOS_ReleaseMutex(Os, Os->signal.lock));
-
-    gcmkFOOTER_ARG("*SignalID=%d", gcmOPT_VALUE(SignalID));
-    return gcvSTATUS_OK;
-
-OnError:
-    if (acquired)
-    {
-        /* Release the mutex. */
-        gcmkONERROR(
-            gckOS_ReleaseMutex(Os, Os->signal.lock));
-    }
-
-    /* Return the staus. */
-    gcmkFOOTER();
-    return status;
+    return gckOS_CreateSignal(Os, ManualReset, (gctSIGNAL *) SignalID);
 }
 
 /*******************************************************************************
@@ -7761,80 +7686,7 @@ gckOS_DestroyUserSignal(
     IN gctINT SignalID
     )
 {
-    gceSTATUS status;
-    gcsSIGNAL_PTR signal;
-    gctBOOL acquired = gcvFALSE;
-
-    gcmkHEADER_ARG("Os=0x%X SignalID=%d", Os, SignalID);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
-
-    gcmkONERROR(
-        gckOS_AcquireMutex(Os, Os->signal.lock, gcvINFINITE));
-
-    acquired = gcvTRUE;
-
-    if (SignalID < 1 || SignalID > Os->signal.tableLen)
-    {
-        gcmkTRACE(
-            gcvLEVEL_ERROR,
-            "%s(%d): invalid signal->%d.",
-            __FUNCTION__, __LINE__,
-            (gctINT) SignalID
-            );
-
-        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-    }
-
-    SignalID -= 1;
-
-    signal = Os->signal.table[SignalID];
-
-    if (signal == gcvNULL)
-    {
-        gcmkTRACE(
-            gcvLEVEL_ERROR,
-            "%s(%d): signal is gcvNULL.",
-            __FUNCTION__, __LINE__
-            );
-
-        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-    }
-
-
-    if (atomic_read(&signal->ref) == 1)
-    {
-        /* Update the table. */
-        Os->signal.table[SignalID] = gcvNULL;
-
-        if (Os->signal.unused++ == 0)
-        {
-            Os->signal.currentID = SignalID;
-        }
-    }
-
-    gcmkONERROR(
-        gckOS_DestroySignal(Os, signal));
-
-    gcmkVERIFY_OK(
-        gckOS_ReleaseMutex(Os, Os->signal.lock));
-
-    /* Success. */
-    gcmkFOOTER_NO();
-    return gcvSTATUS_OK;
-
-OnError:
-    if (acquired)
-    {
-        /* Release the mutex. */
-        gcmkVERIFY_OK(
-            gckOS_ReleaseMutex(Os, Os->signal.lock));
-    }
-
-    /* Return the status. */
-    gcmkFOOTER();
-    return status;
+    return gckOS_DestroySignal(Os, (gctSIGNAL)SignalID);
 }
 
 /*******************************************************************************
@@ -7866,65 +7718,7 @@ gckOS_WaitUserSignal(
     IN gctUINT32 Wait
     )
 {
-    gceSTATUS status;
-    gcsSIGNAL_PTR signal;
-    gctBOOL acquired = gcvFALSE;
-
-    gcmkHEADER_ARG("Os=0x%X SignalID=%d Wait=%u", Os, SignalID, Wait);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
-
-    gcmkONERROR(gckOS_AcquireMutex(Os, Os->signal.lock, gcvINFINITE));
-    acquired = gcvTRUE;
-
-    if (SignalID < 1 || SignalID > Os->signal.tableLen)
-    {
-        gcmkTRACE(
-            gcvLEVEL_ERROR,
-            "%s(%d): invalid signal %d",
-            __FUNCTION__, __LINE__,
-            SignalID
-            );
-
-        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-    }
-
-    SignalID -= 1;
-
-    signal = Os->signal.table[SignalID];
-
-    gcmkONERROR(gckOS_ReleaseMutex(Os, Os->signal.lock));
-    acquired = gcvFALSE;
-
-    if (signal == gcvNULL)
-    {
-        gcmkTRACE(
-            gcvLEVEL_ERROR,
-            "%s(%d): signal is gcvNULL.",
-            __FUNCTION__, __LINE__
-            );
-
-        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-    }
-
-
-    status = gckOS_WaitSignal(Os, signal, Wait);
-
-    /* Return the status. */
-    gcmkFOOTER();
-    return status;
-
-OnError:
-    if (acquired)
-    {
-        /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Os, Os->signal.lock));
-    }
-
-    /* Return the staus. */
-    gcmkFOOTER();
-    return status;
+    return gckOS_WaitSignal(Os, (gctSIGNAL)SignalID, Wait);
 }
 
 /*******************************************************************************
@@ -7956,68 +7750,7 @@ gckOS_SignalUserSignal(
     IN gctBOOL State
     )
 {
-    gceSTATUS status;
-    gcsSIGNAL_PTR signal;
-    gctBOOL acquired = gcvFALSE;
-
-    gcmkHEADER_ARG("Os=0x%X SignalID=%d State=%d", Os, SignalID, State);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
-
-    gcmkONERROR(gckOS_AcquireMutex(Os, Os->signal.lock, gcvINFINITE));
-    acquired = gcvTRUE;
-
-    if ((SignalID < 1)
-    ||  (SignalID > Os->signal.tableLen)
-    )
-    {
-        gcmkTRACE(
-            gcvLEVEL_ERROR,
-            "%s(%d): invalid signal->%d.",
-            __FUNCTION__, __LINE__,
-            SignalID
-            );
-
-        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-    }
-
-    SignalID -= 1;
-
-    signal = Os->signal.table[SignalID];
-
-    gcmkONERROR(gckOS_ReleaseMutex(Os, Os->signal.lock));
-    acquired = gcvFALSE;
-
-    if (signal == gcvNULL)
-    {
-        gcmkTRACE(
-            gcvLEVEL_ERROR,
-            "%s(%d): signal is gcvNULL.",
-            __FUNCTION__, __LINE__
-            );
-
-        gcmkONERROR(gcvSTATUS_INVALID_REQUEST);
-    }
-
-
-    status = gckOS_Signal(Os, signal, State);
-
-    /* Success. */
-    gcmkFOOTER();
-    return status;
-
-OnError:
-    if (acquired)
-    {
-        /* Release the mutex. */
-        gcmkVERIFY_OK(
-            gckOS_ReleaseMutex(Os, Os->signal.lock));
-    }
-
-    /* Return the staus. */
-    gcmkFOOTER();
-    return status;
+    return gckOS_Signal(Os, (gctSIGNAL)SignalID, State);
 }
 
 gceSTATUS
@@ -8026,48 +7759,6 @@ gckOS_CleanProcessSignal(
     gctHANDLE Process
     )
 {
-    gctINT signal;
-
-    gcmkHEADER_ARG("Os=0x%X Process=%d", Os, Process);
-
-    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
-
-    gcmkVERIFY_OK(gckOS_AcquireMutex(Os,
-        Os->signal.lock,
-        gcvINFINITE
-        ));
-
-    if (Os->signal.unused == Os->signal.tableLen)
-    {
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Os,
-            Os->signal.lock
-            ));
-
-        gcmkFOOTER_NO();
-        return gcvSTATUS_OK;
-    }
-
-    for (signal = 0; signal < Os->signal.tableLen; signal++)
-    {
-        if (Os->signal.table[signal] != gcvNULL &&
-            ((gcsSIGNAL_PTR)Os->signal.table[signal])->process == Process)
-        {
-            gckOS_DestroySignal(Os, Os->signal.table[signal]);
-
-            /* Update the signal table. */
-            Os->signal.table[signal] = gcvNULL;
-            if (Os->signal.unused++ == 0)
-            {
-                Os->signal.currentID = signal;
-            }
-        }
-    }
-
-    gcmkVERIFY_OK(gckOS_ReleaseMutex(Os,
-        Os->signal.lock
-        ));
-
-    gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 }
 
