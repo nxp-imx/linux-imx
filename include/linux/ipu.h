@@ -141,6 +141,8 @@ typedef enum {
 #define IPU_PIX_FMT_YUV422P fourcc('4', '2', '2', 'P')	/*!< 16 YUV 4:2:2 */
 /*! @} */
 #define IPU_PIX_FMT_TILED_NV12_MBALIGN	(16)
+#define TILED_NV12_FRAME_SIZE(w, h)	\
+		(ALIGN((w) * (h), SZ_4K) + ALIGN((w) * (h) / 2, SZ_4K))
 /* IPU device */
 typedef enum {
 	RGB_CS,
