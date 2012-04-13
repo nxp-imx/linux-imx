@@ -30,6 +30,13 @@
 
 #define MAX_FB_NUM	6
 #define FB_BUFS		3
+#define FRAME_HEIGHT_1080P	(1088)
+#define MAX_INTERLACED_WIDTH	(1024)
+#define CHECK_TILED_1080P(vout)	\
+	((vout->task.input.format == IPU_PIX_FMT_TILED_NV12) &&		\
+	       (vout->task.input.width == vout->task.output.crop.w) &&	\
+	       (vout->task.input.height == FRAME_HEIGHT_1080P) &&	\
+	       (vout->task.output.crop.h == 1080))
 
 struct mxc_vout_fb {
 	char *name;
@@ -97,7 +104,7 @@ static int video_nr = 16;
 /* Module parameters */
 module_param(video_nr, int, S_IRUGO);
 MODULE_PARM_DESC(video_nr, "video device numbers");
-module_param(debug, bool, S_IRUGO);
+module_param(debug, int, 0600);
 MODULE_PARM_DESC(debug, "Debug level (0-1)");
 
 const static struct v4l2_fmtdesc mxc_formats[] = {
@@ -145,6 +152,14 @@ const static struct v4l2_fmtdesc mxc_formats[] = {
 		.description = "YUV420",
 		.pixelformat = V4L2_PIX_FMT_YUV420,
 	},
+	{
+		.description = "TILED NV12P",
+		.pixelformat = IPU_PIX_FMT_TILED_NV12,
+	},
+	{
+		.description = "TILED NV12F",
+		.pixelformat = IPU_PIX_FMT_TILED_NV12F,
+	},
 };
 
 #define NUM_MXC_VOUT_FORMATS (ARRAY_SIZE(mxc_formats))
@@ -157,6 +172,24 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type 
 static struct mxc_vout_fb g_fb_setting[MAX_FB_NUM];
 static int config_disp_output(struct mxc_vout_output *vout);
 static void release_disp_output(struct mxc_vout_output *vout);
+
+static unsigned int get_frame_size(struct mxc_vout_output *vout)
+{
+	unsigned int size;
+
+	if (IPU_PIX_FMT_TILED_NV12 == vout->task.input.format)
+		size = TILED_NV12_FRAME_SIZE(vout->task.input.width,
+					vout->task.input.height);
+	else if (IPU_PIX_FMT_TILED_NV12F == vout->task.input.format) {
+		size = TILED_NV12_FRAME_SIZE(vout->task.input.width,
+					vout->task.input.height/2);
+		size *= 2;
+	} else
+		size = vout->task.input.width * vout->task.input.height *
+				fmt_to_bpp(vout->task.input.format)/8;
+
+	return size;
+}
 
 static ipu_channel_t get_ipu_channel(struct fb_info *fbi)
 {
@@ -315,6 +348,9 @@ static bool deinterlace_3_field(struct mxc_vout_output *vout)
 
 static bool is_pp_bypass(struct mxc_vout_output *vout)
 {
+	if ((IPU_PIX_FMT_TILED_NV12 == vout->task.input.format) ||
+		(IPU_PIX_FMT_TILED_NV12F == vout->task.input.format))
+		return false;
 	if ((vout->task.input.width == vout->task.output.width) &&
 		(vout->task.input.height == vout->task.output.height) &&
 		(vout->task.input.crop.w == vout->task.output.crop.w) &&
@@ -374,6 +410,8 @@ static int show_buf(struct mxc_vout_output *vout, int idx,
 	struct fb_info *fbi = vout->fbi;
 	struct fb_var_screeninfo var;
 	int ret;
+	u32 is_1080p;
+	u32 yres = 0;
 
 	memcpy(&var, &fbi->var, sizeof(var));
 
@@ -390,9 +428,17 @@ static int show_buf(struct mxc_vout_output *vout, int idx,
 		ret = fb_pan_display(fbi, &var);
 		console_unlock();
 	} else {
-		var.yoffset = idx * fbi->var.yres;
 		console_lock();
+		is_1080p = CHECK_TILED_1080P(vout);
+		if (is_1080p) {
+			yres = fbi->var.yres;
+			fbi->var.yres = FRAME_HEIGHT_1080P;
+		}
+
+		var.yoffset = idx * fbi->var.yres;
 		ret = fb_pan_display(fbi, &var);
+		if (is_1080p)
+			fbi->var.yres = yres;
 		console_unlock();
 	}
 
@@ -408,6 +454,8 @@ static void disp_work_func(struct work_struct *work)
 	unsigned long flags = 0;
 	struct ipu_pos ipos;
 	int ret = 0;
+	u32 is_1080p;
+	u32 ocrop_h = 0;
 
 	v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "disp work begin one frame\n");
 
@@ -458,11 +506,21 @@ static void disp_work_func(struct work_struct *work)
 		}
 		vout->task.output.paddr =
 			vout->disp_bufs[vout->frame_count % FB_BUFS];
+
+		is_1080p = CHECK_TILED_1080P(vout);
+		if (is_1080p) {
+			vout->task.input.crop.h = FRAME_HEIGHT_1080P;
+			vout->task.output.height = FRAME_HEIGHT_1080P;
+			ocrop_h = vout->task.output.crop.h;
+			vout->task.output.crop.h = FRAME_HEIGHT_1080P;
+		}
 		ret = ipu_queue_task(&vout->task);
 		if (ret < 0) {
 			mutex_unlock(&vout->task_lock);
 			goto err;
 		}
+		if (is_1080p)
+			vout->task.output.crop.h = ocrop_h;
 	}
 
 	mutex_unlock(&vout->task_lock);
@@ -569,6 +627,7 @@ static int mxc_vout_buffer_setup(struct videobuf_queue *q, unsigned int *count,
 			  unsigned int *size)
 {
 	struct mxc_vout_output *vout = q->priv_data;
+	unsigned int frame_size;
 
 	if (!vout)
 		return -EINVAL;
@@ -576,8 +635,8 @@ static int mxc_vout_buffer_setup(struct videobuf_queue *q, unsigned int *count,
 	if (V4L2_BUF_TYPE_VIDEO_OUTPUT != q->type)
 		return -EINVAL;
 
-	*size = PAGE_ALIGN(vout->task.input.width * vout->task.input.height *
-			fmt_to_bpp(vout->task.input.format)/8);
+	frame_size = get_frame_size(vout);
+	*size = PAGE_ALIGN(frame_size);
 
 	return 0;
 }
@@ -758,8 +817,7 @@ static int mxc_vidioc_g_fmt_vid_out(struct file *file, void *fh,
 	f->fmt.pix.width = vout->task.input.width;
 	f->fmt.pix.height = vout->task.input.height;
 	f->fmt.pix.pixelformat = vout->task.input.format;
-	f->fmt.pix.sizeimage = vout->task.input.width * vout->task.input.height *
-			fmt_to_bpp(vout->task.input.format)/8;
+	f->fmt.pix.sizeimage = get_frame_size(vout);
 
 	if (f->fmt.pix.priv) {
 		rect = (struct v4l2_rect *)f->fmt.pix.priv;
@@ -768,6 +826,10 @@ static int mxc_vidioc_g_fmt_vid_out(struct file *file, void *fh,
 		rect->width = vout->task.input.crop.w;
 		rect->height = vout->task.input.crop.h;
 	}
+	v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+			"frame_size:0x%x, pix_fmt:0x%x\n",
+			f->fmt.pix.sizeimage,
+			vout->task.input.format);
 
 	return 0;
 }
@@ -839,6 +901,11 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 			else
 				vout->task.output.format = IPU_PIX_FMT_RGB565;
 		}
+
+		if ((IPU_PIX_FMT_TILED_NV12 == vout->task.input.format) ||
+			(IPU_PIX_FMT_TILED_NV12F == vout->task.input.format))
+			vout->task.output.format = IPU_PIX_FMT_NV12;
+
 		ret = ipu_try_task(vout);
 	}
 
@@ -849,11 +916,23 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 {
 	int ret = 0;
 	struct v4l2_rect *rect = NULL;
+	u32 o_height = 0;
+	u32 ocrop_h = 0;
+	u32 is_1080p;
 
 	vout->task.input.width = f->fmt.pix.width;
 	vout->task.input.height = f->fmt.pix.height;
 	vout->task.input.format = f->fmt.pix.pixelformat;
 
+	if (IPU_PIX_FMT_TILED_NV12F == vout->task.input.format) {
+		if (vout->task.input.width > MAX_INTERLACED_WIDTH)
+			return -EINVAL;
+		v4l2_info(vout->vfd->v4l2_dev,
+				"tiled fmt enable deinterlace.\n");
+		vout->task.input.deinterlace.enable = true;
+		vout->task.input.deinterlace.field_fmt =
+				IPU_DEINTERLACE_FIELD_TOP;
+	}
 	switch (f->fmt.pix.field) {
 	/* Images are in progressive format, not interlaced */
 	case V4L2_FIELD_NONE:
@@ -893,6 +972,15 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 		vout->task.input.crop.h = f->fmt.pix.height;
 	}
 
+	is_1080p = CHECK_TILED_1080P(vout);
+	if (is_1080p) {
+		vout->task.input.crop.h = FRAME_HEIGHT_1080P;
+		o_height = vout->task.output.height;
+		ocrop_h = vout->task.output.crop.h;
+		vout->task.output.height = FRAME_HEIGHT_1080P;
+		vout->task.output.crop.h = FRAME_HEIGHT_1080P;
+	}
+
 	ret = mxc_vout_try_task(vout);
 	if (!ret) {
 		if (rect) {
@@ -902,6 +990,11 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 			f->fmt.pix.width = vout->task.input.crop.w;
 			f->fmt.pix.height = vout->task.input.crop.h;
 		}
+	}
+
+	if (is_1080p) {
+		vout->task.output.height = o_height;
+		vout->task.output.crop.h = ocrop_h;
 	}
 
 	return ret;
@@ -1311,6 +1404,7 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	struct fb_info *fbi = vout->fbi;
 	struct fb_var_screeninfo var;
 	int i, display_buf_size, fb_num, ret;
+	u32 is_1080p;
 
 	memcpy(&var, &fbi->var, sizeof(var));
 
@@ -1332,7 +1426,11 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	} else {
 		fb_num = FB_BUFS;
 		var.xres_virtual = var.xres;
-		var.yres_virtual = fb_num * var.yres;
+		is_1080p = CHECK_TILED_1080P(vout);
+		if (is_1080p)
+			var.yres_virtual = fb_num * FRAME_HEIGHT_1080P;
+		else
+			var.yres_virtual = fb_num * var.yres;
 		var.vmode &= ~FB_VMODE_YWRAP;
 	}
 	var.bits_per_pixel = fmt_to_bpp(vout->task.output.format);
@@ -1357,7 +1455,11 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	if (ret < 0)
 		return ret;
 
-	display_buf_size = fbi->fix.line_length * fbi->var.yres;
+	is_1080p = CHECK_TILED_1080P(vout);
+	if (is_1080p)
+		display_buf_size = fbi->fix.line_length * FRAME_HEIGHT_1080P;
+	else
+		display_buf_size = fbi->fix.line_length * fbi->var.yres;
 	for (i = 0; i < fb_num; i++)
 		vout->disp_bufs[i] = fbi->fix.smem_start + i * display_buf_size;
 
