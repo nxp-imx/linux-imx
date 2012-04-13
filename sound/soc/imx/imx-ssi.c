@@ -157,6 +157,10 @@ static int imx_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	if (ssi->flags & IMX_SSI_SYN)
 		scr |= SSI_SCR_SYN;
 
+	/* Dual-FIFO support */
+	strcr |= SSI_STCR_TFEN1;
+	scr |= SSI_SCR_TCH_EN;
+
 	writel(strcr, ssi->base + SSI_STCR);
 	if ((fmt & SND_SOC_DAIFMT_MASTER_MASK) == SND_SOC_DAIFMT_CBS_CFS)
 		strcr &= ~(SSI_STCR_TFDIR | SSI_STCR_TXDIR);
