@@ -190,6 +190,8 @@ static struct sdma_script_start_addrs addr_imx6q_to1 = {
 	.shp_2_mcu_addr = 891,
 	.spdif_2_mcu_addr = 1100,
 	.mcu_2_spdif_addr = 1134,
+	.mcu_2_ssish_addr = 6242,
+	.ssish_2_mcu_addr = 6678,
 };
 #endif
 
