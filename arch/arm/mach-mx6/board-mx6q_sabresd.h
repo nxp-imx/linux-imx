@@ -253,6 +253,11 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 
 	MX6Q_PAD_GPIO_17__GPIO_7_12, /* PCIE_RST */
 	MX6Q_PAD_KEY_COL4__GPIO_4_14, /* PCIE_DIS */
+
+	/* DISP_RST_B */
+	MX6Q_PAD_NANDF_CS0__GPIO_6_11,
+	/* DISP_PWR_EN */
+	MX6Q_PAD_NANDF_CS1__GPIO_6_14,
 };
 
 static iomux_v3_cfg_t mx6q_sabresd_csi0_sensor_pads[] = {
