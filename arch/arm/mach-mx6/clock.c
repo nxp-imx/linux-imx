@@ -4716,10 +4716,34 @@ static struct clk usboh3_clk[] = {
 	},
 };
 
+static int _clk_mlb_set_parent(struct clk *clk, struct clk *parent)
+{
+	u32 sel, cbcmr = __raw_readl(MXC_CCM_CBCMR);
+
+	/*
+	 * In Rigel validatioin, the MLB sys_clock isn't using the
+	 * right frequency after boot.
+	 * In arik, the register CBCMR controls gpu2d clock, not mlb clock,
+	 * mlb is sourced from axi clock.
+	 * But In rigel, the axi clock is lower than in mx6q, so mlb need to
+	 * find a new clock root.
+	 * The gpu2d clock is the root of mlb clock in rigel.
+	 * Thus we need to add below code in mx6dl.
+	 * */
+	sel = _get_mux(parent, &axi_clk, &pll3_sw_clk,
+			&pll2_pfd_352M, &pll2_pfd_400M);
+
+	cbcmr &= ~MXC_CCM_CBCMR_MLB_CLK_SEL_MASK;
+	cbcmr |= sel << MXC_CCM_CBCMR_MLB_CLK_SEL_OFFSET;
+	__raw_writel(cbcmr, MXC_CCM_CBCMR);
+
+	return 0;
+}
+
 static struct clk mlb150_clk = {
 	__INIT_CLK_DEBUG(mlb150_clk)
 	.id = 0,
-	.parent = &ipg_clk,
+	.set_parent = _clk_mlb_set_parent,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG9_OFFSET,
 	.enable = _clk_enable,
@@ -5277,6 +5301,21 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	/* S/PDIF */
 	clk_set_parent(&spdif0_clk[0], &pll3_pfd_454M);
+
+	/* MLB150 SYS Clock */
+	/*
+	 * In Rigel validatioin, the MLB sys_clock isn't using the
+	 * right frequency after boot.
+	 * In arik, the register CBCMR controls gpu2d clock, not mlb clock,
+	 * mlb is sourced from axi clock.
+	 * But In rigel, the axi clock is lower than in mx6q, so mlb need to
+	 * find a new clock root.
+	 * The gpu2d clock is the root of mlb clock in rigel.
+	 * Thus we need to add below code in mx6dl.
+	 * */
+	if (cpu_is_mx6dl())
+		clk_set_parent(&mlb150_clk, &pll3_sw_clk);
+
 
 	/* pxp & epdc */
 	clk_set_parent(&ipu2_clk, &pll2_pfd_400M);
