@@ -3458,7 +3458,11 @@ end:
 
 		dr_clk_gate(false);
 	}
-	--udc_controller->suspended;
+
+	if (!(--udc_controller->suspended) && !udc_controller->stopped) {
+		dr_clk_gate(true);
+		dr_phy_low_power_mode(udc_controller, false);
+	}
 	enable_irq(udc_controller->irq);
 	mutex_unlock(&udc_resume_mutex);
 	printk(KERN_DEBUG "USB Gadget resume ends\n");
