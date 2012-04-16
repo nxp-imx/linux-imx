@@ -881,7 +881,7 @@ static int imx_uart_dma_init(struct imx_port *sport)
 		goto err;
 	}
 
-	slave_config.direction = DMA_FROM_DEVICE;
+	slave_config.direction = DMA_DEV_TO_MEM;
 	slave_config.src_addr = sport->port.mapbase + URXD0;
 	slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
 	slave_config.src_maxburst = RXTL; /* fix me */
@@ -908,7 +908,7 @@ static int imx_uart_dma_init(struct imx_port *sport)
 		goto err;
 	}
 
-	slave_config.direction = DMA_TO_DEVICE;
+	slave_config.direction = DMA_MEM_TO_DEV;
 	slave_config.dst_addr = sport->port.mapbase + URTX0;
 	slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
 	slave_config.dst_maxburst = TXTL; /* fix me */
