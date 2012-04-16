@@ -5297,10 +5297,12 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	lp_med_freq = 0;
 
 	/* Turn OFF all unnecessary PHYs. */
-	/* Turn off SATA PHY. */
-	base = ioremap(MX6Q_SATA_BASE_ADDR, SZ_8K);
-	reg = __raw_readl(base + PORT_PHY_CTL);
-	__raw_writel(reg | PORT_PHY_CTL_PDDQ_LOC, base + PORT_PHY_CTL);
+	if (cpu_is_mx6q()) {
+		/* Turn off SATA PHY. */
+		base = ioremap(MX6Q_SATA_BASE_ADDR, SZ_8K);
+		reg = __raw_readl(base + PORT_PHY_CTL);
+		__raw_writel(reg | PORT_PHY_CTL_PDDQ_LOC, base + PORT_PHY_CTL);
+	}
 
 	/* Turn off HDMI PHY. */
 	base = ioremap(MX6Q_HDMI_ARB_BASE_ADDR, SZ_128K);
