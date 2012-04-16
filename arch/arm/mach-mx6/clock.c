@@ -2752,12 +2752,16 @@ static int _clk_ldb_di0_set_rate(struct clk *clk, unsigned long rate)
 static int _clk_ldb_di0_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
+	int rev = mx6q_revision();
 
 	reg = __raw_readl(MXC_CCM_CS2CDR)
 		& ~MXC_CCM_CS2CDR_LDB_DI0_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll5_video_main_clk,
-		&pll2_pfd_352M, &pll2_pfd_400M, &pll3_pfd_540M,
+		&pll2_pfd_352M, &pll2_pfd_400M,
+		(rev == IMX_CHIP_REVISION_1_0) ?
+		 &pll3_pfd_540M :	/* MX6Q TO1.0 */
+		 &mmdc_ch1_axi_clk[0],	/* MX6Q TO1.1 and MX6DL */
 		&pll3_usb_otg_main_clk, NULL);
 	reg |= (mux << MXC_CCM_CS2CDR_LDB_DI0_CLK_SEL_OFFSET);
 
@@ -2769,7 +2773,7 @@ static int _clk_ldb_di0_set_parent(struct clk *clk, struct clk *parent)
 static struct clk ldb_di0_clk = {
 	 __INIT_CLK_DEBUG(ldb_di0_clk)
 	.id = 0,
-	.parent = &pll3_pfd_540M,
+	.parent = &pll2_pfd_352M,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG6_OFFSET,
 	.enable = _clk_enable,
@@ -2819,12 +2823,16 @@ static int _clk_ldb_di1_set_rate(struct clk *clk, unsigned long rate)
 static int _clk_ldb_di1_set_parent(struct clk *clk, struct clk *parent)
 {
 	u32 reg, mux;
+	int rev = mx6q_revision();
 
 	reg = __raw_readl(MXC_CCM_CS2CDR)
 		& ~MXC_CCM_CS2CDR_LDB_DI1_CLK_SEL_MASK;
 
 	mux = _get_mux6(parent, &pll5_video_main_clk,
-		&pll2_pfd_352M, &pll2_pfd_400M, &pll3_pfd_540M,
+		&pll2_pfd_352M, &pll2_pfd_400M,
+		(rev == IMX_CHIP_REVISION_1_0) ?
+		 &pll3_pfd_540M :	/* MX6Q TO1.0 */
+		 &mmdc_ch1_axi_clk[0],	/* MX6Q TO1.1 and MX6DL */
 		&pll3_usb_otg_main_clk, NULL);
 	reg |= (mux << MXC_CCM_CS2CDR_LDB_DI1_CLK_SEL_OFFSET);
 
@@ -2836,7 +2844,7 @@ static int _clk_ldb_di1_set_parent(struct clk *clk, struct clk *parent)
 static struct clk ldb_di1_clk = {
 	 __INIT_CLK_DEBUG(ldb_di1_clk)
 	.id = 0,
-	.parent = &pll3_pfd_540M,
+	.parent = &pll2_pfd_352M,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
 	.enable = _clk_enable,
