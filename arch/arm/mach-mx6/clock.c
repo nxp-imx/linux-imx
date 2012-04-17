@@ -47,7 +47,6 @@ extern struct regulator *cpu_regulator;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int lp_high_freq;
 extern int lp_med_freq;
-extern int mx6q_revision(void);
 
 void __iomem *apll_base;
 static struct clk pll1_sys_main_clk;

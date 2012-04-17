@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 #include <linux/module.h>
 #include <mach/clock.h>
+#include <mach/hardware.h>
 
 unsigned int __mxc_cpu_type;
 EXPORT_SYMBOL(__mxc_cpu_type);
@@ -27,6 +28,15 @@ void (*set_num_cpu_op)(int num);
 void mxc_set_cpu_type(unsigned int type)
 {
 	__mxc_cpu_type = type;
+}
+
+void imx_print_silicon_rev(const char *cpu, int srev)
+{
+	if (srev == IMX_CHIP_REVISION_UNKNOWN)
+		pr_info("CPU identified as %s, unknown revision\n", cpu);
+	else
+		pr_info("CPU identified as %s, silicon rev %d.%d\n",
+				cpu, (srev >> 4) & 0xf, srev & 0xf);
 }
 
 int mxc_jtag_enabled;		/* OFF: 0 (default), ON: 1 */

@@ -79,10 +79,6 @@ static enum clock_event_mode clockevent_mode = CLOCK_EVT_MODE_UNUSED;
 
 static void __iomem *timer_base;
 
-#ifdef CONFIG_ARCH_MX6
-extern int mx6q_revision(void);
-#endif
-
 static inline void gpt_irq_disable(void)
 {
 	unsigned int tmp;
