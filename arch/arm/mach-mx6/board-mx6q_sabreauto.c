@@ -473,7 +473,7 @@ static int max7310_1_setup(struct i2c_client *client,
 	/* 7 GPS_RST_B */
 
 	int max7310_gpio_value[] = {
-		0, 1, 1, 1, 0, 0, 0, 0,
+		0, 1, 1, 1, 0, 0, 1, 0,
 	};
 
 	int n;
