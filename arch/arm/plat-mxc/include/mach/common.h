@@ -93,4 +93,5 @@ extern void early_console_setup(unsigned long base, struct clk *clk);
 extern void mx6_cpu_regulator_init(void);
 extern int mx6q_sabreauto_init_pfuze100(u32 int_gpio);
 extern int mx6q_sabresd_init_pfuze100(u32 int_gpio);
+extern void imx_print_silicon_rev(const char *cpu, int srev);
 #endif

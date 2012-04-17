@@ -45,7 +45,6 @@
 #define MODULE_SFTRST		(1 << 31)
 
 extern unsigned int gpc_wake_irq[4];
-extern int mx6q_revision(void);
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 

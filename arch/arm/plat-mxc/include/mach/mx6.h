@@ -506,4 +506,9 @@
 #define MX6Q_DMA_REQ_SSI3_TX0		46
 #define MX6Q_DMA_REQ_DTCP		47
 
+#if !defined(__ASSEMBLY__) && !defined(__MXC_BOOT_UNCOMPRESS)
+extern int mx6q_revision(void);
+extern int mx6dl_revision(void);
+#endif
+
 #endif				/*  __ASM_ARCH_MXC_MX6_H__ */

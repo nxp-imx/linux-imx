@@ -62,11 +62,13 @@ static void mx6_set_cpu_type(void)
 	u32 cpu_type = readl(IO_ADDRESS(ANATOP_BASE_ADDR + 0x260));
 
 	cpu_type >>= 16;
-	if (cpu_type == 0x63)
+	if (cpu_type == 0x63) {
 		mxc_set_cpu_type(MXC_CPU_MX6Q);
-	else if (cpu_type == 0x61)
+		imx_print_silicon_rev("i.MX6Q", mx6q_revision());
+	} else if (cpu_type == 0x61) {
 		mxc_set_cpu_type(MXC_CPU_MX6DL);
-	else
+		imx_print_silicon_rev("i.MX6DL/SOLO", mx6dl_revision());
+	} else
 		pr_err("Unknown CPU type: %x\n", cpu_type);
 }
 
