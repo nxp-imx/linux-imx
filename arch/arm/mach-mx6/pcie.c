@@ -696,11 +696,11 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 			IOMUXC_GPR12);
 	imx_pcie_clrset(iomuxc_gpr12_los_level, 9 << 4, IOMUXC_GPR12);
 
-	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen1, 21 << 0, IOMUXC_GPR8);
-	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_3p5db, 21 << 6, IOMUXC_GPR8);
-	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_6db, 32 << 12, IOMUXC_GPR8);
-	imx_pcie_clrset(iomuxc_gpr8_tx_swing_full, 115 << 18, IOMUXC_GPR8);
-	imx_pcie_clrset(iomuxc_gpr8_tx_swing_low, 115 << 25, IOMUXC_GPR8);
+	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen1, 0 << 0, IOMUXC_GPR8);
+	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_3p5db, 0 << 6, IOMUXC_GPR8);
+	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_6db, 0 << 12, IOMUXC_GPR8);
+	imx_pcie_clrset(iomuxc_gpr8_tx_swing_full, 127 << 18, IOMUXC_GPR8);
+	imx_pcie_clrset(iomuxc_gpr8_tx_swing_low, 127 << 25, IOMUXC_GPR8);
 
 	/* Enable the pwr, clks and so on */
 	imx_pcie_enable_controller(dev);
@@ -713,6 +713,13 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 	usleep_range(3000, 4000);
 	imx_pcie_regions_setup(dbi_base);
 	usleep_range(3000, 4000);
+
+	/*
+	 * Force to GEN1 because of PCIE2USB storage stress tests
+	 * would be failed when GEN2 is enabled
+	 */
+	writel(((readl(dbi_base + LNK_CAP) & 0xfffffff0) | 0x1),
+			dbi_base + LNK_CAP);
 
 	/* start link up */
 	imx_pcie_clrset(iomuxc_gpr12_app_ltssm_enable, 1 << 10, IOMUXC_GPR12);
