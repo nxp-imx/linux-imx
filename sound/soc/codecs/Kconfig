@@ -221,6 +221,9 @@ config SND_SOC_SN95031
 config SND_SOC_CS42888
 	tristate
 
+config SND_SOC_SI4763
+        tristate
+
 config SND_SOC_SPDIF
 	tristate
 

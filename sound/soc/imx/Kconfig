@@ -86,6 +86,14 @@ config SND_SOC_IMX_CS42888
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  a cs42888 codec
 
+config SND_SOC_IMX_SI4763
+	tristate "SoC Audio support for IMX SI4763"
+	select SND_MXC_SOC_SSI
+	select SND_SOC_SI4763
+	help
+	  Say Y if you want to add support for Soc audio for the AMFM Tuner chip
+	  SI4763 module.
+
 config SND_SOC_EUKREA_TLV320
 	tristate "Eukrea TLV320"
 	depends on MACH_EUKREA_MBIMX27_BASEBOARD \
