@@ -3874,7 +3874,7 @@ static int _clk_enfc_set_rate(struct clk *clk, unsigned long rate)
 static struct clk enfc_clk = {
 	__INIT_CLK_DEBUG(enfc_clk)
 	 .id = 0,
-	 .parent = &pll2_pfd_352M,
+	 .parent = &pll2_pfd_400M,
 	 .enable_reg = MXC_CCM_CCGR2,
 	 .enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
 	 .enable = _clk_enable,
