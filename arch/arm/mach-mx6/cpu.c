@@ -46,35 +46,27 @@ void __iomem *gpc_base;
 void __iomem *ccm_base;
 
 static int cpu_silicon_rev = -1;
-#define SI_REV_OFFSET 	0x48
+#define MX6_USB_ANALOG_DIGPROG  0x260
 
-static int get_mx6q_srev(void)
+static int mx6_get_srev(void)
 {
-	void __iomem *romcp = ioremap(BOOT_ROM_BASE_ADDR, SZ_8K);
+	void __iomem *anatop = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	u32 rev;
 
-	if (!romcp) {
-		cpu_silicon_rev = -EINVAL;
-		return 0;
-	}
-
-	rev = __raw_readl(romcp + SI_REV_OFFSET);
+	rev = __raw_readl(anatop + MX6_USB_ANALOG_DIGPROG);
 	rev &= 0xff;
 
-	iounmap(romcp);
-	if (rev == 0x10)
+	if (rev == 0)
 		return IMX_CHIP_REVISION_1_0;
-	else if (rev == 0x11)
+	else if (rev == 1)
 		return IMX_CHIP_REVISION_1_1;
-	else if (rev == 0x20)
-		return IMX_CHIP_REVISION_2_0;
-	return 0;
+
+	return IMX_CHIP_REVISION_UNKNOWN;
 }
 
 /*
  * Returns:
  *	the silicon revision of the cpu
- *	-EINVAL - not a mx50
  */
 int mx6q_revision(void)
 {
@@ -82,11 +74,27 @@ int mx6q_revision(void)
 		return -EINVAL;
 
 	if (cpu_silicon_rev == -1)
-		cpu_silicon_rev = get_mx6q_srev();
+		cpu_silicon_rev = mx6_get_srev();
 
 	return cpu_silicon_rev;
 }
 EXPORT_SYMBOL(mx6q_revision);
+
+/*
+ * Returns:
+ *	the silicon revision of the cpu
+ */
+int mx6dl_revision(void)
+{
+	if (!cpu_is_mx6dl())
+		return -EINVAL;
+
+	if (cpu_silicon_rev == -1)
+		cpu_silicon_rev = mx6_get_srev();
+
+	return cpu_silicon_rev;
+}
+EXPORT_SYMBOL(mx6dl_revision);
 
 static int __init post_cpu_init(void)
 {

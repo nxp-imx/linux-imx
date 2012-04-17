@@ -240,11 +240,6 @@ extern unsigned int __mxc_cpu_type;
 #endif
 
 #ifndef __ASSEMBLY__
-#ifdef CONFIG_SOC_IMX6Q
-extern int mx6q_revision(void);
-#else
-#define mx6q_revision(void)    (0)
-#endif
 
 struct cpu_op {
 	u32 pll_reg;
