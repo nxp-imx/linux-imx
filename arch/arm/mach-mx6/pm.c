@@ -293,6 +293,10 @@ static int mx6_suspend_enter(suspend_state_t state)
 	}
 	mx6_suspend_store();
 
+	/* i.MX6dl TO1.0 TKT094231: can't support ARM_POWER_OFF mode */
+	if (state == PM_SUSPEND_MEM && cpu_is_mx6dl())
+		state = PM_SUSPEND_STANDBY;
+
 	switch (state) {
 	case PM_SUSPEND_MEM:
 		gpu_power_down();
