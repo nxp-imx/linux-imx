@@ -68,6 +68,7 @@ struct mxc_edid_cfg {
 	u8 max_channels;
 	u8 sample_sizes;
 	u8 sample_rates;
+	u8 speaker_alloc;
 };
 
 int mxc_edid_var_to_vic(struct fb_var_screeninfo *var);
