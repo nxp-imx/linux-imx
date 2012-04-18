@@ -53,6 +53,7 @@
 DEFINE_SPINLOCK(ddr_freq_lock);
 
 int low_bus_freq_mode;
+int audio_bus_freq_mode;
 int high_bus_freq_mode;
 int med_bus_freq_mode;
 
@@ -65,6 +66,7 @@ int bus_freq_scaling_is_active;
 
 int lp_high_freq;
 int lp_med_freq;
+int lp_audio_freq;
 unsigned int ddr_low_rate;
 unsigned int ddr_med_rate;
 unsigned int ddr_normal_rate;
@@ -97,6 +99,9 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 	if (low_bus_freq_mode || !low_freq_bus_used())
 		return;
 
+	if (audio_bus_freq_mode && lp_audio_freq)
+		return;
+
 	while (!mutex_trylock(&bus_freq_mutex))
 		msleep(1);
 
@@ -106,15 +111,29 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		mutex_unlock(&bus_freq_mutex);
 		return;
 	}
+	if (audio_bus_freq_mode && lp_audio_freq) {
+		mutex_unlock(&bus_freq_mutex);
+		return;
+	}
+
 	clk_enable(pll3);
 
-
-	update_ddr_freq(24000000);
-
+	if (lp_audio_freq) {
+		/* Need to ensure that PLL2_PFD_400M is kept ON. */
+		clk_enable(pll2_400);
+		update_ddr_freq(50000000);
+		audio_bus_freq_mode = 1;
+		low_bus_freq_mode = 0;
+	} else {
+		update_ddr_freq(24000000);
+		if (audio_bus_freq_mode)
+			clk_disable(pll2_400);
+		low_bus_freq_mode = 1;
+		audio_bus_freq_mode = 0;
+	}
 	if (med_bus_freq_mode)
 		clk_disable(pll2_400);
 
-	low_bus_freq_mode = 1;
 	high_bus_freq_mode = 0;
 	med_bus_freq_mode = 0;
 
@@ -183,16 +202,18 @@ int set_high_bus_freq(int high_bus_freq)
 		update_ddr_freq(ddr_normal_rate);
 		if (med_bus_freq_mode)
 			clk_disable(pll2_400);
-		low_bus_freq_mode = 0;
 		high_bus_freq_mode = 1;
 		med_bus_freq_mode = 0;
 	} else {
 		clk_enable(pll2_400);
 		update_ddr_freq(ddr_med_rate);
-		low_bus_freq_mode = 0;
 		high_bus_freq_mode = 0;
 		med_bus_freq_mode = 1;
 	}
+	if (audio_bus_freq_mode)
+		clk_disable(pll2_400);
+	low_bus_freq_mode = 0;
+	audio_bus_freq_mode = 0;
 
 	mutex_unlock(&bus_freq_mutex);
 	clk_disable(pll3);

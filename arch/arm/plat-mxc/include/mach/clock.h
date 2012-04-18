@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -71,6 +71,7 @@ int clk_get_usecount(struct clk *clk);
 #define CPU_FREQ_TRIG_UPDATE	(1 << 3)	/* CPUFREQ trig update */
 #define AHB_HIGH_SET_POINT	(1 << 4)	/* Requires max AHB clock */
 #define AHB_MED_SET_POINT	(1 << 5)	/* Requires med AHB clock */
+#define AHB_AUDIO_SET_POINT	(1 << 6)	/* Requires LOW AHB, but higher DDR clock */
 
 unsigned long mxc_decode_pll(unsigned int pll, u32 f_ref);
 
