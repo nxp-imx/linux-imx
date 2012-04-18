@@ -47,6 +47,8 @@
 extern int dvfs_core_is_active;
 extern int lp_high_freq;
 extern int lp_med_freq;
+extern int lp_audio_freq;
+extern int audio_bus_freq_mode;
 extern int low_bus_freq_mode;
 extern int high_bus_freq_mode;
 extern int med_bus_freq_mode;
@@ -115,13 +117,19 @@ int clk_enable(struct clk *clk)
 		lp_high_freq++;
 	else if (clk->flags & AHB_MED_SET_POINT)
 		lp_med_freq++;
+	else if (clk->flags & AHB_AUDIO_SET_POINT)
+		lp_audio_freq++;
 
 	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
 			&& (clk_get_usecount(clk) == 0)) {
 		if (!(clk->flags &
 			(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT)))  {
-			if (low_freq_bus_used() && !low_bus_freq_mode)
-				set_low_bus_freq();
+			if (low_freq_bus_used()) {
+				if ((clk->flags & AHB_AUDIO_SET_POINT) & !audio_bus_freq_mode)
+					set_low_bus_freq();
+				else if (!low_bus_freq_mode)
+					set_low_bus_freq();
+			}
 		} else {
 			if ((clk->flags & AHB_MED_SET_POINT)
 				&& !med_bus_freq_mode)
@@ -164,6 +172,8 @@ void clk_disable(struct clk *clk)
 		lp_high_freq--;
 	else if (clk->flags & AHB_MED_SET_POINT)
 		lp_med_freq--;
+	else if (clk->flags & AHB_AUDIO_SET_POINT)
+		lp_audio_freq--;
 
 	mutex_lock(&clocks_mutex);
 	__clk_disable(clk);
