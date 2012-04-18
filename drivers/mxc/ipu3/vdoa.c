@@ -451,7 +451,6 @@ static int vdoa_probe(struct platform_device *pdev)
 		ret = PTR_ERR(vdoa->clk);
 		goto err_clk;
 	}
-	clk_enable(vdoa->clk);
 
 	vdoa->iram_base = iram_alloc(VDOA_IRAM_SIZE, &vdoa->iram_paddr);
 	if (!vdoa->iram_base) {
