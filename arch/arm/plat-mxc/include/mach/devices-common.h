@@ -104,14 +104,16 @@ struct imx_snvs_rtc_data {
 struct platform_device *__init imx_add_snvs_rtc(
 		const struct imx_snvs_rtc_data *data);
 
+struct imx_caam_jr_data {
+	resource_size_t offset_jr;
+	resource_size_t irq_jr;
+};
+
 struct imx_caam_data {
 	resource_size_t iobase_caam;
 	resource_size_t irq_sec_vio;
 	resource_size_t irq_snvs;
-	resource_size_t irq_jr0;
-	resource_size_t irq_jr1;
-	resource_size_t irq_jr2;
-	resource_size_t irq_jr3;
+	struct imx_caam_jr_data jr[4];	/* offset+IRQ for each possible ring */
 };
 
 struct platform_device *__init imx_add_caam(
