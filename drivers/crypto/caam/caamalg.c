@@ -287,6 +287,8 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 		       desc_bytes(desc), 1);
 #endif
 
+	dma_sync_single_for_cpu(jrdev, ctx->sh_desc_enc_dma, desc_bytes(desc),
+				DMA_TO_DEVICE);
 	/*
 	 * Job Descriptor and Shared Descriptors
 	 * must all fit into the 64-word Descriptor h/w Buffer
@@ -354,6 +356,8 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 		       DUMP_PREFIX_ADDRESS, 16, 4, desc,
 		       desc_bytes(desc), 1);
 #endif
+	dma_sync_single_for_cpu(jrdev, ctx->sh_desc_dec_dma, desc_bytes(desc),
+				DMA_TO_DEVICE);
 
 	/*
 	 * Job Descriptor and Shared Descriptors
@@ -437,6 +441,8 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 		       DUMP_PREFIX_ADDRESS, 16, 4, desc,
 		       desc_bytes(desc), 1);
 #endif
+	dma_sync_single_for_cpu(jrdev, ctx->sh_desc_givenc_dma,
+				desc_bytes(desc), DMA_TO_DEVICE);
 
 	return 0;
 }
@@ -510,6 +516,9 @@ static u32 gen_split_key(struct caam_ctx *ctx, const u8 *key_in, u32 authkeylen)
 		kfree(desc);
 		return -ENOMEM;
 	}
+	dma_sync_single_for_device(jrdev, dma_addr_in, authkeylen,
+				   DMA_TO_DEVICE);
+
 	append_key(desc, dma_addr_in, authkeylen, CLASS_2 |
 		       KEY_DEST_CLASS_REG);
 
@@ -560,6 +569,8 @@ static u32 gen_split_key(struct caam_ctx *ctx, const u8 *key_in, u32 authkeylen)
 #endif
 	}
 
+	dma_sync_single_for_cpu(jrdev, dma_addr_out, ctx->split_key_pad_len,
+				DMA_FROM_DEVICE);
 	dma_unmap_single(jrdev, dma_addr_out, ctx->split_key_pad_len,
 			 DMA_FROM_DEVICE);
 	dma_unmap_single(jrdev, dma_addr_in, authkeylen, DMA_TO_DEVICE);
@@ -629,6 +640,9 @@ static int aead_setkey(struct crypto_aead *aead,
 		       DUMP_PREFIX_ADDRESS, 16, 4, ctx->key,
 		       ctx->split_key_pad_len + enckeylen, 1);
 #endif
+	dma_sync_single_for_device(jrdev, ctx->key_dma,
+				   ctx->split_key_pad_len + enckeylen,
+				   DMA_TO_DEVICE);
 
 	ctx->enckeylen = enckeylen;
 
@@ -667,6 +681,7 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 		return -ENOMEM;
 	}
 	ctx->enckeylen = keylen;
+	dma_sync_single_for_device(jrdev, ctx->key_dma, keylen, DMA_TO_DEVICE);
 
 	/* ablkcipher_encrypt shared descriptor */
 	desc = ctx->sh_desc_enc;
@@ -708,6 +723,9 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 		       DUMP_PREFIX_ADDRESS, 16, 4, desc,
 		       desc_bytes(desc), 1);
 #endif
+	dma_sync_single_for_device(jrdev, ctx->sh_desc_enc_dma,
+				   desc_bytes(desc), DMA_TO_DEVICE);
+
 	/* ablkcipher_decrypt shared descriptor */
 	desc = ctx->sh_desc_dec;
 
@@ -753,14 +771,23 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 		       DUMP_PREFIX_ADDRESS, 16, 4, desc,
 		       desc_bytes(desc), 1);
 #endif
+	dma_sync_single_for_device(jrdev, ctx->sh_desc_dec_dma,
+				   desc_bytes(desc), DMA_TO_DEVICE);
 
 	return ret;
 }
 
+/* 16-byte hardware scatter/gather table */
+
 struct link_tbl_entry {
+#ifdef CONFIG_ARM	/* FIXME: re-do for 32/64 portability */
+	u32 reserved;
+	u32 ptr;
+#else
 	u64 ptr;
+#endif
 	u32 len;
-	u8 reserved;
+	u8 reserved1;
 	u8 buf_pool_id;
 	u16 offset;
 };
@@ -814,13 +841,16 @@ static void caam_unmap(struct device *dev, struct scatterlist *src,
 {
 	if (unlikely(dst != src)) {
 		dma_unmap_sg(dev, src, src_nents, DMA_TO_DEVICE);
+		dma_sync_sg_for_cpu(dev, dst, dst_nents, DMA_FROM_DEVICE);
 		dma_unmap_sg(dev, dst, dst_nents, DMA_FROM_DEVICE);
 	} else {
+		dma_sync_sg_for_cpu(dev, src, src_nents, DMA_BIDIRECTIONAL);
 		dma_unmap_sg(dev, src, src_nents, DMA_BIDIRECTIONAL);
 	}
 
 	if (iv_dma)
 		dma_unmap_single(dev, iv_dma, ivsize, DMA_TO_DEVICE);
+
 	if (link_tbl_bytes)
 		dma_unmap_single(dev, link_tbl_dma, link_tbl_bytes,
 				 DMA_TO_DEVICE);
@@ -1319,12 +1349,18 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 
 	sgc = dma_map_sg(jrdev, req->assoc, assoc_nents ? : 1,
 			 DMA_BIDIRECTIONAL);
+	dma_sync_sg_for_device(jrdev, req->assoc, sgc,
+			       DMA_BIDIRECTIONAL);
 	if (likely(req->src == req->dst)) {
 		sgc = dma_map_sg(jrdev, req->src, src_nents ? : 1,
 				 DMA_BIDIRECTIONAL);
+		dma_sync_sg_for_device(jrdev, req->src, sgc,
+				       DMA_BIDIRECTIONAL);
 	} else {
 		sgc = dma_map_sg(jrdev, req->src, src_nents ? : 1,
 				 DMA_TO_DEVICE);
+		dma_sync_sg_for_device(jrdev, req->src, sgc,
+				       DMA_TO_DEVICE);
 		sgc = dma_map_sg(jrdev, req->dst, dst_nents ? : 1,
 				 DMA_FROM_DEVICE);
 	}
@@ -1342,6 +1378,7 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 	link_tbl_len += dst_nents;
 
 	link_tbl_bytes = link_tbl_len * sizeof(struct link_tbl_entry);
+	dma_sync_single_for_device(jrdev, iv_dma, ivsize, DMA_TO_DEVICE);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
 	edesc = kmalloc(sizeof(struct aead_edesc) + desc_bytes +
@@ -1382,6 +1419,8 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 		sg_to_link_tbl_last(req->dst, dst_nents,
 				    edesc->link_tbl + link_tbl_index, 0);
 	}
+	dma_sync_single_for_device(jrdev, edesc->link_tbl_dma, link_tbl_bytes,
+				   DMA_TO_DEVICE);
 
 	return edesc;
 }
@@ -1497,12 +1536,18 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 
 	sgc = dma_map_sg(jrdev, req->assoc, assoc_nents ? : 1,
 			 DMA_BIDIRECTIONAL);
+	dma_sync_sg_for_device(jrdev, req->assoc, assoc_nents ? : 1,
+			       DMA_BIDIRECTIONAL);
 	if (likely(req->src == req->dst)) {
 		sgc = dma_map_sg(jrdev, req->src, src_nents ? : 1,
 				 DMA_BIDIRECTIONAL);
+		dma_sync_sg_for_device(jrdev, req->src, src_nents ? : 1,
+				       DMA_BIDIRECTIONAL);
 	} else {
 		sgc = dma_map_sg(jrdev, req->src, src_nents ? : 1,
 				 DMA_TO_DEVICE);
+		dma_sync_sg_for_device(jrdev, req->src, src_nents ? : 1,
+				    DMA_TO_DEVICE);
 		sgc = dma_map_sg(jrdev, req->dst, dst_nents ? : 1,
 				 DMA_FROM_DEVICE);
 	}
@@ -1528,6 +1573,8 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 	link_tbl_len += dst_nents;
 
 	link_tbl_bytes = link_tbl_len * sizeof(struct link_tbl_entry);
+
+	dma_sync_single_for_device(jrdev, iv_dma, ivsize, DMA_TO_DEVICE);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
 	edesc = kmalloc(sizeof(struct aead_edesc) + desc_bytes +
@@ -1569,6 +1616,8 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 		sg_to_link_tbl_last(req->dst, dst_nents,
 				    edesc->link_tbl + link_tbl_index, 0);
 	}
+	dma_sync_single_for_device(jrdev, edesc->link_tbl_dma, link_tbl_bytes,
+				   DMA_TO_DEVICE);
 
 	return edesc;
 }
@@ -1649,18 +1698,23 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 	if (likely(req->src == req->dst)) {
 		sgc = dma_map_sg(jrdev, req->src, src_nents ? : 1,
 				 DMA_BIDIRECTIONAL);
+		dma_sync_sg_for_device(jrdev, req->src, sgc,
+				       DMA_BIDIRECTIONAL);
 	} else {
 		sgc = dma_map_sg(jrdev, req->src, src_nents ? : 1,
 				 DMA_TO_DEVICE);
+		dma_sync_sg_for_device(jrdev, req->src, sgc, DMA_TO_DEVICE);
 		sgc = dma_map_sg(jrdev, req->dst, dst_nents ? : 1,
 				 DMA_FROM_DEVICE);
 	}
 
+	/* FIXME: no test for sgc values returned above... */
 	/*
 	 * Check if iv can be contiguous with source and destination.
 	 * If so, include it. If not, create scatterlist.
 	 */
 	iv_dma = dma_map_single(jrdev, req->info, ivsize, DMA_TO_DEVICE);
+	dma_sync_single_for_device(jrdev, iv_dma, ivsize, DMA_TO_DEVICE);
 	if (!src_nents && iv_dma + ivsize == sg_dma_address(req->src))
 		iv_contig = true;
 	else
@@ -1698,6 +1752,9 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 	edesc->link_tbl_dma = dma_map_single(jrdev, edesc->link_tbl,
 					     link_tbl_bytes, DMA_TO_DEVICE);
 	edesc->iv_dma = iv_dma;
+
+	dma_sync_single_for_device(jrdev, edesc->link_tbl_dma, link_tbl_bytes,
+				   DMA_TO_DEVICE);
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "ablkcipher link_tbl@"xstr(__LINE__)": ",
@@ -2084,26 +2141,14 @@ static void caam_cra_exit(struct crypto_tfm *tfm)
 				 DMA_TO_DEVICE);
 }
 
-static void __exit caam_algapi_exit(void)
+void caam_algapi_shutdown(struct platform_device *pdev)
 {
-
-	struct device_node *dev_node;
-	struct platform_device *pdev;
 	struct device *ctrldev;
 	struct caam_drv_private *priv;
 	struct caam_crypto_alg *t_alg, *n;
 	int i, err;
 
-	dev_node = of_find_compatible_node(NULL, NULL, "fsl,sec-v4.0");
-	if (!dev_node)
-		return;
-
-	pdev = of_find_device_by_node(dev_node);
-	if (!pdev)
-		return;
-
 	ctrldev = &pdev->dev;
-	of_node_put(dev_node);
 	priv = dev_get_drvdata(ctrldev);
 
 	if (!priv->alg_list.next)
@@ -2168,26 +2213,14 @@ static struct caam_crypto_alg *caam_alg_alloc(struct device *ctrldev,
 	return t_alg;
 }
 
-static int __init caam_algapi_init(void)
+int caam_algapi_startup(struct platform_device *pdev)
 {
-	struct device_node *dev_node;
-	struct platform_device *pdev;
 	struct device *ctrldev, **jrdev;
 	struct caam_drv_private *priv;
 	int i = 0, err = 0;
 
-	dev_node = of_find_compatible_node(NULL, NULL, "fsl,sec-v4.0");
-	if (!dev_node)
-		return -ENODEV;
-
-	pdev = of_find_device_by_node(dev_node);
-	if (!pdev)
-		return -ENODEV;
-
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
-	of_node_put(dev_node);
-
 	INIT_LIST_HEAD(&priv->alg_list);
 
 	jrdev = kmalloc(sizeof(*jrdev) * priv->total_jobrs, GFP_KERNEL);
@@ -2238,10 +2271,51 @@ static int __init caam_algapi_init(void)
 	return err;
 }
 
+#ifdef CONFIG_OF
+static void __exit caam_algapi_exit(void)
+{
+
+	struct device_node *dev_node;
+	struct platform_device *pdev;
+
+	dev_node = of_find_compatible_node(NULL, NULL, "fsl,sec-v4.0");
+	if (!dev_node)
+		return;
+
+	pdev = of_find_device_by_node(dev_node);
+	if (!pdev)
+		return;
+
+	caam_algapi_shutdown(pdev);
+
+	of_node_put(dev_node);
+}
+
+static int __init caam_algapi_init(void)
+{
+	struct device_node *dev_node;
+	struct platform_device *pdev;
+	int stat;
+
+	dev_node = of_find_compatible_node(NULL, NULL, "fsl,sec-v4.0");
+	if (!dev_node)
+		return -ENODEV;
+
+	pdev = of_find_device_by_node(dev_node);
+	if (!pdev)
+		return -ENODEV;
+
+	stat = caam_algapi_startup(pdev);
+
+	of_node_put(dev_node);
+
+	return stat;
+}
+
 module_init(caam_algapi_init);
 module_exit(caam_algapi_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("FSL CAAM support for crypto API");
 MODULE_AUTHOR("Freescale Semiconductor - NMG/STC");
-
+#endif
