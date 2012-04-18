@@ -3873,7 +3873,7 @@ static int _clk_enfc_set_rate(struct clk *clk, unsigned long rate)
 static struct clk enfc_clk = {
 	__INIT_CLK_DEBUG(enfc_clk)
 	 .id = 0,
-	 .parent = &pll2_pfd_400M,
+	 .parent = &pll2_pfd_352M,
 	 .enable_reg = MXC_CCM_CCGR2,
 	 .enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
 	 .enable = _clk_enable,
@@ -5236,6 +5236,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&asrc_clk[1], 7500000);
 
 	/* set the GPMI clock to default frequency : 20MHz */
+	clk_set_parent(&enfc_clk, &pll2_pfd_400M);
 	clk_set_rate(&enfc_clk, enfc_clk.round_rate(&enfc_clk, 20000000));
 
 	mx6_cpu_op_init();
