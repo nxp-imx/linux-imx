@@ -472,6 +472,7 @@ static void disp_work_func(struct work_struct *work)
 	int ret = 0;
 	u32 is_1080p;
 	u32 ocrop_h = 0;
+	u32 tiled_interlaced = 0;
 
 	v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "disp work begin one frame\n");
 
@@ -532,6 +533,9 @@ static void disp_work_func(struct work_struct *work)
 		}
 		if (vout->is_vdoaipu_task) {
 			vout->vdoa_task.input.paddr = vout->task.input.paddr;
+			if (deinterlace_3_field(vout))
+				vout->vdoa_task.input.paddr_n =
+						vout->task.input.paddr_n;
 			vout->vdoa_task.output.paddr = vout->vdoa_dma.paddr;
 			ret = ipu_queue_task(&vout->vdoa_task);
 			if (ret < 0) {
@@ -539,8 +543,14 @@ static void disp_work_func(struct work_struct *work)
 				goto err;
 			}
 			vout->task.input.paddr = vout->vdoa_task.output.paddr;
+			if (vout->task.input.deinterlace.enable) {
+				tiled_interlaced = 1;
+				vout->task.input.deinterlace.enable = 0;
+			}
 		}
 		ret = ipu_queue_task(&vout->task);
+		if (tiled_interlaced)
+			vout->task.input.deinterlace.enable = 1;
 		if (ret < 0) {
 			mutex_unlock(&vout->task_lock);
 			goto err;
@@ -909,7 +919,10 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 	size_t size;
 	struct ipu_task *ipu_task = &vout->task;
 	struct ipu_task *vdoa_task = &vout->vdoa_task;
+	u32 deinterlace = 0;
 
+	if (vout->task.input.deinterlace.enable)
+		deinterlace = 1;
 	is_1080p_stream = CHECK_TILED_1080P_STREAM(vout);
 	if (is_1080p_stream)
 		ipu_task->input.crop.h = VALID_HEIGHT_1080P;
@@ -971,7 +984,11 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 		ipu_task->input.width = vdoa_task->output.width;
 		ipu_task->input.crop.w = icrop_w;
 	}
+	if (deinterlace)
+		ipu_task->input.deinterlace.enable = 0;
 	ret = ipu_try_task(vout);
+	if (deinterlace)
+		ipu_task->input.deinterlace.enable = 1;
 
 	return ret;
 }
@@ -1041,7 +1058,8 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 	vout->task.input.format = f->fmt.pix.pixelformat;
 
 	if (IPU_PIX_FMT_TILED_NV12F == vout->task.input.format) {
-		if (vout->task.input.width > MAX_INTERLACED_WIDTH)
+		if ((vout->task.input.width > MAX_INTERLACED_WIDTH) ||
+			(vout->task.input.deinterlace.motion == HIGH_MOTION))
 			return -EINVAL;
 		v4l2_info(vout->vfd->v4l2_dev,
 				"tiled fmt enable deinterlace.\n");
@@ -1060,13 +1078,13 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 			"V4L2_FIELD_ALTERNATE field format not supported yet!\n");
 		break;
 	case V4L2_FIELD_INTERLACED_TB:
-		v4l2_info(vout->vfd->v4l2_dev, "Enable deinterlace.\n");
+		v4l2_info(vout->vfd->v4l2_dev, "Enable deinterlace TB.\n");
 		vout->task.input.deinterlace.enable = true;
 		vout->task.input.deinterlace.field_fmt =
 				IPU_DEINTERLACE_FIELD_TOP;
 		break;
 	case V4L2_FIELD_INTERLACED_BT:
-		v4l2_info(vout->vfd->v4l2_dev, "Enable deinterlace.\n");
+		v4l2_info(vout->vfd->v4l2_dev, "Enable deinterlace BT.\n");
 		vout->task.input.deinterlace.enable = true;
 		vout->task.input.deinterlace.field_fmt =
 				IPU_DEINTERLACE_FIELD_BOTTOM;
