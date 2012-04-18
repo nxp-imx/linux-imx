@@ -191,16 +191,16 @@ switch_pre_periph_clk_50:
 	orr     r0, r0, #0xC0000
 	str     r0, [r6, #0x18]
 
-	/* Set the MMDC_DIV=4, AXI_DIV = 4, AHB_DIV=6 (need to maintain GPT divider). */
+	/* Set the MMDC_DIV=4, AXI_DIV = 4, AHB_DIV=8 (need to maintain GPT divider). */
 	ldr     r0, [r6, #0x14]
 	ldr     r2, =0x3F1C00
 	bic     r0, r0, r2
 
 	orr     r0, r0, #0x180000
-	orr     r0, r0, #0x10000
+	orr     r0, r0, #0x30000
 
 	/* If changing AHB divider remember to change the IPGPER divider too below. */
-	 orr     r0, r0, #0xC00
+	 orr     r0, r0, #0x1C00
 	 str     r0, [r6, #0x14]
 
 wait_div_update_50:

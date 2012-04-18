@@ -47,6 +47,7 @@ extern struct regulator *cpu_regulator;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int lp_high_freq;
 extern int lp_med_freq;
+extern int lp_audio_freq;
 
 void __iomem *apll_base;
 static struct clk pll1_sys_main_clk;
@@ -2555,6 +2556,7 @@ static struct clk ssi1_clk = {
 #else
 	 .secondary = &mmdc_ch0_axi_clk[0],
 #endif
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi2_get_rate(struct clk *clk)
@@ -2628,6 +2630,7 @@ static struct clk ssi2_clk = {
 #else
 	 .secondary = &mmdc_ch0_axi_clk[0],
 #endif
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi3_get_rate(struct clk *clk)
@@ -2700,6 +2703,7 @@ static struct clk ssi3_clk = {
 #else
 	 .secondary = &mmdc_ch0_axi_clk[0],
 #endif
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ldb_di_round_rate(struct clk *clk,
@@ -5342,6 +5346,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	lp_high_freq = 0;
 	lp_med_freq = 0;
+	lp_audio_freq = 0;
 
 	/* Turn OFF all unnecessary PHYs. */
 	if (cpu_is_mx6q()) {
