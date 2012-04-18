@@ -1,7 +1,7 @@
 /*
  * CAAM hardware register-level view
  *
- * Copyright 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright 2008-2015 Freescale Semiconductor, Inc.
  */
 
 #ifndef REGS_H
@@ -74,13 +74,19 @@
 #endif
 #else
 #ifdef __LITTLE_ENDIAN
-#define wr_reg32(reg, data) __raw_writel(reg, data)
-#define rd_reg32(reg) __raw_readl(reg)
+#define wr_reg32(reg, data) writel(data, reg)
+#define rd_reg32(reg) readl(reg)
 #ifdef CONFIG_64BIT
-#define wr_reg64(reg, data) __raw_writeq(reg, data)
-#define rd_reg64(reg) __raw_readq(reg)
+#define wr_reg64(reg, data) writeq(data, reg)
+#define rd_reg64(reg) readq(reg)
 #endif
 #endif
+#endif
+
+#ifdef CONFIG_ARM
+/* These are common macros for Power, put here for ARMs */
+#define setbits32(_addr, _v) writel((readl(_addr) | (_v)), (_addr))
+#define clrbits32(_addr, _v) writel((readl(_addr) & ~(_v)), (_addr))
 #endif
 
 #ifndef CONFIG_64BIT
