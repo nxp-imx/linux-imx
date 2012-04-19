@@ -152,7 +152,7 @@ static int enable_ddr_onfi(struct gpmi_nand_data *this)
 	struct mtd_info	 *mtd = &this->mtd;
 	int saved_chip_number = 0;
 	uint8_t device_feature[FEATURE_SIZE];
-	int mode = 0;/* there is 5 mode available, default is 0 */
+	int mode = 5;/* there is 5 mode available, default is 0 */
 
 	saved_chip_number = this->current_chip;
 	nand->select_chip(mtd, 0);
@@ -178,14 +178,16 @@ static int enable_ddr_onfi(struct gpmi_nand_data *this)
 	/* [3] about the clock, pay attention! */
 	nand->select_chip(mtd, saved_chip_number);
 	{
-		struct clk *pll1;
-		pll1 = clk_get(NULL, "pll1_main_clk");
-		if (IS_ERR(pll1)) {
-			printk(KERN_INFO "No PLL1 clock\n");
+		struct clk *enfc_clk;
+		enfc_clk = clk_get(NULL, "enfc_clk");
+		if (IS_ERR(enfc_clk)) {
+			printk(KERN_INFO "No enfc_clk clock\n");
 			return -EINVAL;
 		}
-		clk_set_parent(resources->clock, pll1);
-		clk_set_rate(resources->clock, 20000000);
+		clk_set_parent(resources->clock, enfc_clk);
+		clk_set_rate(enfc_clk, \
+				enfc_clk->round_rate(enfc_clk, 100000000));
+		clk_set_rate(resources->clock, 100000000);
 	}
 	nand->select_chip(mtd, 0);
 
@@ -258,18 +260,20 @@ static int enable_ddr_toggle(struct gpmi_nand_data *this)
 	/* [3] about the clock, pay attention! */
 	nand->select_chip(mtd, saved_chip_number);
 	{
-		struct clk *pll1;
+		struct clk *enfc_clk;
 		unsigned long rate;
 
-		pll1 = clk_get(NULL, "pll1_main_clk");
-		if (IS_ERR(pll1)) {
-			printk(KERN_INFO "No PLL1 clock\n");
+		enfc_clk = clk_get(NULL, "enfc_clk");
+		if (IS_ERR(enfc_clk)) {
+			printk(KERN_INFO "No enfc_clk clock\n");
 			return -EINVAL;
 		}
 
 		/* toggle nand : 133/66 MHz */
 		rate = 33000000;
-		clk_set_parent(resources->clock, pll1);
+		clk_set_parent(resources->clock, enfc_clk);
+		clk_set_rate(enfc_clk, \
+				enfc_clk->round_rate(enfc_clk, rate));
 		clk_set_rate(resources->clock, rate);
 	}
 	nand->select_chip(mtd, 0);
