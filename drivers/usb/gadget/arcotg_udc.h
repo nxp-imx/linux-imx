@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,11 +46,7 @@
 #define NEED_IRAM(ep) ((g_iram_size) && \
 	((ep)->desc->bmAttributes == USB_ENDPOINT_XFER_BULK))
 
-#ifdef CONFIG_ARCH_MX5
 #define POSTPONE_FREE_LAST_DTD
-#else
-#undef POSTPONE_FREE_LAST_DTD
-#endif
 
 /* ### define USB registers here
  */
