@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -18,11 +18,13 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include <asm/errno.h>
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/kernel.h>
 #include <linux/delay.h>
-#include <asm/errno.h>
+
+#include <mach/hardware.h>
 #include <mach/ahci_sata.h>
 
 int write_phy_ctl_ack_polling(u32 data, void __iomem *mmio,
@@ -139,6 +141,13 @@ int sata_init(void __iomem *addr, unsigned long timer1ms)
 {
 	u32 tmpdata;
 	int iterations = 20;
+
+	/*
+	 * Make sure that SATA PHY is enabled
+	 * The PDDQ mode is disabled.
+	 */
+	tmpdata = readl(addr + PORT_PHY_CTL);
+	writel(tmpdata & (~PORT_PHY_CTL_PDDQ_LOC), addr + PORT_PHY_CTL);
 
 	/* Reset HBA */
 	writel(HOST_RESET, addr + HOST_CTL);
