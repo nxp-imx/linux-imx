@@ -119,7 +119,7 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
  * We don't need to allocate pages for the transmitter.  We just use
  * the skbuffer directly.
  */
-#define FEC_ENET_RX_PAGES	8
+#define FEC_ENET_RX_PAGES	192
 #define FEC_ENET_RX_FRSIZE	2048
 #define FEC_ENET_RX_FRPPG	(PAGE_SIZE / FEC_ENET_RX_FRSIZE)
 #define RX_RING_SIZE		(FEC_ENET_RX_FRPPG * FEC_ENET_RX_PAGES)
