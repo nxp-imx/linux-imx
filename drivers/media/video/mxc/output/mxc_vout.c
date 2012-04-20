@@ -30,6 +30,22 @@
 
 #define MAX_FB_NUM	6
 #define FB_BUFS		3
+#define VALID_HEIGHT_1080P	(1080)
+#define FRAME_HEIGHT_1080P	(1088)
+#define FRAME_WIDTH_1080P	(1920)
+#define MAX_INTERLACED_WIDTH	(1024)
+#define CHECK_TILED_1080P_DISPLAY(vout)	\
+	(((vout)->task.input.format == IPU_PIX_FMT_TILED_NV12) &&	\
+	       ((vout)->task.input.width == FRAME_WIDTH_1080P) &&	\
+	       ((vout)->task.output.crop.w == FRAME_WIDTH_1080P) &&	\
+	       ((vout)->task.input.height == FRAME_HEIGHT_1080P) &&	\
+	       ((vout)->task.output.crop.h == VALID_HEIGHT_1080P))
+#define CHECK_TILED_1080P_STREAM(vout)	\
+	(((vout)->task.input.format == IPU_PIX_FMT_TILED_NV12) &&	\
+	       ((vout)->task.input.width == FRAME_WIDTH_1080P) &&	\
+	       ((vout)->task.input.crop.w == FRAME_WIDTH_1080P) &&	\
+	       ((vout)->task.input.height == FRAME_HEIGHT_1080P) &&	\
+	       ((vout)->task.input.crop.h == FRAME_HEIGHT_1080P))
 
 struct mxc_vout_fb {
 	char *name;
@@ -62,7 +78,14 @@ struct mxc_vout_output {
 
 	bool fmt_init;
 	bool bypass_pp;
+	bool is_vdoaipu_task;
 	struct ipu_task	task;
+	struct ipu_task	vdoa_task;
+	struct vdoa_mem {
+		void *vaddr;
+		dma_addr_t paddr;
+		size_t size;
+	} vdoa_dma;
 
 	bool timer_stop;
 	struct timer_list timer;
@@ -97,7 +120,7 @@ static int video_nr = 16;
 /* Module parameters */
 module_param(video_nr, int, S_IRUGO);
 MODULE_PARM_DESC(video_nr, "video device numbers");
-module_param(debug, bool, S_IRUGO);
+module_param(debug, int, 0600);
 MODULE_PARM_DESC(debug, "Debug level (0-1)");
 
 const static struct v4l2_fmtdesc mxc_formats[] = {
@@ -145,6 +168,14 @@ const static struct v4l2_fmtdesc mxc_formats[] = {
 		.description = "YUV420",
 		.pixelformat = V4L2_PIX_FMT_YUV420,
 	},
+	{
+		.description = "TILED NV12P",
+		.pixelformat = IPU_PIX_FMT_TILED_NV12,
+	},
+	{
+		.description = "TILED NV12F",
+		.pixelformat = IPU_PIX_FMT_TILED_NV12F,
+	},
 };
 
 #define NUM_MXC_VOUT_FORMATS (ARRAY_SIZE(mxc_formats))
@@ -157,6 +188,24 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type 
 static struct mxc_vout_fb g_fb_setting[MAX_FB_NUM];
 static int config_disp_output(struct mxc_vout_output *vout);
 static void release_disp_output(struct mxc_vout_output *vout);
+
+static unsigned int get_frame_size(struct mxc_vout_output *vout)
+{
+	unsigned int size;
+
+	if (IPU_PIX_FMT_TILED_NV12 == vout->task.input.format)
+		size = TILED_NV12_FRAME_SIZE(vout->task.input.width,
+					vout->task.input.height);
+	else if (IPU_PIX_FMT_TILED_NV12F == vout->task.input.format) {
+		size = TILED_NV12_FRAME_SIZE(vout->task.input.width,
+					vout->task.input.height/2);
+		size *= 2;
+	} else
+		size = vout->task.input.width * vout->task.input.height *
+				fmt_to_bpp(vout->task.input.format)/8;
+
+	return size;
+}
 
 static ipu_channel_t get_ipu_channel(struct fb_info *fbi)
 {
@@ -315,6 +364,9 @@ static bool deinterlace_3_field(struct mxc_vout_output *vout)
 
 static bool is_pp_bypass(struct mxc_vout_output *vout)
 {
+	if ((IPU_PIX_FMT_TILED_NV12 == vout->task.input.format) ||
+		(IPU_PIX_FMT_TILED_NV12F == vout->task.input.format))
+		return false;
 	if ((vout->task.input.width == vout->task.output.width) &&
 		(vout->task.input.height == vout->task.output.height) &&
 		(vout->task.input.crop.w == vout->task.output.crop.w) &&
@@ -374,6 +426,8 @@ static int show_buf(struct mxc_vout_output *vout, int idx,
 	struct fb_info *fbi = vout->fbi;
 	struct fb_var_screeninfo var;
 	int ret;
+	u32 is_1080p;
+	u32 yres = 0;
 
 	memcpy(&var, &fbi->var, sizeof(var));
 
@@ -390,9 +444,17 @@ static int show_buf(struct mxc_vout_output *vout, int idx,
 		ret = fb_pan_display(fbi, &var);
 		console_unlock();
 	} else {
-		var.yoffset = idx * fbi->var.yres;
 		console_lock();
+		is_1080p = CHECK_TILED_1080P_DISPLAY(vout);
+		if (is_1080p) {
+			yres = fbi->var.yres;
+			fbi->var.yres = FRAME_HEIGHT_1080P;
+		}
+
+		var.yoffset = idx * fbi->var.yres;
 		ret = fb_pan_display(fbi, &var);
+		if (is_1080p)
+			fbi->var.yres = yres;
 		console_unlock();
 	}
 
@@ -408,6 +470,8 @@ static void disp_work_func(struct work_struct *work)
 	unsigned long flags = 0;
 	struct ipu_pos ipos;
 	int ret = 0;
+	u32 is_1080p;
+	u32 ocrop_h = 0;
 
 	v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "disp work begin one frame\n");
 
@@ -458,11 +522,31 @@ static void disp_work_func(struct work_struct *work)
 		}
 		vout->task.output.paddr =
 			vout->disp_bufs[vout->frame_count % FB_BUFS];
+
+		is_1080p = CHECK_TILED_1080P_DISPLAY(vout);
+		if (is_1080p) {
+			vout->task.input.crop.h = FRAME_HEIGHT_1080P;
+			vout->task.output.height = FRAME_HEIGHT_1080P;
+			ocrop_h = vout->task.output.crop.h;
+			vout->task.output.crop.h = FRAME_HEIGHT_1080P;
+		}
+		if (vout->is_vdoaipu_task) {
+			vout->vdoa_task.input.paddr = vout->task.input.paddr;
+			vout->vdoa_task.output.paddr = vout->vdoa_dma.paddr;
+			ret = ipu_queue_task(&vout->vdoa_task);
+			if (ret < 0) {
+				mutex_unlock(&vout->task_lock);
+				goto err;
+			}
+			vout->task.input.paddr = vout->vdoa_task.output.paddr;
+		}
 		ret = ipu_queue_task(&vout->task);
 		if (ret < 0) {
 			mutex_unlock(&vout->task_lock);
 			goto err;
 		}
+		if (is_1080p)
+			vout->task.output.crop.h = ocrop_h;
 	}
 
 	mutex_unlock(&vout->task_lock);
@@ -569,6 +653,7 @@ static int mxc_vout_buffer_setup(struct videobuf_queue *q, unsigned int *count,
 			  unsigned int *size)
 {
 	struct mxc_vout_output *vout = q->priv_data;
+	unsigned int frame_size;
 
 	if (!vout)
 		return -EINVAL;
@@ -576,8 +661,8 @@ static int mxc_vout_buffer_setup(struct videobuf_queue *q, unsigned int *count,
 	if (V4L2_BUF_TYPE_VIDEO_OUTPUT != q->type)
 		return -EINVAL;
 
-	*size = PAGE_ALIGN(vout->task.input.width * vout->task.input.height *
-			fmt_to_bpp(vout->task.input.format)/8);
+	frame_size = get_frame_size(vout);
+	*size = PAGE_ALIGN(frame_size);
 
 	return 0;
 }
@@ -758,8 +843,7 @@ static int mxc_vidioc_g_fmt_vid_out(struct file *file, void *fh,
 	f->fmt.pix.width = vout->task.input.width;
 	f->fmt.pix.height = vout->task.input.height;
 	f->fmt.pix.pixelformat = vout->task.input.format;
-	f->fmt.pix.sizeimage = vout->task.input.width * vout->task.input.height *
-			fmt_to_bpp(vout->task.input.format)/8;
+	f->fmt.pix.sizeimage = get_frame_size(vout);
 
 	if (f->fmt.pix.priv) {
 		rect = (struct v4l2_rect *)f->fmt.pix.priv;
@@ -768,6 +852,10 @@ static int mxc_vidioc_g_fmt_vid_out(struct file *file, void *fh,
 		rect->width = vout->task.input.crop.w;
 		rect->height = vout->task.input.crop.h;
 	}
+	v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+			"frame_size:0x%x, pix_fmt:0x%x\n",
+			f->fmt.pix.sizeimage,
+			vout->task.input.format);
 
 	return 0;
 }
@@ -813,33 +901,128 @@ again:
 	return ret;
 }
 
+static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
+{
+	int ret;
+	u32 icrop_h = 0, icrop_w = 0;
+	int is_1080p_stream;
+	size_t size;
+	struct ipu_task *ipu_task = &vout->task;
+	struct ipu_task *vdoa_task = &vout->vdoa_task;
+
+	is_1080p_stream = CHECK_TILED_1080P_STREAM(vout);
+	if (is_1080p_stream)
+		ipu_task->input.crop.h = VALID_HEIGHT_1080P;
+
+	if (ipu_task->input.crop.h % IPU_PIX_FMT_TILED_NV12_MBALIGN) {
+		icrop_h = ipu_task->input.crop.h;
+		ipu_task->input.crop.h = ALIGN(ipu_task->input.crop.h,
+						IPU_PIX_FMT_TILED_NV12_MBALIGN);
+	}
+	if (ipu_task->input.crop.w % IPU_PIX_FMT_TILED_NV12_MBALIGN) {
+		icrop_w = ipu_task->input.crop.w;
+		ipu_task->input.crop.w = ALIGN(ipu_task->input.crop.w,
+						IPU_PIX_FMT_TILED_NV12_MBALIGN);
+	}
+
+	memset(vdoa_task, 0, sizeof(*vdoa_task));
+	memcpy(&vdoa_task->input, &ipu_task->input, sizeof(ipu_task->input));
+	vdoa_task->output.format = IPU_PIX_FMT_NV12;
+	vdoa_task->output.width = ipu_task->input.crop.w;
+	vdoa_task->output.height = ipu_task->input.crop.h;
+	vdoa_task->output.crop.w = ipu_task->input.crop.w;
+	vdoa_task->output.crop.h = ipu_task->input.crop.h;
+
+	size = PAGE_ALIGN(ipu_task->input.crop.w *
+					ipu_task->input.crop.h *
+					fmt_to_bpp(vdoa_task->output.format)/8);
+	if (size > vout->vdoa_dma.size) {
+		if (vout->vdoa_dma.vaddr) {
+			dma_free_coherent(vout->vbq.dev, vout->vdoa_dma.size,
+				vout->vdoa_dma.vaddr, vout->vdoa_dma.paddr);
+			v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+					"free vdoa_dma.size:0x%x, paddr:0x%x\n",
+					vout->vdoa_dma.size,
+					vout->vdoa_dma.paddr);
+			memset(&vout->vdoa_dma, 0, sizeof(vout->vdoa_dma));
+		}
+		vout->vdoa_dma.size = size;
+		vout->vdoa_dma.vaddr = dma_alloc_coherent(vout->vbq.dev,
+							vout->vdoa_dma.size,
+							&vout->vdoa_dma.paddr,
+							GFP_DMA | GFP_KERNEL);
+		if (!vout->vdoa_dma.vaddr)
+			return -ENOMEM;
+		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+				"alloc vdoa_dma.size:0x%x, paddr:0x%x\n",
+				vout->vdoa_dma.size,
+				vout->vdoa_dma.paddr);
+	}
+	ret = ipu_check_task(vdoa_task);
+	if (ret != IPU_CHECK_OK)
+		return -EINVAL;
+
+	ipu_task->input.format = vdoa_task->output.format;
+	if (icrop_h) {
+		ipu_task->input.height = vdoa_task->output.height;
+		ipu_task->input.crop.h = icrop_h;
+	}
+	if (icrop_w) {
+		ipu_task->input.width = vdoa_task->output.width;
+		ipu_task->input.crop.w = icrop_w;
+	}
+	ret = ipu_try_task(vout);
+
+	return ret;
+}
+
 static int mxc_vout_try_task(struct mxc_vout_output *vout)
 {
 	int ret = 0;
+	struct ipu_output *output = &vout->task.output;
+	struct ipu_input *input = &vout->task.input;
 
-	vout->task.input.crop.w -= vout->task.input.crop.w%8;
-	vout->task.input.crop.h -= vout->task.input.crop.h%8;
-
+	input->crop.w -= input->crop.w%8;
+	input->crop.h -= input->crop.h%8;
 	/* assume task.output already set by S_CROP */
 	if (is_pp_bypass(vout)) {
 		v4l2_info(vout->vfd->v4l2_dev, "Bypass IC.\n");
 		vout->bypass_pp = true;
-		vout->task.output.format = vout->task.input.format;
+		output->format = input->format;
 	} else {
 		/* if need CSC, choose IPU-DP or IPU_IC do it */
 		vout->bypass_pp = false;
 		if (vout->disp_support_csc) {
-			if (colorspaceofpixel(vout->task.input.format) == YUV_CS)
-				vout->task.output.format = IPU_PIX_FMT_UYVY;
+			if (colorspaceofpixel(input->format) == YUV_CS)
+				output->format = IPU_PIX_FMT_UYVY;
 			else
-				vout->task.output.format = IPU_PIX_FMT_RGB565;
+				output->format = IPU_PIX_FMT_RGB565;
 		} else {
 			if (colorspaceofpixel(vout->disp_fmt) == YUV_CS)
-				vout->task.output.format = IPU_PIX_FMT_UYVY;
+				output->format = IPU_PIX_FMT_UYVY;
 			else
-				vout->task.output.format = IPU_PIX_FMT_RGB565;
+				output->format = IPU_PIX_FMT_RGB565;
 		}
-		ret = ipu_try_task(vout);
+
+		vout->is_vdoaipu_task = 0;
+		if ((IPU_PIX_FMT_TILED_NV12 == input->format) ||
+			(IPU_PIX_FMT_TILED_NV12F == input->format)) {
+			/* check resize/rotate/flip, or csc task */
+			if ((IPU_ROTATE_NONE != output->rotate) ||
+				(input->crop.w != output->crop.w) ||
+				(input->crop.h != output->crop.h) ||
+				(!vout->disp_support_csc &&
+				(colorspaceofpixel(vout->disp_fmt) == RGB_CS)))
+				vout->is_vdoaipu_task = 1;
+			else
+				/* IC bypass */
+				output->format = IPU_PIX_FMT_NV12;
+		}
+
+		if (vout->is_vdoaipu_task)
+			ret = vdoaipu_try_task(vout);
+		else
+			ret = ipu_try_task(vout);
 	}
 
 	return ret;
@@ -849,11 +1032,23 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 {
 	int ret = 0;
 	struct v4l2_rect *rect = NULL;
+	u32 o_height = 0;
+	u32 ocrop_h = 0;
+	u32 is_1080p;
 
 	vout->task.input.width = f->fmt.pix.width;
 	vout->task.input.height = f->fmt.pix.height;
 	vout->task.input.format = f->fmt.pix.pixelformat;
 
+	if (IPU_PIX_FMT_TILED_NV12F == vout->task.input.format) {
+		if (vout->task.input.width > MAX_INTERLACED_WIDTH)
+			return -EINVAL;
+		v4l2_info(vout->vfd->v4l2_dev,
+				"tiled fmt enable deinterlace.\n");
+		vout->task.input.deinterlace.enable = true;
+		vout->task.input.deinterlace.field_fmt =
+				IPU_DEINTERLACE_FIELD_TOP;
+	}
 	switch (f->fmt.pix.field) {
 	/* Images are in progressive format, not interlaced */
 	case V4L2_FIELD_NONE:
@@ -893,6 +1088,15 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 		vout->task.input.crop.h = f->fmt.pix.height;
 	}
 
+	is_1080p = CHECK_TILED_1080P_DISPLAY(vout);
+	if (is_1080p) {
+		vout->task.input.crop.h = FRAME_HEIGHT_1080P;
+		o_height = vout->task.output.height;
+		ocrop_h = vout->task.output.crop.h;
+		vout->task.output.height = FRAME_HEIGHT_1080P;
+		vout->task.output.crop.h = FRAME_HEIGHT_1080P;
+	}
+
 	ret = mxc_vout_try_task(vout);
 	if (!ret) {
 		if (rect) {
@@ -902,6 +1106,11 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 			f->fmt.pix.width = vout->task.input.crop.w;
 			f->fmt.pix.height = vout->task.input.crop.h;
 		}
+	}
+
+	if (is_1080p) {
+		vout->task.output.height = o_height;
+		vout->task.output.crop.h = ocrop_h;
 	}
 
 	return ret;
@@ -1311,6 +1520,7 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	struct fb_info *fbi = vout->fbi;
 	struct fb_var_screeninfo var;
 	int i, display_buf_size, fb_num, ret;
+	u32 is_1080p;
 
 	memcpy(&var, &fbi->var, sizeof(var));
 
@@ -1332,7 +1542,11 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	} else {
 		fb_num = FB_BUFS;
 		var.xres_virtual = var.xres;
-		var.yres_virtual = fb_num * var.yres;
+		is_1080p = CHECK_TILED_1080P_DISPLAY(vout);
+		if (is_1080p)
+			var.yres_virtual = fb_num * FRAME_HEIGHT_1080P;
+		else
+			var.yres_virtual = fb_num * var.yres;
 		var.vmode &= ~FB_VMODE_YWRAP;
 	}
 	var.bits_per_pixel = fmt_to_bpp(vout->task.output.format);
@@ -1357,7 +1571,11 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	if (ret < 0)
 		return ret;
 
-	display_buf_size = fbi->fix.line_length * fbi->var.yres;
+	is_1080p = CHECK_TILED_1080P_DISPLAY(vout);
+	if (is_1080p)
+		display_buf_size = fbi->fix.line_length * FRAME_HEIGHT_1080P;
+	else
+		display_buf_size = fbi->fix.line_length * fbi->var.yres;
 	for (i = 0; i < fb_num; i++)
 		vout->disp_bufs[i] = fbi->fix.smem_start + i * display_buf_size;
 
@@ -1515,6 +1733,15 @@ static void mxc_vout_free_output(struct mxc_vout_dev *dev)
 	for (i = 0; i < dev->out_num; i++) {
 		vout = dev->out[i];
 		vfd = vout->vfd;
+		if (vout->vdoa_dma.vaddr) {
+			dma_free_coherent(vout->vbq.dev, vout->vdoa_dma.size,
+				vout->vdoa_dma.vaddr, vout->vdoa_dma.paddr);
+			v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+					"free vdoa_dma.size:0x%x, paddr:0x%x\n",
+					vout->vdoa_dma.size,
+					vout->vdoa_dma.paddr);
+			memset(&vout->vdoa_dma, 0, sizeof(vout->vdoa_dma));
+		}
 		if (vfd) {
 			if (!video_is_registered(vfd))
 				video_device_release(vfd);

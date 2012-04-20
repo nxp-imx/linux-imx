@@ -150,6 +150,9 @@
 #define MX6_ARM2_IO_EXP_GPIO1(x)	(MX6_ARM2_MAX7310_1_BASE_ADDR + (x))
 #define MX6_ARM2_IO_EXP_GPIO2(x)	(MX6_ARM2_MAX7310_2_BASE_ADDR + (x))
 
+#define MX6_ARM2_PCIE_PWR_EN		MX6_ARM2_IO_EXP_GPIO1(2)
+#define MX6_ARM2_PCIE_RESET		MX6_ARM2_IO_EXP_GPIO2(2)
+
 #define MX6_ARM2_CAN2_STBY		MX6_ARM2_IO_EXP_GPIO2(1)
 
 
@@ -169,6 +172,7 @@ extern char *gp_reg_id;
 extern int epdc_enabled;
 extern void mx6_cpu_regulator_init(void);
 static int max17135_regulator_init(struct max17135 *max17135);
+extern volatile int num_cpu_idle_lock;
 
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
@@ -319,14 +323,23 @@ static int __init gpmi_nand_platform_init(void)
 	return mxc_iomux_v3_setup_multiple_pads(nand_pads, nand_pads_cnt);
 }
 
-static const struct gpmi_nand_platform_data
-mx6_gpmi_nand_platform_data __initconst = {
+static struct gpmi_nand_platform_data
+mx6_gpmi_nand_platform_data = {
 	.platform_init           = gpmi_nand_platform_init,
 	.min_prop_delay_in_ns    = 5,
 	.max_prop_delay_in_ns    = 9,
 	.max_chip_count          = 1,
 	.enable_bbt              = 1,
+	.enable_ddr              = 0,
 };
+
+static int __init board_support_onfi_nand(char *p)
+{
+	mx6_gpmi_nand_platform_data.enable_ddr = 1;
+	return 0;
+}
+
+early_param("onfi_support", board_support_onfi_nand);
 
 static const struct anatop_thermal_platform_data
 	mx6_arm2_anatop_thermal_data __initconst = {
@@ -1952,6 +1965,13 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk		= NULL, /* spdif bus clk */
 };
 
+static const struct imx_pcie_platform_data mx6_arm2_pcie_data  __initconst = {
+	.pcie_pwr_en	= MX6_ARM2_PCIE_PWR_EN,
+	.pcie_rst	= MX6_ARM2_PCIE_RESET,
+	.pcie_wake_up	= -EINVAL,
+	.pcie_dis	= -EINVAL,
+};
+
 static int __init early_disable_mipi_dsi(char *p)
 {
 	/*enable on board HDMI*/
@@ -2012,6 +2032,7 @@ static void __init mx6_arm2_init(void)
 		spdif_pads_cnt =  ARRAY_SIZE(mx6dl_arm2_spdif_pads);
 		flexcan_pads_cnt = ARRAY_SIZE(mx6dl_arm2_can_pads);
 		i2c3_pads_cnt = ARRAY_SIZE(mx6dl_arm2_i2c3_pads);
+		num_cpu_idle_lock = 0xffff0000;
 	}
 
 	BUG_ON(!common_pads);
@@ -2062,6 +2083,8 @@ static void __init mx6_arm2_init(void)
 
 	gp_reg_id = arm2_dvfscore_data.reg_id;
 	mx6_arm2_init_uart();
+
+
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
@@ -2191,6 +2214,8 @@ static void __init mx6_arm2_init(void)
 		mxc_register_device(&max17135_sensor_device, NULL);
 		imx6dl_add_imx_epdc(&epdc_data);
 	}
+	imx6q_add_pcie(&mx6_arm2_pcie_data);
+	imx6q_add_busfreq();
 }
 
 extern void __iomem *twd_base;

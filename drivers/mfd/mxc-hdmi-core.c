@@ -64,6 +64,7 @@ int mxc_hdmi_ipu_id;
 int mxc_hdmi_disp_id;
 static struct mxc_edid_cfg hdmi_core_edid_cfg;
 static int hdmi_core_init;
+static unsigned int hdmi_dma_running;
 
 u8 hdmi_readb(unsigned int reg)
 {
@@ -243,6 +244,12 @@ static void hdmi_set_clock_regenerator_n(unsigned int value)
 {
 	u8 val;
 
+	if (!hdmi_dma_running) {
+		hdmi_writeb(value & 0xff, HDMI_AUD_N1);
+		hdmi_writeb(0, HDMI_AUD_N2);
+		hdmi_writeb(0, HDMI_AUD_N3);
+	}
+
 	hdmi_writeb(value & 0xff, HDMI_AUD_N1);
 	hdmi_writeb((value >> 8) & 0xff, HDMI_AUD_N2);
 	hdmi_writeb((value >> 16) & 0x0f, HDMI_AUD_N3);
@@ -256,6 +263,12 @@ static void hdmi_set_clock_regenerator_n(unsigned int value)
 static void hdmi_set_clock_regenerator_cts(unsigned int cts)
 {
 	u8 val;
+
+	if (!hdmi_dma_running) {
+		hdmi_writeb(cts & 0xff, HDMI_AUD_CTS1);
+		hdmi_writeb(0, HDMI_AUD_CTS2);
+		hdmi_writeb(0, HDMI_AUD_CTS3);
+	}
 
 	/* Must be set/cleared first */
 	val = hdmi_readb(HDMI_AUD_CTS3);
@@ -433,18 +446,12 @@ static void hdmi_set_clk_regenerator(void)
 		return;
 	}
 
-	clk_enable(isfr_clk);
-	clk_enable(iahb_clk);
-
 	pr_debug("%s: samplerate=%d  ratio=%d  pixelclk=%d  N=%d  cts=%d\n",
 		__func__, sample_rate, hdmi_ratio, (int)pixel_clk_rate,
 		clk_n, clk_cts);
 
-	hdmi_set_clock_regenerator_n(clk_n);
 	hdmi_set_clock_regenerator_cts(clk_cts);
-
-	clk_disable(iahb_clk);
-	clk_disable(isfr_clk);
+	hdmi_set_clock_regenerator_n(clk_n);
 }
 
 /* Need to run this before phy is enabled the first time to prevent
@@ -464,10 +471,15 @@ void hdmi_clk_regenerator_update_pixel_clock(void)
 	hdmi_set_clk_regenerator();
 }
 
+void hdmi_set_dma_mode(unsigned int dma_running)
+{
+	hdmi_dma_running = dma_running;
+	hdmi_set_clk_regenerator();
+}
+
 void hdmi_set_sample_rate(unsigned int rate)
 {
 	sample_rate = rate;
-	hdmi_set_clk_regenerator();
 }
 
 void hdmi_set_edid_cfg(struct mxc_edid_cfg *cfg)
@@ -511,6 +523,7 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 #endif
 
 	hdmi_core_init = 0;
+	hdmi_dma_running = 0;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)

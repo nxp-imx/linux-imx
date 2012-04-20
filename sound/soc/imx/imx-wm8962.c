@@ -326,9 +326,9 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 
 		/* if amic is inserted, disable DMIC */
 		if (priv->amic_status != plat->mic_active_low)
-			snd_soc_dapm_nc_pin(&gcodec->dapm, "DMIC");
+			snd_soc_dapm_nc_pin(&codec->dapm, "DMIC");
 		else
-			snd_soc_dapm_enable_pin(&gcodec->dapm, "DMIC");
+			snd_soc_dapm_enable_pin(&codec->dapm, "DMIC");
 	}
 
 	return 0;

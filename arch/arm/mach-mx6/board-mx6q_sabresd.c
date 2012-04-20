@@ -68,6 +68,7 @@
 #include <mach/ipu-v3.h>
 #include <mach/mxc_hdmi.h>
 #include <mach/mxc_asrc.h>
+#include <mach/mipi_dsi.h>
 
 #include <asm/irq.h>
 #include <asm/setup.h>
@@ -145,7 +146,6 @@
 #define SABRESD_DI1_D0_CS	IMX_GPIO_NR(6, 31)
 
 #define SABRESD_HEADPHONE_DET	IMX_GPIO_NR(7, 8)
-#define SABRESD_USB_HUB_RESET	IMX_GPIO_NR(7, 12)
 #define SABRESD_PCIE_RST_B_REVB	IMX_GPIO_NR(7, 12)
 #define SABRESD_PMIC_INT_B	IMX_GPIO_NR(7, 13)
 #define SABRESD_PFUZE_INT	IMX_GPIO_NR(7, 13)
@@ -197,9 +197,12 @@
 static struct clk *sata_clk;
 static int mma8451_position = 1;
 static int mag3110_position = 2;
+static int disable_ldb;
 
 extern char *gp_reg_id;
 extern int epdc_enabled;
+extern volatile int num_cpu_idle_lock;
+
 static int max17135_regulator_init(struct max17135 *max17135);
 
 static const struct esdhc_platform_data mx6q_sabresd_sd2_data __initconst = {
@@ -1165,6 +1168,28 @@ static struct imx_asrc_platform_data imx_asrc_data = {
 	.clk_map_ver = 2,
 };
 
+static void mx6_reset_mipi_dsi(void)
+{
+	gpio_set_value(SABRESD_DISP_PWR_EN, 1);
+	gpio_set_value(SABRESD_DISP_RST_B, 1);
+	udelay(10);
+	gpio_set_value(SABRESD_DISP_RST_B, 0);
+	udelay(50);
+	gpio_set_value(SABRESD_DISP_RST_B, 1);
+
+	/*
+	 * it needs to delay 120ms minimum for reset complete
+	 */
+	msleep(120);
+}
+
+static struct mipi_dsi_platform_data mipi_dsi_pdata = {
+	.ipu_id		= 0,
+	.disp_id	= 1,
+	.lcd_panel	= "TRULY-WVGA",
+	.reset		= mx6_reset_mipi_dsi,
+};
+
 static struct ipuv3_fb_platform_data sabresd_fb_data[] = {
 	{ /*fb0*/
 	.disp_dev = "ldb",
@@ -1481,6 +1506,21 @@ static void mx6_snvs_poweroff(void)
 	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
 }
 
+static const struct imx_pcie_platform_data mx6_sabresd_pcie_data __initconst = {
+	.pcie_pwr_en	= SABRESD_PCIE_PWR_EN,
+	.pcie_rst	= SABRESD_PCIE_RST_B_REVB,
+	.pcie_wake_up	= SABRESD_PCIE_WAKE_B,
+	.pcie_dis	= SABRESD_PCIE_DIS_B,
+};
+
+static int __init early_disable_ldb(char *p)
+{
+	/*mipi dsi need pll3_pfd_540M as 540MHz, ldb will change to 454Mhz*/
+	disable_ldb = 1;
+	return 0;
+}
+
+early_param("disable_ldb", early_disable_ldb);
 /*!
  * Board specific initialization.
  */
@@ -1495,9 +1535,11 @@ static void __init mx6_sabresd_board_init(void)
 	if (cpu_is_mx6q())
 		mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_pads,
 			ARRAY_SIZE(mx6q_sabresd_pads));
-	else if (cpu_is_mx6dl())
+	else if (cpu_is_mx6dl()) {
 		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabresd_pads,
 			ARRAY_SIZE(mx6dl_sabresd_pads));
+		num_cpu_idle_lock = 0xffff0000;
+	}
 
 #ifdef CONFIG_FEC_1588
 	/* Set GPIO_16 input for IEEE-1588 ts_clk and RMII reference clock
@@ -1529,7 +1571,12 @@ static void __init mx6_sabresd_board_init(void)
 	 */
 	if (cpu_is_mx6dl()) {
 		ldb_data.ipu_id = 0;
-		ldb_data.disp_id = 1;
+		ldb_data.disp_id = 0;
+		ldb_data.sec_ipu_id = 0;
+		ldb_data.sec_disp_id = 1;
+		hdmi_core_data.disp_id = 1;
+		mipi_dsi_pdata.ipu_id = 0;
+		mipi_dsi_pdata.disp_id = 1;
 	}
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
@@ -1540,8 +1587,10 @@ static void __init mx6_sabresd_board_init(void)
 		imx6q_add_ipuv3fb(i, &sabresd_fb_data[i]);
 
 	imx6q_add_vdoa();
+	imx6q_add_mipi_dsi(&mipi_dsi_pdata);
 	imx6q_add_lcdif(&lcdif_data);
-	imx6q_add_ldb(&ldb_data);
+	if (!disable_ldb)
+		imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
 	imx6q_add_v4l2_capture(0);
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
@@ -1598,9 +1647,6 @@ static void __init mx6_sabresd_board_init(void)
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
-
-	/* release USB Hub reset */
-	gpio_set_value(SABRESD_USB_HUB_RESET, 1);
 
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm(1);
@@ -1676,7 +1722,9 @@ static void __init mx6_sabresd_board_init(void)
 	/* Register charger chips */
 	platform_device_register(&sabresd_max8903_charger_1);
 	pm_power_off = mx6_snvs_poweroff;
+	imx6q_add_busfreq();
 
+	imx6q_add_pcie(&mx6_sabresd_pcie_data);
 }
 
 extern void __iomem *twd_base;

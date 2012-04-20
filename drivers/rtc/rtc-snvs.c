@@ -609,6 +609,9 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 	tv.tv_nsec = 0;
 	tv.tv_sec = rtc_read_lp_counter(ioaddr + SNVS_LPSRTCMR);
 
+	/* Remove can_wakeup flag to add common power wakeup interface */
+	pdev->dev.power.can_wakeup = 0;
+
 	/* By default, devices should wakeup if they can */
 	/* So snvs is set as "should wakeup" as it can */
 	device_init_wakeup(&pdev->dev, 1);

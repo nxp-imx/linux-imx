@@ -284,12 +284,10 @@ static int imx_esai_startup(struct snd_pcm_substream *substream,
 		writel(ESAI_GPIO_ESAI, esai->base + ESAI_PCRC);
 	}
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		local_esai->imx_esai_txrx_state |= IMX_DAI_ESAI_TX;
-	} else {
+	else
 		local_esai->imx_esai_txrx_state |= IMX_DAI_ESAI_RX;
-		writel(ESAI_RCR_RPR, esai->base + ESAI_RCR);
-	}
 
 	ESAI_DUMP();
 	return 0;
@@ -375,6 +373,14 @@ static int imx_esai_hw_rx_params(struct snd_pcm_substream *substream,
 		rfcr |= ESAI_WORD_LEN_16;
 		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL32_WDL16;
 		break;
+	case SNDRV_PCM_FORMAT_S20_3LE:
+		rfcr |= ESAI_WORD_LEN_20;
+		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL32_WDL20;
+		break;
+	case SNDRV_PCM_FORMAT_S24_LE:
+		rfcr |= ESAI_WORD_LEN_24;
+		rcr |= ESAI_RCR_RSHFD_MSB | ESAI_RCR_RSWS_STL32_WDL24;
+		break;
 	}
 
 	channels = params_channels(params);
@@ -438,7 +444,6 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 {
 	struct imx_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
 	u32 reg, tfcr = 0, rfcr = 0;
-	u32 temp;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		tfcr = readl(esai->base + ESAI_TFCR);
@@ -457,12 +462,8 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 			reg |= ESAI_TCR_TE(substream->runtime->channels);
 			writel(reg, esai->base + ESAI_TCR);
 		} else {
-			temp = readl(esai->base + ESAI_TCR);
-			temp &= ~ESAI_TCR_TPR;
-			writel(temp, esai->base + ESAI_TCR);
 			rfcr |= ESAI_RFCR_RFEN;
 			writel(rfcr, esai->base + ESAI_RFCR);
-			reg &= ~ESAI_RCR_RPR;
 			reg |= ESAI_RCR_RE(substream->runtime->channels);
 			writel(reg, esai->base + ESAI_RCR);
 		}
@@ -473,7 +474,6 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			reg &= ~ESAI_TCR_TE(substream->runtime->channels);
 			writel(reg, esai->base + ESAI_TCR);
-			writel(reg, esai->base + ESAI_TCR);
 			tfcr |= ESAI_TFCR_TFR;
 			tfcr &= ~ESAI_TFCR_TFEN;
 			writel(tfcr, esai->base + ESAI_TFCR);
@@ -481,8 +481,6 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 			writel(tfcr, esai->base + ESAI_TFCR);
 		} else {
 			reg &= ~ESAI_RCR_RE(substream->runtime->channels);
-			writel(reg, esai->base + ESAI_RCR);
-			reg |= ESAI_RCR_RPR;
 			writel(reg, esai->base + ESAI_RCR);
 			rfcr |= ESAI_RFCR_RFR;
 			rfcr &= ~ESAI_RFCR_RFEN;

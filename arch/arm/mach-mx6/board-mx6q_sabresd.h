@@ -38,9 +38,10 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_GPIO_3__CCM_CLKO2,		/* J5 - Camera MCLK */
 
 	/* ECSPI1 */
-	MX6Q_PAD_EIM_D17__ECSPI1_MISO,
-	MX6Q_PAD_EIM_D18__ECSPI1_MOSI,
-
+	MX6Q_PAD_KEY_COL0__ECSPI1_SCLK,
+	MX6Q_PAD_KEY_ROW0__ECSPI1_MOSI,
+	MX6Q_PAD_KEY_COL1__ECSPI1_MISO,
+	MX6Q_PAD_KEY_ROW1__GPIO_4_9,
 	/* ENET */
 	MX6Q_PAD_ENET_MDIO__ENET_MDIO,
 	MX6Q_PAD_ENET_MDC__ENET_MDC,
@@ -121,9 +122,6 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/* GPIO6 */
 	MX6Q_PAD_EIM_A23__GPIO_6_6,	/* J12 - Boot Mode Select */
 	MX6Q_PAD_NANDF_RB0__GPIO_6_10, /* AUX_5V Enable */
-
-	/* GPIO7 */
-	MX6Q_PAD_GPIO_17__GPIO_7_12,	/* USB Hub Reset */
 
 	/* I2C1, WM8958 */
 	MX6Q_PAD_CSI0_DAT8__I2C1_SDA,
@@ -250,7 +248,16 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/*GPS AUX_3V15_EN*/
 	MX6Q_PAD_NANDF_WP_B__GPIO_6_9,
 
+	/* PCIE */
 	MX6Q_PAD_EIM_D19__GPIO_3_19, /* PCIE_PWR_EN */
+
+	MX6Q_PAD_GPIO_17__GPIO_7_12, /* PCIE_RST */
+	MX6Q_PAD_KEY_COL4__GPIO_4_14, /* PCIE_DIS */
+
+	/* DISP_RST_B */
+	MX6Q_PAD_NANDF_CS0__GPIO_6_11,
+	/* DISP_PWR_EN */
+	MX6Q_PAD_NANDF_CS1__GPIO_6_14,
 };
 
 static iomux_v3_cfg_t mx6q_sabresd_csi0_sensor_pads[] = {

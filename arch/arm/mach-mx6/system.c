@@ -55,8 +55,6 @@ static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 volatile unsigned int num_cpu_idle;
 volatile unsigned int num_cpu_idle_lock = 0x0;
 
-
-extern void (*mx6_wait_in_iram)(void *ccm_base);
 extern void mx6_wait(void *num_cpu_idle_lock, void *num_cpu_idle);
 extern bool enable_wait_mode;
 
@@ -167,20 +165,19 @@ extern int tick_broadcast_oneshot_active(void);
 void arch_idle(void)
 {
 	if (enable_wait_mode) {
-		if (num_online_cpus() == num_present_cpus()) {
 #ifdef CONFIG_LOCAL_TIMERS
-			int cpu = smp_processor_id();
-			if (!tick_broadcast_oneshot_active())
-				return;
+		int cpu = smp_processor_id();
+		if (!tick_broadcast_oneshot_active())
+			return;
 
-			clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
+		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
 #endif
-			mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
-			mx6_wait(&num_cpu_idle_lock, &num_cpu_idle);
+		*((char *)(&num_cpu_idle_lock) + smp_processor_id()) = 0x0;
+		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
+		mx6_wait((void *)&num_cpu_idle_lock, (void *)&num_cpu_idle);
 #ifdef CONFIG_LOCAL_TIMERS
-			clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
+		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
 #endif
-		}
 	} else
 		cpu_do_idle();
 }
