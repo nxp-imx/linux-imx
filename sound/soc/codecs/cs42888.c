@@ -743,12 +743,13 @@ static void cs42888_shutdown(struct snd_pcm_substream *substream,
 	u8 val;
 
 	/* Mute all the channels */
-	val = snd_soc_read(codec, CS42888_MUTE);
-
-	val |= CS42888_MUTE_ALL;
-	ret = snd_soc_write(codec, CS42888_MUTE, val);
-	if (ret < 0)
-		pr_err("i2c write failed\n");
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		val = snd_soc_read(codec, CS42888_MUTE);
+		val |= CS42888_MUTE_ALL;
+		ret = snd_soc_write(codec, CS42888_MUTE, val);
+		if (ret < 0)
+			pr_err("i2c write failed\n");
+	}
 
 }
 
