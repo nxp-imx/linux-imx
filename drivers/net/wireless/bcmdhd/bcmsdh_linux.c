@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmsdh_linux.c,v 1.72.6.5 2010-12-23 01:13:15 Exp $
+ * $Id: bcmsdh_linux.c 312788 2012-02-03 23:06:32Z $
  */
 
 /**
@@ -147,17 +147,6 @@ static int __devexit bcmsdh_remove(struct device *dev);
 #endif /* BCMLXSDMMC */
 
 #ifndef BCMLXSDMMC
-static struct device_driver bcmsdh_driver = {
-	.name		= "pxa2xx-mci",
-	.bus		= &platform_bus_type,
-	.probe		= bcmsdh_probe,
-	.remove		= bcmsdh_remove,
-	.suspend	= NULL,
-	.resume		= NULL,
-	};
-#endif /* BCMLXSDMMC */
-
-#ifndef BCMLXSDMMC
 static
 #endif /* BCMLXSDMMC */
 int bcmsdh_probe(struct device *dev)
@@ -238,9 +227,9 @@ int bcmsdh_probe(struct device *dev)
 	/* chain SDIO Host Controller info together */
 	sdhc->next = sdhcinfo;
 	sdhcinfo = sdhc;
+
 	/* Read the vendor/device ID from the CIS */
 	vendevid = bcmsdh_query_device(sdh);
-
 	/* try to attach to the target device */
 	if (!(sdhc->ch = drvinfo.attach((vendevid >> 16),
 	                                 (vendevid & 0xFFFF), 0, 0, 0, 0,
@@ -274,6 +263,7 @@ int bcmsdh_remove(struct device *dev)
 	sdhc = sdhcinfo;
 	drvinfo.detach(sdhc->ch);
 	bcmsdh_detach(sdhc->osh, sdhc->sdh);
+
 	/* find the SDIO Host Controller state for this pdev and take it out from the list */
 	for (sdhc = sdhcinfo, prev = NULL; sdhc; sdhc = sdhc->next) {
 		if (sdhc->dev == (void *)dev) {
@@ -289,7 +279,6 @@ int bcmsdh_remove(struct device *dev)
 		SDLX_MSG(("%s: failed\n", __FUNCTION__));
 		return 0;
 	}
-
 
 	/* release SDIO Host Controller info */
 	osh = sdhc->osh;
@@ -531,13 +520,8 @@ bcmsdh_register(bcmsdh_driver_t *driver)
 	drvinfo = *driver;
 
 #if defined(BCMPLATFORM_BUS)
-#if defined(BCMLXSDMMC)
 	SDLX_MSG(("Linux Kernel SDIO/MMC Driver\n"));
 	error = sdio_function_init();
-#else
-	SDLX_MSG(("Intel PXA270 SDIO Driver\n"));
-	error = driver_register(&bcmsdh_driver);
-#endif /* defined(BCMLXSDMMC) */
 	return error;
 #endif /* defined(BCMPLATFORM_BUS) */
 
@@ -565,14 +549,12 @@ bcmsdh_unregister(void)
 	if (bcmsdh_pci_driver.node.next)
 #endif
 
-#if defined(BCMPLATFORM_BUS) && !defined(BCMLXSDMMC)
-		driver_unregister(&bcmsdh_driver);
-#endif
 #if defined(BCMLXSDMMC)
 	sdio_function_cleanup();
 #endif /* BCMLXSDMMC */
+
 #if !defined(BCMPLATFORM_BUS) && !defined(BCMLXSDMMC)
-		pci_unregister_driver(&bcmsdh_pci_driver);
+	pci_unregister_driver(&bcmsdh_pci_driver);
 #endif /* BCMPLATFORM_BUS */
 }
 
@@ -609,13 +591,6 @@ static irqreturn_t wlan_oob_irq(int irq, void *dev_id)
 	dhdsdio_isr((void *)dhdp->bus);
 
 	return IRQ_HANDLED;
-}
-
-void *bcmsdh_get_drvdata(void)
-{
-	if (!sdhcinfo)
-		return NULL;
-	return dev_get_drvdata(sdhcinfo->dev);
 }
 
 int bcmsdh_register_oob_intr(void * dhdp)
@@ -671,6 +646,16 @@ void bcmsdh_unregister_oob_intr(void)
 	}
 }
 #endif /* defined(OOB_INTR_ONLY) */
+
+#if defined(BCMLXSDMMC)
+void *bcmsdh_get_drvdata(void)
+{
+	if (!sdhcinfo)
+		return NULL;
+	return dev_get_drvdata(sdhcinfo->dev);
+}
+#endif
+
 /* Module parameters specific to each host-controller driver */
 
 extern uint sd_msglevel;	/* Debug message level */
@@ -694,6 +679,10 @@ module_param(sd_hiok, uint, 0);
 extern uint sd_f2_blocksize;
 module_param(sd_f2_blocksize, int, 0);
 
+#ifdef BCMSDIOH_STD
+extern int sd_uhsimode;
+module_param(sd_uhsimode, int, 0);
+#endif
 
 #ifdef BCMSDH_MODULE
 EXPORT_SYMBOL(bcmsdh_attach);

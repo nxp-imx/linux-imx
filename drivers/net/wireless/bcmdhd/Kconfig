@@ -38,3 +38,17 @@ config DHD_USE_STATIC_BUF
 	default n
 	---help---
 	  Use memory preallocated in platform
+
+config DHD_USE_SCHED_SCAN
+	bool "Use CFG80211 sched scan"
+	depends on BCMDHD && CFG80211
+	default n
+	---help---
+	  Use CFG80211 sched scan
+
+config DHD_ENABLE_P2P
+	bool "Enable Wifi Direct"
+	depends on BCMDHD && CFG80211
+	default n
+	---help---
+	  Use Enable Wifi Direct
