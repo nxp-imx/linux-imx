@@ -777,19 +777,29 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 	return ret;
 }
 
-/* 16-byte hardware scatter/gather table */
+/*
+ * 16-byte hardware scatter/gather table
+ * An 8-byte table exists in the hardware spec, but has never been
+ * implemented to date. The 8/16 option is selected at RTL-compile-time.
+ * and this selection is visible in the Compile Time Parameters Register
+ */
+
+#define LINKTBL_EXT		0x80000000	/* Entry points to table */
+#define LINKTBL_FINAL		0x40000000	/* Last ent in table */
+#define LINKTBL_BPID_MASK	0x000000ff
+#define LINKTBL_BPID_SHIFT	16
+#define LINKTBL_LEN_MASK	0x3fffffff	/* Excludes EXT and FINAL */
+#define LINKTBL_OFFS_MASK	0x00001fff
 
 struct link_tbl_entry {
-#ifdef CONFIG_ARM	/* FIXME: re-do for 32/64 portability */
+#ifdef CONFIG_64BIT
+	u64 ptr;
+#else
 	u32 reserved;
 	u32 ptr;
-#else
-	u64 ptr;
 #endif
 	u32 len;
-	u8 reserved1;
-	u8 buf_pool_id;
-	u16 offset;
+	u32 bpid_offset; /* BPID in high, offset in lowest bits */
 };
 
 /*
@@ -1059,11 +1069,14 @@ static void ablkcipher_decrypt_done(struct device *jrdev, u32 *desc, u32 err,
 static void sg_to_link_tbl_one(struct link_tbl_entry *link_tbl_ptr,
 			       dma_addr_t dma, u32 len, u32 offset)
 {
+#ifndef CONFIG_64BIT
+	link_tbl_ptr->reserved = 0;	/* ensure high half is zero */
+#endif
 	link_tbl_ptr->ptr = dma;
-	link_tbl_ptr->len = len;
-	link_tbl_ptr->reserved = 0;
-	link_tbl_ptr->buf_pool_id = 0;
-	link_tbl_ptr->offset = offset;
+	link_tbl_ptr->len = (len & LINKTBL_LEN_MASK);
+	/* Does not add in buffer pool ID's at this time */
+	link_tbl_ptr->bpid_offset = (offset & LINKTBL_OFFS_MASK);
+
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "link_tbl_ptr@"xstr(__LINE__)": ",
 		       DUMP_PREFIX_ADDRESS, 16, 4, link_tbl_ptr,
@@ -1097,7 +1110,7 @@ static void sg_to_link_tbl_last(struct scatterlist *sg, int sg_count,
 				struct link_tbl_entry *link_tbl_ptr, u32 offset)
 {
 	link_tbl_ptr = sg_to_link_tbl(sg, sg_count, link_tbl_ptr, offset);
-	link_tbl_ptr->len |= 0x40000000;
+	link_tbl_ptr->len |= LINKTBL_FINAL;
 }
 
 /*
