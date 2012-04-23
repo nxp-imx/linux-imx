@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -50,7 +50,164 @@ see define in include/linux/suspend.h
 r1: iram_paddr
 r2: suspend_iram_base
 *************************************************************/
-	.macro	ddr_io_save
+	.macro	dl_ddr_io_save
+
+	ldr	r4, [r1, #0x470] /* DRAM_DQM0 */
+	ldr	r5, [r1, #0x474] /* DRAM_DQM1 */
+	ldr	r6, [r1, #0x478] /* DRAM_DQM2 */
+	ldr	r7, [r1, #0x47c] /* DRAM_DQM3 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x480] /* DRAM_DQM4 */
+	ldr	r5, [r1, #0x484] /* DRAM_DQM5 */
+	ldr	r6, [r1, #0x488] /* DRAM_DQM6 */
+	ldr	r7, [r1, #0x48c] /* DRAM_DQM7 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x464] /* DRAM_CAS */
+	ldr	r5, [r1, #0x490] /* DRAM_RAS */
+	ldr	r6, [r1, #0x4ac] /* DRAM_SDCLK_0 */
+	ldr	r7, [r1, #0x4b0] /* DRAM_SDCLK_1 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r5, [r1, #0x750] /* DDRMODE_CTL */
+	ldr	r6, [r1, #0x760] /* DDRMODE */
+	stmfd	r0!, {r5-r6}
+
+	ldr	r4, [r1, #0x4bc] /* DRAM_SDQS0 */
+	ldr	r5, [r1, #0x4c0] /* DRAM_SDQS1 */
+	ldr	r6, [r1, #0x4c4] /* DRAM_SDQS2 */
+	ldr	r7, [r1, #0x4c8] /* DRAM_SDQS3 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x4cc] /* DRAM_SDQS4 */
+	ldr	r5, [r1, #0x4d0] /* DRAM_SDQS5 */
+	ldr	r6, [r1, #0x4d4] /* DRAM_SDQS6 */
+	ldr	r7, [r1, #0x4d8] /* DRAM_SDQS7 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x764] /* GPR_B0DS */
+	ldr	r5, [r1, #0x770] /* GPR_B1DS */
+	ldr	r6, [r1, #0x778] /* GPR_B2DS */
+	ldr	r7, [r1, #0x77c] /* GPR_B3DS */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x780] /* GPR_B4DS */
+	ldr	r5, [r1, #0x784] /* GPR_B5DS */
+	ldr	r6, [r1, #0x78c] /* GPR_B6DS */
+	ldr	r7, [r1, #0x748] /* GPR_B7DS */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r5, [r1, #0x74c] /* GPR_ADDS*/
+	ldr	r6, [r1, #0x4b4] /* DRAM_SODT0*/
+	ldr	r7, [r1, #0x4b8] /* DRAM_SODT1*/
+	stmfd	r0!, {r5-r7}
+
+	.endm
+
+	.macro	dl_ddr_io_restore
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x470] /* DRAM_DQM0 */
+	str	r5, [r1, #0x474] /* DRAM_DQM1 */
+	str	r6, [r1, #0x478] /* DRAM_DQM2 */
+	str	r7, [r1, #0x47c] /* DRAM_DQM3 */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x480] /* DRAM_DQM4 */
+	str	r5, [r1, #0x484] /* DRAM_DQM5 */
+	str	r6, [r1, #0x488] /* DRAM_DQM6 */
+	str	r7, [r1, #0x48c] /* DRAM_DQM7 */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x464] /* DRAM_CAS */
+	str	r5, [r1, #0x490] /* DRAM_RAS */
+	str	r6, [r1, #0x4ac] /* DRAM_SDCLK_0 */
+	str	r7, [r1, #0x4b0] /* DRAM_SDCLK_1 */
+
+	ldmea	r0!, {r5-r6}
+	str	r5, [r1, #0x750] /* DDRMODE_CTL */
+	str	r6, [r1, #0x760] /* DDRMODE */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x4bc] /* DRAM_SDQS0 */
+	str	r5, [r1, #0x4c0] /* DRAM_SDQS1 */
+	str	r6, [r1, #0x4c4] /* DRAM_SDQS2 */
+	str	r7, [r1, #0x4c8] /* DRAM_SDQS3 */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x4cc] /* DRAM_SDQS4 */
+	str	r5, [r1, #0x4d0] /* DRAM_SDQS5 */
+	str	r6, [r1, #0x4d4] /* DRAM_SDQS6 */
+	str	r7, [r1, #0x4d8] /* DRAM_SDQS7 */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x764] /* GPR_B0DS */
+	str	r5, [r1, #0x770] /* GPR_B1DS */
+	str	r6, [r1, #0x778] /* GPR_B2DS */
+	str	r7, [r1, #0x77c] /* GPR_B3DS */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x780] /* GPR_B4DS */
+	str	r5, [r1, #0x784] /* GPR_B5DS */
+	str	r6, [r1, #0x78c] /* GPR_B6DS */
+	str	r7, [r1, #0x748] /* GPR_B7DS */
+
+	ldmea	r0!, {r5-r7}
+	str	r5, [r1, #0x74c] /* GPR_ADDS*/
+	str	r6, [r1, #0x4b4] /* DRAM_SODT0*/
+	str	r7, [r1, #0x4b8] /* DRAM_SODT1*/
+
+	.endm
+
+	.macro	dl_ddr_io_set_lpm
+
+	mov	r0, #0
+	str	r0, [r1, #0x470] /* DRAM_DQM0 */
+	str	r0, [r1, #0x474] /* DRAM_DQM1 */
+	str	r0, [r1, #0x478] /* DRAM_DQM2 */
+	str	r0, [r1, #0x47c] /* DRAM_DQM3 */
+
+	str	r0, [r1, #0x480] /* DRAM_DQM4 */
+	str	r0, [r1, #0x484] /* DRAM_DQM5 */
+	str	r0, [r1, #0x488] /* DRAM_DQM6 */
+	str	r0, [r1, #0x48c] /* DRAM_DQM7 */
+
+	str	r0, [r1, #0x464] /* DRAM_CAS */
+	str	r0, [r1, #0x490] /* DRAM_RAS */
+	str	r0, [r1, #0x4ac] /* DRAM_SDCLK_0 */
+	str	r0, [r1, #0x4b0] /* DRAM_SDCLK_1 */
+
+	str	r0, [r1, #0x750] /* DDRMODE_CTL */
+	str	r0, [r1, #0x760] /* DDRMODE */
+
+	str	r0, [r1, #0x4bc] /* DRAM_SDQS0 */
+	str	r0, [r1, #0x4c0] /* DRAM_SDQS1 */
+	str	r0, [r1, #0x4c4] /* DRAM_SDQS2 */
+	str	r0, [r1, #0x4c8] /* DRAM_SDQS3 */
+
+	str	r0, [r1, #0x4cc] /* DRAM_SDQS4 */
+	str	r0, [r1, #0x4d0] /* DRAM_SDQS5 */
+	str	r0, [r1, #0x4d4] /* DRAM_SDQS6 */
+	str	r0, [r1, #0x4d8] /* DRAM_SDQS7 */
+
+	str	r0, [r1, #0x764] /* GPR_B0DS */
+	str	r0, [r1, #0x770] /* GPR_B1DS */
+	str	r0, [r1, #0x778] /* GPR_B2DS */
+	str	r0, [r1, #0x77c] /* GPR_B3DS */
+
+	str	r0, [r1, #0x780] /* GPR_B4DS */
+	str	r0, [r1, #0x784] /* GPR_B5DS */
+	str	r0, [r1, #0x78c] /* GPR_B6DS */
+	str	r0, [r1, #0x748] /* GPR_B7DS */
+
+	str	r0, [r1, #0x74c] /* GPR_ADDS*/
+	str	r0, [r1, #0x4b4] /* DRAM_SODT0*/
+	str	r0, [r1, #0x4b8] /* DRAM_SODT1*/
+
+	.endm
+
+	.macro	dq_ddr_io_save
 
 	ldr	r4, [r1, #0x5ac] /* DRAM_DQM0 */
 	ldr	r5, [r1, #0x5b4] /* DRAM_DQM1 */
@@ -105,7 +262,7 @@ r2: suspend_iram_base
 
 	.endm
 
-	.macro	ddr_io_restore
+	.macro	dq_ddr_io_restore
 
 	ldmea	r0!, {r4-r7}
 	str	r4, [r1, #0x5ac] /* DRAM_DQM0 */
@@ -160,7 +317,7 @@ r2: suspend_iram_base
 
 	.endm
 
-	.macro	ddr_io_set_lpm
+	.macro	dq_ddr_io_set_lpm
 
 	mov	r0, #0
 	str	r0, [r1, #0x5ac] /* DRAM_DQM0 */
@@ -207,6 +364,132 @@ r2: suspend_iram_base
 
 	.endm
 
+/******************************************************************
+Invalidate l1 dcache, r0-r4, r6, r7 used
+******************************************************************/
+	.macro	invalidate_l1_dcache
+
+	mov 	r0, #0
+	mcr 	p15, 2, r0, c0, c0, 0
+	mrc 	p15, 1, r0, c0, c0, 0
+
+	ldr 	r1, =0x7fff
+	and 	r2, r1, r0, lsr #13
+
+	ldr 	r1, =0x3ff
+
+	and 	r3, r1, r0, lsr #3	@ NumWays - 1
+	add 	r2, r2, #1		@ NumSets
+
+	and 	r0, r0, #0x7
+	add 	r0, r0, #4		@ SetShift
+
+	clz 	r1, r3			@ WayShift
+	add 	r4, r3, #1		@ NumWays
+1:
+	sub 	r2, r2, #1		@ NumSets--
+	mov 	r3, r4			@ Temp = NumWays
+2:
+	subs	r3, r3, #1		@ Temp--
+	mov 	r7, r3, lsl r1
+	mov 	r6, r2, lsl r0
+	orr 	r7, r7, r6
+	mcr 	p15, 0, r7, c7, c6, 2
+	bgt 	2b
+	cmp 	r2, #0
+	bgt 	1b
+	dsb
+	isb
+
+	.endm
+
+/******************************************************************
+Flush and disable L1 dcache
+******************************************************************/
+	.macro	flush_disable_l1_dcache
+
+	/*
+	 * Flush all data from the L1 data cache before disabling
+	 * SCTLR.C bit.
+	 */
+	push	{r0-r12, lr}
+	ldr r0, =v7_flush_dcache_all
+	mov lr, pc
+	mov pc, r0
+	pop {r0-r12, lr}
+
+	/*
+	 * Clear the SCTLR.C bit to prevent further data cache
+	 * allocation. Clearing SCTLR.C would make all the data accesses
+	 * strongly ordered and would not hit the cache.
+	 */
+	mrc p15, 0, r0, c1, c0, 0
+	bic r0, r0, #(1 << 2)	@ Disable the C bit
+	mcr p15, 0, r0, c1, c0, 0
+	isb
+
+	/*
+	 * Invalidate L1 data cache. Even though only invalidate is
+	 * necessary exported flush API is used here. Doing clean
+	 * on already clean cache would be almost NOP.
+	 */
+	push	{r0-r12, lr}
+	ldr r0, =v7_flush_dcache_all
+	mov lr, pc
+	mov pc, r0
+	pop {r0-r12, lr}
+
+	/*
+	 * Execute an ISB instruction to ensure that all of the
+	 * CP15 register changes have been committed.
+	 */
+	isb
+
+	/*
+	 * Execute a barrier instruction to ensure that all cache,
+	 * TLB and branch predictor maintenance operations issued
+	 * by any CPU in the cluster have completed.
+	 */
+	dsb
+	dmb
+
+	.endm
+
+/******************************************************************
+Clean L2 cache
+******************************************************************/
+	.macro	clean_l2_cache
+	/* Clean L2 cache to write the dirty data into DRAM to make
+	sure the data alignment between DRAM and L2 cache.
+	*/
+#ifdef CONFIG_CACHE_L2X0
+	/* Clean L2 cache here */
+	ldr r1, =L2_BASE_ADDR
+	add r1, r1, #PERIPBASE_VIRT
+	/* Make way to 0xFFFF 16 ways */
+	mov r0, #0x10000
+	sub r0, r0, #0x1
+	/* 0x7BC is L2X0_CLEAN_WAY */
+	mov r4, #0x700
+	orr r4, #0xBC
+	str r0, [r1, r4]
+3:
+	ldr r2, [r1, r4]
+	ands	r2, r2, r0
+	bne 3b
+4:
+	mov r2, #0x0
+	/* 0x730 is L2X0_CACHE_SYNC */
+	mov r4, #0x700
+	orr r4, #0x30
+	str r2, [r1, r4]
+5:
+	ldr r2, [r1, r4]
+	ands	r2, r2, #0x1
+	bne 5b
+#endif
+	.endm
+
 ENTRY(mx6q_suspend)
 	stmfd	sp!, {r0-r12}     @ Save registers
 /*************************************************************
@@ -216,24 +499,47 @@ suspend mode entry
 	cmp	r0, #0x1
 	bne	dormant		/* dormant mode */
 
-	dsb
+	/* Need to flush and disable L1 dcache*/
+	flush_disable_l1_dcache
+
+	/* Need to clean L2 cache*/
+	clean_l2_cache
+
+	/* Disable L2 cache */
+#ifdef CONFIG_CACHE_L2X0
+	ldr r2, =L2_BASE_ADDR
+	add r2, r2, #PERIPBASE_VIRT
+	mov r4, #0x0
+	str r4, [r2, #L2X0_CTRL]
+#endif
+
 	wfi
 
 	nop
 	nop
 	nop
 	nop
-	/* Due to the L2 cache errata(TKT065875)
-	, need to wait at least 170ns, each IO read
-	takes about 76ns, but the actual wait time
-	to make system more stable is about 380ns */
-	ldr	r0, =SRC_BASE_ADDR
-	add 	r0, r0, #PERIPBASE_VIRT
-	ldr	r1, [r0]
-	ldr	r1, [r0, #0x4]
-	ldr	r1, [r0, #0x8]
-	ldr	r1, [r0, #0xc]
-	ldr	r1, [r0, #0x10]
+
+	/* Invalidate L1 I-cache first */
+	mov r1, #0x0
+	mcr p15, 0, r1, c7, c5, 0 @ Invalidate I-Cache
+
+	/* Need to invalidate L1 dcache, as the power is dropped */
+	invalidate_l1_dcache
+
+	/* Enable L1 dcache first */
+	mrc p15, 0, r0, c1, c0, 0
+	orr r0, r0, #(1 << 2)	@ Disable the C bit
+	mcr p15, 0, r0, c1, c0, 0
+
+	/* Enable L2 cache here */
+#ifdef CONFIG_CACHE_L2X0
+	ldr r2, =L2_BASE_ADDR
+	add r2, r2, #PERIPBASE_VIRT
+	mov r4, #0x1
+	str r4, [r2, #L2X0_CTRL]
+#endif
+
 /***********************************************************
 never run to here
 ************************************************************/
@@ -278,7 +584,7 @@ ddr_iomux_save:
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 
-	ddr_io_save
+	dq_ddr_io_save
 
 	mov	r4, sp			@ Store sp
 	mrs	r5, spsr		@ Store spsr
@@ -324,80 +630,13 @@ ddr_iomux_save:
 	ldr	r5, [r2, #L2X0_POWER_CTRL]
 	stmfd	r0!, {r4-r5}
 #endif
-	/*
-	 * Flush all data from the L1 data cache before disabling
-	 * SCTLR.C bit.
-	 */
-	push	{r0-r12, lr}
-	ldr	r0, =v7_flush_dcache_all
-	mov	lr, pc
-	mov	pc, r0
-	pop	{r0-r12, lr}
 
-	/*
-	 * Clear the SCTLR.C bit to prevent further data cache
-	 * allocation. Clearing SCTLR.C would make all the data accesses
-	 * strongly ordered and would not hit the cache.
-	 */
-	mrc	p15, 0, r0, c1, c0, 0
-	bic	r0, r0, #(1 << 2)	@ Disable the C bit
-	mcr	p15, 0, r0, c1, c0, 0
-	isb
+	/* Need to flush and disable L1 dcache*/
+	flush_disable_l1_dcache
 
-	/*
-	 * Invalidate L1 data cache. Even though only invalidate is
-	 * necessary exported flush API is used here. Doing clean
-	 * on already clean cache would be almost NOP.
-	 */
-	push	{r0-r12, lr}
-	ldr	r0, =v7_flush_dcache_all
-	mov	lr, pc
-	mov	pc, r0
-	pop	{r0-r12, lr}
+	/* Need to clean L2 cache */
+	clean_l2_cache
 
-	/*
-	 * Execute an ISB instruction to ensure that all of the
-	 * CP15 register changes have been committed.
-	 */
-	isb
-
-	/*
-	 * Execute a barrier instruction to ensure that all cache,
-	 * TLB and branch predictor maintenance operations issued
-	 * by any CPU in the cluster have completed.
-	 */
-	dsb
-	dmb
-
-	/* Clean L2 cache to write the dirty data into DRAM to make
-	sure the data alignment between DRAM and L2 cache.
-	*/
-#ifdef CONFIG_CACHE_L2X0
-	/* Clean L2 cache here */
-	ldr	r1, =L2_BASE_ADDR
-	add	r1, r1, #PERIPBASE_VIRT
-	/* Make way to 0xFFFF 16 ways */
-	mov	r0, #0x10000
-	sub	r0, r0, #0x1
-	/* 0x7BC is L2X0_CLEAN_WAY */
-	mov	r4, #0x700
-	orr	r4, #0xBC
-	str	r0, [r1, r4]
-wait:
-	ldr	r2, [r1, r4]
-	ands	r2, r2, r0
-	bne	wait
-l2x0_sync:
-	mov	r2, #0x0
-	/* 0x730 is L2X0_CACHE_SYNC */
-	mov	r4, #0x700
-	orr	r4, #0x30
-	str	r2, [r1, r4]
-sync:
-	ldr	r2, [r1, r4]
-	ands	r2, r2, #0x1
-	bne	sync
-#endif
 /****************************************************************
 set ddr iomux to low power mode
 ****************************************************************/
@@ -416,7 +655,7 @@ refresh:
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 
-	ddr_io_set_lpm
+	dq_ddr_io_set_lpm
 /****************************************************************
 save resume pointer into SRC_GPR1
 ****************************************************************/
@@ -447,7 +686,7 @@ system immediately.
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 
-	ddr_io_restore
+	dq_ddr_io_restore
 
 	mrc	p15, 0, r1, c1, c0, 0
 	orr	r1, r1, #(1 << 2)	@ Enable the C bit
@@ -468,7 +707,7 @@ resume:
 	ldr	r0, [r0, #SRC_GPR2_OFFSET]
 
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
-	ddr_io_restore
+	dq_ddr_io_restore
 
 	/* Restore cp15 registers */
 	ldmea	r0!, {r4-r6}
@@ -593,40 +832,8 @@ mmu_on_label:
 	dsb
 	isb
 
-/******************************************************************
-invalidate l1 dcache, r0-r4, r6, r7 used
-******************************************************************/
-	mov     r0, #0
-	mcr     p15, 2, r0, c0, c0, 0
-	mrc     p15, 1, r0, c0, c0, 0
-
-	ldr     r1, =0x7fff
-	and     r2, r1, r0, lsr #13
-
-	ldr     r1, =0x3ff
-
-	and     r3, r1, r0, lsr #3	@ NumWays - 1
-	add     r2, r2, #1		@ NumSets
-
-	and     r0, r0, #0x7
-	add     r0, r0, #4		@ SetShift
-
-	clz     r1, r3			@ WayShift
-	add     r4, r3, #1		@ NumWays
-1:
-	sub     r2, r2, #1		@ NumSets--
-	mov     r3, r4			@ Temp = NumWays
-2:
-	subs    r3, r3, #1		@ Temp--
-	mov     r7, r3, lsl r1
-	mov     r6, r2, lsl r0
-	orr     r7, r7, r6
-	mcr     p15, 0, r7, c7, c6, 2
-	bgt     2b
-	cmp     r2, #0
-	bgt     1b
-	dsb
-	isb
+	/* Need to invalidate L1 dcache */
+	invalidate_l1_dcache
 
 /************************************************************
 restore control register to enable cache
