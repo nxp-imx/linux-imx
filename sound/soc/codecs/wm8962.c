@@ -3206,6 +3206,14 @@ static int wm8962_hw_params(struct snd_pcm_substream *substream,
 
 	wm8962_configure_bclk(codec);
 
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
+		if (snd_soc_dapm_get_pin_status(&codec->dapm, "DMIC"))
+			snd_soc_update_bits(codec, WM8962_THREED1, WM8962_ADC_MONOMIX_MASK, 0);
+		else
+			snd_soc_update_bits(codec, WM8962_THREED1,
+						WM8962_ADC_MONOMIX_MASK, WM8962_ADC_MONOMIX);
+	}
+
 	return 0;
 }
 
