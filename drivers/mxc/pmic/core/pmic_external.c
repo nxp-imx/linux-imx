@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -262,32 +262,21 @@ unsigned int pmic_get_active_events(unsigned int *active_events)
 }
 EXPORT_SYMBOL(pmic_get_active_events);
 
-#define EVENT_MASK_0			0x387fff
-#define EVENT_MASK_1			0x1177ef
-
 int pmic_event_unmask(type_event event)
 {
-	unsigned int event_mask = 0;
 	unsigned int mask_reg = 0;
 	unsigned int event_bit = 0;
 	int ret;
 
 	if (event < EVENT_1HZI) {
 		mask_reg = REG_INT_MASK0;
-		event_mask = EVENT_MASK_0;
 		event_bit = (1 << event);
 		events_enabled0 |= event_bit;
 	} else {
 		event -= 24;
 		mask_reg = REG_INT_MASK1;
-		event_mask = EVENT_MASK_1;
 		event_bit = (1 << event);
 		events_enabled1 |= event_bit;
-	}
-
-	if ((event_bit & event_mask) == 0) {
-		pr_debug("Error: unmasking a reserved/unused event\n");
-		return PMIC_ERROR;
 	}
 
 	ret = pmic_write_reg(mask_reg, 0, event_bit);
@@ -300,27 +289,19 @@ EXPORT_SYMBOL(pmic_event_unmask);
 
 int pmic_event_mask(type_event event)
 {
-	unsigned int event_mask = 0;
 	unsigned int mask_reg = 0;
 	unsigned int event_bit = 0;
 	int ret;
 
 	if (event < EVENT_1HZI) {
 		mask_reg = REG_INT_MASK0;
-		event_mask = EVENT_MASK_0;
 		event_bit = (1 << event);
 		events_enabled0 &= ~event_bit;
 	} else {
 		event -= 24;
 		mask_reg = REG_INT_MASK1;
-		event_mask = EVENT_MASK_1;
 		event_bit = (1 << event);
 		events_enabled1 &= ~event_bit;
-	}
-
-	if ((event_bit & event_mask) == 0) {
-		pr_debug("Error: masking a reserved/unused event\n");
-		return PMIC_ERROR;
 	}
 
 	ret = pmic_write_reg(mask_reg, event_bit, event_bit);
