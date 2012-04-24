@@ -455,41 +455,6 @@ Flush and disable L1 dcache
 
 	.endm
 
-/******************************************************************
-Clean L2 cache
-******************************************************************/
-	.macro	clean_l2_cache
-	/* Clean L2 cache to write the dirty data into DRAM to make
-	sure the data alignment between DRAM and L2 cache.
-	*/
-#ifdef CONFIG_CACHE_L2X0
-	/* Clean L2 cache here */
-	ldr r1, =L2_BASE_ADDR
-	add r1, r1, #PERIPBASE_VIRT
-	/* Make way to 0xFFFF 16 ways */
-	mov r0, #0x10000
-	sub r0, r0, #0x1
-	/* 0x7BC is L2X0_CLEAN_WAY */
-	mov r4, #0x700
-	orr r4, #0xBC
-	str r0, [r1, r4]
-3:
-	ldr r2, [r1, r4]
-	ands	r2, r2, r0
-	bne 3b
-4:
-	mov r2, #0x0
-	/* 0x730 is L2X0_CACHE_SYNC */
-	mov r4, #0x700
-	orr r4, #0x30
-	str r2, [r1, r4]
-5:
-	ldr r2, [r1, r4]
-	ands	r2, r2, #0x1
-	bne 5b
-#endif
-	.endm
-
 ENTRY(mx6q_suspend)
 	stmfd	sp!, {r0-r12}     @ Save registers
 /*************************************************************
@@ -501,9 +466,6 @@ suspend mode entry
 
 	/* Need to flush and disable L1 dcache*/
 	flush_disable_l1_dcache
-
-	/* Need to clean L2 cache*/
-	clean_l2_cache
 
 	/* Disable L2 cache */
 #ifdef CONFIG_CACHE_L2X0
@@ -633,9 +595,6 @@ ddr_iomux_save:
 
 	/* Need to flush and disable L1 dcache*/
 	flush_disable_l1_dcache
-
-	/* Need to clean L2 cache */
-	clean_l2_cache
 
 /****************************************************************
 set ddr iomux to low power mode
@@ -790,12 +749,6 @@ use_ttbr0:
 	ldr	r1, =mmu_on_label
 	bx	r1
 mmu_on_label:
-	mov 	r8, lr
-	push	{r0}
-
-	/* Set up the per-CPU stacks */
-	bl	cpu_init
-	pop	{r0}
 
 #ifdef CONFIG_CACHE_L2X0
 	ldr r2, =L2_BASE_ADDR
@@ -804,15 +757,42 @@ mmu_on_label:
 	ldmea	r0!, {r4-r7}
 	/* L2 will be enabled after L1 is enabled */
 	mov r4, #0x0
-	str	r4, [r2, #L2X0_CTRL]
-	str	r5, [r2, #L2X0_AUX_CTRL]
-	str	r6, [r2, #L2X0_TAG_LATENCY_CTRL]
-	str	r7, [r2, #L2X0_DATA_LATENCY_CTRL]
+	str r4, [r2, #L2X0_CTRL]
+	str r5, [r2, #L2X0_AUX_CTRL]
+	str r6, [r2, #L2X0_TAG_LATENCY_CTRL]
+	str r7, [r2, #L2X0_DATA_LATENCY_CTRL]
 
 	ldmea	r0!, {r4-r5}
-	str	r4, [r2, #L2X0_PREFETCH_CTRL]
-	str	r5, [r2, #L2X0_POWER_CTRL]
+	str r4, [r2, #L2X0_PREFETCH_CTRL]
+	str r5, [r2, #L2X0_POWER_CTRL]
 #endif
+
+	/* Need to invalidate L1 dcache */
+	invalidate_l1_dcache
+
+/************************************************************
+restore control register to enable cache
+************************************************************/
+	mov r0, r11
+	mcr p15, 0, r0, c1, c0, 0	@ with caches enabled.
+	dsb
+	isb
+
+#ifdef CONFIG_CACHE_L2X0
+	/* Enable L2 cache here */
+	ldr r2, =L2_BASE_ADDR
+	add r2, r2, #PERIPBASE_VIRT
+	mov r4, #0x1
+	str r4, [r2, #L2X0_CTRL]
+#endif
+
+	mov	r8, lr
+	push	{r0}
+
+	/* Set up the per-CPU stacks */
+	bl	cpu_init
+	pop	{r0}
+
 	/*
 	 * Restore the MMU table entry that was modified for
 	 * enabling MMU.
@@ -832,24 +812,6 @@ mmu_on_label:
 	dsb
 	isb
 
-	/* Need to invalidate L1 dcache */
-	invalidate_l1_dcache
-
-/************************************************************
-restore control register to enable cache
-************************************************************/
-	mov	r0, r11
-	mcr	p15, 0, r0, c1, c0, 0	@ with caches enabled.
-	dsb
-	isb
-
-#ifdef CONFIG_CACHE_L2X0
-	/* Enable L2 cache here */
-	ldr r2, =L2_BASE_ADDR
-	add r2, r2, #PERIPBASE_VIRT
-	mov r4, #0x1
-	str	r4, [r2, #L2X0_CTRL]
-#endif
 /***********************************************************
 return back to mx6_suspend_enter for dormant
 ***********************************************************/
