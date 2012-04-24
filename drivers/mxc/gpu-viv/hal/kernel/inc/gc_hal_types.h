@@ -312,6 +312,7 @@ typedef enum _gceSTATUS
     gcvSTATUS_LOCKED                =   -25,
     gcvSTATUS_INTERRUPTED           =   -26,
     gcvSTATUS_DEVICE                =   -27,
+    gcvSTATUS_NOT_MULTI_PIPE_ALIGNED =   -28,
 
     /* Linker errors. */
     gcvSTATUS_GLOBAL_TYPE_MISMATCH  =   -1000,
@@ -324,6 +325,10 @@ typedef enum _gceSTATUS
     gcvSTATUS_NAME_MISMATCH         =   -1007,
     gcvSTATUS_INVALID_INDEX         =   -1008,
     gcvSTATUS_UNIFORM_TYPE_MISMATCH =   -1009,
+
+    /* Compiler errors. */
+    gcvSTATUS_COMPILER_FE_PREPROCESSOR_ERROR = -2000,
+    gcvSTATUS_COMPILER_FE_PARSER_ERROR = -2001,
 }
 gceSTATUS;
 

@@ -441,6 +441,25 @@ gcoHAL_ScheduleUnmapMemory(
     IN gctPOINTER Logical
     );
 
+/* Map user memory. */
+gceSTATUS
+gcoHAL_MapUserMemory(
+    IN gctPOINTER Logical,
+    IN gctUINT32 Physical,
+    IN gctSIZE_T Size,
+    OUT gctPOINTER * Info,
+    OUT gctUINT32_PTR GPUAddress
+    );
+
+/* Unmap user memory. */
+gceSTATUS
+gcoHAL_UnmapUserMemory(
+    IN gctPOINTER Logical,
+    IN gctSIZE_T Size,
+    IN gctPOINTER Info,
+    IN gctUINT32 GPUAddress
+    );
+
 /* Schedule an unmap of a user buffer using event mechanism. */
 gceSTATUS
 gcoHAL_ScheduleUnmapUserMemory(
@@ -473,7 +492,7 @@ gcoHAL_Compact(
     IN gcoHAL Hal
     );
 
-#if VIVANTE_PROFILER /*gcdENABLE_PROFILING*/
+#if VIVANTE_PROFILER
 gceSTATUS
 gcoHAL_ProfileStart(
     IN gcoHAL Hal
@@ -721,6 +740,17 @@ gceSTATUS
 gcoOS_MapUserMemory(
     IN gcoOS Os,
     IN gctPOINTER Memory,
+    IN gctSIZE_T Size,
+    OUT gctPOINTER * Info,
+    OUT gctUINT32_PTR Address
+    );
+
+/* Map user memory. */
+gceSTATUS
+gcoOS_MapUserMemoryEx(
+    IN gcoOS Os,
+    IN gctPOINTER Memory,
+    IN gctUINT32 Physical,
     IN gctSIZE_T Size,
     OUT gctPOINTER * Info,
     OUT gctUINT32_PTR Address
@@ -1091,7 +1121,7 @@ gcoOS_AddSignalHandler (
     IN gceSignalHandlerType SignalHandlerType
     );
 
-#if VIVANTE_PROFILER /*gcdENABLE_PROFILING*/
+#if VIVANTE_PROFILER
 gceSTATUS
 gcoOS_ProfileStart(
     IN gcoOS Os
@@ -1124,6 +1154,13 @@ gcoOS_QueryVideoMemory(
     );
 
 /* Detect if the process is the executable specified. */
+gceSTATUS
+gcoOS_DetectProcessByNamePid(
+    IN gctCONST_STRING Name,
+    IN gctHANDLE Pid
+    );
+
+/* Detect if the current process is the executable specified. */
 gceSTATUS
 gcoOS_DetectProcessByName(
     IN gctCONST_STRING Name
@@ -1949,6 +1986,10 @@ gcoSURF_SetLinearResolveAddress(
     IN gctUINT32 Address,
     IN gctPOINTER Memory
     );
+
+    gceSTATUS
+    gcoSURF_Swap(IN gcoSURF Surface1, IN gcoSURF Surface2);
+
 /******************************************************************************\
 ********************************* gcoDUMP Object ********************************
 \******************************************************************************/
@@ -2147,7 +2188,7 @@ gcoHEAP_Free(
     IN gctPOINTER Node
     );
 
-#if (VIVANTE_PROFILER /*gcdENABLE_PROFILING*/ || gcdDEBUG)
+#if (VIVANTE_PROFILER  || gcdDEBUG)
 /* Profile the heap. */
 gceSTATUS
 gcoHEAP_ProfileStart(
@@ -3459,7 +3500,7 @@ gckOS_DebugStatus2Name(
 **      surfaceInfo Pointer to the surface iniformational structure.
 */
 #define gcmVERIFY_NODE_LOCK(surfaceNode) \
-    if (!surfaceNode->valid) \
+    if (!(surfaceNode)->valid) \
     { \
         status = gcvSTATUS_MEMORY_UNLOCKED; \
         break; \

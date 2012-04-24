@@ -78,8 +78,8 @@ struct _gckHARDWARE
 
 #if gcdPOWEROFF_TIMEOUT
     gctUINT32                   powerOffTime;
-    gctSIGNAL                   powerOffSignal;
     gctUINT32                   powerOffTimeout;
+    gctPOINTER                  powerOffTimer;
 #endif
 
     gctPOINTER                  pageTableDirty;

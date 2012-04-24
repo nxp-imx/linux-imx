@@ -1660,7 +1660,7 @@ _TaskUnmapUserMemory(
             = (gcsTASK_UNMAP_USER_MEMORY_PTR) TaskHeader->task;
 
         /* Unmap the user memory. */
-        gcmkERR_BREAK(gckOS_UnmapUserMemoryEx(
+        gcmkERR_BREAK(gckOS_UnmapUserMemory(
             Command->os, gcvCORE_VG, task->memory, task->size, task->info, task->address
             ));
 

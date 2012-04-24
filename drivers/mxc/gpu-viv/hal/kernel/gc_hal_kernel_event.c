@@ -140,8 +140,6 @@ OnError:
     return gcvSTATUS_OK;
 }
 
-#ifndef __QNXNTO__
-
 static gceSTATUS
 gckEVENT_IsEmpty(
     IN gckEVENT Event,
@@ -198,14 +196,11 @@ OnError:
     return status;
 }
 
-#endif
-
 static gceSTATUS
 _TryToIdleGPU(
     IN gckEVENT Event
 )
 {
-#ifndef __QNXNTO__
     gceSTATUS status;
     gctBOOL empty = gcvFALSE, idle = gcvFALSE;
 
@@ -237,9 +232,6 @@ _TryToIdleGPU(
 OnError:
     gcmkFOOTER();
     return status;
-#else
-    return gcvSTATUS_OK;
-#endif
 }
 
 static gceSTATUS
@@ -285,6 +277,14 @@ __RemoveRecordFromProcessDB(
                 Record->processID,
                 gcvDB_VIDEO_MEMORY_LOCKED,
                 Record->info.u.UnlockVideoMemory.node));
+            break;
+
+        case gcvHAL_UNMAP_USER_MEMORY:
+            gcmkVERIFY_OK(gckKERNEL_RemoveProcessDB(
+                Event->kernel,
+                Record->processID,
+                gcvDB_MAP_USER_MEMORY,
+                Record->info.u.UnmapUserMemory.info));
             break;
 
         default:
@@ -531,6 +531,7 @@ gckEVENT_Destroy(
 #if gcdSMP
     gcmkVERIFY_OK(gckOS_AtomDestroy(Event->os, Event->pending));
 #endif
+
     /* Mark the gckEVENT object as unknown. */
     Event->object.type = gcvOBJ_UNKNOWN;
 
@@ -880,7 +881,7 @@ gckEVENT_AddList(
     acquired = gcvTRUE;
 
     /* Do we need to allocate a new queue? */
-    if ((Event->queueTail == gcvNULL) || (Event->queueTail->source != FromWhere))
+    if ((Event->queueTail == gcvNULL) || (Event->queueTail->source < FromWhere))
     {
         /* Allocate a new queue. */
         gcmkONERROR(gckEVENT_AllocateQueue(Event, &queue));
@@ -1366,7 +1367,6 @@ gckEVENT_Submit(
             gcmkONERROR(gckEVENT_GetEvent(Event, Wait, &id, queue->source));
 
             /* Copy event list to event ID queue. */
-            Event->queues[id].source = queue->source;
             Event->queues[id].head   = queue->head;
 
             /* Remove the top queue from the list. */
@@ -1400,7 +1400,7 @@ gckEVENT_Submit(
             gcmkONERROR(gckHARDWARE_Event(Event->kernel->hardware,
                                           gcvNULL,
                                           id,
-                                          gcvKERNEL_PIXEL,
+                                          Event->queues[id].source,
                                           &bytes));
 
             /* Reserve space in the command queue. */
@@ -1764,7 +1764,9 @@ gckEVENT_Notify(
     gcuVIDMEM_NODE_PTR node;
 #endif
     gctUINT pending;
+#if !gcdSMP
     gctBOOL suspended = gcvFALSE;
+#endif
 #if gcmIS_DEBUG(gcdDEBUG_TRACE)
     gctINT eventNumber = 0;
 #endif
@@ -1799,20 +1801,21 @@ gckEVENT_Notify(
     {
         gcsEVENT_PTR record;
 
+#if gcdSMP
+        /* Get current interrupts. */
+        gckOS_AtomGet(Event->os, Event->pending, (gctINT32_PTR)&pending);
+#else
         /* Suspend interrupts. */
         gcmkONERROR(gckOS_SuspendInterruptEx(Event->os, Event->kernel->core));
         suspended = gcvTRUE;
 
         /* Get current interrupts. */
-#if gcdSMP
-        gckOS_AtomGet(Event->os, Event->pending, (gctINT32_PTR)&pending);
-#else
         pending = Event->pending;
-#endif
 
         /* Resume interrupts. */
         gcmkONERROR(gckOS_ResumeInterruptEx(Event->os, Event->kernel->core));
         suspended = gcvFALSE;
+#endif
 
         if (pending == 0)
         {
@@ -1875,23 +1878,24 @@ gckEVENT_Notify(
                 pending
                 );
 
+#if gcdSMP
+            /* Mark pending interrupts as handled. */
+            gckOS_AtomClearMask(Event->pending, pending);
+#elif defined(__QNXNTO__)
+            /* Mark pending interrupts as handled. */
+            atomic_clr((gctUINT32_PTR)&Event->pending, pending);
+#else
             /* Suspend interrupts. */
             gcmkONERROR(gckOS_SuspendInterruptEx(Event->os, Event->kernel->core));
             suspended = gcvTRUE;
 
             /* Mark pending interrupts as handled. */
-#if gcdSMP
-            gckOS_AtomClearMask(Event->pending, pending);
-#elif defined(__QNXNTO__)
-            atomic_clr((gctUINT32_PTR)&Event->pending, pending);
-#else
             Event->pending &= ~pending;
-#endif
 
             /* Resume interrupts. */
             gcmkONERROR(gckOS_ResumeInterruptEx(Event->os, Event->kernel->core));
             suspended = gcvFALSE;
-
+#endif
             break;
         }
 
@@ -1900,7 +1904,7 @@ gckEVENT_Notify(
         {
             if ((Event->queues[i].head != gcvNULL)
             &&  (Event->queues[i].stamp < queue->stamp)
-            &&  (Event->queues[i].source == queue->source)
+            &&  (Event->queues[i].source <= queue->source)
             )
             {
                 gcmkTRACE_N(
@@ -1928,22 +1932,24 @@ gckEVENT_Notify(
 #endif
         }
 
+#if gcdSMP
+        /* Mark pending interrupt as handled. */
+        gckOS_AtomClearMask(Event->pending, mask);
+#elif defined(__QNXNTO__)
+        /* Mark pending interrupt as handled. */
+        atomic_clr(&Event->pending, mask);
+#else
         /* Suspend interrupts. */
         gcmkONERROR(gckOS_SuspendInterruptEx(Event->os, Event->kernel->core));
         suspended = gcvTRUE;
 
         /* Mark pending interrupt as handled. */
-#if gcdSMP
-        gckOS_AtomClearMask(Event->pending, mask);
-#elif defined(__QNXNTO__)
-        atomic_clr(&Event->pending, mask);
-#else
         Event->pending &= ~mask;
-#endif
 
         /* Resume interrupts. */
         gcmkONERROR(gckOS_ResumeInterruptEx(Event->os, Event->kernel->core));
         suspended = gcvFALSE;
+#endif
 
         /* Grab the mutex queue. */
         gcmkONERROR(gckOS_AcquireMutex(Event->os,
@@ -2212,7 +2218,7 @@ gckEVENT_Notify(
                                record->info.u.UnmapUserMemory.info);
 
                 /* Unmap the user memory. */
-                status = gckOS_UnmapUserMemoryEx(
+                status = gckOS_UnmapUserMemory(
                     Event->os,
                     Event->kernel->core,
                     record->info.u.UnmapUserMemory.memory,
@@ -2230,10 +2236,6 @@ gckEVENT_Notify(
                         event->event.u.UnmapUserMemory.size));
                 }
 #endif
-                gcmkVERIFY_OK(gckKERNEL_RemoveProcessDB(
-                        Event->kernel,
-                        record->processID, gcvDB_MAP_USER_MEMORY,
-                        record->info.u.UnmapUserMemory.memory));
                 break;
 
             case gcvHAL_TIMESTAMP:
@@ -2323,11 +2325,13 @@ OnError:
         gcmkVERIFY_OK(gckOS_ReleaseMutex(Event->os, Event->eventQueueMutex));
     }
 
+#if !gcdSMP
     if (suspended)
     {
         /* Resume interrupts. */
         gcmkVERIFY_OK(gckOS_ResumeInterruptEx(Event->os, Event->kernel->core));
     }
+#endif
 
     /* Return the status. */
     gcmkFOOTER();

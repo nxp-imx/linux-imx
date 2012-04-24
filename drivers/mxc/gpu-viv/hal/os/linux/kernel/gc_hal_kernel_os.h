@@ -78,11 +78,4 @@ typedef struct _DRIVER_ARGS
 }
 DRIVER_ARGS;
 
-/* Cleanup the signal table. */
-gceSTATUS
-gckOS_CleanProcessSignal(
-    gckOS Os,
-    gctHANDLE Process
-    );
-
 #endif /* __gc_hal_kernel_os_h_ */
