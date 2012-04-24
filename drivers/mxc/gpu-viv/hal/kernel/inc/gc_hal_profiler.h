@@ -480,6 +480,8 @@ extern "C" {
 #define GPU_CYCLES		1
 #define GPU_READ64BYTE	(GPU_CYCLES		+ 1)
 #define GPU_WRITE64BYTE	(GPU_READ64BYTE	+ 1)
+#define GPU_TOTALCYCLES	(GPU_WRITE64BYTE	+ 1)
+#define GPU_IDLECYCLES	(GPU_TOTALCYCLES	+ 1)
 
 #define VS_INSTCOUNT			1
 #define VS_BRANCHINSTCOUNT		(VS_INSTCOUNT		+ 1)
@@ -572,7 +574,9 @@ extern "C" {
 #define VPG_PROG        0x140000
 #define VPG_PVS         0x150000
 #define VPG_PPS         0x160000
-#define VPG_FRAME       0x170000
+#define VPG_ES11_TIME   0x170000
+#define VPG_ES20_TIME   0x180000
+#define VPG_FRAME       0x190000
 #define VPG_END         0xff0000
 
 /* Info. */
@@ -1010,6 +1014,8 @@ extern "C" {
 #define VPC_GPUCYCLES                   (VPG_GPU + GPU_CYCLES)
 #define VPC_GPUREAD64BYTE               (VPG_GPU + GPU_READ64BYTE)
 #define VPC_GPUWRITE64BYTE              (VPG_GPU + GPU_WRITE64BYTE)
+#define VPC_GPUTOTALCYCLES              (VPG_GPU + GPU_TOTALCYCLES)
+#define VPC_GPUIDLECYCLES              (VPG_GPU + GPU_IDLECYCLES)
 
 /* HW: Shader Counters. */
 #define VPC_VSINSTCOUNT                 (VPG_VS + VS_INSTCOUNT)
@@ -1103,6 +1109,8 @@ typedef struct _gcsPROFILER_COUNTERS
 
     /* HW vairable counters. */
     gctUINT32       gpuCyclesCounter;
+	gctUINT32       gpuTotalCyclesCounter;
+	gctUINT32       gpuIdleCyclesCounter;
     gctUINT32       gpuTotalRead64BytesPerFrame;
     gctUINT32       gpuTotalWrite64BytesPerFrame;
 

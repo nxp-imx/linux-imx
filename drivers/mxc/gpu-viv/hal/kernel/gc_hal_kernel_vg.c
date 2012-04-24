@@ -570,7 +570,9 @@ gceSTATUS gckVGKERNEL_Dispatch(
         /* Map user memory to DMA. */
         gcmkERR_BREAK(gckOS_MapUserMemory(
             Kernel->os,
+            gcvCORE_VG,
             kernelInterface->u.MapUserMemory.memory,
+            kernelInterface->u.MapUserMemory.physical,
             kernelInterface->u.MapUserMemory.size,
             &kernelInterface->u.MapUserMemory.info,
             &kernelInterface->u.MapUserMemory.address
@@ -581,6 +583,7 @@ gceSTATUS gckVGKERNEL_Dispatch(
         /* Unmap user memory. */
         gcmkERR_BREAK(gckOS_UnmapUserMemory(
             Kernel->os,
+            gcvCORE_VG,
             kernelInterface->u.UnmapUserMemory.memory,
             kernelInterface->u.UnmapUserMemory.size,
             kernelInterface->u.UnmapUserMemory.info,

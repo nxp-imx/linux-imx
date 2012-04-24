@@ -835,6 +835,14 @@ gco3D_SetDepthScaleBiasF(
     IN gctFLOAT DepthBias
     );
 
+/* Set depth near and far clipping plane. */
+gceSTATUS
+gco3D_SetDepthPlaneF(
+    IN gco3D Engine,
+    IN gctFLOAT Near,
+    IN gctFLOAT Far
+    );
+
 /* Enable or disable dithering. */
 gceSTATUS
 gco3D_EnableDither(
@@ -1701,6 +1709,9 @@ typedef struct _gcsVERTEXARRAY
 
     /* Generic values for attribute. */
     gctFLOAT            genericValue[4];
+
+    /* Generic size for attribute. */
+    gctINT              genericSize;
 
     /* Vertex shader linkage. */
     gctUINT             linkage;

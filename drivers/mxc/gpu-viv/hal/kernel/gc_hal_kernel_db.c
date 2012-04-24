@@ -1225,12 +1225,12 @@ gckKERNEL_DestroyProcessDB(
 
         case gcvDB_MAP_USER_MEMORY:
             /* TODO: Unmap user memory. */
-            status = gckOS_UnmapUserMemoryEx(Kernel->os,
-                                             Kernel->core,
-                                             record->data,
-                                             record->bytes,
-                                             record->physical,
-                                             0);
+            status = gckOS_UnmapUserMemory(Kernel->os,
+                                           Kernel->core,
+                                           record->physical,
+                                           record->bytes,
+                                           record->data,
+                                           0);
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: MAP USER MEMORY %d (status=%d)",

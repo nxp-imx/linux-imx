@@ -1021,17 +1021,18 @@ gckKERNEL_Dispatch(
     case gcvHAL_MAP_USER_MEMORY:
         /* Map user memory to DMA. */
         gcmkONERROR(
-            gckOS_MapUserMemoryEx(Kernel->os,
-                                  Kernel->core,
-                                  Interface->u.MapUserMemory.memory,
-                                  Interface->u.MapUserMemory.size,
-                                  &Interface->u.MapUserMemory.info,
-                                  &Interface->u.MapUserMemory.address));
+            gckOS_MapUserMemory(Kernel->os,
+                                Kernel->core,
+                                Interface->u.MapUserMemory.memory,
+                                Interface->u.MapUserMemory.physical,
+                                Interface->u.MapUserMemory.size,
+                                &Interface->u.MapUserMemory.info,
+                                &Interface->u.MapUserMemory.address));
         gcmkVERIFY_OK(
             gckKERNEL_AddProcessDB(Kernel,
                                    processID, gcvDB_MAP_USER_MEMORY,
-                                   Interface->u.MapUserMemory.memory,
                                    Interface->u.MapUserMemory.info,
+                                   Interface->u.MapUserMemory.memory,
                                    Interface->u.MapUserMemory.size));
         break;
 
@@ -1040,12 +1041,12 @@ gckKERNEL_Dispatch(
 
         /* Unmap user memory. */
         gcmkONERROR(
-            gckOS_UnmapUserMemoryEx(Kernel->os,
-                                    Kernel->core,
-                                    Interface->u.UnmapUserMemory.memory,
-                                    Interface->u.UnmapUserMemory.size,
-                                    Interface->u.UnmapUserMemory.info,
-                                    address));
+            gckOS_UnmapUserMemory(Kernel->os,
+                                  Kernel->core,
+                                  Interface->u.UnmapUserMemory.memory,
+                                  Interface->u.UnmapUserMemory.size,
+                                  Interface->u.UnmapUserMemory.info,
+                                  address));
 
 #if gcdSECURE_USER
         gcmkVERIFY_OK(gckKERNEL_FlushTranslationCache(
@@ -1057,7 +1058,7 @@ gckKERNEL_Dispatch(
         gcmkVERIFY_OK(
             gckKERNEL_RemoveProcessDB(Kernel,
                                       processID, gcvDB_MAP_USER_MEMORY,
-                                      Interface->u.UnmapUserMemory.memory));
+                                      Interface->u.UnmapUserMemory.info));
         break;
 
 #if !USE_NEW_LINUX_SIGNAL
