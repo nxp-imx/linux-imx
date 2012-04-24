@@ -1749,7 +1749,9 @@ static int init_tiled_buf(struct ipu_soc *ipu, struct ipu_task_entry *t,
 			return -EINVAL;
 		}
 	}
-	vdoa_setup(t->vdoa_handle, &param);
+	ret = vdoa_setup(t->vdoa_handle, &param);
+	if (ret)
+		goto done;
 	vdoa_get_output_buf(t->vdoa_handle, &buf);
 	if (t->set.task & VDOA_ONLY)
 		goto done;
