@@ -192,7 +192,7 @@
     Set to 3 for bypassing the drivers.
 */
 #ifndef gcdNULL_DRIVER
-#   define gcdNULL_DRIVER  0
+#   define gcdNULL_DRIVER                       0
 #endif
 
 /*
@@ -339,6 +339,16 @@
 */
 #ifndef gcdPOWER_MANAGEMENT
 #   define gcdPOWER_MANAGEMENT                  1
+#endif
+
+/*
+    gcdPOWER_SUSNPEND_WHEN_IDLE
+
+        Set to 1 to make GPU enter gcvPOWER_SUSPEND when idle detected,
+        otherwise GPU will enter gcvPOWER_IDLE.
+*/
+#ifndef gcdPOWER_SUSNPEND_WHEN_IDLE
+#   define gcdPOWER_SUSNPEND_WHEN_IDLE          0
 #endif
 
 /*
@@ -599,11 +609,11 @@
 
         When non-zero, GPU will power off automatically from
         idle state, and gcdPOWEROFF_TIMEOUT is also the default
-        timeout value.
+        timeout in milliseconds.
  */
 
 #ifndef gcdPOWEROFF_TIMEOUT
-#   define gcdPOWEROFF_TIMEOUT                  5000
+#   define gcdPOWEROFF_TIMEOUT                  300
 #endif
 
 /*
@@ -747,6 +757,16 @@
 #ifndef gcdSMALL_BLOCK_SIZE
 #   define gcdSMALL_BLOCK_SIZE                  4096
 #   define gcdRATIO_FOR_SMALL_MEMORY            32
+#endif
+
+
+/*  gcdALPHA_KILL_IN_SHADER
+ *
+ *  Enable alpha kill inside the shader. This will be set automatically by the
+ *  HAL if certain states match a criteria.
+ */
+#ifndef gcdALPHA_KILL_IN_SHADER
+#   define gcdALPHA_KILL_IN_SHADER              1
 #endif
 
 #endif /* __gc_hal_options_h_ */

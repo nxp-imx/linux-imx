@@ -926,6 +926,15 @@ gco2D_SetGdiStretchMode(
     IN gctBOOL Enable
     );
 
+gceSTATUS
+gco2D_SetSourceTileStatus(
+    IN gco2D Engine,
+    IN gce2D_TILE_STATUS_CONFIG TSControl,
+    IN gceSURF_FORMAT CompressedFormat,
+    IN gctUINT32 ClearValue,
+    IN gctUINT32 GpuAddress
+    );
+
 #ifdef __cplusplus
 }
 #endif

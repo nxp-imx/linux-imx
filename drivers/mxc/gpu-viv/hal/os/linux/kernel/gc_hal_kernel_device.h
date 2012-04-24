@@ -92,10 +92,6 @@ typedef struct _gckGALDEVICE
     struct clk         *clk_2d_axi;
     struct clk         *clk_vg_axi;
 
-#if gcdPOWEROFF_TIMEOUT
-    struct task_struct  *pmThreadCtxts[gcdCORE_COUNT];
-    gctBOOL             pmThreadInitializeds[gcdCORE_COUNT];
-#endif
 }
 * gckGALDEVICE;
 

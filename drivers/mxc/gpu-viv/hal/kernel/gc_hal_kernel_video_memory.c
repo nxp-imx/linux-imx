@@ -1246,7 +1246,7 @@ gckVIDMEM_Free(
     gckVIDMEM memory = gcvNULL;
     gcuVIDMEM_NODE_PTR node;
     gctBOOL mutexAcquired = gcvFALSE;
-    gckOS os = gcvFALSE;
+    gckOS os = gcvNULL;
     gctBOOL acquired = gcvFALSE;
     gctINT32 i, totalLocked;
 

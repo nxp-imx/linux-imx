@@ -302,11 +302,12 @@ typedef Pixmap      HALNativePixmapType;
 #endif
 
 #elif defined(__QNXNTO__)
+#include <screen/screen.h>
 
 /* VOID */
-typedef void *  HALNativeDisplayType;
-typedef void *  HALNativeWindowType;
-typedef void *  HALNativePixmapType;
+typedef int              HALNativeDisplayType;
+typedef screen_window_t  HALNativeWindowType;
+typedef screen_pixmap_t  HALNativePixmapType;
 
 #else
 
@@ -512,9 +513,6 @@ gcoOS_GetWindowInfo(
     OUT gctINT * Width,
     OUT gctINT * Height,
     OUT gctINT * BitsPerPixel,
-#ifdef __QNXNTO__
-    OUT gctINT * Format,
-#endif
     OUT gctUINT * Offset
     );
 

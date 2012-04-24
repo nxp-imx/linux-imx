@@ -321,16 +321,15 @@ typedef enum _gcGL_DRIVER_VERSION {
     gcGL_DRIVER_ES30     /* OpenGL ES 3.0 */
 } gcGL_DRIVER_VERSION;
 
-#define gcm
 /* gcSHADER objects. */
-typedef struct _gcSHADER *			gcSHADER;
+typedef struct _gcSHADER *              gcSHADER;
 typedef struct _gcATTRIBUTE *			gcATTRIBUTE;
-typedef struct _gcUNIFORM *			gcUNIFORM;
-typedef struct _gcOUTPUT *			gcOUTPUT;
+typedef struct _gcUNIFORM *             gcUNIFORM;
+typedef struct _gcOUTPUT *              gcOUTPUT;
 typedef struct _gcsFUNCTION *			gcFUNCTION;
-typedef struct _gcsKERNEL_FUNCTION *		gcKERNEL_FUNCTION;
-typedef struct _gcsHINT *			gcsHINT_PTR;
-typedef struct _gcSHADER_PROFILER *     	gcSHADER_PROFILER;
+typedef struct _gcsKERNEL_FUNCTION *	gcKERNEL_FUNCTION;
+typedef struct _gcsHINT *               gcsHINT_PTR;
+typedef struct _gcSHADER_PROFILER *     gcSHADER_PROFILER;
 typedef struct _gcVARIABLE *			gcVARIABLE;
 
 struct _gcsHINT
@@ -367,6 +366,18 @@ struct _gcsHINT
 
 	/* Flag whether the ThreadWalker is in PS. */
 	gctBOOL		threadWalkerInPS;
+
+#if gcdALPHA_KILL_IN_SHADER
+    /* States to set when alpha kill is enabled. */
+    gctUINT32   killStateAddress;
+    gctUINT32   alphaKillStateValue;
+    gctUINT32   colorKillStateValue;
+
+    /* Shader instructiuon. */
+    gctUINT32   killInstructionAddress;
+    gctUINT32   alphaKillInstruction[3];
+    gctUINT32   colorKillInstruction[3];
+#endif
 
 };
 
@@ -423,6 +434,14 @@ typedef enum _gcSHADER_VAR_CATEGORY
 }
 gcSHADER_VAR_CATEGORY;
 
+typedef enum _gceTYPE_QUALIFIER
+{
+    gcvTYPE_QUALIFIER_NONE         = 0x0, /* unqualified */
+    gcvTYPE_QUALIFIER_VOLATILE     = 0x1, /* volatile */
+}gceTYPE_QUALIFIER;
+
+typedef gctUINT16  gctTYPE_QUALIFIER;
+
 #if GC_ENABLE_LOADTIME_OPT
 
 typedef struct _gcSHADER_TYPE_INFO
@@ -471,20 +490,24 @@ typedef enum _gceSHADER_FLAGS
 	gcvSHADER_RESOURCE_USAGE			= 0x02,
 	gcvSHADER_OPTIMIZER					= 0x04,
 	gcvSHADER_USE_GL_Z					= 0x08,
-          /*
-                The GC family of GPU cores model GC860 and under require the Z
-                to be from 0 <= z <= w.
-                However, OpenGL specifies the Z to be from -w <= z <= w.  So we
-                have to a conversion here:
+    /*
+        The GC family of GPU cores model GC860 and under require the Z
+        to be from 0 <= z <= w.
+        However, OpenGL specifies the Z to be from -w <= z <= w.  So we
+        have to a conversion here:
 
-                    z = (z + w) / 2.
+            z = (z + w) / 2.
 
-                So here we append two instructions to the vertex shader.
-            */
+        So here we append two instructions to the vertex shader.
+    */
 	gcvSHADER_USE_GL_POSITION			= 0x10,
 	gcvSHADER_USE_GL_FACE				= 0x20,
 	gcvSHADER_USE_GL_POINT_COORD		= 0x40,
 	gcvSHADER_LOADTIME_OPTIMIZER		= 0x80,
+#if gcdALPHA_KILL_IN_SHADER
+    gcvSHADER_USE_ALPHA_KILL            = 0x100,
+#endif
+
 }
 gceSHADER_FLAGS;
 
@@ -533,8 +556,9 @@ gceUNIFORM_FLAGS;
 
 typedef enum _gceVARIABLE_UPDATE_FLAGS
 {
-    gceVARIABLE_UPDATE_NOUPDATE = 0,
-    gceVARIABLE_UPDATE_TEMPREG,
+    gcvVARIABLE_UPDATE_NOUPDATE = 0,
+    gcvVARIABLE_UPDATE_TEMPREG,
+    gcvVARIABLE_UPDATE_TYPE_QUALIFIER,
 }gceVARIABLE_UPDATE_FLAGS;
 
 /*******************************************************************************
@@ -1053,6 +1077,64 @@ gcSHADER_AddUniformEx(
 	);
 
 /*******************************************************************************
+**							   gcSHADER_AddUniformEx1
+********************************************************************************
+**
+**	Add an uniform to a gcSHADER object.
+**
+**	INPUT:
+**
+**		gcSHADER Shader
+**			Pointer to a gcSHADER object.
+**
+**		gctCONST_STRING Name
+**			Name of the uniform to add.
+**
+**		gcSHADER_TYPE Type
+**			Type of the uniform to add.
+**
+**      gcSHADER_PRECISION precision
+**          Precision of the uniform to add.
+**
+**		gctSIZE_T Length
+**			Array length of the uniform to add.  'Length' must be at least 1.
+**
+**      gcSHADER_VAR_CATEGORY varCategory
+**          Variable category, normal or struct.
+**
+**      gctUINT16 numStructureElement
+**          If struct, its element number.
+**
+**      gctINT16 parent
+**          If struct, parent index in gcSHADER.variables.
+**
+**      gctINT16 prevSibling
+**          If struct, previous sibling index in gcSHADER.variables.
+**
+**	OUTPUT:
+**
+**		gcUNIFORM * Uniform
+**			Pointer to a variable receiving the gcUNIFORM object pointer.
+**
+**      gctINT16* ThisUniformIndex
+**          Returned value about uniform index in gcSHADER.
+*/
+gceSTATUS
+gcSHADER_AddUniformEx1(
+	IN gcSHADER Shader,
+	IN gctCONST_STRING Name,
+	IN gcSHADER_TYPE Type,
+    IN gcSHADER_PRECISION precision,
+	IN gctSIZE_T Length,
+    IN gcSHADER_VAR_CATEGORY varCategory,
+    IN gctUINT16 numStructureElement,
+    IN gctINT16 parent,
+    IN gctINT16 prevSibling,
+    OUT gctINT16* ThisUniformIndex,
+	OUT gcUNIFORM * Uniform
+	);
+
+/*******************************************************************************
 **                          gcSHADER_GetUniformCount
 ********************************************************************************
 **
@@ -1098,6 +1180,45 @@ gcSHADER_GetUniform(
 	IN gcSHADER Shader,
 	IN gctUINT Index,
 	OUT gcUNIFORM * Uniform
+	);
+
+
+/*******************************************************************************
+**                             gcSHADER_GetUniformIndexingRange
+********************************************************************************
+**
+**	Get the gcUNIFORM object pointer for an indexed uniform for this shader.
+**
+**	INPUT:
+**
+**		gcSHADER Shader
+**			Pointer to a gcSHADER object.
+**
+**		gctINT uniformIndex
+**			Index of the start uniform.
+**
+**		gctINT offset
+**			Offset to indexing.
+**
+**	OUTPUT:
+**
+**		gctINT * LastUniformIndex
+**			Pointer to index of last uniform in indexing range.
+**
+**		gctINT * OffsetUniformIndex
+**			Pointer to index of uniform that indexing at offset.
+**
+**		gctINT * DeviationInOffsetUniform
+**			Pointer to offset in uniform picked up.
+*/
+gceSTATUS
+gcSHADER_GetUniformIndexingRange(
+	IN gcSHADER Shader,
+	IN gctINT uniformIndex,
+    IN gctINT offset,
+	OUT gctINT * LastUniformIndex,
+    OUT gctINT * OffsetUniformIndex,
+    OUT gctINT * DeviationInOffsetUniform
 	);
 
 /*******************************************************************************
@@ -1382,15 +1503,13 @@ gcSHADER_AddVariable(
 **      gctINT16 parent
 **          If struct, parent index in gcSHADER.variables.
 **
-**      gctINT16 preSibling
+**      gctINT16 prevSibling
 **          If struct, previous sibling index in gcSHADER.variables.
-**
-**      gctINT16* ThisVarIndex
-**          Returned value about variable index in gcSHADER.
 **
 **  OUTPUT:
 **
-**      Nothing.
+**      gctINT16* ThisVarIndex
+**          Returned value about variable index in gcSHADER.
 */
 gceSTATUS
 gcSHADER_AddVariableEx(
@@ -1402,7 +1521,7 @@ gcSHADER_AddVariableEx(
     IN gcSHADER_VAR_CATEGORY varCategory,
     IN gctUINT16 numStructureElement,
     IN gctINT16 parent,
-    IN gctINT16 preSibling,
+    IN gctINT16 prevSibling,
     OUT gctINT16* ThisVarIndex
     );
 
@@ -1423,7 +1542,7 @@ gcSHADER_AddVariableEx(
 **		gceVARIABLE_UPDATE_FLAGS flag
 **			Flag which property of variable will be updated.
 **
-**      gctUINT16 newValue
+**      gctUINT newValue
 **          New value to update.
 **
 **  OUTPUT:
@@ -1435,7 +1554,7 @@ gcSHADER_UpdateVariable(
     IN gcSHADER Shader,
     IN gctUINT Index,
     IN gceVARIABLE_UPDATE_FLAGS flag,
-    IN gctUINT16 newValue
+    IN gctUINT newValue
     );
 
 /*******************************************************************************
@@ -1484,6 +1603,40 @@ gcSHADER_GetVariable(
 	IN gcSHADER Shader,
 	IN gctUINT Index,
 	OUT gcVARIABLE * Variable
+	);
+
+/*******************************************************************************
+**							   gcSHADER_GetVariableIndexingRange
+********************************************************************************
+**
+**	Get the gcVARIABLE indexing range.
+**
+**	INPUT:
+**
+**		gcSHADER Shader
+**			Pointer to a gcSHADER object.
+**
+**		gcVARIABLE variable
+**			Start variable.
+**
+**		gctBOOL whole
+**			Indicate whether maximum indexing range is queried
+**
+**	OUTPUT:
+**
+**		gctUINT *Start
+**			Pointer to range start (temp register index).
+**
+**		gctUINT *End
+**			Pointer to range end (temp register index).
+*/
+gceSTATUS
+gcSHADER_GetVariableIndexingRange(
+	IN gcSHADER Shader,
+    IN gcVARIABLE variable,
+    IN gctBOOL whole,
+    OUT gctUINT *Start,
+    OUT gctUINT *End
 	);
 
 /*******************************************************************************

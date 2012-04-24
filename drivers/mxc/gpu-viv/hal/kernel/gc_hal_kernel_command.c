@@ -1972,17 +1972,19 @@ gckCOMMAND_Commit(
         EventQueue = nextEventRecord;
     }
 
+#if gcdPOWER_MANAGEMENT
     if (Command->kernel->eventObj->queueHead == gcvNULL)
     {
         /* Commit done event by which work thread knows all jobs done. */
         gcmkVERIFY_OK(
             gckEVENT_CommitDone(Command->kernel->eventObj, gcvKERNEL_PIXEL));
     }
+#endif
 
     /* Submit events. */
-    status = (gckEVENT_Submit(Command->kernel->eventObj, gcvTRUE, gcvFALSE));
+    status = gckEVENT_Submit(Command->kernel->eventObj, gcvTRUE, gcvFALSE);
 
-    if (status == gcvSTATUS_INTERRUPTED || status == gcvSTATUS_TIMEOUT)
+    if (status == gcvSTATUS_INTERRUPTED)
     {
         gcmkTRACE(
             gcvLEVEL_INFO,
