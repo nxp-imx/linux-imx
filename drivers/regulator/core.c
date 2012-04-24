@@ -291,7 +291,7 @@ static ssize_t regulator_uV_store(struct device *dev,
 
 	return count;
 }
-static DEVICE_ATTR(microvolts, 0666, regulator_uV_show, regulator_uV_store);
+static DEVICE_ATTR(microvolts, 0664, regulator_uV_show, regulator_uV_store);
 
 static ssize_t regulator_uA_show(struct device *dev,
 				struct device_attribute *attr, char *buf)

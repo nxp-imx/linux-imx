@@ -886,8 +886,8 @@ static ssize_t mmc_boot_info_show(struct device *dev,
 		bus_width[width]);
 }
 
-DEVICE_ATTR(boot_config, S_IWUGO, NULL, setup_boot_partitions);
-DEVICE_ATTR(boot_bus_config, S_IWUGO, NULL, setup_boot_bus);
+DEVICE_ATTR(boot_config, S_IWUSR | S_IWGRP, NULL, setup_boot_partitions);
+DEVICE_ATTR(boot_bus_config, S_IWUSR | S_IWGRP, NULL, setup_boot_bus);
 DEVICE_ATTR(boot_info, S_IRUGO, mmc_boot_info_show, NULL);
 MMC_DEV_ATTR(enhanced_area_offset, "%llu\n",
 		card->ext_csd.enhanced_area_offset);

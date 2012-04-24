@@ -2812,8 +2812,8 @@ static ssize_t fsl_udc_remote_wakeup_store(struct device *dev, struct device_att
 	return count;
 }
 
-static DEVICE_ATTR(remote_wakeup, S_IRUGO | S_IWUGO, fsl_udc_remote_wakeup_show,
-		fsl_udc_remote_wakeup_store);
+static DEVICE_ATTR(remote_wakeup, S_IRUGO | S_IWUSR | S_IWGRP,
+		fsl_udc_remote_wakeup_show, fsl_udc_remote_wakeup_store);
 
 static ssize_t fsl_udc_start_remote_wakeup_store(struct device *dev, struct device_attribute *attr,
 			 const char *buf, size_t count)
@@ -2857,8 +2857,8 @@ static ssize_t fsl_udc_start_remote_wakeup_store(struct device *dev, struct devi
 	return count;
 }
 
-static DEVICE_ATTR(start_remote_wakeup, S_IWUGO, NULL,
-		fsl_udc_start_remote_wakeup_store);
+static DEVICE_ATTR(start_remote_wakeup, S_IRUGO | S_IWUSR | S_IWGRP,
+		NULL, fsl_udc_start_remote_wakeup_store);
 
 static struct attribute *fsl_udc_attrs[] = {
 	&dev_attr_remote_wakeup.attr,
