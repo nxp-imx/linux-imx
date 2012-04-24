@@ -92,7 +92,7 @@
  * We don't need to allocate pages for the transmitter.  We just use
  * the skbuffer directly.
  */
-#define FEC_ENET_RX_PAGES	8
+#define FEC_ENET_RX_PAGES	192
 #define FEC_ENET_RX_FRSIZE	2048
 #define FEC_ENET_RX_FRPPG	(PAGE_SIZE / FEC_ENET_RX_FRSIZE)
 #define RX_RING_SIZE		(FEC_ENET_RX_FRPPG * FEC_ENET_RX_PAGES)
@@ -1491,6 +1491,10 @@ fec_restart(struct net_device *dev, int duplex)
 	writel(0, fep->hwp + FEC_HASH_TABLE_LOW);
 #endif
 
+       /* FIXME: adjust RX FIFO size for performance*/
+#ifdef CONFIG_ARCH_MX53
+       writel(FEC_RX_FIFO_BR, fep->hwp + FEC_R_FSTART);
+#endif
 	/* Set maximum receive buffer size. */
 	writel(PKT_MAXBLR_SIZE, fep->hwp + FEC_R_BUFF_SIZE);
 
