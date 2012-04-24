@@ -1282,11 +1282,6 @@ static struct android_pmem_platform_data android_pmem_data = {
        .size = SZ_64M,
 };
 
-static struct android_pmem_platform_data android_pmem_gpu_data = {
-       .name = "pmem_gpu",
-       .size = SZ_32M,
-};
-
 static void sabresd_suspend_enter(void)
 {
 	/* suspend preparation */
@@ -1463,11 +1458,7 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 			str = strstr(str, "pmem=");
 			if (str != NULL) {
 				str += 5;
-				android_pmem_gpu_data.size = memparse(str, &str);
-				if (*str == ',') {
-					str++;
-					android_pmem_data.size = memparse(str, &str);
-				}
+				android_pmem_data.size = memparse(str, &str);
 			}
 
 			str = t->u.cmdline.cmdline;
@@ -1663,8 +1654,6 @@ static void __init mx6_sabresd_board_init(void)
 	mx6_cpu_regulator_init();
 
 	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
-	mxc_register_device(&mxc_android_pmem_gpu_device,
-			    &android_pmem_gpu_data);
 	imx6q_add_device_buttons();
 
 	/* enable sensor 3v3 and 1v8 */
@@ -1764,13 +1753,6 @@ static void __init mx6q_sabresd_reserve(void)
 		memblock_free(phys, android_pmem_data.size);
 		memblock_remove(phys, android_pmem_data.size);
 		android_pmem_data.start = phys;
-	}
-
-	if (android_pmem_gpu_data.size) {
-		phys = memblock_alloc(android_pmem_gpu_data.size, SZ_4K);
-		memblock_free(phys, android_pmem_gpu_data.size);
-		memblock_remove(phys, android_pmem_gpu_data.size);
-		android_pmem_gpu_data.start = phys;
 	}
 #endif
 
