@@ -140,7 +140,7 @@ static int threadRoutine(void *ctxt)
         static int down;
 
         down = down_interruptible(&device->semas[gcvCORE_MAJOR]);
-        if (down); /* To make gcc4.6 happy */
+        if (down); /*To make gcc 4.6 happye*/
         device->dataReadys[gcvCORE_MAJOR] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -193,7 +193,7 @@ static int threadRoutine2D(void *ctxt)
         static int down;
 
         down = down_interruptible(&device->semas[gcvCORE_2D]);
-        if (down); /* To make gcc4.6 happy */
+        if (down); /*To make gcc 4.6 happye*/
         device->dataReadys[gcvCORE_2D] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -244,7 +244,7 @@ static int threadRoutineVG(void *ctxt)
         static int down;
 
         down = down_interruptible(&device->semas[gcvCORE_VG]);
-        if (down); /* To make gcc4.6 happy */
+        if (down); /*To make gcc 4.6 happye*/
         device->dataReadys[gcvCORE_VG] = gcvFALSE;
 
         if (device->killThread == gcvTRUE)
@@ -261,65 +261,6 @@ static int threadRoutineVG(void *ctxt)
         gckKERNEL_Notify(device->kernels[gcvCORE_VG], gcvNOTIFY_INTERRUPT, gcvFALSE);
     }
 }
-
-#if gcdPOWEROFF_TIMEOUT
-/*
-** PM Thread Routine
-**/
-static int _threadRoutinePM(gckGALDEVICE Device, gckHARDWARE Hardware)
-{
-    gceCHIPPOWERSTATE state;
-
-    for(;;)
-    {
-        /* wait for idle */
-        gcmkVERIFY_OK(
-            gckOS_WaitSignal(Device->os, Hardware->powerOffSignal, gcvINFINITE));
-
-        /* We try to power off every 200 ms, until GPU is not idle */
-        do
-        {
-            if (Device->killThread == gcvTRUE)
-            {
-                /* The daemon exits. */
-                while (!kthread_should_stop())
-                {
-                    gckOS_Delay(Device->os, 1);
-                }
-                return 0;
-            }
-
-            gcmkVERIFY_OK(
-                gckHARDWARE_SetPowerManagementState(
-                    Hardware,
-                    gcvPOWER_OFF_TIMEOUT));
-
-            /* relax cpu 200 ms before retry */
-            gckOS_Delay(Device->os, 200);
-
-            gcmkVERIFY_OK(
-                gckHARDWARE_QueryPowerManagementState(Hardware, &state));
-        }
-        while (state == gcvPOWER_IDLE);
-    }
-}
-
-static int threadRoutinePM(void *ctxt)
-{
-    gckGALDEVICE device = (gckGALDEVICE) ctxt;
-    gckHARDWARE hardware = device->kernels[gcvCORE_MAJOR]->hardware;
-
-    return _threadRoutinePM(device, hardware);
-}
-
-static int threadRoutinePM_2D(void *ctxt)
-{
-    gckGALDEVICE device = (gckGALDEVICE) ctxt;
-    gckHARDWARE hardware = device->kernels[gcvCORE_2D]->hardware;
-
-    return _threadRoutinePM(device, hardware);
-}
-#endif
 
 /******************************************************************************\
 ******************************* gckGALDEVICE Code ******************************
@@ -1398,25 +1339,6 @@ gckGALDEVICE_Start_Threads(
 
         Device->threadCtxts[gcvCORE_MAJOR]          = task;
         Device->threadInitializeds[gcvCORE_MAJOR]   = gcvTRUE;
-
-#if gcdPOWEROFF_TIMEOUT
-        /* Start the kernel thread. */
-        task = kthread_run(threadRoutinePM, Device, "galcore pm thread");
-
-        if (IS_ERR(task))
-        {
-            gcmkTRACE_ZONE(
-                gcvLEVEL_ERROR, gcvZONE_DRIVER,
-                "%s(%d): Could not start the kernel thread.\n",
-                __FUNCTION__, __LINE__
-                );
-
-            gcmkONERROR(gcvSTATUS_GENERIC_IO);
-        }
-
-        Device->pmThreadCtxts[gcvCORE_MAJOR]          = task;
-        Device->pmThreadInitializeds[gcvCORE_MAJOR]   = gcvTRUE;
-#endif
     }
 
     if (Device->kernels[gcvCORE_2D] != gcvNULL)
@@ -1437,25 +1359,6 @@ gckGALDEVICE_Start_Threads(
 
         Device->threadCtxts[gcvCORE_2D]         = task;
         Device->threadInitializeds[gcvCORE_2D]  = gcvTRUE;
-
-#if gcdPOWEROFF_TIMEOUT
-        /* Start the kernel thread. */
-        task = kthread_run(threadRoutinePM_2D, Device, "galcore pm 2d thread");
-
-        if (IS_ERR(task))
-        {
-            gcmkTRACE_ZONE(
-                gcvLEVEL_ERROR, gcvZONE_DRIVER,
-                "%s(%d): Could not start the kernel thread.\n",
-                __FUNCTION__, __LINE__
-                );
-
-            gcmkONERROR(gcvSTATUS_GENERIC_IO);
-        }
-
-        Device->pmThreadCtxts[gcvCORE_2D]          = task;
-        Device->pmThreadInitializeds[gcvCORE_2D]   = gcvTRUE;
-#endif
     }
     else
     {
@@ -1537,20 +1440,6 @@ gckGALDEVICE_Stop_Threads(
             Device->threadCtxts[i]        = gcvNULL;
             Device->threadInitializeds[i] = gcvFALSE;
         }
-
-#if gcdPOWEROFF_TIMEOUT
-        /* Stop the kernel threads. */
-        if (Device->pmThreadInitializeds[i])
-        {
-            gckHARDWARE hardware = Device->kernels[i]->hardware;
-            Device->killThread = gcvTRUE;
-            gckOS_Signal(Device->os, hardware->powerOffSignal, gcvTRUE);
-
-            kthread_stop(Device->pmThreadCtxts[i]);
-            Device->pmThreadCtxts[i]        = gcvNULL;
-            Device->pmThreadInitializeds[i] = gcvFALSE;
-        }
-#endif
     }
 
     gcmkFOOTER_NO();

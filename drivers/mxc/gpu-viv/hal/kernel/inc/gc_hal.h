@@ -64,6 +64,12 @@ extern "C" {
 )
 
 /******************************************************************************\
+******************************** Useful Macro *********************************
+\******************************************************************************/
+
+#define gcvINVALID_ADDRESS          ~0U
+
+/******************************************************************************\
 ******************************** gcsOBJECT Object *******************************
 \******************************************************************************/
 
@@ -1026,18 +1032,9 @@ gckOS_UnmapSignal(
 gceSTATUS
 gckOS_MapUserMemory(
     IN gckOS Os,
-    IN gctPOINTER Memory,
-    IN gctSIZE_T Size,
-    OUT gctPOINTER * Info,
-    OUT gctUINT32_PTR Address
-    );
-
-/* Map user memory. */
-gceSTATUS
-gckOS_MapUserMemoryEx(
-    IN gckOS Os,
     IN gceCORE Core,
     IN gctPOINTER Memory,
+    IN gctUINT32 Physical,
     IN gctSIZE_T Size,
     OUT gctPOINTER * Info,
     OUT gctUINT32_PTR Address
@@ -1046,16 +1043,6 @@ gckOS_MapUserMemoryEx(
 /* Unmap user memory. */
 gceSTATUS
 gckOS_UnmapUserMemory(
-    IN gckOS Os,
-    IN gctPOINTER Memory,
-    IN gctSIZE_T Size,
-    IN gctPOINTER Info,
-    IN gctUINT32 Address
-    );
-
-/* Unmap user memory. */
-gceSTATUS
-gckOS_UnmapUserMemoryEx(
     IN gckOS Os,
     IN gceCORE Core,
     IN gctPOINTER Memory,
@@ -1305,6 +1292,43 @@ gceSTATUS
 gckOS_ReleaseSemaphore(
     IN gckOS Os,
     IN gctPOINTER Semaphore
+    );
+
+/*******************************************************************************
+** Timer API.
+*/
+
+typedef void (*gctTIMERFUNCTION)(gctPOINTER);
+
+/* Create a timer. */
+gceSTATUS
+gckOS_CreateTimer(
+    IN gckOS Os,
+    IN gctTIMERFUNCTION Function,
+    IN gctPOINTER Data,
+    OUT gctPOINTER * Timer
+    );
+
+/* Destory a timer. */
+gceSTATUS
+gckOS_DestoryTimer(
+    IN gckOS Os,
+    IN gctPOINTER Timer
+    );
+
+/* Start a timer. */
+gceSTATUS
+gckOS_StartTimer(
+    IN gckOS Os,
+    IN gctPOINTER Timer,
+    IN gctUINT32 Delay
+    );
+
+/* Stop a timer. */
+gceSTATUS
+gckOS_StopTimer(
+    IN gckOS Os,
+    IN gctPOINTER Timer
     );
 
 /******************************************************************************\

@@ -228,6 +228,8 @@ typedef struct _gcsHAL_QUERY_CHIP_IDENTITY
 	/* Buffer size */
 	gctUINT32                   bufferSize;
 
+	/* Number of varyings */
+	gctUINT32                   varyingsCount;
 }
 gcsHAL_QUERY_CHIP_IDENTITY;
 
@@ -496,6 +498,9 @@ typedef struct _gcsHAL_INTERFACE
         {
             /* Base address of user memory to map. */
             IN gctPOINTER               memory;
+
+            /* Physical address of user memory to map. */
+            IN gctUINT32                physical;
 
             /* Size of user memory in bytes to map. */
             IN gctSIZE_T                size;
