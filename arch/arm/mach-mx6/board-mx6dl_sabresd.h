@@ -384,4 +384,10 @@ static iomux_v3_cfg_t mx6dl_sabresd_epdc_disable_pads[] = {
 	 */
 };
 
+static iomux_v3_cfg_t mx6dl_arm2_elan_pads[] = {
+	MX6DL_PAD_EIM_A20__GPIO_2_18,
+	MX6DL_PAD_EIM_DA8__GPIO_3_8,
+	MX6DL_PAD_EIM_D28__GPIO_3_28,
+};
+
 #endif

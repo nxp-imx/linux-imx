@@ -193,6 +193,9 @@
 #define SABRESD_EPDC_VCOM	IMX_GPIO_NR(3, 17)
 #define SABRESD_CHARGE_NOW	IMX_GPIO_NR(1, 2)
 #define SABRESD_CHARGE_DONE	IMX_GPIO_NR(1, 1)
+#define SABRESD_ELAN_CE		IMX_GPIO_NR(2, 18)
+#define SABRESD_ELAN_RST	IMX_GPIO_NR(3, 8)
+#define SABRESD_ELAN_INT	IMX_GPIO_NR(3, 28)
 
 static struct clk *sata_clk;
 static int mma8451_position = 3;
@@ -789,6 +792,9 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		I2C_BOARD_INFO("isl29023", 0x44),
 		.irq  = gpio_to_irq(SABRESD_ALS_INT),
 		.platform_data = &ls_data,
+	}, {
+		I2C_BOARD_INFO("elan-touch", 0x10),
+		.irq = gpio_to_irq(SABRESD_ELAN_INT),
 	},
 };
 
@@ -1721,6 +1727,25 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_busfreq();
 
 	imx6q_add_pcie(&mx6_sabresd_pcie_data);
+	if (cpu_is_mx6dl()) {
+		mxc_iomux_v3_setup_multiple_pads(mx6dl_arm2_elan_pads,
+						ARRAY_SIZE(mx6dl_arm2_elan_pads));
+
+		/* ELAN Touchscreen */
+		gpio_request(SABRESD_ELAN_INT, "elan-interrupt");
+		gpio_direction_input(SABRESD_ELAN_INT);
+
+		gpio_request(SABRESD_ELAN_CE, "elan-cs");
+		gpio_direction_output(SABRESD_ELAN_CE, 1);
+		gpio_direction_output(SABRESD_ELAN_CE, 0);
+
+		gpio_request(SABRESD_ELAN_RST, "elan-rst");
+		gpio_direction_output(SABRESD_ELAN_RST, 1);
+		gpio_direction_output(SABRESD_ELAN_RST, 0);
+		mdelay(1);
+		gpio_direction_output(SABRESD_ELAN_RST, 1);
+		gpio_direction_output(SABRESD_ELAN_CE, 1);
+	}
 }
 
 extern void __iomem *twd_base;
