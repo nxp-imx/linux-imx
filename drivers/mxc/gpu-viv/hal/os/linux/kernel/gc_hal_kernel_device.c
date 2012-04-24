@@ -1363,9 +1363,6 @@ gckGALDEVICE_Start_Threads(
     else
     {
         Device->threadInitializeds[gcvCORE_2D]  = gcvFALSE;
-#if gcdPOWEROFF_TIMEOUT
-        Device->pmThreadInitializeds[gcvCORE_2D]   = gcvFALSE;
-#endif
     }
 
     if (Device->kernels[gcvCORE_VG] != gcvNULL)
