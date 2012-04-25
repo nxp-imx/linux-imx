@@ -1714,6 +1714,32 @@ static struct gpmi_nfc_platform_data  gpmi_nfc_platform_data = {
 	.partition_count         = 0,
 };
 
+/* OTP data */
+/* Building up eight registers's names of a bank */
+#define BANK(a, b, c, d, e, f, g, h)	\
+	{\
+	("HW_OCOTP_"#a), ("HW_OCOTP_"#b), ("HW_OCOTP_"#c), ("HW_OCOTP_"#d), \
+	("HW_OCOTP_"#e), ("HW_OCOTP_"#f), ("HW_OCOTP_"#g), ("HW_OCOTP_"#h) \
+	}
+
+#define BANKS		(5)
+#define BANK_ITEMS	(8)
+static const char *bank_reg_desc[BANKS][BANK_ITEMS] = {
+	BANK(LOCK, CFG0, CFG1, CFG2, CFG3, CFG4, CFG5, CFG6),
+	BANK(MEM0, MEM1, MEM2, MEM3, MEM4, MEM5, GP0, GP1),
+	BANK(SCC0, SCC1, SCC2, SCC3, SCC4, SCC5, SCC6, SCC7),
+	BANK(SRK0, SRK1, SRK2, SRK3, SRK4, SRK5, SRK6, SRK7),
+	BANK(SJC0, SJC1, MAC0, MAC1, HWCAP0, HWCAP1, HWCAP2, SWCAP),
+};
+
+static struct fsl_otp_data otp_data = {
+	.fuse_name	= (char **)bank_reg_desc,
+	.fuse_num	= BANKS * BANK_ITEMS,
+};
+#undef BANK
+#undef BANKS
+#undef BANK_ITEMS
+
 static void fec_gpio_iomux_init()
 {
 	iomux_v3_cfg_t iomux_setting;
@@ -2054,6 +2080,7 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&gpmi_nfc_device, &gpmi_nfc_platform_data);
 	mx5_usb_dr_init();
 	mx5_usbh1_init();
+	mxc_register_device(&fsl_otp_device, &otp_data);
 	mxc_register_device(&mxc_perfmon, &mxc_perfmon_data);
 }
 
