@@ -351,6 +351,7 @@ static DECLARE_WAIT_QUEUE_HEAD(thread_waitq);
 static DECLARE_WAIT_QUEUE_HEAD(res_waitq);
 static atomic_t req_cnt;
 static int major;
+static int max_ipu_no;
 static int thread_id;
 static atomic_t frame_no;
 static struct class *ipu_class;
@@ -1147,7 +1148,7 @@ static int _get_vdoa_ipu_res(struct ipu_task_entry *t)
 		}
 	}
 
-	for (i = 0; i < MXC_IPU_MAX_NUM; i++) {
+	for (i = 0; i < max_ipu_no; i++) {
 		ipu = ipu_get_soc(i);
 		if (IS_ERR(ipu))
 			BUG();
@@ -1176,7 +1177,7 @@ static int _get_vdoa_ipu_res(struct ipu_task_entry *t)
 	if (found_ipu)
 		goto next;
 
-	for (i = 0; i < MXC_IPU_MAX_NUM; i++) {
+	for (i = 0; i < max_ipu_no; i++) {
 		ipu = ipu_get_soc(i);
 		if (IS_ERR(ipu))
 			BUG();
@@ -1704,7 +1705,7 @@ static int init_tiled_buf(struct ipu_soc *ipu, struct ipu_task_entry *t,
 		return -EINVAL;
 	else if (param.band_mode)
 		param.band_lines = (1 << t->set.band_lines);
-	for (i = 0; i < MXC_IPU_MAX_NUM; i++) {
+	for (i = 0; i < max_ipu_no; i++) {
 		ipu_idx = ipu_get_soc(i);
 		if (!IS_ERR(ipu_idx) && ipu_idx == ipu)
 			break;
@@ -1712,7 +1713,7 @@ static int init_tiled_buf(struct ipu_soc *ipu, struct ipu_task_entry *t,
 	if (t->set.task & VDOA_ONLY)
 		/* dummy, didn't need ipu res */
 		i = 0;
-	if (MXC_IPU_MAX_NUM == i) {
+	if (max_ipu_no == i) {
 		dev_err(t->dev, "ERR:[0x%p] get ipu num\n", t);
 		return -EINVAL;
 	}
@@ -2885,7 +2886,7 @@ static void wait_split_task_complete(struct ipu_task_entry *parent,
 out:
 	if (ret == -ETIMEDOUT) {
 		/* debug */
-		for (k = 0; k < MXC_IPU_MAX_NUM; k++) {
+		for (k = 0; k < max_ipu_no; k++) {
 			ipu = ipu_get_soc(k);
 			if (IS_ERR(ipu)) {
 				BUG();
@@ -3409,6 +3410,7 @@ int register_ipu_device(struct ipu_soc *ipu, int id)
 
 		mutex_init(&ipu_ch_tbl.lock);
 	}
+	max_ipu_no = ++id;
 	ipu->rot_dma[0].size = 0;
 	ipu->rot_dma[1].size = 0;
 
