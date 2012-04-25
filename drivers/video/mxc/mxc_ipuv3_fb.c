@@ -315,15 +315,6 @@ static int mxcfb_set_par(struct fb_info *fbi)
 
 	dev_dbg(fbi->device, "Reconfiguring framebuffer\n");
 
-	if (mxc_fbi->dispdrv && mxc_fbi->dispdrv->drv->setup) {
-		retval = mxc_fbi->dispdrv->drv->setup(mxc_fbi->dispdrv, fbi);
-		if (retval < 0) {
-			dev_err(fbi->device, "setup error, dispdrv:%s.\n",
-					mxc_fbi->dispdrv->drv->name);
-			return -EINVAL;
-		}
-	}
-
 	ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 	ipu_disable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 	ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_nf_irq);
@@ -389,6 +380,15 @@ static int mxcfb_set_par(struct fb_info *fbi)
 
 	if (mxc_fbi->next_blank != FB_BLANK_UNBLANK)
 		return retval;
+
+	if (mxc_fbi->dispdrv && mxc_fbi->dispdrv->drv->setup) {
+		retval = mxc_fbi->dispdrv->drv->setup(mxc_fbi->dispdrv, fbi);
+		if (retval < 0) {
+			dev_err(fbi->device, "setup error, dispdrv:%s.\n",
+					mxc_fbi->dispdrv->drv->name);
+			return -EINVAL;
+		}
+	}
 
 	_setup_disp_channel1(fbi);
 
