@@ -1055,7 +1055,16 @@ static struct snd_kcontrol_new mxc_spdif_ctrls[] = {
 static int mxc_spdif_startup(struct snd_pcm_substream *substream,
 			     struct snd_soc_dai *dai)
 {
+	struct snd_soc_codec *codec = dai->codec;
+	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
+	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
 	int ret;
+
+	/* enable spdif_xtal_clk */
+	clk_enable(plat_data->spdif_core_clk);
+	spdif_softreset();
+	/* disable all the interrupts */
+	spdif_intr_enable(0xffffff, 0);
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		ret = mxc_spdif_playback_startup(substream, dai);
@@ -1068,12 +1077,18 @@ static int mxc_spdif_startup(struct snd_pcm_substream *substream,
 static void mxc_spdif_shutdown(struct snd_pcm_substream *substream,
 			       struct snd_soc_dai *dai)
 {
+	struct snd_soc_codec *codec = dai->codec;
+	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
+	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
 	int ret;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		ret = mxc_spdif_playback_shutdown(substream, dai);
 	else
 		ret = mxc_spdif_capture_shutdown(substream, dai);
+	/* disable spdif_core clock  */
+	clk_put(plat_data->spdif_clk);
+	clk_disable(plat_data->spdif_core_clk);
 }
 
 static int mxc_spdif_prepare(struct snd_pcm_substream *substream,
@@ -1252,13 +1267,6 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 
 	atomic_set(&spdif_priv->dpll_locked, 0);
 
-	/* spdif_xtal_clk */
-	clk_enable(plat_data->spdif_core_clk);
-	spdif_softreset();
-
-	/* disable all the interrupts */
-	spdif_intr_enable(0xffffff, 0);
-
 	/* spdif interrupt register and disable */
 	irq = platform_get_irq(pdev, 0);
 	if ((irq <= 0) || request_irq(irq, spdif_isr, 0, "spdif", spdif_priv)) {
@@ -1292,12 +1300,8 @@ failed_clk:
 static int __devexit mxc_spdif_remove(struct platform_device *pdev)
 {
 	struct mxc_spdif_priv *spdif_priv = platform_get_drvdata(pdev);
-	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
 
 	snd_soc_unregister_codec(&pdev->dev);
-
-	clk_put(plat_data->spdif_clk);
-	clk_disable(plat_data->spdif_core_clk);
 
 	platform_set_drvdata(pdev, NULL);
 	kfree(spdif_priv);
