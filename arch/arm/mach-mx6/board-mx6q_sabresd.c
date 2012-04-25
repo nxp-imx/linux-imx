@@ -191,6 +191,8 @@
 #define SABRESD_EPDC_PMIC_WAKE	IMX_GPIO_NR(3, 20)
 #define SABRESD_EPDC_PMIC_INT	IMX_GPIO_NR(2, 25)
 #define SABRESD_EPDC_VCOM	IMX_GPIO_NR(3, 17)
+#define SABRESD_CHARGE_NOW	IMX_GPIO_NR(1, 2)
+#define SABRESD_CHARGE_DONE	IMX_GPIO_NR(1, 1)
 
 static struct clk *sata_clk;
 static int mma8451_position = 3;
@@ -1370,6 +1372,51 @@ static void gps_power_on(bool on)
 	gpio_free(SABRESD_GPS_EN);
 
 }
+
+#if defined(CONFIG_LEDS_TRIGGER) || defined(CONFIG_LEDS_GPIO)
+
+#define GPIO_LED(gpio_led, name_led, act_low, state_suspend, trigger)	\
+{									\
+	.gpio			= gpio_led,				\
+	.name			= name_led,				\
+	.active_low		= act_low,				\
+	.retain_state_suspended = state_suspend,			\
+	.default_state		= 0,					\
+	.default_trigger	= "max8903-"trigger,		\
+}
+
+/* use to show a external power source is connected
+ * GPIO_LED(SABRESD_CHARGE_DONE, "chg_detect", 0, 1, "ac-online"),
+ */
+static struct gpio_led imx6q_gpio_leds[] = {
+	GPIO_LED(SABRESD_CHARGE_NOW, "chg_now_led", 0, 1,
+		"charger-charging"),
+	GPIO_LED(SABRESD_CHARGE_DONE, "chg_done_led", 0, 1,
+			"charger-full"),
+};
+
+static struct gpio_led_platform_data imx6q_gpio_leds_data = {
+	.leds		= imx6q_gpio_leds,
+	.num_leds	= ARRAY_SIZE(imx6q_gpio_leds),
+};
+
+static struct platform_device imx6q_gpio_led_device = {
+	.name		= "leds-gpio",
+	.id		= -1,
+	.num_resources  = 0,
+	.dev		= {
+		.platform_data = &imx6q_gpio_leds_data,
+	}
+};
+
+static void __init imx6q_add_device_gpio_leds(void)
+{
+	platform_device_register(&imx6q_gpio_led_device);
+}
+#else
+static void __init imx6q_add_device_gpio_leds(void) {}
+#endif
+
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
 #define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
 {								\
@@ -1555,6 +1602,8 @@ static void __init mx6_sabresd_board_init(void)
 		strcpy(mxc_i2c0_board_info[0].type, "wm8962");
 		mxc_i2c0_board_info[0].platform_data = &wm8962_config_data;
 	}
+	imx6q_add_device_gpio_leds();
+
 	imx6q_add_imx_i2c(0, &mx6q_sabresd_i2c_data);
 	imx6q_add_imx_i2c(1, &mx6q_sabresd_i2c_data);
 	imx6q_add_imx_i2c(2, &mx6q_sabresd_i2c_data);
