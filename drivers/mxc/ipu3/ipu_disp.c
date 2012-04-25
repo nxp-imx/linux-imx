@@ -997,10 +997,7 @@ void _ipu_dp_dc_disable(struct ipu_soc *ipu, ipu_channel_t channel, bool swap)
 		reg &= ~DC_WR_CH_CONF_PROG_TYPE_MASK;
 		reg ^= DC_WR_CH_CONF_PROG_DI_ID;
 		ipu_dc_write(ipu, reg, DC_WR_CH_CONF(dc_chan));
-	} else
-		/* Clock is already off because it must be done quickly, but
-		   we need to fix the ref count */
-		clk_disable(&ipu->pixel_clk[ipu->dc_di_assignment[dc_chan]]);
+	}
 }
 
 void _ipu_init_dc_mappings(struct ipu_soc *ipu)
