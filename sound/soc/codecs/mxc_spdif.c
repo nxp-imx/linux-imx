@@ -1244,6 +1244,11 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 	}
 
 	plat_data->spdif_clk = clk_get(&pdev->dev, NULL);
+	if (IS_ERR(plat_data->spdif_clk)) {
+		ret = PTR_ERR(plat_data->spdif_clk);
+		dev_err(&pdev->dev, "can't get clock: %d\n", ret);
+		goto failed_clk;
+	}
 
 	atomic_set(&spdif_priv->dpll_locked, 0);
 
@@ -1277,7 +1282,7 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 card_err:
 	clk_put(plat_data->spdif_clk);
 	clk_disable(plat_data->spdif_core_clk);
-
+failed_clk:
 	platform_set_drvdata(pdev, NULL);
 	kfree(spdif_priv);
 
