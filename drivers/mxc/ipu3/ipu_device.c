@@ -2580,7 +2580,7 @@ static void do_task(struct ipu_task_entry *t)
 			ipu->rot_dma[rot_idx].vaddr = dma_alloc_coherent(t->dev,
 						r_size,
 						&ipu->rot_dma[rot_idx].paddr,
-						GFP_DMA | GFP_KERNEL);
+						GFP_KERNEL);
 			CHECK_RETCODE(ipu->rot_dma[rot_idx].vaddr == NULL,
 					"ic_and_rot", STATE_SYS_NO_MEM,
 					chan_setup, -ENOMEM);
@@ -3279,7 +3279,7 @@ static long mxc_ipu_ioctl(struct file *file,
 
 			mem->cpu_addr = dma_alloc_coherent(ipu_dev, size,
 							   &mem->phy_addr,
-							   GFP_DMA);
+							   GFP_KERNEL);
 			if (mem->cpu_addr == NULL) {
 				kfree(mem);
 				return -ENOMEM;
