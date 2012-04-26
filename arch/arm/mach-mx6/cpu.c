@@ -36,7 +36,6 @@ extern unsigned int num_cpu_idle_lock;
 void *mx6_wait_in_iram_base;
 void (*mx6_wait_in_iram)(void);
 extern void mx6_wait(void);
-extern int init_mmdc_settings(void);
 
 struct cpu_op *(*get_cpu_op)(int *op);
 bool enable_wait_mode;
@@ -140,7 +139,6 @@ static int __init post_cpu_init(void)
 
 	num_cpu_idle_lock = 0x0;
 
-	init_mmdc_settings();
 	return 0;
 }
 postcore_initcall(post_cpu_init);

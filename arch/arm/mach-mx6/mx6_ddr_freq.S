@@ -27,7 +27,7 @@
 	ldr     r0, [r6, #0x14]
 	and     r0, r0, #0x2000000
 	cmp     r0, #0x2000000
-	beq	    switch_pre_periph_clk_528
+	beq	    set_ahb_podf_before_switch
 
 	/* Step 1: Change periph_clk to be sourced from pll3_clk. */
 	/* Ensure PLL3 is the source and set the divider to 1. */
@@ -39,6 +39,20 @@
 	bic     r0, r0, #0x38000000
 	str     r0, [r6, #0x14]
 
+	/* Set the AHB dividers before the switch. */
+	/* Don't change AXI clock divider. */
+	/* Set the MMDC_DIV=1, AHB_DIV=4 (need to maintain GPT divider). */
+	ldr     r0, [r6, #0x14]
+	ldr     r2, =0x381D00
+	bic     r0, r0, r2
+	orr     r0, r0, #0xD00
+	str     r0, [r6, #0x14]
+
+wait_div_update528:
+	ldr     r0, [r6, #0x48]
+	cmp     r0, #0
+	bne     wait_div_update528
+
 	/* Now switch periph_clk to pll3_main_clk. */
 	ldr     r0, [r6, #0x14]
 	orr     r0, r0, #0x2000000
@@ -49,25 +63,33 @@ periph_clk_switch3:
 	cmp    r0, #0
 	bne     periph_clk_switch3
 
+	b       switch_pre_periph_clk_528
+
+set_ahb_podf_before_switch:
+	/* Set the AHB dividers before the switch. */
+	/* Especially if the AHB is at 24MHz, divider
+	  * would be at divide by 1 and clock
+	  * would be too fast when switching to PLL3.
+	  */
+	/* Don't change AXI clock divider. */
+	/* Set the MMDC_DIV=1, AHB_DIV=4 (need to maintain GPT divider). */
+	ldr     r0, [r6, #0x14]
+	ldr     r2, =0x381D00
+	bic     r0, r0, r2
+	orr     r0, r0, #0xD00
+	str     r0, [r6, #0x14]
+
+wait_div_update528_1:
+	ldr     r0, [r6, #0x48]
+	cmp     r0, #0
+	bne     wait_div_update528_1
+
 switch_pre_periph_clk_528:
 
 	/* Now switch pre_periph_clk to PLL2_528MHz. */
 	ldr     r0, [r6, #0x18]
 	bic     r0, r0, #0xC0000
 	str     r0, [r6, #0x18]
-
-	/* Set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=4 (need to maintain GPT divider). */
-	ldr     r0, [r6, #0x14]
-	ldr     r2, =0x3F1D00
-	bic     r0, r0, r2
-	orr     r0, r0, #0x10000
-	orr     r0, r0, #0xD00
-	str     r0, [r6, #0x14]
-
-wait_div_update1:
-	ldr     r0, [r6, #0x48]
-	cmp     r0, #0
-	bne     wait_div_update1
 
 	/* Now switch periph_clk back. */
 	ldr     r0, [r6, #0x14]
@@ -82,18 +104,17 @@ periph_clk_switch4:
 	/* Change the GPT divider so that its at 6MHz. */
 	ldr     r0, [r6, #0x1C]
 	bic     r0, r0, #0x3F
-	orr     r0, r0, #0xB
+	orr     r0, r0, #0xA
 	str     r0, [r6, #0x1C]
-
 	.endm
 
 	.macro   switch_to_400MHz
 
 	/* check if periph_clk_sel is already set */
-	ldr     r0, [r6, #0x14]
-	and     r0, r0, #0x2000000
-	cmp 	 r0, #0x2000000
-	beq	 switch_pre_periph_clk_400
+	ldr         r0, [r6, #0x14]
+	and       r0, r0, #0x2000000
+	cmp      r0, #0x2000000
+	beq	     set_ahb_podf_before_switch1
 
 	/* Step 1: Change periph_clk to be sourced from pll3_clk. */
 	/* Ensure PLL3 is the source and set the divider to 1. */
@@ -115,26 +136,34 @@ periph_clk_switch5:
 	cmp    r0, #0
 	bne     periph_clk_switch5
 
+	b       switch_pre_periph_clk_400
+
+set_ahb_podf_before_switch1:
+	/* Set the AHB dividers before the switch. */
+	/* Especially if the AHB is at 24MHz, divider
+	  * would be at divide by 1 and clock
+	  * would be too fast when switching to PLL3.
+	  */
+	/* Don't change AXI clock divider. */
+	/* Set the MMDC_DIV=1, AHB_DIV=4 (need to maintain GPT divider). */
+	ldr     r0, [r6, #0x14]
+	ldr     r2, =0x381D00
+	bic     r0, r0, r2
+	orr     r0, r0, #0xD00
+	str     r0, [r6, #0x14]
+
+wait_div_update400_1:
+	ldr     r0, [r6, #0x48]
+	cmp     r0, #0
+	bne     wait_div_update400_1
+
 switch_pre_periph_clk_400:
 
-    /* Now switch pre_periph_clk to PFD_400MHz. */
+	/* Now switch pre_periph_clk to PFD_400MHz. */
 	ldr     r0, [r6, #0x18]
 	bic     r0, r0, #0xC0000
 	orr     r0, r0, #0x40000
 	str     r0, [r6, #0x18]
-
-	/* Set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=3 (need to maintain GPT divider). */
-	ldr     r0, [r6, #0x14]
-	ldr     r2, =0x3F1D00
-	bic     r0, r0, r2
-	orr     r0, r0, #0x10000
-	orr     r0, r0, #0x900
-	str     r0, [r6, #0x14]
-
-wait_div_update400:
-	ldr     r0, [r6, #0x48]
-	cmp     r0, #0
-	bne     wait_div_update400
 
 	/* Now switch periph_clk back. */
 	ldr     r0, [r6, #0x14]
@@ -146,10 +175,24 @@ periph_clk_switch6:
 	cmp    r0, #0
 	bne     periph_clk_switch6
 
+	/* Change AHB divider so that we are at 400/3=133MHz. */
+	/* Don't change AXI clock divider. */
+	/* Set the MMDC_DIV=1, AHB_DIV=3 (need to maintain GPT divider). */
+	ldr     r0, [r6, #0x14]
+	ldr     r2, =0x381D00
+	bic     r0, r0, r2
+	orr     r0, r0, #0x900
+	str     r0, [r6, #0x14]
+
+wait_div_update400_2:
+	ldr     r0, [r6, #0x48]
+	cmp     r0, #0
+	bne     wait_div_update400_2
+
 	/* Change the GPT divider so that its at 6MHz. */
 	ldr     r0, [r6, #0x1C]
 	bic     r0, r0, #0x3F
-	orr     r0, r0, #0xB
+	orr     r0, r0, #0xA
 	str     r0, [r6, #0x1C]
 
 	.endm
@@ -614,7 +657,7 @@ switch_freq_528:
 
 continue_dll_on:
 
-	/* set step-by-step mode */
+	/* set SBS step-by-step mode */
 	ldr     r0, [r5, #0x410]
 	orr     r0, r0, #0x100
 	str     r0, [r5, #0x410]
@@ -668,7 +711,6 @@ cont5:
 	sub     r1, r1, #1
 	cmp    r1, #0
 	bgt     delay5
-
 	/* Disable dqs pull down in the IOMUX. */
 	/*
 	setmem /32 0x020e05a8 = 0x00000030 // IOMUXC_SW_PAD_CTL_PAD_DRAM_SDQS0 - DSE=110

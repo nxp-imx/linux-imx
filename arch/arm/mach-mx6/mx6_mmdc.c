@@ -227,7 +227,6 @@ int update_ddr_freq(int ddr_rate)
 			/* Set the interrupt to be pending in the GIC. */
 			reg = 1 << (irq_used[cpu] % 32);
 			writel_relaxed(reg, gic_dist_base + GIC_DIST_PENDING_SET + (irq_used[cpu] / 32) * 4);
-			udelay(10);
 		}
 	}
 	while (cpus_in_wfe != online_cpus)
@@ -342,6 +341,8 @@ int init_mmdc_settings(void)
 						SZ_8K, MT_MEMORY_NONCACHED);
 	memcpy(ddr_freq_change_iram_base, mx6_ddr_freq_change, SZ_8K);
 	mx6_change_ddr_freq = (void *)ddr_freq_change_iram_base;
+
+	curr_ddr_rate = ddr_normal_rate;
 
 	for_each_online_cpu(cpu) {
 		/* Set up a reserved interrupt to get all the active cores into a WFE state
