@@ -64,12 +64,22 @@ static int ddr_settings_size;
 static int iomux_settings_size;
 static volatile unsigned int cpus_in_wfe;
 static volatile bool wait_for_ddr_freq_update;
-
+static int curr_ddr_rate;
 
 #define MIN_DLL_ON_FREQ		333000000
 #define MAX_DLL_OFF_FREQ		125000000
 
-unsigned long ddr3_mmdc_regs_offsets[][2] = {
+unsigned long ddr3_dll_mx6q[][2] = {
+	{0x0c, 0x0},
+	{0x10, 0x0},
+	{0x1C, 0x04088032},
+	{0x1C, 0x0408803a},
+	{0x1C, 0x08408030},
+	{0x1C, 0x08408038},
+	{0x818, 0x0},
+};
+
+unsigned long ddr3_calibration[][2] = {
 	{0x83c, 0x0},
 	{0x840, 0x0},
 	{0x483c, 0x0},
@@ -78,6 +88,16 @@ unsigned long ddr3_mmdc_regs_offsets[][2] = {
 	{0x4848, 0x0},
 	{0x850, 0x0},
 	{0x4850, 0x0},
+};
+
+unsigned long ddr3_dll_mx6dl[][2] = {
+	{0x0c, 0x0},
+	{0x10, 0x0},
+	{0x1C, 0x04008032},
+	{0x1C, 0x0400803a},
+	{0x1C, 0x07208030},
+	{0x1C, 0x07208038},
+	{0x818, 0x0},
 };
 
 unsigned long iomux_offsets_mx6q[][2] = {
@@ -90,6 +110,7 @@ unsigned long iomux_offsets_mx6q[][2] = {
 	{0x5B8, 0x0},
 	{0x5C0, 0x0},
 };
+
 unsigned long iomux_offsets_mx6dl[][2] = {
 	{0x4BC, 0x0},
 	{0x4C0, 0x0},
@@ -146,13 +167,14 @@ irqreturn_t wait_in_wfe_irq(int irq, void *dev_id)
 		wfe();
 
 	*((char *)(&cpus_in_wfe) + (u8)me) = 0;
+
 	return IRQ_HANDLED;
 }
 
 /* Change the DDR frequency. */
 int update_ddr_freq(int ddr_rate)
 {
-	int i;
+	int i, j;
 	unsigned int reg;
 	bool dll_off = false;
 	unsigned int online_cpus = 0;
@@ -162,17 +184,26 @@ int update_ddr_freq(int ddr_rate)
 	if (!can_change_ddr_freq())
 		return -1;
 
+	if (ddr_rate == curr_ddr_rate)
+		return 0;
+
 	if (low_bus_freq_mode)
 		dll_off = true;
 
 	iram_ddr_settings[0][0] = ddr_settings_size;
 	iram_iomux_settings[0][0] = iomux_settings_size;
-	if (ddr_rate == ddr_med_rate) {
-		for (i = 0; i < iram_ddr_settings[0][0]; i++) {
+	if (ddr_rate == ddr_med_rate && cpu_is_mx6q()) {
+		for (i = 0; i < ARRAY_SIZE(ddr3_dll_mx6q); i++) {
 			iram_ddr_settings[i + 1][0] =
-					ddr3_400[i][0];
+					normal_mmdc_settings[i][0];
 			iram_ddr_settings[i + 1][1] =
-					ddr3_400[i][1];
+					normal_mmdc_settings[i][1];
+		}
+		for (j = 0, i = ARRAY_SIZE(ddr3_dll_mx6q); i < iram_ddr_settings[0][0]; j++, i++) {
+			iram_ddr_settings[i + 1][0] =
+					ddr3_400[j][0];
+			iram_ddr_settings[i + 1][1] =
+					ddr3_400[j][1];
 		}
 	} else if (ddr_rate == ddr_normal_rate) {
 		for (i = 0; i < iram_ddr_settings[0][0]; i++) {
@@ -190,7 +221,6 @@ int update_ddr_freq(int ddr_rate)
 
 	*((char *)(&cpus_in_wfe) + (u8)me) = 0xff;
 	wait_for_ddr_freq_update = true;
-
 	for_each_online_cpu(cpu) {
 		*((char *)(&online_cpus) + (u8)cpu) = 0xff;
 		if (cpu != me) {
@@ -205,6 +235,8 @@ int update_ddr_freq(int ddr_rate)
 
 	/* Now we can change the DDR frequency. */
 	mx6_change_ddr_freq(ddr_rate, iram_ddr_settings, dll_off, iram_iomux_settings);
+
+	curr_ddr_rate = ddr_rate;
 
 	/* DDR frequency change is done . */
 	wait_for_ddr_freq_update = false;
@@ -229,19 +261,37 @@ int init_mmdc_settings(void)
 	gic_dist_base = ioremap(IC_DISTRIBUTOR_BASE_ADDR, SZ_16K);
 	gic_cpu_base = ioremap(IC_INTERFACES_BASE_ADDR, SZ_16K);
 
-	normal_mmdc_settings = ddr3_mmdc_regs_offsets;
-	ddr_settings_size = ARRAY_SIZE(ddr3_mmdc_regs_offsets);
+	if (cpu_is_mx6q())
+		ddr_settings_size = ARRAY_SIZE(ddr3_dll_mx6q) + ARRAY_SIZE(ddr3_calibration);
+	if (cpu_is_mx6dl())
+		ddr_settings_size = ARRAY_SIZE(ddr3_dll_mx6dl) + ARRAY_SIZE(ddr3_calibration);
+
+	normal_mmdc_settings = kmalloc((ddr_settings_size * 8), GFP_KERNEL);
+	if (cpu_is_mx6q()) {
+		memcpy(normal_mmdc_settings, ddr3_dll_mx6q, sizeof(ddr3_dll_mx6q));
+		memcpy(((char *)normal_mmdc_settings + sizeof(ddr3_dll_mx6q)), ddr3_calibration, sizeof(ddr3_calibration));
+	}
+	if (cpu_is_mx6dl()) {
+		memcpy(normal_mmdc_settings, ddr3_dll_mx6dl, sizeof(ddr3_dll_mx6dl));
+		memcpy(((char *)normal_mmdc_settings + sizeof(ddr3_dll_mx6dl)), ddr3_calibration, sizeof(ddr3_calibration));
+	}
 
 	/* Store the original DDR settings at boot. */
 	for (i = 0; i < ddr_settings_size; i++) {
-		normal_mmdc_settings[i][1] =
-			__raw_readl(mmdc_base
-			+ normal_mmdc_settings[i][0]);
+		/*Writes via command mode register cannot be read back.
+		 * Hence hardcode them in the initial static array.
+		 * This may require modification on a per customer basis.
+		 */
+		if (normal_mmdc_settings[i][0] != 0x1C)
+			normal_mmdc_settings[i][1] =
+				__raw_readl(mmdc_base
+				+ normal_mmdc_settings[i][0]);
 	}
+
 	/* Store the size of the array in iRAM also,
 	 * increase the size by 8 bytes.
 	 */
-	iram_ddr_settings = iram_alloc(ddr_settings_size + 8, &iram_paddr);
+	iram_ddr_settings = iram_alloc((ddr_settings_size * 8) + 8, &iram_paddr);
 	if (iram_ddr_settings == NULL) {
 			printk(KERN_DEBUG
 			"%s: failed to allocate iRAM memory for ddr settings\n",
@@ -249,10 +299,11 @@ int init_mmdc_settings(void)
 			return ENOMEM;
 	}
 
+	iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6q);
 	/* Store the size of the iomux settings in iRAM also,
 	 * increase the size by 8 bytes.
 	 */
-	iram_iomux_settings = iram_alloc(iomux_settings_size + 8, &iram_paddr);
+	iram_iomux_settings = iram_alloc((iomux_settings_size * 8) + 8, &iram_paddr);
 	if (iram_iomux_settings == NULL) {
 			printk(KERN_DEBUG
 			"%s: failed to allocate iRAM memory for iomuxr settings\n",
@@ -262,7 +313,6 @@ int init_mmdc_settings(void)
 
 	/* Store the IOMUX settings at boot. */
 	if (cpu_is_mx6q()) {
-		iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6q);
 		for (i = 0; i < iomux_settings_size; i++) {
 			iomux_offsets_mx6q[i][1] =
 				__raw_readl(iomux_base
@@ -272,8 +322,8 @@ int init_mmdc_settings(void)
 		}
 		irq_used = irqs_used_mx6q;
 	}
+
 	if (cpu_is_mx6dl()) {
-		iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6dl);
 		for (i = 0; i < iomux_settings_size; i++) {
 			iomux_offsets_mx6dl[i][1] =
 				__raw_readl(iomux_base
