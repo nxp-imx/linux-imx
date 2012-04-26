@@ -348,7 +348,7 @@ ddr_freq_change:
 
 	/* set CON_REG */
 	ldr     r0, =0x8000
-		str     r0, [r5, #0x1C]
+	str     r0, [r5, #0x1C]
 poll_conreq_set_1:
 	ldr     r0, [r5, #0x1C]
 	and     r0, r0, #0x4000
@@ -587,7 +587,7 @@ poll_conreq_clear_1:
 dll_on_mode:
 	/* assert DVFS - enter self refresh mode */
 	ldr     r0, [r5, #0x404]
-	orr    	r0, r0, #0x200000
+	orr    r0, r0, #0x200000
 	str     r0, [r5, #0x404]
 
 	/* de-assert CON_REQ */
@@ -632,7 +632,7 @@ poll_dvfs_clear_2:
 
 	/* if DLL is currently off, turn it back on */
 	cmp    	r9, #0
-	beq 	update_calibration
+	beq 	       update_calibration_only
 
 	ldr     r0, =0xa5390003
 	str     r0, [r5, #0x800]
@@ -697,16 +697,17 @@ update_iomux1:
 	@//setmem /32 0x021b0014 = 0x01ff00db               @// MMDC0_MDCFG2 - tRRD - 4ck; tWTR - 4ck; tRTP - 4ck; tDLLK - 512ck
 	@//setmem /32 0x021b0018 = 0x00081740             @// MMDC0_MDMISC, RALAT=0x5 (original value)
 	*/
+	ldr     r9, [r8]             @size of array
+	add   r8, r8, #8             @skip first eight bytes in array
+	ldr    r0, [r8, #0x0]       @ offset
+	ldr    r3, [r8, #0x4]       @ value
+	str    r3, [r5, r0]
+	add   r8, r8, #8
 
-	ldr     r0, [r5, #0x0C]
-	bic     r0, r0, #0xf
-	orr     r0, r0, #0x5
-	str     r0, [r5, #0x0C]
-
-	ldr     r0, [r5, #0x10]
-	bic     r0, r0, #0x7
-	orr     r0, r0, #0x4
-	str     r0, [r5, #0x10]
+	ldr    r0, [r8, #0x0]       @ offset
+	ldr    r3, [r8, #0x4]       @ value
+	str    r3, [r5, r0]
+	add   r8, r8, #8
 
 	/* update MISC register: WALAT, RALAT */
 	ldr       r0, =0x00081740
@@ -762,11 +763,17 @@ cont8:
 	@//setmem /32 0x021b001c = 0x04088032
 	@//setmem /32 0x021b001c = 0x0408803a
 	*/
-	ldr      r0, =0x04088032
-	str      r0, [r5, #0x1C]
+	/* MR2 -  CS0 */
+	ldr    r0, [r8, #0x0]       @ offset
+	ldr    r3, [r8, #0x4]       @ value
+	str    r3, [r5, r0]
+	add   r8, r8, #8
 
-	ldr      r0, =0x0408803a
-	str      r0, [r5, #0x1C]
+	/*MR2 - CS1 */
+	ldr    r0, [r8, #0x0]       @ offset
+	ldr    r3, [r8, #0x4]       @ value
+	str    r3, [r5, r0]
+	add   r8, r8, #8
 
 	ldr      r0, =0x00428031
 	str      r0, [r5, #0x1C]
@@ -778,11 +785,17 @@ cont8:
 	@// setmem /32 0x021b001c = 0x08408030
 	@// setmem /32 0x021b001c = 0x08408038
 	*/
-	ldr       r0, =0x08408030
-	str       r0, [r5, #0x1C]
+	/* MR1 -  CS0 */
+	ldr    r0, [r8, #0x0]       @ offset
+	ldr    r3, [r8, #0x4]       @ value
+	str    r3, [r5, r0]
+	add   r8, r8, #8
 
-	ldr       r0, =0x08408038
-	str       r0, [r5, #0x1C]
+	/*MR1 - CS1 */
+	ldr    r0, [r8, #0x0]       @ offset
+	ldr    r3, [r8, #0x4]       @ value
+	str    r3, [r5, r0]
+	add   r8, r8, #8
 
 	/* issue a zq command
 	@// setmem /32 0x021b001c = 0x04000040
@@ -798,8 +811,11 @@ cont8:
 	@//setmem /32 0x021b0818 = 0x00022225      @// DDR_PHY_P0_MPODTCTRL
 	@//setmem /32 0x021b4818 = 0x00022225      @// DDR_PHY_P1_MPODTCTRL
 	*/
-	ldr       r0, =0x00022225
-	str       r0, [r5, #0x818]
+	ldr    r0, [r8, #0x0]       @ offset
+	ldr    r3, [r8, #0x4]       @ value
+	str    r3, [r5, r0]
+	add   r8, r8, #8
+
 	ldr       r2, =0x4818
 	str       r0, [r5, r2]
 
@@ -827,10 +843,19 @@ cont15:
 	orr    r0, r0, #0x5500
 	str    r0, [r5, #0x4]
 
+	b 	update_calibration
+
+update_calibration_only:
+	ldr     r1, [r8]                  @ size of array
+	sub    r1, r1, #7           @ first 7 entries are not related to calibration
+	add   r8, r8, #64	      @ Skip the first 7 entries that are needed only when DLL was OFF + count entry.
+	b      update_calib
+
 update_calibration:
 	/* Write the new calibration values. */
-	ldr     r1, [r8]             @size of array
-	add   r8, r8, #8             @skip first eight bytes in array
+	mov   r1, r9                 @ size of array
+	sub    r1, r1, #7           @ first 7 entries are not related to calibration
+
 update_calib:
 	ldr    r0, [r8, #0x0]       @ offset
 	ldr    r3, [r8, #0x4]       @ value
