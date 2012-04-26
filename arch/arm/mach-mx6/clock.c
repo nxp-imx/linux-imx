@@ -50,6 +50,9 @@ extern int lp_med_freq;
 extern int lp_audio_freq;
 
 void __iomem *apll_base;
+static struct clk ipu1_clk;
+static struct clk ipu2_clk;
+static struct clk axi_clk;
 static struct clk pll1_sys_main_clk;
 static struct clk pll2_528_bus_main_clk;
 static struct clk pll2_pfd_400M;
@@ -780,6 +783,17 @@ static struct clk pll3_pfd_720M = {
 	.round_rate = pfd_round_rate,
 };
 
+static int pfd_540M_set_rate(struct clk *clk,  unsigned long rate)
+{
+	if ((clk_get_parent(&ipu1_clk) == clk) ||
+		(clk_get_parent(&ipu2_clk) == clk) ||
+		(clk_get_parent(&axi_clk) == clk))
+		WARN(1, "CHANGING rate of 540M PFD when IPU and \
+					AXI is sourced from it \n");
+
+	return pfd_set_rate(clk, rate);
+}
+
 static struct clk pll3_pfd_540M = {
 	__INIT_CLK_DEBUG(pll3_pfd_540M)
 	.parent = &pll3_usb_otg_main_clk,
@@ -787,7 +801,7 @@ static struct clk pll3_pfd_540M = {
 	.enable_shift = ANADIG_PFD1_FRAC_OFFSET,
 	.enable = _clk_pfd_enable,
 	.disable = _clk_pfd_disable,
-	.set_rate = pfd_set_rate,
+	.set_rate = pfd_540M_set_rate,
 	.get_rate = pfd_get_rate,
 	.round_rate = pfd_round_rate,
 	.get_rate = pfd_get_rate,
@@ -2061,7 +2075,7 @@ static struct clk vpu_clk[] = {
 	.set_rate = _clk_vpu_axi_set_rate,
 	.get_rate = _clk_vpu_axi_get_rate,
 	.secondary = &vpu_clk[1],
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	.parent =  &mmdc_ch0_axi_clk[0],
@@ -2151,7 +2165,7 @@ static struct clk ipu1_clk = {
 	.round_rate = _clk_ipu_round_rate,
 	.set_rate = _clk_ipu1_set_rate,
 	.get_rate = _clk_ipu1_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_ipu2_set_parent(struct clk *clk, struct clk *parent)
@@ -2212,7 +2226,7 @@ static struct clk ipu2_clk = {
 	.round_rate = _clk_ipu_round_rate,
 	.set_rate = _clk_ipu2_set_rate,
 	.get_rate = _clk_ipu2_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk usdhc_dep_clk = {
@@ -2785,7 +2799,7 @@ static struct clk ldb_di0_clk = {
 	.set_rate = _clk_ldb_di0_set_rate,
 	.round_rate = _clk_ldb_di_round_rate,
 	.get_rate = _clk_ldb_di0_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ldb_di1_get_rate(struct clk *clk)
@@ -2856,7 +2870,7 @@ static struct clk ldb_di1_clk = {
 	.set_rate = _clk_ldb_di1_set_rate,
 	.round_rate = _clk_ldb_di_round_rate,
 	.get_rate = _clk_ldb_di1_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 
@@ -3049,7 +3063,7 @@ static struct clk ipu1_di_clk[] = {
 	.set_rate = _clk_ipu1_di0_set_rate,
 	.round_rate = _clk_ipu_di_round_rate,
 	.get_rate = _clk_ipu1_di0_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	 __INIT_CLK_DEBUG(ipu1_di_clk_1)
@@ -3063,7 +3077,7 @@ static struct clk ipu1_di_clk[] = {
 	.set_rate = _clk_ipu1_di1_set_rate,
 	.round_rate = _clk_ipu_di_round_rate,
 	.get_rate = _clk_ipu1_di1_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 };
 
@@ -3226,7 +3240,7 @@ static struct clk ipu2_di_clk[] = {
 	.set_rate = _clk_ipu2_di0_set_rate,
 	.round_rate = _clk_ipu_di_round_rate,
 	.get_rate = _clk_ipu2_di0_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	 __INIT_CLK_DEBUG(ipu2_di_clk_1)
@@ -3240,7 +3254,7 @@ static struct clk ipu2_di_clk[] = {
 	.set_rate = _clk_ipu2_di1_set_rate,
 	.round_rate = _clk_ipu_di_round_rate,
 	.get_rate = _clk_ipu2_di1_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 };
 
@@ -5238,12 +5252,23 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		/* on mx6dl gpu2d_axi_clk source from mmdc0 directly */
 		clk_set_parent(&gpu2d_axi_clk, &mmdc_ch0_axi_clk[0]);
 
-		/* set axi_clk parent to pll3_pfd_540M */
-		clk_set_parent(&axi_clk, &pll3_pfd_540M);
+		/* pxp & epdc */
+		clk_set_parent(&ipu2_clk, &pll2_pfd_400M);
+		clk_set_rate(&ipu2_clk, 200000000);
+	} else if (cpu_is_mx6q())
+		/* Donot source IPU from MMDC clock, as it can be scaled. */
+		clk_set_parent(&ipu2_clk, &pll3_pfd_540M);
 
-		/* on mx6dl, max ipu clock is 274M */
-		clk_set_parent(&ipu1_clk, &pll3_pfd_540M);
-	}
+	/* Donot source IPU from MMDC clock, as it can be scaled. */
+	clk_set_parent(&ipu1_clk, &pll3_pfd_540M);
+
+	/* set axi_clk parent to pll3_pfd_540M, don't source from
+	  * periph_clk as it can be scaled.
+	  */
+	clk_set_parent(&axi_clk, &pll3_pfd_540M);
+	/* Need to keep PLL3_PFD_540M enabled until AXI is sourced from it. */
+	clk_enable(&axi_clk);
+
 	if (cpu_is_mx6q())
 		clk_set_parent(&gpu2d_core_clk[0], &pll3_usb_otg_main_clk);
 

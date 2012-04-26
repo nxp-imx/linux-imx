@@ -49,6 +49,11 @@
 #define LPAPM_CLK	24000000
 #define DDR_MED_CLK	400000000
 #define DDR3_NORMAL_CLK	528000000
+#define AXI_CLK_RATE		270000000
+#define GPC_PGC_GPU_PGCR_OFFSET		0x260
+#define GPC_CNTR_OFFSET				0x0
+
+
 
 DEFINE_SPINLOCK(ddr_freq_lock);
 
@@ -74,9 +79,10 @@ unsigned int ddr_normal_rate;
 int low_freq_bus_used(void);
 void set_ddr_freq(int ddr_freq);
 
+extern int init_mmdc_settings(void);
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int update_ddr_freq(int ddr_rate);
-
+extern void __iomem *gpc_base;
 
 struct mutex bus_freq_mutex;
 
@@ -86,6 +92,9 @@ struct timeval end_time;
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
 static struct clk *pll2_400;
+static struct clk *axi_clk;
+static struct clk *periph_clk;
+static struct clk *pll3_540;
 static struct clk *cpu_clk;
 static unsigned int org_ldo;
 static struct clk *pll3;
@@ -117,6 +126,11 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		return;
 	}
 
+	/* Set the axi_clk to be sourced from the periph_clk.
+	  * So that its frequency can be lowered down to 50MHz
+	  * or 24MHz as the case may be. */
+	clk_set_parent(axi_clk, periph_clk);
+
 	clk_enable(pll3);
 
 	if (lp_audio_freq) {
@@ -141,13 +155,23 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 
 	if (cpu_is_mx6q()) {
 		/* Power gate the PU LDO. */
+		/* Power gate the PU domain first. */
+		/* enable power down request */
+		reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+		__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+		/* power down request */
+		reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
+		__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
+		/* Wait for power down to complete. */
+		while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
+			;
+
 		org_ldo = reg = __raw_readl(ANADIG_REG_CORE);
 		reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
 		__raw_writel(reg, ANADIG_REG_CORE);
 	}
 	clk_disable(pll3);
 	mutex_unlock(&bus_freq_mutex);
-
 }
 
 /* Set the DDR, AHB to 24MHz.
@@ -174,6 +198,8 @@ int set_low_bus_freq(void)
  */
 int set_high_bus_freq(int high_bus_freq)
 {
+	unsigned long reg;
+
 	if (busfreq_suspended)
 		return 0;
 
@@ -196,9 +222,30 @@ int set_high_bus_freq(int high_bus_freq)
 	}
 	clk_enable(pll3);
 
+	if (clk_get_parent(axi_clk) != pll3_540) {
+		/* We need to set axi_clk to be sourced from PLL3_540MHz. */
+		/* Ensure the divider is set to divide by 2 before changing the
+		  * parent. */
+		if (low_bus_freq_mode)
+			clk_set_rate(axi_clk, clk_get_rate(axi_clk) / 2);
+		clk_set_parent(axi_clk, pll3_540);
+		clk_set_rate(axi_clk, AXI_CLK_RATE);
+	}
+
 	/* Enable the PU LDO */
-	if (cpu_is_mx6q() && low_bus_freq_mode)
+	if (cpu_is_mx6q() && low_bus_freq_mode) {
 		__raw_writel(org_ldo, ANADIG_REG_CORE);
+
+		/* enable power up request */
+		reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+		__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+		/* power up request */
+		reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
+		__raw_writel(reg | 0x2, gpc_base + GPC_CNTR_OFFSET);
+		/* Wait for the power up bit to clear */
+		while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x2)
+			;
+	}
 
 	if (high_bus_freq) {
 		update_ddr_freq(ddr_normal_rate);
@@ -308,7 +355,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 
 	pll2_400 = clk_get(NULL, "pll2_pfd_400M");
 	if (IS_ERR(pll2_400)) {
-		printk(KERN_DEBUG "%s: failed to get axi_clk\n",
+		printk(KERN_DEBUG "%s: failed to get pll2_pfd_400M\n",
 		       __func__);
 		return PTR_ERR(pll2_400);
 	}
@@ -321,6 +368,32 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	}
 
 	pll3 = clk_get(NULL, "pll3_main_clk");
+	if (IS_ERR(pll3)) {
+		printk(KERN_DEBUG "%s: failed to get pll3\n",
+		       __func__);
+		return PTR_ERR(cpu_clk);
+	}
+
+	axi_clk = clk_get(NULL, "axi_clk");
+	if (IS_ERR(axi_clk)) {
+		printk(KERN_DEBUG "%s: failed to get axi_clk\n",
+		       __func__);
+		return PTR_ERR(axi_clk);
+	}
+
+	periph_clk = clk_get(NULL, "periph_clk");
+	if (IS_ERR(periph_clk)) {
+		printk(KERN_DEBUG "%s: failed to get periph_clk\n",
+		       __func__);
+		return PTR_ERR(periph_clk);
+	}
+
+	pll3_540 = clk_get(NULL, "pll3_pfd_540M");
+	if (IS_ERR(pll3_540)) {
+		printk(KERN_DEBUG "%s: failed to get periph_clk\n",
+		       __func__);
+		return PTR_ERR(pll3_540);
+	}
 
 	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
 	if (err) {
@@ -349,6 +422,8 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&low_bus_freq_handler, reduce_bus_freq_handler);
 
 	mutex_init(&bus_freq_mutex);
+
+	init_mmdc_settings();
 
 	return 0;
 }
