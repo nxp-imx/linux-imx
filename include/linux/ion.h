@@ -341,4 +341,12 @@ struct ion_custom_data {
  */
 #define ION_IOC_CUSTOM		_IOWR(ION_IOC_MAGIC, 6, struct ion_custom_data)
 
+/**
+ * DOC: ION_IOC_PHYS - get allocated memory physical address
+ *
+ * Takes an ion_fd_data struct with the handle field populated with a valid
+ * opaque handle.  Returns the address
+ */
+#define ION_IOC_PHYS		_IOWR(ION_IOC_MAGIC, 7, struct ion_fd_data)
+
 #endif /* _LINUX_ION_H */

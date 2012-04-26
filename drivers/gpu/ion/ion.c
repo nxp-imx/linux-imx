@@ -1013,6 +1013,21 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		return dev->custom_ioctl(client, data.cmd, data.arg);
 	}
+	case ION_IOC_PHYS:
+	{
+		struct ion_handle_data data;
+		ion_phys_addr_t phys;
+		int len;
+		bool valid;
+
+		if (copy_from_user(&data, (void __user *)arg,
+				   sizeof(struct ion_handle_data)))
+			return -EFAULT;
+		valid = ion_phys(client, data.handle, &phys, &len);
+		if (valid)
+			return 0;
+		return phys;
+	}
 	default:
 		return -ENOTTY;
 	}

@@ -4,6 +4,12 @@ menuconfig ION
 	help
 	  Chose this option to enable the ION Memory Manager.
 
+config ION_MXC
+	tristate "Ion for MXC"
+	depends on ARCH_MXC && ION
+	help
+	  Choose this option if you wish to use ion on an Freescale MXC.
+
 config ION_TEGRA
 	tristate "Ion for Tegra"
 	depends on ARCH_TEGRA && ION
