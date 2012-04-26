@@ -351,13 +351,13 @@ static int mxcfb_set_par(struct fb_info *fbi)
 					dma_alloc_coherent(fbi->device,
 						  alpha_mem_len,
 						  &mxc_fbi->alpha_phy_addr0,
-						  GFP_DMA | GFP_KERNEL);
+						  GFP_KERNEL);
 
 			mxc_fbi->alpha_virt_addr1 =
 					dma_alloc_coherent(fbi->device,
 						  alpha_mem_len,
 						  &mxc_fbi->alpha_phy_addr1,
-						  GFP_DMA | GFP_KERNEL);
+						  GFP_KERNEL);
 			if (mxc_fbi->alpha_virt_addr0 == NULL ||
 			    mxc_fbi->alpha_virt_addr1 == NULL) {
 				dev_err(fbi->device, "mxcfb: dma alloc for"
@@ -1036,7 +1036,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 
 			mem->cpu_addr = dma_alloc_coherent(fbi->device, size,
 							   &mem->phy_addr,
-							   GFP_DMA);
+							   GFP_KERNEL);
 			if (mem->cpu_addr == NULL) {
 				kfree(mem);
 				return -ENOMEM;
@@ -1576,7 +1576,7 @@ static int mxcfb_map_video_memory(struct fb_info *fbi)
 	fbi->screen_base = dma_alloc_writecombine(fbi->device,
 				fbi->fix.smem_len,
 				(dma_addr_t *)&fbi->fix.smem_start,
-				GFP_DMA);
+				GFP_KERNEL);
 	if (fbi->screen_base == 0) {
 		dev_err(fbi->device, "Unable to allocate framebuffer memory\n");
 		fbi->fix.smem_len = 0;
