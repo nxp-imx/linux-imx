@@ -196,6 +196,8 @@ static struct clk *sata_clk;
 static int mma8451_position = 3;
 static int mag3110_position;
 static int disable_ldb;
+static int max11801_mode = 1;
+
 
 extern char *gp_reg_id;
 extern int epdc_enabled;
@@ -760,6 +762,10 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("egalax_ts", 0x4),
 		.irq = gpio_to_irq(SABRESD_CAP_TCH_INT0),
+	},
+	{
+		I2C_BOARD_INFO("max11801", 0x48),
+		.platform_data = (void *)&max11801_mode,
 	},
 };
 
@@ -1566,7 +1572,6 @@ static void __init mx6_sabresd_board_init(void)
 		gpio_direction_input(SABRESD_PFUZE_INT);
 		mx6q_sabresd_init_pfuze100(SABRESD_PFUZE_INT);
 	}
-
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabresd_spi_data);
 	spi_device_init();
