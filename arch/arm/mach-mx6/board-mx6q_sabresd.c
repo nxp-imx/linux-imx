@@ -45,13 +45,13 @@
 #include <linux/fec.h>
 #include <linux/memblock.h>
 #include <linux/gpio.h>
+#include <linux/ion.h>
 #include <linux/etherdevice.h>
 #include <linux/power/max8903_charger.h>
 #include <linux/regulator/anatop-regulator.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
-#include <linux/android_pmem.h>
 #include <linux/mfd/max17135.h>
 #include <linux/mfd/wm8994/pdata.h>
 #include <linux/mfd/wm8994/gpio.h>
@@ -77,7 +77,6 @@
 #include <asm/mach/time.h>
 
 #include "usb.h"
-#include "android.h"
 #include "devices-imx6q.h"
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
@@ -1277,9 +1276,16 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 	},
 };
 
-static struct android_pmem_platform_data android_pmem_data = {
-       .name = "pmem_adsp",
-       .size = SZ_64M,
+static struct ion_platform_data imx_ion_data = {
+	.nr = 1,
+	.heaps = {
+		{
+		.id = 0,
+		.type = ION_HEAP_TYPE_CARVEOUT,
+		.name = "vpu_ion",
+		.size = SZ_64M,
+		},
+	},
 };
 
 static void sabresd_suspend_enter(void)
@@ -1454,13 +1460,6 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 
 	for_each_tag(t, tags) {
 		if (t->hdr.tag == ATAG_CMDLINE) {
-			str = t->u.cmdline.cmdline;
-			str = strstr(str, "pmem=");
-			if (str != NULL) {
-				str += 5;
-				android_pmem_data.size = memparse(str, &str);
-			}
-
 			str = t->u.cmdline.cmdline;
 			str = strstr(str, "fbmem=");
 			if (str != NULL) {
@@ -1651,7 +1650,8 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_dvfs_core(&sabresd_dvfscore_data);
 	mx6_cpu_regulator_init();
 
-	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
+	imx6q_add_ion(0, &imx_ion_data,
+		sizeof(imx_ion_data) + sizeof(struct ion_platform_heap));
 	imx6q_add_device_buttons();
 
 	/* enable sensor 3v3 and 1v8 */
@@ -1745,14 +1745,12 @@ static void __init mx6q_sabresd_reserve(void)
 		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
 
-#ifdef CONFIG_ANDROID_PMEM
-	if (android_pmem_data.size) {
-		phys = memblock_alloc(android_pmem_data.size, SZ_4K);
-		memblock_free(phys, android_pmem_data.size);
-		memblock_remove(phys, android_pmem_data.size);
-		android_pmem_data.start = phys;
+	if (imx_ion_data.heaps[0].size) {
+		phys = memblock_alloc(imx_ion_data.heaps[0].size, SZ_4K);
+		memblock_free(phys, imx_ion_data.heaps[0].size);
+		memblock_remove(phys, imx_ion_data.heaps[0].size);
+		imx_ion_data.heaps[0].base = phys;
 	}
-#endif
 
 	for (i = 0; i < ARRAY_SIZE(sabresd_fb_data); i++)
 		if (sabresd_fb_data[i].res_size[0]) {

@@ -45,12 +45,12 @@
 #include <linux/fec.h>
 #include <linux/memblock.h>
 #include <linux/gpio.h>
+#include <linux/ion.h>
 #include <linux/etherdevice.h>
 #include <linux/regulator/anatop-regulator.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
-#include <linux/android_pmem.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -71,7 +71,6 @@
 #include <asm/mach/time.h>
 
 #include "usb.h"
-#include "android.h"
 #include "devices-imx6q.h"
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
@@ -833,14 +832,15 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 	},
 };
 
-static struct android_pmem_platform_data android_pmem_data = {
-       .name = "pmem_adsp",
-       .size = SZ_64M,
-};
-
-static struct android_pmem_platform_data android_pmem_gpu_data = {
-       .name = "pmem_gpu",
-       .size = SZ_32M,
+static struct ion_platform_data imx_ion_data = {
+	.nr = 1,
+	.heaps = {
+		{
+		.type = ION_HEAP_TYPE_CARVEOUT,
+		.name = "vpu_ion",
+		.size = SZ_64M,
+		},
+	},
 };
 
 static void sabrelite_suspend_enter(void)
@@ -1058,17 +1058,6 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	for_each_tag(t, tags) {
 		if (t->hdr.tag == ATAG_CMDLINE) {
 			str = t->u.cmdline.cmdline;
-			str = strstr(str, "pmem=");
-			if (str != NULL) {
-				str += 5;
-				android_pmem_gpu_data.size = memparse(str, &str);
-				if (*str == ',') {
-					str++;
-					android_pmem_data.size = memparse(str, &str);
-				}
-			}
-
-			str = t->u.cmdline.cmdline;
 			str = strstr(str, "fbmem=");
 			if (str != NULL) {
 				str += 6;
@@ -1182,9 +1171,8 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_dvfs_core(&sabrelite_dvfscore_data);
 	mx6_cpu_regulator_init();
 
-	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
-	mxc_register_device(&mxc_android_pmem_gpu_device,
-			    &android_pmem_gpu_data);
+	imx6q_add_ion(0, &imx_ion_data,
+		sizeof(imx_ion_data) + sizeof(struct ion_platform_heap));
 
 	sabrelite_add_device_buttons();
 
@@ -1244,21 +1232,12 @@ static void __init mx6q_sabrelite_reserve(void)
 		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
 
-#ifdef CONFIG_ANDROID_PMEM
-	if (android_pmem_data.size) {
-		phys = memblock_alloc(android_pmem_data.size, SZ_4K);
-		memblock_free(phys, android_pmem_data.size);
-		memblock_remove(phys, android_pmem_data.size);
-		android_pmem_data.start = phys;
+	if (imx_ion_data.heaps[0].size) {
+		phys = memblock_alloc(imx_ion_data.heaps[0].size, SZ_4K);
+		memblock_free(phys, imx_ion_data.heaps[0].size);
+		memblock_remove(phys, imx_ion_data.heaps[0].size);
+		imx_ion_data.heaps[0].base = phys;
 	}
-
-	if (android_pmem_gpu_data.size) {
-		phys = memblock_alloc(android_pmem_gpu_data.size, SZ_4K);
-		memblock_free(phys, android_pmem_gpu_data.size);
-		memblock_remove(phys, android_pmem_gpu_data.size);
-		android_pmem_gpu_data.start = phys;
-	}
-#endif
 
 	for (i = 0; i < ARRAY_SIZE(sabrelite_fb_data); i++)
 		if (sabrelite_fb_data[i].res_size[0]) {

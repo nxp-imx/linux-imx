@@ -49,12 +49,12 @@
 #include <linux/fec.h>
 #include <linux/memblock.h>
 #include <linux/gpio.h>
+#include <linux/ion.h>
 #include <linux/etherdevice.h>
 #include <linux/regulator/anatop-regulator.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
-#include <linux/android_pmem.h>
 #include <sound/pcm.h>
 
 #include <mach/common.h>
@@ -81,7 +81,6 @@
 #include "devices-imx6q.h"
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
-#include "android.h"
 #include "board-mx6q_sabreauto.h"
 #include "board-mx6solo_sabreauto.h"
 
@@ -931,14 +930,15 @@ static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data3 = {
 	.pwm_period_ns		= 50000,
 };
 
-static struct android_pmem_platform_data android_pmem_data = {
-       .name = "pmem_adsp",
-       .size = SZ_64M,
-};
-
-static struct android_pmem_platform_data android_pmem_gpu_data = {
-       .name = "pmem_gpu",
-       .size = SZ_32M,
+static struct ion_platform_data imx_ion_data = {
+	.nr = 1,
+	.heaps = {
+		{
+		.type = ION_HEAP_TYPE_CARVEOUT,
+		.name = "vpu_ion",
+		.size = SZ_64M,
+		},
+	},
 };
 
 /* Backlight PWM for Main board lvds*/
@@ -1230,25 +1230,6 @@ static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
 static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
-	char *str;
-	struct tag *t;
-
-	for_each_tag(t, tags) {
-		if (t->hdr.tag == ATAG_CMDLINE) {
-			str = t->u.cmdline.cmdline;
-			str = strstr(str, "pmem=");
-			if (str != NULL) {
-				str += 5;
-				android_pmem_gpu_data.size = memparse(str, &str);
-				if (*str == ',') {
-					str++;
-					android_pmem_data.size = memparse(str, &str);
-				}
-			}
-
-			break;
-		}
-	}
 }
 
 static int __init early_enable_mipi_sensor(char *p)
@@ -1505,9 +1486,8 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
 
-	mxc_register_device(&mxc_android_pmem_device, &android_pmem_data);
-	mxc_register_device(&mxc_android_pmem_gpu_device,
-			    &android_pmem_gpu_data);
+	imx6q_add_ion(0, &imx_ion_data,
+		sizeof(imx_ion_data) + sizeof(struct ion_platform_heap));
 	imx6q_add_mxc_pwm(2);
 	imx6q_add_mxc_pwm(3);
 	imx6q_add_mxc_pwm_backlight(2, &mx6_arm2_pwm_backlight_data3);
@@ -1563,18 +1543,12 @@ static void __init mx6q_reserve(void)
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
-	if (android_pmem_data.size) {
-		phys = memblock_alloc(android_pmem_data.size, SZ_4K);
-		memblock_free(phys, android_pmem_data.size);
-		memblock_remove(phys, android_pmem_data.size);
-		android_pmem_data.start = phys;
-	}
 
-	if (android_pmem_gpu_data.size) {
-		phys = memblock_alloc(android_pmem_gpu_data.size, SZ_4K);
-		memblock_free(phys, android_pmem_gpu_data.size);
-		memblock_remove(phys, android_pmem_gpu_data.size);
-		android_pmem_gpu_data.start = phys;
+	if (imx_ion_data.heaps[0].size) {
+		phys = memblock_alloc(imx_ion_data.heaps[0].size, SZ_4K);
+		memblock_free(phys, imx_ion_data.heaps[0].size);
+		memblock_remove(phys, imx_ion_data.heaps[0].size);
+		imx_ion_data.heaps[0].base = phys;
 	}
 }
 

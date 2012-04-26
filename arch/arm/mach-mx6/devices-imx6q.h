@@ -216,3 +216,6 @@ extern const struct imx_pcie_data imx6q_pcie_data __initconst;
 
 #define imx6q_add_busfreq(pdata)	imx_add_busfreq(pdata)
 
+#define imx6q_add_ion(id, pdata, size)	\
+	platform_device_register_resndata(NULL, "ion-mxc",\
+			id, NULL, 0, pdata, size);
