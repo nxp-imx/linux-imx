@@ -111,6 +111,7 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		mutex_unlock(&bus_freq_mutex);
 		return;
 	}
+
 	if (audio_bus_freq_mode && lp_audio_freq) {
 		mutex_unlock(&bus_freq_mutex);
 		return;
@@ -131,20 +132,21 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		low_bus_freq_mode = 1;
 		audio_bus_freq_mode = 0;
 	}
+
 	if (med_bus_freq_mode)
 		clk_disable(pll2_400);
 
 	high_bus_freq_mode = 0;
 	med_bus_freq_mode = 0;
 
-	/* Power gate the PU LDO. */
-	org_ldo = reg = __raw_readl(ANADIG_REG_CORE);
-	reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
-	__raw_writel(reg, ANADIG_REG_CORE);
-
-	mutex_unlock(&bus_freq_mutex);
+	if (cpu_is_mx6q()) {
+		/* Power gate the PU LDO. */
+		org_ldo = reg = __raw_readl(ANADIG_REG_CORE);
+		reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
+		__raw_writel(reg, ANADIG_REG_CORE);
+	}
 	clk_disable(pll3);
-
+	mutex_unlock(&bus_freq_mutex);
 
 }
 
@@ -195,7 +197,7 @@ int set_high_bus_freq(int high_bus_freq)
 	clk_enable(pll3);
 
 	/* Enable the PU LDO */
-	if (low_bus_freq_mode)
+	if (cpu_is_mx6q() && low_bus_freq_mode)
 		__raw_writel(org_ldo, ANADIG_REG_CORE);
 
 	if (high_bus_freq) {
@@ -215,8 +217,10 @@ int set_high_bus_freq(int high_bus_freq)
 	low_bus_freq_mode = 0;
 	audio_bus_freq_mode = 0;
 
-	mutex_unlock(&bus_freq_mutex);
+	low_bus_freq_mode = 0;
+
 	clk_disable(pll3);
+	mutex_unlock(&bus_freq_mutex);
 
 	return 0;
 }
