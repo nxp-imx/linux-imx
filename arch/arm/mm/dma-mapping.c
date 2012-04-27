@@ -357,6 +357,18 @@ dma_alloc_writecombine(struct device *dev, size_t size, dma_addr_t *handle, gfp_
 }
 EXPORT_SYMBOL(dma_alloc_writecombine);
 
+/*
+ *  Allocate DMA-writethrough memory space and return both the kernel remapped
+ * virtual and bus address for that space.
+ */
+void *
+dma_alloc_writethrough(struct device *dev, size_t size, dma_addr_t *handle, gfp_t gfp)
+{
+	return __dma_alloc(dev, size, handle, gfp,
+			  pgprot_writethrough(pgprot_kernel));
+}
+EXPORT_SYMBOL(dma_alloc_writethrough);
+
 static int dma_mmap(struct device *dev, struct vm_area_struct *vma,
 		    void *cpu_addr, dma_addr_t dma_addr, size_t size)
 {
