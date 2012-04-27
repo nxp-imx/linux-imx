@@ -46,7 +46,7 @@
 #include <linux/memblock.h>
 #include <linux/gpio.h>
 #include <linux/etherdevice.h>
-#include <linux/power/max8903_charger.h>
+#include <linux/power/max8903_battery.h>
 #include <linux/regulator/anatop-regulator.h>
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
@@ -1626,6 +1626,38 @@ static void __init mx6_sabresd_board_init(void)
 	} else {
 		gpio_direction_input(SABRESD_PFUZE_INT);
 		mx6q_sabresd_init_pfuze100(SABRESD_PFUZE_INT);
+	}
+	/* set DOK gpio input */
+	ret = gpio_request(SABRESD_CHARGE_DOK_B, "max8903-DOK");
+	if (ret) {
+		printk(KERN_ERR"request max8903-DOK error!!\n");
+		return;
+	} else {
+		gpio_direction_input(SABRESD_CHARGE_DOK_B);
+	}
+	/* set UOK gpio input */
+	ret = gpio_request(SABRESD_CHARGE_UOK_B, "max8903-UOK");
+	if (ret) {
+		printk(KERN_ERR"request max8903-UOK error!!\n");
+		return;
+	} else {
+		gpio_direction_input(SABRESD_CHARGE_UOK_B);
+	}
+	/* set FLT gpio input */
+	ret = gpio_request(SABRESD_CHARGE_FLT_1_B, "max8903-FLT");
+	if (ret) {
+		printk(KERN_ERR"request max8903-FLT error!!\n");
+		return;
+	} else {
+		gpio_direction_input(SABRESD_CHARGE_FLT_1_B);
+	}
+	/* set CHG gpio input */
+	ret = gpio_request(SABRESD_CHARGE_CHG_1_B, "max8903-CHG");
+	if (ret) {
+		printk(KERN_ERR"request max8903-CHG error!!\n");
+		return;
+	} else {
+		gpio_direction_input(SABRESD_CHARGE_CHG_1_B);
 	}
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabresd_spi_data);
