@@ -3761,13 +3761,18 @@ gckOS_Delay(
     IN gctUINT32 Delay
     )
 {
-    struct timeval now;
-    unsigned long jiffies;
-
     gcmkHEADER_ARG("Os=0x%X Delay=%u", Os, Delay);
 
     if (Delay > 0)
     {
+#if gcdHIGH_PRECISION_DELAY_ENABLE
+        ktime_t wait = ns_to_ktime(Delay * 1000 * 1000);
+        set_current_state(TASK_INTERRUPTIBLE);
+        schedule_hrtimeout(&wait, HRTIMER_MODE_REL);
+#else
+        struct timeval now;
+        unsigned long jiffies;
+
         /* Convert milliseconds into seconds and microseconds. */
         now.tv_sec  = Delay / 1000;
         now.tv_usec = (Delay % 1000) * 1000;
@@ -3777,6 +3782,7 @@ gckOS_Delay(
 
         /* Schedule timeout. */
         schedule_timeout_interruptible(jiffies);
+#endif
     }
 
     /* Success. */
