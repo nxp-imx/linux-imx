@@ -258,6 +258,7 @@ static int plt_sd3_pad_change(int clock)
 static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.cd_gpio		= SABREAUTO_SD3_CD,
 	.wp_gpio		= SABREAUTO_SD3_WP,
+	.keep_power_at_suspend = 1,
 	.support_18v		= 1,
 	.support_8bit		= 1,
 	.delay_line		= 0,
@@ -267,6 +268,7 @@ static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 static const struct esdhc_platform_data mx6q_sabreauto_sd1_data __initconst = {
 	.cd_gpio = SABREAUTO_SD1_CD,
 	.wp_gpio = SABREAUTO_SD1_WP,
+	.keep_power_at_suspend = 1,
 };
 
 
