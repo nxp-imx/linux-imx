@@ -5320,11 +5320,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	if (cpu_is_mx6dl())
 		clk_set_parent(&mlb150_clk, &pll3_sw_clk);
 
-
-	/* pxp & epdc */
-	clk_set_parent(&ipu2_clk, &pll2_pfd_400M);
-	clk_set_rate(&ipu2_clk, 200000000);
-
 	if (mx6q_revision() == IMX_CHIP_REVISION_1_0) {
 		gpt_clk[0].parent = &ipg_perclk;
 		gpt_clk[0].get_rate = NULL;
@@ -5335,6 +5330,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	}
 
 	if (cpu_is_mx6dl()) {
+		/* pxp & epdc */
+		clk_set_parent(&ipu2_clk, &pll2_pfd_400M);
+		clk_set_rate(&ipu2_clk, 200000000);
 		if (epdc_enabled)
 			clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
 		else
