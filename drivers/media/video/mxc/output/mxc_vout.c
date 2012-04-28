@@ -965,9 +965,12 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 		vout->vdoa_dma.vaddr = dma_alloc_coherent(vout->vbq.dev,
 							vout->vdoa_dma.size,
 							&vout->vdoa_dma.paddr,
-							GFP_DMA | GFP_KERNEL);
-		if (!vout->vdoa_dma.vaddr)
+							GFP_KERNEL);
+		if (!vout->vdoa_dma.vaddr) {
+			v4l2_err(vout->vfd->v4l2_dev,
+				"cannot get vdoa dma buf size:0x%x\n", size);
 			return -ENOMEM;
+		}
 		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
 				"alloc vdoa_dma.size:0x%x, paddr:0x%x\n",
 				vout->vdoa_dma.size,
