@@ -73,6 +73,8 @@
 #include "cpu_op-mx6.h"
 #include "board-mx6sl_arm2.h"
 
+#define MX6_ARM2_USBOTG1_PWR    IMX_GPIO_NR(4, 0)       /* KEY_COL4 */
+#define MX6_ARM2_USBOTG2_PWR    IMX_GPIO_NR(4, 2)       /* KEY_COL5 */
 #define MX6_ARM2_SD1_WP		IMX_GPIO_NR(4, 6)	/* KEY_COL7 */
 #define MX6_ARM2_SD1_CD		IMX_GPIO_NR(4, 7)	/* KEY_ROW7 */
 #define MX6_ARM2_SD2_WP		IMX_GPIO_NR(4, 29)	/* SD2_DAT6 */
@@ -111,6 +113,46 @@ static inline void mx6_arm2_init_uart(void)
 	imx6q_add_sdhci_usdhc_imx(2, &mx6_arm2_sd3_data);
 }
 
+static void imx6_arm2_usbotg_vbus(bool on)
+{
+	if (on)
+		gpio_set_value(MX6_ARM2_USBOTG1_PWR, 1);
+	else
+		gpio_set_value(MX6_ARM2_USBOTG1_PWR, 0);
+}
+
+static void __init mx6_arm2_init_usb(void)
+{
+	int ret = 0;
+
+	imx_otg_base = MX6_IO_ADDRESS(MX6Q_USB_OTG_BASE_ADDR);
+
+	/* disable external charger detect,
+	 * or it will affect signal quality at dp.
+	 */
+
+	ret = gpio_request(MX6_ARM2_USBOTG1_PWR, "usbotg-pwr");
+	if (ret) {
+		pr_err("failed to get GPIO MX6_ARM2_USBOTG1_PWR:%d\n", ret);
+		return;
+	}
+	gpio_direction_output(MX6_ARM2_USBOTG1_PWR, 0);
+
+	ret = gpio_request(MX6_ARM2_USBOTG2_PWR, "usbh1-pwr");
+	if (ret) {
+		pr_err("failed to get GPIO MX6_ARM2_USBOTG2_PWR:%d\n", ret);
+		return;
+	}
+	gpio_direction_output(MX6_ARM2_USBOTG2_PWR, 1);
+
+	mx6_set_otghost_vbus_func(imx6_arm2_usbotg_vbus);
+	mx6_usb_dr_init();
+	mx6_usb_h1_init();
+#ifdef CONFIG_USB_EHCI_ARC_HSIC
+	mx6_usb_h2_init();
+#endif
+}
+
 /*!
  * Board specific initialization.
  */
@@ -119,6 +161,7 @@ static void __init mx6_arm2_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_arm2_pads, ARRAY_SIZE(mx6sl_arm2_pads));
 
 	mx6_arm2_init_uart();
+	mx6_arm2_init_usb();
 }
 
 extern void __iomem *twd_base;
