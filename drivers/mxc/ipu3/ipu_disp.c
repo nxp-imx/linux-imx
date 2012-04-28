@@ -174,44 +174,68 @@ static int _ipu_pixel_clk_set_parent(struct clk *clk, struct clk *parent)
 #else
 #define __INIT_CLK_DEBUG(n)
 #endif
-struct clk ipu_pixel_clk[] = {
+struct clk ipu_pixel_clk[MXC_IPU_MAX_NUM][MXC_DI_NUM_PER_IPU] = {
 	{
-		__INIT_CLK_DEBUG(pixel_clk_0)
-			.id = 0,
-		.get_rate = _ipu_pixel_clk_get_rate,
-		.set_rate = _ipu_pixel_clk_set_rate,
-		.round_rate = _ipu_pixel_clk_round_rate,
-		.set_parent = _ipu_pixel_clk_set_parent,
-		.enable = _ipu_pixel_clk_enable,
-		.disable = _ipu_pixel_clk_disable,
+		{
+		 __INIT_CLK_DEBUG(ipu1_pixel_clk_0)
+		 .id = 0,
+		 .get_rate = _ipu_pixel_clk_get_rate,
+		 .set_rate = _ipu_pixel_clk_set_rate,
+		 .round_rate = _ipu_pixel_clk_round_rate,
+		 .set_parent = _ipu_pixel_clk_set_parent,
+		 .enable = _ipu_pixel_clk_enable,
+		 .disable = _ipu_pixel_clk_disable,
+		},
+		{
+		 __INIT_CLK_DEBUG(ipu1_pixel_clk_1)
+		 .id = 1,
+		 .get_rate = _ipu_pixel_clk_get_rate,
+		 .set_rate = _ipu_pixel_clk_set_rate,
+		 .round_rate = _ipu_pixel_clk_round_rate,
+		 .set_parent = _ipu_pixel_clk_set_parent,
+		 .enable = _ipu_pixel_clk_enable,
+		 .disable = _ipu_pixel_clk_disable,
+		},
 	},
 	{
-		__INIT_CLK_DEBUG(pixel_clk_1)
-			.id = 1,
-		.get_rate = _ipu_pixel_clk_get_rate,
-		.set_rate = _ipu_pixel_clk_set_rate,
-		.round_rate = _ipu_pixel_clk_round_rate,
-		.set_parent = _ipu_pixel_clk_set_parent,
-		.enable = _ipu_pixel_clk_enable,
-		.disable = _ipu_pixel_clk_disable,
+		{
+		 __INIT_CLK_DEBUG(ipu2_pixel_clk_0)
+		 .id = 0,
+		 .get_rate = _ipu_pixel_clk_get_rate,
+		 .set_rate = _ipu_pixel_clk_set_rate,
+		 .round_rate = _ipu_pixel_clk_round_rate,
+		 .set_parent = _ipu_pixel_clk_set_parent,
+		 .enable = _ipu_pixel_clk_enable,
+		 .disable = _ipu_pixel_clk_disable,
+		},
+		{
+		 __INIT_CLK_DEBUG(ipu2_pixel_clk_1)
+		 .id = 1,
+		 .get_rate = _ipu_pixel_clk_get_rate,
+		 .set_rate = _ipu_pixel_clk_set_rate,
+		 .round_rate = _ipu_pixel_clk_round_rate,
+		 .set_parent = _ipu_pixel_clk_set_parent,
+		 .enable = _ipu_pixel_clk_enable,
+		 .disable = _ipu_pixel_clk_disable,
+		},
 	},
 };
 
-struct clk_lookup ipu_lookups[MXC_IPU_MAX_NUM][2] = {
+struct clk_lookup ipu_lookups[MXC_IPU_MAX_NUM][MXC_DI_NUM_PER_IPU] = {
 	{
 		{
-			.con_id = "pixel_clk_0",
+			.con_id = "ipu1_pixel_clk_0",
 		},
 		{
-			.con_id = "pixel_clk_1",
+			.con_id = "ipu1_pixel_clk_1",
 		},
 	},
 	{
 		{
-			.con_id = "pixel_clk_0",
+			.con_id = "ipu2_pixel_clk_0",
 		},
 		{
-			.con_id = "pixel_clk_1",
+			.con_id = "ipu2_pixel_clk_1",
 		},
 	},
 };
