@@ -341,6 +341,97 @@ static void init_table(int channels)
 	}
 }
 
+#if 1
+
+/* C code optimization for IEC head */
+static void hdmi_dma_copy_16_c_lut(unsigned short *src, unsigned int *dst, int samples, unsigned char *lookup_table)
+{
+	int i;
+	unsigned int sample;
+	unsigned int p;
+	unsigned int head;
+
+	for (i = 0; i < samples; i++) {
+		/* get source sample */
+		sample = *src++;
+
+		/* xor every bit */
+		p = sample ^ (sample >> 8);
+		p ^= (p >> 4);
+		p ^= (p >> 2);
+		p ^= (p >> 1);
+		p &= 1;	/* only want last bit */
+		p <<= 3; /* bit p */
+
+		/* get packet header */
+		head = *lookup_table++;
+
+		/* fix head */
+		head ^= p;
+
+		/* store */
+		*dst++ = (head << 24) | (sample << 8);
+	}
+}
+
+static void hdmi_dma_copy_16_c_fast(unsigned short *src, unsigned int *dst, int samples)
+{
+	int i;
+	unsigned int sample;
+	unsigned int p;
+
+	for (i = 0; i < samples; i++) {
+		/* get source sample */
+		sample = *src++;
+
+		/* xor every bit */
+		p = sample ^ (sample >> 8);
+		p ^= (p >> 4);
+		p ^= (p >> 2);
+		p ^= (p >> 1);
+		p &= 1;	/* only want last bit */
+		p <<= 3; /* bit p */
+
+		/* store */
+		*dst++ = (p << 24) | (sample << 8);
+	}
+}
+
+static void hdmi_dma_copy_16(unsigned short *src, unsigned int *dest, int framecount, int channelcount)
+{
+	/* split input frames into 192-frame each */
+	int count_in_192 = (framecount + 191) / 192;
+	int i;
+
+	for (i = 0; i < count_in_192; i++) {
+		int count;
+		int samples;
+
+		/* handles frame index [0, 48) */
+		count = (framecount < 48) ? framecount : 48;
+		samples = count * channelcount;
+		hdmi_dma_copy_16_c_lut(src, dest, samples, g_packet_head_table);
+		framecount -= count;
+		if (framecount == 0)
+			break;
+
+		src  += samples;
+		dest += samples;
+
+		/* handles frame index [48, 192) */
+		count = (framecount < 192 - 48) ? framecount : 192 - 48;
+		samples = count * channelcount;
+		hdmi_dma_copy_16_c_fast(src, dest, samples);
+		framecount -= count;
+		src  += samples;
+		dest += samples;
+	}
+}
+
+#else
+
+/* NEON optimization for IEC head*/
+
 /* Convert pcm samples to iec samples suitable for HDMI transfer.
 * PCM sample is 16 bits length.
 * Frame index always starts from 0.
@@ -414,6 +505,7 @@ static void hdmi_dma_copy_24(u32 *src, u32 *dest, int framecount, int channelcou
 		dest += samples;
 	}
 }
+#endif
 
 static void hdmi_dma_mmap_copy(struct snd_pcm_substream *substream,
 			       int offset, int count)
@@ -437,11 +529,13 @@ static void hdmi_dma_mmap_copy(struct snd_pcm_substream *substream,
 		hdmi_dma_copy_16(src16, dest, framecount, rtd->channels);
 		break;
 
+/* 24bit not support now. */
+/*
 	case SNDRV_PCM_FORMAT_S24_LE:
 		src32 = (u32 *)(runtime->dma_area + offset);
 		hdmi_dma_copy_24(src32, dest, framecount, rtd->channels);
 		break;
-
+*/
 	default:
 		pr_err("%s HDMI Audio invalid sample format (%d)\n",
 						__func__, rtd->format);
