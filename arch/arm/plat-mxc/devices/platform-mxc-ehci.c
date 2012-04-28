@@ -58,6 +58,14 @@ const struct imx_mxc_ehci_data imx6q_mxc_ehci_hs_data[] __initconst = {
 };
 #endif /* ifdef CONFIG_SOC_IMX6Q */
 
+#ifdef CONFIG_SOC_IMX6SL
+const struct imx_mxc_ehci_data imx6sl_mxc_ehci_hs_data[] __initconst = {
+	imx_mxc_ehci_data_entry_single(MX6SL, 1, HS1),
+	imx_mxc_ehci_data_entry_single(MX6SL, 2, HS2),
+	imx_mxc_ehci_data_entry_single(MX6SL, 3, HS3),
+};
+#endif /* ifdef CONFIG_SOC_IMX6SL */
+
 struct platform_device *__init imx_add_mxc_ehci(
 		const struct imx_mxc_ehci_data *data,
 		const struct mxc_usbh_platform_data *pdata)

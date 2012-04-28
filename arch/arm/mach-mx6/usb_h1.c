@@ -350,7 +350,10 @@ void __init mx6_usb_h1_init(void)
 	struct platform_device *pdev, *pdev_wakeup;
 	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	usbh1_config.wakeup_pdata = &usbh1_wakeup_config;
-	pdev = imx6q_add_fsl_ehci_hs(1, &usbh1_config);
+	if (cpu_is_mx6sl())
+		pdev = imx6sl_add_fsl_ehci_hs(1, &usbh1_config);
+	else
+		pdev = imx6q_add_fsl_ehci_hs(1, &usbh1_config);
 	usbh1_wakeup_config.usb_pdata[0] = pdev->dev.platform_data;
 	pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
 	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
