@@ -149,8 +149,8 @@ static int __devinit ipu_clk_setup_enable(struct ipu_soc *ipu,
 	}
 	dev_dbg(ipu->dev, "ipu_clk = %lu\n", clk_get_rate(ipu->ipu_clk));
 
-	ipu->pixel_clk[0] = ipu_pixel_clk[0];
-	ipu->pixel_clk[1] = ipu_pixel_clk[1];
+	ipu->pixel_clk[0] = ipu_pixel_clk[pdev->id][0];
+	ipu->pixel_clk[1] = ipu_pixel_clk[pdev->id][1];
 
 	ipu_lookups[pdev->id][0].clk = &ipu->pixel_clk[0];
 	ipu_lookups[pdev->id][1].clk = &ipu->pixel_clk[1];
