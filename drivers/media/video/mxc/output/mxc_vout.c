@@ -848,7 +848,7 @@ static int mxc_vidioc_g_fmt_vid_out(struct file *file, void *fh,
 			struct v4l2_format *f)
 {
 	struct mxc_vout_output *vout = fh;
-	struct v4l2_rect *rect = NULL;
+	struct v4l2_rect rect;
 
 	f->fmt.pix.width = vout->task.input.width;
 	f->fmt.pix.height = vout->task.input.height;
@@ -856,11 +856,13 @@ static int mxc_vidioc_g_fmt_vid_out(struct file *file, void *fh,
 	f->fmt.pix.sizeimage = get_frame_size(vout);
 
 	if (f->fmt.pix.priv) {
-		rect = (struct v4l2_rect *)f->fmt.pix.priv;
-		rect->left = vout->task.input.crop.pos.x;
-		rect->top = vout->task.input.crop.pos.y;
-		rect->width = vout->task.input.crop.w;
-		rect->height = vout->task.input.crop.h;
+		rect.left = vout->task.input.crop.pos.x;
+		rect.top = vout->task.input.crop.pos.y;
+		rect.width = vout->task.input.crop.w;
+		rect.height = vout->task.input.crop.h;
+		if (copy_to_user((void __user *)f->fmt.pix.priv,
+				&rect, sizeof(rect)))
+			return -EFAULT;
 	}
 	v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
 			"frame_size:0x%x, pix_fmt:0x%x\n",
@@ -1048,10 +1050,14 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format *f)
 {
 	int ret = 0;
-	struct v4l2_rect *rect = NULL;
+	struct v4l2_rect rect;
 	u32 o_height = 0;
 	u32 ocrop_h = 0;
 	u32 is_1080p;
+
+	if (f->fmt.pix.priv && copy_from_user(&rect,
+		(void __user *)f->fmt.pix.priv, sizeof(rect)))
+		return -EFAULT;
 
 	vout->task.input.width = f->fmt.pix.width;
 	vout->task.input.height = f->fmt.pix.height;
@@ -1094,11 +1100,10 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 	}
 
 	if (f->fmt.pix.priv) {
-		rect = (struct v4l2_rect *)f->fmt.pix.priv;
-		vout->task.input.crop.pos.x = rect->left;
-		vout->task.input.crop.pos.y = rect->top;
-		vout->task.input.crop.w = rect->width;
-		vout->task.input.crop.h = rect->height;
+		vout->task.input.crop.pos.x = rect.left;
+		vout->task.input.crop.pos.y = rect.top;
+		vout->task.input.crop.w = rect.width;
+		vout->task.input.crop.h = rect.height;
 	} else {
 		vout->task.input.crop.pos.x = 0;
 		vout->task.input.crop.pos.y = 0;
@@ -1117,9 +1122,12 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 
 	ret = mxc_vout_try_task(vout);
 	if (!ret) {
-		if (rect) {
-			rect->width = vout->task.input.crop.w;
-			rect->height = vout->task.input.crop.h;
+		if (f->fmt.pix.priv) {
+			rect.width = vout->task.input.crop.w;
+			rect.height = vout->task.input.crop.h;
+			if (copy_to_user((void __user *)f->fmt.pix.priv,
+				&rect, sizeof(rect)))
+				ret = -EFAULT;
 		} else {
 			f->fmt.pix.width = vout->task.input.crop.w;
 			f->fmt.pix.height = vout->task.input.crop.h;
