@@ -70,6 +70,10 @@ extern const struct imx_mxc_ehci_data imx6q_mxc_ehci_hs_data[] __initconst;
 #define imx6q_add_fsl_ehci_hs(id, pdata)	\
 	imx_add_fsl_ehci(&imx6q_mxc_ehci_hs_data[id - 1], pdata)
 
+extern const struct imx_mxc_ehci_data imx6sl_mxc_ehci_hs_data[] __initconst;
+#define imx6sl_add_fsl_ehci_hs(id, pdata)	\
+	imx_add_fsl_ehci(&imx6sl_mxc_ehci_hs_data[id - 1], pdata)
+
 extern const struct imx_fsl_usb2_otg_data imx6q_fsl_usb2_otg_data __initconst;
 #define imx6q_add_fsl_usb2_otg(pdata)	\
 	imx_add_fsl_usb2_otg(&imx6q_fsl_usb2_otg_data, pdata)
