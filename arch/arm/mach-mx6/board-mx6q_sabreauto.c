@@ -138,7 +138,15 @@ static int mipi_sensor;
 static int can0_enable;
 static int uart3_en;
 static int tuner_en;
+static int spinor_en;
 extern volatile int num_cpu_idle_lock;
+
+static int __init spinor_enable(char *p)
+{
+       spinor_en = 1;
+       return 0;
+}
+early_param("spi-nor", spinor_enable);
 
 static int __init uart3_enable(char *p)
 {
@@ -1325,8 +1333,10 @@ static void __init mx6_board_init(void)
 
 	BUG_ON(!common_pads);
 	mxc_iomux_v3_setup_multiple_pads(common_pads, common_pads_cnt);
-	BUG_ON(!i2c3_pads);
-	mxc_iomux_v3_setup_multiple_pads(i2c3_pads, i2c3_pads_cnt);
+	if (!spinor_en) {
+		BUG_ON(!i2c3_pads);
+		mxc_iomux_v3_setup_multiple_pads(i2c3_pads, i2c3_pads_cnt);
+	}
 
 	if (can0_enable) {
 		BUG_ON(!can0_pads);
@@ -1349,7 +1359,10 @@ static void __init mx6_board_init(void)
 	if (!board_is_mx6_reva()) {
 		/* enable i2c3_sda route path */
 		gpio_request(SABREAUTO_I2C3_STEER, "i2c3-steer");
-		gpio_direction_output(SABREAUTO_I2C3_STEER, 1);
+		if (spinor_en)
+			gpio_direction_output(SABREAUTO_I2C3_STEER, 0);
+		else
+			gpio_direction_output(SABREAUTO_I2C3_STEER, 1);
 		/* Set GPIO_16 input for IEEE-1588 ts_clk and
 		 * RMII reference clk
 		 * For MX6 GPR1 bit21 meaning:
