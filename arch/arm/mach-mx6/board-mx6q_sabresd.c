@@ -200,7 +200,6 @@
 static struct clk *sata_clk;
 static int mma8451_position = 3;
 static int mag3110_position;
-static int disable_ldb;
 static int max11801_mode = 1;
 
 
@@ -1524,14 +1523,6 @@ static const struct imx_pcie_platform_data mx6_sabresd_pcie_data __initconst = {
 	.pcie_dis	= SABRESD_PCIE_DIS_B,
 };
 
-static int __init early_disable_ldb(char *p)
-{
-	/*mipi dsi need pll3_pfd_540M as 540MHz, ldb will change to 454Mhz*/
-	disable_ldb = 1;
-	return 0;
-}
-
-early_param("disable_ldb", early_disable_ldb);
 /*!
  * Board specific initialization.
  */
@@ -1594,8 +1585,7 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_vdoa();
 	imx6q_add_mipi_dsi(&mipi_dsi_pdata);
 	imx6q_add_lcdif(&lcdif_data);
-	if (!disable_ldb)
-		imx6q_add_ldb(&ldb_data);
+	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
 	imx6q_add_v4l2_capture(0);
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
