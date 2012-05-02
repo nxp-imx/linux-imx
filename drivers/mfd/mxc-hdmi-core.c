@@ -421,9 +421,11 @@ static void hdmi_get_pixel_clk(void)
 
 	if (pixel_clk == NULL) {
 		ipu = ipu_get_soc(mxc_hdmi_ipu_id);
-		pixel_clk = clk_get(ipu->dev, "pixel_clk_0");
+		pixel_clk = clk_get(ipu->dev,
+				ipu_lookups[mxc_hdmi_ipu_id][mxc_hdmi_disp_id].con_id);
 		if (IS_ERR(pixel_clk)) {
-			pr_err("%s could not get pixel_clk_0\n", __func__);
+			pr_err("%s could not get ipu%d_pixel_clk_%d\n", __func__,
+						mxc_hdmi_ipu_id + 1, mxc_hdmi_disp_id);
 			return;
 		}
 	}
