@@ -348,9 +348,6 @@ static void mxc_hdmi_get_playback_sample_size(void)
 	/* always assume basic audio support */
 	playback_sample_size[i++] = 16;
 
-	if (edid_cfg.sample_sizes & 0x2)
-		playback_sample_size[i++] = 20;
-
 	if (edid_cfg.sample_sizes & 0x4)
 		playback_sample_size[i++] = 24;
 
