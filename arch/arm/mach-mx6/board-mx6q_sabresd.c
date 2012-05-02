@@ -201,6 +201,7 @@ static struct clk *sata_clk;
 static int mma8451_position = 3;
 static int mag3110_position;
 static int max11801_mode = 1;
+static int enable_lcd_ldb;
 
 
 extern char *gp_reg_id;
@@ -1523,6 +1524,13 @@ static const struct imx_pcie_platform_data mx6_sabresd_pcie_data __initconst = {
 	.pcie_dis	= SABRESD_PCIE_DIS_B,
 };
 
+static int __init early_enable_lcd_ldb(char *p)
+{
+	enable_lcd_ldb = 1;
+	return 0;
+}
+early_param("enable_lcd_ldb", early_enable_lcd_ldb);
+
 /*!
  * Board specific initialization.
  */
@@ -1570,6 +1578,10 @@ static void __init mx6_sabresd_board_init(void)
 		hdmi_core_data.disp_id = 1;
 		mipi_dsi_pdata.ipu_id = 0;
 		mipi_dsi_pdata.disp_id = 1;
+		if (enable_lcd_ldb) {
+			ldb_data.disp_id = 1;
+			ldb_data.mode = LDB_SIN1;
+		}
 	}
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
