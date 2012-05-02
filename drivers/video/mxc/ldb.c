@@ -455,6 +455,17 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		else
 			ldb->mode = plat_data->mode;
 
+		if ((ldb->mode == LDB_SIN0) || (ldb->mode == LDB_SIN1)) {
+			ret = ldb->mode - LDB_SIN0;
+			if (plat_data->disp_id != ret) {
+				dev_warn(&ldb->pdev->dev,
+					"change IPU DI%d to IPU DI%d for LDB "
+					"channel%d.\n",
+					plat_data->disp_id, ret, ret);
+				plat_data->disp_id = ret;
+			}
+		}
+
 		if (ldb->mode == LDB_SPL_DI0) {
 			reg |= LDB_SPLIT_MODE_EN | LDB_CH0_MODE_EN_TO_DI0
 				| LDB_CH1_MODE_EN_TO_DI0;
