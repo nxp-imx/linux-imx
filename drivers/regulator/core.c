@@ -276,7 +276,7 @@ static ssize_t regulator_uV_show(struct device *dev,
 	return ret;
 }
 static ssize_t regulator_uV_store(struct device *dev,
-				struct device_attribute *attr, char *buf,
+				struct device_attribute *attr, const char *buf,
 				size_t count)
 {
 	struct regulator_dev *rdev = dev_get_drvdata(dev);
