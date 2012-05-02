@@ -35,6 +35,7 @@
 #include <mach/mxc_hdmi.h>
 #include "imx-hdmi.h"
 
+
 #define HDMI_DMA_BURST_UNSPECIFIED_LEGNTH	0
 #define HDMI_DMA_BURST_INCR4			1
 #define HDMI_DMA_BURST_INCR8			2
@@ -44,7 +45,8 @@ struct imx_hdmi_dma_runtime_data {
 	struct snd_pcm_substream *tx_substream;
 
 	unsigned long buffer_bytes;
-	void *buf;
+	struct snd_dma_buffer hw_buffer;
+	unsigned long appl_bytes;
 	int period_time;
 
 	int periods;
@@ -69,6 +71,19 @@ struct imx_hdmi_dma_runtime_data {
 	bool tx_active;
 	spinlock_t irq_lock;
 };
+
+/* bit 0:0:0:b:p(0):c:(u)0:(v)0*/
+/* max 8 channels supported; channels are interleaved*/
+static unsigned char g_packet_head_table[48*8];
+
+void hdmi_dma_copy_16_neon_lut(unsigned short *src, unsigned int *dst,
+			int samples, unsigned char *lookup_table);
+void hdmi_dma_copy_16_neon_fast(unsigned short *src, unsigned int *dst,
+			int samples);
+void hdmi_dma_copy_24_neon_lut(unsigned int *src, unsigned int *dst,
+			int samples, unsigned char *lookup_table);
+void hdmi_dma_copy_24_neon_fast(unsigned int *src, unsigned int *dst,
+			int samples);
 
 hdmi_audio_header_t iec_header;
 
@@ -113,6 +128,7 @@ hdmi_audio_header_t iec_header;
  */
 #define HDMI_DMA_PERIOD_BYTES		(6144)
 #define HDMI_DMA_BUF_SIZE		(64 * 1024)
+#define HDMI_PCM_BUF_SIZE		(64 * 1024)
 
 struct imx_hdmi_dma_runtime_data *hdmi_dma_priv;
 
@@ -152,7 +168,7 @@ static void dumprtd(struct imx_hdmi_dma_runtime_data *rtd)
 	pr_debug("period_bytes     = %d\n", rtd->period_bytes);
 	pr_debug("dma period_bytes = %d\n", rtd->dma_period_bytes);
 	pr_debug("buffer_ratio     = %d\n", rtd->buffer_ratio);
-	pr_debug("dma buf addr     = 0x%08x\n", (int)rtd->buf);
+	pr_debug("hw dma buffer    = 0x%08x\n", (int)rtd->hw_buffer.addr);
 	pr_debug("dma buf size     = %d\n", (int)rtd->buffer_bytes);
 	pr_debug("sample_rate      = %d\n", (int)rtd->rate);
 }
@@ -216,11 +232,32 @@ static void hdmi_dma_clear_irq_status(u8 status)
 
 static void hdmi_dma_irq_mask(int mask)
 {
-	if (mask)
-		hdmi_writeb(0xff, HDMI_AHB_DMA_MASK);
-	else
-		hdmi_writeb((u8)~HDMI_AHB_DMA_DONE, HDMI_AHB_DMA_MASK);
+	u8 regvalue;
+	regvalue = hdmi_readb(HDMI_AHB_DMA_MASK);
+
+	if (mask) {
+		regvalue |= HDMI_AHB_DMA_DONE;
+		hdmi_writeb(regvalue, HDMI_AHB_DMA_MASK);
+	} else {
+		regvalue &= (u8)~HDMI_AHB_DMA_DONE;
+		hdmi_writeb(regvalue, HDMI_AHB_DMA_MASK);
+	}
 }
+
+static void hdmi_mask(int mask)
+{
+	u8 regvalue;
+	regvalue = hdmi_readb(HDMI_AHB_DMA_MASK);
+
+	if (mask) {
+		regvalue |= HDMI_AHB_DMA_ERROR | HDMI_AHB_DMA_FIFO_EMPTY;
+		hdmi_writeb(regvalue, HDMI_AHB_DMA_MASK);
+	} else {
+		regvalue &= (u8)~(HDMI_AHB_DMA_ERROR | HDMI_AHB_DMA_FIFO_EMPTY);
+		hdmi_writeb(regvalue, HDMI_AHB_DMA_MASK);
+	}
+}
+
 
 static void hdmi_dma_irq_mute(int mute)
 {
@@ -230,12 +267,21 @@ static void hdmi_dma_irq_mute(int mute)
 		hdmi_writeb(0x00, HDMI_IH_MUTE_AHBDMAAUD_STAT0);
 }
 
+int odd_ones(unsigned a)
+{
+	a ^= a >> 8;
+	a ^= a >> 4;
+	a ^= a >> 2;
+	a ^= a >> 1;
+
+	return a & 1;
+}
+
 /* Add frame information for one pcm subframe */
 static u32 hdmi_dma_add_frame_info(struct imx_hdmi_dma_runtime_data *rtd,
 				   u32 pcm_data, int subframe_idx)
 {
 	hdmi_audio_dma_data_t subframe;
-	int i;
 
 	subframe.U = 0;
 	iec_header.B.channel = subframe_idx;
@@ -249,9 +295,7 @@ static u32 hdmi_dma_add_frame_info(struct imx_hdmi_dma_runtime_data *rtd,
 	else
 		subframe.B.c = 0;
 
-	/* fill p (parity) */
-	for (i = 0 ; i < rtd->sample_bits ; i++)
-		subframe.B.p ^= (pcm_data >> i) & 0x01;
+	subframe.B.p = odd_ones(pcm_data);
 	subframe.B.p ^= subframe.B.c;
 	subframe.B.p ^= subframe.B.u;
 	subframe.B.p ^= subframe.B.v;
@@ -274,12 +318,145 @@ static void hdmi_dma_incr_frame_idx(struct imx_hdmi_dma_runtime_data *rtd)
 		rtd->frame_idx = 0;
 }
 
+static void init_table(int channels)
+{
+	int i;
+	int ch = 0;
+	unsigned char *p = g_packet_head_table;
+
+	for (i = 0; i < 48; i++) {
+		int b = 0;
+		if (i == 0)
+			b = 1;
+
+		for (ch = 0; ch < channels; ch++) {
+			int c = 0;
+			if (i < 42) {
+				iec_header.B.channel = ch+1;
+				c = (iec_header.U >> i) & 0x1;
+			}
+			/* preset bit p as c */
+			*p++ = (b << 4) | (c << 2) | (c << 3);
+		}
+	}
+}
+
+/* Convert pcm samples to iec samples suitable for HDMI transfer.
+* PCM sample is 16 bits length.
+* Frame index always starts from 0.
+* Channel count can be 1, 2, 4, 6, or 8
+* Sample count (frame_count * channel_count) is multipliable by 8.
+*/
+static void hdmi_dma_copy_16(u16 *src, u32 *dest, int framecount, int channelcount)
+{
+	/* split input frames into 192-frame each */
+	int count_in_192 = (framecount + 191) / 192;
+	int i;
+
+	for (i = 0; i < count_in_192; i++) {
+		int count;
+		int samples;
+
+		/* handles frame index [0, 48) */
+		count = (framecount < 48) ? framecount : 48;
+		samples = count * channelcount;
+		hdmi_dma_copy_16_neon_lut(src, dest, samples, g_packet_head_table);
+		framecount -= count;
+		if (framecount == 0)
+			break;
+
+		src  += samples;
+		dest += samples;
+
+		/* handles frame index [48, 192) */
+		count = (framecount < 192 - 48) ? framecount : 192 - 48;
+		samples = count * channelcount;
+		hdmi_dma_copy_16_neon_fast(src, dest, samples);
+		framecount -= count;
+		src  += samples;
+		dest += samples;
+	}
+}
+
+/* Convert pcm samples to iec samples suitable for HDMI transfer.
+* PCM sample is 24 bits length.
+* Frame index always starts from 0.
+* Channel count can be 1, 2, 4, 6, or 8
+* Sample count (frame_count * channel_count) is multipliable by 8.
+*/
+static void hdmi_dma_copy_24(u32 *src, u32 *dest, int framecount, int channelcount)
+{
+	/* split input frames into 192-frame each */
+	int count_in_192 = (framecount + 191) / 192;
+	int i;
+
+	for (i = 0; i < count_in_192; i++) {
+		int count;
+		int samples;
+
+		/* handles frame index [0, 48) */
+		count = (framecount < 48) ? framecount : 48;
+		samples = count * channelcount;
+		hdmi_dma_copy_24_neon_lut(src, dest, samples, g_packet_head_table);
+		framecount -= count;
+		if (framecount == 0)
+			break;
+
+		src  += samples;
+		dest += samples;
+
+		/* handles frame index [48, 192) */
+		count = (framecount < 192 - 48) ? framecount : 192 - 48;
+		samples = count * channelcount;
+		hdmi_dma_copy_24_neon_fast(src, dest, samples);
+		framecount -= count;
+		src  += samples;
+		dest += samples;
+	}
+}
+
+static void hdmi_dma_mmap_copy(struct snd_pcm_substream *substream,
+			       int offset, int count)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct imx_hdmi_dma_runtime_data *rtd = runtime->private_data;
+	u32 framecount;
+	u32 *src32, *dest;
+	u16 *src16;
+
+	framecount =  count/(rtd->sample_align * rtd->channels);
+
+	/* hw_buffer is the destination for pcm data plus frame info. */
+	dest = (u32 *)(rtd->hw_buffer.area + (offset * rtd->buffer_ratio));
+
+	switch (rtd->format) {
+
+	case SNDRV_PCM_FORMAT_S16_LE:
+		/* dma_buffer is the mmapped buffer we are copying pcm from. */
+		src16 = (u16 *)(runtime->dma_area + offset);
+		hdmi_dma_copy_16(src16, dest, framecount, rtd->channels);
+		break;
+
+	case SNDRV_PCM_FORMAT_S24_LE:
+		src32 = (u32 *)(runtime->dma_area + offset);
+		hdmi_dma_copy_24(src32, dest, framecount, rtd->channels);
+		break;
+
+	default:
+		pr_err("%s HDMI Audio invalid sample format (%d)\n",
+						__func__, rtd->format);
+		return;
+	}
+}
+
 static irqreturn_t hdmi_dma_isr(int irq, void *dev_id)
 {
 	struct imx_hdmi_dma_runtime_data *rtd = dev_id;
 	struct snd_pcm_substream *substream = rtd->tx_substream;
-	unsigned int status;
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	unsigned long offset,  count, space_to_end, appl_bytes;
 	unsigned long flags;
+	unsigned int status;
 
 	spin_lock_irqsave(&rtd->irq_lock, flags);
 
@@ -291,18 +468,35 @@ static irqreturn_t hdmi_dma_isr(int irq, void *dev_id)
 		rtd->offset += rtd->period_bytes;
 		rtd->offset %= rtd->period_bytes * rtd->periods;
 
+		/* For mmap access, need to copy data from dma_buffer
+		 * to hw_buffer and add the frame info. */
+		if (runtime->access == SNDRV_PCM_ACCESS_MMAP_INTERLEAVED) {
+			appl_bytes = frames_to_bytes(runtime,
+						runtime->control->appl_ptr);
+			offset = rtd->appl_bytes % rtd->buffer_bytes;
+			space_to_end = rtd->buffer_bytes - offset;
+			count = appl_bytes - rtd->appl_bytes;
+			rtd->appl_bytes = appl_bytes;
+
+			if (count <= space_to_end) {
+				hdmi_dma_mmap_copy(substream, offset, count);
+			} else {
+				hdmi_dma_mmap_copy(substream, offset, space_to_end);
+				hdmi_dma_mmap_copy(substream, 0, count - space_to_end);
+			}
+		}
 		snd_pcm_period_elapsed(substream);
 
-		hdmi_dma_set_addr(substream->dma_buffer.addr +
-				  (rtd->offset * rtd->buffer_ratio),
+		hdmi_dma_set_addr(rtd->hw_buffer.addr +
+				(rtd->offset * rtd->buffer_ratio),
 				rtd->dma_period_bytes);
-
 		hdmi_dma_start();
 	}
 
 	hdmi_dma_irq_mute(0);
 
 	spin_unlock_irqrestore(&rtd->irq_lock, flags);
+
 	return IRQ_HANDLED;
 }
 
@@ -364,27 +558,25 @@ static void hdmi_dma_enable_channels(int channels)
 	}
 }
 
-static void hdmi_dma_set_thrsld(void)
-{
-	int rev = hdmi_readb(HDMI_REVISION_ID);
-
-	switch (rev) {
-	case 0x0a:
-		hdmi_writeb(126, HDMI_AHB_DMA_THRSLD);
-		break;
-	default:
-		hdmi_writeb(64, HDMI_AHB_DMA_THRSLD);
-		break;
-	}
-
-	pr_debug("HDMI_AHB_DMA_THRSLD          0x%02x\n", hdmi_readb(HDMI_AHB_DMA_THRSLD));
-}
-
 static void hdmi_dma_configure_dma(int channels)
 {
 	hdmi_dma_enable_hlock(1);
-	hdmi_dma_set_incr_type(HDMI_DMA_BURST_UNSPECIFIED_LEGNTH);
-	hdmi_dma_set_thrsld();
+
+	switch (channels) {
+	case 2:
+		hdmi_dma_set_incr_type(HDMI_DMA_BURST_INCR4);
+		hdmi_writeb(126, HDMI_AHB_DMA_THRSLD);
+		break;
+	case 4:
+	case 6:
+	case 8:
+		hdmi_dma_set_incr_type(HDMI_DMA_BURST_INCR4);
+		hdmi_writeb(124, HDMI_AHB_DMA_THRSLD);
+		break;
+	default:
+		pr_err("%s %dunsupport channel!\r\n", __func__, __LINE__);
+	}
+
 	hdmi_dma_enable_channels(channels);
 }
 
@@ -485,8 +677,9 @@ static int hdmi_dma_copy(struct snd_pcm_substream *substream, int channel,
 	int subframe_idx;
 	u32 pcm_data;
 
-	/* Copy pcm data from userspace and add frame info. */
-	hw_buf = (u32 *)(rtd->buf + (pos_bytes * rtd->buffer_ratio));
+	/* Copy pcm data from userspace and add frame info.
+	 * Destination is hw_buffer. */
+	hw_buf = (u32 *)(rtd->hw_buffer.area + (pos_bytes * rtd->buffer_ratio));
 
 	while (count > 0) {
 		for (subframe_idx = 1 ; subframe_idx <= rtd->channels ; subframe_idx++) {
@@ -521,7 +714,6 @@ static int hdmi_dma_hw_params(struct snd_pcm_substream *substream,
 
 	rtd->offset = 0;
 	rtd->period_time = HZ / (params_rate(params) / params_period_size(params));
-	rtd->buf = (unsigned int *)substream->dma_buffer.area;
 
 	switch (rtd->format) {
 	case SNDRV_PCM_FORMAT_S16_LE:
@@ -546,11 +738,14 @@ static int hdmi_dma_hw_params(struct snd_pcm_substream *substream,
 	snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 
 	hdmi_dma_configure_dma(rtd->channels);
-	hdmi_dma_set_addr(substream->dma_buffer.addr, rtd->dma_period_bytes);
+	hdmi_dma_set_addr(rtd->hw_buffer.addr, rtd->dma_period_bytes);
 
 	dumprtd(rtd);
 
 	hdmi_dma_update_iec_header(substream);
+
+	/* Init par for mmap optimizate */
+	init_table(rtd->channels);
 
 	return 0;
 }
@@ -565,10 +760,18 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		rtd->frame_idx = 0;
+		if (runtime->access == SNDRV_PCM_ACCESS_MMAP_INTERLEAVED) {
+			rtd->appl_bytes = frames_to_bytes(runtime,
+						runtime->control->appl_ptr);
+
+			hdmi_dma_mmap_copy(substream, 0, rtd->appl_bytes);
+
+		}
 		dumpregs();
-		hdmi_dma_irq_mask(0);
+
 		hdmi_dma_priv->tx_active = true;
 		hdmi_dma_start();
+		hdmi_dma_irq_mask(0);
 		hdmi_set_dma_mode(1);
 		break;
 
@@ -599,17 +802,19 @@ static snd_pcm_uframes_t hdmi_dma_pointer(struct snd_pcm_substream *substream)
 static struct snd_pcm_hardware snd_imx_hardware = {
 	.info = SNDRV_PCM_INFO_INTERLEAVED |
 		SNDRV_PCM_INFO_BLOCK_TRANSFER |
+		SNDRV_PCM_INFO_MMAP |
+		SNDRV_PCM_INFO_MMAP_VALID |
 		SNDRV_PCM_INFO_PAUSE |
 		SNDRV_PCM_INFO_RESUME,
 	.formats = MXC_HDMI_FORMATS_PLAYBACK,
 	.rate_min = 32000,
 	.channels_min = 2,
 	.channels_max = 8,
-	.buffer_bytes_max = HDMI_DMA_BUF_SIZE / 2,
+	.buffer_bytes_max = HDMI_PCM_BUF_SIZE,
 	.period_bytes_min = HDMI_DMA_PERIOD_BYTES / 2,
 	.period_bytes_max = HDMI_DMA_PERIOD_BYTES / 2,
-	.periods_min = 4,
-	.periods_max = 255,
+	.periods_min = 8,
+	.periods_max = 8,
 	.fifo_size = 0,
 };
 
@@ -627,6 +832,8 @@ static void hdmi_dma_irq_enable(struct imx_hdmi_dma_runtime_data *rtd)
 	hdmi_dma_irq_mute(0);
 	hdmi_dma_irq_mask(0);
 
+	hdmi_mask(0);
+
 	spin_unlock_irqrestore(&hdmi_dma_priv->irq_lock, flags);
 
 }
@@ -641,6 +848,8 @@ static void hdmi_dma_irq_disable(struct imx_hdmi_dma_runtime_data *rtd)
 	hdmi_dma_irq_mute(1);
 	hdmi_irq_disable(rtd->irq);
 	hdmi_dma_clear_irq_status(0xff);
+
+	hdmi_mask(1);
 
 	spin_unlock_irqrestore(&rtd->irq_lock, flags);
 }
@@ -700,19 +909,33 @@ static int imx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
 {
 	struct snd_pcm_substream *substream = pcm->streams[stream].substream;
 	struct snd_dma_buffer *buf = &substream->dma_buffer;
-	size_t size = HDMI_DMA_BUF_SIZE;
+	struct snd_dma_buffer *hw_buffer = &hdmi_dma_priv->hw_buffer;
 
-	buf->area = dma_alloc_writecombine(pcm->card->dev, size,
+	/* The 'dma_buffer' is the buffer alsa knows about.
+	 * It contains only raw audio. */
+	buf->area = dma_alloc_writethrough(pcm->card->dev,
+					   HDMI_PCM_BUF_SIZE,
 					   &buf->addr, GFP_KERNEL);
+
+	buf->bytes = HDMI_PCM_BUF_SIZE;
 	if (!buf->area)
 		return -ENOMEM;
 
 	buf->dev.type = SNDRV_DMA_TYPE_DEV;
 	buf->dev.dev = pcm->card->dev;
 	buf->private_data = NULL;
-	buf->bytes = size;
 
 	hdmi_dma_priv->tx_substream = substream;
+
+	/* For mmap access, isr will copy from
+	 * the dma_buffer to the hw_buffer */
+	hw_buffer->area = dma_alloc_writethrough(pcm->card->dev,
+						HDMI_DMA_BUF_SIZE,
+						&hw_buffer->addr, GFP_KERNEL);
+	if (!hw_buffer->area)
+		return -ENOMEM;
+
+	hw_buffer->bytes = HDMI_DMA_BUF_SIZE;
 
 	return 0;
 }
@@ -744,6 +967,7 @@ static void imx_hdmi_dma_pcm_free(struct snd_pcm *pcm)
 	struct snd_dma_buffer *buf;
 	int stream;
 
+	/* free each dma_buffer */
 	for (stream = 0; stream < 2; stream++) {
 		substream = pcm->streams[stream].substream;
 		if (!substream)
@@ -753,6 +977,14 @@ static void imx_hdmi_dma_pcm_free(struct snd_pcm *pcm)
 		if (!buf->area)
 			continue;
 
+		dma_free_writecombine(pcm->card->dev, buf->bytes,
+				      buf->area, buf->addr);
+		buf->area = NULL;
+	}
+
+	/* free the hw_buffer */
+	buf = &hdmi_dma_priv->hw_buffer;
+	if (buf->area) {
 		dma_free_writecombine(pcm->card->dev, buf->bytes,
 				      buf->area, buf->addr);
 		buf->area = NULL;
@@ -773,6 +1005,7 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 	hdmi_dma_priv = kzalloc(sizeof(*hdmi_dma_priv), GFP_KERNEL);
 	if (hdmi_dma_priv == NULL)
 		return -ENOMEM;
+	/*To alloc a buffer non cacheable for hdmi script use*/
 
 	hdmi_dma_priv->tx_active = false;
 	spin_lock_init(&hdmi_dma_priv->irq_lock);
@@ -797,7 +1030,6 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 		goto e_clk_get2;
 	}
 
-	/* The HDMI block's irq line is shared with HDMI video. */
 	if (request_irq(hdmi_dma_priv->irq, hdmi_dma_isr, IRQF_SHARED,
 			"hdmi dma", hdmi_dma_priv)) {
 		dev_err(&pdev->dev, "MXC hdmi: failed to request irq %d\n",
@@ -805,7 +1037,6 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 		ret = -EBUSY;
 		goto e_irq;
 	}
-
 	ret = snd_soc_register_platform(&pdev->dev, &imx_soc_platform_mx2);
 	if (ret)
 		goto e_irq;
