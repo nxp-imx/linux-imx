@@ -355,7 +355,10 @@ void __init mx6_usb_h1_init(void)
 	else
 		pdev = imx6q_add_fsl_ehci_hs(1, &usbh1_config);
 	usbh1_wakeup_config.usb_pdata[0] = pdev->dev.platform_data;
-	pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
+	if (cpu_is_mx6sl())
+		pdev_wakeup = imx6sl_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
+	else
+		pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
 	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
 		(struct fsl_usb2_wakeup_platform_data *)(pdev_wakeup->dev.platform_data);
 	/* Some phy and power's special controls for host1
