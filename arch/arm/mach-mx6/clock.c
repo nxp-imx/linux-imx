@@ -47,7 +47,7 @@ extern struct regulator *cpu_regulator;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int lp_high_freq;
 extern int lp_med_freq;
-extern int mx6q_revision(void);
+extern int lp_audio_freq;
 
 void __iomem *apll_base;
 static struct clk pll1_sys_main_clk;
@@ -2494,6 +2494,7 @@ static struct clk ssi1_clk = {
 #else
 	 .secondary = &mmdc_ch0_axi_clk[0],
 #endif
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi2_get_rate(struct clk *clk)
@@ -2567,6 +2568,7 @@ static struct clk ssi2_clk = {
 #else
 	 .secondary = &mmdc_ch0_axi_clk[0],
 #endif
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi3_get_rate(struct clk *clk)
@@ -2639,6 +2641,7 @@ static struct clk ssi3_clk = {
 #else
 	 .secondary = &mmdc_ch0_axi_clk[0],
 #endif
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ldb_di_round_rate(struct clk *clk,
@@ -5220,10 +5223,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	/* S/PDIF */
 	clk_set_parent(&spdif0_clk[0], &pll3_pfd_454M);
 
-	/* pxp & epdc */
-	clk_set_parent(&ipu2_clk, &pll2_pfd_400M);
-	clk_set_rate(&ipu2_clk, 200000000);
-
 	if (mx6q_revision() == IMX_CHIP_REVISION_1_0) {
 		gpt_clk[0].parent = &ipg_perclk;
 		gpt_clk[0].get_rate = NULL;
@@ -5234,6 +5233,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	}
 
 	if (cpu_is_mx6dl()) {
+		/* pxp & epdc */
+		clk_set_parent(&ipu2_clk, &pll2_pfd_400M);
+		clk_set_rate(&ipu2_clk, 200000000);
 		if (epdc_enabled)
 			clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
 		else
@@ -5245,6 +5247,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	lp_high_freq = 0;
 	lp_med_freq = 0;
+	lp_audio_freq = 0;
 
 	/* Turn OFF all unnecessary PHYs. */
 	if (cpu_is_mx6q()) {
