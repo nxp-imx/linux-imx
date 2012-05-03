@@ -32,6 +32,7 @@
 #include <linux/types.h>
 #include <linux/fb.h>
 #include <linux/dma-mapping.h>
+#include <linux/delay.h>
 #include <linux/mxcfb.h>
 #include <media/v4l2-chip-ident.h>
 #include <media/v4l2-ioctl.h>
@@ -1669,7 +1670,7 @@ static int mxc_v4l_open(struct file *file)
 		vidioc_int_s_power(cam->sensor, 1);
 		vidioc_int_init(cam->sensor);
 		vidioc_int_dev_init(cam->sensor);
-}
+	}
 
 	file->private_data = dev;
 
