@@ -135,7 +135,6 @@ static u32 max11801_dcm_sample_aux(struct i2c_client *client)
 		printk(KERN_DEBUG "FIFO_RD_AUX_LSB read fails\n");
 	aux = (aux_buf[0] << 4) +
 					(aux_buf[1] >> 4);
-	printk(KERN_DEBUG "aux: %4x\n", aux);
 	/*
 	voltage = (9170*aux)/7371;
 	voltage is (26.2*3150*aux)/(16.2*0xFFF)
@@ -143,8 +142,6 @@ static u32 max11801_dcm_sample_aux(struct i2c_client *client)
 	sample_data = (14840*aux)/7371-1541;
 	*/
 	sample_data = (14840*aux)/7371;
-	pr_debug("FIFO_RD_AUX_MSB: %2x,FIFO_RD_AUX_LSB: %2x\n",
-		aux_buf[0], aux_buf[1]);
 	return sample_data;
 }
 
