@@ -37,4 +37,4 @@ obj-$(CONFIG_CHARGER_MAX8903)	+= max8903_charger.o
 obj-$(CONFIG_CHARGER_TWL4030)	+= twl4030_charger.o
 obj-$(CONFIG_CHARGER_GPIO)	+= gpio-charger.o
 obj-$(CONFIG_BATTERY_DA9052)	+= da9052-battery.o
-obj-$(CONFIG_BATTERY_MAX8903)   += max8903_battery.o
+obj-$(CONFIG_SABRESD_MAX8903)   += sabresd_battery.o
