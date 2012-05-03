@@ -34,6 +34,7 @@
 static struct clk *usb_oh3_clk;
 extern int clk_get_usecount(struct clk *clk);
 static struct fsl_usb2_platform_data usbh1_config;
+extern bool usb_icbug_swfix_need(void);
 
 static void fsl_platform_h1_set_usb_phy_dis(
 		struct fsl_usb2_platform_data *pdata, bool enable)
@@ -124,6 +125,9 @@ static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 	tmp |= (BM_USBPHY_CTRL_ENUTMILEVEL2 | BM_USBPHY_CTRL_ENUTMILEVEL3);
 	__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL);
 
+	if (!usb_icbug_swfix_need())
+		__raw_writel(((1 << 17) | (1 << 18)),
+				phy_reg + HW_USBPHY_IP_SET);
 	return 0;
 }
 static int fsl_usb_host_init_ext(struct platform_device *pdev)
@@ -329,8 +333,6 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.power_budget = 500,	/* 500 mA max power */
 	.wake_up_enable = _wake_up_enable,
 	.usb_clock_for_pm  = usbh1_clock_gate,
-	.platform_rh_suspend  = usbh1_platform_rh_suspend,
-	.platform_rh_resume   = usbh1_platform_rh_resume,
 	.platform_set_disconnect_det = fsl_platform_h1_set_usb_phy_dis,
 	.phy_lowpower_suspend = _phy_lowpower_suspend,
 	.is_wakeup_event = _is_usbh1_wakeup,
@@ -349,7 +351,15 @@ void __init mx6_usb_h1_init(void)
 {
 	struct platform_device *pdev, *pdev_wakeup;
 	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+
 	usbh1_config.wakeup_pdata = &usbh1_wakeup_config;
+	if (usb_icbug_swfix_need()) {
+		usbh1_config.platform_rh_suspend = usbh1_platform_rh_suspend;
+		usbh1_config.platform_rh_resume  = usbh1_platform_rh_resume;
+	} else {
+		usbh1_config.platform_rh_suspend = NULL;
+		usbh1_config.platform_rh_resume  = NULL;
+	}
 	if (cpu_is_mx6sl())
 		pdev = imx6sl_add_fsl_ehci_hs(1, &usbh1_config);
 	else
@@ -361,6 +371,7 @@ void __init mx6_usb_h1_init(void)
 		pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
 	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
 		(struct fsl_usb2_wakeup_platform_data *)(pdev_wakeup->dev.platform_data);
+
 	/* Some phy and power's special controls for host1
 	 * 1. The external charger detector needs to be disabled
 	 * or the signal at DP will be poor

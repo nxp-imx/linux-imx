@@ -32,6 +32,7 @@ static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct platform_device *pdev);
 static void usbotg_clock_gate(bool on);
 static void _dr_discharge_line(bool enable);
+extern bool usb_icbug_swfix_need(void);
 
 /* The usb_phy1_clk do not have enable/disable function at clock.c
  * and PLL output for usb1's phy should be always enabled.
@@ -160,6 +161,9 @@ static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 				, phy_reg + HW_USBPHY_CTRL_SET);
 	}
 
+	if (!usb_icbug_swfix_need())
+		__raw_writel(((1 << 17) | (1 << 18)),
+				phy_reg + HW_USBPHY_IP_SET);
 	return 0;
 }
 /* Notes: configure USB clock*/
@@ -553,6 +557,7 @@ void __init mx6_usb_dr_init(void)
 {
 	struct platform_device *pdev, *pdev_wakeup;
 	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+
 #ifdef CONFIG_USB_OTG
 	/* wake_up_enable is useless, just for usb_register_remote_wakeup execution*/
 	dr_utmi_config.wake_up_enable = _device_wakeup_enable;
@@ -564,8 +569,13 @@ void __init mx6_usb_dr_init(void)
 #ifdef CONFIG_USB_EHCI_ARC_OTG
 	dr_utmi_config.operating_mode = DR_HOST_MODE;
 	dr_utmi_config.wake_up_enable = _host_wakeup_enable;
-	dr_utmi_config.platform_rh_suspend = _host_platform_rh_suspend;
-	dr_utmi_config.platform_rh_resume  = _host_platform_rh_resume;
+	if (usb_icbug_swfix_need()) {
+		dr_utmi_config.platform_rh_suspend = _host_platform_rh_suspend;
+		dr_utmi_config.platform_rh_resume  = _host_platform_rh_resume;
+	} else {
+		dr_utmi_config.platform_rh_suspend = NULL;
+		dr_utmi_config.platform_rh_resume  = NULL;
+	}
 	dr_utmi_config.platform_set_disconnect_det = fsl_platform_otg_set_usb_phy_dis;
 	dr_utmi_config.phy_lowpower_suspend = _host_phy_lowpower_suspend;
 	dr_utmi_config.is_wakeup_event = _is_host_wakeup;
