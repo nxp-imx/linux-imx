@@ -55,6 +55,14 @@ void __iomem *imx_otg_base;
 #define MXC_NUMBER_USB_TRANSCEIVER 6
 struct fsl_xcvr_ops *g_xc_ops[MXC_NUMBER_USB_TRANSCEIVER] = { NULL };
 
+bool usb_icbug_swfix_need(void)
+{
+	if (cpu_is_mx6sl())
+		return false;
+	else
+		return true;
+}
+
 enum fsl_usb2_modes get_usb_mode(struct fsl_usb2_platform_data *pdata)
 {
 	enum fsl_usb2_modes mode;
