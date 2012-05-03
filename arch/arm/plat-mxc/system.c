@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1999 ARM Limited
  * Copyright (C) 2000 Deep Blue Solutions Ltd
- * Copyright 2006-2011 Freescale Semiconductor, Inc.
+ * Copyright 2006-2012 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  * Copyright 2009 Ilya Yanok, Emcraft Systems Ltd, yanok@emcraft.com
  *
@@ -41,7 +41,11 @@ void arch_reset(char mode, const char *cmd)
 
 #ifdef CONFIG_ARCH_MX6
 	/* wait for reset to assert... */
+	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	wcr_enable = 0x14; /*reset system by extern pmic*/
+	#else
 	wcr_enable = (1 << 2);
+	#endif
 	__raw_writew(wcr_enable, wdog_base);
 	/* errata TKT039676, SRS bit may be missed when
 	SRC sample it, need to write the wdog controller
