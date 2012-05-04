@@ -579,3 +579,9 @@ config MMC_USHC
 
 	  Note: These controllers only support SDIO cards and do not
 	  support MMC or SD memory cards.
+config SDHCI_USE_LEDS_CLASS
+	tristate "Support LEDs indicators for SDHC HOST"
+	depends on MMC_SDHCI && LEDS_CLASS
+	help
+	  This selects support for  SDHCI HOST Controllers use LED Class
+          to control the status of LEDs
