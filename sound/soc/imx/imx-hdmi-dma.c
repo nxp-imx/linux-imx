@@ -652,25 +652,45 @@ static void hdmi_dma_enable_channels(int channels)
 	}
 }
 
+static void hdmi_dma_set_thrsld_incrtype(int channels)
+{
+	int rev = hdmi_readb(HDMI_REVISION_ID);
+
+	switch (rev) {
+	case 0x0a:
+		{
+			switch (channels) {
+			case 2:
+				hdmi_dma_set_incr_type(HDMI_DMA_BURST_INCR4);
+				hdmi_writeb(126, HDMI_AHB_DMA_THRSLD);
+				break;
+			case 4:
+			case 6:
+			case 8:
+				hdmi_dma_set_incr_type(HDMI_DMA_BURST_INCR4);
+				hdmi_writeb(124, HDMI_AHB_DMA_THRSLD);
+				break;
+			default:
+				pr_debug("unsupport channel!\r\n");
+			}
+		}
+		break;
+	case 0x1a:
+		hdmi_writeb(128, HDMI_AHB_DMA_THRSLD);
+		hdmi_dma_set_incr_type(HDMI_DMA_BURST_INCR8);
+		break;
+	default:
+		pr_debug("error:unrecognized hdmi controller!\r\n");
+		break;
+	}
+
+	pr_debug("HDMI_AHB_DMA_THRSLD          0x%02x\n", hdmi_readb(HDMI_AHB_DMA_THRSLD));
+}
+
 static void hdmi_dma_configure_dma(int channels)
 {
 	hdmi_dma_enable_hlock(1);
-
-	switch (channels) {
-	case 2:
-		hdmi_dma_set_incr_type(HDMI_DMA_BURST_INCR4);
-		hdmi_writeb(126, HDMI_AHB_DMA_THRSLD);
-		break;
-	case 4:
-	case 6:
-	case 8:
-		hdmi_dma_set_incr_type(HDMI_DMA_BURST_INCR4);
-		hdmi_writeb(124, HDMI_AHB_DMA_THRSLD);
-		break;
-	default:
-		pr_err("%s %dunsupport channel!\r\n", __func__, __LINE__);
-	}
-
+	hdmi_dma_set_thrsld_incrtype(channels);
 	hdmi_dma_enable_channels(channels);
 }
 
