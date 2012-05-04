@@ -66,14 +66,14 @@ static bool capacity_changed_flag;
 
 static battery_capacity chargingTable[] = {
     {4146, 100},
-    {4133,	99},
-    {4123,	98},
-    {4115,	97},
-    {4090,	96},
-    {4075,	95},
-    {4060,	94},
-    {4045,	93},
-    {4030,	92},
+    {4133,  99},
+    {4123,  98},
+    {4115,  97},
+    {4090,  96},
+    {4075,  95},
+    {4060,  94},
+    {4045,  93},
+    {4030,  92},
     {4015,  91},
     {4000,  90},
     {3900,  85},
@@ -98,15 +98,15 @@ static battery_capacity chargingTable[] = {
 };
 static battery_capacity dischargingTable[] = {
     {4110, 100},
-    {4020,	99},
-    {3950,	98},
-    {3920,	97},
-    {3890,	96},
-    {3860,	96},
-    {3830,	95},
-    {3800,	94},
-    {3760,	93},
-    {3730,	92},
+    {4020,  99},
+    {3950,  98},
+    {3920,  97},
+    {3890,  96},
+    {3860,  96},
+    {3830,  95},
+    {3800,  94},
+    {3760,  93},
+    {3730,  92},
     {3700,  91},
     {3670,  90},
     {3630,  85},
@@ -207,9 +207,9 @@ u32 calibration_voltage(struct max8903_data *data)
 	for (i = 0; i < ADC_SAMPLE_COUNT; i++) {
 		if (data->charger_online == 0) {
 			/* ADC offset when battery is discharger*/
-			volt[i] = max11801_read_adc()-1794;
+			volt[i] = max11801_read_adc()-1494;
 			} else {
-			volt[i] = max11801_read_adc()-1960;
+			volt[i] = max11801_read_adc()-1545;
 			}
 	}
 	sort(volt, i, 4, cmp_func, NULL);
@@ -223,9 +223,6 @@ u32 calibration_voltage(struct max8903_data *data)
 static void max8903_battery_update_status(struct max8903_data *data)
 {
 	static int counter;
-#if 0
-	data->voltage_uV = max11801_read_adc();
-#endif
 	mutex_lock(&data->work_lock);
 	data->voltage_uV = calibration_voltage(data);
 	data->percent = calibrate_battery_capability_percent(data);
@@ -533,9 +530,7 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 	data->ta_in = ta_in;
 	data->usb_in = usb_in;
 	data->psy.name = "max8903-ac";
-	data->psy.type = (ta_in) ? POWER_SUPPLY_TYPE_MAINS :
-			((usb_in) ? POWER_SUPPLY_TYPE_USB :
-			 POWER_SUPPLY_TYPE_BATTERY);
+	data->psy.type = POWER_SUPPLY_TYPE_MAINS;
 	data->psy.get_property = max8903_get_property;
 	data->psy.properties = max8903_charger_props;
 	data->psy.num_properties = ARRAY_SIZE(max8903_charger_props);
@@ -626,6 +621,14 @@ err_chg_irq:
 		free_irq(gpio_to_irq(pdata->dok), data);
 	cancel_delayed_work(&data->work);
 err:
+	if (pdata->uok)
+		gpio_free(pdata->uok);
+	if (pdata->dok)
+		gpio_free(pdata->dok);
+	if (pdata->flt)
+		gpio_free(pdata->flt);
+	if (pdata->chg)
+		gpio_free(pdata->chg);
 	kfree(data);
 	return ret;
 }
@@ -694,5 +697,5 @@ module_exit(max8903_exit);
 
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
-MODULE_DESCRIPTION("MAX8903 Battery Driver");
-MODULE_ALIAS("max8903_battery");
+MODULE_DESCRIPTION("Sabresd Battery Driver");
+MODULE_ALIAS("sabresd_battery");
