@@ -24,6 +24,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 
 #include <sound/core.h>
 #include <sound/initval.h>
@@ -882,6 +883,9 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 
 		}
 		dumpregs();
+
+		hdmi_fifo_reset();
+		udelay(1);
 
 		hdmi_dma_priv->tx_active = true;
 		hdmi_dma_start();
