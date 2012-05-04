@@ -906,8 +906,6 @@ static void fec_enet_adjust_link(struct net_device *ndev)
 
 	/* Duplex link change */
 	if (phy_dev->link) {
-		if (!clk_get_usecount(fep->clk))
-			clk_enable(fep->clk);
 		if (fep->full_duplex != phy_dev->duplex) {
 			fec_restart(ndev, phy_dev->duplex);
 			status_change = 1;
@@ -1293,8 +1291,7 @@ fec_enet_open(struct net_device *ndev)
 	/* I should reset the ring buffers here, but I don't yet know
 	 * a simple way to do that.
 	 */
-	if (!clk_get_usecount(fep->clk))
-		clk_enable(fep->clk);
+	clk_enable(fep->clk);
 	ret = fec_enet_alloc_buffers(ndev);
 	if (ret)
 		return ret;
@@ -1325,6 +1322,10 @@ fec_enet_close(struct net_device *ndev)
 	/* Don't know what to do yet. */
 	fep->opened = 0;
 	netif_stop_queue(ndev);
+	netif_carrier_off(ndev);
+	if (fep->use_napi)
+		napi_disable(&fep->napi);
+
 	fec_stop(ndev);
 
 	if (fep->phy_dev) {
@@ -1335,8 +1336,7 @@ fec_enet_close(struct net_device *ndev)
 	fec_enet_free_buffers(ndev);
 
 	/* Clock gate close for saving power */
-	if (clk_get_usecount(fep->clk))
-		clk_disable(fep->clk);
+	clk_disable(fep->clk);
 
 	return 0;
 }
@@ -1798,6 +1798,7 @@ fec_probe(struct platform_device *pdev)
 
 	/* Carrier starts down, phylib will bring it up */
 	netif_carrier_off(ndev);
+	clk_disable(fep->clk);
 
 	ret = register_netdev(ndev);
 	if (ret)
@@ -1865,10 +1866,11 @@ fec_suspend(struct device *dev)
 	struct fec_enet_private *fep = netdev_priv(ndev);
 
 	if (netif_running(ndev)) {
-		fec_stop(ndev);
 		netif_device_detach(ndev);
+		fec_stop(ndev);
+		netif_carrier_off(ndev);
+		clk_disable(fep->clk);
 	}
-	clk_disable(fep->clk);
 
 	return 0;
 }
@@ -1879,8 +1881,8 @@ fec_resume(struct device *dev)
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct fec_enet_private *fep = netdev_priv(ndev);
 
-	clk_enable(fep->clk);
 	if (netif_running(ndev)) {
+		clk_enable(fep->clk);
 		fec_restart(ndev, fep->full_duplex);
 		netif_device_attach(ndev);
 	}
