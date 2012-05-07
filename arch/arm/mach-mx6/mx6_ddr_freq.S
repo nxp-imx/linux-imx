@@ -389,6 +389,19 @@ ddr_freq_change:
 	bic    r0, r0, #0xff00
 	str    r0, [r5, #0x4]
 
+/* Delay for a while */
+	ldr      r1, =4
+delay1:
+	ldr      r2, =0
+cont1:
+	ldr      r0, [r5, r2]
+	add     r2, r2, #4
+	cmp    r2, #16
+	bne     cont1
+	sub     r1, r1, #1
+	cmp    r1, #0
+	bgt     delay1
+
 	/* set CON_REG */
 	ldr     r0, =0x8000
 	str     r0, [r5, #0x1C]
