@@ -108,6 +108,8 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = pltfm_host->priv;
+	struct esdhc_platform_data *boarddata
+				= host->mmc->parent->platform_data;
 
 	/* fake CARD_PRESENT flag on mx25/35 */
 	u32 val = readl(host->ioaddr + reg);
@@ -127,18 +129,18 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 		val |= (fsl_prss & 0x00800000) << 1;
 	}
 
-	if (unlikely((reg == SDHCI_PRESENT_STATE)
-			&& (imx_data->flags & ESDHC_FLAG_GPIO_FOR_CD_WP))) {
-		struct esdhc_platform_data *boarddata =
-				host->mmc->parent->platform_data;
-
-		if (boarddata && gpio_is_valid(boarddata->cd_gpio)
-				&& gpio_get_value(boarddata->cd_gpio))
-			/* no card, if a valid gpio says so... */
-			val &= ~SDHCI_CARD_PRESENT;
-		else
-			/* ... in all other cases assume card is present */
+	if (unlikely(reg == SDHCI_PRESENT_STATE)) {
+		if (boarddata && boarddata->always_present)
 			val |= SDHCI_CARD_PRESENT;
+		else if	(imx_data->flags & ESDHC_FLAG_GPIO_FOR_CD_WP) {
+			if (boarddata && gpio_is_valid(boarddata->cd_gpio)
+					&& gpio_get_value(boarddata->cd_gpio))
+				/* no card, if a valid gpio says so */
+				val &= ~SDHCI_CARD_PRESENT;
+			else
+				/* in all other cases assume card is present */
+				val |= SDHCI_CARD_PRESENT;
+		}
 	}
 
 	if (reg == SDHCI_INT_STATUS && cpu_is_mx6()
@@ -749,7 +751,7 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	if (boarddata) {
 		/* Device is always present, e.x, populated emmc device */
 		if (boarddata->always_present) {
-			imx_data->flags |= ESDHC_FLAG_GPIO_FOR_CD_WP;
+			/* remove BROKEN_CD to disable card polling */
 			host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 			if (host->clk_mgr_en)
 				clk_disable(pltfm_host->clk);
