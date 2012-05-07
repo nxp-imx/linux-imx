@@ -1296,8 +1296,8 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	/* Check if DP local alpha is enabled and find the graphic fb */
 	if (mxc_fbi->ipu_ch == MEM_BG_SYNC || mxc_fbi->ipu_ch == MEM_FG_SYNC) {
 		for (i = 0; i < num_registered_fb; i++) {
-			char *bg_id = "DISP3 BG";
-			char *fg_id = "DISP3 FG";
+			char bg_id[] = "DISP3 BG";
+			char fg_id[] = "DISP3 FG";
 			char *idstr = registered_fb[i]->fix.id;
 			bg_id[4] += mxc_fbi->ipu_id;
 			fg_id[4] += mxc_fbi->ipu_id;
