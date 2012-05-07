@@ -1675,16 +1675,18 @@ static void release_disp_output(struct mxc_vout_output *vout)
 	set_window_position(vout, &pos);
 
 	if (get_ipu_channel(fbi) == MEM_BG_SYNC) {
-		console_lock();
-		fbi->fix.smem_start = vout->fb_smem_start;
-		fbi->fix.smem_len = vout->fb_smem_len;
-		vout->fb_var.activate |= FB_ACTIVATE_FORCE;
-		fbi->flags |= FBINFO_MISC_USEREVENT;
-		ret = fb_set_var(fbi, &vout->fb_var);
-		fbi->flags &= ~FBINFO_MISC_USEREVENT;
-		console_unlock();
-		if (ret < 0)
-			v4l2_err(vout->vfd->v4l2_dev, "ERR: fb_set_var.\n");
+		if ((vout->fb_smem_len != 0) && (vout->fb_smem_start != 0)) {
+			console_lock();
+			fbi->fix.smem_start = vout->fb_smem_start;
+			fbi->fix.smem_len = vout->fb_smem_len;
+			vout->fb_var.activate |= FB_ACTIVATE_FORCE;
+			fbi->flags |= FBINFO_MISC_USEREVENT;
+			ret = fb_set_var(fbi, &vout->fb_var);
+			fbi->flags &= ~FBINFO_MISC_USEREVENT;
+			console_unlock();
+			if (ret < 0)
+				v4l2_err(vout->vfd->v4l2_dev, "ERR: fb_set_var.\n");
+		}
 		console_lock();
 		fbi->flags |= FBINFO_MISC_USEREVENT;
 		fb_blank(fbi, FB_BLANK_UNBLANK);
