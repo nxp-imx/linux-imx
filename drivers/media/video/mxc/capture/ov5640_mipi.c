@@ -383,6 +383,7 @@ static struct reg_value ov5640_setting_15fps_PAL_720_576[] = {
 };
 
 static struct reg_value ov5640_setting_30fps_720P_1280_720[] = {
+	{0x3008, 0x42, 0, 0},
 	{0x3035, 0x21, 0, 0}, {0x3036, 0x54, 0, 0}, {0x3c07, 0x07, 0, 0},
 	{0x3c09, 0x1c, 0, 0}, {0x3c0a, 0x9c, 0, 0}, {0x3c0b, 0x40, 0, 0},
 	{0x3820, 0x41, 0, 0}, {0x3821, 0x07, 0, 0}, {0x3814, 0x31, 0, 0},
@@ -400,7 +401,8 @@ static struct reg_value ov5640_setting_30fps_720P_1280_720[] = {
 	{0x3a0d, 0x02, 0, 0}, {0x3a14, 0x02, 0, 0}, {0x3a15, 0xe4, 0, 0},
 	{0x4001, 0x02, 0, 0}, {0x4004, 0x02, 0, 0}, {0x4713, 0x02, 0, 0},
 	{0x4407, 0x04, 0, 0}, {0x460b, 0x37, 0, 0}, {0x460c, 0x20, 0, 0},
-	{0x3824, 0x04, 0, 0}, {0x5001, 0x83, 0, 0},
+	{0x3824, 0x04, 0, 0}, {0x5001, 0x83, 0, 0}, {0x4005, 0x1a, 0, 0},
+	{0x3008, 0x02, 0, 0}, {0x3503, 0,    0, 0},
 };
 
 static struct reg_value ov5640_setting_15fps_720P_1280_720[] = {
@@ -425,6 +427,7 @@ static struct reg_value ov5640_setting_15fps_720P_1280_720[] = {
 };
 
 static struct reg_value ov5640_setting_30fps_1080P_1920_1080[] = {
+	{0x3008, 0x42, 0, 0},
 	{0x3035, 0x21, 0, 0}, {0x3036, 0x54, 0, 0}, {0x3c07, 0x08, 0, 0},
 	{0x3c09, 0x1c, 0, 0}, {0x3c0a, 0x9c, 0, 0}, {0x3c0b, 0x40, 0, 0},
 	{0x3820, 0x40, 0, 0}, {0x3821, 0x06, 0, 0}, {0x3814, 0x11, 0, 0},
@@ -456,9 +459,12 @@ static struct reg_value ov5640_setting_30fps_1080P_1920_1080[] = {
 	{0x3a0e, 0x03, 0, 0}, {0x3a0d, 0x04, 0, 0}, {0x3a14, 0x04, 0, 0},
 	{0x3a15, 0x60, 0, 0}, {0x4713, 0x02, 0, 0}, {0x4407, 0x04, 0, 0},
 	{0x460b, 0x37, 0, 0}, {0x460c, 0x20, 0, 0}, {0x3824, 0x04, 0, 0},
+	{0x4005, 0x1a, 0, 0}, {0x3008, 0x02, 0, 0},
+	{0x3503, 0, 0, 0},
 };
 
 static struct reg_value ov5640_setting_15fps_1080P_1920_1080[] = {
+	{0x3008, 0x42, 0, 0},
 	{0x3035, 0x21, 0, 0}, {0x3036, 0x54, 0, 0}, {0x3c07, 0x08, 0, 0},
 	{0x3c09, 0x1c, 0, 0}, {0x3c0a, 0x9c, 0, 0}, {0x3c0b, 0x40, 0, 0},
 	{0x3820, 0x40, 0, 0}, {0x3821, 0x06, 0, 0}, {0x3814, 0x11, 0, 0},
@@ -490,6 +496,7 @@ static struct reg_value ov5640_setting_15fps_1080P_1920_1080[] = {
 	{0x3a0e, 0x03, 0, 0}, {0x3a0d, 0x04, 0, 0}, {0x3a14, 0x04, 0, 0},
 	{0x3a15, 0x60, 0, 0}, {0x4713, 0x02, 0, 0}, {0x4407, 0x04, 0, 0},
 	{0x460b, 0x37, 0, 0}, {0x460c, 0x20, 0, 0}, {0x3824, 0x04, 0, 0},
+	{0x4005, 0x1a, 0, 0}, {0x3008, 0x02, 0, 0}, {0x3503, 0, 0, 0},
 };
 
 static struct reg_value ov5640_setting_15fps_QSXGA_2592_1944[] = {
@@ -1010,12 +1017,6 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 			if (Delay_ms)
 				msleep(Delay_ms);
 		}
-
-		OV5640_set_AE_target(AE_Target);
-
-		OV5640_get_light_frequency();
-		OV5640_set_bandingfilter();
-
 	} else {
 		 /* set OV5640 to capture mode */
 
@@ -1037,7 +1038,8 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 		/* read preview shutter */
 
 		preview_shutter = OV5640_get_shutter();
-		if (binning_on())
+		if ((binning_on()) && (mode != ov5640_mode_720P_1280_720)
+				&& (mode != ov5640_mode_1080P_1920_1080))
 			preview_shutter *= 2;
 
 		/* read preview gain */
@@ -1158,6 +1160,10 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 		OV5640_stream_on();
 
 	}
+
+	OV5640_set_AE_target(AE_Target);
+	OV5640_get_light_frequency();
+	OV5640_set_bandingfilter();
 
 	if (mipi_csi2_info) {
 		unsigned int i;
