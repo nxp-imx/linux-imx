@@ -811,7 +811,7 @@ int cpufreq_gov_irq_tuner_register(struct irq_tuner dbs_irq_tuner)
 }
 EXPORT_SYMBOL_GPL(cpufreq_gov_irq_tuner_register);
 #ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
-fs_initcall(cpufreq_interactive_init);
+late_initcall(cpufreq_interactive_init);
 #else
 module_init(cpufreq_interactive_init);
 #endif
