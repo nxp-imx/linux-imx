@@ -107,16 +107,26 @@ module_param(loopdefault, bool, S_IRUGO|S_IWUSR);
 #else
 #define DRIVER_VENDOR_NUM	0x1a0a		/* OTG test device IDs */
 #define DRIVER_PRODUCT_NUM	0xbadd
-#define DEFAULT_AUTORESUME	5
+#define DEFAULT_AUTORESUME	5000
 #endif
+
+static unsigned startms;
 
 /* If the optional "autoresume" mode is enabled, it provides good
  * functional coverage for the "USBCV" test harness from USB-IF.
  * It's always set if OTG mode is enabled.
  */
-unsigned autoresume = DEFAULT_AUTORESUME;
+static unsigned autoresume = DEFAULT_AUTORESUME;
 module_param(autoresume, uint, S_IRUGO);
-MODULE_PARM_DESC(autoresume, "zero, or seconds before remote wakeup");
+MODULE_PARM_DESC(autoresume, "minimum milliseconds before sending remote wakeup");
+
+static unsigned interval;
+module_param(interval, uint, S_IRUGO);
+MODULE_PARM_DESC(interval, "zero, or milliseconds for interval remote wakeup time");
+
+static unsigned endms = 5000;
+module_param(endms, uint, S_IRUGO);
+MODULE_PARM_DESC(endms, "max milliseconds before sending remote wakeup");
 
 /*-------------------------------------------------------------------------*/
 
@@ -250,8 +260,11 @@ static void zero_suspend(struct usb_composite_dev *cdev)
 		return;
 
 	if (autoresume) {
-		mod_timer(&autoresume_timer, jiffies + (HZ * autoresume));
-		DBG(cdev, "suspend, wakeup in %d seconds\n", autoresume);
+		mod_timer(&autoresume_timer, jiffies + msecs_to_jiffies(startms));
+		DBG(cdev, "suspend, wakeup in %d milliseconds\n", startms);
+		startms += interval;
+		if (startms == endms)
+			startms = autoresume;
 	} else
 		DBG(cdev, "%s\n", __func__);
 }
@@ -327,6 +340,10 @@ static int __ref zero_bind(struct usb_composite_dev *cdev)
 		init_utsname()->sysname, init_utsname()->release,
 		gadget->name);
 
+	startms = autoresume;
+	if (autoresume > 0 && autoresume < 5)
+		pr_warning("%s: time before sending remote wakeup is less than 5ms, should not send resume signal.\n",
+			longname);
 	return 0;
 }
 
@@ -336,6 +353,11 @@ static int zero_unbind(struct usb_composite_dev *cdev)
 	return 0;
 }
 
+static void  zero_disconnect(struct usb_composite_dev *cdev)
+{
+	startms = autoresume;
+}
+
 static struct usb_composite_driver zero_driver = {
 	.name		= "zero",
 	.dev		= &device_desc,
@@ -343,6 +365,7 @@ static struct usb_composite_driver zero_driver = {
 	.unbind		= zero_unbind,
 	.suspend	= zero_suspend,
 	.resume		= zero_resume,
+	.disconnect     = zero_disconnect,
 };
 
 MODULE_AUTHOR("David Brownell");
