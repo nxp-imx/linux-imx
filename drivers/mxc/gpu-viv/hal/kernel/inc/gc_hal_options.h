@@ -258,7 +258,7 @@
         virtual data.
 */
 #ifndef gcdMMU_SIZE
-#   define gcdMMU_SIZE                          (128 << 10)
+#   define gcdMMU_SIZE                          (2048 << 10)
 #endif
 
 /*
