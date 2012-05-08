@@ -579,17 +579,17 @@ ddr_iomux_save:
 	stmfd	r0!, {r4}
 
 #ifdef CONFIG_CACHE_L2X0
-	ldr r2, =L2_BASE_ADDR
-	add r2, r2, #PERIPBASE_VIRT
+	ldr r1, =L2_BASE_ADDR
+	add r1, r1, #PERIPBASE_VIRT
 
-	ldr	r4, [r2, #L2X0_CTRL]
-	ldr	r5, [r2, #L2X0_AUX_CTRL]
-	ldr	r6, [r2, #L2X0_TAG_LATENCY_CTRL]
-	ldr	r7, [r2, #L2X0_DATA_LATENCY_CTRL]
+	ldr	r4, [r1, #L2X0_CTRL]
+	ldr	r5, [r1, #L2X0_AUX_CTRL]
+	ldr	r6, [r1, #L2X0_TAG_LATENCY_CTRL]
+	ldr	r7, [r1, #L2X0_DATA_LATENCY_CTRL]
 	stmfd	r0!, {r4-r7}
 
-	ldr	r4, [r2, #L2X0_PREFETCH_CTRL]
-	ldr	r5, [r2, #L2X0_POWER_CTRL]
+	ldr	r4, [r1, #L2X0_PREFETCH_CTRL]
+	ldr	r5, [r1, #L2X0_POWER_CTRL]
 	stmfd	r0!, {r4-r5}
 #endif
 
