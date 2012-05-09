@@ -333,6 +333,23 @@ __dma_alloc(struct device *dev, size_t size, dma_addr_t *handle, gfp_t gfp,
  * virtual and bus address for that space.
  */
 void *
+dma_alloc_noncached(struct device *dev, size_t size, dma_addr_t *handle, gfp_t gfp)
+{
+	void *memory;
+
+	if (dma_alloc_from_coherent(dev, size, handle, &memory))
+		return memory;
+
+	return __dma_alloc(dev, size, handle, gfp,
+			   pgprot_noncached(pgprot_kernel));
+}
+EXPORT_SYMBOL(dma_alloc_noncached);
+
+/*
+ * Allocate DMA-coherent memory space and return both the kernel remapped
+ * virtual and bus address for that space.
+ */
+void *
 dma_alloc_coherent(struct device *dev, size_t size, dma_addr_t *handle, gfp_t gfp)
 {
 	void *memory;
