@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -181,6 +181,7 @@ int __init mxc_early_uart_console_disable(void)
 	struct uart_port *port = &device->port;
 
 	if (mxc_early_uart_console.index >= 0) {
+		unregister_console(&mxc_early_uart_console);
 		iounmap(port->membase);
 		clk_disable(device->clk);
 		clk_put(device->clk);
