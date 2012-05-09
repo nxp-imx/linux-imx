@@ -959,6 +959,8 @@ static int imx_startup(struct uart_port *port)
 	unsigned long flags, temp;
 	struct tty_struct *tty;
 
+	clk_enable(sport->clk);
+
 #ifndef CONFIG_SERIAL_CORE_CONSOLE
 	imx_setup_ufcr(sport, 0);
 #endif
@@ -1189,6 +1191,7 @@ static void imx_shutdown(struct uart_port *port)
 		writel(temp, sport->port.membase + UCR4);
 	}
 	spin_unlock_irqrestore(&sport->port.lock, flags);
+	clk_disable(sport->clk);
 }
 
 static void
@@ -1803,6 +1806,7 @@ static int serial_imx_probe(struct platform_device *pdev)
 		goto deinit;
 	platform_set_drvdata(pdev, &sport->port);
 
+	clk_disable(sport->clk);
 	return 0;
 deinit:
 	if (pdata && pdata->exit)
@@ -1831,8 +1835,6 @@ static int serial_imx_remove(struct platform_device *pdev)
 		uart_remove_one_port(&imx_reg, &sport->port);
 		clk_put(sport->clk);
 	}
-
-	clk_disable(sport->clk);
 
 	if (pdata && pdata->exit)
 		pdata->exit(pdev);
