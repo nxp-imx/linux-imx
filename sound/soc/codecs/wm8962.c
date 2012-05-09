@@ -4100,6 +4100,16 @@ static int wm8962_probe(struct snd_soc_codec *codec)
 					    pdata->mic_cfg);
 	}
 
+	/* set the default volume for headphpone and speaker */
+	snd_soc_update_bits(codec, WM8962_HPOUTL_VOLUME,
+			    WM8962_HPOUTL_VOL_MASK, 0x65);
+	snd_soc_update_bits(codec, WM8962_HPOUTR_VOLUME,
+			    WM8962_HPOUTR_VOL_MASK, 0x65);
+	snd_soc_update_bits(codec, WM8962_SPKOUTL_VOLUME,
+			    WM8962_SPKOUTL_VOL_MASK, 0x72);
+	snd_soc_update_bits(codec, WM8962_SPKOUTR_VOLUME,
+			    WM8962_SPKOUTR_VOL_MASK, 0x72);
+
 	/* Latch volume update bits */
 	snd_soc_update_bits(codec, WM8962_LEFT_INPUT_VOLUME,
 			    WM8962_IN_VU, WM8962_IN_VU);
