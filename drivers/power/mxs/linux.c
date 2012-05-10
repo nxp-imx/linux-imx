@@ -4,7 +4,7 @@
  * Author: Steve Longerbeam <stevel@embeddedalley.com>
  *
  * Copyright (C) 2008 EmbeddedAlley Solutions Inc.
- * Copyright 2008-2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -28,6 +28,7 @@
 #include <mach/hardware.h>
 #include <mach/irqs.h>
 #include <mach/clock.h>
+#include <mach/regs-rtc.h>
 #include <linux/delay.h>
 #include <linux/proc_fs.h>
 #include <linux/interrupt.h>
@@ -775,10 +776,25 @@ static int mxs_bat_probe(struct platform_device *pdev)
 {
 	struct mxs_info *info;
 	int ret = 0;
+	void *base = IO_ADDRESS(RTC_PHYS_ADDR);
 
 
 	/* enable usb device presence detection */
 	fsl_enable_usb_plugindetect();
+
+
+
+    /* check bit 11, bit 11 is set in power_prep.c if it is 5V only build.
+       we don't need initialize battery for 5V only build
+    */
+	if ((__raw_readl(base + HW_RTC_PERSISTENT1) & 0x800)) {
+
+		__raw_writel(0x800, base + HW_RTC_PERSISTENT1_CLR);
+
+		/* InitializeFiqSystem(); */
+		ddi_power_InitOutputBrownouts();
+		return 0;
+    }
 
 	ret = ddi_power_init_battery();
 	if (ret) {
@@ -975,6 +991,7 @@ static int mxs_bat_probe(struct platform_device *pdev)
 		pr_debug("No onboard vbus 5v reg provided\n");
 		info->onboard_vbus5v = NULL;
 	}
+
 	return 0;
 
 unregister_ac:
@@ -1127,9 +1144,20 @@ static struct proc_dir_entry *power_fiq_proc;
 static int __init mxs_bat_init(void)
 {
 	struct clk *cpu, *pll0;
+	int ret;
+    int no_battery = false;
 
 #ifdef POWER_FIQ
-	int ret;
+
+    /* check bit 11, bit 11 is set in power_prep.c if it is 5V only build.
+    */
+
+	if ((__raw_readl(IO_ADDRESS(RTC_PHYS_ADDR) + HW_RTC_PERSISTENT1)
+		& 0x800)) {
+		no_battery = true;
+		printk(KERN_NOTICE "This is 5V only build. \r\n");
+	}
+
 	ret = claim_fiq(&power_fiq);
 	if (ret) {
 		pr_err("Can't claim fiq");
@@ -1143,6 +1171,9 @@ static int __init mxs_bat_init(void)
 		disable_irq(IRQ_DCDC4P2_BRNOUT);
 		disable_irq(IRQ_BATT_BRNOUT);
 		disable_irq(IRQ_VDDD_BRNOUT);
+		disable_irq(IRQ_VDDA_BRNOUT);
+		if (no_battery)
+			disable_irq(IRQ_VDDIO_BRNOUT);
 #ifndef CONFIG_ARCH_MX28
 		disable_irq(IRQ_VDD18_BRNOUT);
 #endif
@@ -1153,6 +1184,9 @@ static int __init mxs_bat_init(void)
 		mxs_set_irq_fiq(IRQ_DCDC4P2_BRNOUT, 1);
 		mxs_set_irq_fiq(IRQ_BATT_BRNOUT, 1);
 		mxs_set_irq_fiq(IRQ_VDDD_BRNOUT, 1);
+		mxs_set_irq_fiq(IRQ_VDDA_BRNOUT, 1);
+		if (no_battery)
+			mxs_set_irq_fiq(IRQ_VDDIO_BRNOUT, 1);
 #ifndef CONFIG_ARCH_MX28
 		mxs_set_irq_fiq(IRQ_VDD18_BRNOUT, 1);
 #endif
@@ -1165,6 +1199,9 @@ static int __init mxs_bat_init(void)
 		enable_irq(IRQ_DCDC4P2_BRNOUT);
 		enable_irq(IRQ_BATT_BRNOUT);
 		enable_irq(IRQ_VDDD_BRNOUT);
+		enable_irq(IRQ_VDDA_BRNOUT);
+		if (no_battery)
+			enable_irq(IRQ_VDDIO_BRNOUT);
 #ifndef CONFIG_ARCH_MX28
 		enable_irq(IRQ_VDD18_BRNOUT);
 #endif
