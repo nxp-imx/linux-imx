@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include <asm/pgtable-hwdef.h>
 #include <mach/regs-power.h>
 #include <mach/../../regs-clkctrl.h>
+#include <mach/../../regs-digctl.h>
 #include <mach/regs-timrot.h>
 
 	.align 5
@@ -32,20 +33,46 @@
 	.globl lock_vector_tlb
 
 power_fiq_start:
-	ldr 	r8,power_reg
+	ldr r8,power_reg
 	ldr	r9,[r8,#HW_POWER_CTRL ]
 	ldr	r10,power_off
 
-	@ when VDDIO_BO_IRQ,
-	@ disabled, handled in IRQ for now
-	@tst 	r9, #BM_POWER_CTRL_VDDIO_BO_IRQ
 
-
-	@ when BATT_BO_IRQ,  VDDD_BO_IRQ, VDDA_BO_IRQ, power off chip
-	ldr     r11,power_bo
-	tst	r9, r11
+    @ If battery Brownout, power off chip
+	tst     r9, #BM_POWER_CTRL_BATT_BO_IRQ
 	strne 	r10,[r8,#HW_POWER_RESET]
 
+
+	@ For 5V only configration, VDDIO_BO is set as FIQ,
+	@ For other cases, VDDIO_BO is handled in IRQ
+
+	@ check whether it is VDDD_BO_IRQ, VDDA_BO_IRQ, VDDIO_BO_IRQ
+	ldr r11,power_bo
+	tst	r9, r11
+	beq	check_vdd5v
+
+	ldr r9, power_digctl
+	ldr r12, [r9, #HW_DIGCTL_MICROSECONDS];
+	add	r12, #11  @ debouce time is 11 microseconds.
+
+    @ Loop for specified time to debounce the brownout status bits.
+
+loop_check:
+	ldr	r10,  [r8, #HW_POWER_STS]
+    ldr r11, sts_bo
+	tst	r10, r11
+    beq     done      @ false brownout go to done.
+
+	ldr r9, power_digctl
+	ldr	r11, [r9, #HW_DIGCTL_MICROSECONDS];
+	cmp	r11, r12
+	blt	loop_check
+
+    @ true brownout, power off chip.
+	ldr	r10,power_off
+	str	r10, [r8, #HW_POWER_RESET]
+
+check_vdd5v:
 	@VDD5V_DROOP_IRQ
 	tst     r9, #BM_POWER_CTRL_VDD5V_DROOP_IRQ
 	beq	    check_dcdc4p2
@@ -93,18 +120,22 @@ check_dcdc4p2:
 	mov	r11, #BM_POWER_CTRL_ENIRQ_DCDC4P2_BO
 	strne	r11, [r8, #HW_POWER_CTRL_CLR]
 
-
+done:
 
 	@return from fiq
 	subs    pc,lr, #4
 
 power_reg:
 	.long IO_ADDRESS(POWER_PHYS_ADDR)
+power_digctl:
+	.long IO_ADDRESS(DIGCTL_PHYS_ADDR)
 power_off:
 	.long 0x3e770001
 power_bo:
-	.long BM_POWER_CTRL_BATT_BO_IRQ | \
-	      BM_POWER_CTRL_VDDA_BO_IRQ | BM_POWER_CTRL_VDDD_BO_IRQ
+	.long BM_POWER_CTRL_VDDA_BO_IRQ|BM_POWER_CTRL_VDDD_BO_IRQ \
+		|BM_POWER_CTRL_VDDIO_BO_IRQ
+sts_bo:
+    .long BM_POWER_STS_VDDIO_BO | BM_POWER_STS_VDDA_BO	| BM_POWER_STS_VDDD_BO
 power_fiq_count:
 	.long 0
 power_fiq_end:
