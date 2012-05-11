@@ -1368,6 +1368,20 @@ static void pcie_3v3_power(bool on)
 
 }
 
+static void pcie_3v3_reset()
+{
+	/* reset miniPCIe */
+	gpio_request(SABRESD_PCIE_RST_B_REVB, "pcie_reset_rebB");
+	gpio_direction_output(SABRESD_PCIE_RST_B_REVB, 1);
+
+	gpio_set_value(SABRESD_PCIE_RST_B_REVB, 0);
+	/* The PCI Express Mini CEM specification states that PREST# is
+	deasserted minimum 1ms after 3.3vVaux has been applied and stable*/
+	msleep(1);
+	gpio_set_value(SABRESD_PCIE_RST_B_REVB, 1);
+}
+
+
 static void gps_power_on(bool on)
 {
 	/* Enable/disable aux_3v15 */
@@ -1749,7 +1763,12 @@ static void __init mx6_sabresd_board_init(void)
 	gpio_direction_output(SABRESD_AUX_5V_EN, 1);
 	gpio_set_value(SABRESD_AUX_5V_EN, 1);
 
+	pcie_3v3_power(false);
+	msleep(10);
 	pcie_3v3_power(true);
+	msleep(10);
+	pcie_3v3_reset();
+
 	gps_power_on(true);
 
 	/* Register charger chips */
