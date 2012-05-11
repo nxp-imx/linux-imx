@@ -517,14 +517,15 @@ static int mxc_spdif_playback_startup(struct snd_pcm_substream *substream,
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
-	int err;
+	int err = 0;
 
 	if (!plat_data->spdif_tx)
 		return -EINVAL;
 
 	spdif_priv->tx_active = true;
-	clk_enable(plat_data->spdif_clk);
-	clk_enable(plat_data->spdif_audio_clk);
+	err = clk_enable(plat_data->spdif_clk);
+	if (err < 0)
+		goto failed_clk;
 
 	err = snd_pcm_hw_constraint_list(runtime, 0,
 					 SNDRV_PCM_HW_PARAM_RATE,
@@ -537,9 +538,10 @@ static int mxc_spdif_playback_startup(struct snd_pcm_substream *substream,
 		goto failed;
 
 	return 0;
+
 failed:
-	clk_disable(plat_data->spdif_audio_clk);
 	clk_disable(plat_data->spdif_clk);
+failed_clk:
 	spdif_priv->tx_active = false;
 	return err;
 }
@@ -619,7 +621,6 @@ static int mxc_spdif_playback_shutdown(struct snd_pcm_substream *substream,
 	regval |= SCR_LOW_POWER;
 	__raw_writel(regval, SPDIF_REG_SCR + spdif_base_addr);
 
-	clk_disable(plat_data->spdif_audio_clk);
 	clk_disable(plat_data->spdif_clk);
 	spdif_priv->tx_active = false;
 
@@ -641,7 +642,9 @@ static int mxc_spdif_capture_startup(struct snd_pcm_substream *substream,
 	spdif_priv->rx_active = true;
 
 	/* enable rx bus clock */
-	clk_enable(plat_data->spdif_clk);
+	err = clk_enable(plat_data->spdif_clk);
+	if (err < 0)
+		goto failed_clk;
 
 	/* set hw param constraints */
 	err = snd_pcm_hw_constraint_list(runtime, 0,
@@ -662,6 +665,7 @@ static int mxc_spdif_capture_startup(struct snd_pcm_substream *substream,
 
 failed:
 	clk_disable(plat_data->spdif_clk);
+failed_clk:
 	spdif_priv->rx_active = false;
 	return err;
 }
@@ -1058,10 +1062,13 @@ static int mxc_spdif_startup(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
-	int ret;
+	int ret = 0;
 
 	/* enable spdif_xtal_clk */
-	clk_enable(plat_data->spdif_core_clk);
+	ret = clk_enable(plat_data->spdif_core_clk);
+	if (ret < 0)
+		goto failed_clk;
+
 	spdif_softreset();
 	/* disable all the interrupts */
 	spdif_intr_enable(0xffffff, 0);
@@ -1071,6 +1078,7 @@ static int mxc_spdif_startup(struct snd_pcm_substream *substream,
 	else
 		ret = mxc_spdif_capture_startup(substream, dai);
 
+failed_clk:
 	return ret;
 }
 
@@ -1087,7 +1095,6 @@ static void mxc_spdif_shutdown(struct snd_pcm_substream *substream,
 	else
 		ret = mxc_spdif_capture_shutdown(substream, dai);
 	/* disable spdif_core clock  */
-	clk_put(plat_data->spdif_clk);
 	clk_disable(plat_data->spdif_core_clk);
 }
 
@@ -1140,10 +1147,8 @@ static int mxc_spdif_soc_suspend(struct snd_soc_codec *codec,
 
 	plat_data = spdif_priv->plat_data;
 
-	if (spdif_priv->tx_active) {
-		clk_disable(plat_data->spdif_audio_clk);
+	if (spdif_priv->tx_active)
 		clk_disable(plat_data->spdif_clk);
-	}
 
 	if (spdif_priv->rx_active)
 		clk_disable(plat_data->spdif_clk);
@@ -1165,10 +1170,8 @@ static int mxc_spdif_soc_resume(struct snd_soc_codec *codec)
 
 	clk_enable(plat_data->spdif_core_clk);
 
-	if (spdif_priv->tx_active) {
+	if (spdif_priv->tx_active)
 		clk_enable(plat_data->spdif_clk);
-		clk_enable(plat_data->spdif_audio_clk);
-	}
 
 	if (spdif_priv->rx_active)
 		clk_enable(plat_data->spdif_clk);
@@ -1289,7 +1292,6 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 
 card_err:
 	clk_put(plat_data->spdif_clk);
-	clk_disable(plat_data->spdif_core_clk);
 failed_clk:
 	platform_set_drvdata(pdev, NULL);
 	kfree(spdif_priv);
