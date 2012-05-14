@@ -109,6 +109,17 @@ config MXC_DEBUG_BOARD
 config HAVE_EPIT
 	bool
 
+config MXC_REBOOT_MFGMODE
+       bool "Enable reboot to MFG mode function"
+       help
+          Enable this config to perform "reboot download" to enter download mode.
+
+config MXC_REBOOT_ANDROID_CMD
+       bool "Enable reboot to android recovery and android fastboot"
+       help
+           Enable this config to use "reboot fastboot", "reboot recovery" to
+	   enter fastboot and recovery mode.
+
 config MXC_USE_EPIT
 	bool "Use EPIT instead of GPT"
 	depends on HAVE_EPIT
