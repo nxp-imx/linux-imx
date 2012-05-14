@@ -99,6 +99,15 @@ int mxc_init_l2x0(void)
 {
 	unsigned int val;
 
+	#define IOMUXC_GPR11_L2CACHE_AS_OCRAM 0x00000002
+
+	val = readl(IOMUXC_GPR11);
+	if (cpu_is_mx6sl() && (val & IOMUXC_GPR11_L2CACHE_AS_OCRAM)) {
+		/* L2 cache configured as OCRAM, reset it */
+		val &= ~IOMUXC_GPR11_L2CACHE_AS_OCRAM;
+		writel(val, IOMUXC_GPR11);
+	}
+
 	writel(0x132, IO_ADDRESS(L2_BASE_ADDR + L2X0_TAG_LATENCY_CTRL));
 	writel(0x132, IO_ADDRESS(L2_BASE_ADDR + L2X0_DATA_LATENCY_CTRL));
 
