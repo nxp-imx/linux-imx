@@ -1141,61 +1141,9 @@ static int mxc_spdif_soc_remove(struct snd_soc_codec *codec)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int mxc_spdif_soc_suspend(struct snd_soc_codec *codec,
-				 pm_message_t state)
-{
-	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
-	struct mxc_spdif_platform_data *plat_data;
-
-	if (codec == NULL)
-		return -EINVAL;
-
-	plat_data = spdif_priv->plat_data;
-
-	if (spdif_priv->tx_active)
-		clk_disable(plat_data->spdif_clk);
-
-	if (spdif_priv->rx_active)
-		clk_disable(plat_data->spdif_clk);
-
-	clk_disable(plat_data->spdif_core_clk);
-
-	return 0;
-}
-
-static int mxc_spdif_soc_resume(struct snd_soc_codec *codec)
-{
-	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
-	struct mxc_spdif_platform_data *plat_data;
-
-	if (codec == NULL)
-		return -EINVAL;
-
-	plat_data = spdif_priv->plat_data;
-
-	clk_enable(plat_data->spdif_core_clk);
-
-	if (spdif_priv->tx_active)
-		clk_enable(plat_data->spdif_clk);
-
-	if (spdif_priv->rx_active)
-		clk_enable(plat_data->spdif_clk);
-
-	spdif_softreset();
-
-	return 0;
-}
-#else
-#define mxc_spdif_soc_suspend	NULL
-#define mxc_spdif_soc_resume	NULL
-#endif /* CONFIG_PM */
-
 struct snd_soc_codec_driver soc_codec_dev_spdif = {
 	.probe = mxc_spdif_soc_probe,
 	.remove = mxc_spdif_soc_remove,
-	.suspend = mxc_spdif_soc_suspend,
-	.resume = mxc_spdif_soc_resume,
 };
 
 static int __devinit mxc_spdif_probe(struct platform_device *pdev)
