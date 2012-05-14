@@ -598,7 +598,7 @@ static int mxc_spdif_playback_start(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int mxc_spdif_playback_shutdown(struct snd_pcm_substream *substream,
+static int mxc_spdif_playback_stop(struct snd_pcm_substream *substream,
 						struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
@@ -653,6 +653,7 @@ static int mxc_spdif_playback_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		ret = mxc_spdif_playback_stop(substream, dai);
 		break;
 	default:
 		return -EINVAL;
@@ -749,7 +750,7 @@ static int mxc_spdif_capture_start(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int mxc_spdif_capture_shutdown(struct snd_pcm_substream *substream,
+static int mxc_spdif_capture_stop(struct snd_pcm_substream *substream,
 					       struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
@@ -805,6 +806,7 @@ static int mxc_spdif_capture_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		ret = mxc_spdif_capture_stop(substream, dai);
 		break;
 	default:
 		return -EINVAL;
@@ -1150,12 +1152,7 @@ static void mxc_spdif_shutdown(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
-	int ret;
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		ret = mxc_spdif_playback_shutdown(substream, dai);
-	else
-		ret = mxc_spdif_capture_shutdown(substream, dai);
 	/* disable spdif_core clock  */
 	clk_disable(plat_data->spdif_core_clk);
 }
