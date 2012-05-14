@@ -1612,6 +1612,9 @@ fec_stop(struct net_device *dev)
 	udelay(10);
 
 #ifdef CONFIG_ARCH_MXS
+	/* FIXME: we have to enable enet to keep mii interrupt works. */
+	writel((0x1 << 1), fep->hwp + FEC_ECNTRL);
+
 	/* Check MII or RMII */
 	if (fep->phy_interface == PHY_INTERFACE_MODE_RMII)
 		writel(readl(fep->hwp + FEC_R_CNTRL) | 0x100,
