@@ -633,6 +633,33 @@ static int mxc_spdif_playback_shutdown(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int mxc_spdif_playback_trigger(struct snd_pcm_substream *substream,
+				int cmd, struct snd_soc_dai *dai)
+{
+	struct snd_soc_codec *codec = dai->codec;
+	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
+	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
+	int ret = 0;
+
+	if (!plat_data->spdif_tx)
+		return -EINVAL;
+
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_RESUME:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		break;
+	case SNDRV_PCM_TRIGGER_STOP:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
 static int mxc_spdif_capture_startup(struct snd_pcm_substream *substream,
 					      struct snd_soc_dai *dai)
 {
@@ -755,6 +782,33 @@ static int mxc_spdif_capture_shutdown(struct snd_pcm_substream *substream,
 	spdif_priv->rx_active = false;
 
 	return 0;
+}
+
+static int mxc_spdif_capture_trigger(struct snd_pcm_substream *substream,
+				int cmd, struct snd_soc_dai *dai)
+{
+	struct snd_soc_codec *codec = dai->codec;
+	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
+	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
+	int ret = 0;
+
+	if (!plat_data->spdif_rx)
+		return -EINVAL;
+
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_RESUME:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		break;
+	case SNDRV_PCM_TRIGGER_STOP:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
 }
 
 /*
@@ -1117,9 +1171,23 @@ static int mxc_spdif_prepare(struct snd_pcm_substream *substream,
 	return ret;
 }
 
+static int mxc_spdif_trigger(struct snd_pcm_substream *substream,
+				int cmd, struct snd_soc_dai *dai)
+{
+	int ret = 0;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		ret = mxc_spdif_playback_trigger(substream, cmd, dai);
+	else
+		ret = mxc_spdif_capture_trigger(substream, cmd, dai);
+
+	return ret;
+}
+
 struct snd_soc_dai_ops mxc_spdif_codec_dai_ops = {
 	.startup = mxc_spdif_startup,
 	.prepare = mxc_spdif_prepare,
+	.trigger = mxc_spdif_trigger,
 	.shutdown = mxc_spdif_shutdown,
 };
 
