@@ -960,7 +960,7 @@
 #define MX6SL_PAD_EPDC_PWRCOM__WEIM_WEIM_BCLK                                 \
 		IOMUX_PAD(0x03D0, 0x00E0, 3, 0x0000, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_EPDC_PWRCOM__ANATOP_USBOTG1_ID                              \
-		IOMUX_PAD(0x03D0, 0x00E0, 4, 0x05DC, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x03D0, 0x00E0, 4, 0x05DC, 0, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_EPDC_PWRCOM__GPIO_2_11                                      \
 		IOMUX_PAD(0x03D0, 0x00E0, 5, 0x0000, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_EPDC_PWRCOM__USDHC3_RST                                     \
