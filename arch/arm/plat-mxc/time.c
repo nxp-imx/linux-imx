@@ -339,7 +339,7 @@ void __init mxc_timer_init(struct clk *timer_clk, void __iomem *base, int irq)
 	__raw_writel(0, timer_base + MXC_TPRER); /* see datasheet note */
 
 	if (timer_is_v2()) {
-		if (cpu_is_mx5() ||
+		if (cpu_is_mx5() || cpu_is_mx6sl() ||
 			mx6q_revision() == IMX_CHIP_REVISION_1_0)
 			tctl_val = V2_TCTL_CLK_PER | V2_TCTL_FRR |
 						V2_TCTL_WAITEN | MXC_TCTL_TEN;
