@@ -926,7 +926,7 @@ static int sdma_request_channel(struct sdma_channel *sdmac)
 	sdmac->bd = sdma_iram_malloc(sizeof(sdmac->bd),
 					(unsigned long)&sdmac->bd_phys);
 #else
-	sdmac->bd = dma_alloc_coherent(NULL, PAGE_SIZE, &sdmac->bd_phys, GFP_KERNEL);
+	sdmac->bd = dma_alloc_noncached(NULL, PAGE_SIZE, &sdmac->bd_phys, GFP_KERNEL);
 #endif
 	if (!sdmac->bd) {
 		ret = -ENOMEM;
