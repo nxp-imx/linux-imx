@@ -81,9 +81,12 @@ struct spdif_mixer_control mxc_spdif_control;
 static unsigned long spdif_base_addr;
 
 #if MXC_SPDIF_DEBUG
-static void dumpregs(void)
+static void dumpregs(struct mxc_spdif_priv *priv)
 {
 	unsigned int value, i;
+
+	if (!priv->tx_active || !priv->rx_active)
+		clk_enable(priv->plat_data->spdif_core_clk);
 
 	for (i = 0 ; i <= 0x38 ; i += 4) {
 		value = readl(spdif_base_addr + i) & 0xffffff;
@@ -97,9 +100,12 @@ static void dumpregs(void)
 	i = 0x50;
 	value = readl(spdif_base_addr + i) & 0xffffff;
 	pr_debug("reg 0x%02x = 0x%06x\n", i, value);
+
+	if (!priv->tx_active || !priv->rx_active)
+		clk_disable(priv->plat_data->spdif_core_clk);
 }
 #else
-static void dumpregs(void) {}
+static void dumpregs(struct mxc_spdif_priv *priv) {}
 #endif
 
 /* define each spdif interrupt handlers */
@@ -588,7 +594,7 @@ static int mxc_spdif_playback_prepare(struct snd_pcm_substream *substream,
 	regval |= SCR_DMA_TX_EN;
 	__raw_writel(regval, SPDIF_REG_SCR + spdif_base_addr);
 
-	dumpregs();
+	dumpregs(spdif_priv);
 	return 0;
 }
 
@@ -603,7 +609,7 @@ static int mxc_spdif_playback_shutdown(struct snd_pcm_substream *substream,
 	if (!plat_data->spdif_tx)
 		return -EINVAL;
 
-	dumpregs();
+	dumpregs(spdif_priv);
 	pr_debug("SIS: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_SIS));
 
 	spdif_intr_status();
@@ -1286,7 +1292,7 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 		goto card_err;
 	}
 
-	dumpregs();
+	dumpregs(spdif_priv);
 
 	return 0;
 
