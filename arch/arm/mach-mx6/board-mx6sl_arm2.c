@@ -356,6 +356,29 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 };
 
+static struct mxc_dvfs_platform_data mx6sl_arm2_dvfscore_data = {
+	.reg_id			= "cpu_vddgp",
+	.clk1_id		= "cpu_clk",
+	.clk2_id		= "gpc_dvfs_clk",
+	.gpc_cntr_offset	= MXC_GPC_CNTR_OFFSET,
+	.ccm_cdcr_offset	= MXC_CCM_CDCR_OFFSET,
+	.ccm_cacrr_offset	= MXC_CCM_CACRR_OFFSET,
+	.ccm_cdhipr_offset	= MXC_CCM_CDHIPR_OFFSET,
+	.prediv_mask		= 0x1F800,
+	.prediv_offset		= 11,
+	.prediv_val		= 3,
+	.div3ck_mask		= 0xE0000000,
+	.div3ck_offset		= 29,
+	.div3ck_val		= 2,
+	.emac_val		= 0x08,
+	.upthr_val		= 25,
+	.dnthr_val		= 9,
+	.pncthr_val		= 33,
+	.upcnt_val		= 10,
+	.dncnt_val		= 10,
+	.delay_time		= 80,
+};
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 
 static inline void mx6_arm2_init_uart(void)
@@ -733,6 +756,8 @@ static void __init mx6_arm2_init(void)
 	imx6dl_add_imx_pxp_client();
 	mxc_register_device(&max17135_sensor_device, NULL);
 	imx6dl_add_imx_epdc(&epdc_data);
+
+	imx6q_add_dvfs_core(&mx6sl_arm2_dvfscore_data);
 }
 
 extern void __iomem *twd_base;
