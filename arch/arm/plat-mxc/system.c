@@ -32,12 +32,40 @@
 
 static void __iomem *wdog_base;
 
+#ifdef CONFIG_MXC_REBOOT_MFGMODE
+void do_switch_mfgmode(void);
+void mxc_clear_mfgmode(void);
+#else
+void do_switch_mfgmode() {}
+void mxc_clear_mfgmode() {}
+#endif
+
+#ifdef CONFIG_MXC_REBOOT_ANDROID_CMD
+void do_switch_recovery(void);
+void do_switch_fastboot(void);
+#else
+void do_switch_recovery() {}
+void do_switch_fastboot() {}
+#endif
+
+static void arch_reset_special_mode(char mode, const char *cmd)
+{
+	if (strcmp(cmd, "download") == 0)
+		do_switch_mfgmode();
+	else if (strcmp(cmd, "recovery") == 0)
+		do_switch_recovery();
+	else if (strcmp(cmd, "fastboot") == 0)
+		do_switch_fastboot();
+}
+
 /*
  * Reset the system. It is called by machine_restart().
  */
 void arch_reset(char mode, const char *cmd)
 {
 	unsigned int wcr_enable;
+
+	arch_reset_special_mode(mode, cmd);
 
 #ifdef CONFIG_ARCH_MX6
 	/* wait for reset to assert... */

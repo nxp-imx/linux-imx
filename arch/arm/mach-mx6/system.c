@@ -268,6 +268,72 @@ static int _mxs_reset_block(void __iomem *hwreg, int just_enable)
 	return r;
 }
 
+
+#define BOOT_MODE_SERIAL_ROM			(0x00000030)
+#define PERSIST_WATCHDOG_RESET_BOOT		(0x10000000)
+/*BOOT_CFG1[7..4] = 0x3 Boot from Serial ROM (I2C/SPI)*/
+
+#ifdef CONFIG_MXC_REBOOT_MFGMODE
+void do_switch_mfgmode(void)
+{
+	u32 reg;
+
+	/*
+	 * During reset, if GPR10[28] is 1, ROM will copy GPR9[25:0]
+	 * to SBMR1, which will determine what is the boot device.
+	 * Here SERIAL_ROM mode is selected
+	 */
+	reg = __raw_readl(SRC_BASE_ADDR + SRC_GPR9);
+	reg |= BOOT_MODE_SERIAL_ROM;
+	__raw_writel(reg, SRC_BASE_ADDR + SRC_GPR9);
+
+	reg = __raw_readl(SRC_BASE_ADDR + SRC_GPR10);
+	reg |= PERSIST_WATCHDOG_RESET_BOOT;
+	__raw_writel(reg, SRC_BASE_ADDR + SRC_GPR10);
+
+}
+
+void mxc_clear_mfgmode(void)
+{
+	u32 reg;
+	reg = __raw_readl(SRC_BASE_ADDR + SRC_GPR9);
+
+	reg &= ~BOOT_MODE_SERIAL_ROM;
+	__raw_writel(reg, SRC_BASE_ADDR + SRC_GPR9);
+
+	reg = __raw_readl(SRC_BASE_ADDR + SRC_GPR10);
+	reg &= ~PERSIST_WATCHDOG_RESET_BOOT;
+	__raw_writel(reg, SRC_BASE_ADDR + SRC_GPR10);
+}
+#endif
+
+#ifdef CONFIG_MXC_REBOOT_ANDROID_CMD
+/* This function will set a bit on SRC_GPR10[7-8] bits to enter
+ * special boot mode.  These bits will not clear by watchdog reset, so
+ * it can be checked by bootloader to choose enter different mode.*/
+
+#define ANDROID_RECOVERY_BOOT  (1 << 7)
+#define ANDROID_FASTBOOT_BOOT  (1 << 8)
+
+void do_switch_recovery(void)
+{
+	u32 reg;
+
+	reg = __raw_readl(SRC_BASE_ADDR + SRC_GPR10);
+	reg |= ANDROID_RECOVERY_BOOT;
+	__raw_writel(reg, SRC_BASE_ADDR + SRC_GPR10);
+}
+
+void do_switch_fastboot(void)
+{
+	u32 reg;
+
+	reg = __raw_readl(SRC_BASE_ADDR + SRC_GPR10);
+	reg |= ANDROID_FASTBOOT_BOOT;
+	__raw_writel(reg, SRC_BASE_ADDR + SRC_GPR10);
+}
+#endif
+
 int mxs_reset_block(void __iomem *hwreg)
 {
 	return _mxs_reset_block(hwreg, false);
