@@ -789,7 +789,7 @@ static int sdma_request_channel(struct sdma_channel *sdmac)
 	int channel = sdmac->channel;
 	int ret = -EBUSY;
 
-	sdmac->bd = dma_alloc_coherent(NULL, PAGE_SIZE, &sdmac->bd_phys, GFP_KERNEL);
+	sdmac->bd = dma_alloc_noncached(NULL, PAGE_SIZE, &sdmac->bd_phys, GFP_KERNEL);
 	if (!sdmac->bd) {
 		ret = -ENOMEM;
 		goto out;
