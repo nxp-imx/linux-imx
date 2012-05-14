@@ -46,13 +46,17 @@ void __iomem *ccm_base;
 
 static int cpu_silicon_rev = -1;
 #define MX6_USB_ANALOG_DIGPROG  0x260
+#define MX6SL_USB_ANALOG_DIGPROG  0x280
 
 static int mx6_get_srev(void)
 {
 	void __iomem *anatop = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	u32 rev;
+	if (cpu_is_mx6sl())
+		rev = __raw_readl(anatop + MX6SL_USB_ANALOG_DIGPROG);
+	else
+		rev = __raw_readl(anatop + MX6_USB_ANALOG_DIGPROG);
 
-	rev = __raw_readl(anatop + MX6_USB_ANALOG_DIGPROG);
 	rev &= 0xff;
 
 	if (rev == 0)
@@ -94,6 +98,22 @@ int mx6dl_revision(void)
 	return cpu_silicon_rev;
 }
 EXPORT_SYMBOL(mx6dl_revision);
+
+/*
+ * Returns:
+ *	the silicon revision of the cpu
+ */
+int mx6sl_revision(void)
+{
+	if (!cpu_is_mx6sl())
+		return -EINVAL;
+
+	if (cpu_silicon_rev == -1)
+		cpu_silicon_rev = mx6_get_srev();
+
+	return cpu_silicon_rev;
+}
+EXPORT_SYMBOL(mx6sl_revision);
 
 static int __init post_cpu_init(void)
 {

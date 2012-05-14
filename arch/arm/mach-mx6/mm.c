@@ -30,6 +30,7 @@
 #include <mach/common.h>
 #include <mach/iomux-v3.h>
 #include <asm/hardware/cache-l2x0.h>
+#include "crm_regs.h"
 
 /*!
  * This structure defines the MX6 memory map.
@@ -59,8 +60,16 @@ static struct map_desc mx6_io_desc[] __initdata = {
 
 static void mx6_set_cpu_type(void)
 {
-	u32 cpu_type = readl(IO_ADDRESS(ANATOP_BASE_ADDR + 0x260));
+	u32 cpu_type = readl(IO_ADDRESS(ANATOP_BASE_ADDR + 0x280));
 
+	cpu_type >>= 16;
+	if (cpu_type == 0x60) {
+		mxc_set_cpu_type(MXC_CPU_MX6SL);
+		imx_print_silicon_rev("i.MX6SoloLite", mx6sl_revision());
+		return;
+	}
+
+	cpu_type = readl(IO_ADDRESS(ANATOP_BASE_ADDR + 0x260));
 	cpu_type >>= 16;
 	if (cpu_type == 0x63) {
 		mxc_set_cpu_type(MXC_CPU_MX6Q);

@@ -551,6 +551,7 @@
 #if !defined(__ASSEMBLY__) && !defined(__MXC_BOOT_UNCOMPRESS)
 extern int mx6q_revision(void);
 extern int mx6dl_revision(void);
+extern int mx6sl_revision(void);
 #endif
 
 #endif				/*  __ASM_ARCH_MXC_MX6_H__ */
