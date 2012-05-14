@@ -7,7 +7,7 @@
  *
  * Based on code from Freescale:
  *
- * Copyright 2004-2012 Freescale Semiconductor, Inc.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -882,7 +882,7 @@ static int sdma_request_channel(struct sdma_channel *sdmac)
 	int channel = sdmac->channel;
 	int ret = -EBUSY;
 
-	sdmac->bd = dma_alloc_coherent(NULL, PAGE_SIZE, &sdmac->bd_phys, GFP_KERNEL);
+	sdmac->bd = dma_alloc_noncached(NULL, PAGE_SIZE, &sdmac->bd_phys, GFP_KERNEL);
 	if (!sdmac->bd) {
 		ret = -ENOMEM;
 		goto out;
