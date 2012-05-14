@@ -552,7 +552,7 @@ failed_clk:
 	return err;
 }
 
-static int mxc_spdif_playback_prepare(struct snd_pcm_substream *substream,
+static int mxc_spdif_playback_start(struct snd_pcm_substream *substream,
 					  struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
@@ -648,6 +648,7 @@ static int mxc_spdif_playback_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		ret = mxc_spdif_playback_start(substream, dai);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
@@ -703,7 +704,7 @@ failed_clk:
 	return err;
 }
 
-static int mxc_spdif_capture_prepare(struct snd_pcm_substream *substream,
+static int mxc_spdif_capture_start(struct snd_pcm_substream *substream,
 					 struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
@@ -799,6 +800,7 @@ static int mxc_spdif_capture_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		ret = mxc_spdif_capture_start(substream, dai);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
@@ -1158,19 +1160,6 @@ static void mxc_spdif_shutdown(struct snd_pcm_substream *substream,
 	clk_disable(plat_data->spdif_core_clk);
 }
 
-static int mxc_spdif_prepare(struct snd_pcm_substream *substream,
-			     struct snd_soc_dai *dai)
-{
-	int ret;
-
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		ret = mxc_spdif_playback_prepare(substream, dai);
-	else
-		ret = mxc_spdif_capture_prepare(substream, dai);
-
-	return ret;
-}
-
 static int mxc_spdif_trigger(struct snd_pcm_substream *substream,
 				int cmd, struct snd_soc_dai *dai)
 {
@@ -1186,7 +1175,6 @@ static int mxc_spdif_trigger(struct snd_pcm_substream *substream,
 
 struct snd_soc_dai_ops mxc_spdif_codec_dai_ops = {
 	.startup = mxc_spdif_startup,
-	.prepare = mxc_spdif_prepare,
 	.trigger = mxc_spdif_trigger,
 	.shutdown = mxc_spdif_shutdown,
 };
