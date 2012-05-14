@@ -69,7 +69,10 @@ static struct clk ipg_clk;
 
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
+static bool pll1_enabled;
+static bool arm_needs_pll2_400;
 
+DEFINE_SPINLOCK(mx6sl_clk_lock);
 #define SPIN_DELAY	1200000 /* in nanoseconds */
 
 #define AUDIO_VIDEO_MIN_CLK_FREQ	650000000
@@ -482,13 +485,39 @@ static int _clk_pll1_main_set_rate(struct clk *clk, unsigned long rate)
 	return 0;
 }
 
+static int _clk_pll1_main_enable(struct clk *clk)
+{
+	pll1_enabled = true;
+	_clk_pll_enable(clk);
+	return 0;
+}
+
+static void _clk_pll1_main_disable(struct clk *clk)
+{
+	unsigned int reg;
+	void __iomem *pllbase;
+
+	pll1_enabled = false;
+	pllbase = _get_pll_base(clk);
+
+	/* Set the PLL is bypass mode only.
+	  * We need to be able to set the ARM_PODF bit
+	  * in WAIT mode. Setting the ARM_PODF bit
+	  * requires PLL1 to be enabled.
+	  */
+	reg = __raw_readl(pllbase);
+	reg |= ANADIG_PLL_BYPASS;
+
+	__raw_writel(reg, pllbase);
+}
+
 static struct clk pll1_sys_main_clk = {
 	__INIT_CLK_DEBUG(pll1_sys_main_clk)
 	.parent = &osc_clk,
 	.get_rate = _clk_pll1_main_get_rate,
 	.set_rate = _clk_pll1_main_set_rate,
-	.enable = _clk_pll_enable,
-	.disable = _clk_pll_disable,
+	.enable = _clk_pll1_main_enable,
+	.disable = _clk_pll1_main_disable,
 };
 
 static int _clk_pll1_sw_set_parent(struct clk *clk, struct clk *parent)
@@ -521,6 +550,7 @@ static int _clk_pll1_sw_set_parent(struct clk *clk, struct clk *parent)
 		reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
 	}
 	__raw_writel(reg, MXC_CCM_CCSR);
+
 	return 0;
 }
 
@@ -580,13 +610,19 @@ static struct clk pll2_528_bus_main_clk = {
 	.disable = _clk_pll_disable,
 };
 
+static void _clk_pll2_pfd2_400M_disable(struct clk *clk)
+{
+	if (!arm_needs_pll2_400)
+		_clk_pfd_disable(clk);
+}
+
 static struct clk pll2_pfd2_400M = {
 	__INIT_CLK_DEBUG(pll2_pfd2_400M)
 	.parent = &pll2_528_bus_main_clk,
 	.enable_reg = (void *)PFD_528_BASE_ADDR,
 	.enable_shift = ANADIG_PFD2_FRAC_OFFSET,
 	.enable = _clk_pfd_enable,
-	.disable = _clk_pfd_disable,
+	.disable = _clk_pll2_pfd2_400M_disable,
 	.get_rate = pfd_get_rate,
 	.set_rate = pfd_set_rate,
 	.get_rate = pfd_get_rate,
@@ -1070,6 +1106,7 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	u32 div;
 	u32 parent_rate;
 	unsigned long ipg_clk_rate, max_arm_wait_clk;
+	unsigned long flags;
 
 	for (i = 0; i < cpu_op_nr; i++) {
 		if (rate == cpu_op_tbl[i].cpu_rate)
@@ -1078,16 +1115,40 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	if (i >= cpu_op_nr)
 		return -EINVAL;
 
-	if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
-		/* Change the PLL1 rate. */
-		if (pll2_pfd2_400M.usecount != 0)
-			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd2_400M);
-		else
-			pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
-		pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
-		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
-	}
+	spin_lock_irqsave(&mx6sl_clk_lock, flags);
 
+	if (rate <= clk_get_rate(&pll2_pfd2_400M)) {
+		/* Source pll1_sw_clk from step_clk which is sourced from
+		  * PLL2_PFD2_400M.
+		  */
+		if (pll1_sw_clk.parent != &pll2_pfd2_400M) {
+			pll2_pfd2_400M.enable(&pll2_pfd2_400M);
+			arm_needs_pll2_400 = true;
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd2_400M);
+			pll1_sw_clk.parent = &pll2_pfd2_400M;
+		}
+	} else {
+		if (pll1_sw_clk.parent != &pll1_sys_main_clk) {
+			/* pll1_sw_clk was being sourced from pll2_400M. */
+			/* Enable PLL1 and set pll1_sw_clk parent as PLL1 */
+			if (!pll1_enabled)
+				pll1_sys_main_clk.enable(&pll1_sys_main_clk);
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
+			pll1_sw_clk.parent = &pll1_sys_main_clk;
+			arm_needs_pll2_400 = false;
+			if (pll2_pfd2_400M.usecount == 0)
+				pll2_pfd2_400M.disable(&pll2_pfd2_400M);
+		}
+		if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
+			/* Change the PLL1 rate. */
+			if (pll2_pfd2_400M.usecount != 0)
+				pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd2_400M);
+			else
+				pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
+			pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
+			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
+		}
+	}
 	parent_rate = clk_get_rate(clk->parent);
 	div = parent_rate / rate;
 	/* Calculate the ARM_PODF to be applied when the system
@@ -1117,8 +1178,13 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	if ((parent_rate / div) > rate)
 		div++;
 
-	if (div > 8)
+	if (div > 8) {
+		spin_unlock_irqrestore(&mx6sl_clk_lock, flags);
 		return -1;
+	}
+
+	if (!pll1_enabled)
+		pll1_sys_main_clk.enable(&pll1_sys_main_clk);
 
 	cur_arm_podf = div;
 
@@ -1126,6 +1192,11 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 
 	while (__raw_readl(MXC_CCM_CDHIPR))
 		;
+
+	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400)
+		pll1_sys_main_clk.disable(&pll1_sys_main_clk);
+
+	spin_unlock_irqrestore(&mx6sl_clk_lock, flags);
 
 	return 0;
 }
@@ -3626,7 +3697,7 @@ static void clk_tree_init(void)
 	 * in this case, periph clk will set to 400MHz in uboot,
 	 * so in clock init, we need to check whether the ddr clock
 	 * is set to 400MHz, if yes, then we should set periph clk
-	 * parent to pll2_pfd_400M.
+	 * parent to pll2_pfd2_400M.
 	 */
 	if ((reg & MMDC_MDMISC_DDR_TYPE_MASK) ==
 		(0x1 << MMDC_MDMISC_DDR_TYPE_OFFSET)) {
