@@ -269,6 +269,9 @@
 #define AIPS2_SIZE			SZ_1M
 #define ARM_PERIPHBASE_SIZE		(SZ_8K + SZ_4K)
 
+#define SRC_GPR9			0x40
+#define SRC_GPR10			0x44
+
 /* GPC offsets */
 #define MXC_GPC_CNTR_OFFSET		0x0
 
