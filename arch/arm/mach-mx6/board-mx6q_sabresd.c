@@ -1364,6 +1364,31 @@ static int __init imx6q_init_audio(void)
 	return 0;
 }
 
+#ifndef CONFIG_IMX_PCIE
+static void pcie_3v3_power(void)
+{
+	/* disable PCIE_3V3 first */
+	gpio_request(SABRESD_PCIE_PWR_EN, "pcie_3v3_en");
+	gpio_direction_output(SABRESD_PCIE_PWR_EN, 0);
+	mdelay(10);
+	/* enable PCIE_3V3 again */
+	gpio_set_value(SABRESD_PCIE_PWR_EN, 1);
+	gpio_free(SABRESD_PCIE_PWR_EN);
+}
+
+static void pcie_3v3_reset(void)
+{
+	/* reset miniPCIe */
+	gpio_request(SABRESD_PCIE_RST_B_REVB, "pcie_reset_rebB");
+	gpio_direction_output(SABRESD_PCIE_RST_B_REVB, 0);
+	/* The PCI Express Mini CEM specification states that PREST# is
+	deasserted minimum 1ms after 3.3vVaux has been applied and stable*/
+	mdelay(1);
+	gpio_set_value(SABRESD_PCIE_RST_B_REVB, 1);
+	gpio_free(SABRESD_PCIE_RST_B_REVB);
+}
+#endif
+
 static void gps_power_on(bool on)
 {
 	/* Enable/disable aux_3v15 */
@@ -1726,6 +1751,13 @@ static void __init mx6_sabresd_board_init(void)
 	gpio_request(SABRESD_AUX_5V_EN, "aux_5v_en");
 	gpio_direction_output(SABRESD_AUX_5V_EN, 1);
 	gpio_set_value(SABRESD_AUX_5V_EN, 1);
+
+#ifndef CONFIG_IMX_PCIE
+	/* enable pcie 3v3 power without pcie driver */
+	pcie_3v3_power();
+	mdelay(10);
+	pcie_3v3_reset();
+#endif
 
 	gps_power_on(true);
 	/* Register charger chips */
