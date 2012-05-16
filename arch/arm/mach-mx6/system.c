@@ -49,11 +49,19 @@ extern unsigned int gpc_wake_irq[4];
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 
+int wait_mode_arm_podf;
 volatile unsigned int num_cpu_idle;
 volatile unsigned int num_cpu_idle_lock = 0x0;
+int wait_mode_arm_podf;
+int cur_arm_podf;
+bool arm_mem_clked_in_wait;
 
-extern void mx6_wait(void *num_cpu_idle_lock, void *num_cpu_idle);
+extern void mx6_wait(void *num_cpu_idle_lock, void *num_cpu_idle, \
+				int wait_arm_podf, int cur_arm_podf);
 extern bool enable_wait_mode;
+extern int low_bus_freq_mode;
+extern int audio_bus_freq_mode;
+extern bool mem_clk_on_in_wait;
 
 void gpc_set_wakeup(unsigned int irq[4])
 {
@@ -153,30 +161,77 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 				MXC_CCM_CCR_WB_COUNT_OFFSET), MXC_CCM_CCR);
 			ccm_clpcr |= MXC_CCM_CLPCR_WB_PER_AT_LPM;
 		}
+		if (cpu_is_mx6sl() ||
+			(mx6q_revision() > IMX_CHIP_REVISION_1_1) ||
+			(mx6dl_revision() > IMX_CHIP_REVISION_1_0)) {
+			u32 reg;
+			/* We need to allow the memories to be clock gated
+			  * in STOP mode, else the power consumption will
+			  * be very high.
+			  */
+			reg = __raw_readl(MXC_CCM_CGPR);
+			reg |= MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
+			__raw_writel(reg, MXC_CCM_CGPR);
+		}
 	}
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
 }
 
 extern int tick_broadcast_oneshot_active(void);
 
-void arch_idle(void)
+ void arch_idle(void)
 {
 	if (enable_wait_mode) {
-#ifdef CONFIG_LOCAL_TIMERS
+		u32 reg;
 		int cpu = smp_processor_id();
+#ifdef CONFIG_LOCAL_TIMERS
 		if (!tick_broadcast_oneshot_active())
 			return;
 
 		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
 #endif
-		*((char *)(&num_cpu_idle_lock) + smp_processor_id()) = 0x0;
+		*((char *)(&num_cpu_idle_lock) + (char)cpu) = 0x0;
 		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
-		mx6_wait((void *)&num_cpu_idle_lock, (void *)&num_cpu_idle);
+		if (arm_mem_clked_in_wait || mem_clk_on_in_wait) {
+			reg = __raw_readl(MXC_CCM_CGPR);
+			reg &= ~MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
+			__raw_writel(reg, MXC_CCM_CGPR);
+
+			cpu_do_idle();
+		} else if (num_possible_cpus() == 1) {
+			/* We can directly use the divider to drop the ARM
+			  * core freq in a single core environment.
+			  */
+			u32 podf = wait_mode_arm_podf;
+			/* Set the ARM_PODF to get the max freq possible
+			  * to avoid the WAIT mode issue when IPG is at 66MHz.
+			  */
+			if (low_bus_freq_mode)
+				podf = 7;
+
+			__raw_writel(podf, MXC_CCM_CACRR);
+			while (__raw_readl(MXC_CCM_CDHIPR))
+				;
+			cpu_do_idle();
+
+			__raw_writel(cur_arm_podf - 1, MXC_CCM_CACRR);
+		} else {
+			if (low_bus_freq_mode || audio_bus_freq_mode)
+				mx6_wait((void *)&num_cpu_idle_lock,
+							(void *)&num_cpu_idle,
+							7, cur_arm_podf - 1);
+			else
+				mx6_wait((void *)&num_cpu_idle_lock,
+					(void *)&num_cpu_idle,
+					wait_mode_arm_podf, cur_arm_podf - 1);
+		}
 #ifdef CONFIG_LOCAL_TIMERS
 		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
 #endif
-	} else
+	} else {
+		mxc_cpu_lp_set(WAIT_CLOCKED);
 		cpu_do_idle();
+	}
 }
 
 static int __mxs_reset_block(void __iomem *hwreg, int just_enable)

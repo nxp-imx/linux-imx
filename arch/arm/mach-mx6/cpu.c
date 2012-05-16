@@ -31,18 +31,15 @@
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 
-extern unsigned int num_cpu_idle_lock;
-
-void *mx6_wait_in_iram_base;
-void (*mx6_wait_in_iram)(void);
-extern void mx6_wait(void);
-
 struct cpu_op *(*get_cpu_op)(int *op);
-bool enable_wait_mode;
+bool enable_wait_mode = true;
 u32 arm_max_freq = CPU_AT_1GHz;
+bool mem_clk_on_in_wait;
 
 void __iomem *gpc_base;
 void __iomem *ccm_base;
+
+extern unsigned int num_cpu_idle_lock;
 
 static int cpu_silicon_rev = -1;
 #define MX6_USB_ANALOG_DIGPROG  0x260
@@ -140,13 +137,11 @@ static int __init post_cpu_init(void)
 	__raw_writel(reg, base + 0x50);
 	iounmap(base);
 
-	if (enable_wait_mode) {
-		/* Allow SCU_CLK to be disabled when all cores are in WFI*/
-		base = IO_ADDRESS(SCU_BASE_ADDR);
-		reg = __raw_readl(base);
-		reg |= 0x20;
-		__raw_writel(reg, base);
-	}
+	/* Allow SCU_CLK to be disabled when all cores are in WFI*/
+	base = IO_ADDRESS(SCU_BASE_ADDR);
+	reg = __raw_readl(base);
+	reg |= 0x20;
+	__raw_writel(reg, base);
 
 	/* Disable SRC warm reset to work aound system reboot issue */
 	base = IO_ADDRESS(SRC_BASE_ADDR);
@@ -158,6 +153,33 @@ static int __init post_cpu_init(void)
 	ccm_base = MX6_IO_ADDRESS(CCM_BASE_ADDR);
 
 	num_cpu_idle_lock = 0x0;
+	if (cpu_is_mx6dl())
+		num_cpu_idle_lock = 0xffff0000;
+
+#ifdef CONFIG_SMP
+	switch (setup_max_cpus) {
+	case 3:
+		num_cpu_idle_lock = 0xff000000;
+		break;
+	case 2:
+		num_cpu_idle_lock = 0xffff0000;
+		break;
+	case 1:
+	case 0:
+		num_cpu_idle_lock = 0xffffff00;
+		break;
+	}
+#endif
+	/*
+	  * The option to keep ARM memory clocks enabled during WAIT
+	  * is only available on MX6SL, MX6DQ TO1.2  (or later) and
+	  * MX6DL TO1.1 (or later)
+	  * So if the user specifies "mem_clk_on" on any other chip,
+	  * ensure that it is disabled.
+	  */
+	if (!cpu_is_mx6sl() && (mx6q_revision() < IMX_CHIP_REVISION_1_2) &&
+		(mx6dl_revision() < IMX_CHIP_REVISION_1_1))
+		mem_clk_on_in_wait = false;
 
 	return 0;
 }
@@ -192,5 +214,15 @@ static int __init arm_core_max(char *p)
 }
 
 early_param("arm_freq", arm_core_max);
+
+static int __init enable_mem_clk_in_wait(char *p)
+{
+	mem_clk_on_in_wait = true;
+
+	return 0;
+}
+
+early_param("mem_clk_on", enable_mem_clk_in_wait);
+
 
 

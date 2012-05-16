@@ -28,13 +28,20 @@
  */
 ENTRY(mx6_wait)
 
-    push {r4, r5, r6}
+    push {r4, r5, r6, r7, r8}
 
-      ldr     r2, =ANATOP_BASE_ADDR
-      add   r2, r2, #PERIPBASE_VIRT
+    mov    r7, r2       /* Store the arm_podf to be used. */
+    mov   r6, r3
+
+    ldr     r2, =ANATOP_BASE_ADDR
+    add   r2, r2, #PERIPBASE_VIRT
+
+    ldr     r8, =CCM_BASE_ADDR
+    add   r8, r8, #PERIPBASE_VIRT
+
 
     /* get the flags variables into the cache */
-	ldr     r3, [r0]
+    ldr     r3, [r0]
 
     /* get CPU ID */
     mrc     p15,0,r5,c0,c0,5
@@ -59,11 +66,27 @@ ENTRY(mx6_wait)
 
     mov r3, #0xff
 
+    /* Check to see if we need to switch to 24MHz */
+    cmp    r7, #0
+    bne    use_podf
     ldr     r6, =(1 << 16)
     str     r6, [r2, #0x04]
+    b      cont
+
+use_podf:
+    /* Change ARM_PODF to the max possible podf
+     * so that ARM_CLK to IPG_CLK is in 12:5 ratio.
+     */
+    str    r7, [r8, #0x10]
+    /* Loop till podf is accepted. */
+podf_loop:
+     ldr     r4, [r8, #0x48]
+     cmp   r4, #0x0
+     bne   podf_loop
 
     /* dmb */
 
+cont:
     str r3, [r1]
 
     dsb
@@ -71,9 +94,18 @@ ENTRY(mx6_wait)
     mvn r4, #0x0
     ldr r3, [r0]
     cmp r3, r4
-    movne r3, #0x0
-    strne r6, [r2, #0x08]
-    strne r3, [r1]
+    beq   DO_WFI
+
+    mov   r3, #0x0
+    /* Switch to 24MHz or use ARM_PODF. */
+    cmp   r7, #0x0
+    bne    use_podf1
+    str     r6, [r2, #0x08]
+    b       DO_WFI
+use_podf1:
+    str     r6, [r8, #0x10]
+
+    str r3, [r1]
 
 DO_WFI:
 	dsb
@@ -90,15 +122,22 @@ DO_WFI:
     bne DONE
 
     mov r4, #0x0
+    cmp   r7, #0x0
+    bne    use_podf2
     ldr     r6, =(1 << 16)
-    str r6, [r2, #0x08]
+    str     r6, [r2, #0x08]
+    b       cont1
 
+use_podf2:
+    str     r6, [r8, #0x10]
+
+cont1:
     mov r3, #0x0
     str r3, [r1]
 
 DONE:
 
-    pop {r4,r5, r6}
+    pop {r4,r5, r6, r7, r8}
 
     /* Restore registers */
     mov     pc, lr

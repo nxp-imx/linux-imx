@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,8 @@
 #include "src-reg.h"
 #include <linux/sched.h>
 #include <asm/cacheflush.h>
+
+extern unsigned int num_cpu_idle_lock;
 
 static atomic_t cpu_die_done = ATOMIC_INIT(0);
 int platform_cpu_kill(unsigned int cpu)
@@ -93,5 +95,6 @@ int platform_cpu_disable(unsigned int cpu)
 	 * we don't allow CPU 0 to be shutdown (it is still too special
 	 * e.g. clock tick interrupts)
 	 */
+	*((char *)(&num_cpu_idle_lock) + (u8)cpu) = 0xff;
 	return cpu == 0 ? -EPERM : 0;
 }

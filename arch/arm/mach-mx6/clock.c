@@ -47,7 +47,11 @@ extern struct regulator *cpu_regulator;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int lp_high_freq;
 extern int lp_med_freq;
+extern int wait_mode_arm_podf;
 extern int lp_audio_freq;
+extern int cur_arm_podf;
+extern bool arm_mem_clked_in_wait;
+extern bool enable_wait_mode;
 
 void __iomem *apll_base;
 static struct clk ipu1_clk;
@@ -69,6 +73,7 @@ static struct clk apbh_dma_clk;
 static struct clk openvg_axi_clk;
 static struct clk enfc_clk;
 static struct clk usdhc3_clk;
+static struct clk ipg_clk;
 
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
@@ -516,8 +521,21 @@ static int _clk_pll1_main_set_rate(struct clk *clk, unsigned long rate)
 
 static void _clk_pll1_disable(struct clk *clk)
 {
+	void __iomem *pllbase;
+	u32 reg;
+
 	pll1_enabled = false;
-	_clk_pll_disable(clk);
+
+	/* Set PLL1 in bypass mode only. */
+	/* We need to be able to set the ARM-PODF bit
+	  * when the system enters WAIT mode. And setting
+	  * this bit requires PLL1_main to be enabled.
+	  */
+	pllbase = _get_pll_base(clk);
+
+	reg = __raw_readl(pllbase);
+	reg |= ANADIG_PLL_BYPASS;
+	__raw_writel(reg, pllbase);
 }
 
 static int _clk_pll1_enable(struct clk *clk)
@@ -1185,6 +1203,7 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	u32 div;
 	unsigned long parent_rate;
 	unsigned long flags;
+	unsigned long ipg_clk_rate, max_arm_wait_clk;
 
 	for (i = 0; i < cpu_op_nr; i++) {
 		if (rate == cpu_op_tbl[i].cpu_rate)
@@ -1229,6 +1248,32 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	}
 	parent_rate = clk_get_rate(clk->parent);
 	div = parent_rate / rate;
+	/* Calculate the ARM_PODF to be applied when the system
+	  * enters WAIT state. The max ARM clk is decided by the
+	  * ipg_clk and has to follow the ratio of ARM_CLK:IPG_CLK of 12:5.
+	  * For ex, when IPG is at 66MHz, ARM_CLK cannot be greater
+	  * than 158MHz.
+	  * Pre-calculate the optimal divider now.
+	  */
+	ipg_clk_rate = clk_get_rate(&ipg_clk);
+	max_arm_wait_clk = (12 * ipg_clk_rate) / 5;
+	wait_mode_arm_podf = parent_rate / max_arm_wait_clk;
+	if (wait_mode_arm_podf > 7) {
+		/* IPG_CLK is too low and we cannot get a ARM_CLK
+		  * that will satisfy the 12:5 ratio.
+		  * Use the mem_ipg_stop_mask bit to ensure clocks to ARM
+		  * memories are not gated during WAIT mode.
+		  * This bit is NOT available on MX6DQ TO1.1/TO1.0 and
+		  * MX6DL TO1.0.
+		  * Else disable entry to WAIT mode.
+		  */
+		if ((mx6q_revision() > IMX_CHIP_REVISION_1_1) ||
+			(mx6dl_revision() > IMX_CHIP_REVISION_1_0))
+			arm_mem_clked_in_wait = true;
+		else
+			enable_wait_mode = false;
+	}
+
 	if (div == 0)
 		div = 1;
 
@@ -1239,10 +1284,11 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		spin_unlock_irqrestore(&clk_lock, flags);
 		return -1;
 	}
-
 	/* Need PLL1-MAIN to be ON to write to ARM-PODF bit. */
 	if (!pll1_enabled)
 		pll1_sys_main_clk.enable(&pll1_sys_main_clk);
+
+	cur_arm_podf = div;
 
 	__raw_writel(div - 1, MXC_CCM_CACRR);
 
