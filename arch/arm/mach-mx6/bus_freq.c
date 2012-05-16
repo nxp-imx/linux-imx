@@ -154,6 +154,13 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 	med_bus_freq_mode = 0;
 
 	if (cpu_is_mx6q()) {
+		/* Disable the brown out detection since we are going to be
+		  * disabling the LDO.
+		  */
+		reg = __raw_readl(ANA_MISC2_BASE_ADDR);
+		reg &= ~ANADIG_ANA_MISC2_REG1_BO_EN;
+		__raw_writel(reg, ANA_MISC2_BASE_ADDR);
+
 		/* Power gate the PU LDO. */
 		/* Power gate the PU domain first. */
 		/* enable power down request */
@@ -166,9 +173,19 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
 			;
 
+		/* Mask the ANATOP brown out interrupt in the GPC. */
+		reg = __raw_readl(gpc_base + 0x14);
+		reg |= 0x80000000;
+		__raw_writel(reg, gpc_base + 0x14);
+
 		org_ldo = reg = __raw_readl(ANADIG_REG_CORE);
 		reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
 		__raw_writel(reg, ANADIG_REG_CORE);
+
+		/* Clear the BO interrupt in the ANATOP. */
+		reg = __raw_readl(ANADIG_MISC1_REG);
+		reg |= 0x80000000;
+		__raw_writel(reg, ANADIG_MISC1_REG);
 	}
 	clk_disable(pll3);
 	mutex_unlock(&bus_freq_mutex);
@@ -245,6 +262,16 @@ int set_high_bus_freq(int high_bus_freq)
 		/* Wait for the power up bit to clear */
 		while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x2)
 			;
+
+		/* Enable the Brown Out detection. */
+		reg = __raw_readl(ANA_MISC2_BASE_ADDR);
+		reg |= ANADIG_ANA_MISC2_REG1_BO_EN;
+		__raw_writel(reg, ANA_MISC2_BASE_ADDR);
+
+		/* Unmask the ANATOP brown out interrupt in the GPC. */
+		reg = __raw_readl(gpc_base + 0x14);
+		reg &= ~0x80000000;
+		__raw_writel(reg, gpc_base + 0x14);
 	}
 
 	if (high_bus_freq) {
