@@ -206,7 +206,6 @@ static int enable_lcd_ldb;
 
 extern char *gp_reg_id;
 extern int epdc_enabled;
-extern volatile int num_cpu_idle_lock;
 
 static int max17135_regulator_init(struct max17135 *max17135);
 
@@ -1580,7 +1579,6 @@ static void __init mx6_sabresd_board_init(void)
 	else if (cpu_is_mx6dl()) {
 		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabresd_pads,
 			ARRAY_SIZE(mx6dl_sabresd_pads));
-		num_cpu_idle_lock = 0xffff0000;
 	}
 
 #ifdef CONFIG_FEC_1588

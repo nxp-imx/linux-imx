@@ -487,6 +487,7 @@
 #define MXC_CCM_CGPR_EFUSE_PROG_SUPPLY_GATE	(1 << 4)
 #define MXC_CCM_CGPR_MMDC_EXT_CLK_DIS		(1 << 2)
 #define MXC_CCM_CGPR_PMIC_DELAY_SCALER		(1)
+#define MXC_CCM_CGPR_MEM_IPG_STOP_MASK		(1 << 1)
 
 /* Define the bits in registers CCGRx */
 #define MXC_CCM_CCGRx_CG_MASK			0x3
