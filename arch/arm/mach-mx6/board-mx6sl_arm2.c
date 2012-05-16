@@ -73,11 +73,42 @@
 #include "cpu_op-mx6.h"
 #include "board-mx6sl_arm2.h"
 
+#define MX6_ARM2_SD1_WP		IMX_GPIO_NR(4, 6)	/* KEY_COL7 */
+#define MX6_ARM2_SD1_CD		IMX_GPIO_NR(4, 7)	/* KEY_ROW7 */
+#define MX6_ARM2_SD2_WP		IMX_GPIO_NR(4, 29)	/* SD2_DAT6 */
+#define MX6_ARM2_SD2_CD		IMX_GPIO_NR(5, 0)	/* SD2_DAT7 */
+#define MX6_ARM2_SD3_CD		IMX_GPIO_NR(3, 22)	/* REF_CLK_32K */
+
+static const struct esdhc_platform_data mx6_arm2_sd1_data __initconst = {
+	.cd_gpio		= MX6_ARM2_SD1_CD,
+	.wp_gpio		= MX6_ARM2_SD1_WP,
+	.support_8bit		= 1,
+	.keep_power_at_suspend	= 1,
+	.delay_line		= 0,
+};
+
+static const struct esdhc_platform_data mx6_arm2_sd2_data __initconst = {
+	.cd_gpio		= MX6_ARM2_SD2_CD,
+	.wp_gpio		= MX6_ARM2_SD2_WP,
+	.keep_power_at_suspend	= 1,
+	.delay_line		= 0,
+};
+
+static const struct esdhc_platform_data mx6_arm2_sd3_data __initconst = {
+	.cd_gpio		= MX6_ARM2_SD3_CD,
+	.keep_power_at_suspend	= 1,
+	.delay_line		= 0,
+};
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 
 static inline void mx6_arm2_init_uart(void)
 {
 	imx6q_add_imx_uart(0, NULL); /* DEBUG UART1 */
+
+	imx6q_add_sdhci_usdhc_imx(0, &mx6_arm2_sd1_data);
+	imx6q_add_sdhci_usdhc_imx(1, &mx6_arm2_sd2_data);
+	imx6q_add_sdhci_usdhc_imx(2, &mx6_arm2_sd3_data);
 }
 
 /*!
