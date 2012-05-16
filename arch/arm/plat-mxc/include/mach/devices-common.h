@@ -34,6 +34,7 @@ struct platform_device *__init imx_add_dma(const struct imx_dma_data *data);
 struct imx_fec_data {
 	resource_size_t iobase;
 	resource_size_t irq;
+	const char *devid;
 };
 struct platform_device *__init imx_add_fec(
 		const struct imx_fec_data *data,

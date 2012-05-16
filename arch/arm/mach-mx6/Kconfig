@@ -216,9 +216,4 @@ config MX6_INTER_LDO_BYPASS
 	 LDO will replaced by external pmic regulator(e.g. pfuze100), VDDCORE
 	 can be adjust automatically adjust by cpu frequency.
 
-comment "MX6 Solo-lite Options:"
-
-config FEC_CLOCK_FROM_ANATOP
-	bool "Use ANATOP clock to get 50MHz FEC Ref clock"
-
 endif

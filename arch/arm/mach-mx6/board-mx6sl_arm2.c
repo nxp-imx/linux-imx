@@ -80,6 +80,7 @@
 #define MX6_ARM2_SD2_WP		IMX_GPIO_NR(4, 29)	/* SD2_DAT6 */
 #define MX6_ARM2_SD2_CD		IMX_GPIO_NR(5, 0)	/* SD2_DAT7 */
 #define MX6_ARM2_SD3_CD		IMX_GPIO_NR(3, 22)	/* REF_CLK_32K */
+#define MX6_ARM2_FEC_PWR_EN	IMX_GPIO_NR(4, 21)	/* FEC_TX_CLK */
 
 static const struct esdhc_platform_data mx6_arm2_sd1_data __initconst = {
 	.cd_gpio		= MX6_ARM2_SD1_CD,
@@ -112,6 +113,10 @@ static inline void mx6_arm2_init_uart(void)
 	imx6q_add_sdhci_usdhc_imx(1, &mx6_arm2_sd2_data);
 	imx6q_add_sdhci_usdhc_imx(2, &mx6_arm2_sd3_data);
 }
+
+static struct fec_platform_data fec_data __initdata = {
+	.phy = PHY_INTERFACE_MODE_RMII,
+};
 
 static void imx6_arm2_usbotg_vbus(bool on)
 {
@@ -161,6 +166,20 @@ static void __init mx6_arm2_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_arm2_pads, ARRAY_SIZE(mx6sl_arm2_pads));
 
 	mx6_arm2_init_uart();
+	/* get enet tx reference clk from FEC_REF_CLK pad.
+	 * GPR1[14] = 0, GPR1[18:17] = 00
+	 */
+	mxc_iomux_set_gpr_register(1, 14, 1, 0);
+	mxc_iomux_set_gpr_register(1, 17, 2, 0);
+
+	/* power on FEC phy and reset phy */
+	gpio_request(MX6_ARM2_FEC_PWR_EN, "fec-pwr");
+	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 1);
+	/* wait RC ms for hw reset */
+	udelay(500);
+
+	imx6_init_fec(fec_data);
+
 	mx6_arm2_init_usb();
 }
 
