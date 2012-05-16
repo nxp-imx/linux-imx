@@ -841,7 +841,7 @@ static bool _calc_resize_coeffs(struct ipu_soc *ipu,
 	   where M = 2^13, SI - input size, SO - output size    */
 	*resizeCoeff = (8192L * (tempSize - 1)) / (outSize - 1);
 	if (*resizeCoeff >= 16384L) {
-		dev_err(ipu->dev, "Warning! Overflow on resize coeff.\n");
+		dev_dbg(ipu->dev, "Warning! Overflow on resize coeff.\n");
 		*resizeCoeff = 0x3FFF;
 	}
 
