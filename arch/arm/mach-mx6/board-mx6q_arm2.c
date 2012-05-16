@@ -169,7 +169,6 @@ extern char *gp_reg_id;
 extern int epdc_enabled;
 extern void mx6_cpu_regulator_init(void);
 static int max17135_regulator_init(struct max17135 *max17135);
-extern volatile int num_cpu_idle_lock;
 
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
@@ -2000,7 +1999,6 @@ static void __init mx6_arm2_init(void)
 		spdif_pads_cnt =  ARRAY_SIZE(mx6dl_arm2_spdif_pads);
 		flexcan_pads_cnt = ARRAY_SIZE(mx6dl_arm2_can_pads);
 		i2c3_pads_cnt = ARRAY_SIZE(mx6dl_arm2_i2c3_pads);
-		num_cpu_idle_lock = 0xffff0000;
 	}
 
 	BUG_ON(!common_pads);

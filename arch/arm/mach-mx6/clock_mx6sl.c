@@ -50,7 +50,10 @@ extern struct regulator *cpu_regulator;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int lp_high_freq;
 extern int lp_med_freq;
+extern int wait_mode_arm_podf;
 extern int mx6q_revision(void);
+extern bool arm_mem_clked_in_wait;
+extern int cur_arm_podf;
 
 static void __iomem *apll_base;
 static struct clk pll1_sys_main_clk;
@@ -62,6 +65,7 @@ static struct clk pll5_video_main_clk;
 static struct clk pll6_enet_main_clk; /* Essentially same as PLL8 on MX6Q/DL */
 static struct clk pll7_usb_host_main_clk;
 static struct clk usdhc3_clk;
+static struct clk ipg_clk;
 
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
@@ -70,6 +74,7 @@ static int cpu_op_nr;
 
 #define AUDIO_VIDEO_MIN_CLK_FREQ	650000000
 #define AUDIO_VIDEO_MAX_CLK_FREQ	1300000000
+#define MAX_ARM_CLK_IN_WAIT	158000000
 
 /* We need to check the exp status again after timer expiration,
  * as there might be interrupt coming between the first time exp
@@ -1064,7 +1069,7 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	int i;
 	u32 div;
 	u32 parent_rate;
-
+	unsigned long ipg_clk_rate, max_arm_wait_clk;
 
 	for (i = 0; i < cpu_op_nr; i++) {
 		if (rate == cpu_op_tbl[i].cpu_rate)
@@ -1085,6 +1090,26 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 
 	parent_rate = clk_get_rate(clk->parent);
 	div = parent_rate / rate;
+	/* Calculate the ARM_PODF to be applied when the system
+	  * enters WAIT state.
+	  * The max ARM clk is decided by the ipg_clk and has to
+	  * follow the ratio of ARM_CLK:IPG_CLK of 12:5.
+	  * For ex, when IPG is at 66MHz, ARM_CLK cannot be greater
+	  * than 158MHz. Pre-calculate the optimal divider now.
+	  */
+	ipg_clk_rate = clk_get_rate(&ipg_clk);
+	max_arm_wait_clk = (12 * ipg_clk_rate) / 5;
+	wait_mode_arm_podf = parent_rate / max_arm_wait_clk;
+	if (wait_mode_arm_podf > 7)
+		/* IPG_CLK is too low and we cannot get a ARM_CLK
+		  * that will satisfy the 12:5 ratio.
+		  * Use the mem_ipg_stop_mask bit to ensure clocks
+		  * to ARM memories are not gated during WAIT mode.
+		  * Else disable entry to WAIT mode.
+		  */
+		arm_mem_clked_in_wait = true;
+	else
+		arm_mem_clked_in_wait = false;
 
 	if (div == 0)
 		div = 1;
@@ -1095,7 +1120,12 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	if (div > 8)
 		return -1;
 
+	cur_arm_podf = div;
+
 	__raw_writel(div - 1, MXC_CCM_CACRR);
+
+	while (__raw_readl(MXC_CCM_CDHIPR))
+		;
 
 	return 0;
 }
