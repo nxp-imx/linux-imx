@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2001, 2002 Andy Grover <andrew.grover@intel.com>
  *  Copyright (C) 2001, 2002 Paul Diefenbaugh <paul.s.diefenbaugh@intel.com>
- *  Copyright (C) 2011 Freescale Semiconductor, Inc.
+ *  Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -138,6 +138,13 @@ static const struct anatop_device_id thermal_device_ids[] = {
 	{ANATOP_THERMAL_HID},
 	{""},
 };
+
+enum {
+	DEBUG_USER_STATE = 1U << 0,
+	DEBUG_VERBOSE = 1U << 1,
+};
+static int debug_mask = DEBUG_USER_STATE;
+module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
 
 /* functions */
 static int anatop_thermal_add(struct anatop_device *device);
@@ -296,7 +303,8 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 		tz->temperature = REG_VALUE_TO_CEL(ratio, tmp);
 	else
 		tz->temperature = -25;
-	pr_debug("Temperature is %lu C\n", tz->temperature);
+	if (debug_mask & DEBUG_VERBOSE)
+		pr_info("Cooling device Temperature is %lu C\n", tz->temperature);
 	/* power down anatop thermal sensor */
 	__raw_writel(BM_ANADIG_TEMPSENSE0_POWER_DOWN,
 			anatop_base + HW_ANADIG_TEMPSENSE0_SET);
