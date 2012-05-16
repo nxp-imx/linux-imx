@@ -2204,6 +2204,7 @@ static struct sys_timer mxc_timer = {
 
 static void __init mx6_arm2_reserve(void)
 {
+#ifdef CONFIG_MXC_GPU_VIV
 	phys_addr_t phys;
 
 	if (imx6_gpu_pdata.reserved_mem_size) {
@@ -2213,6 +2214,7 @@ static void __init mx6_arm2_reserve(void)
 		memblock_remove(phys, imx6_gpu_pdata.reserved_mem_size);
 		imx6_gpu_pdata.reserved_mem_base = phys;
 	}
+#endif
 }
 
 MACHINE_START(MX6Q_ARM2, "Freescale i.MX 6Quad/Solo/DualLite Armadillo2 Board")
