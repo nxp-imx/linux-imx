@@ -6,52 +6,56 @@
  * the terms of the GNU General Public License version 2 as published by the
  * Free Software Foundation.
  *
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  */
 #include <linux/dma-mapping.h>
 #include <asm/sizes.h>
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
 
-#define imx_fec_data_entry_single(soc)					\
+#define imx_fec_data_entry_single(soc, _devid)				\
 	{								\
 		.iobase = soc ## _FEC_BASE_ADDR,			\
 		.irq = soc ## _INT_FEC,					\
+		.devid = _devid,					\
 	}
 
 #ifdef CONFIG_SOC_IMX25
 const struct imx_fec_data imx25_fec_data __initconst =
-	imx_fec_data_entry_single(MX25);
+	imx_fec_data_entry_single(MX25, "imx28-fec");
 #endif /* ifdef CONFIG_SOC_IMX25 */
 
 #ifdef CONFIG_SOC_IMX27
 const struct imx_fec_data imx27_fec_data __initconst =
-	imx_fec_data_entry_single(MX27);
+	imx_fec_data_entry_single(MX27, "imx28-fec");
 #endif /* ifdef CONFIG_SOC_IMX27 */
 
 #ifdef CONFIG_SOC_IMX35
 const struct imx_fec_data imx35_fec_data __initconst =
-	imx_fec_data_entry_single(MX35);
+	imx_fec_data_entry_single(MX35, "imx28-fec");
 #endif
 
 #ifdef CONFIG_SOC_IMX50
 const struct imx_fec_data imx50_fec_data __initconst =
-	imx_fec_data_entry_single(MX50);
+	imx_fec_data_entry_single(MX50, "fec");
 #endif
 
 #ifdef CONFIG_SOC_IMX51
 const struct imx_fec_data imx51_fec_data __initconst =
-	imx_fec_data_entry_single(MX51);
+	imx_fec_data_entry_single(MX51, "fec");
 #endif
 
 #ifdef CONFIG_SOC_IMX53
 const struct imx_fec_data imx53_fec_data __initconst =
-	imx_fec_data_entry_single(MX53);
+	imx_fec_data_entry_single(MX53, "fec");
 #endif
 
 #ifdef CONFIG_SOC_IMX6Q
 const struct imx_fec_data imx6q_fec_data __initconst =
-	imx_fec_data_entry_single(MX6Q);
+	imx_fec_data_entry_single(MX6Q, "enet");
+
+const struct imx_fec_data imx6sl_fec_data __initconst =
+	imx_fec_data_entry_single(MX6DL, "fec");
 #endif
 
 struct platform_device *__init imx_add_fec(
@@ -70,7 +74,7 @@ struct platform_device *__init imx_add_fec(
 		},
 	};
 
-	return imx_add_platform_device_dmamask("fec", 0,
+	return imx_add_platform_device_dmamask(data->devid, 0,
 			res, ARRAY_SIZE(res),
 			pdata, sizeof(*pdata), DMA_BIT_MASK(32));
 }

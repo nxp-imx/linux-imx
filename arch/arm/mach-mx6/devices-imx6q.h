@@ -44,6 +44,9 @@ extern const struct imx_dma_data imx6q_dma_data __initconst;
 extern const struct imx_fec_data imx6q_fec_data __initconst;
 #define imx6q_add_fec(pdata)	\
 	imx_add_fec(&imx6q_fec_data, pdata)
+extern const struct imx_fec_data imx6sl_fec_data __initconst;
+#define imx6sl_add_fec(pdata)	\
+	imx_add_fec(&imx6sl_fec_data, pdata)
 
 extern const struct imx_sdhci_esdhc_imx_data
 imx6q_sdhci_usdhc_imx_data[] __initconst;
