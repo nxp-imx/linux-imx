@@ -305,7 +305,13 @@ static void spdif_irq_bit_error(unsigned int bit, void *devid)
  */
 static void spdif_irq_sym_error(unsigned int bit, void *devid)
 {
+	struct mxc_spdif_priv *spdif_priv = (struct mxc_spdif_priv *)devid;
+
 	pr_debug("SPDIF interrupt symbol error\n");
+	if (!atomic_read(&spdif_priv->dpll_locked)) {
+		/* dpll unlocked seems no audio stream */
+		spdif_intr_enable(INT_SYM_ERR, 0);
+	}
 }
 
 /*
@@ -693,9 +699,6 @@ static int mxc_spdif_capture_startup(struct snd_pcm_substream *substream,
 	if (err < 0)
 		goto failed;
 
-	/* enable spdif dpll lock interrupt */
-	spdif_intr_enable(INT_DPLL_LOCKED, 1);
-
 	return 0;
 
 failed:
@@ -713,7 +716,7 @@ static int mxc_spdif_capture_start(struct snd_pcm_substream *substream,
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
 	unsigned long regval;
 
-	if (!plat_data->spdif_rx)
+	if (!plat_data->spdif_rx || !spdif_priv->rx_active)
 		return -EINVAL;
 
 	regval = __raw_readl(spdif_base_addr + SPDIF_REG_SCR);
@@ -732,7 +735,7 @@ static int mxc_spdif_capture_start(struct snd_pcm_substream *substream,
 	spdif_intr_enable(INT_SYM_ERR | INT_BIT_ERR | INT_URX_FUL |
 			  INT_URX_OV | INT_QRX_FUL | INT_QRX_OV |
 			  INT_UQ_SYNC | INT_UQ_ERR | INT_RX_RESYNC |
-			  INT_LOSS_LOCK, 1);
+			  INT_LOSS_LOCK | INT_DPLL_LOCKED, 1);
 
 	/* setup rx clock source */
 	spdif_set_rx_clksrc(plat_data->spdif_rx_clk, SPDIF_DEFAULT_GAINSEL, 1);
@@ -758,7 +761,7 @@ static int mxc_spdif_capture_stop(struct snd_pcm_substream *substream,
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
 	unsigned long regval;
 
-	if (!plat_data->spdif_rx)
+	if (!plat_data->spdif_rx || !spdif_priv->rx_active)
 		return -EINVAL;
 
 	pr_debug("SIS: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_SIS));
