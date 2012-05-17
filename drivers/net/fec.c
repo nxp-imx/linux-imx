@@ -1465,11 +1465,17 @@ static void
 fec_restart(struct net_device *dev, int duplex)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
+	struct fec_platform_data *pdata = fep->pdev->dev.platform_data;
 	int i;
 	uint ret = 0;
 	u32 temp_mac[2];
 	unsigned long reg;
 	int val;
+
+#ifdef CONFIG_ARCH_MXS
+	if (pdata && pdata->init)
+		ret = pdata->init();
+#endif
 
 	/* Whack a reset.  We should wait for this. */
 	writel(1, fep->hwp + FEC_ECNTRL);
