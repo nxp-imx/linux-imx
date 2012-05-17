@@ -1700,7 +1700,20 @@ static ssize_t swap_disp_chan(struct device *dev,
 	console_unlock();
 	return count;
 }
-DEVICE_ATTR(fsl_disp_property, 644, show_disp_chan, swap_disp_chan);
+static DEVICE_ATTR(fsl_disp_property, 644, show_disp_chan, swap_disp_chan);
+
+static ssize_t show_disp_dev(struct device *dev,
+			     struct device_attribute *attr, char *buf)
+{
+	struct fb_info *info = dev_get_drvdata(dev);
+	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)info->par;
+
+	if (mxcfbi->ipu_ch == MEM_FG_SYNC)
+		return sprintf(buf, "overlay\n");
+	else
+		return sprintf(buf, "%s\n", mxcfbi->dispdrv->drv->name);
+}
+static DEVICE_ATTR(fsl_disp_dev_property, S_IRUGO, show_disp_dev, NULL);
 
 static int mxcfb_dispdrv_init(struct platform_device *pdev,
 		struct fb_info *fbi)
@@ -2099,6 +2112,20 @@ static int mxcfb_probe(struct platform_device *pdev)
 		}
 
 		g_dp_in_use[mxcfbi->ipu_id] = true;
+
+		ret = device_create_file(mxcfbi->ovfbi->dev,
+					 &dev_attr_fsl_disp_property);
+		if (ret)
+			dev_err(mxcfbi->ovfbi->dev, "Error %d on creating "
+						    "file for disp property\n",
+						    ret);
+
+		ret = device_create_file(mxcfbi->ovfbi->dev,
+					 &dev_attr_fsl_disp_dev_property);
+		if (ret)
+			dev_err(mxcfbi->ovfbi->dev, "Error %d on creating "
+						    "file for disp device "
+						    "propety\n", ret);
 	} else {
 		mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
 		mxcfbi->ipu_ch_nf_irq = IPU_IRQ_DC_SYNC_NFACK;
@@ -2115,7 +2142,13 @@ static int mxcfb_probe(struct platform_device *pdev)
 
 	ret = device_create_file(fbi->dev, &dev_attr_fsl_disp_property);
 	if (ret)
-		dev_err(&pdev->dev, "Error %d on creating file\n", ret);
+		dev_err(&pdev->dev, "Error %d on creating file for disp "
+				    "property\n", ret);
+
+	ret = device_create_file(fbi->dev, &dev_attr_fsl_disp_dev_property);
+	if (ret)
+		dev_err(&pdev->dev, "Error %d on creating file for disp "
+				    " device propety\n", ret);
 
 #ifdef CONFIG_LOGO
 	fb_prepare_logo(fbi, 0);
@@ -2144,11 +2177,17 @@ static int mxcfb_remove(struct platform_device *pdev)
 	if (!fbi)
 		return 0;
 
+	device_remove_file(fbi->dev, &dev_attr_fsl_disp_dev_property);
+	device_remove_file(fbi->dev, &dev_attr_fsl_disp_property);
 	mxcfb_blank(FB_BLANK_POWERDOWN, fbi);
 	mxcfb_unregister(fbi);
 	mxcfb_unmap_video_memory(fbi);
 
 	if (mxc_fbi->ovfbi) {
+		device_remove_file(mxc_fbi->ovfbi->dev,
+				   &dev_attr_fsl_disp_dev_property);
+		device_remove_file(mxc_fbi->ovfbi->dev,
+				   &dev_attr_fsl_disp_property);
 		mxcfb_blank(FB_BLANK_POWERDOWN, mxc_fbi->ovfbi);
 		mxcfb_unsetup_overlay(fbi);
 		mxcfb_unmap_video_memory(mxc_fbi->ovfbi);
