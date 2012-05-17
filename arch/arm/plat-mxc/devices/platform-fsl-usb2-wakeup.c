@@ -25,9 +25,7 @@ const struct imx_fsl_usb2_wakeup_data imx6q_fsl_hs_wakeup_data[] __initconst = {
 	imx_fsl_usb2_wakeup_data_entry_single(MX6Q, 2, HS2),
 	imx_fsl_usb2_wakeup_data_entry_single(MX6Q, 3, HS3),
 };
-#endif /* ifdef CONFIG_SOC_IMX6Q */
 
-#ifdef CONFIG_SOC_IMX6SL
 const struct imx_fsl_usb2_wakeup_data imx6sl_fsl_hs_wakeup_data[] __initconst = {
 	imx_fsl_usb2_wakeup_data_entry_single(MX6SL, 1, HS1),
 	imx_fsl_usb2_wakeup_data_entry_single(MX6SL, 2, HS2),
