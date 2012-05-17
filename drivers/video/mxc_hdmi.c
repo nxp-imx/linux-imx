@@ -2009,7 +2009,7 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 		dev_dbg(&hdmi->pdev->dev, "%s CEA mode\n", __func__);
 
 		/* HDMI Initialization Step E - Configure audio */
-		hdmi_clk_regenerator_update_pixel_clock();
+		hdmi_clk_regenerator_update_pixel_clock(hdmi->fbi->var.pixclock);
 		hdmi_enable_audio_clk(hdmi);
 
 		/* HDMI Initialization Step F - Configure AVI InfoFrame */

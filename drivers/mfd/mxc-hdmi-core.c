@@ -72,7 +72,7 @@ u8 hdmi_readb(unsigned int reg)
 
 	value = __raw_readb(hdmi_base + reg);
 
-	pr_debug("hdmi rd: 0x%04x = 0x%02x\n", reg, value);
+/*	pr_debug("hdmi rd: 0x%04x = 0x%02x\n", reg, value);*/
 
 	return value;
 }
@@ -108,7 +108,7 @@ bool hdmi_check_overflow(void)
 void hdmi_writeb(u8 value, unsigned int reg)
 {
 	hdmi_check_overflow();
-	pr_debug("hdmi wr: 0x%04x = 0x%02x\n", reg, value);
+/*	pr_debug("hdmi wr: 0x%04x = 0x%02x\n", reg, value);*/
 	__raw_writeb(value, hdmi_base + reg);
 	hdmi_check_overflow();
 }
@@ -288,29 +288,33 @@ static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk,
 
 	switch (freq) {
 	case 32000:
-		if (pixel_clk == 25170000)
+		if (pixel_clk == 25174000)
 			n = (ratio == 150) ? 9152 : 4576;
 		else if (pixel_clk == 27020000)
 			n = (ratio == 150) ? 8192 : 4096;
 		else if (pixel_clk == 74170000 || pixel_clk == 148350000)
 			n = 11648;
+		else if (pixel_clk == 297000000)
+			n = (ratio == 150) ? 6144 : 3072;
 		else
 			n = 4096;
 		break;
 
 	case 44100:
-		if (pixel_clk == 25170000)
+		if (pixel_clk == 25174000)
 			n = 7007;
 		else if (pixel_clk == 74170000)
 			n = 17836;
 		else if (pixel_clk == 148350000)
 			n = (ratio == 150) ? 17836 : 8918;
+		else if (pixel_clk == 297000000)
+			n = (ratio == 150) ? 9408 : 4704;
 		else
 			n = 6272;
 		break;
 
 	case 48000:
-		if (pixel_clk == 25170000)
+		if (pixel_clk == 25174000)
 			n = (ratio == 150) ? 9152 : 6864;
 		else if (pixel_clk == 27020000)
 			n = (ratio == 150) ? 8192 : 6144;
@@ -318,6 +322,8 @@ static unsigned int hdmi_compute_n(unsigned int freq, unsigned long pixel_clk,
 			n = 11648;
 		else if (pixel_clk == 148350000)
 			n = (ratio == 150) ? 11648 : 5824;
+		else if (pixel_clk == 297000000)
+			n = (ratio == 150) ? 10240 : 5120;
 		else
 			n = 6144;
 		break;
@@ -354,6 +360,9 @@ static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk,
 		if (pixel_clk == 297000000) {
 			cts = 222750;
 			break;
+		} else if (pixel_clk == 25174000) {
+			cts = 28125;
+			break;
 		}
 	case 48000:
 	case 96000:
@@ -368,6 +377,9 @@ static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk,
 			break;
 		case 297000000:
 			cts = 247500;
+			break;
+		case 25174000:
+			cts = 28125l;
 			break;
 		/*
 		 * All other TMDS clocks are not supported by
@@ -385,6 +397,9 @@ static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk,
 		switch (pixel_clk) {
 		case 25200000:
 			cts = 28000;
+			break;
+		case 25174000:
+			cts = 31250;
 			break;
 		case 27000000:
 			cts = 30000;
@@ -412,27 +427,6 @@ static unsigned int hdmi_compute_cts(unsigned int freq, unsigned long pixel_clk,
 		return cts;
 	else
 		return (cts * ratio) / 100;
-}
-
-static void hdmi_get_pixel_clk(void)
-{
-	struct ipu_soc *ipu;
-	unsigned long rate;
-
-	if (pixel_clk == NULL) {
-		ipu = ipu_get_soc(mxc_hdmi_ipu_id);
-		pixel_clk = clk_get(ipu->dev,
-				ipu_lookups[mxc_hdmi_ipu_id][mxc_hdmi_disp_id].con_id);
-		if (IS_ERR(pixel_clk)) {
-			pr_err("%s could not get ipu%d_pixel_clk_%d\n", __func__,
-						mxc_hdmi_ipu_id + 1, mxc_hdmi_disp_id);
-			return;
-		}
-	}
-
-	rate = clk_get_rate(pixel_clk);
-	if (rate != 0)
-		pixel_clk_rate = rate;
 }
 
 static void hdmi_set_clk_regenerator(void)
@@ -466,10 +460,11 @@ void hdmi_init_clk_regenerator(void)
 	}
 }
 
-void hdmi_clk_regenerator_update_pixel_clock(void)
+void hdmi_clk_regenerator_update_pixel_clock(u32 pixclock)
 {
-	/* Get pixel clock from ipu */
-	hdmi_get_pixel_clk();
+
+	/* Translate pixel clock in ps (pico seconds) to Hz  */
+	pixel_clk_rate = PICOS2KHZ(pixclock) * 1000UL;
 	hdmi_set_clk_regenerator();
 }
 
