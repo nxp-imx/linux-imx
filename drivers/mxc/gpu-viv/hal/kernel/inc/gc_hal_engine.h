@@ -1173,6 +1173,27 @@ gco3D_InvokeThreadWalker(
     IN gcsTHREAD_WALKER_INFO_PTR Info
     );
 
+#if gcdUSE_WCLIP_PATCH
+/* Set w clip and w plane limit value. */
+gceSTATUS
+gco3D_SetWClipEnable(
+	IN gco3D Engine,
+	IN gctBOOL Enable
+    );
+
+gceSTATUS
+gco3D_SetWPlaneLimitF(
+	IN gco3D Engine,
+	IN gctFLOAT Value
+    );
+
+gceSTATUS
+gco3D_SetWPlaneLimitX(
+	IN gco3D Engine,
+	IN gctFIXED_POINT Value
+    );
+#endif
+
 /*----------------------------------------------------------------------------*/
 /*-------------------------- gco3D Fragment Processor ------------------------*/
 
@@ -1437,6 +1458,7 @@ gceSTATUS
 gcoTEXTURE_AddMipMap(
     IN gcoTEXTURE Texture,
     IN gctINT Level,
+    IN gctINT imageFormat,
     IN gceSURF_FORMAT Format,
     IN gctUINT Width,
     IN gctUINT Height,

@@ -38,7 +38,7 @@ typedef struct _gckGALDEVICE
 {
     /* Objects. */
     gckOS               os;
-    gckKERNEL           kernels[gcdCORE_COUNT];
+    gckKERNEL           kernels[gcdGPU_COUNT];
 
     /* Attributes. */
     gctSIZE_T           internalSize;
@@ -57,23 +57,23 @@ typedef struct _gckGALDEVICE
     gctPOINTER          contiguousMappedUser;
     gctSIZE_T           systemMemorySize;
     gctUINT32           systemMemoryBaseAddress;
-    gctPOINTER          registerBases[gcdCORE_COUNT];
-    gctSIZE_T           registerSizes[gcdCORE_COUNT];
+    gctPOINTER          registerBases[gcdGPU_COUNT];
+    gctSIZE_T           registerSizes[gcdGPU_COUNT];
     gctUINT32           baseAddress;
-    gctUINT32           requestedRegisterMemBases[gcdCORE_COUNT];
-    gctSIZE_T           requestedRegisterMemSizes[gcdCORE_COUNT];
+    gctUINT32           requestedRegisterMemBases[gcdGPU_COUNT];
+    gctSIZE_T           requestedRegisterMemSizes[gcdGPU_COUNT];
     gctUINT32           requestedContiguousBase;
     gctSIZE_T           requestedContiguousSize;
 
     /* IRQ management. */
-    gctINT              irqLines[gcdCORE_COUNT];
-    gctBOOL             isrInitializeds[gcdCORE_COUNT];
-    gctBOOL             dataReadys[gcdCORE_COUNT];
+    gctINT              irqLines[gcdGPU_COUNT];
+    gctBOOL             isrInitializeds[gcdGPU_COUNT];
+    gctBOOL             dataReadys[gcdGPU_COUNT];
 
     /* Thread management. */
-    struct task_struct  *threadCtxts[gcdCORE_COUNT];
-    struct semaphore    semas[gcdCORE_COUNT];
-    gctBOOL             threadInitializeds[gcdCORE_COUNT];
+    struct task_struct  *threadCtxts[gcdGPU_COUNT];
+    struct semaphore    semas[gcdGPU_COUNT];
+    gctBOOL             threadInitializeds[gcdGPU_COUNT];
     gctBOOL             killThread;
 
     /* Signal management. */
@@ -83,7 +83,7 @@ typedef struct _gckGALDEVICE
     gceCORE             coreMapping[8];
 
     /* States before suspend. */
-    gceCHIPPOWERSTATE   statesStored[gcdCORE_COUNT];
+    gceCHIPPOWERSTATE   statesStored[gcdGPU_COUNT];
 
     /* Clock management.*/
     struct clk         *clk_3d_core;

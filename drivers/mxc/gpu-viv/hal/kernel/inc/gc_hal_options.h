@@ -769,4 +769,17 @@
 #   define gcdALPHA_KILL_IN_SHADER              1
 #endif
 
+/*  gcdHIGH_PRECISION_DELAY_ENABLE
+ *
+ *  Enable high precision schedule delay with 1ms unit. otherwise schedule delay up to 10ms.
+ *  Browser app performance will have obvious drop without this enablement
+ */
+#ifndef gcdHIGH_PRECISION_DELAY_ENABLE
+#   define gcdHIGH_PRECISION_DELAY_ENABLE        1
+#endif
+
+#ifndef gcdUSE_WCLIP_PATCH
+#   define gcdUSE_WCLIP_PATCH                   0
+#endif
+
 #endif /* __gc_hal_options_h_ */

@@ -34,6 +34,7 @@
 #include <linux/idr.h>
 #include <mach/hardware.h>
 #include <linux/workqueue.h>
+#include <linux/idr.h>
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23)
 #include <linux/math64.h>
 #endif
@@ -161,6 +162,7 @@ struct _gckOS
     gctUINT32                   kernelProcessID;
 
     /* Signal management. */
+
     /* Lock. */
     gctPOINTER                  signalMutex;
 
@@ -197,7 +199,6 @@ typedef struct _gcsSIGNAL
 
     /* ID. */
     gctUINT32 id;
-
 }
 gcsSIGNAL;
 
@@ -1063,9 +1064,9 @@ _FreeAllNonPagedMemoryCache(
 
 #endif /* gcdUSE_NON_PAGED_MEMORY_CACHE */
 
- /*******************************************************************************
-+** Integer Id Management.
-+*/
+/*******************************************************************************
+** Integer Id Management.
+*/
 gceSTATUS
 _AllocateIntegerId(
     IN gcsINTEGER_DB_PTR Database,
@@ -1108,7 +1109,6 @@ _QueryIntegerId(
     OUT gctPOINTER * KernelPointer
     )
 {
-    gceSTATUS status;
     gctPOINTER pointer;
 
     spin_lock(&Database->lock);
@@ -1120,7 +1120,7 @@ _QueryIntegerId(
     if(pointer)
     {
         *KernelPointer = pointer;
-        status = gcvSTATUS_OK;
+        return gcvSTATUS_OK;
     }
     else
     {
@@ -1129,10 +1129,8 @@ _QueryIntegerId(
                 "%s(%d) Id = %d is not found",
                 __FUNCTION__, __LINE__, Id);
 
-        status = gcvSTATUS_NOT_FOUND;
+        return gcvSTATUS_NOT_FOUND;
     }
-
-    return status;
 }
 
 gceSTATUS
@@ -1148,6 +1146,52 @@ _DestroyIntegerId(
     spin_unlock(&Database->lock);
 
     return gcvSTATUS_OK;
+}
+
+static void
+_UnmapUserLogical(
+    IN gctINT Pid,
+    IN gctPOINTER Logical,
+    IN gctUINT32  Size
+)
+{
+    struct task_struct *task;
+    struct mm_struct *mm;
+
+    /* Get the task_struct of the task with stored pid. */
+    rcu_read_lock();
+
+    task = FIND_TASK_BY_PID(Pid);
+
+    if (task == gcvNULL)
+    {
+        rcu_read_unlock();
+        return;
+    }
+
+    /* Get the mm_struct. */
+    mm = get_task_mm(task);
+
+    rcu_read_unlock();
+
+    if (mm == gcvNULL)
+    {
+        return;
+    }
+
+    down_write(&mm->mmap_sem);
+    if (do_munmap(mm, (unsigned long)Logical, Size) < 0)
+    {
+        gcmkTRACE_ZONE(
+                gcvLEVEL_WARNING, gcvZONE_OS,
+                "%s(%d): do_munmap failed",
+                __FUNCTION__, __LINE__
+                );
+    }
+    up_write(&mm->mmap_sem);
+
+    /* Dereference. */
+    mmput(mm);
 }
 
 /*******************************************************************************
@@ -1329,7 +1373,6 @@ gckOS_Destroy(
      */
 
     /* Destroy the mutex. */
-
     gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Os->signalMutex));
 
     if (Os->heap != gcvNULL)
@@ -1898,7 +1941,6 @@ gckOS_UnmapMemoryEx(
 {
     PLINUX_MDL_MAP          mdlMap;
     PLINUX_MDL              mdl = (PLINUX_MDL)Physical;
-    struct task_struct *    task;
 
     gcmkHEADER_ARG("Os=0x%X Physical=0x%X Bytes=%lu Logical=0x%X PID=%d",
                    Os, Physical, Bytes, Logical, PID);
@@ -1924,24 +1966,7 @@ gckOS_UnmapMemoryEx(
             return gcvSTATUS_INVALID_ARGUMENT;
         }
 
-        /* Get the current pointer for the task with stored pid. */
-        task = FIND_TASK_BY_PID(mdlMap->pid);
-
-        if (task != gcvNULL && task->mm != gcvNULL)
-        {
-            down_write(&task->mm->mmap_sem);
-            do_munmap(task->mm, (unsigned long)Logical, mdl->numPages*PAGE_SIZE);
-            up_write(&task->mm->mmap_sem);
-        }
-        else
-        {
-            gcmkTRACE_ZONE(
-                gcvLEVEL_INFO, gcvZONE_OS,
-                "%s(%d): can't find the task with pid->%d. No unmapping",
-                __FUNCTION__, __LINE__,
-                mdlMap->pid
-                );
-        }
+        _UnmapUserLogical(PID, mdlMap->vmaAddr, mdl->numPages * PAGE_SIZE);
 
         gcmkVERIFY_OK(_DestroyMdlMap(mdl, mdlMap));
     }
@@ -2287,7 +2312,6 @@ gceSTATUS gckOS_FreeNonPagedMemory(
 {
     PLINUX_MDL mdl;
     PLINUX_MDL_MAP mdlMap;
-    struct task_struct * task;
 #ifdef NO_DMA_COHERENT
     unsigned size;
     gctPOINTER vaddr;
@@ -2350,27 +2374,7 @@ gceSTATUS gckOS_FreeNonPagedMemory(
     {
         if (mdlMap->vmaAddr != gcvNULL)
         {
-            /* Get the current pointer for the task with stored pid. */
-            task = FIND_TASK_BY_PID(mdlMap->pid);
-
-            if (task != gcvNULL && task->mm != gcvNULL)
-            {
-                down_write(&task->mm->mmap_sem);
-
-                if (do_munmap(task->mm,
-                              (unsigned long)mdlMap->vmaAddr,
-                              mdl->numPages * PAGE_SIZE) < 0)
-                {
-                    gcmkTRACE_ZONE(
-                        gcvLEVEL_WARNING, gcvZONE_OS,
-                        "%s(%d): do_munmap failed",
-                        __FUNCTION__, __LINE__
-                        );
-                }
-
-                up_write(&task->mm->mmap_sem);
-            }
-
+            _UnmapUserLogical(mdlMap->pid, mdlMap->vmaAddr, mdl->numPages * PAGE_SIZE);
             mdlMap->vmaAddr = gcvNULL;
         }
 
@@ -3761,13 +3765,18 @@ gckOS_Delay(
     IN gctUINT32 Delay
     )
 {
-    struct timeval now;
-    unsigned long jiffies;
-
     gcmkHEADER_ARG("Os=0x%X Delay=%u", Os, Delay);
 
     if (Delay > 0)
     {
+#if gcdHIGH_PRECISION_DELAY_ENABLE
+        ktime_t wait = ns_to_ktime(Delay * 1000 * 1000);
+        set_current_state(TASK_INTERRUPTIBLE);
+        schedule_hrtimeout(&wait, HRTIMER_MODE_REL);
+#else
+        struct timeval now;
+        unsigned long jiffies;
+
         /* Convert milliseconds into seconds and microseconds. */
         now.tv_sec  = Delay / 1000;
         now.tv_usec = (Delay % 1000) * 1000;
@@ -3777,6 +3786,7 @@ gckOS_Delay(
 
         /* Schedule timeout. */
         schedule_timeout_interruptible(jiffies);
+#endif
     }
 
     /* Success. */
@@ -4681,7 +4691,6 @@ gckOS_UnlockPages(
 {
     PLINUX_MDL_MAP          mdlMap;
     PLINUX_MDL              mdl = (PLINUX_MDL)Physical;
-    struct task_struct *    task;
 
     gcmkHEADER_ARG("Os=0x%X Physical=0x%X Bytes=%u Logical=0x%X",
                    Os, Physical, Bytes, Logical);
@@ -4703,16 +4712,7 @@ gckOS_UnlockPages(
     {
         if ((mdlMap->vmaAddr != gcvNULL) && (_GetProcessID() == mdlMap->pid))
         {
-            /* Get the current pointer for the task with stored pid. */
-            task = FIND_TASK_BY_PID(mdlMap->pid);
-
-            if (task != gcvNULL && task->mm != gcvNULL)
-            {
-                down_write(&task->mm->mmap_sem);
-                do_munmap(task->mm, (unsigned long)mdlMap->vmaAddr, mdl->numPages * PAGE_SIZE);
-                up_write(&task->mm->mmap_sem);
-            }
-
+            _UnmapUserLogical(mdlMap->pid, mdlMap->vmaAddr, mdl->numPages * PAGE_SIZE);
             mdlMap->vmaAddr = gcvNULL;
         }
 
@@ -6908,8 +6908,8 @@ gckOS_GetThreadID(
 **      gckOS Os
 **          Pointer to a gckOS object.
 **
-**      gceCORE Core
-**          Core type.
+**      gckCORE Core
+**          GPU whose power is set.
 **
 **      gctBOOL Clock
 **          gcvTRUE to turn on the clock, or gcvFALSE to turn off the clock.
@@ -7195,6 +7195,7 @@ gckOS_DestroySignal(
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
+
 OnError:
     if (acquired)
     {
@@ -7600,7 +7601,6 @@ gckOS_MapSignal(
 {
     gceSTATUS status;
     gcsSIGNAL_PTR signal;
-
     gcmkHEADER_ARG("Os=0x%X Signal=0x%X Process=0x%X", Os, Signal, Process);
 
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
@@ -7608,7 +7608,7 @@ gckOS_MapSignal(
 
     gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
 
-    if (atomic_inc_return(&signal->ref) <= 1)
+    if(atomic_inc_return(&signal->ref) <= 1)
     {
         /* The previous value is 0, it has been deleted. */
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
@@ -7677,6 +7677,7 @@ gckOS_CreateUserSignal(
     OUT gctINT * SignalID
     )
 {
+    /* Create a new signal. */
     return gckOS_CreateSignal(Os, ManualReset, (gctSIGNAL *) SignalID);
 }
 
