@@ -2480,8 +2480,6 @@ gckCOMMAND_Stall(
         gcmkONERROR(gckOS_Broadcast(
             os, hardware, gcvBROADCAST_GPU_STUCK
             ));
-
-        gcmkONERROR(gcvSTATUS_GPU_NOT_RESPONDING);
     }
 
     /* Delete the signal. */

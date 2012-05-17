@@ -1236,12 +1236,6 @@ _TaskUnmapUserMemory(
     gcsBLOCK_TASK_ENTRY_PTR TaskHeader
     );
 
-static gceSTATUS
-_TaskUnmapMemory(
-    gckVGCOMMAND Command,
-    gcsBLOCK_TASK_ENTRY_PTR TaskHeader
-    );
-
 static gctTASKROUTINE _taskRoutine[] =
 {
     _TaskLink,                  /* gcvTASK_LINK                   */
@@ -1254,7 +1248,6 @@ static gctTASKROUTINE _taskRoutine[] =
     _TaskFreeVideoMemory,       /* gcvTASK_FREE_VIDEO_MEMORY      */
     _TaskFreeContiguousMemory,  /* gcvTASK_FREE_CONTIGUOUS_MEMORY */
     _TaskUnmapUserMemory,       /* gcvTASK_UNMAP_USER_MEMORY      */
-    _TaskUnmapMemory,           /* gcvTASK_UNMAP_MEMORY           */
 };
 
 static gceSTATUS
@@ -1675,38 +1668,6 @@ _TaskUnmapUserMemory(
     /* Return status. */
     return status;
 }
-
-static gceSTATUS
-_TaskUnmapMemory(
-    gckVGCOMMAND Command,
-    gcsBLOCK_TASK_ENTRY_PTR TaskHeader
-    )
-{
-    gceSTATUS status;
-
-    do
-    {
-        /* Cast the task pointer. */
-        gcsTASK_UNMAP_MEMORY_PTR task
-            = (gcsTASK_UNMAP_MEMORY_PTR) TaskHeader->task;
-
-        /* Unmap memory. */
-        gcmkERR_BREAK(gckKERNEL_UnmapMemory(
-            Command->kernel->kernel, task->physical, task->bytes, task->logical
-            ));
-
-        /* Update the reference counter. */
-        TaskHeader->container->referenceCount -= 1;
-
-        /* Update the task pointer. */
-        TaskHeader->task = (gcsTASK_HEADER_PTR) (task + 1);
-    }
-    while (gcvFALSE);
-
-    /* Return status. */
-    return status;
-}
-
 
 /******************************************************************************\
 ************ Hardware Block Interrupt Handlers For Scheduled Events ************

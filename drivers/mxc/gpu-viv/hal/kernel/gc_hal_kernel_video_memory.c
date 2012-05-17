@@ -245,7 +245,7 @@ gckVIDMEM_ConstructVirtual(
     node->Virtual.contiguous    = Contiguous;
     node->Virtual.logical       = gcvNULL;
 
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         node->Virtual.lockeds[i]        = 0;
         node->Virtual.pageTables[i]     = gcvNULL;
@@ -259,7 +259,7 @@ gckVIDMEM_ConstructVirtual(
 #ifdef __QNXNTO__
     node->Virtual.next          = gcvNULL;
     node->Virtual.freePending   = gcvFALSE;
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         node->Virtual.unlockPendings[i] = gcvFALSE;
     }
@@ -366,7 +366,7 @@ gckVIDMEM_DestroyVirtual(
     /* Delete the mutex. */
     gcmkVERIFY_OK(gckOS_DeleteMutex(os, Node->Virtual.mutex));
 
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         if (Node->Virtual.pageTables[i] != gcvNULL)
         {
@@ -1392,7 +1392,7 @@ gckVIDMEM_Free(
 
     acquired = gcvTRUE;
 
-    for (i = 0, totalLocked = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0, totalLocked = 0; i < gcdGPU_COUNT; i++)
     {
         totalLocked += Node->Virtual.lockeds[i];
     }
@@ -1590,7 +1590,7 @@ _NeedVirtualMapping(
     gcmkVERIFY_ARGUMENT(Kernel != gcvNULL);
     gcmkVERIFY_ARGUMENT(Node != gcvNULL);
     gcmkVERIFY_ARGUMENT(NeedMapping != gcvNULL);
-    gcmkVERIFY_ARGUMENT(Core < gcdCORE_COUNT);
+    gcmkVERIFY_ARGUMENT(Core < gcdGPU_COUNT);
 
     if (Node->Virtual.contiguous)
     {
@@ -2052,7 +2052,7 @@ gckVIDMEM_Unlock(
 #endif
             }
 
-            for (i = 0, totalLocked = 0; i < gcdCORE_COUNT; i++)
+            for (i = 0, totalLocked = 0; i < gcdGPU_COUNT; i++)
             {
                 totalLocked += Node->Virtual.lockeds[i];
             }

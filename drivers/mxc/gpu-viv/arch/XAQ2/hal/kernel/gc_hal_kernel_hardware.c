@@ -217,16 +217,23 @@ _IdentifyHardware(
         }
     }
 
+    /* If new HZ is available, disable other early z modes. */
+    if (((((gctUINT32) (Identity->chipMinorFeatures3)) >> (0 ? 26:26) & ((gctUINT32) ((((1 ? 26:26) - (0 ? 26:26) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 26:26) - (0 ? 26:26) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 26:26) - (0 ? 26:26) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 26:26) - (0 ? 26:26) + 1)))))))
+     || ((((gctUINT32) (Identity->chipMinorFeatures3)) >> (0 ? 8:8) & ((gctUINT32) ((((1 ? 8:8) - (0 ? 8:8) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:8) - (0 ? 8:8) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 8:8) - (0 ? 8:8) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:8) - (0 ? 8:8) + 1))))))))
+    {
+        /* Disable EZ. */
+        Identity->chipFeatures
+            = ((((gctUINT32) (Identity->chipFeatures)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))) << (0 ? 16:16))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))) << (0 ? 16:16)));
+    }
+
 	/* Disable HZ when EZ is present for older chips. */
-    if (!((((gctUINT32) (Identity->chipMinorFeatures3)) >> (0 ? 8:8) & ((gctUINT32) ((((1 ? 8:8) - (0 ? 8:8) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:8) - (0 ? 8:8) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 8:8) - (0 ? 8:8) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:8) - (0 ? 8:8) + 1)))))))
-        &&
-        !((((gctUINT32) (Identity->chipFeatures)) >> (0 ? 16:16) & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1)))))))
-        )
+    else if (!((((gctUINT32) (Identity->chipFeatures)) >> (0 ? 16:16) & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))))
     {
         /* Disable HIERARCHICAL_Z. */
         Identity->chipMinorFeatures
             = ((((gctUINT32) (Identity->chipMinorFeatures)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 27:27) - (0 ? 27:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 27:27) - (0 ? 27:27) + 1))))))) << (0 ? 27:27))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 27:27) - (0 ? 27:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 27:27) - (0 ? 27:27) + 1))))))) << (0 ? 27:27)));
     }
+
     /* Disable rectangle primitive when chip is gc880_5_1_0_rc6*/
     if ((Identity->chipModel == gcv880) && (Identity->chipRevision == 0x5106))
     {
@@ -234,6 +241,7 @@ _IdentifyHardware(
         Identity->chipMinorFeatures2
             = ((((gctUINT32) (Identity->chipMinorFeatures2)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 5:5) - (0 ? 5:5) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 5:5) - (0 ? 5:5) + 1))))))) << (0 ? 5:5))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 5:5) - (0 ? 5:5) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 5:5) - (0 ? 5:5) + 1))))))) << (0 ? 5:5)));
     }
+
     gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
                    "Identity: chipFeatures=0x%08X",
                    Identity->chipFeatures);
@@ -494,7 +502,10 @@ gckHARDWARE_Construct(
 
     /* Enable the GPU. */
     gcmkONERROR(gckOS_SetGPUPower(Os, Core, gcvTRUE, gcvTRUE));
-    gcmkONERROR(gckOS_WriteRegisterEx(Os, Core, 0x00000, 0));
+    gcmkONERROR(gckOS_WriteRegisterEx(Os,
+                                      Core,
+                                      0x00000,
+                                      0x00000900));
 
     /* Allocate the gckHARDWARE object. */
     gcmkONERROR(gckOS_Allocate(Os,
@@ -609,7 +620,7 @@ OnError:
     if (hardware != gcvNULL)
     {
         /* Turn off the power. */
-        gcmkVERIFY_OK(gckOS_SetGPUPower(Os, hardware->core, gcvFALSE, gcvFALSE));
+        gcmkVERIFY_OK(gckOS_SetGPUPower(Os, Core, gcvFALSE, gcvFALSE));
 
         if (hardware->globalSemaphore != gcvNULL)
         {
@@ -3534,7 +3545,8 @@ gckHARDWARE_SetPowerManagementState(
                                     gcvPOWER_FLAG_DELAY     |
                                     gcvPOWER_FLAG_CLOCK_ON,
             /* OFF               */ gcvPOWER_FLAG_SAVE      |
-                                    gcvPOWER_FLAG_POWER_OFF,
+                                    gcvPOWER_FLAG_POWER_OFF |
+                                    gcvPOWER_FLAG_CLOCK_OFF,
             /* IDLE              */ gcvPOWER_FLAG_START     |
                                     gcvPOWER_FLAG_DELAY     |
                                     gcvPOWER_FLAG_CLOCK_ON,
