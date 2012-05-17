@@ -19,7 +19,7 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
  * Support for FEC IEEE 1588.
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -1267,11 +1267,17 @@ static void
 fec_restart(struct net_device *dev, int duplex)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
+	struct fec_platform_data *pdata = fep->pdev->dev.platform_data;
 	int i;
 	uint ret = 0;
 	u32 temp_mac[2];
 	unsigned long reg;
 	int val;
+
+#ifdef CONFIG_ARCH_MXS
+	if (pdata && pdata->init)
+		ret = pdata->init();
+#endif
 
 	/* Whack a reset.  We should wait for this. */
 	writel(1, fep->hwp + FEC_ECNTRL);
