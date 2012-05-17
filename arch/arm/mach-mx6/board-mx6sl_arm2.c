@@ -82,6 +82,7 @@
 #define MX6_ARM2_SD3_CD		IMX_GPIO_NR(3, 22)	/* REF_CLK_32K */
 #define MX6_ARM2_FEC_PWR_EN	IMX_GPIO_NR(4, 21)	/* FEC_TX_CLK */
 
+extern int __init mx6sl_arm2_init_pfuze100(u32 int_gpio);
 static const struct esdhc_platform_data mx6_arm2_sd1_data __initconst = {
 	.cd_gpio		= MX6_ARM2_SD1_CD,
 	.wp_gpio		= MX6_ARM2_SD1_WP,
@@ -103,6 +104,36 @@ static const struct esdhc_platform_data mx6_arm2_sd3_data __initconst = {
 	.delay_line		= 0,
 };
 
+static struct imxi2c_platform_data mx6_arm2_i2c0_data = {
+	.bitrate = 100000,
+};
+
+static struct imxi2c_platform_data mx6_arm2_i2c1_data = {
+	.bitrate = 100000,
+};
+
+static struct imxi2c_platform_data mx6_arm2_i2c2_data = {
+	.bitrate = 400000,
+};
+
+static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
+	{
+		I2C_BOARD_INFO("max17135", 0x48),
+		/*.platform_data = &max17135_pdata,*/
+	},
+};
+
+static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
+	{
+		I2C_BOARD_INFO("wm8962", 0x1a),
+		/*.platform_data = &wm8962_config_data,*/
+	},
+};
+
+static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
+	{
+	},
+};
 void __init early_console_setup(unsigned long base, struct clk *clk);
 
 static inline void mx6_arm2_init_uart(void)
@@ -165,6 +196,16 @@ static void __init mx6_arm2_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_arm2_pads, ARRAY_SIZE(mx6sl_arm2_pads));
 
+	imx6q_add_imx_i2c(0, &mx6_arm2_i2c0_data);
+	imx6q_add_imx_i2c(1, &mx6_arm2_i2c1_data);
+	i2c_register_board_info(0, mxc_i2c0_board_info,
+			ARRAY_SIZE(mxc_i2c0_board_info));
+	i2c_register_board_info(1, mxc_i2c1_board_info,
+			ARRAY_SIZE(mxc_i2c1_board_info));
+	imx6q_add_imx_i2c(2, &mx6_arm2_i2c2_data);
+	i2c_register_board_info(2, mxc_i2c2_board_info,
+			ARRAY_SIZE(mxc_i2c2_board_info));
+	mx6sl_arm2_init_pfuze100(0);
 	mx6_arm2_init_uart();
 	/* get enet tx reference clk from FEC_REF_CLK pad.
 	 * GPR1[14] = 0, GPR1[18:17] = 00
