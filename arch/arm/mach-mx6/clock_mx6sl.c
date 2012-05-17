@@ -3630,6 +3630,9 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 
 	clk_tree_init();
 
+	/* Set AHB to 132MHz. */
+	clk_set_rate(&ahb_clk, clk_round_rate(&ahb_clk, 132000000));
+
 	pll2_pfd0_352M.disable(&pll2_pfd0_352M);
 	pll2_pfd1_594M.disable(&pll2_pfd1_594M);
 
