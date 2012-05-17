@@ -1498,7 +1498,7 @@ static irqreturn_t mxcfb_alpha_irq_handler(int irq, void *dev_id)
 /*
  * Suspends the framebuffer and blanks the screen. Power management support
  */
-static int mxcfb_suspend(struct platform_device *pdev, pm_message_t state)
+static int mxcfb_core_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct fb_info *fbi = platform_get_drvdata(pdev);
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
@@ -1530,9 +1530,23 @@ static int mxcfb_suspend(struct platform_device *pdev, pm_message_t state)
 }
 
 /*
+ * Suspends the framebuffer and blanks the screen. Power management support
+ */
+static int mxcfb_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct fb_info *fbi = platform_get_drvdata(pdev);
+	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
+
+	if (strstr(mxc_fbi->dispdrv->drv->name, "hdmi"))
+		return mxcfb_core_suspend(pdev, state);
+
+	return 0;
+}
+
+/*
  * Resumes the framebuffer and unblanks the screen. Power management support
  */
-static int mxcfb_resume(struct platform_device *pdev)
+static int mxcfb_core_resume(struct platform_device *pdev)
 {
 	struct fb_info *fbi = platform_get_drvdata(pdev);
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
@@ -1550,6 +1564,20 @@ static int mxcfb_resume(struct platform_device *pdev)
 		fb_set_suspend(mxc_fbi->ovfbi, 0);
 		console_unlock();
 	}
+
+	return 0;
+}
+
+/*
+ * Resumes the framebuffer and unblanks the screen. Power management support
+ */
+static int mxcfb_resume(struct platform_device *pdev)
+{
+	struct fb_info *fbi = platform_get_drvdata(pdev);
+	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
+
+	if (strstr(mxc_fbi->dispdrv->drv->name, "hdmi"))
+		return mxcfb_core_resume(pdev);
 
 	return 0;
 }
@@ -2220,10 +2248,8 @@ static struct platform_driver mxcfb_driver = {
 		   },
 	.probe = mxcfb_probe,
 	.remove = mxcfb_remove,
-#ifndef CONFIG_HAS_EARLYSUSPEND
 	.suspend = mxcfb_suspend,
 	.resume = mxcfb_resume,
-#endif
 };
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -2232,6 +2258,7 @@ static void mxcfb_early_suspend(struct early_suspend *h)
 	int i;
 	struct platform_device *pdev;
 	struct mxcfb_info *mxcfbi;
+	struct fb_info *fbi;
 	pm_message_t state = { .event = PM_EVENT_SUSPEND };
 	struct fb_event event;
 	int blank = FB_BLANK_POWERDOWN;
@@ -2241,7 +2268,13 @@ static void mxcfb_early_suspend(struct early_suspend *h)
 		if (!mxcfbi || mxcfbi->ipu_ch == MEM_FG_SYNC)
 			continue;
 		pdev = to_platform_device(registered_fb[i]->device);
-		mxcfb_suspend(pdev, state);
+		if (strstr(mxcfbi->dispdrv->drv->name, "hdmi")) {
+			/* Only black the hdmi fb due to audio dependency */
+			fbi = platform_get_drvdata(pdev);
+			memset(fbi->screen_base, 0, fbi->fix.smem_len);
+			continue;
+		}
+		mxcfb_core_suspend(pdev, state);
 		event.info = registered_fb[i];
 		event.data = &blank;
 		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
@@ -2260,7 +2293,11 @@ static void mxcfb_later_resume(struct early_suspend *h)
 		if (!mxcfbi || mxcfbi->ipu_ch == MEM_FG_SYNC)
 			continue;
 		pdev = to_platform_device(registered_fb[i]->device);
-		mxcfb_resume(pdev);
+		/* HDMI resume function has been called */
+		if (strstr(mxcfbi->dispdrv->drv->name, "hdmi"))
+			continue;
+
+		mxcfb_core_resume(pdev);
 		event.info = registered_fb[i];
 		event.data = &mxcfbi->next_blank;
 		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
