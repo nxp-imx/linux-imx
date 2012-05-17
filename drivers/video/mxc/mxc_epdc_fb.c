@@ -1130,6 +1130,7 @@ static void epdc_init_sequence(struct mxc_epdc_fb_data *fb_data)
 	epdc_init_settings(fb_data);
 	__raw_writel(fb_data->waveform_buffer_phys, EPDC_WVADDR);
 	__raw_writel(fb_data->working_buffer_phys, EPDC_WB_ADDR);
+	__raw_writel(fb_data->working_buffer_phys, EPDC_WB_ADDR_TCE);
 	fb_data->in_init = true;
 	epdc_powerup(fb_data);
 	draw_mode0(fb_data);
@@ -4006,8 +4007,8 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	clk_enable(fb_data->epdc_clk_pix);
 	rounded_pix_clk = clk_round_rate(fb_data->epdc_clk_pix, target_pix_clk);
 
-	if (((rounded_pix_clk >= target_pix_clk + target_pix_clk/200) ||
-		(rounded_pix_clk <= target_pix_clk - target_pix_clk/200))) {
+	if (((rounded_pix_clk >= target_pix_clk + target_pix_clk/100) ||
+		(rounded_pix_clk <= target_pix_clk - target_pix_clk/100))) {
 		/* Can't get close enough without changing parent clk */
 		epdc_parent = clk_get_parent(fb_data->epdc_clk_pix);
 		rounded_parent_rate = clk_round_rate(epdc_parent, target_pix_clk);
@@ -4018,8 +4019,8 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 		clk_set_rate(epdc_parent, epdc_pix_rate);
 
 		rounded_pix_clk = clk_round_rate(fb_data->epdc_clk_pix, target_pix_clk);
-		if (((rounded_pix_clk >= target_pix_clk + target_pix_clk/200) ||
-			(rounded_pix_clk <= target_pix_clk - target_pix_clk/200)))
+		if (((rounded_pix_clk >= target_pix_clk + target_pix_clk/100) ||
+			(rounded_pix_clk <= target_pix_clk - target_pix_clk/100)))
 			/* Still can't get a good clock, provide warning */
 			dev_err(fb_data->dev, "Unable to get an accurate EPDC pix clk"
 				"desired = %lu, actual = %lu\n", target_pix_clk,
