@@ -2414,9 +2414,6 @@ static unsigned long _clk_epdc_lcdif_pix_round_rate(struct clk *clk,
 
 	__calc_pre_post_dividers(1 << 3, div, &pre, &post);
 
-	printk("round_rate: parent_rate = %d, rate = %d, div = %d, pre = %d, post = %d\n",
-		parent_rate, rate, div, pre, post);
-
 	return parent_rate / (pre * post);
 }
 
