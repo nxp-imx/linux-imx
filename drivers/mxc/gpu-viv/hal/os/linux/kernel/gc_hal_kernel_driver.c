@@ -85,7 +85,7 @@ module_param(contiguousSize, ulong, 0644);
 static ulong contiguousBase = 0;
 module_param(contiguousBase, ulong, 0644);
 
-static ulong bankSize = 32 << 20;
+static ulong bankSize = 0;
 module_param(bankSize, ulong, 0644);
 
 static int fastClear = -1;
@@ -182,7 +182,7 @@ int drv_open(
     gcmkONERROR(gckOS_GetProcessID(&data->pidOpen));
 
     /* Attached the process. */
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         if (galDevice->kernels[i] != gcvNULL)
         {
@@ -225,7 +225,7 @@ OnError:
 
     if (attached)
     {
-        for (i = 0; i < gcdCORE_COUNT; i++)
+        for (i = 0; i < gcdGPU_COUNT; i++)
         {
             if (galDevice->kernels[i] != gcvNULL)
             {
@@ -304,7 +304,7 @@ int drv_release(
     }
 
     /* A process gets detached. */
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         if (galDevice->kernels[i] != gcvNULL)
         {
@@ -442,7 +442,7 @@ long drv_ioctl(
     if (iface.command == gcvHAL_CHIP_INFO)
     {
         count = 0;
-        for (i = 0; i < gcdCORE_COUNT; i++)
+        for (i = 0; i < gcdGPU_COUNT; i++)
         {
             if (device->kernels[i] != gcvNULL)
             {
@@ -959,7 +959,7 @@ static int __devinit gpu_suspend(struct platform_device *dev, pm_message_t state
 
     device = platform_get_drvdata(dev);
 
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         if (device->kernels[i] != gcvNULL)
         {
@@ -1010,7 +1010,7 @@ static int __devinit gpu_resume(struct platform_device *dev)
 
     device = platform_get_drvdata(dev);
 
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         if (device->kernels[i] != gcvNULL)
         {

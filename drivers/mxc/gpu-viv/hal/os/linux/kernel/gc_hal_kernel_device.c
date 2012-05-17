@@ -404,7 +404,7 @@ gckGALDEVICE_Construct(
     device->requestedContiguousSize  = 0;
 
 
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         physical = device->requestedRegisterMemBases[i];
 
@@ -582,19 +582,19 @@ gckGALDEVICE_Construct(
     device->irqLines[gcvCORE_VG]    = IrqLineVG;
 
     /* Initialize the kernel thread semaphores. */
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         if (device->irqLines[i] != -1) sema_init(&device->semas[i], 0);
     }
 
     device->signal = Signal;
 
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         if (device->kernels[i] != gcvNULL) break;
     }
 
-    if (i == gcdCORE_COUNT) gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+    if (i == gcdGPU_COUNT) gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
 
 #if gcdENABLE_VG
     if (i == gcvCORE_VG)
@@ -854,7 +854,7 @@ gckGALDEVICE_Destroy(
 
     if (Device != gcvNULL)
     {
-        for (i = 0; i < gcdCORE_COUNT; i++)
+        for (i = 0; i < gcdGPU_COUNT; i++)
         {
             if (Device->kernels[i] != gcvNULL)
             {
@@ -937,7 +937,7 @@ gckGALDEVICE_Destroy(
             }
         }
 
-        for (i = 0; i < gcdCORE_COUNT; i++)
+        for (i = 0; i < gcdGPU_COUNT; i++)
         {
             if (Device->registerBases[i] != gcvNULL)
             {
@@ -1428,7 +1428,7 @@ gckGALDEVICE_Stop_Threads(
 
     gcmkVERIFY_ARGUMENT(Device != NULL);
 
-    for (i = 0; i < gcdCORE_COUNT; i++)
+    for (i = 0; i < gcdGPU_COUNT; i++)
     {
         /* Stop the kernel threads. */
         if (Device->threadInitializeds[i])

@@ -251,11 +251,63 @@ typedef struct __BITFIELDINFO{
 } BITFIELDINFO;
 
 #elif defined(LINUX) && defined(EGL_API_FB) && !defined(__APPLE__)
+
+#if defined(EGL_API_WL)
+/* Wayland platform. */
+
+#include <wayland-egl.h>
+
+#define WL_EGL_NUM_BACKBUFFERS 2
+
+struct wl_egl_buffer_info
+{
+   gctINT32 width;
+   gctINT32 height;
+   gctINT32 stride;
+   gctUINT32 physical;
+   gctPOINTER logical;
+   gceSURF_FORMAT format;
+   gcoSURF surface;
+};
+
+struct wl_egl_buffer
+{
+   struct wl_buffer* wl_buffer;
+   struct wl_egl_buffer_info info;
+};
+
+struct wl_egl_window_info
+{
+   gctUINT width;
+   gctUINT height;
+   gceSURF_FORMAT format;
+   gctUINT bpp;
+};
+
+struct wl_egl_window
+{
+/*   struct wl_egl_display *display;*/
+   struct wl_surface* surface;
+   struct wl_egl_window_info info;
+   struct wl_egl_buffer backbuffers[WL_EGL_NUM_BACKBUFFERS];
+   gctUINT current;
+   /*
+   int backbuffer;
+   int dx;
+   int dy;
+*/
+};
+
+
+typedef void*   HALNativeDisplayType;
+typedef void*   HALNativeWindowType;
+typedef void*   HALNativePixmapType;
+#else
 /* Linux platform for FBDEV. */
 typedef struct _FBDisplay * HALNativeDisplayType;
 typedef struct _FBWindow *  HALNativeWindowType;
 typedef struct _FBPixmap *  HALNativePixmapType;
-
+#endif
 #elif defined(__ANDROID__) || defined(ANDROID)
 
 struct egl_native_pixmap_t;
@@ -369,6 +421,8 @@ typedef struct _halDISPLAY_INFO
     /* The physical address of the display memory buffer. ~0 is returned
     ** if the address is not known for the specified display. */
     gctSIZE_T               physical;
+
+    gctBOOL                isCompositor;   /* true if compositor, false otherwise. */
 
 #ifndef __QNXNTO__
     /* 355_FB_MULTI_BUFFER */
