@@ -1204,7 +1204,13 @@ static struct ipuv3_fb_platform_data sabresd_fb_data[] = {
 	.mode_str = "1920x1080M@60",
 	.default_bpp = 32,
 	.int_clk = false,
-	}
+	}, {
+	.disp_dev = "ldb",
+	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
+	.mode_str = "LDB-XGA",
+	.default_bpp = 32,
+	.int_clk = false,
+	},
 };
 
 static void hdmi_init(int ipu_id, int disp_id)
@@ -1247,7 +1253,9 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ipu_id = 1,
 	.disp_id = 1,
 	.ext_ref = 1,
-	.mode = LDB_SIN1,
+	.mode = LDB_SEP1,
+	.sec_ipu_id = 1,
+	.sec_disp_id = 0,
 };
 
 static struct max8903_pdata charger1_data = {
