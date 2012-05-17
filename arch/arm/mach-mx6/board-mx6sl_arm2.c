@@ -196,6 +196,9 @@ static void __init mx6_arm2_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_arm2_pads, ARRAY_SIZE(mx6sl_arm2_pads));
 
+	gp_reg_id = "cpu_vddgp";
+	mx6_cpu_regulator_init();
+
 	imx6q_add_imx_i2c(0, &mx6_arm2_i2c0_data);
 	imx6q_add_imx_i2c(1, &mx6_arm2_i2c1_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
@@ -206,6 +209,7 @@ static void __init mx6_arm2_init(void)
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
 	mx6sl_arm2_init_pfuze100(0);
+
 	mx6_arm2_init_uart();
 	/* get enet tx reference clk from FEC_REF_CLK pad.
 	 * GPR1[14] = 0, GPR1[18:17] = 00
