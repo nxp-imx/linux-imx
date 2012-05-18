@@ -78,6 +78,7 @@
 #define MX6_ARM2_LCD_PWR_EN	IMX_GPIO_NR(4, 3)	/* KEY_ROW5 */
 #define MX6_ARM2_SD1_WP		IMX_GPIO_NR(4, 6)	/* KEY_COL7 */
 #define MX6_ARM2_SD1_CD		IMX_GPIO_NR(4, 7)	/* KEY_ROW7 */
+#define MX6_ARM2_ECSPI1_CS0	IMX_GPIO_NR(4, 11)	/* ECSPI1_SS0 */
 #define MX6_ARM2_SD2_WP		IMX_GPIO_NR(4, 29)	/* SD2_DAT6 */
 #define MX6_ARM2_SD2_CD		IMX_GPIO_NR(5, 0)	/* SD2_DAT7 */
 #define MX6_ARM2_SD3_CD		IMX_GPIO_NR(3, 22)	/* REF_CLK_32K */
@@ -314,6 +315,15 @@ static int __init max17135_regulator_init(struct max17135 *max17135)
 
 	return 0;
 }
+
+static int mx6_arm2_spi_cs[] = {
+	MX6_ARM2_ECSPI1_CS0,
+};
+
+static const struct spi_imx_master mx6_arm2_spi_data __initconst = {
+	.chipselect     = mx6_arm2_spi_cs,
+	.num_chipselect = ARRAY_SIZE(mx6_arm2_spi_cs),
+};
 
 static struct imxi2c_platform_data mx6_arm2_i2c0_data = {
 	.bitrate = 100000,
