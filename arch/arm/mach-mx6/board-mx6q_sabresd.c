@@ -216,6 +216,7 @@ static const struct esdhc_platform_data mx6q_sabresd_sd2_data __initconst = {
 	.keep_power_at_suspend = 1,
 	.support_8bit = 1,
 	.delay_line = 0,
+	.cd_type = ESDHC_CD_CONTROLLER,
 };
 
 static const struct esdhc_platform_data mx6q_sabresd_sd3_data __initconst = {
@@ -224,6 +225,7 @@ static const struct esdhc_platform_data mx6q_sabresd_sd3_data __initconst = {
 	.keep_power_at_suspend = 1,
 	.support_8bit = 1,
 	.delay_line = 0,
+	.cd_type = ESDHC_CD_CONTROLLER,
 };
 
 static const struct esdhc_platform_data mx6q_sabresd_sd4_data __initconst = {
@@ -231,6 +233,7 @@ static const struct esdhc_platform_data mx6q_sabresd_sd4_data __initconst = {
 	.keep_power_at_suspend = 1,
 	.support_8bit = 1,
 	.delay_line = 0,
+	.cd_type = ESDHC_CD_PERMANENT,
 };
 
 static const struct anatop_thermal_platform_data
