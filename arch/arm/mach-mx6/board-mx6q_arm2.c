@@ -2168,6 +2168,7 @@ static void __init mx6_arm2_init(void)
 		mxc_register_device(&max17135_sensor_device, NULL);
 		imx6dl_add_imx_epdc(&epdc_data);
 	}
+	/* Add PCIe RC interface support */
 	imx6q_add_pcie(&mx6_arm2_pcie_data);
 	imx6q_add_busfreq();
 }

@@ -200,6 +200,7 @@ config MACH_MX6Q_SABREAUTO
 	select IMX_HAVE_PLATFORM_IMX_MIPI_DSI
 	select IMX_HAVE_PLATFORM_FLEXCAN
 	select IMX_HAVE_PLATFORM_IMX_MIPI_CSI2
+	select IMX_HAVE_PLATFORM_IMX_PCIE
 	help
 	  Include support for i.MX 6Quad SABRE Auto platform. This includes specific
 	  configurations for the board and its peripherals.

@@ -606,6 +606,7 @@ static void imx_pcie_enable_controller(struct device *dev)
 		pr_err("can't enable pcie clock.\n");
 		clk_put(pcie_clk);
 	}
+	imx_pcie_clrset(iomuxc_gpr1_pcie_ref_clk_en, 1 << 16, IOMUXC_GPR1);
 }
 
 static void card_reset(struct device *dev)
@@ -652,6 +653,9 @@ static void __init add_pcie_port(void __iomem *base, void __iomem *dbi_base,
 		clk_disable(pcie_clk);
 		clk_put(pcie_clk);
 
+		imx_pcie_clrset(iomuxc_gpr1_pcie_ref_clk_en, 0 << 16,
+				IOMUXC_GPR1);
+
 		/* Disable PCIE power */
 		gpio_request(pdata->pcie_pwr_en, "PCIE POWER_EN");
 
@@ -668,7 +672,6 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 	struct resource *mem;
 	struct device *dev = &pdev->dev;
 	struct imx_pcie_platform_data *pdata = dev->platform_data;
-
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!mem) {
@@ -698,14 +701,12 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 
 	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen1, 0 << 0, IOMUXC_GPR8);
 	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_3p5db, 0 << 6, IOMUXC_GPR8);
-	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_6db, 0 << 12, IOMUXC_GPR8);
+	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_6db, 20 << 12, IOMUXC_GPR8);
 	imx_pcie_clrset(iomuxc_gpr8_tx_swing_full, 127 << 18, IOMUXC_GPR8);
 	imx_pcie_clrset(iomuxc_gpr8_tx_swing_low, 127 << 25, IOMUXC_GPR8);
 
 	/* Enable the pwr, clks and so on */
 	imx_pcie_enable_controller(dev);
-
-	imx_pcie_clrset(iomuxc_gpr1_pcie_ref_clk_en, 1 << 16, IOMUXC_GPR1);
 
 	/* togle the external card's reset */
 	card_reset(dev) ;
@@ -713,13 +714,6 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 	usleep_range(3000, 4000);
 	imx_pcie_regions_setup(dbi_base);
 	usleep_range(3000, 4000);
-
-	/*
-	 * Force to GEN1 because of PCIE2USB storage stress tests
-	 * would be failed when GEN2 is enabled
-	 */
-	writel(((readl(dbi_base + LNK_CAP) & 0xfffffff0) | 0x1),
-			dbi_base + LNK_CAP);
 
 	/* start link up */
 	imx_pcie_clrset(iomuxc_gpr12_app_ltssm_enable, 1 << 10, IOMUXC_GPR12);
@@ -748,6 +742,8 @@ static int __devexit imx_pcie_pltfm_remove(struct platform_device *pdev)
 		clk_disable(pcie_clk);
 		clk_put(pcie_clk);
 	}
+
+	imx_pcie_clrset(iomuxc_gpr1_pcie_ref_clk_en, 0 << 16, IOMUXC_GPR1);
 
 	/* Disable PCIE power */
 	gpio_request(pdata->pcie_pwr_en, "PCIE POWER_EN");

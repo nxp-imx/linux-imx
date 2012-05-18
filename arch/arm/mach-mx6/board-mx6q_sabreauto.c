@@ -120,6 +120,7 @@
 #define SABREAUTO_IO_EXP_GPIO2(x)	(SABREAUTO_MAX7310_2_BASE_ADDR + (x))
 #define SABREAUTO_IO_EXP_GPIO3(x)	(SABREAUTO_MAX7310_3_BASE_ADDR + (x))
 
+#define SABREAUTO_PCIE_RST_B_REVB	(SABREAUTO_MAX7310_1_BASE_ADDR + 2)
 /*
  * CAN2 STBY and EN lines are the same as the CAN1. These lines are not
  * independent.
@@ -1297,6 +1298,12 @@ static struct fsl_mxc_capture_platform_data capture_data[] = {
 	},
 };
 
+static const struct imx_pcie_platform_data mx6_sabreauto_pcie_data __initconst = {
+	.pcie_pwr_en	= -EINVAL,
+	.pcie_rst	= SABREAUTO_PCIE_RST_B_REVB,
+	.pcie_wake_up	= -EINVAL,
+	.pcie_dis	= -EINVAL,
+};
 
 /*!
  * Board specific initialization.
@@ -1570,6 +1577,9 @@ static void __init mx6_board_init(void)
 	mxc_register_device(&mxc_si4763_audio_device, &si4763_audio_data);
 
 	imx6q_add_busfreq();
+
+	/* Add PCIe RC interface support */
+	imx6q_add_pcie(&mx6_sabreauto_pcie_data);
 }
 
 extern void __iomem *twd_base;

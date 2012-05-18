@@ -1797,6 +1797,7 @@ static void __init mx6_sabresd_board_init(void)
 	pm_power_off = mx6_snvs_poweroff;
 	imx6q_add_busfreq();
 
+	/* Add PCIe RC interface support */
 	imx6q_add_pcie(&mx6_sabresd_pcie_data);
 	if (cpu_is_mx6dl()) {
 		mxc_iomux_v3_setup_multiple_pads(mx6dl_arm2_elan_pads,
