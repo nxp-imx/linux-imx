@@ -1803,7 +1803,7 @@ static int _clk_ipu2_set_rate(struct clk *clk, unsigned long rate)
 }
 
 static struct clk ipu2_clk = {
-	__INIT_CLK_DEBUG(ipu2_clk)
+	__INIT_CLK_DEBUG(elcdif_axi_clk)
 	.parent = &pll2_pfd2_400M,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG3_OFFSET,
@@ -2617,9 +2617,16 @@ static int _clk_lcdif_pix_set_rate(struct clk *clk, unsigned long rate)
 	reg |= (pre - 1) << MXC_CCM_CSCDR2_IPU2_DI0_PODF_OFFSET;
 	__raw_writel(reg, MXC_CCM_CSCDR2);
 
+	/*
+	 * fixup:
+	 * Bits 22 and 21 of the divide value are inverted before
+	 * going into the divider port.
+	 */
+	post = (post - 1) ^ 0x6;
+
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	reg &= ~MXC_CCM_CSCMR1_ACLK_EMI_PODF_MASK;
-	reg |= (post - 1) << MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET;
+	reg |= post << MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -2679,8 +2686,6 @@ static int _clk_epdc_pix_set_rate(struct clk *clk, unsigned long rate)
 		return -EINVAL;
 
 	__calc_pre_post_dividers(1 << 3, div, &pre, &post);
-
-	printk("pre %d, post %d\n", pre, post);
 
 	reg = __raw_readl(MXC_CCM_CSCDR2);
 	reg &= ~MXC_CCM_CSCDR2_IPU2_DI1_PODF_MASK;
@@ -3697,6 +3702,8 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 
 	/* epdc pix - PLL5 as parent */
 	clk_set_parent(&epdc_pix_clk, &pll5_video_main_clk);
+	/* lcdif pix - PLL5 as parent */
+	clk_set_parent(&lcdif_pix_clk, &pll5_video_main_clk);
 
 	gpt_clk[0].parent = &ipg_perclk;
 	gpt_clk[0].get_rate = NULL;

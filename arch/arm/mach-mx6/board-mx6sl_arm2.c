@@ -75,6 +75,7 @@
 
 #define MX6_ARM2_USBOTG1_PWR    IMX_GPIO_NR(4, 0)       /* KEY_COL4 */
 #define MX6_ARM2_USBOTG2_PWR    IMX_GPIO_NR(4, 2)       /* KEY_COL5 */
+#define MX6_ARM2_LCD_PWR_EN	IMX_GPIO_NR(4, 3)	/* KEY_ROW5 */
 #define MX6_ARM2_SD1_WP		IMX_GPIO_NR(4, 6)	/* KEY_COL7 */
 #define MX6_ARM2_SD1_CD		IMX_GPIO_NR(4, 7)	/* KEY_ROW7 */
 #define MX6_ARM2_SD2_WP		IMX_GPIO_NR(4, 29)	/* SD2_DAT6 */
@@ -189,6 +190,33 @@ static void __init mx6_arm2_init_usb(void)
 #endif
 }
 
+static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data = {
+	.pwm_id		= 0,
+	.max_brightness	= 255,
+	.dft_brightness	= 128,
+	.pwm_period_ns	= 50000,
+};
+static struct fb_videomode video_modes[] = {
+	{
+	 /* 800x480 @ 57 Hz , pixel clk @ 32MHz */
+	 "SEIKO-WVGA", 60, 800, 480, 29850, 99, 164, 33, 10, 10, 10,
+	 FB_SYNC_CLK_LAT_FALL,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+};
+
+static struct mxc_fb_platform_data fb_data[] = {
+	{
+	 .interface_pix_fmt = V4L2_PIX_FMT_RGB24,
+	 .mode_str = "SEIKO-WVGA",
+	 .mode = video_modes,
+	 .num_modes = ARRAY_SIZE(video_modes),
+	 },
+};
+
+static struct platform_device lcd_wvga_device = {
+	.name = "lcd_seiko",
+};
 /*!
  * Board specific initialization.
  */
@@ -226,6 +254,14 @@ static void __init mx6_arm2_init(void)
 	imx6_init_fec(fec_data);
 
 	mx6_arm2_init_usb();
+
+	imx6q_add_mxc_pwm(0);
+	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
+	imx6dl_add_imx_elcdif(&fb_data[0]);
+
+	gpio_request(MX6_ARM2_LCD_PWR_EN, "elcdif-power-on");
+	gpio_direction_output(MX6_ARM2_LCD_PWR_EN, 1);
+	mxc_register_device(&lcd_wvga_device, NULL);
 }
 
 extern void __iomem *twd_base;
