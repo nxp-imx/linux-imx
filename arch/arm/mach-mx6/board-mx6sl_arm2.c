@@ -708,6 +708,9 @@ static void __init mx6_arm2_init(void)
 
 	mx6_arm2_init_usb();
 
+	imx6dl_add_imx_pxp();
+	imx6dl_add_imx_pxp_client();
+
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
 	imx6dl_add_imx_elcdif(&fb_data[0]);
