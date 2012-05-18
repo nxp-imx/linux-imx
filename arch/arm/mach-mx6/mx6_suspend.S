@@ -35,7 +35,7 @@
 #define IRAM_SUSPEND_SIZE 	(1 << 12)
 
 /*************************************************************
-mx6q_suspend:
+mx6_suspend:
 
 Suspend the processor (eg, wait for interrupt).
 Set the DDR into Self Refresh
@@ -50,6 +50,123 @@ see define in include/linux/suspend.h
 r1: iram_paddr
 r2: suspend_iram_base
 *************************************************************/
+	.macro	sl_ddr_io_save
+
+	ldr	r4, [r1, #0x30c] /* DRAM_DQM0 */
+	ldr	r5, [r1, #0x310] /* DRAM_DQM1 */
+	ldr	r6, [r1, #0x314] /* DRAM_DQM2 */
+	ldr	r7, [r1, #0x318] /* DRAM_DQM3 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x344] /* DRAM_SDQS0 */
+	ldr	r5, [r1, #0x348] /* DRAM_SDQS1 */
+	ldr	r6, [r1, #0x34c] /* DRAM_SDQS2 */
+	ldr	r7, [r1, #0x350] /* DRAM_SDQS3 */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x5c4] /* GPR_B0DS */
+	ldr	r5, [r1, #0x5cc] /* GPR_B1DS */
+	ldr	r6, [r1, #0x5d4] /* GPR_B2DS */
+	ldr	r7, [r1, #0x5d8] /* GPR_B3DS */
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x300] /* DRAM_CAS */
+	ldr	r5, [r1, #0x31c] /* DRAM_RAS */
+	ldr	r6, [r1, #0x338] /* DRAM_SDCLK_0 */
+	ldr r7, [r1, #0x5ac] /* GPR_ADDS*/
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x5b0] /* DDRMODE_CTL */
+	ldr	r5, [r1, #0x5c0] /* DDRMODE */
+	ldr	r6, [r1, #0x33c] /* DRAM_SODT0*/
+	ldr	r7, [r1, #0x340] /* DRAM_SODT1*/
+	stmfd	r0!, {r4-r7}
+
+	ldr	r4, [r1, #0x330] /* DRAM_SDCKE0 */
+	ldr	r5, [r1, #0x334] /* DRAM_SDCKE1 */
+	ldr	r6, [r1, #0x320] /* DRAM_RESET */
+	ldr	r7, [r1, #0x5c8] /* GPR_CTLDS */
+	stmfd	r0!, {r4-r7}
+
+	.endm
+
+	.macro	sl_ddr_io_restore
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x30c] /* DRAM_DQM0 */
+	str	r5, [r1, #0x310] /* DRAM_DQM1 */
+	str	r6, [r1, #0x314] /* DRAM_DQM2 */
+	str	r7, [r1, #0x318] /* DRAM_DQM3 */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x344] /* DRAM_SDQS0 */
+	str	r5, [r1, #0x348] /* DRAM_SDQS1 */
+	str	r6, [r1, #0x34c] /* DRAM_SDQS2 */
+	str	r7, [r1, #0x350] /* DRAM_SDQS3 */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x5c4] /* GPR_B0DS */
+	str	r5, [r1, #0x5cc] /* GPR_B1DS */
+	str r6, [r1, #0x5d4] /* GPR_B2DS */
+	str r7, [r1, #0x5d8] /* GPR_B3DS */
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x300] /* DRAM_CAS */
+	str	r5, [r1, #0x31c] /* DRAM_RAS */
+	str	r6, [r1, #0x338] /* DRAM_SDCLK_0 */
+	str r7, [r1, #0x5ac] /* GPR_ADDS*/
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x5b0] /* DDRMODE_CTL */
+	str	r5, [r1, #0x5c0] /* DDRMODE */
+	str	r6, [r1, #0x33c] /* DRAM_SODT0*/
+	str	r7, [r1, #0x340] /* DRAM_SODT1*/
+
+	ldmea	r0!, {r4-r7}
+	str	r4, [r1, #0x330] /* DRAM_SDCKE0 */
+	str	r5, [r1, #0x334] /* DRAM_SDCKE1 */
+	str	r6, [r1, #0x320] /* DRAM_RESET */
+	str	r7, [r1, #0x5c8] /* GPR_CTLDS */
+
+	.endm
+
+	.macro	sl_ddr_io_set_lpm
+
+	mov	r0, #0
+	str	r0, [r1, #0x30c] /* DRAM_DQM0 */
+	str	r0, [r1, #0x310] /* DRAM_DQM1 */
+	str	r0, [r1, #0x314] /* DRAM_DQM2 */
+	str	r0, [r1, #0x318] /* DRAM_DQM3 */
+
+	str	r0, [r1, #0x344] /* DRAM_SDQS0 */
+	str	r0, [r1, #0x348] /* DRAM_SDQS1 */
+	str	r0, [r1, #0x34c] /* DRAM_SDQS2 */
+	str	r0, [r1, #0x350] /* DRAM_SDQS3 */
+
+	str	r0, [r1, #0x5c4] /* GPR_B0DS */
+	str	r0, [r1, #0x5cc] /* GPR_B1DS */
+	str r0, [r1, #0x5d4] /* GPR_B2DS */
+	str r0, [r1, #0x5d8] /* GPR_B3DS */
+
+	str	r0, [r1, #0x300] /* DRAM_CAS */
+	str	r0, [r1, #0x31c] /* DRAM_RAS */
+	str	r0, [r1, #0x338] /* DRAM_SDCLK_0 */
+	str r0, [r1, #0x5ac] /* GPR_ADDS*/
+
+	str	r0, [r1, #0x5b0] /* DDRMODE_CTL */
+	str	r0, [r1, #0x5c0] /* DDRMODE */
+	str	r0, [r1, #0x33c] /* DRAM_SODT0*/
+	str	r0, [r1, #0x340] /* DRAM_SODT1*/
+
+	str	r0, [r1, #0x5c8] /* GPR_CTLDS */
+	mov	r0, #0x80000
+	str	r0, [r1, #0x320] /* DRAM_RESET */
+	mov	r0, #0x1000
+	str	r0, [r1, #0x330] /* DRAM_SDCKE0 */
+	str	r0, [r1, #0x334] /* DRAM_SDCKE1 */
+
+	.endm
+
 	.macro	dl_ddr_io_save
 
 	ldr	r4, [r1, #0x470] /* DRAM_DQM0 */
@@ -455,11 +572,12 @@ Flush and disable L1 dcache
 
 	.endm
 
-ENTRY(mx6q_suspend)
+ENTRY(mx6_suspend)
 	stmfd	sp!, {r0-r12}     @ Save registers
 /*************************************************************
 suspend mode entry
 *************************************************************/
+	mov	r12, r3 /* Save CPU type to r12*/
 
 	cmp	r0, #0x1
 	bne	dormant		/* dormant mode */
@@ -537,21 +655,34 @@ saved register and context as below:
 	CPSR
 	SCTLR
 ************************************************************/
-ddr_iomux_save:
 	/* save mmdc iomux setting, stack is from the tail of
 	iram_suspend base */
 
 	mov	r0, r2 		/* get suspend_iram_base */
 	add	r0, r0, #IRAM_SUSPEND_SIZE	/* 4K */
-	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
-	add	r1, r1, #PERIPBASE_VIRT
-
-	dq_ddr_io_save
 
 	mov	r4, sp			@ Store sp
 	mrs	r5, spsr		@ Store spsr
 	mov	r6, lr			@ Store lr
-	stmfd	r0!, {r4-r6}
+	mov	r7, r12			@ Store cpu type
+	stmfd	r0!, {r4-r7}
+
+	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+
+	cmp r12, #MXC_CPU_MX6Q
+	bne dl_io_save
+	dq_ddr_io_save
+	b ddr_io_save_done
+dl_io_save:
+	cmp r12, #MXC_CPU_MX6DL
+	bne sl_io_save
+	dl_ddr_io_save
+	b ddr_io_save_done
+sl_io_save:
+	sl_ddr_io_save
+
+ddr_io_save_done:
 
 	/* c1 and c2 registers */
 	mrc	p15, 0, r4, c1, c0, 2	@ CPACR
@@ -614,11 +745,24 @@ refresh:
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 
+	cmp r12, #MXC_CPU_MX6Q
+	bne dl_io_set_lpm
 	dq_ddr_io_set_lpm
+	b ddr_io_set_lpm_done
+dl_io_set_lpm:
+	cmp r12, #MXC_CPU_MX6DL
+	bne sl_io_set_lpm
+	dl_ddr_io_set_lpm
+	b ddr_io_set_lpm_done
+sl_io_set_lpm:
+	sl_ddr_io_set_lpm
+
+ddr_io_set_lpm_done:
+
 /****************************************************************
 save resume pointer into SRC_GPR1
 ****************************************************************/
-	ldr	r0, =mx6q_suspend
+	ldr	r0, =mx6_suspend
 	ldr	r1, =resume
 	sub	r1, r1, r0
 	add	r3, r3, r1
@@ -645,7 +789,19 @@ system immediately.
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 
+	cmp r12, #MXC_CPU_MX6Q
+	bne dl_io_restore
 	dq_ddr_io_restore
+	b ddr_io_restore_done
+dl_io_restore:
+	cmp r12, #MXC_CPU_MX6DL
+	bne sl_io_restore
+	dl_ddr_io_restore
+	b	ddr_io_restore_done
+sl_io_restore:
+	sl_ddr_io_restore
+
+ddr_io_restore_done:
 
 	mrc	p15, 0, r1, c1, c0, 0
 	orr	r1, r1, #(1 << 2)	@ Enable the C bit
@@ -665,14 +821,29 @@ resume:
 	str	r1, [r0, #SRC_GPR1_OFFSET] /* clear SRC_GPR1 */
 	ldr	r0, [r0, #SRC_GPR2_OFFSET]
 
-	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
-	dq_ddr_io_restore
+	/* Restore cp15 registers and cpu type */
+	ldmea	r0!, {r4-r7}
+	mov sp, r4			@ Restore sp
+	msr spsr_cxsf, r5	@ Restore spsr
+	mov lr, r6			@ Restore lr
+	mov r12, r7			@ Restore cpu type
 
-	/* Restore cp15 registers */
-	ldmea	r0!, {r4-r6}
-	mov	sp, r4
-	msr	spsr_cxsf, r5		@ Restore spsr
-	mov	lr, r6			@ Restore lr
+	/* Restore DDR IO */
+	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
+
+	cmp	r12, #MXC_CPU_MX6Q
+	bne	dl_io_dsm_restore
+	dq_ddr_io_restore
+	b ddr_io_restore_dsm_done
+dl_io_dsm_restore:
+	cmp	r12, #MXC_CPU_MX6DL
+	bne	sl_io_dsm_restore
+	dl_ddr_io_restore
+	b	ddr_io_restore_dsm_done
+sl_io_dsm_restore:
+	sl_ddr_io_restore
+
+ddr_io_restore_dsm_done:
 
 	/* c1 and c2 registers */
 	ldmea	r0!, {r4-r7}
@@ -798,7 +969,15 @@ restore control register to enable cache
 	 * enabling MMU.
 	 */
 	ldr	r4, =PAGE_OFFSET
+
+	cmp r12, #MXC_CPU_MX6SL
+	bne dq_dl_phy_offset
+	ldr	r5, =MX6SL_PHYS_OFFSET
+	b	get_phy_offset_done
+dq_dl_phy_offset:
 	ldr	r5, =MX6_PHYS_OFFSET
+get_phy_offset_done:
+
 	sub	r4, r4, r5
 	add	r4, r4, r10
 	str	r9, [r4]
@@ -825,8 +1004,7 @@ out:
 	ldmfd	sp!, {r0-r12}
 	mov	pc, lr
 
-	.equ	va2pa_offset, (PAGE_OFFSET - MX6_PHYS_OFFSET)
-	.type	mx6q_do_suspend, #object
-ENTRY(mx6q_do_suspend)
-	.word	mx6q_suspend
-	.size	mx6q_suspend, . - mx6q_suspend
+	.type	mx6_do_suspend, #object
+ENTRY(mx6_do_suspend)
+	.word	mx6_suspend
+	.size	mx6_suspend, . - mx6_suspend
