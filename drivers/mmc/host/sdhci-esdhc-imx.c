@@ -722,7 +722,14 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	if (boarddata->support_8bit)
 		host->mmc->caps |= MMC_CAP_8_BIT_DATA;
 	if (boarddata->keep_power_at_suspend)
-		host->mmc->pm_caps |= MMC_PM_KEEP_POWER;
+		host->mmc->pm_caps |= (MMC_PM_KEEP_POWER | \
+					MMC_PM_WAKE_SDIO_IRQ);
+	if (boarddata->cd_type == ESDHC_CD_PERMANENT)
+		host->mmc->caps |= MMC_CAP_NONREMOVABLE;
+	else if (boarddata->cd_type == ESDHC_CD_CONTROLLER
+		|| boarddata->cd_type == ESDHC_CD_NONE
+		|| boarddata->cd_type == ESDHC_CD_GPIO)
+		host->mmc->caps &= ~MMC_CAP_NONREMOVABLE;
 	if (cpu_is_mx6()) {
 		host->mmc->caps |= MMC_CAP_1_8V_DDR;
 		host->tuning_min = SDHCI_TUNE_CTRL_MIN;
