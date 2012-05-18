@@ -65,6 +65,9 @@
 #define MX6SL_HP_DET_PAD_CTRL	(PAD_CTL_PKE | PAD_CTL_PUE |		\
 		PAD_CTL_PUS_100K_UP | PAD_CTL_SPEED_MED |		\
 		PAD_CTL_DSE_40ohm   | PAD_CTL_HYS)
+#define MX6SL_LCDIF_PAD_CTRL	(PAD_CTL_HYS | PAD_CTL_PUS_100K_UP |	\
+				PAD_CTL_PUE | PAD_CTL_PKE |		\
+				PAD_CTL_SPEED_MED | PAD_CTL_DSE_40ohm)
 
 #define MX6SL_PAD_AUD_MCLK__AUDMUX_AUDIO_CLK_OUT                              \
 		IOMUX_PAD(0x02A4, 0x004C, 0, 0x0000, 0, NO_PAD_CTRL)
@@ -1845,7 +1848,7 @@
 		IOMUX_PAD(0x04B0, 0x01A8, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_CLK__LCDIF_CLK                                          \
-		IOMUX_PAD(0x04B4, 0x01AC, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x04B4, 0x01AC, 0, 0x0000, 0, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_CLK__USDHC4_DAT4                                        \
 		IOMUX_PAD(0x04B4, 0x01AC, 1, 0x086C, 2, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_LCD_CLK__LCDIF_WR_RWN                                       \
@@ -1862,7 +1865,7 @@
 		IOMUX_PAD(0x04B4, 0x01AC, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT0__LCDIF_DAT_0                                       \
-		IOMUX_PAD(0x04B8, 0x01B0, 0, 0x0778, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04B8, 0x01B0, 0, 0x0778, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT0__ECSPI1_MOSI                                       \
 		IOMUX_PAD(0x04B8, 0x01B0, 1, 0x0688, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT0__ANATOP_USBOTG2_ID                                 \
@@ -1879,7 +1882,7 @@
 		IOMUX_PAD(0x04B8, 0x01B0, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT1__LCDIF_DAT_1                                       \
-		IOMUX_PAD(0x04BC, 0x01B4, 0, 0x077C, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04BC, 0x01B4, 0, 0x077C, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT1__ECSPI1_MISO                                       \
 		IOMUX_PAD(0x04BC, 0x01B4, 1, 0x0684, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT1__ANATOP_USBOTG1_ID                                 \
@@ -1896,7 +1899,7 @@
 		IOMUX_PAD(0x04BC, 0x01B4, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT10__LCDIF_DAT_10                                     \
-		IOMUX_PAD(0x04C0, 0x01B8, 0, 0x07A0, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04C0, 0x01B8, 0, 0x07A0, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT10__KPP_COL_1                                        \
 		IOMUX_PAD(0x04C0, 0x01B8, 1, 0x0738, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT10__CSI_D_7                                          \
@@ -1913,7 +1916,7 @@
 		IOMUX_PAD(0x04C0, 0x01B8, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT11__LCDIF_DAT_11                                     \
-		IOMUX_PAD(0x04C4, 0x01BC, 0, 0x07A4, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04C4, 0x01BC, 0, 0x07A4, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT11__KPP_ROW_1                                        \
 		IOMUX_PAD(0x04C4, 0x01BC, 1, 0x0758, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT11__CSI_D_6                                          \
@@ -1930,7 +1933,7 @@
 		IOMUX_PAD(0x04C4, 0x01BC, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT12__LCDIF_DAT_12                                     \
-		IOMUX_PAD(0x04C8, 0x01C0, 0, 0x07A8, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04C8, 0x01C0, 0, 0x07A8, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT12__KPP_COL_2                                        \
 		IOMUX_PAD(0x04C8, 0x01C0, 1, 0x073C, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT12__CSI_D_5                                          \
@@ -1949,7 +1952,7 @@
 		IOMUX_PAD(0x04C8, 0x01C0, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT13__LCDIF_DAT_13                                     \
-		IOMUX_PAD(0x04CC, 0x01C4, 0, 0x07AC, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04CC, 0x01C4, 0, 0x07AC, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT13__KPP_ROW_2                                        \
 		IOMUX_PAD(0x04CC, 0x01C4, 1, 0x075C, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT13__CSI_D_4                                          \
@@ -1968,7 +1971,7 @@
 		IOMUX_PAD(0x04CC, 0x01C4, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT14__LCDIF_DAT_14                                     \
-		IOMUX_PAD(0x04D0, 0x01C8, 0, 0x07B0, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04D0, 0x01C8, 0, 0x07B0, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT14__KPP_COL_3                                        \
 		IOMUX_PAD(0x04D0, 0x01C8, 1, 0x0740, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT14__CSI_D_3                                          \
@@ -1987,7 +1990,7 @@
 		IOMUX_PAD(0x04D0, 0x01C8, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT15__LCDIF_DAT_15                                     \
-		IOMUX_PAD(0x04D4, 0x01CC, 0, 0x07B4, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04D4, 0x01CC, 0, 0x07B4, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT15__KPP_ROW_3                                        \
 		IOMUX_PAD(0x04D4, 0x01CC, 1, 0x0760, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT15__CSI_D_2                                          \
@@ -2006,7 +2009,7 @@
 		IOMUX_PAD(0x04D4, 0x01CC, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT16__LCDIF_DAT_16                                     \
-		IOMUX_PAD(0x04D8, 0x01D0, 0, 0x07B8, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04D8, 0x01D0, 0, 0x07B8, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT16__KPP_COL_4                                        \
 		IOMUX_PAD(0x04D8, 0x01D0, 1, 0x0744, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT16__CSI_D_1                                          \
@@ -2023,7 +2026,7 @@
 		IOMUX_PAD(0x04D8, 0x01D0, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT17__LCDIF_DAT_17                                     \
-		IOMUX_PAD(0x04DC, 0x01D4, 0, 0x07BC, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04DC, 0x01D4, 0, 0x07BC, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT17__KPP_ROW_4                                        \
 		IOMUX_PAD(0x04DC, 0x01D4, 1, 0x0764, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT17__CSI_D_0                                          \
@@ -2040,7 +2043,7 @@
 		IOMUX_PAD(0x04DC, 0x01D4, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT18__LCDIF_DAT_18                                     \
-		IOMUX_PAD(0x04E0, 0x01D8, 0, 0x07C0, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04E0, 0x01D8, 0, 0x07C0, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT18__KPP_COL_5                                        \
 		IOMUX_PAD(0x04E0, 0x01D8, 1, 0x0748, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT18__CSI_D_15                                         \
@@ -2057,7 +2060,7 @@
 		IOMUX_PAD(0x04E0, 0x01D8, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT19__LCDIF_DAT_19                                     \
-		IOMUX_PAD(0x04E4, 0x01DC, 0, 0x07C4, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04E4, 0x01DC, 0, 0x07C4, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT19__KPP_ROW_5                                        \
 		IOMUX_PAD(0x04E4, 0x01DC, 1, 0x0768, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT19__CSI_D_14                                         \
@@ -2091,7 +2094,7 @@
 		IOMUX_PAD(0x04E8, 0x01E0, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT20__LCDIF_DAT_20                                     \
-		IOMUX_PAD(0x04EC, 0x01E4, 0, 0x07C8, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04EC, 0x01E4, 0, 0x07C8, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT20__KPP_COL_6                                        \
 		IOMUX_PAD(0x04EC, 0x01E4, 1, 0x074C, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT20__CSI_D_13                                         \
@@ -2108,7 +2111,7 @@
 		IOMUX_PAD(0x04EC, 0x01E4, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT21__LCDIF_DAT_21                                     \
-		IOMUX_PAD(0x04F0, 0x01E8, 0, 0x07CC, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04F0, 0x01E8, 0, 0x07CC, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT21__KPP_ROW_6                                        \
 		IOMUX_PAD(0x04F0, 0x01E8, 1, 0x076C, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT21__CSI_D_12                                         \
@@ -2125,7 +2128,7 @@
 		IOMUX_PAD(0x04F0, 0x01E8, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT22__LCDIF_DAT_22                                     \
-		IOMUX_PAD(0x04F4, 0x01EC, 0, 0x07D0, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04F4, 0x01EC, 0, 0x07D0, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT22__KPP_COL_7                                        \
 		IOMUX_PAD(0x04F4, 0x01EC, 1, 0x0750, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT22__CSI_D_11                                         \
@@ -2142,7 +2145,7 @@
 		IOMUX_PAD(0x04F4, 0x01EC, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_DAT23__LCDIF_DAT_23                                     \
-		IOMUX_PAD(0x04F8, 0x01F0, 0, 0x07D4, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x04F8, 0x01F0, 0, 0x07D4, 1, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT23__KPP_ROW_7                                        \
 		IOMUX_PAD(0x04F8, 0x01F0, 1, 0x0770, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_DAT23__CSI_D_10                                         \
@@ -2278,7 +2281,7 @@
 		IOMUX_PAD(0x0514, 0x020C, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_ENABLE__LCDIF_ENABLE                                    \
-		IOMUX_PAD(0x0518, 0x0210, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x0518, 0x0210, 0, 0x0000, 0, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_ENABLE__USDHC4_DAT5                                     \
 		IOMUX_PAD(0x0518, 0x0210, 1, 0x0870, 2, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_LCD_ENABLE__LCDIF_RD_E                                      \
@@ -2297,7 +2300,7 @@
 		IOMUX_PAD(0x0518, 0x0210, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_HSYNC__LCDIF_HSYNC                                      \
-		IOMUX_PAD(0x051C, 0x0214, 0, 0x0774, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x051C, 0x0214, 0, 0x0774, 0, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_HSYNC__USDHC4_DAT6                                      \
 		IOMUX_PAD(0x051C, 0x0214, 1, 0x0874, 2, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_LCD_HSYNC__LCDIF_CS                                         \
@@ -2316,7 +2319,7 @@
 		IOMUX_PAD(0x051C, 0x0214, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_RESET__LCDIF_RESET                                      \
-		IOMUX_PAD(0x0520, 0x0218, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x0520, 0x0218, 0, 0x0000, 0, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_RESET__WEIM_WEIM_DTACK_B                                \
 		IOMUX_PAD(0x0520, 0x0218, 1, 0x0880, 1, NO_PAD_CTRL)
 #define MX6SL_PAD_LCD_RESET__LCDIF_BUSY                                       \
@@ -2335,7 +2338,7 @@
 		IOMUX_PAD(0x0520, 0x0218, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_LCD_VSYNC__LCDIF_VSYNC                                      \
-		IOMUX_PAD(0x0524, 0x021C, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x0524, 0x021C, 0, 0x0000, 0, MX6SL_LCDIF_PAD_CTRL)
 #define MX6SL_PAD_LCD_VSYNC__USDHC4_DAT7                                      \
 		IOMUX_PAD(0x0524, 0x021C, 1, 0x0878, 2, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_LCD_VSYNC__LCDIF_RS                                         \
