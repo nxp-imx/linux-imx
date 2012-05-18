@@ -468,6 +468,17 @@ struct platform_device *__init imx_add_imx_pxp(
 	const struct imx_pxp_data *data);
 struct platform_device *__init imx_add_imx_pxp_client(void);
 
+#include <linux/fsl_devices.h>
+struct imx_elcdif_data {
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq;
+};
+
+struct platform_device *__init imx_add_imx_elcdif(
+		const struct imx_elcdif_data *data,
+		const struct mxc_fb_platform_data *pdata);
+
 #include <mach/epdc.h>
 struct imx_epdc_data {
 	resource_size_t iobase;
