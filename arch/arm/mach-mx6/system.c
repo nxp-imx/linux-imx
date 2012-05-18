@@ -37,6 +37,7 @@
 #define SCU_INVALIDATE				0x0c
 #define SCU_FPGA_REVISION			0x10
 #define GPC_CNTR_OFFSET				0x0
+#define GPC_PGC_DISP_PGCR_OFFSET	0x240
 #define GPC_PGC_GPU_PGCR_OFFSET		0x260
 #define GPC_PGC_CPU_PDN_OFFSET		0x2a0
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
@@ -79,7 +80,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 	int stop_mode = 0;
 	void __iomem *anatop_base = IO_ADDRESS(ANATOP_BASE_ADDR);
-	u32 ccm_clpcr, anatop_val;
+	u32 ccm_clpcr, anatop_val, reg;
 
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR) & ~(MXC_CCM_CLPCR_LPM_MASK);
 
@@ -96,21 +97,33 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			ccm_clpcr &= ~MXC_CCM_CLPCR_VSTBY;
 			ccm_clpcr &= ~MXC_CCM_CLPCR_SBYOS;
 			ccm_clpcr |= 0x1 << MXC_CCM_CLPCR_LPM_OFFSET;
-			ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
+			if (cpu_is_mx6sl()) {
+				ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH0_LPM_HS;
+				ccm_clpcr |= MXC_CCM_CLPCR_BYPASS_PMIC_VFUNC_READY;
+			} else
+				ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
 			stop_mode = 0;
 		} else if (mode == STOP_POWER_OFF) {
 			ccm_clpcr |= 0x2 << MXC_CCM_CLPCR_LPM_OFFSET;
 			ccm_clpcr |= 0x3 << MXC_CCM_CLPCR_STBY_COUNT_OFFSET;
 			ccm_clpcr |= MXC_CCM_CLPCR_VSTBY;
 			ccm_clpcr |= MXC_CCM_CLPCR_SBYOS;
-			ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
+			if (cpu_is_mx6sl()) {
+				ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH0_LPM_HS;
+				ccm_clpcr |= MXC_CCM_CLPCR_BYPASS_PMIC_VFUNC_READY;
+			} else
+				ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
 			stop_mode = 1;
 		} else {
 			ccm_clpcr |= 0x2 << MXC_CCM_CLPCR_LPM_OFFSET;
 			ccm_clpcr |= 0x3 << MXC_CCM_CLPCR_STBY_COUNT_OFFSET;
 			ccm_clpcr |= MXC_CCM_CLPCR_VSTBY;
 			ccm_clpcr |= MXC_CCM_CLPCR_SBYOS;
-			ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
+			if (cpu_is_mx6sl()) {
+				ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH0_LPM_HS;
+				ccm_clpcr |= MXC_CCM_CLPCR_BYPASS_PMIC_VFUNC_READY;
+			} else
+				ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
 			stop_mode = 2;
 		}
 		break;
@@ -134,7 +147,11 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
 			__raw_writel(0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
 			__raw_writel(0x1, gpc_base + GPC_CNTR_OFFSET);
-			if (cpu_is_mx6q()) {
+			if (cpu_is_mx6sl()) {
+				__raw_writel(0x1, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
+				__raw_writel(0x10, gpc_base + GPC_CNTR_OFFSET);
+			}
+			if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 				/* Enable weak 2P5 linear regulator */
 				anatop_val = __raw_readl(anatop_base +
 					HW_ANADIG_REG_2P5);
@@ -149,8 +166,24 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 					__raw_writel(anatop_val, anatop_base +
 						HW_ANADIG_REG_CORE);
 				}
+			} else {
+				/* Disable VDDHIGH_IN to VDDSNVS_IN power path,
+				 * only used when VDDSNVS_IN is powered by dedicated
+				 * power rail */
+				anatop_val = __raw_readl(anatop_base +
+					HW_ANADIG_ANA_MISC0);
+				anatop_val |= BM_ANADIG_ANA_MISC0_RTC_RINGOSC_EN;
+				__raw_writel(anatop_val, anatop_base +
+					HW_ANADIG_ANA_MISC0);
+				/* We need to allow the memories to be clock gated
+				 * in STOP mode, else the power consumption will
+				 * be very high. */
+				reg = __raw_readl(MXC_CCM_CGPR);
+				reg |= MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
+				__raw_writel(reg, MXC_CCM_CGPR);
 			}
-			if (cpu_is_mx6q())
+
+			if (!cpu_is_mx6dl())
 				__raw_writel(__raw_readl(MXC_CCM_CCR) |
 					MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
 			/* Make sure we clear WB_COUNT and re-config it */
