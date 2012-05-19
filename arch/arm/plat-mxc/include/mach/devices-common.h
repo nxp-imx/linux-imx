@@ -489,6 +489,10 @@ struct platform_device *__init imx_add_imx_epdc(
 		const struct imx_epdc_data *data,
 		const struct imx_epdc_fb_platform_data *pdata);
 
+struct platform_device *__init imx_add_imx_spdc(
+		const struct imx_epdc_data *data,
+		const struct imx_spdc_fb_platform_data *pdata);
+
 struct imx_spdif_data {
 	resource_size_t iobase;
 	resource_size_t irq;

@@ -744,6 +744,161 @@ static struct imx_epdc_fb_platform_data epdc_data = {
 	.disable_pins = epdc_disable_pins,
 };
 
+static int spdc_get_pins(void)
+{
+	int ret = 0;
+
+	/* Claim GPIOs for SPDC pins - used during power up/down */
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDDO_0, "SPDC_D0");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDDO_1, "SPDC_D1");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDDO_2, "SPDC_D2");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDDO_3, "SPDC_D3");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDDO_4, "SPDC_D4");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDDO_5, "SPDC_D5");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDDO_6, "SPDC_D6");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDDO_7, "SPDC_D7");
+
+	ret |= gpio_request(MX6SL_ARM2_EPDC_GDOE, "SIPIX_YOE");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDDO_9, "SIPIX_PWR_RDY");
+
+	ret |= gpio_request(MX6SL_ARM2_EPDC_GDSP, "SIPIX_YDIO");
+
+	ret |= gpio_request(MX6SL_ARM2_EPDC_GDCLK, "SIPIX_YCLK");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDSHR, "SIPIX_XDIO");
+
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDLE, "SIPIX_LD");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDCE1, "SIPIX_SOE");
+
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDCLK, "SIPIX_XCLK");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDDO_10, "SIPIX_SHD_N");
+	ret |= gpio_request(MX6SL_ARM2_EPDC_SDCE0, "SIPIX2_CE");
+
+	return ret;
+}
+
+static void spdc_put_pins(void)
+{
+	gpio_free(MX6SL_ARM2_EPDC_SDDO_0);
+	gpio_free(MX6SL_ARM2_EPDC_SDDO_1);
+	gpio_free(MX6SL_ARM2_EPDC_SDDO_2);
+	gpio_free(MX6SL_ARM2_EPDC_SDDO_3);
+	gpio_free(MX6SL_ARM2_EPDC_SDDO_4);
+	gpio_free(MX6SL_ARM2_EPDC_SDDO_5);
+	gpio_free(MX6SL_ARM2_EPDC_SDDO_6);
+	gpio_free(MX6SL_ARM2_EPDC_SDDO_7);
+
+	gpio_free(MX6SL_ARM2_EPDC_GDOE);
+	gpio_free(MX6SL_ARM2_EPDC_SDDO_9);
+	gpio_free(MX6SL_ARM2_EPDC_GDSP);
+	gpio_free(MX6SL_ARM2_EPDC_GDCLK);
+	gpio_free(MX6SL_ARM2_EPDC_SDSHR);
+	gpio_free(MX6SL_ARM2_EPDC_SDLE);
+	gpio_free(MX6SL_ARM2_EPDC_SDCE1);
+	gpio_free(MX6SL_ARM2_EPDC_SDCLK);
+	gpio_free(MX6SL_ARM2_EPDC_SDDO_10);
+	gpio_free(MX6SL_ARM2_EPDC_SDCE0);
+}
+
+static void spdc_enable_pins(void)
+{
+	/* Configure MUX settings to enable SPDC use */
+	mxc_iomux_v3_setup_multiple_pads(mx6sl_arm2_spdc_enable_pads, \
+				ARRAY_SIZE(mx6sl_arm2_spdc_enable_pads));
+
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDDO_0);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDDO_1);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDDO_2);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDDO_3);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDDO_4);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDDO_5);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDDO_6);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDDO_7);
+	gpio_direction_input(MX6SL_ARM2_EPDC_GDOE);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDDO_9);
+	gpio_direction_input(MX6SL_ARM2_EPDC_GDSP);
+	gpio_direction_input(MX6SL_ARM2_EPDC_GDCLK);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDSHR);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDLE);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDCE1);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDCLK);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDDO_10);
+	gpio_direction_input(MX6SL_ARM2_EPDC_SDCE0);
+}
+
+static void spdc_disable_pins(void)
+{
+	/* Configure MUX settings for SPDC pins to
+	 * GPIO and drive to 0. */
+	mxc_iomux_v3_setup_multiple_pads(mx6sl_arm2_spdc_disable_pads, \
+				ARRAY_SIZE(mx6sl_arm2_spdc_disable_pads));
+
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDDO_0, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDDO_1, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDDO_2, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDDO_3, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDDO_4, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDDO_5, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDDO_6, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDDO_7, 0);
+
+	gpio_direction_output(MX6SL_ARM2_EPDC_GDOE, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDDO_9, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_GDSP, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_GDCLK, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDSHR, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDLE, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDCE1, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDCLK, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDDO_10, 0);
+	gpio_direction_output(MX6SL_ARM2_EPDC_SDCE0, 0);
+}
+
+static struct imx_spdc_panel_init_set spdc_init_set = {
+	.yoe_pol = false,
+	.dual_gate = false,
+	.resolution = 0,
+	.ud = false,
+	.rl = false,
+	.data_filter_n = true,
+	.power_ready = true,
+	.rgbw_mode_enable = false,
+	.hburst_len_en = true,
+};
+
+static struct fb_videomode erk_1_4_a01 = {
+	.name = "ERK_1_4_A01",
+	.refresh = 50,
+	.xres = 800,
+	.yres = 600,
+	.pixclock = 40000000,
+	.vmode = FB_VMODE_NONINTERLACED,
+};
+
+static struct imx_spdc_fb_mode spdc_panel_modes[] = {
+	{
+		&erk_1_4_a01,
+		&spdc_init_set,
+		.wave_timing = "pvi"
+	},
+};
+
+static struct imx_spdc_fb_platform_data spdc_data = {
+	.spdc_mode = spdc_panel_modes,
+	.num_modes = ARRAY_SIZE(spdc_panel_modes),
+	.get_pins = spdc_get_pins,
+	.put_pins = spdc_put_pins,
+	.enable_pins = spdc_enable_pins,
+	.disable_pins = spdc_disable_pins,
+};
+
+#if defined(CONFIG_FB_MXC_SIPIX_PANEL)
+static void setup_spdc(void)
+{
+	/* GPR0[8]: 0:EPDC, 1:SPDC */
+	mxc_iomux_set_gpr_register(0, 8, 1, 1);
+}
+#endif
+
 static void imx6_arm2_usbotg_vbus(bool on)
 {
 	if (on)
@@ -863,7 +1018,10 @@ static void __init mx6_arm2_init(void)
 	imx6dl_add_imx_pxp_client();
 	mxc_register_device(&max17135_sensor_device, NULL);
 	imx6dl_add_imx_epdc(&epdc_data);
-
+#if defined(CONFIG_FB_MXC_SIPIX_PANEL)
+	setup_spdc();
+#endif
+	imx6sl_add_imx_spdc(&spdc_data);
 	imx6q_add_dvfs_core(&mx6sl_arm2_dvfscore_data);
 
     imx6q_init_audio();
