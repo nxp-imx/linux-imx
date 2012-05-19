@@ -324,7 +324,7 @@
 #define MX6Q_INT_IPU1_ERR		37
 #define MX6DL_INT_RNGB			37
 #define MX6Q_INT_IPU1_SYN		38
-#define MX6DL_INT_SPDC			38
+#define MX6SL_INT_SPDC			38
 #define MX6Q_INT_IPU2_ERR		39
 #define MX6DL_INT_CSI			39
 #define MX6Q_INT_IPU2_SYN		40

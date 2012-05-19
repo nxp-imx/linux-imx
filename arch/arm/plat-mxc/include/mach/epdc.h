@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -31,6 +31,33 @@ struct imx_epdc_fb_mode {
 
 struct imx_epdc_fb_platform_data {
     struct imx_epdc_fb_mode *epdc_mode;
+    int num_modes;
+    int (*get_pins) (void);
+    void (*put_pins) (void);
+    void (*enable_pins) (void);
+    void (*disable_pins) (void);
+};
+
+struct imx_spdc_panel_init_set {
+    bool yoe_pol;
+    bool dual_gate;
+    u8 resolution;
+    bool ud;
+    bool rl;
+    bool data_filter_n;
+    bool power_ready;
+    bool rgbw_mode_enable;
+    bool hburst_len_en;
+};
+
+struct imx_spdc_fb_mode {
+    struct fb_videomode *vmode;
+    struct imx_spdc_panel_init_set *init_set;
+    const char *wave_timing;
+};
+
+struct imx_spdc_fb_platform_data {
+    struct imx_spdc_fb_mode *spdc_mode;
     int num_modes;
     int (*get_pins) (void);
     void (*put_pins) (void);
