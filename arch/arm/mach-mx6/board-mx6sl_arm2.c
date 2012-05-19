@@ -121,6 +121,7 @@
 #define MX6SL_ARM2_EPDC_SDCE0		IMX_GPIO_NR(1, 27)
 #define MX6SL_ARM2_EPDC_SDCE1		IMX_GPIO_NR(1, 28)
 #define MX6SL_ARM2_EPDC_SDCE2		IMX_GPIO_NR(1, 29)
+#define MX6SL_ARM2_EPDC_SDCE3		IMX_GPIO_NR(1, 30)
 #define MX6SL_ARM2_EPDC_PMIC_WAKE	IMX_GPIO_NR(2, 14) /* EPDC_PWRWAKEUP */
 #define MX6SL_ARM2_EPDC_PMIC_INT	IMX_GPIO_NR(2, 12) /* EPDC_PWRINT */
 #define MX6SL_ARM2_EPDC_VCOM		IMX_GPIO_NR(2, 3)
@@ -849,9 +850,6 @@ static void __init mx6_arm2_init(void)
 	imx6_init_fec(fec_data);
 
 	mx6_arm2_init_usb();
-
-	imx6dl_add_imx_pxp();
-	imx6dl_add_imx_pxp_client();
 
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
