@@ -96,6 +96,7 @@ config MACH_MX6SL_ARM2
 	select IMX_HAVE_PLATFORM_IMX_SPDIF
 	select IMX_HAVE_PLATFORM_PERFMON
 	select IMX_HAVE_PLATFORM_IMX_EPDC
+	select IMX_HAVE_PLATFORM_IMX_SPDC
 	select IMX_HAVE_PLATFORM_IMX_PXP
 	help
 	  Include support for i.MX 6Sololite Armadillo2 platform. This includes specific
