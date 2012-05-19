@@ -25,4 +25,5 @@ obj-$(CONFIG_FB_MXC_SEIKO_WVGA_SYNC_PANEL)   += mxcfb_seiko_wvga.o
 obj-$(CONFIG_FB_MXC_TVOUT_CH7024)           += ch7024.o
 obj-$(CONFIG_FB_MXC_CH7026)		    		+= mxcfb_ch7026.o
 obj-$(CONFIG_FB_MXC_EINK_PANEL)             += mxc_epdc_fb.o
+obj-$(CONFIG_FB_MXC_SIPIX_PANEL)            += mxc_spdc_fb.o
 obj-$(CONFIG_FB_MXC_ELCDIF_FB)		    += mxc_elcdif_fb.o

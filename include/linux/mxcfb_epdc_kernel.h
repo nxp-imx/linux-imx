@@ -33,4 +33,17 @@ int mxc_epdc_fb_set_pwrdown_delay(u32 pwrdown_delay,
 int mxc_epdc_get_pwrdown_delay(struct fb_info *info);
 int mxc_epdc_fb_set_upd_scheme(u32 upd_scheme, struct fb_info *info);
 
+void mxc_spdc_fb_set_waveform_modes(struct mxcfb_waveform_modes *modes,
+						struct fb_info *info);
+int mxc_spdc_fb_set_temperature(int temperature, struct fb_info *info);
+int mxc_spdc_fb_set_auto_update(u32 auto_mode, struct fb_info *info);
+int mxc_spdc_fb_send_update(struct mxcfb_update_data *upd_data,
+				   struct fb_info *info);
+int mxc_spdc_fb_wait_update_complete(
+				struct mxcfb_update_marker_data *marker_data,
+				struct fb_info *info);
+int mxc_spdc_fb_set_pwrdown_delay(u32 pwrdown_delay,
+					    struct fb_info *info);
+int mxc_spdc_get_pwrdown_delay(struct fb_info *info);
+int mxc_spdc_fb_set_upd_scheme(u32 upd_scheme, struct fb_info *info);
 #endif

@@ -104,6 +104,17 @@ config FB_MXC_EINK_AUTO_UPDATE_MODE
     default n
     depends on FB_MXC_EINK_PANEL
 
+config FB_MXC_SIPIX_PANEL
+	depends on FB_MXC
+	depends on DMA_ENGINE
+	select FB_DEFERRED_IO
+	tristate "SIPIX Panel Framebuffer"
+
+config FB_MXC_SIPIX_AUTO_UPDATE_MODE
+	bool "SIPIX Auto-update Mode Support"
+	default n
+	depends on FB_MXC_SIPIX_PANEL
+
 config FB_MXC_ELCDIF_FB
 	depends on FB && ARCH_MXC
 	tristate "Support MXC ELCDIF framebuffer"
