@@ -89,7 +89,7 @@ struct ipu_soc {
 	uint32_t channel_enable_mask;
 
 	/*use count*/
-	atomic_t ipu_use_count;
+	int ipu_use_count;
 	int dc_use_count;
 	int dp_use_count;
 	int dmfc_use_count;
