@@ -6934,55 +6934,46 @@ gckOS_SetGPUPower(
     struct clk *clk_2dcore = Os->device->clk_2d_core;
     struct clk *clk_2d_axi = Os->device->clk_2d_axi;
     struct clk *clk_vg_axi = Os->device->clk_vg_axi;
-    
-    gctBOOL oldClockState = gcvFALSE;
 
     gcmkHEADER_ARG("Os=0x%X Core=%d Clock=%d Power=%d", Os, Core, Clock, Power);
-
-    if (Os->device->kernels[Core] != NULL)
-        oldClockState = Os->device->kernels[Core]->hardware->clockState;
-
     if (Clock == gcvTRUE) {
-        if (oldClockState == gcvFALSE) {
-            switch (Core) {
-            case gcvCORE_MAJOR:
-                clk_enable(clk_3dcore);
-                if (cpu_is_mx6q())
-                    clk_enable(clk_3dshader);
-                break;
-            case gcvCORE_2D:
-                clk_enable(clk_2dcore);
-                clk_enable(clk_2d_axi);
-                break;
-            case gcvCORE_VG:
-                clk_enable(clk_2dcore);
-                clk_enable(clk_vg_axi);
-                break;
-            default:
-                break;
-            }
+        switch (Core) {
+        case gcvCORE_MAJOR:
+            clk_enable(clk_3dcore);
+            if (cpu_is_mx6q())
+                clk_enable(clk_3dshader);
+            break;
+        case gcvCORE_2D:
+            clk_enable(clk_2dcore);
+            clk_enable(clk_2d_axi);
+            break;
+        case gcvCORE_VG:
+            clk_enable(clk_2dcore);
+            clk_enable(clk_vg_axi);
+            break;
+        default:
+            break;
         }
     } else {
-        if (oldClockState == gcvTRUE) {
-            switch (Core) {
-            case gcvCORE_MAJOR:
-                if (cpu_is_mx6q())
-                    clk_disable(clk_3dshader);
-                clk_disable(clk_3dcore);
-                break;
-            case gcvCORE_2D:
-                clk_disable(clk_2dcore);
-                clk_disable(clk_2d_axi);
-                break;
-            case gcvCORE_VG:
-                clk_disable(clk_2dcore);
-                clk_disable(clk_vg_axi);
-                break;
-            default:
-                break;
-            }
+        switch (Core) {
+        case gcvCORE_MAJOR:
+            if (cpu_is_mx6q())
+                clk_disable(clk_3dshader);
+            clk_disable(clk_3dcore);
+            break;
+        case gcvCORE_2D:
+            clk_disable(clk_2dcore);
+            clk_disable(clk_2d_axi);
+            break;
+        case gcvCORE_VG:
+            clk_disable(clk_2dcore);
+            clk_disable(clk_vg_axi);
+            break;
+        default:
+            break;
         }
     }
+    /* TODO: Put your code here. */
 
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
