@@ -66,6 +66,10 @@
 #define ANATOP_REG_CORE_OFFSET		0x140
 
 static struct clk *cpu_clk;
+static struct clk *axi_clk;
+static struct clk *periph_clk;
+static struct clk *axi_org_parent;
+
 static struct pm_platform_data *pm_data;
 
 #if defined(CONFIG_CPU_FREQ)
@@ -324,6 +328,9 @@ static int mx6_suspend_enter(suspend_state_t state)
 		return -EINVAL;
 	}
 
+	axi_org_parent = clk_get_parent(axi_clk);
+	clk_set_parent(axi_clk, periph_clk);
+
 	if (state == PM_SUSPEND_MEM || state == PM_SUSPEND_STANDBY) {
 		if (pm_data && pm_data->suspend_enter)
 			pm_data->suspend_enter();
@@ -347,6 +354,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 			usb_power_up_handler();
 			gpu_power_up();
 		}
+
 		mx6_suspend_restore();
 
 		if (pm_data && pm_data->suspend_exit)
@@ -354,6 +362,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 	} else {
 			cpu_do_idle();
 	}
+	clk_set_parent(axi_clk, axi_org_parent);
 
 	return 0;
 }
@@ -449,6 +458,17 @@ static int __init pm_init(void)
 		printk(KERN_DEBUG "%s: failed to get cpu_clk\n", __func__);
 		return PTR_ERR(cpu_clk);
 	}
+	axi_clk = clk_get(NULL, "axi_clk");
+	if (IS_ERR(axi_clk)) {
+		printk(KERN_DEBUG "%s: failed to get axi_clk\n", __func__);
+		return PTR_ERR(axi_clk);
+	}
+	periph_clk = clk_get(NULL, "periph_clk");
+	if (IS_ERR(periph_clk)) {
+		printk(KERN_DEBUG "%s: failed to get periph_clk\n", __func__);
+		return PTR_ERR(periph_clk);
+	}
+
 	printk(KERN_INFO "PM driver module loaded\n");
 
 	return 0;
