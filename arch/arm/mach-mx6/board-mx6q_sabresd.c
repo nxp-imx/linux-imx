@@ -198,6 +198,7 @@
 #define SABRESD_ELAN_INT	IMX_GPIO_NR(3, 28)
 
 static struct clk *sata_clk;
+static struct clk *clko;
 static int mma8451_position = 1;
 static int mag3110_position = 2;
 static int max11801_mode = 1;
@@ -389,6 +390,36 @@ static struct platform_device mx6_sabresd_audio_wm8962_device = {
 	.name = "imx-wm8962",
 };
 
+static struct mxc_audio_platform_data wm8962_data;
+
+static int wm8962_clk_enable(int enable)
+{
+	if (enable)
+		clk_enable(clko);
+	else
+		clk_disable(clko);
+
+	return 0;
+}
+
+static int mxc_wm8962_init(void)
+{
+	int rate;
+
+	clko = clk_get(NULL, "clko_clk");
+	if (IS_ERR(clko)) {
+		pr_err("can't get CLKO clock.\n");
+		return PTR_ERR(clko);
+	}
+	/* both audio codec and comera use CLKO clk*/
+	rate = clk_round_rate(clko, 22000000);
+	clk_set_rate(clko, rate);
+
+	wm8962_data.sysclk = rate;
+
+	return 0;
+}
+
 static struct wm8962_pdata wm8962_config_data = {
 	.gpio_init = {
 		[2] = WM8962_GPIO_FN_DMICCLK,
@@ -404,26 +435,9 @@ static struct mxc_audio_platform_data wm8962_data = {
 	.hp_active_low = 1,
 	.mic_gpio = SABRESD_MICROPHONE_DET,
 	.mic_active_low = 1,
+	.init = mxc_wm8962_init,
+	.clock_enable = wm8962_clk_enable,
 };
-
-static int mxc_wm8962_init(void)
-{
-	struct clk *clko;
-	int rate;
-
-	clko = clk_get(NULL, "clko_clk");
-	if (IS_ERR(clko)) {
-		pr_err("can't get CLKO clock.\n");
-		return PTR_ERR(clko);
-	}
-	/* both audio codec and comera use CLKO clk*/
-	rate = clk_round_rate(clko, 22000000);
-
-	wm8962_data.sysclk = rate;
-	clk_set_rate(clko, rate);
-
-	return 0;
-}
 
 static struct regulator_consumer_supply sabresd_vwm8962_consumers[] = {
 	REGULATOR_SUPPLY("SPKVDD1", "0-001a"),
