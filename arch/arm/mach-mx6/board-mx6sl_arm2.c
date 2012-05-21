@@ -79,6 +79,7 @@
 #define MX6_ARM2_SD1_WP		IMX_GPIO_NR(4, 6)	/* KEY_COL7 */
 #define MX6_ARM2_SD1_CD		IMX_GPIO_NR(4, 7)	/* KEY_ROW7 */
 #define MX6_ARM2_ECSPI1_CS0	IMX_GPIO_NR(4, 11)	/* ECSPI1_SS0 */
+#define MX6_ARM2_HEADPHONE_DET	IMX_GPIO_NR(4, 19)	/* FEC_RX_ER */
 #define MX6_ARM2_SD2_WP		IMX_GPIO_NR(4, 29)	/* SD2_DAT6 */
 #define MX6_ARM2_SD2_CD		IMX_GPIO_NR(5, 0)	/* SD2_DAT7 */
 #define MX6_ARM2_SD3_CD		IMX_GPIO_NR(3, 22)	/* REF_CLK_32K */
@@ -125,6 +126,8 @@
 #define MX6SL_ARM2_EPDC_VCOM		IMX_GPIO_NR(2, 3)
 
 static int max17135_regulator_init(struct max17135 *max17135);
+struct clk *extern_audio_root;
+
 extern int __init mx6sl_arm2_init_pfuze100(u32 int_gpio);
 static const struct esdhc_platform_data mx6_arm2_sd1_data __initconst = {
 	.cd_gpio		= MX6_ARM2_SD1_CD,
@@ -325,6 +328,110 @@ static const struct spi_imx_master mx6_arm2_spi_data __initconst = {
 	.num_chipselect = ARRAY_SIZE(mx6_arm2_spi_cs),
 };
 
+static struct imx_ssi_platform_data mx6_sabresd_ssi_pdata = {
+	.flags = IMX_SSI_DMA | IMX_SSI_SYN,
+};
+
+static struct mxc_audio_platform_data wm8962_data;
+
+static struct platform_device mx6_sabresd_audio_wm8962_device = {
+	.name = "imx-wm8962",
+};
+
+static struct wm8962_pdata wm8962_config_data = {
+
+};
+
+static int wm8962_clk_enable(int enable)
+{
+	if (enable)
+		clk_enable(extern_audio_root);
+	else
+		clk_disable(extern_audio_root);
+
+	return 0;
+}
+
+static int mxc_wm8962_init(void)
+{
+	struct clk *pll4;
+	int rate;
+
+	extern_audio_root = clk_get(NULL, "extern_audio_clk");
+	if (IS_ERR(extern_audio_root)) {
+		pr_err("can't get extern_audio_root clock.\n");
+		return PTR_ERR(extern_audio_root);
+	}
+
+	pll4 = clk_get(NULL, "pll4");
+	if (IS_ERR(pll4)) {
+		pr_err("can't get pll4 clock.\n");
+		return PTR_ERR(pll4);
+	}
+
+	clk_set_parent(extern_audio_root, pll4);
+
+	rate = clk_round_rate(extern_audio_root, 26000000);
+	clk_set_rate(extern_audio_root, rate);
+
+	wm8962_data.sysclk = rate;
+
+	return 0;
+}
+
+static struct mxc_audio_platform_data wm8962_data = {
+	.ssi_num = 1,
+	.src_port = 2,
+	.ext_port = 3,
+	.hp_gpio = MX6_ARM2_HEADPHONE_DET,
+	.hp_active_low = 1,
+	.mic_gpio = -1,
+	.mic_active_low = 1,
+	.init = mxc_wm8962_init,
+	.clock_enable = wm8962_clk_enable,
+};
+
+static struct regulator_consumer_supply sabresd_vwm8962_consumers[] = {
+	REGULATOR_SUPPLY("SPKVDD1", "1-001a"),
+	REGULATOR_SUPPLY("SPKVDD2", "1-001a"),
+};
+
+static struct regulator_init_data sabresd_vwm8962_init = {
+	.constraints = {
+		.name = "SPKVDD",
+		.valid_ops_mask =  REGULATOR_CHANGE_STATUS,
+		.boot_on = 1,
+	},
+	.num_consumer_supplies = ARRAY_SIZE(sabresd_vwm8962_consumers),
+	.consumer_supplies = sabresd_vwm8962_consumers,
+};
+
+static struct fixed_voltage_config sabresd_vwm8962_reg_config = {
+	.supply_name	= "SPKVDD",
+	.microvolts		= 4325000,
+	.gpio			= -1,
+	.enabled_at_boot = 1,
+	.init_data		= &sabresd_vwm8962_init,
+};
+
+static struct platform_device sabresd_vwm8962_reg_devices = {
+	.name	= "reg-fixed-voltage",
+	.id		= 4,
+	.dev	= {
+		.platform_data = &sabresd_vwm8962_reg_config,
+	},
+};
+
+static int __init imx6q_init_audio(void)
+{
+	platform_device_register(&sabresd_vwm8962_reg_devices);
+	mxc_register_device(&mx6_sabresd_audio_wm8962_device,
+			    &wm8962_data);
+	imx6q_add_imx_ssi(1, &mx6_sabresd_ssi_pdata);
+
+	return 0;
+}
+
 static struct imxi2c_platform_data mx6_arm2_i2c0_data = {
 	.bitrate = 100000,
 };
@@ -347,7 +454,7 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("wm8962", 0x1a),
-		/*.platform_data = &wm8962_config_data,*/
+		.platform_data = &wm8962_config_data,
 	},
 };
 
@@ -760,6 +867,9 @@ static void __init mx6_arm2_init(void)
 	imx6dl_add_imx_epdc(&epdc_data);
 
 	imx6q_add_dvfs_core(&mx6sl_arm2_dvfscore_data);
+
+    imx6q_init_audio();
+
 }
 
 extern void __iomem *twd_base;
