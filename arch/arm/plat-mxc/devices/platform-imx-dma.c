@@ -260,15 +260,17 @@ static int __init imxXX_add_imx_dma(void)
 		ret = imx_add_imx_sdma(&imx53_imx_sdma_data);
 	} else
 #endif
-#if defined(CONFIG_SOC_IMX6Q)
-	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
-		int to_version = 1;
-		imx6q_imx_sdma_data.pdata.to_version = to_version;
-		if (to_version == 1)
-			imx6q_imx_sdma_data.pdata.script_addrs =
-							&addr_imx6q_to1;
-		ret = imx_add_imx_sdma(&imx6q_imx_sdma_data);
-	} else
+#if defined(CONFIG_ARCH_MX6)
+	int to_version = 1;
+	imx6q_imx_sdma_data.pdata.to_version = to_version;
+	if (to_version == 1)
+		imx6q_imx_sdma_data.pdata.script_addrs =
+						&addr_imx6q_to1;
+	ret = imx_add_imx_sdma(&imx6q_imx_sdma_data);
+	if (IS_ERR(ret))
+		return PTR_ERR(ret);
+
+	return 0;
 #endif
 		ret = ERR_PTR(-ENODEV);
 
