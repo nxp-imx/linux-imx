@@ -37,7 +37,8 @@
 
 #if defined(CONFIG_LEDS_CLASS) || (defined(CONFIG_LEDS_CLASS_MODULE) && \
 	defined(CONFIG_MMC_SDHCI_MODULE))
-#define SDHCI_USE_LEDS_CLASS
+/* FIXME: temp workaround for calling clk_enable in an interrupt context */
+#define SDHCI_USE_LEDS_CLASS_BROKEN
 #endif
 
 #define MAX_TUNING_LOOP 40
