@@ -585,6 +585,7 @@ static struct fsl_mxc_camera_platform_data camera_data = {
 	.analog_regulator	= "DA9052_LDO7",
 	.core_regulator		= "DA9052_LDO9",
 	.mclk			= 24000000,
+	.mclk_source = 0,
 	.csi			= 0,
 	.io_init		= mx6_csi0_io_init,
 };
@@ -646,15 +647,15 @@ static void mx6_mipi_sensor_io_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mipi_sensor_pads,
 					mipi_sensor_pads_cnt);
 
-	if (cpu_is_mx6q())
-		mxc_iomux_set_gpr_register(1, 19, 1, 0);
+	/*for mx6dl, mipi virtual channel 1 connect to csi 1*/
 	if (cpu_is_mx6dl())
-		mxc_iomux_set_gpr_register(13, 0, 3, 0);
+		mxc_iomux_set_gpr_register(13, 3, 3, 1);
 }
 
 static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
 	.mclk		= 24000000,
-	.csi		= 0,
+	.csi		= 1,
+	.mclk_source = 0,
 	.io_init	= mx6_mipi_sensor_io_init,
 };
 
@@ -1524,6 +1525,21 @@ static struct mipi_csi2_platform_data mipi_csi2_pdata = {
 	.pixel_clk	= "emi_clk",
 };
 
+static struct fsl_mxc_capture_platform_data capture_data[] = {
+	{
+		.csi = 0,
+		.ipu = 0,
+		.mclk_source = 0,
+		.is_mipi = 0,
+	}, {
+		.csi = 1,
+		.ipu = 0,
+		.mclk_source = 0,
+		.is_mipi = 1,
+	},
+};
+
+
 static void arm2_suspend_enter(void)
 {
 	/* suspend preparation */
@@ -2076,7 +2092,8 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
-	imx6q_add_v4l2_capture(0);
+	imx6q_add_v4l2_capture(0, &capture_data[0]);
+	imx6q_add_v4l2_capture(1, &capture_data[1]);
 
 	imx6q_add_imx_snvs_rtc();
 
