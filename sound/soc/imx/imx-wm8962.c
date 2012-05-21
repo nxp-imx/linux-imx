@@ -38,6 +38,7 @@
 #include <mach/clock.h>
 #include <mach/audmux.h>
 #include <mach/gpio.h>
+#include <asm/mach-types.h>
 
 #include "imx-ssi.h"
 #include "../codecs/wm8962.h"
@@ -55,16 +56,17 @@ struct imx_priv {
 unsigned int sample_format = SNDRV_PCM_FMTBIT_S16_LE;
 static struct imx_priv card_priv;
 static struct snd_soc_card snd_soc_card_imx;
-struct clk *wm8962_mclk;
 static struct snd_soc_codec *gcodec;
 
 static int imx_hifi_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct imx_priv *priv = &card_priv;
+	struct mxc_audio_platform_data *plat = priv->pdev->dev.platform_data;
 
 	if (!codec_dai->active)
-		clk_enable(wm8962_mclk);
+		plat->clock_enable(1);
 
 	return 0;
 }
@@ -73,9 +75,11 @@ static void imx_hifi_shutdown(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct imx_priv *priv = &card_priv;
+	struct mxc_audio_platform_data *plat = priv->pdev->dev.platform_data;
 
 	if (!codec_dai->active)
-		clk_disable(wm8962_mclk);
+		plat->clock_enable(0);
 
 	return;
 }
@@ -164,7 +168,6 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 	{ "MICBIAS", NULL, "AMIC" },
 	{ "IN3R", NULL, "MICBIAS" },
-
 
 	{ "DMIC", NULL, "MICBIAS" },
 	{ "DMICDAT", NULL, "DMIC" },
@@ -427,12 +430,6 @@ static int __devinit imx_wm8962_probe(struct platform_device *pdev)
 	struct imx_priv *priv = &card_priv;
 	int ret = 0;
 
-	wm8962_mclk = clk_get(NULL, "clko_clk");
-	if (IS_ERR(wm8962_mclk)) {
-		printk(KERN_ERR "can't get CLKO clock.\n");
-		return PTR_ERR(wm8962_mclk);
-	}
-
 	priv->pdev = pdev;
 
 	imx_audmux_config(plat->src_port, plat->ext_port);
@@ -451,11 +448,10 @@ static int __devexit imx_wm8962_remove(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
 
+	plat->clock_enable(0);
+
 	if (plat->finit)
 		plat->finit();
-
-	clk_disable(wm8962_mclk);
-	clk_put(wm8962_mclk);
 
 	return 0;
 }
@@ -478,6 +474,11 @@ static int __init imx_asoc_init(void)
 	ret = platform_driver_register(&imx_wm8962_driver);
 	if (ret < 0)
 		goto exit;
+
+	if (machine_is_mx6q_sabresd())
+		imx_dai[0].codec_name = "wm8962.0-001a";
+	else if (machine_is_mx6sl_arm2())
+		imx_dai[0].codec_name = "wm8962.1-001a";
 
 	imx_snd_device = platform_device_alloc("soc-audio", 5);
 	if (!imx_snd_device)
