@@ -34,6 +34,8 @@
 #include <mach/ipu-v3.h>
 
 #include <media/v4l2-dev.h>
+#include <media/v4l2-int-device.h>
+
 
 #define FRAME_NUM 10
 
@@ -190,12 +192,17 @@ typedef struct _cam_data {
 	bool low_power;
 	wait_queue_head_t power_queue;
 	unsigned int csi;
+	u8 mclk_source;
 	int current_input;
+
+	int local_buf_num;
 
 	/* camera sensor interface */
 	struct camera_sensor *cam_sensor; 	/* old version */
 	struct v4l2_int_device *all_sensors[2];
 	struct v4l2_int_device *sensor;
+	struct v4l2_int_device *self;
+	int sensor_index;
 	void *ipu;
 } cam_data;
 
@@ -218,6 +225,7 @@ struct sensor_data {
 	int ae_mode;
 
 	u32 mclk;
+	u8 mclk_source;
 	int csi;
 
 	void (*io_init)(void);

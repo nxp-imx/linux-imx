@@ -909,6 +909,15 @@ bool binning_on(void)
 		return false;
 }
 
+static void ov5640_set_virtual_channel(int channel)
+{
+	u8 channel_id;
+
+	ov5640_read_reg(0x4814, &channel_id);
+	channel_id &= ~(3 << 6);
+	ov5640_write_reg(0x4814, channel_id | (channel << 6));
+}
+
 static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 			    enum ov5640_mode mode)
 {
@@ -1164,6 +1173,7 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 	OV5640_set_AE_target(AE_Target);
 	OV5640_get_light_frequency();
 	OV5640_set_bandingfilter();
+	ov5640_set_virtual_channel(ov5640_data.csi);
 
 	if (mipi_csi2_info) {
 		unsigned int i;
@@ -1604,7 +1614,7 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	ov5640_data.mclk = tgt_xclk;
 
 	pr_debug("   Setting mclk to %d MHz\n", tgt_xclk / 1000000);
-	set_mclk_rate(&ov5640_data.mclk, ov5640_data.csi);
+	set_mclk_rate(&ov5640_data.mclk, ov5640_data.mclk_source);
 
 	/* Default camera frame rate is set in probe */
 	tgt_fps = sensor->streamcap.timeperframe.denominator /
@@ -1712,6 +1722,7 @@ static int ov5640_probe(struct i2c_client *client,
 	memset(&ov5640_data, 0, sizeof(ov5640_data));
 	ov5640_data.mclk = 24000000; /* 6 - 54 MHz, typical 24MHz */
 	ov5640_data.mclk = plat_data->mclk;
+	ov5640_data.mclk_source = plat_data->mclk_source;
 	ov5640_data.csi = plat_data->csi;
 	ov5640_data.io_init = plat_data->io_init;
 

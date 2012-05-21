@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -92,6 +92,7 @@ struct sensor {
 	int ae_mode;
 
 	u32 mclk;
+	u8 mclk_source;
 	int csi;
 } ov8820_data;
 
@@ -762,7 +763,7 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	ov8820_data.mclk = tgt_xclk;
 
 	pr_debug("   Setting mclk to %d MHz\n", tgt_xclk / 1000000);
-	set_mclk_rate(&ov8820_data.mclk, ov8820_data.csi);
+	set_mclk_rate(&ov8820_data.mclk, ov8820_data.mclk_source);
 
 	/* Default camera frame rate is set in probe */
 	tgt_fps = sensor->streamcap.timeperframe.denominator /
@@ -871,6 +872,7 @@ static int ov8820_probe(struct i2c_client *client,
 	memset(&ov8820_data, 0, sizeof(ov8820_data));
 	ov8820_data.mclk = 24000000; /* 6 - 54 MHz, typical 24MHz */
 	ov8820_data.mclk = plat_data->mclk;
+	ov8820_data.mclk_source = plat_data->mclk_source;
 	ov8820_data.csi = plat_data->csi;
 
 	ov8820_data.i2c_client = client;

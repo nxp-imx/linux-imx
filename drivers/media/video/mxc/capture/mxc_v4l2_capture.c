@@ -37,15 +37,14 @@
 #include <media/v4l2-chip-ident.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-int-device.h>
+#include <linux/fsl_devices.h>
 #include "mxc_v4l2_capture.h"
 #include "ipu_prp_sw.h"
 
 #define init_MUTEX(sem)         sema_init(sem, 1)
 #define MXC_SENSOR_NUM 2
-static int sensor_index;
 
-static int video_nr = -1, local_buf_num;
-static cam_data *g_cam;
+static int video_nr = -1;
 
 /*! This data is used for the output to the display. */
 #define MXC_V4L2_CAPTURE_NUM_OUTPUTS	3
@@ -405,7 +404,7 @@ static int mxc_streamon(cam_data *cam)
 	}
 
 	cam->ping_pong_csi = 0;
-	local_buf_num = 0;
+	cam->local_buf_num = 0;
 	if (cam->enc_update_eba) {
 		frame =
 		    list_entry(cam->ready_q.next, struct mxc_v4l_frame, queue);
@@ -1210,7 +1209,7 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 	case V4L2_CID_MXC_SWITCH_CAM:
 		if (cam->sensor != cam->all_sensors[c->value]) {
 			/* power down other cameraes before enable new one */
-			for (i = 0; i < sensor_index; i++) {
+			for (i = 0; i < cam->sensor_index; i++) {
 				if (i != c->value) {
 					vidioc_int_dev_exit(cam->all_sensors[i]);
 					vidioc_int_s_power(cam->all_sensors[i], 0);
@@ -1665,7 +1664,7 @@ static int mxc_v4l_open(struct file *file)
 					cam_fmt.fmt.pix.pixelformat,
 					csi_param);
 
-		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
+		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->mclk_source,
 				       true, true);
 		vidioc_int_s_power(cam->sensor, 1);
 		msleep(1);
@@ -2494,7 +2493,7 @@ static void camera_callback(u32 mask, void *dev)
 					struct mxc_v4l_frame,
 					queue);
 
-		if (done_frame->ipu_buf_num != local_buf_num)
+		if (done_frame->ipu_buf_num != cam->local_buf_num)
 			goto next;
 
 		/*
@@ -2531,7 +2530,7 @@ next:
 				list_del(cam->ready_q.next);
 				list_add_tail(&ready_frame->queue,
 					      &cam->working_q);
-				ready_frame->ipu_buf_num = local_buf_num;
+				ready_frame->ipu_buf_num = cam->local_buf_num;
 			}
 	} else {
 		if (cam->enc_update_eba)
@@ -2540,7 +2539,7 @@ next:
 				&cam->ping_pong_csi);
 	}
 
-	local_buf_num = (local_buf_num == 0) ? 1 : 0;
+	cam->local_buf_num = (cam->local_buf_num == 0) ? 1 : 0;
 
 	return;
 }
@@ -2554,11 +2553,13 @@ next:
  */
 static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 {
+	struct fsl_mxc_capture_platform_data *pdata = pdev->dev.platform_data;
+
 	pr_debug("In MVC: init_camera_struct\n");
 	/* Default everything to 0 */
 	memset(cam, 0, sizeof(cam_data));
 
-	cam->ipu = ipu_get_soc(0);
+	cam->ipu = ipu_get_soc(pdata->ipu);
 	if (cam->ipu == NULL)
 		pr_err("ERROR: v4l2 capture: failed to get ipu\n");
 	else if (cam->ipu == ERR_PTR(-ENODEV))
@@ -2615,13 +2616,19 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	cam->win.w.left = 0;
 	cam->win.w.top = 0;
 
-	cam->csi = 0;  /* Need to determine how to set this correctly with
-			* multiple video input devices. */
+	cam->csi = pdata->csi;
+	cam->mclk_source = pdata->mclk_source;
 
 	cam->enc_callback = camera_callback;
 	init_waitqueue_head(&cam->power_queue);
 	spin_lock_init(&cam->queue_int_lock);
 	spin_lock_init(&cam->dqueue_int_lock);
+
+	cam->self = kmalloc(sizeof(struct v4l2_int_device), GFP_KERNEL);
+	cam->self->module = THIS_MODULE;
+	sprintf(cam->self->name, "mxc_v4l2_cap%d", cam->csi);
+	cam->self->type = v4l2_int_type_master;
+	cam->self->u.master = &mxc_v4l2_master;
 }
 
 static ssize_t show_streaming(struct device *dev,
@@ -2629,9 +2636,9 @@ static ssize_t show_streaming(struct device *dev,
 {
 	struct video_device *video_dev = container_of(dev,
 						struct video_device, dev);
-	cam_data *g_cam = video_get_drvdata(video_dev);
+	cam_data *cam = video_get_drvdata(video_dev);
 
-	if (g_cam->capture_on)
+	if (cam->capture_on)
 		return sprintf(buf, "stream on\n");
 	else
 		return sprintf(buf, "stream off\n");
@@ -2643,9 +2650,9 @@ static ssize_t show_overlay(struct device *dev,
 {
 	struct video_device *video_dev = container_of(dev,
 						struct video_device, dev);
-	cam_data *g_cam = video_get_drvdata(video_dev);
+	cam_data *cam = video_get_drvdata(video_dev);
 
-	if (g_cam->overlay_on)
+	if (cam->overlay_on)
 		return sprintf(buf, "overlay on\n");
 	else
 		return sprintf(buf, "overlay off\n");
@@ -2662,38 +2669,38 @@ static DEVICE_ATTR(fsl_v4l2_overlay_property, S_IRUGO, show_overlay, NULL);
  */
 static int mxc_v4l2_probe(struct platform_device *pdev)
 {
-	/* Create g_cam and initialize it. */
-	g_cam = kmalloc(sizeof(cam_data), GFP_KERNEL);
-	if (g_cam == NULL) {
+	/* Create cam and initialize it. */
+	cam_data *cam = kmalloc(sizeof(cam_data), GFP_KERNEL);
+	if (cam == NULL) {
 		pr_err("ERROR: v4l2 capture: failed to register camera\n");
 		return -1;
 	}
 
-	init_camera_struct(g_cam, pdev);
+	init_camera_struct(cam, pdev);
 	pdev->dev.release = camera_platform_release;
 
 	/* Set up the v4l2 device and register it*/
-	mxc_v4l2_int_device.priv = g_cam;
+	cam->self->priv = cam;
 	/* This function contains a bug that won't let this be rmmod'd. */
-	v4l2_int_device_register(&mxc_v4l2_int_device);
+	v4l2_int_device_register(cam->self);
 
 	/* register v4l video device */
-	if (video_register_device(g_cam->video_dev, VFL_TYPE_GRABBER, video_nr)
+	if (video_register_device(cam->video_dev, VFL_TYPE_GRABBER, video_nr)
 	    == -1) {
-		kfree(g_cam);
-		g_cam = NULL;
+		kfree(cam);
+		cam = NULL;
 		pr_err("ERROR: v4l2 capture: video_register_device failed\n");
 		return -1;
 	}
 	pr_debug("   Video device registered: %s #%d\n",
-		 g_cam->video_dev->name, g_cam->video_dev->minor);
+		 cam->video_dev->name, cam->video_dev->minor);
 
-	if (device_create_file(&g_cam->video_dev->dev,
+	if (device_create_file(&cam->video_dev->dev,
 			&dev_attr_fsl_v4l2_capture_property))
 		dev_err(&pdev->dev, "Error on creating sysfs file"
 			" for capture\n");
 
-	if (device_create_file(&g_cam->video_dev->dev,
+	if (device_create_file(&cam->video_dev->dev,
 			&dev_attr_fsl_v4l2_overlay_property))
 		dev_err(&pdev->dev, "Error on creating sysfs file"
 			" for overlay\n");
@@ -2711,24 +2718,23 @@ static int mxc_v4l2_probe(struct platform_device *pdev)
  */
 static int mxc_v4l2_remove(struct platform_device *pdev)
 {
-
-	if (g_cam->open_count) {
+	cam_data *cam = (cam_data *)platform_get_drvdata(pdev);
+	if (cam->open_count) {
 		pr_err("ERROR: v4l2 capture:camera open "
 			"-- setting ops to NULL\n");
 		return -EBUSY;
 	} else {
-		device_remove_file(&g_cam->video_dev->dev,
+		device_remove_file(&cam->video_dev->dev,
 			&dev_attr_fsl_v4l2_capture_property);
-		device_remove_file(&g_cam->video_dev->dev,
+		device_remove_file(&cam->video_dev->dev,
 			&dev_attr_fsl_v4l2_overlay_property);
 
 		pr_info("V4L2 freeing image input device\n");
 		v4l2_int_device_unregister(&mxc_v4l2_int_device);
-		video_unregister_device(g_cam->video_dev);
+		video_unregister_device(cam->video_dev);
 
-		mxc_free_frame_buf(g_cam);
-		kfree(g_cam);
-		g_cam = NULL;
+		mxc_free_frame_buf(cam);
+		kfree(cam);
 	}
 
 	pr_info("V4L2 unregistering video\n");
@@ -2825,6 +2831,7 @@ static int mxc_v4l2_master_attach(struct v4l2_int_device *slave)
 	cam_data *cam = slave->u.slave->master->priv;
 	struct v4l2_format cam_fmt;
 	int i;
+	struct sensor_data *sdata = slave->priv;
 
 	pr_debug("In MVC: mxc_v4l2_master_attach\n");
 	pr_debug("   slave.name = %s\n", slave->name);
@@ -2835,17 +2842,22 @@ static int mxc_v4l2_master_attach(struct v4l2_int_device *slave)
 		return -1;
 	}
 
+	if (sdata->csi != cam->csi) {
+		pr_debug("%s: csi doesn't match\n", __func__);
+		return -1;
+	}
+
 	cam->sensor = slave;
 
-	if (sensor_index < MXC_SENSOR_NUM) {
-		cam->all_sensors[sensor_index] = slave;
-		sensor_index++;
+	if (cam->sensor_index < MXC_SENSOR_NUM) {
+		cam->all_sensors[cam->sensor_index] = slave;
+		cam->sensor_index++;
 	} else {
 		pr_err("ERROR: v4l2 capture: slave number exceeds the maximum.\n");
 		return -1;
 	}
 
-	for (i = 0; i < sensor_index; i++) {
+	for (i = 0; i < cam->sensor_index; i++) {
 		vidioc_int_dev_exit(cam->all_sensors[i]);
 		vidioc_int_s_power(cam->all_sensors[i], 0);
 	}
@@ -2897,23 +2909,23 @@ static void mxc_v4l2_master_detach(struct v4l2_int_device *slave)
 
 	pr_debug("In MVC:mxc_v4l2_master_detach\n");
 
-	if (sensor_index > 1) {
-		for (i = 0; i < sensor_index; i++) {
+	if (cam->sensor_index > 1) {
+		for (i = 0; i < cam->sensor_index; i++) {
 			if (cam->all_sensors[i] != slave)
 				continue;
 			/* Move all the sensors behind this
 			 * sensor one step forward
 			 */
-			for (; i < sensor_index - 1; i++)
+			for (; i < cam->sensor_index - 1; i++)
 				cam->all_sensors[i] = cam->all_sensors[i+1];
 			break;
 		}
 		/* Point current sensor to the last one */
-		cam->sensor = cam->all_sensors[sensor_index - 2];
+		cam->sensor = cam->all_sensors[cam->sensor_index - 2];
 	} else
 		cam->sensor = NULL;
 
-	sensor_index--;
+	cam->sensor_index--;
 	vidioc_int_dev_exit(slave);
 }
 
