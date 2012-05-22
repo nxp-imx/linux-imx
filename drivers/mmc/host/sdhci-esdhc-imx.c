@@ -157,7 +157,7 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 		/*
 		 * on mx6q, no cap_1 available, fake one.
 		 */
-		val = SDHCI_SUPPORT_DDR50 | SDHCI_SUPPORT_SDR104 | \
+		val =  SDHCI_SUPPORT_SDR104 | \
 			  SDHCI_SUPPORT_SDR50;
 	} else if (reg == SDHCI_MAX_CURRENT && cpu_is_mx6()) {
 		/*
