@@ -262,7 +262,7 @@ static void amic_detect_handler(struct work_struct *work)
 
 	if (priv->amic_status == 0)
 		snprintf(buf, 32, "STATE=%d", 2);
-    else
+	else
 		snprintf(buf, 32, "STATE=%d", 0);
 
 	envp[0] = "NAME=amic";
@@ -369,7 +369,8 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 			snd_soc_dapm_nc_pin(&codec->dapm, "DMIC");
 		else
 			snd_soc_dapm_enable_pin(&codec->dapm, "DMIC");
-	}
+	} else if (!snd_soc_dapm_get_pin_status(&codec->dapm, "DMICDAT"))
+		snd_soc_dapm_nc_pin(&codec->dapm, "DMIC");
 
 	return 0;
 }
