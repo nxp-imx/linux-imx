@@ -182,8 +182,6 @@ static iomux_v3_cfg_t mx6sl_arm2_epdc_enable_pads[] = {
 	MX6SL_PAD_EPDC_PWRSTAT__GPIO_2_13,
 	MX6SL_PAD_EPDC_PWRCTRL0__GPIO_2_7,
 	MX6SL_PAD_EPDC_PWRWAKEUP__GPIO_2_14,
-
-	MX6SL_PAD_PWM1__CCM_CLKO,
 };
 
 static iomux_v3_cfg_t mx6sl_arm2_epdc_disable_pads[] = {
