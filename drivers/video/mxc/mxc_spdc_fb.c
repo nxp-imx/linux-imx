@@ -2381,7 +2381,7 @@ pxp_process:
 	mutex_unlock(&fb_data->queue_mutex);
 }
 
-static int mxc_spdc_fb_send_update(struct mxcfb_update_data *upd_data,
+int mxc_spdc_fb_send_update(struct mxcfb_update_data *upd_data,
 				   struct fb_info *info)
 {
 	mxc_spdc_t *fb_data = info ?
@@ -2603,11 +2603,12 @@ static int mxc_spdc_fb_send_update(struct mxcfb_update_data *upd_data,
 	mutex_unlock(&fb_data->queue_mutex);
 	return 0;
 }
+EXPORT_SYMBOL(mxc_spdc_fb_send_update);
 
 /*
  * return 0 : spdc update is update
  */
-static int
+int
 mxc_spdc_fb_wait_update_complete(struct mxcfb_update_marker_data *marker_data,
 				struct fb_info *info)
 {
@@ -2669,6 +2670,7 @@ mxc_spdc_fb_wait_update_complete(struct mxcfb_update_marker_data *marker_data,
 
 	return ret;
 }
+EXPORT_SYMBOL(mxc_spdc_fb_wait_update_complete);
 
 int mxc_spdc_fb_set_pwrdown_delay(u32 pwrdown_delay,
 				struct fb_info *info)
