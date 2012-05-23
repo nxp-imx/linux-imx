@@ -28,20 +28,10 @@
 
 extern unsigned int num_cpu_idle_lock;
 
-static atomic_t cpu_die_done = ATOMIC_INIT(0);
 int platform_cpu_kill(unsigned int cpu)
 {
 	void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
 	unsigned int val;
-
-	val = jiffies;
-	/* wait secondary cpu to die, timeout is 50ms */
-	while (atomic_read(&cpu_die_done) == 0) {
-		if (time_after(jiffies, (unsigned long)(val + HZ / 20))) {
-			printk(KERN_WARNING "cpu %d: cpu could not die\n", cpu);
-			break;
-		}
-	}
 
 	/*
 	 * we're ready for shutdown now, so do it
@@ -61,7 +51,6 @@ int platform_cpu_kill(unsigned int cpu)
 		}
 	}
 
-	atomic_set(&cpu_die_done, 0);
 	return 1;
 }
 
@@ -71,22 +60,44 @@ int platform_cpu_kill(unsigned int cpu)
  */
 void platform_cpu_die(unsigned int cpu)
 {
+	unsigned int v;
 	if (cpu == 0) {
 		printk(KERN_ERR "CPU0 can't be disabled!\n");
 		return;
 	}
-
 	flush_cache_all();
-	dsb();
-
+	asm volatile(
+	"	mcr p15, 0, %1, c7, c5, 0\n" /* Invalidate I cache */
+	"	mcr p15, 0, %1, c7, c10, 4\n" /* DSB */
+	/*
+	* Turn off coherency
+	*/
+	"	mrc p15, 0, %0, c1, c0, 1\n" /* Disable SMP in ACTLR */
+	"	bic %0, %0, %3\n"
+	"	mcr p15, 0, %0, c1, c0, 1\n"
+	"	mrc p15, 0, %0, c1, c0, 0\n" /* Disable D cache in SCTLR */
+	"	bic %0, %0, %2\n"
+	"	mcr p15, 0, %0, c1, c0, 0\n"
+	:	"=&r" (v)
+	:	"r" (0), "Ir" (CR_C), "Ir" (0x40)
+	:	"cc");
 	/* tell cpu0 to kill me */
-	atomic_set(&cpu_die_done, 1);
 	for (;;) {
 		/*
 		 * Execute WFI
 		 */
 		cpu_do_idle();
 	}
+	asm volatile(
+	"	mrc	p15, 0, %0, c1, c0, 0\n" /* Enable D cache in SCTLR */
+	"	orr	%0, %0, %1\n"
+	"	mcr	p15, 0, %0, c1, c0, 0\n"
+	"	mrc	p15, 0, %0, c1, c0, 1\n" /* Enable SMP in ACTLR */
+	"	orr	%0, %0, %2\n"
+	"	mcr	p15, 0, %0, c1, c0, 1\n"
+	:	"=&r" (v)
+	:	"Ir" (CR_C), "Ir" (0x40)
+	:	"cc");
 }
 
 int platform_cpu_disable(unsigned int cpu)
