@@ -1031,6 +1031,7 @@ static void __init mx6_arm2_init(void)
 
     imx6q_init_audio();
 
+	imx6q_add_viim();
 }
 
 extern void __iomem *twd_base;
