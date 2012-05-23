@@ -19,6 +19,7 @@
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/smp.h>
+#include <linux/delay.h>
 #include <mach/hardware.h>
 #include <asm/mach-types.h>
 #include <linux/io.h>
@@ -26,11 +27,20 @@
 #include <linux/sched.h>
 #include <asm/cacheflush.h>
 
-static atomic_t cpu_die_done = ATOMIC_INIT(0);
+void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
+
 int platform_cpu_kill(unsigned int cpu)
 {
-	void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
 	unsigned int val;
+
+	val = jiffies;
+	/* wait secondary cpu to die, timeout is 50ms */
+	while (__raw_readl(src_base + SRC_GPR1_OFFSET + (8 * cpu) + 4) == 0) {
+		if (time_after(jiffies, (unsigned long)(val + HZ / 20))) {
+			printk(KERN_WARNING "cpu %d: cpu could not die\n", cpu);
+			break;
+		}
+	}
 
 	/*
 	 * we're ready for shutdown now, so do it
@@ -50,6 +60,7 @@ int platform_cpu_kill(unsigned int cpu)
 		}
 	}
 
+	__raw_writel(0x0, src_base + SRC_GPR1_OFFSET + (8 * cpu) + 4);
 	return 1;
 }
 
@@ -80,12 +91,23 @@ void platform_cpu_die(unsigned int cpu)
 	:	"=&r" (v)
 	:	"r" (0), "Ir" (CR_C), "Ir" (0x40)
 	:	"cc");
-	/* tell cpu0 to kill me */
+	/* Tell cpu0 to kill this core, as this core's cache is
+	already disabled, and we want to set a flag to tell cpu0
+	to kill this core, so I write the flag to this core's SRC
+	parameter register, after cpu0 kill this core, it will
+	clear this register. */
+
+	__raw_writel(0x1, src_base + SRC_GPR1_OFFSET + (8 * cpu) + 4);
+
 	for (;;) {
 		/*
 		 * Execute WFI
 		 */
-		cpu_do_idle();
+		asm(".word	0xe320f003\n"
+		    :
+		    :
+		    : "memory", "cc");
+		printk(KERN_ERR "cpu %d wake up from wfi !!!\n", cpu);
 	}
 	asm volatile(
 	"	mrc	p15, 0, %0, c1, c0, 0\n" /* Enable D cache in SCTLR */
@@ -97,6 +119,7 @@ void platform_cpu_die(unsigned int cpu)
 	:	"=&r" (v)
 	:	"Ir" (CR_C), "Ir" (0x40)
 	:	"cc");
+	__raw_writel(0x0, src_base + SRC_GPR1_OFFSET + (8 * cpu) + 4);
 }
 
 int platform_cpu_disable(unsigned int cpu)
