@@ -90,6 +90,7 @@ struct mxc_vout_output {
 	bool save_var;
 	bool bypass_pp;
 	bool is_vdoaipu_task;
+	struct v4l2_rect in_rect;
 	struct ipu_task	task;
 	struct ipu_task	vdoa_task;
 	struct dma_mem vdoa_dma;
@@ -481,6 +482,7 @@ static void disp_work_func(struct work_struct *work)
 	struct ipu_pos ipos;
 	int ret = 0;
 	u32 is_1080p;
+	u32 in_fmt = 0;
 	u32 ocrop_h = 0;
 	u32 tiled_interlaced = 0;
 
@@ -553,12 +555,16 @@ static void disp_work_func(struct work_struct *work)
 				goto err;
 			}
 			vout->task.input.paddr = vout->vdoa_task.output.paddr;
+			in_fmt = vout->task.input.format;
+			vout->task.input.format = vout->vdoa_task.output.format;
 			if (vout->task.input.deinterlace.enable) {
 				tiled_interlaced = 1;
 				vout->task.input.deinterlace.enable = 0;
 			}
 		}
 		ret = ipu_queue_task(&vout->task);
+		if (vout->is_vdoaipu_task)
+			vout->task.input.format = in_fmt;
 		if (tiled_interlaced)
 			vout->task.input.deinterlace.enable = 1;
 		if (ret < 0) {
@@ -936,6 +942,7 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 	struct ipu_task *ipu_task = &vout->task;
 	struct ipu_task *vdoa_task = &vout->vdoa_task;
 	u32 deinterlace = 0;
+	u32 in_fmt;
 
 	if (vout->task.input.deinterlace.enable)
 		deinterlace = 1;
@@ -994,6 +1001,7 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 	if (ret != IPU_CHECK_OK)
 		return -EINVAL;
 
+	in_fmt = ipu_task->input.format;
 	ipu_task->input.format = vdoa_task->output.format;
 	if (icrop_h) {
 		ipu_task->input.height = vdoa_task->output.height;
@@ -1008,6 +1016,7 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 	ret = ipu_try_task(vout);
 	if (deinterlace)
 		ipu_task->input.deinterlace.enable = 1;
+	ipu_task->input.format = in_fmt;
 
 	return ret;
 }
@@ -1017,6 +1026,18 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 	int ret = 0;
 	struct ipu_output *output = &vout->task.output;
 	struct ipu_input *input = &vout->task.input;
+	u32 o_height = 0;
+	u32 ocrop_h = 0;
+	u32 is_1080p;
+
+	is_1080p = CHECK_TILED_1080P_DISPLAY(vout);
+	if (is_1080p) {
+		input->crop.h = FRAME_HEIGHT_1080P;
+		o_height = output->height;
+		ocrop_h = output->crop.h;
+		output->height = FRAME_HEIGHT_1080P;
+		output->crop.h = FRAME_HEIGHT_1080P;
+	}
 
 	input->crop.w -= input->crop.w%8;
 	input->crop.h -= input->crop.h%8;
@@ -1061,6 +1082,18 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 			ret = ipu_try_task(vout);
 	}
 
+	if (is_1080p) {
+		output->height = o_height;
+		output->crop.h = ocrop_h;
+	}
+
+	v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+			"icrop.w:%u, icrop.h:%u, iw:%u, ih:%u,"
+			"ocrop.w:%u, ocrop.h:%u, ow:%u, oh:%u\n",
+			input->crop.w, input->crop.h,
+			input->width, input->height,
+			output->crop.w, output->crop.h,
+			output->width, output->height);
 	return ret;
 }
 
@@ -1068,9 +1101,6 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 {
 	int ret = 0;
 	struct v4l2_rect rect;
-	u32 o_height = 0;
-	u32 ocrop_h = 0;
-	u32 is_1080p;
 
 	if (f->fmt.pix.priv && copy_from_user(&rect,
 		(void __user *)f->fmt.pix.priv, sizeof(rect)))
@@ -1127,15 +1157,7 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 		vout->task.input.crop.w = f->fmt.pix.width;
 		vout->task.input.crop.h = f->fmt.pix.height;
 	}
-
-	is_1080p = CHECK_TILED_1080P_DISPLAY(vout);
-	if (is_1080p) {
-		vout->task.input.crop.h = FRAME_HEIGHT_1080P;
-		o_height = vout->task.output.height;
-		ocrop_h = vout->task.output.crop.h;
-		vout->task.output.height = FRAME_HEIGHT_1080P;
-		vout->task.output.crop.h = FRAME_HEIGHT_1080P;
-	}
+	memcpy(&vout->in_rect, &vout->task.input.crop, sizeof(vout->in_rect));
 
 	ret = mxc_vout_try_task(vout);
 	if (!ret) {
@@ -1149,11 +1171,6 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 			f->fmt.pix.width = vout->task.input.crop.w;
 			f->fmt.pix.height = vout->task.input.crop.h;
 		}
-	}
-
-	if (is_1080p) {
-		vout->task.output.height = o_height;
-		vout->task.output.crop.h = ocrop_h;
 	}
 
 	return ret;
@@ -1302,6 +1319,8 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop
 		if (vout->vbq.streaming)
 			release_disp_output(vout);
 
+		memcpy(&vout->task.input.crop, &vout->in_rect,
+			sizeof(vout->in_rect));
 		ret = mxc_vout_try_task(vout);
 		if (ret < 0) {
 			v4l2_err(vout->vfd->v4l2_dev,
@@ -1462,6 +1481,8 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh, struct v4l2_control *c
 		if (vout->vbq.streaming)
 			release_disp_output(vout);
 
+		memcpy(&vout->task.input.crop, &vout->in_rect,
+				sizeof(vout->in_rect));
 		ret = mxc_vout_try_task(vout);
 		if (ret < 0) {
 			v4l2_err(vout->vfd->v4l2_dev,
