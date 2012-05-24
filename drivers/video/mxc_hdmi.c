@@ -58,6 +58,7 @@
 
 #include <linux/mfd/mxc-hdmi-core.h>
 #include <mach/mxc_hdmi.h>
+#include <mach/hardware.h>
 
 #define DISPDRV_HDMI	"hdmi"
 #define HDMI_EDID_LEN		512
@@ -1490,7 +1491,8 @@ static void mxc_hdmi_clear_overflow(void)
 		hdmi_writeb(val, HDMI_FC_INVIDCONF);
 
 	/* TMDS software reset */
-	hdmi_writeb((u8)~HDMI_MC_SWRSTZ_TMDSSWRST_REQ, HDMI_MC_SWRSTZ);
+	if (!cpu_is_mx6dl())
+		hdmi_writeb((u8)~HDMI_MC_SWRSTZ_TMDSSWRST_REQ, HDMI_MC_SWRSTZ);
 }
 
 static void hdmi_enable_overflow_interrupts(void)
@@ -1505,6 +1507,7 @@ static void hdmi_disable_overflow_interrupts(void)
 	pr_debug("%s\n", __func__);
 	hdmi_writeb(HDMI_IH_MUTE_FC_STAT2_OVERFLOW_MASK,
 		    HDMI_IH_MUTE_FC_STAT2);
+	hdmi_writeb(0xff, HDMI_FC_MASK2);
 }
 
 static void mxc_hdmi_notify_fb(struct mxc_hdmi *hdmi)
