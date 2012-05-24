@@ -1693,7 +1693,8 @@ CONFIG_USB_GSPCA=m
 #
 # Graphics support
 #
-# CONFIG_DRM is not set
+CONFIG_DRM=m
+CONFIG_DRM_VIVANTE=m
 # CONFIG_VGASTATE is not set
 # CONFIG_VIDEO_OUTPUT_CONTROL is not set
 CONFIG_FB=y
