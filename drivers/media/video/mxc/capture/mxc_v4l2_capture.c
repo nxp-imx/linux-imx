@@ -1724,12 +1724,13 @@ static int mxc_v4l_close(struct file *file)
 		err = stop_preview(cam);
 		cam->overlay_on = false;
 	}
-	if (cam->capture_pid == current->pid) {
-		err |= mxc_streamoff(cam);
-		wake_up_interruptible(&cam->enc_queue);
-	}
 
 	if (--cam->open_count == 0) {
+		if (cam->capture_pid == current->pid) {
+			err |= mxc_streamoff(cam);
+			wake_up_interruptible(&cam->enc_queue);
+		}
+
 		vidioc_int_s_power(cam->sensor, 0);
 		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
 			false, false);
