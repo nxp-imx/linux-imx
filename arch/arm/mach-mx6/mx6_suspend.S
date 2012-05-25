@@ -28,7 +28,7 @@
 #define TTRBIT_MASK 		0xffffc000
 #define TABLE_INDEX_MASK 	0xfff00000
 #define TABLE_ENTRY 		0x00000c02
-#define CACHE_DISABLE_MASK 	0xffffe7fb
+#define CACHE_DISABLE_MASK 	0xfffffffb
 #define MMDC_MAPSR_OFFSET 	0x404
 #define MMDC_MAPSR_PSS 		(1 << 4)
 #define MMDC_MAPSR_PSD 		(1 << 0)
@@ -541,7 +541,7 @@ Flush and disable L1 dcache
 	 * strongly ordered and would not hit the cache.
 	 */
 	mrc p15, 0, r0, c1, c0, 0
-	bic r0, r0, #(1 << 2)	@ Disable the C bit
+	bic r0, r0, #(1 << 2)		@ Disable the C bit
 	mcr p15, 0, r0, c1, c0, 0
 	isb
 
@@ -572,6 +572,41 @@ Flush and disable L1 dcache
 
 	.endm
 
+/******************************************************************
+Clean L2 cache
+******************************************************************/
+	.macro	clean_l2_cache
+	/* Clean L2 cache to write the dirty data into DRAM to make
+	sure the data alignment between DRAM and L2 cache.
+	*/
+#ifdef CONFIG_CACHE_L2X0
+	/* Clean L2 cache here */
+	ldr r1, =L2_BASE_ADDR
+	add r1, r1, #PERIPBASE_VIRT
+	/* Make way to 0xFFFF 16 ways */
+	mov r0, #0x10000
+	sub r0, r0, #0x1
+	/* 0x7BC is L2X0_CLEAN_WAY */
+	mov r4, #0x700
+	orr r4, #0xBC
+	str r0, [r1, r4]
+3:
+	ldr r2, [r1, r4]
+	ands	r2, r2, r0
+	bne 3b
+4:
+	mov r2, #0x0
+	/* 0x730 is L2X0_CACHE_SYNC */
+	mov r4, #0x700
+	orr r4, #0x30
+	str r2, [r1, r4]
+5:
+	ldr r2, [r1, r4]
+	ands	r2, r2, #0x1
+	bne 5b
+#endif
+	.endm
+
 ENTRY(mx6_suspend)
 	stmfd	sp!, {r0-r12}     @ Save registers
 /*************************************************************
@@ -584,6 +619,9 @@ suspend mode entry
 
 	/* Need to flush and disable L1 dcache*/
 	flush_disable_l1_dcache
+
+	/* Need to clean L2 dcache*/
+	clean_l2_cache
 
 	/* Disable L2 cache */
 #ifdef CONFIG_CACHE_L2X0
@@ -661,6 +699,21 @@ saved register and context as below:
 	mov	r0, r2 		/* get suspend_iram_base */
 	add	r0, r0, #IRAM_SUSPEND_SIZE	/* 4K */
 
+#ifdef CONFIG_CACHE_L2X0
+	ldr r1, =L2_BASE_ADDR
+	add r1, r1, #PERIPBASE_VIRT
+
+	ldr r4, [r1, #L2X0_CTRL]
+	ldr r5, [r1, #L2X0_AUX_CTRL]
+	ldr r6, [r1, #L2X0_TAG_LATENCY_CTRL]
+	ldr r7, [r1, #L2X0_DATA_LATENCY_CTRL]
+	stmfd	r0!, {r4-r7}
+
+	ldr r4, [r1, #L2X0_PREFETCH_CTRL]
+	ldr r5, [r1, #L2X0_POWER_CTRL]
+	stmfd	r0!, {r4-r5}
+#endif
+
 	mov	r4, sp			@ Store sp
 	mrs	r5, spsr		@ Store spsr
 	mov	r6, lr			@ Store lr
@@ -709,23 +762,11 @@ ddr_io_save_done:
 	mrc	p15, 0, r4, c1, c0, 0	@ SCTLR
 	stmfd	r0!, {r4}
 
-#ifdef CONFIG_CACHE_L2X0
-	ldr r1, =L2_BASE_ADDR
-	add r1, r1, #PERIPBASE_VIRT
-
-	ldr	r4, [r1, #L2X0_CTRL]
-	ldr	r5, [r1, #L2X0_AUX_CTRL]
-	ldr	r6, [r1, #L2X0_TAG_LATENCY_CTRL]
-	ldr	r7, [r1, #L2X0_DATA_LATENCY_CTRL]
-	stmfd	r0!, {r4-r7}
-
-	ldr	r4, [r1, #L2X0_PREFETCH_CTRL]
-	ldr	r5, [r1, #L2X0_POWER_CTRL]
-	stmfd	r0!, {r4-r5}
-#endif
-
 	/* Need to flush and disable L1 dcache*/
 	flush_disable_l1_dcache
+
+	/* Need to clean L2 dcache*/
+	clean_l2_cache
 
 /****************************************************************
 set ddr iomux to low power mode
@@ -816,15 +857,39 @@ are running with MMU off.
 resume:
 	/* Invalidate L1 I-cache first */
 	mov	r1,	#0x0
-	mcr p15, 0, r1, c7, c5, 0 @ Invalidate I-Cache
+	mcr	p15, 0, r1, c7, c5, 0	@ Invalidate I-Cache
+	mcr	p15, 0, r1, c7, c5, 0	@ invalidate Icache to PoU
+	mcr	p15, 0, r1, c7, c5, 6	@ invalidate branch predictor
+	mov	r1, #0x1800
+	mcr	p15, 0, r1, c1, c0, 0	@ enable the Icache and branch prediction
+	isb							@ as soon as possible
+
+	/* Need to invalidate L1 dcache */
+	invalidate_l1_dcache
+
 	ldr	r0, =SRC_BASE_ADDR
 	str	r1, [r0, #SRC_GPR1_OFFSET] /* clear SRC_GPR1 */
 	ldr	r0, [r0, #SRC_GPR2_OFFSET]
 
+#ifdef CONFIG_CACHE_L2X0
+	ldr r2, =L2_BASE_ADDR
+	ldmea	r0!, {r4-r7}
+	/* L2 will be enabled after L1 is enabled */
+	mov r4, #0x0
+	str r4, [r2, #L2X0_CTRL]
+	str r5, [r2, #L2X0_AUX_CTRL]
+	str r6, [r2, #L2X0_TAG_LATENCY_CTRL]
+	str r7, [r2, #L2X0_DATA_LATENCY_CTRL]
+
+	ldmea	r0!, {r4-r5}
+	str r4, [r2, #L2X0_PREFETCH_CTRL]
+	str r5, [r2, #L2X0_POWER_CTRL]
+#endif
+
 	/* Restore cp15 registers and cpu type */
 	ldmea	r0!, {r4-r7}
 	mov sp, r4			@ Restore sp
-	msr spsr_cxsf, r5	@ Restore spsr
+	msr spsr_cxsf, r5		@ Restore spsr
 	mov lr, r6			@ Restore lr
 	mov r12, r7			@ Restore cpu type
 
@@ -902,7 +967,6 @@ use_ttbr0:
 
 	mov	r1, #0
 	mcr	p15, 0, r1, c7, c5, 4	@ Flush prefetch buffer
-	mcr	p15, 0, r1, c7, c5, 6	@ Invalidate BTB
 	mcr	p15, 0, r1, c8, c5, 0	@ Invalidate ITLB
 	mcr	p15, 0, r1, c8, c6, 0	@ Invalidate DTLB
 
@@ -920,26 +984,6 @@ use_ttbr0:
 	ldr	r1, =mmu_on_label
 	bx	r1
 mmu_on_label:
-
-#ifdef CONFIG_CACHE_L2X0
-	ldr r2, =L2_BASE_ADDR
-	add r2, r2, #PERIPBASE_VIRT
-
-	ldmea	r0!, {r4-r7}
-	/* L2 will be enabled after L1 is enabled */
-	mov r4, #0x0
-	str r4, [r2, #L2X0_CTRL]
-	str r5, [r2, #L2X0_AUX_CTRL]
-	str r6, [r2, #L2X0_TAG_LATENCY_CTRL]
-	str r7, [r2, #L2X0_DATA_LATENCY_CTRL]
-
-	ldmea	r0!, {r4-r5}
-	str r4, [r2, #L2X0_PREFETCH_CTRL]
-	str r5, [r2, #L2X0_POWER_CTRL]
-#endif
-
-	/* Need to invalidate L1 dcache */
-	invalidate_l1_dcache
 
 /************************************************************
 restore control register to enable cache
