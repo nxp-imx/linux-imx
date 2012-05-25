@@ -1800,7 +1800,10 @@ static int mxcfb_option_setup(struct platform_device *pdev)
 	char name[] = "mxcfb0";
 
 	name[5] += pdev->id;
-	fb_get_options(name, &options);
+	if (fb_get_options(name, &options)) {
+		dev_err(&pdev->dev, "Can't get fb option for %s!\n", name);
+		return -ENODEV;
+	}
 
 	if (!options || !*options)
 		return 0;
@@ -2076,16 +2079,16 @@ static int mxcfb_probe(struct platform_device *pdev)
 	struct device *disp_dev;
 	int ret = 0;
 
-	/*
-	 * Initialize FB structures
-	 */
+	ret = mxcfb_option_setup(pdev);
+	if (ret)
+		goto get_fb_option_failed;
+
+	/* Initialize FB structures */
 	fbi = mxcfb_init_fbinfo(&pdev->dev, &mxcfb_ops);
 	if (!fbi) {
 		ret = -ENOMEM;
 		goto init_fbinfo_failed;
 	}
-
-	mxcfb_option_setup(pdev);
 
 	mxcfbi = (struct mxcfb_info *)fbi->par;
 	mxcfbi->ipu_int_clk = plat_data->int_clk;
@@ -2205,6 +2208,7 @@ init_dispdrv_failed:
 	fb_dealloc_cmap(&fbi->cmap);
 	framebuffer_release(fbi);
 init_fbinfo_failed:
+get_fb_option_failed:
 	return ret;
 }
 
