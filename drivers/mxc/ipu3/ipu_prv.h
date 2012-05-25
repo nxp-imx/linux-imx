@@ -89,7 +89,6 @@ struct ipu_soc {
 	uint32_t channel_enable_mask;
 
 	/*use count*/
-	int ipu_use_count;
 	int dc_use_count;
 	int dp_use_count;
 	int dmfc_use_count;
@@ -115,15 +114,6 @@ struct ipu_soc {
 	bool dc_swap;
 	struct completion dc_comp;
 	struct completion csi_comp;
-
-	/* for power gating */
-	u32 ipu_conf_reg;
-	u32 ic_conf_reg;
-	u32 cha_db_mode_reg[4];
-	u32 cha_trb_mode_reg[2];
-	u32 idma_sub_addr_reg[5];
-	u32 idma_enable_reg[2];
-	u32 buf_ready_reg[10];
 
 	struct rot_mem {
 		void *vaddr;
