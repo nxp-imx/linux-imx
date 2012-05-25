@@ -23,6 +23,8 @@
 #include <linux/regulator/consumer.h>
 #include <linux/pmic_external.h>
 #include <linux/clockchips.h>
+#include <linux/hrtimer.h>
+#include <linux/tick.h>
 #include <asm/io.h>
 #include <mach/hardware.h>
 #include <mach/clock.h>
@@ -217,12 +219,6 @@ extern int tick_broadcast_oneshot_active(void);
 	if (enable_wait_mode) {
 		u32 reg;
 		int cpu = smp_processor_id();
-#ifdef CONFIG_LOCAL_TIMERS
-		if (!tick_broadcast_oneshot_active())
-			return;
-
-		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
-#endif
 		*((char *)(&num_cpu_idle_lock) + (char)cpu) = 0x0;
 		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
 		if (arm_mem_clked_in_wait || mem_clk_on_in_wait) {
@@ -249,6 +245,13 @@ extern int tick_broadcast_oneshot_active(void);
 
 			__raw_writel(cur_arm_podf - 1, MXC_CCM_CACRR);
 		} else {
+#ifdef CONFIG_LOCAL_TIMERS
+			if (!tick_broadcast_oneshot_active()
+				|| !tick_oneshot_mode_active())
+				return;
+
+			clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
+#endif
 			if (low_bus_freq_mode || audio_bus_freq_mode)
 				mx6_wait((void *)&num_cpu_idle_lock,
 							(void *)&num_cpu_idle,
@@ -257,10 +260,10 @@ extern int tick_broadcast_oneshot_active(void);
 				mx6_wait((void *)&num_cpu_idle_lock,
 					(void *)&num_cpu_idle,
 					wait_mode_arm_podf, cur_arm_podf - 1);
-		}
 #ifdef CONFIG_LOCAL_TIMERS
-		clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
+			clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
 #endif
+		}
 	} else {
 		mxc_cpu_lp_set(WAIT_CLOCKED);
 		cpu_do_idle();
