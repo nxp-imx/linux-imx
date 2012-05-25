@@ -40,7 +40,6 @@
 #include "ipu_regs.h"
 #include "ipu_param_mem.h"
 
-static DEFINE_MUTEX(ipu_clk_lock);
 static struct ipu_soc ipu_array[MXC_IPU_MAX_NUM];
 int g_ipu_hw_rev;
 
@@ -376,20 +375,16 @@ void _ipu_get(struct ipu_soc *ipu)
 
 	if (in_interrupt())
 		return;
-	mutex_lock(&ipu_clk_lock);
 	ret = clk_enable(ipu->ipu_clk);
 	if (ret < 0)
 		BUG();
-	mutex_unlock(&ipu_clk_lock);
 }
 
 void _ipu_put(struct ipu_soc *ipu)
 {
 	if (in_interrupt())
 		return;
-	mutex_lock(&ipu_clk_lock);
 	clk_disable(ipu->ipu_clk);
-	mutex_unlock(&ipu_clk_lock);
 }
 
 /*!
@@ -3007,146 +3002,22 @@ bool ipu_pixel_format_has_alpha(uint32_t fmt)
 static int ipu_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct imx_ipuv3_platform_data *plat_data = pdev->dev.platform_data;
-	struct ipu_soc *ipu = platform_get_drvdata(pdev);
-	int i;
 
-	mutex_lock(&ipu_clk_lock);
-	ipu->ipu_use_count = clk_get_usecount(ipu->ipu_clk);
-	dev_dbg(ipu->dev, "%s, ipu_use_cnt:%d\n", __func__, ipu->ipu_use_count);
-	if (ipu->ipu_use_count) {
-		/* save and disable enabled channels*/
-		ipu->idma_enable_reg[0] = ipu_idmac_read(ipu, IDMAC_CHA_EN(0));
-		ipu->idma_enable_reg[1] = ipu_idmac_read(ipu, IDMAC_CHA_EN(32));
-		while ((ipu_idmac_read(ipu, IDMAC_CHA_BUSY(0))
-			& ipu->idma_enable_reg[0])
-			|| (ipu_idmac_read(ipu, IDMAC_CHA_BUSY(32))
-			& ipu->idma_enable_reg[1])) {
-			/* disable channel not busy already */
-			uint32_t chan_should_disable, timeout = 1000, time = 0;
-
-			chan_should_disable =
-				ipu_idmac_read(ipu, IDMAC_CHA_BUSY(0))
-					^ ipu->idma_enable_reg[0];
-			ipu_idmac_write(ipu, (~chan_should_disable) &
-					ipu->idma_enable_reg[0], IDMAC_CHA_EN(0));
-			chan_should_disable =
-				ipu_idmac_read(ipu, IDMAC_CHA_BUSY(1))
-					^ ipu->idma_enable_reg[1];
-			ipu_idmac_write(ipu, (~chan_should_disable) &
-					ipu->idma_enable_reg[1], IDMAC_CHA_EN(32));
-			msleep(2);
-			time += 2;
-			if (time >= timeout)
-				goto err;
-		}
-		ipu_idmac_write(ipu, 0, IDMAC_CHA_EN(0));
-		ipu_idmac_write(ipu, 0, IDMAC_CHA_EN(32));
-
-		/* save double buffer select regs */
-		ipu->cha_db_mode_reg[0] = ipu_cm_read(ipu, IPU_CHA_DB_MODE_SEL(0));
-		ipu->cha_db_mode_reg[1] = ipu_cm_read(ipu, IPU_CHA_DB_MODE_SEL(32));
-		ipu->cha_db_mode_reg[2] =
-			ipu_cm_read(ipu, IPU_ALT_CHA_DB_MODE_SEL(0));
-		ipu->cha_db_mode_reg[3] =
-			ipu_cm_read(ipu, IPU_ALT_CHA_DB_MODE_SEL(32));
-
-		/* save triple buffer select regs */
-		ipu->cha_trb_mode_reg[0] = ipu_cm_read(ipu, IPU_CHA_TRB_MODE_SEL(0));
-		ipu->cha_trb_mode_reg[1] = ipu_cm_read(ipu, IPU_CHA_TRB_MODE_SEL(32));
-
-		/* save idamc sub addr regs */
-		ipu->idma_sub_addr_reg[0] = ipu_idmac_read(ipu, IDMAC_SUB_ADDR_0);
-		ipu->idma_sub_addr_reg[1] = ipu_idmac_read(ipu, IDMAC_SUB_ADDR_1);
-		ipu->idma_sub_addr_reg[2] = ipu_idmac_read(ipu, IDMAC_SUB_ADDR_2);
-		ipu->idma_sub_addr_reg[3] = ipu_idmac_read(ipu, IDMAC_SUB_ADDR_3);
-		ipu->idma_sub_addr_reg[4] = ipu_idmac_read(ipu, IDMAC_SUB_ADDR_4);
-
-		/* save sub-modules status and disable all */
-		ipu->ic_conf_reg = ipu_ic_read(ipu, IC_CONF);
-		ipu_ic_write(ipu, 0, IC_CONF);
-		ipu->ipu_conf_reg = ipu_cm_read(ipu, IPU_CONF);
-		ipu_cm_write(ipu, 0, IPU_CONF);
-
-		/* save buf ready regs */
-		ipu->buf_ready_reg[0] = ipu_cm_read(ipu, IPU_CHA_BUF0_RDY(0));
-		ipu->buf_ready_reg[1] = ipu_cm_read(ipu, IPU_CHA_BUF0_RDY(32));
-		ipu->buf_ready_reg[2] = ipu_cm_read(ipu, IPU_CHA_BUF1_RDY(0));
-		ipu->buf_ready_reg[3] = ipu_cm_read(ipu, IPU_CHA_BUF1_RDY(32));
-		ipu->buf_ready_reg[4] = ipu_cm_read(ipu, IPU_ALT_CHA_BUF0_RDY(0));
-		ipu->buf_ready_reg[5] = ipu_cm_read(ipu, IPU_ALT_CHA_BUF0_RDY(32));
-		ipu->buf_ready_reg[6] = ipu_cm_read(ipu, IPU_ALT_CHA_BUF1_RDY(0));
-		ipu->buf_ready_reg[7] = ipu_cm_read(ipu, IPU_ALT_CHA_BUF1_RDY(32));
-		ipu->buf_ready_reg[8] = ipu_cm_read(ipu, IPU_CHA_BUF2_RDY(0));
-		ipu->buf_ready_reg[9] = ipu_cm_read(ipu, IPU_CHA_BUF2_RDY(32));
-
-		for (i = 0; i < ipu->ipu_use_count; i++)
-			clk_disable(ipu->ipu_clk);
-	}
-	mutex_unlock(&ipu_clk_lock);
-
+	/* All IDMAC channel and IPU clock should be disabled.*/
 	if (plat_data->pg)
 		plat_data->pg(1);
 
 	return 0;
-
-err:
-	mutex_unlock(&ipu_clk_lock);
-	return -1;
 }
 
 static int ipu_resume(struct platform_device *pdev)
 {
 	struct imx_ipuv3_platform_data *plat_data = pdev->dev.platform_data;
 	struct ipu_soc *ipu = platform_get_drvdata(pdev);
-	int i;
 
-	if (plat_data->pg)
+	if (plat_data->pg) {
 		plat_data->pg(0);
 
-	dev_dbg(ipu->dev, "%s, ipu_use_cnt:%d\n", __func__, ipu->ipu_use_count);
-	if (ipu->ipu_use_count) {
-		for (i = 0; i < ipu->ipu_use_count; i++)
-			_ipu_get(ipu);
-
-		/* restore buf ready regs */
-		ipu_cm_write(ipu, ipu->buf_ready_reg[0], IPU_CHA_BUF0_RDY(0));
-		ipu_cm_write(ipu, ipu->buf_ready_reg[1], IPU_CHA_BUF0_RDY(32));
-		ipu_cm_write(ipu, ipu->buf_ready_reg[2], IPU_CHA_BUF1_RDY(0));
-		ipu_cm_write(ipu, ipu->buf_ready_reg[3], IPU_CHA_BUF1_RDY(32));
-		ipu_cm_write(ipu, ipu->buf_ready_reg[4], IPU_ALT_CHA_BUF0_RDY(0));
-		ipu_cm_write(ipu, ipu->buf_ready_reg[5], IPU_ALT_CHA_BUF0_RDY(32));
-		ipu_cm_write(ipu, ipu->buf_ready_reg[6], IPU_ALT_CHA_BUF1_RDY(0));
-		ipu_cm_write(ipu, ipu->buf_ready_reg[7], IPU_ALT_CHA_BUF1_RDY(32));
-		ipu_cm_write(ipu, ipu->buf_ready_reg[8], IPU_CHA_BUF2_RDY(0));
-		ipu_cm_write(ipu, ipu->buf_ready_reg[9], IPU_CHA_BUF2_RDY(32));
-
-		/* re-enable sub-modules*/
-		ipu_cm_write(ipu, ipu->ipu_conf_reg, IPU_CONF);
-		ipu_ic_write(ipu, ipu->ic_conf_reg, IC_CONF);
-
-		/* restore double buffer select regs */
-		ipu_cm_write(ipu, ipu->cha_db_mode_reg[0], IPU_CHA_DB_MODE_SEL(0));
-		ipu_cm_write(ipu, ipu->cha_db_mode_reg[1], IPU_CHA_DB_MODE_SEL(32));
-		ipu_cm_write(ipu, ipu->cha_db_mode_reg[2],
-				IPU_ALT_CHA_DB_MODE_SEL(0));
-		ipu_cm_write(ipu, ipu->cha_db_mode_reg[3],
-				IPU_ALT_CHA_DB_MODE_SEL(32));
-
-		/* restore triple buffer select regs */
-		ipu_cm_write(ipu, ipu->cha_trb_mode_reg[0], IPU_CHA_TRB_MODE_SEL(0));
-		ipu_cm_write(ipu, ipu->cha_trb_mode_reg[1], IPU_CHA_TRB_MODE_SEL(32));
-
-		/* restore idamc sub addr regs */
-		ipu_idmac_write(ipu, ipu->idma_sub_addr_reg[0], IDMAC_SUB_ADDR_0);
-		ipu_idmac_write(ipu, ipu->idma_sub_addr_reg[1], IDMAC_SUB_ADDR_1);
-		ipu_idmac_write(ipu, ipu->idma_sub_addr_reg[2], IDMAC_SUB_ADDR_2);
-		ipu_idmac_write(ipu, ipu->idma_sub_addr_reg[3], IDMAC_SUB_ADDR_3);
-		ipu_idmac_write(ipu, ipu->idma_sub_addr_reg[4], IDMAC_SUB_ADDR_4);
-
-		/* restart idma channel*/
-		ipu_idmac_write(ipu, ipu->idma_enable_reg[0], IDMAC_CHA_EN(0));
-		ipu_idmac_write(ipu, ipu->idma_enable_reg[1], IDMAC_CHA_EN(32));
-	} else {
 		_ipu_get(ipu);
 		_ipu_dmfc_init(ipu, dmfc_type_setup, 1);
 		_ipu_init_dc_mappings(ipu);
@@ -3154,7 +3025,6 @@ static int ipu_resume(struct platform_device *pdev)
 		ipu_idmac_write(ipu, 0x18800001L, IDMAC_CHA_PRI(0));
 		_ipu_put(ipu);
 	}
-
 	return 0;
 }
 
