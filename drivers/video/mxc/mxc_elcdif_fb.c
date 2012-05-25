@@ -75,6 +75,7 @@ struct mxc_elcdif_fb_data {
 	struct completion vsync_complete;
 	struct completion frame_done_complete;
 	struct semaphore flip_sem;
+	struct fb_var_screeninfo var;
 	u32 pseudo_palette[16];
 };
 
@@ -775,6 +776,24 @@ static int mxc_elcdif_fb_setcolreg(u_int regno, u_int red, u_int green,
 	return ret;
 }
 
+/**
+   This function compare the fb parameter see whether it was different
+   parameter for hardware, if it was different parameter, the hardware
+   will reinitialize. All will compared except x/y offset.
+ */
+static int mxc_fb_par_equal(struct fb_info *fbi, struct mxc_elcdif_fb_data *data)
+{
+	/* Here we set the xoffset, yoffset to zero, and compare two
+	 * var see have different or not. */
+	struct fb_var_screeninfo oldvar = data->var;
+	struct fb_var_screeninfo newvar = fbi->var;
+
+	oldvar.xoffset = newvar.xoffset = 0;
+	oldvar.yoffset = newvar.yoffset = 0;
+
+	return memcmp(&oldvar, &newvar, sizeof(struct fb_var_screeninfo));
+}
+
 /*
  * This routine actually sets the video mode. It's in here where we
  * the hardware state info->par and fix which can be affected by the
@@ -788,6 +807,10 @@ static int mxc_elcdif_fb_set_par(struct fb_info *fbi)
 	int mem_len;
 
 	dev_dbg(fbi->device, "Reconfiguring framebuffer\n");
+
+	/* If parameter no change, don't reconfigure. */
+	if (mxc_fb_par_equal(fbi, data))
+	    return 0;
 
 	sema_init(&data->flip_sem, 1);
 
@@ -826,7 +849,7 @@ static int mxc_elcdif_fb_set_par(struct fb_info *fbi)
 	mxc_init_elcdif();
 	mxc_elcdif_init_panel();
 
-	dev_dbg(fbi->device, "pixclock = %lu Hz\n",
+	dev_dbg(fbi->device, "pixclock = %u Hz\n",
 		(u32) (PICOS2KHZ(fbi->var.pixclock) * 1000UL));
 
 	memset(&sig_cfg, 0, sizeof(sig_cfg));
@@ -860,6 +883,8 @@ static int mxc_elcdif_fb_set_par(struct fb_info *fbi)
 
 	fbi->mode = (struct fb_videomode *)fb_match_mode(&fbi->var,
 							 &fbi->modelist);
+	data->var = fbi->var;
+
 	return 0;
 }
 
@@ -1119,7 +1144,10 @@ static int mxc_elcdif_fb_pan_display(struct fb_var_screeninfo *var,
 	base = (var->bits_per_pixel) * base / 8;
 	base += info->fix.smem_start;
 
-	down(&data->flip_sem);
+	if (down_timeout(&data->flip_sem, HZ / 2)) {
+		dev_err(info->device, "timeout when waiting for flip irq\n");
+		return -ETIMEDOUT;
+	}
 
 	__raw_writel(base, elcdif_base + HW_ELCDIF_NEXT_BUF);
 
