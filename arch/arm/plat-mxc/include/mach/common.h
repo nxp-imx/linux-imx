@@ -74,6 +74,8 @@ extern int mx50_clocks_init(unsigned long ckil, unsigned long osc,
 			unsigned long ckih1);
 extern int mx6_clocks_init(unsigned long ckil, unsigned long osc,
 			unsigned long ckih1, unsigned long ckih2);
+extern int mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
+			unsigned long ckih1, unsigned long ckih2);
 extern void imx6_init_fec(struct fec_platform_data fec_data);
 extern int mxc91231_clocks_init(unsigned long fref);
 extern int mxc_register_gpios(void);
@@ -93,4 +95,5 @@ extern void early_console_setup(unsigned long base, struct clk *clk);
 extern void mx6_cpu_regulator_init(void);
 extern int mx6q_sabreauto_init_pfuze100(u32 int_gpio);
 extern int mx6q_sabresd_init_pfuze100(u32 int_gpio);
+extern void imx_print_silicon_rev(const char *cpu, int srev);
 #endif

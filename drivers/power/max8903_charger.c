@@ -246,13 +246,13 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 			gpio = pdata->dok; /* PULL_UPed Interrupt */
 
 			error = gpio_request(gpio, "chg_dc");
-			error = gpio_direction_input(gpio);
 			if (error < 0) {
 				dev_err(dev, "failed to configure"
 					" request/direction for GPIO %d, error %d\n",
 					gpio, error);
 				goto err;
 			}
+			gpio_direction_input(gpio);
 
 			ta_in = gpio_get_value(gpio) ? 0 : 1;
 
@@ -283,15 +283,15 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 		if (pdata->uok && gpio_is_valid(pdata->uok)) {
 			gpio = pdata->uok;
 			error = gpio_request(gpio, "chg_usb");
-			error = gpio_direction_input(gpio);
 			if (error < 0) {
 				dev_err(dev, "failed to configure"
 					" request/direction for GPIO %d, error %d\n",
 					gpio, error);
 				goto err;
 			}
-			usb_in = gpio_get_value(gpio) ? 0 : 1;
 
+			gpio_direction_input(gpio);
+			usb_in = gpio_get_value(gpio) ? 0 : 1;
 			if (usb_in)
 				data->usb_in = true;
 			else
@@ -321,13 +321,13 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 			goto err;
 		}
 		error = gpio_request(pdata->chg, "chg_status");
-		error = gpio_direction_input(pdata->chg);
 		if (error < 0) {
 			dev_err(dev, "failed to configure"
 				" request/direction for GPIO %d, error %d\n",
 				pdata->chg, error);
 			goto err;
 		}
+		error = gpio_direction_input(pdata->chg);
 	}
 
 	if (pdata->flt) {
@@ -337,13 +337,13 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 			goto err;
 		}
 		error = gpio_request(pdata->flt, "chg_fault");
-		error = gpio_direction_input(pdata->flt);
 		if (error < 0) {
 			dev_err(dev, "failed to configure"
 				" request/direction for GPIO %d, error %d\n",
 				pdata->flt, error);
 			goto err;
 		}
+		error = gpio_direction_input(pdata->flt);
 	}
 
 	if (pdata->usus) {

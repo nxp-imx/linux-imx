@@ -69,6 +69,8 @@ struct mxcfb_rect {
 
 #define GRAYSCALE_8BIT				0x1
 #define GRAYSCALE_8BIT_INVERTED			0x2
+#define GRAYSCALE_4BIT                          0x3
+#define GRAYSCALE_4BIT_INVERTED                 0x4
 
 #define AUTO_UPDATE_MODE_REGION_MODE		0
 #define AUTO_UPDATE_MODE_AUTOMATIC_MODE		1

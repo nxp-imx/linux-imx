@@ -657,6 +657,21 @@ static int __devexit pfuze100_regulator_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+int cpu_freq_suspend_in;	/*judge for in suspend or not*/
+static int pfuze100_regulator_suspend(struct platform_device *pdev,
+					pm_message_t state)
+{
+	cpu_freq_suspend_in = 1;
+	return 0;
+}
+
+static int pfuze100_regulator_resume(struct platform_device *pdev)
+{
+	cpu_freq_suspend_in = 0;
+	return 0;
+}
+#endif
 static struct platform_driver pfuze100_regulator_driver = {
 	.driver = {
 		   .name = "pfuze100-regulator",
@@ -664,6 +679,10 @@ static struct platform_driver pfuze100_regulator_driver = {
 		   },
 	.remove = __devexit_p(pfuze100_regulator_remove),
 	.probe = pfuze100_regulator_probe,
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	.suspend = pfuze100_regulator_suspend,
+	.resume = pfuze100_regulator_resume,
+#endif
 };
 
 static int __init pfuze100_regulator_init(void)

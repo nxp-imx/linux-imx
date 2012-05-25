@@ -2,7 +2,7 @@
  * CAAM/SEC 4.x driver backend
  * Private/internal definitions between modules
  *
- * Copyright 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  *
  */
 
@@ -25,6 +25,23 @@
 #define JOBR_INTC_TIME_THLD 0
 #define JOBR_INTC_COUNT_THLD 0
 #endif
+
+#ifndef CONFIG_OF
+#define JR_IRQRES_NAME_ROOT "irq_jr"
+#define JR_MEMRES_NAME_ROOT "offset_jr"
+#endif
+
+#ifdef CONFIG_ARM
+/*
+ * FIXME: ARM tree doesn't seem to provide this, ergo it seems to be
+ * in "platform limbo". Find a better place, perhaps.
+ */
+static inline void irq_dispose_mapping(unsigned int virq)
+{
+	return;
+}
+#endif
+
 
 /*
  * Storage for tracking each in-process entry moving across a ring
@@ -91,6 +108,10 @@ struct caam_drv_private {
 	/* list of registered crypto algorithms (mk generic context handle?) */
 	struct list_head alg_list;
 
+#ifdef CONFIG_ARM
+	struct clk *caam_clk;
+#endif
+
 	/*
 	 * debugfs entries for developer view into driver/device
 	 * variables at runtime.
@@ -108,6 +129,7 @@ struct caam_drv_private {
 #endif
 };
 
-void caam_jr_algapi_init(struct device *dev);
-void caam_jr_algapi_remove(struct device *dev);
+void caam_algapi_shutdown(struct platform_device *pdev);
+int caam_algapi_startup(struct platform_device *pdev);
+
 #endif /* INTERN_H */

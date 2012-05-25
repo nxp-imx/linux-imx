@@ -350,6 +350,16 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 					break;
 				}
 			case 0x4: /*Speaker allocation block*/
+				{
+					i = 0;
+					while (i < blklen) {
+						cfg->speaker_alloc = edid[index + 1];
+						index += 3;
+						i += 3;
+						DPRINTK("Speaker Alloc           : %02x\n", cfg->speaker_alloc);
+					}
+					break;
+				}
 			case 0x7: /*User extended block*/
 			default:
 				/* skip */

@@ -258,7 +258,7 @@
         virtual data.
 */
 #ifndef gcdMMU_SIZE
-#   define gcdMMU_SIZE                          (128 << 10)
+#   define gcdMMU_SIZE                          (2048 << 10)
 #endif
 
 /*
@@ -776,6 +776,10 @@
  */
 #ifndef gcdHIGH_PRECISION_DELAY_ENABLE
 #   define gcdHIGH_PRECISION_DELAY_ENABLE        1
+#endif
+
+#ifndef gcdUSE_WCLIP_PATCH
+#   define gcdUSE_WCLIP_PATCH                   0
 #endif
 
 #endif /* __gc_hal_options_h_ */

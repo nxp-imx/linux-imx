@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  */
 
 #ifndef CAAM_COMPAT_H
@@ -12,7 +12,6 @@
 #include <linux/interrupt.h>
 #include <linux/crypto.h>
 #include <linux/hw_random.h>
-#include <linux/of_platform.h>
 #include <linux/dma-mapping.h>
 #include <linux/io.h>
 #include <linux/spinlock.h>
@@ -22,6 +21,18 @@
 #include <linux/types.h>
 #include <linux/debugfs.h>
 #include <linux/circ_buf.h>
+
+#ifdef CONFIG_OF
+#include <linux/of_platform.h>
+#else
+#include <linux/platform_device.h>
+#endif
+
+#ifdef CONFIG_ARM /* needs the clock control subsystem */
+#include <linux/clk.h>
+#include <asm/cacheflush.h>
+#endif
+
 #include <net/xfrm.h>
 
 #include <crypto/algapi.h>
@@ -31,5 +42,6 @@
 #include <crypto/aead.h>
 #include <crypto/authenc.h>
 #include <crypto/scatterwalk.h>
+#include <crypto/internal/skcipher.h>
 
 #endif /* !defined(CAAM_COMPAT_H) */

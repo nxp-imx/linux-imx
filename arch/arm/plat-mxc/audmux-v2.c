@@ -186,13 +186,11 @@ EXPORT_SYMBOL_GPL(mxc_audmux_v2_configure_port);
 
 static int mxc_audmux_v2_init(void)
 {
-	int ret;
+	int ret = -1;
 
 #if defined(CONFIG_ARCH_MX6)
-	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
-		audmux_base = MX6_IO_ADDRESS(MX6Q_AUDMUX_BASE_ADDR);
-		ret = 0;
-	}
+	audmux_base = MX6_IO_ADDRESS(MX6Q_AUDMUX_BASE_ADDR);
+	ret = 0;
 #endif
 #if defined(CONFIG_ARCH_MX5)
 	if (cpu_is_mx51()) {

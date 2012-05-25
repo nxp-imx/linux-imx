@@ -1596,7 +1596,7 @@ _GetOutputBuffer(
 
 #if gcdTHREAD_BUFFERS > 1
     /* Get the current thread ID. */
-    gctUINT32 threadID = gcmkGETTHREADID();
+    gctUINT32 ThreadID = gcmkGETTHREADID();
 
     /* Locate the output buffer for the thread. */
     outputBuffer = _outputBufferHead;
@@ -1629,10 +1629,14 @@ _GetOutputBuffer(
 
         /* Reset the buffer. */
         outputBuffer->threadID   = ThreadID;
+#if gcdBUFFERED_OUTPUT
         outputBuffer->start      = 0;
         outputBuffer->index      = 0;
         outputBuffer->count      = 0;
+#endif
+#if gcdSHOW_LINE_NUMBER
         outputBuffer->lineNumber = 0;
+#endif
     }
 #else
     outputBuffer = _outputBufferHead;

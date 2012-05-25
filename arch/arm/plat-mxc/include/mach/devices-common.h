@@ -34,6 +34,7 @@ struct platform_device *__init imx_add_dma(const struct imx_dma_data *data);
 struct imx_fec_data {
 	resource_size_t iobase;
 	resource_size_t irq;
+	const char *devid;
 };
 struct platform_device *__init imx_add_fec(
 		const struct imx_fec_data *data,
@@ -104,6 +105,20 @@ struct imx_snvs_rtc_data {
 struct platform_device *__init imx_add_snvs_rtc(
 		const struct imx_snvs_rtc_data *data);
 
+struct imx_caam_jr_data {
+	resource_size_t offset_jr;
+	resource_size_t irq_jr;
+};
+
+struct imx_caam_data {
+	resource_size_t iobase_caam;
+	resource_size_t irq_sec_vio;
+	resource_size_t irq_snvs;
+	struct imx_caam_jr_data jr[4];	/* offset+IRQ for each possible ring */
+};
+
+struct platform_device *__init imx_add_caam(
+		const struct imx_caam_data *data);
 
 #include <mach/imxfb.h>
 struct imx_imx_fb_data {
@@ -453,6 +468,17 @@ struct platform_device *__init imx_add_imx_pxp(
 	const struct imx_pxp_data *data);
 struct platform_device *__init imx_add_imx_pxp_client(void);
 
+#include <linux/fsl_devices.h>
+struct imx_elcdif_data {
+	resource_size_t iobase;
+	resource_size_t iosize;
+	resource_size_t irq;
+};
+
+struct platform_device *__init imx_add_imx_elcdif(
+		const struct imx_elcdif_data *data,
+		const struct mxc_fb_platform_data *pdata);
+
 #include <mach/epdc.h>
 struct imx_epdc_data {
 	resource_size_t iobase;
@@ -462,6 +488,10 @@ struct imx_epdc_data {
 struct platform_device *__init imx_add_imx_epdc(
 		const struct imx_epdc_data *data,
 		const struct imx_epdc_fb_platform_data *pdata);
+
+struct platform_device *__init imx_add_imx_spdc(
+		const struct imx_epdc_data *data,
+		const struct imx_spdc_fb_platform_data *pdata);
 
 struct imx_spdif_data {
 	resource_size_t iobase;

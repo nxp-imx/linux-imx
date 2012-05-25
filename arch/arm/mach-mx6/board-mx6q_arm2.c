@@ -171,7 +171,6 @@ extern char *gp_reg_id;
 extern int epdc_enabled;
 extern void mx6_cpu_regulator_init(void);
 static int max17135_regulator_init(struct max17135 *max17135);
-extern volatile int num_cpu_idle_lock;
 
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
@@ -588,6 +587,7 @@ static struct fsl_mxc_camera_platform_data camera_data = {
 	.analog_regulator	= "DA9052_LDO7",
 	.core_regulator		= "DA9052_LDO9",
 	.mclk			= 24000000,
+	.mclk_source = 0,
 	.csi			= 0,
 	.io_init		= mx6_csi0_io_init,
 };
@@ -649,15 +649,15 @@ static void mx6_mipi_sensor_io_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mipi_sensor_pads,
 					mipi_sensor_pads_cnt);
 
-	if (cpu_is_mx6q())
-		mxc_iomux_set_gpr_register(1, 19, 1, 0);
+	/*for mx6dl, mipi virtual channel 1 connect to csi 1*/
 	if (cpu_is_mx6dl())
-		mxc_iomux_set_gpr_register(13, 0, 3, 0);
+		mxc_iomux_set_gpr_register(13, 3, 3, 1);
 }
 
 static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
 	.mclk		= 24000000,
-	.csi		= 0,
+	.csi		= 1,
+	.mclk_source = 0,
 	.io_init	= mx6_mipi_sensor_io_init,
 };
 
@@ -1538,6 +1538,21 @@ static struct mipi_csi2_platform_data mipi_csi2_pdata = {
 	.pixel_clk	= "emi_clk",
 };
 
+static struct fsl_mxc_capture_platform_data capture_data[] = {
+	{
+		.csi = 0,
+		.ipu = 0,
+		.mclk_source = 0,
+		.is_mipi = 0,
+	}, {
+		.csi = 1,
+		.ipu = 0,
+		.mclk_source = 0,
+		.is_mipi = 1,
+	},
+};
+
+
 static void arm2_suspend_enter(void)
 {
 	/* suspend preparation */
@@ -2013,7 +2028,6 @@ static void __init mx6_arm2_init(void)
 		spdif_pads_cnt =  ARRAY_SIZE(mx6dl_arm2_spdif_pads);
 		flexcan_pads_cnt = ARRAY_SIZE(mx6dl_arm2_can_pads);
 		i2c3_pads_cnt = ARRAY_SIZE(mx6dl_arm2_i2c3_pads);
-		num_cpu_idle_lock = 0xffff0000;
 	}
 
 	BUG_ON(!common_pads);
@@ -2091,9 +2105,12 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
-	imx6q_add_v4l2_capture(0);
+	imx6q_add_v4l2_capture(0, &capture_data[0]);
+	imx6q_add_v4l2_capture(1, &capture_data[1]);
 
 	imx6q_add_imx_snvs_rtc();
+
+	imx6q_add_imx_caam();
 
 	imx6q_add_imx_i2c(0, &mx6_arm2_i2c0_data);
 	imx6q_add_imx_i2c(1, &mx6_arm2_i2c1_data);
@@ -2218,6 +2235,7 @@ static struct sys_timer mxc_timer = {
 
 static void __init mx6_arm2_reserve(void)
 {
+#ifdef CONFIG_MXC_GPU_VIV
 	phys_addr_t phys;
 
 	if (imx6_gpu_pdata.reserved_mem_size) {
@@ -2227,6 +2245,7 @@ static void __init mx6_arm2_reserve(void)
 		memblock_remove(phys, imx6_gpu_pdata.reserved_mem_size);
 		imx6_gpu_pdata.reserved_mem_base = phys;
 	}
+#endif
 
 	if (imx_ion_data.heaps[0].size) {
 		phys = memblock_alloc(imx_ion_data.heaps[0].size, SZ_4K);

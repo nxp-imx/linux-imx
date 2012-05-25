@@ -109,8 +109,7 @@ typedef enum _gceTASK
     gcvTASK_UNLOCK_VIDEO_MEMORY,
     gcvTASK_FREE_VIDEO_MEMORY,
     gcvTASK_FREE_CONTIGUOUS_MEMORY,
-    gcvTASK_UNMAP_USER_MEMORY,
-    gcvTASK_UNMAP_MEMORY
+    gcvTASK_UNMAP_USER_MEMORY
 }
 gceTASK;
 
@@ -267,23 +266,6 @@ typedef struct _gcsTASK_UNMAP_USER_MEMORY
     IN gctUINT32                address;
 }
 gcsTASK_UNMAP_USER_MEMORY;
-
-typedef struct _gcsTASK_UNMAP_MEMORY * gcsTASK_UNMAP_MEMORY_PTR;
-typedef struct _gcsTASK_UNMAP_MEMORY
-{
-    /* Task ID (gcvTASK_UNMAP_MEMORY). */
-    IN gceTASK                  id;
-
-    /* Physical memory address to unmap. */
-    IN gctPHYS_ADDR             physical;
-
-    /* Number of bytes in physical memory to unmap. */
-    IN gctSIZE_T                bytes;
-
-    /* Address of mapped memory to unmap. */
-    IN gctPOINTER               logical;
-}
-gcsTASK_UNMAP_MEMORY;
 
 #ifdef __cplusplus
 }

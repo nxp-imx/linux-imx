@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,5 +49,8 @@ void __init imx6_init_fec(struct fec_platform_data fec_data)
 	if (!is_valid_ether_addr(fec_data.mac))
 		random_ether_addr(fec_data.mac);
 
-	imx6q_add_fec(&fec_data);
+	if (cpu_is_mx6sl())
+		imx6sl_add_fec(&fec_data);
+	else
+		imx6q_add_fec(&fec_data);
 }

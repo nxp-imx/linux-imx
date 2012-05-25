@@ -31,50 +31,42 @@
 #include "crm_regs.h"
 #include "cpu_op-mx6.h"
 
-extern unsigned int num_cpu_idle_lock;
-
-void *mx6_wait_in_iram_base;
-void (*mx6_wait_in_iram)(void);
-extern void mx6_wait(void);
-extern int init_mmdc_settings(void);
-
 struct cpu_op *(*get_cpu_op)(int *op);
-bool enable_wait_mode;
+bool enable_wait_mode = true;
 u32 arm_max_freq = CPU_AT_1GHz;
+bool mem_clk_on_in_wait;
 
 void __iomem *gpc_base;
 void __iomem *ccm_base;
 
+extern unsigned int num_cpu_idle_lock;
+
 static int cpu_silicon_rev = -1;
-#define SI_REV_OFFSET 	0x48
+#define MX6_USB_ANALOG_DIGPROG  0x260
+#define MX6SL_USB_ANALOG_DIGPROG  0x280
 
-static int get_mx6q_srev(void)
+static int mx6_get_srev(void)
 {
-	void __iomem *romcp = ioremap(BOOT_ROM_BASE_ADDR, SZ_8K);
+	void __iomem *anatop = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	u32 rev;
+	if (cpu_is_mx6sl())
+		rev = __raw_readl(anatop + MX6SL_USB_ANALOG_DIGPROG);
+	else
+		rev = __raw_readl(anatop + MX6_USB_ANALOG_DIGPROG);
 
-	if (!romcp) {
-		cpu_silicon_rev = -EINVAL;
-		return 0;
-	}
-
-	rev = __raw_readl(romcp + SI_REV_OFFSET);
 	rev &= 0xff;
 
-	iounmap(romcp);
-	if (rev == 0x10)
+	if (rev == 0)
 		return IMX_CHIP_REVISION_1_0;
-	else if (rev == 0x11)
+	else if (rev == 1)
 		return IMX_CHIP_REVISION_1_1;
-	else if (rev == 0x20)
-		return IMX_CHIP_REVISION_2_0;
-	return 0;
+
+	return IMX_CHIP_REVISION_UNKNOWN;
 }
 
 /*
  * Returns:
  *	the silicon revision of the cpu
- *	-EINVAL - not a mx50
  */
 int mx6q_revision(void)
 {
@@ -82,11 +74,43 @@ int mx6q_revision(void)
 		return -EINVAL;
 
 	if (cpu_silicon_rev == -1)
-		cpu_silicon_rev = get_mx6q_srev();
+		cpu_silicon_rev = mx6_get_srev();
 
 	return cpu_silicon_rev;
 }
 EXPORT_SYMBOL(mx6q_revision);
+
+/*
+ * Returns:
+ *	the silicon revision of the cpu
+ */
+int mx6dl_revision(void)
+{
+	if (!cpu_is_mx6dl())
+		return -EINVAL;
+
+	if (cpu_silicon_rev == -1)
+		cpu_silicon_rev = mx6_get_srev();
+
+	return cpu_silicon_rev;
+}
+EXPORT_SYMBOL(mx6dl_revision);
+
+/*
+ * Returns:
+ *	the silicon revision of the cpu
+ */
+int mx6sl_revision(void)
+{
+	if (!cpu_is_mx6sl())
+		return -EINVAL;
+
+	if (cpu_silicon_rev == -1)
+		cpu_silicon_rev = mx6_get_srev();
+
+	return cpu_silicon_rev;
+}
+EXPORT_SYMBOL(mx6sl_revision);
 
 static int __init post_cpu_init(void)
 {
@@ -113,13 +137,11 @@ static int __init post_cpu_init(void)
 	__raw_writel(reg, base + 0x50);
 	iounmap(base);
 
-	if (enable_wait_mode) {
-		/* Allow SCU_CLK to be disabled when all cores are in WFI*/
-		base = IO_ADDRESS(SCU_BASE_ADDR);
-		reg = __raw_readl(base);
-		reg |= 0x20;
-		__raw_writel(reg, base);
-	}
+	/* Allow SCU_CLK to be disabled when all cores are in WFI*/
+	base = IO_ADDRESS(SCU_BASE_ADDR);
+	reg = __raw_readl(base);
+	reg |= 0x20;
+	__raw_writel(reg, base);
 
 	/* Disable SRC warm reset to work aound system reboot issue */
 	base = IO_ADDRESS(SRC_BASE_ADDR);
@@ -131,8 +153,34 @@ static int __init post_cpu_init(void)
 	ccm_base = MX6_IO_ADDRESS(CCM_BASE_ADDR);
 
 	num_cpu_idle_lock = 0x0;
+	if (cpu_is_mx6dl())
+		num_cpu_idle_lock = 0xffff0000;
 
-	init_mmdc_settings();
+#ifdef CONFIG_SMP
+	switch (setup_max_cpus) {
+	case 3:
+		num_cpu_idle_lock = 0xff000000;
+		break;
+	case 2:
+		num_cpu_idle_lock = 0xffff0000;
+		break;
+	case 1:
+	case 0:
+		num_cpu_idle_lock = 0xffffff00;
+		break;
+	}
+#endif
+	/*
+	  * The option to keep ARM memory clocks enabled during WAIT
+	  * is only available on MX6SL, MX6DQ TO1.2  (or later) and
+	  * MX6DL TO1.1 (or later)
+	  * So if the user specifies "mem_clk_on" on any other chip,
+	  * ensure that it is disabled.
+	  */
+	if (!cpu_is_mx6sl() && (mx6q_revision() < IMX_CHIP_REVISION_1_2) &&
+		(mx6dl_revision() < IMX_CHIP_REVISION_1_1))
+		mem_clk_on_in_wait = false;
+
 	return 0;
 }
 postcore_initcall(post_cpu_init);
@@ -166,5 +214,15 @@ static int __init arm_core_max(char *p)
 }
 
 early_param("arm_freq", arm_core_max);
+
+static int __init enable_mem_clk_in_wait(char *p)
+{
+	mem_clk_on_in_wait = true;
+
+	return 0;
+}
+
+early_param("mem_clk_on", enable_mem_clk_in_wait);
+
 
 

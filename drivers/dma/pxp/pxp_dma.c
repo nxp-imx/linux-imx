@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -180,6 +180,7 @@ static bool is_yuv(u32 pix_fmt)
 	    (pix_fmt == PXP_PIX_FMT_YUV444) |
 	    (pix_fmt == PXP_PIX_FMT_NV12) |
 	    (pix_fmt == PXP_PIX_FMT_GREY) |
+	    (pix_fmt == PXP_PIX_FMT_GY04) |
 	    (pix_fmt == PXP_PIX_FMT_YVU410P) |
 	    (pix_fmt == PXP_PIX_FMT_YUV410P) |
 	    (pix_fmt == PXP_PIX_FMT_YVU420P) |
@@ -215,6 +216,9 @@ static void pxp_set_ctrl(struct pxps *pxp)
 	case PXP_PIX_FMT_GREY:
 		fmt_ctrl = BV_PXP_CTRL_S0_FORMAT__YUV420;
 		break;
+	case PXP_PIX_FMT_GY04:
+		fmt_ctrl = BV_PXP_CTRL_S0_FORMAT__YUV420;
+		break;
 	case PXP_PIX_FMT_YUV422P:
 		fmt_ctrl = BV_PXP_CTRL_S0_FORMAT__YUV422;
 		break;
@@ -242,6 +246,9 @@ static void pxp_set_ctrl(struct pxps *pxp)
 		break;
 	case PXP_PIX_FMT_GREY:
 		fmt_ctrl = BV_PXP_CTRL_OUTBUF_FORMAT__MONOC8;
+		break;
+	case PXP_PIX_FMT_GY04:
+		fmt_ctrl = BV_PXP_CTRL_OUTBUF_FORMAT__MONOC4;
 		break;
 	default:
 		fmt_ctrl = 0;
@@ -620,6 +627,14 @@ static void pxp_set_s0buf(struct pxps *pxp)
 		__raw_writel(U, pxp->base + HW_PXP_S0UBUF);
 		__raw_writel(V, pxp->base + HW_PXP_S0VBUF);
 	}
+
+	/* TODO: only support RGB565, Y8 , Y4 */
+	if (s0_params->pixel_fmt == PXP_PIX_FMT_GREY)
+		__raw_writel(s0_params->width, pxp->base + HW_PXP_PS_PITCH);
+	else if (s0_params->pixel_fmt == PXP_PIX_FMT_GY04)
+		 __raw_writel(s0_params->width >> 1, pxp->base + HW_PXP_PS_PITCH);
+	else
+		__raw_writel(s0_params->width * 2, pxp->base + HW_PXP_PS_PITCH);
 }
 
 /**

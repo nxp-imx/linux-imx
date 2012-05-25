@@ -25,4 +25,21 @@ extern void mx5_cpu_lp_set(enum mxc_cpu_pwr_mode mode);
 void arch_idle(void);
 
 void arch_reset(char mode, const char *cmd);
+
+#ifdef CONFIG_MXC_REBOOT_MFGMODE
+void do_switch_mfgmode(void);
+void mxc_clear_mfgmode(void);
+#else
+#define do_switch_mfgmode() do {} while (0)
+#define mxc_clear_mfgmode() do {} while (0)
+#endif
+
+#ifdef CONFIG_MXC_REBOOT_ANDROID_CMD
+void do_switch_recovery(void);
+void do_switch_fastboot(void);
+#else
+#define do_switch_recovery() do {} while (0)
+#define do_switch_fastboot() do {} while (0)
+#endif
+
 #endif /* __ASM_ARCH_MXC_SYSTEM_H__ */

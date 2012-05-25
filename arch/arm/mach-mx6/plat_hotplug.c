@@ -27,6 +27,7 @@
 #include <linux/sched.h>
 #include <asm/cacheflush.h>
 
+extern unsigned int num_cpu_idle_lock;
 void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
 
 int platform_cpu_kill(unsigned int cpu)
@@ -128,5 +129,6 @@ int platform_cpu_disable(unsigned int cpu)
 	 * we don't allow CPU 0 to be shutdown (it is still too special
 	 * e.g. clock tick interrupts)
 	 */
+	*((char *)(&num_cpu_idle_lock) + (u8)cpu) = 0xff;
 	return cpu == 0 ? -EPERM : 0;
 }

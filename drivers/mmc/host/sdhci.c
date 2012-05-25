@@ -35,6 +35,11 @@
 #define DBG(f, x...) \
 	pr_debug(DRIVER_NAME " [%s()]: " f, __func__,## x)
 
+#if defined(CONFIG_LEDS_CLASS) || (defined(CONFIG_LEDS_CLASS_MODULE) && \
+	defined(CONFIG_MMC_SDHCI_MODULE))
+/* FIXME: temp workaround for calling clk_enable in an interrupt context */
+#define SDHCI_USE_LEDS_CLASS_BROKEN
+#endif
 
 #define MAX_TUNING_LOOP 40
 

@@ -501,9 +501,10 @@ static int pfuze_probe(struct i2c_client *client,
 		if (ret)
 			goto err_mask;
 	}
-	ret = request_threaded_irq(client->irq, NULL, pfuze_irq_thread,
-				   IRQF_ONESHOT | IRQF_TRIGGER_LOW, "pfuze",
-				   mc_pfuze);
+	if (client->irq)
+		ret = request_threaded_irq(client->irq, NULL, pfuze_irq_thread,
+					IRQF_ONESHOT | IRQF_TRIGGER_LOW, "pfuze",
+					mc_pfuze);
 	if (ret) {
 	      err_mask:
 	      err_revision:

@@ -27,6 +27,10 @@ extern const struct imx_snvs_rtc_data imx6q_imx_snvs_rtc_data __initconst;
 #define imx6q_add_imx_snvs_rtc()	\
 	imx_add_snvs_rtc(&imx6q_imx_snvs_rtc_data)
 
+extern const struct imx_caam_data imx6q_imx_caam_data __initconst;
+#define imx6q_add_imx_caam()	\
+	imx_add_caam(&imx6q_imx_caam_data)
+
 extern const struct imx_anatop_thermal_imx_data
 imx6q_anatop_thermal_imx_data __initconst;
 #define imx6q_add_anatop_thermal_imx(id, pdata)	\
@@ -40,6 +44,9 @@ extern const struct imx_dma_data imx6q_dma_data __initconst;
 extern const struct imx_fec_data imx6q_fec_data __initconst;
 #define imx6q_add_fec(pdata)	\
 	imx_add_fec(&imx6q_fec_data, pdata)
+extern const struct imx_fec_data imx6sl_fec_data __initconst;
+#define imx6sl_add_fec(pdata)	\
+	imx_add_fec(&imx6sl_fec_data, pdata)
 
 extern const struct imx_sdhci_esdhc_imx_data
 imx6q_sdhci_usdhc_imx_data[] __initconst;
@@ -66,6 +73,10 @@ extern const struct imx_mxc_ehci_data imx6q_mxc_ehci_hs_data[] __initconst;
 #define imx6q_add_fsl_ehci_hs(id, pdata)	\
 	imx_add_fsl_ehci(&imx6q_mxc_ehci_hs_data[id - 1], pdata)
 
+extern const struct imx_mxc_ehci_data imx6sl_mxc_ehci_hs_data[] __initconst;
+#define imx6sl_add_fsl_ehci_hs(id, pdata)	\
+	imx_add_fsl_ehci(&imx6sl_mxc_ehci_hs_data[id - 1], pdata)
+
 extern const struct imx_fsl_usb2_otg_data imx6q_fsl_usb2_otg_data __initconst;
 #define imx6q_add_fsl_usb2_otg(pdata)	\
 	imx_add_fsl_usb2_otg(&imx6q_fsl_usb2_otg_data, pdata)
@@ -77,6 +88,10 @@ extern const struct imx_fsl_usb2_wakeup_data imx6q_fsl_otg_wakeup_data __initcon
 extern const struct imx_fsl_usb2_wakeup_data imx6q_fsl_hs_wakeup_data[] __initconst;
 #define imx6q_add_fsl_usb2_hs_wakeup(id, pdata)	\
 	imx_add_fsl_usb2_wakeup(&imx6q_fsl_hs_wakeup_data[id - 1], pdata)
+
+extern const struct imx_fsl_usb2_wakeup_data imx6sl_fsl_hs_wakeup_data[] __initconst;
+#define imx6sl_add_fsl_usb2_hs_wakeup(id, pdata)	\
+	imx_add_fsl_usb2_wakeup(&imx6sl_fsl_hs_wakeup_data[id - 1], pdata)
 
 extern const struct imx_imx_esai_data imx6q_imx_esai_data[] __initconst;
 #define imx6q_add_imx_esai(id, pdata) \
@@ -108,9 +123,9 @@ extern const struct imx_ldb_data imx6q_ldb_data __initconst;
 	platform_device_register_resndata(NULL, "mxc_v4l2_output",\
 			id, NULL, 0, NULL, 0);
 
-#define imx6q_add_v4l2_capture(id)	\
+#define imx6q_add_v4l2_capture(id, pdata)	\
 	platform_device_register_resndata(NULL, "mxc_v4l2_capture",\
-			id, NULL, 0, NULL, 0);
+			id, NULL, 0, pdata, sizeof(*pdata));
 
 extern const struct imx_mxc_hdmi_data imx6q_mxc_hdmi_data __initconst;
 #define imx6q_add_mxc_hdmi(pdata)	\
@@ -208,6 +223,14 @@ extern const struct imx_pxp_data imx6dl_pxp_data __initconst;
 extern const struct imx_epdc_data imx6dl_epdc_data __initconst;
 #define imx6dl_add_imx_epdc(pdata)	\
 	imx_add_imx_epdc(&imx6dl_epdc_data, pdata)
+
+extern const struct imx_epdc_data imx6sl_spdc_data __initconst;
+#define imx6sl_add_imx_spdc(pdata)	\
+	imx_add_imx_spdc(&imx6sl_spdc_data, pdata)
+
+extern const struct imx_elcdif_data imx6dl_elcdif_data __initconst;
+#define imx6dl_add_imx_elcdif(pdata)	\
+	imx_add_imx_elcdif(&imx6dl_elcdif_data, pdata)
 extern const struct imx_vdoa_data imx6q_vdoa_data __initconst;
 #define imx6q_add_vdoa() imx_add_vdoa(&imx6q_vdoa_data)
 

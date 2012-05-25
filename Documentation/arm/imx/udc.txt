@@ -33,3 +33,27 @@ to different PCs.
 Since there is no feedback at current usb audio framework,
 it may have pop noise/no sound after play some minutes.
 
+How to test auto remote wakeup with the g_zero gadget
+1. Prepare a USB host which featured with remote wakeup alternatively, You can
+use another i.mx board (like mx50 rdp, or mx6q) for test device board.
+2. Boot up both boards, and connect two boards with USB cable.
+3. At device side, do below commands:
+modprobe g_zero autoresume=3000 interval=1 endms=5000
+we can use the above three parameters to control device send resume signal time.
+Autoresume is the minimum number of milliseconds before sending resume signal,
+and the time before sending resume signal will automatically increase according
+to interval value,the endms is the max number of  milliseconds before sending
+resume signal.When autoresume is 0 or not be set,the test device auto remote
+wakeup function will be disabled.
+4. At host side, first do below command:
+echo enabled > /sys/devices/platform/fsl-ehci.1/power/wakeup
+echo enabled > /sys/bus/usb/devices/1-1/power/wakeup
+And you need build a test script to repeat standby the system like below:
+while [ 1 ] ;do echo mem  > /sys/power/state;sleep 5 ;done
+Then run the test script.
+5. Then USB device will enter the suspended state ,and autoresume
+milliseconds later,the device will send resume signal to wake up host.
+6. The expected behavior is: the host device be waked up, and there is not
+re-enumeration happens.
+7. The host will enter suspended state again,and test case will repeat step
+5 and step 6.

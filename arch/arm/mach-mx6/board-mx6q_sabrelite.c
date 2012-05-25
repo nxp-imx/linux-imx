@@ -596,6 +596,7 @@ static void mx6q_csi0_io_init(void)
 
 static struct fsl_mxc_camera_platform_data camera_data = {
 	.mclk = 24000000,
+	.mclk_source = 0,
 	.csi = 0,
 	.io_init = mx6q_csi0_io_init,
 };
@@ -842,6 +843,21 @@ static struct ion_platform_data imx_ion_data = {
 		},
 	},
 };
+
+static struct fsl_mxc_capture_platform_data capture_data[] = {
+	{
+		.csi = 0,
+		.ipu = 0,
+		.mclk_source = 0,
+		.is_mipi = 0,
+	}, {
+		.csi = 1,
+		.ipu = 0,
+		.mclk_source = 0,
+		.is_mipi = 1,
+	},
+};
+
 
 static void sabrelite_suspend_enter(void)
 {
@@ -1119,7 +1135,8 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
-	imx6q_add_v4l2_capture(0);
+	imx6q_add_v4l2_capture(0, &capture_data[0]);
+	imx6q_add_v4l2_capture(1, &capture_data[1]);
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_imx_snvs_rtc();
 
@@ -1221,6 +1238,7 @@ static struct sys_timer mx6_sabrelite_timer = {
 
 static void __init mx6q_sabrelite_reserve(void)
 {
+#ifdef CONFIG_MXC_GPU_VIV
 	phys_addr_t phys;
 	int i;
 
@@ -1231,6 +1249,7 @@ static void __init mx6q_sabrelite_reserve(void)
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
+#endif
 
 	if (imx_ion_data.heaps[0].size) {
 		phys = memblock_alloc(imx_ion_data.heaps[0].size, SZ_4K);

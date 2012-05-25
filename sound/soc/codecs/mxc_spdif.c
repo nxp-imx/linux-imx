@@ -81,9 +81,12 @@ struct spdif_mixer_control mxc_spdif_control;
 static unsigned long spdif_base_addr;
 
 #if MXC_SPDIF_DEBUG
-static void dumpregs(void)
+static void dumpregs(struct mxc_spdif_priv *priv)
 {
 	unsigned int value, i;
+
+	if (!priv->tx_active || !priv->rx_active)
+		clk_enable(priv->plat_data->spdif_core_clk);
 
 	for (i = 0 ; i <= 0x38 ; i += 4) {
 		value = readl(spdif_base_addr + i) & 0xffffff;
@@ -97,9 +100,12 @@ static void dumpregs(void)
 	i = 0x50;
 	value = readl(spdif_base_addr + i) & 0xffffff;
 	pr_debug("reg 0x%02x = 0x%06x\n", i, value);
+
+	if (!priv->tx_active || !priv->rx_active)
+		clk_disable(priv->plat_data->spdif_core_clk);
 }
 #else
-static void dumpregs(void) {}
+static void dumpregs(struct mxc_spdif_priv *priv) {}
 #endif
 
 /* define each spdif interrupt handlers */
@@ -299,7 +305,13 @@ static void spdif_irq_bit_error(unsigned int bit, void *devid)
  */
 static void spdif_irq_sym_error(unsigned int bit, void *devid)
 {
+	struct mxc_spdif_priv *spdif_priv = (struct mxc_spdif_priv *)devid;
+
 	pr_debug("SPDIF interrupt symbol error\n");
+	if (!atomic_read(&spdif_priv->dpll_locked)) {
+		/* dpll unlocked seems no audio stream */
+		spdif_intr_enable(INT_SYM_ERR, 0);
+	}
 }
 
 /*
@@ -517,14 +529,15 @@ static int mxc_spdif_playback_startup(struct snd_pcm_substream *substream,
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
-	int err;
+	int err = 0;
 
 	if (!plat_data->spdif_tx)
 		return -EINVAL;
 
 	spdif_priv->tx_active = true;
-	clk_enable(plat_data->spdif_clk);
-	clk_enable(plat_data->spdif_audio_clk);
+	err = clk_enable(plat_data->spdif_clk);
+	if (err < 0)
+		goto failed_clk;
 
 	err = snd_pcm_hw_constraint_list(runtime, 0,
 					 SNDRV_PCM_HW_PARAM_RATE,
@@ -537,14 +550,15 @@ static int mxc_spdif_playback_startup(struct snd_pcm_substream *substream,
 		goto failed;
 
 	return 0;
+
 failed:
-	clk_disable(plat_data->spdif_audio_clk);
 	clk_disable(plat_data->spdif_clk);
+failed_clk:
 	spdif_priv->tx_active = false;
 	return err;
 }
 
-static int mxc_spdif_playback_prepare(struct snd_pcm_substream *substream,
+static int mxc_spdif_playback_start(struct snd_pcm_substream *substream,
 					  struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
@@ -586,11 +600,11 @@ static int mxc_spdif_playback_prepare(struct snd_pcm_substream *substream,
 	regval |= SCR_DMA_TX_EN;
 	__raw_writel(regval, SPDIF_REG_SCR + spdif_base_addr);
 
-	dumpregs();
+	dumpregs(spdif_priv);
 	return 0;
 }
 
-static int mxc_spdif_playback_shutdown(struct snd_pcm_substream *substream,
+static int mxc_spdif_playback_stop(struct snd_pcm_substream *substream,
 						struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
@@ -601,7 +615,7 @@ static int mxc_spdif_playback_shutdown(struct snd_pcm_substream *substream,
 	if (!plat_data->spdif_tx)
 		return -EINVAL;
 
-	dumpregs();
+	dumpregs(spdif_priv);
 	pr_debug("SIS: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_SIS));
 
 	spdif_intr_status();
@@ -619,11 +633,39 @@ static int mxc_spdif_playback_shutdown(struct snd_pcm_substream *substream,
 	regval |= SCR_LOW_POWER;
 	__raw_writel(regval, SPDIF_REG_SCR + spdif_base_addr);
 
-	clk_disable(plat_data->spdif_audio_clk);
 	clk_disable(plat_data->spdif_clk);
 	spdif_priv->tx_active = false;
 
 	return 0;
+}
+
+static int mxc_spdif_playback_trigger(struct snd_pcm_substream *substream,
+				int cmd, struct snd_soc_dai *dai)
+{
+	struct snd_soc_codec *codec = dai->codec;
+	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
+	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
+	int ret = 0;
+
+	if (!plat_data->spdif_tx)
+		return -EINVAL;
+
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_RESUME:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		ret = mxc_spdif_playback_start(substream, dai);
+		break;
+	case SNDRV_PCM_TRIGGER_STOP:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		ret = mxc_spdif_playback_stop(substream, dai);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
 }
 
 static int mxc_spdif_capture_startup(struct snd_pcm_substream *substream,
@@ -641,7 +683,9 @@ static int mxc_spdif_capture_startup(struct snd_pcm_substream *substream,
 	spdif_priv->rx_active = true;
 
 	/* enable rx bus clock */
-	clk_enable(plat_data->spdif_clk);
+	err = clk_enable(plat_data->spdif_clk);
+	if (err < 0)
+		goto failed_clk;
 
 	/* set hw param constraints */
 	err = snd_pcm_hw_constraint_list(runtime, 0,
@@ -655,18 +699,16 @@ static int mxc_spdif_capture_startup(struct snd_pcm_substream *substream,
 	if (err < 0)
 		goto failed;
 
-	/* enable spdif dpll lock interrupt */
-	spdif_intr_enable(INT_DPLL_LOCKED, 1);
-
 	return 0;
 
 failed:
 	clk_disable(plat_data->spdif_clk);
+failed_clk:
 	spdif_priv->rx_active = false;
 	return err;
 }
 
-static int mxc_spdif_capture_prepare(struct snd_pcm_substream *substream,
+static int mxc_spdif_capture_start(struct snd_pcm_substream *substream,
 					 struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
@@ -674,7 +716,7 @@ static int mxc_spdif_capture_prepare(struct snd_pcm_substream *substream,
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
 	unsigned long regval;
 
-	if (!plat_data->spdif_rx)
+	if (!plat_data->spdif_rx || !spdif_priv->rx_active)
 		return -EINVAL;
 
 	regval = __raw_readl(spdif_base_addr + SPDIF_REG_SCR);
@@ -693,7 +735,7 @@ static int mxc_spdif_capture_prepare(struct snd_pcm_substream *substream,
 	spdif_intr_enable(INT_SYM_ERR | INT_BIT_ERR | INT_URX_FUL |
 			  INT_URX_OV | INT_QRX_FUL | INT_QRX_OV |
 			  INT_UQ_SYNC | INT_UQ_ERR | INT_RX_RESYNC |
-			  INT_LOSS_LOCK, 1);
+			  INT_LOSS_LOCK | INT_DPLL_LOCKED, 1);
 
 	/* setup rx clock source */
 	spdif_set_rx_clksrc(plat_data->spdif_rx_clk, SPDIF_DEFAULT_GAINSEL, 1);
@@ -711,7 +753,7 @@ static int mxc_spdif_capture_prepare(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int mxc_spdif_capture_shutdown(struct snd_pcm_substream *substream,
+static int mxc_spdif_capture_stop(struct snd_pcm_substream *substream,
 					       struct snd_soc_dai *dai)
 {
 	struct snd_soc_codec *codec = dai->codec;
@@ -719,7 +761,7 @@ static int mxc_spdif_capture_shutdown(struct snd_pcm_substream *substream,
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
 	unsigned long regval;
 
-	if (!plat_data->spdif_rx)
+	if (!plat_data->spdif_rx || !spdif_priv->rx_active)
 		return -EINVAL;
 
 	pr_debug("SIS: 0x%08x\n", __raw_readl(spdif_base_addr + SPDIF_REG_SIS));
@@ -745,6 +787,35 @@ static int mxc_spdif_capture_shutdown(struct snd_pcm_substream *substream,
 	spdif_priv->rx_active = false;
 
 	return 0;
+}
+
+static int mxc_spdif_capture_trigger(struct snd_pcm_substream *substream,
+				int cmd, struct snd_soc_dai *dai)
+{
+	struct snd_soc_codec *codec = dai->codec;
+	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
+	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
+	int ret = 0;
+
+	if (!plat_data->spdif_rx)
+		return -EINVAL;
+
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_RESUME:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		ret = mxc_spdif_capture_start(substream, dai);
+		break;
+	case SNDRV_PCM_TRIGGER_STOP:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		ret = mxc_spdif_capture_stop(substream, dai);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
 }
 
 /*
@@ -1058,7 +1129,16 @@ static int mxc_spdif_startup(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
-	int ret;
+	int ret = 0;
+
+	/* enable spdif_xtal_clk */
+	ret = clk_enable(plat_data->spdif_core_clk);
+	if (ret < 0)
+		goto failed_clk;
+
+	spdif_softreset();
+	/* disable all the interrupts */
+	spdif_intr_enable(0xffffff, 0);
 
 	/* enable spdif_xtal_clk */
 	clk_enable(plat_data->spdif_core_clk);
@@ -1071,6 +1151,7 @@ static int mxc_spdif_startup(struct snd_pcm_substream *substream,
 	else
 		ret = mxc_spdif_capture_startup(substream, dai);
 
+failed_clk:
 	return ret;
 }
 
@@ -1080,33 +1161,27 @@ static void mxc_spdif_shutdown(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
-	int ret;
 
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		ret = mxc_spdif_playback_shutdown(substream, dai);
-	else
-		ret = mxc_spdif_capture_shutdown(substream, dai);
 	/* disable spdif_core clock  */
-	clk_put(plat_data->spdif_clk);
 	clk_disable(plat_data->spdif_core_clk);
 }
 
-static int mxc_spdif_prepare(struct snd_pcm_substream *substream,
-			     struct snd_soc_dai *dai)
+static int mxc_spdif_trigger(struct snd_pcm_substream *substream,
+				int cmd, struct snd_soc_dai *dai)
 {
-	int ret;
+	int ret = 0;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
-		ret = mxc_spdif_playback_prepare(substream, dai);
+		ret = mxc_spdif_playback_trigger(substream, cmd, dai);
 	else
-		ret = mxc_spdif_capture_prepare(substream, dai);
+		ret = mxc_spdif_capture_trigger(substream, cmd, dai);
 
 	return ret;
 }
 
 struct snd_soc_dai_ops mxc_spdif_codec_dai_ops = {
 	.startup = mxc_spdif_startup,
-	.prepare = mxc_spdif_prepare,
+	.trigger = mxc_spdif_trigger,
 	.shutdown = mxc_spdif_shutdown,
 };
 
@@ -1128,65 +1203,9 @@ static int mxc_spdif_soc_remove(struct snd_soc_codec *codec)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int mxc_spdif_soc_suspend(struct snd_soc_codec *codec,
-				 pm_message_t state)
-{
-	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
-	struct mxc_spdif_platform_data *plat_data;
-
-	if (codec == NULL)
-		return -EINVAL;
-
-	plat_data = spdif_priv->plat_data;
-
-	if (spdif_priv->tx_active) {
-		clk_disable(plat_data->spdif_audio_clk);
-		clk_disable(plat_data->spdif_clk);
-	}
-
-	if (spdif_priv->rx_active)
-		clk_disable(plat_data->spdif_clk);
-
-	clk_disable(plat_data->spdif_core_clk);
-
-	return 0;
-}
-
-static int mxc_spdif_soc_resume(struct snd_soc_codec *codec)
-{
-	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
-	struct mxc_spdif_platform_data *plat_data;
-
-	if (codec == NULL)
-		return -EINVAL;
-
-	plat_data = spdif_priv->plat_data;
-
-	clk_enable(plat_data->spdif_core_clk);
-
-	if (spdif_priv->tx_active) {
-		clk_enable(plat_data->spdif_clk);
-		clk_enable(plat_data->spdif_audio_clk);
-	}
-
-	if (spdif_priv->rx_active)
-		clk_enable(plat_data->spdif_clk);
-
-	spdif_softreset();
-
-	return 0;
-}
-#else
-#define mxc_spdif_soc_suspend	NULL
-#define mxc_spdif_soc_resume	NULL
-#endif /* CONFIG_PM */
-
 struct snd_soc_codec_driver soc_codec_dev_spdif = {
 	.probe = mxc_spdif_soc_probe,
 	.remove = mxc_spdif_soc_remove,
-	.suspend = mxc_spdif_soc_suspend,
-	.resume = mxc_spdif_soc_resume,
 };
 
 static int __devinit mxc_spdif_probe(struct platform_device *pdev)
@@ -1283,13 +1302,12 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 		goto card_err;
 	}
 
-	dumpregs();
+	dumpregs(spdif_priv);
 
 	return 0;
 
 card_err:
 	clk_put(plat_data->spdif_clk);
-	clk_disable(plat_data->spdif_core_clk);
 failed_clk:
 	platform_set_drvdata(pdev, NULL);
 	kfree(spdif_priv);

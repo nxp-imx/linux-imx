@@ -30,6 +30,7 @@
 #include <mach/common.h>
 #include <mach/iomux-v3.h>
 #include <asm/hardware/cache-l2x0.h>
+#include "crm_regs.h"
 
 /*!
  * This structure defines the MX6 memory map.
@@ -59,14 +60,24 @@ static struct map_desc mx6_io_desc[] __initdata = {
 
 static void mx6_set_cpu_type(void)
 {
-	u32 cpu_type = readl(IO_ADDRESS(ANATOP_BASE_ADDR + 0x260));
+	u32 cpu_type = readl(IO_ADDRESS(ANATOP_BASE_ADDR + 0x280));
 
 	cpu_type >>= 16;
-	if (cpu_type == 0x63)
+	if (cpu_type == 0x60) {
+		mxc_set_cpu_type(MXC_CPU_MX6SL);
+		imx_print_silicon_rev("i.MX6SoloLite", mx6sl_revision());
+		return;
+	}
+
+	cpu_type = readl(IO_ADDRESS(ANATOP_BASE_ADDR + 0x260));
+	cpu_type >>= 16;
+	if (cpu_type == 0x63) {
 		mxc_set_cpu_type(MXC_CPU_MX6Q);
-	else if (cpu_type == 0x61)
+		imx_print_silicon_rev("i.MX6Q", mx6q_revision());
+	} else if (cpu_type == 0x61) {
 		mxc_set_cpu_type(MXC_CPU_MX6DL);
-	else
+		imx_print_silicon_rev("i.MX6DL/SOLO", mx6dl_revision());
+	} else
 		pr_err("Unknown CPU type: %x\n", cpu_type);
 }
 
@@ -87,6 +98,15 @@ void __init mx6_map_io(void)
 int mxc_init_l2x0(void)
 {
 	unsigned int val;
+
+	#define IOMUXC_GPR11_L2CACHE_AS_OCRAM 0x00000002
+
+	val = readl(IOMUXC_GPR11);
+	if (cpu_is_mx6sl() && (val & IOMUXC_GPR11_L2CACHE_AS_OCRAM)) {
+		/* L2 cache configured as OCRAM, reset it */
+		val &= ~IOMUXC_GPR11_L2CACHE_AS_OCRAM;
+		writel(val, IOMUXC_GPR11);
+	}
 
 	writel(0x132, IO_ADDRESS(L2_BASE_ADDR + L2X0_TAG_LATENCY_CTRL));
 	writel(0x132, IO_ADDRESS(L2_BASE_ADDR + L2X0_DATA_LATENCY_CTRL));

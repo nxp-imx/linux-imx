@@ -139,7 +139,14 @@ static int mipi_sensor;
 static int can0_enable;
 static int uart3_en;
 static int tuner_en;
-extern volatile int num_cpu_idle_lock;
+static int spinor_en;
+
+static int __init spinor_enable(char *p)
+{
+       spinor_en = 1;
+       return 0;
+}
+early_param("spi-nor", spinor_enable);
 
 static int __init uart3_enable(char *p)
 {
@@ -476,7 +483,7 @@ static int max7310_1_setup(struct i2c_client *client,
 	/* 7 GPS_RST_B */
 
 	int max7310_gpio_value[] = {
-		0, 1, 1, 1, 0, 0, 0, 0,
+		0, 1, 1, 1, 0, 0, 1, 0,
 	};
 
 	int n;
@@ -1273,6 +1280,21 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk	= NULL,	/* spdif bus clk */
 };
 
+static struct fsl_mxc_capture_platform_data capture_data[] = {
+	{
+		.csi = 0,
+		.ipu = 0,
+		.mclk_source = 0,
+		.is_mipi = 0,
+	}, {
+		.csi = 1,
+		.ipu = 0,
+		.mclk_source = 0,
+		.is_mipi = 1,
+	},
+};
+
+
 /*!
  * Board specific initialization.
  */
@@ -1332,13 +1354,14 @@ static void __init mx6_board_init(void)
 			i2c3_pads = mx6dl_i2c3_pads_rev_b;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6dl_i2c3_pads_rev_b);
 		}
-		num_cpu_idle_lock = 0xffff0000;
 	}
 
 	BUG_ON(!common_pads);
 	mxc_iomux_v3_setup_multiple_pads(common_pads, common_pads_cnt);
-	BUG_ON(!i2c3_pads);
-	mxc_iomux_v3_setup_multiple_pads(i2c3_pads, i2c3_pads_cnt);
+	if (!spinor_en) {
+		BUG_ON(!i2c3_pads);
+		mxc_iomux_v3_setup_multiple_pads(i2c3_pads, i2c3_pads_cnt);
+	}
 
 	if (can0_enable) {
 		BUG_ON(!can0_pads);
@@ -1361,7 +1384,10 @@ static void __init mx6_board_init(void)
 	if (!board_is_mx6_reva()) {
 		/* enable i2c3_sda route path */
 		gpio_request(SABREAUTO_I2C3_STEER, "i2c3-steer");
-		gpio_direction_output(SABREAUTO_I2C3_STEER, 1);
+		if (spinor_en)
+			gpio_direction_output(SABREAUTO_I2C3_STEER, 0);
+		else
+			gpio_direction_output(SABREAUTO_I2C3_STEER, 1);
 		/* Set GPIO_16 input for IEEE-1588 ts_clk and
 		 * RMII reference clk
 		 * For MX6 GPR1 bit21 meaning:
@@ -1405,7 +1431,8 @@ static void __init mx6_board_init(void)
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
 	imx6q_add_v4l2_output(0);
-	imx6q_add_v4l2_capture(0);
+	imx6q_add_v4l2_capture(0, &capture_data[0]);
+	imx6q_add_v4l2_capture(1, &capture_data[1]);
 	imx6q_add_android_device_buttons();
 
 	imx6q_add_imx_snvs_rtc();
@@ -1536,6 +1563,7 @@ static struct sys_timer mxc_timer = {
 
 static void __init mx6q_reserve(void)
 {
+#ifdef CONFIG_MXC_GPU_VIV
 	phys_addr_t phys;
 
 	if (imx6q_gpu_pdata.reserved_mem_size) {
@@ -1545,6 +1573,7 @@ static void __init mx6q_reserve(void)
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
+#endif
 
 	if (imx_ion_data.heaps[0].size) {
 		phys = memblock_alloc(imx_ion_data.heaps[0].size, SZ_4K);

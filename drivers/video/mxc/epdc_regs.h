@@ -163,9 +163,7 @@ extern void __iomem *epdc_base;
 #define EPDC_PIGEON_15_0		(epdc_base + 0xBC0)
 #define EPDC_PIGEON_15_1		(epdc_base + 0xBD0)
 #define EPDC_PIGEON_15_2		(epdc_base + 0xBE0)
-#define EPDC_PIGEON_16_0		(epdc_base + 0xC00)
-#define EPDC_PIGEON_16_1		(epdc_base + 0xC10)
-#define EPDC_PIGEON_16_2		(epdc_base + 0xC20)
+#define EPDC_WB_ADDR_TCE		(epdc_base + 0xC10)
 
 /*
  * Register field definitions

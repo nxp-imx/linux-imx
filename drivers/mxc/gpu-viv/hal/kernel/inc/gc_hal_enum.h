@@ -144,6 +144,7 @@ typedef enum _gceFEATURE
     gcvFEATURE_RS_YUV_TARGET,
     gcvFEATURE_2D_FC_SOURCE,
 	gcvFEATURE_PE_DITHER_FIX,
+    gcvFEATURE_2D_YUV_SEPARATE_STRIDE,
 }
 gceFEATURE;
 
@@ -262,6 +263,13 @@ typedef enum _gceSURF_ROTATION
     gcvSURF_FLIP_Y,
 }
 gceSURF_ROTATION;
+
+typedef enum _gceMIPMAP_IMAGE_FORMAT
+{
+    gcvUNKNOWN_MIPMAP_IMAGE_FORMAT  = -2
+}
+gceMIPMAP_IMAGE_FORMAT;
+
 
 /* Surface formats. */
 typedef enum _gceSURF_FORMAT

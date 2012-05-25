@@ -21,8 +21,10 @@
 #include <linux/io.h>
 #include <linux/err.h>
 #include <linux/delay.h>
+#include <linux/string.h>
 #include <mach/hardware.h>
 #include <mach/common.h>
+#include <mach/system.h>
 #include <asm/proc-fns.h>
 #include <asm/system.h>
 #ifdef CONFIG_SMP
@@ -31,22 +33,6 @@
 #include <asm/mach-types.h>
 
 static void __iomem *wdog_base;
-
-#ifdef CONFIG_MXC_REBOOT_MFGMODE
-void do_switch_mfgmode(void);
-void mxc_clear_mfgmode(void);
-#else
-void do_switch_mfgmode() {}
-void mxc_clear_mfgmode() {}
-#endif
-
-#ifdef CONFIG_MXC_REBOOT_ANDROID_CMD
-void do_switch_recovery(void);
-void do_switch_fastboot(void);
-#else
-void do_switch_recovery() {}
-void do_switch_fastboot() {}
-#endif
 
 static void arch_reset_special_mode(char mode, const char *cmd)
 {
@@ -69,7 +55,11 @@ void arch_reset(char mode, const char *cmd)
 
 #ifdef CONFIG_ARCH_MX6
 	/* wait for reset to assert... */
+	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	wcr_enable = 0x14; /*reset system by extern pmic*/
+	#else
 	wcr_enable = (1 << 2);
+	#endif
 	__raw_writew(wcr_enable, wdog_base);
 	/* errata TKT039676, SRS bit may be missed when
 	SRC sample it, need to write the wdog controller

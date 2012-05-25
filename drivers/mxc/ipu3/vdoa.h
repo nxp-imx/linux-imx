@@ -60,7 +60,7 @@ struct vdoa_ipu_buf {
 struct vdoa_info;
 typedef void *vdoa_handle_t;
 
-void vdoa_setup(vdoa_handle_t handle, struct vdoa_params *params);
+int vdoa_setup(vdoa_handle_t handle, struct vdoa_params *params);
 void vdoa_get_output_buf(vdoa_handle_t handle, struct vdoa_ipu_buf *buf);
 int  vdoa_start(vdoa_handle_t handle, int timeout_ms);
 void vdoa_stop(vdoa_handle_t handle);

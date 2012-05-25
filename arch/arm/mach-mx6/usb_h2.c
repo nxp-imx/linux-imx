@@ -31,6 +31,7 @@
 #include <mach/hardware.h>
 #include <mach/iomux-mx6q.h>
 #include <mach/iomux-mx6dl.h>
+#include <mach/iomux-mx6sl.h>
 #include "devices-imx6q.h"
 #include "regs-anadig.h"
 #include "usb.h"
@@ -185,6 +186,9 @@ static void hsic_start(void)
 	else if (cpu_is_mx6dl())
 		mxc_iomux_v3_setup_pad(
 				MX6DL_PAD_RGMII_TX_CTL__USBOH3_H2_STROBE_START);
+	else if (cpu_is_mx6sl())
+		mxc_iomux_v3_setup_pad(
+				MX6SL_PAD_HSIC_STROBE__USB_H_STROBE_START);
 }
 
 static void hsic_device_connected(void)

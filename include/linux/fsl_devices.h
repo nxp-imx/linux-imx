@@ -238,6 +238,13 @@ struct fsl_mxc_ldb_platform_data {
 	int sec_disp_id;
 };
 
+struct mxc_fb_platform_data {
+	struct fb_videomode *mode;
+	int num_modes;
+	char *mode_str;
+	u32 interface_pix_fmt;
+};
+
 struct fsl_mxc_lcd_platform_data {
 	char *io_reg;
 	char *core_reg;
@@ -280,12 +287,21 @@ struct fsl_mxc_hdmi_core_platform_data {
 	int disp_id;
 };
 
+struct fsl_mxc_capture_platform_data {
+	int csi;
+	int ipu;
+	u8 mclk_source;
+	u8 is_mipi;
+};
+
+
 struct fsl_mxc_camera_platform_data {
 	char *core_regulator;
 	char *io_regulator;
 	char *analog_regulator;
 	char *gpo_regulator;
 	u32 mclk;
+	u8 mclk_source;
 	u32 csi;
 	void (*pwdn)(int pwdn);
 	void (*io_init)(void);

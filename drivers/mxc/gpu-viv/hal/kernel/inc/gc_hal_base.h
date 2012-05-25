@@ -129,6 +129,7 @@ typedef struct _gcsTLS
 	gco3D						engine3D;
 #endif
 	gco2D						engine2D;
+    gctBOOL                     copied;
 }
 gcsTLS;
 
@@ -641,6 +642,9 @@ gceSTATUS
 gcoOS_GetTLS(
     OUT gcsTLS_PTR * TLS
     );
+
+    /* Copy the TLS from a source thread. */
+    gceSTATUS gcoOS_CopyTLS(IN gcsTLS_PTR Source);
 
 /* Destroy the objects associated with the current thread. */
 void
@@ -2061,6 +2065,11 @@ gcoDUMP_Delete(
     IN gctUINT32 Address
     );
 
+/* Enable dump or not. */
+gceSTATUS
+gcoDUMP_SetDumpFlag(
+    IN gctBOOL DumpState
+    );
 
 /******************************************************************************\
 ******************************* gcsRECT Structure ******************************

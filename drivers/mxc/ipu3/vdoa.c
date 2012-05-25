@@ -25,10 +25,10 @@
 #include <linux/iram_alloc.h>
 
 #include "vdoa.h"
-/* FIXME: use cmdline to specify the iram size */
 /* 6band(3field* double buffer) * (width*2) * bandline(8)
 	= 6x1024x2x8 = 96k or 72k(1.5byte) */
-#define VDOA_IRAM_SIZE	(1024*96)
+#define MAX_VDOA_IRAM_SIZE	(1024*96)
+#define VDOA_IRAM_SIZE		(1024*72)
 
 #define VDOAC_BAND_HEIGHT_32LINES	(32)
 #define VDOAC_BAND_HEIGHT_16LINES	(16)
@@ -123,6 +123,7 @@ struct vdoa_info {
 };
 
 static struct vdoa_info *g_vdoa;
+static unsigned long iram_size;
 static DEFINE_MUTEX(vdoa_lock);
 
 static inline void vdoa_read_register(struct vdoa_info *vdoa,
@@ -148,15 +149,16 @@ static void dump_registers(struct vdoa_info *vdoa)
 		vdoa_read_register(vdoa, i, &data);
 }
 
-void vdoa_setup(vdoa_handle_t handle, struct vdoa_params *params)
+int vdoa_setup(vdoa_handle_t handle, struct vdoa_params *params)
 {
 	int	band_size;
+	int	total_band_size = 0;
 	int	ipu_stride;
 	u32	data;
 	struct vdoa_info *vdoa = (struct vdoa_info *)handle;
 
 	CHECK_NULL_PTR(vdoa);
-	CHECK_STATE(VDOA_GET | VDOA_GET_OBUF | VDOA_STOP, return);
+	CHECK_STATE(VDOA_GET | VDOA_GET_OBUF | VDOA_STOP, return -EINVAL);
 	if (VDOA_GET == vdoa->state) {
 		dev_dbg(vdoa->dev, "w:%d, h:%d.\n",
 			 params->width, params->height);
@@ -193,6 +195,12 @@ void vdoa_setup(vdoa_handle_t handle, struct vdoa_params *params)
 		band_size = ((params->width * 3) >> 1) *
 						params->band_lines;
 	if (params->interlaced) {
+		total_band_size = 6 * band_size; /* 3 frames*double buffer */
+		if (iram_size < total_band_size) {
+			dev_err(vdoa->dev, "iram_size:0x%lx is smaller than "
+				"request:0x%x!\n", iram_size, total_band_size);
+			return -EINVAL;
+		}
 		if (params->vfield_buf.prev_veba) {
 			if (params->band_mode) {
 				vdoa_write_register(vdoa, VDOAIEBA00,
@@ -265,6 +273,7 @@ void vdoa_setup(vdoa_handle_t handle, struct vdoa_params *params)
 					params->width * params->height);
 	}
 	vdoa->state = VDOA_SETUP;
+	return 0;
 }
 
 void vdoa_get_output_buf(vdoa_handle_t handle, struct vdoa_ipu_buf *buf)
@@ -330,7 +339,7 @@ void vdoa_stop(vdoa_handle_t handle)
 	struct vdoa_info *vdoa = (struct vdoa_info *)handle;
 
 	CHECK_NULL_PTR(vdoa);
-	CHECK_STATE(VDOA_START | VDOA_INIRQ, return);
+	CHECK_STATE(VDOA_GET | VDOA_START | VDOA_INIRQ, return);
 	vdoa->state = VDOA_STOP;
 
 	disable_irq(vdoa->irq);
@@ -394,6 +403,21 @@ static irqreturn_t vdoa_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+/* IRAM Size in Kbytes, example:vdoa_iram_size=64, 64KBytes */
+static int __init vdoa_iram_size_setup(char *options)
+{
+	int ret;
+
+	ret = strict_strtoul(options, 0, &iram_size);
+	if (ret)
+		iram_size = 0;
+	else
+		iram_size *= SZ_1K;
+
+	return 1;
+}
+__setup("vdoa_iram_size=", vdoa_iram_size_setup);
+
 static int vdoa_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -451,16 +475,16 @@ static int vdoa_probe(struct platform_device *pdev)
 		ret = PTR_ERR(vdoa->clk);
 		goto err_clk;
 	}
-
-	vdoa->iram_base = iram_alloc(VDOA_IRAM_SIZE, &vdoa->iram_paddr);
+	if ((iram_size == 0) || (iram_size > MAX_VDOA_IRAM_SIZE))
+		iram_size = VDOA_IRAM_SIZE;
+	vdoa->iram_base = iram_alloc(iram_size, &vdoa->iram_paddr);
 	if (!vdoa->iram_base) {
-		dev_err(dev, "failed to get iram memory:0x%x\n",
-				VDOA_IRAM_SIZE);
+		dev_err(dev, "failed to get iram memory:0x%lx\n", iram_size);
 		ret = -ENOMEM;
 		goto err_iram_alloc;
 	}
-	dev_dbg(dev, "iram_base:0x%p,iram_paddr:0x%lx,size:0x%x\n",
-		 vdoa->iram_base, vdoa->iram_paddr, VDOA_IRAM_SIZE);
+	dev_dbg(dev, "iram_base:0x%p,iram_paddr:0x%lx,size:0x%lx\n",
+		 vdoa->iram_base, vdoa->iram_paddr, iram_size);
 
 	vdoa->state = VDOA_INIT;
 	dev_set_drvdata(dev, vdoa);
@@ -491,7 +515,7 @@ static int __devexit vdoa_remove(struct platform_device *pdev)
 
 	clk_put(vdoa->clk);
 	clk_disable(vdoa->clk);
-	iram_free(vdoa->iram_paddr, VDOA_IRAM_SIZE);
+	iram_free(vdoa->iram_paddr, iram_size);
 	iounmap(vdoa->reg_base);
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -122,7 +122,7 @@ static struct notifier_block nb = {
 static int __devinit lcd_probe(struct platform_device *pdev)
 {
 	int i;
-	struct mxc_lcd_platform_data *plat = pdev->dev.platform_data;
+	struct fsl_mxc_lcd_platform_data *plat = pdev->dev.platform_data;
 
 	if (plat) {
 		if (plat->reset)

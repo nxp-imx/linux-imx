@@ -137,7 +137,7 @@ typedef enum _gceCORE
 }
 gceCORE;
 
-#define gcdCORE_COUNT               3
+#define gcdGPU_COUNT               3
 
 /*******************************************************************************
 **
@@ -1226,8 +1226,8 @@ gckOS_BroadcastCalibrateSpeed(
 **      gckOS Os
 **          Pointer to a gckOS object.ß
 **
-**      gceCORE Core
-**          Core type.
+**      gckCORE Core
+**          GPU whose power is set.
 **
 **      gctBOOL Clock
 **          gcvTRUE to turn on the clock, or gcvFALSE to turn off the clock.

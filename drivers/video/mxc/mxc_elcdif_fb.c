@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -128,8 +128,10 @@ static inline void setup_dotclk_panel(u32 pixel_clk,
 	__raw_writel(BM_ELCDIF_CTRL_SHIFT_NUM_BITS,
 		     elcdif_base + HW_ELCDIF_CTRL_CLR);
 
+	__raw_writel(BM_ELCDIF_CTRL2_OUTSTANDING_REQS,
+		     elcdif_base + HW_ELCDIF_CTRL2_CLR);
 	__raw_writel(BF_ELCDIF_CTRL2_OUTSTANDING_REQS
-		    (BV_ELCDIF_CTRL2_OUTSTANDING_REQS__REQ_8),
+		    (BV_ELCDIF_CTRL2_OUTSTANDING_REQS__REQ_16),
 		     elcdif_base + HW_ELCDIF_CTRL2_SET);
 
 	/* Recover on underflow */
@@ -824,7 +826,7 @@ static int mxc_elcdif_fb_set_par(struct fb_info *fbi)
 	mxc_init_elcdif();
 	mxc_elcdif_init_panel();
 
-	dev_dbg(fbi->device, "pixclock = %ul Hz\n",
+	dev_dbg(fbi->device, "pixclock = %lu Hz\n",
 		(u32) (PICOS2KHZ(fbi->var.pixclock) * 1000UL));
 
 	memset(&sig_cfg, 0, sizeof(sig_cfg));
@@ -1369,7 +1371,7 @@ static int mxc_elcdif_fb_suspend(struct platform_device *pdev,
 	struct mxc_elcdif_fb_data *data = (struct mxc_elcdif_fb_data *)fbi->par;
 	int saved_blank;
 
-	acquire_console_sem();
+	console_lock();
 	fb_set_suspend(fbi, 1);
 	saved_blank = data->cur_blank;
 	mxc_elcdif_fb_blank(FB_BLANK_POWERDOWN, fbi);
@@ -1388,7 +1390,7 @@ static int mxc_elcdif_fb_suspend(struct platform_device *pdev,
 		clk_disable(g_elcdif_axi_clk);
 		g_elcdif_axi_clk_enable = false;
 	}
-	release_console_sem();
+	console_unlock();
 	return 0;
 }
 
@@ -1397,10 +1399,10 @@ static int mxc_elcdif_fb_resume(struct platform_device *pdev)
 	struct fb_info *fbi = platform_get_drvdata(pdev);
 	struct mxc_elcdif_fb_data *data = (struct mxc_elcdif_fb_data *)fbi->par;
 
-	acquire_console_sem();
+	console_lock();
 	mxc_elcdif_fb_blank(data->next_blank, fbi);
 	fb_set_suspend(fbi, 0);
-	release_console_sem();
+	console_unlock();
 
 	return 0;
 }

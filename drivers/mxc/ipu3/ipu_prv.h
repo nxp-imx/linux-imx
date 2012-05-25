@@ -20,16 +20,13 @@
 #include <linux/interrupt.h>
 #include <linux/fsl_devices.h>
 
-#ifdef CONFIG_MXC_IPU_V3H
-#define MXC_IPU_MAX_NUM	2
-#else
-#define MXC_IPU_MAX_NUM	1
-#endif
+#define MXC_IPU_MAX_NUM		2
+#define MXC_DI_NUM_PER_IPU	2
 
 /* Globals */
 extern int dmfc_type_setup;
-extern struct clk ipu_pixel_clk[];
-extern struct clk_lookup ipu_lookups[MXC_IPU_MAX_NUM][2];
+extern struct clk ipu_pixel_clk[MXC_IPU_MAX_NUM][MXC_DI_NUM_PER_IPU];
+extern struct clk_lookup ipu_lookups[MXC_IPU_MAX_NUM][MXC_DI_NUM_PER_IPU];
 
 #define IDMA_CHAN_INVALID	0xFF
 #define HIGH_RESOLUTION_WIDTH	1024
@@ -92,7 +89,7 @@ struct ipu_soc {
 	uint32_t channel_enable_mask;
 
 	/*use count*/
-	atomic_t ipu_use_count;
+	int ipu_use_count;
 	int dc_use_count;
 	int dp_use_count;
 	int dmfc_use_count;

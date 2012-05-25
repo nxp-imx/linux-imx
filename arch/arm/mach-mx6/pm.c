@@ -49,6 +49,7 @@
 #define GPC_ISR3_OFFSET				0x20
 #define GPC_ISR4_OFFSET				0x24
 #define GPC_CNTR_OFFSET				0x0
+#define GPC_PGC_DISP_PGCR_OFFSET	0x240
 #define GPC_PGC_GPU_PGCR_OFFSET		0x260
 #define GPC_PGC_CPU_PDN_OFFSET		0x2a0
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
@@ -65,12 +66,16 @@
 #define ANATOP_REG_CORE_OFFSET		0x140
 
 static struct clk *cpu_clk;
+static struct clk *axi_clk;
+static struct clk *periph_clk;
+static struct clk *axi_org_parent;
+
 static struct pm_platform_data *pm_data;
 
 #if defined(CONFIG_CPU_FREQ)
 extern int set_cpu_freq(int wp);
 #endif
-extern void mx6q_suspend(suspend_state_t state);
+extern void mx6_suspend(suspend_state_t state);
 extern void mx6_init_irq(void);
 extern unsigned int gpc_wake_irq[4];
 
@@ -86,11 +91,11 @@ static void __iomem *anatop_base;
 
 static void *suspend_iram_base;
 static void (*suspend_in_iram)(suspend_state_t state,
-	unsigned long iram_paddr, unsigned long suspend_iram_base) = NULL;
+	unsigned long iram_paddr, unsigned long suspend_iram_base, unsigned int cpu_type) = NULL;
 static unsigned long iram_paddr, cpaddr;
 
 static u32 ccm_ccr, ccm_clpcr, scu_ctrl;
-static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu, gpc_ctr;
+static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu, gpc_ctr, gpc_disp;
 static u32 anatop[2], ccgr1, ccgr2, ccgr3, ccgr6;
 static u32 ccm_analog_pfd528;
 static bool usb_vbus_wakeup_enabled;
@@ -236,6 +241,8 @@ static void mx6_suspend_store(void)
 	gpc_cpu_pdn = __raw_readl(gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 	gpc_cpu = __raw_readl(gpc_base + GPC_PGC_CPU_PDN_OFFSET);
 	gpc_ctr = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
+	if (cpu_is_mx6sl())
+		gpc_disp = __raw_readl(gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
 	anatop[0] = __raw_readl(anatop_base + ANATOP_REG_2P5_OFFSET);
 	anatop[1] = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
 }
@@ -261,7 +268,8 @@ static void mx6_suspend_restore(void)
 	__raw_writel(gpc_cpu_pup, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 	__raw_writel(gpc_cpu_pdn, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 	__raw_writel(gpc_cpu, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
-
+	if (cpu_is_mx6sl())
+		__raw_writel(gpc_disp, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
 	__raw_writel(ccgr1, MXC_CCM_CCGR1);
 	__raw_writel(ccgr2, MXC_CCM_CCGR2);
 	__raw_writel(ccgr3, MXC_CCM_CCGR3);
@@ -272,8 +280,16 @@ static void mx6_suspend_restore(void)
 static int mx6_suspend_enter(suspend_state_t state)
 {
 	unsigned int wake_irq_isr[4];
+	unsigned int cpu_type;
 	struct gic_dist_state gds;
 	struct gic_cpu_state gcs;
+
+	if (cpu_is_mx6q())
+		cpu_type = MXC_CPU_MX6Q;
+	else if (cpu_is_mx6dl())
+		cpu_type = MXC_CPU_MX6DL;
+	else
+		cpu_type = MXC_CPU_MX6SL;
 
 	wake_irq_isr[0] = __raw_readl(gpc_base +
 			GPC_ISR1_OFFSET) & gpc_wake_irq[0];
@@ -294,8 +310,10 @@ static int mx6_suspend_enter(suspend_state_t state)
 	mx6_suspend_store();
 
 	/* i.MX6dl TO1.0 TKT094231: can't support ARM_POWER_OFF mode */
-	if (state == PM_SUSPEND_MEM && cpu_is_mx6dl())
+	if (state == PM_SUSPEND_MEM &&
+		(mx6dl_revision() == IMX_CHIP_REVISION_1_0)) {
 		state = PM_SUSPEND_STANDBY;
+	}
 
 	switch (state) {
 	case PM_SUSPEND_MEM:
@@ -309,6 +327,9 @@ static int mx6_suspend_enter(suspend_state_t state)
 	default:
 		return -EINVAL;
 	}
+
+	axi_org_parent = clk_get_parent(axi_clk);
+	clk_set_parent(axi_clk, periph_clk);
 
 	if (state == PM_SUSPEND_MEM || state == PM_SUSPEND_STANDBY) {
 		if (pm_data && pm_data->suspend_enter)
@@ -324,7 +345,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 		}
 
 		suspend_in_iram(state, (unsigned long)iram_paddr,
-			(unsigned long)suspend_iram_base);
+			(unsigned long)suspend_iram_base, cpu_type);
 
 		if (state == PM_SUSPEND_MEM) {
 			/* restore gic registers */
@@ -333,6 +354,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 			usb_power_up_handler();
 			gpu_power_up();
 		}
+
 		mx6_suspend_restore();
 
 		if (pm_data && pm_data->suspend_exit)
@@ -340,6 +362,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 	} else {
 			cpu_do_idle();
 	}
+	clk_set_parent(axi_clk, axi_org_parent);
 
 	return 0;
 }
@@ -426,7 +449,7 @@ static int __init pm_init(void)
 	 * Need to run the suspend code from IRAM as the DDR needs
 	 * to be put into low power mode manually.
 	 */
-	memcpy((void *)cpaddr, mx6q_suspend, SZ_4K);
+	memcpy((void *)cpaddr, mx6_suspend, SZ_4K);
 
 	suspend_in_iram = (void *)suspend_iram_base;
 
@@ -435,6 +458,17 @@ static int __init pm_init(void)
 		printk(KERN_DEBUG "%s: failed to get cpu_clk\n", __func__);
 		return PTR_ERR(cpu_clk);
 	}
+	axi_clk = clk_get(NULL, "axi_clk");
+	if (IS_ERR(axi_clk)) {
+		printk(KERN_DEBUG "%s: failed to get axi_clk\n", __func__);
+		return PTR_ERR(axi_clk);
+	}
+	periph_clk = clk_get(NULL, "periph_clk");
+	if (IS_ERR(periph_clk)) {
+		printk(KERN_DEBUG "%s: failed to get periph_clk\n", __func__);
+		return PTR_ERR(periph_clk);
+	}
+
 	printk(KERN_INFO "PM driver module loaded\n");
 
 	return 0;

@@ -55,6 +55,14 @@ void __iomem *imx_otg_base;
 #define MXC_NUMBER_USB_TRANSCEIVER 6
 struct fsl_xcvr_ops *g_xc_ops[MXC_NUMBER_USB_TRANSCEIVER] = { NULL };
 
+bool usb_icbug_swfix_need(void)
+{
+	if (cpu_is_mx6sl())
+		return false;
+	else
+		return true;
+}
+
 enum fsl_usb2_modes get_usb_mode(struct fsl_usb2_platform_data *pdata)
 {
 	enum fsl_usb2_modes mode;
@@ -88,7 +96,7 @@ static int fsl_check_usbclk(void)
 
 	usb_ahb_clk = clk_get(NULL, "usb_ahb_clk");
 	if (clk_enable(usb_ahb_clk)) {
-		if (cpu_is_mx6q() || cpu_is_mx6dl())
+		if (cpu_is_mx6())
 			return 0; /* there is no ahb clock at mx6 */
 		printk(KERN_ERR "clk_enable(usb_ahb_clk) failed\n");
 		return -EINVAL;
@@ -97,7 +105,7 @@ static int fsl_check_usbclk(void)
 
 	usb_clk = clk_get(NULL, "usb_clk");
 	if (clk_enable(usb_clk)) {
-		if (cpu_is_mx6q() || cpu_is_mx6dl())
+		if (cpu_is_mx6())
 			return 0; /* there is usb_clk at mx6 */
 		printk(KERN_ERR "clk_enable(usb_clk) failed\n");
 		return -EINVAL;
@@ -502,7 +510,7 @@ int fsl_usb_host_init(struct platform_device *pdev)
 
 	if (usb_register_remote_wakeup(pdev))
 		pr_debug("%s port is not a wakeup source.\n", pdata->name);
-	if (!(cpu_is_mx6q() || cpu_is_mx6dl())) {
+	if (!(cpu_is_mx6())) {
 		if (xops->xcvr_type == PORTSC_PTS_SERIAL) {
 			if (cpu_is_mx35()) {
 				usbh2_set_serial_xcvr();
@@ -814,7 +822,7 @@ int usbotg_init(struct platform_device *pdev)
 			return -EINVAL;
 		if (xops->init)
 			xops->init(xops);
-		if (!((cpu_is_mx6q() || cpu_is_mx6dl()))) {
+		if (!(cpu_is_mx6())) {
 			UOG_PORTSC1 = UOG_PORTSC1 & ~PORTSC_PHCD;
 
 

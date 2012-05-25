@@ -215,11 +215,38 @@ struct imx_port {
 	wait_queue_head_t	dma_wait;
 };
 
+struct imx_port_ucrs {
+	unsigned int	ucr1;
+	unsigned int	ucr2;
+	unsigned int	ucr3;
+};
+
 #ifdef CONFIG_IRDA
 #define USE_IRDA(sport)	((sport)->use_irda)
 #else
 #define USE_IRDA(sport)	(0)
 #endif
+
+/*
+ * Save and restore functions for UCR1, UCR2 and UCR3 registers
+ */
+static void imx_port_ucrs_save(struct uart_port *port,
+			       struct imx_port_ucrs *ucr)
+{
+	/* save control registers */
+	ucr->ucr1 = readl(port->membase + UCR1);
+	ucr->ucr2 = readl(port->membase + UCR2);
+	ucr->ucr3 = readl(port->membase + UCR3);
+}
+
+static void imx_port_ucrs_restore(struct uart_port *port,
+				  struct imx_port_ucrs *ucr)
+{
+	/* restore control registers */
+	writel(ucr->ucr1, port->membase + UCR1);
+	writel(ucr->ucr2, port->membase + UCR2);
+	writel(ucr->ucr3, port->membase + UCR3);
+}
 
 /*
  * Handle any change of modem status signal since we were last called.
@@ -553,10 +580,8 @@ static irqreturn_t imx_rxint(int irq, void *dev_id)
 				continue;
 		}
 
-		spin_unlock_irqrestore(&sport->port.lock, flags);
 		if (uart_handle_sysrq_char(&sport->port, (unsigned char)rx))
 			continue;
-		spin_lock_irqsave(&sport->port.lock, flags);
 
 		if (unlikely(rx & URXD_ERR)) {
 			if (rx & URXD_BRK)
@@ -1406,6 +1431,70 @@ imx_verify_port(struct uart_port *port, struct serial_struct *ser)
 	return ret;
 }
 
+#if defined(CONFIG_CONSOLE_POLL)
+static int imx_poll_get_char(struct uart_port *port)
+{
+	struct imx_port_ucrs old_ucr;
+	unsigned int status;
+	unsigned char c;
+
+	/* save control registers */
+	imx_port_ucrs_save(port, &old_ucr);
+
+	/* disable interrupts */
+	writel(UCR1_UARTEN, port->membase + UCR1);
+	writel(old_ucr.ucr2 & ~(UCR2_ATEN | UCR2_RTSEN | UCR2_ESCI),
+	       port->membase + UCR2);
+	writel(old_ucr.ucr3 & ~(UCR3_DCD | UCR3_RI | UCR3_DTREN),
+	       port->membase + UCR3);
+
+	/* poll */
+	do {
+		status = readl(port->membase + USR2);
+	} while (~status & USR2_RDR);
+
+	/* read */
+	c = readl(port->membase + URXD0);
+
+	/* restore control registers */
+	imx_port_ucrs_restore(port, &old_ucr);
+
+	return c;
+}
+
+static void imx_poll_put_char(struct uart_port *port, unsigned char c)
+{
+	struct imx_port_ucrs old_ucr;
+	unsigned int status;
+
+	/* save control registers */
+	imx_port_ucrs_save(port, &old_ucr);
+
+	/* disable interrupts */
+	writel(UCR1_UARTEN, port->membase + UCR1);
+	writel(old_ucr.ucr2 & ~(UCR2_ATEN | UCR2_RTSEN | UCR2_ESCI),
+	       port->membase + UCR2);
+	writel(old_ucr.ucr3 & ~(UCR3_DCD | UCR3_RI | UCR3_DTREN),
+	       port->membase + UCR3);
+
+	/* drain */
+	do {
+		status = readl(port->membase + USR1);
+	} while (~status & USR1_TRDY);
+
+	/* write */
+	writel(c, port->membase + URTX0);
+
+	/* flush */
+	do {
+		status = readl(port->membase + USR2);
+	} while (~status & USR2_TXDC);
+
+	/* restore control registers */
+	imx_port_ucrs_restore(port, &old_ucr);
+}
+#endif
+
 static struct uart_ops imx_pops = {
 	.tx_empty	= imx_tx_empty,
 	.set_mctrl	= imx_set_mctrl,
@@ -1423,6 +1512,10 @@ static struct uart_ops imx_pops = {
 	.request_port	= imx_request_port,
 	.config_port	= imx_config_port,
 	.verify_port	= imx_verify_port,
+#if defined(CONFIG_CONSOLE_POLL)
+	.poll_get_char  = imx_poll_get_char,
+	.poll_put_char  = imx_poll_put_char,
+#endif
 };
 
 static struct imx_port *imx_ports[UART_NR];
@@ -1445,15 +1538,22 @@ static void
 imx_console_write(struct console *co, const char *s, unsigned int count)
 {
 	struct imx_port *sport = imx_ports[co->index];
-	unsigned int old_ucr1, old_ucr2, ucr1;
+	struct imx_port_ucrs old_ucr;
+	unsigned int ucr1;
 	unsigned long flags;
+	int locked = 1;
 
-	spin_lock_irqsave(&sport->port.lock, flags);
+	local_irq_save(flags);
+	if (sport->port.sysrq)
+		locked = 0;
+	else
+		spin_lock(&sport->port.lock);
+
 	/*
-	 *	First, save UCR1/2 and then disable interrupts
+	 *	First, save UCR1/2/3 and then disable interrupts
 	 */
-	ucr1 = old_ucr1 = readl(sport->port.membase + UCR1);
-	old_ucr2 = readl(sport->port.membase + UCR2);
+	imx_port_ucrs_save(&sport->port, &old_ucr);
+	ucr1 = old_ucr.ucr1;
 
 	if (cpu_is_mx1())
 		ucr1 |= MX1_UCR1_UARTCLKEN;
@@ -1462,19 +1562,21 @@ imx_console_write(struct console *co, const char *s, unsigned int count)
 
 	writel(ucr1, sport->port.membase + UCR1);
 
-	writel(old_ucr2 | UCR2_TXEN, sport->port.membase + UCR2);
+	writel(old_ucr.ucr2 | UCR2_TXEN, sport->port.membase + UCR2);
 
 	uart_console_write(&sport->port, s, count, imx_console_putchar);
 
 	/*
 	 *	Finally, wait for transmitter to become empty
-	 *	and restore UCR1/2
+	 *	and restore UCR1/2/3
 	 */
 	while (!(readl(sport->port.membase + USR2) & USR2_TXDC));
 
-	writel(old_ucr1, sport->port.membase + UCR1);
-	writel(old_ucr2, sport->port.membase + UCR2);
-	spin_unlock_irqrestore(&sport->port.lock, flags);
+	imx_port_ucrs_restore(&sport->port, &old_ucr);
+
+	if (locked)
+		spin_unlock(&sport->port.lock);
+	local_irq_restore(flags);
 }
 
 /*

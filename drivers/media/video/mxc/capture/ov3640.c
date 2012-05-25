@@ -1354,7 +1354,7 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 	ov3640_data.mclk = tgt_xclk;
 
 	pr_debug("   Setting mclk to %d MHz\n", tgt_xclk / 1000000);
-	set_mclk_rate(&ov3640_data.mclk, ov3640_data.csi);
+	set_mclk_rate(&ov3640_data.mclk, ov3640_data.mclk_source);
 
 	/* Default camera frame rate is set in probe */
 	tgt_fps = sensor->streamcap.timeperframe.denominator /
@@ -1442,6 +1442,7 @@ static int ov3640_probe(struct i2c_client *client,
 	memset(&ov3640_data, 0, sizeof(ov3640_data));
 	ov3640_data.mclk = 24000000; /* 6 - 54 MHz, typical 24MHz */
 	ov3640_data.mclk = plat_data->mclk;
+	ov3640_data.mclk_source = plat_data->mclk_source;
 	ov3640_data.csi = plat_data->csi;
 	ov3640_data.io_init = plat_data->io_init;
 
