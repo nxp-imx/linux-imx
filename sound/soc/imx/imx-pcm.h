@@ -42,8 +42,6 @@
 
 #include <mach/dma.h>
 
-#include "imx-ssi.h"
-
 struct imx_pcm_runtime_data {
 	int period_bytes;
 	int periods;
