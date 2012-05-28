@@ -156,6 +156,32 @@ static const struct esdhc_platform_data mx6_arm2_sd3_data __initconst = {
 #define V_to_uV(V) (mV_to_uV(V * 1000))
 #define uV_to_V(uV) (uV_to_mV(uV) / 1000)
 
+static struct regulator_consumer_supply arm2_vmmc_consumers[] = {
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.0"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.1"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.2"),
+};
+
+static struct regulator_init_data arm2_vmmc_init = {
+	.num_consumer_supplies = ARRAY_SIZE(arm2_vmmc_consumers),
+	.consumer_supplies = arm2_vmmc_consumers,
+};
+
+static struct fixed_voltage_config arm2_vmmc_reg_config = {
+	.supply_name	= "vmmc",
+	.microvolts	= 3300000,
+	.gpio		= -1,
+	.init_data	= &arm2_vmmc_init,
+};
+
+static struct platform_device arm2_vmmc_reg_devices = {
+	.name		= "reg-fixed-voltage",
+	.id		= 0,
+	.dev		= {
+		.platform_data = &arm2_vmmc_reg_config,
+	},
+};
+
 static struct regulator_consumer_supply display_consumers[] = {
 	{
 		/* MAX17135 */
@@ -497,10 +523,6 @@ void __init early_console_setup(unsigned long base, struct clk *clk);
 static inline void mx6_arm2_init_uart(void)
 {
 	imx6q_add_imx_uart(0, NULL); /* DEBUG UART1 */
-
-	imx6q_add_sdhci_usdhc_imx(0, &mx6_arm2_sd1_data);
-	imx6q_add_sdhci_usdhc_imx(1, &mx6_arm2_sd2_data);
-	imx6q_add_sdhci_usdhc_imx(2, &mx6_arm2_sd3_data);
 }
 
 static struct fec_platform_data fec_data __initdata = {
@@ -1008,6 +1030,11 @@ static void __init mx6_arm2_init(void)
 	udelay(500);
 
 	imx6_init_fec(fec_data);
+
+	platform_device_register(&arm2_vmmc_reg_devices);
+	imx6q_add_sdhci_usdhc_imx(0, &mx6_arm2_sd1_data);
+	imx6q_add_sdhci_usdhc_imx(1, &mx6_arm2_sd2_data);
+	imx6q_add_sdhci_usdhc_imx(2, &mx6_arm2_sd3_data);
 
 	mx6_arm2_init_usb();
 
