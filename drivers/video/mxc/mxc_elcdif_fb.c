@@ -781,17 +781,21 @@ static int mxc_elcdif_fb_setcolreg(u_int regno, u_int red, u_int green,
    parameter for hardware, if it was different parameter, the hardware
    will reinitialize. All will compared except x/y offset.
  */
-static int mxc_fb_par_equal(struct fb_info *fbi, struct mxc_elcdif_fb_data *data)
+static bool mxc_elcdif_fb_par_equal(struct fb_info *fbi, struct mxc_elcdif_fb_data *data)
 {
 	/* Here we set the xoffset, yoffset to zero, and compare two
 	 * var see have different or not. */
 	struct fb_var_screeninfo oldvar = data->var;
 	struct fb_var_screeninfo newvar = fbi->var;
 
+	if ((fbi->var.activate & FB_ACTIVATE_MASK) == FB_ACTIVATE_NOW &&
+	    fbi->var.activate & FB_ACTIVATE_FORCE)
+		return false;
+
 	oldvar.xoffset = newvar.xoffset = 0;
 	oldvar.yoffset = newvar.yoffset = 0;
 
-	return memcmp(&oldvar, &newvar, sizeof(struct fb_var_screeninfo));
+	return memcmp(&oldvar, &newvar, sizeof(struct fb_var_screeninfo)) == 0;
 }
 
 /*
@@ -809,7 +813,7 @@ static int mxc_elcdif_fb_set_par(struct fb_info *fbi)
 	dev_dbg(fbi->device, "Reconfiguring framebuffer\n");
 
 	/* If parameter no change, don't reconfigure. */
-	if (mxc_fb_par_equal(fbi, data))
+	if (mxc_elcdif_fb_par_equal(fbi, data))
 	    return 0;
 
 	sema_init(&data->flip_sem, 1);
