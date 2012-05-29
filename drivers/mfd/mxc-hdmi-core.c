@@ -51,11 +51,8 @@ struct mxc_hdmi_data {
 static unsigned long hdmi_base;
 static struct clk *isfr_clk;
 static struct clk *iahb_clk;
-static unsigned int irq_enable_cnt;
 static spinlock_t irq_spinlock;
 static spinlock_t edid_spinlock;
-static bool irq_initialized;
-static bool irq_enabled;
 static unsigned int sample_rate;
 static unsigned long pixel_clk_rate;
 static struct clk *pixel_clk;
@@ -136,56 +133,6 @@ void hdmi_write4(unsigned int value, unsigned int reg)
 	hdmi_writeb((value >> 8) & 0xff, reg + 1);
 	hdmi_writeb((value >> 16) & 0xff, reg + 2);
 	hdmi_writeb((value >> 24) & 0xff, reg + 3);
-}
-
-void hdmi_irq_init()
-{
-	/* First time IRQ is initialized, set enable_cnt to 1,
-	 * since IRQ starts out enabled after request_irq */
-	if (!irq_initialized) {
-		irq_enable_cnt = 1;
-		irq_initialized = true;
-		irq_enabled = true;
-	}
-}
-
-void hdmi_irq_enable(int irq)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&irq_spinlock, flags);
-
-	if (!irq_enabled) {
-		enable_irq(irq);
-		irq_enabled = true;
-	}
-
-	irq_enable_cnt++;
-
-	spin_unlock_irqrestore(&irq_spinlock, flags);
-}
-
-unsigned int hdmi_irq_disable(int irq)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&irq_spinlock, flags);
-
-	WARN_ON (irq_enable_cnt == 0);
-
-	irq_enable_cnt--;
-
-	/* Only disable HDMI IRQ if IAHB clk is off */
-	if ((irq_enable_cnt == 0) && (clk_get_usecount(iahb_clk) == 0)) {
-		disable_irq_nosync(irq);
-		irq_enabled = false;
-		spin_unlock_irqrestore(&irq_spinlock, flags);
-		return IRQ_DISABLE_SUCCEED;
-	}
-
-	spin_unlock_irqrestore(&irq_spinlock, flags);
-
-	return IRQ_DISABLE_FAIL;
 }
 
 static void initialize_hdmi_ih_mutes(void)
@@ -538,9 +485,6 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 	pixel_clk_rate = 0;
 	hdmi_ratio = 100;
 
-	irq_enable_cnt = 0;
-	irq_initialized = false;
-	irq_enabled = true;
 	spin_lock_init(&irq_spinlock);
 	spin_lock_init(&edid_spinlock);
 
