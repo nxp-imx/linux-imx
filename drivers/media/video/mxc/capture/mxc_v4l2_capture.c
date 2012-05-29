@@ -1313,7 +1313,7 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 	csi_param.force_eof = 0;
 	csi_param.data_en_pol = 0;
 	csi_param.data_fmt = 0;
-	csi_param.csi = 0;
+	csi_param.csi = cam->csi;
 	csi_param.mclk = 0;
 
 	/*This may not work on other platforms. Check when adding a new one.*/
@@ -1599,9 +1599,6 @@ static int mxc_v4l_open(struct file *file)
 		csi_param.mclk = ifparm.u.bt656.clock_curr;
 
 		csi_param.pixclk_pol = ifparm.u.bt656.latch_clk_inv;
-
-		/* Once we handle multiple inputs this will need to change. */
-		csi_param.csi = 0;
 
 		if (ifparm.u.bt656.mode
 				== V4L2_IF_TYPE_BT656_MODE_NOBT_8BIT)
