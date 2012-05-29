@@ -68,6 +68,8 @@
 #define SDHCI_PROT_CTRL_1BIT		(0 << 1)
 #define SDHCI_PROT_CTRL_LCTL		(1 << 0)
 
+#define SDHCI_FSL_SVN_300			0x11
+
 /*
  * There is an INT DMA ERR mis-match between eSDHC and STD SDHC SPEC:
  * Bit25 is used in STD SPEC, and is reserved in fsl eSDHC design,
@@ -269,10 +271,17 @@ static u16 esdhc_readw_le(struct sdhci_host *host, int reg)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = pltfm_host->priv;
 
-	if (unlikely(reg == SDHCI_HOST_VERSION))
-		reg ^= 2;
-
 	switch (reg) {
+	case SDHCI_HOST_VERSION:
+		reg ^= 2;
+		val = readl(host->ioaddr + reg);
+		if (((val & SDHCI_SPEC_VER_MASK) >> SDHCI_SPEC_VER_SHIFT)
+				== SDHCI_FSL_SVN_300) {
+			val &= ~SDHCI_SPEC_VER_MASK;
+			val |= SDHCI_SPEC_300;
+		}
+		ret = 0xFFFF & val;
+		return ret;
 	case SDHCI_HOST_CONTROL2:
 		ret = 0;
 		/* collect bit info from several regs */
