@@ -383,11 +383,7 @@ static int mxc_cpufreq_suspend(struct cpufreq_policy *policy)
 	have to do this, so use macro to decrease the impact on
 	released code, the 1Ghz issue should be fixed in the future*/
 	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000))
-	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 		set_cpu_freq(imx_freq_table[0].frequency * 1000);
-	#else
-		set_cpu_freq(imx_freq_table[0].frequency);
-	#endif
 
 	return 0;
 }
