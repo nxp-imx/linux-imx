@@ -56,6 +56,7 @@ extern bool arm_mem_clked_in_wait;
 extern int cur_arm_podf;
 
 static void __iomem *apll_base;
+static void __iomem *timer_base;
 static struct clk pll1_sys_main_clk;
 static struct clk pll2_528_bus_main_clk;
 static struct clk pll2_pfd2_400M;
@@ -66,6 +67,7 @@ static struct clk pll6_enet_main_clk; /* Essentially same as PLL8 on MX6Q/DL */
 static struct clk pll7_usb_host_main_clk;
 static struct clk usdhc3_clk;
 static struct clk ipg_clk;
+static struct clk gpt_clk[];
 
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
@@ -78,6 +80,9 @@ DEFINE_SPINLOCK(mx6sl_clk_lock);
 #define AUDIO_VIDEO_MIN_CLK_FREQ	650000000
 #define AUDIO_VIDEO_MAX_CLK_FREQ	1300000000
 #define MAX_ARM_CLK_IN_WAIT	158000000
+#define V2_TCN			0x24
+#define V2_TSTAT		0x08
+#define V2_TSTAT_ROV	(1 << 5)
 
 /* We need to check the exp status again after timer expiration,
  * as there might be interrupt coming between the first time exp
@@ -87,16 +92,38 @@ DEFINE_SPINLOCK(mx6sl_clk_lock);
  * timer expiration. */
 #define WAIT(exp, timeout) \
 ({ \
-	struct timespec nstimeofday; \
-	struct timespec curtime; \
+	u32 gpt_rate; \
+	u32 gpt_ticks; \
+	u32 gpt_cnt; \
+	u32 reg; \
 	int result = 1; \
-	getnstimeofday(&nstimeofday); \
+	gpt_rate = clk_get_rate(&gpt_clk[0]); \
+	gpt_ticks = timeout / (1000000000 / gpt_rate); \
+	reg = __raw_readl(timer_base + V2_TSTAT);\
+	/* Clear the GPT roll over interrupt. */ \
+	if (reg & V2_TSTAT_ROV) { \
+		reg |= V2_TSTAT_ROV;\
+		__raw_writel(reg, timer_base + V2_TSTAT);\
+	} \
+	gpt_cnt = __raw_readl(timer_base + V2_TCN); \
 	while (!(exp)) { \
-		getnstimeofday(&curtime); \
-		if ((curtime.tv_nsec - nstimeofday.tv_nsec) > (timeout)) { \
-			if (!(exp)) \
+		if ((__raw_readl(timer_base + V2_TCN) - gpt_cnt) > gpt_ticks) { \
+			if (!exp) \
 				result = 0; \
 			break; \
+		} else { \
+			reg = __raw_readl(timer_base + V2_TSTAT);\
+			if (reg & V2_TSTAT_ROV) { \
+				u32 old_cnt = gpt_cnt; \
+				/* Timer has rolled over. \
+				  * Calculate the new tcik count. \
+				  */ \
+				gpt_cnt = __raw_readl(timer_base + V2_TCN); \
+				gpt_ticks -= (0xFFFFFFFF - old_cnt + gpt_cnt); \
+				/* Clear the roll over interrupt. */ \
+				reg |= V2_TSTAT_ROV;\
+				__raw_writel(reg, timer_base + V2_TSTAT);\
+			} \
 		} \
 	} \
 	result; \
@@ -420,7 +447,7 @@ static int _clk_pll_enable(struct clk *clk)
 		__raw_writel(BM_ANADIG_ANA_MISC2_CONTROL0, apll_base + HW_ANADIG_ANA_MISC2_CLR);
 
 	/* Wait for PLL to lock */
-	if (!WAIT(__raw_readl(pllbase) & ANADIG_PLL_LOCK,
+	if (!WAIT((__raw_readl(pllbase) & ANADIG_PLL_LOCK),
 				SPIN_DELAY))
 		panic("pll enable failed\n");
 
@@ -478,7 +505,7 @@ static int _clk_pll1_main_set_rate(struct clk *clk, unsigned long rate)
 	__raw_writel(reg, PLL1_SYS_BASE_ADDR);
 
 	/* Wait for PLL1 to lock */
-	if (!WAIT(__raw_readl(PLL1_SYS_BASE_ADDR) & ANADIG_PLL_LOCK,
+	if (!WAIT((__raw_readl(PLL1_SYS_BASE_ADDR) & ANADIG_PLL_LOCK),
 				SPIN_DELAY))
 		panic("pll1 enable failed\n");
 
@@ -3710,7 +3737,6 @@ static void clk_tree_init(void)
 int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 	unsigned long ckih1, unsigned long ckih2)
 {
-	__iomem void *base;
 	int i;
 
 	external_low_reference = ckil;
@@ -3718,6 +3744,7 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 	ckih2_reference = ckih2;
 	oscillator_reference = osc;
 
+	timer_base = ioremap(GPT_BASE_ADDR, SZ_4K);
 	apll_base = ioremap(ANATOP_BASE_ADDR, SZ_4K);
 
 	for (i = 0; i < ARRAY_SIZE(lookups); i++) {
@@ -3725,17 +3752,25 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 		clk_debug_register(lookups[i].clk);
 	}
 
-	/* Disable un-necessary PFDs & PLLs */
+	/* GPT will source from perclk, hence ipg_perclk
+	 * should be from OSC24M */
+	clk_set_parent(&ipg_perclk, &osc_clk);
+
+	gpt_clk[0].parent = &ipg_perclk;
+	gpt_clk[0].get_rate = NULL;
+
+	mxc_timer_init(&gpt_clk[0], timer_base, MXC_INT_GPT);
+
+	clk_tree_init();
 
 	/* keep correct count. */
 	clk_enable(&cpu_clk);
 	clk_enable(&periph_clk);
 
-	clk_tree_init();
-
 	/* Set AHB to 132MHz. */
 	clk_set_rate(&ahb_clk, clk_round_rate(&ahb_clk, 132000000));
 
+	/* Disable un-necessary PFDs & PLLs */
 	pll2_pfd0_352M.disable(&pll2_pfd0_352M);
 	pll2_pfd1_594M.disable(&pll2_pfd1_594M);
 
@@ -3802,16 +3837,6 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_parent(&epdc_pix_clk, &pll5_video_main_clk);
 	/* lcdif pix - PLL5 as parent */
 	clk_set_parent(&lcdif_pix_clk, &pll5_video_main_clk);
-
-	gpt_clk[0].parent = &ipg_perclk;
-	gpt_clk[0].get_rate = NULL;
-
-	/* GPT will source from perclk, hence ipg_perclk
-	 * should be from OSC24M */
-	clk_set_parent(&ipg_perclk, &osc_clk);
-
-	base = ioremap(GPT_BASE_ADDR, SZ_4K);
-	mxc_timer_init(&gpt_clk[0], base, MXC_INT_GPT);
 
 	lp_high_freq = 0;
 	lp_med_freq = 0;
