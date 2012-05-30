@@ -3432,7 +3432,6 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		/* if in host mode, we need to do nothing */
 		if ((fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) == 0) {
 			dr_phy_low_power_mode(udc_controller, true);
-			dr_wake_up_enable(udc_controller, true);
 			goto end;
 		}
 		dr_controller_setup(udc_controller);
@@ -3452,7 +3451,8 @@ end:
 		 * subsystem will not leave from low power mode.
 		 */
 		if (!udc_can_wakeup_system() &&
-			(pdata->pmflags == 0)) {
+			(pdata->pmflags == 0) &&
+			(fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID)) {
 			dr_wake_up_enable(udc_controller, true);
 		}
 
