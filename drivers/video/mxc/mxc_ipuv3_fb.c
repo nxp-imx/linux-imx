@@ -94,6 +94,8 @@ struct mxcfb_info {
 	struct fb_info *ovfbi;
 
 	struct mxc_dispdrv_handle *dispdrv;
+
+	struct fb_var_screeninfo cur_var;
 };
 
 struct mxcfb_alloc_list {
@@ -302,6 +304,25 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	return retval;
 }
 
+static bool mxcfb_need_to_set_par(struct fb_info *fbi)
+{
+	struct mxcfb_info *mxc_fbi = fbi->par;
+
+	if ((fbi->var.activate & FB_ACTIVATE_FORCE) &&
+	    (fbi->var.activate & FB_ACTIVATE_MASK) == FB_ACTIVATE_NOW)
+		return true;
+
+	/*
+	 * Ignore xoffset and yoffset update,
+	 * because pan display handles this case.
+	 */
+	mxc_fbi->cur_var.xoffset = fbi->var.xoffset;
+	mxc_fbi->cur_var.yoffset = fbi->var.yoffset;
+
+	return !!memcmp(&mxc_fbi->cur_var, &fbi->var,
+			sizeof(struct fb_var_screeninfo));
+}
+
 /*
  * Set framebuffer parameters and change the operating mode.
  *
@@ -313,6 +334,9 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	u32 mem_len, alpha_mem_len;
 	ipu_di_signal_cfg_t sig_cfg;
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
+
+	if (!mxcfb_need_to_set_par(fbi))
+		return 0;
 
 	dev_dbg(fbi->device, "Reconfiguring framebuffer\n");
 
@@ -459,6 +483,8 @@ static int mxcfb_set_par(struct fb_info *fbi)
 			return -EINVAL;
 		}
 	}
+
+	mxc_fbi->cur_var = fbi->var;
 
 	return retval;
 }
@@ -880,6 +906,8 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 			} else
 				mxc_fbi->alpha_chan_en = false;
 
+			fbi->var.activate = (fbi->var.activate & ~FB_ACTIVATE_MASK) |
+						FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE;
 			mxcfb_set_par(fbi);
 
 			la.alpha_phy_addr0 = mxc_fbi->alpha_phy_addr0;
@@ -1213,6 +1241,8 @@ static int mxcfb_blank(int blank, struct fb_info *info)
 		ipu_uninit_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
 		break;
 	case FB_BLANK_UNBLANK:
+		info->var.activate = (info->var.activate & ~FB_ACTIVATE_MASK) |
+				FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE;
 		ret = mxcfb_set_par(info);
 		break;
 	}
@@ -1240,9 +1270,6 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	bool loc_alpha_en = false;
 	int fb_stride;
 	int i;
-
-	if (info->var.yoffset == var->yoffset)
-		return 0;	/* No change, do nothing */
 
 	/* no pan display during fb blank */
 	if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
