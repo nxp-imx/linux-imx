@@ -1863,9 +1863,9 @@ static struct sys_timer mx6_sabresd_timer = {
 
 static void __init mx6q_sabresd_reserve(void)
 {
-#ifdef CONFIG_MXC_GPU_VIV
 	phys_addr_t phys;
 	int i;
+#ifdef CONFIG_MXC_GPU_VIV
 
 	if (imx6q_gpu_pdata.reserved_mem_size) {
 		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
