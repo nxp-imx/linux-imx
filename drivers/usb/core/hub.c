@@ -3209,11 +3209,10 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 				pdata->init(NULL);
 		}
 		if ((port1 == 1) && (hdev->level == 0)) {
-			if (!(portstatus & USB_PORT_STAT_CONNECTION)) {
-				/* Must clear HOSTDISCONDETECT when disconnect*/
-				if (pdata->platform_set_disconnect_det)
-					pdata->platform_set_disconnect_det(pdata, 0);
-			}
+			/* Must clear HOSTDISCONDETECT when port connect change happen*/
+			if (pdata->platform_set_disconnect_det)
+				pdata->platform_set_disconnect_det(pdata, 0);
+
 		}
 	}
 #endif
