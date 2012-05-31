@@ -1485,14 +1485,18 @@ static void mxc_hdmi_clear_overflow(void)
 	int count;
 	u8 val;
 
+	/* TMDS software reset */
+	hdmi_writeb((u8)~HDMI_MC_SWRSTZ_TMDSSWRST_REQ, HDMI_MC_SWRSTZ);
+
 	val = hdmi_readb(HDMI_FC_INVIDCONF);
+
+	if (cpu_is_mx6dl()) {
+		 hdmi_writeb(val, HDMI_FC_INVIDCONF);
+		 return;
+	}
 
 	for (count = 0 ; count < 5 ; count++)
 		hdmi_writeb(val, HDMI_FC_INVIDCONF);
-
-	/* TMDS software reset */
-	if (!cpu_is_mx6dl())
-		hdmi_writeb((u8)~HDMI_MC_SWRSTZ_TMDSSWRST_REQ, HDMI_MC_SWRSTZ);
 }
 
 static void hdmi_enable_overflow_interrupts(void)
