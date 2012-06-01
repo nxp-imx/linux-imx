@@ -28,6 +28,8 @@
 #include "devices-imx6q.h"
 #include "regs-anadig.h"
 #include "usb.h"
+
+DEFINE_MUTEX(otg_wakeup_enable_mutex);
 static int usbotg_init_ext(struct platform_device *pdev);
 static void usbotg_uninit_ext(struct platform_device *pdev);
 static void usbotg_clock_gate(bool on);
@@ -331,6 +333,7 @@ static void __wakeup_irq_enable(struct fsl_usb2_platform_data *pdata, bool on, i
 	/* otg host and device share the OWIE bit, only when host and device
 	 * all enable the wakeup irq, we can enable the OWIE bit
 	 */
+	mutex_lock(&otg_wakeup_enable_mutex);
 	if (on) {
 #ifdef CONFIG_USB_OTG
 		wakeup_irq_enable_src |= source;
@@ -347,6 +350,7 @@ static void __wakeup_irq_enable(struct fsl_usb2_platform_data *pdata, bool on, i
 		 * cycles of the standby clock(32k Hz) , that is 0.094 ms*/
 		udelay(100);
 	}
+	mutex_unlock(&otg_wakeup_enable_mutex);
 }
 
 /* The wakeup operation for DR port, it will clear the wakeup irq status
