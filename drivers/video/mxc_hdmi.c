@@ -2087,13 +2087,23 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 	case FB_EVENT_SUSPEND:
 		dev_dbg(&hdmi->pdev->dev,
 			"event=FB_EVENT_SUSPEND\n");
-		mxc_hdmi_phy_disable(hdmi);
+
+		if (hdmi->blank == FB_BLANK_UNBLANK) {
+			mxc_hdmi_phy_disable(hdmi);
+			clk_disable(hdmi->hdmi_iahb_clk);
+			clk_disable(hdmi->hdmi_isfr_clk);
+		}
 		break;
 
 	case FB_EVENT_RESUME:
 		dev_dbg(&hdmi->pdev->dev,
 			"event=FB_EVENT_RESUME\n");
-		mxc_hdmi_phy_init(hdmi);
+
+		if (hdmi->blank == FB_BLANK_UNBLANK) {
+			clk_enable(hdmi->hdmi_iahb_clk);
+			clk_enable(hdmi->hdmi_isfr_clk);
+			mxc_hdmi_phy_init(hdmi);
+		}
 		break;
 
 	}
