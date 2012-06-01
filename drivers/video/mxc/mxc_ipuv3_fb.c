@@ -96,6 +96,10 @@ struct mxcfb_info {
 	struct mxc_dispdrv_handle *dispdrv;
 
 	struct fb_var_screeninfo cur_var;
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	struct early_suspend fbdrv_earlysuspend;
+#endif
 };
 
 struct mxcfb_alloc_list {
@@ -114,6 +118,11 @@ enum {
 
 static bool g_dp_in_use[2];
 LIST_HEAD(fb_alloc_list);
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void mxcfb_early_suspend(struct early_suspend *h);
+static void mxcfb_later_resume(struct early_suspend *h);
+#endif
 
 static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
 {
@@ -2219,6 +2228,14 @@ static int mxcfb_probe(struct platform_device *pdev)
 				"Error %d on creating file\n", ret);
 	}
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	mxcfbi->fbdrv_earlysuspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
+	mxcfbi->fbdrv_earlysuspend.suspend = mxcfb_early_suspend;
+	mxcfbi->fbdrv_earlysuspend.resume = mxcfb_later_resume;
+	mxcfbi->fbdrv_earlysuspend.data = pdev;
+	register_early_suspend(&mxcfbi->fbdrv_earlysuspend);
+#endif
+
 #ifdef CONFIG_LOGO
 	fb_prepare_logo(fbi, 0);
 	fb_show_logo(fbi, 0);
@@ -2246,6 +2263,10 @@ static int mxcfb_remove(struct platform_device *pdev)
 
 	if (!fbi)
 		return 0;
+
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	unregister_early_suspend(&mxc_fbi->fbdrv_earlysuspend);
+#endif
 
 	device_remove_file(fbi->dev, &dev_attr_fsl_disp_dev_property);
 	device_remove_file(fbi->dev, &dev_attr_fsl_disp_property);
@@ -2286,60 +2307,47 @@ static struct platform_driver mxcfb_driver = {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void mxcfb_early_suspend(struct early_suspend *h)
 {
-	int i;
-	struct platform_device *pdev;
-	struct mxcfb_info *mxcfbi;
-	struct fb_info *fbi;
+	struct platform_device *pdev = (struct platform_device *)h->data;
+	struct fb_info *fbi = platform_get_drvdata(pdev);
+	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)fbi->par;
 	pm_message_t state = { .event = PM_EVENT_SUSPEND };
 	struct fb_event event;
 	int blank = FB_BLANK_POWERDOWN;
 
-	for (i = 0; i < num_registered_fb; i++) {
-		mxcfbi = (struct mxcfb_info *)registered_fb[i]->par;
-		if (!mxcfbi || mxcfbi->ipu_ch == MEM_FG_SYNC)
-			continue;
-		pdev = to_platform_device(registered_fb[i]->device);
-		if (strstr(mxcfbi->dispdrv->drv->name, "hdmi")) {
-			/* Only black the hdmi fb due to audio dependency */
-			fbi = platform_get_drvdata(pdev);
-			memset(fbi->screen_base, 0, fbi->fix.smem_len);
-			continue;
-		}
-		mxcfb_core_suspend(pdev, state);
-		event.info = registered_fb[i];
-		event.data = &blank;
-		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+	if (mxcfbi->ipu_ch == MEM_FG_SYNC)
+		return;
+
+	if (strstr(mxcfbi->dispdrv->drv->name, "hdmi")) {
+		/* Only black the hdmi fb due to audio dependency */
+		memset(fbi->screen_base, 0, fbi->fix.smem_len);
+		return;
 	}
+
+	mxcfb_core_suspend(pdev, state);
+	event.info = fbi;
+	event.data = &blank;
+	fb_notifier_call_chain(FB_EVENT_BLANK, &event);
 }
 
 static void mxcfb_later_resume(struct early_suspend *h)
 {
-	int i;
-	struct platform_device *pdev;
+	struct platform_device *pdev = (struct platform_device *)h->data;
+	struct fb_info *fbi = platform_get_drvdata(pdev);
+	struct mxcfb_info *mxcfbi = (struct mxcfb_info *)fbi->par;
 	struct fb_event event;
-	struct mxcfb_info *mxcfbi;
 
-	for (i = num_registered_fb - 1; i >= 0; i-- ) {
-		mxcfbi = (struct mxcfb_info *)registered_fb[i]->par;
-		if (!mxcfbi || mxcfbi->ipu_ch == MEM_FG_SYNC)
-			continue;
-		pdev = to_platform_device(registered_fb[i]->device);
-		/* HDMI resume function has been called */
-		if (strstr(mxcfbi->dispdrv->drv->name, "hdmi"))
-			continue;
+	if (mxcfbi->ipu_ch == MEM_FG_SYNC)
+		return;
 
-		mxcfb_core_resume(pdev);
-		event.info = registered_fb[i];
-		event.data = &mxcfbi->next_blank;
-		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
-	}
+	/* HDMI resume function has been called */
+	if (strstr(mxcfbi->dispdrv->drv->name, "hdmi"))
+		return;
+
+	mxcfb_core_resume(pdev);
+	event.info = fbi;
+	event.data = &mxcfbi->next_blank;
+	fb_notifier_call_chain(FB_EVENT_BLANK, &event);
 }
-
-struct early_suspend fbdrv_earlysuspend = {
-	.level = EARLY_SUSPEND_LEVEL_DISABLE_FB,
-	.suspend = mxcfb_early_suspend,
-	.resume = mxcfb_later_resume,
-};
 #endif
 
 /*!
@@ -2351,16 +2359,11 @@ struct early_suspend fbdrv_earlysuspend = {
  */
 int __init mxcfb_init(void)
 {
-	int ret;
-	ret = platform_driver_register(&mxcfb_driver);
-	if (!ret)
-		register_early_suspend(&fbdrv_earlysuspend);
-	return ret;
+	return platform_driver_register(&mxcfb_driver);
 }
 
 void mxcfb_exit(void)
 {
-	unregister_early_suspend(&fbdrv_earlysuspend);
 	platform_driver_unregister(&mxcfb_driver);
 }
 
