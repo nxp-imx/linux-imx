@@ -3198,24 +3198,6 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 		hub->indicator[port1-1] = INDICATOR_AUTO;
 	}
 
-#ifdef MX6_USB_HOST_HACK
-	{
-		struct device *dev = hcd->self.controller;
-		struct fsl_usb2_platform_data *pdata;
-
-		pdata = (struct fsl_usb2_platform_data *)dev->platform_data;
-		if (dev->parent && (hdev->level == 0) && dev->type) {
-			if (port1 == 1 && pdata->init)
-				pdata->init(NULL);
-		}
-		if ((port1 == 1) && (hdev->level == 0)) {
-			/* Must clear HOSTDISCONDETECT when port connect change happen*/
-			if (pdata->platform_set_disconnect_det)
-				pdata->platform_set_disconnect_det(pdata, 0);
-
-		}
-	}
-#endif
 #ifdef	CONFIG_USB_OTG
 	/* during HNP, don't repeat the debounce */
 	if (hdev->bus->is_b_host)
@@ -3255,6 +3237,25 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 	if (udev)
 		usb_disconnect(&hdev->children[port1-1]);
 	clear_bit(port1, hub->change_bits);
+
+#ifdef MX6_USB_HOST_HACK
+	{
+		struct device *dev = hcd->self.controller;
+		struct fsl_usb2_platform_data *pdata;
+
+		pdata = (struct fsl_usb2_platform_data *)dev->platform_data;
+		if (dev->parent && (hdev->level == 0) && dev->type) {
+			if (port1 == 1 && pdata->init)
+				pdata->init(NULL);
+		}
+		if ((port1 == 1) && (hdev->level == 0)) {
+			/* Must clear HOSTDISCONDETECT when port connect change happen*/
+			if (pdata->platform_set_disconnect_det)
+				pdata->platform_set_disconnect_det(pdata, 0);
+
+		}
+	}
+#endif
 
 	/* We can forget about a "removed" device when there's a physical
 	 * disconnect or the connect status changes.
