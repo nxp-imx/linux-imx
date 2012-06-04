@@ -235,15 +235,20 @@ void mx6_set_otghost_vbus_func(driver_vbus_func driver_vbus)
 
 static void _dr_discharge_line(bool enable)
 {
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
-	if (enable) {
-		__raw_writel(BF_USBPHY_DEBUG_ENHSTPULLDOWN(0x3), phy_reg + HW_USBPHY_DEBUG_SET);
-		__raw_writel(BF_USBPHY_DEBUG_HSTPULLDOWN(0x3), phy_reg + HW_USBPHY_DEBUG_SET);
-	} else {
-		__raw_writel(BF_USBPHY_DEBUG_ENHSTPULLDOWN(0x3), phy_reg + HW_USBPHY_DEBUG_CLR);
-		__raw_writel(BF_USBPHY_DEBUG_HSTPULLDOWN(0x3), phy_reg + HW_USBPHY_DEBUG_CLR);
-	}
 
+	pr_debug("DR: %s  enable is %d\n", __func__, enable);
+	if (enable) {
+		__raw_writel(BM_USBPHY_DEBUG_CLKGATE, phy_reg + HW_USBPHY_DEBUG_CLR);
+		__raw_writel(BM_ANADIG_USB1_LOOPBACK_UTMI_DIG_TST1
+					|BM_ANADIG_USB1_LOOPBACK_TSTI_TX_EN,
+			anatop_base_addr + HW_ANADIG_USB1_LOOPBACK);
+	} else {
+		__raw_writel(0x0,
+			anatop_base_addr + HW_ANADIG_USB1_LOOPBACK);
+		__raw_writel(BM_USBPHY_DEBUG_CLKGATE, phy_reg + HW_USBPHY_DEBUG_SET);
+	}
 }
 
 /* Below two macros are used at otg mode to indicate usb mode*/
@@ -560,7 +565,7 @@ static void device_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 void __init mx6_usb_dr_init(void)
 {
 	struct platform_device *pdev, *pdev_wakeup;
-	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 
 #ifdef CONFIG_USB_OTG
 	/* wake_up_enable is useless, just for usb_register_remote_wakeup execution*/
