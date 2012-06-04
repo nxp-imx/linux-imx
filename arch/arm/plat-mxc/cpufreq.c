@@ -361,12 +361,14 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 		per_cpu(cpu_data, i).loops_per_jiffy =
 		cpufreq_scale(per_cpu(cpu_data, i).loops_per_jiffy,
 					freqs.old, freqs.new);
+	/* Update global loops_per_jiffy to cpu0's loops_per_jiffy,
+	 * as all CPUs are running at same freq */
+	loops_per_jiffy = per_cpu(cpu_data, 0).loops_per_jiffy;
 #endif
 	for (i = 0; i < num_cpus; i++) {
 		freqs.cpu = i;
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 	}
-
 
 	return ret;
 }
