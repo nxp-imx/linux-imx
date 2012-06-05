@@ -145,6 +145,8 @@ struct fsl_usb2_platform_data {
 	enum usb_wakeup_event	wakeup_event;
 	u32		pmflags;	/* PM from otg or system */
 
+	void __iomem *charger_base_addr; /* used for i.mx6 usb charger detect */
+
 	/* register save area for suspend/resume */
 	u32		pm_command;
 	u32		pm_status;
