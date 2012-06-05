@@ -173,6 +173,13 @@ config USB_STATIC_IRAM_PPH
 	help
 	   Apply static IRAM patch to peripheral driver.
 
+config IMX_USB_CHARGER
+	bool "Use i.MX SoC USB charger detect function"
+	depends on USB_GADGET_ARC && ARCH_MX6
+	help
+	  Say "y" will enable i.mx usb charger detect function
+	  (only for i.mx6x currently).
+
 config USB_ARC
 	tristate
 	depends on USB_GADGET_ARC
