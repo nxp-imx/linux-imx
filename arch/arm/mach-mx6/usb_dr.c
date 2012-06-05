@@ -598,6 +598,7 @@ void __init mx6_usb_dr_init(void)
 	dr_utmi_config.is_wakeup_event = _is_device_wakeup;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
 	dr_utmi_config.wakeup_handler = device_wakeup_handler;
+	dr_utmi_config.charger_base_addr = anatop_base_addr;
 	pdev = imx6q_add_fsl_usb2_udc(&dr_utmi_config);
 	dr_wakeup_config.usb_pdata[2] = pdev->dev.platform_data;
 #endif
