@@ -36,6 +36,7 @@
 #include <mach/esai.h>
 
 #include "imx-esai.h"
+#include "imx-pcm.h"
 
 static struct imx_esai *local_esai;
 
@@ -301,6 +302,8 @@ static int imx_esai_hw_tx_params(struct snd_pcm_substream *substream,
 				 struct snd_pcm_hw_params *params,
 				 struct snd_soc_dai *cpu_dai)
 {
+	struct imx_pcm_runtime_data *iprtd = substream->runtime->private_data;
+
 	struct imx_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
 	u32 tcr, tfcr;
 	unsigned int channels;
@@ -314,19 +317,40 @@ static int imx_esai_hw_tx_params(struct snd_pcm_substream *substream,
 	/* DAI data (word) size */
 	tfcr &= ESAI_TFCR_TWA_MASK;
 	tcr &= ESAI_TCR_TSWS_MASK;
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
-		tfcr |= ESAI_WORD_LEN_16;
-		tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL16;
-		break;
-	case SNDRV_PCM_FORMAT_S20_3LE:
-		tfcr |= ESAI_WORD_LEN_20;
-		tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL20;
-		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
+
+	if (iprtd->asrc_enable) {
+		switch (iprtd->output_bit) {
+		case 16:
+			tfcr |= ESAI_WORD_LEN_16;
+			tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL16;
+			break;
+		case 24:
+			tfcr |= ESAI_WORD_LEN_24;
+			tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL24;
+			break;
+		default:
+			return -EINVAL;
+
+		}
 		tfcr |= ESAI_WORD_LEN_24;
 		tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL24;
-		break;
+	} else {
+		switch (params_format(params)) {
+		case SNDRV_PCM_FORMAT_S16_LE:
+			tfcr |= ESAI_WORD_LEN_16;
+			tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL16;
+			break;
+		case SNDRV_PCM_FORMAT_S20_3LE:
+			tfcr |= ESAI_WORD_LEN_20;
+			tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL20;
+			break;
+		case SNDRV_PCM_FORMAT_S24_LE:
+			tfcr |= ESAI_WORD_LEN_24;
+			tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL24;
+			break;
+		default:
+			return -EINVAL;
+		}
 	}
 
 	channels = params_channels(params);
