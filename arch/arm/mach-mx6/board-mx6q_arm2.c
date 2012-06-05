@@ -2219,7 +2219,7 @@ static struct sys_timer mxc_timer = {
 
 static void __init mx6_arm2_reserve(void)
 {
-#ifdef CONFIG_MXC_GPU_VIV
+#if defined(CONFIG_MXC_GPU_VIV) || defined(CONFIG_MXC_GPU_VIV_MODULE)
 	phys_addr_t phys;
 
 	if (imx6_gpu_pdata.reserved_mem_size) {
