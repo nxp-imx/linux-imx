@@ -17,6 +17,7 @@
  * and processes may not get killed until the normal oom killer is triggered.
  *
  * Copyright (C) 2007-2008 Google, Inc.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -29,12 +30,22 @@
  *
  */
 
+/* account the memory allocation into low memory killer by the GPU
+ * like driver, which allocate a reserved memory, allocate by them
+ * self, but the memory hold by process never release if no one care
+ * about it. */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/oom.h>
 #include <linux/sched.h>
 #include <linux/notifier.h>
+
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+#include <linux/list.h>
+#include <linux/resmem_account.h>
+#endif
 
 static uint32_t lowmem_debug_level = 2;
 static int lowmem_adj[6] = {
@@ -54,6 +65,11 @@ static int lowmem_minfree_size = 4;
 
 static struct task_struct *lowmem_deathpending;
 static unsigned long lowmem_deathpending_timeout;
+
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+static DEFINE_MUTEX(reserved_memory_account_lock);
+static LIST_HEAD(reserved_memory_account_handlers);
+#endif
 
 #define lowmem_print(level, x...)			\
 	do {						\
@@ -78,6 +94,47 @@ task_notify_func(struct notifier_block *self, unsigned long val, void *data)
 
 	return NOTIFY_OK;
 }
+
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+
+void register_reserved_memory_account(struct reserved_memory_account *handler)
+{
+	lowmem_print(2, "revserved_memory_account:%s registerd\n",
+		     handler->name ? handler->name : "(no name)");
+	mutex_lock(&reserved_memory_account_lock);
+	list_add(&handler->link, &reserved_memory_account_handlers);
+	mutex_unlock(&reserved_memory_account_lock);
+}
+EXPORT_SYMBOL(register_reserved_memory_account);
+
+void unregister_reserved_memory_account(struct reserved_memory_account *handler)
+{
+	lowmem_print(2, "revserved_memory_account:%s unregisterd\n",
+		     handler->name ? handler->name : "(no name)");
+	mutex_lock(&reserved_memory_account_lock);
+	list_del(&handler->link);
+	mutex_unlock(&reserved_memory_account_lock);
+}
+EXPORT_SYMBOL(unregister_reserved_memory_account);
+
+static int tasksize_add_reserved_memory(struct task_struct *p)
+{
+	int total = 0;
+	struct reserved_memory_account *pos;
+
+	mutex_lock(&reserved_memory_account_lock);
+	list_for_each_entry(pos, &reserved_memory_account_handlers, link) {
+		if (pos->get_page_used_by_process)
+			total += pos->get_page_used_by_process(p, pos);
+	}
+	mutex_unlock(&reserved_memory_account_lock);
+
+	lowmem_print(5, "reserved mem: task:%d take %d pages %dKiB\n",
+		     p->pid, total, total * PAGE_SIZE);
+
+	return total;
+}
+#endif
 
 static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 {
@@ -150,6 +207,9 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 			continue;
 		}
 		tasksize = get_mm_rss(mm);
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+		tasksize += tasksize_add_reserved_memory(p);
+#endif
 		task_unlock(p);
 		if (tasksize <= 0)
 			continue;
