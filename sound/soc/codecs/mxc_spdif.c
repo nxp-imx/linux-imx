@@ -85,7 +85,7 @@ static void dumpregs(struct mxc_spdif_priv *priv)
 {
 	unsigned int value, i;
 
-	if (!priv->tx_active || !priv->rx_active)
+	if (!priv->tx_active && !priv->rx_active)
 		clk_enable(priv->plat_data->spdif_core_clk);
 
 	for (i = 0 ; i <= 0x38 ; i += 4) {
@@ -101,7 +101,7 @@ static void dumpregs(struct mxc_spdif_priv *priv)
 	value = readl(spdif_base_addr + i) & 0xffffff;
 	pr_debug("reg 0x%02x = 0x%06x\n", i, value);
 
-	if (!priv->tx_active || !priv->rx_active)
+	if (!priv->tx_active && !priv->rx_active)
 		clk_disable(priv->plat_data->spdif_core_clk);
 }
 #else
@@ -633,7 +633,6 @@ static int mxc_spdif_playback_stop(struct snd_pcm_substream *substream,
 	regval |= SCR_LOW_POWER;
 	__raw_writel(regval, SPDIF_REG_SCR + spdif_base_addr);
 
-	clk_disable(plat_data->spdif_clk);
 	spdif_priv->tx_active = false;
 
 	return 0;
@@ -783,7 +782,6 @@ static int mxc_spdif_capture_stop(struct snd_pcm_substream *substream,
 	regval &= ~(SCR_DMA_RX_EN | SCR_RXFIFO_AUTOSYNC);
 	__raw_writel(regval, spdif_base_addr + SPDIF_REG_SCR);
 
-	clk_disable(plat_data->spdif_clk);
 	spdif_priv->rx_active = false;
 
 	return 0;
@@ -1158,6 +1156,8 @@ static void mxc_spdif_shutdown(struct snd_pcm_substream *substream,
 
 	/* disable spdif_core clock  */
 	clk_disable(plat_data->spdif_core_clk);
+
+	clk_disable(plat_data->spdif_clk);
 }
 
 static int mxc_spdif_trigger(struct snd_pcm_substream *substream,
