@@ -2180,6 +2180,7 @@ void caam_algapi_shutdown(struct platform_device *pdev)
 	}
 	kfree(priv->algapi_jr);
 }
+EXPORT_SYMBOL_GPL(caam_algapi_shutdown);
 
 static struct caam_crypto_alg *caam_alg_alloc(struct device *ctrldev,
 					      struct caam_alg_template
@@ -2283,6 +2284,7 @@ int caam_algapi_startup(struct platform_device *pdev)
 
 	return err;
 }
+EXPORT_SYMBOL_GPL(caam_algapi_startup);
 
 #ifdef CONFIG_OF
 static void __exit caam_algapi_exit(void)
