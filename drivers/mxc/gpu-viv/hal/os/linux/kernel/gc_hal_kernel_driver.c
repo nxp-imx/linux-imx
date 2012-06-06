@@ -39,6 +39,11 @@
 #endif
 
 
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+#    include <linux/resmem_account.h>
+#endif
+
+
 /* Zone used for header/footer. */
 #define _GC_OBJ_ZONE    gcvZONE_DRIVER
 
@@ -139,6 +144,30 @@ static struct file_operations driver_fops =
     .unlocked_ioctl = drv_ioctl,
     .mmap       = drv_mmap,
 };
+
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+static size_t viv_gpu_resmem_query(struct task_struct *p, struct reserved_memory_account *m);
+static struct reserved_memory_account viv_gpu_resmem_handler = {
+    .name = "viv_gpu",
+    .get_page_used_by_process = viv_gpu_resmem_query,
+};
+
+size_t viv_gpu_resmem_query(struct task_struct *p, struct reserved_memory_account *m)
+{
+    gcuDATABASE_INFO info;
+    unsigned int processid = p->pid;
+    gckKERNEL gpukernel = m->data;
+
+    /* ignore error happens in this api. */
+    if (gckKERNEL_QueryProcessDB(gpukernel, processid, false, gcvDB_VIDEO_MEMORY, &info) != gcvSTATUS_OK)
+	return 0;
+
+    /* we return pages. */
+    if (info.counters.bytes > 0)
+	return info.counters.bytes / PAGE_SIZE;
+    return 0;
+}
+#endif
 
 int drv_open(
     struct inode* inode,
@@ -766,6 +795,12 @@ static int drv_init(void)
         device->baseAddress = 0;
     }
 
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+    viv_gpu_resmem_handler.data = device->kernels[gcvCORE_MAJOR];
+    register_reserved_memory_account(&viv_gpu_resmem_handler);
+#endif
+
+
     /* Register the character device. */
     ret = register_chrdev(major, DRV_NAME, &driver_fops);
 
@@ -844,6 +879,10 @@ static void drv_exit(void)
 #endif
 {
     gcmkHEADER();
+
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+    unregister_reserved_memory_account(&viv_gpu_resmem_handler);
+#endif
 
     gcmkASSERT(gpuClass != gcvNULL);
     device_destroy(gpuClass, MKDEV(major, 0));
