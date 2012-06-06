@@ -2010,16 +2010,8 @@ int32_t _ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 
 	ipu_dp_write(ipu, (x_pos << 16) | y_pos, DP_FG_POS(flow));
 
-	if (ipu_is_channel_busy(ipu, channel)) {
-		/* controled by FSU if channel enabled */
-		reg = ipu_cm_read(ipu, IPU_SRM_PRI2) & (~(0x3 << dp_srm_shift));
-		reg |= (0x1 << dp_srm_shift);
-		ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
-	} else {
-		/* disable auto swap, controled by MCU if channel disabled */
-		reg = ipu_cm_read(ipu, IPU_SRM_PRI2) & (~(0x3 << dp_srm_shift));
-		ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
-	}
+	reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
+	ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 
 	return 0;
 }
