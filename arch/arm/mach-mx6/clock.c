@@ -5397,7 +5397,11 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 			     3 << MXC_CCM_CCGRx_CG1_OFFSET |
 			     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR0);
 	}
-	__raw_writel(3 << MXC_CCM_CCGRx_CG10_OFFSET, MXC_CCM_CCGR1);
+	if (mx6q_revision() == IMX_CHIP_REVISION_1_0)
+		/* If GPT use ipg_perclk, we need to enable gpt serial clock */
+		__raw_writel(3 << MXC_CCM_CCGRx_CG10_OFFSET | 3 << MXC_CCM_CCGRx_CG11_OFFSET, MXC_CCM_CCGR1);
+	else
+		__raw_writel(3 << MXC_CCM_CCGRx_CG10_OFFSET, MXC_CCM_CCGR1);
 	__raw_writel(1 << MXC_CCM_CCGRx_CG12_OFFSET |
 		     1 << MXC_CCM_CCGRx_CG11_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG10_OFFSET |
