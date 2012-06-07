@@ -63,6 +63,7 @@ typedef struct {
 } battery_capacity , *pbattery_capacity;
 
 static bool capacity_changed_flag;
+static int cpu_type_flag;
 
 static battery_capacity chargingTable[] = {
     {4146, 100},
@@ -205,11 +206,21 @@ u32 calibration_voltage(struct max8903_data *data)
 	u32 voltage_data;
 	int i;
 	for (i = 0; i < ADC_SAMPLE_COUNT; i++) {
-		if (data->charger_online == 0) {
-			/* ADC offset when battery is discharger*/
-			volt[i] = max11801_read_adc()-1494;
-			} else {
-			volt[i] = max11801_read_adc()-1545;
+		if (cpu_type_flag == 1) {
+			if (data->charger_online == 0) {
+				/* ADC offset when battery is discharger*/
+				volt[i] = max11801_read_adc()-1694;
+				} else {
+				volt[i] = max11801_read_adc()-1900;
+				}
+			}
+		if (cpu_type_flag == 0) {
+			if (data->charger_online == 0) {
+				/* ADC offset when battery is discharger*/
+				volt[i] = max11801_read_adc()-1464;
+				} else {
+				volt[i] = max11801_read_adc()-1485;
+				}
 			}
 	}
 	sort(volt, i, 4, cmp_func, NULL);
@@ -238,6 +249,7 @@ static void max8903_battery_update_status(struct max8903_data *data)
 			power_supply_changed(&data->bat);
 		}
 	}
+	power_supply_changed(&data->bat);
 	mutex_unlock(&data->work_lock);
 }
 
@@ -261,10 +273,10 @@ static int max8903_battery_get_property(struct power_supply *bat,
 					di->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
 			}
 			  else {
-				val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+				di->battery_status = POWER_SUPPLY_STATUS_DISCHARGING;
 			}
 		}
-		di->battery_status = val->intval;
+		val->intval = di->battery_status;
 		return 0;
 	default:
 		break;
@@ -339,6 +351,8 @@ static irqreturn_t max8903_dcin(int irq, void *_data)
 	data->ta_in = ta_in;
 	pr_info("TA(DC-IN) Charger %s.\n", ta_in ?
 			"Connected" : "Disconnected");
+	max8903_charger_update_status(data);
+	max8903_battery_update_status(data);
 	power_supply_changed(&data->psy);
 	power_supply_changed(&data->bat);
 	return IRQ_HANDLED;
@@ -356,7 +370,8 @@ static irqreturn_t max8903_usbin(int irq, void *_data)
 		return IRQ_HANDLED;
 
 	data->usb_in = usb_in;
-
+	max8903_charger_update_status(data);
+	max8903_battery_update_status(data);
 	pr_info("USB Charger %s.\n", usb_in ?
 			"Connected" : "Disconnected");
 	power_supply_changed(&data->psy);
@@ -381,6 +396,10 @@ static irqreturn_t max8903_fault(int irq, void *_data)
 		dev_err(data->dev, "Charger suffers a fault and stops.\n");
 	else
 		dev_err(data->dev, "Charger recovered from a fault.\n");
+	max8903_charger_update_status(data);
+	max8903_battery_update_status(data);
+	power_supply_changed(&data->psy);
+	power_supply_changed(&data->bat);
 	return IRQ_HANDLED;
 }
 
@@ -396,6 +415,10 @@ static irqreturn_t max8903_chg(int irq, void *_data)
 		return IRQ_HANDLED;
 
 	data->chg_state = chg_state;
+	max8903_charger_update_status(data);
+	max8903_battery_update_status(data);
+	power_supply_changed(&data->psy);
+	power_supply_changed(&data->bat);
 	return IRQ_HANDLED;
 }
 
@@ -426,7 +449,11 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 	int ta_in = 0;
 	int usb_in = 0;
 	int retval;
-
+	cpu_type_flag = 0;
+	if (cpu_is_mx6q())
+		cpu_type_flag = 1;
+	if (cpu_is_mx6dl())
+		cpu_type_flag = 0;
 	data = kzalloc(sizeof(struct max8903_data), GFP_KERNEL);
 	if (data == NULL) {
 		dev_err(dev, "Cannot allocate memory.\n");
