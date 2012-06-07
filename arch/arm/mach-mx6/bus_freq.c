@@ -49,7 +49,6 @@
 #define LPAPM_CLK	24000000
 #define DDR_MED_CLK	400000000
 #define DDR3_NORMAL_CLK	528000000
-#define AXI_CLK_RATE		270000000
 #define GPC_PGC_GPU_PGCR_OFFSET		0x260
 #define GPC_CNTR_OFFSET				0x0
 
@@ -92,9 +91,6 @@ struct timeval end_time;
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
 static struct clk *pll2_400;
-static struct clk *axi_clk;
-static struct clk *periph_clk;
-static struct clk *pll3_540;
 static struct clk *cpu_clk;
 static unsigned int org_ldo;
 static struct clk *pll3;
@@ -125,11 +121,6 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		mutex_unlock(&bus_freq_mutex);
 		return;
 	}
-
-	/* Set the axi_clk to be sourced from the periph_clk.
-	  * So that its frequency can be lowered down to 50MHz
-	  * or 24MHz as the case may be. */
-	clk_set_parent(axi_clk, periph_clk);
 
 	clk_enable(pll3);
 
@@ -238,16 +229,6 @@ int set_high_bus_freq(int high_bus_freq)
 		return 0;
 	}
 	clk_enable(pll3);
-
-	if (clk_get_parent(axi_clk) != pll3_540) {
-		/* We need to set axi_clk to be sourced from PLL3_540MHz. */
-		/* Ensure the divider is set to divide by 2 before changing the
-		  * parent. */
-		if (low_bus_freq_mode)
-			clk_set_rate(axi_clk, clk_get_rate(axi_clk) / 2);
-		clk_set_parent(axi_clk, pll3_540);
-		clk_set_rate(axi_clk, AXI_CLK_RATE);
-	}
 
 	/* Enable the PU LDO */
 	if (cpu_is_mx6q() && low_bus_freq_mode) {
@@ -399,27 +380,6 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		printk(KERN_DEBUG "%s: failed to get pll3\n",
 		       __func__);
 		return PTR_ERR(cpu_clk);
-	}
-
-	axi_clk = clk_get(NULL, "axi_clk");
-	if (IS_ERR(axi_clk)) {
-		printk(KERN_DEBUG "%s: failed to get axi_clk\n",
-		       __func__);
-		return PTR_ERR(axi_clk);
-	}
-
-	periph_clk = clk_get(NULL, "periph_clk");
-	if (IS_ERR(periph_clk)) {
-		printk(KERN_DEBUG "%s: failed to get periph_clk\n",
-		       __func__);
-		return PTR_ERR(periph_clk);
-	}
-
-	pll3_540 = clk_get(NULL, "pll3_pfd_540M");
-	if (IS_ERR(pll3_540)) {
-		printk(KERN_DEBUG "%s: failed to get periph_clk\n",
-		       __func__);
-		return PTR_ERR(pll3_540);
 	}
 
 	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
