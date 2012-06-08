@@ -365,6 +365,46 @@ static const struct spi_imx_master mx6_arm2_spi_data __initconst = {
 	.num_chipselect = ARRAY_SIZE(mx6_arm2_spi_cs),
 };
 
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
+static struct mtd_partition m25p32_partitions[] = {
+	{
+		.name	= "bootloader",
+		.offset	= 0,
+		.size	= 0x00040000,
+	}, {
+		.name	= "kernel",
+		.offset	= MTDPART_OFS_APPEND,
+		.size	= MTDPART_SIZ_FULL,
+	},
+};
+
+static struct flash_platform_data m25p32_spi_flash_data = {
+	.name		= "m25p32",
+	.parts		= m25p32_partitions,
+	.nr_parts	= ARRAY_SIZE(m25p32_partitions),
+	.type		= "m25p32",
+};
+
+static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
+	{
+	/* The modalias must be the same as spi device driver name */
+	.modalias	= "m25p80",
+	.max_speed_hz	= 20000000,
+	.bus_num	= 0,
+	.chip_select	= 0,
+	.platform_data	= &m25p32_spi_flash_data,
+	},
+};
+#endif
+
+static void spi_device_init(void)
+{
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
+	spi_register_board_info(m25p32_spi0_board_info,
+				ARRAY_SIZE(m25p32_spi0_board_info));
+#endif
+}
+
 static struct imx_ssi_platform_data mx6_sabresd_ssi_pdata = {
 	.flags = IMX_SSI_DMA | IMX_SSI_SYN,
 };
@@ -1019,6 +1059,11 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_imx_i2c(2, &mx6_arm2_i2c2_data);
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
+
+	/* SPI */
+	imx6q_add_ecspi(0, &mx6_arm2_spi_data);
+	spi_device_init();
+
 	mx6sl_arm2_init_pfuze100(0);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6sl_anatop_thermal_data);
