@@ -334,10 +334,29 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	ipu_di_signal_cfg_t sig_cfg;
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
 
+	struct mxcfb_info *mxc_fbi_fg = NULL;
+	bool ovfbi_enable = false;
+
+	if (mxc_fbi->ovfbi)
+		mxc_fbi_fg = (struct mxcfb_info *)mxc_fbi->ovfbi->par;
+
+	if (mxc_fbi->ovfbi && mxc_fbi_fg)
+		if (mxc_fbi_fg->next_blank == FB_BLANK_UNBLANK)
+			ovfbi_enable = true;
+
 	if (!mxcfb_need_to_set_par(fbi))
 		return 0;
 
 	dev_dbg(fbi->device, "Reconfiguring framebuffer\n");
+
+	if (ovfbi_enable) {
+		ipu_clear_irq(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch_irq);
+		ipu_disable_irq(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch_irq);
+		ipu_clear_irq(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch_nf_irq);
+		ipu_disable_irq(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch_nf_irq);
+		ipu_disable_channel(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch, true);
+		ipu_uninit_channel(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch);
+	}
 
 	ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 	ipu_disable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
@@ -415,6 +434,8 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	}
 
 	_setup_disp_channel1(fbi);
+	if (ovfbi_enable)
+		_setup_disp_channel1(mxc_fbi->ovfbi);
 
 	if (!mxc_fbi->overlay) {
 		uint32_t out_pixel_fmt;
@@ -472,7 +493,18 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		return retval;
 	}
 
+	if (ovfbi_enable) {
+		retval = _setup_disp_channel2(mxc_fbi->ovfbi);
+		if (retval) {
+			ipu_uninit_channel(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch);
+			ipu_uninit_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
+			return retval;
+		}
+	}
+
 	ipu_enable_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
+	if (ovfbi_enable)
+		ipu_enable_channel(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch);
 
 	if (mxc_fbi->dispdrv && mxc_fbi->dispdrv->drv->enable) {
 		retval = mxc_fbi->dispdrv->drv->enable(mxc_fbi->dispdrv);
