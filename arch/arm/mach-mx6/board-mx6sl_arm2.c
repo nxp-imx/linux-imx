@@ -267,6 +267,11 @@ static struct regulator_init_data max17135_init_data[] = {
 	},
 };
 
+static const struct anatop_thermal_platform_data
+	mx6sl_anatop_thermal_data __initconst = {
+			.name = "anatop_thermal",
+	};
+
 static struct platform_device max17135_sensor_device = {
 	.name = "max17135_sensor",
 	.id = 0,
@@ -1016,6 +1021,8 @@ static void __init mx6_arm2_init(void)
 			ARRAY_SIZE(mxc_i2c2_board_info));
 	mx6sl_arm2_init_pfuze100(0);
 
+	imx6q_add_anatop_thermal_imx(1, &mx6sl_anatop_thermal_data);
+
 	mx6_arm2_init_uart();
 	/* get enet tx reference clk from FEC_REF_CLK pad.
 	 * GPR1[14] = 0, GPR1[18:17] = 00
@@ -1037,7 +1044,7 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_sdhci_usdhc_imx(2, &mx6_arm2_sd3_data);
 
 	mx6_arm2_init_usb();
-
+	imx6q_add_otp();
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
 	imx6dl_add_imx_elcdif(&fb_data[0]);
