@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1342,7 +1342,8 @@ static void sdhci_finish_worker(struct work_struct *work)
 	struct sdhci_host *host = container_of(work, struct sdhci_host,
 			finish_wq);
 	unsigned long flags;
-	int req_done;
+	int req_done, i;
+	bool is_drv_loaded = false;
 	struct mmc_request *mrq;
 	struct sdio_func *func = NULL;
 
@@ -1415,12 +1416,24 @@ static void sdhci_finish_worker(struct work_struct *work)
 	req_done = !(readl(host->ioaddr + SDHCI_PRESENT_STATE) &
 		(SDHCI_DATA_ACTIVE | SDHCI_DOING_WRITE | SDHCI_DOING_READ));
 
-	if ((host->mmc->card) && host->mmc->card->sdio_func)
-		func = host->mmc->card->sdio_func[0];
+	/*
+	 * check if a sdio driver is attached, if yes, we do not disable
+	 * the host clock due to some sdio cards may not work well without
+	 * host clock
+	 */
+	if ((host->mmc->card) && host->mmc->card->sdio_funcs) {
+		for (i = 0; i < host->mmc->card->sdio_funcs; i++) {
+			func = host->mmc->card->sdio_func[i];
+			if (func && sdio_func_present(func)
+					&& func->dev.driver) {
+				is_drv_loaded = true;
+				break;
+			}
+		}
+	}
 
 	if (req_done && host->plat_data->clk_flg &&
-		!(host->plat_data->clk_always_on) &&
-		!(func && sdio_func_present(func) && func->dev.driver)) {
+		!(host->plat_data->clk_always_on) && !is_drv_loaded) {
 		clk_disable(host->clk);
 		host->plat_data->clk_flg = 0;
 	}
