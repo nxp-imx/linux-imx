@@ -156,7 +156,8 @@ struct dma_async_tx_descriptor *imx_asrc_dma_config(
 					struct asrc_pair_params *params,
 					struct dma_chan *chan,
 					u32 dma_addr, dma_addr_t buf_addr,
-					u32 buf_len, bool in);
+					u32 buf_len, bool in,
+					enum asrc_word_width word_width);
 
 static int asrc_set_clock_ratio(enum asrc_pair_index index,
 				int input_sample_rate, int output_sample_rate)
@@ -435,10 +436,9 @@ int asrc_config_pair(struct asrc_config *config)
 							 input_sample_rate);
 			reg |= tmp << AICPA;
 		} else {
-			if (config->word_width == 16 || config->word_width == 8)
+			if (config->input_word_width == ASRC_WIDTH_16_BIT)
 				reg |= 5 << AICPA;
-			else if (config->word_width == 32
-				 || config->word_width == 24)
+			else if (config->input_word_width == ASRC_WIDTH_24_BIT)
 				reg |= 6 << AICPA;
 			else
 				err = -EFAULT;
@@ -454,10 +454,9 @@ int asrc_config_pair(struct asrc_config *config)
 							 output_sample_rate);
 			reg |= tmp << AOCPA;
 		} else {
-			if (config->word_width == 16 || config->word_width == 8)
+			if (config->output_word_width == ASRC_WIDTH_16_BIT)
 				reg |= 5 << AOCPA;
-			else if (config->word_width == 32
-				 || config->word_width == 24)
+			else if (config->output_word_width == ASRC_WIDTH_24_BIT)
 				reg |= 6 << AOCPA;
 			else
 				err = -EFAULT;
@@ -479,10 +478,9 @@ int asrc_config_pair(struct asrc_config *config)
 							 input_sample_rate);
 			reg |= tmp << AICPB;
 		} else {
-			if (config->word_width == 16 || config->word_width == 8)
+			if (config->input_word_width == ASRC_WIDTH_16_BIT)
 				reg |= 5 << AICPB;
-			else if (config->word_width == 32
-				 || config->word_width == 24)
+			else if (config->input_word_width == ASRC_WIDTH_24_BIT)
 				reg |= 6 << AICPB;
 			else
 				err = -EFAULT;
@@ -498,10 +496,9 @@ int asrc_config_pair(struct asrc_config *config)
 							 output_sample_rate);
 			reg |= tmp << AOCPB;
 		} else {
-			if (config->word_width == 16 || config->word_width == 8)
+			if (config->output_word_width == ASRC_WIDTH_16_BIT)
 				reg |= 5 << AOCPB;
-			else if (config->word_width == 32
-				 || config->word_width == 24)
+			else if (config->output_word_width == ASRC_WIDTH_24_BIT)
 				reg |= 6 << AOCPB;
 			else
 				err = -EFAULT;
@@ -523,10 +520,9 @@ int asrc_config_pair(struct asrc_config *config)
 							 input_sample_rate);
 			reg |= tmp << AICPC;
 		} else {
-			if (config->word_width == 16 || config->word_width == 8)
+			if (config->input_word_width == ASRC_WIDTH_16_BIT)
 				reg |= 5 << AICPC;
-			else if (config->word_width == 32
-				 || config->word_width == 24)
+			else if (config->input_word_width == ASRC_WIDTH_24_BIT)
 				reg |= 6 << AICPC;
 			else
 				err = -EFAULT;
@@ -542,10 +538,9 @@ int asrc_config_pair(struct asrc_config *config)
 							 output_sample_rate);
 			reg |= tmp << AOCPC;
 		} else {
-			if (config->word_width == 16 || config->word_width == 8)
+			if (config->output_word_width == ASRC_WIDTH_16_BIT)
 				reg |= 5 << AOCPC;
-			else if (config->word_width == 32
-				 || config->word_width == 24)
+			else if (config->output_word_width == ASRC_WIDTH_24_BIT)
 				reg |= 6 << AOCPC;
 			else
 				err = -EFAULT;
@@ -587,6 +582,36 @@ int asrc_config_pair(struct asrc_config *config)
 			err = -EFAULT;
 		}
 	}
+
+	/* Config input and output wordwidth */
+	reg = __raw_readl(
+		g_asrc->vaddr + ASRC_ASRMCR1A_REG + (config->pair << 2));
+	/* BIT 11-9 stands for input word width,
+	 * BIT 0 stands for output word width */
+	reg &= ~0xE01;
+	switch (config->input_word_width) {
+	case ASRC_WIDTH_16_BIT:
+		reg |= 1 << 9;
+		break;
+	case ASRC_WIDTH_24_BIT:
+		reg |= 0 << 9;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	switch (config->output_word_width) {
+	case ASRC_WIDTH_16_BIT:
+		reg |= 1;
+		break;
+	case ASRC_WIDTH_24_BIT:
+		reg |= 0;
+		break;
+	default:
+		return -EINVAL;
+	}
+	__raw_writel(reg,
+		 g_asrc->vaddr + ASRC_ASRMCR1A_REG + (config->pair << 2));
 
 	return err;
 }
@@ -924,21 +949,35 @@ struct dma_async_tx_descriptor *imx_asrc_dma_config(
 				struct asrc_pair_params *params,
 				struct dma_chan *chan,
 				u32 dma_addr, dma_addr_t buf_addr,
-				u32 buf_len, bool in)
+				u32 buf_len, bool in,
+				enum asrc_word_width word_width)
 {
 	struct dma_slave_config slave_config;
+	enum dma_slave_buswidth buswidth;
 	int ret;
+
+	switch (word_width) {
+	case ASRC_WIDTH_16_BIT:
+		buswidth = DMA_SLAVE_BUSWIDTH_2_BYTES;
+		break;
+	case ASRC_WIDTH_24_BIT:
+		buswidth = DMA_SLAVE_BUSWIDTH_4_BYTES;
+		break;
+	default:
+		pr_err("Error word_width\n");
+		return NULL;
+	}
 
 	if (in) {
 		slave_config.direction = DMA_MEM_TO_DEV;
 		slave_config.dst_addr = dma_addr;
-		slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+		slave_config.dst_addr_width = buswidth;
 		slave_config.dst_maxburst =
 			ASRC_INPUTFIFO_THRESHOLD * params->channel_nums;
 	} else {
 		slave_config.direction = DMA_DEV_TO_MEM;
 		slave_config.src_addr = dma_addr;
-		slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+		slave_config.src_addr_width = buswidth;
 		slave_config.src_maxburst =
 			ASRC_OUTPUTFIFO_THRESHOLD * params->channel_nums;
 	}
@@ -1055,7 +1094,8 @@ static long asrc_ioctl(struct file *file,
 					params->input_dma_channel,
 					asrc_get_per_addr(params->index, 1),
 					params->input_dma[0].dma_paddr,
-					params->input_buffer_size, 1);
+					params->input_buffer_size, 1,
+					config.input_word_width);
 			if (params->desc_in) {
 				params->desc_in->callback =
 						asrc_input_dma_callback;
@@ -1075,7 +1115,8 @@ static long asrc_ioctl(struct file *file,
 					params->output_dma_channel,
 					asrc_get_per_addr(params->index, 0),
 					params->output_dma[0].dma_paddr,
-					params->output_buffer_size, 0);
+					params->output_buffer_size, 0,
+					config.output_word_width);
 			if (params->desc_out) {
 				params->desc_out->callback =
 						asrc_output_dma_callback;
