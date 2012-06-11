@@ -33,6 +33,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/dmaengine.h>
+#include <linux/mxc_asrc.h>
 
 #include <sound/core.h>
 #include <sound/initval.h>
@@ -63,7 +64,7 @@ struct imx_pcm_runtime_data {
 	struct dma_async_tx_descriptor *asrc_p2p_desc;
 	struct dma_chan *asrc_p2p_dma_chan;
 	struct imx_dma_data asrc_p2p_dma_data;
-	unsigned int output_bit;
+	enum asrc_word_width output_bit;
 #endif
 };
 #endif

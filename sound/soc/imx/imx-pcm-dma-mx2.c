@@ -134,7 +134,16 @@ static int imx_ssi_asrc_dma_alloc(struct snd_pcm_substream *substream,
 	if (!iprtd->asrc_p2p_dma_chan)
 		goto error;
 
-	buswidth = DMA_SLAVE_BUSWIDTH_4_BYTES;
+	switch (iprtd->output_bit) {
+	case ASRC_WIDTH_16_BIT:
+		buswidth = DMA_SLAVE_BUSWIDTH_2_BYTES;
+		break;
+	case ASRC_WIDTH_24_BIT:
+		buswidth = DMA_SLAVE_BUSWIDTH_4_BYTES;
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	slave_config.direction = DMA_DEV_TO_DEV;
 	slave_config.src_addr = asrc_get_per_addr(iprtd->asrc_index, 0);
@@ -412,6 +421,7 @@ static int snd_imx_open(struct snd_pcm_substream *substream)
 	iprtd = kzalloc(sizeof(*iprtd), GFP_KERNEL);
 	if (iprtd == NULL)
 		return -ENOMEM;
+
 	runtime->private_data = iprtd;
 
 	ret = snd_pcm_hw_constraint_integer(substream->runtime,
