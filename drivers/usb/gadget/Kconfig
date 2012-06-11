@@ -159,6 +159,7 @@ config USB_GADGET_ARC
 	depends on ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS
 	select USB_GADGET_DUALSPEED
 	select USB_OTG_UTILS
+	select POWER_SUPPLY
 	help
 	   Some Freescale processors have a USBOTG controller,
 	   which supports device mode.

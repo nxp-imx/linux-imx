@@ -491,7 +491,6 @@ static void dr_controller_run(struct fsl_udc *udc)
 	if (!(temp & OTGSC_B_SESSION_VALID)) {
 		/* Set stopped before low power mode */
 		udc->vbus_active = false;
-		imx_usb_vbus_disconnect(&udc->charger); /* charger disconnect */
 		udc->stopped = 1;
 		/* enable wake up */
 		dr_wake_up_enable(udc, true);
@@ -513,7 +512,8 @@ static void dr_controller_run(struct fsl_udc *udc)
 		/* disable pulldown dp and dm */
 		dr_discharge_line(udc->pdata, false);
 		udc->vbus_active = true;
-		imx_usb_vbus_connect(&udc->charger); /* charger detect */
+		/* notify vbus is connected */
+		imx_usb_vbus_connect(&udc->charger);
 		printk(KERN_DEBUG "%s: udc out low power mode\n", __func__);
 	}
 
@@ -2182,9 +2182,10 @@ static void fsl_gadget_disconnect_event(struct work_struct *work)
 
 	pdata = udc->pdata;
 
+	 /* notify vbus is disconnected */
+	imx_usb_vbus_disconnect(&udc->charger);
 	/* wait line to se0 */
 	dr_discharge_line(pdata, true);
-
 	/*
 	 * Wait class drivers finish, an well-behaviour class driver should
 	 * call ep_disable when it is notified to be disconnected.
@@ -2242,11 +2243,12 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 			udc->stopped = 0;
 			/* disable pulldown dp and dm */
 			dr_discharge_line(pdata, false);
-			imx_usb_vbus_connect(&udc->charger); /* charger detect */
+			/* notify vbus is connected */
+			imx_usb_vbus_connect(&udc->charger);
 			printk(KERN_DEBUG "%s: udc out low power mode\n", __func__);
 		} else {
 			udc->vbus_active = false;
-			imx_usb_vbus_disconnect(&udc->charger); /* charger disconnect */
+			fsl_pullup(&udc_controller->gadget, false); /* usbcmd.rs=0 */
 			/* here we need disable B_SESSION_IRQ, after
 			 * schedule_work finished, it need to be enabled again.
 			 * Doing like this can avoid conflicting between rapid
@@ -2257,7 +2259,6 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 				fsl_writel(tmp &
 					   (~OTGSC_B_SESSION_VALID_IRQ_EN),
 					   &dr_regs->otgsc);
-
 			/* update port status */
 			fsl_udc_speed_update(udc);
 			spin_unlock(&udc->lock);
