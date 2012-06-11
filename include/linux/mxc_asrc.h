@@ -72,6 +72,12 @@ enum asrc_outclk {
 	OUTCLK_ASRCK1_CLK = 0x0f,
 };
 
+enum asrc_word_width {
+	ASRC_WIDTH_24_BIT = 0,
+	ASRC_WIDTH_16_BIT = 1,
+	ASRC_WIDTH_8_BIT = 2,
+};
+
 struct asrc_config {
 	enum asrc_pair_index pair;
 	unsigned int channel_num;
@@ -79,7 +85,8 @@ struct asrc_config {
 	unsigned int dma_buffer_size;
 	unsigned int input_sample_rate;
 	unsigned int output_sample_rate;
-	unsigned int word_width;
+	enum asrc_word_width input_word_width;
+	enum asrc_word_width output_word_width;
 	enum asrc_inclk inclk;
 	enum asrc_outclk outclk;
 };
@@ -170,6 +177,9 @@ enum asrc_error_status {
 #define ASRC_ASRFSTB_REG    0xAC
 #define ASRC_ASRMCRC_REG    0xB0
 #define ASRC_ASRFSTC_REG    0xB4
+#define ASRC_ASRMCR1A_REG   0xC0
+#define ASRC_ASRMCR1B_REG   0xC4
+#define ASRC_ASRMCR1C_REG   0xC8
 
 
 struct dma_block {
