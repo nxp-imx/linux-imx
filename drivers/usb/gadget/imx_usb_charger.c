@@ -178,7 +178,7 @@ static int usb_charger_detect(struct usb_charger *charger)
 	return 1;
 }
 
-void usb_charger_init(struct usb_charger *charger)
+static void usb_charger_init(struct usb_charger *charger)
 {
 	charger->bc = BATTERY_CHARGING_SPEC_1_2;
 	charger->detect = usb_charger_detect;
@@ -298,11 +298,11 @@ EXPORT_SYMBOL(imx_usb_vbus_connect);
  */
 int imx_usb_vbus_disconnect(struct usb_charger *charger)
 {
-	if (charger->dp_pullup)
-		charger->dp_pullup(false); /* usbcmd.rs = 0 */
-
 	if (!charger->enable)
 		return 0;
+
+	/* in case, the charger detect is doing or pending */
+	cancel_work_sync(&charger->work);
 
 	charger->online = 0;
 	charger->present = 0;
