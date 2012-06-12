@@ -85,8 +85,8 @@ struct mxcfb_info {
 	u32 pseudo_palette[16];
 
 	bool mode_found;
-	struct semaphore flip_sem;
-	struct semaphore alpha_flip_sem;
+	struct completion flip_complete;
+	struct completion alpha_flip_complete;
 	struct completion vsync_complete;
 
 	void *ipu;
@@ -247,11 +247,8 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	base += fr_yoff * fb_stride + fr_xoff;
 
 	mxc_fbi->cur_ipu_buf = 2;
-	sema_init(&mxc_fbi->flip_sem, 1);
-	if (mxc_fbi->alpha_chan_en) {
+	if (mxc_fbi->alpha_chan_en)
 		mxc_fbi->cur_ipu_alpha_buf = 1;
-		sema_init(&mxc_fbi->alpha_flip_sem, 1);
-	}
 
 	retval = ipu_init_channel_buffer(mxc_fbi->ipu,
 					 mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
@@ -650,28 +647,32 @@ static int swap_channels(struct fb_info *fbi_from)
 		break;
 	}
 
-	if (ipu_request_irq(mxc_fbi_from->ipu, mxc_fbi_from->ipu_ch_irq, mxcfb_irq_handler, 0,
+	if (ipu_request_irq(mxc_fbi_from->ipu, mxc_fbi_from->ipu_ch_irq,
+		mxcfb_irq_handler, IPU_IRQF_ONESHOT,
 		MXCFB_NAME, fbi_from) != 0) {
 		dev_err(fbi_from->device, "Error registering irq %d\n",
 			mxc_fbi_from->ipu_ch_irq);
 		return -EBUSY;
 	}
 	ipu_disable_irq(mxc_fbi_from->ipu, mxc_fbi_from->ipu_ch_irq);
-	if (ipu_request_irq(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch_irq, mxcfb_irq_handler, 0,
+	if (ipu_request_irq(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch_irq,
+		mxcfb_irq_handler, IPU_IRQF_ONESHOT,
 		MXCFB_NAME, fbi_to) != 0) {
 		dev_err(fbi_to->device, "Error registering irq %d\n",
 			mxc_fbi_to->ipu_ch_irq);
 		return -EBUSY;
 	}
 	ipu_disable_irq(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch_irq);
-	if (ipu_request_irq(mxc_fbi_from->ipu, mxc_fbi_from->ipu_ch_nf_irq, mxcfb_nf_irq_handler, 0,
+	if (ipu_request_irq(mxc_fbi_from->ipu, mxc_fbi_from->ipu_ch_nf_irq,
+		mxcfb_nf_irq_handler, IPU_IRQF_ONESHOT,
 		MXCFB_NAME, fbi_from) != 0) {
 		dev_err(fbi_from->device, "Error registering irq %d\n",
 			mxc_fbi_from->ipu_ch_nf_irq);
 		return -EBUSY;
 	}
 	ipu_disable_irq(mxc_fbi_from->ipu, mxc_fbi_from->ipu_ch_nf_irq);
-	if (ipu_request_irq(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch_nf_irq, mxcfb_irq_handler, 0,
+	if (ipu_request_irq(mxc_fbi_to->ipu, mxc_fbi_to->ipu_ch_nf_irq,
+		mxcfb_nf_irq_handler, IPU_IRQF_ONESHOT,
 		MXCFB_NAME, fbi_to) != 0) {
 		dev_err(fbi_to->device, "Error registering irq %d\n",
 			mxc_fbi_to->ipu_ch_nf_irq);
@@ -998,7 +999,12 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 			else
 				ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
 
-			if (down_timeout(&mxc_fbi->alpha_flip_sem, HZ/2)) {
+			init_completion(&mxc_fbi->alpha_flip_complete);
+			ipu_clear_irq(mxc_fbi->ipu, ipu_alp_ch_irq);
+			ipu_enable_irq(mxc_fbi->ipu, ipu_alp_ch_irq);
+			retval = wait_for_completion_timeout(
+				&mxc_fbi->alpha_flip_complete, HZ/2);
+			if (retval == 0) {
 				dev_err(fbi->device, "timeout when waiting for alpha flip irq\n");
 				retval = -ETIMEDOUT;
 				break;
@@ -1014,8 +1020,6 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 						  IPU_ALPHA_IN_BUFFER,
 						  mxc_fbi->cur_ipu_alpha_buf);
-				ipu_clear_irq(mxc_fbi->ipu, ipu_alp_ch_irq);
-				ipu_enable_irq(mxc_fbi->ipu, ipu_alp_ch_irq);
 			} else {
 				dev_err(fbi->device,
 					"Error updating %s SDC alpha buf %d "
@@ -1314,6 +1318,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	bool loc_alpha_en = false;
 	int fb_stride;
 	int i;
+	int ret;
 
 	/* no pan display during fb blank */
 	if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
@@ -1393,7 +1398,11 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		}
 	}
 
-	if (down_timeout(&mxc_fbi->flip_sem, HZ/2)) {
+	init_completion(&mxc_fbi->flip_complete);
+	ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+	ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+	ret = wait_for_completion_timeout(&mxc_fbi->flip_complete, HZ/2);
+	if (ret == 0) {
 		dev_err(info->device, "timeout when waiting for flip irq\n");
 		return -ETIMEDOUT;
 	}
@@ -1431,8 +1440,6 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 
 		ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				  mxc_fbi->cur_ipu_buf);
-		ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
-		ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 	} else {
 		dev_err(info->device,
 			"Error updating SDC buf %d to address=0x%08lX, "
@@ -1451,8 +1458,6 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		++mxc_fbi->cur_ipu_buf;
 		mxc_fbi->cur_ipu_buf %= 3;
 		mxc_fbi->cur_ipu_alpha_buf = !mxc_fbi->cur_ipu_alpha_buf;
-		ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
-		ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 		return -EBUSY;
 	}
 
@@ -1541,8 +1546,7 @@ static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id)
 	struct fb_info *fbi = dev_id;
 	struct mxcfb_info *mxc_fbi = fbi->par;
 
-	up(&mxc_fbi->flip_sem);
-	ipu_disable_irq(mxc_fbi->ipu, irq);
+	complete(&mxc_fbi->flip_complete);
 	return IRQ_HANDLED;
 }
 
@@ -1552,7 +1556,6 @@ static irqreturn_t mxcfb_nf_irq_handler(int irq, void *dev_id)
 	struct mxcfb_info *mxc_fbi = fbi->par;
 
 	complete(&mxc_fbi->vsync_complete);
-	ipu_disable_irq(mxc_fbi->ipu, irq);
 	return IRQ_HANDLED;
 }
 
@@ -1561,8 +1564,7 @@ static irqreturn_t mxcfb_alpha_irq_handler(int irq, void *dev_id)
 	struct fb_info *fbi = dev_id;
 	struct mxcfb_info *mxc_fbi = fbi->par;
 
-	up(&mxc_fbi->alpha_flip_sem);
-	ipu_disable_irq(mxc_fbi->ipu, irq);
+	complete(&mxc_fbi->alpha_flip_complete);
 	return IRQ_HANDLED;
 }
 
@@ -1942,15 +1944,15 @@ static int mxcfb_register(struct fb_info *fbi)
 		strcpy(fbi->fix.id, fg_id);
 	}
 
-	if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_ch_irq, mxcfb_irq_handler, 0,
-				MXCFB_NAME, fbi) != 0) {
+	if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_ch_irq,
+		mxcfb_irq_handler, IPU_IRQF_ONESHOT, MXCFB_NAME, fbi) != 0) {
 		dev_err(fbi->device, "Error registering EOF irq handler.\n");
 		ret = -EBUSY;
 		goto err0;
 	}
 	ipu_disable_irq(mxcfbi->ipu, mxcfbi->ipu_ch_irq);
-	if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_ch_nf_irq, mxcfb_nf_irq_handler, 0,
-				MXCFB_NAME, fbi) != 0) {
+	if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_ch_nf_irq,
+		mxcfb_nf_irq_handler, IPU_IRQF_ONESHOT, MXCFB_NAME, fbi) != 0) {
 		dev_err(fbi->device, "Error registering NFACK irq handler.\n");
 		ret = -EBUSY;
 		goto err1;
@@ -1959,7 +1961,7 @@ static int mxcfb_register(struct fb_info *fbi)
 
 	if (mxcfbi->ipu_alp_ch_irq != -1)
 		if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_alp_ch_irq,
-					mxcfb_alpha_irq_handler, 0,
+				mxcfb_alpha_irq_handler, IPU_IRQF_ONESHOT,
 					MXCFB_NAME, fbi) != 0) {
 			dev_err(fbi->device, "Error registering alpha irq "
 					"handler.\n");
