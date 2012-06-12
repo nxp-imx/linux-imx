@@ -98,6 +98,7 @@ config MACH_MX6SL_ARM2
 	select IMX_HAVE_PLATFORM_IMX_EPDC
 	select IMX_HAVE_PLATFORM_IMX_SPDC
 	select IMX_HAVE_PLATFORM_IMX_PXP
+	select IMX_HAVE_PLATFORM_IMX_KEYPAD
 	help
 	  Include support for i.MX 6Sololite Armadillo2 platform. This includes specific
 	  configurations for the board and its peripherals.

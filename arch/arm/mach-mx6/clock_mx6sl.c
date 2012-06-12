@@ -3866,6 +3866,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "usb_phy4_clk", usb_phy4_clk),
 	_REGISTER_CLOCK("imx2-wdt.0", NULL, dummy_clk),
 	_REGISTER_CLOCK("imx2-wdt.1", NULL, dummy_clk),
+	_REGISTER_CLOCK(NULL, "kpp", dummy_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz2_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
