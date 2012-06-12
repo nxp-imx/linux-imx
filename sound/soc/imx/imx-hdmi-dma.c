@@ -514,7 +514,8 @@ static void hdmi_dma_mmap_copy(struct snd_pcm_substream *substream,
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct imx_hdmi_dma_runtime_data *rtd = runtime->private_data;
 	u32 framecount;
-	u32 *src32, *dest;
+/*	u32 *src32; */
+	u32 *dest;
 	u16 *src16;
 
 	framecount =  count/(rtd->sample_align * rtd->channels);
