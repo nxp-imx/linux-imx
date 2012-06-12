@@ -563,6 +563,10 @@ static struct mxc_dvfs_platform_data mx6sl_arm2_dvfscore_data = {
 	.delay_time		= 80,
 };
 
+static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
+	.reserved_mem_size = SZ_128M,
+};
+
 void __init early_console_setup(unsigned long base, struct clk *clk);
 
 static inline void mx6_arm2_init_uart(void)
@@ -1112,6 +1116,8 @@ static void __init mx6_arm2_init(void)
 
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
+
+	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 }
 
 extern void __iomem *twd_base;
@@ -1134,7 +1140,17 @@ static struct sys_timer mxc_timer = {
 
 static void __init mx6_arm2_reserve(void)
 {
+#if defined(CONFIG_MXC_GPU_VIV) || defined(CONFIG_MXC_GPU_VIV_MODULE)
+	phys_addr_t phys;
 
+	if (imx6q_gpu_pdata.reserved_mem_size) {
+		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
+					   SZ_4K, MEMBLOCK_ALLOC_ACCESSIBLE);
+		memblock_free(phys, imx6q_gpu_pdata.reserved_mem_size);
+		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
+		imx6q_gpu_pdata.reserved_mem_base = phys;
+	}
+#endif
 }
 
 MACHINE_START(MX6SL_ARM2, "Freescale i.MX 6SoloLite Armadillo2 Board")
