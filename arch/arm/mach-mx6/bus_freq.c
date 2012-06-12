@@ -322,6 +322,10 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 	if (strncmp(buf, "1", 1) == 0) {
 		bus_freq_scaling_is_active = 1;
 		set_high_bus_freq(0);
+		/* Make sure system can enter low bus mode if it should be in
+		low bus mode */
+		if (low_freq_bus_used() && !low_bus_freq_mode)
+			set_low_bus_freq();
 	} else if (strncmp(buf, "0", 1) == 0) {
 		if (bus_freq_scaling_is_active)
 			set_high_bus_freq(1);
