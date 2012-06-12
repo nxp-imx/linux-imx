@@ -2256,6 +2256,7 @@ gckHARDWARE_ConvertLogical(
 {
     gctUINT32 address;
     gceSTATUS status;
+    gctUINT32 baseAddress;
 
     gcmkHEADER_ARG("Hardware=0x%x Logical=0x%x", Hardware, Logical);
 
@@ -2267,6 +2268,16 @@ gckHARDWARE_ConvertLogical(
     /* Convert logical address into a physical address. */
     gcmkONERROR(
         gckOS_GetPhysicalAddress(Hardware->os, Logical, &address));
+
+    /* For old MMU, get GPU address according to baseAddress. */
+    if (Hardware->mmuVersion == 0)
+    {
+        gcmkONERROR(gckOS_GetBaseAddress(Hardware->os, &baseAddress));
+
+        /* Subtract base address to get a GPU address. */
+        gcmkASSERT(address >= baseAddress);
+        address -= baseAddress;
+    }
 
     /* Return hardware specific address. */
     *Address = (Hardware->mmuVersion == 0)

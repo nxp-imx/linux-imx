@@ -752,8 +752,8 @@ gckGALDEVICE_Construct(
             /* Create the contiguous memory heap. */
             status = gckVIDMEM_Construct(
                 device->os,
-                (ContiguousBase - device->baseAddress) | device->systemMemoryBaseAddress,
-                 ContiguousSize,
+                ContiguousBase | device->systemMemoryBaseAddress,
+                ContiguousSize,
                 64, BankSize,
                 &device->contiguousVidMem
                 );
