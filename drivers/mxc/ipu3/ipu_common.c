@@ -373,8 +373,6 @@ void _ipu_get(struct ipu_soc *ipu)
 {
 	int ret;
 
-	if (in_interrupt())
-		return;
 	ret = clk_enable(ipu->ipu_clk);
 	if (ret < 0)
 		BUG();
@@ -382,8 +380,6 @@ void _ipu_get(struct ipu_soc *ipu)
 
 void _ipu_put(struct ipu_soc *ipu)
 {
-	if (in_interrupt())
-		return;
 	clk_disable(ipu->ipu_clk);
 }
 
