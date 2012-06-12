@@ -3331,6 +3331,170 @@ static struct clk aips_tz1_clk = {
 	.disable = _clk_disable_inwait,
 };
 
+/* Raster 2D and OpenVG GPU core share the same clock gate bits,
+ * so we abstract gpu2d_core_clk to handle clock gate enabling
+ * and disabling for both 2D core. These two 2D core have
+ * different multiplexer, so gpu2d_axi_clk and openvg_axi_clk
+ * are provided for them to control the multiplexer individually.
+*/
+static struct clk gpu2d_core_clk = {
+	__INIT_CLK_DEBUG(gpu2d_core_clk)
+	.enable = _clk_enable,
+	.enable_reg = MXC_CCM_CCGR1,
+	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
+	.disable = _clk_disable,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+};
+
+static unsigned long _clk_openvg_axi_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 div;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if (div == 0)
+		div++;
+
+	if (div > 8)
+		div = 8;
+
+	return parent_rate / div;
+}
+
+static int _clk_openvg_axi_set_parent(struct clk *clk, struct clk *parent)
+{
+	int mux;
+	u32 reg = __raw_readl(MXC_CCM_CBCMR)
+		& ~MXC_CCM_CBCMR_GPU3D_CORE_CLK_SEL_MASK;
+
+	mux = _get_mux6(parent, &pll3_pfd1_540M,
+		&pll3_usb_otg_main_clk,
+		&pll2_528_bus_main_clk, &pll2_pfd2_400M, NULL, NULL);
+	reg |= (mux << MXC_CCM_CBCMR_GPU3D_CORE_CLK_SEL_OFFSET);
+	__raw_writel(reg, MXC_CCM_CBCMR);
+
+	return 0;
+}
+
+static unsigned long _clk_openvg_axi_get_rate(struct clk *clk)
+{
+	u32 reg, div;
+
+	reg = __raw_readl(MXC_CCM_CBCMR);
+	div = ((reg & MXC_CCM_CBCMR_GPU3D_CORE_PODF_MASK) >>
+			MXC_CCM_CBCMR_GPU3D_CORE_PODF_OFFSET) + 1;
+
+	return clk_get_rate(clk->parent) / div;
+}
+
+static int _clk_openvg_axi_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+	if (div == 0)
+		div++;
+	if (div > 8)
+		div = 8;
+
+	reg = __raw_readl(MXC_CCM_CBCMR);
+	reg &= ~MXC_CCM_CBCMR_GPU3D_CORE_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CBCMR_GPU3D_CORE_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CBCMR);
+
+	return 0;
+}
+
+static struct clk openvg_axi_clk = {
+	__INIT_CLK_DEBUG(openvg_axi_clk)
+	.parent = &pll2_528_bus_main_clk,
+	.set_parent = _clk_openvg_axi_set_parent,
+	.set_rate = _clk_openvg_axi_set_rate,
+	.get_rate = _clk_openvg_axi_get_rate,
+	.round_rate = _clk_openvg_axi_round_rate,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+};
+
+static unsigned long _clk_gpu2d_axi_round_rate(struct clk *clk,
+						unsigned long rate)
+{
+	u32 div;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+
+	/* Make sure rate is not greater than the maximum value for the clock.
+	 * Also prevent a div of 0.
+	 */
+	if (div == 0)
+		div++;
+
+	if (div > 8)
+		div = 8;
+
+	return parent_rate / div;
+}
+
+static int _clk_gpu2d_axi_set_parent(struct clk *clk, struct clk *parent)
+{
+	int mux;
+	u32 reg = __raw_readl(MXC_CCM_CBCMR) &
+				~MXC_CCM_CBCMR_GPU3D_SHADER_CLK_SEL_MASK;
+
+	mux = _get_mux6(parent, &pll2_pfd2_400M, &pll3_usb_otg_main_clk,
+		&pll3_pfd1_540M, &pll2_528_bus_main_clk, NULL, NULL);
+	reg |= (mux << MXC_CCM_CBCMR_GPU3D_SHADER_CLK_SEL_OFFSET);
+	__raw_writel(reg, MXC_CCM_CBCMR);
+
+	return 0;
+}
+
+static unsigned long _clk_gpu2d_axi_get_rate(struct clk *clk)
+{
+	u32 reg, div = 1;
+
+	reg = __raw_readl(MXC_CCM_CBCMR);
+	div = ((reg & MXC_CCM_CBCMR_GPU3D_SHADER_PODF_MASK) >>
+			MXC_CCM_CBCMR_GPU3D_SHADER_PODF_OFFSET) + 1;
+
+	return clk_get_rate(clk->parent) / div;
+}
+
+static int _clk_gpu2d_axi_set_rate(struct clk *clk, unsigned long rate)
+{
+	u32 reg, div;
+	u32 parent_rate = clk_get_rate(clk->parent);
+
+	div = parent_rate / rate;
+	if (div == 0)
+		div++;
+	if (((parent_rate / div) != rate) || (div > 8))
+		return -EINVAL;
+
+	reg = __raw_readl(MXC_CCM_CBCMR);
+	reg &= ~MXC_CCM_CBCMR_GPU3D_SHADER_PODF_MASK;
+	reg |= (div - 1) << MXC_CCM_CBCMR_GPU3D_SHADER_PODF_OFFSET;
+	__raw_writel(reg, MXC_CCM_CBCMR);
+
+	return 0;
+}
+
+static struct clk gpu2d_axi_clk = {
+	__INIT_CLK_DEBUG(gpu2d_axi_clk)
+	.parent = &pll2_528_bus_main_clk,
+	.set_parent = _clk_gpu2d_axi_set_parent,
+	.set_rate = _clk_gpu2d_axi_set_rate,
+	.get_rate = _clk_gpu2d_axi_get_rate,
+	.round_rate = _clk_gpu2d_axi_round_rate,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+};
+
 /* set the parent by the ipcg table */
 
 static struct clk pwm_clk[] = {
@@ -3711,6 +3875,9 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxs-perfmon.2", "perfmon", perfmon2_clk),
 	_REGISTER_CLOCK(NULL, "anaclk_1", anaclk_1),
 	_REGISTER_CLOCK(NULL, "anaclk_2", anaclk_2),
+	_REGISTER_CLOCK(NULL, "gpu2d_clk", gpu2d_core_clk),
+	_REGISTER_CLOCK(NULL, "gpu2d_axi_clk", gpu2d_axi_clk),
+	_REGISTER_CLOCK(NULL, "openvg_axi_clk", openvg_axi_clk),
 };
 
 static void clk_tree_init(void)
