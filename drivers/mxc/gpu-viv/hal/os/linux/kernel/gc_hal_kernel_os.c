@@ -2065,7 +2065,6 @@ gckOS_AllocateNonPagedMemory(
     addr = _GetNonPagedMemoryCache(Os,
                 mdl->numPages * PAGE_SIZE,
                 &mdl->dmaHandle);
-
     if (addr == gcvNULL)
 #endif
     {
@@ -2123,7 +2122,6 @@ gckOS_AllocateNonPagedMemory(
         mdl->dmaHandle = (mdl->dmaHandle & ~0x80000000)
                        | (Os->device->baseAddress & 0x80000000);
     }
-
     mdl->addr = addr;
 
     /* Return allocated memory. */
@@ -2864,13 +2862,6 @@ gckOS_GetPhysicalAddressProcess(
 
     gcmkONERROR(status);
 
-    if (Os->device->baseAddress != 0)
-    {
-        /* Subtract base address to get a GPU physical address. */
-        gcmkASSERT(*Address >= Os->device->baseAddress);
-        *Address -= Os->device->baseAddress;
-    }
-
     /* Success. */
     gcmkFOOTER_ARG("*Address=0x%08x", *Address);
     return gcvSTATUS_OK;
@@ -2914,7 +2905,7 @@ gckOS_MapPhysical(
 {
     gctPOINTER logical;
     PLINUX_MDL mdl;
-    gctUINT32 physical;
+    gctUINT32 physical = Physical;
 
     gcmkHEADER_ARG("Os=0x%X Physical=0x%X Bytes=%lu", Os, Physical, Bytes);
 
@@ -2924,9 +2915,6 @@ gckOS_MapPhysical(
     gcmkVERIFY_ARGUMENT(Logical != gcvNULL);
 
     MEMORY_LOCK(Os);
-
-    /* Compute true physical address (before subtraction of the baseAddress). */
-    physical = Physical + Os->device->baseAddress;
 
     /* Go through our mapping to see if we know this physical address already. */
     mdl = Os->mdlHead;

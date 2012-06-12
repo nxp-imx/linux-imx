@@ -1603,7 +1603,7 @@ _NeedVirtualMapping(
 #endif
         {
             /* For cores which can't access all physical address. */
-            gcmkONERROR(gckOS_GetPhysicalAddress(Kernel->os,
+            gcmkONERROR(gckHARDWARE_ConvertLogical(Kernel->hardware,
                         Node->Virtual.logical,
                         &phys));
 
@@ -1663,6 +1663,7 @@ gckVIDMEM_Lock(
     gctBOOL locked = gcvFALSE;
     gckOS os = gcvNULL;
     gctBOOL needMapping;
+    gctUINT32 baseAddress;
 
     gcmkHEADER_ARG("Node=0x%x", Node);
 
@@ -1697,6 +1698,19 @@ gckVIDMEM_Lock(
 #else
         *Address = Node->VidMem.physical;
 #endif
+
+#if gcdENABLE_VG
+        if (Kernel->vg == gcvNULL)
+#endif
+        {
+            if (Kernel->hardware->mmuVersion == 0)
+            {
+                /* Convert physical to GPU address for old mmu. */
+                gcmkONERROR(gckOS_GetBaseAddress(Kernel->os, &baseAddress));
+                gcmkASSERT(*Address > baseAddress);
+                *Address -= baseAddress;
+            }
+        }
 
         gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
                       "Locked node 0x%x (%d) @ 0x%08X",
@@ -1755,10 +1769,21 @@ gckVIDMEM_Lock(
 
             if (needMapping == gcvFALSE)
             {
-                /* Get physical address directly */
-                 gcmkONERROR(gckOS_GetPhysicalAddress(os,
-                             Node->Virtual.logical,
-                             &Node->Virtual.addresses[Kernel->core]));
+#if gcdENABLE_VG
+                if (Kernel->vg != gcvNULL)
+                {
+                    /* Get physical address directly */
+                    gcmkONERROR(gckVGHARDWARE_ConvertLogical(Kernel->vg->hardware,
+                                Node->Virtual.logical,
+                                &Node->Virtual.addresses[Kernel->core]));
+                }
+                else
+#endif
+                {
+                    gcmkONERROR(gckHARDWARE_ConvertLogical(Kernel->hardware,
+                                Node->Virtual.logical,
+                                &Node->Virtual.addresses[Kernel->core]));
+                }
             }
             else
             {
