@@ -73,7 +73,6 @@ struct mxc_vout_output {
 	struct fb_info *fbi;
 	unsigned long fb_smem_start;
 	unsigned long fb_smem_len;
-	struct fb_var_screeninfo fb_var;
 	struct video_device *vfd;
 	struct mutex mutex;
 	struct mutex task_lock;
@@ -93,7 +92,6 @@ struct mxc_vout_output {
 
 	bool fmt_init;
 	bool release;
-	bool save_var;
 	bool linear_bypass_pp;
 	bool vdoa_1080p;
 	bool tiled_bypass_pp;
@@ -647,10 +645,6 @@ static void disp_work_func(struct work_struct *work)
 	spin_unlock_irqrestore(q->irqlock, flags);
 
 	v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "disp work finish one frame\n");
-	if (!vout->save_var) {
-		memcpy(&vout->fb_var, &vout->fbi->var, sizeof(vout->fb_var));
-		vout->save_var = true;
-	}
 
 	return;
 err:
@@ -1589,17 +1583,11 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	struct fb_var_screeninfo var;
 	int i, display_buf_size, fb_num, ret;
 	u32 fb_base;
-	u32 is_bg;
 	u32 size;
 	int j;
 
 	memcpy(&var, &fbi->var, sizeof(var));
 	fb_base = fbi->fix.smem_start;
-	is_bg = get_ipu_channel(fbi);
-	if (is_bg == MEM_BG_SYNC) {
-		memcpy(&vout->fb_var, &fbi->var, sizeof(var));
-		vout->save_var = true;
-	}
 
 	var.xres = vout->task.output.width;
 	var.yres = vout->task.output.height;
@@ -1676,8 +1664,6 @@ static int config_disp_output(struct mxc_vout_output *vout)
 		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
 			"realloc fb mem size:0x%x@0x%lx,old paddr @0x%x\n",
 			fbi->fix.smem_len, fbi->fix.smem_start, fb_base);
-		if (is_bg)
-			vout->save_var = false;
 	}
 
 	console_lock();
@@ -1701,10 +1687,24 @@ static void release_disp_output(struct mxc_vout_output *vout)
 {
 	struct fb_info *fbi = vout->fbi;
 	struct mxcfb_pos pos;
+	struct ipu_pos ipos;
 	int ret;
 
 	if (vout->release)
 		return;
+	if (get_ipu_channel(fbi) == MEM_BG_SYNC) {
+		if (vout->tiled_bypass_pp) {
+			vout->task.output.paddr = vout->disp_bufs[0];
+			ipos.x = vout->task.input.crop.pos.x;
+			ipos.y = vout->task.input.crop.pos.y;
+			ret = show_buf(vout, 0, &ipos);
+			if (ret < 0)
+				v4l2_err(vout->vfd->v4l2_dev,
+						"show_buf ret %d\n", ret);
+		}
+		goto out;
+	}
+
 	console_lock();
 	fbi->flags |= FBINFO_MISC_USEREVENT;
 	fb_blank(fbi, FB_BLANK_POWERDOWN);
@@ -1715,26 +1715,7 @@ static void release_disp_output(struct mxc_vout_output *vout)
 	pos.x = 0;
 	pos.y = 0;
 	set_window_position(vout, &pos);
-
-	if (get_ipu_channel(fbi) == MEM_BG_SYNC) {
-		if ((vout->fb_smem_len != 0) && (vout->fb_smem_start != 0)) {
-			console_lock();
-			fbi->fix.smem_start = vout->fb_smem_start;
-			fbi->fix.smem_len = vout->fb_smem_len;
-			vout->fb_var.activate |= FB_ACTIVATE_FORCE;
-			fbi->flags |= FBINFO_MISC_USEREVENT;
-			ret = fb_set_var(fbi, &vout->fb_var);
-			fbi->flags &= ~FBINFO_MISC_USEREVENT;
-			console_unlock();
-			if (ret < 0)
-				v4l2_err(vout->vfd->v4l2_dev, "ERR: fb_set_var.\n");
-		}
-		console_lock();
-		fbi->flags |= FBINFO_MISC_USEREVENT;
-		fb_blank(fbi, FB_BLANK_UNBLANK);
-		fbi->flags &= ~FBINFO_MISC_USEREVENT;
-		console_unlock();
-	}
+out:
 	vout->release = true;
 }
 
