@@ -1042,6 +1042,33 @@ static struct mxc_fb_platform_data fb_data[] = {
 static struct platform_device lcd_wvga_device = {
 	.name = "lcd_seiko",
 };
+
+static int mx6sl_arm2_keymap[] = {
+	KEY(0, 0, KEY_SELECT),
+	KEY(0, 1, KEY_BACK),
+	KEY(0, 2, KEY_F1),
+	KEY(0, 3, KEY_F2),
+
+	KEY(1, 0, KEY_F3),
+	KEY(1, 1, KEY_F4),
+	KEY(1, 2, KEY_F5),
+	KEY(1, 3, KEY_MENU),
+
+	KEY(2, 0, KEY_PREVIOUS),
+	KEY(2, 1, KEY_NEXT),
+	KEY(2, 2, KEY_HOME),
+	KEY(2, 3, KEY_NEXT),
+
+	KEY(3, 0, KEY_UP),
+	KEY(3, 1, KEY_LEFT),
+	KEY(3, 2, KEY_RIGHT),
+	KEY(3, 3, KEY_DOWN),
+};
+
+static const struct matrix_keymap_data mx6sl_arm2_map_data __initconst = {
+	.keymap		= mx6sl_arm2_keymap,
+	.keymap_size	= ARRAY_SIZE(mx6sl_arm2_keymap),
+};
 /*!
  * Board specific initialization.
  */
@@ -1118,6 +1145,7 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_imx2_wdt(0, NULL);
 
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
+	imx6sl_add_imx_keypad(&mx6sl_arm2_map_data);
 }
 
 extern void __iomem *twd_base;

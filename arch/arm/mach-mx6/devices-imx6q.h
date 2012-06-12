@@ -239,3 +239,6 @@ extern const struct imx_pcie_data imx6q_pcie_data __initconst;
 
 #define imx6q_add_busfreq(pdata)	imx_add_busfreq(pdata)
 
+extern const struct imx_imx_keypad_data imx6sl_imx_keypad_data;
+#define imx6sl_add_imx_keypad(pdata)	\
+	imx_add_imx_keypad(&imx6sl_imx_keypad_data, pdata)
