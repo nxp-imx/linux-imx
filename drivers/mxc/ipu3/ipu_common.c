@@ -2563,8 +2563,8 @@ static irqreturn_t ipu_irq_handler(int irq, void *desc)
 		int_stat &= ipu_cm_read(ipu, IPU_INT_CTRL(err_reg[i]));
 		if (int_stat) {
 			ipu_cm_write(ipu, int_stat, IPU_INT_STAT(err_reg[i]));
-			dev_err(ipu->dev,
-				"IPU Error - IPU_INT_STAT_%d = 0x%08X\n",
+			dev_warn(ipu->dev,
+				"IPU Warning - IPU_INT_STAT_%d = 0x%08X\n",
 				err_reg[i], int_stat);
 			/* Disable interrupts so we only get error once */
 			int_stat =
