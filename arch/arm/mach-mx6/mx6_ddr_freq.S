@@ -77,6 +77,9 @@ set_ahb_podf_before_switch:
 	ldr     r2, =0x381D00
 	bic     r0, r0, r2
 	orr     r0, r0, #0xD00
+	/* Make sure AXI clock divider is 1 */
+	bic     r0, r0, #0x70000
+	orr     r0, r0, #0x10000
 	str     r0, [r6, #0x14]
 
 wait_div_update528_1:
@@ -182,6 +185,9 @@ periph_clk_switch6:
 	ldr     r2, =0x381D00
 	bic     r0, r0, r2
 	orr     r0, r0, #0x900
+	/* Make sure AXI clock divider is 1 */
+	bic     r0, r0, #0x70000
+	orr     r0, r0, #0x10000
 	str     r0, [r6, #0x14]
 
 wait_div_update400_2:

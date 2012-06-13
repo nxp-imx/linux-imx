@@ -91,12 +91,25 @@ struct timeval end_time;
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
 static struct clk *pll2_400;
+static struct clk *pll2_200;
 static struct clk *cpu_clk;
 static unsigned int org_ldo;
 static struct clk *pll3;
+static struct clk *pll2;
+static struct clk *periph_clk;
+static struct clk *osc;
 
 static struct delayed_work low_bus_freq_handler;
+extern void update_usecount(struct clk *clk, bool flag);
 
+static inline void update_periph_clk_parent(struct clk *new_parent)
+{
+	update_usecount(periph_clk->parent, false);
+
+	periph_clk->parent = new_parent;
+
+	update_usecount(periph_clk->parent, true);
+}
 static void reduce_bus_freq_handler(struct work_struct *work)
 {
 	unsigned long reg;
@@ -128,10 +141,15 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		/* Need to ensure that PLL2_PFD_400M is kept ON. */
 		clk_enable(pll2_400);
 		update_ddr_freq(50000000);
+		/* Make sure periph clk's parent also got updated */
+		update_periph_clk_parent(pll2_200);
+
 		audio_bus_freq_mode = 1;
 		low_bus_freq_mode = 0;
 	} else {
 		update_ddr_freq(24000000);
+		/* Make sure periph clk's parent also got updated */
+		update_periph_clk_parent(osc);
 		if (audio_bus_freq_mode)
 			clk_disable(pll2_400);
 		low_bus_freq_mode = 1;
@@ -230,6 +248,7 @@ int set_high_bus_freq(int high_bus_freq)
 	}
 	clk_enable(pll3);
 
+
 	/* Enable the PU LDO */
 	if (cpu_is_mx6q() && low_bus_freq_mode) {
 		__raw_writel(org_ldo, ANADIG_REG_CORE);
@@ -257,6 +276,8 @@ int set_high_bus_freq(int high_bus_freq)
 
 	if (high_bus_freq) {
 		update_ddr_freq(ddr_normal_rate);
+		/* Make sure periph clk's parent also got updated */
+		update_periph_clk_parent(pll2);
 		if (med_bus_freq_mode)
 			clk_disable(pll2_400);
 		high_bus_freq_mode = 1;
@@ -264,6 +285,8 @@ int set_high_bus_freq(int high_bus_freq)
 	} else {
 		clk_enable(pll2_400);
 		update_ddr_freq(ddr_med_rate);
+		/* Make sure periph clk's parent also got updated */
+		update_periph_clk_parent(pll2_400);
 		high_bus_freq_mode = 0;
 		med_bus_freq_mode = 1;
 	}
@@ -372,6 +395,20 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(pll2_400);
 	}
 
+	pll2_200 = clk_get(NULL, "pll2_200M");
+	if (IS_ERR(pll2_400)) {
+		printk(KERN_DEBUG "%s: failed to get pll2_200M\n",
+		       __func__);
+		return PTR_ERR(pll2_200);
+	}
+
+	pll2 = clk_get(NULL, "pll2");
+	if (IS_ERR(pll2_400)) {
+		printk(KERN_DEBUG "%s: failed to get pll2\n",
+		       __func__);
+		return PTR_ERR(pll2);
+	}
+
 	cpu_clk = clk_get(NULL, "cpu_clk");
 	if (IS_ERR(cpu_clk)) {
 		printk(KERN_DEBUG "%s: failed to get cpu_clk\n",
@@ -383,7 +420,21 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	if (IS_ERR(pll3)) {
 		printk(KERN_DEBUG "%s: failed to get pll3\n",
 		       __func__);
-		return PTR_ERR(cpu_clk);
+		return PTR_ERR(pll3);
+	}
+
+	periph_clk = clk_get(NULL, "periph_clk");
+	if (IS_ERR(periph_clk)) {
+		printk(KERN_DEBUG "%s: failed to get periph\n",
+		       __func__);
+		return PTR_ERR(periph_clk);
+	}
+
+	osc = clk_get(NULL, "osc");
+	if (IS_ERR(osc)) {
+		printk(KERN_DEBUG "%s: failed to get osc\n",
+		       __func__);
+		return PTR_ERR(osc);
 	}
 
 	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
