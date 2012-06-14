@@ -1271,26 +1271,21 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 			((rounded_pixel_clk >= pixel_clk + pixel_clk/200) ||
 			(rounded_pixel_clk <= pixel_clk - pixel_clk/200))) {
 			dev_dbg(ipu->dev, "try ipu ext di clk\n");
-			if (clk_get_usecount(di_parent))
-				dev_warn(ipu->dev,
-					"ext di clk already in use, go back to internal clk\n");
-			else {
-				rounded_pixel_clk = pixel_clk * 2;
-				rounded_parent_clk = clk_round_rate(di_parent,
-							rounded_pixel_clk);
-				while (rounded_pixel_clk < rounded_parent_clk) {
-					/* the max divider from parent to di is 8 */
-					if (rounded_parent_clk / pixel_clk < 8)
-						rounded_pixel_clk += pixel_clk * 2;
-					else
-						rounded_pixel_clk *= 2;
-				}
-				clk_set_rate(di_parent, rounded_pixel_clk);
-				rounded_pixel_clk =
-					clk_round_rate(ipu->di_clk[disp], pixel_clk);
-				clk_set_rate(ipu->di_clk[disp], rounded_pixel_clk);
-				clk_set_parent(&ipu->pixel_clk[disp], ipu->di_clk[disp]);
+			rounded_pixel_clk = pixel_clk * 2;
+			rounded_parent_clk = clk_round_rate(di_parent,
+						rounded_pixel_clk);
+			while (rounded_pixel_clk < rounded_parent_clk) {
+				/* the max divider from parent to di is 8 */
+				if (rounded_parent_clk / pixel_clk < 8)
+					rounded_pixel_clk += pixel_clk * 2;
+				else
+					rounded_pixel_clk *= 2;
 			}
+			clk_set_rate(di_parent, rounded_pixel_clk);
+			rounded_pixel_clk =
+				clk_round_rate(ipu->di_clk[disp], pixel_clk);
+			clk_set_rate(ipu->di_clk[disp], rounded_pixel_clk);
+			clk_set_parent(&ipu->pixel_clk[disp], ipu->di_clk[disp]);
 		}
 	}
 	rounded_pixel_clk = clk_round_rate(&ipu->pixel_clk[disp], pixel_clk);
@@ -2015,16 +2010,8 @@ int32_t _ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 
 	ipu_dp_write(ipu, (x_pos << 16) | y_pos, DP_FG_POS(flow));
 
-	if (ipu_is_channel_busy(ipu, channel)) {
-		/* controled by FSU if channel enabled */
-		reg = ipu_cm_read(ipu, IPU_SRM_PRI2) & (~(0x3 << dp_srm_shift));
-		reg |= (0x1 << dp_srm_shift);
-		ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
-	} else {
-		/* disable auto swap, controled by MCU if channel disabled */
-		reg = ipu_cm_read(ipu, IPU_SRM_PRI2) & (~(0x3 << dp_srm_shift));
-		ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
-	}
+	reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
+	ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 
 	return 0;
 }

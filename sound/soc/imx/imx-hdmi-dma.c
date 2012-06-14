@@ -514,7 +514,8 @@ static void hdmi_dma_mmap_copy(struct snd_pcm_substream *substream,
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct imx_hdmi_dma_runtime_data *rtd = runtime->private_data;
 	u32 framecount;
-	u32 *src32, *dest;
+/*	u32 *src32; */
+	u32 *dest;
 	u16 *src16;
 
 	framecount =  count/(rtd->sample_align * rtd->channels);
@@ -946,7 +947,6 @@ static void hdmi_dma_irq_enable(struct imx_hdmi_dma_runtime_data *rtd)
 	spin_lock_irqsave(&hdmi_dma_priv->irq_lock, flags);
 
 	hdmi_dma_clear_irq_status(0xff);
-	hdmi_irq_enable(hdmi_dma_priv->irq);
 	hdmi_dma_irq_mute(0);
 	hdmi_dma_irq_mask(0);
 
@@ -964,7 +964,6 @@ static void hdmi_dma_irq_disable(struct imx_hdmi_dma_runtime_data *rtd)
 
 	hdmi_dma_irq_mask(1);
 	hdmi_dma_irq_mute(1);
-	hdmi_irq_disable(rtd->irq);
 	hdmi_dma_clear_irq_status(0xff);
 
 	hdmi_mask(1);
@@ -1130,9 +1129,6 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 	hdmi_dma_priv->irq = hdmi_drvdata->irq;
 
 	hdmi_dma_init_iec_header();
-
-	/* Initialize IRQ at HDMI core level */
-	hdmi_irq_init();
 
 	hdmi_dma_priv->isfr_clk = clk_get(&pdev->dev, "hdmi_isfr_clk");
 	if (IS_ERR(hdmi_dma_priv->isfr_clk)) {

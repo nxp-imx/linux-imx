@@ -156,6 +156,32 @@ static const struct esdhc_platform_data mx6_arm2_sd3_data __initconst = {
 #define V_to_uV(V) (mV_to_uV(V * 1000))
 #define uV_to_V(uV) (uV_to_mV(uV) / 1000)
 
+static struct regulator_consumer_supply arm2_vmmc_consumers[] = {
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.0"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.1"),
+	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.2"),
+};
+
+static struct regulator_init_data arm2_vmmc_init = {
+	.num_consumer_supplies = ARRAY_SIZE(arm2_vmmc_consumers),
+	.consumer_supplies = arm2_vmmc_consumers,
+};
+
+static struct fixed_voltage_config arm2_vmmc_reg_config = {
+	.supply_name	= "vmmc",
+	.microvolts	= 3300000,
+	.gpio		= -1,
+	.init_data	= &arm2_vmmc_init,
+};
+
+static struct platform_device arm2_vmmc_reg_devices = {
+	.name		= "reg-fixed-voltage",
+	.id		= 0,
+	.dev		= {
+		.platform_data = &arm2_vmmc_reg_config,
+	},
+};
+
 static struct regulator_consumer_supply display_consumers[] = {
 	{
 		/* MAX17135 */
@@ -240,6 +266,11 @@ static struct regulator_init_data max17135_init_data[] = {
 		.consumer_supplies = v3p3_consumers,
 	},
 };
+
+static const struct anatop_thermal_platform_data
+	mx6sl_anatop_thermal_data __initconst = {
+			.name = "anatop_thermal",
+	};
 
 static struct platform_device max17135_sensor_device = {
 	.name = "max17135_sensor",
@@ -333,6 +364,46 @@ static const struct spi_imx_master mx6_arm2_spi_data __initconst = {
 	.chipselect     = mx6_arm2_spi_cs,
 	.num_chipselect = ARRAY_SIZE(mx6_arm2_spi_cs),
 };
+
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
+static struct mtd_partition m25p32_partitions[] = {
+	{
+		.name	= "bootloader",
+		.offset	= 0,
+		.size	= 0x00040000,
+	}, {
+		.name	= "kernel",
+		.offset	= MTDPART_OFS_APPEND,
+		.size	= MTDPART_SIZ_FULL,
+	},
+};
+
+static struct flash_platform_data m25p32_spi_flash_data = {
+	.name		= "m25p32",
+	.parts		= m25p32_partitions,
+	.nr_parts	= ARRAY_SIZE(m25p32_partitions),
+	.type		= "m25p32",
+};
+
+static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
+	{
+	/* The modalias must be the same as spi device driver name */
+	.modalias	= "m25p80",
+	.max_speed_hz	= 20000000,
+	.bus_num	= 0,
+	.chip_select	= 0,
+	.platform_data	= &m25p32_spi_flash_data,
+	},
+};
+#endif
+
+static void spi_device_init(void)
+{
+#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
+	spi_register_board_info(m25p32_spi0_board_info,
+				ARRAY_SIZE(m25p32_spi0_board_info));
+#endif
+}
 
 static struct imx_ssi_platform_data mx6_sabresd_ssi_pdata = {
 	.flags = IMX_SSI_DMA | IMX_SSI_SYN,
@@ -497,10 +568,6 @@ void __init early_console_setup(unsigned long base, struct clk *clk);
 static inline void mx6_arm2_init_uart(void)
 {
 	imx6q_add_imx_uart(0, NULL); /* DEBUG UART1 */
-
-	imx6q_add_sdhci_usdhc_imx(0, &mx6_arm2_sd1_data);
-	imx6q_add_sdhci_usdhc_imx(1, &mx6_arm2_sd2_data);
-	imx6q_add_sdhci_usdhc_imx(2, &mx6_arm2_sd3_data);
 }
 
 static struct fec_platform_data fec_data __initdata = {
@@ -992,7 +1059,14 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_imx_i2c(2, &mx6_arm2_i2c2_data);
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
+
+	/* SPI */
+	imx6q_add_ecspi(0, &mx6_arm2_spi_data);
+	spi_device_init();
+
 	mx6sl_arm2_init_pfuze100(0);
+
+	imx6q_add_anatop_thermal_imx(1, &mx6sl_anatop_thermal_data);
 
 	mx6_arm2_init_uart();
 	/* get enet tx reference clk from FEC_REF_CLK pad.
@@ -1009,8 +1083,13 @@ static void __init mx6_arm2_init(void)
 
 	imx6_init_fec(fec_data);
 
-	mx6_arm2_init_usb();
+	platform_device_register(&arm2_vmmc_reg_devices);
+	imx6q_add_sdhci_usdhc_imx(0, &mx6_arm2_sd1_data);
+	imx6q_add_sdhci_usdhc_imx(1, &mx6_arm2_sd2_data);
+	imx6q_add_sdhci_usdhc_imx(2, &mx6_arm2_sd3_data);
 
+	mx6_arm2_init_usb();
+	imx6q_add_otp();
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
 	imx6dl_add_imx_elcdif(&fb_data[0]);

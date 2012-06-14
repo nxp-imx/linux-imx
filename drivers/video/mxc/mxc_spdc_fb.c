@@ -17,7 +17,7 @@
  *
  */
 /*
- * Based on MXC EPDC Driver, Freescale Solutions, Inc All Rights Reserved.
+ * Based on MXC EPDC Driver, Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 #include "mxc_spdc_fb.h"
@@ -528,6 +528,12 @@ static int spdc_init_sequence(mxc_spdc_t *fb_data)
 			"Timed out for lut!\n");
 		return ret;
 	}
+
+	/* modify lut to fix DC com fading issue,
+	 * and fix mode4 close over push
+	 */
+	__raw_writel(0x00003906, fb_data->hwp + SPDC_LUT_PARA_UPDATE);
+	__raw_writel(0x00003300, fb_data->hwp + SPDC_LUT_PARA_UPDATE);
 
 	/* init SPDC setting, the setting get from platform data */
 	fb_data->panel_set.yoe_pol = init_set->yoe_pol;
@@ -3267,7 +3273,7 @@ static ssize_t store_update(struct device *device,
 	else if (strncmp(buf, "init", 4) == 0)
 		update.waveform_mode = fb_data->wv_modes.mode_init;
 	else if (strncmp(buf, "gu", 2) == 0)
-		update.waveform_mode = SPDC_WAV_MODE_3;
+		update.waveform_mode = SPDC_WAV_MODE_1;
 	else if (strncmp(buf, "auto", 4) == 0)
 		update.waveform_mode = WAVEFORM_MODE_AUTO;
 
@@ -3774,7 +3780,7 @@ static int __devinit mxc_spdc_fb_probe(struct platform_device *pdev)
 	 * Should be overwritten via ioctl.
 	 */
 	fb_data->wv_modes.mode_init = SPDC_WAV_MODE_DEFAULT;
-	fb_data->wv_modes.mode_du = SPDC_WAV_MODE_4;
+	fb_data->wv_modes.mode_du = SPDC_WAV_MODE_2;
 	fb_data->wv_modes.mode_gc4 = SPDC_WAV_MODE_2;
 	fb_data->wv_modes.mode_gc8 = SPDC_WAV_MODE_1;
 	fb_data->wv_modes.mode_gc16 = SPDC_WAV_MODE_1;

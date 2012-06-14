@@ -38,10 +38,10 @@
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 #include <linux/dmapool.h>
+#include <linux/io.h>
 
 #include <asm/processor.h>
 #include <asm/byteorder.h>
-#include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/system.h>
 #include <asm/mach-types.h>
@@ -77,6 +77,8 @@ static const char driver_desc[] = DRIVER_DESC;
 
 volatile static struct usb_dr_device *dr_regs;
 volatile static struct usb_sys_interface *usb_sys_regs;
+
+#include "imx_usb_charger.c" /* support for usb charger detect */
 
 /* it is initialized in probe()  */
 static struct fsl_udc *udc_controller;
@@ -488,6 +490,7 @@ static void dr_controller_run(struct fsl_udc *udc)
 	/* If vbus not on and used low power mode */
 	if (!(temp & OTGSC_B_SESSION_VALID)) {
 		/* Set stopped before low power mode */
+		udc->vbus_active = false;
 		udc->stopped = 1;
 		/* enable wake up */
 		dr_wake_up_enable(udc, true);
@@ -508,10 +511,9 @@ static void dr_controller_run(struct fsl_udc *udc)
 
 		/* disable pulldown dp and dm */
 		dr_discharge_line(udc->pdata, false);
-		/* The usb line has already been connected to pc */
-		temp = fsl_readl(&dr_regs->usbcmd);
-		temp |= USB_CMD_RUN_STOP;
-		fsl_writel(temp, &dr_regs->usbcmd);
+		udc->vbus_active = true;
+		/* notify vbus is connected */
+		imx_usb_vbus_connect(&udc->charger);
 		printk(KERN_DEBUG "%s: udc out low power mode\n", __func__);
 	}
 
@@ -1467,6 +1469,15 @@ static int fsl_pullup(struct usb_gadget *gadget, int is_on)
 	return 0;
 }
 
+/*
+ * The USB PHY/Charger driver can't visit usb_gadget directly, so
+ * supply a wrapped function for usb charger visiting.
+ */
+static void usb_charger_pullup_dp(bool enable)
+{
+	fsl_pullup(&udc_controller->gadget, (int)enable);
+}
+
 /* defined in gadget.h */
 static struct usb_gadget_ops fsl_gadget_ops = {
 	.get_frame = fsl_get_frame,
@@ -2171,9 +2182,10 @@ static void fsl_gadget_disconnect_event(struct work_struct *work)
 
 	pdata = udc->pdata;
 
+	 /* notify vbus is disconnected */
+	imx_usb_vbus_disconnect(&udc->charger);
 	/* wait line to se0 */
 	dr_discharge_line(pdata, true);
-
 	/*
 	 * Wait class drivers finish, an well-behaviour class driver should
 	 * call ep_disable when it is notified to be disconnected.
@@ -2227,13 +2239,16 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 		if (irq_src & OTGSC_B_SESSION_VALID) {
 			if (udc->suspended) /*let the system pm resume the udc */
 				return true;
+			udc->vbus_active = true;
 			udc->stopped = 0;
 			/* disable pulldown dp and dm */
 			dr_discharge_line(pdata, false);
-			fsl_writel(tmp | USB_CMD_RUN_STOP, &dr_regs->usbcmd);
+			/* notify vbus is connected */
+			imx_usb_vbus_connect(&udc->charger);
 			printk(KERN_DEBUG "%s: udc out low power mode\n", __func__);
 		} else {
-			fsl_writel(tmp & ~USB_CMD_RUN_STOP, &dr_regs->usbcmd);
+			udc->vbus_active = false;
+			fsl_pullup(&udc_controller->gadget, false); /* usbcmd.rs=0 */
 			/* here we need disable B_SESSION_IRQ, after
 			 * schedule_work finished, it need to be enabled again.
 			 * Doing like this can avoid conflicting between rapid
@@ -2244,7 +2259,6 @@ bool try_wake_up_udc(struct fsl_udc *udc)
 				fsl_writel(tmp &
 					   (~OTGSC_B_SESSION_VALID_IRQ_EN),
 					   &dr_regs->otgsc);
-
 			/* update port status */
 			fsl_udc_speed_update(udc);
 			spin_unlock(&udc->lock);
@@ -3178,6 +3192,20 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 
 	create_proc_file();
 
+	/* create usb charger */
+#ifdef CONFIG_IMX_USB_CHARGER
+	udc_controller->charger.dev = &pdev->dev;
+	udc_controller->charger.dp_pullup = usb_charger_pullup_dp;
+	udc_controller->charger.enable = true;
+	if (pdata->charger_base_addr)
+		udc_controller->charger.charger_base_addr = pdata->charger_base_addr;
+	if (imx_usb_create_charger(&udc_controller->charger, "imx_usb_charger"))
+		dev_err(&pdev->dev, "Can't create usb charger\n");
+#else
+	udc_controller->charger.dp_pullup = usb_charger_pullup_dp;
+	udc_controller->charger.enable = false;
+#endif
+
 	return 0;
 
 err4:
@@ -3233,6 +3261,10 @@ static int __exit fsl_udc_remove(struct platform_device *pdev)
 	dma_pool_destroy(udc_controller->td_pool);
 	free_irq(udc_controller->irq, udc_controller);
 	iounmap((u8 __iomem *)dr_regs);
+
+#ifdef CONFIG_IMX_USB_CHARGER
+	imx_usb_remove_charger(&udc_controller->charger);
+#endif
 
 #ifndef CONFIG_USB_OTG
 {

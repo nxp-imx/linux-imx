@@ -258,21 +258,8 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 
 	fsl_platform_set_host_mode(hcd);
 	hcd->power_budget = pdata->power_budget;
-	/*
-	 * The ehci_fsl_pre_irq must be registered before usb_hcd_irq, in that case
-	 * it can be called before usb_hcd_irq when irq occurs
-	 */
-	retval = request_irq(irq, ehci_fsl_pre_irq, IRQF_SHARED,
-			"fsl ehci pre interrupt", (void *)pdev);
-	if (retval != 0)
-		goto err4;
-
-	retval = usb_add_hcd(hcd, irq, IRQF_DISABLED | IRQF_SHARED);
-	if (retval != 0)
-		goto err5;
-
+	ehci = hcd_to_ehci(hcd);
 	if (pdata->operating_mode == FSL_USB2_DR_OTG) {
-		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 
 		dbg("pdev=0x%p  hcd=0x%p  ehci=0x%p\n", pdev, hcd, ehci);
 
@@ -282,7 +269,7 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		if (!ehci->transceiver) {
 			printk(KERN_ERR "can't find transceiver\n");
 			retval = -ENODEV;
-			goto err6;
+			goto err4;
 		}
 
 		retval = otg_set_host(ehci->transceiver, &ehci_to_hcd(ehci)->self);
@@ -291,6 +278,19 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	} else if ((pdata->operating_mode == FSL_USB2_MPH_HOST) || \
 			(pdata->operating_mode == FSL_USB2_DR_HOST))
 		fsl_platform_set_vbus_power(pdata, 1);
+
+	/*
+	 * The ehci_fsl_pre_irq must be registered before usb_hcd_irq, in that case
+	 * it can be called before usb_hcd_irq when irq occurs
+	 */
+	retval = request_irq(irq, ehci_fsl_pre_irq, IRQF_SHARED,
+			"fsl ehci pre interrupt", (void *)pdev);
+	if (retval != 0)
+		goto err5;
+
+	retval = usb_add_hcd(hcd, irq, IRQF_DISABLED | IRQF_SHARED);
+	if (retval != 0)
+		goto err6;
 
 	fsl_platform_set_ahb_burst(hcd);
 	ehci_testmode_init(hcd_to_ehci(hcd));
@@ -306,9 +306,9 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	pdata->pm_command = ehci->command;
 	return retval;
 err6:
-	usb_remove_hcd(hcd);
-err5:
 	free_irq(irq, (void *)pdev);
+err5:
+	otg_put_transceiver(ehci->transceiver);
 err4:
 	iounmap(hcd->regs);
 err3:
@@ -771,6 +771,21 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 
 			usb_host_set_wakeup(hcd->self.controller, true);
 
+#ifndef NO_FIX_DISCONNECT_ISSUE
+			/*Unplug&plug device during suspend without remote wakeup enabled
+			For Low and full speed device, we should power on and power off
+			the USB port to make sure USB internal state machine work well.
+			*/
+			tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
+			if ((tmp & PORT_CONNECT) && !(tmp & PORT_SUSPEND) &&
+				((tmp & (0x3<<26)) != (0x2<<26))) {
+					printk(KERN_DEBUG "%s will do power off and power on port.\n", pdata->name);
+					ehci_writel(ehci, tmp & ~(PORT_RWC_BITS | PORT_POWER),
+						&ehci->regs->port_status[0]);
+					ehci_writel(ehci, tmp | PORT_POWER,
+						&ehci->regs->port_status[0]);
+			}
+#endif
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		}
 		return 0;

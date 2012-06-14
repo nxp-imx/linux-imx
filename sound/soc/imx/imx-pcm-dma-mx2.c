@@ -134,7 +134,9 @@ static int imx_ssi_asrc_dma_alloc(struct snd_pcm_substream *substream,
 	if (!iprtd->asrc_p2p_dma_chan)
 		goto error;
 
-	slave_config.direction = DMA_DEV_TO_DEV;;
+	buswidth = DMA_SLAVE_BUSWIDTH_4_BYTES;
+
+	slave_config.direction = DMA_DEV_TO_DEV;
 	slave_config.src_addr = asrc_get_per_addr(iprtd->asrc_index, 0);
 	slave_config.src_addr_width = buswidth;
 	slave_config.src_maxburst = dma_params->burstsize * buswidth;

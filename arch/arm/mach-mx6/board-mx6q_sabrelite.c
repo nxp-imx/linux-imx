@@ -1240,8 +1240,7 @@ static void __init mx6q_sabrelite_reserve(void)
 {
 	phys_addr_t phys;
 	int i;
-#ifdef CONFIG_MXC_GPU_VIV
-
+#if defined(CONFIG_MXC_GPU_VIV) || defined(CONFIG_MXC_GPU_VIV_MODULE)
 	if (imx6q_gpu_pdata.reserved_mem_size) {
 		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
 					   SZ_4K, SZ_1G);

@@ -25,6 +25,9 @@
 #ifndef __ARCOTG_UDC_H
 #define __ARCOTG_UDC_H
 
+/* delete below include when charger code moves to phy driver */
+#include "imx_usb_charger.h"
+
 #define TRUE 1
 #define FALSE 0
 
@@ -621,6 +624,7 @@ struct fsl_udc {
 	u32 iram_buffer[IRAM_PPH_NTD];
 	void *iram_buffer_v[IRAM_PPH_NTD];
 	struct work_struct gadget_disconnect_schedule;
+	struct usb_charger charger; /* usb charger for this udc */
 };
 
 /*-------------------------------------------------------------------------*/

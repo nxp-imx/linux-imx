@@ -39,14 +39,60 @@
 #include "imx-pcm.h"
 
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_IMX_HAVE_PLATFORM_IMX_ASRC)
+static unsigned int asrc_rates[] = {
+	0,
+	24000,
+	32000,
+	44100,
+	48000,
+	64000,
+	88200,
+	96000,
+	176400,
+	192000,
+};
 struct asrc_esai {
 	unsigned int cpu_dai_rates;
 	unsigned int codec_dai_rates;
 	enum asrc_pair_index asrc_index;
-	unsigned int output_sample_rate;
+	unsigned int input_sample_rate;
 };
 static struct asrc_esai asrc_esai_data;
 static bool asrc_support = 1;
+static int asrc_func;
+
+static const char *asrc_function[] = {
+	"disable", "24KHz", "32KHz", "44.1KHz",
+	"48KHz", "64KHz", "88.2KHz", "96KHz", "176.4KHz", "192KHz"
+};
+
+static const struct soc_enum asrc_enum[] = {
+	SOC_ENUM_SINGLE_EXT(9, asrc_function),
+};
+
+static int asrc_get_rate(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.enumerated.item[0] = asrc_func;
+	return 0;
+}
+
+static int asrc_set_rate(struct snd_kcontrol *kcontrol,
+			 struct snd_ctl_elem_value *ucontrol)
+{
+	if (asrc_func == ucontrol->value.enumerated.item[0])
+		return 0;
+
+	asrc_func = ucontrol->value.enumerated.item[0];
+	asrc_esai_data.input_sample_rate = asrc_rates[asrc_func];
+
+	return 1;
+}
+
+static const struct snd_kcontrol_new asrc_controls[] = {
+	SOC_ENUM_EXT("ASRC", asrc_enum[0], asrc_get_rate,
+		     asrc_set_rate),
+};
 
 static int get_format_width(struct snd_pcm_hw_params *params)
 {
@@ -89,7 +135,7 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	struct asrc_config config = {0};
 	int ret = 0;
 
-	if (rate <= 32000 || rate == asrc_esai_data.output_sample_rate)
+	if ((rate == asrc_esai_data.input_sample_rate) || (asrc_func == 0))
 		return -EINVAL;
 
 	if (channel != 2)
@@ -108,8 +154,8 @@ static int config_asrc(struct snd_pcm_substream *substream,
 
 	config.pair = asrc_esai_data.asrc_index;
 	config.channel_num = channel;
-	config.input_sample_rate = rate;
-	config.output_sample_rate = asrc_esai_data.output_sample_rate;
+	config.input_sample_rate = asrc_esai_data.input_sample_rate;
+	config.output_sample_rate = rate;
 	config.inclk = OUTCLK_ASRCK1_CLK;
 	config.word_width = wordwidth;
 	config.outclk = OUTCLK_ESAI_TX;
@@ -121,6 +167,8 @@ static int config_asrc(struct snd_pcm_substream *substream,
 		asrc_finish_conv(asrc_esai_data.asrc_index);
 		return ret;
 	}
+	/*now our asrc driver support 24bit output*/
+	pcm_data->output_bit = 24;
 	pcm_data->asrc_index = asrc_esai_data.asrc_index;
 	pcm_data->asrc_enable = 1;
 
@@ -178,6 +226,8 @@ static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 				asrc_esai_data.codec_dai_rates;
 		cpu_dai->driver->playback.rates =
 				asrc_esai_data.cpu_dai_rates;
+		asrc_func = 0;
+		asrc_esai_data.input_sample_rate = asrc_rates[asrc_func];
 	}
 
 	if (!cpu_dai->active)
@@ -198,11 +248,9 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 		return 0;
 	hw_state.hw = 1;
 
-	if (asrc_support &&
-		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK) &&
-		!config_asrc(substream, params)) {
-		rate = asrc_esai_data.output_sample_rate;
-	}
+	if (asrc_support && (substream->stream == SNDRV_PCM_STREAM_PLAYBACK))
+		config_asrc(substream, params);
+
 	if (cpu_is_mx53() || machine_is_mx6q_sabreauto()) {
 		switch (rate) {
 		case 32000:
@@ -339,8 +387,25 @@ static int imx_3stack_cs42888_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
 
-	if (asrc_support)
-		asrc_esai_data.output_sample_rate = 44100;
+	if (asrc_support) {
+		struct snd_card *card = codec->card->snd_card;
+		int i;
+		int ret;
+
+		for (i = 0; i < ARRAY_SIZE(asrc_controls); i++) {
+			ret = snd_ctl_add(card,
+					snd_soc_cnew(&asrc_controls[i],
+						codec, asrc_controls[i].name,
+						codec->name_prefix));
+			if (ret < 0)
+				return ret;
+		}
+		/*asrc_func is inited 0.
+		 * it means asrc would not
+		 * be called defaultly*/
+		asrc_func = 0;
+		asrc_esai_data.input_sample_rate = asrc_rates[asrc_func];
+	}
 
 	snd_soc_dapm_new_controls(&codec->dapm, imx_3stack_dapm_widgets,
 				  ARRAY_SIZE(imx_3stack_dapm_widgets));
