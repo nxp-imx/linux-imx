@@ -649,6 +649,12 @@ static struct reg_value ov5642_setting_15fps_QSXGA_2592_1944[] = {
 	{0x530c, 0x04, 0, 0}, {0x5312, 0x20, 0, 0}, {0x5282, 0x01, 0, 0},
 };
 
+
+static struct reg_value ov5642_setting_VGA_2_QVGA[] = {
+	{0x3808, 0x01, 0, 0}, {0x3809, 0x40, 0, 0}, {0x380a, 0x00, 0, 0},
+	{0x380b, 0xf0, 0, 0}, {0x3815, 0x04, 0, 0},
+};
+
 static struct reg_value ov5642_setting_QSXGA_2_VGA[] = {
 	{0x3503, 0x00, 0, 0}, {0x3000, 0x00, 0, 0}, {0x3001, 0x00, 0, 0},
 	{0x3002, 0x5c, 0, 0}, {0x3003, 0x00, 0, 0}, {0x3004, 0xff, 0, 0},
@@ -3108,6 +3114,11 @@ static int ov5642_change_mode(enum ov5642_frame_rate frame_rate,
 		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_QSXGA_2_VGA);
 		ov5642_data.pix.width = 640;
 		ov5642_data.pix.height = 480;
+	} else if (new_mode == ov5642_mode_QVGA_320_240 && orig_mode == ov5642_mode_VGA_640_480) {
+		pModeSetting = ov5642_setting_VGA_2_QVGA;
+		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_VGA_2_QVGA);
+		ov5642_data.pix.width = 320;
+		ov5642_data.pix.height = 240;
 	} else {
 		retval = ov5642_init_mode(frame_rate, new_mode);
 		goto err;
