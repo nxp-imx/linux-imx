@@ -320,7 +320,7 @@ static int __init gpmi_nand_platform_init(void)
 }
 
 static struct gpmi_nand_platform_data
-mx6_gpmi_nand_platform_data = {
+mx6_gpmi_nand_platform_data __initdata = {
 	.platform_init           = gpmi_nand_platform_init,
 	.min_prop_delay_in_ns    = 5,
 	.max_prop_delay_in_ns    = 9,
