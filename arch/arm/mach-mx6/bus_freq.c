@@ -100,16 +100,7 @@ static struct clk *periph_clk;
 static struct clk *osc;
 
 static struct delayed_work low_bus_freq_handler;
-extern void update_usecount(struct clk *clk, bool flag);
 
-static inline void update_periph_clk_parent(struct clk *new_parent)
-{
-	update_usecount(periph_clk->parent, false);
-
-	periph_clk->parent = new_parent;
-
-	update_usecount(periph_clk->parent, true);
-}
 static void reduce_bus_freq_handler(struct work_struct *work)
 {
 	unsigned long reg;
@@ -142,14 +133,13 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		clk_enable(pll2_400);
 		update_ddr_freq(50000000);
 		/* Make sure periph clk's parent also got updated */
-		update_periph_clk_parent(pll2_200);
-
+		clk_set_parent(periph_clk, pll2_200);
 		audio_bus_freq_mode = 1;
 		low_bus_freq_mode = 0;
 	} else {
 		update_ddr_freq(24000000);
 		/* Make sure periph clk's parent also got updated */
-		update_periph_clk_parent(osc);
+		clk_set_parent(periph_clk, osc);
 		if (audio_bus_freq_mode)
 			clk_disable(pll2_400);
 		low_bus_freq_mode = 1;
@@ -277,7 +267,7 @@ int set_high_bus_freq(int high_bus_freq)
 	if (high_bus_freq) {
 		update_ddr_freq(ddr_normal_rate);
 		/* Make sure periph clk's parent also got updated */
-		update_periph_clk_parent(pll2);
+		clk_set_parent(periph_clk, pll2);
 		if (med_bus_freq_mode)
 			clk_disable(pll2_400);
 		high_bus_freq_mode = 1;
@@ -286,7 +276,7 @@ int set_high_bus_freq(int high_bus_freq)
 		clk_enable(pll2_400);
 		update_ddr_freq(ddr_med_rate);
 		/* Make sure periph clk's parent also got updated */
-		update_periph_clk_parent(pll2_400);
+		clk_set_parent(periph_clk, pll2_400);
 		high_bus_freq_mode = 0;
 		med_bus_freq_mode = 1;
 	}
