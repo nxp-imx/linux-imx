@@ -464,6 +464,10 @@ static void _clk_pll_disable(struct clk *clk)
 	unsigned int reg;
 	void __iomem *pllbase;
 
+	if ((arm_needs_pll2_400) && (clk == &pll2_528_bus_main_clk))
+		return;
+
+
 	pllbase = _get_pll_base(clk);
 
 	reg = __raw_readl(pllbase);
