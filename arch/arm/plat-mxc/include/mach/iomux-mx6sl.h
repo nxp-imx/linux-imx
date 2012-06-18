@@ -72,6 +72,9 @@
 #define MX6SL_KEYPAD_CTRL	(PAD_CTL_HYS | PAD_CTL_PKE | PAD_CTL_PUE | \
 				PAD_CTL_PUS_100K_UP | PAD_CTL_DSE_120ohm)
 
+#define MX6SL_TSPAD_CTRL	(PAD_CTL_HYS | PAD_CTL_PKE | PAD_CTL_PUE | \
+				PAD_CTL_PUS_47K_UP)
+
 #define MX6SL_PAD_AUD_MCLK__AUDMUX_AUDIO_CLK_OUT                              \
 		IOMUX_PAD(0x02A4, 0x004C, 0, 0x0000, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_AUD_MCLK__PWM4_PWMO                                         \
@@ -1036,7 +1039,7 @@
 #define MX6SL_PAD_EPDC_PWRCTRL3__TCON_YDIODL                                  \
 		IOMUX_PAD(0x03E0, 0x00F0, 4, 0x0000, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_EPDC_PWRCTRL3__GPIO_2_10                                    \
-		IOMUX_PAD(0x03E0, 0x00F0, 5, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x03E0, 0x00F0, 5, 0x0000, 0, MX6SL_TSPAD_CTRL)
 #define MX6SL_PAD_EPDC_PWRCTRL3__USDHC4_CD                                    \
 		IOMUX_PAD(0x03E0, 0x00F0, 6, 0x0854, 1, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_EPDC_PWRCTRL3__MMDC_MMDC_DEBUG_4                            \

@@ -125,6 +125,9 @@
 #define MX6SL_ARM2_EPDC_PMIC_WAKE	IMX_GPIO_NR(2, 14) /* EPDC_PWRWAKEUP */
 #define MX6SL_ARM2_EPDC_PMIC_INT	IMX_GPIO_NR(2, 12) /* EPDC_PWRINT */
 #define MX6SL_ARM2_EPDC_VCOM		IMX_GPIO_NR(2, 3)
+#define MX6SL_ARM2_ELAN_CE		IMX_GPIO_NR(2, 9)
+#define MX6SL_ARM2_ELAN_INT		IMX_GPIO_NR(2, 10)
+#define MX6SL_ARM2_ELAN_RST		IMX_GPIO_NR(4, 4)
 
 static int max17135_regulator_init(struct max17135 *max17135);
 struct clk *extern_audio_root;
@@ -525,6 +528,9 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("max17135", 0x48),
 		.platform_data = &max17135_pdata,
+	}, {
+		I2C_BOARD_INFO("elan-touch", 0x10),
+		.irq = gpio_to_irq(MX6SL_ARM2_ELAN_INT),
 	},
 };
 
@@ -1069,12 +1075,35 @@ static const struct matrix_keymap_data mx6sl_arm2_map_data __initconst = {
 	.keymap		= mx6sl_arm2_keymap,
 	.keymap_size	= ARRAY_SIZE(mx6sl_arm2_keymap),
 };
+static void __init elan_ts_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6sl_arm2_elan_pads,
+					ARRAY_SIZE(mx6sl_arm2_elan_pads));
+
+	/* ELAN Touchscreen */
+	gpio_request(MX6SL_ARM2_ELAN_INT, "elan-interrupt");
+	gpio_direction_input(MX6SL_ARM2_ELAN_INT);
+
+	gpio_request(MX6SL_ARM2_ELAN_CE, "elan-cs");
+	gpio_direction_output(MX6SL_ARM2_ELAN_CE, 1);
+	gpio_direction_output(MX6SL_ARM2_ELAN_CE, 0);
+
+	gpio_request(MX6SL_ARM2_ELAN_RST, "elan-rst");
+	gpio_direction_output(MX6SL_ARM2_ELAN_RST, 1);
+	gpio_direction_output(MX6SL_ARM2_ELAN_RST, 0);
+	mdelay(1);
+	gpio_direction_output(MX6SL_ARM2_ELAN_RST, 1);
+	gpio_direction_output(MX6SL_ARM2_ELAN_CE, 1);
+}
+
 /*!
  * Board specific initialization.
  */
 static void __init mx6_arm2_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_arm2_pads, ARRAY_SIZE(mx6sl_arm2_pads));
+
+	elan_ts_init();
 
 	gp_reg_id = "cpu_vddgp";
 	mx6_cpu_regulator_init();
