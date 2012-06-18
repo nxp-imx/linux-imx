@@ -499,6 +499,9 @@ static void _clk_pll_disable(struct clk *clk)
 	unsigned int reg;
 	void __iomem *pllbase;
 
+	if ((arm_needs_pll2_400) && (clk == &pll2_528_bus_main_clk))
+		return;
+
 	pllbase = _get_pll_base(clk);
 
 	reg = __raw_readl(pllbase);
@@ -519,6 +522,10 @@ static unsigned long  _clk_pll1_main_get_rate(struct clk *clk)
 {
 	unsigned int div;
 	unsigned long val;
+
+	/* If PLL1 is bypassed, its rate will be from OSC directly */
+	if (__raw_readl(PLL1_SYS_BASE_ADDR) & ANADIG_PLL_SYS_BYPASS_MASK)
+		return clk_get_rate(clk->parent);
 
 	div = __raw_readl(PLL1_SYS_BASE_ADDR) & ANADIG_PLL_SYS_DIV_SELECT_MASK;
 	val = (clk_get_rate(clk->parent) * div) / 2;
@@ -5288,7 +5295,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	/* keep correct count. */
 	clk_enable(&cpu_clk);
 	clk_enable(&periph_clk);
-
 	/* Disable un-necessary PFDs & PLLs */
 	if (pll2_pfd_400M.usecount == 0 && cpu_is_mx6q())
 		pll2_pfd_400M.disable(&pll2_pfd_400M);

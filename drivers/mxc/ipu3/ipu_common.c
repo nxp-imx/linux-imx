@@ -373,8 +373,6 @@ void _ipu_get(struct ipu_soc *ipu)
 {
 	int ret;
 
-	if (in_interrupt())
-		return;
 	ret = clk_enable(ipu->ipu_clk);
 	if (ret < 0)
 		BUG();
@@ -382,8 +380,6 @@ void _ipu_get(struct ipu_soc *ipu)
 
 void _ipu_put(struct ipu_soc *ipu)
 {
-	if (in_interrupt())
-		return;
 	clk_disable(ipu->ipu_clk);
 }
 
@@ -2547,11 +2543,14 @@ static irqreturn_t ipu_irq_handler(int irq, void *desc)
 	struct ipu_soc *ipu = desc;
 	int i;
 	uint32_t line;
+	uint32_t bit;
 	irqreturn_t result = IRQ_NONE;
 	uint32_t int_stat;
+	uint32_t int_ctrl;
 	const int err_reg[] = { 5, 6, 9, 10, 0 };
 	const int int_reg[] = { 1, 2, 3, 4, 11, 12, 13, 14, 15, 0 };
 	unsigned long lock_flags;
+	uint32_t oneshot;
 
 	for (i = 0;; i++) {
 		if (err_reg[i] == 0)
@@ -2580,17 +2579,29 @@ static irqreturn_t ipu_irq_handler(int irq, void *desc)
 			break;
 		spin_lock_irqsave(&ipu->spin_lock, lock_flags);
 		int_stat = ipu_cm_read(ipu, IPU_INT_STAT(int_reg[i]));
-		int_stat &= ipu_cm_read(ipu, IPU_INT_CTRL(int_reg[i]));
+		int_ctrl = ipu_cm_read(ipu, IPU_INT_CTRL(int_reg[i]));
+		int_stat &= int_ctrl;
 		ipu_cm_write(ipu, int_stat, IPU_INT_STAT(int_reg[i]));
 		spin_unlock_irqrestore(&ipu->spin_lock, lock_flags);
+		oneshot = 0;
 		while ((line = ffs(int_stat)) != 0) {
-			line--;
+			bit = --line;
 			int_stat &= ~(1UL << line);
 			line += (int_reg[i] - 1) * 32;
+			if (ipu->irq_list[line].flags & IPU_IRQF_ONESHOT)
+				oneshot |= 1UL << bit;
 			result |=
 			    ipu->irq_list[line].handler(line,
 						       ipu->irq_list[line].
 						       dev_id);
+		}
+		if (oneshot) {
+			spin_lock_irqsave(&ipu->spin_lock, lock_flags);
+			if ((~int_ctrl) & oneshot)
+				BUG();
+			int_ctrl &= ~oneshot;
+			ipu_cm_write(ipu, int_ctrl, IPU_INT_CTRL(int_reg[i]));
+			spin_unlock_irqrestore(&ipu->spin_lock, lock_flags);
 		}
 	}
 
@@ -2792,7 +2803,7 @@ void ipu_free_irq(struct ipu_soc *ipu, uint32_t irq, void *dev_id)
 	reg &= ~IPUIRQ_2_MASK(irq);
 	ipu_cm_write(ipu, reg, IPUIRQ_2_CTRLREG(irq));
 	if (ipu->irq_list[irq].dev_id == dev_id)
-		ipu->irq_list[irq].handler = NULL;
+		memset(&ipu->irq_list[irq], 0, sizeof(ipu->irq_list[irq]));
 
 	spin_unlock_irqrestore(&ipu->spin_lock, lock_flags);
 

@@ -309,6 +309,12 @@ typedef union {
 	} adc_sys2;
 } ipu_channel_params_t;
 
+/*
+ * IPU_IRQF_ONESHOT - Interrupt is not reenabled after the irq handler finished.
+ */
+#define IPU_IRQF_NONE		0x00000000
+#define IPU_IRQF_ONESHOT	0x00000001
+
 /*!
  * Enumeration of IPU interrupt sources.
  */

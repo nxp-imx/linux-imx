@@ -209,6 +209,37 @@ int clk_get_usecount(struct clk *clk)
 
 EXPORT_SYMBOL(clk_get_usecount);
 
+/*!
+ * @brief Function to update the usage count for the requested clock.
+ *
+ * This function returns none.
+ *
+ * @param clk 	clk we want to update.
+ * @param flag 	Increase or decrease usecount.
+ *
+ * @return Returns none.
+ */
+void update_usecount(struct clk *clk, bool flag)
+{
+	if (!flag) {
+		if (clk_get_usecount(clk) > 1) {
+			mutex_lock(&clocks_mutex);
+			clk->usecount--;
+			mutex_unlock(&clocks_mutex);
+		} else
+			clk_disable(clk);
+	} else {
+		if (clk_get_usecount(clk) < 1)
+			clk_enable(clk);
+		else {
+			mutex_lock(&clocks_mutex);
+			clk->usecount++;
+			mutex_unlock(&clocks_mutex);
+		}
+	}
+}
+EXPORT_SYMBOL(update_usecount);
+
 /* Retrieve the *current* clock rate. If the clock itself
  * does not provide a special calculation routine, ask
  * its parent and so on, until one is able to return
