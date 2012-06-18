@@ -312,4 +312,10 @@ static iomux_v3_cfg_t mx6sl_arm2_spdc_disable_pads[] = {
 	MX6SL_PAD_EPDC_PWRWAKEUP__GPIO_2_14,
 };
 
+static iomux_v3_cfg_t mx6sl_arm2_elan_pads[] = {
+	MX6SL_PAD_EPDC_PWRCTRL3__GPIO_2_10,	/* INT */
+	MX6SL_PAD_EPDC_PWRCTRL2__GPIO_2_9,	/* CE */
+	MX6SL_PAD_KEY_COL6__GPIO_4_4,		/* RST */
+};
+
 #endif
