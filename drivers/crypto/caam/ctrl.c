@@ -58,7 +58,6 @@ static int caam_probe(struct platform_device *pdev)
 	struct caam_ctrl __iomem *ctrl;
 	struct caam_full __iomem *topregs;
 	struct caam_drv_private *ctrlpriv;
-	struct caam_deco **deco;
 	u32 deconum;
 #ifdef CONFIG_DEBUG_FS
 	struct caam_perfmon *perfmon;
@@ -166,9 +165,6 @@ static int caam_probe(struct platform_device *pdev)
 	ctrlpriv->deco = kmalloc(deconum * sizeof(struct caam_deco *),
 				 GFP_KERNEL);
 
-	deco = (struct caam_deco __force **)&topregs->deco;
-	for (d = 0; d < deconum; d++)
-		ctrlpriv->deco[d] = deco[d];
 	/*
 	 * Detect and enable JobRs
 	 * First, find out how many ring spec'ed, allocate references
