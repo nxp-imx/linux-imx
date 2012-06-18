@@ -491,14 +491,17 @@ static u8 esdhc_readb_le(struct sdhci_host *host, int reg)
 	case SDHCI_POWER_CONTROL:
 		reg_val = readl(host->ioaddr + SDHCI_VENDOR_SPEC);
 		ret |= reg_val & SDHCI_VENDOR_SPEC_VSELECT
-			? SDHCI_POWER_180 : SDHCI_POWER_330;
+				? SDHCI_POWER_180 : SDHCI_POWER_300;
 		/* could not power off */
 		ret |= SDHCI_POWER_ON;
 		return ret;
 	case SDHCI_HOST_CONTROL:
 		reg_val = readl(host->ioaddr + SDHCI_HOST_CONTROL);
-		ret |= reg_val & SDHCI_PROT_CTRL_LCTL
-			? SDHCI_CTRL_LED : ~SDHCI_CTRL_LED;
+		if (reg_val & SDHCI_PROT_CTRL_LCTL)
+			ret |= SDHCI_CTRL_LED;
+		else
+			ret &= ~SDHCI_CTRL_LED;
+
 		ret |= (reg_val & SDHCI_PROT_CTRL_DMASEL_MASK) >> 5;
 		if (SDHCI_PROT_CTRL_8BIT == (reg_val & SDHCI_PROT_CTRL_DTW)) {
 			ret &= ~SDHCI_CTRL_4BITBUS;
@@ -547,20 +550,16 @@ static void esdhc_writeb_le(struct sdhci_host *host, u8 val, int reg)
 		if (val == (SDHCI_POWER_ON | SDHCI_POWER_180)) {
 			u32 reg;
 
+			/* stop sd clock */
+			reg = readl(host->ioaddr + SDHCI_VENDOR_SPEC);
+			writel(reg & ~SDHCI_VENDOR_SPEC_FRC_SDCLK_ON, \
+				host->ioaddr + SDHCI_VENDOR_SPEC);
+
 			/* switch to 1.8V */
 			reg = readl(host->ioaddr + SDHCI_VENDOR_SPEC);
 			reg |= SDHCI_VENDOR_SPEC_VSELECT;
 			writel(reg, host->ioaddr + SDHCI_VENDOR_SPEC);
 
-			/* stop sd clock */
-			writel(reg & ~SDHCI_VENDOR_SPEC_FRC_SDCLK_ON, \
-				host->ioaddr + SDHCI_VENDOR_SPEC);
-
-			/* sleep at least 5ms */
-			mdelay(5);
-
-			/* restore sd clock status */
-			writel(reg, host->ioaddr + SDHCI_VENDOR_SPEC);
 		} else {
 			u32 reg;
 
