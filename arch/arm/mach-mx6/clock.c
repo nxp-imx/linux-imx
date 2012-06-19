@@ -5275,6 +5275,9 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		clk_debug_register(lookups[i].clk);
 	}
 
+	/* Lower the ipg_perclk frequency to 6MHz. */
+	clk_set_rate(&ipg_perclk, 6000000);
+
 	/* Timer needs to be initialized first as the
 	  * the WAIT routines use GPT counter as
 	  * a delay.
@@ -5420,9 +5423,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	__raw_writel(1 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR5);
 
 	__raw_writel(0, MXC_CCM_CCGR6);
-
-	/* Lower the ipg_perclk frequency to 6MHz. */
-	clk_set_rate(&ipg_perclk, 6000000);
 
 	/* S/PDIF */
 	clk_set_parent(&spdif0_clk[0], &pll3_pfd_454M);
