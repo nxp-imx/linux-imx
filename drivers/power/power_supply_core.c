@@ -194,12 +194,12 @@ int power_supply_register(struct device *parent, struct power_supply *psy)
 	if (rc)
 		goto kobject_set_name_failed;
 
+	spin_lock_init(&psy->changed_lock);
+	wake_lock_init(&psy->work_wake_lock, WAKE_LOCK_SUSPEND, "power-supply");
+
 	rc = device_add(dev);
 	if (rc)
 		goto device_add_failed;
-
-	spin_lock_init(&psy->changed_lock);
-	wake_lock_init(&psy->work_wake_lock, WAKE_LOCK_SUSPEND, "power-supply");
 
 	rc = power_supply_create_triggers(psy);
 	if (rc)
