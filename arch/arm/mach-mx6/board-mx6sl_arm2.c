@@ -1175,6 +1175,7 @@ static void __init mx6_arm2_init(void)
 
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6sl_add_imx_keypad(&mx6sl_arm2_map_data);
+	imx6q_add_busfreq();
 }
 
 extern void __iomem *twd_base;
