@@ -281,11 +281,7 @@ static int max8903_battery_get_property(struct power_supply *bat,
 	default:
 		break;
 	}
-	if (!last || time_after(jiffies, last + HZ / 2)) {
-		last = jiffies;
-		max8903_charger_update_status(di);
-		max8903_battery_update_status(di);
-	}
+
 	switch (psp) {
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = di->voltage_uV;
@@ -626,6 +622,9 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 			goto err_chg_irq;
 		}
 	}
+
+	max8903_charger_update_status(data);
+	max8903_battery_update_status(data);
 	return 0;
 err_psy:
 	power_supply_unregister(&data->psy);
