@@ -45,14 +45,11 @@
 #include <asm/tlb.h>
 #include "crm_regs.h"
 
-
-#define LPAPM_CLK	24000000
-#define DDR_MED_CLK	400000000
-#define DDR3_NORMAL_CLK	528000000
-#define GPC_PGC_GPU_PGCR_OFFSET		0x260
-#define GPC_CNTR_OFFSET				0x0
-
-
+#define LPAPM_CLK		24000000
+#define DDR_MED_CLK		400000000
+#define DDR3_NORMAL_CLK		528000000
+#define GPC_PGC_GPU_PGCR_OFFSET	0x260
+#define GPC_CNTR_OFFSET		0x0
 
 DEFINE_SPINLOCK(ddr_freq_lock);
 
@@ -91,13 +88,17 @@ struct timeval end_time;
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
 static struct clk *pll2_400;
-static struct clk *pll2_200;
+static struct clk *axi_clk;
+static struct clk *ahb_clk;
+static struct clk *periph_clk;
+static struct clk *osc_clk;
 static struct clk *cpu_clk;
 static unsigned int org_ldo;
 static struct clk *pll3;
 static struct clk *pll2;
-static struct clk *periph_clk;
-static struct clk *osc;
+static struct clk *pll3_sw_clk;
+static struct clk *pll2_200;
+static struct clk *mmdc_ch0_axi;
 
 static struct delayed_work low_bus_freq_handler;
 
@@ -126,67 +127,88 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		return;
 	}
 
-	clk_enable(pll3);
+	if (!cpu_is_mx6sl()) {
+		clk_enable(pll3);
 
-	if (lp_audio_freq) {
-		/* Need to ensure that PLL2_PFD_400M is kept ON. */
-		clk_enable(pll2_400);
-		update_ddr_freq(50000000);
-		/* Make sure periph clk's parent also got updated */
-		clk_set_parent(periph_clk, pll2_200);
-		audio_bus_freq_mode = 1;
-		low_bus_freq_mode = 0;
-	} else {
-		update_ddr_freq(24000000);
-		/* Make sure periph clk's parent also got updated */
-		clk_set_parent(periph_clk, osc);
-		if (audio_bus_freq_mode)
+		if (lp_audio_freq) {
+			/* Need to ensure that PLL2_PFD_400M is kept ON. */
+			clk_enable(pll2_400);
+			update_ddr_freq(50000000);
+			/* Make sure periph clk's parent also got updated */
+			clk_set_parent(periph_clk, pll2_200);
+			audio_bus_freq_mode = 1;
+			low_bus_freq_mode = 0;
+		} else {
+			update_ddr_freq(24000000);
+			/* Make sure periph clk's parent also got updated */
+			clk_set_parent(periph_clk, osc_clk);
+			if (audio_bus_freq_mode)
+				clk_disable(pll2_400);
+			low_bus_freq_mode = 1;
+			audio_bus_freq_mode = 0;
+		}
+
+		if (med_bus_freq_mode)
 			clk_disable(pll2_400);
+		clk_disable(pll3);
+	} else {
+		/* Set periph_clk to be sourced from OSC_CLK */
+		/* Set MMDC clk to 25MHz. */
+		/* First need to set the divider before changing the parent */
+		/* if parent clock is larger than previous one */
+		clk_set_rate(mmdc_ch0_axi, clk_get_rate(mmdc_ch0_axi) / 2);
+		clk_set_parent(mmdc_ch0_axi, pll3_sw_clk);
+		clk_set_parent(mmdc_ch0_axi, pll2_200);
+		clk_set_rate(mmdc_ch0_axi,
+			     clk_round_rate(mmdc_ch0_axi, LPAPM_CLK));
+
+		/* Set AXI to 24MHz. */
+		clk_set_parent(periph_clk, osc_clk);
+		clk_set_rate(axi_clk, clk_round_rate(axi_clk, LPAPM_CLK));
+		/* Set AHB to 24MHz. */
+		clk_set_rate(ahb_clk, clk_round_rate(ahb_clk, LPAPM_CLK));
+
 		low_bus_freq_mode = 1;
 		audio_bus_freq_mode = 0;
 	}
 
-	if (med_bus_freq_mode)
-		clk_disable(pll2_400);
-
 	high_bus_freq_mode = 0;
 	med_bus_freq_mode = 0;
 
-	if (cpu_is_mx6q()) {
-		/* Disable the brown out detection since we are going to be
-		  * disabling the LDO.
-		  */
-		reg = __raw_readl(ANA_MISC2_BASE_ADDR);
-		reg &= ~ANADIG_ANA_MISC2_REG1_BO_EN;
-		__raw_writel(reg, ANA_MISC2_BASE_ADDR);
+	/* Disable the brown out detection since we are going to be
+	  * disabling the LDO.
+	  */
+	reg = __raw_readl(ANA_MISC2_BASE_ADDR);
+	reg &= ~ANADIG_ANA_MISC2_REG1_BO_EN;
+	__raw_writel(reg, ANA_MISC2_BASE_ADDR);
 
-		/* Power gate the PU LDO. */
-		/* Power gate the PU domain first. */
-		/* enable power down request */
-		reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-		__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-		/* power down request */
-		reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
-		__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
-		/* Wait for power down to complete. */
-		while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
-			;
+	/* Power gate the PU LDO. */
+	/* Power gate the PU domain first. */
+	/* enable power down request */
+	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	/* power down request */
+	reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
+	__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
+	/* Wait for power down to complete. */
+	while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
+		;
 
-		/* Mask the ANATOP brown out interrupt in the GPC. */
-		reg = __raw_readl(gpc_base + 0x14);
-		reg |= 0x80000000;
-		__raw_writel(reg, gpc_base + 0x14);
+	/* Mask the ANATOP brown out interrupt in the GPC. */
+	reg = __raw_readl(gpc_base + 0x14);
+	reg |= 0x80000000;
+	__raw_writel(reg, gpc_base + 0x14);
 
-		org_ldo = reg = __raw_readl(ANADIG_REG_CORE);
-		reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
-		__raw_writel(reg, ANADIG_REG_CORE);
+	/* PU power gating. */
+	org_ldo = reg = __raw_readl(ANADIG_REG_CORE);
+	reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
+	__raw_writel(reg, ANADIG_REG_CORE);
 
-		/* Clear the BO interrupt in the ANATOP. */
-		reg = __raw_readl(ANADIG_MISC1_REG);
-		reg |= 0x80000000;
-		__raw_writel(reg, ANADIG_MISC1_REG);
-	}
-	clk_disable(pll3);
+	/* Clear the BO interrupt in the ANATOP. */
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg |= 0x80000000;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+
 	mutex_unlock(&bus_freq_mutex);
 }
 
@@ -202,8 +224,8 @@ int set_low_bus_freq(void)
 	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active)
 		return 0;
 
-	/* Don't lower the frequency immediately. Instead scheduled a delayed work
-	  * and drop the freq if the conditions still remain the same.
+	/* Don't lower the frequency immediately. Instead scheduled a delayed
+	  * work and drop the freq if the conditions still remain the same.
 	  */
 	schedule_delayed_work(&low_bus_freq_handler, usecs_to_jiffies(3000000));
 	return 0;
@@ -232,16 +254,24 @@ int set_high_bus_freq(int high_bus_freq)
 		msleep(1);
 
 	if ((high_bus_freq_mode && (high_bus_freq || lp_high_freq)) ||
-		(med_bus_freq_mode && !high_bus_freq && lp_med_freq && !lp_high_freq)) {
+	    (med_bus_freq_mode && !high_bus_freq && lp_med_freq &&
+	     !lp_high_freq)) {
 		mutex_unlock(&bus_freq_mutex);
 		return 0;
 	}
-	clk_enable(pll3);
-
 
 	/* Enable the PU LDO */
-	if (cpu_is_mx6q() && low_bus_freq_mode) {
+	if (low_bus_freq_mode) {
+		/* Set the voltage of VDDSOC as in normal mode. */
 		__raw_writel(org_ldo, ANADIG_REG_CORE);
+
+		/* Need to wait for the regulator to come back up */
+		/*
+		 * Delay time is based on the number of 24MHz clock cycles
+		 * programmed in the ANA_MISC2_BASE_ADDR for each
+		 * 25mV step.
+		 */
+		udelay(150);
 
 		/* enable power up request */
 		reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
@@ -262,32 +292,58 @@ int set_high_bus_freq(int high_bus_freq)
 		reg = __raw_readl(gpc_base + 0x14);
 		reg &= ~0x80000000;
 		__raw_writel(reg, gpc_base + 0x14);
+
+		if (cpu_is_mx6sl()) {
+			/* Set periph_clk to be sourced from pll2_pfd2_400M */
+			/* First need to set the divider before changing the */
+			/* parent if parent clock is larger than previous one */
+			clk_set_rate(ahb_clk, clk_round_rate(ahb_clk,
+							     LPAPM_CLK / 3));
+			clk_set_rate(axi_clk,
+				     clk_round_rate(axi_clk, LPAPM_CLK / 2));
+			clk_set_parent(periph_clk, pll2_400);
+
+			/* Set mmdc_clk_root to be sourced */
+			/* from pll2_pfd2_400M */
+			clk_set_rate(mmdc_ch0_axi,
+				     clk_round_rate(mmdc_ch0_axi,
+						    LPAPM_CLK / 2));
+			clk_set_parent(mmdc_ch0_axi, pll3_sw_clk);
+			clk_set_parent(mmdc_ch0_axi, pll2_400);
+			clk_set_rate(mmdc_ch0_axi,
+				     clk_round_rate(mmdc_ch0_axi, DDR_MED_CLK));
+
+			high_bus_freq_mode = 1;
+			med_bus_freq_mode = 0;
+		}
 	}
 
-	if (high_bus_freq) {
-		update_ddr_freq(ddr_normal_rate);
-		/* Make sure periph clk's parent also got updated */
-		clk_set_parent(periph_clk, pll2);
-		if (med_bus_freq_mode)
+	if (!cpu_is_mx6sl()) {
+		clk_enable(pll3);
+		if (high_bus_freq) {
+			update_ddr_freq(ddr_normal_rate);
+			/* Make sure periph clk's parent also got updated */
+			clk_set_parent(periph_clk, pll2);
+			if (med_bus_freq_mode)
+				clk_disable(pll2_400);
+			high_bus_freq_mode = 1;
+			med_bus_freq_mode = 0;
+		} else {
+			clk_enable(pll2_400);
+			update_ddr_freq(ddr_med_rate);
+			/* Make sure periph clk's parent also got updated */
+			clk_set_parent(periph_clk, pll2_400);
+			high_bus_freq_mode = 0;
+			med_bus_freq_mode = 1;
+		}
+		if (audio_bus_freq_mode)
 			clk_disable(pll2_400);
-		high_bus_freq_mode = 1;
-		med_bus_freq_mode = 0;
-	} else {
-		clk_enable(pll2_400);
-		update_ddr_freq(ddr_med_rate);
-		/* Make sure periph clk's parent also got updated */
-		clk_set_parent(periph_clk, pll2_400);
-		high_bus_freq_mode = 0;
-		med_bus_freq_mode = 1;
+
+		clk_disable(pll3);
 	}
-	if (audio_bus_freq_mode)
-		clk_disable(pll2_400);
+
 	low_bus_freq_mode = 0;
 	audio_bus_freq_mode = 0;
-
-	low_bus_freq_mode = 0;
-
-	clk_disable(pll3);
 	mutex_unlock(&bus_freq_mutex);
 
 	return 0;
@@ -386,14 +442,14 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	}
 
 	pll2_200 = clk_get(NULL, "pll2_200M");
-	if (IS_ERR(pll2_400)) {
+	if (IS_ERR(pll2_200)) {
 		printk(KERN_DEBUG "%s: failed to get pll2_200M\n",
 		       __func__);
 		return PTR_ERR(pll2_200);
 	}
 
 	pll2 = clk_get(NULL, "pll2");
-	if (IS_ERR(pll2_400)) {
+	if (IS_ERR(pll2)) {
 		printk(KERN_DEBUG "%s: failed to get pll2\n",
 		       __func__);
 		return PTR_ERR(pll2);
@@ -413,18 +469,46 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(pll3);
 	}
 
+	pll3_sw_clk = clk_get(NULL, "pll3_sw_clk");
+	if (IS_ERR(pll3_sw_clk)) {
+		printk(KERN_DEBUG "%s: failed to get pll3_sw_clk\n",
+		       __func__);
+		return PTR_ERR(pll3_sw_clk);
+	}
+
+	axi_clk = clk_get(NULL, "axi_clk");
+	if (IS_ERR(axi_clk)) {
+		printk(KERN_DEBUG "%s: failed to get axi_clk\n",
+		       __func__);
+		return PTR_ERR(axi_clk);
+	}
+
+	ahb_clk = clk_get(NULL, "ahb");
+	if (IS_ERR(ahb_clk)) {
+		printk(KERN_DEBUG "%s: failed to get ahb_clk\n",
+		       __func__);
+		return PTR_ERR(ahb_clk);
+	}
+
 	periph_clk = clk_get(NULL, "periph_clk");
 	if (IS_ERR(periph_clk)) {
-		printk(KERN_DEBUG "%s: failed to get periph\n",
+		printk(KERN_DEBUG "%s: failed to get periph_clk\n",
 		       __func__);
 		return PTR_ERR(periph_clk);
 	}
 
-	osc = clk_get(NULL, "osc");
-	if (IS_ERR(osc)) {
-		printk(KERN_DEBUG "%s: failed to get osc\n",
+	osc_clk = clk_get(NULL, "osc");
+	if (IS_ERR(osc_clk)) {
+		printk(KERN_DEBUG "%s: failed to get osc_clk\n",
 		       __func__);
-		return PTR_ERR(osc);
+		return PTR_ERR(osc_clk);
+	}
+
+	mmdc_ch0_axi = clk_get(NULL, "mmdc_ch0_axi");
+	if (IS_ERR(mmdc_ch0_axi)) {
+		printk(KERN_DEBUG "%s: failed to get mmdc_ch0_axi\n",
+		       __func__);
+		return PTR_ERR(mmdc_ch0_axi);
 	}
 
 	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
@@ -446,7 +530,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		ddr_med_rate = DDR_MED_CLK;
 		ddr_normal_rate = DDR3_NORMAL_CLK;
 	}
-	if (cpu_is_mx6dl()) {
+	if (cpu_is_mx6dl() || cpu_is_mx6sl()) {
 		ddr_low_rate = LPAPM_CLK;
 		ddr_normal_rate = ddr_med_rate = DDR_MED_CLK;
 	}
@@ -455,7 +539,8 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 
 	mutex_init(&bus_freq_mutex);
 
-	init_mmdc_settings();
+	if (!cpu_is_mx6sl())
+		init_mmdc_settings();
 
 	return 0;
 }
