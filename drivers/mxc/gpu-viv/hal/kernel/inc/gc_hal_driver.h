@@ -224,16 +224,19 @@ typedef struct _gcsHAL_QUERY_CHIP_IDENTITY
     gctUINT32                   pixelPipes;
 
     /* Number of instructions. */
-	gctUINT32                   instructionCount;
+    gctUINT32                   instructionCount;
 
     /* Number of constants. */
-	gctUINT32                   numConstants;
+    gctUINT32                   numConstants;
 
-	/* Buffer size */
-	gctUINT32                   bufferSize;
+    /* Buffer size */
+    gctUINT32                   bufferSize;
 
-	/* Number of varyings */
-	gctUINT32                   varyingsCount;
+    /* Number of varyings */
+    gctUINT32                   varyingsCount;
+
+    /* Supertile layout style in hardware */
+    gctUINT32                   superTileMode;
 }
 gcsHAL_QUERY_CHIP_IDENTITY;
 

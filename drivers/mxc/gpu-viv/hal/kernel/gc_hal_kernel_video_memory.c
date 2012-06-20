@@ -245,7 +245,7 @@ gckVIDMEM_ConstructVirtual(
     node->Virtual.contiguous    = Contiguous;
     node->Virtual.logical       = gcvNULL;
 
-    for (i = 0; i < gcdGPU_COUNT; i++)
+    for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
         node->Virtual.lockeds[i]        = 0;
         node->Virtual.pageTables[i]     = gcvNULL;
@@ -259,7 +259,7 @@ gckVIDMEM_ConstructVirtual(
 #ifdef __QNXNTO__
     node->Virtual.next          = gcvNULL;
     node->Virtual.freePending   = gcvFALSE;
-    for (i = 0; i < gcdGPU_COUNT; i++)
+    for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
         node->Virtual.unlockPendings[i] = gcvFALSE;
     }
@@ -366,7 +366,7 @@ gckVIDMEM_DestroyVirtual(
     /* Delete the mutex. */
     gcmkVERIFY_OK(gckOS_DeleteMutex(os, Node->Virtual.mutex));
 
-    for (i = 0; i < gcdGPU_COUNT; i++)
+    for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
         if (Node->Virtual.pageTables[i] != gcvNULL)
         {
@@ -1392,7 +1392,7 @@ gckVIDMEM_Free(
 
     acquired = gcvTRUE;
 
-    for (i = 0, totalLocked = 0; i < gcdGPU_COUNT; i++)
+    for (i = 0, totalLocked = 0; i < gcdMAX_GPU_COUNT; i++)
     {
         totalLocked += Node->Virtual.lockeds[i];
     }
@@ -1590,7 +1590,7 @@ _NeedVirtualMapping(
     gcmkVERIFY_ARGUMENT(Kernel != gcvNULL);
     gcmkVERIFY_ARGUMENT(Node != gcvNULL);
     gcmkVERIFY_ARGUMENT(NeedMapping != gcvNULL);
-    gcmkVERIFY_ARGUMENT(Core < gcdGPU_COUNT);
+    gcmkVERIFY_ARGUMENT(Core < gcdMAX_GPU_COUNT);
 
     if (Node->Virtual.contiguous)
     {
@@ -1690,7 +1690,7 @@ gckVIDMEM_Lock(
         /* Increment the lock count. */
         Node->VidMem.locked ++;
 
-        /* Return the address of the node. */
+        /* Return the physical address of the node. */
 #if !gcdUSE_VIDMEM_PER_PID
         *Address = Node->VidMem.memory->baseAddress
                  + Node->VidMem.offset
@@ -1699,6 +1699,7 @@ gckVIDMEM_Lock(
         *Address = Node->VidMem.physical;
 #endif
 
+        /* Get hardware specific address. */
 #if gcdENABLE_VG
         if (Kernel->vg == gcvNULL)
 #endif
@@ -1769,10 +1770,10 @@ gckVIDMEM_Lock(
 
             if (needMapping == gcvFALSE)
             {
+                /* Get hardware specific address. */
 #if gcdENABLE_VG
                 if (Kernel->vg != gcvNULL)
                 {
-                    /* Get physical address directly */
                     gcmkONERROR(gckVGHARDWARE_ConvertLogical(Kernel->vg->hardware,
                                 Node->Virtual.logical,
                                 &Node->Virtual.addresses[Kernel->core]));
@@ -2077,7 +2078,7 @@ gckVIDMEM_Unlock(
 #endif
             }
 
-            for (i = 0, totalLocked = 0; i < gcdGPU_COUNT; i++)
+            for (i = 0, totalLocked = 0; i < gcdMAX_GPU_COUNT; i++)
             {
                 totalLocked += Node->Virtual.lockeds[i];
             }

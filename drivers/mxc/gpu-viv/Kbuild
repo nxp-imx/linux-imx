@@ -42,7 +42,8 @@ OBJS := $(OS_KERNEL_DIR)/gc_hal_kernel_device.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_driver.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_linux.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_math.o \
-        $(OS_KERNEL_DIR)/gc_hal_kernel_os.o
+        $(OS_KERNEL_DIR)/gc_hal_kernel_os.o \
+        $(OS_KERNEL_DIR)/gc_hal_kernel_debugfs.o
 
 ifeq ($(USE_3D_VG), 1)
 

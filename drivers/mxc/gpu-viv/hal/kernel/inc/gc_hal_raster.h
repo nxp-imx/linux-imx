@@ -416,6 +416,14 @@ gco2D_SetTargetEx(
 
 /* Calculate and program the stretch factors. */
 gceSTATUS
+gco2D_CalcStretchFactor(
+    IN gco2D Engine,
+    IN gctINT32 SrcSize,
+    IN gctINT32 DestSize,
+    OUT gctUINT32_PTR Factor
+    );
+
+gceSTATUS
 gco2D_SetStretchFactors(
 	IN gco2D Engine,
 	IN gctUINT32 HorFactor,
@@ -933,6 +941,13 @@ gco2D_SetSourceTileStatus(
     IN gceSURF_FORMAT CompressedFormat,
     IN gctUINT32 ClearValue,
     IN gctUINT32 GpuAddress
+    );
+
+gceSTATUS
+gco2D_QueryU32(
+    IN gco2D Engine,
+    IN gce2D_QUERY Item,
+    OUT gctUINT32_PTR Value
     );
 
 #ifdef __cplusplus
