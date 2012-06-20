@@ -361,7 +361,8 @@ extern "C" {
 #define ES20_GLMAPBUFFEROES                         (ES20_DELETEVERTEXARRAYOES                  +   1)
 #define ES20_GLUNMAPBUFFEROES                       (ES20_GLMAPBUFFEROES                        +   1)
 #define ES20_GLGETBUFFERPOINTERVOES                 (ES20_GLUNMAPBUFFEROES                      +   1)
-#define	ES20_CALLS									(ES20_GLGETBUFFERPOINTERVOES				+	1)
+#define ES20_DISCARDFRAMEBUFFEREXT                  (ES20_GLGETBUFFERPOINTERVOES				+	1)
+#define	ES20_CALLS									(ES20_DISCARDFRAMEBUFFEREXT 				+	1)
 #define	ES20_DRAWCALLS								(ES20_CALLS									+	1)
 #define	ES20_STATECHANGECALLS						(ES20_DRAWCALLS								+	1)
 #define	ES20_POINTCOUNT								(ES20_STATECHANGECALLS						+	1)
@@ -1181,6 +1182,7 @@ typedef struct _gcsPROFILER
     gctBOOL         enableHal;
     gctBOOL         enableHW;
     gctBOOL         enableSH;
+	gctBOOL         isSyncMode;
 
     gctBOOL         useSocket;
     gctINT          sockFd;

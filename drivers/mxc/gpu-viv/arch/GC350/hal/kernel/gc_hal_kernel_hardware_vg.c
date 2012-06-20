@@ -344,8 +344,8 @@ gckVGHARDWARE_Construct(
         hardware->idleSignal            = gcvNULL;
         hardware->chipPowerState        = gcvPOWER_OFF;
         hardware->chipPowerStateGlobal  = gcvPOWER_ON;
-        hardware->clockState            = gcvTRUE;
-        hardware->powerState            = gcvTRUE;
+        hardware->clockState            = gcvFALSE;
+        hardware->powerState            = gcvFALSE;
         hardware->powerOffTimeout       = gcdPOWEROFF_TIMEOUT;
         hardware->powerOffTime          = 0;
         hardware->timeIdleThread        = gcvNULL;

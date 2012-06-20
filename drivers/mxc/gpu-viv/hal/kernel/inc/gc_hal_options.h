@@ -355,7 +355,7 @@
         otherwise GPU will enter gcvPOWER_IDLE.
 */
 #ifndef gcdPOWER_SUSNPEND_WHEN_IDLE
-#   define gcdPOWER_SUSNPEND_WHEN_IDLE          0
+#   define gcdPOWER_SUSNPEND_WHEN_IDLE          1
 #endif
 
 /*
@@ -740,15 +740,8 @@
 #ifndef gcdSHARED_PAGETABLE
 #   define gcdSHARED_PAGETABLE                  1
 #endif
-
-/*
-    gcdBLOB_CACHE_ENABLED
-        When non-zero, Android blob cache extension will be enabled.
-        Otherwise, caching will be by-passed.
- */
-
-#ifndef gcdBLOB_CACHE_ENABLED
-#   define gcdBLOB_CACHE_ENABLED                0
+#ifndef gcdUSE_PVR
+#   define gcdUSE_PVR			                1
 #endif
 
 /*
@@ -794,7 +787,7 @@
 #endif
 
 #ifndef gcdUSE_WCLIP_PATCH
-#   define gcdUSE_WCLIP_PATCH                   0
+#   define gcdUSE_WCLIP_PATCH                   1
 #endif
 
 #endif /* __gc_hal_options_h_ */

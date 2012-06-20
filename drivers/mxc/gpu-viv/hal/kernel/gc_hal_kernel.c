@@ -2521,6 +2521,7 @@ gckKERNEL_Recovery(
     )
 {
 #if gcdENABLE_RECOVERY
+#define gcvEVENT_MASK 0x3FFFFFFF
     gceSTATUS status;
     gckEVENT eventObj;
     gckHARDWARE hardware;
@@ -2544,17 +2545,17 @@ gckKERNEL_Recovery(
 
     /* Handle all outstanding events now. */
 #if gcdSMP
-    gcmkONERROR(gckOS_AtomSet(Kernel->os, eventObj->pending, ~0U));
+    gcmkONERROR(gckOS_AtomSet(Kernel->os, eventObj->pending, gcvEVENT_MASK));
 #else
-    eventObj->pending = ~0U;
+    eventObj->pending = gcvEVENT_MASK;
 #endif
     gcmkONERROR(gckEVENT_Notify(eventObj, 1));
 
     /* Again in case more events got submitted. */
 #if gcdSMP
-    gcmkONERROR(gckOS_AtomSet(Kernel->os, eventObj->pending, ~0U));
+    gcmkONERROR(gckOS_AtomSet(Kernel->os, eventObj->pending, gcvEVENT_MASK));
 #else
-    eventObj->pending = ~0U;
+    eventObj->pending = gcvEVENT_MASK;
 #endif
     gcmkONERROR(gckEVENT_Notify(eventObj, 2));
 

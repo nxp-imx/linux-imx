@@ -1864,6 +1864,20 @@ gckEVENT_Notify(
             break;
         }
 
+        if (pending & 0x80000000)
+        {
+            gckOS_Print("!!!!!!!!!!!!! AXI BUS ERROR !!!!!!!!!!!!!\n");
+            gcmkTRACE_ZONE(gcvLEVEL_ERROR, gcvZONE_EVENT, "AXI BUS ERROR");
+            pending &= 0x7FFFFFFF;
+        }
+
+        if (pending & 0x40000000)
+        {
+            gckHARDWARE_DumpMMUException(Event->kernel->hardware);
+
+            pending &= 0xBFFFFFFF;
+        }
+
         gcmkTRACE_ZONE_N(
             gcvLEVEL_INFO, gcvZONE_EVENT,
             gcmSIZEOF(pending),
@@ -2029,7 +2043,7 @@ gckEVENT_Notify(
             /* Assign record->processID as the pid for this galcore thread.
              * Used in OS calls like gckOS_UnlockMemory() which do not take a pid.
              */
-            drv_thread_specific_key_assign(record->processID, 0);
+            drv_thread_specific_key_assign(record->processID, 0, Event->kernel->core);
 #endif
 
 #if gcdSECURE_USER

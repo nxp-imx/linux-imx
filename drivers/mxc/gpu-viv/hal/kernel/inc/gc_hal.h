@@ -137,7 +137,7 @@ typedef enum _gceCORE
 }
 gceCORE;
 
-#define gcdGPU_COUNT               3
+#define gcdMAX_GPU_COUNT               3
 
 /*******************************************************************************
 **
@@ -1247,6 +1247,12 @@ gckOS_SetGPUPower(
     IN gctBOOL Power
     );
 
+gceSTATUS
+gckOS_ResetGPU(
+    IN gckOS Os,
+    IN gceCORE Core
+    );
+
 /*******************************************************************************
 ** Semaphores.
 */
@@ -2002,6 +2008,11 @@ gceSTATUS
 gckHARDWARE_IsFeatureAvailable(
     IN gckHARDWARE Hardware,
     IN gceFEATURE Feature
+    );
+
+gceSTATUS
+gckHARDWARE_DumpMMUException(
+    IN gckHARDWARE Hardware
     );
 
 #if !gcdENABLE_VG

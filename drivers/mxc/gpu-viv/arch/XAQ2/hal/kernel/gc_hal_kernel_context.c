@@ -22,7 +22,6 @@
 
 
 
-
 #include "gc_hal.h"
 #include "gc_hal_kernel.h"
 #include "gc_hal_kernel_context.h"
@@ -210,6 +209,7 @@ _FlushPipe(
     return 6;
 }
 
+#if !defined(VIVANTE_NO_3D)
 static gctSIZE_T
 _SemaphoreStall(
     IN gckCONTEXT Context,
@@ -245,6 +245,7 @@ _SemaphoreStall(
     /* Semaphore/stall takes 4 slots. */
     return 4;
 }
+#endif
 
 static gctSIZE_T
 _SwitchPipe(
@@ -477,6 +478,8 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x03850 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
 #endif
 
+    index += _FlushPipe(Context, index, gcvPIPE_3D);
+
     /* Global states. */
     index += _State(Context, index, 0x03814 >> 2, 0x00000001, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x03818 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -557,8 +560,8 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x00C14 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00C18 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00C1C >> 2, 0x42000000, 1, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x00C20 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x00C24 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x00C20 >> 2, 0x00000000, 1, gcvTRUE, gcvFALSE);
+    index += _State(Context, index, 0x00C24 >> 2, 0x00000000, 1, gcvTRUE, gcvFALSE);
 
     /* Raster states. */
     index += _State(Context, index, 0x00E00 >> 2, 0x00000001, 1, gcvFALSE, gcvFALSE);
@@ -711,7 +714,6 @@ _InitializeContextBuffer(
     /* Store the index of the "XD" entry. */
     Context->entryOffsetXDFrom3D = index * gcmSIZEOF(gctUINT32);
 
-    index += _FlushPipe(Context, index, gcvPIPE_3D);
 
     /* Pixel Engine states. */
     index += _State(Context, index, 0x01400 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -736,6 +738,7 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x014B4 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x014A4 >> 2, 0x000E400C, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x01580 >> 2, 0x00000000, 3, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x014B8 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
 
     /* Composition states. */
     index += _State(Context, index, 0x03008 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
