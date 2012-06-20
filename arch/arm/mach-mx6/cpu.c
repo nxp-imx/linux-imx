@@ -152,6 +152,20 @@ static int __init post_cpu_init(void)
 	gpc_base = MX6_IO_ADDRESS(GPC_BASE_ADDR);
 	ccm_base = MX6_IO_ADDRESS(CCM_BASE_ADDR);
 
+	/* enable AXI cache for VDOA/VPU/IPU
+	 * set IPU AXI-id0 Qos=0xf(bypass) AXI-id1 Qos=0x7
+	 * clear OCRAM_CTL bits to disable pipeline control
+	 */
+	reg = __raw_readl(IOMUXC_GPR3);
+	reg &= ~IOMUXC_GPR3_OCRAM_CTL_EN;
+	__raw_writel(reg, IOMUXC_GPR3);
+	reg = __raw_readl(IOMUXC_GPR4);
+	reg |= IOMUXC_GPR4_VDOA_CACHE_EN | IOMUXC_GPR4_VPU_CACHE_EN |
+		IOMUXC_GPR4_IPU_CACHE_EN;
+	__raw_writel(reg, IOMUXC_GPR4);
+	__raw_writel(IOMUXC_GPR6_IPU1_QOS, IOMUXC_GPR6);
+	__raw_writel(IOMUXC_GPR7_IPU2_QOS, IOMUXC_GPR7);
+
 	num_cpu_idle_lock = 0x0;
 	if (cpu_is_mx6dl())
 		num_cpu_idle_lock = 0xffff0000;
