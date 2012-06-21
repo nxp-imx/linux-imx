@@ -1260,26 +1260,27 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 			pll1_sw_clk.parent = &pll2_pfd_400M;
 		}
 	} else {
-		if (pll1_sw_clk.parent != &pll1_sys_main_clk) {
-			/* pll1_sw_clk was being sourced from pll2_400M. */
-			/* Enable PLL1 and set pll1_sw_clk parent as PLL1 */
-			if (!pll1_enabled)
-				pll1_sys_main_clk.enable(&pll1_sys_main_clk);
-			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
-			pll1_sw_clk.parent = &pll1_sys_main_clk;
-			arm_needs_pll2_400 = false;
-			if (pll2_pfd_400M.usecount == 0)
-				pll2_pfd_400M.disable(&pll2_pfd_400M);
-		}
+		/* Make sure PLL1 is enabled */
+		if (!pll1_enabled)
+			pll1_sys_main_clk.enable(&pll1_sys_main_clk);
+		/* Make sure PLL1 rate is what we want */
 		if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
-			/* Change the PLL1 rate. */
-			if (pll2_pfd_400M.usecount != 0)
-				pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
-			else
-				pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
+			/* If pll1_sw_clk is from pll1_sys_main_clk, switch it */
+			if (pll1_sw_clk.parent == &pll1_sys_main_clk) {
+				/* Change the PLL1 rate. */
+				if (pll2_pfd_400M.usecount != 0)
+					pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
+				else
+					pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
+			}
 			pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
-			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
 		}
+		/* Make sure pll1_sw_clk is from pll1_sys_main_clk */
+		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
+		pll1_sw_clk.parent = &pll1_sys_main_clk;
+		arm_needs_pll2_400 = false;
+		if (pll2_pfd_400M.usecount == 0)
+			pll2_pfd_400M.disable(&pll2_pfd_400M);
 	}
 	parent_rate = clk_get_rate(clk->parent);
 	div = parent_rate / rate;
