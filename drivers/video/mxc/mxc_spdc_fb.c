@@ -3998,7 +3998,7 @@ release_regulator1:
 release_irq:
 	free_irq(fb_data->spdc_irq, fb_data);
 release_lut_buf:
-	dma_free_coherent(&pdev->dev, fb_data->pre_buf_size,
+	dma_free_coherent(&pdev->dev, fb_data->lut_buf_size,
 		fb_data->virt_lut_buf, fb_data->phy_lut_buf);
 release_cnt_buf:
 	dma_free_coherent(&pdev->dev, fb_data->cnt_buf_size,
@@ -4101,7 +4101,7 @@ static int mxc_spdc_fb_remove(struct platform_device *pdev)
 		fb_data->virt_pre_buf, fb_data->phy_pre_buf);
 	dma_free_coherent(&pdev->dev, fb_data->cnt_buf_size,
 		fb_data->virt_cnt_buf, fb_data->phy_cnt_buf);
-	dma_free_coherent(&pdev->dev, fb_data->pre_buf_size,
+	dma_free_coherent(&pdev->dev, fb_data->lut_buf_size,
 		fb_data->virt_lut_buf, fb_data->phy_lut_buf);
 
 	sysfs_remove_group(&info->device->kobj, &spdc_attr_group);
