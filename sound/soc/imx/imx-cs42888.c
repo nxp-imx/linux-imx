@@ -60,6 +60,7 @@ struct asrc_esai {
 static struct asrc_esai asrc_esai_data;
 static bool asrc_support = 1;
 static int asrc_func;
+enum asrc_word_width asrcp2p_output_bit = ASRC_WIDTH_24_BIT;
 
 static const char *asrc_function[] = {
 	"disable", "24KHz", "32KHz", "44.1KHz",
@@ -94,16 +95,14 @@ static const struct snd_kcontrol_new asrc_controls[] = {
 		     asrc_set_rate),
 };
 
-static int get_format_width(struct snd_pcm_hw_params *params)
+static enum asrc_word_width get_asrc_input_width(
+			struct snd_pcm_hw_params *params)
 {
 	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S8:
-	case SNDRV_PCM_FORMAT_U8:
-		return 8;
 	case SNDRV_PCM_FORMAT_U16:
 	case SNDRV_PCM_FORMAT_S16_LE:
 	case SNDRV_PCM_FORMAT_S16_BE:
-		return 16;
+		return ASRC_WIDTH_16_BIT;
 	case SNDRV_PCM_FORMAT_S20_3LE:
 	case SNDRV_PCM_FORMAT_S20_3BE:
 	case SNDRV_PCM_FORMAT_S24_3LE:
@@ -114,12 +113,13 @@ static int get_format_width(struct snd_pcm_hw_params *params)
 	case SNDRV_PCM_FORMAT_U24_LE:
 	case SNDRV_PCM_FORMAT_U24_3BE:
 	case SNDRV_PCM_FORMAT_U24_3LE:
-		return 24;
+		return ASRC_WIDTH_24_BIT;
+	case SNDRV_PCM_FORMAT_S8:
+	case SNDRV_PCM_FORMAT_U8:
 	case SNDRV_PCM_FORMAT_S32:
 	case SNDRV_PCM_FORMAT_U32:
-		return 32;
 	default:
-		pr_err("Format is not support!\r\n");
+		pr_err("Format is not support!\n");
 		return -EINVAL;
 	}
 }
@@ -129,19 +129,16 @@ static int config_asrc(struct snd_pcm_substream *substream,
 {
 	unsigned int rate = params_rate(params);
 	unsigned int channel = params_channels(params);
-	unsigned int wordwidth = get_format_width(params);
 	struct imx_pcm_runtime_data *pcm_data =
 				substream->runtime->private_data;
 	struct asrc_config config = {0};
 	int ret = 0;
 
-	if ((rate == asrc_esai_data.input_sample_rate) || (asrc_func == 0))
+	if ((rate == asrc_esai_data.input_sample_rate)
+			|| !asrc_func)
 		return -EINVAL;
 
 	if (channel != 2)
-		return -EINVAL;
-
-	if (wordwidth != 24)
 		return -EINVAL;
 
 	ret = asrc_req_pair(channel, &asrc_esai_data.asrc_index);
@@ -152,12 +149,13 @@ static int config_asrc(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
+	config.input_word_width = get_asrc_input_width(params);
+	config.output_word_width = asrcp2p_output_bit;
 	config.pair = asrc_esai_data.asrc_index;
 	config.channel_num = channel;
 	config.input_sample_rate = asrc_esai_data.input_sample_rate;
 	config.output_sample_rate = rate;
 	config.inclk = OUTCLK_ASRCK1_CLK;
-	config.word_width = wordwidth;
 	config.outclk = OUTCLK_ESAI_TX;
 
 	ret = asrc_config_pair(&config);
@@ -167,8 +165,8 @@ static int config_asrc(struct snd_pcm_substream *substream,
 		asrc_finish_conv(asrc_esai_data.asrc_index);
 		return ret;
 	}
-	/*now our asrc driver support 24bit output*/
-	pcm_data->output_bit = 24;
+	/*now our asrc driver only support 24bit output*/
+	pcm_data->output_bit = asrcp2p_output_bit;
 	pcm_data->asrc_index = asrc_esai_data.asrc_index;
 	pcm_data->asrc_enable = 1;
 

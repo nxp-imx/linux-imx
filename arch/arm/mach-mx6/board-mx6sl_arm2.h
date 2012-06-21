@@ -143,6 +143,16 @@ static iomux_v3_cfg_t mx6sl_arm2_pads[] = {
 	MX6SL_PAD_PWM1__PWM1_PWMO,
 	/* LCD power on */
 	MX6SL_PAD_KEY_ROW5__GPIO_4_3,
+
+	/* keypad on E-Ink add-on board */
+	MX6SL_PAD_KEY_COL0__KPP_COL_0,
+	MX6SL_PAD_KEY_COL1__KPP_COL_1,
+	MX6SL_PAD_KEY_COL2__KPP_COL_2,
+	MX6SL_PAD_KEY_COL3__KPP_COL_3,
+	MX6SL_PAD_KEY_ROW0__KPP_ROW_0,
+	MX6SL_PAD_KEY_ROW1__KPP_ROW_1,
+	MX6SL_PAD_KEY_ROW2__KPP_ROW_2,
+	MX6SL_PAD_KEY_ROW3__KPP_ROW_3,
 };
 
 static iomux_v3_cfg_t mx6sl_arm2_epdc_enable_pads[] = {
@@ -300,6 +310,12 @@ static iomux_v3_cfg_t mx6sl_arm2_spdc_disable_pads[] = {
 	MX6SL_PAD_EPDC_PWRSTAT__GPIO_2_13,
 	MX6SL_PAD_EPDC_PWRCTRL0__GPIO_2_7,
 	MX6SL_PAD_EPDC_PWRWAKEUP__GPIO_2_14,
+};
+
+static iomux_v3_cfg_t mx6sl_arm2_elan_pads[] = {
+	MX6SL_PAD_EPDC_PWRCTRL3__GPIO_2_10,	/* INT */
+	MX6SL_PAD_EPDC_PWRCTRL2__GPIO_2_9,	/* CE */
+	MX6SL_PAD_KEY_COL6__GPIO_4_4,		/* RST */
 };
 
 #endif

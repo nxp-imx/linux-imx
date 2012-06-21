@@ -183,11 +183,6 @@ static int _clk_enable(struct clk *clk)
 	reg |= MXC_CCM_CCGRx_CG_MASK << clk->enable_shift;
 	__raw_writel(reg, clk->enable_reg);
 
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq++;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq++;
-
 	return 0;
 }
 
@@ -197,11 +192,6 @@ static void _clk_disable(struct clk *clk)
 	reg = __raw_readl(clk->enable_reg);
 	reg &= ~(MXC_CCM_CCGRx_CG_MASK << clk->enable_shift);
 	__raw_writel(reg, clk->enable_reg);
-
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq--;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq--;
 }
 
 static void _clk_disable_inwait(struct clk *clk)
@@ -463,6 +453,10 @@ static void _clk_pll_disable(struct clk *clk)
 {
 	unsigned int reg;
 	void __iomem *pllbase;
+
+	if ((arm_needs_pll2_400) && (clk == &pll2_528_bus_main_clk))
+		return;
+
 
 	pllbase = _get_pll_base(clk);
 
@@ -1296,7 +1290,7 @@ static int _clk_periph_set_parent(struct clk *clk, struct clk *parent)
 			;
 
 		reg = __raw_readl(MXC_CCM_CBCDR);
-		/* Set periph_clk_sel to select periph_clk2. */
+		/* Set periph_clk_sel to select periph_clk. */
 		reg |= MXC_CCM_CBCDR_PERIPH_CLK_SEL;
 		__raw_writel(reg, MXC_CCM_CBCDR);
 	}
@@ -1554,6 +1548,47 @@ static struct clk mx6per2_clk = {
 	.disable = _clk_disable_inwait,
 };
 
+static int _clk_mmdc_ch1_axi_set_parent(struct clk *clk,
+					       struct clk *parent)
+{
+	u32 reg;
+	int mux;
+
+	mux = _get_mux6(parent, &pll2_528_bus_main_clk, &pll2_pfd2_400M,
+		&pll2_pfd0_352M, &pll2_200M, &pll3_sw_clk, NULL);
+
+	if (mux <= 3) {
+		/* Set the pre_periph2_clk_sel multiplexer */
+		reg = __raw_readl(MXC_CCM_CBCMR);
+		reg &= ~MXC_CCM_CBCMR_PRE_PERIPH2_CLK_SEL_MASK;
+		reg |= mux << MXC_CCM_CBCMR_PRE_PERIPH2_CLK_SEL_OFFSET;
+		__raw_writel(reg, MXC_CCM_CBCMR);
+
+		/* Set the periph2_clk_sel multiplexer. */
+		reg = __raw_readl(MXC_CCM_CBCDR);
+		reg &= ~MXC_CCM_CBCDR_PERIPH2_CLK_SEL;
+		__raw_writel(reg, MXC_CCM_CBCDR);
+	} else {
+		/* Select PLL3_SW_CLK from the periph2_clk2
+		   multiplexer */
+		reg = __raw_readl(MXC_CCM_CBCMR);
+		reg &= ~MXC_CCM_CBCMR_PERIPH2_CLK2_SEL;
+		__raw_writel(reg, MXC_CCM_CBCMR);
+
+		/* Set the periph2_clk_sel multiplexer. */
+		reg = __raw_readl(MXC_CCM_CBCDR);
+		reg &= ~MXC_CCM_CBCDR_PERIPH2_CLK_SEL;
+		reg |= MXC_CCM_CBCDR_PERIPH2_CLK_SEL;
+		__raw_writel(reg, MXC_CCM_CBCDR);
+	}
+
+	if (!WAIT(!(__raw_readl(MXC_CCM_CDHIPR)
+	     & MXC_CCM_CDHIPR_PERIPH2_CLK_SEL_BUSY), SPIN_DELAY))
+		panic("_clk_mmdc_ch1_axi_set_parent failed\n");
+
+	return 0;
+}
+
 static unsigned long _clk_mmdc_ch1_axi_get_rate(struct clk *clk)
 {
 	u32 reg, div;
@@ -1618,6 +1653,7 @@ static struct clk mmdc_ch1_axi_clk[] = {
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG11_OFFSET,
 	.secondary = &mmdc_ch1_axi_clk[1],
+	.set_parent = _clk_mmdc_ch1_axi_set_parent,
 	.get_rate = _clk_mmdc_ch1_axi_get_rate,
 	.set_rate = _clk_mmdc_ch1_axi_set_rate,
 	.round_rate = _clk_mmdc_ch1_axi_round_rate,
@@ -1941,13 +1977,12 @@ static struct clk ipu2_clk = {
 	.round_rate = _clk_ipu_round_rate,
 	.set_rate = _clk_ipu2_set_rate,
 	.get_rate = _clk_ipu2_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk usdhc_dep_clk = {
 	.parent = &mmdc_ch1_axi_clk[0],
 	.secondary = &mx6per1_clk,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	};
 
 static unsigned long _clk_usdhc_round_rate(struct clk *clk,
@@ -2025,7 +2060,6 @@ static struct clk usdhc1_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc1_set_rate,
 	.get_rate = _clk_usdhc1_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc2_set_parent(struct clk *clk, struct clk *parent)
@@ -2083,7 +2117,6 @@ static struct clk usdhc2_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc2_set_rate,
 	.get_rate = _clk_usdhc2_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc3_set_parent(struct clk *clk, struct clk *parent)
@@ -2142,7 +2175,6 @@ static struct clk usdhc3_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc3_set_rate,
 	.get_rate = _clk_usdhc3_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc4_set_parent(struct clk *clk, struct clk *parent)
@@ -2201,7 +2233,6 @@ static struct clk usdhc4_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc4_set_rate,
 	.get_rate = _clk_usdhc4_get_rate,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi_round_rate(struct clk *clk,
@@ -2373,6 +2404,7 @@ static struct clk ssi1_clk = {
 #else
 	 .secondary = &mmdc_ch1_axi_clk[0],
 #endif
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi2_get_rate(struct clk *clk)
@@ -2446,6 +2478,7 @@ static struct clk ssi2_clk = {
 #else
 	 .secondary = &mmdc_ch1_axi_clk[0],
 #endif
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi3_get_rate(struct clk *clk)
@@ -2518,6 +2551,7 @@ static struct clk ssi3_clk = {
 #else
 	 .secondary = &mmdc_ch1_axi_clk[0],
 #endif
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_epdc_lcdif_pix_round_rate(struct clk *clk,
@@ -3790,7 +3824,6 @@ static struct clk dummy_clk = {
 		.clk = &c, \
 	}
 
-
 static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "osc", osc_clk),
 	_REGISTER_CLOCK(NULL, "ckih", ckih_clk),
@@ -3799,7 +3832,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "pll1_main_clk", pll1_sys_main_clk),
 	_REGISTER_CLOCK(NULL, "pll1_sw_clk", pll1_sw_clk),
 	_REGISTER_CLOCK(NULL, "pll2", pll2_528_bus_main_clk),
-	_REGISTER_CLOCK(NULL, "pll2_pfd2_400M", pll2_pfd2_400M),
+	_REGISTER_CLOCK(NULL, "pll2_pfd_400M", pll2_pfd2_400M),
 	_REGISTER_CLOCK(NULL, "pll2_pfd0_352M", pll2_pfd0_352M),
 	_REGISTER_CLOCK(NULL, "pll2_pfd1_594M", pll2_pfd1_594M),
 	_REGISTER_CLOCK(NULL, "pll2_200M", pll2_200M),
@@ -3807,7 +3840,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "pll3_pfd2_508M", pll3_pfd2_508M),
 	_REGISTER_CLOCK(NULL, "pll3_pfd3_454M", pll3_pfd3_454M),
 	_REGISTER_CLOCK(NULL, "pll3_pfd0_720M", pll3_pfd0_720M),
-	_REGISTER_CLOCK(NULL, "pll3_pfd1_540M", pll3_pfd1_540M),
+	_REGISTER_CLOCK(NULL, "pll3_pfd_540M", pll3_pfd1_540M),
 	_REGISTER_CLOCK(NULL, "pll3_sw_clk", pll3_sw_clk),
 	_REGISTER_CLOCK(NULL, "pll3_120M", pll3_120M),
 	_REGISTER_CLOCK(NULL, "pll3_80M", pll3_80M),
@@ -3866,6 +3899,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "usb_phy4_clk", usb_phy4_clk),
 	_REGISTER_CLOCK("imx2-wdt.0", NULL, dummy_clk),
 	_REGISTER_CLOCK("imx2-wdt.1", NULL, dummy_clk),
+	_REGISTER_CLOCK(NULL, "kpp", dummy_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz2_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
@@ -3896,7 +3930,6 @@ static void clk_tree_init(void)
 	if ((reg & MMDC_MDMISC_DDR_TYPE_MASK) ==
 		(0x1 << MMDC_MDMISC_DDR_TYPE_OFFSET)) {
 		clk_set_parent(&periph_clk, &pll2_pfd2_400M);
-		printk(KERN_INFO "Set periph_clk's parent to pll2_pfd2_400M!\n");
 	}
 }
 
@@ -3928,11 +3961,12 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 
 	mxc_timer_init(&gpt_clk[0], timer_base, MXC_INT_GPT);
 
-	clk_tree_init();
-
 	/* keep correct count. */
 	clk_enable(&cpu_clk);
 	clk_enable(&periph_clk);
+	clk_enable(&mmdc_ch1_axi_clk);
+
+	clk_tree_init();
 
 	/* Set AHB to 132MHz. */
 	clk_set_rate(&ahb_clk, clk_round_rate(&ahb_clk, 132000000));
@@ -3990,6 +4024,9 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 	__raw_writel(1 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR5);
 
 	__raw_writel(0, MXC_CCM_CCGR6);
+
+	/* Bypass MMDC_CH0 handshake */
+	__raw_writel(0x20000, MXC_CCM_CCDR);
 
 	/* S/PDIF */
 	clk_set_parent(&spdif0_clk[0], &pll3_pfd3_454M);

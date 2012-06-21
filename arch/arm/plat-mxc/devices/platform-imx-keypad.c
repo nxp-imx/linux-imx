@@ -46,6 +46,11 @@ const struct imx_imx_keypad_data imx51_imx_keypad_data __initconst =
 	imx_imx_keypad_data_entry_single(MX51, SZ_16);
 #endif /* ifdef CONFIG_SOC_IMX51 */
 
+#ifdef CONFIG_SOC_IMX6SL
+const struct imx_imx_keypad_data imx6sl_imx_keypad_data __initconst =
+	imx_imx_keypad_data_entry_single(MX6SL, SZ_16);
+#endif /* ifdef CONFIG_SOC_IMX6SL */
+
 struct platform_device *__init imx_add_imx_keypad(
 		const struct imx_imx_keypad_data *data,
 		const struct matrix_keymap_data *pdata)
