@@ -176,15 +176,6 @@ static struct v4l2_int_master mxc_v4l2_master = {
 	.detach = mxc_v4l2_master_detach,
 };
 
-static struct v4l2_int_device mxc_v4l2_int_device = {
-	.module = THIS_MODULE,
-	.name = "mxc_v4l2_cap",
-	.type = v4l2_int_type_master,
-	.u = {
-		.master = &mxc_v4l2_master,
-		},
-};
-
 /***************************************************************************
  * Functions for handling Frame buffers.
  **************************************************************************/
@@ -2678,7 +2669,6 @@ static int mxc_v4l2_probe(struct platform_device *pdev)
 
 	/* Set up the v4l2 device and register it*/
 	cam->self->priv = cam;
-	/* This function contains a bug that won't let this be rmmod'd. */
 	v4l2_int_device_register(cam->self);
 
 	/* register v4l video device */
@@ -2727,7 +2717,7 @@ static int mxc_v4l2_remove(struct platform_device *pdev)
 			&dev_attr_fsl_v4l2_overlay_property);
 
 		pr_info("V4L2 freeing image input device\n");
-		v4l2_int_device_unregister(&mxc_v4l2_int_device);
+		v4l2_int_device_unregister(cam->self);
 		video_unregister_device(cam->video_dev);
 
 		mxc_free_frame_buf(cam);
