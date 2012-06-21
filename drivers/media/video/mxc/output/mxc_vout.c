@@ -34,9 +34,9 @@
 #define VALID_HEIGHT_1080P	(1080)
 #define FRAME_HEIGHT_1080P	(1088)
 #define FRAME_WIDTH_1080P	(1920)
-#define MAX_INTERLACED_WIDTH	(1024)
 #define CHECK_TILED_1080P_DISPLAY(vout)	\
-	(((vout)->task.input.format == IPU_PIX_FMT_TILED_NV12) &&	\
+	((((vout)->task.input.format == IPU_PIX_FMT_TILED_NV12) ||	\
+	       ((vout)->task.input.format == IPU_PIX_FMT_TILED_NV12F)) &&\
 	       ((vout)->task.input.width == FRAME_WIDTH_1080P) &&	\
 	       ((vout)->task.input.height == FRAME_HEIGHT_1080P) &&	\
 	       ((vout)->task.input.crop.w == FRAME_WIDTH_1080P) &&	\
@@ -47,7 +47,8 @@
 	       ((vout)->task.output.crop.w == FRAME_WIDTH_1080P) &&	\
 	       ((vout)->task.output.crop.h == VALID_HEIGHT_1080P))
 #define CHECK_TILED_1080P_STREAM(vout)	\
-	(((vout)->task.input.format == IPU_PIX_FMT_TILED_NV12) &&	\
+	((((vout)->task.input.format == IPU_PIX_FMT_TILED_NV12) ||	\
+	       ((vout)->task.input.format == IPU_PIX_FMT_TILED_NV12F)) &&\
 	       ((vout)->task.input.width == FRAME_WIDTH_1080P) &&	\
 	       ((vout)->task.input.crop.w == FRAME_WIDTH_1080P) &&	\
 	       ((vout)->task.input.height == FRAME_HEIGHT_1080P) &&	\
@@ -585,6 +586,8 @@ static void disp_work_func(struct work_struct *work)
 				tiled_interlaced = 1;
 				vout->task.input.deinterlace.enable = 0;
 			}
+			v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+					"tiled queue task\n");
 		}
 		ret = ipu_queue_task(&vout->task);
 		if ((!vout->tiled_bypass_pp) && tiled_fmt)
@@ -1068,6 +1071,8 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 				) {
 				/* IC bypass */
 				output->format = IPU_PIX_FMT_NV12;
+				v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+						"tiled bypass pp\n");
 				vout->tiled_bypass_pp = true;
 			}
 			tiled_fmt = true;
@@ -1108,10 +1113,7 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 	vout->task.input.format = f->fmt.pix.pixelformat;
 
 	if (IPU_PIX_FMT_TILED_NV12F == vout->task.input.format) {
-		if ((vout->task.input.width > MAX_INTERLACED_WIDTH) ||
-			(vout->task.input.deinterlace.motion == HIGH_MOTION))
-			return -EINVAL;
-		v4l2_info(vout->vfd->v4l2_dev,
+		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
 				"tiled fmt enable deinterlace.\n");
 		vout->task.input.deinterlace.enable = true;
 		vout->task.input.deinterlace.field_fmt =
