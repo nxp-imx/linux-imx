@@ -274,7 +274,6 @@ static int max8903_battery_get_property(struct power_supply *bat,
 {
 	struct max8903_data *di = container_of(bat,
 			struct max8903_data, bat);
-	static unsigned long last;
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
@@ -470,37 +469,54 @@ static void max8903_battery_work(struct work_struct *work)
 	schedule_delayed_work(&data->work, data->interval);
 }
 
-static ssize_t max8903_voltage_offset_show(struct device *dev,
+static ssize_t max8903_voltage_offset_discharger_show(struct device *dev,
 			    struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "read offset_discharger:%04d,offset_charger:%04d\n",
-		offset_discharger, offset_charger);
+	return sprintf(buf, "read offset_discharger:%04d\n",
+		offset_discharger);
 }
 
-static ssize_t max8903_voltage_offset_store(struct device *dev,
+static ssize_t max8903_voltage_offset_discharger_store(struct device *dev,
 			     struct device_attribute *attr, const char *buf,
 			     size_t count)
 {
-	char *p;
-
 	offset_discharger = simple_strtoul(buf, NULL, 10);
-	p = NULL;
-	p = memchr(buf, ' ', count);
-	p += 1;
-	offset_charger = simple_strtoul(p, NULL, 10);
-
-	pr_info("read offset_discharger:%04d,offset_charger:%04d\n",
-		offset_discharger, offset_charger);
+	pr_info("read offset_discharger:%04d\n", offset_discharger);
 	return count;
 }
 
-static struct device_attribute max8903_dev_attr = {
+static ssize_t max8903_voltage_offset_charger_show(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "read offset_charger:%04d\n",
+		offset_charger);
+}
+
+static ssize_t max8903_voltage_offset_charger_store(struct device *dev,
+			     struct device_attribute *attr, const char *buf,
+			     size_t count)
+{
+	offset_charger = simple_strtoul(buf, NULL, 10);
+	pr_info("read offset_charger:%04d\n", offset_charger);
+	return count;
+}
+
+static struct device_attribute max8903_discharger_dev_attr = {
 	.attr = {
-		 .name = "max8903_ctl",
+		 .name = "max8903_ctl_offset_discharger",
 		 .mode = S_IRUSR | S_IWUSR,
 		 },
-	.show = max8903_voltage_offset_show,
-	.store = max8903_voltage_offset_store,
+	.show = max8903_voltage_offset_discharger_show,
+	.store = max8903_voltage_offset_discharger_store,
+};
+
+static struct device_attribute max8903_charger_dev_attr = {
+	.attr = {
+		 .name = "max8903_ctl_offset_charger",
+		 .mode = S_IRUSR | S_IWUSR,
+		 },
+	.show = max8903_voltage_offset_charger_show,
+	.store = max8903_voltage_offset_charger_store,
 };
 
 static __devinit int max8903_probe(struct platform_device *pdev)
@@ -699,7 +715,10 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 		}
 	}
 
-	ret = device_create_file(&pdev->dev, &max8903_dev_attr);
+	ret = device_create_file(&pdev->dev, &max8903_discharger_dev_attr);
+	if (ret)
+		dev_err(&pdev->dev, "create device file failed!\n");
+	ret = device_create_file(&pdev->dev, &max8903_charger_dev_attr);
 	if (ret)
 		dev_err(&pdev->dev, "create device file failed!\n");
 	if (cpu_type_flag == 1) {
