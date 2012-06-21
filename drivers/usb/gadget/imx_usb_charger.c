@@ -13,6 +13,29 @@
  * NOTICE: Currently, it only supports i.mx6q usb charger detect
  */
 
+static void my_batt_ext_power_changed(struct power_supply *psy)
+{
+	int mA;
+	union power_supply_propval ret = {0,};
+	printk(KERN_INFO "my_batt_ext_power_changed!\n");
+	if (!power_supply_am_i_supplied(psy)) {
+		/* stop charging */
+		printk(KERN_ERR "It is not usb supply!\n");
+		return;
+	}
+	power_supply_get_supplier_property(psy,
+		POWER_SUPPLY_PROP_ONLINE, &ret);
+
+	printk(KERN_INFO "imx6 usb charger online:%d\n", ret.intval);
+
+	power_supply_get_supplier_property(psy,
+		POWER_SUPPLY_PROP_CURRENT_MAX, &ret);
+		/* maximum milliamps we are allowed to draw from VBUS */
+	mA = ret.intval;
+	printk(KERN_INFO "imx6 usb charger limit mA: %d\n", mA);
+}
+
+
 static int usb_charger_get_property(struct power_supply *psy,
 				enum power_supply_property psp,
 				union power_supply_propval *val)
@@ -216,6 +239,7 @@ int imx_usb_create_charger(struct usb_charger *charger,
 
 	psy->supplied_to	= usb_charger_supplied_to;
 	psy->num_supplicants	= sizeof(usb_charger_supplied_to)/sizeof(char *);
+	psy->external_power_changed = my_batt_ext_power_changed;
 
 	ret = power_supply_register(charger->dev, psy);
 	if (ret)
