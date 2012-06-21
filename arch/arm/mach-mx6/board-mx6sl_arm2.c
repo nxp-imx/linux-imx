@@ -664,7 +664,34 @@ static inline void mx6_arm2_init_uart(void)
 	imx6q_add_imx_uart(0, NULL); /* DEBUG UART1 */
 }
 
+static int mx6sl_arm2_fec_phy_init(struct phy_device *phydev)
+{
+	int val;
+
+	/* power on FEC phy and reset phy */
+	gpio_request(MX6_ARM2_FEC_PWR_EN, "fec-pwr");
+	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 1);
+	/* wait RC ms for hw reset */
+	udelay(50);
+
+	/* check phy power */
+	val = phy_read(phydev, 0x0);
+	if (val & BMCR_PDOWN) {
+		phy_write(phydev, 0x0, (val & ~BMCR_PDOWN));
+		udelay(50);
+	}
+
+	/* sw reset phy */
+	val = phy_read(phydev, 0x0);
+	val |= BMCR_RESET;
+	phy_write(phydev, 0x0, val);
+	udelay(50);
+
+	return 0;
+}
+
 static struct fec_platform_data fec_data __initdata = {
+	.init = mx6sl_arm2_fec_phy_init,
 	.phy = PHY_INTERFACE_MODE_RMII,
 };
 
@@ -1218,12 +1245,6 @@ static void __init mx6_arm2_init(void)
 	 */
 	mxc_iomux_set_gpr_register(1, 14, 1, 0);
 	mxc_iomux_set_gpr_register(1, 17, 2, 0);
-
-	/* power on FEC phy and reset phy */
-	gpio_request(MX6_ARM2_FEC_PWR_EN, "fec-pwr");
-	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 1);
-	/* wait RC ms for hw reset */
-	udelay(500);
 
 	imx6_init_fec(fec_data);
 
