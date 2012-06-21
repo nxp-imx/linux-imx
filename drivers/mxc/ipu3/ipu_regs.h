@@ -28,6 +28,9 @@
  */
 extern int g_ipu_hw_rev;
 
+#define IPU_MAX_VDI_IN_WIDTH	({g_ipu_hw_rev >= 3 ? \
+				   (968) : \
+				   (720); })
 #define IPU_DISP0_BASE		0x00000000
 #define IPU_MCU_T_DEFAULT	8
 #define IPU_DISP1_BASE		({g_ipu_hw_rev < 4 ? \
