@@ -160,7 +160,6 @@ struct usb_charger {
 	struct device		*dev; /* udc supplies */
 	/* charger detect can be enabled/disabled by kernel config */
 	bool 			enable;
-
 	struct power_supply	psy;
 	struct work_struct	work;
 	struct mutex		lock;
@@ -182,7 +181,7 @@ struct usb_charger {
 };
 
 static char *usb_charger_supplied_to[] = {
-	"main-battery",
+	"imx_usb_charger",
 };
 
 static enum power_supply_property power_props[] = {
