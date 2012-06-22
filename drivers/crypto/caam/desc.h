@@ -15,14 +15,14 @@
  * and this selection is visible in the Compile Time Parameters Register
  */
 
-#define LINKTBL_EXT		0x80000000	/* Entry points to table */
-#define LINKTBL_FINAL		0x40000000	/* Last ent in table */
-#define LINKTBL_BPID_MASK	0x000000ff
-#define LINKTBL_BPID_SHIFT	16
-#define LINKTBL_LEN_MASK	0x3fffffff	/* Excludes EXT and FINAL */
-#define LINKTBL_OFFS_MASK	0x00001fff
+#define SEC4_SG_LEN_EXT		0x80000000	/* Entry points to table */
+#define SEC4_SG_LEN_FIN		0x40000000	/* Last ent in table */
+#define SEC4_SG_BPID_MASK	0x000000ff
+#define SEC4_SG_BPID_SHIFT	16
+#define SEC4_SG_LEN_MASK	0x3fffffff	/* Excludes EXT and FINAL */
+#define SEC4_SG_OFFS_MASK	0x00001fff
 
-struct link_tbl_entry {
+struct sec4_sg_entry {
 #ifdef CONFIG_64BIT
 	u64 ptr;
 #else
