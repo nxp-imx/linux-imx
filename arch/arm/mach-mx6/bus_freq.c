@@ -568,6 +568,19 @@ static int __init busfreq_init(void)
 	}
 
 	printk(KERN_INFO "Bus freq driver module loaded\n");
+
+	if (cpu_is_mx6sl()) {
+		/* Enable busfreq by default. */
+		bus_freq_scaling_is_active = 1;
+		set_high_bus_freq(0);
+		/* Make sure system can enter low bus mode if it should be in
+		low bus mode */
+		if (low_freq_bus_used() && !low_bus_freq_mode)
+			set_low_bus_freq();
+
+		printk(KERN_INFO "Bus freq driver Enabled\n");
+	}
+
 	return 0;
 }
 
