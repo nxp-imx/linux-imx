@@ -66,3 +66,4 @@ obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_MIPI_DSI) += platform-imx-mipi_dsi.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_MIPI_CSI2) += platform-imx-mipi_csi2.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_VDOA) += platform-imx-vdoa.o
 obj-$(CONFIG_IMX_HAVE_PLATFORM_IMX_PCIE) += platform-imx-pcie.o
+obj-y += platform-imx-pmu.o

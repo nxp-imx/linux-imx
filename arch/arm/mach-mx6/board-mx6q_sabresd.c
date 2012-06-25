@@ -1817,6 +1817,8 @@ static void __init mx6_sabresd_board_init(void)
 		gpio_direction_output(SABRESD_ELAN_RST, 1);
 		gpio_direction_output(SABRESD_ELAN_CE, 1);
 	}
+
+	imx6_add_armpmu();
 }
 
 extern void __iomem *twd_base;

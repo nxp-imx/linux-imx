@@ -685,3 +685,5 @@ struct imx_pcie_data {
 struct platform_device *__init imx_add_pcie(
 		const struct imx_pcie_data *data,
 		const struct imx_pcie_platform_data *pdata);
+
+void __init imx_add_imx_armpmu(void);
