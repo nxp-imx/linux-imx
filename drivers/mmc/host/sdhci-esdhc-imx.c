@@ -72,6 +72,11 @@
 
 #define SDHCI_FSL_SVN_300			0x11
 
+#define SDHCI_TUNE_CTRL		0xCC
+#define SDHCI_TUNE_CTRL_STD_TUNING_EN		(1 << 24)
+
+#define SDHCI_HOST_CAP_UHS_MODE_MASK		0x7
+
 #define SDHCI_TUNING_BLOCK_PATTERN_LEN		64
 /*
  * There is an INT DMA ERR mis-match between eSDHC and STD SDHC SPEC:
@@ -237,12 +242,15 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 		if ((val & SDHCI_INT_DATA_END) && \
 			!(val & SDHCI_INT_DMA_END))
 			val = readl(host->ioaddr + reg);
-	} else if (reg == SDHCI_CAPABILITIES_1 && cpu_is_mx6()) {
+	} else if (reg == SDHCI_CAPABILITIES_1
+			&& (cpu_is_mx6q() || cpu_is_mx6dl())) {
 		/*
 		 * on mx6q, no cap_1 available, fake one.
 		 */
 		val = SDHCI_SUPPORT_DDR50 | SDHCI_SUPPORT_SDR104 | \
 			  SDHCI_SUPPORT_SDR50;
+	} else if (reg == SDHCI_CAPABILITIES_1 && cpu_is_mx6sl()) {
+		val = readl(host->ioaddr + SDHCI_CAPABILITIES) & 0xFFFF;
 	} else if (reg == SDHCI_MAX_CURRENT && cpu_is_mx6()) {
 		/*
 		 * on mx6q, no max current available, fake one.
@@ -369,11 +377,19 @@ static u16 esdhc_readw_le(struct sdhci_host *host, int reg)
 		ret |= (val & SDHCI_VENDOR_SPEC_VSELECT)
 			? SDHCI_CTRL_VDD_180 : 0;
 
-		val = readl(host->ioaddr + SDHCI_MIX_CTRL);
-		ret |= (val & SDHCI_MIX_CTRL_EXE_TUNE)
-			? SDHCI_CTRL_EXEC_TUNING : 0;
-		ret |= (val & SDHCI_MIX_CTRL_SMPCLK_SEL)
-			? 0 : SDHCI_CTRL_TUNED_CLK ;
+		if (cpu_is_mx6sl()) {
+			val = readl(host->ioaddr + SDHCI_ACMD12_ERR);
+			ret |= (val & SDHCI_MIX_CTRL_EXE_TUNE)
+				? SDHCI_CTRL_EXEC_TUNING : 0;
+			ret |= (val & SDHCI_MIX_CTRL_SMPCLK_SEL)
+				? SDHCI_CTRL_TUNED_CLK : 0;
+		} else {
+			val = readl(host->ioaddr + SDHCI_MIX_CTRL);
+			ret |= (val & SDHCI_MIX_CTRL_EXE_TUNE)
+				? SDHCI_CTRL_EXEC_TUNING : 0;
+			ret |= (val & SDHCI_MIX_CTRL_SMPCLK_SEL)
+				? SDHCI_CTRL_TUNED_CLK : 0;
+		}
 		ret |= SDHCI_CTRL_UHS_MASK & imx_data->uhs_mode;
 		/* no preset enable available  */
 		ret &= ~SDHCI_CTRL_PRESET_VAL_ENABLE;
@@ -476,11 +492,25 @@ static void esdhc_writew_le(struct sdhci_host *host, u16 val, int reg)
 		 * ignore exec_tuning flag written to SDHCI_HOST_CONTROL2,
 		 * tuning will be handled differently for FSL SDHC ip.
 		 */
-		orig_reg = readl(host->ioaddr + SDHCI_MIX_CTRL);
-		orig_reg &= ~SDHCI_MIX_CTRL_SMPCLK_SEL;
+		if (cpu_is_mx6sl()) {
+			orig_reg = readl(host->ioaddr + SDHCI_TUNE_CTRL);
+			if (val & SDHCI_CTRL_EXEC_TUNING) {
+				orig_reg |= SDHCI_TUNE_CTRL_STD_TUNING_EN;
+				writel(orig_reg,
+					host->ioaddr + SDHCI_TUNE_CTRL);
 
-		orig_reg |= (val & SDHCI_CTRL_TUNED_CLK)
-			? 0 : SDHCI_MIX_CTRL_SMPCLK_SEL;
+				orig_reg =
+					readl(host->ioaddr + SDHCI_ACMD12_ERR);
+				orig_reg |= SDHCI_MIX_CTRL_EXE_TUNE;
+				writel(orig_reg,
+					host->ioaddr + SDHCI_ACMD12_ERR);
+			}
+		} else {
+			orig_reg = readl(host->ioaddr + SDHCI_MIX_CTRL);
+			orig_reg &= ~SDHCI_MIX_CTRL_SMPCLK_SEL;
+			orig_reg |= (val & SDHCI_CTRL_TUNED_CLK)
+				? SDHCI_MIX_CTRL_SMPCLK_SEL : 0;
+		}
 
 		if (val & SDHCI_CTRL_UHS_DDR50) {
 			orig_reg |= SDHCI_MIX_CTRL_DDREN;
