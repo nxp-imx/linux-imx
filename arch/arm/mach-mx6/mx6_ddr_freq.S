@@ -41,11 +41,12 @@
 
 	/* Set the AHB dividers before the switch. */
 	/* Don't change AXI clock divider. */
-	/* Set the MMDC_DIV=1, AHB_DIV=4 (need to maintain GPT divider). */
+	/* Set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=4 (need to maintain GPT divider). */
 	ldr     r0, [r6, #0x14]
-	ldr     r2, =0x381D00
+	ldr     r2, =0x3f1f00
 	bic     r0, r0, r2
-	orr     r0, r0, #0xD00
+	orr     r0, r0, #0xd00
+	orr     r0, r0, #0x10000
 	str     r0, [r6, #0x14]
 
 wait_div_update528:
@@ -72,13 +73,11 @@ set_ahb_podf_before_switch:
 	  * would be too fast when switching to PLL3.
 	  */
 	/* Don't change AXI clock divider. */
-	/* Set the MMDC_DIV=1, AHB_DIV=4 (need to maintain GPT divider). */
+	/* Set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=4 (need to maintain GPT divider). */
 	ldr     r0, [r6, #0x14]
-	ldr     r2, =0x381D00
+	ldr     r2, =0x3f1f00
 	bic     r0, r0, r2
-	orr     r0, r0, #0xD00
-	/* Make sure AXI clock divider is 1 */
-	bic     r0, r0, #0x70000
+	orr     r0, r0, #0xd00
 	orr     r0, r0, #0x10000
 	str     r0, [r6, #0x14]
 
@@ -148,11 +147,12 @@ set_ahb_podf_before_switch1:
 	  * would be too fast when switching to PLL3.
 	  */
 	/* Don't change AXI clock divider. */
-	/* Set the MMDC_DIV=1, AHB_DIV=4 (need to maintain GPT divider). */
+	/* Set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=4 (need to maintain GPT divider). */
 	ldr     r0, [r6, #0x14]
-	ldr     r2, =0x381D00
+	ldr     r2, =0x3f1f00
 	bic     r0, r0, r2
-	orr     r0, r0, #0xD00
+	orr     r0, r0, #0x900
+	orr     r0, r0, #0x10000
 	str     r0, [r6, #0x14]
 
 wait_div_update400_1:
@@ -180,13 +180,11 @@ periph_clk_switch6:
 
 	/* Change AHB divider so that we are at 400/3=133MHz. */
 	/* Don't change AXI clock divider. */
-	/* Set the MMDC_DIV=1, AHB_DIV=3 (need to maintain GPT divider). */
+	/* Set the MMDC_DIV=1, AXI_DIV=2, AHB_DIV=3 (need to maintain GPT divider). */
 	ldr     r0, [r6, #0x14]
-	ldr     r2, =0x381D00
+	ldr     r2, =0x3f1f00
 	bic     r0, r0, r2
 	orr     r0, r0, #0x900
-	/* Make sure AXI clock divider is 1 */
-	bic     r0, r0, #0x70000
 	orr     r0, r0, #0x10000
 	str     r0, [r6, #0x14]
 
@@ -242,15 +240,15 @@ switch_pre_periph_clk_50:
 
 	/* Set the MMDC_DIV=4, AXI_DIV = 4, AHB_DIV=8 (need to maintain GPT divider). */
 	ldr     r0, [r6, #0x14]
-	ldr     r2, =0x3F1C00
+	ldr     r2, =0x3f1f00
 	bic     r0, r0, r2
 
 	orr     r0, r0, #0x180000
 	orr     r0, r0, #0x30000
 
 	/* If changing AHB divider remember to change the IPGPER divider too below. */
-	 orr     r0, r0, #0x1C00
-	 str     r0, [r6, #0x14]
+	orr     r0, r0, #0x1d00
+	str     r0, [r6, #0x14]
 
 wait_div_update_50:
 	ldr      r0, [r6, #0x48]
@@ -270,7 +268,7 @@ periph_clk_switch2:
 	/* Change the GPT divider so that its at 6MHz. */
 	ldr     r0, [r6, #0x1C]
 	bic     r0, r0, #0x3F
-	orr     r0, r0, #0x3
+	orr     r0, r0, #0x1
 	str     r0, [r6, #0x1C]
 
 	.endm
@@ -302,8 +300,9 @@ periph_clk_switch1:
 
 	/* Change all the dividers to 1. */
 	ldr     r0, [r6, #0x14]
-	ldr     r2, =0x3F1C00
+	ldr     r2, =0x3f1f00
 	bic     r0, r0, r2
+	orr	r0, r0, #0x100
 	str     r0, [r6, #0x14]
 
 	/* Wait for the divider to change. */

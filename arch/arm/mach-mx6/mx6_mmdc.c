@@ -55,6 +55,7 @@ extern unsigned int ddr_low_rate;
 extern unsigned int ddr_med_rate;
 extern unsigned int ddr_normal_rate;
 extern int low_bus_freq_mode;
+extern int audio_bus_freq_mode;
 extern int mmdc_med_rate;
 extern void __iomem *ccm_base;
 extern void mx6_ddr_freq_change(u32 freq, void *ddr_settings, bool dll_mode, void *iomux_offsets);
@@ -187,7 +188,7 @@ int update_ddr_freq(int ddr_rate)
 	if (ddr_rate == curr_ddr_rate)
 		return 0;
 
-	if (low_bus_freq_mode)
+	if (low_bus_freq_mode || audio_bus_freq_mode)
 		dll_off = true;
 
 	iram_ddr_settings[0][0] = ddr_settings_size;
