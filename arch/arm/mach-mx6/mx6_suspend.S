@@ -591,18 +591,18 @@ Clean L2 cache
 	orr r4, #0xBC
 	str r0, [r1, r4]
 3:
-	ldr r2, [r1, r4]
-	ands	r2, r2, r0
+	ldr r5, [r1, r4]
+	ands	r5, r5, r0
 	bne 3b
 4:
-	mov r2, #0x0
+	mov r5, #0x0
 	/* 0x730 is L2X0_CACHE_SYNC */
 	mov r4, #0x700
 	orr r4, #0x30
-	str r2, [r1, r4]
+	str r5, [r1, r4]
 5:
-	ldr r2, [r1, r4]
-	ands	r2, r2, #0x1
+	ldr r5, [r1, r4]
+	ands	r5, r5, #0x1
 	bne 5b
 #endif
 	.endm
@@ -699,6 +699,26 @@ saved register and context as below:
 	mov	r0, r2 		/* get suspend_iram_base */
 	add	r0, r0, #IRAM_SUSPEND_SIZE	/* 4K */
 
+	mov	r4, r12			@ Store cpu type
+	stmfd	r0!, {r4}
+
+	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+
+	cmp r12, #MXC_CPU_MX6Q
+	bne dl_io_save
+	dq_ddr_io_save
+	b ddr_io_save_done
+dl_io_save:
+	cmp r12, #MXC_CPU_MX6DL
+	bne sl_io_save
+	dl_ddr_io_save
+	b ddr_io_save_done
+sl_io_save:
+	sl_ddr_io_save
+
+ddr_io_save_done:
+
 #ifdef CONFIG_CACHE_L2X0
 	ldr r1, =L2_BASE_ADDR
 	add r1, r1, #PERIPBASE_VIRT
@@ -717,25 +737,7 @@ saved register and context as below:
 	mov	r4, sp			@ Store sp
 	mrs	r5, spsr		@ Store spsr
 	mov	r6, lr			@ Store lr
-	mov	r7, r12			@ Store cpu type
-	stmfd	r0!, {r4-r7}
-
-	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
-	add	r1, r1, #PERIPBASE_VIRT
-
-	cmp r12, #MXC_CPU_MX6Q
-	bne dl_io_save
-	dq_ddr_io_save
-	b ddr_io_save_done
-dl_io_save:
-	cmp r12, #MXC_CPU_MX6DL
-	bne sl_io_save
-	dl_ddr_io_save
-	b ddr_io_save_done
-sl_io_save:
-	sl_ddr_io_save
-
-ddr_io_save_done:
+	stmfd	r0!, {r4-r6}
 
 	/* c1 and c2 registers */
 	mrc	p15, 0, r4, c1, c0, 2	@ CPACR
@@ -827,6 +829,9 @@ system immediately.
 	mov	r0, r2 		/* get suspend_iram_base */
 	add	r0, r0, #IRAM_SUSPEND_SIZE	/* 4K */
 
+	ldmea	r0!, {r12}	@ get cpu type to make ddr io
+				@ offset right
+
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 
@@ -871,27 +876,7 @@ resume:
 	str	r1, [r0, #SRC_GPR1_OFFSET] /* clear SRC_GPR1 */
 	ldr	r0, [r0, #SRC_GPR2_OFFSET]
 
-#ifdef CONFIG_CACHE_L2X0
-	ldr r2, =L2_BASE_ADDR
-	ldmea	r0!, {r4-r7}
-	/* L2 will be enabled after L1 is enabled */
-	mov r4, #0x0
-	str r4, [r2, #L2X0_CTRL]
-	str r5, [r2, #L2X0_AUX_CTRL]
-	str r6, [r2, #L2X0_TAG_LATENCY_CTRL]
-	str r7, [r2, #L2X0_DATA_LATENCY_CTRL]
-
-	ldmea	r0!, {r4-r5}
-	str r4, [r2, #L2X0_PREFETCH_CTRL]
-	str r5, [r2, #L2X0_POWER_CTRL]
-#endif
-
-	/* Restore cp15 registers and cpu type */
-	ldmea	r0!, {r4-r7}
-	mov sp, r4			@ Restore sp
-	msr spsr_cxsf, r5		@ Restore spsr
-	mov lr, r6			@ Restore lr
-	mov r12, r7			@ Restore cpu type
+	ldmea	r0!, {r12}	@ get cpu type
 
 	/* Restore DDR IO */
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
@@ -909,6 +894,27 @@ sl_io_dsm_restore:
 	sl_ddr_io_restore
 
 ddr_io_restore_dsm_done:
+
+#ifdef CONFIG_CACHE_L2X0
+	ldr r2, =L2_BASE_ADDR
+	ldmea	r0!, {r4-r7}
+	/* L2 will be enabled after L1 is enabled */
+	mov r4, #0x0
+	str r4, [r2, #L2X0_CTRL]
+	str r5, [r2, #L2X0_AUX_CTRL]
+	str r6, [r2, #L2X0_TAG_LATENCY_CTRL]
+	str r7, [r2, #L2X0_DATA_LATENCY_CTRL]
+
+	ldmea	r0!, {r4-r5}
+	str r4, [r2, #L2X0_PREFETCH_CTRL]
+	str r5, [r2, #L2X0_POWER_CTRL]
+#endif
+
+	/* Restore cp15 registers and cpu type */
+	ldmea	r0!, {r4-r6}
+	mov sp, r4			@ Restore sp
+	msr spsr_cxsf, r5		@ Restore spsr
+	mov lr, r6			@ Restore lr
 
 	/* c1 and c2 registers */
 	ldmea	r0!, {r4-r7}
