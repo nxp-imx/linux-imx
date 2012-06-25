@@ -242,3 +242,5 @@ extern const struct imx_pcie_data imx6q_pcie_data __initconst;
 extern const struct imx_imx_keypad_data imx6sl_imx_keypad_data;
 #define imx6sl_add_imx_keypad(pdata)	\
 	imx_add_imx_keypad(&imx6sl_imx_keypad_data, pdata)
+
+#define imx6_add_armpmu() imx_add_imx_armpmu()
