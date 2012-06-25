@@ -929,6 +929,10 @@ static int __devinit gpu_probe(struct platform_device *pdev)
 
     gcmkHEADER();
 
+    res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phys_baseaddr");
+    if (res)
+        baseAddress = res->start;
+
     res = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "irq_3d");
     if (res)
         irqLine = res->start;
