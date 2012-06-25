@@ -175,40 +175,43 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 	high_bus_freq_mode = 0;
 	med_bus_freq_mode = 0;
 
-	/* Disable the brown out detection since we are going to be
-	  * disabling the LDO.
-	  */
-	reg = __raw_readl(ANA_MISC2_BASE_ADDR);
-	reg &= ~ANADIG_ANA_MISC2_REG1_BO_EN;
-	__raw_writel(reg, ANA_MISC2_BASE_ADDR);
+	/* Do not disable PU LDO if it is not enabled */
+	reg = __raw_readl(ANADIG_REG_CORE) & (ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
+	if ((low_bus_freq_mode || audio_bus_freq_mode) && reg != 0) {
+		/* Disable the brown out detection since we are going to be
+		  * disabling the LDO.
+		  */
+		reg = __raw_readl(ANA_MISC2_BASE_ADDR);
+		reg &= ~ANADIG_ANA_MISC2_REG1_BO_EN;
+		__raw_writel(reg, ANA_MISC2_BASE_ADDR);
 
-	/* Power gate the PU LDO. */
-	/* Power gate the PU domain first. */
-	/* enable power down request */
-	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-	__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-	/* power down request */
-	reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
-	__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
-	/* Wait for power down to complete. */
-	while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
-		;
+		/* Power gate the PU LDO. */
+		/* Power gate the PU domain first. */
+		/* enable power down request */
+		reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+		__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+		/* power down request */
+		reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
+		__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
+		/* Wait for power down to complete. */
+		while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
+			;
 
-	/* Mask the ANATOP brown out interrupt in the GPC. */
-	reg = __raw_readl(gpc_base + 0x14);
-	reg |= 0x80000000;
-	__raw_writel(reg, gpc_base + 0x14);
+		/* Mask the ANATOP brown out interrupt in the GPC. */
+		reg = __raw_readl(gpc_base + 0x14);
+		reg |= 0x80000000;
+		__raw_writel(reg, gpc_base + 0x14);
 
-	/* PU power gating. */
-	org_ldo = reg = __raw_readl(ANADIG_REG_CORE);
-	reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
-	__raw_writel(reg, ANADIG_REG_CORE);
+		/* PU power gating. */
+		org_ldo = reg = __raw_readl(ANADIG_REG_CORE);
+		reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
+		__raw_writel(reg, ANADIG_REG_CORE);
 
-	/* Clear the BO interrupt in the ANATOP. */
-	reg = __raw_readl(ANADIG_MISC1_REG);
-	reg |= 0x80000000;
-	__raw_writel(reg, ANADIG_MISC1_REG);
-
+		/* Clear the BO interrupt in the ANATOP. */
+		reg = __raw_readl(ANADIG_MISC1_REG);
+		reg |= 0x80000000;
+		__raw_writel(reg, ANADIG_MISC1_REG);
+	}
 	mutex_unlock(&bus_freq_mutex);
 }
 
@@ -261,7 +264,7 @@ int set_high_bus_freq(int high_bus_freq)
 	}
 
 	/* Enable the PU LDO */
-	if (low_bus_freq_mode) {
+	if (low_bus_freq_mode || audio_bus_freq_mode) {
 		/* Set the voltage of VDDSOC as in normal mode. */
 		__raw_writel(org_ldo, ANADIG_REG_CORE);
 
