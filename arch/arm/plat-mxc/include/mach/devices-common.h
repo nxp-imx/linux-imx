@@ -513,6 +513,7 @@ struct platform_device *__init imx_add_spdif_audio_device(void);
 
 #include <mach/viv_gpu.h>
 struct imx_viv_gpu_data {
+	resource_size_t phys_baseaddr;
 	resource_size_t irq_3d;
 	resource_size_t iobase_3d;
 	resource_size_t irq_2d;
