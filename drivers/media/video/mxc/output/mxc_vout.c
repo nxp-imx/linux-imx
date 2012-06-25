@@ -1689,24 +1689,9 @@ static void release_disp_output(struct mxc_vout_output *vout)
 {
 	struct fb_info *fbi = vout->fbi;
 	struct mxcfb_pos pos;
-	struct ipu_pos ipos;
-	int ret;
 
 	if (vout->release)
 		return;
-	if (get_ipu_channel(fbi) == MEM_BG_SYNC) {
-		if (vout->tiled_bypass_pp) {
-			vout->task.output.paddr = vout->disp_bufs[0];
-			ipos.x = vout->task.input.crop.pos.x;
-			ipos.y = vout->task.input.crop.pos.y;
-			ret = show_buf(vout, 0, &ipos);
-			if (ret < 0)
-				v4l2_err(vout->vfd->v4l2_dev,
-						"show_buf ret %d\n", ret);
-		}
-		goto out;
-	}
-
 	console_lock();
 	fbi->flags |= FBINFO_MISC_USEREVENT;
 	fb_blank(fbi, FB_BLANK_POWERDOWN);
@@ -1717,7 +1702,17 @@ static void release_disp_output(struct mxc_vout_output *vout)
 	pos.x = 0;
 	pos.y = 0;
 	set_window_position(vout, &pos);
-out:
+
+	if (get_ipu_channel(fbi) == MEM_BG_SYNC) {
+		console_lock();
+		fbi->fix.smem_start = vout->disp_bufs[0];
+		fbi->flags |= FBINFO_MISC_USEREVENT;
+		fb_blank(fbi, FB_BLANK_UNBLANK);
+		fbi->flags &= ~FBINFO_MISC_USEREVENT;
+		console_unlock();
+
+	}
+
 	vout->release = true;
 }
 
