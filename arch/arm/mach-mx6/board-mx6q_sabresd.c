@@ -69,6 +69,7 @@
 #include <mach/mxc_hdmi.h>
 #include <mach/mxc_asrc.h>
 #include <mach/mipi_dsi.h>
+#include <mach/clock.h>
 
 #include <asm/irq.h>
 #include <asm/setup.h>
@@ -1632,7 +1633,9 @@ static void __init mx6_sabresd_board_init(void)
 	int ret;
 	struct clk *clko2;
 	struct clk *new_parent;
+	struct clk *sdio_clk;
 	int rate;
+	struct platform_device *sdhci2_dev;
 
 	if (cpu_is_mx6q())
 		mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_pads,
@@ -1726,7 +1729,7 @@ static void __init mx6_sabresd_board_init(void)
 	*/
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabresd_sd4_data);
 	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabresd_sd3_data);
-	imx6q_add_sdhci_usdhc_imx(1, &mx6q_sabresd_sd2_data);
+	sdhci2_dev = imx6q_add_sdhci_usdhc_imx(1, &mx6q_sabresd_sd2_data);
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6q_sabresd_init_usb();
 	/* SATA is not supported by MX6DL/Solo */
@@ -1840,6 +1843,16 @@ static void __init mx6_sabresd_board_init(void)
 		mdelay(1);
 		gpio_direction_output(SABRESD_ELAN_RST, 1);
 		gpio_direction_output(SABRESD_ELAN_CE, 1);
+	}
+
+	/* on SabreSD board, the sdhci2 slot is connected with
+	   wifi dongle by normal case. And wifi sdio need DDR
+	   frequency be higher than 50MHz, so we set
+	   the schci2 clock flag as med set point. */
+	sdio_clk = clk_get(&sdhci2_dev->dev, NULL);
+	if (!IS_ERR(sdio_clk)) {
+		sdio_clk->flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE;
+		clk_put(sdio_clk);
 	}
 }
 
