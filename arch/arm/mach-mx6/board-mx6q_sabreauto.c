@@ -912,8 +912,34 @@ static void hdmi_init(int ipu_id, int disp_id)
 	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
 }
 
+/* On mx6x sabreauto board i2c2 iomux with hdmi ddc,
+ * the pins default work at i2c2 function,
+ when hdcp enable, the pins should work at ddc function */
+
+static void hdmi_enable_ddc_pin(void)
+{
+	if (cpu_is_mx6dl())
+		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabreauto_hdmi_ddc_pads,
+			ARRAY_SIZE(mx6dl_sabreauto_hdmi_ddc_pads));
+	else
+		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_hdmi_ddc_pads,
+			ARRAY_SIZE(mx6q_sabreauto_hdmi_ddc_pads));
+}
+
+static void hdmi_disable_ddc_pin(void)
+{
+	if (cpu_is_mx6dl())
+		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabreauto_i2c2_pads,
+			ARRAY_SIZE(mx6dl_sabreauto_i2c2_pads));
+	else
+		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_i2c2_pads,
+			ARRAY_SIZE(mx6q_sabreauto_i2c2_pads));
+}
+
 static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 	.init = hdmi_init,
+	.enable_pins = hdmi_enable_ddc_pin,
+	.disable_pins = hdmi_disable_ddc_pin,
 };
 
 static struct fsl_mxc_hdmi_core_platform_data hdmi_core_data = {
