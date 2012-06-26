@@ -326,6 +326,16 @@ static iomux_v3_cfg_t mx6q_sabrelite_csi0_sensor_pads[] = {
 	MX6Q_PAD_NANDF_WP_B__GPIO_6_9,		/* J16 - MIPI GP */
 };
 
+static iomux_v3_cfg_t mx6q_sabrelite_hdmi_ddc_pads[] = {
+	MX6Q_PAD_KEY_COL3__HDMI_TX_DDC_SCL, /* HDMI DDC SCL */
+	MX6Q_PAD_KEY_ROW3__HDMI_TX_DDC_SDA, /* HDMI DDC SDA */
+};
+
+static iomux_v3_cfg_t mx6q_sabrelite_i2c2_pads[] = {
+	MX6Q_PAD_KEY_COL3__I2C2_SCL,	/* I2C2 SCL */
+	MX6Q_PAD_KEY_ROW3__I2C2_SDA,	/* I2C2 SDA */
+};
+
 #define MX6Q_USDHC_PAD_SETTING(id, speed)	\
 mx6q_sd##id##_##speed##mhz[] = {		\
 	MX6Q_PAD_SD##id##_CLK__USDHC##id##_CLK_##speed##MHZ,	\
@@ -803,8 +813,26 @@ static void hdmi_init(int ipu_id, int disp_id)
 	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
 }
 
+/* On mx6x sbarelite board i2c2 iomux with hdmi ddc,
+ * the pins default work at i2c2 function,
+ when hdcp enable, the pins should work at ddc function */
+
+static void hdmi_enable_ddc_pin(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6q_sabrelite_hdmi_ddc_pads,
+		ARRAY_SIZE(mx6q_sabrelite_hdmi_ddc_pads));
+}
+
+static void hdmi_disable_ddc_pin(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6q_sabrelite_i2c2_pads,
+		ARRAY_SIZE(mx6q_sabrelite_i2c2_pads));
+}
+
 static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 	.init = hdmi_init,
+	.enable_pins = hdmi_enable_ddc_pin,
+	.disable_pins = hdmi_disable_ddc_pin,
 };
 
 static struct fsl_mxc_hdmi_core_platform_data hdmi_core_data = {
