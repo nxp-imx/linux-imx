@@ -37,9 +37,10 @@
  * | ShareDesc Pointer |
  * | SEQ_OUT_PTR       |
  * | (output buffer)   |
+ * | (output length)   |
  * | SEQ_IN_PTR        |
  * | (input buffer)    |
- * | LOAD (to DECO)    |
+ * | (input length)    |
  * ---------------------
  */
 
@@ -64,7 +65,7 @@
 #define CAAM_MAX_IV_LENGTH		16
 
 /* length of descriptors text */
-#define DESC_JOB_IO_LEN			(CAAM_CMD_SZ * 3 + CAAM_PTR_SZ * 3)
+#define DESC_JOB_IO_LEN			(CAAM_CMD_SZ * 5 + CAAM_PTR_SZ * 3)
 
 #define DESC_AEAD_BASE			(4 * CAAM_CMD_SZ)
 #define DESC_AEAD_ENC_LEN		(DESC_AEAD_BASE + 16 * CAAM_CMD_SZ)
@@ -115,7 +116,7 @@ static inline void append_dec_shr_done(u32 *desc)
 
 	jump_cmd = append_jump(desc, JUMP_CLASS_CLASS1 | JUMP_TEST_ALL);
 	set_jump_tgt_here(desc, jump_cmd);
-	append_cmd(desc, SET_OK_PROP_ERRORS | CMD_LOAD);
+	append_cmd(desc, SET_OK_NO_PROP_ERRORS | CMD_LOAD);
 }
 
 /*
@@ -145,11 +146,11 @@ static inline void aead_append_ld_iv(u32 *desc, int ivsize)
  */
 static inline void ablkcipher_append_src_dst(u32 *desc)
 {
-	append_math_add(desc, VARSEQOUTLEN, SEQINLEN, REG0, CAAM_CMD_SZ); \
-	append_math_add(desc, VARSEQINLEN, SEQINLEN, REG0, CAAM_CMD_SZ); \
-	append_seq_fifo_load(desc, 0, FIFOLD_CLASS_CLASS1 | \
-			     KEY_VLF | FIFOLD_TYPE_MSG | FIFOLD_TYPE_LAST1); \
-	append_seq_fifo_store(desc, 0, FIFOST_TYPE_MESSAGE_DATA | KEY_VLF); \
+	append_math_add(desc, VARSEQOUTLEN, SEQINLEN, REG0, CAAM_CMD_SZ);
+	append_math_add(desc, VARSEQINLEN, SEQINLEN, REG0, CAAM_CMD_SZ);
+	append_seq_fifo_load(desc, 0, FIFOLD_CLASS_CLASS1 |
+			     KEY_VLF | FIFOLD_TYPE_MSG | FIFOLD_TYPE_LAST1);
+	append_seq_fifo_store(desc, 0, FIFOST_TYPE_MESSAGE_DATA | KEY_VLF);
 }
 
 /*
@@ -215,7 +216,7 @@ static void init_sh_desc_key_aead(u32 *desc, struct caam_ctx *ctx,
 	set_jump_tgt_here(desc, key_jump_cmd);
 
 	/* Propagate errors from shared to job descriptor */
-	append_cmd(desc, SET_OK_PROP_ERRORS | CMD_LOAD);
+	append_cmd(desc, SET_OK_NO_PROP_ERRORS | CMD_LOAD);
 }
 
 static int aead_set_sh_desc(struct crypto_aead *aead)
@@ -303,7 +304,7 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 	desc = ctx->sh_desc_dec;
 
 	/* aead_decrypt shared descriptor */
-	init_sh_desc(desc, HDR_SHARE_WAIT);
+	init_sh_desc(desc, HDR_SHARE_SERIAL);
 
 	/* Skip if already shared */
 	key_jump_cmd = append_jump(desc, JUMP_JSL | JUMP_TEST_ALL |
@@ -314,7 +315,7 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 	/* Only propagate error immediately if shared */
 	jump_cmd = append_jump(desc, JUMP_TEST_ALL);
 	set_jump_tgt_here(desc, key_jump_cmd);
-	append_cmd(desc, SET_OK_PROP_ERRORS | CMD_LOAD);
+	append_cmd(desc, SET_OK_NO_PROP_ERRORS | CMD_LOAD);
 	set_jump_tgt_here(desc, jump_cmd);
 
 	/* Class 2 operation */
@@ -573,7 +574,7 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 
 	/* ablkcipher_encrypt shared descriptor */
 	desc = ctx->sh_desc_enc;
-	init_sh_desc(desc, HDR_SHARE_WAIT);
+	init_sh_desc(desc, HDR_SHARE_SERIAL);
 	/* Skip if already shared */
 	key_jump_cmd = append_jump(desc, JUMP_JSL | JUMP_TEST_ALL |
 				   JUMP_COND_SHRD);
@@ -586,7 +587,7 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 	set_jump_tgt_here(desc, key_jump_cmd);
 
 	/* Propagate errors from shared to job descriptor */
-	append_cmd(desc, SET_OK_PROP_ERRORS | CMD_LOAD);
+	append_cmd(desc, SET_OK_NO_PROP_ERRORS | CMD_LOAD);
 
 	/* Load iv */
 	append_cmd(desc, CMD_SEQ_LOAD | LDST_SRCDST_BYTE_CONTEXT |
@@ -617,7 +618,7 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 	/* ablkcipher_decrypt shared descriptor */
 	desc = ctx->sh_desc_dec;
 
-	init_sh_desc(desc, HDR_SHARE_WAIT);
+	init_sh_desc(desc, HDR_SHARE_SERIAL);
 	/* Skip if already shared */
 	key_jump_cmd = append_jump(desc, JUMP_JSL | JUMP_TEST_ALL |
 				   JUMP_COND_SHRD);
@@ -630,7 +631,7 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 	/* For aead, only propagate error immediately if shared */
 	jump_cmd = append_jump(desc, JUMP_TEST_ALL);
 	set_jump_tgt_here(desc, key_jump_cmd);
-	append_cmd(desc, SET_OK_PROP_ERRORS | CMD_LOAD);
+	append_cmd(desc, SET_OK_NO_PROP_ERRORS | CMD_LOAD);
 	set_jump_tgt_here(desc, jump_cmd);
 
 	/* load IV */
@@ -668,8 +669,11 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 /*
  * aead_edesc - s/w-extended aead descriptor
  * @assoc_nents: number of segments in associated data (SPI+Seq) scatterlist
+ * @assoc_chained: if source is chained
  * @src_nents: number of segments in input scatterlist
+ * @src_chained: if source is chained
  * @dst_nents: number of segments in output scatterlist
+ * @dst_chained: if destination is chained
  * @iv_dma: dma address of iv for checking continuity and link table
  * @desc: h/w descriptor (variable length; must not exceed MAX_CAAM_DESCSIZE)
  * @sec4_sg_bytes: length of dma mapped sec4_sg space
@@ -693,7 +697,9 @@ struct aead_edesc {
 /*
  * ablkcipher_edesc - s/w-extended ablkcipher descriptor
  * @src_nents: number of segments in input scatterlist
+ * @src_chained: if source is chained
  * @dst_nents: number of segments in output scatterlist
+ * @dst_chained: if destination is chained
  * @iv_dma: dma address of iv for checking continuity and link table
  * @desc: h/w descriptor (variable length; must not exceed MAX_CAAM_DESCSIZE)
  * @sec4_sg_bytes: length of dma mapped sec4_sg space
@@ -983,7 +989,7 @@ static void init_aead_job(u32 *sh_desc, dma_addr_t ptr,
 	} else {
 		src_dma = edesc->sec4_sg_dma;
 		sec4_sg_index += (edesc->assoc_nents ? : 1) + 1 +
-				  (edesc->src_nents ? : 1);
+				 (edesc->src_nents ? : 1);
 		in_options = LDST_SGF;
 	}
 	if (encrypt)
@@ -1216,7 +1222,7 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 	edesc->iv_dma = iv_dma;
 	edesc->sec4_sg_bytes = sec4_sg_bytes;
 	edesc->sec4_sg = (void *)edesc + sizeof(struct aead_edesc) +
-			  desc_bytes;
+			 desc_bytes;
 	edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
 					    sec4_sg_bytes, DMA_TO_DEVICE);
 	*all_contig_ptr = all_contig;
@@ -1416,9 +1422,9 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 	edesc->iv_dma = iv_dma;
 	edesc->sec4_sg_bytes = sec4_sg_bytes;
 	edesc->sec4_sg = (void *)edesc + sizeof(struct aead_edesc) +
-			  desc_bytes;
+			 desc_bytes;
 	edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
-					     sec4_sg_bytes, DMA_TO_DEVICE);
+					    sec4_sg_bytes, DMA_TO_DEVICE);
 	*contig_ptr = contig;
 
 	sec4_sg_index = 0;
@@ -1431,8 +1437,8 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 				   iv_dma, ivsize, 0);
 		sec4_sg_index += 1;
 		sg_to_sec4_sg_last(req->src, src_nents,
-				    edesc->sec4_sg +
-				    sec4_sg_index, 0);
+				   edesc->sec4_sg +
+				   sec4_sg_index, 0);
 		sec4_sg_index += src_nents;
 	}
 	if (unlikely(req->src != req->dst && !(contig & GIV_DST_CONTIG))) {
@@ -1517,7 +1523,7 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 	bool src_chained = false, dst_chained = false;
 	int sec4_sg_index;
 
-	src_nents = sg_count(req->src, req->nbytes, &dst_chained);
+	src_nents = sg_count(req->src, req->nbytes, &src_chained);
 
 	if (req->dst != req->src)
 		dst_nents = sg_count(req->dst, req->nbytes, &dst_chained);
@@ -1547,7 +1553,7 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 	else
 		src_nents = src_nents ? : 1;
 	sec4_sg_bytes = ((iv_contig ? 0 : 1) + src_nents + dst_nents) *
-			 sizeof(struct sec4_sg_entry);
+			sizeof(struct sec4_sg_entry);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
 	edesc = kmalloc(sizeof(struct ablkcipher_edesc) + desc_bytes +
@@ -1563,7 +1569,7 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 	edesc->dst_chained = dst_chained;
 	edesc->sec4_sg_bytes = sec4_sg_bytes;
 	edesc->sec4_sg = (void *)edesc + sizeof(struct ablkcipher_edesc) +
-			  desc_bytes;
+			 desc_bytes;
 
 	sec4_sg_index = 0;
 	if (!iv_contig) {
