@@ -24,6 +24,15 @@ static int caam_remove(struct platform_device *pdev)
 
 #ifndef CONFIG_OF
 	caam_algapi_shutdown(pdev);
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_AHASH_API
+	caam_algapi_hash_shutdown(pdev);
+#endif
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_API
+	caam_rng_shutdown();
+#endif
+
 #endif
 	/* shut down JobRs */
 	for (ring = 0; ring < ctrlpriv->total_jobrs; ring++) {
@@ -335,8 +344,15 @@ static int caam_probe(struct platform_device *pdev)
 #ifndef CONFIG_OF
 	/* FIXME: check status */
 	caam_algapi_startup(pdev);
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_AHASH_API
+	caam_algapi_hash_startup(pdev);
 #endif
 
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_API
+	caam_rng_startup(pdev);
+#endif
+#endif /* CONFIG_OF */
 	return 0;
 }
 
