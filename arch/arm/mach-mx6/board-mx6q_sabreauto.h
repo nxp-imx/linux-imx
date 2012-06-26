@@ -359,3 +359,13 @@ static iomux_v3_cfg_t mx6q_weimnor_pads[] __initdata = {
 	MX6Q_PAD_EIM_DA1__WEIM_WEIM_DA_A_1,
 	MX6Q_PAD_EIM_DA0__WEIM_WEIM_DA_A_0,
 };
+
+static iomux_v3_cfg_t mx6q_sabreauto_hdmi_ddc_pads[] = {
+	MX6Q_PAD_KEY_COL3__HDMI_TX_DDC_SCL, /* HDMI DDC SCL */
+	MX6Q_PAD_KEY_ROW3__HDMI_TX_DDC_SDA, /* HDMI DDC SDA */
+};
+
+static iomux_v3_cfg_t mx6q_sabreauto_i2c2_pads[] = {
+	MX6Q_PAD_KEY_COL3__I2C2_SCL,    /* I2C2 SCL */
+	MX6Q_PAD_KEY_ROW3__I2C2_SDA,    /* I2C2 SDA */
+};
