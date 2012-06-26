@@ -412,6 +412,7 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 
 	return 0;
 }
+EXPORT_SYMBOL(mxc_edid_parse_ext_blk);
 
 static int mxc_edid_readblk(struct i2c_adapter *adp,
 		unsigned short addr, unsigned char *edid)
