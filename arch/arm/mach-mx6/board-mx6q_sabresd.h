@@ -128,9 +128,9 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_CSI0_DAT8__I2C1_SDA,
 	MX6Q_PAD_CSI0_DAT9__I2C1_SCL,
 
-	/* I2C2 Camera, MIPI */
-	MX6Q_PAD_KEY_COL3__I2C2_SCL,	/* GPIO4[12] */
-	MX6Q_PAD_KEY_ROW3__I2C2_SDA,	/* GPIO4[13] */
+	/* I2C2, Camera, MIPI */
+	MX6Q_PAD_KEY_COL3__I2C2_SCL,
+	MX6Q_PAD_KEY_ROW3__I2C2_SDA,
 
 	/* I2C3 */
 	MX6Q_PAD_GPIO_3__I2C3_SCL,	/* GPIO1[3] */
@@ -287,5 +287,15 @@ static iomux_v3_cfg_t mx6q_sabresd_mipi_sensor_pads[] = {
 
 	MX6Q_PAD_SD1_DAT2__GPIO_1_19,		/* camera PWDN */
 	MX6Q_PAD_SD1_CLK__GPIO_1_20,		/* camera RESET */
+};
+
+static iomux_v3_cfg_t mx6q_sabresd_hdmi_ddc_pads[] = {
+	MX6Q_PAD_KEY_COL3__HDMI_TX_DDC_SCL, /* HDMI DDC SCL */
+	MX6Q_PAD_KEY_ROW3__HDMI_TX_DDC_SDA, /* HDMI DDC SDA */
+};
+
+static iomux_v3_cfg_t mx6q_sabresd_i2c2_pads[] = {
+	MX6Q_PAD_KEY_COL3__I2C2_SCL,	/* I2C2 SCL */
+	MX6Q_PAD_KEY_ROW3__I2C2_SDA,	/* I2C2 SDA */
 };
 #endif
