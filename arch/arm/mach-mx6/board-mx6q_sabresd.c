@@ -374,7 +374,7 @@ static int mxc_wm8958_init(void)
 		return PTR_ERR(clko);
 	}
 	/* both audio codec and comera use CLKO clk*/
-	rate = clk_round_rate(clko, 22000000);
+	rate = clk_round_rate(clko, 24000000);
 
 	wm8958_data.sysclk = rate;
 	clk_set_rate(clko, rate);
@@ -414,7 +414,7 @@ static int mxc_wm8962_init(void)
 		return PTR_ERR(clko);
 	}
 	/* both audio codec and comera use CLKO clk*/
-	rate = clk_round_rate(clko, 22000000);
+	rate = clk_round_rate(clko, 24000000);
 	clk_set_rate(clko, rate);
 
 	wm8962_data.sysclk = rate;
@@ -525,7 +525,7 @@ static void mx6q_csi0_io_init(void)
 }
 
 static struct fsl_mxc_camera_platform_data camera_data = {
-	.mclk = 22000000,
+	.mclk = 24000000,
 	.mclk_source = 0,
 	.csi = 0,
 	.io_init = mx6q_csi0_io_init,
