@@ -1599,7 +1599,7 @@ static void __init mx6_sabresd_board_init(void)
 {
 	int i;
 	int ret;
-	struct clk *clko2;
+	struct clk *clko, *clko2;
 	struct clk *new_parent;
 	int rate;
 
@@ -1778,6 +1778,11 @@ static void __init mx6_sabresd_board_init(void)
 	rate = clk_round_rate(clko2, 24000000);
 	clk_set_rate(clko2, rate);
 	clk_enable(clko2);
+
+	/* Camera and audio use osc clock */
+	clko = clk_get(NULL, "clko_clk");
+	if (!IS_ERR(clko))
+		clk_set_parent(clko, clko2);
 
 	/* Enable Aux_5V */
 	gpio_request(SABRESD_AUX_5V_EN, "aux_5v_en");
