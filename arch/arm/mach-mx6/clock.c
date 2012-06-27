@@ -77,6 +77,7 @@ static struct clk enfc_clk;
 static struct clk usdhc3_clk;
 static struct clk ipg_clk;
 static struct clk gpt_clk[];
+static struct clk clko2_clk;
 
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
@@ -4902,11 +4903,17 @@ static int _clk_clko_set_parent(struct clk *clk, struct clk *parent)
 		sel = 14;
 	else if (parent == &pll4_audio_main_clk)
 		sel = 15;
-	else
+	else if (parent == &clko2_clk) {
+		reg = __raw_readl(MXC_CCM_CCOSR);
+		reg |= MXC_CCM_CCOSR_CKOL_MIRROR_CKO2_MASK;
+		__raw_writel(reg, MXC_CCM_CCOSR);
+		return 0;
+	} else
 		return -EINVAL;
 
 	reg = __raw_readl(MXC_CCM_CCOSR);
-	reg &= ~MXC_CCM_CCOSR_CKOL_SEL_MASK;
+	reg &= ~(MXC_CCM_CCOSR_CKOL_MIRROR_CKO2_MASK |
+		 MXC_CCM_CCOSR_CKOL_SEL_MASK);
 	reg |= sel << MXC_CCM_CCOSR_CKOL_SEL_OFFSET;
 	__raw_writel(reg, MXC_CCM_CCOSR);
 	return 0;
@@ -4917,7 +4924,12 @@ static unsigned long _clk_clko_get_rate(struct clk *clk)
 	u32 reg = __raw_readl(MXC_CCM_CCOSR);
 	u32 div = ((reg & MXC_CCM_CCOSR_CKOL_DIV_MASK) >>
 			MXC_CCM_CCOSR_CKOL_DIV_OFFSET) + 1;
-	return clk_get_rate(clk->parent) / div;
+
+	if (clk->parent == &clko2_clk)
+		/* clko may output clko2 without divider */
+		return clk_get_rate(clk->parent);
+	else
+		return clk_get_rate(clk->parent) / div;
 }
 
 static int _clk_clko_set_rate(struct clk *clk, unsigned long rate)
@@ -4925,6 +4937,10 @@ static int _clk_clko_set_rate(struct clk *clk, unsigned long rate)
 	u32 reg;
 	u32 parent_rate = clk_get_rate(clk->parent);
 	u32 div = parent_rate / rate;
+
+	/* clko may output clko2 without divider */
+	if (clk->parent == &clko2_clk)
+		return 0;
 
 	if (div == 0)
 		div++;
@@ -4943,6 +4959,10 @@ static unsigned long _clk_clko_round_rate(struct clk *clk,
 {
 	u32 parent_rate = clk_get_rate(clk->parent);
 	u32 div = parent_rate / rate;
+
+	/* clko may output clko2 without divider */
+	if (clk->parent == &clko2_clk)
+		return parent_rate;
 
 	/* Make sure rate is not greater than the maximum value for the clock.
 	 * Also prevent a div of 0.
