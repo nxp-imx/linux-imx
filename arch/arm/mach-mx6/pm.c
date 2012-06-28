@@ -79,6 +79,7 @@ extern void mx6_suspend(suspend_state_t state);
 extern void mx6_init_irq(void);
 extern unsigned int gpc_wake_irq[4];
 
+extern bool enable_wait_mode;
 static struct device *pm_dev;
 struct clk *gpc_dvfs_clk;
 static void __iomem *scu_base;
@@ -429,6 +430,9 @@ static int __init pm_init(void)
 	anatop_base = IO_ADDRESS(ANATOP_BASE_ADDR);
 
 	pr_info("Static Power Management for Freescale i.MX6\n");
+
+	pr_info("wait mode is %s for i.MX6\n", enable_wait_mode ?
+			"enabled" : "disabled");
 
 	if (platform_driver_register(&mx6_pm_driver) != 0) {
 		printk(KERN_ERR "mx6_pm_driver register failed\n");
