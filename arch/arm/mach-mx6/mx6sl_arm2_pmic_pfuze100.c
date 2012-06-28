@@ -63,7 +63,18 @@
 #define PFUZE100_SWBSTCON1	102
 #define PFUZE100_SWBSTCON1_SWBSTMOD_VAL	(0x1<<2)
 #define PFUZE100_SWBSTCON1_SWBSTMOD_M	(0x3<<2)
+#define PFUZE100_SW1ACON		36
+#define PFUZE100_SW1ACON_SPEED_VAL	(0x1<<6)	/*default */
+#define PFUZE100_SW1ACON_SPEED_M	(0x3<<6)
 
+
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+static struct regulator_consumer_supply sw1_consumers[] = {
+	{
+		.supply	   = "VDDCORE",
+	}
+};
+#endif
 
 static struct regulator_consumer_supply sw2_consumers[] = {
 	{
@@ -140,6 +151,10 @@ static struct regulator_init_data sw1a_init = {
 			.boot_on = 1,
 			.always_on = 1,
 			},
+	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	.num_consumer_supplies = ARRAY_SIZE(sw1_consumers),
+	.consumer_supplies = sw1_consumers,
+	#endif
 };
 
 static struct regulator_init_data sw1b_init = {
@@ -369,14 +384,15 @@ static int pfuze100_init(struct mc_pfuze *pfuze)
 			    PFUZE100_SW1ASTANDBY_STBY_VAL);
 	if (ret)
 		goto err;
-	ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1BSTANDBY,
-			    PFUZE100_SW1BSTANDBY_STBY_M,
-			    PFUZE100_SW1BSTANDBY_STBY_VAL);
-	if (ret)
-		goto err;
 	ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CSTANDBY,
 			    PFUZE100_SW1CSTANDBY_STBY_M,
 			    PFUZE100_SW1CSTANDBY_STBY_VAL);
+	if (ret)
+		goto err;
+	/*set SW1ABDVSPEED as 25mV step each 4us,quick than 16us before.*/
+	ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1ACON,
+			    PFUZE100_SW1ACON_SPEED_M,
+			    PFUZE100_SW1ACON_SPEED_VAL);
 	if (ret)
 		goto err;
 	return 0;

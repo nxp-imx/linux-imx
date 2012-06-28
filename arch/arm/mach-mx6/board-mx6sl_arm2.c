@@ -1216,8 +1216,12 @@ static void __init mx6_arm2_init(void)
 
 	elan_ts_init();
 
+	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	gp_reg_id = "VDDCORE";
+	#else
 	gp_reg_id = "cpu_vddgp";
 	mx6_cpu_regulator_init();
+	#endif
 
 	imx6q_add_imx_snvs_rtc();
 
