@@ -812,6 +812,14 @@ save resume pointer into SRC_GPR1
 	ldr	r1, =SRC_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 	str	r3, [r1, #SRC_GPR1_OFFSET]
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	ldr	r1, =0x20c8140
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r3, [r1]
+	bic	r3, r3, #0x1f
+	orr	r3, r3, #0x1e
+	str	r3, [r1]
+#endif
 /****************************************************************
 execute a wfi instruction to let SOC go into stop mode.
 ****************************************************************/
@@ -860,6 +868,12 @@ when SOC exit stop mode, arm core restart from here, currently
 are running with MMU off.
 ****************************************************************/
 resume:
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	ldr	r1, =0x20c8140
+	ldr	r3, [r1]
+	orr	r3, r3, #0x1f
+	str	r3, [r1]
+#endif
 	/* Invalidate L1 I-cache first */
 	mov	r1,	#0x0
 	mcr	p15, 0, r1, c7, c5, 0	@ Invalidate I-Cache
