@@ -72,6 +72,11 @@ static struct clk *axi_org_parent;
 
 static struct pm_platform_data *pm_data;
 
+
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+void mxc_cpufreq_suspend(void);
+void mxc_cpufreq_resume(void);
+#endif
 #if defined(CONFIG_CPU_FREQ)
 extern int set_cpu_freq(int wp);
 #endif
@@ -373,6 +378,7 @@ static int mx6_suspend_enter(suspend_state_t state)
  */
 static int mx6_suspend_prepare(void)
 {
+
 	return 0;
 }
 
@@ -383,11 +389,22 @@ static void mx6_suspend_finish(void)
 {
 }
 
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+static int mx6_suspend_begin(suspend_state_t state)
+{
+	mxc_cpufreq_suspend();
+	return 0;
+}
+#endif
+
 /*
  * Called after devices are re-setup, but before processes are thawed.
  */
 static void mx6_suspend_end(void)
 {
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	mxc_cpufreq_resume();
+#endif
 }
 
 static int mx6_pm_valid(suspend_state_t state)
@@ -397,6 +414,9 @@ static int mx6_pm_valid(suspend_state_t state)
 
 struct platform_suspend_ops mx6_suspend_ops = {
 	.valid = mx6_pm_valid,
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	.begin = mx6_suspend_begin,
+#endif
 	.prepare = mx6_suspend_prepare,
 	.enter = mx6_suspend_enter,
 	.finish = mx6_suspend_finish,

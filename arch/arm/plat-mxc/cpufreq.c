@@ -37,40 +37,9 @@ interface, but cpufreq driver as sys_dev is more later to suspend than I2C
 driver, so we should implement another I2C operate function which isolated
 with kernel I2C driver, these code is copied from u-boot*/
 #ifdef CONFIG_MX6_INTER_LDO_BYPASS
-#define IADR	0x00
-#define IFDR	0x04
-#define I2CR	0x08
-#define I2SR	0x0c
-#define I2DR	0x10
-
-#define I2CR_IEN	(1 << 7)
-#define I2CR_IIEN	(1 << 6)
-#define I2CR_MSTA	(1 << 5)
-#define I2CR_MTX	(1 << 4)
-#define I2CR_TX_NO_AK	(1 << 3)
-#define I2CR_RSTA	(1 << 2)
-
-#define I2SR_ICF	(1 << 7)
-#define I2SR_IBB	(1 << 5)
-#define I2SR_IIF	(1 << 1)
-#define I2SR_RX_NO_AK	(1 << 0)
-
-#define I2C_MAX_TIMEOUT		100000
-#define I2C_TIMEOUT_TICKET	1
-#define CCM_CCGR2	0x70
-
-/*#define MX6_I2CRAW_DEBUG*/
-#ifdef MX6_I2CRAW_DEBUG
-#define DPRINTF(args...)  printk(args)
-#else
-#define DPRINTF(args...)
-#endif
-
-/*judge for pfuze regulator driver suspend or not, after pfuze regulator
-suspend and before resume, should use i2c raw read/write to configure
-voltage, it's safe enough, otherwise mxc_cpufreq_suspend will be failed
-since i2c/pfuze have been suspend firstly.*/
-extern int cpu_freq_suspend_in;
+/*0:normal; 1: in the middle of suspend or resume; 2: suspended*/
+static int cpu_freq_suspend_in;
+static struct mutex set_cpufreq_lock;
 #endif
 
 static int cpu_freq_khz_min;
@@ -92,108 +61,11 @@ extern int set_low_bus_freq(void);
 extern int set_high_bus_freq(int high_bus_speed);
 extern int low_freq_bus_used(void);
 
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-static void __iomem *i2c_base;/*i2c for pmic*/
-static void __iomem *ccm_base;/*ccm_base*/
-static int wait_busy(void)
-{
-	int timeout = I2C_MAX_TIMEOUT;
-
-	while ((!(readb(i2c_base + I2SR) & I2SR_IBB) && (--timeout))) {
-		writeb(0, i2c_base + I2SR);
-		udelay(I2C_TIMEOUT_TICKET);
-	}
-	return timeout ? timeout : (readb(i2c_base + I2SR) & I2SR_IBB);
-}
-
-static int wait_complete(void)
-{
-	int timeout = I2C_MAX_TIMEOUT;
-
-	while ((!(readb(i2c_base + I2SR) & I2SR_ICF)) && (--timeout)) {
-		writeb(0, i2c_base + I2SR);
-		udelay(I2C_TIMEOUT_TICKET);
-	}
-	DPRINTF("%s:%x\n", __func__, readb(i2c_base + I2SR));
-	{
-		int i;
-		for (i = 0; i < 200; i++)
-			udelay(10);
-
-	}
-	writeb(0, i2c_base + I2SR);	/* clear interrupt */
-
-	return timeout;
-}
-
-static int tx_byte(u8 byte)
-{
-	writeb(byte, i2c_base + I2DR);
-
-	if (!wait_complete() || readb(i2c_base + I2SR) & I2SR_RX_NO_AK) {
-		DPRINTF("%s:%x <= %x\n", __func__, readb(i2c_base + I2SR),
-			byte);
-		return -1;
-	}
-	DPRINTF("%s:%x\n", __func__, byte);
-	return 0;
-}
-
-static int i2c_addr(unsigned char chip, u32 addr, int alen)
-{
-	writeb(I2CR_IEN | I2CR_MSTA | I2CR_MTX, i2c_base + I2CR);
-	if (!wait_busy()) {
-		DPRINTF("%s:trigger start fail(%x)\n",
-		       __func__, readb(i2c_base + I2SR));
-		return -1;
-	}
-	if (tx_byte(chip << 1) || (readb(i2c_base + I2SR) & I2SR_RX_NO_AK)) {
-		DPRINTF("%s:chip address cycle fail(%x)\n",
-		       __func__, readb(i2c_base + I2SR));
-		return -1;
-	}
-	while (alen--)
-		if (tx_byte((addr >> (alen * 8)) & 0xff) ||
-		    (readb(i2c_base + I2SR) & I2SR_RX_NO_AK)) {
-			DPRINTF("%s:device address cycle fail(%x)\n",
-			       __func__, readb(i2c_base + I2SR));
-			return -1;
-		}
-	return 0;
-}
-
-
-static int i2c_write(unsigned char chip, u32 addr, int alen, unsigned char *buf,
-			int len)
-{
-	int timeout = I2C_MAX_TIMEOUT;
-	DPRINTF("%s chip: 0x%02x addr: 0x%04x alen: %d len: %d\n",
-		__func__, chip, addr, alen, len);
-
-	if (i2c_addr(chip, addr, alen))
-		return -1;
-
-	while (len--)
-		if (tx_byte(*buf++))
-			return -1;
-
-	writeb(I2CR_IEN, i2c_base + I2CR);
-
-	while (readb(i2c_base + I2SR) & I2SR_IBB && --timeout)
-		udelay(I2C_TIMEOUT_TICKET);
-
-	return 0;
-}
-
-#endif
 int set_cpu_freq(int freq)
 {
 	int i, ret = 0;
 	int org_cpu_rate;
 	int gp_volt = 0;
-	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	unsigned char data;
-	#endif
 
 	org_cpu_rate = clk_get_rate(cpu_clk);
 	if (org_cpu_rate == freq)
@@ -206,63 +78,23 @@ int set_cpu_freq(int freq)
 
 	if (gp_volt == 0)
 		return ret;
-	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	if (cpu_freq_suspend_in) {
-		u32 value;
-		/*init I2C*/
-		value = __raw_readl(ccm_base + CCM_CCGR2);
-		__raw_writel(value | 0x300, ccm_base + CCM_CCGR2);
-		udelay(1);
-		value = readb(i2c_base + I2CR);
-		writeb(value | (1 << 7), i2c_base + I2CR);
-		value = readb(i2c_base + I2SR);
-		writeb(0, i2c_base + I2SR);
-		switch (freq) {
-		case 1200000000:/*1.275*/
-			data = 0x27;
-			break;
-		case 996000000:/*1.225V*/
-			data = 0x25;
-			break;
-		case 792000000:/*1.1V*/
-		case 672000000:
-			data = 0x20;
-			break;
-		case 396000000:/*0.95V*/
-			data = 0x1a;
-			break;
-		case 198000000:/*0.85V*/
-			data = 0x16;
-			break;
-		default:
-			printk(KERN_ERR "suspend freq error:%d!!!\n", freq);
-			break;
-		}
-	}
-	#endif
-
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	/*Do not change cpufreq if system enter suspend flow*/
+	if (cpu_freq_suspend_in == 2)
+		return -1;
+#endif
 	/*Set the voltage for the GP domain. */
 	if (freq > org_cpu_rate) {
 		if (low_bus_freq_mode)
 			set_high_bus_freq(0);
-		#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-		if (cpu_freq_suspend_in) {
-			ret = i2c_write(0x8, 0x20, 1, &data, 1);
-			udelay(10);
-		 } else
-			ret = regulator_set_voltage(cpu_regulator, gp_volt,
-							gp_volt);
-		#else
 		ret = regulator_set_voltage(cpu_regulator, gp_volt,
 					    gp_volt);
-		#endif
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
 		}
 		udelay(50);
 	}
-
 	ret = clk_set_rate(cpu_clk, freq);
 	if (ret != 0) {
 		printk(KERN_DEBUG "cannot set CPU clock rate\n");
@@ -270,18 +102,8 @@ int set_cpu_freq(int freq)
 	}
 
 	if (freq < org_cpu_rate) {
-		#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-
-		if (cpu_freq_suspend_in) {
-			ret = i2c_write(0x8, 0x20, 1, &data, 1);
-			udelay(10);
-		} else
-			ret = regulator_set_voltage(cpu_regulator, gp_volt,
-							gp_volt);
-		#else
 		ret = regulator_set_voltage(cpu_regulator, gp_volt,
 					    gp_volt);
-		#endif
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
@@ -349,9 +171,13 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 		freqs.cpu = i;
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 	}
-
+	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	mutex_lock(&set_cpufreq_lock);
 	ret = set_cpu_freq(freq_Hz);
-
+	mutex_unlock(&set_cpufreq_lock);
+	#else
+	ret = set_cpu_freq(freq_Hz);
+	#endif
 #ifdef CONFIG_SMP
 	/* Loops per jiffy is not updated by the CPUFREQ driver for SMP systems.
 	  * So update it for all CPUs.
@@ -372,16 +198,35 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 
 	return ret;
 }
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+void mxc_cpufreq_suspend(void)
+{
+	mutex_lock(&set_cpufreq_lock);
+	pre_suspend_rate = clk_get_rate(cpu_clk);
+	/*set flag and raise up cpu frequency if needed*/
+	cpu_freq_suspend_in = 1;
+	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000))
+			set_cpu_freq(imx_freq_table[0].frequency * 1000);
+	cpu_freq_suspend_in = 2;
+	mutex_unlock(&set_cpufreq_lock);
 
+}
+
+void mxc_cpufreq_resume(void)
+{
+	mutex_lock(&set_cpufreq_lock);
+	cpu_freq_suspend_in = 1;
+	if (clk_get_rate(cpu_clk) != pre_suspend_rate)
+		set_cpu_freq(pre_suspend_rate);
+	cpu_freq_suspend_in = 0;
+	mutex_unlock(&set_cpufreq_lock);
+}
+
+
+#else
 static int mxc_cpufreq_suspend(struct cpufreq_policy *policy)
 {
 	pre_suspend_rate = clk_get_rate(cpu_clk);
-	/* Set to max freq and voltage */
-	/*There should be *1000, but if fix the typo error, found
-	hard to pass streng test, it means we didn't move cpu freq
-	to highest freq in suspend, but if we choose bypass, we
-	have to do this, so use macro to decrease the impact on
-	released code, the 1Ghz issue should be fixed in the future*/
 	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000))
 		set_cpu_freq(imx_freq_table[0].frequency * 1000);
 
@@ -394,6 +239,7 @@ static int mxc_cpufreq_resume(struct cpufreq_policy *policy)
 		set_cpu_freq(pre_suspend_rate);
 	return 0;
 }
+#endif
 
 static int __devinit mxc_cpufreq_init(struct cpufreq_policy *policy)
 {
@@ -493,8 +339,10 @@ static struct cpufreq_driver mxc_driver = {
 	.get = mxc_get_speed,
 	.init = mxc_cpufreq_init,
 	.exit = mxc_cpufreq_exit,
+#ifndef CONFIG_MX6_INTER_LDO_BYPASS
 	.suspend = mxc_cpufreq_suspend,
 	.resume = mxc_cpufreq_resume,
+#endif
 	.name = "imx",
 };
 
@@ -503,8 +351,7 @@ static int __init mxc_cpufreq_driver_init(void)
 {
 	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	mx6_cpu_regulator_init();
-	i2c_base = MX6_IO_ADDRESS(MX6Q_I2C2_BASE_ADDR);
-	ccm_base = MX6_IO_ADDRESS(CCM_BASE_ADDR);
+	mutex_init(&set_cpufreq_lock);
 	#endif
 	return cpufreq_register_driver(&mxc_driver);
 }
