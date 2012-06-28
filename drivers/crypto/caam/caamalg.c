@@ -727,12 +727,9 @@ static void caam_unmap(struct device *dev, struct scatterlist *src,
 	if (dst != src) {
 		dma_unmap_sg_chained(dev, src, src_nents ? : 1, DMA_TO_DEVICE,
 				     src_chained);
-		dma_sync_sg_for_cpu(dev, dst, dst_nents ? : 1, DMA_FROM_DEVICE);
 		dma_unmap_sg_chained(dev, dst, dst_nents ? : 1, DMA_FROM_DEVICE,
 				     dst_chained);
 	} else {
-		dma_sync_sg_for_cpu(dev, src, src_nents ? : 1,
-				    DMA_BIDIRECTIONAL);
 		dma_unmap_sg_chained(dev, src, src_nents ? : 1,
 				     DMA_BIDIRECTIONAL, src_chained);
 	}
@@ -1174,18 +1171,12 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 
 	sgc = dma_map_sg_chained(jrdev, req->assoc, assoc_nents ? : 1,
 				 DMA_BIDIRECTIONAL, assoc_chained);
-	dma_sync_sg_for_device(jrdev, req->assoc, sgc,
-			       DMA_BIDIRECTIONAL);
 	if (likely(req->src == req->dst)) {
 		sgc = dma_map_sg_chained(jrdev, req->src, src_nents ? : 1,
 					 DMA_BIDIRECTIONAL, src_chained);
-		dma_sync_sg_for_device(jrdev, req->src, sgc,
-				       DMA_BIDIRECTIONAL);
 	} else {
 		sgc = dma_map_sg_chained(jrdev, req->src, src_nents ? : 1,
 					 DMA_TO_DEVICE, src_chained);
-		dma_sync_sg_for_device(jrdev, req->src, sgc,
-				       DMA_TO_DEVICE);
 		sgc = dma_map_sg_chained(jrdev, req->dst, dst_nents ? : 1,
 					 DMA_FROM_DEVICE, dst_chained);
 	}
@@ -1365,18 +1356,12 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 
 	sgc = dma_map_sg_chained(jrdev, req->assoc, assoc_nents ? : 1,
 				 DMA_BIDIRECTIONAL, assoc_chained);
-	dma_sync_sg_for_device(jrdev, req->assoc, assoc_nents ? : 1,
-			       DMA_BIDIRECTIONAL);
 	if (likely(req->src == req->dst)) {
 		sgc = dma_map_sg_chained(jrdev, req->src, src_nents ? : 1,
 					 DMA_BIDIRECTIONAL, src_chained);
-		dma_sync_sg_for_device(jrdev, req->src, src_nents ? : 1,
-				       DMA_BIDIRECTIONAL);
 	} else {
 		sgc = dma_map_sg_chained(jrdev, req->src, src_nents ? : 1,
 					 DMA_TO_DEVICE, src_chained);
-		dma_sync_sg_for_device(jrdev, req->src, src_nents ? : 1,
-				       DMA_TO_DEVICE);
 		sgc = dma_map_sg_chained(jrdev, req->dst, dst_nents ? : 1,
 					 DMA_FROM_DEVICE, dst_chained);
 	}
@@ -1531,12 +1516,9 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 	if (likely(req->src == req->dst)) {
 		sgc = dma_map_sg_chained(jrdev, req->src, src_nents ? : 1,
 					 DMA_BIDIRECTIONAL, src_chained);
-		dma_sync_sg_for_device(jrdev, req->src, sgc,
-				       DMA_BIDIRECTIONAL);
 	} else {
 		sgc = dma_map_sg_chained(jrdev, req->src, src_nents ? : 1,
 					 DMA_TO_DEVICE, src_chained);
-		dma_sync_sg_for_device(jrdev, req->src, sgc, DMA_TO_DEVICE);
 		sgc = dma_map_sg_chained(jrdev, req->dst, dst_nents ? : 1,
 					 DMA_FROM_DEVICE, dst_chained);
 	}

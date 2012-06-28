@@ -100,6 +100,10 @@ static int dma_map_sg_chained(struct device *dev, struct scatterlist *sg,
 	} else {
 		dma_map_sg(dev, sg, nents, dir);
 	}
+
+	if ((dir == DMA_TO_DEVICE) || (dir == DMA_BIDIRECTIONAL))
+		dma_sync_sg_for_device(dev, sg, nents, dir);
+
 	return nents;
 }
 
@@ -107,6 +111,9 @@ static int dma_unmap_sg_chained(struct device *dev, struct scatterlist *sg,
 				unsigned int nents, enum dma_data_direction dir,
 				bool chained)
 {
+	if ((dir == DMA_FROM_DEVICE) || (dir == DMA_BIDIRECTIONAL))
+		dma_sync_sg_for_cpu(dev, sg, nents, dir);
+
 	if (unlikely(chained)) {
 		int i;
 		for (i = 0; i < nents; i++) {
