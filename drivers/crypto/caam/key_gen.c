@@ -64,6 +64,7 @@ u32 gen_split_key(struct device *jrdev, u8 *key_out, int split_key_len,
 		kfree(desc);
 		return -ENOMEM;
 	}
+	dma_sync_single_for_device(jrdev, dma_addr_in, keylen, DMA_TO_DEVICE);
 	append_key(desc, dma_addr_in, keylen, CLASS_2 | KEY_DEST_CLASS_REG);
 
 	/* Sets MDHA up into an HMAC-INIT */
@@ -111,7 +112,8 @@ u32 gen_split_key(struct device *jrdev, u8 *key_out, int split_key_len,
 			       split_key_pad_len, 1);
 #endif
 	}
-
+	dma_sync_single_for_cpu(jrdev, dma_addr_out, split_key_pad_len,
+				DMA_FROM_DEVICE);
 	dma_unmap_single(jrdev, dma_addr_out, split_key_pad_len,
 			 DMA_FROM_DEVICE);
 	dma_unmap_single(jrdev, dma_addr_in, keylen, DMA_TO_DEVICE);
