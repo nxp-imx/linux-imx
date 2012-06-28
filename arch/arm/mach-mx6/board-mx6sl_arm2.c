@@ -670,22 +670,16 @@ static int mx6sl_arm2_fec_phy_init(struct phy_device *phydev)
 
 	/* power on FEC phy and reset phy */
 	gpio_request(MX6_ARM2_FEC_PWR_EN, "fec-pwr");
-	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 1);
+	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 0);
 	/* wait RC ms for hw reset */
-	udelay(50);
+	msleep(1);
+	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 1);
 
 	/* check phy power */
 	val = phy_read(phydev, 0x0);
 	if (val & BMCR_PDOWN) {
 		phy_write(phydev, 0x0, (val & ~BMCR_PDOWN));
-		udelay(50);
 	}
-
-	/* sw reset phy */
-	val = phy_read(phydev, 0x0);
-	val |= BMCR_RESET;
-	phy_write(phydev, 0x0, val);
-	udelay(50);
 
 	return 0;
 }
