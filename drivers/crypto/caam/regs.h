@@ -119,7 +119,53 @@ struct jr_outentry {
  * Spans f00-fff wherever instantiated
  */
 
-/* Number of DECOs */
+/* CHA version IDs for cha_id register */
+#define CHA_VID_JR_SHIFT	60
+#define CHA_VID_JR_MASK		(0xfull << CHA_VID_JR_SHIFT)
+
+#define CHA_VID_DECO_SHIFT	56
+#define CHA_VID_DECO_MASK	(0xfull << CHA_VID_DECO_SHIFT)
+
+#define CHA_VID_ZA_SHIFT	44
+#define CHA_VID_ZA_MASK		(0xfull << CHA_VID_ZA_SHIFT)
+
+#define CHA_VID_ZE_SHIFT	40
+#define CHA_VID_ZE_MASK		(0xfull << CHA_VID_ZE_SHIFT)
+
+#define CHA_VID_SNW9_SHIFT	36
+#define CHA_VID_SNW9_MASK	(0xfull << CHA_VID_SNW9_SHIFT)
+
+#define CHA_VID_CRC_SHIFT	32
+#define CHA_VID_CRC_MASK	(0xfull << CHA_VID_CRC_SHIFT)
+
+#define CHA_VID_PK_SHIFT	28
+#define CHA_VID_PK_MASK		(0xfull << CHA_VID_PK_SHIFT)
+
+#define CHA_VID_KAS_SHIFT	24
+#define CHA_VID_KAS_MASK	(0xfull << CHA_VID_KAS_SHIFT)
+
+#define CHA_VID_SNW8_SHIFT	20
+#define CHA_VID_SNW8_MASK	(0xfull << CHA_VID_SNW8_SHIFT)
+
+#define CHA_VID_RNG_SHIFT	16
+#define CHA_VID_RNG_MASK	(0xfull << CHA_VID_RNG_SHIFT)
+#define CHA_VID_RNG_A		(0x1ull << CHA_VID_RNG_SHIFT)
+#define CHA_VID_RNG_B		(0x2ull << CHA_VID_RNG_SHIFT)
+#define CHA_VID_RNG_4		(0x4ull << CHA_VID_RNG_SHIFT)
+
+#define CHA_VID_MD_SHIFT	12
+#define CHA_VID_MD_MASK		(0xfull << CHA_VID_MD_SHIFT)
+
+#define CHA_VID_ARC4_SHIFT	8
+#define CHA_VID_ARC4_MASK	(0xfull << CHA_VID_ARC4_SHIFT)
+
+#define CHA_VID_DES_SHIFT	4
+#define CHA_VID_DES_MASK	(0xfull << CHA_VID_DES_SHIFT)
+
+#define CHA_VID_AES_SHIFT	0
+#define CHA_VID_AES_MASK	(0xfull << CHA_VID_AES_SHIFT)
+
+/* Number of DECOs for cha_num register*/
 #define CHA_NUM_DECONUM_SHIFT	56
 #define CHA_NUM_DECONUM_MASK	(0xfull << CHA_NUM_DECONUM_SHIFT)
 
