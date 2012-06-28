@@ -1306,8 +1306,10 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		if ((mx6q_revision() > IMX_CHIP_REVISION_1_1) ||
 			(mx6dl_revision() > IMX_CHIP_REVISION_1_0))
 			arm_mem_clked_in_wait = true;
-		else
+		else {
 			enable_wait_mode = false;
+			pr_info("wait mode is disabled due to ipg clock is too low\n");
+		}
 	}
 
 	if (div == 0)
