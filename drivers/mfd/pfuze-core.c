@@ -109,12 +109,16 @@ int pfuze_reg_write(struct mc_pfuze *mc_pfuze, unsigned int offset,
 		    unsigned char val)
 {
 	unsigned char buf[2];
-	int ret;
+	int ret, i;
 
 	buf[0] = (unsigned char)offset;
 	memcpy(&buf[1], &val, 1);
-
-	ret = i2c_master_send(mc_pfuze->i2c_client, buf, 2);
+	for (i = 0; i < PFUZE_I2C_RETRY_TIMES; i++) {
+		ret = i2c_master_send(mc_pfuze->i2c_client, buf, 2);
+		if (ret == 2)
+			break;
+		msleep(1);
+	}
 	if (ret != 2) {
 		dev_err(&mc_pfuze->i2c_client->dev, "write failed!:%i\n", ret);
 		return ret;
