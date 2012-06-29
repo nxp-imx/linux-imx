@@ -434,7 +434,7 @@ static int ehci_bus_resume (struct usb_hcd *hcd)
 		{
 			struct fsl_usb2_platform_data *pdata;
 			pdata = hcd->self.controller->platform_data;
-			if (pdata->platform_rh_resume)
+			if (pdata && pdata->platform_rh_resume)
 				pdata->platform_rh_resume(pdata);
 		}
 #endif
@@ -1079,7 +1079,7 @@ static int ehci_hub_control (
 			{
 				struct fsl_usb2_platform_data *pdata;
 				pdata = hcd->self.controller->platform_data;
-				if (pdata->platform_rh_suspend)
+				if (pdata && pdata->platform_rh_suspend)
 					pdata->platform_rh_suspend(pdata);
 			}
 #endif

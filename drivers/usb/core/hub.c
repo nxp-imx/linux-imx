@@ -2543,7 +2543,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 			struct usb_hcd *hcd = bus_to_hcd(hdev->bus);
 			struct fsl_usb2_platform_data *pdata;
 			pdata = hcd->self.controller->platform_data;
-			if (pdata->platform_rh_resume)
+			if (pdata && pdata->platform_rh_resume)
 				pdata->platform_rh_resume(pdata);
 		}
 #endif
@@ -2565,7 +2565,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 		struct usb_hcd *hcd = bus_to_hcd(hdev->bus);
 		struct fsl_usb2_platform_data *pdata;
 		pdata = hcd->self.controller->platform_data;
-		if (pdata->platform_rh_resume)
+		if (pdata && pdata->platform_rh_resume)
 			pdata->platform_rh_resume(pdata);
 	}
 #endif
@@ -3245,12 +3245,12 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 
 		pdata = (struct fsl_usb2_platform_data *)dev->platform_data;
 		if (dev->parent && (hdev->level == 0) && dev->type) {
-			if (port1 == 1 && pdata->init)
+			if (port1 == 1 && pdata && pdata->init)
 				pdata->init(NULL);
 		}
 		if ((port1 == 1) && (hdev->level == 0)) {
 			/* Must clear HOSTDISCONDETECT when port connect change happen*/
-			if (pdata->platform_set_disconnect_det)
+			if (pdata && pdata->platform_set_disconnect_det)
 				pdata->platform_set_disconnect_det(pdata, 0);
 
 		}
