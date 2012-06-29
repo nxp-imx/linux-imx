@@ -223,9 +223,6 @@ int imx_pcm_new(struct snd_card *card, struct snd_soc_dai *dai,
 	struct snd_pcm *pcm);
 void imx_pcm_free(struct snd_pcm *pcm);
 
-/*
- * Do not change this as the FIQ handler depends on this size
- */
-#define IMX_SSI_DMABUF_SIZE	(64 * 1024)
+#define IMX_SSI_DMABUF_SIZE	(256 * 1024)
 
 #endif /* _IMX_SSI_H */
