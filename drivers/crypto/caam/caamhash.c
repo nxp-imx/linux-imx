@@ -89,7 +89,6 @@
 #define HASH_MSG_LEN			8
 #define MAX_CTX_LEN			(HASH_MSG_LEN + SHA512_DIGEST_SIZE)
 
-#define DEBUG
 #ifdef DEBUG
 /* for print_hex_dumps with line references */
 #define xstr(s) str(s)
@@ -1095,6 +1094,7 @@ static int ahash_digest(struct ahash_request *req)
 			  DESC_JOB_IO_LEN;
 	edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
 					    sec4_sg_bytes, DMA_TO_DEVICE);
+	edesc->sec4_sg_bytes = sec4_sg_bytes;
 	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
 				   DMA_TO_DEVICE);
 	edesc->src_nents = src_nents;
