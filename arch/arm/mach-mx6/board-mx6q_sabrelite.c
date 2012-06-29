@@ -350,59 +350,64 @@ enum sd_pad_mode {
 	SD_PAD_MODE_HIGH_SPEED,
 };
 
-static int plt_sd3_pad_change(int clock)
+static int plt_sd_pad_change(unsigned int index, int clock)
 {
+	/* LOW speed is the default state of SD pads */
 	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
 
-	if (clock > 100000000) {
-		if (pad_mode == SD_PAD_MODE_HIGH_SPEED)
-			return 0;
+	iomux_v3_cfg_t *sd_pads_200mhz;
+	iomux_v3_cfg_t *sd_pads_100mhz;
+	iomux_v3_cfg_t *sd_pads_50mhz;
 
-		pad_mode = SD_PAD_MODE_HIGH_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd3_200mhz,
-					ARRAY_SIZE(mx6q_sd3_200mhz));
-	} else if (clock > 52000000) {
-		if (pad_mode == SD_PAD_MODE_MED_SPEED)
-			return 0;
+	u32 sd_pads_200mhz_cnt;
+	u32 sd_pads_100mhz_cnt;
+	u32 sd_pads_50mhz_cnt;
 
-		pad_mode = SD_PAD_MODE_MED_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd3_100mhz,
-					ARRAY_SIZE(mx6q_sd3_100mhz));
-	} else {
-		if (pad_mode == SD_PAD_MODE_LOW_SPEED)
-			return 0;
+	switch (index) {
+	case 2:
+		sd_pads_200mhz = mx6q_sd3_200mhz;
+		sd_pads_100mhz = mx6q_sd3_100mhz;
+		sd_pads_50mhz = mx6q_sd3_50mhz;
 
-		pad_mode = SD_PAD_MODE_LOW_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd3_50mhz,
-					ARRAY_SIZE(mx6q_sd3_50mhz));
+		sd_pads_200mhz_cnt = ARRAY_SIZE(mx6q_sd3_200mhz);
+		sd_pads_100mhz_cnt = ARRAY_SIZE(mx6q_sd3_100mhz);
+		sd_pads_50mhz_cnt = ARRAY_SIZE(mx6q_sd3_50mhz);
+		break;
+	case 3:
+		sd_pads_200mhz = mx6q_sd4_200mhz;
+		sd_pads_100mhz = mx6q_sd4_100mhz;
+		sd_pads_50mhz = mx6q_sd4_50mhz;
+
+		sd_pads_200mhz_cnt = ARRAY_SIZE(mx6q_sd4_200mhz);
+		sd_pads_100mhz_cnt = ARRAY_SIZE(mx6q_sd4_100mhz);
+		sd_pads_50mhz_cnt = ARRAY_SIZE(mx6q_sd4_50mhz);
+		break;
+	default:
+		printk(KERN_ERR "no such SD host controller index %d\n", index);
+		return -EINVAL;
 	}
-}
-
-static int plt_sd4_pad_change(int clock)
-{
-	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
 
 	if (clock > 100000000) {
 		if (pad_mode == SD_PAD_MODE_HIGH_SPEED)
 			return 0;
-
+		BUG_ON(!sd_pads_200mhz);
 		pad_mode = SD_PAD_MODE_HIGH_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd4_200mhz,
-					ARRAY_SIZE(mx6q_sd4_200mhz));
+		return mxc_iomux_v3_setup_multiple_pads(sd_pads_200mhz,
+							sd_pads_200mhz_cnt);
 	} else if (clock > 52000000) {
 		if (pad_mode == SD_PAD_MODE_MED_SPEED)
 			return 0;
-
+		BUG_ON(!sd_pads_100mhz);
 		pad_mode = SD_PAD_MODE_MED_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd4_100mhz,
-					ARRAY_SIZE(mx6q_sd4_100mhz));
+		return mxc_iomux_v3_setup_multiple_pads(sd_pads_100mhz,
+							sd_pads_100mhz_cnt);
 	} else {
 		if (pad_mode == SD_PAD_MODE_LOW_SPEED)
 			return 0;
-
+		BUG_ON(!sd_pads_50mhz);
 		pad_mode = SD_PAD_MODE_LOW_SPEED;
-		return mxc_iomux_v3_setup_multiple_pads(mx6q_sd4_50mhz,
-					ARRAY_SIZE(mx6q_sd4_50mhz));
+		return mxc_iomux_v3_setup_multiple_pads(sd_pads_50mhz,
+							sd_pads_50mhz_cnt);
 	}
 }
 
@@ -410,14 +415,14 @@ static const struct esdhc_platform_data mx6q_sabrelite_sd3_data __initconst = {
 	.cd_gpio = MX6Q_SABRELITE_SD3_CD,
 	.wp_gpio = MX6Q_SABRELITE_SD3_WP,
 	.keep_power_at_suspend = 1,
-	.platform_pad_change = plt_sd3_pad_change,
+	.platform_pad_change = plt_sd_pad_change,
 };
 
 static const struct esdhc_platform_data mx6q_sabrelite_sd4_data __initconst = {
 	.cd_gpio = MX6Q_SABRELITE_SD4_CD,
 	.wp_gpio = MX6Q_SABRELITE_SD4_WP,
 	.keep_power_at_suspend = 1,
-	.platform_pad_change = plt_sd4_pad_change,
+	.platform_pad_change = plt_sd_pad_change,
 };
 
 static const struct anatop_thermal_platform_data

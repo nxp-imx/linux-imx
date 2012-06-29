@@ -13,6 +13,7 @@
 
 #ifndef _DRIVERS_MMC_SDHCI_ESDHC_H
 #define _DRIVERS_MMC_SDHCI_ESDHC_H
+#include <linux/platform_device.h>
 
 /*
  * Ops and quirks for the Freescale eSDHC controller.
@@ -52,6 +53,7 @@ static inline void esdhc_set_clock(struct sdhci_host *host, unsigned int clock)
 	u32 temp;
 	struct esdhc_platform_data *boarddata;
 	int ddr_mode = 0;
+	struct platform_device *pdev = to_platform_device(host->mmc->parent);
 
 	boarddata = host->mmc->parent->platform_data;
 	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
@@ -94,8 +96,10 @@ static inline void esdhc_set_clock(struct sdhci_host *host, unsigned int clock)
 	 * board needs to reconfig its pad for
 	 * corresponding sd bus frequency
 	 */
-	if (boarddata->platform_pad_change)
-		boarddata->platform_pad_change(clock);
+	if (boarddata->platform_pad_change) {
+		BUG_ON(!pdev);
+		boarddata->platform_pad_change(pdev->id, clock);
+	}
 out:
 	host->clock = clock;
 }

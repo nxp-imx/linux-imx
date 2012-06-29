@@ -133,12 +133,91 @@ static int max17135_regulator_init(struct max17135 *max17135);
 struct clk *extern_audio_root;
 
 extern int __init mx6sl_arm2_init_pfuze100(u32 int_gpio);
+
+enum sd_pad_mode {
+	SD_PAD_MODE_LOW_SPEED,
+	SD_PAD_MODE_MED_SPEED,
+	SD_PAD_MODE_HIGH_SPEED,
+};
+
+static int plt_sd_pad_change(unsigned int index, int clock)
+{
+	/* LOW speed is the default state of SD pads */
+	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
+
+	iomux_v3_cfg_t *sd_pads_200mhz;
+	iomux_v3_cfg_t *sd_pads_100mhz;
+	iomux_v3_cfg_t *sd_pads_50mhz;
+
+	u32 sd_pads_200mhz_cnt;
+	u32 sd_pads_100mhz_cnt;
+	u32 sd_pads_50mhz_cnt;
+
+	switch (index) {
+	case 0:
+		sd_pads_200mhz = mx6sl_sd1_200mhz;
+		sd_pads_100mhz = mx6sl_sd1_100mhz;
+		sd_pads_50mhz = mx6sl_sd1_50mhz;
+
+		sd_pads_200mhz_cnt = ARRAY_SIZE(mx6sl_sd1_200mhz);
+		sd_pads_100mhz_cnt = ARRAY_SIZE(mx6sl_sd1_100mhz);
+		sd_pads_50mhz_cnt = ARRAY_SIZE(mx6sl_sd1_50mhz);
+		break;
+	case 1:
+		sd_pads_200mhz = mx6sl_sd2_200mhz;
+		sd_pads_100mhz = mx6sl_sd2_100mhz;
+		sd_pads_50mhz = mx6sl_sd2_50mhz;
+
+		sd_pads_200mhz_cnt = ARRAY_SIZE(mx6sl_sd2_200mhz);
+		sd_pads_100mhz_cnt = ARRAY_SIZE(mx6sl_sd2_100mhz);
+		sd_pads_50mhz_cnt = ARRAY_SIZE(mx6sl_sd2_50mhz);
+		break;
+	case 2:
+		sd_pads_200mhz = mx6sl_sd3_200mhz;
+		sd_pads_100mhz = mx6sl_sd3_100mhz;
+		sd_pads_50mhz = mx6sl_sd3_50mhz;
+
+		sd_pads_200mhz_cnt = ARRAY_SIZE(mx6sl_sd3_200mhz);
+		sd_pads_100mhz_cnt = ARRAY_SIZE(mx6sl_sd3_100mhz);
+		sd_pads_50mhz_cnt = ARRAY_SIZE(mx6sl_sd3_50mhz);
+		break;
+	default:
+		printk(KERN_ERR "no such SD host controller index %d\n", index);
+		return -EINVAL;
+	}
+
+	if (clock > 100000000) {
+		if (pad_mode == SD_PAD_MODE_HIGH_SPEED)
+			return 0;
+		BUG_ON(!sd_pads_200mhz);
+		pad_mode = SD_PAD_MODE_HIGH_SPEED;
+		return mxc_iomux_v3_setup_multiple_pads(sd_pads_200mhz,
+							sd_pads_200mhz_cnt);
+	} else if (clock > 52000000) {
+		if (pad_mode == SD_PAD_MODE_MED_SPEED)
+			return 0;
+		BUG_ON(!sd_pads_100mhz);
+		pad_mode = SD_PAD_MODE_MED_SPEED;
+		return mxc_iomux_v3_setup_multiple_pads(sd_pads_100mhz,
+							sd_pads_100mhz_cnt);
+	} else {
+		if (pad_mode == SD_PAD_MODE_LOW_SPEED)
+			return 0;
+		BUG_ON(!sd_pads_50mhz);
+		pad_mode = SD_PAD_MODE_LOW_SPEED;
+		return mxc_iomux_v3_setup_multiple_pads(sd_pads_50mhz,
+							sd_pads_50mhz_cnt);
+	}
+}
+
 static const struct esdhc_platform_data mx6_arm2_sd1_data __initconst = {
 	.cd_gpio		= MX6_ARM2_SD1_CD,
 	.wp_gpio		= MX6_ARM2_SD1_WP,
 	.support_8bit		= 1,
+	.support_18v		= 1,
 	.keep_power_at_suspend	= 1,
 	.delay_line		= 0,
+	.platform_pad_change = plt_sd_pad_change,
 };
 
 static const struct esdhc_platform_data mx6_arm2_sd2_data __initconst = {
@@ -146,12 +225,17 @@ static const struct esdhc_platform_data mx6_arm2_sd2_data __initconst = {
 	.wp_gpio		= MX6_ARM2_SD2_WP,
 	.keep_power_at_suspend	= 1,
 	.delay_line		= 0,
+	.support_18v		= 1,
+	.platform_pad_change = plt_sd_pad_change,
 };
 
 static const struct esdhc_platform_data mx6_arm2_sd3_data __initconst = {
 	.cd_gpio		= MX6_ARM2_SD3_CD,
+	.wp_gpio		= -1,
 	.keep_power_at_suspend	= 1,
 	.delay_line		= 0,
+	.support_18v		= 1,
+	.platform_pad_change = plt_sd_pad_change,
 };
 
 #define mV_to_uV(mV) (mV * 1000)
@@ -580,7 +664,34 @@ static inline void mx6_arm2_init_uart(void)
 	imx6q_add_imx_uart(0, NULL); /* DEBUG UART1 */
 }
 
+static int mx6sl_arm2_fec_phy_init(struct phy_device *phydev)
+{
+	int val;
+
+	/* power on FEC phy and reset phy */
+	gpio_request(MX6_ARM2_FEC_PWR_EN, "fec-pwr");
+	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 1);
+	/* wait RC ms for hw reset */
+	udelay(50);
+
+	/* check phy power */
+	val = phy_read(phydev, 0x0);
+	if (val & BMCR_PDOWN) {
+		phy_write(phydev, 0x0, (val & ~BMCR_PDOWN));
+		udelay(50);
+	}
+
+	/* sw reset phy */
+	val = phy_read(phydev, 0x0);
+	val |= BMCR_RESET;
+	phy_write(phydev, 0x0, val);
+	udelay(50);
+
+	return 0;
+}
+
 static struct fec_platform_data fec_data __initdata = {
+	.init = mx6sl_arm2_fec_phy_init,
 	.phy = PHY_INTERFACE_MODE_RMII,
 };
 
@@ -1134,12 +1245,6 @@ static void __init mx6_arm2_init(void)
 	 */
 	mxc_iomux_set_gpr_register(1, 14, 1, 0);
 	mxc_iomux_set_gpr_register(1, 17, 2, 0);
-
-	/* power on FEC phy and reset phy */
-	gpio_request(MX6_ARM2_FEC_PWR_EN, "fec-pwr");
-	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 1);
-	/* wait RC ms for hw reset */
-	udelay(500);
 
 	imx6_init_fec(fec_data);
 

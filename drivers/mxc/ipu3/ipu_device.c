@@ -497,6 +497,10 @@ static int soc_max_in_width(u32 is_vdoa)
 	return is_vdoa ? 8192 : 4096;
 }
 
+static int soc_max_vdi_in_width(void)
+{
+	return IPU_MAX_VDI_IN_WIDTH;
+}
 static int soc_max_in_height(void)
 {
 	return 4096;
@@ -760,7 +764,7 @@ static void update_offset(unsigned int fmt,
 		 * = line * stride + pixel * 16
 		 */
 		*off = pos_y * width + (pos_x << 4);
-		*uoff = ALIGN(width * height, SZ_4K) + (*off >> 1);
+		*uoff = ALIGN(width * height, SZ_4K) + (*off >> 1) - *off;
 		break;
 	case IPU_PIX_FMT_TILED_NV12F:
 		/*
@@ -769,7 +773,7 @@ static void update_offset(unsigned int fmt,
 		 * instead of 256
 		 */
 		*off = (pos_y >> 1) * width + (pos_x << 3);
-		*uoff = ALIGN(width * height/2, SZ_4K) + (*off >> 1);
+		*uoff = ALIGN(width * height/2, SZ_4K) + (*off >> 1) - *off;
 		break;
 	default:
 		*off = (pos_y * width + pos_x) * fmt_to_bpp(fmt)/8;
@@ -2816,7 +2820,7 @@ static void get_res_do_task(struct ipu_task_entry *t)
 			do_task_vdoa_only(t);
 		else if ((IPU_PIX_FMT_TILED_NV12F == t->input.format) &&
 				(t->set.mode & VDOA_BAND_MODE) &&
-				(t->input.crop.w > soc_max_out_width()))
+				(t->input.crop.w > soc_max_vdi_in_width()))
 			do_task_vdoa_vdi(t);
 		else
 			do_task(t);

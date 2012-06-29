@@ -111,6 +111,37 @@ int power_supply_am_i_supplied(struct power_supply *psy)
 }
 EXPORT_SYMBOL_GPL(power_supply_am_i_supplied);
 
+static int power_supply_find_supplier(struct device *dev, void *data)
+{
+	struct power_supply *psy = (struct power_supply *)data;
+	struct power_supply *epsy = dev_get_drvdata(dev);
+	int i;
+
+	for (i = 0; i < epsy->num_supplicants; i++)
+		if (!strcmp(epsy->supplied_to[i], psy->name))
+			return 1;
+	return 0;
+}
+
+int power_supply_get_supplier_property(struct power_supply *psy,
+					enum power_supply_property psp,
+					union power_supply_propval *val)
+{
+	struct power_supply *epsy;
+	struct device *dev;
+
+	dev = class_find_device(power_supply_class, NULL, psy,
+				power_supply_find_supplier);
+	if (!dev)
+		return 1;
+
+	epsy = dev_get_drvdata(dev);
+	put_device(dev);
+
+	return epsy->get_property(epsy, psp, val);
+}
+EXPORT_SYMBOL_GPL(power_supply_get_supplier_property);
+
 static int __power_supply_is_system_supplied(struct device *dev, void *data)
 {
 	union power_supply_propval ret = {0,};

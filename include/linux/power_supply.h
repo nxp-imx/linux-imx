@@ -211,7 +211,9 @@ extern int power_supply_is_system_supplied(void);
 #else
 static inline int power_supply_is_system_supplied(void) { return -ENOSYS; }
 #endif
-
+extern int power_supply_get_supplier_property(struct power_supply *psy,
+					enum power_supply_property psp,
+					union power_supply_propval *val);
 extern int power_supply_register(struct device *parent,
 				 struct power_supply *psy);
 extern void power_supply_unregister(struct power_supply *psy);
