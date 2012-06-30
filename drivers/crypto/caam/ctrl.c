@@ -359,8 +359,8 @@ static int caam_probe(struct platform_device *pdev)
 	 * RNG4 based SECs (v5+ | >= i.MX6) need special initialization prior
 	 * to executing any descriptors
 	 */
-	if ((rd_reg64(&topregs->ctrl.perfmon.cha_id) & CHA_VID_RNG_MASK)
-	    == CHA_VID_RNG_4) {
+	if ((rd_reg64(&topregs->ctrl.perfmon.cha_id) & CHA_ID_RNG_MASK)
+	    == CHA_ID_RNG_4) {
 		kick_trng(pdev);
 		ret = instantiate_rng(ctrlpriv->jrdev[0]);
 		if (ret) {
