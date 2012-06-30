@@ -1821,7 +1821,8 @@ int caam_algapi_hash_startup(struct platform_device *pdev)
 {
 	struct device *ctrldev;
 	struct caam_drv_private *priv;
-	int i = 0, err = 0;
+	int i = 0, err = 0, md_limit = 0, md_inst;
+	u64 cha_inst;
 
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
@@ -1830,10 +1831,24 @@ int caam_algapi_hash_startup(struct platform_device *pdev)
 
 	atomic_set(&priv->tfm_count, -1);
 
-	/* register crypto algorithms the device supports */
+	/* register algorithms the device supports */
+	cha_inst = rd_reg64(&priv->ctrl->perfmon.cha_num);
+	md_inst = (cha_inst & CHA_ID_MD_MASK) >> CHA_ID_MD_SHIFT;
+	if (md_inst) {
+		md_limit = SHA512_DIGEST_SIZE;
+		if ((rd_reg64(&priv->ctrl->perfmon.cha_id) & CHA_ID_MD_MASK)
+		     == CHA_ID_MD_LP256) /* LP256 limits digest size */
+			md_limit = SHA256_DIGEST_SIZE;
+	}
+
 	for (i = 0; i < ARRAY_SIZE(driver_hash); i++) {
-		/* TODO: check if h/w supports alg */
 		struct caam_hash_alg *t_alg;
+
+		/* If no MD instantiated, or MD too small, skip */
+		if ((!md_inst) ||
+		    (driver_hash[i].template_ahash.halg.digestsize >
+		     md_limit))
+			continue;
 
 		/* register hmac version */
 		t_alg = caam_hash_alloc(ctrldev, &driver_hash[i], true);

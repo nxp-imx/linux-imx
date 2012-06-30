@@ -2212,7 +2212,9 @@ int caam_algapi_startup(struct platform_device *pdev)
 {
 	struct device *ctrldev, **jrdev;
 	struct caam_drv_private *priv;
-	int i = 0, err = 0;
+	int i = 0, err = 0, md_limit = 0;
+	int des_inst, aes_inst, md_inst;
+	u64 cha_inst;
 
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
@@ -2238,10 +2240,46 @@ int caam_algapi_startup(struct platform_device *pdev)
 	priv->algapi_jr = jrdev;
 	atomic_set(&priv->tfm_count, -1);
 
-	/* register crypto algorithms the device supports */
+	/*
+	 * register crypto algorithms the device supports
+	 * first, detect presence of DES, AES, and MD blocks. If MD present,
+	 * determine limit of supported digest size
+	 */
+	cha_inst = rd_reg64(&priv->ctrl->perfmon.cha_num);
+	des_inst = (cha_inst & CHA_ID_DES_MASK) >> CHA_ID_DES_SHIFT;
+	aes_inst = (cha_inst & CHA_ID_AES_MASK) >> CHA_ID_AES_SHIFT;
+	md_inst = (cha_inst & CHA_ID_MD_MASK) >> CHA_ID_MD_SHIFT;
+	if (md_inst) {
+		md_limit = SHA512_DIGEST_SIZE;
+		if ((rd_reg64(&priv->ctrl->perfmon.cha_id) & CHA_ID_MD_MASK)
+		     == CHA_ID_MD_LP256) /* LP256 limits digest size */
+			md_limit = SHA256_DIGEST_SIZE;
+	}
+
 	for (i = 0; i < ARRAY_SIZE(driver_algs); i++) {
-		/* TODO: check if h/w supports alg */
 		struct caam_crypto_alg *t_alg;
+
+		/*
+		 * All registrable algs in this module require a blockcipher
+		 * All aead algs require message digests, so check them for
+		 * instantiation and size.
+		 */
+		if (driver_algs[i].type == CRYPTO_ALG_TYPE_AEAD) {
+			/* If no MD instantiated, or MD too small, skip */
+			if ((!md_inst) ||
+			    (driver_algs[i].template_aead.maxauthsize >
+			     md_limit))
+				continue;
+		}
+		/* If DES alg, and CHA not instantiated, skip */
+		if ((driver_algs[i].class1_alg_type & OP_ALG_ALGSEL_3DES) ||
+		    (driver_algs[i].class1_alg_type & OP_ALG_ALGSEL_DES))
+			if (!des_inst)
+				continue;
+		/* If AES alg, and CHA not instantiated, skip */
+		if (driver_algs[i].class1_alg_type & OP_ALG_ALGSEL_AES)
+			if (!aes_inst)
+				continue;
 
 		t_alg = caam_alg_alloc(ctrldev, &driver_algs[i]);
 		if (IS_ERR(t_alg)) {
