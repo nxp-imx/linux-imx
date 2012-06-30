@@ -1,7 +1,7 @@
 /*
  * CAAM Error Reporting
  *
- * Copyright 2009-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc.
  */
 
 #include "compat.h"
@@ -104,7 +104,8 @@ static void report_deco_status(u32 status, char *outstr)
 		{ 0x00, "None. No error." },
 		{ 0x01, "SGT Length Error. The descriptor is trying to read "
 			"more data than is contained in the SGT table." },
-		{ 0x02, "Reserved." },
+		{ 0x02, "SGT Null Entry Error. Extension bit was set, but "
+			"SGT entry was null." },
 		{ 0x03, "Job Ring Control Error. There is a bad value in the "
 			"Job Ring Control register." },
 		{ 0x04, "Invalid Descriptor Command. The Descriptor Command "
