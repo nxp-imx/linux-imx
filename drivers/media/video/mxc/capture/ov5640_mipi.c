@@ -82,7 +82,7 @@ struct ov5640_mode_info {
 /*!
  * Maintains the information on the current state of the sesor.
  */
-struct sensor_data ov5640_data;
+static struct sensor_data ov5640_data;
 
 static struct reg_value ov5640_init_setting_30fps_VGA[] = {
 
