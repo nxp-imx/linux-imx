@@ -753,7 +753,7 @@ static int epdc_choose_next_lut(int rev, int *next_lut)
 				*next_lut = ffz((u32)luts_status);
 				if (*next_lut == -1)
 					*next_lut =
-						ffz((u32)(luts_status >> 32));
+						ffz((u32)(luts_status >> 32)) + 32;
 			}
 		}
 
