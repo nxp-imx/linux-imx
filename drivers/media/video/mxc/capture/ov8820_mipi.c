@@ -73,7 +73,7 @@ struct ov8820_mode_info {
 /*!
  * Maintains the information on the current state of the sesor.
  */
-struct sensor {
+static struct sensor {
 	const struct ov8820_platform_data *platform_data;
 	struct v4l2_int_device *v4l2_int_device;
 	struct i2c_client *i2c_client;
