@@ -38,6 +38,7 @@ source "drivers/mxc/amd-gpu/Kconfig"
 source "drivers/mxc/gpu-viv/Kconfig"
 source "drivers/mxc/thermal/Kconfig"
 source "drivers/mxc/mipi/Kconfig"
+source "drivers/mxc/hdmi-cec/Kconfig"
 
 endmenu
 

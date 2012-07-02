@@ -185,7 +185,7 @@ struct i2c_client *hdmi_i2c;
 static bool hdmi_inited;
 
 extern const struct fb_videomode mxc_cea_mode[64];
-
+extern void mxc_hdmi_cec_handle(u16 cec_stat);
 #ifdef DEBUG
 static void dump_fb_videomode(struct fb_videomode *m)
 {
@@ -1753,6 +1753,9 @@ static void hotplug_worker(struct work_struct *work)
 
 			sprintf(event_string, "EVENT=plugin");
 			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
+#ifdef CONFIG_MXC_HDMI_CEC
+			mxc_hdmi_cec_handle(0x80);
+#endif
 
 		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
 			/* Plugout event */
@@ -1766,6 +1769,9 @@ static void hotplug_worker(struct work_struct *work)
 
 			sprintf(event_string, "EVENT=plugout");
 			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
+#ifdef CONFIG_MXC_HDMI_CEC
+			mxc_hdmi_cec_handle(0x100);
+#endif
 
 		} else
 			dev_dbg(&hdmi->pdev->dev, "EVENT=none?\n");

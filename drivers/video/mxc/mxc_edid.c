@@ -284,6 +284,10 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 					IEEE_reg_iden[0] = edid[index+1];
 					IEEE_reg_iden[1] = edid[index+2];
 					IEEE_reg_iden[2] = edid[index+3];
+					cfg->physical_address[0] = (edid[index+4] & 0xf0) >> 4;
+					cfg->physical_address[1] = (edid[index+4] & 0x0f);
+					cfg->physical_address[2] = (edid[index+5] & 0xf0) >> 4;
+					cfg->physical_address[3] = (edid[index+5] & 0x0f);
 					deep_color = edid[index+6];
 
 					if ((IEEE_reg_iden[0] == 0x03) &&
