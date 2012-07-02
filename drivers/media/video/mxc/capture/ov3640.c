@@ -72,7 +72,7 @@ struct ov3640_mode_info {
 /*!
  * Maintains the information on the current state of the sesor.
  */
-struct sensor_data ov3640_data;
+static struct sensor_data ov3640_data;
 
 static struct reg_value ov3640_setting_15fps_QXGA_2048_1536[] = {
 #if 0
