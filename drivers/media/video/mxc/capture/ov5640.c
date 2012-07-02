@@ -78,7 +78,7 @@ struct ov5640_mode_info {
 /*!
  * Maintains the information on the current state of the sesor.
  */
-struct sensor_data ov5640_data;
+static struct sensor_data ov5640_data;
 
 static struct reg_value ov5640_setting_15fps_QSXGA_2592_1944[] = {
 	{0x3103, 0x11, 0, 0}, {0x3008, 0x82, 0, 0}, {0x3008, 0x42, 0, 0},
