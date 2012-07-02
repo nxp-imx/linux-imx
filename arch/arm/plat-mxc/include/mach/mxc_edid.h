@@ -69,6 +69,7 @@ struct mxc_edid_cfg {
 	u8 sample_sizes;
 	u8 sample_rates;
 	u8 speaker_alloc;
+	u8 physical_address[4];
 };
 
 int mxc_edid_var_to_vic(struct fb_var_screeninfo *var);
