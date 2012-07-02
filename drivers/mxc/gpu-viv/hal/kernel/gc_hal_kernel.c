@@ -509,8 +509,18 @@ _AllocateMemory(
         else
         if (pool == gcvPOOL_CONTIGUOUS)
         {
-            /* Create a gcuVIDMEM_NODE for contiguous memory. */
-            status = gckVIDMEM_ConstructVirtual(Kernel, gcvTRUE, Bytes, &node);
+#if gcdCONTIGUOUS_SIZE_LIMIT
+            if (Bytes > gcdCONTIGUOUS_SIZE_LIMIT)
+            {
+                status = gcvSTATUS_OUT_OF_MEMORY;
+            }
+            else
+#endif
+            {
+                /* Create a gcuVIDMEM_NODE from contiguous memory. */
+                status = gckVIDMEM_ConstructVirtual(Kernel, gcvTRUE, Bytes, &node);
+            }
+
             if (gcmIS_SUCCESS(status))
             {
                 /* Memory allocated. */
