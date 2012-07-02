@@ -759,6 +759,14 @@
 #   define gcdRATIO_FOR_SMALL_MEMORY            32
 #endif
 
+/*
+    gcdCONTIGUOUS_SIZE_LIMIT
+        When non-zero, size of video node from gcvPOOL_CONTIGUOUS is
+        limited by gcdCONTIGUOUS_SIZE_LIMIT.
+ */
+#ifndef gcdCONTIGUOUS_SIZE_LIMIT
+#   define gcdCONTIGUOUS_SIZE_LIMIT             4096
+#endif
 
 /*  gcdALPHA_KILL_IN_SHADER
  *
