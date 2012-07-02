@@ -883,8 +883,10 @@ typedef struct _gcsSTENCIL_INFO
 {
     gceSTENCIL_MODE         mode;
 
-    gctUINT8                mask;
-    gctUINT8                writeMask;
+    gctUINT8                maskFront;
+	gctUINT8                maskBack;
+    gctUINT8                writeMaskFront;
+    gctUINT8                writeMaskBack;
 
     gctUINT8                referenceFront;
 
@@ -915,9 +917,23 @@ gco3D_SetStencilMask(
     IN gctUINT8 Mask
     );
 
+/* Set stencil back mask. */
+gceSTATUS
+gco3D_SetStencilMaskBack(
+    IN gco3D Engine,
+    IN gctUINT8 Mask
+    );
+
 /* Set stencil write mask. */
 gceSTATUS
 gco3D_SetStencilWriteMask(
+    IN gco3D Engine,
+    IN gctUINT8 Mask
+    );
+
+/* Set stencil back write mask. */
+gceSTATUS
+gco3D_SetStencilWriteMaskBack(
     IN gco3D Engine,
     IN gctUINT8 Mask
     );
@@ -1173,7 +1189,6 @@ gco3D_InvokeThreadWalker(
     IN gcsTHREAD_WALKER_INFO_PTR Info
     );
 
-#if gcdUSE_WCLIP_PATCH
 /* Set w clip and w plane limit value. */
 gceSTATUS
 gco3D_SetWClipEnable(
@@ -1192,7 +1207,6 @@ gco3D_SetWPlaneLimitX(
 	IN gco3D Engine,
 	IN gctFIXED_POINT Value
     );
-#endif
 
 /*----------------------------------------------------------------------------*/
 /*-------------------------- gco3D Fragment Processor ------------------------*/

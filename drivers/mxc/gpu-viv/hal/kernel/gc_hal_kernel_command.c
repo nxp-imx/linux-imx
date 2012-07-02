@@ -30,9 +30,6 @@
 
 #define _GC_OBJ_ZONE            gcvZONE_COMMAND
 
-/* When enabled, extra messages needed by the dump parser are left out. */
-#define gcdSIMPLE_COMMAND_DUMP  1
-
 /******************************************************************************\
 ********************************* Support Code *********************************
 \******************************************************************************/
@@ -68,7 +65,7 @@ _NewQueue(
     newIndex     = (currentIndex + 1) % gcdCOMMAND_QUEUES;
 
     /* Wait for availability. */
-#if gcdDUMP_COMMAND && !gcdSIMPLE_COMMAND_DUMP
+#if gcdDUMP_COMMAND
     gcmkPRINT("@[kernel.waitsignal]");
 #endif
 
@@ -1914,7 +1911,7 @@ gckCOMMAND_Commit(
         hardware, Command->logical, Command->offset
         ));
 
-#if gcdDUMP_COMMAND && !gcdSIMPLE_COMMAND_DUMP
+#if gcdDUMP_COMMAND
     gcmkPRINT("@[kernel.commit]");
 #endif
 #endif /* gcdNULL_DRIVER */
@@ -2309,7 +2306,7 @@ gckCOMMAND_Execute(
         Command->kernel->hardware, Command->logical, Command->offset
         ));
 
-#if gcdDUMP_COMMAND && !gcdSIMPLE_COMMAND_DUMP
+#if gcdDUMP_COMMAND
     gcmkPRINT("@[kernel.execute]");
 #endif
 
@@ -2386,7 +2383,7 @@ gckCOMMAND_Stall(
     /* Submit the event queue. */
     gcmkONERROR(gckEVENT_Submit(eventObject, gcvTRUE, FromPower));
 
-#if gcdDUMP_COMMAND && !gcdSIMPLE_COMMAND_DUMP
+#if gcdDUMP_COMMAND
     gcmkPRINT("@[kernel.stall]");
 #endif
 

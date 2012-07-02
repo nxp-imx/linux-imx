@@ -55,6 +55,7 @@
 #include "gc_hal_kernel.h"
 #include "gc_hal_kernel_device.h"
 #include "gc_hal_kernel_os.h"
+#include "gc_hal_kernel_debugfs.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 #define FIND_TASK_BY_PID(x) pid_task(find_vpid(x), PIDTYPE_PID)

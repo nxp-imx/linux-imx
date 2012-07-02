@@ -545,6 +545,7 @@ typedef enum _gceUNIFORM_FLAGS
 	gcvUNIFORM_KERNEL_ARG_LOCAL_MEM_SIZE	= 0x1000,
 	gcvUNIFORM_KERNEL_ARG_PRIVATE		= 0x2000,
 	gcvUNIFORM_LOADTIME_CONSTANT		= 0x4000,
+    gcvUNIFORM_IS_ARRAY                 = 0x8000,
 }
 gceUNIFORM_FLAGS;
 
@@ -1126,6 +1127,7 @@ gcSHADER_AddUniformEx1(
 	IN gcSHADER_TYPE Type,
     IN gcSHADER_PRECISION precision,
 	IN gctSIZE_T Length,
+    IN gctINT    IsArray,
     IN gcSHADER_VAR_CATEGORY varCategory,
     IN gctUINT16 numStructureElement,
     IN gctINT16 parent,
@@ -2908,6 +2910,26 @@ gcUNIFORM_SetValueF(
 	IN gctSIZE_T Count,
 	IN const gctFLOAT * Value
 	);
+
+/*******************************************************************************
+**						 gcUNIFORM_GetModelViewProjMatrix
+********************************************************************************
+**
+**	Get the value of uniform modelViewProjMatrix ID if present.
+**
+**	INPUT:
+**
+**		gcUNIFORM Uniform
+**			Pointer to a gcUNIFORM object.
+**
+**	OUTPUT:
+**
+**		Nothing.
+*/
+gctUINT
+gcUNIFORM_GetModelViewProjMatrix(
+    IN gcUNIFORM Uniform
+    );
 
 /*******************************************************************************
 **								gcOUTPUT_GetType

@@ -39,11 +39,6 @@
 #endif
 
 
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
-#    include <linux/resmem_account.h>
-#endif
-
-
 /* Zone used for header/footer. */
 #define _GC_OBJ_ZONE    gcvZONE_DRIVER
 
@@ -108,6 +103,9 @@ module_param(baseAddress, ulong, 0644);
 static ulong physSize = 0;
 module_param(physSize, ulong, 0644);
 
+static uint logFileSize=0;
+module_param(logFileSize,uint, 0644);
+
 static int showArgs = 0;
 module_param(showArgs, int, 0644);
 
@@ -139,35 +137,12 @@ static int drv_mmap(
 
 static struct file_operations driver_fops =
 {
+    .owner      = THIS_MODULE,
     .open       = drv_open,
     .release    = drv_release,
     .unlocked_ioctl = drv_ioctl,
     .mmap       = drv_mmap,
 };
-
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
-static size_t viv_gpu_resmem_query(struct task_struct *p, struct reserved_memory_account *m);
-static struct reserved_memory_account viv_gpu_resmem_handler = {
-    .name = "viv_gpu",
-    .get_page_used_by_process = viv_gpu_resmem_query,
-};
-
-size_t viv_gpu_resmem_query(struct task_struct *p, struct reserved_memory_account *m)
-{
-    gcuDATABASE_INFO info;
-    unsigned int processid = p->pid;
-    gckKERNEL gpukernel = m->data;
-
-    /* ignore error happens in this api. */
-    if (gckKERNEL_QueryProcessDB(gpukernel, processid, false, gcvDB_VIDEO_MEMORY, &info) != gcvSTATUS_OK)
-	return 0;
-
-    /* we return pages. */
-    if (info.counters.bytes > 0)
-	return info.counters.bytes / PAGE_SIZE;
-    return 0;
-}
-#endif
 
 int drv_open(
     struct inode* inode,
@@ -211,7 +186,7 @@ int drv_open(
     gcmkONERROR(gckOS_GetProcessID(&data->pidOpen));
 
     /* Attached the process. */
-    for (i = 0; i < gcdGPU_COUNT; i++)
+    for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
         if (galDevice->kernels[i] != gcvNULL)
         {
@@ -254,7 +229,7 @@ OnError:
 
     if (attached)
     {
-        for (i = 0; i < gcdGPU_COUNT; i++)
+        for (i = 0; i < gcdMAX_GPU_COUNT; i++)
         {
             if (galDevice->kernels[i] != gcvNULL)
             {
@@ -333,7 +308,7 @@ int drv_release(
     }
 
     /* A process gets detached. */
-    for (i = 0; i < gcdGPU_COUNT; i++)
+    for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
         if (galDevice->kernels[i] != gcvNULL)
         {
@@ -471,7 +446,7 @@ long drv_ioctl(
     if (iface.command == gcvHAL_CHIP_INFO)
     {
         count = 0;
-        for (i = 0; i < gcdGPU_COUNT; i++)
+        for (i = 0; i < gcdMAX_GPU_COUNT; i++)
         {
             if (device->kernels[i] != gcvNULL)
             {
@@ -630,8 +605,20 @@ static int drv_mmap(
     if (device->contiguousMapped)
     {
         unsigned long size = vma->vm_end - vma->vm_start;
+        int ret = 0;
 
-        int ret = io_remap_pfn_range(
+        if (size > device->contiguousSize)
+        {
+            gcmkTRACE_ZONE(
+                gcvLEVEL_ERROR, gcvZONE_DRIVER,
+                "%s(%d): Invalid mapping size.\n",
+                __FUNCTION__, __LINE__
+                );
+
+            gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+        }
+
+        ret = io_remap_pfn_range(
             vma,
             vma->vm_start,
             (gctUINT32) device->contiguousPhysical >> PAGE_SHIFT,
@@ -754,9 +741,15 @@ static int drv_init(void)
         printk("  signal            = %d\n",      signal);
         printk("  baseAddress       = 0x%08lX\n", baseAddress);
         printk("  physSize          = 0x%08lX\n", physSize);
+	printk(" logFileSize         = %d KB \n",     logFileSize);
 #if ENABLE_GPU_CLOCK_BY_DRIVER
         printk("  coreClock       = %lu\n",     coreClock);
 #endif
+    }
+
+    if(logFileSize != 0)
+    {
+    	gckDebugFileSystemInitialize();
     }
 
     /* Create the GAL device. */
@@ -769,6 +762,7 @@ static int drv_init(void)
         registerMemBaseVG, registerMemSizeVG,
         contiguousBase, contiguousSize,
         bankSize, fastClear, compression, baseAddress, physSize, signal,
+        logFileSize,
         &device
         ));
 
@@ -794,12 +788,6 @@ static int drv_init(void)
         /* Reset the base address */
         device->baseAddress = 0;
     }
-
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
-    viv_gpu_resmem_handler.data = device->kernels[gcvCORE_MAJOR];
-    register_reserved_memory_account(&viv_gpu_resmem_handler);
-#endif
-
 
     /* Register the character device. */
     ret = register_chrdev(major, DRV_NAME, &driver_fops);
@@ -880,10 +868,6 @@ static void drv_exit(void)
 {
     gcmkHEADER();
 
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
-    unregister_reserved_memory_account(&viv_gpu_resmem_handler);
-#endif
-
     gcmkASSERT(gpuClass != gcvNULL);
     device_destroy(gpuClass, MKDEV(major, 0));
     class_destroy(gpuClass);
@@ -892,6 +876,11 @@ static void drv_exit(void)
 
     gcmkVERIFY_OK(gckGALDEVICE_Stop(galDevice));
     gcmkVERIFY_OK(gckGALDEVICE_Destroy(galDevice));
+
+   if(gckDebugFileSystemIsEnabled())
+   {
+   	 gckDebugFileSystemTerminate();
+   }
 
 #if ENABLE_GPU_CLOCK_BY_DRIVER && LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
     {
@@ -1002,7 +991,7 @@ static int __devinit gpu_suspend(struct platform_device *dev, pm_message_t state
 
     device = platform_get_drvdata(dev);
 
-    for (i = 0; i < gcdGPU_COUNT; i++)
+    for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
         if (device->kernels[i] != gcvNULL)
         {
@@ -1053,7 +1042,7 @@ static int __devinit gpu_resume(struct platform_device *dev)
 
     device = platform_get_drvdata(dev);
 
-    for (i = 0; i < gcdGPU_COUNT; i++)
+    for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
         if (device->kernels[i] != gcvNULL)
         {

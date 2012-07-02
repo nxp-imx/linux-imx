@@ -613,24 +613,24 @@ typedef union _gcuVIDMEM_NODE
         gctSIZE_T               pageCount;
 
         /* Used only when node is not contiguous */
-        gctPOINTER              pageTables[gcdGPU_COUNT];
+        gctPOINTER              pageTables[gcdMAX_GPU_COUNT];
         /* Pointer to gckKERNEL object who lock this. */
-        gckKERNEL               lockKernels[gcdGPU_COUNT];
+        gckKERNEL               lockKernels[gcdMAX_GPU_COUNT];
         /* Actual physical address */
-        gctUINT32               addresses[gcdGPU_COUNT];
+        gctUINT32               addresses[gcdMAX_GPU_COUNT];
 
         /* Mutex. */
         gctPOINTER              mutex;
 
         /* Locked counter. */
-        gctINT32                lockeds[gcdGPU_COUNT];
+        gctINT32                lockeds[gcdMAX_GPU_COUNT];
 
 #ifdef __QNXNTO__
         /* Single linked list of nodes. */
         gcuVIDMEM_NODE_PTR      next;
 
         /* Unlock pending flag. */
-        gctBOOL                 unlockPendings[gcdGPU_COUNT];
+        gctBOOL                 unlockPendings[gcdMAX_GPU_COUNT];
 
         /* Free pending flag. */
         gctBOOL                 freePending;

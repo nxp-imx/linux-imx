@@ -68,7 +68,7 @@ typedef struct _gcsSharedPageTable
     gckMMU          mmu;
 
     /* Hardwares which use this shared pagetable. */
-    gckHARDWARE     hardwares[gcdGPU_COUNT];
+    gckHARDWARE     hardwares[gcdMAX_GPU_COUNT];
 
     /* Number of cores use this shared pagetable. */
     gctUINT32       reference;
@@ -1201,7 +1201,7 @@ gckMMU_Enable(
         gcmkONERROR(_SetupDynamicSpace(Mmu));
 
 #if gcdSHARED_PAGETABLE
-        for(i = 0; i < gcdGPU_COUNT; i++)
+        for(i = 0; i < gcdMAX_GPU_COUNT; i++)
         {
             hardware = sharedPageTable->hardwares[i];
             if (hardware != gcvNULL)
@@ -1402,7 +1402,7 @@ gckMMU_Flush(
     gckHARDWARE hardware;
 #if gcdSHARED_PAGETABLE
     gctINT i;
-    for (i = 0; i < gcdGPU_COUNT; i++)
+    for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
 #if gcdENABLE_VG
         if (i == gcvCORE_VG)
