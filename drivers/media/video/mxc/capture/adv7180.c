@@ -70,7 +70,7 @@ static struct i2c_driver adv7180_i2c_driver = {
 /*!
  * Maintains the information on the current state of the sensor.
  */
-struct sensor {
+static struct sensor {
 	struct v4l2_int_device *v4l2_int_device;
 	struct i2c_client *i2c_client;
 	struct v4l2_pix_format pix;
