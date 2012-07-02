@@ -1664,6 +1664,8 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_imx_snvs_rtc();
 
+	imx6q_add_imx_caam();
+
 	if (board_is_mx6_reva()) {
 		strcpy(mxc_i2c0_board_info[0].type, "wm8958");
 		mxc_i2c0_board_info[0].platform_data = &wm8958_config_data;
