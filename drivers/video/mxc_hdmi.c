@@ -2035,9 +2035,6 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 
 			hdmi->blank = *((int *)event->data);
 
-			clk_enable(hdmi->hdmi_iahb_clk);
-			clk_enable(hdmi->hdmi_isfr_clk);
-
 			mxc_hdmi_enable_pins(hdmi);
 			if (hdmi->fb_reg && hdmi->cable_plugin)
 				mxc_hdmi_setup(hdmi, val);
@@ -2048,9 +2045,6 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 
 			mxc_hdmi_disable_pins(hdmi);
 			mxc_hdmi_phy_disable(hdmi);
-
-			clk_disable(hdmi->hdmi_iahb_clk);
-			clk_disable(hdmi->hdmi_isfr_clk);
 
 			hdmi->blank = *((int *)event->data);
 		} else
