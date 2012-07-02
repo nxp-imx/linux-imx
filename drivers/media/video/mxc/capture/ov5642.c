@@ -80,7 +80,7 @@ struct ov5642_mode_info {
 /*!
  * Maintains the information on the current state of the sesor.
  */
-struct sensor_data ov5642_data;
+static struct sensor_data ov5642_data;
 
 static struct reg_value ov5642_rotate_none_VGA[] = {
 	{0x3818, 0xc1, 0x00, 0x00}, {0x3621, 0x87, 0x00, 0x00},
