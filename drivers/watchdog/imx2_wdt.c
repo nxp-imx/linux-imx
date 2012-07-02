@@ -33,7 +33,9 @@
 #include <linux/uaccess.h>
 #include <linux/timer.h>
 #include <linux/jiffies.h>
+#include <linux/interrupt.h>
 #include <mach/hardware.h>
+#include <mach/irqs.h>
 
 #define DRIVER_NAME "imx2-wdt"
 
@@ -43,14 +45,21 @@
 #define IMX2_WDT_WCR_WDE	(1 << 2)	/* -> Watchdog Enable */
 #define IMX2_WDT_WCR_WDZST	(1 << 0)	/* -> Watchdog timer Suspend */
 
+
 #define IMX2_WDT_WSR		0x02		/* Service Register */
 #define IMX2_WDT_SEQ1		0x5555		/* -> service sequence 1 */
 #define IMX2_WDT_SEQ2		0xAAAA		/* -> service sequence 2 */
+
+#define IMX2_WDT_WICR		0x06		/*Interrupt Control Register*/
+#define IMX2_WDT_WICR_WIE	(1 << 15)	/* -> Interrupt Enable */
+#define IMX2_WDT_WICR_WTIS	(1 << 14)	/* -> Interrupt Status */
+#define IMX2_WDT_WICR_WICT	(0xFF << 0)	/* -> Watchdog Interrupt Timeout Field */
 
 #define IMX2_WDT_MAX_TIME	128
 #define IMX2_WDT_DEFAULT_TIME	60		/* in seconds */
 
 #define WDOG_SEC_TO_COUNT(s)	((s * 2 - 1) << 8)
+#define WDOG_SEC_TO_PRECOUNT(s)	(s * 2)		/* set WDOG pre timeout count*/
 
 #define IMX2_WDT_STATUS_OPEN	0
 #define IMX2_WDT_STATUS_STARTED	1
@@ -60,6 +69,7 @@ static struct {
 	struct clk *clk;
 	void __iomem *base;
 	unsigned timeout;
+	unsigned pretimeout;
 	unsigned long status;
 	struct timer_list timer;	/* Pings the watchdog when closed */
 } imx2_wdt;
@@ -79,7 +89,7 @@ MODULE_PARM_DESC(timeout, "Watchdog timeout in seconds (default="
 
 static const struct watchdog_info imx2_wdt_info = {
 	.identity = "imx2+ watchdog",
-	.options = WDIOF_KEEPALIVEPING | WDIOF_SETTIMEOUT | WDIOF_MAGICCLOSE,
+	.options = WDIOF_KEEPALIVEPING | WDIOF_SETTIMEOUT | WDIOF_MAGICCLOSE | WDIOF_PRETIMEOUT,
 };
 
 static inline void imx2_wdt_setup(void)
@@ -148,6 +158,38 @@ static void imx2_wdt_set_timeout(int new_timeout)
 	__raw_writew(val, imx2_wdt.base + IMX2_WDT_WCR);
 }
 
+
+static int imx2_wdt_check_pretimeout_set(void)
+{
+	u16 val = __raw_readw(imx2_wdt.base + IMX2_WDT_WICR);
+	return (val & IMX2_WDT_WICR_WIE) ? 1 : 0;
+}
+
+static void imx2_wdt_set_pretimeout(int new_timeout)
+{
+	u16 val = __raw_readw(imx2_wdt.base + IMX2_WDT_WICR);
+
+	/* set the new pre-timeout value in the WSR */
+	val &= ~IMX2_WDT_WICR_WICT;
+	val |= WDOG_SEC_TO_PRECOUNT(new_timeout);
+
+	if (!imx2_wdt_check_pretimeout_set())
+		val |= IMX2_WDT_WICR_WIE;	/*enable*/
+	__raw_writew(val, imx2_wdt.base + IMX2_WDT_WICR);
+}
+
+static irqreturn_t imx2_wdt_isr(int irq, void *dev_id)
+{
+	u16 val = __raw_readw(imx2_wdt.base + IMX2_WDT_WICR);
+	if (val & IMX2_WDT_WICR_WTIS) {
+		/*clear interrupt status bit*/
+		__raw_writew(val, imx2_wdt.base + IMX2_WDT_WICR);
+		printk(KERN_INFO "watchdog pre-timeout:%d, %d Seconds remained\n", \
+			imx2_wdt.pretimeout, imx2_wdt.timeout-imx2_wdt.pretimeout);
+	}
+	return IRQ_HANDLED;
+}
+
 static int imx2_wdt_open(struct inode *inode, struct file *file)
 {
 	if (test_and_set_bit(IMX2_WDT_STATUS_OPEN, &imx2_wdt.status))
@@ -205,6 +247,17 @@ static long imx2_wdt_ioctl(struct file *file, unsigned int cmd,
 	case WDIOC_GETTIMEOUT:
 		return put_user(imx2_wdt.timeout, p);
 
+	case WDIOC_SETPRETIMEOUT:
+		if (get_user(new_value, p))
+			return -EFAULT;
+		if ((new_value < 0) || (new_value >= imx2_wdt.timeout))
+			return -EINVAL;
+		imx2_wdt_set_pretimeout(new_value);
+		imx2_wdt.pretimeout = new_value;
+
+	case WDIOC_GETPRETIMEOUT:
+		return put_user(imx2_wdt.pretimeout, p);
+
 	default:
 		return -ENOTTY;
 	}
@@ -251,11 +304,18 @@ static int __init imx2_wdt_probe(struct platform_device *pdev)
 {
 	int ret;
 	int res_size;
+	int irq;
 	struct resource *res;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		dev_err(&pdev->dev, "can't get device resources\n");
+		return -ENODEV;
+	}
+
+	irq = platform_get_irq(pdev, 0);
+	if (irq < 0) {
+		dev_err(&pdev->dev, "can't get device irq number\n");
 		return -ENODEV;
 	}
 
@@ -277,6 +337,12 @@ static int __init imx2_wdt_probe(struct platform_device *pdev)
 	if (IS_ERR(imx2_wdt.clk)) {
 		dev_err(&pdev->dev, "can't get Watchdog clock\n");
 		return PTR_ERR(imx2_wdt.clk);
+	}
+
+	ret = request_irq(irq, imx2_wdt_isr, 0, pdev->name, NULL);
+	if (ret) {
+		dev_err(&pdev->dev, "can't claim irq %d\n", irq);
+		goto fail;
 	}
 
 	imx2_wdt.timeout = clamp_t(unsigned, timeout, 1, IMX2_WDT_MAX_TIME);
