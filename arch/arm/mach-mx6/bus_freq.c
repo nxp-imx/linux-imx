@@ -408,7 +408,7 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 
 static int busfreq_suspend(struct platform_device *pdev, pm_message_t message)
 {
-	if (low_bus_freq_mode)
+	if (low_bus_freq_mode || audio_bus_freq_mode)
 		set_high_bus_freq(1);
 	busfreq_suspended = 1;
 	return 0;
