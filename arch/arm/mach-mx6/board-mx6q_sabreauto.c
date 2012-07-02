@@ -1475,6 +1475,8 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_imx_snvs_rtc();
 
+	imx6q_add_imx_caam();
+
 	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c1_data);
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
