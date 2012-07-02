@@ -80,6 +80,7 @@ struct imx_imx2_wdt_data {
 	int id;
 	resource_size_t iobase;
 	resource_size_t iosize;
+	resource_size_t irq;
 };
 struct platform_device *__init imx_add_imx2_wdt(
 		const struct imx_imx2_wdt_data *data);
