@@ -203,7 +203,8 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		__raw_writel(reg, gpc_base + 0x14);
 
 		/* PU power gating. */
-		org_ldo = reg = __raw_readl(ANADIG_REG_CORE);
+		reg = __raw_readl(ANADIG_REG_CORE);
+		org_ldo = reg & (ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
 		reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
 		__raw_writel(reg, ANADIG_REG_CORE);
 
@@ -212,6 +213,7 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		reg |= 0x80000000;
 		__raw_writel(reg, ANADIG_MISC1_REG);
 	}
+
 	mutex_unlock(&bus_freq_mutex);
 }
 
@@ -265,8 +267,9 @@ int set_high_bus_freq(int high_bus_freq)
 
 	/* Enable the PU LDO */
 	if (low_bus_freq_mode || audio_bus_freq_mode) {
-		/* Set the voltage of VDDSOC as in normal mode. */
-		__raw_writel(org_ldo, ANADIG_REG_CORE);
+		/* Set the voltage of VDDPU as in normal mode. */
+		__raw_writel(org_ldo | (__raw_readl(ANADIG_REG_CORE) &
+		(~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET))), ANADIG_REG_CORE);
 
 		/* Need to wait for the regulator to come back up */
 		/*
