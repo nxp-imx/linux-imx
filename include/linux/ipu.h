@@ -139,6 +139,8 @@ typedef enum {
 #define IPU_PIX_FMT_YUV420P2 fourcc('Y', 'U', '1', '2')	/*!< 12 YUV 4:2:0 */
 #define IPU_PIX_FMT_YVU422P fourcc('Y', 'V', '1', '6')	/*!< 16 YVU 4:2:2 */
 #define IPU_PIX_FMT_YUV422P fourcc('4', '2', '2', 'P')	/*!< 16 YUV 4:2:2 */
+/* non-interleaved 4:4:4 */
+#define IPU_PIX_FMT_YUV444P fourcc('4', '4', '4', 'P')	/*!< 24 YUV 4:4:4 */
 /*! @} */
 #define IPU_PIX_FMT_TILED_NV12_MBALIGN	(16)
 #define TILED_NV12_FRAME_SIZE(w, h)	\
