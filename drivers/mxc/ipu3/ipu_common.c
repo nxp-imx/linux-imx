@@ -2943,6 +2943,7 @@ uint32_t bytes_per_pixel(uint32_t fmt)
 	case IPU_PIX_FMT_YUV420P:
 	case IPU_PIX_FMT_YVU420P:
 	case IPU_PIX_FMT_YUV422P:
+	case IPU_PIX_FMT_YUV444P:
 		return 1;
 		break;
 	case IPU_PIX_FMT_RGB565:
