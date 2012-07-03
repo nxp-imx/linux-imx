@@ -1853,6 +1853,9 @@ static void __init mx6_sabresd_board_init(void)
 	}
 
 	imx6_add_armpmu();
+	imx6q_add_perfmon(0);
+	imx6q_add_perfmon(1);
+	imx6q_add_perfmon(2);
 }
 
 extern void __iomem *twd_base;
