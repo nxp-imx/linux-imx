@@ -415,6 +415,14 @@ static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
 		u_offset = (u == 0) ? stride * height : u;
 		v_offset = (v == 0) ? u_offset + u_offset / 2 : v;
 		break;
+	case IPU_PIX_FMT_YUV444P:
+		/* BPP & pixel format */
+		ipu_ch_param_set_field(&params, 1, 85, 4, 0);	/* pix format */
+		ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
+		uv_stride = stride;
+		u_offset = (u == 0) ? stride * height : u;
+		v_offset = (v == 0) ? u_offset * 2 : v;
+		break;
 	case IPU_PIX_FMT_NV12:
 		/* BPP & pixel format */
 		ipu_ch_param_set_field(&params, 1, 85, 4, 4);	/* pix format */
@@ -773,6 +781,24 @@ static inline void _ipu_ch_offset_update(struct ipu_soc *ipu,
 					v_offset;
 		break;
 
+	case IPU_PIX_FMT_YUV444P:
+		uv_stride = stride;
+		u_offset = stride * (height - vertical_offset - 1) +
+					(stride - horizontal_offset) +
+					(uv_stride * vertical_offset) +
+					horizontal_offset;
+		v_offset = u_offset + uv_stride * height;
+		u_fix = u ? (u + (uv_stride * vertical_offset) +
+					horizontal_offset -
+					(stride * vertical_offset) -
+					(horizontal_offset)) :
+					u_offset;
+		v_fix = v ? (v + (uv_stride * vertical_offset) +
+					horizontal_offset -
+					(stride * vertical_offset) -
+					(horizontal_offset)) :
+					v_offset;
+		break;
 	case IPU_PIX_FMT_NV12:
 		uv_stride = stride;
 		u_offset = stride * (height - vertical_offset - 1) +

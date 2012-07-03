@@ -420,6 +420,7 @@ unsigned int fmt_to_bpp(unsigned int pixelformat)
 	case IPU_PIX_FMT_BGR24:
 	case IPU_PIX_FMT_RGB24:
 	case IPU_PIX_FMT_YUV444:
+	case IPU_PIX_FMT_YUV444P:
 		bpp = 24;
 		break;
 	case IPU_PIX_FMT_BGR32:
@@ -465,6 +466,7 @@ cs_t colorspaceofpixel(int fmt)
 	case IPU_PIX_FMT_YVU422P:
 	case IPU_PIX_FMT_YUV422P:
 	case IPU_PIX_FMT_YUV444:
+	case IPU_PIX_FMT_YUV444P:
 	case IPU_PIX_FMT_NV12:
 	case IPU_PIX_FMT_TILED_NV12:
 	case IPU_PIX_FMT_TILED_NV12F:
@@ -749,6 +751,11 @@ static void update_offset(unsigned int fmt,
 		*uoff = (width * (height - pos_y) - pos_x)
 			+ (width * pos_y)/2 + pos_x/2;
 		*voff = *uoff + (width * height)/2;
+		break;
+	case IPU_PIX_FMT_YUV444P:
+		*off = pos_y * width + pos_x;
+		*uoff = width * height;
+		*voff = width * height * 2;
 		break;
 	case IPU_PIX_FMT_NV12:
 		*off = pos_y * width + pos_x;
