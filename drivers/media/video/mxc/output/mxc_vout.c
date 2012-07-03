@@ -196,6 +196,10 @@ const static struct v4l2_fmtdesc mxc_formats[] = {
 		.description = "TILED NV12F",
 		.pixelformat = IPU_PIX_FMT_TILED_NV12F,
 	},
+	{
+		.description = "YUV444 planar",
+		.pixelformat = IPU_PIX_FMT_YUV444P,
+	},
 };
 
 #define NUM_MXC_VOUT_FORMATS (ARRAY_SIZE(mxc_formats))
