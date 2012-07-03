@@ -224,6 +224,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	case IPU_PIX_FMT_YUV422P:
 	case IPU_PIX_FMT_YVU422P:
 	case IPU_PIX_FMT_YUV420P:
+	case IPU_PIX_FMT_YUV444P:
 		fb_stride = fbi->var.xres_virtual;
 		break;
 	default:
@@ -1348,6 +1349,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	case IPU_PIX_FMT_YUV422P:
 	case IPU_PIX_FMT_YVU422P:
 	case IPU_PIX_FMT_YUV420P:
+	case IPU_PIX_FMT_YUV444P:
 		fb_stride = info->var.xres_virtual;
 		break;
 	default:
