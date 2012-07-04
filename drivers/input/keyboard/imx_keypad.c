@@ -567,10 +567,42 @@ static int __devexit imx_keypad_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int imx_keypad_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct imx_keypad *keypad = platform_get_drvdata(pdev);
+
+	if (device_may_wakeup(&pdev->dev))
+		enable_irq_wake(keypad->irq);
+
+	return 0;
+}
+
+static int imx_keypad_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct imx_keypad *keypad = platform_get_drvdata(pdev);
+
+	if (device_may_wakeup(&pdev->dev))
+		disable_irq_wake(keypad->irq);
+
+	return 0;
+}
+
+static const struct dev_pm_ops imx_keypad_pm_ops = {
+	.suspend	= imx_keypad_suspend,
+	.resume		= imx_keypad_resume,
+};
+#endif
+
 static struct platform_driver imx_keypad_driver = {
 	.driver		= {
 		.name	= "imx-keypad",
 		.owner	= THIS_MODULE,
+#ifdef CONFIG_PM
+		.pm	= &imx_keypad_pm_ops,
+#endif
 	},
 	.probe		= imx_keypad_probe,
 	.remove		= __devexit_p(imx_keypad_remove),
