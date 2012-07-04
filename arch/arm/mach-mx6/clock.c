@@ -4187,7 +4187,6 @@ static struct clk caam_clk[] = {
 	.enable = _clk_enable,
 	.disable = _clk_disable,
 	.secondary = &caam_clk[1],
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	 __INIT_CLK_DEBUG(caam_aclk_clk)
