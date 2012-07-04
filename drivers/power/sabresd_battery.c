@@ -249,8 +249,26 @@ u32 calibration_voltage(struct max8903_data *data)
 static void max8903_battery_update_status(struct max8903_data *data)
 {
 	static int counter;
+	int temp;
+	static int temp_last;
 	mutex_lock(&data->work_lock);
-	data->voltage_uV = calibration_voltage(data);
+	temp = calibration_voltage(data);
+	if (temp_last == 0) {
+		data->voltage_uV = temp;
+		temp_last = temp;
+	}
+	if (data->charger_online == 0 && temp_last != 0) {
+		if (temp < temp_last) {
+		temp_last = temp;
+		data->voltage_uV = temp;
+		} else {
+		data->voltage_uV = temp_last;
+		}
+	}
+	if (data->charger_online == 1) {
+		data->voltage_uV = temp;
+		temp_last = temp;
+	}
 	data->percent = calibrate_battery_capability_percent(data);
 	if (data->percent != data->old_percent) {
 		data->old_percent = data->percent;
