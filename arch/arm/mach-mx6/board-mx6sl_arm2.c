@@ -1168,7 +1168,7 @@ static int mx6sl_arm2_keymap[] = {
 
 	KEY(1, 0, KEY_F3),
 	KEY(1, 1, KEY_F4),
-	KEY(1, 2, KEY_F5),
+	KEY(1, 2, KEY_POWER),
 	KEY(1, 3, KEY_MENU),
 
 	KEY(2, 0, KEY_PREVIOUS),
