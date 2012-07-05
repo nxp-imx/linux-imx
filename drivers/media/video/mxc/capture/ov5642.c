@@ -3086,8 +3086,10 @@ err:
 static int ov5642_init_mode(enum ov5642_frame_rate frame_rate,
 		enum ov5642_mode mode);
 static int ov5642_write_snapshot_para(void);
-static int ov5642_change_mode(enum ov5642_frame_rate frame_rate,
-		enum ov5642_mode new_mode,  enum ov5642_mode orig_mode)
+static int ov5642_change_mode(enum ov5642_frame_rate new_frame_rate,
+		enum ov5642_frame_rate old_frame_rate,
+		enum ov5642_mode new_mode,
+		enum ov5642_mode orig_mode)
 {
 	struct reg_value *pModeSetting = NULL;
 	s32 i = 0;
@@ -3104,23 +3106,29 @@ static int ov5642_change_mode(enum ov5642_frame_rate frame_rate,
 		return -1;
 	}
 
-	if (new_mode == ov5642_mode_QSXGA_2592_1944 && orig_mode == ov5642_mode_VGA_640_480) {
+	if ((new_frame_rate == old_frame_rate) &&
+	    (new_mode == ov5642_mode_QSXGA_2592_1944) &&
+		(orig_mode == ov5642_mode_VGA_640_480)) {
 		ov5642_data.pix.width = 2592;
 		ov5642_data.pix.height = 1944;
 		retval = ov5642_write_snapshot_para();
 		return retval;
-	} else if (new_mode == ov5642_mode_VGA_640_480 && orig_mode == ov5642_mode_QSXGA_2592_1944) {
+	} else if ((new_frame_rate == old_frame_rate) &&
+	    (new_mode == ov5642_mode_VGA_640_480) &&
+		(orig_mode == ov5642_mode_QSXGA_2592_1944)) {
 		pModeSetting = ov5642_setting_QSXGA_2_VGA;
 		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_QSXGA_2_VGA);
 		ov5642_data.pix.width = 640;
 		ov5642_data.pix.height = 480;
-	} else if (new_mode == ov5642_mode_QVGA_320_240 && orig_mode == ov5642_mode_VGA_640_480) {
+	} else if ((new_frame_rate == old_frame_rate) &&
+	    (new_mode == ov5642_mode_QVGA_320_240) &&
+		(orig_mode == ov5642_mode_VGA_640_480)) {
 		pModeSetting = ov5642_setting_VGA_2_QVGA;
 		iModeSettingArySize = ARRAY_SIZE(ov5642_setting_VGA_2_QVGA);
 		ov5642_data.pix.width = 320;
 		ov5642_data.pix.height = 240;
 	} else {
-		retval = ov5642_init_mode(frame_rate, new_mode);
+		retval = ov5642_init_mode(new_frame_rate, new_mode);
 		goto err;
 	}
 
@@ -3452,8 +3460,8 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 {
 	struct sensor_data *sensor = s->priv;
 	struct v4l2_fract *timeperframe = &a->parm.capture.timeperframe;
-	u32 tgt_fps;	/* target frames per secound */
-	enum ov5642_frame_rate frame_rate;
+	u32 tgt_fps, old_fps;	/* target frames per secound */
+	enum ov5642_frame_rate new_frame_rate, old_frame_rate;
 	int ret = 0;
 
 	/* Make sure power on */
@@ -3486,15 +3494,32 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 			  timeperframe->numerator;
 
 		if (tgt_fps == 15)
-			frame_rate = ov5642_15_fps;
+			new_frame_rate = ov5642_15_fps;
 		else if (tgt_fps == 30)
-			frame_rate = ov5642_30_fps;
+			new_frame_rate = ov5642_30_fps;
 		else {
 			pr_err(" The camera frame rate is not supported!\n");
 			return -EINVAL;
 		}
 
-		ret =  ov5642_change_mode(frame_rate, a->parm.capture.capturemode, sensor->streamcap.capturemode);
+		if (sensor->streamcap.timeperframe.numerator != 0)
+			old_fps = sensor->streamcap.timeperframe.denominator /
+				sensor->streamcap.timeperframe.numerator;
+		else
+			old_fps = 30;
+
+		if (old_fps == 15)
+			old_frame_rate = ov5642_15_fps;
+		else if (old_fps == 30)
+			old_frame_rate = ov5642_30_fps;
+		else {
+			pr_warning(" No valid frame rate set!\n");
+			old_frame_rate = ov5642_30_fps;
+		}
+
+		ret = ov5642_change_mode(new_frame_rate, old_frame_rate,
+				a->parm.capture.capturemode,
+				sensor->streamcap.capturemode);
 		sensor->streamcap.timeperframe = *timeperframe;
 		sensor->streamcap.capturemode =
 				(u32)a->parm.capture.capturemode;
