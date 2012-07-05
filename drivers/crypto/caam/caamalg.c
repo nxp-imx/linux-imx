@@ -1391,7 +1391,7 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 	dma_sync_single_for_device(jrdev, iv_dma, ivsize, DMA_TO_DEVICE);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
-	edesc = kmalloc(sizeof(struct aead_edesc) + desc_bytes +
+	edesc = kzalloc(sizeof(struct aead_edesc) + desc_bytes +
 			sec4_sg_bytes, GFP_DMA | flags);
 	if (!edesc) {
 		dev_err(jrdev, "could not allocate extended descriptor\n");
@@ -1538,7 +1538,7 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 			sizeof(struct sec4_sg_entry);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
-	edesc = kmalloc(sizeof(struct ablkcipher_edesc) + desc_bytes +
+	edesc = kzalloc(sizeof(struct ablkcipher_edesc) + desc_bytes +
 			sec4_sg_bytes, GFP_DMA | flags);
 	if (!edesc) {
 		dev_err(jrdev, "could not allocate extended descriptor\n");

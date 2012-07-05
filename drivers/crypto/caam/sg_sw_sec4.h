@@ -17,7 +17,7 @@ static inline void dma_to_sec4_sg_one(struct sec4_sg_entry *sec4_sg_ptr,
 	sec4_sg_ptr->reserved = 0;	/* ensure MSB half is zeroed */
 #endif
 	sec4_sg_ptr->ptr = dma;
-	sec4_sg_ptr->len = (len & SEC4_SG_LEN_MASK);
+	sec4_sg_ptr->len |= (len & SEC4_SG_LEN_MASK);
 	/* Does not add in buffer pool ID's at this time */
 	sec4_sg_ptr->bpid_offset = (offset & SEC4_SG_OFFS_MASK);
 #ifdef DEBUG
