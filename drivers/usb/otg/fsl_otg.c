@@ -747,7 +747,7 @@ static void fsl_otg_event(struct work_struct *work)
 		fsm->a_conn = 0;
 
 	if (fsm->id) {		/* switch to gadget */
-		if (pdata->dr_discharge_line)
+		if ((og->host_first_call == false) && pdata->dr_discharge_line)
 			pdata->dr_discharge_line(true);
 		fsl_otg_start_host(fsm, 0);
 		if (pdata->wake_up_enable)
