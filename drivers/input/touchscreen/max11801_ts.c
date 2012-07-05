@@ -106,6 +106,7 @@ struct max11801_data {
 };
 struct i2c_client *max11801_client;
 unsigned int max11801_workmode;
+u8 aux_buf[AUX_BUFSIZE];
 
 static int max11801_dcm_write_command(struct i2c_client *client, int command)
 {
@@ -115,7 +116,6 @@ static int max11801_dcm_write_command(struct i2c_client *client, int command)
 static u32 max11801_dcm_sample_aux(struct i2c_client *client)
 {
 	u8 temp_buf;
-	u8 aux_buf[AUX_BUFSIZE];
 	int ret;
 	int aux = 0;
 	u32 sample_data = 0;
@@ -124,15 +124,17 @@ static u32 max11801_dcm_sample_aux(struct i2c_client *client)
 	mdelay(5);
 	ret = i2c_smbus_read_i2c_block_data(client, FIFO_RD_AUX_MSB,
 						1, &temp_buf);
-	aux_buf[0] = temp_buf;
 	if (ret < 1)
 		printk(KERN_DEBUG "FIFO_RD_AUX_MSB read fails\n");
+	else
+		aux_buf[0] = temp_buf;
 	mdelay(5);
 	ret = i2c_smbus_read_i2c_block_data(client, FIFO_RD_AUX_LSB,
 						1, &temp_buf);
-	aux_buf[1] = temp_buf;
 	if (ret < 1)
 		printk(KERN_DEBUG "FIFO_RD_AUX_LSB read fails\n");
+	else
+		aux_buf[1] = temp_buf;
 	aux = (aux_buf[0] << 4) +
 					(aux_buf[1] >> 4);
 	/*
