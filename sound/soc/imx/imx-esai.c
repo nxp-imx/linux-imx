@@ -320,11 +320,11 @@ static int imx_esai_hw_tx_params(struct snd_pcm_substream *substream,
 
 	if (iprtd->asrc_enable) {
 		switch (iprtd->output_bit) {
-		case 16:
+		case ASRC_WIDTH_16_BIT:
 			tfcr |= ESAI_WORD_LEN_16;
 			tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL16;
 			break;
-		case 24:
+		case ASRC_WIDTH_24_BIT:
 			tfcr |= ESAI_WORD_LEN_24;
 			tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL24;
 			break;
