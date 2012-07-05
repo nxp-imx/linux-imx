@@ -268,6 +268,7 @@ static int mxs_pcm_hw_params(struct snd_pcm_substream *substream,
 	struct mxs_runtime_data *prtd = substream->runtime->private_data;
 
 	prtd->dma_period = params_period_bytes(hw_params);
+	pr_debug("The period size is :%d\n", prtd->dma_period);
 	prtd->dma_totsize = params_buffer_bytes(hw_params);
 	prtd->format = params_format(hw_params);
 
