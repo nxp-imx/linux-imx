@@ -824,7 +824,7 @@ static int ahash_update_ctx(struct ahash_request *req)
 		 * allocate space for base edesc and hw desc commands,
 		 * link tables
 		 */
-		edesc = kmalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
+		edesc = kzalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
 				sec4_sg_bytes, GFP_DMA | flags);
 		if (!edesc) {
 			dev_err(jrdev,
@@ -840,9 +840,6 @@ static int ahash_update_ctx(struct ahash_request *req)
 		edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
 						     sec4_sg_bytes,
 						     DMA_TO_DEVICE);
-
-		dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma,
-					   sec4_sg_bytes, DMA_TO_DEVICE);
 
 		ctx_map_to_sec4_sg(desc, jrdev, state, ctx->ctx_len,
 				   edesc->sec4_sg, DMA_BIDIRECTIONAL);
@@ -875,6 +872,9 @@ static int ahash_update_ctx(struct ahash_request *req)
 				       to_hash, LDST_SGF);
 
 		append_seq_out_ptr(desc, state->ctx_dma, ctx->ctx_len, 0);
+
+		dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma,
+					   sec4_sg_bytes, DMA_TO_DEVICE);
 
 #ifdef DEBUG
 		print_hex_dump(KERN_ERR, "jobdesc@"xstr(__LINE__)": ",
@@ -929,7 +929,7 @@ static int ahash_final_ctx(struct ahash_request *req)
 	sec4_sg_bytes = (1 + (buflen ? 1 : 0)) * sizeof(struct sec4_sg_entry);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
-	edesc = kmalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
+	edesc = kzalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
 			sec4_sg_bytes, GFP_DMA | flags);
 	if (!edesc) {
 		dev_err(jrdev, "could not allocate extended descriptor\n");
@@ -945,8 +945,6 @@ static int ahash_final_ctx(struct ahash_request *req)
 			 DESC_JOB_IO_LEN;
 	edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
 					    sec4_sg_bytes, DMA_TO_DEVICE);
-	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
-				   DMA_TO_DEVICE);
 	edesc->src_nents = 0;
 
 	ctx_map_to_sec4_sg(desc, jrdev, state, ctx->ctx_len, edesc->sec4_sg,
@@ -962,6 +960,9 @@ static int ahash_final_ctx(struct ahash_request *req)
 
 	edesc->dst_dma = map_seq_out_ptr_result(desc, jrdev, req->result,
 						digestsize);
+
+	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
+				   DMA_TO_DEVICE);
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "jobdesc@"xstr(__LINE__)": ",
@@ -1007,7 +1008,7 @@ static int ahash_finup_ctx(struct ahash_request *req)
 			 sizeof(struct sec4_sg_entry);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
-	edesc = kmalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
+	edesc = kzalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
 			sec4_sg_bytes, GFP_DMA | flags);
 	if (!edesc) {
 		dev_err(jrdev, "could not allocate extended descriptor\n");
@@ -1025,8 +1026,6 @@ static int ahash_finup_ctx(struct ahash_request *req)
 			 DESC_JOB_IO_LEN;
 	edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
 					    sec4_sg_bytes, DMA_TO_DEVICE);
-	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
-				   DMA_TO_DEVICE);
 
 	ctx_map_to_sec4_sg(desc, jrdev, state, ctx->ctx_len, edesc->sec4_sg,
 			   DMA_TO_DEVICE);
@@ -1043,6 +1042,9 @@ static int ahash_finup_ctx(struct ahash_request *req)
 
 	edesc->dst_dma = map_seq_out_ptr_result(desc, jrdev, req->result,
 						digestsize);
+
+	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
+				   DMA_TO_DEVICE);
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "jobdesc@"xstr(__LINE__)": ",
@@ -1084,7 +1086,7 @@ static int ahash_digest(struct ahash_request *req)
 	sec4_sg_bytes = src_nents * sizeof(struct sec4_sg_entry);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
-	edesc = kmalloc(sizeof(struct ahash_edesc) + sec4_sg_bytes +
+	edesc = kzalloc(sizeof(struct ahash_edesc) + sec4_sg_bytes +
 			DESC_JOB_IO_LEN, GFP_DMA | flags);
 	if (!edesc) {
 		dev_err(jrdev, "could not allocate extended descriptor\n");
@@ -1095,8 +1097,6 @@ static int ahash_digest(struct ahash_request *req)
 	edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
 					    sec4_sg_bytes, DMA_TO_DEVICE);
 	edesc->sec4_sg_bytes = sec4_sg_bytes;
-	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
-				   DMA_TO_DEVICE);
 	edesc->src_nents = src_nents;
 	edesc->chained = chained;
 
@@ -1113,6 +1113,9 @@ static int ahash_digest(struct ahash_request *req)
 		options = 0;
 	}
 	append_seq_in_ptr(desc, src_dma, req->nbytes, options);
+
+	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma,
+				   edesc->sec4_sg_bytes, DMA_TO_DEVICE);
 
 	edesc->dst_dma = map_seq_out_ptr_result(desc, jrdev, req->result,
 						digestsize);
@@ -1152,7 +1155,7 @@ static int ahash_final_no_ctx(struct ahash_request *req)
 	int sh_len;
 
 	/* allocate space for base edesc and hw desc commands, link tables */
-	edesc = kmalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN,
+	edesc = kzalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN,
 			GFP_DMA | flags);
 	if (!edesc) {
 		dev_err(jrdev, "could not allocate extended descriptor\n");
@@ -1164,8 +1167,6 @@ static int ahash_final_no_ctx(struct ahash_request *req)
 	init_job_desc_shared(desc, ptr, sh_len, HDR_SHARE_DEFER | HDR_REVERSE);
 
 	state->buf_dma = dma_map_single(jrdev, buf, buflen, DMA_TO_DEVICE);
-	dma_sync_single_for_device(jrdev, state->buf_dma, buflen,
-				   DMA_TO_DEVICE);
 
 	append_seq_in_ptr(desc, state->buf_dma, buflen, 0);
 
@@ -1173,6 +1174,8 @@ static int ahash_final_no_ctx(struct ahash_request *req)
 						digestsize);
 	edesc->src_nents = 0;
 
+	dma_sync_single_for_device(jrdev, state->buf_dma, buflen,
+				   DMA_TO_DEVICE);
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "jobdesc@"xstr(__LINE__)": ",
 		       DUMP_PREFIX_ADDRESS, 16, 4, desc, desc_bytes(desc), 1);
@@ -1225,7 +1228,7 @@ static int ahash_update_no_ctx(struct ahash_request *req)
 		 * allocate space for base edesc and hw desc commands,
 		 * link tables
 		 */
-		edesc = kmalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
+		edesc = kzalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
 				sec4_sg_bytes, GFP_DMA | flags);
 		if (!edesc) {
 			dev_err(jrdev,
@@ -1241,8 +1244,6 @@ static int ahash_update_no_ctx(struct ahash_request *req)
 		edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
 						    sec4_sg_bytes,
 						    DMA_TO_DEVICE);
-		dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma,
-					   sec4_sg_bytes, DMA_TO_DEVICE);
 
 		state->buf_dma = buf_map_to_sec4_sg(jrdev, edesc->sec4_sg,
 						    buf, *buflen);
@@ -1263,6 +1264,8 @@ static int ahash_update_no_ctx(struct ahash_request *req)
 
 		map_seq_out_ptr_ctx(desc, jrdev, state, ctx->ctx_len);
 
+		dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma,
+					   sec4_sg_bytes, DMA_TO_DEVICE);
 #ifdef DEBUG
 		print_hex_dump(KERN_ERR, "jobdesc@"xstr(__LINE__)": ",
 			       DUMP_PREFIX_ADDRESS, 16, 4, desc,
@@ -1324,7 +1327,7 @@ static int ahash_finup_no_ctx(struct ahash_request *req)
 			 sizeof(struct sec4_sg_entry);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
-	edesc = kmalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
+	edesc = kzalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
 			sec4_sg_bytes, GFP_DMA | flags);
 	if (!edesc) {
 		dev_err(jrdev, "could not allocate extended descriptor\n");
@@ -1342,8 +1345,6 @@ static int ahash_finup_no_ctx(struct ahash_request *req)
 			 DESC_JOB_IO_LEN;
 	edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
 					    sec4_sg_bytes, DMA_TO_DEVICE);
-	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
-				   DMA_TO_DEVICE);
 
 	state->buf_dma = try_buf_map_to_sec4_sg(jrdev, edesc->sec4_sg, buf,
 						state->buf_dma, buflen,
@@ -1357,6 +1358,9 @@ static int ahash_finup_no_ctx(struct ahash_request *req)
 
 	edesc->dst_dma = map_seq_out_ptr_result(desc, jrdev, req->result,
 						digestsize);
+
+	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
+				   DMA_TO_DEVICE);
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "jobdesc@"xstr(__LINE__)": ",
@@ -1412,7 +1416,7 @@ static int ahash_update_first(struct ahash_request *req)
 		 * allocate space for base edesc and hw desc commands,
 		 * link tables
 		 */
-		edesc = kmalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
+		edesc = kzalloc(sizeof(struct ahash_edesc) + DESC_JOB_IO_LEN +
 				sec4_sg_bytes, GFP_DMA | flags);
 		if (!edesc) {
 			dev_err(jrdev,
@@ -1428,8 +1432,6 @@ static int ahash_update_first(struct ahash_request *req)
 		edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
 						    sec4_sg_bytes,
 						    DMA_TO_DEVICE);
-		dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma,
-					   sec4_sg_bytes, DMA_TO_DEVICE);
 
 		if (src_nents) {
 			sg_to_sec4_sg_last(req->src, src_nents,
@@ -1453,6 +1455,8 @@ static int ahash_update_first(struct ahash_request *req)
 
 		map_seq_out_ptr_ctx(desc, jrdev, state, ctx->ctx_len);
 
+		dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma,
+					   sec4_sg_bytes, DMA_TO_DEVICE);
 #ifdef DEBUG
 		print_hex_dump(KERN_ERR, "jobdesc@"xstr(__LINE__)": ",
 			       DUMP_PREFIX_ADDRESS, 16, 4, desc,
