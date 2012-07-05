@@ -3453,6 +3453,15 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		goto end;
 	}
 
+	/*
+	 * To fix suspend issue connected to usb charger,if stopped is 0
+	 * suspended is 1,clock on and out of low power mode to avoid
+	 * next system suspend no clock to cause system hang.
+	 */
+	if (udc_controller->suspended && !udc_controller->stopped) {
+		dr_clk_gate(true);
+		dr_phy_low_power_mode(udc_controller, false);
+	}
 	/* Enable DR irq reg and set controller Run */
 	if (udc_controller->stopped) {
 		/* the clock is already on at usb wakeup routine */
@@ -3491,10 +3500,7 @@ end:
 		dr_clk_gate(false);
 	}
 
-	if (!(--udc_controller->suspended) && !udc_controller->stopped) {
-		dr_clk_gate(true);
-		dr_phy_low_power_mode(udc_controller, false);
-	}
+	--udc_controller->suspended;
 	enable_irq(udc_controller->irq);
 	mutex_unlock(&udc_resume_mutex);
 	printk(KERN_DEBUG "USB Gadget resume ends\n");
