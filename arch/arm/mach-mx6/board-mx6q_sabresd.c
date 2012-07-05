@@ -495,8 +495,14 @@ static void mx6q_csi0_io_init(void)
 	/* Camera power down */
 	gpio_request(SABRESD_CSI0_PWN, "cam-pwdn");
 	gpio_direction_output(SABRESD_CSI0_PWN, 1);
-	msleep(1);
+	msleep(5);
 	gpio_set_value(SABRESD_CSI0_PWN, 0);
+	msleep(5);
+	gpio_set_value(SABRESD_CSI0_RST, 0);
+	msleep(1);
+	gpio_set_value(SABRESD_CSI0_RST, 1);
+	msleep(5);
+	gpio_set_value(SABRESD_CSI0_PWN, 1);
 
 	/* For MX6Q:
 	 * GPR1 bit19 and bit20 meaning:
