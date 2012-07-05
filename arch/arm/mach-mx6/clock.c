@@ -1989,15 +1989,26 @@ static struct clk vdo_axi_clk = {
 	.set_parent = _clk_vdo_axi_set_parent,
 };
 
-static struct clk vdoa_clk = {
+static struct clk vdoa_clk[] = {
+	{
 	__INIT_CLK_DEBUG(vdoa_clk)
 	.id = 0,
 	.parent = &vdo_axi_clk,
-	.secondary = &ipg_clk,
 	.enable_reg = MXC_CCM_CCGR2,
 	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
+	.secondary = &vdoa_clk[1],
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	},
+	{
+	.parent =  &mmdc_ch0_axi_clk[0],
+	.secondary = &vdoa_clk[2],
+	},
+	{
+	.parent =  &mx6fast1_clk,
+	.secondary = &ocram_clk,
+	},
 };
 
 static unsigned long _clk_gpt_get_rate(struct clk *clk)
@@ -5245,7 +5256,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "hdmi_isfr_clk", hdmi_clk[0]),
 	_REGISTER_CLOCK(NULL, "hdmi_iahb_clk", hdmi_clk[1]),
 	_REGISTER_CLOCK(NULL, "mipi_pllref_clk", mipi_pllref_clk),
-	_REGISTER_CLOCK(NULL, "vdoa", vdoa_clk),
+	_REGISTER_CLOCK(NULL, "vdoa", vdoa_clk[0]),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz2_clk),
 	_REGISTER_CLOCK(NULL, NULL, aips_tz1_clk),
 	_REGISTER_CLOCK(NULL, "clko_clk", clko_clk),
