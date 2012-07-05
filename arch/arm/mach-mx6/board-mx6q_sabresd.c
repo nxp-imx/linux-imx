@@ -554,8 +554,14 @@ static void mx6q_mipi_sensor_io_init(void)
 	/* Camera power down */
 	gpio_request(SABRESD_MIPICSI_PWN, "cam-pwdn");
 	gpio_direction_output(SABRESD_MIPICSI_PWN, 1);
-	msleep(1);
+	msleep(5);
 	gpio_set_value(SABRESD_MIPICSI_PWN, 0);
+	msleep(5);
+	gpio_set_value(SABRESD_MIPICSI_RST, 0);
+	msleep(1);
+	gpio_set_value(SABRESD_MIPICSI_RST, 1);
+	msleep(5);
+	gpio_set_value(SABRESD_MIPICSI_PWN, 1);
 
 	/*for mx6dl, mipi virtual channel 1 connect to csi 1*/
 	if (cpu_is_mx6dl())
