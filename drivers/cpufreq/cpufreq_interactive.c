@@ -227,7 +227,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 	}
 
 	new_freq = pcpu->freq_table[index].frequency;
-
 	if (pcpu->target_freq == new_freq)
 		goto rearm_if_notmax;
 
@@ -295,11 +294,10 @@ static void cpufreq_interactive_idle_start(void)
 		&per_cpu(cpuinfo, smp_processor_id());
 	int pending;
 
-	if (!pcpu->governor_enabled)
-		return;
-
 	pcpu->idling = 1;
 	smp_wmb();
+	if (!pcpu->governor_enabled)
+		return;
 	pending = timer_pending(&pcpu->cpu_timer);
 
 	if (pcpu->target_freq != pcpu->policy->min) {
@@ -412,11 +410,9 @@ static int cpufreq_interactive_up_task(void *data)
 			for_each_online_cpu(j) {
 				struct cpufreq_interactive_cpuinfo *pjcpu =
 					&per_cpu(cpuinfo, j);
-
 				if (pjcpu->target_freq > max_freq)
 					max_freq = pjcpu->target_freq;
 			}
-
 			if (max_freq != pcpu->policy->cur)
 				__cpufreq_driver_target(pcpu->policy,
 							max_freq,
@@ -640,7 +636,11 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		for_each_cpu(j, policy->cpus) {
 			pcpu = &per_cpu(cpuinfo, j);
 			pcpu->policy = policy;
-			pcpu->target_freq = policy->cur;
+			if (pcpu->idling)
+				pcpu->target_freq = policy->min;
+			else
+				pcpu->target_freq = policy->cur;
+
 			pcpu->freq_table = freq_table;
 			pcpu->freq_change_time_in_idle =
 				get_cpu_idle_time_us(j,
