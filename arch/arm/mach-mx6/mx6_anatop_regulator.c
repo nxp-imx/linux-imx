@@ -34,9 +34,15 @@
 #include "crm_regs.h"
 #include "regs-anadig.h"
 
+#define GPC_PGC_GPU_PGCR_OFFSET	0x260
+#define GPC_CNTR_OFFSET		0x0
+
 extern struct platform_device sgtl5000_vdda_reg_devices;
 extern struct platform_device sgtl5000_vddio_reg_devices;
 extern struct platform_device sgtl5000_vddd_reg_devices;
+extern void __iomem *gpc_base;
+
+static unsigned int org_ldo;
 
 static int get_voltage(struct anatop_regulator *sreg)
 {
@@ -82,6 +88,108 @@ static int set_voltage(struct anatop_regulator *sreg, int uv)
 	}
 }
 
+static int pu_enable(struct anatop_regulator *sreg)
+{
+	unsigned int reg;
+
+	/* Do not enable PU LDO if it is already enabled */
+	reg = __raw_readl(ANADIG_REG_CORE) & (ANADIG_REG_TARGET_MASK
+		<< ANADIG_REG1_PU_TARGET_OFFSET);
+	if (reg != 0)
+		return 0;
+
+	/* Set the voltage of VDDPU as in normal mode. */
+	__raw_writel(org_ldo | (__raw_readl(ANADIG_REG_CORE) &
+	(~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET))), ANADIG_REG_CORE);
+
+	/* Need to wait for the regulator to come back up */
+	/*
+	 * Delay time is based on the number of 24MHz clock cycles
+	 * programmed in the ANA_MISC2_BASE_ADDR for each
+	 * 25mV step.
+	 */
+	udelay(150);
+
+	/* enable power up request */
+	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	/* power up request */
+	reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
+	__raw_writel(reg | 0x2, gpc_base + GPC_CNTR_OFFSET);
+	/* Wait for the power up bit to clear */
+	while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x2)
+		;
+
+	/* Enable the Brown Out detection. */
+	reg = __raw_readl(ANA_MISC2_BASE_ADDR);
+	reg |= ANADIG_ANA_MISC2_REG1_BO_EN;
+	__raw_writel(reg, ANA_MISC2_BASE_ADDR);
+
+	/* Unmask the ANATOP brown out interrupt in the GPC. */
+	reg = __raw_readl(gpc_base + 0x14);
+	reg &= ~0x80000000;
+	__raw_writel(reg, gpc_base + 0x14);
+
+	return 0;
+}
+
+static int pu_disable(struct anatop_regulator *sreg)
+{
+	unsigned int reg;
+
+	/* Do not disable PU LDO if it is not enabled */
+	reg = __raw_readl(ANADIG_REG_CORE) & (ANADIG_REG_TARGET_MASK
+		<< ANADIG_REG1_PU_TARGET_OFFSET);
+	if (reg == 0)
+		return 0;
+
+	/* Disable the brown out detection since we are going to be
+	  * disabling the LDO.
+	  */
+	reg = __raw_readl(ANA_MISC2_BASE_ADDR);
+	reg &= ~ANADIG_ANA_MISC2_REG1_BO_EN;
+	__raw_writel(reg, ANA_MISC2_BASE_ADDR);
+
+	/* Power gate the PU LDO. */
+	/* Power gate the PU domain first. */
+	/* enable power down request */
+	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
+	/* power down request */
+	reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
+	__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
+	/* Wait for power down to complete. */
+	while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
+			;
+
+	/* Mask the ANATOP brown out interrupt in the GPC. */
+	reg = __raw_readl(gpc_base + 0x14);
+	reg |= 0x80000000;
+	__raw_writel(reg, gpc_base + 0x14);
+
+	/* PU power gating. */
+	reg = __raw_readl(ANADIG_REG_CORE);
+	org_ldo = reg & (ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
+	reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
+	__raw_writel(reg, ANADIG_REG_CORE);
+
+	/* Clear the BO interrupt in the ANATOP. */
+	reg = __raw_readl(ANADIG_MISC1_REG);
+	reg |= 0x80000000;
+	__raw_writel(reg, ANADIG_MISC1_REG);
+	return 0;
+}
+static int is_pu_enabled(struct anatop_regulator *sreg)
+{
+	unsigned int reg;
+
+	reg = __raw_readl(ANADIG_REG_CORE) & (ANADIG_REG_TARGET_MASK
+		<< ANADIG_REG1_PU_TARGET_OFFSET);
+	if (reg == 0)
+		return 0;
+	else
+		return 1;
+}
 static int enable(struct anatop_regulator *sreg)
 {
 	return 0;
@@ -101,9 +209,9 @@ static struct anatop_regulator_data vddpu_data = {
 	.name		= "vddpu",
 	.set_voltage	= set_voltage,
 	.get_voltage	= get_voltage,
-	.enable		= enable,
-	.disable	= disable,
-	.is_enabled	= is_enabled,
+	.enable		= pu_enable,
+	.disable	= pu_disable,
+	.is_enabled	= is_pu_enabled,
 	.control_reg	= (u32)(MXC_PLL_BASE + HW_ANADIG_REG_CORE),
 	.vol_bit_shift	= 9,
 	.vol_bit_mask	= 0x1F,
@@ -193,6 +301,15 @@ static struct regulator_consumer_supply vddcore_consumers[] = {
 		.supply = "cpu_vddgp",
 	}
 };
+/* PU */
+static struct regulator_consumer_supply vddpu_consumers[] = {
+	{
+		.supply = "cpu_vddvpu",
+	},
+	{
+		.supply = "cpu_vddgpu",
+	}
+};
 
 static struct regulator_init_data vddpu_init = {
 	.constraints = {
@@ -202,11 +319,11 @@ static struct regulator_init_data vddpu_init = {
 		.valid_modes_mask	= REGULATOR_MODE_FAST |
 					  REGULATOR_MODE_NORMAL,
 		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE |
+					  REGULATOR_CHANGE_STATUS |
 					  REGULATOR_CHANGE_MODE,
-		.always_on		= 1,
 	},
-	.num_consumer_supplies = 0,
-	.consumer_supplies = NULL,
+	.num_consumer_supplies = ARRAY_SIZE(vddpu_consumers),
+	.consumer_supplies = vddpu_consumers,
 };
 
 static struct regulator_init_data vddcore_init = {
