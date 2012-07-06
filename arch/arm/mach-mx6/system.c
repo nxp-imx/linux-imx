@@ -39,7 +39,6 @@
 #define SCU_INVALIDATE				0x0c
 #define SCU_FPGA_REVISION			0x10
 #define GPC_CNTR_OFFSET				0x0
-#define GPC_PGC_DISP_PGCR_OFFSET	0x240
 #define GPC_PGC_GPU_PGCR_OFFSET		0x260
 #define GPC_PGC_CPU_PDN_OFFSET		0x2a0
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
@@ -149,10 +148,6 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
 			__raw_writel(0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
 			__raw_writel(0x1, gpc_base + GPC_CNTR_OFFSET);
-			if (cpu_is_mx6sl()) {
-				__raw_writel(0x1, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
-				__raw_writel(0x10, gpc_base + GPC_CNTR_OFFSET);
-			}
 			if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 				/* Enable weak 2P5 linear regulator */
 				anatop_val = __raw_readl(anatop_base +
