@@ -255,6 +255,12 @@ int set_high_bus_freq(int high_bus_freq)
 	if (med_bus_freq_mode && !high_bus_freq)
 		return 0;
 
+	if (cpu_is_mx6dl() && high_bus_freq)
+		high_bus_freq = 0;
+
+	if (cpu_is_mx6dl() && med_bus_freq_mode)
+		return 0;
+
 	while (!mutex_trylock(&bus_freq_mutex))
 		msleep(1);
 
@@ -526,8 +532,13 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 
 	cpu_op_tbl = get_cpu_op(&cpu_op_nr);
 	low_bus_freq_mode = 0;
-	high_bus_freq_mode = 1;
-	med_bus_freq_mode = 0;
+	if (cpu_is_mx6dl()) {
+		high_bus_freq_mode = 0;
+		med_bus_freq_mode = 1;
+	} else {
+		high_bus_freq_mode = 1;
+		med_bus_freq_mode = 0;
+	}
 	bus_freq_scaling_is_active = 0;
 	bus_freq_scaling_initialized = 1;
 
@@ -586,7 +597,6 @@ static int __init busfreq_init(void)
 
 		printk(KERN_INFO "Bus freq driver Enabled\n");
 	}
-
 	return 0;
 }
 
