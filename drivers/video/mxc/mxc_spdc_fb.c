@@ -4128,6 +4128,7 @@ static int mxc_spdc_fb_suspend(struct platform_device *pdev,
 	mxc_spdc_t *data = platform_get_drvdata(pdev);
 	int ret;
 
+	data->pwrdown_delay = FB_POWERDOWN_DISABLE;
 	ret = mxc_spdc_fb_blank(FB_BLANK_POWERDOWN, &data->info);
 
 	return ret;
@@ -4138,6 +4139,8 @@ static int mxc_spdc_fb_resume(struct platform_device *pdev)
 	mxc_spdc_t *data = platform_get_drvdata(pdev);
 
 	mxc_spdc_fb_blank(FB_BLANK_UNBLANK, &data->info);
+	spdc_init_sequence(data);
+
 	return 0;
 }
 #else
