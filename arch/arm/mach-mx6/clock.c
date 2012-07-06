@@ -4165,7 +4165,6 @@ static struct clk hdmi_clk[] = {
 	.enable_shift = MXC_CCM_CCGRx_CG2_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
-	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	 __INIT_CLK_DEBUG(hdmi_iahb_clk)
