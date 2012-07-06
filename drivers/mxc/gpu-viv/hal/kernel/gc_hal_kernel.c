@@ -1796,6 +1796,24 @@ gckKERNEL_Dispatch(
 
         break;
 
+    case gcvHAL_SET_FSCALE_VALUE:
+#if gcdENABLE_FSCALE_VAL_ADJUST
+        status = gckHARDWARE_SetFscaleValue(Kernel->hardware,
+                                            Interface->u.SetFscaleValue.value);
+#else
+        status = gcvSTATUS_NOT_SUPPORTED;
+#endif
+        break;
+    case gcvHAL_GET_FSCALE_VALUE:
+#if gcdENABLE_FSCALE_VAL_ADJUST
+        status = gckHARDWARE_GetFscaleValue(Kernel->hardware,
+                                            &Interface->u.GetFscaleValue.value,
+                                            &Interface->u.GetFscaleValue.minValue,
+                                            &Interface->u.GetFscaleValue.maxValue);
+#else
+        status = gcvSTATUS_NOT_SUPPORTED;
+#endif
+        break;
     default:
         /* Invalid command. */
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);

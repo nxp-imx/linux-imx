@@ -153,7 +153,11 @@ typedef enum _gceHAL_COMMAND_CODES
 
     /* GPU and event dump */
     gcvHAL_DUMP_GPU_STATE,
-    gcvHAL_DUMP_EVENT
+    gcvHAL_DUMP_EVENT,
+
+    /* FSCALE_VAL. */
+    gcvHAL_SET_FSCALE_VALUE,
+    gcvHAL_GET_FSCALE_VALUE
 }
 gceHAL_COMMAND_CODES;
 
@@ -893,6 +897,20 @@ typedef struct _gcsHAL_INTERFACE
             IN gceVIDMEM_NODE_SHARED_INFO_TYPE infoType;
         }
         SetSharedInfo;
+
+        struct _gcsHAL_SET_FSCALE_VALUE
+        {
+            IN gctUINT              value;
+        }
+        SetFscaleValue;
+
+        struct _gcsHAL_GET_FSCALE_VALUE
+        {
+            OUT gctUINT             value;
+            OUT gctUINT             minValue;
+            OUT gctUINT             maxValue;
+        }
+        GetFscaleValue;
     }
     u;
 }

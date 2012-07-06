@@ -344,6 +344,18 @@ gcoHAL_Get2DEngine(
     OUT gco2D * Engine
     );
 
+gceSTATUS
+gcoHAL_SetFscaleValue(
+    IN gctUINT FscaleValue
+    );
+
+gceSTATUS
+gcoHAL_GetFscaleValue(
+    OUT gctUINT * FscaleValue,
+    OUT gctUINT * MinFscaleValue,
+    OUT gctUINT * MaxFscaleValue
+    );
+
 #ifndef VIVANTE_NO_3D
 /* Get pointer to gco3D object. */
 gceSTATUS
