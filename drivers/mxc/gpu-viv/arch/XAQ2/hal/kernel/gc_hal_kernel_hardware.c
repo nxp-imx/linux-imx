@@ -3551,7 +3551,8 @@ gckHARDWARE_SetPowerManagementState(
                                     gcvPOWER_FLAG_DELAY     |
                                     gcvPOWER_FLAG_CLOCK_ON,
             /* OFF               */ gcvPOWER_FLAG_SAVE      |
-                                    gcvPOWER_FLAG_POWER_OFF,
+                                    gcvPOWER_FLAG_POWER_OFF |
+                                    gcvPOWER_FLAG_CLOCK_OFF,
             /* IDLE              */ gcvPOWER_FLAG_START     |
                                     gcvPOWER_FLAG_DELAY     |
                                     gcvPOWER_FLAG_CLOCK_ON,
