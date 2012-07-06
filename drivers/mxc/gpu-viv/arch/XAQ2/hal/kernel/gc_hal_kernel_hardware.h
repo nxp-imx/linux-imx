@@ -83,6 +83,11 @@ struct _gckHARDWARE
 #endif
 
     gctPOINTER                  pageTableDirty;
+
+#if gcdENABLE_FSCALE_VAL_ADJUST
+    /* FSCALE_VAL when gcvPOWER_ON. */
+    gctUINT32                   powerOnFscaleVal;
+#endif
 };
 
 gceSTATUS
@@ -102,6 +107,20 @@ gceSTATUS
 gckHARDWARE_GetFrameInfo(
     IN gckHARDWARE Hardware,
     OUT gcsHAL_FRAME_INFO * FrameInfo
+    );
+
+gceSTATUS
+gckHARDWARE_SetFscaleValue(
+    IN gckHARDWARE Hardware,
+    IN gctUINT32   FscaleValue
+    );
+
+gceSTATUS
+gckHARDWARE_GetFscaleValue(
+    IN gckHARDWARE Hardware,
+    IN gctUINT * FscaleValue,
+    IN gctUINT * MinFscaleValue,
+    IN gctUINT * MaxFscaleValue
     );
 
 #ifdef __cplusplus
