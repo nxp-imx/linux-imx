@@ -167,7 +167,7 @@ static inline dma_addr_t buf_map_to_sec4_sg(struct device *jrdev,
 	dma_addr_t buf_dma;
 
 	buf_dma = dma_map_single(jrdev, buf, buflen, DMA_TO_DEVICE);
-	dma_sync_single_for_cpu(jrdev, buf_dma, buflen, DMA_TO_DEVICE);
+	dma_sync_single_for_device(jrdev, buf_dma, buflen, DMA_TO_DEVICE);
 	dma_to_sec4_sg_one(sec4_sg, buf_dma, buflen, 0);
 
 	return buf_dma;
@@ -556,8 +556,8 @@ static int ahash_setkey(struct crypto_ahash *ahash,
 		return -ENOMEM;
 	}
 
-	dma_sync_single_for_cpu(jrdev, ctx->key_dma, ctx->split_key_pad_len,
-				DMA_TO_DEVICE);
+	dma_sync_single_for_device(jrdev, ctx->key_dma, ctx->split_key_pad_len,
+				   DMA_TO_DEVICE);
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "ctx.key@"xstr(__LINE__)": ",
