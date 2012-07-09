@@ -1249,7 +1249,6 @@ static void __init mx6q_sabrelite_reserve(void)
 	if (imx6q_gpu_pdata.reserved_mem_size) {
 		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
 					   SZ_4K, SZ_1G);
-		memblock_free(phys, imx6q_gpu_pdata.reserved_mem_size);
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
@@ -1257,7 +1256,6 @@ static void __init mx6q_sabrelite_reserve(void)
 
 	if (imx_ion_data.heaps[0].size) {
 		phys = memblock_alloc(imx_ion_data.heaps[0].size, SZ_4K);
-		memblock_free(phys, imx_ion_data.heaps[0].size);
 		memblock_remove(phys, imx_ion_data.heaps[0].size);
 		imx_ion_data.heaps[0].base = phys;
 	}
@@ -1267,7 +1265,6 @@ static void __init mx6q_sabrelite_reserve(void)
 			/* reserve for background buffer */
 			phys = memblock_alloc(sabrelite_fb_data[i].res_size[0],
 						SZ_4K);
-			memblock_free(phys, sabrelite_fb_data[i].res_size[0]);
 			memblock_remove(phys, sabrelite_fb_data[i].res_size[0]);
 			sabrelite_fb_data[i].res_base[0] = phys;
 		}
