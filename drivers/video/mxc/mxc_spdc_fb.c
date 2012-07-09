@@ -770,6 +770,9 @@ spdc_fb_fw_handler(const struct firmware *fw, void *context)
 	}
 
 	clk_set_rate(fb_data->spdc_clk_pix, rounded_pix_clk);
+	/* Disable clocks */
+	clk_disable(fb_data->spdc_clk_axi);
+	clk_disable(fb_data->spdc_clk_pix);
 
 	if (!spdc_init_sequence(fb_data))
 		return;
