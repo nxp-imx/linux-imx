@@ -633,6 +633,24 @@ phys_addr_t __init_memblock memblock_end_of_DRAM(void)
 	return (memblock.memory.regions[idx].base + memblock.memory.regions[idx].size);
 }
 
+phys_addr_t __init_memblock memblock_end_of_DRAM_with_reserved(void)
+{
+	int idx = memblock.memory.cnt - 1;
+	phys_addr_t top_addr = 0;
+	int i;
+
+	for (i = 0; i < memblock.reserved.cnt; i++) {
+		phys_addr_t t;
+		t = memblock.reserved.regions[i].base
+			+ memblock.reserved.regions[i].size;
+		top_addr = max(t, top_addr);
+	}
+
+	return max(top_addr,
+		   memblock.memory.regions[idx].base
+		   + memblock.memory.regions[idx].size);
+}
+
 /* You must call memblock_analyze() after this. */
 void __init memblock_enforce_memory_limit(phys_addr_t memory_limit)
 {
