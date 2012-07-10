@@ -265,7 +265,7 @@ static void max8903_battery_update_status(struct max8903_data *data)
 		data->voltage_uV = temp_last;
 		}
 	}
-	if (data->charger_online == 1) {
+	if (data->charger_online == 1 || data->usb_charger_online == 1) {
 		data->voltage_uV = temp;
 		temp_last = temp;
 	}
