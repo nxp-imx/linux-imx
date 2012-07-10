@@ -65,7 +65,6 @@ typedef struct {
 	u32 percent;
 } battery_capacity , *pbattery_capacity;
 
-static bool capacity_changed_flag;
 static int cpu_type_flag;
 static int offset_discharger;
 static int offset_charger;
@@ -248,9 +247,10 @@ u32 calibration_voltage(struct max8903_data *data)
 
 static void max8903_battery_update_status(struct max8903_data *data)
 {
-	static int counter;
 	int temp;
 	static int temp_last;
+	bool changed_flag;
+	changed_flag = false;
 	mutex_lock(&data->work_lock);
 	temp = calibration_voltage(data);
 	if (temp_last == 0) {
@@ -272,17 +272,13 @@ static void max8903_battery_update_status(struct max8903_data *data)
 	data->percent = calibrate_battery_capability_percent(data);
 	if (data->percent != data->old_percent) {
 		data->old_percent = data->percent;
-		capacity_changed_flag = true;
+		changed_flag = true;
 	}
-	if ((capacity_changed_flag == true)) {
-		counter++;
-		if (counter > 2) {
-			counter = 0;
-			capacity_changed_flag = false;
-			power_supply_changed(&data->bat);
-		}
+	if (changed_flag) {
+		changed_flag = false;
+		power_supply_changed(&data->bat);
 	}
-	power_supply_changed(&data->bat);
+
 	mutex_unlock(&data->work_lock);
 }
 
@@ -560,7 +556,6 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 	data->pdata = pdata;
 	data->dev = dev;
 	platform_set_drvdata(pdev, data);
-	capacity_changed_flag = false;
 	data->usb_in = 0;
 	data->ta_in = 0;
 	if (pdata->dc_valid == false && pdata->usb_valid == false) {
