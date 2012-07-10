@@ -281,6 +281,18 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 				{
 					unsigned char IEEE_reg_iden[3];
 					unsigned char deep_color;
+					unsigned char latency_present;
+					unsigned char I_latency_present;
+					unsigned char hdmi_video_present;
+					unsigned char hdmi_3d_present;
+					unsigned char hdmi_3d_multi_present;
+					unsigned char hdmi_vic_len;
+					unsigned char hdmi_3d_len;
+					unsigned char index_inc = 0;
+					unsigned char vsd_end;
+
+					vsd_end = index + blklen;
+
 					IEEE_reg_iden[0] = edid[index+1];
 					IEEE_reg_iden[1] = edid[index+2];
 					IEEE_reg_iden[2] = edid[index+3];
@@ -288,32 +300,150 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 					cfg->physical_address[1] = (edid[index+4] & 0x0f);
 					cfg->physical_address[2] = (edid[index+5] & 0xf0) >> 4;
 					cfg->physical_address[3] = (edid[index+5] & 0x0f);
-					deep_color = edid[index+6];
 
 					if ((IEEE_reg_iden[0] == 0x03) &&
 							(IEEE_reg_iden[1] == 0x0c) &&
 							(IEEE_reg_iden[2] == 0x00))
 						cfg->hdmi_cap = 1;
 
-					if (deep_color & 0x40)
-						cfg->vsd_dc_48bit = true;
-					if (deep_color & 0x20)
-						cfg->vsd_dc_36bit = true;
-					if (deep_color & 0x10)
-						cfg->vsd_dc_30bit = true;
-					if (deep_color & 0x08)
-						cfg->vsd_dc_y444 = true;
-					if (deep_color & 0x01)
-						cfg->vsd_dvi_dual = true;
+					if (blklen > 5) {
+						deep_color = edid[index+6];
+						if (deep_color & 0x80)
+							cfg->vsd_support_ai = true;
+						if (deep_color & 0x40)
+							cfg->vsd_dc_48bit = true;
+						if (deep_color & 0x20)
+							cfg->vsd_dc_36bit = true;
+						if (deep_color & 0x10)
+							cfg->vsd_dc_30bit = true;
+						if (deep_color & 0x08)
+							cfg->vsd_dc_y444 = true;
+						if (deep_color & 0x01)
+							cfg->vsd_dvi_dual = true;
+					}
 
 					DPRINTK("VSD hdmi capability %d\n", cfg->hdmi_cap);
+					DPRINTK("VSD support ai %d\n", cfg->vsd_support_ai);
 					DPRINTK("VSD support deep color 48bit %d\n", cfg->vsd_dc_48bit);
 					DPRINTK("VSD support deep color 36bit %d\n", cfg->vsd_dc_36bit);
 					DPRINTK("VSD support deep color 30bit %d\n", cfg->vsd_dc_30bit);
 					DPRINTK("VSD support deep color y444 %d\n", cfg->vsd_dc_y444);
 					DPRINTK("VSD support dvi dual %d\n", cfg->vsd_dvi_dual);
 
-					index += blklen;
+					if (blklen > 6)
+						cfg->vsd_max_tmdsclk_rate = edid[index+7] * 5;
+					DPRINTK("VSD MAX TMDS CLOCK RATE %d\n", cfg->vsd_max_tmdsclk_rate);
+
+					if (blklen > 7) {
+						latency_present = edid[index+8] >> 7;
+						I_latency_present =  (edid[index+8] & 0x40) >> 6;
+						hdmi_video_present = (edid[index+8] & 0x20) >> 5;
+						cfg->vsd_cnc3 = (edid[index+8] & 0x8) >> 3;
+						cfg->vsd_cnc2 = (edid[index+8] & 0x4) >> 2;
+						cfg->vsd_cnc1 = (edid[index+8] & 0x2) >> 1;
+						cfg->vsd_cnc0 = edid[index+8] & 0x1;
+
+						DPRINTK("VSD cnc0 %d\n", cfg->vsd_cnc0);
+						DPRINTK("VSD cnc1 %d\n", cfg->vsd_cnc1);
+						DPRINTK("VSD cnc2 %d\n", cfg->vsd_cnc2);
+						DPRINTK("VSD cnc3 %d\n", cfg->vsd_cnc3);
+						DPRINTK("latency_present %d\n", latency_present);
+						DPRINTK("I_latency_present %d\n", I_latency_present);
+						DPRINTK("hdmi_video_present %d\n", hdmi_video_present);
+
+					} else {
+						index += blklen;
+						break;
+					}
+
+					index += 9;
+
+					/*latency present */
+					if (latency_present) {
+						cfg->vsd_video_latency = edid[index++];
+						cfg->vsd_audio_latency = edid[index++];
+
+						if (I_latency_present) {
+							cfg->vsd_I_video_latency = edid[index++];
+							cfg->vsd_I_audio_latency = edid[index++];
+						} else {
+							cfg->vsd_I_video_latency = cfg->vsd_video_latency;
+							cfg->vsd_I_audio_latency = cfg->vsd_audio_latency;
+						}
+
+						DPRINTK("VSD latency video_latency  %d\n", cfg->vsd_video_latency);
+						DPRINTK("VSD latency audio_latency  %d\n", cfg->vsd_audio_latency);
+						DPRINTK("VSD latency I_video_latency  %d\n", cfg->vsd_I_video_latency);
+						DPRINTK("VSD latency I_audio_latency  %d\n", cfg->vsd_I_audio_latency);
+					}
+
+					if (hdmi_video_present) {
+						hdmi_3d_present = edid[index] >> 7;
+						hdmi_3d_multi_present = (edid[index] & 0x60) >> 5;
+						index++;
+						hdmi_vic_len = (edid[index] & 0xe0) >> 5;
+						hdmi_3d_len = edid[index] & 0x1f;
+						index++;
+
+						DPRINTK("hdmi_3d_present %d\n", hdmi_3d_present);
+						DPRINTK("hdmi_3d_multi_present %d\n", hdmi_3d_multi_present);
+						DPRINTK("hdmi_vic_len %d\n", hdmi_vic_len);
+						DPRINTK("hdmi_3d_len %d\n", hdmi_3d_len);
+
+						if (hdmi_vic_len > 0) {
+							for (i = 0; i < hdmi_vic_len; i++) {
+								cfg->hdmi_vic[i] = edid[index++];
+								DPRINTK("HDMI_vic=%d\n", cfg->hdmi_vic[i]);
+							}
+						}
+
+						if (hdmi_3d_len > 0) {
+							if (hdmi_3d_present) {
+								if (hdmi_3d_multi_present == 0x1) {
+									cfg->hdmi_3d_struct_all = (edid[index] << 8) | edid[index+1];
+									index_inc = 2;
+								} else if (hdmi_3d_multi_present == 0x2) {
+									cfg->hdmi_3d_struct_all = (edid[index] << 8) | edid[index+1];
+									cfg->hdmi_3d_mask_all = (edid[index+2] << 8) | edid[index+3];
+									index_inc = 4;
+								} else
+									index_inc = 0;
+							}
+
+							DPRINTK("HDMI 3d struct all =0x%x\n", cfg->hdmi_3d_struct_all);
+							DPRINTK("HDMI 3d mask all =0x%x\n", cfg->hdmi_3d_mask_all);
+
+							/* Read 2D vic 3D_struct */
+							if ((hdmi_3d_len - index_inc) > 0) {
+								DPRINTK("Support 3D video format\n");
+								i = 0;
+								while ((hdmi_3d_len - index_inc) > 0) {
+
+									cfg->hdmi_3d_format[i].vic_order_2d = edid[index+index_inc] >> 4;
+									cfg->hdmi_3d_format[i].struct_3d = edid[index+index_inc] & 0x0f;
+									index_inc++;
+
+									if (cfg->hdmi_3d_format[i].struct_3d ==  8) {
+										cfg->hdmi_3d_format[i].detail_3d = edid[index+index_inc] >> 4;
+										index_inc++;
+									} else if (cfg->hdmi_3d_format[i].struct_3d > 8) {
+										cfg->hdmi_3d_format[i].detail_3d = 0;
+										index_inc++;
+									}
+
+									DPRINTK("vic_order_2d=%d, 3d_struct=%d, 3d_detail=0x%x\n",
+											cfg->hdmi_3d_format[i].vic_order_2d,
+											cfg->hdmi_3d_format[i].struct_3d,
+											cfg->hdmi_3d_format[i].detail_3d);
+									i++;
+								}
+							}
+							index += index_inc;
+						}
+					}
+
+					index = vsd_end;
+
 					break;
 				}
 			case 0x1: /*Audio data block*/
@@ -367,6 +497,7 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 			case 0x7: /*User extended block*/
 			default:
 				/* skip */
+				DPRINTK("Not handle block, tagcode = 0x%x\n", tagcode);
 				index += blklen;
 				break;
 			}
