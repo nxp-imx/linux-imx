@@ -327,7 +327,7 @@ int caam_rng_startup(struct platform_device *pdev)
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
 
-	/* Check instantiated RNG before registration */
+	/* Check RNG present in hardware before registration */
 	if (!(rd_reg64(&priv->ctrl->perfmon.cha_num) & CHA_ID_RNG_MASK))
 		return -ENODEV;
 

@@ -25,16 +25,18 @@ static int caam_remove(struct platform_device *pdev)
 	topregs = (struct caam_full __iomem *)ctrlpriv->ctrl;
 
 #ifndef CONFIG_OF
-	caam_algapi_shutdown(pdev);
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_API
+	if (ctrlpriv->rng_inst)
+		caam_rng_shutdown();
+#endif
 
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_AHASH_API
 	caam_algapi_hash_shutdown(pdev);
 #endif
 
-#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_API
-	caam_rng_shutdown();
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_CRYPTO_API
+	caam_algapi_shutdown(pdev);
 #endif
-
 #endif
 	/* shut down JobRs */
 	for (ring = 0; ring < ctrlpriv->total_jobrs; ring++) {
@@ -125,7 +127,10 @@ static int instantiate_rng(struct device *jrdev)
 
 	build_instantiation_desc(desc);
 	desc_dma = dma_map_single(jrdev, desc, desc_bytes(desc), DMA_TO_DEVICE);
+	dma_sync_single_for_device(jrdev, desc_dma, desc_bytes(desc),
+				   DMA_TO_DEVICE);
 	init_completion(&instantiation.completion);
+
 	ret = caam_jr_enqueue(jrdev, desc, rng4_init_done, &instantiation);
 	if (!ret) {
 		wait_for_completion_interruptible(&instantiation.completion);
@@ -357,7 +362,10 @@ static int caam_probe(struct platform_device *pdev)
 
 	/*
 	 * RNG4 based SECs (v5+ | >= i.MX6) need special initialization prior
-	 * to executing any descriptors
+	 * to executing any descriptors. If there's a problem with init,
+	 * remove other subsystems and return; internal padding functions
+	 * cannot run without an RNG. This procedure assumes a single RNG4
+	 * instance.
 	 */
 	if ((rd_reg64(&topregs->ctrl.perfmon.cha_id) & CHA_ID_RNG_MASK)
 	    == CHA_ID_RNG_4) {
@@ -365,8 +373,9 @@ static int caam_probe(struct platform_device *pdev)
 		ret = instantiate_rng(ctrlpriv->jrdev[0]);
 		if (ret) {
 			caam_remove(pdev);
-			return ret;
+			return -ENODEV;
 		}
+		ctrlpriv->rng_inst++;
 	}
 
 	/* NOTE: RTIC detection ought to go here, around Si time */
@@ -468,15 +477,18 @@ static int caam_probe(struct platform_device *pdev)
  * start up the API code explicitly, and forego modularization
  */
 #ifndef CONFIG_OF
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_CRYPTO_API
 	/* FIXME: check status */
 	caam_algapi_startup(pdev);
+#endif
 
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_AHASH_API
 	caam_algapi_hash_startup(pdev);
 #endif
 
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_API
-	caam_rng_startup(pdev);
+	if (ctrlpriv->rng_inst)
+		caam_rng_startup(pdev);
 #endif
 #endif /* CONFIG_OF */
 	return 0;

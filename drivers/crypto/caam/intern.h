@@ -100,6 +100,7 @@ struct caam_drv_private {
 	u8 total_jobrs;		/* Total Job Rings in device */
 	u8 qi_present;		/* Nonzero if QI present in device */
 	int secvio_irq;		/* Security violation interrupt number */
+	int rng_inst;		/* Total instantiated RNGs */
 
 	/* which jr allocated to scatterlist crypto */
 	atomic_t tfm_count ____cacheline_aligned;
