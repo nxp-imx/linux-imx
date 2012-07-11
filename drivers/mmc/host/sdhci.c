@@ -85,7 +85,7 @@ static void sdhci_enable_clk(struct sdhci_host *host)
 
 static void sdhci_disable_clk(struct sdhci_host *host, int delay)
 {
-	if (host->clk_mgr_en && !sdhci_is_sdio_attached(host)) {
+	if (host->clk_mgr_en) {
 		if (delay == 0 && !in_interrupt()) {
 			if (host->ops->platform_clk_ctrl && host->clk_status)
 				host->ops->platform_clk_ctrl(host, false);
@@ -299,7 +299,8 @@ static void sdhci_led_control(struct led_classdev *led,
 		sdhci_activate_led(host);
 
 	spin_unlock_irqrestore(&host->lock, flags);
-	sdhci_disable_clk(host, CLK_TIMEOUT);
+	if (!sdhci_is_sdio_attached(host))
+		sdhci_disable_clk(host, CLK_TIMEOUT);
 }
 #endif
 
@@ -1476,7 +1477,7 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	 * signalling timeout and CRC errors even on CMD0. Resetting
 	 * it on each ios seems to solve the problem.
 	 */
-	if(host->quirks & SDHCI_QUIRK_RESET_CMD_DATA_ON_IOS)
+	if (host->quirks & SDHCI_QUIRK_RESET_CMD_DATA_ON_IOS)
 		sdhci_reset(host, SDHCI_RESET_CMD | SDHCI_RESET_DATA);
 
 out:
@@ -1504,7 +1505,8 @@ static int check_ro(struct sdhci_host *host)
 				& SDHCI_WRITE_PROTECT);
 
 	spin_unlock_irqrestore(&host->lock, flags);
-	sdhci_disable_clk(host, CLK_TIMEOUT);
+	if (!sdhci_is_sdio_attached(host))
+		sdhci_disable_clk(host, CLK_TIMEOUT);
 
 	/* This quirk needs to be replaced by a callback-function later */
 	return host->quirks & SDHCI_QUIRK_INVERTED_WRITE_PROTECT ?
@@ -2041,7 +2043,8 @@ static void sdhci_tasklet_finish(unsigned long param)
 
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
-	sdhci_disable_clk(host, CLK_TIMEOUT);
+	if (!sdhci_is_sdio_attached(host))
+		sdhci_disable_clk(host, CLK_TIMEOUT);
 
 	mmc_request_done(host->mmc, mrq);
 }
@@ -2387,7 +2390,8 @@ out:
 	 * mmc_suspend_host may disable the clk
 	 */
 	sdhci_enable_clk(host);
-	sdhci_disable_clk(host, 0);
+	if (!sdhci_is_sdio_attached(host))
+		sdhci_disable_clk(host, 0);
 	return ret;
 }
 
@@ -2425,7 +2429,8 @@ int sdhci_resume_host(struct sdhci_host *host)
 
 out:
 	/* sync worker */
-	sdhci_disable_clk(host, 0);
+	if (!sdhci_is_sdio_attached(host))
+		sdhci_disable_clk(host, 0);
 
 	/* Set the re-tuning expiration flag */
 	if ((host->version >= SDHCI_SPEC_300) && host->tuning_count &&
@@ -2445,7 +2450,8 @@ void sdhci_enable_irq_wakeups(struct sdhci_host *host)
 	val = sdhci_readb(host, SDHCI_WAKE_UP_CONTROL);
 	val |= SDHCI_WAKE_ON_INT;
 	sdhci_writeb(host, val, SDHCI_WAKE_UP_CONTROL);
-	sdhci_disable_clk(host, CLK_TIMEOUT);
+	if (!sdhci_is_sdio_attached(host))
+		sdhci_disable_clk(host, CLK_TIMEOUT);
 }
 
 EXPORT_SYMBOL_GPL(sdhci_enable_irq_wakeups);
@@ -2593,7 +2599,8 @@ int sdhci_add_host(struct sdhci_host *host)
 			printk(KERN_ERR
 			       "%s: Hardware doesn't specify base clock "
 			       "frequency.\n", mmc_hostname(mmc));
-			sdhci_disable_clk(host, 0);
+			if (!sdhci_is_sdio_attached(host))
+				sdhci_disable_clk(host, 0);
 			return -ENODEV;
 		}
 		host->max_clk = host->ops->get_max_clock(host);
@@ -2609,7 +2616,8 @@ int sdhci_add_host(struct sdhci_host *host)
 			printk(KERN_ERR
 			       "%s: Hardware doesn't specify timeout clock "
 			       "frequency.\n", mmc_hostname(mmc));
-			sdhci_disable_clk(host, 0);
+			if (!sdhci_is_sdio_attached(host))
+				sdhci_disable_clk(host, 0);
 			return -ENODEV;
 		}
 	}
@@ -2797,7 +2805,8 @@ int sdhci_add_host(struct sdhci_host *host)
 	if (mmc->ocr_avail == 0) {
 		printk(KERN_ERR "%s: Hardware doesn't report any "
 			"support voltages.\n", mmc_hostname(mmc));
-		sdhci_disable_clk(host, 0);
+		if (!sdhci_is_sdio_attached(host))
+			sdhci_disable_clk(host, 0);
 		return -ENODEV;
 	}
 
@@ -2921,7 +2930,8 @@ int sdhci_add_host(struct sdhci_host *host)
 		(host->flags & SDHCI_USE_SDMA) ? "DMA" : "PIO");
 
 	sdhci_enable_card_detection(host);
-	sdhci_disable_clk(host, CLK_TIMEOUT);
+	if (!sdhci_is_sdio_attached(host))
+		sdhci_disable_clk(host, CLK_TIMEOUT);
 	return 0;
 
 #ifdef SDHCI_USE_LEDS_CLASS
@@ -2932,7 +2942,8 @@ reset:
 untasklet:
 	tasklet_kill(&host->card_tasklet);
 	tasklet_kill(&host->finish_tasklet);
-	sdhci_disable_clk(host, 0);
+	if (!sdhci_is_sdio_attached(host))
+		sdhci_disable_clk(host, 0);
 	return ret;
 }
 
@@ -2972,7 +2983,8 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 	sdhci_enable_clk(host);
 	if (!dead)
 		sdhci_reset(host, SDHCI_RESET_ALL);
-	sdhci_disable_clk(host, 0);
+	if (!sdhci_is_sdio_attached(host))
+		sdhci_disable_clk(host, 0);
 
 	free_irq(host->irq, host);
 
