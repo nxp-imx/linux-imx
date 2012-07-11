@@ -3159,9 +3159,6 @@ static int wm8962_hw_params(struct snd_pcm_substream *substream,
 	int aif0 = 0;
 	int adctl3 = 0;
 
-	if (codec->dapm.bias_level != SND_SOC_BIAS_OFF)
-		return 0;
-
 	wm8962->bclk = snd_soc_params_to_bclk(params);
 	if (params_channels(params) == 1)
 		wm8962->bclk *= 2;
@@ -3462,9 +3459,6 @@ static int wm8962_set_fll(struct snd_soc_codec *codec, int fll_id, int source,
 
 	if (fll_div.theta || fll_div.lambda)
 		fll1 |= WM8962_FLL_FRAC;
-
-	/* Stop the FLL while we reconfigure */
-	snd_soc_update_bits(codec, WM8962_FLL_CONTROL_1, WM8962_FLL_ENA, 0);
 
 	snd_soc_update_bits(codec, WM8962_FLL_CONTROL_2,
 			    WM8962_FLL_OUTDIV_MASK |
