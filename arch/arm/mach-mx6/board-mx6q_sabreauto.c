@@ -1608,6 +1608,10 @@ static void __init mx6_board_init(void)
 
 	/* Add PCIe RC interface support */
 	imx6q_add_pcie(&mx6_sabreauto_pcie_data);
+
+	imx6q_add_perfmon(0);
+	imx6q_add_perfmon(1);
+	imx6q_add_perfmon(2);
 }
 
 extern void __iomem *twd_base;
