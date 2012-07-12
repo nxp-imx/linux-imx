@@ -41,8 +41,8 @@ extern struct platform_device sgtl5000_vdda_reg_devices;
 extern struct platform_device sgtl5000_vddio_reg_devices;
 extern struct platform_device sgtl5000_vddd_reg_devices;
 extern void __iomem *gpc_base;
-
-static unsigned int org_ldo;
+/* Default PU voltage value set to 1.1V */
+static unsigned int org_ldo = 0x2000;
 
 static int get_voltage(struct anatop_regulator *sreg)
 {

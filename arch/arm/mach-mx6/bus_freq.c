@@ -449,6 +449,9 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	if (cpu_is_mx6dl()) {
 		high_bus_freq_mode = 0;
 		med_bus_freq_mode = 1;
+		/* To make pll2_400 use count right, as when
+		system enter 24M, it will disable pll2_400 */
+		clk_enable(pll2_400);
 	} else {
 		high_bus_freq_mode = 1;
 		med_bus_freq_mode = 0;
