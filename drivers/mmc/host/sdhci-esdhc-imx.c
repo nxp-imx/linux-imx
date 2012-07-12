@@ -738,6 +738,8 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		|| boarddata->cd_type == ESDHC_CD_NONE
 		|| boarddata->cd_type == ESDHC_CD_GPIO)
 		host->mmc->caps &= ~MMC_CAP_NONREMOVABLE;
+	if (boarddata->runtime_pm)
+		host->mmc->caps |= MMC_CAP_POWER_OFF_CARD;
 	if (cpu_is_mx6()) {
 		host->mmc->caps |= MMC_CAP_1_8V_DDR;
 		host->tuning_min = SDHCI_TUNE_CTRL_MIN;

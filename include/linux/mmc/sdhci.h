@@ -174,6 +174,7 @@ struct sdhci_host {
 	struct delayed_work	clk_worker;	/* Clock delayed worker */
 	unsigned int		clk_mgr_en;
 	unsigned int		clk_status;
+	unsigned char		power_mode;
 	struct sdhci_host_next	next_data;
 	unsigned long private[0] ____cacheline_aligned;
 };

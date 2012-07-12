@@ -70,6 +70,15 @@ static inline bool sdhci_is_sdio_attached(struct sdhci_host *host)
 	return false;
 }
 
+static bool sdhci_can_gate_clk(struct sdhci_host *host)
+{
+	if (!sdhci_is_sdio_attached(host))
+		return true;
+	if (host->power_mode == MMC_POWER_OFF)
+		return true;
+	return false;
+}
+
 static void sdhci_enable_clk(struct sdhci_host *host)
 {
 	if (host->clk_mgr_en) {
@@ -85,7 +94,7 @@ static void sdhci_enable_clk(struct sdhci_host *host)
 
 static void sdhci_disable_clk(struct sdhci_host *host, int delay)
 {
-	if (host->clk_mgr_en && !sdhci_is_sdio_attached(host)) {
+	if (host->clk_mgr_en && sdhci_can_gate_clk(host)) {
 		if (delay == 0 && !in_interrupt()) {
 			if (host->ops->platform_clk_ctrl && host->clk_status)
 				host->ops->platform_clk_ctrl(host, false);
@@ -1322,6 +1331,8 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	u8 ctrl;
 
 	host = mmc_priv(mmc);
+
+	host->power_mode = ios->power_mode;
 
 	sdhci_enable_clk(host);
 	spin_lock_irqsave(&host->lock, flags);
