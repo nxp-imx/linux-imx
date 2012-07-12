@@ -328,6 +328,12 @@ __RemoveRecordFromProcessDB(
                 Record->info.u.UnmapUserMemory.info));
             break;
 
+        case gcvHAL_SIGNAL:
+            gcmkVERIFY_OK(gckOS_SignalSetHardware(Event->os,
+                Record->info.u.Signal.signal,
+                Event->kernel->hardware));
+            break;
+
         default:
             break;
         }
@@ -722,11 +728,6 @@ gckEVENT_GetEvent(
                 "%s(%d): no available events\n",
                 __FUNCTION__, __LINE__
                 );
-
-            /* Broadcast GPU stuck. */
-            gcmkONERROR(gckOS_Broadcast(Event->os,
-                                        Event->kernel->hardware,
-                                        gcvBROADCAST_GPU_STUCK));
 
             /* Bail out. */
             gcmkONERROR(gcvSTATUS_GPU_NOT_RESPONDING);
@@ -1492,6 +1493,14 @@ OnError:
     {
         /* Need to unroll the event allocation. */
         Event->queues[id].head = gcvNULL;
+    }
+
+    if (status == gcvSTATUS_GPU_NOT_RESPONDING)
+    {
+        /* Broadcast GPU stuck. */
+        status = gckOS_Broadcast(Event->os,
+                                 Event->kernel->hardware,
+                                 gcvBROADCAST_GPU_STUCK);
     }
 
     /* Return the status. */

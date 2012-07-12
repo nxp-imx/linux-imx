@@ -373,7 +373,7 @@
 #   if gcdFPGA_BUILD
 #       define gcdGPU_TIMEOUT                   0
 #   else
-#       define gcdGPU_TIMEOUT                   (2000 * 5)
+#       define gcdGPU_TIMEOUT                   10000
 #   endif
 #endif
 

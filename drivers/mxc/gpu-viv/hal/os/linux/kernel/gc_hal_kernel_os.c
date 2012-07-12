@@ -34,6 +34,7 @@
 #include <linux/idr.h>
 #include <mach/hardware.h>
 #include <linux/workqueue.h>
+#include <linux/idr.h>
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23)
 #include <linux/math64.h>
 #endif
@@ -161,6 +162,7 @@ struct _gckOS
     gctUINT32                   kernelProcessID;
 
     /* Signal management. */
+
     /* Lock. */
     gctPOINTER                  signalMutex;
 
@@ -194,6 +196,8 @@ typedef struct _gcsSIGNAL
 
     /* The owner of the signal. */
     gctHANDLE process;
+
+    gckHARDWARE hardware;
 
     /* ID. */
     gctUINT32 id;
@@ -1066,8 +1070,8 @@ _FreeAllNonPagedMemoryCache(
 #endif /* gcdUSE_NON_PAGED_MEMORY_CACHE */
 
  /*******************************************************************************
-+** Integer Id Management.
-+*/
+** Integer Id Management.
+*/
 gceSTATUS
 _AllocateIntegerId(
     IN gcsINTEGER_DB_PTR Database,
@@ -1110,7 +1114,6 @@ _QueryIntegerId(
     OUT gctPOINTER * KernelPointer
     )
 {
-    gceSTATUS status;
     gctPOINTER pointer;
 
     spin_lock(&Database->lock);
@@ -1122,7 +1125,7 @@ _QueryIntegerId(
     if(pointer)
     {
         *KernelPointer = pointer;
-        status = gcvSTATUS_OK;
+        return gcvSTATUS_OK;
     }
     else
     {
@@ -1131,10 +1134,8 @@ _QueryIntegerId(
                 "%s(%d) Id = %d is not found",
                 __FUNCTION__, __LINE__, Id);
 
-        status = gcvSTATUS_NOT_FOUND;
+        return gcvSTATUS_NOT_FOUND;
     }
-
-    return status;
 }
 
 gceSTATUS
@@ -6518,7 +6519,9 @@ gckOS_Broadcast(
 
     case gcvBROADCAST_GPU_STUCK:
         gcmkTRACE_N(gcvLEVEL_ERROR, 0, "gcvBROADCAST_GPU_STUCK\n");
+#if !gcdENABLE_RECOVERY
         gcmkONERROR(_DumpGPUState(Os, Hardware->core));
+#endif
         gcmkONERROR(gckKERNEL_Recovery(Hardware->kernel));
         break;
 
@@ -7196,6 +7199,7 @@ gckOS_CreateSignal(
     /* Save the process ID. */
     signal->process = (gctHANDLE) _GetProcessID();
     signal->manualReset = ManualReset;
+    signal->hardware = gcvNULL;
     init_completion(&signal->obj);
     atomic_set(&signal->ref, 1);
 
@@ -7213,6 +7217,61 @@ OnError:
     }
 
     gcmkFOOTER_NO();
+    return status;
+}
+
+gceSTATUS
+gckOS_SignalQueryHardware(
+    IN gckOS Os,
+    IN gctSIGNAL Signal,
+    OUT gckHARDWARE * Hardware
+    )
+{
+    gceSTATUS status;
+    gcsSIGNAL_PTR signal;
+
+    gcmkHEADER_ARG("Os=0x%X Signal=0x%X Hardware=0x%X", Os, Signal, Hardware);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
+    gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
+    gcmkVERIFY_ARGUMENT(Hardware != gcvNULL);
+
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+
+    *Hardware = signal->hardware;
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+OnError:
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckOS_SignalSetHardware(
+    IN gckOS Os,
+    IN gctSIGNAL Signal,
+    IN gckHARDWARE Hardware
+    )
+{
+    gceSTATUS status;
+    gcsSIGNAL_PTR signal;
+
+    gcmkHEADER_ARG("Os=0x%X Signal=0x%X Hardware=0x%X", Os, Signal, Hardware);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
+    gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
+
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+
+    signal->hardware = Hardware;
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+OnError:
+    gcmkFOOTER();
     return status;
 }
 
@@ -7271,6 +7330,7 @@ gckOS_DestroySignal(
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
+
 OnError:
     if (acquired)
     {
@@ -7330,6 +7390,9 @@ gckOS_Signal(
 
     if (State)
     {
+        /* unbind the signal from hardware. */
+        signal->hardware = gcvNULL;
+
         /* Set the event to a signaled state. */
         complete(&signal->obj);
     }

@@ -954,8 +954,8 @@ gckHARDWARE_InitializeHardware(
         }
     }
 
-    if (Hardware->identity.chipModel == gcv4000 &&
-         Hardware->identity.chipRevision == 0x5222)
+    if (Hardware->identity.chipModel >= gcv400
+    &&  Hardware->identity.chipModel != gcv420)
     {
 		gctUINT32 data;
 
@@ -4753,6 +4753,8 @@ gckHARDWARE_Reset(
     gceSTATUS status;
     gckCOMMAND command;
     gctBOOL acquired = gcvFALSE;
+    gctBOOL mutexAcquired = gcvFALSE;
+    gctUINT32 process, thread;
 
     gcmkHEADER_ARG("Hardware=0x%x", Hardware);
 
@@ -4766,6 +4768,25 @@ gckHARDWARE_Reset(
     {
         /* Not supported - we need the isolation bit. */
         gcmkONERROR(gcvSTATUS_NOT_SUPPORTED);
+    }
+
+    status = gckOS_AcquireMutex(Hardware->os, Hardware->powerMutex, 0);
+    if (status == gcvSTATUS_TIMEOUT)
+    {
+        gcmkONERROR(gckOS_GetProcessID(&process));
+        gcmkONERROR(gckOS_GetThreadID(&thread));
+
+        if ((Hardware->powerProcess == process)
+        &&  (Hardware->powerThread  == thread))
+        {
+            /* No way to recovery from a error in power management. */
+            gcmkFOOTER_NO();
+            return gcvSTATUS_OK;
+        }
+    }
+    else
+    {
+        mutexAcquired = gcvTRUE;
     }
 
     if (Hardware->chipPowerState == gcvPOWER_ON)
@@ -4800,7 +4821,9 @@ gckHARDWARE_Reset(
 
     /* Force an OFF to ON power switch. */
     Hardware->chipPowerState = gcvPOWER_OFF;
-    gcmkONERROR(gckHARDWARE_SetPowerManagementState(Hardware, gcvPOWER_ON));
+
+    gcmkONERROR(gckOS_ReleaseMutex(Hardware->os, Hardware->powerMutex));
+    mutexAcquired = gcvFALSE;
 
     /* Success. */
     gcmkFOOTER_NO();
@@ -4812,6 +4835,11 @@ OnError:
         /* Release the power management semaphore. */
         gcmkVERIFY_OK(
             gckOS_ReleaseSemaphore(Hardware->os, command->powerSemaphore));
+    }
+
+    if (mutexAcquired)
+    {
+        gckOS_ReleaseMutex(Hardware->os, Hardware->powerMutex);
     }
 
     /* Return the error. */
