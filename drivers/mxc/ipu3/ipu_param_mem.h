@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -718,6 +718,12 @@ static inline void _ipu_ch_offset_update(int ch,
 		return;
 	ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 0, 46, 22, u_offset / 8);
 	ipu_ch_param_mod_field(ipu_ch_param_addr(sub_ch), 0, 68, 22, v_offset / 8);
+};
+
+static inline void _ipu_ch_get_uvoffset(int ch, uint32_t *u, uint32_t *v)
+{
+	*u = ipu_ch_param_read_field(ipu_ch_param_addr(ch), 0, 46, 22) << 3;
+	*v = ipu_ch_param_read_field(ipu_ch_param_addr(ch), 0, 68, 22) << 3;
 };
 
 static inline void _ipu_ch_params_set_alpha_width(uint32_t ch, int alpha_width)

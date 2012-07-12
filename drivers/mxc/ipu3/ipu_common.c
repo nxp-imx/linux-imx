@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1314,6 +1314,36 @@ int32_t ipu_update_channel_offset(ipu_channel_t channel, ipu_buffer_t type,
 }
 EXPORT_SYMBOL(ipu_update_channel_offset);
 
+/*!
+ * This function is called to get u/v offset for logical IPU channel.
+ *
+ * @param       channel         Input parameter for the logical channel ID.
+ *
+ * @param       type            Input parameter which buffer to initialize.
+ *
+ * @param       u		Output parameter u offset.
+ *
+ * @param       v		Output parameter v offset.
+ *
+ * @return      Returns 0 on success or negative error code on fail
+ *              This function will fail if any buffer is set to ready.
+ */
+int32_t ipu_get_channel_uvoffset(ipu_channel_t channel, ipu_buffer_t type,
+				  uint32_t *u, uint32_t *v)
+{
+	int ret = 0;
+	unsigned long lock_flags;
+	uint32_t dma_chan = channel_2_dma(channel, type);
+
+	if (dma_chan == IDMA_CHAN_INVALID)
+		return -EINVAL;
+
+	spin_lock_irqsave(&ipu_lock, lock_flags);
+	_ipu_ch_get_uvoffset(dma_chan, u, v);
+	spin_unlock_irqrestore(&ipu_lock, lock_flags);
+	return ret;
+}
+EXPORT_SYMBOL(ipu_get_channel_uvoffset);
 
 /*!
  * This function is called to set a channel's buffer as ready.

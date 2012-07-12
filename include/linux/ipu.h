@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -900,6 +900,9 @@ int32_t ipu_update_channel_offset(ipu_channel_t channel, ipu_buffer_t type,
 				uint32_t stride,
 				uint32_t u, uint32_t v,
 				uint32_t vertical_offset, uint32_t horizontal_offset);
+
+int32_t ipu_get_channel_uvoffset(ipu_channel_t channel, ipu_buffer_t type,
+				 uint32_t *u, uint32_t *v);
 
 int32_t ipu_select_buffer(ipu_channel_t channel,
 			  ipu_buffer_t type, uint32_t bufNum);
