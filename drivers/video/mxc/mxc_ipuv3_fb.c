@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -87,6 +87,16 @@ struct mxcfb_info {
 	struct completion vsync_complete;
 
 	bool fb_suspended;
+
+	/*
+	 * Cached u/v offset for suspend/resume.
+	 * Only used to sync with v4l output for
+	 * interleaved or partial interleaved
+	 * YUV pixel format in case cropping is
+	 * needed.
+	 */
+	uint32_t uoffset;
+	uint32_t voffset;
 };
 
 struct mxcfb_mode {
@@ -326,7 +336,8 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 					 base,
 					 (fbi->var.accel_flags ==
 					  FB_ACCEL_TRIPLE_FLAG) ? base : 0,
-					 0, 0);
+					 mxc_fbi->uoffset,
+					 mxc_fbi->voffset);
 	if (retval) {
 		dev_err(fbi->device,
 			"ipu_init_channel_buffer error %d\n", retval);
@@ -1489,6 +1500,8 @@ static int mxcfb_suspend(struct platform_device *pdev, pm_message_t state)
 	fb_set_suspend(fbi, 1);
 	saved_blank = mxc_fbi->cur_blank;
 	mxcfb_blank(FB_BLANK_POWERDOWN, fbi);
+	ipu_get_channel_uvoffset(mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
+				 &mxc_fbi->uoffset, &mxc_fbi->voffset);
 	mxc_fbi->next_blank = saved_blank;
 	mxc_fbi->fb_suspended = true;
 	release_console_sem();
@@ -1507,6 +1520,7 @@ static int mxcfb_resume(struct platform_device *pdev)
 	acquire_console_sem();
 	mxc_fbi->fb_suspended = false;
 	mxcfb_blank(mxc_fbi->next_blank, fbi);
+	mxc_fbi->uoffset = mxc_fbi->voffset = 0;
 	fb_set_suspend(fbi, 0);
 	release_console_sem();
 
@@ -1871,6 +1885,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 	mxcfbi->ipu_di = pdev->id;
 	mxcfbi->ipu_alp_ch_irq = -1;
 	mxcfbi->fb_suspended = false;
+	mxcfbi->uoffset = mxcfbi->voffset = 0;
 
 	if (pdev->id == 0) {
 		ipu_disp_set_global_alpha(mxcfbi->ipu_ch, true, 0x80);
