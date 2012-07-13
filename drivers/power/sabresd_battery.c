@@ -68,6 +68,8 @@ typedef struct {
 static int cpu_type_flag;
 static int offset_discharger;
 static int offset_charger;
+static int offset_usb_charger;
+
 
 static battery_capacity chargingTable[] = {
     {4060,  99},
@@ -225,7 +227,12 @@ u32 calibration_voltage(struct max8903_data *data)
 				/* ADC offset when battery is discharger*/
 				volt[i] = max11801_read_adc()-offset_discharger;
 				} else {
-				volt[i] = max11801_read_adc()-offset_charger;
+						if (data->charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_charger;
+						else if (data->usb_charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_usb_charger;
+						else if (data->charger_online == 1 && data->usb_charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_charger;
 				}
 			}
 		if (cpu_type_flag == 0) {
@@ -233,7 +240,12 @@ u32 calibration_voltage(struct max8903_data *data)
 				/* ADC offset when battery is discharger*/
 				volt[i] = max11801_read_adc()-offset_discharger;
 				} else {
-				volt[i] = max11801_read_adc()-offset_charger;
+						if (data->charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_charger;
+						else if (data->usb_charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_usb_charger;
+						else if (data->charger_online == 1 && data->usb_charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_charger;
 				}
 			}
 	}
@@ -515,6 +527,22 @@ static ssize_t max8903_voltage_offset_charger_store(struct device *dev,
 	return count;
 }
 
+static ssize_t max8903_voltage_offset_usb_charger_show(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "read offset_usb_charger:%04d\n",
+		offset_usb_charger);
+}
+
+static ssize_t max8903_voltage_offset_usb_charger_store(struct device *dev,
+			     struct device_attribute *attr, const char *buf,
+			     size_t count)
+{
+	offset_usb_charger = simple_strtoul(buf, NULL, 10);
+	pr_info("read offset_charger:%04d\n", offset_usb_charger);
+	return count;
+}
+
 static struct device_attribute max8903_discharger_dev_attr = {
 	.attr = {
 		 .name = "max8903_ctl_offset_discharger",
@@ -531,6 +559,15 @@ static struct device_attribute max8903_charger_dev_attr = {
 		 },
 	.show = max8903_voltage_offset_charger_show,
 	.store = max8903_voltage_offset_charger_store,
+};
+
+static struct device_attribute max8903_usb_charger_dev_attr = {
+	.attr = {
+		 .name = "max8903_ctl_offset_usb_charger",
+		 .mode = S_IRUSR | S_IWUSR,
+		 },
+	.show = max8903_voltage_offset_usb_charger_show,
+	.store = max8903_voltage_offset_usb_charger_store,
 };
 
 static __devinit int max8903_probe(struct platform_device *pdev)
@@ -734,13 +771,18 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 	ret = device_create_file(&pdev->dev, &max8903_charger_dev_attr);
 	if (ret)
 		dev_err(&pdev->dev, "create device file failed!\n");
+	ret = device_create_file(&pdev->dev, &max8903_usb_charger_dev_attr);
+	if (ret)
+		dev_err(&pdev->dev, "create device file failed!\n");
 	if (cpu_type_flag == 1) {
 			offset_discharger = 1694;
 			offset_charger = 1900;
+			offset_usb_charger = 1685;
 	}
 	if (cpu_type_flag == 0) {
 			offset_discharger = 1464;
 			offset_charger = 1485;
+			offset_usb_charger = 1285;
 	}
 
 	max8903_charger_update_status(data);
