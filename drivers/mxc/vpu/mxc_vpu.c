@@ -39,6 +39,7 @@
 #include <linux/workqueue.h>
 #include <linux/sched.h>
 #include <linux/vmalloc.h>
+#include <linux/regulator/consumer.h>
 #include <asm/sizes.h>
 #include <mach/clock.h>
 #include <mach/hardware.h>
@@ -224,8 +225,19 @@ static irqreturn_t vpu_jpu_irq_handler(int irq, void *dev_id)
  */
 static int vpu_open(struct inode *inode, struct file *filp)
 {
+	struct regulator *vpu_regulator;
+
 	mutex_lock(&vpu_data.lock);
-	open_count++;
+
+	if (open_count++ == 0) {
+		vpu_regulator = regulator_get(NULL, "cpu_vddvpu");
+		if (IS_ERR(vpu_regulator))
+			printk(KERN_ERR
+			       "%s: failed to get vpu regulator\n", __func__);
+		else
+			regulator_enable(vpu_regulator);
+	}
+
 	filp->private_data = (void *)(&vpu_data);
 	mutex_unlock(&vpu_data.lock);
 	return 0;
@@ -481,8 +493,18 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
  */
 static int vpu_release(struct inode *inode, struct file *filp)
 {
+	struct regulator *vpu_regulator;
+
 	mutex_lock(&vpu_data.lock);
 	if (open_count > 0 && !(--open_count)) {
+
+		vpu_regulator = regulator_get(NULL, "cpu_vddvpu");
+		if (IS_ERR(vpu_regulator))
+			printk(KERN_ERR
+			       "%s: failed to get vpu regulator\n", __func__);
+		else
+			regulator_disable(vpu_regulator);
+
 		vpu_free_buffers();
 
 		/* Free shared memory when vpu device is idle */
