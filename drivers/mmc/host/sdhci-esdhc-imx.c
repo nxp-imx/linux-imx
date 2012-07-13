@@ -20,8 +20,10 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/sdhci-pltfm.h>
 #include <linux/mmc/mmc.h>
+#include <linux/mmc/card.h>
 #include <linux/mmc/sdio.h>
 #include <linux/mmc/sd.h>
+#include <linux/scatterlist.h>
 #include <mach/hardware.h>
 #include <mach/esdhc.h>
 #include "sdhci.h"
@@ -70,6 +72,7 @@
 
 #define SDHCI_FSL_SVN_300			0x11
 
+#define SDHCI_TUNING_BLOCK_PATTERN_LEN		64
 /*
  * There is an INT DMA ERR mis-match between eSDHC and STD SDHC SPEC:
  * Bit25 is used in STD SPEC, and is reserved in fsl eSDHC design,
@@ -91,12 +94,89 @@
  */
 #define ESDHC_FLAG_MULTIBLK_NO_INT	(1 << 1)
 
+static void esdhc_prepare_tuning(struct sdhci_host *host, u32 val);
+static void esdhc_post_tuning(struct sdhci_host *host);
+
 struct pltfm_imx_data {
 	int flags;
 	u32 scratchpad;
 	/* uhs mode for sdhc host control2 */
 	unsigned char uhs_mode;
 };
+
+static void request_done(struct mmc_request *mrq)
+{
+	complete(&mrq->completion);
+}
+
+static int esdhc_send_tuning_cmd(struct sdhci_host *host)
+{
+	struct mmc_command cmd = {0};
+	struct mmc_request mrq = {0};
+	struct mmc_data data = {0};
+	struct scatterlist sg;
+	char tuning_pattern[SDHCI_TUNING_BLOCK_PATTERN_LEN];
+
+	cmd.opcode = MMC_SEND_TUNING_BLOCK;
+	cmd.arg = 0;
+	cmd.flags = MMC_RSP_R1 | MMC_CMD_ADTC;
+
+	data.blksz = SDHCI_TUNING_BLOCK_PATTERN_LEN;
+	data.blocks = 1;
+	data.flags = MMC_DATA_READ;
+	data.sg = &sg;
+	data.sg_len = 1;
+
+	sg_init_one(&sg, tuning_pattern, sizeof(tuning_pattern));
+
+	mrq.cmd = &cmd;
+	mrq.cmd->mrq = &mrq;
+	mrq.data = &data;
+	mrq.data->mrq = &mrq;
+	mrq.cmd->data = mrq.data;
+
+	mrq.done = request_done;
+
+	init_completion(&(mrq.completion));
+	sdhci_request(host->mmc, &mrq);
+	wait_for_completion(&(mrq.completion));
+
+	if (cmd.error)
+		return cmd.error;
+	if (data.error)
+		return data.error;
+
+	return 0;
+}
+
+static int esdhc_execute_tuning(struct sdhci_host *host)
+{
+	int min, max, avg;
+
+	min = host->tuning_min;
+	while (min < host->tuning_max) {
+		esdhc_prepare_tuning(host, min);
+		if (!esdhc_send_tuning_cmd(host))
+			break;
+		min += host->tuning_step;
+	}
+
+	max = min + host->tuning_step;
+	while (max < host->tuning_max) {
+		esdhc_prepare_tuning(host, max);
+		if (esdhc_send_tuning_cmd(host)) {
+			max -= host->tuning_step;
+			break;
+		}
+		max += host->tuning_step;
+	}
+
+	avg = (min + max) / 2;
+	esdhc_prepare_tuning(host, avg);
+	esdhc_send_tuning_cmd(host);
+	esdhc_post_tuning(host);
+	return 0;
+}
 
 static inline void esdhc_clrset_le(struct sdhci_host *host, u32 mask, u32 val, int reg)
 {
@@ -304,7 +384,7 @@ static u16 esdhc_readw_le(struct sdhci_host *host, int reg)
 	return readw(host->ioaddr + reg);
 }
 
-void esdhc_post_tuning(struct sdhci_host *host)
+static void esdhc_post_tuning(struct sdhci_host *host)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = pltfm_host->priv;
@@ -341,7 +421,7 @@ static void esdhc_reset(struct sdhci_host *host)
 	}
 }
 
-void esdhc_prepare_tuning(struct sdhci_host *host, u32 val)
+static void esdhc_prepare_tuning(struct sdhci_host *host, u32 val)
 {
 	u32 reg;
 
@@ -651,8 +731,6 @@ static struct sdhci_ops sdhci_esdhc_ops = {
 	.set_clock = esdhc_set_clock,
 	.get_max_clock = esdhc_pltfm_get_max_clock,
 	.get_min_clock = esdhc_pltfm_get_min_clock,
-	.pre_tuning = esdhc_prepare_tuning,
-	.post_tuning = esdhc_post_tuning,
 	.platform_8bit_width = plt_8bit_width,
 	.platform_clk_ctrl = plt_clk_ctrl,
 };
@@ -724,6 +802,9 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 			MMC_VDD_32_33 | MMC_VDD_33_34;
 	host->ocr_avail_mmc = MMC_VDD_29_30 | MMC_VDD_30_31 | \
 			MMC_VDD_32_33 | MMC_VDD_33_34;
+
+	if (cpu_is_mx6q() || cpu_is_mx6dl())
+		sdhci_esdhc_ops.platform_execute_tuning = esdhc_execute_tuning;
 
 	if (boarddata->support_18v)
 		host->ocr_avail_sd |= MMC_VDD_165_195;

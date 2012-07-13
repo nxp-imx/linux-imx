@@ -1247,7 +1247,7 @@ static void sdhci_set_power(struct sdhci_host *host, unsigned short power)
  *                                                                           *
 \*****************************************************************************/
 
-static void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
+void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 {
 	struct sdhci_host *host;
 	bool present;
@@ -1330,18 +1330,6 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		goto out;
 
-	if (ios->finish_tuning_flag) {
-		if (host->ops->post_tuning)
-			host->ops->post_tuning(host);
-		goto out;
-	}
-
-	if (ios->tuning_flag) {
-		/* means this request is for tuning only */
-		if (host->ops->pre_tuning)
-			host->ops->pre_tuning(host, ios->tuning);
-		goto out;
-	}
 	/*
 	 * Reset the chip on each power off.
 	 * Should clear out any weird states.
@@ -1690,6 +1678,14 @@ static int sdhci_execute_tuning(struct mmc_host *mmc)
 		spin_unlock(&host->lock);
 		enable_irq(host->irq);
 		return 0;
+	}
+
+	if (ctrl & SDHCI_CTRL_EXEC_TUNING) {
+		if (host->ops->platform_execute_tuning) {
+			spin_unlock(&host->lock);
+			enable_irq(host->irq);
+			return host->ops->platform_execute_tuning(host);
+		}
 	}
 
 	sdhci_writew(host, ctrl, SDHCI_HOST_CONTROL2);

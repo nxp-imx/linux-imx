@@ -74,9 +74,6 @@ struct mmc_ios {
 #define MMC_SET_DRIVER_TYPE_A	1
 #define MMC_SET_DRIVER_TYPE_C	2
 #define MMC_SET_DRIVER_TYPE_D	3
-	unsigned int	tuning_flag;		/* request tuning only */
-	unsigned int	finish_tuning_flag;
-	unsigned int	tuning;			/* tuning parameter */
 };
 
 struct mmc_host_ops {
