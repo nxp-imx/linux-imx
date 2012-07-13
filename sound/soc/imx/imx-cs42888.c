@@ -138,7 +138,7 @@ static int config_asrc(struct snd_pcm_substream *substream,
 			|| !asrc_func)
 		return -EINVAL;
 
-	if (channel != 2)
+	if ((channel != 2) && (channel != 4) && (channel != 6))
 		return -EINVAL;
 
 	ret = asrc_req_pair(channel, &asrc_esai_data.asrc_index);
