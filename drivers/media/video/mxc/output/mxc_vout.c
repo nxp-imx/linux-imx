@@ -1109,6 +1109,13 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 	int ret = 0;
 	struct v4l2_rect rect;
 
+	if ((f->fmt.pix.field != V4L2_FIELD_NONE) &&
+		(IPU_PIX_FMT_TILED_NV12 == vout->task.input.format)) {
+		v4l2_err(vout->vfd->v4l2_dev,
+			"progressive tiled fmt should used V4L2_FIELD_NONE!\n");
+		return -EINVAL;
+	}
+
 	if (f->fmt.pix.priv && copy_from_user(&rect,
 		(void __user *)f->fmt.pix.priv, sizeof(rect)))
 		return -EFAULT;
