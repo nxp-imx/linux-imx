@@ -1288,7 +1288,7 @@ static void __init mx6_arm2_init(void)
 	imx6sl_add_imx_spdc(&spdc_data);
 	imx6q_add_dvfs_core(&mx6sl_arm2_dvfscore_data);
 
-    imx6q_init_audio();
+	imx6q_init_audio();
 
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
@@ -1296,6 +1296,8 @@ static void __init mx6_arm2_init(void)
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6sl_add_imx_keypad(&mx6sl_arm2_map_data);
 	imx6q_add_busfreq();
+	imx6sl_add_dcp();
+	imx6sl_add_rngb();
 
 	pm_power_off = mx6_snvs_poweroff;
 }

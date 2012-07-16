@@ -1,8 +1,6 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
- */
-
-/*
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -32,6 +30,11 @@
 const struct imx_rngb_data imx50_rngb_data __initconst =
 	imx_rngb_data_entry_single(MX50);
 #endif /* ifdef CONFIG_SOC_IMX50 */
+
+#ifdef CONFIG_SOC_IMX6SL
+const struct imx_rngb_data imx6sl_rngb_data __initconst =
+	imx_rngb_data_entry_single(MX6SL);
+#endif /* ifdef CONFIG_SOC_IMX6SL */
 
 struct platform_device *__init imx_add_rngb(
 		const struct imx_rngb_data *data)

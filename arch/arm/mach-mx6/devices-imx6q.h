@@ -243,4 +243,12 @@ extern const struct imx_imx_keypad_data imx6sl_imx_keypad_data;
 #define imx6sl_add_imx_keypad(pdata)	\
 	imx_add_imx_keypad(&imx6sl_imx_keypad_data, pdata)
 
+extern const struct imx_dcp_data imx6sl_dcp_data __initconst;
+#define imx6sl_add_dcp() \
+	imx_add_dcp(&imx6sl_dcp_data);
+
+extern const struct imx_rngb_data imx6sl_rngb_data __initconst;
+#define imx6sl_add_rngb() \
+	imx_add_rngb(&imx6sl_rngb_data);
+
 #define imx6_add_armpmu() imx_add_imx_armpmu()
