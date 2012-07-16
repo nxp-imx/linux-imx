@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -1317,7 +1317,7 @@ static irqreturn_t dcp_irq(int irq, void *context)
 }
 
 /* DCP bootstream verification interface: uses OTP key for crypto */
-static int dcp_bootstream_ioctl(struct inode *inode, struct file *file,
+static long dcp_bootstream_ioctl(struct file *file,
 					 unsigned int cmd, unsigned long arg)
 {
 	struct dcp *sdcp = global_sdcp;
