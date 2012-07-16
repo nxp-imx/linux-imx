@@ -1313,7 +1313,6 @@ static void __init mx6_arm2_reserve(void)
 	if (imx6q_gpu_pdata.reserved_mem_size) {
 		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
 					   SZ_4K, MEMBLOCK_ALLOC_ACCESSIBLE);
-		memblock_free(phys, imx6q_gpu_pdata.reserved_mem_size);
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
