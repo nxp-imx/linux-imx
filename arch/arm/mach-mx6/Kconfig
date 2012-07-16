@@ -65,6 +65,7 @@ config MACH_MX6Q_ARM2
 	select IMX_HAVE_PLATFORM_IMX_ELCDIF
 	select IMX_HAVE_PLATFORM_IMX_PXP
 	select IMX_HAVE_PLATFORM_IMX_PCIE
+	select IMX_HAVE_PLATFORM_IMX_CAAM
 	help
 	  Include support for i.MX 6Quad Armadillo2 platform. This includes specific
 	  configurations for the board and its peripherals.
@@ -99,6 +100,9 @@ config MACH_MX6SL_ARM2
 	select IMX_HAVE_PLATFORM_IMX_SPDC
 	select IMX_HAVE_PLATFORM_IMX_PXP
 	select IMX_HAVE_PLATFORM_IMX_KEYPAD
+	select IMX_HAVE_PLATFORM_IMX_DCP
+	select IMX_HAVE_PLATFORM_RANDOM_RNGC
+	select ARCH_HAS_RNGC
 	help
 	  Include support for i.MX 6Sololite Armadillo2 platform. This includes specific
 	  configurations for the board and its peripherals.
@@ -131,6 +135,7 @@ config MACH_MX6Q_SABRELITE
 	select IMX_HAVE_PLATFORM_MXC_HDMI
 	select IMX_HAVE_PLATFORM_IMX_ASRC
 	select IMX_HAVE_PLATFORM_FLEXCAN
+	select IMX_HAVE_PLATFORM_IMX_CAAM
 	help
 	  Include support for i.MX 6Quad SABRE Lite platform. This includes specific
 	  configurations for the board and its peripherals.
@@ -164,6 +169,7 @@ config MACH_MX6Q_SABRESD
 	select IMX_HAVE_PLATFORM_IMX_ASRC
 	select IMX_HAVE_PLATFORM_FLEXCAN
 	select IMX_HAVE_PLATFORM_IMX_PCIE
+	select IMX_HAVE_PLATFORM_IMX_CAAM
 	help
 	  Include support for i.MX 6Quad SABRE SD platform. This includes specific
 	  configurations for the board and its peripherals.
@@ -201,6 +207,7 @@ config MACH_MX6Q_SABREAUTO
 	select IMX_HAVE_PLATFORM_FLEXCAN
 	select IMX_HAVE_PLATFORM_IMX_MIPI_CSI2
 	select IMX_HAVE_PLATFORM_IMX_PCIE
+	select IMX_HAVE_PLATFORM_IMX_CAAM
 	help
 	  Include support for i.MX 6Quad SABRE Auto platform. This includes specific
 	  configurations for the board and its peripherals.
