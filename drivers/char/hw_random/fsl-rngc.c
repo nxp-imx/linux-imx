@@ -1,7 +1,7 @@
 /*
  * RNG driver for Freescale RNGC
  *
- * Copyright (C) 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -123,7 +123,7 @@ static struct platform_device *rng_dev;
 
 int irq_rng;
 
-static int fsl_rngc_data_present(struct hwrng *rng)
+static int fsl_rngc_data_present(struct hwrng *rng, int wait)
 {
 	int level;
 	u32 rngc_base = (u32) rng->priv;
@@ -135,7 +135,7 @@ static int fsl_rngc_data_present(struct hwrng *rng)
 	return level > 0 ? 1 : 0;
 }
 
-static int fsl_rngc_data_read(struct hwrng *rng, u32 * data)
+static int fsl_rngc_data_read(struct hwrng *rng, u32 *data)
 {
 	int err;
 	u32 rngc_base = (u32) rng->priv;
@@ -293,13 +293,10 @@ static int __init fsl_rngc_probe(struct platform_device *pdev)
 
 	clk = clk_get(&pdev->dev, "rng_clk");
 
-	if (IS_ERR(clk)) {
-		dev_err(&pdev->dev, "Can not get rng_clk\n");
-		err = PTR_ERR(clk);
-		return err;
-	}
-
-	clk_enable(clk);
+	if (IS_ERR(clk))
+		dev_warn(&pdev->dev, "No rng_clk specified\n");
+	else
+		clk_enable(clk);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
@@ -340,7 +337,7 @@ static int __exit fsl_rngc_remove(struct platform_device *pdev)
 	clk = clk_get(&pdev->dev, "rng_clk");
 
 	if (IS_ERR(clk))
-		dev_err(&pdev->dev, "Can not get rng_clk\n");
+		dev_warn(&pdev->dev, "No rng_clk specified\n");
 	else
 		clk_disable(clk);
 

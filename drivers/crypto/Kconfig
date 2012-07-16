@@ -294,13 +294,13 @@ config CRYPTO_DEV_S5P
 	  algorithms execution.
 config CRYPTO_DEV_DCP
 	tristate "Support for the DCP engine"
-	depends on SOC_IMX28 || SOC_IMX23 || SOC_IMX50
+	depends on SOC_IMX28 || SOC_IMX23 || SOC_IMX50 || SOC_IMX6SL
 	select CRYPTO_ALGAPI
 	select CRYPTO_BLKCIPHER
 	help
-	 Say 'Y' here to use the DCP AES and SHA
-	 engine for the CryptoAPI algorithms.
-	 To compile this driver as a module, choose M here: the module
-	 will be called geode-aes.
+	  Say 'Y' here to use the DCP AES and SHA
+	  engine for the CryptoAPI algorithms.
+	  To compile this driver as a module, choose M here: the module
+	  will be called geode-aes.
 
 endif # CRYPTO_HW
