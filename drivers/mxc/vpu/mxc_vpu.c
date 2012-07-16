@@ -481,6 +481,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 	default:
 		{
 			printk(KERN_ERR "No such IOCTL, cmd is %d\n", cmd);
+			ret = -EINVAL;
 			break;
 		}
 	}
