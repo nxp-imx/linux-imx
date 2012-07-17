@@ -310,6 +310,12 @@ static struct regulator_consumer_supply vddpu_consumers[] = {
 		.supply = "cpu_vddgpu",
 	}
 };
+/* SOC */
+static struct regulator_consumer_supply vddsoc_consumers[] = {
+	{
+		.supply = "cpu_vddsoc",
+	},
+};
 
 static struct regulator_init_data vddpu_init = {
 	.constraints = {
@@ -352,8 +358,8 @@ static struct regulator_init_data vddsoc_init = {
 					  REGULATOR_CHANGE_MODE,
 		.always_on		= 1,
 	},
-	.num_consumer_supplies = 0,
-	.consumer_supplies = NULL,
+	.num_consumer_supplies = ARRAY_SIZE(vddsoc_consumers),
+	.consumer_supplies = &vddsoc_consumers[0],
 };
 
 static struct regulator_init_data vdd2p5_init = {
