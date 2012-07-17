@@ -1207,6 +1207,17 @@ static void __init elan_ts_init(void)
 	gpio_direction_output(MX6SL_ARM2_ELAN_CE, 1);
 }
 
+#define SNVS_LPCR 0x38
+static void mx6_snvs_poweroff(void)
+{
+	u32 value;
+	void __iomem *mx6_snvs_base = MX6_IO_ADDRESS(MX6Q_SNVS_BASE_ADDR);
+
+	value = readl(mx6_snvs_base + SNVS_LPCR);
+	/* set TOP and DP_EN bit */
+	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
+}
+
 /*!
  * Board specific initialization.
  */
@@ -1285,6 +1296,8 @@ static void __init mx6_arm2_init(void)
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6sl_add_imx_keypad(&mx6sl_arm2_map_data);
 	imx6q_add_busfreq();
+
+	pm_power_off = mx6_snvs_poweroff;
 }
 
 extern void __iomem *twd_base;
