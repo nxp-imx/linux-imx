@@ -97,11 +97,14 @@ static struct clk *pll2;
 static struct clk *pll3_sw_clk;
 static struct clk *pll2_200;
 static struct clk *mmdc_ch0_axi;
+struct regulator *vddsoc_cap_regulator;
 
 static struct delayed_work low_bus_freq_handler;
 
 static void reduce_bus_freq_handler(struct work_struct *work)
 {
+	int ret = 0;
+
 	if (low_bus_freq_mode || !low_freq_bus_used())
 		return;
 
@@ -148,6 +151,17 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 			clk_disable(pll2_400);
 		clk_disable(pll3);
 	} else {
+		/* Set VDDSOC_CAP to 1.1V */
+		ret = regulator_set_voltage(vddsoc_cap_regulator, 1100000,
+					    1100000);
+		if (ret < 0) {
+			printk(KERN_DEBUG
+			       "COULD NOT DECREASE VDDSOC_CAP VOLTAGE!!!!\n");
+			return;
+		}
+
+		udelay(150);
+
 		/* Set periph_clk to be sourced from OSC_CLK */
 		/* Set MMDC clk to 25MHz. */
 		/* First need to set the divider before changing the parent */
@@ -197,6 +211,8 @@ int set_low_bus_freq(void)
  */
 int set_high_bus_freq(int high_bus_freq)
 {
+	int ret = 0;
+
 	if (busfreq_suspended)
 		return 0;
 
@@ -226,6 +242,23 @@ int set_high_bus_freq(int high_bus_freq)
 	}
 
 	if (cpu_is_mx6sl()) {
+		/* Set the voltage of VDDSOC to 1.2V as in normal mode. */
+		ret = regulator_set_voltage(vddsoc_cap_regulator, 1200000,
+					    1200000);
+		if (ret < 0) {
+			printk(KERN_DEBUG
+			       "COULD NOT INCREASE VDDSOC_CAP VOLTAGE!!!!\n");
+			return ret;
+		}
+
+		/* Need to wait for the regulator to come back up */
+		/*
+		 * Delay time is based on the number of 24MHz clock cycles
+		 * programmed in the ANA_MISC2_BASE_ADDR for each
+		 * 25mV step.
+		 */
+		udelay(150);
+
 		/* Set periph_clk to be sourced from pll2_pfd2_400M */
 		/* First need to set the divider before changing the */
 		/* parent if parent clock is larger than previous one */
@@ -435,6 +468,13 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		printk(KERN_DEBUG "%s: failed to get mmdc_ch0_axi\n",
 		       __func__);
 		return PTR_ERR(mmdc_ch0_axi);
+	}
+
+	vddsoc_cap_regulator = regulator_get(NULL, "cpu_vddsoc");
+	if (IS_ERR(vddsoc_cap_regulator)) {
+		printk(KERN_ERR "%s: failed to get vddsoc_cap regulator\n",
+				__func__);
+		return PTR_ERR(vddsoc_cap_regulator);
 	}
 
 	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
