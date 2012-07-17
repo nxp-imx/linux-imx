@@ -27,6 +27,15 @@
 
 static int buffer_num;
 static int buffer_ready;
+static struct ipu_soc *disp_ipu;
+
+static void get_disp_ipu(cam_data *cam)
+{
+	if (cam->output > 2)
+		disp_ipu = ipu_get_soc(1); /* using DISP4 */
+	else
+		disp_ipu = ipu_get_soc(0);
+}
 
 /*
  * Function definitions
@@ -43,7 +52,6 @@ static int buffer_ready;
 static irqreturn_t prpvf_sdc_vsync_callback(int irq, void *dev_id)
 {
 	cam_data *cam = dev_id;
-	pr_debug("buffer_ready %d buffer_num %d\n", buffer_ready, buffer_num);
 	if (buffer_ready > 0) {
 		ipu_select_buffer(cam->ipu, MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 0);
 		buffer_ready--;
@@ -66,9 +74,7 @@ static irqreturn_t prpvf_vf_eof_callback(int irq, void *dev_id)
 	pr_debug("buffer_ready %d buffer_num %d\n", buffer_ready, buffer_num);
 
 	ipu_select_buffer(cam->ipu, MEM_ROT_VF_MEM, IPU_INPUT_BUFFER, buffer_num);
-
 	buffer_num = (buffer_num == 0) ? 1 : 0;
-
 	ipu_select_buffer(cam->ipu, CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER, buffer_num);
 	buffer_ready++;
 	return IRQ_HANDLED;
@@ -103,6 +109,8 @@ static int prpvf_start(void *private)
 		pr_debug("already start.\n");
 		return 0;
 	}
+
+	get_disp_ipu(cam);
 
 	format = cam->v4l2_fb.fmt.pixelformat;
 	if (cam->v4l2_fb.fmt.pixelformat == IPU_PIX_FMT_BGR24) {
@@ -280,8 +288,8 @@ static int prpvf_start(void *private)
 		goto out_2;
 	}
 
-	ipu_clear_irq(cam->ipu, IPU_IRQ_BG_SF_END);
-	err = ipu_request_irq(cam->ipu, IPU_IRQ_BG_SF_END, prpvf_sdc_vsync_callback,
+	ipu_clear_irq(disp_ipu, IPU_IRQ_BG_SF_END);
+	err = ipu_request_irq(disp_ipu, IPU_IRQ_BG_SF_END, prpvf_sdc_vsync_callback,
 			      0, "Mxc Camera", cam);
 	if (err != 0) {
 		printk(KERN_ERR "Error registering IPU_IRQ_BG_SF_END irq.\n");
@@ -352,7 +360,7 @@ static int prpvf_stop(void *private)
 	if (cam->overlay_active == false)
 		return 0;
 
-	ipu_free_irq(cam->ipu, IPU_IRQ_BG_SF_END, cam);
+	ipu_free_irq(disp_ipu, IPU_IRQ_BG_SF_END, cam);
 
 	ipu_free_irq(cam->ipu, IPU_IRQ_PRP_VF_OUT_EOF, cam);
 
