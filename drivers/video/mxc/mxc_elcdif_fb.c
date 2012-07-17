@@ -1092,6 +1092,8 @@ static int mxc_elcdif_fb_blank(int blank, struct fb_info *info)
 		return ret;
 
 	if (blank == FB_BLANK_UNBLANK) {
+		info->var.activate = (info->var.activate & ~FB_ACTIVATE_MASK) |
+				FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE;
 		ret = mxc_elcdif_fb_set_par(info);
 		if (ret)
 			return ret;
