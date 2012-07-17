@@ -1,9 +1,7 @@
 /*
  * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
-
-/*
- * The code contained herein is licensed under the GNU General Public
+/* * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
  * Version 2 or later at the following locations:
  *
@@ -30,6 +28,33 @@
 
 #define OVERLAY_FB_SUPPORT_NONSTD	(cpu_is_mx5())
 
+static int buffer_num;
+static struct ipu_soc *disp_ipu;
+
+static void get_disp_ipu(cam_data *cam)
+{
+	if (cam->output > 2)
+		disp_ipu = ipu_get_soc(1); /* using DISP4 */
+	else
+		disp_ipu = ipu_get_soc(0);
+}
+
+static irqreturn_t prpvf_rot_eof_callback(int irq, void *dev_id)
+{
+	cam_data *cam = dev_id;
+	pr_debug("buffer_num %d\n",  buffer_num);
+
+	if (cam->vf_rotation >= IPU_ROTATE_VERT_FLIP) {
+		ipu_select_buffer(disp_ipu, MEM_FG_SYNC, IPU_INPUT_BUFFER, buffer_num);
+		buffer_num = (buffer_num == 0) ? 1 : 0;
+		ipu_select_buffer(cam->ipu, MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, buffer_num);
+	} else {
+		ipu_select_buffer(disp_ipu, MEM_FG_SYNC, IPU_INPUT_BUFFER, buffer_num);
+		buffer_num = (buffer_num == 0) ? 1 : 0;
+		ipu_select_buffer(cam->ipu, CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER, buffer_num);
+	}
+	return IRQ_HANDLED;
+}
 /*
  * Function definitions
  */
@@ -66,16 +91,19 @@ static int prpvf_start(void *private)
 		return 0;
 	}
 
+	get_disp_ipu(cam);
+
 	for (i = 0; i < num_registered_fb; i++) {
 		char *idstr = registered_fb[i]->fix.id;
-		if (strcmp(idstr, "DISP3 FG") == 0) {
+		if (((strcmp(idstr, "DISP3 FG") == 0) && (cam->output < 3)) ||
+			((strcmp(idstr, "DISP4 FG") == 0) && (cam->output >= 3))) {
 			fbi = registered_fb[i];
 			break;
 		}
 	}
 
 	if (fbi == NULL) {
-		printk(KERN_ERR "DISP3 FG fb not found\n");
+		printk(KERN_ERR "DISP FG fb not found\n");
 		return -EPERM;
 	}
 
@@ -104,7 +132,7 @@ static int prpvf_start(void *private)
 	fbvar.activate |= FB_ACTIVATE_FORCE;
 	fb_set_var(fbi, &fbvar);
 
-	ipu_disp_set_window_pos(cam->ipu, MEM_FG_SYNC, cam->win.w.left,
+	ipu_disp_set_window_pos(disp_ipu, MEM_FG_SYNC, cam->win.w.left,
 			cam->win.w.top);
 
 	/* Fill black color for framebuffer */
@@ -118,10 +146,10 @@ static int prpvf_start(void *private)
 	console_unlock();
 
 	/* correct display ch buffer address */
-	ipu_update_channel_buffer(cam->ipu, MEM_FG_SYNC, IPU_INPUT_BUFFER,
+	ipu_update_channel_buffer(disp_ipu, MEM_FG_SYNC, IPU_INPUT_BUFFER,
 				0, fbi->fix.smem_start +
 				(fbi->fix.line_length * fbvar.yres));
-	ipu_update_channel_buffer(cam->ipu, MEM_FG_SYNC, IPU_INPUT_BUFFER,
+	ipu_update_channel_buffer(disp_ipu, MEM_FG_SYNC, IPU_INPUT_BUFFER,
 					1, fbi->fix.smem_start);
 
 	memset(&vf, 0, sizeof(ipu_channel_params_t));
@@ -269,17 +297,18 @@ static int prpvf_start(void *private)
 			goto out_2;
 		}
 
+		ipu_clear_irq(cam->ipu, IPU_IRQ_PRP_VF_ROT_OUT_EOF);
+		err = ipu_request_irq(cam->ipu, IPU_IRQ_PRP_VF_ROT_OUT_EOF, prpvf_rot_eof_callback,
+			      0, "Mxc Camera", cam);
+		if (err < 0) {
+			printk(KERN_ERR "Error request irq:IPU_IRQ_PRP_VF_ROT_OUT_EOF\n");
+			goto out_2;
+		}
+
 		err = ipu_link_channels(cam->ipu, CSI_PRP_VF_MEM, MEM_ROT_VF_MEM);
 		if (err < 0) {
 			printk(KERN_ERR
 			       "Error link CSI_PRP_VF_MEM-MEM_ROT_VF_MEM\n");
-			goto out_2;
-		}
-
-		err = ipu_link_channels(cam->ipu, MEM_ROT_VF_MEM, MEM_FG_SYNC);
-		if (err < 0) {
-			printk(KERN_ERR
-			       "Error link MEM_ROT_VF_MEM-MEM_FG_SYNC\n");
 			goto out_1;
 		}
 
@@ -289,7 +318,6 @@ static int prpvf_start(void *private)
 		ipu_select_buffer(cam->ipu, CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER, 0);
 		ipu_select_buffer(cam->ipu, CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER, 1);
 		ipu_select_buffer(cam->ipu, MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 0);
-		ipu_select_buffer(cam->ipu, MEM_ROT_VF_MEM, IPU_OUTPUT_BUFFER, 1);
 	} else {
 		err = ipu_init_channel_buffer(cam->ipu, CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER,
 					      vf_out_format, cam->win.w.width,
@@ -304,24 +332,24 @@ static int prpvf_start(void *private)
 			printk(KERN_ERR "Error initializing CSI_PRP_VF_MEM\n");
 			goto out_4;
 		}
-
-		err = ipu_link_channels(cam->ipu, CSI_PRP_VF_MEM, MEM_FG_SYNC);
+		ipu_clear_irq(cam->ipu, IPU_IRQ_PRP_VF_OUT_EOF);
+		err = ipu_request_irq(cam->ipu, IPU_IRQ_PRP_VF_OUT_EOF, prpvf_rot_eof_callback,
+			      0, "Mxc Camera", cam);
 		if (err < 0) {
-			printk(KERN_ERR "Error linking ipu channels\n");
+			printk(KERN_ERR "Error request irq:IPU_IRQ_PRP_VF_OUT_EOF\n");
 			goto out_4;
 		}
 
 		ipu_enable_channel(cam->ipu, CSI_PRP_VF_MEM);
 
 		ipu_select_buffer(cam->ipu, CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER, 0);
-		ipu_select_buffer(cam->ipu, CSI_PRP_VF_MEM, IPU_OUTPUT_BUFFER, 1);
 	}
 
 	cam->overlay_active = true;
 	return err;
 
 out_1:
-	ipu_unlink_channels(cam->ipu, CSI_PRP_VF_MEM, MEM_ROT_VF_MEM);
+	ipu_free_irq(cam->ipu, IPU_IRQ_PRP_VF_OUT_EOF, NULL);
 out_2:
 	if (cam->vf_rotation >= IPU_ROTATE_VERT_FLIP) {
 		ipu_uninit_channel(cam->ipu, MEM_ROT_VF_MEM);
@@ -370,23 +398,25 @@ static int prpvf_stop(void *private)
 
 	for (i = 0; i < num_registered_fb; i++) {
 		char *idstr = registered_fb[i]->fix.id;
-		if (strcmp(idstr, "DISP3 FG") == 0) {
+		if (((strcmp(idstr, "DISP3 FG") == 0) && (cam->output < 3)) ||
+			((strcmp(idstr, "DISP4 FG") == 0) && (cam->output >= 3))) {
 			fbi = registered_fb[i];
 			break;
 		}
 	}
 
 	if (fbi == NULL) {
-		printk(KERN_ERR "DISP3 FG fb not found\n");
+		printk(KERN_ERR "DISP FG fb not found\n");
 		return -EPERM;
 	}
 
 	if (cam->vf_rotation >= IPU_ROTATE_VERT_FLIP) {
 		ipu_unlink_channels(cam->ipu, CSI_PRP_VF_MEM, MEM_ROT_VF_MEM);
-		ipu_unlink_channels(cam->ipu, MEM_ROT_VF_MEM, MEM_FG_SYNC);
+		ipu_free_irq(cam->ipu, IPU_IRQ_PRP_VF_ROT_OUT_EOF, cam);
 	} else {
-		ipu_unlink_channels(cam->ipu, CSI_PRP_VF_MEM, MEM_FG_SYNC);
+		ipu_free_irq(cam->ipu, IPU_IRQ_PRP_VF_OUT_EOF, cam);
 	}
+	buffer_num = 0;
 
 	ipu_disable_channel(cam->ipu, CSI_PRP_VF_MEM, true);
 
