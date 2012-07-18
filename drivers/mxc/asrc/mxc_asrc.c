@@ -583,6 +583,26 @@ int asrc_config_pair(struct asrc_config *config)
 		}
 	}
 
+	if ((config->inclk == INCLK_ASRCK1_CLK) &&
+			(config->outclk == OUTCLK_ESAI_TX)) {
+		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
+		reg &= ~(1 << (20 + config->pair));
+		reg |= (0x03 << (13 + (config->pair << 1)));
+		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
+		err = asrc_set_clock_ratio(config->pair,
+					   config->input_sample_rate,
+					   config->output_sample_rate);
+		if (err < 0)
+			return err;
+
+		err = asrc_set_process_configuration(config->pair,
+						     config->input_sample_rate,
+						     config->
+						     output_sample_rate);
+		if (err < 0)
+			return err;
+	}
+
 	/* Config input and output wordwidth */
 	reg = __raw_readl(
 		g_asrc->vaddr + ASRC_ASRMCR1A_REG + (config->pair << 2));
