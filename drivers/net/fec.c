@@ -1541,7 +1541,6 @@ fec_restart(struct net_device *dev, int duplex)
 	writel(1, fep->hwp + FEC_ECNTRL);
 	udelay(10);
 
-	/*
 	/* if uboot don't set MAC address, get MAC address
 	 * from command line; if command line don't set MAC
 	 * address, get from OCOTP; otherwise, allocate random
