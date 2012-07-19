@@ -129,6 +129,7 @@
 #define MX6SL_ARM2_ELAN_INT		IMX_GPIO_NR(2, 10)
 #define MX6SL_ARM2_ELAN_RST		IMX_GPIO_NR(4, 4)
 
+static int spdc_sel;
 static int max17135_regulator_init(struct max17135 *max17135);
 struct clk *extern_audio_root;
 
@@ -1078,13 +1079,19 @@ static struct imx_spdc_fb_platform_data spdc_data = {
 	.disable_pins = spdc_disable_pins,
 };
 
-#if defined(CONFIG_FB_MXC_SIPIX_PANEL)
+static int __init early_use_spdc_sel(char *p)
+{
+	spdc_sel = 1;
+	return 0;
+}
+early_param("spdc", early_use_spdc_sel);
+
 static void setup_spdc(void)
 {
 	/* GPR0[8]: 0:EPDC, 1:SPDC */
-	mxc_iomux_set_gpr_register(0, 8, 1, 1);
+	if (spdc_sel)
+		mxc_iomux_set_gpr_register(0, 8, 1, 1);
 }
-#endif
 
 static void imx6_arm2_usbotg_vbus(bool on)
 {
@@ -1275,11 +1282,11 @@ static void __init mx6_arm2_init(void)
 	imx6dl_add_imx_pxp();
 	imx6dl_add_imx_pxp_client();
 	mxc_register_device(&max17135_sensor_device, NULL);
-	imx6dl_add_imx_epdc(&epdc_data);
-#if defined(CONFIG_FB_MXC_SIPIX_PANEL)
 	setup_spdc();
-#endif
-	imx6sl_add_imx_spdc(&spdc_data);
+	if (!spdc_sel)
+		imx6dl_add_imx_epdc(&epdc_data);
+	else
+		imx6sl_add_imx_spdc(&spdc_data);
 	imx6q_add_dvfs_core(&mx6sl_arm2_dvfscore_data);
 
 	imx6q_init_audio();
