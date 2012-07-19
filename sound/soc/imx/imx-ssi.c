@@ -1,8 +1,13 @@
 /*
  * imx-ssi.c  --  ALSA Soc Audio Layer
  *
+ * Copyright 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ *
  * Copyright 2009 Sascha Hauer <s.hauer@pengutronix.de>
  *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
  * This code is based on code copyrighted by Freescale,
  * Liam Girdwood, Javier Martin and probably others.
  *
@@ -213,28 +218,40 @@ static int imx_ssi_set_dai_clkdiv(struct snd_soc_dai *cpu_dai,
 
 	switch (div_id) {
 	case IMX_SSI_TX_DIV_2:
+		if (div & (~SSI_STCCR_DIV2))
+			return EINVAL;
 		stccr &= ~SSI_STCCR_DIV2;
 		stccr |= div;
 		break;
 	case IMX_SSI_TX_DIV_PSR:
+		if (div & (~SSI_STCCR_PSR))
+			return EINVAL;
 		stccr &= ~SSI_STCCR_PSR;
 		stccr |= div;
 		break;
 	case IMX_SSI_TX_DIV_PM:
-		stccr &= ~0xff;
+		if (div & (~SSI_STCCR_PM_MASK))
+			return EINVAL;
+		stccr &= ~SSI_STCCR_PM_MASK;
 		stccr |= SSI_STCCR_PM(div);
 		break;
 	case IMX_SSI_RX_DIV_2:
-		stccr &= ~SSI_STCCR_DIV2;
-		stccr |= div;
+		if (div & (~SSI_SRCCR_DIV2))
+			return EINVAL;
+		srccr &= ~SSI_SRCCR_DIV2;
+		srccr |= div;
 		break;
 	case IMX_SSI_RX_DIV_PSR:
-		stccr &= ~SSI_STCCR_PSR;
-		stccr |= div;
+		if (div & (~SSI_SRCCR_PSR))
+			return EINVAL;
+		srccr &= ~SSI_SRCCR_PSR;
+		srccr |= div;
 		break;
 	case IMX_SSI_RX_DIV_PM:
-		stccr &= ~0xff;
-		stccr |= SSI_STCCR_PM(div);
+		if (div & (~SSI_SRCCR_PM_MASK))
+			return EINVAL;
+		srccr &= ~SSI_SRCCR_PM_MASK;
+		srccr |= SSI_STCCR_PM(div);
 		break;
 	default:
 		return -EINVAL;
@@ -497,7 +514,9 @@ static int imx_ssi_dai_probe(struct snd_soc_dai *dai)
 	snd_soc_dai_set_drvdata(dai, ssi);
 
 	val = SSI_SFCSR_TFWM0(ssi->dma_params_tx.burstsize) |
-		SSI_SFCSR_RFWM0(ssi->dma_params_rx.burstsize);
+		SSI_SFCSR_RFWM0(ssi->dma_params_rx.burstsize) |
+		SSI_SFCSR_TFWM1(ssi->dma_params_tx.burstsize) |
+		SSI_SFCSR_RFWM1(ssi->dma_params_rx.burstsize) ;
 	writel(val, ssi->base + SSI_SFCSR);
 
 	return 0;
@@ -567,10 +586,10 @@ static void setup_channel_to_ac97(struct imx_ssi *imx_ssi)
 
 	writel(SSI_SCR_SYN | SSI_SCR_NET, base + SSI_SCR);
 
-	writel(SSI_SFCSR_RFWM0(8) |
-		SSI_SFCSR_TFWM0(8) |
-		SSI_SFCSR_RFWM1(8) |
-		SSI_SFCSR_TFWM1(8), base + SSI_SFCSR);
+	writel(SSI_SFCSR_RFWM0(imx_ssi->dma_params_rx.burstsize) |
+		SSI_SFCSR_TFWM0(imx_ssi->dma_params_tx.burstsize) |
+		SSI_SFCSR_RFWM1(imx_ssi->dma_params_rx.burstsize) |
+		SSI_SFCSR_TFWM1(imx_ssi->dma_params_tx.burstsize), base + SSI_SFCSR);
 
 	writel(SSI_STCCR_WL(16) | SSI_STCCR_DC(12), base + SSI_STCCR);
 	writel(SSI_STCCR_WL(16) | SSI_STCCR_DC(12), base + SSI_SRCCR);
