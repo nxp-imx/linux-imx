@@ -218,6 +218,10 @@ config IMX_PCIE
 	bool "PCI Express support"
 	select PCI
 
+config USB_EHCI_ARC_H1
+	tristate "USB Host 1 support"
+	depends on USB_EHCI_ARC
+
 config MX6_INTER_LDO_BYPASS
 	bool "Internal LDO in MX6Q/DL bypass"
 	depends on  REGULATOR_PFUZE100 && CPU_FREQ_IMX && ARCH_MX6
