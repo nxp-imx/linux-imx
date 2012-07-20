@@ -1,7 +1,7 @@
 /*
  * Freescale UUT driver
  *
- * Copyright 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc.
  * Copyright 2008-2009 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
@@ -71,9 +71,11 @@ static u32 count_list(struct list_head *l)
 	u32 count = 0;
 	struct list_head *tmp;
 
+	mutex_lock(&utp_context.lock);
 	list_for_each(tmp, l) {
 		count++;
 	}
+	mutex_unlock(&utp_context.lock);
 
 	return count;
 }
