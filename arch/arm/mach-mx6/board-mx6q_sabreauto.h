@@ -179,7 +179,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_EIM_EB0__GPIO_2_28,
 
 	/* USBOTG ID pin */
-	MX6Q_PAD_ENET_RX_ER__ENET_RX_ER,
+	MX6Q_PAD_ENET_RX_ER__ANATOP_USBOTG_ID,
 
 	/* VIDEO adv7180 INTRQ */
 	MX6Q_PAD_ENET_RXD0__GPIO_1_27,
