@@ -3049,8 +3049,9 @@ static void handle_exception(struct fsg_dev *fsg)
 		break;
 
 	case FSG_STATE_DISCONNECT:
-		for (i = 0; i < fsg->nluns; ++i)
-			fsg_lun_fsync_sub(fsg->luns + i);
+		if (fsg->config != 0)
+			for (i = 0; i < fsg->nluns; ++i)
+				fsg_lun_fsync_sub(fsg->luns + i);
 		do_set_config(fsg, 0);		// Unconfigured state
 		break;
 
