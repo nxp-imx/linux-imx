@@ -2156,7 +2156,11 @@ static int send_status(struct fsg_dev *fsg)
 		sd = SS_INVALID_COMMAND;
 	} else if (sd != SS_NO_SENSE) {
 		DBG(fsg, "sending command-failure status\n");
+#ifdef CONFIG_FSL_UTP
+		status = USB_STATUS_PASS;
+#else
 		status = USB_STATUS_FAIL;
+#endif
 		VDBG(fsg, "  sense data: SK x%02x, ASC x%02x, ASCQ x%02x;"
 				"  info x%x\n",
 				SK(sd), ASC(sd), ASCQ(sd), sdinfo);
