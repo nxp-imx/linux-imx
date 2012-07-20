@@ -212,6 +212,32 @@ static void pool_initialise_page(struct dma_pool *pool, struct dma_page *page)
 	} while (offset < pool->allocation);
 }
 
+#ifdef CONFIG_FSL_UTP
+static struct dma_page *pool_alloc_page_nonbufferable(struct dma_pool *pool, gfp_t mem_flags)
+{
+	struct dma_page *page;
+
+	page = kmalloc(sizeof(*page), mem_flags);
+	if (!page)
+		return NULL;
+	page->vaddr = dma_alloc_noncacheable(pool->dev, pool->allocation,
+					 &page->dma, mem_flags);
+	if (page->vaddr) {
+#ifdef	DMAPOOL_DEBUG
+		memset(page->vaddr, POOL_POISON_FREED, pool->allocation);
+#endif
+		pool_initialise_page(pool, page);
+		list_add(&page->page_list, &pool->page_list);
+		page->in_use = 0;
+		page->offset = 0;
+	} else {
+		kfree(page);
+		page = NULL;
+	}
+	return page;
+}
+#endif
+
 static struct dma_page *pool_alloc_page(struct dma_pool *pool, gfp_t mem_flags)
 {
 	struct dma_page *page;
@@ -352,6 +378,68 @@ void *dma_pool_alloc(struct dma_pool *pool, gfp_t mem_flags,
 	return retval;
 }
 EXPORT_SYMBOL(dma_pool_alloc);
+
+#ifdef CONFIG_FSL_UTP
+/**
+ * dma_pool_alloc_nonbufferable - get a block of consistent memory
+ * @pool: dma pool that will produce the block
+ * @mem_flags: GFP_* bitmask
+ * @handle: pointer to dma address of block
+ *
+ * This returns the kernel virtual address of a currently unused block,
+ * and reports its dma address through the handle.
+ * If such a memory block can't be allocated, %NULL is returned.
+ */
+void *dma_pool_alloc_nonbufferable(struct dma_pool *pool, gfp_t mem_flags,
+		     dma_addr_t *handle)
+{
+	unsigned long flags;
+	struct dma_page *page;
+	size_t offset;
+	void *retval;
+
+	might_sleep_if(mem_flags & __GFP_WAIT);
+
+	spin_lock_irqsave(&pool->lock, flags);
+ restart:
+	list_for_each_entry(page, &pool->page_list, page_list) {
+		if (page->offset < pool->allocation)
+			goto ready;
+	}
+	page = pool_alloc_page_nonbufferable(pool, GFP_ATOMIC);
+	if (!page) {
+		if (mem_flags & __GFP_WAIT) {
+			DECLARE_WAITQUEUE(wait, current);
+
+			__set_current_state(TASK_UNINTERRUPTIBLE);
+			__add_wait_queue(&pool->waitq, &wait);
+			spin_unlock_irqrestore(&pool->lock, flags);
+
+			schedule_timeout(POOL_TIMEOUT_JIFFIES);
+
+			spin_lock_irqsave(&pool->lock, flags);
+			__remove_wait_queue(&pool->waitq, &wait);
+			goto restart;
+		}
+		retval = NULL;
+		goto done;
+	}
+
+ ready:
+	page->in_use++;
+	offset = page->offset;
+	page->offset = *(int *)(page->vaddr + offset);
+	retval = offset + page->vaddr;
+	*handle = offset + page->dma;
+#ifdef	DMAPOOL_DEBUG
+	memset(retval, POOL_POISON_ALLOCATED, pool->size);
+#endif
+ done:
+	spin_unlock_irqrestore(&pool->lock, flags);
+	return retval;
+}
+EXPORT_SYMBOL(dma_pool_alloc_nonbufferable);
+#endif
 
 static struct dma_page *pool_find_page(struct dma_pool *pool, dma_addr_t dma)
 {
