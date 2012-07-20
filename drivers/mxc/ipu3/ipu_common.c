@@ -151,6 +151,18 @@ static inline int _ipu_is_trb_chan(uint32_t dma_chan)
 		(g_ipu_hw_rev >= 2));
 }
 
+/*
+ * We usually use IDMAC 23 as full plane and IDMAC 27 as partial
+ * plane.
+ * IDMAC 23/24/28/41 can drive a display respectively - primary
+ * IDMAC 27 depends on IDMAC 23 - nonprimary
+ */
+static inline int _ipu_is_primary_disp_chan(uint32_t dma_chan)
+{
+	return ((dma_chan == 23) || (dma_chan == 24) ||
+		(dma_chan == 28) || (dma_chan == 41));
+}
+
 #define idma_is_valid(ch)	(ch != NO_DMA)
 #define idma_mask(ch)		(idma_is_valid(ch) ? (1UL << (ch & 0x1F)) : 0)
 #define idma_is_set(reg, dma)	(__raw_readl(reg(dma)) & idma_mask(dma))
@@ -807,6 +819,7 @@ void ipu_uninit_channel(ipu_channel_t channel)
 	uint32_t reg;
 	uint32_t in_dma, out_dma = 0;
 	uint32_t ipu_conf;
+	uint32_t dc_chan = 0;
 
 	spin_lock_irqsave(&ipu_lock, lock_flags);
 
@@ -929,12 +942,14 @@ void ipu_uninit_channel(ipu_channel_t channel)
 		_ipu_ic_uninit_rotate_pp();
 		break;
 	case MEM_DC_SYNC:
+		dc_chan = 1;
 		_ipu_dc_uninit(1);
 		ipu_di_use_count[g_dc_di_assignment[1]]--;
 		ipu_dc_use_count--;
 		ipu_dmfc_use_count--;
 		break;
 	case MEM_BG_SYNC:
+		dc_chan = 5;
 		_ipu_dp_uninit(channel);
 		_ipu_dc_uninit(5);
 		ipu_di_use_count[g_dc_di_assignment[5]]--;
@@ -949,11 +964,13 @@ void ipu_uninit_channel(ipu_channel_t channel)
 		ipu_dmfc_use_count--;
 		break;
 	case DIRECT_ASYNC0:
+		dc_chan = 8;
 		_ipu_dc_uninit(8);
 		ipu_di_use_count[g_dc_di_assignment[8]]--;
 		ipu_dc_use_count--;
 		break;
 	case DIRECT_ASYNC1:
+		dc_chan = 9;
 		_ipu_dc_uninit(9);
 		ipu_di_use_count[g_dc_di_assignment[9]]--;
 		ipu_dc_use_count--;
@@ -997,6 +1014,13 @@ void ipu_uninit_channel(ipu_channel_t channel)
 	    _ipu_is_dmfc_chan(in_dma) && g_ipu_hw_rev == 3)
 		__raw_writel(0x003F0000, IDMAC_CH_LOCK_EN_1);
 
+	/*
+	 * Disable pixel clk and its parent clock(if the parent clock
+	 * usecount is 1) after clearing DC/DP/DI bits in IPU_CONF
+	 * register to prevent LVDS display channel starvation.
+	 */
+	if (_ipu_is_primary_disp_chan(in_dma))
+		clk_disable(g_pixel_clk[g_dc_di_assignment[dc_chan]]);
 	spin_unlock_irqrestore(&ipu_lock, lock_flags);
 
 	ipu_put_clk();

@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -844,18 +844,6 @@ void _ipu_dp_dc_disable(ipu_channel_t channel, bool swap)
 		reg ^= DC_WR_CH_CONF_PROG_DI_ID;
 		__raw_writel(reg, DC_WR_CH_CONF(dc_chan));
 		spin_unlock_irqrestore(&ipu_lock, lock_flags);
-	} else {
-		/* Clock is already off because it must be done quickly, but
-		   we need to fix the ref count */
-		clk_disable(g_pixel_clk[g_dc_di_assignment[dc_chan]]);
-
-		if (__raw_readl(IPUIRQ_2_STATREG(IPU_IRQ_VSYNC_PRE_0
-			+ g_dc_di_assignment[dc_chan])) &
-			IPUIRQ_2_MASK(IPU_IRQ_VSYNC_PRE_0
-			+ g_dc_di_assignment[dc_chan]))
-			dev_dbg(g_ipu_dev,
-				"VSyncPre occurred before DI%d disable\n",
-				g_dc_di_assignment[dc_chan]);
 	}
 }
 
