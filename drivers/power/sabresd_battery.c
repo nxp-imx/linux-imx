@@ -168,6 +168,7 @@ static enum power_supply_property max8903_battery_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
 	POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN,
 	POWER_SUPPLY_PROP_HEALTH,
+	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
 };
 
 extern u32 max11801_read_adc(void);
@@ -349,6 +350,14 @@ static int max8903_battery_get_property(struct power_supply *bat,
 		val->intval = POWER_SUPPLY_HEALTH_GOOD;
 		if (di->fault)
 			val->intval = POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
+		break;
+	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
+		if (di->battery_status == POWER_SUPPLY_STATUS_FULL)
+			val->intval = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
+		else if (di->percent <= 15)
+			val->intval = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
+		else
+			val->intval = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
 		break;
 	default:
 		return -EINVAL;
