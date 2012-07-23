@@ -36,11 +36,34 @@
 #include <mach/mxc_hdmi.h>
 #include "imx-hdmi.h"
 
+#include <linux/dmaengine.h>
+#include <mach/dma.h>
+#include <linux/iram_alloc.h>
+#include <linux/io.h>
+#include <asm/mach/map.h>
+#include <mach/hardware.h>
 
 #define HDMI_DMA_BURST_UNSPECIFIED_LEGNTH	0
 #define HDMI_DMA_BURST_INCR4			1
 #define HDMI_DMA_BURST_INCR8			2
 #define HDMI_DMA_BURST_INCR16			3
+
+
+
+#define HDMI_BASE_ADDR 0x00120000
+
+struct hdmi_sdma_script_data {
+	int control_reg_addr;
+	int status_reg_addr;
+	int dma_start_addr;
+	u32 buffer[20];
+};
+
+struct imx_hdmi_sdma_params {
+	u32 buffer_num;
+	dma_addr_t phyaddr;
+};
+
 
 struct imx_hdmi_dma_runtime_data {
 	struct snd_pcm_substream *tx_substream;
@@ -71,6 +94,15 @@ struct imx_hdmi_dma_runtime_data {
 
 	bool tx_active;
 	spinlock_t irq_lock;
+
+	/*SDMA part*/
+	unsigned int dma_event;
+	struct dma_chan *dma_channel;
+	struct imx_dma_data dma_data;
+	struct hdmi_sdma_script_data *hdmi_sdma_t;
+	dma_addr_t phy_hdmi_sdma_t;
+	struct dma_async_tx_descriptor *desc;
+	struct imx_hdmi_sdma_params sdma_params;
 };
 
 /* bit 0:0:0:b:p(0):c:(u)0:(v)0*/
@@ -509,7 +541,7 @@ static void hdmi_dma_copy_24(u32 *src, u32 *dest, int framecount, int channelcou
 #endif
 
 static void hdmi_dma_mmap_copy(struct snd_pcm_substream *substream,
-			       int offset, int count)
+				int offset, int count)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct imx_hdmi_dma_runtime_data *rtd = runtime->private_data;
@@ -544,6 +576,50 @@ static void hdmi_dma_mmap_copy(struct snd_pcm_substream *substream,
 		return;
 	}
 }
+
+static void hdmi_sdma_isr(void *data)
+{
+	struct imx_hdmi_dma_runtime_data *rtd = data;
+	struct snd_pcm_substream *substream = rtd->tx_substream;
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	unsigned long offset,  count, space_to_end, appl_bytes;
+	unsigned long flags;
+
+	spin_lock_irqsave(&rtd->irq_lock, flags);
+
+	if (runtime && runtime->dma_area && rtd->tx_active) {
+
+		rtd->offset += rtd->period_bytes;
+		rtd->offset %= rtd->period_bytes * rtd->periods;
+
+		/* For mmap access, need to copy data from dma_buffer
+		 * to hw_buffer and add the frame info. */
+		if (runtime->access == SNDRV_PCM_ACCESS_MMAP_INTERLEAVED) {
+			appl_bytes = frames_to_bytes(runtime,
+						runtime->control->appl_ptr);
+			offset = rtd->appl_bytes % rtd->buffer_bytes;
+			space_to_end = rtd->buffer_bytes - offset;
+			count = appl_bytes - rtd->appl_bytes;
+			rtd->appl_bytes = appl_bytes;
+
+			if (count <= space_to_end) {
+				hdmi_dma_mmap_copy(substream, offset, count);
+			} else {
+				hdmi_dma_mmap_copy(substream,
+						offset, space_to_end);
+				hdmi_dma_mmap_copy(substream,
+						0, count - space_to_end);
+			}
+		}
+		snd_pcm_period_elapsed(substream);
+
+	}
+
+	spin_unlock_irqrestore(&rtd->irq_lock, flags);
+
+	return;
+}
+
 
 static irqreturn_t hdmi_dma_isr(int irq, void *dev_id)
 {
@@ -815,11 +891,122 @@ static int hdmi_dma_copy(struct snd_pcm_substream *substream, int channel,
 	return 0;
 }
 
+static bool hdmi_filter(struct dma_chan *chan, void *param)
+{
+
+	if (!imx_dma_is_general_purpose(chan))
+		return false;
+
+	chan->private = param;
+	return true;
+}
+
+
+static int hdmi_init_sdma_buffer(struct imx_hdmi_dma_runtime_data *params)
+{
+	int i;
+	u32 *tmp_addr1, *tmp_addr2;
+
+	if (!params->hdmi_sdma_t) {
+		dev_err(&params->dma_channel->dev->device,
+				"hdmi private addr invalid!!!\n");
+		return -EINVAL;
+	}
+
+	params->hdmi_sdma_t->control_reg_addr =
+			HDMI_BASE_ADDR + HDMI_AHB_DMA_START;
+	params->hdmi_sdma_t->status_reg_addr =
+			HDMI_BASE_ADDR + HDMI_IH_AHBDMAAUD_STAT0;
+	params->hdmi_sdma_t->dma_start_addr =
+			HDMI_BASE_ADDR + HDMI_AHB_DMA_STRADDR0;
+
+	tmp_addr1 = (u32 *)params->hdmi_sdma_t + 3;
+	tmp_addr2 = (u32 *)params->hdmi_sdma_t + 4;
+	for (i = 0; i < params->sdma_params.buffer_num; i++) {
+		*tmp_addr1 = params->hw_buffer.addr +
+				i * params->period_bytes * params->buffer_ratio;
+		*tmp_addr2 = *tmp_addr1 + params->dma_period_bytes - 1;
+		tmp_addr1 += 2;
+		tmp_addr2 += 2;
+	}
+
+	return 0;
+}
+
+static int hdmi_sdma_alloc(struct imx_hdmi_dma_runtime_data *params)
+{
+	dma_cap_mask_t mask;
+
+	params->dma_data.peripheral_type = IMX_DMATYPE_HDMI;
+	params->dma_data.priority = DMA_PRIO_MEDIUM;
+	params->dma_data.dma_request = MX6Q_DMA_REQ_EXT_DMA_REQ_0;
+	params->dma_data.private = &params->sdma_params;
+
+	/* Try to grab a DMA channel */
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_SLAVE, mask);
+
+	params->dma_channel = dma_request_channel(
+			mask, hdmi_filter, &params->dma_data);
+	if (params->dma_channel == NULL) {
+		dev_err(&params->dma_channel->dev->device,
+			"HDMI:unable to alloc dma_channel channel\n");
+		return -EBUSY;
+	}
+	return 0;
+}
+
+static int hdmi_sdma_config(struct imx_hdmi_dma_runtime_data *params)
+{
+	struct dma_slave_config slave_config;
+	int ret;
+
+	slave_config.direction = DMA_TRANS_NONE;
+	ret = dmaengine_slave_config(params->dma_channel, &slave_config);
+	if (ret) {
+		dev_err(&params->dma_channel->dev->device,
+					"%s failed\r\n", __func__);
+		return -EINVAL;
+	}
+
+	params->desc =
+		params->dma_channel->device->device_prep_dma_cyclic(
+					params->dma_channel, 0,
+					0,
+					0,
+					DMA_TRANS_NONE);
+	if (!params->desc) {
+		dev_err(&params->dma_channel->dev->device,
+				"cannot prepare slave dma\n");
+		return -EINVAL;
+	}
+
+	params->desc->callback = hdmi_sdma_isr;
+	params->desc->callback_param = (void *)hdmi_dma_priv;
+
+	return 0;
+}
+
+
+
+static int hdmi_dma_hw_free(struct snd_pcm_substream *substream)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct imx_hdmi_dma_runtime_data *params = runtime->private_data;
+	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1) &&
+							(params->dma_channel)) {
+		dma_release_channel(params->dma_channel);
+		params->dma_channel = NULL;
+	}
+	return 0;
+}
+
 static int hdmi_dma_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct imx_hdmi_dma_runtime_data *rtd = runtime->private_data;
+	int err;
 
 	rtd->buffer_bytes = params_buffer_bytes(params);
 	rtd->periods = params_periods(params);
@@ -850,6 +1037,23 @@ static int hdmi_dma_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	rtd->dma_period_bytes = rtd->period_bytes * rtd->buffer_ratio;
+	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1)) {
+		rtd->sdma_params.buffer_num = rtd->periods;
+		rtd->sdma_params.phyaddr = rtd->phy_hdmi_sdma_t;
+
+		/* Allocate SDMA channel for HDMI */
+		err = hdmi_init_sdma_buffer(rtd);
+		if (err)
+			return err;
+
+		err = hdmi_sdma_alloc(rtd);
+		if (err)
+			return err;
+
+		err = hdmi_sdma_config(rtd);
+		if (err)
+			return err;
+	}
 
 	snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
 
@@ -892,6 +1096,8 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		hdmi_dma_start();
 		hdmi_dma_irq_mask(0);
 		hdmi_set_dma_mode(1);
+		if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+			dmaengine_submit(rtd->desc);
 		break;
 
 	case SNDRV_PCM_TRIGGER_STOP:
@@ -901,6 +1107,8 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		hdmi_dma_stop();
 		hdmi_set_dma_mode(0);
 		hdmi_dma_irq_mask(1);
+		if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+			dmaengine_terminate_all(rtd->dma_channel);
 		break;
 
 	default:
@@ -947,7 +1155,10 @@ static void hdmi_dma_irq_enable(struct imx_hdmi_dma_runtime_data *rtd)
 	spin_lock_irqsave(&hdmi_dma_priv->irq_lock, flags);
 
 	hdmi_dma_clear_irq_status(0xff);
-	hdmi_dma_irq_mute(0);
+	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+		hdmi_dma_irq_mute(1);
+	else
+		hdmi_dma_irq_mute(0);
 	hdmi_dma_irq_mask(0);
 
 	hdmi_mask(0);
@@ -1017,6 +1228,7 @@ static struct snd_pcm_ops imx_hdmi_dma_pcm_ops = {
 	.close		= hdmi_dma_close,
 	.ioctl		= snd_pcm_lib_ioctl,
 	.hw_params	= hdmi_dma_hw_params,
+	.hw_free	= hdmi_dma_hw_free,
 	.trigger	= hdmi_dma_trigger,
 	.pointer	= hdmi_dma_pointer,
 	.copy		= hdmi_dma_copy,
@@ -1095,7 +1307,7 @@ static void imx_hdmi_dma_pcm_free(struct snd_pcm *pcm)
 			continue;
 
 		dma_free_writecombine(pcm->card->dev, buf->bytes,
-				      buf->area, buf->addr);
+					buf->area, buf->addr);
 		buf->area = NULL;
 	}
 
@@ -1103,7 +1315,7 @@ static void imx_hdmi_dma_pcm_free(struct snd_pcm *pcm)
 	buf = &hdmi_dma_priv->hw_buffer;
 	if (buf->area) {
 		dma_free_writecombine(pcm->card->dev, buf->bytes,
-				      buf->area, buf->addr);
+					buf->area, buf->addr);
 		buf->area = NULL;
 	}
 }
@@ -1122,7 +1334,17 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 	hdmi_dma_priv = kzalloc(sizeof(*hdmi_dma_priv), GFP_KERNEL);
 	if (hdmi_dma_priv == NULL)
 		return -ENOMEM;
-	/*To alloc a buffer non cacheable for hdmi script use*/
+
+	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1)) {
+		/*To alloc a buffer non cacheable for hdmi script use*/
+		hdmi_dma_priv->hdmi_sdma_t =
+			dma_alloc_coherent(NULL,
+				sizeof(struct hdmi_sdma_script_data),
+				&hdmi_dma_priv->phy_hdmi_sdma_t,
+				GFP_KERNEL);
+		if (hdmi_dma_priv->hdmi_sdma_t == NULL)
+			return -ENOMEM;
+	}
 
 	hdmi_dma_priv->tx_active = false;
 	spin_lock_init(&hdmi_dma_priv->irq_lock);
@@ -1143,14 +1365,17 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to get HDMI ahb clk: %d\n", ret);
 		goto e_clk_get2;
 	}
-
-	if (request_irq(hdmi_dma_priv->irq, hdmi_dma_isr, IRQF_SHARED,
-			"hdmi dma", hdmi_dma_priv)) {
-		dev_err(&pdev->dev, "MXC hdmi: failed to request irq %d\n",
-		       hdmi_dma_priv->irq);
-		ret = -EBUSY;
-		goto e_irq;
+	if ((mx6q_revision() <= IMX_CHIP_REVISION_1_1)) {
+		if (request_irq(hdmi_dma_priv->irq, hdmi_dma_isr, IRQF_SHARED,
+				"hdmi dma", hdmi_dma_priv)) {
+			dev_err(&pdev->dev,
+					"MXC hdmi: failed to request irq %d\n",
+					hdmi_dma_priv->irq);
+			ret = -EBUSY;
+			goto e_irq;
+		}
 	}
+
 	ret = snd_soc_register_platform(&pdev->dev, &imx_soc_platform_mx2);
 	if (ret)
 		goto e_irq;
@@ -1170,6 +1395,12 @@ e_clk_get1:
 static int __devexit imx_soc_platform_remove(struct platform_device *pdev)
 {
 	free_irq(hdmi_dma_priv->irq, hdmi_dma_priv);
+	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1)) {
+		dma_free_coherent(NULL,
+				sizeof(struct hdmi_sdma_script_data),
+				hdmi_dma_priv->hdmi_sdma_t,
+				hdmi_dma_priv->phy_hdmi_sdma_t);
+	}
 	snd_soc_unregister_platform(&pdev->dev);
 	kfree(hdmi_dma_priv);
 	return 0;
