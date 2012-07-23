@@ -70,7 +70,8 @@
 #define SDHCI_PROT_CTRL_1BIT		(0 << 1)
 #define SDHCI_PROT_CTRL_LCTL		(1 << 0)
 
-#define SDHCI_FSL_SVN_300			0x11
+/* SDHCI_FSL_SVN_300 only for mx6q and mx6dl */
+#define SDHCI_FSL_SVN_300			0x3
 
 #define SDHCI_TUNE_CTRL		0xCC
 #define SDHCI_TUNE_CTRL_STD_TUNING_EN		(1 << 24)
