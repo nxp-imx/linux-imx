@@ -43,6 +43,9 @@
 #define OV5642_XCLK_MIN 6000000
 #define OV5642_XCLK_MAX 24000000
 
+#define OV5642_CHIP_ID_HIGH_BYTE	0x300A
+#define OV5642_CHIP_ID_LOW_BYTE		0x300B
+
 enum ov5642_mode {
 	ov5642_mode_MIN = 0,
 	ov5642_mode_VGA_640_480 = 0,
@@ -3911,6 +3914,7 @@ static int ov5642_probe(struct i2c_client *client,
 {
 	int retval;
 	struct fsl_mxc_camera_platform_data *plat_data = client->dev.platform_data;
+	u8 chip_id_high, chip_id_low;
 
 	/* Set initial values for the sensor struct. */
 	memset(&ov5642_data, 0, sizeof(ov5642_data));
@@ -3937,7 +3941,8 @@ static int ov5642_probe(struct i2c_client *client,
 			regulator_set_voltage(io_regulator,
 					      OV5642_VOLTAGE_DIGITAL_IO,
 					      OV5642_VOLTAGE_DIGITAL_IO);
-			if (regulator_enable(io_regulator) != 0) {
+			retval = regulator_enable(io_regulator);
+			if (retval) {
 				pr_err("%s:io set voltage error\n", __func__);
 				goto err1;
 			} else {
@@ -3955,7 +3960,8 @@ static int ov5642_probe(struct i2c_client *client,
 			regulator_set_voltage(core_regulator,
 					      OV5642_VOLTAGE_DIGITAL_CORE,
 					      OV5642_VOLTAGE_DIGITAL_CORE);
-			if (regulator_enable(core_regulator) != 0) {
+			retval = regulator_enable(core_regulator);
+			if (retval) {
 				pr_err("%s:core set voltage error\n", __func__);
 				goto err2;
 			} else {
@@ -3973,7 +3979,8 @@ static int ov5642_probe(struct i2c_client *client,
 			regulator_set_voltage(analog_regulator,
 					      OV5642_VOLTAGE_ANALOG,
 					      OV5642_VOLTAGE_ANALOG);
-			if (regulator_enable(analog_regulator) != 0) {
+			retval = regulator_enable(analog_regulator);
+			if (retval) {
 				pr_err("%s:analog set voltage error\n",
 					__func__);
 				goto err3;
@@ -3988,6 +3995,22 @@ static int ov5642_probe(struct i2c_client *client,
 	if (plat_data->io_init)
 		plat_data->io_init();
 
+	if (plat_data->pwdn)
+		plat_data->pwdn(0);
+
+	retval = ov5642_read_reg(OV5642_CHIP_ID_HIGH_BYTE, &chip_id_high);
+	if (retval < 0 || chip_id_high != 0x56) {
+		pr_err("%s:cannot find camera\n", __func__);
+		retval = -ENODEV;
+		goto err4;
+	}
+	retval = ov5642_read_reg(OV5642_CHIP_ID_LOW_BYTE, &chip_id_low);
+	if (retval < 0 || chip_id_low != 0x42) {
+		pr_err("%s:cannot find camera\n", __func__);
+		retval = -ENODEV;
+		goto err4;
+	}
+
 	camera_plat = plat_data;
 
 	ov5642_int_device.priv = &ov5642_data;
@@ -3995,6 +4018,11 @@ static int ov5642_probe(struct i2c_client *client,
 
 	return retval;
 
+err4:
+	if (analog_regulator) {
+		regulator_disable(analog_regulator);
+		regulator_put(analog_regulator);
+	}
 err3:
 	if (core_regulator) {
 		regulator_disable(core_regulator);
@@ -4006,7 +4034,7 @@ err2:
 		regulator_put(io_regulator);
 	}
 err1:
-	return -1;
+	return retval;
 }
 
 /*!
