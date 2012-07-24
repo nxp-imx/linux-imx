@@ -364,8 +364,9 @@ static u16 esdhc_readw_le(struct sdhci_host *host, int reg)
 	case SDHCI_HOST_VERSION:
 		reg ^= 2;
 		val = readl(host->ioaddr + reg);
-		if (((val & SDHCI_SPEC_VER_MASK) >> SDHCI_SPEC_VER_SHIFT)
-				== SDHCI_FSL_SVN_300) {
+		if ((cpu_is_mx6q() || cpu_is_mx6dl()) &&
+			((val & SDHCI_SPEC_VER_MASK) >> SDHCI_SPEC_VER_SHIFT)
+			== SDHCI_FSL_SVN_300) {
 			val &= ~SDHCI_SPEC_VER_MASK;
 			val |= SDHCI_SPEC_300;
 		}
