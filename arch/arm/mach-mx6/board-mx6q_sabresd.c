@@ -477,6 +477,8 @@ static void mx6q_csi0_cam_powerdown(int powerdown)
 		gpio_set_value(SABRESD_CSI0_PWN, 1);
 	else
 		gpio_set_value(SABRESD_CSI0_PWN, 0);
+
+	msleep(2);
 }
 
 static void mx6q_csi0_io_init(void)
@@ -542,6 +544,8 @@ static void mx6q_mipi_powerdown(int powerdown)
 		gpio_set_value(SABRESD_MIPICSI_PWN, 1);
 	else
 		gpio_set_value(SABRESD_MIPICSI_PWN, 0);
+
+	msleep(2);
 }
 
 static void mx6q_mipi_sensor_io_init(void)
