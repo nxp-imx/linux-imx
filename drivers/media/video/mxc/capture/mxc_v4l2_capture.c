@@ -1681,7 +1681,6 @@ static int mxc_v4l_open(struct file *file)
 		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->mclk_source,
 				       true, true);
 		vidioc_int_s_power(cam->sensor, 1);
-		msleep(1);
 		vidioc_int_init(cam->sensor);
 		vidioc_int_dev_init(cam->sensor);
 	}
