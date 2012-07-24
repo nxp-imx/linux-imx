@@ -29,7 +29,7 @@
 #include <linux/sort.h>
 
 
-#define	BATTERY_UPDATE_INTERVAL	120 /*seconds*/
+#define	BATTERY_UPDATE_INTERVAL	5 /*seconds*/
 #define LOW_VOLT_THRESHOLD	2800000
 #define HIGH_VOLT_THRESHOLD	4200000
 #define ADC_SAMPLE_COUNT	6
@@ -55,6 +55,7 @@ struct max8903_data {
 	int percent;
 	int old_percent;
 	int usb_charger_online;
+	int first_delay_count;
 	struct power_supply bat;
 	struct power_supply	detect_usb;
 	struct mutex work_lock;
@@ -289,6 +290,16 @@ static void max8903_battery_update_status(struct max8903_data *data)
 	}
 	if (changed_flag) {
 		changed_flag = false;
+		power_supply_changed(&data->bat);
+	}
+	/*
+	    because boot time gap between led framwork and charger
+	    framwork,when system boots with charger attatched, charger
+	    led framwork loses the first charger online event,add once extra
+	    power_supply_changed can fix this issure
+	*/
+	if (data->first_delay_count < 200) {
+		data->first_delay_count = data->first_delay_count + 1 ;
 		power_supply_changed(&data->bat);
 	}
 
@@ -599,6 +610,7 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 		dev_err(dev, "Cannot allocate memory.\n");
 		return -ENOMEM;
 	}
+	data->first_delay_count = 0;
 	data->pdata = pdata;
 	data->dev = dev;
 	platform_set_drvdata(pdev, data);
