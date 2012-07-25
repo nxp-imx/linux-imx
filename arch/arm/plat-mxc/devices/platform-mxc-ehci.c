@@ -83,6 +83,7 @@ struct platform_device *__init imx_add_mxc_ehci(
 			res, ARRAY_SIZE(res),
 			pdata, sizeof(*pdata), DMA_BIT_MASK(32));
 }
+EXPORT_SYMBOL(imx_add_mxc_ehci);
 
 /* FSL internal non-upstream code */
 struct platform_device *__init imx_add_fsl_ehci(
@@ -104,3 +105,4 @@ struct platform_device *__init imx_add_fsl_ehci(
 			res, ARRAY_SIZE(res),
 			pdata, sizeof(*pdata), DMA_BIT_MASK(32));
 }
+EXPORT_SYMBOL(imx_add_fsl_ehci);

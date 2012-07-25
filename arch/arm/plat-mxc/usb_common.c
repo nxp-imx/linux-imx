@@ -49,8 +49,12 @@
 #include <mach/arc_otg.h>
 #include <mach/hardware.h>
 #include <mach/mxc.h>
+typedef void (*driver_vbus_func)(bool);
 
 void __iomem *imx_otg_base;
+static  driver_vbus_func s_driver_vbus;
+
+EXPORT_SYMBOL(imx_otg_base);
 
 #define MXC_NUMBER_USB_TRANSCEIVER 6
 struct fsl_xcvr_ops *g_xc_ops[MXC_NUMBER_USB_TRANSCEIVER] = { NULL };
@@ -62,6 +66,19 @@ bool usb_icbug_swfix_need(void)
 	else
 		return true;
 }
+EXPORT_SYMBOL(usb_icbug_swfix_need);
+
+void mx6_set_host1_vbus_func(driver_vbus_func driver_vbus)
+{
+	s_driver_vbus = driver_vbus;
+}
+
+void mx6_set_usb_host1_vbus_func(driver_vbus_func *driver_vbus)
+{
+	*driver_vbus = s_driver_vbus;
+}
+EXPORT_SYMBOL(mx6_set_usb_host1_vbus_func);
+
 
 enum fsl_usb2_modes get_usb_mode(struct fsl_usb2_platform_data *pdata)
 {

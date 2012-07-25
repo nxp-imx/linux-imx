@@ -32,6 +32,7 @@
 struct wakeup_ctrl {
 	int wakeup_irq;
 	int usb_irq;
+	bool thread_close;
 	struct fsl_usb2_wakeup_platform_data *pdata;
 	struct task_struct *thread;
 	struct completion  event;
@@ -145,12 +146,18 @@ static int wakeup_event_thread(void *param)
 {
 	struct wakeup_ctrl *ctrl = (struct wakeup_ctrl *)param;
 	struct sched_param sch_param = {.sched_priority = 1};
+	u32 timeout = 0;
 
 	sched_setscheduler(current, SCHED_RR, &sch_param);
 	while (1) {
 		wait_for_completion_interruptible(&ctrl->event);
-		if (kthread_should_stop())
+		if (ctrl->thread_close) {
+			while (!kthread_should_stop() && (timeout < 1000)) {
+				timeout++;
+				msleep(1);
+			}
 			break;
+		}
 		wakeup_event_handler(ctrl);
 		enable_irq(ctrl->wakeup_irq);
 		if ((ctrl->usb_irq > 0) && (ctrl->wakeup_irq != ctrl->usb_irq))
@@ -184,6 +191,7 @@ static int wakeup_dev_probe(struct platform_device *pdev)
 	 */
 	ctrl->wakeup_irq = platform_get_irq(pdev, 1);
 	ctrl->usb_irq = platform_get_irq(pdev, 1);
+	ctrl->thread_close = false;
 	if (ctrl->wakeup_irq != ctrl->usb_irq)
 		interrupt_flag = IRQF_DISABLED;
 	else
@@ -210,6 +218,7 @@ error1:
 static int  wakeup_dev_exit(struct platform_device *pdev)
 {
 	if (g_ctrl->thread) {
+		g_ctrl->thread_close = true;
 		complete(&g_ctrl->event);
 		kthread_stop(g_ctrl->thread);
 	}
