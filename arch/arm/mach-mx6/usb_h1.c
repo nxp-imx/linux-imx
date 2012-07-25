@@ -34,7 +34,6 @@
 static struct clk *usb_oh3_clk;
 extern int clk_get_usecount(struct clk *clk);
 static struct fsl_usb2_platform_data usbh1_config;
-extern bool usb_icbug_swfix_need(void);
 
 static void fsl_platform_h1_set_usb_phy_dis(
 		struct fsl_usb2_platform_data *pdata, bool enable)
@@ -168,11 +167,6 @@ static void usbh1_clock_gate(bool on)
 	} else {
 		clk_disable(usb_oh3_clk);
 	}
-}
-
-void mx6_set_host1_vbus_func(driver_vbus_func driver_vbus)
-{
-	usbh1_config.platform_driver_vbus = driver_vbus;
 }
 
 static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
@@ -347,10 +341,41 @@ static struct fsl_usb2_wakeup_platform_data usbh1_wakeup_config = {
 		.usb_wakeup_exhandle = usbh1_wakeup_event_clear,
 };
 
-void __init mx6_usb_h1_init(void)
+static struct platform_device *pdev, *pdev_wakeup;
+static driver_vbus_func  mx6_set_usb_host1_vbus;
+
+static int  __init mx6_usb_h1_init(void)
 {
-	struct platform_device *pdev, *pdev_wakeup;
 	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+	struct imx_fsl_usb2_wakeup_data imx6q_fsl_hs_wakeup_data[] = {
+		imx_fsl_usb2_wakeup_data_entry_single(MX6Q, 1, HS1)};
+	struct imx_fsl_usb2_wakeup_data  imx6sl_fsl_hs_wakeup_data[] = {
+		imx_fsl_usb2_wakeup_data_entry_single(MX6SL, 1, HS1)};
+	struct imx_mxc_ehci_data imx6q_mxc_ehci_hs_data[] = {
+		imx_mxc_ehci_data_entry_single(MX6Q, 1, HS1)};
+	struct imx_mxc_ehci_data imx6sl_mxc_ehci_hs_data[] = {
+		imx_mxc_ehci_data_entry_single(MX6SL, 1, HS1)};
+
+	mx6_set_usb_host1_vbus_func(&mx6_set_usb_host1_vbus);
+	if (mx6_set_usb_host1_vbus)
+		mx6_set_usb_host1_vbus(true);
+
+	/* Some phy and power's special controls for host1
+	 * 1. The external charger detector needs to be disabled
+	 * or the signal at DP will be poor
+	 * 2. The PLL's power and output to usb for host 1
+	 * is totally controlled by IC, so the Software only needs
+	 * to enable them at initializtion.
+	 */
+	__raw_writel(BM_ANADIG_USB2_CHRG_DETECT_EN_B  \
+			| BM_ANADIG_USB2_CHRG_DETECT_CHK_CHRG_B, \
+			anatop_base_addr + HW_ANADIG_USB2_CHRG_DETECT);
+	__raw_writel(BM_ANADIG_USB2_PLL_480_CTRL_BYPASS,
+			anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_CLR);
+	__raw_writel(BM_ANADIG_USB2_PLL_480_CTRL_ENABLE  \
+			| BM_ANADIG_USB2_PLL_480_CTRL_POWER \
+			| BM_ANADIG_USB2_PLL_480_CTRL_EN_USB_CLKS, \
+			anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_SET);
 
 	usbh1_config.wakeup_pdata = &usbh1_wakeup_config;
 	if (usb_icbug_swfix_need()) {
@@ -371,21 +396,28 @@ void __init mx6_usb_h1_init(void)
 		pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
 	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
 		(struct fsl_usb2_wakeup_platform_data *)(pdev_wakeup->dev.platform_data);
+	return 0;
+}
+module_init(mx6_usb_h1_init);
 
-	/* Some phy and power's special controls for host1
-	 * 1. The external charger detector needs to be disabled
-	 * or the signal at DP will be poor
-	 * 2. The PLL's power and output to usb for host 1
-	 * is totally controlled by IC, so the Software only needs
-	 * to enable them at initializtion.
-	 */
-	__raw_writel(BM_ANADIG_USB2_CHRG_DETECT_EN_B  \
-			| BM_ANADIG_USB2_CHRG_DETECT_CHK_CHRG_B, \
-			anatop_base_addr + HW_ANADIG_USB2_CHRG_DETECT);
+static void __exit mx6_usb_h1_exit(void)
+{
+	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+
+	platform_device_unregister(pdev);
+	platform_device_unregister(pdev_wakeup);
 	__raw_writel(BM_ANADIG_USB2_PLL_480_CTRL_BYPASS,
-			anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_CLR);
+			anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_SET);
 	__raw_writel(BM_ANADIG_USB2_PLL_480_CTRL_ENABLE  \
 			| BM_ANADIG_USB2_PLL_480_CTRL_POWER \
 			| BM_ANADIG_USB2_PLL_480_CTRL_EN_USB_CLKS, \
-			anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_SET);
+			anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_CLR);
+	if (mx6_set_usb_host1_vbus)
+		mx6_set_usb_host1_vbus(false);
+
+	return ;
 }
+module_exit(mx6_usb_h1_exit);
+
+MODULE_AUTHOR("Freescale Semiconductor");
+MODULE_LICENSE("GPL");

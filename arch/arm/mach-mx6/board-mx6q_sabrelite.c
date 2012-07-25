@@ -659,7 +659,6 @@ static void __init imx6q_sabrelite_init_usb(void)
 
 	mx6_set_otghost_vbus_func(imx6q_sabrelite_usbotg_vbus);
 	mx6_usb_dr_init();
-	mx6_usb_h1_init();
 }
 
 /* HW Initialization, if return 0, initialization is successful. */
