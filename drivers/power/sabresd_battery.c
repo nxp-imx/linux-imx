@@ -55,6 +55,7 @@ struct max8903_data {
 	int percent;
 	int old_percent;
 	int usb_charger_online;
+	int first_delay_count;
 	struct power_supply bat;
 	struct power_supply	detect_usb;
 	struct mutex work_lock;
@@ -68,35 +69,37 @@ typedef struct {
 static int cpu_type_flag;
 static int offset_discharger;
 static int offset_charger;
+static int offset_usb_charger;
+
 
 static battery_capacity chargingTable[] = {
-    {4105,  99},
-    {4100,  98},
-    {4095,  97},
-    {4085,  96},
-    {4075,  95},
-    {4060,  94},
-    {4045,  93},
-    {4030,  92},
-    {4015,  91},
-    {4000,  90},
-    {3900,  85},
-    {3790,  80},
-    {3760,  75},
-    {3730,  70},
-    {3700,  65},
-    {3680,  60},
-    {3660,  55},
-    {3640,  50},
-    {3600,  45},
-    {3550,  40},
-    {3510,  35},
-    {3450,  30},
-    {3310,  25},
-    {3240,  20},
-    {3180,  15},
-    {3030,  10},
-    {2820,  5},
+    {4060,  99},
+    {4035,  98},
+    {4010,  97},
+    {3980,  96},
+    {3950,  95},
+    {3920,  94},
+    {3890,  93},
+    {3860,  92},
+    {3830,  91},
+    {3780,  90},
+    {3750,  85},
+    {3690,  80},
+    {3660,  75},
+    {3630,  70},
+    {3600,  65},
+    {3580,  60},
+    {3550,  55},
+    {3500,  50},
+    {3450,  45},
+    {3400,  40},
+    {3350,  35},
+    {3300,  30},
+    {3250,  25},
+    {3200,  20},
+    {3000,  15},
+    {2900,  10},
+    {2850,  5},
     {2800,  0},
     {0,  0}
 };
@@ -166,6 +169,7 @@ static enum power_supply_property max8903_battery_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
 	POWER_SUPPLY_PROP_VOLTAGE_MIN_DESIGN,
 	POWER_SUPPLY_PROP_HEALTH,
+	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
 };
 
 extern u32 max11801_read_adc(void);
@@ -225,7 +229,12 @@ u32 calibration_voltage(struct max8903_data *data)
 				/* ADC offset when battery is discharger*/
 				volt[i] = max11801_read_adc()-offset_discharger;
 				} else {
-				volt[i] = max11801_read_adc()-offset_charger;
+						if (data->charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_charger;
+						else if (data->usb_charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_usb_charger;
+						else if (data->charger_online == 1 && data->usb_charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_charger;
 				}
 			}
 		if (cpu_type_flag == 0) {
@@ -233,7 +242,12 @@ u32 calibration_voltage(struct max8903_data *data)
 				/* ADC offset when battery is discharger*/
 				volt[i] = max11801_read_adc()-offset_discharger;
 				} else {
-				volt[i] = max11801_read_adc()-offset_charger;
+						if (data->charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_charger;
+						else if (data->usb_charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_usb_charger;
+						else if (data->charger_online == 1 && data->usb_charger_online == 1)
+						volt[i] = max11801_read_adc()-offset_charger;
 				}
 			}
 	}
@@ -265,7 +279,7 @@ static void max8903_battery_update_status(struct max8903_data *data)
 		data->voltage_uV = temp_last;
 		}
 	}
-	if (data->charger_online == 1) {
+	if (data->charger_online == 1 || data->usb_charger_online == 1) {
 		data->voltage_uV = temp;
 		temp_last = temp;
 	}
@@ -276,6 +290,16 @@ static void max8903_battery_update_status(struct max8903_data *data)
 	}
 	if (changed_flag) {
 		changed_flag = false;
+		power_supply_changed(&data->bat);
+	}
+	/*
+	    because boot time gap between led framwork and charger
+	    framwork,when system boots with charger attatched, charger
+	    led framwork loses the first charger online event,add once extra
+	    power_supply_changed can fix this issure
+	*/
+	if (data->first_delay_count < 200) {
+		data->first_delay_count = data->first_delay_count + 1 ;
 		power_supply_changed(&data->bat);
 	}
 
@@ -337,6 +361,14 @@ static int max8903_battery_get_property(struct power_supply *bat,
 		val->intval = POWER_SUPPLY_HEALTH_GOOD;
 		if (di->fault)
 			val->intval = POWER_SUPPLY_HEALTH_UNSPEC_FAILURE;
+		break;
+	case POWER_SUPPLY_PROP_CAPACITY_LEVEL:
+		if (di->battery_status == POWER_SUPPLY_STATUS_FULL)
+			val->intval = POWER_SUPPLY_CAPACITY_LEVEL_FULL;
+		else if (di->percent <= 15)
+			val->intval = POWER_SUPPLY_CAPACITY_LEVEL_LOW;
+		else
+			val->intval = POWER_SUPPLY_CAPACITY_LEVEL_NORMAL;
 		break;
 	default:
 		return -EINVAL;
@@ -515,6 +547,22 @@ static ssize_t max8903_voltage_offset_charger_store(struct device *dev,
 	return count;
 }
 
+static ssize_t max8903_voltage_offset_usb_charger_show(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "read offset_usb_charger:%04d\n",
+		offset_usb_charger);
+}
+
+static ssize_t max8903_voltage_offset_usb_charger_store(struct device *dev,
+			     struct device_attribute *attr, const char *buf,
+			     size_t count)
+{
+	offset_usb_charger = simple_strtoul(buf, NULL, 10);
+	pr_info("read offset_charger:%04d\n", offset_usb_charger);
+	return count;
+}
+
 static struct device_attribute max8903_discharger_dev_attr = {
 	.attr = {
 		 .name = "max8903_ctl_offset_discharger",
@@ -531,6 +579,15 @@ static struct device_attribute max8903_charger_dev_attr = {
 		 },
 	.show = max8903_voltage_offset_charger_show,
 	.store = max8903_voltage_offset_charger_store,
+};
+
+static struct device_attribute max8903_usb_charger_dev_attr = {
+	.attr = {
+		 .name = "max8903_ctl_offset_usb_charger",
+		 .mode = S_IRUSR | S_IWUSR,
+		 },
+	.show = max8903_voltage_offset_usb_charger_show,
+	.store = max8903_voltage_offset_usb_charger_store,
 };
 
 static __devinit int max8903_probe(struct platform_device *pdev)
@@ -553,6 +610,7 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 		dev_err(dev, "Cannot allocate memory.\n");
 		return -ENOMEM;
 	}
+	data->first_delay_count = 0;
 	data->pdata = pdata;
 	data->dev = dev;
 	platform_set_drvdata(pdev, data);
@@ -734,13 +792,18 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 	ret = device_create_file(&pdev->dev, &max8903_charger_dev_attr);
 	if (ret)
 		dev_err(&pdev->dev, "create device file failed!\n");
+	ret = device_create_file(&pdev->dev, &max8903_usb_charger_dev_attr);
+	if (ret)
+		dev_err(&pdev->dev, "create device file failed!\n");
 	if (cpu_type_flag == 1) {
 			offset_discharger = 1694;
 			offset_charger = 1900;
+			offset_usb_charger = 1685;
 	}
 	if (cpu_type_flag == 0) {
 			offset_discharger = 1464;
 			offset_charger = 1485;
+			offset_usb_charger = 1285;
 	}
 
 	max8903_charger_update_status(data);

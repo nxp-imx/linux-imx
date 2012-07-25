@@ -34,6 +34,7 @@
 
 static void __iomem *wdog_base;
 
+
 static void arch_reset_special_mode(char mode, const char *cmd)
 {
 	if (strcmp(cmd, "download") == 0)

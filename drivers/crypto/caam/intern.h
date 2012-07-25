@@ -100,6 +100,7 @@ struct caam_drv_private {
 	u8 total_jobrs;		/* Total Job Rings in device */
 	u8 qi_present;		/* Nonzero if QI present in device */
 	int secvio_irq;		/* Security violation interrupt number */
+	int rng_inst;		/* Total instantiated RNGs */
 
 	/* which jr allocated to scatterlist crypto */
 	atomic_t tfm_count ____cacheline_aligned;
@@ -107,6 +108,8 @@ struct caam_drv_private {
 	struct device **algapi_jr;
 	/* list of registered crypto algorithms (mk generic context handle?) */
 	struct list_head alg_list;
+	/* list of registered hash algorithms (mk generic context handle?) */
+	struct list_head hash_list;
 
 #ifdef CONFIG_ARM
 	struct clk *caam_clk;
@@ -129,7 +132,28 @@ struct caam_drv_private {
 #endif
 };
 
+/*
+ * These startup/shutdown functions exist to enable API startup/shutdown
+ * outside of the OF device detection framework. It's necessary for ARM
+ * kernels as presently delivered.
+ *
+ * Once ARM kernels are shipping with OF support, these functions can
+ * be re-integrated into the normal probe startup/exit functions,
+ * and these prototypes can then be removed.
+ */
+#ifndef CONFIG_OF
 void caam_algapi_shutdown(struct platform_device *pdev);
 int caam_algapi_startup(struct platform_device *pdev);
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_AHASH_API
+int caam_algapi_hash_startup(struct platform_device *pdev);
+void caam_algapi_hash_shutdown(struct platform_device *pdev);
+#endif
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_API
+int caam_rng_startup(struct platform_device *pdev);
+void caam_rng_shutdown(void);
+#endif
+#endif /* CONFIG_OF */
 
 #endif /* INTERN_H */

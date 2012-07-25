@@ -782,13 +782,14 @@ static void update_offset(unsigned int fmt,
 	*stride = width * bytes_per_pixel(fmt);
 }
 
-static int update_split_setting(struct ipu_task_entry *t)
+static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 {
 	struct stripe_param left_stripe;
 	struct stripe_param right_stripe;
 	struct stripe_param up_stripe;
 	struct stripe_param down_stripe;
 	u32 iw, ih, ow, oh;
+	u32 max_width;
 
 	if (t->output.rotate >= IPU_ROTATE_90_RIGHT)
 		return IPU_CHECK_ERR_SPLIT_WITH_ROT;
@@ -800,9 +801,13 @@ static int update_split_setting(struct ipu_task_entry *t)
 	oh = t->output.crop.h;
 
 	if (t->set.split_mode & RL_SPLIT) {
+		if (vdi_split)
+			max_width = soc_max_vdi_in_width();
+		else
+			max_width = soc_max_out_width();
 		ipu_calc_stripes_sizes(iw,
 				ow,
-				soc_max_out_width(),
+				max_width,
 				(((unsigned long long)1) << 32), /* 32bit for fractional*/
 				1, /* equal stripes */
 				t->input.format,
@@ -871,6 +876,7 @@ static int check_task(struct ipu_task_entry *t)
 	int tmp;
 	int ret = IPU_CHECK_OK;
 	int timeout;
+	bool vdi_split = false;
 
 	if ((IPU_PIX_FMT_TILED_NV12 == t->overlay.format) ||
 		(IPU_PIX_FMT_TILED_NV12F == t->overlay.format) ||
@@ -1027,6 +1033,11 @@ static int check_task(struct ipu_task_entry *t)
 			t->set.split_mode |= RL_SPLIT;
 		if (t->output.crop.h > soc_max_out_height())
 			t->set.split_mode |= UD_SPLIT;
+		if (!t->set.split_mode && (t->set.mode & VDI_MODE) &&
+				(t->input.crop.w > soc_max_vdi_in_width())) {
+			t->set.split_mode |= RL_SPLIT;
+			vdi_split = true;
+		}
 		if (t->set.split_mode) {
 			if ((t->set.split_mode == RL_SPLIT) ||
 				 (t->set.split_mode == UD_SPLIT))
@@ -1036,7 +1047,7 @@ static int check_task(struct ipu_task_entry *t)
 			if (t->timeout < timeout)
 				t->timeout = timeout;
 
-			ret = update_split_setting(t);
+			ret = update_split_setting(t, vdi_split);
 			if (ret > IPU_CHECK_ERR_MIN)
 				goto done;
 		}

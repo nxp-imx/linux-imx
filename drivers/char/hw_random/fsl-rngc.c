@@ -1,7 +1,7 @@
 /*
  * RNG driver for Freescale RNGC
  *
- * Copyright (C) 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -123,7 +123,7 @@ static struct platform_device *rng_dev;
 
 int irq_rng;
 
-static int fsl_rngc_data_present(struct hwrng *rng)
+static int fsl_rngc_data_present(struct hwrng *rng, int wait)
 {
 	int level;
 	u32 rngc_base = (u32) rng->priv;

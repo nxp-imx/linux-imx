@@ -78,7 +78,6 @@ void set_ddr_freq(int ddr_freq);
 extern int init_mmdc_settings(void);
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int update_ddr_freq(int ddr_rate);
-extern void __iomem *gpc_base;
 
 struct mutex bus_freq_mutex;
 
@@ -93,18 +92,18 @@ static struct clk *ahb_clk;
 static struct clk *periph_clk;
 static struct clk *osc_clk;
 static struct clk *cpu_clk;
-static unsigned int org_ldo;
 static struct clk *pll3;
 static struct clk *pll2;
 static struct clk *pll3_sw_clk;
 static struct clk *pll2_200;
 static struct clk *mmdc_ch0_axi;
+struct regulator *vddsoc_cap_regulator;
 
 static struct delayed_work low_bus_freq_handler;
 
 static void reduce_bus_freq_handler(struct work_struct *work)
 {
-	unsigned long reg;
+	int ret = 0;
 
 	if (low_bus_freq_mode || !low_freq_bus_used())
 		return;
@@ -152,6 +151,17 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 			clk_disable(pll2_400);
 		clk_disable(pll3);
 	} else {
+		/* Set VDDSOC_CAP to 1.1V */
+		ret = regulator_set_voltage(vddsoc_cap_regulator, 1100000,
+					    1100000);
+		if (ret < 0) {
+			printk(KERN_DEBUG
+			       "COULD NOT DECREASE VDDSOC_CAP VOLTAGE!!!!\n");
+			return;
+		}
+
+		udelay(150);
+
 		/* Set periph_clk to be sourced from OSC_CLK */
 		/* Set MMDC clk to 25MHz. */
 		/* First need to set the divider before changing the parent */
@@ -175,48 +185,8 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 	high_bus_freq_mode = 0;
 	med_bus_freq_mode = 0;
 
-	/* Do not disable PU LDO if it is not enabled */
-	reg = __raw_readl(ANADIG_REG_CORE) & (ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
-	if ((low_bus_freq_mode || audio_bus_freq_mode) && reg != 0) {
-		/* Disable the brown out detection since we are going to be
-		  * disabling the LDO.
-		  */
-		reg = __raw_readl(ANA_MISC2_BASE_ADDR);
-		reg &= ~ANADIG_ANA_MISC2_REG1_BO_EN;
-		__raw_writel(reg, ANA_MISC2_BASE_ADDR);
-
-		/* Power gate the PU LDO. */
-		/* Power gate the PU domain first. */
-		/* enable power down request */
-		reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-		__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-		/* power down request */
-		reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
-		__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
-		/* Wait for power down to complete. */
-		while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
-			;
-
-		/* Mask the ANATOP brown out interrupt in the GPC. */
-		reg = __raw_readl(gpc_base + 0x14);
-		reg |= 0x80000000;
-		__raw_writel(reg, gpc_base + 0x14);
-
-		/* PU power gating. */
-		reg = __raw_readl(ANADIG_REG_CORE);
-		org_ldo = reg & (ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
-		reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
-		__raw_writel(reg, ANADIG_REG_CORE);
-
-		/* Clear the BO interrupt in the ANATOP. */
-		reg = __raw_readl(ANADIG_MISC1_REG);
-		reg |= 0x80000000;
-		__raw_writel(reg, ANADIG_MISC1_REG);
-	}
-
 	mutex_unlock(&bus_freq_mutex);
 }
-
 /* Set the DDR, AHB to 24MHz.
   * This mode will be activated only when none of the modules that
   * need a higher DDR or AHB frequency are active.
@@ -241,7 +211,7 @@ int set_low_bus_freq(void)
  */
 int set_high_bus_freq(int high_bus_freq)
 {
-	unsigned long reg;
+	int ret = 0;
 
 	if (busfreq_suspended)
 		return 0;
@@ -255,6 +225,12 @@ int set_high_bus_freq(int high_bus_freq)
 	if (med_bus_freq_mode && !high_bus_freq)
 		return 0;
 
+	if (cpu_is_mx6dl() && high_bus_freq)
+		high_bus_freq = 0;
+
+	if (cpu_is_mx6dl() && med_bus_freq_mode)
+		return 0;
+
 	while (!mutex_trylock(&bus_freq_mutex))
 		msleep(1);
 
@@ -265,11 +241,15 @@ int set_high_bus_freq(int high_bus_freq)
 		return 0;
 	}
 
-	/* Enable the PU LDO */
-	if (low_bus_freq_mode || audio_bus_freq_mode) {
-		/* Set the voltage of VDDPU as in normal mode. */
-		__raw_writel(org_ldo | (__raw_readl(ANADIG_REG_CORE) &
-		(~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET))), ANADIG_REG_CORE);
+	if (cpu_is_mx6sl()) {
+		/* Set the voltage of VDDSOC to 1.2V as in normal mode. */
+		ret = regulator_set_voltage(vddsoc_cap_regulator, 1200000,
+					    1200000);
+		if (ret < 0) {
+			printk(KERN_DEBUG
+			       "COULD NOT INCREASE VDDSOC_CAP VOLTAGE!!!!\n");
+			return ret;
+		}
 
 		/* Need to wait for the regulator to come back up */
 		/*
@@ -279,52 +259,27 @@ int set_high_bus_freq(int high_bus_freq)
 		 */
 		udelay(150);
 
-		/* enable power up request */
-		reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-		__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-		/* power up request */
-		reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
-		__raw_writel(reg | 0x2, gpc_base + GPC_CNTR_OFFSET);
-		/* Wait for the power up bit to clear */
-		while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x2)
-			;
+		/* Set periph_clk to be sourced from pll2_pfd2_400M */
+		/* First need to set the divider before changing the */
+		/* parent if parent clock is larger than previous one */
+		clk_set_rate(ahb_clk, clk_round_rate(ahb_clk,
+						     LPAPM_CLK / 3));
+		clk_set_rate(axi_clk,
+			     clk_round_rate(axi_clk, LPAPM_CLK / 2));
+		clk_set_parent(periph_clk, pll2_400);
 
-		/* Enable the Brown Out detection. */
-		reg = __raw_readl(ANA_MISC2_BASE_ADDR);
-		reg |= ANADIG_ANA_MISC2_REG1_BO_EN;
-		__raw_writel(reg, ANA_MISC2_BASE_ADDR);
+		/* Set mmdc_clk_root to be sourced */
+		/* from pll2_pfd2_400M */
+		clk_set_rate(mmdc_ch0_axi,
+		     clk_round_rate(mmdc_ch0_axi, LPAPM_CLK / 2));
+		clk_set_parent(mmdc_ch0_axi, pll3_sw_clk);
+		clk_set_parent(mmdc_ch0_axi, pll2_400);
+		clk_set_rate(mmdc_ch0_axi,
+		     clk_round_rate(mmdc_ch0_axi, DDR_MED_CLK));
 
-		/* Unmask the ANATOP brown out interrupt in the GPC. */
-		reg = __raw_readl(gpc_base + 0x14);
-		reg &= ~0x80000000;
-		__raw_writel(reg, gpc_base + 0x14);
-
-		if (cpu_is_mx6sl()) {
-			/* Set periph_clk to be sourced from pll2_pfd2_400M */
-			/* First need to set the divider before changing the */
-			/* parent if parent clock is larger than previous one */
-			clk_set_rate(ahb_clk, clk_round_rate(ahb_clk,
-							     LPAPM_CLK / 3));
-			clk_set_rate(axi_clk,
-				     clk_round_rate(axi_clk, LPAPM_CLK / 2));
-			clk_set_parent(periph_clk, pll2_400);
-
-			/* Set mmdc_clk_root to be sourced */
-			/* from pll2_pfd2_400M */
-			clk_set_rate(mmdc_ch0_axi,
-				     clk_round_rate(mmdc_ch0_axi,
-						    LPAPM_CLK / 2));
-			clk_set_parent(mmdc_ch0_axi, pll3_sw_clk);
-			clk_set_parent(mmdc_ch0_axi, pll2_400);
-			clk_set_rate(mmdc_ch0_axi,
-				     clk_round_rate(mmdc_ch0_axi, DDR_MED_CLK));
-
-			high_bus_freq_mode = 1;
-			med_bus_freq_mode = 0;
-		}
-	}
-
-	if (!cpu_is_mx6sl()) {
+		high_bus_freq_mode = 1;
+		med_bus_freq_mode = 0;
+	} else {
 		clk_enable(pll3);
 		if (high_bus_freq) {
 			update_ddr_freq(ddr_normal_rate);
@@ -354,7 +309,6 @@ int set_high_bus_freq(int high_bus_freq)
 
 	return 0;
 }
-
 
 int low_freq_bus_used(void)
 {
@@ -411,8 +365,7 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 
 static int busfreq_suspend(struct platform_device *pdev, pm_message_t message)
 {
-	if (low_bus_freq_mode || audio_bus_freq_mode)
-		set_high_bus_freq(1);
+	set_high_bus_freq(1);
 	busfreq_suspended = 1;
 	return 0;
 }
@@ -517,6 +470,13 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(mmdc_ch0_axi);
 	}
 
+	vddsoc_cap_regulator = regulator_get(NULL, "cpu_vddsoc");
+	if (IS_ERR(vddsoc_cap_regulator)) {
+		printk(KERN_ERR "%s: failed to get vddsoc_cap regulator\n",
+				__func__);
+		return PTR_ERR(vddsoc_cap_regulator);
+	}
+
 	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
 	if (err) {
 		printk(KERN_ERR
@@ -526,8 +486,16 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 
 	cpu_op_tbl = get_cpu_op(&cpu_op_nr);
 	low_bus_freq_mode = 0;
-	high_bus_freq_mode = 1;
-	med_bus_freq_mode = 0;
+	if (cpu_is_mx6dl()) {
+		high_bus_freq_mode = 0;
+		med_bus_freq_mode = 1;
+		/* To make pll2_400 use count right, as when
+		system enter 24M, it will disable pll2_400 */
+		clk_enable(pll2_400);
+	} else {
+		high_bus_freq_mode = 1;
+		med_bus_freq_mode = 0;
+	}
 	bus_freq_scaling_is_active = 0;
 	bus_freq_scaling_initialized = 1;
 
@@ -575,18 +543,20 @@ static int __init busfreq_init(void)
 
 	printk(KERN_INFO "Bus freq driver module loaded\n");
 
-	if (cpu_is_mx6sl()) {
-		/* Enable busfreq by default. */
-		bus_freq_scaling_is_active = 1;
+	/* Enable busfreq by default. */
+	bus_freq_scaling_is_active = 1;
+
+	if (cpu_is_mx6q())
+		set_high_bus_freq(1);
+	else
 		set_high_bus_freq(0);
-		/* Make sure system can enter low bus mode if it should be in
-		low bus mode */
-		if (low_freq_bus_used() && !low_bus_freq_mode)
-			set_low_bus_freq();
 
-		printk(KERN_INFO "Bus freq driver Enabled\n");
-	}
+	/* Make sure system can enter low bus mode if it should be in
+	low bus mode */
+	if (low_freq_bus_used() && !low_bus_freq_mode)
+		set_low_bus_freq();
 
+	printk(KERN_INFO "Bus freq driver Enabled\n");
 	return 0;
 }
 

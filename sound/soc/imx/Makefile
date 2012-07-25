@@ -19,6 +19,7 @@ snd-soc-imx-wm8962-objs := imx-wm8962.o
 snd-soc-imx-sgtl5000-objs := imx-sgtl5000.o
 snd-soc-imx-cs42888-objs := imx-cs42888.o
 snd-soc-imx-spdif-objs := imx-spdif.o
+snd-soc-imx-si4763-objs := imx-si4763.o
 snd-soc-imx-hdmi-objs := imx-hdmi.o imx-hdmi-dai.o imx-hdmi-dma.o hdmi_pcm.o
 
 obj-$(CONFIG_SND_SOC_EUKREA_TLV320) += snd-soc-eukrea-tlv320.o

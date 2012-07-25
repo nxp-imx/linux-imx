@@ -104,6 +104,7 @@
 #define SABREAUTO_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define SABREAUTO_DISP0_RESET		IMX_GPIO_NR(5, 0)
 #define SABREAUTO_I2C3_STEER		IMX_GPIO_NR(5, 4)
+#define SABREAUTO_WEIM_NOR_WDOG1        IMX_GPIO_NR(4, 29)
 #define SABREAUTO_ANDROID_VOLDOWN	IMX_GPIO_NR(5, 14)
 #define SABREAUTO_PMIC_INT		IMX_GPIO_NR(5, 16)
 #define SABREAUTO_ALS_INT		IMX_GPIO_NR(5, 17)
@@ -120,6 +121,7 @@
 #define SABREAUTO_IO_EXP_GPIO2(x)	(SABREAUTO_MAX7310_2_BASE_ADDR + (x))
 #define SABREAUTO_IO_EXP_GPIO3(x)	(SABREAUTO_MAX7310_3_BASE_ADDR + (x))
 
+#define SABREAUTO_PCIE_RST_B_REVB	(SABREAUTO_MAX7310_1_BASE_ADDR + 2)
 /*
  * CAN2 STBY and EN lines are the same as the CAN1. These lines are not
  * independent.
@@ -140,6 +142,7 @@ static int can0_enable;
 static int uart3_en;
 static int tuner_en;
 static int spinor_en;
+static int weimnor_en;
 
 static int __init spinor_enable(char *p)
 {
@@ -147,6 +150,13 @@ static int __init spinor_enable(char *p)
        return 0;
 }
 early_param("spi-nor", spinor_enable);
+
+static int __init weimnor_enable(char *p)
+{
+       weimnor_en = 1;
+       return 0;
+}
+early_param("weim-nor", weimnor_enable);
 
 static int __init uart3_enable(char *p)
 {
@@ -903,8 +913,34 @@ static void hdmi_init(int ipu_id, int disp_id)
 	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
 }
 
+/* On mx6x sabreauto board i2c2 iomux with hdmi ddc,
+ * the pins default work at i2c2 function,
+ when hdcp enable, the pins should work at ddc function */
+
+static void hdmi_enable_ddc_pin(void)
+{
+	if (cpu_is_mx6dl())
+		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabreauto_hdmi_ddc_pads,
+			ARRAY_SIZE(mx6dl_sabreauto_hdmi_ddc_pads));
+	else
+		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_hdmi_ddc_pads,
+			ARRAY_SIZE(mx6q_sabreauto_hdmi_ddc_pads));
+}
+
+static void hdmi_disable_ddc_pin(void)
+{
+	if (cpu_is_mx6dl())
+		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabreauto_i2c2_pads,
+			ARRAY_SIZE(mx6dl_sabreauto_i2c2_pads));
+	else
+		mxc_iomux_v3_setup_multiple_pads(mx6q_sabreauto_i2c2_pads,
+			ARRAY_SIZE(mx6q_sabreauto_i2c2_pads));
+}
+
 static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 	.init = hdmi_init,
+	.enable_pins = hdmi_enable_ddc_pin,
+	.disable_pins = hdmi_disable_ddc_pin,
 };
 
 static struct fsl_mxc_hdmi_core_platform_data hdmi_core_data = {
@@ -1300,6 +1336,12 @@ static struct fsl_mxc_capture_platform_data capture_data[] = {
 	},
 };
 
+static const struct imx_pcie_platform_data mx6_sabreauto_pcie_data __initconst = {
+	.pcie_pwr_en	= -EINVAL,
+	.pcie_rst	= SABREAUTO_PCIE_RST_B_REVB,
+	.pcie_wake_up	= -EINVAL,
+	.pcie_dis	= -EINVAL,
+};
 
 /*!
  * Board specific initialization.
@@ -1314,6 +1356,8 @@ static void __init mx6_board_init(void)
 	iomux_v3_cfg_t *mipi_sensor_pads = NULL;
 	iomux_v3_cfg_t *i2c3_pads = NULL;
 	iomux_v3_cfg_t *tuner_pads = NULL;
+	iomux_v3_cfg_t *spinor_pads = NULL;
+	iomux_v3_cfg_t *weimnor_pads = NULL;
 
 	int common_pads_cnt;
 	int can0_pads_cnt;
@@ -1321,6 +1365,8 @@ static void __init mx6_board_init(void)
 	int mipi_sensor_pads_cnt;
 	int i2c3_pads_cnt;
 	int tuner_pads_cnt;
+	int spinor_pads_cnt;
+	int weimnor_pads_cnt;
 
 	if (cpu_is_mx6q()) {
 		common_pads = mx6q_sabreauto_pads;
@@ -1328,12 +1374,16 @@ static void __init mx6_board_init(void)
 		can1_pads = mx6q_sabreauto_can1_pads;
 		mipi_sensor_pads = mx6q_sabreauto_mipi_sensor_pads;
 		tuner_pads = mx6q_tuner_pads;
+		spinor_pads = mx6q_spinor_pads;
+		weimnor_pads = mx6q_weimnor_pads;
 
 		common_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_pads);
 		can0_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can0_pads);
 		can1_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can1_pads);
 		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_mipi_sensor_pads);
 		tuner_pads_cnt = ARRAY_SIZE(mx6q_tuner_pads);
+		spinor_pads_cnt = ARRAY_SIZE(mx6q_spinor_pads);
+		weimnor_pads_cnt = ARRAY_SIZE(mx6q_weimnor_pads);
 		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6q_i2c3_pads_rev_a;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6q_i2c3_pads_rev_a);
@@ -1347,12 +1397,17 @@ static void __init mx6_board_init(void)
 		can1_pads = mx6dl_sabreauto_can1_pads;
 		mipi_sensor_pads = mx6dl_sabreauto_mipi_sensor_pads;
 		tuner_pads = mx6dl_tuner_pads;
+		spinor_pads = mx6dl_spinor_pads;
+		weimnor_pads = mx6dl_weimnor_pads;
 
 		common_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_pads);
 		can0_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can0_pads);
 		can1_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can1_pads);
 		mipi_sensor_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_mipi_sensor_pads);
 		tuner_pads_cnt = ARRAY_SIZE(mx6dl_tuner_pads);
+		spinor_pads_cnt = ARRAY_SIZE(mx6dl_spinor_pads);
+		weimnor_pads_cnt = ARRAY_SIZE(mx6dl_weimnor_pads);
+
 		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6dl_i2c3_pads_rev_a;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6dl_i2c3_pads_rev_a);
@@ -1364,11 +1419,19 @@ static void __init mx6_board_init(void)
 
 	BUG_ON(!common_pads);
 	mxc_iomux_v3_setup_multiple_pads(common_pads, common_pads_cnt);
-	if (!spinor_en) {
+
+	/*If at least one NOR memory is selected we don't configure IC23 PADS*/
+	if (spinor_en) {
+		BUG_ON(!spinor_pads);
+		mxc_iomux_v3_setup_multiple_pads(spinor_pads, spinor_pads_cnt);
+	} else if (weimnor_en) {
+		BUG_ON(!weimnor_pads);
+		mxc_iomux_v3_setup_multiple_pads(weimnor_pads,
+						weimnor_pads_cnt);
+	} else {
 		BUG_ON(!i2c3_pads);
 		mxc_iomux_v3_setup_multiple_pads(i2c3_pads, i2c3_pads_cnt);
 	}
-
 	if (can0_enable) {
 		BUG_ON(!can0_pads);
 		mxc_iomux_v3_setup_multiple_pads(can0_pads,
@@ -1388,12 +1451,19 @@ static void __init mx6_board_init(void)
 	gpio_direction_output(SABREAUTO_I2C_EXP_RST, 1);
 
 	if (!board_is_mx6_reva()) {
-		/* enable i2c3_sda route path */
+		/* enable either EIM_D18 or i2c3_sda route path */
 		gpio_request(SABREAUTO_I2C3_STEER, "i2c3-steer");
 		if (spinor_en)
 			gpio_direction_output(SABREAUTO_I2C3_STEER, 0);
-		else
-			gpio_direction_output(SABREAUTO_I2C3_STEER, 1);
+		else if (weimnor_en) {
+			/*Put DISP0_DAT8 in ALT5 mode to prevent WDOG1 of
+			resetting WEIM NOR*/
+			gpio_direction_output(SABREAUTO_I2C3_STEER, 0);
+
+			gpio_request(SABREAUTO_WEIM_NOR_WDOG1, "nor-reset");
+			gpio_direction_output(SABREAUTO_WEIM_NOR_WDOG1, 1);
+		} else
+		gpio_direction_output(SABREAUTO_I2C3_STEER, 1);
 		/* Set GPIO_16 input for IEEE-1588 ts_clk and
 		 * RMII reference clk
 		 * For MX6 GPR1 bit21 meaning:
@@ -1443,6 +1513,8 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_imx_snvs_rtc();
 
+	imx6q_add_imx_caam();
+
 	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c1_data);
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
@@ -1461,10 +1533,10 @@ static void __init mx6_board_init(void)
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabreauto_spi_data);
 #if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
-	spi_device_init();
+		spi_device_init();
 #else
-	mx6q_setup_weimcs();
-	platform_device_register(&physmap_flash_device);
+		mx6q_setup_weimcs();
+		platform_device_register(&physmap_flash_device);
 #endif
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
@@ -1547,6 +1619,13 @@ static void __init mx6_board_init(void)
 	mxc_register_device(&mxc_si4763_audio_device, &si4763_audio_data);
 
 	imx6q_add_busfreq();
+
+	/* Add PCIe RC interface support */
+	imx6q_add_pcie(&mx6_sabreauto_pcie_data);
+
+	imx6q_add_perfmon(0);
+	imx6q_add_perfmon(1);
+	imx6q_add_perfmon(2);
 }
 
 extern void __iomem *twd_base;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License version 2 as published by the
@@ -53,7 +53,7 @@ const struct imx_otp_data imx50_otp_data = {
 static const char *bank_reg_desc[BANKS][BANK_ITEMS] = {
 	BANK(LOCK, CFG0, CFG1, CFG2, CFG3, CFG4, CFG5, CFG6),
 	BANK(MEM0, MEM1, MEM2, MEM3, MEM4, ANA0, ANA1, ANA2),
-	BANK(OTPMK0, SOTPMK1, OTPMK2, OTPMK3, OTPMK4, OTPMK5, OTPMK6, OTPMK7),
+	BANK(OTPMK0, OTPMK1, OTPMK2, OTPMK3, OTPMK4, OTPMK5, OTPMK6, OTPMK7),
 	BANK(SRK0, SRK1, SRK2, SRK3, SRK4, SRK5, SRK6, SRK7),
 	BANK(RESP0, HSJC_RESP1, MAC0, MAC1, HDCP_KSV0, HDCP_KSV1, GP1, GP2),
 	BANK(DTCP_KEY0,  DTCP_KEY1,  DTCP_KEY2,  DTCP_KEY3,  DTCP_KEY4,  MISC_CONF,  FIELD_RETURN, SRK_REVOKE),

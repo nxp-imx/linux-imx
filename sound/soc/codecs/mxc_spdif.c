@@ -1138,12 +1138,6 @@ static int mxc_spdif_startup(struct snd_pcm_substream *substream,
 	/* disable all the interrupts */
 	spdif_intr_enable(0xffffff, 0);
 
-	/* enable spdif_xtal_clk */
-	clk_enable(plat_data->spdif_core_clk);
-	spdif_softreset();
-	/* disable all the interrupts */
-	spdif_intr_enable(0xffffff, 0);
-
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		ret = mxc_spdif_playback_startup(substream, dai);
 	else

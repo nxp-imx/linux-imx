@@ -49,8 +49,6 @@
 
 extern unsigned int gpc_wake_irq[4];
 
-static unsigned int cpu_idle_mask;
-
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 
 int wait_mode_arm_podf;

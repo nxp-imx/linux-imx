@@ -2665,11 +2665,13 @@
 #define MX6DL_PAD_KEY_COL3__ENET_CRS                                           \
 		IOMUX_PAD(0x0638, 0x0250, 1, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_KEY_COL3__HDMI_TX_DDC_SCL                                    \
-		IOMUX_PAD(0x0638, 0x0250, 2, 0x0860, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x0638, 0x0250, 2 | IOMUX_CONFIG_SION, 0x0860, 1,            \
+				MX6DL_I2C_PAD_CTRL)
 #define MX6DL_PAD_KEY_COL3__KPP_COL_3                                          \
 		IOMUX_PAD(0x0638, 0x0250, 3, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_KEY_COL3__I2C2_SCL                                           \
-		IOMUX_PAD(0x0638, 0x0250, 4 | IOMUX_CONFIG_SION, 0x0870, 1, MX6DL_I2C_PAD_CTRL)
+		IOMUX_PAD(0x0638, 0x0250, 4 | IOMUX_CONFIG_SION, 0x0870, 1,            \
+				MX6DL_I2C_PAD_CTRL)
 #define MX6DL_PAD_KEY_COL3__GPIO_4_12                                          \
 		IOMUX_PAD(0x0638, 0x0250, 5, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_KEY_COL3__SPDIF_IN1                                          \
@@ -2756,11 +2758,13 @@
 #define MX6DL_PAD_KEY_ROW3__ASRC_ASRC_EXT_CLK                                  \
 		IOMUX_PAD(0x064C, 0x0264, 1, 0x0794, 2, NO_PAD_CTRL)
 #define MX6DL_PAD_KEY_ROW3__HDMI_TX_DDC_SDA                                    \
-		IOMUX_PAD(0x064C, 0x0264, 2, 0x0864, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x064C, 0x0264, 2 | IOMUX_CONFIG_SION, 0x0864, 1,            \
+				MX6DL_I2C_PAD_CTRL)
 #define MX6DL_PAD_KEY_ROW3__KPP_ROW_3                                          \
 		IOMUX_PAD(0x064C, 0x0264, 3, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_KEY_ROW3__I2C2_SDA                                           \
-		IOMUX_PAD(0x064C, 0x0264, 4 | IOMUX_CONFIG_SION, 0x0874, 1, MX6DL_I2C_PAD_CTRL)
+		IOMUX_PAD(0x064C, 0x0264, 4 | IOMUX_CONFIG_SION, 0x0874, 1,            \
+				MX6DL_I2C_PAD_CTRL)
 #define MX6DL_PAD_KEY_ROW3__GPIO_4_13                                          \
 		IOMUX_PAD(0x064C, 0x0264, 5, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_KEY_ROW3__USDHC1_VSELECT                                     \

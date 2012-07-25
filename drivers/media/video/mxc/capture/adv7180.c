@@ -70,25 +70,11 @@ static struct i2c_driver adv7180_i2c_driver = {
 /*!
  * Maintains the information on the current state of the sensor.
  */
-static struct sensor {
-	struct v4l2_int_device *v4l2_int_device;
-	struct i2c_client *i2c_client;
-	struct v4l2_pix_format pix;
-	struct v4l2_captureparm streamcap;
-	bool on;
-
-	/* control settings */
-	int brightness;
-	int hue;
-	int contrast;
-	int saturation;
-	int red;
-	int green;
-	int blue;
-	int ae_mode;
-
+struct sensor {
+	struct sensor_data sen;
 	v4l2_std_id std_id;
 } adv7180_data;
+
 
 /*! List of input video formats supported. The video formats is corresponding
  * with v4l2 id in video_fmt_t
@@ -204,10 +190,10 @@ static struct v4l2_queryctrl adv7180_qctrl[] = {
 static inline int adv7180_read(u8 reg)
 {
 	int val;
-	val = i2c_smbus_read_byte_data(adv7180_data.i2c_client, reg);
+	val = i2c_smbus_read_byte_data(adv7180_data.sen.i2c_client, reg);
 	if (val < 0) {
-		dev_dbg(&adv7180_data.i2c_client->dev,
-			"%s:read reg error: reg=%2x \n", __func__, reg);
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
+			"%s:read reg error: reg=%2x\n", __func__, reg);
 		return -1;
 	}
 	return val;
@@ -221,8 +207,11 @@ static inline int adv7180_read(u8 reg)
  */
 static int adv7180_write_reg(u8 reg, u8 val)
 {
-	if (i2c_smbus_write_byte_data(adv7180_data.i2c_client, reg, val) < 0) {
-		dev_dbg(&adv7180_data.i2c_client->dev,
+	s32 ret;
+
+	ret = i2c_smbus_write_byte_data(adv7180_data.sen.i2c_client, reg, val);
+	if (ret < 0) {
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"%s:write reg error:reg=%2x,val=%2x\n", __func__,
 			reg, val);
 		return -1;
@@ -247,7 +236,7 @@ static void adv7180_get_std(v4l2_std_id *std)
 	int tmp;
 	int idx;
 
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180_get_std\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180_get_std\n");
 
 	/* Make sure power on */
 	if (tvin_plat->pwdn)
@@ -268,7 +257,7 @@ static void adv7180_get_std(v4l2_std_id *std)
 	} else {
 		*std = V4L2_STD_ALL;
 		idx = ADV7180_NOT_LOCKED;
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"Got invalid video standard!\n");
 	}
 	mutex_unlock(&mutex);
@@ -277,8 +266,8 @@ static void adv7180_get_std(v4l2_std_id *std)
 	if (*std != adv7180_data.std_id) {
 		video_idx = idx;
 		adv7180_data.std_id = *std;
-		adv7180_data.pix.width = video_fmts[video_idx].raw_width;
-		adv7180_data.pix.height = video_fmts[video_idx].raw_height;
+		adv7180_data.sen.pix.width = video_fmts[video_idx].raw_width;
+		adv7180_data.sen.pix.height = video_fmts[video_idx].raw_height;
 	}
 }
 
@@ -303,7 +292,7 @@ static void adv7180_get_std(v4l2_std_id *std)
  */
 static int ioctl_g_ifparm(struct v4l2_int_device *s, struct v4l2_ifparm *p)
 {
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_g_ifparm\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "adv7180:ioctl_g_ifparm\n");
 
 	if (s == NULL) {
 		pr_err("   ERROR!! no slave device set!\n");
@@ -339,9 +328,9 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 {
 	struct sensor *sensor = s->priv;
 
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_s_power\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "adv7180:ioctl_s_power\n");
 
-	if (on && !sensor->on) {
+	if (on && !sensor->sen.on) {
 		gpio_sensor_active();
 
 		/* Make sure pwoer on */
@@ -350,13 +339,13 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 
 		if (adv7180_write_reg(ADV7180_PWR_MNG, 0) != 0)
 			return -EIO;
-	} else if (!on && sensor->on) {
+	} else if (!on && sensor->sen.on) {
 		if (adv7180_write_reg(ADV7180_PWR_MNG, 0x24) != 0)
 			return -EIO;
 		gpio_sensor_inactive();
 	}
 
-	sensor->on = on;
+	sensor->sen.on = on;
 
 	return 0;
 }
@@ -373,7 +362,7 @@ static int ioctl_g_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 	struct sensor *sensor = s->priv;
 	struct v4l2_captureparm *cparm = &a->parm.capture;
 
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_g_parm\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180:ioctl_g_parm\n");
 
 	switch (a->type) {
 	/* These are all the possible cases. */
@@ -381,9 +370,9 @@ static int ioctl_g_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 		pr_debug("   type is V4L2_BUF_TYPE_VIDEO_CAPTURE\n");
 		memset(a, 0, sizeof(*a));
 		a->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		cparm->capability = sensor->streamcap.capability;
-		cparm->timeperframe = sensor->streamcap.timeperframe;
-		cparm->capturemode = sensor->streamcap.capturemode;
+		cparm->capability = sensor->sen.streamcap.capability;
+		cparm->timeperframe = sensor->sen.streamcap.timeperframe;
+		cparm->capturemode = sensor->sen.streamcap.capturemode;
 		break;
 
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
@@ -415,7 +404,7 @@ static int ioctl_g_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
  */
 static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 {
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_s_parm\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180:ioctl_s_parm\n");
 
 	switch (a->type) {
 	/* These are all the possible cases. */
@@ -448,13 +437,13 @@ static int ioctl_g_fmt_cap(struct v4l2_int_device *s, struct v4l2_format *f)
 {
 	struct sensor *sensor = s->priv;
 
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_g_fmt_cap\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "adv7180:ioctl_g_fmt_cap\n");
 
 	switch (f->type) {
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
 		pr_debug("   Returning size of %dx%d\n",
-			 sensor->pix.width, sensor->pix.height);
-		f->fmt.pix = sensor->pix;
+			 sensor->sen.pix.width, sensor->sen.pix.height);
+		f->fmt.pix = sensor->sen.pix;
 		break;
 
 	case V4L2_BUF_TYPE_PRIVATE: {
@@ -465,7 +454,7 @@ static int ioctl_g_fmt_cap(struct v4l2_int_device *s, struct v4l2_format *f)
 		break;
 
 	default:
-		f->fmt.pix = sensor->pix;
+		f->fmt.pix = sensor->sen.pix;
 		break;
 	}
 
@@ -486,7 +475,7 @@ static int ioctl_queryctrl(struct v4l2_int_device *s,
 {
 	int i;
 
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_queryctrl\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "adv7180:ioctl_queryctrl\n");
 
 	for (i = 0; i < ARRAY_SIZE(adv7180_qctrl); i++)
 		if (qc->id && qc->id == adv7180_qctrl[i].id) {
@@ -510,8 +499,9 @@ static int ioctl_queryctrl(struct v4l2_int_device *s,
 static int ioctl_g_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 {
 	int ret = 0;
+	int sat = 0;
 
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_g_ctrl\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180:ioctl_g_ctrl\n");
 
 	/* Make sure power on */
 	if (tvin_plat->pwdn)
@@ -519,72 +509,73 @@ static int ioctl_g_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 
 	switch (vc->id) {
 	case V4L2_CID_BRIGHTNESS:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_BRIGHTNESS\n");
-		adv7180_data.brightness = adv7180_read(ADV7180_BRIGHTNESS);
-		vc->value = adv7180_data.brightness;
+		adv7180_data.sen.brightness = adv7180_read(ADV7180_BRIGHTNESS);
+		vc->value = adv7180_data.sen.brightness;
 		break;
 	case V4L2_CID_CONTRAST:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_CONTRAST\n");
-		vc->value = adv7180_data.contrast;
+		vc->value = adv7180_data.sen.contrast;
 		break;
 	case V4L2_CID_SATURATION:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_SATURATION\n");
-		adv7180_data.saturation = adv7180_read(ADV7180_SD_SATURATION_CB);
-		vc->value = adv7180_data.saturation;
+		sat = adv7180_read(ADV7180_SD_SATURATION_CB);
+		adv7180_data.sen.saturation = sat;
+		vc->value = adv7180_data.sen.saturation;
 		break;
 	case V4L2_CID_HUE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_HUE\n");
-		vc->value = adv7180_data.hue;
+		vc->value = adv7180_data.sen.hue;
 		break;
 	case V4L2_CID_AUTO_WHITE_BALANCE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_AUTO_WHITE_BALANCE\n");
 		break;
 	case V4L2_CID_DO_WHITE_BALANCE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_DO_WHITE_BALANCE\n");
 		break;
 	case V4L2_CID_RED_BALANCE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_RED_BALANCE\n");
-		vc->value = adv7180_data.red;
+		vc->value = adv7180_data.sen.red;
 		break;
 	case V4L2_CID_BLUE_BALANCE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_BLUE_BALANCE\n");
-		vc->value = adv7180_data.blue;
+		vc->value = adv7180_data.sen.blue;
 		break;
 	case V4L2_CID_GAMMA:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_GAMMA\n");
 		break;
 	case V4L2_CID_EXPOSURE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_EXPOSURE\n");
-		vc->value = adv7180_data.ae_mode;
+		vc->value = adv7180_data.sen.ae_mode;
 		break;
 	case V4L2_CID_AUTOGAIN:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_AUTOGAIN\n");
 		break;
 	case V4L2_CID_GAIN:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_GAIN\n");
 		break;
 	case V4L2_CID_HFLIP:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_HFLIP\n");
 		break;
 	case V4L2_CID_VFLIP:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_VFLIP\n");
 		break;
 	default:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   Default case\n");
 		vc->value = 0;
 		ret = -EPERM;
@@ -608,7 +599,7 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 	int retval = 0;
 	u8 tmp;
 
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_s_ctrl\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180:ioctl_s_ctrl\n");
 
 	/* Make sure power on */
 	if (tvin_plat->pwdn)
@@ -616,70 +607,70 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 
 	switch (vc->id) {
 	case V4L2_CID_BRIGHTNESS:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_BRIGHTNESS\n");
 		tmp = vc->value;
 		adv7180_write_reg(ADV7180_BRIGHTNESS, tmp);
-		adv7180_data.brightness = vc->value;
+		adv7180_data.sen.brightness = vc->value;
 		break;
 	case V4L2_CID_CONTRAST:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_CONTRAST\n");
 		break;
 	case V4L2_CID_SATURATION:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_SATURATION\n");
 		tmp = vc->value;
 		adv7180_write_reg(ADV7180_SD_SATURATION_CB, tmp);
 		adv7180_write_reg(ADV7180_SD_SATURATION_CR, tmp);
-		adv7180_data.saturation = vc->value;
+		adv7180_data.sen.saturation = vc->value;
 		break;
 	case V4L2_CID_HUE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_HUE\n");
 		break;
 	case V4L2_CID_AUTO_WHITE_BALANCE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_AUTO_WHITE_BALANCE\n");
 		break;
 	case V4L2_CID_DO_WHITE_BALANCE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_DO_WHITE_BALANCE\n");
 		break;
 	case V4L2_CID_RED_BALANCE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_RED_BALANCE\n");
 		break;
 	case V4L2_CID_BLUE_BALANCE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_BLUE_BALANCE\n");
 		break;
 	case V4L2_CID_GAMMA:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_GAMMA\n");
 		break;
 	case V4L2_CID_EXPOSURE:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_EXPOSURE\n");
 		break;
 	case V4L2_CID_AUTOGAIN:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_AUTOGAIN\n");
 		break;
 	case V4L2_CID_GAIN:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_GAIN\n");
 		break;
 	case V4L2_CID_HFLIP:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_HFLIP\n");
 		break;
 	case V4L2_CID_VFLIP:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   V4L2_CID_VFLIP\n");
 		break;
 	default:
-		dev_dbg(&adv7180_data.i2c_client->dev,
+		dev_dbg(&adv7180_data.sen.i2c_client->dev,
 			"   Default case\n");
 		retval = -EPERM;
 		break;
@@ -713,7 +704,7 @@ static int ioctl_g_chip_ident(struct v4l2_int_device *s, int *id)
  */
 static int ioctl_init(struct v4l2_int_device *s)
 {
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_init\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180:ioctl_init\n");
 	return 0;
 }
 
@@ -725,7 +716,7 @@ static int ioctl_init(struct v4l2_int_device *s)
  */
 static int ioctl_dev_init(struct v4l2_int_device *s)
 {
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180:ioctl_dev_init\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "adv7180:ioctl_dev_init\n");
 	return 0;
 }
 
@@ -806,7 +797,7 @@ static struct v4l2_int_device adv7180_int_device = {
  */
 static void adv7180_hard_reset(bool cvbs)
 {
-	dev_dbg(&adv7180_data.i2c_client->dev,
+	dev_dbg(&adv7180_data.sen.i2c_client->dev,
 		"In adv7180:adv7180_hard_reset\n");
 
 	if (cvbs) {
@@ -1084,6 +1075,8 @@ static int adv7180_probe(struct i2c_client *client,
 	int ret = 0;
 	tvin_plat = client->dev.platform_data;
 
+	printk(KERN_ERR"DBG sensor data is at %p\n", &adv7180_data);
+
 	pr_debug("In adv7180_probe\n");
 
 	if (tvin_plat->dvddio_reg) {
@@ -1139,27 +1132,27 @@ static int adv7180_probe(struct i2c_client *client,
 
 	/* Set initial values for the sensor struct. */
 	memset(&adv7180_data, 0, sizeof(adv7180_data));
-	adv7180_data.i2c_client = client;
-	adv7180_data.streamcap.timeperframe.denominator = 30;
-	adv7180_data.streamcap.timeperframe.numerator = 1;
+	adv7180_data.sen.i2c_client = client;
+	adv7180_data.sen.streamcap.timeperframe.denominator = 30;
+	adv7180_data.sen.streamcap.timeperframe.numerator = 1;
 	adv7180_data.std_id = V4L2_STD_ALL;
 	video_idx = ADV7180_NOT_LOCKED;
-	adv7180_data.pix.width = video_fmts[video_idx].raw_width;
-	adv7180_data.pix.height = video_fmts[video_idx].raw_height;
-	adv7180_data.pix.pixelformat = V4L2_PIX_FMT_UYVY;  /* YUV422 */
-	adv7180_data.pix.priv = 1;  /* 1 is used to indicate TV in */
-	adv7180_data.on = true;
+	adv7180_data.sen.pix.width = video_fmts[video_idx].raw_width;
+	adv7180_data.sen.pix.height = video_fmts[video_idx].raw_height;
+	adv7180_data.sen.pix.pixelformat = V4L2_PIX_FMT_UYVY;  /* YUV422 */
+	adv7180_data.sen.pix.priv = 1;  /* 1 is used to indicate TV in */
+	adv7180_data.sen.on = true;
 
 	gpio_sensor_active();
 
-	dev_dbg(&adv7180_data.i2c_client->dev,
-		"%s:adv7180 probe i2c address is 0x%02X \n",
-		__func__, adv7180_data.i2c_client->addr);
+	dev_dbg(&adv7180_data.sen.i2c_client->dev,
+		"%s:adv7180 probe i2c address is 0x%02X\n",
+		__func__, adv7180_data.sen.i2c_client->addr);
 
 	/*! Read the revision ID of the tvin chip */
 	rev_id = adv7180_read(ADV7180_IDENT);
-	dev_dbg(&adv7180_data.i2c_client->dev,
-		"%s:Analog Device adv7%2X0 detected! \n", __func__,
+	dev_dbg(&adv7180_data.sen.i2c_client->dev,
+		"%s:Analog Device adv7%2X0 detected!\n", __func__,
 		rev_id);
 
 	/*! ADV7180 initialization. */
@@ -1190,7 +1183,7 @@ static int adv7180_detach(struct i2c_client *client)
 {
 	struct fsl_mxc_tvin_platform_data *plat_data = client->dev.platform_data;
 
-	dev_dbg(&adv7180_data.i2c_client->dev,
+	dev_dbg(&adv7180_data.sen.i2c_client->dev,
 		"%s:Removing %s video decoder @ 0x%02X from adapter %s\n",
 		__func__, IF_NAME, client->addr << 1, client->adapter->name);
 
@@ -1251,7 +1244,7 @@ static __init int adv7180_init(void)
  */
 static void __exit adv7180_clean(void)
 {
-	dev_dbg(&adv7180_data.i2c_client->dev, "In adv7180_clean\n");
+	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180_clean\n");
 	i2c_del_driver(&adv7180_i2c_driver);
 	gpio_sensor_inactive();
 }

@@ -308,7 +308,7 @@
 	(((((x) >= (unsigned long)AIPS1_ARB_BASE_ADDR) && \
 	  ((x) <= (unsigned long)AIPS2_ARB_END_ADDR)) || \
 	  ((x) >= (unsigned long)ARM_PERIPHBASE && \
-	  ((x) <= (unsigned long)(ARM_PERIPHBASE + ARM_PERIPHBASE)))) ? \
+	  ((x) <= (unsigned long)(ARM_PERIPHBASE + ARM_PERIPHBASE_SIZE)))) ? \
 	   MX6_IO_ADDRESS(x) : (void __force __iomem *)0xDEADBEEF)
 
 /*
@@ -322,7 +322,7 @@
 #define MX6DL_INT_MSHC			35
 #define MXC_INT_INTERRUPT_36_NUM	36
 #define MX6Q_INT_IPU1_ERR		37
-#define MX6DL_INT_RNGB			37
+#define MX6SL_INT_RNGB			37
 #define MX6Q_INT_IPU1_SYN		38
 #define MX6SL_INT_SPDC			38
 #define MX6Q_INT_IPU2_ERR		39
@@ -415,8 +415,8 @@
 #define MXC_INT_GPIO6_INT31_16_NUM	109
 #define MXC_INT_GPIO7_INT15_0_NUM	110
 #define MXC_INT_GPIO7_INT31_16_NUM	111
-#define MXC_INT_WDOG1			112
-#define MXC_INT_WDOG2			113
+#define MX6Q_INT_WDOG1			112
+#define MX6Q_INT_WDOG2			113
 #define MXC_INT_KPP			114
 #define MX6SL_INT_KPP			114
 #define MX6Q_INT_PWM1			115
@@ -436,9 +436,9 @@
 #define MX6DL_INT_EPDC			129
 #define MX6DL_INT_EPXP			130
 #define MXC_INT_INTERRUPT_131_NUM	131
-#define MX6DL_INT_DCP_GEN		131
-#define MX6DL_INT_DCP_CH0		132
-#define MX6DL_INT_DCP_SEC		133
+#define MX6SL_INT_DCP_GEN		131
+#define MX6SL_INT_DCP_CH0		132
+#define MX6SL_INT_DCP_SEC		133
 #define MXC_INT_CSI_INTR1		132
 #define MXC_INT_CSI_INTR2		133
 #define MXC_INT_DSI			134

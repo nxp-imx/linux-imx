@@ -709,10 +709,26 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)
 	if (type == HUB_INIT3)
 		goto init3;
 
-	/* After a resume, port power should still be on.
+	/* The superspeed hub except for root hub has to use Hub Depth
+	 * value as an offset into the route string to locate the bits
+	 * it uses to determine the downstream port number. So hub driver
+	 * should send a set hub depth request to superspeed hub after
+	 * the superspeed hub is set configuration in initialization or
+	 * reset procedure.
+	 *
+	 * After a resume, port power should still be on.
 	 * For any other type of activation, turn it on.
 	 */
 	if (type != HUB_RESUME) {
+		if (hdev->parent && hub_is_superspeed(hdev)) {
+			ret = usb_control_msg(hdev, usb_sndctrlpipe(hdev, 0),
+					HUB_SET_DEPTH, USB_RT_HUB,
+					hdev->level - 1, 0, NULL, 0,
+					USB_CTRL_SET_TIMEOUT);
+			if (ret < 0)
+				dev_err(hub->intfdev,
+						"set hub depth failed\n");
+		}
 
 		/* Speed up system boot by using a delayed_work for the
 		 * hub's initial power-up delays.  This is pretty awkward
@@ -989,18 +1005,6 @@ static int hub_configure(struct usb_hub *hub,
 	if (!hub->descriptor) {
 		ret = -ENOMEM;
 		goto fail;
-	}
-
-	if (hub_is_superspeed(hdev) && (hdev->parent != NULL)) {
-		ret = usb_control_msg(hdev, usb_sndctrlpipe(hdev, 0),
-				HUB_SET_DEPTH, USB_RT_HUB,
-				hdev->level - 1, 0, NULL, 0,
-				USB_CTRL_SET_TIMEOUT);
-
-		if (ret < 0) {
-			message = "can't set hub depth";
-			goto fail;
-		}
 	}
 
 	/* Request the entire hub descriptor.
@@ -1644,7 +1648,6 @@ void usb_disconnect(struct usb_device **pdev)
 {
 	struct usb_device	*udev = *pdev;
 	int			i;
-	struct usb_hcd		*hcd = bus_to_hcd(udev->bus);
 
 	if (!udev) {
 		pr_debug ("%s nodev\n", __func__);
@@ -1672,9 +1675,7 @@ void usb_disconnect(struct usb_device **pdev)
 	 * so that the hardware is now fully quiesced.
 	 */
 	dev_dbg (&udev->dev, "unregistering device\n");
-	mutex_lock(hcd->bandwidth_mutex);
 	usb_disable_device(udev, 0);
-	mutex_unlock(hcd->bandwidth_mutex);
 	usb_hcd_synchronize_unlinks(udev);
 
 	usb_remove_ep_devs(&udev->ep0);
@@ -2542,7 +2543,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 			struct usb_hcd *hcd = bus_to_hcd(hdev->bus);
 			struct fsl_usb2_platform_data *pdata;
 			pdata = hcd->self.controller->platform_data;
-			if (pdata->platform_rh_resume)
+			if (pdata && pdata->platform_rh_resume)
 				pdata->platform_rh_resume(pdata);
 		}
 #endif
@@ -2564,7 +2565,7 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 		struct usb_hcd *hcd = bus_to_hcd(hdev->bus);
 		struct fsl_usb2_platform_data *pdata;
 		pdata = hcd->self.controller->platform_data;
-		if (pdata->platform_rh_resume)
+		if (pdata && pdata->platform_rh_resume)
 			pdata->platform_rh_resume(pdata);
 	}
 #endif
@@ -3244,12 +3245,12 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 
 		pdata = (struct fsl_usb2_platform_data *)dev->platform_data;
 		if (dev->parent && (hdev->level == 0) && dev->type) {
-			if (port1 == 1 && pdata->init)
+			if (port1 == 1 && pdata && pdata->init)
 				pdata->init(NULL);
 		}
 		if ((port1 == 1) && (hdev->level == 0)) {
 			/* Must clear HOSTDISCONDETECT when port connect change happen*/
-			if (pdata->platform_set_disconnect_det)
+			if (pdata && pdata->platform_set_disconnect_det)
 				pdata->platform_set_disconnect_det(pdata, 0);
 
 		}

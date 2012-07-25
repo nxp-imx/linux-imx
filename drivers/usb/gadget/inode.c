@@ -1079,7 +1079,6 @@ ep0_read (struct file *fd, char __user *buf, size_t len, loff_t *ptr)
 				if (copy_to_user (buf, dev->req->buf, len))
 					retval = -EFAULT;
 				else
-					/* Bug of Cancel IO 6 bytes read. */
 					retval = len;
 				clean_req (dev->gadget->ep0, dev->req);
 				/* NOTE userspace can't yet choose to stall */

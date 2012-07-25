@@ -42,7 +42,7 @@
 #define NUM_SCREENS_MIN		2
 #define SPDC_DEFAULT_BPP	16
 
-mxc_spdc_t *g_fb_data;
+mxc_spdc_t *g_spdc_fb_data;
 
 static int mxc_spdc_fb_send_update(struct mxcfb_update_data *upd_data,
 				   struct fb_info *info);
@@ -1477,7 +1477,7 @@ void mxc_spdc_fb_set_waveform_modes(struct mxcfb_waveform_modes *modes,
 	struct fb_info *info)
 {
 	mxc_spdc_t *fb_data = info ?
-		(mxc_spdc_t *)info:g_fb_data;
+		(mxc_spdc_t *)info:g_spdc_fb_data;
 
 	mutex_lock(&fb_data->queue_mutex);
 
@@ -1493,7 +1493,7 @@ EXPORT_SYMBOL(mxc_spdc_fb_set_waveform_modes);
 int mxc_spdc_fb_set_temperature(int temperature, struct fb_info *info)
 {
 	mxc_spdc_t *fb_data = info ?
-		(mxc_spdc_t *)info:g_fb_data;
+		(mxc_spdc_t *)info:g_spdc_fb_data;
 	s8 temper = (s8)(temperature & 0xFF) << 1;
 
 	mutex_lock(&fb_data->queue_mutex);
@@ -1513,7 +1513,7 @@ EXPORT_SYMBOL(mxc_spdc_fb_set_temperature);
 int mxc_spdc_fb_set_auto_update(u32 auto_mode, struct fb_info *info)
 {
 	mxc_spdc_t *fb_data = info ?
-		(mxc_spdc_t *)info:g_fb_data;
+		(mxc_spdc_t *)info:g_spdc_fb_data;
 
 	dev_dbg(fb_data->dev, "Setting auto update mode to %d\n", auto_mode);
 
@@ -1533,7 +1533,7 @@ EXPORT_SYMBOL(mxc_spdc_fb_set_auto_update);
 int mxc_spdc_fb_set_upd_scheme(u32 upd_scheme, struct fb_info *info)
 {
 	mxc_spdc_t *fb_data = info ?
-		(mxc_spdc_t *)info:g_fb_data;
+		(mxc_spdc_t *)info:g_spdc_fb_data;
 
 	dev_dbg(fb_data->dev, "Setting optimization level to %d\n", upd_scheme);
 
@@ -2394,7 +2394,7 @@ int mxc_spdc_fb_send_update(struct mxcfb_update_data *upd_data,
 				   struct fb_info *info)
 {
 	mxc_spdc_t *fb_data = info ?
-		(mxc_spdc_t *)info:g_fb_data;
+		(mxc_spdc_t *)info:g_spdc_fb_data;
 	struct update_data_list *upd_data_list = NULL;
 	struct mxcfb_rect *screen_upd_region; /* Region on screen to update */
 	struct update_desc_list *upd_desc;
@@ -2622,7 +2622,7 @@ mxc_spdc_fb_wait_update_complete(struct mxcfb_update_marker_data *marker_data,
 				struct fb_info *info)
 {
 	mxc_spdc_t *fb_data = info ?
-		(mxc_spdc_t *)info:g_fb_data;
+		(mxc_spdc_t *)info:g_spdc_fb_data;
 	struct update_marker_data *next_marker;
 	struct update_marker_data *temp;
 	bool marker_found = false;
@@ -2685,7 +2685,7 @@ int mxc_spdc_fb_set_pwrdown_delay(u32 pwrdown_delay,
 				struct fb_info *info)
 {
 	mxc_spdc_t *fb_data = info ?
-		(mxc_spdc_t *)info:g_fb_data;
+		(mxc_spdc_t *)info:g_spdc_fb_data;
 
 	fb_data->pwrdown_delay = pwrdown_delay;
 
@@ -2696,7 +2696,7 @@ EXPORT_SYMBOL(mxc_spdc_fb_set_pwrdown_delay);
 int mxc_spdc_get_pwrdown_delay(struct fb_info *info)
 {
 	mxc_spdc_t *fb_data = info ?
-		(mxc_spdc_t *)info:g_fb_data;
+		(mxc_spdc_t *)info:g_spdc_fb_data;
 
 	return fb_data->pwrdown_delay;
 }
@@ -2912,7 +2912,7 @@ static int mxc_spdc_fb_pan_display(struct fb_var_screeninfo *var,
 				   struct fb_info *info)
 {
 	mxc_spdc_t *fb_data = info ?
-		(mxc_spdc_t *)info:g_fb_data;
+		(mxc_spdc_t *)info:g_spdc_fb_data;
 	u_int y_bottom;
 
 	dev_dbg(info->device, "%s: var->yoffset %d, info->var.yoffset %d\n",
@@ -3980,7 +3980,7 @@ static int __devinit mxc_spdc_fb_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to create file from fb_attrs\n");
 
 	/* use for spdc test */
-	g_fb_data = fb_data;
+	g_spdc_fb_data = fb_data;
 
 	/* hw init */
 	spdc_fb_dev_init(fb_data);

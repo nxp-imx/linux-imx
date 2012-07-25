@@ -3910,6 +3910,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "gpu2d_clk", gpu2d_core_clk),
 	_REGISTER_CLOCK(NULL, "gpu2d_axi_clk", gpu2d_axi_clk),
 	_REGISTER_CLOCK(NULL, "openvg_axi_clk", openvg_axi_clk),
+	_REGISTER_CLOCK(NULL, "rng_clk", dummy_clk),
+	_REGISTER_CLOCK(NULL, "dcp_clk", dummy_clk),
 };
 
 static void clk_tree_init(void)

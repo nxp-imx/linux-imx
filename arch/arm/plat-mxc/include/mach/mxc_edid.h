@@ -51,6 +51,13 @@ enum cea_audio_coding_types {
 	AUDIO_CODING_TYPE_RESERVED		= 15,
 };
 
+struct mxc_hdmi_3d_format {
+	unsigned char vic_order_2d;
+	unsigned char struct_3d;
+	unsigned char detail_3d;
+	unsigned char reserved;
+};
+
 struct mxc_edid_cfg {
 	bool cea_underscan;
 	bool cea_basicaudio;
@@ -59,11 +66,29 @@ struct mxc_edid_cfg {
 	bool hdmi_cap;
 
 	/*VSD*/
+	bool vsd_support_ai;
 	bool vsd_dc_48bit;
 	bool vsd_dc_36bit;
 	bool vsd_dc_30bit;
 	bool vsd_dc_y444;
 	bool vsd_dvi_dual;
+
+	bool vsd_cnc0;
+	bool vsd_cnc1;
+	bool vsd_cnc2;
+	bool vsd_cnc3;
+
+	u8 vsd_video_latency;
+	u8 vsd_audio_latency;
+	u8 vsd_I_video_latency;
+	u8 vsd_I_audio_latency;
+
+	u8 physical_address[4];
+	u8 hdmi_vic[64];
+	struct mxc_hdmi_3d_format hdmi_3d_format[64];
+	u16 hdmi_3d_mask_all;
+	u16 hdmi_3d_struct_all;
+	u32 vsd_max_tmdsclk_rate;
 
 	u8 max_channels;
 	u8 sample_sizes;
@@ -75,5 +100,6 @@ int mxc_edid_var_to_vic(struct fb_var_screeninfo *var);
 int mxc_edid_mode_to_vic(const struct fb_videomode *mode);
 int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
 	unsigned char *edid, struct mxc_edid_cfg *cfg, struct fb_info *fbi);
-
+int mxc_edid_parse_ext_blk(unsigned char *edid, struct mxc_edid_cfg *cfg,
+	struct fb_monspecs *specs);
 #endif

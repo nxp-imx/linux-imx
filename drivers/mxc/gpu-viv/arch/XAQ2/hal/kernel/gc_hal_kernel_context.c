@@ -1341,7 +1341,6 @@ gckCONTEXT_Update(
     gctUINT32 data;
     gctUINT index;
     gctUINT i, j;
-    gctUINT32 wait = gcdGPU_TIMEOUT ? gcdGPU_TIMEOUT : gcvINFINITE;
 
 #if gcdSECURE_USER
     gcskSECURE_CACHE_PTR cache;
@@ -1377,7 +1376,9 @@ gckCONTEXT_Update(
 
     /* Wait until the context buffer becomes available; this will
        also reset the signal and mark the buffer as busy. */
-    gcmkONERROR(gckOS_WaitSignal(Context->os, buffer->signal, wait));
+    gcmkONERROR(gckOS_WaitSignal(
+        Context->os, buffer->signal, gcvINFINITE
+        ));
 
 #if gcdSECURE_USER
     /* Get the cache form the database. */

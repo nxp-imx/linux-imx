@@ -129,6 +129,7 @@
 #define MX6SL_ARM2_ELAN_INT		IMX_GPIO_NR(2, 10)
 #define MX6SL_ARM2_ELAN_RST		IMX_GPIO_NR(4, 4)
 
+static int spdc_sel;
 static int max17135_regulator_init(struct max17135 *max17135);
 struct clk *extern_audio_root;
 
@@ -670,22 +671,16 @@ static int mx6sl_arm2_fec_phy_init(struct phy_device *phydev)
 
 	/* power on FEC phy and reset phy */
 	gpio_request(MX6_ARM2_FEC_PWR_EN, "fec-pwr");
-	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 1);
+	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 0);
 	/* wait RC ms for hw reset */
-	udelay(50);
+	msleep(1);
+	gpio_direction_output(MX6_ARM2_FEC_PWR_EN, 1);
 
 	/* check phy power */
 	val = phy_read(phydev, 0x0);
 	if (val & BMCR_PDOWN) {
 		phy_write(phydev, 0x0, (val & ~BMCR_PDOWN));
-		udelay(50);
 	}
-
-	/* sw reset phy */
-	val = phy_read(phydev, 0x0);
-	val |= BMCR_RESET;
-	phy_write(phydev, 0x0, val);
-	udelay(50);
 
 	return 0;
 }
@@ -1084,13 +1079,19 @@ static struct imx_spdc_fb_platform_data spdc_data = {
 	.disable_pins = spdc_disable_pins,
 };
 
-#if defined(CONFIG_FB_MXC_SIPIX_PANEL)
+static int __init early_use_spdc_sel(char *p)
+{
+	spdc_sel = 1;
+	return 0;
+}
+early_param("spdc", early_use_spdc_sel);
+
 static void setup_spdc(void)
 {
 	/* GPR0[8]: 0:EPDC, 1:SPDC */
-	mxc_iomux_set_gpr_register(0, 8, 1, 1);
+	if (spdc_sel)
+		mxc_iomux_set_gpr_register(0, 8, 1, 1);
 }
-#endif
 
 static void imx6_arm2_usbotg_vbus(bool on)
 {
@@ -1207,6 +1208,17 @@ static void __init elan_ts_init(void)
 	gpio_direction_output(MX6SL_ARM2_ELAN_CE, 1);
 }
 
+#define SNVS_LPCR 0x38
+static void mx6_snvs_poweroff(void)
+{
+	u32 value;
+	void __iomem *mx6_snvs_base = MX6_IO_ADDRESS(MX6Q_SNVS_BASE_ADDR);
+
+	value = readl(mx6_snvs_base + SNVS_LPCR);
+	/* set TOP and DP_EN bit */
+	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
+}
+
 /*!
  * Board specific initialization.
  */
@@ -1270,14 +1282,14 @@ static void __init mx6_arm2_init(void)
 	imx6dl_add_imx_pxp();
 	imx6dl_add_imx_pxp_client();
 	mxc_register_device(&max17135_sensor_device, NULL);
-	imx6dl_add_imx_epdc(&epdc_data);
-#if defined(CONFIG_FB_MXC_SIPIX_PANEL)
 	setup_spdc();
-#endif
-	imx6sl_add_imx_spdc(&spdc_data);
+	if (!spdc_sel)
+		imx6dl_add_imx_epdc(&epdc_data);
+	else
+		imx6sl_add_imx_spdc(&spdc_data);
 	imx6q_add_dvfs_core(&mx6sl_arm2_dvfscore_data);
 
-    imx6q_init_audio();
+	imx6q_init_audio();
 
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
@@ -1285,6 +1297,10 @@ static void __init mx6_arm2_init(void)
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6sl_add_imx_keypad(&mx6sl_arm2_map_data);
 	imx6q_add_busfreq();
+	imx6sl_add_dcp();
+	imx6sl_add_rngb();
+
+	pm_power_off = mx6_snvs_poweroff;
 }
 
 extern void __iomem *twd_base;

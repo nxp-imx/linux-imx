@@ -319,3 +319,13 @@ static iomux_v3_cfg_t mx6dl_gpmi_nand[] __initdata = {
 	MX6DL_PAD_SD4_CLK__RAWNAND_WRN,
 	MX6DL_PAD_NANDF_WP_B__RAWNAND_RESETN,
 };
+
+static iomux_v3_cfg_t mx6dl_arm2_hdmi_ddc_pads[] = {
+	MX6DL_PAD_KEY_COL3__HDMI_TX_DDC_SCL, /* HDMI DDC SCL */
+	MX6DL_PAD_KEY_ROW3__HDMI_TX_DDC_SDA, /* HDMI DDC SDA */
+};
+
+static iomux_v3_cfg_t mx6dl_arm2_i2c2_pads[] = {
+	MX6DL_PAD_KEY_COL3__I2C2_SCL,	/* I2C2 SCL */
+	MX6DL_PAD_KEY_ROW3__I2C2_SDA,	/* I2C2 SDA */
+};

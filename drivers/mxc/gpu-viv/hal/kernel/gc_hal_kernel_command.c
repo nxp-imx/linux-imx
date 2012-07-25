@@ -57,7 +57,6 @@ _NewQueue(
 {
     gceSTATUS status;
     gctINT currentIndex, newIndex;
-    gctUINT32 wait = gcdGPU_TIMEOUT ? gcdGPU_TIMEOUT : gcvINFINITE;
 
     gcmkHEADER_ARG("Command=0x%x", Command);
 
@@ -73,7 +72,7 @@ _NewQueue(
     gcmkONERROR(gckOS_WaitSignal(
         Command->os,
         Command->queues[newIndex].signal,
-        wait
+        gcvINFINITE
         ));
 
 #if gcmIS_DEBUG(gcdDEBUG_TRACE)
@@ -2046,13 +2045,6 @@ OnError:
             gcmSIZEOF(struct _gcoCMDBUF),
             commandBufferObject
             ));
-    }
-
-    if (status == gcvSTATUS_TIMEOUT)
-    {
-        status = gckOS_Broadcast(Command->os,
-                                 Command->kernel->hardware,
-                                 gcvBROADCAST_GPU_STUCK);
     }
 
     /* Return status. */

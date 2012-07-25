@@ -185,7 +185,7 @@ struct i2c_client *hdmi_i2c;
 static bool hdmi_inited;
 
 extern const struct fb_videomode mxc_cea_mode[64];
-
+extern void mxc_hdmi_cec_handle(u16 cec_stat);
 #ifdef DEBUG
 static void dump_fb_videomode(struct fb_videomode *m)
 {
@@ -571,9 +571,9 @@ static void hdmi_video_packetize(struct mxc_hdmi *hdmi)
 	} else
 		return;
 
-	if (!hdmi->edid_cfg.vsd_dc_48bit && !hdmi->edid_cfg.vsd_dc_36bit &&
-		!hdmi->edid_cfg.vsd_dc_30bit && !hdmi->edid_cfg.vsd_dc_y444)
-		color_depth = 0;
+	/* HDMI not support deep color,
+	 * because IPU MAX support color depth is 24bit */
+	color_depth = 0;
 
 	/* set the packetizer registers */
 	val = ((color_depth << HDMI_VP_PR_CD_COLOR_DEPTH_OFFSET) &
@@ -1043,9 +1043,9 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 	/* RESISTANCE TERM 133Ohm Cfg */
 	hdmi_phy_i2c_write(hdmi, 0x0005, 0x19);  /* TXTERM */
 	/* PREEMP Cgf 0.00 */
-	hdmi_phy_i2c_write(hdmi, 0x8009, 0x09);  /* CKSYMTXCTRL */
+	hdmi_phy_i2c_write(hdmi, 0x800d, 0x09);  /* CKSYMTXCTRL */
 	/* TX/CK LVL 10 */
-	hdmi_phy_i2c_write(hdmi, 0x0210, 0x0E);  /* VLEVCTRL */
+	hdmi_phy_i2c_write(hdmi, 0x01ad, 0x0E);  /* VLEVCTRL */
 	/* REMOVE CLK TERM */
 	hdmi_phy_i2c_write(hdmi, 0x8000, 0x05);  /* CKCALCTRL */
 
@@ -1753,6 +1753,9 @@ static void hotplug_worker(struct work_struct *work)
 
 			sprintf(event_string, "EVENT=plugin");
 			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
+#ifdef CONFIG_MXC_HDMI_CEC
+			mxc_hdmi_cec_handle(0x80);
+#endif
 
 		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
 			/* Plugout event */
@@ -1766,6 +1769,9 @@ static void hotplug_worker(struct work_struct *work)
 
 			sprintf(event_string, "EVENT=plugout");
 			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
+#ifdef CONFIG_MXC_HDMI_CEC
+			mxc_hdmi_cec_handle(0x100);
+#endif
 
 		} else
 			dev_dbg(&hdmi->pdev->dev, "EVENT=none?\n");
@@ -1886,7 +1892,12 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 		hdmi->hdmi_data.video_mode.mDVI = true;
 	} else {
 		dev_dbg(&hdmi->pdev->dev, "CEA mode used vic=%d\n", hdmi->vic);
-		hdmi->hdmi_data.video_mode.mDVI = false;
+		if (hdmi->edid_cfg.hdmi_cap)
+			hdmi->hdmi_data.video_mode.mDVI = false;
+		else {
+			dev_dbg(&hdmi->pdev->dev, "CEA mode vic=%d work in DVI\n", hdmi->vic);
+			hdmi->hdmi_data.video_mode.mDVI = true;
+		}
 	}
 
 	if ((hdmi->vic == 6) || (hdmi->vic == 7) ||
@@ -1916,14 +1927,14 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 
 	hdmi->hdmi_data.enc_out_format = RGB;
 	/*DVI mode not support non-RGB */
-	if (!hdmi->hdmi_data.video_mode.mDVI)
-		if (hdmi->edid_cfg.hdmi_cap) {
-			if (hdmi->edid_cfg.cea_ycbcr444)
-				hdmi->hdmi_data.enc_out_format = YCBCR444;
-			else if (hdmi->edid_cfg.cea_ycbcr422)
-				hdmi->hdmi_data.enc_out_format = YCBCR422_8BITS;
-		}
+	if (!hdmi->hdmi_data.video_mode.mDVI) {
+		if (hdmi->edid_cfg.cea_ycbcr444)
+			hdmi->hdmi_data.enc_out_format = YCBCR444;
+		else if (hdmi->edid_cfg.cea_ycbcr422)
+			hdmi->hdmi_data.enc_out_format = YCBCR422_8BITS;
+	}
 
+	/* IPU not support depth color output */
 	hdmi->hdmi_data.enc_color_depth = 8;
 	hdmi->hdmi_data.pix_repet_factor = 0;
 	hdmi->hdmi_data.hdcp_enable = 0;

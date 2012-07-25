@@ -28,6 +28,11 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 
+#define UYVY_BLACK	(0x00800080)
+#define RGB_BLACK	(0x0)
+#define NV12_UV_BLACK	(0x80)
+#define NV12_Y_BLACK	(0x0)
+
 #define MAX_FB_NUM	6
 #define FB_BUFS		3
 #define VDOA_FB_BUFS	(FB_BUFS - 1)
@@ -1104,6 +1109,13 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 	int ret = 0;
 	struct v4l2_rect rect;
 
+	if ((f->fmt.pix.field != V4L2_FIELD_NONE) &&
+		(IPU_PIX_FMT_TILED_NV12 == vout->task.input.format)) {
+		v4l2_err(vout->vfd->v4l2_dev,
+			"progressive tiled fmt should used V4L2_FIELD_NONE!\n");
+		return -EINVAL;
+	}
+
 	if (f->fmt.pix.priv && copy_from_user(&rect,
 		(void __user *)f->fmt.pix.priv, sizeof(rect)))
 		return -EFAULT;
@@ -1583,9 +1595,12 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	struct dma_mem *buf = NULL;
 	struct fb_info *fbi = vout->fbi;
 	struct fb_var_screeninfo var;
-	int i, display_buf_size, fb_num, ret;
+	int i, fb_num, ret;
 	u32 fb_base;
 	u32 size;
+	u32 display_buf_size;
+	u32 *pixel = NULL;
+	u32 color;
 	int j;
 
 	memcpy(&var, &fbi->var, sizeof(var));
@@ -1668,6 +1683,20 @@ static int config_disp_output(struct mxc_vout_output *vout)
 			fbi->fix.smem_len, fbi->fix.smem_start, fb_base);
 	}
 
+	/* fill black when video config changed */
+	color = colorspaceofpixel(vout->task.output.format) == YUV_CS ?
+			UYVY_BLACK : RGB_BLACK;
+	if (vout->task.output.format == IPU_PIX_FMT_NV12) {
+		size = display_buf_size * 8 /
+			fmt_to_bpp(vout->task.output.format);
+		memset(fbi->screen_base, NV12_Y_BLACK, size);
+		memset(fbi->screen_base + size, NV12_UV_BLACK,
+				display_buf_size - size);
+	} else {
+		pixel = (u32 *)fbi->screen_base;
+		for (i = 0; i < (display_buf_size >> 2); i++)
+			*pixel++ = color;
+	}
 	console_lock();
 	fbi->flags |= FBINFO_MISC_USEREVENT;
 	ret = fb_blank(fbi, FB_BLANK_UNBLANK);
@@ -1689,24 +1718,9 @@ static void release_disp_output(struct mxc_vout_output *vout)
 {
 	struct fb_info *fbi = vout->fbi;
 	struct mxcfb_pos pos;
-	struct ipu_pos ipos;
-	int ret;
 
 	if (vout->release)
 		return;
-	if (get_ipu_channel(fbi) == MEM_BG_SYNC) {
-		if (vout->tiled_bypass_pp) {
-			vout->task.output.paddr = vout->disp_bufs[0];
-			ipos.x = vout->task.input.crop.pos.x;
-			ipos.y = vout->task.input.crop.pos.y;
-			ret = show_buf(vout, 0, &ipos);
-			if (ret < 0)
-				v4l2_err(vout->vfd->v4l2_dev,
-						"show_buf ret %d\n", ret);
-		}
-		goto out;
-	}
-
 	console_lock();
 	fbi->flags |= FBINFO_MISC_USEREVENT;
 	fb_blank(fbi, FB_BLANK_POWERDOWN);
@@ -1717,7 +1731,17 @@ static void release_disp_output(struct mxc_vout_output *vout)
 	pos.x = 0;
 	pos.y = 0;
 	set_window_position(vout, &pos);
-out:
+
+	if (get_ipu_channel(fbi) == MEM_BG_SYNC) {
+		console_lock();
+		fbi->fix.smem_start = vout->disp_bufs[0];
+		fbi->flags |= FBINFO_MISC_USEREVENT;
+		fb_blank(fbi, FB_BLANK_UNBLANK);
+		fbi->flags &= ~FBINFO_MISC_USEREVENT;
+		console_unlock();
+
+	}
+
 	vout->release = true;
 }
 

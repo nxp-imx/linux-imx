@@ -480,10 +480,26 @@ static bool radeon_atom_apply_quirks(struct drm_device *dev,
 	 */
 	if ((dev->pdev->device == 0x9498) &&
 	    (dev->pdev->subsystem_vendor == 0x1682) &&
-	    (dev->pdev->subsystem_device == 0x2452)) {
+	    (dev->pdev->subsystem_device == 0x2452) &&
+	    (i2c_bus->valid == false) &&
+	    !(supported_device & (ATOM_DEVICE_TV_SUPPORT | ATOM_DEVICE_CV_SUPPORT))) {
 		struct radeon_device *rdev = dev->dev_private;
 		*i2c_bus = radeon_lookup_i2c_gpio(rdev, 0x93);
 	}
+
+	/* Fujitsu D3003-S2 board lists DVI-I as DVI-D and VGA */
+	if ((dev->pdev->device == 0x9802) &&
+	    (dev->pdev->subsystem_vendor == 0x1734) &&
+	    (dev->pdev->subsystem_device == 0x11bd)) {
+		if (*connector_type == DRM_MODE_CONNECTOR_VGA) {
+			*connector_type = DRM_MODE_CONNECTOR_DVII;
+			*line_mux = 0x3103;
+		} else if (*connector_type == DRM_MODE_CONNECTOR_DVID) {
+			*connector_type = DRM_MODE_CONNECTOR_DVII;
+		}
+	}
+
+
 	return true;
 }
 
@@ -2568,7 +2584,11 @@ void radeon_atombios_get_power_modes(struct radeon_device *rdev)
 
 	rdev->pm.current_power_state_index = rdev->pm.default_power_state_index;
 	rdev->pm.current_clock_mode_index = 0;
-	rdev->pm.current_vddc = rdev->pm.power_state[rdev->pm.default_power_state_index].clock_info[0].voltage.voltage;
+	if (rdev->pm.default_power_state_index >= 0)
+		rdev->pm.current_vddc =
+			rdev->pm.power_state[rdev->pm.default_power_state_index].clock_info[0].voltage.voltage;
+	else
+		rdev->pm.current_vddc = 0;
 }
 
 void radeon_atom_set_clock_gating(struct radeon_device *rdev, int enable)

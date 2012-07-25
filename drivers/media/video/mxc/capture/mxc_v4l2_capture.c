@@ -47,7 +47,7 @@
 static int video_nr = -1;
 
 /*! This data is used for the output to the display. */
-#define MXC_V4L2_CAPTURE_NUM_OUTPUTS	3
+#define MXC_V4L2_CAPTURE_NUM_OUTPUTS	6
 #define MXC_V4L2_CAPTURE_NUM_INPUTS	2
 static struct v4l2_output mxc_capture_outputs[MXC_V4L2_CAPTURE_NUM_OUTPUTS] = {
 	{
@@ -69,6 +69,30 @@ static struct v4l2_output mxc_capture_outputs[MXC_V4L2_CAPTURE_NUM_OUTPUTS] = {
 	{
 	 .index = 2,
 	 .name = "DISP3 FG",
+	 .type = V4L2_OUTPUT_TYPE_ANALOG,
+	 .audioset = 0,
+	 .modulator = 0,
+	 .std = V4L2_STD_UNKNOWN,
+	 },
+	{
+	 .index = 3,
+	 .name = "DISP4 BG",
+	 .type = V4L2_OUTPUT_TYPE_ANALOG,
+	 .audioset = 0,
+	 .modulator = 0,
+	 .std = V4L2_STD_UNKNOWN,
+	 },
+	{
+	 .index = 4,
+	 .name = "DISP4 BG - DI1",
+	 .type = V4L2_OUTPUT_TYPE_ANALOG,
+	 .audioset = 0,
+	 .modulator = 0,
+	 .std = V4L2_STD_UNKNOWN,
+	 },
+	{
+	 .index = 5,
+	 .name = "DISP4 FG",
 	 .type = V4L2_OUTPUT_TYPE_ANALOG,
 	 .audioset = 0,
 	 .modulator = 0,
@@ -301,7 +325,7 @@ static int mxc_v4l2_prepare_bufs(cam_data *cam, struct v4l2_buffer *buf)
 	pr_debug("In MVC:mxc_v4l2_prepare_bufs\n");
 
 	if (buf->index < 0 || buf->index >= FRAME_NUM || buf->length <
-			cam->v2f.fmt.pix.sizeimage) {
+			PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage)) {
 		pr_err("ERROR: v4l2 capture: mxc_v4l2_prepare_bufs buffers "
 			"not allocated,index=%d, length=%d\n", buf->index,
 			buf->length);
@@ -492,7 +516,7 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
 	int *width, *height;
 	unsigned int ipu_ch = CHAN_NONE;
 	struct fb_info *bg_fbi = NULL, *fbi = NULL;
-	bool foregound_fb;
+	bool foregound_fb = false;
 	mm_segment_t old_fs;
 
 	pr_debug("In MVC: verify_preview\n");
@@ -505,7 +529,8 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
 		}
 
 		/* Which DI supports 2 layers? */
-		if (strncmp(fbi->fix.id, "DISP3 BG", 8) == 0) {
+		if (((strncmp(fbi->fix.id, "DISP3 BG", 8) == 0) && (cam->output < 3)) ||
+			((strncmp(fbi->fix.id, "DISP4 BG", 8) == 0) && (cam->output >= 3))) {
 			if (fbi->fbops->fb_ioctl) {
 				old_fs = get_fs();
 				set_fs(KERNEL_DS);
@@ -522,7 +547,8 @@ static int verify_preview(cam_data *cam, struct v4l2_window *win)
 		/* Found the frame buffer to preview on. */
 		if (strcmp(fbi->fix.id,
 			    mxc_capture_outputs[cam->output].name) == 0) {
-			if (strcmp(fbi->fix.id, "DISP3 FG") == 0)
+			if (((strcmp(fbi->fix.id, "DISP3 FG") == 0) && (cam->output < 3)) ||
+				((strcmp(fbi->fix.id, "DISP4 FG") == 0) && (cam->output >= 3)))
 				foregound_fb = true;
 
 			cam->overlay_fb = fbi;
@@ -1713,13 +1739,12 @@ static int mxc_v4l_close(struct file *file)
 		err = stop_preview(cam);
 		cam->overlay_on = false;
 	}
+	if (cam->capture_pid == current->pid) {
+		err |= mxc_streamoff(cam);
+		wake_up_interruptible(&cam->enc_queue);
+	}
 
 	if (--cam->open_count == 0) {
-		if (cam->capture_pid == current->pid) {
-			err |= mxc_streamoff(cam);
-			wake_up_interruptible(&cam->enc_queue);
-		}
-
 		vidioc_int_s_power(cam->sensor, 0);
 		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
 			false, false);

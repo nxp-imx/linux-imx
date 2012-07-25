@@ -635,10 +635,6 @@ gcoHAL_QueryChipFeature(
 
 #endif
 
-gceSTATUS
-gcoHAL_WaitSignalFromGPU(
-    IN gctSIGNAL Signal
-    );
 
 /******************************************************************************\
 ********************************** gcoOS Object *********************************

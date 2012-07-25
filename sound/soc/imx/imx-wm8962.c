@@ -98,9 +98,6 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 	u32 dai_format;
 	unsigned int pll_out;
 
-	if (codec->dapm.bias_level != SND_SOC_BIAS_OFF)
-		return 0;
-
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 		SND_SOC_DAIFMT_CBM_CFM;
 
@@ -128,8 +125,8 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 	else
 		pll_out = sample_rate * 256;
 
-	ret = snd_soc_dai_set_pll(codec_dai, WM8962_FLL_MCLK,
-				  WM8962_FLL_MCLK, priv->sysclk,
+	ret = snd_soc_dai_set_pll(codec_dai, WM8962_FLL_OSC,
+				  WM8962_FLL_OSC, priv->sysclk,
 				  pll_out);
 	if (ret < 0)
 		pr_err("Failed to start FLL: %d\n", ret);

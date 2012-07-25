@@ -113,15 +113,103 @@ struct jr_outentry {
 } __packed;
 
 /*
+ * CHA version ID / instantiation bitfields
+ * Defined for use within cha_id in perfmon
+ * Note that the same shift/mask selectors can be used to pull out number
+ * of instantiated blocks within cha_num in perfmon, the locations are
+ * the same.
+ */
+
+/* Job Ring */
+#define CHA_ID_JR_SHIFT	60
+#define CHA_ID_JR_MASK		(0xfull << CHA_ID_JR_SHIFT)
+
+/* DEscriptor COntroller */
+#define CHA_ID_DECO_SHIFT	56
+#define CHA_ID_DECO_MASK	(0xfull << CHA_ID_DECO_SHIFT)
+#define CHA_NUM_DECONUM_SHIFT	56 /* legacy definition */
+#define CHA_NUM_DECONUM_MASK	(0xfull << CHA_NUM_DECONUM_SHIFT)
+
+/* ZUC-Authentication */
+#define CHA_ID_ZA_SHIFT	44
+#define CHA_ID_ZA_MASK		(0xfull << CHA_ID_ZA_SHIFT)
+
+/* ZUC-Encryption */
+#define CHA_ID_ZE_SHIFT	40
+#define CHA_ID_ZE_MASK		(0xfull << CHA_ID_ZE_SHIFT)
+
+/* SNOW f9 */
+#define CHA_ID_SNW9_SHIFT	36
+#define CHA_ID_SNW9_MASK	(0xfull << CHA_ID_SNW9_SHIFT)
+
+/* CRC */
+#define CHA_ID_CRC_SHIFT	32
+#define CHA_ID_CRC_MASK		(0xfull << CHA_ID_CRC_SHIFT)
+
+/* Public Key */
+#define CHA_ID_PK_SHIFT	28
+#define CHA_ID_PK_MASK		(0xfull << CHA_ID_PK_SHIFT)
+
+/* Kasumi */
+#define CHA_ID_KAS_SHIFT	24
+#define CHA_ID_KAS_MASK		(0xfull << CHA_ID_KAS_SHIFT)
+
+/* SNOW f8 */
+#define CHA_ID_SNW8_SHIFT	20
+#define CHA_ID_SNW8_MASK	(0xfull << CHA_ID_SNW8_SHIFT)
+
+/*
+ * Random Generator
+ * RNG4 = FIPS-verification-compliant, requires init kickstart for use
+ */
+#define CHA_ID_RNG_SHIFT	16
+#define CHA_ID_RNG_MASK		(0xfull << CHA_ID_RNG_SHIFT)
+#define CHA_ID_RNG_A		(0x1ull << CHA_ID_RNG_SHIFT)
+#define CHA_ID_RNG_B		(0x2ull << CHA_ID_RNG_SHIFT)
+#define CHA_ID_RNG_C		(0x3ull << CHA_ID_RNG_SHIFT)
+#define CHA_ID_RNG_4		(0x4ull << CHA_ID_RNG_SHIFT)
+
+/*
+ * Message Digest
+ * LP256 = Low Power (MD5/SHA1/SHA224/SHA256 + HMAC)
+ * LP512 = Low Power (LP256 + SHA384/SHA512)
+ * HP    = High Power (LP512 + SMAC)
+ */
+#define CHA_ID_MD_SHIFT		12
+#define CHA_ID_MD_MASK		(0xfull << CHA_ID_MD_SHIFT)
+#define CHA_ID_MD_LP256		(0x0ull << CHA_ID_MD_SHIFT)
+#define CHA_ID_MD_LP512		(0x1ull << CHA_ID_MD_SHIFT)
+#define CHA_ID_MD_HP		(0x2ull << CHA_ID_MD_SHIFT)
+
+/* ARC4 Streamcipher */
+#define CHA_ID_ARC4_SHIFT	8
+#define CHA_ID_ARC4_MASK	(0xfull << CHA_ID_ARC4_SHIFT)
+#define CHA_ID_ARC4_LP		(0x0ull << CHA_ID_ARC4_SHIFT)
+#define CHA_ID_ARC4_HP		(0x1ull << CHA_ID_ARC4_SHIFT)
+
+/* DES Blockcipher Accelerator */
+#define CHA_ID_DES_SHIFT	4
+#define CHA_ID_DES_MASK		(0xfull << CHA_ID_DES_SHIFT)
+
+/*
+ * AES Blockcipher + Combo Mode Accelerator
+ * LP = Low Power (includes ECB/CBC/CFB128/OFB/CTR/CCM/CMAC/XCBC-MAC)
+ * HP = High Power (LP + CBCXCBC/CTRXCBC/XTS/GCM)
+ * DIFFPWR = ORed in if differential-power-analysis resistance implemented
+ */
+#define CHA_ID_AES_SHIFT	0
+#define CHA_ID_AES_MASK		(0xfull << CHA_ID_AES_SHIFT)
+#define CHA_ID_AES_LP		(0x3ull << CHA_ID_AES_SHIFT)
+#define CHA_ID_AES_HP		(0x4ull << CHA_ID_AES_SHIFT)
+#define CHA_ID_AES_DIFFPWR	(0x1ull << CHA_ID_AES_SHIFT)
+
+
+/*
  * caam_perfmon - Performance Monitor/Secure Memory Status/
  *                CAAM Global Status/Component Version IDs
  *
  * Spans f00-fff wherever instantiated
  */
-
-/* Number of DECOs */
-#define CHA_NUM_DECONUM_SHIFT	56
-#define CHA_NUM_DECONUM_MASK	(0xfull << CHA_NUM_DECONUM_SHIFT)
 
 struct caam_perfmon {
 	/* Performance Monitor Registers			f00-f9f */
@@ -173,7 +261,7 @@ struct partid {
 	u32 pidr;	/* partition ID, DECO */
 };
 
-/* RNG test mode (replicated twice in some configurations) */
+/* RNGB test mode (replicated twice in some configurations) */
 /* Padded out to 0x100 */
 struct rngtst {
 	u32 mode;		/* RTSTMODEx - Test mode */
@@ -204,6 +292,31 @@ struct rngtst {
 	u32 rsvd13[2];
 	u32 ofifo[4];	/* RTSTOFIFOx - Test output FIFO */
 	u32 rsvd14[15];
+};
+
+/* RNG4 TRNG test registers */
+struct rng4tst {
+#define RTMCTL_PRGM 0x00010000	/* 1 -> program mode, 0 -> run mode */
+	u32 rtmctl;		/* misc. control register */
+	u32 rtscmisc;		/* statistical check misc. register */
+	u32 rtpkrrng;		/* poker range register */
+	union {
+		u32 rtpkrmax;	/* PRGM=1: poker max. limit register */
+		u32 rtpkrsq;	/* PRGM=0: poker square calc. result register */
+	};
+#define RTSDCTL_ENT_DLY_SHIFT 16
+#define RTSDCTL_ENT_DLY_MASK (0xffff << RTSDCTL_ENT_DLY_SHIFT)
+	u32 rtsdctl;		/* seed control register */
+	union {
+		u32 rtsblim;	/* PRGM=1: sparse bit limit register */
+		u32 rttotsam;	/* PRGM=0: total samples register */
+	};
+	u32 rtfrqmin;		/* frequency count min. limit register */
+	union {
+		u32 rtfrqmax;	/* PRGM=1: freq. count max. limit register */
+		u32 rtfrqcnt;	/* PRGM=0: freq. count register */
+	};
+	u32 rsvd1[56];
 };
 
 /*
@@ -255,7 +368,10 @@ struct caam_ctrl {
 
 	/* RNG Test/Verification/Debug Access                   600-7ff */
 	/* (Useful in Test/Debug modes only...)                         */
-	struct rngtst rtst[2];
+	union {
+		struct rngtst rtst[2];
+		struct rng4tst r4tst[2];
+	};
 
 	u32 rsvd9[448];
 
@@ -663,7 +779,6 @@ struct caam_full {
 	u64 rsvd[512];
 	struct caam_assurance assure;
 	struct caam_queue_if qi;
-	struct caam_deco *deco;
 };
 
 #endif /* REGS_H */

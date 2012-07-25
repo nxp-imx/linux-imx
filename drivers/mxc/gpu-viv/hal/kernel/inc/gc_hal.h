@@ -2361,19 +2361,7 @@ gckHARDWARE_QueryProfileRegisters(
     );
 #endif
 
-gceSTATUS
-gckOS_SignalQueryHardware(
-    IN gckOS Os,
-    IN gctSIGNAL Signal,
-    OUT gckHARDWARE * Hardware
-    );
 
-gceSTATUS
-gckOS_SignalSetHardware(
-    IN gckOS Os,
-    IN gctSIGNAL Signal,
-    gckHARDWARE Hardware
-    );
 
 #ifdef __cplusplus
 }
