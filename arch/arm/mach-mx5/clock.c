@@ -1281,36 +1281,18 @@ static struct clk ipg_perclk = {
 	.flags = RATE_PROPAGATES,
 };
 
-static int _clk_ipmux_enable(struct clk *clk)
-{
-	u32 reg;
-	reg = __raw_readl(clk->enable_reg);
-	reg |= 1  << clk->enable_shift;
-	__raw_writel(reg, clk->enable_reg);
-
-	return 0;
-}
-
-static void _clk_ipmux_disable(struct clk *clk)
-{
-	u32 reg;
-	reg = __raw_readl(clk->enable_reg);
-	reg &= ~(0x1 << clk->enable_shift);
-	__raw_writel(reg, clk->enable_reg);
-}
-
 static struct clk ipumux1_clk = {
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG6_1_OFFSET,
-	.enable = _clk_ipmux_enable,
-	.disable = _clk_ipmux_disable,
+	.enable = _clk_enable,
+	.disable = _clk_disable_inwait,
 };
 
 static struct clk ipumux2_clk = {
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGR5_CG6_2_OFFSET,
-	.enable = _clk_ipmux_enable,
-	.disable = _clk_ipmux_disable,
+	.enable = _clk_enable,
+	.disable = _clk_disable_inwait,
 };
 
 static int _clk_ocram_enable(struct clk *clk)
@@ -1341,17 +1323,27 @@ static struct clk aips_tz1_clk[] = {
 	},
 	{
 	 .parent = &emi_fast_clk,
-	 .secondary = &ahb_max_clk,
+	 .secondary = &aips_tz1_clk[2],
+	},
+	{
+	 .parent = &ahb_max_clk,
+	 .secondary = &ipumux1_clk,
 	},
 };
 
-static struct clk aips_tz2_clk = {
-	.parent = &ahb_clk,
-	.secondary = &ahb_max_clk,
-	.enable_reg = MXC_CCM_CCGR0,
-	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
-	.enable = _clk_enable,
-	.disable = _clk_disable_inwait,
+static struct clk aips_tz2_clk[] = {
+	{
+	 .parent = &ahb_clk,
+	 .secondary = &aips_tz2_clk[1],
+	 .enable_reg = MXC_CCM_CCGR0,
+	 .enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable_inwait,
+	},
+	{
+	 .parent = &ahb_max_clk,
+	 .secondary = &ipumux2_clk,
+	},
 };
 
 static struct clk gpc_dvfs_clk = {
@@ -2426,7 +2418,7 @@ static struct clk cspi2_clk[] = {
 	{
 	 .id = 1,
 	 .parent = &ipg_clk,
-	 .secondary = &aips_tz2_clk,
+	 .secondary = &aips_tz2_clk[0],
 	 .enable_reg = MXC_CCM_CCGR4,
 	 .enable_shift = MXC_CCM_CCGRx_CG11_OFFSET,
 	 .enable = _clk_enable_inrun, /*Active only when ARM is running. */
@@ -2441,7 +2433,7 @@ static struct clk cspi3_clk = {
 	.enable_shift = MXC_CCM_CCGRx_CG13_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
-	.secondary = &aips_tz2_clk,
+	.secondary = &aips_tz2_clk[0],
 };
 
 static unsigned long _clk_ieee_rtc_get_rate(struct clk *clk)
@@ -2587,7 +2579,7 @@ static struct clk ssi1_clk[] = {
 	 },
 	{
 	 .id = 0,
-	 .parent = &aips_tz2_clk,
+	 .parent = &aips_tz2_clk[0],
 #ifdef CONFIG_SND_MXC_SOC_IRAM
 	 .secondary = &emi_intr_clk[0],
 #else
@@ -2698,7 +2690,7 @@ static struct clk ssi3_clk[] = {
 	 },
 	{
 	 .id = 2,
-	 .parent = &aips_tz2_clk,
+	 .parent = &aips_tz2_clk[0],
 #ifdef CONFIG_SND_MXC_SOC_IRAM
 	 .secondary = &emi_intr_clk[0],
 #else
@@ -2921,7 +2913,7 @@ static struct clk esai_clk[] = {
 
 static struct clk iim_clk = {
 	.parent = &ipg_clk,
-	.secondary = &aips_tz2_clk,
+	.secondary = &aips_tz2_clk[0],
 	.enable = _clk_enable,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG15_OFFSET,
@@ -3982,7 +3974,7 @@ static struct clk fec_clk[] = {
 	 .secondary = &fec_clk[2],
 	},
 	{
-	 .parent = &aips_tz2_clk,
+	 .parent = &aips_tz2_clk[0],
 	 .secondary = &emi_fast_clk,
 	},
 };
