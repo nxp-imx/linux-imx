@@ -54,6 +54,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
+#include <linux/mxc_asrc.h>
 #include <sound/pcm.h>
 
 #include <mach/common.h>
@@ -1062,9 +1063,15 @@ static const struct pm_platform_data mx6q_sabreauto_pm_data __initconst = {
 	.suspend_exit	= sabreauto_suspend_exit,
 };
 
+static const struct asrc_p2p_params esai_p2p = {
+	.p2p_rate = 48000,
+	.p2p_width = ASRC_WIDTH_24_BIT,
+};
+
 static struct mxc_audio_platform_data sab_audio_data = {
 	.sysclk		= 24576000,
 	.codec_name	= "cs42888.1-0048",
+	.priv = (void *)&esai_p2p,
 };
 
 static struct platform_device sab_audio_device = {
