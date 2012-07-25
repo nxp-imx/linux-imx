@@ -385,33 +385,14 @@ static int imx_3stack_cs42888_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
 
-	if (asrc_support) {
-		struct snd_card *card = codec->card->snd_card;
-		int i;
-		int ret;
-
-		for (i = 0; i < ARRAY_SIZE(asrc_controls); i++) {
-			ret = snd_ctl_add(card,
-					snd_soc_cnew(&asrc_controls[i],
-						codec, asrc_controls[i].name,
-						codec->name_prefix));
-			if (ret < 0)
-				return ret;
-		}
-		/*asrc_func is inited 0.
-		 * it means asrc would not
-		 * be called defaultly*/
-		asrc_func = 0;
-		asrc_esai_data.input_sample_rate = asrc_rates[asrc_func];
-	}
-
 	snd_soc_dapm_new_controls(&codec->dapm, imx_3stack_dapm_widgets,
 				  ARRAY_SIZE(imx_3stack_dapm_widgets));
-
 	snd_soc_dapm_add_routes(&codec->dapm, audio_map, ARRAY_SIZE(audio_map));
-
 	snd_soc_dapm_sync(&codec->dapm);
-
+	return 0;
+}
+static int imx_asrc_cs42888_init(struct snd_soc_pcm_runtime *rtd)
+{
 	return 0;
 }
 
@@ -429,6 +410,21 @@ static struct snd_soc_dai_link imx_3stack_dai[] = {
 	.cpu_dai_name = "imx-esai.0",
 	.platform_name = "imx-pcm-audio.0",
 	.init = imx_3stack_cs42888_init,
+	.ops = &imx_3stack_surround_ops,
+	},
+	{
+	.name = "HiFi_ASRC",
+	.stream_name = "HIFI_ASRC",
+	.codec_dai_name = "CS42888_ASRC",
+#ifdef CONFIG_SOC_IMX53
+	.codec_name = "cs42888.1-0048",
+#endif
+#ifdef CONFIG_SOC_IMX6Q
+	.codec_name = "cs42888.0-0048",
+#endif
+	.cpu_dai_name = "imx-esai.0",
+	.platform_name = "imx-pcm-audio.0",
+	.init = imx_asrc_cs42888_init,
 	.ops = &imx_3stack_surround_ops,
 	},
 };
@@ -451,8 +447,10 @@ static int __devinit imx_3stack_cs42888_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	mclk_freq = plat_data->sysclk;
-	if (plat_data->codec_name)
+	if (plat_data->codec_name) {
 		imx_3stack_dai[0].codec_name = plat_data->codec_name;
+		imx_3stack_dai[1].codec_name = plat_data->codec_name;
+	}
 	return 0;
 }
 

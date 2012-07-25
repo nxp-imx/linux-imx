@@ -761,7 +761,8 @@ static struct snd_soc_dai_ops cs42888_dai_ops = {
 };
 
 
-struct snd_soc_dai_driver cs42888_dai = {
+struct snd_soc_dai_driver cs42888_dai[] = {
+	{
 	.name = "CS42888",
 	.playback = {
 		.stream_name = "Playback",
@@ -780,6 +781,18 @@ struct snd_soc_dai_driver cs42888_dai = {
 		.formats = CS42888_FORMATS,
 	},
 	.ops = &cs42888_dai_ops,
+	},
+	{
+		.name = "CS42888_ASRC",
+		.playback = {
+			.stream_name = "Playback",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = CS42888_FORMATS,
+		},
+		.ops = &cs42888_dai_ops,
+	},
 };
 
 /**
@@ -939,14 +952,14 @@ static int cs42888_i2c_probe(struct i2c_client *i2c_client,
 	if (i2c_client->dev.platform_data) {
 		memcpy(&cs42888->pdata, i2c_client->dev.platform_data,
 				sizeof(cs42888->pdata));
-		cs42888_dai.playback.rates = cs42888->pdata.rates;
-		cs42888_dai.capture.rates = cs42888->pdata.rates;
+		cs42888_dai[0].playback.rates = cs42888->pdata.rates;
+		cs42888_dai[0].capture.rates = cs42888->pdata.rates;
 	}
 
 	i2c_set_clientdata(i2c_client, cs42888);
 
 	ret = snd_soc_register_codec(&i2c_client->dev,
-		&cs42888_driver, &cs42888_dai, 1);
+		&cs42888_driver, cs42888_dai, 2);
 	if (ret) {
 		dev_err(&i2c_client->dev, "Failed to register codec:%d\n", ret);
 		kfree(cs42888);

@@ -18,7 +18,7 @@
  * The ASoC codec DAI structure for the CS42888.  Assign this structure to
  * the .codec_dai field of your machine driver's snd_soc_dai_link structure.
  */
-extern struct snd_soc_dai_driver cs42888_dai;
+extern struct snd_soc_dai_driver cs42888_dai[];
 
 /*
  * The ASoC codec device structure for the CS42888.  Assign this structure
