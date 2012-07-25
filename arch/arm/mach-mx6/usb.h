@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@ extern int gpio_usbotg_utmi_active(void);
 extern void gpio_usbotg_utmi_inactive(void);
 
 extern void __init mx6_usb_dr_init(void);
-extern void __init mx6_usb_h1_init(void);
+extern bool usb_icbug_swfix_need(void);
 extern void __init mx6_usb_h2_init(void);
 extern void __init mx6_usb_h3_init(void);
 
@@ -38,6 +38,7 @@ extern void mx6_set_host3_vbus_func(driver_vbus_func);
 extern void mx6_set_host2_vbus_func(driver_vbus_func);
 extern void mx6_set_host1_vbus_func(driver_vbus_func);
 extern void mx6_set_otghost_vbus_func(driver_vbus_func);
+extern void mx6_set_usb_host1_vbus_func(driver_vbus_func *driver_vbus);
 extern struct platform_device anatop_thermal_device;
 extern struct platform_device mxc_usbdr_otg_device;
 extern struct platform_device mxc_usbdr_udc_device;
@@ -60,3 +61,15 @@ extern struct platform_device mxc_usbh1_wakeup_device;
 #endif
 
 extern void __iomem *imx_otg_base;
+#define imx_fsl_usb2_wakeup_data_entry_single(soc, _id, hs)			\
+	{								\
+		.id = _id,						\
+		.irq_phy = soc ## _INT_USB_PHY ## _id,		\
+		.irq_core = soc ## _INT_USB_ ## hs,				\
+	}
+#define imx_mxc_ehci_data_entry_single(soc, _id, hs)			\
+	{								\
+		.id = _id,						\
+		.iobase = soc ## _USB_ ## hs ## _BASE_ADDR, 	\
+		.irq = soc ## _INT_USB_ ## hs,				\
+      }
