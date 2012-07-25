@@ -5,6 +5,7 @@
  *            (C)  2003 Venkatesh Pallipadi <venkatesh.pallipadi@intel.com>.
  *                      Jun Nakajima <jun.nakajima@intel.com>
  *            (C)  2009 Alexander Clouter <alex@digriz.org.uk>
+ *  Copyright (C) 2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -342,7 +343,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 	 */
 
 	/* Get Absolute Load */
-	for_each_cpu(j, policy->cpus) {
+	for_each_online_cpu(j) {
 		struct cpu_dbs_info_s *j_dbs_info;
 		cputime64_t cur_wall_time, cur_idle_time;
 		unsigned int idle_time, wall_time;
@@ -492,7 +493,7 @@ static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 
 		mutex_lock(&dbs_mutex);
 
-		for_each_cpu(j, policy->cpus) {
+		for_each_online_cpu(j) {
 			struct cpu_dbs_info_s *j_dbs_info;
 			j_dbs_info = &per_cpu(cs_cpu_dbs_info, j);
 			j_dbs_info->cur_policy = policy;
