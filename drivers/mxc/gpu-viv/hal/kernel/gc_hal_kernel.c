@@ -464,6 +464,7 @@ _AllocateMemory(
     gctINT loopCount;
     gcuVIDMEM_NODE_PTR node = gcvNULL;
     gctBOOL tileStatusInVirtual;
+    gctBOOL forceContiguous = gcvFALSE;
 
     gcmkHEADER_ARG("Kernel=0x%x *Pool=%d Bytes=%lu Alignment=%lu Type=%d",
                    Kernel, *Pool, Bytes, Alignment, Type);
@@ -474,6 +475,8 @@ _AllocateMemory(
     /* Get initial pool. */
     switch (pool = *Pool)
     {
+    case gcvPOOL_DEFAULT_FORCE_CONTIGUOUS:
+        forceContiguous = gcvTRUE;
     case gcvPOOL_DEFAULT:
     case gcvPOOL_LOCAL:
         pool      = gcvPOOL_LOCAL_INTERNAL;
@@ -487,6 +490,12 @@ _AllocateMemory(
 
     case gcvPOOL_CONTIGUOUS:
         loopCount = (gctINT) gcvPOOL_NUMBER_OF_POOLS;
+        break;
+
+    case gcvPOOL_DEFAULT_FORCE_CONTIGUOUS_CACHEABLE:
+        pool      = gcvPOOL_CONTIGUOUS;
+        loopCount = 1;
+        forceContiguous = gcvTRUE;
         break;
 
     default:
@@ -510,7 +519,7 @@ _AllocateMemory(
         if (pool == gcvPOOL_CONTIGUOUS)
         {
 #if gcdCONTIGUOUS_SIZE_LIMIT
-            if (Bytes > gcdCONTIGUOUS_SIZE_LIMIT)
+            if (Bytes > gcdCONTIGUOUS_SIZE_LIMIT && forceContiguous == gcvFALSE)
             {
                 status = gcvSTATUS_OUT_OF_MEMORY;
             }
@@ -521,7 +530,7 @@ _AllocateMemory(
                 status = gckVIDMEM_ConstructVirtual(Kernel, gcvTRUE, Bytes, &node);
             }
 
-            if (gcmIS_SUCCESS(status))
+            if (gcmIS_SUCCESS(status) || forceContiguous == gcvTRUE)
             {
                 /* Memory allocated. */
                 break;
