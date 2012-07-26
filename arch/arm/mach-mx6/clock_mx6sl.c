@@ -100,7 +100,9 @@ DEFINE_SPINLOCK(mx6sl_clk_lock);
 	u32 gpt_ticks; \
 	u32 gpt_cnt; \
 	u32 reg; \
+	unsigned long flags; \
 	int result = 1; \
+	spin_lock_irqsave(&mx6sl_clk_lock, flags); \
 	gpt_rate = clk_get_rate(&gpt_clk[0]); \
 	gpt_ticks = timeout / (1000000000 / gpt_rate); \
 	reg = __raw_readl(timer_base + V2_TSTAT);\
@@ -130,6 +132,7 @@ DEFINE_SPINLOCK(mx6sl_clk_lock);
 			} \
 		} \
 	} \
+	spin_unlock_irqrestore(&mx6sl_clk_lock, flags); \
 	result; \
 })
 
@@ -445,11 +448,6 @@ static int _clk_pll_enable(struct clk *clk)
 				SPIN_DELAY))
 		panic("pll enable failed\n");
 
-	/* Enable the PLL output now*/
-	reg = __raw_readl(pllbase);
-	reg |= ANADIG_PLL_ENABLE;
-	__raw_writel(reg, pllbase);
-
 	return 0;
 }
 
@@ -466,7 +464,11 @@ static void _clk_pll_disable(struct clk *clk)
 
 	reg = __raw_readl(pllbase);
 	reg |= ANADIG_PLL_BYPASS;
-	reg &= ~ANADIG_PLL_ENABLE;
+	reg |= ANADIG_PLL_POWER_DOWN;
+
+	/* The 480MHz PLLs have the opposite definition for power bit. */
+	if (clk == &pll3_usb_otg_main_clk || clk == &pll7_usb_host_main_clk)
+		reg &= ~ANADIG_PLL_POWER_DOWN;
 
 	__raw_writel(reg, pllbase);
 
@@ -505,7 +507,7 @@ static int _clk_pll1_main_set_rate(struct clk *clk, unsigned long rate)
 	/* Wait for PLL1 to lock */
 	if (!WAIT((__raw_readl(PLL1_SYS_BASE_ADDR) & ANADIG_PLL_LOCK),
 				SPIN_DELAY))
-		panic("pll1 enable failed\n");
+		panic("pll1 set rate failed\n");
 
 	return 0;
 }
@@ -531,8 +533,7 @@ static void _clk_pll1_main_disable(struct clk *clk)
 	  * requires PLL1 to be enabled.
 	  */
 	reg = __raw_readl(pllbase);
-	reg |= ANADIG_PLL_BYPASS;
-
+	reg |= (ANADIG_PLL_BYPASS | ANADIG_PLL_POWER_DOWN);
 	__raw_writel(reg, pllbase);
 }
 
@@ -1266,7 +1267,7 @@ static int _clk_periph_set_parent(struct clk *clk, struct clk *parent)
 		reg &= ~MXC_CCM_CBCMR_PRE_PERIPH_CLK_SEL_MASK;
 		reg |= mux << MXC_CCM_CBCMR_PRE_PERIPH_CLK_SEL_OFFSET;
 		__raw_writel(reg, MXC_CCM_CBCMR);
-
+		udelay(5);
 		/* Set the periph_clk_sel multiplexer. */
 		reg = __raw_readl(MXC_CCM_CBCDR);
 		reg &= ~MXC_CCM_CBCDR_PERIPH_CLK_SEL;
@@ -1433,6 +1434,7 @@ static int _clk_ahb_set_rate(struct clk *clk, unsigned long rate)
 	div = parent_rate / rate;
 	if (div == 0)
 		div++;
+
 	if (((parent_rate / div) != rate) || (div > 8))
 		return -EINVAL;
 
@@ -2080,6 +2082,7 @@ static struct clk usdhc1_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc1_set_rate,
 	.get_rate = _clk_usdhc1_get_rate,
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc2_set_parent(struct clk *clk, struct clk *parent)
@@ -2137,6 +2140,7 @@ static struct clk usdhc2_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc2_set_rate,
 	.get_rate = _clk_usdhc2_get_rate,
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc3_set_parent(struct clk *clk, struct clk *parent)
@@ -2195,6 +2199,7 @@ static struct clk usdhc3_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc3_set_rate,
 	.get_rate = _clk_usdhc3_get_rate,
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc4_set_parent(struct clk *clk, struct clk *parent)
@@ -2253,6 +2258,7 @@ static struct clk usdhc4_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc4_set_rate,
 	.get_rate = _clk_usdhc4_get_rate,
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi_round_rate(struct clk *clk,
@@ -3321,6 +3327,10 @@ static unsigned long _clk_uart_get_rate(struct clk *clk)
 	div = (reg >> MXC_CCM_CSCDR1_UART_CLK_PODF_OFFSET) + 1;
 	val = clk_get_rate(clk->parent) / div;
 
+	/* If the parent is OSC, there is an in-built divide by 6. */
+	if (clk->parent == &osc_clk)
+		val = val / 6;
+
 	return val;
 }
 
@@ -3335,7 +3345,7 @@ static int _clk_uart_set_parent(struct clk *clk, struct clk *parent)
 	else
 		mux = 0; /* osc */
 
-	reg |= mux << MXC_CCM_CSCDR2_ECSPI_CLK_SEL_OFFSET;
+	reg |= mux << MXC_CCM_CSCDR1_UART_CLK_SEL_OFFSET;
 
 	__raw_writel(reg, MXC_CCM_CSCDR1);
 
@@ -4024,7 +4034,6 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 			     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR0);
 	} else {
 		__raw_writel(1 << MXC_CCM_CCGRx_CG11_OFFSET |
-			     3 << MXC_CCM_CCGRx_CG2_OFFSET |
 			     3 << MXC_CCM_CCGRx_CG1_OFFSET |
 			     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR0);
 	}
@@ -4032,9 +4041,9 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 		     3 << MXC_CCM_CCGRx_CG11_OFFSET, MXC_CCM_CCGR1);
 	__raw_writel(1 << MXC_CCM_CCGRx_CG12_OFFSET |
 		     1 << MXC_CCM_CCGRx_CG11_OFFSET |
-		     3 << MXC_CCM_CCGRx_CG10_OFFSET |
-		     3 << MXC_CCM_CCGRx_CG9_OFFSET |
-		     3 << MXC_CCM_CCGRx_CG8_OFFSET, MXC_CCM_CCGR2);
+		     1 << MXC_CCM_CCGRx_CG10_OFFSET |
+		     1 << MXC_CCM_CCGRx_CG9_OFFSET |
+		     1 << MXC_CCM_CCGRx_CG8_OFFSET, MXC_CCM_CCGR2);
 	__raw_writel(1 << MXC_CCM_CCGRx_CG14_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG13_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG12_OFFSET |

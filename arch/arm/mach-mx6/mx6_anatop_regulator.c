@@ -125,10 +125,12 @@ static int pu_enable(struct anatop_regulator *sreg)
 	reg |= ANADIG_ANA_MISC2_REG1_BO_EN;
 	__raw_writel(reg, ANA_MISC2_BASE_ADDR);
 
+#ifndef CONFIG_MX6_INTER_LDO_BYPASS
 	/* Unmask the ANATOP brown out interrupt in the GPC. */
 	reg = __raw_readl(gpc_base + 0x14);
 	reg &= ~0x80000000;
 	__raw_writel(reg, gpc_base + 0x14);
+#endif
 
 	return 0;
 }
@@ -162,10 +164,12 @@ static int pu_disable(struct anatop_regulator *sreg)
 	while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
 			;
 
+#ifndef CONFIG_MX6_INTER_LDO_BYPASS
 	/* Mask the ANATOP brown out interrupt in the GPC. */
 	reg = __raw_readl(gpc_base + 0x14);
 	reg |= 0x80000000;
 	__raw_writel(reg, gpc_base + 0x14);
+#endif
 
 	/* PU power gating. */
 	reg = __raw_readl(ANADIG_REG_CORE);
