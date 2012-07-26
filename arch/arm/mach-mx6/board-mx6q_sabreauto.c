@@ -400,7 +400,7 @@ static struct mtd_partition m25p32_partitions[] = {
 	{
 		.name	= "bootloader",
 		.offset	= 0,
-		.size	= 0x00040000,
+		.size	= 0x00100000,
 	}, {
 		.name	= "kernel",
 		.offset	= MTDPART_OFS_APPEND,
