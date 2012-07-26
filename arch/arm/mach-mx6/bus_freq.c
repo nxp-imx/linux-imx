@@ -51,7 +51,7 @@
 #define GPC_PGC_GPU_PGCR_OFFSET	0x260
 #define GPC_CNTR_OFFSET		0x0
 
-DEFINE_SPINLOCK(ddr_freq_lock);
+static DEFINE_SPINLOCK(freq_lock);
 
 int low_bus_freq_mode;
 int audio_bus_freq_mode;
@@ -75,6 +75,10 @@ unsigned int ddr_normal_rate;
 int low_freq_bus_used(void);
 void set_ddr_freq(int ddr_freq);
 
+void *mx6sl_ddr_freq_base;
+void (*mx6sl_ddr_freq_change_iram)(int ddr_freq) = NULL;
+extern void mx6sl_ddr_iram(int ddr_freq);
+
 extern int init_mmdc_settings(void);
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int update_ddr_freq(int ddr_rate);
@@ -87,6 +91,7 @@ struct timeval start_time;
 struct timeval end_time;
 
 static int cpu_op_nr;
+static u32 org_arm_podf;
 static struct cpu_op *cpu_op_tbl;
 static struct clk *pll2_400;
 static struct clk *axi_clk;
@@ -96,6 +101,8 @@ static struct clk *osc_clk;
 static struct clk *cpu_clk;
 static struct clk *pll3;
 static struct clk *pll2;
+static struct clk *pll1;
+static struct clk *pll1_sw_clk;
 static struct clk *pll3_sw_clk;
 static struct clk *pll2_200;
 static struct clk *mmdc_ch0_axi;
@@ -136,30 +143,46 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		clk_disable(pll3);
 		med_bus_freq_mode = 0;
 	} else {
+		u32 reg;
+		u32  div;
+		unsigned long flags;
+
 		arm_mem_clked_in_wait = true;
 
-		/* Set periph_clk to be sourced from OSC_CLK */
-		/* Set MMDC clk to 25MHz. */
-		/* First need to set the divider before changing the parent */
-		/* if parent clock is larger than previous one */
-		clk_set_rate(mmdc_ch0_axi, clk_get_rate(mmdc_ch0_axi) / 2);
-		clk_set_parent(mmdc_ch0_axi, pll3_sw_clk);
-		clk_set_parent(mmdc_ch0_axi, pll2_200);
-		clk_set_rate(mmdc_ch0_axi,
-			     clk_round_rate(mmdc_ch0_axi, LPAPM_CLK));
+		spin_lock_irqsave(&freq_lock, flags);
 
+		/* Set periph_clk to be sourced from OSC_CLK */
 		/* Set AXI to 24MHz. */
 		clk_set_parent(periph_clk, osc_clk);
 		clk_set_rate(axi_clk, clk_round_rate(axi_clk, LPAPM_CLK));
 		/* Set AHB to 24MHz. */
 		clk_set_rate(ahb_clk, clk_round_rate(ahb_clk, LPAPM_CLK));
 
+		/* Set MMDC clk to 24MHz. */
+		/* Since we are going to set PLL2 in bypass mode,
+		  * move the CPU clock off PLL2.
+		  */
+		/* Ensure that the clock will be at lowest possible freq. */
+		org_arm_podf = __raw_readl(MXC_CCM_CACRR);
+		div = clk_get_rate(pll1) / cpu_op_tbl[cpu_op_nr - 1].cpu_rate;
+
+		reg = __raw_writel(div - 1, MXC_CCM_CACRR);
+		while (__raw_readl(MXC_CCM_CDHIPR))
+			;
+		clk_set_parent(pll1_sw_clk, pll1);
+
+		/* Now change DDR freq in IRAM. */
+		mx6sl_ddr_freq_change_iram(LPAPM_CLK);
+
 		low_bus_freq_mode = 1;
 		audio_bus_freq_mode = 0;
+
+		spin_unlock_irqrestore(&freq_lock, flags);
 	}
 
 	high_bus_freq_mode = 0;
 }
+
 /* Set the DDR, AHB to 24MHz.
   * This mode will be activated only when none of the modules that
   * need a higher DDR or AHB frequency are active.
@@ -208,6 +231,14 @@ int set_high_bus_freq(int high_bus_freq)
 		return 0;
 
 	if (cpu_is_mx6sl()) {
+		u32 reg;
+		unsigned long flags;
+
+		spin_lock_irqsave(&freq_lock, flags);
+
+		/* Change DDR freq in IRAM. */
+		mx6sl_ddr_freq_change_iram(ddr_normal_rate);
+
 		/* Set periph_clk to be sourced from pll2_pfd2_400M */
 		/* First need to set the divider before changing the */
 		/* parent if parent clock is larger than previous one */
@@ -217,16 +248,19 @@ int set_high_bus_freq(int high_bus_freq)
 			     clk_round_rate(axi_clk, LPAPM_CLK / 2));
 		clk_set_parent(periph_clk, pll2_400);
 
-		/* Set mmdc_clk_root to be sourced */
-		/* from pll2_pfd2_400M */
-		clk_set_rate(mmdc_ch0_axi,
-		     clk_round_rate(mmdc_ch0_axi, LPAPM_CLK / 2));
-		clk_set_parent(mmdc_ch0_axi, pll3_sw_clk);
-		clk_set_parent(mmdc_ch0_axi, pll2_400);
-		clk_set_rate(mmdc_ch0_axi,
-		     clk_round_rate(mmdc_ch0_axi, DDR_MED_CLK));
+		/* Now move ARM to be sourced from PLL2_400 too. */
+		clk_set_parent(pll1_sw_clk, pll2_400);
+
+		/* Ensure that the clock will be at original speed. */
+		reg = __raw_writel(org_arm_podf, MXC_CCM_CACRR);
+		while (__raw_readl(MXC_CCM_CDHIPR))
+			;
 
 		high_bus_freq_mode = 1;
+		low_bus_freq_mode = 0;
+		audio_bus_freq_mode = 0;
+
+		spin_unlock_irqrestore(&freq_lock, flags);
 	} else {
 		clk_enable(pll3);
 		if (high_bus_freq) {
@@ -248,13 +282,11 @@ int set_high_bus_freq(int high_bus_freq)
 		if (audio_bus_freq_mode)
 			clk_disable(pll2_400);
 
+		low_bus_freq_mode = 0;
+		audio_bus_freq_mode = 0;
+
 		clk_disable(pll3);
 	}
-
-	low_bus_freq_mode = 0;
-	audio_bus_freq_mode = 0;
-
-	/* Ensure that WAIT mode can be entered in high bus freq mode. */
 
 	if (cpu_is_mx6sl())
 		arm_mem_clked_in_wait = false;
@@ -394,6 +426,7 @@ static DEVICE_ATTR(enable, 0644, bus_freq_scaling_enable_show,
  * @return         The function returns 0 on success
  *
  */
+
 static int __devinit busfreq_probe(struct platform_device *pdev)
 {
 	u32 err;
@@ -420,6 +453,28 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		       __func__);
 		return PTR_ERR(pll2);
 	}
+
+	pll1 = clk_get(NULL, "pll1_main_clk");
+	if (IS_ERR(pll1)) {
+		printk(KERN_DEBUG "%s: failed to get pll1\n",
+		       __func__);
+		return PTR_ERR(pll1);
+	}
+
+	pll1_sw_clk = clk_get(NULL, "pll1_sw_clk");
+	if (IS_ERR(pll1_sw_clk)) {
+		printk(KERN_DEBUG "%s: failed to get pll1_sw_clk\n",
+		       __func__);
+		return PTR_ERR(pll1_sw_clk);
+	}
+
+
+	if (IS_ERR(pll2)) {
+		printk(KERN_DEBUG "%s: failed to get pll2\n",
+		       __func__);
+		return PTR_ERR(pll2);
+	}
+
 
 	cpu_clk = clk_get(NULL, "cpu_clk");
 	if (IS_ERR(cpu_clk)) {
@@ -518,6 +573,24 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 
 	if (!cpu_is_mx6sl())
 		init_mmdc_settings();
+	else {
+#if 1
+		unsigned long iram_paddr;
+
+		/* Allocate IRAM for WFI code when system is
+		  * in low freq mode.
+		  */
+		iram_alloc(SZ_4K, &iram_paddr);
+		/* Need to remap the area here since we want
+		   * the memory region to be executable.
+		   */
+		mx6sl_ddr_freq_base = __arm_ioremap(iram_paddr,
+					SZ_4K, MT_MEMORY_NONCACHED);
+		memcpy(mx6sl_ddr_freq_base, mx6sl_ddr_iram, SZ_4K);
+		mx6sl_ddr_freq_change_iram = (void *)mx6sl_ddr_freq_base;
+
+#endif
+	}
 
 	return 0;
 }
