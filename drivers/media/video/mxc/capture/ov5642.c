@@ -4011,6 +4011,9 @@ static int ov5642_probe(struct i2c_client *client,
 		goto err4;
 	}
 
+	if (plat_data->pwdn)
+		plat_data->pwdn(1);
+
 	camera_plat = plat_data;
 
 	ov5642_int_device.priv = &ov5642_data;
