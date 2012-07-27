@@ -50,8 +50,6 @@ extern int lp_med_freq;
 extern int wait_mode_arm_podf;
 extern int lp_audio_freq;
 extern int cur_arm_podf;
-extern bool arm_mem_clked_in_wait;
-extern bool enable_wait_mode;
 
 void __iomem *apll_base;
 
@@ -1295,23 +1293,6 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	ipg_clk_rate = clk_get_rate(&ipg_clk);
 	max_arm_wait_clk = (12 * ipg_clk_rate) / 5;
 	wait_mode_arm_podf = parent_rate / max_arm_wait_clk;
-	if (wait_mode_arm_podf > 7) {
-		/* IPG_CLK is too low and we cannot get a ARM_CLK
-		  * that will satisfy the 12:5 ratio.
-		  * Use the mem_ipg_stop_mask bit to ensure clocks to ARM
-		  * memories are not gated during WAIT mode.
-		  * This bit is NOT available on MX6DQ TO1.1/TO1.0 and
-		  * MX6DL TO1.0.
-		  * Else disable entry to WAIT mode.
-		  */
-		if ((mx6q_revision() > IMX_CHIP_REVISION_1_1) ||
-			(mx6dl_revision() > IMX_CHIP_REVISION_1_0))
-			arm_mem_clked_in_wait = true;
-		else {
-			enable_wait_mode = false;
-			pr_info("wait mode is disabled due to ipg clock is too low\n");
-		}
-	}
 
 	if (div == 0)
 		div = 1;

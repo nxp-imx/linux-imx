@@ -78,6 +78,8 @@ void set_ddr_freq(int ddr_freq);
 extern int init_mmdc_settings(void);
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int update_ddr_freq(int ddr_rate);
+extern int chip_rev;
+extern bool arm_mem_clked_in_wait;
 
 struct mutex bus_freq_mutex;
 
@@ -128,7 +130,6 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 
 	if (!cpu_is_mx6sl()) {
 		clk_enable(pll3);
-
 		if (lp_audio_freq) {
 			/* Need to ensure that PLL2_PFD_400M is kept ON. */
 			clk_enable(pll2_400);
@@ -149,6 +150,7 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 
 		if (med_bus_freq_mode)
 			clk_disable(pll2_400);
+
 		clk_disable(pll3);
 	} else {
 		/* Set VDDSOC_CAP to 1.1V */
@@ -161,6 +163,8 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		}
 
 		udelay(150);
+
+		arm_mem_clked_in_wait = true;
 
 		/* Set periph_clk to be sourced from OSC_CLK */
 		/* Set MMDC clk to 25MHz. */
@@ -305,6 +309,12 @@ int set_high_bus_freq(int high_bus_freq)
 
 	low_bus_freq_mode = 0;
 	audio_bus_freq_mode = 0;
+
+	/* Ensure that WAIT mode can be entered in high bus freq mode. */
+
+	if (cpu_is_mx6sl())
+		arm_mem_clked_in_wait = false;
+
 	mutex_unlock(&bus_freq_mutex);
 
 	return 0;

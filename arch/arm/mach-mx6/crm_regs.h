@@ -498,6 +498,7 @@
 #define MXC_CCM_CGPR_MMDC_EXT_CLK_DIS		(1 << 2)
 #define MXC_CCM_CGPR_PMIC_DELAY_SCALER		(1)
 #define MXC_CCM_CGPR_MEM_IPG_STOP_MASK		(1 << 1)
+#define MXC_CCM_CGPR_WAIT_MODE_FIX			(1 << 17)
 
 /* Define the bits in registers CCGRx */
 #define MXC_CCM_CCGRx_CG_MASK			0x3
