@@ -1,7 +1,7 @@
 /*
  * Freescale GPMI NFC NAND Flash Driver
  *
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -41,7 +41,7 @@ static int init(struct gpmi_nfc_data *this)
 	clk_enable(resources->clock);
 
 	/* Reset the GPMI block. */
-	mxs_reset_block(resources->gpmi_regs + HW_GPMI_CTRL0, true);
+	mxs_reset_block(resources->gpmi_regs + HW_GPMI_CTRL0, false);
 
 	/* Choose NAND mode. */
 	__raw_writel(BM_GPMI_CTRL1_GPMI_MODE,
@@ -94,15 +94,8 @@ static int set_geometry(struct gpmi_nfc_data *this)
 	/* Enable the clock. */
 	clk_enable(resources->clock);
 
-	/*
-	 * Reset the BCH block. Notice that we pass in true for the just_enable
-	 * flag. This is because the soft reset for the version 0 BCH block
-	 * doesn't work and the version 1 BCH block is similar enough that we
-	 * suspect the same (though this has not been officially tested). If you
-	 * try to soft reset a version 0 BCH block, it becomes unusable until
-	 * the next hard reset.
-	 */
-	mxs_reset_block(resources->bch_regs, true);
+	/* reset the BCH */
+	mxs_reset_block(resources->bch_regs, false);
 
 	/* Configure layout 0. */
 	__raw_writel(
