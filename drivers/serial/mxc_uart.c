@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -304,7 +304,7 @@ static void mxcuart_enable_ms(struct uart_port *port)
 	 * RTS interrupt is enabled only if we are using interrupt-driven
 	 * software controlled hardware flow control
 	 */
-	if (umxc->hardware_flow == 0) {
+	if (umxc->hardware_flow == 1) {
 		cr1 = readl(umxc->port.membase + MXC_UARTUCR1);
 		cr1 |= MXC_UARTUCR1_RTSDEN;
 		writel(cr1, umxc->port.membase + MXC_UARTUCR1);
@@ -475,9 +475,8 @@ static void mxcuart_modem_status(uart_mxc_port *umxc, unsigned int sr1,
 	if (sr1 & MXC_UARTUSR1_DTRD) {
 		umxc->port.icount.dsr++;
 	}
-	if ((umxc->hardware_flow == 0) && (sr1 & MXC_UARTUSR1_RTSD)) {
+	if ((umxc->hardware_flow == 1) && (sr1 & MXC_UARTUSR1_RTSD))
 		uart_handle_cts_change(&umxc->port, sr1 & MXC_UARTUSR1_RTSS);
-	}
 
 	wake_up_interruptible(&umxc->port.state->port.delta_msr_wait);
 }
@@ -742,8 +741,9 @@ static unsigned int mxcuart_get_mctrl(struct uart_port *port)
 static void mxcuart_set_mctrl(struct uart_port *port, unsigned int mctrl)
 {
 	uart_mxc_port *umxc = (uart_mxc_port *) port;
-	volatile unsigned int cr2 = 0, cr3 = 0, uts = 0;
+	unsigned int cr1 = 0, cr2 = 0, cr3 = 0, uts = 0;
 
+	cr1 = readl(port->membase + MXC_UARTUCR1);
 	cr2 = readl(port->membase + MXC_UARTUCR2);
 	cr3 = readl(port->membase + MXC_UARTUCR3);
 	uts = readl(port->membase + MXC_UARTUTS);
@@ -756,12 +756,13 @@ static void mxcuart_set_mctrl(struct uart_port *port, unsigned int mctrl)
 		if (umxc->hardware_flow == 1) {
 			cr2 |= MXC_UARTUCR2_CTSC;
 		} else {
-			cr2 |= MXC_UARTUCR2_CTS;
 			cr2 &= ~MXC_UARTUCR2_CTSC;
 		}
 	} else {
+		cr1 &= ~MXC_UARTUCR1_RTSDEN;
 		cr2 &= ~(MXC_UARTUCR2_CTS | MXC_UARTUCR2_CTSC);
 	}
+	writel(cr1, port->membase + MXC_UARTUCR1);
 	writel(cr2, port->membase + MXC_UARTUCR2);
 
 	if (mctrl & TIOCM_DTR) {
@@ -1099,7 +1100,7 @@ static int mxcuart_startup(struct uart_port *port)
 {
 	uart_mxc_port *umxc = (uart_mxc_port *) port;
 	int retval;
-	volatile unsigned int cr, cr1 = 0, cr2 = 0, ufcr = 0;
+	unsigned int cr, cr1 = 0, cr2 = 0, ufcr = 0;
 
 	/*
 	 * Some UARTs need separate registrations for the interrupts as
@@ -1352,7 +1353,6 @@ static void mxcuart_set_termios(struct uart_port *port,
 			cr4 = (cr4 & (~MXC_UARTUCR4_CTSTL_MASK)) |
 			    (umxc->cts_threshold << MXC_UARTUCR4_CTSTL_OFFSET);
 			cr2 |= MXC_UARTUCR2_CTSC;
-			umxc->port.state->port.tty->hw_stopped = 0;
 		} else {
 			cr2 |= MXC_UARTUCR2_IRTS;
 		}
