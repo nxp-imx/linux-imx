@@ -35,6 +35,7 @@ struct cpu_op *(*get_cpu_op)(int *op);
 bool enable_wait_mode = true;
 u32 arm_max_freq = CPU_AT_1GHz;
 bool mem_clk_on_in_wait;
+int chip_rev;
 
 void __iomem *gpc_base;
 void __iomem *ccm_base;
@@ -196,6 +197,13 @@ static int __init post_cpu_init(void)
 	if (!cpu_is_mx6sl() && (mx6q_revision() < IMX_CHIP_REVISION_1_2) &&
 		(mx6dl_revision() < IMX_CHIP_REVISION_1_1))
 		mem_clk_on_in_wait = false;
+
+	if (cpu_is_mx6q())
+		chip_rev = mx6q_revision();
+	else if (cpu_is_mx6dl())
+		chip_rev = mx6dl_revision;
+	else
+		chip_rev = mx6sl_revision;
 
 	return 0;
 }

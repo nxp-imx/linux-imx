@@ -52,7 +52,6 @@ extern int lp_high_freq;
 extern int lp_med_freq;
 extern int wait_mode_arm_podf;
 extern int mx6q_revision(void);
-extern bool arm_mem_clked_in_wait;
 extern int cur_arm_podf;
 
 static void __iomem *apll_base;
@@ -1180,16 +1179,6 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	ipg_clk_rate = clk_get_rate(&ipg_clk);
 	max_arm_wait_clk = (12 * ipg_clk_rate) / 5;
 	wait_mode_arm_podf = parent_rate / max_arm_wait_clk;
-	if (wait_mode_arm_podf > 7)
-		/* IPG_CLK is too low and we cannot get a ARM_CLK
-		  * that will satisfy the 12:5 ratio.
-		  * Use the mem_ipg_stop_mask bit to ensure clocks
-		  * to ARM memories are not gated during WAIT mode.
-		  * Else disable entry to WAIT mode.
-		  */
-		arm_mem_clked_in_wait = true;
-	else
-		arm_mem_clked_in_wait = false;
 
 	if (div == 0)
 		div = 1;
@@ -3964,7 +3953,7 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 	/* keep correct count. */
 	clk_enable(&cpu_clk);
 	clk_enable(&periph_clk);
-	clk_enable(&mmdc_ch1_axi_clk);
+	clk_enable(&mmdc_ch1_axi_clk[0]);
 
 	clk_tree_init();
 
