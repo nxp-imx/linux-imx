@@ -952,7 +952,7 @@ static bool filter(struct dma_chan *chan, void *param)
 static struct dma_chan *imx_asrc_dma_alloc(u32 dma_req)
 {
 	dma_cap_mask_t mask;
-	struct imx_dma_data dma_data;
+	struct imx_dma_data dma_data = {0};
 
 	dma_data.peripheral_type = IMX_DMATYPE_ASRC;
 	dma_data.priority = DMA_PRIO_MEDIUM;
