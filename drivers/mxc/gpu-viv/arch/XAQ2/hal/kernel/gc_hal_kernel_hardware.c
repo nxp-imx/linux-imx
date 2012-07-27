@@ -3499,7 +3499,7 @@ _GetClock(
 
     gcmkHEADER();
 
-    gcmkVERIFY_ARGUMENT(State >= gcvPOWER_ON && State <= gcvPOWER_OFF);
+    gcmkVERIFY_ARGUMENT(State >= gcvPOWER_ON && State <= gcvPOWER_SUSPEND);
 
     clock = clocks[State];
 
