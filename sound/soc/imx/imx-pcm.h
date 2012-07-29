@@ -57,14 +57,14 @@ struct imx_pcm_runtime_data {
 	int asrc_enable;
 
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_IMX_HAVE_PLATFORM_IMX_ASRC)
-	int asrc_index;
+	enum asrc_pair_index asrc_index;
 	struct dma_async_tx_descriptor *asrc_desc;
 	struct dma_chan *asrc_dma_chan;
 	struct imx_dma_data asrc_dma_data;
 	struct dma_async_tx_descriptor *asrc_p2p_desc;
 	struct dma_chan *asrc_p2p_dma_chan;
 	struct imx_dma_data asrc_p2p_dma_data;
-	enum asrc_word_width output_bit;
+	struct asrc_p2p_params *p2p;
 #endif
 };
 #endif

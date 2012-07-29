@@ -39,61 +39,6 @@
 #include "imx-pcm.h"
 
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_IMX_HAVE_PLATFORM_IMX_ASRC)
-static unsigned int asrc_rates[] = {
-	0,
-	24000,
-	32000,
-	44100,
-	48000,
-	64000,
-	88200,
-	96000,
-	176400,
-	192000,
-};
-struct asrc_esai {
-	unsigned int cpu_dai_rates;
-	unsigned int codec_dai_rates;
-	enum asrc_pair_index asrc_index;
-	unsigned int input_sample_rate;
-};
-static struct asrc_esai asrc_esai_data;
-static bool asrc_support = 1;
-static int asrc_func;
-enum asrc_word_width asrcp2p_output_bit = ASRC_WIDTH_24_BIT;
-
-static const char *asrc_function[] = {
-	"disable", "24KHz", "32KHz", "44.1KHz",
-	"48KHz", "64KHz", "88.2KHz", "96KHz", "176.4KHz", "192KHz"
-};
-
-static const struct soc_enum asrc_enum[] = {
-	SOC_ENUM_SINGLE_EXT(9, asrc_function),
-};
-
-static int asrc_get_rate(struct snd_kcontrol *kcontrol,
-			 struct snd_ctl_elem_value *ucontrol)
-{
-	ucontrol->value.enumerated.item[0] = asrc_func;
-	return 0;
-}
-
-static int asrc_set_rate(struct snd_kcontrol *kcontrol,
-			 struct snd_ctl_elem_value *ucontrol)
-{
-	if (asrc_func == ucontrol->value.enumerated.item[0])
-		return 0;
-
-	asrc_func = ucontrol->value.enumerated.item[0];
-	asrc_esai_data.input_sample_rate = asrc_rates[asrc_func];
-
-	return 1;
-}
-
-static const struct snd_kcontrol_new asrc_controls[] = {
-	SOC_ENUM_EXT("ASRC", asrc_enum[0], asrc_get_rate,
-		     asrc_set_rate),
-};
 
 static enum asrc_word_width get_asrc_input_width(
 			struct snd_pcm_hw_params *params)
@@ -129,60 +74,50 @@ static int config_asrc(struct snd_pcm_substream *substream,
 {
 	unsigned int rate = params_rate(params);
 	unsigned int channel = params_channels(params);
-	struct imx_pcm_runtime_data *pcm_data =
+	struct imx_pcm_runtime_data *iprtd =
 				substream->runtime->private_data;
 	struct asrc_config config = {0};
 	int ret = 0;
 
-	if ((rate == asrc_esai_data.input_sample_rate)
-			|| !asrc_func)
-		return -EINVAL;
-
 	if ((channel != 2) && (channel != 4) && (channel != 6))
 		return -EINVAL;
 
-	ret = asrc_req_pair(channel, &asrc_esai_data.asrc_index);
+	ret = asrc_req_pair(channel, &iprtd->asrc_index);
 	if (ret < 0) {
 		pr_err("Fail to request asrc pair\n");
-		asrc_release_pair(asrc_esai_data.asrc_index);
-		asrc_finish_conv(asrc_esai_data.asrc_index);
+		asrc_release_pair(iprtd->asrc_index);
+		asrc_finish_conv(iprtd->asrc_index);
 		return -EINVAL;
 	}
 
 	config.input_word_width = get_asrc_input_width(params);
-	config.output_word_width = asrcp2p_output_bit;
-	config.pair = asrc_esai_data.asrc_index;
+	config.output_word_width = iprtd->p2p->p2p_width;
+	config.pair = iprtd->asrc_index;
 	config.channel_num = channel;
-	config.input_sample_rate = asrc_esai_data.input_sample_rate;
-	config.output_sample_rate = rate;
-	config.inclk = OUTCLK_ASRCK1_CLK;
+	config.input_sample_rate = rate;
+	config.output_sample_rate = iprtd->p2p->p2p_rate;
+	config.inclk = INCLK_ASRCK1_CLK;
 	config.outclk = OUTCLK_ESAI_TX;
 
 	ret = asrc_config_pair(&config);
 	if (ret < 0) {
 		pr_err("Fail to config asrc\n");
-		asrc_release_pair(asrc_esai_data.asrc_index);
-		asrc_finish_conv(asrc_esai_data.asrc_index);
+		asrc_release_pair(iprtd->asrc_index);
+		asrc_finish_conv(iprtd->asrc_index);
 		return ret;
 	}
-	/*now our asrc driver only support 24bit output*/
-	pcm_data->output_bit = asrcp2p_output_bit;
-	pcm_data->asrc_index = asrc_esai_data.asrc_index;
-	pcm_data->asrc_enable = 1;
 
 	return 0;
 }
-#else
-static bool asrc_support;
 #endif
 
 struct imx_priv_state {
 	int hw;
 };
 
+static struct asrc_p2p_params *esai_asrc;
 static struct imx_priv_state hw_state;
 unsigned int mclk_freq;
-
 
 static int imx_3stack_startup(struct snd_pcm_substream *substream)
 {
@@ -193,14 +128,6 @@ static int imx_3stack_startup(struct snd_pcm_substream *substream)
 		hw_state.hw = 0;
 	}
 
-	if (asrc_support) {
-		struct snd_soc_dai *codec_dai = rtd->codec_dai;
-		asrc_esai_data.cpu_dai_rates =
-			cpu_dai->driver->playback.rates;
-		asrc_esai_data.codec_dai_rates =
-			codec_dai->driver->playback.rates;
-	}
-
 	return 0;
 }
 
@@ -208,24 +135,14 @@ static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct imx_pcm_runtime_data *iprtd = substream->runtime->private_data;
 
-	if (asrc_support) {
-		struct snd_soc_dai *codec_dai = rtd->codec_dai;
-		struct imx_pcm_runtime_data *pcm_data =
-				substream->runtime->private_data;
-		if (pcm_data->asrc_enable) {
-			asrc_release_pair(asrc_esai_data.asrc_index);
-			asrc_finish_conv(asrc_esai_data.asrc_index);
+	if (iprtd->asrc_enable) {
+		if (iprtd->asrc_index != -1) {
+			asrc_release_pair(iprtd->asrc_index);
+			asrc_finish_conv(iprtd->asrc_index);
 		}
-		pcm_data->asrc_enable = 0;
-		asrc_esai_data.asrc_index = -1;
-
-		codec_dai->driver->playback.rates =
-				asrc_esai_data.codec_dai_rates;
-		cpu_dai->driver->playback.rates =
-				asrc_esai_data.cpu_dai_rates;
-		asrc_func = 0;
-		asrc_esai_data.input_sample_rate = asrc_rates[asrc_func];
+		iprtd->asrc_index = -1;
 	}
 
 	if (!cpu_dai->active)
@@ -238,17 +155,22 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct imx_pcm_runtime_data *iprtd = substream->runtime->private_data;
 	unsigned int rate = params_rate(params);
 	u32 dai_format;
 	unsigned int lrclk_ratio = 0;
+	int err = 0;
 
 	if (hw_state.hw)
 		return 0;
 	hw_state.hw = 1;
 
-	if (asrc_support && (substream->stream == SNDRV_PCM_STREAM_PLAYBACK))
-		config_asrc(substream, params);
-
+	if (iprtd->asrc_enable) {
+		err = config_asrc(substream, params);
+		if (err < 0)
+			return err;
+		rate = iprtd->p2p->p2p_rate;
+	}
 	if (cpu_is_mx53() || machine_is_mx6q_sabreauto()) {
 		switch (rate) {
 		case 32000:
@@ -393,6 +315,8 @@ static int imx_3stack_cs42888_init(struct snd_soc_pcm_runtime *rtd)
 }
 static int imx_asrc_cs42888_init(struct snd_soc_pcm_runtime *rtd)
 {
+
+	snd_soc_pcm_set_drvdata(rtd, (void *)esai_asrc);
 	return 0;
 }
 
@@ -451,11 +375,15 @@ static int __devinit imx_3stack_cs42888_probe(struct platform_device *pdev)
 		imx_3stack_dai[0].codec_name = plat_data->codec_name;
 		imx_3stack_dai[1].codec_name = plat_data->codec_name;
 	}
+	esai_asrc = kzalloc(sizeof(struct asrc_p2p_params), GFP_KERNEL);
+	memcpy(esai_asrc, plat_data->priv,  sizeof(struct asrc_p2p_params));
 	return 0;
 }
 
 static int __devexit imx_3stack_cs42888_remove(struct platform_device *pdev)
 {
+	if (esai_asrc)
+		kfree(esai_asrc);
 	return 0;
 }
 

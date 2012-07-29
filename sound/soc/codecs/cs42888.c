@@ -34,6 +34,7 @@
 #include <asm/div64.h>
 #include "cs42888.h"
 
+#include "../imx/imx-pcm.h"
 #define CS42888_NUM_SUPPLIES 4
 static const char *cs42888_supply_names[CS42888_NUM_SUPPLIES] = {
 	"VA",
@@ -664,6 +665,7 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 			    struct snd_soc_dai *dai)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct imx_pcm_runtime_data *iprtd = substream->runtime->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 	struct cs42888_private *cs42888 =  snd_soc_codec_get_drvdata(codec);
 	int ret;
@@ -672,7 +674,10 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 	unsigned int ratio;
 	u32 val;
 
-	rate = params_rate(params);	/* Sampling rate, in Hz */
+	if (iprtd->asrc_enable)
+		rate = iprtd->p2p->p2p_rate;
+	else
+		rate = params_rate(params);	/* Sampling rate, in Hz */
 	ratio = cs42888->mclk / rate;	/* MCLK/LRCK ratio */
 	for (i = 0; i < NUM_MCLK_RATIOS; i++) {
 		if (cs42888_mode_ratios[i].ratio == ratio)

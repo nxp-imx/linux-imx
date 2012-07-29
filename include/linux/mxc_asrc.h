@@ -190,6 +190,11 @@ struct dma_block {
 	struct list_head queue;
 };
 
+struct asrc_p2p_params {
+	u32 p2p_rate;/* ASRC output rate for p2p */
+	enum asrc_word_width p2p_width;/* ASRC output wordwidth for p2p */
+};
+
 struct asrc_pair_params {
 	enum asrc_pair_index index;
 	struct list_head input_queue;
