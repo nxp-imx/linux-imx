@@ -146,9 +146,9 @@ static int plt_sd_pad_change(unsigned int index, int clock)
 	/* LOW speed is the default state of SD pads */
 	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
 
-	iomux_v3_cfg_t *sd_pads_200mhz;
-	iomux_v3_cfg_t *sd_pads_100mhz;
-	iomux_v3_cfg_t *sd_pads_50mhz;
+	iomux_v3_cfg_t *sd_pads_200mhz = NULL;
+	iomux_v3_cfg_t *sd_pads_100mhz = NULL;
+	iomux_v3_cfg_t *sd_pads_50mhz = NULL;
 
 	u32 sd_pads_200mhz_cnt;
 	u32 sd_pads_100mhz_cnt;
