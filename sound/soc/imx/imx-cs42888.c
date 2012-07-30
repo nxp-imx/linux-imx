@@ -376,7 +376,9 @@ static int __devinit imx_3stack_cs42888_probe(struct platform_device *pdev)
 		imx_3stack_dai[1].codec_name = plat_data->codec_name;
 	}
 	esai_asrc = kzalloc(sizeof(struct asrc_p2p_params), GFP_KERNEL);
-	memcpy(esai_asrc, plat_data->priv,  sizeof(struct asrc_p2p_params));
+	if (plat_data->priv)
+		memcpy(esai_asrc, plat_data->priv,
+				sizeof(struct asrc_p2p_params));
 	return 0;
 }
 
