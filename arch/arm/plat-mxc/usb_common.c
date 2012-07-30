@@ -63,8 +63,11 @@ bool usb_icbug_swfix_need(void)
 {
 	if (cpu_is_mx6sl())
 		return false;
-	else
-		return true;
+	else if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+		return false;
+	else if ((mx6dl_revision() > IMX_CHIP_REVISION_1_0))
+		return false;
+	return true;
 }
 EXPORT_SYMBOL(usb_icbug_swfix_need);
 
