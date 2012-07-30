@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1623,12 +1623,12 @@ static void __init mx53_sdma_get_script_info(sdma_script_start_addrs *sdma_scrip
 	sdma_script_addr->mxc_sdma_mcu_2_firi_addr = mcu_2_firi_ADDR_MX53;
 
 	/* uart */
-	sdma_script_addr->mxc_sdma_uart_2_per_addr = uart_2_mcu_ADDR_MX53;
-	sdma_script_addr->mxc_sdma_uart_2_mcu_addr = uart_2_mcu_ADDR_MX53;
+	sdma_script_addr->mxc_sdma_uart_2_per_addr = uart_2_mcu_ext_ADDR_MX53;
+	sdma_script_addr->mxc_sdma_uart_2_mcu_addr = uart_2_mcu_ext_ADDR_MX53;
 
 	/* UART SH */
-	sdma_script_addr->mxc_sdma_uartsh_2_per_addr = uartsh_2_mcu_ADDR_MX53;
-	sdma_script_addr->mxc_sdma_uartsh_2_mcu_addr = uartsh_2_mcu_ADDR_MX53;
+	sdma_script_addr->mxc_sdma_uartsh_2_per_addr = uartsh_2_mcu_ext_ADDR_MX53;
+	sdma_script_addr->mxc_sdma_uartsh_2_mcu_addr = uartsh_2_mcu_ext_ADDR_MX53;
 
 	/* SHP */
 	sdma_script_addr->mxc_sdma_per_2_shp_addr = mcu_2_shp_ADDR_MX53;
