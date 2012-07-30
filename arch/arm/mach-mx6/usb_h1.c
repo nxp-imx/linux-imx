@@ -125,8 +125,9 @@ static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 	__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL);
 
 	if (!usb_icbug_swfix_need())
-		__raw_writel(((1 << 17) | (1 << 18)),
-				phy_reg + HW_USBPHY_IP_SET);
+		__raw_writel((1 << 17), phy_reg + HW_USBPHY_IP_SET);
+	if (cpu_is_mx6sl())
+		__raw_writel((1 << 18), phy_reg + HW_USBPHY_IP_SET);
 	return 0;
 }
 static int fsl_usb_host_init_ext(struct platform_device *pdev)
@@ -193,7 +194,7 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 	}
 }
 
-static void usbh1_platform_rh_suspend(struct fsl_usb2_platform_data *pdata)
+static void usbh1_platform_rh_suspend_swfix(struct fsl_usb2_platform_data *pdata)
 {
 	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY1_BASE_ADDR);
 	u32 tmp;
@@ -232,7 +233,7 @@ static void usbh1_platform_rh_suspend(struct fsl_usb2_platform_data *pdata)
 	fsl_platform_h1_set_usb_phy_dis(pdata, 0);
 }
 
-static void usbh1_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
+static void usbh1_platform_rh_resume_swfix(struct fsl_usb2_platform_data *pdata)
 {
 	u32 index = 0;
 
@@ -250,6 +251,26 @@ static void usbh1_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
 
 	udelay(500);
 	fsl_platform_h1_set_usb_phy_dis(pdata, 1);
+}
+
+static void usbh1_platform_rh_suspend(struct fsl_usb2_platform_data *pdata)
+{
+	/*for mx6sl ,we do not need any sw fix*/
+	if (cpu_is_mx6sl())
+		return ;
+	__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+		MX6_IO_ADDRESS(pdata->phy_regs)
+		+ HW_USBPHY_CTRL_CLR);
+}
+
+static void usbh1_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
+{
+	/*for mx6sl ,we do not need any sw fix*/
+	if (cpu_is_mx6sl())
+		return ;
+	__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+		MX6_IO_ADDRESS(pdata->phy_regs)
+		+ HW_USBPHY_CTRL_SET);
 }
 
 static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
@@ -379,11 +400,11 @@ static int  __init mx6_usb_h1_init(void)
 
 	usbh1_config.wakeup_pdata = &usbh1_wakeup_config;
 	if (usb_icbug_swfix_need()) {
+		usbh1_config.platform_rh_suspend = usbh1_platform_rh_suspend_swfix;
+		usbh1_config.platform_rh_resume  = usbh1_platform_rh_resume_swfix;
+	} else {
 		usbh1_config.platform_rh_suspend = usbh1_platform_rh_suspend;
 		usbh1_config.platform_rh_resume  = usbh1_platform_rh_resume;
-	} else {
-		usbh1_config.platform_rh_suspend = NULL;
-		usbh1_config.platform_rh_resume  = NULL;
 	}
 	if (cpu_is_mx6sl())
 		pdev = imx6sl_add_fsl_ehci_hs(1, &usbh1_config);
