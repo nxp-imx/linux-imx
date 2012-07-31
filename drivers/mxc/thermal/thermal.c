@@ -38,8 +38,10 @@
 #include <linux/thermal.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
+#include <linux/interrupt.h>
 #include <linux/syscalls.h>
 #include <linux/cpufreq.h>
+#include <linux/clk.h>
 #include "anatop_driver.h"
 
 /* register define of anatop */
@@ -47,6 +49,10 @@
 #define HW_ANADIG_ANA_MISC0_SET	(0x00000154)
 #define HW_ANADIG_ANA_MISC0_CLR	(0x00000158)
 #define HW_ANADIG_ANA_MISC0_TOG	(0x0000015c)
+#define HW_ANADIG_ANA_MISC1	(0x00000160)
+#define HW_ANADIG_ANA_MISC1_SET	(0x00000164)
+#define HW_ANADIG_ANA_MISC1_CLR	(0x00000168)
+#define HW_ANADIG_ANA_MISC1_TOG	(0x0000016c)
 
 #define HW_ANADIG_TEMPSENSE0	(0x00000180)
 #define HW_ANADIG_TEMPSENSE0_SET	(0x00000184)
@@ -58,7 +64,12 @@
 #define HW_ANADIG_TEMPSENSE1_CLR	(0x00000198)
 
 #define BM_ANADIG_ANA_MISC0_REFTOP_SELBIASOFF 0x00000008
+#define BM_ANADIG_ANA_MISC1_IRQ_TEMPSENSE 0x20000000
 
+#define BP_ANADIG_TEMPSENSE0_ALARM_VALUE      20
+#define BM_ANADIG_TEMPSENSE0_ALARM_VALUE 0xFFF00000
+#define BF_ANADIG_TEMPSENSE0_ALARM_VALUE(v)  \
+	(((v) << 20) & BM_ANADIG_TEMPSENSE0_ALARM_VALUE)
 #define BP_ANADIG_TEMPSENSE0_TEMP_VALUE      8
 #define BM_ANADIG_TEMPSENSE0_TEMP_VALUE 0x000FFF00
 #define BF_ANADIG_TEMPSENSE0_TEMP_VALUE(v)  \
@@ -117,7 +128,7 @@
 #define TEMP_CRITICAL			373 /* 100 C*/
 #define TEMP_HOT				363 /* 90 C*/
 #define TEMP_ACTIVE				353 /* 80 C*/
-#define MEASURE_FREQ			327  /* 327 RTC clocks delay, 10ms */
+#define MEASURE_FREQ			3276  /* 3276 RTC clocks delay, 100ms */
 #define KELVIN_TO_CEL(t, off) (((t) - (off)))
 #define CEL_TO_KELVIN(t, off) (((t) + (off)))
 #define DEFAULT_RATIO			145
@@ -129,8 +140,11 @@
 /* variables */
 unsigned long anatop_base;
 unsigned int ratio;
-unsigned int raw_25c, raw_hot, hot_temp, raw_n25c;
+unsigned int raw_25c, raw_hot, hot_temp, raw_n25c, raw_125c, raw_critical;
+static struct clk *pll3_clk;
 static bool full_run = true;
+static bool suspend_flag;
+static unsigned int thermal_irq;
 bool cooling_cpuhotplug;
 bool cooling_device_disable;
 unsigned long temperature_cooling;
@@ -152,7 +166,6 @@ static int anatop_thermal_remove(struct platform_device *pdev);
 static int anatop_thermal_suspend(struct platform_device *pdev,
 		pm_message_t state);
 static int anatop_thermal_resume(struct platform_device *pdev);
-static int anatop_thermal_get_calibration_data(unsigned int *fuse);
 static int anatop_thermal_counting_ratio(unsigned int fuse_data);
 
 /* struct */
@@ -236,7 +249,21 @@ static int anatop_dump_temperature_register(void)
 			__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0));
 	pr_info("HW_ANADIG_TEMPSENSE1 = 0x%x\n",
 			__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE1));
+	pr_info("HW_ANADIG_MISC1 = 0x%x\n",
+			__raw_readl(anatop_base + HW_ANADIG_ANA_MISC1));
 	return 0;
+}
+static void anatop_update_alarm(unsigned int alarm_value)
+{
+	if (cooling_device_disable || suspend_flag)
+		return;
+	/* set alarm value */
+	__raw_writel(BM_ANADIG_TEMPSENSE0_ALARM_VALUE,
+		anatop_base + HW_ANADIG_TEMPSENSE0_CLR);
+	__raw_writel(BF_ANADIG_TEMPSENSE0_ALARM_VALUE(alarm_value),
+		anatop_base + HW_ANADIG_TEMPSENSE0_SET);
+
+	return;
 }
 static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 			    long *temp)
@@ -244,38 +271,32 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 	struct anatop_thermal *tz = thermal->devdata;
 	unsigned int tmp;
 	unsigned int reg;
-	unsigned int i;
 
 	if (!tz)
 		return -EINVAL;
-#ifdef CONFIG_FSL_OTP
-	if (!ratio) {
-		anatop_thermal_get_calibration_data(&tmp);
+
+	if (!ratio || suspend_flag) {
 		*temp = KELVIN_TO_CEL(TEMP_ACTIVE, KELVIN_OFFSET);
 		return 0;
 	}
-#else
-	if (!cooling_device_disable)
-		pr_info("%s: can't get calibration data, disable cooling!!!\n", __func__);
-	cooling_device_disable = true;
-	ratio = DEFAULT_RATIO;
-#endif
 
 	tz->last_temperature = tz->temperature;
 
-	/* now we only using single measure, every time we measure
-	the temperature, we will power on/down the anadig module*/
-	__raw_writel(BM_ANADIG_TEMPSENSE0_POWER_DOWN,
+	if ((__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0) &
+		BM_ANADIG_TEMPSENSE0_POWER_DOWN) != 0) {
+		/* need to keep sensor power up as we enable alarm
+		function */
+		__raw_writel(BM_ANADIG_TEMPSENSE0_POWER_DOWN,
 			anatop_base + HW_ANADIG_TEMPSENSE0_CLR);
-	__raw_writel(BM_ANADIG_ANA_MISC0_REFTOP_SELBIASOFF,
+		__raw_writel(BM_ANADIG_ANA_MISC0_REFTOP_SELBIASOFF,
 			anatop_base + HW_ANADIG_ANA_MISC0_SET);
 
-	/* write measure freq */
-	reg = __raw_readl(anatop_base + HW_ANADIG_TEMPSENSE1);
-	reg &= ~BM_ANADIG_TEMPSENSE1_MEASURE_FREQ;
-	reg |= MEASURE_FREQ;
-	__raw_writel(reg, anatop_base + HW_ANADIG_TEMPSENSE1);
-
+		/* write measure freq */
+		reg = __raw_readl(anatop_base + HW_ANADIG_TEMPSENSE1);
+		reg &= ~BM_ANADIG_TEMPSENSE1_MEASURE_FREQ;
+		reg |= MEASURE_FREQ;
+		__raw_writel(reg, anatop_base + HW_ANADIG_TEMPSENSE1);
+	}
 	__raw_writel(BM_ANADIG_TEMPSENSE0_MEASURE_TEMP,
 		anatop_base + HW_ANADIG_TEMPSENSE0_CLR);
 	__raw_writel(BM_ANADIG_TEMPSENSE0_FINISHED,
@@ -284,32 +305,31 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 		anatop_base + HW_ANADIG_TEMPSENSE0_SET);
 
 	tmp = 0;
-	/* read five times of temperature values to get average*/
-	for (i = 0; i < 5; i++) {
-		while ((__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0)
-			& BM_ANADIG_TEMPSENSE0_FINISHED) == 0)
-			msleep(10);
-		reg = __raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0);
-		tmp += (reg & BM_ANADIG_TEMPSENSE0_TEMP_VALUE)
-				>> BP_ANADIG_TEMPSENSE0_TEMP_VALUE;
-		__raw_writel(BM_ANADIG_TEMPSENSE0_FINISHED,
-			anatop_base + HW_ANADIG_TEMPSENSE0_CLR);
-		if (ANATOP_DEBUG)
-			anatop_dump_temperature_register();
+	/* read temperature values */
+	while ((__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0)
+		& BM_ANADIG_TEMPSENSE0_FINISHED) == 0)
+		msleep(10);
+
+	reg = __raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0);
+	tmp = (reg & BM_ANADIG_TEMPSENSE0_TEMP_VALUE)
+		>> BP_ANADIG_TEMPSENSE0_TEMP_VALUE;
+	__raw_writel(BM_ANADIG_TEMPSENSE0_FINISHED,
+		anatop_base + HW_ANADIG_TEMPSENSE0_CLR);
+
+	if (ANATOP_DEBUG)
+		anatop_dump_temperature_register();
+
+	/* only the temp between -25C and 125C is valid, this
+	is for save */
+	if (tmp <= raw_n25c && tmp >= raw_125c)
+		tz->temperature = REG_VALUE_TO_CEL(ratio, tmp);
+	else {
+		printk(KERN_WARNING "Invalid temperature, force it to 25C\n");
+		tz->temperature = 25;
 	}
 
-	tmp = tmp / 5;
-	if (tmp <= raw_n25c)
-		tz->temperature = REG_VALUE_TO_CEL(ratio, tmp);
-	else
-		tz->temperature = -25;
 	if (debug_mask & DEBUG_VERBOSE)
 		pr_info("Cooling device Temperature is %lu C\n", tz->temperature);
-	/* power down anatop thermal sensor */
-	__raw_writel(BM_ANADIG_TEMPSENSE0_POWER_DOWN,
-			anatop_base + HW_ANADIG_TEMPSENSE0_SET);
-	__raw_writel(BM_ANADIG_ANA_MISC0_REFTOP_SELBIASOFF,
-			anatop_base + HW_ANADIG_ANA_MISC0_CLR);
 
 	*temp = (cooling_device_disable && tz->temperature >= KELVIN_TO_CEL(TEMP_CRITICAL, KELVIN_OFFSET)) ?
 			KELVIN_TO_CEL(TEMP_CRITICAL - 1, KELVIN_OFFSET) : tz->temperature;
@@ -458,9 +478,12 @@ static int anatop_thermal_set_trip_temp(struct thermal_zone_device *thermal,
 	switch (trip) {
 	case ANATOP_TRIPS_POINT_CRITICAL:
 		/* Critical Shutdown */
-		if (tz->trips.critical.flags.valid)
+		if (tz->trips.critical.flags.valid) {
 			tz->trips.critical.temperature = CEL_TO_KELVIN(
 				*temp, tz->kelvin_offset);
+			raw_critical = raw_25c - ratio * (*temp - 25) / 100;
+			anatop_update_alarm(raw_critical);
+		}
 		break;
 	case ANATOP_TRIPS_POINT_HOT:
 		/* Hot */
@@ -798,40 +821,16 @@ static int __init anatop_thermal_cooling_device_disable(char *str)
 }
 __setup("no_cooling_device", anatop_thermal_cooling_device_disable);
 
-static int anatop_thermal_get_calibration_data(unsigned int *fuse)
-{
-	int ret = -EINVAL;
-	int fd;
-	char fuse_data[11];
-
-	if (fuse == NULL) {
-		printk(KERN_ERR "%s: NULL pointer!\n", __func__);
-		return ret;
-	}
-
-	fd = sys_open((const char __user __force *)THERMAL_FUSE_NAME,
-		O_RDWR, 0700);
-	if (fd < 0)
-		return ret;
-
-	sys_read(fd, fuse_data, sizeof(fuse_data));
-	sys_close(fd);
-	ret = 0;
-
-	*fuse = simple_strtol(fuse_data, NULL, 0);
-	pr_info("Thermal: fuse data 0x%x\n", *fuse);
-	anatop_thermal_counting_ratio(*fuse);
-
-	return ret;
-}
 static int anatop_thermal_counting_ratio(unsigned int fuse_data)
 {
 	int ret = -EINVAL;
 
-	if (fuse_data == 0 || fuse_data == 0xffffffff) {
+	pr_info("Thermal calibration data is 0x%x\n", fuse_data);
+	if (fuse_data == 0 || fuse_data == 0xffffffff || (fuse_data & 0xff) == 0) {
 		pr_info("%s: invalid calibration data, disable cooling!!!\n", __func__);
 		cooling_device_disable = true;
 		ratio = DEFAULT_RATIO;
+		disable_irq(thermal_irq);
 		return ret;
 	}
 
@@ -846,15 +845,34 @@ static int anatop_thermal_counting_ratio(unsigned int fuse_data)
 
 	ratio = ((raw_25c - raw_hot) * 100) / (hot_temp - 25);
 	raw_n25c = raw_25c + ratio / 2;
+	raw_125c = raw_25c - ratio;
+	/* Init default critical temp to set alarm */
+	raw_critical = raw_25c - ratio * (KELVIN_TO_CEL(TEMP_CRITICAL, KELVIN_OFFSET) - 25) / 100;
+	clk_enable(pll3_clk);
+	anatop_update_alarm(raw_critical);
 
 	return ret;
+}
+
+static irqreturn_t anatop_thermal_alarm_handler(int irq, void *dev_id)
+{
+	char mode = 'r';
+	const char *cmd = "reboot";
+
+	if (cooling_device_disable)
+		return IRQ_HANDLED;
+	printk(KERN_WARNING "\nChip is too hot, reboot!!!\n");
+	/* reboot */
+	arch_reset(mode, cmd);
+
+	return IRQ_HANDLED;
 }
 
 static int anatop_thermal_probe(struct platform_device *pdev)
 {
 	int retval = 0;
-	struct resource *res;
-	void __iomem *base;
+	struct resource *res_io, *res_irq, *res_calibration;
+	void __iomem *base, *calibration_addr;
 	struct anatop_device *device;
 
 	device = kzalloc(sizeof(*device), GFP_KERNEL);
@@ -866,19 +884,49 @@ static int anatop_thermal_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, device);
 
 	/* ioremap the base address */
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (res == NULL) {
+	res_io = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (res_io == NULL) {
 		dev_err(&pdev->dev, "No anatop base address provided!\n");
 		goto anatop_failed;
 	}
 
-	base = ioremap(res->start, res->end - res->start);
+	base = ioremap(res_io->start, res_io->end - res_io->start);
 	if (base == NULL) {
 		dev_err(&pdev->dev, "failed to remap anatop base address!\n");
 		goto anatop_failed;
 	}
 	anatop_base = (unsigned long)base;
+	/* ioremap the calibration data address */
+	res_calibration = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	if (res_calibration == NULL) {
+		dev_err(&pdev->dev, "No anatop calibration data address provided!\n");
+		goto anatop_failed;
+	}
+
+	calibration_addr = ioremap(res_calibration->start,
+		res_calibration->end - res_calibration->start);
+	if (calibration_addr == NULL) {
+		dev_err(&pdev->dev, "failed to remap anatop calibration data address!\n");
+		goto anatop_failed;
+	}
 	raw_n25c = DEFAULT_N25C;
+	/* use calibration data to get ratio */
+	anatop_thermal_counting_ratio(__raw_readl(calibration_addr));
+
+	res_irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (res_irq == NULL) {
+		dev_err(&pdev->dev, "No anatop thermal irq provided!\n");
+		goto anatop_failed;
+	}
+	retval = request_irq(res_irq->start, anatop_thermal_alarm_handler, 0, "THERMAL_ALARM_IRQ",
+			  NULL);
+	thermal_irq = res_irq->start;
+
+	pll3_clk = clk_get(NULL, "pll3_main_clk");
+	if (IS_ERR(pll3_clk)) {
+		retval = -ENOENT;
+		goto anatop_failed;
+	}
 
 	anatop_thermal_add(device);
 	anatop_thermal_cpufreq_init();
@@ -911,10 +959,31 @@ static int anatop_thermal_remove(struct platform_device *pdev)
 static int anatop_thermal_suspend(struct platform_device *pdev,
 		pm_message_t state)
 {
+	/* Power down anatop thermal sensor */
+	__raw_writel(BM_ANADIG_TEMPSENSE0_MEASURE_TEMP,
+		anatop_base + HW_ANADIG_TEMPSENSE0_CLR);
+	__raw_writel(BM_ANADIG_TEMPSENSE0_FINISHED,
+		anatop_base + HW_ANADIG_TEMPSENSE0_CLR);
+	__raw_writel(BM_ANADIG_TEMPSENSE0_POWER_DOWN,
+		anatop_base + HW_ANADIG_TEMPSENSE0_SET);
+	__raw_writel(BM_ANADIG_ANA_MISC0_REFTOP_SELBIASOFF,
+		anatop_base + HW_ANADIG_ANA_MISC0_CLR);
+	/* turn off alarm */
+	anatop_update_alarm(0);
+	suspend_flag = true;
+
 	return 0;
 }
 static int anatop_thermal_resume(struct platform_device *pdev)
 {
+	/* Power up anatop thermal sensor */
+	__raw_writel(BM_ANADIG_TEMPSENSE0_POWER_DOWN,
+		anatop_base + HW_ANADIG_TEMPSENSE0_CLR);
+	__raw_writel(BM_ANADIG_ANA_MISC0_REFTOP_SELBIASOFF,
+		anatop_base + HW_ANADIG_ANA_MISC0_SET);
+	suspend_flag = false;
+	/* turn on alarm */
+	anatop_update_alarm(raw_critical);
 	return 0;
 }
 
