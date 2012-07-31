@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -20,9 +20,11 @@
 #include <mach/hardware.h>
 #include <mach/devices-common.h>
 
-#define imx_anatop_thermal_imx_data_entry_single(soc)				\
-	{								\
+#define imx_anatop_thermal_imx_data_entry_single(soc)		\
+	{							\
 		.iobase = ANATOP_BASE_ADDR,			\
+		.calibration_addr = OCOTP_BASE_ADDR + 0x4E0,	\
+		.irq = MXC_INT_ANATOP_TEMPSNSR			\
 	}
 
 #ifdef CONFIG_SOC_IMX6Q
@@ -39,6 +41,16 @@ struct platform_device *__init imx_add_anatop_thermal_imx(
 			.start = data->iobase,
 			.end = data->iobase + SZ_4K - 1,
 			.flags = IORESOURCE_MEM,
+		},
+		{
+			.start = data->calibration_addr,
+			.end = data->calibration_addr + SZ_4 - 1,
+			.flags = IORESOURCE_MEM,
+		},
+		{
+			.start = data->irq,
+			.end = data->irq,
+			.flags = IORESOURCE_IRQ,
 		},
 	};
 
