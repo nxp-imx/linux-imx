@@ -2599,11 +2599,6 @@ CONFIG_MXC_MIPI_CSI2=y
 # CONFIG_MXC_HDMI_CEC is not set
 
 #
-# MXC HDMI CEC (Consumer Electronics Control) support
-#
-# CONFIG_MXC_HDMI_CEC is not set
-
-#
 # File systems
 #
 CONFIG_EXT2_FS=y
