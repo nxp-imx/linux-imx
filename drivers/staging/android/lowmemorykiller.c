@@ -129,7 +129,7 @@ static int tasksize_add_reserved_memory(struct task_struct *p)
 	}
 	mutex_unlock(&reserved_memory_account_lock);
 
-	lowmem_print(5, "reserved mem: task:%d take %d pages %dKiB\n",
+	lowmem_print(5, "reserved mem: task:%d take %d pages %luKiB\n",
 		     p->pid, total, total * PAGE_SIZE);
 
 	return total;
