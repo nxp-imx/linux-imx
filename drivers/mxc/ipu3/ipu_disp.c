@@ -39,6 +39,7 @@ struct dp_csc_param_t {
 };
 
 #define SYNC_WAVE 0
+#define NULL_WAVE (-1)
 #define ASYNC_SER_WAVE 6
 
 /* DC display ID assignments */
@@ -793,7 +794,7 @@ void _ipu_dc_init(struct ipu_soc *ipu, int dc_chan, int di, bool interlaced, uin
 			if (di) {
 				_ipu_dc_link_event(ipu, dc_chan, DC_EVT_NL, 2, 3);
 				_ipu_dc_link_event(ipu, dc_chan, DC_EVT_EOL, 3, 2);
-				_ipu_dc_link_event(ipu, dc_chan, DC_EVT_NEW_DATA, 4, 1);
+				_ipu_dc_link_event(ipu, dc_chan, DC_EVT_NEW_DATA, 1, 1);
 				if ((pixel_fmt == IPU_PIX_FMT_YUYV) ||
 				(pixel_fmt == IPU_PIX_FMT_UYVY) ||
 				(pixel_fmt == IPU_PIX_FMT_YVYU) ||
@@ -804,7 +805,7 @@ void _ipu_dc_init(struct ipu_soc *ipu, int dc_chan, int di, bool interlaced, uin
 			} else {
 				_ipu_dc_link_event(ipu, dc_chan, DC_EVT_NL, 5, 3);
 				_ipu_dc_link_event(ipu, dc_chan, DC_EVT_EOL, 6, 2);
-				_ipu_dc_link_event(ipu, dc_chan, DC_EVT_NEW_DATA, 7, 1);
+				_ipu_dc_link_event(ipu, dc_chan, DC_EVT_NEW_DATA, 12, 1);
 				if ((pixel_fmt == IPU_PIX_FMT_YUYV) ||
 				(pixel_fmt == IPU_PIX_FMT_UYVY) ||
 				(pixel_fmt == IPU_PIX_FMT_YVYU) ||
@@ -1637,8 +1638,10 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 				ipu_dc_write(ipu, (width - 1), DC_UGDE_3(disp));
 			}
 			_ipu_dc_write_tmpl(ipu, 2, WROD(0), 0, map, SYNC_WAVE, 8, 5, 1);
-			_ipu_dc_write_tmpl(ipu, 3, WRG, 0, map, SYNC_WAVE, 4, 5, 1);
-			_ipu_dc_write_tmpl(ipu, 4, WROD(0), 0, map, SYNC_WAVE, 0, 5, 1);
+			_ipu_dc_write_tmpl(ipu, 3, WROD(0), 0, map, SYNC_WAVE, 4, 5, 0);
+			_ipu_dc_write_tmpl(ipu, 4, WRG, 0, map, NULL_WAVE, 0, 0, 1);
+			_ipu_dc_write_tmpl(ipu, 1, WROD(0), 0, map, SYNC_WAVE, 0, 5, 1);
+
 		} else {
 			if ((pixel_fmt == IPU_PIX_FMT_YUYV) ||
 				(pixel_fmt == IPU_PIX_FMT_UYVY) ||
@@ -1650,8 +1653,9 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 				ipu_dc_write(ipu, width - 1, DC_UGDE_3(disp));
 			}
 		   _ipu_dc_write_tmpl(ipu, 5, WROD(0), 0, map, SYNC_WAVE, 8, 5, 1);
-		   _ipu_dc_write_tmpl(ipu, 6, WRG, 0, map, SYNC_WAVE, 4, 5, 1);
-		   _ipu_dc_write_tmpl(ipu, 7, WROD(0), 0, map, SYNC_WAVE, 0, 5, 1);
+		   _ipu_dc_write_tmpl(ipu, 6, WROD(0), 0, map, SYNC_WAVE, 4, 5, 0);
+		   _ipu_dc_write_tmpl(ipu, 7, WRG, 0, map, NULL_WAVE, 0, 0, 1);
+		   _ipu_dc_write_tmpl(ipu, 12, WROD(0), 0, map, SYNC_WAVE, 0, 5, 1);
 		}
 
 		if (sig.Hsync_pol) {

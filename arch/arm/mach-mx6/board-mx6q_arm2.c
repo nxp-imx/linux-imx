@@ -182,9 +182,9 @@ static int plt_sd_pad_change(unsigned int index, int clock)
 	/* LOW speed is the default state of SD pads */
 	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
 
-	iomux_v3_cfg_t *sd_pads_200mhz;
-	iomux_v3_cfg_t *sd_pads_100mhz;
-	iomux_v3_cfg_t *sd_pads_50mhz;
+	iomux_v3_cfg_t *sd_pads_200mhz = NULL;
+	iomux_v3_cfg_t *sd_pads_100mhz = NULL;
+	iomux_v3_cfg_t *sd_pads_50mhz = NULL;
 
 	u32 sd_pads_200mhz_cnt;
 	u32 sd_pads_100mhz_cnt;
@@ -390,7 +390,7 @@ static struct mtd_partition m25p32_partitions[] = {
 	{
 		.name	= "bootloader",
 		.offset	= 0,
-		.size	= 0x00040000,
+		.size	= 0x00100000,
 	}, {
 		.name	= "kernel",
 		.offset	= MTDPART_OFS_APPEND,
@@ -1240,7 +1240,6 @@ static void __init mx6_arm2_init_usb(void)
 
 	mx6_set_otghost_vbus_func(imx6_arm2_usbotg_vbus);
 	mx6_usb_dr_init();
-	mx6_usb_h1_init();
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mx6_usb_h2_init();
 	mx6_usb_h3_init();
@@ -1410,6 +1409,8 @@ static void hdmi_init(int ipu_id, int disp_id)
 
 	/* GPR3, bits 2-3 = HDMI_MUX_CTL */
 	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
+	/* GPR0, bit 0 = 1 */
+	mxc_iomux_set_gpr_register(0, 0, 1, 1);
 }
 
 /* On mx6x arm2 board i2c2 iomux with hdmi ddc,

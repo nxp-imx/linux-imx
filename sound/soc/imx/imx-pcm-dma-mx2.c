@@ -134,7 +134,7 @@ static int imx_ssi_asrc_dma_alloc(struct snd_pcm_substream *substream,
 	if (!iprtd->asrc_p2p_dma_chan)
 		goto error;
 
-	switch (iprtd->output_bit) {
+	switch (iprtd->p2p->p2p_width) {
 	case ASRC_WIDTH_16_BIT:
 		buswidth = DMA_SLAVE_BUSWIDTH_2_BYTES;
 		break;
@@ -415,12 +415,18 @@ static struct snd_pcm_hardware snd_imx_hardware = {
 static int snd_imx_open(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct imx_pcm_runtime_data *iprtd;
 	int ret;
 
 	iprtd = kzalloc(sizeof(*iprtd), GFP_KERNEL);
 	if (iprtd == NULL)
 		return -ENOMEM;
+	if (!strcmp(rtd->dai_link->name, "HiFi_ASRC")) {
+		iprtd->asrc_enable = true;
+		iprtd->p2p =
+			(struct asrc_p2p_params *)snd_soc_pcm_get_drvdata(rtd);
+	}
 
 	runtime->private_data = iprtd;
 

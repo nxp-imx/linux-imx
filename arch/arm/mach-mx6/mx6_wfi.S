@@ -28,7 +28,7 @@
  */
 ENTRY(mx6_wait)
 
-    push {r4, r5, r6, r7, r8}
+    push {r4, r5, r6, r7, r8, r9}
 
     mov    r7, r2       /* Store the arm_podf to be used. */
     mov   r6, r3
@@ -69,8 +69,11 @@ ENTRY(mx6_wait)
     /* Check to see if we need to switch to 24MHz */
     cmp    r7, #0
     bne    use_podf
-    ldr     r6, =(1 << 16)
-    str     r6, [r2, #0x04]
+    /* Switch ARM to PLL1 output. */
+    /* PLL1 should already be in bypass state. */
+    ldr    r6, [r8, #0x0C]
+    bic    r6, r6, #0x04
+    str    r6, [r8, #0x0C]
     b      cont
 
 use_podf:
@@ -100,7 +103,9 @@ cont:
     /* Switch to 24MHz or use ARM_PODF. */
     cmp   r7, #0x0
     bne    use_podf1
-    str     r6, [r2, #0x08]
+    /* Set pll1_sw_clk to run from STEP_CLK. */
+    orr     r6, r6, #0x04
+    str     r6, [r8, #0x0C]
     b       DO_WFI
 use_podf1:
     str     r6, [r8, #0x10]
@@ -124,8 +129,11 @@ DO_WFI:
     mov r4, #0x0
     cmp   r7, #0x0
     bne    use_podf2
-    ldr     r6, =(1 << 16)
-    str     r6, [r2, #0x08]
+    /* Set pll1_sw_clk to run from STEP_CLK. */
+    ldr     r6, [r8, #0x0C]
+    orr    r6, r6, #0x04
+    str    r6, [r8, #0x0C]
+
     b       cont1
 
 use_podf2:
@@ -137,7 +145,7 @@ cont1:
 
 DONE:
 
-    pop {r4,r5, r6, r7, r8}
+    pop {r4,r5, r6, r7, r8, r9}
 
     /* Restore registers */
     mov     pc, lr

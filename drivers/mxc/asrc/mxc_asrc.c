@@ -586,19 +586,12 @@ int asrc_config_pair(struct asrc_config *config)
 	if ((config->inclk == INCLK_ASRCK1_CLK) &&
 			(config->outclk == OUTCLK_ESAI_TX)) {
 		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
-		reg &= ~(1 << (20 + config->pair));
-		reg |= (0x03 << (13 + (config->pair << 1)));
+		reg |= (1 << (20 + config->pair));
+		reg |= (0x02 << (13 + (config->pair << 1)));
 		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
 		err = asrc_set_clock_ratio(config->pair,
 					   config->input_sample_rate,
 					   config->output_sample_rate);
-		if (err < 0)
-			return err;
-
-		err = asrc_set_process_configuration(config->pair,
-						     config->input_sample_rate,
-						     config->
-						     output_sample_rate);
 		if (err < 0)
 			return err;
 	}
@@ -952,7 +945,7 @@ static bool filter(struct dma_chan *chan, void *param)
 static struct dma_chan *imx_asrc_dma_alloc(u32 dma_req)
 {
 	dma_cap_mask_t mask;
-	struct imx_dma_data dma_data;
+	struct imx_dma_data dma_data = {0};
 
 	dma_data.peripheral_type = IMX_DMATYPE_ASRC;
 	dma_data.priority = DMA_PRIO_MEDIUM;

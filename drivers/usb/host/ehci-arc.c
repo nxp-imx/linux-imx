@@ -337,6 +337,7 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 	u32 tmp;
+	unsigned long flags;
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		/* Need open clock for register access */
@@ -363,13 +364,19 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	} else {
 		release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
 	}
-
+	/*disable the host wakeup and put phy to low power mode */
+	usb_host_set_wakeup(hcd->self.controller, false);
+	spin_lock_irqsave(&ehci->lock, flags);
+	fsl_usb_lowpower_mode(pdata, true);
+	spin_unlock_irqrestore(&ehci->lock, flags);
+	/*free the ehci_fsl_pre_irq  */
+	free_irq(hcd->irq, (void *)pdev);
 	usb_remove_hcd(hcd);
 	usb_put_hcd(hcd);
 
 	/*
 	 * do platform specific un-initialization:
-	 * release iomux pins, etc.
+	 * release iomux pins clocks, etc.
 	 */
 	if (pdata->exit)
 		pdata->exit(pdata->pdev);

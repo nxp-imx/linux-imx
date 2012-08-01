@@ -319,7 +319,7 @@ static int imx_esai_hw_tx_params(struct snd_pcm_substream *substream,
 	tcr &= ESAI_TCR_TSWS_MASK;
 
 	if (iprtd->asrc_enable) {
-		switch (iprtd->output_bit) {
+		switch (iprtd->p2p->p2p_width) {
 		case ASRC_WIDTH_16_BIT:
 			tfcr |= ESAI_WORD_LEN_16;
 			tcr |= ESAI_TCR_TSHFD_MSB | ESAI_TCR_TSWS_STL32_WDL16;

@@ -164,8 +164,9 @@ static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 	}
 
 	if (!usb_icbug_swfix_need())
-		__raw_writel(((1 << 17) | (1 << 18)),
-				phy_reg + HW_USBPHY_IP_SET);
+		__raw_writel((1 << 17), phy_reg + HW_USBPHY_IP_SET);
+	if (cpu_is_mx6sl())
+		__raw_writel((1 << 18), phy_reg + HW_USBPHY_IP_SET);
 	return 0;
 }
 /* Notes: configure USB clock*/
@@ -380,7 +381,7 @@ static void usbotg_wakeup_event_clear(void)
 
 #ifdef CONFIG_USB_EHCI_ARC_OTG
 /* Beginning of host related operation for DR port */
-static void _host_platform_rh_suspend(struct fsl_usb2_platform_data *pdata)
+static void _host_platform_rh_suspend_swfix(struct fsl_usb2_platform_data *pdata)
 {
 	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
 	u32 tmp;
@@ -419,7 +420,7 @@ static void _host_platform_rh_suspend(struct fsl_usb2_platform_data *pdata)
 	fsl_platform_otg_set_usb_phy_dis(pdata, 0);
 }
 
-static void _host_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
+static void _host_platform_rh_resume_swfix(struct fsl_usb2_platform_data *pdata)
 {
 	u32 index = 0;
 
@@ -437,6 +438,25 @@ static void _host_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
 
 	udelay(500);
 	fsl_platform_otg_set_usb_phy_dis(pdata, 1);
+}
+static void _host_platform_rh_suspend(struct fsl_usb2_platform_data *pdata)
+{
+	/*for mx6sl ,we do not need any sw fix*/
+	if (cpu_is_mx6sl())
+		return ;
+	__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+		MX6_IO_ADDRESS(pdata->phy_regs)
+		+ HW_USBPHY_CTRL_CLR);
+}
+
+static void _host_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
+{
+	/*for mx6sl ,we do not need any sw fix*/
+	if (cpu_is_mx6sl())
+		return ;
+	__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+		MX6_IO_ADDRESS(pdata->phy_regs)
+		+ HW_USBPHY_CTRL_SET);
 }
 
 static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
@@ -579,11 +599,11 @@ void __init mx6_usb_dr_init(void)
 	dr_utmi_config.operating_mode = DR_HOST_MODE;
 	dr_utmi_config.wake_up_enable = _host_wakeup_enable;
 	if (usb_icbug_swfix_need()) {
+		dr_utmi_config.platform_rh_suspend = _host_platform_rh_suspend_swfix;
+		dr_utmi_config.platform_rh_resume  = _host_platform_rh_resume_swfix;
+	} else {
 		dr_utmi_config.platform_rh_suspend = _host_platform_rh_suspend;
 		dr_utmi_config.platform_rh_resume  = _host_platform_rh_resume;
-	} else {
-		dr_utmi_config.platform_rh_suspend = NULL;
-		dr_utmi_config.platform_rh_resume  = NULL;
 	}
 	dr_utmi_config.platform_set_disconnect_det = fsl_platform_otg_set_usb_phy_dis;
 	dr_utmi_config.phy_lowpower_suspend = _host_phy_lowpower_suspend;

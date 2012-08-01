@@ -39,7 +39,6 @@
 #include <linux/workqueue.h>
 #include <linux/sched.h>
 #include <linux/vmalloc.h>
-#include <linux/regulator/consumer.h>
 #include <linux/page-flags.h>
 #include <linux/mm_types.h>
 #include <linux/types.h>
@@ -530,6 +529,7 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
  */
 static int vpu_release(struct inode *inode, struct file *filp)
 {
+
 	mutex_lock(&vpu_data.lock);
 	if (open_count > 0 && !(--open_count)) {
 		vpu_free_buffers();

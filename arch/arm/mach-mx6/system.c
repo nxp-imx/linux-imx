@@ -57,6 +57,7 @@ volatile unsigned int num_cpu_idle_lock = 0x0;
 int wait_mode_arm_podf;
 int cur_arm_podf;
 bool arm_mem_clked_in_wait;
+void arch_idle_with_workaround(int cpu);
 
 extern void mx6_wait(void *num_cpu_idle_lock, void *num_cpu_idle, \
 				int wait_arm_podf, int cur_arm_podf);
@@ -64,6 +65,7 @@ extern bool enable_wait_mode;
 extern int low_bus_freq_mode;
 extern int audio_bus_freq_mode;
 extern bool mem_clk_on_in_wait;
+extern int chip_rev;
 
 void gpc_set_wakeup(unsigned int irq[4])
 {
@@ -201,6 +203,14 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			  */
 			reg = __raw_readl(MXC_CCM_CGPR);
 			reg |= MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
+			if (!cpu_is_mx6sl()) {
+				/*
+				  * For MX6QTO1.2 or later and MX6DLTO1.1 or later,
+				  * ensure that the CCM_CGPR bit 17 is cleared before
+				  * dormant mode is entered.
+				  */
+				reg &= ~MXC_CCM_CGPR_WAIT_MODE_FIX;
+			}
 			__raw_writel(reg, MXC_CCM_CGPR);
 		}
 	}
@@ -209,56 +219,122 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 extern int tick_broadcast_oneshot_active(void);
 
- void arch_idle(void)
+void arch_idle_single_core(void)
+{
+	u32 reg;
+
+	if (cpu_is_mx6dl() && chip_rev > IMX_CHIP_REVISION_1_0) {
+		/*
+		  * MX6DLS TO1.1 has the HW fix for the WAIT mode issue.
+		  * Ensure that the CGPR bit 17 is set to enable the fix.
+		  */
+		reg = __raw_readl(MXC_CCM_CGPR);
+		reg |= MXC_CCM_CGPR_WAIT_MODE_FIX;
+		__raw_writel(reg, MXC_CCM_CGPR);
+
+		cpu_do_idle();
+	} else {
+		/*
+		  * Implement the 12:5 ARM:IPG_CLK ratio
+		  * workaround for the WAIT mode issue.
+		  * We can directly use the divider to drop the ARM
+		  * core freq in a single core environment.
+		  *  Set the ARM_PODF to get the max freq possible
+		  * to avoid the WAIT mode issue when IPG is at 66MHz.
+		  */
+		if (cpu_is_mx6sl()) {
+			reg = __raw_readl(MXC_CCM_CGPR);
+			reg |= MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
+			__raw_writel(reg, MXC_CCM_CGPR);
+		}
+		__raw_writel(wait_mode_arm_podf, MXC_CCM_CACRR);
+		while (__raw_readl(MXC_CCM_CDHIPR))
+			;
+		cpu_do_idle();
+
+		__raw_writel(cur_arm_podf - 1, MXC_CCM_CACRR);
+	}
+}
+
+void arch_idle_with_workaround(cpu)
+{
+	u32 reg;
+	u32 podf = wait_mode_arm_podf;
+
+	*((char *)(&num_cpu_idle_lock) + (char)cpu) = 0x0;
+
+	if (low_bus_freq_mode || audio_bus_freq_mode)
+		/* In case when IPG is at 12MHz, we need to ensure that
+		  * ARM is at 24MHz, as the max freq ARM can run at is
+		  *~28.8MHz.
+		  */
+		podf = 0;
+
+	mx6_wait((void *)&num_cpu_idle_lock,
+		(void *)&num_cpu_idle,
+		podf, cur_arm_podf - 1);
+
+}
+
+void arch_idle_multi_core(void)
+{
+	u32 reg;
+	int cpu = smp_processor_id();
+
+#ifdef CONFIG_LOCAL_TIMERS
+	if (!tick_broadcast_oneshot_active()
+		|| !tick_oneshot_mode_active())
+		return;
+
+	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
+#endif
+	/* iMX6Q and iMX6DL */
+	if ((cpu_is_mx6q() && chip_rev >= IMX_CHIP_REVISION_1_2) ||
+		(cpu_is_mx6dl() && chip_rev >= IMX_CHIP_REVISION_1_1)) {
+		/*
+		  * This code should only be executed on MX6QTO1.2 or later
+		  * and MX6DL TO1.1 or later.
+		  * These chips have the HW fix for the WAIT mode issue.
+		  * Ensure that the CGPR bit 17 is set to enable the fix.
+		  */
+
+		reg = __raw_readl(MXC_CCM_CGPR);
+		reg |= MXC_CCM_CGPR_WAIT_MODE_FIX;
+		__raw_writel(reg, MXC_CCM_CGPR);
+
+		cpu_do_idle();
+	} else
+		arch_idle_with_workaround(cpu);
+#ifdef CONFIG_LOCAL_TIMERS
+	clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
+#endif
+
+}
+
+void arch_idle(void)
 {
 	if (enable_wait_mode) {
-		u32 reg;
-		int cpu = smp_processor_id();
-		*((char *)(&num_cpu_idle_lock) + (char)cpu) = 0x0;
 		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
-		if (arm_mem_clked_in_wait || mem_clk_on_in_wait) {
+		if ((mem_clk_on_in_wait || arm_mem_clked_in_wait)) {
+			u32 reg;
+			/*
+			  * MX6SL, MX6Q (TO1.2 or later) and
+			  * MX6DL (TO1.1 or later) have a bit in CCM_CGPR that
+			  * when cleared keeps the clocks to memories ON
+			  * when ARM is in WFI. This mode can be used when
+			  * IPG clock is very low (12MHz) and the ARM:IPG ratio
+			  * perhaps cannot be maintained.
+			  */
 			reg = __raw_readl(MXC_CCM_CGPR);
 			reg &= ~MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
 			__raw_writel(reg, MXC_CCM_CGPR);
 
 			cpu_do_idle();
-		} else if (num_possible_cpus() == 1) {
-			/* We can directly use the divider to drop the ARM
-			  * core freq in a single core environment.
-			  */
-			u32 podf = wait_mode_arm_podf;
-			/* Set the ARM_PODF to get the max freq possible
-			  * to avoid the WAIT mode issue when IPG is at 66MHz.
-			  */
-			if (low_bus_freq_mode)
-				podf = 7;
-
-			__raw_writel(podf, MXC_CCM_CACRR);
-			while (__raw_readl(MXC_CCM_CDHIPR))
-				;
-			cpu_do_idle();
-
-			__raw_writel(cur_arm_podf - 1, MXC_CCM_CACRR);
-		} else {
-#ifdef CONFIG_LOCAL_TIMERS
-			if (!tick_broadcast_oneshot_active()
-				|| !tick_oneshot_mode_active())
-				return;
-
-			clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_ENTER, &cpu);
-#endif
-			if (low_bus_freq_mode || audio_bus_freq_mode)
-				mx6_wait((void *)&num_cpu_idle_lock,
-							(void *)&num_cpu_idle,
-							7, cur_arm_podf - 1);
-			else
-				mx6_wait((void *)&num_cpu_idle_lock,
-					(void *)&num_cpu_idle,
-					wait_mode_arm_podf, cur_arm_podf - 1);
-#ifdef CONFIG_LOCAL_TIMERS
-			clockevents_notify(CLOCK_EVT_NOTIFY_BROADCAST_EXIT, &cpu);
-#endif
-		}
+		} else if (num_possible_cpus() == 1)
+			/* iMX6SL or iMX6DLS */
+			arch_idle_single_core();
+		else
+			arch_idle_multi_core();
 	} else {
 		mxc_cpu_lp_set(WAIT_CLOCKED);
 		cpu_do_idle();

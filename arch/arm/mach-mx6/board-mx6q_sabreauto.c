@@ -55,6 +55,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
+#include <linux/mxc_asrc.h>
 #include <sound/pcm.h>
 
 #include <mach/common.h>
@@ -224,9 +225,9 @@ static int plt_sd_pad_change(unsigned int index, int clock)
 	/* LOW speed is the default state of SD pads */
 	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
 
-	iomux_v3_cfg_t *sd_pads_200mhz;
-	iomux_v3_cfg_t *sd_pads_100mhz;
-	iomux_v3_cfg_t *sd_pads_50mhz;
+	iomux_v3_cfg_t *sd_pads_200mhz = NULL;
+	iomux_v3_cfg_t *sd_pads_100mhz = NULL;
+	iomux_v3_cfg_t *sd_pads_50mhz = NULL;
 
 	u32 sd_pads_200mhz_cnt;
 	u32 sd_pads_100mhz_cnt;
@@ -401,7 +402,7 @@ static struct mtd_partition m25p32_partitions[] = {
 	{
 		.name	= "bootloader",
 		.offset	= 0,
-		.size	= 0x00040000,
+		.size	= 0x00100000,
 	}, {
 		.name	= "kernel",
 		.offset	= MTDPART_OFS_APPEND,
@@ -757,7 +758,6 @@ static void __init imx6q_sabreauto_init_usb(void)
 	mx6_set_otghost_vbus_func(imx6q_sabreauto_usbotg_vbus);
 	mx6_usb_dr_init();
 	mx6_set_host1_vbus_func(imx6q_sabreauto_usbhost1_vbus);
-	mx6_usb_h1_init();
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mx6_usb_h2_init();
 	mx6_usb_h3_init();
@@ -1075,9 +1075,15 @@ static const struct pm_platform_data mx6q_sabreauto_pm_data __initconst = {
 	.suspend_exit	= sabreauto_suspend_exit,
 };
 
+static const struct asrc_p2p_params esai_p2p = {
+	.p2p_rate = 48000,
+	.p2p_width = ASRC_WIDTH_24_BIT,
+};
+
 static struct mxc_audio_platform_data sab_audio_data = {
 	.sysclk		= 24576000,
 	.codec_name	= "cs42888.1-0048",
+	.priv = (void *)&esai_p2p,
 };
 
 static struct platform_device sab_audio_device = {

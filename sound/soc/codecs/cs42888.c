@@ -34,6 +34,7 @@
 #include <asm/div64.h>
 #include "cs42888.h"
 
+#include "../imx/imx-pcm.h"
 #define CS42888_NUM_SUPPLIES 4
 static const char *cs42888_supply_names[CS42888_NUM_SUPPLIES] = {
 	"VA",
@@ -664,6 +665,7 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 			    struct snd_soc_dai *dai)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct imx_pcm_runtime_data *iprtd = substream->runtime->private_data;
 	struct snd_soc_codec *codec = rtd->codec;
 	struct cs42888_private *cs42888 =  snd_soc_codec_get_drvdata(codec);
 	int ret;
@@ -672,7 +674,10 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 	unsigned int ratio;
 	u32 val;
 
-	rate = params_rate(params);	/* Sampling rate, in Hz */
+	if (iprtd->asrc_enable)
+		rate = iprtd->p2p->p2p_rate;
+	else
+		rate = params_rate(params);	/* Sampling rate, in Hz */
 	ratio = cs42888->mclk / rate;	/* MCLK/LRCK ratio */
 	for (i = 0; i < NUM_MCLK_RATIOS; i++) {
 		if (cs42888_mode_ratios[i].ratio == ratio)
@@ -761,7 +766,8 @@ static struct snd_soc_dai_ops cs42888_dai_ops = {
 };
 
 
-struct snd_soc_dai_driver cs42888_dai = {
+struct snd_soc_dai_driver cs42888_dai[] = {
+	{
 	.name = "CS42888",
 	.playback = {
 		.stream_name = "Playback",
@@ -780,6 +786,18 @@ struct snd_soc_dai_driver cs42888_dai = {
 		.formats = CS42888_FORMATS,
 	},
 	.ops = &cs42888_dai_ops,
+	},
+	{
+		.name = "CS42888_ASRC",
+		.playback = {
+			.stream_name = "Playback",
+			.channels_min = 1,
+			.channels_max = 8,
+			.rates = SNDRV_PCM_RATE_8000_192000,
+			.formats = CS42888_FORMATS,
+		},
+		.ops = &cs42888_dai_ops,
+	},
 };
 
 /**
@@ -939,14 +957,14 @@ static int cs42888_i2c_probe(struct i2c_client *i2c_client,
 	if (i2c_client->dev.platform_data) {
 		memcpy(&cs42888->pdata, i2c_client->dev.platform_data,
 				sizeof(cs42888->pdata));
-		cs42888_dai.playback.rates = cs42888->pdata.rates;
-		cs42888_dai.capture.rates = cs42888->pdata.rates;
+		cs42888_dai[0].playback.rates = cs42888->pdata.rates;
+		cs42888_dai[0].capture.rates = cs42888->pdata.rates;
 	}
 
 	i2c_set_clientdata(i2c_client, cs42888);
 
 	ret = snd_soc_register_codec(&i2c_client->dev,
-		&cs42888_driver, &cs42888_dai, 1);
+		&cs42888_driver, cs42888_dai, 2);
 	if (ret) {
 		dev_err(&i2c_client->dev, "Failed to register codec:%d\n", ret);
 		kfree(cs42888);

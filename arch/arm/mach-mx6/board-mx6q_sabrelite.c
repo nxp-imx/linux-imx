@@ -365,9 +365,9 @@ static int plt_sd_pad_change(unsigned int index, int clock)
 	/* LOW speed is the default state of SD pads */
 	static enum sd_pad_mode pad_mode = SD_PAD_MODE_LOW_SPEED;
 
-	iomux_v3_cfg_t *sd_pads_200mhz;
-	iomux_v3_cfg_t *sd_pads_100mhz;
-	iomux_v3_cfg_t *sd_pads_50mhz;
+	iomux_v3_cfg_t *sd_pads_200mhz = NULL;
+	iomux_v3_cfg_t *sd_pads_100mhz = NULL;
+	iomux_v3_cfg_t *sd_pads_50mhz = NULL;
 
 	u32 sd_pads_200mhz_cnt;
 	u32 sd_pads_100mhz_cnt;
@@ -482,7 +482,7 @@ static struct mtd_partition imx6_sabrelite_spi_nor_partitions[] = {
 	{
 	 .name = "bootloader",
 	 .offset = 0,
-	 .size = 0x00040000,
+	 .size = 0x00100000,
 	},
 	{
 	 .name = "kernel",
@@ -660,7 +660,6 @@ static void __init imx6q_sabrelite_init_usb(void)
 
 	mx6_set_otghost_vbus_func(imx6q_sabrelite_usbotg_vbus);
 	mx6_usb_dr_init();
-	mx6_usb_h1_init();
 }
 
 /* HW Initialization, if return 0, initialization is successful. */
