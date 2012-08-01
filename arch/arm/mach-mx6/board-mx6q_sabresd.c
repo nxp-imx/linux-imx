@@ -1277,6 +1277,10 @@ static void hdmi_init(int ipu_id, int disp_id)
 
 	/* GPR3, bits 2-3 = HDMI_MUX_CTL */
 	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
+
+	/* Set HDMI event as SDMA event2 while Chip version later than TO1.2 */
+	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+		mxc_iomux_set_gpr_register(0, 0, 1, 1);
 }
 
 /* On mx6x sabresd board i2c2 iomux with hdmi ddc,
