@@ -361,11 +361,11 @@ static iomux_v3_cfg_t mx6dl_weimnor_pads[] __initdata = {
 };
 
 static iomux_v3_cfg_t mx6dl_sabreauto_hdmi_ddc_pads[] = {
-	MX6DL_PAD_KEY_COL3__HDMI_TX_DDC_SCL, /* HDMI DDC SCL */
+	MX6DL_PAD_EIM_EB2__HDMI_TX_DDC_SCL,  /* HDMI DDC SCL */
 	MX6DL_PAD_KEY_ROW3__HDMI_TX_DDC_SDA, /* HDMI DDC SDA */
 };
 
 static iomux_v3_cfg_t mx6dl_sabreauto_i2c2_pads[] = {
-	MX6DL_PAD_KEY_COL3__I2C2_SCL,   /* I2C2 SCL */
+	MX6DL_PAD_EIM_EB2__I2C2_SCL,    /* I2C2 SCL */
 	MX6DL_PAD_KEY_ROW3__I2C2_SDA,   /* I2C2 SDA */
 };
