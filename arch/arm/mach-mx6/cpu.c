@@ -201,9 +201,9 @@ static int __init post_cpu_init(void)
 	if (cpu_is_mx6q())
 		chip_rev = mx6q_revision();
 	else if (cpu_is_mx6dl())
-		chip_rev = mx6dl_revision;
+		chip_rev = mx6dl_revision();
 	else
-		chip_rev = mx6sl_revision;
+		chip_rev = mx6sl_revision();
 
 	return 0;
 }
