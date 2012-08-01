@@ -5377,7 +5377,7 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	/* Need to keep PLL3_PFD_540M enabled until AXI is sourced from it. */
 	clk_enable(&axi_clk);
 
-	if (cpu_is_mx6q())
+	if (cpu_is_mx6q() && (mx6q_revision() > IMX_CHIP_REVISION_1_1))
 		clk_set_parent(&gpu2d_core_clk[0], &pll3_usb_otg_main_clk);
 
 	clk_set_parent(&ldb_di0_clk, &pll2_pfd_352M);
