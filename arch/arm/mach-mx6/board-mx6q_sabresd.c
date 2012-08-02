@@ -1499,8 +1499,14 @@ static void gps_power_on(bool on)
 static struct gpio_led imx6q_gpio_leds[] = {
 	GPIO_LED(SABRESD_CHARGE_NOW, "chg_now_led", 0, 1,
 		"charger-charging"),
+/* For the latest B4 board, this GPIO_1 is connected to POR_B,
+which will reset the whole board if this pin's level is changed,
+so, for the latest board, we have to avoid using this pin as
+GPIO. */
+#if 0
 	GPIO_LED(SABRESD_CHARGE_DONE, "chg_done_led", 0, 1,
 			"charger-full"),
+#endif
 };
 
 static struct gpio_led_platform_data imx6q_gpio_leds_data = {
