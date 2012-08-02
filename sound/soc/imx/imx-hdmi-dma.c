@@ -938,7 +938,7 @@ static int hdmi_sdma_alloc(struct imx_hdmi_dma_runtime_data *params)
 	dma_cap_mask_t mask;
 
 	params->dma_data.peripheral_type = IMX_DMATYPE_HDMI;
-	params->dma_data.priority = DMA_PRIO_MEDIUM;
+	params->dma_data.priority = DMA_PRIO_HIGH;
 	params->dma_data.dma_request = MX6Q_DMA_REQ_EXT_DMA_REQ_0;
 	params->dma_data.private = &params->sdma_params;
 
