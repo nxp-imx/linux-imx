@@ -5354,9 +5354,11 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	*/
 	clk_set_parent(&gpu3d_shader_clk, &pll2_pfd_594M);
 	clk_set_rate(&gpu3d_shader_clk, 594000000);
-	clk_set_parent(&gpu3d_core_clk[0], &mmdc_ch0_axi_clk[0]);
-	clk_set_rate(&gpu3d_core_clk[0], 528000000);
 	if (cpu_is_mx6dl()) {
+		/*for mx6dl, change gpu3d core clk parant to 594_PFD */
+		clk_set_parent(&gpu3d_core_clk[0], &pll2_pfd_594M);
+		clk_set_rate(&gpu3d_core_clk[0], 594000000);
+
 		/*on mx6dl, 2d core clock sources from 3d shader core clock*/
 		clk_set_parent(&gpu2d_core_clk[0], &gpu3d_shader_clk);
 		/* on mx6dl gpu3d_axi_clk source from mmdc0 directly */
@@ -5369,6 +5371,8 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		clk_set_parent(&ipu2_clk, &pll2_pfd_400M);
 		clk_set_rate(&ipu2_clk, 200000000);
 	} else if (cpu_is_mx6q()) {
+		clk_set_parent(&gpu3d_core_clk[0], &mmdc_ch0_axi_clk[0]);
+		clk_set_rate(&gpu3d_core_clk[0], 528000000);
 		clk_set_parent(&ipu2_clk, &mmdc_ch0_axi_clk[0]);
 		clk_set_parent(&ipu1_clk, &mmdc_ch0_axi_clk[0]);
 	}
