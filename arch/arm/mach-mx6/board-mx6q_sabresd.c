@@ -1206,7 +1206,7 @@ static const struct flexcan_platform_data
 };
 
 static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
-	.reserved_mem_size = SZ_128M,
+	.reserved_mem_size = SZ_128M + SZ_32M,
 };
 
 static struct imx_asrc_platform_data imx_asrc_data = {
@@ -1368,7 +1368,7 @@ static struct ion_platform_data imx_ion_data = {
 		.id = 0,
 		.type = ION_HEAP_TYPE_CARVEOUT,
 		.name = "vpu_ion",
-		.size = SZ_64M,
+		.size = SZ_32M,
 		},
 	},
 };

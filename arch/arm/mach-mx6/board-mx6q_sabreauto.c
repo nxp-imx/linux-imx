@@ -765,7 +765,7 @@ static void __init imx6q_sabreauto_init_usb(void)
 }
 
 static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
-	.reserved_mem_size = SZ_128M,
+	.reserved_mem_size = SZ_128M + SZ_32M,
 };
 
 /* HW Initialization, if return 0, initialization is successful. */
@@ -991,7 +991,7 @@ static struct ion_platform_data imx_ion_data = {
 		{
 		.type = ION_HEAP_TYPE_CARVEOUT,
 		.name = "vpu_ion",
-		.size = SZ_64M,
+		.size = SZ_32M,
 		},
 	},
 };
