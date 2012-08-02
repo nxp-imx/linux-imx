@@ -821,6 +821,13 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		host->quirks |= SDHCI_QUIRK_NO_MULTIBLOCK
 			| SDHCI_QUIRK_BROKEN_ADMA;
 
+	/*
+	 * on mx6dl TO 1.1, ADMA can work when ahb bus frequency is low,
+	 * like 24Mhz.
+	 */
+	if (mx6dl_revision() >= IMX_CHIP_REVISION_1_1)
+		host->quirks &= ~SDHCI_QUIRK_BROKEN_ADMA;
+
 	if (cpu_is_mx6())
 		host->quirks2 |= SDHCI_QUIRK_BROKEN_AUTO_CMD23,
 
