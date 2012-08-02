@@ -20,7 +20,7 @@
 #include <linux/mmc/host.h>
 #include "queue.h"
 
-#define MMC_QUEUE_BOUNCESZ	65536
+#define MMC_QUEUE_BOUNCESZ	(512 * 1024)
 
 #define MMC_QUEUE_SUSPENDED	(1 << 0)
 
