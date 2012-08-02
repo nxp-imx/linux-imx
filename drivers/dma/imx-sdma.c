@@ -226,6 +226,14 @@ struct sdma_context_data {
 
 struct sdma_engine;
 
+enum sdma_mode {
+	SDMA_MODE_INVALID = 0,
+	SDMA_MODE_LOOP,
+	SDMA_MODE_NORMAL,
+	SDMA_MODE_P2P,
+	SDMA_MODE_NO_BD,
+};
+
 /**
  * struct sdma_channel - housekeeping for a SDMA channel
  *
@@ -257,7 +265,7 @@ struct sdma_channel {
 	unsigned int			pc_to_device;
 	unsigned int			device_to_device;
 	unsigned int			other_script;
-	unsigned long			flags;
+	enum sdma_mode			mode;
 	dma_addr_t			per_address, per_address2;
 	u32				event_mask0, event_mask1;
 	u32				watermark_level;
@@ -271,10 +279,6 @@ struct sdma_channel {
 	unsigned int			chn_count;
 	unsigned int			chn_real_count;
 };
-
-#define IMX_DMA_SG_LOOP      (1 << 0)
-#define IMX_DMA_INT_OTHER    (1 << 1)
-#define IMX_DMA_INT_P2P      (1 << 2)
 
 #define MAX_DMA_CHANNELS 32
 #define MXC_SDMA_DEFAULT_PRIORITY 1
@@ -514,12 +518,20 @@ static void mxc_sdma_handle_channel(struct sdma_channel *sdmac)
 	if (sdmac->channel == 0)
 		return;
 
-	if (sdmac->flags & IMX_DMA_SG_LOOP)
+	switch (sdmac->mode) {
+	case SDMA_MODE_LOOP:
 		sdma_handle_channel_loop(sdmac);
-	else if (sdmac->flags & IMX_DMA_INT_OTHER)
-		sdma_handle_other_intr(sdmac);
-	else
+		break;
+	case SDMA_MODE_NORMAL:
 		mxc_sdma_handle_channel_normal(sdmac);
+		break;
+	case SDMA_MODE_NO_BD:
+		sdma_handle_other_intr(sdmac);
+		break;
+	default:
+		pr_err("Unvalid SDMA MODE!\n");
+		break;
+	}
 }
 
 static irqreturn_t sdma_int_handler(int irq, void *dev_id)
@@ -956,6 +968,9 @@ static int sdma_alloc_chan_resources(struct dma_chan *chan)
 	/* txd.flags will be overwritten in prep funcs */
 	sdmac->desc.flags = DMA_CTRL_ACK;
 
+	/* Set SDMA channel mode to unvalid to avoid misconfig */
+	sdmac->mode = SDMA_MODE_INVALID;
+
 	return 0;
 }
 
@@ -996,7 +1011,7 @@ static struct dma_async_tx_descriptor *sdma_prep_slave_sg(
 		return NULL;
 	sdmac->status = DMA_IN_PROGRESS;
 
-	sdmac->flags = 0;
+	sdmac->mode = SDMA_MODE_NORMAL;
 
 	dev_dbg(sdma->dev, "setting up %d entries for channel %d.\n",
 			sg_len, channel);
@@ -1100,14 +1115,14 @@ static struct dma_async_tx_descriptor *sdma_prep_dma_cyclic(
 
 	switch (sdmac->direction) {
 	case DMA_DEV_TO_DEV:
-		sdmac->flags |= IMX_DMA_INT_P2P;
+		sdmac->mode = SDMA_MODE_P2P;
 		break;
 	case DMA_TRANS_NONE:
-		sdmac->flags |= IMX_DMA_INT_OTHER;
+		sdmac->mode = SDMA_MODE_NO_BD;
 		break;
 	case DMA_MEM_TO_DEV:
 	case DMA_DEV_TO_MEM:
-		sdmac->flags |= IMX_DMA_SG_LOOP;
+		sdmac->mode = SDMA_MODE_LOOP;
 		break;
 	default:
 		pr_err("SDMA direction is not support!");
