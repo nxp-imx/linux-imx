@@ -2,6 +2,7 @@
  *   (Tentative) USB Audio Driver for ALSA
  *
  *   Copyright (c) 2002 by Takashi Iwai <tiwai@suse.de>
+ *   Copyright (C) 2012 Freescale Semiconductor, Inc.
  *
  *   Many codes borrowed from audio.c by
  *	    Alan Cox (alan@lxorguk.ukuu.org.uk)
@@ -47,6 +48,7 @@
 #include <linux/mutex.h>
 #include <linux/usb/audio.h>
 #include <linux/usb/audio-v2.h>
+#include <linux/switch.h>
 
 #include <sound/control.h>
 #include <sound/core.h>
@@ -111,6 +113,15 @@ MODULE_PARM_DESC(ignore_ctl_error,
  * the all interfaces on the same card as one sound device.
  */
 
+struct usb_audio_switch_data {
+	struct switch_dev sdev;
+	const char *name_on;
+	const char *name_off;
+	const char *state_on;
+	const char *state_off;
+};
+
+static struct usb_audio_switch_data *audio_switch_data[SNDRV_CARDS];
 static DEFINE_MUTEX(register_mutex);
 static struct snd_usb_audio *usb_chip[SNDRV_CARDS];
 static struct usb_driver usb_audio_driver;
@@ -589,16 +600,80 @@ static int usb_audio_probe(struct usb_interface *intf,
 			   const struct usb_device_id *id)
 {
 	void *chip;
+	struct usb_audio_switch_data *switch_data;
+	int ret = 0;
+	struct snd_usb_audio *uchip;
+	int idx;
+	struct snd_usb_stream *as;
+	struct snd_usb_substream *subs;
+	struct list_head *head;
+	int state = 0;
+
 	chip = snd_usb_audio_probe(interface_to_usbdev(intf), intf, id);
 	if (chip) {
 		usb_set_intfdata(intf, chip);
+		uchip = chip;
+		switch_data = kzalloc(sizeof(struct usb_audio_switch_data), GFP_KERNEL);
+		if (!switch_data)
+			return -ENOMEM;
+		switch_data->sdev.name = "usb_audio";
+		ret = switch_dev_register(&switch_data->sdev);
+		if (ret < 0)
+			goto err_switch_dev_register;
+		audio_switch_data[uchip->index] = switch_data;
+
+		list_for_each(head, &uchip->pcm_list) {
+			as = list_entry(head, struct snd_usb_stream, list);
+			for (idx = 0; idx < 2; idx++) {
+				subs = &as->substream[idx];
+				if (!subs->num_formats)
+					continue;
+				if (subs->direction == SNDRV_PCM_STREAM_PLAYBACK)
+					state |= 0x1;
+				if (subs->direction == SNDRV_PCM_STREAM_CAPTURE)
+					state |= 0x2;
+			}
+		}
+		switch_set_state(&switch_data->sdev, state);
 		return 0;
 	} else
 		return -EIO;
+
+
+err_switch_dev_register:
+	kfree(switch_data);
+	return 0;
 }
 
 static void usb_audio_disconnect(struct usb_interface *intf)
 {
+	struct snd_usb_audio *uchip = usb_get_intfdata(intf);
+	struct usb_audio_switch_data *switch_data;
+	int idx;
+	struct snd_usb_stream *as;
+	struct snd_usb_substream *subs;
+	struct list_head *head;
+
+	if (uchip == (void *)-1L)
+		return;
+
+	if (uchip) {
+		switch_data = audio_switch_data[uchip->index];
+		if (switch_data) {
+			switch_set_state(&switch_data->sdev, 0);
+			switch_dev_unregister(&switch_data->sdev);
+			kfree(switch_data);
+		}
+		list_for_each(head, &uchip->pcm_list) {
+			as = list_entry(head, struct snd_usb_stream, list);
+			for (idx = 0; idx < 2; idx++) {
+				subs = &as->substream[idx];
+				if (subs->running)
+				    snd_pcm_stop(subs->pcm_substream, SNDRV_PCM_STATE_DISCONNECTED);
+			}
+		}
+	}
+
 	snd_usb_audio_disconnect(interface_to_usbdev(intf),
 				 usb_get_intfdata(intf));
 }
