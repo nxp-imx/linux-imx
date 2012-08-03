@@ -1091,15 +1091,16 @@ static int flexcan_suspend(struct platform_device *pdev, pm_message_t state)
 	if (netif_running(dev)) {
 		netif_stop_queue(dev);
 		netif_device_detach(dev);
+
+		/* enter stop mode if device is up */
+		flexcan_enter_stop(priv);
+
+		ret = irq_set_irq_wake(dev->irq, 1);
+		if (ret)
+			return ret;
 	}
 
 	priv->can.state = CAN_STATE_SLEEPING;
-
-	flexcan_enter_stop(priv);
-
-	ret = irq_set_irq_wake(dev->irq, 1);
-	if (ret)
-		return ret;
 
 	return 0;
 }
@@ -1110,15 +1111,15 @@ static int flexcan_resume(struct platform_device *pdev)
 	struct flexcan_priv *priv = netdev_priv(dev);
 	int ret;
 
-	ret = irq_set_irq_wake(dev->irq, 0);
-	if (ret)
-		return ret;
-
-	flexcan_exit_stop(priv);
-
 	priv->can.state = CAN_STATE_ERROR_ACTIVE;
 
 	if (netif_running(dev)) {
+		ret = irq_set_irq_wake(dev->irq, 0);
+		if (ret)
+			return ret;
+
+		flexcan_exit_stop(priv);
+
 		netif_device_attach(dev);
 		netif_start_queue(dev);
 	}
