@@ -426,6 +426,7 @@ static int snd_imx_open(struct snd_pcm_substream *substream)
 		iprtd->asrc_enable = true;
 		iprtd->p2p =
 			(struct asrc_p2p_params *)snd_soc_pcm_get_drvdata(rtd);
+		iprtd->asrc_index = -1;
 	}
 
 	runtime->private_data = iprtd;

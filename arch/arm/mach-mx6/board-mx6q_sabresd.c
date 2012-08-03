@@ -1277,6 +1277,10 @@ static void hdmi_init(int ipu_id, int disp_id)
 
 	/* GPR3, bits 2-3 = HDMI_MUX_CTL */
 	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
+
+	/* Set HDMI event as SDMA event2 while Chip version later than TO1.2 */
+	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+		mxc_iomux_set_gpr_register(0, 0, 1, 1);
 }
 
 /* On mx6x sabresd board i2c2 iomux with hdmi ddc,
@@ -1507,8 +1511,14 @@ static void gps_power_on(bool on)
 static struct gpio_led imx6q_gpio_leds[] = {
 	GPIO_LED(SABRESD_CHARGE_NOW, "chg_now_led", 0, 1,
 		"charger-charging"),
+/* For the latest B4 board, this GPIO_1 is connected to POR_B,
+which will reset the whole board if this pin's level is changed,
+so, for the latest board, we have to avoid using this pin as
+GPIO. */
+#if 0
 	GPIO_LED(SABRESD_CHARGE_DONE, "chg_done_led", 0, 1,
 			"charger-full"),
+#endif
 };
 
 static struct gpio_led_platform_data imx6q_gpio_leds_data = {

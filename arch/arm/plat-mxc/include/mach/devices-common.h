@@ -530,6 +530,7 @@ struct platform_device *__init imx_add_viv_gpu(
 struct imx_anatop_thermal_imx_data {
 	int id;
 	resource_size_t iobase;
+	resource_size_t calibration_addr;
 	resource_size_t irq;
 };
 struct platform_device *__init imx_add_anatop_thermal_imx(
