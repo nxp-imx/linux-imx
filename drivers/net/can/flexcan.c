@@ -1100,6 +1100,11 @@ static int flexcan_resume(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	/* remove stop request */
+	if (priv->version >= FLEXCAN_VER_10_0_12)
+		/* CAN1/CAN2_STOP_REQ bit 28/29 in group 13 */
+		mxc_iomux_set_gpr_register(13, 28 + priv->id, 1, 0);
+
 	priv->can.state = CAN_STATE_ERROR_ACTIVE;
 
 	if (netif_running(dev)) {
