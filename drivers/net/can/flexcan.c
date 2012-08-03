@@ -226,6 +226,26 @@ static inline int flexcan_has_and_handle_berr(const struct flexcan_priv *priv,
 		(reg_esr & FLEXCAN_ESR_ERR_BUS);
 }
 
+static inline void flexcan_enter_stop(struct flexcan_priv *priv)
+{
+	/* enable stop request for wakeup */
+	if (priv->version >= FLEXCAN_VER_10_0_12)
+		/* CAN1/CAN2_STOP_REQ bit 28/29 in group 13 */
+		mxc_iomux_set_gpr_register(13, 28 + priv->id, 1, 1);
+
+	udelay(10);
+}
+
+static inline void flexcan_exit_stop(struct flexcan_priv *priv)
+{
+	/* remove stop request */
+	if (priv->version >= FLEXCAN_VER_10_0_12)
+		/* CAN1/CAN2_STOP_REQ bit 28/29 in group 13 */
+		mxc_iomux_set_gpr_register(13, 28 + priv->id, 1, 0);
+
+	udelay(10);
+}
+
 static inline void flexcan_chip_enable(struct flexcan_priv *priv)
 {
 	struct flexcan_regs __iomem *regs = priv->base;
@@ -579,10 +599,7 @@ static irqreturn_t flexcan_irq(int irq, void *dev_id)
 	writel(FLEXCAN_ESR_ERR_INT, &regs->esr);	/* ACK err IRQ */
 
 	if (reg_esr & FLEXCAN_ESR_WAK_INT) {
-		/* first clear stop request then wakeup irq status */
-		if (priv->version >= FLEXCAN_VER_10_0_12)
-			/* CAN1/CAN2_STOP_REQ bit 28/29 in group 13 */
-			mxc_iomux_set_gpr_register(13, 28 + priv->id, 1, 0);
+		flexcan_exit_stop(priv);
 		writel(FLEXCAN_ESR_WAK_INT, &regs->esr);
 	}
 
@@ -1078,10 +1095,7 @@ static int flexcan_suspend(struct platform_device *pdev, pm_message_t state)
 
 	priv->can.state = CAN_STATE_SLEEPING;
 
-	/* enable stop request for wakeup */
-	if (priv->version >= FLEXCAN_VER_10_0_12)
-		/* CAN1/CAN2_STOP_REQ bit 28/29 in group 13 */
-		mxc_iomux_set_gpr_register(13, 28 + priv->id, 1, 1);
+	flexcan_enter_stop(priv);
 
 	ret = irq_set_irq_wake(dev->irq, 1);
 	if (ret)
@@ -1100,10 +1114,7 @@ static int flexcan_resume(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	/* remove stop request */
-	if (priv->version >= FLEXCAN_VER_10_0_12)
-		/* CAN1/CAN2_STOP_REQ bit 28/29 in group 13 */
-		mxc_iomux_set_gpr_register(13, 28 + priv->id, 1, 0);
+	flexcan_exit_stop(priv);
 
 	priv->can.state = CAN_STATE_ERROR_ACTIVE;
 
