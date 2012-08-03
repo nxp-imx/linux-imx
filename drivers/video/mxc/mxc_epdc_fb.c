@@ -857,6 +857,7 @@ static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 
 	/* Enable clocks to access EPDC regs */
 	clk_enable(fb_data->epdc_clk_axi);
+	clk_enable(fb_data->epdc_clk_pix);
 
 	/* Reset */
 	__raw_writel(EPDC_CTRL_SFTRST, EPDC_CTRL_SET);
@@ -1027,6 +1028,7 @@ static void epdc_init_settings(struct mxc_epdc_fb_data *fb_data)
 
 	/* Disable clock */
 	clk_disable(fb_data->epdc_clk_axi);
+	clk_disable(fb_data->epdc_clk_pix);
 }
 
 static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
