@@ -1171,7 +1171,9 @@ static int __init mxs_bat_init(void)
 		disable_irq(IRQ_DCDC4P2_BRNOUT);
 		disable_irq(IRQ_BATT_BRNOUT);
 		disable_irq(IRQ_VDDD_BRNOUT);
+#ifndef CONFIG_ARCH_MX23
 		disable_irq(IRQ_VDDA_BRNOUT);
+#endif
 		if (no_battery)
 			disable_irq(IRQ_VDDIO_BRNOUT);
 #ifndef CONFIG_ARCH_MX28
@@ -1184,7 +1186,9 @@ static int __init mxs_bat_init(void)
 		mxs_set_irq_fiq(IRQ_DCDC4P2_BRNOUT, 1);
 		mxs_set_irq_fiq(IRQ_BATT_BRNOUT, 1);
 		mxs_set_irq_fiq(IRQ_VDDD_BRNOUT, 1);
+#ifndef CONFIG_ARCH_MX23
 		mxs_set_irq_fiq(IRQ_VDDA_BRNOUT, 1);
+#endif
 		if (no_battery)
 			mxs_set_irq_fiq(IRQ_VDDIO_BRNOUT, 1);
 #ifndef CONFIG_ARCH_MX28
@@ -1199,7 +1203,9 @@ static int __init mxs_bat_init(void)
 		enable_irq(IRQ_DCDC4P2_BRNOUT);
 		enable_irq(IRQ_BATT_BRNOUT);
 		enable_irq(IRQ_VDDD_BRNOUT);
+#ifndef CONFIG_ARCH_MX23
 		enable_irq(IRQ_VDDA_BRNOUT);
+#endif
 		if (no_battery)
 			enable_irq(IRQ_VDDIO_BRNOUT);
 #ifndef CONFIG_ARCH_MX28
