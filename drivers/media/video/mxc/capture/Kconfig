@@ -122,11 +122,25 @@ config MXC_CAMERA_SENSOR_CLK
 	---help---
 	  If you plan to use the Camera with your MXC system, say Y here.
 
+choice
+	prompt "Select Overlay Rounting"
+	default MXC_IPU_DEVICE_QUEUE_SDC
+	depends on VIDEO_MXC_IPU_CAMERA && FB_MXC_SYNC_PANEL
+
+config MXC_IPU_DEVICE_QUEUE_SDC
+	tristate "Queue ipu device for overlay library"
+	depends on VIDEO_MXC_IPU_CAMERA
+	default y
+	---help---
+	  Use case CSI->MEM->IPU DEVICE->SDC:
+		Images from sensor will be frist recieved in memory,then
+		queue to ipu device for processing if needed, and displaying
+		it on synchronous display with SDC use case.
 
 config MXC_IPU_PRP_VF_SDC
-	tristate "Pre-Processor VF SDC library"
-	depends on VIDEO_MXC_IPU_CAMERA && FB_MXC_SYNC_PANEL
-	default y
+	bool "Pre-Processor VF SDC library"
+	depends on VIDEO_MXC_IPU_CAMERA
+	default n
 	---help---
 	  Use case PRP_VF_SDC:
 		Preprocessing image from smart sensor for viewfinder and
@@ -135,6 +149,8 @@ config MXC_IPU_PRP_VF_SDC
 		CSI -> IC (PRP VF) -> MEM
 		MEM -> IC (ROT) -> MEM
 		MEM -> SDC (FG/BG)
+
+endchoice
 
 config MXC_IPU_PRP_ENC
 	tristate "Pre-processor Encoder library"
