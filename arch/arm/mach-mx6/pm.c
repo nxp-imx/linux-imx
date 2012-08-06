@@ -205,6 +205,13 @@ static void gpu_power_up(void)
 	__raw_writel(ccm_analog_pfd528 &
 		     ~ANADIG_PFD0_CLKGATE &
 		     ~ANADIG_PFD1_CLKGATE, PFD_528_BASE_ADDR);
+	/* make sure PLL3_USB_OTG_480M is enabled for MX6Q
+	 * MX6Q GPU2d_core clock source from PLL3_USB_OTG_480M,
+	 * so need to enable pll3 beofore power up  gpu
+	 */
+	if (cpu_is_mx6q())
+		__raw_writel(ANADIG_PLL_ENABLE|ANADIG_PLL_POWER_DOWN,
+				(PLL3_480_USB1_BASE_ADDR+4));
 	/* gpu3d and gpu2d clock enable */
 	__raw_writel(ccgr1 |
 		     MXC_CCM_CCGRx_CG12_MASK |
