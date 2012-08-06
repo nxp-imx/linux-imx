@@ -156,6 +156,13 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 #define PKT_MINBUF_SIZE		64
 #define PKT_MAXBLR_SIZE		1520
 
+/* Pause frame feild and FIFO threshold */
+#define FEC_ENET_FCE		(1 << 5)
+#define FEC_ENET_RSEM_V		0x84
+#define FEC_ENET_RSFL_V		16
+#define FEC_ENET_RAEM_V		0x8
+#define FEC_ENET_RAFL_V		0x8
+#define FEC_ENET_OPD_V		0xFFF0
 
 /*
  * The 5270/5271/5280/5282/532x RX control register also contains maximum frame
@@ -1617,6 +1624,16 @@ fec_restart(struct net_device *dev, int duplex)
 		else
 			val |= (1 << 9);
 
+		/* Enable pause frame
+		 * ENET pause frame has two issues as ticket TKT116501
+		 * The issues have been fixed on Rigel TO1.1 and Arik TO1.2
+		 */
+		if ((cpu_is_mx6q() &&
+			(mx6q_revision() >= IMX_CHIP_REVISION_1_2)) ||
+			(cpu_is_mx6dl() &&
+			(mx6dl_revision() >= IMX_CHIP_REVISION_1_1)))
+			val |= FEC_ENET_FCE;
+
 		writel(val, fep->hwp + FEC_R_CNTRL);
 	}
 
@@ -1669,6 +1686,23 @@ fec_restart(struct net_device *dev, int duplex)
 		fep->phy_interface == PHY_INTERFACE_MODE_RGMII &&
 		fep->phy_dev->speed == SPEED_1000)
 		val |= (0x1 << 5);
+
+	/* RX FIFO threshold setting for ENET pause frame feature
+	 * Only set the parameters after ticket TKT116501 fixed.
+	 * The issue has been fixed on Rigel TO1.1 and Arik TO1.2
+	 */
+	if ((cpu_is_mx6q() &&
+		(mx6q_revision() >= IMX_CHIP_REVISION_1_2)) ||
+		(cpu_is_mx6dl() &&
+		(mx6dl_revision() >= IMX_CHIP_REVISION_1_1))) {
+		writel(FEC_ENET_RSEM_V, fep->hwp + FEC_R_FIFO_RSEM);
+		writel(FEC_ENET_RSFL_V, fep->hwp + FEC_R_FIFO_RSFL);
+		writel(FEC_ENET_RAEM_V, fep->hwp + FEC_R_FIFO_RAEM);
+		writel(FEC_ENET_RAFL_V, fep->hwp + FEC_R_FIFO_RAFL);
+
+		/* OPD */
+		writel(FEC_ENET_OPD_V, fep->hwp + FEC_OPD);
+	}
 
 	if (cpu_is_mx6q() || cpu_is_mx6dl()) {
 		/* enable endian swap */
