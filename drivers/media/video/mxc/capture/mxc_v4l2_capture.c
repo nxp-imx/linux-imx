@@ -649,7 +649,11 @@ static int start_preview(cam_data *cam)
 	pr_debug("MVC: start_preview\n");
 
 	if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
+	#ifdef CONFIG_MXC_IPU_PRP_VF_SDC
 		err = prp_vf_sdc_select(cam);
+	#else
+		err = foreground_sdc_select(cam);
+	#endif
 	else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
 		err = prp_vf_sdc_select_bg(cam);
 	if (err != 0)
@@ -704,7 +708,11 @@ static int stop_preview(cam_data *cam)
 	}
 
 	if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_OVERLAY)
+	#ifdef CONFIG_MXC_IPU_PRP_VF_SDC
 		err = prp_vf_sdc_deselect(cam);
+	#else
+		err = foreground_sdc_deselect(cam);
+	#endif
 	else if (cam->v4l2_fb.flags == V4L2_FBUF_FLAG_PRIMARY)
 		err = prp_vf_sdc_deselect_bg(cam);
 
@@ -1120,11 +1128,14 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 		default:
 			ret = -EINVAL;
 		}
-
+		#ifdef CONFIG_MXC_IPU_PRP_VF_SDC
 		if (c->id == V4L2_CID_MXC_VF_ROT)
 			cam->vf_rotation = tmp_rotation;
 		else
 			cam->rotation = tmp_rotation;
+		#else
+			cam->rotation = tmp_rotation;
+		#endif
 
 		break;
 	case V4L2_CID_HUE:
