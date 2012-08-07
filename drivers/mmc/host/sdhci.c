@@ -51,6 +51,9 @@ static void sdhci_send_command(struct sdhci_host *, struct mmc_command *);
 static void sdhci_finish_command(struct sdhci_host *);
 static int sdhci_execute_tuning(struct mmc_host *mmc);
 static void sdhci_tuning_timer(unsigned long data);
+static int sdhci_pre_dma_transfer(struct sdhci_host *host,
+				       struct mmc_data *data,
+				       struct sdhci_host_next *next);
 
 static void sdhci_clk_worker(struct work_struct *work)
 {
@@ -504,9 +507,8 @@ static int sdhci_adma_table_pre(struct sdhci_host *host,
 		goto fail;
 	BUG_ON(host->align_addr & 0x3);
 
-	host->sg_count = dma_map_sg(mmc_dev(host->mmc),
-		data->sg, data->sg_len, direction);
-	if (host->sg_count == 0)
+	host->sg_count = sdhci_pre_dma_transfer(host, data, NULL);
+	if (host->sg_count < 0)
 		goto unmap_align;
 
 	desc = host->adma_desc;
@@ -646,8 +648,9 @@ static void sdhci_adma_table_post(struct sdhci_host *host,
 		}
 	}
 
-	dma_unmap_sg(mmc_dev(host->mmc), data->sg,
-		data->sg_len, direction);
+	if (!data->host_cookie)
+		dma_unmap_sg(mmc_dev(host->mmc), data->sg,
+			data->sg_len, direction);
 }
 
 static u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_command *cmd)
@@ -829,11 +832,7 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_command *cmd)
 		} else {
 			int sg_cnt;
 
-			sg_cnt = dma_map_sg(mmc_dev(host->mmc),
-					data->sg, data->sg_len,
-					(data->flags & MMC_DATA_READ) ?
-						DMA_FROM_DEVICE :
-						DMA_TO_DEVICE);
+			sg_cnt = sdhci_pre_dma_transfer(host, data, NULL);
 			if (sg_cnt == 0) {
 				/*
 				 * This only happens when someone fed
@@ -932,8 +931,10 @@ static void sdhci_finish_data(struct sdhci_host *host)
 		if (host->flags & SDHCI_USE_ADMA)
 			sdhci_adma_table_post(host, data);
 		else {
-			dma_unmap_sg(mmc_dev(host->mmc), data->sg,
-				data->sg_len, (data->flags & MMC_DATA_READ) ?
+			if (!data->host_cookie)
+				dma_unmap_sg(mmc_dev(host->mmc),
+					data->sg, data->sg_len,
+					(data->flags & MMC_DATA_READ) ?
 					DMA_FROM_DEVICE : DMA_TO_DEVICE);
 		}
 	}
@@ -1870,10 +1871,11 @@ static void sdhci_post_req(struct mmc_host *mmc, struct mmc_request *mrq,
 	struct mmc_data *data = mrq->data;
 
 	if (host->flags & SDHCI_REQ_USE_DMA) {
-		dma_unmap_sg(mmc_dev(host->mmc), data->sg, data->sg_len,
-			     data->flags & MMC_DATA_WRITE ? \
-			     DMA_TO_DEVICE : DMA_FROM_DEVICE);
-		data->host_cookie = 0;
+		if (data->host_cookie)
+			dma_unmap_sg(mmc_dev(host->mmc), data->sg, data->sg_len,
+					 data->flags & MMC_DATA_WRITE ? \
+					 DMA_TO_DEVICE : DMA_FROM_DEVICE);
+		mrq->data->host_cookie = 0;
 	}
 }
 
@@ -1881,7 +1883,7 @@ static int sdhci_pre_dma_transfer(struct sdhci_host *host,
 				       struct mmc_data *data,
 				       struct sdhci_host_next *next)
 {
-	int dma_len;
+	int sg_count;
 
 	if (!next && data->host_cookie &&
 	    data->host_cookie != host->next_data.cookie) {
@@ -1894,26 +1896,27 @@ static int sdhci_pre_dma_transfer(struct sdhci_host *host,
 	/* Check if next job is already prepared */
 	if (next ||
 	    (!next && data->host_cookie != host->next_data.cookie)) {
-		dma_len = dma_map_sg(mmc_dev(host->mmc), data->sg,
+		sg_count = dma_map_sg(mmc_dev(host->mmc), data->sg,
 				     data->sg_len,
 				     data->flags & MMC_DATA_WRITE ? \
 				     DMA_TO_DEVICE : DMA_FROM_DEVICE);
 
 	} else {
-		dma_len = host->next_data.dma_len;
-		host->next_data.dma_len = 0;
+		sg_count = host->next_data.sg_count;
+		host->next_data.sg_count = 0;
 	}
 
 
-	if (dma_len == 0)
+	if (sg_count == 0)
 		return -EINVAL;
 
 	if (next) {
-		next->dma_len = dma_len;
+		next->sg_count = sg_count;
 		data->host_cookie = ++next->cookie < 0 ? 1 : next->cookie;
-	}
+	} else
+		host->sg_count = sg_count;
 
-	return 0;
+	return sg_count;
 }
 
 static void sdhci_pre_req(struct mmc_host *mmc, struct mmc_request *mrq,
@@ -1927,8 +1930,9 @@ static void sdhci_pre_req(struct mmc_host *mmc, struct mmc_request *mrq,
 	}
 
 	if (host->flags & SDHCI_REQ_USE_DMA)
-		if (sdhci_pre_dma_transfer(host, mrq->data,
-						&host->next_data))
+		if (sdhci_pre_dma_transfer(host,
+					mrq->data,
+					&host->next_data) < 0)
 			mrq->data->host_cookie = 0;
 }
 
@@ -2620,6 +2624,7 @@ int sdhci_add_host(struct sdhci_host *host)
 	if (caps[0] & SDHCI_TIMEOUT_CLK_UNIT)
 		host->timeout_clk *= 1000;
 
+	host->next_data.cookie = 1;
 	/*
 	 * In case of Host Controller v3.00, find out whether clock
 	 * multiplier is supported.
