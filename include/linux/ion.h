@@ -265,6 +265,19 @@ struct ion_fd_data {
 };
 
 /**
+ * struct ion_phys_data - passed to/from userspace for a handle/phys addr pair
+ * @handle:	a handle
+ * @phys:       a return physcial address
+ *
+ * For ION_IOC_PHYS ioctl
+ * the phys return the ion phys address
+ */
+struct ion_phys_data {
+	struct ion_handle *handle;
+	unsigned long phys;
+};
+
+/**
  * struct ion_handle_data - a handle passed to/from the kernel
  * @handle:	a handle
  */
@@ -347,6 +360,6 @@ struct ion_custom_data {
  * Takes an ion_fd_data struct with the handle field populated with a valid
  * opaque handle.  Returns the address
  */
-#define ION_IOC_PHYS		_IOWR(ION_IOC_MAGIC, 7, struct ion_fd_data)
+#define ION_IOC_PHYS		_IOWR(ION_IOC_MAGIC, 7, struct ion_phys_data)
 
 #endif /* _LINUX_ION_H */

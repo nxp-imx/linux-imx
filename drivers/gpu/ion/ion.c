@@ -1015,18 +1015,22 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 	case ION_IOC_PHYS:
 	{
-		struct ion_handle_data data;
+		struct ion_phys_data data;
 		ion_phys_addr_t phys;
 		int len;
 		bool valid;
 
 		if (copy_from_user(&data, (void __user *)arg,
-				   sizeof(struct ion_handle_data)))
+				   sizeof(struct ion_phys_data)))
 			return -EFAULT;
 		valid = ion_phys(client, data.handle, &phys, &len);
 		if (valid)
-			return 0;
-		return phys;
+			return -1;
+		data.phys = phys;
+		if (copy_to_user((void __user *)arg, &data,
+				 sizeof(struct ion_phys_data)))
+			return -EFAULT;
+		return 0;
 	}
 	default:
 		return -ENOTTY;
