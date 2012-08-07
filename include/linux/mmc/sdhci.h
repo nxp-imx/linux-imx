@@ -18,7 +18,7 @@
 #include <linux/mmc/host.h>
 
 struct sdhci_host_next {
-	unsigned int	dma_len;
+	unsigned int	sg_count;
 	s32		cookie;
 };
 
