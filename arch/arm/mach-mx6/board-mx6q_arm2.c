@@ -52,6 +52,8 @@
 #include <linux/regulator/fixed.h>
 #include <linux/mfd/max17135.h>
 #include <sound/pcm.h>
+#include <linux/mxc_asrc.h>
+
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -1557,8 +1559,14 @@ static const struct pm_platform_data mx6_arm2_pm_data __initconst = {
 	.suspend_exit	= arm2_suspend_exit,
 };
 
+static const struct asrc_p2p_params esai_p2p __initconst = {
+       .p2p_rate = 44100,
+       .p2p_width = ASRC_WIDTH_24_BIT,
+};
+
 static struct mxc_audio_platform_data sab_audio_data = {
 	.sysclk	= 16934400,
+	.priv = (void *)&esai_p2p,
 };
 
 static struct platform_device sab_audio_device = {
