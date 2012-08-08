@@ -993,8 +993,7 @@ static int hdmi_dma_hw_free(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct imx_hdmi_dma_runtime_data *params = runtime->private_data;
-	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1) &&
-							(params->dma_channel)) {
+	if (hdmi_SDMA_check() && (params->dma_channel)) {
 		dma_release_channel(params->dma_channel);
 		params->dma_channel = NULL;
 	}
@@ -1037,7 +1036,7 @@ static int hdmi_dma_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	rtd->dma_period_bytes = rtd->period_bytes * rtd->buffer_ratio;
-	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1)) {
+	if (hdmi_SDMA_check()) {
 		rtd->sdma_params.buffer_num = rtd->periods;
 		rtd->sdma_params.phyaddr = rtd->phy_hdmi_sdma_t;
 
@@ -1096,7 +1095,7 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		hdmi_dma_start();
 		hdmi_dma_irq_mask(0);
 		hdmi_set_dma_mode(1);
-		if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+		if (hdmi_SDMA_check())
 			dmaengine_submit(rtd->desc);
 		break;
 
@@ -1107,7 +1106,7 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		hdmi_dma_stop();
 		hdmi_set_dma_mode(0);
 		hdmi_dma_irq_mask(1);
-		if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+		if (hdmi_SDMA_check())
 			dmaengine_terminate_all(rtd->dma_channel);
 		break;
 
@@ -1155,7 +1154,7 @@ static void hdmi_dma_irq_enable(struct imx_hdmi_dma_runtime_data *rtd)
 	spin_lock_irqsave(&hdmi_dma_priv->irq_lock, flags);
 
 	hdmi_dma_clear_irq_status(0xff);
-	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+	if (hdmi_SDMA_check())
 		hdmi_dma_irq_mute(1);
 	else
 		hdmi_dma_irq_mute(0);
@@ -1335,7 +1334,7 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 	if (hdmi_dma_priv == NULL)
 		return -ENOMEM;
 
-	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1)) {
+	if (hdmi_SDMA_check()) {
 		/*To alloc a buffer non cacheable for hdmi script use*/
 		hdmi_dma_priv->hdmi_sdma_t =
 			dma_alloc_coherent(NULL,
@@ -1365,7 +1364,7 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to get HDMI ahb clk: %d\n", ret);
 		goto e_clk_get2;
 	}
-	if ((mx6q_revision() <= IMX_CHIP_REVISION_1_1)) {
+	if (!hdmi_SDMA_check()) {
 		if (request_irq(hdmi_dma_priv->irq, hdmi_dma_isr, IRQF_SHARED,
 				"hdmi dma", hdmi_dma_priv)) {
 			dev_err(&pdev->dev,
@@ -1395,7 +1394,7 @@ e_clk_get1:
 static int __devexit imx_soc_platform_remove(struct platform_device *pdev)
 {
 	free_irq(hdmi_dma_priv->irq, hdmi_dma_priv);
-	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1)) {
+	if (hdmi_SDMA_check()) {
 		dma_free_coherent(NULL,
 				sizeof(struct hdmi_sdma_script_data),
 				hdmi_dma_priv->hdmi_sdma_t,

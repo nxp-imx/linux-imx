@@ -40,6 +40,7 @@
 #include "../mxc/ipu3/ipu_prv.h"
 #include <linux/mfd/mxc-hdmi-core.h>
 #include <linux/fsl_devices.h>
+#include <mach/hardware.h>
 
 struct mxc_hdmi_data {
 	struct platform_device *pdev;
@@ -395,6 +396,12 @@ static void hdmi_set_clk_regenerator(void)
 
 	hdmi_set_clock_regenerator_cts(clk_cts);
 	hdmi_set_clock_regenerator_n(clk_n);
+}
+
+unsigned int hdmi_SDMA_check(void)
+{
+	return (mx6q_revision() > IMX_CHIP_REVISION_1_1) ||
+			(mx6dl_revision() > IMX_CHIP_REVISION_1_0);
 }
 
 /* Need to run this before phy is enabled the first time to prevent

@@ -49,5 +49,6 @@ extern int mxc_hdmi_disp_id;
 
 void hdmi_set_registered(int registered);
 int hdmi_get_registered(void);
+unsigned int hdmi_SDMA_check(void);
 
 #endif
