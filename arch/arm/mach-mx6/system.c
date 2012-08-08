@@ -57,9 +57,10 @@ volatile unsigned int num_cpu_idle;
 volatile unsigned int num_cpu_idle_lock = 0x0;
 int wait_mode_arm_podf;
 int cur_arm_podf;
-bool arm_mem_clked_in_wait;
 void arch_idle_with_workaround(int cpu);
 
+extern void *mx6sl_wfi_iram_base;
+extern void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr);
 extern void mx6_wait(void *num_cpu_idle_lock, void *num_cpu_idle, \
 				int wait_arm_podf, int cur_arm_podf);
 extern bool enable_wait_mode;
@@ -78,6 +79,7 @@ void gpc_set_wakeup(unsigned int irq[4])
 
 	return;
 }
+
 /* set cpu low power mode before WFI instruction */
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 {
@@ -251,25 +253,34 @@ void arch_idle_single_core(void)
 
 		ca9_do_idle();
 	} else {
-		/*
-		  * Implement the 12:5 ARM:IPG_CLK ratio
-		  * workaround for the WAIT mode issue.
-		  * We can directly use the divider to drop the ARM
-		  * core freq in a single core environment.
-		  *  Set the ARM_PODF to get the max freq possible
-		  * to avoid the WAIT mode issue when IPG is at 66MHz.
-		  */
-		if (cpu_is_mx6sl()) {
-			reg = __raw_readl(MXC_CCM_CGPR);
-			reg |= MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
-			__raw_writel(reg, MXC_CCM_CGPR);
-		}
-		__raw_writel(wait_mode_arm_podf, MXC_CCM_CACRR);
-		while (__raw_readl(MXC_CCM_CDHIPR))
-			;
-		ca9_do_idle();
+		if (low_bus_freq_mode && cpu_is_mx6sl()) {
+			u32 org_arm_podf = __raw_readl(MXC_CCM_CACRR);
 
-		__raw_writel(cur_arm_podf - 1, MXC_CCM_CACRR);
+			/* Need to run WFI code from IRAM so that
+			  * we can lower DDR freq.
+			  */
+			mx6sl_wfi_iram(org_arm_podf,
+				(unsigned long)mx6sl_wfi_iram_base);
+
+			/* Clear the chicken bit to allow memories
+			  * to be powered down
+			  */
+		} else {
+			/*
+			  * Implement the 12:5 ARM:IPG_CLK ratio
+			  * workaround for the WAIT mode issue.
+			  * We can directly use the divider to drop the ARM
+			  * core freq in a single core environment.
+			  *  Set the ARM_PODF to get the max freq possible
+			  * to avoid the WAIT mode issue when IPG is at 66MHz.
+			  */
+			__raw_writel(wait_mode_arm_podf, MXC_CCM_CACRR);
+			while (__raw_readl(MXC_CCM_CDHIPR))
+				;
+			ca9_do_idle();
+
+			__raw_writel(cur_arm_podf - 1, MXC_CCM_CACRR);
+		}
 	}
 }
 
@@ -331,7 +342,7 @@ void arch_idle(void)
 {
 	if (enable_wait_mode) {
 		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
-		if ((mem_clk_on_in_wait || arm_mem_clked_in_wait)) {
+		if (mem_clk_on_in_wait) {
 			u32 reg;
 			/*
 			  * MX6SL, MX6Q (TO1.2 or later) and

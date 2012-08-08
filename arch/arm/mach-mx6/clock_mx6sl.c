@@ -4000,6 +4000,12 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 	 * should be from OSC24M */
 	clk_set_parent(&ipg_perclk, &osc_clk);
 
+	/* Need to set IPG_PERCLK to 3MHz, so that we can
+	  * satisfy the 2.5:1 AHB:IPG_PERCLK ratio. Since AHB
+	  * can be dropped to as low as 8MHz in low power mode.
+	  */
+	clk_set_rate(&ipg_perclk, 3000000);
+
 	gpt_clk[0].parent = &ipg_perclk;
 	gpt_clk[0].get_rate = NULL;
 
