@@ -75,6 +75,9 @@ unsigned int ddr_normal_rate;
 
 int low_freq_bus_used(void);
 void set_ddr_freq(int ddr_freq);
+void *mx6sl_wfi_iram_base;
+void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr) = NULL;
+extern void mx6sl_wait (int arm_podf, unsigned long wfi_iram_addr);
 
 void *mx6sl_ddr_freq_base;
 void (*mx6sl_ddr_freq_change_iram)(int ddr_freq) = NULL;
@@ -84,7 +87,6 @@ extern int init_mmdc_settings(void);
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int update_ddr_freq(int ddr_rate);
 extern int chip_rev;
-extern bool arm_mem_clked_in_wait;
 
 DEFINE_MUTEX(bus_freq_mutex);
 
@@ -153,8 +155,6 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		u32  div;
 		unsigned long flags;
 
-		arm_mem_clked_in_wait = true;
-
 		spin_lock_irqsave(&freq_lock, flags);
 
 		/* Set periph_clk to be sourced from OSC_CLK */
@@ -177,7 +177,7 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 			;
 		clk_set_parent(pll1_sw_clk, pll1);
 
-		/* Now change DDR freq in IRAM. */
+		/* Now change DDR freq while running from IRAM. */
 		mx6sl_ddr_freq_change_iram(LPAPM_CLK);
 
 		low_bus_freq_mode = 1;
@@ -307,9 +307,6 @@ int set_high_bus_freq(int high_bus_freq)
 
 		clk_disable(pll3);
 	}
-
-	if (cpu_is_mx6sl())
-		arm_mem_clked_in_wait = false;
 
 	mutex_unlock(&bus_freq_mutex);
 	return 0;
@@ -618,7 +615,6 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	if (!cpu_is_mx6sl())
 		init_mmdc_settings();
 	else {
-#if 1
 		unsigned long iram_paddr;
 
 		/* Allocate IRAM for WFI code when system is
@@ -628,12 +624,22 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		/* Need to remap the area here since we want
 		   * the memory region to be executable.
 		   */
+		mx6sl_wfi_iram_base = __arm_ioremap(iram_paddr,
+						SZ_4K, MT_MEMORY_NONCACHED);
+		memcpy(mx6sl_wfi_iram_base, mx6sl_wait, SZ_4K);
+		mx6sl_wfi_iram = (void *)mx6sl_wfi_iram_base;
+
+		/* Allocate IRAM for WFI code when system is
+		  *in low freq mode.
+		  */
+		iram_alloc(SZ_4K, &iram_paddr);
+		/* Need to remap the area here since we want the memory region
+			 to be executable. */
 		mx6sl_ddr_freq_base = __arm_ioremap(iram_paddr,
 					SZ_4K, MT_MEMORY_NONCACHED);
 		memcpy(mx6sl_ddr_freq_base, mx6sl_ddr_iram, SZ_4K);
 		mx6sl_ddr_freq_change_iram = (void *)mx6sl_ddr_freq_base;
 
-#endif
 	}
 
 	return 0;
