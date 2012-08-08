@@ -53,6 +53,7 @@
 #include <linux/mfd/max17135.h>
 #include <sound/pcm.h>
 #include <linux/mxc_asrc.h>
+#include <linux/mfd/mxc-hdmi-core.h>
 
 
 #include <mach/common.h>
@@ -1412,7 +1413,7 @@ static void hdmi_init(int ipu_id, int disp_id)
 	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
 
 	/* Set HDMI event as SDMA event2 while Chip version later than TO1.2 */
-	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+	if (hdmi_SDMA_check())
 		mxc_iomux_set_gpr_register(0, 0, 1, 1);
 }
 
