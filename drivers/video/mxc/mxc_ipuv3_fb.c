@@ -47,6 +47,7 @@
 #include <linux/uaccess.h>
 #include <linux/fsl_devices.h>
 #include <linux/earlysuspend.h>
+#include <linux/workqueue.h>
 #include <asm/mach-types.h>
 #include <mach/ipu-v3.h>
 #include "mxc_dispdrv.h"
@@ -62,6 +63,8 @@
  * Structure containing the MXC specific framebuffer information.
  */
 struct mxcfb_info {
+	spinlock_t lock;
+	struct fb_info *fbi;
 	int default_bpp;
 	int cur_blank;
 	int next_blank;
@@ -79,6 +82,7 @@ struct mxcfb_info {
 	uint32_t alpha_mem_len;
 	uint32_t ipu_ch_irq;
 	uint32_t ipu_ch_nf_irq;
+	uint32_t ipu_vsync_pre_irq;
 	uint32_t ipu_alp_ch_irq;
 	uint32_t cur_ipu_buf;
 	uint32_t cur_ipu_alpha_buf;
@@ -96,6 +100,11 @@ struct mxcfb_info {
 	struct mxc_dispdrv_handle *dispdrv;
 
 	struct fb_var_screeninfo cur_var;
+
+	int vsync_pre_report_active;
+	ktime_t vsync_pre_timestamp;
+	struct workqueue_struct *vsync_pre_queue;
+	struct work_struct vsync_pre_work;
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend fbdrv_earlysuspend;
@@ -166,6 +175,7 @@ static struct fb_info *found_registered_fb(ipu_channel_t ipu_ch, int ipu_id)
 
 static irqreturn_t mxcfb_irq_handler(int irq, void *dev_id);
 static irqreturn_t mxcfb_nf_irq_handler(int irq, void *dev_id);
+static irqreturn_t mxcfb_vsync_pre_irq_handler(int irq, void *dev_id);
 static int mxcfb_blank(int blank, struct fb_info *info);
 static int mxcfb_map_video_memory(struct fb_info *fbi);
 static int mxcfb_unmap_video_memory(struct fb_info *fbi);
@@ -880,6 +890,35 @@ static int mxcfb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
 	return ret;
 }
 
+static void mxcfb_vsync_pre_work(struct work_struct *work)
+{
+	struct mxcfb_info *mxc_fbi =
+		container_of(work, struct mxcfb_info, vsync_pre_work);
+	char *envp[2];
+	char buf[64];
+	unsigned long flags;
+
+	spin_lock_irqsave(&mxc_fbi->lock, flags);
+	snprintf(buf, sizeof(buf), "VSYNC=%llu",
+		 ktime_to_ns(mxc_fbi->vsync_pre_timestamp));
+	spin_unlock_irqrestore(&mxc_fbi->lock, flags);
+
+	envp[0] = buf;
+	envp[1] = NULL;
+	kobject_uevent_env(&mxc_fbi->fbi->dev->kobj, KOBJ_CHANGE, envp);
+}
+
+static void mxcfb_enable_vsync_pre(struct mxcfb_info *mxc_fbi)
+{
+	ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_vsync_pre_irq);
+	ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_vsync_pre_irq);
+}
+
+static void mxcfb_disable_vsync_pre(struct mxcfb_info *mxc_fbi)
+{
+	ipu_disable_irq(mxc_fbi->ipu, mxc_fbi->ipu_vsync_pre_irq);
+}
+
 /*
  * Function to handle custom ioctls for MXC framebuffer.
  *
@@ -1265,6 +1304,27 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 
 			break;
 		}
+	case MXCFB_ENABLE_VSYNC_EVENT:
+	{
+		int enable;
+		if (get_user(enable, (int __user *)arg))
+			return -EFAULT;
+
+		if (mxc_fbi->ipu_ch == MEM_FG_SYNC)
+			return -EINVAL;
+
+		/* Only can control the vsync state when screen is not blank */
+		if (mxc_fbi->vsync_pre_report_active != enable &&
+		    mxc_fbi->cur_blank == FB_BLANK_UNBLANK) {
+			if (enable)
+				mxcfb_enable_vsync_pre(mxc_fbi);
+			else
+				mxcfb_disable_vsync_pre(mxc_fbi);
+		}
+
+		mxc_fbi->vsync_pre_report_active = enable;
+		break;
+	}
 	default:
 		retval = -EINVAL;
 	}
@@ -1568,6 +1628,19 @@ static irqreturn_t mxcfb_nf_irq_handler(int irq, void *dev_id)
 	struct mxcfb_info *mxc_fbi = fbi->par;
 
 	complete(&mxc_fbi->vsync_complete);
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t mxcfb_vsync_pre_irq_handler(int irq, void *dev_id)
+{
+	struct fb_info *fbi = dev_id;
+	struct mxcfb_info *mxc_fbi = fbi->par;
+
+	spin_lock(&mxc_fbi->lock);
+	mxc_fbi->vsync_pre_timestamp = ktime_get();
+	spin_unlock(&mxc_fbi->lock);
+	queue_work(mxc_fbi->vsync_pre_queue, &mxc_fbi->vsync_pre_work);
+
 	return IRQ_HANDLED;
 }
 
@@ -1999,6 +2072,15 @@ static int mxcfb_register(struct fb_info *fbi)
 	}
 	ipu_disable_irq(mxcfbi->ipu, mxcfbi->ipu_ch_nf_irq);
 
+	if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq,
+			    mxcfb_vsync_pre_irq_handler, 0,
+			    MXCFB_NAME, fbi) != 0) {
+		dev_err(fbi->device, "Error registering VSYNC irq handler.\n");
+		ret = -EBUSY;
+		goto err2;
+	}
+	ipu_disable_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq);
+
 	if (mxcfbi->ipu_alp_ch_irq != -1)
 		if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_alp_ch_irq,
 				mxcfb_alpha_irq_handler, IPU_IRQF_ONESHOT,
@@ -2006,7 +2088,7 @@ static int mxcfb_register(struct fb_info *fbi)
 			dev_err(fbi->device, "Error registering alpha irq "
 					"handler.\n");
 			ret = -EBUSY;
-			goto err2;
+			goto err3;
 		}
 
 	mxcfb_check_var(&fbi->var, fbi);
@@ -2034,12 +2116,14 @@ static int mxcfb_register(struct fb_info *fbi)
 
 	ret = register_framebuffer(fbi);
 	if (ret < 0)
-		goto err3;
+		goto err4;
 
 	return ret;
-err3:
+err4:
 	if (mxcfbi->ipu_alp_ch_irq != -1)
 		ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_alp_ch_irq, fbi);
+err3:
+	ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq, fbi);
 err2:
 	ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_ch_nf_irq, fbi);
 err1:
@@ -2162,6 +2246,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 	struct mxcfb_info *mxcfbi;
 	struct resource *res;
 	struct device *disp_dev;
+	char buf[32];
 	int ret = 0;
 
 	ret = mxcfb_option_setup(pdev);
@@ -2176,6 +2261,8 @@ static int mxcfb_probe(struct platform_device *pdev)
 	}
 
 	mxcfbi = (struct mxcfb_info *)fbi->par;
+	spin_lock_init(&mxcfbi->lock);
+	mxcfbi->fbi = fbi;
 	mxcfbi->ipu_int_clk = plat_data->int_clk;
 	ret = mxcfb_dispdrv_init(pdev, fbi);
 	if (ret < 0)
@@ -2200,6 +2287,18 @@ static int mxcfb_probe(struct platform_device *pdev)
 	if (IS_ERR(mxcfbi->ipu)) {
 		ret = -ENODEV;
 		goto get_ipu_failed;
+	}
+
+	/* Setup vsync pre irq */
+	switch (mxcfbi->ipu_di) {
+	case 0:
+		mxcfbi->ipu_vsync_pre_irq = IPU_IRQ_VSYNC_PRE_0;
+		break;
+	case 1:
+		mxcfbi->ipu_vsync_pre_irq = IPU_IRQ_VSYNC_PRE_1;
+		break;
+	default:
+		break;
 	}
 
 	/* first user uses DP with alpha feature */
@@ -2277,6 +2376,17 @@ static int mxcfb_probe(struct platform_device *pdev)
 				"Error %d on creating file\n", ret);
 	}
 
+	INIT_WORK(&mxcfbi->vsync_pre_work, mxcfb_vsync_pre_work);
+
+	snprintf(buf, sizeof(buf), "mxcfb%d-vsync-pre", fbi->node);
+	mxcfbi->vsync_pre_queue = create_singlethread_workqueue(buf);
+	if (mxcfbi->vsync_pre_queue == NULL) {
+		dev_err(fbi->device,
+			"Failed to alloc vsync-pre workqueue\n");
+		ret = -ENOMEM;
+		goto workqueue_alloc_failed;
+	}
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	mxcfbi->fbdrv_earlysuspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB;
 	mxcfbi->fbdrv_earlysuspend.suspend = mxcfb_early_suspend;
@@ -2292,6 +2402,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 
 	return 0;
 
+workqueue_alloc_failed:
 mxcfb_setupoverlay_failed:
 mxcfb_register_failed:
 get_ipu_failed:
