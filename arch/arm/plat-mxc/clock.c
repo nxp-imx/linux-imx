@@ -45,16 +45,7 @@
 #include <mach/hardware.h>
 
 extern int dvfs_core_is_active;
-extern int lp_high_freq;
-extern int lp_med_freq;
-extern int lp_audio_freq;
-extern int audio_bus_freq_mode;
-extern int low_bus_freq_mode;
-extern int high_bus_freq_mode;
-extern int med_bus_freq_mode;
-extern int set_high_bus_freq(int high_freq);
-extern int set_low_bus_freq(void);
-extern int low_freq_bus_used(void);
+extern void bus_freq_update(struct clk *clk, bool flag);
 
 static LIST_HEAD(clocks);
 static DEFINE_MUTEX(clocks_mutex);
@@ -113,36 +104,12 @@ int clk_enable(struct clk *clk)
 	if (clk == NULL || IS_ERR(clk))
 		return -EINVAL;
 
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq++;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq++;
-	else if (clk->flags & AHB_AUDIO_SET_POINT)
-		lp_audio_freq++;
+	if ((clk->flags & AHB_HIGH_SET_POINT) ||
+		(clk->flags & AHB_MED_SET_POINT) ||
+		(clk->flags & AHB_AUDIO_SET_POINT) ||
+		(clk->flags & CPU_FREQ_TRIG_UPDATE))
+		bus_freq_update(clk, true);
 
-	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
-			&& (clk_get_usecount(clk) == 0)) {
-		if (!(clk->flags &
-			(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT)))  {
-			if (low_freq_bus_used()) {
-				if ((clk->flags & AHB_AUDIO_SET_POINT) & !audio_bus_freq_mode)
-					set_low_bus_freq();
-				else if (!low_bus_freq_mode)
-					set_low_bus_freq();
-			}
-		} else {
-			if ((clk->flags & AHB_MED_SET_POINT)
-				&& !med_bus_freq_mode)
-				/* Set to Medium setpoint */
-				set_high_bus_freq(0);
-			else if ((clk->flags & AHB_HIGH_SET_POINT)
-				&& !high_bus_freq_mode)
-				/* Currently at low or medium set point,
-				  * need to set to high setpoint
-				  */
-				set_high_bus_freq(1);
-		}
-	}
 	mutex_lock(&clocks_mutex);
 	ret = __clk_enable(clk);
 	mutex_unlock(&clocks_mutex);
@@ -168,24 +135,15 @@ void clk_disable(struct clk *clk)
 	if (clk == NULL || IS_ERR(clk))
 		return;
 
-	if (clk->flags & AHB_HIGH_SET_POINT)
-		lp_high_freq--;
-	else if (clk->flags & AHB_MED_SET_POINT)
-		lp_med_freq--;
-	else if (clk->flags & AHB_AUDIO_SET_POINT)
-		lp_audio_freq--;
-
 	mutex_lock(&clocks_mutex);
 	__clk_disable(clk);
 	mutex_unlock(&clocks_mutex);
-	if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
-			&& (clk_get_usecount(clk) == 0)) {
-		if (low_freq_bus_used() && !low_bus_freq_mode)
-			set_low_bus_freq();
-		else
-			/* Set to either high or medium setpoint. */
-			set_high_bus_freq(0);
-	}
+
+	if ((clk->flags & AHB_HIGH_SET_POINT) ||
+		(clk->flags & AHB_MED_SET_POINT) ||
+		(clk->flags & AHB_AUDIO_SET_POINT) ||
+		(clk->flags & CPU_FREQ_TRIG_UPDATE))
+		bus_freq_update(clk, false);
 }
 
 EXPORT_SYMBOL(clk_disable);

@@ -154,6 +154,7 @@ extern int high_bus_freq_mode;
 extern int set_low_bus_freq(void);
 extern int set_high_bus_freq(int high_bus_speed);
 extern int low_freq_bus_used(void);
+extern struct mutex bus_freq_mutex;
 
 DEFINE_SPINLOCK(mxc_dvfs_core_lock);
 
@@ -603,8 +604,12 @@ static void dvfs_core_work_handler(struct work_struct *work)
 	if (fsvai == FSVAI_FREQ_DECREASE) {
 		if (curr_cpu <= cpu_op_tbl[cpu_op_nr - 1].cpu_rate) {
 			minf = 1;
-			if (low_bus_freq_mode)
+			mutex_lock(&bus_freq_mutex);
+			if (low_bus_freq_mode) {
+				mutex_unlock(&bus_freq_mutex);
 				goto END;
+			} else
+				mutex_unlock(&bus_freq_mutex);
 		} else {
 			/* freq down */
 			curr_op++;
@@ -621,6 +626,7 @@ static void dvfs_core_work_handler(struct work_struct *work)
 			maxf = 1;
 			goto END;
 		} else {
+			mutex_lock(&bus_freq_mutex);
 			if (!high_bus_freq_mode &&
 				dvfs_config_setpoint == (cpu_op_nr + 1)) {
 				/* bump up LP freq first. */
@@ -633,24 +639,30 @@ static void dvfs_core_work_handler(struct work_struct *work)
 				minf = 0;
 				dvfs_load_config(0);
 			}
+			mutex_unlock(&bus_freq_mutex);
 		}
 	}
 
 	low_freq_bus_ready = low_freq_bus_used();
+	mutex_lock(&bus_freq_mutex);
 	if ((curr_op == cpu_op_nr - 1) && (!low_bus_freq_mode)
 	    && (low_freq_bus_ready) && !bus_incr) {
+		mutex_unlock(&bus_freq_mutex);
 		if (!minf)
 			set_cpu_freq(curr_op);
 		/* If dvfs_core_op is greater than cpu_op_nr, it implies
 		 * we support LPAPM mode for this platform.
 		 */
 		if (dvfs_core_op > cpu_op_nr) {
+			mutex_lock(&bus_freq_mutex);
 			set_low_bus_freq();
+			mutex_unlock(&bus_freq_mutex);
 			dvfs_load_config(cpu_op_nr + 1);
 		}
 	} else {
 		if (!high_bus_freq_mode)
 			set_high_bus_freq(1);
+		mutex_unlock(&bus_freq_mutex);
 		if (!bus_incr)
 			ret = set_cpu_freq(curr_op);
 		bus_incr = 0;
@@ -722,8 +734,10 @@ void stop_dvfs(void)
 				  + MXC_DVFSCORE_CNTR);
 
 		curr_op = 0;
+		mutex_lock(&bus_freq_mutex);
 		if (!high_bus_freq_mode)
 			set_high_bus_freq(1);
+		mutex_unlock(&bus_freq_mutex);
 
 		curr_cpu = clk_get_rate(cpu_clk);
 		if (curr_cpu != cpu_op_tbl[curr_op].cpu_rate) {

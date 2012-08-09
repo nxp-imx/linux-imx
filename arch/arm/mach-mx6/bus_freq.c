@@ -81,7 +81,7 @@ extern int update_ddr_freq(int ddr_rate);
 extern int chip_rev;
 extern bool arm_mem_clked_in_wait;
 
-struct mutex bus_freq_mutex;
+DEFINE_MUTEX(bus_freq_mutex);
 
 struct timeval start_time;
 struct timeval end_time;
@@ -112,21 +112,6 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 
 	if (audio_bus_freq_mode && lp_audio_freq)
 		return;
-
-	while (!mutex_trylock(&bus_freq_mutex))
-		msleep(1);
-
-	/* PLL3 is used in the DDR freq change process, enable it. */
-
-	if (low_bus_freq_mode || !low_freq_bus_used()) {
-		mutex_unlock(&bus_freq_mutex);
-		return;
-	}
-
-	if (audio_bus_freq_mode && lp_audio_freq) {
-		mutex_unlock(&bus_freq_mutex);
-		return;
-	}
 
 	if (!cpu_is_mx6sl()) {
 		clk_enable(pll3);
@@ -188,8 +173,6 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 
 	high_bus_freq_mode = 0;
 	med_bus_freq_mode = 0;
-
-	mutex_unlock(&bus_freq_mutex);
 }
 /* Set the DDR, AHB to 24MHz.
   * This mode will be activated only when none of the modules that
@@ -235,15 +218,10 @@ int set_high_bus_freq(int high_bus_freq)
 	if (cpu_is_mx6dl() && med_bus_freq_mode)
 		return 0;
 
-	while (!mutex_trylock(&bus_freq_mutex))
-		msleep(1);
-
 	if ((high_bus_freq_mode && (high_bus_freq || lp_high_freq)) ||
 	    (med_bus_freq_mode && !high_bus_freq && lp_med_freq &&
-	     !lp_high_freq)) {
-		mutex_unlock(&bus_freq_mutex);
+	     !lp_high_freq))
 		return 0;
-	}
 
 	if (cpu_is_mx6sl()) {
 		/* Set the voltage of VDDSOC to 1.2V as in normal mode. */
@@ -315,8 +293,6 @@ int set_high_bus_freq(int high_bus_freq)
 	if (cpu_is_mx6sl())
 		arm_mem_clked_in_wait = false;
 
-	mutex_unlock(&bus_freq_mutex);
-
 	return 0;
 }
 
@@ -341,6 +317,61 @@ int low_freq_bus_used(void)
 		return 0;
 }
 
+void bus_freq_update(struct clk *clk, bool flag)
+{
+	mutex_lock(&bus_freq_mutex);
+	if (flag) {
+		/* Update count */
+		if (clk->flags & AHB_HIGH_SET_POINT)
+			lp_high_freq++;
+		else if (clk->flags & AHB_MED_SET_POINT)
+			lp_med_freq++;
+		else if (clk->flags & AHB_AUDIO_SET_POINT)
+			lp_audio_freq++;
+		/* Update bus freq */
+		if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+			&& (clk_get_usecount(clk) == 0)) {
+			if (!(clk->flags &
+				(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT)))  {
+			if (low_freq_bus_used()) {
+				if ((clk->flags & AHB_AUDIO_SET_POINT) & !audio_bus_freq_mode)
+					set_low_bus_freq();
+				else if (!low_bus_freq_mode)
+					set_low_bus_freq();
+			}
+		} else {
+			if ((clk->flags & AHB_MED_SET_POINT)
+				&& !med_bus_freq_mode)
+				/* Set to Medium setpoint */
+				set_high_bus_freq(0);
+			else if ((clk->flags & AHB_HIGH_SET_POINT)
+				&& !high_bus_freq_mode)
+				/* Currently at low or medium set point,
+				* need to set to high setpoint
+				*/
+				set_high_bus_freq(1);
+			}
+		}
+	} else {
+		/* Update count */
+		if (clk->flags & AHB_HIGH_SET_POINT)
+			lp_high_freq--;
+		else if (clk->flags & AHB_MED_SET_POINT)
+			lp_med_freq--;
+		else if (clk->flags & AHB_AUDIO_SET_POINT)
+			lp_audio_freq--;
+		/* Update bus freq */
+		if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+			&& (clk_get_usecount(clk) == 0)) {
+			if (low_freq_bus_used() && !low_bus_freq_mode)
+				set_low_bus_freq();
+			else
+				/* Set to either high or medium setpoint. */
+				set_high_bus_freq(0);
+		}
+	}
+	mutex_unlock(&bus_freq_mutex);
+}
 void setup_pll(void)
 {
 }
@@ -520,8 +551,6 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	}
 
 	INIT_DELAYED_WORK(&low_bus_freq_handler, reduce_bus_freq_handler);
-
-	mutex_init(&bus_freq_mutex);
 
 	if (!cpu_is_mx6sl())
 		init_mmdc_settings();
