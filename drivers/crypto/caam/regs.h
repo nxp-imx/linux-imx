@@ -297,6 +297,7 @@ struct rngtst {
 /* RNG4 TRNG test registers */
 struct rng4tst {
 #define RTMCTL_PRGM 0x00010000	/* 1 -> program mode, 0 -> run mode */
+#define RTMCTL_OSC_DIV_MASK 0xc	/* select oscillator divider value */
 	u32 rtmctl;		/* misc. control register */
 	u32 rtscmisc;		/* statistical check misc. register */
 	u32 rtpkrrng;		/* poker range register */
