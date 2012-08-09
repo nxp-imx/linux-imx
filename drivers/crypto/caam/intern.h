@@ -12,6 +12,9 @@
 #define JOBR_UNASSIGNED 0
 #define JOBR_ASSIGNED 1
 
+/* Default clock/sample settings for an RNG4 entropy source */
+#define RNG4_ENT_CLOCKS_SAMPLE 1600
+
 /* Currently comes from Kconfig param as a ^2 (driver-required) */
 #define JOBR_DEPTH (1 << CONFIG_CRYPTO_DEV_FSL_CAAM_RINGSIZE)
 
