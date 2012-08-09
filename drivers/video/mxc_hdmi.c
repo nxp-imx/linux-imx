@@ -2113,6 +2113,9 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 
 	hdmi->dft_mode_set = false;
 
+	/* Setting HDMI default to blank state */
+	hdmi->blank = FB_BLANK_POWERDOWN;
+
 	setting->dev_id = mxc_hdmi_ipu_id;
 	setting->disp_id = mxc_hdmi_disp_id;
 	setting->if_fmt = IPU_PIX_FMT_RGB24;
