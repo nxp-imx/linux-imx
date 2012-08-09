@@ -30,6 +30,7 @@
 #include <mach/clock.h>
 #include <asm/proc-fns.h>
 #include <asm/system.h>
+#include <asm/hardware/gic.h>
 #include "crm_regs.h"
 #include "regs-anadig.h"
 
@@ -219,6 +220,13 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 extern int tick_broadcast_oneshot_active(void);
 
+void ca9_do_idle(void)
+{
+	do {
+		cpu_do_idle();
+	} while (__raw_readl(gic_cpu_base_addr + GIC_CPU_HIGHPRI) == 1023);
+}
+
 void arch_idle_single_core(void)
 {
 	u32 reg;
@@ -232,7 +240,7 @@ void arch_idle_single_core(void)
 		reg |= MXC_CCM_CGPR_WAIT_MODE_FIX;
 		__raw_writel(reg, MXC_CCM_CGPR);
 
-		cpu_do_idle();
+		ca9_do_idle();
 	} else {
 		/*
 		  * Implement the 12:5 ARM:IPG_CLK ratio
@@ -250,7 +258,7 @@ void arch_idle_single_core(void)
 		__raw_writel(wait_mode_arm_podf, MXC_CCM_CACRR);
 		while (__raw_readl(MXC_CCM_CDHIPR))
 			;
-		cpu_do_idle();
+		ca9_do_idle();
 
 		__raw_writel(cur_arm_podf - 1, MXC_CCM_CACRR);
 	}
@@ -258,7 +266,6 @@ void arch_idle_single_core(void)
 
 void arch_idle_with_workaround(cpu)
 {
-	u32 reg;
 	u32 podf = wait_mode_arm_podf;
 
 	*((char *)(&num_cpu_idle_lock) + (char)cpu) = 0x0;
@@ -302,7 +309,7 @@ void arch_idle_multi_core(void)
 		reg |= MXC_CCM_CGPR_WAIT_MODE_FIX;
 		__raw_writel(reg, MXC_CCM_CGPR);
 
-		cpu_do_idle();
+		ca9_do_idle();
 	} else
 		arch_idle_with_workaround(cpu);
 #ifdef CONFIG_LOCAL_TIMERS
@@ -329,7 +336,7 @@ void arch_idle(void)
 			reg &= ~MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
 			__raw_writel(reg, MXC_CCM_CGPR);
 
-			cpu_do_idle();
+			ca9_do_idle();
 		} else if (num_possible_cpus() == 1)
 			/* iMX6SL or iMX6DLS */
 			arch_idle_single_core();
@@ -337,7 +344,7 @@ void arch_idle(void)
 			arch_idle_multi_core();
 	} else {
 		mxc_cpu_lp_set(WAIT_CLOCKED);
-		cpu_do_idle();
+		ca9_do_idle();
 	}
 }
 
