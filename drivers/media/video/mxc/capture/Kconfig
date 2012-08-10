@@ -130,7 +130,6 @@ choice
 config MXC_IPU_DEVICE_QUEUE_SDC
 	tristate "Queue ipu device for overlay library"
 	depends on VIDEO_MXC_IPU_CAMERA
-	default y
 	---help---
 	  Use case CSI->MEM->IPU DEVICE->SDC:
 		Images from sensor will be frist recieved in memory,then
@@ -140,7 +139,6 @@ config MXC_IPU_DEVICE_QUEUE_SDC
 config MXC_IPU_PRP_VF_SDC
 	bool "Pre-Processor VF SDC library"
 	depends on VIDEO_MXC_IPU_CAMERA
-	default n
 	---help---
 	  Use case PRP_VF_SDC:
 		Preprocessing image from smart sensor for viewfinder and
