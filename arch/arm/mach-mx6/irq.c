@@ -81,6 +81,10 @@ static struct irq_tuner mxc_irq_tuner[] = {
 	 .up_threshold = 10,
 	 .enable = 1,},
 	{
+	 .irq_number = 150, /* ENET */
+	 .up_threshold = 4,
+	 .enable = 1,},
+	{
 	 .irq_number = 0, /* END */
 	 .up_threshold = 0,
 	 .enable = 0,},
