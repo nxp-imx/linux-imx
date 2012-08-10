@@ -909,6 +909,9 @@ void _ipu_dp_dc_enable(struct ipu_soc *ipu, ipu_channel_t channel)
 		reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
 		ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 		return;
+	} else if (channel == MEM_BG_SYNC) {
+		reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
+		ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 	}
 
 	di = ipu->dc_di_assignment[dc_chan];
