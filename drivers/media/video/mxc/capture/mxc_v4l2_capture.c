@@ -1732,6 +1732,8 @@ static int mxc_v4l_close(struct file *file)
 		return -EBADF;
 	}
 
+	down(&cam->busy_lock);
+
 	/* for the case somebody hit the ctrl C */
 	if (cam->overlay_pid == current->pid && cam->overlay_on) {
 		err = stop_preview(cam);
@@ -1771,6 +1773,8 @@ static int mxc_v4l_close(struct file *file)
 		mxc_free_frames(cam);
 		cam->enc_counter++;
 	}
+
+	up(&cam->busy_lock);
 
 	return err;
 }
@@ -2793,6 +2797,8 @@ static int mxc_v4l2_suspend(struct platform_device *pdev, pm_message_t state)
 		return -1;
 	}
 
+	down(&cam->busy_lock);
+
 	cam->low_power = true;
 
 	if (cam->overlay_on == true)
@@ -2801,8 +2807,10 @@ static int mxc_v4l2_suspend(struct platform_device *pdev, pm_message_t state)
 		cam->enc_disable(cam);
 	}
 
-	if (cam->sensor)
+	if (cam->sensor && cam->open_count)
 		vidioc_int_s_power(cam->sensor, 0);
+
+	up(&cam->busy_lock);
 
 	return 0;
 }
@@ -2826,16 +2834,20 @@ static int mxc_v4l2_resume(struct platform_device *pdev)
 		return -1;
 	}
 
+	down(&cam->busy_lock);
+
 	cam->low_power = false;
 	wake_up_interruptible(&cam->power_queue);
 
-	if (cam->sensor)
+	if (cam->sensor && cam->open_count)
 		vidioc_int_s_power(cam->sensor, 1);
 
 	if (cam->overlay_on == true)
 		start_preview(cam);
 	if (cam->capture_on == true)
 		mxc_streamon(cam);
+
+	up(&cam->busy_lock);
 
 	return 0;
 }
