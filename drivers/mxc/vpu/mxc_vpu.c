@@ -821,6 +821,10 @@ static int vpu_resume(struct platform_device *pdev)
 
 		clk_enable(vpu_clk);
 
+		/* reset VPU in case of voltage change */
+		if (vpu_plat->reset)
+			vpu_plat->reset();
+
 		pc = READ_REG(BIT_CUR_PC);
 		if (pc) {
 			clk_disable(vpu_clk);

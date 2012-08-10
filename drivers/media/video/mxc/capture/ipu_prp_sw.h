@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -26,9 +26,14 @@ int csi_enc_select(void *private);
 int csi_enc_deselect(void *private);
 int prp_enc_select(void *private);
 int prp_enc_deselect(void *private);
+#ifdef CONFIG_MXC_IPU_PRP_VF_SDC
 int prp_vf_sdc_select(void *private);
-int prp_vf_sdc_select_bg(void *private);
 int prp_vf_sdc_deselect(void *private);
+#else
+int foreground_sdc_select(void *private);
+int foreground_sdc_deselect(void *private);
+#endif
+int prp_vf_sdc_select_bg(void *private);
 int prp_vf_sdc_deselect_bg(void *private);
 int prp_still_select(void *private);
 int prp_still_deselect(void *private);

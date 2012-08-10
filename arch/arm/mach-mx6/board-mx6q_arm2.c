@@ -53,6 +53,9 @@
 #include <linux/regulator/fixed.h>
 #include <linux/mfd/max17135.h>
 #include <sound/pcm.h>
+#include <linux/mxc_asrc.h>
+#include <linux/mfd/mxc-hdmi-core.h>
+
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -1411,7 +1414,7 @@ static void hdmi_init(int ipu_id, int disp_id)
 	mxc_iomux_set_gpr_register(3, 2, 2, hdmi_mux_setting);
 
 	/* Set HDMI event as SDMA event2 while Chip version later than TO1.2 */
-	if ((mx6q_revision() > IMX_CHIP_REVISION_1_1))
+	if (hdmi_SDMA_check())
 		mxc_iomux_set_gpr_register(0, 0, 1, 1);
 }
 
@@ -1569,8 +1572,14 @@ static const struct pm_platform_data mx6_arm2_pm_data __initconst = {
 	.suspend_exit	= arm2_suspend_exit,
 };
 
+static const struct asrc_p2p_params esai_p2p __initconst = {
+       .p2p_rate = 44100,
+       .p2p_width = ASRC_WIDTH_24_BIT,
+};
+
 static struct mxc_audio_platform_data sab_audio_data = {
 	.sysclk	= 16934400,
+	.priv = (void *)&esai_p2p,
 };
 
 static struct platform_device sab_audio_device = {

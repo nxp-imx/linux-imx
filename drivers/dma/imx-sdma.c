@@ -760,7 +760,6 @@ static int sdma_set_chan_private_data(struct sdma_channel *sdmac)
 static int sdma_config_channel(struct sdma_channel *sdmac)
 {
 	int ret;
-	struct imx_dma_data *data = sdmac->chan.private;
 
 	sdma_disable_channel(sdmac);
 
