@@ -1159,6 +1159,11 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 				else
 					pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
 			}
+			if (cpu_op_tbl[i].cpu_podf) {
+				__raw_writel(cpu_op_tbl[i].cpu_podf, MXC_CCM_CACRR);
+				while (__raw_readl(MXC_CCM_CDHIPR))
+							;
+			}
 			pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
 		}
 		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
