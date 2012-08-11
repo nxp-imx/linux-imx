@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -136,6 +136,10 @@ struct dvfs_op {
 struct mxc_dvfs_platform_data {
 	/** Supply voltage regulator name string */
 	char *reg_id;
+	/*vdd_soc regulator name string*/
+	char *soc_id;
+	/*vdd_pu regulator name string*/
+	char *pu_id;
 	/* CPU clock name string */
 	char *clk1_id;
 	/* DVFS clock name string */

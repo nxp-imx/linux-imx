@@ -253,6 +253,8 @@ struct cpu_op {
 	u32 mfi;
 	u32 mfd;
 	u32 mfn;
+	u32 pu_voltage;
+	u32 soc_voltage;
 	u32 cpu_voltage;
 	u32 cpu_podf;
 };

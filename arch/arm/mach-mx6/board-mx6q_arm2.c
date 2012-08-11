@@ -169,6 +169,8 @@ static int disable_mipi_dsi;
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
 extern char *gp_reg_id;
+extern char *soc_reg_id;
+extern char *pu_reg_id;
 extern int epdc_enabled;
 extern void mx6_cpu_regulator_init(void);
 static int max17135_regulator_init(struct max17135 *max17135);
@@ -1881,6 +1883,8 @@ static struct mxc_mlb_platform_data mx6_arm2_mlb150_data = {
 
 static struct mxc_dvfs_platform_data arm2_dvfscore_data = {
 	.reg_id			= "cpu_vddgp",
+	.soc_id			= "cpu_vddsoc",
+	.pu_id			= "cpu_vddvpu",
 	.clk1_id		= "cpu_clk",
 	.clk2_id		= "gpc_dvfs_clk",
 	.gpc_cntr_offset	= MXC_GPC_CNTR_OFFSET,
@@ -2075,6 +2079,8 @@ static void __init mx6_arm2_init(void)
 	 */
 
 	gp_reg_id = arm2_dvfscore_data.reg_id;
+	soc_reg_id = arm2_dvfscore_data.soc_id;
+	pu_reg_id = arm2_dvfscore_data.pu_id;
 	mx6_arm2_init_uart();
 
 

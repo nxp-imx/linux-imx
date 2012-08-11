@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -26,7 +26,11 @@
 #include <mach/hardware.h>
 
 struct regulator *cpu_regulator;
+struct regulator *soc_regulator;
+struct regulator *pu_regulator;
 char *gp_reg_id;
+char *soc_reg_id;
+char *pu_reg_id;
 static struct clk *cpu_clk;
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
@@ -98,5 +102,11 @@ void mx6_cpu_regulator_init(void)
 #endif
 		}
 	}
+	soc_regulator = regulator_get(NULL, soc_reg_id);
+	if (IS_ERR(soc_regulator))
+		printk(KERN_ERR "%s: failed to get soc regulator\n", __func__);
+	pu_regulator = regulator_get(NULL, pu_reg_id);
+	if (IS_ERR(pu_regulator))
+		printk(KERN_ERR "%s: failed to get pu regulator\n", __func__);
 }
 
