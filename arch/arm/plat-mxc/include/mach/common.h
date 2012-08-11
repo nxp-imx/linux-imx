@@ -89,7 +89,6 @@ extern void mx51_efikamx_reset(void);
 extern int mx53_revision(void);
 extern int mx50_revision(void);
 extern int mx53_display_revision(void);
-extern unsigned long mx6_timer_rate(void);
 extern int mxs_reset_block(void __iomem *);
 extern void early_console_setup(unsigned long base, struct clk *clk);
 extern void mx6_cpu_regulator_init(void);
