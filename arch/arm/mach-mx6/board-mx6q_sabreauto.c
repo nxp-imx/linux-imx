@@ -136,6 +136,10 @@
 #define SABREAUTO_USB_OTG_PWR		SABREAUTO_IO_EXP_GPIO3(1)
 #define BMCR_PDOWN			0x0800 /* PHY Powerdown */
 
+extern char *gp_reg_id;
+extern char *soc_reg_id;
+extern char *pu_reg_id;
+
 static int mma8451_position = 3;
 static struct clk *sata_clk;
 static int mipi_sensor;
@@ -1256,6 +1260,8 @@ static struct mxc_mlb_platform_data mx6_sabreauto_mlb150_data = {
 
 static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
 	.reg_id			= "cpu_vddgp",
+	.soc_id			= "cpu_vddsoc",
+	.pu_id			= "cpu_vddvpu",
 	.clk1_id		= "cpu_clk",
 	.clk2_id 		= "gpc_dvfs_clk",
 	.gpc_cntr_offset 	= MXC_GPC_CNTR_OFFSET,
@@ -1479,6 +1485,8 @@ static void __init mx6_board_init(void)
 	}
 
 	gp_reg_id = sabreauto_dvfscore_data.reg_id;
+	soc_reg_id = sabreauto_dvfscore_data.soc_id;
+	pu_reg_id = sabreauto_dvfscore_data.pu_id;
 	mx6q_sabreauto_init_uart();
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	if (cpu_is_mx6dl()) {

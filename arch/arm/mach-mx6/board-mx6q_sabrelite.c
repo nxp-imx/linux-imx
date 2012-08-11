@@ -101,6 +101,8 @@ void __init early_console_setup(unsigned long base, struct clk *clk);
 static struct clk *sata_clk;
 
 extern char *gp_reg_id;
+extern char *soc_reg_id;
+extern char *pu_reg_id;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -1066,6 +1068,8 @@ static struct platform_pwm_backlight_data mx6_sabrelite_pwm_backlight_data = {
 
 static struct mxc_dvfs_platform_data sabrelite_dvfscore_data = {
 	.reg_id = "cpu_vddgp",
+	.soc_id = "cpu_vddsoc",
+	.pu_id = "cpu_vddvpu",
 	.clk1_id = "cpu_clk",
 	.clk2_id = "gpc_dvfs_clk",
 	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
@@ -1125,6 +1129,8 @@ static void __init mx6_sabrelite_board_init(void)
 #endif
 
 	gp_reg_id = sabrelite_dvfscore_data.reg_id;
+	soc_reg_id = sabrelite_dvfscore_data.soc_id;
+	pu_reg_id = sabrelite_dvfscore_data.pu_id;
 	mx6q_sabrelite_init_uart();
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 

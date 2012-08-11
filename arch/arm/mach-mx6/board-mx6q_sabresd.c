@@ -207,6 +207,8 @@ static int enable_lcd_ldb;
 
 
 extern char *gp_reg_id;
+extern char *soc_reg_id;
+extern char *pu_reg_id;
 extern int epdc_enabled;
 
 static int max17135_regulator_init(struct max17135 *max17135);
@@ -1583,6 +1585,8 @@ static struct mxc_dvfs_platform_data sabresd_dvfscore_data = {
 	.reg_id = "VDDCORE",
 	#else
 	.reg_id = "cpu_vddgp",
+	.soc_id = "cpu_vddsoc",
+	.pu_id = "cpu_vddvpu",
 	#endif
 	.clk1_id = "cpu_clk",
 	.clk2_id = "gpc_dvfs_clk",
@@ -1673,6 +1677,8 @@ static void __init mx6_sabresd_board_init(void)
 #endif
 
 	gp_reg_id = sabresd_dvfscore_data.reg_id;
+	soc_reg_id = sabresd_dvfscore_data.soc_id;
+	pu_reg_id = sabresd_dvfscore_data.pu_id;
 	mx6q_sabresd_init_uart();
 
 	/*

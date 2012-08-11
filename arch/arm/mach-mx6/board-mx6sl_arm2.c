@@ -133,6 +133,9 @@ static int spdc_sel;
 static int max17135_regulator_init(struct max17135 *max17135);
 struct clk *extern_audio_root;
 
+extern char *gp_reg_id;
+extern char *soc_reg_id;
+extern char *pu_reg_id;
 extern int __init mx6sl_arm2_init_pfuze100(u32 int_gpio);
 
 enum sd_pad_mode {
@@ -632,7 +635,13 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 };
 
 static struct mxc_dvfs_platform_data mx6sl_arm2_dvfscore_data = {
+	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	.reg_id			= "VDDCORE",
+	#else
 	.reg_id			= "cpu_vddgp",
+	.soc_id			= "cpu_vddsoc",
+	.pu_id			= "cpu_vddvpu",
+	#endif
 	.clk1_id		= "cpu_clk",
 	.clk2_id		= "gpc_dvfs_clk",
 	.gpc_cntr_offset	= MXC_GPC_CNTR_OFFSET,
@@ -1228,9 +1237,11 @@ static void __init mx6_arm2_init(void)
 	elan_ts_init();
 
 	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	gp_reg_id = "VDDCORE";
+	gp_reg_id = mx6sl_arm2_dvfscore_data.reg_id;
 	#else
-	gp_reg_id = "cpu_vddgp";
+	gp_reg_id = mx6sl_arm2_dvfscore_data.reg_id;
+	soc_reg_id = mx6sl_arm2_dvfscore_data.soc_id;
+	pu_reg_id = mx6sl_arm2_dvfscore_data.pu_id;
 	mx6_cpu_regulator_init();
 	#endif
 

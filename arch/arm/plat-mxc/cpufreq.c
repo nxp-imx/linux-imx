@@ -42,6 +42,7 @@ static int cpu_freq_suspend_in;
 static struct mutex set_cpufreq_lock;
 #endif
 
+static int soc_regulator_set;
 static int cpu_freq_khz_min;
 static int cpu_freq_khz_max;
 
@@ -53,6 +54,8 @@ static struct cpu_op *cpu_op_tbl;
 static u32 pre_suspend_rate;
 
 extern struct regulator *cpu_regulator;
+extern struct regulator *soc_regulator;
+extern struct regulator *pu_regulator;
 extern int dvfs_core_is_active;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int low_bus_freq_mode;
@@ -68,14 +71,19 @@ int set_cpu_freq(int freq)
 	int i, ret = 0;
 	int org_cpu_rate;
 	int gp_volt = 0;
+	int soc_volt = 0;
+	int pu_volt = 0;
 
 	org_cpu_rate = clk_get_rate(cpu_clk);
 	if (org_cpu_rate == freq)
 		return ret;
 
 	for (i = 0; i < cpu_op_nr; i++) {
-		if (freq == cpu_op_tbl[i].cpu_rate)
+		if (freq == cpu_op_tbl[i].cpu_rate) {
 			gp_volt = cpu_op_tbl[i].cpu_voltage;
+			soc_volt = cpu_op_tbl[i].soc_voltage;
+			pu_volt = cpu_op_tbl[i].pu_voltage;
+		}
 	}
 
 	if (gp_volt == 0)
@@ -91,6 +99,21 @@ int set_cpu_freq(int freq)
 		if (low_bus_freq_mode || audio_bus_freq_mode)
 			set_high_bus_freq(0);
 		mutex_unlock(&bus_freq_mutex);
+		if (freq == cpu_op_tbl[0].cpu_rate && soc_regulator && pu_regulator) {
+			ret = regulator_set_voltage(soc_regulator, soc_volt,
+							soc_volt);
+			if (ret < 0) {
+				printk(KERN_DEBUG "COULD NOT SET SOC VOLTAGE!!!!\n");
+				return ret;
+			}
+			ret = regulator_set_voltage(pu_regulator, pu_volt,
+							pu_volt);
+			if (ret < 0) {
+				printk(KERN_DEBUG "COULD NOT SET PU VOLTAGE!!!!\n");
+				return ret;
+			}
+			soc_regulator_set = 1;
+		}
 		ret = regulator_set_voltage(cpu_regulator, gp_volt,
 					    gp_volt);
 		if (ret < 0) {
@@ -111,6 +134,21 @@ int set_cpu_freq(int freq)
 		if (ret < 0) {
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
+		}
+		if (soc_regulator_set && soc_regulator && pu_regulator) {
+			ret = regulator_set_voltage(soc_regulator, soc_volt,
+							soc_volt);
+			if (ret < 0) {
+				printk(KERN_DEBUG "COULD NOT SET SOC VOLTAGE BACK!!!!\n");
+				return ret;
+			}
+			ret = regulator_set_voltage(pu_regulator, pu_volt,
+							pu_volt);
+			if (ret < 0) {
+				printk(KERN_DEBUG "COULD NOT SET PU VOLTAGE!!!!\n");
+				return ret;
+			}
+			soc_regulator_set = 0;
 		}
 		mutex_lock(&bus_freq_mutex);
 		if (low_freq_bus_used() &&
