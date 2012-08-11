@@ -82,6 +82,11 @@ DEFINE_SPINLOCK(mx6sl_clk_lock);
 #define V2_TCN			0x24
 #define V2_TSTAT		0x08
 #define V2_TSTAT_ROV	(1 << 5)
+#define V2_TCTL_CLK_OSC_DIV8	 (5 << 6)
+#define MXC_TCTL		0x00
+#define MXC_TPRER		0x04
+#define V2_TPRER_PRE24M_OFFSET	12
+#define V2_TPRER_PRE24M_MASK	0xF
 
 /* We need to check the exp status again after timer expiration,
  * as there might be interrupt coming between the first time exp
@@ -1759,6 +1764,29 @@ static struct clk sdma_clk[] = {
 #endif
 	},
 };
+
+static unsigned long mx6_timer_rate()
+{
+	u32 parent_rate = clk_get_rate(&osc_clk);
+
+	u32 reg = __raw_readl(timer_base + MXC_TCTL);
+	u32 div;
+
+	if ((reg & V2_TCTL_CLK_OSC_DIV8) == V2_TCTL_CLK_OSC_DIV8) {
+		if (cpu_is_mx6q())
+			/* For MX6Q, only options are 24MHz or 24MHz/8*/
+			return parent_rate / 8;
+		else {
+			/* For MX6DLS and MX6Solo, the rate is based on the
+			  * divider value set in prescalar register. */
+			div = __raw_readl(timer_base + MXC_TPRER);
+			div = (div >> V2_TPRER_PRE24M_OFFSET) &
+					V2_TPRER_PRE24M_MASK;
+			return parent_rate / (div + 1);
+		}
+	}
+	return 0;
+}
 
 static unsigned long _clk_gpt_get_rate(struct clk *clk)
 {

@@ -294,34 +294,6 @@ static int __init mxc_clockevent_init(struct clk *timer_clk)
 	return 0;
 }
 
-#ifdef CONFIG_ARCH_MX6
-unsigned long mx6_timer_rate()
-{
-	struct clk *osc_clk = clk_get(NULL, "osc");
-	u32 parent_rate = clk_get_rate(osc_clk);
-
-	u32 reg = __raw_readl(timer_base + MXC_TCTL);
-	u32 div;
-
-	clk_put(osc_clk);
-
-	if ((reg & V2_TCTL_CLK_OSC_DIV8) == V2_TCTL_CLK_OSC_DIV8) {
-		if (cpu_is_mx6q())
-			/* For MX6Q, only options are 24MHz or 24MHz/8*/
-			return parent_rate / 8;
-		else {
-			/* For MX6DLS and MX6Solo, the rate is based on the
-			  * divider value set in prescalar register. */
-			div = __raw_readl(timer_base + MXC_TPRER);
-			div = (div >> V2_TPRER_PRE24M_OFFSET) &
-					V2_TPRER_PRE24M_MASK;
-			return parent_rate / (div + 1);
-		}
-	}
-	return 0;
-}
-#endif
-
 void __init mxc_timer_init(struct clk *timer_clk, void __iomem *base, int irq)
 {
 	uint32_t tctl_val;
