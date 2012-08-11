@@ -1337,7 +1337,7 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 	if (hdmi_SDMA_check()) {
 		/*To alloc a buffer non cacheable for hdmi script use*/
 		hdmi_dma_priv->hdmi_sdma_t =
-			dma_alloc_coherent(NULL,
+			dma_alloc_noncacheable(NULL,
 				sizeof(struct hdmi_sdma_script_data),
 				&hdmi_dma_priv->phy_hdmi_sdma_t,
 				GFP_KERNEL);
