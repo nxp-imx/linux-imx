@@ -145,19 +145,22 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		/* Power down and power up sequence */
 		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
-
-		/* dormant mode, need to power off the arm core */
 		if (stop_mode == 2) {
+			/* dormant mode, need to power off the arm core */
 			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
-			__raw_writel(0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-			__raw_writel(0x1, gpc_base + GPC_CNTR_OFFSET);
 			if (cpu_is_mx6q() || cpu_is_mx6dl()) {
-				/* Enable weak 2P5 linear regulator */
-				anatop_val = __raw_readl(anatop_base +
-					HW_ANADIG_REG_2P5);
-				anatop_val |= BM_ANADIG_REG_2P5_ENABLE_WEAK_LINREG;
-				__raw_writel(anatop_val, anatop_base +
-					HW_ANADIG_REG_2P5);
+				/* If stop_mode_config is clear, then 2P5 will be off,
+				need to enable weak 2P5, as DDR IO need 2P5 as
+				pre-driver */
+				if ((__raw_readl(anatop_base + HW_ANADIG_ANA_MISC0)
+					& BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG) == 0) {
+					/* Enable weak 2P5 linear regulator */
+					anatop_val = __raw_readl(anatop_base +
+						HW_ANADIG_REG_2P5);
+					anatop_val |= BM_ANADIG_REG_2P5_ENABLE_WEAK_LINREG;
+					__raw_writel(anatop_val, anatop_base +
+						HW_ANADIG_REG_2P5);
+				}
 				if (mx6q_revision() != IMX_CHIP_REVISION_1_0) {
 					/* Enable fet_odrive */
 					anatop_val = __raw_readl(anatop_base +
@@ -182,16 +185,22 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 				reg |= MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
 				__raw_writel(reg, MXC_CCM_CGPR);
 			}
-
-			if (!cpu_is_mx6dl())
+			/* DL's TO1.0 can't support DSM mode due to ipg glitch */
+			if (mx6dl_revision() != IMX_CHIP_REVISION_1_0)
 				__raw_writel(__raw_readl(MXC_CCM_CCR) |
 					MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
+
 			/* Make sure we clear WB_COUNT and re-config it */
 			__raw_writel(__raw_readl(MXC_CCM_CCR) &
-				(~MXC_CCM_CCR_WB_COUNT_MASK), MXC_CCM_CCR);
-			udelay(50);
-			__raw_writel(__raw_readl(MXC_CCM_CCR) | (0x1 <<
-				MXC_CCM_CCR_WB_COUNT_OFFSET), MXC_CCM_CCR);
+				(~MXC_CCM_CCR_WB_COUNT_MASK) &
+				(~MXC_CCM_CCR_REG_BYPASS_CNT_MASK), MXC_CCM_CCR);
+			udelay(60);
+			/* Reconfigurate WB and RBC counter */
+			__raw_writel(__raw_readl(MXC_CCM_CCR) |
+				(0x1 << MXC_CCM_CCR_WB_COUNT_OFFSET) |
+				(0x20 << MXC_CCM_CCR_REG_BYPASS_CNT_OFFSET), MXC_CCM_CCR);
+
+			/* Set WB_PER enable */
 			ccm_clpcr |= MXC_CCM_CLPCR_WB_PER_AT_LPM;
 		}
 		if (cpu_is_mx6sl() ||
