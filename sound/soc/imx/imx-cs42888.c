@@ -85,8 +85,6 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	ret = asrc_req_pair(channel, &iprtd->asrc_index);
 	if (ret < 0) {
 		pr_err("Fail to request asrc pair\n");
-		asrc_release_pair(iprtd->asrc_index);
-		asrc_finish_conv(iprtd->asrc_index);
 		return -EINVAL;
 	}
 
@@ -102,8 +100,6 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	ret = asrc_config_pair(&config);
 	if (ret < 0) {
 		pr_err("Fail to config asrc\n");
-		asrc_release_pair(iprtd->asrc_index);
-		asrc_finish_conv(iprtd->asrc_index);
 		return ret;
 	}
 
