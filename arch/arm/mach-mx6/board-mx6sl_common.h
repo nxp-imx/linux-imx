@@ -16,11 +16,68 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#ifndef _BOARD_MX6SL_ARM2_H
-#define _BOARD_MX6SL_ARM2_H
+#ifndef _BOARD_MX6SL_COMMON_H
+#define _BOARD_MX6SL_COMMON_H
 #include <mach/iomux-mx6sl.h>
 
-static iomux_v3_cfg_t mx6sl_arm2_pads[] = {
+#define MX6_BRD_USBOTG1_PWR	IMX_GPIO_NR(4, 0)       /* KEY_COL4 */
+#define MX6_BRD_USBOTG2_PWR	IMX_GPIO_NR(4, 2)       /* KEY_COL5 */
+#define MX6_BRD_LCD_PWR_EN	IMX_GPIO_NR(4, 3)	/* KEY_ROW5 */
+#define MX6_BRD_SD1_WP		IMX_GPIO_NR(4, 6)	/* KEY_COL7 */
+#define MX6_BRD_SD1_CD		IMX_GPIO_NR(4, 7)	/* KEY_ROW7 */
+#define MX6_BRD_ECSPI1_CS0	IMX_GPIO_NR(4, 11)	/* ECSPI1_SS0 */
+#define MX6_BRD_HEADPHONE_DET	IMX_GPIO_NR(4, 19)	/* FEC_RX_ER */
+#define MX6_BRD_SD2_WP		IMX_GPIO_NR(4, 29)	/* SD2_DAT6 */
+#define MX6_BRD_SD2_CD		IMX_GPIO_NR(5, 0)	/* SD2_DAT7 */
+#define MX6_BRD_SD3_CD		IMX_GPIO_NR(3, 22)	/* REF_CLK_32K */
+#define MX6_BRD_FEC_PWR_EN	IMX_GPIO_NR(4, 21)	/* FEC_TX_CLK */
+
+/* EPDC GPIO pins */
+#define MX6SL_BRD_EPDC_SDDO_0		IMX_GPIO_NR(1, 7)
+#define MX6SL_BRD_EPDC_SDDO_1		IMX_GPIO_NR(1, 8)
+#define MX6SL_BRD_EPDC_SDDO_2		IMX_GPIO_NR(1, 9)
+#define MX6SL_BRD_EPDC_SDDO_3		IMX_GPIO_NR(1, 10)
+#define MX6SL_BRD_EPDC_SDDO_4		IMX_GPIO_NR(1, 11)
+#define MX6SL_BRD_EPDC_SDDO_5		IMX_GPIO_NR(1, 12)
+#define MX6SL_BRD_EPDC_SDDO_6		IMX_GPIO_NR(1, 13)
+#define MX6SL_BRD_EPDC_SDDO_7		IMX_GPIO_NR(1, 14)
+#define MX6SL_BRD_EPDC_SDDO_8		IMX_GPIO_NR(1, 15)
+#define MX6SL_BRD_EPDC_SDDO_9		IMX_GPIO_NR(1, 16)
+#define MX6SL_BRD_EPDC_SDDO_10		IMX_GPIO_NR(1, 17)
+#define MX6SL_BRD_EPDC_SDDO_11		IMX_GPIO_NR(1, 18)
+#define MX6SL_BRD_EPDC_SDDO_12		IMX_GPIO_NR(1, 19)
+#define MX6SL_BRD_EPDC_SDDO_13		IMX_GPIO_NR(1, 20)
+#define MX6SL_BRD_EPDC_SDDO_14		IMX_GPIO_NR(1, 21)
+#define MX6SL_BRD_EPDC_SDDO_15		IMX_GPIO_NR(1, 22)
+#define MX6SL_BRD_EPDC_GDCLK		IMX_GPIO_NR(1, 31)
+#define MX6SL_BRD_EPDC_GDSP		IMX_GPIO_NR(2, 2)
+#define MX6SL_BRD_EPDC_GDOE		IMX_GPIO_NR(2, 0)
+#define MX6SL_BRD_EPDC_GDRL		IMX_GPIO_NR(2, 1)
+#define MX6SL_BRD_EPDC_SDCLK		IMX_GPIO_NR(1, 23)
+#define MX6SL_BRD_EPDC_SDOE		IMX_GPIO_NR(1, 25)
+#define MX6SL_BRD_EPDC_SDLE		IMX_GPIO_NR(1, 24)
+#define MX6SL_BRD_EPDC_SDSHR		IMX_GPIO_NR(1, 26)
+#define MX6SL_BRD_EPDC_PWRCOM		IMX_GPIO_NR(2, 11)
+#define MX6SL_BRD_EPDC_PWRSTAT		IMX_GPIO_NR(2, 13)
+#define MX6SL_BRD_EPDC_PWRCTRL0		IMX_GPIO_NR(2, 7)
+#define MX6SL_BRD_EPDC_PWRCTRL1		IMX_GPIO_NR(2, 8)
+#define MX6SL_BRD_EPDC_PWRCTRL2		IMX_GPIO_NR(2, 9)
+#define MX6SL_BRD_EPDC_PWRCTRL3		IMX_GPIO_NR(2, 10)
+#define MX6SL_BRD_EPDC_BDR0		IMX_GPIO_NR(2, 5)
+#define MX6SL_BRD_EPDC_BDR1		IMX_GPIO_NR(2, 6)
+#define MX6SL_BRD_EPDC_SDCE0		IMX_GPIO_NR(1, 27)
+#define MX6SL_BRD_EPDC_SDCE1		IMX_GPIO_NR(1, 28)
+#define MX6SL_BRD_EPDC_SDCE2		IMX_GPIO_NR(1, 29)
+#define MX6SL_BRD_EPDC_SDCE3		IMX_GPIO_NR(1, 30)
+#define MX6SL_BRD_EPDC_PMIC_WAKE	IMX_GPIO_NR(2, 14) /* EPDC_PWRWAKEUP */
+#define MX6SL_BRD_EPDC_PMIC_INT		IMX_GPIO_NR(2, 12) /* EPDC_PWRINT */
+#define MX6SL_BRD_EPDC_VCOM		IMX_GPIO_NR(2, 3)
+/* ELAN TS */
+#define MX6SL_BRD_ELAN_CE		IMX_GPIO_NR(2, 9)
+#define MX6SL_BRD_ELAN_INT		IMX_GPIO_NR(2, 10)
+#define MX6SL_BRD_ELAN_RST		IMX_GPIO_NR(4, 4)
+
+static iomux_v3_cfg_t mx6sl_brd_pads[] = {
 
 	/* AUDMUX */
 	MX6SL_PAD_AUD_TXC__AUDMUX_AUD3_TXC,
@@ -158,7 +215,7 @@ static iomux_v3_cfg_t mx6sl_arm2_pads[] = {
 	MX6SL_PAD_WDOG_B__WDOG1_WDOG_B,
 };
 
-static iomux_v3_cfg_t mx6sl_arm2_epdc_enable_pads[] = {
+static iomux_v3_cfg_t mx6sl_brd_epdc_enable_pads[] = {
 	/* EPDC */
 	MX6SL_PAD_EPDC_D0__EPDC_SDDO_0,
 	MX6SL_PAD_EPDC_D1__EPDC_SDDO_1,
@@ -197,7 +254,7 @@ static iomux_v3_cfg_t mx6sl_arm2_epdc_enable_pads[] = {
 	MX6SL_PAD_EPDC_PWRWAKEUP__GPIO_2_14,
 };
 
-static iomux_v3_cfg_t mx6sl_arm2_epdc_disable_pads[] = {
+static iomux_v3_cfg_t mx6sl_brd_epdc_disable_pads[] = {
 	/* EPDC */
 	MX6SL_PAD_EPDC_D0__GPIO_1_7,
 	MX6SL_PAD_EPDC_D1__GPIO_1_8,
@@ -236,7 +293,7 @@ static iomux_v3_cfg_t mx6sl_arm2_epdc_disable_pads[] = {
 	MX6SL_PAD_EPDC_PWRWAKEUP__GPIO_2_14,
 };
 
-static iomux_v3_cfg_t mx6sl_arm2_spdc_enable_pads[] = {
+static iomux_v3_cfg_t mx6sl_brd_spdc_enable_pads[] = {
 	/* SPDC data*/
 	MX6SL_PAD_EPDC_D0__TCON_E_DATA_0,
 	MX6SL_PAD_EPDC_D1__TCON_E_DATA_1,
@@ -280,7 +337,7 @@ static iomux_v3_cfg_t mx6sl_arm2_spdc_enable_pads[] = {
 	MX6SL_PAD_EPDC_PWRWAKEUP__GPIO_2_14,
 };
 
-static iomux_v3_cfg_t mx6sl_arm2_spdc_disable_pads[] = {
+static iomux_v3_cfg_t mx6sl_brd_spdc_disable_pads[] = {
 	MX6SL_PAD_EPDC_D0__GPIO_1_7,
 	MX6SL_PAD_EPDC_D1__GPIO_1_8,
 	MX6SL_PAD_EPDC_D2__GPIO_1_9,
@@ -315,7 +372,7 @@ static iomux_v3_cfg_t mx6sl_arm2_spdc_disable_pads[] = {
 	MX6SL_PAD_EPDC_PWRWAKEUP__GPIO_2_14,
 };
 
-static iomux_v3_cfg_t mx6sl_arm2_elan_pads[] = {
+static iomux_v3_cfg_t mx6sl_brd_elan_pads[] = {
 	MX6SL_PAD_EPDC_PWRCTRL3__GPIO_2_10,	/* INT */
 	MX6SL_PAD_EPDC_PWRCTRL2__GPIO_2_9,	/* CE */
 	MX6SL_PAD_KEY_COL6__GPIO_4_4,		/* RST */
