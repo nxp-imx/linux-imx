@@ -33,6 +33,7 @@
 #include <linux/spi/flash.h>
 #include <linux/i2c.h>
 #include <linux/i2c/pca953x.h>
+#include <linux/ata.h>
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/map.h>
 #include <linux/mtd/partitions.h>
@@ -72,14 +73,15 @@
 #include "cpu_op-mx6.h"
 #include "board-mx6sl_common.h"
 
+
 static int spdc_sel;
 static int max17135_regulator_init(struct max17135 *max17135);
-static struct clk *extern_audio_root;
+struct clk *extern_audio_root;
 
 extern char *gp_reg_id;
 extern char *soc_reg_id;
 extern char *pu_reg_id;
-extern int __init mx6sl_arm2_init_pfuze100(u32 int_gpio);
+extern int __init mx6sl_evk_init_pfuze100(u32 int_gpio);
 
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
@@ -157,7 +159,7 @@ static int plt_sd_pad_change(unsigned int index, int clock)
 	}
 }
 
-static const struct esdhc_platform_data mx6_arm2_sd1_data __initconst = {
+static const struct esdhc_platform_data mx6_evk_sd1_data __initconst = {
 	.cd_gpio		= MX6_BRD_SD1_CD,
 	.wp_gpio		= MX6_BRD_SD1_WP,
 	.support_8bit		= 1,
@@ -167,7 +169,7 @@ static const struct esdhc_platform_data mx6_arm2_sd1_data __initconst = {
 	.platform_pad_change = plt_sd_pad_change,
 };
 
-static const struct esdhc_platform_data mx6_arm2_sd2_data __initconst = {
+static const struct esdhc_platform_data mx6_evk_sd2_data __initconst = {
 	.cd_gpio		= MX6_BRD_SD2_CD,
 	.wp_gpio		= MX6_BRD_SD2_WP,
 	.keep_power_at_suspend	= 1,
@@ -176,7 +178,7 @@ static const struct esdhc_platform_data mx6_arm2_sd2_data __initconst = {
 	.platform_pad_change = plt_sd_pad_change,
 };
 
-static const struct esdhc_platform_data mx6_arm2_sd3_data __initconst = {
+static const struct esdhc_platform_data mx6_evk_sd3_data __initconst = {
 	.cd_gpio		= MX6_BRD_SD3_CD,
 	.wp_gpio		= -1,
 	.keep_power_at_suspend	= 1,
@@ -190,29 +192,29 @@ static const struct esdhc_platform_data mx6_arm2_sd3_data __initconst = {
 #define V_to_uV(V) (mV_to_uV(V * 1000))
 #define uV_to_V(uV) (uV_to_mV(uV) / 1000)
 
-static struct regulator_consumer_supply arm2_vmmc_consumers[] = {
+static struct regulator_consumer_supply evk_vmmc_consumers[] = {
 	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.0"),
 	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.1"),
 	REGULATOR_SUPPLY("vmmc", "sdhci-esdhc-imx.2"),
 };
 
-static struct regulator_init_data arm2_vmmc_init = {
-	.num_consumer_supplies = ARRAY_SIZE(arm2_vmmc_consumers),
-	.consumer_supplies = arm2_vmmc_consumers,
+static struct regulator_init_data evk_vmmc_init = {
+	.num_consumer_supplies = ARRAY_SIZE(evk_vmmc_consumers),
+	.consumer_supplies = evk_vmmc_consumers,
 };
 
-static struct fixed_voltage_config arm2_vmmc_reg_config = {
+static struct fixed_voltage_config evk_vmmc_reg_config = {
 	.supply_name	= "vmmc",
 	.microvolts	= 3300000,
 	.gpio		= -1,
-	.init_data	= &arm2_vmmc_init,
+	.init_data	= &evk_vmmc_init,
 };
 
-static struct platform_device arm2_vmmc_reg_devices = {
+static struct platform_device evk_vmmc_reg_devices = {
 	.name		= "reg-fixed-voltage",
 	.id		= 0,
 	.dev		= {
-		.platform_data = &arm2_vmmc_reg_config,
+		.platform_data = &evk_vmmc_reg_config,
 	},
 };
 
@@ -390,13 +392,13 @@ static int __init max17135_regulator_init(struct max17135 *max17135)
 	return 0;
 }
 
-static int mx6_arm2_spi_cs[] = {
+static int mx6_evk_spi_cs[] = {
 	MX6_BRD_ECSPI1_CS0,
 };
 
-static const struct spi_imx_master mx6_arm2_spi_data __initconst = {
-	.chipselect     = mx6_arm2_spi_cs,
-	.num_chipselect = ARRAY_SIZE(mx6_arm2_spi_cs),
+static const struct spi_imx_master mx6_evk_spi_data __initconst = {
+	.chipselect     = mx6_evk_spi_cs,
+	.num_chipselect = ARRAY_SIZE(mx6_evk_spi_cs),
 };
 
 #if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
@@ -543,15 +545,15 @@ static int __init imx6q_init_audio(void)
 	return 0;
 }
 
-static struct imxi2c_platform_data mx6_arm2_i2c0_data = {
+static struct imxi2c_platform_data mx6_evk_i2c0_data = {
 	.bitrate = 100000,
 };
 
-static struct imxi2c_platform_data mx6_arm2_i2c1_data = {
+static struct imxi2c_platform_data mx6_evk_i2c1_data = {
 	.bitrate = 100000,
 };
 
-static struct imxi2c_platform_data mx6_arm2_i2c2_data = {
+static struct imxi2c_platform_data mx6_evk_i2c2_data = {
 	.bitrate = 400000,
 };
 
@@ -577,7 +579,7 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 };
 
-static struct mxc_dvfs_platform_data mx6sl_arm2_dvfscore_data = {
+static struct mxc_dvfs_platform_data mx6sl_evk_dvfscore_data = {
 	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	.reg_id			= "VDDCORE",
 	#else
@@ -612,12 +614,12 @@ static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 
-static inline void mx6_arm2_init_uart(void)
+static inline void mx6_evk_init_uart(void)
 {
 	imx6q_add_imx_uart(0, NULL); /* DEBUG UART1 */
 }
 
-static int mx6sl_arm2_fec_phy_init(struct phy_device *phydev)
+static int mx6sl_evk_fec_phy_init(struct phy_device *phydev)
 {
 	int val;
 
@@ -630,15 +632,14 @@ static int mx6sl_arm2_fec_phy_init(struct phy_device *phydev)
 
 	/* check phy power */
 	val = phy_read(phydev, 0x0);
-	if (val & BMCR_PDOWN) {
+	if (val & BMCR_PDOWN)
 		phy_write(phydev, 0x0, (val & ~BMCR_PDOWN));
-	}
 
 	return 0;
 }
 
 static struct fec_platform_data fec_data __initdata = {
-	.init = mx6sl_arm2_fec_phy_init,
+	.init = mx6sl_evk_fec_phy_init,
 	.phy = PHY_INTERFACE_MODE_RMII,
 };
 
@@ -1045,7 +1046,7 @@ static void setup_spdc(void)
 		mxc_iomux_set_gpr_register(0, 8, 1, 1);
 }
 
-static void imx6_arm2_usbotg_vbus(bool on)
+static void imx6_evk_usbotg_vbus(bool on)
 {
 	if (on)
 		gpio_set_value(MX6_BRD_USBOTG1_PWR, 1);
@@ -1053,7 +1054,7 @@ static void imx6_arm2_usbotg_vbus(bool on)
 		gpio_set_value(MX6_BRD_USBOTG1_PWR, 0);
 }
 
-static void __init mx6_arm2_init_usb(void)
+static void __init mx6_evk_init_usb(void)
 {
 	int ret = 0;
 
@@ -1077,14 +1078,14 @@ static void __init mx6_arm2_init_usb(void)
 	}
 	gpio_direction_output(MX6_BRD_USBOTG2_PWR, 1);
 
-	mx6_set_otghost_vbus_func(imx6_arm2_usbotg_vbus);
+	mx6_set_otghost_vbus_func(imx6_evk_usbotg_vbus);
 	mx6_usb_dr_init();
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mx6_usb_h2_init();
 #endif
 }
 
-static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data = {
+static struct platform_pwm_backlight_data mx6_evk_pwm_backlight_data = {
 	.pwm_id		= 0,
 	.max_brightness	= 255,
 	.dft_brightness	= 128,
@@ -1112,7 +1113,7 @@ static struct platform_device lcd_wvga_device = {
 	.name = "lcd_seiko",
 };
 
-static int mx6sl_arm2_keymap[] = {
+static int mx6sl_evk_keymap[] = {
 	KEY(0, 0, KEY_SELECT),
 	KEY(0, 1, KEY_BACK),
 	KEY(0, 2, KEY_F1),
@@ -1134,9 +1135,9 @@ static int mx6sl_arm2_keymap[] = {
 	KEY(3, 3, KEY_DOWN),
 };
 
-static const struct matrix_keymap_data mx6sl_arm2_map_data __initconst = {
-	.keymap		= mx6sl_arm2_keymap,
-	.keymap_size	= ARRAY_SIZE(mx6sl_arm2_keymap),
+static const struct matrix_keymap_data mx6sl_evk_map_data __initconst = {
+	.keymap		= mx6sl_evk_keymap,
+	.keymap_size	= ARRAY_SIZE(mx6sl_evk_keymap),
 };
 static void __init elan_ts_init(void)
 {
@@ -1173,7 +1174,7 @@ static void mx6_snvs_poweroff(void)
 /*!
  * Board specific initialization.
  */
-static void __init mx6_arm2_init(void)
+static void __init mx6_evk_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_brd_pads,
 					ARRAY_SIZE(mx6sl_brd_pads));
@@ -1181,35 +1182,35 @@ static void __init mx6_arm2_init(void)
 	elan_ts_init();
 
 	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	gp_reg_id = mx6sl_arm2_dvfscore_data.reg_id;
+	gp_reg_id = mx6sl_evk_dvfscore_data.reg_id;
 	#else
-	gp_reg_id = mx6sl_arm2_dvfscore_data.reg_id;
-	soc_reg_id = mx6sl_arm2_dvfscore_data.soc_id;
-	pu_reg_id = mx6sl_arm2_dvfscore_data.pu_id;
+	gp_reg_id = mx6sl_evk_dvfscore_data.reg_id;
+	soc_reg_id = mx6sl_evk_dvfscore_data.soc_id;
+	pu_reg_id = mx6sl_evk_dvfscore_data.pu_id;
 	mx6_cpu_regulator_init();
 	#endif
 
 	imx6q_add_imx_snvs_rtc();
 
-	imx6q_add_imx_i2c(0, &mx6_arm2_i2c0_data);
-	imx6q_add_imx_i2c(1, &mx6_arm2_i2c1_data);
+	imx6q_add_imx_i2c(0, &mx6_evk_i2c0_data);
+	imx6q_add_imx_i2c(1, &mx6_evk_i2c1_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
-	imx6q_add_imx_i2c(2, &mx6_arm2_i2c2_data);
+	imx6q_add_imx_i2c(2, &mx6_evk_i2c2_data);
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
 
 	/* SPI */
-	imx6q_add_ecspi(0, &mx6_arm2_spi_data);
+	imx6q_add_ecspi(0, &mx6_evk_spi_data);
 	spi_device_init();
 
-	mx6sl_arm2_init_pfuze100(0);
+	mx6sl_evk_init_pfuze100(0);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6sl_anatop_thermal_data);
 
-	mx6_arm2_init_uart();
+	mx6_evk_init_uart();
 	/* get enet tx reference clk from FEC_REF_CLK pad.
 	 * GPR1[14] = 0, GPR1[18:17] = 00
 	 */
@@ -1218,15 +1219,15 @@ static void __init mx6_arm2_init(void)
 
 	imx6_init_fec(fec_data);
 
-	platform_device_register(&arm2_vmmc_reg_devices);
-	imx6q_add_sdhci_usdhc_imx(0, &mx6_arm2_sd1_data);
-	imx6q_add_sdhci_usdhc_imx(1, &mx6_arm2_sd2_data);
-	imx6q_add_sdhci_usdhc_imx(2, &mx6_arm2_sd3_data);
+	platform_device_register(&evk_vmmc_reg_devices);
+	imx6q_add_sdhci_usdhc_imx(0, &mx6_evk_sd1_data);
+	imx6q_add_sdhci_usdhc_imx(1, &mx6_evk_sd2_data);
+	imx6q_add_sdhci_usdhc_imx(2, &mx6_evk_sd3_data);
 
-	mx6_arm2_init_usb();
+	mx6_evk_init_usb();
 	imx6q_add_otp();
 	imx6q_add_mxc_pwm(0);
-	imx6q_add_mxc_pwm_backlight(0, &mx6_arm2_pwm_backlight_data);
+	imx6q_add_mxc_pwm_backlight(0, &mx6_evk_pwm_backlight_data);
 	imx6dl_add_imx_elcdif(&fb_data[0]);
 
 	gpio_request(MX6_BRD_LCD_PWR_EN, "elcdif-power-on");
@@ -1241,7 +1242,7 @@ static void __init mx6_arm2_init(void)
 		imx6dl_add_imx_epdc(&epdc_data);
 	else
 		imx6sl_add_imx_spdc(&spdc_data);
-	imx6q_add_dvfs_core(&mx6sl_arm2_dvfscore_data);
+	imx6q_add_dvfs_core(&mx6sl_evk_dvfscore_data);
 
 	imx6q_init_audio();
 
@@ -1249,7 +1250,7 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_imx2_wdt(0, NULL);
 
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
-	imx6sl_add_imx_keypad(&mx6sl_arm2_map_data);
+	imx6sl_add_imx_keypad(&mx6sl_evk_map_data);
 	imx6q_add_busfreq();
 	imx6sl_add_dcp();
 	imx6sl_add_rngb();
@@ -1275,7 +1276,7 @@ static struct sys_timer mxc_timer = {
 	.init   = mx6_timer_init,
 };
 
-static void __init mx6_arm2_reserve(void)
+static void __init mx6_evk_reserve(void)
 {
 #if defined(CONFIG_MXC_GPU_VIV) || defined(CONFIG_MXC_GPU_VIV_MODULE)
 	phys_addr_t phys;
@@ -1289,11 +1290,11 @@ static void __init mx6_arm2_reserve(void)
 #endif
 }
 
-MACHINE_START(MX6SL_ARM2, "Freescale i.MX 6SoloLite Armadillo2 Board")
+MACHINE_START(MX6SL_EVK, "Freescale i.MX 6SoloLite EVK Board")
 	.boot_params	= MX6SL_PHYS_OFFSET + 0x100,
 	.map_io		= mx6_map_io,
 	.init_irq	= mx6_init_irq,
-	.init_machine	= mx6_arm2_init,
+	.init_machine	= mx6_evk_init,
 	.timer		= &mxc_timer,
-	.reserve	= mx6_arm2_reserve,
+	.reserve	= mx6_evk_reserve,
 MACHINE_END
