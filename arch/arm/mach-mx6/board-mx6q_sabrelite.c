@@ -756,7 +756,7 @@ static const struct flexcan_platform_data
 };
 
 static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
-	.reserved_mem_size = SZ_128M,
+	.reserved_mem_size = SZ_128M + SZ_64M,
 };
 
 static struct imx_asrc_platform_data imx_asrc_data = {
@@ -1287,11 +1287,13 @@ static void __init mx6q_sabrelite_reserve(void)
 	}
 #endif
 
+#if defined(CONFIG_ION)
 	if (imx_ion_data.heaps[0].size) {
 		phys = memblock_alloc(imx_ion_data.heaps[0].size, SZ_4K);
 		memblock_remove(phys, imx_ion_data.heaps[0].size);
 		imx_ion_data.heaps[0].base = phys;
 	}
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(sabrelite_fb_data); i++)
 		if (sabrelite_fb_data[i].res_size[0]) {

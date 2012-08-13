@@ -1250,7 +1250,7 @@ static void __init mx6_arm2_init_usb(void)
 }
 
 static struct viv_gpu_platform_data imx6_gpu_pdata __initdata = {
-	.reserved_mem_size = SZ_128M,
+	.reserved_mem_size = SZ_128M + SZ_64M,
 };
 
 /* HW Initialization, if return 0, initialization is successful. */
@@ -2256,12 +2256,14 @@ static void __init mx6_arm2_reserve(void)
 	}
 #endif
 
+#if defined(CONFIG_ION)
 	if (imx_ion_data.heaps[0].size) {
 		phys = memblock_alloc(imx_ion_data.heaps[0].size, SZ_4K);
 		memblock_free(phys, imx_ion_data.heaps[0].size);
 		memblock_remove(phys, imx_ion_data.heaps[0].size);
 		imx_ion_data.heaps[0].base = phys;
 	}
+#endif
 }
 
 MACHINE_START(MX6Q_ARM2, "Freescale i.MX 6Quad/Solo/DualLite Armadillo2 Board")
