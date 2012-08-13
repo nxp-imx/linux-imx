@@ -369,8 +369,6 @@ dma_alloc_writethrough(struct device *dev, size_t size, dma_addr_t *handle, gfp_
 }
 EXPORT_SYMBOL(dma_alloc_writethrough);
 
-
-#ifdef CONFIG_FSL_UTP
 /*
  *  Allocate noncacheable memory space and return both the kernel remapped
  * virtual and bus address for that space.
@@ -383,7 +381,6 @@ dma_alloc_noncacheable(struct device *dev, size_t size, dma_addr_t *handle, gfp_
 			  pgprot_noncached(pgprot_kernel));
 }
 EXPORT_SYMBOL(dma_alloc_noncacheable);
-#endif
 
 static int dma_mmap(struct device *dev, struct vm_area_struct *vma,
 		    void *cpu_addr, dma_addr_t dma_addr, size_t size)
