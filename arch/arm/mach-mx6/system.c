@@ -30,6 +30,7 @@
 #include <mach/clock.h>
 #include <asm/proc-fns.h>
 #include <asm/system.h>
+#include <asm/hardware/gic.h>
 #include "crm_regs.h"
 #include "regs-anadig.h"
 
@@ -144,19 +145,22 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		/* Power down and power up sequence */
 		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
-
-		/* dormant mode, need to power off the arm core */
 		if (stop_mode == 2) {
+			/* dormant mode, need to power off the arm core */
 			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
-			__raw_writel(0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-			__raw_writel(0x1, gpc_base + GPC_CNTR_OFFSET);
 			if (cpu_is_mx6q() || cpu_is_mx6dl()) {
-				/* Enable weak 2P5 linear regulator */
-				anatop_val = __raw_readl(anatop_base +
-					HW_ANADIG_REG_2P5);
-				anatop_val |= BM_ANADIG_REG_2P5_ENABLE_WEAK_LINREG;
-				__raw_writel(anatop_val, anatop_base +
-					HW_ANADIG_REG_2P5);
+				/* If stop_mode_config is clear, then 2P5 will be off,
+				need to enable weak 2P5, as DDR IO need 2P5 as
+				pre-driver */
+				if ((__raw_readl(anatop_base + HW_ANADIG_ANA_MISC0)
+					& BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG) == 0) {
+					/* Enable weak 2P5 linear regulator */
+					anatop_val = __raw_readl(anatop_base +
+						HW_ANADIG_REG_2P5);
+					anatop_val |= BM_ANADIG_REG_2P5_ENABLE_WEAK_LINREG;
+					__raw_writel(anatop_val, anatop_base +
+						HW_ANADIG_REG_2P5);
+				}
 				if (mx6q_revision() != IMX_CHIP_REVISION_1_0) {
 					/* Enable fet_odrive */
 					anatop_val = __raw_readl(anatop_base +
@@ -181,16 +185,22 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 				reg |= MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
 				__raw_writel(reg, MXC_CCM_CGPR);
 			}
-
-			if (!cpu_is_mx6dl())
+			/* DL's TO1.0 can't support DSM mode due to ipg glitch */
+			if (mx6dl_revision() != IMX_CHIP_REVISION_1_0)
 				__raw_writel(__raw_readl(MXC_CCM_CCR) |
 					MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
+
 			/* Make sure we clear WB_COUNT and re-config it */
 			__raw_writel(__raw_readl(MXC_CCM_CCR) &
-				(~MXC_CCM_CCR_WB_COUNT_MASK), MXC_CCM_CCR);
-			udelay(50);
-			__raw_writel(__raw_readl(MXC_CCM_CCR) | (0x1 <<
-				MXC_CCM_CCR_WB_COUNT_OFFSET), MXC_CCM_CCR);
+				(~MXC_CCM_CCR_WB_COUNT_MASK) &
+				(~MXC_CCM_CCR_REG_BYPASS_CNT_MASK), MXC_CCM_CCR);
+			udelay(60);
+			/* Reconfigurate WB and RBC counter */
+			__raw_writel(__raw_readl(MXC_CCM_CCR) |
+				(0x1 << MXC_CCM_CCR_WB_COUNT_OFFSET) |
+				(0x20 << MXC_CCM_CCR_REG_BYPASS_CNT_OFFSET), MXC_CCM_CCR);
+
+			/* Set WB_PER enable */
 			ccm_clpcr |= MXC_CCM_CLPCR_WB_PER_AT_LPM;
 		}
 		if (cpu_is_mx6sl() ||
@@ -219,6 +229,13 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 extern int tick_broadcast_oneshot_active(void);
 
+void ca9_do_idle(void)
+{
+	do {
+		cpu_do_idle();
+	} while (__raw_readl(gic_cpu_base_addr + GIC_CPU_HIGHPRI) == 1023);
+}
+
 void arch_idle_single_core(void)
 {
 	u32 reg;
@@ -232,7 +249,7 @@ void arch_idle_single_core(void)
 		reg |= MXC_CCM_CGPR_WAIT_MODE_FIX;
 		__raw_writel(reg, MXC_CCM_CGPR);
 
-		cpu_do_idle();
+		ca9_do_idle();
 	} else {
 		/*
 		  * Implement the 12:5 ARM:IPG_CLK ratio
@@ -250,7 +267,7 @@ void arch_idle_single_core(void)
 		__raw_writel(wait_mode_arm_podf, MXC_CCM_CACRR);
 		while (__raw_readl(MXC_CCM_CDHIPR))
 			;
-		cpu_do_idle();
+		ca9_do_idle();
 
 		__raw_writel(cur_arm_podf - 1, MXC_CCM_CACRR);
 	}
@@ -258,7 +275,6 @@ void arch_idle_single_core(void)
 
 void arch_idle_with_workaround(cpu)
 {
-	u32 reg;
 	u32 podf = wait_mode_arm_podf;
 
 	*((char *)(&num_cpu_idle_lock) + (char)cpu) = 0x0;
@@ -302,7 +318,7 @@ void arch_idle_multi_core(void)
 		reg |= MXC_CCM_CGPR_WAIT_MODE_FIX;
 		__raw_writel(reg, MXC_CCM_CGPR);
 
-		cpu_do_idle();
+		ca9_do_idle();
 	} else
 		arch_idle_with_workaround(cpu);
 #ifdef CONFIG_LOCAL_TIMERS
@@ -329,7 +345,7 @@ void arch_idle(void)
 			reg &= ~MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
 			__raw_writel(reg, MXC_CCM_CGPR);
 
-			cpu_do_idle();
+			ca9_do_idle();
 		} else if (num_possible_cpus() == 1)
 			/* iMX6SL or iMX6DLS */
 			arch_idle_single_core();
@@ -337,7 +353,7 @@ void arch_idle(void)
 			arch_idle_multi_core();
 	} else {
 		mxc_cpu_lp_set(WAIT_CLOCKED);
-		cpu_do_idle();
+		ca9_do_idle();
 	}
 }
 

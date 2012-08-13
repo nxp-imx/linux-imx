@@ -163,14 +163,16 @@ static void kick_trng(struct platform_device *pdev)
 
 	/* put RNG4 into program mode */
 	setbits32(&r4tst->rtmctl, RTMCTL_PRGM);
-	/* 1600 clocks per sample */
+	/* Set clocks per sample to the default, and divider to zero */
 	val = rd_reg32(&r4tst->rtsdctl);
-	val = (val & ~RTSDCTL_ENT_DLY_MASK) | (1600 << RTSDCTL_ENT_DLY_SHIFT);
+	val = ((val & ~RTSDCTL_ENT_DLY_MASK) |
+	       (RNG4_ENT_CLOCKS_SAMPLE << RTSDCTL_ENT_DLY_SHIFT)) &
+	       ~RTMCTL_OSC_DIV_MASK;
 	wr_reg32(&r4tst->rtsdctl, val);
 	/* min. freq. count */
-	wr_reg32(&r4tst->rtfrqmin, 400);
+	wr_reg32(&r4tst->rtfrqmin, RNG4_ENT_CLOCKS_SAMPLE / 4);
 	/* max. freq. count */
-	wr_reg32(&r4tst->rtfrqmax, 6400);
+	wr_reg32(&r4tst->rtfrqmax, RNG4_ENT_CLOCKS_SAMPLE * 8);
 	/* put RNG4 into run mode */
 	clrbits32(&r4tst->rtmctl, RTMCTL_PRGM);
 }

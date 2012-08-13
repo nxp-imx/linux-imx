@@ -61,6 +61,7 @@ extern int high_bus_freq_mode;
 extern int set_low_bus_freq(void);
 extern int set_high_bus_freq(int high_bus_speed);
 extern int low_freq_bus_used(void);
+extern struct mutex bus_freq_mutex;
 
 int set_cpu_freq(int freq)
 {
@@ -86,8 +87,10 @@ int set_cpu_freq(int freq)
 #endif
 	/*Set the voltage for the GP domain. */
 	if (freq > org_cpu_rate) {
+		mutex_lock(&bus_freq_mutex);
 		if (low_bus_freq_mode || audio_bus_freq_mode)
 			set_high_bus_freq(0);
+		mutex_unlock(&bus_freq_mutex);
 		ret = regulator_set_voltage(cpu_regulator, gp_volt,
 					    gp_volt);
 		if (ret < 0) {
@@ -109,9 +112,11 @@ int set_cpu_freq(int freq)
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
 		}
+		mutex_lock(&bus_freq_mutex);
 		if (low_freq_bus_used() &&
 			!(low_bus_freq_mode || audio_bus_freq_mode))
 			set_low_bus_freq();
+		mutex_unlock(&bus_freq_mutex);
 	}
 
 	return ret;
