@@ -198,8 +198,6 @@ extern void *dma_alloc_coherent(struct device *, size_t, dma_addr_t *, gfp_t);
  */
 extern void *dma_alloc_writethrough(struct device *, size_t, dma_addr_t *, gfp_t);
 
-
-#ifdef CONFIG_FSL_UTP
 /**
  * dma_alloc_noncacheable - allocate consistent memory for DMA
  * @dev: valid struct device pointer, or NULL for ISA and EISA-like devices
@@ -212,7 +210,6 @@ extern void *dma_alloc_writethrough(struct device *, size_t, dma_addr_t *, gfp_t
  * device-viewed address.
  */
 extern void *dma_alloc_noncacheable(struct device *, size_t, dma_addr_t *, gfp_t);
-#endif
 
 /**
  * dma_free_coherent - free memory allocated by dma_alloc_coherent
