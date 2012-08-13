@@ -583,7 +583,7 @@ static int __init busfreq_init(void)
 	printk(KERN_INFO "Bus freq driver module loaded\n");
 
 	/* Enable busfreq by default. */
-	bus_freq_scaling_is_active = 0;
+	bus_freq_scaling_is_active = 1;
 
 	if (cpu_is_mx6q())
 		set_high_bus_freq(1);
