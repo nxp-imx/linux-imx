@@ -340,7 +340,7 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 	struct fsl_usb2_platform_data *pdata = udc->pdata;
 	u32 portsc;
 	unsigned long flags;
-	spin_lock_irqsave(&udc->lock, flags);
+	spin_lock_irqsave(&pdata->lock, flags);
 
 	if (pdata && pdata->phy_lowpower_suspend) {
 		pdata->phy_lowpower_suspend(pdata, enable);
@@ -356,7 +356,7 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 		}
 	}
 	pdata->lowpower = enable;
-	spin_unlock_irqrestore(&udc->lock, flags);
+	spin_unlock_irqrestore(&pdata->lock, flags);
 }
 
 static int dr_controller_setup(struct fsl_udc *udc)
@@ -3210,6 +3210,7 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 	udc_controller->charger.enable = false;
 #endif
 
+	spin_lock_init(&pdata->lock);
 	return 0;
 
 err4:
