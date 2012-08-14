@@ -2908,7 +2908,7 @@ static struct clk lcdif_pix_clk = {
 	.set_rate = _clk_lcdif_pix_set_rate,
 	.round_rate = _clk_epdc_lcdif_pix_round_rate,
 	.get_rate = _clk_lcdif_pix_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk epdc_pix_clk = {
@@ -2923,7 +2923,7 @@ static struct clk epdc_pix_clk = {
 	.set_rate = _clk_epdc_pix_set_rate,
 	.round_rate = _clk_epdc_lcdif_pix_round_rate,
 	.get_rate = _clk_epdc_pix_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 static unsigned long _clk_spdif_round_rate(struct clk *clk,
 						unsigned long rate)
