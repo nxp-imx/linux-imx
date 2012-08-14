@@ -47,6 +47,20 @@ static void wakeup_clk_gate(struct fsl_usb2_wakeup_platform_data *pdata, bool on
 	if (pdata->usb_clock_for_pm)
 		pdata->usb_clock_for_pm(on);
 }
+static bool phy_in_lowpower_mode(struct fsl_usb2_platform_data *pdata)
+{
+	unsigned long flags;
+	bool ret = true;
+
+	spin_lock_irqsave(&pdata->lock, flags);
+
+	if (!pdata->lowpower)
+		ret = false;
+
+	spin_unlock_irqrestore(&pdata->lock, flags);
+
+	return ret;
+}
 
 static bool usb2_is_in_lowpower(struct wakeup_ctrl *ctrl)
 {
@@ -54,8 +68,8 @@ static bool usb2_is_in_lowpower(struct wakeup_ctrl *ctrl)
 	struct fsl_usb2_wakeup_platform_data *pdata = ctrl->pdata;
 	/* all the usb module related the wakeup is in lowpower mode */
 	for (i = 0; i < 3; i++) {
-		if (pdata->usb_pdata[i]) {
-			if (pdata->usb_pdata[i]->phy_lowpower_suspend && !pdata->usb_pdata[i]->lowpower)
+		if (pdata->usb_pdata[i] && pdata->usb_pdata[i]->phy_lowpower_suspend) {
+			if (!phy_in_lowpower_mode(pdata->usb_pdata[i]))
 				return false;
 		}
 	}
