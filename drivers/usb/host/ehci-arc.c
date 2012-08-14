@@ -31,6 +31,9 @@
 extern void usb_host_set_wakeup(struct device *wkup_dev, bool para);
 static void fsl_usb_lowpower_mode(struct fsl_usb2_platform_data *pdata, bool enable)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&pdata->lock, flags);
 	if (enable) {
 		if (pdata->phy_lowpower_suspend)
 			pdata->phy_lowpower_suspend(pdata, true);
@@ -39,6 +42,7 @@ static void fsl_usb_lowpower_mode(struct fsl_usb2_platform_data *pdata, bool ena
 			pdata->phy_lowpower_suspend(pdata, false);
 	}
 	pdata->lowpower = enable;
+	spin_unlock_irqrestore(&pdata->lock, flags);
 }
 
 static void fsl_usb_clk_gate(struct fsl_usb2_platform_data *pdata, bool enable)
@@ -304,6 +308,7 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 
 	ehci = hcd_to_ehci(hcd);
 	pdata->pm_command = ehci->command;
+	spin_lock_init(&pdata->lock);
 	return retval;
 err6:
 	free_irq(irq, (void *)pdev);
@@ -337,7 +342,6 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 	u32 tmp;
-	unsigned long flags;
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		/* Need open clock for register access */
@@ -366,9 +370,7 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	}
 	/*disable the host wakeup and put phy to low power mode */
 	usb_host_set_wakeup(hcd->self.controller, false);
-	spin_lock_irqsave(&ehci->lock, flags);
 	fsl_usb_lowpower_mode(pdata, true);
-	spin_unlock_irqrestore(&ehci->lock, flags);
 	/*free the ehci_fsl_pre_irq  */
 	free_irq(hcd->irq, (void *)pdev);
 	usb_remove_hcd(hcd);
@@ -430,7 +432,6 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 	struct fsl_usb2_platform_data *pdata;
 	u32 tmp, portsc, cmd;
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
-	unsigned long flags;
 
 	pdata = hcd->self.controller->platform_data;
 	printk(KERN_DEBUG "%s begins, %s\n", __func__, pdata->name);
@@ -458,9 +459,7 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 	if (pdata->platform_suspend)
 		pdata->platform_suspend(pdata);
 	usb_host_set_wakeup(hcd->self.controller, true);
-	spin_lock_irqsave(&ehci->lock, flags);
 	fsl_usb_lowpower_mode(pdata, true);
-	spin_unlock_irqrestore(&ehci->lock, flags);
 	fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 	clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 	printk(KERN_DEBUG "%s ends, %s\n", __func__, pdata->name);
@@ -472,8 +471,6 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 {
 	int ret = 0;
 	struct fsl_usb2_platform_data *pdata;
-	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
-	unsigned long flags;
 
 	pdata = hcd->self.controller->platform_data;
 	printk(KERN_DEBUG "%s begins, %s\n", __func__, pdata->name);
@@ -490,9 +487,7 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 		usb_host_set_wakeup(hcd->self.controller, false);
-		spin_lock_irqsave(&ehci->lock, flags);
 		fsl_usb_lowpower_mode(pdata, false);
-		spin_unlock_irqrestore(&ehci->lock, flags);
 	}
 
 	if (pdata->platform_resume)
@@ -669,7 +664,6 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	struct usb_device *roothub = hcd->self.root_hub;
-	unsigned long flags;
 	u32 port_status;
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 
@@ -745,9 +739,7 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	pdata->pm_portsc &= ~PORT_PTS_PHCD;
 
 	usb_host_set_wakeup(hcd->self.controller, true);
-	spin_lock_irqsave(&ehci->lock, flags);
 	fsl_usb_lowpower_mode(pdata, true);
-	spin_unlock_irqrestore(&ehci->lock, flags);
 
 	if (test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
@@ -801,9 +793,7 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 		usb_host_set_wakeup(hcd->self.controller, false);
-		spin_lock_irqsave(&ehci->lock, flags);
 		fsl_usb_lowpower_mode(pdata, false);
-		spin_unlock_irqrestore(&ehci->lock, flags);
 	}
 
 	spin_lock_irqsave(&ehci->lock, flags);
