@@ -1517,6 +1517,8 @@ static int ahash_init(struct ahash_request *req)
 	state->final = ahash_final_no_ctx;
 
 	state->current_buf = 0;
+	state->buflen_0 = 0;
+	state->buflen_1 = 0;
 
 	return 0;
 }
