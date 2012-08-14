@@ -1779,6 +1779,17 @@ static void __init mx6_sabresd_board_init(void)
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
 
+	/*
+	 * Disable HannStar touch panel CABC function,
+	 * this function turns the panel's backlight automatically
+	 * according to the content shown on the panel which
+	 * may cause annoying unstable backlight issue.
+	 */
+	gpio_request(SABRESD_CABC_EN0, "cabc-en0");
+	gpio_direction_output(SABRESD_CABC_EN0, 0);
+	gpio_request(SABRESD_CABC_EN1, "cabc-en1");
+	gpio_direction_output(SABRESD_CABC_EN1, 0);
+
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm(1);
 	imx6q_add_mxc_pwm(2);
