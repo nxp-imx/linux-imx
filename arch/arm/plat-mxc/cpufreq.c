@@ -99,7 +99,7 @@ int set_cpu_freq(int freq)
 		if (low_bus_freq_mode || audio_bus_freq_mode)
 			set_high_bus_freq(0);
 		mutex_unlock(&bus_freq_mutex);
-		if (freq == cpu_op_tbl[0].cpu_rate && soc_regulator && pu_regulator) {
+		if (freq == cpu_op_tbl[0].cpu_rate && !IS_ERR(soc_regulator) && !IS_ERR(pu_regulator)) {
 			ret = regulator_set_voltage(soc_regulator, soc_volt,
 							soc_volt);
 			if (ret < 0) {
@@ -135,7 +135,7 @@ int set_cpu_freq(int freq)
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
 		}
-		if (soc_regulator_set && soc_regulator && pu_regulator) {
+		if (soc_regulator_set && !IS_ERR(soc_regulator) && !IS_ERR(pu_regulator)) {
 			ret = regulator_set_voltage(soc_regulator, soc_volt,
 							soc_volt);
 			if (ret < 0) {
