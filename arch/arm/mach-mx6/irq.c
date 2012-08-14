@@ -57,6 +57,14 @@ static struct irq_tuner mxc_irq_tuner[] = {
 	 .up_threshold = 0,
 	 .enable = 1,},
 	{
+	 .irq_number = 42, /* GPU 2D */
+	 .up_threshold = 40,
+	 .enable = 1,},
+	{
+	 .irq_number = 43, /* GPU VG */
+	 .up_threshold = 0,
+	 .enable = 1,},
+	{
 	 .irq_number = 54, /* uSDHC1 */
 	 .up_threshold = 4,
 	 .enable = 1,},

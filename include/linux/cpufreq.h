@@ -73,7 +73,7 @@ extern struct kobject *cpufreq_global_kobject;
  * not issue cpu freq change, but the devices' performance will be impacted
  * significantly, we need to add irq number check to be as one condition of
  * CPU freq change. */
-#define MAX_CPUFREQ_IRQ_NUMBER 10
+#define MAX_CPUFREQ_IRQ_NUMBER 20
 struct irq_tuner {
 	unsigned int irq_number;
 	unsigned int up_threshold;
