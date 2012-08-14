@@ -1543,6 +1543,7 @@ static void mxc_hdmi_notify_fb(struct mxc_hdmi *hdmi)
 static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 {
 	int i;
+	struct fb_videomode *mode;
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
@@ -1554,10 +1555,14 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 	for (i = 0; i < hdmi->fbi->monspecs.modedb_len; i++) {
 		/*
 		 * We might check here if mode is supported by HDMI.
-		 * We do not currently support interlaced modes
+		 * We do not currently support interlaced modes.
+		 * And add CEA modes in the modelist.
 		 */
-		if (!(hdmi->fbi->monspecs.modedb[i].vmode &
-				FB_VMODE_INTERLACED)) {
+		mode = &hdmi->fbi->monspecs.modedb[i];
+
+		if (!(mode->vmode & FB_VMODE_INTERLACED) &&
+				(mxc_edid_mode_to_vic(mode) != 0)) {
+
 			dev_dbg(&hdmi->pdev->dev, "Added mode %d:", i);
 			dev_dbg(&hdmi->pdev->dev,
 				"xres = %d, yres = %d, freq = %d, vmode = %d, flag = %d\n",
@@ -1567,8 +1572,7 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 				hdmi->fbi->monspecs.modedb[i].vmode,
 				hdmi->fbi->monspecs.modedb[i].flag);
 
-			fb_add_videomode(&hdmi->fbi->monspecs.modedb[i],
-					 &hdmi->fbi->modelist);
+			fb_add_videomode(mode, &hdmi->fbi->modelist);
 		}
 	}
 
