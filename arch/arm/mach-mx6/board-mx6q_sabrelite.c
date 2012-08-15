@@ -575,6 +575,15 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	},
 };
 
+static void mx6q_csi0_cam_powerdown(int powerdown)
+{
+	if (powerdown)
+		gpio_set_value(MX6Q_SABRELITE_CSI0_PWN, 1);
+	else
+		gpio_set_value(MX6Q_SABRELITE_CSI0_PWN, 0);
+
+	msleep(2);
+}
 
 static void mx6q_csi0_io_init(void)
 {
@@ -615,6 +624,7 @@ static struct fsl_mxc_camera_platform_data camera_data = {
 	.mclk_source = 0,
 	.csi = 0,
 	.io_init = mx6q_csi0_io_init,
+	.pwdn = mx6q_csi0_cam_powerdown,
 };
 
 static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
