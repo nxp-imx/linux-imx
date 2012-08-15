@@ -1535,7 +1535,7 @@ static void __init imx6q_add_device_gpio_leds(void) {}
 #endif
 
 #if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
-#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake)	\
+#define GPIO_BUTTON(gpio_num, ev_code, act_low, descr, wake, debounce)	\
 {								\
 	.gpio		= gpio_num,				\
 	.type		= EV_KEY,				\
@@ -1543,12 +1543,13 @@ static void __init imx6q_add_device_gpio_leds(void) {}
 	.active_low	= act_low,				\
 	.desc		= "btn " descr,				\
 	.wakeup		= wake,					\
+	.debounce_interval = debounce,				\
 }
 
 static struct gpio_keys_button imx6q_buttons[] = {
-	GPIO_BUTTON(SABRESD_VOLUME_UP, KEY_VOLUMEUP, 1, "volume-up", 0),
-	GPIO_BUTTON(SABRESD_VOLUME_DN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
-	GPIO_BUTTON(SABRESD_POWER_OFF, KEY_POWER, 1, "power", 1),
+	GPIO_BUTTON(SABRESD_VOLUME_UP, KEY_VOLUMEUP, 1, "volume-up", 0, 1),
+	GPIO_BUTTON(SABRESD_VOLUME_DN, KEY_VOLUMEDOWN, 1, "volume-down", 0, 1),
+	GPIO_BUTTON(SABRESD_POWER_OFF, KEY_POWER, 1, "power", 1, 1),
 };
 
 static struct gpio_keys_platform_data imx6q_button_data = {
