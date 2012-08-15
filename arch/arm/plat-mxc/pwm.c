@@ -6,7 +6,7 @@
  * published by the Free Software Foundation.
  *
  * Derived from pxa PWM driver by eric miao <eric.miao@marvell.com>
- * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 #include <linux/module.h>
@@ -39,6 +39,7 @@
 #define MX3_PWMCR_DBGEN			(1 << 22)
 #define MX3_PWMCR_CLKSRC_IPG_HIGH (2 << 16)
 #define MX3_PWMCR_CLKSRC_IPG      (1 << 16)
+#define MX3_PWMCR_SWR             (1 << 3)
 #define MX3_PWMCR_EN              (1 << 0)
 
 #define MX3_PWMCR_STOPEN		(1 << 25)
@@ -174,7 +175,9 @@ void pwm_disable(struct pwm_device *pwm)
 	if (pwm->disable_pwm_pad)
 		pwm->disable_pwm_pad();
 
-	writel(0, pwm->mmio_base + MX3_PWMCR);
+	writel(MX3_PWMCR_SWR, pwm->mmio_base + MX3_PWMCR);
+	while (readl(pwm->mmio_base + MX3_PWMCR) & MX3_PWMCR_SWR)
+		;
 
 	if (pwm->clk_enabled) {
 		clk_disable(pwm->clk);
