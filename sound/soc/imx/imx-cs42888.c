@@ -94,7 +94,7 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	config.channel_num = channel;
 	config.input_sample_rate = rate;
 	config.output_sample_rate = iprtd->p2p->p2p_rate;
-	config.inclk = INCLK_ASRCK1_CLK;
+	config.inclk = INCLK_NONE;
 	config.outclk = OUTCLK_ESAI_TX;
 
 	ret = asrc_config_pair(&config);
@@ -131,7 +131,6 @@ static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct imx_pcm_runtime_data *iprtd = substream->runtime->private_data;
 
 	if (!cpu_dai->active)
 		hw_state.hw = 0;
