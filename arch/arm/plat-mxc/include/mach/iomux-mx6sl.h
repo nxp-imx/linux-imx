@@ -74,9 +74,20 @@
 
 #define MX6SL_TSPAD_CTRL	(PAD_CTL_HYS | PAD_CTL_PKE | PAD_CTL_PUE | \
 				PAD_CTL_PUS_47K_UP)
+#define MX6SL_ADU_PAD_CTRL	(PAD_CTL_PKE | PAD_CTL_PUE |		\
+		PAD_CTL_DSE_40ohm | PAD_CTL_PUS_100K_DOWN |		\
+		PAD_CTL_HYS | PAD_CTL_SPEED_MED)
+
+#define MX6SL_PAD_AUD_MCLK		0x02A4
+#define MX6SL_PAD_AUD_RXD		0x02AC
+#define MX6SL_PAD_AUD_TXC		0x02B4
+#define MX6SL_PAD_AUD_TXD		0x02B8
+#define MX6SL_PAD_AUD_TXFS		0x02BC
+#define MX6SL_PAD_HSIC_DAT		0x0444
+#define MX6SL_PAD_HSIC_STROBE		0x0448
 
 #define MX6SL_PAD_AUD_MCLK__AUDMUX_AUDIO_CLK_OUT                              \
-		IOMUX_PAD(0x02A4, 0x004C, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x02A4, 0x004C, 0, 0x0000, 0, MX6SL_ADU_PAD_CTRL)
 #define MX6SL_PAD_AUD_MCLK__PWM4_PWMO                                         \
 		IOMUX_PAD(0x02A4, 0x004C, 1, 0x0000, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_AUD_MCLK__ECSPI3_RDY                                        \
@@ -112,7 +123,7 @@
 		IOMUX_PAD(0x02A8, 0x0050, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_AUD_RXD__AUDMUX_AUD3_RXD                                    \
-		IOMUX_PAD(0x02AC, 0x0054, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x02AC, 0x0054, 0, 0x0000, 0, MX6SL_ADU_PAD_CTRL)
 #define MX6SL_PAD_AUD_RXD__ECSPI3_MOSI                                        \
 		IOMUX_PAD(0x02AC, 0x0054, 1, 0x06BC, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_AUD_RXD__UART4_TXD                                          \
@@ -150,7 +161,7 @@
 		IOMUX_PAD(0x02B0, 0x0058, 7, 0x07EC, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_AUD_TXC__AUDMUX_AUD3_TXC                                    \
-		IOMUX_PAD(0x02B4, 0x005C, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x02B4, 0x005C, 0, 0x0000, 0, MX6SL_ADU_PAD_CTRL)
 #define MX6SL_PAD_AUD_TXC__ECSPI3_MISO                                        \
 		IOMUX_PAD(0x02B4, 0x005C, 1, 0x06B8, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_AUD_TXC__UART4_TXD                                          \
@@ -169,7 +180,7 @@
 		IOMUX_PAD(0x02B4, 0x005C, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_AUD_TXD__AUDMUX_AUD3_TXD                                    \
-		IOMUX_PAD(0x02B8, 0x0060, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x02B8, 0x0060, 0, 0x0000, 0, MX6SL_ADU_PAD_CTRL)
 #define MX6SL_PAD_AUD_TXD__ECSPI3_SCLK                                        \
 		IOMUX_PAD(0x02B8, 0x0060, 1, 0x06B0, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_AUD_TXD__UART4_CTS                                          \
@@ -188,7 +199,7 @@
 		IOMUX_PAD(0x02B8, 0x0060, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_AUD_TXFS__AUDMUX_AUD3_TXFS                                  \
-		IOMUX_PAD(0x02BC, 0x0064, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x02BC, 0x0064, 0, 0x0000, 0, MX6SL_ADU_PAD_CTRL)
 #define MX6SL_PAD_AUD_TXFS__PWM3_PWMO                                         \
 		IOMUX_PAD(0x02BC, 0x0064, 1, 0x0000, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_AUD_TXFS__UART4_CTS                                         \
