@@ -359,6 +359,7 @@ static int snd_imx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 			dmaengine_submit(iprtd->asrc_p2p_desc);
 			dmaengine_submit(iprtd->asrc_desc);
 			asrc_start_conv(iprtd->asrc_index);
+			mdelay(1);
 		} else {
 			dmaengine_submit(iprtd->desc);
 		}
