@@ -667,12 +667,6 @@ void asrc_start_conv(enum asrc_pair_index index)
 		__raw_writel(reg,
 			     g_asrc->vaddr + ASRC_ASRDIA_REG +
 			     (index << 3));
-		__raw_writel(reg,
-			     g_asrc->vaddr + ASRC_ASRDIA_REG +
-			     (index << 3));
-		__raw_writel(reg,
-			     g_asrc->vaddr + ASRC_ASRDIA_REG +
-			     (index << 3));
 	}
 
 	__raw_writel(0x40, g_asrc->vaddr + ASRC_ASRIER_REG);
