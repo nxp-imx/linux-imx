@@ -316,22 +316,22 @@ int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 	spin_lock_irqsave(&data_lock, lock_flags);
 
 	if (chn_num > 2) {
-		pair = &g_asrc->asrc_pair[ASRC_PAIR_C];
+		pair = &g_asrc->asrc_pair[ASRC_PAIR_B];
 		if (pair->active || (chn_num > pair->chn_max))
 			err = -EBUSY;
 		else {
-			*index = ASRC_PAIR_C;
+			*index = ASRC_PAIR_B;
 			pair->chn_num = chn_num;
 			pair->active = 1;
 		}
 	} else {
 		pair = &g_asrc->asrc_pair[ASRC_PAIR_A];
 		if (pair->active || (pair->chn_max == 0)) {
-			pair = &g_asrc->asrc_pair[ASRC_PAIR_B];
+			pair = &g_asrc->asrc_pair[ASRC_PAIR_C];
 			if (pair->active || (pair->chn_max == 0))
 				err = -EBUSY;
 			else {
-				*index = ASRC_PAIR_B;
+				*index = ASRC_PAIR_C;
 				pair->chn_num = 2;
 				pair->active = 1;
 			}
@@ -813,9 +813,9 @@ static int mxc_init_asrc(void)
 	/* Enable overflow interrupt */
 	__raw_writel(0x00, g_asrc->vaddr + ASRC_ASRIER_REG);
 
-	/* Default 6: 2: 2 channel assignment */
-	__raw_writel((0x06 << g_asrc->mxc_asrc_data->channel_bits *
-		      2) | (0x02 << g_asrc->mxc_asrc_data->channel_bits) | 0x02,
+	/* Default 2: 6: 2 channel assignment */
+	__raw_writel((0x02 << g_asrc->mxc_asrc_data->channel_bits *
+		      2) | (0x06 << g_asrc->mxc_asrc_data->channel_bits) | 0x02,
 		     g_asrc->vaddr + ASRC_ASRCNCR_REG);
 
 	/* Parameter Registers recommended settings */
@@ -1696,8 +1696,8 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	g_asrc->dev->coherent_dma_mask = DMA_BIT_MASK(32);
 
 	g_asrc->asrc_pair[0].chn_max = 2;
-	g_asrc->asrc_pair[1].chn_max = 2;
-	g_asrc->asrc_pair[2].chn_max = 6;
+	g_asrc->asrc_pair[1].chn_max = 6;
+	g_asrc->asrc_pair[2].chn_max = 2;
 	g_asrc->asrc_pair[0].overload_error = 0;
 	g_asrc->asrc_pair[1].overload_error = 0;
 	g_asrc->asrc_pair[2].overload_error = 0;
