@@ -488,6 +488,17 @@ static int mxc_wm8962_init(void)
 	clk_set_rate(extern_audio_root, rate);
 
 	wm8962_data.sysclk = rate;
+	/* set AUDMUX pads to 1.8v */
+	mxc_iomux_set_specialbits_register(MX6SL_PAD_AUD_MCLK,
+					PAD_CTL_LVE, PAD_CTL_LVE_MASK);
+	mxc_iomux_set_specialbits_register(MX6SL_PAD_AUD_RXD,
+					PAD_CTL_LVE, PAD_CTL_LVE_MASK);
+	mxc_iomux_set_specialbits_register(MX6SL_PAD_AUD_TXC,
+					PAD_CTL_LVE, PAD_CTL_LVE_MASK);
+	mxc_iomux_set_specialbits_register(MX6SL_PAD_AUD_TXD,
+					PAD_CTL_LVE, PAD_CTL_LVE_MASK);
+	mxc_iomux_set_specialbits_register(MX6SL_PAD_AUD_TXFS,
+					PAD_CTL_LVE, PAD_CTL_LVE_MASK);
 
 	return 0;
 }
