@@ -3465,6 +3465,7 @@ static int fsl_udc_resume(struct platform_device *pdev)
 	 */
 	if (udc_controller->suspended && !udc_controller->stopped) {
 		dr_clk_gate(true);
+		dr_wake_up_enable(udc_controller, false);
 		dr_phy_low_power_mode(udc_controller, false);
 	}
 	/* Enable DR irq reg and set controller Run */
