@@ -2,6 +2,8 @@
  * Copyright (C) 2009 by Jan Weitzel Phytec Messtechnik GmbH,
  *			<armlinux@phytec.de>
  *
+ * Copyright (C) 2012 Freescale Semiconductor, Inc.
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
@@ -89,6 +91,11 @@ typedef u64 iomux_v3_cfg_t;
 #define NO_PAD_I			0
 #define NO_MUX_I			0
 #ifdef CONFIG_SOC_IMX6Q
+#define PAD_CTL_LVE			(1 << 22)
+#define PAD_CTL_LVE_MASK		(1 << 22)
+#define PAD_CTL_DDR_SEL_LPDDR2		(2 << 18)
+#define PAD_CTL_DDR_SEL_DDR3		(3 << 18)
+#define PAD_CTL_DDR_SEL_MASK		(3 << 18)
 #define PAD_CTL_HYS			(1 << 16)
 
 #define PAD_CTL_PUS_100K_DOWN		(0 << 14)
@@ -173,5 +180,11 @@ void mxc_iomux_v3_init(void __iomem *iomux_v3_base);
  * Set bits for general purpose registers
  */
 void mxc_iomux_set_gpr_register(int group, int start_bit, int num_bits, int value);
+
+/*
+ * Set special bits for iomux registers, such as LVE bit, DDR_SEL bits
+ */
+void mxc_iomux_set_specialbits_register(u32 pad_addr, u32 value, u32 mask);
+
 #endif /* __MACH_IOMUX_V3_H__*/
 
