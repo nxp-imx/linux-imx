@@ -134,6 +134,7 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 			clk_disable(pll2_400);
 
 		clk_disable(pll3);
+		med_bus_freq_mode = 0;
 	} else {
 		arm_mem_clked_in_wait = true;
 
