@@ -137,6 +137,7 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 			clk_disable(pll2_400);
 
 		clk_disable(pll3);
+		med_bus_freq_mode = 0;
 	} else {
 		/* Set VDDSOC_CAP to 1.1V */
 		ret = regulator_set_voltage(vddsoc_cap_regulator, 1100000,
