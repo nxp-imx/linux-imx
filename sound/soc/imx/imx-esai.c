@@ -468,6 +468,7 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 {
 	struct imx_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
 	u32 reg, tfcr = 0, rfcr = 0;
+	int i;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		tfcr = readl(esai->base + ESAI_TFCR);
@@ -483,6 +484,9 @@ static int imx_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			tfcr |= ESAI_TFCR_TFEN;
 			writel(tfcr, esai->base + ESAI_TFCR);
+			/* write initial words to ETDR register */
+			for (i = 0; i < substream->runtime->channels; i++)
+				writel(0x0, esai->base + ESAI_ETDR);
 			reg |= ESAI_TCR_TE(substream->runtime->channels);
 			writel(reg, esai->base + ESAI_TCR);
 		} else {
