@@ -474,7 +474,7 @@ static int __init imx_asoc_init(void)
 
 	if (machine_is_mx6q_sabresd())
 		imx_dai[0].codec_name = "wm8962.0-001a";
-	else if (machine_is_mx6sl_arm2())
+	else if (machine_is_mx6sl_arm2() | machine_is_mx6sl_evk())
 		imx_dai[0].codec_name = "wm8962.1-001a";
 
 	imx_snd_device = platform_device_alloc("soc-audio", 5);
