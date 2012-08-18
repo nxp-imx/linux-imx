@@ -508,6 +508,8 @@ static int foreground_stop(void *private)
 	}
 #endif
 
+	flush_work_sync(&cam->csi_work_struct);
+	cancel_work_sync(&cam->csi_work_struct);
 	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_VF, cam->csi, false, false);
 
 	if (cam->vf_bufs_vaddr[0]) {
