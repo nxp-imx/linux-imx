@@ -803,7 +803,7 @@ void _ipu_csi_wait4eof(struct ipu_soc *ipu, ipu_channel_t channel)
 		dev_err(ipu->dev, "CSI irq %d in use\n", irq);
 		return;
 	}
-	ret = wait_for_completion_timeout(&ipu->csi_comp, msecs_to_jiffies(50));
+	ret = wait_for_completion_timeout(&ipu->csi_comp, msecs_to_jiffies(500));
 	ipu_free_irq(ipu, irq, ipu);
 	dev_dbg(ipu->dev, "CSI stop timeout - %d * 10ms\n", 5 - ret);
 }
