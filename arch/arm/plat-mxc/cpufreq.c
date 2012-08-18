@@ -96,9 +96,11 @@ int set_cpu_freq(int freq)
 	/*Set the voltage for the GP domain. */
 	if (freq > org_cpu_rate) {
 		mutex_lock(&bus_freq_mutex);
-		if (low_bus_freq_mode || audio_bus_freq_mode)
+		if (low_bus_freq_mode || audio_bus_freq_mode) {
+			mutex_unlock(&bus_freq_mutex);
 			set_high_bus_freq(0);
-		mutex_unlock(&bus_freq_mutex);
+		} else
+			mutex_unlock(&bus_freq_mutex);
 		if (freq == cpu_op_tbl[0].cpu_rate && !IS_ERR(soc_regulator) && !IS_ERR(pu_regulator)) {
 			ret = regulator_set_voltage(soc_regulator, soc_volt,
 							soc_volt);

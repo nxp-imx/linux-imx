@@ -44,6 +44,7 @@
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
 #include "crm_regs.h"
+#include <linux/suspend.h>
 
 #define LPAPM_CLK		24000000
 #define DDR_MED_CLK		400000000
@@ -111,11 +112,16 @@ static struct delayed_work low_bus_freq_handler;
 
 static void reduce_bus_freq_handler(struct work_struct *work)
 {
-	if (low_bus_freq_mode || !low_freq_bus_used())
+	mutex_lock(&bus_freq_mutex);
+	if (low_bus_freq_mode || !low_freq_bus_used()) {
+		mutex_unlock(&bus_freq_mutex);
 		return;
+	}
 
-	if (audio_bus_freq_mode && lp_audio_freq)
+	if (audio_bus_freq_mode && lp_audio_freq) {
+		mutex_unlock(&bus_freq_mutex);
 		return;
+	}
 
 	if (!cpu_is_mx6sl()) {
 		clk_enable(pll3);
@@ -181,6 +187,7 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 	}
 
 	high_bus_freq_mode = 0;
+	mutex_unlock(&bus_freq_mutex);
 }
 
 /* Set the DDR, AHB to 24MHz.
@@ -207,29 +214,42 @@ int set_low_bus_freq(void)
  */
 int set_high_bus_freq(int high_bus_freq)
 {
-	if (busfreq_suspended)
+	if (bus_freq_scaling_initialized && bus_freq_scaling_is_active)
+		cancel_delayed_work_sync(&low_bus_freq_handler);
+	mutex_lock(&bus_freq_mutex);
+	if (busfreq_suspended) {
+		mutex_unlock(&bus_freq_mutex);
 		return 0;
+	}
 
-	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active)
+	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active) {
+		mutex_unlock(&bus_freq_mutex);
 		return 0;
+	}
 
-	if (high_bus_freq_mode && high_bus_freq)
+	if (high_bus_freq_mode && high_bus_freq) {
+		mutex_unlock(&bus_freq_mutex);
 		return 0;
+	}
 
-	if (med_bus_freq_mode && !high_bus_freq)
+	if (med_bus_freq_mode && !high_bus_freq) {
+		mutex_unlock(&bus_freq_mutex);
 		return 0;
+	}
 
 	if (cpu_is_mx6dl() && high_bus_freq)
 		high_bus_freq = 0;
 
-	if (cpu_is_mx6dl() && med_bus_freq_mode)
+	if (cpu_is_mx6dl() && med_bus_freq_mode) {
+		mutex_unlock(&bus_freq_mutex);
 		return 0;
-
+	}
 	if ((high_bus_freq_mode && (high_bus_freq || lp_high_freq)) ||
 	    (med_bus_freq_mode && !high_bus_freq && lp_med_freq &&
-	     !lp_high_freq))
+	     !lp_high_freq)) {
+		mutex_unlock(&bus_freq_mutex);
 		return 0;
-
+	}
 	if (cpu_is_mx6sl()) {
 		u32 reg;
 		unsigned long flags;
@@ -291,6 +311,7 @@ int set_high_bus_freq(int high_bus_freq)
 	if (cpu_is_mx6sl())
 		arm_mem_clked_in_wait = false;
 
+	mutex_unlock(&bus_freq_mutex);
 	return 0;
 }
 
@@ -339,15 +360,21 @@ void bus_freq_update(struct clk *clk, bool flag)
 			}
 		} else {
 			if ((clk->flags & AHB_MED_SET_POINT)
-				&& !med_bus_freq_mode)
+				&& !med_bus_freq_mode) {
 				/* Set to Medium setpoint */
+				mutex_unlock(&bus_freq_mutex);
 				set_high_bus_freq(0);
+				return;
+			}
 			else if ((clk->flags & AHB_HIGH_SET_POINT)
-				&& !high_bus_freq_mode)
+				&& !high_bus_freq_mode) {
 				/* Currently at low or medium set point,
 				* need to set to high setpoint
 				*/
+				mutex_unlock(&bus_freq_mutex);
 				set_high_bus_freq(1);
+				return;
+			}
 			}
 		}
 	} else {
@@ -363,12 +390,16 @@ void bus_freq_update(struct clk *clk, bool flag)
 			&& (clk_get_usecount(clk) == 0)) {
 			if (low_freq_bus_used() && !low_bus_freq_mode)
 				set_low_bus_freq();
-			else
+			else {
 				/* Set to either high or medium setpoint. */
+				mutex_unlock(&bus_freq_mutex);
 				set_high_bus_freq(0);
+				return;
+			}
 		}
 	}
 	mutex_unlock(&bus_freq_mutex);
+	return;
 }
 void setup_pll(void)
 {
@@ -404,16 +435,28 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 
 static int busfreq_suspend(struct platform_device *pdev, pm_message_t message)
 {
-	set_high_bus_freq(1);
-	busfreq_suspended = 1;
 	return 0;
 }
 
+static int bus_freq_pm_notify(struct notifier_block *nb, unsigned long event,
+	void *dummy)
+{
+	if (event == PM_SUSPEND_PREPARE) {
+		set_high_bus_freq(1);
+		busfreq_suspended = 1;
+	} else if (event == PM_POST_SUSPEND) {
+		busfreq_suspended = 0;
+	}
+
+	return NOTIFY_OK;
+}
 static int busfreq_resume(struct platform_device *pdev)
 {
-	busfreq_suspended = 0;
 	return  0;
 }
+static struct notifier_block imx_bus_freq_pm_notifier = {
+	.notifier_call = bus_freq_pm_notify,
+};
 
 static DEVICE_ATTR(enable, 0644, bus_freq_scaling_enable_show,
 			bus_freq_scaling_enable_store);
@@ -570,6 +613,7 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	}
 
 	INIT_DELAYED_WORK(&low_bus_freq_handler, reduce_bus_freq_handler);
+	register_pm_notifier(&imx_bus_freq_pm_notifier);
 
 	if (!cpu_is_mx6sl())
 		init_mmdc_settings();
