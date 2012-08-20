@@ -180,7 +180,6 @@ static inline void vpu_worker_callback(struct work_struct *w)
 	 * codec is done.
 	 */
 	if (codec_done) {
-		clk_disable(vpu_clk);
 		codec_done = 0;
 	}
 
