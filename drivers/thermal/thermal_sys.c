@@ -842,10 +842,33 @@ static void thermal_release(struct device *dev)
 		kfree(cdev);
 	}
 }
+static int thermal_suspend(struct device *dev, pm_message_t state)
+{
+	struct thermal_zone_device *tz;
+	if (!strncmp(dev_name(dev), "thermal_zone", strlen("thermal_zone"))) {
+		tz = to_thermal_zone(dev);
+		thermal_zone_device_set_polling(tz, 0);
+	}
+	return 0;
+}
+static int themal_resume(struct device *dev)
+{
+	struct thermal_zone_device *tz;
+	if (!strncmp(dev_name(dev), "thermal_zone", strlen("thermal_zone"))) {
+		tz = to_thermal_zone(dev);
+		if (tz->passive)
+			thermal_zone_device_set_polling(tz, tz->passive_delay);
+		else if (tz->polling_delay)
+			thermal_zone_device_set_polling(tz, tz->polling_delay);
+	}
+	return 0;
+}
 
 static struct class thermal_class = {
 	.name = "thermal",
 	.dev_release = thermal_release,
+	.suspend = thermal_suspend,
+	.resume = themal_resume,
 };
 
 /**
