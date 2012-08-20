@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -254,10 +254,12 @@ static int pxp_set_fbinfo(struct pxps *pxp)
 
 	fb->fmt.width = fbi->var.xres;
 	fb->fmt.height = fbi->var.yres;
+	pxp->pxp_conf.out_param.stride = fbi->var.xres;
 	if (fbi->var.bits_per_pixel == 16)
 		fb->fmt.pixelformat = V4L2_PIX_FMT_RGB565;
 	else
 		fb->fmt.pixelformat = V4L2_PIX_FMT_RGB24;
+
 	fb->base = (void *)fbi->fix.smem_start;
 
 	return 0;
@@ -293,9 +295,9 @@ static int set_fb_blank(int blank)
 	if (err)
 		return err;
 
-	acquire_console_sem();
+	console_lock();
 	fb_blank(fbi, blank);
-	release_console_sem();
+	console_unlock();
 
 	return err;
 }
@@ -679,7 +681,7 @@ static void pxp_buf_free(struct videobuf_queue *q, struct pxp_buffer *buf)
 	 * This waits until this buffer is out of danger, i.e., until it is no
 	 * longer in STATE_QUEUED or STATE_ACTIVE
 	 */
-	videobuf_waiton(vb, 0, 0);
+	videobuf_waiton(q, vb, 0, 0);
 	if (txd)
 		async_tx_ack(txd);
 
@@ -710,7 +712,7 @@ static int pxp_buf_prepare(struct videobuf_queue *q,
 
 	if (vb->state == VIDEOBUF_NEEDS_INIT) {
 		struct pxp_channel *pchan = pxp->pxp_channel[0];
-		struct scatterlist *sg = &buf->sg;
+		struct scatterlist *sg = &buf->sg[0];
 
 		/* This actually (allocates and) maps buffers */
 		ret = videobuf_iolock(q, vb, NULL);
@@ -1055,7 +1057,8 @@ out:
 				V4L2_BUF_TYPE_VIDEO_OUTPUT,
 				V4L2_FIELD_NONE,
 				sizeof(struct pxp_buffer),
-				pxp);
+				pxp,
+				NULL);
 	dev_dbg(&pxp->pdev->dev, "call pxp_open\n");
 
 	return 0;
