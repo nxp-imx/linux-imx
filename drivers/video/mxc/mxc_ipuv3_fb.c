@@ -248,8 +248,20 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	base += fr_yoff * fb_stride + fr_xoff;
 
 	mxc_fbi->cur_ipu_buf = 2;
-	if (mxc_fbi->alpha_chan_en)
+	init_completion(&mxc_fbi->flip_complete);
+	/*
+	 * We don't need to wait for vsync at the first time
+	 * we do pan display after fb is initialized, as IPU will
+	 * switch to the newly selected buffer automatically,
+	 * so we call complete() for both mxc_fbi->flip_complete
+	 * and mxc_fbi->alpha_flip_complete.
+	 */
+	complete(&mxc_fbi->flip_complete);
+	if (mxc_fbi->alpha_chan_en) {
 		mxc_fbi->cur_ipu_alpha_buf = 1;
+		init_completion(&mxc_fbi->alpha_flip_complete);
+		complete(&mxc_fbi->alpha_flip_complete);
+	}
 
 	retval = ipu_init_channel_buffer(mxc_fbi->ipu,
 					 mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
@@ -1000,9 +1012,6 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 			else
 				ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
 
-			init_completion(&mxc_fbi->alpha_flip_complete);
-			ipu_clear_irq(mxc_fbi->ipu, ipu_alp_ch_irq);
-			ipu_enable_irq(mxc_fbi->ipu, ipu_alp_ch_irq);
 			retval = wait_for_completion_timeout(
 				&mxc_fbi->alpha_flip_complete, HZ/2);
 			if (retval == 0) {
@@ -1021,6 +1030,8 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 				ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 						  IPU_ALPHA_IN_BUFFER,
 						  mxc_fbi->cur_ipu_alpha_buf);
+				ipu_clear_irq(mxc_fbi->ipu, ipu_alp_ch_irq);
+				ipu_enable_irq(mxc_fbi->ipu, ipu_alp_ch_irq);
 			} else {
 				dev_err(fbi->device,
 					"Error updating %s SDC alpha buf %d "
@@ -1400,9 +1411,6 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		}
 	}
 
-	init_completion(&mxc_fbi->flip_complete);
-	ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
-	ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 	ret = wait_for_completion_timeout(&mxc_fbi->flip_complete, HZ/2);
 	if (ret == 0) {
 		dev_err(info->device, "timeout when waiting for flip irq\n");
@@ -1442,6 +1450,8 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 
 		ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
 				  mxc_fbi->cur_ipu_buf);
+		ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+		ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 	} else {
 		dev_err(info->device,
 			"Error updating SDC buf %d to address=0x%08lX, "
@@ -1460,6 +1470,8 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		++mxc_fbi->cur_ipu_buf;
 		mxc_fbi->cur_ipu_buf %= 3;
 		mxc_fbi->cur_ipu_alpha_buf = !mxc_fbi->cur_ipu_alpha_buf;
+		ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+		ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
 		return -EBUSY;
 	}
 
