@@ -1266,6 +1266,10 @@ static void __init mx6_evk_init(void)
 	imx6sl_add_dcp();
 	imx6sl_add_rngb();
 
+	imx6q_add_perfmon(0);
+	imx6q_add_perfmon(1);
+	imx6q_add_perfmon(2);
+
 	pm_power_off = mx6_snvs_poweroff;
 }
 
