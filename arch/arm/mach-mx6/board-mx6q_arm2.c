@@ -1993,12 +1993,14 @@ static void __init mx6_arm2_init(void)
 	iomux_v3_cfg_t *spdif_pads = NULL;
 	iomux_v3_cfg_t *flexcan_pads = NULL;
 	iomux_v3_cfg_t *i2c3_pads = NULL;
+	iomux_v3_cfg_t *epdc_pads = NULL;
 
 	int common_pads_cnt;
 	int esai_rec_pads_cnt;
 	int spdif_pads_cnt;
 	int flexcan_pads_cnt;
 	int i2c3_pads_cnt;
+	int epdc_pads_cnt;
 
 
 	/*
@@ -2024,12 +2026,14 @@ static void __init mx6_arm2_init(void)
 		spdif_pads = mx6dl_arm2_spdif_pads;
 		flexcan_pads = mx6dl_arm2_can_pads;
 		i2c3_pads = mx6dl_arm2_i2c3_pads;
+		epdc_pads = mx6dl_arm2_epdc_pads;
 
 		common_pads_cnt = ARRAY_SIZE(mx6dl_arm2_pads);
 		esai_rec_pads_cnt = ARRAY_SIZE(mx6dl_arm2_esai_record_pads);
 		spdif_pads_cnt =  ARRAY_SIZE(mx6dl_arm2_spdif_pads);
 		flexcan_pads_cnt = ARRAY_SIZE(mx6dl_arm2_can_pads);
 		i2c3_pads_cnt = ARRAY_SIZE(mx6dl_arm2_i2c3_pads);
+		epdc_pads_cnt = ARRAY_SIZE(mx6dl_arm2_epdc_pads);
 	}
 
 	BUG_ON(!common_pads);
@@ -2207,6 +2211,8 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_mlb150(&mx6_arm2_mlb150_data);
 
 	if (cpu_is_mx6dl() && epdc_enabled) {
+		BUG_ON(!epdc_pads);
+		mxc_iomux_v3_setup_multiple_pads(epdc_pads, epdc_pads_cnt);
 		imx6dl_add_imx_pxp();
 		imx6dl_add_imx_pxp_client();
 		mxc_register_device(&max17135_sensor_device, NULL);
