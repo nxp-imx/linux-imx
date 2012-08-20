@@ -188,7 +188,9 @@ static iomux_v3_cfg_t mx6dl_arm2_pads[] = {
 	MX6DL_PAD_GPIO_6__MLB_MLBSIG,
 	MX6DL_PAD_GPIO_2__MLB_MLBDAT,
 
-	/* EPDC pins */
+};
+
+static iomux_v3_cfg_t mx6dl_arm2_epdc_pads[] = {
 	MX6DL_PAD_EIM_A17__GPIO_2_21,
 	MX6DL_PAD_EIM_D17__GPIO_3_17,
 	MX6DL_PAD_EIM_A18__GPIO_2_20,
