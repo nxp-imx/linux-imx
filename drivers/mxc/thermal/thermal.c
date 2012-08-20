@@ -959,6 +959,9 @@ static int anatop_thermal_remove(struct platform_device *pdev)
 static int anatop_thermal_suspend(struct platform_device *pdev,
 		pm_message_t state)
 {
+	/* turn off alarm */
+	anatop_update_alarm(0);
+	suspend_flag = true;
 	/* Power down anatop thermal sensor */
 	__raw_writel(BM_ANADIG_TEMPSENSE0_MEASURE_TEMP,
 		anatop_base + HW_ANADIG_TEMPSENSE0_CLR);
@@ -968,10 +971,6 @@ static int anatop_thermal_suspend(struct platform_device *pdev,
 		anatop_base + HW_ANADIG_TEMPSENSE0_SET);
 	__raw_writel(BM_ANADIG_ANA_MISC0_REFTOP_SELBIASOFF,
 		anatop_base + HW_ANADIG_ANA_MISC0_CLR);
-	/* turn off alarm */
-	anatop_update_alarm(0);
-	suspend_flag = true;
-
 	return 0;
 }
 static int anatop_thermal_resume(struct platform_device *pdev)
