@@ -448,6 +448,11 @@ static int _clk_pll_enable(struct clk *clk)
 				SPIN_DELAY))
 		panic("pll enable failed\n");
 
+	/* Enable the PLL output now*/
+	reg = __raw_readl(pllbase);
+	reg |= ANADIG_PLL_ENABLE;
+	__raw_writel(reg, pllbase);
+
 	return 0;
 }
 
@@ -469,6 +474,13 @@ static void _clk_pll_disable(struct clk *clk)
 	/* The 480MHz PLLs have the opposite definition for power bit. */
 	if (clk == &pll3_usb_otg_main_clk || clk == &pll7_usb_host_main_clk)
 		reg &= ~ANADIG_PLL_POWER_DOWN;
+
+	/* PLL1, PLL2, PLL3, PLL7 should not disable the ENABLE bit.
+	  * The output of these PLLs maybe used even if they are bypassed.
+	  */
+	if (clk == &pll4_audio_main_clk || clk == &pll5_video_main_clk ||
+		clk == &pll6_enet_main_clk)
+		reg &= ~ANADIG_PLL_ENABLE;
 
 	__raw_writel(reg, pllbase);
 
