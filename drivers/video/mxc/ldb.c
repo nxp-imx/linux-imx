@@ -315,7 +315,14 @@ int ldb_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 				writel(data, ldb->control_reg);
 			}
 		}
+		break;
 	}
+	case FB_EVENT_SUSPEND:
+		if (ldb->setting[index].clk_en) {
+			clk_disable(ldb->setting[index].ldb_di_clk);
+			ldb->setting[index].clk_en = false;
+		}
+		break;
 	default:
 		break;
 	}
