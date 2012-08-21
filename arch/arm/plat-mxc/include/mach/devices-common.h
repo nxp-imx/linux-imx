@@ -468,6 +468,7 @@ struct imx_pxp_data {
 struct platform_device *__init imx_add_imx_pxp(
 	const struct imx_pxp_data *data);
 struct platform_device *__init imx_add_imx_pxp_client(void);
+struct platform_device *__init imx_add_imx_pxp_v4l2(void);
 
 #include <linux/fsl_devices.h>
 struct imx_elcdif_data {
