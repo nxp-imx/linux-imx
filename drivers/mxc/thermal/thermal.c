@@ -152,6 +152,8 @@ static const struct anatop_device_id thermal_device_ids[] = {
 	{ANATOP_THERMAL_HID},
 	{""},
 };
+int thermal_hot;
+EXPORT_SYMBOL(thermal_hot);
 
 enum {
 	DEBUG_USER_STATE = 1U << 0,
@@ -584,6 +586,7 @@ static int anatop_thermal_notify(struct thermal_zone_device *thermal, int trip,
 		printk(KERN_WARNING "thermal_notify: trip_critical reached!\n");
 		arch_reset(mode, cmd);
 	} else if (trip_type == THERMAL_TRIP_HOT) {
+		thermal_hot = 1;
 		printk(KERN_DEBUG "thermal_notify: trip_hot reached!\n");
 		type = ANATOP_THERMAL_NOTIFY_HOT;
 		/* if temperature increase, continue to detach secondary CPUs*/
@@ -598,6 +601,7 @@ static int anatop_thermal_notify(struct thermal_zone_device *thermal, int trip,
 			printk(KERN_INFO "No secondary CPUs detached!\n");
 		full_run = false;
 	} else {
+		thermal_hot = 0;
 		if (!full_run) {
 			temperature_cooling = 0;
 			if (cooling_cpuhotplug)
