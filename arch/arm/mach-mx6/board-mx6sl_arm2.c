@@ -1080,6 +1080,11 @@ static void __init mx6_arm2_init_usb(void)
 	mx6_set_otghost_vbus_func(imx6_arm2_usbotg_vbus);
 	mx6_usb_dr_init();
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
+	mxc_iomux_set_specialbits_register(MX6SL_PAD_HSIC_DAT,
+		PAD_CTL_DDR_SEL_DDR3, PAD_CTL_DDR_SEL_MASK);
+	mxc_iomux_set_specialbits_register(MX6SL_PAD_HSIC_STROBE,
+		PAD_CTL_DDR_SEL_DDR3, PAD_CTL_DDR_SEL_MASK);
+
 	mx6_usb_h2_init();
 #endif
 }
