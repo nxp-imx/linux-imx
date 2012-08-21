@@ -204,6 +204,42 @@ mmdc_podf1:
 
     .endm
 
+	 .macro   mmdc_clk_lower_100MHz
+
+	 /* Prior to reducing the DDR frequency (at 528/400 MHz),
+	    read the Measure unit count bits (MU_UNIT_DEL_NUM) */
+	 ldr     r5, =0x8B8
+	 ldr   r6, [r8, r5]
+	 /* Original MU unit count */
+	 mov	 r6, r6, LSR #16
+	 ldr	 r4, =0x3FF
+	 and   	 r6, r6, r4
+	 /* Original MU unit count * 2 */
+	 mov	 r1, r6, LSL #1
+	 /* Bypass the automatic measure unit when below 100 MHz
+	    by setting the Measure unit bypass enable bit (MU_BYP_EN) */
+	 ldr     r6, [r8, r5]
+	 orr	 r6, r6, #0x400
+	 str     r6, [r8, r5]
+     /* Double the measure count value read in step 1 and program it in the
+        measurement bypass bits (MU_BYP_VAL) of the MMDC PHY Measure Unit
+        Register for the reduced frequency operation below 100 MHz */
+	 ldr   	 r6, [r8, r5]
+	 ldr	 r4, =0x3FF
+	 bic	 r6, r6, r4
+	 orr	 r6, r6, r1
+	 str     r6, [r8, r5]
+	 .endm
+
+	 .macro   mmdc_clk_above_100MHz
+
+	 /* Make sure that the PHY measurement unit is NOT in bypass mode */
+	 ldr     r5, =0x8B8
+	 ldr   	 r6, [r8, r5]
+	 bic	 r6, r6, #0x400
+	 str     r6, [r8, r5]
+	 .endm
+
 /*
  *  mx6sl_ddr_iram
  *
@@ -281,10 +317,12 @@ poll_dvfs_set_1:
      cmp    r0, r1
      beq     set_to_24MHz
 
+     mmdc_clk_above_100MHz
      ddr_switch_400MHz
      b    done
 
 set_to_24MHz:
+     mmdc_clk_lower_100MHz
      mx6sl_switch_to_24MHz
 
 done:
