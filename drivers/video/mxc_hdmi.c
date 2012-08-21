@@ -1769,10 +1769,13 @@ static void hotplug_worker(struct work_struct *work)
 #ifdef CONFIG_MXC_HDMI_CEC
 			mxc_hdmi_cec_handle(0x80);
 #endif
+			hdmi_set_cable_state(1);
 
 		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
 			/* Plugout event */
 			dev_dbg(&hdmi->pdev->dev, "EVENT=plugout\n");
+			hdmi_set_cable_state(0);
+			mxc_hdmi_abort_stream();
 			mxc_hdmi_cable_disconnected(hdmi);
 
 			/* Make HPD intr active high to capture plugin event */
@@ -2061,10 +2064,13 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 
 			if (hdmi->fb_reg && hdmi->cable_plugin)
 				mxc_hdmi_setup(hdmi, val);
+			hdmi_set_blank_state(1);
 
 		} else if (*((int *)event->data) != hdmi->blank) {
 			dev_dbg(&hdmi->pdev->dev,
 				"event=FB_EVENT_BLANK - BLANK\n");
+			hdmi_set_blank_state(0);
+			mxc_hdmi_abort_stream();
 
 			mxc_hdmi_phy_disable(hdmi);
 
