@@ -1267,6 +1267,7 @@ static void __init mx6_evk_init(void)
 	imx6q_add_busfreq();
 	imx6sl_add_dcp();
 	imx6sl_add_rngb();
+	imx6sl_add_imx_pxp_v4l2();
 
 	imx6q_add_perfmon(0);
 	imx6q_add_perfmon(1);

@@ -64,3 +64,8 @@ struct platform_device *__init imx_add_imx_pxp_client()
 		NULL, 0, NULL, 0);
 }
 
+struct platform_device *__init imx_add_imx_pxp_v4l2()
+{
+    return imx_add_platform_device_dmamask("pxp-v4l2", -1,
+		NULL, 0, NULL, 0, DMA_BIT_MASK(32));
+}
