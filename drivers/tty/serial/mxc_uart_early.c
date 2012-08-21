@@ -188,4 +188,4 @@ int __init mxc_early_uart_console_disable(void)
 	}
 	return 0;
 }
-late_initcall(mxc_early_uart_console_disable);
+late_initcall_sync(mxc_early_uart_console_disable);
