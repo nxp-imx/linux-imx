@@ -201,6 +201,11 @@ poll_dvfs_set_1:
      cmp    r6, #0x2000000
      bne     poll_dvfs_set_1
 
+     /* set SBS step-by-step mode */
+     ldr     r6, [r8, #0x410]
+     orr     r6, r6, #0x100
+     str     r6, [r8, #0x410]
+
      /* Now set DDR rate to 1MHz. */
      /* DDR is from bypassed PLL2 on periph2_clk2 path.
        * Set the periph2_clk2_podf to divide by 8.
@@ -214,6 +219,12 @@ poll_dvfs_set_1:
      bic    r6, r6, #0x38
      orr    r6, r6, #0x10
      str     r6, [r2, #0x14]
+
+    /* Loop till podf is accepted. */
+mmdc_podf:
+     ldr     r6, [r2, #0x48]
+     cmp   r6, #0x0
+     bne   mmdc_podf
 
       /* Set the DDR IO in LPM state. */
      sl_ddr_io_set_lpm
@@ -321,6 +332,11 @@ ahb_podf1:
      bic   r6, r6, #0x3f
      str    r6, [r2, #0x14]
 
+mmdc_podf1:
+     ldr     r6, [r2, #0x48]
+     cmp   r6, #0x0
+     bne   mmdc_podf1
+
      /* clear DVFS - exit from self refresh mode */
      ldr     r6, [r8, #0x404]
      bic     r6, r6, #0x200000
@@ -336,6 +352,12 @@ poll_dvfs_clear_1:
      ldr    r6, [r8, #0x404]
      bic    r6, r6, #0x01
      str    r6, [r8, #0x404]
+
+     /* clear SBS - unblock DDR accesses */
+     ldr     r6, [r8, #0x410]
+     bic     r6, r6, #0x100
+     str     r6, [r8, #0x410]
+
 
     pop {r4,r5, r6, r7, r8, r9, r10}
 

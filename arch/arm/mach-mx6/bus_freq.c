@@ -47,6 +47,7 @@
 #include <linux/suspend.h>
 
 #define LPAPM_CLK		24000000
+#define DDR_AUDIO_CLK	50000000
 #define DDR_MED_CLK		400000000
 #define DDR3_NORMAL_CLK		528000000
 #define GPC_PGC_GPU_PGCR_OFFSET	0x260
@@ -81,7 +82,7 @@ void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr) = NULL;
 extern void mx6sl_wait (int arm_podf, unsigned long wfi_iram_addr);
 
 void *mx6sl_ddr_freq_base;
-void (*mx6sl_ddr_freq_change_iram)(int ddr_freq) = NULL;
+void (*mx6sl_ddr_freq_change_iram)(int ddr_freq, int low_bus_freq_mode) = NULL;
 extern void mx6sl_ddr_iram(int ddr_freq);
 
 extern int init_mmdc_settings(void);
@@ -140,13 +141,13 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		if (lp_audio_freq) {
 			/* Need to ensure that PLL2_PFD_400M is kept ON. */
 			clk_enable(pll2_400);
-			update_ddr_freq(50000000);
+			update_ddr_freq(DDR_AUDIO_CLK);
 			/* Make sure periph clk's parent also got updated */
 			clk_set_parent(periph_clk, pll2_200);
 			audio_bus_freq_mode = 1;
 			low_bus_freq_mode = 0;
 		} else {
-			update_ddr_freq(24000000);
+			update_ddr_freq(LPAPM_CLK);
 			/* Make sure periph clk's parent also got updated */
 			clk_set_parent(periph_clk, osc_clk);
 			if (audio_bus_freq_mode)
@@ -167,32 +168,61 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 
 		spin_lock_irqsave(&freq_lock, flags);
 
-		/* Set periph_clk to be sourced from OSC_CLK */
-		/* Set AXI to 24MHz. */
-		clk_set_parent(periph_clk, osc_clk);
-		clk_set_rate(axi_clk, clk_round_rate(axi_clk, LPAPM_CLK));
-		/* Set AHB to 24MHz. */
-		clk_set_rate(ahb_clk, clk_round_rate(ahb_clk, LPAPM_CLK));
+		if (high_bus_freq_mode) {
+			/* Set periph_clk to be sourced from OSC_CLK */
+			/* Set AXI to 24MHz. */
+			clk_set_parent(periph_clk, osc_clk);
+			clk_set_rate(axi_clk,
+				clk_round_rate(axi_clk, LPAPM_CLK));
+			/* Set AHB to 24MHz. */
+			clk_set_rate(ahb_clk,
+				clk_round_rate(ahb_clk, LPAPM_CLK));
+		}
+		if (lp_audio_freq) {
+			/* PLL2 is on in this mode, as DDR is at 50MHz. */
+			/* Now change DDR freq while running from IRAM. */
+			mx6sl_ddr_freq_change_iram(DDR_AUDIO_CLK,
+							low_bus_freq_mode);
 
-		/* Set MMDC clk to 24MHz. */
-		/* Since we are going to set PLL2 in bypass mode,
-		  * move the CPU clock off PLL2.
-		  */
-		/* Ensure that the clock will be at lowest possible freq. */
-		org_arm_podf = __raw_readl(MXC_CCM_CACRR);
-		div = clk_get_rate(pll1) / cpu_op_tbl[cpu_op_nr - 1].cpu_rate;
+			if (low_bus_freq_mode) {
+				/* Swtich ARM to run off PLL2_PFD2_400MHz
+				 * since DDR is anway at 50MHz.
+				 */
+				clk_set_parent(pll1_sw_clk, pll2_400);
 
-		reg = __raw_writel(div - 1, MXC_CCM_CACRR);
-		while (__raw_readl(MXC_CCM_CDHIPR))
-			;
-		clk_set_parent(pll1_sw_clk, pll1);
+				/* Ensure that the clock will be
+				  * at original speed.
+				  */
+				reg = __raw_writel(org_arm_podf, MXC_CCM_CACRR);
+				while (__raw_readl(MXC_CCM_CDHIPR))
+					;
+			}
+			low_bus_freq_mode = 0;
+			audio_bus_freq_mode = 1;
+		} else {
+			/* Set MMDC clk to 24MHz. */
+			/* Since we are going to set PLL2 in bypass mode,
+			  * move the CPU clock off PLL2.
+			  */
+			/* Ensure that the clock will be at
+			  * lowest possible freq.
+			  */
+			org_arm_podf = __raw_readl(MXC_CCM_CACRR);
+			div = clk_get_rate(pll1) /
+					cpu_op_tbl[cpu_op_nr - 1].cpu_rate;
 
-		/* Now change DDR freq while running from IRAM. */
-		mx6sl_ddr_freq_change_iram(LPAPM_CLK);
+			reg = __raw_writel(div - 1, MXC_CCM_CACRR);
+			while (__raw_readl(MXC_CCM_CDHIPR))
+				;
+			clk_set_parent(pll1_sw_clk, pll1);
 
-		low_bus_freq_mode = 1;
-		audio_bus_freq_mode = 0;
+			/* Now change DDR freq while running from IRAM. */
+			mx6sl_ddr_freq_change_iram(LPAPM_CLK,
+					low_bus_freq_mode);
 
+			low_bus_freq_mode = 1;
+			audio_bus_freq_mode = 0;
+		}
 		spin_unlock_irqrestore(&freq_lock, flags);
 	}
 	high_bus_freq_mode = 0;
@@ -258,9 +288,8 @@ int set_high_bus_freq(int high_bus_freq)
 		unsigned long flags;
 
 		spin_lock_irqsave(&freq_lock, flags);
-
 		/* Change DDR freq in IRAM. */
-		mx6sl_ddr_freq_change_iram(ddr_normal_rate);
+		mx6sl_ddr_freq_change_iram(ddr_normal_rate, low_bus_freq_mode);
 
 		/* Set periph_clk to be sourced from pll2_pfd2_400M */
 		/* First need to set the divider before changing the */
@@ -271,18 +300,18 @@ int set_high_bus_freq(int high_bus_freq)
 			     clk_round_rate(axi_clk, LPAPM_CLK / 2));
 		clk_set_parent(periph_clk, pll2_400);
 
-		/* Now move ARM to be sourced from PLL2_400 too. */
-		clk_set_parent(pll1_sw_clk, pll2_400);
+		if (low_bus_freq_mode) {
+			/* Now move ARM to be sourced from PLL2_400 too. */
+			clk_set_parent(pll1_sw_clk, pll2_400);
 
-		/* Ensure that the clock will be at original speed. */
-		reg = __raw_writel(org_arm_podf, MXC_CCM_CACRR);
-		while (__raw_readl(MXC_CCM_CDHIPR))
-			;
-
+			/* Ensure that the clock will be at original speed. */
+			reg = __raw_writel(org_arm_podf, MXC_CCM_CACRR);
+			while (__raw_readl(MXC_CCM_CDHIPR))
+				;
+		}
 		high_bus_freq_mode = 1;
 		low_bus_freq_mode = 0;
 		audio_bus_freq_mode = 0;
-
 		spin_unlock_irqrestore(&freq_lock, flags);
 	} else {
 		clk_enable(pll3);

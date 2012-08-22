@@ -252,18 +252,38 @@ void arch_idle_single_core(void)
 
 		ca9_do_idle();
 	} else {
-		if (low_bus_freq_mode && cpu_is_mx6sl()) {
-			u32 org_arm_podf = __raw_readl(MXC_CCM_CACRR);
+		if (low_bus_freq_mode || audio_bus_freq_mode) {
+			if (cpu_is_mx6sl() && low_bus_freq_mode) {
+				/* In this mode PLL2 i already in bypass,
+				  * ARM is sourced from PLL1. The code in IRAM
+				  * will set ARM to be sourced from STEP_CLK
+				  * at 24MHz. It will also set DDR to 1MHz to
+				  * reduce power.
+				  */
+				u32 org_arm_podf = __raw_readl(MXC_CCM_CACRR);
 
-			/* Need to run WFI code from IRAM so that
-			  * we can lower DDR freq.
-			  */
-			mx6sl_wfi_iram(org_arm_podf,
-				(unsigned long)mx6sl_wfi_iram_base);
+				/* Need to run WFI code from IRAM so that
+				  * we can lower DDR freq.
+				  */
+				mx6sl_wfi_iram(org_arm_podf,
+					(unsigned long)mx6sl_wfi_iram_base);
+			} else {
+				/* Need to set ARM to run at 24MHz since IPG
+				  * is at 12MHz. This is valid for audio mode on
+				  * MX6SL, and all low power modes on MX6DLS.
+				  */
+				/* PLL1_SW_CLK is sourced from PLL2_PFD2400MHz
+				  * at this point. Move it to bypassed PLL1.
+				  */
+				reg = __raw_readl(MXC_CCM_CCSR);
+				reg &= ~MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+				__raw_writel(reg, MXC_CCM_CCSR);
 
-			/* Clear the chicken bit to allow memories
-			  * to be powered down
-			  */
+				ca9_do_idle();
+
+				reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+				__raw_writel(reg, MXC_CCM_CCSR);
+			}
 		} else {
 			/*
 			  * Implement the 12:5 ARM:IPG_CLK ratio

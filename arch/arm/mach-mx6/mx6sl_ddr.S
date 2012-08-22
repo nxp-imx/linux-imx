@@ -102,9 +102,26 @@ periph2_clk_switch3:
      cmp     r6, #0
      bne     periph2_clk_switch3
 
+     /* Now set the MMDC PODF back to 1.*/
+      ldr    r6, [r2, #0x14]
+      bic    r6, r6, #0x38
+      str    r6, [r2, #0x14]
+
+mmdc_podf0:
+     ldr     r6, [r2, #0x48]
+     cmp     r6, #0
+     bne     mmdc_podf0
+
 	.endm
 
 	  .macro	ddr_switch_400MHz
+
+     /* Check if we are switching between
+       * 400Mhz <-> 50MHz. If so, we only need to
+       * update MMDC divider.
+       */
+      cmp    r1, #0
+      beq     change_divider_only
 
     /* Set MMDC divider first, in case PLL3 is at 480MHz. */
       ldr     r6, [r3, #0x10]
@@ -191,10 +208,26 @@ periph2_clk_switch6:
      cmp     r6, #0
      bne     periph2_clk_switch6
 
-     /* Now set the MMDC PODF back to 1.*/
+change_divider_only:
+    /* Calculate the MMDC divider
+     * based on the requested freq.
+     */
+    ldr    r6, =400000000
+    ldr    r4, =0
+Loop2:
+    sub    r6, r6, r0
+    cmp   r6, r0
+    blt     Div_Found
+    add    r4, r4, #1
+    bgt     Loop2
 
+     /* Shift divider into correct offset. */
+     lsl    r4, r4, #3
+Div_Found:
+     /* Set the MMDC PODF. */
       ldr    r6, [r2, #0x14]
       bic    r6, r6, #0x38
+      orr    r6, r6, r4
       str    r6, [r2, #0x14]
 
 mmdc_podf1:
@@ -204,41 +237,63 @@ mmdc_podf1:
 
     .endm
 
-	 .macro   mmdc_clk_lower_100MHz
+      .macro   mmdc_clk_lower_100MHz
 
-	 /* Prior to reducing the DDR frequency (at 528/400 MHz),
-	    read the Measure unit count bits (MU_UNIT_DEL_NUM) */
-	 ldr     r5, =0x8B8
-	 ldr   r6, [r8, r5]
-	 /* Original MU unit count */
-	 mov	 r6, r6, LSR #16
-	 ldr	 r4, =0x3FF
-	 and   	 r6, r6, r4
-	 /* Original MU unit count * 2 */
-	 mov	 r1, r6, LSL #1
-	 /* Bypass the automatic measure unit when below 100 MHz
-	    by setting the Measure unit bypass enable bit (MU_BYP_EN) */
-	 ldr     r6, [r8, r5]
-	 orr	 r6, r6, #0x400
-	 str     r6, [r8, r5]
-     /* Double the measure count value read in step 1 and program it in the
-        measurement bypass bits (MU_BYP_VAL) of the MMDC PHY Measure Unit
-        Register for the reduced frequency operation below 100 MHz */
-	 ldr   	 r6, [r8, r5]
-	 ldr	 r4, =0x3FF
-	 bic	 r6, r6, r4
-	 orr	 r6, r6, r1
-	 str     r6, [r8, r5]
-	 .endm
+      /* Prior to reducing the DDR frequency (at 528/400 MHz),
+      read the Measure unit count bits (MU_UNIT_DEL_NUM) */
+      ldr     r5, =0x8B8
+      ldr     r6, [r8, r5]
+      /* Original MU unit count */
+      mov   r6, r6, LSR #16
+      ldr     r4, =0x3FF
+      and    r6, r6, r4
+      /* Original MU unit count * 2 */
+      mov    r7, r6, LSL #1
+      /* Bypass the automatic measure unit when below 100 MHz
+      by setting the Measure unit bypass enable bit (MU_BYP_EN) */
+      ldr     r6, [r8, r5]
+      orr     r6, r6, #0x400
+      str     r6, [r8, r5]
+      /* Double the measure count value read in step 1 and program it in the
+        * measurement bypass bits (MU_BYP_VAL) of the MMDC PHY Measure Unit
+        * Register for the reduced frequency operation below 100 MHz
+        */
+       ldr    r6, [r8, r5]
+       ldr    r4, =0x3FF
+       bic    r6, r6, r4
+       orr    r6, r6, r7
+       str     r6, [r8, r5]
+      /* Now perform a Force Measurement. */
+      ldr     r6, [r8, r5]
+      orr    r6, r6, #0x800
+      str     r6, [r8, r5]
+      /* Wait for FRC_MSR to clear. */
+force_measure:
+      ldr     r6, [r8, r5]
+      and    r6, r6, #0x800
+      cmp   r6, #0x0
+      bne    force_measure
 
-	 .macro   mmdc_clk_above_100MHz
+       .endm
 
-	 /* Make sure that the PHY measurement unit is NOT in bypass mode */
-	 ldr     r5, =0x8B8
-	 ldr   	 r6, [r8, r5]
-	 bic	 r6, r6, #0x400
-	 str     r6, [r8, r5]
-	 .endm
+      .macro   mmdc_clk_above_100MHz
+
+      /* Make sure that the PHY measurement unit is NOT in bypass mode */
+      ldr     r5, =0x8B8
+      ldr     r6, [r8, r5]
+      bic    r6, r6, #0x400
+      str     r6, [r8, r5]
+      /* Now perform a Force Measurement. */
+      ldr     r6, [r8, r5]
+      orr    r6, r6, #0x800
+      str     r6, [r8, r5]
+      /* Wait for FRC_MSR to clear. */
+force_measure1:
+      ldr     r6, [r8, r5]
+      and    r6, r6, #0x800
+      cmp   r6, #0x0
+      bne    force_measure1
+      .endm
 
 /*
  *  mx6sl_ddr_iram
@@ -247,6 +302,7 @@ mmdc_podf1:
  *  Make sure DDR is in self-refresh.
  *  IRQs are already disabled.
  * r0 : DDR freq.
+ * r1: low_bus_freq_mode flag
  */
 ENTRY(mx6sl_ddr_iram)
 
@@ -285,7 +341,7 @@ mx6sl_ddr_freq_change:
      str    r6, [r8, #0x4]
 
      /* Delay for a while */
-     ldr      r1, =10
+     ldr      r10, =10
 delay1:
      ldr      r7, =0
 cont1:
@@ -293,8 +349,8 @@ cont1:
      add     r7, r7, #4
      cmp    r7, #16
      bne     cont1
-     sub     r1, r1, #1
-     cmp    r1, #0
+     sub     r10, r10, #1
+     cmp    r10, #0
      bgt     delay1
 
      /* Make the DDR explicitly enter self-refresh. */
@@ -313,16 +369,24 @@ poll_dvfs_set_1:
      orr     r6, r6, #0x100
      str     r6, [r8, #0x410]
 
-     ldr     r1, =24000000
-     cmp    r0, r1
+     ldr     r10, =100000000
+     cmp   r0, r10
+     bgt    set_ddr_mu_above_100
+     mmdc_clk_lower_100MHz
+
+set_ddr_mu_above_100:
+     ldr     r10, =24000000
+     cmp    r0, r10
      beq     set_to_24MHz
 
-     mmdc_clk_above_100MHz
      ddr_switch_400MHz
+     ldr     r10,  =100000000
+     cmp  r0, r10
+     blt     done
+     mmdc_clk_above_100MHz
      b    done
 
 set_to_24MHz:
-     mmdc_clk_lower_100MHz
      mx6sl_switch_to_24MHz
 
 done:
@@ -342,8 +406,8 @@ poll_dvfs_clear_1:
      bic    r6, r6, #0x01
      str    r6, [r8, #0x404]
 
-     ldr     r1, =24000000
-     cmp    r0, r1
+     ldr     r10, =24000000
+     cmp    r0, r10
      beq     skip_power_down
 
      /* Enable MMDC power down timer. */

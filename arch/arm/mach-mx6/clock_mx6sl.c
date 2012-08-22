@@ -1236,6 +1236,7 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		pll1_sys_main_clk.disable(&pll1_sys_main_clk);
 		pll1_sys_main_clk.usecount = 0;
 	}
+
 	spin_unlock_irqrestore(&mx6sl_clk_lock, flags);
 
 	return 0;
@@ -2451,7 +2452,7 @@ static struct clk ssi1_clk = {
 #else
 	 .secondary = &mmdc_ch1_axi_clk[0],
 #endif
-	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi2_get_rate(struct clk *clk)
@@ -2525,7 +2526,7 @@ static struct clk ssi2_clk = {
 #else
 	 .secondary = &mmdc_ch1_axi_clk[0],
 #endif
-	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi3_get_rate(struct clk *clk)
@@ -2598,7 +2599,7 @@ static struct clk ssi3_clk = {
 #else
 	 .secondary = &mmdc_ch1_axi_clk[0],
 #endif
-	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_epdc_lcdif_pix_round_rate(struct clk *clk,
