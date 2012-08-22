@@ -575,6 +575,8 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	}, {
 		I2C_BOARD_INFO("elan-touch", 0x10),
 		.irq = gpio_to_irq(MX6SL_BRD_ELAN_INT),
+	}, {
+		I2C_BOARD_INFO("mma8450", 0x1c),
 	},
 };
 
