@@ -361,6 +361,9 @@ static int mxcfb_set_par(struct fb_info *fbi)
 
 	dev_dbg(fbi->device, "Reconfiguring framebuffer\n");
 
+	if (fbi->var.xres == 0 || fbi->var.yres == 0)
+		return 0;
+
 	if (ovfbi_enable) {
 		ov_pos_ret = ipu_disp_get_window_pos(
 						mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch,
@@ -708,6 +711,10 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	u32 vtotal;
 	u32 htotal;
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)info->par;
+
+
+	if (var->xres == 0 || var->yres == 0)
+		return 0;
 
 	/* fg should not bigger than bg */
 	if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
