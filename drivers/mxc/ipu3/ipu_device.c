@@ -2948,10 +2948,6 @@ out:
 		spin_unlock_irqrestore(&ipu_task_list_lock, flags);
 		if (!tsk->ipu)
 			continue;
-		if (STATE_IN_PROGRESS == tsk->state) {
-			do_task_release(tsk, 1);
-			put_vdoa_ipu_res(tsk, 0);
-		}
 		if (tsk->state != STATE_OK) {
 			dev_err(tsk->dev,
 				"ERR:[0x%p] no-0x%x,id:%d, sp_tsk state: %s\n",
