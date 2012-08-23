@@ -5339,6 +5339,12 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	clk_tree_init();
 
+#ifdef CONFIG_MX6_VPU_352M
+	if (cpu_is_mx6q()) {
+		clk_set_rate(&pll2_pfd_400M, 352000000);
+		clk_set_parent(&vpu_clk[0], &pll2_pfd_400M);
+	}
+#endif
 	/* keep correct count. */
 	clk_enable(&cpu_clk);
 	clk_enable(&periph_clk);

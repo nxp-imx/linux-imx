@@ -36,9 +36,27 @@ static struct cpu_op mx6_cpu_op_1_2G[] = {
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
 	 .cpu_podf = 0,
+#ifdef CONFIG_MX6_VPU_352M
+	/*VPU 352Mhz need voltage 1.25V*/
+	 .pu_voltage = 1250000,
+	 .soc_voltage = 1250000,
+#else
 	 .pu_voltage = 1150000,
 	 .soc_voltage = 1150000,
+#endif
 	 .cpu_voltage = 1100000,},
+#ifdef CONFIG_MX6_VPU_352M
+	/*pll2_pfd_400M will be fix on 352M,to avoid modify other code
+	which assume ARM clock sourcing from pll2_pfd_400M, change cpu
+	freq from 396M to 352M.*/
+	 {
+	  .pll_rate = 352000000,
+	  .cpu_rate = 352000000,
+	  .cpu_podf = 0,
+	  .pu_voltage = 1250000,
+	  .soc_voltage = 1250000,
+	  .cpu_voltage = 925000,},
+#else
 	 {
 	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
@@ -46,6 +64,7 @@ static struct cpu_op mx6_cpu_op_1_2G[] = {
 	  .pu_voltage = 1150000,
 	  .soc_voltage = 1150000,
 	  .cpu_voltage = 925000,},
+#endif
 };
 
 /* working point(wp): 0 - 1GHz; 1 - 792MHz, 2 - 498MHz 3 - 396MHz */
@@ -61,9 +80,27 @@ static struct cpu_op mx6_cpu_op_1G[] = {
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
 	 .cpu_podf = 0,
+#ifdef CONFIG_MX6_VPU_352M
+	/*VPU 352Mhz need voltage 1.25V*/
+	 .pu_voltage = 1250000,
+	 .soc_voltage = 1250000,
+#else
 	 .pu_voltage = 1150000,
 	 .soc_voltage = 1150000,
+#endif
 	 .cpu_voltage = 1100000,},
+#ifdef CONFIG_MX6_VPU_352M
+	/*pll2_pfd_400M will be fix on 352M,to avoid modify other code
+	which assume ARM clock sourcing from pll2_pfd_400M, change cpu
+	freq from 396M to 352M.*/
+	 {
+	  .pll_rate = 352000000,
+	  .cpu_rate = 352000000,
+	  .cpu_podf = 0,
+	  .pu_voltage = 1250000,
+	  .soc_voltage = 1250000,
+	  .cpu_voltage = 925000,},
+#else
 	 {
 	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
@@ -71,6 +108,7 @@ static struct cpu_op mx6_cpu_op_1G[] = {
 	  .pu_voltage = 1150000,
 	  .soc_voltage = 1150000,
 	  .cpu_voltage = 925000,},
+#endif
 };
 
 static struct cpu_op mx6_cpu_op[] = {
@@ -78,9 +116,27 @@ static struct cpu_op mx6_cpu_op[] = {
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
 	 .cpu_podf = 0,
+#ifdef CONFIG_MX6_VPU_352M
+	/*VPU 352Mhz need voltage 1.25V*/
+	 .pu_voltage = 1250000,
+	 .soc_voltage = 1250000,
+#else
 	 .pu_voltage = 1150000,
 	 .soc_voltage = 1150000,
+#endif
 	 .cpu_voltage = 1100000,},
+#ifdef CONFIG_MX6_VPU_352M
+	/*pll2_pfd_400M will be fix on 352M,to avoid modify other code
+	which assume ARM clock sourcing from pll2_pfd_400M, change cpu
+	freq from 396M to 352M.*/
+	 {
+	  .pll_rate = 352000000,
+	  .cpu_rate = 352000000,
+	  .cpu_podf = 0,
+	  .pu_voltage = 1250000,
+	  .soc_voltage = 1250000,
+	  .cpu_voltage = 925000,},
+#else
 	 {
 	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
@@ -88,6 +144,7 @@ static struct cpu_op mx6_cpu_op[] = {
 	  .pu_voltage = 1150000,
 	  .soc_voltage = 1150000,
 	  .cpu_voltage = 925000,},
+#endif
 };
 
 /* working point(wp): 0 - 1.2GHz; 1 - 800MHz, 2 - 400MHz, 3  - 200MHz */
