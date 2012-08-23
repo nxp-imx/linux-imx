@@ -2091,14 +2091,17 @@ static int mxcfb_register(struct fb_info *fbi)
 	}
 	ipu_disable_irq(mxcfbi->ipu, mxcfbi->ipu_ch_nf_irq);
 
-	if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq,
-			    mxcfb_vsync_pre_irq_handler, 0,
-			    MXCFB_NAME, fbi) != 0) {
-		dev_err(fbi->device, "Error registering VSYNC irq handler.\n");
-		ret = -EBUSY;
-		goto err2;
+	if (mxcfbi->ipu_vsync_pre_irq != -1) {
+		if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq,
+				    mxcfb_vsync_pre_irq_handler, 0,
+				    MXCFB_NAME, fbi) != 0) {
+			dev_err(fbi->device, "Error registering VSYNC irq "
+					     "handler.\n");
+			ret = -EBUSY;
+			goto err2;
+		}
+		ipu_disable_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq);
 	}
-	ipu_disable_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq);
 
 	if (mxcfbi->ipu_alp_ch_irq != -1)
 		if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_alp_ch_irq,
@@ -2142,7 +2145,8 @@ err4:
 	if (mxcfbi->ipu_alp_ch_irq != -1)
 		ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_alp_ch_irq, fbi);
 err3:
-	ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq, fbi);
+	if (mxcfbi->ipu_vsync_pre_irq != -1)
+		ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq, fbi);
 err2:
 	ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_ch_nf_irq, fbi);
 err1:
@@ -2189,6 +2193,8 @@ static int mxcfb_setup_overlay(struct platform_device *pdev,
 	mxcfbi_fg->ipu_ch_irq = IPU_IRQ_FG_SYNC_EOF;
 	mxcfbi_fg->ipu_ch_nf_irq = IPU_IRQ_FG_SYNC_NFACK;
 	mxcfbi_fg->ipu_alp_ch_irq = IPU_IRQ_FG_ALPHA_SYNC_EOF;
+	/* Vsync-pre irq is invalid for overlay channel. */
+	mxcfbi_fg->ipu_vsync_pre_irq = -1;
 	mxcfbi_fg->ipu_ch = MEM_FG_SYNC;
 	mxcfbi_fg->ipu_di = -1;
 	mxcfbi_fg->ipu_di_pix_fmt = mxcfbi_bg->ipu_di_pix_fmt;
@@ -2308,23 +2314,14 @@ static int mxcfb_probe(struct platform_device *pdev)
 		goto get_ipu_failed;
 	}
 
-	/* Setup vsync pre irq */
-	switch (mxcfbi->ipu_di) {
-	case 0:
-		mxcfbi->ipu_vsync_pre_irq = IPU_IRQ_VSYNC_PRE_0;
-		break;
-	case 1:
-		mxcfbi->ipu_vsync_pre_irq = IPU_IRQ_VSYNC_PRE_1;
-		break;
-	default:
-		break;
-	}
-
 	/* first user uses DP with alpha feature */
 	if (!g_dp_in_use[mxcfbi->ipu_id]) {
 		mxcfbi->ipu_ch_irq = IPU_IRQ_BG_SYNC_EOF;
 		mxcfbi->ipu_ch_nf_irq = IPU_IRQ_BG_SYNC_NFACK;
 		mxcfbi->ipu_alp_ch_irq = IPU_IRQ_BG_ALPHA_SYNC_EOF;
+		mxcfbi->ipu_vsync_pre_irq = mxcfbi->ipu_di ?
+					    IPU_IRQ_VSYNC_PRE_1 :
+					    IPU_IRQ_VSYNC_PRE_0;
 		mxcfbi->ipu_ch = MEM_BG_SYNC;
 		/* Unblank the primary fb only by default */
 		if (pdev->id == 0)
@@ -2366,6 +2363,9 @@ static int mxcfb_probe(struct platform_device *pdev)
 		mxcfbi->ipu_ch_irq = IPU_IRQ_DC_SYNC_EOF;
 		mxcfbi->ipu_ch_nf_irq = IPU_IRQ_DC_SYNC_NFACK;
 		mxcfbi->ipu_alp_ch_irq = -1;
+		mxcfbi->ipu_vsync_pre_irq = mxcfbi->ipu_di ?
+					    IPU_IRQ_VSYNC_PRE_1 :
+					    IPU_IRQ_VSYNC_PRE_0;
 		mxcfbi->ipu_ch = MEM_DC_SYNC;
 		mxcfbi->cur_blank = mxcfbi->next_blank = FB_BLANK_POWERDOWN;
 
