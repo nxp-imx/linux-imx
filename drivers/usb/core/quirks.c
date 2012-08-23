@@ -80,9 +80,6 @@ static const struct usb_device_id usb_quirk_list[] = {
 	/* Logitech Quickcam Pro 9000 */
 	{ USB_DEVICE(0x046d, 0x0990), .driver_info = USB_QUIRK_RESET_RESUME },
 
-	/* Logitech Quickcam E3500 */
-	{ USB_DEVICE(0x046d, 0x09a4), .driver_info = USB_QUIRK_RESET_RESUME },
-
 	/* Logitech Quickcam Vision Pro */
 	{ USB_DEVICE(0x046d, 0x09a6), .driver_info = USB_QUIRK_RESET_RESUME },
 
