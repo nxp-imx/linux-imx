@@ -2206,9 +2206,9 @@ static void fsl_gadget_disconnect_event(struct work_struct *work)
 		fsl_writel(tmp | (OTGSC_B_SESSION_VALID_IRQ_EN),
 				&dr_regs->otgsc);
 	udc->stopped = 1;
+	spin_unlock_irqrestore(&udc->lock, flags);
 	/* enable wake up */
 	dr_wake_up_enable(udc, true);
-	spin_unlock_irqrestore(&udc->lock, flags);
 	/* close USB PHY clock */
 	dr_phy_low_power_mode(udc, true);
 	/* close dr controller clock */
