@@ -5304,6 +5304,8 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 {
 	__iomem void *base;
 	int i, reg;
+	u32 parent_rate, rate;
+	unsigned long ipg_clk_rate, max_arm_wait_clk;
 
 	external_low_reference = ckil;
 	external_high_reference = ckih1;
@@ -5509,6 +5511,20 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	lp_high_freq = 0;
 	lp_med_freq = 0;
 	lp_audio_freq = 0;
+
+	/* Get current ARM_PODF value */
+	rate = clk_get_rate(&cpu_clk);
+	parent_rate = clk_get_rate(&pll1_sw_clk);
+	cur_arm_podf = parent_rate / rate;
+
+	/* Calculate the ARM_PODF to be applied when the system
+	  * enters WAIT state.
+	  * The max ARM clk is decided by the ipg_clk and has to
+	  * follow the ratio of ARM_CLK:IPG_CLK of 12:5.
+	  */
+	ipg_clk_rate = clk_get_rate(&ipg_clk);
+	max_arm_wait_clk = (12 * ipg_clk_rate) / 5;
+	wait_mode_arm_podf = parent_rate / max_arm_wait_clk;
 
 	/* Turn OFF all unnecessary PHYs. */
 	if (cpu_is_mx6q()) {
