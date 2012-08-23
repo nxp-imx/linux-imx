@@ -416,7 +416,15 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 				 const char *buf, size_t size)
 {
 	if (strncmp(buf, "1", 1) == 0) {
+#ifdef CONFIG_MX6_VPU_352M
+		if (cpu_is_mx6q())
+			/*do not enable bus freq*/
+			bus_freq_scaling_is_active = 0;
+		printk(KERN_WARNING "Bus frequency can't be enabled if using VPU 352M!\n");
+		return size;
+#else
 		bus_freq_scaling_is_active = 1;
+#endif
 		set_high_bus_freq(0);
 		/* Make sure system can enter low bus mode if it should be in
 		low bus mode */
@@ -669,9 +677,14 @@ static int __init busfreq_init(void)
 
 	printk(KERN_INFO "Bus freq driver module loaded\n");
 
+#ifdef CONFIG_MX6_VPU_352M
+	if (cpu_is_mx6q())
+		bus_freq_scaling_is_active = 0;/*disable bus_freq*/
+
+#else
 	/* Enable busfreq by default. */
 	bus_freq_scaling_is_active = 1;
-
+#endif
 	if (cpu_is_mx6q())
 		set_high_bus_freq(1);
 	else if (cpu_is_mx6dl())
