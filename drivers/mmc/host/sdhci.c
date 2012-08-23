@@ -1887,7 +1887,7 @@ static int sdhci_pre_dma_transfer(struct sdhci_host *host,
 
 	if (!next && data->host_cookie &&
 	    data->host_cookie != host->next_data.cookie) {
-		printk(KERN_WARNING "[%s] invalid cookie: data->host_cookie %d"
+		printk(KERN_DEBUG "[%s] invalid cookie: data->host_cookie %d"
 		       " host->next_data.cookie %d\n",
 		       __func__, data->host_cookie, host->next_data.cookie);
 		data->host_cookie = 0;
