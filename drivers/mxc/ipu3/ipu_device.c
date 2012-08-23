@@ -1111,7 +1111,7 @@ static int prepare_task(struct ipu_task_entry *t)
 		if (t->set.task != 0) {
 			dev_err(t->dev, "ERR: vdoa only task:0x%x, [0x%p].\n",
 					t->set.task, t);
-			BUG();
+			return -EINVAL;
 		}
 		t->set.task |= VDOA_ONLY;
 	}
@@ -1173,7 +1173,8 @@ static int _get_vdoa_ipu_res(struct ipu_task_entry *t)
 	for (i = 0; i < max_ipu_no; i++) {
 		ipu = ipu_get_soc(i);
 		if (IS_ERR(ipu))
-			BUG();
+			dev_err(t->dev, "no:0x%x,found_vdoa:%d, ipu:%d\n",
+				 t->task_no, found_vdoa, i);
 
 		used = &tbl->used[i][IPU_PP_CH_VF];
 		if (t->set.mode & VDI_MODE) {
@@ -1194,7 +1195,8 @@ static int _get_vdoa_ipu_res(struct ipu_task_entry *t)
 				break;
 			}
 		} else
-			BUG();
+			dev_err(t->dev, "no:0x%x,found_vdoa:%d, mode:0x%x\n",
+				 t->task_no, found_vdoa, t->set.mode);
 	}
 	if (found_ipu)
 		goto next;
@@ -1202,7 +1204,8 @@ static int _get_vdoa_ipu_res(struct ipu_task_entry *t)
 	for (i = 0; i < max_ipu_no; i++) {
 		ipu = ipu_get_soc(i);
 		if (IS_ERR(ipu))
-			BUG();
+			dev_err(t->dev, "no:0x%x,found_vdoa:%d, ipu:%d\n",
+				 t->task_no, found_vdoa, i);
 
 		if ((t->set.mode & IC_MODE) || only_rot(t->set.mode)) {
 			used = &tbl->used[i][IPU_PP_CH_PP];
@@ -1225,7 +1228,9 @@ next:
 		t->ipu_id = i;
 		t->dev = ipu->dev;
 		if (atomic_inc_return(&t->res_get) == 2)
-			BUG();
+			dev_err(t->dev,
+				"ERR no:0x%x,found_vdoa:%d,get ipu twice\n",
+				 t->task_no, found_vdoa);
 	}
 out:
 	dev_dbg(t->dev,
@@ -1246,12 +1251,12 @@ static void put_vdoa_ipu_res(struct ipu_task_entry *tsk, int vdoa_only)
 	int rel_vdoa = 0, rel_ipu = 0;
 	struct ipu_channel_tabel	*tbl = &ipu_ch_tbl;
 
-	if (!tsk)
-		BUG();
 	mutex_lock(&tbl->lock);
 	if (tsk->set.mode & VDOA_MODE) {
 		if (!tbl->vdoa_used && tsk->vdoa_handle)
-			BUG();
+			dev_err(tsk->dev,
+				"ERR no:0x%x,vdoa not used,mode:0x%x\n",
+				 tsk->task_no, tsk->set.mode);
 		if (tbl->vdoa_used && tsk->vdoa_handle) {
 			tbl->vdoa_used = 0;
 			vdoa_put_handle(&tsk->vdoa_handle);
@@ -1263,13 +1268,13 @@ static void put_vdoa_ipu_res(struct ipu_task_entry *tsk, int vdoa_only)
 		}
 	}
 
-	if (tsk) {
-		tbl->used[tsk->ipu_id][tsk->task_id - 1] = 0;
-		rel_ipu = 1;
-		ret = atomic_inc_return(&tsk->res_free);
-		if (ret == 2)
-			BUG();
-	}
+	tbl->used[tsk->ipu_id][tsk->task_id - 1] = 0;
+	rel_ipu = 1;
+	ret = atomic_inc_return(&tsk->res_free);
+	if (ret == 2)
+		dev_err(tsk->dev,
+			"ERR no:0x%x,rel_vdoa:%d,put ipu twice\n",
+			 tsk->task_no, rel_vdoa);
 out:
 	dev_dbg(tsk->dev,
 		"%s:no:0x%x,rel_vdoa:%d, rel_ipu:%d\n",
@@ -1300,12 +1305,16 @@ static int get_vdoa_ipu_res(struct ipu_task_entry *t)
 			goto out;
 		} else {
 			if (!(t->set.task & VDOA_ONLY) && (!t->ipu))
-				BUG();
+				dev_err(t->dev,
+					"ERR[no-0x%x] can not get ipu!\n",
+					t->task_no);
 			ret = atomic_read(&req_cnt);
 			if (ret > 0)
 				ret = atomic_dec_return(&req_cnt);
 			else
-				BUG();
+				dev_err(t->dev,
+					"ERR[no-0x%x] req_cnt:%d mismatch!\n",
+					t->task_no, ret);
 			dev_dbg(t->dev, "no-0x%x,[0x%p],req_cnt:%d, got_res!\n",
 						t->task_no, t, ret);
 			found = 1;
@@ -1827,7 +1836,8 @@ static int init_tiled_ch_bufs(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		CHECK_RETCODE(ret < 0, "init tiled_ch-n", t->state, done, ret);
 	} else {
 		ret = -EINVAL;
-		BUG();
+		dev_err(t->dev, "ERR[no-0x%x] invalid fmt:0x%x!\n",
+			t->task_no, t->input.format);
 	}
 
 done:
@@ -1914,7 +1924,8 @@ static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		else if (IPU_DEINTERLACE_FIELD_BOTTOM == t->input.deinterlace.field_fmt)
 			params.mem_prp_vf_mem.field_fmt = V4L2_FIELD_INTERLACED_BT;
 		else
-			BUG();
+			dev_err(t->dev, "ERR[no-0x%x]invalid field fmt:0x%x!\n",
+				t->task_no, t->input.deinterlace.field_fmt);
 		ret = ipu_init_channel(ipu, t->set.vdi_ic_p_chan, &params);
 		if (ret < 0) {
 			t->state = STATE_INIT_CHAN_FAIL;
@@ -2232,8 +2243,10 @@ static void vdi_split_process(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	unsigned char  *base_off;
 	struct ipu_task_entry *parent = t->parent;
 
-	if (!parent)
-		BUG();
+	if (!parent) {
+		dev_err(t->dev, "ERR[0x%x]invalid parent\n", t->task_no);
+		return;
+	}
 	stripe_mode = t->task_no & 0xf;
 	task_no = t->task_no >> 4;
 
@@ -2544,13 +2557,15 @@ static void do_task(struct ipu_task_entry *t)
 		busy = ic_vf_pp_is_busy(ipu, true);
 	else if (t->task_id == IPU_TASK_ID_PP)
 		busy = ic_vf_pp_is_busy(ipu, false);
-	else
-		BUG();
+	else {
+		dev_err(ipu->dev, "ERR[no:0x%x]ipu task_id:%d invalid!\n",
+				t->task_no, t->task_id);
+		return;
+	}
 	if (busy) {
 		dev_err(ipu->dev, "ERR[0x%p-no:0x%x]ipu task_id:%d busy!\n",
 				(void *)t, t->task_no, t->task_id);
 		t->state = STATE_IPU_BUSY;
-		BUG();
 		return;
 	}
 
@@ -2629,7 +2644,6 @@ static void do_task(struct ipu_task_entry *t)
 	} else {
 		dev_err(t->dev, "ERR [0x%p]do task: should not be here\n", t);
 		t->state = STATE_ERR;
-		BUG();
 		return;
 	}
 
@@ -2832,7 +2846,9 @@ static void get_res_do_task(struct ipu_task_entry *t)
 
 	found = get_vdoa_ipu_res(t);
 	if (!found) {
-		BUG();
+		dev_err(t->dev, "ERR:[0x%p] no-0x%x can not get res\n",
+			t, t->task_no);
+		return;
 	} else {
 		if (t->set.task & VDOA_ONLY)
 			do_task_vdoa_only(t);
@@ -2886,12 +2902,18 @@ static void wait_split_task_complete(struct ipu_task_entry *parent,
 			ret = -ETIMEDOUT;
 			goto out;
 		} else {
-			if (idx < 0)
-				BUG();
+			if (idx < 0) {
+				dev_err(parent->dev,
+				"ERR:[0x%p] no-0x%x, invalid task idx:%d\n",
+				 parent, parent->task_no, idx);
+				continue;
+			}
 			tsk = sp_task[idx].child_task;
 			mutex_lock(lock);
 			if (!tsk->split_done || !tsk->ipu)
-				BUG();
+				dev_err(tsk->dev,
+				"ERR:no-0x%x,split not done:%d/null ipu:0x%p\n",
+				 tsk->task_no, tsk->split_done, tsk->ipu);
 			tsk->split_done = 0;
 			mutex_unlock(lock);
 
@@ -2911,7 +2933,8 @@ out:
 		for (k = 0; k < max_ipu_no; k++) {
 			ipu = ipu_get_soc(k);
 			if (IS_ERR(ipu)) {
-				BUG();
+				dev_err(parent->dev, "no:0x%x, null ipu:%d\n",
+				 parent->task_no, k);
 			} else {
 				busy_vf = ic_vf_pp_is_busy(ipu, true);
 				busy_pp = ic_vf_pp_is_busy(ipu, false);
@@ -2988,7 +3011,9 @@ static inline int find_task(struct ipu_task_entry **t, int thread_id)
 			"thread_id:%d,[0x%p] task_no:0x%x,mode:0x%x list_del\n",
 			thread_id, tsk, tsk->task_no, tsk->set.mode);
 		} else
-			BUG();
+			dev_err(tsk->dev,
+			"thread_id:%d,task_no:0x%x,mode:0x%x not on list_del\n",
+			thread_id, tsk->task_no, tsk->set.mode);
 	}
 	spin_unlock_irqrestore(&ipu_task_list_lock, flags);
 
@@ -3023,7 +3048,6 @@ static int ipu_task_thread(void *argv)
 			&cpu_mask);
 		if (ret < 0) {
 			pr_err("%s: sched_setaffinity fail:%d.\n", __func__, ret);
-			BUG();
 		}
 		pr_debug("%s: sched_setaffinity cpu:%d.\n", __func__, cpu);
 	}
@@ -3035,8 +3059,11 @@ static int ipu_task_thread(void *argv)
 
 		wait_event(thread_waitq, find_task(&tsk, curr_thread_id));
 
-		if (!tsk)
-			BUG();
+		if (!tsk) {
+			pr_err("thread:%d can not find task.\n",
+				curr_thread_id);
+			continue;
+		}
 
 		/* note: other threads run split child task */
 		split_parent = need_split(tsk) && !tsk->parent;
@@ -3079,7 +3106,9 @@ static int ipu_task_thread(void *argv)
 				/* FIXME: ensure the correct sequence for split
 					4size: 5/6->9/a*/
 				if (!sp_tsk0)
-					BUG();
+					dev_err(tsk->dev,
+					"ERR: no-0x%x,can not get split_tsk0\n",
+					tsk->task_no);
 				wake_up(&thread_waitq);
 				get_res_do_task(sp_tsk0);
 				dev_dbg(sp_tsk0->dev,
@@ -3123,8 +3152,7 @@ static int ipu_task_thread(void *argv)
 		kref_put(&tsk->refcount, task_mem_free);
 	}
 
-	pr_info("%s exit.\n", __func__);
-	BUG();
+	pr_info("ERR %s exit.\n", __func__);
 	return 0;
 }
 
