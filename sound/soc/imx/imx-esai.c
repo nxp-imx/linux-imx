@@ -278,6 +278,12 @@ static int imx_esai_startup(struct snd_pcm_substream *substream,
 {
 	struct imx_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
 
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK &&
+			(local_esai->imx_esai_txrx_state & IMX_DAI_ESAI_TX)) {
+		pr_err("error: too much esai playback!\n");
+		return -EINVAL;
+	}
+
 	if (!(local_esai->imx_esai_txrx_state & IMX_DAI_ESAI_TXRX)) {
 		clk_enable(esai->clk);
 
