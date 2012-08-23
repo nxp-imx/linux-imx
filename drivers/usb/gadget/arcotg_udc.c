@@ -68,7 +68,6 @@
 #define cpu_to_hc32(x)	cpu_to_le32((x))
 #define hc32_to_cpu(x)	le32_to_cpu((x))
 #endif
-
 #define	DMA_ADDR_INVALID	(~(dma_addr_t)0)
 DEFINE_MUTEX(udc_resume_mutex);
 extern void usb_debounce_id_vbus(void);
@@ -472,6 +471,9 @@ static int dr_controller_setup(struct fsl_udc *udc)
 static void dr_controller_run(struct fsl_udc *udc)
 {
 	u32 temp;
+
+	udc_controller->usb_state = USB_STATE_ATTACHED;
+	udc_controller->ep0_dir = 0;
 
 	fsl_platform_pullup_enable(udc->pdata);
 
@@ -2445,8 +2447,6 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		dr_controller_run(udc_controller);
 		if (udc_controller->stopped)
 			dr_clk_gate(false);
-		udc_controller->usb_state = USB_STATE_ATTACHED;
-		udc_controller->ep0_dir = 0;
 	}
 	printk(KERN_INFO "%s: bind to driver %s \n",
 			udc_controller->gadget.name, driver->driver.name);
@@ -3485,9 +3485,6 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		dr_controller_setup(udc_controller);
 		dr_controller_run(udc_controller);
 	}
-	udc_controller->usb_state = USB_STATE_ATTACHED;
-	udc_controller->ep0_dir = 0;
-
 end:
 	/* if udc is resume by otg id change and no device
 	 * connecting to the otg, otg will enter low power mode*/
