@@ -38,6 +38,7 @@
 #endif
 #include "crm_regs.h"
 #include "src-reg.h"
+#include "regs-anadig.h"
 
 #define SCU_CTRL_OFFSET				0x00
 #define GPC_IMR1_OFFSET				0x08
@@ -118,6 +119,11 @@ static void usb_power_down_handler(void)
 {
 	u32 temp;
 	bool usb_oh3_clk_already_on;
+	if ((__raw_readl(anatop_base + HW_ANADIG_ANA_MISC0)
+		& BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG) != 0) {
+			usb_vbus_wakeup_enabled = false;
+			return;
+	}
 	/* enable usb oh3 clock if needed*/
 	temp = __raw_readl(MXC_CCM_CCGR6);
 	usb_oh3_clk_already_on =	\
