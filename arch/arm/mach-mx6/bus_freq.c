@@ -109,6 +109,7 @@ static struct clk *pll1_sw_clk;
 static struct clk *pll3_sw_clk;
 static struct clk *pll2_200;
 static struct clk *mmdc_ch0_axi;
+static struct clk *pll3_540;
 
 static struct delayed_work low_bus_freq_handler;
 
@@ -126,6 +127,14 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 	}
 
 	if (!cpu_is_mx6sl()) {
+		if (cpu_is_mx6dl() &&
+			(clk_get_parent(axi_clk) != periph_clk))
+			/* Set the axi_clk to be sourced from the periph_clk.
+			  * So that its frequency can be lowered down to 50MHz
+			  * or 24MHz as the case may be.
+			  */
+			clk_set_parent(axi_clk, periph_clk);
+
 		clk_enable(pll3);
 		if (lp_audio_freq) {
 			/* Need to ensure that PLL2_PFD_400M is kept ON. */
@@ -301,6 +310,11 @@ int set_high_bus_freq(int high_bus_freq)
 		}
 		if (audio_bus_freq_mode)
 			clk_disable(pll2_400);
+
+		/* AXI_CLK is sourced from PLL3_PFD_540 on MX6DL */
+		if (cpu_is_mx6dl() &&
+			clk_get_parent(axi_clk) != pll3_540)
+			clk_set_parent(axi_clk, pll3_540);
 
 		low_bus_freq_mode = 0;
 		audio_bus_freq_mode = 0;
@@ -536,6 +550,13 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		printk(KERN_DEBUG "%s: failed to get pll3\n",
 		       __func__);
 		return PTR_ERR(pll3);
+	}
+
+	pll3_540 = clk_get(NULL, "pll3_pfd_540M");
+	if (IS_ERR(pll3_540)) {
+		printk(KERN_DEBUG "%s: failed to get periph_clk\n",
+		       __func__);
+		return PTR_ERR(pll3_540);
 	}
 
 	pll3_sw_clk = clk_get(NULL, "pll3_sw_clk");
