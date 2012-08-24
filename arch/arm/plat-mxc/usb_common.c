@@ -53,7 +53,9 @@ typedef void (*driver_vbus_func)(bool);
 
 void __iomem *imx_otg_base;
 static  driver_vbus_func s_driver_vbus;
+static int stop_mode_refcount;
 
+DEFINE_MUTEX(usb_common_mutex);
 EXPORT_SYMBOL(imx_otg_base);
 
 #define MXC_NUMBER_USB_TRANSCEIVER 6
@@ -70,6 +72,41 @@ bool usb_icbug_swfix_need(void)
 	return true;
 }
 EXPORT_SYMBOL(usb_icbug_swfix_need);
+
+/*
+  * The Mx6 phy sometimes work abnormally after system suspend/resume if the 1V1 is off.
+  * So we should keep the 1V1 active during the system suspend if any USB host enabled.
+  * Set stop_mode_config when any USB host enabled by default, it will impact on system power.
+  * #define DISABLE_STOP_MODE will disable the feature.
+  */
+#ifndef DISABLE_STOP_MODE
+int usb_stop_mode_refcount(bool enable)
+{
+	if (enable)
+		stop_mode_refcount++;
+	else
+		stop_mode_refcount--;
+	return stop_mode_refcount;
+}
+#else
+int usb_stop_mode_refcount(bool enable)
+{
+	return 0;
+}
+#endif
+EXPORT_SYMBOL(usb_stop_mode_refcount);
+
+void usb_stop_mode_lock(void)
+{
+	mutex_lock(&usb_common_mutex);
+}
+EXPORT_SYMBOL(usb_stop_mode_lock);
+
+void usb_stop_mode_unlock(void)
+{
+	mutex_unlock(&usb_common_mutex);
+}
+EXPORT_SYMBOL(usb_stop_mode_unlock);
 
 void mx6_set_host1_vbus_func(driver_vbus_func driver_vbus)
 {
