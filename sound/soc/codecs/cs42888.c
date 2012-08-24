@@ -758,11 +758,33 @@ static void cs42888_shutdown(struct snd_pcm_substream *substream,
 
 }
 
+static int cs42888_prepare(struct snd_pcm_substream *substream,
+				  struct snd_soc_dai *dai)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_dai *tmp_codec_dai;
+	struct snd_soc_pcm_runtime *tmp_rtd;
+	u32 i;
+
+	for (i = 0; i < card->num_rtd; i++) {
+		tmp_codec_dai = card->rtd[i].codec_dai;
+		tmp_rtd = (struct snd_soc_pcm_runtime *)(card->rtd + i);
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK &&
+			tmp_codec_dai->pop_wait) {
+			tmp_codec_dai->pop_wait = 0;
+			cancel_delayed_work(&tmp_rtd->delayed_work);
+		}
+	}
+	return 0;
+}
+
 static struct snd_soc_dai_ops cs42888_dai_ops = {
 	.set_fmt	= cs42888_set_dai_fmt,
 	.set_sysclk	= cs42888_set_dai_sysclk,
 	.hw_params	= cs42888_hw_params,
 	.shutdown	= cs42888_shutdown,
+	.prepare	= cs42888_prepare,
 };
 
 
