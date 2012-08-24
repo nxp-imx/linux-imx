@@ -30,6 +30,9 @@ extern void gpio_usbotg_utmi_inactive(void);
 
 extern void __init mx6_usb_dr_init(void);
 extern bool usb_icbug_swfix_need(void);
+extern int usb_stop_mode_refcount(bool enable);
+extern void usb_stop_mode_lock(void);
+extern void usb_stop_mode_unlock(void);
 extern void __init mx6_usb_h2_init(void);
 extern void __init mx6_usb_h3_init(void);
 
