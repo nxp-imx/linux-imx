@@ -339,7 +339,14 @@ static void pxp_set_outbuf(struct pxps *pxp)
 		     BF_PXP_OUT_LRC_Y(out_params->height - 1),
 		     pxp->base + HW_PXP_OUT_LRC);
 
-	__raw_writel(out_params->stride, pxp->base + HW_PXP_OUT_PITCH);
+	if (out_params->pixel_fmt == PXP_PIX_FMT_RGB24)
+		__raw_writel(out_params->stride << 2,
+				pxp->base + HW_PXP_OUT_PITCH);
+	else if (out_params->pixel_fmt == PXP_PIX_FMT_RGB565)
+		__raw_writel(out_params->stride << 1,
+				pxp->base + HW_PXP_OUT_PITCH);
+	else
+		__raw_writel(out_params->stride, pxp->base + HW_PXP_OUT_PITCH);
 }
 
 static void pxp_set_s0colorkey(struct pxps *pxp)
@@ -390,6 +397,13 @@ static void pxp_set_oln(int layer_no, struct pxps *pxp)
 	__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->width) |
 		     BF_PXP_OUT_AS_LRC_Y(olparams_data->height),
 		     pxp->base + HW_PXP_OUT_AS_LRC);
+
+	if (olparams_data->pixel_fmt == PXP_PIX_FMT_RGB24)
+		__raw_writel(olparams_data->width << 2,
+				pxp->base + HW_PXP_AS_PITCH);
+	else
+		__raw_writel(olparams_data->width << 1,
+				pxp->base + HW_PXP_AS_PITCH);
 }
 
 static void pxp_set_olparam(int layer_no, struct pxps *pxp)
@@ -704,8 +718,9 @@ static void pxp_set_s0buf(struct pxps *pxp)
 		__raw_writel(V, pxp->base + HW_PXP_PS_VBUF);
 	}
 
-	/* TODO: only support RGB565, Y8, Y4 */
-	if (s0_params->pixel_fmt == PXP_PIX_FMT_GREY)
+	/* TODO: only support RGB565, Y8, Y4, YUV420 */
+	if (s0_params->pixel_fmt == PXP_PIX_FMT_GREY ||
+	    s0_params->pixel_fmt == PXP_PIX_FMT_YUV420P)
 		__raw_writel(s0_params->width, pxp->base + HW_PXP_PS_PITCH);
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_GY04)
 		__raw_writel(s0_params->width >> 1, pxp->base + HW_PXP_PS_PITCH);
