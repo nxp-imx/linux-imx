@@ -58,13 +58,7 @@ extern struct regulator *soc_regulator;
 extern struct regulator *pu_regulator;
 extern int dvfs_core_is_active;
 extern struct cpu_op *(*get_cpu_op)(int *op);
-extern int low_bus_freq_mode;
-extern int audio_bus_freq_mode;
-extern int high_bus_freq_mode;
-extern int set_low_bus_freq(void);
-extern int set_high_bus_freq(int high_bus_speed);
-extern int low_freq_bus_used(void);
-extern struct mutex bus_freq_mutex;
+extern void bus_freq_update(struct clk *clk, bool flag);
 
 int set_cpu_freq(int freq)
 {
@@ -95,12 +89,9 @@ int set_cpu_freq(int freq)
 #endif
 	/*Set the voltage for the GP domain. */
 	if (freq > org_cpu_rate) {
-		mutex_lock(&bus_freq_mutex);
-		if (low_bus_freq_mode || audio_bus_freq_mode) {
-			mutex_unlock(&bus_freq_mutex);
-			set_high_bus_freq(0);
-		} else
-			mutex_unlock(&bus_freq_mutex);
+		/* Check if the bus freq needs to be increased first */
+		bus_freq_update(cpu_clk, true);
+
 		if (freq == cpu_op_tbl[0].cpu_rate && !IS_ERR(soc_regulator) && !IS_ERR(pu_regulator)) {
 			ret = regulator_set_voltage(soc_regulator, soc_volt,
 							soc_volt);
@@ -152,11 +143,8 @@ int set_cpu_freq(int freq)
 			}
 			soc_regulator_set = 0;
 		}
-		mutex_lock(&bus_freq_mutex);
-		if (low_freq_bus_used() &&
-			!(low_bus_freq_mode || audio_bus_freq_mode))
-			set_low_bus_freq();
-		mutex_unlock(&bus_freq_mutex);
+		/* Check if the bus freq can be decreased.*/
+		bus_freq_update(cpu_clk, false);
 	}
 
 	return ret;
