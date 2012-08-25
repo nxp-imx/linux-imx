@@ -67,6 +67,7 @@ static struct clk pll7_usb_host_main_clk;
 static struct clk usdhc3_clk;
 static struct clk ipg_clk;
 static struct clk gpt_clk[];
+static struct clk ahb_clk;
 
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
@@ -412,6 +413,7 @@ static int _clk_pfd_enable(struct clk *clk)
 	__raw_writel((1 << (clk->enable_shift + 7)),
 			(int)clk->enable_reg + 8);
 
+	udelay(3);
 	return 0;
 }
 
@@ -430,7 +432,6 @@ static int _clk_pll_enable(struct clk *clk)
 	pllbase = _get_pll_base(clk);
 
 	reg = __raw_readl(pllbase);
-	reg &= ~ANADIG_PLL_BYPASS;
 	reg &= ~ANADIG_PLL_POWER_DOWN;
 
 	/* The 480MHz PLLs have the opposite definition for power bit. */
@@ -450,6 +451,7 @@ static int _clk_pll_enable(struct clk *clk)
 
 	/* Enable the PLL output now*/
 	reg = __raw_readl(pllbase);
+	reg &= ~ANADIG_PLL_BYPASS;
 	reg |= ANADIG_PLL_ENABLE;
 	__raw_writel(reg, pllbase);
 
@@ -1153,6 +1155,11 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	if (i >= cpu_op_nr)
 		return -EINVAL;
 
+	if (clk_get_rate(&ahb_clk) == 24000000) {
+		printk(KERN_INFO "we should not be here!!!!! AHB is at 24MHz....cpu_rate requested = %ld\n", rate);
+		dump_stack();
+		BUG();
+	}
 	spin_lock_irqsave(&mx6sl_clk_lock, flags);
 
 	if (rate <= clk_get_rate(&pll2_pfd2_400M)) {
@@ -1161,14 +1168,17 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		  */
 		if (pll1_sw_clk.parent != &pll2_pfd2_400M) {
 			pll2_pfd2_400M.enable(&pll2_pfd2_400M);
+			pll2_pfd2_400M.usecount++;
 			arm_needs_pll2_400 = true;
 			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd2_400M);
 			pll1_sw_clk.parent = &pll2_pfd2_400M;
 		}
 	} else {
 		/* Make sure PLL1 is enabled */
-		if (!pll1_enabled)
+		if (!pll1_enabled) {
 			pll1_sys_main_clk.enable(&pll1_sys_main_clk);
+			pll1_sys_main_clk.usecount = 1;
+		}
 		if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
 			if (pll1_sw_clk.parent == &pll1_sys_main_clk) {
 				/* Change the PLL1 rate. */
@@ -1177,15 +1187,13 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 				else
 					pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
 			}
-			if (cpu_op_tbl[i].cpu_podf) {
-				__raw_writel(cpu_op_tbl[i].cpu_podf, MXC_CCM_CACRR);
-				while (__raw_readl(MXC_CCM_CDHIPR))
-							;
-			}
 			pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
 		}
 		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
 		pll1_sw_clk.parent = &pll1_sys_main_clk;
+
+		if (arm_needs_pll2_400)
+			pll2_pfd2_400M.usecount--;
 		arm_needs_pll2_400 = false;
 		if (pll2_pfd2_400M.usecount == 0)
 			pll2_pfd2_400M.disable(&pll2_pfd2_400M);
@@ -1224,9 +1232,10 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	while (__raw_readl(MXC_CCM_CDHIPR))
 		;
 
-	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400)
+	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400) {
 		pll1_sys_main_clk.disable(&pll1_sys_main_clk);
-
+		pll1_sys_main_clk.usecount = 0;
+	}
 	spin_unlock_irqrestore(&mx6sl_clk_lock, flags);
 
 	return 0;

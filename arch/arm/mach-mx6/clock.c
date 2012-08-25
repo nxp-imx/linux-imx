@@ -472,7 +472,6 @@ static int _clk_pll_enable(struct clk *clk)
 	pllbase = _get_pll_base(clk);
 
 	reg = __raw_readl(pllbase);
-	reg &= ~ANADIG_PLL_BYPASS;
 	reg &= ~ANADIG_PLL_POWER_DOWN;
 
 	/* The 480MHz PLLs have the opposite definition for power bit. */
@@ -492,6 +491,7 @@ static int _clk_pll_enable(struct clk *clk)
 
 	/* Enable the PLL output now*/
 	reg = __raw_readl(pllbase);
+	reg &= ~ANADIG_PLL_BYPASS;
 	reg |= ANADIG_PLL_ENABLE;
 	__raw_writel(reg, pllbase);
 
@@ -1262,14 +1262,17 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		  */
 		if (pll1_sw_clk.parent != &pll2_pfd_400M) {
 			pll2_pfd_400M.enable(&pll2_pfd_400M);
+			pll2_pfd_400M.usecount++;
 			arm_needs_pll2_400 = true;
 			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
 			pll1_sw_clk.parent = &pll2_pfd_400M;
 		}
 	} else {
 		/* Make sure PLL1 is enabled */
-		if (!pll1_enabled)
+		if (!pll1_enabled) {
 			pll1_sys_main_clk.enable(&pll1_sys_main_clk);
+			pll1_sys_main_clk.usecount = 1;
+		}
 		/* Make sure PLL1 rate is what we want */
 		if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
 			/* If pll1_sw_clk is from pll1_sys_main_clk, switch it */
@@ -1285,6 +1288,8 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		/* Make sure pll1_sw_clk is from pll1_sys_main_clk */
 		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
 		pll1_sw_clk.parent = &pll1_sys_main_clk;
+		if (arm_needs_pll2_400)
+			pll2_pfd_400M.usecount--;
 		arm_needs_pll2_400 = false;
 		if (pll2_pfd_400M.usecount == 0)
 			pll2_pfd_400M.disable(&pll2_pfd_400M);
@@ -1323,8 +1328,10 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	while (__raw_readl(MXC_CCM_CDHIPR))
 		;
 
-	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400)
+	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400) {
 		pll1_sys_main_clk.disable(&pll1_sys_main_clk);
+		pll1_sys_main_clk.usecount = 0;
+	}
 
 	spin_unlock_irqrestore(&clk_lock, flags);
 

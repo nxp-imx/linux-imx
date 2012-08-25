@@ -69,6 +69,7 @@ int bus_freq_scaling_is_active;
 int lp_high_freq;
 int lp_med_freq;
 int lp_audio_freq;
+int high_cpu_freq;
 unsigned int ddr_low_rate;
 unsigned int ddr_med_rate;
 unsigned int ddr_normal_rate;
@@ -194,7 +195,6 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 
 		spin_unlock_irqrestore(&freq_lock, flags);
 	}
-
 	high_bus_freq_mode = 0;
 	mutex_unlock(&bus_freq_mutex);
 }
@@ -225,40 +225,34 @@ int set_high_bus_freq(int high_bus_freq)
 {
 	if (bus_freq_scaling_initialized && bus_freq_scaling_is_active)
 		cancel_delayed_work_sync(&low_bus_freq_handler);
-	mutex_lock(&bus_freq_mutex);
-	if (busfreq_suspended) {
-		mutex_unlock(&bus_freq_mutex);
-		return 0;
-	}
 
-	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active) {
-		mutex_unlock(&bus_freq_mutex);
+	if (busfreq_suspended)
 		return 0;
-	}
 
-	if (high_bus_freq_mode && high_bus_freq) {
-		mutex_unlock(&bus_freq_mutex);
-		return 0;
-	}
 
-	if (med_bus_freq_mode && !high_bus_freq) {
-		mutex_unlock(&bus_freq_mutex);
+	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active)
 		return 0;
-	}
+
+
+	if (high_bus_freq_mode && high_bus_freq)
+		return 0;
+
+
+	/* medium bus freq is only supported for MX6DQ */
+	if (cpu_is_mx6q() && med_bus_freq_mode && !high_bus_freq)
+		return 0;
 
 	if (cpu_is_mx6dl() && high_bus_freq)
 		high_bus_freq = 0;
 
-	if (cpu_is_mx6dl() && med_bus_freq_mode) {
-		mutex_unlock(&bus_freq_mutex);
+	if (cpu_is_mx6dl() && med_bus_freq_mode)
 		return 0;
-	}
+
 	if ((high_bus_freq_mode && (high_bus_freq || lp_high_freq)) ||
 	    (med_bus_freq_mode && !high_bus_freq && lp_med_freq &&
-	     !lp_high_freq)) {
-		mutex_unlock(&bus_freq_mutex);
+	     !lp_high_freq))
 		return 0;
-	}
+
 	if (cpu_is_mx6sl()) {
 		u32 reg;
 		unsigned long flags;
@@ -321,8 +315,6 @@ int set_high_bus_freq(int high_bus_freq)
 
 		clk_disable(pll3);
 	}
-
-	mutex_unlock(&bus_freq_mutex);
 	return 0;
 }
 
@@ -334,11 +326,8 @@ int low_freq_bus_used(void)
 	/* We only go the lowest setpoint if ARM is also
 	 * at the lowest setpoint.
 	 */
-	if ((clk_get_rate(cpu_clk) >
-			cpu_op_tbl[cpu_op_nr - 1].cpu_rate)
-		|| (cpu_op_nr == 1)) {
+	if (high_cpu_freq)
 		return 0;
-	}
 
 	if ((lp_high_freq == 0)
 	    && (lp_med_freq == 0))
@@ -350,62 +339,80 @@ int low_freq_bus_used(void)
 void bus_freq_update(struct clk *clk, bool flag)
 {
 	mutex_lock(&bus_freq_mutex);
+
 	if (flag) {
-		/* Update count */
-		if (clk->flags & AHB_HIGH_SET_POINT)
-			lp_high_freq++;
-		else if (clk->flags & AHB_MED_SET_POINT)
-			lp_med_freq++;
-		else if (clk->flags & AHB_AUDIO_SET_POINT)
-			lp_audio_freq++;
-		/* Update bus freq */
-		if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
-			&& (clk_get_usecount(clk) == 0)) {
-			if (!(clk->flags &
-				(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT)))  {
-			if (low_freq_bus_used()) {
-				if ((clk->flags & AHB_AUDIO_SET_POINT) & !audio_bus_freq_mode)
-					set_low_bus_freq();
-				else if (!low_bus_freq_mode)
-					set_low_bus_freq();
-			}
-		} else {
-			if ((clk->flags & AHB_MED_SET_POINT)
-				&& !med_bus_freq_mode) {
-				/* Set to Medium setpoint */
-				mutex_unlock(&bus_freq_mutex);
+		if (clk == cpu_clk) {
+			/* The CPU freq is being increased.
+			  * check if we need to increase the bus freq
+			  */
+			high_cpu_freq = 1;
+			if (low_bus_freq_mode || audio_bus_freq_mode)
 				set_high_bus_freq(0);
-				return;
-			}
-			else if ((clk->flags & AHB_HIGH_SET_POINT)
-				&& !high_bus_freq_mode) {
-				/* Currently at low or medium set point,
-				* need to set to high setpoint
-				*/
-				mutex_unlock(&bus_freq_mutex);
-				set_high_bus_freq(1);
-				return;
-			}
+		} else {
+			/* Update count */
+			if (clk->flags & AHB_HIGH_SET_POINT)
+				lp_high_freq++;
+			else if (clk->flags & AHB_MED_SET_POINT)
+				lp_med_freq++;
+			else if (clk->flags & AHB_AUDIO_SET_POINT)
+				lp_audio_freq++;
+			/* Update bus freq */
+			if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+				&& (clk_get_usecount(clk) == 0)) {
+				if (!(clk->flags &
+					(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT))) {
+					if (low_freq_bus_used()) {
+						if ((clk->flags & AHB_AUDIO_SET_POINT) &
+								!audio_bus_freq_mode)
+							set_low_bus_freq();
+						else if (!low_bus_freq_mode)
+							set_low_bus_freq();
+					}
+				} else {
+					if ((clk->flags & AHB_MED_SET_POINT)
+						&& !med_bus_freq_mode) {
+						/* Set to Medium setpoint */
+						set_high_bus_freq(0);
+					} else if ((clk->flags & AHB_HIGH_SET_POINT)
+						&& !high_bus_freq_mode) {
+						/* Currently at low or medium
+						  * set point, need to set to
+						  * high setpoint
+						  */
+						set_high_bus_freq(1);
+					}
+				}
 			}
 		}
 	} else {
-		/* Update count */
-		if (clk->flags & AHB_HIGH_SET_POINT)
-			lp_high_freq--;
-		else if (clk->flags & AHB_MED_SET_POINT)
-			lp_med_freq--;
-		else if (clk->flags & AHB_AUDIO_SET_POINT)
-			lp_audio_freq--;
-		/* Update bus freq */
-		if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
-			&& (clk_get_usecount(clk) == 0)) {
-			if (low_freq_bus_used() && !low_bus_freq_mode)
+		if (clk == cpu_clk) {
+			/* CPU freq is dropped, check if we can
+			  * lower the bus freq.
+			  */
+			high_cpu_freq = 0;
+
+			if (low_freq_bus_used() &&
+				!(low_bus_freq_mode || audio_bus_freq_mode))
 				set_low_bus_freq();
-			else {
-				/* Set to either high or medium setpoint. */
-				mutex_unlock(&bus_freq_mutex);
-				set_high_bus_freq(0);
-				return;
+		} else {
+			/* Update count */
+			if (clk->flags & AHB_HIGH_SET_POINT)
+				lp_high_freq--;
+			else if (clk->flags & AHB_MED_SET_POINT)
+				lp_med_freq--;
+			else if (clk->flags & AHB_AUDIO_SET_POINT)
+				lp_audio_freq--;
+			/* Update bus freq */
+			if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+				&& (clk_get_usecount(clk) == 0)) {
+				if (low_freq_bus_used())
+					set_low_bus_freq();
+				else {
+					/* Set to either high or
+					  * medium setpoint.
+					  */
+					set_high_bus_freq(0);
+				}
 			}
 		}
 	}
