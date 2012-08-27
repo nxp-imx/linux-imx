@@ -1655,6 +1655,8 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi)
 	if (fb_mode_is_equal(&hdmi->previous_non_vga_mode, mode)) {
 		dev_dbg(&hdmi->pdev->dev,
 				"%s: Video mode same as previous\n", __func__);
+		/* update fbi mode in case modelist is updated */
+		hdmi->fbi->mode = mode;
 		mxc_hdmi_phy_init(hdmi);
 	} else {
 		dev_dbg(&hdmi->pdev->dev, "%s: New video mode\n", __func__);
