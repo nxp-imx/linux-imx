@@ -582,6 +582,7 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 static struct mxc_dvfs_platform_data mx6sl_arm2_dvfscore_data = {
 	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	.reg_id			= "VDDCORE",
+	.soc_id			= "VDDSOC",
 	#else
 	.reg_id			= "cpu_vddgp",
 	.soc_id			= "cpu_vddsoc",
@@ -1189,6 +1190,7 @@ static void __init mx6_arm2_init(void)
 
 	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	gp_reg_id = mx6sl_arm2_dvfscore_data.reg_id;
+	soc_reg_id = mx6sl_arm2_dvfscore_data.soc_id;
 	#else
 	gp_reg_id = mx6sl_arm2_dvfscore_data.reg_id;
 	soc_reg_id = mx6sl_arm2_dvfscore_data.soc_id;
