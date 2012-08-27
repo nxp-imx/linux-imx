@@ -113,13 +113,6 @@ static struct cpu_op mx6dl_cpu_op_1_2G[] = {
 	  .pu_voltage = 1150000,
 	  .soc_voltage = 1150000,
 	  .cpu_voltage = 1025000,},
-	 {
-	  .pll_rate = 396000000,
-	  .cpu_rate = 198000000,
-	  .cpu_podf = 1,
-	  .pu_voltage = 1150000,
-	  .soc_voltage = 1150000,
-	  .cpu_voltage = 1025000,},
 };
 /* working point(wp): 0 - 1GHz; 1 - 800MHz, 2 - 400MHz, 3  - 200MHz */
 static struct cpu_op mx6dl_cpu_op_1G[] = {
@@ -144,13 +137,6 @@ static struct cpu_op mx6dl_cpu_op_1G[] = {
 	 .pu_voltage = 1150000,
 	 .soc_voltage = 1150000,
 	 .cpu_voltage = 1025000,},
-	 {
-	  .pll_rate = 396000000,
-	  .cpu_rate = 198000000,
-	  .cpu_podf = 1,
-	  .pu_voltage = 1150000,
-	  .soc_voltage = 1150000,
-	  .cpu_voltage = 1025000,},
 };
 static struct cpu_op mx6dl_cpu_op[] = {
 	{
@@ -167,13 +153,6 @@ static struct cpu_op mx6dl_cpu_op[] = {
 	  .pu_voltage = 1150000,
 	  .soc_voltage = 1150000,
 	  .cpu_voltage = 1025000,},
-	{
-	 .pll_rate = 396000000,
-	 .cpu_rate = 198000000,
-	 .cpu_podf = 1,
-	 .pu_voltage = 1150000,
-	 .soc_voltage = 1150000,
-	 .cpu_voltage = 1025000,},
 };
 
 static struct dvfs_op dvfs_core_setpoint_1_2G[] = {
