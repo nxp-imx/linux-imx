@@ -3228,6 +3228,7 @@ err:
 static int ov5642_write_snapshot_para(enum ov5642_frame_rate frame_rate,
        enum ov5642_mode mode)
 {
+	int ret = 0;
 	bool m_60Hz = false;
 	u16 capture_frame_rate = 50;
 	u16 g_preview_frame_rate = 225;
@@ -3255,7 +3256,10 @@ static int ov5642_write_snapshot_para(enum ov5642_frame_rate frame_rate,
 	gain = 0;
 	ov5642_read_reg(0x350b, &gain);
 
-	ov5642_init_mode(frame_rate, mode);
+	ret = ov5642_init_mode(frame_rate, mode);
+	if (ret < 0)
+		return ret;
+
 	ret_h = ret_m = ret_l = 0;
 	ov5642_read_reg(0x380e, &ret_h);
 	ov5642_read_reg(0x380f, &ret_l);
@@ -3331,7 +3335,7 @@ static int ov5642_write_snapshot_para(enum ov5642_frame_rate frame_rate,
 	ov5642_write_reg(0x3500, exposure_high);
 	msleep(500);
 
-	return 0;
+	return ret ;
 }
 
 
