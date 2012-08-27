@@ -5412,6 +5412,8 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		/* on mx6dl gpu2d_axi_clk source from mmdc0 directly */
 		clk_set_parent(&gpu2d_axi_clk, &mmdc_ch0_axi_clk[0]);
 
+		clk_set_rate(&pll3_pfd_540M, 540000000);
+
 		clk_set_parent(&ipu1_clk, &pll3_pfd_540M);
 		/* pxp & epdc */
 		clk_set_parent(&ipu2_clk, &pll2_pfd_400M);
