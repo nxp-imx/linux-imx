@@ -244,18 +244,18 @@ static void usbh1_platform_rh_resume_swfix(struct fsl_usb2_platform_data *pdata)
 {
 	u32 index = 0;
 
-	if ((UH1_PORTSC1 & (3 << 26)) != (2 << 26))
+	if ((UOG_PORTSC1 & (PORTSC_PORT_SPEED_MASK)) != PORTSC_PORT_SPEED_HIGH)
 		return ;
-
 	while ((UH1_PORTSC1 & PORTSC_PORT_FORCE_RESUME)
 			&& (index < 1000)) {
 		udelay(500);
 		index++;
 	}
-
 	if (index >= 1000)
-		printk(KERN_INFO "%s big error\n", __func__);
-
+		printk(KERN_ERR "failed to wait for the resume finished in %s() line:%d\n",
+		__func__, __LINE__);
+	/* We should add some delay to wait for the device switch to
+	  * High-Speed 45ohm termination resistors mode. */
 	udelay(500);
 	fsl_platform_h1_set_usb_phy_dis(pdata, 1);
 }
@@ -272,9 +272,24 @@ static void usbh1_platform_rh_suspend(struct fsl_usb2_platform_data *pdata)
 
 static void usbh1_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
 {
+	u32 index = 0;
+
 	/*for mx6sl ,we do not need any sw fix*/
 	if (cpu_is_mx6sl())
 		return ;
+	if ((UOG_PORTSC1 & (PORTSC_PORT_SPEED_MASK)) != PORTSC_PORT_SPEED_HIGH)
+		return ;
+	while ((UH1_PORTSC1 & PORTSC_PORT_FORCE_RESUME)
+			&& (index < 1000)) {
+		udelay(500);
+		index++;
+	}
+	if (index >= 1000)
+		printk(KERN_ERR "failed to wait for the resume finished in %s() line:%d\n",
+		__func__, __LINE__);
+	/* We should add some delay to wait for the device switch to
+	  * High-Speed 45ohm termination resistors mode. */
+	udelay(500);
 	__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
 		MX6_IO_ADDRESS(pdata->phy_regs)
 		+ HW_USBPHY_CTRL_SET);
