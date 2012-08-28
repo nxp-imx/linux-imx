@@ -70,6 +70,9 @@ ENTRY(mx50_ddr_freq_change)
     bic     r0, #0x1F
     str     r0,[r5, #0x50]
 
+   /* Ensure all write buffers are flushed. */
+    dsb
+
 LoopCKE2:
     /*Wait for CKE = 1 */
     ldr     r0,[r5, #0xfc]

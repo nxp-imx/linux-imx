@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,11 @@ ENTRY(mx50_wait)
     mov    r5, r1                       @save DataBahn address
     mov    r7, r2                       @save sys_clk usecount
 
+     /* Prime the TLBs so that there are no TLB walks. */
+     ldr     r0, [r6]
+     ldr     r0, [r5]
+
+     dsb
     /*
      * Make sure the DDR is self-refresh, before setting the clock bits.
      */
