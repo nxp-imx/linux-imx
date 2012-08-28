@@ -1363,6 +1363,7 @@ static void __init mx6_board_init(void)
 	iomux_v3_cfg_t *tuner_pads = NULL;
 	iomux_v3_cfg_t *spinor_pads = NULL;
 	iomux_v3_cfg_t *weimnor_pads = NULL;
+	iomux_v3_cfg_t *extra_pads = NULL;
 
 	int common_pads_cnt;
 	int can0_pads_cnt;
@@ -1372,6 +1373,7 @@ static void __init mx6_board_init(void)
 	int tuner_pads_cnt;
 	int spinor_pads_cnt;
 	int weimnor_pads_cnt;
+	int extra_pads_cnt;
 
 	if (cpu_is_mx6q()) {
 		common_pads = mx6q_sabreauto_pads;
@@ -1392,9 +1394,15 @@ static void __init mx6_board_init(void)
 		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6q_i2c3_pads_rev_a;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6q_i2c3_pads_rev_a);
+			mxc_iomux_v3_setup_multiple_pads(i2c3_pads,
+					i2c3_pads_cnt);
 		} else {
 			i2c3_pads = mx6q_i2c3_pads_rev_b;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6q_i2c3_pads_rev_b);
+			extra_pads = mx6q_extra_pads_rev_b;
+			extra_pads_cnt = ARRAY_SIZE(mx6q_extra_pads_rev_b);
+			mxc_iomux_v3_setup_multiple_pads(extra_pads,
+					extra_pads_cnt);
 		}
 	} else if (cpu_is_mx6dl()) {
 		common_pads = mx6dl_sabreauto_pads;
@@ -1416,16 +1424,23 @@ static void __init mx6_board_init(void)
 		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6dl_i2c3_pads_rev_a;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6dl_i2c3_pads_rev_a);
+			mxc_iomux_v3_setup_multiple_pads(i2c3_pads,
+					i2c3_pads_cnt);
 		} else {
 			i2c3_pads = mx6dl_i2c3_pads_rev_b;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6dl_i2c3_pads_rev_b);
+			extra_pads = mx6dl_extra_pads_rev_b;
+			extra_pads_cnt = ARRAY_SIZE(mx6dl_extra_pads_rev_b);
+			mxc_iomux_v3_setup_multiple_pads(extra_pads,
+					extra_pads_cnt);
 		}
 	}
 
 	BUG_ON(!common_pads);
 	mxc_iomux_v3_setup_multiple_pads(common_pads, common_pads_cnt);
 
-	/*If at least one NOR memory is selected we don't configure IC23 PADS*/
+	/*If at least one NOR memory is selected we don't
+	 * configure IC23 PADS for rev B */
 	if (spinor_en) {
 		BUG_ON(!spinor_pads);
 		mxc_iomux_v3_setup_multiple_pads(spinor_pads, spinor_pads_cnt);
@@ -1434,16 +1449,21 @@ static void __init mx6_board_init(void)
 		mxc_iomux_v3_setup_multiple_pads(weimnor_pads,
 						weimnor_pads_cnt);
 	} else {
-		BUG_ON(!i2c3_pads);
-		mxc_iomux_v3_setup_multiple_pads(i2c3_pads, i2c3_pads_cnt);
+		if (!board_is_mx6_reva()) {
+			BUG_ON(!i2c3_pads);
+			mxc_iomux_v3_setup_multiple_pads(i2c3_pads,
+					i2c3_pads_cnt);
+		}
 	}
+
 	if (can0_enable) {
 		BUG_ON(!can0_pads);
 		mxc_iomux_v3_setup_multiple_pads(can0_pads,
 						can0_pads_cnt);
 	}
-		BUG_ON(!can1_pads);
-		mxc_iomux_v3_setup_multiple_pads(can1_pads, can1_pads_cnt);
+
+	BUG_ON(!can1_pads);
+	mxc_iomux_v3_setup_multiple_pads(can1_pads, can1_pads_cnt);
 
 	if (tuner_en) {
 		BUG_ON(!tuner_pads);
@@ -1468,7 +1488,7 @@ static void __init mx6_board_init(void)
 			gpio_request(SABREAUTO_WEIM_NOR_WDOG1, "nor-reset");
 			gpio_direction_output(SABREAUTO_WEIM_NOR_WDOG1, 1);
 		} else
-		gpio_direction_output(SABREAUTO_I2C3_STEER, 1);
+			gpio_direction_output(SABREAUTO_I2C3_STEER, 1);
 		/* Set GPIO_16 input for IEEE-1588 ts_clk and
 		 * RMII reference clk
 		 * For MX6 GPR1 bit21 meaning:
