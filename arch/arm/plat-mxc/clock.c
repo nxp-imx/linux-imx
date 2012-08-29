@@ -225,10 +225,18 @@ int clk_set_parent(struct clk *clk, struct clk *parent)
 	    IS_ERR(parent) || clk->set_parent == NULL)
 		return ret;
 
-	if (clk->usecount)
-		clk_enable(parent);
-
 	mutex_lock(&clocks_mutex);
+
+	if (clk->usecount) {
+		if (in_interrupt()) {
+			printk(KERN_ERR " clk_enable cannot be called in an interrupt context\n");
+			dump_stack();
+			mutex_unlock(&clocks_mutex);
+			BUG();
+		}
+		__clk_enable(parent);
+	}
+
 	ret = clk->set_parent(clk, parent);
 	if (ret == 0) {
 		old = clk->parent;
@@ -236,10 +244,10 @@ int clk_set_parent(struct clk *clk, struct clk *parent)
 	} else {
 		old = parent;
 	}
-	mutex_unlock(&clocks_mutex);
-
 	if (clk->usecount)
-		clk_disable(old);
+		__clk_disable(old);
+
+	mutex_unlock(&clocks_mutex);
 
 	return ret;
 }
