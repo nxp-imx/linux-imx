@@ -195,7 +195,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			__raw_writel(__raw_readl(MXC_CCM_CCR) &
 				(~MXC_CCM_CCR_WB_COUNT_MASK) &
 				(~MXC_CCM_CCR_REG_BYPASS_CNT_MASK), MXC_CCM_CCR);
-			udelay(60);
+			udelay(80);
 			/* Reconfigurate WB and RBC counter */
 			__raw_writel(__raw_readl(MXC_CCM_CCR) |
 				(0x1 << MXC_CCM_CCR_WB_COUNT_OFFSET) |

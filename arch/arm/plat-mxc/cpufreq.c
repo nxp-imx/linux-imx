@@ -248,8 +248,11 @@ void mxc_cpufreq_suspend(void)
 	pre_suspend_rate = clk_get_rate(cpu_clk);
 	/*set flag and raise up cpu frequency if needed*/
 	cpu_freq_suspend_in = 1;
-	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000))
+	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000)) {
 			set_cpu_freq(imx_freq_table[0].frequency * 1000);
+			loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
+				pre_suspend_rate / 1000, imx_freq_table[0].frequency);
+	}
 	cpu_freq_suspend_in = 2;
 	mutex_unlock(&set_cpufreq_lock);
 
@@ -259,8 +262,11 @@ void mxc_cpufreq_resume(void)
 {
 	mutex_lock(&set_cpufreq_lock);
 	cpu_freq_suspend_in = 1;
-	if (clk_get_rate(cpu_clk) != pre_suspend_rate)
+	if (clk_get_rate(cpu_clk) != pre_suspend_rate) {
 		set_cpu_freq(pre_suspend_rate);
+		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
+			imx_freq_table[0].frequency, pre_suspend_rate / 1000);
+	}
 	cpu_freq_suspend_in = 0;
 	mutex_unlock(&set_cpufreq_lock);
 }
@@ -270,16 +276,22 @@ void mxc_cpufreq_resume(void)
 static int mxc_cpufreq_suspend(struct cpufreq_policy *policy)
 {
 	pre_suspend_rate = clk_get_rate(cpu_clk);
-	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000))
+	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000)) {
 		set_cpu_freq(imx_freq_table[0].frequency * 1000);
+		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
+			pre_suspend_rate / 1000, imx_freq_table[0].frequency);
+	}
 
 	return 0;
 }
 
 static int mxc_cpufreq_resume(struct cpufreq_policy *policy)
 {
-	if (clk_get_rate(cpu_clk) != pre_suspend_rate)
+	if (clk_get_rate(cpu_clk) != pre_suspend_rate) {
 		set_cpu_freq(pre_suspend_rate);
+		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
+			imx_freq_table[0].frequency, pre_suspend_rate / 1000);
+	}
 	return 0;
 }
 #endif
