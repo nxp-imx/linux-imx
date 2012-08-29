@@ -85,8 +85,7 @@ r2: suspend_iram_base
 	ldr	r4, [r1, #0x330] /* DRAM_SDCKE0 */
 	ldr	r5, [r1, #0x334] /* DRAM_SDCKE1 */
 	ldr	r6, [r1, #0x320] /* DRAM_RESET */
-	ldr	r7, [r1, #0x5c8] /* GPR_CTLDS */
-	stmfd	r0!, {r4-r7}
+	stmfd	r0!, {r4-r6}
 
 	.endm
 
@@ -122,11 +121,10 @@ r2: suspend_iram_base
 	str	r6, [r1, #0x33c] /* DRAM_SODT0*/
 	str	r7, [r1, #0x340] /* DRAM_SODT1*/
 
-	ldmea	r0!, {r4-r7}
+	ldmea	r0!, {r4-r6}
 	str	r4, [r1, #0x330] /* DRAM_SDCKE0 */
 	str	r5, [r1, #0x334] /* DRAM_SDCKE1 */
 	str	r6, [r1, #0x320] /* DRAM_RESET */
-	str	r7, [r1, #0x5c8] /* GPR_CTLDS */
 
 	.endm
 
@@ -138,6 +136,13 @@ r2: suspend_iram_base
 	str	r0, [r1, #0x314] /* DRAM_DQM2 */
 	str	r0, [r1, #0x318] /* DRAM_DQM3 */
 
+	/* Make sure the Pull Ups are enabled.
+	 * So only reduce the drive stength, but
+	 * leave the pull-ups in the original state.
+	 * This is required for LPDDR2.
+	 */
+	ldr	r0, [r1, #0x344]
+	orr	r0, r0, #0x3000
 	str	r0, [r1, #0x344] /* DRAM_SDQS0 */
 	str	r0, [r1, #0x348] /* DRAM_SDQS1 */
 	str	r0, [r1, #0x34c] /* DRAM_SDQS2 */
@@ -158,7 +163,6 @@ r2: suspend_iram_base
 	str	r0, [r1, #0x33c] /* DRAM_SODT0*/
 	str	r0, [r1, #0x340] /* DRAM_SODT1*/
 
-	str	r0, [r1, #0x5c8] /* GPR_CTLDS */
 	mov	r0, #0x80000
 	str	r0, [r1, #0x320] /* DRAM_RESET */
 	mov	r0, #0x1000
