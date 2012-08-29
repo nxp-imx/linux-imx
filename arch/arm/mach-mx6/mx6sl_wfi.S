@@ -109,6 +109,13 @@
 	str	r4, [r1, #0x314] /* DRAM_DQM2 */
 	str	r4, [r1, #0x318] /* DRAM_DQM3 */
 
+	/* Make sure the Pull Ups are enabled.
+	 * So only reduce the drive stength, but
+	 * leave the pull-ups in the original state.
+	 * This is required for LPDDR2.
+	 */
+	ldr	r4, [r1, #0x344]
+	orr	r4, r4, #0x3000
 	str	r4, [r1, #0x344] /* DRAM_SDQS0 */
 	str	r4, [r1, #0x348] /* DRAM_SDQS1 */
 	str	r4, [r1, #0x34c] /* DRAM_SDQS2 */
@@ -129,7 +136,6 @@
 	str	r4, [r1, #0x33c] /* DRAM_SODT0*/
 	str	r4, [r1, #0x340] /* DRAM_SODT1*/
 
-	str	r4, [r1, #0x5c8] /* GPR_CTLDS */
 	mov	r4, #0x80000
 	str	r4, [r1, #0x320] /* DRAM_RESET */
 	mov	r4, #0x1000
@@ -347,6 +353,42 @@ poll_dvfs_clear_1:
      and     r6, r6, #0x2000000
      cmp     r6, #0x2000000
      beq     poll_dvfs_clear_1
+
+     /* Add these nops so that the
+      * prefetcher will not try to get
+      * any instructions from DDR.
+      * The prefetch depth is about 23
+      * on A9, so adding 25 nops.
+      */
+     nop
+     nop
+     nop
+     nop
+     nop
+
+     nop
+     nop
+     nop
+     nop
+     nop
+
+     nop
+     nop
+     nop
+     nop
+     nop
+
+     nop
+     nop
+     nop
+     nop
+     nop
+
+     nop
+     nop
+     nop
+     nop
+     nop
 
      /* Enable Automatic power savings. */
      ldr    r6, [r8, #0x404]
