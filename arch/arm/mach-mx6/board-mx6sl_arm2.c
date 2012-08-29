@@ -580,14 +580,14 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 };
 
 static struct mxc_dvfs_platform_data mx6sl_arm2_dvfscore_data = {
-	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	.reg_id			= "VDDCORE",
 	.soc_id			= "VDDSOC",
-	#else
+#else
 	.reg_id			= "cpu_vddgp",
 	.soc_id			= "cpu_vddsoc",
 	.pu_id			= "cpu_vddvpu",
-	#endif
+#endif
 	.clk1_id		= "cpu_clk",
 	.clk2_id		= "gpc_dvfs_clk",
 	.gpc_cntr_offset	= MXC_GPC_CNTR_OFFSET,
@@ -1188,15 +1188,15 @@ static void __init mx6_arm2_init(void)
 
 	elan_ts_init();
 
-	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	gp_reg_id = mx6sl_arm2_dvfscore_data.reg_id;
 	soc_reg_id = mx6sl_arm2_dvfscore_data.soc_id;
-	#else
+#else
 	gp_reg_id = mx6sl_arm2_dvfscore_data.reg_id;
 	soc_reg_id = mx6sl_arm2_dvfscore_data.soc_id;
 	pu_reg_id = mx6sl_arm2_dvfscore_data.pu_id;
 	mx6_cpu_regulator_init();
-	#endif
+#endif
 
 	imx6q_add_imx_snvs_rtc();
 
