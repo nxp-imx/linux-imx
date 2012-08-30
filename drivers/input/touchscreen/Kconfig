@@ -199,6 +199,16 @@ config TOUCHSCREEN_ELAN
 	  To compile this driver as a module, choose M here: the
 	  module will be called elan-touch.
 
+config TOUCHSCREEN_EGALAX_SINGLE_TOUCH
+	bool "EETI eGalax touchscreen as single-touch"
+	default N
+	depends on TOUCHSCREEN_EGALAX
+	help
+	  If you say yes here you get single-touch touchscreen support
+	  on the eGalax I2C controller.
+	  If you say "no", you'll get the normal multi-touch.
+
+
 config TOUCHSCREEN_FUJITSU
 	tristate "Fujitsu serial touchscreen"
 	select SERIO
