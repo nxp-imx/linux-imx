@@ -249,6 +249,7 @@ extern unsigned int __mxc_cpu_type;
 struct cpu_op {
 	u32 pll_reg;
 	u32 pll_rate;
+	u32 pll_lpm_rate;
 	u32 cpu_rate;
 	u32 pdr0_reg;
 	u32 pdf;

@@ -229,6 +229,7 @@ static struct cpu_op mx6sl_cpu_op_1G[] = {
 	 .cpu_voltage = 1200000,},
 	{
 	 .pll_rate = 396000000,
+	 .pll_lpm_rate = 792000000,
 	 .cpu_rate = 396000000,
 	 .cpu_podf = 0,
 	 .pu_voltage = 1050000,
@@ -236,6 +237,7 @@ static struct cpu_op mx6sl_cpu_op_1G[] = {
 	 .cpu_voltage = 1100000,},
 	 {
 	  .pll_rate = 396000000,
+	 .pll_lpm_rate = 792000000,
 	  .cpu_rate = 198000000,
 	  .cpu_podf = 1,
 	  .pu_voltage = 1050000,
@@ -253,6 +255,7 @@ static struct cpu_op mx6sl_cpu_op[] = {
 	 .cpu_voltage = 1200000,},
 	 {
 	  .pll_rate = 396000000,
+	 .pll_lpm_rate = 792000000,
 	  .cpu_rate = 396000000,
 	  .cpu_podf = 0,
 	 .pu_voltage = 1050000,
@@ -260,6 +263,7 @@ static struct cpu_op mx6sl_cpu_op[] = {
 	 .cpu_voltage = 1100000,},
 	{
 	 .pll_rate = 396000000,
+	 .pll_lpm_rate = 792000000,
 	 .cpu_rate = 198000000,
 	 .cpu_podf = 1,
 	  .pu_voltage = 1050000,
