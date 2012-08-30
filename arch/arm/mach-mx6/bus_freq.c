@@ -208,6 +208,10 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 			  * lowest possible freq.
 			  */
 			org_arm_podf = __raw_readl(MXC_CCM_CACRR);
+			/* Need to enable PLL1 before setting its rate. */
+			clk_enable(pll1);
+			clk_set_rate(pll1,
+				cpu_op_tbl[cpu_op_nr - 1].pll_lpm_rate);
 			div = clk_get_rate(pll1) /
 					cpu_op_tbl[cpu_op_nr - 1].cpu_rate;
 
@@ -308,6 +312,7 @@ int set_high_bus_freq(int high_bus_freq)
 			reg = __raw_writel(org_arm_podf, MXC_CCM_CACRR);
 			while (__raw_readl(MXC_CCM_CDHIPR))
 				;
+			clk_disable(pll1);
 		}
 		high_bus_freq_mode = 1;
 		low_bus_freq_mode = 0;
