@@ -974,6 +974,7 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 	int is_1080p_stream;
 	size_t size;
 	struct ipu_task *ipu_task = &vout->task;
+	struct ipu_crop *icrop = &ipu_task->input.crop;
 	struct ipu_task *vdoa_task = &vout->vdoa_task;
 	u32 deinterlace = 0;
 	u32 in_fmt;
@@ -982,15 +983,23 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 		deinterlace = 1;
 
 	memset(vdoa_task, 0, sizeof(*vdoa_task));
-	memcpy(&vdoa_task->input, &ipu_task->input, sizeof(ipu_task->input));
 	vdoa_task->output.format = IPU_PIX_FMT_NV12;
-	vdoa_task->output.width = ipu_task->input.crop.w;
-	vdoa_task->output.height = ipu_task->input.crop.h;
-	vdoa_task->output.crop.w = ipu_task->input.crop.w;
-	vdoa_task->output.crop.h = ipu_task->input.crop.h;
+	memcpy(&vdoa_task->input, &ipu_task->input,
+			sizeof(ipu_task->input));
+	if ((icrop->w % IPU_PIX_FMT_TILED_NV12_MBALIGN) ||
+		(icrop->h % IPU_PIX_FMT_TILED_NV12_MBALIGN)) {
+		vdoa_task->input.crop.w =
+			ALIGN(icrop->w, IPU_PIX_FMT_TILED_NV12_MBALIGN);
+		vdoa_task->input.crop.h =
+			ALIGN(icrop->h, IPU_PIX_FMT_TILED_NV12_MBALIGN);
+	}
+	vdoa_task->output.width = vdoa_task->input.crop.w;
+	vdoa_task->output.height = vdoa_task->input.crop.h;
+	vdoa_task->output.crop.w = vdoa_task->input.crop.w;
+	vdoa_task->output.crop.h = vdoa_task->input.crop.h;
 
-	size = PAGE_ALIGN(ipu_task->input.crop.w *
-					ipu_task->input.crop.h *
+	size = PAGE_ALIGN(vdoa_task->input.crop.w *
+					vdoa_task->input.crop.h *
 					fmt_to_bpp(vdoa_task->output.format)/8);
 	if (size > vout->vdoa_work.size) {
 		if (vout->vdoa_work.vaddr)
@@ -1030,6 +1039,7 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 	u32 o_height = 0;
 	u32 ocrop_h = 0;
 	bool tiled_fmt = false;
+	bool tiled_need_pp = false;
 
 	vout->vdoa_1080p = CHECK_TILED_1080P_DISPLAY(vout);
 	if (vout->vdoa_1080p) {
@@ -1042,10 +1052,17 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 
 	if ((IPU_PIX_FMT_TILED_NV12 == input->format) ||
 		(IPU_PIX_FMT_TILED_NV12F == input->format)) {
-		crop->w -= crop->w % IPU_PIX_FMT_TILED_NV12_MBALIGN;
-		crop->h -= crop->h % IPU_PIX_FMT_TILED_NV12_MBALIGN;
-		crop->pos.x -= crop->pos.x % IPU_PIX_FMT_TILED_NV12_MBALIGN;
-		crop->pos.y -= crop->pos.y % IPU_PIX_FMT_TILED_NV12_MBALIGN;
+		if ((input->width % IPU_PIX_FMT_TILED_NV12_MBALIGN) ||
+			(input->height % IPU_PIX_FMT_TILED_NV12_MBALIGN) ||
+			(crop->pos.x % IPU_PIX_FMT_TILED_NV12_MBALIGN) ||
+			(crop->pos.y % IPU_PIX_FMT_TILED_NV12_MBALIGN)) {
+			v4l2_err(vout->vfd->v4l2_dev,
+				"ERR: tiled fmt needs 16 pixel align.\n");
+			return -EINVAL;
+		}
+		if ((crop->w % IPU_PIX_FMT_TILED_NV12_MBALIGN) ||
+			(crop->h % IPU_PIX_FMT_TILED_NV12_MBALIGN))
+			tiled_need_pp = true;
 	} else {
 		crop->w -= crop->w % 8;
 		crop->h -= crop->h % 8;
@@ -1073,7 +1090,8 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 		if ((IPU_PIX_FMT_TILED_NV12 == input->format) ||
 			(IPU_PIX_FMT_TILED_NV12F == input->format)) {
 			/* check resize/rotate/flip, or csc task */
-			if (!((IPU_ROTATE_NONE != output->rotate) ||
+			if (!(tiled_need_pp ||
+				(IPU_ROTATE_NONE != output->rotate) ||
 				(input->crop.w != output->crop.w) ||
 				(input->crop.h != output->crop.h) ||
 				(!vout->disp_support_csc &&
