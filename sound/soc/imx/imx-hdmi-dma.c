@@ -1195,6 +1195,12 @@ static int hdmi_dma_open(struct snd_pcm_substream *substream)
 		(int)clk_get_rate(hdmi_dma_priv->isfr_clk),
 		(int)clk_get_rate(hdmi_dma_priv->iahb_clk));
 
+	ret = mxc_hdmi_register_audio(substream);
+	if (ret < 0) {
+		pr_err("ERROR: HDMI is not ready!\n");
+		return ret;
+	}
+
 	hdmi_fifo_reset();
 
 	ret = snd_pcm_hw_constraint_integer(substream->runtime,
@@ -1215,6 +1221,7 @@ static int hdmi_dma_close(struct snd_pcm_substream *substream)
 	struct imx_hdmi_dma_runtime_data *rtd = runtime->private_data;
 
 	hdmi_dma_irq_disable(rtd);
+	mxc_hdmi_unregister_audio(substream);
 
 	clk_disable(rtd->iahb_clk);
 	clk_disable(rtd->isfr_clk);
@@ -1337,7 +1344,7 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 	if (hdmi_SDMA_check()) {
 		/*To alloc a buffer non cacheable for hdmi script use*/
 		hdmi_dma_priv->hdmi_sdma_t =
-			dma_alloc_coherent(NULL,
+			dma_alloc_noncacheable(NULL,
 				sizeof(struct hdmi_sdma_script_data),
 				&hdmi_dma_priv->phy_hdmi_sdma_t,
 				GFP_KERNEL);

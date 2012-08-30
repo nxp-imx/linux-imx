@@ -1543,6 +1543,7 @@ static void mxc_hdmi_notify_fb(struct mxc_hdmi *hdmi)
 static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 {
 	int i;
+	struct fb_videomode *mode;
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
@@ -1554,10 +1555,14 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 	for (i = 0; i < hdmi->fbi->monspecs.modedb_len; i++) {
 		/*
 		 * We might check here if mode is supported by HDMI.
-		 * We do not currently support interlaced modes
+		 * We do not currently support interlaced modes.
+		 * And add CEA modes in the modelist.
 		 */
-		if (!(hdmi->fbi->monspecs.modedb[i].vmode &
-				FB_VMODE_INTERLACED)) {
+		mode = &hdmi->fbi->monspecs.modedb[i];
+
+		if (!(mode->vmode & FB_VMODE_INTERLACED) &&
+				(mxc_edid_mode_to_vic(mode) != 0)) {
+
 			dev_dbg(&hdmi->pdev->dev, "Added mode %d:", i);
 			dev_dbg(&hdmi->pdev->dev,
 				"xres = %d, yres = %d, freq = %d, vmode = %d, flag = %d\n",
@@ -1567,8 +1572,7 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 				hdmi->fbi->monspecs.modedb[i].vmode,
 				hdmi->fbi->monspecs.modedb[i].flag);
 
-			fb_add_videomode(&hdmi->fbi->monspecs.modedb[i],
-					 &hdmi->fbi->modelist);
+			fb_add_videomode(mode, &hdmi->fbi->modelist);
 		}
 	}
 
@@ -1651,6 +1655,8 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi)
 	if (fb_mode_is_equal(&hdmi->previous_non_vga_mode, mode)) {
 		dev_dbg(&hdmi->pdev->dev,
 				"%s: Video mode same as previous\n", __func__);
+		/* update fbi mode in case modelist is updated */
+		hdmi->fbi->mode = mode;
 		mxc_hdmi_phy_init(hdmi);
 	} else {
 		dev_dbg(&hdmi->pdev->dev, "%s: New video mode\n", __func__);
@@ -1673,6 +1679,13 @@ static void mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 
 	/* HDMI Initialization Step C */
 	edid_status = mxc_hdmi_read_edid(hdmi);
+
+	/* Read EDID again if first EDID read failed */
+	if (edid_status == HDMI_EDID_NO_MODES ||
+			edid_status == HDMI_EDID_FAIL) {
+		dev_info(&hdmi->pdev->dev, "Read EDID again\n");
+		edid_status = mxc_hdmi_read_edid(hdmi);
+	}
 
 	/* HDMI Initialization Steps D, E, F */
 	switch (edid_status) {
@@ -1756,10 +1769,13 @@ static void hotplug_worker(struct work_struct *work)
 #ifdef CONFIG_MXC_HDMI_CEC
 			mxc_hdmi_cec_handle(0x80);
 #endif
+			hdmi_set_cable_state(1);
 
 		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
 			/* Plugout event */
 			dev_dbg(&hdmi->pdev->dev, "EVENT=plugout\n");
+			hdmi_set_cable_state(0);
+			mxc_hdmi_abort_stream();
 			mxc_hdmi_cable_disconnected(hdmi);
 
 			/* Make HPD intr active high to capture plugin event */
@@ -2048,10 +2064,13 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 
 			if (hdmi->fb_reg && hdmi->cable_plugin)
 				mxc_hdmi_setup(hdmi, val);
+			hdmi_set_blank_state(1);
 
 		} else if (*((int *)event->data) != hdmi->blank) {
 			dev_dbg(&hdmi->pdev->dev,
 				"event=FB_EVENT_BLANK - BLANK\n");
+			hdmi_set_blank_state(0);
+			mxc_hdmi_abort_stream();
 
 			mxc_hdmi_phy_disable(hdmi);
 

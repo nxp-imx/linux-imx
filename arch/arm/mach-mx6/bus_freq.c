@@ -47,12 +47,13 @@
 #include <linux/suspend.h>
 
 #define LPAPM_CLK		24000000
+#define DDR_AUDIO_CLK	50000000
 #define DDR_MED_CLK		400000000
 #define DDR3_NORMAL_CLK		528000000
 #define GPC_PGC_GPU_PGCR_OFFSET	0x260
 #define GPC_CNTR_OFFSET		0x0
 
-DEFINE_SPINLOCK(ddr_freq_lock);
+static DEFINE_SPINLOCK(freq_lock);
 
 int low_bus_freq_mode;
 int audio_bus_freq_mode;
@@ -69,18 +70,25 @@ int bus_freq_scaling_is_active;
 int lp_high_freq;
 int lp_med_freq;
 int lp_audio_freq;
+int high_cpu_freq;
 unsigned int ddr_low_rate;
 unsigned int ddr_med_rate;
 unsigned int ddr_normal_rate;
 
 int low_freq_bus_used(void);
 void set_ddr_freq(int ddr_freq);
+void *mx6sl_wfi_iram_base;
+void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr) = NULL;
+extern void mx6sl_wait (int arm_podf, unsigned long wfi_iram_addr);
+
+void *mx6sl_ddr_freq_base;
+void (*mx6sl_ddr_freq_change_iram)(int ddr_freq, int low_bus_freq_mode) = NULL;
+extern void mx6sl_ddr_iram(int ddr_freq);
 
 extern int init_mmdc_settings(void);
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int update_ddr_freq(int ddr_rate);
 extern int chip_rev;
-extern bool arm_mem_clked_in_wait;
 
 DEFINE_MUTEX(bus_freq_mutex);
 
@@ -88,6 +96,7 @@ struct timeval start_time;
 struct timeval end_time;
 
 static int cpu_op_nr;
+static u32 org_arm_podf;
 static struct cpu_op *cpu_op_tbl;
 static struct clk *pll2_400;
 static struct clk *axi_clk;
@@ -97,18 +106,17 @@ static struct clk *osc_clk;
 static struct clk *cpu_clk;
 static struct clk *pll3;
 static struct clk *pll2;
+static struct clk *pll1;
+static struct clk *pll1_sw_clk;
 static struct clk *pll3_sw_clk;
 static struct clk *pll2_200;
 static struct clk *mmdc_ch0_axi;
-struct regulator *vddsoc_cap_regulator;
 static struct clk *pll3_540;
 
 static struct delayed_work low_bus_freq_handler;
 
 static void reduce_bus_freq_handler(struct work_struct *work)
 {
-	int ret;
-
 	mutex_lock(&bus_freq_mutex);
 	if (low_bus_freq_mode || !low_freq_bus_used()) {
 		mutex_unlock(&bus_freq_mutex);
@@ -133,13 +141,13 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		if (lp_audio_freq) {
 			/* Need to ensure that PLL2_PFD_400M is kept ON. */
 			clk_enable(pll2_400);
-			update_ddr_freq(50000000);
+			update_ddr_freq(DDR_AUDIO_CLK);
 			/* Make sure periph clk's parent also got updated */
 			clk_set_parent(periph_clk, pll2_200);
 			audio_bus_freq_mode = 1;
 			low_bus_freq_mode = 0;
 		} else {
-			update_ddr_freq(24000000);
+			update_ddr_freq(LPAPM_CLK);
 			/* Make sure periph clk's parent also got updated */
 			clk_set_parent(periph_clk, osc_clk);
 			if (audio_bus_freq_mode)
@@ -154,43 +162,73 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		clk_disable(pll3);
 		med_bus_freq_mode = 0;
 	} else {
-		/* Set VDDSOC_CAP to 1.1V */
-		ret = regulator_set_voltage(vddsoc_cap_regulator, 1100000,
-					    1100000);
-		if (ret < 0) {
-			printk(KERN_DEBUG
-			       "COULD NOT DECREASE VDDSOC_CAP VOLTAGE!!!!\n");
-			return;
+		u32 reg;
+		u32  div;
+		unsigned long flags;
+
+		spin_lock_irqsave(&freq_lock, flags);
+
+		if (high_bus_freq_mode) {
+			/* Set periph_clk to be sourced from OSC_CLK */
+			/* Set AXI to 24MHz. */
+			clk_set_parent(periph_clk, osc_clk);
+			clk_set_rate(axi_clk,
+				clk_round_rate(axi_clk, LPAPM_CLK));
+			/* Set AHB to 24MHz. */
+			clk_set_rate(ahb_clk,
+				clk_round_rate(ahb_clk, LPAPM_CLK));
 		}
+		if (lp_audio_freq) {
+			/* PLL2 is on in this mode, as DDR is at 50MHz. */
+			/* Now change DDR freq while running from IRAM. */
+			mx6sl_ddr_freq_change_iram(DDR_AUDIO_CLK,
+							low_bus_freq_mode);
 
-		udelay(150);
+			if (low_bus_freq_mode) {
+				/* Swtich ARM to run off PLL2_PFD2_400MHz
+				 * since DDR is anway at 50MHz.
+				 */
+				clk_set_parent(pll1_sw_clk, pll2_400);
 
-		arm_mem_clked_in_wait = true;
+				/* Ensure that the clock will be
+				  * at original speed.
+				  */
+				reg = __raw_writel(org_arm_podf, MXC_CCM_CACRR);
+				while (__raw_readl(MXC_CCM_CDHIPR))
+					;
+			}
+			low_bus_freq_mode = 0;
+			audio_bus_freq_mode = 1;
+		} else {
+			/* Set MMDC clk to 24MHz. */
+			/* Since we are going to set PLL2 in bypass mode,
+			  * move the CPU clock off PLL2.
+			  */
+			/* Ensure that the clock will be at
+			  * lowest possible freq.
+			  */
+			org_arm_podf = __raw_readl(MXC_CCM_CACRR);
+			div = clk_get_rate(pll1) /
+					cpu_op_tbl[cpu_op_nr - 1].cpu_rate;
 
-		/* Set periph_clk to be sourced from OSC_CLK */
-		/* Set MMDC clk to 25MHz. */
-		/* First need to set the divider before changing the parent */
-		/* if parent clock is larger than previous one */
-		clk_set_rate(mmdc_ch0_axi, clk_get_rate(mmdc_ch0_axi) / 2);
-		clk_set_parent(mmdc_ch0_axi, pll3_sw_clk);
-		clk_set_parent(mmdc_ch0_axi, pll2_200);
-		clk_set_rate(mmdc_ch0_axi,
-			     clk_round_rate(mmdc_ch0_axi, LPAPM_CLK));
+			reg = __raw_writel(div - 1, MXC_CCM_CACRR);
+			while (__raw_readl(MXC_CCM_CDHIPR))
+				;
+			clk_set_parent(pll1_sw_clk, pll1);
 
-		/* Set AXI to 24MHz. */
-		clk_set_parent(periph_clk, osc_clk);
-		clk_set_rate(axi_clk, clk_round_rate(axi_clk, LPAPM_CLK));
-		/* Set AHB to 24MHz. */
-		clk_set_rate(ahb_clk, clk_round_rate(ahb_clk, LPAPM_CLK));
+			/* Now change DDR freq while running from IRAM. */
+			mx6sl_ddr_freq_change_iram(LPAPM_CLK,
+					low_bus_freq_mode);
 
-		low_bus_freq_mode = 1;
-		audio_bus_freq_mode = 0;
+			low_bus_freq_mode = 1;
+			audio_bus_freq_mode = 0;
+		}
+		spin_unlock_irqrestore(&freq_lock, flags);
 	}
-
 	high_bus_freq_mode = 0;
-	med_bus_freq_mode = 0;
 	mutex_unlock(&bus_freq_mutex);
 }
+
 /* Set the DDR, AHB to 24MHz.
   * This mode will be activated only when none of the modules that
   * need a higher DDR or AHB frequency are active.
@@ -215,61 +253,43 @@ int set_low_bus_freq(void)
  */
 int set_high_bus_freq(int high_bus_freq)
 {
-	int ret;
-
 	if (bus_freq_scaling_initialized && bus_freq_scaling_is_active)
 		cancel_delayed_work_sync(&low_bus_freq_handler);
-	mutex_lock(&bus_freq_mutex);
-	if (busfreq_suspended) {
-		mutex_unlock(&bus_freq_mutex);
-		return 0;
-	}
 
-	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active) {
-		mutex_unlock(&bus_freq_mutex);
+	if (busfreq_suspended)
 		return 0;
-	}
 
-	if (high_bus_freq_mode && high_bus_freq) {
-		mutex_unlock(&bus_freq_mutex);
-		return 0;
-	}
 
-	if (med_bus_freq_mode && !high_bus_freq) {
-		mutex_unlock(&bus_freq_mutex);
+	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active)
 		return 0;
-	}
+
+
+	if (high_bus_freq_mode && high_bus_freq)
+		return 0;
+
+
+	/* medium bus freq is only supported for MX6DQ */
+	if (cpu_is_mx6q() && med_bus_freq_mode && !high_bus_freq)
+		return 0;
 
 	if (cpu_is_mx6dl() && high_bus_freq)
 		high_bus_freq = 0;
 
-	if (cpu_is_mx6dl() && med_bus_freq_mode) {
-		mutex_unlock(&bus_freq_mutex);
+	if (cpu_is_mx6dl() && med_bus_freq_mode)
 		return 0;
-	}
+
 	if ((high_bus_freq_mode && (high_bus_freq || lp_high_freq)) ||
 	    (med_bus_freq_mode && !high_bus_freq && lp_med_freq &&
-	     !lp_high_freq)) {
-		mutex_unlock(&bus_freq_mutex);
+	     !lp_high_freq))
 		return 0;
-	}
-	if (cpu_is_mx6sl()) {
-		/* Set the voltage of VDDSOC to 1.2V as in normal mode. */
-		ret = regulator_set_voltage(vddsoc_cap_regulator, 1200000,
-					    1200000);
-		if (ret < 0) {
-			printk(KERN_DEBUG
-			       "COULD NOT INCREASE VDDSOC_CAP VOLTAGE!!!!\n");
-			return ret;
-		}
 
-		/* Need to wait for the regulator to come back up */
-		/*
-		 * Delay time is based on the number of 24MHz clock cycles
-		 * programmed in the ANA_MISC2_BASE_ADDR for each
-		 * 25mV step.
-		 */
-		udelay(150);
+	if (cpu_is_mx6sl()) {
+		u32 reg;
+		unsigned long flags;
+
+		spin_lock_irqsave(&freq_lock, flags);
+		/* Change DDR freq in IRAM. */
+		mx6sl_ddr_freq_change_iram(ddr_normal_rate, low_bus_freq_mode);
 
 		/* Set periph_clk to be sourced from pll2_pfd2_400M */
 		/* First need to set the divider before changing the */
@@ -280,17 +300,19 @@ int set_high_bus_freq(int high_bus_freq)
 			     clk_round_rate(axi_clk, LPAPM_CLK / 2));
 		clk_set_parent(periph_clk, pll2_400);
 
-		/* Set mmdc_clk_root to be sourced */
-		/* from pll2_pfd2_400M */
-		clk_set_rate(mmdc_ch0_axi,
-		     clk_round_rate(mmdc_ch0_axi, LPAPM_CLK / 2));
-		clk_set_parent(mmdc_ch0_axi, pll3_sw_clk);
-		clk_set_parent(mmdc_ch0_axi, pll2_400);
-		clk_set_rate(mmdc_ch0_axi,
-		     clk_round_rate(mmdc_ch0_axi, DDR_MED_CLK));
+		if (low_bus_freq_mode) {
+			/* Now move ARM to be sourced from PLL2_400 too. */
+			clk_set_parent(pll1_sw_clk, pll2_400);
 
+			/* Ensure that the clock will be at original speed. */
+			reg = __raw_writel(org_arm_podf, MXC_CCM_CACRR);
+			while (__raw_readl(MXC_CCM_CDHIPR))
+				;
+		}
 		high_bus_freq_mode = 1;
-		med_bus_freq_mode = 0;
+		low_bus_freq_mode = 0;
+		audio_bus_freq_mode = 0;
+		spin_unlock_irqrestore(&freq_lock, flags);
 	} else {
 		clk_enable(pll3);
 		if (high_bus_freq) {
@@ -317,18 +339,11 @@ int set_high_bus_freq(int high_bus_freq)
 			clk_get_parent(axi_clk) != pll3_540)
 			clk_set_parent(axi_clk, pll3_540);
 
+		low_bus_freq_mode = 0;
+		audio_bus_freq_mode = 0;
+
 		clk_disable(pll3);
 	}
-
-	low_bus_freq_mode = 0;
-	audio_bus_freq_mode = 0;
-
-	/* Ensure that WAIT mode can be entered in high bus freq mode. */
-
-	if (cpu_is_mx6sl())
-		arm_mem_clked_in_wait = false;
-
-	mutex_unlock(&bus_freq_mutex);
 	return 0;
 }
 
@@ -340,11 +355,8 @@ int low_freq_bus_used(void)
 	/* We only go the lowest setpoint if ARM is also
 	 * at the lowest setpoint.
 	 */
-	if ((clk_get_rate(cpu_clk) >
-			cpu_op_tbl[cpu_op_nr - 1].cpu_rate)
-		|| (cpu_op_nr == 1)) {
+	if (high_cpu_freq)
 		return 0;
-	}
 
 	if ((lp_high_freq == 0)
 	    && (lp_med_freq == 0))
@@ -356,62 +368,80 @@ int low_freq_bus_used(void)
 void bus_freq_update(struct clk *clk, bool flag)
 {
 	mutex_lock(&bus_freq_mutex);
+
 	if (flag) {
-		/* Update count */
-		if (clk->flags & AHB_HIGH_SET_POINT)
-			lp_high_freq++;
-		else if (clk->flags & AHB_MED_SET_POINT)
-			lp_med_freq++;
-		else if (clk->flags & AHB_AUDIO_SET_POINT)
-			lp_audio_freq++;
-		/* Update bus freq */
-		if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
-			&& (clk_get_usecount(clk) == 0)) {
-			if (!(clk->flags &
-				(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT)))  {
-			if (low_freq_bus_used()) {
-				if ((clk->flags & AHB_AUDIO_SET_POINT) & !audio_bus_freq_mode)
-					set_low_bus_freq();
-				else if (!low_bus_freq_mode)
-					set_low_bus_freq();
-			}
-		} else {
-			if ((clk->flags & AHB_MED_SET_POINT)
-				&& !med_bus_freq_mode) {
-				/* Set to Medium setpoint */
-				mutex_unlock(&bus_freq_mutex);
+		if (clk == cpu_clk) {
+			/* The CPU freq is being increased.
+			  * check if we need to increase the bus freq
+			  */
+			high_cpu_freq = 1;
+			if (low_bus_freq_mode || audio_bus_freq_mode)
 				set_high_bus_freq(0);
-				return;
-			}
-			else if ((clk->flags & AHB_HIGH_SET_POINT)
-				&& !high_bus_freq_mode) {
-				/* Currently at low or medium set point,
-				* need to set to high setpoint
-				*/
-				mutex_unlock(&bus_freq_mutex);
-				set_high_bus_freq(1);
-				return;
-			}
+		} else {
+			/* Update count */
+			if (clk->flags & AHB_HIGH_SET_POINT)
+				lp_high_freq++;
+			else if (clk->flags & AHB_MED_SET_POINT)
+				lp_med_freq++;
+			else if (clk->flags & AHB_AUDIO_SET_POINT)
+				lp_audio_freq++;
+			/* Update bus freq */
+			if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+				&& (clk_get_usecount(clk) == 0)) {
+				if (!(clk->flags &
+					(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT))) {
+					if (low_freq_bus_used()) {
+						if ((clk->flags & AHB_AUDIO_SET_POINT) &
+								!audio_bus_freq_mode)
+							set_low_bus_freq();
+						else if (!low_bus_freq_mode)
+							set_low_bus_freq();
+					}
+				} else {
+					if ((clk->flags & AHB_MED_SET_POINT)
+						&& !med_bus_freq_mode) {
+						/* Set to Medium setpoint */
+						set_high_bus_freq(0);
+					} else if ((clk->flags & AHB_HIGH_SET_POINT)
+						&& !high_bus_freq_mode) {
+						/* Currently at low or medium
+						  * set point, need to set to
+						  * high setpoint
+						  */
+						set_high_bus_freq(1);
+					}
+				}
 			}
 		}
 	} else {
-		/* Update count */
-		if (clk->flags & AHB_HIGH_SET_POINT)
-			lp_high_freq--;
-		else if (clk->flags & AHB_MED_SET_POINT)
-			lp_med_freq--;
-		else if (clk->flags & AHB_AUDIO_SET_POINT)
-			lp_audio_freq--;
-		/* Update bus freq */
-		if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
-			&& (clk_get_usecount(clk) == 0)) {
-			if (low_freq_bus_used() && !low_bus_freq_mode)
+		if (clk == cpu_clk) {
+			/* CPU freq is dropped, check if we can
+			  * lower the bus freq.
+			  */
+			high_cpu_freq = 0;
+
+			if (low_freq_bus_used() &&
+				!(low_bus_freq_mode || audio_bus_freq_mode))
 				set_low_bus_freq();
-			else {
-				/* Set to either high or medium setpoint. */
-				mutex_unlock(&bus_freq_mutex);
-				set_high_bus_freq(0);
-				return;
+		} else {
+			/* Update count */
+			if (clk->flags & AHB_HIGH_SET_POINT)
+				lp_high_freq--;
+			else if (clk->flags & AHB_MED_SET_POINT)
+				lp_med_freq--;
+			else if (clk->flags & AHB_AUDIO_SET_POINT)
+				lp_audio_freq--;
+			/* Update bus freq */
+			if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+				&& (clk_get_usecount(clk) == 0)) {
+				if (low_freq_bus_used())
+					set_low_bus_freq();
+				else {
+					/* Set to either high or
+					  * medium setpoint.
+					  */
+					set_high_bus_freq(0);
+				}
 			}
 		}
 	}
@@ -436,7 +466,15 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 				 const char *buf, size_t size)
 {
 	if (strncmp(buf, "1", 1) == 0) {
+#ifdef CONFIG_MX6_VPU_352M
+		if (cpu_is_mx6q())
+			/*do not enable bus freq*/
+			bus_freq_scaling_is_active = 0;
+		printk(KERN_WARNING "Bus frequency can't be enabled if using VPU 352M!\n");
+		return size;
+#else
 		bus_freq_scaling_is_active = 1;
+#endif
 		set_high_bus_freq(0);
 		/* Make sure system can enter low bus mode if it should be in
 		low bus mode */
@@ -486,6 +524,7 @@ static DEVICE_ATTR(enable, 0644, bus_freq_scaling_enable_show,
  * @return         The function returns 0 on success
  *
  */
+
 static int __devinit busfreq_probe(struct platform_device *pdev)
 {
 	u32 err;
@@ -512,6 +551,28 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		       __func__);
 		return PTR_ERR(pll2);
 	}
+
+	pll1 = clk_get(NULL, "pll1_main_clk");
+	if (IS_ERR(pll1)) {
+		printk(KERN_DEBUG "%s: failed to get pll1\n",
+		       __func__);
+		return PTR_ERR(pll1);
+	}
+
+	pll1_sw_clk = clk_get(NULL, "pll1_sw_clk");
+	if (IS_ERR(pll1_sw_clk)) {
+		printk(KERN_DEBUG "%s: failed to get pll1_sw_clk\n",
+		       __func__);
+		return PTR_ERR(pll1_sw_clk);
+	}
+
+
+	if (IS_ERR(pll2)) {
+		printk(KERN_DEBUG "%s: failed to get pll2\n",
+		       __func__);
+		return PTR_ERR(pll2);
+	}
+
 
 	cpu_clk = clk_get(NULL, "cpu_clk");
 	if (IS_ERR(cpu_clk)) {
@@ -576,13 +637,6 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(mmdc_ch0_axi);
 	}
 
-	vddsoc_cap_regulator = regulator_get(NULL, "cpu_vddsoc");
-	if (IS_ERR(vddsoc_cap_regulator)) {
-		printk(KERN_ERR "%s: failed to get vddsoc_cap regulator\n",
-				__func__);
-		return PTR_ERR(vddsoc_cap_regulator);
-	}
-
 	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
 	if (err) {
 		printk(KERN_ERR
@@ -598,6 +652,11 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		/* To make pll2_400 use count right, as when
 		system enter 24M, it will disable pll2_400 */
 		clk_enable(pll2_400);
+	} else if (cpu_is_mx6sl()) {
+		/* Set med_bus_freq_mode to 1 since med_bus_freq_mode
+		is not supported as yet for MX6SL */
+		high_bus_freq_mode = 1;
+		med_bus_freq_mode = 1;
 	} else {
 		high_bus_freq_mode = 1;
 		med_bus_freq_mode = 0;
@@ -620,6 +679,33 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 
 	if (!cpu_is_mx6sl())
 		init_mmdc_settings();
+	else {
+		unsigned long iram_paddr;
+
+		/* Allocate IRAM for WFI code when system is
+		  * in low freq mode.
+		  */
+		iram_alloc(SZ_4K, &iram_paddr);
+		/* Need to remap the area here since we want
+		   * the memory region to be executable.
+		   */
+		mx6sl_wfi_iram_base = __arm_ioremap(iram_paddr,
+						SZ_4K, MT_MEMORY_NONCACHED);
+		memcpy(mx6sl_wfi_iram_base, mx6sl_wait, SZ_4K);
+		mx6sl_wfi_iram = (void *)mx6sl_wfi_iram_base;
+
+		/* Allocate IRAM for WFI code when system is
+		  *in low freq mode.
+		  */
+		iram_alloc(SZ_4K, &iram_paddr);
+		/* Need to remap the area here since we want the memory region
+			 to be executable. */
+		mx6sl_ddr_freq_base = __arm_ioremap(iram_paddr,
+					SZ_4K, MT_MEMORY_NONCACHED);
+		memcpy(mx6sl_ddr_freq_base, mx6sl_ddr_iram, SZ_4K);
+		mx6sl_ddr_freq_change_iram = (void *)mx6sl_ddr_freq_base;
+
+	}
 
 	return 0;
 }
@@ -648,18 +734,18 @@ static int __init busfreq_init(void)
 
 	printk(KERN_INFO "Bus freq driver module loaded\n");
 
+#ifdef CONFIG_MX6_VPU_352M
+	if (cpu_is_mx6q())
+		bus_freq_scaling_is_active = 0;/*disable bus_freq*/
+
+#else
 	/* Enable busfreq by default. */
 	bus_freq_scaling_is_active = 1;
-
+#endif
 	if (cpu_is_mx6q())
 		set_high_bus_freq(1);
-	else
+	else if (cpu_is_mx6dl())
 		set_high_bus_freq(0);
-
-	/* Make sure system can enter low bus mode if it should be in
-	low bus mode */
-	if (low_freq_bus_used() && !low_bus_freq_mode)
-		set_low_bus_freq();
 
 	printk(KERN_INFO "Bus freq driver Enabled\n");
 	return 0;

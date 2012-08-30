@@ -177,6 +177,7 @@ int anatop_thermal_cpu_hotplug(bool cpu_on)
 					sys_write(fd, (char *)"1", MAX_CPU_ONLINE_LEN);
 					cpu_mask &= ~(0x1 << cpu);
 					ret = 0;
+					sys_close(fd);
 					break;
 				}
 				sys_close(fd);
@@ -198,6 +199,7 @@ int anatop_thermal_cpu_hotplug(bool cpu_on)
 					sys_write(fd, (char *)"0", MAX_CPU_ONLINE_LEN);
 					cpu_mask |= 0x1 << cpu;
 					ret = 0;
+					sys_close(fd);
 					break;
 				}
 				sys_close(fd);

@@ -94,7 +94,7 @@ static int imx_3stack_si4763_hw_params(struct snd_pcm_substream *substream,
 	/* set the SSI system clock as input (unused) */
 	snd_soc_dai_set_sysclk(cpu_dai, IMX_SSP_SYS_CLK, 0, SND_SOC_CLOCK_IN);
 
-	snd_soc_dai_set_clkdiv(cpu_dai, IMX_SSI_TX_DIV_PM, 9);
+	snd_soc_dai_set_clkdiv(cpu_dai, IMX_SSI_TX_DIV_PM, 4);
 	snd_soc_dai_set_clkdiv(cpu_dai, IMX_SSI_TX_DIV_2, 1);
 	snd_soc_dai_set_clkdiv(cpu_dai, IMX_SSI_TX_DIV_PSR, 0);
 	return 0;

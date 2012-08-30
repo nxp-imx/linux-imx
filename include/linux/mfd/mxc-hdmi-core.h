@@ -21,6 +21,11 @@
 
 #include <mach/mxc_edid.h>
 
+#include <sound/core.h>
+#include <sound/pcm.h>
+#include <sound/pcm_params.h>
+#include <sound/soc.h>
+
 #define IRQ_DISABLE_SUCCEED	0
 #define IRQ_DISABLE_FAIL	1
 
@@ -50,5 +55,10 @@ extern int mxc_hdmi_disp_id;
 void hdmi_set_registered(int registered);
 int hdmi_get_registered(void);
 unsigned int hdmi_SDMA_check(void);
+int mxc_hdmi_abort_stream(void);
+int mxc_hdmi_register_audio(struct snd_pcm_substream *substream);
+void mxc_hdmi_unregister_audio(struct snd_pcm_substream *substream);
+unsigned int hdmi_set_cable_state(unsigned int state);
+unsigned int hdmi_set_blank_state(unsigned int state);
 
 #endif

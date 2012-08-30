@@ -244,7 +244,7 @@ static int alloc_dma_buf(struct mxc_vout_output *vout, struct dma_mem *buf)
 {
 
 	buf->vaddr = dma_alloc_coherent(vout->vbq.dev, buf->size, &buf->paddr,
-						GFP_KERNEL);
+						GFP_DMA | GFP_KERNEL);
 	if (!buf->vaddr) {
 		v4l2_err(vout->vfd->v4l2_dev,
 			"cannot get dma buf size:0x%x\n", buf->size);

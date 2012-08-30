@@ -1,7 +1,10 @@
+
 /*
  * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
-/* * The code contained herein is licensed under the GNU General Public
+
+/*
+ * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
  * Version 2 or later at the following locations:
  *
@@ -10,36 +13,25 @@
  */
 
 /*!
- * @file ipu_foreground_sdc.c
+ * @file ipu_bg_overlay_sdc_bg.c
  *
- * @brief IPU Use case for PRP-VF
+ * @brief IPU Use case for PRP-VF back-ground
  *
  * @ingroup IPU
  */
-
 #include <linux/dma-mapping.h>
-#include <linux/console.h>
+#include <linux/fb.h>
 #include <linux/ipu.h>
-#include <linux/mxcfb.h>
-#include <mach/hardware.h>
 #include <mach/mipi_csi2.h>
 #include "mxc_v4l2_capture.h"
 #include "ipu_prp_sw.h"
 
-#define OVERLAY_FB_SUPPORT_NONSTD	(cpu_is_mx5() || cpu_is_mx6())
-
-#ifdef CAMERA_DBG
-	#define CAMERA_TRACE(x) (printk)x
-#else
-	#define CAMERA_TRACE(x)
-#endif
-
-static int csi_buffer_num, buffer_num;
-static u32 csi_mem_bufsize;
+static int csi_buffer_num;
+static u32 bpp, csi_mem_bufsize = 3;
+static u32 out_format;
 static struct ipu_soc *disp_ipu;
-static struct fb_info *fbi;
-static struct fb_var_screeninfo fbvar;
-static u32 vf_out_format;
+static u32 offset;
+
 static void csi_buf_work_func(struct work_struct *work)
 {
 	int err = 0;
@@ -57,15 +49,20 @@ static void csi_buf_work_func(struct work_struct *work)
 	task.input.height = cam->crop_current.height;
 	task.input.format = IPU_PIX_FMT_UYVY;
 
-	if (buffer_num == 0)
-		task.output.paddr = fbi->fix.smem_start +
-				(fbi->fix.line_length * fbvar.yres);
-	else
-		task.output.paddr = fbi->fix.smem_start;
-	task.output.width = cam->win.w.width;
-	task.output.height = cam->win.w.height;
-	task.output.format = vf_out_format;
+	task.output.paddr = offset;
+	task.output.width = cam->overlay_fb->var.xres;
+	task.output.height = cam->overlay_fb->var.yres;
+	task.output.format = out_format;
 	task.output.rotate = cam->rotation;
+	task.output.crop.pos.x = cam->win.w.left;
+	task.output.crop.pos.y = cam->win.w.top;
+	if (cam->win.w.width > 1024 || cam->win.w.height > 1024) {
+		task.output.crop.w = cam->overlay_fb->var.xres;
+		task.output.crop.h = cam->overlay_fb->var.yres;
+	} else {
+		task.output.crop.w = cam->win.w.width;
+		task.output.crop.h = cam->win.w.height;
+	}
 again:
 	err = ipu_check_task(&task);
 	if (err != IPU_CHECK_OK) {
@@ -97,8 +94,6 @@ again:
 	err = ipu_queue_task(&task);
 	if (err < 0)
 		printk(KERN_ERR "queue ipu task error\n");
-	ipu_select_buffer(disp_ipu, MEM_FG_SYNC, IPU_INPUT_BUFFER, buffer_num);
-	buffer_num = (buffer_num == 0) ? 1 : 0;
 }
 
 static void get_disp_ipu(cam_data *cam)
@@ -108,6 +103,7 @@ static void get_disp_ipu(cam_data *cam)
 	else
 		disp_ipu = ipu_get_soc(0);
 }
+
 
 /*!
  * csi ENC callback function.
@@ -122,11 +118,7 @@ static irqreturn_t csi_enc_callback(int irq, void *dev_id)
 	cam_data *cam = (cam_data *) dev_id;
 
 	ipu_select_buffer(cam->ipu, CSI_MEM, IPU_OUTPUT_BUFFER, csi_buffer_num);
-	if ((cam->crop_current.width != cam->win.w.width) ||
-		(cam->crop_current.height != cam->win.w.height) ||
-		(vf_out_format != IPU_PIX_FMT_UYVY) ||
-		(cam->rotation >= IPU_ROTATE_VERT_FLIP))
-		schedule_work(&cam->csi_work_struct);
+	schedule_work(&cam->csi_work_struct);
 	csi_buffer_num = (csi_buffer_num == 0) ? 1 : 0;
 	return IRQ_HANDLED;
 }
@@ -142,7 +134,6 @@ static int csi_enc_setup(cam_data *cam)
 	int csi_id;
 #endif
 
-	CAMERA_TRACE("In csi_enc_setup\n");
 	if (!cam) {
 		printk(KERN_ERR "cam private is NULL\n");
 		return -ENXIO;
@@ -249,25 +240,12 @@ static int csi_enc_setup(cam_data *cam)
 	}
 
 	pixel_fmt = IPU_PIX_FMT_UYVY;
-	if ((cam->crop_current.width == cam->win.w.width) &&
-		(cam->crop_current.height == cam->win.w.height) &&
-		(vf_out_format == IPU_PIX_FMT_UYVY) &&
-		(cam->rotation < IPU_ROTATE_VERT_FLIP)) {
-		err = ipu_init_channel_buffer(cam->ipu, CSI_MEM, IPU_OUTPUT_BUFFER,
-					      pixel_fmt, cam->crop_current.width,
-					      cam->crop_current.height,
-					      cam->crop_current.width, IPU_ROTATE_NONE,
-					      fbi->fix.smem_start + (fbi->fix.line_length * fbvar.yres),
-					      fbi->fix.smem_start, 0,
-					      cam->offset.u_offset, cam->offset.u_offset);
-	} else {
-		err = ipu_init_channel_buffer(cam->ipu, CSI_MEM, IPU_OUTPUT_BUFFER,
-					      pixel_fmt, cam->crop_current.width,
-					      cam->crop_current.height,
-					      cam->crop_current.width, IPU_ROTATE_NONE,
-					      cam->vf_bufs[0], cam->vf_bufs[1], 0,
-					      cam->offset.u_offset, cam->offset.u_offset);
-	}
+	err = ipu_init_channel_buffer(cam->ipu, CSI_MEM, IPU_OUTPUT_BUFFER,
+				      pixel_fmt, cam->crop_current.width,
+				      cam->crop_current.height,
+				      cam->crop_current.width, IPU_ROTATE_NONE,
+				      cam->vf_bufs[0], cam->vf_bufs[1], 0,
+				      cam->offset.u_offset, cam->offset.u_offset);
 	if (err != 0) {
 		printk(KERN_ERR "CSI_MEM output buffer\n");
 		goto out_1;
@@ -312,7 +290,6 @@ static int csi_enc_enabling_tasks(void *private)
 {
 	cam_data *cam = (cam_data *) private;
 	int err = 0;
-	CAMERA_TRACE("IPU:In csi_enc_enabling_tasks\n");
 
 	ipu_clear_irq(cam->ipu, IPU_IRQ_CSI0_OUT_EOF);
 	err = ipu_request_irq(cam->ipu, IPU_IRQ_CSI0_OUT_EOF,
@@ -336,21 +313,16 @@ out1:
 	return err;
 }
 
-/*
- * Function definitions
- */
-
 /*!
- * foreground_start - start the vf task
+ * bg_overlay_start - start the overlay task
  *
  * @param private    cam_data * mxc v4l2 main structure
  *
  */
-static int foreground_start(void *private)
+static int bg_overlay_start(void *private)
 {
 	cam_data *cam = (cam_data *) private;
-	int err = 0, i = 0;
-	short *tmp, color;
+	int err = 0;
 
 	if (!cam) {
 		printk(KERN_ERR "private is NULL\n");
@@ -358,70 +330,38 @@ static int foreground_start(void *private)
 	}
 
 	if (cam->overlay_active == true) {
-		pr_debug("already started.\n");
+		pr_debug("already start.\n");
 		return 0;
 	}
 
 	get_disp_ipu(cam);
 
-	for (i = 0; i < num_registered_fb; i++) {
-		char *idstr = registered_fb[i]->fix.id;
-		if (((strcmp(idstr, "DISP3 FG") == 0) && (cam->output < 3)) ||
-			((strcmp(idstr, "DISP4 FG") == 0) && (cam->output >= 3))) {
-			fbi = registered_fb[i];
-			break;
-		}
-	}
-
-	if (fbi == NULL) {
-		printk(KERN_ERR "DISP FG fb not found\n");
-		return -EPERM;
-	}
-
-	fbvar = fbi->var;
-
-	/* Store the overlay frame buffer's original std */
-	cam->fb_origin_std = fbvar.nonstd;
-
-	if (OVERLAY_FB_SUPPORT_NONSTD) {
-		/* Use DP to do CSC so that we can get better performance */
-		vf_out_format = IPU_PIX_FMT_UYVY;
-		fbvar.nonstd = vf_out_format;
-		color = 0x80;
+	out_format = cam->v4l2_fb.fmt.pixelformat;
+	if (cam->v4l2_fb.fmt.pixelformat == IPU_PIX_FMT_BGR24) {
+		bpp = 3, csi_mem_bufsize = 3;
+		pr_info("BGR24\n");
+	} else if (cam->v4l2_fb.fmt.pixelformat == IPU_PIX_FMT_RGB565) {
+		bpp = 2, csi_mem_bufsize = 2;
+		pr_info("RGB565\n");
+	} else if (cam->v4l2_fb.fmt.pixelformat == IPU_PIX_FMT_BGR32) {
+		bpp = 4, csi_mem_bufsize = 4;
+		pr_info("BGR32\n");
 	} else {
-		vf_out_format = IPU_PIX_FMT_RGB565;
-		fbvar.nonstd = 0;
-		color = 0x0;
+		printk(KERN_ERR
+		       "unsupported fix format from the framebuffer.\n");
+		return -EINVAL;
 	}
 
-	fbvar.bits_per_pixel = 16;
-	fbvar.xres = fbvar.xres_virtual = cam->win.w.width;
-	fbvar.yres = cam->win.w.height;
-	fbvar.yres_virtual = cam->win.w.height * 2;
-	fbvar.yoffset = 0;
-	fbvar.accel_flags = FB_ACCEL_DOUBLE_FLAG;
-	fbvar.activate |= FB_ACTIVATE_FORCE;
-	fb_set_var(fbi, &fbvar);
+	offset = cam->v4l2_fb.fmt.bytesperline * cam->win.w.top +
+	    csi_mem_bufsize * cam->win.w.left;
 
-	ipu_disp_set_window_pos(disp_ipu, MEM_FG_SYNC, cam->win.w.left,
-			cam->win.w.top);
+	if (cam->v4l2_fb.base == 0) {
+		printk(KERN_ERR "invalid frame buffer address.\n");
+	} else {
+		offset += (u32) cam->v4l2_fb.base;
+	}
 
-	/* Fill black color for framebuffer */
-	tmp = (short *) fbi->screen_base;
-	for (i = 0; i < (fbi->fix.line_length * fbi->var.yres)/2;
-			i++, tmp++)
-		*tmp = color;
-
-	console_lock();
-	fb_blank(fbi, FB_BLANK_UNBLANK);
-	console_unlock();
-
-	/* correct display ch buffer address */
-	ipu_update_channel_buffer(disp_ipu, MEM_FG_SYNC, IPU_INPUT_BUFFER,
-				0, fbi->fix.smem_start +
-				(fbi->fix.line_length * fbvar.yres));
-	ipu_update_channel_buffer(disp_ipu, MEM_FG_SYNC, IPU_INPUT_BUFFER,
-					1, fbi->fix.smem_start);
+	csi_mem_bufsize = cam->win.w.width * cam->win.w.height * csi_mem_bufsize;
 
 	err = csi_enc_enabling_tasks(cam);
 	if (err != 0) {
@@ -431,22 +371,18 @@ static int foreground_start(void *private)
 
 	cam->overlay_active = true;
 	return err;
-
 }
 
 /*!
- * foreground_stop - stop the vf task
+ * bg_overlay_stop - stop the overlay task
  *
  * @param private    cam_data * mxc v4l2 main structure
  *
  */
-static int foreground_stop(void *private)
+static int bg_overlay_stop(void *private)
 {
+	int err = 0;
 	cam_data *cam = (cam_data *) private;
-	int err = 0, i = 0;
-	struct fb_info *fbi = NULL;
-	struct fb_var_screeninfo fbvar;
-
 #ifdef CONFIG_MXC_MIPI_CSI2
 	void *mipi_csi2_info;
 	int ipu_id;
@@ -463,32 +399,6 @@ static int foreground_stop(void *private)
 	ipu_uninit_channel(cam->ipu, CSI_MEM);
 
 	csi_buffer_num = 0;
-	buffer_num = 0;
-
-	for (i = 0; i < num_registered_fb; i++) {
-		char *idstr = registered_fb[i]->fix.id;
-		if (((strcmp(idstr, "DISP3 FG") == 0) && (cam->output < 3)) ||
-			((strcmp(idstr, "DISP4 FG") == 0) && (cam->output >= 3))) {
-			fbi = registered_fb[i];
-			break;
-		}
-	}
-
-	if (fbi == NULL) {
-		printk(KERN_ERR "DISP FG fb not found\n");
-		return -EPERM;
-	}
-
-	console_lock();
-	fb_blank(fbi, FB_BLANK_POWERDOWN);
-	console_unlock();
-
-	/* Set the overlay frame buffer std to what it is used to be */
-	fbvar = fbi->var;
-	fbvar.accel_flags = FB_ACCEL_TRIPLE_FLAG;
-	fbvar.nonstd = cam->fb_origin_std;
-	fbvar.activate |= FB_ACTIVATE_FORCE;
-	fb_set_var(fbi, &fbvar);
 
 #ifdef CONFIG_MXC_MIPI_CSI2
 	mipi_csi2_info = mipi_csi2_get_info();
@@ -514,17 +424,29 @@ static int foreground_stop(void *private)
 
 	if (cam->vf_bufs_vaddr[0]) {
 		dma_free_coherent(0, cam->vf_bufs_size[0],
-				  cam->vf_bufs_vaddr[0],
-				  (dma_addr_t) cam->vf_bufs[0]);
+				  cam->vf_bufs_vaddr[0], cam->vf_bufs[0]);
 		cam->vf_bufs_vaddr[0] = NULL;
 		cam->vf_bufs[0] = 0;
 	}
 	if (cam->vf_bufs_vaddr[1]) {
 		dma_free_coherent(0, cam->vf_bufs_size[1],
-				  cam->vf_bufs_vaddr[1],
-				  (dma_addr_t) cam->vf_bufs[1]);
+				  cam->vf_bufs_vaddr[1], cam->vf_bufs[1]);
 		cam->vf_bufs_vaddr[1] = NULL;
 		cam->vf_bufs[1] = 0;
+	}
+	if (cam->rot_vf_bufs_vaddr[0]) {
+		dma_free_coherent(0, cam->rot_vf_buf_size[0],
+				  cam->rot_vf_bufs_vaddr[0],
+				  cam->rot_vf_bufs[0]);
+		cam->rot_vf_bufs_vaddr[0] = NULL;
+		cam->rot_vf_bufs[0] = 0;
+	}
+	if (cam->rot_vf_bufs_vaddr[1]) {
+		dma_free_coherent(0, cam->rot_vf_buf_size[1],
+				  cam->rot_vf_bufs_vaddr[1],
+				  cam->rot_vf_bufs[1]);
+		cam->rot_vf_bufs_vaddr[1] = NULL;
+		cam->rot_vf_bufs[1] = 0;
 	}
 
 	cam->overlay_active = false;
@@ -537,7 +459,7 @@ static int foreground_stop(void *private)
  *
  * @return  status
  */
-static int foreground_enable_csi(void *private)
+static int bg_overlay_enable_csi(void *private)
 {
 	cam_data *cam = (cam_data *) private;
 
@@ -550,7 +472,7 @@ static int foreground_enable_csi(void *private)
  *
  * @return  status
  */
-static int foreground_disable_csi(void *private)
+static int bg_overlay_disable_csi(void *private)
 {
 	cam_data *cam = (cam_data *) private;
 
@@ -558,42 +480,39 @@ static int foreground_disable_csi(void *private)
 }
 
 /*!
- * function to select foreground as the working path
+ * function to select bg as the working path
  *
  * @param private    cam_data * mxc v4l2 main structure
  *
  * @return  status
  */
-int foreground_sdc_select(void *private)
+int bg_overlay_sdc_select(void *private)
 {
-	cam_data *cam;
-	int err = 0;
-	if (private) {
-		cam = (cam_data *) private;
-		cam->vf_start_sdc = foreground_start;
-		cam->vf_stop_sdc = foreground_stop;
-		cam->vf_enable_csi = foreground_enable_csi;
-		cam->vf_disable_csi = foreground_disable_csi;
-		cam->overlay_active = false;
-	} else
-		err = -EIO;
+	cam_data *cam = (cam_data *) private;
 
-	return err;
+	if (cam) {
+		cam->vf_start_sdc = bg_overlay_start;
+		cam->vf_stop_sdc = bg_overlay_stop;
+		cam->vf_enable_csi = bg_overlay_enable_csi;
+		cam->vf_disable_csi = bg_overlay_disable_csi;
+		cam->overlay_active = false;
+	}
+
+	return 0;
 }
 
 /*!
- * function to de-select foreground as the working path
+ * function to de-select bg as the working path
  *
  * @param private    cam_data * mxc v4l2 main structure
  *
- * @return  int
+ * @return  status
  */
-int foreground_sdc_deselect(void *private)
+int bg_overlay_sdc_deselect(void *private)
 {
-	cam_data *cam;
+	cam_data *cam = (cam_data *) private;
 
-	if (private) {
-		cam = (cam_data *) private;
+	if (cam) {
 		cam->vf_start_sdc = NULL;
 		cam->vf_stop_sdc = NULL;
 		cam->vf_enable_csi = NULL;
@@ -603,30 +522,30 @@ int foreground_sdc_deselect(void *private)
 }
 
 /*!
- * Init viewfinder task.
+ * Init background overlay task.
  *
  * @return  Error code indicating success or failure
  */
-__init int foreground_sdc_init(void)
+__init int bg_overlay_sdc_init(void)
 {
 	return 0;
 }
 
 /*!
- * Deinit viewfinder task.
+ * Deinit background overlay task.
  *
  * @return  Error code indicating success or failure
  */
-void __exit foreground_sdc_exit(void)
+void __exit bg_overlay_sdc_exit(void)
 {
 }
 
-module_init(foreground_sdc_init);
-module_exit(foreground_sdc_exit);
+module_init(bg_overlay_sdc_init);
+module_exit(bg_overlay_sdc_exit);
 
-EXPORT_SYMBOL(foreground_sdc_select);
-EXPORT_SYMBOL(foreground_sdc_deselect);
+EXPORT_SYMBOL(bg_overlay_sdc_select);
+EXPORT_SYMBOL(bg_overlay_sdc_deselect);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
-MODULE_DESCRIPTION("IPU PRP VF SDC Driver");
+MODULE_DESCRIPTION("IPU PRP VF SDC Backgroud Driver");
 MODULE_LICENSE("GPL");

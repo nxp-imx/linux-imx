@@ -67,6 +67,7 @@ static struct clk pll7_usb_host_main_clk;
 static struct clk usdhc3_clk;
 static struct clk ipg_clk;
 static struct clk gpt_clk[];
+static struct clk ahb_clk;
 
 static struct cpu_op *cpu_op_tbl;
 static int cpu_op_nr;
@@ -100,7 +101,9 @@ DEFINE_SPINLOCK(mx6sl_clk_lock);
 	u32 gpt_ticks; \
 	u32 gpt_cnt; \
 	u32 reg; \
+	unsigned long flags; \
 	int result = 1; \
+	spin_lock_irqsave(&mx6sl_clk_lock, flags); \
 	gpt_rate = clk_get_rate(&gpt_clk[0]); \
 	gpt_ticks = timeout / (1000000000 / gpt_rate); \
 	reg = __raw_readl(timer_base + V2_TSTAT);\
@@ -130,6 +133,7 @@ DEFINE_SPINLOCK(mx6sl_clk_lock);
 			} \
 		} \
 	} \
+	spin_unlock_irqrestore(&mx6sl_clk_lock, flags); \
 	result; \
 })
 
@@ -409,6 +413,7 @@ static int _clk_pfd_enable(struct clk *clk)
 	__raw_writel((1 << (clk->enable_shift + 7)),
 			(int)clk->enable_reg + 8);
 
+	udelay(3);
 	return 0;
 }
 
@@ -427,7 +432,6 @@ static int _clk_pll_enable(struct clk *clk)
 	pllbase = _get_pll_base(clk);
 
 	reg = __raw_readl(pllbase);
-	reg &= ~ANADIG_PLL_BYPASS;
 	reg &= ~ANADIG_PLL_POWER_DOWN;
 
 	/* The 480MHz PLLs have the opposite definition for power bit. */
@@ -447,6 +451,7 @@ static int _clk_pll_enable(struct clk *clk)
 
 	/* Enable the PLL output now*/
 	reg = __raw_readl(pllbase);
+	reg &= ~ANADIG_PLL_BYPASS;
 	reg |= ANADIG_PLL_ENABLE;
 	__raw_writel(reg, pllbase);
 
@@ -466,7 +471,18 @@ static void _clk_pll_disable(struct clk *clk)
 
 	reg = __raw_readl(pllbase);
 	reg |= ANADIG_PLL_BYPASS;
-	reg &= ~ANADIG_PLL_ENABLE;
+	reg |= ANADIG_PLL_POWER_DOWN;
+
+	/* The 480MHz PLLs have the opposite definition for power bit. */
+	if (clk == &pll3_usb_otg_main_clk || clk == &pll7_usb_host_main_clk)
+		reg &= ~ANADIG_PLL_POWER_DOWN;
+
+	/* PLL1, PLL2, PLL3, PLL7 should not disable the ENABLE bit.
+	  * The output of these PLLs maybe used even if they are bypassed.
+	  */
+	if (clk == &pll4_audio_main_clk || clk == &pll5_video_main_clk ||
+		clk == &pll6_enet_main_clk)
+		reg &= ~ANADIG_PLL_ENABLE;
 
 	__raw_writel(reg, pllbase);
 
@@ -505,7 +521,7 @@ static int _clk_pll1_main_set_rate(struct clk *clk, unsigned long rate)
 	/* Wait for PLL1 to lock */
 	if (!WAIT((__raw_readl(PLL1_SYS_BASE_ADDR) & ANADIG_PLL_LOCK),
 				SPIN_DELAY))
-		panic("pll1 enable failed\n");
+		panic("pll1 set rate failed\n");
 
 	return 0;
 }
@@ -531,8 +547,7 @@ static void _clk_pll1_main_disable(struct clk *clk)
 	  * requires PLL1 to be enabled.
 	  */
 	reg = __raw_readl(pllbase);
-	reg |= ANADIG_PLL_BYPASS;
-
+	reg |= (ANADIG_PLL_BYPASS | ANADIG_PLL_POWER_DOWN);
 	__raw_writel(reg, pllbase);
 }
 
@@ -1140,6 +1155,11 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	if (i >= cpu_op_nr)
 		return -EINVAL;
 
+	if (clk_get_rate(&ahb_clk) == 24000000) {
+		printk(KERN_INFO "we should not be here!!!!! AHB is at 24MHz....cpu_rate requested = %ld\n", rate);
+		dump_stack();
+		BUG();
+	}
 	spin_lock_irqsave(&mx6sl_clk_lock, flags);
 
 	if (rate <= clk_get_rate(&pll2_pfd2_400M)) {
@@ -1154,8 +1174,10 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		}
 	} else {
 		/* Make sure PLL1 is enabled */
-		if (!pll1_enabled)
+		if (!pll1_enabled) {
 			pll1_sys_main_clk.enable(&pll1_sys_main_clk);
+			pll1_sys_main_clk.usecount = 1;
+		}
 		if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
 			if (pll1_sw_clk.parent == &pll1_sys_main_clk) {
 				/* Change the PLL1 rate. */
@@ -1164,15 +1186,11 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 				else
 					pll1_sw_clk.set_parent(&pll1_sw_clk, &osc_clk);
 			}
-			if (cpu_op_tbl[i].cpu_podf) {
-				__raw_writel(cpu_op_tbl[i].cpu_podf, MXC_CCM_CACRR);
-				while (__raw_readl(MXC_CCM_CDHIPR))
-							;
-			}
 			pll1_sys_main_clk.set_rate(&pll1_sys_main_clk, cpu_op_tbl[i].pll_rate);
 		}
 		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
 		pll1_sw_clk.parent = &pll1_sys_main_clk;
+
 		arm_needs_pll2_400 = false;
 		if (pll2_pfd2_400M.usecount == 0)
 			pll2_pfd2_400M.disable(&pll2_pfd2_400M);
@@ -1211,8 +1229,10 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	while (__raw_readl(MXC_CCM_CDHIPR))
 		;
 
-	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400)
+	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400) {
 		pll1_sys_main_clk.disable(&pll1_sys_main_clk);
+		pll1_sys_main_clk.usecount = 0;
+	}
 
 	spin_unlock_irqrestore(&mx6sl_clk_lock, flags);
 
@@ -1266,7 +1286,7 @@ static int _clk_periph_set_parent(struct clk *clk, struct clk *parent)
 		reg &= ~MXC_CCM_CBCMR_PRE_PERIPH_CLK_SEL_MASK;
 		reg |= mux << MXC_CCM_CBCMR_PRE_PERIPH_CLK_SEL_OFFSET;
 		__raw_writel(reg, MXC_CCM_CBCMR);
-
+		udelay(5);
 		/* Set the periph_clk_sel multiplexer. */
 		reg = __raw_readl(MXC_CCM_CBCDR);
 		reg &= ~MXC_CCM_CBCDR_PERIPH_CLK_SEL;
@@ -1433,6 +1453,7 @@ static int _clk_ahb_set_rate(struct clk *clk, unsigned long rate)
 	div = parent_rate / rate;
 	if (div == 0)
 		div++;
+
 	if (((parent_rate / div) != rate) || (div > 8))
 		return -EINVAL;
 
@@ -2080,6 +2101,7 @@ static struct clk usdhc1_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc1_set_rate,
 	.get_rate = _clk_usdhc1_get_rate,
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc2_set_parent(struct clk *clk, struct clk *parent)
@@ -2137,6 +2159,7 @@ static struct clk usdhc2_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc2_set_rate,
 	.get_rate = _clk_usdhc2_get_rate,
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc3_set_parent(struct clk *clk, struct clk *parent)
@@ -2195,6 +2218,7 @@ static struct clk usdhc3_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc3_set_rate,
 	.get_rate = _clk_usdhc3_get_rate,
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static int _clk_usdhc4_set_parent(struct clk *clk, struct clk *parent)
@@ -2253,6 +2277,7 @@ static struct clk usdhc4_clk = {
 	.round_rate = _clk_usdhc_round_rate,
 	.set_rate = _clk_usdhc4_set_rate,
 	.get_rate = _clk_usdhc4_get_rate,
+	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi_round_rate(struct clk *clk,
@@ -2424,7 +2449,7 @@ static struct clk ssi1_clk = {
 #else
 	 .secondary = &mmdc_ch1_axi_clk[0],
 #endif
-	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi2_get_rate(struct clk *clk)
@@ -2498,7 +2523,7 @@ static struct clk ssi2_clk = {
 #else
 	 .secondary = &mmdc_ch1_axi_clk[0],
 #endif
-	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_ssi3_get_rate(struct clk *clk)
@@ -2571,7 +2596,7 @@ static struct clk ssi3_clk = {
 #else
 	 .secondary = &mmdc_ch1_axi_clk[0],
 #endif
-	.flags  = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags  = AHB_AUDIO_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static unsigned long _clk_epdc_lcdif_pix_round_rate(struct clk *clk,
@@ -2908,7 +2933,7 @@ static struct clk lcdif_pix_clk = {
 	.set_rate = _clk_lcdif_pix_set_rate,
 	.round_rate = _clk_epdc_lcdif_pix_round_rate,
 	.get_rate = _clk_lcdif_pix_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 
 static struct clk epdc_pix_clk = {
@@ -2923,7 +2948,7 @@ static struct clk epdc_pix_clk = {
 	.set_rate = _clk_epdc_pix_set_rate,
 	.round_rate = _clk_epdc_lcdif_pix_round_rate,
 	.get_rate = _clk_epdc_pix_get_rate,
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 };
 static unsigned long _clk_spdif_round_rate(struct clk *clk,
 						unsigned long rate)
@@ -3321,6 +3346,10 @@ static unsigned long _clk_uart_get_rate(struct clk *clk)
 	div = (reg >> MXC_CCM_CSCDR1_UART_CLK_PODF_OFFSET) + 1;
 	val = clk_get_rate(clk->parent) / div;
 
+	/* If the parent is OSC, there is an in-built divide by 6. */
+	if (clk->parent == &osc_clk)
+		val = val / 6;
+
 	return val;
 }
 
@@ -3335,7 +3364,7 @@ static int _clk_uart_set_parent(struct clk *clk, struct clk *parent)
 	else
 		mux = 0; /* osc */
 
-	reg |= mux << MXC_CCM_CSCDR2_ECSPI_CLK_SEL_OFFSET;
+	reg |= mux << MXC_CCM_CSCDR1_UART_CLK_SEL_OFFSET;
 
 	__raw_writel(reg, MXC_CCM_CSCDR1);
 
@@ -3960,6 +3989,8 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 	unsigned long ckih1, unsigned long ckih2)
 {
 	int i;
+	u32 parent_rate, rate;
+	unsigned long ipg_clk_rate, max_arm_wait_clk;
 
 	external_low_reference = ckil;
 	external_high_reference = ckih1;
@@ -3977,6 +4008,12 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 	/* GPT will source from perclk, hence ipg_perclk
 	 * should be from OSC24M */
 	clk_set_parent(&ipg_perclk, &osc_clk);
+
+	/* Need to set IPG_PERCLK to 3MHz, so that we can
+	  * satisfy the 2.5:1 AHB:IPG_PERCLK ratio. Since AHB
+	  * can be dropped to as low as 8MHz in low power mode.
+	  */
+	clk_set_rate(&ipg_perclk, 3000000);
 
 	gpt_clk[0].parent = &ipg_perclk;
 	gpt_clk[0].get_rate = NULL;
@@ -4024,7 +4061,6 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 			     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR0);
 	} else {
 		__raw_writel(1 << MXC_CCM_CCGRx_CG11_OFFSET |
-			     3 << MXC_CCM_CCGRx_CG2_OFFSET |
 			     3 << MXC_CCM_CCGRx_CG1_OFFSET |
 			     3 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR0);
 	}
@@ -4032,9 +4068,9 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 		     3 << MXC_CCM_CCGRx_CG11_OFFSET, MXC_CCM_CCGR1);
 	__raw_writel(1 << MXC_CCM_CCGRx_CG12_OFFSET |
 		     1 << MXC_CCM_CCGRx_CG11_OFFSET |
-		     3 << MXC_CCM_CCGRx_CG10_OFFSET |
-		     3 << MXC_CCM_CCGRx_CG9_OFFSET |
-		     3 << MXC_CCM_CCGRx_CG8_OFFSET, MXC_CCM_CCGR2);
+		     1 << MXC_CCM_CCGRx_CG10_OFFSET |
+		     1 << MXC_CCM_CCGRx_CG9_OFFSET |
+		     1 << MXC_CCM_CCGRx_CG8_OFFSET, MXC_CCM_CCGR2);
 	__raw_writel(1 << MXC_CCM_CCGRx_CG14_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG13_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG12_OFFSET |
@@ -4066,6 +4102,20 @@ int __init mx6sl_clocks_init(unsigned long ckil, unsigned long osc,
 
 	lp_high_freq = 0;
 	lp_med_freq = 0;
+
+	/* Get current ARM_PODF value */
+	rate = clk_get_rate(&cpu_clk);
+	parent_rate = clk_get_rate(&pll1_sw_clk);
+	cur_arm_podf = parent_rate / rate;
+
+	/* Calculate the ARM_PODF to be applied when the system
+	  * enters WAIT state.
+	  * The max ARM clk is decided by the ipg_clk and has to
+	  * follow the ratio of ARM_CLK:IPG_CLK of 12:5.
+	  */
+	ipg_clk_rate = clk_get_rate(&ipg_clk);
+	max_arm_wait_clk = (12 * ipg_clk_rate) / 5;
+	wait_mode_arm_podf = parent_rate / max_arm_wait_clk;
 
 	return 0;
 

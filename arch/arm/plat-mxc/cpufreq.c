@@ -58,13 +58,7 @@ extern struct regulator *soc_regulator;
 extern struct regulator *pu_regulator;
 extern int dvfs_core_is_active;
 extern struct cpu_op *(*get_cpu_op)(int *op);
-extern int low_bus_freq_mode;
-extern int audio_bus_freq_mode;
-extern int high_bus_freq_mode;
-extern int set_low_bus_freq(void);
-extern int set_high_bus_freq(int high_bus_speed);
-extern int low_freq_bus_used(void);
-extern struct mutex bus_freq_mutex;
+extern void bus_freq_update(struct clk *clk, bool flag);
 
 int set_cpu_freq(int freq)
 {
@@ -95,24 +89,25 @@ int set_cpu_freq(int freq)
 #endif
 	/*Set the voltage for the GP domain. */
 	if (freq > org_cpu_rate) {
-		mutex_lock(&bus_freq_mutex);
-		if (low_bus_freq_mode || audio_bus_freq_mode) {
-			mutex_unlock(&bus_freq_mutex);
-			set_high_bus_freq(0);
-		} else
-			mutex_unlock(&bus_freq_mutex);
-		if (freq == cpu_op_tbl[0].cpu_rate && !IS_ERR(soc_regulator) && !IS_ERR(pu_regulator)) {
-			ret = regulator_set_voltage(soc_regulator, soc_volt,
-							soc_volt);
-			if (ret < 0) {
-				printk(KERN_DEBUG "COULD NOT SET SOC VOLTAGE!!!!\n");
-				return ret;
+		/* Check if the bus freq needs to be increased first */
+		bus_freq_update(cpu_clk, true);
+
+		if (freq == cpu_op_tbl[0].cpu_rate) {
+			if (!IS_ERR(soc_regulator)) {
+				ret = regulator_set_voltage(soc_regulator, soc_volt,
+								soc_volt);
+				if (ret < 0) {
+					printk(KERN_DEBUG "COULD NOT SET SOC VOLTAGE!!!!\n");
+					return ret;
+				}
 			}
-			ret = regulator_set_voltage(pu_regulator, pu_volt,
-							pu_volt);
-			if (ret < 0) {
-				printk(KERN_DEBUG "COULD NOT SET PU VOLTAGE!!!!\n");
-				return ret;
+			if (!IS_ERR(pu_regulator)) {
+				ret = regulator_set_voltage(pu_regulator, pu_volt,
+								pu_volt);
+				if (ret < 0) {
+					printk(KERN_DEBUG "COULD NOT SET PU VOLTAGE!!!!\n");
+					return ret;
+				}
 			}
 			soc_regulator_set = 1;
 		}
@@ -137,26 +132,27 @@ int set_cpu_freq(int freq)
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
 		}
-		if (soc_regulator_set && soc_regulator && pu_regulator) {
-			ret = regulator_set_voltage(soc_regulator, soc_volt,
-							soc_volt);
-			if (ret < 0) {
-				printk(KERN_DEBUG "COULD NOT SET SOC VOLTAGE BACK!!!!\n");
-				return ret;
+		if (soc_regulator_set) {
+			if (!IS_ERR(soc_regulator)) {
+				ret = regulator_set_voltage(soc_regulator, soc_volt,
+								soc_volt);
+				if (ret < 0) {
+					printk(KERN_DEBUG "COULD NOT SET SOC VOLTAGE BACK!!!!\n");
+					return ret;
+				}
 			}
-			ret = regulator_set_voltage(pu_regulator, pu_volt,
-							pu_volt);
-			if (ret < 0) {
-				printk(KERN_DEBUG "COULD NOT SET PU VOLTAGE!!!!\n");
-				return ret;
+			if (!IS_ERR(pu_regulator)) {
+				ret = regulator_set_voltage(pu_regulator, pu_volt,
+								pu_volt);
+				if (ret < 0) {
+					printk(KERN_DEBUG "COULD NOT SET PU VOLTAGE!!!!\n");
+					return ret;
+				}
 			}
 			soc_regulator_set = 0;
 		}
-		mutex_lock(&bus_freq_mutex);
-		if (low_freq_bus_used() &&
-			!(low_bus_freq_mode || audio_bus_freq_mode))
-			set_low_bus_freq();
-		mutex_unlock(&bus_freq_mutex);
+		/* Check if the bus freq can be decreased.*/
+		bus_freq_update(cpu_clk, false);
 	}
 
 	return ret;
@@ -252,8 +248,11 @@ void mxc_cpufreq_suspend(void)
 	pre_suspend_rate = clk_get_rate(cpu_clk);
 	/*set flag and raise up cpu frequency if needed*/
 	cpu_freq_suspend_in = 1;
-	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000))
+	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000)) {
 			set_cpu_freq(imx_freq_table[0].frequency * 1000);
+			loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
+				pre_suspend_rate / 1000, imx_freq_table[0].frequency);
+	}
 	cpu_freq_suspend_in = 2;
 	mutex_unlock(&set_cpufreq_lock);
 
@@ -263,8 +262,11 @@ void mxc_cpufreq_resume(void)
 {
 	mutex_lock(&set_cpufreq_lock);
 	cpu_freq_suspend_in = 1;
-	if (clk_get_rate(cpu_clk) != pre_suspend_rate)
+	if (clk_get_rate(cpu_clk) != pre_suspend_rate) {
 		set_cpu_freq(pre_suspend_rate);
+		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
+			imx_freq_table[0].frequency, pre_suspend_rate / 1000);
+	}
 	cpu_freq_suspend_in = 0;
 	mutex_unlock(&set_cpufreq_lock);
 }
@@ -274,16 +276,22 @@ void mxc_cpufreq_resume(void)
 static int mxc_cpufreq_suspend(struct cpufreq_policy *policy)
 {
 	pre_suspend_rate = clk_get_rate(cpu_clk);
-	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000))
+	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000)) {
 		set_cpu_freq(imx_freq_table[0].frequency * 1000);
+		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
+			pre_suspend_rate / 1000, imx_freq_table[0].frequency);
+	}
 
 	return 0;
 }
 
 static int mxc_cpufreq_resume(struct cpufreq_policy *policy)
 {
-	if (clk_get_rate(cpu_clk) != pre_suspend_rate)
+	if (clk_get_rate(cpu_clk) != pre_suspend_rate) {
 		set_cpu_freq(pre_suspend_rate);
+		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
+			imx_freq_table[0].frequency, pre_suspend_rate / 1000);
+	}
 	return 0;
 }
 #endif

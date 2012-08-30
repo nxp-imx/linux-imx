@@ -24,70 +24,127 @@ extern u32 arm_max_freq;
 static int num_cpu_op;
 
 /* working point(wp): 0 - 1.2GHz; 1 - 792MHz, 2 - 498MHz 3 - 396MHz */
-static struct cpu_op mx6_cpu_op_1_2G[] = {
+static struct cpu_op mx6q_cpu_op_1_2G[] = {
 	{
 	 .pll_rate = 1200000000,
 	 .cpu_rate = 1200000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1250000,
-	 .soc_voltage = 1250000,
+	 .pu_voltage = 1275000,
+	 .soc_voltage = 1275000,
 	 .cpu_voltage = 1275000,},
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1150000,
-	 .soc_voltage = 1150000,
-	 .cpu_voltage = 1100000,},
+#ifdef CONFIG_MX6_VPU_352M
+	/*VPU 352Mhz need voltage 1.25V*/
+	.pu_voltage = 1250000,
+	.soc_voltage = 1250000,
+#else
+	 .pu_voltage = 1175000,
+	 .soc_voltage = 1175000,
+#endif
+	 .cpu_voltage = 1150000,},
+#ifdef CONFIG_MX6_VPU_352M
+	/*pll2_pfd_400M will be fix on 352M,to avoid modify other code
+	which assume ARM clock sourcing from pll2_pfd_400M, change cpu
+	freq from 396M to 352M.*/
+	 {
+	  .pll_rate = 352000000,
+	  .cpu_rate = 352000000,
+	  .cpu_podf = 0,
+	  .pu_voltage = 1250000,
+	  .soc_voltage = 1250000,
+	  .cpu_voltage = 950000,},
+#else
 	 {
 	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
 	  .cpu_podf = 0,
-	  .pu_voltage = 1150000,
-	  .soc_voltage = 1150000,
-	  .cpu_voltage = 925000,},
+	  .pu_voltage = 1175000,
+	  .soc_voltage = 1175000,
+	  .cpu_voltage = 950000,},
+#endif
 };
 
 /* working point(wp): 0 - 1GHz; 1 - 792MHz, 2 - 498MHz 3 - 396MHz */
-static struct cpu_op mx6_cpu_op_1G[] = {
+static struct cpu_op mx6q_cpu_op_1G[] = {
 	{
 	 .pll_rate = 996000000,
 	 .cpu_rate = 996000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1200000,
-	 .soc_voltage = 1200000,
-	 .cpu_voltage = 1225000,},
+	 .pu_voltage = 1250000,
+	 .soc_voltage = 1250000,
+	 .cpu_voltage = 1250000,},
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1150000,
-	 .soc_voltage = 1150000,
-	 .cpu_voltage = 1100000,},
+#ifdef CONFIG_MX6_VPU_352M
+	/*VPU 352Mhz need voltage 1.25V*/
+	 .pu_voltage = 1250000,
+	 .soc_voltage = 1250000,
+#else
+	 .pu_voltage = 1175000,
+	 .soc_voltage = 1175000,
+#endif
+	 .cpu_voltage = 1150000,},
+#ifdef CONFIG_MX6_VPU_352M
+	/*pll2_pfd_400M will be fix on 352M,to avoid modify other code
+	which assume ARM clock sourcing from pll2_pfd_400M, change cpu
+	freq from 396M to 352M.*/
+	 {
+	  .pll_rate = 352000000,
+	  .cpu_rate = 352000000,
+	  .cpu_podf = 0,
+	  .pu_voltage = 1250000,
+	  .soc_voltage = 1250000,
+	  .cpu_voltage = 950000,},
+#else
 	 {
 	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
 	  .cpu_podf = 0,
-	  .pu_voltage = 1150000,
-	  .soc_voltage = 1150000,
-	  .cpu_voltage = 925000,},
+	  .pu_voltage = 1175000,
+	  .soc_voltage = 1175000,
+	  .cpu_voltage = 950000,},
+#endif
 };
 
-static struct cpu_op mx6_cpu_op[] = {
+static struct cpu_op mx6q_cpu_op[] = {
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1150000,
-	 .soc_voltage = 1150000,
-	 .cpu_voltage = 1100000,},
+#ifdef CONFIG_MX6_VPU_352M
+	/*VPU 352Mhz need voltage 1.25V*/
+	 .pu_voltage = 1250000,
+	 .soc_voltage = 1250000,
+#else
+	 .pu_voltage = 1175000,
+	 .soc_voltage = 1175000,
+#endif
+	 .cpu_voltage = 1150000,},
+#ifdef CONFIG_MX6_VPU_352M
+	/*pll2_pfd_400M will be fix on 352M,to avoid modify other code
+	which assume ARM clock sourcing from pll2_pfd_400M, change cpu
+	freq from 396M to 352M.*/
+	 {
+	  .pll_rate = 352000000,
+	  .cpu_rate = 352000000,
+	  .cpu_podf = 0,
+	  .pu_voltage = 1250000,
+	  .soc_voltage = 1250000,
+	  .cpu_voltage = 950000,},
+#else
 	 {
 	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
 	  .cpu_podf = 0,
-	  .pu_voltage = 1150000,
-	  .soc_voltage = 1150000,
-	  .cpu_voltage = 925000,},
+	  .pu_voltage = 1175000,
+	  .soc_voltage = 1175000,
+	  .cpu_voltage = 950000,},
+#endif
 };
 
 /* working point(wp): 0 - 1.2GHz; 1 - 800MHz, 2 - 400MHz, 3  - 200MHz */
@@ -96,23 +153,23 @@ static struct cpu_op mx6dl_cpu_op_1_2G[] = {
 	 .pll_rate = 1200000000,
 	 .cpu_rate = 1200000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1250000,
-	 .soc_voltage = 1250000,
+	 .pu_voltage = 1275000,
+	 .soc_voltage = 1275000,
 	 .cpu_voltage = 1275000,},
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1150000,
-	 .soc_voltage = 1150000,
-	 .cpu_voltage = 1100000,},
+	 .pu_voltage = 1175000,
+	 .soc_voltage = 1175000,
+	 .cpu_voltage = 1150000,},
 	 {
 	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
 	  .cpu_podf = 0,
-	  .pu_voltage = 1150000,
-	  .soc_voltage = 1150000,
-	  .cpu_voltage = 1025000,},
+	  .pu_voltage = 1175000,
+	  .soc_voltage = 1175000,
+	  .cpu_voltage = 1075000,},
 };
 /* working point(wp): 0 - 1GHz; 1 - 800MHz, 2 - 400MHz, 3  - 200MHz */
 static struct cpu_op mx6dl_cpu_op_1G[] = {
@@ -120,39 +177,94 @@ static struct cpu_op mx6dl_cpu_op_1G[] = {
 	 .pll_rate = 996000000,
 	 .cpu_rate = 996000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1200000,
-	 .soc_voltage = 1200000,
-	 .cpu_voltage = 1225000,},
+	 .pu_voltage = 1250000,
+	 .soc_voltage = 1250000,
+	 .cpu_voltage = 1250000,},
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1150000,
-	 .soc_voltage = 1150000,
-	 .cpu_voltage = 1100000,},
+	 .pu_voltage = 1175000,
+	 .soc_voltage = 1175000,
+	 .cpu_voltage = 1150000,},
 	{
 	 .pll_rate = 396000000,
 	 .cpu_rate = 396000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1150000,
-	 .soc_voltage = 1150000,
-	 .cpu_voltage = 1025000,},
+	 .pu_voltage = 1175000,
+	 .soc_voltage = 1175000,
+	 .cpu_voltage = 1075000,},
 };
 static struct cpu_op mx6dl_cpu_op[] = {
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
 	 .cpu_podf = 0,
-	 .pu_voltage = 1150000,
-	 .soc_voltage = 1150000,
-	 .cpu_voltage = 1100000,},
+	 .pu_voltage = 1175000,
+	 .soc_voltage = 1175000,
+	 .cpu_voltage = 1150000,},
 	 {
 	  .pll_rate = 396000000,
 	  .cpu_rate = 396000000,
 	  .cpu_podf = 0,
-	  .pu_voltage = 1150000,
-	  .soc_voltage = 1150000,
-	  .cpu_voltage = 1025000,},
+	  .pu_voltage = 1175000,
+	  .soc_voltage = 1175000,
+	  .cpu_voltage = 1075000,},
+};
+
+static struct cpu_op mx6sl_cpu_op_1G[] = {
+	{
+	 .pll_rate = 996000000,
+	 .cpu_rate = 996000000,
+	 .cpu_podf = 0,
+	 .pu_voltage = 1225000,
+	 .soc_voltage = 1225000,
+	 .cpu_voltage = 1275000,},
+	{
+	 .pll_rate = 792000000,
+	 .cpu_rate = 792000000,
+	 .cpu_podf = 0,
+	 .pu_voltage = 1150000,
+	 .soc_voltage = 1150000,
+	 .cpu_voltage = 1200000,},
+	{
+	 .pll_rate = 396000000,
+	 .cpu_rate = 396000000,
+	 .cpu_podf = 0,
+	 .pu_voltage = 1050000,
+	 .soc_voltage = 1050000,
+	 .cpu_voltage = 1100000,},
+	 {
+	  .pll_rate = 396000000,
+	  .cpu_rate = 198000000,
+	  .cpu_podf = 1,
+	  .pu_voltage = 1050000,
+	  .soc_voltage = 1050000,
+	  .cpu_voltage = 1050000,},
+};
+
+static struct cpu_op mx6sl_cpu_op[] = {
+	{
+	 .pll_rate = 792000000,
+	 .cpu_rate = 792000000,
+	 .cpu_podf = 0,
+	 .pu_voltage = 1150000,
+	 .soc_voltage = 1150000,
+	 .cpu_voltage = 1200000,},
+	 {
+	  .pll_rate = 396000000,
+	  .cpu_rate = 396000000,
+	  .cpu_podf = 0,
+	 .pu_voltage = 1050000,
+	 .soc_voltage = 1050000,
+	 .cpu_voltage = 1100000,},
+	{
+	 .pll_rate = 396000000,
+	 .cpu_rate = 198000000,
+	 .cpu_podf = 1,
+	  .pu_voltage = 1050000,
+	  .soc_voltage = 1050000,
+	  .cpu_voltage = 1050000,},
 };
 
 static struct dvfs_op dvfs_core_setpoint_1_2G[] = {
@@ -201,16 +313,24 @@ struct cpu_op *mx6_get_cpu_op(int *op)
 			*op =  num_cpu_op = ARRAY_SIZE(mx6dl_cpu_op);
 			return mx6dl_cpu_op;
 		}
-	} else {
+	} else if (cpu_is_mx6q()) {
 		if (arm_max_freq == CPU_AT_1_2GHz) {
-			*op =  num_cpu_op = ARRAY_SIZE(mx6_cpu_op_1_2G);
-			return mx6_cpu_op_1_2G;
+			*op =  num_cpu_op = ARRAY_SIZE(mx6q_cpu_op_1_2G);
+			return mx6q_cpu_op_1_2G;
 		} else if (arm_max_freq == CPU_AT_1GHz) {
-			*op =  num_cpu_op = ARRAY_SIZE(mx6_cpu_op_1G);
-			return mx6_cpu_op_1G;
+			*op =  num_cpu_op = ARRAY_SIZE(mx6q_cpu_op_1G);
+			return mx6q_cpu_op_1G;
 		} else {
-			*op =  num_cpu_op = ARRAY_SIZE(mx6_cpu_op);
-			return mx6_cpu_op;
+			*op =  num_cpu_op = ARRAY_SIZE(mx6q_cpu_op);
+			return mx6q_cpu_op;
+		}
+	} else {
+		if (arm_max_freq == CPU_AT_1GHz) {
+			*op =  num_cpu_op = ARRAY_SIZE(mx6sl_cpu_op_1G);
+			return mx6sl_cpu_op_1G;
+		} else {
+			*op =  num_cpu_op = ARRAY_SIZE(mx6sl_cpu_op);
+			return mx6sl_cpu_op;
 		}
 	}
 }

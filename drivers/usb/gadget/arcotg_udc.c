@@ -68,7 +68,6 @@
 #define cpu_to_hc32(x)	cpu_to_le32((x))
 #define hc32_to_cpu(x)	le32_to_cpu((x))
 #endif
-
 #define	DMA_ADDR_INVALID	(~(dma_addr_t)0)
 DEFINE_MUTEX(udc_resume_mutex);
 extern void usb_debounce_id_vbus(void);
@@ -340,7 +339,7 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 	struct fsl_usb2_platform_data *pdata = udc->pdata;
 	u32 portsc;
 	unsigned long flags;
-	spin_lock_irqsave(&udc->lock, flags);
+	spin_lock_irqsave(&pdata->lock, flags);
 
 	if (pdata && pdata->phy_lowpower_suspend) {
 		pdata->phy_lowpower_suspend(pdata, enable);
@@ -356,7 +355,7 @@ static void dr_phy_low_power_mode(struct fsl_udc *udc, bool enable)
 		}
 	}
 	pdata->lowpower = enable;
-	spin_unlock_irqrestore(&udc->lock, flags);
+	spin_unlock_irqrestore(&pdata->lock, flags);
 }
 
 static int dr_controller_setup(struct fsl_udc *udc)
@@ -472,6 +471,9 @@ static int dr_controller_setup(struct fsl_udc *udc)
 static void dr_controller_run(struct fsl_udc *udc)
 {
 	u32 temp;
+
+	udc_controller->usb_state = USB_STATE_ATTACHED;
+	udc_controller->ep0_dir = 0;
 
 	fsl_platform_pullup_enable(udc->pdata);
 
@@ -2206,9 +2208,9 @@ static void fsl_gadget_disconnect_event(struct work_struct *work)
 		fsl_writel(tmp | (OTGSC_B_SESSION_VALID_IRQ_EN),
 				&dr_regs->otgsc);
 	udc->stopped = 1;
+	spin_unlock_irqrestore(&udc->lock, flags);
 	/* enable wake up */
 	dr_wake_up_enable(udc, true);
-	spin_unlock_irqrestore(&udc->lock, flags);
 	/* close USB PHY clock */
 	dr_phy_low_power_mode(udc, true);
 	/* close dr controller clock */
@@ -2445,8 +2447,6 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver,
 		dr_controller_run(udc_controller);
 		if (udc_controller->stopped)
 			dr_clk_gate(false);
-		udc_controller->usb_state = USB_STATE_ATTACHED;
-		udc_controller->ep0_dir = 0;
 	}
 	printk(KERN_INFO "%s: bind to driver %s \n",
 			udc_controller->gadget.name, driver->driver.name);
@@ -3210,6 +3210,7 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 	udc_controller->charger.enable = false;
 #endif
 
+	spin_lock_init(&pdata->lock);
 	return 0;
 
 err4:
@@ -3464,6 +3465,7 @@ static int fsl_udc_resume(struct platform_device *pdev)
 	 */
 	if (udc_controller->suspended && !udc_controller->stopped) {
 		dr_clk_gate(true);
+		dr_wake_up_enable(udc_controller, false);
 		dr_phy_low_power_mode(udc_controller, false);
 	}
 	/* Enable DR irq reg and set controller Run */
@@ -3483,9 +3485,6 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		dr_controller_setup(udc_controller);
 		dr_controller_run(udc_controller);
 	}
-	udc_controller->usb_state = USB_STATE_ATTACHED;
-	udc_controller->ep0_dir = 0;
-
 end:
 	/* if udc is resume by otg id change and no device
 	 * connecting to the otg, otg will enter low power mode*/

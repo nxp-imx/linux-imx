@@ -70,7 +70,6 @@
 #define PFUZE100_SW1CCON_SPEED_VAL	(0x1<<6)	/*default */
 #define PFUZE100_SW1CCON_SPEED_M	(0x3<<6)
 
-
 #ifdef CONFIG_MX6_INTER_LDO_BYPASS
 static struct regulator_consumer_supply sw1_consumers[] = {
 	{
@@ -88,12 +87,7 @@ static struct regulator_consumer_supply sw2_consumers[] = {
 	{
 		.supply		= "MICVDD",
 		.dev_name	= "1-001a",
-	},
-	{
-		.supply 	= "DBVDD",
-		.dev_name	= "1-001a",
 	}
-
 };
 static struct regulator_consumer_supply sw4_consumers[] = {
        {
@@ -115,7 +109,7 @@ static struct regulator_consumer_supply vgen2_consumers[] = {
 	.supply = "VGEN2_1V5",
 	}
 };
-static struct regulator_consumer_supply vgen4_consumers[] = {
+static struct regulator_consumer_supply vgen3_consumers[] = {
 	{
 		.supply    = "AVDD",
 		.dev_name	= "1-001a",
@@ -131,6 +125,15 @@ static struct regulator_consumer_supply vgen4_consumers[] = {
 	{
 		.supply    = "PLLVDD",
 		.dev_name	= "1-001a",
+	},
+	{
+		.supply		= "DBVDD",
+		.dev_name	= "1-001a",
+	}
+};
+static struct regulator_consumer_supply vgen4_consumers[] = {
+       {
+	.supply = "VGEN4_1V8",
 	}
 };
 static struct regulator_consumer_supply vgen5_consumers[] = {
@@ -187,10 +190,10 @@ static struct regulator_init_data sw1c_init = {
 			.always_on = 1,
 			.boot_on = 1,
 			},
-	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	.num_consumer_supplies = ARRAY_SIZE(sw1c_consumers),
 	.consumer_supplies = sw1c_consumers,
-	#endif
+#endif
 };
 
 static struct regulator_init_data sw2_init = {
@@ -347,6 +350,8 @@ static struct regulator_init_data vgen3_init = {
 			.always_on = 0,
 			.boot_on = 0,
 			},
+	.num_consumer_supplies = ARRAY_SIZE(vgen3_consumers),
+	.consumer_supplies = vgen3_consumers,
 };
 
 static struct regulator_init_data vgen4_init = {
@@ -403,7 +408,7 @@ static int pfuze100_init(struct mc_pfuze *pfuze)
 			    PFUZE100_SW1CSTANDBY_STBY_VAL);
 	if (ret)
 		goto err;
-	/*set SW1AB/SW1C DVSPEED as 25mV step each 4us,quick than 16us before.*/
+	/*set SW1AB/SW1CDVSPEED as 25mV step each 4us,quick than 16us before.*/
 	ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1ACON,
 			    PFUZE100_SW1ACON_SPEED_M,
 			    PFUZE100_SW1ACON_SPEED_VAL);
@@ -451,7 +456,7 @@ static struct i2c_board_info __initdata pfuze100_i2c_device = {
 	.platform_data = &pfuze100_plat,
 };
 
-int __init mx6sl_arm2_init_pfuze100(u32 int_gpio)
+int __init mx6sl_evk_init_pfuze100(u32 int_gpio)
 {
 	if (int_gpio)
 		pfuze100_i2c_device.irq = gpio_to_irq(int_gpio); /*update INT gpio */

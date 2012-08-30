@@ -134,6 +134,7 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 {
 	int ret;
 	struct clk *usb_clk;
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	usb_clk = clk_get(NULL, "usboh3_clk");
 	clk_enable(usb_clk);
 	usb_oh3_clk = usb_clk;
@@ -145,19 +146,25 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 	}
 	usbh1_internal_phy_clock_gate(true);
 	usb_phy_enable(pdev->dev.platform_data);
-
+	usb_stop_mode_lock();
+	if (usb_stop_mode_refcount(true) == 1)
+		__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG, anatop_base_addr + HW_ANADIG_ANA_MISC0_SET);
+	usb_stop_mode_unlock();
 	return 0;
 }
 
 static void fsl_usb_host_uninit_ext(struct platform_device *pdev)
 {
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
-
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	fsl_usb_host_uninit(pdata);
 
 	clk_disable(usb_oh3_clk);
 	clk_put(usb_oh3_clk);
-
+	usb_stop_mode_lock();
+	if (usb_stop_mode_refcount(false) == 0)
+		__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG, anatop_base_addr + HW_ANADIG_ANA_MISC0_CLR);
+	usb_stop_mode_unlock();
 }
 
 static void usbh1_clock_gate(bool on)
@@ -237,18 +244,18 @@ static void usbh1_platform_rh_resume_swfix(struct fsl_usb2_platform_data *pdata)
 {
 	u32 index = 0;
 
-	if ((UH1_PORTSC1 & (3 << 26)) != (2 << 26))
+	if ((UOG_PORTSC1 & (PORTSC_PORT_SPEED_MASK)) != PORTSC_PORT_SPEED_HIGH)
 		return ;
-
 	while ((UH1_PORTSC1 & PORTSC_PORT_FORCE_RESUME)
 			&& (index < 1000)) {
 		udelay(500);
 		index++;
 	}
-
 	if (index >= 1000)
-		printk(KERN_INFO "%s big error\n", __func__);
-
+		printk(KERN_ERR "failed to wait for the resume finished in %s() line:%d\n",
+		__func__, __LINE__);
+	/* We should add some delay to wait for the device switch to
+	  * High-Speed 45ohm termination resistors mode. */
 	udelay(500);
 	fsl_platform_h1_set_usb_phy_dis(pdata, 1);
 }
@@ -265,9 +272,24 @@ static void usbh1_platform_rh_suspend(struct fsl_usb2_platform_data *pdata)
 
 static void usbh1_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
 {
+	u32 index = 0;
+
 	/*for mx6sl ,we do not need any sw fix*/
 	if (cpu_is_mx6sl())
 		return ;
+	if ((UOG_PORTSC1 & (PORTSC_PORT_SPEED_MASK)) != PORTSC_PORT_SPEED_HIGH)
+		return ;
+	while ((UH1_PORTSC1 & PORTSC_PORT_FORCE_RESUME)
+			&& (index < 1000)) {
+		udelay(500);
+		index++;
+	}
+	if (index >= 1000)
+		printk(KERN_ERR "failed to wait for the resume finished in %s() line:%d\n",
+		__func__, __LINE__);
+	/* We should add some delay to wait for the device switch to
+	  * High-Speed 45ohm termination resistors mode. */
+	udelay(500);
 	__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
 		MX6_IO_ADDRESS(pdata->phy_regs)
 		+ HW_USBPHY_CTRL_SET);

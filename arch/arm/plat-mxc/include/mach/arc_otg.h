@@ -246,6 +246,11 @@ extern void __iomem *imx_otg_base;
 #define PORTSC_PTS_SERIAL		(3 << 30)	/* serial */
 #define PORTSC_STS			(1 << 29)	/* serial xcvr select */
 #define PORTSC_PTW                      (1 << 28)       /* UTMI width */
+#define PORTSC_PORT_SPEED_FULL		(0x0<<26)
+#define PORTSC_PORT_SPEED_LOW		       (0x1<<26)
+#define PORTSC_PORT_SPEED_HIGH		(0x2<<26)
+#define PORTSC_PORT_SPEED_UNDEF		(0x3<<26)
+#define PORTSC_PORT_SPEED_MASK		(0x3<<26)
 #define PORTSC_HSIC_MODE                (1 << 25)       /* Only for HSIC */
 #define PORTSC_PHCD                     (1 << 23)       /* Low Power Suspend */
 #define PORTSC_WKDC			(1 << 21)	/* wakeup on discnt*/

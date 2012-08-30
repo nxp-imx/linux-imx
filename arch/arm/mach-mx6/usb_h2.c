@@ -227,9 +227,16 @@ void __init mx6_usb_h2_init(void)
 	struct platform_device *pdev, *pdev_wakeup;
 	static void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	usbh2_config.wakeup_pdata = &usbh2_wakeup_config;
-	pdev = imx6q_add_fsl_ehci_hs(2, &usbh2_config);
+	if (cpu_is_mx6sl())
+		pdev = imx6sl_add_fsl_ehci_hs(2, &usbh2_config);
+	else
+		pdev = imx6q_add_fsl_ehci_hs(2, &usbh2_config);
+
 	usbh2_wakeup_config.usb_pdata[0] = pdev->dev.platform_data;
-	pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(2, &usbh2_wakeup_config);
+	if (cpu_is_mx6sl())
+		pdev_wakeup = imx6sl_add_fsl_usb2_hs_wakeup(2, &usbh2_wakeup_config);
+	else
+		pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(2, &usbh2_wakeup_config);
 	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
 		pdev_wakeup->dev.platform_data;
 	/* Some phy and power's special controls for host2

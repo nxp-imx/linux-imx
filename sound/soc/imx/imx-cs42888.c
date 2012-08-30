@@ -85,8 +85,6 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	ret = asrc_req_pair(channel, &iprtd->asrc_index);
 	if (ret < 0) {
 		pr_err("Fail to request asrc pair\n");
-		asrc_release_pair(iprtd->asrc_index);
-		asrc_finish_conv(iprtd->asrc_index);
 		return -EINVAL;
 	}
 
@@ -96,14 +94,12 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	config.channel_num = channel;
 	config.input_sample_rate = rate;
 	config.output_sample_rate = iprtd->p2p->p2p_rate;
-	config.inclk = INCLK_ASRCK1_CLK;
+	config.inclk = INCLK_NONE;
 	config.outclk = OUTCLK_ESAI_TX;
 
 	ret = asrc_config_pair(&config);
 	if (ret < 0) {
 		pr_err("Fail to config asrc\n");
-		asrc_release_pair(iprtd->asrc_index);
-		asrc_finish_conv(iprtd->asrc_index);
 		return ret;
 	}
 
@@ -135,6 +131,13 @@ static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+
+	if (!cpu_dai->active)
+		hw_state.hw = 0;
+}
+
+static int imx_3stack_surround_hw_free(struct snd_pcm_substream *substream)
+{
 	struct imx_pcm_runtime_data *iprtd = substream->runtime->private_data;
 
 	if (iprtd->asrc_enable) {
@@ -145,10 +148,8 @@ static void imx_3stack_shutdown(struct snd_pcm_substream *substream)
 		iprtd->asrc_index = -1;
 	}
 
-	if (!cpu_dai->active)
-		hw_state.hw = 0;
+	return 0;
 }
-
 static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 					 struct snd_pcm_hw_params *params)
 {
@@ -161,16 +162,17 @@ static int imx_3stack_surround_hw_params(struct snd_pcm_substream *substream,
 	unsigned int lrclk_ratio = 0;
 	int err = 0;
 
-	if (hw_state.hw)
-		return 0;
-	hw_state.hw = 1;
-
 	if (iprtd->asrc_enable) {
 		err = config_asrc(substream, params);
 		if (err < 0)
 			return err;
 		rate = iprtd->p2p->p2p_rate;
 	}
+
+	if (hw_state.hw)
+		return 0;
+	hw_state.hw = 1;
+
 	if (cpu_is_mx53() || machine_is_mx6q_sabreauto()) {
 		switch (rate) {
 		case 32000:
@@ -280,6 +282,7 @@ static struct snd_soc_ops imx_3stack_surround_ops = {
 	.startup = imx_3stack_startup,
 	.shutdown = imx_3stack_shutdown,
 	.hw_params = imx_3stack_surround_hw_params,
+	.hw_free = imx_3stack_surround_hw_free,
 };
 
 static const struct snd_soc_dapm_widget imx_3stack_dapm_widgets[] = {

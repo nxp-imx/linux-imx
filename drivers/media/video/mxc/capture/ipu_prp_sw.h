@@ -29,12 +29,14 @@ int prp_enc_deselect(void *private);
 #ifdef CONFIG_MXC_IPU_PRP_VF_SDC
 int prp_vf_sdc_select(void *private);
 int prp_vf_sdc_deselect(void *private);
+int prp_vf_sdc_select_bg(void *private);
+int prp_vf_sdc_deselect_bg(void *private);
 #else
 int foreground_sdc_select(void *private);
 int foreground_sdc_deselect(void *private);
+int bg_overlay_sdc_select(void *private);
+int bg_overlay_sdc_deselect(void *private);
 #endif
-int prp_vf_sdc_select_bg(void *private);
-int prp_vf_sdc_deselect_bg(void *private);
 int prp_still_select(void *private);
 int prp_still_deselect(void *private);
 

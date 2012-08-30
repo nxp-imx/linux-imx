@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 by Sascha Hauer <kernel@pengutronix.de>
  * Copyright (C) 2009 by Jan Weitzel Phytec Messtechnik GmbH,
  *                       <armlinux@phytec.de>
@@ -86,6 +86,15 @@ void mxc_iomux_set_gpr_register(int group, int start_bit, int num_bits, int valu
 	__raw_writel(reg, base + group * 4);
 }
 EXPORT_SYMBOL(mxc_iomux_set_gpr_register);
+void mxc_iomux_set_specialbits_register(u32 pad_addr, u32 value, u32 mask)
+{
+	u32 reg;
+	reg = __raw_readl(base + pad_addr);
+	reg &= ~mask;
+	reg |= value;
+	__raw_writel(reg, base + pad_addr);
+}
+EXPORT_SYMBOL(mxc_iomux_set_specialbits_register);
 
 void mxc_iomux_v3_init(void __iomem *iomux_v3_base)
 {

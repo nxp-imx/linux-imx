@@ -65,6 +65,14 @@ static struct irq_tuner mxc_irq_tuner[] = {
 	 .up_threshold = 0,
 	 .enable = 0,},
 	{
+	 .irq_number = 42, /* GPU 2D */
+	 .up_threshold = 40,
+	 .enable = 1,},
+	{
+	 .irq_number = 43, /* GPU VG */
+	 .up_threshold = 0,
+	 .enable = 1,},
+	{
 	 .irq_number = 54, /* uSDHC1 */
 	 .up_threshold = 4,
 	 .enable = 1,},
@@ -103,6 +111,7 @@ void mx6_init_irq(void)
 	void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 	struct irq_desc *desc;
 	unsigned int i;
+	u32 reg;
 
 	/* start offset if private timer irq id, which is 29.
 	 * ID table:
@@ -120,6 +129,13 @@ void mx6_init_irq(void)
 		__raw_writel(0x00400000, gpc_base + 0x0c);
 		__raw_writel(0x20000000, gpc_base + 0x10);
 	}
+
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	/* Mask the ANATOP brown out interrupt in the GPC. */
+	reg = __raw_readl(gpc_base + 0x14);
+	reg |= 0x80000000;
+	__raw_writel(reg, gpc_base + 0x14);
+#endif
 
 	for (i = MXC_INT_START; i <= MXC_INT_END; i++) {
 		desc = irq_to_desc(i);

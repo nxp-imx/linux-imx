@@ -472,7 +472,6 @@ static int _clk_pll_enable(struct clk *clk)
 	pllbase = _get_pll_base(clk);
 
 	reg = __raw_readl(pllbase);
-	reg &= ~ANADIG_PLL_BYPASS;
 	reg &= ~ANADIG_PLL_POWER_DOWN;
 
 	/* The 480MHz PLLs have the opposite definition for power bit. */
@@ -492,6 +491,7 @@ static int _clk_pll_enable(struct clk *clk)
 
 	/* Enable the PLL output now*/
 	reg = __raw_readl(pllbase);
+	reg &= ~ANADIG_PLL_BYPASS;
 	reg |= ANADIG_PLL_ENABLE;
 	__raw_writel(reg, pllbase);
 
@@ -505,6 +505,15 @@ static void _clk_pll_disable(struct clk *clk)
 
 	if ((arm_needs_pll2_400) && (clk == &pll2_528_bus_main_clk))
 		return;
+	/*
+	 * To support USB remote wake up, need always keep power and enable bit
+	 * BM_ANADIG_ANA_MISC2_CONTROL0 will power off PLL3's power
+	 * Please see TKT064178 for detail.
+	 */
+	if (clk == &pll3_usb_otg_main_clk) {
+		__raw_writel(BM_ANADIG_ANA_MISC2_CONTROL0, apll_base + HW_ANADIG_ANA_MISC2_SET);
+		return;
+	}
 
 	pllbase = _get_pll_base(clk);
 
@@ -514,12 +523,6 @@ static void _clk_pll_disable(struct clk *clk)
 
 	__raw_writel(reg, pllbase);
 
-	/*
-	 * It will power off PLL3's power, it is the TO1.1 fix
-	 * Please see TKT064178 for detail.
-	 */
-	if (clk == &pll3_usb_otg_main_clk)
-		__raw_writel(BM_ANADIG_ANA_MISC2_CONTROL0, apll_base + HW_ANADIG_ANA_MISC2_SET);
 }
 
 static unsigned long  _clk_pll1_main_get_rate(struct clk *clk)
@@ -1265,8 +1268,10 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		}
 	} else {
 		/* Make sure PLL1 is enabled */
-		if (!pll1_enabled)
+		if (!pll1_enabled) {
 			pll1_sys_main_clk.enable(&pll1_sys_main_clk);
+			pll1_sys_main_clk.usecount = 1;
+		}
 		/* Make sure PLL1 rate is what we want */
 		if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
 			/* If pll1_sw_clk is from pll1_sys_main_clk, switch it */
@@ -1320,8 +1325,10 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	while (__raw_readl(MXC_CCM_CDHIPR))
 		;
 
-	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400)
+	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400) {
 		pll1_sys_main_clk.disable(&pll1_sys_main_clk);
+		pll1_sys_main_clk.usecount = 0;
+	}
 
 	spin_unlock_irqrestore(&clk_lock, flags);
 
@@ -5301,6 +5308,8 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 {
 	__iomem void *base;
 	int i, reg;
+	u32 parent_rate, rate;
+	unsigned long ipg_clk_rate, max_arm_wait_clk;
 
 	external_low_reference = ckil;
 	external_high_reference = ckih1;
@@ -5336,6 +5345,12 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 
 	clk_tree_init();
 
+#ifdef CONFIG_MX6_VPU_352M
+	if (cpu_is_mx6q()) {
+		clk_set_rate(&pll2_pfd_400M, 352000000);
+		clk_set_parent(&vpu_clk[0], &pll2_pfd_400M);
+	}
+#endif
 	/* keep correct count. */
 	clk_enable(&cpu_clk);
 	clk_enable(&periph_clk);
@@ -5503,6 +5518,20 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	lp_high_freq = 0;
 	lp_med_freq = 0;
 	lp_audio_freq = 0;
+
+	/* Get current ARM_PODF value */
+	rate = clk_get_rate(&cpu_clk);
+	parent_rate = clk_get_rate(&pll1_sw_clk);
+	cur_arm_podf = parent_rate / rate;
+
+	/* Calculate the ARM_PODF to be applied when the system
+	  * enters WAIT state.
+	  * The max ARM clk is decided by the ipg_clk and has to
+	  * follow the ratio of ARM_CLK:IPG_CLK of 12:5.
+	  */
+	ipg_clk_rate = clk_get_rate(&ipg_clk);
+	max_arm_wait_clk = (12 * ipg_clk_rate) / 5;
+	wait_mode_arm_podf = parent_rate / max_arm_wait_clk;
 
 	/* Turn OFF all unnecessary PHYs. */
 	if (cpu_is_mx6q()) {

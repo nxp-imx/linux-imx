@@ -52,14 +52,14 @@ extern unsigned int gpc_wake_irq[4];
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 
-int wait_mode_arm_podf;
 volatile unsigned int num_cpu_idle;
 volatile unsigned int num_cpu_idle_lock = 0x0;
 int wait_mode_arm_podf;
 int cur_arm_podf;
-bool arm_mem_clked_in_wait;
 void arch_idle_with_workaround(int cpu);
 
+extern void *mx6sl_wfi_iram_base;
+extern void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr);
 extern void mx6_wait(void *num_cpu_idle_lock, void *num_cpu_idle, \
 				int wait_arm_podf, int cur_arm_podf);
 extern bool enable_wait_mode;
@@ -78,6 +78,7 @@ void gpc_set_wakeup(unsigned int irq[4])
 
 	return;
 }
+
 /* set cpu low power mode before WFI instruction */
 void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 {
@@ -194,7 +195,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			__raw_writel(__raw_readl(MXC_CCM_CCR) &
 				(~MXC_CCM_CCR_WB_COUNT_MASK) &
 				(~MXC_CCM_CCR_REG_BYPASS_CNT_MASK), MXC_CCM_CCR);
-			udelay(60);
+			udelay(80);
 			/* Reconfigurate WB and RBC counter */
 			__raw_writel(__raw_readl(MXC_CCM_CCR) |
 				(0x1 << MXC_CCM_CCR_WB_COUNT_OFFSET) |
@@ -251,25 +252,54 @@ void arch_idle_single_core(void)
 
 		ca9_do_idle();
 	} else {
-		/*
-		  * Implement the 12:5 ARM:IPG_CLK ratio
-		  * workaround for the WAIT mode issue.
-		  * We can directly use the divider to drop the ARM
-		  * core freq in a single core environment.
-		  *  Set the ARM_PODF to get the max freq possible
-		  * to avoid the WAIT mode issue when IPG is at 66MHz.
-		  */
-		if (cpu_is_mx6sl()) {
-			reg = __raw_readl(MXC_CCM_CGPR);
-			reg |= MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
-			__raw_writel(reg, MXC_CCM_CGPR);
-		}
-		__raw_writel(wait_mode_arm_podf, MXC_CCM_CACRR);
-		while (__raw_readl(MXC_CCM_CDHIPR))
-			;
-		ca9_do_idle();
+		if (low_bus_freq_mode || audio_bus_freq_mode) {
+			if (cpu_is_mx6sl() && low_bus_freq_mode) {
+				/* In this mode PLL2 i already in bypass,
+				  * ARM is sourced from PLL1. The code in IRAM
+				  * will set ARM to be sourced from STEP_CLK
+				  * at 24MHz. It will also set DDR to 1MHz to
+				  * reduce power.
+				  */
+				u32 org_arm_podf = __raw_readl(MXC_CCM_CACRR);
 
-		__raw_writel(cur_arm_podf - 1, MXC_CCM_CACRR);
+				/* Need to run WFI code from IRAM so that
+				  * we can lower DDR freq.
+				  */
+				mx6sl_wfi_iram(org_arm_podf,
+					(unsigned long)mx6sl_wfi_iram_base);
+			} else {
+				/* Need to set ARM to run at 24MHz since IPG
+				  * is at 12MHz. This is valid for audio mode on
+				  * MX6SL, and all low power modes on MX6DLS.
+				  */
+				/* PLL1_SW_CLK is sourced from PLL2_PFD2400MHz
+				  * at this point. Move it to bypassed PLL1.
+				  */
+				reg = __raw_readl(MXC_CCM_CCSR);
+				reg &= ~MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+				__raw_writel(reg, MXC_CCM_CCSR);
+
+				ca9_do_idle();
+
+				reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+				__raw_writel(reg, MXC_CCM_CCSR);
+			}
+		} else {
+			/*
+			  * Implement the 12:5 ARM:IPG_CLK ratio
+			  * workaround for the WAIT mode issue.
+			  * We can directly use the divider to drop the ARM
+			  * core freq in a single core environment.
+			  *  Set the ARM_PODF to get the max freq possible
+			  * to avoid the WAIT mode issue when IPG is at 66MHz.
+			  */
+			__raw_writel(wait_mode_arm_podf, MXC_CCM_CACRR);
+			while (__raw_readl(MXC_CCM_CDHIPR))
+				;
+			ca9_do_idle();
+
+			__raw_writel(cur_arm_podf - 1, MXC_CCM_CACRR);
+		}
 	}
 }
 
@@ -331,7 +361,7 @@ void arch_idle(void)
 {
 	if (enable_wait_mode) {
 		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
-		if ((mem_clk_on_in_wait || arm_mem_clked_in_wait)) {
+		if (mem_clk_on_in_wait) {
 			u32 reg;
 			/*
 			  * MX6SL, MX6Q (TO1.2 or later) and

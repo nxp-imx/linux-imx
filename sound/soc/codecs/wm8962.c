@@ -5,6 +5,7 @@
  *
  * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
  *
+ * Copyright (C) 2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -4019,7 +4020,7 @@ static int wm8962_probe(struct snd_soc_codec *codec)
 		dev_err(codec->dev, "Failed to enable supplies: %d\n", ret);
 		goto err_get;
 	}
-
+	msleep(100);
 	ret = snd_soc_read(codec, WM8962_SOFTWARE_RESET);
 	if (ret < 0) {
 		dev_err(codec->dev, "Failed to read ID register\n");
