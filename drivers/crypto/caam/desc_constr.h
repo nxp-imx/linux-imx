@@ -9,6 +9,7 @@
 #define IMMEDIATE (1 << 23)
 #define CAAM_CMD_SZ sizeof(u32)
 #define CAAM_PTR_SZ sizeof(dma_addr_t)
+#define CAAM_EXTLEN_SZ sizeof(u32)
 #define CAAM_DESC_BYTES_MAX (CAAM_CMD_SZ * MAX_CAAM_DESCSIZE)
 
 #ifdef DEBUG

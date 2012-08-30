@@ -441,7 +441,13 @@ static u32 hash_digest_key(struct caam_hash_ctx *ctx, const u8 *key_in,
 	dma_addr_t src_dma, dst_dma;
 	int ret = 0;
 
-	desc = kmalloc(CAAM_CMD_SZ * 6 + CAAM_PTR_SZ * 2, GFP_KERNEL | GFP_DMA);
+	/*
+	 * Hashing descriptor is 6 commands (including header), 2 pointers,
+	 * and 2 extended lengths
+	 */
+	desc = kmalloc((CAAM_CMD_SZ * 6 + CAAM_PTR_SZ * 2 +
+			CAAM_EXTLEN_SZ * 2),
+			GFP_KERNEL | GFP_DMA);
 
 	init_job_desc(desc, 0);
 
