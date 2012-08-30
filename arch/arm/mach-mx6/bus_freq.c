@@ -501,12 +501,16 @@ static int busfreq_suspend(struct platform_device *pdev, pm_message_t message)
 static int bus_freq_pm_notify(struct notifier_block *nb, unsigned long event,
 	void *dummy)
 {
+	mutex_lock(&bus_freq_mutex);
+
 	if (event == PM_SUSPEND_PREPARE) {
 		set_high_bus_freq(1);
 		busfreq_suspended = 1;
 	} else if (event == PM_POST_SUSPEND) {
 		busfreq_suspended = 0;
 	}
+
+	mutex_unlock(&bus_freq_mutex);
 
 	return NOTIFY_OK;
 }
