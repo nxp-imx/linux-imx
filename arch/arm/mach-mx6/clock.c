@@ -1261,7 +1261,16 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		  * PLL2_PFD_400M.
 		  */
 		if (pll1_sw_clk.parent != &pll2_pfd_400M) {
-			pll2_pfd_400M.enable(&pll2_pfd_400M);
+			if (pll2_pfd_400M.usecount == 0) {
+				/* Check if PLL2 needs to be enabled also. */
+				if (pll2_528_bus_main_clk.usecount == 0)
+					pll2_528_bus_main_clk.enable(&pll2_528_bus_main_clk);
+				/* Ensure parent usecount is
+				  * also incremented.
+				  */
+				pll2_528_bus_main_clk.usecount++;
+				pll2_pfd_400M.enable(&pll2_pfd_400M);
+			}
 			pll2_pfd_400M.usecount++;
 			arm_needs_pll2_400 = true;
 			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd_400M);
@@ -1288,11 +1297,19 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		/* Make sure pll1_sw_clk is from pll1_sys_main_clk */
 		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
 		pll1_sw_clk.parent = &pll1_sys_main_clk;
-		if (arm_needs_pll2_400)
+		if (arm_needs_pll2_400) {
 			pll2_pfd_400M.usecount--;
+			if (pll2_pfd_400M.usecount == 0) {
+				pll2_pfd_400M.disable(&pll2_pfd_400M);
+				/* Ensure parent usecount is
+				  * also decremented.
+				  */
+				pll2_528_bus_main_clk.usecount--;
+				if (pll2_528_bus_main_clk.usecount == 0)
+					pll2_528_bus_main_clk.disable(&pll2_528_bus_main_clk);
+			}
+		}
 		arm_needs_pll2_400 = false;
-		if (pll2_pfd_400M.usecount == 0)
-			pll2_pfd_400M.disable(&pll2_pfd_400M);
 	}
 	parent_rate = clk_get_rate(clk->parent);
 	div = parent_rate / rate;
