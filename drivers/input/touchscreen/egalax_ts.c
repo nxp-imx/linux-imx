@@ -139,7 +139,7 @@ retry:
 		events[id].x = x;
 		events[id].y = y;
 
-#ifdef FORCE_SINGLE_POINTER_SUPPORT
+#ifdef CONFIG_TOUCHSCREEN_EGALAX_SINGLE_TOUCH
 		input_report_abs(input_dev, ABS_X, x);
 		input_report_abs(input_dev, ABS_Y, y);
 		input_event(data->input_dev, EV_KEY, BTN_TOUCH, 1);
@@ -166,7 +166,7 @@ retry:
 		dev_dbg(&client->dev, "release id:%d\n", id);
 		events[id].valid = 0;
 		events[id].status = 0;
-#ifdef FORCE_SINGLE_POINTER_SUPPORT
+#ifdef CONFIG_TOUCHSCREEN_EGALAX_SINGLE_TOUCH
 		input_report_key(input_dev, BTN_TOUCH, 0);
 		input_report_abs(input_dev, ABS_PRESSURE, 0);
 #else
@@ -256,8 +256,9 @@ static int __devinit egalax_ts_probe(struct i2c_client *client,
 	__set_bit(ABS_PRESSURE, input_dev->absbit);
 	input_set_abs_params(input_dev, ABS_X, 0, 32767, 0, 0);
 	input_set_abs_params(input_dev, ABS_Y, 0, 32767, 0, 0);
+	input_set_abs_params(input_dev, ABS_PRESSURE, 0, 1, 0, 0);
 
-#ifndef FORCE_SINGLE_POINTER_SUPPORT
+#ifndef CONFIG_TOUCHSCREEN_EGALAX_SINGLE_TOUCH
 	input_set_abs_params(input_dev, ABS_MT_POSITION_X, 0, 32767, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_POSITION_Y, 0, 32767, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
