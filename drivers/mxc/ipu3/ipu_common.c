@@ -2381,14 +2381,12 @@ static irqreturn_t ipu_irq_handler(int irq, void *desc)
 	uint32_t int_ctrl;
 	const int err_reg[] = { 5, 6, 9, 10, 0 };
 	const int int_reg[] = { 1, 2, 3, 4, 11, 12, 13, 14, 15, 0 };
-	unsigned long lock_flags;
-	uint32_t oneshot;
+
+	spin_lock(&ipu->spin_lock);
 
 	for (i = 0;; i++) {
 		if (err_reg[i] == 0)
 			break;
-
-		spin_lock_irqsave(&ipu->spin_lock, lock_flags);
 
 		int_stat = ipu_cm_read(ipu, IPU_INT_STAT(err_reg[i]));
 		int_stat &= ipu_cm_read(ipu, IPU_INT_CTRL(err_reg[i]));
@@ -2402,40 +2400,33 @@ static irqreturn_t ipu_irq_handler(int irq, void *desc)
 			    ipu_cm_read(ipu, IPU_INT_CTRL(err_reg[i])) & ~int_stat;
 			ipu_cm_write(ipu, int_stat, IPU_INT_CTRL(err_reg[i]));
 		}
-
-		spin_unlock_irqrestore(&ipu->spin_lock, lock_flags);
 	}
 
 	for (i = 0;; i++) {
 		if (int_reg[i] == 0)
 			break;
-		spin_lock_irqsave(&ipu->spin_lock, lock_flags);
+
 		int_stat = ipu_cm_read(ipu, IPU_INT_STAT(int_reg[i]));
 		int_ctrl = ipu_cm_read(ipu, IPU_INT_CTRL(int_reg[i]));
 		int_stat &= int_ctrl;
 		ipu_cm_write(ipu, int_stat, IPU_INT_STAT(int_reg[i]));
-		spin_unlock_irqrestore(&ipu->spin_lock, lock_flags);
-		oneshot = 0;
 		while ((line = ffs(int_stat)) != 0) {
 			bit = --line;
 			int_stat &= ~(1UL << line);
 			line += (int_reg[i] - 1) * 32;
-			if (ipu->irq_list[line].flags & IPU_IRQF_ONESHOT)
-				oneshot |= 1UL << bit;
 			result |=
 			    ipu->irq_list[line].handler(line,
 						       ipu->irq_list[line].
 						       dev_id);
-		}
-		if (oneshot) {
-			spin_lock_irqsave(&ipu->spin_lock, lock_flags);
-			if ((~int_ctrl) & oneshot)
-				BUG();
-			int_ctrl &= ~oneshot;
-			ipu_cm_write(ipu, int_ctrl, IPU_INT_CTRL(int_reg[i]));
-			spin_unlock_irqrestore(&ipu->spin_lock, lock_flags);
+			if (ipu->irq_list[line].flags & IPU_IRQF_ONESHOT) {
+				int_ctrl &= ~(1UL << bit);
+				ipu_cm_write(ipu, int_ctrl,
+						IPU_INT_CTRL(int_reg[i]));
+			}
 		}
 	}
+
+	spin_unlock(&ipu->spin_lock);
 
 	return result;
 }
