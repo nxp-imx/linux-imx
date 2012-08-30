@@ -248,8 +248,8 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	if (plat_data->init)
 		plat_data->init(pdev->id);
 
-	ipu->irq_sync = platform_get_irq(pdev, 0);
-	ipu->irq_err = platform_get_irq(pdev, 1);
+	ipu->irq_err = platform_get_irq(pdev, 0);
+	ipu->irq_sync = platform_get_irq(pdev, 1);
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
 	if (!res || ipu->irq_sync < 0 || ipu->irq_err < 0) {
