@@ -878,13 +878,13 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 		.disp_dev		= "ldb",
 		.interface_pix_fmt	= IPU_PIX_FMT_RGB666,
 		.mode_str		= "LDB-XGA",
-		.default_bpp		= 32,
+		.default_bpp		= 16,
 		.int_clk		= false,
 	}, {
 		.disp_dev		= "ldb",
 		.interface_pix_fmt	= IPU_PIX_FMT_RGB666,
 		.mode_str		= "LDB-XGA",
-		.default_bpp		= 32,
+		.default_bpp		= 16,
 		.int_clk		= false,
 	}, {
 		.disp_dev               = "lcd",
