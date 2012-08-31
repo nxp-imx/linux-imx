@@ -1575,7 +1575,7 @@ static void __init imx6q_add_device_buttons(void) {}
 
 static struct platform_pwm_backlight_data mx6_sabresd_pwm_backlight_data = {
 	.pwm_id = 0,
-	.max_brightness = 255,
+	.max_brightness = 248,
 	.dft_brightness = 128,
 	.pwm_period_ns = 50000,
 };
