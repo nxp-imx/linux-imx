@@ -115,19 +115,8 @@ static struct clk *pll3_540;
 
 static struct delayed_work low_bus_freq_handler;
 
-static void reduce_bus_freq_handler(struct work_struct *work)
+void reduce_bus_freq(void)
 {
-	mutex_lock(&bus_freq_mutex);
-	if (low_bus_freq_mode || !low_freq_bus_used()) {
-		mutex_unlock(&bus_freq_mutex);
-		return;
-	}
-
-	if (audio_bus_freq_mode && lp_audio_freq) {
-		mutex_unlock(&bus_freq_mutex);
-		return;
-	}
-
 	if (!cpu_is_mx6sl()) {
 		if (cpu_is_mx6dl() &&
 			(clk_get_parent(axi_clk) != periph_clk))
@@ -196,6 +185,10 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 				reg = __raw_writel(org_arm_podf, MXC_CCM_CACRR);
 				while (__raw_readl(MXC_CCM_CDHIPR))
 					;
+				/* We have enabled PLL1 in the code below when
+				  * ARM is from PLL1, so disable it here.
+				  */
+				clk_disable(pll1);
 			}
 			low_bus_freq_mode = 0;
 			audio_bus_freq_mode = 1;
@@ -230,6 +223,35 @@ static void reduce_bus_freq_handler(struct work_struct *work)
 		spin_unlock_irqrestore(&freq_lock, flags);
 	}
 	high_bus_freq_mode = 0;
+
+}
+
+static void reduce_bus_freq_handler(struct work_struct *work)
+{
+	mutex_lock(&bus_freq_mutex);
+
+	if (!low_freq_bus_used()) {
+		mutex_unlock(&bus_freq_mutex);
+		return;
+	}
+	/* If we are already in audio bus freq mode,
+	  * just return if lp_audio_freq is true.
+	  */
+	if (audio_bus_freq_mode && lp_audio_freq) {
+		mutex_unlock(&bus_freq_mutex);
+		return;
+	}
+
+	/* If we dont want to transition from low bus to
+	  * audio bus mode and are already in
+	  *low bus mode, then return.
+	  */
+	if (!lp_audio_freq && low_bus_freq_mode) {
+		mutex_unlock(&bus_freq_mutex);
+		return;
+	}
+	reduce_bus_freq();
+
 	mutex_unlock(&bus_freq_mutex);
 }
 
@@ -245,10 +267,19 @@ int set_low_bus_freq(void)
 	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active)
 		return 0;
 
-	/* Don't lower the frequency immediately. Instead scheduled a delayed
-	  * work and drop the freq if the conditions still remain the same.
+	/* Check to see if we need to got from
+	  * low bus freq mode to audio bus freq mode.
+	  * If so, the change needs to be done immediately.
 	  */
-	schedule_delayed_work(&low_bus_freq_handler, usecs_to_jiffies(3000000));
+	if (lp_audio_freq && low_bus_freq_mode)
+		reduce_bus_freq();
+	else
+		/* Don't lower the frequency immediately. Instead
+		  * scheduled a delayed work and drop the freq if
+		  * the conditions still remain the same.
+		  */
+		schedule_delayed_work(&low_bus_freq_handler,
+					usecs_to_jiffies(3000000));
 	return 0;
 }
 
@@ -395,13 +426,8 @@ void bus_freq_update(struct clk *clk, bool flag)
 				&& (clk_get_usecount(clk) == 0)) {
 				if (!(clk->flags &
 					(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT))) {
-					if (low_freq_bus_used()) {
-						if ((clk->flags & AHB_AUDIO_SET_POINT) &
-								!audio_bus_freq_mode)
-							set_low_bus_freq();
-						else if (!low_bus_freq_mode)
-							set_low_bus_freq();
-					}
+					if (low_freq_bus_used())
+						set_low_bus_freq();
 				} else {
 					if ((clk->flags & AHB_MED_SET_POINT)
 						&& !med_bus_freq_mode) {
