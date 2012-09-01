@@ -76,6 +76,7 @@ extern int lp_med_freq;
 void __iomem *databahn;
 
 #define DDR_SYNC_MODE		0x30000
+DEFINE_SPINLOCK(mx50_clk_lock);
 #define SPIN_DELAY	1000000 /* in nanoseconds */
 #define WAIT(exp, timeout) \
 ({ \
@@ -3667,6 +3668,7 @@ static int cpu_clk_set_wp(int wp)
 {
 	struct cpu_wp *p;
 	u32 reg;
+	unsigned long flags;
 
 	if (wp == cpu_curr_wp)
 		return 0;
@@ -3679,8 +3681,14 @@ static int cpu_clk_set_wp(int wp)
 	reg = __raw_readl(MXC_CCM_CACRR);
 	reg &= ~MXC_CCM_CACRR_ARM_PODF_MASK;
 	reg |= cpu_wp_tbl[wp].cpu_podf << MXC_CCM_CACRR_ARM_PODF_OFFSET;
+
+	spin_lock_irqsave(&mx50_clk_lock, flags);
+
 	__raw_writel(reg, MXC_CCM_CACRR);
+	while (__raw_readl(MXC_CCM_CDHIPR) & MXC_CCM_CDHIPR_ARM_PODF_BUSY)
+		;
 	cpu_curr_wp = wp;
+	spin_unlock_irqrestore(&mx50_clk_lock, flags);
 
 #if defined(CONFIG_CPU_FREQ)
 	cpufreq_trig_needed = 1;

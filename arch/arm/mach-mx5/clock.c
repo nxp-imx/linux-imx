@@ -74,6 +74,7 @@ static int max_ahb_clk;
 static int max_emi_slow_clk;
 extern int dvfs_core_is_active;
 
+DEFINE_SPINLOCK(mx5_clk_lock);
 #define SPIN_DELAY	1000000 /* in nanoseconds */
 #define MAX_AXI_A_CLK_MX51 	166250000
 #define MAX_AXI_A_CLK_MX53 	400000000
@@ -5051,6 +5052,7 @@ static int cpu_clk_set_wp(int wp)
 	struct cpu_wp *p;
 	u32 reg, pll_hfsm;
 	u32 stat;
+	unsigned long flags;
 
 	if (wp == cpu_curr_wp)
 		return 0;
@@ -5065,11 +5067,16 @@ static int cpu_clk_set_wp(int wp)
 	 */
 	if ((ddr_clk.parent == &ddr_hf_clk) ||
 		(p->pll_rate == cpu_wp_tbl[cpu_curr_wp].pll_rate)) {
+		spin_lock_irqsave(&mx5_clk_lock, flags);
 		reg = __raw_readl(MXC_CCM_CACRR);
 		reg &= ~MXC_CCM_CACRR_ARM_PODF_MASK;
 		reg |= cpu_wp_tbl[wp].cpu_podf << MXC_CCM_CACRR_ARM_PODF_OFFSET;
 		__raw_writel(reg, MXC_CCM_CACRR);
+		while (__raw_readl(MXC_CCM_CDHIPR) &
+			MXC_CCM_CDHIPR_ARM_PODF_BUSY)
+			;
 		cpu_curr_wp = wp;
+		spin_unlock_irqrestore(&mx5_clk_lock, flags);
 	} else {
 		struct timespec nstimeofday;
 		struct timespec curtime;
@@ -5089,10 +5096,15 @@ static int cpu_clk_set_wp(int wp)
 		reg &= ~MXC_PLL_DP_CTL_UPEN;
 		__raw_writel(reg, pll1_base + MXC_PLL_DP_CTL);
 
+		spin_lock_irqsave(&mx5_clk_lock, flags);
 		reg = __raw_readl(MXC_CCM_CACRR);
 		reg = (reg & ~MXC_CCM_CACRR_ARM_PODF_MASK)
 			| p->cpu_podf;
 		__raw_writel(reg, MXC_CCM_CACRR);
+		while (__raw_readl(MXC_CCM_CDHIPR) &
+			MXC_CCM_CDHIPR_ARM_PODF_BUSY)
+			;
+		spin_unlock_irqrestore(&mx5_clk_lock, flags);
 
 		reg = __raw_readl(pll1_base + MXC_PLL_DP_CTL);
 		pll_hfsm = reg & MXC_PLL_DP_CTL_HFSM;

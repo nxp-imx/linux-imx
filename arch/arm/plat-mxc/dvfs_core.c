@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -172,7 +172,6 @@ static int set_cpu_freq(int wp)
 	unsigned long rate = 0;
 	int gp_volt = 0;
 	u32 reg;
-	u32 reg1;
 	u32 en_sw_dvfs = 0;
 	unsigned long flags;
 
@@ -299,18 +298,8 @@ static int set_cpu_freq(int wp)
 		reg |= arm_podf;
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 
-		reg1 = __raw_readl(ccm_base + dvfs_data->ccm_cdhipr_offset);
-		while (1) {
-			if ((reg1 & CCM_CDHIPR_ARM_PODF_BUSY) == 0) {
-				__raw_writel(reg,
-					ccm_base + dvfs_data->ccm_cacrr_offset);
-				break;
-			} else {
-				reg1 = __raw_readl(
-				ccm_base + dvfs_data->ccm_cdhipr_offset);
-				printk(KERN_DEBUG "ARM_PODF still in busy!!!!\n");
-			}
-		}
+		__raw_writel(reg, ccm_base + dvfs_data->ccm_cacrr_offset);
+
 		/* set VINC */
 		reg = __raw_readl(gpc_base + dvfs_data->gpc_vcr_offset);
 		reg &=
@@ -332,12 +321,14 @@ static int set_cpu_freq(int wp)
 		reg |= MXC_GPCCNTR_STRT;
 		__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
 
-		/* Wait for arm podf Enable */
+		/* Wait for arm podf changed */
 		while ((__raw_readl(gpc_base + dvfs_data->gpc_cntr_offset) &
 			MXC_GPCCNTR_STRT) == MXC_GPCCNTR_STRT) {
-			printk(KERN_DEBUG "Waiting arm_podf enabled!\n");
+			printk(KERN_DEBUG "Waiting for arm_podf changed!\n");
 			udelay(10);
 		}
+		/* No need to wait for !ARM_PODF_BUSY after ARM_PODF updated */
+		/* since GPC is used for ARM clock freq change */
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (vinc == 0) {
