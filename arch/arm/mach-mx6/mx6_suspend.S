@@ -777,6 +777,22 @@ ddr_io_save_done:
 /****************************************************************
 set ddr iomux to low power mode
 ****************************************************************/
+	/* Make sure TLBs are primed. */
+	ldr	r1,  =MX6Q_IOMUXC_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r0, [r1]
+	ldr	r1, =SRC_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r0, [r1]
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	ldr	r1, =ANATOP_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r0, [r1]
+#endif
+
+	/* Do a DSB to drain the buffers. */
+	dsb
+
 	ldr	r1, =MMDC_P0_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 	ldr	r0, [r1, #MMDC_MAPSR_OFFSET]
@@ -817,12 +833,12 @@ save resume pointer into SRC_GPR1
 	add	r1, r1, #PERIPBASE_VIRT
 	str	r3, [r1, #SRC_GPR1_OFFSET]
 #ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	ldr	r1, =0x20c8140
+	ldr	r1, =ANATOP_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
-	ldr	r3, [r1]
+	ldr	r3, [r1, #0x140]
 	bic	r3, r3, #0x1f
 	orr	r3, r3, #0x1e
-	str	r3, [r1]
+	str	r3, [r1, #0x140]
 #endif
 /****************************************************************
 execute a wfi instruction to let SOC go into stop mode.
@@ -838,6 +854,14 @@ execute a wfi instruction to let SOC go into stop mode.
 if go here, means there is a wakeup irq pending, we should resume
 system immediately.
 ****************************************************************/
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	ldr	r1, =ANATOP_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r3, [r1, #0x140]
+	orr	r3, r3, #0x1f
+	str	r3, [r1, #0x140]
+#endif
+
 	mov	r0, r2 		/* get suspend_iram_base */
 	add	r0, r0, #IRAM_SUSPEND_SIZE	/* 4K */
 
@@ -873,10 +897,10 @@ are running with MMU off.
 ****************************************************************/
 resume:
 #ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	ldr	r1, =0x20c8140
-	ldr	r3, [r1]
+	ldr	r1, =ANATOP_BASE_ADDR
+	ldr	r3, [r1, #0x140]
 	orr	r3, r3, #0x1f
-	str	r3, [r1]
+	str	r3, [r1, #0x140]
 #endif
 	/* Invalidate L1 I-cache first */
 	mov	r1,	#0x0
