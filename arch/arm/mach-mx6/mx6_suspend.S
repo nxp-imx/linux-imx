@@ -884,6 +884,40 @@ sl_io_restore:
 	sl_ddr_io_restore
 
 ddr_io_restore_done:
+	/* Add enough nops so that the
+	  * prefetcher will not get instructions
+	  * from DDR before its IO pads
+	  * are restored.
+	  */
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
 
 	mrc	p15, 0, r1, c1, c0, 0
 	orr	r1, r1, #(1 << 2)	@ Enable the C bit
