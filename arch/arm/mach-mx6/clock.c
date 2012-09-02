@@ -1334,9 +1334,6 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		spin_unlock_irqrestore(&clk_lock, flags);
 		return -1;
 	}
-	/* Need PLL1-MAIN to be ON to write to ARM-PODF bit. */
-	if (!pll1_enabled)
-		pll1_sys_main_clk.enable(&pll1_sys_main_clk);
 
 	cur_arm_podf = div;
 

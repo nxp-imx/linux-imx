@@ -1239,9 +1239,6 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		return -1;
 	}
 
-	if (!pll1_enabled)
-		pll1_sys_main_clk.enable(&pll1_sys_main_clk);
-
 	cur_arm_podf = div;
 
 	__raw_writel(div - 1, MXC_CCM_CACRR);
