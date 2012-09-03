@@ -623,7 +623,7 @@ static struct mxc_dvfs_platform_data mx6sl_evk_dvfscore_data = {
 };
 
 static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
-	.reserved_mem_size = SZ_128M,
+	.reserved_mem_size = SZ_32M,
 };
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
