@@ -884,16 +884,52 @@ static int max8903_suspend(struct platform_device *pdev,
 				  pm_message_t state)
 {
 	struct max8903_data *data = platform_get_drvdata(pdev);
-
-	cancel_delayed_work(&data->work);
+	int irq;
+	if (data) {
+		struct max8903_pdata *pdata = data->pdata;
+		if (pdata) {
+			irq = gpio_to_irq(pdata->dok);
+			enable_irq_wake(irq);
+			irq = gpio_to_irq(pdata->uok);
+			enable_irq_wake(irq);
+			cancel_delayed_work(&data->work);
+		}
+	}
 	return 0;
 }
 
 static int max8903_resume(struct platform_device *pdev)
 {
 	struct max8903_data *data = platform_get_drvdata(pdev);
-
-	schedule_delayed_work(&data->work, BATTERY_UPDATE_INTERVAL);
+	bool ta_in;
+	bool usb_in;
+	int irq;
+	if (data) {
+		struct max8903_pdata *pdata = data->pdata;
+		if (pdata) {
+			ta_in = gpio_get_value(pdata->dok) ? false : true;
+			usb_in = gpio_get_value(pdata->uok) ? false : true;
+			if (ta_in != data->ta_in) {
+				data->ta_in = ta_in;
+				pr_info("TA(DC-IN) Charger %s.\n", ta_in ?
+				"Connected" : "Disconnected");
+				max8903_charger_update_status(data);
+				power_supply_changed(&data->psy);
+			}
+			if (usb_in != data->usb_in) {
+				data->usb_in = usb_in;
+				pr_info("USB Charger %s.\n", usb_in ?
+				"Connected" : "Disconnected");
+				max8903_charger_update_status(data);
+				power_supply_changed(&data->usb);
+			}
+			irq = gpio_to_irq(pdata->dok);
+			disable_irq_wake(irq);
+			irq = gpio_to_irq(pdata->uok);
+			disable_irq_wake(irq);
+			schedule_delayed_work(&data->work, BATTERY_UPDATE_INTERVAL);
+		}
+	}
 	return 0;
 
 }
