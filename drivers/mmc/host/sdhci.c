@@ -60,7 +60,7 @@ static void sdhci_clk_worker(struct work_struct *work)
 	struct sdhci_host *host =
 		container_of(work, struct sdhci_host, clk_worker.work);
 
-	if (host->ops->platform_clk_ctrl && host->clk_status)
+	if (host->ops->platform_clk_ctrl)
 		host->ops->platform_clk_ctrl(host, false);
 }
 
@@ -90,7 +90,7 @@ static void sdhci_enable_clk(struct sdhci_host *host)
 		else
 			__cancel_delayed_work(&host->clk_worker);
 
-		if (!host->clk_status && host->ops->platform_clk_ctrl)
+		if (host->ops->platform_clk_ctrl)
 			host->ops->platform_clk_ctrl(host, true);
 	}
 }
@@ -99,7 +99,7 @@ static void sdhci_disable_clk(struct sdhci_host *host, int delay)
 {
 	if (host->clk_mgr_en && sdhci_can_gate_clk(host)) {
 		if (delay == 0 && !in_interrupt()) {
-			if (host->ops->platform_clk_ctrl && host->clk_status)
+			if (host->ops->platform_clk_ctrl)
 				host->ops->platform_clk_ctrl(host, false);
 		} else
 			schedule_delayed_work(&host->clk_worker, delay);
