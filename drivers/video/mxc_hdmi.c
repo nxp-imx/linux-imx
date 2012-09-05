@@ -1070,7 +1070,7 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 	while (val == 0) {
 		udelay(1000);
 		if (msec-- == 0) {
-			dev_err(&hdmi->pdev->dev, "PHY PLL not locked\n");
+			dev_dbg(&hdmi->pdev->dev, "PHY PLL not locked\n");
 			return false;
 		}
 		val = hdmi_readb(HDMI_PHY_STAT0) & HDMI_PHY_TX_PHY_LOCK;
