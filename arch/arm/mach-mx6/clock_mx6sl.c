@@ -1532,16 +1532,6 @@ static struct clk ipg_clk = {
 	.get_rate = _clk_ipg_get_rate,
 };
 
-static struct clk tzasc1_clk = {
-	__INIT_CLK_DEBUG(tzasc1_clk)
-	.id = 0,
-	.parent = &ipg_clk,
-	.enable_reg = MXC_CCM_CCGR2,
-	.enable_shift = MXC_CCM_CCGRx_CG11_OFFSET,
-	.enable = _clk_enable,
-	.disable = _clk_disable_inwait,
-};
-
 static struct clk tzasc2_clk = {
 	__INIT_CLK_DEBUG(tzasc2_clk)
 	.id = 0,
@@ -1569,16 +1559,6 @@ static struct clk mx6per1_clk = {
 	.secondary = &mx6fast1_clk,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG6_OFFSET,
-	.enable = _clk_enable,
-	.disable = _clk_disable_inwait,
-};
-
-static struct clk mx6per2_clk = {
-	__INIT_CLK_DEBUG(mx6per2_clk)
-	.id = 0,
-	.parent = &ahb_clk,
-	.enable_reg = MXC_CCM_CCGR4,
-	.enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable_inwait,
 };
@@ -1704,7 +1684,7 @@ static struct clk mmdc_ch1_axi_clk[] = {
 	.secondary = &tzasc2_clk,
 	},
 };
-
+#if defined(CONFIG_SDMA_IRAM) || defined(CONFIG_SND_MXC_SOC_IRAM)
 static struct clk ocram_clk = {
 	__INIT_CLK_DEBUG(ocram_clk)
 	.id = 0,
@@ -1714,7 +1694,7 @@ static struct clk ocram_clk = {
 	.enable = _clk_enable,
 	.disable = _clk_disable_inwait,
 };
-
+#endif
 static unsigned long _clk_ipg_perclk_get_rate(struct clk *clk)
 {
 	u32 reg, div;
@@ -1803,7 +1783,7 @@ static struct clk sdma_clk[] = {
 	},
 };
 
-static unsigned long mx6_timer_rate()
+static unsigned long mx6_timer_rate(void)
 {
 	u32 parent_rate = clk_get_rate(&osc_clk);
 
