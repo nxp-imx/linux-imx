@@ -1562,7 +1562,7 @@ static const struct pm_platform_data mx6_arm2_pm_data __initconst = {
 	.suspend_exit	= arm2_suspend_exit,
 };
 
-static const struct asrc_p2p_params esai_p2p __initconst = {
+static const struct asrc_p2p_params esai_p2p = {
        .p2p_rate = 44100,
        .p2p_width = ASRC_WIDTH_24_BIT,
 };
