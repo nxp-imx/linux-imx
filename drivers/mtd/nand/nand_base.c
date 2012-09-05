@@ -1449,7 +1449,7 @@ static uint8_t *nand_transfer_oob(struct nand_chip *chip, uint8_t *oob,
 int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 			    struct mtd_oob_ops *ops)
 {
-	int chipnr, page, realpage, col, bytes, aligned;
+	int chipnr, page, realpage, col, bytes, aligned, oob_required;
 	struct nand_chip *chip = mtd->priv;
 	struct mtd_ecc_stats stats;
 	int blkcheck = (1 << (chip->phys_erase_shift - chip->page_shift)) - 1;
@@ -1474,6 +1474,7 @@ int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 
 	buf = ops->datbuf;
 	oob = ops->oobbuf;
+	oob_required = oob ? 1 : 0;
 
 	while (1) {
 		bytes = min(mtd->writesize - col, readlen);
@@ -1491,13 +1492,15 @@ int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 			/* Now read the page into the buffer */
 			if (unlikely(ops->mode == MTD_OOB_RAW))
 				ret = chip->ecc.read_page_raw(mtd, chip,
-							      bufpoi, 1, page);
+							      bufpoi,
+							      oob_required,
+							      page);
 			else if (!aligned && NAND_SUBPAGE_READ(chip) && !oob)
 				ret = chip->ecc.read_subpage(mtd, chip,
 							col, bytes, bufpoi);
 			else
 				ret = chip->ecc.read_page(mtd, chip, bufpoi,
-							  1, page);
+							  oob_required, page);
 			if (ret < 0)
 				break;
 
@@ -2190,6 +2193,7 @@ int nand_do_write_ops(struct mtd_info *mtd, loff_t to,
 	uint8_t *oob = ops->oobbuf;
 	uint8_t *buf = ops->datbuf;
 	int ret, subpage;
+	int oob_required = oob ? 1 : 0;
 
 	ops->retlen = 0;
 	if (!writelen)
@@ -2252,7 +2256,7 @@ int nand_do_write_ops(struct mtd_info *mtd, loff_t to,
 			memset(chip->oob_poi, 0xff, mtd->oobsize);
 		}
 
-		ret = chip->write_page(mtd, chip, wbuf, 1, page, cached,
+		ret = chip->write_page(mtd, chip, wbuf, oob_required, page, cached,
 				       (ops->mode == MTD_OOB_RAW));
 		if (ret)
 			break;
