@@ -103,7 +103,9 @@ void mx6_init_irq(void)
 	void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 	struct irq_desc *desc;
 	unsigned int i;
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	u32 reg;
+#endif
 
 	/* start offset if private timer irq id, which is 29.
 	 * ID table:
