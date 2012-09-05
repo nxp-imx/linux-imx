@@ -402,16 +402,16 @@ static int pfuze100_init(struct mc_pfuze *pfuze)
 	int ret;
 	unsigned int reg;
 	if (arm_max_freq == CPU_AT_1_2GHz) {
-		/*VDDARM_IN 1.425V*/
+		/*VDDARM_IN 1.475V*/
 		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1AVOL,
 					PFUZE100_SW1AVOL_VSEL_M,
-					0x2d);
+					0x2f);
 		if (ret)
 			goto err;
-		/*VDDSOC_IN 1.425V*/
+		/*VDDSOC_IN 1.475V*/
 		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CVOL,
 					PFUZE100_SW1CVOL_VSEL_M,
-					0x2d);
+					0x2f);
 		if (ret)
 			goto err;
 		/*set VDDSOC&VDDPU to 1.25V*/
