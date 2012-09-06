@@ -122,8 +122,8 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 #define RX_RING_SIZE		(FEC_ENET_RX_FRPPG * FEC_ENET_RX_PAGES)
 #define FEC_ENET_TX_FRSIZE	2048
 #define FEC_ENET_TX_FRPPG	(PAGE_SIZE / FEC_ENET_TX_FRSIZE)
-#define TX_RING_SIZE		16	/* Must be power of two */
-#define TX_RING_MOD_MASK	15	/*   for this to work */
+#define TX_RING_SIZE		128	/* Must be power of two */
+#define TX_RING_MOD_MASK	127	/*   for this to work */
 
 #define BUFDES_SIZE ((RX_RING_SIZE + TX_RING_SIZE) * sizeof(struct bufdesc))
 
