@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -312,7 +312,7 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 		structure and pass the pointer in arg */
 		{
 			ipu_event_info info;
-			int r = -1;
+			int r;
 
 			if (copy_from_user
 					(&info, (ipu_event_info *) arg,
@@ -321,21 +321,17 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 
 			r = get_events(&info);
 			if (r == -1) {
-				if ((file->f_flags & O_NONBLOCK) &&
-					(irq_info[info.irq].irq_pending == 0))
+				if (file->f_flags & O_NONBLOCK)
 					return -EAGAIN;
-				r = wait_event_interruptible_timeout(irq_info[info.irq].waitq,
-						(irq_info[info.irq].irq_pending != 0), 2 * HZ);
-				if (r == -ERESTARTSYS)
+				r = wait_event_interruptible(irq_info[info.irq].waitq,
+						get_events(&info) == 0);
+				if (r < 0)
 					return r;
-				r = get_events(&info);
 			}
-			ret = -1;
-			if (r == 0) {
-				if (!copy_to_user((ipu_event_info *) arg,
-					&info, sizeof(ipu_event_info)))
-					ret = 0;
-			}
+			if (copy_to_user((ipu_event_info *) arg,
+				&info, sizeof(ipu_event_info)))
+				return -EFAULT;
+			ret = 0;
 		}
 		break;
 	case IPU_ALOC_MEM:

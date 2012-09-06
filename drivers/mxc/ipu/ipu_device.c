@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -411,16 +411,17 @@ static int mxc_ipu_ioctl(struct inode *inode, struct file *file,
 
 			r = get_events(&info);
 			if (r == -1) {
-				wait_event_interruptible_timeout(waitq,
-						(pending_events != 0), 2 * HZ);
-				r = get_events(&info);
+				if (file->f_flags & O_NONBLOCK)
+					return -EAGAIN;
+				r = wait_event_interruptible(waitq,
+						get_events(&info) == 0);
+				if (r < 0)
+					return r;
 			}
-			ret = -1;
-			if (r == 0) {
-				if (!copy_to_user((ipu_event_info *) arg,
-					&info, sizeof(ipu_event_info)))
-					ret = 0;
-			}
+			if (copy_to_user((ipu_event_info *) arg,
+				&info, sizeof(ipu_event_info)))
+				return -EFAULT;
+			ret = 0;
 		}
 		break;
 	case IPU_ADC_WRITE_TEMPLATE:
