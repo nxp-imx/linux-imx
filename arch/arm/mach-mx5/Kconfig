@@ -5,16 +5,19 @@ config ARCH_MX51
 	select USB_ARCH_HAS_EHCI
 	select MXC_TZIC
 	select ARCH_MXC_IOMUX_V3
+	select ARM_L1_CACHE_SHIFT_6
 
 config ARCH_MX53
 	bool
 	select USB_ARCH_HAS_EHCI
 	select MXC_TZIC
 	select ARCH_MXC_IOMUX_V3
+	select ARM_L1_CACHE_SHIFT_6
 
 config ARCH_MX50
 	bool
 	select ARCH_HAS_RNGC
+	select ARM_L1_CACHE_SHIFT_6
 
 config FORCE_MAX_ZONEORDER
     int "MAX_ORDER"
