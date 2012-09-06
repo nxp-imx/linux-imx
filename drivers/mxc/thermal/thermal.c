@@ -132,15 +132,15 @@
 #define KELVIN_TO_CEL(t, off) (((t) - (off)))
 #define CEL_TO_KELVIN(t, off) (((t) + (off)))
 #define DEFAULT_RATIO			145
-#define DEFAULT_N25C			1541
-#define REG_VALUE_TO_CEL(ratio, raw) ((raw_n25c - raw) * 100 / ratio - 25)
+#define DEFAULT_N40C			1563
+#define REG_VALUE_TO_CEL(ratio, raw) ((raw_n40c - raw) * 100 / ratio - 40)
 #define ANATOP_DEBUG			false
 #define THERMAL_FUSE_NAME		"/sys/fsl_otp/HW_OCOTP_ANA1"
 
 /* variables */
 unsigned long anatop_base;
 unsigned int ratio;
-unsigned int raw_25c, raw_hot, hot_temp, raw_n25c, raw_125c, raw_critical;
+unsigned int raw_25c, raw_hot, hot_temp, raw_n40c, raw_125c, raw_critical;
 static struct clk *pll3_clk;
 static bool full_run = true;
 static bool suspend_flag;
@@ -320,10 +320,9 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 
 	if (ANATOP_DEBUG)
 		anatop_dump_temperature_register();
-
-	/* only the temp between -25C and 125C is valid, this
+	/* only the temp between -40C and 125C is valid, this
 	is for save */
-	if (tmp <= raw_n25c && tmp >= raw_125c)
+	if (tmp <= raw_n40c && tmp >= raw_125c)
 		tz->temperature = REG_VALUE_TO_CEL(ratio, tmp);
 	else {
 		printk(KERN_WARNING "Invalid temperature, force it to 25C\n");
@@ -848,7 +847,7 @@ static int anatop_thermal_counting_ratio(unsigned int fuse_data)
 	hot_temp = fuse_data & 0xff;
 
 	ratio = ((raw_25c - raw_hot) * 100) / (hot_temp - 25);
-	raw_n25c = raw_25c + ratio / 2;
+	raw_n40c = raw_25c + (13 * ratio) / 20;
 	raw_125c = raw_25c - ratio;
 	/* Init default critical temp to set alarm */
 	raw_critical = raw_25c - ratio * (KELVIN_TO_CEL(TEMP_CRITICAL, KELVIN_OFFSET) - 25) / 100;
@@ -913,7 +912,7 @@ static int anatop_thermal_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to remap anatop calibration data address!\n");
 		goto anatop_failed;
 	}
-	raw_n25c = DEFAULT_N25C;
+	raw_n40c = DEFAULT_N40C;
 	/* use calibration data to get ratio */
 	anatop_thermal_counting_ratio(__raw_readl(calibration_addr));
 
