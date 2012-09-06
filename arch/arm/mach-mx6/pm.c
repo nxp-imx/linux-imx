@@ -73,6 +73,8 @@ static struct clk *cpu_clk;
 static struct clk *axi_clk;
 static struct clk *periph_clk;
 static struct clk *axi_org_parent;
+static struct clk *gpu2d_core_clk;
+static struct clk *pll3_usb_otg_main_clk;
 
 static struct pm_platform_data *pm_data;
 
@@ -108,6 +110,8 @@ static u32 ccm_ccr, ccm_clpcr, scu_ctrl;
 static u32 gpc_imr[4], gpc_cpu_pup, gpc_cpu_pdn, gpc_cpu, gpc_ctr, gpc_disp;
 static u32 anatop[2], ccgr1, ccgr2, ccgr3, ccgr6;
 static u32 ccm_analog_pfd528;
+static u32 ccm_analog_pll3_480;
+static u32 ccm_anadig_ana_misc2;
 static bool usb_vbus_wakeup_enabled;
 
 
@@ -199,6 +203,7 @@ static void gpu_power_down(void)
 static void gpu_power_up(void)
 {
 	int reg;
+	int i;
 	/* power on pu */
 	reg = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
 	reg &= ~0x0003fe00;
@@ -211,6 +216,24 @@ static void gpu_power_up(void)
 	__raw_writel(ccm_analog_pfd528 &
 		     ~ANADIG_PFD0_CLKGATE &
 		     ~ANADIG_PFD1_CLKGATE, PFD_528_BASE_ADDR);
+
+	/* PLL3 480M clock enable which may be used by gpu2d*/
+	if (clk_get_parent(gpu2d_core_clk) == pll3_usb_otg_main_clk) {
+		__raw_writel(ccm_analog_pll3_480 |
+			ANADIG_PLL_POWER_DOWN, PLL3_480_USB1_BASE_ADDR);
+		__raw_writel(ccm_anadig_ana_misc2 &
+			(~BM_ANADIG_ANA_MISC2_CONTROL0),
+			MXC_PLL_BASE + HW_ANADIG_ANA_MISC2);
+		for (i = 0; i < 100; i++) {
+			if (!(__raw_readl(PLL3_480_USB1_BASE_ADDR) & ANADIG_PLL_LOCK))
+				udelay(1);
+			else
+				break;
+		}
+		__raw_writel((ccm_analog_pll3_480 & (~ANADIG_PLL_BYPASS)) |
+			ANADIG_PLL_ENABLE | ANADIG_PLL_POWER_DOWN,
+			PLL3_480_USB1_BASE_ADDR);
+	}
 	/* gpu3d and gpu2d clock enable */
 	__raw_writel(ccgr1 |
 		     MXC_CCM_CCGRx_CG12_MASK |
@@ -261,6 +284,8 @@ static void mx6_suspend_store(void)
 	ccm_ccr = __raw_readl(MXC_CCM_CCR);
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR);
 	ccm_analog_pfd528 = __raw_readl(PFD_528_BASE_ADDR);
+	ccm_analog_pll3_480 = __raw_readl(PLL3_480_USB1_BASE_ADDR);
+	ccm_anadig_ana_misc2 = __raw_readl(MXC_PLL_BASE + HW_ANADIG_ANA_MISC2);
 	ccgr1 = __raw_readl(MXC_CCM_CCGR1);
 	ccgr2 = __raw_readl(MXC_CCM_CCGR2);
 	ccgr3 = __raw_readl(MXC_CCM_CCGR3);
@@ -308,6 +333,8 @@ static void mx6_suspend_restore(void)
 	__raw_writel(ccgr3, MXC_CCM_CCGR3);
 	__raw_writel(ccgr6, MXC_CCM_CCGR6);
 	__raw_writel(ccm_analog_pfd528, PFD_528_BASE_ADDR);
+	__raw_writel(ccm_analog_pll3_480, PLL3_480_USB1_BASE_ADDR);
+	__raw_writel(ccm_anadig_ana_misc2, MXC_PLL_BASE + HW_ANADIG_ANA_MISC2);
 }
 
 static int mx6_suspend_enter(suspend_state_t state)
@@ -520,6 +547,16 @@ static int __init pm_init(void)
 	if (IS_ERR(periph_clk)) {
 		printk(KERN_DEBUG "%s: failed to get periph_clk\n", __func__);
 		return PTR_ERR(periph_clk);
+	}
+	gpu2d_core_clk = clk_get(NULL, "gpu2d_clk");
+	if (IS_ERR(gpu2d_core_clk)) {
+		printk(KERN_DEBUG "%s: failed to get gpu2d_clk\n", __func__);
+		return PTR_ERR(periph_clk);
+	}
+	pll3_usb_otg_main_clk = clk_get(NULL, "pll3_main_clk");
+	if (IS_ERR(pll3_usb_otg_main_clk)) {
+		printk(KERN_DEBUG "%s: failed to get pll3_main_clk\n", __func__);
+		return PTR_ERR(pll3_usb_otg_main_clk);
 	}
 
 	printk(KERN_INFO "PM driver module loaded\n");
