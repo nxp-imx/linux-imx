@@ -571,6 +571,7 @@ static int mxc_spdif_playback_start(struct snd_pcm_substream *substream,
 	if (!plat_data->spdif_tx)
 		return -EINVAL;
 
+	spdif_priv->tx_active = true;
 	regval = __raw_readl(spdif_base_addr + SPDIF_REG_SCR);
 	regval &= 0xfc33e3;
 	regval &= ~SCR_LOW_POWER;
@@ -715,8 +716,10 @@ static int mxc_spdif_capture_start(struct snd_pcm_substream *substream,
 	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
 	unsigned long regval;
 
-	if (!plat_data->spdif_rx || !spdif_priv->rx_active)
+	if (!plat_data->spdif_rx)
 		return -EINVAL;
+
+	spdif_priv->rx_active = true;
 
 	regval = __raw_readl(spdif_base_addr + SPDIF_REG_SCR);
 	/*

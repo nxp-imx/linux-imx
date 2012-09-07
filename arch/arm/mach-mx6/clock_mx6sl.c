@@ -1167,8 +1167,18 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		  * PLL2_PFD2_400M.
 		  */
 		if (pll1_sw_clk.parent != &pll2_pfd2_400M) {
-			pll2_pfd2_400M.enable(&pll2_pfd2_400M);
+			if (pll2_pfd2_400M.usecount == 0) {
+				/* Check if PLL2 needs to be enabled also. */
+				if (pll2_528_bus_main_clk.usecount == 0)
+					pll2_528_bus_main_clk.enable(&pll2_528_bus_main_clk);
+				/* Ensure parent usecount is
+				  * also incremented.
+				  */
+				pll2_528_bus_main_clk.usecount++;
+				pll2_pfd2_400M.enable(&pll2_pfd2_400M);
+			}
 			arm_needs_pll2_400 = true;
+			pll2_pfd2_400M.usecount++;
 			pll1_sw_clk.set_parent(&pll1_sw_clk, &pll2_pfd2_400M);
 			pll1_sw_clk.parent = &pll2_pfd2_400M;
 		}
@@ -1191,9 +1201,19 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		pll1_sw_clk.set_parent(&pll1_sw_clk, &pll1_sys_main_clk);
 		pll1_sw_clk.parent = &pll1_sys_main_clk;
 
+		if (arm_needs_pll2_400) {
+			pll2_pfd2_400M.usecount--;
+			if (pll2_pfd2_400M.usecount == 0) {
+				pll2_pfd2_400M.disable(&pll2_pfd2_400M);
+				/* Ensure parent usecount is
+				  * also decremented.
+				  */
+				pll2_528_bus_main_clk.usecount--;
+				if (pll2_528_bus_main_clk.usecount == 0)
+					pll2_528_bus_main_clk.disable(&pll2_528_bus_main_clk);
+			}
+		}
 		arm_needs_pll2_400 = false;
-		if (pll2_pfd2_400M.usecount == 0)
-			pll2_pfd2_400M.disable(&pll2_pfd2_400M);
 	}
 	parent_rate = clk_get_rate(clk->parent);
 	div = parent_rate / rate;
@@ -1218,9 +1238,6 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		spin_unlock_irqrestore(&mx6sl_clk_lock, flags);
 		return -1;
 	}
-
-	if (!pll1_enabled)
-		pll1_sys_main_clk.enable(&pll1_sys_main_clk);
 
 	cur_arm_podf = div;
 
@@ -1515,16 +1532,6 @@ static struct clk ipg_clk = {
 	.get_rate = _clk_ipg_get_rate,
 };
 
-static struct clk tzasc1_clk = {
-	__INIT_CLK_DEBUG(tzasc1_clk)
-	.id = 0,
-	.parent = &ipg_clk,
-	.enable_reg = MXC_CCM_CCGR2,
-	.enable_shift = MXC_CCM_CCGRx_CG11_OFFSET,
-	.enable = _clk_enable,
-	.disable = _clk_disable_inwait,
-};
-
 static struct clk tzasc2_clk = {
 	__INIT_CLK_DEBUG(tzasc2_clk)
 	.id = 0,
@@ -1552,16 +1559,6 @@ static struct clk mx6per1_clk = {
 	.secondary = &mx6fast1_clk,
 	.enable_reg = MXC_CCM_CCGR4,
 	.enable_shift = MXC_CCM_CCGRx_CG6_OFFSET,
-	.enable = _clk_enable,
-	.disable = _clk_disable_inwait,
-};
-
-static struct clk mx6per2_clk = {
-	__INIT_CLK_DEBUG(mx6per2_clk)
-	.id = 0,
-	.parent = &ahb_clk,
-	.enable_reg = MXC_CCM_CCGR4,
-	.enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable_inwait,
 };
@@ -1687,7 +1684,7 @@ static struct clk mmdc_ch1_axi_clk[] = {
 	.secondary = &tzasc2_clk,
 	},
 };
-
+#if defined(CONFIG_SDMA_IRAM) || defined(CONFIG_SND_MXC_SOC_IRAM)
 static struct clk ocram_clk = {
 	__INIT_CLK_DEBUG(ocram_clk)
 	.id = 0,
@@ -1697,7 +1694,7 @@ static struct clk ocram_clk = {
 	.enable = _clk_enable,
 	.disable = _clk_disable_inwait,
 };
-
+#endif
 static unsigned long _clk_ipg_perclk_get_rate(struct clk *clk)
 {
 	u32 reg, div;
@@ -1786,7 +1783,7 @@ static struct clk sdma_clk[] = {
 	},
 };
 
-static unsigned long mx6_timer_rate()
+static unsigned long mx6_timer_rate(void)
 {
 	u32 parent_rate = clk_get_rate(&osc_clk);
 

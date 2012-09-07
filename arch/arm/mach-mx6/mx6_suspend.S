@@ -85,8 +85,7 @@ r2: suspend_iram_base
 	ldr	r4, [r1, #0x330] /* DRAM_SDCKE0 */
 	ldr	r5, [r1, #0x334] /* DRAM_SDCKE1 */
 	ldr	r6, [r1, #0x320] /* DRAM_RESET */
-	ldr	r7, [r1, #0x5c8] /* GPR_CTLDS */
-	stmfd	r0!, {r4-r7}
+	stmfd	r0!, {r4-r6}
 
 	.endm
 
@@ -122,11 +121,10 @@ r2: suspend_iram_base
 	str	r6, [r1, #0x33c] /* DRAM_SODT0*/
 	str	r7, [r1, #0x340] /* DRAM_SODT1*/
 
-	ldmea	r0!, {r4-r7}
+	ldmea	r0!, {r4-r6}
 	str	r4, [r1, #0x330] /* DRAM_SDCKE0 */
 	str	r5, [r1, #0x334] /* DRAM_SDCKE1 */
 	str	r6, [r1, #0x320] /* DRAM_RESET */
-	str	r7, [r1, #0x5c8] /* GPR_CTLDS */
 
 	.endm
 
@@ -138,6 +136,13 @@ r2: suspend_iram_base
 	str	r0, [r1, #0x314] /* DRAM_DQM2 */
 	str	r0, [r1, #0x318] /* DRAM_DQM3 */
 
+	/* Make sure the Pull Ups are enabled.
+	 * So only reduce the drive stength, but
+	 * leave the pull-ups in the original state.
+	 * This is required for LPDDR2.
+	 */
+	ldr	r0, [r1, #0x344]
+	orr	r0, r0, #0x3000
 	str	r0, [r1, #0x344] /* DRAM_SDQS0 */
 	str	r0, [r1, #0x348] /* DRAM_SDQS1 */
 	str	r0, [r1, #0x34c] /* DRAM_SDQS2 */
@@ -158,7 +163,6 @@ r2: suspend_iram_base
 	str	r0, [r1, #0x33c] /* DRAM_SODT0*/
 	str	r0, [r1, #0x340] /* DRAM_SODT1*/
 
-	str	r0, [r1, #0x5c8] /* GPR_CTLDS */
 	mov	r0, #0x80000
 	str	r0, [r1, #0x320] /* DRAM_RESET */
 	mov	r0, #0x1000
@@ -773,6 +777,22 @@ ddr_io_save_done:
 /****************************************************************
 set ddr iomux to low power mode
 ****************************************************************/
+	/* Make sure TLBs are primed. */
+	ldr	r1,  =MX6Q_IOMUXC_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r0, [r1]
+	ldr	r1, =SRC_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r0, [r1]
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	ldr	r1, =ANATOP_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r0, [r1]
+#endif
+
+	/* Do a DSB to drain the buffers. */
+	dsb
+
 	ldr	r1, =MMDC_P0_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 	ldr	r0, [r1, #MMDC_MAPSR_OFFSET]
@@ -813,12 +833,12 @@ save resume pointer into SRC_GPR1
 	add	r1, r1, #PERIPBASE_VIRT
 	str	r3, [r1, #SRC_GPR1_OFFSET]
 #ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	ldr	r1, =0x20c8140
+	ldr	r1, =ANATOP_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
-	ldr	r3, [r1]
+	ldr	r3, [r1, #0x140]
 	bic	r3, r3, #0x1f
 	orr	r3, r3, #0x1e
-	str	r3, [r1]
+	str	r3, [r1, #0x140]
 #endif
 /****************************************************************
 execute a wfi instruction to let SOC go into stop mode.
@@ -834,6 +854,14 @@ execute a wfi instruction to let SOC go into stop mode.
 if go here, means there is a wakeup irq pending, we should resume
 system immediately.
 ****************************************************************/
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	ldr	r1, =ANATOP_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r3, [r1, #0x140]
+	orr	r3, r3, #0x1f
+	str	r3, [r1, #0x140]
+#endif
+
 	mov	r0, r2 		/* get suspend_iram_base */
 	add	r0, r0, #IRAM_SUSPEND_SIZE	/* 4K */
 
@@ -856,6 +884,40 @@ sl_io_restore:
 	sl_ddr_io_restore
 
 ddr_io_restore_done:
+	/* Add enough nops so that the
+	  * prefetcher will not get instructions
+	  * from DDR before its IO pads
+	  * are restored.
+	  */
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
 
 	mrc	p15, 0, r1, c1, c0, 0
 	orr	r1, r1, #(1 << 2)	@ Enable the C bit
@@ -869,10 +931,10 @@ are running with MMU off.
 ****************************************************************/
 resume:
 #ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	ldr	r1, =0x20c8140
-	ldr	r3, [r1]
+	ldr	r1, =ANATOP_BASE_ADDR
+	ldr	r3, [r1, #0x140]
 	orr	r3, r3, #0x1f
-	str	r3, [r1]
+	str	r3, [r1, #0x140]
 #endif
 	/* Invalidate L1 I-cache first */
 	mov	r1,	#0x0

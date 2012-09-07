@@ -1070,7 +1070,7 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 	while (val == 0) {
 		udelay(1000);
 		if (msec-- == 0) {
-			dev_err(&hdmi->pdev->dev, "PHY PLL not locked\n");
+			dev_dbg(&hdmi->pdev->dev, "PHY PLL not locked\n");
 			return false;
 		}
 		val = hdmi_readb(HDMI_PHY_STAT0) & HDMI_PHY_TX_PHY_LOCK;
@@ -1394,28 +1394,6 @@ static int mxc_hdmi_read_edid(struct mxc_hdmi *hdmi)
 	return HDMI_EDID_SUCCESS;
 }
 
-static void mxc_hdmi_enable_pins(struct mxc_hdmi *hdmi)
-{
-	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
-
-	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
-
-	/* Enable pins to HDMI */
-	if (plat->enable_pins)
-		plat->enable_pins();
-}
-
-static void mxc_hdmi_disable_pins(struct mxc_hdmi *hdmi)
-{
-	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
-
-	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
-
-	/* Disable pins to HDMI */
-	if (plat->disable_pins)
-		plat->disable_pins();
-}
-
 static void mxc_hdmi_phy_disable(struct mxc_hdmi *hdmi)
 {
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
@@ -1656,7 +1634,7 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi)
 		dev_dbg(&hdmi->pdev->dev,
 				"%s: Video mode same as previous\n", __func__);
 		/* update fbi mode in case modelist is updated */
-		hdmi->fbi->mode = mode;
+		hdmi->fbi->mode = (struct fb_videomode *)mode;
 		mxc_hdmi_phy_init(hdmi);
 	} else {
 		dev_dbg(&hdmi->pdev->dev, "%s: New video mode\n", __func__);
@@ -2296,8 +2274,6 @@ static void mxc_hdmi_disp_deinit(struct mxc_dispdrv_handle *disp)
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
 	fb_unregister_client(&hdmi->nb);
-
-	mxc_hdmi_disable_pins(hdmi);
 
 	clk_disable(hdmi->hdmi_isfr_clk);
 	clk_put(hdmi->hdmi_isfr_clk);

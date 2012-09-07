@@ -283,15 +283,16 @@ static iomux_v3_cfg_t mx6dl_i2c3_pads_rev_a[] __initdata = {
 static iomux_v3_cfg_t mx6dl_i2c3_pads_rev_b[] __initdata = {
 	MX6DL_PAD_GPIO_3__I2C3_SCL,
 	MX6DL_PAD_EIM_D18__I2C3_SDA,
-	MX6DL_PAD_EIM_A24__GPIO_5_4,
-	MX6DL_PAD_GPIO_16__ENET_ANATOP_ETHERNET_REF_OUT,
 };
 static iomux_v3_cfg_t mx6dl_tuner_pads[] __initdata = {
 	MX6DL_PAD_DISP0_DAT16__AUDMUX_AUD5_TXC,
 	MX6DL_PAD_DISP0_DAT18__AUDMUX_AUD5_TXFS,
 	MX6DL_PAD_DISP0_DAT19__AUDMUX_AUD5_RXD,
 };
-
+static iomux_v3_cfg_t mx6dl_extra_pads_rev_b[] __initdata = {
+	MX6DL_PAD_EIM_A24__GPIO_5_4,
+	MX6DL_PAD_GPIO_16__ENET_ANATOP_ETHERNET_REF_OUT,
+};
 static iomux_v3_cfg_t mx6dl_spinor_pads[] __initdata = {
 	/* eCSPI1 */
 	MX6DL_PAD_EIM_D16__ECSPI1_SCLK,
