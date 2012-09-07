@@ -17,6 +17,7 @@
  */
 
 #include <linux/linkage.h>
+#include <mach/hardware.h>
 #include "crm_regs.h"
 
 #define ARM_CTRL_DCACHE     1 << 2
@@ -34,9 +35,15 @@ ENTRY(mx50_suspend)
     stmfd   sp!, {r4,r5,r6,r7,r8, r9,r10,r11, r12}     @ Save registers
 
     mov    r6, r0                       @save databahn address
-    mov    r8, r1                       @save ccm base address
+    mov    r8, r1                       @save apll base address
     mov    r12, r2                     @save pll1 base address
 
+    ldr      r1, =CCM_BASE_ADDR
+    ldr      r0, =AIPS1_BASE_ADDR
+    sub     r1, r1, r0
+    add     r1, r1, #AIPS1_BASE_ADDR_VIRT
+
+    ldr      r0, [r1]
     ldr      r0, [r6]
     ldr      r0, [r8]
     ldr      r0, [r12]
@@ -44,8 +51,11 @@ ENTRY(mx50_suspend)
 /* Before putting DDR into self-refresh, make sure
     any LPM mode that the DDR might be in is exited.
 */
-    /* If Databahn is in LPM4, exit that mode first. */
-    ldr     r0,[r6, #0x50]             @Store LPM mode in r8
+    /* If Databahn is in LPM4, exit that mode first.
+      * The LPM mode is saved in pm.c and is restored
+      * when this routine is exited.
+      */
+    ldr     r0,[r6, #0x50]
     bic     r0, r0, #0x1F
     str     r0,[r6, #0x50]
 
@@ -150,15 +160,20 @@ LoopCKE0:
            during suspend.
      */
 
+    ldr      r0, =CCM_BASE_ADDR
+    ldr      r1, =AIPS1_BASE_ADDR
+    sub     r0, r0, r1
+    add     r0, r0, #AIPS1_BASE_ADDR_VIRT
+
    /* Make sure Step-clk is sourced from 24MHz. */
-    ldr      r1, [r8, #0x0c]
+    ldr      r1, [r0, #0x0c]
     bic      r1, r1, #(0x3 << 7)
-    str      r1, [r8, #0x0c]
+    str      r1, [r0, #0x0c]
 
     /* Set ARM to be sourced from Step-clk. */
-    ldr     r1, [r8, #0x0c]
+    ldr     r1, [r0, #0x0c]
     orr     r1, r1, #0x4
-    str     r1, [r8, #0x0c]
+    str     r1, [r0, #0x0c]
 
     /* Now do the MFN changes to relock PLL1 at 1056MHz. */
     ldr     r1, [r12, #MXC_PLL_DP_CONFIG]
@@ -204,7 +219,28 @@ RestartPLL:
     ldr     r1, =0x00001236 /* Set PLM =1, manual restart and enable PLL*/
     str     r1, [r12, #MXC_PLL_DP_CTL]
 
+     /* Ensure the SELF-BIAS bit of the band gap
+       * is cleared. Also disable the brown out bit
+       * of the 1P2 regulator.
+       */
+     /* Disable 1P2 brown out bit. */
+     ldr     r0, =0x40
+     str     r0, [r8, #0x98]
+
+     /* Clear bandgap SELF-BIAS */
+     ldr     r0, =0x100000
+     str     r0, [r8, #0x68]
+
+
     .long     0xe320f003              @ Opcode for WFI
+
+     /* Set the bandgap SELF-BIAS bit. */
+     ldr     r0, =0x100000
+     str     r0, [r8, #0x64]
+
+     /* Enable 1P2 brown out bit. */
+     ldr     r0, =0x40
+     str     r0, [r8, #0x94]
 
     /* Continue DPLL issue workaround.
       5. System will resume with PLL1 locked at 864 MHz.
@@ -259,10 +295,15 @@ WaitLDREQ:
 3: subs   r1, r1, #1
     bge    3b
 
+    ldr      r0, =CCM_BASE_ADDR
+    ldr      r1, =AIPS1_BASE_ADDR
+    sub     r0, r0, r1
+    add     r0, r0, #AIPS1_BASE_ADDR_VIRT
+
     /* Move ARM back to PLL1 */
-    ldr     r1, [r8, #0x0c]
+    ldr     r1, [r0, #0x0c]
     bic     r1, r1, #0x4
-    str     r1, [r8, #0x0c]
+    str     r1, [r0, #0x0c]
 
     /* Start DDR controller */
     ldr     r0,[r6]

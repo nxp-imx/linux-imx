@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -60,6 +60,7 @@ extern void mx50_suspend(u32 databahn_addr);
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 extern void __iomem *ccm_base;
 extern void __iomem *databahn_base;
+extern void __iomem *apll_base;
 
 extern int iram_ready;
 void *suspend_iram_base;
@@ -110,10 +111,9 @@ static int mx5_suspend_enter(suspend_state_t state)
 				/* Store the LPM mode of databanhn */
 				databahn_mode = __raw_readl(
 					databahn_base + DATABAHN_CTL_REG20);
-
 				/* Suspend now. */
 				suspend_in_iram(databahn_base,
-						ccm_base, pll1_base);
+						apll_base, pll1_base);
 
 				/* Restore the LPM databahn_mode. */
 				__raw_writel(databahn_mode,
