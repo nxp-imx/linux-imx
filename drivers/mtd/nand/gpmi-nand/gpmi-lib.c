@@ -554,6 +554,7 @@ static int gpmi_nfc_compute_hardware_timing(struct gpmi_nand_data *this,
 {
 	struct gpmi_nand_platform_data *pdata = this->pdata;
 	struct timing_threshod *nfc = &timing_default_threshold;
+	struct resources *r = &this->resources;
 	struct nand_chip *nand = &this->nand;
 	struct nand_timing target = this->timing;
 	bool improved_timing_is_available;
@@ -593,6 +594,7 @@ static int gpmi_nfc_compute_hardware_timing(struct gpmi_nand_data *this,
 		(target.tRHOH_in_ns >= 0) ;
 
 	/* Inspect the clock. */
+	nfc->clock_frequency_in_hz = clk_get_rate(r->clock);
 	clock_frequency_in_hz = nfc->clock_frequency_in_hz;
 	clock_period_in_ns    = 1000000000 / clock_frequency_in_hz;
 
@@ -999,7 +1001,6 @@ return_results:
 void gpmi_begin(struct gpmi_nand_data *this)
 {
 	struct resources *r = &this->resources;
-	struct timing_threshod *nfc = &timing_default_threshold;
 	unsigned char  *gpmi_regs = r->gpmi_regs;
 	unsigned int   clock_period_in_ns;
 	uint32_t       reg;
@@ -1021,10 +1022,7 @@ void gpmi_begin(struct gpmi_nand_data *this)
 		}
 	}
 
-	/* Get the timing information we need. */
-	nfc->clock_frequency_in_hz = clk_get_rate(r->clock);
-	clock_period_in_ns = 1000000000 / nfc->clock_frequency_in_hz;
-
+	/* calculate the timings. */
 	gpmi_nfc_compute_hardware_timing(this, &hw);
 
 	/* [1] Set HW_GPMI_TIMING0 */
@@ -1063,6 +1061,8 @@ void gpmi_begin(struct gpmi_nand_data *this)
 	 * we can use the GPMI. Calculate the amount of time we need to wait,
 	 * in microseconds.
 	 */
+	clock_period_in_ns = 1000000000 / clk_get_rate(r->clock);
+
 	dll_wait_time_in_us = (clock_period_in_ns * 64) / 1000;
 	if (!dll_wait_time_in_us)
 		dll_wait_time_in_us = 1;
