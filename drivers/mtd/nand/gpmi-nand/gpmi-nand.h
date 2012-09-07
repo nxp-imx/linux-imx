@@ -194,6 +194,7 @@ struct gpmi_nand_data {
  * @use_half_periods:          Indicates the clock is running slowly, so the
  *                             NFC DLL should use half-periods.
  * @sample_delay_factor:       The sample delay factor.
+ * @wrn_dly_sel:               The delay on the GPMI write strobe.
  */
 struct gpmi_nfc_hardware_timing {
 	/* for GPMI_HW_GPMI_TIMING0 */
@@ -207,6 +208,7 @@ struct gpmi_nfc_hardware_timing {
 	/* for GPMI_HW_GPMI_CTRL1 */
 	bool     use_half_periods;
 	uint8_t  sample_delay_factor;
+	uint8_t  wrn_dly_sel;
 };
 
 /**
