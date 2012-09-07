@@ -912,6 +912,13 @@ static int anatop_thermal_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to remap anatop calibration data address!\n");
 		goto anatop_failed;
 	}
+
+	pll3_clk = clk_get(NULL, "pll3_main_clk");
+	if (IS_ERR(pll3_clk)) {
+		retval = -ENOENT;
+		goto anatop_failed;
+	}
+
 	raw_n40c = DEFAULT_N40C;
 	/* use calibration data to get ratio */
 	anatop_thermal_counting_ratio(__raw_readl(calibration_addr));
@@ -925,11 +932,6 @@ static int anatop_thermal_probe(struct platform_device *pdev)
 			  NULL);
 	thermal_irq = res_irq->start;
 
-	pll3_clk = clk_get(NULL, "pll3_main_clk");
-	if (IS_ERR(pll3_clk)) {
-		retval = -ENOENT;
-		goto anatop_failed;
-	}
 
 	anatop_thermal_add(device);
 	anatop_thermal_cpufreq_init();
