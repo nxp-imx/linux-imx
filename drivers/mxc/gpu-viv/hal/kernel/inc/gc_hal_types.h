@@ -285,6 +285,8 @@ typedef enum _gceSTATUS
 	gcvSTATUS_EXECUTED				=	18,
     gcvSTATUS_TERMINATE             =   19,
 
+    gcvSTATUS_CONVERT_TO_SINGLE_STREAM    =   20,
+
     gcvSTATUS_INVALID_ARGUMENT      =   -1,
     gcvSTATUS_INVALID_OBJECT        =   -2,
     gcvSTATUS_OUT_OF_MEMORY         =   -3,

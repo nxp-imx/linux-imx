@@ -43,21 +43,21 @@
 #include <linux/completion.h>
 #include "gc_hal_kernel_linux.h"
 
-/* 
+/*
    Prequsite:
 
    1) Debugfs feature must be enabled in the kernel.
        1.a) You can enable this, in the compilation of the uImage, all you have to do is, In the "make menuconfig" part,
        you have to enable the debugfs in the kernel hacking part of the menu.
-  
+
    HOW TO USE:
-   1) insert the driver with the following option logFileSize, Ex: insmod galcore.ko ...... logFileSize=10240 
+   1) insert the driver with the following option logFileSize, Ex: insmod galcore.ko ...... logFileSize=10240
    This gives a circular buffer of 10 MB
-   
+
    2)Usually after inserting the driver, the debug file system is mounted under /sys/kernel/debug/
 
         2.a)If the debugfs is not mounted, you must do "mount -t debugfs none /sys/kernel/debug"
-   	
+
    3) To read what is being printed in the debugfs file system:
         Ex : cat /sys/kernel/debug/gpu/galcore_trace
 
@@ -81,7 +81,7 @@
     4) insmod it with the logFileSize option
     5) Run an application
     6) You can get the dump by cat /sys/kernel/debug/gpu/galcore_trace
-   
+
  */
 
 /**/
@@ -151,7 +151,7 @@ static gcsDebugFileSystem gc_dbgfs ;
 /*******************************************************************************
  **
  **		READ & WRITE FUNCTIONS (START)
- **		  
+ **
  *******************************************************************************/
 
 /*******************************************************************************
@@ -159,9 +159,9 @@ static gcsDebugFileSystem gc_dbgfs ;
  **  _ReadFromNode
  **
  **	1) reading bytes out of a circular buffer with wraparound.
- **	2)returns caddr_t, pointer to data read, which the caller must free.  
+ **	2)returns caddr_t, pointer to data read, which the caller must free.
  **	3) length is (a pointer to) the number of bytes to be read, which will be set by this function to
- **	    be the number of bytes actually returned 
+ **	    be the number of bytes actually returned
  **
  *******************************************************************************/
 static caddr_t
@@ -222,7 +222,7 @@ _ReadFromNode (
  **
  **  _WriteToNode
  **
- ** 1) writes to a circular buffer with wraparound. 
+ ** 1) writes to a circular buffer with wraparound.
  ** 2)in case of an overflow, it overwrites the oldest unread data.
  **
  *********************************************************************************/
@@ -275,7 +275,7 @@ _WriteToNode (
 /*******************************************************************************
  **
  ** 		PRINTING UTILITY (START)
- ** 		
+ **
  *******************************************************************************/
 
 /*******************************************************************************
@@ -369,7 +369,7 @@ _DebugFSPrint (
 /*******************************************************************************
  **
  **                     LINUX SYSTEM FUNCTIONS (START)
- **		  
+ **
  *******************************************************************************/
 
 /*******************************************************************************
@@ -538,7 +538,7 @@ static const struct file_operations debugfs_operations = {
 /*******************************************************************************
  **
  **                             INTERFACE FUNCTIONS (START)
- **		  
+ **
  *******************************************************************************/
 
 /*******************************************************************************
