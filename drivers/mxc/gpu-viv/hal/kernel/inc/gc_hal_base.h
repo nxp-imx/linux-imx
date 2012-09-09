@@ -747,6 +747,25 @@ gcoOS_FreeContiguous(
     IN gctSIZE_T Bytes
     );
 
+/* Allocate video memory. */
+gceSTATUS
+gcoOS_AllocateVideoMemory(
+    IN gcoOS Os,
+    IN gctBOOL InUserSpace,
+    IN gctBOOL InCacheable,
+    IN OUT gctSIZE_T * Bytes,
+    OUT gctUINT32 * Physical,
+    OUT gctPOINTER * Logical,
+    OUT gctPOINTER * Handle
+    );
+
+/* Free video memory. */
+gceSTATUS
+gcoOS_FreeVideoMemory(
+    IN gcoOS Os,
+    IN gctPOINTER Handle
+    );
+
 #if gcdENABLE_BANK_ALIGNMENT
 gceSTATUS
 gcoSURF_GetBankOffsetBytes(
@@ -3658,6 +3677,42 @@ gckOS_DebugStatus2Name(
                 _gcmVERIFY_ARGUMENT_RETURN(gcmk, arg, value)
 
 #define MAX_LOOP_COUNT 0x7FFFFFFF
+
+/******************************************************************************\
+****************************** User Debug Option ******************************
+\******************************************************************************/
+
+/* User option. */
+typedef enum _gceDEBUG_MSG
+{
+    gcvDEBUG_MSG_NONE,
+    gcvDEBUG_MSG_ERROR,
+    gcvDEBUG_MSG_WARNING
+}
+gceDEBUG_MSG;
+
+typedef struct _gcsUSER_DEBUG_OPTION
+{
+    gceDEBUG_MSG        debugMsg;
+}
+gcsUSER_DEBUG_OPTION;
+
+gcsUSER_DEBUG_OPTION *
+gcGetUserDebugOption(
+    void
+    );
+
+#define gcmUSER_DEBUG_MSG(level, ...) \
+    do \
+    { \
+        if (level <= gcGetUserDebugOption()->debugMsg) \
+        { \
+            gcoOS_Print(__VA_ARGS__); \
+        } \
+    } while (gcvFALSE)
+
+#define gcmUSER_DEBUG_ERROR_MSG(...)   gcmUSER_DEBUG_MSG(gcvDEBUG_MSG_ERROR, "Error: " __VA_ARGS__)
+#define gcmUSER_DEBUG_WARNING_MSG(...) gcmUSER_DEBUG_MSG(gcvDEBUG_MSG_WARNING, "Warring: " __VA_ARGS__)
 
 #ifdef __cplusplus
 }
