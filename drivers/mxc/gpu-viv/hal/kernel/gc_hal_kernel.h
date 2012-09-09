@@ -338,6 +338,11 @@ struct _gckKERNEL
     gckDB                       db;
     gctBOOL                     dbCreated;
 
+#if gcdENABLE_RECOVERY
+    gctPOINTER                  resetFlagClearTimer;
+    gctPOINTER                  resetAtom;
+#endif
+
     /* Pointer to gckEVENT object. */
     gcsTIMER                    timers[8];
     gctUINT32                   timeOut;
