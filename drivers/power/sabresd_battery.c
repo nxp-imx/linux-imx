@@ -65,12 +65,10 @@ typedef struct {
 	u32 voltage;
 	u32 percent;
 } battery_capacity , *pbattery_capacity;
-
 static int cpu_type_flag;
 static int offset_discharger;
 static int offset_charger;
 static int offset_usb_charger;
-
 
 static battery_capacity chargingTable[] = {
 	{4050,	99},
@@ -188,9 +186,9 @@ static enum power_supply_property max8903_battery_props[] = {
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
 };
-
+#ifdef CONFIG_TOUCHSCREEN_MAX11801
 extern u32 max11801_read_adc(void);
-
+#endif
 static void max8903_charger_update_status(struct max8903_data *data)
 {
 	if (data->usb_in || data->ta_in) {
@@ -208,23 +206,32 @@ static void max8903_charger_update_status(struct max8903_data *data)
 		} else {
 					if (gpio_get_value(data->pdata->chg) == 0) {
 						data->battery_status = POWER_SUPPLY_STATUS_CHARGING;
-					} else if (data->ta_in &&
-						gpio_get_value(data->pdata->chg) == 1) {
+					} else if (data->ta_in && gpio_get_value(data->pdata->chg) == 1) {
+					  if (!data->pdata->feature_flag) {
 						if (data->percent >= 99)
 							data->battery_status = POWER_SUPPLY_STATUS_FULL;
 						else
 							data->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+						} else {
+							data->battery_status = POWER_SUPPLY_STATUS_FULL;
 						}
-					  else if (data->usb_in &&
-						gpio_get_value(data->pdata->chg) == 1) {
+					} else if (data->usb_in && gpio_get_value(data->pdata->chg) == 1) {
+					  if (!data->pdata->feature_flag) {
 						if (data->percent >= 99)
 							data->battery_status = POWER_SUPPLY_STATUS_FULL;
 						else
 							data->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+						} else {
+							data->battery_status = POWER_SUPPLY_STATUS_FULL;
 						}
-		}
-	pr_debug("chg: %d \n", gpio_get_value(data->pdata->chg));
+					}
+	}
+	pr_debug("chg: %d\n", gpio_get_value(data->pdata->chg));
+	pr_debug("dc: %d\n", gpio_get_value(data->pdata->dok));
+	pr_debug("flt: %d\n", gpio_get_value(data->pdata->flt));
 }
+
+#ifdef CONFIG_TOUCHSCREEN_MAX11801
 static int cmp_func(const void *_a, const void *_b)
 {
 	const int *a = _a, *b = _b;
@@ -235,6 +242,7 @@ static int cmp_func(const void *_a, const void *_b)
 		return -1;
 	return 0;
 }
+
 u32 calibration_voltage(struct max8903_data *data)
 {
 	int volt[ADC_SAMPLE_COUNT];
@@ -275,51 +283,54 @@ u32 calibration_voltage(struct max8903_data *data)
 	voltage_data = (volt[2] + volt[ADC_SAMPLE_COUNT - 3]) / 2;
 	return voltage_data;
 }
-
+#endif
 static void max8903_battery_update_status(struct max8903_data *data)
 {
-	int temp;
+	int temp = 0;
 	static int temp_last;
 	bool changed_flag;
 	changed_flag = false;
 	mutex_lock(&data->work_lock);
-	temp = calibration_voltage(data);
-	if (temp_last == 0) {
-		data->voltage_uV = temp;
-		temp_last = temp;
-	}
-	if (data->charger_online == 0 && temp_last != 0) {
-		if (temp < temp_last) {
-		temp_last = temp;
-		data->voltage_uV = temp;
-		} else {
-		data->voltage_uV = temp_last;
+	if (!data->pdata->feature_flag) {
+#ifdef CONFIG_TOUCHSCREEN_MAX11801
+		temp = calibration_voltage(data);
+#endif
+		if (temp_last == 0) {
+			data->voltage_uV = temp;
+			temp_last = temp;
+		}
+		if (data->charger_online == 0 && temp_last != 0) {
+			if (temp < temp_last) {
+				temp_last = temp;
+				data->voltage_uV = temp;
+			} else {
+			data->voltage_uV = temp_last;
+			}
+		}
+		if (data->charger_online == 1 || data->usb_charger_online == 1) {
+			data->voltage_uV = temp;
+			temp_last = temp;
+		}
+		data->percent = calibrate_battery_capability_percent(data);
+		if (data->percent != data->old_percent) {
+			data->old_percent = data->percent;
+			changed_flag = true;
+		}
+		if (changed_flag) {
+			changed_flag = false;
+			power_supply_changed(&data->bat);
+		}
+		 /*
+		  *because boot time gap between led framwork and charger
+		  *framwork,when system boots with charger attatched,
+		  *charger led framwork loses the first charger online event,
+		  *add once extra power_supply_changed can fix this issure
+		  */
+		if (data->first_delay_count < 200) {
+			data->first_delay_count = data->first_delay_count + 1 ;
+			power_supply_changed(&data->bat);
 		}
 	}
-	if (data->charger_online == 1 || data->usb_charger_online == 1) {
-		data->voltage_uV = temp;
-		temp_last = temp;
-	}
-	data->percent = calibrate_battery_capability_percent(data);
-	if (data->percent != data->old_percent) {
-		data->old_percent = data->percent;
-		changed_flag = true;
-	}
-	if (changed_flag) {
-		changed_flag = false;
-		power_supply_changed(&data->bat);
-	}
-	/*
-	    because boot time gap between led framwork and charger
-	    framwork,when system boots with charger attatched, charger
-	    led framwork loses the first charger online event,add once extra
-	    power_supply_changed can fix this issure
-	*/
-	if (data->first_delay_count < 200) {
-		data->first_delay_count = data->first_delay_count + 1 ;
-		power_supply_changed(&data->bat);
-	}
-
 	mutex_unlock(&data->work_lock);
 }
 
@@ -332,22 +343,27 @@ static int max8903_battery_get_property(struct power_supply *bat,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
-				if (gpio_get_value(di->pdata->chg) == 0) {
-					di->battery_status = POWER_SUPPLY_STATUS_CHARGING;
-				} else if (di->ta_in &&
-					gpio_get_value(di->pdata->chg) == 1) {
+			if (gpio_get_value(di->pdata->chg) == 0) {
+				di->battery_status = POWER_SUPPLY_STATUS_CHARGING;
+			} else if (di->ta_in && gpio_get_value(di->pdata->chg) == 1) {
+				if (!di->pdata->feature_flag) {
 					if (di->percent >= 99)
 						di->battery_status = POWER_SUPPLY_STATUS_FULL;
 					else
 						di->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+					} else {
+							di->battery_status = POWER_SUPPLY_STATUS_FULL;
 					}
-				  else if (di->usb_in &&
-					gpio_get_value(di->pdata->chg) == 1) {
+			 } else if (di->usb_in && gpio_get_value(di->pdata->chg) == 1) {
+				if (!di->pdata->feature_flag) {
 					if (di->percent >= 99)
 					    di->battery_status = POWER_SUPPLY_STATUS_FULL;
 					else
-					  di->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+						di->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+					} else {
+						di->battery_status = POWER_SUPPLY_STATUS_FULL;
 					}
+			}
 		val->intval = di->battery_status;
 		return 0;
 	default:
@@ -795,14 +811,13 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 		ret = request_threaded_irq(gpio_to_irq(pdata->chg),
 				NULL, max8903_chg,
 				IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
-				"MAX8903 Fault", data);
+				"MAX8903 Status", data);
 		if (ret) {
-			dev_err(dev, "Cannot request irq %d for Fault (%d)\n",
+			dev_err(dev, "Cannot request irq %d for Status (%d)\n",
 					gpio_to_irq(pdata->flt), ret);
 			goto err_chg_irq;
 		}
 	}
-
 	ret = device_create_file(&pdev->dev, &max8903_discharger_dev_attr);
 	if (ret)
 		dev_err(&pdev->dev, "create device file failed!\n");
@@ -822,7 +837,6 @@ static __devinit int max8903_probe(struct platform_device *pdev)
 			offset_charger = 1485;
 			offset_usb_charger = 1285;
 	}
-
 	max8903_charger_update_status(data);
 	max8903_battery_update_status(data);
 	return 0;
@@ -888,10 +902,14 @@ static int max8903_suspend(struct platform_device *pdev,
 	if (data) {
 		struct max8903_pdata *pdata = data->pdata;
 		if (pdata) {
-			irq = gpio_to_irq(pdata->dok);
-			enable_irq_wake(irq);
-			irq = gpio_to_irq(pdata->uok);
-			enable_irq_wake(irq);
+			if (pdata->dc_valid) {
+				irq = gpio_to_irq(pdata->dok);
+				enable_irq_wake(irq);
+			}
+			if (pdata->usb_valid) {
+				irq = gpio_to_irq(pdata->uok);
+				enable_irq_wake(irq);
+				}
 			cancel_delayed_work(&data->work);
 		}
 	}
@@ -923,10 +941,14 @@ static int max8903_resume(struct platform_device *pdev)
 				max8903_charger_update_status(data);
 				power_supply_changed(&data->usb);
 			}
-			irq = gpio_to_irq(pdata->dok);
-			disable_irq_wake(irq);
-			irq = gpio_to_irq(pdata->uok);
-			disable_irq_wake(irq);
+			if (pdata->dc_valid) {
+				irq = gpio_to_irq(pdata->dok);
+				disable_irq_wake(irq);
+			}
+			if (pdata->usb_valid) {
+				irq = gpio_to_irq(pdata->uok);
+				disable_irq_wake(irq);
+			}
 			schedule_delayed_work(&data->work, BATTERY_UPDATE_INTERVAL);
 		}
 	}
