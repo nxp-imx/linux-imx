@@ -31,6 +31,10 @@
 #define MX6_BRD_SD2_CD		IMX_GPIO_NR(5, 0)	/* SD2_DAT7 */
 #define MX6_BRD_SD3_CD		IMX_GPIO_NR(3, 22)	/* REF_CLK_32K */
 #define MX6_BRD_FEC_PWR_EN	IMX_GPIO_NR(4, 21)	/* FEC_TX_CLK */
+#define MX6_BRD_CHG_FLT	IMX_GPIO_NR(4, 14)	/* ECSPI2_MISO  */
+#define MX6_BRD_CHG_UOK	IMX_GPIO_NR(4, 13)	/* ECSPI2_MOSI */
+#define MX6_BRD_CHG_DOK	IMX_GPIO_NR(4, 13)	/* ECSPI2_MOSI */
+#define MX6_BRD_CHG_STATUS	IMX_GPIO_NR(4, 15)	/* ECSPI2_SS0  */
 
 /* EPDC GPIO pins */
 #define MX6SL_BRD_EPDC_SDDO_0		IMX_GPIO_NR(1, 7)
@@ -213,6 +217,11 @@ static iomux_v3_cfg_t mx6sl_brd_pads[] = {
 
 	/* WDOG */
 	MX6SL_PAD_WDOG_B__WDOG1_WDOG_B,
+
+	/* Charge */
+	MX6SL_PAD_ECSPI2_MISO__GPIO_4_14,  /* CHG_FLT */
+	MX6SL_PAD_ECSPI2_SS0__GPIO_4_15, /* CHG_STATUS */
+	MX6SL_PAD_ECSPI2_MOSI__GPIO_4_13, /* CHG_UOK ,CHG_DOK*/
 };
 
 static iomux_v3_cfg_t mx6sl_brd_epdc_enable_pads[] = {

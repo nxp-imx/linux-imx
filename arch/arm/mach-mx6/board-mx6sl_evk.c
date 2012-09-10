@@ -52,6 +52,7 @@
 #include <linux/mfd/max17135.h>
 #include <sound/wm8962.h>
 #include <sound/pcm.h>
+#include <linux/power/sabresd_battery.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -1174,6 +1175,33 @@ static void __init elan_ts_init(void)
 	gpio_direction_output(MX6SL_BRD_ELAN_CE, 1);
 }
 
+/*
+ *Usually UOK and DOK should have separate
+ *line to differentiate its behaviour (with different
+ * GPIO irq),because connect max8903 pin UOK to
+ *pin DOK from hardware design,cause software cannot
+ *process and distinguish two interrupt, so default
+ *enable dc_valid for ac charger
+ */
+static struct max8903_pdata charger1_data = {
+	.dok = MX6_BRD_CHG_DOK,
+	.uok = MX6_BRD_CHG_UOK,
+	.chg = MX6_BRD_CHG_STATUS,
+	.flt = MX6_BRD_CHG_FLT,
+	.dcm_always_high = true,
+	.dc_valid = true,
+	.usb_valid = false,
+	.feature_flag = 1,
+};
+
+static struct platform_device evk_max8903_charger_1 = {
+	.name	= "max8903-charger",
+	.dev	= {
+		.platform_data = &charger1_data,
+	},
+};
+
+
 #define SNVS_LPCR 0x38
 static void mx6_snvs_poweroff(void)
 {
@@ -1274,7 +1302,8 @@ static void __init mx6_evk_init(void)
 	imx6q_add_perfmon(0);
 	imx6q_add_perfmon(1);
 	imx6q_add_perfmon(2);
-
+	/* Register charger chips */
+	platform_device_register(&evk_max8903_charger_1);
 	pm_power_off = mx6_snvs_poweroff;
 }
 
