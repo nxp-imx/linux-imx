@@ -219,7 +219,7 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	  * So update it for all CPUs.
 	  */
 
-	for_each_cpu(i, policy->cpus)
+	for_each_possible_cpu(i)
 		per_cpu(cpu_data, i).loops_per_jiffy =
 		cpufreq_scale(per_cpu(cpu_data, i).loops_per_jiffy,
 					freqs.old, freqs.new);
