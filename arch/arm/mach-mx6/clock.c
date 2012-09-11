@@ -5374,16 +5374,34 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	/* Disable un-necessary PFDs & PLLs */
 	if (pll2_pfd_400M.usecount == 0 && cpu_is_mx6q())
 		pll2_pfd_400M.disable(&pll2_pfd_400M);
+#ifndef CONFIG_MX6_CLK_FOR_BOOTUI_TRANS
+	/*
+	 * Bootloader may use pll2_pfd_352M to drive ldb_di1_clk
+	 * to support splashimage so we should not disable the
+	 * clock to keep the display running.
+	 */
 	pll2_pfd_352M.disable(&pll2_pfd_352M);
+#endif
 	pll2_pfd_594M.disable(&pll2_pfd_594M);
 
 #if !defined(CONFIG_FEC_1588)
 	pll3_pfd_454M.disable(&pll3_pfd_454M);
 	pll3_pfd_508M.disable(&pll3_pfd_508M);
-	pll3_pfd_540M.disable(&pll3_pfd_540M);
 	pll3_pfd_720M.disable(&pll3_pfd_720M);
-
-	pll3_usb_otg_main_clk.disable(&pll3_usb_otg_main_clk);
+	if (cpu_is_mx6q()) {
+		pll3_pfd_540M.disable(&pll3_pfd_540M);
+		pll3_usb_otg_main_clk.disable(&pll3_usb_otg_main_clk);
+	} else if (cpu_is_mx6dl()) {
+#ifndef CONFIG_MX6_CLK_FOR_BOOTUI_TRANS
+		/*
+		 * Bootloader may use pll3_pfd_540M to drive ipu1_clk
+		 * to support splashimage so we should not disable the
+		 * clock to keep the display running.
+		 */
+		pll3_pfd_540M.disable(&pll3_pfd_540M);
+		pll3_usb_otg_main_clk.disable(&pll3_usb_otg_main_clk);
+#endif
+	}
 #endif
 	pll4_audio_main_clk.disable(&pll4_audio_main_clk);
 	pll5_video_main_clk.disable(&pll5_video_main_clk);
@@ -5398,8 +5416,16 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_rate(&pll4_audio_main_clk, 176000000);
 	clk_set_rate(&pll5_video_main_clk, 650000000);
 
+	/*
+	 * We don't set ipu1_di_clk[1]'s parent clock to
+	 * pll5_video_main_clk as bootloader may need
+	 * the parent to be ldb_di1_clk to support LVDS
+	 * panel splashimage.
+	 */
 	clk_set_parent(&ipu1_di_clk[0], &pll5_video_main_clk);
+#ifndef CONFIG_MX6_CLK_FOR_BOOTUI_TRANS
 	clk_set_parent(&ipu1_di_clk[1], &pll5_video_main_clk);
+#endif
 	clk_set_parent(&ipu2_di_clk[0], &pll5_video_main_clk);
 	clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
 
@@ -5496,6 +5522,16 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		     1 << MXC_CCM_CCGRx_CG13_OFFSET |
 		     3 << MXC_CCM_CCGRx_CG12_OFFSET |
 		     1 << MXC_CCM_CCGRx_CG11_OFFSET |
+#ifdef CONFIG_MX6_CLK_FOR_BOOTUI_TRANS
+		     /*
+		      * We use IPU1 DI1 to do bootloader splashimage by
+		      * default, so we need to enable the clocks to
+		      * keep the display running.
+		      */
+		     3 << MXC_CCM_CCGRx_CG7_OFFSET |	/* ldb_di1_clk */
+		     3 << MXC_CCM_CCGRx_CG2_OFFSET |	/* ipu1_di1_clk */
+		     3 << MXC_CCM_CCGRx_CG0_OFFSET |	/* ipu1_clk */
+#endif
 		     3 << MXC_CCM_CCGRx_CG10_OFFSET, MXC_CCM_CCGR3);
 	__raw_writel(3 << MXC_CCM_CCGRx_CG7_OFFSET |
 			1 << MXC_CCM_CCGRx_CG6_OFFSET |
