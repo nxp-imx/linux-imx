@@ -1712,10 +1712,10 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_ipuv3(0, &ipu_data[0]);
 	if (cpu_is_mx6q()) {
 		imx6q_add_ipuv3(1, &ipu_data[1]);
-		for (i = 0; i < ARRAY_SIZE(sabresd_fb_data); i++)
+		for (i = 0; i < 4 && i < ARRAY_SIZE(sabresd_fb_data); i++)
 			imx6q_add_ipuv3fb(i, &sabresd_fb_data[i]);
 	} else
-		for (i = 0; i < (ARRAY_SIZE(sabresd_fb_data) + 1) / 2; i++)
+		for (i = 0; i < 2 && i < ARRAY_SIZE(sabresd_fb_data); i++)
 			imx6q_add_ipuv3fb(i, &sabresd_fb_data[i]);
 
 	imx6q_add_vdoa();
