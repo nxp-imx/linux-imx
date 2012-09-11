@@ -602,13 +602,6 @@ static struct pca953x_platform_data max7310_u43_platdata = {
 	.setup		= max7310_u43_setup,
 };
 
-static struct fsl_mxc_camera_platform_data camera_data = {
-	.analog_regulator	= "DA9052_LDO7",
-	.core_regulator		= "DA9052_LDO9",
-	.mclk			= 24000000,
-	.csi			= 0,
-};
-
 static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
 	.mclk	= 24000000,
 	.csi	= 0,
@@ -671,10 +664,6 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		I2C_BOARD_INFO("adv7180", 0x21),
 		.platform_data = (void *)&adv7180_data,
 	}, {
-		I2C_BOARD_INFO("ov3640", 0x3c),
-		.platform_data = (void *)&camera_data,
-	},
-	{
 		I2C_BOARD_INFO("isl29023", 0x44),
 		.irq  = gpio_to_irq(SABREAUTO_ALS_INT),
 		.platform_data = &ls_data,
