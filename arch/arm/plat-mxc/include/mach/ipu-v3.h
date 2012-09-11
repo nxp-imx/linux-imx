@@ -745,6 +745,13 @@ struct imx_ipuv3_platform_data {
 	void (*pg) (int);
 
 	char *csi_clk[2];
+
+	/*
+	 * Bypass reset to avoid display channel being
+	 * stopped by probe since it may starts to work
+	 * in bootloader.
+	 */
+	bool bypass_reset;
 };
 
 #endif /* __MACH_IPU_V3_H_ */
