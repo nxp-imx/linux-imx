@@ -737,6 +737,13 @@ struct ipuv3_fb_platform_data {
 	/* reserved mem */
 	resource_size_t 		res_base[2];
 	resource_size_t 		res_size[2];
+
+	/*
+	 * Late init to avoid display channel being
+	 * re-initialized as we've probably setup the
+	 * channel in bootloader.
+	 */
+	bool                            late_init;
 };
 
 struct imx_ipuv3_platform_data {
