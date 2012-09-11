@@ -162,10 +162,11 @@ static int __devinit ipu_clk_setup_enable(struct ipu_soc *ipu,
 	clk_debug_register(&ipu->pixel_clk[0]);
 	clk_debug_register(&ipu->pixel_clk[1]);
 
-	clk_enable(ipu->ipu_clk);
+	if (!plat_data->bypass_reset)
+		clk_enable(ipu->ipu_clk);
 
-	clk_set_parent(&ipu->pixel_clk[0], ipu->ipu_clk);
-	clk_set_parent(&ipu->pixel_clk[1], ipu->ipu_clk);
+	ipu->pixel_clk[0].parent = ipu->ipu_clk;
+	ipu->pixel_clk[1].parent = ipu->ipu_clk;
 
 	ipu->di_clk[0] = clk_get(ipu->dev, di0_clk);
 	ipu->di_clk[1] = clk_get(ipu->dev, di1_clk);
@@ -244,9 +245,6 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	g_ipu_hw_rev = plat_data->rev;
 
 	ipu->dev = &pdev->dev;
-
-	if (plat_data->init)
-		plat_data->init(pdev->id);
 
 	ipu->irq_err = platform_get_irq(pdev, 0);
 	ipu->irq_sync = platform_get_irq(pdev, 1);
@@ -334,7 +332,21 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, ipu);
 
-	ipu_reset(ipu);
+	if (!plat_data->bypass_reset) {
+		if (plat_data->init)
+			plat_data->init(pdev->id);
+
+		ipu_reset(ipu);
+
+		ipu_disp_init(ipu);
+
+		/* Set MCU_T to divide MCU access window into 2 */
+		ipu_cm_write(ipu, 0x00400000L | (IPU_MCU_T_DEFAULT << 18),
+			     IPU_DISP_GEN);
+	}
+
+	/* Set sync refresh channels and CSI->mem channel as high priority */
+	ipu_idmac_write(ipu, 0x18800001L, IDMAC_CHA_PRI(0));
 
 	/* Enable error interrupts by default */
 	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(5));
@@ -342,15 +354,8 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(9));
 	ipu_cm_write(ipu, 0xFFFFFFFF, IPU_INT_CTRL(10));
 
-	ipu_disp_init(ipu);
-
-	/* Set sync refresh channels and CSI->mem channel as high priority */
-	ipu_idmac_write(ipu, 0x18800001L, IDMAC_CHA_PRI(0));
-
-	/* Set MCU_T to divide MCU access window into 2 */
-	ipu_cm_write(ipu, 0x00400000L | (IPU_MCU_T_DEFAULT << 18), IPU_DISP_GEN);
-
-	clk_disable(ipu->ipu_clk);
+	if (!plat_data->bypass_reset)
+		clk_disable(ipu->ipu_clk);
 
 	register_ipu_device(ipu, pdev->id);
 
