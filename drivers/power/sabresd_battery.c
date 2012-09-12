@@ -203,28 +203,28 @@ static void max8903_charger_update_status(struct max8903_data *data)
 		  }
 	if (data->charger_online == 0 && data->usb_charger_online == 0) {
 			data->battery_status = POWER_SUPPLY_STATUS_DISCHARGING;
-		} else {
-					if (gpio_get_value(data->pdata->chg) == 0) {
-						data->battery_status = POWER_SUPPLY_STATUS_CHARGING;
-					} else if (data->ta_in && gpio_get_value(data->pdata->chg) == 1) {
-					  if (!data->pdata->feature_flag) {
-						if (data->percent >= 99)
-							data->battery_status = POWER_SUPPLY_STATUS_FULL;
-						else
-							data->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
-						} else {
-							data->battery_status = POWER_SUPPLY_STATUS_FULL;
-						}
-					} else if (data->usb_in && gpio_get_value(data->pdata->chg) == 1) {
-					  if (!data->pdata->feature_flag) {
-						if (data->percent >= 99)
-							data->battery_status = POWER_SUPPLY_STATUS_FULL;
-						else
-							data->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
-						} else {
-							data->battery_status = POWER_SUPPLY_STATUS_FULL;
-						}
-					}
+	} else {
+		if (gpio_get_value(data->pdata->chg) == 0) {
+			data->battery_status = POWER_SUPPLY_STATUS_CHARGING;
+		} else if (data->ta_in && gpio_get_value(data->pdata->chg) == 1) {
+		  if (!data->pdata->feature_flag) {
+			if (data->percent >= 99)
+				data->battery_status = POWER_SUPPLY_STATUS_FULL;
+			else
+				data->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+			} else {
+				data->battery_status = POWER_SUPPLY_STATUS_FULL;
+			}
+		} else if (data->usb_in && gpio_get_value(data->pdata->chg) == 1) {
+		  if (!data->pdata->feature_flag) {
+			if (data->percent >= 99)
+				data->battery_status = POWER_SUPPLY_STATUS_FULL;
+			else
+				data->battery_status = POWER_SUPPLY_STATUS_NOT_CHARGING;
+			} else {
+				data->battery_status = POWER_SUPPLY_STATUS_FULL;
+			}
+		}
 	}
 	pr_debug("chg: %d\n", gpio_get_value(data->pdata->chg));
 	pr_debug("dc: %d\n", gpio_get_value(data->pdata->dok));
