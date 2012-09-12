@@ -266,12 +266,32 @@ static void disp_power_down(void)
 
 		__raw_writel(0x1, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
 		__raw_writel(0x10, gpc_base + GPC_CNTR_OFFSET);
+
+		/* Disable EPDC/LCDIF pix clock, and EPDC/LCDIF/PXP axi clock */
+		__raw_writel(ccgr3 &
+			~MXC_CCM_CCGRx_CG5_MASK &
+			~MXC_CCM_CCGRx_CG4_MASK &
+			~MXC_CCM_CCGRx_CG3_MASK &
+			~MXC_CCM_CCGRx_CG2_MASK &
+			~MXC_CCM_CCGRx_CG1_MASK, MXC_CCM_CCGR3);
+
 	}
 }
 
 static void disp_power_up(void)
 {
 	if (cpu_is_mx6sl()) {
+		/*
+		 * Need to enable EPDC/LCDIF pix clock, and
+		 * EPDC/LCDIF/PXP axi clock before power up.
+		 */
+		__raw_writel(ccgr3 |
+			MXC_CCM_CCGRx_CG5_MASK |
+			MXC_CCM_CCGRx_CG4_MASK |
+			MXC_CCM_CCGRx_CG3_MASK |
+			MXC_CCM_CCGRx_CG2_MASK |
+			MXC_CCM_CCGRx_CG1_MASK, MXC_CCM_CCGR3);
+
 		__raw_writel(0x0, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
 		__raw_writel(0x20, gpc_base + GPC_CNTR_OFFSET);
 		__raw_writel(0x1, gpc_base + GPC_PGC_DISP_SR_OFFSET);
