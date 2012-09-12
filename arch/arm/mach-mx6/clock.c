@@ -25,6 +25,7 @@
 #include <linux/clkdev.h>
 #include <linux/regulator/consumer.h>
 #include <asm/div64.h>
+#include <asm/mach-types.h>
 #include <mach/hardware.h>
 #include <mach/common.h>
 #include <mach/clock.h>
@@ -5534,6 +5535,16 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 #endif
 		     3 << MXC_CCM_CCGRx_CG10_OFFSET, MXC_CCM_CCGR3);
 	__raw_writel(3 << MXC_CCM_CCGRx_CG7_OFFSET |
+#ifdef CONFIG_MX6_CLK_FOR_BOOTUI_TRANS
+			/*
+			 * We use pwm1 to drive LVDS panel pwm backlight
+			 * to support bootloader splashimage by default,
+			 * so we need to enable the clock to keep the
+			 * backlight on.
+			 */
+			(machine_is_mx6q_sabresd() ?
+			(3 << MXC_CCM_CCGRx_CG8_OFFSET) : 0) | /* pwm1_clk */
+#endif
 			1 << MXC_CCM_CCGRx_CG6_OFFSET |
 			1 << MXC_CCM_CCGRx_CG4_OFFSET, MXC_CCM_CCGR4);
 	__raw_writel(1 << MXC_CCM_CCGRx_CG0_OFFSET, MXC_CCM_CCGR5);
