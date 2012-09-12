@@ -2016,6 +2016,8 @@ static void __init mx6q_sabresd_reserve(void)
 				 sabresd_fb_data[0].res_size[0]);
 		memblock_remove(sabresd_fb_data[0].res_base[0],
 				sabresd_fb_data[0].res_size[0]);
+		sabresd_fb_data[0].late_init = true;
+		ipu_data[ldb_data.ipu_id].bypass_reset = true;
 		fb0_reserved = 1;
 	}
 	for (i = fb0_reserved; i < fb_array_size; i++)
