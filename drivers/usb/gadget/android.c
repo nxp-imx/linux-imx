@@ -1128,7 +1128,7 @@ static void android_disconnect(struct usb_gadget *gadget)
 static void android_suspend(struct usb_gadget *gadget)
 {
 	composite_suspend(gadget);
-	wake_unlock(&wakelock);
+	wake_lock_timeout(&wakelock, HZ/2);
 }
 
 static void android_resume(struct usb_gadget *gadget)
