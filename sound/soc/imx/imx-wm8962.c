@@ -111,6 +111,9 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 				 channels == 1 ? 0xfffffffe : 0xfffffffc,
 				 2, 32);
 
+	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_IF |
+		SND_SOC_DAIFMT_CBM_CFM;
+
 	/* set cpu DAI configuration */
 	ret = snd_soc_dai_set_fmt(cpu_dai, dai_format);
 	if (ret < 0)
