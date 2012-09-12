@@ -1320,7 +1320,7 @@ static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 };
 
 static struct fsl_mxc_hdmi_core_platform_data hdmi_core_data = {
-	.ipu_id = 0,
+	.ipu_id = 1,
 	.disp_id = 0,
 };
 
@@ -1331,11 +1331,11 @@ static struct fsl_mxc_lcd_platform_data lcdif_data = {
 };
 
 static struct fsl_mxc_ldb_platform_data ldb_data = {
-	.ipu_id = 1,
+	.ipu_id = 0,
 	.disp_id = 1,
 	.ext_ref = 1,
 	.mode = LDB_SEP1,
-	.sec_ipu_id = 1,
+	.sec_ipu_id = 0,
 	.sec_disp_id = 0,
 };
 
@@ -1774,6 +1774,7 @@ static void __init mx6_sabresd_board_init(void)
 	if (cpu_is_mx6dl()) {
 		ldb_data.ipu_id = 0;
 		ldb_data.disp_id = 1;
+		hdmi_core_data.ipu_id = 0;
 		hdmi_core_data.disp_id = 0;
 		mipi_dsi_pdata.ipu_id = 0;
 		mipi_dsi_pdata.disp_id = 1;
