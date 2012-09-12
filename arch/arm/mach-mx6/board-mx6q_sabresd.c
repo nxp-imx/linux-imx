@@ -1358,9 +1358,11 @@ static struct imx_ipuv3_platform_data ipu_data[] = {
 	{
 	.rev = 4,
 	.csi_clk[0] = "clko_clk",
+	.bypass_reset = false,
 	}, {
 	.rev = 4,
 	.csi_clk[0] = "clko_clk",
+	.bypass_reset = false,
 	},
 };
 
