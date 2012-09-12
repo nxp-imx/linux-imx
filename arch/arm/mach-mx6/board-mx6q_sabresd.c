@@ -1240,6 +1240,7 @@ static struct ipuv3_fb_platform_data sabresd_fb_data[] = {
 	.mode_str = "LDB-XGA",
 	.default_bpp = 16,
 	.int_clk = false,
+	.late_init = false,
 	}, {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
@@ -1252,12 +1253,14 @@ static struct ipuv3_fb_platform_data sabresd_fb_data[] = {
 	.mode_str = "CLAA-WVGA",
 	.default_bpp = 16,
 	.int_clk = false,
+	.late_init = false,
 	}, {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
 	.mode_str = "LDB-VGA",
 	.default_bpp = 16,
 	.int_clk = false,
+	.late_init = false,
 	},
 };
 
