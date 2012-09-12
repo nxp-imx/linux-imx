@@ -1246,18 +1246,21 @@ static struct ipuv3_fb_platform_data sabresd_fb_data[] = {
 	.mode_str = "LDB-XGA",
 	.default_bpp = 16,
 	.int_clk = false,
+	.late_init = false,
 	}, {
 	.disp_dev = "hdmi",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB24,
 	.mode_str = "1920x1080M@60",
 	.default_bpp = 32,
 	.int_clk = false,
+	.late_init = false,
 	}, {
 	.disp_dev = "ldb",
 	.interface_pix_fmt = IPU_PIX_FMT_RGB666,
 	.mode_str = "LDB-XGA",
 	.default_bpp = 16,
 	.int_clk = false,
+	.late_init = false,
 	},
 };
 
