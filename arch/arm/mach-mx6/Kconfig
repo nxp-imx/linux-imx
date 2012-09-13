@@ -269,4 +269,13 @@ config MX6_INTER_LDO_BYPASS
 	 LDO will replaced by external pmic regulator(e.g. pfuze100), VDDCORE
 	 can be adjust automatically adjust by cpu frequency.
 
+config MX6_CLK_FOR_BOOTUI_TRANS
+	bool "MX6 clk setting for smooth UI transtion from bootloader to kernel"
+	depends on MXC_IPU_V3H
+	default n
+	help
+	 This is choosed to keep enable IPU related clocks and PWM clocks and
+	 avoid setting IPU related clocks' parents when initializing clock tree
+	 so that bootloader splashimage can transition to kernel smoothly.
+
 endif
