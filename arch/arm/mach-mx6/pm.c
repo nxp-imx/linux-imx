@@ -113,7 +113,7 @@ static u32 ccm_analog_pfd528;
 static u32 ccm_analog_pll3_480;
 static u32 ccm_anadig_ana_misc2;
 static bool usb_vbus_wakeup_enabled;
-
+static u32 pu_val;
 
 /*
  * The USB VBUS wakeup should be disabled to avoid vbus wake system
@@ -196,6 +196,7 @@ static void gpu_power_down(void)
 	__raw_writel(ccgr6 & ~MXC_CCM_CCGRx_CG7_MASK, MXC_CCM_CCGR6);
 	/* power off pu */
 	reg = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
+	pu_val = reg & 0x0003fe00;/*save pu regulator value*/
 	reg &= ~0x0003fe00;
 	__raw_writel(reg, anatop_base + ANATOP_REG_CORE_OFFSET);
 }
@@ -207,10 +208,9 @@ static void gpu_power_up(void)
 	/* power on pu */
 	reg = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
 	reg &= ~0x0003fe00;
-	reg |= 0x10 << 9; /* 1.1v */
+	reg |= pu_val; /*restore pu regulator value*/
 	__raw_writel(reg, anatop_base + ANATOP_REG_CORE_OFFSET);
 	mdelay(10);
-
 	/* enable clocks */
 	/* PLL2 PFD0 and PFD1 clock enable */
 	__raw_writel(ccm_analog_pfd528 &
