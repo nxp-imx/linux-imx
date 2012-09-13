@@ -102,7 +102,6 @@
 #define SABREAUTO_DISP0_PWR		IMX_GPIO_NR(3, 24)
 #define SABREAUTO_DISP0_I2C_EN		IMX_GPIO_NR(3, 28)
 #define SABREAUTO_DISP0_DET_INT		IMX_GPIO_NR(3, 31)
-#define SABREAUTO_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define SABREAUTO_DISP0_RESET		IMX_GPIO_NR(5, 0)
 #define SABREAUTO_I2C3_STEER		IMX_GPIO_NR(5, 4)
 #define SABREAUTO_WEIM_NOR_WDOG1        IMX_GPIO_NR(4, 29)
@@ -110,7 +109,6 @@
 #define SABREAUTO_PMIC_INT		IMX_GPIO_NR(5, 16)
 #define SABREAUTO_ALS_INT		IMX_GPIO_NR(5, 17)
 #define SABREAUTO_SD1_WP		IMX_GPIO_NR(5, 20)
-#define SABREAUTO_CSI0_PWN		IMX_GPIO_NR(5, 23)
 #define SABREAUTO_USB_HOST1_OC		IMX_GPIO_NR(5, 0)
 #define SABREAUTO_SD3_CD		IMX_GPIO_NR(6, 15)
 
@@ -1284,16 +1282,6 @@ early_param("can0", early_enable_can0);
 
 static inline void __init mx6q_csi0_io_init(void)
 {
-	/* Camera reset */
-	gpio_request(SABREAUTO_CSI0_RST, "cam-reset");
-	gpio_direction_output(SABREAUTO_CSI0_RST, 1);
-
-	/* Camera power down */
-	gpio_request(SABREAUTO_CSI0_PWN, "cam-pwdn");
-	gpio_direction_output(SABREAUTO_CSI0_PWN, 1);
-	msleep(1);
-	gpio_set_value(SABREAUTO_CSI0_PWN, 0);
-
 	if (cpu_is_mx6q())
 		mxc_iomux_set_gpr_register(1, 19, 1, 1);
 	else if (cpu_is_mx6dl())
