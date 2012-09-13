@@ -1115,6 +1115,8 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		if (!check_hdmi_state())
+			return 0;
 		rtd->frame_idx = 0;
 		if (runtime->access == SNDRV_PCM_ACCESS_MMAP_INTERLEAVED) {
 			appl_bytes = frames_to_bytes(runtime,
