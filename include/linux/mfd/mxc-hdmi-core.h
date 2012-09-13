@@ -60,5 +60,6 @@ int mxc_hdmi_register_audio(struct snd_pcm_substream *substream);
 void mxc_hdmi_unregister_audio(struct snd_pcm_substream *substream);
 unsigned int hdmi_set_cable_state(unsigned int state);
 unsigned int hdmi_set_blank_state(unsigned int state);
+int check_hdmi_state(void);
 
 #endif

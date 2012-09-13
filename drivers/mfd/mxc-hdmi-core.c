@@ -41,6 +41,7 @@
 #include <linux/mfd/mxc-hdmi-core.h>
 #include <linux/fsl_devices.h>
 #include <mach/hardware.h>
+#include <linux/mfd/mxc-hdmi-core.h>
 
 struct mxc_hdmi_data {
 	struct platform_device *pdev;
@@ -72,21 +73,28 @@ static spinlock_t hdmi_audio_lock, hdmi_blank_state_lock, hdmi_cable_state_lock;
 unsigned int hdmi_set_cable_state(unsigned int state)
 {
 	unsigned long flags;
+	struct snd_pcm_substream *substream = hdmi_audio_stream_playback;
 
 	spin_lock_irqsave(&hdmi_cable_state_lock, flags);
 	hdmi_cable_state = state;
 	spin_unlock_irqrestore(&hdmi_cable_state_lock, flags);
 
+	if (check_hdmi_state() && substream)
+		substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_START);
 	return 0;
 }
 
 unsigned int hdmi_set_blank_state(unsigned int state)
 {
 	unsigned long flags;
+	struct snd_pcm_substream *substream = hdmi_audio_stream_playback;
 
 	spin_lock_irqsave(&hdmi_blank_state_lock, flags);
 	hdmi_blank_state = state;
 	spin_unlock_irqrestore(&hdmi_blank_state_lock, flags);
+
+	if (check_hdmi_state() && substream)
+		substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_START);
 
 	return 0;
 }
@@ -98,7 +106,7 @@ static void hdmi_audio_abort_stream(struct snd_pcm_substream *substream)
 	snd_pcm_stream_lock_irqsave(substream, flags);
 
 	if (snd_pcm_running(substream))
-		snd_pcm_stop(substream, SNDRV_PCM_STATE_DISCONNECTED);
+		substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_STOP);
 
 	snd_pcm_stream_unlock_irqrestore(substream, flags);
 }
@@ -114,7 +122,7 @@ int mxc_hdmi_abort_stream(void)
 	return 0;
 }
 
-static int check_hdmi_state(void)
+int check_hdmi_state(void)
 {
 	unsigned long flags1, flags2;
 	unsigned int ret;
