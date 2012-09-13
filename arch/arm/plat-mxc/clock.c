@@ -484,6 +484,7 @@ static int mxc_proc_clocks_seq_show(struct seq_file *file, void *data)
 {
 	int            result;
 	struct mxc_clk     *clock = (struct mxc_clk *) data;
+	struct clk     *parent = clock->reg_clk->parent;
 	unsigned int   longest_length = (unsigned int) file->private;
 	unsigned long  range_divisor;
 	const char     *range_units;
