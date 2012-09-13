@@ -602,11 +602,6 @@ static struct pca953x_platform_data max7310_u43_platdata = {
 	.setup		= max7310_u43_setup,
 };
 
-static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
-	.mclk	= 24000000,
-	.csi	= 0,
-};
-
 static void adv7180_pwdn(int pwdn)
 {
 	int status = -1;
@@ -681,17 +676,13 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	}, {
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
 	}, {
-		I2C_BOARD_INFO("ov5640_mipi", 0x3c),
-		.platform_data = (void *)&ov5640_mipi_data,
-	}, {
 		I2C_BOARD_INFO("cs42888", 0x48),
 		.platform_data = (void *)&cs42888_data,
-	},
-	{
+	}, {
 		I2C_BOARD_INFO("si4763_i2c", 0x63),
 	},
-
 };
+
 struct platform_device mxc_si4763_audio_device = {
 	.name = "imx-tuner-si4763",
 	.id = 0,
