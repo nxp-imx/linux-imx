@@ -200,21 +200,26 @@ static void process_lradc(struct mxs_ts_info *info, u16 x, u16 y,
 		pr_debug("%s: touch verify state, sample_count %d\n", __func__,
 				info->sample_count);
 		pr_debug("%s: x %d, y %d\n", __func__, info->x, info->y);
-		input_report_abs(info->idev, ABS_X, info->x);
-		input_report_abs(info->idev, ABS_Y, info->y);
+		if (pressure != 0) {
+			input_report_abs(info->idev, ABS_X, info->x);
+			input_report_abs(info->idev, ABS_Y, info->y);
+		}
 		input_report_abs(info->idev, ABS_PRESSURE, pressure);
-		input_sync(info->idev);
 		/* fall through */
 	case TS_STATE_TOUCH_DETECT:
 		pr_debug("%s: touch detect state, sample_count %d\n", __func__,
 				info->sample_count);
 		if (pressure) {
-			input_report_abs(info->idev, ABS_PRESSURE, pressure);
+			if (info->state == TS_STATE_TOUCH_DETECT)
+				input_report_key(info->idev, BTN_TOUCH, 1);
 			enter_state_x_plane(info);
 			hw_lradc_set_delay_trigger_kick(
 					LRADC_DELAY_TRIGGER_TOUCHSCREEN, 1);
-		} else
+		} else {
+			input_report_key(info->idev, BTN_TOUCH, 0);
 			enter_state_touch_detect(info);
+		}
+		input_sync(info->idev);
 		break;
 
 	default:
@@ -278,7 +283,8 @@ static int __devinit mxs_ts_probe(struct platform_device *pdev)
 	}
 
 	idev->name = "MXS touchscreen";
-	idev->evbit[0] = BIT(EV_ABS);
+	idev->evbit[0] = BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS);
+	idev->keybit[BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH);
 	input_set_abs_params(idev, ABS_X, 0, 0xFFF, 0, 0);
 	input_set_abs_params(idev, ABS_Y, 0, 0xFFF, 0, 0);
 	input_set_abs_params(idev, ABS_PRESSURE, 0, 1, 0, 0);
