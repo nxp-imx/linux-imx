@@ -597,15 +597,27 @@ static void hdmi_sdma_isr(void *data)
 		if (runtime->access == SNDRV_PCM_ACCESS_MMAP_INTERLEAVED) {
 			appl_bytes = frames_to_bytes(runtime,
 						runtime->control->appl_ptr);
-			if (rtd->appl_bytes > appl_bytes)
-				rtd->appl_bytes = 0;
+
+			if (rtd->appl_bytes > appl_bytes) {
+				if (appl_bytes > rtd->buffer_bytes)
+					rtd->appl_bytes =
+						appl_bytes - rtd->buffer_bytes;
+				else
+					rtd->appl_bytes = 0;
+			} else {
+				if ((appl_bytes - rtd->appl_bytes) >
+						rtd->buffer_bytes)
+					rtd->appl_bytes =
+						appl_bytes - rtd->buffer_bytes;
+
+			}
+
 			offset = rtd->appl_bytes % rtd->buffer_bytes;
 			space_to_end = rtd->buffer_bytes - offset;
 			count = appl_bytes - rtd->appl_bytes;
-			if (count > rtd->buffer_bytes) {
-				pr_info("HDMI is slow,ring buffer size[%ld], count[%ld]!\n",
-						rtd->buffer_bytes, count);
-			}
+			if (count > rtd->buffer_bytes)
+				count = rtd->buffer_bytes;
+
 			rtd->appl_bytes = appl_bytes;
 
 			if (count <= space_to_end) {
@@ -651,15 +663,25 @@ static irqreturn_t hdmi_dma_isr(int irq, void *dev_id)
 		if (runtime->access == SNDRV_PCM_ACCESS_MMAP_INTERLEAVED) {
 			appl_bytes = frames_to_bytes(runtime,
 						runtime->control->appl_ptr);
-			if (rtd->appl_bytes > appl_bytes)
-				rtd->appl_bytes = 0;
+			if (rtd->appl_bytes > appl_bytes) {
+				if (appl_bytes > rtd->buffer_bytes)
+					rtd->appl_bytes =
+						appl_bytes - rtd->buffer_bytes;
+				else
+					rtd->appl_bytes = 0;
+			} else {
+				if ((appl_bytes - rtd->appl_bytes) >
+							rtd->buffer_bytes)
+					rtd->appl_bytes =
+						appl_bytes - rtd->buffer_bytes;
+
+			}
+
 			offset = rtd->appl_bytes % rtd->buffer_bytes;
 			space_to_end = rtd->buffer_bytes - offset;
 			count = appl_bytes - rtd->appl_bytes;
-			if (count > rtd->buffer_bytes) {
-				pr_info("HDMI is slow,ring buffer size[%ld],count[%ld]!\n",
-						rtd->buffer_bytes, count);
-			}
+			if (count > rtd->buffer_bytes)
+				count = rtd->buffer_bytes;
 			rtd->appl_bytes = appl_bytes;
 
 			if (count <= space_to_end) {
@@ -1101,8 +1123,20 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 			 * keep the old value but the control->
 			 * appl_ptr is clear. Reset it if this
 			 * misalignment happens*/
-			if (rtd->appl_bytes > appl_bytes)
-				rtd->appl_bytes = 0;
+			if (rtd->appl_bytes > appl_bytes) {
+				if (appl_bytes > rtd->buffer_bytes)
+					rtd->appl_bytes =
+						appl_bytes - rtd->buffer_bytes;
+				else
+					rtd->appl_bytes = 0;
+			} else {
+				if ((appl_bytes - rtd->appl_bytes) >
+						rtd->buffer_bytes)
+					rtd->appl_bytes =
+						appl_bytes - rtd->buffer_bytes;
+
+			}
+
 			offset = rtd->appl_bytes % rtd->buffer_bytes;
 			space_to_end = rtd->buffer_bytes - offset;
 			count = appl_bytes - rtd->appl_bytes;
@@ -1123,6 +1157,7 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 				hdmi_dma_mmap_copy(substream,
 						0, count - space_to_end);
 			}
+
 		}
 		dumpregs();
 

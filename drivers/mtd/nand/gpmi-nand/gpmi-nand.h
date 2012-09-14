@@ -120,6 +120,8 @@ struct nand_timing {
 	int8_t  tRHOH_in_ns;
 };
 
+#define ASYNC_EDO_ENABLED		1
+#define ASYNC_EDO_TIMING_CONFIGED	2
 struct gpmi_nand_data {
 	/* System Interface */
 	struct device		*dev;
@@ -181,6 +183,8 @@ struct gpmi_nand_data {
 
 	/* private */
 	void			*private;
+	int flags;
+	int timing_mode;
 };
 
 /**
@@ -188,16 +192,27 @@ struct gpmi_nand_data {
  * @data_setup_in_cycles:      The data setup time, in cycles.
  * @data_hold_in_cycles:       The data hold time, in cycles.
  * @address_setup_in_cycles:   The address setup time, in cycles.
+ * @device_busy_timeout:       The timeout waiting for NAND Ready/Busy,
+ *                             this value is the number of cycles multiplied
+ *                             by 4096.
  * @use_half_periods:          Indicates the clock is running slowly, so the
  *                             NFC DLL should use half-periods.
  * @sample_delay_factor:       The sample delay factor.
+ * @wrn_dly_sel:               The delay on the GPMI write strobe.
  */
 struct gpmi_nfc_hardware_timing {
+	/* for GPMI_HW_GPMI_TIMING0 */
 	uint8_t  data_setup_in_cycles;
 	uint8_t  data_hold_in_cycles;
 	uint8_t  address_setup_in_cycles;
+
+	/* for GPMI_HW_GPMI_TIMING1 */
+	uint16_t device_busy_timeout;
+
+	/* for GPMI_HW_GPMI_CTRL1 */
 	bool     use_half_periods;
 	uint8_t  sample_delay_factor;
+	uint8_t  wrn_dly_sel;
 };
 
 /**
