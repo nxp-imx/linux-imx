@@ -97,6 +97,25 @@ struct mxcfb_info {
 	struct fb_var_screeninfo cur_var;
 };
 
+struct mxcfb_pfmt {
+	u32 fb_pix_fmt;
+	int bpp;
+	struct fb_bitfield red;
+	struct fb_bitfield green;
+	struct fb_bitfield blue;
+	struct fb_bitfield transp;
+};
+
+static const struct mxcfb_pfmt mxcfb_pfmts[] = {
+	/*     pixel         bpp    red         green        blue      transp */
+	{IPU_PIX_FMT_RGB565, 16, {11, 5, 0}, { 5, 6, 0}, { 0, 5, 0}, { 0, 0, 0} },
+	{IPU_PIX_FMT_RGB24,  24, { 0, 8, 0}, { 8, 8, 0}, {16, 8, 0}, { 0, 0, 0} },
+	{IPU_PIX_FMT_BGR24,  24, {16, 8, 0}, { 8, 8, 0}, { 0, 8, 0}, { 0, 0, 0} },
+	{IPU_PIX_FMT_RGB32,  32, { 0, 8, 0}, { 8, 8, 0}, {16, 8, 0}, {24, 8, 0} },
+	{IPU_PIX_FMT_BGR32,  32, {16, 8, 0}, { 8, 8, 0}, { 0, 8, 0}, {24, 8, 0} },
+	{IPU_PIX_FMT_ABGR32, 32, {24, 8, 0}, {16, 8, 0}, { 8, 8, 0}, { 0, 8, 0} },
+};
+
 struct mxcfb_alloc_list {
 	struct list_head list;
 	dma_addr_t phy_addr;
@@ -114,14 +133,12 @@ enum {
 static bool g_dp_in_use[2];
 LIST_HEAD(fb_alloc_list);
 
-static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
+/* Return default standard(RGB) pixel format */
+static uint32_t bpp_to_pixfmt(int bpp)
 {
 	uint32_t pixfmt = 0;
 
-	if (fbi->var.nonstd)
-		return fbi->var.nonstd;
-
-	switch (fbi->var.bits_per_pixel) {
+	switch (bpp) {
 	case 24:
 		pixfmt = IPU_PIX_FMT_BGR24;
 		break;
@@ -132,6 +149,82 @@ static uint32_t bpp_to_pixfmt(struct fb_info *fbi)
 		pixfmt = IPU_PIX_FMT_RGB565;
 		break;
 	}
+	return pixfmt;
+}
+
+static inline int bitfield_is_equal(struct fb_bitfield f1,
+				    struct fb_bitfield f2)
+{
+	return !memcmp(&f1, &f2, sizeof(f1));
+}
+
+static int pixfmt_to_var(uint32_t pixfmt, struct fb_var_screeninfo *var)
+{
+	int i, ret = -1;
+
+	for (i = 0; i < ARRAY_SIZE(mxcfb_pfmts); i++) {
+		if (pixfmt == mxcfb_pfmts[i].fb_pix_fmt) {
+			var->red    = mxcfb_pfmts[i].red;
+			var->green  = mxcfb_pfmts[i].green;
+			var->blue   = mxcfb_pfmts[i].blue;
+			var->transp = mxcfb_pfmts[i].transp;
+			var->bits_per_pixel = mxcfb_pfmts[i].bpp;
+			ret = 0;
+			break;
+		}
+	}
+	return ret;
+}
+
+static int bpp_to_var(int bpp, struct fb_var_screeninfo *var)
+{
+	uint32_t pixfmt = 0;
+
+	pixfmt = bpp_to_pixfmt(bpp);
+	if (pixfmt)
+		return pixfmt_to_var(pixfmt, var);
+	else
+		return -1;
+}
+
+static int check_var_pixfmt(struct fb_var_screeninfo *var)
+{
+	int i, ret = -1;
+
+	for (i = 0; i < ARRAY_SIZE(mxcfb_pfmts); i++) {
+		if (bitfield_is_equal(var->red, mxcfb_pfmts[i].red) &&
+		    bitfield_is_equal(var->green, mxcfb_pfmts[i].green) &&
+		    bitfield_is_equal(var->blue, mxcfb_pfmts[i].blue) &&
+		    bitfield_is_equal(var->transp, mxcfb_pfmts[i].transp) &&
+		    var->bits_per_pixel == mxcfb_pfmts[i].bpp) {
+			ret = 0;
+			break;
+		}
+	}
+	return ret;
+}
+
+static uint32_t fbi_to_pixfmt(struct fb_info *fbi)
+{
+	int i;
+	uint32_t pixfmt = 0;
+
+	if (fbi->var.nonstd)
+		return fbi->var.nonstd;
+
+	for (i = 0; i < ARRAY_SIZE(mxcfb_pfmts); i++) {
+		if (bitfield_is_equal(fbi->var.red, mxcfb_pfmts[i].red) &&
+		    bitfield_is_equal(fbi->var.green, mxcfb_pfmts[i].green) &&
+		    bitfield_is_equal(fbi->var.blue, mxcfb_pfmts[i].blue) &&
+		    bitfield_is_equal(fbi->var.transp, mxcfb_pfmts[i].transp)) {
+			pixfmt = mxcfb_pfmts[i].fb_pix_fmt;
+			break;
+		}
+	}
+
+	if (pixfmt == 0)
+		dev_err(fbi->device, "cannot get pixel format\n");
+
 	return pixfmt;
 }
 
@@ -194,13 +287,13 @@ static int _setup_disp_channel1(struct fb_info *fbi)
 		if (fbi->var.vmode & FB_VMODE_INTERLACED)
 			params.mem_dc_sync.interlaced = true;
 		params.mem_dc_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
-		params.mem_dc_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
+		params.mem_dc_sync.in_pixel_fmt = fbi_to_pixfmt(fbi);
 	} else {
 		params.mem_dp_bg_sync.di = mxc_fbi->ipu_di;
 		if (fbi->var.vmode & FB_VMODE_INTERLACED)
 			params.mem_dp_bg_sync.interlaced = true;
 		params.mem_dp_bg_sync.out_pixel_fmt = mxc_fbi->ipu_di_pix_fmt;
-		params.mem_dp_bg_sync.in_pixel_fmt = bpp_to_pixfmt(fbi);
+		params.mem_dp_bg_sync.in_pixel_fmt = fbi_to_pixfmt(fbi);
 		if (mxc_fbi->alpha_chan_en)
 			params.mem_dp_bg_sync.alpha_chan_en = true;
 	}
@@ -217,7 +310,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	unsigned long base;
 	unsigned int fr_xoff, fr_yoff, fr_w, fr_h;
 
-	switch (bpp_to_pixfmt(fbi)) {
+	switch (fbi_to_pixfmt(fbi)) {
 	case IPU_PIX_FMT_YUV420P2:
 	case IPU_PIX_FMT_YVU420P:
 	case IPU_PIX_FMT_NV12:
@@ -265,7 +358,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 
 	retval = ipu_init_channel_buffer(mxc_fbi->ipu,
 					 mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
-					 bpp_to_pixfmt(fbi),
+					 fbi_to_pixfmt(fbi),
 					 fbi->var.xres, fbi->var.yres,
 					 fb_stride,
 					 fbi->var.rotate,
@@ -283,7 +376,7 @@ static int _setup_disp_channel2(struct fb_info *fbi)
 	/* update u/v offset */
 	ipu_update_channel_offset(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 			IPU_INPUT_BUFFER,
-			bpp_to_pixfmt(fbi),
+			fbi_to_pixfmt(fbi),
 			fr_w,
 			fr_h,
 			fr_w,
@@ -753,76 +846,9 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 	    (var->bits_per_pixel != 8))
 		var->bits_per_pixel = 16;
 
-	switch (var->bits_per_pixel) {
-	case 8:
-		var->red.length = 3;
-		var->red.offset = 5;
-		var->red.msb_right = 0;
-
-		var->green.length = 3;
-		var->green.offset = 2;
-		var->green.msb_right = 0;
-
-		var->blue.length = 2;
-		var->blue.offset = 0;
-		var->blue.msb_right = 0;
-
-		var->transp.length = 0;
-		var->transp.offset = 0;
-		var->transp.msb_right = 0;
-		break;
-	case 16:
-		var->red.length = 5;
-		var->red.offset = 11;
-		var->red.msb_right = 0;
-
-		var->green.length = 6;
-		var->green.offset = 5;
-		var->green.msb_right = 0;
-
-		var->blue.length = 5;
-		var->blue.offset = 0;
-		var->blue.msb_right = 0;
-
-		var->transp.length = 0;
-		var->transp.offset = 0;
-		var->transp.msb_right = 0;
-		break;
-	case 24:
-		var->red.length = 8;
-		var->red.offset = 16;
-		var->red.msb_right = 0;
-
-		var->green.length = 8;
-		var->green.offset = 8;
-		var->green.msb_right = 0;
-
-		var->blue.length = 8;
-		var->blue.offset = 0;
-		var->blue.msb_right = 0;
-
-		var->transp.length = 0;
-		var->transp.offset = 0;
-		var->transp.msb_right = 0;
-		break;
-	case 32:
-		var->red.length = 8;
-		var->red.offset = 16;
-		var->red.msb_right = 0;
-
-		var->green.length = 8;
-		var->green.offset = 8;
-		var->green.msb_right = 0;
-
-		var->blue.length = 8;
-		var->blue.offset = 0;
-		var->blue.msb_right = 0;
-
-		var->transp.length = 8;
-		var->transp.offset = 24;
-		var->transp.msb_right = 0;
-		break;
-	}
+	if (check_var_pixfmt(var))
+		/* Fall back to default */
+		bpp_to_var(var->bits_per_pixel, var);
 
 	if (var->pixclock < 1000) {
 		htotal = var->xres + var->right_margin + var->hsync_len +
@@ -1360,7 +1386,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	if (y_bottom > info->var.yres_virtual)
 		return -EINVAL;
 
-	switch (bpp_to_pixfmt(info)) {
+	switch (fbi_to_pixfmt(info)) {
 	case IPU_PIX_FMT_YUV420P2:
 	case IPU_PIX_FMT_YVU420P:
 	case IPU_PIX_FMT_NV12:
@@ -1447,7 +1473,7 @@ mxcfb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		/* update u/v offset */
 		ipu_update_channel_offset(mxc_fbi->ipu, mxc_fbi->ipu_ch,
 				IPU_INPUT_BUFFER,
-				bpp_to_pixfmt(info),
+				fbi_to_pixfmt(info),
 				fr_w,
 				fr_h,
 				fr_w,
@@ -1858,12 +1884,14 @@ static int mxcfb_dispdrv_init(struct platform_device *pdev,
  * Parse user specified options (`video=trident:')
  * example:
  * 	video=mxcfb0:dev=lcd,800x480M-16@55,if=RGB565,bpp=16,noaccel
+ *	video=mxcfb0:dev=lcd,800x480M-16@55,if=RGB565,fbpix=RGB565
  */
-static int mxcfb_option_setup(struct platform_device *pdev)
+static int mxcfb_option_setup(struct platform_device *pdev, struct fb_info *fbi)
 {
 	struct ipuv3_fb_platform_data *pdata = pdev->dev.platform_data;
 	char *options, *opt, *fb_mode_str = NULL;
 	char name[] = "mxcfb0";
+	uint32_t fb_pix_fmt = 0;
 
 	name[5] += pdev->id;
 	if (fb_get_options(name, &options)) {
@@ -1881,61 +1909,63 @@ static int mxcfb_option_setup(struct platform_device *pdev)
 		if (!strncmp(opt, "dev=", 4)) {
 			memcpy(pdata->disp_dev, opt + 4, strlen(opt) - 4);
 			pdata->disp_dev[strlen(opt) - 4] = '\0';
-			continue;
-		}
-		if (!strncmp(opt, "if=", 3)) {
-			if (!strncmp(opt+3, "RGB24", 5)) {
+		} else if (!strncmp(opt, "if=", 3)) {
+			if (!strncmp(opt+3, "RGB24", 5))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_RGB24;
-				continue;
-			} else if (!strncmp(opt+3, "BGR24", 5)) {
+			else if (!strncmp(opt+3, "BGR24", 5))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_BGR24;
-				continue;
-			}
-			if (!strncmp(opt+3, "GBR24", 5)) {
+			else if (!strncmp(opt+3, "GBR24", 5))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_GBR24;
-				continue;
-			}
-			if (!strncmp(opt+3, "RGB565", 6)) {
+			else if (!strncmp(opt+3, "RGB565", 6))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_RGB565;
-				continue;
-			}
-			if (!strncmp(opt+3, "RGB666", 6)) {
+			else if (!strncmp(opt+3, "RGB666", 6))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_RGB666;
-				continue;
-			}
-			if (!strncmp(opt+3, "YUV444", 6)) {
+			else if (!strncmp(opt+3, "YUV444", 6))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_YUV444;
-				continue;
-			}
-			if (!strncmp(opt+3, "LVDS666", 7)) {
+			else if (!strncmp(opt+3, "LVDS666", 7))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_LVDS666;
-				continue;
-			}
-			if (!strncmp(opt+3, "YUYV16", 6)) {
+			else if (!strncmp(opt+3, "YUYV16", 6))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_YUYV;
-				continue;
-			}
-			if (!strncmp(opt+3, "UYVY16", 6)) {
+			else if (!strncmp(opt+3, "UYVY16", 6))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_UYVY;
-				continue;
-			}
-			if (!strncmp(opt+3, "YVYU16", 6)) {
+			else if (!strncmp(opt+3, "YVYU16", 6))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_YVYU;
-				continue;
-			}
-			if (!strncmp(opt+3, "VYUY16", 6)) {
+			else if (!strncmp(opt+3, "VYUY16", 6))
 				pdata->interface_pix_fmt = IPU_PIX_FMT_VYUY;
-				continue;
+		} else if (!strncmp(opt, "fbpix=", 6)) {
+			if (!strncmp(opt+6, "RGB24", 5))
+				fb_pix_fmt = IPU_PIX_FMT_RGB24;
+			else if (!strncmp(opt+6, "BGR24", 5))
+				fb_pix_fmt = IPU_PIX_FMT_BGR24;
+			else if (!strncmp(opt+6, "RGB32", 5))
+				fb_pix_fmt = IPU_PIX_FMT_RGB32;
+			else if (!strncmp(opt+6, "BGR32", 5))
+				fb_pix_fmt = IPU_PIX_FMT_BGR32;
+			else if (!strncmp(opt+6, "ABGR32", 6))
+				fb_pix_fmt = IPU_PIX_FMT_ABGR32;
+			else if (!strncmp(opt+6, "RGB565", 6))
+				fb_pix_fmt = IPU_PIX_FMT_RGB565;
+
+			if (fb_pix_fmt) {
+				pixfmt_to_var(fb_pix_fmt, &fbi->var);
+				pdata->default_bpp =
+					fbi->var.bits_per_pixel;
 			}
-		}
-		if (!strncmp(opt, "int_clk", 7)) {
+		} else if (!strncmp(opt, "int_clk", 7)) {
 			pdata->int_clk = true;
 			continue;
-		}
-		if (!strncmp(opt, "bpp=", 4))
+		} else if (!strncmp(opt, "bpp=", 4)) {
+			/* bpp setting cannot overwirte fbpix setting */
+			if (fb_pix_fmt)
+				continue;
+
 			pdata->default_bpp =
 				simple_strtoul(opt + 4, NULL, 0);
-		else
+
+			fb_pix_fmt = bpp_to_pixfmt(pdata->default_bpp);
+			if (fb_pix_fmt)
+				pixfmt_to_var(fb_pix_fmt, &fbi->var);
+		} else
 			fb_mode_str = opt;
 	}
 
@@ -2144,16 +2174,16 @@ static int mxcfb_probe(struct platform_device *pdev)
 	struct resource *res;
 	int ret = 0;
 
-	ret = mxcfb_option_setup(pdev);
-	if (ret)
-		goto get_fb_option_failed;
-
 	/* Initialize FB structures */
 	fbi = mxcfb_init_fbinfo(&pdev->dev, &mxcfb_ops);
 	if (!fbi) {
 		ret = -ENOMEM;
 		goto init_fbinfo_failed;
 	}
+
+	ret = mxcfb_option_setup(pdev, fbi);
+	if (ret)
+		goto get_fb_option_failed;
 
 	mxcfbi = (struct mxcfb_info *)fbi->par;
 	mxcfbi->ipu_int_clk = plat_data->int_clk;
@@ -2263,8 +2293,8 @@ ipu_in_busy:
 init_dispdrv_failed:
 	fb_dealloc_cmap(&fbi->cmap);
 	framebuffer_release(fbi);
-init_fbinfo_failed:
 get_fb_option_failed:
+init_fbinfo_failed:
 	return ret;
 }
 
