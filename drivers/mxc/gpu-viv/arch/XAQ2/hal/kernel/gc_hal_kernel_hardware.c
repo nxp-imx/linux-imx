@@ -4276,7 +4276,7 @@ gckHARDWARE_SetFscaleValue(
     gctUINT32 clock;
     gctBOOL acquired = gcvFALSE;
 
-    gcmkHEADER_ARG("Hardware=0x%x FscaleVal=%d", Hardware, FscaleVal);
+    gcmkHEADER_ARG("Hardware=0x%x FscaleValue=%d", Hardware, FscaleValue);
 
     gcmkVERIFY_ARGUMENT(FscaleValue > 0 && FscaleValue <= 64);
 
