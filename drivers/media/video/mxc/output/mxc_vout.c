@@ -861,6 +861,7 @@ static int mxc_vout_open(struct file *file)
 
 		vout->win_pos.x = 0;
 		vout->win_pos.y = 0;
+		vout->release = true;
 	}
 
 	file->private_data = vout;
