@@ -179,6 +179,12 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 				anatop_val |= BM_ANADIG_ANA_MISC0_RTC_RINGOSC_EN;
 				__raw_writel(anatop_val, anatop_base +
 					HW_ANADIG_ANA_MISC0);
+				/* Need to enable pull down if 2P5 is disabled */
+				anatop_val = __raw_readl(anatop_base +
+					HW_ANADIG_REG_2P5);
+				anatop_val |= BM_ANADIG_REG_2P5_ENABLE_PULLDOWN;
+				__raw_writel(anatop_val, anatop_base +
+					HW_ANADIG_REG_2P5);
 				/* We need to allow the memories to be clock gated
 				 * in STOP mode, else the power consumption will
 				 * be very high. */
@@ -196,9 +202,10 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 				(~MXC_CCM_CCR_WB_COUNT_MASK) &
 				(~MXC_CCM_CCR_REG_BYPASS_CNT_MASK), MXC_CCM_CCR);
 			udelay(80);
-			/* Reconfigurate WB and RBC counter */
+			/* Reconfigurate WB and RBC counter, need to set WB counter
+			 * to 0x7 to make sure it work normally */
 			__raw_writel(__raw_readl(MXC_CCM_CCR) |
-				(0x1 << MXC_CCM_CCR_WB_COUNT_OFFSET) |
+				(0x7 << MXC_CCM_CCR_WB_COUNT_OFFSET) |
 				(0x20 << MXC_CCM_CCR_REG_BYPASS_CNT_OFFSET), MXC_CCM_CCR);
 
 			/* Set WB_PER enable */
