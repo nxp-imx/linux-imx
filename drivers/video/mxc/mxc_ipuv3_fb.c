@@ -1887,7 +1887,7 @@ static int mxcfb_option_setup(struct platform_device *pdev)
 			if (!strncmp(opt+3, "RGB24", 5)) {
 				pdata->interface_pix_fmt = IPU_PIX_FMT_RGB24;
 				continue;
-			} else if (!strncmp(opt+6, "BGR24", 5)) {
+			} else if (!strncmp(opt+3, "BGR24", 5)) {
 				pdata->interface_pix_fmt = IPU_PIX_FMT_BGR24;
 				continue;
 			}
