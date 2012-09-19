@@ -1110,6 +1110,7 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct imx_hdmi_dma_runtime_data *rtd = runtime->private_data;
 	unsigned long offset,  count, space_to_end, appl_bytes;
+	unsigned int status;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -1165,6 +1166,9 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 
 		hdmi_fifo_reset();
 		udelay(1);
+
+		status = hdmi_dma_get_irq_status();
+		hdmi_dma_clear_irq_status(status);
 
 		hdmi_dma_priv->tx_active = true;
 		hdmi_dma_start();
