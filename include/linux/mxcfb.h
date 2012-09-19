@@ -92,6 +92,8 @@ struct mxcfb_rect {
 #define EPDC_FLAG_USE_ALT_BUFFER		0x100
 #define EPDC_FLAG_TEST_COLLISION		0x200
 #define EPDC_FLAG_GROUP_UPDATE			0x400
+#define EPDC_FLAG_USE_DITHERING_Y1		0x2000
+#define EPDC_FLAG_USE_DITHERING_Y4		0x4000
 
 #define FB_POWERDOWN_DISABLE			-1
 
@@ -152,6 +154,7 @@ struct mxcfb_waveform_modes {
 #define MXCFB_SET_PWRDOWN_DELAY		_IOW('F', 0x30, int32_t)
 #define MXCFB_GET_PWRDOWN_DELAY		_IOR('F', 0x31, int32_t)
 #define MXCFB_SET_UPDATE_SCHEME		_IOW('F', 0x32, __u32)
+#define MXCFB_GET_WORK_BUFFER		_IOWR('F', 0x34, unsigned long)
 
 #ifdef __KERNEL__
 
