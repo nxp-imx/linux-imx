@@ -3323,10 +3323,13 @@ static int udc_suspend(struct fsl_udc *udc)
 	 * charge using usb
 	 */
 	if (pdata->pmflags == 0) {
-		if (!udc_can_wakeup_system())
+		if (!udc_can_wakeup_system()) {
 			dr_wake_up_enable(udc, false);
-		else
+		} else {
+			if (pdata->platform_phy_power_on)
+				pdata->platform_phy_power_on();
 			dr_wake_up_enable(udc, true);
+		}
 	}
 
 	/*

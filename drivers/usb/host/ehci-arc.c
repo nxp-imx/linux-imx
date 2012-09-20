@@ -678,6 +678,9 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 			usb_host_set_wakeup(hcd->self.controller, false);
 
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
+		} else {
+			if (pdata->platform_phy_power_on)
+				pdata->platform_phy_power_on();
 		}
 
 		printk(KERN_DEBUG "host suspend ends\n");
