@@ -90,6 +90,13 @@ static void usbh1_internal_phy_clock_gate(bool on)
 	}
 }
 
+static void usbh1_platform_phy_power_on(void)
+{
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+	__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG,
+				anatop_base_addr + HW_ANADIG_ANA_MISC0_SET);
+}
+
 static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 {
 	u32 tmp;
@@ -367,6 +374,7 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.phy_lowpower_suspend = _phy_lowpower_suspend,
 	.is_wakeup_event = _is_usbh1_wakeup,
 	.wakeup_handler = h1_wakeup_handler,
+	.platform_phy_power_on = usbh1_platform_phy_power_on,
 	.transceiver = "utmi",
 	.phy_regs = USB_PHY1_BASE_ADDR,
 };
