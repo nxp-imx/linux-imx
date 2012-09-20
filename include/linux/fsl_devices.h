@@ -135,6 +135,7 @@ struct fsl_usb2_platform_data {
 	void (*platform_rh_suspend)(struct fsl_usb2_platform_data *);
 	void (*platform_rh_resume)(struct fsl_usb2_platform_data *);
 	void (*platform_set_disconnect_det)(struct fsl_usb2_platform_data *, bool);
+	void (*platform_phy_power_on)(void);
 
 	struct fsl_usb2_wakeup_platform_data *wakeup_pdata;
 	struct platform_device *pdev;
