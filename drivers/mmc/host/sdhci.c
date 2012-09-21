@@ -30,7 +30,7 @@
 #include "sdhci.h"
 
 #define DRIVER_NAME "sdhci"
-#define CLK_TIMEOUT	(10 * HZ)
+#define CLK_TIMEOUT    (10 * HZ)
 
 #define DBG(f, x...) \
 	pr_debug(DRIVER_NAME " [%s()]: " f, __func__,## x)
@@ -76,11 +76,7 @@ static inline bool sdhci_is_sdio_attached(struct sdhci_host *host)
 static void sdhci_enable_clk(struct sdhci_host *host)
 {
 	if (host->clk_mgr_en) {
-		if (!in_interrupt())
-			cancel_delayed_work(&host->clk_worker);
-		else
-			__cancel_delayed_work(&host->clk_worker);
-
+		cancel_delayed_work_sync(&host->clk_worker);
 		if (!host->clk_status && host->ops->platform_clk_ctrl)
 			host->ops->platform_clk_ctrl(host, true);
 	}
