@@ -1528,7 +1528,6 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 
 	host = mmc_priv(mmc);
 
-	sdhci_enable_clk(host);
 	spin_lock_irqsave(&host->lock, flags);
 
 	if (host->flags & SDHCI_DEVICE_DEAD)
