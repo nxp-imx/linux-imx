@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -42,6 +42,7 @@
 				   ((vout)->field_fmt == V4L2_FIELD_INTERLACED_BT)))
 #define LOAD_3FIELDS(vout) ((INTERLACED_CONTENT(vout)) && \
 			    ((vout)->motion_sel != HIGH_MOTION))
+#define SWITCH_BUF_TOUT_NSEC	(100000000)
 
 struct v4l2_output mxc_outputs[1] = {
 	{
@@ -283,71 +284,16 @@ static void setup_next_buf_timer(vout_data *vout, int index)
 			"timer handler next schedule: %lu\n", timeout);
 }
 
-static int finish_previous_frame(vout_data *vout)
-{
-	struct fb_info *fbi =
-		registered_fb[vout->output_fb_num[vout->cur_disp_output]];
-	mm_segment_t old_fs;
-	int ret = 0, try = 0;
-
-	/* make sure buf[vout->disp_buf_num] in showing */
-	while (ipu_check_buffer_ready(vout->display_ch,
-			IPU_INPUT_BUFFER, vout->disp_buf_num)) {
-		if (fbi->fbops->fb_ioctl) {
-			old_fs = get_fs();
-			set_fs(KERNEL_DS);
-			ret = fbi->fbops->fb_ioctl(fbi, MXCFB_WAIT_FOR_VSYNC,
-					(unsigned int)NULL);
-			set_fs(old_fs);
-
-			if ((ret < 0) || (try == 1)) {
-				/*
-				 * ic_bypass need clear display buffer ready for next update.
-				 * when fb doing blank and unblank, it has chance to go into
-				 * dead loop: fb unblank just after buffer 1 ready selected.
-				 */
-				ipu_clear_buffer_ready(vout->display_ch, IPU_INPUT_BUFFER,
-						vout->disp_buf_num);
-			}
-		}
-		try++;
-	}
-
-	return ret;
-}
-
-static int show_current_frame(vout_data *vout)
-{
-	struct fb_info *fbi =
-		registered_fb[vout->output_fb_num[vout->cur_disp_output]];
-	mm_segment_t old_fs;
-	int ret = 0;
-
-	/* make sure buf[vout->disp_buf_num] begin to show */
-	if (ipu_get_cur_buffer_idx(vout->display_ch, IPU_INPUT_BUFFER)
-		!= vout->disp_buf_num) {
-		/* wait for display frame finish */
-		if (fbi->fbops->fb_ioctl) {
-			old_fs = get_fs();
-			set_fs(KERNEL_DS);
-			ret = fbi->fbops->fb_ioctl(fbi, MXCFB_WAIT_FOR_VSYNC,
-					(unsigned int)NULL);
-			set_fs(old_fs);
-		}
-	}
-
-	return ret;
-}
-
 static void icbypass_work_func(struct work_struct *work)
 {
 	vout_data *vout =
 		container_of(work, vout_data, icbypass_work);
 	int index, ret;
 	int last_buf;
+	int two_bufs_ready = 1;
+	int ready_cnt = 0;
 	unsigned long lock_flags = 0;
-
-	finish_previous_frame(vout);
+	struct timespec start_ts, current_ts, tout;
 
 	spin_lock_irqsave(&g_lock, lock_flags);
 
@@ -361,6 +307,38 @@ static void icbypass_work_func(struct work_struct *work)
 	vout->frame_count++;
 
 	vout->ipu_buf[vout->next_rdy_ipu_buf] = index;
+	getnstimeofday(&start_ts);
+	while (two_bufs_ready) {
+		getnstimeofday(&current_ts);
+		tout = timespec_sub(current_ts, start_ts);
+		if (timespec_to_ns(&tout) >= SWITCH_BUF_TOUT_NSEC) {
+			dev_err(&vout->video_dev->dev,
+				"switch buf for icbypass case timeout\n");
+			ipu_clear_buffer_ready(vout->display_ch,
+					       IPU_INPUT_BUFFER, 0);
+			ipu_clear_buffer_ready(vout->display_ch,
+					       IPU_INPUT_BUFFER, 1);
+			ipu_clear_buffer_ready(vout->display_ch,
+					       IPU_INPUT_BUFFER, 2);
+			break;
+		}
+
+		ready_cnt = ipu_check_buffer_ready(vout->display_ch,
+							    IPU_INPUT_BUFFER,
+							    0);
+		ready_cnt += ipu_check_buffer_ready(vout->display_ch,
+							    IPU_INPUT_BUFFER,
+							    1);
+		ready_cnt += ipu_check_buffer_ready(vout->display_ch,
+							    IPU_INPUT_BUFFER,
+							    2);
+		if (ready_cnt < 2)
+			two_bufs_ready = 0;
+		else
+			dev_dbg(&vout->video_dev->dev,
+				"%d buffers are ready for icbypass case\n",
+				ready_cnt);
+	}
 	ret = ipu_update_channel_buffer(vout->display_ch, IPU_INPUT_BUFFER,
 			vout->next_rdy_ipu_buf,
 			vout->v4l2_bufs[index].m.offset);
@@ -371,33 +349,30 @@ static void icbypass_work_func(struct work_struct *work)
 				vout->next_rdy_ipu_buf, ret);
 		goto exit;
 	}
-	spin_unlock_irqrestore(&g_lock, lock_flags);
-	show_current_frame(vout);
-	spin_lock_irqsave(&g_lock, lock_flags);
-	vout->next_rdy_ipu_buf = !vout->next_rdy_ipu_buf;
+	vout->next_rdy_ipu_buf = (vout->next_rdy_ipu_buf + 1) % 3;
 
 	last_buf = vout->ipu_buf[vout->next_done_ipu_buf];
-	if (last_buf != -1) {
+	/* make sure a buffer can be dqueued to user */
+	if (last_buf != -1 && vout->frame_count > 2) {
 		g_buf_output_cnt++;
 		vout->v4l2_bufs[last_buf].flags = V4L2_BUF_FLAG_DONE;
 		queue_buf(&vout->done_q, last_buf);
 		wake_up_interruptible(&vout->v4l_bufq);
 		vout->ipu_buf[vout->next_done_ipu_buf] = -1;
-		vout->next_done_ipu_buf = !vout->next_done_ipu_buf;
+		vout->next_done_ipu_buf = (vout->next_done_ipu_buf + 1) % 3;
 	}
 
-	if (g_buf_output_cnt > 0) {
-		/* Setup timer for next buffer */
-		index = peek_next_buf(&vout->ready_q);
-		if (index != -1)
-			setup_next_buf_timer(vout, index);
-		else
-			vout->state = STATE_STREAM_PAUSED;
+	/* Setup timer for next buffer */
+	index = peek_next_buf(&vout->ready_q);
+	if (index != -1)
+		setup_next_buf_timer(vout, index);
+	else
+		vout->state = STATE_STREAM_PAUSED;
 
-		if (vout->state == STATE_STREAM_STOPPING) {
-			if ((vout->ipu_buf[0] == -1) && (vout->ipu_buf[1] == -1)) {
-				vout->state = STATE_STREAM_OFF;
-			}
+	if (vout->state == STATE_STREAM_STOPPING) {
+		if ((vout->ipu_buf[0] == -1) && (vout->ipu_buf[1] == -1) &&
+		    (vout->ipu_buf[2] == -1)) {
+			vout->state = STATE_STREAM_OFF;
 		}
 	}
 exit:
@@ -1247,7 +1222,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	mm_segment_t old_fs;
 	unsigned int ipu_ch = CHAN_NONE;
 	unsigned int fb_fmt;
-	int rc = 0;
+	int rc = 0, index = 0;
 
 	dev_dbg(dev, "mxc_v4l2out_streamon: field format=%d\n",
 		vout->field_fmt);
@@ -1309,6 +1284,7 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 				vout->pp_split = 3; /*2 vertical stripes*/
 		} else {
 			vout->ipu_buf[1] = -1;
+			vout->ipu_buf[2] = -1;
 			vout->frame_count = 1;
 		}
 	} else if (!LOAD_3FIELDS(vout)) {
@@ -1378,9 +1354,8 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 	}
 
 #ifdef CONFIG_MXC_IPU_V1
-	/* IPUv1 needs IC to do CSC */
-	if (format_is_yuv(vout->v2f.fmt.pix.pixelformat) !=
-	    format_is_yuv(bpp_to_fmt(fbi)))
+	/* Don't support icbypass for IPUv1 */
+	vout->ic_bypass = 0;
 #else
 	/* DC channel needs IC to do CSC */
 	if ((format_is_yuv(vout->v2f.fmt.pix.pixelformat) !=
@@ -1425,7 +1400,8 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 
 	/* Init display channel through fb API */
 	fbvar.yoffset = 0;
-	fbvar.accel_flags = FB_ACCEL_DOUBLE_FLAG;
+	fbvar.accel_flags = vout->ic_bypass ?
+			FB_ACCEL_TRIPLE_FLAG : FB_ACCEL_DOUBLE_FLAG;
 	fbvar.activate |= FB_ACTIVATE_FORCE;
 	acquire_console_sem();
 	fbi->flags |= FBINFO_MISC_USEREVENT;
@@ -1596,7 +1572,12 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 					0,
 					0);
 		ipu_select_buffer(vout->display_ch, IPU_INPUT_BUFFER, 0);
-		queue_work(vout->v4l_wq, &vout->icbypass_work);
+
+		index = peek_next_buf(&vout->ready_q);
+		if (index != -1)
+			setup_next_buf_timer(vout, index);
+		else
+			vout->state = STATE_STREAM_PAUSED;
 	}
 
 	vout->start_jiffies = jiffies;

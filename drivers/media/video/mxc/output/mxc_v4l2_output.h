@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -91,7 +91,7 @@ typedef struct _vout_data {
 	s8 next_rdy_ipu_buf;
 	s8 next_done_ipu_buf;
 	s8 next_disp_ipu_buf;
-	s8 ipu_buf[2];
+	s8 ipu_buf[3];
 	s8 ipu_buf_p[2];
 	s8 ipu_buf_n[2];
 	volatile v4lout_state state;
