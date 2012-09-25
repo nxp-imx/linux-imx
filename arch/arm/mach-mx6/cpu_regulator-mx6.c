@@ -37,6 +37,7 @@ static struct cpu_op *cpu_op_tbl;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 
 extern unsigned long loops_per_jiffy;
+int external_pureg;
 
 static inline unsigned long mx6_cpu_jiffies(unsigned long old, u_int div,
 					      u_int mult)
@@ -62,6 +63,7 @@ void mx6_cpu_regulator_init(void)
 	int cpu;
 	u32 curr_cpu = 0;
 
+	external_pureg = 0;
 	cpu_regulator = regulator_get(NULL, gp_reg_id);
 	if (IS_ERR(cpu_regulator))
 		printk(KERN_ERR "%s: failed to get cpu regulator\n", __func__);
@@ -108,5 +110,21 @@ void mx6_cpu_regulator_init(void)
 	pu_regulator = regulator_get(NULL, pu_reg_id);
 	if (IS_ERR(pu_regulator))
 		printk(KERN_ERR "%s: failed to get pu regulator\n", __func__);
+	/*If enable CONFIG_MX6_INTER_LDO_BYPASS and VDDPU_IN is single supplied
+	*by external pmic, it means VDDPU_IN can be turned off if GPU/VPU driver
+	*not running.In this case we should set external_pureg which can be used
+	*in pu_enable/pu_disable of arch/arm/mach-mx6/mx6_anatop_regulator.c to
+	*enable or disable external VDDPU regulator from pmic. But for FSL
+	*reference boards, VDDSOC_IN connect with VDDPU_IN, so we didn't set
+	*pu_reg_id to the external pmic regulator supply name in the board file.
+	*In this case external_pureg should be 0 and can't turn off extern pmic
+	*regulator, but can turn off VDDPU by internal anatop power gate.
+	*
+	*If disable CONFIG_MX6_INTER_LDO_BYPASS, external_pureg will be 0, and
+	*VDDPU can be turned off by internal anatop anatop power gate.
+	*
+	*/
+	else if (!IS_ERR(pu_regulator) && strcmp(pu_reg_id, "cpu_vddvpu"))
+		external_pureg = 1;
 }
 

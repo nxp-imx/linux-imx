@@ -95,15 +95,19 @@ int set_cpu_freq(int freq)
 			ret = regulator_set_voltage(soc_regulator, soc_volt,
 							soc_volt);
 			if (ret < 0) {
-				printk(KERN_DEBUG "COULD NOT SET SOC VOLTAGE!!!!\n");
+				printk(KERN_DEBUG
+					"COULD NOT SET SOC VOLTAGE!!!!\n");
 				return ret;
 			}
 		}
-		if (!IS_ERR(pu_regulator)) {
+		/*if pu_regulator is enabled, it will be tracked with VDDARM*/
+		if (!IS_ERR(pu_regulator) &&
+			regulator_is_enabled(pu_regulator)) {
 			ret = regulator_set_voltage(pu_regulator, pu_volt,
 							pu_volt);
 			if (ret < 0) {
-				printk(KERN_DEBUG "COULD NOT SET PU VOLTAGE!!!!\n");
+				printk(KERN_DEBUG
+					"COULD NOT SET PU VOLTAGE!!!!\n");
 				return ret;
 			}
 		}
@@ -132,15 +136,19 @@ int set_cpu_freq(int freq)
 			ret = regulator_set_voltage(soc_regulator, soc_volt,
 							soc_volt);
 			if (ret < 0) {
-				printk(KERN_DEBUG "COULD NOT SET SOC VOLTAGE BACK!!!!\n");
+				printk(KERN_DEBUG
+					"COULD NOT SET SOC VOLTAGE BACK!!!!\n");
 				return ret;
 			}
 		}
-		if (!IS_ERR(pu_regulator)) {
+		/*if pu_regulator is enabled, it will be tracked with VDDARM*/
+		if (!IS_ERR(pu_regulator) &&
+			regulator_is_enabled(pu_regulator)) {
 			ret = regulator_set_voltage(pu_regulator, pu_volt,
 							pu_volt);
 			if (ret < 0) {
-				printk(KERN_DEBUG "COULD NOT SET PU VOLTAGE!!!!\n");
+				printk(KERN_DEBUG
+					"COULD NOT SET PU VOLTAGE!!!!\n");
 				return ret;
 			}
 		}
