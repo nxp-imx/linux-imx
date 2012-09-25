@@ -52,6 +52,7 @@
 
 #include <linux/console.h>
 #include <linux/types.h>
+#include <linux/switch.h>
 
 #include <mach/mxc_edid.h>
 #include "mxc/mxc_dispdrv.h"
@@ -178,6 +179,7 @@ struct mxc_hdmi {
 	struct fb_videomode previous_mode;
 	struct fb_videomode previous_non_vga_mode;
 	bool requesting_vga_for_initialization;
+	struct switch_dev sdev;
 };
 
 struct i2c_client *hdmi_i2c;
@@ -1749,9 +1751,13 @@ static void hotplug_worker(struct work_struct *work)
 #endif
 			hdmi_set_cable_state(1);
 
+			switch_set_state(&hdmi->sdev, 1);
+
 		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
 			/* Plugout event */
 			dev_dbg(&hdmi->pdev->dev, "EVENT=plugout\n");
+			switch_set_state(&hdmi->sdev, 0);
+
 			hdmi_set_cable_state(0);
 			mxc_hdmi_abort_stream();
 			mxc_hdmi_cable_disconnected(hdmi);
@@ -2334,6 +2340,10 @@ static int __devinit mxc_hdmi_probe(struct platform_device *pdev)
 		ret = (int)hdmi->disp_mxc_hdmi;
 		goto edispdrv;
 	}
+
+	hdmi->sdev.name = "hdmi_audio";
+	switch_dev_register(&hdmi->sdev);
+
 	mxc_dispdrv_setdata(hdmi->disp_mxc_hdmi, hdmi);
 
 	platform_set_drvdata(pdev, hdmi);
@@ -2355,6 +2365,8 @@ static int mxc_hdmi_remove(struct platform_device *pdev)
 	int irq = platform_get_irq(pdev, 0);
 
 	fb_unregister_client(&hdmi->nb);
+
+	switch_dev_unregister(&hdmi->sdev);
 
 	mxc_dispdrv_puthandle(hdmi->disp_mxc_hdmi);
 	mxc_dispdrv_unregister(hdmi->disp_mxc_hdmi);

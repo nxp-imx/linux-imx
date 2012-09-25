@@ -27,6 +27,8 @@
 #include <linux/fsl_devices.h>
 #include <linux/slab.h>
 #include <linux/clk.h>
+#include <linux/switch.h>
+
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -52,6 +54,7 @@ struct imx_priv {
 	int amic_irq;
 	int amic_status;
 	struct platform_device *pdev;
+	struct switch_dev sdev;
 };
 unsigned int sample_format = SNDRV_PCM_FMTBIT_S16_LE;
 static struct imx_priv card_priv;
@@ -191,11 +194,13 @@ static void headphone_detect_handler(struct work_struct *wor)
 		return;
 	}
 
-	if (priv->hp_status != plat->hp_active_low)
+	if (priv->hp_status != plat->hp_active_low) {
+		switch_set_state(&priv->sdev, 2);
 		snprintf(buf, 32, "STATE=%d", 2);
-	else
+	} else {
+		switch_set_state(&priv->sdev, 0);
 		snprintf(buf, 32, "STATE=%d", 0);
-
+	}
 	envp[0] = "NAME=headphone";
 	envp[1] = buf;
 	envp[2] = NULL;
@@ -221,6 +226,9 @@ static ssize_t show_headphone(struct device_driver *dev, char *buf)
 	struct imx_priv *priv = &card_priv;
 	struct platform_device *pdev = priv->pdev;
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
+
+	if (plat->hp_gpio == -1)
+		return 0;
 
 	/* determine whether hp is plugged in */
 	priv->hp_status = gpio_get_value(plat->hp_gpio);
@@ -289,7 +297,7 @@ static ssize_t show_amic(struct device_driver *dev, char *buf)
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
 
 	/* determine whether amic is plugged in */
-	priv->amic_status = gpio_get_value(plat->hp_gpio);
+	priv->amic_status = gpio_get_value(plat->mic_gpio);
 
 	if (priv->amic_status != plat->mic_active_low)
 		strcpy(buf, "amic\n");
@@ -441,18 +449,34 @@ static int __devinit imx_wm8962_probe(struct platform_device *pdev)
 
 	priv->sysclk = plat->sysclk;
 
+	priv->sdev.name = "h2w";
+	ret = switch_dev_register(&priv->sdev);
+	if (ret < 0) {
+		ret = -EINVAL;
+		return ret;
+	}
+
+	if (plat->hp_gpio != -1) {
+		priv->hp_status = gpio_get_value(plat->hp_gpio);
+		if (priv->hp_status != plat->hp_active_low)
+			switch_set_state(&priv->sdev, 2);
+		else
+			switch_set_state(&priv->sdev, 0);
+	}
 	return ret;
 }
 
 static int __devexit imx_wm8962_remove(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
+	struct imx_priv *priv = &card_priv;
 
 	plat->clock_enable(0);
 
 	if (plat->finit)
 		plat->finit();
 
+	switch_dev_unregister(&priv->sdev);
 	return 0;
 }
 
