@@ -47,6 +47,7 @@
 
 #if ENABLE_GPU_CLOCK_BY_DRIVER && LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
 #include <linux/clk.h>
+#include <linux/regulator/consumer.h>
 #endif
 
 #define NTSTRSAFE_NO_CCH_FUNCTIONS

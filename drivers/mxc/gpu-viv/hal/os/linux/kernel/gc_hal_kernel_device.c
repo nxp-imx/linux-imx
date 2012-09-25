@@ -358,6 +358,15 @@ gckGALDEVICE_Construct(
 	 	gckDebugFileSystemSetCurrentNode(device->dbgnode);
 	}
     }
+    /*get gpu regulator*/
+    device->gpu_regulator = regulator_get(NULL, "cpu_vddgpu");
+    if (IS_ERR(device->gpu_regulator)) {
+	gcmkTRACE_ZONE(gcvLEVEL_ERROR, gcvZONE_DRIVER,
+		"%s(%d): Failed to get gpu regulator  %s/%s \n",
+		__FUNCTION__, __LINE__,
+		PARENT_FILE, DEBUG_FILE);
+	gcmkONERROR(gcvSTATUS_NOT_FOUND);
+    }
 
     /*Initialize the clock structure*/
     if (IrqLine != -1) {

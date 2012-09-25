@@ -89,6 +89,9 @@ typedef struct _gckGALDEVICE
     struct clk         *clk_2d_axi;
     struct clk         *clk_vg_axi;
 
+    /*Power management.*/
+    struct regulator      *gpu_regulator;
+
 }
 * gckGALDEVICE;
 
