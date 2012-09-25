@@ -386,7 +386,7 @@ void init_ddr_settings(void)
 	/* Store the size of the array in iRAM also,
 	 * increase the size by 8 bytes.
 	 */
-	iram_ddr_settings = iram_alloc(ddr_settings_size + 8, &iram_paddr);
+	iram_ddr_settings = iram_alloc((ddr_settings_size+1)*8, &iram_paddr);
 	if (iram_ddr_settings == NULL) {
 			printk(KERN_DEBUG
 			"%s: failed to allocate iRAM memory for ddr settings\n",
