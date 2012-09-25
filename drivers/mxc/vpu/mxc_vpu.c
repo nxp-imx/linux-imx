@@ -39,6 +39,7 @@
 #include <linux/workqueue.h>
 #include <linux/sched.h>
 #include <linux/vmalloc.h>
+#include <linux/regulator/consumer.h>
 #include <linux/page-flags.h>
 #include <linux/mm_types.h>
 #include <linux/types.h>
@@ -110,6 +111,7 @@ static int vpu_jpu_irq;
 #endif
 
 static unsigned int regBk[64];
+static struct regulator *vpu_regulator;
 
 #define	READ_REG(x)		__raw_readl(vpu_base + x)
 #define	WRITE_REG(val, x)	__raw_writel(val, vpu_base + x)
@@ -245,8 +247,12 @@ bool vpu_is_valid_phy_memory(u32 paddr)
  */
 static int vpu_open(struct inode *inode, struct file *filp)
 {
+
 	mutex_lock(&vpu_data.lock);
-	open_count++;
+
+	if (open_count++ == 0 && !IS_ERR(vpu_regulator))
+		regulator_enable(vpu_regulator);
+
 	filp->private_data = (void *)(&vpu_data);
 	mutex_unlock(&vpu_data.lock);
 	return 0;
@@ -531,6 +537,9 @@ static int vpu_release(struct inode *inode, struct file *filp)
 
 	mutex_lock(&vpu_data.lock);
 	if (open_count > 0 && !(--open_count)) {
+		if (!IS_ERR(vpu_regulator))
+			regulator_disable(vpu_regulator);
+
 		vpu_free_buffers();
 
 		/* Free shared memory when vpu device is idle */
@@ -705,6 +714,12 @@ static int vpu_dev_probe(struct platform_device *pdev)
 			  (void *)(&vpu_data));
 	if (err)
 		goto err_out_class;
+	vpu_regulator = regulator_get(NULL, "cpu_vddvpu");
+	if (IS_ERR(vpu_regulator)) {
+		printk(KERN_ERR
+			"%s: failed to get vpu regulator\n", __func__);
+		goto err_out_class;
+	}
 
 #ifdef MXC_VPU_HAS_JPU
 	vpu_jpu_irq = platform_get_irq_byname(pdev, "vpu_jpu_irq");
@@ -752,7 +767,8 @@ static int vpu_dev_remove(struct platform_device *pdev)
 	iounmap(vpu_base);
 	if (vpu_plat && vpu_plat->iram_enable && vpu_plat->iram_size)
 		iram_free(iram.start,  vpu_plat->iram_size);
-
+	if (!IS_ERR(vpu_regulator))
+		regulator_put(vpu_regulator);
 	return 0;
 }
 
@@ -762,6 +778,8 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 	int i;
 	unsigned long timeout;
 
+	if (!IS_ERR(vpu_regulator))
+		regulator_enable(vpu_regulator);
 	/* Wait for vpu go to idle state, suspect vpu cannot be changed
 	   to idle state after about 1 sec */
 	if (open_count > 0) {
@@ -794,10 +812,14 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 	if (vpu_plat->pg)
 		vpu_plat->pg(1);
 
+	if (!IS_ERR(vpu_regulator))
+		regulator_disable(vpu_regulator);
 	return 0;
 
 out:
 	clk_disable(vpu_clk);
+	if (!IS_ERR(vpu_regulator))
+		regulator_disable(vpu_regulator);
 	return -EAGAIN;
 
 }
@@ -809,6 +831,8 @@ static int vpu_resume(struct platform_device *pdev)
 	if (cpu_is_mx53())
 		goto recover_clk;
 
+	if (!IS_ERR(vpu_regulator))
+		regulator_enable(vpu_regulator);
 	if (vpu_plat->pg)
 		vpu_plat->pg(0);
 
@@ -869,6 +893,8 @@ recover_clk:
 	/* Recover vpu clock */
 	for (i = 0; i < vpu_clk_usercount; i++)
 		clk_enable(vpu_clk);
+	if (!IS_ERR(vpu_regulator))
+		regulator_disable(vpu_regulator);
 
 	return 0;
 }
