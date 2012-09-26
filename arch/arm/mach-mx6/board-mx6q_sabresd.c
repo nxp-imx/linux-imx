@@ -1731,6 +1731,26 @@ static int __init early_enable_lcd_ldb(char *p)
 }
 early_param("enable_lcd_ldb", early_enable_lcd_ldb);
 
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+static struct resource ram_console_resource = {
+	.name = "android ram console",
+	.flags = IORESOURCE_MEM,
+};
+
+static struct platform_device android_ram_console = {
+	.name = "ram_console",
+	.num_resources = 1,
+	.resource = &ram_console_resource,
+};
+
+static int __init imx6x_add_ram_console(void)
+{
+	return platform_device_register(&android_ram_console);
+}
+#else
+#define imx6x_add_ram_console() do {} while (0)
+#endif
+
 /*!
  * Board specific initialization.
  */
@@ -1763,6 +1783,7 @@ static void __init mx6_sabresd_board_init(void)
 	soc_reg_id = sabresd_dvfscore_data.soc_id;
 	pu_reg_id = sabresd_dvfscore_data.pu_id;
 	mx6q_sabresd_init_uart();
+	imx6x_add_ram_console();
 
 	/*
 	 * MX6DL/Solo only supports single IPU
@@ -2028,6 +2049,14 @@ static void __init mx6q_sabresd_reserve(void)
 			memblock_remove(phys, sabresd_fb_data[i].res_size[0]);
 			sabresd_fb_data[i].res_base[0] = phys;
 		}
+
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+	phys = memblock_alloc_base(SZ_128K, SZ_4K, SZ_1G);
+	memblock_remove(phys, SZ_128K);
+	memblock_free(phys, SZ_128K);
+	ram_console_resource.start = phys;
+	ram_console_resource.end   = phys + SZ_128K - 1;
+#endif
 
 #if defined(CONFIG_MXC_GPU_VIV) || defined(CONFIG_MXC_GPU_VIV_MODULE)
 	if (imx6q_gpu_pdata.reserved_mem_size) {
