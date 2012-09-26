@@ -70,6 +70,10 @@
 #define INVALID_LUT		(-1)
 #define DRY_RUN_NO_LUT		100
 
+/* Maximum update buffer image width due to v2.0 and v2.1 errata ERR005313. */
+#define EPDC_V2_MAX_UPDATE_WIDTH	2047
+#define EPDC_V2_ROTATION_ALIGNMENT	8
+
 #define DEFAULT_TEMP_INDEX	0
 #define DEFAULT_TEMP		20 /* room temp in deg Celsius */
 
@@ -203,6 +207,8 @@ struct mxc_epdc_fb_data {
 	bool updates_active;
 	int pwrdown_delay;
 	unsigned long tce_prevent;
+	bool restrict_width; /* work around rev >=2.0 width and
+				stride restriction  */
 
 	/* FB elements related to PxP DMA */
 	struct completion pxp_tx_cmpl;
@@ -1941,10 +1947,10 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 	 * to copybuf in addition to the PxP structures */
 	mutex_lock(&fb_data->pxp_mutex);
 
-	if ((((width_unaligned || height_unaligned || input_unaligned) &&
+	if (((((width_unaligned || height_unaligned || input_unaligned) &&
 		(upd_desc_list->upd_data.waveform_mode == WAVEFORM_MODE_AUTO))
-		|| line_overflow) && (fb_data->rev < 20)) {
-
+		|| line_overflow) && (fb_data->rev < 20)) ||
+		fb_data->restrict_width) {
 		dev_dbg(fb_data->dev, "Copying update before processing.\n");
 
 		/* Update to reflect what the new source buffer will be */
@@ -2148,7 +2154,8 @@ static int epdc_process_update(struct update_data_list *upd_data_list,
 }
 
 static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
-				struct update_desc_list *update_to_merge)
+				struct update_desc_list *update_to_merge,
+				struct mxc_epdc_fb_data *fb_data)
 {
 	struct mxcfb_update_data *a, *b;
 	struct mxcfb_rect *arect, *brect;
@@ -2205,6 +2212,19 @@ static int epdc_submit_merge(struct update_desc_list *upd_desc_list,
 			(brect->top + brect->height) ?
 			(arect->top + arect->height - combine.top) :
 			(brect->top + brect->height - combine.top);
+
+	/* Don't merge if combined width exceeds max width */
+	if (fb_data->restrict_width) {
+		u32 max_width = EPDC_V2_MAX_UPDATE_WIDTH;
+		u32 combined_width = combine.width;
+		if (fb_data->epdc_fb_var.rotate != FB_ROTATE_UR)
+			max_width -= EPDC_V2_ROTATION_ALIGNMENT;
+		if ((fb_data->epdc_fb_var.rotate == FB_ROTATE_CW) ||
+			(fb_data->epdc_fb_var.rotate == FB_ROTATE_CCW))
+			combined_width = combine.height;
+		if (combined_width > max_width)
+			return MERGE_FAIL;
+	}
 
 	*arect = combine;
 
@@ -2272,7 +2292,8 @@ static void epdc_submit_work_func(struct work_struct *work)
 				break;
 		} else {
 			switch (epdc_submit_merge(upd_data_list->update_desc,
-						next_update->update_desc)) {
+						next_update->update_desc,
+						fb_data)) {
 			case MERGE_OK:
 				dev_dbg(fb_data->dev,
 					"Update merged [collision]\n");
@@ -2342,7 +2363,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 					break;
 			} else {
 				switch (epdc_submit_merge(upd_data_list->update_desc,
-						next_desc)) {
+						next_desc, fb_data)) {
 				case MERGE_OK:
 					dev_dbg(fb_data->dev,
 						"Update merged [queue]\n");
@@ -2389,7 +2410,8 @@ static void epdc_submit_work_func(struct work_struct *work)
 
 	if ((fb_data->epdc_fb_var.rotate == FB_ROTATE_UR) &&
 		(fb_data->epdc_fb_var.grayscale == GRAYSCALE_8BIT) &&
-		!is_transform && (fb_data->rev > 20)) {
+		!is_transform && (fb_data->rev > 20) &&
+		!fb_data->restrict_width) {
 
 		/* If needed, enable EPDC HW while ePxP is processing */
 		if ((fb_data->power_state == POWER_STATE_OFF)
@@ -2623,8 +2645,7 @@ static void epdc_submit_work_func(struct work_struct *work)
 	mutex_unlock(&fb_data->queue_mutex);
 }
 
-
-int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
+static int mxc_epdc_fb_send_single_update(struct mxcfb_update_data *upd_data,
 				   struct fb_info *info)
 {
 	struct mxc_epdc_fb_data *fb_data = info ?
@@ -2918,6 +2939,63 @@ int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
 
 	mutex_unlock(&fb_data->queue_mutex);
 	return 0;
+}
+
+int mxc_epdc_fb_send_update(struct mxcfb_update_data *upd_data,
+				   struct fb_info *info)
+{
+	struct mxc_epdc_fb_data *fb_data = info ?
+		(struct mxc_epdc_fb_data *)info:g_fb_data;
+
+	if (!fb_data->restrict_width) {
+		/* No width restriction, send entire update region */
+		return mxc_epdc_fb_send_single_update(upd_data, info);
+	} else {
+		int ret;
+		__u32 width, left;
+		__u32 marker;
+		__u32 *region_width, *region_left;
+		u32 max_upd_width = EPDC_V2_MAX_UPDATE_WIDTH;
+
+		/* Further restrict max width due to pxp rotation
+		  * alignment requirement
+		  */
+		if (fb_data->epdc_fb_var.rotate != FB_ROTATE_UR)
+			max_upd_width -= EPDC_V2_ROTATION_ALIGNMENT;
+
+		/* Select split of width or height based on rotation */
+		if ((fb_data->epdc_fb_var.rotate == FB_ROTATE_UR) ||
+			(fb_data->epdc_fb_var.rotate == FB_ROTATE_UD)) {
+			region_width = &upd_data->update_region.width;
+			region_left = &upd_data->update_region.left;
+		} else {
+			region_width = &upd_data->update_region.height;
+			region_left = &upd_data->update_region.top;
+		}
+
+		if (*region_width <= max_upd_width)
+			return mxc_epdc_fb_send_single_update(upd_data,	info);
+
+		width = *region_width;
+		left = *region_left;
+		marker = upd_data->update_marker;
+		upd_data->update_marker = 0;
+
+		do {
+			*region_width = max_upd_width;
+			*region_left = left;
+			ret = mxc_epdc_fb_send_single_update(upd_data, info);
+			if (ret)
+				return ret;
+			width -= max_upd_width;
+			left += max_upd_width;
+		} while (width > max_upd_width);
+
+		*region_width = width;
+		*region_left = left;
+		upd_data->update_marker = marker;
+		return mxc_epdc_fb_send_single_update(upd_data, info);
+	}
 }
 EXPORT_SYMBOL(mxc_epdc_fb_send_update);
 
@@ -4146,7 +4224,8 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 		&fb_data->info);
 	if (ret < 0)
 		dev_err(fb_data->dev,
-			"Wait for update complete failed.  Error = 0x%x", ret);
+			"Wait for initial update complete failed."
+			" Error = 0x%x", ret);
 }
 
 static int mxc_epdc_fb_init_hw(struct fb_info *info)
@@ -4487,6 +4566,8 @@ int __devinit mxc_epdc_fb_probe(struct platform_device *pdev)
 	} else {
 		fb_data->num_luts = EPDC_V2_NUM_LUTS;
 		fb_data->max_num_updates = EPDC_V2_MAX_NUM_UPDATES;
+		if (vmode->xres > EPDC_V2_MAX_UPDATE_WIDTH)
+			fb_data->restrict_width = true;
 	}
 	fb_data->max_num_buffers = EPDC_MAX_NUM_BUFFERS;
 
