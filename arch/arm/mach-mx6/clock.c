@@ -5303,6 +5303,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "mlb150_clk", mlb150_clk),
 	_REGISTER_CLOCK(NULL, "anaclk_1", anaclk_1),
 	_REGISTER_CLOCK(NULL, "anaclk_2", anaclk_2),
+	_REGISTER_CLOCK(NULL, "apb_pclk", dummy_clk),
 };
 
 static void clk_tree_init(void)
