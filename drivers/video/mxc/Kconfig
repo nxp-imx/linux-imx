@@ -1,6 +1,6 @@
 config FB_MXC
 	tristate "MXC Framebuffer support"
-	depends on FB && (MXC_IPU || ARCH_MX21 || ARCH_MX27 || ARCH_MX25)
+	depends on FB && (MXC_IPU || ARCH_MX21 || ARCH_MX27 || ARCH_MX25 || ARCH_MX6)
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
