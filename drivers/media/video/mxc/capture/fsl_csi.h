@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -102,23 +102,22 @@
 #define CSI_MCLK_I2C		8
 #endif
 
-#define CSI_CSICR1		(IO_ADDRESS(CSI_BASE_ADDR))
-#define CSI_CSICR2		(IO_ADDRESS(CSI_BASE_ADDR + 0x4))
-#define CSI_CSICR3		(IO_ADDRESS(CSI_BASE_ADDR + 0x8))
-#define CSI_STATFIFO		(IO_ADDRESS(CSI_BASE_ADDR + 0xC))
-#define CSI_CSIRXFIFO		(IO_ADDRESS(CSI_BASE_ADDR + 0x10))
-#define CSI_CSIRXCNT		(IO_ADDRESS(CSI_BASE_ADDR + 0x14))
-#define CSI_CSISR		(IO_ADDRESS(CSI_BASE_ADDR + 0x18))
+extern void __iomem *csi_regbase;
+#define CSI_CSICR1		(csi_regbase)
+#define CSI_CSICR2		(csi_regbase + 0x4)
+#define CSI_CSICR3		(csi_regbase + 0x8)
+#define CSI_STATFIFO		(csi_regbase + 0xC)
+#define CSI_CSIRXFIFO		(csi_regbase + 0x10)
+#define CSI_CSIRXCNT		(csi_regbase + 0x14)
+#define CSI_CSISR		(csi_regbase + 0x18)
 
-#define CSI_CSIDBG		(IO_ADDRESS(CSI_BASE_ADDR + 0x1C))
-#define CSI_CSIDMASA_STATFIFO	(IO_ADDRESS(CSI_BASE_ADDR + 0x20))
-#define CSI_CSIDMATS_STATFIFO	(IO_ADDRESS(CSI_BASE_ADDR + 0x24))
-#define CSI_CSIDMASA_FB1	(IO_ADDRESS(CSI_BASE_ADDR + 0x28))
-#define CSI_CSIDMASA_FB2	(IO_ADDRESS(CSI_BASE_ADDR + 0x2C))
-#define CSI_CSIFBUF_PARA	(IO_ADDRESS(CSI_BASE_ADDR + 0x30))
-#define CSI_CSIIMAG_PARA	(IO_ADDRESS(CSI_BASE_ADDR + 0x34))
-
-#define CSI_CSIRXFIFO_PHYADDR	(CSI_BASE_ADDR + 0x10)
+#define CSI_CSIDBG		(csi_regbase + 0x1C)
+#define CSI_CSIDMASA_STATFIFO	(csi_regbase + 0x20)
+#define CSI_CSIDMATS_STATFIFO	(csi_regbase + 0x24)
+#define CSI_CSIDMASA_FB1	(csi_regbase + 0x28)
+#define CSI_CSIDMASA_FB2	(csi_regbase + 0x2C)
+#define CSI_CSIFBUF_PARA	(csi_regbase + 0x30)
+#define CSI_CSIIMAG_PARA	(csi_regbase + 0x34)
 
 static inline void csi_clear_status(unsigned long status)
 {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -20,6 +20,7 @@
  */
 #include <linux/types.h>
 #include <linux/init.h>
+#include <linux/platform_device.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/interrupt.h>
@@ -27,11 +28,14 @@
 #include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/clk.h>
+#include <linux/sched.h>
 #include <mach/clock.h>
 
 #include "mxc_v4l2_capture.h"
 #include "fsl_csi.h"
 
+void __iomem *csi_regbase;
+static int irq_nr;
 static bool g_csi_mclk_on;
 static csi_irq_callback_t g_callback;
 static void *g_callback_data;
@@ -164,7 +168,7 @@ void csi_start_callback(void *data)
 {
 	cam_data *cam = (cam_data *) data;
 
-	if (request_irq(MXC_INT_CSI, csi_irq_handler, 0, "csi", cam) < 0)
+	if (request_irq(irq_nr, csi_irq_handler, 0, "csi", cam) < 0)
 		pr_debug("CSI error: irq request fail\n");
 
 }
@@ -174,7 +178,7 @@ void csi_stop_callback(void *data)
 {
 	cam_data *cam = (cam_data *) data;
 
-	free_irq(MXC_INT_CSI, cam);
+	free_irq(irq_nr, cam);
 }
 EXPORT_SYMBOL(csi_stop_callback);
 
@@ -254,10 +258,32 @@ void csi_mclk_disable(void)
 	__raw_writel(__raw_readl(CSI_CSICR1) & ~BIT_MCLKEN, CSI_CSICR1);
 }
 
-int32_t __init csi_init_module(void)
+static int __devinit csi_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct clk *per_clk;
+	struct resource *res;
+
+	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "No csi irq found.\n");
+		ret = -ENODEV;
+		goto err;
+	}
+	irq_nr = res->start;
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "No csi base address found.\n");
+		ret = -ENODEV;
+		goto err;
+	}
+	csi_regbase = ioremap(res->start, resource_size(res));
+	if (!csi_regbase) {
+		dev_err(&pdev->dev, "ioremap failed with csi base\n");
+		ret = -ENOMEM;
+		goto err;
+	}
 
 	csihw_reset();
 	csi_init_interface();
@@ -271,12 +297,34 @@ int32_t __init csi_init_module(void)
 	clk_enable(per_clk);
 	csi_mclk_recalc(&csi_mclk);
 
+err:
 	return ret;
+}
+
+static int __devexit csi_remove(struct platform_device *pdev)
+{
+	clk_disable(&csi_mclk);
+	iounmap(csi_regbase);
+
+	return 0;
+}
+
+static struct platform_driver csi_driver = {
+	.driver = {
+		   .name = "fsl_csi",
+		   },
+	.probe = csi_probe,
+	.remove = __devexit_p(csi_remove),
+};
+
+int32_t __init csi_init_module(void)
+{
+	return platform_driver_register(&csi_driver);
 }
 
 void __exit csi_cleanup_module(void)
 {
-	clk_disable(&csi_mclk);
+	platform_driver_unregister(&csi_driver);
 }
 
 module_init(csi_init_module);

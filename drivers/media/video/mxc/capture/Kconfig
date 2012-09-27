@@ -13,7 +13,7 @@ config VIDEO_MXC_EMMA_CAMERA
 	default y
 
 config VIDEO_MXC_CSI_CAMERA
-	tristate "MX25 CSI camera support"
+	tristate "CSI camera support"
 	depends on !VIDEO_MXC_EMMA_CAMERA
 
 config VIDEO_MXC_CSI_DMA
