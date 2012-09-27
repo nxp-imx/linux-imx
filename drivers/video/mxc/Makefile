@@ -4,7 +4,7 @@ obj-$(CONFIG_FB_MXC_SII902X_ELCDIF)           += mxcfb_sii902x_elcdif.o
 obj-$(CONFIG_FB_MXC_LDB)			+= ldb.o
 obj-$(CONFIG_FB_MXC_MIPI_DSI)			+= mipi_dsi.o
 obj-$(CONFIG_FB_MXC_TRULY_WVGA_SYNC_PANEL) 	+= mxcfb_hx8369_wvga.o
-obj-$(CONFIG_FB_MXC_EDID)			+= mxc_edid.o mxc_dvi.o
+obj-$(CONFIG_FB_MXC_EDID)			+= mxc_edid.o
 ifeq ($(CONFIG_ARCH_MX21)$(CONFIG_ARCH_MX27)$(CONFIG_ARCH_MX25),y)
 	obj-$(CONFIG_FB_MXC_TVOUT)              += fs453.o
 	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mx2fb.o mxcfb_modedb.o
@@ -12,8 +12,10 @@ ifeq ($(CONFIG_ARCH_MX21)$(CONFIG_ARCH_MX27)$(CONFIG_ARCH_MX25),y)
 else
 ifeq ($(CONFIG_MXC_IPU_V1),y)
 	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mxcfb.o mxcfb_modedb.o
-else
+endif
+ifeq ($(CONFIG_MXC_IPU_V3),y)
 	obj-$(CONFIG_FB_MXC_SYNC_PANEL)         += mxc_dispdrv.o mxc_lcdif.o mxc_ipuv3_fb.o
+	obj-$(CONFIG_FB_MXC_EDID)		+= mxc_dvi.o
 endif
 	obj-$(CONFIG_FB_MXC_EPSON_PANEL)        += mxcfb_epson.o
 	obj-$(CONFIG_FB_MXC_EPSON_QVGA_PANEL)   += mxcfb_epson_qvga.o
