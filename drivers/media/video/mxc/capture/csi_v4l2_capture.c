@@ -61,6 +61,198 @@ static struct v4l2_int_device csi_v4l2_int_device = {
 	      },
 };
 
+/* Callback function triggered after PxP receives an EOF interrupt */
+static void pxp_dma_done(void *arg)
+{
+	struct pxp_tx_desc *tx_desc = to_tx_desc(arg);
+	struct dma_chan *chan = tx_desc->txd.chan;
+	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
+	cam_data *cam = pxp_chan->client;
+
+	/* This call will signal wait_for_completion_timeout() */
+	complete(&cam->pxp_tx_cmpl);
+}
+
+static bool chan_filter(struct dma_chan *chan, void *arg)
+{
+	if (imx_dma_is_pxp(chan))
+		return true;
+	else
+		return false;
+}
+
+/* Function to request PXP DMA channel */
+static int pxp_chan_init(cam_data *cam)
+{
+	dma_cap_mask_t mask;
+	struct dma_chan *chan;
+
+	/* Request a free channel */
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_SLAVE, mask);
+	dma_cap_set(DMA_PRIVATE, mask);
+	chan = dma_request_channel(mask, chan_filter, NULL);
+	if (!chan) {
+		pr_err("Unsuccessfully request channel!\n");
+		return -EBUSY;
+	}
+
+	cam->pxp_chan = to_pxp_channel(chan);
+	cam->pxp_chan->client = cam;
+
+	init_completion(&cam->pxp_tx_cmpl);
+
+	return 0;
+}
+
+/*
+ * Function to call PxP DMA driver and send our new V4L2 buffer
+ * through the PxP and PxP will process this buffer in place.
+ * Note: This is a blocking call, so upon return the PxP tx should be complete.
+ */
+static int pxp_process_update(cam_data *cam)
+{
+	dma_cookie_t cookie;
+	struct scatterlist *sg = cam->sg;
+	struct dma_chan *dma_chan;
+	struct pxp_tx_desc *desc;
+	struct dma_async_tx_descriptor *txd;
+	struct pxp_config_data *pxp_conf = &cam->pxp_conf;
+	struct pxp_proc_data *proc_data = &cam->pxp_conf.proc_data;
+	int i, ret;
+	int length;
+
+	pr_debug("Starting PxP Send Buffer\n");
+
+	/* First, check to see that we have acquired a PxP Channel object */
+	if (cam->pxp_chan == NULL) {
+		/*
+		 * PxP Channel has not yet been created and initialized,
+		 * so let's go ahead and try
+		 */
+		ret = pxp_chan_init(cam);
+		if (ret) {
+			/*
+			 * PxP channel init failed, and we can't use the
+			 * PxP until the PxP DMA driver has loaded, so we abort
+			 */
+			pr_err("PxP chan init failed\n");
+			return -ENODEV;
+		}
+	}
+
+	/*
+	 * Init completion, so that we can be properly informed of
+	 * the completion of the PxP task when it is done.
+	 */
+	init_completion(&cam->pxp_tx_cmpl);
+
+	dma_chan = &cam->pxp_chan->dma_chan;
+
+	txd = dma_chan->device->device_prep_slave_sg(dma_chan, sg, 2,
+						     DMA_TO_DEVICE,
+						     DMA_PREP_INTERRUPT);
+	if (!txd) {
+		pr_err("Error preparing a DMA transaction descriptor.\n");
+		return -EIO;
+	}
+
+	txd->callback_param = txd;
+	txd->callback = pxp_dma_done;
+
+	/*
+	 * Configure PxP for processing of new v4l2 buf
+	 */
+	pxp_conf->s0_param.pixel_fmt = PXP_PIX_FMT_UYVY;
+	pxp_conf->s0_param.color_key = -1;
+	pxp_conf->s0_param.color_key_enable = false;
+	pxp_conf->s0_param.width = cam->v2f.fmt.pix.width;
+	pxp_conf->s0_param.height = cam->v2f.fmt.pix.height;
+
+	pxp_conf->ol_param[0].combine_enable = false;
+
+	proc_data->srect.top = 0;
+	proc_data->srect.left = 0;
+	proc_data->srect.width = pxp_conf->s0_param.width;
+	proc_data->srect.height = pxp_conf->s0_param.height;
+
+	proc_data->drect.top = 0;
+	proc_data->drect.left = 0;
+	proc_data->drect.width = proc_data->srect.width;
+	proc_data->drect.height = proc_data->srect.height;
+	proc_data->scaling = 0;
+	proc_data->hflip = 0;
+	proc_data->vflip = 0;
+	proc_data->rotate = 0;
+	proc_data->bgcolor = 0;
+
+	pxp_conf->out_param.pixel_fmt = PXP_PIX_FMT_RGB565;
+	pxp_conf->out_param.width = proc_data->drect.width;
+	pxp_conf->out_param.height = proc_data->drect.height;
+
+	if (cam->rotation >= IPU_ROTATE_90_RIGHT)
+		pxp_conf->out_param.stride = pxp_conf->out_param.height;
+	else
+		pxp_conf->out_param.stride = pxp_conf->out_param.width;
+
+	desc = to_tx_desc(txd);
+	length = desc->len;
+	for (i = 0; i < length; i++) {
+		if (i == 0) {/* S0 */
+			memcpy(&desc->proc_data, proc_data,
+				sizeof(struct pxp_proc_data));
+			pxp_conf->s0_param.paddr = sg_dma_address(&sg[0]);
+			memcpy(&desc->layer_param.s0_param, &pxp_conf->s0_param,
+				sizeof(struct pxp_layer_param));
+		} else if (i == 1) {
+			pxp_conf->out_param.paddr = sg_dma_address(&sg[1]);
+			memcpy(&desc->layer_param.out_param,
+				&pxp_conf->out_param,
+				sizeof(struct pxp_layer_param));
+		}
+
+		desc = desc->next;
+	}
+
+	/* Submitting our TX starts the PxP processing task */
+	cookie = txd->tx_submit(txd);
+	if (cookie < 0) {
+		pr_err("Error sending FB through PxP\n");
+		return -EIO;
+	}
+
+	cam->txd = txd;
+
+	/* trigger PxP */
+	dma_async_issue_pending(dma_chan);
+
+	return 0;
+}
+
+static int pxp_complete_update(cam_data *cam)
+{
+	int ret;
+	/*
+	 * Wait for completion event, which will be set
+	 * through our TX callback function.
+	 */
+	ret = wait_for_completion_timeout(&cam->pxp_tx_cmpl, HZ / 10);
+	if (ret <= 0) {
+		pr_warning("PxP operation failed due to %s\n",
+			 ret < 0 ? "user interrupt" : "timeout");
+		dma_release_channel(&cam->pxp_chan->dma_chan);
+		cam->pxp_chan = NULL;
+		return ret ? : -ETIMEDOUT;
+	}
+
+	dma_release_channel(&cam->pxp_chan->dma_chan);
+	cam->pxp_chan = NULL;
+
+	pr_debug("TX completed\n");
+
+	return 0;
+}
+
 /*!
  * Camera V4l2 callback function.
  *
@@ -665,6 +857,23 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 	buf->index = frame->index;
 	buf->flags = frame->buffer.flags;
 	buf->m = cam->frame[frame->index].buffer.m;
+
+	/*
+	 * Note:
+	 * If want to do preview on LCD, use PxP CSC to convert from UYVY
+	 * to RGB565; but for encoding, usually we don't use RGB format.
+	 */
+	if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_RGB565) {
+		/* PxP processes it in place */
+		sg_dma_address(&cam->sg[0]) = buf->m.offset;
+		sg_dma_address(&cam->sg[1]) = buf->m.offset;
+		retval = pxp_process_update(cam);
+		if (retval) {
+			pr_err("Unable to submit PxP update task.\n");
+			return retval;
+		}
+		pxp_complete_update(cam);
+	}
 
 	return retval;
 }
@@ -1382,6 +1591,7 @@ static void csi_v4l2_master_detach(struct v4l2_int_device *slave)
  */
 static __init int camera_init(void)
 {
+	struct scatterlist *sg;
 	u8 err = 0;
 
 	/* Register the device driver structure. */
@@ -1429,6 +1639,11 @@ static __init int camera_init(void)
 	}
 	pr_debug("   Video device registered: %s #%d\n",
 		 g_cam->video_dev->name, g_cam->video_dev->minor);
+
+	g_cam->pxp_chan = NULL;
+	/* Initialize Scatter-gather list containing 2 buffer addresses. */
+	sg = g_cam->sg;
+	sg_init_table(sg, 2);
 
 	return err;
 }
