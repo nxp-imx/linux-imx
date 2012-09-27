@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -15,7 +15,7 @@
  * @file drivers/media/video/mxc/capture/csi_v4l2_capture.c
  * This file is derived from mxc_v4l2_capture.c
  *
- * @brief MX25 Video For Linux 2 driver
+ * @brief Video For Linux 2 capture driver
  *
  * @ingroup MXC_V4L2_CAPTURE
  */
@@ -1186,8 +1186,8 @@ static void init_camera_struct(cam_data *cam)
 	/* Default everything to 0 */
 	memset(cam, 0, sizeof(cam_data));
 
-	init_MUTEX(&cam->param_lock);
-	init_MUTEX(&cam->busy_lock);
+	sema_init(&cam->param_lock, 1);
+	sema_init(&cam->busy_lock, 1);
 
 	cam->video_dev = video_device_alloc();
 	if (cam->video_dev == NULL)
