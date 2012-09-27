@@ -264,6 +264,9 @@ static void pxp_set_ctrl(struct pxps *pxp)
 	case PXP_PIX_FMT_YUV422P:
 		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV422;
 		break;
+	case PXP_PIX_FMT_UYVY:
+		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__UYVY1P422;
+		break;
 	default:
 		fmt_ctrl = 0;
 	}
