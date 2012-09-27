@@ -1012,6 +1012,12 @@ gckHARDWARE_InitializeHardware(
         }
     }
 
+    /* Update GPU AXI cache atttribute. */
+    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                      Hardware->core,
+                                      0x00008,
+                                      0x00002200));
+
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
