@@ -18,7 +18,6 @@
 struct sdhci_pltfm_host {
 	struct clk *clk;
 	void *priv; /* to handle quirks across io-accessor calls */
-	spinlock_t clk_lock;
 };
 
 extern struct sdhci_pltfm_data sdhci_cns3xxx_pdata;

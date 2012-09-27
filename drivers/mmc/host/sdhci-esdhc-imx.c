@@ -743,23 +743,14 @@ static int plt_8bit_width(struct sdhci_host *host, int width)
 static void plt_clk_ctrl(struct sdhci_host *host, bool enable)
 {
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
-	unsigned long flags;
 
-	spin_lock_irqsave(&pltfm_host->clk_lock, flags);
-	if (enable && !host->clk_status) {
+	if (enable) {
 		clk_enable(pltfm_host->clk);
 		host->clk_status = true;
-	} else if (!enable && host->clk_status) {
-		if (host->cmd || host->data || host->mrq) {
-			WARN(1, "Cannot disable clock when there's request");
-			goto out;
-		}
-
-		host->clk_status = false;
+	} else {
 		clk_disable(pltfm_host->clk);
+		host->clk_status = false;
 	}
-out:
-	spin_unlock_irqrestore(&pltfm_host->clk_lock, flags);
 }
 
 static struct sdhci_ops sdhci_esdhc_ops = {
@@ -806,8 +797,6 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 	int err;
 	struct pltfm_imx_data *imx_data;
 	u32 reg;
-
-	spin_lock_init(&pltfm_host->clk_lock);
 
 	clk = clk_get(mmc_dev(host->mmc), NULL);
 	if (IS_ERR(clk)) {
