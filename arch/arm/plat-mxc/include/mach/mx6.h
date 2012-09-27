@@ -335,6 +335,7 @@
 #define MX6SL_INT_SPDC			38
 #define MX6Q_INT_IPU2_ERR		39
 #define MX6DL_INT_CSI			39
+#define MX6SL_INT_CSI			39
 #define MX6Q_INT_IPU2_SYN		40
 #define MXC_INT_GPU3D_IRQ		41
 #define MXC_INT_GPU2D_IRQ		42

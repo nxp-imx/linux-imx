@@ -1945,8 +1945,8 @@ static unsigned long _clk_ipu_round_rate(struct clk *clk,
 }
 
 static struct clk ipu1_clk = {
-	__INIT_CLK_DEBUG(ipu1_clk)
-	.parent = &pll2_pfd2_400M,
+	__INIT_CLK_DEBUG(csi_clk)
+	.parent = &osc_clk,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
 	.enable = _clk_enable,

@@ -219,6 +219,10 @@ extern const struct imx_pxp_data imx6dl_pxp_data __initconst;
 #define imx6sl_add_imx_pxp_v4l2()   \
 	imx_add_imx_pxp_v4l2()
 
+extern const struct imx_fsl_csi_data imx6sl_csi_data __initconst;
+#define imx6sl_add_fsl_csi()   \
+	imx_add_fsl_csi(&imx6sl_csi_data)
+
 extern const struct imx_epdc_data imx6dl_epdc_data __initconst;
 #define imx6dl_add_imx_epdc(pdata)	\
 	imx_add_imx_epdc(&imx6dl_epdc_data, pdata)

@@ -143,7 +143,7 @@ static struct regulator_consumer_supply vgen5_consumers[] = {
 };
 static struct regulator_consumer_supply vgen6_consumers[] = {
        {
-	.supply = "VGEN6_3V3",
+	.supply = "VGEN6_2V8",
 	}
 };
 

@@ -84,11 +84,20 @@ extern char *soc_reg_id;
 extern char *pu_reg_id;
 extern int __init mx6sl_evk_init_pfuze100(u32 int_gpio);
 
+static int csi_enabled;
+
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
 	SD_PAD_MODE_MED_SPEED,
 	SD_PAD_MODE_HIGH_SPEED,
 };
+
+static int __init csi_setup(char *__unused)
+{
+	csi_enabled = 1;
+	return 1;
+}
+__setup("csi", csi_setup);
 
 static int plt_sd_pad_change(unsigned int index, int clock)
 {
@@ -626,6 +635,46 @@ static struct fsl_mxc_lcd_platform_data sii902x_hdmi_data = {
        .put_pins = sii902x_put_pins,
 };
 
+static void mx6sl_csi_io_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6sl_brd_csi_enable_pads,	\
+				ARRAY_SIZE(mx6sl_brd_csi_enable_pads));
+
+	/* Camera reset */
+	gpio_request(MX6SL_BRD_CSI_RST, "cam-reset");
+	gpio_direction_output(MX6SL_BRD_CSI_RST, 1);
+
+	/* Camera power down */
+	gpio_request(MX6SL_BRD_CSI_PWDN, "cam-pwdn");
+	gpio_direction_output(MX6SL_BRD_CSI_PWDN, 1);
+	msleep(5);
+	gpio_set_value(MX6SL_BRD_CSI_PWDN, 0);
+	msleep(5);
+	gpio_set_value(MX6SL_BRD_CSI_RST, 0);
+	msleep(1);
+	gpio_set_value(MX6SL_BRD_CSI_RST, 1);
+	msleep(5);
+	gpio_set_value(MX6SL_BRD_CSI_PWDN, 1);
+}
+
+static void mx6sl_csi_cam_powerdown(int powerdown)
+{
+	if (powerdown)
+		gpio_set_value(MX6SL_BRD_CSI_PWDN, 1);
+	else
+		gpio_set_value(MX6SL_BRD_CSI_PWDN, 0);
+
+	msleep(2);
+}
+
+static struct fsl_mxc_camera_platform_data camera_data = {
+	.mclk = 24000000,
+	.io_init = mx6sl_csi_io_init,
+	.pwdn = mx6sl_csi_cam_powerdown,
+	.core_regulator = "VGEN2_1V5",
+	.analog_regulator = "VGEN6_2V8",
+};
+
 static struct imxi2c_platform_data mx6_evk_i2c0_data = {
 	.bitrate = 100000,
 };
@@ -635,7 +684,7 @@ static struct imxi2c_platform_data mx6_evk_i2c1_data = {
 };
 
 static struct imxi2c_platform_data mx6_evk_i2c2_data = {
-	.bitrate = 400000,
+	.bitrate = 100000,
 };
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
@@ -664,6 +713,8 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
+		I2C_BOARD_INFO("ov5640", 0x3c),
+		.platform_data = (void *)&camera_data,
 	},
 };
 
@@ -1346,9 +1397,12 @@ static void __init mx6_evk_init(void)
 
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
-	imx6q_add_imx_i2c(2, &mx6_evk_i2c2_data);
-	i2c_register_board_info(2, mxc_i2c2_board_info,
-			ARRAY_SIZE(mxc_i2c2_board_info));
+	/* only camera on I2C3, that's why we can do so */
+	if (csi_enabled == 1) {
+		imx6q_add_imx_i2c(2, &mx6_evk_i2c2_data);
+		i2c_register_board_info(2, mxc_i2c2_board_info,
+				ARRAY_SIZE(mxc_i2c2_board_info));
+	}
 
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6_evk_spi_data);
@@ -1391,10 +1445,14 @@ static void __init mx6_evk_init(void)
 	imx6dl_add_imx_pxp_client();
 	mxc_register_device(&max17135_sensor_device, NULL);
 	setup_spdc();
-	if (!spdc_sel)
-		imx6dl_add_imx_epdc(&epdc_data);
-	else
-		imx6sl_add_imx_spdc(&spdc_data);
+	if (csi_enabled) {
+		imx6sl_add_fsl_csi();
+	} else  {
+		if (!spdc_sel)
+			imx6dl_add_imx_epdc(&epdc_data);
+		else
+			imx6sl_add_imx_spdc(&spdc_data);
+	}
 	imx6q_add_dvfs_core(&mx6sl_evk_dvfscore_data);
 
 	imx6q_init_audio();
