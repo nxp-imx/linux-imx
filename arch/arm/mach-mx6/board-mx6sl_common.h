@@ -93,6 +93,9 @@ static iomux_v3_cfg_t mx6sl_brd_pads[] = {
 	/* Audio Codec */
 	MX6SL_PAD_FEC_RX_ER__GPIO_4_19,	/* HEADPHONE_DET */
 
+	/* SPDIF TX */
+	MX6SL_PAD_SD2_DAT4__SPDIF_OUT1,
+
 	/* UART1 */
 	MX6SL_PAD_UART1_RXD__UART1_RXD,
 	MX6SL_PAD_UART1_TXD__UART1_TXD,

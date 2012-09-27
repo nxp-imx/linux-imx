@@ -557,6 +557,24 @@ static int __init imx6q_init_audio(void)
 	return 0;
 }
 
+static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long rate_actual;
+	rate_actual = clk_round_rate(clk, rate);
+	clk_set_rate(clk, rate_actual);
+	return 0;
+}
+
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx		= 1,
+	.spdif_rx		= 0,
+	.spdif_clk_44100	= 1,
+	.spdif_clk_48000	= -1,
+	.spdif_div_44100	= 23,
+	.spdif_clk_set_rate	= spdif_clk_set_rate,
+	.spdif_clk		= NULL,
+};
+
 static struct imxi2c_platform_data mx6_evk_i2c0_data = {
 	.bitrate = 100000,
 };
@@ -1298,6 +1316,12 @@ static void __init mx6_evk_init(void)
 	imx6sl_add_dcp();
 	imx6sl_add_rngb();
 	imx6sl_add_imx_pxp_v4l2();
+
+	mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
+	clk_put(mxc_spdif_data.spdif_core_clk);
+	imx6q_add_spdif(&mxc_spdif_data);
+	imx6q_add_spdif_dai();
+	imx6q_add_spdif_audio_device();
 
 	imx6q_add_perfmon(0);
 	imx6q_add_perfmon(1);
