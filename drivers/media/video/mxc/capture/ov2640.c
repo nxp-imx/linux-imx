@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -801,7 +801,7 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 
 	pr_debug("   Setting mclk to %d MHz\n",
 		tgt_xclk / 1000000);
-	set_mclk_rate(&ov2640_data.mclk);
+	set_mclk_rate(&ov2640_data.mclk, 0);
 
 	return ov2640_init_mode(sensor);
 }

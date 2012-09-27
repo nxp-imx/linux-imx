@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -879,7 +879,7 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 
 	gpio_sensor_active();
 
-	set_mclk_rate(&clock_rate);
+	set_mclk_rate(&clock_rate, 0);
 	mt9v111_rate_cal(&reset_frame_rate, clock_rate);
 	mt9v111_sensor_lib(mt9v111_device.coreReg, mt9v111_device.ifpReg);
 
