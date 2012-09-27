@@ -31,6 +31,10 @@
 #include <linux/list.h>
 #include <linux/ipu.h>
 #include <linux/mxc_v4l2.h>
+#include <linux/completion.h>
+#include <linux/dmaengine.h>
+#include <linux/pxp_dma.h>
+#include <mach/dma.h>
 #include <mach/ipu-v3.h>
 
 #include <media/v4l2-dev.h>
@@ -205,6 +209,14 @@ typedef struct _cam_data {
 	struct v4l2_int_device *self;
 	int sensor_index;
 	void *ipu;
+
+	/* v4l2 buf elements related to PxP DMA */
+	struct completion pxp_tx_cmpl;
+	struct pxp_channel *pxp_chan;
+	struct pxp_config_data pxp_conf;
+	struct dma_async_tx_descriptor *txd;
+	dma_cookie_t cookie;
+	struct scatterlist sg[2];
 } cam_data;
 
 struct sensor_data {
