@@ -690,3 +690,11 @@ struct platform_device *__init imx_add_pcie(
 		const struct imx_pcie_platform_data *pdata);
 
 void __init imx_add_imx_armpmu(void);
+
+struct imx_fsl_csi_data {
+    resource_size_t iobase;
+    resource_size_t iosize;
+    resource_size_t irq;
+};
+struct platform_device *__init imx_add_fsl_csi(
+		const struct imx_fsl_csi_data *data);
