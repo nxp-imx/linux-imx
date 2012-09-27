@@ -627,6 +627,15 @@ static struct fsl_mxc_tvin_platform_data adv7180_data = {
 	.io_init	= mx6q_csi0_io_init,
 };
 
+static struct fsl_mxc_tvin_platform_data adv7280_data = {
+	.dvddio_reg	= NULL,
+	.dvdd_reg	= NULL,
+	.avdd_reg	= NULL,
+	.pvdd_reg	= NULL,
+	.pwdn		= NULL,
+	.cvbs		= true,
+};
+
 static struct imxi2c_platform_data mx6q_sabreauto_i2c2_data = {
 	.bitrate	= 400000,
 };
@@ -686,6 +695,9 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 		.platform_data = (void *)&cs42888_data,
 	}, {
 		I2C_BOARD_INFO("si4763_i2c", 0x63),
+	}, {
+		I2C_BOARD_INFO("adv7280", 0x21),
+		.platform_data = (void *)&adv7280_data,
 	},
 };
 
