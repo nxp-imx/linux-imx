@@ -244,11 +244,5 @@ struct sensor_data {
 	void (*io_init)(void);
 };
 
-#if defined(CONFIG_MXC_IPU_V1) || defined(CONFIG_VIDEO_MXC_EMMA_CAMERA) \
-			       || defined(CONFIG_VIDEO_MXC_CSI_CAMERA_MODULE) \
-			       || defined(CONFIG_VIDEO_MXC_CSI_CAMERA)
-void set_mclk_rate(uint32_t *p_mclk_freq);
-#else
 void set_mclk_rate(uint32_t *p_mclk_freq, uint32_t csi);
-#endif
 #endif				/* __MXC_V4L2_CAPTURE_H__ */
