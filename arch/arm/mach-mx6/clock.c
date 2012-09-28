@@ -4853,7 +4853,7 @@ static struct clk usboh3_clk[] = {
 	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
 	.disable = _clk_disable,
 	.secondary = &usboh3_clk[1],
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	.parent = &mmdc_ch0_axi_clk[0],
