@@ -657,7 +657,7 @@ static void pxp_set_csc(struct pxps *pxp)
 
 		/* CSC1 - YUV->RGB */
 		__raw_writel(0x84ab01f0, pxp->base + HW_PXP_CSC1_COEF0);
-		__raw_writel(0x01230204, pxp->base + HW_PXP_CSC1_COEF1);
+		__raw_writel(0x01980204, pxp->base + HW_PXP_CSC1_COEF1);
 		__raw_writel(0x0730079c, pxp->base + HW_PXP_CSC1_COEF2);
 
 		/* CSC2 - Bypass */
