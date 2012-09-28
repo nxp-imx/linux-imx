@@ -162,6 +162,11 @@ extern struct fb_videomode mxcfb_modedb[];
 extern int mxcfb_modedb_sz;
 
 enum {
+	MXC_DISP_SPEC_DEV = 0,
+	MXC_DISP_DDC_DEV = 1,
+};
+
+enum {
 	MXCFB_REFRESH_OFF,
 	MXCFB_REFRESH_AUTO,
 	MXCFB_REFRESH_PARTIAL,
@@ -170,5 +175,8 @@ enum {
 int mxcfb_set_refresh_mode(struct fb_info *fbi, int mode,
 			   struct mxcfb_rect *update_region);
 int mxc_elcdif_frame_addr_setup(dma_addr_t phys);
+void mxcfb_elcdif_register_mode(const struct fb_videomode *modedb,
+		int num_modes, int dev_mode);
+
 #endif				/* __KERNEL__ */
 #endif
