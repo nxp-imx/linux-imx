@@ -20,6 +20,8 @@
 #define _BOARD_MX6SL_COMMON_H
 #include <mach/iomux-mx6sl.h>
 
+#define MX6_BRD_LCD_RESET	IMX_GPIO_NR(2, 19)	/* LCD_REST */
+
 #define MX6_BRD_USBOTG1_PWR	IMX_GPIO_NR(4, 0)       /* KEY_COL4 */
 #define MX6_BRD_USBOTG2_PWR	IMX_GPIO_NR(4, 2)       /* KEY_COL5 */
 #define MX6_BRD_LCD_PWR_EN	IMX_GPIO_NR(4, 3)	/* KEY_ROW5 */

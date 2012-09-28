@@ -575,6 +575,57 @@ static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_clk		= NULL,
 };
 
+int hdmi_enabled;
+static int __init hdmi_setup(char *__unused)
+{
+	hdmi_enabled = 1;
+	return 1;
+}
+__setup("hdmi", hdmi_setup);
+
+static iomux_v3_cfg_t mx6sl_sii902x_hdmi_pads_enabled[] = {
+	MX6SL_PAD_LCD_RESET__GPIO_2_19,
+	MX6SL_PAD_EPDC_PWRCTRL3__GPIO_2_10,
+};
+
+static int sii902x_get_pins(void)
+{
+	/* Sii902x HDMI controller */
+	mxc_iomux_v3_setup_multiple_pads(mx6sl_sii902x_hdmi_pads_enabled, \
+		ARRAY_SIZE(mx6sl_sii902x_hdmi_pads_enabled));
+
+	/* Reset Pin */
+	gpio_request(MX6_BRD_LCD_RESET, "disp0-reset");
+	gpio_direction_output(MX6_BRD_LCD_RESET, 1);
+
+	/* Interrupter pin GPIO */
+	gpio_request(MX6SL_BRD_EPDC_PWRCTRL3, "disp0-detect");
+	gpio_direction_input(MX6SL_BRD_EPDC_PWRCTRL3);
+       return 1;
+}
+
+static void sii902x_put_pins(void)
+{
+	gpio_free(MX6_BRD_LCD_RESET);
+	gpio_free(MX6SL_BRD_EPDC_PWRCTRL3);
+}
+
+static void sii902x_hdmi_reset(void)
+{
+	gpio_set_value(MX6_BRD_LCD_RESET, 0);
+	msleep(10);
+	gpio_set_value(MX6_BRD_LCD_RESET, 1);
+	msleep(10);
+}
+
+static struct fsl_mxc_lcd_platform_data sii902x_hdmi_data = {
+       .ipu_id = 0,
+       .disp_id = 0,
+       .reset = sii902x_hdmi_reset,
+       .get_pins = sii902x_get_pins,
+       .put_pins = sii902x_put_pins,
+};
+
 static struct imxi2c_platform_data mx6_evk_i2c0_data = {
 	.bitrate = 100000,
 };
@@ -603,6 +654,11 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	{
 		I2C_BOARD_INFO("wm8962", 0x1a),
 		.platform_data = &wm8962_config_data,
+	},
+	{
+		I2C_BOARD_INFO("sii902x", 0),
+		.platform_data = &sii902x_hdmi_data,
+		.irq = gpio_to_irq(MX6SL_BRD_EPDC_PWRCTRL3)
 	},
 };
 
@@ -1124,7 +1180,7 @@ static struct platform_pwm_backlight_data mx6_evk_pwm_backlight_data = {
 	.dft_brightness	= 128,
 	.pwm_period_ns	= 50000,
 };
-static struct fb_videomode video_modes[] = {
+static struct fb_videomode wvga_video_modes[] = {
 	{
 	 /* 800x480 @ 57 Hz , pixel clk @ 32MHz */
 	 "SEIKO-WVGA", 60, 800, 480, 29850, 99, 164, 33, 10, 10, 10,
@@ -1133,17 +1189,35 @@ static struct fb_videomode video_modes[] = {
 	 0,},
 };
 
-static struct mxc_fb_platform_data fb_data[] = {
+static struct mxc_fb_platform_data wvga_fb_data[] = {
 	{
 	 .interface_pix_fmt = V4L2_PIX_FMT_RGB24,
 	 .mode_str = "SEIKO-WVGA",
-	 .mode = video_modes,
-	 .num_modes = ARRAY_SIZE(video_modes),
+	 .mode = wvga_video_modes,
+	 .num_modes = ARRAY_SIZE(wvga_video_modes),
 	 },
 };
 
 static struct platform_device lcd_wvga_device = {
 	.name = "lcd_seiko",
+};
+
+static struct fb_videomode hdmi_video_modes[] = {
+	{
+	 /* 1920x1080 @ 60 Hz , pixel clk @ 148MHz */
+	 "sii9022x_1080p60", 60, 1920, 1080, 6734, 148, 88, 36, 4, 44, 5,
+	 FB_SYNC_CLK_LAT_FALL,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+};
+
+static struct mxc_fb_platform_data hdmi_fb_data[] = {
+	{
+	 .interface_pix_fmt = V4L2_PIX_FMT_RGB24,
+	 .mode_str = "1920x1080M@60",
+	 .mode = hdmi_video_modes,
+	 .num_modes = ARRAY_SIZE(hdmi_video_modes),
+	 },
 };
 
 static int mx6sl_evk_keymap[] = {
@@ -1236,6 +1310,8 @@ static void mx6_snvs_poweroff(void)
  */
 static void __init mx6_evk_init(void)
 {
+	u32 i;
+
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_brd_pads,
 					ARRAY_SIZE(mx6sl_brd_pads));
 
@@ -1257,6 +1333,17 @@ static void __init mx6_evk_init(void)
 	imx6q_add_imx_i2c(1, &mx6_evk_i2c1_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 			ARRAY_SIZE(mxc_i2c0_board_info));
+
+	/*  setting sii902x address when hdmi enabled */
+	if (hdmi_enabled) {
+		for (i = 0; i < ARRAY_SIZE(mxc_i2c1_board_info); i++) {
+			if (!strcmp(mxc_i2c1_board_info[i].type, "sii902x")) {
+				mxc_i2c1_board_info[i].addr = 0x39;
+				break;
+			}
+		}
+	}
+
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	imx6q_add_imx_i2c(2, &mx6_evk_i2c2_data);
@@ -1289,11 +1376,16 @@ static void __init mx6_evk_init(void)
 	imx6q_add_otp();
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_evk_pwm_backlight_data);
-	imx6dl_add_imx_elcdif(&fb_data[0]);
 
-	gpio_request(MX6_BRD_LCD_PWR_EN, "elcdif-power-on");
-	gpio_direction_output(MX6_BRD_LCD_PWR_EN, 1);
-	mxc_register_device(&lcd_wvga_device, NULL);
+	if (hdmi_enabled) {
+		imx6dl_add_imx_elcdif(&hdmi_fb_data[0]);
+	} else {
+		imx6dl_add_imx_elcdif(&wvga_fb_data[0]);
+
+		gpio_request(MX6_BRD_LCD_PWR_EN, "elcdif-power-on");
+		gpio_direction_output(MX6_BRD_LCD_PWR_EN, 1);
+		mxc_register_device(&lcd_wvga_device, NULL);
+	}
 
 	imx6dl_add_imx_pxp();
 	imx6dl_add_imx_pxp_client();
