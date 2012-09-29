@@ -416,6 +416,13 @@ static iomux_v3_cfg_t mx6sl_brd_elan_pads[] = {
 	MX6SL_PAD_EPDC_PWRCTRL2__GPIO_2_9,	/* CE */
 	MX6SL_PAD_KEY_COL6__GPIO_4_4,		/* RST */
 };
+	/* uart2 pins */
+static iomux_v3_cfg_t mx6sl_uart2_pads[] = {
+	MX6SL_PAD_SD2_DAT5__UART2_TXD,
+	MX6SL_PAD_SD2_DAT4__UART2_RXD,
+	MX6SL_PAD_SD2_DAT6__UART2_RTS,
+	MX6SL_PAD_SD2_DAT7__UART2_CTS,
+};
 
 #define MX6SL_USDHC_8BIT_PAD_SETTING(id, speed)	\
 mx6sl_sd##id##_##speed##mhz[] = {		\

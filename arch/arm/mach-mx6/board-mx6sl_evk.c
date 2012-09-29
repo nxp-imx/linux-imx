@@ -754,6 +754,12 @@ static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 
+static const struct imxuart_platform_data mx6sl_evk_uart1_data __initconst = {
+	.flags      = IMXUART_HAVE_RTSCTS | IMXUART_SDMA,
+	.dma_req_rx = MX6Q_DMA_REQ_UART2_RX,
+	.dma_req_tx = MX6Q_DMA_REQ_UART2_TX,
+};
+
 static inline void mx6_evk_init_uart(void)
 {
 	imx6q_add_imx_uart(0, NULL); /* DEBUG UART1 */
@@ -1356,6 +1362,20 @@ static void mx6_snvs_poweroff(void)
 	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
 }
 
+static int uart2_enabled;
+static int __init uart2_setup(char * __unused)
+{
+	uart2_enabled = 1;
+	return 1;
+}
+__setup("bluetooth", uart2_setup);
+
+static void __init uart2_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6sl_uart2_pads,
+					ARRAY_SIZE(mx6sl_uart2_pads));
+	imx6sl_add_imx_uart(1, &mx6sl_evk_uart1_data);
+}
 /*!
  * Board specific initialization.
  */
@@ -1456,6 +1476,10 @@ static void __init mx6_evk_init(void)
 	imx6q_add_dvfs_core(&mx6sl_evk_dvfscore_data);
 
 	imx6q_init_audio();
+
+	/* uart2 for bluetooth */
+	if (uart2_enabled)
+		uart2_init();
 
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
