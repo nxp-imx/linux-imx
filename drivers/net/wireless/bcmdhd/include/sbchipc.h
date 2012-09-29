@@ -5,7 +5,7 @@
  * JTAG, 0/1/2 UARTs, clock frequency control, a watchdog interrupt timer,
  * GPIO interface, extbus, and support for serial and parallel flashes.
  *
- * $Id: sbchipc.h 311371 2012-01-28 05:47:25Z $
+ * $Id: sbchipc.h 343982 2012-07-11 00:29:37Z $
  *
  * Copyright (C) 1999-2011, Broadcom Corporation
  * 
@@ -1441,17 +1441,17 @@ typedef volatile struct {
 #define CCTRL4331_EXT_LNA_G		(1<<2)	
 #define CCTRL4331_SPROM_GPIO13_15       (1<<3)  
 #define CCTRL4331_EXTPA_EN		(1<<4)	
-#define CCTRL4331_GPIOCLK_ON_SPROMCS	<1<<5)	
+#define CCTRL4331_GPIOCLK_ON_SPROMCS	(1<<5)	
 #define CCTRL4331_PCIE_MDIO_ON_SPROMCS	(1<<6)	
 #define CCTRL4331_EXTPA_ON_GPIO2_5	(1<<7)	
 #define CCTRL4331_OVR_PIPEAUXCLKEN	(1<<8)	
 #define CCTRL4331_OVR_PIPEAUXPWRDOWN	(1<<9)	
-#define CCTRL4331_PCIE_AUXCLKEN		<1<<10)	
-#define CCTRL4331_PCIE_PIPE_PLLDOWN	<1<<11)	
+#define CCTRL4331_PCIE_AUXCLKEN		(1<<10)	
+#define CCTRL4331_PCIE_PIPE_PLLDOWN	(1<<11)	
 #define CCTRL4331_EXTPA_EN2		(1<<12)	
 #define CCTRL4331_EXT_LNA_A		(1<<13)	
-#define CCTRL4331_BT_SHD0_ON_GPIO4	<1<<16)	
-#define CCTRL4331_BT_SHD1_ON_GPIO5	<1<<17)	
+#define CCTRL4331_BT_SHD0_ON_GPIO4	(1<<16)	
+#define CCTRL4331_BT_SHD1_ON_GPIO5	(1<<17)	
 #define CCTRL4331_EXTPA_ANA_EN		(1<<24)	
 
 
@@ -1725,6 +1725,11 @@ typedef volatile struct {
 #define SECI_MODE_MASK		0x7
 #define SECI_MODE_SHIFT		4 
 #define SECI_UPD_SECI		(1 << 7)
+
+#define SECI_SLIP_ESC_CHAR	0xDB
+#define SECI_SIGNOFF_0		SECI_SLIP_ESC_CHAR
+#define SECI_SIGNOFF_1		0
+#define SECI_REFRESH_REQ	0xDA
 
 
 #define CLKCTL_STS_SECI_CLK_REQ		(1 << 8)

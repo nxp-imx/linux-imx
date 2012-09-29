@@ -61,13 +61,24 @@ struct wl_ibss;
 /* 0 invalidates all debug messages.  default is 1 */
 #define WL_DBG_LEVEL 0xFF
 
-#define	WL_ERR(args)									\
+#if defined(DHD_DEBUG)
+#define	WL_ERR(args)								\
 do {										\
-	if (wl_dbg_level & WL_DBG_ERR) {				\
+	if (wl_dbg_level & WL_DBG_ERR) {					\
 			printk(KERN_ERR "CFG80211-ERROR) %s : ", __func__);	\
 			printk args;						\
 		} 								\
 } while (0)
+#else /* defined(DHD_DEBUG) */
+#define	WL_ERR(args)								\
+do {										\
+	if ((wl_dbg_level & WL_DBG_ERR) && net_ratelimit())  {			\
+			printk(KERN_INFO "CFG80211-ERROR) %s : ", __func__);	\
+			printk args;						\
+		} 								\
+} while (0)
+#endif /* defined(DHD_DEBUG) */
+
 #ifdef WL_INFO
 #undef WL_INFO
 #endif
@@ -131,10 +142,18 @@ do {									\
 #define IFACE_MAX_CNT 		2
 
 #define WL_SCAN_TIMER_INTERVAL_MS	8000 /* Scan timeout */
-#define WL_CHANNEL_SYNC_RETRY 	1
-#define WL_ACT_FRAME_RETRY 5
+#define WL_CHANNEL_SYNC_RETRY 	3
+#define WL_ACT_FRAME_RETRY 4
 
 #define WL_INVALID 		-1
+
+
+/* Bring down SCB Timeout to 20secs from 60secs default */
+#ifndef WL_SCB_TIMEOUT
+#define WL_SCB_TIMEOUT 20
+#endif
+
+#define WLAN_REASON_DRIVER_ERROR 	WLAN_REASON_UNSPECIFIED
 
 /* driver status */
 enum wl_status {
@@ -381,7 +400,7 @@ struct afx_hdl {
 };
 
 /* private data of cfg80211 interface */
-struct wl_priv {
+typedef struct wl_priv {
 	struct wireless_dev *wdev;	/* representing wl cfg80211 device */
 
 	struct wireless_dev *p2p_wdev;	/* representing wl cfg80211 device for P2P */
@@ -449,7 +468,11 @@ struct wl_priv {
 #endif /* WL_SCHED_SCAN */
 	bool sched_scan_running;	/* scheduled scan req status */
 	u16 hostapd_chan;            /* remember chan requested by framework for hostapd  */
-};
+	u16 deauth_reason;           /* Place holder to save deauth/disassoc reasons */
+	u16 scan_busy_count;
+	struct work_struct work_scan_timeout;
+} wl_priv_t;
+
 
 static inline struct wl_bss_info *next_bss(struct wl_scan_results *list, struct wl_bss_info *bss)
 {
@@ -661,5 +684,7 @@ extern int wl_cfg80211_hang(struct net_device *dev, u16 reason);
 extern s32 wl_mode_to_nl80211_iftype(s32 mode);
 int wl_cfg80211_do_driver_init(struct net_device *net);
 void wl_cfg80211_enable_trace(int level);
+extern s32 wl_update_wiphybands(struct wl_priv *wl);
 extern s32 wl_cfg80211_if_is_group_owner(void);
+extern int wl_cfg80211_update_power_mode(struct net_device *dev);
 #endif				/* _wl_cfg80211_h_ */
