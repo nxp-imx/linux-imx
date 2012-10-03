@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -167,9 +167,6 @@ struct max17135 {
 
 	/* powerup/powerdown wait time */
 	int max_wait;
-
-	/* Dynamically determined polarity for PWRGOOD */
-	int pwrgood_polarity;
 };
 
 enum {

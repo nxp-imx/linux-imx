@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -284,12 +284,14 @@ static int max17135_vcom_is_enabled(struct regulator_dev *reg)
 
 static int max17135_is_power_good(struct max17135 *max17135)
 {
-	/*
-	 * XOR of polarity (starting value) and current
-	 * value yields whether power is good.
-	 */
-	return gpio_get_value(max17135->gpio_pmic_pwrgood) ^
-		max17135->pwrgood_polarity;
+    unsigned int reg_val;
+    unsigned int fld_val;
+
+    max17135_reg_read(REG_MAX17135_FAULT, &reg_val);
+    fld_val = (reg_val & BITFMASK(FAULT_POK)) >> FAULT_POK_LSH;
+
+    /* Check the POK bit */
+    return fld_val;
 }
 
 static int max17135_wait_power_good(struct max17135 *max17135)
@@ -302,6 +304,7 @@ static int max17135_wait_power_good(struct max17135 *max17135)
 
 		msleep(1);
 	}
+
 	return -ETIMEDOUT;
 }
 
@@ -621,9 +624,6 @@ int max17135_register_regulator(struct max17135 *max17135, int reg,
 		 * changed a limited number of times according to spec.
 		 */
 		max17135_setup_timings(max17135);
-
-		max17135->pwrgood_polarity =
-			gpio_get_value(max17135->gpio_pmic_pwrgood);
 
 		max17135->init_done = true;
 	}
