@@ -36,8 +36,8 @@ imx6q_anatop_thermal_imx_data __initconst;
 #define imx6q_add_anatop_thermal_imx(id, pdata)	\
 	imx_add_anatop_thermal_imx(&imx6q_anatop_thermal_imx_data, pdata)
 
-extern const struct imx_dma_data imx6q_dma_data __initconst;
-#define imx6q_add_dma()	imx_add_dma(&imx6q_dma_data);
+extern const struct imx_dma_res_data imx6q_dma_res_data __initconst;
+#define imx6q_add_dma()	imx_add_dma(&imx6q_dma_res_data);
 
 #define imx6q_add_gpmi(platform_data)	imx_add_gpmi(platform_data);
 

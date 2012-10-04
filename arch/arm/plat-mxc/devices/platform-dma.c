@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it under
  * the terms of the GNU General Public License version 2 as published by the
@@ -13,19 +13,19 @@
 #include <mach/devices-common.h>
 
 #ifdef CONFIG_SOC_IMX50
-const struct imx_dma_data imx50_dma_data __initconst = {
+const struct imx_dma_res_data imx50_dma_res_data __initconst = {
 	.iobase = MX50_APBHDMA_BASE_ADDR,
 };
 #endif
 
 #ifdef CONFIG_SOC_IMX6Q
-const struct imx_dma_data imx6q_dma_data __initconst = {
+const struct imx_dma_res_data imx6q_dma_res_data __initconst = {
 	.iobase = APBH_DMA_ARB_BASE_ADDR,
 };
 #endif
 
 struct platform_device *__init imx_add_dma(
-			const struct imx_dma_data *data)
+			const struct imx_dma_res_data *data)
 {
 	struct resource res[] = {
 		{
