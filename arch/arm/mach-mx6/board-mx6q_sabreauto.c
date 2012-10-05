@@ -614,6 +614,14 @@ static void adv7180_pwdn(int pwdn)
 	gpio_free(SABREAUTO_VIDEOIN_PWR);
 }
 
+static void mx6q_csi0_io_init(void)
+{
+	if (cpu_is_mx6q())
+		mxc_iomux_set_gpr_register(1, 19, 1, 1);
+	else if (cpu_is_mx6dl())
+		mxc_iomux_set_gpr_register(13, 0, 3, 4);
+}
+
 static struct fsl_mxc_tvin_platform_data adv7180_data = {
 	.dvddio_reg	= NULL,
 	.dvdd_reg	= NULL,
@@ -622,6 +630,7 @@ static struct fsl_mxc_tvin_platform_data adv7180_data = {
 	.pwdn		= adv7180_pwdn,
 	.reset		= NULL,
 	.cvbs		= true,
+	.io_init	= mx6q_csi0_io_init,
 };
 
 static struct imxi2c_platform_data mx6q_sabreauto_i2c2_data = {
@@ -1280,14 +1289,6 @@ static int __init early_enable_can0(char *p)
 }
 early_param("can0", early_enable_can0);
 
-static inline void __init mx6q_csi0_io_init(void)
-{
-	if (cpu_is_mx6q())
-		mxc_iomux_set_gpr_register(1, 19, 1, 1);
-	else if (cpu_is_mx6dl())
-		mxc_iomux_set_gpr_register(13, 0, 3, 4);
-}
-
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx	= 0,	/* disable tx */
 	.spdif_rx	= 1,	/* enable rx */
@@ -1556,9 +1557,6 @@ static void __init mx6_board_init(void)
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
-
-	if (!mipi_sensor)
-		mx6q_csi0_io_init();
 
 	/* DISP0 Detect */
 	gpio_request(SABREAUTO_DISP0_DET_INT, "disp0-detect");
