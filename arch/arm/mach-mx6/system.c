@@ -132,8 +132,16 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			stop_mode = 2;
 		}
 		break;
-	case STOP_POWER_ON:
+	case STOP_XTAL_ON:
 		ccm_clpcr |= 0x2 << MXC_CCM_CLPCR_LPM_OFFSET;
+		ccm_clpcr |= MXC_CCM_CLPCR_VSTBY;
+		ccm_clpcr &= ~MXC_CCM_CLPCR_SBYOS;
+		if (cpu_is_mx6sl()) {
+			ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH0_LPM_HS;
+			ccm_clpcr |= MXC_CCM_CLPCR_BYPASS_PMIC_VFUNC_READY;
+		} else
+			ccm_clpcr |= MXC_CCM_CLPCR_BYP_MMDC_CH1_LPM_HS;
+		stop_mode = 3;
 
 		break;
 	default:
@@ -146,7 +154,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		/* Power down and power up sequence */
 		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
-		if (stop_mode == 2) {
+		if (stop_mode >= 2) {
 			/* dormant mode, need to power off the arm core */
 			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
 			if (cpu_is_mx6q() || cpu_is_mx6dl()) {
@@ -171,45 +179,48 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 						HW_ANADIG_REG_CORE);
 				}
 			} else {
-				/* Disable VDDHIGH_IN to VDDSNVS_IN power path,
-				 * only used when VDDSNVS_IN is powered by dedicated
-				 * power rail */
-				anatop_val = __raw_readl(anatop_base +
-					HW_ANADIG_ANA_MISC0);
-				anatop_val |= BM_ANADIG_ANA_MISC0_RTC_RINGOSC_EN;
-				__raw_writel(anatop_val, anatop_base +
-					HW_ANADIG_ANA_MISC0);
-				/* Need to enable pull down if 2P5 is disabled */
-				anatop_val = __raw_readl(anatop_base +
-					HW_ANADIG_REG_2P5);
-				anatop_val |= BM_ANADIG_REG_2P5_ENABLE_PULLDOWN;
-				__raw_writel(anatop_val, anatop_base +
-					HW_ANADIG_REG_2P5);
-				/* We need to allow the memories to be clock gated
-				 * in STOP mode, else the power consumption will
-				 * be very high. */
-				reg = __raw_readl(MXC_CCM_CGPR);
-				reg |= MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
-				__raw_writel(reg, MXC_CCM_CGPR);
+				if (stop_mode == 2) {
+					/* Disable VDDHIGH_IN to VDDSNVS_IN
+					  * power path, only used when VDDSNVS_IN
+					  * is powered by dedicated
+					 * power rail */
+					anatop_val = __raw_readl(anatop_base +
+						HW_ANADIG_ANA_MISC0);
+					anatop_val |= BM_ANADIG_ANA_MISC0_RTC_RINGOSC_EN;
+					__raw_writel(anatop_val, anatop_base +
+						HW_ANADIG_ANA_MISC0);
+					/* Need to enable pull down if 2P5 is disabled */
+					anatop_val = __raw_readl(anatop_base +
+						HW_ANADIG_REG_2P5);
+					anatop_val |= BM_ANADIG_REG_2P5_ENABLE_PULLDOWN;
+					__raw_writel(anatop_val, anatop_base +
+						HW_ANADIG_REG_2P5);
+				}
 			}
 			/* DL's TO1.0 can't support DSM mode due to ipg glitch */
-			if (mx6dl_revision() != IMX_CHIP_REVISION_1_0)
+			if ((mx6dl_revision() != IMX_CHIP_REVISION_1_0)
+					&& stop_mode != 3)
 				__raw_writel(__raw_readl(MXC_CCM_CCR) |
 					MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
 
-			/* Make sure we clear WB_COUNT and re-config it */
-			__raw_writel(__raw_readl(MXC_CCM_CCR) &
-				(~MXC_CCM_CCR_WB_COUNT_MASK) &
-				(~MXC_CCM_CCR_REG_BYPASS_CNT_MASK), MXC_CCM_CCR);
-			udelay(80);
-			/* Reconfigurate WB and RBC counter, need to set WB counter
-			 * to 0x7 to make sure it work normally */
-			__raw_writel(__raw_readl(MXC_CCM_CCR) |
-				(0x7 << MXC_CCM_CCR_WB_COUNT_OFFSET) |
-				(0x20 << MXC_CCM_CCR_REG_BYPASS_CNT_OFFSET), MXC_CCM_CCR);
+			if (stop_mode != 3) {
+				/* Make sure we clear WB_COUNT
+				  * and re-config it.
+				  */
+				__raw_writel(__raw_readl(MXC_CCM_CCR) &
+					(~MXC_CCM_CCR_WB_COUNT_MASK) &
+					(~MXC_CCM_CCR_REG_BYPASS_CNT_MASK), MXC_CCM_CCR);
+				udelay(80);
+				/* Reconfigurate WB and RBC counter, need to set WB counter
+				 * to 0x7 to make sure it work normally */
+				__raw_writel(__raw_readl(MXC_CCM_CCR) |
+					(0x7 << MXC_CCM_CCR_WB_COUNT_OFFSET) |
+					(0x20 << MXC_CCM_CCR_REG_BYPASS_CNT_OFFSET),
+					MXC_CCM_CCR);
 
-			/* Set WB_PER enable */
-			ccm_clpcr |= MXC_CCM_CLPCR_WB_PER_AT_LPM;
+				/* Set WB_PER enable */
+				ccm_clpcr |= MXC_CCM_CLPCR_WB_PER_AT_LPM;
+			}
 		}
 		if (cpu_is_mx6sl() ||
 			(mx6q_revision() > IMX_CHIP_REVISION_1_1) ||
