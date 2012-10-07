@@ -112,7 +112,6 @@ static u32 ccm_analog_pfd528;
 static u32 ccm_analog_pll3_480;
 static u32 ccm_anadig_ana_misc2;
 static bool usb_vbus_wakeup_enabled;
-static u32 pu_val;
 
 /*
  * The USB VBUS wakeup should be disabled to avoid vbus wake system
@@ -283,6 +282,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 	unsigned int cpu_type;
 	struct gic_dist_state gds;
 	struct gic_cpu_state gcs;
+	bool arm_pg = false;
 
 	if (cpu_is_mx6q())
 		cpu_type = MXC_CPU_MX6Q;
@@ -320,9 +320,16 @@ static int mx6_suspend_enter(suspend_state_t state)
 		disp_power_down();
 		usb_power_down_handler();
 		mxc_cpu_lp_set(ARM_POWER_OFF);
+		arm_pg = true;
 		break;
 	case PM_SUSPEND_STANDBY:
-		mxc_cpu_lp_set(STOP_POWER_OFF);
+		if (cpu_is_mx6sl()) {
+			disp_power_down();
+			usb_power_down_handler();
+			mxc_cpu_lp_set(STOP_XTAL_ON);
+			arm_pg = true;
+		} else
+			mxc_cpu_lp_set(STOP_POWER_OFF);
 		break;
 	default:
 		return -EINVAL;
@@ -338,7 +345,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 		local_flush_tlb_all();
 		flush_cache_all();
 
-		if (state == PM_SUSPEND_MEM) {
+		if (arm_pg) {
 			/* preserve gic state */
 			save_gic_dist_state(0, &gds);
 			save_gic_cpu_state(0, &gcs);
@@ -347,10 +354,12 @@ static int mx6_suspend_enter(suspend_state_t state)
 		suspend_in_iram(state, (unsigned long)iram_paddr,
 			(unsigned long)suspend_iram_base, cpu_type);
 
-		if (state == PM_SUSPEND_MEM) {
+		if (arm_pg) {
 			/* restore gic registers */
 			restore_gic_dist_state(0, &gds);
 			restore_gic_cpu_state(0, &gcs);
+		}
+		if (state == PM_SUSPEND_MEM || (cpu_is_mx6sl())) {
 			usb_power_up_handler();
 			disp_power_up();
 		}
@@ -458,10 +467,10 @@ static int __init pm_init(void)
 
 	suspend_set_ops(&mx6_suspend_ops);
 	/* Move suspend routine into iRAM */
-	cpaddr = (unsigned long)iram_alloc(SZ_4K, &iram_paddr);
+	cpaddr = (unsigned long)iram_alloc(SZ_8K, &iram_paddr);
 	/* Need to remap the area here since we want the memory region
 		 to be executable. */
-	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_4K,
+	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_8K,
 					  MT_MEMORY_NONCACHED);
 	pr_info("cpaddr = %x suspend_iram_base=%x\n",
 		(unsigned int)cpaddr, (unsigned int)suspend_iram_base);
@@ -470,7 +479,7 @@ static int __init pm_init(void)
 	 * Need to run the suspend code from IRAM as the DDR needs
 	 * to be put into low power mode manually.
 	 */
-	memcpy((void *)cpaddr, mx6_suspend, SZ_4K);
+	memcpy((void *)cpaddr, mx6_suspend, SZ_8K);
 
 	suspend_in_iram = (void *)suspend_iram_base;
 

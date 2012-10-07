@@ -266,8 +266,8 @@ enum mxc_cpu_pwr_mode {
 	WAIT_CLOCKED,		/* wfi only */
 	WAIT_UNCLOCKED,		/* WAIT */
 	WAIT_UNCLOCKED_POWER_OFF,	/* WAIT + SRPG */
-	STOP_POWER_ON,		/* just STOP */
-	STOP_POWER_OFF,		/* STOP + SRPG */
+	STOP_XTAL_ON,		/* STOP + SRPG + XTAL_ON*/
+	STOP_POWER_OFF,		/* STOP + XTAL_OFF */
 	ARM_POWER_OFF,		/* STOP + SRPG + ARM power off */
 };
 
