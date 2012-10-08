@@ -385,12 +385,6 @@ ahb_podf2:
 	ldr	r7, [r1, #0x318] /* DRAM_DQM3 */
 	stmfd	r0!, {r4-r7}
 
-	ldr	r4, [r1, #0x344] /* DRAM_SDQS0 */
-	ldr	r5, [r1, #0x348] /* DRAM_SDQS1 */
-	ldr	r6, [r1, #0x34c] /* DRAM_SDQS2 */
-	ldr	r7, [r1, #0x350] /* DRAM_SDQS3 */
-	stmfd	r0!, {r4-r7}
-
 	ldr	r4, [r1, #0x5c4] /* GPR_B0DS */
 	ldr	r5, [r1, #0x5cc] /* GPR_B1DS */
 	ldr	r6, [r1, #0x5d4] /* GPR_B2DS */
@@ -400,7 +394,7 @@ ahb_podf2:
 	ldr	r4, [r1, #0x300] /* DRAM_CAS */
 	ldr	r5, [r1, #0x31c] /* DRAM_RAS */
 	ldr	r6, [r1, #0x338] /* DRAM_SDCLK_0 */
-	ldr r7, [r1, #0x5ac] /* GPR_ADDS*/
+	ldr	r7, [r1, #0x5ac] /* GPR_ADDS*/
 	stmfd	r0!, {r4-r7}
 
 	ldr	r4, [r1, #0x5b0] /* DDRMODE_CTL */
@@ -425,22 +419,16 @@ ahb_podf2:
 	str	r7, [r1, #0x318] /* DRAM_DQM3 */
 
 	ldmea	r0!, {r4-r7}
-	str	r4, [r1, #0x344] /* DRAM_SDQS0 */
-	str	r5, [r1, #0x348] /* DRAM_SDQS1 */
-	str	r6, [r1, #0x34c] /* DRAM_SDQS2 */
-	str	r7, [r1, #0x350] /* DRAM_SDQS3 */
-
-	ldmea	r0!, {r4-r7}
 	str	r4, [r1, #0x5c4] /* GPR_B0DS */
 	str	r5, [r1, #0x5cc] /* GPR_B1DS */
-	str r6, [r1, #0x5d4] /* GPR_B2DS */
-	str r7, [r1, #0x5d8] /* GPR_B3DS */
+	str	r6, [r1, #0x5d4] /* GPR_B2DS */
+	str	r7, [r1, #0x5d8] /* GPR_B3DS */
 
 	ldmea	r0!, {r4-r7}
 	str	r4, [r1, #0x300] /* DRAM_CAS */
 	str	r5, [r1, #0x31c] /* DRAM_RAS */
 	str	r6, [r1, #0x338] /* DRAM_SDCLK_0 */
-	str r7, [r1, #0x5ac] /* GPR_ADDS*/
+	str	r7, [r1, #0x5ac] /* GPR_ADDS*/
 
 	ldmea	r0!, {r4-r7}
 	str	r4, [r1, #0x5b0] /* DDRMODE_CTL */
@@ -463,27 +451,15 @@ ahb_podf2:
 	str	r0, [r1, #0x314] /* DRAM_DQM2 */
 	str	r0, [r1, #0x318] /* DRAM_DQM3 */
 
-	/* Make sure the Pull Ups are enabled.
-	 * So only reduce the drive stength, but
-	 * leave the pull-ups in the original state.
-	 * This is required for LPDDR2.
-	 */
-	ldr	r0, [r1, #0x344]
-	orr	r0, r0, #0x3000
-	str	r0, [r1, #0x344] /* DRAM_SDQS0 */
-	str	r0, [r1, #0x348] /* DRAM_SDQS1 */
-	str	r0, [r1, #0x34c] /* DRAM_SDQS2 */
-	str	r0, [r1, #0x350] /* DRAM_SDQS3 */
-
 	str	r0, [r1, #0x5c4] /* GPR_B0DS */
 	str	r0, [r1, #0x5cc] /* GPR_B1DS */
-	str r0, [r1, #0x5d4] /* GPR_B2DS */
-	str r0, [r1, #0x5d8] /* GPR_B3DS */
+	str	r0, [r1, #0x5d4] /* GPR_B2DS */
+	str	r0, [r1, #0x5d8] /* GPR_B3DS */
 
 	str	r0, [r1, #0x300] /* DRAM_CAS */
 	str	r0, [r1, #0x31c] /* DRAM_RAS */
 	str	r0, [r1, #0x338] /* DRAM_SDCLK_0 */
-	str r0, [r1, #0x5ac] /* GPR_ADDS*/
+	str	r0, [r1, #0x5ac] /* GPR_ADDS*/
 
 	str	r0, [r1, #0x5b0] /* DDRMODE_CTL */
 	str	r0, [r1, #0x5c0] /* DDRMODE */
@@ -1262,13 +1238,31 @@ dl_io_restore:
 	b	ddr_io_restore_done
 sl_io_restore:
 	sl_ddr_io_restore
+	ldr	r1, =MMDC_P0_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	/* reset read FIFO, RST_RD_FIFO */
+	ldr	r7, =0x83c
+	ldr	r6, [r1, r7]
+	orr     r6, r6, #0x80000000
+	str	r6, [r1, r7]
+fifo_reset1_wait:
+	ldr	r6, [r1, r7]
+	and	r6, r6, #0x80000000
+	cmp	r6, #0
+	bne	fifo_reset1_wait
+
+	/* reset FIFO a second time */
+	ldr	r6, [r1, r7]
+	orr     r6, r6, #0x80000000
+	str	r6, [r1, r7]
+fifo_reset2_wait:
+	ldr	r6, [r1, r7]
+	and	r6, r6, #0x80000000
+	cmp	r6, #0
+	bne	fifo_reset2_wait
 
 ddr_io_restore_done:
 	/* Ensure DDR exits self-refresh. */
-	ldr	r1, =MMDC_P0_BASE_ADDR
-	add	r1, r1, #PERIPBASE_VIRT
-
-	/* clear DVFS - exit from self refresh mode */
 	ldr	r6, [r1, #0x404]
 	bic	r6, r6, #0x200000
 	str	r6, [r1, #0x404]
@@ -1385,12 +1379,30 @@ dl_io_dsm_restore:
 	b	ddr_io_restore_dsm_done
 sl_io_dsm_restore:
 	sl_ddr_io_restore
+	ldr	r1, =MMDC_P0_BASE_ADDR
+	/* reset read FIFO, RST_RD_FIFO */
+	ldr	r7, =0x83c
+	ldr	r6, [r1, r7]
+	orr     r6, r6, #0x80000000
+	str	r6, [r1, r7]
+dsm_fifo_reset1_wait:
+	ldr	r6, [r1, r7]
+	and	r6, r6, #0x80000000
+	cmp	r6, #0
+	bne	dsm_fifo_reset1_wait
+
+	/* reset FIFO a second time */
+	ldr	r6, [r1, r7]
+	orr     r6, r6, #0x80000000
+	str	r6, [r1, r7]
+dsm_fifo_reset2_wait:
+	ldr	r6, [r1, r7]
+	and	r6, r6, #0x80000000
+	cmp	r6, #0
+	bne	dsm_fifo_reset2_wait
 
 ddr_io_restore_dsm_done:
 	/* Ensure DDR exits self-refresh. */
-	ldr	r1, =MMDC_P0_BASE_ADDR
-
-	/* clear DVFS - exit from self refresh mode */
 	ldr	r6, [r1, #0x404]
 	bic	r6, r6, #0x200000
 	str	r6, [r1, #0x404]
