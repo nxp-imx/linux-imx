@@ -170,9 +170,6 @@ static int prp_enc_setup(cam_data *cam)
 		return err;
 	}
 
-	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_ENC,
-				cam->mclk_source, true, true);
-
 	grotation = cam->rotation;
 	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
 		if (cam->rot_enc_bufs_vaddr[0]) {
@@ -475,8 +472,6 @@ static int prp_enc_disabling_tasks(void *private)
 		return -EPERM;
 	}
 #endif
-
-	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_ENC, cam->csi, false, false);
 
 	return err;
 }

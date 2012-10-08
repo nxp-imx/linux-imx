@@ -203,8 +203,6 @@ static int prpvf_start(void *private)
 	if (err != 0)
 		goto out_5;
 
-	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_VF, cam->csi, true, true);
-
 	if (cam->vf_bufs_vaddr[0]) {
 		dma_free_coherent(0, cam->vf_bufs_size[0],
 				  cam->vf_bufs_vaddr[0],
@@ -454,8 +452,6 @@ static int prpvf_stop(void *private)
 		return -EPERM;
 	}
 #endif
-
-	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_VF, cam->csi, false, false);
 
 	if (cam->vf_bufs_vaddr[0]) {
 		dma_free_coherent(0, cam->vf_bufs_size[0],
