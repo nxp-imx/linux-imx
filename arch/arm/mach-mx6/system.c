@@ -51,6 +51,7 @@
 extern unsigned int gpc_wake_irq[4];
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
+static struct clk *ddr_clk;
 
 volatile unsigned int num_cpu_idle;
 volatile unsigned int num_cpu_idle_lock = 0x0;
@@ -271,7 +272,14 @@ void arch_idle_single_core(void)
 		ca9_do_idle();
 	} else {
 		if (low_bus_freq_mode || audio_bus_freq_mode) {
-			if (cpu_is_mx6sl() && low_bus_freq_mode) {
+				u32 ddr_usecount;
+				if (ddr_clk == NULL)
+					ddr_clk = clk_get(NULL ,
+								"mmdc_ch0_axi");
+				ddr_usecount = clk_get_usecount(ddr_clk);
+
+			if (cpu_is_mx6sl() && low_bus_freq_mode
+				&& ddr_usecount == 1) {
 				/* In this mode PLL2 i already in bypass,
 				  * ARM is sourced from PLL1. The code in IRAM
 				  * will set ARM to be sourced from STEP_CLK
@@ -290,17 +298,41 @@ void arch_idle_single_core(void)
 				  * is at 12MHz. This is valid for audio mode on
 				  * MX6SL, and all low power modes on MX6DLS.
 				  */
-				/* PLL1_SW_CLK is sourced from PLL2_PFD2400MHz
-				  * at this point. Move it to bypassed PLL1.
-				  */
-				reg = __raw_readl(MXC_CCM_CCSR);
-				reg &= ~MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
-				__raw_writel(reg, MXC_CCM_CCSR);
+				if (cpu_is_mx6sl() && low_bus_freq_mode) {
+					/* ARM is from PLL1, need to switch to
+					  * STEP_CLK sourced from 24MHz.
+					  */
+					/* Swtich STEP_CLK to 24MHz. */
+					reg = __raw_readl(MXC_CCM_CCSR);
+					reg &= ~MXC_CCM_CCSR_STEP_SEL;
+					__raw_writel(reg, MXC_CCM_CCSR);
+					/* Set PLL1_SW_CLK to be from
+					  *STEP_CLK.
+					  */
+					reg = __raw_readl(MXC_CCM_CCSR);
+					reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+					__raw_writel(reg, MXC_CCM_CCSR);
 
+				} else {
+					/* PLL1_SW_CLK is sourced from
+					  * PLL2_PFD2_400MHz at this point.
+					  * Move it to bypassed PLL1.
+					  */
+					reg = __raw_readl(MXC_CCM_CCSR);
+					reg &= ~MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+					__raw_writel(reg, MXC_CCM_CCSR);
+				}
 				ca9_do_idle();
 
-				reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
-				__raw_writel(reg, MXC_CCM_CCSR);
+				if (cpu_is_mx6sl() && low_bus_freq_mode) {
+					/* Set PLL1_SW_CLK to be from PLL1 */
+					reg = __raw_readl(MXC_CCM_CCSR);
+					reg &= ~MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+					__raw_writel(reg, MXC_CCM_CCSR);
+				} else {
+					reg |= MXC_CCM_CCSR_PLL1_SW_CLK_SEL;
+					__raw_writel(reg, MXC_CCM_CCSR);
+				}
 			}
 		} else {
 			/*
