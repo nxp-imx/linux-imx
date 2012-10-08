@@ -170,8 +170,6 @@ static int csi_enc_setup(cam_data *cam)
 		return -EINVAL;
 	}
 
-	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_ENC, cam->csi, true, true);
-
 #ifdef CONFIG_MXC_MIPI_CSI2
 	mipi_csi2_info = mipi_csi2_get_info();
 
@@ -510,7 +508,6 @@ static int foreground_stop(void *private)
 
 	flush_work_sync(&cam->csi_work_struct);
 	cancel_work_sync(&cam->csi_work_struct);
-	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_VF, cam->csi, false, false);
 
 	if (cam->vf_bufs_vaddr[0]) {
 		dma_free_coherent(0, cam->vf_bufs_size[0],

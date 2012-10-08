@@ -127,8 +127,6 @@ static int csi_enc_setup(cam_data *cam)
 		return -EINVAL;
 	}
 
-	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_ENC, cam->csi, true, true);
-
 #ifdef CONFIG_MXC_MIPI_CSI2
 	mipi_csi2_info = mipi_csi2_get_info();
 
@@ -316,8 +314,6 @@ static int csi_enc_disabling_tasks(void *private)
 		return -EPERM;
 	}
 #endif
-
-	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_ENC, cam->csi, false, false);
 
 	return err;
 }
