@@ -1149,11 +1149,7 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 	case V4L2_CID_HUE:
 		if (cam->sensor) {
 			cam->hue = c->value;
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       true, true);
 			ret = vidioc_int_s_ctrl(cam->sensor, c);
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       false, false);
 		} else {
 			pr_err("ERROR: v4l2 capture: slave not found!\n");
 			ret = -ENODEV;
@@ -1162,11 +1158,7 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 	case V4L2_CID_CONTRAST:
 		if (cam->sensor) {
 			cam->contrast = c->value;
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       true, true);
 			ret = vidioc_int_s_ctrl(cam->sensor, c);
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       false, false);
 		} else {
 			pr_err("ERROR: v4l2 capture: slave not found!\n");
 			ret = -ENODEV;
@@ -1175,11 +1167,7 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 	case V4L2_CID_BRIGHTNESS:
 		if (cam->sensor) {
 			cam->bright = c->value;
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       true, true);
 			ret = vidioc_int_s_ctrl(cam->sensor, c);
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       false, false);
 		} else {
 			pr_err("ERROR: v4l2 capture: slave not found!\n");
 			ret = -ENODEV;
@@ -1188,11 +1176,7 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 	case V4L2_CID_SATURATION:
 		if (cam->sensor) {
 			cam->saturation = c->value;
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       true, true);
 			ret = vidioc_int_s_ctrl(cam->sensor, c);
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       false, false);
 		} else {
 			pr_err("ERROR: v4l2 capture: slave not found!\n");
 			ret = -ENODEV;
@@ -1201,11 +1185,7 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 	case V4L2_CID_RED_BALANCE:
 		if (cam->sensor) {
 			cam->red = c->value;
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       true, true);
 			ret = vidioc_int_s_ctrl(cam->sensor, c);
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       false, false);
 		} else {
 			pr_err("ERROR: v4l2 capture: slave not found!\n");
 			ret = -ENODEV;
@@ -1214,11 +1194,7 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 	case V4L2_CID_BLUE_BALANCE:
 		if (cam->sensor) {
 			cam->blue = c->value;
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       true, true);
 			ret = vidioc_int_s_ctrl(cam->sensor, c);
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       false, false);
 		} else {
 			pr_err("ERROR: v4l2 capture: slave not found!\n");
 			ret = -ENODEV;
@@ -1227,11 +1203,7 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 	case V4L2_CID_EXPOSURE:
 		if (cam->sensor) {
 			cam->ae_mode = c->value;
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       true, true);
 			ret = vidioc_int_s_ctrl(cam->sensor, c);
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-					       false, false);
 		} else {
 			pr_err("ERROR: v4l2 capture: slave not found!\n");
 			ret = -ENODEV;
@@ -1249,16 +1221,26 @@ static int mxc_v4l2_s_ctrl(cam_data *cam, struct v4l2_control *c)
 				if (i != c->value) {
 					vidioc_int_dev_exit(cam->all_sensors[i]);
 					vidioc_int_s_power(cam->all_sensors[i], 0);
+					if (cam->mclk_on[cam->mclk_source]) {
+						ipu_csi_enable_mclk_if(cam->ipu,
+								CSI_MCLK_I2C,
+								cam->mclk_source,
+								false, false);
+						cam->mclk_on[cam->mclk_source] =
+									false;
+					}
 				}
 			}
 			sensor_data = cam->all_sensors[c->value]->priv;
 			if (sensor_data->io_init)
 				sensor_data->io_init();
 			cam->sensor = cam->all_sensors[c->value];
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, true, true);
+			cam->mclk_source = sensor_data->mclk_source;
+			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C,
+					       cam->mclk_source, true, true);
+			cam->mclk_on[cam->mclk_source] = true;
 			vidioc_int_s_power(cam->sensor, 1);
 			vidioc_int_dev_init(cam->sensor);
-			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, false, false);
 		}
 		break;
 	default:
@@ -1324,9 +1306,7 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 			current_fps, parm_fps);
 
 	/* This will change any camera settings needed. */
-	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, true, true);
 	err = vidioc_int_s_parm(cam->sensor, parm);
-	ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi, false, false);
 	if (err) {
 		pr_err("%s: vidioc_int_s_parm returned an error %d\n",
 			__func__, err);
@@ -1697,8 +1677,12 @@ static int mxc_v4l_open(struct file *file)
 					cam_fmt.fmt.pix.pixelformat,
 					csi_param);
 
-		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->mclk_source,
-				       true, true);
+		if (!cam->mclk_on[cam->mclk_source]) {
+			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C,
+					       cam->mclk_source,
+					       true, true);
+			cam->mclk_on[cam->mclk_source] = true;
+		}
 		vidioc_int_s_power(cam->sensor, 1);
 		vidioc_int_init(cam->sensor);
 		vidioc_int_dev_init(cam->sensor);
@@ -1746,8 +1730,12 @@ static int mxc_v4l_close(struct file *file)
 
 	if (--cam->open_count == 0) {
 		vidioc_int_s_power(cam->sensor, 0);
-		ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C, cam->csi,
-			false, false);
+		if (cam->mclk_on[cam->mclk_source]) {
+			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C,
+					       cam->mclk_source,
+					       false, false);
+			cam->mclk_on[cam->mclk_source] = false;
+		}
 
 		wait_event_interruptible(cam->power_queue,
 					 cam->low_power == false);
@@ -2654,6 +2642,7 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 
 	cam->csi = pdata->csi;
 	cam->mclk_source = pdata->mclk_source;
+	cam->mclk_on[cam->mclk_source] = false;
 
 	cam->enc_callback = camera_callback;
 	init_waitqueue_head(&cam->power_queue);
@@ -2807,8 +2796,15 @@ static int mxc_v4l2_suspend(struct platform_device *pdev, pm_message_t state)
 		cam->enc_disable(cam);
 	}
 
-	if (cam->sensor && cam->open_count)
+	if (cam->sensor && cam->open_count) {
+		if (cam->mclk_on[cam->mclk_source]) {
+			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C,
+					       cam->mclk_source,
+					       false, false);
+			cam->mclk_on[cam->mclk_source] = false;
+		}
 		vidioc_int_s_power(cam->sensor, 0);
+	}
 
 	up(&cam->busy_lock);
 
@@ -2839,8 +2835,16 @@ static int mxc_v4l2_resume(struct platform_device *pdev)
 	cam->low_power = false;
 	wake_up_interruptible(&cam->power_queue);
 
-	if (cam->sensor && cam->open_count)
+	if (cam->sensor && cam->open_count) {
 		vidioc_int_s_power(cam->sensor, 1);
+
+		if (!cam->mclk_on[cam->mclk_source]) {
+			ipu_csi_enable_mclk_if(cam->ipu, CSI_MCLK_I2C,
+					       cam->mclk_source,
+					       true, true);
+			cam->mclk_on[cam->mclk_source] = true;
+		}
+	}
 
 	if (cam->overlay_on == true)
 		start_preview(cam);
