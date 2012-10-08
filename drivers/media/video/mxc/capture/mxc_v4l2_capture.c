@@ -379,6 +379,7 @@ static inline int valid_mode(u32 palette)
 static int mxc_streamon(cam_data *cam)
 {
 	struct mxc_v4l_frame *frame;
+	unsigned long lock_flags;
 	int err = 0;
 
 	pr_debug("In MVC:mxc_streamon\n");
@@ -418,6 +419,7 @@ static int mxc_streamon(cam_data *cam)
 		}
 	}
 
+	spin_lock_irqsave(&cam->queue_int_lock, lock_flags);
 	cam->ping_pong_csi = 0;
 	cam->local_buf_num = 0;
 	if (cam->enc_update_eba) {
@@ -436,7 +438,9 @@ static int mxc_streamon(cam_data *cam)
 		frame->ipu_buf_num = cam->ping_pong_csi;
 		err |= cam->enc_update_eba(cam->ipu, frame->buffer.m.offset,
 					   &cam->ping_pong_csi);
+		spin_unlock_irqrestore(&cam->queue_int_lock, lock_flags);
 	} else {
+		spin_unlock_irqrestore(&cam->queue_int_lock, lock_flags);
 		return -EINVAL;
 	}
 
@@ -1513,8 +1517,10 @@ static int mxc_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 		return -ERESTARTSYS;
 	}
 
-	spin_lock_irqsave(&cam->dqueue_int_lock, lock_flags);
+	if (down_interruptible(&cam->busy_lock))
+		return -EBUSY;
 
+	spin_lock_irqsave(&cam->dqueue_int_lock, lock_flags);
 	cam->enc_counter--;
 
 	frame = list_entry(cam->done_q.next, struct mxc_v4l_frame, queue);
@@ -1537,8 +1543,9 @@ static int mxc_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 	buf->flags = frame->buffer.flags;
 	buf->m = cam->frame[frame->index].buffer.m;
 	buf->timestamp = cam->frame[frame->index].buffer.timestamp;
-
 	spin_unlock_irqrestore(&cam->dqueue_int_lock, lock_flags);
+
+	up(&cam->busy_lock);
 	return retval;
 }
 
@@ -1881,8 +1888,9 @@ static long mxc_v4l_do_ioctl(struct file *file,
 	pr_debug("In MVC: mxc_v4l_do_ioctl %x\n", ioctlnr);
 	wait_event_interruptible(cam->power_queue, cam->low_power == false);
 	/* make this _really_ smp-safe */
-	if (down_interruptible(&cam->busy_lock))
-		return -EBUSY;
+	if (ioctlnr != VIDIOC_DQBUF)
+		if (down_interruptible(&cam->busy_lock))
+			return -EBUSY;
 
 	switch (ioctlnr) {
 	/*!
@@ -1943,15 +1951,10 @@ static long mxc_v4l_do_ioctl(struct file *file,
 		}
 
 		mxc_streamoff(cam);
-		if (req->memory & V4L2_MEMORY_MMAP)
+		if (req->memory & V4L2_MEMORY_MMAP) {
 			mxc_free_frame_buf(cam);
-		cam->enc_counter = 0;
-		INIT_LIST_HEAD(&cam->ready_q);
-		INIT_LIST_HEAD(&cam->working_q);
-		INIT_LIST_HEAD(&cam->done_q);
-
-		if (req->memory & V4L2_MEMORY_MMAP)
 			retval = mxc_allocate_frame_buf(cam, req->count);
+		}
 		break;
 	}
 
@@ -2376,7 +2379,8 @@ static long mxc_v4l_do_ioctl(struct file *file,
 		break;
 	}
 
-	up(&cam->busy_lock);
+	if (ioctlnr != VIDIOC_DQBUF)
+		up(&cam->busy_lock);
 	return retval;
 }
 
@@ -2510,6 +2514,8 @@ static void camera_callback(u32 mask, void *dev)
 
 	pr_debug("In MVC:camera_callback\n");
 
+	spin_lock(&cam->queue_int_lock);
+	spin_lock(&cam->dqueue_int_lock);
 	if (!list_empty(&cam->working_q)) {
 		do_gettimeofday(&cur_time);
 
@@ -2564,6 +2570,8 @@ next:
 	}
 
 	cam->local_buf_num = (cam->local_buf_num == 0) ? 1 : 0;
+	spin_unlock(&cam->dqueue_int_lock);
+	spin_unlock(&cam->queue_int_lock);
 
 	return;
 }
