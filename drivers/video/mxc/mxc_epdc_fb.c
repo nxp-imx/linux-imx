@@ -735,18 +735,24 @@ static int epdc_choose_next_lut(int rev, int *next_lut)
 {
 	u64 luts_status, unprocessed_luts;
 	bool next_lut_found = false;
+	/* Available LUTs are reduced to 16 in 5-bit waveform mode */
+	u32 format_p5n = __raw_readl(EPDC_FORMAT) &
+		EPDC_FORMAT_BUF_PIXEL_FORMAT_P5N;
 
 	luts_status = __raw_readl(EPDC_STATUS_LUTS);
-	if (rev < 20)
+	if ((rev < 20) || format_p5n)
 		luts_status &= 0xFFFF;
 	else
 		luts_status |= ((u64)__raw_readl(EPDC_STATUS_LUTS2) << 32);
 
-	if (rev < 20)
+	if (rev < 20) {
 		unprocessed_luts = __raw_readl(EPDC_IRQ) & 0xFFFF;
-	else
+	} else {
 		unprocessed_luts = __raw_readl(EPDC_IRQ1) |
 			((u64)__raw_readl(EPDC_IRQ2) << 32);
+		if (format_p5n)
+			unprocessed_luts &= 0xFFFF;
+	}
 
 	while (!next_lut_found) {
 		/*
@@ -762,7 +768,7 @@ static int epdc_choose_next_lut(int rev, int *next_lut)
 		 */
 		*next_lut = fls64(luts_status);
 
-		if (rev < 20) {
+		if ((rev < 20) || format_p5n) {
 			if (*next_lut > 15)
 				*next_lut = ffz(luts_status);
 		} else {
