@@ -1519,11 +1519,11 @@ restore control register to enable cache
 #endif
 
 	mov	r8, lr
-	push	{r0}
+	push	{r0-r12}
 
 	/* Set up the per-CPU stacks */
 	bl	cpu_init
-	pop	{r0}
+	pop	{r0-r12}
 
 	/*
 	 * Restore the MMU table entry that was modified for
