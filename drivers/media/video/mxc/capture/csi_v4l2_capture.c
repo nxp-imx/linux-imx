@@ -1366,22 +1366,6 @@ static struct video_device csi_v4l_template = {
 };
 
 /*!
- * This function can be used to release any platform data on closing.
- */
-static void camera_platform_release(struct device *device)
-{
-}
-
-/*! Device Definition for csi v4l2 device */
-static struct platform_device csi_v4l2_devices = {
-	.name = "csi_v4l2",
-	.dev = {
-		.release = camera_platform_release,
-		},
-	.id = 0,
-};
-
-/*!
  * initialize cam_data structure
  *
  * @param cam      structure cam_data *
@@ -1405,7 +1389,6 @@ static void init_camera_struct(cam_data *cam)
 	*(cam->video_dev) = csi_v4l_template;
 
 	video_set_drvdata(cam->video_dev, cam);
-	dev_set_drvdata(&csi_v4l2_devices.dev, (void *)cam);
 	cam->video_dev->minor = -1;
 
 	init_waitqueue_head(&cam->enc_queue);
@@ -1465,6 +1448,66 @@ static u8 camera_power(cam_data *cam, bool cameraOn)
 		csi_enable_mclk(CSI_MCLK_I2C, false, false);
 		vidioc_int_s_power(cam->sensor, 0);
 	}
+	return 0;
+}
+
+static int __devinit csi_v4l2_probe(struct platform_device *pdev)
+{
+	struct scatterlist *sg;
+	u8 err = 0;
+
+	/* Create g_cam and initialize it. */
+	g_cam = kmalloc(sizeof(cam_data), GFP_KERNEL);
+	if (g_cam == NULL) {
+		pr_err("ERROR: v4l2 capture: failed to register camera\n");
+		err = -ENOMEM;
+		goto out;
+	}
+	init_camera_struct(g_cam);
+	platform_set_drvdata(pdev, (void *)g_cam);
+
+	/* Set up the v4l2 device and register it */
+	csi_v4l2_int_device.priv = g_cam;
+	/* This function contains a bug that won't let this be rmmod'd. */
+	v4l2_int_device_register(&csi_v4l2_int_device);
+
+	/* register v4l video device */
+	if (video_register_device(g_cam->video_dev, VFL_TYPE_GRABBER, video_nr)
+	    == -1) {
+		kfree(g_cam);
+		g_cam = NULL;
+		pr_err("ERROR: v4l2 capture: video_register_device failed\n");
+		err = -ENODEV;
+		goto out;
+	}
+	pr_debug("   Video device registered: %s #%d\n",
+		 g_cam->video_dev->name, g_cam->video_dev->minor);
+
+	g_cam->pxp_chan = NULL;
+	/* Initialize Scatter-gather list containing 2 buffer addresses. */
+	sg = g_cam->sg;
+	sg_init_table(sg, 2);
+
+out:
+	return err;
+}
+
+static int __devexit csi_v4l2_remove(struct platform_device *pdev)
+{
+	if (g_cam->open_count) {
+		pr_err("ERROR: v4l2 capture:camera open "
+		       "-- setting ops to NULL\n");
+	} else {
+		pr_info("V4L2 freeing image input device\n");
+		v4l2_int_device_unregister(&csi_v4l2_int_device);
+		csi_stop_callback(g_cam);
+		video_unregister_device(g_cam->video_dev);
+		platform_set_drvdata(pdev, NULL);
+
+		kfree(g_cam);
+		g_cam = NULL;
+	}
+
 	return 0;
 }
 
@@ -1533,8 +1576,8 @@ static struct platform_driver csi_v4l2_driver = {
 	.driver = {
 		   .name = "csi_v4l2",
 		   },
-	.probe = NULL,
-	.remove = NULL,
+	.probe = csi_v4l2_probe,
+	.remove = __devexit_p(csi_v4l2_remove),
 #ifdef CONFIG_PM
 	.suspend = csi_v4l2_suspend,
 	.resume = csi_v4l2_resume,
@@ -1591,61 +1634,8 @@ static void csi_v4l2_master_detach(struct v4l2_int_device *slave)
  */
 static __init int camera_init(void)
 {
-	struct scatterlist *sg;
-	u8 err = 0;
-
 	/* Register the device driver structure. */
-	err = platform_driver_register(&csi_v4l2_driver);
-	if (err != 0) {
-		pr_err("ERROR: v4l2 capture:camera_init: "
-		       "platform_driver_register failed.\n");
-		return err;
-	}
-
-	/* Create g_cam and initialize it. */
-	g_cam = kmalloc(sizeof(cam_data), GFP_KERNEL);
-	if (g_cam == NULL) {
-		pr_err("ERROR: v4l2 capture: failed to register camera\n");
-		platform_driver_unregister(&csi_v4l2_driver);
-		return -1;
-	}
-	init_camera_struct(g_cam);
-
-	/* Set up the v4l2 device and register it */
-	csi_v4l2_int_device.priv = g_cam;
-	/* This function contains a bug that won't let this be rmmod'd. */
-	v4l2_int_device_register(&csi_v4l2_int_device);
-
-	/* Register the platform device */
-	err = platform_device_register(&csi_v4l2_devices);
-	if (err != 0) {
-		pr_err("ERROR: v4l2 capture: camera_init: "
-		       "platform_device_register failed.\n");
-		platform_driver_unregister(&csi_v4l2_driver);
-		kfree(g_cam);
-		g_cam = NULL;
-		return err;
-	}
-
-	/* register v4l video device */
-	if (video_register_device(g_cam->video_dev, VFL_TYPE_GRABBER, video_nr)
-	    == -1) {
-		platform_device_unregister(&csi_v4l2_devices);
-		platform_driver_unregister(&csi_v4l2_driver);
-		kfree(g_cam);
-		g_cam = NULL;
-		pr_err("ERROR: v4l2 capture: video_register_device failed\n");
-		return -1;
-	}
-	pr_debug("   Video device registered: %s #%d\n",
-		 g_cam->video_dev->name, g_cam->video_dev->minor);
-
-	g_cam->pxp_chan = NULL;
-	/* Initialize Scatter-gather list containing 2 buffer addresses. */
-	sg = g_cam->sg;
-	sg_init_table(sg, 2);
-
-	return err;
+	return platform_driver_register(&csi_v4l2_driver);
 }
 
 /*!
@@ -1653,22 +1643,7 @@ static __init int camera_init(void)
  */
 static void __exit camera_exit(void)
 {
-	pr_debug("In MVC: %s\n", __func__);
-
-	if (g_cam->open_count) {
-		pr_err("ERROR: v4l2 capture:camera open "
-		       "-- setting ops to NULL\n");
-	} else {
-		pr_info("V4L2 freeing image input device\n");
-		v4l2_int_device_unregister(&csi_v4l2_int_device);
-		csi_stop_callback(g_cam);
-		video_unregister_device(g_cam->video_dev);
-		platform_driver_unregister(&csi_v4l2_driver);
-		platform_device_unregister(&csi_v4l2_devices);
-
-		kfree(g_cam);
-		g_cam = NULL;
-	}
+	platform_driver_unregister(&csi_v4l2_driver);
 }
 
 module_init(camera_init);
