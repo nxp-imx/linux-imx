@@ -72,6 +72,7 @@ struct mxc_elcdif_fb_data {
 	bool wait4vsync;
 	bool wait4framedone;
 	bool panning;
+	bool running;
 	struct completion vsync_complete;
 	struct completion frame_done_complete;
 	struct semaphore flip_sem;
@@ -615,7 +616,7 @@ static inline void mxc_elcdif_dma_release(void)
 	return;
 }
 
-static inline void mxc_elcdif_run(void)
+static inline void mxc_elcdif_run(struct mxc_elcdif_fb_data *data)
 {
 	if (!g_elcdif_axi_clk_enable) {
 		clk_enable(g_elcdif_axi_clk);
@@ -626,6 +627,9 @@ static inline void mxc_elcdif_run(void)
 		     elcdif_base + HW_ELCDIF_CTRL_SET);
 	__raw_writel(BM_ELCDIF_CTRL_RUN,
 		     elcdif_base + HW_ELCDIF_CTRL_SET);
+
+	data->running = true;
+
 	return;
 }
 
@@ -880,8 +884,8 @@ static int mxc_elcdif_fb_set_par(struct fb_info *fbi)
 	dev_dbg(fbi->device, "Reconfiguring framebuffer\n");
 
 	/* If parameter no change, don't reconfigure. */
-	if (mxc_elcdif_fb_par_equal(fbi, data))
-	    return 0;
+	if (mxc_elcdif_fb_par_equal(fbi, data) && (data->running == true))
+		return 0;
 
 	sema_init(&data->flip_sem, 1);
 
@@ -949,7 +953,7 @@ static int mxc_elcdif_fb_set_par(struct fb_info *fbi)
 			   sig_cfg,
 			   1);
 	mxc_elcdif_frame_addr_setup(fbi->fix.smem_start);
-	mxc_elcdif_run();
+	mxc_elcdif_run(data);
 	mxc_elcdif_blank_panel(FB_BLANK_UNBLANK);
 
 	fbi->mode = (struct fb_videomode *)fb_match_mode(&fbi->var,
@@ -1548,6 +1552,7 @@ static int mxc_elcdif_fb_suspend(struct platform_device *pdev,
 		clk_disable(g_elcdif_axi_clk);
 		g_elcdif_axi_clk_enable = false;
 	}
+	data->running = false;
 	console_unlock();
 	return 0;
 }
