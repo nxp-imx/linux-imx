@@ -4854,7 +4854,7 @@ static struct clk usboh3_clk[] = {
 	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
 	.disable = _clk_disable,
 	.secondary = &usboh3_clk[1],
-	.flags = AHB_MED_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
 	},
 	{
 	.parent = &mmdc_ch0_axi_clk[0],
@@ -5304,6 +5304,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "mlb150_clk", mlb150_clk),
 	_REGISTER_CLOCK(NULL, "anaclk_1", anaclk_1),
 	_REGISTER_CLOCK(NULL, "anaclk_2", anaclk_2),
+	_REGISTER_CLOCK(NULL, "apb_pclk", dummy_clk),
 };
 
 static void clk_tree_init(void)

@@ -22,6 +22,7 @@
  * mx6_anatop_regulator.c  --  i.MX6 Driver for Anatop regulators
  */
 #include <linux/device.h>
+#include <linux/err.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/anatop-regulator.h>
@@ -30,6 +31,9 @@
 #include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
+#include <linux/clk.h>
+
+#include <mach/clock.h>
 
 #include "crm_regs.h"
 #include "regs-anadig.h"
@@ -41,8 +45,17 @@ extern struct platform_device sgtl5000_vdda_reg_devices;
 extern struct platform_device sgtl5000_vddio_reg_devices;
 extern struct platform_device sgtl5000_vddd_reg_devices;
 extern void __iomem *gpc_base;
-/* Default PU voltage value set to 1.1V */
-static unsigned int org_ldo = 0x2000;
+/* we use the below flag to keep PU regulator state, because enable/disable
+of PU regulator share with the same register as  voltage set of PU regulator.
+PU voltage set by cpufreq driver if the flag is set, and enable/disable by
+GPU/VPU driver*/
+static unsigned int pu_is_enabled;
+static unsigned int get_clk;
+static struct clk *gpu3d_clk, *gpu3d_shade_clk, *gpu2d_clk, *gpu2d_axi_clk;
+static struct clk *openvg_axi_clk, *vpu_clk;
+extern int external_pureg;
+extern struct regulator *pu_regulator;
+
 
 static int get_voltage(struct anatop_regulator *sreg)
 {
@@ -90,17 +103,56 @@ static int set_voltage(struct anatop_regulator *sreg, int uv)
 
 static int pu_enable(struct anatop_regulator *sreg)
 {
-	unsigned int reg;
+	unsigned int reg, vddsoc;
+	int ret = 0;
+	/*get PU related clk to finish PU regulator power up*/
+	if (!get_clk) {
+		if (!cpu_is_mx6sl()) {
+			gpu3d_clk = clk_get(NULL, "gpu3d_clk");
+			if (IS_ERR(gpu3d_clk))
+				printk(KERN_ERR "%s: failed to get gpu3d_clk!\n"
+					, __func__);
+			gpu3d_shade_clk = clk_get(NULL, "gpu3d_shader_clk");
+			if (IS_ERR(gpu3d_shade_clk))
+				printk(KERN_ERR "%s: failed to get shade_clk!\n"
+					, __func__);
+			if (IS_ERR(vpu_clk))
+				printk(KERN_ERR "%s: failed to get vpu_clk!\n",
+					__func__);
+		}
+		gpu2d_clk = clk_get(NULL, "gpu2d_clk");
+		if (IS_ERR(gpu2d_clk))
+			printk(KERN_ERR "%s: failed to get gpu2d_clk!\n",
+				__func__);
+		gpu2d_axi_clk = clk_get(NULL, "gpu2d_axi_clk");
+		if (IS_ERR(gpu2d_axi_clk))
+			printk(KERN_ERR "%s: failed to get gpu2d_axi_clk!\n",
+				__func__);
+		openvg_axi_clk = clk_get(NULL, "openvg_axi_clk");
+		if (IS_ERR(openvg_axi_clk))
+			printk(KERN_ERR "%s: failed to get openvg_axi_clk!\n",
+				__func__);
+		get_clk = 1;
 
-	/* Do not enable PU LDO if it is already enabled */
-	reg = __raw_readl(ANADIG_REG_CORE) & (ANADIG_REG_TARGET_MASK
-		<< ANADIG_REG1_PU_TARGET_OFFSET);
-	if (reg != 0)
-		return 0;
-
-	/* Set the voltage of VDDPU as in normal mode. */
-	__raw_writel(org_ldo | (__raw_readl(ANADIG_REG_CORE) &
-	(~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET))), ANADIG_REG_CORE);
+	}
+	if (external_pureg) {
+		/*enable extern PU regulator*/
+		ret = regulator_enable(pu_regulator);
+		if (ret < 0)
+			printk(KERN_ERR "%s: enable pu error!\n", __func__);
+	} else {
+		/*Track the voltage of VDDPU with VDDSOC if use internal PU
+		*regulator.
+		*/
+		reg = __raw_readl(ANADIG_REG_CORE);
+		vddsoc  = reg & (ANADIG_REG_TARGET_MASK <<
+				ANADIG_REG2_SOC_TARGET_OFFSET);
+		reg &= ~(ANADIG_REG_TARGET_MASK <<
+				ANADIG_REG1_PU_TARGET_OFFSET);
+		reg |= vddsoc >> (ANADIG_REG2_SOC_TARGET_OFFSET
+				-ANADIG_REG1_PU_TARGET_OFFSET);
+		__raw_writel(reg, ANADIG_REG_CORE);
+	}
 
 	/* Need to wait for the regulator to come back up */
 	/*
@@ -109,7 +161,17 @@ static int pu_enable(struct anatop_regulator *sreg)
 	 * 25mV step.
 	 */
 	udelay(150);
-
+	/*enable gpu clock to powerup GPU right.*/
+	if (get_clk) {
+		if (!cpu_is_mx6sl()) {
+			clk_enable(gpu3d_clk);
+			clk_enable(gpu3d_shade_clk);
+			clk_enable(vpu_clk);
+		}
+		clk_enable(gpu2d_clk);
+		clk_enable(gpu2d_axi_clk);
+		clk_enable(openvg_axi_clk);
+	}
 	/* enable power up request */
 	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
 	__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
@@ -119,7 +181,6 @@ static int pu_enable(struct anatop_regulator *sreg)
 	/* Wait for the power up bit to clear */
 	while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x2)
 		;
-
 	/* Enable the Brown Out detection. */
 	reg = __raw_readl(ANA_MISC2_BASE_ADDR);
 	reg |= ANADIG_ANA_MISC2_REG1_BO_EN;
@@ -131,19 +192,24 @@ static int pu_enable(struct anatop_regulator *sreg)
 	reg &= ~0x80000000;
 	__raw_writel(reg, gpc_base + 0x14);
 #endif
-
+	pu_is_enabled = 1;
+	if (get_clk) {
+		if (!cpu_is_mx6sl()) {
+			clk_disable(gpu3d_clk);
+			clk_disable(gpu3d_shade_clk);
+			clk_disable(vpu_clk);
+		}
+		clk_disable(gpu2d_clk);
+		clk_disable(gpu2d_axi_clk);
+		clk_disable(openvg_axi_clk);
+	}
 	return 0;
 }
 
 static int pu_disable(struct anatop_regulator *sreg)
 {
 	unsigned int reg;
-
-	/* Do not disable PU LDO if it is not enabled */
-	reg = __raw_readl(ANADIG_REG_CORE) & (ANADIG_REG_TARGET_MASK
-		<< ANADIG_REG1_PU_TARGET_OFFSET);
-	if (reg == 0)
-		return 0;
+	int ret = 0;
 
 	/* Disable the brown out detection since we are going to be
 	  * disabling the LDO.
@@ -163,7 +229,6 @@ static int pu_disable(struct anatop_regulator *sreg)
 	/* Wait for power down to complete. */
 	while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
 			;
-
 #ifndef CONFIG_MX6_INTER_LDO_BYPASS
 	/* Mask the ANATOP brown out interrupt in the GPC. */
 	reg = __raw_readl(gpc_base + 0x14);
@@ -171,12 +236,19 @@ static int pu_disable(struct anatop_regulator *sreg)
 	__raw_writel(reg, gpc_base + 0x14);
 #endif
 
-	/* PU power gating. */
-	reg = __raw_readl(ANADIG_REG_CORE);
-	org_ldo = reg & (ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
-	reg &= ~(ANADIG_REG_TARGET_MASK << ANADIG_REG1_PU_TARGET_OFFSET);
-	__raw_writel(reg, ANADIG_REG_CORE);
-
+	if (external_pureg) {
+		/*disable extern PU regulator*/
+		ret = regulator_disable(pu_regulator);
+		if (ret < 0)
+			printk(KERN_ERR "%s: disable pu error!\n", __func__);
+	} else {
+		/* PU power gating. */
+		reg = __raw_readl(ANADIG_REG_CORE);
+		reg &= ~(ANADIG_REG_TARGET_MASK <<
+			ANADIG_REG1_PU_TARGET_OFFSET);
+		__raw_writel(reg, ANADIG_REG_CORE);
+	}
+	pu_is_enabled = 0;
 	/* Clear the BO interrupt in the ANATOP. */
 	reg = __raw_readl(ANADIG_MISC1_REG);
 	reg |= 0x80000000;
@@ -185,14 +257,7 @@ static int pu_disable(struct anatop_regulator *sreg)
 }
 static int is_pu_enabled(struct anatop_regulator *sreg)
 {
-	unsigned int reg;
-
-	reg = __raw_readl(ANADIG_REG_CORE) & (ANADIG_REG_TARGET_MASK
-		<< ANADIG_REG1_PU_TARGET_OFFSET);
-	if (reg == 0)
-		return 0;
-	else
-		return 1;
+	return pu_is_enabled;
 }
 static int enable(struct anatop_regulator *sreg)
 {
@@ -447,6 +512,9 @@ static int __init regulators_init(void)
 	anatop_register_regulator(&vdd1p1_reg, ANATOP_VDD1P1, &vdd1p1_init);
 	anatop_register_regulator(&vdd3p0_reg, ANATOP_VDD3P0, &vdd3p0_init);
 
+	/* clear flag in boot*/
+	pu_is_enabled = 0;
+	get_clk = 0;
 	return 0;
 }
 postcore_initcall(regulators_init);

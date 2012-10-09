@@ -1,6 +1,6 @@
 config FB_MXC
 	tristate "MXC Framebuffer support"
-	depends on FB && (MXC_IPU || ARCH_MX21 || ARCH_MX27 || ARCH_MX25)
+	depends on FB && (MXC_IPU || ARCH_MX21 || ARCH_MX27 || ARCH_MX25 || ARCH_MX6)
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
@@ -59,6 +59,10 @@ config FB_MXC_SEIKO_WVGA_SYNC_PANEL
 config FB_MXC_SII902X
 	depends on FB_MXC_SYNC_PANEL && I2C
 	tristate "Si Image SII9022 DVI/HDMI Interface Chip"
+
+config FB_MXC_SII902X_ELCDIF
+	depends on FB_MXC_SYNC_PANEL && I2C
+	tristate "Si Image SII9022 DVI/HDMI Interface Chip for ELCDIF FB"
 
 config FB_MXC_CH7026
 	depends on FB_MXC_SYNC_PANEL

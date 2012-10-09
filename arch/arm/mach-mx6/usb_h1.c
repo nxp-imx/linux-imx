@@ -90,6 +90,13 @@ static void usbh1_internal_phy_clock_gate(bool on)
 	}
 }
 
+static void usbh1_platform_phy_power_on(void)
+{
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+	__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG,
+				anatop_base_addr + HW_ANADIG_ANA_MISC0_SET);
+}
+
 static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 {
 	u32 tmp;
@@ -134,7 +141,6 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 {
 	int ret;
 	struct clk *usb_clk;
-	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	usb_clk = clk_get(NULL, "usboh3_clk");
 	clk_enable(usb_clk);
 	usb_oh3_clk = usb_clk;
@@ -146,25 +152,19 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 	}
 	usbh1_internal_phy_clock_gate(true);
 	usb_phy_enable(pdev->dev.platform_data);
-	usb_stop_mode_lock();
-	if (usb_stop_mode_refcount(true) == 1)
-		__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG, anatop_base_addr + HW_ANADIG_ANA_MISC0_SET);
-	usb_stop_mode_unlock();
+
 	return 0;
 }
 
 static void fsl_usb_host_uninit_ext(struct platform_device *pdev)
 {
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
-	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+
 	fsl_usb_host_uninit(pdata);
 
 	clk_disable(usb_oh3_clk);
 	clk_put(usb_oh3_clk);
-	usb_stop_mode_lock();
-	if (usb_stop_mode_refcount(false) == 0)
-		__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG, anatop_base_addr + HW_ANADIG_ANA_MISC0_CLR);
-	usb_stop_mode_unlock();
+
 }
 
 static void usbh1_clock_gate(bool on)
@@ -374,6 +374,7 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.phy_lowpower_suspend = _phy_lowpower_suspend,
 	.is_wakeup_event = _is_usbh1_wakeup,
 	.wakeup_handler = h1_wakeup_handler,
+	.platform_phy_power_on = usbh1_platform_phy_power_on,
 	.transceiver = "utmi",
 	.phy_regs = USB_PHY1_BASE_ADDR,
 };

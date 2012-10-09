@@ -340,6 +340,7 @@ struct ipu_alloc_list {
 	dma_addr_t phy_addr;
 	void *cpu_addr;
 	u32 size;
+	void *file_index;
 };
 
 static LIST_HEAD(ipu_alloc_list);
@@ -350,6 +351,7 @@ static DEFINE_SPINLOCK(ipu_task_list_lock);
 static DECLARE_WAIT_QUEUE_HEAD(thread_waitq);
 static DECLARE_WAIT_QUEUE_HEAD(res_waitq);
 static atomic_t req_cnt;
+static atomic_t file_index = ATOMIC_INIT(1);
 static int major;
 static int max_ipu_no;
 static int thread_id;
@@ -3274,6 +3276,7 @@ EXPORT_SYMBOL_GPL(ipu_queue_task);
 
 static int mxc_ipu_open(struct inode *inode, struct file *file)
 {
+	file->private_data = (void *)atomic_inc_return(&file_index);
 	return 0;
 }
 
@@ -3330,6 +3333,7 @@ static long mxc_ipu_ioctl(struct file *file,
 				kfree(mem);
 				return -ENOMEM;
 			}
+			mem->file_index = file->private_data;
 			mutex_lock(&ipu_alloc_lock);
 			list_add(&mem->list, &ipu_alloc_list);
 			mutex_unlock(&ipu_alloc_lock);
@@ -3413,6 +3417,26 @@ static int mxc_ipu_mmap(struct file *file, struct vm_area_struct *vma)
 
 static int mxc_ipu_release(struct inode *inode, struct file *file)
 {
+	struct ipu_alloc_list *mem;
+	struct ipu_alloc_list *n;
+
+	mutex_lock(&ipu_alloc_lock);
+	list_for_each_entry_safe(mem, n, &ipu_alloc_list, list) {
+		if ((mem->cpu_addr != 0) &&
+			(file->private_data == mem->file_index)) {
+			list_del(&mem->list);
+			dma_free_coherent(ipu_dev,
+					  mem->size,
+					  mem->cpu_addr,
+					  mem->phy_addr);
+			dev_dbg(ipu_dev, "rel-free %d bytes @ 0x%08X\n",
+				mem->size, mem->phy_addr);
+			kfree(mem);
+		}
+	}
+	mutex_unlock(&ipu_alloc_lock);
+	atomic_dec(&file_index);
+
 	return 0;
 }
 

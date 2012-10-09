@@ -103,7 +103,6 @@
 #define SABREAUTO_DISP0_PWR		IMX_GPIO_NR(3, 24)
 #define SABREAUTO_DISP0_I2C_EN		IMX_GPIO_NR(3, 28)
 #define SABREAUTO_DISP0_DET_INT		IMX_GPIO_NR(3, 31)
-#define SABREAUTO_CSI0_RST		IMX_GPIO_NR(4, 5)
 #define SABREAUTO_DISP0_RESET		IMX_GPIO_NR(5, 0)
 #define SABREAUTO_I2C3_STEER		IMX_GPIO_NR(5, 4)
 #define SABREAUTO_WEIM_NOR_WDOG1        IMX_GPIO_NR(4, 29)
@@ -111,7 +110,6 @@
 #define SABREAUTO_PMIC_INT		IMX_GPIO_NR(5, 16)
 #define SABREAUTO_ALS_INT		IMX_GPIO_NR(5, 17)
 #define SABREAUTO_SD1_WP		IMX_GPIO_NR(5, 20)
-#define SABREAUTO_CSI0_PWN		IMX_GPIO_NR(5, 23)
 #define SABREAUTO_USB_HOST1_OC		IMX_GPIO_NR(5, 0)
 #define SABREAUTO_SD3_CD		IMX_GPIO_NR(6, 15)
 
@@ -603,18 +601,6 @@ static struct pca953x_platform_data max7310_u43_platdata = {
 	.setup		= max7310_u43_setup,
 };
 
-static struct fsl_mxc_camera_platform_data camera_data = {
-	.analog_regulator	= "DA9052_LDO7",
-	.core_regulator		= "DA9052_LDO9",
-	.mclk			= 24000000,
-	.csi			= 0,
-};
-
-static struct fsl_mxc_camera_platform_data ov5640_mipi_data = {
-	.mclk	= 24000000,
-	.csi	= 0,
-};
-
 static void adv7180_pwdn(int pwdn)
 {
 	int status = -1;
@@ -672,10 +658,6 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		I2C_BOARD_INFO("adv7180", 0x21),
 		.platform_data = (void *)&adv7180_data,
 	}, {
-		I2C_BOARD_INFO("ov3640", 0x3c),
-		.platform_data = (void *)&camera_data,
-	},
-	{
 		I2C_BOARD_INFO("isl29023", 0x44),
 		.irq  = gpio_to_irq(SABREAUTO_ALS_INT),
 		.platform_data = &ls_data,
@@ -693,17 +675,13 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 	}, {
 		I2C_BOARD_INFO("mxc_hdmi_i2c", 0x50),
 	}, {
-		I2C_BOARD_INFO("ov5640_mipi", 0x3c),
-		.platform_data = (void *)&ov5640_mipi_data,
-	}, {
 		I2C_BOARD_INFO("cs42888", 0x48),
 		.platform_data = (void *)&cs42888_data,
-	},
-	{
+	}, {
 		I2C_BOARD_INFO("si4763_i2c", 0x63),
 	},
-
 };
+
 struct platform_device mxc_si4763_audio_device = {
 	.name = "imx-tuner-si4763",
 	.id = 0,
@@ -1316,16 +1294,6 @@ early_param("can0", early_enable_can0);
 
 static inline void __init mx6q_csi0_io_init(void)
 {
-	/* Camera reset */
-	gpio_request(SABREAUTO_CSI0_RST, "cam-reset");
-	gpio_direction_output(SABREAUTO_CSI0_RST, 1);
-
-	/* Camera power down */
-	gpio_request(SABREAUTO_CSI0_PWN, "cam-pwdn");
-	gpio_direction_output(SABREAUTO_CSI0_PWN, 1);
-	msleep(1);
-	gpio_set_value(SABREAUTO_CSI0_PWN, 0);
-
 	if (cpu_is_mx6q())
 		mxc_iomux_set_gpr_register(1, 19, 1, 1);
 	else if (cpu_is_mx6dl())

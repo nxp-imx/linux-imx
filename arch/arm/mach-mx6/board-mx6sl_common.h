@@ -20,6 +20,8 @@
 #define _BOARD_MX6SL_COMMON_H
 #include <mach/iomux-mx6sl.h>
 
+#define MX6_BRD_LCD_RESET	IMX_GPIO_NR(2, 19)	/* LCD_REST */
+
 #define MX6_BRD_USBOTG1_PWR	IMX_GPIO_NR(4, 0)       /* KEY_COL4 */
 #define MX6_BRD_USBOTG2_PWR	IMX_GPIO_NR(4, 2)       /* KEY_COL5 */
 #define MX6_BRD_LCD_PWR_EN	IMX_GPIO_NR(4, 3)	/* KEY_ROW5 */
@@ -31,6 +33,10 @@
 #define MX6_BRD_SD2_CD		IMX_GPIO_NR(5, 0)	/* SD2_DAT7 */
 #define MX6_BRD_SD3_CD		IMX_GPIO_NR(3, 22)	/* REF_CLK_32K */
 #define MX6_BRD_FEC_PWR_EN	IMX_GPIO_NR(4, 21)	/* FEC_TX_CLK */
+#define MX6_BRD_CHG_FLT	IMX_GPIO_NR(4, 14)	/* ECSPI2_MISO  */
+#define MX6_BRD_CHG_UOK	IMX_GPIO_NR(4, 13)	/* ECSPI2_MOSI */
+#define MX6_BRD_CHG_DOK	IMX_GPIO_NR(4, 13)	/* ECSPI2_MOSI */
+#define MX6_BRD_CHG_STATUS	IMX_GPIO_NR(4, 15)	/* ECSPI2_SS0  */
 
 /* EPDC GPIO pins */
 #define MX6SL_BRD_EPDC_SDDO_0		IMX_GPIO_NR(1, 7)
@@ -76,6 +82,9 @@
 #define MX6SL_BRD_ELAN_CE		IMX_GPIO_NR(2, 9)
 #define MX6SL_BRD_ELAN_INT		IMX_GPIO_NR(2, 10)
 #define MX6SL_BRD_ELAN_RST		IMX_GPIO_NR(4, 4)
+/* CSI */
+#define MX6SL_BRD_CSI_PWDN		IMX_GPIO_NR(1, 25)
+#define MX6SL_BRD_CSI_RST		IMX_GPIO_NR(1, 26)
 
 static iomux_v3_cfg_t mx6sl_brd_pads[] = {
 
@@ -88,6 +97,9 @@ static iomux_v3_cfg_t mx6sl_brd_pads[] = {
 
 	/* Audio Codec */
 	MX6SL_PAD_FEC_RX_ER__GPIO_4_19,	/* HEADPHONE_DET */
+
+	/* SPDIF TX */
+	MX6SL_PAD_SD2_DAT4__SPDIF_OUT1,
 
 	/* UART1 */
 	MX6SL_PAD_UART1_RXD__UART1_RXD,
@@ -213,6 +225,11 @@ static iomux_v3_cfg_t mx6sl_brd_pads[] = {
 
 	/* WDOG */
 	MX6SL_PAD_WDOG_B__WDOG1_WDOG_B,
+
+	/* Charge */
+	MX6SL_PAD_ECSPI2_MISO__GPIO_4_14,  /* CHG_FLT */
+	MX6SL_PAD_ECSPI2_SS0__GPIO_4_15, /* CHG_STATUS */
+	MX6SL_PAD_ECSPI2_MOSI__GPIO_4_13, /* CHG_UOK ,CHG_DOK*/
 };
 
 static iomux_v3_cfg_t mx6sl_brd_epdc_enable_pads[] = {
@@ -372,10 +389,39 @@ static iomux_v3_cfg_t mx6sl_brd_spdc_disable_pads[] = {
 	MX6SL_PAD_EPDC_PWRWAKEUP__GPIO_2_14,
 };
 
+static iomux_v3_cfg_t mx6sl_brd_csi_enable_pads[] = {
+	MX6SL_PAD_EPDC_GDRL__CSI_MCLK,
+	MX6SL_PAD_EPDC_SDCE3__I2C3_SDA,
+	MX6SL_PAD_EPDC_SDCE2__I2C3_SCL,
+	MX6SL_PAD_EPDC_GDCLK__CSI_PIXCLK,
+	MX6SL_PAD_EPDC_GDSP__CSI_VSYNC,
+	MX6SL_PAD_EPDC_GDOE__CSI_HSYNC,
+	MX6SL_PAD_EPDC_SDLE__CSI_D_9,
+	MX6SL_PAD_EPDC_SDCLK__CSI_D_8,
+	MX6SL_PAD_EPDC_D7__CSI_D_7,
+	MX6SL_PAD_EPDC_D6__CSI_D_6,
+	MX6SL_PAD_EPDC_D5__CSI_D_5,
+	MX6SL_PAD_EPDC_D4__CSI_D_4,
+	MX6SL_PAD_EPDC_D3__CSI_D_3,
+	MX6SL_PAD_EPDC_D2__CSI_D_2,
+	MX6SL_PAD_EPDC_D1__CSI_D_1,
+	MX6SL_PAD_EPDC_D0__CSI_D_0,
+
+	MX6SL_PAD_EPDC_SDSHR__GPIO_1_26,	/* CMOS_RESET_B GPIO */
+	MX6SL_PAD_EPDC_SDOE__GPIO_1_25,		/* CMOS_PWDN GPIO */
+};
+
 static iomux_v3_cfg_t mx6sl_brd_elan_pads[] = {
 	MX6SL_PAD_EPDC_PWRCTRL3__GPIO_2_10,	/* INT */
 	MX6SL_PAD_EPDC_PWRCTRL2__GPIO_2_9,	/* CE */
 	MX6SL_PAD_KEY_COL6__GPIO_4_4,		/* RST */
+};
+	/* uart2 pins */
+static iomux_v3_cfg_t mx6sl_uart2_pads[] = {
+	MX6SL_PAD_SD2_DAT5__UART2_TXD,
+	MX6SL_PAD_SD2_DAT4__UART2_RXD,
+	MX6SL_PAD_SD2_DAT6__UART2_RTS,
+	MX6SL_PAD_SD2_DAT7__UART2_CTS,
 };
 
 #define MX6SL_USDHC_8BIT_PAD_SETTING(id, speed)	\

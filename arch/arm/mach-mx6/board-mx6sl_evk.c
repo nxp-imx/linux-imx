@@ -52,6 +52,7 @@
 #include <linux/mfd/max17135.h>
 #include <sound/wm8962.h>
 #include <sound/pcm.h>
+#include <linux/power/sabresd_battery.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -83,11 +84,20 @@ extern char *soc_reg_id;
 extern char *pu_reg_id;
 extern int __init mx6sl_evk_init_pfuze100(u32 int_gpio);
 
+static int csi_enabled;
+
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
 	SD_PAD_MODE_MED_SPEED,
 	SD_PAD_MODE_HIGH_SPEED,
 };
+
+static int __init csi_setup(char *__unused)
+{
+	csi_enabled = 1;
+	return 1;
+}
+__setup("csi", csi_setup);
 
 static int plt_sd_pad_change(unsigned int index, int clock)
 {
@@ -556,6 +566,115 @@ static int __init imx6q_init_audio(void)
 	return 0;
 }
 
+static int spdif_clk_set_rate(struct clk *clk, unsigned long rate)
+{
+	unsigned long rate_actual;
+	rate_actual = clk_round_rate(clk, rate);
+	clk_set_rate(clk, rate_actual);
+	return 0;
+}
+
+static struct mxc_spdif_platform_data mxc_spdif_data = {
+	.spdif_tx		= 1,
+	.spdif_rx		= 0,
+	.spdif_clk_44100	= 1,
+	.spdif_clk_48000	= -1,
+	.spdif_div_44100	= 23,
+	.spdif_clk_set_rate	= spdif_clk_set_rate,
+	.spdif_clk		= NULL,
+};
+
+int hdmi_enabled;
+static int __init hdmi_setup(char *__unused)
+{
+	hdmi_enabled = 1;
+	return 1;
+}
+__setup("hdmi", hdmi_setup);
+
+static iomux_v3_cfg_t mx6sl_sii902x_hdmi_pads_enabled[] = {
+	MX6SL_PAD_LCD_RESET__GPIO_2_19,
+	MX6SL_PAD_EPDC_PWRCTRL3__GPIO_2_10,
+};
+
+static int sii902x_get_pins(void)
+{
+	/* Sii902x HDMI controller */
+	mxc_iomux_v3_setup_multiple_pads(mx6sl_sii902x_hdmi_pads_enabled, \
+		ARRAY_SIZE(mx6sl_sii902x_hdmi_pads_enabled));
+
+	/* Reset Pin */
+	gpio_request(MX6_BRD_LCD_RESET, "disp0-reset");
+	gpio_direction_output(MX6_BRD_LCD_RESET, 1);
+
+	/* Interrupter pin GPIO */
+	gpio_request(MX6SL_BRD_EPDC_PWRCTRL3, "disp0-detect");
+	gpio_direction_input(MX6SL_BRD_EPDC_PWRCTRL3);
+       return 1;
+}
+
+static void sii902x_put_pins(void)
+{
+	gpio_free(MX6_BRD_LCD_RESET);
+	gpio_free(MX6SL_BRD_EPDC_PWRCTRL3);
+}
+
+static void sii902x_hdmi_reset(void)
+{
+	gpio_set_value(MX6_BRD_LCD_RESET, 0);
+	msleep(10);
+	gpio_set_value(MX6_BRD_LCD_RESET, 1);
+	msleep(10);
+}
+
+static struct fsl_mxc_lcd_platform_data sii902x_hdmi_data = {
+       .ipu_id = 0,
+       .disp_id = 0,
+       .reset = sii902x_hdmi_reset,
+       .get_pins = sii902x_get_pins,
+       .put_pins = sii902x_put_pins,
+};
+
+static void mx6sl_csi_io_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6sl_brd_csi_enable_pads,	\
+				ARRAY_SIZE(mx6sl_brd_csi_enable_pads));
+
+	/* Camera reset */
+	gpio_request(MX6SL_BRD_CSI_RST, "cam-reset");
+	gpio_direction_output(MX6SL_BRD_CSI_RST, 1);
+
+	/* Camera power down */
+	gpio_request(MX6SL_BRD_CSI_PWDN, "cam-pwdn");
+	gpio_direction_output(MX6SL_BRD_CSI_PWDN, 1);
+	msleep(5);
+	gpio_set_value(MX6SL_BRD_CSI_PWDN, 0);
+	msleep(5);
+	gpio_set_value(MX6SL_BRD_CSI_RST, 0);
+	msleep(1);
+	gpio_set_value(MX6SL_BRD_CSI_RST, 1);
+	msleep(5);
+	gpio_set_value(MX6SL_BRD_CSI_PWDN, 1);
+}
+
+static void mx6sl_csi_cam_powerdown(int powerdown)
+{
+	if (powerdown)
+		gpio_set_value(MX6SL_BRD_CSI_PWDN, 1);
+	else
+		gpio_set_value(MX6SL_BRD_CSI_PWDN, 0);
+
+	msleep(2);
+}
+
+static struct fsl_mxc_camera_platform_data camera_data = {
+	.mclk = 24000000,
+	.io_init = mx6sl_csi_io_init,
+	.pwdn = mx6sl_csi_cam_powerdown,
+	.core_regulator = "VGEN2_1V5",
+	.analog_regulator = "VGEN6_2V8",
+};
+
 static struct imxi2c_platform_data mx6_evk_i2c0_data = {
 	.bitrate = 100000,
 };
@@ -565,7 +684,7 @@ static struct imxi2c_platform_data mx6_evk_i2c1_data = {
 };
 
 static struct imxi2c_platform_data mx6_evk_i2c2_data = {
-	.bitrate = 400000,
+	.bitrate = 100000,
 };
 
 static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
@@ -585,10 +704,17 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 		I2C_BOARD_INFO("wm8962", 0x1a),
 		.platform_data = &wm8962_config_data,
 	},
+	{
+		I2C_BOARD_INFO("sii902x", 0),
+		.platform_data = &sii902x_hdmi_data,
+		.irq = gpio_to_irq(MX6SL_BRD_EPDC_PWRCTRL3)
+	},
 };
 
 static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	{
+		I2C_BOARD_INFO("ov5640", 0x3c),
+		.platform_data = (void *)&camera_data,
 	},
 };
 
@@ -623,10 +749,16 @@ static struct mxc_dvfs_platform_data mx6sl_evk_dvfscore_data = {
 };
 
 static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
-	.reserved_mem_size = SZ_128M,
+	.reserved_mem_size = SZ_32M,
 };
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
+
+static const struct imxuart_platform_data mx6sl_evk_uart1_data __initconst = {
+	.flags      = IMXUART_HAVE_RTSCTS | IMXUART_SDMA,
+	.dma_req_rx = MX6Q_DMA_REQ_UART2_RX,
+	.dma_req_tx = MX6Q_DMA_REQ_UART2_TX,
+};
 
 static inline void mx6_evk_init_uart(void)
 {
@@ -1105,7 +1237,7 @@ static struct platform_pwm_backlight_data mx6_evk_pwm_backlight_data = {
 	.dft_brightness	= 128,
 	.pwm_period_ns	= 50000,
 };
-static struct fb_videomode video_modes[] = {
+static struct fb_videomode wvga_video_modes[] = {
 	{
 	 /* 800x480 @ 57 Hz , pixel clk @ 32MHz */
 	 "SEIKO-WVGA", 60, 800, 480, 29850, 99, 164, 33, 10, 10, 10,
@@ -1114,17 +1246,35 @@ static struct fb_videomode video_modes[] = {
 	 0,},
 };
 
-static struct mxc_fb_platform_data fb_data[] = {
+static struct mxc_fb_platform_data wvga_fb_data[] = {
 	{
 	 .interface_pix_fmt = V4L2_PIX_FMT_RGB24,
 	 .mode_str = "SEIKO-WVGA",
-	 .mode = video_modes,
-	 .num_modes = ARRAY_SIZE(video_modes),
+	 .mode = wvga_video_modes,
+	 .num_modes = ARRAY_SIZE(wvga_video_modes),
 	 },
 };
 
 static struct platform_device lcd_wvga_device = {
 	.name = "lcd_seiko",
+};
+
+static struct fb_videomode hdmi_video_modes[] = {
+	{
+	 /* 1920x1080 @ 60 Hz , pixel clk @ 148MHz */
+	 "sii9022x_1080p60", 60, 1920, 1080, 6734, 148, 88, 36, 4, 44, 5,
+	 FB_SYNC_CLK_LAT_FALL,
+	 FB_VMODE_NONINTERLACED,
+	 0,},
+};
+
+static struct mxc_fb_platform_data hdmi_fb_data[] = {
+	{
+	 .interface_pix_fmt = V4L2_PIX_FMT_RGB24,
+	 .mode_str = "1920x1080M@60",
+	 .mode = hdmi_video_modes,
+	 .num_modes = ARRAY_SIZE(hdmi_video_modes),
+	 },
 };
 
 static int mx6sl_evk_keymap[] = {
@@ -1174,6 +1324,33 @@ static void __init elan_ts_init(void)
 	gpio_direction_output(MX6SL_BRD_ELAN_CE, 1);
 }
 
+/*
+ *Usually UOK and DOK should have separate
+ *line to differentiate its behaviour (with different
+ * GPIO irq),because connect max8903 pin UOK to
+ *pin DOK from hardware design,cause software cannot
+ *process and distinguish two interrupt, so default
+ *enable dc_valid for ac charger
+ */
+static struct max8903_pdata charger1_data = {
+	.dok = MX6_BRD_CHG_DOK,
+	.uok = MX6_BRD_CHG_UOK,
+	.chg = MX6_BRD_CHG_STATUS,
+	.flt = MX6_BRD_CHG_FLT,
+	.dcm_always_high = true,
+	.dc_valid = true,
+	.usb_valid = false,
+	.feature_flag = 1,
+};
+
+static struct platform_device evk_max8903_charger_1 = {
+	.name	= "max8903-charger",
+	.dev	= {
+		.platform_data = &charger1_data,
+	},
+};
+
+
 #define SNVS_LPCR 0x38
 static void mx6_snvs_poweroff(void)
 {
@@ -1185,11 +1362,27 @@ static void mx6_snvs_poweroff(void)
 	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
 }
 
+static int uart2_enabled;
+static int __init uart2_setup(char * __unused)
+{
+	uart2_enabled = 1;
+	return 1;
+}
+__setup("bluetooth", uart2_setup);
+
+static void __init uart2_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6sl_uart2_pads,
+					ARRAY_SIZE(mx6sl_uart2_pads));
+	imx6sl_add_imx_uart(1, &mx6sl_evk_uart1_data);
+}
 /*!
  * Board specific initialization.
  */
 static void __init mx6_evk_init(void)
 {
+	u32 i;
+
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_brd_pads,
 					ARRAY_SIZE(mx6sl_brd_pads));
 
@@ -1211,11 +1404,25 @@ static void __init mx6_evk_init(void)
 	imx6q_add_imx_i2c(1, &mx6_evk_i2c1_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 			ARRAY_SIZE(mxc_i2c0_board_info));
+
+	/*  setting sii902x address when hdmi enabled */
+	if (hdmi_enabled) {
+		for (i = 0; i < ARRAY_SIZE(mxc_i2c1_board_info); i++) {
+			if (!strcmp(mxc_i2c1_board_info[i].type, "sii902x")) {
+				mxc_i2c1_board_info[i].addr = 0x39;
+				break;
+			}
+		}
+	}
+
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
-	imx6q_add_imx_i2c(2, &mx6_evk_i2c2_data);
-	i2c_register_board_info(2, mxc_i2c2_board_info,
-			ARRAY_SIZE(mxc_i2c2_board_info));
+	/* only camera on I2C3, that's why we can do so */
+	if (csi_enabled == 1) {
+		imx6q_add_imx_i2c(2, &mx6_evk_i2c2_data);
+		i2c_register_board_info(2, mxc_i2c2_board_info,
+				ARRAY_SIZE(mxc_i2c2_board_info));
+	}
 
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6_evk_spi_data);
@@ -1243,23 +1450,36 @@ static void __init mx6_evk_init(void)
 	imx6q_add_otp();
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_evk_pwm_backlight_data);
-	imx6dl_add_imx_elcdif(&fb_data[0]);
 
-	gpio_request(MX6_BRD_LCD_PWR_EN, "elcdif-power-on");
-	gpio_direction_output(MX6_BRD_LCD_PWR_EN, 1);
-	mxc_register_device(&lcd_wvga_device, NULL);
+	if (hdmi_enabled) {
+		imx6dl_add_imx_elcdif(&hdmi_fb_data[0]);
+	} else {
+		imx6dl_add_imx_elcdif(&wvga_fb_data[0]);
+
+		gpio_request(MX6_BRD_LCD_PWR_EN, "elcdif-power-on");
+		gpio_direction_output(MX6_BRD_LCD_PWR_EN, 1);
+		mxc_register_device(&lcd_wvga_device, NULL);
+	}
 
 	imx6dl_add_imx_pxp();
 	imx6dl_add_imx_pxp_client();
 	mxc_register_device(&max17135_sensor_device, NULL);
 	setup_spdc();
-	if (!spdc_sel)
-		imx6dl_add_imx_epdc(&epdc_data);
-	else
-		imx6sl_add_imx_spdc(&spdc_data);
+	if (csi_enabled) {
+		imx6sl_add_fsl_csi();
+	} else  {
+		if (!spdc_sel)
+			imx6dl_add_imx_epdc(&epdc_data);
+		else
+			imx6sl_add_imx_spdc(&spdc_data);
+	}
 	imx6q_add_dvfs_core(&mx6sl_evk_dvfscore_data);
 
 	imx6q_init_audio();
+
+	/* uart2 for bluetooth */
+	if (uart2_enabled)
+		uart2_init();
 
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
@@ -1271,10 +1491,17 @@ static void __init mx6_evk_init(void)
 	imx6sl_add_rngb();
 	imx6sl_add_imx_pxp_v4l2();
 
+	mxc_spdif_data.spdif_core_clk = clk_get_sys("mxc_spdif.0", NULL);
+	clk_put(mxc_spdif_data.spdif_core_clk);
+	imx6q_add_spdif(&mxc_spdif_data);
+	imx6q_add_spdif_dai();
+	imx6q_add_spdif_audio_device();
+
 	imx6q_add_perfmon(0);
 	imx6q_add_perfmon(1);
 	imx6q_add_perfmon(2);
-
+	/* Register charger chips */
+	platform_device_register(&evk_max8903_charger_1);
 	pm_power_off = mx6_snvs_poweroff;
 }
 

@@ -412,7 +412,7 @@ void bus_freq_update(struct clk *clk, bool flag)
 			  */
 			high_cpu_freq = 1;
 			if (low_bus_freq_mode || audio_bus_freq_mode)
-				set_high_bus_freq(0);
+				set_high_bus_freq(1);
 		} else {
 			/* Update count */
 			if (clk->flags & AHB_HIGH_SET_POINT)
@@ -471,7 +471,7 @@ void bus_freq_update(struct clk *clk, bool flag)
 					/* Set to either high or
 					  * medium setpoint.
 					  */
-					set_high_bus_freq(0);
+					set_high_bus_freq(1);
 				}
 			}
 		}
@@ -506,7 +506,7 @@ static ssize_t bus_freq_scaling_enable_store(struct device *dev,
 #else
 		bus_freq_scaling_is_active = 1;
 #endif
-		set_high_bus_freq(0);
+		set_high_bus_freq(1);
 		/* Make sure system can enter low bus mode if it should be in
 		low bus mode */
 		if (low_freq_bus_used() && !low_bus_freq_mode)

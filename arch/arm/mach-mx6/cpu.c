@@ -119,8 +119,14 @@ static int __init post_cpu_init(void)
 {
 	unsigned int reg;
 	void __iomem *base;
+	u32	iram_size;
 
-	iram_init(MX6Q_IRAM_BASE_ADDR, MX6Q_IRAM_SIZE);
+	if (cpu_is_mx6q())
+		iram_size = MX6Q_IRAM_SIZE;
+	else
+		iram_size = MX6DL_MX6SL_IRAM_SIZE;
+
+	iram_init(MX6Q_IRAM_BASE_ADDR, iram_size);
 
 	base = ioremap(AIPS1_ON_BASE_ADDR, PAGE_SIZE);
 	__raw_writel(0x0, base + 0x40);

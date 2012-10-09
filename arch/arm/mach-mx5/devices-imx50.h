@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -29,8 +29,8 @@ extern const struct imx_srtc_data imx50_imx_srtc_data __initconst;
 #define imx50_add_srtc()	\
 	imx_add_srtc(&imx50_imx_srtc_data)
 
-extern const struct imx_dma_data imx50_dma_data __initconst;
-#define imx50_add_dma()	imx_add_dma(&imx50_dma_data);
+extern const struct imx_dma_res_data imx50_dma_res_data __initconst;
+#define imx50_add_dma()	imx_add_dma(&imx50_dma_res_data);
 
 extern const struct imx_fec_data imx50_fec_data;
 #define imx50_add_fec(pdata)	\

@@ -173,9 +173,6 @@ static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 static int usbotg_init_ext(struct platform_device *pdev)
 {
 	struct clk *usb_clk;
-#ifdef CONFIG_USB_EHCI_ARC_OTG
-	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
-#endif
 	u32 ret;
 
 	/* at mx6q: this clock is AHB clock for usb core */
@@ -201,12 +198,6 @@ static int usbotg_init_ext(struct platform_device *pdev)
 		mdelay(3);
 	}
 	otg_used++;
-#ifdef CONFIG_USB_EHCI_ARC_OTG
-	usb_stop_mode_lock();
-	if (usb_stop_mode_refcount(true) == 1)
-		__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG, anatop_base_addr + HW_ANADIG_ANA_MISC0_SET);
-	usb_stop_mode_unlock();
-#endif
 
 	return ret;
 }
@@ -214,9 +205,6 @@ static int usbotg_init_ext(struct platform_device *pdev)
 static void usbotg_uninit_ext(struct platform_device *pdev)
 {
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
-#ifdef CONFIG_USB_EHCI_ARC_OTG
-	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
-#endif
 
 	clk_disable(usb_phy1_clk);
 	clk_put(usb_phy1_clk);
@@ -226,12 +214,6 @@ static void usbotg_uninit_ext(struct platform_device *pdev)
 
 	usbotg_uninit(pdata);
 	otg_used--;
-#ifdef CONFIG_USB_EHCI_ARC_OTG
-	usb_stop_mode_lock();
-	 if (usb_stop_mode_refcount(false) == 0)
-		__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG, anatop_base_addr + HW_ANADIG_ANA_MISC0_CLR);
-	 usb_stop_mode_unlock();
-#endif
 }
 
 static void usbotg_clock_gate(bool on)
@@ -245,6 +227,13 @@ static void usbotg_clock_gate(bool on)
 		clk_disable(usb_oh3_clk);
 	}
 	pr_debug("usb_oh3_clk:%d, usb_phy_clk1_ref_count:%d\n", clk_get_usecount(usb_oh3_clk), clk_get_usecount(usb_phy1_clk));
+}
+
+static void dr_platform_phy_power_on(void)
+{
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+	__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG,
+				anatop_base_addr + HW_ANADIG_ANA_MISC0_SET);
 }
 
 void mx6_set_otghost_vbus_func(driver_vbus_func driver_vbus)
@@ -643,6 +632,7 @@ void __init mx6_usb_dr_init(void)
 	dr_utmi_config.is_wakeup_event = _is_host_wakeup;
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
 	dr_utmi_config.wakeup_handler = host_wakeup_handler;
+	dr_utmi_config.platform_phy_power_on = dr_platform_phy_power_on;
 	pdev = imx6q_add_fsl_ehci_otg(&dr_utmi_config);
 	dr_wakeup_config.usb_pdata[1] = pdev->dev.platform_data;
 #endif
@@ -657,6 +647,7 @@ void __init mx6_usb_dr_init(void)
 	dr_utmi_config.wakeup_pdata = &dr_wakeup_config;
 	dr_utmi_config.wakeup_handler = device_wakeup_handler;
 	dr_utmi_config.charger_base_addr = anatop_base_addr;
+	dr_utmi_config.platform_phy_power_on = dr_platform_phy_power_on;
 	pdev = imx6q_add_fsl_usb2_udc(&dr_utmi_config);
 	dr_wakeup_config.usb_pdata[2] = pdev->dev.platform_data;
 #endif

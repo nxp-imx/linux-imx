@@ -1,7 +1,7 @@
 /*
  * ASoC S/PDIF driver for IMX development boards
  *
- * Copyright (C) 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  *
  * based on stmp3780_devb_spdif.c
  *
@@ -117,6 +117,11 @@ static int __init imx_spdif_init(void)
 	if (!imx_spdif_snd_device) {
 		pr_err("%s - failed platform_device_alloc\n", __func__);
 		return -ENOMEM;
+	}
+
+	if (machine_is_mx6sl_evk()) {
+		imx_spdif_dai_link.name = "HDMI-Audio";
+		imx_spdif_dai_link.stream_name = "HDMI-Audio";
 	}
 
 	platform_set_drvdata(imx_spdif_snd_device, &snd_soc_card_imx_spdif);

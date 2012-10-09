@@ -222,7 +222,6 @@ config CHARGER_MAX8903
 config SABRESD_MAX8903
         tristate "Sabresd Board Battery DC-DC Charger for USB and Adapter Power"
         depends on GENERIC_HARDIRQS
-	depends on TOUCHSCREEN_MAX11801
         help
           Say Y to enable support for the MAX8903 DC-DC charger and sysfs on
 	  sabresd board.The driver supports controlling charger and battery

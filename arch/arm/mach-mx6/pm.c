@@ -73,7 +73,6 @@ static struct clk *cpu_clk;
 static struct clk *axi_clk;
 static struct clk *periph_clk;
 static struct clk *axi_org_parent;
-static struct clk *gpu2d_core_clk;
 static struct clk *pll3_usb_otg_main_clk;
 
 static struct pm_platform_data *pm_data;
@@ -113,7 +112,6 @@ static u32 ccm_analog_pfd528;
 static u32 ccm_analog_pll3_480;
 static u32 ccm_anadig_ana_misc2;
 static bool usb_vbus_wakeup_enabled;
-
 
 /*
  * The USB VBUS wakeup should be disabled to avoid vbus wake system
@@ -178,85 +176,6 @@ static void usb_power_up_handler(void)
 	}
 }
 
-static void gpu_power_down(void)
-{
-	int reg;
-
-	/* enable power down request */
-	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-	__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-	/* power down request */
-	reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
-	__raw_writel(reg | 0x1, gpc_base + GPC_CNTR_OFFSET);
-	/* disable clocks */
-	__raw_writel(ccgr1 &
-		     ~MXC_CCM_CCGRx_CG12_MASK &
-		     ~MXC_CCM_CCGRx_CG13_MASK, MXC_CCM_CCGR1);
-	__raw_writel(ccgr3 & ~MXC_CCM_CCGRx_CG15_MASK, MXC_CCM_CCGR3);
-	__raw_writel(ccgr6 & ~MXC_CCM_CCGRx_CG7_MASK, MXC_CCM_CCGR6);
-	/* power off pu */
-	reg = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
-	reg &= ~0x0003fe00;
-	__raw_writel(reg, anatop_base + ANATOP_REG_CORE_OFFSET);
-}
-
-static void gpu_power_up(void)
-{
-	int reg;
-	int i;
-	/* power on pu */
-	reg = __raw_readl(anatop_base + ANATOP_REG_CORE_OFFSET);
-	reg &= ~0x0003fe00;
-	reg |= 0x10 << 9; /* 1.1v */
-	__raw_writel(reg, anatop_base + ANATOP_REG_CORE_OFFSET);
-	mdelay(10);
-
-	/* enable clocks */
-	/* PLL2 PFD0 and PFD1 clock enable */
-	__raw_writel(ccm_analog_pfd528 &
-		     ~ANADIG_PFD0_CLKGATE &
-		     ~ANADIG_PFD1_CLKGATE, PFD_528_BASE_ADDR);
-
-	/* PLL3 480M clock enable which may be used by gpu2d*/
-	if (clk_get_parent(gpu2d_core_clk) == pll3_usb_otg_main_clk) {
-		__raw_writel(ccm_analog_pll3_480 |
-			ANADIG_PLL_POWER_DOWN, PLL3_480_USB1_BASE_ADDR);
-		__raw_writel(ccm_anadig_ana_misc2 &
-			(~BM_ANADIG_ANA_MISC2_CONTROL0),
-			MXC_PLL_BASE + HW_ANADIG_ANA_MISC2);
-		for (i = 0; i < 100; i++) {
-			if (!(__raw_readl(PLL3_480_USB1_BASE_ADDR) & ANADIG_PLL_LOCK))
-				udelay(1);
-			else
-				break;
-		}
-		__raw_writel((ccm_analog_pll3_480 & (~ANADIG_PLL_BYPASS)) |
-			ANADIG_PLL_ENABLE | ANADIG_PLL_POWER_DOWN,
-			PLL3_480_USB1_BASE_ADDR);
-	}
-	/* gpu3d and gpu2d clock enable */
-	__raw_writel(ccgr1 |
-		     MXC_CCM_CCGRx_CG12_MASK |
-		     MXC_CCM_CCGRx_CG13_MASK, MXC_CCM_CCGR1);
-	/* tzasrc1 clock enable for gpu3d core clock */
-	__raw_writel(ccgr2 | MXC_CCM_CCGRx_CG11_MASK, MXC_CCM_CCGR2);
-	/* openvgaxi clock enable, mmdc_core_ipg_clk_p0 clock and
-	mmdc_core_aclk_fast_core_p0 clock enable for gpu3d core clock */
-	__raw_writel(ccgr3 |
-		     MXC_CCM_CCGRx_CG15_MASK |
-		     MXC_CCM_CCGRx_CG12_MASK |
-		     MXC_CCM_CCGRx_CG10_MASK, MXC_CCM_CCGR3);
-	/* vpu clock enable */
-	__raw_writel(ccgr6 | MXC_CCM_CCGRx_CG7_MASK, MXC_CCM_CCGR6);
-
-	/* enable power up request */
-	reg = __raw_readl(gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-	__raw_writel(reg | 0x1, gpc_base + GPC_PGC_GPU_PGCR_OFFSET);
-	/* power up request */
-	reg = __raw_readl(gpc_base + GPC_CNTR_OFFSET);
-	__raw_writel(reg | 0x2, gpc_base + GPC_CNTR_OFFSET);
-	udelay(10);
-}
 
 static void disp_power_down(void)
 {
@@ -266,12 +185,32 @@ static void disp_power_down(void)
 
 		__raw_writel(0x1, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
 		__raw_writel(0x10, gpc_base + GPC_CNTR_OFFSET);
+
+		/* Disable EPDC/LCDIF pix clock, and EPDC/LCDIF/PXP axi clock */
+		__raw_writel(ccgr3 &
+			~MXC_CCM_CCGRx_CG5_MASK &
+			~MXC_CCM_CCGRx_CG4_MASK &
+			~MXC_CCM_CCGRx_CG3_MASK &
+			~MXC_CCM_CCGRx_CG2_MASK &
+			~MXC_CCM_CCGRx_CG1_MASK, MXC_CCM_CCGR3);
+
 	}
 }
 
 static void disp_power_up(void)
 {
 	if (cpu_is_mx6sl()) {
+		/*
+		 * Need to enable EPDC/LCDIF pix clock, and
+		 * EPDC/LCDIF/PXP axi clock before power up.
+		 */
+		__raw_writel(ccgr3 |
+			MXC_CCM_CCGRx_CG5_MASK |
+			MXC_CCM_CCGRx_CG4_MASK |
+			MXC_CCM_CCGRx_CG3_MASK |
+			MXC_CCM_CCGRx_CG2_MASK |
+			MXC_CCM_CCGRx_CG1_MASK, MXC_CCM_CCGR3);
+
 		__raw_writel(0x0, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
 		__raw_writel(0x20, gpc_base + GPC_CNTR_OFFSET);
 		__raw_writel(0x1, gpc_base + GPC_PGC_DISP_SR_OFFSET);
@@ -343,6 +282,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 	unsigned int cpu_type;
 	struct gic_dist_state gds;
 	struct gic_cpu_state gcs;
+	bool arm_pg = false;
 
 	if (cpu_is_mx6q())
 		cpu_type = MXC_CPU_MX6Q;
@@ -377,13 +317,19 @@ static int mx6_suspend_enter(suspend_state_t state)
 
 	switch (state) {
 	case PM_SUSPEND_MEM:
-		gpu_power_down();
 		disp_power_down();
 		usb_power_down_handler();
 		mxc_cpu_lp_set(ARM_POWER_OFF);
+		arm_pg = true;
 		break;
 	case PM_SUSPEND_STANDBY:
-		mxc_cpu_lp_set(STOP_POWER_OFF);
+		if (cpu_is_mx6sl()) {
+			disp_power_down();
+			usb_power_down_handler();
+			mxc_cpu_lp_set(STOP_XTAL_ON);
+			arm_pg = true;
+		} else
+			mxc_cpu_lp_set(STOP_POWER_OFF);
 		break;
 	default:
 		return -EINVAL;
@@ -399,7 +345,7 @@ static int mx6_suspend_enter(suspend_state_t state)
 		local_flush_tlb_all();
 		flush_cache_all();
 
-		if (state == PM_SUSPEND_MEM) {
+		if (arm_pg) {
 			/* preserve gic state */
 			save_gic_dist_state(0, &gds);
 			save_gic_cpu_state(0, &gcs);
@@ -408,16 +354,20 @@ static int mx6_suspend_enter(suspend_state_t state)
 		suspend_in_iram(state, (unsigned long)iram_paddr,
 			(unsigned long)suspend_iram_base, cpu_type);
 
-		if (state == PM_SUSPEND_MEM) {
+		if (arm_pg) {
 			/* restore gic registers */
 			restore_gic_dist_state(0, &gds);
 			restore_gic_cpu_state(0, &gcs);
+		}
+		if (state == PM_SUSPEND_MEM || (cpu_is_mx6sl())) {
 			usb_power_up_handler();
 			disp_power_up();
-			gpu_power_up();
 		}
 
 		mx6_suspend_restore();
+
+		__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG,
+			anatop_base + HW_ANADIG_ANA_MISC0_CLR);
 
 		if (pm_data && pm_data->suspend_exit)
 			pm_data->suspend_exit();
@@ -517,10 +467,10 @@ static int __init pm_init(void)
 
 	suspend_set_ops(&mx6_suspend_ops);
 	/* Move suspend routine into iRAM */
-	cpaddr = (unsigned long)iram_alloc(SZ_4K, &iram_paddr);
+	cpaddr = (unsigned long)iram_alloc(SZ_8K, &iram_paddr);
 	/* Need to remap the area here since we want the memory region
 		 to be executable. */
-	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_4K,
+	suspend_iram_base = __arm_ioremap(iram_paddr, SZ_8K,
 					  MT_MEMORY_NONCACHED);
 	pr_info("cpaddr = %x suspend_iram_base=%x\n",
 		(unsigned int)cpaddr, (unsigned int)suspend_iram_base);
@@ -529,7 +479,7 @@ static int __init pm_init(void)
 	 * Need to run the suspend code from IRAM as the DDR needs
 	 * to be put into low power mode manually.
 	 */
-	memcpy((void *)cpaddr, mx6_suspend, SZ_4K);
+	memcpy((void *)cpaddr, mx6_suspend, SZ_8K);
 
 	suspend_in_iram = (void *)suspend_iram_base;
 
@@ -546,11 +496,6 @@ static int __init pm_init(void)
 	periph_clk = clk_get(NULL, "periph_clk");
 	if (IS_ERR(periph_clk)) {
 		printk(KERN_DEBUG "%s: failed to get periph_clk\n", __func__);
-		return PTR_ERR(periph_clk);
-	}
-	gpu2d_core_clk = clk_get(NULL, "gpu2d_clk");
-	if (IS_ERR(gpu2d_core_clk)) {
-		printk(KERN_DEBUG "%s: failed to get gpu2d_clk\n", __func__);
 		return PTR_ERR(periph_clk);
 	}
 	pll3_usb_otg_main_clk = clk_get(NULL, "pll3_main_clk");

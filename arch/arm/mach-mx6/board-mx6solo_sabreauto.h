@@ -207,10 +207,6 @@ static iomux_v3_cfg_t mx6dl_sabreauto_pads[] = {
 	/* HDMI */
 	MX6DL_PAD_EIM_A25__HDMI_TX_CEC_LINE,
 
-	/* camera reset */
-	MX6DL_PAD_GPIO_19__GPIO_4_5,
-	MX6DL_PAD_EIM_D24__GPIO_3_24,
-
 	/* MLB150 */
 	MX6DL_PAD_ENET_TXD1__MLB_MLBCLK,
 	MX6DL_PAD_GPIO_6__MLB_MLBSIG,
