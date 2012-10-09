@@ -1262,6 +1262,9 @@ fifo_reset2_wait:
 	bne	fifo_reset2_wait
 
 ddr_io_restore_done:
+	ldr	r1, =MMDC_P0_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+
 	/* Ensure DDR exits self-refresh. */
 	ldr	r6, [r1, #0x404]
 	bic	r6, r6, #0x200000
@@ -1402,6 +1405,8 @@ dsm_fifo_reset2_wait:
 	bne	dsm_fifo_reset2_wait
 
 ddr_io_restore_dsm_done:
+	ldr	r1, =MMDC_P0_BASE_ADDR
+
 	/* Ensure DDR exits self-refresh. */
 	ldr	r6, [r1, #0x404]
 	bic	r6, r6, #0x200000
@@ -1531,11 +1536,11 @@ restore control register to enable cache
 #endif
 
 	mov	r8, lr
-	push	{r0-r12}
+	push	{r0-r3, r12}
 
 	/* Set up the per-CPU stacks */
 	bl	cpu_init
-	pop	{r0-r12}
+	pop	{r0-r3, r12}
 
 	/*
 	 * Restore the MMU table entry that was modified for
