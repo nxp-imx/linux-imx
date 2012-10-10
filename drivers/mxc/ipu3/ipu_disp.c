@@ -1298,7 +1298,7 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 	/* Get integer portion of divider */
 	div = clk_get_rate(clk_get_parent(&ipu->pixel_clk[disp])) / rounded_pixel_clk;
 
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 
 	_ipu_di_data_wave_config(ipu, disp, SYNC_WAVE, div - 1, div - 1);
 	_ipu_di_data_pin_config(ipu, disp, SYNC_WAVE, DI_PIN15, 3, 0, div * 2);
@@ -1306,7 +1306,7 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 	map = _ipu_pixfmt_to_map(pixel_fmt);
 	if (map < 0) {
 		dev_dbg(ipu->dev, "IPU_DISP: No MAP\n");
-		_ipu_unlock(ipu);
+		mutex_unlock(&ipu->mutex_lock);
 		return -EINVAL;
 	}
 
@@ -1696,7 +1696,7 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 
 	ipu_dc_write(ipu, width, DC_DISP_CONF2(DC_DISP_ID_SYNC(disp)));
 
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 
 	return 0;
 }
@@ -1710,7 +1710,7 @@ void ipu_uninit_sync_panel(struct ipu_soc *ipu, int disp)
 	if ((disp != 0) || (disp != 1))
 		return;
 
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 
 	di_gen = ipu_di_read(ipu, disp, DI_GENERAL);
 	di_gen |= 0x3ff | DI_GEN_POLARITY_DISP_CLK;
@@ -1720,7 +1720,7 @@ void ipu_uninit_sync_panel(struct ipu_soc *ipu, int disp)
 	reg |= 0x3ffffff;
 	ipu_di_write(ipu, disp, reg, DI_POL);
 
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 }
 EXPORT_SYMBOL(ipu_uninit_sync_panel);
 
@@ -1740,7 +1740,7 @@ int ipu_init_async_panel(struct ipu_soc *ipu, int disp, int type, uint32_t cycle
 	if (map < 0)
 		return -EINVAL;
 
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 
 	if (type == IPU_PANEL_SERIAL) {
 		ipu_di_write(ipu, disp, (div << 24) | ((sig.ifc_width - 1) << 4),
@@ -1769,7 +1769,7 @@ int ipu_init_async_panel(struct ipu_soc *ipu, int disp, int type, uint32_t cycle
 		ipu_di_write(ipu, disp, ser_conf, DI_SER_CONF);
 	}
 
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 	return 0;
 }
 EXPORT_SYMBOL(ipu_init_async_panel);
@@ -1813,7 +1813,7 @@ int32_t ipu_disp_set_global_alpha(struct ipu_soc *ipu, ipu_channel_t channel,
 
 	_ipu_get(ipu);
 
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 
 	if (bg_chan) {
 		reg = ipu_dp_read(ipu, DP_COM_CONF(flow));
@@ -1838,7 +1838,7 @@ int32_t ipu_disp_set_global_alpha(struct ipu_soc *ipu, ipu_channel_t channel,
 	reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
 	ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 
 	_ipu_put(ipu);
 
@@ -1876,7 +1876,7 @@ int32_t ipu_disp_set_color_key(struct ipu_soc *ipu, ipu_channel_t channel,
 
 	_ipu_get(ipu);
 
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 
 	ipu->color_key_4rgb = true;
 	/* Transform color key from rgb to yuv if CSC is enabled */
@@ -1915,7 +1915,7 @@ int32_t ipu_disp_set_color_key(struct ipu_soc *ipu, ipu_channel_t channel,
 	reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
 	ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 
 	_ipu_put(ipu);
 
@@ -1952,7 +1952,7 @@ int32_t ipu_disp_set_gamma_correction(struct ipu_soc *ipu, ipu_channel_t channel
 
 	_ipu_get(ipu);
 
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 
 	for (i = 0; i < 8; i++)
 		ipu_dp_write(ipu, (constk[2*i] & 0x1ff) | ((constk[2*i+1] & 0x1ff) << 16), DP_GAMMA_C(flow, i));
@@ -1973,7 +1973,7 @@ int32_t ipu_disp_set_gamma_correction(struct ipu_soc *ipu, ipu_channel_t channel
 	reg = ipu_cm_read(ipu, IPU_SRM_PRI2) | 0x8;
 	ipu_cm_write(ipu, reg, IPU_SRM_PRI2);
 
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 
 	_ipu_put(ipu);
 
@@ -2037,9 +2037,9 @@ int32_t ipu_disp_set_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 	int ret;
 
 	_ipu_get(ipu);
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 	ret = _ipu_disp_set_window_pos(ipu, channel, x_pos, y_pos);
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 	_ipu_put(ipu);
 	return ret;
 }
@@ -2073,9 +2073,9 @@ int32_t ipu_disp_get_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 	int ret;
 
 	_ipu_get(ipu);
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 	ret = _ipu_disp_get_window_pos(ipu, channel, x_pos, y_pos);
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 	_ipu_put(ipu);
 	return ret;
 }

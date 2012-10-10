@@ -125,7 +125,7 @@ ipu_csi_init_interface(struct ipu_soc *ipu, uint16_t width, uint16_t height,
 
 	_ipu_get(ipu);
 
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 
 	ipu_csi_write(ipu, csi, data, CSI_SENS_CONF);
 
@@ -171,7 +171,7 @@ ipu_csi_init_interface(struct ipu_soc *ipu, uint16_t width, uint16_t height,
 		} else {
 			dev_err(ipu->dev, "Unsupported CCIR656 interlaced "
 					"video mode\n");
-			_ipu_unlock(ipu);
+			mutex_unlock(&ipu->mutex_lock);
 			_ipu_put(ipu);
 			return -EINVAL;
 		}
@@ -197,7 +197,7 @@ ipu_csi_init_interface(struct ipu_soc *ipu, uint16_t width, uint16_t height,
 	dev_dbg(ipu->dev, "CSI_ACT_FRM_SIZE = 0x%08X\n",
 		ipu_csi_read(ipu, csi, CSI_ACT_FRM_SIZE));
 
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 
 	_ipu_put(ipu);
 
@@ -263,13 +263,13 @@ void ipu_csi_get_window_size(struct ipu_soc *ipu, uint32_t *width, uint32_t *hei
 
 	_ipu_get(ipu);
 
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 
 	reg = ipu_csi_read(ipu, csi, CSI_ACT_FRM_SIZE);
 	*width = (reg & 0xFFFF) + 1;
 	*height = (reg >> 16 & 0xFFFF) + 1;
 
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 
 	_ipu_put(ipu);
 }
@@ -287,11 +287,11 @@ void ipu_csi_set_window_size(struct ipu_soc *ipu, uint32_t width, uint32_t heigh
 {
 	_ipu_get(ipu);
 
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 
 	ipu_csi_write(ipu, csi, (width - 1) | (height - 1) << 16, CSI_ACT_FRM_SIZE);
 
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 
 	_ipu_put(ipu);
 }
@@ -311,14 +311,14 @@ void ipu_csi_set_window_pos(struct ipu_soc *ipu, uint32_t left, uint32_t top, ui
 
 	_ipu_get(ipu);
 
-	_ipu_lock(ipu);
+	mutex_lock(&ipu->mutex_lock);
 
 	temp = ipu_csi_read(ipu, csi, CSI_OUT_FRM_CTRL);
 	temp &= ~(CSI_HSC_MASK | CSI_VSC_MASK);
 	temp |= ((top << CSI_VSC_SHIFT) | (left << CSI_HSC_SHIFT));
 	ipu_csi_write(ipu, csi, temp, CSI_OUT_FRM_CTRL);
 
-	_ipu_unlock(ipu);
+	mutex_unlock(&ipu->mutex_lock);
 
 	_ipu_put(ipu);
 }

@@ -100,7 +100,8 @@ struct ipu_soc {
 	int csi_use_count[2];
 
 	struct mutex mutex_lock;
-	spinlock_t spin_lock;
+	spinlock_t int_reg_spin_lock;
+	spinlock_t rdy_reg_spin_lock;
 
 	int dmfc_size_28;
 	int dmfc_size_29;
@@ -322,6 +323,4 @@ int32_t _ipu_disp_get_window_pos(struct ipu_soc *ipu, ipu_channel_t channel,
 		int16_t *x_pos, int16_t *y_pos);
 void _ipu_get(struct ipu_soc *ipu);
 void _ipu_put(struct ipu_soc *ipu);
-void _ipu_lock(struct ipu_soc *ipu);
-void _ipu_unlock(struct ipu_soc *ipu);
 #endif				/* __INCLUDE_IPU_PRV_H__ */
