@@ -250,12 +250,14 @@ static void csi_mclk_recalc(struct clk *clk)
 
 void csi_mclk_enable(void)
 {
+	clk_enable(&csi_mclk);
 	__raw_writel(__raw_readl(CSI_CSICR1) | BIT_MCLKEN, CSI_CSICR1);
 }
 
 void csi_mclk_disable(void)
 {
 	__raw_writel(__raw_readl(CSI_CSICR1) & ~BIT_MCLKEN, CSI_CSICR1);
+	clk_disable(&csi_mclk);
 }
 
 static int __devinit csi_probe(struct platform_device *pdev)
@@ -293,8 +295,13 @@ static int __devinit csi_probe(struct platform_device *pdev)
 		return PTR_ERR(per_clk);
 
 	clk_put(per_clk);
+	/*
+	 * On mx6sl, there's no divider in CSI module(BIT_MCLKDIV in CSI_CSICR1
+	 * is marked as reserved). We use CSI clock in CCM.
+	 * However, the value read from BIT_MCLKDIV bits are 0, which is
+	 * equivalent to "divider=1". The code works for mx6sl without change.
+	 */
 	csi_mclk.parent = per_clk;
-	clk_enable(per_clk);
 	csi_mclk_recalc(&csi_mclk);
 
 err:
@@ -303,7 +310,6 @@ err:
 
 static int __devexit csi_remove(struct platform_device *pdev)
 {
-	clk_disable(&csi_mclk);
 	iounmap(csi_regbase);
 
 	return 0;
