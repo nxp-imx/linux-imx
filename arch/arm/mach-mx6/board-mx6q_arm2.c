@@ -1921,6 +1921,21 @@ static struct mxc_dvfs_platform_data arm2_dvfscore_data = {
 static void __init mx6_arm2_fixup(struct machine_desc *desc, struct tag *tags,
 				   char **cmdline, struct meminfo *mi)
 {
+	char *str;
+	struct tag *t;
+
+	for_each_tag(t, tags) {
+		if (t->hdr.tag == ATAG_CMDLINE) {
+			/* GPU reserved memory */
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "gpumem=");
+			if (str != NULL) {
+				str += 7;
+				imx6_gpu_pdata.reserved_mem_size = memparse(str, &str);
+			}
+			break;
+		}
+	}
 }
 
 static int __init early_enable_sgtl5000(char *p)

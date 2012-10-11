@@ -1134,6 +1134,13 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 					pdata_fb[i++].res_size[0] = memparse(str, &str);
 				}
 			}
+			/* GPU reserved memory */
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "gpumem=");
+			if (str != NULL) {
+				str += 7;
+				imx6q_gpu_pdata.reserved_mem_size = memparse(str, &str);
+			}
 			break;
 		}
 	}
