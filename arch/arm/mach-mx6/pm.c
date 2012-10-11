@@ -335,9 +335,6 @@ static int mx6_suspend_enter(suspend_state_t state)
 		return -EINVAL;
 	}
 
-	axi_org_parent = clk_get_parent(axi_clk);
-	clk_set_parent(axi_clk, periph_clk);
-
 	if (state == PM_SUSPEND_MEM || state == PM_SUSPEND_STANDBY) {
 		if (pm_data && pm_data->suspend_enter)
 			pm_data->suspend_enter();

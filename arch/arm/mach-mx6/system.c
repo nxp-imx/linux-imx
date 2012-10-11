@@ -51,7 +51,7 @@
 extern unsigned int gpc_wake_irq[4];
 
 static void __iomem *gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
-static struct clk *ddr_clk;
+extern struct clk *mmdc_ch0_axi;
 
 volatile unsigned int num_cpu_idle;
 volatile unsigned int num_cpu_idle_lock = 0x0;
@@ -272,11 +272,9 @@ void arch_idle_single_core(void)
 		ca9_do_idle();
 	} else {
 		if (low_bus_freq_mode || audio_bus_freq_mode) {
-				u32 ddr_usecount;
-				if (ddr_clk == NULL)
-					ddr_clk = clk_get(NULL ,
-								"mmdc_ch0_axi");
-				ddr_usecount = clk_get_usecount(ddr_clk);
+			u32 ddr_usecount;
+			if ((mmdc_ch0_axi != NULL) && ddr_usecount)
+				ddr_usecount = clk_get_usecount(mmdc_ch0_axi);
 
 			if (cpu_is_mx6sl() && low_bus_freq_mode
 				&& ddr_usecount == 1) {

@@ -103,7 +103,6 @@ DEFINE_SPINLOCK(mx6sl_clk_lock);
 	u32 reg; \
 	unsigned long flags; \
 	int result = 1; \
-	spin_lock_irqsave(&mx6sl_clk_lock, flags); \
 	gpt_rate = clk_get_rate(&gpt_clk[0]); \
 	gpt_ticks = timeout / (1000000000 / gpt_rate); \
 	reg = __raw_readl(timer_base + V2_TSTAT);\
@@ -133,7 +132,6 @@ DEFINE_SPINLOCK(mx6sl_clk_lock);
 			} \
 		} \
 	} \
-	spin_unlock_irqrestore(&mx6sl_clk_lock, flags); \
 	result; \
 })
 
