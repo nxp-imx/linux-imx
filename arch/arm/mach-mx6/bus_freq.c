@@ -110,7 +110,7 @@ static struct clk *pll1;
 static struct clk *pll1_sw_clk;
 static struct clk *pll3_sw_clk;
 static struct clk *pll2_200;
-static struct clk *mmdc_ch0_axi;
+struct clk *mmdc_ch0_axi;
 static struct clk *pll3_540;
 
 static struct delayed_work low_bus_freq_handler;
@@ -154,8 +154,6 @@ void reduce_bus_freq(void)
 		u32 reg;
 		u32  div;
 		unsigned long flags;
-
-		spin_lock_irqsave(&freq_lock, flags);
 
 		if (high_bus_freq_mode) {
 			/* Set periph_clk to be sourced from OSC_CLK */
@@ -220,7 +218,6 @@ void reduce_bus_freq(void)
 			low_bus_freq_mode = 1;
 			audio_bus_freq_mode = 0;
 		}
-		spin_unlock_irqrestore(&freq_lock, flags);
 	}
 	high_bus_freq_mode = 0;
 
@@ -322,7 +319,6 @@ int set_high_bus_freq(int high_bus_freq)
 		u32 reg;
 		unsigned long flags;
 
-		spin_lock_irqsave(&freq_lock, flags);
 		/* Change DDR freq in IRAM. */
 		mx6sl_ddr_freq_change_iram(ddr_normal_rate, low_bus_freq_mode);
 
@@ -348,7 +344,6 @@ int set_high_bus_freq(int high_bus_freq)
 		high_bus_freq_mode = 1;
 		low_bus_freq_mode = 0;
 		audio_bus_freq_mode = 0;
-		spin_unlock_irqrestore(&freq_lock, flags);
 	} else {
 		clk_enable(pll3);
 		if (high_bus_freq) {
