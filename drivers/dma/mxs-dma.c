@@ -323,6 +323,7 @@ static int mxs_dma_alloc_chan_resources(struct dma_chan *chan)
 	/* the descriptor is ready */
 	async_tx_ack(&mxs_chan->desc);
 
+	clk_disable_unprepare(mxs_dma->clk);
 	return 0;
 
 err_clk:
@@ -339,6 +340,7 @@ static void mxs_dma_free_chan_resources(struct dma_chan *chan)
 	struct mxs_dma_chan *mxs_chan = to_mxs_dma_chan(chan);
 	struct mxs_dma_engine *mxs_dma = mxs_chan->mxs_dma;
 
+	clk_prepare_enable(mxs_dma->clk);
 	mxs_dma_disable_chan(mxs_chan);
 
 	free_irq(mxs_chan->chan_irq, mxs_dma);
