@@ -841,12 +841,18 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 			MMC_VDD_32_33 | MMC_VDD_33_34;
 	host->ocr_avail_mmc = MMC_VDD_29_30 | MMC_VDD_30_31 | \
 			MMC_VDD_32_33 | MMC_VDD_33_34;
+	host->ocr_avail_sdio = MMC_VDD_29_30 | MMC_VDD_30_31 | \
+			MMC_VDD_32_33 | MMC_VDD_33_34;
 
 	if (cpu_is_mx6q() || cpu_is_mx6dl())
 		sdhci_esdhc_ops.platform_execute_tuning = esdhc_execute_tuning;
 
-	if (boarddata->support_18v)
+	if (boarddata->support_18v) {
 		host->ocr_avail_sd |= MMC_VDD_165_195;
+		host->ocr_avail_mmc |= MMC_VDD_165_195;
+		host->ocr_avail_sdio |= MMC_VDD_165_195;
+	}
+
 	if (boarddata->support_8bit)
 		host->mmc->caps |= MMC_CAP_8_BIT_DATA;
 	if (boarddata->keep_power_at_suspend)
