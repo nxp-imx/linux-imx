@@ -1536,7 +1536,8 @@ static int csi_v4l2_suspend(struct platform_device *pdev, pm_message_t state)
 	if (cam->overlay_on == true)
 		stop_preview(cam);
 
-	camera_power(cam, false);
+	if (cam->capture_on == true || cam->overlay_on == true)
+		camera_power(cam, false);
 
 	return 0;
 }
@@ -1561,7 +1562,8 @@ static int csi_v4l2_resume(struct platform_device *pdev)
 
 	cam->low_power = false;
 	wake_up_interruptible(&cam->power_queue);
-	camera_power(cam, true);
+	if (cam->capture_on == true || cam->overlay_on == true)
+		camera_power(cam, true);
 
 	if (cam->overlay_on == true)
 		start_preview(cam);
