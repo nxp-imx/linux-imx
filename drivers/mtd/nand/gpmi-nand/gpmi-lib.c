@@ -44,7 +44,7 @@ struct timing_threshod timing_default_threshold = {
 	.max_dll_delay_in_ns         = 16,
 };
 
-static struct clk *mxs_dma_clk;
+struct clk *mxs_dma_clk;
 
 static void setup_ddr_timing_onfi(struct gpmi_nand_data *this)
 {

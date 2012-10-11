@@ -439,6 +439,12 @@ static bool gpmi_dma_filter(struct dma_chan *chan, void *param)
 static void release_dma_channels(struct gpmi_nand_data *this)
 {
 	unsigned int i;
+
+	if (mxs_dma_clk) {
+		clk_put(mxs_dma_clk);
+		mxs_dma_clk = NULL;
+	}
+
 	for (i = 0; i < DMA_CHANS; i++)
 		if (this->dma_chans[i]) {
 			dma_release_channel(this->dma_chans[i]);
