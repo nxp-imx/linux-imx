@@ -99,6 +99,31 @@
 	str	r6, [r1, #0x320] /* DRAM_RESET */
 	str	r7, [r1, #0x5c8] /* GPR_CTLDS */
 
+	/* Need to reset the FIFO to avoid MMDC lockup
+	  * caused because of floating/changing the
+	  * configuration of many DDR IO pads.
+	  */
+	/* reset read FIFO, RST_RD_FIFO */
+	ldr	r7, =0x83c
+	ldr	r6, [r1, r7]
+	orr	r6, r6, #0x80000000
+	str	r6, [r1, r7]
+fifo_reset1_wait:
+	ldr	r6, [r1, r7]
+	and	r6, r6, #0x80000000
+	cmp	r6, #0
+	bne	fifo_reset1_wait
+
+	/* reset FIFO a second time */
+	ldr	r6, [r1, r7]
+	orr	r6, r6, #0x80000000
+	str	r6, [r1, r7]
+fifo_reset2_wait:
+	ldr	r6, [r1, r7]
+	and	r6, r6, #0x80000000
+	cmp	r6, #0
+	bne	fifo_reset2_wait
+
 	.endm
 
 	.macro	sl_ddr_io_set_lpm
