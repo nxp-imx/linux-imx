@@ -707,7 +707,6 @@ static s32 ov5640_read_reg(u16 reg, u8 *val)
 
 static int prev_sysclk, prev_HTS;
 static int AE_low, AE_high, AE_Target = 52;
-static int XVCLK = 2200;
 
 void OV5640_stream_on(void)
 {
@@ -723,6 +722,7 @@ void OV5640_stream_off(void)
 int OV5640_get_sysclk(void)
 {
 	 /* calculate sysclk */
+	int xvclk = ov5640_data.mclk / 10000;
 	int temp1, temp2;
 	int Multiplier, PreDiv, VCO, SysDiv, Pll_rdiv, Bit_div2x = 1, sclk_rdiv, sysclk;
 	u8 temp;
@@ -752,7 +752,7 @@ int OV5640_get_sysclk(void)
 	temp2 = temp1 & 0x03;
 	sclk_rdiv = sclk_rdiv_map[temp2];
 
-	VCO = XVCLK * Multiplier / PreDiv;
+	VCO = xvclk * Multiplier / PreDiv;
 
 	sysclk = VCO / SysDiv / Pll_rdiv * 2 / Bit_div2x / sclk_rdiv;
 
