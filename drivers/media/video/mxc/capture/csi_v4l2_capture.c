@@ -1142,6 +1142,7 @@ static long csi_v4l_do_ioctl(struct file *file,
 			strcpy(cap->driver, "csi_v4l2");
 			cap->version = KERNEL_VERSION(0, 1, 11);
 			cap->capabilities = V4L2_CAP_VIDEO_OVERLAY |
+			    V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
 			    V4L2_CAP_VIDEO_OUTPUT_OVERLAY | V4L2_CAP_READWRITE;
 			cap->card[0] = '\0';
 			cap->bus_info[0] = '\0';
