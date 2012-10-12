@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,6 +42,7 @@ static int otp_wait_busy(u32 flags);
 #define BF(value, field)	(((value) << BP_##field) & BM_##field)
 
 static unsigned long otp_hclk_saved;
+static struct clk *hclk;
 static u32 otp_voltage_saved;
 struct regulator *regu;
 
@@ -78,11 +79,10 @@ static int otp_read_post(void)
 
 static int otp_write_prepare(struct fsl_otp_data *otp_data)
 {
-	struct clk *hclk;
 	int err = 0;
 
 	/* [1] HCLK to 24MHz. */
-	hclk = clk_get(NULL, "hclk");
+	hclk = clk_get(NULL, cpu_is_mx28() ? "h" : "hclk");
 	if (IS_ERR(hclk)) {
 		err = PTR_ERR(hclk);
 		goto out;
@@ -99,7 +99,7 @@ static int otp_write_prepare(struct fsl_otp_data *otp_data)
 	   You are warned now.
 	 */
 	otp_hclk_saved = clk_get_rate(hclk);
-	clk_set_rate(hclk, 24000);
+	clk_set_rate(hclk, 24000000);
 
 	/* [2] The voltage is set to 2.8V */
 	regu = regulator_get(NULL, otp_data->regulator_name);
@@ -114,10 +114,6 @@ out:
 
 static int otp_write_post(void)
 {
-	struct clk *hclk;
-
-	hclk = clk_get(NULL, "hclk");
-
 	/* restore the clock and voltage */
 	clk_set_rate(hclk, otp_hclk_saved);
 	regulator_set_voltage(regu, otp_voltage_saved, otp_voltage_saved);
@@ -127,6 +123,8 @@ static int otp_write_post(void)
 	__raw_writel(BM_OCOTP_CTRL_RELOAD_SHADOWS,
 			REGS_OCOTP_BASE + HW_OCOTP_CTRL_SET);
 	otp_wait_busy(BM_OCOTP_CTRL_RELOAD_SHADOWS);
+
+	clk_put(hclk);
 	return 0;
 }
 
