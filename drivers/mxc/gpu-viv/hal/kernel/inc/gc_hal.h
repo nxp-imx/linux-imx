@@ -30,8 +30,9 @@
 #include "gc_hal_base.h"
 #include "gc_hal_profiler.h"
 #include "gc_hal_driver.h"
+#ifndef VIVANTE_NO_3D
 #include "gc_hal_statistics.h"
-
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -499,6 +500,17 @@ gckOS_UnmapMemoryEx(
 /* Unmap physical memory from the process space. */
 gceSTATUS
 gckOS_UnmapMemory(
+    IN gckOS Os,
+    IN gctPHYS_ADDR Physical,
+    IN gctSIZE_T Bytes,
+    IN gctPOINTER Logical
+    );
+
+/* Unmap user logical memory out of physical memory.
+ * This function is only supported in Linux currently.
+ */
+gceSTATUS
+gckOS_UnmapUserLogical(
     IN gckOS Os,
     IN gctPHYS_ADDR Physical,
     IN gctSIZE_T Bytes,
@@ -1951,6 +1963,22 @@ gckHARDWARE_QueryPowerManagementState(
     IN gckHARDWARE Hardware,
     OUT gceCHIPPOWERSTATE* State
     );
+
+#if gcdENABLE_FSCALE_VAL_ADJUST
+gceSTATUS
+gckHARDWARE_SetFscaleValue(
+    IN gckHARDWARE Hardware,
+    IN gctUINT32   FscaleValue
+    );
+
+gceSTATUS
+gckHARDWARE_GetFscaleValue(
+    IN gckHARDWARE Hardware,
+    IN gctUINT * FscaleValue,
+    IN gctUINT * MinFscaleValue,
+    IN gctUINT * MaxFscaleValue
+    );
+#endif
 
 #if gcdPOWEROFF_TIMEOUT
 gceSTATUS

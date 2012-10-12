@@ -950,6 +950,13 @@ gco2D_QueryU32(
     OUT gctUINT32_PTR Value
     );
 
+gceSTATUS
+gco2D_SetStateU32(
+    IN gco2D Engine,
+    IN gce2D_STATE State,
+    IN OUT gctUINT32_PTR Value
+    );
+
 #ifdef __cplusplus
 }
 #endif

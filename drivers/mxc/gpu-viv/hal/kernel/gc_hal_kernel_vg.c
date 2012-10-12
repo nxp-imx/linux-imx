@@ -438,6 +438,14 @@ gceSTATUS gckVGKERNEL_Dispatch(
         break;
 
     case gcvHAL_FREE_NON_PAGED_MEMORY:
+        /* Unmap user logical out of physical memory first. */
+        gcmkERR_BREAK(gckOS_UnmapUserLogical(
+            Kernel->os,
+            kernelInterface->u.AllocateNonPagedMemory.physical,
+            kernelInterface->u.AllocateNonPagedMemory.bytes,
+            kernelInterface->u.AllocateNonPagedMemory.logical
+            ));
+
         /* Free non-paged memory. */
         gcmkERR_BREAK(gckOS_FreeNonPagedMemory(
             Kernel->os,
@@ -459,6 +467,14 @@ gceSTATUS gckVGKERNEL_Dispatch(
         break;
 
     case gcvHAL_FREE_CONTIGUOUS_MEMORY:
+        /* Unmap user logical out of physical memory first. */
+        gcmkERR_BREAK(gckOS_UnmapUserLogical(
+            Kernel->os,
+            kernelInterface->u.AllocateNonPagedMemory.physical,
+            kernelInterface->u.AllocateNonPagedMemory.bytes,
+            kernelInterface->u.AllocateNonPagedMemory.logical
+            ));
+
         /* Free contiguous memory. */
         gcmkERR_BREAK(gckOS_FreeContiguous(
             Kernel->os,
@@ -522,6 +538,14 @@ gceSTATUS gckVGKERNEL_Dispatch(
             kernelInterface->u.AllocateLinearVideoMemory.type,
             &kernelInterface->u.AllocateLinearVideoMemory.node
             ));
+
+        gcmkERR_BREAK(gckKERNEL_AddProcessDB(Kernel,
+           processID, gcvDB_VIDEO_MEMORY,
+           Interface->u.AllocateLinearVideoMemory.node,
+           gcvNULL,
+           kernelInterface->u.AllocateLinearVideoMemory.bytes
+           ));
+
         break;
 
     case gcvHAL_FREE_VIDEO_MEMORY:
@@ -544,6 +568,13 @@ gceSTATUS gckVGKERNEL_Dispatch(
         gcmkERR_BREAK(gckVIDMEM_Free(
             Interface->u.FreeVideoMemory.node
             ));
+
+        gcmkERR_BREAK(gckKERNEL_RemoveProcessDB(
+            Kernel,
+            processID, gcvDB_VIDEO_MEMORY,
+            Interface->u.FreeVideoMemory.node
+            ));
+
         break;
 
     case gcvHAL_MAP_MEMORY:
@@ -637,6 +668,12 @@ gceSTATUS gckVGKERNEL_Dispatch(
         Interface->u.LockVideoMemory.address =
             gcmPTR2INT(Interface->u.LockVideoMemory.memory);
 #endif
+        gcmkERR_BREAK(
+            gckKERNEL_AddProcessDB(Kernel,
+                                   processID, gcvDB_VIDEO_MEMORY_LOCKED,
+                                   Interface->u.LockVideoMemory.node,
+                                   gcvNULL,
+                                   0));
         break;
 
     case gcvHAL_UNLOCK_VIDEO_MEMORY:
@@ -674,6 +711,16 @@ gceSTATUS gckVGKERNEL_Dispatch(
                                                           bytes));
         }
 #endif
+
+        if (Interface->u.UnlockVideoMemory.asynchroneous == gcvFALSE)
+        {
+            /* There isn't a event to unlock this node, remove record now */
+            gcmkERR_BREAK(
+                    gckKERNEL_RemoveProcessDB(Kernel,
+                        processID, gcvDB_VIDEO_MEMORY_LOCKED,
+                        Interface->u.UnlockVideoMemory.node));
+        }
+
         break;
     case gcvHAL_USER_SIGNAL:
 #if !USE_NEW_LINUX_SIGNAL

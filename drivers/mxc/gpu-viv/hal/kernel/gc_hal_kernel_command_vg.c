@@ -97,6 +97,30 @@ gcsQUEUE_UPDATE_CONTROL;
 /******************************************************************************\
 ********************************* Support Code *********************************
 \******************************************************************************/
+static gceSTATUS
+_FlushMMU(
+    IN gckVGCOMMAND Command
+    )
+{
+    gceSTATUS status;
+    gctUINT32 oldValue;
+    gckVGHARDWARE hardware = Command->hardware;
+
+    gcmkONERROR(gckOS_AtomicExchange(Command->os,
+                                     hardware->pageTableDirty,
+                                     0,
+                                     &oldValue));
+
+    if (oldValue)
+    {
+        /* Page Table is upated, flush mmu before commit. */
+        gcmkONERROR(gckVGHARDWARE_FlushMMU(hardware));
+    }
+
+    return gcvSTATUS_OK;
+OnError:
+    return status;
+}
 
 static gceSTATUS
 _WaitForIdle(
@@ -577,6 +601,67 @@ _FreeTaskContainer(
     }
 }
 
+gceSTATUS
+_RemoveRecordFromProcesDB(
+    IN gckVGCOMMAND Command,
+    IN gcsTASK_HEADER_PTR Task
+    )
+{
+    gcsTASK_PTR task = (gcsTASK_PTR)((gctUINT8_PTR)Task - sizeof(gcsTASK));
+    gcsTASK_FREE_VIDEO_MEMORY_PTR freeVideoMemory;
+    gcsTASK_UNLOCK_VIDEO_MEMORY_PTR unlockVideoMemory;
+    gctINT pid;
+    gctUINT32 size;
+
+    /* Get the total size of all tasks. */
+    size = task->size;
+
+    gcmkVERIFY_OK(gckOS_GetProcessID((gctUINT32_PTR)&pid));
+
+    do
+    {
+        switch (Task->id)
+        {
+        case gcvTASK_FREE_VIDEO_MEMORY:
+            freeVideoMemory = (gcsTASK_FREE_VIDEO_MEMORY_PTR)Task;
+
+            /* Remove record from process db. */
+            gcmkVERIFY_OK(gckKERNEL_RemoveProcessDB(
+                Command->kernel->kernel,
+                pid,
+                gcvDB_VIDEO_MEMORY,
+                freeVideoMemory->node));
+
+            /* Advance to next task. */
+            size -= sizeof(gcsTASK_FREE_VIDEO_MEMORY);
+            Task = (gcsTASK_HEADER_PTR)(freeVideoMemory + 1);
+
+            break;
+        case gcvTASK_UNLOCK_VIDEO_MEMORY:
+            unlockVideoMemory = (gcsTASK_UNLOCK_VIDEO_MEMORY_PTR)Task;
+
+            /* Remove record from process db. */
+            gcmkVERIFY_OK(gckKERNEL_RemoveProcessDB(
+                Command->kernel->kernel,
+                pid,
+                gcvDB_VIDEO_MEMORY_LOCKED,
+                unlockVideoMemory->node));
+
+            /* Advance to next task. */
+            size -= sizeof(gcsTASK_UNLOCK_VIDEO_MEMORY);
+            Task = (gcsTASK_HEADER_PTR)(unlockVideoMemory + 1);
+
+            break;
+        default:
+            /* Skip the whole task. */
+            size = 0;
+            break;
+        }
+    }
+    while(size);
+
+    return gcvSTATUS_OK;
+}
 
 /******************************************************************************\
 ********************************* Task Scheduling ******************************
@@ -700,6 +785,8 @@ _ScheduleTasks(
                 do
                 {
                     gcsTASK_HEADER_PTR taskHeader = (gcsTASK_HEADER_PTR) (userTask + 1);
+
+                    gcmkVERIFY_OK(_RemoveRecordFromProcesDB(Command, taskHeader));
 
                     gcmkTRACE_ZONE(
                         gcvLEVEL_VERBOSE, gcvZONE_COMMAND,
@@ -3363,6 +3450,8 @@ gckVGCOMMAND_Commit(
             break;
         }
 #endif
+        gcmkERR_BREAK(_FlushMMU(Command));
+
         do
         {
             /* Assign a context ID if not yet assigned. */

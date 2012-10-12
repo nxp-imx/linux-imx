@@ -2640,6 +2640,12 @@ gckCOMMAND_Detach(
     /* Construct a gckCONTEXT object. */
     gcmkONERROR(gckCONTEXT_Destroy(Context));
 
+    if (Command->currContext == Context)
+    {
+        /* Detach from gckCOMMAND object if the destoryed context is current context. */
+        Command->currContext = gcvNULL;
+    }
+
     /* Release the context switching mutex. */
     gcmkONERROR(gckOS_ReleaseMutex(Command->os, Command->mutexContext));
     acquired = gcvFALSE;

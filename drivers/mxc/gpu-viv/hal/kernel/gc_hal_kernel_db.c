@@ -1144,6 +1144,12 @@ gckKERNEL_DestroyProcessDB(
             break;
 
         case gcvDB_NON_PAGED:
+            /* Unmap user logical memory first. */
+            status = gckOS_UnmapUserLogical(Kernel->os,
+                                            record->physical,
+                                            record->bytes,
+                                            record->data);
+
             /* Free the non paged memory. */
             status = gckOS_FreeNonPagedMemory(Kernel->os,
                                               record->bytes,
@@ -1156,11 +1162,18 @@ gckKERNEL_DestroyProcessDB(
             break;
 
         case gcvDB_CONTIGUOUS:
+            /* Unmap user logical memory first. */
+            status = gckOS_UnmapUserLogical(Kernel->os,
+                                            record->physical,
+                                            record->bytes,
+                                            record->data);
+
             /* Free the contiguous memory. */
-            status = gckOS_FreeContiguous(Kernel->os,
-                                          record->physical,
-                                          record->data,
-                                          record->bytes);
+            status = gckEVENT_FreeContiguousMemory(Kernel->eventObj,
+                                                   record->bytes,
+                                                   record->physical,
+                                                   record->data,
+                                                   gcvKERNEL_PIXEL);
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: CONTIGUOUS 0x%x bytes=%lu (status=%d)",
