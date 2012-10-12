@@ -705,7 +705,7 @@ static s32 ov5640_read_reg(u16 reg, u8 *val)
 	return u8RdVal;
 }
 
-static int prev_sysclk, prev_HTS, prev_sysclk;
+static int prev_sysclk, prev_HTS;
 static int AE_low, AE_high, AE_Target = 52;
 static int XVCLK = 2200;
 
