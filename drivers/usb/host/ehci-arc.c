@@ -260,6 +260,8 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		goto err4;
 	}
 
+	spin_lock_init(&pdata->lock);
+
 	fsl_platform_set_host_mode(hcd);
 	hcd->power_budget = pdata->power_budget;
 	ehci = hcd_to_ehci(hcd);
@@ -308,7 +310,6 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 
 	ehci = hcd_to_ehci(hcd);
 	pdata->pm_command = ehci->command;
-	spin_lock_init(&pdata->lock);
 	return retval;
 err6:
 	free_irq(irq, (void *)pdev);
