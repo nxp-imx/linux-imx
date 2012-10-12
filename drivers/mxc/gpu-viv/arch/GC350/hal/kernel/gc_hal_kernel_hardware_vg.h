@@ -68,7 +68,7 @@ struct _gckVGHARDWARE
     gctUINT32                   powerOffTimeout;
     gctTHREAD                   timeIdleThread;
     gctBOOL                     killThread;
-
+    gctPOINTER                  pageTableDirty;
 };
 
 #endif /* __gc_hal_kernel_hardware_h_ */

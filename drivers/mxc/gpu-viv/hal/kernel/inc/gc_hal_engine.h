@@ -1463,6 +1463,21 @@ gcoTEXTURE_UploadCompressed(
     IN gctSIZE_T Bytes
     );
 
+/* Upload compressed sub data to an gcoTEXTURE object. */
+gceSTATUS
+gcoTEXTURE_UploadCompressedSub(
+    IN gcoTEXTURE Texture,
+    IN gctUINT MipMap,
+    IN gceTEXTURE_FACE Face,
+    IN gctUINT XOffset,
+    IN gctUINT YOffset,
+    IN gctUINT Width,
+    IN gctUINT Height,
+    IN gctUINT Slice,
+    IN gctCONST_POINTER Memory,
+    IN gctSIZE_T Size
+    );
+
 /* Get gcoSURF object for a mipmap level. */
 gceSTATUS
 gcoTEXTURE_GetMipMap(

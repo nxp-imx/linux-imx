@@ -209,9 +209,13 @@ typedef enum _gceSURF_TYPE
 #if gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST
     gcvSURF_FLIP           = 0x800, /* The Resolve Target the will been flip resolve from RT */
 #endif
+    gcvSURF_TILE_STATUS_DIRTY  = 0x1000, /* Init tile status to all dirty */
 
     gcvSURF_RENDER_TARGET_NO_TILE_STATUS = gcvSURF_RENDER_TARGET
                                          | gcvSURF_NO_TILE_STATUS,
+
+    gcvSURF_RENDER_TARGET_TS_DIRTY = gcvSURF_RENDER_TARGET
+                                         | gcvSURF_TILE_STATUS_DIRTY,
 
     gcvSURF_DEPTH_NO_TILE_STATUS         = gcvSURF_DEPTH
                                          | gcvSURF_NO_TILE_STATUS,
@@ -645,6 +649,12 @@ typedef enum _gce2D_QUERY
     gcv2D_QUERY_YUV_STRIDE_MAX_ALIGN,
 }
 gce2D_QUERY;
+
+typedef enum _gce2D_STATE
+{
+    gcv2D_STATE_SPECIAL_FILTER_MIRROR_MODE       = 1,
+}
+gce2D_STATE;
 
 #ifndef VIVANTE_NO_3D
 /* Texture functions. */

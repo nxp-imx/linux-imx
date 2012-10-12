@@ -161,6 +161,14 @@
 #endif
 
 /*
+    gcdENABLE_FSCALE_VAL_ADJUST
+        When non-zero, FSCALE_VAL when gcvPOWER_ON can be adjusted externally.
+ */
+#ifndef gcdENABLE_FSCALE_VAL_ADJUST
+#   define gcdENABLE_FSCALE_VAL_ADJUST          1
+#endif
+
+/*
     gcdDUMP_IN_KERNEL
 
         When set to 1, all dumps will happen in the kernel.  This is handy if
@@ -765,7 +773,7 @@
         limited by gcdCONTIGUOUS_SIZE_LIMIT.
  */
 #ifndef gcdCONTIGUOUS_SIZE_LIMIT
-#   define gcdCONTIGUOUS_SIZE_LIMIT             0
+#   define gcdCONTIGUOUS_SIZE_LIMIT             4096
 #endif
 
 /*  gcdALPHA_KILL_IN_SHADER
