@@ -201,8 +201,8 @@
 
 static struct clk *sata_clk;
 static struct clk *clko;
-static int mma8451_position = 1;
-static int mag3110_position = 2;
+static int mma8451_position;
+static int mag3110_position = 1;
 static int max11801_mode = 1;
 static int enable_lcd_ldb;
 
