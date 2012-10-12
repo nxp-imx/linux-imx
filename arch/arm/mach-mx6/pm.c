@@ -371,7 +371,6 @@ static int mx6_suspend_enter(suspend_state_t state)
 	} else {
 			cpu_do_idle();
 	}
-	clk_set_parent(axi_clk, axi_org_parent);
 
 	return 0;
 }

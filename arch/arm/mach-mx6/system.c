@@ -272,8 +272,8 @@ void arch_idle_single_core(void)
 		ca9_do_idle();
 	} else {
 		if (low_bus_freq_mode || audio_bus_freq_mode) {
-			u32 ddr_usecount;
-			if ((mmdc_ch0_axi != NULL) && ddr_usecount)
+			int ddr_usecount = 0;
+			if ((mmdc_ch0_axi != NULL))
 				ddr_usecount = clk_get_usecount(mmdc_ch0_axi);
 
 			if (cpu_is_mx6sl() && low_bus_freq_mode
