@@ -1695,6 +1695,10 @@ static void setup_received_irq(struct fsl_udc *udc,
 				else if (setup->bRequest ==
 					 USB_DEVICE_A_ALT_HNP_SUPPORT)
 					udc->gadget.a_alt_hnp_support = 1;
+				else
+					break;
+			} else {
+				break;
 			}
 			rc = 0;
 		} else
