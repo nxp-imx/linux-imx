@@ -67,6 +67,14 @@ enum ov5640_frame_rate {
 	ov5640_30_fps
 };
 
+/* image size under 1280 * 960 are SUBSAMPLING
+ * image size upper 1280 * 960 are SCALING
+ */
+enum ov5640_downsize_mode {
+	SUBSAMPLING,
+	SCALING,
+};
+
 struct reg_value {
 	u16 u16RegAddr;
 	u8 u8Val;
@@ -76,6 +84,7 @@ struct reg_value {
 
 struct ov5640_mode_info {
 	enum ov5640_mode mode;
+	enum ov5640_downsize_mode dn_mode;
 	u32 width;
 	u32 height;
 	struct reg_value *init_data_ptr;
@@ -575,58 +584,58 @@ static struct reg_value ov5640_setting_15fps_QSXGA_2592_1944[] = {
 
 static struct ov5640_mode_info ov5640_mode_info_data[2][ov5640_mode_MAX + 1] = {
 	{
-		{ov5640_mode_VGA_640_480,    640,  480,
+		{ov5640_mode_VGA_640_480, SUBSAMPLING, 640,  480,
 		ov5640_setting_15fps_VGA_640_480,
 		ARRAY_SIZE(ov5640_setting_15fps_VGA_640_480)},
-		{ov5640_mode_QVGA_320_240,   320,  240,
+		{ov5640_mode_QVGA_320_240, SUBSAMPLING, 320,  240,
 		ov5640_setting_15fps_QVGA_320_240,
 		ARRAY_SIZE(ov5640_setting_15fps_QVGA_320_240)},
-		{ov5640_mode_NTSC_720_480,   720, 480,
+		{ov5640_mode_NTSC_720_480, SUBSAMPLING, 720, 480,
 		ov5640_setting_15fps_NTSC_720_480,
 		ARRAY_SIZE(ov5640_setting_15fps_NTSC_720_480)},
-		{ov5640_mode_PAL_720_576,    720, 576,
+		{ov5640_mode_PAL_720_576, SUBSAMPLING, 720, 576,
 		ov5640_setting_15fps_PAL_720_576,
 		ARRAY_SIZE(ov5640_setting_15fps_PAL_720_576)},
-		{ov5640_mode_720P_1280_720,  1280, 720,
+		{ov5640_mode_720P_1280_720, SUBSAMPLING, 1280, 720,
 		ov5640_setting_15fps_720P_1280_720,
 		ARRAY_SIZE(ov5640_setting_15fps_720P_1280_720)},
-		{ov5640_mode_1080P_1920_1080,  1920, 1080,
+		{ov5640_mode_1080P_1920_1080, SCALING, 1920, 1080,
 		ov5640_setting_15fps_1080P_1920_1080,
 		ARRAY_SIZE(ov5640_setting_15fps_1080P_1920_1080)},
-		{ov5640_mode_QSXGA_2592_1944, 2592, 1944,
+		{ov5640_mode_QSXGA_2592_1944, SCALING, 2592, 1944,
 		ov5640_setting_15fps_QSXGA_2592_1944,
 		ARRAY_SIZE(ov5640_setting_15fps_QSXGA_2592_1944)},
-		{ov5640_mode_QCIF_176_144, 176, 144,
+		{ov5640_mode_QCIF_176_144, SUBSAMPLING, 176, 144,
 		ov5640_setting_15fps_QCIF_176_144,
 		ARRAY_SIZE(ov5640_setting_15fps_QCIF_176_144)},
-		{ov5640_mode_XGA_1024_768, 1024, 768,
+		{ov5640_mode_XGA_1024_768, SUBSAMPLING, 1024, 768,
 		ov5640_setting_15fps_XGA_1024_768,
 		ARRAY_SIZE(ov5640_setting_15fps_XGA_1024_768)},
 	},
 	{
-		{ov5640_mode_VGA_640_480,    640,  480,
+		{ov5640_mode_VGA_640_480, SUBSAMPLING, 640,  480,
 		ov5640_setting_30fps_VGA_640_480,
 		ARRAY_SIZE(ov5640_setting_30fps_VGA_640_480)},
-		{ov5640_mode_QVGA_320_240,   320,  240,
+		{ov5640_mode_QVGA_320_240, SUBSAMPLING, 320,  240,
 		ov5640_setting_30fps_QVGA_320_240,
 		ARRAY_SIZE(ov5640_setting_30fps_QVGA_320_240)},
-		{ov5640_mode_NTSC_720_480,   720, 480,
+		{ov5640_mode_NTSC_720_480, SUBSAMPLING, 720, 480,
 		ov5640_setting_30fps_NTSC_720_480,
 		ARRAY_SIZE(ov5640_setting_30fps_NTSC_720_480)},
-		{ov5640_mode_PAL_720_576,    720, 576,
+		{ov5640_mode_PAL_720_576, SUBSAMPLING, 720, 576,
 		ov5640_setting_30fps_PAL_720_576,
 		ARRAY_SIZE(ov5640_setting_30fps_PAL_720_576)},
-		{ov5640_mode_720P_1280_720,  1280, 720,
+		{ov5640_mode_720P_1280_720, SUBSAMPLING, 1280, 720,
 		ov5640_setting_30fps_720P_1280_720,
 		ARRAY_SIZE(ov5640_setting_30fps_720P_1280_720)},
-		{ov5640_mode_1080P_1920_1080,  1920, 1080,
+		{ov5640_mode_1080P_1920_1080, SCALING, 1920, 1080,
 		ov5640_setting_30fps_1080P_1920_1080,
 		ARRAY_SIZE(ov5640_setting_30fps_1080P_1920_1080)},
-		{ov5640_mode_QSXGA_2592_1944, 0, 0, NULL, 0},
-		{ov5640_mode_QCIF_176_144, 176, 144,
+		{ov5640_mode_QSXGA_2592_1944, -1, 0, 0, NULL, 0},
+		{ov5640_mode_QCIF_176_144, SUBSAMPLING, 176, 144,
 		ov5640_setting_30fps_QCIF_176_144,
 		ARRAY_SIZE(ov5640_setting_30fps_QCIF_176_144)},
-		{ov5640_mode_XGA_1024_768, 1024, 768,
+		{ov5640_mode_XGA_1024_768, SUBSAMPLING, 1024, 768,
 		ov5640_setting_30fps_XGA_1024_768,
 		ARRAY_SIZE(ov5640_setting_30fps_XGA_1024_768)},
 	},
@@ -954,6 +963,21 @@ int OV5640_set_AE_target(int target)
 	return 0;
 }
 
+void OV5640_turn_on_AE_AG(int enable)
+{
+	u8 ae_ag_ctrl;
+
+	ov5640_read_reg(0x3503, &ae_ag_ctrl);
+	if (enable) {
+		/* turn on auto AE/AG */
+		ae_ag_ctrl = ae_ag_ctrl & ~(0x03);
+	} else {
+		/* turn off AE/AG */
+		ae_ag_ctrl = ae_ag_ctrl | 0x03;
+	}
+	ov5640_write_reg(0x3503, ae_ag_ctrl);
+}
+
 bool binning_on(void)
 {
 	u8 temp;
@@ -974,20 +998,226 @@ static void ov5640_set_virtual_channel(int channel)
 	ov5640_write_reg(0x4814, channel_id | (channel << 6));
 }
 
-static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
-			    enum ov5640_mode mode)
+/* download ov5640 settings to sensor through i2c */
+static int ov5640_download_firmware(struct reg_value *pModeSetting, s32 ArySize)
 {
-	struct reg_value *pModeSetting = NULL;
-		s32 i = 0;
-	s32 ArySize = 0;
 	register u32 Delay_ms = 0;
 	register u16 RegAddr = 0;
 	register u8 Mask = 0;
 	register u8 Val = 0;
 	u8 RegVal = 0;
+	int i, retval = 0;
+
+	for (i = 0; i < ArySize; ++i, ++pModeSetting) {
+		Delay_ms = pModeSetting->u32Delay_ms;
+		RegAddr = pModeSetting->u16RegAddr;
+		Val = pModeSetting->u8Val;
+		Mask = pModeSetting->u8Mask;
+
+		if (Mask) {
+			retval = ov5640_read_reg(RegAddr, &RegVal);
+			if (retval < 0)
+				goto err;
+
+			RegVal &= ~(u8)Mask;
+			Val &= Mask;
+			Val |= RegVal;
+		}
+
+		retval = ov5640_write_reg(RegAddr, Val);
+		if (retval < 0)
+			goto err;
+
+		if (Delay_ms)
+			msleep(Delay_ms);
+	}
+err:
+	return retval;
+}
+
+/* sensor changes between scaling and subsampling
+ * go through exposure calcualtion
+ */
+static int ov5640_change_mode_exposure_calc(enum ov5640_frame_rate frame_rate,
+				enum ov5640_mode mode)
+{
+	struct reg_value *pModeSetting = NULL;
+	s32 ArySize = 0;
+	u8 average;
+	int prev_shutter, prev_gain16;
+	int cap_shutter, cap_gain16;
+	int cap_sysclk, cap_HTS, cap_VTS;
+	int light_freq, cap_bandfilt, cap_maxband;
+	long cap_gain16_shutter;
+	int retval = 0;
+
+	/* check if the input mode and frame rate is valid */
+	pModeSetting =
+		ov5640_mode_info_data[frame_rate][mode].init_data_ptr;
+	ArySize =
+		ov5640_mode_info_data[frame_rate][mode].init_data_size;
+
+	ov5640_data.pix.width =
+		ov5640_mode_info_data[frame_rate][mode].width;
+	ov5640_data.pix.height =
+		ov5640_mode_info_data[frame_rate][mode].height;
+
+	if (ov5640_data.pix.width == 0 || ov5640_data.pix.height == 0 ||
+		pModeSetting == NULL || ArySize == 0)
+		return -EINVAL;
+
+	/* auto focus */
+	/* OV5640_auto_focus();//if no af function, just skip it */
+
+	/* turn off AE/AG */
+	OV5640_turn_on_AE_AG(0);
+
+	/* read preview shutter */
+	prev_shutter = OV5640_get_shutter();
+	if ((binning_on()) && (mode != ov5640_mode_720P_1280_720)
+			&& (mode != ov5640_mode_1080P_1920_1080))
+		prev_shutter *= 2;
+
+	/* read preview gain */
+	prev_gain16 = OV5640_get_gain16();
+
+	/* get average */
+	ov5640_read_reg(0x56a1, &average);
+
+	/* turn off night mode for capture */
+	OV5640_set_night_mode();
+
+	/* turn off overlay */
+	/* ov5640_write_reg(0x3022, 0x06);//if no af function, just skip it */
+
+	OV5640_stream_off();
+
+	/* Write capture setting */
+	retval = ov5640_download_firmware(pModeSetting, ArySize);
+	if (retval < 0)
+		goto err;
+
+	/* read capture VTS */
+	cap_VTS = OV5640_get_VTS();
+	cap_HTS = OV5640_get_HTS();
+	cap_sysclk = OV5640_get_sysclk();
+
+	/* calculate capture banding filter */
+	light_freq = OV5640_get_light_freq();
+	if (light_freq == 60) {
+		/* 60Hz */
+		cap_bandfilt = cap_sysclk * 100 / cap_HTS * 100 / 120;
+	} else {
+		/* 50Hz */
+		cap_bandfilt = cap_sysclk * 100 / cap_HTS;
+	}
+	cap_maxband = (int)((cap_VTS - 4)/cap_bandfilt);
+
+	/* calculate capture shutter/gain16 */
+	if (average > AE_low && average < AE_high) {
+		/* in stable range */
+		cap_gain16_shutter =
+		  prev_gain16 * prev_shutter * cap_sysclk/prev_sysclk
+		  * prev_HTS/cap_HTS * AE_Target / average;
+	} else {
+		cap_gain16_shutter =
+		  prev_gain16 * prev_shutter * cap_sysclk/prev_sysclk
+		  * prev_HTS/cap_HTS;
+	}
+
+	/* gain to shutter */
+	if (cap_gain16_shutter < (cap_bandfilt * 16)) {
+		/* shutter < 1/100 */
+		cap_shutter = cap_gain16_shutter/16;
+		if (cap_shutter < 1)
+			cap_shutter = 1;
+
+		cap_gain16 = cap_gain16_shutter/cap_shutter;
+		if (cap_gain16 < 16)
+			cap_gain16 = 16;
+	} else {
+		if (cap_gain16_shutter >
+				(cap_bandfilt * cap_maxband * 16)) {
+			/* exposure reach max */
+			cap_shutter = cap_bandfilt * cap_maxband;
+			cap_gain16 = cap_gain16_shutter / cap_shutter;
+		} else {
+			/* 1/100 < (cap_shutter = n/100) =< max */
+			cap_shutter =
+			  ((int) (cap_gain16_shutter/16 / cap_bandfilt))
+			  *cap_bandfilt;
+			cap_gain16 = cap_gain16_shutter / cap_shutter;
+		}
+	}
+
+	/* write capture gain */
+	OV5640_set_gain16(cap_gain16);
+
+	/* write capture shutter */
+	if (cap_shutter > (cap_VTS - 4)) {
+		cap_VTS = cap_shutter + 4;
+		OV5640_set_VTS(cap_VTS);
+	}
+	OV5640_set_shutter(cap_shutter);
+
+	OV5640_stream_on();
+
+err:
+	return retval;
+}
+
+/* if sensor changes inside scaling or subsampling
+ * change mode directly
+ * */
+static int ov5640_change_mode_direct(enum ov5640_frame_rate frame_rate,
+				enum ov5640_mode mode)
+{
+	struct reg_value *pModeSetting = NULL;
+	s32 ArySize = 0;
+	int retval = 0;
+
+	/* check if the input mode and frame rate is valid */
+	pModeSetting =
+		ov5640_mode_info_data[frame_rate][mode].init_data_ptr;
+	ArySize =
+		ov5640_mode_info_data[frame_rate][mode].init_data_size;
+
+	ov5640_data.pix.width =
+		ov5640_mode_info_data[frame_rate][mode].width;
+	ov5640_data.pix.height =
+		ov5640_mode_info_data[frame_rate][mode].height;
+
+	if (ov5640_data.pix.width == 0 || ov5640_data.pix.height == 0 ||
+		pModeSetting == NULL || ArySize == 0)
+		return -EINVAL;
+
+	/* turn off AE/AG */
+	OV5640_turn_on_AE_AG(0);
+
+	OV5640_stream_off();
+
+	/* Write capture setting */
+	retval = ov5640_download_firmware(pModeSetting, ArySize);
+	if (retval < 0)
+		goto err;
+
+	OV5640_stream_on();
+
+	OV5640_turn_on_AE_AG(1);
+
+err:
+	return retval;
+}
+
+static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
+			    enum ov5640_mode mode, enum ov5640_mode orig_mode)
+{
+	struct reg_value *pModeSetting = NULL;
+	s32 ArySize = 0;
 	int retval = 0;
 	void *mipi_csi2_info;
 	u32 mipi_reg;
+	enum ov5640_downsize_mode dn_mode, orig_dn_mode;
 
 	if ((mode > ov5640_mode_MAX || mode < ov5640_mode_MIN)
 		&& (mode != ov5640_mode_INIT)) {
@@ -1024,209 +1254,34 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 		return -1;
 	}
 
+	dn_mode = ov5640_mode_info_data[frame_rate][mode].dn_mode;
+	orig_dn_mode = ov5640_mode_info_data[frame_rate][orig_mode].dn_mode;
 	if (mode == ov5640_mode_INIT) {
 		pModeSetting = ov5640_init_setting_30fps_VGA;
 		ArySize = ARRAY_SIZE(ov5640_init_setting_30fps_VGA);
 
 		ov5640_data.pix.width = 640;
 		ov5640_data.pix.height = 480;
-
-		for (i = 0; i < ArySize; ++i, ++pModeSetting) {
-			Delay_ms = pModeSetting->u32Delay_ms;
-			RegAddr = pModeSetting->u16RegAddr;
-			Val = pModeSetting->u8Val;
-			Mask = pModeSetting->u8Mask;
-
-			if (Mask) {
-				retval = ov5640_read_reg(RegAddr, &RegVal);
-				if (retval < 0)
-					goto err;
-
-				RegVal &= ~(u8)Mask;
-				Val &= Mask;
-				Val |= RegVal;
-			}
-
-			retval = ov5640_write_reg(RegAddr, Val);
-			if (retval < 0)
-				goto err;
-
-			if (Delay_ms)
-				msleep(Delay_ms);
-		}
-
+		retval = ov5640_download_firmware(pModeSetting, ArySize);
+		if (retval < 0)
+			goto err;
 
 		pModeSetting = ov5640_setting_30fps_VGA_640_480;
 		ArySize = ARRAY_SIZE(ov5640_setting_30fps_VGA_640_480);
-
-		for (i = 0; i < ArySize; ++i, ++pModeSetting) {
-			Delay_ms = pModeSetting->u32Delay_ms;
-			RegAddr = pModeSetting->u16RegAddr;
-			Val = pModeSetting->u8Val;
-			Mask = pModeSetting->u8Mask;
-
-			if (Mask) {
-				retval = ov5640_read_reg(RegAddr, &RegVal);
-				if (retval < 0)
-					goto err;
-
-				RegVal &= ~(u8)Mask;
-				Val &= Mask;
-				Val |= RegVal;
-			}
-
-			retval = ov5640_write_reg(RegAddr, Val);
-			if (retval < 0)
-				goto err;
-
-			if (Delay_ms)
-				msleep(Delay_ms);
-		}
+		retval = ov5640_download_firmware(pModeSetting, ArySize);
+	} else if ((dn_mode == SUBSAMPLING && orig_dn_mode == SCALING) ||
+			(dn_mode == SCALING && orig_dn_mode == SUBSAMPLING)) {
+		/* change between subsampling and scaling
+		 * go through exposure calucation */
+		retval = ov5640_change_mode_exposure_calc(frame_rate, mode);
 	} else {
-		 /* set OV5640 to capture mode */
-
-		u8 ae_ag_ctrl, average;
-		int prev_shutter, prev_gain16;
-		int cap_shutter, cap_gain16;
-		int cap_sysclk, cap_HTS, cap_VTS;
-		int light_freq, cap_bandfilt, cap_maxband;
-		long cap_gain16_shutter;
-
-		/* auto focus */
-		/* OV5640_auto_focus();//if no af function, just skip it */
-
-		/* turn off AE/AG */
-		ov5640_read_reg(0x3503, &ae_ag_ctrl);
-		ae_ag_ctrl = ae_ag_ctrl | 0x03;
-		ov5640_write_reg(0x3503, ae_ag_ctrl);
-
-		/* read preview shutter */
-		prev_shutter = OV5640_get_shutter();
-		if ((binning_on()) && (mode != ov5640_mode_720P_1280_720)
-				&& (mode != ov5640_mode_1080P_1920_1080))
-			prev_shutter *= 2;
-
-		/* read preview gain */
-		prev_gain16 = OV5640_get_gain16();
-
-		/* get average */
-		ov5640_read_reg(0x56a1, &average);
-
-		/* turn off night mode for capture */
-		OV5640_set_night_mode();
-
-		/* turn off overlay */
-		/* ov5640_write_reg(0x3022, 0x06);//if no af function, just skip it */
-
-		OV5640_stream_off();
-
-		/* Write capture setting */
-		pModeSetting =
-			ov5640_mode_info_data[frame_rate][mode].init_data_ptr;
-		ArySize =
-			ov5640_mode_info_data[frame_rate][mode].init_data_size;
-
-		ov5640_data.pix.width =
-			ov5640_mode_info_data[frame_rate][mode].width;
-		ov5640_data.pix.height =
-			ov5640_mode_info_data[frame_rate][mode].height;
-
-		if (ov5640_data.pix.width == 0 || ov5640_data.pix.height == 0 ||
-		    pModeSetting == NULL || ArySize == 0)
-			return -EINVAL;
-
-		for (i = 0; i < ArySize; ++i, ++pModeSetting) {
-			Delay_ms = pModeSetting->u32Delay_ms;
-			RegAddr = pModeSetting->u16RegAddr;
-			Val = pModeSetting->u8Val;
-			Mask = pModeSetting->u8Mask;
-
-			if (Mask) {
-				retval = ov5640_read_reg(RegAddr, &RegVal);
-				if (retval < 0)
-					goto err;
-
-				RegVal &= ~(u8)Mask;
-				Val &= Mask;
-				Val |= RegVal;
-			}
-
-			retval = ov5640_write_reg(RegAddr, Val);
-			if (retval < 0)
-				goto err;
-
-			if (Delay_ms)
-				msleep(Delay_ms);
-		}
-
-
-		/* read capture VTS */
-		cap_VTS = OV5640_get_VTS();
-		cap_HTS = OV5640_get_HTS();
-		cap_sysclk = OV5640_get_sysclk();
-
-		/* calculate capture banding filter */
-		light_freq = OV5640_get_light_freq();
-		if (light_freq == 60) {
-			/* 60Hz */
-			cap_bandfilt = cap_sysclk * 100 / cap_HTS * 100 / 120;
-		} else {
-			/* 50Hz */
-			cap_bandfilt = cap_sysclk * 100 / cap_HTS;
-		}
-		cap_maxband = (int)((cap_VTS - 4)/cap_bandfilt);
-
-		/* calculate capture shutter/gain16 */
-		if (average > AE_low && average < AE_high) {
-			/* in stable range */
-			cap_gain16_shutter =
-			  prev_gain16 * prev_shutter * cap_sysclk/prev_sysclk
-			  * prev_HTS/cap_HTS * AE_Target / average;
-		} else {
-			cap_gain16_shutter =
-			  prev_gain16 * prev_shutter * cap_sysclk/prev_sysclk
-			  * prev_HTS/cap_HTS;
-		}
-
-		/* gain to shutter */
-		if (cap_gain16_shutter < (cap_bandfilt * 16)) {
-			/* shutter < 1/100 */
-			cap_shutter = cap_gain16_shutter/16;
-			if (cap_shutter < 1)
-				cap_shutter = 1;
-
-			cap_gain16 = cap_gain16_shutter/cap_shutter;
-			if (cap_gain16 < 16)
-				cap_gain16 = 16;
-		} else {
-			if (cap_gain16_shutter >
-					(cap_bandfilt * cap_maxband * 16)) {
-				/* exposure reach max */
-				cap_shutter = cap_bandfilt * cap_maxband;
-				cap_gain16 = cap_gain16_shutter / cap_shutter;
-			} else {
-				/* 1/100 < (cap_shutter = n/100) =< max */
-				cap_shutter =
-				  ((int) (cap_gain16_shutter/16 / cap_bandfilt))
-				  *cap_bandfilt;
-				cap_gain16 = cap_gain16_shutter / cap_shutter;
-			}
-		}
-
-
-		/* write capture gain */
-		OV5640_set_gain16(cap_gain16);
-
-		/* write capture shutter */
-		if (cap_shutter > (cap_VTS - 4)) {
-			cap_VTS = cap_shutter + 4;
-			OV5640_set_VTS(cap_VTS);
-		}
-		OV5640_set_shutter(cap_shutter);
-
-		OV5640_stream_on();
-
+		/* change inside subsampling or scaling
+		 * download firmware directly */
+		retval = ov5640_change_mode_direct(frame_rate, mode);
 	}
+
+	if (retval < 0)
+		goto err;
 
 	OV5640_set_AE_target(AE_Target);
 	OV5640_get_light_freq();
@@ -1397,6 +1452,7 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 	struct v4l2_fract *timeperframe = &a->parm.capture.timeperframe;
 	u32 tgt_fps;	/* target frames per secound */
 	enum ov5640_frame_rate frame_rate;
+	enum ov5640_mode orig_mode;
 	int ret = 0;
 
 	/* Make sure power on */
@@ -1437,12 +1493,13 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 			return -EINVAL;
 		}
 
+		orig_mode = sensor->streamcap.capturemode;
 		sensor->streamcap.timeperframe = *timeperframe;
 		sensor->streamcap.capturemode =
 				(u32)a->parm.capture.capturemode;
 
 		ret = ov5640_init_mode(frame_rate,
-				       sensor->streamcap.capturemode);
+				sensor->streamcap.capturemode, orig_mode);
 		break;
 
 	/* These are all the possible cases. */
@@ -1696,7 +1753,7 @@ static int ioctl_dev_init(struct v4l2_int_device *s)
 		return -EPERM;
 	}
 
-	ret = ov5640_init_mode(frame_rate, ov5640_mode_INIT);
+	ret = ov5640_init_mode(frame_rate, ov5640_mode_INIT, ov5640_mode_INIT);
 
 	return ret;
 }
