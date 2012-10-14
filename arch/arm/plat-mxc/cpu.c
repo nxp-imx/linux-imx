@@ -61,6 +61,16 @@ static int __init jtag_wfi_setup(char *p)
 	return 0;
 }
 early_param("jtag", jtag_wfi_setup);
+
+
+static int __init setup_debug_uart(char *p)
+{
+	uart_at_24 = 1;
+	return 0;
+}
+
+early_param("debug_uart", setup_debug_uart);
+
 /**
  * early_console_setup - setup debugging console
  *
