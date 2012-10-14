@@ -89,11 +89,6 @@ static int lcd_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 		return 0;
 
 	switch (val) {
-	case FB_EVENT_FB_REGISTERED:
-		lcd_init_fb(event->info);
-		fb_show_logo(event->info, 0);
-		lcd_poweron();
-		break;
 	case FB_EVENT_BLANK:
 		if ((event->info->var.xres != 800) ||
 		    (event->info->var.yres != 480)) {
