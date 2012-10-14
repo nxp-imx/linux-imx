@@ -1742,6 +1742,8 @@ static int serial_imx_resume(struct platform_device *dev)
 	return 0;
 }
 
+extern int uart_at_24;
+
 static int serial_imx_probe(struct platform_device *pdev)
 {
 	struct imx_port *sport;
@@ -1788,6 +1790,9 @@ static int serial_imx_probe(struct platform_device *pdev)
 		ret = PTR_ERR(sport->clk);
 		goto unmap;
 	}
+	if (uart_at_24)
+		clk_set_parent(sport->clk, clk_get(NULL, "osc"));
+
 	clk_enable(sport->clk);
 
 	sport->port.uartclk = clk_get_rate(sport->clk);
