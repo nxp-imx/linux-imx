@@ -1350,6 +1350,11 @@ static struct platform_device evk_max8903_charger_1 = {
 	},
 };
 
+/*! Device Definition for csi v4l2 device */
+static struct platform_device csi_v4l2_devices = {
+	.name = "csi_v4l2",
+	.id = 0,
+};
 
 #define SNVS_LPCR 0x38
 static void mx6_snvs_poweroff(void)
@@ -1419,6 +1424,7 @@ static void __init mx6_evk_init(void)
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	/* only camera on I2C3, that's why we can do so */
 	if (csi_enabled == 1) {
+		mxc_register_device(&csi_v4l2_devices, NULL);
 		imx6q_add_imx_i2c(2, &mx6_evk_i2c2_data);
 		i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));

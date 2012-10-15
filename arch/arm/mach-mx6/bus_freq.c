@@ -110,7 +110,7 @@ static struct clk *pll1;
 static struct clk *pll1_sw_clk;
 static struct clk *pll3_sw_clk;
 static struct clk *pll2_200;
-static struct clk *mmdc_ch0_axi;
+struct clk *mmdc_ch0_axi;
 static struct clk *pll3_540;
 
 static struct delayed_work low_bus_freq_handler;
@@ -155,8 +155,6 @@ void reduce_bus_freq(void)
 		u32  div;
 		unsigned long flags;
 
-		spin_lock_irqsave(&freq_lock, flags);
-
 		if (high_bus_freq_mode) {
 			/* Set periph_clk to be sourced from OSC_CLK */
 			/* Set AXI to 24MHz. */
@@ -170,8 +168,11 @@ void reduce_bus_freq(void)
 		if (lp_audio_freq) {
 			/* PLL2 is on in this mode, as DDR is at 50MHz. */
 			/* Now change DDR freq while running from IRAM. */
+
+			spin_lock_irqsave(&freq_lock, flags);
 			mx6sl_ddr_freq_change_iram(DDR_AUDIO_CLK,
 							low_bus_freq_mode);
+			spin_unlock_irqrestore(&freq_lock, flags);
 
 			if (low_bus_freq_mode) {
 				/* Swtich ARM to run off PLL2_PFD2_400MHz
@@ -213,14 +214,15 @@ void reduce_bus_freq(void)
 				;
 			clk_set_parent(pll1_sw_clk, pll1);
 
+			spin_lock_irqsave(&freq_lock, flags);
 			/* Now change DDR freq while running from IRAM. */
 			mx6sl_ddr_freq_change_iram(LPAPM_CLK,
 					low_bus_freq_mode);
+			spin_unlock_irqrestore(&freq_lock, flags);
 
 			low_bus_freq_mode = 1;
 			audio_bus_freq_mode = 0;
 		}
-		spin_unlock_irqrestore(&freq_lock, flags);
 	}
 	high_bus_freq_mode = 0;
 
@@ -325,6 +327,7 @@ int set_high_bus_freq(int high_bus_freq)
 		spin_lock_irqsave(&freq_lock, flags);
 		/* Change DDR freq in IRAM. */
 		mx6sl_ddr_freq_change_iram(ddr_normal_rate, low_bus_freq_mode);
+		spin_unlock_irqrestore(&freq_lock, flags);
 
 		/* Set periph_clk to be sourced from pll2_pfd2_400M */
 		/* First need to set the divider before changing the */
@@ -348,7 +351,6 @@ int set_high_bus_freq(int high_bus_freq)
 		high_bus_freq_mode = 1;
 		low_bus_freq_mode = 0;
 		audio_bus_freq_mode = 0;
-		spin_unlock_irqrestore(&freq_lock, flags);
 	} else {
 		clk_enable(pll3);
 		if (high_bus_freq) {

@@ -1,7 +1,7 @@
 /*
  * Freescale On-Chip OTP driver
  *
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -153,6 +153,7 @@ static int __init alloc_otp_attr(struct mxc_otp_platform_data *pdata)
 		goto error_out;
 
 	for (i = 0; i < otp_data->fuse_num; i++) {
+		sysfs_attr_init(&kattr[i].attr);
 		kattr[i].attr.name = pdata->fuse_name[i];
 		kattr[i].attr.mode = 0600;
 		kattr[i].show  = otp_show;

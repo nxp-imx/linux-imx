@@ -30,7 +30,7 @@
 #include "sdhci.h"
 
 #define DRIVER_NAME "sdhci"
-#define CLK_TIMEOUT    (10 * HZ)
+#define CLK_TIMEOUT    (1 * HZ)
 
 #define DBG(f, x...) \
 	pr_debug(DRIVER_NAME " [%s()]: " f, __func__,## x)

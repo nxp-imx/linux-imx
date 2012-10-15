@@ -1695,6 +1695,10 @@ static void setup_received_irq(struct fsl_udc *udc,
 				else if (setup->bRequest ==
 					 USB_DEVICE_A_ALT_HNP_SUPPORT)
 					udc->gadget.a_alt_hnp_support = 1;
+				else
+					break;
+			} else {
+				break;
 			}
 			rc = 0;
 		} else
@@ -3065,6 +3069,8 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 		goto err2a;
 	}
 
+	spin_lock_init(&pdata->lock);
+
 	/* Due to mx35/mx25's phy's bug */
 	reset_phy();
 
@@ -3210,7 +3216,6 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 	udc_controller->charger.enable = false;
 #endif
 
-	spin_lock_init(&pdata->lock);
 	return 0;
 
 err4:
