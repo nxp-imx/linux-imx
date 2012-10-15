@@ -2179,10 +2179,7 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 				}
 			}
 		}
-	} else if ((channel == CSI_MEM0) || (channel == CSI_MEM1) ||
-			(channel == CSI_MEM2) || (channel == CSI_MEM3))
-		_ipu_csi_wait4eof(ipu, channel);
-	else if (wait_for_stop) {
+	} else if (wait_for_stop && !_ipu_is_smfc_chan(out_dma)) {
 		while (idma_is_set(ipu, IDMAC_CHA_BUSY, in_dma) ||
 		       idma_is_set(ipu, IDMAC_CHA_BUSY, out_dma) ||
 			(ipu->sec_chan_en[IPU_CHAN_ID(channel)] &&
@@ -2361,6 +2358,7 @@ int32_t ipu_disable_csi(struct ipu_soc *ipu, uint32_t csi)
 	mutex_lock(&ipu->mutex_lock);
 	ipu->csi_use_count[csi]--;
 	if (ipu->csi_use_count[csi] == 0) {
+		_ipu_csi_wait4eof(ipu, ipu->csi_channel[csi]);
 		reg = ipu_cm_read(ipu, IPU_CONF);
 		if (csi == 0)
 			ipu_cm_write(ipu, reg & ~IPU_CONF_CSI0_EN, IPU_CONF);
