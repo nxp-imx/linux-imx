@@ -72,7 +72,6 @@
 static struct clk *cpu_clk;
 static struct clk *axi_clk;
 static struct clk *periph_clk;
-static struct clk *axi_org_parent;
 static struct clk *pll3_usb_otg_main_clk;
 
 static struct pm_platform_data *pm_data;
