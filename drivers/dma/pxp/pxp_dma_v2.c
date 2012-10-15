@@ -436,22 +436,27 @@ static void pxp_set_olparam(int layer_no, struct pxps *pxp)
 static void pxp_set_s0param(struct pxps *pxp)
 {
 	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
-	struct pxp_layer_param *s0params_data = &pxp_conf->s0_param;
 	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
 	u32 s0param;
 
-	s0param = BF_PXP_OUT_PS_ULC_X(proc_data->srect.left);
-	s0param |= BF_PXP_OUT_PS_ULC_Y(proc_data->srect.top);
+	/* contains the coordinate for the PS in the OUTPUT buffer. */
+	s0param = BF_PXP_OUT_PS_ULC_X(proc_data->drect.left);
+	s0param |= BF_PXP_OUT_PS_ULC_Y(proc_data->drect.top);
 	__raw_writel(s0param, pxp->base + HW_PXP_OUT_PS_ULC);
-	s0param = BF_PXP_OUT_PS_LRC_X(s0params_data->width);
-	s0param |= BF_PXP_OUT_PS_LRC_Y(s0params_data->height);
+	s0param = BF_PXP_OUT_PS_LRC_X(proc_data->drect.left +
+					proc_data->drect.width - 1);
+	s0param |= BF_PXP_OUT_PS_LRC_Y(proc_data->drect.top +
+					proc_data->drect.height - 1);
 	__raw_writel(s0param, pxp->base + HW_PXP_OUT_PS_LRC);
-
 }
 
-/* TODO: crop behavior is re-designed in h/w. */
+/* crop behavior is re-designed in h/w. */
 static void pxp_set_s0crop(struct pxps *pxp)
 {
+	/*
+	 * place-holder, it's implemented in other functions in this driver.
+	 * Refer to "Clipping source images" section in RM for detail.
+	 */
 }
 
 static int pxp_set_scaling(struct pxps *pxp)
@@ -706,19 +711,36 @@ static void pxp_set_s0buf(struct pxps *pxp)
 {
 	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
 	struct pxp_layer_param *s0_params = &pxp_conf->s0_param;
+	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
 	dma_addr_t Y, U, V;
+	dma_addr_t Y1, U1, V1;
+	u32 offset, bpp = 1;
 
 	Y = s0_params->paddr;
-	__raw_writel(Y, pxp->base + HW_PXP_PS_BUF);
+
+	if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB565)
+		bpp = 2;
+	else if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB24)
+		bpp = 4;
+	offset = (proc_data->srect.top * s0_params->width +
+		 proc_data->srect.left) * bpp;
+	/* clipping or cropping */
+	Y1 = Y + offset;
+	__raw_writel(Y1, pxp->base + HW_PXP_PS_BUF);
 	if ((s0_params->pixel_fmt == PXP_PIX_FMT_YUV420P) ||
 	    (s0_params->pixel_fmt == PXP_PIX_FMT_YVU420P) ||
 	    (s0_params->pixel_fmt == PXP_PIX_FMT_GREY)) {
 		/* Set to 1 if YUV format is 4:2:2 rather than 4:2:0 */
 		int s = 2;
+
+		offset = proc_data->srect.top * s0_params->width / 4 +
+			 proc_data->srect.left / 2;
 		U = Y + (s0_params->width * s0_params->height);
+		U1 = U + offset;
 		V = U + ((s0_params->width * s0_params->height) >> s);
-		__raw_writel(U, pxp->base + HW_PXP_PS_UBUF);
-		__raw_writel(V, pxp->base + HW_PXP_PS_VBUF);
+		V1 = V + offset;
+		__raw_writel(U1, pxp->base + HW_PXP_PS_UBUF);
+		__raw_writel(V1, pxp->base + HW_PXP_PS_VBUF);
 	}
 
 	/* TODO: only support RGB565, Y8, Y4, YUV420 */
