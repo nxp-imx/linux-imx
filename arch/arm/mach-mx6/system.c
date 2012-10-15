@@ -86,7 +86,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 
 	int stop_mode = 0;
 	void __iomem *anatop_base = IO_ADDRESS(ANATOP_BASE_ADDR);
-	u32 ccm_clpcr, anatop_val, reg;
+	u32 ccm_clpcr, anatop_val;
 
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR) & ~(MXC_CCM_CLPCR_LPM_MASK);
 

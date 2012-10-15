@@ -722,6 +722,9 @@ void stop_dvfs(void)
 	unsigned long flags;
 	u32 curr_cpu;
 	int cpu;
+#ifndef CONFIG_SMP
+	unsigned long old_loops_per_jiffy;
+#endif
 
 	if (dvfs_core_is_active) {
 
@@ -752,7 +755,7 @@ void stop_dvfs(void)
 				dvfs_cpu_jiffies(per_cpu(cpu_data, cpu).loops_per_jiffy,
 					curr_cpu/1000, clk_get_rate(cpu_clk) / 1000);
 #else
-		u32 old_loops_per_jiffy = loops_per_jiffy;
+		old_loops_per_jiffy = loops_per_jiffy;
 
 		loops_per_jiffy =
 			dvfs_cpu_jiffies(old_loops_per_jiffy,
