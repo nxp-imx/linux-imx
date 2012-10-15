@@ -350,6 +350,30 @@ static int mx6_suspend_enter(suspend_state_t state)
 		suspend_in_iram(state, (unsigned long)iram_paddr,
 			(unsigned long)suspend_iram_base, cpu_type);
 
+		/* Reset the RBC counter. */
+		/* All interrupts should be masked before the
+		  * RBC counter is reset.
+		 */
+		/* Mask all interrupts. These will be unmasked by
+		  * the mx6_suspend_restore routine below.
+		  */
+		__raw_writel(0xffffffff, gpc_base + 0x08);
+		__raw_writel(0xffffffff, gpc_base + 0x0c);
+		__raw_writel(0xffffffff, gpc_base + 0x10);
+		__raw_writel(0xffffffff, gpc_base + 0x14);
+
+		/* Clear the RBC counter and RBC_EN bit. */
+		/* Disable the REG_BYPASS_COUNTER. */
+		__raw_writel(__raw_readl(MXC_CCM_CCR) &
+			~MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
+		/* Make sure we clear REG_BYPASS_COUNT*/
+		__raw_writel(__raw_readl(MXC_CCM_CCR) &
+		(~MXC_CCM_CCR_REG_BYPASS_CNT_MASK), MXC_CCM_CCR);
+		/* Need to wait for a minimum of 2 CLKILS (32KHz) for the
+		  * counter to clear and reset.
+		  */
+		udelay(80);
+
 		if (arm_pg) {
 			/* restore gic registers */
 			restore_gic_dist_state(0, &gds);
