@@ -474,8 +474,13 @@ static int mxc_streamoff(cam_data *cam)
 	if (cam->capture_on == false)
 		return 0;
 
-	if (strcmp(mxc_capture_inputs[cam->current_input].name,
-			"CSI MEM") == 0) {
+	/* For both CSI--MEM and CSI--IC--MEM
+	 * 1. wait for idmac eof
+	 * 2. disable csi first
+	 * 3. disable idmac
+	 * 4. disable smfc (CSI--MEM channel)
+	 */
+	if (mxc_capture_inputs[cam->current_input].name != NULL) {
 		if (cam->enc_disable_csi) {
 			err = cam->enc_disable_csi(cam);
 			if (err != 0)
@@ -483,18 +488,6 @@ static int mxc_streamoff(cam_data *cam)
 		}
 		if (cam->enc_disable) {
 			err = cam->enc_disable(cam);
-			if (err != 0)
-				return err;
-		}
-	} else if (strcmp(mxc_capture_inputs[cam->current_input].name,
-			  "CSI IC MEM") == 0) {
-		if (cam->enc_disable) {
-			err = cam->enc_disable(cam);
-			if (err != 0)
-				return err;
-		}
-		if (cam->enc_disable_csi) {
-			err = cam->enc_disable_csi(cam);
 			if (err != 0)
 				return err;
 		}
@@ -703,14 +696,14 @@ static int stop_preview(cam_data *cam)
 {
 	int err = 0;
 
-	if (cam->vf_stop_sdc) {
-		err = cam->vf_stop_sdc(cam);
+	if (cam->vf_disable_csi) {
+		err = cam->vf_disable_csi(cam);
 		if (err != 0)
 			return err;
 	}
 
-	if (cam->vf_disable_csi) {
-		err = cam->vf_disable_csi(cam);
+	if (cam->vf_stop_sdc) {
+		err = cam->vf_stop_sdc(cam);
 		if (err != 0)
 			return err;
 	}

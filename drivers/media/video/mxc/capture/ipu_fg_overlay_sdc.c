@@ -454,8 +454,6 @@ static int foreground_stop(void *private)
 	if (cam->overlay_active == false)
 		return 0;
 
-	ipu_free_irq(cam->ipu, IPU_IRQ_CSI0_OUT_EOF, cam);
-
 	err = ipu_disable_channel(cam->ipu, CSI_MEM, true);
 
 	ipu_uninit_channel(cam->ipu, CSI_MEM);
@@ -550,6 +548,11 @@ static int foreground_enable_csi(void *private)
 static int foreground_disable_csi(void *private)
 {
 	cam_data *cam = (cam_data *) private;
+
+	/* free csi eof irq firstly.
+	 * when disable csi, wait for idmac eof.
+	 * it requests eof irq again */
+	ipu_free_irq(cam->ipu, IPU_IRQ_CSI0_OUT_EOF, cam);
 
 	return ipu_disable_csi(cam->ipu, cam->csi);
 }
