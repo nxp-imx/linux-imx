@@ -430,11 +430,6 @@ static int prp_enc_disabling_tasks(void *private)
 
 	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
 		ipu_free_irq(cam->ipu, IPU_IRQ_PRP_ENC_ROT_OUT_EOF, cam);
-	} else {
-		ipu_free_irq(cam->ipu, IPU_IRQ_PRP_ENC_OUT_EOF, cam);
-	}
-
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
 		ipu_unlink_channels(cam->ipu, CSI_PRP_ENC_MEM, MEM_ROT_ENC_MEM);
 	}
 
@@ -498,6 +493,12 @@ static int prp_enc_enable_csi(void *private)
 static int prp_enc_disable_csi(void *private)
 {
 	cam_data *cam = (cam_data *) private;
+
+	/* free csi eof irq firstly.
+	 * when disable csi, wait for idmac eof.
+	 * it requests eof irq again */
+	if (cam->rotation < IPU_ROTATE_90_RIGHT)
+		ipu_free_irq(cam->ipu, IPU_IRQ_PRP_ENC_OUT_EOF, cam);
 
 	return ipu_disable_csi(cam->ipu, cam->csi);
 }
