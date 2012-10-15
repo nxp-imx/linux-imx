@@ -233,6 +233,11 @@ wait_for_pll_lock:
 	bic	r6, r6, #0x2000000
 	str	r6, [r3, #0x14]
 
+periph_clk_switch1:
+	ldr	r6, [r3, #0x48]
+	cmp	r6, #0
+	bne     periph_clk_switch1
+
 	/* Set the dividers to default value. */
 	ldr	r6, [r3, #0x14]
 	bic	r6, r6, #0x70000
@@ -241,14 +246,9 @@ wait_for_pll_lock:
 	str	r6, [r3, #0x14]
 
 ahb_podf1:
-	ldr	r0, [r3, #0x48]
-	cmp	r0, #0
-	bne	ahb_podf1
-
-periph_clk_switch1:
 	ldr	r6, [r3, #0x48]
 	cmp	r6, #0
-	bne     periph_clk_switch1
+	bne	ahb_podf1
 
 	/* Move MMDC back to PLL2_PFD2_400 */
 	ldr	r6, [r3, #0x14]
@@ -262,7 +262,7 @@ mmdc_loop2:
 
 	/* Set DDR clock to divide by 1. */
 	ldr	r6, [r3, #0x14]
-	bic	r6, r0, #0x38
+	bic	r6, r6, #0x38
 	str	r6, [r3, #0x14]
 
 mmdc_div1:
@@ -1099,6 +1099,12 @@ set ddr iomux to low power mode
 	ldr	r1, =CCM_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 	ldr	r0, [r1]
+	ldr	r1, =GPC_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r0, [r1]
+	ldr	r1, =CCM_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r0, [r1]
 #ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	ldr	r1, =ANATOP_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
@@ -1172,6 +1178,66 @@ save resume pointer into SRC_GPR1
 	ldr	r1, =SRC_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 	str	r3, [r1, #SRC_GPR1_OFFSET]
+
+	/* Mask all GPC interrupts before
+	  * enabling the RBC counters to
+	  * avoid the counter starting too
+	  * early if an interupt is already
+	  * pending.
+	  */
+	ldr	r3, =GPC_BASE_ADDR
+	add	r3, r3, #PERIPBASE_VIRT
+	ldr	r4, [r3, #0x08]
+	ldr	r5, [r3, #0x0c]
+	ldr	r6, [r3, #0x10]
+	ldr	r7, [r3, #0x14]
+
+	ldr	r8, =0xffffffff
+	str	r8, [r3, #0x08]
+	str	r8, [r3, #0x0c]
+	str	r8, [r3, #0x10]
+	str	r8, [r3, #0x14]
+
+	/* Enable the RBC bypass counter here
+	 * to hold off the interrupts.
+	 * RBC counter = 32 (1ms)
+	 * Minimum RBC delay should be
+	 * 400us for the analog LDOs to
+	 * power down.
+	 */
+	ldr	r1, =CCM_BASE_ADDR
+	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r8, [r1, #0x0]
+	ldr	r0, =0x7E00000
+	bic	r8, r8, r0
+	ldr	r0, =0x4000000
+	orr	r8, r8, r0
+	str	r8, [r1, #0x0]
+
+	/* Enable the counter. */
+	ldr	r8, [r1, #0x0]
+	orr	r8, r8, #0x8000000
+	str	r8, [r1, #0x0]
+
+	/* Unmask all the GPC interrupts. */
+	str	r4, [r3, #0x08]
+	str	r5, [r3, #0x0c]
+	str	r6, [r3, #0x10]
+	str	r7, [r3, #0x14]
+
+	/* Now delay for a short while (3usec)
+	  * ARM is at 1GHz at this point
+	  * so a short loop should be enough.
+	  * This delay is required to ensure that
+	  * the RBC counter can start counting in case an
+	  * interrupt is already pending or in case an interrupt
+	  * arrives just as ARM is about to assert DSM_request.
+	  */
+	ldr	r4, =2000
+rbc_loop:
+	sub	r4, r4, #0x1
+	cmp	r4, #0x0
+	bne	rbc_loop
 
 #ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	ldr	r1, =ANATOP_BASE_ADDR

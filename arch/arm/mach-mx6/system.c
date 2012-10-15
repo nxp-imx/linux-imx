@@ -153,8 +153,15 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	if (stop_mode > 0) {
 		gpc_set_wakeup(gpc_wake_irq);
 		/* Power down and power up sequence */
-		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
-		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
+		/* The PUPSCR counter counts in terms of CLKIL (32KHz) cycles.
+		   * The PUPSCR should include the time it takes for the ARM LDO to
+		   * ramp up.
+		   */
+		__raw_writel(0x202, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
+		/* The PDNSCR is a counter that counts in IPG_CLK cycles. This counter
+		  * can be set to minimum values to power down faster.
+		  */
+		__raw_writel(0x101, gpc_base + GPC_PGC_CPU_PDNSCR_OFFSET);
 		if (stop_mode >= 2) {
 			/* dormant mode, need to power off the arm core */
 			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
@@ -198,25 +205,17 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 						HW_ANADIG_REG_2P5);
 				}
 			}
-			/* DL's TO1.0 can't support DSM mode due to ipg glitch */
-			if ((mx6dl_revision() != IMX_CHIP_REVISION_1_0)
-					&& stop_mode != 3)
-				__raw_writel(__raw_readl(MXC_CCM_CCR) |
-					MXC_CCM_CCR_RBC_EN, MXC_CCM_CCR);
-
 			if (stop_mode != 3) {
 				/* Make sure we clear WB_COUNT
 				  * and re-config it.
 				  */
 				__raw_writel(__raw_readl(MXC_CCM_CCR) &
-					(~MXC_CCM_CCR_WB_COUNT_MASK) &
-					(~MXC_CCM_CCR_REG_BYPASS_CNT_MASK), MXC_CCM_CCR);
-				udelay(80);
-				/* Reconfigurate WB and RBC counter, need to set WB counter
+					(~MXC_CCM_CCR_WB_COUNT_MASK),
+					MXC_CCM_CCR);
+				/* Reconfigure WB, need to set WB counter
 				 * to 0x7 to make sure it work normally */
 				__raw_writel(__raw_readl(MXC_CCM_CCR) |
-					(0x7 << MXC_CCM_CCR_WB_COUNT_OFFSET) |
-					(0x20 << MXC_CCM_CCR_REG_BYPASS_CNT_OFFSET),
+					(0x7 << MXC_CCM_CCR_WB_COUNT_OFFSET),
 					MXC_CCM_CCR);
 
 				/* Set WB_PER enable */
