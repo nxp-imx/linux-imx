@@ -30,11 +30,8 @@
 #include <linux/fsl_devices.h>
 #include <linux/smsc911x.h>
 #include <linux/spi/spi.h>
-#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
 #include <linux/spi/flash.h>
-#else
 #include <linux/mtd/physmap.h>
-#endif
 #include <linux/i2c.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/ata.h>
@@ -399,7 +396,6 @@ static const struct spi_imx_master mx6q_sabreauto_spi_data __initconst = {
 	.num_chipselect = ARRAY_SIZE(mx6q_sabreauto_spi_cs),
 };
 
-#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
 static struct mtd_partition m25p32_partitions[] = {
 	{
 		.name	= "bootloader",
@@ -420,7 +416,6 @@ static struct flash_platform_data m25p32_spi_flash_data = {
 };
 
 static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
-#if defined(CONFIG_MTD_M25P80)
 	{
 		/* The modalias must be the same as spi device driver name */
 		.modalias	= "m25p80",
@@ -429,14 +424,12 @@ static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
 		.chip_select	= 0,
 		.platform_data	= &m25p32_spi_flash_data,
 	},
-#endif
 };
 static void spi_device_init(void)
 {
 	spi_register_board_info(m25p32_spi0_board_info,
 				ARRAY_SIZE(m25p32_spi0_board_info));
 }
-#else
 static struct mtd_partition mxc_nor_partitions[] = {
 	{
 		.name	= "Bootloader",
@@ -486,7 +479,6 @@ static void mx6q_setup_weimcs(void)
 	__raw_writel(0x1C022000, nor_reg + 0x00000008);
 	__raw_writel(0x0804a240, nor_reg + 0x00000010);
 }
-#endif
 
 static int max7310_1_setup(struct i2c_client *client,
 	unsigned gpio_base, unsigned ngpio,
@@ -1528,12 +1520,12 @@ static void __init mx6_board_init(void)
 	}
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabreauto_spi_data);
-#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
-		spi_device_init();
-#else
-		mx6q_setup_weimcs();
-		platform_device_register(&physmap_flash_device);
-#endif
+		if (spinor_en)
+			spi_device_init();
+		else if (weimnor_en) {
+			mx6q_setup_weimcs();
+			platform_device_register(&physmap_flash_device);
+		}
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
@@ -1581,7 +1573,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
 	imx6q_add_dma();
-	if (!uart3_en)
+	if (!uart3_en && !weimnor_en)
 		imx6q_add_gpmi(&mx6q_gpmi_nand_platform_data);
 
 	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
