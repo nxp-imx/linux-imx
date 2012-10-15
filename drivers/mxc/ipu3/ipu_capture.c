@@ -792,8 +792,12 @@ void _ipu_csi_wait4eof(struct ipu_soc *ipu, ipu_channel_t channel)
 		irq = IPU_IRQ_CSI2_OUT_EOF;
 	else if (channel == CSI_MEM3)
 		irq = IPU_IRQ_CSI3_OUT_EOF;
+	else if (channel == CSI_PRP_ENC_MEM)
+		irq = IPU_IRQ_PRP_ENC_OUT_EOF;
+	else if (channel == CSI_PRP_VF_MEM)
+		irq = IPU_IRQ_PRP_VF_OUT_EOF;
 	else{
-		dev_err(ipu->dev, "Not a CSI SMFC channel\n");
+		dev_err(ipu->dev, "Not a CSI channel\n");
 		return;
 	}
 
