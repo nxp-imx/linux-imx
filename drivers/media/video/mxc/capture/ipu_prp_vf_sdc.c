@@ -411,8 +411,6 @@ static int prpvf_stop(void *private)
 	if (cam->vf_rotation >= IPU_ROTATE_VERT_FLIP) {
 		ipu_unlink_channels(cam->ipu, CSI_PRP_VF_MEM, MEM_ROT_VF_MEM);
 		ipu_free_irq(cam->ipu, IPU_IRQ_PRP_VF_ROT_OUT_EOF, cam);
-	} else {
-		ipu_free_irq(cam->ipu, IPU_IRQ_PRP_VF_OUT_EOF, cam);
 	}
 	buffer_num = 0;
 
@@ -494,6 +492,12 @@ static int prp_vf_enable_csi(void *private)
 static int prp_vf_disable_csi(void *private)
 {
 	cam_data *cam = (cam_data *) private;
+
+	/* free csi eof irq firstly.
+	 * when disable csi, wait for idmac eof.
+	 * it requests eof irq again */
+	if (cam->vf_rotation < IPU_ROTATE_VERT_FLIP)
+		ipu_free_irq(cam->ipu, IPU_IRQ_PRP_VF_OUT_EOF, cam);
 
 	return ipu_disable_csi(cam->ipu, cam->csi);
 }
