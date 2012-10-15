@@ -116,6 +116,16 @@ config MXC_CAMERA_OV5640_MIPI
 	---help---
 	  If you plan to use the ov5640 Camera with mipi interface in your MXC system, say Y here.
 
+config MXC_MIPI_CSI2_TVIN_ADV7280
+	tristate "Analog Devices adv7280 TV Decoder Input support using mipi-csi2"
+	depends on (!VIDEO_MXC_EMMA_CAMERA)
+	depends on ARCH_MX6Q
+	select MXC_MIPI_CSI2 if ARCH_MX6Q
+	select MXC_CAMERA_SENSOR_CLK
+	---help---
+	  If you plan to use the adv7280 device with mipi-csi2 interface
+	  in your iMX6 system, say Y here.
+
 config MXC_CAMERA_SENSOR_CLK
 	tristate "camera clock"
 	depends on !VIDEO_MXC_EMMA_CAMERA
