@@ -178,6 +178,8 @@ static void usb_power_up_handler(void)
 
 static void disp_power_down(void)
 {
+#if !defined(CONFIG_FB_MXC_ELCDIF_FB) && \
+    !defined(CONFIG_FB_MXC_ELCDIF_FB_MODULE)
 	if (cpu_is_mx6sl()) {
 		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_DISP_PUPSCR_OFFSET);
 		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_DISP_PDNSCR_OFFSET);
@@ -194,10 +196,13 @@ static void disp_power_down(void)
 			~MXC_CCM_CCGRx_CG1_MASK, MXC_CCM_CCGR3);
 
 	}
+#endif
 }
 
 static void disp_power_up(void)
 {
+#if !defined(CONFIG_FB_MXC_ELCDIF_FB) && \
+    !defined(CONFIG_FB_MXC_ELCDIF_FB_MODULE)
 	if (cpu_is_mx6sl()) {
 		/*
 		 * Need to enable EPDC/LCDIF pix clock, and
@@ -214,6 +219,7 @@ static void disp_power_up(void)
 		__raw_writel(0x20, gpc_base + GPC_CNTR_OFFSET);
 		__raw_writel(0x1, gpc_base + GPC_PGC_DISP_SR_OFFSET);
 	}
+#endif
 }
 
 static void mx6_suspend_store(void)
