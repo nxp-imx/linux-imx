@@ -32,6 +32,7 @@
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 #include <linux/dmaengine.h>
+#include <linux/delay.h>
 
 #include <asm/irq.h>
 #include <mach/sdma.h>
@@ -278,6 +279,7 @@ struct sdma_channel {
 	enum dma_status			status;
 	unsigned int			chn_count;
 	unsigned int			chn_real_count;
+	unsigned int			irq_handling;
 };
 
 #define MAX_DMA_CHANNELS 32
@@ -324,6 +326,7 @@ struct sdma_engine {
 	struct dma_device		dma_device;
 	struct clk			*clk;
 	struct sdma_script_start_addrs	*script_addrs;
+	spinlock_t			irq_reg_lock;
 };
 
 #define SDMA_H_CONFIG_DSPDMA	(1 << 12) /* indicates if the DSPDMA is used */
@@ -537,18 +540,33 @@ static void mxc_sdma_handle_channel(struct sdma_channel *sdmac)
 static irqreturn_t sdma_int_handler(int irq, void *dev_id)
 {
 	struct sdma_engine *sdma = dev_id;
-	u32 stat;
+	struct sdma_channel *sdmac;
+	unsigned long flag;
+	int channel;
+	u32 stat, stat_bak;
 
+	spin_lock_irqsave(&sdma->irq_reg_lock, flag);
 	stat = readl_relaxed(sdma->regs + SDMA_H_INTR);
 	writel_relaxed(stat, sdma->regs + SDMA_H_INTR);
+	spin_unlock_irqrestore(&sdma->irq_reg_lock, flag);
+
+	stat_bak = stat;
+	while (stat_bak) {
+		channel = fls(stat_bak) - 1;
+		sdmac = &sdma->channel[channel];
+		sdmac->irq_handling = 1;
+		stat_bak &= ~(1 << channel);
+	}
 
 	while (stat) {
-		int channel = fls(stat) - 1;
-		struct sdma_channel *sdmac = &sdma->channel[channel];
+		channel = fls(stat) - 1;
+		sdmac = &sdma->channel[channel];
 
-		mxc_sdma_handle_channel(sdmac);
+		if (sdmac->irq_handling)
+			mxc_sdma_handle_channel(sdmac);
 
 		stat &= ~(1 << channel);
+		sdmac->irq_handling = 0;
 	}
 
 	return IRQ_HANDLED;
@@ -878,6 +896,8 @@ static int sdma_request_channel(struct sdma_channel *sdmac)
 
 	sdmac->buf_tail = 0;
 
+	sdmac->irq_handling = 0;
+
 	return 0;
 out:
 
@@ -973,10 +993,40 @@ static int sdma_alloc_chan_resources(struct dma_chan *chan)
 	return 0;
 }
 
+static void sdma_irq_pending_check(struct sdma_channel *sdmac)
+{
+	struct sdma_engine *sdma = sdmac->sdma;
+	unsigned long flag;
+	u32 stat;
+
+	spin_lock_irqsave(&sdma->irq_reg_lock, flag);
+	stat = readl_relaxed(sdma->regs + SDMA_H_INTR);
+
+	/*Check if the current channel's IRQ hasn't been responded*/
+	if (stat & (1 << sdmac->channel)) {
+		/*Handle the irq manually*/
+		writel_relaxed(1 << sdmac->channel, sdma->regs + SDMA_H_INTR);
+		spin_unlock_irqrestore(&sdma->irq_reg_lock, flag);
+
+		/*Prevent irq_handler from doing handle_channel() again*/
+		sdmac->irq_handling = 0;
+		mxc_sdma_handle_channel(sdmac);
+	} else {
+		spin_unlock_irqrestore(&sdma->irq_reg_lock, flag);
+	}
+
+	/*Wait here until irq_handler's finished*/
+	while (sdmac->irq_handling)
+		udelay(100);
+}
+
 static void sdma_free_chan_resources(struct dma_chan *chan)
 {
 	struct sdma_channel *sdmac = to_sdma_chan(chan);
 	struct sdma_engine *sdma = sdmac->sdma;
+
+	/*Check if irq to the channel is still pending*/
+	sdma_irq_pending_check(sdmac);
 
 	sdma_disable_channel(sdmac);
 
@@ -1448,6 +1498,8 @@ static int __init sdma_probe(struct platform_device *pdev)
 
 	dma_cap_set(DMA_SLAVE, sdma->dma_device.cap_mask);
 	dma_cap_set(DMA_CYCLIC, sdma->dma_device.cap_mask);
+
+	spin_lock_init(&sdma->irq_reg_lock);
 
 	INIT_LIST_HEAD(&sdma->dma_device.channels);
 	/* Initialize channel parameters */
