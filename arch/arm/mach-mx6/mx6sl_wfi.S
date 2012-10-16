@@ -29,12 +29,6 @@
 	ldr	r7, [r1, #0x318] /* DRAM_DQM3 */
 	stmfd	r9!, {r4-r7}
 
-	ldr	r4, [r1, #0x344] /* DRAM_SDQS0 */
-	ldr	r5, [r1, #0x348] /* DRAM_SDQS1 */
-	ldr	r6, [r1, #0x34c] /* DRAM_SDQS2 */
-	ldr	r7, [r1, #0x350] /* DRAM_SDQS3 */
-	stmfd	r9!, {r4-r7}
-
 	ldr	r4, [r1, #0x5c4] /* GPR_B0DS */
 	ldr	r5, [r1, #0x5cc] /* GPR_B1DS */
 	ldr	r6, [r1, #0x5d4] /* GPR_B2DS */
@@ -56,24 +50,21 @@
 	ldr	r4, [r1, #0x330] /* DRAM_SDCKE0 */
 	ldr	r5, [r1, #0x334] /* DRAM_SDCKE1 */
 	ldr	r6, [r1, #0x320] /* DRAM_RESET */
-	ldr	r7, [r1, #0x5c8] /* GPR_CTLDS */
-	stmfd	r9!, {r4-r7}
+	stmfd	r9!, {r4-r6}
 
 	.endm
 
 	.macro	sl_ddr_io_restore
 
+	/* r9 points to IRAM stack.
+	  * r1 points to IOMUX base address.
+	  * r8 points to MMDC  base address.
+	  */
 	ldmea	r9!, {r4-r7}
 	str	r4, [r1, #0x30c] /* DRAM_DQM0 */
 	str	r5, [r1, #0x310] /* DRAM_DQM1 */
 	str	r6, [r1, #0x314] /* DRAM_DQM2 */
 	str	r7, [r1, #0x318] /* DRAM_DQM3 */
-
-	ldmea	r9!, {r4-r7}
-	str	r4, [r1, #0x344] /* DRAM_SDQS0 */
-	str	r5, [r1, #0x348] /* DRAM_SDQS1 */
-	str	r6, [r1, #0x34c] /* DRAM_SDQS2 */
-	str	r7, [r1, #0x350] /* DRAM_SDQS3 */
 
 	ldmea	r9!, {r4-r7}
 	str	r4, [r1, #0x5c4] /* GPR_B0DS */
@@ -93,11 +84,10 @@
 	str	r6, [r1, #0x33c] /* DRAM_SODT0*/
 	str	r7, [r1, #0x340] /* DRAM_SODT1*/
 
-	ldmea	r9!, {r4-r7}
+	ldmea	r9!, {r4-r6}
 	str	r4, [r1, #0x330] /* DRAM_SDCKE0 */
 	str	r5, [r1, #0x334] /* DRAM_SDCKE1 */
 	str	r6, [r1, #0x320] /* DRAM_RESET */
-	str	r7, [r1, #0x5c8] /* GPR_CTLDS */
 
 	/* Need to reset the FIFO to avoid MMDC lockup
 	  * caused because of floating/changing the
@@ -105,21 +95,21 @@
 	  */
 	/* reset read FIFO, RST_RD_FIFO */
 	ldr	r7, =0x83c
-	ldr	r6, [r1, r7]
+	ldr	r6, [r8, r7]
 	orr	r6, r6, #0x80000000
-	str	r6, [r1, r7]
+	str	r6, [r8, r7]
 fifo_reset1_wait:
-	ldr	r6, [r1, r7]
+	ldr	r6, [r8, r7]
 	and	r6, r6, #0x80000000
 	cmp	r6, #0
 	bne	fifo_reset1_wait
 
 	/* reset FIFO a second time */
-	ldr	r6, [r1, r7]
+	ldr	r6, [r8, r7]
 	orr	r6, r6, #0x80000000
-	str	r6, [r1, r7]
+	str	r6, [r8, r7]
 fifo_reset2_wait:
-	ldr	r6, [r1, r7]
+	ldr	r6, [r8, r7]
 	and	r6, r6, #0x80000000
 	cmp	r6, #0
 	bne	fifo_reset2_wait
@@ -133,18 +123,6 @@ fifo_reset2_wait:
 	str	r4, [r1, #0x310] /* DRAM_DQM1 */
 	str	r4, [r1, #0x314] /* DRAM_DQM2 */
 	str	r4, [r1, #0x318] /* DRAM_DQM3 */
-
-	/* Make sure the Pull Ups are enabled.
-	 * So only reduce the drive stength, but
-	 * leave the pull-ups in the original state.
-	 * This is required for LPDDR2.
-	 */
-	ldr	r4, [r1, #0x344]
-	orr	r4, r4, #0x3000
-	str	r4, [r1, #0x344] /* DRAM_SDQS0 */
-	str	r4, [r1, #0x348] /* DRAM_SDQS1 */
-	str	r4, [r1, #0x34c] /* DRAM_SDQS2 */
-	str	r4, [r1, #0x350] /* DRAM_SDQS3 */
 
 	str	r4, [r1, #0x5c4] /* GPR_B0DS */
 	str	r4, [r1, #0x5cc] /* GPR_B1DS */
