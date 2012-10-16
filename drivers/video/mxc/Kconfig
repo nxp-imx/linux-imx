@@ -61,7 +61,7 @@ config FB_MXC_SII902X
 	tristate "Si Image SII9022 DVI/HDMI Interface Chip"
 
 config FB_MXC_SII902X_ELCDIF
-	depends on FB_MXC_SYNC_PANEL && I2C
+	depends on FB_MXC_ELCDIF_FB && FB_MXC_SYNC_PANEL && I2C
 	tristate "Si Image SII9022 DVI/HDMI Interface Chip for ELCDIF FB"
 
 config FB_MXC_CH7026
