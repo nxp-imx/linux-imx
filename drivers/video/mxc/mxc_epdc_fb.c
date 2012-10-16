@@ -1166,6 +1166,8 @@ static void epdc_init_sequence(struct mxc_epdc_fb_data *fb_data)
 	fb_data->in_init = true;
 	epdc_powerup(fb_data);
 	draw_mode0(fb_data);
+	/* Force power down event */
+	fb_data->powering_down = true;
 	epdc_powerdown(fb_data);
 	fb_data->updates_active = false;
 }
