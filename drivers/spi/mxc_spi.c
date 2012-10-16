@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -102,12 +102,15 @@ struct mxc_spi_unique_def {
 	unsigned int ctrl_reg_addr;
 	/* DMA reg address */
 	unsigned int dma_reg_addr;
-	/* Write DMA enable bit */
+	/* TX/RX DMA enable bit */
 	unsigned int tx_den;
-	/* Write DMA water mark level mask */
+	unsigned int rx_den;
+	/* TX/RX DMA water mark level mask */
 	unsigned int tx_wml_mask;
-	/* Write DMA water mark level */
+	unsigned int rx_wml_mask;
+	/* TX/RX DMA water mark level */
 	unsigned int tx_wml_shift;
+	unsigned int rx_wml_shift;
 	/* Status reg address */
 	unsigned int stat_reg_addr;
 	/* Period reg address */
@@ -229,10 +232,15 @@ struct mxc_spi {
 	/* DMA mode for 32-bit per word transfer */
 	struct device *dev;
 	unsigned int usedma;
+	mxc_dma_device_t dma_rx_id;
 	mxc_dma_device_t dma_tx_id;
+	int dma_rx_ch;
 	int dma_tx_ch;
+	struct completion dma_rx_completion;
 	struct completion dma_tx_completion;
-	u8 *tmp_buf;
+	u8 *dma_rx_tmpbuf;
+	unsigned dma_rx_tmpbuf_size;
+	u32 dma_rx_tmpbuf_addr;
 };
 
 #ifdef CONFIG_SPI_MXC_TEST_LOOPBACK
@@ -290,8 +298,11 @@ static struct mxc_spi_unique_def spi_ver_2_3 = {
 	.ctrl_reg_addr = 4,
 	.dma_reg_addr = 0x14,
 	.tx_den = 0x80,
+	.rx_den = 0x800000,
 	.tx_wml_mask = 0x3F,
+	.rx_wml_mask = 0x3F0000,
 	.tx_wml_shift = 0,
+	.rx_wml_shift = 16,
 	.stat_reg_addr = 0x18,
 	.period_reg_addr = 0x1C,
 	.test_reg_addr = 0x20,
@@ -329,6 +340,9 @@ static struct mxc_spi_unique_def spi_ver_0_7 = {
 	.bc_overflow = 0,
 	.fifo_size = 8,
 	.ctrl_reg_addr = 0,
+	.dma_reg_addr = 0x10,
+	.tx_den = 0x02,
+	.rx_den = 0x10,
 	.stat_reg_addr = 0x14,
 	.period_reg_addr = 0x18,
 	.test_reg_addr = 0x1C,
@@ -808,6 +822,28 @@ static irqreturn_t mxc_spi_isr(int irq, void *dev_id)
  * @param   error any DMA error
  * @param   cnt   amount of data that was transferred
  */
+static void mxc_spi_dma_rx_callback(void *devid, int error, unsigned int cnt)
+{
+	struct mxc_spi *master_drv_data = devid;
+
+	mxc_dma_disable(master_drv_data->dma_rx_ch);
+
+	if (error) {
+		dev_err(master_drv_data->dev, "Error in DMA transfer\n");
+		return;
+	}
+
+	complete(&master_drv_data->dma_rx_completion);
+}
+
+/*!
+ * This function is called by DMA Interrupt Service Routine to indicate
+ * requested DMA transfer is completed.
+ *
+ * @param   devid  pointer to device specific structure
+ * @param   error any DMA error
+ * @param   cnt   amount of data that was transferred
+ */
 static void mxc_spi_dma_tx_callback(void *devid, int error, unsigned int cnt)
 {
 	struct mxc_spi *master_drv_data = devid;
@@ -905,10 +941,10 @@ static int mxc_spi_pio_transfer(struct spi_device *spi, struct spi_transfer *t)
 static int mxc_spi_dma_transfer(struct spi_device *spi, struct spi_transfer *t)
 {
 	struct mxc_spi *master_drv_data = NULL;
-	int chipselect_status;
-	u32 rx_tmp, i, count = 0, timeout;
+	int chipselect_status, ret = 0;
+	u32 count = 0;
 
-	mxc_dma_requestbuf_t dmareq_tx;
+	mxc_dma_requestbuf_t dmareq_tx, dmareq_rx;;
 
 	/* Get the master controller driver data from spi device's master */
 	master_drv_data = spi_master_get_devdata(spi->master);
@@ -931,6 +967,7 @@ static int mxc_spi_dma_transfer(struct spi_device *spi, struct spi_transfer *t)
 	master_drv_data->transfer.rx_buf = t->rx_buf;
 	master_drv_data->transfer.count = t->len;
 
+	init_completion(&master_drv_data->dma_rx_completion);
 	init_completion(&master_drv_data->dma_tx_completion);
 
 	if (spi->bits_per_word % 32)
@@ -945,54 +982,90 @@ static int mxc_spi_dma_transfer(struct spi_device *spi, struct spi_transfer *t)
 				"%d bytes TX buffer\n", count);
 			return -ENOMEM;
 		}
-	} else {
-		/* We need TX clocking for RX transaction */
-		t->tx_dma = dma_map_single(master_drv_data->dev,
-				(void *)master_drv_data->tmp_buf, count,
-				DMA_TO_DEVICE);
-		if (dma_mapping_error(master_drv_data->dev, t->tx_dma)) {
-			dev_dbg(master_drv_data->dev, "Unable to DMA map a"
-				"%d bytes TX tmp buffer\n", count);
-			return -ENOMEM;
-		}
 	}
-
-	if (t->tx_buf || t->rx_buf) {
-		dmareq_tx.src_addr = t->tx_dma;
-		dmareq_tx.dst_addr = (u32)(master_drv_data->base
-				+ MXC_CSPITXDATA);
-		dmareq_tx.num_of_bytes = count;
-		mxc_dma_config(master_drv_data->dma_tx_ch,
-				&dmareq_tx, 1, MXC_DMA_MODE_WRITE);
-		mxc_dma_enable(master_drv_data->dma_tx_ch);
-		/* Configure the DMA REG */
-		__raw_writel(__raw_readl(master_drv_data->dma_addr)
-				| master_drv_data->spi_ver_def->tx_den,
-				master_drv_data->dma_addr);
-	}
-
-	if (t->tx_buf)
-		wait_for_completion_timeout(&master_drv_data->dma_tx_completion,
-				msecs_to_jiffies(3000));
 
 	if (t->rx_buf) {
-		for (i = 0; i < t->len; i++) {
-			timeout = 0;
-			do {
-				timeout++;
-				if (timeout > MAX_CYCLE) {
-					dev_err(master_drv_data->dev,
-							"Read Timeout!\n");
-					break;
-				}
-			} while (__raw_readl(master_drv_data->stat_addr) &&
-					(1 << MXC_CSPISTAT_RR) == 0);
-			rx_tmp = __raw_readl(master_drv_data->base
-					+ MXC_CSPIRXDATA);
-			mxc_spi_buf_rx_u32(master_drv_data, rx_tmp);
+		t->rx_dma = dma_map_single(master_drv_data->dev,
+				(void *)t->rx_buf, count, DMA_FROM_DEVICE);
+		if (dma_mapping_error(master_drv_data->dev, t->rx_dma)) {
+			dev_dbg(master_drv_data->dev, "Unable to DMA map a"
+				"%d bytes RX buffer\n", count);
+			return -ENOMEM;
+		}
+	} else {
+		/* We need prepare RX buffer for TX transaction*/
+		if (t->len > master_drv_data->dma_rx_tmpbuf_size) {
+			dma_unmap_single(master_drv_data->dev,
+					master_drv_data->dma_rx_tmpbuf_addr,
+					SPI_BUFSIZ, DMA_FROM_DEVICE);
+			kfree(master_drv_data->dma_rx_tmpbuf);
+			master_drv_data->dma_rx_tmpbuf_size = 0;
+
+			master_drv_data->dma_rx_tmpbuf =
+				kzalloc(t->len, GFP_KERNEL);
+			if (!master_drv_data->dma_rx_tmpbuf)
+				return -ENOMEM;
+			master_drv_data->dma_rx_tmpbuf_size = t->len;
+			master_drv_data->dma_rx_tmpbuf_addr =
+				dma_map_single(master_drv_data->dev,
+						master_drv_data->dma_rx_tmpbuf,
+						t->len, DMA_FROM_DEVICE);
+			if (dma_mapping_error(master_drv_data->dev,
+					master_drv_data->dma_rx_tmpbuf_addr)) {
+				kfree(master_drv_data->dma_rx_tmpbuf);
+				master_drv_data->dma_rx_tmpbuf_size = 0;
+				return -EFAULT;
+			}
+		}
+
+		t->rx_dma = master_drv_data->dma_rx_tmpbuf_addr;
+		dma_sync_single_for_device(master_drv_data->dev, t->rx_dma,
+			t->len, DMA_FROM_DEVICE);
+	}
+
+	if (!t->tx_buf) {
+		t->tx_dma = master_drv_data->dma_rx_tmpbuf_addr;
+		dma_sync_single_for_device(master_drv_data->dev, t->tx_dma,
+			t->len, DMA_TO_DEVICE);
+	}
+
+	dmareq_rx.src_addr = (u32)(master_drv_data->base + MXC_CSPIRXDATA);
+	dmareq_rx.dst_addr = t->rx_dma;
+	dmareq_rx.num_of_bytes = count;
+	mxc_dma_config(master_drv_data->dma_rx_ch, &dmareq_rx, 1,
+			MXC_DMA_MODE_READ);
+
+	dmareq_tx.src_addr = t->tx_dma;
+	dmareq_tx.dst_addr = (u32)(master_drv_data->base + MXC_CSPITXDATA);
+	dmareq_tx.num_of_bytes = count;
+	mxc_dma_config(master_drv_data->dma_tx_ch, &dmareq_tx, 1,
+			MXC_DMA_MODE_WRITE);
+
+	/* Configure the DMA REG */
+	__raw_writel(__raw_readl(master_drv_data->dma_addr)
+			| master_drv_data->spi_ver_def->rx_den
+			| master_drv_data->spi_ver_def->tx_den,
+			master_drv_data->dma_addr);
+
+	mxc_dma_enable(master_drv_data->dma_tx_ch);
+	mxc_dma_enable(master_drv_data->dma_rx_ch);
+
+	ret = wait_for_completion_timeout(&master_drv_data->dma_tx_completion,
+			msecs_to_jiffies(3000));
+	if (!ret) {
+		dev_err(master_drv_data->dev, "I/O Error in DMA TX.\n");
+		mxc_dma_disable(master_drv_data->dma_tx_ch);
+	} else {
+		ret = wait_for_completion_timeout(
+				&master_drv_data->dma_rx_completion,
+				msecs_to_jiffies(3000));
+		if (!ret) {
+			dev_err(master_drv_data->dev, "I/O Error in DMA RX.\n");
+			mxc_dma_disable(master_drv_data->dma_rx_ch);
 		}
 	}
 
+	dma_unmap_single(NULL, t->rx_dma, count, DMA_FROM_DEVICE);
 	dma_unmap_single(NULL, t->tx_dma, count, DMA_TO_DEVICE);
 
 	clk_disable(master_drv_data->clk);
@@ -1001,7 +1074,10 @@ static int mxc_spi_dma_transfer(struct spi_device *spi, struct spi_transfer *t)
 						     chipselect_status,
 						     (spi->chip_select &
 						      MXC_CSPICTRL_CSMASK) + 1);
-	return t->len;
+	if (!ret)
+		return -EIO;
+	else
+		return t->len;
 }
 
 /*!
@@ -1126,7 +1202,7 @@ static int mxc_spi_probe(struct platform_device *pdev)
 	struct spi_master *master;
 	struct mxc_spi *master_drv_data = NULL;
 	struct resource *res;
-	unsigned int spi_ver, wml;
+	unsigned int spi_ver, rx_wml, tx_wml;
 	int ret = -ENODEV;
 
 	/* Get the platform specific data for this master device */
@@ -1248,30 +1324,62 @@ static int mxc_spi_probe(struct platform_device *pdev)
 	master_drv_data->usedma = 0;
 	res = platform_get_resource(pdev, IORESOURCE_DMA, 0);
 	if (res) {
-		master_drv_data->dma_tx_id = res->start;
-			master_drv_data->dma_tx_id = res->start;
+		master_drv_data->dma_rx_id = res->start;
 		if (pdev->dev.dma_mask == NULL)
 			dev_warn(&pdev->dev, "no dma mask\n");
-		else
-			master_drv_data->usedma = 1;
+		master_drv_data->usedma = 1;
+	} else {
+		master_drv_data->usedma = 0;
+	}
+	res = platform_get_resource(pdev, IORESOURCE_DMA, 1);
+	if (res) {
+		master_drv_data->dma_tx_id = res->start;
+		if (pdev->dev.dma_mask == NULL)
+			dev_warn(&pdev->dev, "no dma mask\n");
+		master_drv_data->usedma = 1;
+	} else {
+		master_drv_data->usedma = 0;
 	}
 	if (master_drv_data->usedma) {
+		master_drv_data->dma_rx_ch =
+			mxc_dma_request(master_drv_data->dma_rx_id, "mxc_spi");
+		if (master_drv_data->dma_rx_ch < 0) {
+			dev_err(&pdev->dev, "Can't allocate RX DMA ch\n");
+			master_drv_data->usedma = 0;
+			ret = -ENXIO;
+			goto err_no_dma;
+		}
+		mxc_dma_callback_set(master_drv_data->dma_rx_ch,
+				mxc_spi_dma_rx_callback,
+				(void *)master_drv_data);
+
 		master_drv_data->dma_tx_ch =
 			mxc_dma_request(master_drv_data->dma_tx_id, "mxc_spi");
 		if (master_drv_data->dma_tx_ch < 0) {
-			dev_info(&pdev->dev, "Can't allocate RX DMA ch\n");
+			dev_err(&pdev->dev, "Can't allocate TX DMA ch\n");
 			master_drv_data->usedma = 0;
 			ret = -ENXIO;
-			goto err_no_txdma;
+			goto err_no_dma;
 		}
 		mxc_dma_callback_set(master_drv_data->dma_tx_ch,
 				mxc_spi_dma_tx_callback,
 				(void *)master_drv_data);
 
-		/* Allocate tmp_buf for tx_buf */
-		master_drv_data->tmp_buf = kzalloc(SPI_BUFSIZ, GFP_KERNEL);
-		if (master_drv_data->tmp_buf == NULL) {
+		/* Allocate rx tmp buf for dma */
+		master_drv_data->dma_rx_tmpbuf = kzalloc(SPI_BUFSIZ,
+				GFP_KERNEL);
+		if (master_drv_data->dma_rx_tmpbuf == NULL) {
 			ret = -ENOMEM;
+			goto err_tmp_buf_alloc;
+		}
+		master_drv_data->dma_rx_tmpbuf_size = SPI_BUFSIZ;
+		master_drv_data->dma_rx_tmpbuf_addr =
+			dma_map_single(master_drv_data->dev,
+				master_drv_data->dma_rx_tmpbuf, SPI_BUFSIZ,
+				DMA_FROM_DEVICE);
+		if (dma_mapping_error(master_drv_data->dev,
+				master_drv_data->dma_rx_tmpbuf_addr)) {
+			kfree(master_drv_data->dma_rx_tmpbuf);
 			goto err_tmp_buf_alloc;
 		}
 	}
@@ -1312,11 +1420,13 @@ static int mxc_spi_probe(struct platform_device *pdev)
 
 	if (master_drv_data->usedma) {
 		/* Set water mark level to be the half of fifo_size in DMA */
-		wml = master_drv_data->spi_ver_def->fifo_size / 2;
-		wml = wml << master_drv_data->spi_ver_def->tx_wml_shift;
+		rx_wml = tx_wml = master_drv_data->spi_ver_def->fifo_size / 2;
+		rx_wml = rx_wml << master_drv_data->spi_ver_def->rx_wml_shift;
+		tx_wml = tx_wml << master_drv_data->spi_ver_def->tx_wml_shift;
 		__raw_writel((__raw_readl(master_drv_data->dma_addr)
+				& ~master_drv_data->spi_ver_def->rx_wml_mask
 				& ~master_drv_data->spi_ver_def->tx_wml_mask)
-				| wml,
+				| rx_wml | tx_wml,
 				master_drv_data->dma_addr);
 	}
 	/* Start the SPI Master Controller driver */
@@ -1352,11 +1462,13 @@ static int mxc_spi_probe(struct platform_device *pdev)
 	clk_disable(master_drv_data->clk);
 	clk_put(master_drv_data->clk);
 	if (master_drv_data->usedma)
-		kfree(master_drv_data->tmp_buf);
+		kfree(master_drv_data->dma_rx_tmpbuf);
 err_tmp_buf_alloc:
-	if (master_drv_data->usedma)
+	if (master_drv_data->usedma) {
+		mxc_dma_free(master_drv_data->dma_rx_ch);
 		mxc_dma_free(master_drv_data->dma_tx_ch);
-err_no_txdma:
+	}
+err_no_dma:
 	free_irq(master_drv_data->irq, master_drv_data);
       err1:
 	iounmap(master_drv_data->base);
@@ -1394,8 +1506,9 @@ static int mxc_spi_remove(struct platform_device *pdev)
 			     master_drv_data->base + MXC_CSPICTRL);
 		clk_disable(master_drv_data->clk);
 		if (master_drv_data->usedma) {
+			mxc_dma_free(master_drv_data->dma_rx_ch);
 			mxc_dma_free(master_drv_data->dma_tx_ch);
-			kfree(master_drv_data->tmp_buf);
+			kfree(master_drv_data->dma_rx_tmpbuf);
 		}
 		/* Unregister for SPI Interrupt */
 
