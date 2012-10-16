@@ -1265,6 +1265,20 @@ static mxc_sdma_channel_params_t mxc_sdma_esai_24bit_tx_params = {
 	.chnl_priority = MXC_SDMA_DEFAULT_PRIORITY,
 };
 
+static mxc_sdma_channel_params_t mxc_sdma_cspi1_rx_params = {
+	.chnl_params = {
+			.watermark_level = 32,
+			.per_address = CSPI1_BASE_ADDR,
+			.peripheral_type = CSPI,
+			.transfer_type = per_2_emi,
+			.event_id = DMA_REQ_CSPI1_RX,
+			.bd_number = 16,
+			.word_size = TRANSFER_32BIT,
+			},
+	.channel_num = MXC_DMA_CHANNEL_CSPI1_RX,
+	.chnl_priority = MXC_SDMA_DEFAULT_PRIORITY,
+};
+
 static mxc_sdma_channel_params_t mxc_sdma_cspi1_tx_params = {
 	.chnl_params = {
 			.watermark_level = 32,
@@ -1276,6 +1290,20 @@ static mxc_sdma_channel_params_t mxc_sdma_cspi1_tx_params = {
 			.word_size = TRANSFER_32BIT,
 			},
 	.channel_num = MXC_DMA_CHANNEL_CSPI1_TX,
+	.chnl_priority = MXC_SDMA_DEFAULT_PRIORITY,
+};
+
+static mxc_sdma_channel_params_t mxc_sdma_cspi2_rx_params = {
+	.chnl_params = {
+			.watermark_level = 32,
+			.per_address = CSPI2_BASE_ADDR,
+			.peripheral_type = CSPI,
+			.transfer_type = per_2_emi,
+			.event_id = DMA_REQ_CSPI2_RX,
+			.bd_number = 16,
+			.word_size = TRANSFER_32BIT,
+			},
+	.channel_num = MXC_DMA_CHANNEL_CSPI2_RX,
 	.chnl_priority = MXC_SDMA_DEFAULT_PRIORITY,
 };
 
@@ -1371,7 +1399,9 @@ static mxc_sdma_info_entry_t mxc_sdma_active_dma_info[] = {
 	{MXC_DMA_ESAI_16BIT_TX, &mxc_sdma_esai_16bit_tx_params},
 	{MXC_DMA_ESAI_24BIT_RX, &mxc_sdma_esai_24bit_rx_params},
 	{MXC_DMA_ESAI_24BIT_TX, &mxc_sdma_esai_24bit_tx_params},
+	{MXC_DMA_CSPI1_RX, &mxc_sdma_cspi1_rx_params},
 	{MXC_DMA_CSPI1_TX, &mxc_sdma_cspi1_tx_params},
+	{MXC_DMA_CSPI2_RX, &mxc_sdma_cspi2_rx_params},
 	{MXC_DMA_CSPI2_TX, &mxc_sdma_cspi2_tx_params},
 };
 

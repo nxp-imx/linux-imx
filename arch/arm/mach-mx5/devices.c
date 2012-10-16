@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -598,6 +598,11 @@ static struct resource mxcspi1_resources[] = {
 		.flags = IORESOURCE_IRQ,
 	},
 	{
+		.start = MXC_DMA_CSPI1_RX,
+		.end = MXC_DMA_CSPI1_RX,
+		.flags = IORESOURCE_DMA,
+	},
+	{
 		.start = MXC_DMA_CSPI1_TX,
 		.end = MXC_DMA_CSPI1_TX,
 		.flags = IORESOURCE_DMA,
@@ -626,6 +631,11 @@ static struct resource mxcspi2_resources[] = {
 		.start = MXC_INT_CSPI2,
 		.end = MXC_INT_CSPI2,
 		.flags = IORESOURCE_IRQ,
+	},
+	{
+		.start = MXC_DMA_CSPI2_RX,
+		.end = MXC_DMA_CSPI2_RX,
+		.flags = IORESOURCE_DMA,
 	},
 	{
 		.start = MXC_DMA_CSPI2_TX,
