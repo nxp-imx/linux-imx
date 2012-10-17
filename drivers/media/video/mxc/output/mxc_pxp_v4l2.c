@@ -396,7 +396,12 @@ static int pxp_s_output(struct file *file, void *fh,
 		bpp = 2;
 
 	pxp->outb_size = fmt->width * fmt->height * bpp;
-	pxp->outb = kmalloc(fmt->width * fmt->height * bpp, GFP_KERNEL);
+	pxp->outb = kmalloc(fmt->width * fmt->height * bpp,
+				GFP_KERNEL | GFP_DMA);
+	if (pxp->outb == NULL) {
+		dev_err(&pxp->pdev->dev, "No enough memory!\n");
+		return -ENOMEM;
+	}
 	pxp->outb_phys = virt_to_phys(pxp->outb);
 	dma_map_single(NULL, pxp->outb,
 			fmt->width * fmt->height * bpp, DMA_TO_DEVICE);
