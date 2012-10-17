@@ -1494,12 +1494,15 @@ static int ioctl_s_parm(struct v4l2_int_device *s, struct v4l2_streamparm *a)
 		}
 
 		orig_mode = sensor->streamcap.capturemode;
+		ret = ov5640_init_mode(frame_rate,
+				(u32)a->parm.capture.capturemode, orig_mode);
+		if (ret < 0)
+			return ret;
+
 		sensor->streamcap.timeperframe = *timeperframe;
 		sensor->streamcap.capturemode =
 				(u32)a->parm.capture.capturemode;
 
-		ret = ov5640_init_mode(frame_rate,
-				sensor->streamcap.capturemode, orig_mode);
 		break;
 
 	/* These are all the possible cases. */
