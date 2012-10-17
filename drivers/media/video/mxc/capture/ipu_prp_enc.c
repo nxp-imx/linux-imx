@@ -70,7 +70,7 @@ static int prp_enc_setup(cam_data *cam)
 {
 	ipu_channel_params_t enc;
 	int err = 0;
-	dma_addr_t dummy = 0xdeadbeaf;
+	dma_addr_t dummy = cam->dummy_frame.buffer.m.offset;
 #ifdef CONFIG_MXC_MIPI_CSI2
 	void *mipi_csi2_info;
 	int ipu_id;
