@@ -68,11 +68,13 @@
 #define LOCAL_TWD_INT_OFFSET		0xc
 #define ANATOP_REG_2P5_OFFSET		0x130
 #define ANATOP_REG_CORE_OFFSET		0x140
+#define VDD3P0_VOLTAGE                   3200000
 
 static struct clk *cpu_clk;
 static struct clk *axi_clk;
 static struct clk *periph_clk;
 static struct clk *pll3_usb_otg_main_clk;
+static struct regulator *vdd3p0_regulator;
 
 static struct pm_platform_data *pm_data;
 
@@ -410,7 +412,12 @@ static int mx6_suspend_enter(suspend_state_t state)
  */
 static int mx6_suspend_prepare(void)
 {
-
+	int ret;
+	ret = regulator_disable(vdd3p0_regulator);
+	if (ret) {
+		printk(KERN_ERR "%s: failed to disable 3p0 regulator Err: %d\n",
+							__func__, ret);
+	}
 	return 0;
 }
 
@@ -419,6 +426,12 @@ static int mx6_suspend_prepare(void)
  */
 static void mx6_suspend_finish(void)
 {
+	int ret;
+	ret = regulator_enable(vdd3p0_regulator);
+	if (ret) {
+		printk(KERN_ERR "%s: failed to enable 3p0 regulator Err: %d\n",
+						__func__, ret);
+	}
 }
 
 #ifdef CONFIG_MX6_INTER_LDO_BYPASS
@@ -472,6 +485,7 @@ static struct platform_driver mx6_pm_driver = {
 
 static int __init pm_init(void)
 {
+	int ret = 0;
 	scu_base = IO_ADDRESS(SCU_BASE_ADDR);
 	gpc_base = IO_ADDRESS(GPC_BASE_ADDR);
 	src_base = IO_ADDRESS(SRC_BASE_ADDR);
@@ -529,6 +543,24 @@ static int __init pm_init(void)
 		return PTR_ERR(pll3_usb_otg_main_clk);
 	}
 
+	vdd3p0_regulator = regulator_get(NULL, "cpu_vdd3p0");
+	if (IS_ERR(vdd3p0_regulator)) {
+		printk(KERN_ERR "%s: failed to get 3p0 regulator Err: %d\n",
+						__func__, ret);
+		return PTR_ERR(vdd3p0_regulator);
+	}
+	ret = regulator_set_voltage(vdd3p0_regulator, VDD3P0_VOLTAGE,
+							VDD3P0_VOLTAGE);
+	if (ret) {
+		printk(KERN_ERR "%s: failed to set 3p0 regulator voltage Err: %d\n",
+						__func__, ret);
+	}
+	ret = regulator_enable(vdd3p0_regulator);
+	if (ret) {
+		printk(KERN_ERR "%s: failed to enable 3p0 regulator Err: %d\n",
+						__func__, ret);
+	}
+
 	printk(KERN_INFO "PM driver module loaded\n");
 
 	return 0;
@@ -538,6 +570,7 @@ static void __exit pm_cleanup(void)
 {
 	/* Unregister the device structure */
 	platform_driver_unregister(&mx6_pm_driver);
+	regulator_put(vdd3p0_regulator);
 }
 
 module_init(pm_init);

@@ -273,6 +273,24 @@ static int is_enabled(struct anatop_regulator *sreg)
 {
 	return 1;
 }
+static int vdd3p0_enable(struct anatop_regulator *sreg)
+{
+	__raw_writel(BM_ANADIG_REG_3P0_ENABLE_LINREG,
+					sreg->rdata->control_reg+4);
+	return 0;
+}
+
+static int vdd3p0_disable(struct anatop_regulator *sreg)
+{
+	__raw_writel(BM_ANADIG_REG_3P0_ENABLE_LINREG,
+					sreg->rdata->control_reg+8);
+	return 0;
+}
+
+static int vdd3p0_is_enabled(struct anatop_regulator *sreg)
+{
+	return !!(__raw_readl(sreg->rdata->control_reg) & BM_ANADIG_REG_3P0_ENABLE_LINREG);
+}
 
 static struct anatop_regulator_data vddpu_data = {
 	.name		= "vddpu",
@@ -353,15 +371,15 @@ static struct anatop_regulator_data vdd3p0_data = {
 	.name		= "vdd3p0",
 	.set_voltage	= set_voltage,
 	.get_voltage	= get_voltage,
-	.enable		= enable,
-	.disable	= disable,
-	.is_enabled	= is_enabled,
+	.enable		= vdd3p0_enable,
+	.disable		= vdd3p0_disable,
+	.is_enabled	= vdd3p0_is_enabled,
 	.control_reg	= (u32)(MXC_PLL_BASE + HW_ANADIG_REG_3P0),
 	.vol_bit_shift	= 8,
 	.vol_bit_mask	= 0x1F,
-	.min_bit_val	= 7,
-	.min_voltage	= 2800000,
-	.max_voltage	= 3150000,
+	.min_bit_val	= 0,
+	.min_voltage	= 2625000,
+	.max_voltage	= 3400000,
 };
 
 /* CPU */
@@ -383,6 +401,13 @@ static struct regulator_consumer_supply vddpu_consumers[] = {
 static struct regulator_consumer_supply vddsoc_consumers[] = {
 	{
 		.supply = "cpu_vddsoc",
+	},
+};
+
+/* USB phy 3P0 */
+static struct regulator_consumer_supply vdd3p0_consumers[] = {
+	{
+		.supply = "cpu_vdd3p0",
 	},
 };
 
@@ -467,16 +492,17 @@ static struct regulator_init_data vdd1p1_init = {
 static struct regulator_init_data vdd3p0_init = {
 	.constraints = {
 		.name			= "vdd3p0",
-		.min_uV			= 2800000,
-		.max_uV			= 3150000,
+		.min_uV			= 2625000,
+		.max_uV			= 3400000,
 		.valid_modes_mask	= REGULATOR_MODE_FAST |
 					  REGULATOR_MODE_NORMAL,
 		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE |
-					  REGULATOR_CHANGE_MODE,
-		.always_on		= 1,
+					  REGULATOR_CHANGE_MODE |
+					  REGULATOR_CHANGE_STATUS,
+		.always_on		= 0,
 	},
-	.num_consumer_supplies = 0,
-	.consumer_supplies = NULL,
+	.num_consumer_supplies = ARRAY_SIZE(vdd3p0_consumers),
+	.consumer_supplies = &vdd3p0_consumers[0],
 };
 
 static struct anatop_regulator vddpu_reg = {
