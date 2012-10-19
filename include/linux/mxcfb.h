@@ -132,7 +132,7 @@ struct mxcfb_waveform_modes {
 	int mode_gc32;
 };
 
-#define MXCFB_WAIT_FOR_VSYNC	_IOW('F', 0x20, u_int32_t)
+#define MXCFB_WAIT_FOR_VSYNC	_IOR('F', 0x20, unsigned long long)
 #define MXCFB_SET_GBL_ALPHA     _IOW('F', 0x21, struct mxcfb_gbl_alpha)
 #define MXCFB_SET_CLR_KEY       _IOW('F', 0x22, struct mxcfb_color_key)
 #define MXCFB_SET_OVERLAY_POS   _IOWR('F', 0x24, struct mxcfb_pos)
