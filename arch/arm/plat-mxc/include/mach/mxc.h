@@ -71,6 +71,7 @@
 #define IMX_BOARD_REV_2		0x100
 #define IMX_BOARD_REV_3		0x200
 #define IMX_BOARD_REV_4		0x300
+#define IMX_BOARD_REV_5		0x400
 
 #ifndef __ASSEMBLY__
 extern unsigned int system_rev;
@@ -242,6 +243,8 @@ extern unsigned int __mxc_cpu_type;
 # define cpu_is_mx6q()		(0)
 # define cpu_is_mx6dl()		(0)
 # define cpu_is_mx6sl()		(0)
+# define mx6q_revision(void)	(0)
+# define mx6dl_revision(void)	(0)
 #endif
 
 #ifndef __ASSEMBLY__

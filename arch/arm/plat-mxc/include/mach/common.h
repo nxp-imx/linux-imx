@@ -89,7 +89,7 @@ extern void mx51_efikamx_reset(void);
 extern int mx53_revision(void);
 extern int mx50_revision(void);
 extern int mx53_display_revision(void);
-extern int mxs_reset_block(void __iomem *);
+extern int mxs_reset_block(void __iomem *, int);
 extern void early_console_setup(unsigned long base, struct clk *clk);
 extern void mx6_cpu_regulator_init(void);
 extern int mx6q_sabreauto_init_pfuze100(u32 int_gpio);

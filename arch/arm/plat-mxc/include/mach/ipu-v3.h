@@ -744,6 +744,8 @@ struct ipuv3_fb_platform_data {
 	 * channel in bootloader.
 	 */
 	bool                            late_init;
+	int				panel_width_mm; /* Display panel width in millimeters */
+	int				panel_height_mm; /* Display panel height in millimeters */
 };
 
 struct imx_ipuv3_platform_data {

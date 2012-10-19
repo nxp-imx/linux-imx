@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -732,6 +732,79 @@ int low_freq_bus_used(void)
 		return 1;
 	else
 		return 0;
+}
+
+void bus_freq_update(struct clk *clk, bool flag)
+{
+
+	if (flag) {
+		if (clk == cpu_clk) {
+			/* The CPU freq is being increased.
+			  * check if we need to increase the bus freq
+			  */
+			if (low_bus_freq_mode)
+				set_high_bus_freq(0);
+		} else {
+			/* Update count */
+			if (clk->flags & AHB_HIGH_SET_POINT)
+				lp_high_freq++;
+			else if (clk->flags & AHB_MED_SET_POINT)
+				lp_med_freq++;
+
+			/* Update bus freq */
+			if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+				&& (clk_get_usecount(clk) == 0)) {
+				if (!(clk->flags &
+					(AHB_HIGH_SET_POINT | AHB_MED_SET_POINT))) {
+					if (low_freq_bus_used() &&
+						!low_bus_freq_mode) {
+							set_low_bus_freq();
+					}
+				} else {
+					if ((clk->flags & AHB_MED_SET_POINT)
+						&& !med_bus_freq_mode) {
+						/* Set to Medium setpoint */
+						set_high_bus_freq(0);
+					} else if ((clk->flags & AHB_HIGH_SET_POINT)
+						&& !high_bus_freq_mode) {
+						/* Currently at low or medium
+						  * set point, need to set to
+						  * high setpoint
+						  */
+						set_high_bus_freq(1);
+					}
+				}
+			}
+		}
+	} else {
+		if (clk == cpu_clk) {
+			/* CPU freq is dropped, check if we can
+			  * lower the bus freq.
+			  */
+
+			if (low_freq_bus_used() && !(low_bus_freq_mode))
+				set_low_bus_freq();
+		} else {
+			/* Update count */
+			if (clk->flags & AHB_HIGH_SET_POINT)
+				lp_high_freq--;
+			else if (clk->flags & AHB_MED_SET_POINT)
+				lp_med_freq--;
+
+			/* Update bus freq */
+			if ((clk->flags & CPU_FREQ_TRIG_UPDATE)
+					&& (clk_get_usecount(clk) == 0)) {
+				if (low_freq_bus_used() && !low_bus_freq_mode)
+					set_low_bus_freq();
+				else {
+					/* Set to either high or
+					 * medium setpoint.
+					 */
+					set_high_bus_freq(0);
+				}
+			}
+		}
+	}
 }
 
 void setup_pll(void)

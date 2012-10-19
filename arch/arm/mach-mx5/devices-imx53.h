@@ -48,6 +48,10 @@ extern const struct imx_ipuv3_data imx53_ipuv3_data __initconst;
 extern const struct imx_vpu_data imx53_vpu_data __initconst;
 #define imx53_add_vpu()	imx_add_vpu(&imx53_vpu_data)
 
+extern const struct imx_imx_asrc_data imx53_imx_asrc_data[] __initconst;
+#define imx53_add_asrc(pdata)	\
+	imx_add_imx_asrc(imx53_imx_asrc_data, pdata)
+
 extern const struct imx_tve_data imx53_tve_data __initconst;
 #define imx53_add_tve(pdata)	\
 	imx_add_tve(&imx53_tve_data, pdata)
@@ -70,9 +74,9 @@ extern const struct imx_srtc_data imx53_imx_srtc_data __initconst;
 	platform_device_register_resndata(NULL, "mxc_v4l2_output",\
 			id, NULL, 0, NULL, 0);
 
-#define imx53_add_v4l2_capture(id)	\
+#define imx53_add_v4l2_capture(id, pdata)	\
 	platform_device_register_resndata(NULL, "mxc_v4l2_capture",\
-			id, NULL, 0, NULL, 0);
+			id, NULL, 0, pdata, sizeof(*pdata));
 
 extern const struct imx_ahci_data imx53_ahci_data[] __initconst;
 #define imx53_add_ahci(id, pdata)		\
@@ -86,7 +90,7 @@ extern const struct imx_iim_data imx53_imx_iim_data __initconst;
 #define imx53_add_iim(pdata) \
 	imx_add_iim(&imx53_imx_iim_data, pdata)
 
-extern const struct imx_mxc_gpu_data imx53_gpu_data __initconst;
+extern struct imx_mxc_gpu_data imx53_gpu_data __initconst;
 #define imx53_add_mxc_gpu(pdata) \
 	imx_add_mxc_gpu(&imx53_gpu_data, pdata)
 
@@ -110,3 +114,8 @@ extern const struct imx_imx_esai_data imx53_imx_esai_data[] __initconst;
        imx_add_imx_esai(&imx53_imx_esai_data[id], pdata)
 
 extern struct platform_device imx_ahci_device_hwmon;
+
+#define imx53_add_ion(id, pdata, size)	\
+	platform_device_register_resndata(NULL, "ion-mxc",\
+			id, NULL, 0, pdata, size);
+

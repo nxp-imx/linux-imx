@@ -54,7 +54,7 @@ struct imx_imx_sdma_data imx51_imx_sdma_data __initconst =
 #ifdef CONFIG_SOC_IMX53
 struct imx_imx_sdma_data imx53_imx_sdma_data __initconst =
 	imx_imx_sdma_data_entry_single(MX53, 2, "imx53", 1);
-#endif /* ifdef CONFIG_SOC_IMX51 */
+#endif /* ifdef CONFIG_SOC_IMX53 */
 
 #ifdef CONFIG_SOC_IMX6Q
 struct imx_imx_sdma_data imx6q_imx_sdma_data __initconst =
@@ -160,6 +160,8 @@ static struct sdma_script_start_addrs addr_imx51_to3 = {
 	.app_2_mcu_addr = 683,
 	.shp_2_per_addr = 1251,
 	.shp_2_mcu_addr = 892,
+	.mcu_2_ssish_addr = 6600,
+	.ssish_2_mcu_addr = 6783,
 };
 #endif
 
@@ -175,6 +177,8 @@ static struct sdma_script_start_addrs addr_imx53_to1 = {
 	.shp_2_mcu_addr = 891,
 	.spdif_2_mcu_addr = 1100,
 	.mcu_2_spdif_addr = 1134,
+	.mcu_2_ssish_addr = 6242,
+	.ssish_2_mcu_addr = 6679,
 };
 #endif
 

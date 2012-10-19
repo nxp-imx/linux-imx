@@ -50,7 +50,12 @@ static struct cpufreq_frequency_table *imx_freq_table;
 
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
+#ifndef CONFIG_ARCH_MX5
 static u32 pre_suspend_rate;
+#endif
+#ifdef CONFIG_ARCH_MX5
+int cpufreq_suspended;
+#endif
 
 extern struct regulator *cpu_regulator;
 extern struct regulator *soc_regulator;
@@ -188,7 +193,11 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	if (policy->cpu > num_cpus)
 		return 0;
 
-	if (dvfs_core_is_active) {
+	if (dvfs_core_is_active
+#ifdef CONFIG_ARCH_MX5
+		|| cpufreq_suspended
+#endif
+		) {
 		struct cpufreq_freqs freqs;
 
 		freqs.old = policy->cur;
@@ -276,23 +285,26 @@ void mxc_cpufreq_resume(void)
 #else
 static int mxc_cpufreq_suspend(struct cpufreq_policy *policy)
 {
+#ifndef CONFIG_ARCH_MX5
 	pre_suspend_rate = clk_get_rate(cpu_clk);
 	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000)) {
 		set_cpu_freq(imx_freq_table[0].frequency * 1000);
 		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
 			pre_suspend_rate / 1000, imx_freq_table[0].frequency);
 	}
-
+#endif
 	return 0;
 }
 
 static int mxc_cpufreq_resume(struct cpufreq_policy *policy)
 {
+#ifndef CONFIG_ARCH_MX5
 	if (clk_get_rate(cpu_clk) != pre_suspend_rate) {
 		set_cpu_freq(pre_suspend_rate);
 		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
 			imx_freq_table[0].frequency, pre_suspend_rate / 1000);
 	}
+#endif
 	return 0;
 }
 #endif

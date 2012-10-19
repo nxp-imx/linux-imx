@@ -34,6 +34,8 @@
 
 static void __iomem *wdog_base;
 
+extern int dvfs_core_is_active;
+extern void stop_dvfs(void);
 
 static void arch_reset_special_mode(char mode, const char *cmd)
 {
@@ -80,6 +82,21 @@ void arch_reset(char mode, const char *cmd)
 		mx51_efikamx_reset();
 		return;
 	}
+#endif
+#ifdef CONFIG_ARCH_MX51
+	/* Workaround to reset NFC_CONFIG3 register
+	 * due to the chip warm reset does not reset it
+	 */
+	 if (cpu_is_mx53())
+		__raw_writel(0x20600, MX53_IO_ADDRESS(MX53_NFC_BASE_ADDR)+0x28);
+	 if (cpu_is_mx51())
+		__raw_writel(0x20600, MX51_IO_ADDRESS(MX51_NFC_BASE_ADDR)+0x28);
+#endif
+
+#ifdef CONFIG_ARCH_MX5
+	/* Stop DVFS-CORE before reboot. */
+	if (dvfs_core_is_active)
+		stop_dvfs();
 #endif
 
 	if (cpu_is_mx1()) {
