@@ -172,6 +172,9 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	/* DISP0 RESET */
 	MX6Q_PAD_EIM_WAIT__GPIO_5_0,
 
+	/* eCompass int */
+	MX6Q_PAD_EIM_EB1__GPIO_2_29,
+
 	/*  SPDIF */
 	MX6Q_PAD_KEY_COL3__SPDIF_IN1,
 

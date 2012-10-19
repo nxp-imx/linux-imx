@@ -95,6 +95,7 @@
 #define SABREAUTO_ANDROID_MENU		IMX_GPIO_NR(2, 12)
 #define SABREAUTO_ANDROID_VOLUP		IMX_GPIO_NR(2, 15)
 #define SABREAUTO_CAP_TCH_INT		IMX_GPIO_NR(2, 28)
+#define SABREAUTO_eCOMPASS_INT		IMX_GPIO_NR(2, 29)
 #define SABREAUTO_ECSPI1_CS1		IMX_GPIO_NR(3, 19)
 #define SABREAUTO_DISP0_PWR		IMX_GPIO_NR(3, 24)
 #define SABREAUTO_DISP0_I2C_EN		IMX_GPIO_NR(3, 28)
@@ -136,6 +137,7 @@ extern char *soc_reg_id;
 extern char *pu_reg_id;
 
 static int mma8451_position = 3;
+static int mag3110_position = 2;
 static struct clk *sata_clk;
 static int mipi_sensor;
 static int can0_enable;
@@ -661,6 +663,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		I2C_BOARD_INFO("isl29023", 0x44),
 		.irq  = gpio_to_irq(SABREAUTO_ALS_INT),
 		.platform_data = &ls_data,
+	},
+	{
+		I2C_BOARD_INFO("mag3110", 0x0e),
+		.irq = gpio_to_irq(SABREAUTO_eCOMPASS_INT),
+		.platform_data = (void *)&mag3110_position,
 	},
 	{
 		I2C_BOARD_INFO("mma8451", 0x1c),
