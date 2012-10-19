@@ -19,7 +19,7 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
  * Support for FEC IEEE 1588.
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -59,6 +59,7 @@
 
 #if defined(CONFIG_ARCH_MXC) || defined(CONFIG_SOC_IMX28)
 #define FEC_ALIGNMENT	0xf
+#define FEC_RX_FIFO_BR  0x480
 #else
 #define FEC_ALIGNMENT	0x3
 #endif
@@ -1579,6 +1580,11 @@ fec_restart(struct net_device *dev, int duplex)
 #ifndef CONFIG_M5272
 	writel(0, fep->hwp + FEC_HASH_TABLE_HIGH);
 	writel(0, fep->hwp + FEC_HASH_TABLE_LOW);
+#endif
+
+    /* FIXME: adjust RX FIFO size for performance*/
+#ifdef CONFIG_ARCH_MX53
+       writel(FEC_RX_FIFO_BR, fep->hwp + FEC_R_FSTART);
 #endif
 
 	/* Set maximum receive buffer size. */

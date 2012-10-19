@@ -49,6 +49,7 @@ int mxc_ion_probe(struct platform_device *pdev)
 		heaps[i] = ion_heap_create(heap_data);
 		if (IS_ERR_OR_NULL(heaps[i])) {
 			err = PTR_ERR(heaps[i]);
+			heaps[i] = NULL;
 			goto err;
 		}
 		ion_device_add_heap(idev, heaps[i]);

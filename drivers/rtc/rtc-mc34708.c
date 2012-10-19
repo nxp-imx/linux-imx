@@ -2,7 +2,7 @@
 /*
  * RTC  Driver for Freescale MC34708 PMIC
  *
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc.
  *
  * Based on mc13xxx rtc  driver :
  * Copyright 2009 Pengutronix, Sascha Hauer <s.hauer@pengutronix.de>
@@ -306,12 +306,6 @@ static irqreturn_t mc34708_rtc_update_handler(int irq, void *dev)
 }
 
 static int
-mc34708_rtc_update_irq_enable(struct device *dev, unsigned int enabled)
-{
-	return mc34708_rtc_irq_enable(dev, enabled, MC_PMIC_IRQ_1HZ);
-}
-
-static int
 mc34708_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
 {
 	return mc34708_rtc_irq_enable(dev, enabled, MC_PMIC_IRQ_TODA);
@@ -323,7 +317,6 @@ static const struct rtc_class_ops mc34708_rtc_ops = {
 	.read_alarm = mc34708_rtc_read_alarm,
 	.set_alarm = mc34708_rtc_set_alarm,
 	.alarm_irq_enable = mc34708_rtc_alarm_irq_enable,
-	.update_irq_enable = mc34708_rtc_update_irq_enable,
 };
 
 static irqreturn_t mc34708_rtc_reset_handler(int irq, void *dev)

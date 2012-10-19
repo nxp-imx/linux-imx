@@ -233,6 +233,10 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 
 	ipu->dev = &pdev->dev;
 
+	if (!plat_data->bypass_reset)
+		if (plat_data->init)
+			plat_data->init(pdev->id);
+
 	ipu->irq_err = platform_get_irq(pdev, 0);
 	ipu->irq_sync = platform_get_irq(pdev, 1);
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -320,9 +324,6 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, ipu);
 
 	if (!plat_data->bypass_reset) {
-		if (plat_data->init)
-			plat_data->init(pdev->id);
-
 		ipu_reset(ipu);
 
 		ipu_disp_init(ipu);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -43,6 +43,7 @@
  * should be write at last.
  */
 #define ELECTRODE_CONF_ADDR		0x5e
+#define ECR_CL_BT_5BIT_VAL		0x80
 #define AUTO_CONFIG_CTRL_ADDR		0x7b
 /* AUTO_CONFIG_USL: Upper Limit for auto baseline search, this
  * register is related to VDD supplied on your board, the value of
@@ -55,7 +56,7 @@
 #define AUTO_CONFIG_TL_ADDR		0x7f
 
 /* Threshold of touch/release trigger */
-#define TOUCH_THRESHOLD			0x0f
+#define TOUCH_THRESHOLD			0x0c
 #define RELEASE_THRESHOLD		0x0a
 /* Mask Button bits of STATUS_0 & STATUS_1 register */
 #define TOUCH_STATUS_MASK		0xfff

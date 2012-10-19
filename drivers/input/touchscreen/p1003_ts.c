@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include <linux/i2c.h>
 #include <linux/input.h>
 #include <linux/irq.h>
+#include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <linux/fsl_devices.h>
 
@@ -42,7 +43,6 @@ struct p1003_priv {
 	unsigned int irq;
 	struct work_struct work;
 	struct point_state old_state;
-	struct workqueue_struct *workqueue;
 };
 
 #define POINTER_DATA_LEN		9
@@ -115,18 +115,17 @@ static int p1003_i2c_read_packet(struct i2c_client *client, char *value)
 					     POINTER_DATA_LEN, (u8 *) value);
 }
 
-static void p1003_work(struct work_struct *work)
+static irqreturn_t p1003_irq(int irq, void *handle)
 {
-	struct p1003_priv *p1003 = container_of(work, struct p1003_priv, work);
+	struct p1003_priv *p1003 = handle;
 	struct i2c_client *client = p1003->client;
-	struct p1003_ts_platform_data *pdata = client->dev.platform_data;
 	struct input_dev *input = p1003->input;
 	struct point_state *old_state = &p1003->old_state;
 	char data[POINTER_DATA_LEN];
 	int x1, x2, y1, y2;
 
 	/* the sample can only be read when intr pin low */
-	while (!pdata->hw_status()) {
+	do {
 		if (p1003_i2c_read_packet(client, data) < 0) {
 			dev_err(&client->dev, "read i2c packet failed\n");
 			continue;
@@ -184,7 +183,7 @@ static void p1003_work(struct work_struct *work)
 			old_state->x2 = x2;
 			old_state->y2 = y2;
 		}
-	};
+	} while (gpio_get_value(irq_to_gpio(p1003->irq)) == 0);
 
 	/* the irq is high now, means figure is leave the panel, send
 	 * release to user space. */
@@ -194,12 +193,7 @@ static void p1003_work(struct work_struct *work)
 	input_report_abs(input, ABS_PRESSURE, 0);
 	input_sync(input);
 	old_state->state = data[0];
-}
 
-static irqreturn_t p1003_irq(int irq, void *handle)
-{
-	struct p1003_priv *p1003 = handle;
-	queue_work(p1003->workqueue, &p1003->work);
 	return IRQ_HANDLED;
 }
 
@@ -231,16 +225,10 @@ static int __devinit p1003_probe(struct i2c_client *client,
 	int ret, xmax, ymax;
 	struct p1003_priv *p1003;
 	struct input_dev *input_dev;
-	struct p1003_ts_platform_data *pdata = client->dev.platform_data;
 
 	if (!i2c_check_functionality(client->adapter,
 				     I2C_FUNC_SMBUS_READ_I2C_BLOCK)) {
 		dev_err(&client->dev, "I2C don't support enough function");
-		return -EIO;
-	}
-
-	if (!pdata || !pdata->hw_status) {
-		dev_err(&client->dev, "No hw status function!\n");
 		return -EIO;
 	}
 
@@ -257,14 +245,6 @@ static int __devinit p1003_probe(struct i2c_client *client,
 	p1003->client = client;
 	p1003->irq = client->irq;
 	p1003->input = input_dev;
-	p1003->workqueue = create_singlethread_workqueue("p1003");
-	INIT_WORK(&p1003->work, p1003_work);
-
-	if (p1003->workqueue == NULL) {
-		dev_err(&client->dev, "couldn't create workqueue\n");
-		ret = -ENOMEM;
-		goto err_free_dev;
-	}
 
 	snprintf(p1003->phys, sizeof(p1003->phys),
 		 "%s/input0", dev_name(&client->dev));
@@ -272,7 +252,7 @@ static int __devinit p1003_probe(struct i2c_client *client,
 	if (read_max_range(client, &xmax, &ymax) < 0) {
 		dev_err(&client->dev, "couldn't read panel infomation.\n");
 		ret = -EIO;
-		goto err_free_wq;
+		goto err_free_dev;
 	}
 
 	input_dev->name = "HannStar P1003 Touchscreen";
@@ -292,32 +272,27 @@ static int __devinit p1003_probe(struct i2c_client *client,
 
 	ret = input_register_device(input_dev);
 	if (ret)
-		goto err_free_wq;
+		goto err_free_dev;
 
 	i2c_set_clientdata(client, p1003);
 
 	ret = sysfs_create_group(&client->dev.kobj, &p1003_attr_group);
 	if (ret)
-		goto err_free_wq;
+		goto err_free_dev;
 
 	/* set irq type to edge falling */
-	set_irq_type(p1003->irq, IRQF_TRIGGER_FALLING);
-	ret = request_irq(p1003->irq, p1003_irq, 0,
-			  client->dev.driver->name, p1003);
+	ret = request_threaded_irq(client->irq, NULL, p1003_irq,
+					IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+					client->dev.driver->name, p1003);
 	if (ret < 0) {
 		dev_err(&client->dev, "failed to register irq %d!\n",
 			p1003->irq);
 		goto err_unreg_dev;
 	}
 
-	if (!pdata->hw_status())
-		queue_work(p1003->workqueue, &p1003->work);
-
 	return 0;
 err_unreg_dev:
 	input_unregister_device(input_dev);
-err_free_wq:
-	destroy_workqueue(p1003->workqueue);
 err_free_dev:
 	input_free_device(input_dev);
 err_free_mem:
@@ -329,8 +304,6 @@ static int __devexit p1003_remove(struct i2c_client *client)
 {
 	struct p1003_priv *p1003 = i2c_get_clientdata(client);
 	free_irq(p1003->irq, p1003);
-	cancel_work_sync(&p1003->work);
-	destroy_workqueue(p1003->workqueue);
 	input_unregister_device(p1003->input);
 	input_free_device(p1003->input);
 	kfree(p1003);

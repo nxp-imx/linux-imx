@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,7 +57,7 @@ static ssize_t imx_ahci_hwmon_temp_show(struct device *dev,
 {
 	void __iomem *mmio;
 	u32 mpll_test_reg, rtune_ctl_reg, dac_ctl_reg, adc_out_reg;
-	u32 str1, str2, str3, str4, read_sum, index;
+	u32 str1, str2, str3, str4, read_sum, index, port_phy_ctl;
 	int m1, m2, a, temp, ret;
 	struct clk *sata_clk, *sata_ref_clk;
 	struct imx_ahci_hwmon *hwmon;
@@ -88,6 +88,11 @@ static ssize_t imx_ahci_hwmon_temp_show(struct device *dev,
 		dev_err(dev, "Failed to map SATA REGS\n");
 		return -1;
 	}
+
+	/* Disable PDDQ mode if it is enabled */
+	port_phy_ctl = readl(mmio + PORT_PHY_CTL);
+	if (port_phy_ctl & PORT_PHY_CTL_PDDQ_LOC)
+		writel(port_phy_ctl & ~PORT_PHY_CTL_PDDQ_LOC, mmio + PORT_PHY_CTL);
 
 	/* check rd-wr to reg */
 	read_sum = 0;
@@ -228,6 +233,9 @@ static ssize_t imx_ahci_hwmon_temp_show(struct device *dev,
 		m2 = 1000;
 	a = (m2 - m1) / (m2 / 1000);
 	temp = ((((-559) * a) / 1000) * a) / 1000 + (1379) * a / 1000 + (-458);
+
+	/* Set the Port Phy ctl back */
+	writel(port_phy_ctl, mmio + PORT_PHY_CTL);
 
 	iounmap(mmio);
 

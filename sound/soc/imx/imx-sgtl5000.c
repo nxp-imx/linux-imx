@@ -3,7 +3,7 @@
  *                                  sgtl5000 codec
  *
  * Copyright 2009 Sascha Hauer, Pengutronix <s.hauer@pengutronix.de>
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -42,6 +42,11 @@ static struct snd_soc_jack_pin hs_jack_pins[] = {
 	{
 		.pin = "Headphone Jack",
 		.mask = SND_JACK_HEADPHONE,
+	},
+	{
+		.pin = "Ext Spk",
+		.mask = SND_JACK_HEADPHONE,
+		.invert = 1,
 	},
 };
 
@@ -195,11 +200,29 @@ static int sgtl5000_set_line_in(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
+static int spk_amp_event(struct snd_soc_dapm_widget *w,
+			 struct snd_kcontrol *kcontrol, int event)
+{
+	struct imx_sgtl5000_priv *priv = &card_priv;
+	struct platform_device *pdev = priv->pdev;
+	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
+
+	if (plat->amp_enable == NULL)
+		return 0;
+
+	if (SND_SOC_DAPM_EVENT_ON(event))
+		plat->amp_enable(1);
+	else
+		plat->amp_enable(0);
+
+	return 0;
+}
+
 /* imx_3stack card dapm widgets */
 static const struct snd_soc_dapm_widget imx_3stack_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Mic Jack", NULL),
 	SND_SOC_DAPM_LINE("Line In Jack", NULL),
-	SND_SOC_DAPM_SPK("Ext Spk", NULL),
+	SND_SOC_DAPM_SPK("Ext Spk", spk_amp_event),
 	SND_SOC_DAPM_HP("Headphone Jack", NULL),
 };
 
@@ -246,7 +269,8 @@ static int imx_3stack_sgtl5000_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_add_routes(&codec->dapm, audio_map, ARRAY_SIZE(audio_map));
 
 	snd_soc_dapm_disable_pin(&codec->dapm, "Line In Jack");
-	snd_soc_dapm_enable_pin(&codec->dapm, "Headphone Jack");
+	snd_soc_dapm_disable_pin(&codec->dapm, "Headphone Jack");
+	snd_soc_dapm_enable_pin(&codec->dapm, "Ext Spk");
 	snd_soc_dapm_sync(&codec->dapm);
 
 	if (hs_jack_gpios[0].gpio != -1) {

@@ -173,10 +173,13 @@ int del_all_memblocks_from_allocated_list(struct file *fd)
         printk(KERN_INFO "Not all allocated memory blocks were freed. Doing it now.\n");
         list_for_each_entry_safe(cursor, next, head, node)
         {
-            printk(KERN_INFO "Freeing list entry #%u, gpuaddr=%x\n", (u32)cursor->allocation_number, cursor->allocated_block.gpuaddr);
-            kgsl_sharedmem_free(&cursor->allocated_block);
-            list_del(&cursor->node);
-            kfree(cursor);
+		printk(KERN_DEBUG "Freeing list entry #%u, gpuaddr=%x\n",
+		(u32)cursor->allocation_number,
+		cursor->allocated_block.gpuaddr);
+
+		kgsl_sharedmem_free(&cursor->allocated_block);
+		list_del(&cursor->node);
+		kfree(cursor);
         }
     }
 

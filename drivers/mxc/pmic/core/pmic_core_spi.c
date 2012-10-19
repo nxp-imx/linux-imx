@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -198,7 +198,7 @@ static int __devinit pmic_probe(struct spi_device *spi)
 	}
 
 	/* Set and install PMIC IRQ handler */
-	set_irq_type(spi->irq, IRQF_TRIGGER_HIGH);
+	irq_set_irq_type(spi->irq, IRQF_TRIGGER_HIGH);
 	ret = request_irq(spi->irq, pmic_irq_handler, 0, "PMIC_IRQ", 0);
 	if (ret) {
 		kfree(spi_get_drvdata(spi));

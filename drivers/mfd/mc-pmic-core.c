@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -505,7 +505,6 @@ mc_pmic_add_subdevice_pdata(struct mc_pmic *mc_pmic,
 
 	struct mfd_cell cell = {
 		.platform_data = pdata,
-		.data_size = pdata_size,
 	};
 
 	/* there is no asnprintf in the kernel :-( */
@@ -556,7 +555,6 @@ mc_pmic_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	if (ret) {
  err_mask:
- err_revision:
 		mc_pmic_unlock(mc_pmic);
 		dev_set_drvdata(&client->dev, NULL);
 		kfree(mc_pmic);

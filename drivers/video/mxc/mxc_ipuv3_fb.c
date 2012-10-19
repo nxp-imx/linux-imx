@@ -111,6 +111,8 @@ struct mxcfb_info {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend fbdrv_earlysuspend;
 #endif
+	int panel_width_mm;
+	int panel_height_mm;
 };
 
 struct mxcfb_pfmt {
@@ -895,8 +897,16 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 			var->pixclock);
 	}
 
-	var->height = -1;
-	var->width = -1;
+	if (mxc_fbi->panel_height_mm)
+		var->height = mxc_fbi->panel_height_mm;
+	else
+		var->height = -1;
+
+	if (mxc_fbi->panel_width_mm)
+		var->width = mxc_fbi->panel_width_mm;
+	else
+		var->width = -1;
+
 	var->grayscale = 0;
 
 	return 0;
@@ -2367,6 +2377,9 @@ static int mxcfb_probe(struct platform_device *pdev)
 	mxcfbi->ipu_int_clk = plat_data->int_clk;
 	mxcfbi->late_init = plat_data->late_init;
 	mxcfbi->first_set_par = true;
+	mxcfbi->panel_width_mm = plat_data->panel_width_mm;
+	mxcfbi->panel_height_mm = plat_data->panel_height_mm;
+
 	ret = mxcfb_dispdrv_init(pdev, fbi);
 	if (ret < 0)
 		goto init_dispdrv_failed;

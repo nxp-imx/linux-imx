@@ -142,12 +142,12 @@ struct regulator_info da9052_regulators[] = {
 			DA9052_BUCK_MEM_VOLT_LOWER,
 			DA9052_BUCK_MEM_STEP, DA9052_BUCKMEM_REG,
 			DA9052_BUCKMEM_VBMEM, DA9052_BUCKMEM_BMEMEN),
-#if defined (CONFIG_PMIC_DA9052)
+#if defined(CONFIG_PMIC_DA9052)
 	DA9052_LDO(DA9052_BUCK_PERI, DA9052_BUCK_PERI_VOLT_UPPER,
 			DA9052_BUCK_PERI_VOLT_LOWER,
 			DA9052_BUCK_PERI_STEP_BELOW_3000, DA9052_BUCKPERI_REG,
 			DA9052_BUCKPERI_VBPERI, DA9052_BUCKPERI_BPERIEN),
-#elif defined (CONFIG_PMIC_DA9053AA) || (CONFIG_PMIC_DA9053Bx)
+#elif defined(CONFIG_PMIC_DA9053AA) || defined(CONFIG_PMIC_DA9053Bx)
 	DA9052_LDO(DA9052_BUCK_PERI, DA9052_BUCK_PERI_VOLT_UPPER,
 			DA9052_BUCK_PERI_VOLT_LOWER,
 			DA9052_BUCK_PERI_STEP, DA9052_BUCKPERI_REG,
@@ -247,7 +247,7 @@ int da9052_ldo_buck_set_voltage(struct regulator_dev *rdev,
 	int id = rdev_get_id(rdev);
 	int ret;
 	int ldo_volt = 0;
-	selector;
+	(void)selector;
 
 	/* Below if condition is there for added setvoltage attribute
 	in sysfs */
@@ -265,7 +265,7 @@ int da9052_ldo_buck_set_voltage(struct regulator_dev *rdev,
 	if (max_uV < da9052_regulators[id].reg_const.min_uV ||
 		max_uV > da9052_regulators[id].reg_const.max_uV)
 		return -EINVAL;
-#if defined (CONFIG_PMIC_DA9052)
+#if defined(CONFIG_PMIC_DA9052)
 	/* Get the ldo register value */
 	/* Varying step size for BUCK PERI */
 	if ((da9052_regulators[id].reg_desc.id == DA9052_BUCK_PERI) &&
@@ -283,7 +283,7 @@ int da9052_ldo_buck_set_voltage(struct regulator_dev *rdev,
 			da9052_regulators[id].reg_const.min_uV > max_uV)
 			return -EINVAL;
 	}
-#elif defined (CONFIG_PMIC_DA9053AA) ||(CONFIG_PMIC_DA9053Bx)
+#elif defined(CONFIG_PMIC_DA9053AA) || defined(CONFIG_PMIC_DA9053Bx)
 	ldo_volt = (min_uV - da9052_regulators[id].reg_const.min_uV)/
 		(da9052_regulators[id].step_uV);
 	/* Check for maximum value */
@@ -378,7 +378,7 @@ int da9052_ldo_buck_get_voltage(struct regulator_dev *rdev)
 	da9052_unlock(priv->da9052);
 
 	ldo_volt = ssc_msg.data & da9052_regulators[id].mask_bits;
-#if defined (CONFIG_PMIC_DA9052)
+#if defined(CONFIG_PMIC_DA9052)
 	if (da9052_regulators[id].reg_desc.id == DA9052_BUCK_PERI) {
 		if (ldo_volt >= DA9052_BUCK_PERI_VALUES_UPTO_3000) {
 			ldo_volt_uV = ((DA9052_BUCK_PERI_VALUES_UPTO_3000 *
@@ -396,7 +396,7 @@ int da9052_ldo_buck_get_voltage(struct regulator_dev *rdev)
 		ldo_volt_uV = (ldo_volt * da9052_regulators[id].step_uV) +
 				da9052_regulators[id].reg_const.min_uV;
 	}
-#elif defined (CONFIG_PMIC_DA9053AA) || (CONFIG_PMIC_DA9053Bx)
+#elif defined(CONFIG_PMIC_DA9053AA) || defined(CONFIG_PMIC_DA9053Bx)
 	ldo_volt_uV = (ldo_volt * da9052_regulators[id].step_uV) +
 			da9052_regulators[id].reg_const.min_uV;
 #endif
