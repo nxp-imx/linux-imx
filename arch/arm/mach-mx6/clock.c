@@ -4244,7 +4244,7 @@ static struct clk caam_clk[] = {
 	 __INIT_CLK_DEBUG(caam_ipg_clk)
 	.id = 2,
 	.enable_reg = MXC_CCM_CCGR0,
-	.enable_shift = MXC_CCM_CCGRx_CG4_OFFSET,
+	.enable_shift = MXC_CCM_CCGRx_CG6_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
 	.parent = &mmdc_ch0_axi_clk[0],
