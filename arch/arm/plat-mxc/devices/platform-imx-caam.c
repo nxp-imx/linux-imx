@@ -31,6 +31,8 @@
 
 const struct imx_caam_data imx6q_imx_caam_data __initconst = {
 	.iobase_caam = MXC_CAAM_BASE_ADDR,
+	.iobase_caam_sm = CAAM_SECMEM_BASE_ADDR,
+	.iobase_snvs = MX6Q_SNVS_BASE_ADDR,
 	.irq_sec_vio = MXC_INT_SNVS_SEC,
 	.irq_snvs = MX6Q_INT_SNVS,
 	.jr[0].offset_jr = 0x1000,
@@ -49,6 +51,18 @@ struct platform_device *__init imx_add_caam(
 			.name = "iobase_caam",
 			.start = data->iobase_caam,
 			.end = data->iobase_caam + SZ_64K - 1,
+			.flags = IORESOURCE_MEM,
+		}, {
+			/* Define range for secure memory */
+			.name = "iobase_caam_sm",
+			.start = data->iobase_caam_sm,
+			.end = data->iobase_caam_sm + SZ_16K - 1,
+			.flags = IORESOURCE_MEM,
+		}, {
+			/* Define range for SNVS */
+			.name = "iobase_snvs",
+			.start = data->iobase_snvs,
+			.end = data->iobase_snvs + SZ_4K - 1,
 			.flags = IORESOURCE_MEM,
 		}, {
 			/* Define interrupt for security violations */

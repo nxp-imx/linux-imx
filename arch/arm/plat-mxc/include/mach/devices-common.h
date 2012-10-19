@@ -112,9 +112,11 @@ struct imx_caam_jr_data {
 };
 
 struct imx_caam_data {
-	resource_size_t iobase_caam;
-	resource_size_t irq_sec_vio;
-	resource_size_t irq_snvs;
+	resource_size_t iobase_caam;	/* entirety of CAAM register map */
+	resource_size_t iobase_caam_sm;	/* base of secure memory */
+	resource_size_t iobase_snvs;	/* base of SNVS */
+	resource_size_t irq_sec_vio;	/* SNVS security violation */
+	resource_size_t irq_snvs;	/* SNVS consolidated (incl. RTC) */
 	struct imx_caam_jr_data jr[4];	/* offset+IRQ for each possible ring */
 };
 
