@@ -7,6 +7,7 @@
 
 #include "compat.h"
 #include "regs.h"
+#include "snvsregs.h"
 #include "intern.h"
 #include "jr.h"
 #include "desc_constr.h"
@@ -25,6 +26,10 @@ static int caam_remove(struct platform_device *pdev)
 	topregs = (struct caam_full __iomem *)ctrlpriv->ctrl;
 
 #ifndef CONFIG_OF
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SM
+	caam_sm_shutdown(pdev);
+#endif
+
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_API
 	if (ctrlpriv->rng_inst)
 		caam_rng_shutdown();
@@ -49,6 +54,10 @@ static int caam_remove(struct platform_device *pdev)
 #ifdef CONFIG_DEBUG_FS
 	debugfs_remove_recursive(ctrlpriv->dfs_root);
 #endif
+
+	/* Unmap SNVS and Secure Memory */
+	iounmap(ctrlpriv->snvs);
+	iounmap(ctrlpriv->sm_base);
 
 	/* Unmap controller region */
 	iounmap(&topregs->ctrl);
@@ -180,11 +189,13 @@ static void kick_trng(struct platform_device *pdev)
 /* Probe routine for CAAM top (controller) level */
 static int caam_probe(struct platform_device *pdev)
 {
-	int d, ring, rspec;
+	int d, ring, rspec, status;
 	struct device *dev;
 	struct device_node *np;
 	struct caam_ctrl __iomem *ctrl;
 	struct caam_full __iomem *topregs;
+	struct snvs_full __iomem *snvsregs;
+	void __iomem *sm_base;
 	struct caam_drv_private *ctrlpriv;
 	u32 deconum;
 #ifdef CONFIG_DEBUG_FS
@@ -237,7 +248,55 @@ static int caam_probe(struct platform_device *pdev)
 	/* topregs used to derive pointers to CAAM sub-blocks only */
 	topregs = (struct caam_full __iomem *)ctrl;
 
-	/* Get the IRQ of the controller (for security violations only) */
+	/*
+	 * Next, map SNVS register page
+	 * FIXME: MX6 has a separate RTC driver using SNVS. This driver
+	 * will have a mapped pointer to SNVS registers also, which poses
+	 * a conflict if we're not very careful to stay away from registers
+	 * and interrupts that it uses. In the future, pieces of that driver
+	 * may need to migrate down here. In the meantime, use caution with
+	 * this pointer. Also note that the snvs-rtc driver probably controls
+	 * SNVS device clocks.
+	 */
+#ifdef CONFIG_OF
+	/* Get SNVS register page */
+#else
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "iobase_snvs");
+	if (!res) {
+		dev_err(dev, "snvs: invalid address resource type\n");
+		return -ENODEV;
+	}
+	snvsregs = ioremap(res->start, res->end - res->start + 1);
+	if (snvsregs == NULL) {
+		dev_err(dev, "snvs: ioremap() failed\n");
+		iounmap(ctrl);
+		return -ENOMEM;
+	}
+#endif
+	ctrlpriv->snvs = (struct snvs_full __force *)snvsregs;
+
+	/* Now map CAAM-Secure Memory Space */
+#ifdef CONFIG_OF
+	/* Get CAAM-SM node and of_iomap() and save */
+#else
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
+					   "iobase_caam_sm");
+	if (!res) {
+		dev_err(dev, "caam_sm: invalid address resource type\n");
+		return -ENODEV;
+	}
+	sm_base = ioremap_nocache(res->start, res->end - res->start + 1);
+	if (sm_base == NULL) {
+		dev_err(dev, "caam_sm: ioremap_nocache() failed\n");
+		iounmap(ctrl);
+		iounmap(snvsregs);
+		return -ENOMEM;
+	}
+#endif
+	ctrlpriv->sm_base = (void __force *)sm_base;
+	ctrlpriv->sm_size = res->end - res->start + 1;
+
+	/* Get the IRQ for security violations only */
 #ifdef CONFIG_OF
 	ctrlpriv->secvio_irq = of_irq_to_resource(nprop, 0, NULL);
 #else
@@ -495,20 +554,39 @@ static int caam_probe(struct platform_device *pdev)
  */
 #ifndef CONFIG_OF
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_CRYPTO_API
-	/* FIXME: check status */
-	caam_algapi_startup(pdev);
+	status = caam_algapi_startup(pdev);
+	if (status) {
+		caam_remove(pdev);
+		return status;
+	}
 #endif
 
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_AHASH_API
-	caam_algapi_hash_startup(pdev);
+	status = caam_algapi_hash_startup(pdev);
+	if (status) {
+		caam_remove(pdev);
+		return status;
+	}
 #endif
 
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_API
 	if (ctrlpriv->rng_inst)
 		caam_rng_startup(pdev);
 #endif
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SM
+	status = caam_sm_startup(pdev);
+	if (status) {
+		caam_remove(pdev);
+		return status;
+	}
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SM_TEST
+	caam_sm_example_init(pdev);
+#endif /* SM_TEST */
+#endif /* SM */
+
 #endif /* CONFIG_OF */
-	return 0;
+	return status;
 }
 
 #ifdef CONFIG_OF
