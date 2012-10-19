@@ -95,6 +95,9 @@ struct caam_drv_private {
 	struct caam_deco **deco; /* DECO/CCB views */
 	struct caam_assurance *ac;
 	struct caam_queue_if *qi; /* QI control region */
+	struct snvs_full __iomem *snvs;	/* SNVS HP+LP register space */
+	dma_addr_t __iomem *sm_base;	/* Secure memory storage base */
+	u32 sm_size;
 
 	/*
 	 * Detected geometry block. Filled in from device tree if powerpc,
@@ -118,6 +121,9 @@ struct caam_drv_private {
 	struct clk *caam_clk;
 #endif
 
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SM
+	struct device *smdev;	/* Secure Memory dev */
+#endif
 	/*
 	 * debugfs entries for developer view into driver/device
 	 * variables at runtime.
@@ -157,6 +163,16 @@ void caam_algapi_hash_shutdown(struct platform_device *pdev);
 int caam_rng_startup(struct platform_device *pdev);
 void caam_rng_shutdown(void);
 #endif
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SM
+int caam_sm_startup(struct platform_device *pdev);
+void caam_sm_shutdown(struct platform_device *pdev);
+#endif
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SM_TEST
+int caam_sm_example_init(struct platform_device *pdev);
+#endif
+
 #endif /* CONFIG_OF */
 
 #endif /* INTERN_H */
