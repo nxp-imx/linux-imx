@@ -28,6 +28,6 @@ void mx5_cpu_regulator_init(void)
 	cpu_regulator = regulator_get(NULL, gp_reg_id);
 	if (IS_ERR(cpu_regulator))
 		printk(KERN_ERR "%s: failed to get cpu regulator\n", __func__);
-	soc_regulator = pu_regulator = NULL;
+	soc_regulator = pu_regulator = -ENODEV;
 }
 
