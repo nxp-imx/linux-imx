@@ -240,7 +240,9 @@ void _ipu_ic_init_prpvf(struct ipu_soc *ipu, ipu_channel_params_t *params, bool 
 	ipu_color_space_t in_fmt, out_fmt;
 
 	/* Setup vertical resizing */
-	if (!(params->mem_prp_vf_mem.outv_resize_ratio)) {
+	if (!(params->mem_prp_vf_mem.outv_resize_ratio) ||
+		(params->mem_prp_vf_mem.outv_resize_ratio >=
+						IC_RSZ_MAX_RESIZE_RATIO)) {
 		_calc_resize_coeffs(ipu, params->mem_prp_vf_mem.in_height,
 				params->mem_prp_vf_mem.out_height,
 				&resizeCoeff, &downsizeCoeff);
@@ -250,7 +252,9 @@ void _ipu_ic_init_prpvf(struct ipu_soc *ipu, ipu_channel_params_t *params, bool 
 
 	/* Setup horizontal resizing */
 	/* Upadeted for IC split case */
-	if (!(params->mem_prp_vf_mem.outh_resize_ratio)) {
+	if (!(params->mem_prp_vf_mem.outh_resize_ratio) ||
+		(params->mem_prp_vf_mem.outh_resize_ratio >=
+						IC_RSZ_MAX_RESIZE_RATIO)) {
 		_calc_resize_coeffs(ipu, params->mem_prp_vf_mem.in_width,
 				params->mem_prp_vf_mem.out_width,
 				&resizeCoeff, &downsizeCoeff);
@@ -365,7 +369,9 @@ void _ipu_ic_init_prpenc(struct ipu_soc *ipu, ipu_channel_params_t *params, bool
 	ipu_color_space_t in_fmt, out_fmt;
 
 	/* Setup vertical resizing */
-	if (!(params->mem_prp_enc_mem.outv_resize_ratio)) {
+	if (!(params->mem_prp_enc_mem.outv_resize_ratio) ||
+		(params->mem_prp_enc_mem.outv_resize_ratio >=
+						IC_RSZ_MAX_RESIZE_RATIO)) {
 		_calc_resize_coeffs(ipu, params->mem_prp_enc_mem.in_height,
 				params->mem_prp_enc_mem.out_height,
 				&resizeCoeff, &downsizeCoeff);
@@ -375,7 +381,9 @@ void _ipu_ic_init_prpenc(struct ipu_soc *ipu, ipu_channel_params_t *params, bool
 
 	/* Setup horizontal resizing */
 	/* Upadeted for IC split case */
-	if (!(params->mem_prp_enc_mem.outh_resize_ratio)) {
+	if (!(params->mem_prp_enc_mem.outh_resize_ratio) ||
+		(params->mem_prp_enc_mem.outh_resize_ratio >=
+						IC_RSZ_MAX_RESIZE_RATIO)) {
 		_calc_resize_coeffs(ipu, params->mem_prp_enc_mem.in_width,
 				params->mem_prp_enc_mem.out_width,
 				&resizeCoeff, &downsizeCoeff);
@@ -444,7 +452,9 @@ void _ipu_ic_init_pp(struct ipu_soc *ipu, ipu_channel_params_t *params)
 	ipu_color_space_t in_fmt, out_fmt;
 
 	/* Setup vertical resizing */
-	if (!(params->mem_pp_mem.outv_resize_ratio)) {
+	if (!(params->mem_pp_mem.outv_resize_ratio) ||
+		(params->mem_pp_mem.outv_resize_ratio >=
+						IC_RSZ_MAX_RESIZE_RATIO)) {
 		_calc_resize_coeffs(ipu, params->mem_pp_mem.in_height,
 			    params->mem_pp_mem.out_height,
 			    &resizeCoeff, &downsizeCoeff);
@@ -455,7 +465,9 @@ void _ipu_ic_init_pp(struct ipu_soc *ipu, ipu_channel_params_t *params)
 
 	/* Setup horizontal resizing */
 	/* Upadeted for IC split case */
-	if (!(params->mem_pp_mem.outh_resize_ratio)) {
+	if (!(params->mem_pp_mem.outh_resize_ratio) ||
+		(params->mem_pp_mem.outh_resize_ratio >=
+						IC_RSZ_MAX_RESIZE_RATIO)) {
 		_calc_resize_coeffs(ipu, params->mem_pp_mem.in_width,
 							params->mem_pp_mem.out_width,
 							&resizeCoeff, &downsizeCoeff);
