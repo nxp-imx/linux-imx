@@ -31,6 +31,7 @@
 
 #define ADV7280_SAMPLE_SILICON         0x40
 #define ADV7280_PROD_SILICON           0x41
+#define ADV7280_CSI_TX_ADDR            0x50
 /** ADV7280 register definitions */
 #define ADV7280_INPUT_CTL              0x00	/* Input Control */
 #define ADV7280_STATUS_1               0x10	/* Status #1 */
@@ -42,6 +43,7 @@
 #define ADV7280_SD_SATURATION_CR       0xe4	/* SD Saturation Cr */
 #define ADV7280_PM_REG                 0x0f /* Power Management */
 #define ADV7280_ADI_CONTROL1           0x0E /* ADI Control 1 */
+#define ADV7280_CSI_TX_SLAVE_ADDR      0xFE /* csi-tx slave address register */
 /* adv7280 power management reset bit */
 #define ADV7280_PM_RESET_BIT           0x80
 /** adv7280 input video masks */
@@ -62,9 +64,11 @@ struct reg_value {
 	u32 delay_ms;
 };
 
-struct adv7280_priv {
-	struct fsl_mxc_tvin_platform_data *pdata;
+struct adv7280_chipset {
+	struct device *dev;
 	struct i2c_client *client;
+	struct i2c_client *client_csi_tx;
+	struct fsl_mxc_tvin_platform_data *pdata;
 };
 
 /*!
@@ -86,22 +90,29 @@ static struct reg_value adv7280_init_params[] = {
 	{0x17, 0x41, 0x00, 0}, /* select SH1 */
 	{0x1D, 0x40, 0x00, 0}, /* enable LCC output driver */
 	{0x52, 0xC0, 0x00, 0}, /* ADI recommended*/
-	{0xFE, 0xA0, 0x00, 0}, /* set CSI-Tx slave address to 0xA0 */
+	{0xFE, 0xA2, 0x00, 0}, /* set CSI-Tx slave address to 0x51 */
 	{0x59, 0x15, 0x00, 0}, /* GPO control */
+};
+
+static struct reg_value adv7280_init_mipi_csi_top[] = {
+	{0xDE, 0x03, 0x00, 0x00}, /* dphy pwrdwn, Pwrdwn control DPHY_PWDN */
+	{0xDC, 0x30, 0x00, 0x00}, /* enable mipi data/clk lanes */
+	{0xD2, 0x00, 0x00, 0x00}, /* mipi data lane */
+	{0xD1, 0x00, 0x00, 0x00}, /* mipi clk lane */
+	{0x00, 0x00, 0x00, 0x00}, /* csi_tx_pwrdwn */
 };
 
 /*! Read one register from a ADV7280 i2c slave device.
  *  @param *reg     register in the device we wish to access.
  *  @return         0 if success, an error code otherwise.
  */
-static inline int adv7280_read_reg(struct adv7280_priv *adv7280, u8 reg)
+static inline int adv7280_read_reg(struct i2c_client *client, u8 reg)
 {
 	int ret;
 
-	ret = i2c_smbus_read_byte_data(adv7280->client, reg);
+	ret = i2c_smbus_read_byte_data(client, reg);
 	if (ret < 0) {
-		dev_dbg(&adv7280->client->dev, "%s:read reg error: reg=%2x\n",
-				__func__, reg);
+		dev_dbg(&client->dev, "read reg error: ret = %d\n", ret);
 	}
 
 	return ret;
@@ -111,15 +122,14 @@ static inline int adv7280_read_reg(struct adv7280_priv *adv7280, u8 reg)
  *  @param *reg     register in the device we wish to access.
  *  @return         0 if success, an error code otherwise.
  */
-static inline int adv7280_write_reg(struct adv7280_priv *adv7280,
+static inline int adv7280_write_reg(struct i2c_client *client,
 		u8 reg, u8 val)
 {
 	int ret;
 
-	ret = i2c_smbus_write_byte_data(adv7280->client, reg, val);
+	ret = i2c_smbus_write_byte_data(client, reg, val);
 	if (ret < 0) {
-		dev_dbg(&adv7280->client->dev, "%s:write reg error: reg=%2x\n",
-				__func__, reg);
+		dev_dbg(&client->dev, "write reg error: ret = %d", ret);
 	}
 
 	return ret;
@@ -127,14 +137,14 @@ static inline int adv7280_write_reg(struct adv7280_priv *adv7280,
 
 /*! Write ADV7280 config paramater array
  */
-static int adv7280_config(struct adv7280_priv *adv7280,
+static int adv7280_config(struct i2c_client *client,
 		struct reg_value *config, int size) {
 	int i, ret;
 
 	for (i = 0; i < size; i++) {
 		pr_debug("%s[%d]: reg = 0x%02x, value = 0x%02x\n", __func__,
 				i, config[i].reg,  config[i].value);
-		ret = adv7280_write_reg(adv7280, config[i].reg,
+		ret = adv7280_write_reg(client, config[i].reg,
 				config[i].value | config[i].mask);
 		if (ret < 0) {
 			pr_err("%s: write error %x\n", __func__, ret);
@@ -146,6 +156,64 @@ static int adv7280_config(struct adv7280_priv *adv7280,
 	}
 
 	return 0;
+}
+
+/*! Initial ADV7280 chipset configuration load recommended settings
+ */
+static int adv7280_default_config(struct adv7280_chipset *adv7280)
+{
+	int ret;
+	/* select main register map */
+	ret = adv7280_write_reg(adv7280->client, ADV7280_ADI_CONTROL1, 0x00);
+	if (ret < 0) {
+		pr_err("%s: write error, select memory map %x\n",
+				__func__, ret);
+		goto err;
+	}
+
+	/* perform a device reset */
+	ret = adv7280_write_reg(adv7280->client, ADV7280_PM_REG,
+			ADV7280_PM_RESET_BIT);
+	if (ret < 0) {
+		pr_err("%s: write error, reset %x\n", __func__, ret);
+		goto err;
+	}
+	/* Wait 5ms reset time spec */
+	msleep(5);
+
+	/* Initial device configuration */
+	ret = adv7280_config(adv7280->client, adv7280_init_params,
+			ARRAY_SIZE(adv7280_init_params));
+	if (ret < 0) {
+		pr_err("%s: config device error %x\n", __func__, ret);
+		goto err;
+	}
+
+	/* configure csi-tx slave address */
+	if (adv7280->pdata->csi_tx_addr) {
+		/* shit left to pass 8bit address instead of 7bit address*/
+		ret = adv7280_write_reg(adv7280->client,
+				ADV7280_CSI_TX_SLAVE_ADDR,
+				adv7280->pdata->csi_tx_addr << 1);
+		if (ret < 0)
+			goto err;
+	}
+
+	/* select csi top reg address space*/
+	ret = adv7280_write_reg(adv7280->client, ADV7280_ADI_CONTROL1, 0x40);
+	if (ret < 0)
+		goto err;
+
+	ret = adv7280_config(adv7280->client_csi_tx, adv7280_init_mipi_csi_top,
+			ARRAY_SIZE(adv7280_init_mipi_csi_top));
+	if (ret < 0) {
+		pr_err("%s: config device error csi_top %x\n", __func__, ret);
+		goto err;
+	}
+
+	return 0;
+err:
+	return ret;
 }
 
 /*!
@@ -160,17 +228,33 @@ static int adv7280_i2c_probe(struct i2c_client *client,
 			 const struct i2c_device_id *id)
 {
 	int ret;
-	struct adv7280_priv *adv7280;
+	u8 csi_addr;
+	struct adv7280_chipset *adv7280;
 
-	adv7280 = kzalloc(sizeof(struct adv7280_priv), GFP_KERNEL);
+	adv7280 = kzalloc(sizeof(struct adv7280_chipset), GFP_KERNEL);
 	if (!adv7280)
 		return -ENOMEM;
 
-	adv7280->client = client;
-	adv7280->pdata = client->dev.platform_data;
 	i2c_set_clientdata(client, adv7280);
 
-	ret = adv7280_read_reg(adv7280, ADV7280_IDENT);
+	adv7280->dev = &client->dev;
+	adv7280->client = client;
+	adv7280->pdata = client->dev.platform_data;
+
+	if (adv7280->pdata->csi_tx_addr) {
+		csi_addr = adv7280->pdata->csi_tx_addr;
+		pr_debug("%s: csi_tx_addr = 0x%02x\n", __func__, csi_addr);
+	} else
+		csi_addr = ADV7280_CSI_TX_ADDR;
+	/* Attach a second dummy i2c_client for csi-top register access */
+	adv7280->client_csi_tx = i2c_new_dummy(client->adapter,
+								csi_addr);
+	if (!adv7280->client_csi_tx) {
+		ret = -ENOMEM;
+		goto client_csi_tx_err;
+	}
+
+	ret = adv7280_read_reg(adv7280->client, ADV7280_IDENT);
 	if (ret < 0) {
 		pr_err("%s: read id error %x\n", __func__, ret);
 		goto err;
@@ -183,42 +267,24 @@ static int adv7280_i2c_probe(struct i2c_client *client,
 	}
 
 	pr_info("%s: device found, rev_id 0x%02x\n", __func__, ret);
-	/* select main register map */
-	ret = adv7280_write_reg(adv7280, ADV7280_ADI_CONTROL1, 0x00);
-	if (ret < 0) {
-		pr_err("%s: write error, select memory map %x\n",
-				__func__, ret);
+	/* default configuration */
+	ret = adv7280_default_config(adv7280);
+	if (ret < 0)
 		goto err;
-	}
-
-	/* perform a device reset */
-	ret = adv7280_write_reg(adv7280, ADV7280_PM_REG,
-			ADV7280_PM_RESET_BIT);
-	if (ret < 0) {
-		pr_err("%s: write error, reset %x\n", __func__, ret);
-		goto err;
-	}
-	/* Wait 5ms reset time spec */
-	msleep(5);
-
-	/* Initial device configuration */
-	ret = adv7280_config(adv7280, adv7280_init_params,
-			ARRAY_SIZE(adv7280_init_params));
-	if (ret < 0) {
-		pr_err("%s: config device error %x\n", __func__, ret);
-		goto err;
-	}
 
 	return 0;
 err:
+	i2c_unregister_device(adv7280->client_csi_tx);
+client_csi_tx_err:
 	kfree(adv7280);
 	return ret;
 }
 
 static int adv7280_i2c_remove(struct i2c_client *i2c_client)
 {
-	struct adv7280_priv *adv7280 = i2c_get_clientdata(i2c_client);
+	struct adv7280_chipset *adv7280 = i2c_get_clientdata(i2c_client);
 
+	i2c_unregister_device(adv7280->client_csi_tx);
 	kfree(adv7280);
 	return 0;
 }
