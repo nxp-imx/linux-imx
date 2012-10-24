@@ -119,6 +119,7 @@ void hdmi_dma_copy_24_neon_fast(unsigned int *src, unsigned int *dst,
 			int samples);
 
 hdmi_audio_header_t iec_header;
+EXPORT_SYMBOL(iec_header);
 
 /*
  * Note that the period size for DMA != period size for ALSA because the
