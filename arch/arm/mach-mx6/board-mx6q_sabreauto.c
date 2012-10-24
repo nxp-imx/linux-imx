@@ -643,6 +643,8 @@ static struct fsl_mxc_tvin_platform_data adv7280_data = {
 	.pvdd_reg	= NULL,
 	.pwdn		= NULL,
 	.cvbs		= true,
+	/* csi slave reg address */
+	.csi_tx_addr = 0x51,
 };
 
 static struct imxi2c_platform_data mx6q_sabreauto_i2c2_data = {
