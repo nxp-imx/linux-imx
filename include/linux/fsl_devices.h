@@ -320,6 +320,8 @@ struct fsl_mxc_tvin_platform_data {
 	void (*reset)(void);
 	void (*io_init)(void);
 	bool cvbs;
+	/* adv7280 mipi-csi i2c slave addr */
+	u8 csi_tx_addr;
 };
 
 struct mpc8xx_pcmcia_ops {
