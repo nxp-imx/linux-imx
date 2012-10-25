@@ -388,6 +388,10 @@ static int mxc_cpufreq_exit(struct cpufreq_policy *policy)
 	return 0;
 }
 
+static struct freq_attr *imx_cpufreq_attr[] = {
+	&cpufreq_freq_attr_scaling_available_freqs,
+	NULL,
+};
 static struct cpufreq_driver mxc_driver = {
 	.flags = CPUFREQ_STICKY,
 	.verify = mxc_verify_speed,
@@ -400,6 +404,7 @@ static struct cpufreq_driver mxc_driver = {
 	.resume = mxc_cpufreq_resume,
 #endif
 	.name = "imx",
+	.attr = imx_cpufreq_attr,
 };
 
 extern void mx6_cpu_regulator_init(void);
