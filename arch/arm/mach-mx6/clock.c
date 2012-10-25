@@ -4244,7 +4244,7 @@ static struct clk caam_clk[] = {
 	 __INIT_CLK_DEBUG(caam_ipg_clk)
 	.id = 2,
 	.enable_reg = MXC_CCM_CCGR0,
-	.enable_shift = MXC_CCM_CCGRx_CG6_OFFSET,
+	.enable_shift = MXC_CCM_CCGRx_CG4_OFFSET,
 	.enable = _clk_enable,
 	.disable = _clk_disable,
 	.parent = &mmdc_ch0_axi_clk[0],
@@ -5343,8 +5343,13 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		clk_debug_register(lookups[i].clk);
 	}
 
-	/* Lower the ipg_perclk frequency to 6MHz. */
-	clk_set_rate(&ipg_perclk, 6000000);
+	/* Lower the ipg_perclk frequency to 22MHz.
+	  * I2C needs a minimum of 12.8MHz as its source
+	  * to acheive 400KHz speed. IPG_PERCLK sources
+	  * I2C. 22MHz when divided by the I2C divider gives the
+	  * freq closest to 400KHz.
+	  */
+	clk_set_rate(&ipg_perclk, 22000000);
 
 	/* Timer needs to be initialized first as the
 	  * the WAIT routines use GPT counter as
