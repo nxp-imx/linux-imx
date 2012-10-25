@@ -26,8 +26,10 @@
 #include <linux/types.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
+#include <linux/err.h>
 #include <linux/delay.h>
 #include <linux/fsl_devices.h>
+#include <linux/regulator/consumer.h>
 
 #define ADV7280_SAMPLE_SILICON         0x40
 #define ADV7280_PROD_SILICON           0x41
@@ -53,9 +55,14 @@
 #define ADV7280_NTSC_MODE_BIT          0x00 /* NTSC mode bit    */
 #define ADV7280_NTSC_4_43_MODE_BIT     0x10 /* NTSC 4.43 mode bit*/
 /** adv7280 voltages */
-#define ADV7280_VOLTAGE_ANALOG         2800000
-#define ADV7280_VOLTAGE_DIGITAL_CORE   1500000
+#define ADV7280_VOLTAGE_ANALOG         1800000
+#define ADV7280_VOLTAGE_DIGITAL_CORE   3300000
 #define ADV7280_VOLTAGE_DIGITAL_IO     1800000
+
+static struct regulator *dvddio_regulator;
+static struct regulator *dvdd_regulator;
+static struct regulator *avdd_regulator;
+static struct regulator *pvdd_regulator;
 
 struct reg_value {
 	u8 reg;
@@ -216,6 +223,104 @@ err:
 	return ret;
 }
 
+static int adv7280_regulators_config(struct adv7280_chipset *adv7280)
+{
+	struct fsl_mxc_tvin_platform_data *pdata = adv7280->pdata;
+	int ret;
+
+	if (pdata->dvddio_reg) {
+		dvddio_regulator =
+			regulator_get(adv7280->dev, pdata->dvddio_reg);
+		if (!IS_ERR(dvddio_regulator)) {
+			ret = regulator_set_voltage(dvddio_regulator,
+					ADV7280_VOLTAGE_DIGITAL_CORE,
+					ADV7280_VOLTAGE_DIGITAL_CORE);
+			if (ret < 0)
+				goto dvddio_err;
+			ret = regulator_enable(dvddio_regulator);
+			if (ret != 0) {
+				pr_err("%s: dvddio_reg set voltage error\n",
+						__func__);
+				goto dvddio_err;
+			}
+		} else
+			dvddio_regulator = NULL;
+	}
+
+	if (pdata->dvdd_reg) {
+		dvdd_regulator = regulator_get(adv7280->dev, pdata->dvdd_reg);
+		if (!IS_ERR(dvdd_regulator)) {
+			ret = regulator_set_voltage(dvdd_regulator,
+					ADV7280_VOLTAGE_DIGITAL_IO,
+					ADV7280_VOLTAGE_DIGITAL_IO);
+			if (ret < 0)
+				goto dvdd_err;
+			ret = regulator_enable(dvdd_regulator);
+			if (ret != 0) {
+				pr_err("%s: dvdd_reg set voltage error\n",
+						__func__);
+				goto dvdd_err;
+			}
+		} else
+			dvdd_regulator = NULL;
+	}
+
+	if (pdata->avdd_reg) {
+		avdd_regulator = regulator_get(adv7280->dev, pdata->avdd_reg);
+		if (!IS_ERR(avdd_regulator)) {
+			ret = regulator_set_voltage(avdd_regulator,
+					ADV7280_VOLTAGE_ANALOG,
+					ADV7280_VOLTAGE_ANALOG);
+			if (ret < 0)
+				goto avdd_err;
+			ret = regulator_enable(avdd_regulator);
+			if (ret != 0) {
+				pr_err("%s: avdd_reg set voltage error\n",
+						__func__);
+				goto avdd_err;
+			}
+		} else
+			avdd_regulator = NULL;
+	}
+
+	if (pdata->pvdd_reg) {
+		pvdd_regulator = regulator_get(adv7280->dev, pdata->pvdd_reg);
+		if (!IS_ERR(pvdd_regulator)) {
+			ret = regulator_set_voltage(pvdd_regulator,
+					ADV7280_VOLTAGE_DIGITAL_IO,
+					ADV7280_VOLTAGE_DIGITAL_IO);
+			if (ret < 0)
+				goto pvdd_err;
+			ret = regulator_enable(pvdd_regulator);
+			if (ret != 0) {
+				pr_err("%s: pvdd_reg set voltage error\n",
+						__func__);
+				goto pvdd_err;
+			}
+		} else
+			pvdd_regulator = NULL;
+	}
+
+	return 0;
+
+pvdd_err:
+	if (avdd_regulator) {
+		regulator_disable(avdd_regulator);
+		regulator_put(avdd_regulator);
+	}
+avdd_err:
+	if (dvdd_regulator) {
+		regulator_disable(dvdd_regulator);
+		regulator_put(dvdd_regulator);
+	}
+dvdd_err:
+	if (dvddio_regulator) {
+		regulator_disable(dvddio_regulator);
+		regulator_put(dvddio_regulator);
+	}
+dvddio_err:
+	return ret;
+}
 /*!
  * ADV7280 I2C probe function.
  * Function set in i2c_driver struct.
@@ -254,6 +359,20 @@ static int adv7280_i2c_probe(struct i2c_client *client,
 		goto client_csi_tx_err;
 	}
 
+	/* custom platform reset, powerup callbacks */
+	if (adv7280->pdata->io_init)
+		adv7280->pdata->io_init();
+
+	if (adv7280->pdata->reset)
+		adv7280->pdata->reset();
+
+	if (adv7280->pdata->pwdn)
+		adv7280->pdata->pwdn(0);
+	/* set regulators */
+	ret = adv7280_regulators_config(adv7280);
+	if (ret < 0)
+		goto err;
+
 	ret = adv7280_read_reg(adv7280->client, ADV7280_IDENT);
 	if (ret < 0) {
 		pr_err("%s: read id error %x\n", __func__, ret);
@@ -283,6 +402,26 @@ client_csi_tx_err:
 static int adv7280_i2c_remove(struct i2c_client *i2c_client)
 {
 	struct adv7280_chipset *adv7280 = i2c_get_clientdata(i2c_client);
+
+	if (dvddio_regulator) {
+		regulator_disable(dvddio_regulator);
+		regulator_put(dvddio_regulator);
+	}
+
+	if (dvdd_regulator) {
+		regulator_disable(dvdd_regulator);
+		regulator_put(dvdd_regulator);
+	}
+
+	if (avdd_regulator) {
+		regulator_disable(avdd_regulator);
+		regulator_put(avdd_regulator);
+	}
+
+	if (pvdd_regulator) {
+		regulator_disable(pvdd_regulator);
+		regulator_put(pvdd_regulator);
+	}
 
 	i2c_unregister_device(adv7280->client_csi_tx);
 	kfree(adv7280);
