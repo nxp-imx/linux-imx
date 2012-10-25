@@ -103,6 +103,7 @@ struct ldb_data {
 
 static int g_ldb_mode;
 static struct i2c_client *ldb_i2c_client[2];
+static u8 g_edid[2][512];
 
 static struct fb_videomode ldb_modedb[] = {
 	{
@@ -123,6 +124,8 @@ static struct fb_videomode ldb_modedb[] = {
 	 FB_MODE_IS_DETAILED,},
 };
 static int ldb_modedb_sz = ARRAY_SIZE(ldb_modedb);
+
+static int mxc_ldb_edidread(struct i2c_client *client);
 
 static int bits_per_pixel(int pixel_fmt)
 {
@@ -405,6 +408,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 	uint32_t base_addr;
 	uint32_t reg, setting_idx;
 	uint32_t ch_mask = 0, ch_val = 0;
+	int lvds_channel = 0;
 
 	/* if input format not valid, make RGB666 as default*/
 	if (!valid_mode(setting->if_fmt)) {
@@ -416,7 +420,6 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 	if (!ldb->inited) {
 		char di_clk[] = "ipu1_di0_clk";
 		char ldb_clk[] = "ldb_di0_clk";
-		int lvds_channel = 0;
 
 		setting_idx = 0;
 		res = platform_get_resource(ldb->pdev, IORESOURCE_MEM, 0);
@@ -586,12 +589,11 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 
 		ldb->inited = true;
 
-		i2c_dev = ldb_i2c_client[0];
+		i2c_dev = ldb_i2c_client[lvds_channel];
 
 	} else { /* second time for separate mode */
 		char di_clk[] = "ipu1_di0_clk";
 		char ldb_clk[] = "ldb_di0_clk";
-		int lvds_channel;
 
 		if ((ldb->mode == LDB_SPL_DI0) ||
 			(ldb->mode == LDB_SPL_DI1) ||
@@ -670,7 +672,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 			return PTR_ERR(ldb->setting[setting_idx].di_clk);
 		}
 
-		i2c_dev = ldb_i2c_client[1];
+		i2c_dev = ldb_i2c_client[lvds_channel];
 
 		dev_dbg(&ldb->pdev->dev, "ldb_clk to di clk: %s -> %s\n", ldb_clk, di_clk);
 	}
@@ -718,6 +720,20 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 			fb_add_videomode(&ldb_modedb[i],
 					&setting->fbi->modelist);
 			break;
+		}
+	}
+
+	/* get screen size in edid */
+	if (i2c_dev) {
+		ret = mxc_ldb_edidread(i2c_dev);
+		if (ret > 0) {
+			fb_edid_to_monspecs(&g_edid[lvds_channel][0],
+						&setting->fbi->monspecs);
+			/* centimeter to millimeter */
+			setting->fbi->var.width =
+					setting->fbi->monspecs.max_x * 10;
+			setting->fbi->var.height =
+					setting->fbi->monspecs.max_y * 10;
 		}
 	}
 
@@ -779,11 +795,12 @@ static int ldb_resume(struct platform_device *pdev)
 	return 0;
 }
 
-static int mxc_ldb_edidread(struct i2c_adapter *adp)
+static int mxc_ldb_edidread(struct i2c_client *client)
 {
 	int ret = 0;
-	u8 edid[512];
 	unsigned char regaddr = 0;
+	struct i2c_adapter *adp = client->adapter;
+	int ldb_id = (int)client->dev.platform_data;
 	struct i2c_msg msg[2] = {
 		{
 		.addr	= 0x50,
@@ -794,7 +811,7 @@ static int mxc_ldb_edidread(struct i2c_adapter *adp)
 		.addr	= 0x50,
 		.flags	= I2C_M_RD,
 		.len	= 512,
-		.buf	= edid,
+		.buf	= &g_edid[ldb_id][0],
 		},
 	};
 
@@ -812,7 +829,7 @@ static ssize_t mxc_ldb_show_state(struct device *dev,
 	int ret;
 	struct i2c_client *client = to_i2c_client(dev);
 
-	ret = mxc_ldb_edidread(client->adapter);
+	ret = mxc_ldb_edidread(client);
 	if (ret < 0)
 		strcpy(buf, "plugout\n");
 	else
