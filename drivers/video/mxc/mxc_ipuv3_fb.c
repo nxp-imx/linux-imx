@@ -898,14 +898,14 @@ static int mxcfb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 			var->pixclock);
 	}
 
-	if (mxc_fbi->panel_height_mm)
+	if (var->height == 0 && mxc_fbi->panel_height_mm)
 		var->height = mxc_fbi->panel_height_mm;
-	else
+	else if (var->height == 0)
 		var->height = -1;
 
-	if (mxc_fbi->panel_width_mm)
+	if (var->width == 0 && mxc_fbi->panel_width_mm)
 		var->width = mxc_fbi->panel_width_mm;
-	else
+	else if (var->width == 0)
 		var->width = -1;
 
 	var->grayscale = 0;
