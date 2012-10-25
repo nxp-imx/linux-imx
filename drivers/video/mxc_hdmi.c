@@ -1670,6 +1670,10 @@ static void mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 	/* HDMI Initialization Steps D, E, F */
 	switch (edid_status) {
 	case HDMI_EDID_SUCCESS:
+		/* centimeter to millimeter */
+		hdmi->fbi->var.width = hdmi->fbi->monspecs.max_x * 10;
+		hdmi->fbi->var.height = hdmi->fbi->monspecs.max_y * 10;
+
 		mxc_hdmi_edid_rebuild_modelist(hdmi);
 		break;
 
