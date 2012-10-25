@@ -836,7 +836,7 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("mxc_ldb_i2c", 0x50),
-		.platform_data = (void *)0,
+		.platform_data = (void *)1,	/* lvds port1 */
 	},
 };
 
