@@ -843,7 +843,6 @@ static void asrc_input_dma_callback(void *data)
 
 	params = data;
 	spin_lock_irqsave(&input_int_lock, lock_flags);
-	params->input_queue_empty--;
 	params->input_counter++;
 	wake_up_interruptible(&params->input_wait_queue);
 	spin_unlock_irqrestore(&input_int_lock, lock_flags);
@@ -858,7 +857,6 @@ static void asrc_output_dma_callback(void *data)
 	params = data;
 
 	spin_lock_irqsave(&output_int_lock, lock_flags);
-	params->output_queue_empty--;
 	params->output_counter++;
 	wake_up_interruptible(&params->output_wait_queue);
 	spin_unlock_irqrestore(&output_int_lock, lock_flags);
@@ -1140,12 +1138,6 @@ static long asrc_ioctl(struct file *file,
 				break;
 			}
 
-			params->input_queue_empty = 0;
-			params->output_queue_empty = 0;
-			INIT_LIST_HEAD(&params->input_queue);
-			INIT_LIST_HEAD(&params->input_done_queue);
-			INIT_LIST_HEAD(&params->output_queue);
-			INIT_LIST_HEAD(&params->output_done_queue);
 			init_waitqueue_head(&params->input_wait_queue);
 			init_waitqueue_head(&params->output_wait_queue);
 
@@ -1214,22 +1206,6 @@ static long asrc_ioctl(struct file *file,
 				break;
 			}
 
-			spin_lock_irqsave(&input_int_lock, lock_flags);
-			params->input_dma[buf.index].index = buf.index;
-			params->input_dma[buf.index].length = buf.length;
-			list_add_tail(&params->input_dma[buf.index].
-				      queue, &params->input_queue);
-			if (!list_empty(&params->input_queue)) {
-				block =
-				    list_entry(params->input_queue.next,
-					       struct dma_block, queue);
-
-				params->input_queue_empty++;
-				list_del(params->input_queue.next);
-				list_add_tail(&block->queue,
-					      &params->input_done_queue);
-			}
-			spin_unlock_irqrestore(&input_int_lock, lock_flags);
 			break;
 		}
 	case ASRC_DQ_INBUF:{
@@ -1268,11 +1244,8 @@ static long asrc_ioctl(struct file *file,
 			}
 			spin_lock_irqsave(&input_int_lock, lock_flags);
 			params->input_counter--;
-			block =
-			    list_entry(params->input_done_queue.next,
-				       struct dma_block, queue);
-			list_del(params->input_done_queue.next);
 			spin_unlock_irqrestore(&input_int_lock, lock_flags);
+			block = &params->input_dma[0];
 			buf.index = block->index;
 			buf.length = block->length;
 			buf.buf_valid = ASRC_BUF_AV;
@@ -1294,22 +1267,6 @@ static long asrc_ioctl(struct file *file,
 				break;
 			}
 
-			spin_lock_irqsave(&output_int_lock, lock_flags);
-			params->output_dma[buf.index].index = buf.index;
-			params->output_dma[buf.index].length = buf.length;
-			list_add_tail(&params->output_dma[buf.index].
-				      queue, &params->output_queue);
-			if (!list_empty(&params->output_queue)) {
-				block =
-				    list_entry(params->output_queue.
-					       next, struct dma_block, queue);
-				list_del(params->output_queue.next);
-				list_add_tail(&block->queue,
-					      &params->output_done_queue);
-				params->output_queue_empty++;
-			}
-
-			spin_unlock_irqrestore(&output_int_lock, lock_flags);
 			break;
 		}
 	case ASRC_DQ_OUTBUF:{
@@ -1348,11 +1305,9 @@ static long asrc_ioctl(struct file *file,
 			}
 			spin_lock_irqsave(&output_int_lock, lock_flags);
 			params->output_counter--;
-			block =
-			    list_entry(params->output_done_queue.next,
-				       struct dma_block, queue);
-			list_del(params->output_done_queue.next);
+
 			spin_unlock_irqrestore(&output_int_lock, lock_flags);
+			block = &params->output_dma[0];
 			buf.index = block->index;
 			buf.length = block->length;
 			buf.buf_valid = ASRC_BUF_AV;
@@ -1372,14 +1327,7 @@ static long asrc_ioctl(struct file *file,
 				err = -EFAULT;
 				break;
 			}
-			spin_lock_irqsave(&input_int_lock, lock_flags);
-			if (params->input_queue_empty == 0) {
-				err = -EFAULT;
-				pr_info
-				    ("ASRC_START_CONV - no block available\n");
-				break;
-			}
-			spin_unlock_irqrestore(&input_int_lock, lock_flags);
+
 			params->asrc_active = 1;
 			dmaengine_submit(params->desc_in);
 			dmaengine_submit(params->desc_out);
@@ -1423,22 +1371,14 @@ static long asrc_ioctl(struct file *file,
 			u32 rx_id, tx_id;
 			char *rx_name, *tx_name;
 			spin_lock_irqsave(&input_int_lock, lock_flags);
-			while (!list_empty(&params->input_queue))
-				list_del(params->input_queue.next);
-			while (!list_empty(&params->input_done_queue))
-				list_del(params->input_done_queue.next);
+
 			params->input_counter = 0;
-			params->input_queue_empty = 0;
 			spin_unlock_irqrestore(&input_int_lock, lock_flags);
 
 			/* flush output dma buffer */
 			spin_lock_irqsave(&output_int_lock, lock_flags);
-			while (!list_empty(&params->output_queue))
-				list_del(params->output_queue.next);
-			while (!list_empty(&params->output_done_queue))
-				list_del(params->output_done_queue.next);
+
 			params->output_counter = 0;
-			params->output_queue_empty = 0;
 			spin_unlock_irqrestore(&output_int_lock, lock_flags);
 
 			/* release DMA and request again */
