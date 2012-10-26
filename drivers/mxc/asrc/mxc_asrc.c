@@ -873,22 +873,15 @@ static void asrc_output_task_worker(struct work_struct *w)
 	/* asrc output work struct */
 }
 
-
 static void mxc_free_dma_buf(struct asrc_pair_params *params)
 {
 	if (params->input_dma_total.dma_vaddr != NULL) {
-		dma_free_coherent(g_asrc->dev,
-			params->input_dma_total.length,
-			params->input_dma_total.dma_vaddr,
-			params->input_dma_total.dma_paddr);
+		kfree(params->input_dma_total.dma_vaddr);
 		params->input_dma_total.dma_vaddr = NULL;
 	}
 
 	if (params->output_dma_total.dma_vaddr != NULL) {
-		dma_free_coherent(g_asrc->dev,
-			params->output_dma_total.length,
-			params->output_dma_total.dma_vaddr,
-			params->output_dma_total.dma_paddr);
+		kfree(params->input_dma_total.dma_vaddr);
 		params->output_dma_total.dma_vaddr = NULL;
 	}
 
@@ -897,42 +890,25 @@ static void mxc_free_dma_buf(struct asrc_pair_params *params)
 
 static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 {
-	int i;
 	struct dma_block *input_a, *output_a;
 
 	input_a = &params->input_dma_total;
 	output_a = &params->output_dma_total;
 
-	input_a->dma_vaddr =
-		dma_alloc_coherent(g_asrc->dev,
-			input_a->length, &input_a->dma_paddr,
-			GFP_KERNEL | GFP_DMA);
-	if (!input_a->dma_vaddr)
+	input_a->dma_vaddr = kzalloc(input_a->length, GFP_KERNEL);
+	if (!input_a->dma_vaddr) {
+		pr_err("fail to allocate input dma buffer!\n");
 		goto exit;
-
-	for (i = 0; i < params->buffer_num; i++) {
-		params->input_dma[i].dma_vaddr =
-			input_a->dma_vaddr + i * params->input_buffer_size;
-		params->input_dma[i].dma_paddr =
-			input_a->dma_paddr + i * params->input_buffer_size;
-		if (params->input_dma[i].dma_vaddr == NULL)
-			goto exit;
 	}
+	input_a->dma_paddr = virt_to_dma(NULL, input_a->dma_vaddr);
 
-	output_a->dma_vaddr =
-		dma_alloc_coherent(g_asrc->dev,
-			output_a->length, &output_a->dma_paddr,
-			GFP_KERNEL | GFP_DMA);
-	if (!output_a->dma_vaddr)
+	output_a->dma_vaddr = kzalloc(output_a->length, GFP_KERNEL);
+	if (!output_a->dma_vaddr) {
+		pr_err("fail to allocate output dma buffer!\n");
 		goto exit;
-	for (i = 0; i < params->buffer_num; i++) {
-		params->output_dma[i].dma_vaddr =
-			output_a->dma_vaddr + i * params->output_buffer_size;
-		params->output_dma[i].dma_paddr =
-			output_a->dma_paddr + i * params->output_buffer_size;
-		if (params->output_dma[i].dma_vaddr == NULL)
-			goto exit;
 	}
+	output_a->dma_paddr = virt_to_dma(NULL, output_a->dma_vaddr);
+
 	return 0;
 
 exit:
@@ -1079,10 +1055,8 @@ static long asrc_ioctl(struct file *file,
 			else
 				params->buffer_num = config.buffer_num;
 
-			params->input_dma_total.length =
-				params->input_buffer_size * params->buffer_num;
-			params->output_dma_total.length =
-				params->output_buffer_size * params->buffer_num;
+			params->input_dma_total.length = ASRC_DMA_BUFFER_SIZE;
+			params->output_dma_total.length = ASRC_DMA_BUFFER_SIZE;
 
 			err = mxc_allocate_dma_buf(params);
 			if (err < 0)
