@@ -197,16 +197,10 @@ struct asrc_p2p_params {
 
 struct asrc_pair_params {
 	enum asrc_pair_index index;
-	struct list_head input_queue;
-	struct list_head input_done_queue;
-	struct list_head output_queue;
-	struct list_head output_done_queue;
 	wait_queue_head_t input_wait_queue;
 	wait_queue_head_t output_wait_queue;
 	unsigned int input_counter;
 	unsigned int output_counter;
-	unsigned int input_queue_empty;
-	unsigned int output_queue_empty;
 	struct dma_chan *input_dma_channel;
 	struct dma_chan *output_dma_channel;
 	unsigned int input_buffer_size;
