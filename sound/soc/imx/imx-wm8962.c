@@ -324,24 +324,24 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_sync(&codec->dapm);
 
 	if (plat->hp_gpio != -1) {
-			priv->hp_irq = gpio_to_irq(plat->hp_gpio);
+		priv->hp_irq = gpio_to_irq(plat->hp_gpio);
 
-			ret = request_irq(priv->hp_irq,
-						imx_headphone_detect_handler,
-						IRQ_TYPE_EDGE_BOTH, pdev->name, priv);
+		ret = request_irq(priv->hp_irq,
+					imx_headphone_detect_handler,
+					IRQ_TYPE_EDGE_BOTH, pdev->name, priv);
 
-			if (ret < 0) {
-				ret = -EINVAL;
-				return ret;
-			}
-
-			ret = driver_create_file(pdev->dev.driver,
-							&driver_attr_headphone);
-			if (ret < 0) {
-				ret = -EINVAL;
-				return ret;
-			}
+		if (ret < 0) {
+			ret = -EINVAL;
+			return ret;
 		}
+
+		ret = driver_create_file(pdev->dev.driver,
+						&driver_attr_headphone);
+		if (ret < 0) {
+			ret = -EINVAL;
+			return ret;
+		}
+	}
 
 	if (plat->mic_gpio != -1) {
 		priv->amic_irq = gpio_to_irq(plat->mic_gpio);
@@ -447,11 +447,15 @@ static int __devinit imx_wm8962_probe(struct platform_device *pdev)
 static int __devexit imx_wm8962_remove(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
-
-	plat->clock_enable(0);
+	struct imx_priv *priv = &card_priv;
 
 	if (plat->finit)
 		plat->finit();
+
+	if (priv->hp_irq)
+		free_irq(priv->hp_irq, priv);
+	if (priv->amic_irq)
+		free_irq(priv->amic_irq, priv);
 
 	return 0;
 }
