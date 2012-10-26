@@ -215,6 +215,7 @@ struct asrc_pair_params {
 	struct dma_block output_dma[ASRC_DMA_BUFFER_NUM];
 	struct dma_async_tx_descriptor *desc_in;
 	struct dma_async_tx_descriptor *desc_out;
+	struct work_struct task_output_work;
 };
 
 struct asrc_data {

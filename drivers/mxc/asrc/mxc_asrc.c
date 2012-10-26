@@ -860,8 +860,19 @@ static void asrc_output_dma_callback(void *data)
 	params->output_counter++;
 	wake_up_interruptible(&params->output_wait_queue);
 	spin_unlock_irqrestore(&output_int_lock, lock_flags);
+
+	schedule_work(&params->task_output_work);
 	return;
 }
+
+static void asrc_output_task_worker(struct work_struct *w)
+{
+	struct asrc_pair_params *params =
+		container_of(w, struct asrc_pair_params, task_output_work);
+
+	/* asrc output work struct */
+}
+
 
 static void mxc_free_dma_buf(struct asrc_pair_params *params)
 {
@@ -1140,6 +1151,10 @@ static long asrc_ioctl(struct file *file,
 
 			init_waitqueue_head(&params->input_wait_queue);
 			init_waitqueue_head(&params->output_wait_queue);
+			/* Add work struct to cover the task of
+			 * receive last period of output data.*/
+			INIT_WORK(&params->task_output_work,
+						asrc_output_task_worker);
 
 			if (copy_to_user
 			    ((void __user *)arg, &config,
