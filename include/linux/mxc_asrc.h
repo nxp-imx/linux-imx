@@ -138,6 +138,8 @@ enum asrc_error_status {
 #define ASRC_DMA_BUFFER_NUM		2
 #define ASRC_INPUTFIFO_THRESHOLD	32
 #define ASRC_OUTPUTFIFO_THRESHOLD	32
+#define ASRC_DMA_BUFFER_SIZE	(1024 * 64 * 4)
+
 
 #define ASRC_ASRCTR_REG 	0x00
 #define ASRC_ASRIER_REG 	0x04
