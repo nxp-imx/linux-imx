@@ -17,7 +17,7 @@
  * @brief MXC Asynchronous Sample Rate Converter
  *
  * @ingroup SOUND
- */
+*/
 
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -152,10 +152,10 @@ static unsigned char output_clk_map_v2[] = {
 static unsigned char *input_clk_map, *output_clk_map;
 
 static struct dma_chan *imx_asrc_dma_alloc(u32 dma_req);
-struct dma_async_tx_descriptor *imx_asrc_dma_config(
+static int imx_asrc_dma_config(
 					struct asrc_pair_params *params,
 					struct dma_chan *chan,
-					u32 dma_addr, dma_addr_t buf_addr,
+					u32 dma_addr, void *buf_addr,
 					u32 buf_len, bool in,
 					enum asrc_word_width word_width);
 
@@ -632,6 +632,19 @@ int asrc_config_pair(struct asrc_config *config)
 	__raw_writel(reg,
 		 g_asrc->vaddr + ASRC_ASRMCR1A_REG + (config->pair << 2));
 
+
+	/* Enable BUFFER STALL*/
+	reg = __raw_readl(
+		g_asrc->vaddr + ASRC_ASRMCRA_REG + (config->pair << 3));
+	reg |= 1 << 21;
+	reg |= 1 << 22;
+	reg &= ~0x3f;
+	reg += ASRC_INPUTFIFO_THRESHOLD;
+	reg &= ~(0x3f << 12);
+	reg += ASRC_OUTPUTFIFO_THRESHOLD << 12;
+	__raw_writel(reg,
+		g_asrc->vaddr + ASRC_ASRMCRA_REG + (config->pair << 3));
+
 	return err;
 }
 
@@ -842,6 +855,8 @@ static void asrc_input_dma_callback(void *data)
 	unsigned long lock_flags;
 
 	params = data;
+	dma_unmap_sg(NULL, params->input_sg,
+		params->input_sg_nodes, DMA_MEM_TO_DEV);
 	spin_lock_irqsave(&input_int_lock, lock_flags);
 	params->input_counter++;
 	wake_up_interruptible(&params->input_wait_queue);
@@ -855,7 +870,8 @@ static void asrc_output_dma_callback(void *data)
 	unsigned long lock_flags;
 
 	params = data;
-
+	dma_unmap_sg(NULL, params->output_sg,
+		params->output_sg_nodes, DMA_MEM_TO_DEV);
 	spin_lock_irqsave(&output_int_lock, lock_flags);
 	params->output_counter++;
 	wake_up_interruptible(&params->output_wait_queue);
@@ -942,17 +958,29 @@ static struct dma_chan *imx_asrc_dma_alloc(u32 dma_req)
 	return dma_request_channel(mask, filter, &dma_data);
 }
 
-
-struct dma_async_tx_descriptor *imx_asrc_dma_config(
+static int imx_asrc_dma_config(
 				struct asrc_pair_params *params,
 				struct dma_chan *chan,
-				u32 dma_addr, dma_addr_t buf_addr,
+				u32 dma_addr, void *buf_addr,
 				u32 buf_len, bool in,
 				enum asrc_word_width word_width)
 {
 	struct dma_slave_config slave_config;
 	enum dma_slave_buswidth buswidth;
+	struct scatterlist *sg;
+	unsigned int sg_nent, sg_index;
+	struct dma_async_tx_descriptor *desc;
 	int ret;
+
+	if (in) {
+		sg = params->input_sg;
+		sg_nent = params->input_sg_nodes;
+		desc = params->desc_in;
+	} else {
+		sg = params->output_sg;
+		sg_nent = params->output_sg_nodes;
+		desc = params->desc_out;
+	}
 
 	switch (word_width) {
 	case ASRC_WIDTH_16_BIT:
@@ -963,7 +991,7 @@ struct dma_async_tx_descriptor *imx_asrc_dma_config(
 		break;
 	default:
 		pr_err("Error word_width\n");
-		return NULL;
+		return -EINVAL;
 	}
 
 	if (in) {
@@ -982,15 +1010,176 @@ struct dma_async_tx_descriptor *imx_asrc_dma_config(
 	ret = dmaengine_slave_config(chan, &slave_config);
 	if (ret) {
 		pr_err("imx_asrc_dma_config(%d) failed\r\n", in);
-		return NULL;
+		return -EINVAL;
 	}
 
-	return chan->device->device_prep_dma_cyclic(chan, buf_addr,
-			buf_len * params->buffer_num,
-			buf_len,
-			in == true ?
-			DMA_TO_DEVICE : DMA_FROM_DEVICE);
+	sg_init_table(sg, sg_nent);
+	switch (sg_nent) {
+	case 1:
+		sg_init_one(sg, buf_addr, buf_len);
+		break;
+	case 2:
+	case 3:
+	case 4:
+		for (sg_index = 0; sg_index < (sg_nent - 1); sg_index++) {
+			sg_set_buf(&sg[sg_index],
+				buf_addr + sg_index * ASRC_MAX_BUFFER_SIZE,
+				ASRC_MAX_BUFFER_SIZE);
+		}
+		sg_set_buf(&sg[sg_index],
+			buf_addr + sg_index * ASRC_MAX_BUFFER_SIZE,
+			buf_len - ASRC_MAX_BUFFER_SIZE * sg_index);
+		break;
+	default:
+		pr_err("Error Input DMA nodes number!");
+	}
+
+	ret = dma_map_sg(NULL, sg, sg_nent, slave_config.direction);
+	if (ret != sg_nent) {
+		pr_err("DMA mapping error!!\n");
+		return -EINVAL;
+	}
+
+	desc = chan->device->device_prep_slave_sg(chan,
+					sg, sg_nent, slave_config.direction, 1);
+
+	if (in) {
+		params->desc_in = desc;
+		params->desc_in->callback = asrc_input_dma_callback;
+	} else {
+		params->desc_out = desc;
+		params->desc_out->callback = asrc_output_dma_callback;
+	}
+	if (desc) {
+		desc->callback = in ?
+			asrc_input_dma_callback : asrc_output_dma_callback;
+		desc->callback_param = params;
+	} else {
+		return -EINVAL;
+	}
+
+	return 0;
+
 }
+
+int mxc_asrc_prepare_input_buffer(struct asrc_pair_params *params,
+					struct asrc_convert_buffer *pbuf)
+{
+	u32 word_size;
+
+	switch (params->input_word_width) {
+	case ASRC_WIDTH_24_BIT:
+		word_size = 4;
+		break;
+	case ASRC_WIDTH_16_BIT:
+	case ASRC_WIDTH_8_BIT:
+		word_size = 2;
+		break;
+	default:
+		pr_err("error input word size!\n");
+		return -EINVAL;
+	}
+
+	if (pbuf->input_buffer_length <
+		word_size * params->channel_nums * ASRC_INPUTFIFO_THRESHOLD) {
+		pr_err("input buffer size[%d] is too small!\n",
+					pbuf->input_buffer_length);
+		return -EINVAL;
+	}
+
+	/* copy origin data into input buffer */
+	if (copy_from_user(
+		params->input_dma_total.dma_vaddr,
+		(void __user *)pbuf->input_buffer_vaddr,
+		pbuf->input_buffer_length)) {
+		return -EFAULT;
+	}
+
+	params->input_dma_total.length = pbuf->input_buffer_length;
+	params->input_sg_nodes =
+		params->input_dma_total.length / ASRC_MAX_BUFFER_SIZE + 1;
+
+	return imx_asrc_dma_config(
+			params,
+			params->input_dma_channel,
+			asrc_get_per_addr(params->index, 1),
+			params->input_dma_total.dma_vaddr,
+			params->input_dma_total.length, 1,
+			params->input_word_width);
+
+}
+
+int mxc_asrc_prepare_output_buffer(struct asrc_pair_params *params,
+					struct asrc_convert_buffer *pbuf)
+{
+	params->output_dma_total.length = pbuf->output_buffer_length;
+	params->output_sg_nodes =
+		params->output_dma_total.length / ASRC_MAX_BUFFER_SIZE + 1;
+
+	return imx_asrc_dma_config(
+			params,
+			params->output_dma_channel,
+			asrc_get_per_addr(params->index, 0),
+			params->output_dma_total.dma_vaddr,
+			params->output_dma_total.length, 0,
+			params->output_word_width);
+}
+
+int mxc_asrc_process_output_buffer(struct asrc_pair_params *params,
+					struct asrc_convert_buffer *pbuf)
+{
+	unsigned long lock_flags;
+
+	if (!wait_event_interruptible_timeout
+	    (params->output_wait_queue,
+	     params->output_counter != 0, 10 * HZ)) {
+		pr_info
+		    ("ASRC_DQ_OUTBUF timeout counter %x\n",
+		     params->output_counter);
+		return -ETIME;
+	} else if (signal_pending(current)) {
+		pr_info("ASRC_DQ_INBUF interrupt received\n");
+		return -ERESTARTSYS;
+	}
+	spin_lock_irqsave(&output_int_lock, lock_flags);
+	params->output_counter--;
+	spin_unlock_irqrestore(&output_int_lock, lock_flags);
+
+	pbuf->output_buffer_length = params->output_dma_total.length;
+	if (copy_to_user((void __user *)pbuf->output_buffer_vaddr,
+				params->output_dma_total.dma_vaddr,
+				params->output_dma_total.length))
+		return -EFAULT;
+
+	return 0;
+
+}
+
+int mxc_asrc_process_input_buffer(struct asrc_pair_params *params,
+					struct asrc_convert_buffer *pbuf)
+{
+	unsigned long lock_flags;
+
+	if (!wait_event_interruptible_timeout
+	    (params->input_wait_queue,
+	     params->input_counter != 0, 10 * HZ)) {
+		pr_info
+		    ("ASRC_DQ_INBUF timeout counter %x\n",
+		     params->input_counter);
+		return -ETIME;
+	} else if (signal_pending(current)) {
+		pr_info("ASRC_DQ_INBUF interrupt received\n");
+		return -ERESTARTSYS;
+	}
+	spin_lock_irqsave(&input_int_lock, lock_flags);
+	params->input_counter--;
+	spin_unlock_irqrestore(&input_int_lock, lock_flags);
+
+	pbuf->input_buffer_length = params->input_dma_total.length;
+
+	return 0;
+}
+
 
 /*!
  * asrc interface -  function
@@ -1058,6 +1247,9 @@ static long asrc_ioctl(struct file *file,
 			params->input_dma_total.length = ASRC_DMA_BUFFER_SIZE;
 			params->output_dma_total.length = ASRC_DMA_BUFFER_SIZE;
 
+			params->input_word_width = config.input_word_width;
+			params->output_word_width = config.output_word_width;
+
 			err = mxc_allocate_dma_buf(params);
 			if (err < 0)
 				break;
@@ -1086,41 +1278,10 @@ static long asrc_ioctl(struct file *file,
 				err = -EBUSY;
 			}
 
-			params->desc_in = imx_asrc_dma_config(params,
-					params->input_dma_channel,
-					asrc_get_per_addr(params->index, 1),
-					params->input_dma[0].dma_paddr,
-					params->input_buffer_size, 1,
-					config.input_word_width);
-			if (params->desc_in) {
-				params->desc_in->callback =
-						asrc_input_dma_callback;
-				params->desc_in->callback_param = params;
-			} else {
-				pr_err("unable to get desc_in\r\n");
-				err = -EINVAL;
-				break;
-			}
-
 			params->output_dma_channel = imx_asrc_dma_alloc(tx_id);
 			if (params->output_dma_channel == NULL) {
 				pr_err("unable to get tx channel %d\n", tx_id);
 				err = -EBUSY;
-			}
-			params->desc_out = imx_asrc_dma_config(params,
-					params->output_dma_channel,
-					asrc_get_per_addr(params->index, 0),
-					params->output_dma[0].dma_paddr,
-					params->output_buffer_size, 0,
-					config.output_word_width);
-			if (params->desc_out) {
-				params->desc_out->callback =
-						asrc_output_dma_callback;
-				params->desc_out->callback_param = params;
-			} else {
-				pr_err("unable to get desc_out\r\n");
-				err = -EINVAL;
-				break;
 			}
 
 			init_waitqueue_head(&params->input_wait_queue);
@@ -1185,131 +1346,57 @@ static long asrc_ioctl(struct file *file,
 		}
 	case ASRC_Q_INBUF:
 		{
-			struct asrc_buffer buf;
-			struct dma_block *block;
-			unsigned long lock_flags;
+			struct asrc_convert_buffer buf;
 			if (copy_from_user
 			    (&buf, (void __user *)arg,
-			     sizeof(struct asrc_buffer))) {
+			     sizeof(struct asrc_convert_buffer))) {
 				err = -EFAULT;
 				break;
 			}
+
+			err = mxc_asrc_prepare_input_buffer(params, &buf);
 
 			break;
 		}
 	case ASRC_DQ_INBUF:{
-			struct asrc_buffer buf;
-			struct dma_block *block;
-			unsigned long lock_flags;
+			struct asrc_convert_buffer buf;
 			if (copy_from_user
 			    (&buf, (void __user *)arg,
-			     sizeof(struct asrc_buffer))) {
+			     sizeof(struct asrc_convert_buffer))) {
 				err = -EFAULT;
-				break;
-			}
-			/* if ASRC is inactive, nonsense to DQ buffer */
-			if (params->asrc_active == 0) {
-				err = -EFAULT;
-				buf.buf_valid = ASRC_BUF_NA;
-				if (copy_to_user
-				    ((void __user *)arg, &buf,
-				     sizeof(struct asrc_buffer)))
-					err = -EFAULT;
 				break;
 			}
 
-			if (!wait_event_interruptible_timeout
-			    (params->input_wait_queue,
-			     params->input_counter != 0, 10 * HZ)) {
-				pr_info
-				    ("ASRC_DQ_INBUF timeout counter %x\n",
-				     params->input_counter);
-				err = -ETIME;
-				break;
-			} else if (signal_pending(current)) {
-				pr_info("ASRC_DQ_INBUF interrupt received\n");
-				err = -ERESTARTSYS;
-				break;
-			}
-			spin_lock_irqsave(&input_int_lock, lock_flags);
-			params->input_counter--;
-			spin_unlock_irqrestore(&input_int_lock, lock_flags);
-			block = &params->input_dma[0];
-			buf.index = block->index;
-			buf.length = block->length;
-			buf.buf_valid = ASRC_BUF_AV;
-			if (copy_to_user
-			    ((void __user *)arg, &buf,
-			     sizeof(struct asrc_buffer)))
-				err = -EFAULT;
+			err = mxc_asrc_process_input_buffer(params, &buf);
 
 			break;
 		}
 	case ASRC_Q_OUTBUF:{
-			struct asrc_buffer buf;
-			struct dma_block *block;
-			unsigned long lock_flags;
+			struct asrc_convert_buffer buf;
 			if (copy_from_user
 			    (&buf, (void __user *)arg,
-			     sizeof(struct asrc_buffer))) {
+			     sizeof(struct asrc_convert_buffer))) {
 				err = -EFAULT;
 				break;
 			}
+			err = mxc_asrc_prepare_output_buffer(params, &buf);
 
 			break;
 		}
 	case ASRC_DQ_OUTBUF:{
-			struct asrc_buffer buf;
-			struct dma_block *block;
-			unsigned long lock_flags;
+			struct asrc_convert_buffer buf;
 			if (copy_from_user
 			    (&buf, (void __user *)arg,
-			     sizeof(struct asrc_buffer))) {
+			     sizeof(struct asrc_convert_buffer))) {
 				err = -EFAULT;
 				break;
 			}
-			/* if ASRC is inactive, nonsense to DQ buffer */
-			if (params->asrc_active == 0) {
-				buf.buf_valid = ASRC_BUF_NA;
-				err = -EFAULT;
-				if (copy_to_user
-				    ((void __user *)arg, &buf,
-				     sizeof(struct asrc_buffer)))
-					err = -EFAULT;
-				break;
-			}
-
-			if (!wait_event_interruptible_timeout
-			    (params->output_wait_queue,
-			     params->output_counter != 0, 10 * HZ)) {
-				pr_info
-				    ("ASRC_DQ_OUTBUF timeout counter %x\n",
-				     params->output_counter);
-				err = -ETIME;
-				break;
-			} else if (signal_pending(current)) {
-				pr_info("ASRC_DQ_INBUF interrupt received\n");
-				err = -ERESTARTSYS;
-				break;
-			}
-			spin_lock_irqsave(&output_int_lock, lock_flags);
-			params->output_counter--;
-
-			spin_unlock_irqrestore(&output_int_lock, lock_flags);
-			block = &params->output_dma[0];
-			buf.index = block->index;
-			buf.length = block->length;
-			buf.buf_valid = ASRC_BUF_AV;
-			if (copy_to_user
-			    ((void __user *)arg, &buf,
-			     sizeof(struct asrc_buffer)))
-				err = -EFAULT;
+			err = mxc_asrc_process_output_buffer(params, &buf);
 
 			break;
 		}
 	case ASRC_START_CONV:{
 			enum asrc_pair_index index;
-			unsigned long lock_flags;
 			if (copy_from_user
 			    (&index, (void __user *)arg,
 			     sizeof(enum asrc_pair_index))) {

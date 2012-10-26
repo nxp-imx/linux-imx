@@ -112,11 +112,20 @@ struct asrc_querybuf {
 	unsigned long output_offset;
 };
 
+struct asrc_convert_buffer {
+	void *input_buffer_vaddr;
+	void *output_buffer_vaddr;
+	unsigned int input_buffer_length;
+	unsigned int output_buffer_length;
+};
+
 struct asrc_buffer {
 	unsigned int index;
 	unsigned int length;
+	unsigned int output_last_length;
 	int buf_valid;
 };
+
 
 struct asrc_status_flags {
 	enum asrc_pair_index index;
@@ -134,11 +143,14 @@ enum asrc_error_status {
 };
 
 #ifdef __KERNEL__
+#include <linux/scatterlist.h>
 
 #define ASRC_DMA_BUFFER_NUM		2
 #define ASRC_INPUTFIFO_THRESHOLD	32
 #define ASRC_OUTPUTFIFO_THRESHOLD	32
-#define ASRC_DMA_BUFFER_SIZE	(1024 * 64 * 4)
+#define ASRC_DMA_BUFFER_SIZE	(1024 * 48 * 4)
+#define ASRC_MAX_BUFFER_SIZE	(1024 * 48)
+
 
 
 #define ASRC_ASRCTR_REG 	0x00
@@ -187,7 +199,7 @@ enum asrc_error_status {
 struct dma_block {
 	unsigned int index;
 	unsigned int length;
-	unsigned char *dma_vaddr;
+	void *dma_vaddr;
 	dma_addr_t dma_paddr;
 	struct list_head queue;
 };
@@ -218,6 +230,11 @@ struct asrc_pair_params {
 	struct dma_async_tx_descriptor *desc_in;
 	struct dma_async_tx_descriptor *desc_out;
 	struct work_struct task_output_work;
+	unsigned int		input_sg_nodes;
+	unsigned int		output_sg_nodes;
+	struct scatterlist	input_sg[4], output_sg[4];
+	enum asrc_word_width input_word_width;
+	enum asrc_word_width output_word_width;
 };
 
 struct asrc_data {
