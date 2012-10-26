@@ -1312,6 +1312,7 @@ void sdhci_request(struct mmc_host *mmc, struct mmc_request *mrq)
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
 }
+EXPORT_SYMBOL_GPL(sdhci_request);
 
 static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 {
