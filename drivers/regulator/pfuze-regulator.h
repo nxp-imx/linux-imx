@@ -23,9 +23,13 @@
 struct pfuze_regulator {
 	struct regulator_desc desc;
 	unsigned int reg;
+	unsigned int stby_reg;
 	unsigned char enable_bit;
+	unsigned char stby_bit;
 	unsigned char vsel_shift;
 	unsigned char vsel_mask;
+	unsigned char stby_vsel_shift;
+	unsigned char stby_vsel_mask;
 	int const *voltages;
 };
 
@@ -47,11 +51,31 @@ struct pfuze_regulator_priv {
 		},							\
 		.reg = prefix ## _reg,				\
 		.enable_bit = prefix ## _reg ## _ ## EN,	\
+		.stby_bit = prefix ## _reg ## _ ## STBY,	\
 		.vsel_shift = prefix ## _reg ## _ ## VSEL,\
 		.vsel_mask = prefix ## _reg ## _ ## VSEL_M,\
 		.voltages =  _voltages,					\
 	}
 #define PFUZE_SW_DEFINE(prefix, _name, _reg, _voltages, _ops)	\
+	[prefix ## _name] = {				\
+		.desc = {						\
+			.name = #prefix "_" #_name,			\
+			.n_voltages = ARRAY_SIZE(_voltages),		\
+			.ops = &_ops,			\
+			.type = REGULATOR_VOLTAGE,			\
+			.id = prefix ## _name,		\
+			.owner = THIS_MODULE,				\
+		},							\
+		.reg = prefix ## _reg,				\
+		.vsel_shift = prefix ## _reg ## _ ## VSEL,\
+		.vsel_mask = prefix ## _reg ## _ ## VSEL_M,\
+		.stby_reg = prefix ## _reg ## _ ## STBY,		\
+		.stby_vsel_shift = prefix ## _reg ## _ ## STBY_VSEL,\
+		.stby_vsel_mask = prefix ## _reg ## _ ## STBY_VSEL_M,\
+		.voltages =  _voltages,					\
+	}
+
+#define PFUZE_SWBST_DEFINE(prefix, _name, _reg, _voltages, _ops)	\
 	[prefix ## _name] = {				\
 		.desc = {						\
 			.name = #prefix "_" #_name,			\
