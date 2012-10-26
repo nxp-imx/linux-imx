@@ -140,11 +140,17 @@ err:
 
 static int __devexit sdhci_pltfm_remove(struct platform_device *pdev)
 {
-	struct sdhci_pltfm_data *pdata = pdev->dev.platform_data;
+	const struct platform_device_id *platid = platform_get_device_id(pdev);
+	struct sdhci_pltfm_data *pdata;
 	struct sdhci_host *host = platform_get_drvdata(pdev);
 	struct resource *iomem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	int dead;
 	u32 scratch;
+
+	if (platid && platid->driver_data)
+		pdata = (void *)platid->driver_data;
+	else
+		pdata = pdev->dev.platform_data;
 
 	dead = 0;
 	scratch = readl(host->ioaddr + SDHCI_INT_STATUS);
