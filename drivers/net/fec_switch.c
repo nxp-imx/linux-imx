@@ -1,7 +1,7 @@
 /*
  *  L2 switch Controller (Etheren switch) driver for Mx28.
  *
- *  Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *    Shrek Wu (B16972@freescale.com)
  *
  *  This program is free software; you can redistribute  it and/or modify it
@@ -90,6 +90,9 @@
 #define FEC_MMFR_DATA(v)        (v & 0xffff)
 
 #define FEC_MII_TIMEOUT		1000
+
+/* Port 0 backpressure congestion threshold */
+#define P0BC_THRESHOLD		0x40
 
 static struct mii_bus *fec_mii_bus;
 
@@ -2762,7 +2765,6 @@ switch_enet_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (bdp == fep->dirty_tx) {
 		fep->tx_full = 1;
 		netif_stop_queue(dev);
-		printk(KERN_ERR "%s:  net stop\n", __func__);
 	}
 
 	fep->cur_tx = bdp;
@@ -2984,7 +2986,6 @@ switch_enet_tx(struct net_device *dev)
 		 */
 		if (fep->tx_full) {
 			fep->tx_full = 0;
-			printk(KERN_ERR "%s: tx full is zero\n", __func__);
 			if (netif_queue_stopped(dev))
 				netif_wake_queue(dev);
 		}
@@ -3841,6 +3842,12 @@ static int __init switch_enet_init(struct net_device *dev,
 	writel(0, &fecp->switch_imask);
 	udelay(10);
 
+	/*
+	 * Set backpressure threshold to minimize discarded frames
+	 * during due to congestion.
+	 */
+	writel(P0BC_THRESHOLD, &fecp->ESW_P0BCT);
+
 	plat->request_intrs = switch_request_intrs;
 	plat->set_mii = switch_set_mii;
 	plat->get_mac = switch_get_mac;
@@ -4072,6 +4079,12 @@ switch_restart(struct net_device *dev, int duplex)
 	 * fecp->fec_grp_hash_table_high = 0;
 	 * fecp->fec_grp_hash_table_low = 0;
 	 */
+
+	/*
+	 * Set backpressure threshold to minimize discarded frames
+	 * during due to congestion.
+	 */
+	writel(P0BC_THRESHOLD, &fecp->ESW_P0BCT);
 
 	/* Set maximum receive buffer size */
 	writel(PKT_MAXBLR_SIZE, &fecp->fec_r_buff_size);
