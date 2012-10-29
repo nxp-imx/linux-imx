@@ -1197,7 +1197,9 @@ static struct ethtool_ops fec_enet_ethtool_ops = {
 static int fec_enet_ioctl(struct net_device *ndev, struct ifreq *rq, int cmd)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
+	struct fec_ptp_private *priv = fep->ptp_priv;
 	struct phy_device *phydev = fep->phy_dev;
+	int retVal = 0;
 
 	if (!netif_running(ndev))
 		return -EINVAL;
@@ -1205,7 +1207,16 @@ static int fec_enet_ioctl(struct net_device *ndev, struct ifreq *rq, int cmd)
 	if (!phydev)
 		return -ENODEV;
 
-	return phy_mii_ioctl(phydev, rq, cmd);
+	if ((cmd >= PTP_ENBL_TXTS_IOCTL) &&
+			(cmd <= PTP_FLUSH_TIMESTAMP)) {
+		if (fep->ptimer_present)
+			retVal = fec_ptp_ioctl(priv, rq, cmd);
+		else
+			retVal = -ENODEV;
+	} else
+		retVal = phy_mii_ioctl(phydev, rq, cmd);
+
+	return retVal;
 }
 
 static void fec_enet_free_buffers(struct net_device *ndev)

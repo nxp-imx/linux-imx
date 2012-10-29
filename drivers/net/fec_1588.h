@@ -41,7 +41,6 @@
 #define FEC_T_INC_CORR_MASK		0x00007f00
 #define FEC_T_INC_CORR_OFFSET		8
 
-
 #define FEC_T_INC_50MHZ			20
 #define FEC_ATIME_50MHZ			50000000
 #define FEC_T_INC_CLK			FEC_T_INC_50MHZ
@@ -51,41 +50,45 @@
 
 /* IEEE 1588 definition */
 #define FEC_ECNTRL_TS_EN	0x10
-#define PTP_MAJOR		232	/*the temporary major number
-						 *used by PTP driver, the major
-						 *number 232~239 is unassigned*/
 
-#define DEFAULT_PTP_RX_BUF_SZ		2048
-#define DEFAULT_PTP_TX_BUF_SZ		16
-#define PTP_MSG_SYNC			0x0
-#define PTP_MSG_DEL_REQ			0x1
-#define PTP_MSG_P_DEL_REQ		0x2
-#define PTP_MSG_P_DEL_RESP		0x3
-#define PTP_MSG_DEL_RESP		0x4
-#define PTP_MSG_ALL_OTHER		0x5
+#define DEFAULT_PTP_RX_BUF_SZ		64
+#define DEFAULT_PTP_TX_BUF_SZ		64
 
-#define PTP_GET_TX_TIMESTAMP		0x1
-#define PTP_GET_RX_TIMESTAMP		0x9
-#define PTP_SET_RTC_TIME		0x3
-#define PTP_SET_COMPENSATION		0x4
-#define PTP_GET_CURRENT_TIME		0x5
-#define PTP_FLUSH_TIMESTAMP		0x6
-#define PTP_ADJ_ADDEND			0x7
-#define PTP_GET_ORIG_COMP		0x8
-#define PTP_GET_ADDEND			0xB
-#define PTP_GET_RX_TIMESTAMP_PDELAY_REQ		0xC
-#define PTP_GET_RX_TIMESTAMP_PDELAY_RESP	0xD
+/* 1588stack API defines */
+#define PTP_ENBL_TXTS_IOCTL	SIOCDEVPRIVATE
+#define PTP_DSBL_TXTS_IOCTL	(SIOCDEVPRIVATE + 1)
+#define PTP_ENBL_RXTS_IOCTL	(SIOCDEVPRIVATE + 2)
+#define PTP_DSBL_RXTS_IOCTL	(SIOCDEVPRIVATE + 3)
+#define PTP_GET_TX_TIMESTAMP	(SIOCDEVPRIVATE + 4)
+#define PTP_GET_RX_TIMESTAMP	(SIOCDEVPRIVATE + 5)
+#define PTP_SET_RTC_TIME	(SIOCDEVPRIVATE + 6)
+#define PTP_GET_CURRENT_TIME	(SIOCDEVPRIVATE + 7)
+#define PTP_SET_COMPENSATION	(SIOCDEVPRIVATE + 9)
+#define PTP_GET_ORIG_COMP	(SIOCDEVPRIVATE + 10)
+#define PTP_FLUSH_TIMESTAMP	(SIOCDEVPRIVATE + 11)
 
-#define FEC_PTP_DOMAIN_DLFT		0xe0000181
-#define FEC_PTP_IP_OFFS			0xE
-#define FEC_PTP_UDP_OFFS		0x22
-#define FEC_PTP_MSG_TYPE_OFFS		0x2A
-#define FEC_PTP_SPORT_ID_OFFS		0x3E
-#define FEC_PTP_SEQ_ID_OFFS		0x48
-#define FEC_PTP_CTRL_OFFS		0x4A
+/* IEEE1588 ptp head format */
+#define PTP_CTRL_OFFS		0x52
+#define PTP_SOURCE_PORT_LENGTH	10
+#define	PTP_HEADER_SEQ_OFFS	30
+#define PTP_HEADER_CTL_OFFS	32
+#define PTP_SPID_OFFS		20
+#define PTP_HEADER_SZE		34
+#define PTP_EVENT_PORT		0x013F
+
+#define FEC_VLAN_TAG_LEN	0x04
+#define FEC_ETHTYPE_LEN		0x02
+
+/* 1588-2008 network protocol enumeration values */
+#define FEC_PTP_PROT_IPV4		1
+#define FEC_PTP_PROT_IPV6		2
+#define FEC_PTP_PROT_802_3		3
+#define FEC_PTP_PROT_DONTCARE		0xFFFF
 #define FEC_PACKET_TYPE_UDP		0x11
 
 #define FEC_PTP_ORIG_COMP		0x15555555
+#define FEC_PTP_SPINNER_2		2
+#define FEC_PTP_SPINNER_4		4
 
 /* PTP standard time representation structure */
 struct ptp_time{
@@ -93,25 +96,28 @@ struct ptp_time{
 	u32 nsec;	/* nanoseconds */
 };
 
-/* Structure for PTP Time Stamp */
-struct fec_ptp_data_t {
-	u8		spid[10];
-	int		key;
-	struct ptp_time	ts_time;
+/* struct needed to identify a timestamp */
+struct fec_ptp_ident {
+	u8	version;
+	u8	message_type;
+	u16	netw_prot;
+	u16	seq_id;
+	u8	spid[10];
 };
 
 /* interface for PTP driver command GET_TX_TIME */
-struct ptp_ts_data {
-	/* PTP version */
-	u8 version;
-	/* PTP source port ID */
-	u8 spid[10];
-	/* PTP sequence ID */
-	u16 seq_id;
-	/* PTP message type */
-	u8 message_type;
+struct fec_ptp_ts_data {
+	struct fec_ptp_ident ident;
 	/* PTP timestamp */
 	struct ptp_time ts;
+};
+
+/* circular buffer for ptp timestamps over ioctl */
+struct fec_ptp_circular {
+	int	front;
+	int	end;
+	int	size;
+	struct	fec_ptp_ts_data	*data_buf;
 };
 
 /* interface for PTP driver command SET_RTC_TIME/GET_CURRENT_TIME */
@@ -156,15 +162,8 @@ struct fec_ptp_private {
 	void __iomem *hwp;
 	int	dev_id;
 
-	struct	circ_buf rx_time_sync;
-	struct	circ_buf rx_time_del_req;
-	struct	circ_buf rx_time_pdel_req;
-	struct	circ_buf rx_time_pdel_resp;
-	struct	circ_buf tx_time_sync;
-	struct	circ_buf tx_time_del_req;
-	struct	circ_buf tx_time_pdel_req;
-	struct	circ_buf tx_time_pdel_resp;
-	spinlock_t ptp_lock;
+	struct fec_ptp_circular tx_timestamps;
+	struct fec_ptp_circular rx_timestamps;
 	spinlock_t cnt_lock;
 
 	u64	prtc;
@@ -190,6 +189,8 @@ extern void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
 extern void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 				  struct sk_buff *skb,
 				  struct bufdesc *bdp);
+extern int fec_ptp_ioctl(struct fec_ptp_private *priv,
+				struct ifreq *ifr, int cmd);
 #else
 static inline int fec_ptp_malloc_priv(struct fec_ptp_private **priv)
 {
@@ -215,6 +216,9 @@ static inline void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
 static inline void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 					 struct sk_buff *skb,
 					 struct bufdesc *bdp) {}
+static inline int fec_ptp_ioctl(struct fec_ptp_private *priv,
+				struct ifreq *ifr, int cmd) {}
+
 #endif /* 1588 */
 
 #endif
