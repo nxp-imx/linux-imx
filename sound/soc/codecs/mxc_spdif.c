@@ -849,12 +849,20 @@ static int mxc_pb_spdif_get(struct snd_kcontrol *kcontrol,
 static int mxc_pb_spdif_put(struct snd_kcontrol *kcontrol,
 			    struct snd_ctl_elem_value *uvalue)
 {
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct mxc_spdif_priv *spdif_priv = snd_soc_codec_get_drvdata(codec);
+	struct mxc_spdif_platform_data *plat_data = spdif_priv->plat_data;
+
 	mxc_spdif_control.ch_status[0] = uvalue->value.iec958.status[0];
 	mxc_spdif_control.ch_status[1] = uvalue->value.iec958.status[1];
 	mxc_spdif_control.ch_status[2] = uvalue->value.iec958.status[2];
 	mxc_spdif_control.ch_status[3] = uvalue->value.iec958.status[3];
 
+	clk_enable(plat_data->spdif_clk);
+
 	spdif_write_channel_status();
+
+	clk_disable(plat_data->spdif_clk);
 
 	return 0;
 }
