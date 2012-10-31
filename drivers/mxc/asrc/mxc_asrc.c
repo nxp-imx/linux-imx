@@ -41,6 +41,8 @@
 #include <asm/memory.h>
 #include <mach/dma.h>
 #include <mach/mxc_asrc.h>
+#include <linux/delay.h>
+
 
 #define ASRC_PROC_PATH        "driver/asrc"
 
@@ -861,32 +863,106 @@ static void asrc_input_dma_callback(void *data)
 	params->input_counter++;
 	wake_up_interruptible(&params->input_wait_queue);
 	spin_unlock_irqrestore(&input_int_lock, lock_flags);
+	schedule_work(&params->task_output_work);
 	return;
 }
 
 static void asrc_output_dma_callback(void *data)
 {
 	struct asrc_pair_params *params;
-	unsigned long lock_flags;
 
 	params = data;
 	dma_unmap_sg(NULL, params->output_sg,
 		params->output_sg_nodes, DMA_MEM_TO_DEV);
-	spin_lock_irqsave(&output_int_lock, lock_flags);
-	params->output_counter++;
-	wake_up_interruptible(&params->output_wait_queue);
-	spin_unlock_irqrestore(&output_int_lock, lock_flags);
-
-	schedule_work(&params->task_output_work);
 	return;
 }
+
+static unsigned int asrc_get_output_FIFO_size(enum asrc_pair_index index)
+{
+	u32 reg;
+
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRFSTA_REG + (index << 3));
+	return (reg & ASRC_ASRFSTX_OUTPUT_FIFO_MASK)
+			>> ASRC_ASRFSTX_OUTPUT_FIFO_OFFSET;
+}
+
+static u32 asrc_read_one_from_output_FIFO(enum asrc_pair_index index)
+{
+	return __raw_readl(g_asrc->vaddr + ASRC_ASRDOA_REG + (index << 3));
+}
+
+static void asrc_read_output_FIFO_S16(struct asrc_pair_params *params)
+{
+	u32 size, i, j, reg, t_size;
+	u16 *index = params->output_last_period.dma_vaddr;
+
+	size = asrc_get_output_FIFO_size(params->index);
+	while (size) {
+		for (i = 0; i < size; i++) {
+			for (j = 0; j < params->channel_nums; j++) {
+				reg = asrc_read_one_from_output_FIFO(
+							params->index);
+				*(index) = (u16)reg;
+				index++;
+			}
+		}
+		t_size += size;
+		mdelay(1);
+		size = asrc_get_output_FIFO_size(params->index);
+	}
+
+	params->output_last_period.length = t_size * params->channel_nums * 2;
+}
+
+static void asrc_read_output_FIFO_S24(struct asrc_pair_params *params)
+{
+	u32 size, i, j, reg, t_size;
+	u32 *index = params->output_last_period.dma_vaddr;
+
+	t_size = 0;
+	size = asrc_get_output_FIFO_size(params->index);
+	while (size) {
+		for (i = 0; i < size; i++) {
+			for (j = 0; j < params->channel_nums; j++) {
+				reg = asrc_read_one_from_output_FIFO(
+							params->index);
+				*(index) = reg;
+				index++;
+			}
+		}
+		t_size += size;
+		mdelay(1);
+		size = asrc_get_output_FIFO_size(params->index);
+	}
+
+	params->output_last_period.length = t_size * params->channel_nums * 4;
+}
+
 
 static void asrc_output_task_worker(struct work_struct *w)
 {
 	struct asrc_pair_params *params =
 		container_of(w, struct asrc_pair_params, task_output_work);
+	unsigned long lock_flags;
 
 	/* asrc output work struct */
+	switch (params->output_word_width) {
+	case ASRC_WIDTH_24_BIT:
+		asrc_read_output_FIFO_S24(params);
+		break;
+	case ASRC_WIDTH_16_BIT:
+	case ASRC_WIDTH_8_BIT:
+		asrc_read_output_FIFO_S16(params);
+		break;
+	default:
+		pr_err("%s: error word width\n", __func__);
+	}
+
+	/* finish receiving all output data */
+	spin_lock_irqsave(&output_int_lock, lock_flags);
+	params->output_counter++;
+	wake_up_interruptible(&params->output_wait_queue);
+	spin_unlock_irqrestore(&output_int_lock, lock_flags);
 }
 
 static void mxc_free_dma_buf(struct asrc_pair_params *params)
@@ -901,15 +977,23 @@ static void mxc_free_dma_buf(struct asrc_pair_params *params)
 		params->output_dma_total.dma_vaddr = NULL;
 	}
 
+	if (params->output_last_period.dma_vaddr) {
+		dma_free_coherent(
+			g_asrc->dev, 4096,
+			params->output_last_period.dma_vaddr,
+			params->output_last_period.dma_paddr);
+		params->output_last_period.dma_vaddr = NULL;
+	}
+
 	return;
 }
 
 static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 {
-	struct dma_block *input_a, *output_a;
-
+	struct dma_block *input_a, *output_a, *last_period;
 	input_a = &params->input_dma_total;
 	output_a = &params->output_dma_total;
+	last_period = &params->output_last_period;
 
 	input_a->dma_vaddr = kzalloc(input_a->length, GFP_KERNEL);
 	if (!input_a->dma_vaddr) {
@@ -924,6 +1008,12 @@ static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 		goto exit;
 	}
 	output_a->dma_paddr = virt_to_dma(NULL, output_a->dma_vaddr);
+
+	last_period->dma_vaddr =
+		dma_alloc_coherent(NULL,
+			4096,
+			&last_period->dma_paddr,
+			GFP_KERNEL);
 
 	return 0;
 
@@ -1031,7 +1121,8 @@ static int imx_asrc_dma_config(
 			buf_len - ASRC_MAX_BUFFER_SIZE * sg_index);
 		break;
 	default:
-		pr_err("Error Input DMA nodes number!");
+		pr_err("Error Input DMA nodes number[%d]!", sg_nent);
+		return -EINVAL;
 	}
 
 	ret = dma_map_sg(NULL, sg, sg_nent, slave_config.direction);
@@ -1062,7 +1153,34 @@ static int imx_asrc_dma_config(
 
 }
 
-int mxc_asrc_prepare_input_buffer(struct asrc_pair_params *params,
+static int asrc_get_output_buffer_size(int input_buffer_size,
+				       int input_sample_rate,
+				       int output_sample_rate)
+{
+	int i = 0;
+	int outbuffer_size = 0;
+	int outsample = output_sample_rate;
+	while (outsample >= input_sample_rate) {
+		++i;
+		outsample -= input_sample_rate;
+	}
+	outbuffer_size = i * input_buffer_size;
+	i = 1;
+	while (((input_buffer_size >> i) > 2) && (outsample != 0)) {
+		if (((outsample << 1) - input_sample_rate) >= 0) {
+			outsample = (outsample << 1) - input_sample_rate;
+			outbuffer_size += (input_buffer_size >> i);
+		} else {
+			outsample = outsample << 1;
+		}
+		i++;
+	}
+	outbuffer_size = (outbuffer_size >> 3) << 3;
+	return outbuffer_size;
+}
+
+
+static int mxc_asrc_prepare_input_buffer(struct asrc_pair_params *params,
 					struct asrc_convert_buffer *pbuf)
 {
 	u32 word_size;
@@ -1109,10 +1227,38 @@ int mxc_asrc_prepare_input_buffer(struct asrc_pair_params *params,
 
 }
 
-int mxc_asrc_prepare_output_buffer(struct asrc_pair_params *params,
+static int mxc_asrc_prepare_output_buffer(struct asrc_pair_params *params,
 					struct asrc_convert_buffer *pbuf)
 {
-	params->output_dma_total.length = pbuf->output_buffer_length;
+	u32 word_size;
+
+	pbuf->output_buffer_length = asrc_get_output_buffer_size(
+			pbuf->input_buffer_length,
+			params->input_sample_rate, params->output_sample_rate);
+	switch (params->output_word_width) {
+	case ASRC_WIDTH_24_BIT:
+		word_size = 4;
+		break;
+	case ASRC_WIDTH_16_BIT:
+	case ASRC_WIDTH_8_BIT:
+		word_size = 2;
+		break;
+	default:
+		pr_err("error word size!\n");
+		return -EINVAL;
+	}
+
+	if (pbuf->output_buffer_length <
+		ASRC_OUTPUT_LAST_SAMPLE * word_size * params->channel_nums) {
+		pr_err("output buffer size[%d] is wrong.\n",
+				pbuf->output_buffer_length);
+		return -EINVAL;
+	}
+
+	params->output_dma_total.length =
+		pbuf->output_buffer_length -
+		ASRC_OUTPUT_LAST_SAMPLE * word_size * params->channel_nums ;
+
 	params->output_sg_nodes =
 		params->output_dma_total.length / ASRC_MAX_BUFFER_SIZE + 1;
 
@@ -1146,9 +1292,18 @@ int mxc_asrc_process_output_buffer(struct asrc_pair_params *params,
 	spin_unlock_irqrestore(&output_int_lock, lock_flags);
 
 	pbuf->output_buffer_length = params->output_dma_total.length;
+
 	if (copy_to_user((void __user *)pbuf->output_buffer_vaddr,
 				params->output_dma_total.dma_vaddr,
 				params->output_dma_total.length))
+		return -EFAULT;
+
+	pbuf->output_buffer_length += params->output_last_period.length;
+
+	if (copy_to_user((void __user *)(pbuf->output_buffer_vaddr +
+				params->output_dma_total.length),
+				params->output_last_period.dma_vaddr,
+				params->output_last_period.length))
 		return -EFAULT;
 
 	return 0;
@@ -1250,6 +1405,9 @@ static long asrc_ioctl(struct file *file,
 			params->input_word_width = config.input_word_width;
 			params->output_word_width = config.output_word_width;
 
+			params->input_sample_rate = config.input_sample_rate;
+			params->output_sample_rate = config.output_sample_rate;
+
 			err = mxc_allocate_dma_buf(params);
 			if (err < 0)
 				break;
@@ -1297,32 +1455,6 @@ static long asrc_ioctl(struct file *file,
 				err = -EFAULT;
 			break;
 		}
-	case ASRC_QUERYBUF:
-		{
-			struct asrc_querybuf buffer;
-			unsigned int index_n;
-			if (copy_from_user
-			    (&buffer, (void __user *)arg,
-			     sizeof(struct asrc_querybuf))) {
-				err = -EFAULT;
-				break;
-			}
-			index_n = buffer.buffer_index;
-
-			buffer.input_offset = (unsigned long)
-				params->input_dma[index_n].dma_paddr;
-			buffer.input_length = params->input_buffer_size;
-
-			buffer.output_offset = (unsigned long)
-				params->output_dma[index_n].dma_paddr;
-			buffer.output_length = params->output_buffer_size;
-
-			if (copy_to_user
-			    ((void __user *)arg, &buffer,
-			     sizeof(struct asrc_querybuf)))
-				err = -EFAULT;
-			break;
-		}
 	case ASRC_RELEASE_PAIR:
 		{
 			enum asrc_pair_index index;
@@ -1341,6 +1473,7 @@ static long asrc_ioctl(struct file *file,
 			mxc_free_dma_buf(params);
 			asrc_release_pair(index);
 			asrc_finish_conv(index);
+			params->asrc_active = 0;
 			params->pair_hold = 0;
 			break;
 		}
