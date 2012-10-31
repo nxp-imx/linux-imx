@@ -450,6 +450,9 @@ int asrc_config_pair(struct asrc_config *config)
 			reg |= 7 << AOCPA;
 		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
 			reg |= 6 << AOCPA;
+		else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) &&
+				((config->inclk & 0x0f) == INCLK_NONE))
+			reg |= 5 << AOCPA;
 		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
 			tmp =
 			    asrc_get_asrck_clock_divider(config->
@@ -492,6 +495,9 @@ int asrc_config_pair(struct asrc_config *config)
 			reg |= 7 << AOCPB;
 		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
 			reg |= 6 << AOCPB;
+		else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) &&
+				((config->inclk & 0x0f) == INCLK_NONE))
+			reg |= 5 << AOCPB;
 		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
 			tmp =
 			    asrc_get_asrck_clock_divider(config->
@@ -534,6 +540,9 @@ int asrc_config_pair(struct asrc_config *config)
 			reg |= 7 << AOCPC;
 		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
 			reg |= 6 << AOCPC;
+		else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) &&
+				((config->inclk & 0x0f) == INCLK_NONE))
+			reg |= 5 << AOCPC;
 		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
 			tmp =
 			    asrc_get_asrck_clock_divider(config->
