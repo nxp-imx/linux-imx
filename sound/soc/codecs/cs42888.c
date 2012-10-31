@@ -793,7 +793,7 @@ struct snd_soc_dai_driver cs42888_dai[] = {
 	.name = "CS42888",
 	.playback = {
 		.stream_name = "Playback",
-		.channels_min = 1,
+		.channels_min = 2,
 		.channels_max = 8,
 		.rates = (SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_96000 |
 			SNDRV_PCM_RATE_192000),
@@ -801,7 +801,7 @@ struct snd_soc_dai_driver cs42888_dai[] = {
 	},
 	.capture = {
 		.stream_name = "Capture",
-		.channels_min = 1,
+		.channels_min = 2,
 		.channels_max = 4,
 		.rates = (SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_96000 |
 			SNDRV_PCM_RATE_192000),
@@ -813,7 +813,7 @@ struct snd_soc_dai_driver cs42888_dai[] = {
 		.name = "CS42888_ASRC",
 		.playback = {
 			.stream_name = "Playback",
-			.channels_min = 1,
+			.channels_min = 2,
 			.channels_max = 8,
 			.rates = SNDRV_PCM_RATE_8000_192000,
 			.formats = CS42888_FORMATS,
