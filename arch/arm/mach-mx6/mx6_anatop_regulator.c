@@ -210,7 +210,7 @@ static int pu_disable(struct anatop_regulator *sreg)
 {
 	unsigned int reg;
 	int ret = 0;
-
+	return 0;
 	/* Disable the brown out detection since we are going to be
 	  * disabling the LDO.
 	  */
