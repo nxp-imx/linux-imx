@@ -328,10 +328,16 @@ mx6q_sabreauto_anatop_thermal_data __initconst = {
 	.name = "anatop_thermal",
 };
 
+static const struct imxuart_platform_data mx6_bt_uart_data __initconst = {
+	.flags = IMXUART_HAVE_RTSCTS | IMXUART_SDMA,
+	.dma_req_rx = MX6Q_DMA_REQ_UART3_RX,
+	.dma_req_tx = MX6Q_DMA_REQ_UART3_TX,
+};
+
 static inline void mx6q_sabreauto_init_uart(void)
 {
 	imx6q_add_imx_uart(1, NULL);
-	imx6q_add_imx_uart(2, NULL);
+	imx6q_add_imx_uart(2, &mx6_bt_uart_data);
 	imx6q_add_imx_uart(3, NULL);
 }
 
@@ -538,6 +544,9 @@ static int max7310_u39_setup(struct i2c_client *client,
 	};
 
 	int n;
+
+	if (uart3_en)
+		max7310_gpio_value[4] = 1;
 
 	 for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
 		gpio_request(gpio_base + n, "MAX7310 U39 GPIO Expander");
@@ -1343,6 +1352,7 @@ static void __init mx6_board_init(void)
 	iomux_v3_cfg_t *tuner_pads = NULL;
 	iomux_v3_cfg_t *spinor_pads = NULL;
 	iomux_v3_cfg_t *weimnor_pads = NULL;
+	iomux_v3_cfg_t *bluetooth_pads = NULL;
 	iomux_v3_cfg_t *extra_pads = NULL;
 
 	int common_pads_cnt;
@@ -1353,6 +1363,7 @@ static void __init mx6_board_init(void)
 	int tuner_pads_cnt;
 	int spinor_pads_cnt;
 	int weimnor_pads_cnt;
+	int bluetooth_pads_cnt;
 	int extra_pads_cnt;
 
 	if (cpu_is_mx6q()) {
@@ -1363,6 +1374,7 @@ static void __init mx6_board_init(void)
 		tuner_pads = mx6q_tuner_pads;
 		spinor_pads = mx6q_spinor_pads;
 		weimnor_pads = mx6q_weimnor_pads;
+		bluetooth_pads = mx6q_bluetooth_pads;
 
 		common_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_pads);
 		can0_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can0_pads);
@@ -1371,6 +1383,7 @@ static void __init mx6_board_init(void)
 		tuner_pads_cnt = ARRAY_SIZE(mx6q_tuner_pads);
 		spinor_pads_cnt = ARRAY_SIZE(mx6q_spinor_pads);
 		weimnor_pads_cnt = ARRAY_SIZE(mx6q_weimnor_pads);
+		bluetooth_pads_cnt = ARRAY_SIZE(mx6q_bluetooth_pads);
 		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6q_i2c3_pads_rev_a;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6q_i2c3_pads_rev_a);
@@ -1392,6 +1405,7 @@ static void __init mx6_board_init(void)
 		tuner_pads = mx6dl_tuner_pads;
 		spinor_pads = mx6dl_spinor_pads;
 		weimnor_pads = mx6dl_weimnor_pads;
+		bluetooth_pads = mx6dl_bluetooth_pads;
 
 		common_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_pads);
 		can0_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can0_pads);
@@ -1400,6 +1414,7 @@ static void __init mx6_board_init(void)
 		tuner_pads_cnt = ARRAY_SIZE(mx6dl_tuner_pads);
 		spinor_pads_cnt = ARRAY_SIZE(mx6dl_spinor_pads);
 		weimnor_pads_cnt = ARRAY_SIZE(mx6dl_weimnor_pads);
+		bluetooth_pads_cnt = ARRAY_SIZE(mx6dl_bluetooth_pads);
 
 		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6dl_i2c3_pads_rev_a;
@@ -1433,6 +1448,11 @@ static void __init mx6_board_init(void)
 			BUG_ON(!i2c3_pads);
 			mxc_iomux_v3_setup_multiple_pads(i2c3_pads,
 					i2c3_pads_cnt);
+		}
+		if (uart3_en) {
+			BUG_ON(!bluetooth_pads);
+			mxc_iomux_v3_setup_multiple_pads(bluetooth_pads,
+					bluetooth_pads_cnt);
 		}
 	}
 
