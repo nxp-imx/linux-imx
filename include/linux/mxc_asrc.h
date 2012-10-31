@@ -27,7 +27,6 @@
 #define ASRC_REQ_PAIR	_IOWR(ASRC_IOC_MAGIC, 0, struct asrc_req)
 #define ASRC_CONFIG_PAIR	_IOWR(ASRC_IOC_MAGIC, 1, struct asrc_config)
 #define ASRC_RELEASE_PAIR	_IOW(ASRC_IOC_MAGIC, 2, enum asrc_pair_index)
-#define ASRC_QUERYBUF	_IOWR(ASRC_IOC_MAGIC, 3, struct asrc_buffer)
 #define ASRC_Q_INBUF	_IOW(ASRC_IOC_MAGIC, 4, struct asrc_buffer)
 #define ASRC_DQ_INBUF	_IOW(ASRC_IOC_MAGIC, 5, struct asrc_buffer)
 #define ASRC_Q_OUTBUF	_IOW(ASRC_IOC_MAGIC, 6, struct asrc_buffer)
@@ -146,11 +145,11 @@ enum asrc_error_status {
 #include <linux/scatterlist.h>
 
 #define ASRC_DMA_BUFFER_NUM		2
-#define ASRC_INPUTFIFO_THRESHOLD	32
-#define ASRC_OUTPUTFIFO_THRESHOLD	32
+#define ASRC_INPUTFIFO_THRESHOLD	4
+#define ASRC_OUTPUTFIFO_THRESHOLD	2
 #define ASRC_DMA_BUFFER_SIZE	(1024 * 48 * 4)
 #define ASRC_MAX_BUFFER_SIZE	(1024 * 48)
-
+#define ASRC_OUTPUT_LAST_SAMPLE	8
 
 
 #define ASRC_ASRCTR_REG 	0x00
@@ -196,6 +195,15 @@ enum asrc_error_status {
 #define ASRC_ASRMCR1C_REG   0xC8
 
 
+#define ASRC_ASRFSTX_INPUT_FIFO_WIDTH	7
+#define ASRC_ASRFSTX_INPUT_FIFO_OFFSET	0
+#define ASRC_ASRFSTX_INPUT_FIFO_MASK	0x7F
+
+#define ASRC_ASRFSTX_OUTPUT_FIFO_WIDTH	7
+#define ASRC_ASRFSTX_OUTPUT_FIFO_OFFSET	12
+#define ASRC_ASRFSTX_OUTPUT_FIFO_MASK (0x7F << ASRC_ASRFSTX_OUTPUT_FIFO_OFFSET)
+
+
 struct dma_block {
 	unsigned int index;
 	unsigned int length;
@@ -227,6 +235,7 @@ struct asrc_pair_params {
 	struct dma_block input_dma[ASRC_DMA_BUFFER_NUM];
 	struct dma_block output_dma_total;
 	struct dma_block output_dma[ASRC_DMA_BUFFER_NUM];
+	struct dma_block output_last_period;
 	struct dma_async_tx_descriptor *desc_in;
 	struct dma_async_tx_descriptor *desc_out;
 	struct work_struct task_output_work;
@@ -235,6 +244,8 @@ struct asrc_pair_params {
 	struct scatterlist	input_sg[4], output_sg[4];
 	enum asrc_word_width input_word_width;
 	enum asrc_word_width output_word_width;
+	u32 input_sample_rate;
+	u32 output_sample_rate;
 };
 
 struct asrc_data {
