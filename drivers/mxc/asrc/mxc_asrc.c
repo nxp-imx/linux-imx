@@ -886,9 +886,24 @@ static unsigned int asrc_get_output_FIFO_size(enum asrc_pair_index index)
 			>> ASRC_ASRFSTX_OUTPUT_FIFO_OFFSET;
 }
 
+static unsigned int asrc_get_input_FIFO_size(enum asrc_pair_index index)
+{
+	u32 reg;
+
+	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRFSTA_REG + (index << 3));
+	return (reg & ASRC_ASRFSTX_INPUT_FIFO_MASK) >>
+				ASRC_ASRFSTX_INPUT_FIFO_OFFSET;
+}
+
+
 static u32 asrc_read_one_from_output_FIFO(enum asrc_pair_index index)
 {
 	return __raw_readl(g_asrc->vaddr + ASRC_ASRDOA_REG + (index << 3));
+}
+
+static void asrc_write_one_to_output_FIFO(enum asrc_pair_index index, u32 value)
+{
+	__raw_writel(value, g_asrc->vaddr + ASRC_ASRDIA_REG + (index << 3));
 }
 
 static void asrc_read_output_FIFO_S16(struct asrc_pair_params *params)
@@ -1335,6 +1350,37 @@ int mxc_asrc_process_input_buffer(struct asrc_pair_params *params,
 	return 0;
 }
 
+static void mxc_asrc_submit_dma(struct asrc_pair_params *params)
+{
+	enum asrc_pair_index index;
+	u32 size, i, j;
+	index = params->index;
+
+	/*  read all data in OUTPUT FIFO*/
+	size = asrc_get_output_FIFO_size(params->index);
+	while (size) {
+		for (j = 0; j < size; j++) {
+			for (i = 0; i < params->channel_nums; i++)
+				asrc_read_one_from_output_FIFO(params->index);
+		}
+		mdelay(1);
+		size = asrc_get_output_FIFO_size(params->index);
+	}
+
+	/* Fill the input FIFO until reach the stall level */
+	size = asrc_get_input_FIFO_size(params->index);
+	while (size < 3) {
+		for (i = 0; i < params->channel_nums; i++)
+			asrc_write_one_to_output_FIFO(params->index, 0);
+		size = asrc_get_input_FIFO_size(params->index);
+	}
+
+	/* submit dma request */
+	dmaengine_submit(params->desc_in);
+	dmaengine_submit(params->desc_out);
+	sdma_set_event_pending(params->input_dma_channel);
+
+}
 
 /*!
  * asrc interface -  function
@@ -1477,7 +1523,7 @@ static long asrc_ioctl(struct file *file,
 			params->pair_hold = 0;
 			break;
 		}
-	case ASRC_Q_INBUF:
+	case ASRC_CONVERT:
 		{
 			struct asrc_convert_buffer buf;
 			if (copy_from_user
@@ -1488,43 +1534,27 @@ static long asrc_ioctl(struct file *file,
 			}
 
 			err = mxc_asrc_prepare_input_buffer(params, &buf);
-
-			break;
-		}
-	case ASRC_DQ_INBUF:{
-			struct asrc_convert_buffer buf;
-			if (copy_from_user
-			    (&buf, (void __user *)arg,
-			     sizeof(struct asrc_convert_buffer))) {
-				err = -EFAULT;
+			if (err)
 				break;
-			}
+
+			err = mxc_asrc_prepare_output_buffer(params, &buf);
+			if (err)
+				break;
+
+			mxc_asrc_submit_dma(params);
+
+			err = mxc_asrc_process_output_buffer(params, &buf);
+			if (err)
+				break;
 
 			err = mxc_asrc_process_input_buffer(params, &buf);
-
-			break;
-		}
-	case ASRC_Q_OUTBUF:{
-			struct asrc_convert_buffer buf;
-			if (copy_from_user
-			    (&buf, (void __user *)arg,
-			     sizeof(struct asrc_convert_buffer))) {
-				err = -EFAULT;
+			if (err)
 				break;
-			}
-			err = mxc_asrc_prepare_output_buffer(params, &buf);
 
-			break;
-		}
-	case ASRC_DQ_OUTBUF:{
-			struct asrc_convert_buffer buf;
-			if (copy_from_user
-			    (&buf, (void __user *)arg,
-			     sizeof(struct asrc_convert_buffer))) {
+			if (copy_to_user
+			    ((void __user *)arg, &buf,
+			     sizeof(struct asrc_convert_buffer)))
 				err = -EFAULT;
-				break;
-			}
-			err = mxc_asrc_process_output_buffer(params, &buf);
 
 			break;
 		}
@@ -1538,9 +1568,6 @@ static long asrc_ioctl(struct file *file,
 			}
 
 			params->asrc_active = 1;
-			dmaengine_submit(params->desc_in);
-			dmaengine_submit(params->desc_out);
-
 			asrc_start_conv(index);
 
 			break;

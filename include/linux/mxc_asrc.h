@@ -27,15 +27,11 @@
 #define ASRC_REQ_PAIR	_IOWR(ASRC_IOC_MAGIC, 0, struct asrc_req)
 #define ASRC_CONFIG_PAIR	_IOWR(ASRC_IOC_MAGIC, 1, struct asrc_config)
 #define ASRC_RELEASE_PAIR	_IOW(ASRC_IOC_MAGIC, 2, enum asrc_pair_index)
-#define ASRC_Q_INBUF	_IOW(ASRC_IOC_MAGIC, 4, struct asrc_buffer)
-#define ASRC_DQ_INBUF	_IOW(ASRC_IOC_MAGIC, 5, struct asrc_buffer)
-#define ASRC_Q_OUTBUF	_IOW(ASRC_IOC_MAGIC, 6, struct asrc_buffer)
-#define ASRC_DQ_OUTBUF	_IOW(ASRC_IOC_MAGIC, 7, struct asrc_buffer)
-#define ASRC_START_CONV	_IOW(ASRC_IOC_MAGIC, 8, enum asrc_pair_index)
-#define ASRC_STOP_CONV	_IOW(ASRC_IOC_MAGIC, 9, enum asrc_pair_index)
-#define ASRC_STATUS	_IOW(ASRC_IOC_MAGIC, 10, struct asrc_status_flags)
-#define ASRC_FLUSH	_IOW(ASRC_IOC_MAGIC, 11, enum asrc_pair_index)
-
+#define ASRC_CONVERT	_IOW(ASRC_IOC_MAGIC, 3, struct asrc_convert_buffer)
+#define ASRC_START_CONV	_IOW(ASRC_IOC_MAGIC, 4, enum asrc_pair_index)
+#define ASRC_STOP_CONV	_IOW(ASRC_IOC_MAGIC, 5, enum asrc_pair_index)
+#define ASRC_STATUS	_IOW(ASRC_IOC_MAGIC, 6, struct asrc_status_flags)
+#define ASRC_FLUSH	_IOW(ASRC_IOC_MAGIC, 7, enum asrc_pair_index)
 
 enum asrc_pair_index {
 	ASRC_PAIR_A,
