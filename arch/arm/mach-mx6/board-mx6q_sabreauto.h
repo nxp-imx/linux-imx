@@ -191,9 +191,7 @@ static iomux_v3_cfg_t mx6q_sabreauto_pads[] = {
 	MX6Q_PAD_GPIO_8__UART2_RXD,
 	MX6Q_PAD_SD4_DAT6__UART2_CTS,
 	MX6Q_PAD_SD4_DAT5__UART2_RTS,
-	/* UART 3 */
-	MX6Q_PAD_SD4_CLK__UART3_TXD,
-	MX6Q_PAD_SD4_CMD__UART3_RXD,
+
 	/*USBs OC pin */
 	MX6Q_PAD_EIM_WAIT__GPIO_5_0,  /*HOST1_OC*/
 	MX6Q_PAD_SD4_DAT0__GPIO_2_8,  /*OTG_OC*/
@@ -297,6 +295,15 @@ static iomux_v3_cfg_t mx6q_spinor_pads[] __initdata = {
 	MX6Q_PAD_EIM_D19__ECSPI1_SS1,
 
 	MX6Q_PAD_EIM_D19__GPIO_3_19,
+};
+
+/*Bluetooth is conflicted with GMPI and NOR chips*/
+static iomux_v3_cfg_t mx6q_bluetooth_pads[] __initdata = {
+	/* UART 3 */
+	MX6Q_PAD_SD4_CLK__UART3_RXD,
+	MX6Q_PAD_SD4_CMD__UART3_TXD,
+	MX6Q_PAD_EIM_D30__UART3_CTS,
+	MX6Q_PAD_EIM_EB3__UART3_RTS,
 };
 
 static iomux_v3_cfg_t mx6q_weimnor_pads[] __initdata = {
