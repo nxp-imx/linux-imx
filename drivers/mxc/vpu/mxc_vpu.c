@@ -874,6 +874,8 @@ static int vpu_resume(struct platform_device *pdev)
 
 		WRITE_REG(0x0, BIT_RESET_CTRL);
 		WRITE_REG(0x0, BIT_CODE_RUN);
+		/* MX6 RTL has a bug not to init MBC_SET_SUBBLK_EN on reset */
+		WRITE_REG(0x0, MBC_SET_SUBBLK_EN);
 
 		/*
 		 * Re-load boot code, from the codebuffer in external RAM.
