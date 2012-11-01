@@ -67,6 +67,7 @@ struct vpu_mem_desc {
 #define BIT_INT_REASON			0x174
 
 #define MJPEG_PIC_STATUS_REG		0x3004
+#define MBC_SET_SUBBLK_EN		0x4A0
 
 #define BIT_WORK_CTRL_BUF_BASE		0x100
 #define BIT_WORK_CTRL_BUF_REG(i)	(BIT_WORK_CTRL_BUF_BASE + i * 4)
@@ -77,7 +78,11 @@ struct vpu_mem_desc {
 #define BIT_FRAME_MEM_CTRL		BIT_WORK_CTRL_BUF_REG(4)
 #define BIT_BIT_STREAM_PARAM		BIT_WORK_CTRL_BUF_REG(5)
 
+#ifndef CONFIG_ARCH_MX6
 #define BIT_RESET_CTRL			0x11C
+#else
+#define BIT_RESET_CTRL			0x128
+#endif
 
 /* i could be 0, 1, 2, 3 */
 #define	BIT_RD_PTR_BASE			0x120
