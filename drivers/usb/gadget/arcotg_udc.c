@@ -1550,6 +1550,19 @@ static void ch9setaddress(struct fsl_udc *udc, u16 value, u16 index, u16 length)
 	udc->device_address = (u8) value;
 	/* Update usb state */
 	udc->usb_state = USB_STATE_ADDRESS;
+
+	/* for USB CV 3.0 test, the gap between the ACK of the set_address
+	 * and the subsequently setup packet may be very little, say 500us,
+	 * and if the latency we handle the ep completion is greater than
+	 * this gap, there is no response to the subsequent setup packet.
+	 * It will cause the CV test fail */
+	/* There is another way to set address, we can set the bit 24 to
+	 * 1 to make IC set this address instead of SW, it is more fast
+	 * and safe than SW way */
+	fsl_writel(udc->device_address << USB_DEVICE_ADDRESS_BIT_POS |
+			1 << USB_DEVICE_ADDRESS_ADV_BIT_POS,
+			&dr_regs->deviceaddr);
+
 	/* Status phase */
 	if (ep0_prime_status(udc, EP_DIR_IN))
 		ep0stall(udc);
@@ -1762,13 +1775,6 @@ static void setup_received_irq(struct fsl_udc *udc,
 static void ep0_req_complete(struct fsl_udc *udc, struct fsl_ep *ep0,
 		struct fsl_req *req)
 {
-	if (udc->usb_state == USB_STATE_ADDRESS) {
-		/* Set the new address */
-		u32 new_address = (u32) udc->device_address;
-		fsl_writel(new_address << USB_DEVICE_ADDRESS_BIT_POS,
-				&dr_regs->deviceaddr);
-	}
-
 	done(ep0, req, 0);
 }
 
