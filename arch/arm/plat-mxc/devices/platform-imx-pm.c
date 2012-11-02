@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -28,6 +28,11 @@
 #ifdef CONFIG_SOC_IMX6Q
 const struct imx_pm_imx_data imx6q_pm_imx_data[] __initconst =
 	imx_pm_imx_data_entry_single(MX6Q);
+#endif
+
+#ifdef CONFIG_SOC_IMX6SL
+const struct imx_pm_imx_data imx6sl_pm_imx_data[] __initconst =
+	imx_pm_imx_data_entry_single(MX6SL);
 #endif
 
 struct platform_device *__init imx_add_pm_imx(

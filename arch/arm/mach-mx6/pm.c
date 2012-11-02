@@ -343,8 +343,6 @@ static int mx6_suspend_enter(suspend_state_t state)
 	}
 
 	if (state == PM_SUSPEND_MEM || state == PM_SUSPEND_STANDBY) {
-		if (pm_data && pm_data->suspend_enter)
-			pm_data->suspend_enter();
 
 		local_flush_tlb_all();
 		flush_cache_all();
@@ -355,8 +353,14 @@ static int mx6_suspend_enter(suspend_state_t state)
 			save_gic_cpu_state(0, &gcs);
 		}
 
+		if (pm_data && pm_data->suspend_enter)
+			pm_data->suspend_enter();
+
 		suspend_in_iram(state, (unsigned long)iram_paddr,
 			(unsigned long)suspend_iram_base, cpu_type);
+
+		if (pm_data && pm_data->suspend_exit)
+			pm_data->suspend_exit();
 
 		/* Reset the RBC counter. */
 		/* All interrupts should be masked before the
@@ -397,8 +401,6 @@ static int mx6_suspend_enter(suspend_state_t state)
 		__raw_writel(BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG,
 			anatop_base + HW_ANADIG_ANA_MISC0_CLR);
 
-		if (pm_data && pm_data->suspend_exit)
-			pm_data->suspend_exit();
 	} else {
 			cpu_do_idle();
 	}

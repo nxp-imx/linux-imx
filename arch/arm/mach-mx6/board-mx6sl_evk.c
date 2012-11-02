@@ -77,6 +77,9 @@
 
 static int spdc_sel;
 static int max17135_regulator_init(struct max17135 *max17135);
+static void mx6sl_evk_suspend_enter(void);
+static void mx6sl_evk_suspend_exit(void);
+
 struct clk *extern_audio_root;
 
 extern char *gp_reg_id;
@@ -120,6 +123,12 @@ enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
 	SD_PAD_MODE_MED_SPEED,
 	SD_PAD_MODE_HIGH_SPEED,
+};
+
+static const struct pm_platform_data mx6sl_evk_pm_data __initconst = {
+	.name		= "imx_pm",
+	.suspend_enter = mx6sl_evk_suspend_enter,
+	.suspend_exit = mx6sl_evk_suspend_exit,
 };
 
 static int __init csi_setup(char *__unused)
@@ -1411,6 +1420,35 @@ static void __init uart2_init(void)
 					ARRAY_SIZE(mx6sl_uart2_pads));
 	imx6sl_add_imx_uart(1, &mx6sl_evk_uart1_data);
 }
+
+static void mx6sl_evk_suspend_enter()
+{
+	iomux_v3_cfg_t *p = suspend_enter_pads;
+	int i;
+
+	/* Set PADCTRL to 0 for all IOMUX. */
+	for (i = 0; i < ARRAY_SIZE(suspend_enter_pads); i++) {
+		suspend_exit_pads[i] = *p;
+		*p &= ~MUX_PAD_CTRL_MASK;
+		/* Enable the Pull down and the keeper
+		  * Set the drive strength to 0.
+		  */
+		*p |= ((u64)0x3000 << MUX_PAD_CTRL_SHIFT);
+		p++;
+	}
+	mxc_iomux_v3_get_multiple_pads(suspend_exit_pads,
+			ARRAY_SIZE(suspend_exit_pads));
+	mxc_iomux_v3_setup_multiple_pads(suspend_enter_pads,
+			ARRAY_SIZE(suspend_enter_pads));
+
+}
+
+static void mx6sl_evk_suspend_exit()
+{
+	mxc_iomux_v3_setup_multiple_pads(suspend_exit_pads,
+			ARRAY_SIZE(suspend_exit_pads));
+}
+
 /*!
  * Board specific initialization.
  */
@@ -1539,6 +1577,7 @@ static void __init mx6_evk_init(void)
 	/* Register charger chips */
 	platform_device_register(&evk_max8903_charger_1);
 	pm_power_off = mx6_snvs_poweroff;
+	imx6q_add_pm_imx(0, &mx6sl_evk_pm_data);
 }
 
 extern void __iomem *twd_base;
