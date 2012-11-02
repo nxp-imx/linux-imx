@@ -477,9 +477,6 @@ static int __devinit pxp_device_probe(struct platform_device *pdev)
 {
 	int ret;
 
-	/* PxP DMA interface */
-	dmaengine_get();
-
 	ret = misc_register(&pxp_device_miscdev);
 	if (ret)
 		return ret;
@@ -491,8 +488,6 @@ static int __devinit pxp_device_probe(struct platform_device *pdev)
 static int __devexit pxp_device_remove(struct platform_device *pdev)
 {
 	misc_deregister(&pxp_device_miscdev);
-
-	dmaengine_put();
 
 	return 0;
 }
