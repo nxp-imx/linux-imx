@@ -742,6 +742,9 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 					setting->fbi->monspecs.max_x * 10;
 			setting->fbi->var.height =
 					setting->fbi->monspecs.max_y * 10;
+		} else {
+			/* ignore i2c access failure */
+			ret = 0;
 		}
 	}
 
