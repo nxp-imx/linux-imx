@@ -35,6 +35,7 @@
 #include <linux/dma-mapping.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-int-device.h>
+#include <media/v4l2-chip-ident.h>
 #include <linux/mxcfb.h>
 #include "mxc_v4l2_capture.h"
 #include "fsl_csi.h"
@@ -1264,6 +1265,49 @@ static long csi_v4l_do_ioctl(struct file *file,
 		retval = csi_streamoff(cam);
 		break;
 	}
+	case VIDIOC_ENUM_FMT: {
+		struct v4l2_fmtdesc *fmt = arg;
+		if (cam->sensor)
+			retval = vidioc_int_enum_fmt_cap(cam->sensor, fmt);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
+		break;
+	}
+	case VIDIOC_ENUM_FRAMESIZES: {
+		struct v4l2_frmsizeenum *fsize = arg;
+		if (cam->sensor)
+			retval = vidioc_int_enum_framesizes(cam->sensor, fsize);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
+		break;
+	}
+	case VIDIOC_ENUM_FRAMEINTERVALS: {
+		struct v4l2_frmivalenum *fival = arg;
+		if (cam->sensor)
+			retval = vidioc_int_enum_frameintervals(cam->sensor,
+								fival);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
+		break;
+	}
+	case VIDIOC_DBG_G_CHIP_IDENT: {
+		struct v4l2_dbg_chip_ident *p = arg;
+		p->ident = V4L2_IDENT_NONE;
+		p->revision = 0;
+		if (cam->sensor)
+			retval = vidioc_int_g_chip_ident(cam->sensor, (int *)p);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
+		break;
+	}
 
 	case VIDIOC_S_CTRL:
 	case VIDIOC_G_STD:
@@ -1274,7 +1318,6 @@ static long csi_v4l_do_ioctl(struct file *file,
 	case VIDIOC_CROPCAP:
 	case VIDIOC_S_STD:
 	case VIDIOC_G_CTRL:
-	case VIDIOC_ENUM_FMT:
 	case VIDIOC_TRY_FMT:
 	case VIDIOC_QUERYCTRL:
 	case VIDIOC_ENUMINPUT:
