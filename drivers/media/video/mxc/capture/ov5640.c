@@ -60,6 +60,12 @@ enum ov5640_frame_rate {
 	ov5640_30_fps
 };
 
+
+static int ov5640_framerates[] = {
+	[ov5640_15_fps] = 15,
+	[ov5640_30_fps] = 30,
+};
+
 struct reg_value {
 	u16 u16RegAddr;
 	u8 u8Val;
@@ -1243,6 +1249,50 @@ static int ioctl_enum_framesizes(struct v4l2_int_device *s,
 }
 
 /*!
+ * ioctl_enum_frameintervals - V4L2 sensor interface handler for
+ *			       VIDIOC_ENUM_FRAMEINTERVALS ioctl
+ * @s: pointer to standard V4L2 device structure
+ * @fival: standard V4L2 VIDIOC_ENUM_FRAMEINTERVALS ioctl structure
+ *
+ * Return 0 if successful, otherwise -EINVAL.
+ */
+static int ioctl_enum_frameintervals(struct v4l2_int_device *s,
+					 struct v4l2_frmivalenum *fival)
+{
+	int i, j, count;
+
+	if (fival->index < 0 || fival->index > ov5640_mode_MAX)
+		return -EINVAL;
+
+	if (fival->pixel_format == 0 || fival->width == 0 || fival->height == 0) {
+		pr_warning("Please assign pixelformat, width and height.\n");
+		return -EINVAL;
+	}
+
+	fival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+	fival->discrete.numerator = 1;
+
+	count = 0;
+	for (i = 0; i < ARRAY_SIZE(ov5640_mode_info_data); i++) {
+		for (j = 0; j < (ov5640_mode_MAX + 1); j++) {
+			if (fival->pixel_format == ov5640_data.pix.pixelformat
+			 && fival->width == ov5640_mode_info_data[i][j].width
+			 && fival->height == ov5640_mode_info_data[i][j].height
+			 && ov5640_mode_info_data[i][j].init_data_ptr != NULL) {
+				count++;
+			}
+			if (fival->index == (count - 1)) {
+				fival->discrete.denominator =
+						ov5640_framerates[i];
+				return 0;
+			}
+		}
+	}
+
+	return -EINVAL;
+}
+
+/*!
  * ioctl_g_chip_ident - V4L2 sensor interface handler for
  *			VIDIOC_DBG_G_CHIP_IDENT ioctl
  * @s: pointer to standard V4L2 device structure
@@ -1279,7 +1329,7 @@ static int ioctl_init(struct v4l2_int_device *s)
 static int ioctl_enum_fmt_cap(struct v4l2_int_device *s,
 			      struct v4l2_fmtdesc *fmt)
 {
-	if (fmt->index > ov5640_mode_MAX)
+	if (fmt->index > 0)	/* only 1 pixelformat support so far */
 		return -EINVAL;
 
 	fmt->pixelformat = ov5640_data.pix.pixelformat;
@@ -1363,6 +1413,8 @@ static struct v4l2_int_ioctl_desc ov5640_ioctl_desc[] = {
 	{vidioc_int_s_ctrl_num, (v4l2_int_ioctl_func *)ioctl_s_ctrl},
 	{vidioc_int_enum_framesizes_num,
 				(v4l2_int_ioctl_func *)ioctl_enum_framesizes},
+	{vidioc_int_enum_frameintervals_num,
+				(v4l2_int_ioctl_func *)ioctl_enum_frameintervals},
 	{vidioc_int_g_chip_ident_num,
 				(v4l2_int_ioctl_func *)ioctl_g_chip_ident},
 };
