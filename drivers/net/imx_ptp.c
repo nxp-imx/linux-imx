@@ -1,7 +1,7 @@
 /*
  * drivers/net/imx_ptp.c
  *
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All rights reserved.
+ * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All rights reserved.
  *
  * Description: IEEE 1588 driver supporting imx5 Fast Ethernet Controller.
  *
@@ -60,26 +60,23 @@
 #define VDBG(fmt, args...)	do {} while (0)
 #endif
 
-static DECLARE_WAIT_QUEUE_HEAD(ptp_rx_ts_wait);
-static DECLARE_WAIT_QUEUE_HEAD(ptp_tx_ts_wait);
-#define PTP_GET_RX_TIMEOUT	(HZ/10)
-#define PTP_GET_TX_TIMEOUT      (HZ/100)
-
+static u8 *fec_ptp_parse_packet(struct sk_buff *skb, u16 *eth_type);
 static struct fec_ptp_private *ptp_private;
 static void ptp_rtc_get_current_time(struct ptp *p_ptp,
 					struct ptp_time *p_time);
 static struct ptp *ptp_dev;
 
-/* The ring resource create and manage */
-static int fec_ptp_init_circ(struct circ_buf *ptp_buf, int size)
+/* Alloc the ring resource */
+static int fec_ptp_init_circ(struct fec_ptp_circular *buf, int size)
 {
-	ptp_buf->buf = vmalloc(size * sizeof(struct fec_ptp_data_t));
+	buf->data_buf = (struct fec_ptp_ts_data *)
+		vmalloc(size * sizeof(struct fec_ptp_ts_data));
 
-	if (!ptp_buf->buf)
+	if (!buf->data_buf)
 		return 1;
-	ptp_buf->head = 0;
-	ptp_buf->tail = 0;
-
+	buf->front = 0;
+	buf->end = 0;
+	buf->size = size;
 	return 0;
 }
 
@@ -88,15 +85,16 @@ static inline int fec_ptp_calc_index(int size, int curr_index, int offset)
 	return (curr_index + offset) % size;
 }
 
-static int fec_ptp_is_empty(struct circ_buf *buf)
+static int fec_ptp_is_empty(struct fec_ptp_circular *buf)
 {
-	return (buf->head == buf->tail);
+	return (buf->front == buf->end);
 }
 
-static int fec_ptp_nelems(struct circ_buf *buf, int size)
+static int fec_ptp_nelems(struct fec_ptp_circular *buf)
 {
-	const int front = buf->head;
-	const int end = buf->tail;
+	const int front = buf->front;
+	const int end = buf->end;
+	const int size = buf->size;
 	int n_items;
 
 	if (end > front)
@@ -109,73 +107,59 @@ static int fec_ptp_nelems(struct circ_buf *buf, int size)
 	return n_items;
 }
 
-static int fec_ptp_is_full(struct circ_buf *buf, int size)
+static int fec_ptp_is_full(struct fec_ptp_circular *buf)
 {
-	if (fec_ptp_nelems(buf, size) == (size - 1))
+	if (fec_ptp_nelems(buf) == (buf->size - 1))
 		return 1;
 	else
 		return 0;
 }
 
-static int fec_ptp_insert(struct circ_buf *ptp_buf,
-			  struct fec_ptp_data_t *data,
-			  struct fec_ptp_private *priv,
-			  int size)
+static int fec_ptp_insert(struct fec_ptp_circular *ptp_buf,
+			  struct fec_ptp_ts_data *data)
 {
-	struct fec_ptp_data_t *tmp;
+	struct fec_ptp_ts_data *tmp;
 
-	if (fec_ptp_is_full(ptp_buf, size))
-		return 1;
+	if (fec_ptp_is_full(ptp_buf))
+		ptp_buf->end = fec_ptp_calc_index(ptp_buf->size,
+						ptp_buf->end, 1);
 
-	spin_lock(&priv->ptp_lock);
-	tmp = (struct fec_ptp_data_t *)(ptp_buf->buf) + ptp_buf->tail;
-
-	tmp->key = data->key;
-	memcpy(tmp->spid, data->spid, 10);
-	tmp->ts_time.sec = data->ts_time.sec;
-	tmp->ts_time.nsec = data->ts_time.nsec;
-
-	ptp_buf->tail = fec_ptp_calc_index(size, ptp_buf->tail, 1);
-	spin_unlock(&priv->ptp_lock);
+	tmp = (ptp_buf->data_buf + ptp_buf->end);
+	memcpy(tmp, data, sizeof(struct fec_ptp_ts_data));
+	ptp_buf->end = fec_ptp_calc_index(ptp_buf->size, ptp_buf->end, 1);
 
 	return 0;
 }
 
-static int fec_ptp_find_and_remove(struct circ_buf *ptp_buf,
-				   struct fec_ptp_data_t *data,
-				   struct fec_ptp_private *priv,
-				   int size)
+static int fec_ptp_find_and_remove(struct fec_ptp_circular *ptp_buf,
+			struct fec_ptp_ident *ident, struct ptp_time *ts)
 {
 	int i;
-	int end = ptp_buf->tail;
-	unsigned long flags;
-	struct fec_ptp_data_t *tmp;
+	int size = ptp_buf->size, end = ptp_buf->end;
+	struct fec_ptp_ident *tmp_ident;
 
 	if (fec_ptp_is_empty(ptp_buf))
 		return 1;
 
-	i = ptp_buf->head;
-	tmp = (struct fec_ptp_data_t *)(ptp_buf->buf) + i;
+	i = ptp_buf->front;
 	while (i != end) {
-		tmp = (struct fec_ptp_data_t *)(ptp_buf->buf) + i;
-		if (tmp->key == data->key &&
-				!memcmp(tmp->spid, data->spid, 10))
+		tmp_ident = &(ptp_buf->data_buf + i)->ident;
+		if (tmp_ident->seq_id == ident->seq_id &&
+				!memcmp(tmp_ident->spid, ident->spid, 10))
 			break;
 		i = fec_ptp_calc_index(size, i, 1);
 	}
 
-	spin_lock_irqsave(&priv->ptp_lock, flags);
 	if (i == end) {
-		ptp_buf->head = end;
-		spin_unlock_irqrestore(&priv->ptp_lock, flags);
+		/* buffer full ? */
+		if (fec_ptp_is_full(ptp_buf))
+			/* drop one in front */
+			ptp_buf->front =
+			fec_ptp_calc_index(size, ptp_buf->front, 1);
 		return 1;
 	}
 
-	data->ts_time.sec = tmp->ts_time.sec;
-	data->ts_time.nsec = tmp->ts_time.nsec;
-
-	ptp_buf->head = fec_ptp_calc_index(size, i, 1);
-	spin_unlock_irqrestore(&priv->ptp_lock, flags);
+	*ts = (ptp_buf->data_buf + i)->ts;
 
 	return 0;
 }
@@ -530,59 +514,41 @@ static void init_ptp_parser(struct ptp *p_ptp)
 }
 
 /* compatible with MXS 1588 */
-#ifdef CONFIG_IN_BAND
 void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
 			   struct sk_buff *skb,
 			   struct bufdesc *bdp)
 {
 	int msg_type, seq_id, control;
-	struct fec_ptp_data_t tmp_tx_time, tmp;
-	struct fec_ptp_private *fpp = priv;
+	struct fec_ptp_ts_data tmp_tx_time;
 	struct ptp *p_ptp = ptp_dev;
-	int flag;
 	unsigned char *sp_id;
-	unsigned short portnum;
 	u64 timestamp;
 
 	/* Check for PTP Event */
 	if ((bdp->cbd_sc & BD_ENET_TX_PTP) == 0)
 		return;
 
-	/* Get ts from tx ts queue */
-	memset(&tmp, 0, sizeof(struct fec_ptp_data_t));
-	tmp.key = SEQ_ID_OUT_OF_BAND;
-	flag = fec_ptp_find_and_remove(&(priv->txstamp), &tmp,
-				priv, DEFAULT_PTP_TX_BUF_SZ);
-	if (!flag) {
-		tmp_tx_time.ts_time.sec = tmp.ts_time.sec;
-		tmp_tx_time.ts_time.nsec = tmp.ts_time.nsec;
-	} else {
-		/*read timestamp from register*/
-		timestamp = ((u64)readl(p_ptp->mem_map + PTP_TMR_TXTS_H)
-				<< 32) |
+	/*read timestamp from register*/
+	timestamp = ((u64)readl(p_ptp->mem_map + PTP_TMR_TXTS_H)
+			<< 32) |
 			(readl(p_ptp->mem_map + PTP_TMR_TXTS_L));
-		convert_rtc_time(&timestamp, &(tmp_tx_time.ts_time));
-	}
+	convert_rtc_time(&timestamp, &(tmp_tx_time.ts));
 
 	seq_id = *((u16 *)(skb->data + FEC_PTP_SEQ_ID_OFFS));
 	control = *((u8 *)(skb->data + FEC_PTP_CTRL_OFFS));
 	sp_id = skb->data + FEC_PTP_SPORT_ID_OFFS;
-	portnum = ntohs(*((unsigned short *)(sp_id + 8)));
 
-	tmp_tx_time.key = ntohs(seq_id);
-	memcpy(tmp_tx_time.spid, sp_id, 8);
-	memcpy(tmp_tx_time.spid + 8, (unsigned char *)&portnum, 2);
+	tmp_tx_time.ident.seq_id = ntohs(seq_id);
+	memcpy(tmp_tx_time.ident.spid, sp_id, 10);
 
 	switch (control) {
 
 	case PTP_MSG_SYNC:
-		fec_ptp_insert(&(priv->tx_time_sync), &tmp_tx_time, priv,
-				DEFAULT_PTP_TX_BUF_SZ);
+		fec_ptp_insert(&(priv->tx_time_sync), &tmp_tx_time);
 		break;
 
 	case PTP_MSG_DEL_REQ:
-		fec_ptp_insert(&(priv->tx_time_del_req), &tmp_tx_time, priv,
-				DEFAULT_PTP_TX_BUF_SZ);
+		fec_ptp_insert(&(priv->tx_time_del_req), &tmp_tx_time);
 		break;
 
 	/* clear transportSpecific field*/
@@ -591,12 +557,12 @@ void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
 				FEC_PTP_MSG_TYPE_OFFS))) & 0x0F;
 		switch (msg_type) {
 		case PTP_MSG_P_DEL_REQ:
-			fec_ptp_insert(&(priv->tx_time_pdel_req), &tmp_tx_time,
-					priv, DEFAULT_PTP_TX_BUF_SZ);
+			fec_ptp_insert(&(priv->tx_time_pdel_req),
+					&tmp_tx_time);
 			break;
 		case PTP_MSG_P_DEL_RESP:
-			fec_ptp_insert(&(priv->tx_time_pdel_resp), &tmp_tx_time,
-					priv, DEFAULT_PTP_TX_BUF_SZ);
+			fec_ptp_insert(&(priv->tx_time_pdel_resp),
+					&tmp_tx_time);
 			break;
 		default:
 			break;
@@ -605,133 +571,43 @@ void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
 	default:
 		break;
 	}
-
-	wake_up_interruptible(&ptp_tx_ts_wait);
-}
-#else
-void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
-			   struct sk_buff *skb,
-			   struct bufdesc *bdp)
-{
-}
-#endif
-
-static void ptp_store_txstamp(struct fec_ptp_private *priv,
-				struct ptp *p_ptp,
-				struct ptp_time *pts,
-				u32 events)
-{
-	struct fec_ptp_data_t tmp_tx_time;
-	u16 seq_id;
-
-	seq_id = SEQ_ID_OUT_OF_BAND;
-
-	memset(&tmp_tx_time, 0, sizeof(struct fec_ptp_data_t));
-	tmp_tx_time.key = ntohs(seq_id);
-	tmp_tx_time.ts_time.sec = pts->sec;
-	tmp_tx_time.ts_time.nsec = pts->nsec;
-	fec_ptp_insert(&(priv->txstamp), &tmp_tx_time,
-			priv, DEFAULT_PTP_TX_BUF_SZ);
-}
-
-/* out-of-band rx ts store */
-static void ptp_store_rxstamp(struct fec_ptp_private *priv,
-			      struct ptp *p_ptp,
-			      struct ptp_time *pts,
-			      u32 events)
-{
-	int control = PTP_MSG_ALL_OTHER;
-	u16 seq_id;
-	struct fec_ptp_data_t tmp_rx_time;
-
-	/* out-of-band mode can't get seq_id */
-	seq_id = SEQ_ID_OUT_OF_BAND;
-
-	memset(&tmp_rx_time, 0, sizeof(struct fec_ptp_data_t));
-	tmp_rx_time.key = ntohs(seq_id);
-	tmp_rx_time.ts_time.sec = pts->sec;
-	tmp_rx_time.ts_time.nsec = pts->nsec;
-	if (events & PTP_TS_RX_SYNC1)
-		control = PTP_MSG_SYNC;
-	else if (events & PTP_TS_RX_DELAY_REQ1)
-		control = PTP_MSG_DEL_REQ;
-	else if (events & PTP_TS_PDRQRE1)
-		control = PTP_MSG_P_DEL_REQ;
-	else if (events & PTP_TS_PDRSRE1)
-		control = PTP_MSG_DEL_RESP;
-
-	switch (control) {
-	case PTP_MSG_SYNC:
-		fec_ptp_insert(&(priv->rx_time_sync), &tmp_rx_time,
-				priv, DEFAULT_PTP_RX_BUF_SZ);
-		break;
-
-	case PTP_MSG_DEL_REQ:
-		fec_ptp_insert(&(priv->rx_time_del_req), &tmp_rx_time,
-				priv, DEFAULT_PTP_RX_BUF_SZ);
-		break;
-
-	case PTP_MSG_P_DEL_REQ:
-		fec_ptp_insert(&(priv->rx_time_pdel_req), &tmp_rx_time,
-				priv, DEFAULT_PTP_RX_BUF_SZ);
-		break;
-
-	case PTP_MSG_P_DEL_RESP:
-		fec_ptp_insert(&(priv->rx_time_pdel_resp), &tmp_rx_time,
-				priv, DEFAULT_PTP_RX_BUF_SZ);
-		break;
-
-	default:
-		break;
-	}
-
-	wake_up_interruptible(&ptp_rx_ts_wait);
-
 }
 
 /* in-band rx ts store */
-#ifdef CONFIG_IN_BAND
 void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 			   struct sk_buff *skb,
 			   struct bufdesc *bdp)
 {
 	int msg_type, seq_id, control;
-	struct fec_ptp_data_t tmp_rx_time;
-	struct fec_ptp_private *fpp = priv;
+	struct fec_ptp_ts_data tmp_rx_time;
+	struct ptp *p_ptp = ptp_dev;
 	u64 timestamp;
 	unsigned char *sp_id;
-	unsigned short portnum;
 
 	/* Check for PTP Event */
-	if ((bdp->cbd_sc & BD_ENET_RX_PTP) == 0) {
-		skb_pull(skb, 8);
+	if ((bdp->cbd_sc & BD_ENET_RX_PTP) == 0)
 		return;
-	}
 
-	/* Get ts from skb data */
-	timestamp = *((u64 *)(skb->data));
-	convert_rtc_time(&timestamp, &(tmp_rx_time.ts_time));
-	skb_pull(skb, 8);
+	/* read ts from register */
+	timestamp = ((u64)readl(p_ptp->mem_map + PTP_TMR_RXTS_H)
+		<< 32) | (readl(p_ptp->mem_map + PTP_TMR_RXTS_L));
+	convert_rtc_time(&timestamp, &(tmp_rx_time.ts));
 
 	seq_id = *((u16 *)(skb->data + FEC_PTP_SEQ_ID_OFFS));
 	control = *((u8 *)(skb->data + FEC_PTP_CTRL_OFFS));
 	sp_id = skb->data + FEC_PTP_SPORT_ID_OFFS;
-	portnum = ntohs(*((unsigned short *)(sp_id + 8)));
 
-	tmp_rx_time.key = ntohs(seq_id);
-	memcpy(tmp_rx_time.spid, sp_id, 8);
-	memcpy(tmp_rx_time.spid + 8, (unsigned char *)&portnum, 2);
+	tmp_rx_time.ident.seq_id = ntohs(seq_id);
+	memcpy(tmp_rx_time.ident.spid, sp_id, 10);
 
 	switch (control) {
 
 	case PTP_MSG_SYNC:
-		fec_ptp_insert(&(priv->rx_time_sync), &tmp_rx_time, priv,
-				DEFAULT_PTP_RX_BUF_SZ);
+		fec_ptp_insert(&(priv->rx_time_sync), &tmp_rx_time);
 		break;
 
 	case PTP_MSG_DEL_REQ:
-		fec_ptp_insert(&(priv->rx_time_del_req), &tmp_rx_time, priv,
-				DEFAULT_PTP_RX_BUF_SZ);
+		fec_ptp_insert(&(priv->rx_time_del_req), &tmp_rx_time);
 		break;
 
 	/* clear transportSpecific field*/
@@ -740,12 +616,12 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 				FEC_PTP_MSG_TYPE_OFFS))) & 0x0F;
 		switch (msg_type) {
 		case PTP_MSG_P_DEL_REQ:
-			fec_ptp_insert(&(priv->rx_time_pdel_req), &tmp_rx_time,
-					priv, DEFAULT_PTP_RX_BUF_SZ);
+			fec_ptp_insert(&(priv->rx_time_pdel_req),
+						&tmp_rx_time);
 			break;
 		case PTP_MSG_P_DEL_RESP:
-			fec_ptp_insert(&(priv->rx_time_pdel_resp), &tmp_rx_time,
-					priv, DEFAULT_PTP_RX_BUF_SZ);
+			fec_ptp_insert(&(priv->rx_time_pdel_resp),
+						&tmp_rx_time);
 			break;
 		default:
 			break;
@@ -755,113 +631,6 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 		break;
 	}
 
-	wake_up_interruptible(&ptp_rx_ts_wait);
-}
-#else
-void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
-			   struct sk_buff *skb,
-			   struct bufdesc *bdp)
-{
-}
-#endif
-
-/*PTP interrupt handler*/
-static irqreturn_t ptp_interrupt(int irq, void *dev_id)
-{
-	struct ptp *p_ptp = (struct ptp *)dev_id;
-	void __iomem *mem_map = p_ptp->mem_map;
-	struct ptp_time ps;
-	u64 timestamp;
-	u32 events, orig_events;
-
-	/*get valid events*/
-	events = readl(mem_map + PTP_TMR_PEVENT);
-	while (events) {
-		if (events & PTP_TS_TX_FRAME1) {
-			/*read timestamp from register*/
-			timestamp = ((u64)readl(mem_map + PTP_TMR_TXTS_H)
-					<< 32) |
-				(readl(mem_map + PTP_TMR_TXTS_L));
-
-			/*clear event ASAP,hoping to prevent overrun*/
-			writel((u32)PTP_TS_TX_FRAME1,
-					mem_map + PTP_TMR_PEVENT);
-			/*check for overrun(which incalidates last timestamp)*/
-			events = readl(mem_map + PTP_TMR_PEVENT);
-
-			if (events & PTP_TS_TX_OVR1) {
-				/*lost synchronization with TX timestamps*/
-				/*clear overrun event*/
-				writel(PTP_TS_TX_OVR1,
-						mem_map + PTP_TMR_PEVENT);
-
-				p_ptp->tx_time_stamps_overrun++;
-			} else {
-				/*insert the Tx timestamps into the queue*/
-				convert_rtc_time(&timestamp, &ps);
-				ptp_store_txstamp(ptp_private, p_ptp,
-						&ps, orig_events);
-
-				/*this event is never really masked,
-				 *but it should be reported only
-				 *if includeed in usre events mask*/
-				if (p_ptp->events_mask & PTP_TS_TX_FRAME1)
-					p_ptp->tx_time_stamps++;
-				VDBG("tx interrupt\n");
-			}
-		}
-
-		/*typically only one of these events is relevant,
-		 *depending on whether the device is PTP master or slave*/
-		if (events & PTP_TS_RX_ALL) {
-			/*out-of-band mode:read timestamp
-			 *from registers*/
-			timestamp = ((u64)readl(mem_map + PTP_TMR_RXTS_H)
-					<< 32) |
-					(readl(mem_map + PTP_TMR_RXTS_L));
-
-			/*clear event ASAP,hoping to prevent overrun*/
-			orig_events = events;
-			writel((u32)(PTP_TS_RX_ALL),
-				mem_map + PTP_TMR_PEVENT);
-
-			/*check for overrun (which invalidates
-			 *last tiemstamp)*/
-			events = readl(mem_map + PTP_TMR_PEVENT);
-
-			if (events & PTP_TS_RX_OVR1) {
-				/*lost synchronization with Rx timestamp*/
-				/*clear overrun event. clear the
-				 *timestamp event as well, because
-				 *it may have arrived after it was
-				 *cleared above,but still it is not
-				 *synchronized with received frames*/
-				writel((u32)(PTP_TS_RX_ALL |
-					PTP_TS_RX_OVR1),
-					mem_map + PTP_TMR_RXTS_H);
-				p_ptp->rx_time_stamps_overrun++;
-			} else {
-				/*insert Rx timestamp into the queue*/
-				convert_rtc_time(&timestamp, &ps);
-				ptp_store_rxstamp(ptp_private, p_ptp,
-						&ps, orig_events);
-
-				/*the Rx TS event is never masked in
-				 *out-of-ban mode,but it should be
-				 *reported only if included in user's
-				 *event's mask*/
-				if (p_ptp->events_mask &
-					(PTP_TS_RX_SYNC1 |
-					PTP_TS_RX_DELAY_REQ1))
-					p_ptp->rx_time_stamps++;
-			}
-		}
-
-		writel(~PTP_TMR_PEVENT_VALID, mem_map + PTP_TMR_PEVENT);
-		events = readl(mem_map + PTP_TMR_PEVENT);
-	}
-
-	return IRQ_HANDLED;
 }
 
 static void init_ptp_tsu(struct ptp *p_ptp)
@@ -1122,56 +891,133 @@ static void rtc_modify_frequency_compensation(
 	writel(freq_compensation, rtc->mem_map + PTP_TMR_ADD);
 }
 
+/**
+ * Parse packets if they are PTP.
+ * The PTP header can be found in an IPv4, IPv6 or in an IEEE802.3
+ * ethernet frame. The function returns the position of the PTP packet
+ * or NULL, if no PTP found
+ */
+static u8 *fec_ptp_parse_packet(struct sk_buff *skb, u16 *eth_type)
+{
+	u8 *position = skb->data + ETH_ALEN + ETH_ALEN;
+	u8 *ptp_loc = NULL;
+
+	*eth_type = *((u16 *)position);
+	/* Check if outer vlan tag is here */
+	if (*eth_type == ETH_P_8021Q) {
+		position += FEC_VLAN_TAG_LEN;
+		*eth_type = *((u16 *)position);
+	}
+
+	/* set position after ethertype */
+	position += FEC_ETHTYPE_LEN;
+	if (ETH_P_1588 == *eth_type) {
+		ptp_loc = position;
+		/* IEEE1588 event message which needs timestamping */
+		if ((ptp_loc[0] & 0xF) <= 3) {
+			if (skb->len >=
+			((ptp_loc - skb->data) + PTP_HEADER_SZE))
+				return ptp_loc;
+		}
+	} else if (ETH_P_IP == ntohs(*eth_type)) {
+		u8 *ip_header, *prot, *udp_header;
+		u8 ip_version, ip_hlen;
+		ip_header = position;
+		ip_version = ip_header[0] >> 4; /* correct IP version? */
+		if (0x04 == ip_version) { /* IPv4 */
+			prot = ip_header + 9; /* protocol */
+			if (FEC_PACKET_TYPE_UDP == *prot) {
+				u16 udp_dstPort;
+				/* retrieve the size of the ip-header
+				 * with the first byte of the ip-header:
+				 * version ( 4 bits) + Internet header
+				 * length (4 bits)
+				 */
+				ip_hlen   = (*ip_header & 0xf) * 4;
+				udp_header = ip_header + ip_hlen;
+				udp_dstPort = *((u16 *)(udp_header + 2));
+				/* check the destination port address
+				 * ( 319 (0x013F) = PTP event port )
+				 */
+				if (ntohs(udp_dstPort) == PTP_EVENT_PORT) {
+					ptp_loc = udp_header + 8;
+					/* long enough ? */
+					if (skb->len >= ((ptp_loc - skb->data)
+							+ PTP_HEADER_SZE))
+						return ptp_loc;
+				}
+			}
+		}
+	} else if (ETH_P_IPV6 == ntohs(*eth_type)) {
+		u8 *ip_header, *udp_header, *prot;
+		u8 ip_version;
+		ip_header = position;
+		ip_version = ip_header[0] >> 4;
+		if (0x06 == ip_version) {
+			prot = ip_header + 6;
+			if (FEC_PACKET_TYPE_UDP == *prot) {
+				u16 udp_dstPort;
+				udp_header = ip_header + 40;
+				udp_dstPort = *((u16 *)(udp_header + 2));
+				/* check the destination port address
+				 * ( 319 (0x013F) = PTP event port )
+				 */
+				if (ntohs(udp_dstPort) == PTP_EVENT_PORT) {
+					ptp_loc = udp_header + 8;
+					/* long enough ? */
+					if (skb->len >= ((ptp_loc - skb->data)
+							+ PTP_HEADER_SZE))
+						return ptp_loc;
+				}
+			}
+		}
+	}
+
+	return NULL; /* no PTP frame */
+}
+
 /* Set the BD to ptp */
 int fec_ptp_do_txstamp(struct sk_buff *skb)
 {
-	struct iphdr *iph;
-	struct udphdr *udph;
+	u8 *ptp_loc;
+	u16 eth_type;
 
-	if (skb->len > 44) {
-		/* Check if port is 319 for PTP Event, and check for UDP */
-		iph = ip_hdr(skb);
-		if (iph == NULL || iph->protocol != FEC_PACKET_TYPE_UDP)
-			return 0;
-
-		udph = udp_hdr(skb);
-		if (udph != NULL && ntohs(udph->dest) == 319)
-			return 1;
-	}
+	ptp_loc = fec_ptp_parse_packet(skb, &eth_type);
+	if (ptp_loc != NULL)
+		return 1;
 
 	return 0;
 }
 
 static int fec_get_tx_timestamp(struct fec_ptp_private *priv,
-				 struct ptp_ts_data *pts,
+				 struct fec_ptp_ts_data *pts,
 				 struct ptp_time *tx_time)
 {
-	struct fec_ptp_data_t tmp;
 	int flag;
-
-#ifdef CONFIG_IN_BAND
 	u8 mode;
-	tmp.key = pts->seq_id;
-	memcpy(tmp.spid, pts->spid, 10);
-	mode = pts->message_type;
 
+	mode = pts->ident.message_type;
 	switch (mode) {
 	case PTP_MSG_SYNC:
-		flag = fec_ptp_find_and_remove(&(priv->tx_time_sync), &tmp,
-				priv, DEFAULT_PTP_TX_BUF_SZ);
+		flag =
+		fec_ptp_find_and_remove(&(priv->tx_time_sync),
+				&pts->ident, tx_time);
 		break;
 	case PTP_MSG_DEL_REQ:
-		flag = fec_ptp_find_and_remove(&(priv->tx_time_del_req), &tmp,
-				priv, DEFAULT_PTP_TX_BUF_SZ);
+		flag =
+		fec_ptp_find_and_remove(&(priv->tx_time_del_req),
+				&pts->ident, tx_time);
 		break;
 
 	case PTP_MSG_P_DEL_REQ:
-		flag = fec_ptp_find_and_remove(&(priv->tx_time_pdel_req), &tmp,
-				priv, DEFAULT_PTP_TX_BUF_SZ);
+		flag =
+		fec_ptp_find_and_remove(&(priv->tx_time_pdel_req),
+				&pts->ident, tx_time);
 		break;
 	case PTP_MSG_P_DEL_RESP:
-		flag = fec_ptp_find_and_remove(&(priv->tx_time_pdel_resp),
-				&tmp, priv, DEFAULT_PTP_TX_BUF_SZ);
+		flag =
+		fec_ptp_find_and_remove(&(priv->tx_time_pdel_resp),
+				&pts->ident, tx_time);
 		break;
 
 	default:
@@ -1180,90 +1026,63 @@ static int fec_get_tx_timestamp(struct fec_ptp_private *priv,
 		break;
 	}
 
-	if (!flag) {
-		tx_time->sec = tmp.ts_time.sec;
-		tx_time->nsec = tmp.ts_time.nsec;
-		return 0;
-	} else {
-		wait_event_interruptible_timeout(ptp_tx_ts_wait, 0,
-					PTP_GET_TX_TIMEOUT);
-
+	if (flag) {
 		switch (mode) {
 		case PTP_MSG_SYNC:
-			flag = fec_ptp_find_and_remove(&(priv->tx_time_sync),
-				&tmp, priv, DEFAULT_PTP_TX_BUF_SZ);
+			flag =
+			fec_ptp_find_and_remove(&(priv->tx_time_sync),
+						&pts->ident, tx_time);
 			break;
 		case PTP_MSG_DEL_REQ:
-			flag = fec_ptp_find_and_remove(
-				&(priv->tx_time_del_req), &tmp,
-				priv, DEFAULT_PTP_TX_BUF_SZ);
+			flag =
+			fec_ptp_find_and_remove(&(priv->tx_time_del_req),
+						&pts->ident, tx_time);
 			break;
 		case PTP_MSG_P_DEL_REQ:
-			flag = fec_ptp_find_and_remove(
-				&(priv->tx_time_pdel_req), &tmp,
-				priv, DEFAULT_PTP_TX_BUF_SZ);
+			flag =
+			fec_ptp_find_and_remove(&(priv->tx_time_pdel_req),
+						&pts->ident, tx_time);
 			break;
 		case PTP_MSG_P_DEL_RESP:
-			flag = fec_ptp_find_and_remove(
-				&(priv->tx_time_pdel_resp), &tmp,
-				priv, DEFAULT_PTP_TX_BUF_SZ);
+			flag =
+			fec_ptp_find_and_remove(&(priv->tx_time_pdel_resp),
+						&pts->ident, tx_time);
 			break;
 		}
-
-		if (flag == 0) {
-			tx_time->sec = tmp.ts_time.sec;
-			tx_time->nsec = tmp.ts_time.nsec;
-			return 0;
-		}
-
-		return -1;
 	}
 
-#else
-	memset(tmp.spid, 0, 10);
-	tmp.key = SEQ_ID_OUT_OF_BAND;
-
-	flag = fec_ptp_find_and_remove(&(priv->txstamp), &tmp,
-			priv, DEFAULT_PTP_TX_BUF_SZ);
-	tx_time->sec = tmp.ts_time.sec;
-	tx_time->nsec = tmp.ts_time.nsec;
-	return 0;
-#endif
+	return flag ? -1 : 0;
 }
 
 static uint8_t fec_get_rx_timestamp(struct fec_ptp_private *priv,
-				    struct ptp_ts_data *pts,
+				    struct fec_ptp_ts_data *pts,
 				    struct ptp_time *rx_time)
 {
-	struct fec_ptp_data_t tmp;
 	int flag;
 	u8 mode;
 
-#ifdef CONFIG_IN_BAND
-	tmp.key = pts->seq_id;
-	memcpy(tmp.spid, pts->spid, 10);
-#else
-	memset(tmp.spid, 0, 10);
-	tmp.key = SEQ_ID_OUT_OF_BAND;
-#endif
-	mode = pts->message_type;
+	mode = pts->ident.message_type;
 	switch (mode) {
 	case PTP_MSG_SYNC:
-		flag = fec_ptp_find_and_remove(&(priv->rx_time_sync), &tmp,
-				priv, DEFAULT_PTP_RX_BUF_SZ);
+		flag =
+		fec_ptp_find_and_remove(&(priv->rx_time_sync),
+			&pts->ident, rx_time);
 		break;
 	case PTP_MSG_DEL_REQ:
-		flag = fec_ptp_find_and_remove(&(priv->rx_time_del_req), &tmp,
-				priv, DEFAULT_PTP_RX_BUF_SZ);
+		flag =
+		fec_ptp_find_and_remove(&(priv->rx_time_del_req),
+			&pts->ident, rx_time);
 		break;
 
 	case PTP_MSG_P_DEL_REQ:
-		flag = fec_ptp_find_and_remove(&(priv->rx_time_pdel_req), &tmp,
-				priv, DEFAULT_PTP_RX_BUF_SZ);
+		flag =
+		fec_ptp_find_and_remove(&(priv->rx_time_pdel_req),
+			&pts->ident, rx_time);
 		break;
 	case PTP_MSG_P_DEL_RESP:
-		flag = fec_ptp_find_and_remove(&(priv->rx_time_pdel_resp),
-				&tmp, priv, DEFAULT_PTP_RX_BUF_SZ);
+		flag =
+		fec_ptp_find_and_remove(&(priv->rx_time_pdel_resp),
+				&pts->ident, rx_time);
 		break;
 
 	default:
@@ -1272,44 +1091,32 @@ static uint8_t fec_get_rx_timestamp(struct fec_ptp_private *priv,
 		break;
 	}
 
-	if (!flag) {
-		rx_time->sec = tmp.ts_time.sec;
-		rx_time->nsec = tmp.ts_time.nsec;
-		return 0;
-	} else {
-		wait_event_interruptible_timeout(ptp_rx_ts_wait, 0,
-					PTP_GET_RX_TIMEOUT);
-
+	if (flag) {
 		switch (mode) {
 		case PTP_MSG_SYNC:
-			flag = fec_ptp_find_and_remove(&(priv->rx_time_sync),
-				&tmp, priv, DEFAULT_PTP_RX_BUF_SZ);
+			flag =
+			fec_ptp_find_and_remove(&(priv->rx_time_sync),
+				&pts->ident, rx_time);
 			break;
 		case PTP_MSG_DEL_REQ:
-			flag = fec_ptp_find_and_remove(
-				&(priv->rx_time_del_req), &tmp,
-				priv, DEFAULT_PTP_RX_BUF_SZ);
+			flag =
+			fec_ptp_find_and_remove(&(priv->rx_time_del_req),
+					&pts->ident, rx_time);
 			break;
 		case PTP_MSG_P_DEL_REQ:
-			flag = fec_ptp_find_and_remove(
-				&(priv->rx_time_pdel_req), &tmp,
-				priv, DEFAULT_PTP_RX_BUF_SZ);
+			flag =
+			fec_ptp_find_and_remove(&(priv->rx_time_pdel_req),
+					&pts->ident, rx_time);
 			break;
 		case PTP_MSG_P_DEL_RESP:
-			flag = fec_ptp_find_and_remove(
-				&(priv->rx_time_pdel_resp), &tmp,
-				priv, DEFAULT_PTP_RX_BUF_SZ);
+			flag =
+			fec_ptp_find_and_remove(&(priv->rx_time_pdel_resp),
+					&pts->ident, rx_time);
 			break;
 		}
-
-		if (flag == 0) {
-			rx_time->sec = tmp.ts_time.sec;
-			rx_time->nsec = tmp.ts_time.nsec;
-			return 0;
-		}
-
-		return -1;
 	}
+
+	return flag ? -1 : 0;
 }
 
 /* 1588 Module start */
@@ -1343,107 +1150,109 @@ void fec_ptp_stop(struct fec_ptp_private *priv)
 	return;
 }
 
-static int ptp_open(struct inode *inode, struct file *file)
-{
-	return 0;
-}
-
-static int ptp_release(struct inode *inode, struct file *file)
-{
-	return 0;
-}
-
 /* ptp device ioctl function */
-static int ptp_ioctl(
-	struct inode *inode,
-	struct file *file,
-	unsigned int cmd,
-	unsigned long arg)
+int fec_ptp_ioctl(struct fec_ptp_private *priv, struct ifreq *ifr, int cmd)
 {
-	struct ptp_rtc_time *cnt;
 	struct ptp_rtc_time curr_time;
 	struct ptp_time rx_time, tx_time;
-	struct ptp_ts_data *p_ts;
-	struct ptp_set_comp *p_comp;
-	struct fec_ptp_private *priv;
+	struct fec_ptp_ts_data p_ts;
+	struct fec_ptp_ts_data *p_ts_user;
+	struct ptp_set_comp p_comp;
+	u32 freq_compensation;
 	int retval = 0;
 
-	priv = (struct fec_ptp_private *) ptp_private;
 	switch (cmd) {
+	case PTP_ENBL_TXTS_IOCTL:
+	case PTP_DSBL_TXTS_IOCTL:
+	case PTP_ENBL_RXTS_IOCTL:
+	case PTP_DSBL_RXTS_IOCTL:
+		break;
 	case PTP_GET_RX_TIMESTAMP:
-		p_ts = (struct ptp_ts_data *)arg;
-		retval = fec_get_rx_timestamp(priv, p_ts, &rx_time);
-		if (retval == 0)
-			retval = copy_to_user((void __user *)(&(p_ts->ts)),
-					&rx_time, sizeof(rx_time));
+		p_ts_user = (struct fec_ptp_ts_data *)ifr->ifr_data;
+		if (0 != copy_from_user(&p_ts.ident,
+			&p_ts_user->ident, sizeof(p_ts.ident)))
+			return -EINVAL;
+		if (fec_get_rx_timestamp(priv, &p_ts, &rx_time) != 0)
+			return -EAGAIN;
+		if (copy_to_user((void __user *)(&p_ts_user->ts), &rx_time,
+					sizeof(rx_time)))
+			return -EFAULT;
 		break;
 	case PTP_GET_TX_TIMESTAMP:
-		p_ts = (struct ptp_ts_data *)arg;
-		fec_get_tx_timestamp(priv, p_ts, &tx_time);
-		retval = copy_to_user((void __user *)(&(p_ts->ts)),
-				&tx_time, sizeof(tx_time));
+		p_ts_user = (struct fec_ptp_ts_data *)ifr->ifr_data;
+		if (0 != copy_from_user(&p_ts.ident,
+			&p_ts_user->ident, sizeof(p_ts.ident)))
+			return -EINVAL;
+		retval = fec_get_tx_timestamp(priv, &p_ts, &tx_time);
+		if (retval == 0 &&
+			copy_to_user((void __user *)(&p_ts_user->ts),
+				&tx_time, sizeof(tx_time)))
+			retval = -EFAULT;
 		break;
 	case PTP_GET_CURRENT_TIME:
 		ptp_rtc_get_current_time(ptp_dev, &(curr_time.rtc_time));
-		retval = copy_to_user((void __user *)arg, &curr_time,
-				sizeof(curr_time));
+		if (0 != copy_to_user(ifr->ifr_data,
+			&(curr_time.rtc_time), sizeof(struct ptp_time)))
+				return -EFAULT;
 		break;
 	case PTP_SET_RTC_TIME:
-		cnt = (struct ptp_rtc_time *)arg;
-		ptp_rtc_reset_counter(ptp_dev, &(cnt->rtc_time));
+		if (0 != copy_from_user(&(curr_time.rtc_time),
+			 ifr->ifr_data,	sizeof(struct ptp_time)))
+			return -EINVAL;
+		ptp_rtc_reset_counter(ptp_dev, &(curr_time.rtc_time));
 		break;
 	case PTP_FLUSH_TIMESTAMP:
 		/* reset sync buffer */
-		priv->rx_time_sync.head = 0;
-		priv->rx_time_sync.tail = 0;
+		priv->rx_time_sync.front = 0;
+		priv->rx_time_sync.end = 0;
+		priv->rx_time_sync.size = (DEFAULT_PTP_RX_BUF_SZ + 1);
 		/* reset delay_req buffer */
-		priv->rx_time_del_req.head = 0;
-		priv->rx_time_del_req.tail = 0;
+		priv->rx_time_del_req.front = 0;
+		priv->rx_time_del_req.end = 0;
+		priv->rx_time_del_req.size = (DEFAULT_PTP_RX_BUF_SZ + 1);
 		/* reset pdelay_req buffer */
-		priv->rx_time_pdel_req.head = 0;
-		priv->rx_time_pdel_req.tail = 0;
+		priv->rx_time_pdel_req.front = 0;
+		priv->rx_time_pdel_req.end = 0;
+		priv->rx_time_pdel_req.size = (DEFAULT_PTP_RX_BUF_SZ + 1);
 		/* reset pdelay_resp buffer */
-		priv->rx_time_pdel_resp.head = 0;
-		priv->rx_time_pdel_resp.tail = 0;
+		priv->rx_time_pdel_resp.front = 0;
+		priv->rx_time_pdel_resp.end = 0;
+		priv->rx_time_pdel_resp.size = (DEFAULT_PTP_RX_BUF_SZ + 1);
 		/* reset sync buffer */
-		priv->tx_time_sync.head = 0;
-		priv->tx_time_sync.tail = 0;
+		priv->tx_time_sync.front = 0;
+		priv->tx_time_sync.end = 0;
+		priv->tx_time_sync.size = (DEFAULT_PTP_TX_BUF_SZ + 1);
 		/* reset delay_req buffer */
-		priv->tx_time_del_req.head = 0;
-		priv->tx_time_del_req.tail = 0;
+		priv->tx_time_del_req.front = 0;
+		priv->tx_time_del_req.end = 0;
+		priv->tx_time_del_req.size = (DEFAULT_PTP_TX_BUF_SZ + 1);
 		/* reset pdelay_req buffer */
-		priv->tx_time_pdel_req.head = 0;
-		priv->tx_time_pdel_req.tail = 0;
+		priv->tx_time_pdel_req.front = 0;
+		priv->tx_time_pdel_req.end = 0;
+		priv->tx_time_pdel_req.size = (DEFAULT_PTP_TX_BUF_SZ + 1);
 		/* reset pdelay_resp buffer */
-		priv->tx_time_pdel_resp.head = 0;
-		priv->tx_time_pdel_resp.tail = 0;
-		priv->txstamp.head = 0;
-		priv->txstamp.tail = 0;
+		priv->tx_time_pdel_resp.front = 0;
+		priv->tx_time_pdel_resp.end = 0;
+		priv->tx_time_pdel_resp.size = (DEFAULT_PTP_TX_BUF_SZ + 1);
 		break;
 	case PTP_SET_COMPENSATION:
-		p_comp = (struct ptp_set_comp *)arg;
+		if (0 != copy_from_user(&p_comp, ifr->ifr_data,
+			sizeof(struct ptp_set_comp)))
+			return -EINVAL;
 		rtc_modify_frequency_compensation(ptp_dev->rtc,
-				p_comp->freq_compensation);
+				p_comp.freq_compensation);
 		break;
 	case PTP_GET_ORIG_COMP:
-		((struct ptp_get_comp *)arg)->dw_origcomp =
-					ptp_dev->orig_freq_comp;
+		freq_compensation = ptp_dev->orig_freq_comp;
+		if (copy_to_user(ifr->ifr_data, &freq_compensation,
+					sizeof(freq_compensation)) > 0)
+			return -EFAULT;
 		break;
 	default:
 		return -EINVAL;
 	}
 	return retval;
 }
-
-static const struct file_operations ptp_fops = {
-	.owner	= THIS_MODULE,
-	.llseek	= NULL,
-	.read	= NULL,
-	.write	= NULL,
-	.ioctl	= ptp_ioctl,
-	.open	= ptp_open,
-	.release = ptp_release,
-};
 
 static int init_ptp_driver(struct ptp *p_ptp)
 {
@@ -1462,11 +1271,7 @@ static int init_ptp_driver(struct ptp *p_ptp)
 	ptp_param_config(p_ptp);
 
 	/* set TSU configuration parameters */
-#ifdef CONFIG_IN_BAND
-	p_ptp->driver_param->delivery_mode = e_PTP_TSU_DELIVERY_IN_BAND;
-#else
 	p_ptp->driver_param->delivery_mode = e_PTP_TSU_DELIVERY_OUT_OF_BAND;
-#endif
 
 	if (ptp_tsu_config_events_mask(p_ptp, DEFAULT_events_PTP_Mask))
 			goto end;
@@ -1518,11 +1323,6 @@ static int init_ptp_driver(struct ptp *p_ptp)
 		goto end;
 	}
 
-	if (register_chrdev(PTP_MAJOR, "ptp", &ptp_fops))
-		printk(KERN_ERR "Unable to register PTP device as char\n");
-	else
-		printk(KERN_INFO "Register PTP as char device\n");
-
 end:
 	return ret;
 }
@@ -1530,8 +1330,6 @@ end:
 static void ptp_free(void)
 {
 	rtc_disable(ptp_dev->rtc);
-	/*unregister the PTP device*/
-	unregister_chrdev(PTP_MAJOR, "ptp");
 }
 
 /*
@@ -1548,10 +1346,8 @@ int fec_ptp_init(struct fec_ptp_private *priv, int id)
 	fec_ptp_init_circ(&(priv->tx_time_pdel_req), DEFAULT_PTP_TX_BUF_SZ);
 	fec_ptp_init_circ(&(priv->tx_time_pdel_resp), DEFAULT_PTP_TX_BUF_SZ);
 
-	fec_ptp_init_circ(&(priv->txstamp), DEFAULT_PTP_TX_BUF_SZ);
 
 	spin_lock_init(&priv->ptp_lock);
-	spin_lock_init(&priv->cnt_lock);
 	ptp_private = priv;
 
 	return 0;
@@ -1560,24 +1356,22 @@ EXPORT_SYMBOL(fec_ptp_init);
 
 void fec_ptp_cleanup(struct fec_ptp_private *priv)
 {
-	if (priv->rx_time_sync.buf)
-		vfree(priv->rx_time_sync.buf);
-	if (priv->rx_time_del_req.buf)
-		vfree(priv->rx_time_del_req.buf);
-	if (priv->rx_time_pdel_req.buf)
-		vfree(priv->rx_time_pdel_req.buf);
-	if (priv->rx_time_pdel_resp.buf)
-		vfree(priv->rx_time_pdel_resp.buf);
-	if (priv->tx_time_sync.buf)
-		vfree(priv->tx_time_sync.buf);
-	if (priv->tx_time_del_req.buf)
-		vfree(priv->tx_time_del_req.buf);
-	if (priv->tx_time_pdel_req.buf)
-		vfree(priv->tx_time_pdel_req.buf);
-	if (priv->tx_time_pdel_resp.buf)
-		vfree(priv->tx_time_pdel_resp.buf);
-	if (priv->txstamp.buf)
-		vfree(priv->txstamp.buf);
+	if (priv->rx_time_sync.data_buf)
+		vfree(priv->rx_time_sync.data_buf);
+	if (priv->rx_time_del_req.data_buf)
+		vfree(priv->rx_time_del_req.data_buf);
+	if (priv->rx_time_pdel_req.data_buf)
+		vfree(priv->rx_time_pdel_req.data_buf);
+	if (priv->rx_time_pdel_resp.data_buf)
+		vfree(priv->rx_time_pdel_resp.data_buf);
+	if (priv->tx_time_sync.data_buf)
+		vfree(priv->tx_time_sync.data_buf);
+	if (priv->tx_time_del_req.data_buf)
+		vfree(priv->tx_time_del_req.data_buf);
+	if (priv->tx_time_pdel_req.data_buf)
+		vfree(priv->tx_time_pdel_req.data_buf);
+	if (priv->tx_time_pdel_resp.data_buf)
+		vfree(priv->tx_time_pdel_resp.data_buf);
 
 	ptp_free();
 }
@@ -1647,10 +1441,7 @@ ptp_probe(struct platform_device *pdev)
 		irq = platform_get_irq(pdev, i);
 		if (i && irq < 0)
 			break;
-		if (i == 0)
-			ret = request_irq(irq, ptp_interrupt,
-					IRQF_DISABLED, pdev->name, ptp_dev);
-		else
+		if (i != 0)
 			ret = request_irq(irq, ptp_rtc_interrupt,
 					IRQF_DISABLED, "ptp_rtc", ptp_dev);
 		if (ret) {

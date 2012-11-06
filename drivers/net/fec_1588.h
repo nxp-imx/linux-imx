@@ -53,6 +53,12 @@
 
 #define DEFAULT_PTP_RX_BUF_SZ		256
 #define DEFAULT_PTP_TX_BUF_SZ		256
+#define PTP_MSG_SYNC			0x0
+#define PTP_MSG_DEL_REQ			0x1
+#define PTP_MSG_P_DEL_REQ		0x2
+#define PTP_MSG_P_DEL_RESP		0x3
+#define PTP_MSG_DEL_RESP		0x4
+#define PTP_MSG_ALL_OTHER		0x5
 
 /* 1588stack API defines */
 #define PTP_ENBL_TXTS_IOCTL	SIOCDEVPRIVATE
@@ -68,6 +74,15 @@
 #define PTP_FLUSH_TIMESTAMP	(SIOCDEVPRIVATE + 11)
 
 /* IEEE1588 ptp head format */
+#define FEC_PTP_DOMAIN_DLFT		0xe0000181
+#define FEC_PTP_IP_OFFS			0xE
+#define FEC_PTP_UDP_OFFS		0x22
+#define FEC_PTP_MSG_TYPE_OFFS		0x2A
+#define FEC_PTP_SPORT_ID_OFFS		0x3E
+#define FEC_PTP_SEQ_ID_OFFS		0x48
+#define FEC_PTP_CTRL_OFFS		0x4A
+#define FEC_PACKET_TYPE_UDP		0x11
+
 #define PTP_CTRL_OFFS		0x52
 #define PTP_SOURCE_PORT_LENGTH	10
 #define	PTP_HEADER_SEQ_OFFS	30
@@ -162,12 +177,20 @@ struct fec_ptp_private {
 
 	struct fec_ptp_circular tx_timestamps;
 	struct fec_ptp_circular rx_timestamps;
+	struct	fec_ptp_circular rx_time_sync;
+	struct	fec_ptp_circular rx_time_del_req;
+	struct	fec_ptp_circular rx_time_pdel_req;
+	struct	fec_ptp_circular rx_time_pdel_resp;
+	struct	fec_ptp_circular tx_time_sync;
+	struct	fec_ptp_circular tx_time_del_req;
+	struct	fec_ptp_circular tx_time_pdel_req;
+	struct	fec_ptp_circular tx_time_pdel_resp;
+	spinlock_t ptp_lock;
 	spinlock_t cnt_lock;
 
 	u64	prtc;
 	u8	ptp_active;
 	u8	ptp_slave;
-	struct circ_buf	txstamp;
 };
 
 #ifdef CONFIG_FEC_1588
