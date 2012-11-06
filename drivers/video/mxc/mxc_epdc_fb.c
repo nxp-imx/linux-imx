@@ -1492,7 +1492,6 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 	 */
 	if (!fb_data->hw_ready) {
 		struct fb_videomode mode;
-		bool found_match = false;
 		u32 xres_temp;
 
 		fb_var_to_videomode(&mode, screeninfo);
@@ -1506,19 +1505,31 @@ static int mxc_epdc_fb_set_par(struct fb_info *info)
 			mode.yres = xres_temp;
 		}
 
-		/* Match videomode against epdc modes */
-		for (i = 0; i < fb_data->pdata->num_modes; i++) {
-			if (!fb_mode_is_equal(epdc_modes[i].vmode, &mode))
-				continue;
-			fb_data->cur_mode = &epdc_modes[i];
-			found_match = true;
-			break;
-		}
+		/*
+		* If requested video mode does not match current video
+		* mode, search for a matching panel.
+		*/
+		if (fb_data->cur_mode &&
+			!fb_mode_is_equal(fb_data->cur_mode->vmode,
+			&mode)) {
+			bool found_match = false;
 
-		if (!found_match) {
-			dev_err(fb_data->dev,
-				"Failed to match requested video mode\n");
-			return EINVAL;
+			/* Match videomode against epdc modes */
+			for (i = 0; i < fb_data->pdata->num_modes; i++) {
+				if (!fb_mode_is_equal(epdc_modes[i].vmode,
+					&mode))
+					continue;
+				fb_data->cur_mode = &epdc_modes[i];
+				found_match = true;
+				break;
+			}
+
+			if (!found_match) {
+				dev_err(fb_data->dev,
+					"Failed to match requested "
+					"video mode\n");
+				return EINVAL;
+			}
 		}
 
 		/* Found a match - Grab timing params */
