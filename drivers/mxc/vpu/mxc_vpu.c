@@ -112,6 +112,7 @@ static int vpu_jpu_irq;
 
 static unsigned int regBk[64];
 static struct regulator *vpu_regulator;
+static unsigned int pc_before_suspend;
 
 #define	READ_REG(x)		__raw_readl(vpu_base + x)
 #define	WRITE_REG(val, x)	__raw_writel(val, vpu_base + x)
@@ -716,9 +717,16 @@ static int vpu_dev_probe(struct platform_device *pdev)
 		goto err_out_class;
 	vpu_regulator = regulator_get(NULL, "cpu_vddvpu");
 	if (IS_ERR(vpu_regulator)) {
-		printk(KERN_ERR
-			"%s: failed to get vpu regulator\n", __func__);
-		goto err_out_class;
+		if (!(cpu_is_mx51() || cpu_is_mx53())) {
+			printk(KERN_ERR
+				"%s: failed to get vpu regulator\n", __func__);
+			goto err_out_class;
+		} else {
+			/* regulator_get will return error on MX5x,
+			 * just igore it everywhere*/
+			printk(KERN_WARNING
+				"%s: failed to get vpu regulator\n", __func__);
+		}
 	}
 
 #ifdef MXC_VPU_HAS_JPU
@@ -778,140 +786,152 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 	int i;
 	unsigned long timeout;
 
-	if (!IS_ERR(vpu_regulator))
-		regulator_enable(vpu_regulator);
-	/* Wait for vpu go to idle state, suspect vpu cannot be changed
-	   to idle state after about 1 sec */
-	if (open_count > 0) {
+	mutex_lock(&vpu_data.lock);
+	if (open_count == 0) {
+		/* VPU is released (all instances are freed),
+		 * clock is already off, context is no longer needed,
+		 * power is already off on MX6,
+		 * gate power on MX51 */
+		if (cpu_is_mx51()) {
+			if (vpu_plat->pg)
+				vpu_plat->pg(1);
+		}
+	} else {
+		/* Wait for vpu go to idle state, suspect vpu cannot be changed
+		   to idle state after about 1 sec */
 		timeout = jiffies + HZ;
 		clk_enable(vpu_clk);
 		while (READ_REG(BIT_BUSY_FLAG)) {
 			msleep(1);
-			if (time_after(jiffies, timeout))
-				goto out;
+			if (time_after(jiffies, timeout)) {
+				clk_disable(vpu_clk);
+				mutex_unlock(&vpu_data.lock);
+				return -EAGAIN;
+			}
 		}
 		clk_disable(vpu_clk);
-	}
 
-	/* Make sure clock is disabled before suspend */
-	vpu_clk_usercount = clk_get_usecount(vpu_clk);
-	for (i = 0; i < vpu_clk_usercount; i++)
-		clk_disable(vpu_clk);
+		/* Make sure clock is disabled before suspend */
+		vpu_clk_usercount = clk_get_usecount(vpu_clk);
+		for (i = 0; i < vpu_clk_usercount; i++)
+			clk_disable(vpu_clk);
 
-	if (cpu_is_mx53())
-		return 0;
+		if (cpu_is_mx53()) {
+			mutex_unlock(&vpu_data.lock);
+			return 0;
+		}
 
-	if (bitwork_mem.cpu_addr != 0) {
-		clk_enable(vpu_clk);
-		/* Save 64 registers from BIT_CODE_BUF_ADDR */
-		for (i = 0; i < 64; i++)
-			regBk[i] = READ_REG(BIT_CODE_BUF_ADDR + (i * 4));
-		clk_disable(vpu_clk);
-	}
+		if (bitwork_mem.cpu_addr != 0) {
+			clk_enable(vpu_clk);
+			/* Save 64 registers from BIT_CODE_BUF_ADDR */
+			for (i = 0; i < 64; i++)
+				regBk[i] = READ_REG(BIT_CODE_BUF_ADDR + (i * 4));
+			pc_before_suspend = READ_REG(BIT_CUR_PC);
+			clk_disable(vpu_clk);
+		}
 
-	if (vpu_plat->pg)
-		vpu_plat->pg(1);
+		if (vpu_plat->pg)
+			vpu_plat->pg(1);
 
-	/* If VPU is working before suspend, disable
-	 * regulator to make usecount right. */
-	if (open_count > 0) {
+		/* If VPU is working before suspend, disable
+		 * regulator to make usecount right. */
 		if (!IS_ERR(vpu_regulator))
 			regulator_disable(vpu_regulator);
 	}
 
-	if (!IS_ERR(vpu_regulator))
-		regulator_disable(vpu_regulator);
+	mutex_unlock(&vpu_data.lock);
 	return 0;
-
-out:
-	clk_disable(vpu_clk);
-	if (!IS_ERR(vpu_regulator))
-		regulator_disable(vpu_regulator);
-	return -EAGAIN;
-
 }
 
 static int vpu_resume(struct platform_device *pdev)
 {
 	int i;
 
-	if (cpu_is_mx53())
-		goto recover_clk;
+	mutex_lock(&vpu_data.lock);
+	if (open_count == 0) {
+		/* VPU is released (all instances are freed),
+		 * clock should be kept off, context is no longer needed,
+		 * power should be kept off on MX6,
+		 * disable power gating on MX51 */
+		if (cpu_is_mx51()) {
+			if (vpu_plat->pg)
+				vpu_plat->pg(0);
+		}
+	} else {
+		if (cpu_is_mx53())
+			goto recover_clk;
 
-	if (!IS_ERR(vpu_regulator))
-		regulator_enable(vpu_regulator);
-	if (vpu_plat->pg)
-		vpu_plat->pg(0);
-
-	/* If VPU is working before suspend, enable
-	 * regulator to make usecount right. */
-	if (open_count > 0) {
+		/* If VPU is working before suspend, enable
+		 * regulator to make usecount right. */
 		if (!IS_ERR(vpu_regulator))
 			regulator_enable(vpu_regulator);
-	}
 
-	if (bitwork_mem.cpu_addr != 0) {
-		u32 *p = (u32 *) bitwork_mem.cpu_addr;
-		u32 data, pc;
-		u16 data_hi;
-		u16 data_lo;
+		if (vpu_plat->pg)
+			vpu_plat->pg(0);
 
-		clk_enable(vpu_clk);
+		if (bitwork_mem.cpu_addr != 0) {
+			u32 *p = (u32 *) bitwork_mem.cpu_addr;
+			u32 data, pc;
+			u16 data_hi;
+			u16 data_lo;
 
-		/* reset VPU in case of voltage change */
-		if (vpu_plat->reset)
-			vpu_plat->reset();
+			clk_enable(vpu_clk);
 
-		pc = READ_REG(BIT_CUR_PC);
-		if (pc) {
+			pc = READ_REG(BIT_CUR_PC);
+			if (pc) {
+				printk(KERN_WARNING "Not power off after suspend (PC=0x%x)\n", pc);
+				clk_disable(vpu_clk);
+				goto recover_clk;
+			}
+
+			/* Restore registers */
+			for (i = 0; i < 64; i++)
+				WRITE_REG(regBk[i], BIT_CODE_BUF_ADDR + (i * 4));
+
+			WRITE_REG(0x0, BIT_RESET_CTRL);
+			WRITE_REG(0x0, BIT_CODE_RUN);
+			/* MX6 RTL has a bug not to init MBC_SET_SUBBLK_EN on reset */
+			WRITE_REG(0x0, MBC_SET_SUBBLK_EN);
+
+			/*
+			 * Re-load boot code, from the codebuffer in external RAM.
+			 * Thankfully, we only need 4096 bytes, same for all platforms.
+			 */
+			for (i = 0; i < 2048; i += 4) {
+				data = p[(i / 2) + 1];
+				data_hi = (data >> 16) & 0xFFFF;
+				data_lo = data & 0xFFFF;
+				WRITE_REG((i << 16) | data_hi, BIT_CODE_DOWN);
+				WRITE_REG(((i + 1) << 16) | data_lo,
+						BIT_CODE_DOWN);
+
+				data = p[i / 2];
+				data_hi = (data >> 16) & 0xFFFF;
+				data_lo = data & 0xFFFF;
+				WRITE_REG(((i + 2) << 16) | data_hi,
+						BIT_CODE_DOWN);
+				WRITE_REG(((i + 3) << 16) | data_lo,
+						BIT_CODE_DOWN);
+			}
+
+			if (pc_before_suspend) {
+				WRITE_REG(0x1, BIT_BUSY_FLAG);
+				WRITE_REG(0x1, BIT_CODE_RUN);
+				while (READ_REG(BIT_BUSY_FLAG))
+					;
+			} else {
+				printk(KERN_WARNING "PC=0 before suspend\n");
+			}
 			clk_disable(vpu_clk);
-			goto recover_clk;
 		}
-
-		/* Restore registers */
-		for (i = 0; i < 64; i++)
-			WRITE_REG(regBk[i], BIT_CODE_BUF_ADDR + (i * 4));
-
-		WRITE_REG(0x0, BIT_RESET_CTRL);
-		WRITE_REG(0x0, BIT_CODE_RUN);
-		/* MX6 RTL has a bug not to init MBC_SET_SUBBLK_EN on reset */
-		WRITE_REG(0x0, MBC_SET_SUBBLK_EN);
-
-		/*
-		 * Re-load boot code, from the codebuffer in external RAM.
-		 * Thankfully, we only need 4096 bytes, same for all platforms.
-		 */
-		for (i = 0; i < 2048; i += 4) {
-			data = p[(i / 2) + 1];
-			data_hi = (data >> 16) & 0xFFFF;
-			data_lo = data & 0xFFFF;
-			WRITE_REG((i << 16) | data_hi, BIT_CODE_DOWN);
-			WRITE_REG(((i + 1) << 16) | data_lo,
-				  BIT_CODE_DOWN);
-
-			data = p[i / 2];
-			data_hi = (data >> 16) & 0xFFFF;
-			data_lo = data & 0xFFFF;
-			WRITE_REG(((i + 2) << 16) | data_hi,
-				  BIT_CODE_DOWN);
-			WRITE_REG(((i + 3) << 16) | data_lo,
-				  BIT_CODE_DOWN);
-		}
-
-		WRITE_REG(0x1, BIT_BUSY_FLAG);
-		WRITE_REG(0x1, BIT_CODE_RUN);
-		while (READ_REG(BIT_BUSY_FLAG))
-			;
-		clk_disable(vpu_clk);
-	}
 
 recover_clk:
-	/* Recover vpu clock */
-	for (i = 0; i < vpu_clk_usercount; i++)
-		clk_enable(vpu_clk);
-	if (!IS_ERR(vpu_regulator))
-		regulator_disable(vpu_regulator);
+		/* Recover vpu clock */
+		for (i = 0; i < vpu_clk_usercount; i++)
+			clk_enable(vpu_clk);
+	}
 
+	mutex_unlock(&vpu_data.lock);
 	return 0;
 }
 #else
