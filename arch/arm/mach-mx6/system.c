@@ -157,7 +157,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		   * The PUPSCR should include the time it takes for the ARM LDO to
 		   * ramp up.
 		   */
-		__raw_writel(0x202, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
+		__raw_writel(0xf0f, gpc_base + GPC_PGC_CPU_PUPSCR_OFFSET);
 		/* The PDNSCR is a counter that counts in IPG_CLK cycles. This counter
 		  * can be set to minimum values to power down faster.
 		  */
