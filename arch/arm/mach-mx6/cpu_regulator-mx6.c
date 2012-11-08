@@ -62,7 +62,9 @@ void mx6_cpu_regulator_init(void)
 {
 	int cpu;
 	u32 curr_cpu = 0;
-
+#ifndef CONFIG_SMP
+	unsigned long old_loops_per_jiffy;
+#endif
 	external_pureg = 0;
 	cpu_regulator = regulator_get(NULL, gp_reg_id);
 	if (IS_ERR(cpu_regulator))
@@ -90,7 +92,7 @@ void mx6_cpu_regulator_init(void)
 					curr_cpu / 1000,
 					clk_get_rate(cpu_clk) / 1000);
 #else
-			u32 old_loops_per_jiffy = loops_per_jiffy;
+			old_loops_per_jiffy = loops_per_jiffy;
 
 			loops_per_jiffy =
 				mx6_cpu_jiffies(old_loops_per_jiffy,

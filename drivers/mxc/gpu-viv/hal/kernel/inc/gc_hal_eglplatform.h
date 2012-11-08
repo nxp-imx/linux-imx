@@ -174,7 +174,16 @@ typedef void *  HALNativePixmapType;
 
 #endif
 
-
+/* define DUMMY according to the system */
+#if defined(EGL_API_WL)
+#   define WL_DUMMY (31415926)
+#   define EGL_DUMMY WL_DUMMY
+#elif defined(__ANDROID__) || defined(ANDROID)
+#   define ANDROID_DUMMY (31415926)
+#   define EGL_DUMMY ANDROID_DUMMY
+#else
+#   define EGL_DUMMY (31415926)
+#endif
 
 /*******************************************************************************
 ** Display. ********************************************************************
@@ -247,6 +256,19 @@ gcoOS_SetDisplayVirtual(
     IN gctINT X,
     IN gctINT Y
     );
+
+gceSTATUS
+gcoOS_SetSwapInterval(
+	IN HALNativeDisplayType Display,
+	IN gctINT Interval
+);
+
+gceSTATUS
+gcoOS_GetSwapInterval(
+	IN HALNativeDisplayType Display,
+	IN gctINT_PTR Min,
+	IN gctINT_PTR Max
+);
 
 gceSTATUS
 gcoOS_DisplayBufferRegions(

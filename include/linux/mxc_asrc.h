@@ -27,16 +27,11 @@
 #define ASRC_REQ_PAIR	_IOWR(ASRC_IOC_MAGIC, 0, struct asrc_req)
 #define ASRC_CONFIG_PAIR	_IOWR(ASRC_IOC_MAGIC, 1, struct asrc_config)
 #define ASRC_RELEASE_PAIR	_IOW(ASRC_IOC_MAGIC, 2, enum asrc_pair_index)
-#define ASRC_QUERYBUF	_IOWR(ASRC_IOC_MAGIC, 3, struct asrc_buffer)
-#define ASRC_Q_INBUF	_IOW(ASRC_IOC_MAGIC, 4, struct asrc_buffer)
-#define ASRC_DQ_INBUF	_IOW(ASRC_IOC_MAGIC, 5, struct asrc_buffer)
-#define ASRC_Q_OUTBUF	_IOW(ASRC_IOC_MAGIC, 6, struct asrc_buffer)
-#define ASRC_DQ_OUTBUF	_IOW(ASRC_IOC_MAGIC, 7, struct asrc_buffer)
-#define ASRC_START_CONV	_IOW(ASRC_IOC_MAGIC, 8, enum asrc_pair_index)
-#define ASRC_STOP_CONV	_IOW(ASRC_IOC_MAGIC, 9, enum asrc_pair_index)
-#define ASRC_STATUS	_IOW(ASRC_IOC_MAGIC, 10, struct asrc_status_flags)
-#define ASRC_FLUSH	_IOW(ASRC_IOC_MAGIC, 11, enum asrc_pair_index)
-
+#define ASRC_CONVERT	_IOW(ASRC_IOC_MAGIC, 3, struct asrc_convert_buffer)
+#define ASRC_START_CONV	_IOW(ASRC_IOC_MAGIC, 4, enum asrc_pair_index)
+#define ASRC_STOP_CONV	_IOW(ASRC_IOC_MAGIC, 5, enum asrc_pair_index)
+#define ASRC_STATUS	_IOW(ASRC_IOC_MAGIC, 6, struct asrc_status_flags)
+#define ASRC_FLUSH	_IOW(ASRC_IOC_MAGIC, 7, enum asrc_pair_index)
 
 enum asrc_pair_index {
 	ASRC_PAIR_A,
@@ -112,11 +107,20 @@ struct asrc_querybuf {
 	unsigned long output_offset;
 };
 
+struct asrc_convert_buffer {
+	void *input_buffer_vaddr;
+	void *output_buffer_vaddr;
+	unsigned int input_buffer_length;
+	unsigned int output_buffer_length;
+};
+
 struct asrc_buffer {
 	unsigned int index;
 	unsigned int length;
+	unsigned int output_last_length;
 	int buf_valid;
 };
+
 
 struct asrc_status_flags {
 	enum asrc_pair_index index;
@@ -134,10 +138,15 @@ enum asrc_error_status {
 };
 
 #ifdef __KERNEL__
+#include <linux/scatterlist.h>
 
 #define ASRC_DMA_BUFFER_NUM		2
-#define ASRC_INPUTFIFO_THRESHOLD	32
-#define ASRC_OUTPUTFIFO_THRESHOLD	32
+#define ASRC_INPUTFIFO_THRESHOLD	4
+#define ASRC_OUTPUTFIFO_THRESHOLD	2
+#define ASRC_DMA_BUFFER_SIZE	(1024 * 48 * 4)
+#define ASRC_MAX_BUFFER_SIZE	(1024 * 48)
+#define ASRC_OUTPUT_LAST_SAMPLE	8
+
 
 #define ASRC_ASRCTR_REG 	0x00
 #define ASRC_ASRIER_REG 	0x04
@@ -182,10 +191,19 @@ enum asrc_error_status {
 #define ASRC_ASRMCR1C_REG   0xC8
 
 
+#define ASRC_ASRFSTX_INPUT_FIFO_WIDTH	7
+#define ASRC_ASRFSTX_INPUT_FIFO_OFFSET	0
+#define ASRC_ASRFSTX_INPUT_FIFO_MASK	0x7F
+
+#define ASRC_ASRFSTX_OUTPUT_FIFO_WIDTH	7
+#define ASRC_ASRFSTX_OUTPUT_FIFO_OFFSET	12
+#define ASRC_ASRFSTX_OUTPUT_FIFO_MASK (0x7F << ASRC_ASRFSTX_OUTPUT_FIFO_OFFSET)
+
+
 struct dma_block {
 	unsigned int index;
 	unsigned int length;
-	unsigned char *dma_vaddr;
+	void *dma_vaddr;
 	dma_addr_t dma_paddr;
 	struct list_head queue;
 };
@@ -197,16 +215,10 @@ struct asrc_p2p_params {
 
 struct asrc_pair_params {
 	enum asrc_pair_index index;
-	struct list_head input_queue;
-	struct list_head input_done_queue;
-	struct list_head output_queue;
-	struct list_head output_done_queue;
 	wait_queue_head_t input_wait_queue;
 	wait_queue_head_t output_wait_queue;
 	unsigned int input_counter;
 	unsigned int output_counter;
-	unsigned int input_queue_empty;
-	unsigned int output_queue_empty;
 	struct dma_chan *input_dma_channel;
 	struct dma_chan *output_dma_channel;
 	unsigned int input_buffer_size;
@@ -219,8 +231,17 @@ struct asrc_pair_params {
 	struct dma_block input_dma[ASRC_DMA_BUFFER_NUM];
 	struct dma_block output_dma_total;
 	struct dma_block output_dma[ASRC_DMA_BUFFER_NUM];
+	struct dma_block output_last_period;
 	struct dma_async_tx_descriptor *desc_in;
 	struct dma_async_tx_descriptor *desc_out;
+	struct work_struct task_output_work;
+	unsigned int		input_sg_nodes;
+	unsigned int		output_sg_nodes;
+	struct scatterlist	input_sg[4], output_sg[4];
+	enum asrc_word_width input_word_width;
+	enum asrc_word_width output_word_width;
+	u32 input_sample_rate;
+	u32 output_sample_rate;
 };
 
 struct asrc_data {

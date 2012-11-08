@@ -202,6 +202,7 @@ struct usb_sys_interface {
 /* Device Address bit masks */
 #define  USB_DEVICE_ADDRESS_MASK              (0xFE000000)
 #define  USB_DEVICE_ADDRESS_BIT_POS           (25)
+#define  USB_DEVICE_ADDRESS_ADV_BIT_POS       (24)
 
 /* endpoint list address bit masks */
 #define USB_EP_LIST_ADDRESS_MASK              (0xfffff800)

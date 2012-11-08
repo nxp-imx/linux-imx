@@ -54,6 +54,7 @@
 
 #define V4L2_OUTPUT_TYPE_INTERNAL	4
 
+static int video_nr = -1;	/* -1 ==> auto assign */
 static struct pxp_data_format pxp_s0_formats[] = {
 	{
 		.name = "24-bit RGB",
@@ -395,7 +396,12 @@ static int pxp_s_output(struct file *file, void *fh,
 		bpp = 2;
 
 	pxp->outb_size = fmt->width * fmt->height * bpp;
-	pxp->outb = kmalloc(fmt->width * fmt->height * bpp, GFP_KERNEL);
+	pxp->outb = kmalloc(fmt->width * fmt->height * bpp,
+				GFP_KERNEL | GFP_DMA);
+	if (pxp->outb == NULL) {
+		dev_err(&pxp->pdev->dev, "No enough memory!\n");
+		return -ENOMEM;
+	}
 	pxp->outb_phys = virt_to_phys(pxp->outb);
 	dma_map_single(NULL, pxp->outb,
 			fmt->width * fmt->height * bpp, DMA_TO_DEVICE);
@@ -1175,7 +1181,7 @@ static int pxp_probe(struct platform_device *pdev)
 	memcpy(pxp->vdev, &pxp_template, sizeof(pxp_template));
 	video_set_drvdata(pxp->vdev, pxp);
 
-	err = video_register_device(pxp->vdev, VFL_TYPE_GRABBER, 0);
+	err = video_register_device(pxp->vdev, VFL_TYPE_GRABBER, video_nr);
 	if (err) {
 		dev_err(&pdev->dev, "failed to register video device\n");
 		goto freevdev;
@@ -1235,6 +1241,7 @@ static void __exit pxp_exit(void)
 module_init(pxp_init);
 module_exit(pxp_exit);
 
+module_param(video_nr, int, 0444);
 MODULE_DESCRIPTION("MXC PxP V4L2 driver");
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_LICENSE("GPL");

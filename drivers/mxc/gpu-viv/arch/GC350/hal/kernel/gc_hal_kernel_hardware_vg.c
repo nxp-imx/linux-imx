@@ -362,6 +362,8 @@ gckVGHARDWARE_Construct(
         /* Set default event mask. */
         hardware->eventMask = 0xFFFFFFFF;
 
+        gcmkERR_BREAK(gckOS_AtomConstruct(Os, &hardware->pageTableDirty));
+
         /* Set fast clear to auto. */
         gcmkVERIFY_OK(gckVGHARDWARE_SetFastClear(hardware, -1));
 
@@ -383,6 +385,11 @@ gckVGHARDWARE_Construct(
         return gcvSTATUS_OK;
     }
     while (gcvFALSE);
+
+    if (hardware->pageTableDirty != gcvNULL)
+    {
+        gcmkVERIFY_OK(gckOS_AtomDestroy(Os, hardware->pageTableDirty));
+    }
 
     if (hardware != gcvNULL)
     {
@@ -437,6 +444,11 @@ gckVGHARDWARE_Destroy(
     {
         gcmkVERIFY_OK(gckOS_DestroySignal(
             Hardware->os, Hardware->idleSignal));
+    }
+
+    if (Hardware->pageTableDirty != gcvNULL)
+    {
+        gcmkVERIFY_OK(gckOS_AtomDestroy(Hardware->os, Hardware->pageTableDirty));
     }
 
     /* Free the object. */
@@ -1277,26 +1289,6 @@ gceSTATUS gckVGHARDWARE_FlushMMU(
             | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1))))))) << (0 ? 2:2))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1))))))) << (0 ? 2:2)))
             | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 3:3) - (0 ? 3:3) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 3:3) - (0 ? 3:3) + 1))))))) << (0 ? 3:3))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 3:3) - (0 ? 3:3) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 3:3) - (0 ? 3:3) + 1))))))) << (0 ? 3:3)))
             | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 4:4) - (0 ? 4:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 4:4) - (0 ? 4:4) + 1))))))) << (0 ? 4:4))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 4:4) - (0 ? 4:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 4:4) - (0 ? 4:4) + 1))))))) << (0 ? 4:4)));
-#if gcdPOWER_MANAGEMENT
-        /* Acquire the power management semaphore. */
-        gcmkERR_BREAK(gckOS_AcquireSemaphore(Hardware->os,
-                               command->powerSemaphore));
-
-        status = gckVGCOMMAND_Execute(
-                            command,
-                            commandBuffer
-                            );
-        /* Acquire the power management semaphore. */
-        gcmkVERIFY_OK(gckOS_ReleaseSemaphore(Hardware->os,
-                               command->powerSemaphore));
-
-        gcmkERR_BREAK(status);
-#else
-        gcmkERR_BREAK(gckVGCOMMAND_Execute(
-            command,
-            commandBuffer
-            ));
-#endif
     }
     while(gcvFALSE);
 

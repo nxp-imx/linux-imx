@@ -586,6 +586,7 @@ void mxcfb_elcdif_register_mode(const struct fb_videomode *modedb,
 
 	return;
 }
+EXPORT_SYMBOL(mxcfb_elcdif_register_mode);
 
 int mxc_elcdif_frame_addr_setup(dma_addr_t phys)
 {

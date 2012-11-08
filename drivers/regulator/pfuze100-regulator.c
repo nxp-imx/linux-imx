@@ -159,6 +159,10 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 	PFUZE_SW_DEFINE(PFUZE100_, name, reg, voltages,	\
 			pfuze100_sw_regulator_ops)
 
+#define PFUZE100_SWBST_DEFINE(name, reg, voltages)	\
+	PFUZE_SWBST_DEFINE(PFUZE100_, name, reg, voltages,	\
+			pfuze100_sw_regulator_ops)
+
 #define PFUZE100_VGEN_DEFINE(name, reg, voltages)	\
 	PFUZE_DEFINE(PFUZE100_, name, reg, voltages,	\
 			pfuze100_ldo_regulator_ops)
@@ -166,6 +170,10 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_SW1AVOL	32
 #define PFUZE100_SW1AVOL_VSEL	0
 #define PFUZE100_SW1AVOL_VSEL_M	(0x3f<<0)
+
+#define PFUZE100_SW1AVOL_STBY	33
+#define PFUZE100_SW1AVOL_STBY_VSEL	0
+#define PFUZE100_SW1AVOL_STBY_VSEL_M	(0x3f<<0)
 
 #define PFUZE100_SW1AOFF	34
 #define PFUZE100_SW1AOFF_OFF_VAL	(0x0<<0)
@@ -192,6 +200,10 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_SW1BVOL_VSEL	0
 #define PFUZE100_SW1BVOL_VSEL_M	(0x3f<<0)
 
+#define PFUZE100_SW1BVOL_STBY	40
+#define PFUZE100_SW1BVOL_STBY_VSEL	0
+#define PFUZE100_SW1BVOL_STBY_VSEL_M	(0x3f<<0)
+
 #define PFUZE100_SW1BOFF	41
 #define PFUZE100_SW1BOFF_OFF_VAL	0x0
 #define PFUZE100_SW1BOFF_OFF_M	(0x3f<<0)
@@ -216,6 +228,10 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_SW1CVOL	46
 #define PFUZE100_SW1CVOL_VSEL	0
 #define PFUZE100_SW1CVOL_VSEL_M	(0x3f<<0)
+
+#define PFUZE100_SW1CVOL_STBY	47
+#define PFUZE100_SW1CVOL_STBY_VSEL	0
+#define PFUZE100_SW1CVOL_STBY_VSEL_M	(0x3f<<0)
 
 #define PFUZE100_SW1COFF	48
 #define PFUZE100_SW1COFF_OFF_VAL	0x0
@@ -242,6 +258,10 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_SW2VOL_VSEL	0
 #define PFUZE100_SW2VOL_VSEL_M	(0x3f<<0)
 
+#define PFUZE100_SW2VOL_STBY		54
+#define PFUZE100_SW2VOL_STBY_VSEL	0
+#define PFUZE100_SW2VOL_STBY_VSEL_M	(0x3f<<0)
+
 #define PFUZE100_SW2OFF	55
 #define PFUZE100_SW2OFF_OFF_VAL	0x0
 #define PFUZE100_SW2OFF_OFF_M	(0x7f<<0)
@@ -266,6 +286,10 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_SW3AVOL	60
 #define PFUZE100_SW3AVOL_VSEL	0
 #define PFUZE100_SW3AVOL_VSEL_M	(0x3f<<0)
+
+#define PFUZE100_SW3AVOL_STBY	61
+#define PFUZE100_SW3AVOL_STBY_VSEL	0
+#define PFUZE100_SW3AVOL_STBY_VSEL_M	(0x3f<<0)
 
 #define PFUZE100_SW3AOFF	62
 #define PFUZE100_SW3AOFF_OFF_VAL	0x0
@@ -292,6 +316,10 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_SW3BVOL_VSEL	0
 #define PFUZE100_SW3BVOL_VSEL_M	(0x3f<<0)
 
+#define PFUZE100_SW3BVOL_STBY	68
+#define PFUZE100_SW3BVOL_STBY_VSEL	0
+#define PFUZE100_SW3BVOL_STBY_VSEL_M	(0x3f<<0)
+
 #define PFUZE100_SW3BOFF	69
 #define PFUZE100_SW3BOFF_OFF_VAL	0x0
 #define PFUZE100_SW3BOFF_OFF_M	(0x3f<<0)
@@ -317,6 +345,10 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_SW4VOL_VSEL	0
 #define PFUZE100_SW4VOL_VSEL_M	(0x3f<<0)
 
+#define PFUZE100_SW4VOL_STBY		75
+#define PFUZE100_SW4VOL_STBY_VSEL	0
+#define PFUZE100_SW4VOL_STBY_VSEL_M	(0x3f<<0)
+
 #define PFUZE100_SW4OFF		76
 #define PFUZE100_SW4OFF_OFF_VAL	0x0
 #define PFUZE100_SW4OFF_OFF_M	(0x3f<<0)
@@ -339,8 +371,6 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 
  /*SWBST*/
 #define PFUZE100_SWBSTCON1	102
-#define PFUZE100_SWBSTCON1_STBY_VAL	0x0
-#define PFUZE100_SWBSTCON1_STBY_M	(0x3<<5)
 #define PFUZE100_SWBSTCON1_SWBSTMOD_VAL	(0x1<<2)
 #define PFUZE100_SWBSTCON1_SWBSTMOD_M	(0x3<<2)
 #define PFUZE100_SWBSTCON1_VSEL	0
@@ -354,8 +384,7 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #define PFUZE100_VSNVSVOL_VSEL_M	(0x3<<0)
 /*VGEN1*/
 #define PFUZE100_VGEN1VOL		108
-#define PFUZE100_VGEN1VOL_STBY_VAL	0x0
-#define PFUZE100_VGEN1VOL_STBY_M	(0x1<<5)
+#define PFUZE100_VGEN1VOL_STBY	(0x1<<5)
 #define PFUZE100_VGEN1VOL_EN	(0x1<<4)
 #define PFUZE100_VGEN1VOL_VSEL	0
 #ifdef PFUZE100_FIRST_VERSION
@@ -365,8 +394,7 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #endif
 /*VGEN2*/
 #define PFUZE100_VGEN2VOL		109
-#define PFUZE100_VGEN2VOL_STBY_VAL	0x0
-#define PFUZE100_VGEN2VOL_STBY_M	(0x1<<5)
+#define PFUZE100_VGEN2VOL_STBY	(0x1<<5)
 #define PFUZE100_VGEN2VOL_EN	(0x1<<4)
 #define PFUZE100_VGEN2VOL_VSEL	0
 #ifdef PFUZE100_FIRST_VERSION
@@ -376,29 +404,25 @@ static struct regulator_ops pfuze100_sw_regulator_ops;
 #endif
 /*VGEN3*/
 #define PFUZE100_VGEN3VOL		110
-#define PFUZE100_VGEN3VOL_STBY_VAL	0x0
-#define PFUZE100_VGEN3VOL_STBY_M	(0x1<<5)
+#define PFUZE100_VGEN3VOL_STBY	(0x1<<5)
 #define PFUZE100_VGEN3VOL_EN	(0x1<<4)
 #define PFUZE100_VGEN3VOL_VSEL	0
 #define PFUZE100_VGEN3VOL_VSEL_M	(0xf<<0)
 /*VGEN4*/
 #define PFUZE100_VGEN4VOL		111
-#define PFUZE100_VGEN4VOL_STBY_VAL	0x0
-#define PFUZE100_VGEN4VOL_STBY_M	(0x1<<5)
+#define PFUZE100_VGEN4VOL_STBY	(0x1<<5)
 #define PFUZE100_VGEN4VOL_EN	(0x1<<4)
 #define PFUZE100_VGEN4VOL_VSEL	0
 #define PFUZE100_VGEN4VOL_VSEL_M	(0xf<<0)
 /*VGEN5*/
 #define PFUZE100_VGEN5VOL		112
-#define PFUZE100_VGEN5VOL_STBY_VAL	0x0
-#define PFUZE100_VGEN5VOL_STBY_M	(0x1<<5)
+#define PFUZE100_VGEN5VOL_STBY	(0x1<<5)
 #define PFUZE100_VGEN5VOL_EN	(0x1<<4)
 #define PFUZE100_VGEN5VOL_VSEL	0
 #define PFUZE100_VGEN5VOL_VSEL_M	(0xf<<0)
 /*VGEN6*/
 #define PFUZE100_VGEN6VOL		113
-#define PFUZE100_VGEN6VOL_STBY_VAL	0x0
-#define PFUZE100_VGEN6VOL_STBY_M	(0x1<<5)
+#define PFUZE100_VGEN6VOL_STBY	(0x1<<5)
 #define PFUZE100_VGEN6VOL_EN	(0x1<<4)
 #define PFUZE100_VGEN6VOL_VSEL	0
 #define PFUZE100_VGEN6VOL_VSEL_M	(0xf<<0)
@@ -410,8 +434,8 @@ static struct pfuze_regulator pfuze100_regulators[] = {
 	PFUZE100_SW_DEFINE(SW3A, SW3AVOL, pfuze100_sw3),
 	PFUZE100_SW_DEFINE(SW3B, SW3BVOL, pfuze100_sw3),
 	PFUZE100_SW_DEFINE(SW4, SW4VOL, pfuze100_sw4),
-	PFUZE100_SW_DEFINE(SWBST, SWBSTCON1, pfuze100_swbst),
-	PFUZE100_SW_DEFINE(VSNVS, VSNVSVOL, pfuze100_vsnvs),
+	PFUZE100_SWBST_DEFINE(SWBST, SWBSTCON1, pfuze100_swbst),
+	PFUZE100_SWBST_DEFINE(VSNVS, VSNVSVOL, pfuze100_vsnvs),
 	PFUZE100_FIXED_VOL_DEFINE(VREFDDR, VREFDDRCON, pfuze100_vrefddr),
 	PFUZE100_VGEN_DEFINE(VGEN1, VGEN1VOL, pfuze100_vgen12),
 	PFUZE100_VGEN_DEFINE(VGEN2, VGEN2VOL, pfuze100_vgen12),
@@ -545,6 +569,36 @@ static int pfuze100_regulator_get_voltage(struct regulator_dev *rdev)
 	return pfuze100_regulators[id].voltages[val];
 }
 
+static int pfuze100_regulator_ldo_standby_enable(struct regulator_dev *rdev)
+{
+	struct pfuze_regulator_priv *priv = rdev_get_drvdata(rdev);
+	int id = rdev_get_id(rdev);
+	int ret;
+
+	dev_dbg(rdev_get_dev(rdev), "%s id: %d\n", __func__, id);
+	pfuze_lock(priv->pfuze);
+	ret = pfuze_reg_rmw(priv->pfuze, pfuze100_regulators[id].reg,
+			    pfuze100_regulators[id].stby_bit,
+			    0);
+	pfuze_unlock(priv->pfuze);
+	return ret;
+}
+
+static int pfuze100_regulator_ldo_standby_disable(struct regulator_dev *rdev)
+{
+	struct pfuze_regulator_priv *priv = rdev_get_drvdata(rdev);
+	int id = rdev_get_id(rdev);
+	int ret;
+
+	dev_dbg(rdev_get_dev(rdev), "%s id: %d\n", __func__, id);
+	pfuze_lock(priv->pfuze);
+	ret = pfuze_reg_rmw(priv->pfuze, pfuze100_regulators[id].reg,
+			    pfuze100_regulators[id].stby_bit,
+			    pfuze100_regulators[id].stby_bit);
+	pfuze_unlock(priv->pfuze);
+	return ret;
+}
+
 static struct regulator_ops pfuze100_ldo_regulator_ops = {
 	.enable = pfuze100_regulator_enable,
 	.disable = pfuze100_regulator_disable,
@@ -552,6 +606,8 @@ static struct regulator_ops pfuze100_ldo_regulator_ops = {
 	.list_voltage = pfuze100_regulator_list_voltage,
 	.set_voltage = pfuze100_regulator_set_voltage,
 	.get_voltage = pfuze100_regulator_get_voltage,
+	.set_suspend_enable = pfuze100_regulator_ldo_standby_enable,
+	.set_suspend_disable = pfuze100_regulator_ldo_standby_disable,
 };
 
 static int pfuze100_fixed_regulator_set_voltage(struct regulator_dev *rdev,
@@ -591,11 +647,45 @@ static int pfuze100_sw_regulator_is_enabled(struct regulator_dev *rdev)
 	return 1;
 }
 
+static int
+pfuze100_regulator_sw_standby_voltage(struct regulator_dev *rdev, int uV)
+{
+
+	struct pfuze_regulator_priv *priv = rdev_get_drvdata(rdev);
+	int value, id = rdev_get_id(rdev);
+	int ret;
+
+	dev_dbg(rdev_get_dev(rdev), "%s id: %d set standby: %d\n",
+		__func__, id, uV);
+	/* Find the best index */
+	value = pfuze100_get_best_voltage_index(rdev, uV, uV);
+	if (value < 0)
+		return value;
+	pfuze_lock(priv->pfuze);
+	ret = pfuze_reg_rmw(priv->pfuze, pfuze100_regulators[id].stby_reg,
+			    pfuze100_regulators[id].stby_vsel_mask,
+			    value << pfuze100_regulators[id].stby_vsel_shift);
+	pfuze_unlock(priv->pfuze);
+	return ret;
+
+}
+
+static int pfuze100_regulator_sw_standby_enable(struct regulator_dev *rdev)
+{
+	return 0;
+}
+static int pfuze100_regulator_sw_standby_disable(struct regulator_dev *rdev)
+{
+	return 0;
+}
 static struct regulator_ops pfuze100_sw_regulator_ops = {
 	.is_enabled = pfuze100_sw_regulator_is_enabled,
 	.list_voltage = pfuze100_regulator_list_voltage,
 	.set_voltage = pfuze100_regulator_set_voltage,
 	.get_voltage = pfuze100_regulator_get_voltage,
+	.set_suspend_enable = pfuze100_regulator_sw_standby_enable,
+	.set_suspend_disable = pfuze100_regulator_sw_standby_disable,
+	.set_suspend_voltage = pfuze100_regulator_sw_standby_voltage,
 };
 
 static int __devinit pfuze100_regulator_probe(struct platform_device *pdev)

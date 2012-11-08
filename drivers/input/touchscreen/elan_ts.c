@@ -359,6 +359,33 @@ static const struct i2c_device_id elan_touch_id[] = {
 	{}
 };
 
+static int elan_suspend(struct device *dev)
+{
+	return 0;
+}
+
+static int elan_resume(struct device *dev)
+{
+	uint8_t buf[IDX_PACKET_SIZE] = { 0 };
+
+	if (0 == elan_touch_detect_int_level()) {
+		dev_dbg(dev, "Got touch during suspend period.\n");
+		/*
+		 * if touch screen during suspend, recv and drop the
+		 * data, then touch interrupt pin will return high after
+		 * receving data.
+		 */
+		elan_touch_recv_data(elan_touch_data.client, buf);
+	}
+
+	return 0;
+}
+
+static const struct dev_pm_ops elan_dev_pm_ops = {
+	.suspend = elan_suspend,
+	.resume  = elan_resume,
+};
+
 static struct i2c_driver elan_touch_driver = {
 	.probe = elan_touch_probe,
 	.remove = elan_touch_remove,
@@ -366,6 +393,9 @@ static struct i2c_driver elan_touch_driver = {
 	.driver = {
 		   .name = "elan-touch",
 		   .owner = THIS_MODULE,
+#ifdef CONFIG_PM
+		   .pm = &elan_dev_pm_ops,
+#endif
 		   },
 };
 

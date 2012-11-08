@@ -164,6 +164,7 @@ static struct clk *sata_clk;
 static int esai_record;
 static int sgtl5000_en;
 static int spdif_en;
+static int gpmi_en;
 static int flexcan_en;
 static int disable_mipi_dsi;
 
@@ -1954,6 +1955,14 @@ static int __init early_enable_spdif(char *p)
 
 early_param("spdif", early_enable_spdif);
 
+static int __init early_enable_gpmi(char *p)
+{
+	gpmi_en = 1;
+	return 0;
+}
+
+early_param("gpmi", early_enable_gpmi);
+
 static int __init early_enable_can(char *p)
 {
 	flexcan_en = 1;
@@ -2206,7 +2215,8 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
 	imx6q_add_dma();
-	imx6q_add_gpmi(&mx6_gpmi_nand_platform_data);
+	if (gpmi_en)
+		imx6q_add_gpmi(&mx6_gpmi_nand_platform_data);
 
 	imx6q_add_dvfs_core(&arm2_dvfscore_data);
 

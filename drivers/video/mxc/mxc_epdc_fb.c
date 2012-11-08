@@ -1166,6 +1166,8 @@ static void epdc_init_sequence(struct mxc_epdc_fb_data *fb_data)
 	fb_data->in_init = true;
 	epdc_powerup(fb_data);
 	draw_mode0(fb_data);
+	/* Force power down event */
+	fb_data->powering_down = true;
 	epdc_powerdown(fb_data);
 	fb_data->updates_active = false;
 }
@@ -3700,7 +3702,13 @@ static void epdc_intr_work_func(struct work_struct *work)
 					next_marker->update_marker);
 				complete(&next_marker->update_completion);
 			}
-		} else if (epdc_lut_cancelled) {
+		} else if (epdc_lut_cancelled && !epdc_collision) {
+			/*
+			* Note: The update may be cancelled (void) if all
+			* pixels collided. In that case we handle it as a
+			* collision, not a cancel.
+			*/
+
 			/* Clear LUT status (might be set if no AUTOWV used) */
 
 			/*

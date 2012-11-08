@@ -905,11 +905,12 @@ _DestroyContext(
             /* Free state delta map. */
             if (buffer->logical != gcvNULL)
             {
-                gcmkONERROR(gckOS_FreeContiguous(
-                    Context->os,
+                gcmkONERROR(gckEVENT_FreeContiguousMemory(
+                    Context->hardware->kernel->eventObj,
+                    Context->totalSize,
                     buffer->physical,
                     buffer->logical,
-                    Context->totalSize
+                    gcvKERNEL_PIXEL
                     ));
 
                 buffer->logical = gcvNULL;

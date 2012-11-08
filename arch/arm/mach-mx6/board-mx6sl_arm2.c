@@ -75,6 +75,8 @@
 static int spdc_sel;
 static int max17135_regulator_init(struct max17135 *max17135);
 static struct clk *extern_audio_root;
+static void mx6sl_suspend_enter(void);
+static void mx6sl_suspend_exit(void);
 
 extern char *gp_reg_id;
 extern char *soc_reg_id;
@@ -623,7 +625,6 @@ static inline void mx6_arm2_init_uart(void)
 static int mx6sl_arm2_fec_phy_init(struct phy_device *phydev)
 {
 	int val;
-
 	/* power on FEC phy and reset phy */
 	gpio_request(MX6_BRD_FEC_PWR_EN, "fec-pwr");
 	gpio_direction_output(MX6_BRD_FEC_PWR_EN, 0);
@@ -636,7 +637,6 @@ static int mx6sl_arm2_fec_phy_init(struct phy_device *phydev)
 	if (val & BMCR_PDOWN) {
 		phy_write(phydev, 0x0, (val & ~BMCR_PDOWN));
 	}
-
 	return 0;
 }
 
@@ -728,8 +728,6 @@ static void epdc_enable_pins(void)
 
 static void epdc_disable_pins(void)
 {
-	/* Configure MUX settings for EPDC pins to
-	 * GPIO and drive to 0. */
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_brd_epdc_disable_pads, \
 				ARRAY_SIZE(mx6sl_brd_epdc_disable_pads));
 
@@ -970,7 +968,7 @@ static void spdc_enable_pins(void)
 
 static void spdc_disable_pins(void)
 {
-	/* Configure MUX settings for SPDC pins to
+	/* Configure MUX settings for EPDC pins to
 	 * GPIO and drive to 0. */
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_brd_spdc_disable_pads, \
 				ARRAY_SIZE(mx6sl_brd_spdc_disable_pads));
@@ -1120,6 +1118,12 @@ static struct platform_device lcd_wvga_device = {
 	.name = "lcd_seiko",
 };
 
+static const struct pm_platform_data mx6sl_arm2_pm_data __initconst = {
+	.name		= "imx_pm",
+	.suspend_enter = mx6sl_suspend_enter,
+	.suspend_exit = mx6sl_suspend_exit,
+};
+
 static int mx6sl_arm2_keymap[] = {
 	KEY(0, 0, KEY_SELECT),
 	KEY(0, 1, KEY_BACK),
@@ -1176,6 +1180,33 @@ static void mx6_snvs_poweroff(void)
 	value = readl(mx6_snvs_base + SNVS_LPCR);
 	/* set TOP and DP_EN bit */
 	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
+}
+
+static void mx6sl_suspend_enter()
+{
+	iomux_v3_cfg_t *p = suspend_enter_pads;
+	int i;
+
+	/* Set PADCTRL to 0 for all IOMUX. */
+	for (i = 0; i < ARRAY_SIZE(suspend_enter_pads); i++) {
+		suspend_exit_pads[i] = *p;
+		*p &= ~MUX_PAD_CTRL_MASK;
+		/* Enable the Pull down and the keeper
+		  * Set the drive strength to 0.
+		  */
+		*p |= ((u64)0x3000 << MUX_PAD_CTRL_SHIFT);
+		p++;
+	}
+	mxc_iomux_v3_get_multiple_pads(suspend_exit_pads,
+			ARRAY_SIZE(suspend_exit_pads));
+	mxc_iomux_v3_setup_multiple_pads(suspend_enter_pads,
+			ARRAY_SIZE(suspend_enter_pads));
+}
+
+static void mx6sl_suspend_exit()
+{
+	mxc_iomux_v3_setup_multiple_pads(suspend_exit_pads,
+			ARRAY_SIZE(suspend_exit_pads));
 }
 
 /*!
@@ -1267,6 +1298,7 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_perfmon(0);
 	imx6q_add_perfmon(1);
 	imx6q_add_perfmon(2);
+	imx6q_add_pm_imx(0, &mx6sl_arm2_pm_data);
 
 	pm_power_off = mx6_snvs_poweroff;
 }

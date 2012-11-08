@@ -812,6 +812,13 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 	if (vpu_plat->pg)
 		vpu_plat->pg(1);
 
+	/* If VPU is working before suspend, disable
+	 * regulator to make usecount right. */
+	if (open_count > 0) {
+		if (!IS_ERR(vpu_regulator))
+			regulator_disable(vpu_regulator);
+	}
+
 	if (!IS_ERR(vpu_regulator))
 		regulator_disable(vpu_regulator);
 	return 0;
@@ -835,6 +842,13 @@ static int vpu_resume(struct platform_device *pdev)
 		regulator_enable(vpu_regulator);
 	if (vpu_plat->pg)
 		vpu_plat->pg(0);
+
+	/* If VPU is working before suspend, enable
+	 * regulator to make usecount right. */
+	if (open_count > 0) {
+		if (!IS_ERR(vpu_regulator))
+			regulator_enable(vpu_regulator);
+	}
 
 	if (bitwork_mem.cpu_addr != 0) {
 		u32 *p = (u32 *) bitwork_mem.cpu_addr;
@@ -860,6 +874,8 @@ static int vpu_resume(struct platform_device *pdev)
 
 		WRITE_REG(0x0, BIT_RESET_CTRL);
 		WRITE_REG(0x0, BIT_CODE_RUN);
+		/* MX6 RTL has a bug not to init MBC_SET_SUBBLK_EN on reset */
+		WRITE_REG(0x0, MBC_SET_SUBBLK_EN);
 
 		/*
 		 * Re-load boot code, from the codebuffer in external RAM.

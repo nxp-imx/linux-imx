@@ -161,14 +161,16 @@ typedef u64 iomux_v3_cfg_t;
 #define GPIO_PORTF	(5 << GPIO_PORT_SHIFT)
 
 /*
- * setups a single pad in the iomuxer
+ * read/write a single pad in the iomuxer
  */
+int mxc_iomux_v3_get_pad(iomux_v3_cfg_t *pad);
 int mxc_iomux_v3_setup_pad(iomux_v3_cfg_t pad);
 
 /*
- * setups mutliple pads
+ * read/write mutliple pads
  * convenient way to call the above function with tables
  */
+ int mxc_iomux_v3_get_multiple_pads(iomux_v3_cfg_t *pad_list, unsigned count);
 int mxc_iomux_v3_setup_multiple_pads(iomux_v3_cfg_t *pad_list, unsigned count);
 
 /*

@@ -115,7 +115,9 @@ static struct delayed_work dvfs_core_handler;
  */
 static struct clk *pll1_sw_clk;
 static struct clk *cpu_clk;
+#ifdef CONFIG_ARCH_MX5
 static struct clk *gpu_clk;
+#endif
 static struct clk *dvfs_clk;
 
 static int cpu_op_nr;
@@ -761,9 +763,9 @@ void stop_dvfs(void)
 	u32 reg = 0;
 	unsigned long flags;
 	u32 curr_cpu;
-	u32 old_loops_per_jiffy;
-#ifdef CONFIG_CPU_FREQ
 	int cpu;
+#ifndef CONFIG_SMP
+	u32 old_loops_per_jiffy;
 #endif
 
 	if (dvfs_core_is_active) {

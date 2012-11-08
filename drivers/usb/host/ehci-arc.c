@@ -159,16 +159,6 @@ static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
 		pdata->wakeup_event = WAKEUP_EVENT_INVALID;
 		fsl_usb_recover_hcd(pdev);
 		return IRQ_HANDLED;
-	} else {
-		u32 portsc = 0;
-		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
-		portsc = ehci_readl(ehci, &ehci->regs->port_status[0]);
-		/* PORT_USB11 macro is used to judge line state K*/
-		if ((PORT_USB11(portsc)) && (portsc & PORT_SUSPEND)) {
-			pdata = hcd->self.controller->platform_data;
-			if (pdata->platform_resume)
-				pdata->platform_resume(pdata);
-		}
 	}
 	return IRQ_NONE;
 }
@@ -485,10 +475,10 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 	}
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 		fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 		usb_host_set_wakeup(hcd->self.controller, false);
 		fsl_usb_lowpower_mode(pdata, false);
+		set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 	}
 
 	if (pdata->platform_resume)

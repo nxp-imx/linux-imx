@@ -30,11 +30,8 @@
 #include <linux/fsl_devices.h>
 #include <linux/smsc911x.h>
 #include <linux/spi/spi.h>
-#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
 #include <linux/spi/flash.h>
-#else
 #include <linux/mtd/physmap.h>
-#endif
 #include <linux/i2c.h>
 #include <linux/i2c/pca953x.h>
 #include <linux/ata.h>
@@ -99,6 +96,7 @@
 #define SABREAUTO_ANDROID_MENU		IMX_GPIO_NR(2, 12)
 #define SABREAUTO_ANDROID_VOLUP		IMX_GPIO_NR(2, 15)
 #define SABREAUTO_CAP_TCH_INT		IMX_GPIO_NR(2, 28)
+#define SABREAUTO_eCOMPASS_INT		IMX_GPIO_NR(2, 29)
 #define SABREAUTO_ECSPI1_CS1		IMX_GPIO_NR(3, 19)
 #define SABREAUTO_DISP0_PWR		IMX_GPIO_NR(3, 24)
 #define SABREAUTO_DISP0_I2C_EN		IMX_GPIO_NR(3, 28)
@@ -140,6 +138,7 @@ extern char *soc_reg_id;
 extern char *pu_reg_id;
 
 static int mma8451_position = 3;
+static int mag3110_position = 2;
 static struct clk *sata_clk;
 static int mipi_sensor;
 static int can0_enable;
@@ -330,10 +329,16 @@ mx6q_sabreauto_anatop_thermal_data __initconst = {
 	.name = "anatop_thermal",
 };
 
+static const struct imxuart_platform_data mx6_bt_uart_data __initconst = {
+	.flags = IMXUART_HAVE_RTSCTS | IMXUART_SDMA,
+	.dma_req_rx = MX6Q_DMA_REQ_UART3_RX,
+	.dma_req_tx = MX6Q_DMA_REQ_UART3_TX,
+};
+
 static inline void mx6q_sabreauto_init_uart(void)
 {
 	imx6q_add_imx_uart(1, NULL);
-	imx6q_add_imx_uart(2, NULL);
+	imx6q_add_imx_uart(2, &mx6_bt_uart_data);
 	imx6q_add_imx_uart(3, NULL);
 }
 
@@ -400,7 +405,6 @@ static const struct spi_imx_master mx6q_sabreauto_spi_data __initconst = {
 	.num_chipselect = ARRAY_SIZE(mx6q_sabreauto_spi_cs),
 };
 
-#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
 static struct mtd_partition m25p32_partitions[] = {
 	{
 		.name	= "bootloader",
@@ -421,7 +425,6 @@ static struct flash_platform_data m25p32_spi_flash_data = {
 };
 
 static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
-#if defined(CONFIG_MTD_M25P80)
 	{
 		/* The modalias must be the same as spi device driver name */
 		.modalias	= "m25p80",
@@ -430,14 +433,12 @@ static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
 		.chip_select	= 0,
 		.platform_data	= &m25p32_spi_flash_data,
 	},
-#endif
 };
 static void spi_device_init(void)
 {
 	spi_register_board_info(m25p32_spi0_board_info,
 				ARRAY_SIZE(m25p32_spi0_board_info));
 }
-#else
 static struct mtd_partition mxc_nor_partitions[] = {
 	{
 		.name	= "Bootloader",
@@ -487,7 +488,6 @@ static void mx6q_setup_weimcs(void)
 	__raw_writel(0x1C022000, nor_reg + 0x00000008);
 	__raw_writel(0x0804a240, nor_reg + 0x00000010);
 }
-#endif
 
 static int max7310_1_setup(struct i2c_client *client,
 	unsigned gpio_base, unsigned ngpio,
@@ -545,6 +545,9 @@ static int max7310_u39_setup(struct i2c_client *client,
 	};
 
 	int n;
+
+	if (uart3_en)
+		max7310_gpio_value[4] = 1;
 
 	 for (n = 0; n < ARRAY_SIZE(max7310_gpio_value); ++n) {
 		gpio_request(gpio_base + n, "MAX7310 U39 GPIO Expander");
@@ -615,6 +618,14 @@ static void adv7180_pwdn(int pwdn)
 	gpio_free(SABREAUTO_VIDEOIN_PWR);
 }
 
+static void mx6q_csi0_io_init(void)
+{
+	if (cpu_is_mx6q())
+		mxc_iomux_set_gpr_register(1, 19, 1, 1);
+	else if (cpu_is_mx6dl())
+		mxc_iomux_set_gpr_register(13, 0, 3, 4);
+}
+
 static struct fsl_mxc_tvin_platform_data adv7180_data = {
 	.dvddio_reg	= NULL,
 	.dvdd_reg	= NULL,
@@ -623,6 +634,18 @@ static struct fsl_mxc_tvin_platform_data adv7180_data = {
 	.pwdn		= adv7180_pwdn,
 	.reset		= NULL,
 	.cvbs		= true,
+	.io_init	= mx6q_csi0_io_init,
+};
+
+static struct fsl_mxc_tvin_platform_data adv7280_data = {
+	.dvddio_reg	= NULL,
+	.dvdd_reg	= NULL,
+	.avdd_reg	= NULL,
+	.pvdd_reg	= NULL,
+	.pwdn		= NULL,
+	.cvbs		= true,
+	/* csi slave reg address */
+	.csi_tx_addr = 0x51,
 };
 
 static struct imxi2c_platform_data mx6q_sabreauto_i2c2_data = {
@@ -663,6 +686,11 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 		.platform_data = &ls_data,
 	},
 	{
+		I2C_BOARD_INFO("mag3110", 0x0e),
+		.irq = gpio_to_irq(SABREAUTO_eCOMPASS_INT),
+		.platform_data = (void *)&mag3110_position,
+	},
+	{
 		I2C_BOARD_INFO("mma8451", 0x1c),
 		.platform_data = (void *)&mma8451_position,
 	},
@@ -679,6 +707,9 @@ static struct i2c_board_info mxc_i2c1_board_info[] __initdata = {
 		.platform_data = (void *)&cs42888_data,
 	}, {
 		I2C_BOARD_INFO("si4763_i2c", 0x63),
+	}, {
+		I2C_BOARD_INFO("adv7280", 0x21),
+		.platform_data = (void *)&adv7280_data,
 	},
 };
 
@@ -1307,14 +1338,6 @@ static int __init early_enable_can0(char *p)
 }
 early_param("can0", early_enable_can0);
 
-static inline void __init mx6q_csi0_io_init(void)
-{
-	if (cpu_is_mx6q())
-		mxc_iomux_set_gpr_register(1, 19, 1, 1);
-	else if (cpu_is_mx6dl())
-		mxc_iomux_set_gpr_register(13, 0, 3, 4);
-}
-
 static struct mxc_spdif_platform_data mxc_spdif_data = {
 	.spdif_tx	= 0,	/* disable tx */
 	.spdif_rx	= 1,	/* enable rx */
@@ -1358,6 +1381,7 @@ static void __init mx6_board_init(void)
 	iomux_v3_cfg_t *tuner_pads = NULL;
 	iomux_v3_cfg_t *spinor_pads = NULL;
 	iomux_v3_cfg_t *weimnor_pads = NULL;
+	iomux_v3_cfg_t *bluetooth_pads = NULL;
 	iomux_v3_cfg_t *extra_pads = NULL;
 
 	int common_pads_cnt;
@@ -1368,6 +1392,7 @@ static void __init mx6_board_init(void)
 	int tuner_pads_cnt;
 	int spinor_pads_cnt;
 	int weimnor_pads_cnt;
+	int bluetooth_pads_cnt;
 	int extra_pads_cnt;
 
 	if (cpu_is_mx6q()) {
@@ -1378,6 +1403,7 @@ static void __init mx6_board_init(void)
 		tuner_pads = mx6q_tuner_pads;
 		spinor_pads = mx6q_spinor_pads;
 		weimnor_pads = mx6q_weimnor_pads;
+		bluetooth_pads = mx6q_bluetooth_pads;
 
 		common_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_pads);
 		can0_pads_cnt = ARRAY_SIZE(mx6q_sabreauto_can0_pads);
@@ -1386,6 +1412,7 @@ static void __init mx6_board_init(void)
 		tuner_pads_cnt = ARRAY_SIZE(mx6q_tuner_pads);
 		spinor_pads_cnt = ARRAY_SIZE(mx6q_spinor_pads);
 		weimnor_pads_cnt = ARRAY_SIZE(mx6q_weimnor_pads);
+		bluetooth_pads_cnt = ARRAY_SIZE(mx6q_bluetooth_pads);
 		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6q_i2c3_pads_rev_a;
 			i2c3_pads_cnt = ARRAY_SIZE(mx6q_i2c3_pads_rev_a);
@@ -1407,6 +1434,7 @@ static void __init mx6_board_init(void)
 		tuner_pads = mx6dl_tuner_pads;
 		spinor_pads = mx6dl_spinor_pads;
 		weimnor_pads = mx6dl_weimnor_pads;
+		bluetooth_pads = mx6dl_bluetooth_pads;
 
 		common_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_pads);
 		can0_pads_cnt = ARRAY_SIZE(mx6dl_sabreauto_can0_pads);
@@ -1415,6 +1443,7 @@ static void __init mx6_board_init(void)
 		tuner_pads_cnt = ARRAY_SIZE(mx6dl_tuner_pads);
 		spinor_pads_cnt = ARRAY_SIZE(mx6dl_spinor_pads);
 		weimnor_pads_cnt = ARRAY_SIZE(mx6dl_weimnor_pads);
+		bluetooth_pads_cnt = ARRAY_SIZE(mx6dl_bluetooth_pads);
 
 		if (board_is_mx6_reva()) {
 			i2c3_pads = mx6dl_i2c3_pads_rev_a;
@@ -1448,6 +1477,11 @@ static void __init mx6_board_init(void)
 			BUG_ON(!i2c3_pads);
 			mxc_iomux_v3_setup_multiple_pads(i2c3_pads,
 					i2c3_pads_cnt);
+		}
+		if (uart3_en) {
+			BUG_ON(!bluetooth_pads);
+			mxc_iomux_v3_setup_multiple_pads(bluetooth_pads,
+					bluetooth_pads_cnt);
 		}
 	}
 
@@ -1554,12 +1588,12 @@ static void __init mx6_board_init(void)
 	}
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabreauto_spi_data);
-#if defined(CONFIG_MTD_M25P80) || defined(CONFIG_MTD_M25P80_MODULE)
-		spi_device_init();
-#else
-		mx6q_setup_weimcs();
-		platform_device_register(&physmap_flash_device);
-#endif
+		if (spinor_en)
+			spi_device_init();
+		else if (weimnor_en) {
+			mx6q_setup_weimcs();
+			platform_device_register(&physmap_flash_device);
+		}
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
@@ -1584,9 +1618,6 @@ static void __init mx6_board_init(void)
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
 
-	if (!mipi_sensor)
-		mx6q_csi0_io_init();
-
 	/* DISP0 Detect */
 	gpio_request(SABREAUTO_DISP0_DET_INT, "disp0-detect");
 	gpio_direction_input(SABREAUTO_DISP0_DET_INT);
@@ -1610,7 +1641,7 @@ static void __init mx6_board_init(void)
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
 	imx6q_add_dma();
-	if (!uart3_en)
+	if (!uart3_en && !weimnor_en)
 		imx6q_add_gpmi(&mx6q_gpmi_nand_platform_data);
 
 	imx6q_add_dvfs_core(&sabreauto_dvfscore_data);
