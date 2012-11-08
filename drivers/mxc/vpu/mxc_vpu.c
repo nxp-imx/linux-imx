@@ -868,40 +868,44 @@ static int vpu_resume(struct platform_device *pdev)
 			goto recover_clk;
 		}
 
-		/* Restore registers */
-		for (i = 0; i < 64; i++)
-			WRITE_REG(regBk[i], BIT_CODE_BUF_ADDR + (i * 4));
-
-		WRITE_REG(0x0, BIT_RESET_CTRL);
-		WRITE_REG(0x0, BIT_CODE_RUN);
-		/* MX6 RTL has a bug not to init MBC_SET_SUBBLK_EN on reset */
-		WRITE_REG(0x0, MBC_SET_SUBBLK_EN);
-
 		/*
-		 * Re-load boot code, from the codebuffer in external RAM.
-		 * Thankfully, we only need 4096 bytes, same for all platforms.
+		 *  Only recover vpu if it is been using.
+		 *  If not been used, vpu will be reinited in user space lib.
 		 */
-		for (i = 0; i < 2048; i += 4) {
-			data = p[(i / 2) + 1];
-			data_hi = (data >> 16) & 0xFFFF;
-			data_lo = data & 0xFFFF;
-			WRITE_REG((i << 16) | data_hi, BIT_CODE_DOWN);
-			WRITE_REG(((i + 1) << 16) | data_lo,
-				  BIT_CODE_DOWN);
+		if (open_count > 0) {
+			/* Restore registers */
+			for (i = 0; i < 64; i++)
+				WRITE_REG(regBk[i], BIT_CODE_BUF_ADDR + (i * 4));
 
-			data = p[i / 2];
-			data_hi = (data >> 16) & 0xFFFF;
-			data_lo = data & 0xFFFF;
-			WRITE_REG(((i + 2) << 16) | data_hi,
-				  BIT_CODE_DOWN);
-			WRITE_REG(((i + 3) << 16) | data_lo,
-				  BIT_CODE_DOWN);
+			WRITE_REG(0x0, BIT_RESET_CTRL);
+			WRITE_REG(0x0, BIT_CODE_RUN);
+
+			/*
+			 * Re-load boot code, from the codebuffer in external RAM.
+			 * Thankfully, we only need 4096 bytes, same for all platforms.
+			 */
+			for (i = 0; i < 2048; i += 4) {
+				data = p[(i / 2) + 1];
+				data_hi = (data >> 16) & 0xFFFF;
+				data_lo = data & 0xFFFF;
+				WRITE_REG((i << 16) | data_hi, BIT_CODE_DOWN);
+				WRITE_REG(((i + 1) << 16) | data_lo,
+					  BIT_CODE_DOWN);
+
+				data = p[i / 2];
+				data_hi = (data >> 16) & 0xFFFF;
+				data_lo = data & 0xFFFF;
+				WRITE_REG(((i + 2) << 16) | data_hi,
+					  BIT_CODE_DOWN);
+				WRITE_REG(((i + 3) << 16) | data_lo,
+					  BIT_CODE_DOWN);
+			}
+
+			WRITE_REG(0x1, BIT_BUSY_FLAG);
+			WRITE_REG(0x1, BIT_CODE_RUN);
+			while (READ_REG(BIT_BUSY_FLAG))
+				;
 		}
-
-		WRITE_REG(0x1, BIT_BUSY_FLAG);
-		WRITE_REG(0x1, BIT_CODE_RUN);
-		while (READ_REG(BIT_BUSY_FLAG))
-			;
 		clk_disable(vpu_clk);
 	}
 
