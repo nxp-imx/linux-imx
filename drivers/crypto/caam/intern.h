@@ -124,6 +124,11 @@ struct caam_drv_private {
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SM
 	struct device *smdev;	/* Secure Memory dev */
 #endif
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SECVIO
+	struct device *secviodev;
+#endif
+
 	/*
 	 * debugfs entries for developer view into driver/device
 	 * variables at runtime.
@@ -172,6 +177,11 @@ void caam_sm_shutdown(struct platform_device *pdev);
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SM_TEST
 int caam_sm_example_init(struct platform_device *pdev);
 #endif
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SECVIO
+int caam_secvio_startup(struct platform_device *pdev);
+void caam_secvio_shutdown(struct platform_device *pdev);
+#endif /* SECVIO */
 
 #endif /* CONFIG_OF */
 
