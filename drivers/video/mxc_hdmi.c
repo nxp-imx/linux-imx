@@ -2092,6 +2092,7 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	int ret = 0;
 	u32 i;
 	const struct fb_videomode *mode;
+	struct fb_videomode m;
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
 	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
 	int irq = platform_get_irq(hdmi->pdev, 0);
@@ -2204,6 +2205,21 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	fb_add_videomode(&sxga_mode, &hdmi->fbi->modelist);
 
 	console_unlock();
+
+	/* Find a nearest mode in default modelist */
+	fb_var_to_videomode(&m, &hdmi->fbi->var);
+	dump_fb_videomode(&m);
+
+	mode = fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
+	if (!mode) {
+		pr_err("%s: could not find mode in modelist\n", __func__);
+		return;
+	}
+
+	fb_videomode_to_var(&hdmi->fbi->var, mode);
+
+	/* Default setting HDMI working in HDMI mode*/
+	hdmi->edid_cfg.hdmi_cap = true;
 
 	INIT_DELAYED_WORK(&hdmi->hotplug_work, hotplug_worker);
 
