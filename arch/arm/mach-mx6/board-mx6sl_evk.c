@@ -1264,7 +1264,7 @@ static void __init mx6_evk_init_usb(void)
 	gpio_direction_output(MX6_BRD_USBOTG2_PWR, 1);
 
 	mx6_set_otghost_vbus_func(imx6_evk_usbotg_vbus);
-	mx6_usb_dr_init();
+
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mx6_usb_h2_init();
 #endif

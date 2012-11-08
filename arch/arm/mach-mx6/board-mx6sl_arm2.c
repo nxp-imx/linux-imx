@@ -1079,7 +1079,6 @@ static void __init mx6_arm2_init_usb(void)
 	gpio_direction_output(MX6_BRD_USBOTG2_PWR, 1);
 
 	mx6_set_otghost_vbus_func(imx6_arm2_usbotg_vbus);
-	mx6_usb_dr_init();
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mxc_iomux_set_specialbits_register(MX6SL_PAD_HSIC_DAT,
 		PAD_CTL_DDR_SEL_DDR3, PAD_CTL_DDR_SEL_MASK);

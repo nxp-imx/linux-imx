@@ -1113,7 +1113,7 @@ static void __init imx6q_sabresd_init_usb(void)
 		mxc_iomux_set_gpr_register(1, 13, 1, 0);
 
 	mx6_set_otghost_vbus_func(imx6q_sabresd_usbotg_vbus);
-	mx6_usb_dr_init();
+
 }
 
 /* HW Initialization, if return 0, initialization is successful. */
