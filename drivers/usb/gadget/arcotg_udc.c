@@ -3245,7 +3245,7 @@ err1a:
 /* Driver removal function
  * Free resources and finish pending transactions
  */
-static int __exit fsl_udc_remove(struct platform_device *pdev)
+static int  fsl_udc_remove(struct platform_device *pdev)
 {
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 
@@ -3529,7 +3529,7 @@ end:
 --------------------------------------------------------------------------*/
 
 static struct platform_driver udc_driver = {
-	.remove  = __exit_p(fsl_udc_remove),
+	.remove  = fsl_udc_remove,
 	/* these suspend and resume are not usb suspend and resume */
 	.suspend = fsl_udc_suspend,
 	.resume  = fsl_udc_resume,

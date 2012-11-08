@@ -1398,6 +1398,7 @@ static int fsl_otg_remove(struct platform_device *pdev)
 
 	kfree(fsl_otg_dev);
 
+	fsl_otg_dev = NULL;
 	remove_proc_file();
 
 	unregister_chrdev(FSL_OTG_MAJOR, FSL_OTG_NAME);
