@@ -1244,7 +1244,7 @@ static void __init mx6_arm2_init_usb(void)
 	mxc_iomux_set_gpr_register(1, 13, 1, 1);
 
 	mx6_set_otghost_vbus_func(imx6_arm2_usbotg_vbus);
-	mx6_usb_dr_init();
+
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mx6_usb_h2_init();
 	mx6_usb_h3_init();

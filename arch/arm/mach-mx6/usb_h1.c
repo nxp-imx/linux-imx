@@ -400,7 +400,7 @@ static int  __init mx6_usb_h1_init(void)
 	struct imx_mxc_ehci_data imx6sl_mxc_ehci_hs_data[] = {
 		imx_mxc_ehci_data_entry_single(MX6SL, 1, HS1)};
 
-	mx6_set_usb_host1_vbus_func(&mx6_set_usb_host1_vbus);
+	mx6_get_host1_vbus_func(&mx6_set_usb_host1_vbus);
 	if (mx6_set_usb_host1_vbus)
 		mx6_set_usb_host1_vbus(true);
 
@@ -438,11 +438,12 @@ static int  __init mx6_usb_h1_init(void)
 		pdev_wakeup = imx6sl_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
 	else
 		pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(1, &usbh1_wakeup_config);
+	platform_device_add(pdev);
 	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
 		(struct fsl_usb2_wakeup_platform_data *)(pdev_wakeup->dev.platform_data);
 	return 0;
 }
-module_init(mx6_usb_h1_init);
+arch_initcall(mx6_usb_h1_init);
 
 static void __exit mx6_usb_h1_exit(void)
 {
