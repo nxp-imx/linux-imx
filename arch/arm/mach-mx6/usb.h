@@ -27,8 +27,6 @@ extern int fsl_usb_host_init(struct platform_device *pdev);
 extern void fsl_usb_host_uninit(struct fsl_usb2_platform_data *pdata);
 extern int gpio_usbotg_utmi_active(void);
 extern void gpio_usbotg_utmi_inactive(void);
-
-extern void __init mx6_usb_dr_init(void);
 extern bool usb_icbug_swfix_need(void);
 extern void __init mx6_usb_h2_init(void);
 extern void __init mx6_usb_h3_init(void);
@@ -38,7 +36,8 @@ extern void mx6_set_host3_vbus_func(driver_vbus_func);
 extern void mx6_set_host2_vbus_func(driver_vbus_func);
 extern void mx6_set_host1_vbus_func(driver_vbus_func);
 extern void mx6_set_otghost_vbus_func(driver_vbus_func);
-extern void mx6_set_usb_host1_vbus_func(driver_vbus_func *driver_vbus);
+extern void mx6_get_otghost_vbus_func(driver_vbus_func *driver_vbus);
+extern void mx6_get_host1_vbus_func(driver_vbus_func *driver_vbus);
 extern struct platform_device anatop_thermal_device;
 extern struct platform_device mxc_usbdr_otg_device;
 extern struct platform_device mxc_usbdr_udc_device;
@@ -73,3 +72,13 @@ extern void __iomem *imx_otg_base;
 		.iobase = soc ## _USB_ ## hs ## _BASE_ADDR, 	\
 		.irq = soc ## _INT_USB_ ## hs,				\
       }
+#define imx_fsl_usb2_otg_data_entry_single(soc)				\
+		  {					\
+			  .iobase = soc ## _USB_OTG_BASE_ADDR,  \
+			  .irq = soc ## _INT_USB_OTG,			  \
+		  }
+#define imx_fsl_usb2_udc_data_entry_single(soc) \
+		  {				\
+			  .iobase = soc ## _USB_OTG_BASE_ADDR, \
+			  .irq = soc ## _INT_USB_OTG,			  \
+		  }
