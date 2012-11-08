@@ -140,3 +140,11 @@ config CRYPTO_DEV_FSL_CAAM_SM_TEST
 	  stored and recovered secrets can be used for general purpose
 	  encryption/decryption.
 
+config CRYPTO_DEV_FSL_CAAM_SECVIO
+	boolean "CAAM/SNVS Security Violation Handler (EXPERIMENTAL)"
+	depends on CRYPTO_DEV_FSL_CAAM
+	default n
+	help
+	  Enables installation of an interrupt handler with registrable
+          handler functions which can be specified to act on the consequences
+          of a security violation.
