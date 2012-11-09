@@ -24,8 +24,6 @@
 
 #include <linux/device.h>
 #include <linux/slab.h>
-#include <mach/viv_gpu.h>
-
 #include "gc_hal_kernel_linux.h"
 #include "gc_hal_driver.h"
 
@@ -41,6 +39,10 @@
 
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
 #    include <linux/resmem_account.h>
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
+#include <mach/viv_gpu.h>
 #endif
 
 
@@ -685,7 +687,7 @@ OnError:
 #if !USE_PLATFORM_DRIVER
 static int __init drv_init(void)
 #else
-static int drv_init(void)
+static int drv_init(struct device *pdev)
 #endif
 {
     int ret;
@@ -792,6 +794,7 @@ static int drv_init(void)
         contiguousBase, contiguousSize,
         bankSize, fastClear, compression, baseAddress, physSize, signal,
         logFileSize,
+        pdev,
         &device
         ));
 
@@ -953,8 +956,12 @@ static int __devinit gpu_probe(struct platform_device *pdev)
 {
     int ret = -ENODEV;
     struct resource* res;
-    struct viv_gpu_platform_data *pdata;
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+	struct device_node *dn =pdev->dev.of_node;
+	const u32 *prop;
+#else
+	struct viv_gpu_platform_data *pdata;
+#endif
     gcmkHEADER();
 
     res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phys_baseaddr");
@@ -994,13 +1001,21 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         registerMemSizeVG = res->end - res->start + 1;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+	prop = of_get_property(dn, "contiguousbase", NULL);
+	if(prop)
+		contiguousBase = *prop;
+	of_property_read_u32(dn,"contiguoussize", (u32 *)&contiguousSize);
+#else
     pdata = pdev->dev.platform_data;
     if (pdata) {
         contiguousBase = pdata->reserved_mem_base;
         contiguousSize = pdata->reserved_mem_size;
      }
-
-    ret = drv_init();
+#endif
+    if (contiguousSize == 0)
+       gckOS_Print("Warning: No contiguous memory is reserverd for gpu.!\n ");
+    ret = drv_init(&pdev->dev);
 
     if (!ret)
     {
@@ -1143,6 +1158,14 @@ static int __devinit gpu_resume(struct platform_device *dev)
     return 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+static const struct of_device_id mxs_gpu_dt_ids[] = {
+	{ .compatible = "fsl,imx6q-gpu", },
+	{/* sentinel */}
+};
+MODULE_DEVICE_TABLE(of, mxs_gpu_dt_ids);
+#endif
+
 static struct platform_driver gpu_driver = {
     .probe      = gpu_probe,
     .remove     = gpu_remove,
@@ -1152,6 +1175,9 @@ static struct platform_driver gpu_driver = {
 
     .driver     = {
         .name   = DEVICE_NAME,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+		.of_match_table = mxs_gpu_dt_ids,
+#endif
     }
 };
 

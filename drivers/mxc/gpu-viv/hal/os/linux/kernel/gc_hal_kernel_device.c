@@ -304,6 +304,7 @@ gckGALDEVICE_Construct(
     IN gctUINT32 PhysSize,
     IN gctINT Signal,
     IN gctUINT LogFileSize,
+    IN struct device *pdev,
     OUT gckGALDEVICE *Device
     )
 {
@@ -358,8 +359,12 @@ gckGALDEVICE_Construct(
 	 	gckDebugFileSystemSetCurrentNode(device->dbgnode);
 	}
     }
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+    device->gpu_regulator =(struct regulator*)0xffffffff ;
+
+#else
     /*get gpu regulator*/
-    device->gpu_regulator = regulator_get(NULL, "cpu_vddgpu");
+    device->gpu_regulator = regulator_get(pdev, "cpu_vddgpu");
     if (IS_ERR(device->gpu_regulator)) {
 	gcmkTRACE_ZONE(gcvLEVEL_ERROR, gcvZONE_DRIVER,
 		"%s(%d): Failed to get gpu regulator  %s/%s \n",
@@ -367,13 +372,14 @@ gckGALDEVICE_Construct(
 		PARENT_FILE, DEBUG_FILE);
 	gcmkONERROR(gcvSTATUS_NOT_FOUND);
     }
-
+#endif
     /*Initialize the clock structure*/
     if (IrqLine != -1) {
-        device->clk_3d_core = clk_get(NULL, "gpu3d_clk");
+        device->clk_3d_core = clk_get(pdev, "gpu3d_clk");
         if (!IS_ERR(device->clk_3d_core)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
             if (cpu_is_mx6q()) {
-	            device->clk_3d_shader = clk_get(NULL, "gpu3d_shader_clk");
+	            device->clk_3d_shader = clk_get(pdev, "gpu3d_shader_clk");
 	            if (IS_ERR(device->clk_3d_shader)) {
 	                IrqLine = -1;
 	                clk_put(device->clk_3d_core);
@@ -381,7 +387,18 @@ gckGALDEVICE_Construct(
 	                device->clk_3d_shader = NULL;
 	                gckOS_Print("galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
 	            }
-            }
+	          }
+#else
+	            device->clk_3d_axi = clk_get(pdev, "gpu3d_axi_clk");
+	            device->clk_3d_shader = clk_get(pdev, "gpu3d_shader_clk");
+	            if (IS_ERR(device->clk_3d_shader)) {
+	                IrqLine = -1;
+	                clk_put(device->clk_3d_core);
+	                device->clk_3d_core = NULL;
+	                device->clk_3d_shader = NULL;
+	                gckOS_Print("galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
+	            }
+#endif
         } else {
             IrqLine = -1;
             device->clk_3d_core = NULL;
@@ -389,7 +406,7 @@ gckGALDEVICE_Construct(
         }
     }
     if ((IrqLine2D != -1) || (IrqLineVG != -1)) {
-        device->clk_2d_core = clk_get(NULL, "gpu2d_clk");
+        device->clk_2d_core = clk_get(pdev, "gpu2d_clk");
         if (IS_ERR(device->clk_2d_core)) {
             IrqLine2D = -1;
             IrqLineVG = -1;
@@ -397,7 +414,7 @@ gckGALDEVICE_Construct(
             gckOS_Print("galcore: clk_get 2d core clock failed, disable 2d/vg!\n");
         } else {
 	    if (IrqLine2D != -1) {
-                device->clk_2d_axi = clk_get(NULL, "gpu2d_axi_clk");
+                device->clk_2d_axi = clk_get(pdev, "gpu2d_axi_clk");
                 if (IS_ERR(device->clk_2d_axi)) {
                     device->clk_2d_axi = NULL;
                     IrqLine2D = -1;
@@ -405,7 +422,7 @@ gckGALDEVICE_Construct(
                 }
             }
             if (IrqLineVG != -1) {
-                device->clk_vg_axi = clk_get(NULL, "openvg_axi_clk");
+                device->clk_vg_axi = clk_get(pdev, "openvg_axi_clk");
                 if (IS_ERR(device->clk_vg_axi)) {
                     IrqLineVG = -1;
 	                device->clk_vg_axi = NULL;
@@ -1000,6 +1017,12 @@ gckGALDEVICE_Destroy(
         }
 
         /*Disable clock*/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+        if (Device->clk_3d_axi) {
+           clk_put(Device->clk_3d_axi);
+           Device->clk_3d_axi = NULL;
+        }
+#endif
         if (Device->clk_3d_core) {
            clk_put(Device->clk_3d_core);
            Device->clk_3d_core = NULL;
