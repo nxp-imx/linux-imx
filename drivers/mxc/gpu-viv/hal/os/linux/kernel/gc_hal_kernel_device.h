@@ -85,6 +85,7 @@ typedef struct _gckGALDEVICE
     /* Clock management.*/
     struct clk         *clk_3d_core;
     struct clk         *clk_3d_shader;
+    struct clk		   *clk_3d_axi;
     struct clk         *clk_2d_core;
     struct clk         *clk_2d_axi;
     struct clk         *clk_vg_axi;
@@ -164,6 +165,7 @@ gceSTATUS gckGALDEVICE_Construct(
     IN gctUINT32 PhysSize,
     IN gctINT Signal,
     IN gctUINT LogFileSize,
+    IN struct device *pdev,
     OUT gckGALDEVICE *Device
     );
 

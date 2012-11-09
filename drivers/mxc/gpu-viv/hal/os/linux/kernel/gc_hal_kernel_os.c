@@ -6709,6 +6709,9 @@ gckOS_SetGPUPower(
 {
     struct clk *clk_3dcore = Os->device->clk_3d_core;
     struct clk *clk_3dshader = Os->device->clk_3d_shader;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+    struct clk *clk_3d_axi = Os->device->clk_3d_axi;
+#endif
     struct clk *clk_2dcore = Os->device->clk_2d_core;
     struct clk *clk_2d_axi = Os->device->clk_2d_axi;
     struct clk *clk_vg_axi = Os->device->clk_vg_axi;
@@ -6739,6 +6742,7 @@ gckOS_SetGPUPower(
 		!IS_ERR(Os->device->gpu_regulator))
             regulator_enable(Os->device->gpu_regulator);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
     if (Clock == gcvTRUE) {
         if (oldClockState == gcvFALSE) {
             switch (Core) {
@@ -6780,6 +6784,65 @@ gckOS_SetGPUPower(
             }
         }
     }
+#else
+    if (Clock == gcvTRUE) {
+        if (oldClockState == gcvFALSE) {
+            switch (Core) {
+            case gcvCORE_MAJOR:
+                clk_prepare(clk_3dcore);
+                clk_enable(clk_3dcore);
+                /*if (cpu_is_mx6q())*/
+                    clk_prepare(clk_3dshader);
+                    clk_enable(clk_3dshader);
+                    clk_prepare(clk_3d_axi);
+                    clk_enable(clk_3d_axi);
+                    break;
+            case gcvCORE_2D:
+                clk_prepare(clk_2dcore);
+                clk_enable(clk_2dcore);
+                clk_prepare(clk_2d_axi);
+                clk_enable(clk_2d_axi);
+                break;
+            case gcvCORE_VG:
+                clk_prepare(clk_2dcore);
+                clk_enable(clk_2dcore);
+                clk_prepare(clk_vg_axi);
+                clk_enable(clk_vg_axi);
+                break;
+            default:
+                break;
+            }
+        }
+    } else {
+        if (oldClockState == gcvTRUE) {
+            switch (Core) {
+            case gcvCORE_MAJOR:
+                /*if (cpu_is_mx6q())*/
+                    clk_disable(clk_3dshader);
+                    clk_unprepare(clk_3dshader);
+                clk_disable(clk_3dcore);
+                clk_unprepare(clk_3dcore);
+                clk_disable(clk_3d_axi);
+                clk_unprepare(clk_3d_axi);
+                break;
+           case gcvCORE_2D:
+                clk_disable(clk_2dcore);
+                clk_unprepare(clk_2dcore);
+                clk_disable(clk_2d_axi);
+                clk_unprepare(clk_2d_axi);
+                break;
+            case gcvCORE_VG:
+                clk_disable(clk_2dcore);
+                clk_unprepare(clk_2dcore);
+                clk_disable(clk_vg_axi);
+                clk_unprepare(clk_vg_axi);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+#endif
 	if((Power == gcvFALSE) && (oldPowerState == gcvTRUE) &&
 		!IS_ERR(Os->device->gpu_regulator))
             regulator_disable(Os->device->gpu_regulator);
@@ -6815,7 +6878,7 @@ gckOS_ResetGPU(
 #define SRC_SCR_OFFSET 0
 #define BP_SRC_SCR_GPU3D_RST 1
 #define BP_SRC_SCR_GPU2D_RST 4
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
     void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
     gctUINT32 bit_offset,val;
 
@@ -6839,6 +6902,7 @@ gckOS_ResetGPU(
     }
 
     gcmkFOOTER_NO();
+#endif
     return gcvSTATUS_OK;
 }
 
