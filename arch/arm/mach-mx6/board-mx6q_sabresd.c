@@ -1209,7 +1209,7 @@ static const struct flexcan_platform_data
 };
 
 static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
-	.reserved_mem_size = SZ_128M + SZ_64M,
+	.reserved_mem_size = SZ_128M + SZ_64M - SZ_16M,
 };
 
 static struct imx_asrc_platform_data imx_asrc_data = {
@@ -1376,7 +1376,7 @@ static struct ion_platform_data imx_ion_data = {
 		.id = 0,
 		.type = ION_HEAP_TYPE_CARVEOUT,
 		.name = "vpu_ion",
-		.size = SZ_64M,
+		.size = SZ_16M,
 		},
 	},
 };
@@ -1684,6 +1684,13 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 					pdata_fb[i++].res_size[0] = memparse(str, &str);
 				}
 			}
+			/* ION reserved memory */
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "ionmem=");
+			if (str != NULL) {
+				str += 7;
+				imx_ion_data.heaps[0].size = memparse(str, &str);
+			}
 			/* Primary framebuffer base address */
 			str = t->u.cmdline.cmdline;
 			str = strstr(str, "fb0base=");
@@ -1911,8 +1918,9 @@ static void __init mx6_sabresd_board_init(void)
 	mx6_cpu_regulator_init();
 #endif
 
-	imx6q_add_ion(0, &imx_ion_data,
-		sizeof(imx_ion_data) + sizeof(struct ion_platform_heap));
+	if (imx_ion_data.heaps[0].size)
+		imx6q_add_ion(0, &imx_ion_data,
+			sizeof(imx_ion_data) + sizeof(struct ion_platform_heap));
 	imx6q_add_device_buttons();
 
 	/* enable sensor 3v3 and 1v8 */
