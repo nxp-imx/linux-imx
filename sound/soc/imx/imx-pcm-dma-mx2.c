@@ -405,7 +405,7 @@ static struct snd_pcm_hardware snd_imx_hardware = {
 	.rate_min = 8000,
 	.channels_min = 2,
 	.channels_max = 2,
-	.buffer_bytes_max = IMX_SSI_DMABUF_SIZE,
+	.buffer_bytes_max = IMX_DEFAULT_DMABUF_SIZE,
 	.period_bytes_min = 128,
 	.period_bytes_max = 65535, /* Limited by SDMA engine */
 	.periods_min = 2,
@@ -438,6 +438,15 @@ static int snd_imx_open(struct snd_pcm_substream *substream)
 		kfree(iprtd);
 		return ret;
 	}
+
+	if (!strncmp(rtd->cpu_dai->name, "imx-ssi", strlen("imx-ssi")))
+		snd_imx_hardware.buffer_bytes_max = IMX_SSI_DMABUF_SIZE;
+	else if (!strncmp(rtd->cpu_dai->name, "imx-esai", strlen("imx-esai")))
+		snd_imx_hardware.buffer_bytes_max = IMX_ESAI_DMABUF_SIZE;
+	else if (!strncmp(rtd->cpu_dai->name, "imx-spdif", strlen("imx-spdif")))
+		snd_imx_hardware.buffer_bytes_max = IMX_SPDIF_DMABUF_SIZE;
+	else
+		snd_imx_hardware.buffer_bytes_max = IMX_DEFAULT_DMABUF_SIZE;
 
 	snd_soc_set_runtime_hwparams(substream, &snd_imx_hardware);
 
@@ -476,8 +485,11 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 {
 	struct imx_ssi *ssi = platform_get_drvdata(pdev);
 
-	ssi->dma_params_tx.burstsize = 6;
-	ssi->dma_params_rx.burstsize = 4;
+	if (ssi->dma_params_tx.burstsize == 0
+			&& ssi->dma_params_rx.burstsize == 0) {
+		ssi->dma_params_tx.burstsize = 6;
+		ssi->dma_params_rx.burstsize = 4;
+	}
 
 	return snd_soc_register_platform(&pdev->dev, &imx_soc_platform_mx2);
 }

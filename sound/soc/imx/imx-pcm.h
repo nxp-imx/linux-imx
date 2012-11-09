@@ -43,6 +43,11 @@
 
 #include <mach/dma.h>
 
+#define IMX_DEFAULT_DMABUF_SIZE		(64 * 1024)
+#define IMX_SSI_DMABUF_SIZE			(64 * 1024)
+#define IMX_ESAI_DMABUF_SIZE		(256 * 1024)
+#define IMX_SPDIF_DMABUF_SIZE		(64 * 1024)
+
 struct imx_pcm_runtime_data {
 	int period_bytes;
 	int periods;
