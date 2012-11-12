@@ -961,6 +961,8 @@ static void asrc_read_output_FIFO_S16(struct asrc_pair_params *params)
 		size = asrc_get_output_FIFO_size(params->index);
 	}
 
+	if (t_size > ASRC_OUTPUT_LAST_SAMPLE)
+		t_size = ASRC_OUTPUT_LAST_SAMPLE;
 	params->output_last_period.length = t_size * params->channel_nums * 2;
 }
 
@@ -985,6 +987,8 @@ static void asrc_read_output_FIFO_S24(struct asrc_pair_params *params)
 		size = asrc_get_output_FIFO_size(params->index);
 	}
 
+	if (t_size > ASRC_OUTPUT_LAST_SAMPLE)
+		t_size = ASRC_OUTPUT_LAST_SAMPLE;
 	params->output_last_period.length = t_size * params->channel_nums * 4;
 }
 
@@ -1288,9 +1292,6 @@ static int mxc_asrc_prepare_output_buffer(struct asrc_pair_params *params,
 {
 	u32 word_size;
 
-	pbuf->output_buffer_length = asrc_get_output_buffer_size(
-			pbuf->input_buffer_length,
-			params->input_sample_rate, params->output_sample_rate);
 	switch (params->output_word_width) {
 	case ASRC_WIDTH_24_BIT:
 		word_size = 4;
