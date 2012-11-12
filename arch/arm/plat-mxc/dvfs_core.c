@@ -41,6 +41,7 @@
 #include <linux/input.h>
 #include <linux/platform_device.h>
 #include <linux/cpufreq.h>
+#include <asm/cpu.h>
 #include <mach/hardware.h>
 #include <mach/mxc_dvfs.h>
 
@@ -94,7 +95,11 @@ static int dvfs_config_setpoint;
 static int maxf;
 static int minf;
 
+#if defined(CONFIG_CPU_FREQ)
 extern int cpufreq_trig_needed;
+#else
+int cpufreq_trig_needed;
+#endif
 struct timeval core_prev_intr;
 
 void dump_dvfs_core_regs(void);
@@ -114,6 +119,24 @@ extern int cpu_wp_nr;
 extern struct cpu_wp *(*get_cpu_wp)(int *wp);
 #endif
 struct dvfs_wp *(*get_dvfs_core_wp)(int *wp);
+
+static inline unsigned long dvfs_cpu_jiffies(unsigned long old, u_int div,
+					u_int mult)
+{
+#if BITS_PER_LONG == 32
+
+	u64 result = ((u64) old) * ((u64) mult);
+	do_div(result, div);
+	return (unsigned long) result;
+
+#elif BITS_PER_LONG == 64
+
+	unsigned long result = old * ((u64) mult);
+	result /= div;
+	return result;
+
+#endif
+}
 
 enum {
 	FSVAI_FREQ_NOCHANGE = 0x0,
@@ -349,9 +372,8 @@ static int set_cpu_freq(int wp)
 		reg |= en_sw_dvfs;
 		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
 	}
-#if defined(CONFIG_CPU_FREQ)
-		cpufreq_trig_needed = 1;
-#endif
+
+	cpufreq_trig_needed = 1;
 	old_wp = wp;
 	return ret;
 }
@@ -488,8 +510,10 @@ static void dvfs_core_work_handler(struct work_struct *work)
 	int ret = 0;
 	int low_freq_bus_ready = 0;
 	int bus_incr = 0, cpu_dcr = 0;
+	unsigned long old_loops_per_jiffy;
 
 	low_freq_bus_ready = low_freq_bus_used();
+	curr_cpu = clk_get_rate(cpu_clk);
 
 	/* Check DVFS frequency adjustment interrupt status */
 	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
@@ -500,7 +524,6 @@ static void dvfs_core_work_handler(struct work_struct *work)
 		goto END;
 	}
 
-	curr_cpu = clk_get_rate(cpu_clk);
 	/* If FSVAI indicate freq down,
 	   check arm-clk is not in lowest frequency*/
 	if (fsvai == FSVAI_FREQ_DECREASE) {
@@ -560,7 +583,23 @@ static void dvfs_core_work_handler(struct work_struct *work)
 		bus_incr = 0;
 	}
 
-END:	/* Set MAXF, MINF */
+	if (cpufreq_trig_needed == 1) {
+		/*Fix loops-per-jiffy */
+		old_loops_per_jiffy = loops_per_jiffy;
+
+		loops_per_jiffy =
+			dvfs_cpu_jiffies(old_loops_per_jiffy,
+				curr_cpu/1000, clk_get_rate(cpu_clk) / 1000);
+
+#if defined(CONFIG_CPU_FREQ)
+		/* Fix CPU frequency for CPUFREQ. */
+		cpufreq_get(0);
+#endif
+		cpufreq_trig_needed = 0;
+	}
+
+END:
+	/* Set MAXF, MINF */
 	reg = __raw_readl(dvfs_data->membase + MXC_DVFSCORE_CNTR);
 	reg = (reg & ~(MXC_DVFSCNTR_MAXF_MASK | MXC_DVFSCNTR_MINF_MASK));
 	reg |= maxf << MXC_DVFSCNTR_MAXF_OFFSET;
@@ -578,13 +617,6 @@ END:	/* Set MAXF, MINF */
 	reg = __raw_readl(gpc_base + dvfs_data->gpc_cntr_offset);
 	reg &= ~MXC_GPCCNTR_GPCIRQM;
 	__raw_writel(reg, gpc_base + dvfs_data->gpc_cntr_offset);
-
-#if defined(CONFIG_CPU_FREQ)
-	if (cpufreq_trig_needed == 1) {
-		cpufreq_trig_needed = 0;
-		cpufreq_update_policy(0);
-	}
-#endif
 }
 
 
@@ -596,6 +628,7 @@ void stop_dvfs(void)
 	u32 reg = 0;
 	unsigned long flags;
 	u32 curr_cpu;
+	unsigned long old_loops_per_jiffy;
 
 	if (dvfs_core_is_active) {
 
@@ -613,15 +646,24 @@ void stop_dvfs(void)
 
 		curr_cpu = clk_get_rate(cpu_clk);
 
-		if (curr_cpu != cpu_wp_tbl[curr_wp].cpu_rate) {
+		if (curr_cpu != cpu_wp_tbl[curr_wp].cpu_rate)
 			set_cpu_freq(curr_wp);
+
+		if (cpufreq_trig_needed == 1) {
+			/*Fix loops-per-jiffy */
+			old_loops_per_jiffy = loops_per_jiffy;
+
+			loops_per_jiffy =
+				dvfs_cpu_jiffies(old_loops_per_jiffy,
+					curr_cpu/1000,
+					clk_get_rate(cpu_clk) / 1000);
 #if defined(CONFIG_CPU_FREQ)
-			if (cpufreq_trig_needed == 1) {
-				cpufreq_trig_needed = 0;
-				cpufreq_update_policy(0);
-			}
+			/* Fix CPU frequency for CPUFREQ. */
+			cpufreq_get(0);
 #endif
+			cpufreq_trig_needed = 0;
 		}
+
 		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 
 		reg = __raw_readl(dvfs_data->membase
@@ -635,7 +677,7 @@ void stop_dvfs(void)
 		dvfs_core_is_active = 0;
 
 		clk_disable(dvfs_clk);
-	}
+		}
 
 	printk(KERN_DEBUG "DVFS is stopped\n");
 }
@@ -910,7 +952,9 @@ static int __devinit mxc_dvfs_core_probe(struct platform_device *pdev)
 	old_wp = 0;
 	curr_wp = 0;
 	dvfs_core_resume = 0;
+#ifndef CONFIG_CPU_FREQ
 	cpufreq_trig_needed = 0;
+#endif
 
 	return err;
 err3:
