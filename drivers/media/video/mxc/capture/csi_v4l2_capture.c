@@ -273,7 +273,7 @@ static void camera_callback(u32 mask, void *dev)
 		return;
 
 	if (list_empty(&cam->working_q)) {
-		pr_err("ERROR: v4l2 capture: %s: "
+		pr_debug("v4l2 capture: %s: "
 				"working queue empty\n", __func__);
 		return;
 	}
