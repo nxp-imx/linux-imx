@@ -4065,7 +4065,7 @@ gckOS_AllocatePagedMemoryEx(
         /* Get contiguous pages, and suppress warning (stack dump) from kernel when
            we run out of memory. */
         mdl->u.contiguousPages =
-            alloc_pages(GFP_KERNEL | __GFP_NOWARN, GetOrder(numPages));
+            alloc_pages(GFP_KERNEL | __GFP_NORETRY | __GFP_NOWARN, GetOrder(numPages));
 
         if (mdl->u.contiguousPages == gcvNULL)
         {
