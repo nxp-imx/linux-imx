@@ -49,6 +49,7 @@
 #define ASRC_RATIO_DECIMAL_DEPTH 26
 
 DEFINE_SPINLOCK(data_lock);
+DEFINE_SPINLOCK(pair_lock);
 DEFINE_SPINLOCK(input_int_lock);
 DEFINE_SPINLOCK(output_int_lock);
 
@@ -992,6 +993,11 @@ static void asrc_output_task_worker(struct work_struct *w)
 	unsigned long lock_flags;
 
 	/* asrc output work struct */
+	spin_lock_irqsave(&pair_lock, lock_flags);
+	if (!params->pair_hold) {
+		spin_unlock_irqrestore(&pair_lock, lock_flags);
+		return;
+	}
 	switch (params->output_word_width) {
 	case ASRC_WIDTH_24_BIT:
 		asrc_read_output_FIFO_S24(params);
@@ -1003,6 +1009,7 @@ static void asrc_output_task_worker(struct work_struct *w)
 	default:
 		pr_err("%s: error word width\n", __func__);
 	}
+	spin_unlock_irqrestore(&pair_lock, lock_flags);
 
 	/* finish receiving all output data */
 	spin_lock_irqsave(&output_int_lock, lock_flags);
@@ -1542,13 +1549,18 @@ static long asrc_ioctl(struct file *file,
 	case ASRC_RELEASE_PAIR:
 		{
 			enum asrc_pair_index index;
+			unsigned long lock_flags;
 			if (copy_from_user
 			    (&index, (void __user *)arg,
 			     sizeof(enum asrc_pair_index))) {
 				err = -EFAULT;
 				break;
 			}
+			params->asrc_active = 0;
 
+			spin_lock_irqsave(&pair_lock, lock_flags);
+			params->pair_hold = 0;
+			spin_unlock_irqrestore(&pair_lock, lock_flags);
 			if (params->input_dma_channel)
 				dma_release_channel(params->input_dma_channel);
 			if (params->output_dma_channel)
@@ -1557,8 +1569,6 @@ static long asrc_ioctl(struct file *file,
 			mxc_free_dma_buf(params);
 			asrc_release_pair(index);
 			asrc_finish_conv(index);
-			params->asrc_active = 0;
-			params->pair_hold = 0;
 			break;
 		}
 	case ASRC_CONVERT:
@@ -1733,9 +1743,11 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 static int mxc_asrc_close(struct inode *inode, struct file *file)
 {
 	struct asrc_pair_params *pair_params;
+	unsigned long lock_flags;
 	pair_params = file->private_data;
 	if (pair_params) {
 		if (pair_params->asrc_active) {
+			pair_params->asrc_active = 0;
 			dmaengine_terminate_all(
 					pair_params->input_dma_channel);
 			dmaengine_terminate_all(
@@ -1745,6 +1757,9 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 			wake_up_interruptible(&pair_params->output_wait_queue);
 		}
 		if (pair_params->pair_hold) {
+			spin_lock_irqsave(&pair_lock, lock_flags);
+			pair_params->pair_hold = 0;
+			spin_unlock_irqrestore(&pair_lock, lock_flags);
 			if (pair_params->input_dma_channel)
 				dma_release_channel(
 					pair_params->input_dma_channel);
