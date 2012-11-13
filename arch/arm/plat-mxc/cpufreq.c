@@ -59,9 +59,9 @@ int set_cpu_freq(int freq)
 {
 	int i, ret = 0;
 	int org_cpu_rate;
-	int gp_volt = 0;
-	int soc_volt = 0;
-	int pu_volt = 0;
+	int gp_volt = 0, org_gp_volt = 0;
+	int soc_volt = 0, org_soc_volt = 0;
+	int pu_volt = 0, org_pu_volt = 0;
 
 	org_cpu_rate = clk_get_rate(cpu_clk);
 	if (org_cpu_rate == freq)
@@ -72,6 +72,11 @@ int set_cpu_freq(int freq)
 			gp_volt = cpu_op_tbl[i].cpu_voltage;
 			soc_volt = cpu_op_tbl[i].soc_voltage;
 			pu_volt = cpu_op_tbl[i].pu_voltage;
+		}
+		if (org_cpu_rate == cpu_op_tbl[i].cpu_rate) {
+			org_gp_volt = cpu_op_tbl[i].cpu_voltage;
+			org_soc_volt = cpu_op_tbl[i].soc_voltage;
+			org_pu_volt = cpu_op_tbl[i].pu_voltage;
 		}
 	}
 
@@ -86,9 +91,9 @@ int set_cpu_freq(int freq)
 			ret = regulator_set_voltage(soc_regulator, soc_volt,
 							soc_volt);
 			if (ret < 0) {
-				printk(KERN_DEBUG
+				printk(KERN_ERR
 					"COULD NOT SET SOC VOLTAGE!!!!\n");
-				return ret;
+				goto err1;
 			}
 		}
 		/*if pu_regulator is enabled, it will be tracked with VDDARM*/
@@ -97,39 +102,39 @@ int set_cpu_freq(int freq)
 			ret = regulator_set_voltage(pu_regulator, pu_volt,
 							pu_volt);
 			if (ret < 0) {
-				printk(KERN_DEBUG
+				printk(KERN_ERR
 					"COULD NOT SET PU VOLTAGE!!!!\n");
-				return ret;
+				goto err2;
 			}
 		}
 		ret = regulator_set_voltage(cpu_regulator, gp_volt,
 					    gp_volt);
 		if (ret < 0) {
-			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
-			return ret;
+			printk(KERN_ERR "COULD NOT SET GP VOLTAGE!!!!\n");
+			goto err3;
 		}
 		udelay(50);
 	}
 	ret = clk_set_rate(cpu_clk, freq);
 	if (ret != 0) {
-		printk(KERN_DEBUG "cannot set CPU clock rate\n");
-		return ret;
+		printk(KERN_ERR "cannot set CPU clock rate\n");
+		goto err4;
 	}
 
 	if (freq < org_cpu_rate) {
 		ret = regulator_set_voltage(cpu_regulator, gp_volt,
 					    gp_volt);
 		if (ret < 0) {
-			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
-			return ret;
+			printk(KERN_ERR "COULD NOT SET GP VOLTAGE!!!!\n");
+			goto err5;
 		}
 		if (!IS_ERR(soc_regulator)) {
 			ret = regulator_set_voltage(soc_regulator, soc_volt,
 							soc_volt);
 			if (ret < 0) {
-				printk(KERN_DEBUG
+				printk(KERN_ERR
 					"COULD NOT SET SOC VOLTAGE BACK!!!!\n");
-				return ret;
+				goto err6;
 			}
 		}
 		/*if pu_regulator is enabled, it will be tracked with VDDARM*/
@@ -138,9 +143,9 @@ int set_cpu_freq(int freq)
 			ret = regulator_set_voltage(pu_regulator, pu_volt,
 							pu_volt);
 			if (ret < 0) {
-				printk(KERN_DEBUG
+				printk(KERN_ERR
 					"COULD NOT SET PU VOLTAGE!!!!\n");
-				return ret;
+				goto err7;
 			}
 		}
 		/* Check if the bus freq can be decreased.*/
@@ -148,6 +153,53 @@ int set_cpu_freq(int freq)
 	}
 
 	return ret;
+	/*Restore back if any regulator or clock rate set fail.*/
+err7:
+	ret = regulator_set_voltage(soc_regulator, org_soc_volt,
+							org_soc_volt);
+	if (ret < 0) {
+		printk(KERN_ERR "COULD NOT RESTORE SOC VOLTAGE!!!!\n");
+		goto err7;
+	}
+
+err6:
+	ret = regulator_set_voltage(cpu_regulator, org_gp_volt, org_gp_volt);
+	if (ret < 0) {
+		printk(KERN_ERR "COULD NOT RESTORE GP VOLTAGE!!!!\n");
+		goto err6;
+	}
+
+err5:
+	ret = clk_set_rate(cpu_clk, org_cpu_rate);
+	if (ret != 0) {
+		printk(KERN_ERR "cannot restore CPU clock rate\n");
+		goto err5;
+	}
+	return -1;
+
+err4:
+	ret = regulator_set_voltage(cpu_regulator, org_gp_volt, org_gp_volt);
+	if (ret < 0) {
+		printk(KERN_ERR "COULD NOT RESTORE GP VOLTAGE!!!!\n");
+		goto err4;
+	}
+
+err3:
+	ret = regulator_set_voltage(pu_regulator, org_pu_volt, org_pu_volt);
+	if (ret < 0) {
+		printk(KERN_ERR "COULD NOT RESTORE PU VOLTAGE!!!!\n");
+		goto err3;
+	}
+err2:
+	ret = regulator_set_voltage(soc_regulator, org_soc_volt,
+							org_soc_volt);
+	if (ret < 0) {
+		printk(KERN_ERR "COULD NOT RESTORE SOC VOLTAGE!!!!\n");
+		goto err2;
+	}
+err1:
+	return -1;
+
 }
 
 static int mxc_verify_speed(struct cpufreq_policy *policy)
