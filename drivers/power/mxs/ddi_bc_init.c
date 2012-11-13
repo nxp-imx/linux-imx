@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -14,11 +14,6 @@
 #include "ddi_bc_internal.h"
 
 
-/* addtogroup ddi_bc */
-/*  @{ */
-/*  */
-/* Copyright (c) 2004-2005 SigmaTel, Inc. */
-/*  */
 /* file       ddi_bc_init.c */
 /* brief      Contains the Battery Charger initialization function. */
 /* date       06/2005 */
@@ -120,9 +115,9 @@ ddi_bc_Status_t ddi_bc_Init(ddi_bc_Cfg_t *pCfg)
 	/* There are 8 LRADC channels. */
 	/*  */
 
-	if (pCfg->u8BatteryTempChannel > 7) {
+	if (pCfg->u8DieTempChannel > 7)
 		return DDI_BC_STATUS_CFG_BAD_BATTERY_TEMP_CHANNEL;
-	}
+
 	/* -------------------------------------------------------------------------- */
 	/* Accept the configuration. */
 	/* -------------------------------------------------------------------------- */

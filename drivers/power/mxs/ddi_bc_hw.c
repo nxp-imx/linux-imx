@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -303,7 +303,8 @@ void ddi_bc_hwGetDieTemp(int16_t *pLow, int16_t *pHigh)
 
 ddi_bc_Status_t ddi_bc_hwGetBatteryTemp(uint16_t *pReading)
 {
-	return (ddi_bc_Status_t)DDI_BC_STATUS_HARDWARE_DISABLED;
+	ddi_power_GetBatteryTemp(pReading);
+  return DDI_BC_STATUS_SUCCESS;
 }
 
 
