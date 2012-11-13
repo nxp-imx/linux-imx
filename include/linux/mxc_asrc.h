@@ -141,8 +141,8 @@ enum asrc_error_status {
 #include <linux/scatterlist.h>
 
 #define ASRC_DMA_BUFFER_NUM		2
-#define ASRC_INPUTFIFO_THRESHOLD	4
-#define ASRC_OUTPUTFIFO_THRESHOLD	2
+#define ASRC_INPUTFIFO_THRESHOLD	32
+#define ASRC_OUTPUTFIFO_THRESHOLD	32
 #define ASRC_DMA_BUFFER_SIZE	(1024 * 48 * 4)
 #define ASRC_MAX_BUFFER_SIZE	(1024 * 48)
 #define ASRC_OUTPUT_LAST_SAMPLE	8
@@ -242,6 +242,8 @@ struct asrc_pair_params {
 	enum asrc_word_width output_word_width;
 	u32 input_sample_rate;
 	u32 output_sample_rate;
+	u32 input_wm;
+	u32 output_wm;
 };
 
 struct asrc_data {
@@ -266,6 +268,8 @@ extern void asrc_stop_conv(enum asrc_pair_index index);
 extern u32 asrc_get_per_addr(enum asrc_pair_index index, bool i);
 extern int asrc_get_dma_request(enum asrc_pair_index index, bool i);
 extern void asrc_finish_conv(enum asrc_pair_index index);
+extern int asrc_set_watermark(enum asrc_pair_index index,
+					u32 in_wm, u32 out_wm);
 
 #endif				/* __kERNEL__ */
 

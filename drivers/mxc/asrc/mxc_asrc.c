@@ -661,6 +661,28 @@ int asrc_config_pair(struct asrc_config *config)
 
 EXPORT_SYMBOL(asrc_config_pair);
 
+int asrc_set_watermark(enum asrc_pair_index index, u32 in_wm, u32 out_wm)
+{
+	u32 reg;
+
+	if ((in_wm > 63) || (out_wm > 63)) {
+		pr_err("error watermark!\n");
+		return -EINVAL;
+	}
+
+	reg = __raw_readl(
+		g_asrc->vaddr + ASRC_ASRMCRA_REG + (index << 3));
+	reg |= 1 << 22;
+	reg &= ~0x3f;
+	reg += in_wm;
+	reg &= ~(0x3f << 12);
+	reg += out_wm << 12;
+	__raw_writel(reg,
+		g_asrc->vaddr + ASRC_ASRMCRA_REG + (index << 3));
+	return 0;
+}
+EXPORT_SYMBOL(asrc_set_watermark);
+
 void asrc_start_conv(enum asrc_pair_index index)
 {
 	int reg, reg_1;
@@ -1113,13 +1135,13 @@ static int imx_asrc_dma_config(
 		slave_config.dst_addr = dma_addr;
 		slave_config.dst_addr_width = buswidth;
 		slave_config.dst_maxburst =
-			ASRC_INPUTFIFO_THRESHOLD * params->channel_nums;
+			params->input_wm * params->channel_nums;
 	} else {
 		slave_config.direction = DMA_DEV_TO_MEM;
 		slave_config.src_addr = dma_addr;
 		slave_config.src_addr_width = buswidth;
 		slave_config.src_maxburst =
-			ASRC_OUTPUTFIFO_THRESHOLD * params->channel_nums;
+			params->output_wm * params->channel_nums;
 	}
 	ret = dmaengine_slave_config(chan, &slave_config);
 	if (ret) {
@@ -1223,7 +1245,7 @@ static int mxc_asrc_prepare_input_buffer(struct asrc_pair_params *params,
 	}
 
 	if (pbuf->input_buffer_length <
-		word_size * params->channel_nums * ASRC_INPUTFIFO_THRESHOLD) {
+		word_size * params->channel_nums * params->input_wm) {
 		pr_err("input buffer size[%d] is too small!\n",
 					pbuf->input_buffer_length);
 		return -EINVAL;
@@ -1445,6 +1467,13 @@ static long asrc_ioctl(struct file *file,
 				break;
 			}
 			err = asrc_config_pair(&config);
+			if (err < 0)
+				break;
+
+			params->input_wm = 4;
+			params->output_wm = 2;
+			err = asrc_set_watermark(config.pair,
+					params->input_wm, params->output_wm);
 			if (err < 0)
 				break;
 			params->output_buffer_size = config.dma_buffer_size;
