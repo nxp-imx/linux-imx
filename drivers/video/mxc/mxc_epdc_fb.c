@@ -733,11 +733,11 @@ static inline int epdc_get_next_lut(void)
 
 static int epdc_choose_next_lut(int rev, int *next_lut)
 {
-	u64 luts_status, unprocessed_luts;
-	bool next_lut_found = false;
+	u64 luts_status, unprocessed_luts, used_luts;
 	/* Available LUTs are reduced to 16 in 5-bit waveform mode */
-	u32 format_p5n = __raw_readl(EPDC_FORMAT) &
-		EPDC_FORMAT_BUF_PIXEL_FORMAT_P5N;
+	bool format_p5n = ((__raw_readl(EPDC_FORMAT) &
+	EPDC_FORMAT_BUF_PIXEL_FORMAT_MASK) ==
+	EPDC_FORMAT_BUF_PIXEL_FORMAT_P5N);
 
 	luts_status = __raw_readl(EPDC_STATUS_LUTS);
 	if ((rev < 20) || format_p5n)
@@ -754,48 +754,43 @@ static int epdc_choose_next_lut(int rev, int *next_lut)
 			unprocessed_luts &= 0xFFFF;
 	}
 
-	while (!next_lut_found) {
-		/*
-		 * Selecting a LUT to minimize incidence of TCE Underrun Error
-		 * --------------------------------------------------------
-		 * We want to find the lowest order LUT that is of greater
-		 * order than all other active LUTs.  If highest order LUT
-		 * is active, then we want to choose the lowest order
-		 * available LUT.
-		 *
-		 * NOTE: For EPDC version 2.0 and later, TCE Underrun error
-		 *       bug is fixed, so it doesn't matter which LUT is used.
-		 */
-		*next_lut = fls64(luts_status);
+	/*
+	 * Note on unprocessed_luts: There is a race condition
+	 * where a LUT completes, but has not been processed by
+	 * IRQ handler workqueue, and then a new update request
+	 * attempts to use that LUT.  We prevent that here by
+	 * ensuring that the LUT we choose doesn't have its IRQ
+	 * bit set (indicating it has completed but not yet been
+	 * processed).
+	 */
+	used_luts = luts_status | unprocessed_luts;
 
-		if ((rev < 20) || format_p5n) {
-			if (*next_lut > 15)
-				*next_lut = ffz(luts_status);
-		} else {
-			if (*next_lut > 63) {
-				*next_lut = ffz((u32)luts_status);
-				if (*next_lut == -1)
-					*next_lut =
-						ffz((u32)(luts_status >> 32)) + 32;
-			}
-		}
+	/*
+	 * Selecting a LUT to minimize incidence of TCE Underrun Error
+	 * --------------------------------------------------------
+	 * We want to find the lowest order LUT that is of greater
+	 * order than all other active LUTs.  If highest order LUT
+	 * is active, then we want to choose the lowest order
+	 * available LUT.
+	 *
+	 * NOTE: For EPDC version 2.0 and later, TCE Underrun error
+	 *       bug is fixed, so it doesn't matter which LUT is used.
+	 */
 
-		/*
-		 * Note on unprocessed_luts: There is a race condition
-		 * where a LUT completes, but has not been processed by
-		 * IRQ handler workqueue, and then a new update request
-		 * attempts to use that LUT.  We prevent that here by
-		 * ensuring that the LUT we choose doesn't have its IRQ
-		 * bit set (indicating it has completed but not yet been
-		 * processed).
-		 */
-		if ((1 << *next_lut) & unprocessed_luts)
-			luts_status |= (1 << *next_lut);
+	if ((rev < 20) || format_p5n) {
+		*next_lut = fls64(used_luts);
+		if (*next_lut > 15)
+			*next_lut = ffz(used_luts);
+	} else {
+		if ((u32)used_luts != ~0UL)
+			*next_lut = ffz((u32)used_luts);
+		else if ((u32)(used_luts >> 32) != ~0UL)
+			*next_lut = ffz((u32)(used_luts >> 32)) + 32;
 		else
-			next_lut_found = true;
+			*next_lut = INVALID_LUT;
 	}
 
-	if (luts_status & 0x8000)
+	if (used_luts & 0x8000)
 		return 1;
 	else
 		return 0;
