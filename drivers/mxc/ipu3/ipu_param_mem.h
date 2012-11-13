@@ -477,12 +477,16 @@ static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
 	dev_dbg(ipu->dev, "initializing idma ch %d @ %p\n", ch, ipu_ch_param_addr(ipu, ch));
 	fill_cpmem(ipu, ch, &params);
 	if (addr2) {
-		ipu_ch_param_set_field(&params, 1, 0, 29, addr2 >> 3);
-		ipu_ch_param_set_field(&params, 1, 29, 29, 0);
-
 		sub_ch = __ipu_ch_get_third_buf_cpmem_num(ch);
 		if (sub_ch <= 0)
 			return;
+
+		ipu_ch_param_set_field(&params, 1, 0, 29, addr2 >> 3);
+		ipu_ch_param_set_field(&params, 1, 29, 29, 0);
+		if (addr2%8)
+			dev_warn(ipu->dev,
+				 "IDMAC%d's sub-CPMEM entry%d EBA0 is not "
+				 "8-byte aligned\n", ch, sub_ch);
 
 		dev_dbg(ipu->dev, "initializing idma ch %d @ %p sub cpmem\n", ch,
 					ipu_ch_param_addr(ipu, sub_ch));
