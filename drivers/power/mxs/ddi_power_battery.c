@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -978,7 +978,7 @@ uint16_t MeasureInternalDieTemperature(void)
 {
 	uint32_t  ch8Value, ch9Value, lradc_irq_mask, channel;
 
-	channel = g_ddi_bc_Configuration.u8BatteryTempChannel;
+	channel = g_ddi_bc_Configuration.u8DieTempChannel;
 	lradc_irq_mask = 1 << channel;
 
 	/* power up internal tep sensor block */
@@ -1050,6 +1050,101 @@ uint16_t MeasureInternalDieTemperature(void)
 	return (uint16_t)((ch9Value-ch8Value)*GAIN_CORRECTION/4000);
 }
 
+
+/*
+ * Use the the lradc channel to get the battery temperature.
+ * A thermistor is used for external temperature sensing
+ * which attached to LRADC0. This function returns the thermister
+ * resistance value in ohm. Please check the specifiction of the
+ * thermister to convert the resistance value to temperature.
+ */
+
+#define NUM_TEMP_READINGS_TO_AVG 3
+
+uint16_t MeasureInternalBatteryTemperature(void)
+{
+	uint32_t  value, lradc_irq_mask, channel, sum = 0;
+  uint16_t  out_value;
+  int i;
+
+	channel = g_ddi_bc_Configuration.u8BatteryTempChannel;
+	lradc_irq_mask = 1 << channel;
+
+  /* Enable the temperature sensor. */
+	__raw_writel(BM_LRADC_CTRL2_TEMPSENSE_PWD,
+			REGS_LRADC_BASE + HW_LRADC_CTRL2_CLR);
+
+
+  /*Setup the temperature sensor for current measurement.
+   100uA is used for thermistor  */
+
+	__raw_writel(BF_LRADC_CTRL2_TEMP_ISRC0(BV_LRADC_CTRL2_TEMP_ISRC0__100),
+			REGS_LRADC_BASE + HW_LRADC_CTRL2_SET);
+
+	__raw_writel(BM_LRADC_CTRL2_TEMP_SENSOR_IENABLE0,
+			REGS_LRADC_BASE + HW_LRADC_CTRL2_SET);
+
+  /* Wait while the current ramps up.  */
+  msleep(1);
+
+
+  /* mux analog input lradc 0 for conversion on LRADC channel . */
+
+  __raw_writel((0xF << (4 * channel)),
+      REGS_LRADC_BASE + HW_LRADC_CTRL4_CLR);
+  __raw_writel((0 << (4 * channel)),
+      REGS_LRADC_BASE + HW_LRADC_CTRL4_SET);
+
+
+	for (i = 0; i < NUM_TEMP_READINGS_TO_AVG; i++) {
+		/* Clear the interrupt flag */
+    __raw_writel(lradc_irq_mask,
+			REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
+    __raw_writel(BF_LRADC_CTRL0_SCHEDULE(1 << channel),
+			REGS_LRADC_BASE + HW_LRADC_CTRL0_SET);
+
+    /* Wait for conversion complete*/
+    while (!(__raw_readl(REGS_LRADC_BASE + HW_LRADC_CTRL1) & lradc_irq_mask))
+				cpu_relax();
+
+    /* Clear the interrupt flag again */
+    __raw_writel(lradc_irq_mask, REGS_LRADC_BASE + HW_LRADC_CTRL1_CLR);
+
+    /* read temperature value and clr lradc */
+    value = __raw_readl(REGS_LRADC_BASE +
+			HW_LRADC_CHn(channel)) & BM_LRADC_CHn_VALUE;
+
+    __raw_writel(BM_LRADC_CHn_VALUE,
+			REGS_LRADC_BASE + HW_LRADC_CHn_CLR(channel));
+
+    sum += value;
+  }
+
+  /* Turn off the current to the temperature sensor to save power */
+
+	__raw_writel(BF_LRADC_CTRL2_TEMP_ISRC0(BV_LRADC_CTRL2_TEMP_ISRC0__ZERO),
+			REGS_LRADC_BASE + HW_LRADC_CTRL2_SET);
+
+	__raw_writel(BM_LRADC_CTRL2_TEMP_SENSOR_IENABLE0,
+			REGS_LRADC_BASE + HW_LRADC_CTRL2_CLR);
+
+
+	/* power down temp sensor block */
+	__raw_writel(BM_LRADC_CTRL2_TEMPSENSE_PWD,
+			REGS_LRADC_BASE + HW_LRADC_CTRL2_SET);
+
+
+  /* Take the voltage average.  */
+  value = sum/NUM_TEMP_READINGS_TO_AVG;
+
+  /* convert the voltage to thermister resistance value in 10ohm.  */
+  /* ohm = (ADC value) * 1.85/(2^12) / current 100uA  */
+  value = value * 18500/4096;
+
+  out_value = value/10;
+
+	return out_value;
+}
 
 
 /*  Name: ddi_power_GetBatteryMode */
@@ -1501,6 +1596,12 @@ void ddi_power_GetDieTemp(int16_t *pLow, int16_t *pHigh)
 	*pLow  = i16Low;
 }
 
+
+void ddi_power_GetBatteryTemp(uint16_t *pReading)
+{
+	/* Get the reading */
+	*pReading = MeasureInternalBatteryTemperature();
+}
 
 /*  */
 /* brief Checks to see if the DCDC has been manually enabled */

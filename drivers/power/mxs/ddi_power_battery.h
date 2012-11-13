@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -60,6 +60,7 @@ uint16_t ddi_power_GetBatteryChargeCurrentThreshold(void);
 uint16_t ddi_power_ExpressibleCurrent(uint16_t u16Current);
 bool ddi_power_Get5vPresentFlag(void);
 void ddi_power_GetDieTemp(int16_t *pLow, int16_t *pHigh);
+void ddi_power_GetBatteryTemp(uint16_t *pReading);
 bool ddi_power_IsDcdcOn(void);
 void ddi_power_SetPowerClkGate(bool bGate);
 bool ddi_power_GetPowerClkGate(void);
