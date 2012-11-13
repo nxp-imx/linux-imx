@@ -26,6 +26,7 @@
 #include <linux/mfd/pfuze.h>
 #include <linux/io.h>
 #include <mach/irqs.h>
+#include <mach/system.h>
 #include "crm_regs.h"
 #include "regs-anadig.h"
 #include "cpu_op-mx6.h"
@@ -57,6 +58,7 @@
 #define PFUZE100_SW1CCON_SPEED_M	(0x3<<6)
 
 extern u32 arm_max_freq;
+extern u32 enable_ldo_mode;
 
 static struct regulator_consumer_supply sw1a_consumers[] = {
 	{
@@ -397,7 +399,6 @@ static struct regulator_init_data vgen6_init = {
 static int pfuze100_init(struct mc_pfuze *pfuze)
 {
 	int ret, i;
-	unsigned int reg;
 	unsigned char value;
 	/*read Device ID*/
 	ret = pfuze_reg_read(pfuze, PFUZE100_DEVICEID, &value);
@@ -441,39 +442,59 @@ static int pfuze100_init(struct mc_pfuze *pfuze)
 		}
 
 	}
+	/*use ldo active mode if use 1.2GHz,otherwise use ldo bypass mode*/
 	if (arm_max_freq == CPU_AT_1_2GHz) {
-		/*VDDARM_IN 1.475V*/
+			/*VDDARM_IN 1.425*/
 		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1AVOL,
 					PFUZE100_SW1AVOL_VSEL_M,
-					0x2f);
+					0x2d);
 		if (ret)
 			goto err;
-		/*VDDSOC_IN 1.475V*/
+		/*VDDSOC_IN 1.425V*/
 		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CVOL,
 					PFUZE100_SW1CVOL_VSEL_M,
-					0x2f);
+					0x2d);
 		if (ret)
 			goto err;
-		/*set VDDSOC&VDDPU to 1.25V*/
-		reg = __raw_readl(ANADIG_REG_CORE);
-		reg &= ~BM_ANADIG_REG_CORE_REG2_TRG;
-		reg |= BF_ANADIG_REG_CORE_REG2_TRG(0x16);
-		reg &= ~BM_ANADIG_REG_CORE_REG1_TRG;
-		reg |= BF_ANADIG_REG_CORE_REG1_TRG(0x16);
-		__raw_writel(reg, ANADIG_REG_CORE);
-
+		enable_ldo_mode = LDO_MODE_ENABLED;
+	} else if (enable_ldo_mode == LDO_MODE_BYPASSED) {
+		/*decrease VDDARM_IN/VDDSOC_IN,since we will use ldo bypass mode*/
+		/*VDDARM_IN 1.3V*/
+		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1AVOL,
+					PFUZE100_SW1AVOL_VSEL_M,
+					0x28);
+		if (ret)
+			goto err;
+		/*VDDSOC_IN 1.3V*/
+		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CVOL,
+					PFUZE100_SW1CVOL_VSEL_M,
+					0x28);
+		if (ret)
+			goto err;
+		/*set SW1AB/1C DVSPEED as 25mV step each 4us,quick than 16us before.*/
+		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1ACON,
+				    PFUZE100_SW1ACON_SPEED_M,
+				    PFUZE100_SW1ACON_SPEED_VAL);
+		if (ret)
+			goto err;
+		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CCON,
+				    PFUZE100_SW1CCON_SPEED_M,
+				    PFUZE100_SW1CCON_SPEED_VAL);
+		if (ret)
+			goto err;
+	} else if (enable_ldo_mode != LDO_MODE_BYPASSED) {
+		/*Increase VDDARM_IN/VDDSOC_IN to 1.375V in ldo active mode*/
+		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1AVOL,
+					PFUZE100_SW1AVOL_VSEL_M,
+					0x2b);
+		if (ret)
+			goto err;
+		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CVOL,
+					PFUZE100_SW1CVOL_VSEL_M,
+					0x2b);
+		if (ret)
+			goto err;
 	}
-	/*set SW1AB/1C DVSPEED as 25mV step each 4us,quick than 16us before.*/
-	ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1ACON,
-			    PFUZE100_SW1ACON_SPEED_M,
-			    PFUZE100_SW1ACON_SPEED_VAL);
-	if (ret)
-		goto err;
-	ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CCON,
-			    PFUZE100_SW1CCON_SPEED_M,
-			    PFUZE100_SW1CCON_SPEED_VAL);
-	if (ret)
-		goto err;
 	return 0;
 err:
 	printk(KERN_ERR "pfuze100 init error!\n");
