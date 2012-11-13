@@ -1586,14 +1586,8 @@ static struct platform_pwm_backlight_data mx6_sabresd_pwm_backlight_data = {
 };
 
 static struct mxc_dvfs_platform_data sabresd_dvfscore_data = {
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	.reg_id = "VDDCORE",
 	.soc_id	= "VDDSOC",
-#else
-	.reg_id = "cpu_vddgp",
-	.soc_id = "cpu_vddsoc",
-	.pu_id = "cpu_vddvpu",
-#endif
 	.clk1_id = "cpu_clk",
 	.clk2_id = "gpc_dvfs_clk",
 	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
@@ -1691,7 +1685,6 @@ static void __init mx6_sabresd_board_init(void)
 
 	gp_reg_id = sabresd_dvfscore_data.reg_id;
 	soc_reg_id = sabresd_dvfscore_data.soc_id;
-	pu_reg_id = sabresd_dvfscore_data.pu_id;
 	mx6q_sabresd_init_uart();
 
 	/*
@@ -1815,9 +1808,6 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_dma();
 
 	imx6q_add_dvfs_core(&sabresd_dvfscore_data);
-#ifndef CONFIG_MX6_INTER_LDO_BYPASS
-	mx6_cpu_regulator_init();
-#endif
 	imx6q_add_device_buttons();
 
 	/* enable sensor 3v3 and 1v8 */
