@@ -167,7 +167,7 @@ static gcsDebugFileSystem gc_dbgfs ;
 static caddr_t
 _ReadFromNode (
                 gcsDebugFileSystemNode* Node ,
-                int *Length ,
+                size_t *Length ,
                 loff_t *Offset
                 )
 {

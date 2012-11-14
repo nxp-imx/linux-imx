@@ -1161,6 +1161,21 @@ gckKERNEL_DestroyProcessDB(
                            record->data, record->bytes, status);
             break;
 
+#if gcdVIRTUAL_COMMAND_BUFFER
+        case gcvDB_COMMAND_BUFFER:
+            /* Free the command buffer. */
+            status = gckEVENT_DestroyVirtualCommandBuffer(record->kernel->eventObj,
+                                                          record->bytes,
+                                                          record->physical,
+                                                          record->data,
+                                                          gcvKERNEL_PIXEL);
+
+            gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
+                           "DB: COMMAND_BUFFER 0x%x, bytes=%lu (status=%d)",
+                           record->data, record->bytes, status);
+            break;
+#endif
+
         case gcvDB_CONTIGUOUS:
             /* Unmap user logical memory first. */
             status = gckOS_UnmapUserLogical(Kernel->os,
@@ -1191,7 +1206,7 @@ gckKERNEL_DestroyProcessDB(
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: SIGNAL %d (status=%d)",
-                           (gctINT) record->data, status);
+                           (gctINT)(gctUINTPTR_T)record->data, status);
             break;
 
         case gcvDB_VIDEO_MEMORY_LOCKED:

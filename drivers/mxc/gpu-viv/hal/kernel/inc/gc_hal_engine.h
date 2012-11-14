@@ -1221,6 +1221,13 @@ gco3D_SetWPlaneLimitX(
 	IN gctFIXED_POINT Value
     );
 
+
+gceSTATUS
+gco3D_SetWPlaneLimit(
+        IN gco3D Engine,
+        IN gctFLOAT Value
+        );
+
 /*----------------------------------------------------------------------------*/
 /*-------------------------- gco3D Fragment Processor ------------------------*/
 
@@ -1476,6 +1483,14 @@ gcoTEXTURE_UploadCompressedSub(
     IN gctUINT Slice,
     IN gctCONST_POINTER Memory,
     IN gctSIZE_T Size
+    );
+
+/* GetImageFormat of texture. */
+gceSTATUS
+gcoTEXTURE_GetImageFormat(
+    IN gcoTEXTURE Texture,
+    IN gctUINT MipMap,
+    OUT gctINT *  ImageFormat
     );
 
 /* Get gcoSURF object for a mipmap level. */
@@ -1779,6 +1794,10 @@ typedef struct _gcsVERTEXARRAY
 
     /* Vertex shader linkage. */
     gctUINT             linkage;
+
+#if gcdUSE_WCLIP_PATCH
+    gctBOOL             isPosition;
+#endif
 }
 gcsVERTEXARRAY,
 * gcsVERTEXARRAY_PTR;
@@ -1805,7 +1824,13 @@ gcoVERTEXARRAY_Bind(
     IN gcoINDEX IndexObject,
     IN gctPOINTER IndexMemory,
     IN OUT gcePRIMITIVE * PrimitiveType,
+#if gcdUSE_WCLIP_PATCH
+    IN OUT gctUINT * PrimitiveCount,
+    IN OUT gctFLOAT * wLimitRms,
+    IN OUT gctBOOL * wLimitDirty
+#else
     IN OUT gctUINT * PrimitiveCount
+#endif
     );
 
 gctUINT

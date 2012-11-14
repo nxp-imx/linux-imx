@@ -1971,7 +1971,7 @@ gckCOMMAND_Commit(
 
         /* Append event record to event queue. */
         gcmkONERROR(gckEVENT_AddList(
-            Command->kernel->eventObj, &eventRecord->iface, gcvKERNEL_PIXEL, gcvTRUE
+            Command->kernel->eventObj, &eventRecord->iface, gcvKERNEL_PIXEL, gcvTRUE, gcvFALSE
             ));
 
         /* Next record in the queue. */

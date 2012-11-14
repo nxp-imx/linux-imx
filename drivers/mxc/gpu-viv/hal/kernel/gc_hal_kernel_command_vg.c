@@ -915,7 +915,7 @@ _HardwareToKernel(
     }
 
     offset = Address - nodePhysical;
-    *KernelPointer = (gctPOINTER)((gctUINT32)Node->VidMem.kernelVirtual + offset);
+    *KernelPointer = (gctPOINTER)((gctUINT8_PTR)Node->VidMem.kernelVirtual + offset);
 #else
     /* Determine the header offset within the pool it is allocated in. */
     offset = Address - memory->baseAddress;

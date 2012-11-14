@@ -146,6 +146,7 @@ typedef unsigned char           gctUINT8;
 typedef unsigned short          gctUINT16;
 typedef unsigned int            gctUINT32;
 typedef unsigned long long      gctUINT64;
+typedef unsigned long           gctUINTPTR_T;
 
 typedef gctUINT *               gctUINT_PTR;
 typedef gctUINT8 *              gctUINT8_PTR;
@@ -888,6 +889,12 @@ gceSTATUS;
 ( \
     gcmPTR2INT(& (((struct s *) 0)->field)) \
 )
+
+#define gcmSWAB32(x) ((gctUINT32)( \
+        (((gctUINT32)(x) & (gctUINT32)0x000000FFUL) << 24) | \
+        (((gctUINT32)(x) & (gctUINT32)0x0000FF00UL) << 8)  | \
+        (((gctUINT32)(x) & (gctUINT32)0x00FF0000UL) >> 8)  | \
+        (((gctUINT32)(x) & (gctUINT32)0xFF000000UL) >> 24)))
 
 /*******************************************************************************
 ***** Database ****************************************************************/

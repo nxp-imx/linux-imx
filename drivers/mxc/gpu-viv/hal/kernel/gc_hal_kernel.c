@@ -220,6 +220,14 @@ gckKERNEL_Construct(
     /* Save context. */
     kernel->context = Context;
 
+#if gcdVIRTUAL_COMMAND_BUFFER
+    kernel->virtualBufferHead =
+    kernel->virtualBufferTail = gcvNULL;
+
+    gcmkONERROR(
+        gckOS_CreateMutex(Os, (gctPOINTER)&kernel->virtualBufferLock));
+#endif
+
     /* Construct atom holding number of clients. */
     kernel->atomClients = gcvNULL;
     gcmkONERROR(gckOS_AtomConstruct(Os, &kernel->atomClients));
@@ -349,6 +357,14 @@ OnError:
             gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Os, kernel->db));
         }
 
+#if gcdVIRTUAL_COMMAND_BUFFER
+        if (kernel->virtualBufferLock != gcvNULL)
+        {
+            /* Destroy the virtual command buffer mutex. */
+            gcmkVERIFY_OK(gckOS_DeleteMutex(Os, kernel->virtualBufferLock));
+        }
+#endif
+
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Os, kernel));
     }
 
@@ -459,6 +475,10 @@ gckKERNEL_Destroy(
 
     /* Detsroy the client atom. */
     gcmkVERIFY_OK(gckOS_AtomDestroy(Kernel->os, Kernel->atomClients));
+
+#if gcdVIRTUAL_COMMAND_BUFFER
+    gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->virtualBufferLock));
+#endif
 
     /* Mark the gckKERNEL object as unknown. */
     Kernel->object.type = gcvOBJ_UNKNOWN;
@@ -830,6 +850,27 @@ gckKERNEL_Dispatch(
                                    Interface->u.AllocateNonPagedMemory.bytes));
         break;
 
+    case gcvHAL_ALLOCATE_VIRTUAL_COMMAND_BUFFER:
+#if gcdVIRTUAL_COMMAND_BUFFER
+        gcmkONERROR(
+            gckKERNEL_AllocateVirtualCommandBuffer(
+                Kernel,
+                FromUser,
+                &Interface->u.AllocateVirtualCommandBuffer.bytes,
+                &Interface->u.AllocateVirtualCommandBuffer.physical,
+                &Interface->u.AllocateVirtualCommandBuffer.logical));
+
+        gcmkVERIFY_OK(
+            gckKERNEL_AddProcessDB(Kernel,
+                                   processID, gcvDB_COMMAND_BUFFER,
+                                   Interface->u.AllocateVirtualCommandBuffer.logical,
+                                   Interface->u.AllocateVirtualCommandBuffer.physical,
+                                   Interface->u.AllocateVirtualCommandBuffer.bytes));
+#else
+        status = gcvSTATUS_NOT_SUPPORTED;
+#endif
+        break;
+
     case gcvHAL_FREE_NON_PAGED_MEMORY:
         physical = Interface->u.FreeNonPagedMemory.physical;
 
@@ -1199,7 +1240,7 @@ gckKERNEL_Dispatch(
                     {
                         gcmkONERROR(
                             gckOS_SignalQueryHardware(Kernel->os,
-                                                      (gctSIGNAL)Interface->u.UserSignal.id,
+                                                      (gctSIGNAL)(gctUINTPTR_T)Interface->u.UserSignal.id,
                                                       &hardware));
 
                         if (hardware)
@@ -1251,8 +1292,8 @@ gckKERNEL_Dispatch(
         case gcvUSER_SIGNAL_MAP:
             gcmkONERROR(
                 gckOS_MapSignal(Kernel->os,
-                               (gctSIGNAL)Interface->u.UserSignal.id,
-                               (gctHANDLE)processID,
+                               (gctSIGNAL)(gctUINTPTR_T)Interface->u.UserSignal.id,
+                               (gctHANDLE)(gctUINTPTR_T)processID,
                                &signal));
 
             gcmkVERIFY_OK(
@@ -2943,7 +2984,253 @@ gckKERNEL_SetTimeOut(
     gcmkFOOTER_NO();
 }
 
+#if gcdVIRTUAL_COMMAND_BUFFER
+gceSTATUS
+gckKERNEL_AllocateVirtualCommandBuffer(
+    IN gckKERNEL Kernel,
+    IN gctBOOL InUserSpace,
+    IN OUT gctSIZE_T * Bytes,
+    OUT gctPHYS_ADDR * Physical,
+    OUT gctPOINTER * Logical
+    )
+{
+    gckOS os = Kernel->os;
+    gceSTATUS status;
+    gctPOINTER logical;
+    gctSIZE_T pageCount;
+    gctSIZE_T bytes = *Bytes;
+    gckVIRTUAL_COMMAND_BUFFER_PTR buffer;
 
+    gcmkHEADER_ARG("Os=0x%X InUserSpace=%d *Bytes=%lu",
+                   os, InUserSpace, gcmOPT_VALUE(Bytes));
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(os, gcvOBJ_OS);
+    gcmkVERIFY_ARGUMENT(Bytes != gcvNULL);
+    gcmkVERIFY_ARGUMENT(*Bytes > 0);
+    gcmkVERIFY_ARGUMENT(Physical != gcvNULL);
+    gcmkVERIFY_ARGUMENT(Logical != gcvNULL);
+
+    gcmkONERROR(gckOS_Allocate(os,
+                               sizeof(gckVIRTUAL_COMMAND_BUFFER),
+                               (gctPOINTER)&buffer));
+
+    gcmkONERROR(gckOS_ZeroMemory(buffer, sizeof(gckVIRTUAL_COMMAND_BUFFER)));
+
+    gcmkONERROR(gckOS_AllocatePagedMemoryEx(os,
+                                            gcvFALSE,
+                                            bytes,
+                                            &buffer->physical));
+
+    if (InUserSpace)
+    {
+        gcmkONERROR(gckOS_LockPages(os,
+                                    buffer->physical,
+                                    bytes,
+                                    gcvFALSE,
+                                    &logical,
+                                    &pageCount));
+
+        *Logical =
+        buffer->userLogical = logical;
+    }
+    else
+    {
+        gcmkONERROR(
+            gckOS_CreateKernelVirtualMapping(buffer->physical,
+                                             &pageCount,
+                                             &logical));
+        *Logical =
+        buffer->kernelLogical = logical;
+    }
+
+    buffer->pageCount = pageCount;
+    buffer->kernel = Kernel;
+
+    gcmkONERROR(gckOS_GetProcessID(&buffer->pid));
+
+    gcmkONERROR(gckMMU_AllocatePages(Kernel->mmu,
+                                     pageCount,
+                                     &buffer->pageTable,
+                                     &buffer->gpuAddress));
+
+    gcmkONERROR(gckOS_MapPagesEx(os,
+                                 Kernel->core,
+                                 buffer->physical,
+                                 pageCount,
+                                 buffer->pageTable));
+
+    gcmkONERROR(gckMMU_Flush(Kernel->mmu));
+
+    *Physical = buffer;
+
+    gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_KERNEL,
+                   "gpuAddress = %x pageCount = %d kernelLogical = %x userLogical=%x",
+                   buffer->gpuAddress, buffer->pageCount,
+                   buffer->kernelLogical, buffer->userLogical);
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(os, Kernel->virtualBufferLock, gcvINFINITE));
+
+    if (Kernel->virtualBufferHead == gcvNULL)
+    {
+        Kernel->virtualBufferHead =
+        Kernel->virtualBufferTail = buffer;
+    }
+    else
+    {
+        buffer->prev = Kernel->virtualBufferTail;
+        Kernel->virtualBufferTail->next = buffer;
+        Kernel->virtualBufferTail = buffer;
+    }
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(os, Kernel->virtualBufferLock));
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    if (buffer->gpuAddress)
+    {
+        gcmkVERIFY_OK(
+            gckMMU_FreePages(Kernel->mmu, buffer->pageTable, buffer->pageCount));
+    }
+
+    if (buffer->userLogical)
+    {
+        gcmkVERIFY_OK(
+            gckOS_UnlockPages(os, buffer->physical, bytes, buffer->userLogical));
+    }
+
+    if (buffer->kernelLogical)
+    {
+        gcmkVERIFY_OK(
+            gckOS_DestroyKernelVirtualMapping(buffer->kernelLogical));
+    }
+
+    if (buffer->physical)
+    {
+        gcmkVERIFY_OK(gckOS_FreePagedMemory(os, buffer->physical, bytes));
+    }
+
+    gcmkVERIFY_OK(gckOS_Free(os, buffer));
+
+    /* Return the status. */
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckKERNEL_DestroyVirtualCommandBuffer(
+    IN gckKERNEL Kernel,
+    IN gctSIZE_T Bytes,
+    IN gctPHYS_ADDR Physical,
+    IN gctPOINTER Logical
+    )
+{
+    gckOS os;
+    gckKERNEL kernel;
+    gckVIRTUAL_COMMAND_BUFFER_PTR buffer = (gckVIRTUAL_COMMAND_BUFFER_PTR)Physical;
+
+    gcmkHEADER();
+    gcmkVERIFY_ARGUMENT(buffer != gcvNULL);
+
+    kernel = buffer->kernel;
+    os = kernel->os;
+
+    if (buffer->userLogical)
+    {
+        gcmkVERIFY_OK(gckOS_UnlockPages(os, buffer->physical, Bytes, Logical));
+    }
+    else
+    {
+        gcmkVERIFY_OK(gckOS_DestroyKernelVirtualMapping(Logical));
+    }
+
+    gcmkVERIFY_OK(
+        gckMMU_FreePages(kernel->mmu, buffer->pageTable, buffer->pageCount));
+
+    gcmkVERIFY_OK(gckOS_FreePagedMemory(os, buffer->physical, Bytes));
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(os, kernel->virtualBufferLock, gcvINFINITE));
+
+    if (buffer == kernel->virtualBufferHead)
+    {
+        if ((kernel->virtualBufferHead = buffer->next) == gcvNULL)
+        {
+            kernel->virtualBufferTail = gcvNULL;
+        }
+    }
+    else
+    {
+        buffer->prev->next = buffer->next;
+
+        if (buffer == kernel->virtualBufferTail)
+        {
+            kernel->virtualBufferTail = buffer->prev;
+        }
+        else
+        {
+            buffer->next->prev = buffer->prev;
+        }
+    }
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(os, kernel->virtualBufferLock));
+
+    gcmkVERIFY_OK(gckOS_Free(os, buffer));
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+gckKERNEL_GetGPUAddress(
+    IN gckKERNEL Kernel,
+    IN gctPOINTER Logical,
+    OUT gctUINT32 * Address
+    )
+{
+    gceSTATUS status;
+    gckVIRTUAL_COMMAND_BUFFER_PTR buffer;
+    gctPOINTER start;
+    gctINT pid;
+
+    gcmkHEADER_ARG("Logical = %x", Logical);
+
+    gckOS_GetProcessID(&pid);
+
+    status = gcvSTATUS_INVALID_ADDRESS;
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, Kernel->virtualBufferLock, gcvINFINITE));
+
+    /* Walk all command buffer. */
+    for (buffer = Kernel->virtualBufferHead; buffer != gcvNULL; buffer = buffer->next)
+    {
+        if (buffer->userLogical)
+        {
+            start = buffer->userLogical;
+        }
+        else
+        {
+            start = buffer->kernelLogical;
+        }
+
+        if (Logical >= start
+        && (Logical < (start + buffer->pageCount * 4096))
+        && pid == buffer->pid
+        )
+        {
+            * Address = buffer->gpuAddress + (Logical - start);
+            status = gcvSTATUS_OK;
+            break;
+        }
+    }
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->virtualBufferLock));
+
+    gcmkFOOTER_NO();
+    return status;
+}
+#endif
 
 /*******************************************************************************
 ***** Test Code ****************************************************************

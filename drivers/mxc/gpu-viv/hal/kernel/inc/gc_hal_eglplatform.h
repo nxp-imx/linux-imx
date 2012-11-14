@@ -45,6 +45,12 @@ typedef struct __BITFIELDINFO{
     RGBQUAD       bmiColors[2];
 } BITFIELDINFO;
 
+#elif defined(LINUX) && defined(EGL_API_DFB) && !defined(__APPLE__)
+#include <directfb.h>
+typedef IDirectFB * HALNativeDisplayType;
+typedef IDirectFBWindow *  HALNativeWindowType;
+typedef struct _DFBPixmap *  HALNativePixmapType;
+
 #elif defined(LINUX) && defined(EGL_API_FB) && !defined(__APPLE__)
 
 #if defined(EGL_API_WL)
