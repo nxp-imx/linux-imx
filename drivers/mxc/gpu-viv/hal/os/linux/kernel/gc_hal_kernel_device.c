@@ -694,7 +694,7 @@ gckGALDEVICE_Construct(
                 gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
             }
 
-            device->internalPhysical = (gctPHYS_ADDR) physical;
+            device->internalPhysical = (gctPHYS_ADDR)(gctUINTPTR_T) physical;
             physical += device->internalSize;
         }
     }
@@ -724,7 +724,7 @@ gckGALDEVICE_Construct(
                 gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
             }
 
-            device->externalPhysical = (gctPHYS_ADDR) physical;
+            device->externalPhysical = (gctPHYS_ADDR)(gctUINTPTR_T) physical;
             physical += device->externalSize;
         }
     }
@@ -840,7 +840,7 @@ gckGALDEVICE_Construct(
                 }
 #endif
 
-                device->contiguousPhysical = (gctPHYS_ADDR) ContiguousBase;
+                device->contiguousPhysical = (gctPHYS_ADDR)(gctUINTPTR_T) ContiguousBase;
                 device->contiguousSize     = ContiguousSize;
                 device->contiguousMapped   = gcvTRUE;
             }

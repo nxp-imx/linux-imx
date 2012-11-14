@@ -146,6 +146,8 @@ typedef enum _gceFEATURE
 	gcvFEATURE_PE_DITHER_FIX,
     gcvFEATURE_2D_YUV_SEPARATE_STRIDE,
     gcvFEATURE_FRUSTUM_CLIP_FIX,
+    gcvFEATURE_TEXTURE_LINEAR,
+    gcvFEATURE_TEXTURE_YUV_ASSEMBLER,
 }
 gceFEATURE;
 
@@ -476,6 +478,17 @@ typedef enum _gceSURF_ALIGNMENT
     gcvSURF_SPLIT_SUPER_TILED,
 }
 gceSURF_ALIGNMENT;
+
+
+/* Surface Addressing. */
+typedef enum _gceSURF_ADDRESSING
+{
+    gcvSURF_NO_STRIDE_TILED = 0,
+    gcvSURF_NO_STRIDE_LINEAR,
+    gcvSURF_STRIDE_TILED,
+    gcvSURF_STRIDE_LINEAR
+}
+gceSURF_ADDRESSING;
 
 /* Transparency modes. */
 typedef enum _gce2D_TRANSPARENCY

@@ -153,6 +153,15 @@
 #endif
 
 /*
+    gcdVIRTUAL_COMMAND_BUFFER
+        When set to 1, user command buffer and context buffer will be allocated
+        from gcvPOOL_VIRTUAL.
+*/
+#ifndef gcdVIRTUAL_COMMAND_BUFFER
+#   define gcdVIRTUAL_COMMAND_BUFFER            0
+#endif
+
+/*
     gcdENABLE_FSCALE_VAL_ADJUST
         When non-zero, FSCALE_VAL when gcvPOWER_ON can be adjusted externally.
  */
@@ -267,13 +276,27 @@
 #endif
 
 /*
+    gcdMIRROR_PAGETABLE
+
+        Enable it when GPUs with old MMU and new MMU exist at same SoC. It makes
+        each GPU use same virtual address to access same physical memory.
+*/
+#ifndef gcdMIRROR_PAGETABLE
+#   define gcdMIRROR_PAGETABLE                  0
+#endif
+
+/*
     gcdMMU_SIZE
 
         Size of the MMU page table in bytes.  Each 4 bytes can hold 4kB worth of
         virtual data.
 */
 #ifndef gcdMMU_SIZE
+#if gcdMIRROR_PAGETABLE
+#   define gcdMMU_SIZE                          0x200000
+#else
 #   define gcdMMU_SIZE                          (2048 << 10)
+#endif
 #endif
 
 /*

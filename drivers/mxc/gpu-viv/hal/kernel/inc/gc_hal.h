@@ -2114,7 +2114,8 @@ gckEVENT_AddList(
     IN gckEVENT Event,
     IN gcsHAL_INTERFACE_PTR Interface,
     IN gceKERNEL_WHERE FromWhere,
-    IN gctBOOL AllocateAllowed
+    IN gctBOOL AllocateAllowed,
+    IN gctBOOL FromKernel
     );
 
 /* Schedule a FreeNonPagedMemory event. */
@@ -2167,6 +2168,18 @@ gckEVENT_CommitDone(
     IN gckEVENT Event,
     IN gceKERNEL_WHERE FromWhere
     );
+
+#if gcdVIRTUAL_COMMAND_BUFFER
+/* Schedule a FreeVirtualCommandBuffer event. */
+gceSTATUS
+gckEVENT_DestroyVirtualCommandBuffer(
+    IN gckEVENT Event,
+    IN gctSIZE_T Bytes,
+    IN gctPHYS_ADDR Physical,
+    IN gctPOINTER Logical,
+    IN gceKERNEL_WHERE FromWhere
+    );
+#endif
 
 gceSTATUS
 gckEVENT_Submit(

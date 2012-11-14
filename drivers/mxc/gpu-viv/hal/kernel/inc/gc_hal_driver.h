@@ -155,6 +155,10 @@ typedef enum _gceHAL_COMMAND_CODES
     gcvHAL_DUMP_GPU_STATE,
     gcvHAL_DUMP_EVENT,
 
+    /* Virtual command buffer. */
+    gcvHAL_ALLOCATE_VIRTUAL_COMMAND_BUFFER,
+    gcvHAL_FREE_VIRTUAL_COMMAND_BUFFER,
+
     /* FSCALE_VAL. */
     gcvHAL_SET_FSCALE_VALUE,
     gcvHAL_GET_FSCALE_VALUE
@@ -474,6 +478,34 @@ typedef struct _gcsHAL_INTERFACE
             IN gctPOINTER               logical;
         }
         FreeNonPagedMemory;
+
+        /* gcvHAL_ALLOCATE_NON_PAGED_MEMORY */
+        struct _gcsHAL_ALLOCATE_VIRTUAL_COMMAND_BUFFER
+        {
+            /* Number of bytes to allocate. */
+            IN OUT gctSIZE_T            bytes;
+
+            /* Physical address of allocation. */
+            OUT gctPHYS_ADDR            physical;
+
+            /* Logical address of allocation. */
+            OUT gctPOINTER              logical;
+        }
+        AllocateVirtualCommandBuffer;
+
+        /* gcvHAL_FREE_NON_PAGED_MEMORY */
+        struct _gcsHAL_FREE_VIRTUAL_COMMAND_BUFFER
+        {
+            /* Number of bytes allocated. */
+            IN gctSIZE_T                bytes;
+
+            /* Physical address of allocation. */
+            IN gctPHYS_ADDR             physical;
+
+            /* Logical address of allocation. */
+            IN gctPOINTER               logical;
+        }
+        FreeVirtualCommandBuffer;
 
         /* gcvHAL_EVENT_COMMIT. */
         struct _gcsHAL_EVENT_COMMIT
