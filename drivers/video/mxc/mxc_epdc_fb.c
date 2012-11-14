@@ -5025,9 +5025,33 @@ static int mxc_epdc_fb_resume(struct platform_device *pdev)
 
 	return 0;
 }
+
+static int mxc_epdc_fb_shutdown(struct platform_device *pdev)
+{
+	struct mxc_epdc_fb_data *fb_data = platform_get_drvdata(pdev);
+
+	/* Disable power to the EPD panel */
+	regulator_disable(fb_data->vcom_regulator);
+	regulator_disable(fb_data->display_regulator);
+
+	/* Disable clocks to EPDC */
+	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_SET);
+	clk_disable(fb_data->epdc_clk_pix);
+	clk_disable(fb_data->epdc_clk_axi);
+
+	/* Disable pins used by EPDC (to prevent leakage current) */
+	if (fb_data->pdata->disable_pins)
+		fb_data->pdata->disable_pins();
+
+	/* turn off the V3p3 */
+	regulator_disable(fb_data->v3p3_regulator);
+
+	return 0;
+}
 #else
 #define mxc_epdc_fb_suspend	NULL
 #define mxc_epdc_fb_resume	NULL
+#define mxc_epdc_fb_shutdown	NULL
 #endif
 
 static struct platform_driver mxc_epdc_fb_driver = {
@@ -5035,6 +5059,7 @@ static struct platform_driver mxc_epdc_fb_driver = {
 	.remove = mxc_epdc_fb_remove,
 	.suspend = mxc_epdc_fb_suspend,
 	.resume = mxc_epdc_fb_resume,
+	.shutdown = mxc_epdc_fb_shutdown,
 	.driver = {
 		   .name = "imx_epdc_fb",
 		   .owner = THIS_MODULE,
