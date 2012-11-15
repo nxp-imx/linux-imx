@@ -443,7 +443,7 @@ static int  __init mx6_usb_h1_init(void)
 		(struct fsl_usb2_wakeup_platform_data *)(pdev_wakeup->dev.platform_data);
 	return 0;
 }
-arch_initcall(mx6_usb_h1_init);
+module_init(mx6_usb_h1_init);
 
 static void __exit mx6_usb_h1_exit(void)
 {
