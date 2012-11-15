@@ -167,6 +167,15 @@ struct platform_device *__init imx_add_vpu(
 	pdata.iram_enable = data->iram_enable;
 	pdata.iram_size = data->iram_size;
 
+#ifdef CONFIG_SOC_IMX6Q
+	if (cpu_is_mx6dl() || cpu_is_mx6q()) {
+		#define HW_OCOTP_CFGn(n) (0x00000410 + (n) * 0x10)
+		unsigned int vpu_disable;
+		vpu_disable = readl(MX6_IO_ADDRESS(OCOTP_BASE_ADDR) + HW_OCOTP_CFGn(3));
+		if (vpu_disable & 0x00008000)
+			return ERR_PTR(-ENODEV);
+	}
+#endif
 	if (cpu_is_mx6dl())
 		pdata.iram_enable = false;
 
