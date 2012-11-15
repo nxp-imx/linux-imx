@@ -60,6 +60,7 @@ struct imx_pcm_runtime_data {
 	struct dma_chan *dma_chan;
 	struct imx_dma_data dma_data;
 	int asrc_enable;
+	struct asrc_p2p_ops *asrc_pcm_p2p_ops_ko;
 
 #if defined(CONFIG_MXC_ASRC) || defined(CONFIG_IMX_HAVE_PLATFORM_IMX_ASRC)
 	enum asrc_pair_index asrc_index;
