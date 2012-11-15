@@ -1505,13 +1505,11 @@ static int ahash_init(struct ahash_request *req)
 {
 	struct caam_hash_state *state = ahash_request_ctx(req);
 
+	memset(state, 0, sizeof(struct caam_hash_state));
+
 	state->update = ahash_update_first;
 	state->finup = ahash_finup_first;
 	state->final = ahash_final_no_ctx;
-
-	state->current_buf = 0;
-	state->buflen_0 = 0;
-	state->buflen_1 = 0;
 
 	return 0;
 }
