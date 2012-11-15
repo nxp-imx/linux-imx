@@ -82,7 +82,8 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	if ((channel != 2) && (channel != 4) && (channel != 6))
 		return -EINVAL;
 
-	ret = asrc_req_pair(channel, &iprtd->asrc_index);
+	ret = iprtd->asrc_pcm_p2p_ops_ko->
+				asrc_p2p_req_pair(channel, &iprtd->asrc_index);
 	if (ret < 0) {
 		pr_err("Fail to request asrc pair\n");
 		return -EINVAL;
@@ -97,7 +98,7 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	config.inclk = INCLK_NONE;
 	config.outclk = OUTCLK_ESAI_TX;
 
-	ret = asrc_config_pair(&config);
+	ret = iprtd->asrc_pcm_p2p_ops_ko->asrc_p2p_config_pair(&config);
 	if (ret < 0) {
 		pr_err("Fail to config asrc\n");
 		return ret;
@@ -142,8 +143,11 @@ static int imx_3stack_surround_hw_free(struct snd_pcm_substream *substream)
 
 	if (iprtd->asrc_enable) {
 		if (iprtd->asrc_index != -1) {
-			asrc_release_pair(iprtd->asrc_index);
-			asrc_finish_conv(iprtd->asrc_index);
+			iprtd->asrc_pcm_p2p_ops_ko->
+					asrc_p2p_release_pair(
+						iprtd->asrc_index);
+			iprtd->asrc_pcm_p2p_ops_ko->
+				asrc_p2p_finish_conv(iprtd->asrc_index);
 		}
 		iprtd->asrc_index = -1;
 	}
