@@ -259,6 +259,19 @@ struct asrc_data {
 	struct device *dev;
 };
 
+struct asrc_p2p_ops {
+	void (*asrc_p2p_start_conv)(enum asrc_pair_index);
+	void (*asrc_p2p_stop_conv)(enum asrc_pair_index);
+	int (*asrc_p2p_get_dma_request)(enum asrc_pair_index, bool);
+	u32 (*asrc_p2p_per_addr)(enum asrc_pair_index, bool);
+	int (*asrc_p2p_req_pair)(int, enum asrc_pair_index *index);
+	int (*asrc_p2p_config_pair)(struct asrc_config *config);
+	void (*asrc_p2p_release_pair)(enum asrc_pair_index);
+	void (*asrc_p2p_finish_conv)(enum asrc_pair_index);
+};
+
+extern void asrc_p2p_hook(struct asrc_p2p_ops *asrc_p2p_ct);
+
 extern int asrc_req_pair(int chn_num, enum asrc_pair_index *index);
 extern void asrc_release_pair(enum asrc_pair_index index);
 extern int asrc_config_pair(struct asrc_config *config);

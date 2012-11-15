@@ -154,6 +154,8 @@ static unsigned char output_clk_map_v2[] = {
 
 static unsigned char *input_clk_map, *output_clk_map;
 
+struct asrc_p2p_ops asrc_pcm_p2p_ops_asrc;
+
 static struct dma_chan *imx_asrc_dma_alloc(u32 dma_req);
 static int imx_asrc_dma_config(
 					struct asrc_pair_params *params,
@@ -2060,6 +2062,18 @@ static struct platform_driver mxc_asrc_driver = {
 static __init int asrc_init(void)
 {
 	int ret;
+
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_start_conv = asrc_start_conv;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_stop_conv = asrc_stop_conv;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_get_dma_request = asrc_get_dma_request;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_per_addr = asrc_get_per_addr;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_req_pair = asrc_req_pair;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_config_pair = asrc_config_pair;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_release_pair = asrc_release_pair;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_finish_conv = asrc_finish_conv;
+
+	asrc_p2p_hook(&asrc_pcm_p2p_ops_asrc);
+
 	ret = platform_driver_register(&mxc_asrc_driver);
 	return ret;
 }
@@ -2069,6 +2083,8 @@ static __init int asrc_init(void)
  *
  */ static void __exit asrc_exit(void)
 {
+	asrc_p2p_hook(NULL);
+
 	platform_driver_unregister(&mxc_asrc_driver);
 	return;
 }
