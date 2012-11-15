@@ -690,7 +690,7 @@ static int  __init mx6_usb_dr_init(void)
 
 	return 0;
 }
-arch_initcall(mx6_usb_dr_init);
+module_init(mx6_usb_dr_init);
 
 static void __exit mx6_usb_dr_exit(void)
 {
