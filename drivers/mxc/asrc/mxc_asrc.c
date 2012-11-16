@@ -945,6 +945,7 @@ static void asrc_read_output_FIFO_S16(struct asrc_pair_params *params)
 	u32 size, i, j, reg, t_size;
 	u16 *index = params->output_last_period.dma_vaddr;
 
+	t_size = 0;
 	size = asrc_get_output_FIFO_size(params->index);
 	while (size) {
 		for (i = 0; i < size; i++) {
