@@ -103,6 +103,7 @@ static struct clk *sata_clk;
 extern char *gp_reg_id;
 extern char *soc_reg_id;
 extern char *pu_reg_id;
+static int caam_enabled;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
@@ -1114,6 +1115,13 @@ static struct mipi_csi2_platform_data mipi_csi2_pdata = {
 	.pixel_clk = "emi_clk",
 };
 
+static int __init caam_setup(char *__unused)
+{
+	caam_enabled = 1;
+	return 1;
+}
+early_param("caam", caam_setup);
+
 /*!
  * Board specific initialization.
  */
@@ -1158,7 +1166,8 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_imx_snvs_rtc();
 
-	imx6q_add_imx_caam();
+	if (1 == caam_enabled)
+		imx6q_add_imx_caam();
 
 	imx6q_add_imx_i2c(0, &mx6q_sabrelite_i2c_data);
 	imx6q_add_imx_i2c(1, &mx6q_sabrelite_i2c_data);

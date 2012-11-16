@@ -204,7 +204,7 @@ static int mma8451_position = 1;
 static int mag3110_position = 2;
 static int max11801_mode = 1;
 static int enable_lcd_ldb;
-
+static int caam_enabled;
 
 extern char *gp_reg_id;
 extern char *soc_reg_id;
@@ -1629,6 +1629,13 @@ static struct mipi_csi2_platform_data mipi_csi2_pdata = {
 	.pixel_clk = "emi_clk",
 };
 
+static int __init caam_setup(char *__unused)
+{
+	caam_enabled = 1;
+	return 1;
+}
+early_param("caam", caam_setup);
+
 #define SNVS_LPCR 0x38
 static void mx6_snvs_poweroff(void)
 {
@@ -1728,7 +1735,8 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_imx_snvs_rtc();
 
-	imx6q_add_imx_caam();
+	if (1 == caam_enabled)
+		imx6q_add_imx_caam();
 
 	if (board_is_mx6_reva()) {
 		strcpy(mxc_i2c0_board_info[0].type, "wm8958");
