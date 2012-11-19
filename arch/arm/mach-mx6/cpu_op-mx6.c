@@ -13,10 +13,12 @@
 
 #include <linux/types.h>
 #include <linux/kernel.h>
+#include <asm/io.h>
 #include <mach/hardware.h>
 #include <mach/mxc_dvfs.h>
 #include "cpu_op-mx6.h"
 
+#define OCOTP_SPEED_BIT_OFFSET (16)
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern struct dvfs_op *(*get_dvfs_core_op)(int *wp);
 extern void (*set_num_cpu_op)(int num);
@@ -32,6 +34,13 @@ static struct cpu_op mx6q_cpu_op_1_2G[] = {
 	 .pu_voltage = 1275000,
 	 .soc_voltage = 1275000,
 	 .cpu_voltage = 1275000,},
+	{
+	 .pll_rate = 996000000,
+	 .cpu_rate = 996000000,
+	 .cpu_podf = 0,
+	 .pu_voltage = 1250000,
+	 .soc_voltage = 1250000,
+	 .cpu_voltage = 1250000,},
 	{
 	 .pll_rate = 792000000,
 	 .cpu_rate = 792000000,
@@ -331,6 +340,20 @@ void mx6_set_num_cpu_op(int num)
 
 void mx6_cpu_op_init(void)
 {
+	unsigned int reg;
+	void __iomem *base;
+	if (cpu_is_mx6q()) {
+		/*read fuse bit to know the max cpu freq : offset 0x440
+		* bit[17:16]:SPEED_GRADING[1:0]*/
+		base = IO_ADDRESS(OCOTP_BASE_ADDR);
+		reg = __raw_readl(base + 0x440);
+		reg &= (0x3 << OCOTP_SPEED_BIT_OFFSET);
+		reg >>= OCOTP_SPEED_BIT_OFFSET;
+		/*choose the little value to run lower max cpufreq*/
+		arm_max_freq = (reg > arm_max_freq) ? arm_max_freq : reg;
+	} else
+		arm_max_freq = CPU_AT_1GHz;/*mx6dl/sl max freq is 1Ghz*/
+	printk(KERN_INFO "arm_max_freq=%x\n", arm_max_freq);
 	get_cpu_op = mx6_get_cpu_op;
 	set_num_cpu_op = mx6_set_num_cpu_op;
 
