@@ -33,6 +33,7 @@
 #include <asm/mach-types.h>
 
 static void __iomem *wdog_base;
+extern u32 enable_ldo_mode;
 
 
 static void arch_reset_special_mode(char mode, const char *cmd)
@@ -56,11 +57,10 @@ void arch_reset(char mode, const char *cmd)
 
 #ifdef CONFIG_ARCH_MX6
 	/* wait for reset to assert... */
-	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	wcr_enable = 0x14; /*reset system by extern pmic*/
-	#else
-	wcr_enable = (1 << 2);
-	#endif
+	if (enable_ldo_mode == LDO_MODE_BYPASSED)
+		wcr_enable = 0x14; /*reset system by extern pmic*/
+	else
+		wcr_enable = (1 << 2);
 	__raw_writew(wcr_enable, wdog_base);
 	/* errata TKT039676, SRS bit may be missed when
 	SRC sample it, need to write the wdog controller

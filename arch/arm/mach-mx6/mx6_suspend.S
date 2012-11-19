@@ -1105,11 +1105,9 @@ set ddr iomux to low power mode
 	ldr	r1, =CCM_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 	ldr	r0, [r1]
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	ldr	r1, =ANATOP_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 	ldr	r0, [r1]
-#endif
 
 	/* Do a DSB to drain the buffers. */
 	dsb
@@ -1239,14 +1237,21 @@ rbc_loop:
 	cmp	r4, #0x0
 	bne	rbc_loop
 
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	/*if internal ldo(VDDARM) bypassed,analog bypass it for DSM(0x1e) and
+	*restore it when resume(0x1f).
+	*/
 	ldr	r1, =ANATOP_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r4, [r1, #0x140]
+	and	r4, r4, #0x1f
+	cmp	r4, #0x1f
+	bne	ldo_check_done1
+ldo_analog_bypass:
 	ldr	r4, [r1, #0x140]
 	bic	r4, r4, #0x1f
 	orr	r4, r4, #0x1e
 	str	r4, [r1, #0x140]
-#endif
+ldo_check_done1:
 /****************************************************************
 execute a wfi instruction to let SOC go into stop mode.
 ****************************************************************/
@@ -1261,14 +1266,18 @@ execute a wfi instruction to let SOC go into stop mode.
 if go here, means there is a wakeup irq pending, we should resume
 system immediately.
 ****************************************************************/
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	/*restore it with 0x1f if use ldo bypass mode.*/
 	ldr	r1, =ANATOP_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 	ldr	r3, [r1, #0x140]
+	and	r3, r3, #0x1f
+	cmp	r3, #0x1e
+	bne	ldo_check_done2
+ldo_bypass_restore:
+	ldr	r3, [r1, #0x140]
 	orr	r3, r3, #0x1f
 	str	r3, [r1, #0x140]
-#endif
-
+ldo_check_done2:
 	mov	r0, r2 		/* get suspend_iram_base */
 	add	r0, r0, #IRAM_SUSPEND_SIZE	/* 8K */
 
@@ -1387,19 +1396,23 @@ poll_dvfs_clear_1:
 	mcr	p15, 0, r1, c1, c0, 0
 
 	b 	out	/* exit standby */
+	.ltorg
 
 /****************************************************************
 when SOC exit stop mode, arm core restart from here, currently
 are running with MMU off.
 ****************************************************************/
 resume:
-
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	/*restore it with 0x1f if use ldo bypass mode.*/
 	ldr	r1, =ANATOP_BASE_ADDR
+	ldr	r3, [r1, #0x140]
+	and	r3, r3, #0x1f
+	cmp	r3, #0x1e
+	bne	ldo_check_done3
 	ldr	r3, [r1, #0x140]
 	orr	r3, r3, #0x1f
 	str	r3, [r1, #0x140]
-#endif
+ldo_check_done3:
 	/* Invalidate L1 I-cache first */
 	mov	r1,	#0x0
 	mcr	p15, 0, r1, c7, c5, 0	@ Invalidate I-Cache
