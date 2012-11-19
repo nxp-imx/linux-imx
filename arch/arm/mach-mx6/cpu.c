@@ -25,6 +25,7 @@
 #include <linux/delay.h>
 
 #include <mach/hardware.h>
+#include <mach/system.h>
 #include <asm/io.h>
 #include <asm/mach/map.h>
 
@@ -33,6 +34,7 @@
 
 struct cpu_op *(*get_cpu_op)(int *op);
 bool enable_wait_mode = true;
++u32 enable_ldo_mode = LDO_MODE_DEFAULT;
 u32 arm_max_freq = CPU_AT_1_2GHz;
 bool mem_clk_on_in_wait;
 int chip_rev;
@@ -244,6 +246,19 @@ static int __init arm_core_max(char *p)
 }
 
 early_param("arm_freq", arm_core_max);
+
+static int __init enable_ldo(char *p)
+{
+	if (memcmp(p, "on", 2) == 0) {
+		enable_ldo_mode = LDO_MODE_ENABLED;
+		p += 2;
+	} else if (memcmp(p, "off", 3) == 0) {
+		enable_ldo_mode = LDO_MODE_BYPASSED;
+		p += 3;
+	}
+	return 0;
+}
+early_param("ldo_active", enable_ldo);
 
 static int __init enable_mem_clk_in_wait(char *p)
 {

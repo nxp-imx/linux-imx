@@ -23,6 +23,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/delay.h>
 #include <linux/io.h>
+#include <linux/suspend.h>
 #include <asm/smp_plat.h>
 #include <asm/cpu.h>
 
@@ -32,15 +33,6 @@
 #define CLK32_FREQ	32768
 #define NANOSECOND	(1000 * 1000 * 1000)
 
-/*If using cpu internal ldo bypass,we need config pmic by I2C in suspend
-interface, but cpufreq driver as sys_dev is more later to suspend than I2C
-driver, so we should implement another I2C operate function which isolated
-with kernel I2C driver, these code is copied from u-boot*/
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-/*0:normal; 1: in the middle of suspend or resume; 2: suspended*/
-static int cpu_freq_suspend_in;
-static struct mutex set_cpufreq_lock;
-#endif
 
 static int cpu_freq_khz_min;
 static int cpu_freq_khz_max;
@@ -51,6 +43,8 @@ static struct cpufreq_frequency_table *imx_freq_table;
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
 static u32 pre_suspend_rate;
+static bool cpufreq_suspend;
+static struct mutex set_cpufreq_lock;
 
 extern struct regulator *cpu_regulator;
 extern struct regulator *soc_regulator;
@@ -58,6 +52,8 @@ extern struct regulator *pu_regulator;
 extern int dvfs_core_is_active;
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern void bus_freq_update(struct clk *clk, bool flag);
+extern void mx6_arm_regulator_bypass(void);
+extern void mx6_soc_pu_regulator_bypass(void);
 
 int set_cpu_freq(int freq)
 {
@@ -81,11 +77,6 @@ int set_cpu_freq(int freq)
 
 	if (gp_volt == 0)
 		return ret;
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	/*Do not change cpufreq if system enter suspend flow*/
-	if (cpu_freq_suspend_in == 2)
-		return -1;
-#endif
 	/*Set the voltage for the GP domain. */
 	if (freq > org_cpu_rate) {
 		/* Check if the bus freq needs to be increased first */
@@ -187,7 +178,6 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	num_cpus = num_possible_cpus();
 	if (policy->cpu > num_cpus)
 		return 0;
-
 	if (dvfs_core_is_active) {
 		struct cpufreq_freqs freqs;
 
@@ -215,13 +205,16 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 		freqs.cpu = i;
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 	}
-	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	mutex_lock(&set_cpufreq_lock);
+	if (cpufreq_suspend) {
+		mutex_unlock(&set_cpufreq_lock);
+		return ret;
+	}
 	ret = set_cpu_freq(freq_Hz);
-	mutex_unlock(&set_cpufreq_lock);
-	#else
-	ret = set_cpu_freq(freq_Hz);
-	#endif
+	if (ret) {
+		mutex_unlock(&set_cpufreq_lock);
+		return ret;
+	}
 #ifdef CONFIG_SMP
 	/* Loops per jiffy is not updated by the CPUFREQ driver for SMP systems.
 	  * So update it for all CPUs.
@@ -235,6 +228,7 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	 * as all CPUs are running at same freq */
 	loops_per_jiffy = per_cpu(cpu_data, 0).loops_per_jiffy;
 #endif
+	mutex_unlock(&set_cpufreq_lock);
 	for (i = 0; i < num_cpus; i++) {
 		freqs.cpu = i;
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
@@ -242,60 +236,6 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 
 	return ret;
 }
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-void mxc_cpufreq_suspend(void)
-{
-	mutex_lock(&set_cpufreq_lock);
-	pre_suspend_rate = clk_get_rate(cpu_clk);
-	/*set flag and raise up cpu frequency if needed*/
-	cpu_freq_suspend_in = 1;
-	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000)) {
-			set_cpu_freq(imx_freq_table[0].frequency * 1000);
-			loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
-				pre_suspend_rate / 1000, imx_freq_table[0].frequency);
-	}
-	cpu_freq_suspend_in = 2;
-	mutex_unlock(&set_cpufreq_lock);
-
-}
-
-void mxc_cpufreq_resume(void)
-{
-	mutex_lock(&set_cpufreq_lock);
-	cpu_freq_suspend_in = 1;
-	if (clk_get_rate(cpu_clk) != pre_suspend_rate) {
-		set_cpu_freq(pre_suspend_rate);
-		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
-			imx_freq_table[0].frequency, pre_suspend_rate / 1000);
-	}
-	cpu_freq_suspend_in = 0;
-	mutex_unlock(&set_cpufreq_lock);
-}
-
-
-#else
-static int mxc_cpufreq_suspend(struct cpufreq_policy *policy)
-{
-	pre_suspend_rate = clk_get_rate(cpu_clk);
-	if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000)) {
-		set_cpu_freq(imx_freq_table[0].frequency * 1000);
-		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
-			pre_suspend_rate / 1000, imx_freq_table[0].frequency);
-	}
-
-	return 0;
-}
-
-static int mxc_cpufreq_resume(struct cpufreq_policy *policy)
-{
-	if (clk_get_rate(cpu_clk) != pre_suspend_rate) {
-		set_cpu_freq(pre_suspend_rate);
-		loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
-			imx_freq_table[0].frequency, pre_suspend_rate / 1000);
-	}
-	return 0;
-}
-#endif
 
 static int __devinit mxc_cpufreq_init(struct cpufreq_policy *policy)
 {
@@ -399,21 +339,50 @@ static struct cpufreq_driver mxc_driver = {
 	.get = mxc_get_speed,
 	.init = mxc_cpufreq_init,
 	.exit = mxc_cpufreq_exit,
-#ifndef CONFIG_MX6_INTER_LDO_BYPASS
-	.suspend = mxc_cpufreq_suspend,
-	.resume = mxc_cpufreq_resume,
-#endif
 	.name = "imx",
 	.attr = imx_cpufreq_attr,
 };
 
+static int cpufreq_pm_notify(struct notifier_block *nb, unsigned long event,
+	void *dummy)
+{
+#ifdef CONFIG_SMP
+	unsigned int i;
+#endif
+	int ret;
+	mutex_lock(&set_cpufreq_lock);
+	if (event == PM_SUSPEND_PREPARE) {
+		pre_suspend_rate = clk_get_rate(cpu_clk);
+		if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000)) {
+			ret = set_cpu_freq(imx_freq_table[0].frequency * 1000);
+			if (ret)
+				return NOTIFY_OK;/*if update freq error,return*/
+#ifdef CONFIG_SMP
+			for_each_possible_cpu(i)
+				per_cpu(cpu_data, i).loops_per_jiffy =
+					cpufreq_scale(per_cpu(cpu_data, i).loops_per_jiffy,
+					pre_suspend_rate / 1000, imx_freq_table[0].frequency);
+			loops_per_jiffy = per_cpu(cpu_data, 0).loops_per_jiffy;
+#else
+			loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
+				pre_suspend_rate / 1000, imx_freq_table[0].frequency);
+#endif
+		}
+		cpufreq_suspend = true;
+	} else if (event == PM_POST_SUSPEND)
+		cpufreq_suspend = false;
+	mutex_unlock(&set_cpufreq_lock);
+	return NOTIFY_OK;
+}
+static struct notifier_block imx_cpufreq_pm_notifier = {
+	.notifier_call = cpufreq_pm_notify,
+};
 extern void mx6_cpu_regulator_init(void);
 static int __init mxc_cpufreq_driver_init(void)
 {
-	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	mx6_cpu_regulator_init();
 	mutex_init(&set_cpufreq_lock);
-	#endif
+	register_pm_notifier(&imx_cpufreq_pm_notifier);
 	return cpufreq_register_driver(&mxc_driver);
 }
 

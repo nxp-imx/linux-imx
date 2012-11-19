@@ -34,6 +34,7 @@
 #include <linux/clk.h>
 
 #include <mach/clock.h>
+#include <mach/system.h>
 
 #include "crm_regs.h"
 #include "regs-anadig.h"
@@ -55,6 +56,7 @@ static struct clk *gpu3d_clk, *gpu3d_shade_clk, *gpu2d_clk, *gpu2d_axi_clk;
 static struct clk *openvg_axi_clk, *vpu_clk;
 extern int external_pureg;
 extern struct regulator *pu_regulator;
+extern u32 enable_ldo_mode;
 
 
 static int get_voltage(struct anatop_regulator *sreg)
@@ -185,13 +187,12 @@ static int pu_enable(struct anatop_regulator *sreg)
 	reg = __raw_readl(ANA_MISC2_BASE_ADDR);
 	reg |= ANADIG_ANA_MISC2_REG1_BO_EN;
 	__raw_writel(reg, ANA_MISC2_BASE_ADDR);
-
-#ifndef CONFIG_MX6_INTER_LDO_BYPASS
-	/* Unmask the ANATOP brown out interrupt in the GPC. */
-	reg = __raw_readl(gpc_base + 0x14);
-	reg &= ~0x80000000;
-	__raw_writel(reg, gpc_base + 0x14);
-#endif
+	if (enable_ldo_mode != LDO_MODE_BYPASSED) {
+		/* Unmask the ANATOP brown out interrupt in the GPC. */
+		reg = __raw_readl(gpc_base + 0x14);
+		reg &= ~0x80000000;
+		__raw_writel(reg, gpc_base + 0x14);
+	}
 	pu_is_enabled = 1;
 	if (get_clk) {
 		if (!cpu_is_mx6sl()) {
@@ -229,12 +230,12 @@ static int pu_disable(struct anatop_regulator *sreg)
 	/* Wait for power down to complete. */
 	while (__raw_readl(gpc_base + GPC_CNTR_OFFSET) & 0x1)
 			;
-#ifndef CONFIG_MX6_INTER_LDO_BYPASS
-	/* Mask the ANATOP brown out interrupt in the GPC. */
-	reg = __raw_readl(gpc_base + 0x14);
-	reg |= 0x80000000;
-	__raw_writel(reg, gpc_base + 0x14);
-#endif
+	if (enable_ldo_mode != LDO_MODE_BYPASSED) {
+		/* Mask the ANATOP brown out interrupt in the GPC. */
+		reg = __raw_readl(gpc_base + 0x14);
+		reg |= 0x80000000;
+		__raw_writel(reg, gpc_base + 0x14);
+	}
 
 	if (external_pureg) {
 		/*disable extern PU regulator*/
