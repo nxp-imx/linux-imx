@@ -61,7 +61,7 @@ void arch_reset(char mode, const char *cmd)
 		/*On Sabresd board use WDOG2 to reset external PMIC, so here do
 		* more WDOG2 reset.*/
 		wcr_enable = 0x14;
-		__raw_write(wcr_enable, IO_ADDRESS(MX6Q_WDOG2_BASE_ADDR));
+		__raw_writew(wcr_enable, IO_ADDRESS(MX6Q_WDOG2_BASE_ADDR));
 		__raw_writew(wcr_enable, IO_ADDRESS(MX6Q_WDOG2_BASE_ADDR));
 	} else
 		wcr_enable = (1 << 2);
