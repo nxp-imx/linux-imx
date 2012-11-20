@@ -449,6 +449,36 @@ static int csi_v4l2_buffer_status(cam_data *cam, struct v4l2_buffer *buf)
 	return 0;
 }
 
+static int csi_v4l2_release_bufs(cam_data *cam)
+{
+	pr_debug("In MVC:csi_v4l2_release_bufs\n");
+	return 0;
+}
+
+static int csi_v4l2_prepare_bufs(cam_data *cam, struct v4l2_buffer *buf)
+{
+	pr_debug("In MVC:csi_v4l2_prepare_bufs\n");
+
+	if (buf->index < 0 || buf->index >= FRAME_NUM || buf->length <
+			PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage)) {
+		pr_err("ERROR: v4l2 capture: csi_v4l2_prepare_bufs buffers "
+			"not allocated,index=%d, length=%d\n", buf->index,
+			buf->length);
+		return -EINVAL;
+	}
+
+	cam->frame[buf->index].buffer.index = buf->index;
+	cam->frame[buf->index].buffer.flags = V4L2_BUF_FLAG_MAPPED;
+	cam->frame[buf->index].buffer.length = buf->length;
+	cam->frame[buf->index].buffer.m.offset = cam->frame[buf->index].paddress
+		= buf->m.offset;
+	cam->frame[buf->index].buffer.type = buf->type;
+	cam->frame[buf->index].buffer.memory = V4L2_MEMORY_USERPTR;
+	cam->frame[buf->index].index = buf->index;
+
+	return 0;
+}
+
 /*!
  * Indicates whether the palette is supported.
  *
@@ -1164,8 +1194,7 @@ static long csi_v4l_do_ioctl(struct file *file,
 			req->count = FRAME_NUM;
 		}
 
-		if ((req->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) ||
-				(req->memory != V4L2_MEMORY_MMAP)) {
+		if (req->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 			pr_err("ERROR: v4l2 capture: VIDIOC_REQBUFS: "
 					"wrong buffer type\n");
 			retval = -EINVAL;
@@ -1173,12 +1202,14 @@ static long csi_v4l_do_ioctl(struct file *file,
 		}
 
 		csi_streamoff(cam);
-		csi_free_frame_buf(cam);
+		if (req->memory & V4L2_MEMORY_MMAP)
+			csi_free_frame_buf(cam);
 		cam->skip_frame = 0;
 		INIT_LIST_HEAD(&cam->ready_q);
 		INIT_LIST_HEAD(&cam->working_q);
 		INIT_LIST_HEAD(&cam->done_q);
-		retval = csi_allocate_frame_buf(cam, req->count);
+		if (req->memory & V4L2_MEMORY_MMAP)
+			retval = csi_allocate_frame_buf(cam, req->count);
 		break;
 	}
 
@@ -1192,9 +1223,19 @@ static long csi_v4l_do_ioctl(struct file *file,
 			break;
 		}
 
-		memset(buf, 0, sizeof(buf));
-		buf->index = index;
-		retval = csi_v4l2_buffer_status(cam, buf);
+		if (buf->memory & V4L2_MEMORY_MMAP) {
+			memset(buf, 0, sizeof(buf));
+			buf->index = index;
+		}
+
+		down(&cam->param_lock);
+		if (buf->memory & V4L2_MEMORY_USERPTR) {
+			csi_v4l2_release_bufs(cam);
+			retval = csi_v4l2_prepare_bufs(cam, buf);
+		}
+		if (buf->memory & V4L2_MEMORY_MMAP)
+			retval = csi_v4l2_buffer_status(cam, buf);
+		up(&cam->param_lock);
 		break;
 	}
 
