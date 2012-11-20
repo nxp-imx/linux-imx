@@ -217,7 +217,10 @@ static inline void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 					 struct sk_buff *skb,
 					 struct bufdesc *bdp) {}
 static inline int fec_ptp_ioctl(struct fec_ptp_private *priv,
-				struct ifreq *ifr, int cmd) {}
+				struct ifreq *ifr, int cmd)
+{
+	return 0;
+}
 
 #endif /* 1588 */
 
