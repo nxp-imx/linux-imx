@@ -79,7 +79,6 @@ int set_cpu_freq(int freq)
 			org_pu_volt = cpu_op_tbl[i].pu_voltage;
 		}
 	}
-
 	if (gp_volt == 0)
 		return ret;
 	/*Set the voltage for the GP domain. */
@@ -244,6 +243,11 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 		return ret;
 	}
 
+	mutex_lock(&set_cpufreq_lock);
+	if (cpufreq_suspend) {
+		mutex_unlock(&set_cpufreq_lock);
+		return ret;
+	}
 	cpufreq_frequency_table_target(policy, imx_freq_table,
 			target_freq, relation, &index);
 	freq_Hz = imx_freq_table[index].frequency * 1000;
@@ -252,21 +256,13 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	freqs.new = freq_Hz / 1000;
 	freqs.cpu = policy->cpu;
 	freqs.flags = 0;
-
 	for (i = 0; i < num_cpus; i++) {
 		freqs.cpu = i;
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 	}
-	mutex_lock(&set_cpufreq_lock);
-	if (cpufreq_suspend) {
-		mutex_unlock(&set_cpufreq_lock);
-		return ret;
-	}
 	ret = set_cpu_freq(freq_Hz);
-	if (ret) {
-		mutex_unlock(&set_cpufreq_lock);
-		return ret;
-	}
+	if (ret)
+		goto  Set_finish;
 #ifdef CONFIG_SMP
 	/* Loops per jiffy is not updated by the CPUFREQ driver for SMP systems.
 	  * So update it for all CPUs.
@@ -280,11 +276,12 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 	 * as all CPUs are running at same freq */
 	loops_per_jiffy = per_cpu(cpu_data, 0).loops_per_jiffy;
 #endif
-	mutex_unlock(&set_cpufreq_lock);
+Set_finish:
 	for (i = 0; i < num_cpus; i++) {
 		freqs.cpu = i;
 		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
 	}
+	mutex_unlock(&set_cpufreq_lock);
 
 	return ret;
 }
@@ -398,17 +395,27 @@ static struct cpufreq_driver mxc_driver = {
 static int cpufreq_pm_notify(struct notifier_block *nb, unsigned long event,
 	void *dummy)
 {
-#ifdef CONFIG_SMP
 	unsigned int i;
-#endif
+	int num_cpus;
 	int ret;
+	struct cpufreq_freqs freqs;
+
+	num_cpus = num_possible_cpus();
 	mutex_lock(&set_cpufreq_lock);
 	if (event == PM_SUSPEND_PREPARE) {
 		pre_suspend_rate = clk_get_rate(cpu_clk);
 		if (pre_suspend_rate != (imx_freq_table[0].frequency * 1000)) {
+			/*notify cpufreq core will raise up cpufreq to highest*/
+			freqs.old = pre_suspend_rate / 1000;
+			freqs.new = imx_freq_table[0].frequency;
+			freqs.flags = 0;
+			for (i = 0; i < num_cpus; i++) {
+				freqs.cpu = i;
+				cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+			}
 			ret = set_cpu_freq(imx_freq_table[0].frequency * 1000);
 			if (ret)
-				return NOTIFY_OK;/*if update freq error,return*/
+				goto Notify_finish;/*if update freq error,return*/
 #ifdef CONFIG_SMP
 			for_each_possible_cpu(i)
 				per_cpu(cpu_data, i).loops_per_jiffy =
@@ -419,10 +426,50 @@ static int cpufreq_pm_notify(struct notifier_block *nb, unsigned long event,
 			loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
 				pre_suspend_rate / 1000, imx_freq_table[0].frequency);
 #endif
+			for (i = 0; i < num_cpus; i++) {
+				freqs.cpu = i;
+				cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+			}
 		}
 		cpufreq_suspend = true;
-	} else if (event == PM_POST_SUSPEND)
+	} else if (event == PM_POST_SUSPEND) {
+		if (clk_get_rate(cpu_clk) != pre_suspend_rate) {
+			/*notify cpufreq core will restore rate before suspend*/
+			freqs.old = imx_freq_table[0].frequency;
+			freqs.new = pre_suspend_rate / 1000;
+			freqs.flags = 0;
+			for (i = 0; i < num_cpus; i++) {
+				freqs.cpu = i;
+				cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+			}
+			ret = set_cpu_freq(pre_suspend_rate);
+			if (ret)
+				goto Notify_finish;/*if update freq error,return*/
+#ifdef CONFIG_SMP
+			for_each_possible_cpu(i)
+				per_cpu(cpu_data, i).loops_per_jiffy =
+					cpufreq_scale(per_cpu(cpu_data, i).loops_per_jiffy,
+					imx_freq_table[0].frequency, pre_suspend_rate / 1000);
+			loops_per_jiffy = per_cpu(cpu_data, 0).loops_per_jiffy;
+#else
+			loops_per_jiffy = cpufreq_scale(loops_per_jiffy,
+				imx_freq_table[0].frequency, pre_suspend_rate / 1000);
+#endif
+			for (i = 0; i < num_cpus; i++) {
+				freqs.cpu = i;
+				cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+			}
+		}
 		cpufreq_suspend = false;
+	}
+	mutex_unlock(&set_cpufreq_lock);
+	return NOTIFY_OK;
+
+Notify_finish:
+	for (i = 0; i < num_cpus; i++) {
+		freqs.cpu = i;
+		cpufreq_notify_transition(&freqs, CPUFREQ_POSTCHANGE);
+	}
 	mutex_unlock(&set_cpufreq_lock);
 	return NOTIFY_OK;
 }
