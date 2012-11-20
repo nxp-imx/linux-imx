@@ -62,9 +62,6 @@ static void caam_jr_dequeue(unsigned long devarg)
 	unsigned long flags;
 
 	outbusaddr = rd_reg64(&jrp->rregs->outring_base);
-	dma_sync_single_for_cpu(dev, outbusaddr,
-				sizeof(struct jr_outentry) * JOBR_DEPTH,
-				DMA_FROM_DEVICE);
 
 	spin_lock_irqsave(&jrp->outlock, flags);
 
@@ -75,6 +72,10 @@ static void caam_jr_dequeue(unsigned long devarg)
 	       rd_reg32(&jrp->rregs->outring_used)) {
 
 		hw_idx = jrp->out_ring_read_index;
+		dma_sync_single_for_cpu(dev, outbusaddr,
+					sizeof(struct jr_outentry) * JOBR_DEPTH,
+					DMA_FROM_DEVICE);
+
 		for (i = 0; CIRC_CNT(head, tail + i, JOBR_DEPTH) >= 1; i++) {
 			sw_idx = (tail + i) & (JOBR_DEPTH - 1);
 
