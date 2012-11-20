@@ -408,7 +408,13 @@ static struct mtd_partition m25p32_partitions[] = {
 	{
 		.name	= "bootloader",
 		.offset	= 0,
-		.size	= 0x00100000,
+		.size	= SZ_256K,
+		.mask_flags = MTD_WRITEABLE,
+	}, {
+		.name	= "bootenv",
+		.offset = MTDPART_OFS_APPEND,
+		.size	= SZ_8K,
+		.mask_flags = MTD_WRITEABLE,
 	}, {
 		.name	= "kernel",
 		.offset	= MTDPART_OFS_APPEND,
@@ -429,7 +435,7 @@ static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
 		.modalias	= "m25p80",
 		.max_speed_hz	= 20000000,
 		.bus_num	= 0,
-		.chip_select	= 0,
+		.chip_select	= 1,
 		.platform_data	= &m25p32_spi_flash_data,
 	},
 };
