@@ -444,17 +444,29 @@ static void spi_device_init(void)
 	spi_register_board_info(m25p32_spi0_board_info,
 				ARRAY_SIZE(m25p32_spi0_board_info));
 }
+
 static struct mtd_partition mxc_nor_partitions[] = {
 	{
-		.name	= "Bootloader",
+		.name	= "bootloader",
 		.offset	= 0,
-		.size	=  0x00080000,
+		.size	= SZ_256K,
+		.mask_flags = MTD_WRITEABLE,
 	}, {
-		.name	= "nor.Kernel",
+		.name = "bootenv",
+		.offset = MTDPART_OFS_APPEND,
+		.size = SZ_256K,
+		.mask_flags = MTD_WRITEABLE,
+	}, {
+		.name	= "kernel",
 		.offset	= MTDPART_OFS_APPEND,
+		.size	= SZ_4M,
+	}, {
+		.name	= "rootfs",
+		.offset = MTDPART_OFS_APPEND,
 		.size	= MTDPART_SIZ_FULL,
 	},
 };
+
 static struct resource nor_flash_resource = {
 	.start		= CS0_BASE_ADDR,
 	.end		= CS0_BASE_ADDR  +  0x02000000 - 1,
