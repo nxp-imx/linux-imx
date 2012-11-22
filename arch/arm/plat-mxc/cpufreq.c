@@ -184,10 +184,13 @@ err4:
 	}
 
 err3:
-	ret = regulator_set_voltage(pu_regulator, org_pu_volt, org_pu_volt);
-	if (ret < 0) {
-		printk(KERN_ERR "COULD NOT RESTORE PU VOLTAGE!!!!\n");
-		goto err3;
+	if (!IS_ERR(pu_regulator) &&
+		regulator_is_enabled(pu_regulator)) {
+		ret = regulator_set_voltage(pu_regulator, org_pu_volt, org_pu_volt);
+		if (ret < 0) {
+			printk(KERN_ERR "COULD NOT RESTORE PU VOLTAGE!!!!\n");
+			goto err3;
+		}
 	}
 err2:
 	ret = regulator_set_voltage(soc_regulator, org_soc_volt,
