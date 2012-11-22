@@ -1285,9 +1285,8 @@ static struct mxc_mlb_platform_data mx6_sabreauto_mlb150_data = {
 };
 
 static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
-	.reg_id			= "cpu_vddgp",
-	.soc_id			= "cpu_vddsoc",
-	.pu_id			= "cpu_vddvpu",
+	.reg_id			= "VDDCORE",
+	.soc_id			= "VDDSOC",
 	.clk1_id		= "cpu_clk",
 	.clk2_id 		= "gpc_dvfs_clk",
 	.gpc_cntr_offset 	= MXC_GPC_CNTR_OFFSET,
@@ -1525,7 +1524,6 @@ static void __init mx6_board_init(void)
 
 	gp_reg_id = sabreauto_dvfscore_data.reg_id;
 	soc_reg_id = sabreauto_dvfscore_data.soc_id;
-	pu_reg_id = sabreauto_dvfscore_data.pu_id;
 	mx6q_sabreauto_init_uart();
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	if (cpu_is_mx6dl()) {
@@ -1603,7 +1601,6 @@ static void __init mx6_board_init(void)
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&sabreauto_vmmc_reg_devices);
-	mx6_cpu_regulator_init();
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);
