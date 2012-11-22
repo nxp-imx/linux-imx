@@ -62,13 +62,13 @@ extern u32 enable_ldo_mode;
 
 static struct regulator_consumer_supply sw1a_consumers[] = {
 	{
-	 .supply = "P1V325_VDDARM_SW1AB",
+	 .supply = "VDDCORE",
 	 }
 };
 
 static struct regulator_consumer_supply sw1c_consumers[] = {
 	{
-	 .supply = "P1V325_VDDSOC_SW1C",
+	 .supply = "VDDSOC",
 	 }
 };
 
@@ -400,6 +400,11 @@ static int pfuze100_init(struct mc_pfuze *pfuze)
 {
 	int ret, i;
 	unsigned char value;
+
+	/*use default mode(ldo bypass) if no param from cmdline*/
+	if (enable_ldo_mode == LDO_MODE_DEFAULT)
+		enable_ldo_mode = LDO_MODE_BYPASSED;
+
 	/*read Device ID*/
 	ret = pfuze_reg_read(pfuze, PFUZE100_DEVICEID, &value);
 	if (ret)

@@ -173,7 +173,6 @@ extern char *gp_reg_id;
 extern char *soc_reg_id;
 extern char *pu_reg_id;
 extern int epdc_enabled;
-extern void mx6_cpu_regulator_init(void);
 static int max17135_regulator_init(struct max17135 *max17135);
 
 enum sd_pad_mode {
@@ -2164,7 +2163,6 @@ static void __init mx6_arm2_init(void)
 	mx6_arm2_init_usb();
 	mx6_arm2_init_audio();
 	platform_device_register(&arm2_vmmc_reg_devices);
-	mx6_cpu_regulator_init();
 
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
