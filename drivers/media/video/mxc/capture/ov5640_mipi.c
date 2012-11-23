@@ -1216,7 +1216,7 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 	s32 ArySize = 0;
 	int retval = 0;
 	void *mipi_csi2_info;
-	u32 mipi_reg;
+	u32 mipi_reg, msec_wait4stable = 0;
 	enum ov5640_downsize_mode dn_mode, orig_dn_mode;
 
 	if ((mode > ov5640_mode_MAX || mode < ov5640_mode_MIN)
@@ -1287,6 +1287,20 @@ static int ov5640_init_mode(enum ov5640_frame_rate frame_rate,
 	OV5640_get_light_freq();
 	OV5640_set_bandingfilter();
 	ov5640_set_virtual_channel(ov5640_data.csi);
+
+	/* add delay to wait for sensor stable */
+	if (mode == ov5640_mode_QSXGA_2592_1944) {
+		/* dump the first two frames: 1/7.5*2
+		 * the frame rate of QSXGA is 7.5fps */
+		msec_wait4stable = 267;
+	} else if (frame_rate == ov5640_15_fps) {
+		/* dump the first nine frames: 1/15*9 */
+		msec_wait4stable = 600;
+	} else if (frame_rate == ov5640_30_fps) {
+		/* dump the first nine frames: 1/30*9 */
+		msec_wait4stable = 300;
+	}
+	msleep(msec_wait4stable);
 
 	if (mipi_csi2_info) {
 		unsigned int i;
