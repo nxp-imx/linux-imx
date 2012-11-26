@@ -264,8 +264,18 @@ static int mxc_set_target(struct cpufreq_policy *policy,
 		cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 	}
 	ret = set_cpu_freq(freq_Hz);
-	if (ret)
+	if (ret) {
+		/*restore cpufreq and tell cpufreq core if set fail*/
+		freqs.old = clk_get_rate(cpu_clk) / 1000;
+		freqs.new = freqs.old;
+		freqs.cpu = policy->cpu;
+		freqs.flags = 0;
+		for (i = 0; i < num_cpus; i++) {
+			freqs.cpu = i;
+			cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+		}
 		goto  Set_finish;
+	}
 #ifdef CONFIG_SMP
 	/* Loops per jiffy is not updated by the CPUFREQ driver for SMP systems.
 	  * So update it for all CPUs.
@@ -417,8 +427,17 @@ static int cpufreq_pm_notify(struct notifier_block *nb, unsigned long event,
 				cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 			}
 			ret = set_cpu_freq(imx_freq_table[0].frequency * 1000);
-			if (ret)
+			/*restore cpufreq and tell cpufreq core if set fail*/
+			if (ret) {
+				freqs.old =  clk_get_rate(cpu_clk)/1000;
+				freqs.new = freqs.old;
+				freqs.flags = 0;
+				for (i = 0; i < num_cpus; i++) {
+					freqs.cpu = i;
+					cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+				}
 				goto Notify_finish;/*if update freq error,return*/
+			}
 #ifdef CONFIG_SMP
 			for_each_possible_cpu(i)
 				per_cpu(cpu_data, i).loops_per_jiffy =
@@ -446,8 +465,17 @@ static int cpufreq_pm_notify(struct notifier_block *nb, unsigned long event,
 				cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
 			}
 			ret = set_cpu_freq(pre_suspend_rate);
-			if (ret)
+			/*restore cpufreq and tell cpufreq core if set fail*/
+			if (ret) {
+				freqs.old =  clk_get_rate(cpu_clk)/1000;
+				freqs.new = freqs.old;
+				freqs.flags = 0;
+				for (i = 0; i < num_cpus; i++) {
+					freqs.cpu = i;
+					cpufreq_notify_transition(&freqs, CPUFREQ_PRECHANGE);
+				}
 				goto Notify_finish;/*if update freq error,return*/
+			}
 #ifdef CONFIG_SMP
 			for_each_possible_cpu(i)
 				per_cpu(cpu_data, i).loops_per_jiffy =
