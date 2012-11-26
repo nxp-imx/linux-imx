@@ -403,7 +403,7 @@ static int pfuze100_init(struct mc_pfuze *pfuze)
 
 	/*use default mode(ldo bypass) if no param from cmdline*/
 	if (enable_ldo_mode == LDO_MODE_DEFAULT)
-		enable_ldo_mode = LDO_MODE_BYPASSED;
+		enable_ldo_mode = LDO_MODE_ENABLED;
 
 	/*read Device ID*/
 	ret = pfuze_reg_read(pfuze, PFUZE100_DEVICEID, &value);
