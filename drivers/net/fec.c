@@ -1503,7 +1503,7 @@ static int fec_enet_init(struct net_device *ndev)
 	int i;
 
 	/* Allocate memory for buffer descriptors. */
-	cbd_base = dma_alloc_coherent(NULL, BUFDES_SIZE, &fep->bd_dma,
+	cbd_base = dma_alloc_noncacheable(NULL, BUFDES_SIZE, &fep->bd_dma,
 			GFP_KERNEL);
 	if (!cbd_base) {
 		printk("FEC: allocate descriptor memory failed?\n");
