@@ -881,6 +881,8 @@ static int esdhc_pltfm_init(struct sdhci_host *host, struct sdhci_pltfm_data *pd
 		if (boarddata->always_present) {
 			/* remove BROKEN_CD to disable card polling */
 			host->quirks &= ~SDHCI_QUIRK_BROKEN_CARD_DETECTION;
+			/* if it is always present, invalid cd_gpio */
+			boarddata->cd_gpio = ARCH_NR_GPIOS + 1;
 			if (host->clk_mgr_en)
 				clk_disable(pltfm_host->clk);
 			return 0;
