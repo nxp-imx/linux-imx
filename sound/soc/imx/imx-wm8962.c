@@ -184,6 +184,14 @@ static void headphone_detect_handler(struct work_struct *wor)
 	/*sysfs_notify(&pdev->dev.kobj, NULL, "headphone");*/
 	priv->hp_status = gpio_get_value(plat->hp_gpio);
 
+	/* if headphone is inserted, disable speaker */
+	if (priv->hp_status != plat->hp_active_low)
+		snd_soc_dapm_nc_pin(&gcodec->dapm, "Ext Spk");
+	else
+		snd_soc_dapm_enable_pin(&gcodec->dapm, "Ext Spk");
+
+	snd_soc_dapm_sync(&gcodec->dapm);
+
 	/* setup a message for userspace headphone in */
 	buf = kmalloc(32, GFP_ATOMIC);
 	if (!buf) {
@@ -251,6 +259,8 @@ static void amic_detect_handler(struct work_struct *work)
 		snd_soc_dapm_nc_pin(&gcodec->dapm, "DMIC");
 	else
 		snd_soc_dapm_enable_pin(&gcodec->dapm, "DMIC");
+
+	snd_soc_dapm_sync(&gcodec->dapm);
 
 	/* setup a message for userspace headphone in */
 	buf = kmalloc(32, GFP_ATOMIC);
@@ -341,6 +351,14 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 			ret = -EINVAL;
 			return ret;
 		}
+
+		priv->hp_status = gpio_get_value(plat->hp_gpio);
+
+		/* if headphone is inserted, disable speaker */
+		if (priv->hp_status != plat->hp_active_low)
+			snd_soc_dapm_nc_pin(&codec->dapm, "Ext Spk");
+		else
+			snd_soc_dapm_enable_pin(&codec->dapm, "Ext Spk");
 	}
 
 	if (plat->mic_gpio != -1) {
