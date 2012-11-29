@@ -339,14 +339,14 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 		if (pdata->usb_clock_for_pm)
 			pdata->usb_clock_for_pm(true);
 
+		/*disable the wakeup to avoid an abnormal wakeup interrupt*/
+		usb_host_set_wakeup(hcd->self.controller, false);
+
 		tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
 		if (tmp & PORT_PTS_PHCD) {
 			tmp &= ~PORT_PTS_PHCD;
 			ehci_writel(ehci, tmp, &ehci->regs->port_status[0]);
 			msleep(100);
-
-			if (pdata->usb_clock_for_pm)
-				pdata->usb_clock_for_pm(false);
 		}
 	}
 
