@@ -1045,6 +1045,9 @@ static int fec_enet_mii_probe(struct net_device *ndev)
 	else
 		phy_dev->supported &= PHY_BASIC_FEATURES;
 
+	/* enable phy pause frame for any platform */
+	phy_dev->supported |= ADVERTISED_Pause;
+
 	phy_dev->advertising = phy_dev->supported;
 
 	fep->phy_dev = phy_dev;
