@@ -272,9 +272,13 @@ static void camera_callback(u32 mask, void *dev)
 	if (cam == NULL)
 		return;
 
+	spin_lock(&cam->queue_int_lock);
+	spin_lock(&cam->dqueue_int_lock);
 	if (list_empty(&cam->working_q)) {
 		pr_debug("v4l2 capture: %s: "
 				"working queue empty\n", __func__);
+		spin_unlock(&cam->dqueue_int_lock);
+		spin_unlock(&cam->queue_int_lock);
 		return;
 	}
 
@@ -309,6 +313,8 @@ static void camera_callback(u32 mask, void *dev)
 		pr_err("ERROR: v4l2 capture: %s: "
 				"buffer not queued\n", __func__);
 	}
+	spin_unlock(&cam->dqueue_int_lock);
+	spin_unlock(&cam->queue_int_lock);
 
 	return;
 }
@@ -502,6 +508,7 @@ static inline int valid_mode(u32 palette)
 static int csi_streamon(cam_data *cam)
 {
 	struct mxc_v4l_frame *frame;
+	unsigned long lock_flags;
 
 	pr_debug("In MVC: %s\n", __func__);
 
@@ -511,10 +518,12 @@ static int csi_streamon(cam_data *cam)
 		return -1;
 	}
 
+	spin_lock_irqsave(&cam->queue_int_lock, lock_flags);
 	/* move the frame from readyq to workingq */
 	if (list_empty(&cam->ready_q)) {
 		pr_err("ERROR: v4l2 capture: %s: "
 				"ready_q queue empty\n", __func__);
+		spin_unlock_irqrestore(&cam->queue_int_lock, lock_flags);
 		return -1;
 	}
 	frame = list_entry(cam->ready_q.next, struct mxc_v4l_frame, queue);
@@ -525,12 +534,14 @@ static int csi_streamon(cam_data *cam)
 	if (list_empty(&cam->ready_q)) {
 		pr_err("ERROR: v4l2 capture: %s: "
 				"ready_q queue empty\n", __func__);
+		spin_unlock_irqrestore(&cam->queue_int_lock, lock_flags);
 		return -1;
 	}
 	frame = list_entry(cam->ready_q.next, struct mxc_v4l_frame, queue);
 	list_del(cam->ready_q.next);
 	list_add_tail(&frame->queue, &cam->working_q);
 	__raw_writel(cam->frame[frame->index].paddress, CSI_CSIDMASA_FB2);
+	spin_unlock_irqrestore(&cam->queue_int_lock, lock_flags);
 
 	cam->capture_pid = current->pid;
 	cam->capture_on = true;
@@ -862,6 +873,9 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 		return -ERESTARTSYS;
 	}
 
+	if (down_interruptible(&cam->busy_lock))
+		return -EBUSY;
+
 	spin_lock_irqsave(&cam->dqueue_int_lock, lock_flags);
 
 	cam->enc_counter--;
@@ -905,6 +919,7 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 		}
 		pxp_complete_update(cam);
 	}
+	up(&cam->busy_lock);
 
 	return retval;
 }
@@ -1091,8 +1106,9 @@ static long csi_v4l_do_ioctl(struct file *file,
 	pr_debug("In MVC: %s, %x\n", __func__, ioctlnr);
 	wait_event_interruptible(cam->power_queue, cam->low_power == false);
 	/* make this _really_ smp-safe */
-	if (down_interruptible(&cam->busy_lock))
-		return -EBUSY;
+	if (ioctlnr != VIDIOC_DQBUF)
+		if (down_interruptible(&cam->busy_lock))
+			return -EBUSY;
 
 	switch (ioctlnr) {
 		/*!
@@ -1202,14 +1218,10 @@ static long csi_v4l_do_ioctl(struct file *file,
 		}
 
 		csi_streamoff(cam);
-		if (req->memory & V4L2_MEMORY_MMAP)
+		if (req->memory & V4L2_MEMORY_MMAP) {
 			csi_free_frame_buf(cam);
-		cam->skip_frame = 0;
-		INIT_LIST_HEAD(&cam->ready_q);
-		INIT_LIST_HEAD(&cam->working_q);
-		INIT_LIST_HEAD(&cam->done_q);
-		if (req->memory & V4L2_MEMORY_MMAP)
 			retval = csi_allocate_frame_buf(cam, req->count);
+		}
 		break;
 	}
 
@@ -1375,7 +1387,8 @@ static long csi_v4l_do_ioctl(struct file *file,
 		break;
 	}
 
-	up(&cam->busy_lock);
+	if (ioctlnr != VIDIOC_DQBUF)
+		up(&cam->busy_lock);
 	return retval;
 }
 
