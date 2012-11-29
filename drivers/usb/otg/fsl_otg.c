@@ -607,6 +607,9 @@ int fsl_otg_start_gadget(struct otg_fsm *fsm, int on)
 static int fsl_otg_set_host(struct otg_transceiver *otg_p, struct usb_bus *host)
 {
 	struct fsl_otg *otg_dev = container_of(otg_p, struct fsl_otg, otg);
+	struct fsl_usb2_platform_data *pdata;
+
+	pdata = otg_dev->otg.dev->platform_data;
 
 	if (!otg_p || otg_dev != fsl_otg_dev)
 		return -ENODEV;
@@ -633,6 +636,8 @@ static int fsl_otg_set_host(struct otg_transceiver *otg_p, struct usb_bus *host)
 		else {
 			/* if the device is already at the port */
 			otg_drv_vbus(&otg_dev->fsm, 1);
+			if (pdata->dr_discharge_line)
+				pdata->dr_discharge_line(false);
 			fsl_otg_wait_stable_vbus(true);
 			b_session_irq_enable(false);
 			fsl_otg_start_host(&otg_dev->fsm, 1);
