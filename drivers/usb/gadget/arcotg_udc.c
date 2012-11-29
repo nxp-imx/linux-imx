@@ -3248,7 +3248,7 @@ err1a:
 static int  fsl_udc_remove(struct platform_device *pdev)
 {
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
-
+	u32 temp;
 	DECLARE_COMPLETION(done);
 
 	if (!udc_controller)
@@ -3258,6 +3258,13 @@ static int  fsl_udc_remove(struct platform_device *pdev)
 	if (udc_controller->stopped)
 		dr_clk_gate(true);
 
+	/* disable wake up and otgsc interrupt for safely remove udc driver*/
+	temp = fsl_readl(&dr_regs->otgsc);
+	temp &= ~(0x7f << 24);
+	fsl_writel(temp, &dr_regs->otgsc);
+	dr_wake_up_enable(udc_controller, false);
+
+	dr_discharge_line(pdata, true);
 	/* DR has been stopped in usb_gadget_unregister_driver() */
 	remove_proc_file();
 
