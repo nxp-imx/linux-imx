@@ -181,7 +181,7 @@ static int i2c_imx_acked(struct imx_i2c_struct *i2c_imx)
 	return 0;
 }
 
-static void __init i2c_imx_set_clk(struct imx_i2c_struct *i2c_imx,
+static void i2c_imx_set_clk(struct imx_i2c_struct *i2c_imx,
 							unsigned int rate)
 {
 	unsigned int i2c_clk_rate;
