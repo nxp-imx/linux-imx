@@ -35,6 +35,14 @@
 #include "imx-ssi.h"
 #include "imx-pcm.h"
 
+struct asrc_p2p_ops *asrc_pcm_p2p_ops;
+
+void asrc_p2p_hook(struct asrc_p2p_ops *asrc_p2p_ct)
+{
+	asrc_pcm_p2p_ops = asrc_p2p_ct;
+	return ;
+}
+EXPORT_SYMBOL(asrc_p2p_hook);
 
 static void audio_dma_irq(void *data)
 {
@@ -109,14 +117,16 @@ static int imx_ssi_asrc_dma_alloc(struct snd_pcm_substream *substream,
 	iprtd->asrc_dma_data.peripheral_type = IMX_DMATYPE_ASRC;
 	iprtd->asrc_dma_data.priority = DMA_PRIO_HIGH;
 	iprtd->asrc_dma_data.dma_request =
-			asrc_get_dma_request(iprtd->asrc_index, 1);
+			iprtd->asrc_pcm_p2p_ops_ko->
+				asrc_p2p_get_dma_request(iprtd->asrc_index, 1);
 	iprtd->asrc_dma_chan = dma_request_channel(mask, asrc_filter, iprtd);
 
 	if (!iprtd->asrc_dma_chan)
 		goto error;
 
 	slave_config.direction = DMA_TO_DEVICE;
-	slave_config.dst_addr = asrc_get_per_addr(iprtd->asrc_index, 1);
+	slave_config.dst_addr = iprtd->asrc_pcm_p2p_ops_ko->
+					asrc_p2p_per_addr(iprtd->asrc_index, 1);
 	slave_config.dst_addr_width = buswidth;
 	slave_config.dst_maxburst = dma_params->burstsize * buswidth;
 
@@ -127,7 +137,8 @@ static int imx_ssi_asrc_dma_alloc(struct snd_pcm_substream *substream,
 	iprtd->asrc_p2p_dma_data.peripheral_type = IMX_DMATYPE_ASRC;
 	iprtd->asrc_p2p_dma_data.priority = DMA_PRIO_HIGH;
 	iprtd->asrc_p2p_dma_data.dma_request =
-			asrc_get_dma_request(iprtd->asrc_index, 0);
+			iprtd->asrc_pcm_p2p_ops_ko->
+				asrc_p2p_get_dma_request(iprtd->asrc_index, 0);
 	iprtd->asrc_p2p_dma_data.dma_request_p2p = dma_params->dma;
 	iprtd->asrc_p2p_dma_chan =
 		dma_request_channel(mask, asrc_p2p_filter, iprtd);
@@ -146,7 +157,8 @@ static int imx_ssi_asrc_dma_alloc(struct snd_pcm_substream *substream,
 	}
 
 	slave_config.direction = DMA_DEV_TO_DEV;
-	slave_config.src_addr = asrc_get_per_addr(iprtd->asrc_index, 0);
+	slave_config.src_addr = iprtd->asrc_pcm_p2p_ops_ko->
+					asrc_p2p_per_addr(iprtd->asrc_index, 0);
 	slave_config.src_addr_width = buswidth;
 	slave_config.src_maxburst = dma_params->burstsize * buswidth;
 	slave_config.dst_addr = dma_params->dma_addr;
@@ -358,7 +370,8 @@ static int snd_imx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		if (iprtd->asrc_enable) {
 			dmaengine_submit(iprtd->asrc_p2p_desc);
 			dmaengine_submit(iprtd->asrc_desc);
-			asrc_start_conv(iprtd->asrc_index);
+			iprtd->asrc_pcm_p2p_ops_ko->
+					asrc_p2p_start_conv(iprtd->asrc_index);
 			mdelay(1);
 		} else {
 			dmaengine_submit(iprtd->desc);
@@ -371,7 +384,8 @@ static int snd_imx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		if (iprtd->asrc_enable) {
 			dmaengine_terminate_all(iprtd->asrc_dma_chan);
 			dmaengine_terminate_all(iprtd->asrc_p2p_dma_chan);
-			asrc_stop_conv(iprtd->asrc_index);
+			iprtd->asrc_pcm_p2p_ops_ko->
+					asrc_p2p_stop_conv(iprtd->asrc_index);
 		} else {
 			dmaengine_terminate_all(iprtd->dma_chan);
 		}
@@ -405,7 +419,7 @@ static struct snd_pcm_hardware snd_imx_hardware = {
 	.rate_min = 8000,
 	.channels_min = 2,
 	.channels_max = 2,
-	.buffer_bytes_max = IMX_SSI_DMABUF_SIZE,
+	.buffer_bytes_max = IMX_DEFAULT_DMABUF_SIZE,
 	.period_bytes_min = 128,
 	.period_bytes_max = 65535, /* Limited by SDMA engine */
 	.periods_min = 2,
@@ -428,6 +442,11 @@ static int snd_imx_open(struct snd_pcm_substream *substream)
 		iprtd->p2p =
 			(struct asrc_p2p_params *)snd_soc_pcm_get_drvdata(rtd);
 		iprtd->asrc_index = -1;
+		if (!asrc_pcm_p2p_ops) {
+			pr_err("ASRC is not loaded!\n");
+			return -EINVAL;
+		}
+		iprtd->asrc_pcm_p2p_ops_ko = asrc_pcm_p2p_ops;
 	}
 
 	runtime->private_data = iprtd;
@@ -438,6 +457,15 @@ static int snd_imx_open(struct snd_pcm_substream *substream)
 		kfree(iprtd);
 		return ret;
 	}
+
+	if (!strncmp(rtd->cpu_dai->name, "imx-ssi", strlen("imx-ssi")))
+		snd_imx_hardware.buffer_bytes_max = IMX_SSI_DMABUF_SIZE;
+	else if (!strncmp(rtd->cpu_dai->name, "imx-esai", strlen("imx-esai")))
+		snd_imx_hardware.buffer_bytes_max = IMX_ESAI_DMABUF_SIZE;
+	else if (!strncmp(rtd->cpu_dai->name, "imx-spdif", strlen("imx-spdif")))
+		snd_imx_hardware.buffer_bytes_max = IMX_SPDIF_DMABUF_SIZE;
+	else
+		snd_imx_hardware.buffer_bytes_max = IMX_DEFAULT_DMABUF_SIZE;
 
 	snd_soc_set_runtime_hwparams(substream, &snd_imx_hardware);
 
@@ -476,8 +504,11 @@ static int __devinit imx_soc_platform_probe(struct platform_device *pdev)
 {
 	struct imx_ssi *ssi = platform_get_drvdata(pdev);
 
-	ssi->dma_params_tx.burstsize = 6;
-	ssi->dma_params_rx.burstsize = 4;
+	if (ssi->dma_params_tx.burstsize == 0
+			&& ssi->dma_params_rx.burstsize == 0) {
+		ssi->dma_params_tx.burstsize = 6;
+		ssi->dma_params_rx.burstsize = 4;
+	}
 
 	return snd_soc_register_platform(&pdev->dev, &imx_soc_platform_mx2);
 }

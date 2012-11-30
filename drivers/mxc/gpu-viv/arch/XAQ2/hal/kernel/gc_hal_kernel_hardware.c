@@ -221,17 +221,8 @@ _IdentifyHardware(
         Identity->superTileMode = 0;
     }
 
-    /* If new HZ is available, disable other early z modes. */
-    if (((((gctUINT32) (Identity->chipMinorFeatures3)) >> (0 ? 26:26) & ((gctUINT32) ((((1 ? 26:26) - (0 ? 26:26) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 26:26) - (0 ? 26:26) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 26:26) - (0 ? 26:26) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 26:26) - (0 ? 26:26) + 1)))))))
-     || ((((gctUINT32) (Identity->chipMinorFeatures3)) >> (0 ? 8:8) & ((gctUINT32) ((((1 ? 8:8) - (0 ? 8:8) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:8) - (0 ? 8:8) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 8:8) - (0 ? 8:8) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 8:8) - (0 ? 8:8) + 1))))))))
-    {
-        /* Disable EZ. */
-        Identity->chipFeatures
-            = ((((gctUINT32) (Identity->chipFeatures)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))) << (0 ? 16:16))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))) << (0 ? 16:16)));
-    }
-
 	/* Disable HZ when EZ is present for older chips. */
-    else if (!((((gctUINT32) (Identity->chipFeatures)) >> (0 ? 16:16) & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))))
+	if (!((((gctUINT32) (Identity->chipFeatures)) >> (0 ? 16:16) & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))))
     {
         /* Disable HIERARCHICAL_Z. */
         Identity->chipMinorFeatures
@@ -408,7 +399,7 @@ _IdentifyHardware(
                    (instructionCount == 0) ? " (default)" : "");
 
     /* Get the number of constants. */
-    Identity->numConstants = numConstants;
+    Identity->numConstants = (numConstants == 0) ? 168 : numConstants;
 
     gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
                    "Specs: numConstants=%u%s",
@@ -2344,25 +2335,32 @@ gckHARDWARE_ConvertLogical(
     gcmkVERIFY_ARGUMENT(Logical != gcvNULL);
     gcmkVERIFY_ARGUMENT(Address != gcvNULL);
 
-    /* Convert logical address into a physical address. */
-    gcmkONERROR(
-        gckOS_GetPhysicalAddress(Hardware->os, Logical, &address));
+#if gcdVIRTUAL_COMMAND_BUFFER
+    status = gckKERNEL_GetGPUAddress(Hardware->kernel, Logical, Address);
 
-    /* For old MMU, get GPU address according to baseAddress. */
-    if (Hardware->mmuVersion == 0)
+    if (status == gcvSTATUS_INVALID_ADDRESS)
+#endif
     {
-        gcmkONERROR(gckOS_GetBaseAddress(Hardware->os, &baseAddress));
+        /* Convert logical address into a physical address. */
+        gcmkONERROR(
+            gckOS_GetPhysicalAddress(Hardware->os, Logical, &address));
 
-        /* Subtract base address to get a GPU address. */
-        gcmkASSERT(address >= baseAddress);
-        address -= baseAddress;
+        /* For old MMU, get GPU address according to baseAddress. */
+        if (Hardware->mmuVersion == 0)
+        {
+            gcmkONERROR(gckOS_GetBaseAddress(Hardware->os, &baseAddress));
+
+            /* Subtract base address to get a GPU address. */
+            gcmkASSERT(address >= baseAddress);
+            address -= baseAddress;
+        }
+
+        /* Return hardware specific address. */
+        *Address = (Hardware->mmuVersion == 0)
+                 ? ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:31) - (0 ? 31:31) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:31) - (0 ? 31:31) + 1))))))) << (0 ? 31:31))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 31:31) - (0 ? 31:31) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:31) - (0 ? 31:31) + 1))))))) << (0 ? 31:31)))
+                   | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 30:0) - (0 ? 30:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 30:0) - (0 ? 30:0) + 1))))))) << (0 ? 30:0))) | (((gctUINT32) ((gctUINT32) (address) & ((gctUINT32) ((((1 ? 30:0) - (0 ? 30:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 30:0) - (0 ? 30:0) + 1))))))) << (0 ? 30:0)))
+                 : address;
     }
-
-    /* Return hardware specific address. */
-    *Address = (Hardware->mmuVersion == 0)
-             ? ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:31) - (0 ? 31:31) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:31) - (0 ? 31:31) + 1))))))) << (0 ? 31:31))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 31:31) - (0 ? 31:31) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:31) - (0 ? 31:31) + 1))))))) << (0 ? 31:31)))
-               | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 30:0) - (0 ? 30:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 30:0) - (0 ? 30:0) + 1))))))) << (0 ? 30:0))) | (((gctUINT32) ((gctUINT32) (address) & ((gctUINT32) ((((1 ? 30:0) - (0 ? 30:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 30:0) - (0 ? 30:0) + 1))))))) << (0 ? 30:0)))
-             : address;
 
     /* Success. */
     gcmkFOOTER_ARG("*Address=0x%08x", *Address);
@@ -2621,7 +2619,7 @@ gckHARDWARE_QuerySystemMemory(
     return gcvSTATUS_OK;
 }
 
-#if !defined(VIVANTE_NO_3D)
+#ifndef VIVANTE_NO_3D
 /*******************************************************************************
 **
 **  gckHARDWARE_QueryShaderCaps
@@ -3393,8 +3391,13 @@ gckHARDWARE_SetFastClear(
         /* Set fast clear bypass. */
         debug = ((((gctUINT32) (debug)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 20:20) - (0 ? 20:20) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 20:20) - (0 ? 20:20) + 1))))))) << (0 ? 20:20))) | (((gctUINT32) ((gctUINT32) (Enable == 0) & ((gctUINT32) ((((1 ? 20:20) - (0 ? 20:20) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 20:20) - (0 ? 20:20) + 1))))))) << (0 ? 20:20)));
 
-        /* Set compression bypass. */
-        debug = ((((gctUINT32) (debug)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 21:21) - (0 ? 21:21) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 21:21) - (0 ? 21:21) + 1))))))) << (0 ? 21:21))) | (((gctUINT32) ((gctUINT32) (Compression == 0) & ((gctUINT32) ((((1 ? 21:21) - (0 ? 21:21) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 21:21) - (0 ? 21:21) + 1))))))) << (0 ? 21:21)));
+        if (
+            ((((gctUINT32) (Hardware->identity.chipMinorFeatures2)) >> (0 ? 27:27) & ((gctUINT32) ((((1 ? 27:27) - (0 ? 27:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 27:27) - (0 ? 27:27) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 27:27) - (0 ? 27:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 27:27) - (0 ? 27:27) + 1))))))) ||
+            (Hardware->identity.chipModel >= gcv4000))
+        {
+            /* Set compression bypass. */
+            debug = ((((gctUINT32) (debug)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 21:21) - (0 ? 21:21) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 21:21) - (0 ? 21:21) + 1))))))) << (0 ? 21:21))) | (((gctUINT32) ((gctUINT32) (Compression == 0) & ((gctUINT32) ((((1 ? 21:21) - (0 ? 21:21) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 21:21) - (0 ? 21:21) + 1))))))) << (0 ? 21:21)));
+        }
 
         /* Write back AQMemoryDebug register. */
         gcmkONERROR(
@@ -5250,6 +5253,7 @@ gckHARDWARE_DumpMMUException(
     IN gckHARDWARE Hardware
     )
 {
+#if !gcdPOWER_SUSNPEND_WHEN_IDLE && !gcdPOWEROFF_TIMEOUT
     gctUINT32 mmu, mmuStatus, address, i;
 #if gcdDEBUG
     gctUINT32 mtlb, stlb, offset;
@@ -5339,6 +5343,13 @@ gckHARDWARE_DumpMMUException(
     }
 
 	gcmkFOOTER_NO();
+#else
+    /* If clock could be off automatically, we can't read mmu debug
+    ** register here; build driver with gcdPOWER_SUSPEND_WHEN_IDLE = 0
+    ** and gcdPOWEROFF_TIMEOUT = 0 to make it safe to read mmu register. */
+    gcmkPRINT("[galcore] %s(%d): MMU Exception!", __FUNCTION__, __LINE__);
+#endif
+
     return gcvSTATUS_OK;
 }
 

@@ -30,7 +30,7 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/* CAN1  */
 	MX6Q_PAD_KEY_ROW2__HDMI_TX_CEC_LINE,
 	/* MX6Q_PAD_KEY_COL2__CAN1_TXCAN, */
-	MX6Q_PAD_GPIO_1__GPIO_1_1,		/* user defiend green led */
+	MX6Q_PAD_GPIO_1__WDOG2_WDOG_B,		/*WDOG_B to reset pmic*/
 	MX6Q_PAD_GPIO_2__GPIO_1_2,		/* user defined red led */
 	MX6Q_PAD_GPIO_7__GPIO_1_7,		/* NERR */
 

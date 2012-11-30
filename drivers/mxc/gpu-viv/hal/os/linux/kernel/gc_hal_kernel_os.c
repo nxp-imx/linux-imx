@@ -582,7 +582,7 @@ _CreateMdl(
 
     gcmkHEADER_ARG("ProcessID=%d", ProcessID);
 
-    mdl = (PLINUX_MDL)kmalloc(sizeof(struct _LINUX_MDL), GFP_KERNEL | __GFP_NOWARN);
+    mdl = (PLINUX_MDL)kzalloc(sizeof(struct _LINUX_MDL), GFP_KERNEL | __GFP_NOWARN);
     if (mdl == gcvNULL)
     {
         gcmkFOOTER_NO();
@@ -1408,39 +1408,60 @@ gckOS_Destroy(
     return gcvSTATUS_OK;
 }
 
-#ifdef NO_DMA_COHERENT
 static gctSTRING
 _CreateKernelVirtualMapping(
-    IN struct page * Page,
-    IN gctINT NumPages
+    IN PLINUX_MDL Mdl
     )
 {
     gctSTRING addr = 0;
+    gctINT numPages = Mdl->numPages;
 
 #if gcdNONPAGED_MEMORY_CACHEABLE
-    addr = page_address(Page);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+    if (Mdl->contiguous)
+    {
+        addr = page_address(Mdl->u.contiguousPages);
+    }
+    else
+    {
+        addr = vmap(Mdl->u.nonContiguousPages,
+                    numPages,
+                    0,
+                    PAGE_KERNEL);
+    }
+#else
     struct page ** pages;
+    gctBOOL free = gcvFALSE;
     gctINT i;
 
-    pages = kmalloc(sizeof(struct page *) * NumPages, GFP_KERNEL | __GFP_NOWARN);
-
-    if (!pages)
+    if (Mdl->contiguous)
     {
-        return gcvNULL;
+        pages = kmalloc(sizeof(struct page *) * numPages, GFP_KERNEL | __GFP_NOWARN);
+
+        if (!pages)
+        {
+            return gcvNULL;
+        }
+
+        for (i = 0; i < numPages; i++)
+        {
+            pages[i] = nth_page(Mdl->u.contiguousPages, i);
+        }
+
+        free = gcvTRUE;
     }
-
-    for (i = 0; i < NumPages; i++)
+    else
     {
-        pages[i] = nth_page(Page, i);
+        pages = Mdl->u.nonContiguousPages;
     }
 
     /* ioremap() can't work on system memory since 2.6.38. */
-    addr = vmap(pages, NumPages, 0, gcmkNONPAGED_MEMROY_PROT(PAGE_KERNEL));
+    addr = vmap(pages, numPages, 0, gcmkNONPAGED_MEMROY_PROT(PAGE_KERNEL));
 
-    kfree(pages);
-#else
-    addr = gcmkIOREMAP(page_to_phys(Page), NumPages * PAGE_SIZE);
+    if (free)
+    {
+        kfree(pages);
+    }
+
 #endif
 
     return addr;
@@ -1452,14 +1473,31 @@ _DestoryKernelVirtualMapping(
     )
 {
 #if !gcdNONPAGED_MEMORY_CACHEABLE
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
     vunmap(Addr);
-#   else
-    iounmap(Addr);
-#   endif
 #endif
 }
-#endif
+
+gceSTATUS
+gckOS_CreateKernelVirtualMapping(
+    IN gctPHYS_ADDR Physical,
+    OUT gctSIZE_T * PageCount,
+    OUT gctPOINTER * Logical
+    )
+{
+    *PageCount = ((PLINUX_MDL)Physical)->numPages;
+    *Logical = _CreateKernelVirtualMapping((PLINUX_MDL)Physical);
+
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+gckOS_DestroyKernelVirtualMapping(
+    IN gctPOINTER Logical
+    )
+{
+    _DestoryKernelVirtualMapping((gctSTRING)Logical);
+    return gcvSTATUS_OK;
+}
 
 /*******************************************************************************
 **
@@ -2136,7 +2174,9 @@ gckOS_AllocateNonPagedMemory(
     }
 
     vaddr           = (gctPOINTER)page_address(page);
-    addr            = _CreateKernelVirtualMapping(page, mdl->numPages);
+    mdl->contiguous = gcvTRUE;
+    mdl->u.contiguousPages = page;
+    addr            = _CreateKernelVirtualMapping(mdl);
     mdl->dmaHandle  = virt_to_phys(vaddr);
     mdl->kaddr      = vaddr;
     mdl->u.contiguousPages = page;
@@ -3438,7 +3478,7 @@ gckOS_AtomicExchangePtr(
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
 
     /* Exchange the pair of pointers. */
-    *OldValue = (gctPOINTER) atomic_xchg((atomic_t *) Target, (int) NewValue);
+    *OldValue = (gctPOINTER)(gctUINTPTR_T) atomic_xchg((atomic_t *) Target, (int)(gctUINTPTR_T) NewValue);
 
     /* Success. */
     gcmkFOOTER_ARG("*OldValue=0x%X", *OldValue);
@@ -4343,8 +4383,8 @@ gckOS_LockPages(
             gcvLEVEL_INFO, gcvZONE_OS,
             "%s(%d): vmaAddr->0x%X for phys_addr->0x%X",
             __FUNCTION__, __LINE__,
-            (gctUINT32) mdlMap->vmaAddr,
-            (gctUINT32) mdl
+            (gctUINT32)(gctUINTPTR_T)mdlMap->vmaAddr,
+            (gctUINT32)(gctUINTPTR_T)mdl
             );
 
         if (IS_ERR(mdlMap->vmaAddr))
@@ -4441,10 +4481,10 @@ gckOS_LockPages(
                         gcvLEVEL_INFO, gcvZONE_OS,
                         "%s(%d): gctPHYS_ADDR->0x%X Logical->0x%X Unable to map addr->0x%X to start->0x%X",
                         __FUNCTION__, __LINE__,
-                        (gctUINT32) Physical,
-                        (gctUINT32) *Logical,
-                        (gctUINT32) addr,
-                        (gctUINT32) start
+                        (gctUINT32)(gctUINTPTR_T)Physical,
+                        (gctUINT32)(gctUINTPTR_T)*Logical,
+                        (gctUINT32)(gctUINTPTR_T)addr,
+                        (gctUINT32)(gctUINTPTR_T)start
                         );
 
                     mdlMap->vmaAddr = gcvNULL;
@@ -4571,8 +4611,8 @@ gckOS_MapPagesEx(
         gcvLEVEL_INFO, gcvZONE_OS,
         "%s(%d): Physical->0x%X PageCount->0x%X PagedMemory->?%d",
         __FUNCTION__, __LINE__,
-        (gctUINT32) Physical,
-        (gctUINT32) PageCount,
+        (gctUINT32)(gctUINTPTR_T)Physical,
+        (gctUINT32)(gctUINTPTR_T)PageCount,
         mdl->pagedMem
         );
 
@@ -5430,7 +5470,7 @@ OnError:
     gctSIZE_T pageCount, i, j;
     gctUINT32_PTR pageTable;
     gctUINT32 address = 0, physical = ~0U;
-    gctUINT32 start, end, memory;
+    gctUINTPTR_T start, end, memory;
     gctUINT32 offset;
     gctINT result = 0;
 
@@ -5446,7 +5486,7 @@ OnError:
 
     do
     {
-        memory = (gctUINT32) Memory;
+        memory = (gctUINTPTR_T) Memory;
 
         /* Get the number of required pages. */
         end = (memory + Size + PAGE_SIZE - 1) >> PAGE_SHIFT;
@@ -5604,7 +5644,7 @@ OnError:
         {
             /* Flush(clean) the data cache. */
             gcmkONERROR(gckOS_CacheFlush(Os, _GetProcessID(), gcvNULL,
-                             (gctPOINTER)(physical & PAGE_MASK),
+                             (gctPOINTER)(gctUINTPTR_T)(physical & PAGE_MASK),
                              (gctPOINTER)(memory & PAGE_MASK),
                              PAGE_SIZE * pageCount));
         }
@@ -5844,7 +5884,7 @@ OnError:
     return status;
 #else
 {
-    gctUINT32 memory, start, end;
+    gctUINTPTR_T memory, start, end;
     gcsPageInfo_PTR info;
     gctSIZE_T pageCount, i;
     struct page **pages;
@@ -5877,7 +5917,7 @@ OnError:
             return gcvSTATUS_OK;
         }
 
-        memory = (gctUINT32) Memory;
+        memory = (gctUINTPTR_T)Memory;
         end = (memory + Size + PAGE_SIZE - 1) >> PAGE_SHIFT;
         start = memory >> PAGE_SHIFT;
         pageCount = end - start;
@@ -6183,7 +6223,7 @@ _HandleOuterCache(
     else
     {
         /* Non contiguous virtual memory */
-        vaddr = (gctPOINTER)gcmALIGN_BASE((gctUINT32)Logical, PAGE_SIZE);
+        vaddr = (gctPOINTER)gcmALIGN_BASE((gctUINTPTR_T)Logical, PAGE_SIZE);
         pageNum = GetPageCount(Bytes, 0);
 
         for (i = 0; i < pageNum; i += 1)
@@ -7239,7 +7279,7 @@ gckOS_CreateSignal(
     }
 
     /* Save the process ID. */
-    signal->process = (gctHANDLE) _GetProcessID();
+    signal->process = (gctHANDLE)(gctUINTPTR_T) _GetProcessID();
     signal->manualReset = ManualReset;
     signal->hardware = gcvNULL;
     init_completion(&signal->obj);
@@ -7247,7 +7287,7 @@ gckOS_CreateSignal(
 
     gcmkONERROR(_AllocateIntegerId(&Os->signalDB, signal, &signal->id));
 
-    *Signal = (gctSIGNAL)signal->id;
+    *Signal = (gctSIGNAL)(gctUINTPTR_T)signal->id;
 
     gcmkFOOTER_ARG("*Signal=0x%X", *Signal);
     return gcvSTATUS_OK;
@@ -7279,7 +7319,7 @@ gckOS_SignalQueryHardware(
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
     gcmkVERIFY_ARGUMENT(Hardware != gcvNULL);
 
-    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)(gctUINTPTR_T)Signal, (gctPOINTER)&signal));
 
     *Hardware = signal->hardware;
 
@@ -7306,7 +7346,7 @@ gckOS_SignalSetHardware(
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
 
-    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)(gctUINTPTR_T)Signal, (gctPOINTER)&signal));
 
     signal->hardware = Hardware;
 
@@ -7354,9 +7394,9 @@ gckOS_DestroySignal(
     gcmkONERROR(gckOS_AcquireMutex(Os, Os->signalMutex, gcvINFINITE));
     acquired = gcvTRUE;
 
-    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)(gctUINTPTR_T)Signal, (gctPOINTER)&signal));
 
-    gcmkASSERT(signal->id == (gctUINT32)Signal);
+    gcmkASSERT(signal->id == (gctUINT32)(gctUINTPTR_T)Signal);
 
     if (atomic_dec_and_test(&signal->ref))
     {
@@ -7426,9 +7466,9 @@ gckOS_Signal(
     gcmkONERROR(gckOS_AcquireMutex(Os, Os->signalMutex, gcvINFINITE));
     acquired = gcvTRUE;
 
-    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)(gctUINTPTR_T)Signal, (gctPOINTER)&signal));
 
-    gcmkASSERT(signal->id == (gctUINT32)Signal);
+    gcmkASSERT(signal->id == (gctUINT32)(gctUINTPTR_T)Signal);
 
     if (State)
     {
@@ -7475,7 +7515,7 @@ gckOS_SetSignalVG(
     struct task_struct * userTask;
     struct siginfo info;
 
-    userTask = FIND_TASK_BY_PID((pid_t) Process);
+    userTask = FIND_TASK_BY_PID((pid_t)(gctUINTPTR_T) Process);
 
     if (userTask != gcvNULL)
     {
@@ -7554,7 +7594,7 @@ gckOS_UserSignal(
     gctSIGNAL signal;
 
     gcmkHEADER_ARG("Os=0x%X Signal=0x%X Process=%d",
-                   Os, Signal, (gctINT32) Process);
+                   Os, Signal, (gctINT32)(gctUINTPTR_T)Process);
 
     /* Map the signal into kernel space. */
     gcmkONERROR(gckOS_MapSignal(Os, Signal, Process, &signal));
@@ -7612,9 +7652,9 @@ gckOS_WaitSignal(
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
 
-    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)(gctUINTPTR_T)Signal, (gctPOINTER)&signal));
 
-    gcmkASSERT(signal->id == (gctUINT32)Signal);
+    gcmkASSERT(signal->id == (gctUINT32)(gctUINTPTR_T)Signal);
 
     might_sleep();
 
@@ -7786,7 +7826,7 @@ gckOS_MapSignal(
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
     gcmkVERIFY_ARGUMENT(MappedSignal != gcvNULL);
 
-    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)Signal, (gctPOINTER)&signal));
+    gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)(gctUINTPTR_T)Signal, (gctPOINTER)&signal));
 
     if(atomic_inc_return(&signal->ref) <= 1)
     {
@@ -7885,7 +7925,7 @@ gckOS_DestroyUserSignal(
     IN gctINT SignalID
     )
 {
-    return gckOS_DestroySignal(Os, (gctSIGNAL)SignalID);
+    return gckOS_DestroySignal(Os, (gctSIGNAL)(gctUINTPTR_T)SignalID);
 }
 
 /*******************************************************************************
@@ -7917,7 +7957,7 @@ gckOS_WaitUserSignal(
     IN gctUINT32 Wait
     )
 {
-    return gckOS_WaitSignal(Os, (gctSIGNAL)SignalID, Wait);
+    return gckOS_WaitSignal(Os, (gctSIGNAL)(gctUINTPTR_T)SignalID, Wait);
 }
 
 /*******************************************************************************
@@ -7949,7 +7989,7 @@ gckOS_SignalUserSignal(
     IN gctBOOL State
     )
 {
-    return gckOS_Signal(Os, (gctSIGNAL)SignalID, State);
+    return gckOS_Signal(Os, (gctSIGNAL)(gctUINTPTR_T)SignalID, State);
 }
 
 #if gcdENABLE_VG
@@ -8082,7 +8122,7 @@ gckOS_SetSignal(
     struct task_struct * userTask;
     struct siginfo info;
 
-    userTask = FIND_TASK_BY_PID((pid_t) Process);
+    userTask = FIND_TASK_BY_PID((pid_t)(gctUINTPTR_T) Process);
 
     if (userTask != gcvNULL)
     {

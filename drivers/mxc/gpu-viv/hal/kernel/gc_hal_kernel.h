@@ -134,6 +134,7 @@ gcskSECURE_CACHE;
 typedef enum _gceDATABASE_TYPE
 {
     gcvDB_VIDEO_MEMORY = 1,             /* Video memory created. */
+    gcvDB_COMMAND_BUFFER,               /* Command Buffer. */
     gcvDB_NON_PAGED,                    /* Non paged memory. */
     gcvDB_CONTIGUOUS,                   /* Contiguous memory. */
     gcvDB_SIGNAL,                       /* Signal. */
@@ -292,6 +293,24 @@ struct _gckDB
     gctUINT64                   lastSlowdownIdle;
 };
 
+#if gcdVIRTUAL_COMMAND_BUFFER
+typedef struct _gckVIRTUAL_COMMAND_BUFFER * gckVIRTUAL_COMMAND_BUFFER_PTR;
+typedef struct _gckVIRTUAL_COMMAND_BUFFER
+{
+    gctPHYS_ADDR                physical;
+    gctPOINTER                  userLogical;
+    gctPOINTER                  kernelLogical;
+    gctSIZE_T                   pageCount;
+    gctPOINTER                  pageTable;
+    gctUINT32                   gpuAddress;
+    gctUINT                     pid;
+    gckVIRTUAL_COMMAND_BUFFER_PTR   next;
+    gckVIRTUAL_COMMAND_BUFFER_PTR   prev;
+    gckKERNEL                   kernel;
+}
+gckVIRTUAL_COMMAND_BUFFER;
+#endif
+
 /* gckKERNEL object. */
 struct _gckKERNEL
 {
@@ -349,6 +368,12 @@ struct _gckKERNEL
 
 #if gcdENABLE_VG
     gckVGKERNEL                 vg;
+#endif
+
+#if gcdVIRTUAL_COMMAND_BUFFER
+    gckVIRTUAL_COMMAND_BUFFER_PTR virtualBufferHead;
+    gckVIRTUAL_COMMAND_BUFFER_PTR virtualBufferTail;
+    gctPOINTER                    virtualBufferLock;
 #endif
 };
 
@@ -452,6 +477,8 @@ typedef struct _gcsEVENT
     /* Kernel. */
     gckKERNEL                   kernel;
 #endif
+
+    gctBOOL                     fromKernel;
 }
 gcsEVENT;
 
@@ -734,6 +761,44 @@ struct _gckMMU
     gcuVIDMEM_NODE_PTR          nodeList;
 #endif
 };
+
+#if gcdVIRTUAL_COMMAND_BUFFER
+gceSTATUS
+gckOS_CreateKernelVirtualMapping(
+    IN gctPHYS_ADDR Physical,
+    OUT gctSIZE_T * PageCount,
+    OUT gctPOINTER * Logical
+    );
+
+gceSTATUS
+gckOS_DestroyKernelVirtualMapping(
+    IN gctPOINTER Logical
+    );
+
+gceSTATUS
+gckKERNEL_AllocateVirtualCommandBuffer(
+    IN gckKERNEL Kernel,
+    IN gctBOOL InUserSpace,
+    IN OUT gctSIZE_T * Bytes,
+    OUT gctPHYS_ADDR * Physical,
+    OUT gctPOINTER * Logical
+    );
+
+gceSTATUS
+gckKERNEL_DestroyVirtualCommandBuffer(
+    IN gckKERNEL Kernel,
+    IN gctSIZE_T Bytes,
+    IN gctPHYS_ADDR Physical,
+    IN gctPOINTER Logical
+    );
+
+gceSTATUS
+gckKERNEL_GetGPUAddress(
+    IN gckKERNEL Kernel,
+    IN gctPOINTER Logical,
+    OUT gctUINT32 * Address
+    );
+#endif
 
 gceSTATUS
 gckKERNEL_AttachProcess(

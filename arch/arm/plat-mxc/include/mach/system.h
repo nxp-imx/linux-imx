@@ -20,6 +20,9 @@
 #include <mach/hardware.h>
 #include <mach/common.h>
 
+#define LDO_MODE_DEFAULT	0
+#define LDO_MODE_BYPASSED	1
+#define LDO_MODE_ENABLED	2
 extern void mx5_cpu_lp_set(enum mxc_cpu_pwr_mode mode);
 
 void arch_idle(void);

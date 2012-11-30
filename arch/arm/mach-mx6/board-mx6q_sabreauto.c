@@ -409,7 +409,12 @@ static struct mtd_partition m25p32_partitions[] = {
 	{
 		.name	= "bootloader",
 		.offset	= 0,
-		.size	= 0x00100000,
+		.size	= SZ_256K,
+	}, {
+		.name	= "bootenv",
+		.offset = MTDPART_OFS_APPEND,
+		.size	= SZ_8K,
+		.mask_flags = MTD_WRITEABLE,
 	}, {
 		.name	= "kernel",
 		.offset	= MTDPART_OFS_APPEND,
@@ -439,17 +444,28 @@ static void spi_device_init(void)
 	spi_register_board_info(m25p32_spi0_board_info,
 				ARRAY_SIZE(m25p32_spi0_board_info));
 }
+
 static struct mtd_partition mxc_nor_partitions[] = {
 	{
-		.name	= "Bootloader",
+		.name	= "bootloader",
 		.offset	= 0,
-		.size	=  0x00080000,
+		.size	= SZ_256K,
 	}, {
-		.name	= "nor.Kernel",
+		.name = "bootenv",
+		.offset = MTDPART_OFS_APPEND,
+		.size = SZ_256K,
+		.mask_flags = MTD_WRITEABLE,
+	}, {
+		.name	= "kernel",
 		.offset	= MTDPART_OFS_APPEND,
+		.size	= SZ_4M,
+	}, {
+		.name	= "rootfs",
+		.offset = MTDPART_OFS_APPEND,
 		.size	= MTDPART_SIZ_FULL,
 	},
 };
+
 static struct resource nor_flash_resource = {
 	.start		= CS0_BASE_ADDR,
 	.end		= CS0_BASE_ADDR  +  0x02000000 - 1,
@@ -770,7 +786,6 @@ static void __init imx6q_sabreauto_init_usb(void)
 
 	mxc_iomux_set_gpr_register(1, 13, 1, 0);
 	mx6_set_otghost_vbus_func(imx6q_sabreauto_usbotg_vbus);
-	mx6_usb_dr_init();
 	mx6_set_host1_vbus_func(imx6q_sabreauto_usbhost1_vbus);
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mx6_usb_h2_init();
@@ -1280,9 +1295,8 @@ static struct mxc_mlb_platform_data mx6_sabreauto_mlb150_data = {
 };
 
 static struct mxc_dvfs_platform_data sabreauto_dvfscore_data = {
-	.reg_id			= "cpu_vddgp",
-	.soc_id			= "cpu_vddsoc",
-	.pu_id			= "cpu_vddvpu",
+	.reg_id			= "VDDCORE",
+	.soc_id			= "VDDSOC",
 	.clk1_id		= "cpu_clk",
 	.clk2_id 		= "gpc_dvfs_clk",
 	.gpc_cntr_offset 	= MXC_GPC_CNTR_OFFSET,
@@ -1535,7 +1549,6 @@ static void __init mx6_board_init(void)
 
 	gp_reg_id = sabreauto_dvfscore_data.reg_id;
 	soc_reg_id = sabreauto_dvfscore_data.soc_id;
-	pu_reg_id = sabreauto_dvfscore_data.pu_id;
 	mx6q_sabreauto_init_uart();
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	if (cpu_is_mx6dl()) {
@@ -1613,7 +1626,6 @@ static void __init mx6_board_init(void)
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&sabreauto_vmmc_reg_devices);
-	mx6_cpu_regulator_init();
 	imx_asrc_data.asrc_core_clk = clk_get(NULL, "asrc_clk");
 	imx_asrc_data.asrc_audio_clk = clk_get(NULL, "asrc_serial_clk");
 	imx6q_add_asrc(&imx_asrc_data);

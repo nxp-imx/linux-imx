@@ -227,6 +227,7 @@ void __init mx6_usb_h3_init(void)
 	pdev = imx6q_add_fsl_ehci_hs(3, &usbh3_config);
 	usbh3_wakeup_config.usb_pdata[0] = pdev->dev.platform_data;
 	pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(3, &usbh3_wakeup_config);
+	platform_device_add(pdev);
 	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
 		pdev_wakeup->dev.platform_data;
 

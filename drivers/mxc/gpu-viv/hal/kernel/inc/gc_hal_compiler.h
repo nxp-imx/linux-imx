@@ -340,6 +340,14 @@ struct _gcsHINT
     /* Flag whether the VS has point size or not. */
     gctBOOL     vsHasPointSize;
 
+#if gcdUSE_WCLIP_PATCH
+    /* Flag whether the VS gl_position.z depends on gl_position.w
+       it's a hint for wclipping */
+    gctBOOL     vsPositionZDependsOnW;
+#endif
+
+    gctBOOL     clipW;
+
     /* Element count. */
     gctUINT32   elementCount;
 
@@ -510,6 +518,12 @@ typedef enum _gceSHADER_FLAGS
 
 }
 gceSHADER_FLAGS;
+
+gceSTATUS
+gcSHADER_CheckClipW(
+    IN gctCONST_STRING VertexSource,
+    IN gctCONST_STRING FragmentSource,
+    OUT gctBOOL * clipW);
 
 /* Function argument qualifier */
 typedef enum _gceINPUT_OUTPUT
@@ -2526,6 +2540,14 @@ gceSTATUS
 gcSHADER_CheckValidity(
     IN gcSHADER Shader
     );
+
+#if gcdUSE_WCLIP_PATCH
+gceSTATUS
+gcATTRIBUTE_IsPosition(
+        IN gcATTRIBUTE Attribute,
+        OUT gctBOOL * IsPosition
+        );
+#endif
 
 /*******************************************************************************
 **                             gcATTRIBUTE_GetType

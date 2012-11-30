@@ -263,8 +263,8 @@ static iomux_v3_cfg_t mx6dl_sabresd_pads[] = {
 	/* ACCL_INT_INT */
 	MX6DL_PAD_SD1_CMD__GPIO_1_18,
 
-	/* USR_DEF_GRN_LED */
-	MX6DL_PAD_GPIO_1__GPIO_1_1,
+	/*WDOG_B to reset pmic*/
+	MX6DL_PAD_GPIO_1__WDOG2_WDOG_B,
 	/* USR_DEF_RED_LED */
 	MX6DL_PAD_GPIO_2__GPIO_1_2,
 };

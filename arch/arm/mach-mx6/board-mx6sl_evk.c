@@ -758,14 +758,8 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 };
 
 static struct mxc_dvfs_platform_data mx6sl_evk_dvfscore_data = {
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	.reg_id			= "VDDCORE",
 	.soc_id			= "VDDSOC",
-#else
-	.reg_id			= "cpu_vddgp",
-	.soc_id			= "cpu_vddsoc",
-	.pu_id			= "cpu_vddvpu",
-#endif
 	.clk1_id		= "cpu_clk",
 	.clk2_id		= "gpc_dvfs_clk",
 	.gpc_cntr_offset	= MXC_GPC_CNTR_OFFSET,
@@ -1264,7 +1258,7 @@ static void __init mx6_evk_init_usb(void)
 	gpio_direction_output(MX6_BRD_USBOTG2_PWR, 1);
 
 	mx6_set_otghost_vbus_func(imx6_evk_usbotg_vbus);
-	mx6_usb_dr_init();
+
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mx6_usb_h2_init();
 #endif
@@ -1461,15 +1455,8 @@ static void __init mx6_evk_init(void)
 
 	elan_ts_init();
 
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	gp_reg_id = mx6sl_evk_dvfscore_data.reg_id;
 	soc_reg_id = mx6sl_evk_dvfscore_data.soc_id;
-#else
-	gp_reg_id = mx6sl_evk_dvfscore_data.reg_id;
-	soc_reg_id = mx6sl_evk_dvfscore_data.soc_id;
-	pu_reg_id = mx6sl_evk_dvfscore_data.pu_id;
-	mx6_cpu_regulator_init();
-#endif
 
 	imx6q_add_imx_snvs_rtc();
 

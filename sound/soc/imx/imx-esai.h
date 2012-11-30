@@ -298,8 +298,6 @@
 #define ESAI_RX_DIV_PM	4
 #define ESAI_RX_DIV_FP	5
 
-#define IMX_ESAI_DMABUF_SIZE     (64 * 1024)
-
 #define DRV_NAME "imx-esai"
 
 #include <linux/dmaengine.h>

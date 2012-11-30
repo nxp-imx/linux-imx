@@ -237,6 +237,7 @@ void __init mx6_usb_h2_init(void)
 		pdev_wakeup = imx6sl_add_fsl_usb2_hs_wakeup(2, &usbh2_wakeup_config);
 	else
 		pdev_wakeup = imx6q_add_fsl_usb2_hs_wakeup(2, &usbh2_wakeup_config);
+	platform_device_add(pdev);
 	((struct fsl_usb2_platform_data *)(pdev->dev.platform_data))->wakeup_pdata =
 		pdev_wakeup->dev.platform_data;
 	/* Some phy and power's special controls for host2

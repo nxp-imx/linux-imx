@@ -49,6 +49,7 @@
 #define ASRC_RATIO_DECIMAL_DEPTH 26
 
 DEFINE_SPINLOCK(data_lock);
+DEFINE_SPINLOCK(pair_lock);
 DEFINE_SPINLOCK(input_int_lock);
 DEFINE_SPINLOCK(output_int_lock);
 
@@ -152,6 +153,8 @@ static unsigned char output_clk_map_v2[] = {
 };
 
 static unsigned char *input_clk_map, *output_clk_map;
+
+struct asrc_p2p_ops asrc_pcm_p2p_ops_asrc;
 
 static struct dma_chan *imx_asrc_dma_alloc(u32 dma_req);
 static int imx_asrc_dma_config(
@@ -661,6 +664,28 @@ int asrc_config_pair(struct asrc_config *config)
 
 EXPORT_SYMBOL(asrc_config_pair);
 
+int asrc_set_watermark(enum asrc_pair_index index, u32 in_wm, u32 out_wm)
+{
+	u32 reg;
+
+	if ((in_wm > 63) || (out_wm > 63)) {
+		pr_err("error watermark!\n");
+		return -EINVAL;
+	}
+
+	reg = __raw_readl(
+		g_asrc->vaddr + ASRC_ASRMCRA_REG + (index << 3));
+	reg |= 1 << 22;
+	reg &= ~0x3f;
+	reg += in_wm;
+	reg &= ~(0x3f << 12);
+	reg += out_wm << 12;
+	__raw_writel(reg,
+		g_asrc->vaddr + ASRC_ASRMCRA_REG + (index << 3));
+	return 0;
+}
+EXPORT_SYMBOL(asrc_set_watermark);
+
 void asrc_start_conv(enum asrc_pair_index index)
 {
 	int reg, reg_1;
@@ -920,6 +945,7 @@ static void asrc_read_output_FIFO_S16(struct asrc_pair_params *params)
 	u32 size, i, j, reg, t_size;
 	u16 *index = params->output_last_period.dma_vaddr;
 
+	t_size = 0;
 	size = asrc_get_output_FIFO_size(params->index);
 	while (size) {
 		for (i = 0; i < size; i++) {
@@ -935,6 +961,8 @@ static void asrc_read_output_FIFO_S16(struct asrc_pair_params *params)
 		size = asrc_get_output_FIFO_size(params->index);
 	}
 
+	if (t_size > ASRC_OUTPUT_LAST_SAMPLE)
+		t_size = ASRC_OUTPUT_LAST_SAMPLE;
 	params->output_last_period.length = t_size * params->channel_nums * 2;
 }
 
@@ -959,6 +987,8 @@ static void asrc_read_output_FIFO_S24(struct asrc_pair_params *params)
 		size = asrc_get_output_FIFO_size(params->index);
 	}
 
+	if (t_size > ASRC_OUTPUT_LAST_SAMPLE)
+		t_size = ASRC_OUTPUT_LAST_SAMPLE;
 	params->output_last_period.length = t_size * params->channel_nums * 4;
 }
 
@@ -970,6 +1000,11 @@ static void asrc_output_task_worker(struct work_struct *w)
 	unsigned long lock_flags;
 
 	/* asrc output work struct */
+	spin_lock_irqsave(&pair_lock, lock_flags);
+	if (!params->pair_hold) {
+		spin_unlock_irqrestore(&pair_lock, lock_flags);
+		return;
+	}
 	switch (params->output_word_width) {
 	case ASRC_WIDTH_24_BIT:
 		asrc_read_output_FIFO_S24(params);
@@ -981,6 +1016,7 @@ static void asrc_output_task_worker(struct work_struct *w)
 	default:
 		pr_err("%s: error word width\n", __func__);
 	}
+	spin_unlock_irqrestore(&pair_lock, lock_flags);
 
 	/* finish receiving all output data */
 	spin_lock_irqsave(&output_int_lock, lock_flags);
@@ -1113,13 +1149,13 @@ static int imx_asrc_dma_config(
 		slave_config.dst_addr = dma_addr;
 		slave_config.dst_addr_width = buswidth;
 		slave_config.dst_maxburst =
-			ASRC_INPUTFIFO_THRESHOLD * params->channel_nums;
+			params->input_wm * params->channel_nums;
 	} else {
 		slave_config.direction = DMA_DEV_TO_MEM;
 		slave_config.src_addr = dma_addr;
 		slave_config.src_addr_width = buswidth;
 		slave_config.src_maxburst =
-			ASRC_OUTPUTFIFO_THRESHOLD * params->channel_nums;
+			params->output_wm * params->channel_nums;
 	}
 	ret = dmaengine_slave_config(chan, &slave_config);
 	if (ret) {
@@ -1223,7 +1259,7 @@ static int mxc_asrc_prepare_input_buffer(struct asrc_pair_params *params,
 	}
 
 	if (pbuf->input_buffer_length <
-		word_size * params->channel_nums * ASRC_INPUTFIFO_THRESHOLD) {
+		word_size * params->channel_nums * params->input_wm) {
 		pr_err("input buffer size[%d] is too small!\n",
 					pbuf->input_buffer_length);
 		return -EINVAL;
@@ -1256,9 +1292,6 @@ static int mxc_asrc_prepare_output_buffer(struct asrc_pair_params *params,
 {
 	u32 word_size;
 
-	pbuf->output_buffer_length = asrc_get_output_buffer_size(
-			pbuf->input_buffer_length,
-			params->input_sample_rate, params->output_sample_rate);
 	switch (params->output_word_width) {
 	case ASRC_WIDTH_24_BIT:
 		word_size = 4;
@@ -1447,6 +1480,13 @@ static long asrc_ioctl(struct file *file,
 			err = asrc_config_pair(&config);
 			if (err < 0)
 				break;
+
+			params->input_wm = 4;
+			params->output_wm = 2;
+			err = asrc_set_watermark(config.pair,
+					params->input_wm, params->output_wm);
+			if (err < 0)
+				break;
 			params->output_buffer_size = config.dma_buffer_size;
 			params->input_buffer_size = config.dma_buffer_size;
 			if (config.buffer_num > ASRC_DMA_BUFFER_NUM)
@@ -1513,13 +1553,18 @@ static long asrc_ioctl(struct file *file,
 	case ASRC_RELEASE_PAIR:
 		{
 			enum asrc_pair_index index;
+			unsigned long lock_flags;
 			if (copy_from_user
 			    (&index, (void __user *)arg,
 			     sizeof(enum asrc_pair_index))) {
 				err = -EFAULT;
 				break;
 			}
+			params->asrc_active = 0;
 
+			spin_lock_irqsave(&pair_lock, lock_flags);
+			params->pair_hold = 0;
+			spin_unlock_irqrestore(&pair_lock, lock_flags);
 			if (params->input_dma_channel)
 				dma_release_channel(params->input_dma_channel);
 			if (params->output_dma_channel)
@@ -1528,8 +1573,6 @@ static long asrc_ioctl(struct file *file,
 			mxc_free_dma_buf(params);
 			asrc_release_pair(index);
 			asrc_finish_conv(index);
-			params->asrc_active = 0;
-			params->pair_hold = 0;
 			break;
 		}
 	case ASRC_CONVERT:
@@ -1704,9 +1747,11 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 static int mxc_asrc_close(struct inode *inode, struct file *file)
 {
 	struct asrc_pair_params *pair_params;
+	unsigned long lock_flags;
 	pair_params = file->private_data;
 	if (pair_params) {
 		if (pair_params->asrc_active) {
+			pair_params->asrc_active = 0;
 			dmaengine_terminate_all(
 					pair_params->input_dma_channel);
 			dmaengine_terminate_all(
@@ -1716,6 +1761,9 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 			wake_up_interruptible(&pair_params->output_wait_queue);
 		}
 		if (pair_params->pair_hold) {
+			spin_lock_irqsave(&pair_lock, lock_flags);
+			pair_params->pair_hold = 0;
+			spin_unlock_irqrestore(&pair_lock, lock_flags);
 			if (pair_params->input_dma_channel)
 				dma_release_channel(
 					pair_params->input_dma_channel);
@@ -2016,6 +2064,18 @@ static struct platform_driver mxc_asrc_driver = {
 static __init int asrc_init(void)
 {
 	int ret;
+
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_start_conv = asrc_start_conv;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_stop_conv = asrc_stop_conv;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_get_dma_request = asrc_get_dma_request;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_per_addr = asrc_get_per_addr;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_req_pair = asrc_req_pair;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_config_pair = asrc_config_pair;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_release_pair = asrc_release_pair;
+	asrc_pcm_p2p_ops_asrc.asrc_p2p_finish_conv = asrc_finish_conv;
+
+	asrc_p2p_hook(&asrc_pcm_p2p_ops_asrc);
+
 	ret = platform_driver_register(&mxc_asrc_driver);
 	return ret;
 }
@@ -2025,6 +2085,8 @@ static __init int asrc_init(void)
  *
  */ static void __exit asrc_exit(void)
 {
+	asrc_p2p_hook(NULL);
+
 	platform_driver_unregister(&mxc_asrc_driver);
 	return;
 }

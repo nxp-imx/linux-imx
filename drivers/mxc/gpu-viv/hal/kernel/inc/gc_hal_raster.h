@@ -954,7 +954,7 @@ gceSTATUS
 gco2D_SetStateU32(
     IN gco2D Engine,
     IN gce2D_STATE State,
-    IN OUT gctUINT32_PTR Value
+    IN gctUINT32 Value
     );
 
 #ifdef __cplusplus

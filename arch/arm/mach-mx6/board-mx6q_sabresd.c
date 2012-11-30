@@ -205,7 +205,7 @@ static int mma8451_position;
 static int mag3110_position = 1;
 static int max11801_mode = 1;
 static int enable_lcd_ldb;
-
+static int caam_enabled;
 
 extern char *gp_reg_id;
 extern char *soc_reg_id;
@@ -1119,7 +1119,7 @@ static void __init imx6q_sabresd_init_usb(void)
 		mxc_iomux_set_gpr_register(1, 13, 1, 0);
 
 	mx6_set_otghost_vbus_func(imx6q_sabresd_usbotg_vbus);
-	mx6_usb_dr_init();
+
 }
 
 /* HW Initialization, if return 0, initialization is successful. */
@@ -1634,14 +1634,8 @@ static struct platform_pwm_backlight_data mx6_sabresd_pwm_backlight_data = {
 };
 
 static struct mxc_dvfs_platform_data sabresd_dvfscore_data = {
-#ifdef CONFIG_MX6_INTER_LDO_BYPASS
 	.reg_id = "VDDCORE",
 	.soc_id	= "VDDSOC",
-#else
-	.reg_id = "cpu_vddgp",
-	.soc_id = "cpu_vddsoc",
-	.pu_id = "cpu_vddvpu",
-#endif
 	.clk1_id = "cpu_clk",
 	.clk2_id = "gpc_dvfs_clk",
 	.gpc_cntr_offset = MXC_GPC_CNTR_OFFSET,
@@ -1720,6 +1714,13 @@ static struct mipi_csi2_platform_data mipi_csi2_pdata = {
 	.pixel_clk = "emi_clk",
 };
 
+static int __init caam_setup(char *__unused)
+{
+	caam_enabled = 1;
+	return 1;
+}
+early_param("caam", caam_setup);
+
 #define SNVS_LPCR 0x38
 static void mx6_snvs_poweroff(void)
 {
@@ -1795,7 +1796,6 @@ static void __init mx6_sabresd_board_init(void)
 
 	gp_reg_id = sabresd_dvfscore_data.reg_id;
 	soc_reg_id = sabresd_dvfscore_data.soc_id;
-	pu_reg_id = sabresd_dvfscore_data.pu_id;
 	mx6q_sabresd_init_uart();
 	imx6x_add_ram_console();
 
@@ -1835,7 +1835,8 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_imx_snvs_rtc();
 
-	imx6q_add_imx_caam();
+	if (1 == caam_enabled)
+		imx6q_add_imx_caam();
 
 	if (board_is_mx6_reva()) {
 		strcpy(mxc_i2c0_board_info[0].type, "wm8958");
@@ -1914,13 +1915,11 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_dma();
 
 	imx6q_add_dvfs_core(&sabresd_dvfscore_data);
-#ifndef CONFIG_MX6_INTER_LDO_BYPASS
-	mx6_cpu_regulator_init();
-#endif
 
 	if (imx_ion_data.heaps[0].size)
 		imx6q_add_ion(0, &imx_ion_data,
 			sizeof(imx_ion_data) + sizeof(struct ion_platform_heap));
+
 	imx6q_add_device_buttons();
 
 	/* enable sensor 3v3 and 1v8 */

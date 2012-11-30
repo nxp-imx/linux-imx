@@ -26,6 +26,10 @@ static int caam_remove(struct platform_device *pdev)
 	topregs = (struct caam_full __iomem *)ctrlpriv->ctrl;
 
 #ifndef CONFIG_OF
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SECVIO
+	caam_secvio_shutdown(pdev);
+#endif /* SECVIO */
+
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SM
 	caam_sm_shutdown(pdev);
 #endif
@@ -296,7 +300,9 @@ static int caam_probe(struct platform_device *pdev)
 	ctrlpriv->sm_base = (void __force *)sm_base;
 	ctrlpriv->sm_size = res->end - res->start + 1;
 
-	/* Get the IRQ for security violations only */
+	/*
+	 * Get the IRQ for security violations
+	 */
 #ifdef CONFIG_OF
 	ctrlpriv->secvio_irq = of_irq_to_resource(nprop, 0, NULL);
 #else
@@ -584,6 +590,10 @@ static int caam_probe(struct platform_device *pdev)
 	caam_sm_example_init(pdev);
 #endif /* SM_TEST */
 #endif /* SM */
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_SECVIO
+	caam_secvio_startup(pdev);
+#endif /* SECVIO */
 
 #endif /* CONFIG_OF */
 	return status;

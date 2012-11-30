@@ -35,6 +35,7 @@
 #include <linux/dma-mapping.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-int-device.h>
+#include <media/v4l2-chip-ident.h>
 #include <linux/mxcfb.h>
 #include "mxc_v4l2_capture.h"
 #include "fsl_csi.h"
@@ -272,7 +273,7 @@ static void camera_callback(u32 mask, void *dev)
 		return;
 
 	if (list_empty(&cam->working_q)) {
-		pr_err("ERROR: v4l2 capture: %s: "
+		pr_debug("v4l2 capture: %s: "
 				"working queue empty\n", __func__);
 		return;
 	}
@@ -444,6 +445,36 @@ static int csi_v4l2_buffer_status(cam_data *cam, struct v4l2_buffer *buf)
 	}
 
 	memcpy(buf, &(cam->frame[buf->index].buffer), sizeof(*buf));
+
+	return 0;
+}
+
+static int csi_v4l2_release_bufs(cam_data *cam)
+{
+	pr_debug("In MVC:csi_v4l2_release_bufs\n");
+	return 0;
+}
+
+static int csi_v4l2_prepare_bufs(cam_data *cam, struct v4l2_buffer *buf)
+{
+	pr_debug("In MVC:csi_v4l2_prepare_bufs\n");
+
+	if (buf->index < 0 || buf->index >= FRAME_NUM || buf->length <
+			PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage)) {
+		pr_err("ERROR: v4l2 capture: csi_v4l2_prepare_bufs buffers "
+			"not allocated,index=%d, length=%d\n", buf->index,
+			buf->length);
+		return -EINVAL;
+	}
+
+	cam->frame[buf->index].buffer.index = buf->index;
+	cam->frame[buf->index].buffer.flags = V4L2_BUF_FLAG_MAPPED;
+	cam->frame[buf->index].buffer.length = buf->length;
+	cam->frame[buf->index].buffer.m.offset = cam->frame[buf->index].paddress
+		= buf->m.offset;
+	cam->frame[buf->index].buffer.type = buf->type;
+	cam->frame[buf->index].buffer.memory = V4L2_MEMORY_USERPTR;
+	cam->frame[buf->index].index = buf->index;
 
 	return 0;
 }
@@ -1163,8 +1194,7 @@ static long csi_v4l_do_ioctl(struct file *file,
 			req->count = FRAME_NUM;
 		}
 
-		if ((req->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) ||
-				(req->memory != V4L2_MEMORY_MMAP)) {
+		if (req->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 			pr_err("ERROR: v4l2 capture: VIDIOC_REQBUFS: "
 					"wrong buffer type\n");
 			retval = -EINVAL;
@@ -1172,12 +1202,14 @@ static long csi_v4l_do_ioctl(struct file *file,
 		}
 
 		csi_streamoff(cam);
-		csi_free_frame_buf(cam);
+		if (req->memory & V4L2_MEMORY_MMAP)
+			csi_free_frame_buf(cam);
 		cam->skip_frame = 0;
 		INIT_LIST_HEAD(&cam->ready_q);
 		INIT_LIST_HEAD(&cam->working_q);
 		INIT_LIST_HEAD(&cam->done_q);
-		retval = csi_allocate_frame_buf(cam, req->count);
+		if (req->memory & V4L2_MEMORY_MMAP)
+			retval = csi_allocate_frame_buf(cam, req->count);
 		break;
 	}
 
@@ -1191,9 +1223,19 @@ static long csi_v4l_do_ioctl(struct file *file,
 			break;
 		}
 
-		memset(buf, 0, sizeof(buf));
-		buf->index = index;
-		retval = csi_v4l2_buffer_status(cam, buf);
+		if (buf->memory & V4L2_MEMORY_MMAP) {
+			memset(buf, 0, sizeof(buf));
+			buf->index = index;
+		}
+
+		down(&cam->param_lock);
+		if (buf->memory & V4L2_MEMORY_USERPTR) {
+			csi_v4l2_release_bufs(cam);
+			retval = csi_v4l2_prepare_bufs(cam, buf);
+		}
+		if (buf->memory & V4L2_MEMORY_MMAP)
+			retval = csi_v4l2_buffer_status(cam, buf);
+		up(&cam->param_lock);
 		break;
 	}
 
@@ -1264,6 +1306,49 @@ static long csi_v4l_do_ioctl(struct file *file,
 		retval = csi_streamoff(cam);
 		break;
 	}
+	case VIDIOC_ENUM_FMT: {
+		struct v4l2_fmtdesc *fmt = arg;
+		if (cam->sensor)
+			retval = vidioc_int_enum_fmt_cap(cam->sensor, fmt);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
+		break;
+	}
+	case VIDIOC_ENUM_FRAMESIZES: {
+		struct v4l2_frmsizeenum *fsize = arg;
+		if (cam->sensor)
+			retval = vidioc_int_enum_framesizes(cam->sensor, fsize);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
+		break;
+	}
+	case VIDIOC_ENUM_FRAMEINTERVALS: {
+		struct v4l2_frmivalenum *fival = arg;
+		if (cam->sensor)
+			retval = vidioc_int_enum_frameintervals(cam->sensor,
+								fival);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
+		break;
+	}
+	case VIDIOC_DBG_G_CHIP_IDENT: {
+		struct v4l2_dbg_chip_ident *p = arg;
+		p->ident = V4L2_IDENT_NONE;
+		p->revision = 0;
+		if (cam->sensor)
+			retval = vidioc_int_g_chip_ident(cam->sensor, (int *)p);
+		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
+		break;
+	}
 
 	case VIDIOC_S_CTRL:
 	case VIDIOC_G_STD:
@@ -1274,7 +1359,6 @@ static long csi_v4l_do_ioctl(struct file *file,
 	case VIDIOC_CROPCAP:
 	case VIDIOC_S_STD:
 	case VIDIOC_G_CTRL:
-	case VIDIOC_ENUM_FMT:
 	case VIDIOC_TRY_FMT:
 	case VIDIOC_QUERYCTRL:
 	case VIDIOC_ENUMINPUT:

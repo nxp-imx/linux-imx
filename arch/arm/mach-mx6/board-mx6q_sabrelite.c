@@ -104,10 +104,10 @@ static struct clk *sata_clk;
 extern char *gp_reg_id;
 extern char *soc_reg_id;
 extern char *pu_reg_id;
+static int caam_enabled;
 
 extern struct regulator *(*get_cpu_regulator)(void);
 extern void (*put_cpu_regulator)(void);
-extern void mx6_cpu_regulator_init(void);
 
 static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	/* AUDMUX */
@@ -671,7 +671,6 @@ static void __init imx6q_sabrelite_init_usb(void)
 	mxc_iomux_set_gpr_register(1, 13, 1, 1);
 
 	mx6_set_otghost_vbus_func(imx6q_sabrelite_usbotg_vbus);
-	mx6_usb_dr_init();
 }
 
 /* HW Initialization, if return 0, initialization is successful. */
@@ -1175,6 +1174,13 @@ static int __init imx6x_add_ram_console(void)
 #define imx6x_add_ram_console() do {} while (0)
 #endif
 
+static int __init caam_setup(char *__unused)
+{
+	caam_enabled = 1;
+	return 1;
+}
+early_param("caam", caam_setup);
+
 /*!
  * Board specific initialization.
  */
@@ -1219,7 +1225,8 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
 	imx6q_add_imx_snvs_rtc();
 
-	imx6q_add_imx_caam();
+	if (1 == caam_enabled)
+		imx6q_add_imx_caam();
 
 	imx6q_add_imx_i2c(0, &mx6q_sabrelite_i2c_data);
 	imx6q_add_imx_i2c(1, &mx6q_sabrelite_i2c_data);
@@ -1267,7 +1274,6 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_dma();
 
 	imx6q_add_dvfs_core(&sabrelite_dvfscore_data);
-	mx6_cpu_regulator_init();
 
 	imx6q_add_ion(0, &imx_ion_data,
 		sizeof(imx_ion_data) + sizeof(struct ion_platform_heap));
