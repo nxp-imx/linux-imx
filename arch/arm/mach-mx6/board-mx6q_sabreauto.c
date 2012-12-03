@@ -1323,9 +1323,22 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 {
 	char *str;
 	struct tag *t;
+	int i = 0;
+	struct ipuv3_fb_platform_data *pdata_fb = sabr_fb_data;
 
 	for_each_tag(t, tags) {
 		if (t->hdr.tag == ATAG_CMDLINE) {
+			str = t->u.cmdline.cmdline;
+			str = strstr(str, "fbmem=");
+			if (str != NULL) {
+				str += 6;
+				pdata_fb[i++].res_size[0] = memparse(str, &str);
+				while (*str == ',' &&
+					i < ARRAY_SIZE(sabr_fb_data)) {
+					str++;
+					pdata_fb[i++].res_size[0] = memparse(str, &str);
+				}
+			}
 			/* GPU reserved memory */
 			str = t->u.cmdline.cmdline;
 			str = strstr(str, "gpumem=");
