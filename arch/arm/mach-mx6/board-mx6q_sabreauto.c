@@ -416,7 +416,7 @@ static struct mtd_partition m25p32_partitions[] = {
 		.mask_flags = MTD_WRITEABLE,
 	}, {
 		.name	= "kernel",
-		.offset	= MTDPART_OFS_APPEND,
+		.offset	= MTDPART_OFS_NXTBLK,
 		.size	= MTDPART_SIZ_FULL,
 	},
 };
