@@ -42,9 +42,7 @@ static struct cpufreq_frequency_table *imx_freq_table;
 
 static int cpu_op_nr;
 static struct cpu_op *cpu_op_tbl;
-#ifndef CONFIG_ARCH_MX5
 static u32 pre_suspend_rate;
-#endif
 #ifdef CONFIG_ARCH_MX5
 int cpufreq_suspended;
 #endif
@@ -517,10 +515,14 @@ Notify_finish:
 static struct notifier_block imx_cpufreq_pm_notifier = {
 	.notifier_call = cpufreq_pm_notify,
 };
+#ifdef CONFIG_ARCH_MX6
 extern void mx6_cpu_regulator_init(void);
+#endif
 static int __init mxc_cpufreq_driver_init(void)
 {
+#ifdef CONFIG_ARCH_MX6
 	mx6_cpu_regulator_init();
+#endif
 	mutex_init(&set_cpufreq_lock);
 	register_pm_notifier(&imx_cpufreq_pm_notifier);
 	return cpufreq_register_driver(&mxc_driver);
