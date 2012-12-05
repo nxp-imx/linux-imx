@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -203,6 +203,7 @@ struct usb_sys_interface {
 /* Device Address bit masks */
 #define  USB_DEVICE_ADDRESS_MASK              (0xFE000000)
 #define  USB_DEVICE_ADDRESS_BIT_POS           (25)
+#define  USB_DEVICE_ADDRESS_ADV_BIT_POS       (24)
 
 /* endpoint list address bit masks */
 #define USB_EP_LIST_ADDRESS_MASK              (0xfffff800)
