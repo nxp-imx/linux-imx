@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -261,6 +261,11 @@ int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 	tmp &= ~(BM_USBPHY_CTRL_CLKGATE | BM_USBPHY_CTRL_SFTRST);
 	__raw_writel(tmp, phy_ctrl);
 	udelay(10);
+
+#ifdef CONFIG_ARCH_MX28
+	__raw_writel(0x10060605, (phy_reg + HW_USBPHY_TX));
+	__raw_writel(0x1, (phy_reg + HW_USBPHY_RX));
+#endif
 
 	/* set UTMI xcvr */
 	/* Workaround an IC issue for ehci driver:
