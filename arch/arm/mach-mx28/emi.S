@@ -3,7 +3,7 @@
  *
  * Author: Vitaly Wool <vital@embeddedalley.com>
  *
- * Copyright 2008-2010 Freescale Semiconductor, Inc.
+ * Copyright 2008-2013 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -38,17 +38,19 @@
 
 .align 8
 ENTRY(mxs_ram_freq_scale)
-	stmfd	sp!, {r1 - r10, lr}
+	stmfd	sp!, {r1 - r12, lr}
 	ldr	r5, [r0, #SCALING_DATA_NEW_FREQ_OFFSET]
 	ldr	r6, [r0, #SCALING_DATA_CUR_FREQ_OFFSET]
 	ldr	r7, [r0, #SCALING_DATA_EMI_DIV_OFFSET]
 	mov	r7, r7,	LSL #BP_CLKCTRL_EMI_DIV_EMI
 	ldr	r8, [r0, #SCALING_DATA_FRAC_DIV_OFFSET]
 	mov	r8, r8,	LSL #BP_CLKCTRL_FRAC0_EMIFRAC
+	add	r2, r2, #0xC00
+	mov	r12, r2
 
 	@copy memory setting to iram
 	mov	r2, #MX28_DRAMCTRLREGNUM
-	adr	r0, __mx28_emisetting
+	mov	r0, r12
 1:	ldr	r3, [r1]
 	str 	r3, [r0]
 	add 	r0, r0, #4
@@ -56,31 +58,49 @@ ENTRY(mxs_ram_freq_scale)
 	subs 	r2, r2, #1
 	bne 1b
 
-	@set temp static to iram.
-	adr	r9, __mxs_temp_stack
-
-	@ clean cache
-	ldr	r1, __mxs_flush_cache_addr
+	ldr r1, =arm926_flush_kern_cache_all
+	stmfd sp!, {r1-r12,lr}
 	mov	lr, pc
 	mov	pc, r1
+	ldmfd sp!, {r1-r12,lr}
 
 	mov r2, #MX28_SOC_IO_ADDRESS(CLKCTRL_PHYS_ADDR)&0xFF
 	orr r2, r2,  #MX28_SOC_IO_ADDRESS(CLKCTRL_PHYS_ADDR)&0xFF00
 	orr r2, r2,  #MX28_SOC_IO_ADDRESS(CLKCTRL_PHYS_ADDR)&0xFF0000
 	orr r2, r2,  #MX28_SOC_IO_ADDRESS(CLKCTRL_PHYS_ADDR)&0xFF000000
 
-	mov r0, r2
-	bl lock_vector_tlb
-
 	mov r0, #MX28_SOC_IO_ADDRESS(DRAM_PHYS_ADDR)&0xFF
 	orr r0, r0, #MX28_SOC_IO_ADDRESS(DRAM_PHYS_ADDR)&0xFF00
 	orr r0, r0, #MX28_SOC_IO_ADDRESS(DRAM_PHYS_ADDR)&0xFF0000
 	orr r0, r0, #MX28_SOC_IO_ADDRESS(DRAM_PHYS_ADDR)&0xFF000000
 
+	mov r3, r12
+
+	mov r1, #0x0
+        mcr p15,0,r1,c7,c10,4    @ invalidate TLB single entry to ensure that
+
+        mcr p15,0,r0,c8,c7,1    @ invalidate TLB single entry to ensure that
+                                @ LockAddr is not already in the TLB
+        mcr p15,0,r2,c8,c7,1    @ invalidate TLB single entry to ensure that
+                                @ LockAddr is not already in the TLB
+        mcr p15,0,r3,c8,c7,1    @ invalidate TLB single entry to ensure that
+                                @ LockAddr is not already in the TLB
+        mrc p15,0,r1,c10,c0,0   @ read the lockdown register
+        orr r1,r1,#1            @ set the preserve bit
+        mcr p15,0,r1,c10,c0,0   @ write to the lockdown register
+        ldr r1,[r0]             @ TLB will miss, and entry will be loaded
+        ldr r1,[r2]             @ TLB will miss, and entry will be loaded
+        ldr r1,[r3]             @ TLB will miss, and entry will be loaded
+        mrc p15,0,r1,c10,c0,0   @ read the lockdown register (victim will have
+                                @ incremented)
+        bic r1,r1,#1            @ clear preserve bit
+        mcr p15,0,r1,c10,c0,0   @ write to the lockdown registerADR r1,LockAddr
+	@bl lock_vector_tlb
 	@ Make sure emi not busy
 2:
 	ldr r1, [r0, #HW_DRAM_CTL08]
-	tst r1, #BM_DRAM_CTL08_CONTROLLER_BUSY
+	and r1, #BM_DRAM_CTL08_CONTROLLER_BUSY
+	cmp r1, #0x0
 	bne 2b
 
 	@ put DRAM into self refresh
@@ -141,7 +161,7 @@ ENTRY(mxs_ram_freq_scale)
 
 	@copy memory setting to iram
 	mov     r3, r0
-	adr     r4, __mx28_emisetting
+	mov     r4, r12
 	mov 	r6, #MX28_DRAMCTRLREGNUM
 8:	ldr     r5, [r4]
 	str     r5, [r3]
@@ -165,7 +185,6 @@ ENTRY(mxs_ram_freq_scale)
 	tst r1, #BM_DRAM_CTL21_DLLLOCKREG
 	beq 9b
 
-
     	@11. Exit Memory self-refresh
 	ldr r1, [r0, #HW_DRAM_CTL17]
 	bic r1, r1, #BM_DRAM_CTL17_SREFRESH
@@ -183,37 +202,16 @@ ENTRY(mxs_ram_freq_scale)
 	orr	r2, r2, #MX28_SOC_IO_ADDRESS(DIGCTL_PHYS_ADDR)&0xFF000000
 
 	ldr 	r0, [r2, #HW_DIGCTL_MICROSECONDS];
-	add	r0, #100
+	add	r0, #1000
 11:	ldr	r1, [r2, #HW_DIGCTL_MICROSECONDS];
 	cmp	r1, r0
 	blt	11b
 
 @ restore regs and return
-	ldmfd   sp!, {r1 - r10, lr}
+	ldmfd   sp!, {r1 - r12, lr}
 	mov	pc, lr
 
 	.space	0x100
-__mxs_temp_stack:
-	.word	0
-__mx28_emisetting:
-	.space MX28_DRAMCTRLREGNUM*4
-
-lock_vector_tlb:
-        mov r1, r0 @ set r1 to the value of the address to be locked down
-        mcr p15,0,r1,c8,c7,1    @ invalidate TLB single entry to ensure that
-                                @ LockAddr is not already in the TLB
-        mrc p15,0,r0,c10,c0,0   @ read the lockdown register
-        orr r0,r0,#1            @ set the preserve bit
-        mcr p15,0,r0,c10,c0,0   @ write to the lockdown register
-        ldr r1,[r1]             @ TLB will miss, and entry will be loaded
-        mrc p15,0,r0,c10,c0,0   @ read the lockdown register (victim will have
-                                @ incremented)
-        bic r0,r0,#1            @ clear preserve bit
-        mcr p15,0,r0,c10,c0,0   @ write to the lockdown registerADR r1,LockAddr
-        mov pc,lr
-
-__mxs_flush_cache_addr:
-	.word	arm926_flush_kern_cache_all
 
 ENTRY(mxs_ram_funcs_sz)
 	.word	. - mxs_ram_freq_scale
