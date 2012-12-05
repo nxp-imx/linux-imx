@@ -1,7 +1,7 @@
 /*
  * Freescale MX28 Seiko 43WVF1G LCD panel driver
  *
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -126,12 +126,13 @@ static int blank_panel(int blank)
 	case FB_BLANK_POWERDOWN:
 		__raw_writel(BM_LCDIF_CTRL_BYPASS_COUNT,
 			     REGS_LCDIF_BASE + HW_LCDIF_CTRL_CLR);
-		for (count = 10000; count; count--) {
+		for (count = 100000; count; count--) {
 			if (__raw_readl(REGS_LCDIF_BASE + HW_LCDIF_STAT) &
 			    BM_LCDIF_STAT_TXFIFO_EMPTY)
 				break;
 			udelay(1);
 		}
+		mdelay(1);
 		break;
 
 	case FB_BLANK_UNBLANK:
