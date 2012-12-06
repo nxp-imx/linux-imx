@@ -1204,8 +1204,12 @@ static ddi_bc_Cfg_t battery_data = {
 	.u8DieTempHigh			 = 75,		/* deg centigrade */
 	.u8DieTempLow			 = 65,		/* deg centigrade */
 	.u16DieTempSafeCurrent		 = 0,		/* mA */
+	.u8DieTempChannel		 = 0,		/* LRADC 0 */
 	.monitorBatteryTemp		 = 0,		/* Monitor the battery*/
-	.u8BatteryTempChannel		 = 0,		/* LRADC 0 */
+  /* There is no free LRADC channel for battery monitor.
+     LRADC 1  is also used for kbd, if LRADC_CH1 is used
+     for battery temperature. kbd device should be disabled */
+  .u8BatteryTempChannel = LRADC_CH1,
 	.u16BatteryTempHigh		 = 642,		/* Unknown units */
 	.u16BatteryTempLow		 = 497,		/* Unknown units */
 	.u16BatteryTempSafeCurrent	 = 0,		/* mA */

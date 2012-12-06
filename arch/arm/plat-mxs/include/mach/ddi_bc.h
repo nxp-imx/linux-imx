@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -296,6 +296,12 @@ typedef struct _ddi_bc_Cfg {
 	/*  will clamp the charging current at or below this value. */
 
 	uint16_t u16DieTempSafeCurrent;
+
+	/* brief This field indicates the LRADC channel to
+     read Die temperature */
+
+	uint8_t u8DieTempChannel;
+
 
 	/* brief If the battery charger is monitoring the battery */
 	/*  temperature, this field indicates the LRADC channel to */
