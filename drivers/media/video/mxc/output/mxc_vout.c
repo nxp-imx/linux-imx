@@ -189,6 +189,10 @@ const static struct v4l2_fmtdesc mxc_formats[] = {
 		.pixelformat = V4L2_PIX_FMT_YUV420,
 	},
 	{
+		.description = "YVU420",
+		.pixelformat = V4L2_PIX_FMT_YVU420,
+	},
+	{
 		.description = "TILED NV12P",
 		.pixelformat = IPU_PIX_FMT_TILED_NV12,
 	},
