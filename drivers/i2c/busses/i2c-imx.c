@@ -96,7 +96,7 @@
  * Duplicated divider values removed from list
  */
 
-static u16 __initdata i2c_clk_div[50][2] = {
+static u16 i2c_clk_div[50][2] = {
 	{ 22,	0x20 }, { 24,	0x21 }, { 26,	0x22 }, { 28,	0x23 },
 	{ 30,	0x00 },	{ 32,	0x24 }, { 36,	0x25 }, { 40,	0x26 },
 	{ 42,	0x03 }, { 44,	0x27 },	{ 48,	0x28 }, { 52,	0x05 },
@@ -123,6 +123,7 @@ struct imx_i2c_struct {
 	unsigned int 		disable_delay;
 	int			stopped;
 	unsigned int		ifdr; /* IMX_I2C_IFDR */
+	unsigned int		cur_clk;
 };
 
 /** Functions for IMX I2C adapter driver ***************************************
@@ -190,6 +191,10 @@ static void i2c_imx_set_clk(struct imx_i2c_struct *i2c_imx,
 
 	/* Divider value calculation */
 	i2c_clk_rate = clk_get_rate(i2c_imx->clk);
+	if (i2c_imx->cur_clk == i2c_clk_rate)
+		return;
+	else
+		i2c_imx->cur_clk = i2c_clk_rate;
 	div = (i2c_clk_rate + rate - 1) / rate;
 	if (div < i2c_clk_div[0][0])
 		i = 0;
