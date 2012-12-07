@@ -513,10 +513,10 @@ static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdat
 		pr_debug("the otgsc is 0x%x, usbsts is 0x%x, portsc is 0x%x, wakeup_irq is 0x%x\n", UOG_OTGSC, UOG_USBSTS, UOG_PORTSC1, wakeup_req);
 	}
 	/* if ID change sts, it is a host wakeup event */
-	if (wakeup_req && (otgsc & OTGSC_IS_USB_ID)) {
+	if (otgsc & OTGSC_IS_USB_ID) {
 		pr_debug("otg host ID wakeup\n");
-		/* if host ID wakeup, we must clear the b session change sts */
-		otgsc &= (~OTGSC_IS_USB_ID);
+		/* if host ID wakeup, we must clear the ID change sts */
+		otgsc |= OTGSC_IS_USB_ID;
 		return WAKEUP_EVENT_ID;
 	}
 	if (wakeup_req  && (!(otgsc & OTGSC_STS_USB_ID))) {
