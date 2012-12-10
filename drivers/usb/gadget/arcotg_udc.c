@@ -2911,6 +2911,7 @@ static void fsl_udc_release(struct device *dev)
 	dma_free_coherent(dev, udc_controller->ep_qh_size,
 			udc_controller->ep_qh, udc_controller->ep_qh_dma);
 	kfree(udc_controller);
+	udc_controller = NULL;
 }
 
 /******************************************************************
@@ -3255,8 +3256,7 @@ static int  fsl_udc_remove(struct platform_device *pdev)
 		return -ENODEV;
 	udc_controller->done = &done;
 	/* open USB PHY clock */
-	if (udc_controller->stopped)
-		dr_clk_gate(true);
+	dr_clk_gate(true);
 
 	/* disable wake up and otgsc interrupt for safely remove udc driver*/
 	temp = fsl_readl(&dr_regs->otgsc);
@@ -3296,7 +3296,7 @@ static int  fsl_udc_remove(struct platform_device *pdev)
 	release_mem_region(res->start, resource_size(res));
 }
 #endif
-
+	dr_clk_gate(false);
 	device_unregister(&udc_controller->gadget.dev);
 	/* free udc --wait for the release() finished */
 	wait_for_completion(&done);
@@ -3306,9 +3306,6 @@ static int  fsl_udc_remove(struct platform_device *pdev)
 	 */
 	if (pdata->exit)
 		pdata->exit(pdata->pdev);
-
-	if (udc_controller->stopped)
-		dr_clk_gate(false);
 
 	return 0;
 }
