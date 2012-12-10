@@ -547,6 +547,7 @@ static int csi_streamon(cam_data *cam)
 	cam->capture_on = true;
 	csi_cap_image(cam);
 	csi_enable_int(1);
+	csi_dmareq_rff_enable();
 
 	return 0;
 }
@@ -567,6 +568,7 @@ static int csi_streamoff(cam_data *cam)
 	if (cam->capture_on == false)
 		return 0;
 
+	csi_dmareq_rff_disable();
 	csi_disable_int();
 	cam->capture_on = false;
 
