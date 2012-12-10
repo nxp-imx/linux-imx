@@ -16,6 +16,11 @@ Optional properties:
 
 - clock-frequency : The oscillator frequency driving the flexcan device
 
+Below are gpios for tranceiver:
+- trx_en_gpio : enable gpio
+- trx_stby_gpio : standby gpio
+- trx_nerr_gpio : NERR gpio
+
 Example:
 
 	can@1c000 {
