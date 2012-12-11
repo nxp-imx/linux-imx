@@ -26,6 +26,7 @@
 #include <mach/common.h>
 #include <mach/hardware.h>
 #include <mach/clock.h>
+#include <mach/devices-common.h>
 #include <asm/proc-fns.h>
 #include <asm/system.h>
 #include "crm_regs.h"
@@ -56,6 +57,18 @@ extern void __iomem *apll_base;
 extern void __iomem *arm_plat_base;
 extern void (*suspend_in_iram)(void *param1, void *param2, void* param3);
 extern void __iomem *suspend_param1;
+
+#ifdef CONFIG_MXC_REBOOT_ANDROID_CMD
+#ifdef CONFIG_SOC_IMX50
+static resource_size_t srtc_iobase = MX50_SRTC_BASE_ADDR;
+#endif
+#ifdef CONFIG_SOC_IMX51
+static resource_size_t srtc_iobase = MX51_SRTC_BASE_ADDR;
+#endif
+#ifdef CONFIG_SOC_IMX53
+static resource_size_t srtc_iobase = MX53_SRTC_BASE_ADDR;
+#endif
+#endif
 
 static struct clk *gpc_dvfs_clk;
 static struct clk *pll1_sw_clk;
@@ -298,3 +311,59 @@ int mxs_reset_block(void __iomem *hwreg, int just_enable)
 	return r;
 }
 
+#ifdef CONFIG_MXC_REBOOT_ANDROID_CMD
+/* This function will set a bits on SRTC_LPGR[27-26] bits to enter
+ * special boot mode.  These bits will not clear by watchdog reset, so
+ * it can be checked by bootloader to choose enter different mode.
+ * Bit 27 = Recovery mode
+ * Bit 26 = Fastboot mode
+ */
+
+#define ANDROID_RECOVERY_BOOT  (1 << 27)
+#define ANDROID_FASTBOOT_BOOT  (1 << 26)
+#define SRTC_LPGR               0x1C
+
+void do_switch_recovery(void)
+{
+	u32 reg;
+	void __iomem *srtc_base;
+	struct clk *srtc_clk;
+
+	srtc_clk = clk_get_sys("mxc_rtc.0", NULL);
+	if (IS_ERR_OR_NULL(srtc_clk))
+		printk(KERN_WARNING "Error getting mxc_rtc clk\n");
+	else
+		clk_enable(srtc_clk);
+
+	srtc_base = ioremap(srtc_iobase, 40);
+	if (srtc_base) {
+		reg = __raw_readl(srtc_base + SRTC_LPGR);
+		reg |= ANDROID_RECOVERY_BOOT;
+		__raw_writel(reg, srtc_base + SRTC_LPGR);
+		iounmap(srtc_base);
+	} else
+		printk(KERN_WARNING "Failed to ioremap srtc iobase\n");
+}
+
+void do_switch_fastboot(void)
+{
+	u32 reg;
+	void __iomem *srtc_base;
+	struct clk *srtc_clk;
+
+	srtc_clk = clk_get_sys("mxc_rtc.0", NULL);
+	if (IS_ERR_OR_NULL(srtc_clk))
+		printk(KERN_WARNING "Error getting mxc_rtc clk\n");
+	else
+		clk_enable(srtc_clk);
+
+	srtc_base = ioremap(srtc_iobase, 40);
+	if (srtc_base) {
+		reg = __raw_readl(srtc_base + SRTC_LPGR);
+		reg |= ANDROID_FASTBOOT_BOOT;
+		__raw_writel(reg, srtc_base + SRTC_LPGR);
+		iounmap(srtc_base);
+	} else
+		printk(KERN_WARNING "Failed to ioremap srtc iobase\n");
+}
+#endif
