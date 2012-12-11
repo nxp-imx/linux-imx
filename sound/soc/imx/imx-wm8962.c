@@ -27,6 +27,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/slab.h>
 #include <linux/clk.h>
+#include <linux/kthread.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -57,6 +58,10 @@ unsigned int sample_format = SNDRV_PCM_FMTBIT_S16_LE;
 static struct imx_priv card_priv;
 static struct snd_soc_card snd_soc_card_imx;
 static struct snd_soc_codec *gcodec;
+static int suspend_hp_flag;
+static int suspend_mic_flag;
+static int hp_irq;
+static int mic_irq;
 
 static int imx_hifi_startup(struct snd_pcm_substream *substream)
 {
@@ -210,6 +215,11 @@ static void headphone_detect_handler(struct work_struct *wor)
 	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
 	kfree(buf);
 
+	if ((suspend_hp_flag == 1) && (hp_irq == 0)) {
+		suspend_hp_flag = 0;
+		return;
+	}
+	hp_irq = 0;
 	enable_irq(priv->hp_irq);
 
 	return;
@@ -219,6 +229,10 @@ static DECLARE_DELAYED_WORK(hp_event, headphone_detect_handler);
 
 static irqreturn_t imx_headphone_detect_handler(int irq, void *data)
 {
+	if (suspend_hp_flag == 1)
+		return IRQ_HANDLED;
+
+	hp_irq = 1;
 	disable_irq_nosync(irq);
 	schedule_delayed_work(&hp_event, msecs_to_jiffies(200));
 	return IRQ_HANDLED;
@@ -280,6 +294,11 @@ static void amic_detect_handler(struct work_struct *work)
 	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
 	kfree(buf);
 
+	if ((suspend_mic_flag == 1) && (mic_irq == 0)) {
+		suspend_mic_flag = 0;
+		return;
+	}
+	mic_irq = 0;
 	enable_irq(priv->amic_irq);
 }
 
@@ -287,6 +306,10 @@ static DECLARE_DELAYED_WORK(amic_event, amic_detect_handler);
 
 static irqreturn_t imx_amic_detect_handler(int irq, void *data)
 {
+	if (suspend_mic_flag == 1)
+		return IRQ_HANDLED;
+
+	mic_irq = 1;
 	disable_irq_nosync(irq);
 	schedule_delayed_work(&amic_event, msecs_to_jiffies(200));
 	return IRQ_HANDLED;
@@ -311,6 +334,32 @@ static ssize_t show_amic(struct device_driver *dev, char *buf)
 
 static DRIVER_ATTR(amic, S_IRUGO | S_IWUSR, show_amic, NULL);
 
+static DECLARE_DELAYED_WORK(resume_hp_event, headphone_detect_handler);
+static DECLARE_DELAYED_WORK(resume_mic_event, amic_detect_handler);
+
+
+int imx_hifi_trigger(struct snd_pcm_substream *substream, int cmd)
+{
+	struct imx_priv *priv = &card_priv;
+	struct platform_device *pdev = priv->pdev;
+	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
+
+	if (SNDRV_PCM_TRIGGER_SUSPEND == cmd) {
+		suspend_hp_flag = 1;
+		suspend_mic_flag = 1;
+	}
+	if (SNDRV_PCM_TRIGGER_RESUME == cmd) {
+		if (plat->hp_gpio != -1)
+			schedule_delayed_work(&resume_hp_event,
+							msecs_to_jiffies(200));
+		if (plat->mic_gpio != -1)
+			schedule_delayed_work(&resume_mic_event,
+							msecs_to_jiffies(200));
+	}
+
+	return 0;
+}
+
 static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
@@ -330,8 +379,6 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_dapm_enable_pin(&codec->dapm, "Headphone Jack");
 	snd_soc_dapm_enable_pin(&codec->dapm, "AMIC");
-
-	snd_soc_dapm_sync(&codec->dapm);
 
 	if (plat->hp_gpio != -1) {
 		priv->hp_irq = gpio_to_irq(plat->hp_gpio);
@@ -389,6 +436,8 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 	} else if (!snd_soc_dapm_get_pin_status(&codec->dapm, "DMICDAT"))
 		snd_soc_dapm_nc_pin(&codec->dapm, "DMIC");
 
+	snd_soc_dapm_sync(&codec->dapm);
+
 	return 0;
 }
 
@@ -396,6 +445,7 @@ static struct snd_soc_ops imx_hifi_ops = {
 	.startup = imx_hifi_startup,
 	.shutdown = imx_hifi_shutdown,
 	.hw_params = imx_hifi_hw_params,
+	.trigger = imx_hifi_trigger,
 };
 
 static struct snd_soc_dai_link imx_dai[] = {
