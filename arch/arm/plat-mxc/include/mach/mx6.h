@@ -302,6 +302,8 @@
 #define SRC_GPR9			0x40
 #define SRC_GPR10			0x44
 
+#define SNVS_LPGPR			0x68
+
 /* GPC offsets */
 #define MXC_GPC_CNTR_OFFSET		0x0
 
