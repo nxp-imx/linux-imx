@@ -563,7 +563,7 @@ void mxc_clear_mfgmode(void)
 #endif
 
 #ifdef CONFIG_MXC_REBOOT_ANDROID_CMD
-/* This function will set a bit on SRC_GPR10[7-8] bits to enter
+/* This function will set a bit on SNVS_LPGPR[7-8] bits to enter
  * special boot mode.  These bits will not clear by watchdog reset, so
  * it can be checked by bootloader to choose enter different mode.*/
 
@@ -574,18 +574,18 @@ void do_switch_recovery(void)
 {
 	u32 reg;
 
-	reg = __raw_readl(SRC_BASE_ADDR + SRC_GPR10);
+	reg = __raw_readl(MX6Q_SNVS_BASE_ADDR + SNVS_LPGPR);
 	reg |= ANDROID_RECOVERY_BOOT;
-	__raw_writel(reg, SRC_BASE_ADDR + SRC_GPR10);
+	__raw_writel(reg, MX6Q_SNVS_BASE_ADDR + SNVS_LPGPR);
 }
 
 void do_switch_fastboot(void)
 {
 	u32 reg;
 
-	reg = __raw_readl(SRC_BASE_ADDR + SRC_GPR10);
+	reg = __raw_readl(MX6Q_SNVS_BASE_ADDR + SNVS_LPGPR);
 	reg |= ANDROID_FASTBOOT_BOOT;
-	__raw_writel(reg, SRC_BASE_ADDR + SRC_GPR10);
+	__raw_writel(reg, MX6Q_SNVS_BASE_ADDR + SNVS_LPGPR);
 }
 #endif
 
