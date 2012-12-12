@@ -53,23 +53,21 @@ static int wm831x_i2c_write_device(struct wm831x *wm831x, unsigned short reg,
 	struct i2c_client *i2c = wm831x->control_data;
 	struct i2c_msg xfer[2];
 	int ret;
+    char buf_to_write[4];
 
 	reg = cpu_to_be16(reg);
+    memcpy( buf_to_write, &reg, 2);
+    memcpy( buf_to_write + 2, src, 2);
 
 	xfer[0].addr = i2c->addr;
 	xfer[0].flags = 0;
-	xfer[0].len = 2;
-	xfer[0].buf = (char *)&reg;
+	xfer[0].len = 4;
+	xfer[0].buf = buf_to_write;
 
-	xfer[1].addr = i2c->addr;
-	xfer[1].flags = I2C_M_NOSTART;
-	xfer[1].len = bytes;
-	xfer[1].buf = (char *)src;
-
-	ret = i2c_transfer(i2c->adapter, xfer, 2);
+	ret = i2c_transfer(i2c->adapter, xfer, 1);
 	if (ret < 0)
 		return ret;
-	if (ret != 2)
+	if (ret != 1)
 		return -EIO;
 
 	return 0;
