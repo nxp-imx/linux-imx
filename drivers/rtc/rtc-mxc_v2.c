@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -630,6 +630,10 @@ static int mxc_rtc_probe(struct platform_device *pdev)
 
 	__raw_writel(0xFFFFFFFF, ioaddr + SRTC_LPSR);
 	udelay(100);
+
+	/* Set pdata as its required by rtc_device_register */
+	/* as it checks if alarm is already set, calling mxc_rtc_read_time */
+	platform_set_drvdata(pdev, pdata);
 
 	rtc = rtc_device_register(pdev->name, &pdev->dev,
 				  &mxc_rtc_ops, THIS_MODULE);
