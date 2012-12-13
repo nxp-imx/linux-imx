@@ -1,7 +1,7 @@
 /*
  * Touchkey driver for Freescale MPR121 Controllor
  *
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  * Author: Zhang Jiejing <jiejing.zhang@freescale.com>
  *
  * Based on mcs_touchkey.c
@@ -43,6 +43,7 @@
  * enabled capacitance sensing inputs and its run/suspend mode.
  */
 #define ELECTRODE_CONF_ADDR		0x5e
+#define ECR_CL_BT_5BIT_VAL		0x80
 #define AUTO_CONFIG_CTRL_ADDR		0x7b
 #define AUTO_CONFIG_USL_ADDR		0x7d
 #define AUTO_CONFIG_LSL_ADDR		0x7e
@@ -164,7 +165,7 @@ static int __devinit mpr121_phys_init(const struct mpr121_platform_data *pdata,
 	ret |= i2c_smbus_write_byte_data(client, AUTO_CONFIG_LSL_ADDR, lsl);
 	ret |= i2c_smbus_write_byte_data(client, AUTO_CONFIG_TL_ADDR, tl);
 	ret |= i2c_smbus_write_byte_data(client, ELECTRODE_CONF_ADDR,
-					 mpr121->keycount);
+				ECR_CL_BT_5BIT_VAL | (mpr121->keycount & 0xf));
 	if (ret != 0)
 		goto err_i2c_write;
 
@@ -297,7 +298,7 @@ static int mpr_resume(struct device *dev)
 		disable_irq_wake(client->irq);
 
 	i2c_smbus_write_byte_data(client, ELECTRODE_CONF_ADDR,
-				  mpr121->keycount);
+				ECR_CL_BT_5BIT_VAL | (mpr121->keycount & 0xf));
 
 	return 0;
 }
