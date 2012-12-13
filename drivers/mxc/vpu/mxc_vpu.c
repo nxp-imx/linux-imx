@@ -251,8 +251,17 @@ static int vpu_open(struct inode *inode, struct file *filp)
 
 	mutex_lock(&vpu_data.lock);
 
-	if (open_count++ == 0 && !IS_ERR(vpu_regulator))
-		regulator_enable(vpu_regulator);
+	if (open_count++ == 0) {
+		if (!IS_ERR(vpu_regulator))
+			regulator_enable(vpu_regulator);
+
+#ifdef CONFIG_SOC_IMX6Q
+		clk_enable(vpu_clk);
+		if (READ_REG(BIT_CUR_PC))
+			printk(KERN_DEBUG "Not power off before vpu open!\n");
+		clk_disable(vpu_clk);
+#endif
+	}
 
 	filp->private_data = (void *)(&vpu_data);
 	mutex_unlock(&vpu_data.lock);
@@ -535,11 +544,70 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
  */
 static int vpu_release(struct inode *inode, struct file *filp)
 {
+	int i;
+	unsigned long timeout;
 
 	mutex_lock(&vpu_data.lock);
+
 	if (open_count > 0 && !(--open_count)) {
-		if (!IS_ERR(vpu_regulator))
-			regulator_disable(vpu_regulator);
+
+		/* Wait for vpu go to idle state */
+		clk_enable(vpu_clk);
+		timeout = jiffies + HZ;
+		while (READ_REG(BIT_BUSY_FLAG)) {
+			msleep(1);
+			if (time_after(jiffies, timeout)) {
+				printk(KERN_WARNING "VPU timeout during release\n");
+				break;
+			}
+		}
+		clk_disable(vpu_clk);
+
+		/* Clean up interrupt */
+		cancel_work_sync(&vpu_data.work);
+		flush_workqueue(vpu_data.workqueue);
+		irq_status = 0;
+
+		clk_enable(vpu_clk);
+		if (READ_REG(BIT_BUSY_FLAG)) {
+
+			if (cpu_is_mx51() || cpu_is_mx53()) {
+				printk(KERN_ERR
+					"fatal error: can't gate/power off when VPU is busy\n");
+				clk_disable(vpu_clk);
+				mutex_unlock(&vpu_data.lock);
+				return -EFAULT;
+			}
+
+#ifdef CONFIG_SOC_IMX6Q
+			if (cpu_is_mx6dl() || cpu_is_mx6q()) {
+				WRITE_REG(0x11, 0x10F0);
+				timeout = jiffies + HZ;
+				while (READ_REG(0x10F4) != 0x77) {
+					msleep(1);
+					if (time_after(jiffies, timeout))
+						break;
+				}
+
+				if (READ_REG(0x10F4) != 0x77) {
+					printk(KERN_ERR
+						"fatal error: can't gate/power off when VPU is busy\n");
+					WRITE_REG(0x0, 0x10F0);
+					clk_disable(vpu_clk);
+					mutex_unlock(&vpu_data.lock);
+					return -EFAULT;
+				} else {
+					if (vpu_plat->reset)
+						vpu_plat->reset();
+					WRITE_REG(0x1, BIT_BUSY_FLAG);
+					WRITE_REG(0x1, BIT_CODE_RUN);
+					while (READ_REG(BIT_BUSY_FLAG))
+						;
+				}
+			}
+#endif
+		}
+		clk_disable(vpu_clk);
 
 		vpu_free_buffers();
 
@@ -548,6 +616,14 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		share_mem.cpu_addr = 0;
 		vfree((void *)vshare_mem.cpu_addr);
 		vshare_mem.cpu_addr = 0;
+
+		vpu_clk_usercount = clk_get_usecount(vpu_clk);
+		for (i = 0; i < vpu_clk_usercount; i++)
+			clk_disable(vpu_clk);
+
+		if (!IS_ERR(vpu_regulator))
+			regulator_disable(vpu_regulator);
+
 	}
 	mutex_unlock(&vpu_data.lock);
 
@@ -891,7 +967,9 @@ static int vpu_resume(struct platform_device *pdev)
 			WRITE_REG(0x0, BIT_RESET_CTRL);
 			WRITE_REG(0x0, BIT_CODE_RUN);
 			/* MX6 RTL has a bug not to init MBC_SET_SUBBLK_EN on reset */
+#ifdef CONFIG_SOC_IMX6Q
 			WRITE_REG(0x0, MBC_SET_SUBBLK_EN);
+#endif
 
 			/*
 			 * Re-load boot code, from the codebuffer in external RAM.
