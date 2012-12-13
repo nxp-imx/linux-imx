@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -33,6 +33,7 @@
 #else
 #include <linux/mxc_scc2_driver.h>
 #endif
+#include <linux/jiffies.h>
 
 #ifdef DIAG_DRV_IF
 #include <diagnostic.h>
@@ -2127,28 +2128,24 @@ int sah_blocking_mode(sah_Head_Desc * entry)
 
 		DEFINE_WAIT(sahara_wait);	/* create a wait queue entry. Linux */
 
-		/* enter the wait queue entry into the queue */
-		prepare_to_wait(&Wait_queue, &sahara_wait, TASK_INTERRUPTIBLE);
-
 		/* check if this entry has been processed */
 		status = ((volatile sah_Head_Desc *)entry)->status;
-
 		if (!SAH_DESC_PROCESSED(status)) {
-			/* go to sleep - Linux */
-			schedule();
-		}
+			/* to avoid that SAHARA remains in an expected state
+			 * a timeout of 0.5s is used */
+			wait_event_interruptible_timeout(Wait_queue,
+			SAH_DESC_PROCESSED(
+				(sah_Head_Desc *)entry)->status,
+				HZ / 2);
 
-		/* un-queue the 'prepare to wait' queue? - Linux */
-		finish_wait(&Wait_queue, &sahara_wait);
-
-		/* signal belongs to this thread? */
-		if (signal_pending(current)) {	/* Linux */
-			os_lock_context_t lock_flags;
-
+			/* check if this entry has been processed */
 			/* don't allow access during this check and operation */
+			os_lock_context_t lock_flags;
 			os_lock_save_context(desc_queue_lock, lock_flags);
+
 			status = ((volatile sah_Head_Desc *)entry)->status;
-			if (status == SAH_STATE_PENDING) {
+			if ((status == SAH_STATE_PENDING) ||
+				(status == SAH_STATE_ON_SAHARA)) {
 				sah_Queue_Remove_Any_Entry(main_queue, entry);
 				entry->result = FSL_RETURN_INTERNAL_ERROR_S;
 				((volatile sah_Head_Desc *)entry)->status =
@@ -2158,7 +2155,7 @@ int sah_blocking_mode(sah_Head_Desc * entry)
 		}
 
 		status = ((volatile sah_Head_Desc *)entry)->status;
-	}			/* while ... */
+	} /* while ... */
 
 	/* Do this so that caller can free */
 	(void)sah_DePhysicalise_Descriptors(entry);

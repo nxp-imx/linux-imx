@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -326,10 +326,15 @@ int sah_HW_Reset(void)
 #endif
 
 #ifdef FSL_HAVE_SAHARA4
+#ifndef DISABLE_AUTOSEED
+		/* There is probably another problem with
+		 * auto-seed => do regular  manual seed instead.
+		 */
 		{
 			uint32_t cfg = sah_HW_Read_Config();
 			sah_HW_Write_Config(cfg | 0x100);	/* Add RNG auto-reseed */
 		}
+#endif /* DISABLE_AUTOSEED */
 #endif
 	} else {
 #ifdef DIAG_DRV_IF

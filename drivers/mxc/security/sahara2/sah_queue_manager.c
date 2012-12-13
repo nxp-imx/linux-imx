@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -431,7 +431,7 @@ void sah_process_finished_request(sah_Head_Desc * desc_head, unsigned error)
 #endif
 	}
 
-	/* Show that the request has been processd */
+	/* Show that the request has been processed */
 	desc_head->status = error ? SAH_STATE_FAILED : SAH_STATE_COMPLETE;
 
 	if (desc_head->uco_flags & FSL_UCO_BLOCKING_MODE) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -82,6 +82,8 @@
 #define SAH_HDR_SKHA_CBC_ICV          0x10840000
 /*! Header value for Sahara Descriptor 39 */
 #define SAH_HDR_MDHA_ICV_CHECK        0xA08A0000
+/*! Header value for Sahara Descriptor 40 */
+#define SAH_HDR_FORCE_SEED            0xB08C0001
 
 /*! Header bit indicating "Link-List optimization" */
 #define SAH_HDR_LLO                   0x01000000

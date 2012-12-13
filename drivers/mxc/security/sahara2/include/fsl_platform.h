@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2004-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -79,6 +79,7 @@
 #define USE_S2_CCM_ENCRYPT_CHAIN
 #define USE_S2_CCM_DECRYPT_CHAIN
 #define ALLOW_LLO_DESCRIPTORS
+#define DISABLE_AUTOSEED
 
 #elif defined(CONFIG_ARCH_MXC91131)
 
