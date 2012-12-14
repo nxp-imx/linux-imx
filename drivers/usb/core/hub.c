@@ -167,48 +167,6 @@ EXPORT_SYMBOL_GPL(ehci_cf_port_reset_rwsem);
 #define HUB_DEBOUNCE_STEP	  25
 #define HUB_DEBOUNCE_STABLE	 100
 
-static u8 usb_device_white_list[] = {
-	USB_CLASS_HID,
-	USB_CLASS_HUB,
-	USB_CLASS_MASS_STORAGE
-};
-
-static inline int in_white_list(u8 interfaceclass)
-{
-	int i;
-	for (i = 0; i < sizeof(usb_device_white_list); i++)	{
-		if (interfaceclass == usb_device_white_list[i])
-			return 1;
-	}
-	return 0;
-}
-
-static inline int device_in_white_list(struct usb_device *udev)
-{
-	int i;
-	int num_configs;
-	struct usb_host_config *c;
-
-	/* for test fixture, we always return 1 */
-	if (udev->descriptor.idVendor == 0x1A0A)
-		return 1;
-
-	c = udev->config;
-	num_configs = udev->descriptor.bNumConfigurations;
-	for (i = 0; i < num_configs; (i++, c++)) {
-		struct usb_interface_descriptor	*desc = NULL;
-
-		/* It's possible that a config has no interfaces! */
-		if (c->desc.bNumInterfaces > 0)
-			desc = &c->intf_cache[0]->altsetting->desc;
-
-		if (desc && !in_white_list((u8)desc->bInterfaceClass))
-			continue;
-
-		return 1;
-	}
-	return 0;
-}
 
 static int usb_reset_and_verify_device(struct usb_device *udev);
 
@@ -1296,7 +1254,6 @@ static int hub_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	if (hdev->level == MAX_TOPO_LEVEL) {
 		dev_err(&intf->dev,
 			"Unsupported bus topology: hub nested too deep\n");
-		printk(KERN_ERR "Unsupported bus topology: hub nested too deep\n");
 		return -E2BIG;
 	}
 
@@ -1662,17 +1619,7 @@ void usb_disconnect(struct usb_device **pdev)
 	 * for de-configuring the device and invoking the remove-device
 	 * notifier chain (used by usbfs and possibly others).
 	 */
-	/* If error occur during enumeration, maybe the device_add
-	 * will not call at all, so we need to identify whether this
-	 * device has been added or not, here we use dev.driver to
-	 * tell it
-	 */
-	if (udev->dev.driver) {
-		device_del(&udev->dev);
-		printk(KERN_DEBUG "device_del called\n");
-	} else {
-		printk(KERN_DEBUG "device_del not need to call\n");
-	}
+	device_del(&udev->dev);
 
 	/* Free the device number and delete the parent's children[]
 	 * (or root_hub) pointer.
@@ -1883,14 +1830,6 @@ int usb_new_device(struct usb_device *udev)
 	udev->dev.devt = MKDEV(USB_DEVICE_MAJOR,
 			(((udev->bus->busnum-1) * 128) + (udev->devnum-1)));
 
-#ifdef CONFIG_FSL_USB_TEST_MODE
-	if (!device_in_white_list(udev)) {
-		printk(KERN_ERR "unsupported device: not in white list\n");
-		goto fail;
-	} else {
-		printk(KERN_DEBUG "supported device\n");
-	}
-#endif
 	/* Tell the world! */
 	announce_device(udev);
 
@@ -3034,13 +2973,10 @@ hub_power_remaining (struct usb_hub *hub)
 			delta = 100;
 		else
 			delta = 8;
-		if (delta > hub->mA_per_port) {
+		if (delta > hub->mA_per_port)
 			dev_warn(&udev->dev,
-				"%dmA is over %umA budget for port %d!\n",
-				delta, hub->mA_per_port, port1);
-			printk(KERN_WARNING"%dmA is over %umA budget for port %d!\n",
-				delta, hub->mA_per_port, port1);
-		}
+				 "%dmA is over %umA budget for port %d!\n",
+				 delta, hub->mA_per_port, port1);
 		remaining -= delta;
 	}
 	if (remaining < 0) {
@@ -3190,7 +3126,6 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 		usb_set_device_state(udev, USB_STATE_POWERED);
  		udev->bus_mA = hub->mA_per_port;
 		udev->level = hdev->level + 1;
-		printk(KERN_INFO "+++ %s:udev->level :%d", __func__, udev->level);
 		udev->wusb = hub_is_wusb(hub);
 
 		/*
@@ -3427,8 +3362,6 @@ static void hub_events(void)
 			if (ret < 0)
 				continue;
 
-			if (portstatus & USB_PORT_STAT_TEST)
-				continue;
 			if (portchange & USB_PORT_STAT_C_CONNECTION) {
 				clear_port_feature(hdev, i,
 					USB_PORT_FEAT_C_CONNECTION);

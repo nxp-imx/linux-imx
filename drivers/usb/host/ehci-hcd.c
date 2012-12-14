@@ -43,22 +43,6 @@
 #include <asm/system.h>
 #include <asm/unaligned.h>
 
-
-#ifdef CONFIG_FSL_USB_TEST_MODE
-#define SINGLE_STEP_DESC_DATA_OFF	1
-#define SINGLE_STEP_DESC_DATA_ON	0xFFFF
-static u32 single_step_desc_data_on = SINGLE_STEP_DESC_DATA_OFF;
-void set_single_step_desc_data_on(void)
-{
-	single_step_desc_data_on = SINGLE_STEP_DESC_DATA_ON;
-}
-EXPORT_SYMBOL_GPL(set_single_step_desc_data_on);
-void clear_single_step_desc_data_on(void)
-{
-	single_step_desc_data_on = SINGLE_STEP_DESC_DATA_OFF;
-}
-EXPORT_SYMBOL_GPL(clear_single_step_desc_data_on);
-#endif
 /*-------------------------------------------------------------------------*/
 
 /*
@@ -874,32 +858,20 @@ static int ehci_urb_enqueue (
 		/* FALLTHROUGH */
 	/* case PIPE_BULK: */
 	default:
-#ifdef CONFIG_FSL_USB_TEST_MODE
-		if (single_step_desc_data_on != SINGLE_STEP_DESC_DATA_ON) {
-			printk(KERN_DEBUG "in test mode, but single step NOT on\n");
-			if (!qh_urb_transaction(ehci, urb, &qtd_list, mem_flags))
-				return -ENOMEM;
-		} else {
-			printk(KERN_DEBUG "in test mode, single step on\n");
-			if (!single_step_qh_urb_transaction(ehci, urb, &qtd_list, mem_flags))
-				return -ENOMEM;
-		}
-#else
-		if (!qh_urb_transaction(ehci, urb, &qtd_list, mem_flags))
+		if (!qh_urb_transaction (ehci, urb, &qtd_list, mem_flags))
 			return -ENOMEM;
-#endif
 		return submit_async(ehci, urb, &qtd_list, mem_flags);
 
 	case PIPE_INTERRUPT:
-		if (!qh_urb_transaction(ehci, urb, &qtd_list, mem_flags))
+		if (!qh_urb_transaction (ehci, urb, &qtd_list, mem_flags))
 			return -ENOMEM;
 		return intr_submit(ehci, urb, &qtd_list, mem_flags);
 
 	case PIPE_ISOCHRONOUS:
 		if (urb->dev->speed == USB_SPEED_HIGH)
-			return itd_submit(ehci, urb, mem_flags);
+			return itd_submit (ehci, urb, mem_flags);
 		else
-			return sitd_submit(ehci, urb, mem_flags);
+			return sitd_submit (ehci, urb, mem_flags);
 	}
 }
 

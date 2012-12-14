@@ -253,7 +253,6 @@
 
 #include "gadget_chips.h"
 
-#define FSG_NO_OTG               1
 
 
 /*
@@ -3475,10 +3474,8 @@ static int __init fsg_bind(struct usb_gadget *gadget)
 			fsg_fs_intr_in_desc.bEndpointAddress;
 	}
 
-/*
 	if (gadget_is_otg(gadget))
 		fsg_otg_desc.bmAttributes |= USB_OTG_HNP;
-*/
 
 	rc = -ENOMEM;
 
