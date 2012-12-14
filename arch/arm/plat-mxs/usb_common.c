@@ -262,11 +262,6 @@ int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 	__raw_writel(tmp, phy_ctrl);
 	udelay(10);
 
-#ifdef CONFIG_ARCH_MX28
-	__raw_writel(0x10060605, (phy_reg + HW_USBPHY_TX));
-	__raw_writel(0x1, (phy_reg + HW_USBPHY_RX));
-#endif
-
 	/* set UTMI xcvr */
 	/* Workaround an IC issue for ehci driver:
 	 * when turn off root hub port power, EHCI set
