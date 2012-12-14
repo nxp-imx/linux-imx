@@ -878,7 +878,6 @@ int ddi_power_init_battery(void)
 {
 
 	int ret = 0;
-	uint32_t reg;
 
 	if (!(__raw_readl(REGS_POWER_BASE + HW_POWER_5VCTRL) &&
 			BM_POWER_5VCTRL_ENABLE_DCDC)) {
@@ -963,17 +962,6 @@ int ddi_power_init_battery(void)
 				break;
 #endif
 	}
-
-#ifdef CONFIG_ARCH_MX28
-	/* Always power VDDA from LinearReg to reduce USB jitters */
-	reg = __raw_readl(REGS_POWER_BASE + HW_POWER_VDDACTRL);
-	reg |= BM_POWER_VDDACTRL_ENABLE_LINREG;
-	__raw_writel(reg, REGS_POWER_BASE + HW_POWER_VDDACTRL);
-	mdelay(100);
-	reg = __raw_readl(REGS_POWER_BASE + HW_POWER_VDDACTRL);
-	reg |= BM_POWER_VDDACTRL_DISABLE_FET;
-	 __raw_writel(reg, REGS_POWER_BASE + HW_POWER_VDDACTRL);
-#endif
 
 #ifndef VDD4P2_ENABLED
 	/* prepare handoff */
