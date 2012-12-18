@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -227,6 +227,42 @@ static int __devexit dma_apbh_remove(struct platform_device *pdev)
 {
 	return 0;
 }
+
+int dma_apbh_suspend(void)
+{
+	__raw_writel(BM_APBH_CTRL0_CLKGATE, IO_ADDRESS(APBH_DMA_PHYS_ADDR)
+			+ HW_APBH_CTRL0_SET);
+
+  return 0;
+
+}
+EXPORT_SYMBOL(dma_apbh_suspend);
+
+int dma_apbh_resume(void)
+{
+	int i;
+
+	__raw_writel(BM_APBH_CTRL0_SFTRST,
+			IO_ADDRESS(APBH_DMA_PHYS_ADDR) + HW_APBH_CTRL0_CLR);
+	for (i = 0; i < 10000; i++) {
+		if (!(__raw_readl(IO_ADDRESS(APBH_DMA_PHYS_ADDR) + HW_APBH_CTRL0_CLR) &
+		      BM_APBH_CTRL0_SFTRST))
+			break;
+		udelay(2);
+	}
+	if (i >= 10000)
+		return -ETIME;
+
+	__raw_writel(BM_APBH_CTRL0_CLKGATE, IO_ADDRESS(APBH_DMA_PHYS_ADDR) + HW_APBH_CTRL0_CLR);
+
+
+	__raw_writel(BM_APBH_CTRL0_AHB_BURST8_EN, IO_ADDRESS(APBH_DMA_PHYS_ADDR) + HW_APBH_CTRL0_CLR);
+	__raw_writel(BM_APBH_CTRL0_APB_BURST_EN,	IO_ADDRESS(APBH_DMA_PHYS_ADDR) + HW_APBH_CTRL0_CLR);
+
+  return 0;
+}
+EXPORT_SYMBOL(dma_apbh_resume);
+
 
 static struct platform_driver dma_apbh_driver = {
 	.probe = dma_apbh_probe,

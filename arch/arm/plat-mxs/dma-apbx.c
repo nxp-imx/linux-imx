@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@ static int mxs_dma_apbx_enable(struct mxs_dma_chan *pchan, unsigned int chan)
 	struct mxs_dma_device *pdev = pchan->dma;
 	struct mxs_dma_desc *pdesc;
 
+
 	pdesc = list_first_entry(&pchan->active, struct mxs_dma_desc, node);
 	if (pdesc == NULL)
 		return -EFAULT;
@@ -66,6 +67,8 @@ static int mxs_dma_apbx_enable(struct mxs_dma_chan *pchan, unsigned int chan)
 	__raw_writel(mxs_dma_cmd_address(pdesc),
 		     pdev->base + HW_APBX_CHn_NXTCMDAR(chan));
 	__raw_writel(pchan->active_num, pdev->base + HW_APBX_CHn_SEMA(chan));
+
+
 	return 0;
 }
 
@@ -189,6 +192,33 @@ static int __devexit dma_apbx_remove(struct platform_device *pdev)
 {
 	return 0;
 }
+
+int dma_apbx_suspend(void)
+{
+	__raw_writel(BM_APBX_CTRL0_CLKGATE, IO_ADDRESS(APBX_DMA_PHYS_ADDR) + HW_APBX_CTRL0_SET);
+
+  return 0;
+}
+EXPORT_SYMBOL(dma_apbx_suspend);
+
+int dma_apbx_resume(void)
+{
+	int i;
+
+	__raw_writel(BM_APBX_CTRL0_SFTRST, IO_ADDRESS(APBX_DMA_PHYS_ADDR) + HW_APBX_CTRL0_CLR);
+	for (i = 0; i < 10000; i++) {
+		if (!(__raw_readl(IO_ADDRESS(APBX_DMA_PHYS_ADDR) + HW_APBX_CTRL0_CLR) & BM_APBX_CTRL0_SFTRST))
+			break;
+		udelay(2);
+	}
+	if (i >= 10000)
+		return -ETIME;
+	__raw_writel(BM_APBX_CTRL0_CLKGATE, IO_ADDRESS(APBX_DMA_PHYS_ADDR) + HW_APBX_CTRL0_CLR);
+
+  return 0;
+}
+EXPORT_SYMBOL(dma_apbx_resume);
+
 
 static struct platform_driver dma_apbx_driver = {
 	.probe = dma_apbx_probe,

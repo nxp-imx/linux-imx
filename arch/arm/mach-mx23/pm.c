@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -513,11 +513,11 @@ static void mx23_pm_end(void)
 	/*XXX: Nothing to do */
 }
 
-suspend_state_t mx23_pm_get_target(void)
+suspend_state_t mxs_pm_get_target(void)
 {
 	return saved_state;
 }
-EXPORT_SYMBOL(mx23_pm_get_target);
+EXPORT_SYMBOL(mxs_pm_get_target);
 
 /**
  * mx23_pm_get_sleep_state - get sleep state we waking from

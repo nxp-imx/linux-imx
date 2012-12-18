@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -107,7 +107,7 @@ struct sleep_data {
 		u32		prio[0x10];
 		u32		intr[0x80];
 	} icoll;
-	u32		clks[16];
+	u32		clks[20];
 	u32		old_c00;
 	u32		old_c04;
 };

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -147,6 +147,7 @@ struct mxs_audio_platform_data {
 	int (*amp_enable) (int enable);
 	int (*finit) (void);	/* board specific finit */
 	void *priv;		/* used by board specific functions */
+  int inited;
 };
 
 struct mxs_persistent_bit_config {

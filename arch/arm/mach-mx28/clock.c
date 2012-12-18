@@ -45,7 +45,6 @@
 #define LCDIF_BASE_ADDR IO_ADDRESS(LCDIF_PHYS_ADDR)
 
 void (*f) (struct mxs_emi_scaling_data *, unsigned int *, unsigned int);
-static bool flag;
 void *dvfs_iram_base;
 unsigned int iram_paddr, iram_vaddr;
 /* external clock input */
@@ -890,14 +889,13 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 	volatile unsigned int StateX, StateH;
 	volatile unsigned int APBHCTRL_Backup, APBXCTRL_Backup;
 	unsigned int i;
+	int ret = 0;
 
-	if (!flag) {
-		iram_vaddr = (unsigned long)iram_alloc(SZ_4K, &iram_paddr);
-		iram_vaddr = __arm_ioremap(iram_paddr, SZ_4K, MT_UNCACHED);
-		memcpy(iram_vaddr, mxs_ram_freq_scale, SZ_4K);
-		f = (void *)iram_vaddr;
-		flag = true;
-	}
+	iram_vaddr = (unsigned long)iram_alloc(SZ_4K, &iram_paddr);
+	iram_vaddr = __arm_ioremap(iram_paddr, SZ_4K, MT_UNCACHED);
+	memcpy(iram_vaddr, mxs_ram_freq_scale, SZ_4K);
+
+	f = (void *)iram_vaddr;
 
 #ifdef CONFIG_MEM_mDDR
 	if (rate <= 24000000) {
@@ -990,10 +988,14 @@ static int emi_set_rate(struct clk *clk, unsigned long rate)
 			break;
 	if (!i) {
 		printk(KERN_ERR "couldn't set up EMI divisor\n");
-		return -ETIMEDOUT;
+		ret = -ETIMEDOUT;
+		goto out;
 	}
 
-	return 0;
+out:
+	iram_free(iram_paddr, SZ_4K);
+
+	return ret;
 }
 
 static struct clk emi_clk = {

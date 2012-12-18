@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -42,6 +42,8 @@
 #define HW_POWER_RESET_ADDR \
 	(MX28_SOC_IO_ADDRESS(POWER_PHYS_ADDR) + HW_POWER_RESET)
 
+#define HW_DRAM_CTL08_ADDR \
+	(MX28_SOC_IO_ADDRESS(DRAM_PHYS_ADDR) + HW_DRAM_CTL08)
 #define HW_DRAM_CTL17_ADDR \
 	(MX28_SOC_IO_ADDRESS(DRAM_PHYS_ADDR) + HW_DRAM_CTL17)
 #define HW_DRAM_CTL22_ADDR \
@@ -533,39 +535,33 @@ ENTRY(mx28_cpu_suspend)
 	orr	r1, r1, #(1<<8)
 	str	r1, [r2]
 
-	@ enable RTC/RAM clocks
+	@ enable RTC clocks
 	mov	r0, #(HW_RTC_PERSISTENT0_ADDR & 0x000000FF)
 	orr	r0, r0, #(HW_RTC_PERSISTENT0_ADDR & 0x0000FF00)
 	orr	r0, r0, #(HW_RTC_PERSISTENT0_ADDR & 0x00FF0000)
 	orr	r0, r0, #(HW_RTC_PERSISTENT0_ADDR & 0xFF000000)
-	mov	r1, #((1<<4)|(1<<5)|1)
+	mov	r1, #((1<<5)|1)
 	str	r1, [r0, #4]
 
 	@ put DRAM into self refresh
-	mov	r0, #(HW_DRAM_CTL17_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0xFF000000)
-	ldr	r1, [r0]
-	orr	r1, r1, #(BM_DRAM_CTL17_SREFRESH)
+	mov	r0, #(HW_DRAM_CTL22_ADDR & 0x000000FF)
+	orr	r0, r0, #(HW_DRAM_CTL22_ADDR & 0x0000FF00)
+	orr	r0, r0, #(HW_DRAM_CTL22_ADDR & 0x00FF0000)
+	orr	r0, r0, #(HW_DRAM_CTL22_ADDR & 0xFF000000)
+	ldr     r1,[r0]
+	and	r1, r1, #(~BM_DRAM_CTL22_LOWPOWER_CONTROL)
+        orr	r1, r1, #(BF_DRAM_CTL22_LOWPOWER_CONTROL(2))
 	str	r1, [r0]
 
 	@ wait for it to actually happen
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+	mov	r0, #24 << 12
+61:	sub	r0, r0, #1
+	cmp	r0, #0
+	bne	61b
 
-	@ power off RAM
-	mov	r0, #(HW_DRAM_CTL17_ADDR & 0x000000FF)
-	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x0000FF00)
-	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0x00FF0000)
-	orr	r0, r0, #(HW_DRAM_CTL17_ADDR & 0xFF000000)
-	ldr	r1, [r0]
-	orr	r1, r1, #(1<<24)
-	str	r1, [r0]
+
+	nop
+	nop
 	nop
 	nop
 	nop

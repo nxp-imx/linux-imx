@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1308,12 +1308,19 @@ static void __init mx28_init_dcp(void)
 #endif
 
 #if defined(CONFIG_SND_MXS_SOC_DAI) || defined(CONFIG_SND_MXS_SOC_DAI_MODULE)
-static int audio_clk_init(struct clk *clk)
+static struct mxs_audio_platform_data audio_plat_data;
+
+static int audio_clk_init(void)
 {
+	struct clk *clk;
 	struct clk *pll_clk;
 	struct clk *saif_mclk0;
 	struct clk *saif_mclk1;
 	int ret = -EINVAL;
+
+	if (audio_plat_data.inited)
+		return 0;
+	clk = clk_get(NULL, "saif.0");
 	if (IS_ERR(clk)) {
 		pr_err("%s:failed to get clk\n", __func__);
 		goto err_clk_init;
@@ -1349,6 +1356,14 @@ static int audio_clk_init(struct clk *clk)
 	/*enable saif0/saif1 clk output*/
 	clk_enable(saif_mclk0);
 	clk_enable(saif_mclk1);
+
+  clk_put(clk);
+  clk_put(pll_clk);
+  clk_put(saif_mclk0);
+  clk_put(saif_mclk1);
+
+  audio_plat_data.inited = 1;
+
 err_clk_init:
 	return ret;
 }
@@ -1359,6 +1374,9 @@ static int audio_clk_finit(void)
 	struct clk *saif_mclk0;
 	struct clk *saif_mclk1;
 	int ret = 0;
+
+	if (audio_plat_data.inited == 0)
+		return 0;
 	saif_clk = clk_get(NULL, "saif.0");
 	if (IS_ERR(saif_clk)) {
 		pr_err("%s:failed to get saif_clk\n", __func__);
@@ -1366,6 +1384,7 @@ static int audio_clk_finit(void)
 		goto err_clk_finit;
 	}
 	clk_disable(saif_clk);
+  clk_put(saif_clk);
 
 	saif_mclk0 = clk_get(NULL, "saif_mclk.0");
 	if (IS_ERR(saif_mclk0)) {
@@ -1373,6 +1392,7 @@ static int audio_clk_finit(void)
 		goto err_clk_finit;
 	}
 	clk_disable(saif_mclk0);
+  clk_put(saif_mclk0);
 
 	saif_mclk1 = clk_get(NULL, "saif_mclk.1");
 	if (IS_ERR(saif_mclk1)) {
@@ -1380,11 +1400,14 @@ static int audio_clk_finit(void)
 		goto err_clk_finit;
 	}
 	clk_disable(saif_mclk1);
+  clk_put(saif_mclk1);
+
+  audio_plat_data.inited = 0;
+
 err_clk_finit:
 	return ret;
 }
 
-static struct mxs_audio_platform_data audio_plat_data;
 #endif
 
 #if defined(CONFIG_SND_SOC_SGTL5000) || defined(CONFIG_SND_SOC_SGTL5000_MODULE)
@@ -1394,10 +1417,15 @@ void __init mx28_init_audio(void)
 	if (pdev == NULL || IS_ERR(pdev))
 		return;
 	mxs_add_device(pdev, 3);
+	audio_plat_data.inited = 0;
 	audio_plat_data.saif_mclock = clk_get(NULL, "saif.0");
-	audio_clk_init(audio_plat_data.saif_mclock);
+	audio_plat_data.init = audio_clk_init;
+	audio_plat_data.finit = audio_clk_finit;
+	audio_clk_init();
 	pdev->dev.platform_data = &audio_plat_data;
 }
+
+
 #else
 void __init mx28_init_audio(void)
 {
