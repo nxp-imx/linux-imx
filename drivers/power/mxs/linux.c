@@ -19,6 +19,7 @@
 #include <linux/io.h>
 #include <linux/sched.h>
 #include <linux/clk.h>
+#include <linux/suspend.h>
 #include <mach/ddi_bc.h>
 #include "ddi_bc_internal.h"
 #include <linux/regulator/consumer.h>
@@ -83,6 +84,7 @@ struct mxs_info {
 #define NO_VDD5V_SOURCE 0x02
 	int powersource;
 	int is_5v_irq_detected;
+	u32	clks[10];
 };
 
 #define to_mxs_info(x) container_of((x), struct mxs_info, bat)
@@ -1092,6 +1094,36 @@ static void mxs_bat_shutdown(struct platform_device *pdev)
 
 #ifdef CONFIG_PM
 
+suspend_state_t mxs_pm_get_target(void);
+
+static u32 power_clk_regs[] = {
+		HW_POWER_CTRL,
+		HW_POWER_5VCTRL,
+		HW_POWER_VDDDCTRL,
+		HW_POWER_VDDACTRL,
+		HW_POWER_VDDIOCTRL,
+};
+
+void backup_power_reg(struct mxs_info *info)
+{
+	int i;
+
+	if (mxs_pm_get_target() == PM_SUSPEND_MEM)  {
+		for (i = 0; i < ARRAY_SIZE(power_clk_regs); i++)
+			info->clks[i] = __raw_readl(REGS_POWER_BASE +	power_clk_regs[i]);
+  }
+}
+
+void resume_power_reg(struct mxs_info *info)
+{
+	int i;
+
+	if (mxs_pm_get_target() == PM_SUSPEND_MEM) {
+		for (i = 0; i < ARRAY_SIZE(power_clk_regs); i++)
+				__raw_writel(info->clks[i], REGS_POWER_BASE +	power_clk_regs[i]);
+	}
+}
+
 static int mxs_bat_suspend(struct platform_device *pdev, pm_message_t msg)
 {
 	struct mxs_info *info = platform_get_drvdata(pdev);
@@ -1104,6 +1136,8 @@ static int mxs_bat_suspend(struct platform_device *pdev, pm_message_t msg)
 	/* cancel state machine timer */
 	del_timer_sync(&info->sm_timer);
 
+	backup_power_reg(info);
+
 	mutex_unlock(&info->sm_lock);
 	return 0;
 }
@@ -1115,6 +1149,7 @@ static int mxs_bat_resume(struct platform_device *pdev)
 
 	mutex_lock(&info->sm_lock);
 
+	resume_power_reg(info);
 	if (is_ac_online()) {
 		/* ac supply connected */
 		dev_dbg(info->dev, "ac/5v present, enabling state machine\n");
