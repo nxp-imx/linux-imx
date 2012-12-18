@@ -23,3 +23,10 @@ config MEM_mDDR
 	depends on ARCH_MX28
 	help
 	  Say Y to select mDDR memory
+
+config MX28_SUSPEND_TO_RAM
+	bool "support MX28 suspend-to RAM feature"
+  default n
+	depends on ARCH_MX28
+	help
+	  Say Y to enable suspend-to-RAM
