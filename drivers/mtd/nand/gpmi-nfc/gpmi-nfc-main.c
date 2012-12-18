@@ -1,7 +1,7 @@
 /*
  * Freescale GPMI NFC NAND Flash Driver
  *
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Embedded Alley Solutions, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,6 +22,7 @@
 #include <linux/slab.h>
 #include "gpmi-nfc.h"
 #include "linux/slab.h"
+#include <linux/suspend.h>
 
 static int enable_gpmi_nand = { 0 };
 
@@ -1797,7 +1798,14 @@ static int __exit gpmi_nfc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+
 #ifdef CONFIG_PM
+
+#ifdef CONFIG_ARCH_MXS
+
+suspend_state_t mxs_pm_get_target(void);
+
+#endif
 
 /**
  * gpmi_nfc_suspend() - Puts the NFC into a low power state.
@@ -1807,6 +1815,15 @@ static int __exit gpmi_nfc_remove(struct platform_device *pdev)
  */
 static int gpmi_nfc_suspend(struct platform_device *pdev, pm_message_t state)
 {
+
+#ifdef CONFIG_ARCH_MXS
+	if (mxs_pm_get_target() == PM_SUSPEND_MEM)  {
+		struct gpmi_nfc_data           *this = platform_get_drvdata(pdev);
+
+		gpmi_nfc_mil_exit(this);
+		this->nfc->exit(this);
+	}
+#endif
 	return 0;
 }
 
@@ -1817,6 +1834,14 @@ static int gpmi_nfc_suspend(struct platform_device *pdev, pm_message_t state)
  */
 static int gpmi_nfc_resume(struct platform_device *pdev)
 {
+#ifdef CONFIG_ARCH_MX28
+	if (mxs_pm_get_target() == PM_SUSPEND_MEM)  {
+		struct gpmi_nfc_data           *this = platform_get_drvdata(pdev);
+
+		set_up_nfc_hal(this);
+		gpmi_nfc_mil_init(this);
+	}
+#endif
 	return 0;
 }
 

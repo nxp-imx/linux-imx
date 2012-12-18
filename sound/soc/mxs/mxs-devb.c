@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
-
+#include <linux/suspend.h>
 #include <mach/dma.h>
 #include <mach/device.h>
 
@@ -236,9 +236,46 @@ static int mxs_evk_sgtl5000_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+
+suspend_state_t mxs_pm_get_target(void);
+
+
+static int mxs_evk_sgtl5000_resume(struct platform_device *pdev)
+{
+	struct mxs_audio_platform_data *plat = pdev->dev.platform_data;
+
+	if (mxs_pm_get_target() == PM_SUSPEND_MEM) {
+		if (plat->init)
+			plat->init();
+  }
+
+	return 0;
+}
+static int mxs_evk_sgtl5000_suspend(struct platform_device *pdev)
+{
+	struct mxs_audio_platform_data *plat = pdev->dev.platform_data;
+
+	if (mxs_pm_get_target() == PM_SUSPEND_MEM) {
+		if (plat->finit)
+			plat->finit();
+  }
+
+	return 0;
+}
+
+#else
+#define mxs_evk_sgtl5000_suspend NULL
+#define mxs_evk_sgtl5000_resume  NULL
+#endif
+
+
 static struct platform_driver mxs_evk_sgtl5000_audio_driver = {
 	.probe = mxs_evk_sgtl5000_probe,
 	.remove = mxs_evk_sgtl5000_remove,
+	.suspend = mxs_evk_sgtl5000_suspend,
+	.resume = mxs_evk_sgtl5000_resume,
+
 	.driver = {
 		   .name = "mxs-sgtl5000",
 		   },
@@ -249,6 +286,7 @@ static struct platform_device *mxs_evk_snd_device;
 static int __init mxs_evk_init(void)
 {
 	int ret;
+
 
 	ret = platform_driver_register(&mxs_evk_sgtl5000_audio_driver);
 	if (ret)

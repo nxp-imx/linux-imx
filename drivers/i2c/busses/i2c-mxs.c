@@ -1,6 +1,6 @@
 /*
  * Freescale MX28 I2C bus driver
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/clk.h>
 #include <linux/io.h>
-
+#include <linux/suspend.h>
 #include <mach/dmaengine.h>
 #include <mach/device.h>
 #include <mach/regs-i2c.h>
@@ -432,6 +432,40 @@ static const struct i2c_algorithm mxs_i2c_algo = {
 	.functionality = mxs_i2c_func,
 };
 
+#ifdef CONFIG_PM
+
+suspend_state_t mxs_pm_get_target(void);
+
+static int mxs_i2c_resume(struct platform_device *pdev)
+{
+	struct mxs_i2c_dev *mxs_i2c = platform_get_drvdata(pdev);
+
+	if (mxs_pm_get_target() == PM_SUSPEND_MEM)  {
+		mxs_reset_block((void __iomem *)mxs_i2c->regbase, 1);
+
+		if (mxs_i2c->flags & MXS_I2C_PIOQUEUE_MODE)
+			__raw_writel(0x04, mxs_i2c->regbase + HW_I2C_QUEUECTRL_SET);
+
+		/* Will catch all error (IRQ mask) */
+		__raw_writel(0x0000FF00, mxs_i2c->regbase + HW_I2C_CTRL1_SET);
+
+
+		hw_i2c_dmachan_reset(mxs_i2c);
+		mxs_dma_enable_irq(mxs_i2c->dma_chan, 1);
+  }
+
+	return 0;
+}
+static int mxs_i2c_suspend(struct platform_device *pdev)
+{
+	return 0;
+}
+
+#else
+#define mxs_i2c_suspend NULL
+#define mxs_i2c_resume  NULL
+#endif
+
 static int mxs_i2c_probe(struct platform_device *pdev)
 {
 	struct mxs_i2c_dev *mxs_i2c;
@@ -590,6 +624,9 @@ static struct platform_driver mxs_i2c_driver = {
 		   },
 	.probe = mxs_i2c_probe,
 	.remove = __devexit_p(mxs_i2c_remove),
+	.suspend = mxs_i2c_suspend,
+	.resume = mxs_i2c_resume,
+
 };
 
 static int __init mxs_i2c_init(void)

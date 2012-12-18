@@ -19,7 +19,7 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
  * Support for FEC IEEE 1588.
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -46,6 +46,7 @@
 #include <linux/swab.h>
 #include <linux/phy.h>
 #include <linux/fec.h>
+#include <linux/suspend.h>
 
 #include <asm/cacheflush.h>
 
@@ -1837,19 +1838,40 @@ fec_suspend(struct platform_device *dev, pm_message_t state)
 	return 0;
 }
 
+#ifdef CONFIG_ARCH_MXS
+
+suspend_state_t mxs_pm_get_target(void);
+
+#endif
+
+
 static int
 fec_resume(struct platform_device *dev)
 {
 	struct net_device *ndev = platform_get_drvdata(dev);
+  struct fec_platform_data *pdata;
 	struct fec_enet_private *fep;
 
 	if (ndev) {
 		fep = netdev_priv(ndev);
+    pdata = fep->pdev->dev.platform_data;
 		if (netif_running(ndev)) {
 			clk_enable(fep->clk);
 			fec_restart(ndev, fep->full_duplex);
 			netif_device_attach(ndev);
 		}
+    else {
+#ifdef CONFIG_ARCH_MXS
+			if (mxs_pm_get_target() == PM_SUSPEND_MEM)  {
+				clk_enable(fep->clk);
+				/* PHY reset should be done during clock on */
+				if (pdata && pdata->init)
+					pdata->init();
+				fec_restart(ndev, 0);
+				clk_disable(fep->clk);
+      }
+#endif
+    }
 	}
 	return 0;
 }
