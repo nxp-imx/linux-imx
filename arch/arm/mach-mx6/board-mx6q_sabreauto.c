@@ -1727,6 +1727,32 @@ static struct sys_timer mxc_timer = {
 static void __init mx6q_reserve(void)
 {
 	phys_addr_t phys;
+	int i, fb0_reserved = 0, fb_array_size;
+
+	/*
+	 * Reserve primary framebuffer memory if its base address
+	 * is set by kernel command line.
+	 */
+	fb_array_size = ARRAY_SIZE(sabr_fb_data);
+	if (fb_array_size > 0 && sabr_fb_data[0].res_base[0] &&
+	    sabr_fb_data[0].res_size[0]) {
+		memblock_reserve(sabr_fb_data[0].res_base[0],
+				 sabr_fb_data[0].res_size[0]);
+		memblock_remove(sabr_fb_data[0].res_base[0],
+				sabr_fb_data[0].res_size[0]);
+		sabr_fb_data[0].late_init = true;
+		ipu_data[ldb_data.ipu_id].bypass_reset = true;
+		fb0_reserved = 1;
+	}
+	for (i = fb0_reserved; i < fb_array_size; i++)
+		if (sabr_fb_data[i].res_size[0]) {
+			/* Reserve for other background buffer. */
+			phys = memblock_alloc(sabr_fb_data[i].res_size[0],
+						SZ_4K);
+			memblock_remove(phys, sabr_fb_data[i].res_size[0]);
+			sabr_fb_data[i].res_base[0] = phys;
+		}
+
 #if defined(CONFIG_MXC_GPU_VIV) || defined(CONFIG_MXC_GPU_VIV_MODULE)
 	if (imx6q_gpu_pdata.reserved_mem_size) {
 		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
