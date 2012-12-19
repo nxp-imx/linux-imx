@@ -563,7 +563,7 @@ static __devinit int wm831x_buckv_probe(struct platform_device *pdev)
 			id + 1, ret);
 		goto err;
 	}
-
+#if 0
 	irq = platform_get_irq_byname(pdev, "UV");
 	ret = request_threaded_irq(irq, NULL, wm831x_dcdc_uv_irq,
 				   IRQF_TRIGGER_RISING, dcdc->name, dcdc);
@@ -581,7 +581,7 @@ static __devinit int wm831x_buckv_probe(struct platform_device *pdev)
 			irq, ret);
 		goto err_uv;
 	}
-
+#endif 
 	platform_set_drvdata(pdev, dcdc);
 
 	return 0;
