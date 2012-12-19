@@ -103,11 +103,24 @@ periph_clk_switch4:
 	cmp     r0, #0
 	bne     periph_clk_switch4
 
+	ldr     r0, =ANATOP_BASE_ADDR
+	add     r0, r0, #PERIPBASE_VIRT
+	ldr	r1, [r0, #0x260]
+	mov	r2, r1
+	/*Is mx6q?*/
+	and	r1, r1, #0xff0000
+	cmp	r1, #0x630000
+	bne	skip_gpt_workaround1
+	/*Is mx6q TO1.0?*/
+	and	r2, r2, #0xff
+	cmp	r2, #0x0
+	bne	skip_gpt_workaround1
 	/* Change the GPT divider so that its at 6MHz. */
 	ldr     r0, [r6, #0x1C]
 	bic     r0, r0, #0x3F
 	orr     r0, r0, #0xA
 	str     r0, [r6, #0x1C]
+skip_gpt_workaround1:
 	.endm
 
 	.macro   switch_to_400MHz
@@ -193,12 +206,24 @@ wait_div_update400_2:
 	cmp     r0, #0
 	bne     wait_div_update400_2
 
+	ldr     r0, =ANATOP_BASE_ADDR
+	add     r0, r0, #PERIPBASE_VIRT
+	ldr	r1, [r0, #0x260]
+	mov	r2, r1
+	/*Is mx6q?*/
+	and	r1, r1, #0xff0000
+	cmp	r1, #0x630000
+	bne	skip_gpt_workaround2
+	/*Is mx6q TO1.0?*/
+	and	r2, r2, #0xff
+	cmp	r2, #0x0
+	bne	skip_gpt_workaround2
 	/* Change the GPT divider so that its at 6MHz. */
 	ldr     r0, [r6, #0x1C]
 	bic     r0, r0, #0x3F
 	orr     r0, r0, #0xA
 	str     r0, [r6, #0x1C]
-
+skip_gpt_workaround2:
 	.endm
 
 	.macro   switch_to_50MHz
@@ -265,11 +290,24 @@ periph_clk_switch2:
 	cmp    r0, #0
 	bne     periph_clk_switch2
 
+	ldr     r0, =ANATOP_BASE_ADDR
+	add     r0, r0, #PERIPBASE_VIRT
+	ldr	r1, [r0, #0x260]
+	mov	r2, r1
+	/*Is mx6q?*/
+	and	r1, r1, #0xff0000
+	cmp	r1, #0x630000
+	bne	skip_gpt_workaround3
+	/*Is mx6q TO1.0?*/
+	and	r2, r2, #0xff
+	cmp	r2, #0x0
+	bne	skip_gpt_workaround3
 	/* Change the GPT divider so that its at 6MHz. */
 	ldr     r0, [r6, #0x1C]
 	bic     r0, r0, #0x3F
 	orr     r0, r0, #0x1
 	str     r0, [r6, #0x1C]
+skip_gpt_workaround3:
 
 	.endm
 
@@ -311,11 +349,24 @@ wait_div_update:
 	cmp    r0, #0
 	bne     wait_div_update
 
+	ldr     r0, =ANATOP_BASE_ADDR
+	add     r0, r0, #PERIPBASE_VIRT
+	ldr	r1, [r0, #0x260]
+	mov	r2, r1
+	/*Is mx6q?*/
+	and	r1, r1, #0xff0000
+	cmp	r1, #0x630000
+	bne	skip_gpt_workaround4
+	/*Is mx6q TO1.0?*/
+	and	r2, r2, #0xff
+	cmp	r2, #0x0
+	bne	skip_gpt_workaround4
 	/* Change the GPT divider so that its at 6MHz. */
 	ldr     r0, [r6, #0x1C]
 	bic     r0, r0, #0x3F
 	orr     r0, r0, #0x1
 	str     r0, [r6, #0x1C]
+skip_gpt_workaround4:
 
 	.endm
 
