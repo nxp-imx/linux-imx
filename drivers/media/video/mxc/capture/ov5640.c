@@ -829,7 +829,7 @@ static int ioctl_init(struct v4l2_int_device *s)
 static int ioctl_enum_fmt_cap(struct v4l2_int_device *s,
 			      struct v4l2_fmtdesc *fmt)
 {
-	if (fmt->index > 0)	/* only 1 pixelformat support so far */
+	if (fmt->index > ov5640_mode_MAX)
 		return -EINVAL;
 
 	fmt->pixelformat = ov5640_data.pix.pixelformat;
