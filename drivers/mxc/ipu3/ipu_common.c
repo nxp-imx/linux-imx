@@ -44,7 +44,8 @@ static struct ipu_soc ipu_array[MXC_IPU_MAX_NUM];
 int g_ipu_hw_rev;
 
 /* Static functions */
-static irqreturn_t ipu_irq_handler(int irq, void *desc);
+static irqreturn_t ipu_sync_irq_handler(int irq, void *desc);
+static irqreturn_t ipu_err_irq_handler(int irq, void *desc);
 
 static inline uint32_t channel_2_dma(ipu_channel_t ch, ipu_buffer_t type)
 {
@@ -242,19 +243,17 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 		goto failed_get_res;
 	}
 
-	if (request_irq(ipu->irq_sync, ipu_irq_handler, 0, pdev->name, ipu) != 0) {
+	ret = request_irq(ipu->irq_sync, ipu_sync_irq_handler, 0,
+			  pdev->name, ipu);
+	if (ret) {
 		dev_err(ipu->dev, "request SYNC interrupt failed\n");
-		ret = -EBUSY;
 		goto failed_req_irq_sync;
 	}
-	/* Some platforms have 2 IPU interrupts */
-	if (ipu->irq_err >= 0) {
-		if (request_irq
-		    (ipu->irq_err, ipu_irq_handler, 0, pdev->name, ipu) != 0) {
-			dev_err(ipu->dev, "request ERR interrupt failed\n");
-			ret = -EBUSY;
-			goto failed_req_irq_err;
-		}
+	ret = request_irq(ipu->irq_err, ipu_err_irq_handler, 0,
+			  pdev->name, ipu);
+	if (ret) {
+		dev_err(ipu->dev, "request ERR interrupt failed\n");
+		goto failed_req_irq_err;
 	}
 
 	ipu_base = res->start;
@@ -368,8 +367,7 @@ failed_clk_setup:
 	iounmap(ipu->disp_base[1]);
 	iounmap(ipu->vdi_reg);
 failed_ioremap:
-	if (ipu->irq_sync)
-		free_irq(ipu->irq_err, ipu);
+	free_irq(ipu->irq_err, ipu);
 failed_req_irq_err:
 	free_irq(ipu->irq_sync, ipu);
 failed_req_irq_sync:
@@ -383,10 +381,8 @@ int __devexit ipu_remove(struct platform_device *pdev)
 
 	unregister_ipu_device(ipu, pdev->id);
 
-	if (ipu->irq_sync)
-		free_irq(ipu->irq_sync, ipu);
-	if (ipu->irq_err)
-		free_irq(ipu->irq_err, ipu);
+	free_irq(ipu->irq_sync, ipu);
+	free_irq(ipu->irq_err, ipu);
 
 	clk_put(ipu->ipu_clk);
 
@@ -2371,42 +2367,17 @@ int32_t ipu_disable_csi(struct ipu_soc *ipu, uint32_t csi)
 }
 EXPORT_SYMBOL(ipu_disable_csi);
 
-static irqreturn_t ipu_irq_handler(int irq, void *desc)
+static irqreturn_t ipu_sync_irq_handler(int irq, void *desc)
 {
 	struct ipu_soc *ipu = desc;
 	int i;
-	uint32_t line;
-	uint32_t bit;
+	uint32_t line, bit, int_stat, int_ctrl;
 	irqreturn_t result = IRQ_NONE;
-	uint32_t int_stat;
-	uint32_t int_ctrl;
-	const int err_reg[] = { 5, 6, 9, 10, 0 };
 	const int int_reg[] = { 1, 2, 3, 4, 11, 12, 13, 14, 15, 0 };
 
 	spin_lock(&ipu->int_reg_spin_lock);
 
-	for (i = 0;; i++) {
-		if (err_reg[i] == 0)
-			break;
-
-		int_stat = ipu_cm_read(ipu, IPU_INT_STAT(err_reg[i]));
-		int_stat &= ipu_cm_read(ipu, IPU_INT_CTRL(err_reg[i]));
-		if (int_stat) {
-			ipu_cm_write(ipu, int_stat, IPU_INT_STAT(err_reg[i]));
-			dev_warn(ipu->dev,
-				"IPU Warning - IPU_INT_STAT_%d = 0x%08X\n",
-				err_reg[i], int_stat);
-			/* Disable interrupts so we only get error once */
-			int_stat =
-			    ipu_cm_read(ipu, IPU_INT_CTRL(err_reg[i])) & ~int_stat;
-			ipu_cm_write(ipu, int_stat, IPU_INT_CTRL(err_reg[i]));
-		}
-	}
-
-	for (i = 0;; i++) {
-		if (int_reg[i] == 0)
-			break;
-
+	for (i = 0; int_reg[i] != 0; i++) {
 		int_stat = ipu_cm_read(ipu, IPU_INT_STAT(int_reg[i]));
 		int_ctrl = ipu_cm_read(ipu, IPU_INT_CTRL(int_reg[i]));
 		int_stat &= int_ctrl;
@@ -2430,6 +2401,35 @@ static irqreturn_t ipu_irq_handler(int irq, void *desc)
 	spin_unlock(&ipu->int_reg_spin_lock);
 
 	return result;
+}
+
+static irqreturn_t ipu_err_irq_handler(int irq, void *desc)
+{
+	struct ipu_soc *ipu = desc;
+	int i;
+	uint32_t int_stat;
+	const int err_reg[] = { 5, 6, 9, 10, 0 };
+
+	spin_lock(&ipu->int_reg_spin_lock);
+
+	for (i = 0; err_reg[i] != 0; i++) {
+		int_stat = ipu_cm_read(ipu, IPU_INT_STAT(err_reg[i]));
+		int_stat &= ipu_cm_read(ipu, IPU_INT_CTRL(err_reg[i]));
+		if (int_stat) {
+			ipu_cm_write(ipu, int_stat, IPU_INT_STAT(err_reg[i]));
+			dev_warn(ipu->dev,
+				"IPU Warning - IPU_INT_STAT_%d = 0x%08X\n",
+				err_reg[i], int_stat);
+			/* Disable interrupts so we only get error once */
+			int_stat = ipu_cm_read(ipu, IPU_INT_CTRL(err_reg[i])) &
+					~int_stat;
+			ipu_cm_write(ipu, int_stat, IPU_INT_CTRL(err_reg[i]));
+		}
+	}
+
+	spin_unlock(&ipu->int_reg_spin_lock);
+
+	return IRQ_HANDLED;
 }
 
 /*!
