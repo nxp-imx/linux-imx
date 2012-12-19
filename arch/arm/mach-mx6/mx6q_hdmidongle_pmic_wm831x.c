@@ -30,11 +30,15 @@
 #include <linux/mfd/wm831x/pdata.h>
 #include <linux/mfd/wm831x/regulator.h>
 #include <linux/mfd/wm831x/gpio.h>
+#include <linux/mfd/wm831x/status.h>
+#include <mach/system.h>
 
-#if 0
-/* 1.4125, 1.4125. 1.5 */
-#define WM831X_DC1_ON_CONFIG_VAL            (0x48<<WM831X_DC1_ON_VSEL_SHIFT)
-#define WM831X_DC2_ON_CONFIG_VAL            (0x48<<WM831X_DC2_ON_VSEL_SHIFT)
+extern u32 enable_ldo_mode;
+
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+/* 1.3, 1.3 1.5 */
+#define WM831X_DC1_ON_CONFIG_VAL            (0x40<<WM831X_DC1_ON_VSEL_SHIFT)
+#define WM831X_DC2_ON_CONFIG_VAL            (0x40<<WM831X_DC2_ON_VSEL_SHIFT)
 #define WM831X_DC3_ON_CONFIG_VAL            (0x1A<<WM831X_DC3_ON_VSEL_SHIFT)
 #else
 /* 1.375, 1.375. 1.5 */
@@ -78,9 +82,8 @@
 #define WM831X_GPIO9_VAL	(WM831X_GPN_DIR_VAL|WM831X_GPN_PULL_VAL|WM831X_GPN_INT_MODE_VAL| \
 						WM831X_GPN_POL_VAL|WM831X_GPN_ENA_VAL|WM831X_GPN_FN_VAL_DVS1)
 
-#define WM831X_STATUS_LED_MASK                0xC000
-#define WM831X_STATUS_LED_ON                  (0x1 << 14)
-#define WM831X_STATUS_LED_OFF                 (0x0 << 14)
+#define WM831X_STATUS_LED_ON                  (0x1 << WM831X_LED_SRC_SHIFT)
+#define WM831X_STATUS_LED_OFF                 (0x0 << WM831X_LED_SRC_SHIFT)
 
 static int wm8326_post_init(struct wm831x *wm831x)
 {
@@ -95,12 +98,88 @@ static int wm8326_post_init(struct wm831x *wm831x)
 	wm831x_set_bits(wm831x, WM831X_GPIO8_CONTROL, WM831X_GPIO7_8_9_MASK, WM831X_GPIO8_VAL);
 	wm831x_set_bits(wm831x, WM831X_GPIO9_CONTROL, WM831X_GPIO7_8_9_MASK, WM831X_GPIO9_VAL);
 
-	wm831x_set_bits(wm831x, WM831X_STATUS_LED_1 , WM831X_STATUS_LED_MASK, WM831X_STATUS_LED_OFF);
-	wm831x_set_bits(wm831x, WM831X_STATUS_LED_2 , WM831X_STATUS_LED_MASK, WM831X_STATUS_LED_ON);
+	wm831x_set_bits(wm831x, WM831X_STATUS_LED_1 , WM831X_LED_SRC_MASK, WM831X_STATUS_LED_OFF);
+	wm831x_set_bits(wm831x, WM831X_STATUS_LED_2 , WM831X_LED_SRC_MASK, WM831X_STATUS_LED_ON);
+
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	if (enable_ldo_mode == LDO_MODE_DEFAULT)
+		enable_ldo_mode = LDO_MODE_BYPASSED;
+#endif
 	return 0;
 }
 
+#ifdef CONFIG_REGULATOR
+/* ARM core */
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+static struct regulator_consumer_supply hdmidongle_vddarm_consumers[] = {
+	{
+		.supply     = "VDDCORE_DCDC1",
+	}
+};
+
+static struct regulator_consumer_supply hdmidongle_vddsoc_consumers[] = {
+	{
+		.supply     = "VDDSOC_DCDC2",
+	}
+};
+#endif
+
+static struct regulator_init_data hdmidongle_vddarm_dcdc1 = {
+	.constraints = {
+		.name = "vdd_arm",
+		.min_uV = 100000,
+		.max_uV = 1500000,
+		.min_uA = 0,
+		.max_uA = 4000000,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_modes_mask = 0,
+		.always_on = 1,
+		.boot_on = 1,
+	},
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	.num_consumer_supplies = ARRAY_SIZE(hdmidongle_vddarm_consumers),
+	.consumer_supplies = hdmidongle_vddarm_consumers,
+#endif
+};
+
+
+static struct regulator_init_data hdmidongle_vddsoc_dcdc2 = {
+	.constraints = {
+		.name = "vdd_soc",
+		.min_uV = 100000,
+		.max_uV = 1500000,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.valid_modes_mask = 0,
+		.always_on = 1,
+		.boot_on = 1,
+	},
+#ifdef CONFIG_MX6_INTER_LDO_BYPASS
+	.num_consumer_supplies = ARRAY_SIZE(hdmidongle_vddsoc_consumers),
+	.consumer_supplies = hdmidongle_vddsoc_consumers,
+#endif
+};
+
+
+
+static struct regulator_init_data hdmidongle_vddmem_1v5_dcdc3 = {
+	.constraints = {
+		.name = "vdd_mem_1v5",
+		.min_uV = 1400000,
+		.max_uV = 1500000,
+		.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
+		.always_on = 1,
+		.boot_on = 1,
+	},
+};
+#endif
+
 static struct wm831x_pdata hdmidongle_wm8326_pdata = {
+#ifdef CONFIG_REGULATOR
+	.dcdc = {
+		&hdmidongle_vddarm_dcdc1,  /* DCDC1 */
+		&hdmidongle_vddsoc_dcdc2,  /* DCDC2 */
+	},
+#endif
 	.post_init = wm8326_post_init,
 };
 

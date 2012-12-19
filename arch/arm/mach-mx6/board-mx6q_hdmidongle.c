@@ -435,7 +435,8 @@ static void __init imx6q_add_device_buttons(void) {}
 
 static struct mxc_dvfs_platform_data hdmidongle_dvfscore_data = {
 	#ifdef CONFIG_MX6_INTER_LDO_BYPASS
-	.reg_id = "VDDCORE",
+	.reg_id = "VDDCORE_DCDC1",
+	.soc_id = "VDDSOC_DCDC2",
 	#else
 	.reg_id = "cpu_vddgp",
 	.soc_id = "cpu_vddsoc",
@@ -533,7 +534,6 @@ static void __init mx6_hdmidongle_board_init(void)
 
 	gp_reg_id = hdmidongle_dvfscore_data.reg_id;
 	soc_reg_id = hdmidongle_dvfscore_data.soc_id;
-	pu_reg_id = hdmidongle_dvfscore_data.pu_id;
 	mx6q_hdmidongle_init_uart();
 
 	/*
