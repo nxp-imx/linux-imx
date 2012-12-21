@@ -1250,6 +1250,26 @@ static int __init mx53_smd_power_init(void)
 }
 late_initcall(mx53_smd_power_init);
 
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+static struct resource ram_console_resource = {
+	.name = "android ram console",
+	.flags = IORESOURCE_MEM,
+};
+
+static struct platform_device android_ram_console = {
+	.name = "ram_console",
+	.num_resources = 1,
+	.resource = &ram_console_resource,
+};
+
+static int __init imx5x_add_ram_console(void)
+{
+	return platform_device_register(&android_ram_console);
+}
+#else
+#define imx5x_add_ram_console() do {} while (0)
+#endif
+
 static void __init mx53_smd_board_init(void)
 {
 	int i;
@@ -1315,6 +1335,7 @@ static void __init mx53_smd_board_init(void)
 	lp_reg_id = smd_regulator_data.vcc_reg_id;
 
 	mx53_smd_init_uart();
+	imx5x_add_ram_console();
 	mx53_smd_fec_reset();
 	mxc_register_device(&mxc_pm_device, &smd_pm_data);
 	imx53_add_fec(&mx53_smd_fec_data);
@@ -1442,6 +1463,13 @@ static void __init mx53_smd_reserve(void)
 {
 	phys_addr_t phys;
 	int i;
+
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+	phys = memblock_alloc(SZ_128K, SZ_4K);
+	memblock_remove(phys, SZ_128K);
+	ram_console_resource.start = phys;
+	ram_console_resource.end   = phys + SZ_128K - 1;
+#endif
 
 	if (imx53_gpu_data.gmem_reserved_size) {
 		phys = memblock_alloc(imx53_gpu_data.gmem_reserved_size,
