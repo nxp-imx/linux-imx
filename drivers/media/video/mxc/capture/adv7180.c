@@ -680,6 +680,26 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 }
 
 /*!
+ * ioctl_enum_framesizes - V4L2 sensor interface handler for
+ *			   VIDIOC_ENUM_FRAMESIZES ioctl
+ * @s: pointer to standard V4L2 device structure
+ * @fsize: standard V4L2 VIDIOC_ENUM_FRAMESIZES ioctl structure
+ *
+ * Return 0 if successful, otherwise -EINVAL.
+ */
+static int ioctl_enum_framesizes(struct v4l2_int_device *s,
+				 struct v4l2_frmsizeenum *fsize)
+{
+	if (fsize->index >= 1)
+		return -EINVAL;
+
+	fsize->discrete.width = video_fmts[video_idx].active_width;
+	fsize->discrete.height  = video_fmts[video_idx].active_height;
+
+	return 0;
+}
+
+/*!
  * ioctl_g_chip_ident - V4L2 sensor interface handler for
  *			VIDIOC_DBG_G_CHIP_IDENT ioctl
  * @s: pointer to standard V4L2 device structure
@@ -768,6 +788,8 @@ static struct v4l2_int_ioctl_desc adv7180_ioctl_desc[] = {
 	{vidioc_int_queryctrl_num, (v4l2_int_ioctl_func*)ioctl_queryctrl},
 	{vidioc_int_g_ctrl_num, (v4l2_int_ioctl_func*)ioctl_g_ctrl},
 	{vidioc_int_s_ctrl_num, (v4l2_int_ioctl_func*)ioctl_s_ctrl},
+	{vidioc_int_enum_framesizes_num,
+				(v4l2_int_ioctl_func *) ioctl_enum_framesizes},
 	{vidioc_int_g_chip_ident_num,
 				(v4l2_int_ioctl_func *)ioctl_g_chip_ident},
 };
