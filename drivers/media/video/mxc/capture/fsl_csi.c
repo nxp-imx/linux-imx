@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -45,16 +45,8 @@ static irqreturn_t csi_irq_handler(int irq, void *data)
 {
 	cam_data *cam = (cam_data *) data;
 	unsigned long status = __raw_readl(CSI_CSISR);
-	unsigned long cr3 = __raw_readl(CSI_CSICR3);
-	unsigned int frame_count = (cr3 >> 16) & 0xFFFF;
 
 	__raw_writel(status, CSI_CSISR);
-
-	if (status & BIT_SOF_INT) {
-		/* reflash the embeded DMA controller */
-		if (frame_count % 2 == 1)
-			__raw_writel(cr3 | BIT_DMA_REFLASH_RFF, CSI_CSICR3);
-	}
 
 	if (status & BIT_HRESP_ERR_INT)
 		pr_warning("Hresponse error is detected.\n");

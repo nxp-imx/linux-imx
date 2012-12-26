@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -56,7 +56,10 @@ struct mxc_v4l_frame {
 	struct v4l2_buffer buffer;
 	struct list_head queue;
 	int index;
-	int ipu_buf_num;
+	union {
+		int ipu_buf_num;
+		int csi_buf_num;
+	};
 };
 
 /* Only for old version.  Will go away soon. */
@@ -119,7 +122,6 @@ typedef struct _cam_data {
 	spinlock_t dqueue_int_lock;
 	struct mxc_v4l_frame frame[FRAME_NUM];
 	struct mxc_v4l_frame dummy_frame;
-	int skip_frame;
 	wait_queue_head_t enc_queue;
 	int enc_counter;
 	dma_addr_t rot_enc_bufs[2];
