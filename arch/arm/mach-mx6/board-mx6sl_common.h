@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -85,6 +85,8 @@
 /* CSI */
 #define MX6SL_BRD_CSI_PWDN		IMX_GPIO_NR(1, 25)
 #define MX6SL_BRD_CSI_RST		IMX_GPIO_NR(1, 26)
+/* bt */
+#define MX6SL_BRD_BT_RESET		IMX_GPIO_NR(5, 11)
 
 static iomux_v3_cfg_t mx6sl_brd_pads[] = {
 
