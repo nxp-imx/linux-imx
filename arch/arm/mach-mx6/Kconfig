@@ -312,4 +312,10 @@ config MX6_CLK_FOR_BOOTUI_TRANS
 	 avoid setting IPU related clocks' parents when initializing clock tree
 	 so that bootloader splashimage can transition to kernel smoothly.
 
+config MACH_IMX_BLUETOOTH_RFKILL
+       tristate "i.MX Bluetooth rfkill interface support"
+       depends on RFKILL
+       ---help---
+	Say Y to get the standard rfkill interface of Bluetooth
+
 endif

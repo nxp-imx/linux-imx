@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -61,6 +61,7 @@
 #include <mach/iomux-mx6sl.h>
 #include <mach/imx-uart.h>
 #include <mach/viv_gpu.h>
+#include <mach/imx_rfkill.h>
 
 #include <asm/irq.h>
 #include <asm/setup.h>
@@ -1415,6 +1416,32 @@ static void __init uart2_init(void)
 	imx6sl_add_imx_uart(1, &mx6sl_evk_uart1_data);
 }
 
+static void mx6sl_evk_bt_reset(void)
+{
+	gpio_request(MX6SL_BRD_BT_RESET, "bt-reset");
+	gpio_direction_output(MX6SL_BRD_BT_RESET, 0);
+	/* pull down reset pin at least >5ms */
+	mdelay(6);
+	/* pull up after power supply BT */
+	gpio_set_value(MX6SL_BRD_BT_RESET, 1);
+	gpio_free(MX6SL_BRD_BT_RESET);
+}
+
+static int mx6sl_evk_bt_power_change(int status)
+{
+	if (status)
+		mx6sl_evk_bt_reset();
+	return 0;
+}
+
+static struct platform_device mxc_bt_rfkill = {
+	.name = "mxc_bt_rfkill",
+};
+
+static struct imx_bt_rfkill_platform_data mxc_bt_rfkill_data = {
+	.power_change = mx6sl_evk_bt_power_change,
+};
+
 static void mx6sl_evk_suspend_enter()
 {
 	iomux_v3_cfg_t *p = suspend_enter_pads;
@@ -1541,6 +1568,8 @@ static void __init mx6_evk_init(void)
 	/* uart2 for bluetooth */
 	if (uart2_enabled)
 		uart2_init();
+
+	mxc_register_device(&mxc_bt_rfkill, &mxc_bt_rfkill_data);
 
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);
