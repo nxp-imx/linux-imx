@@ -94,7 +94,7 @@
 static const struct fb_videomode vga_mode = {
 	/* 640x480 @ 60 Hz, 31.5 kHz hsync */
 	NULL, 60, 640, 480, 39721, 48, 16, 33, 10, 96, 2, 0,
-	FB_VMODE_NONINTERLACED | FB_VMODE_ASPECT_4_3, 0,
+	FB_VMODE_NONINTERLACED | FB_VMODE_ASPECT_4_3, FB_MODE_IS_VESA,
 };
 
 static const struct fb_videomode xga_mode = {
@@ -1373,7 +1373,7 @@ static int mxc_hdmi_read_edid(struct mxc_hdmi *hdmi)
 	memcpy(edid_old, hdmi->edid, HDMI_EDID_LEN);
 
 	ret = mxc_edid_read(hdmi_i2c->adapter, hdmi_i2c->addr, hdmi->edid,
-			    &hdmi->edid_cfg, hdmi->fbi);
+				&hdmi->edid_cfg, hdmi->fbi);
 
 	if (ret < 0)
 		return HDMI_EDID_FAIL;
@@ -1572,16 +1572,17 @@ static void  mxc_hdmi_default_modelist(struct mxc_hdmi *hdmi)
 
 	fb_destroy_modelist(&hdmi->fbi->modelist);
 
+	/*Add XGA and SXGA to default modelist */
+	fb_add_videomode(&vga_mode, &hdmi->fbi->modelist);
+	fb_add_videomode(&xga_mode, &hdmi->fbi->modelist);
+	fb_add_videomode(&sxga_mode, &hdmi->fbi->modelist);
+
 	/*Add all no interlaced CEA mode to default modelist */
 	for (i = 0; i < ARRAY_SIZE(mxc_cea_mode); i++) {
 		mode = &mxc_cea_mode[i];
 		if (!(mode->vmode & FB_VMODE_INTERLACED) && (mode->xres != 0))
 			fb_add_videomode(mode, &hdmi->fbi->modelist);
 	}
-
-	/*Add XGA and SXGA to default modelist */
-	fb_add_videomode(&xga_mode, &hdmi->fbi->modelist);
-	fb_add_videomode(&sxga_mode, &hdmi->fbi->modelist);
 
 	console_unlock();
 }
@@ -2206,7 +2207,7 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	mode = fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
 	if (!mode) {
 		pr_err("%s: could not find mode in modelist\n", __func__);
-		return;
+		return -1;
 	}
 
 	fb_videomode_to_var(&hdmi->fbi->var, mode);
