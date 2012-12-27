@@ -1920,13 +1920,6 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 	hdmi->hdmi_data.enc_in_format = RGB;
 
 	hdmi->hdmi_data.enc_out_format = RGB;
-	/*DVI mode not support non-RGB */
-	if (!hdmi->hdmi_data.video_mode.mDVI) {
-		if (hdmi->edid_cfg.cea_ycbcr444)
-			hdmi->hdmi_data.enc_out_format = YCBCR444;
-		else if (hdmi->edid_cfg.cea_ycbcr422)
-			hdmi->hdmi_data.enc_out_format = YCBCR422_8BITS;
-	}
 
 	/* IPU not support depth color output */
 	hdmi->hdmi_data.enc_color_depth = 8;
