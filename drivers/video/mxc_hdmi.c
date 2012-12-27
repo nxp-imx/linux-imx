@@ -1562,6 +1562,12 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 	console_unlock();
 }
 
+static void  mxc_hdmi_default_edid_cfg(struct mxc_hdmi *hdmi)
+{
+	/* Default setting HDMI working in HDMI mode */
+	hdmi->edid_cfg.hdmi_cap = true;
+}
+
 static void  mxc_hdmi_default_modelist(struct mxc_hdmi *hdmi)
 {
 	u32 i;
@@ -1686,8 +1692,10 @@ static void mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 	case HDMI_EDID_SAME:
 		break;
 
-	case HDMI_EDID_NO_MODES:
 	case HDMI_EDID_FAIL:
+		mxc_hdmi_default_edid_cfg(hdmi);
+		/* No break here  */
+	case HDMI_EDID_NO_MODES:
 	default:
 		mxc_hdmi_default_modelist(hdmi);
 		break;
