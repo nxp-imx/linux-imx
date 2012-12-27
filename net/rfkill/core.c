@@ -2,6 +2,7 @@
  * Copyright (C) 2006 - 2007 Ivo van Doorn
  * Copyright (C) 2007 Dmitry Torokhov
  * Copyright 2009 Johannes Berg <johannes@sipsolutions.net>
+ * Copyright (C) 2012 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -719,10 +720,18 @@ static ssize_t rfkill_claim_store(struct device *dev,
 
 static struct device_attribute rfkill_dev_attrs[] = {
 	__ATTR(name, S_IRUGO, rfkill_name_show, NULL),
+#ifdef CONFIG_ANDROID_PARANOID_NETWORK
+	__ATTR(type, S_IRUGO|S_IWUGO, rfkill_type_show, NULL),
+#else
 	__ATTR(type, S_IRUGO, rfkill_type_show, NULL),
+#endif
 	__ATTR(index, S_IRUGO, rfkill_idx_show, NULL),
 	__ATTR(persistent, S_IRUGO, rfkill_persistent_show, NULL),
+#ifdef CONFIG_ANDROID_PARANOID_NETWORK
+	__ATTR(state, S_IRUGO|S_IWUGO, rfkill_state_show, rfkill_state_store),
+#else
 	__ATTR(state, S_IRUGO|S_IWUSR, rfkill_state_show, rfkill_state_store),
+#endif
 	__ATTR(claim, S_IRUGO|S_IWUSR, rfkill_claim_show, rfkill_claim_store),
 	__ATTR(soft, S_IRUGO|S_IWUSR, rfkill_soft_show, rfkill_soft_store),
 	__ATTR(hard, S_IRUGO, rfkill_hard_show, NULL),
