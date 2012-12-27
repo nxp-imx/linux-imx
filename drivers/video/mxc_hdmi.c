@@ -186,6 +186,9 @@ static bool hdmi_inited;
 
 extern const struct fb_videomode mxc_cea_mode[64];
 extern void mxc_hdmi_cec_handle(u16 cec_stat);
+
+static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event);
+
 #ifdef DEBUG
 static void dump_fb_videomode(struct fb_videomode *m)
 {
@@ -1636,7 +1639,8 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi)
 				"%s: Video mode same as previous\n", __func__);
 		/* update fbi mode in case modelist is updated */
 		hdmi->fbi->mode = (struct fb_videomode *)mode;
-		mxc_hdmi_phy_init(hdmi);
+		/* update hdmi setting in case EDID data updated  */
+		mxc_hdmi_setup(hdmi, 0);
 	} else {
 		dev_dbg(&hdmi->pdev->dev, "%s: New video mode\n", __func__);
 		mxc_hdmi_set_mode_to_vga_dvi(hdmi);
