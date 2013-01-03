@@ -43,21 +43,16 @@
 #endif
 
 /*
-    NO_USER_DIRECT_ACCESS_FROM_KERNEL
-
-        This define enables the Linux kernel behavior accessing user memory.
-*/
-#ifndef NO_USER_DIRECT_ACCESS_FROM_KERNEL
-#   define NO_USER_DIRECT_ACCESS_FROM_KERNEL    0
-#endif
-
-/*
     VIVANTE_PROFILER
 
         This define enables the profiler.
 */
 #ifndef VIVANTE_PROFILER
 #   define VIVANTE_PROFILER                     0
+#endif
+
+#ifndef VIVANTE_PROFILER_PERDRAW
+#   define  VIVANTE_PROFILER_PERDRAW    0
 #endif
 
 /*
@@ -411,7 +406,7 @@
 #   if gcdFPGA_BUILD
 #       define gcdGPU_TIMEOUT                   0
 #   else
-#       define gcdGPU_TIMEOUT                   (2000 * 5)
+#       define gcdGPU_TIMEOUT                   20000
 #   endif
 #endif
 
@@ -799,6 +794,21 @@
 #   define gcdCONTIGUOUS_SIZE_LIMIT             4096
 #endif
 
+#ifndef gcdDISALBE_EARLY_EARLY_Z
+#   define gcdDISALBE_EARLY_EARLY_Z             1
+#endif
+
+/*
+    gcdLINK_QUEUE_SIZE
+
+        When non-zero, driver maintains a queue to record information of
+        latest lined context buffer and command buffer. Data in this queue
+        is be used to debug.
+*/
+#ifndef gcdLINK_QUEUE_SIZE
+#   define gcdLINK_QUEUE_SIZE                  0
+#endif
+
 /*  gcdALPHA_KILL_IN_SHADER
  *
  *  Enable alpha kill inside the shader. This will be set automatically by the
@@ -819,6 +829,22 @@
 
 #ifndef gcdUSE_WCLIP_PATCH
 #   define gcdUSE_WCLIP_PATCH                   1
+#endif
+
+#ifndef gcdHZ_L2_DISALBE
+#   define gcdHZ_L2_DISALBE                     1
+#endif
+
+#ifndef gcdBUGFIX15_DISABLE
+#   define gcdBUGFIX15_DISABLE                  1
+#endif
+
+#ifndef gcdDISABLE_HZ_FAST_CLEAR
+#   define gcdDISABLE_HZ_FAST_CLEAR             1
+#endif
+
+#ifndef gcdUSE_NPOT_PATCH
+#define gcdUSE_NPOT_PATCH                       1
 #endif
 
 #endif /* __gc_hal_options_h_ */

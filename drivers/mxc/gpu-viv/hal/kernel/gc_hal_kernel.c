@@ -70,6 +70,9 @@ gctCONST_STRING _DispatchText[] =
     gcmDEFINE2TEXT(gcvHAL_GET_PROFILE_SETTING),
     gcmDEFINE2TEXT(gcvHAL_SET_PROFILE_SETTING),
     gcmDEFINE2TEXT(gcvHAL_READ_ALL_PROFILE_REGISTERS),
+#if VIVANTE_PROFILER_PERDRAW
+    gcmDEFINE2TEXT(gcvHAL_READ_PROFILER_REGISTER_SETTING),
+#endif
     gcmDEFINE2TEXT(gcvHAL_PROFILE_REGISTERS_2D),
     gcmDEFINE2TEXT(gcvHAL_SET_POWER_MANAGEMENT_STATE),
     gcmDEFINE2TEXT(gcvHAL_QUERY_POWER_MANAGEMENT_STATE),
@@ -286,6 +289,7 @@ gckKERNEL_Construct(
 #else
     kernel->profileEnable = gcvTRUE;
 #endif
+    kernel->profileCleanRegister = gcvTRUE;
 
     gcmkVERIFY_OK(
         gckOS_MemCopy(kernel->profileFileName,
@@ -491,6 +495,115 @@ gckKERNEL_Destroy(
     return gcvSTATUS_OK;
 }
 
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+#include <linux/kernel.h>
+#include <linux/mm.h>
+#include <linux/oom.h>
+#include <linux/sched.h>
+#include <linux/notifier.h>
+
+static struct task_struct *lowmem_deathpending;
+static unsigned long lowmem_deathpending_timeout;
+
+static int
+task_notify_func(struct notifier_block *self, unsigned long val, void *data);
+
+static struct notifier_block task_nb = {
+	.notifier_call	= task_notify_func,
+};
+
+static int
+task_notify_func(struct notifier_block *self, unsigned long val, void *data)
+{
+	struct task_struct *task = data;
+
+	if (task == lowmem_deathpending)
+		lowmem_deathpending = NULL;
+
+	return NOTIFY_OK;
+}
+
+static int force_contiguous_lowmem_shrink(IN gckKERNEL Kernel)
+{
+	struct task_struct *p;
+	struct task_struct *selected = NULL;
+	int tasksize;
+        int ret = -1;
+	int min_adj = 0;
+	int selected_tasksize = 0;
+	int selected_oom_adj;
+	/*
+	 * If we already have a death outstanding, then
+	 * bail out right away; indicating to vmscan
+	 * that we have nothing further to offer on
+	 * this pass.
+	 *
+	 */
+	if (lowmem_deathpending &&
+	    time_before_eq(jiffies, lowmem_deathpending_timeout))
+		return 0;
+	selected_oom_adj = min_adj;
+
+	read_lock(&tasklist_lock);
+	for_each_process(p) {
+		struct mm_struct *mm;
+		struct signal_struct *sig;
+                gcuDATABASE_INFO info;
+		int oom_adj;
+
+		task_lock(p);
+		mm = p->mm;
+		sig = p->signal;
+		if (!mm || !sig) {
+			task_unlock(p);
+			continue;
+		}
+		oom_adj = sig->oom_adj;
+		if (oom_adj < min_adj) {
+			task_unlock(p);
+			continue;
+		}
+
+		tasksize = 0;
+		if (gckKERNEL_QueryProcessDB(Kernel, p->pid, gcvFALSE, gcvDB_VIDEO_MEMORY, &info) == gcvSTATUS_OK){
+			tasksize += info.counters.bytes / PAGE_SIZE;
+		}
+		if (gckKERNEL_QueryProcessDB(Kernel, p->pid, gcvFALSE, gcvDB_CONTIGUOUS, &info) == gcvSTATUS_OK){
+			tasksize += info.counters.bytes / PAGE_SIZE;
+		}
+
+		task_unlock(p);
+
+		if (tasksize <= 0)
+			continue;
+
+		gckOS_Print("<gpu> pid %d (%s), adj %d, size %d \n", p->pid, p->comm, oom_adj, tasksize);
+
+		if (selected) {
+			if (oom_adj < selected_oom_adj)
+				continue;
+			if (oom_adj == selected_oom_adj &&
+			    tasksize <= selected_tasksize)
+				continue;
+		}
+		selected = p;
+		selected_tasksize = tasksize;
+		selected_oom_adj = oom_adj;
+	}
+	if (selected) {
+		gckOS_Print("<gpu> send sigkill to %d (%s), adj %d, size %d\n",
+			     selected->pid, selected->comm,
+			     selected_oom_adj, selected_tasksize);
+		lowmem_deathpending = selected;
+		lowmem_deathpending_timeout = jiffies + HZ;
+		force_sig(SIGKILL, selected);
+		ret = 0;
+	}
+	read_unlock(&tasklist_lock);
+	return ret;
+}
+
+#endif
 
 /*******************************************************************************
 **
@@ -531,6 +644,9 @@ _AllocateMemory(
     gcuVIDMEM_NODE_PTR node = gcvNULL;
     gctBOOL tileStatusInVirtual;
     gctBOOL forceContiguous = gcvFALSE;
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+    gctBOOL forceContiguousShrinking = gcvFALSE;
+#endif
 
     gcmkHEADER_ARG("Kernel=0x%x *Pool=%d Bytes=%lu Alignment=%lu Type=%d",
                    Kernel, *Pool, Bytes, Alignment, Type);
@@ -538,6 +654,9 @@ _AllocateMemory(
     gcmkVERIFY_ARGUMENT(Pool != gcvNULL);
     gcmkVERIFY_ARGUMENT(Bytes != 0);
 
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+_AllocateMemory_Retry:
+#endif
     /* Get initial pool. */
     switch (pool = *Pool)
     {
@@ -683,10 +802,34 @@ _AllocateMemory(
 
     if (node == gcvNULL)
     {
+
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+        if(forceContiguous == gcvTRUE)
+        {
+            if(forceContiguousShrinking == gcvFALSE)
+            {
+                 forceContiguousShrinking = gcvTRUE;
+                 task_free_register(&task_nb);
+            }
+
+            if(force_contiguous_lowmem_shrink(Kernel) == 0)
+            {
+                 /* Sleep 1 millisecond. */
+                 gckOS_Delay(gcvNULL, 1);
+                 goto _AllocateMemory_Retry;
+            }
+        }
+#endif
         /* Nothing allocated. */
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
 
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+    if(forceContiguous == gcvTRUE && forceContiguousShrinking == gcvTRUE)
+    {
+        task_free_unregister(&task_nb);
+    }
+#endif
 
     /* Return node and pool used for allocation. */
     *Node = node;
@@ -1415,6 +1558,7 @@ gckKERNEL_Dispatch(
         gcmkONERROR(
             gckHARDWARE_QueryProfileRegisters(
                 Kernel->hardware,
+                Kernel->profileCleanRegister,
                 &Interface->u.RegisterProfileData.counters));
 #else
         status = gcvSTATUS_OK;
@@ -1446,7 +1590,6 @@ gckKERNEL_Dispatch(
 
         status = gcvSTATUS_OK;
         break;
-
     case gcvHAL_SET_PROFILE_SETTING:
 #if VIVANTE_PROFILER
         /* Set profile setting */
@@ -1460,6 +1603,15 @@ gckKERNEL_Dispatch(
 
         status = gcvSTATUS_OK;
         break;
+
+#if VIVANTE_PROFILER_PERDRAW
+    case gcvHAL_READ_PROFILER_REGISTER_SETTING:
+    #if VIVANTE_PROFILER
+        Kernel->profileCleanRegister = Interface->u.SetProfilerRegisterClear.bclear;
+    #endif
+        status = gcvSTATUS_OK;
+        break;
+#endif
 
     case gcvHAL_QUERY_KERNEL_SETTINGS:
         /* Get kernel settings. */
@@ -1511,7 +1663,11 @@ gckKERNEL_Dispatch(
             {
                 Interface->u.ReadRegisterData.data = 1;
                 gcmkVERIFY_OK(
-                    gckOS_DumpGPUState(Kernel->os, Kernel->core));
+                    gckHARDWARE_DumpGPUState(Kernel->hardware));
+#if gcdVIRTUAL_COMMAND_BUFFER
+                gcmkVERIFY_OK(
+                    gckCOMMAND_DumpExecutingBuffer(Kernel->command));
+#endif
             }
             else
             {
@@ -1523,8 +1679,10 @@ gckKERNEL_Dispatch(
 
     case gcvHAL_DUMP_EVENT:
         /* Dump GPU event */
-        gcmkVERIFY_OK(
-            gckEVENT_Dump(Kernel->eventObj));
+        gcmkVERIFY_OK(gckEVENT_Dump(Kernel->eventObj));
+
+        /* Dump Process DB. */
+        gcmkVERIFY_OK(gckKERNEL_DumpProcessDB(Kernel));
         break;
 
     case gcvHAL_CACHE:
@@ -3229,6 +3387,88 @@ gckKERNEL_GetGPUAddress(
 
     gcmkFOOTER_NO();
     return status;
+}
+
+gceSTATUS
+gckKERNEL_QueryGPUAddress(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 GpuAddress,
+    OUT gckVIRTUAL_COMMAND_BUFFER_PTR * Buffer
+    )
+{
+    gckVIRTUAL_COMMAND_BUFFER_PTR buffer;
+    gctUINT32 start;
+    gceSTATUS status = gcvSTATUS_NOT_SUPPORTED;
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, Kernel->virtualBufferLock, gcvINFINITE));
+
+    /* Walk all command buffers. */
+    for (buffer = Kernel->virtualBufferHead; buffer != gcvNULL; buffer = buffer->next)
+    {
+        start = (gctUINT32)buffer->gpuAddress;
+
+        if (GpuAddress >= start && GpuAddress < (start + buffer->pageCount * 4096))
+        {
+            /* Find a range matched. */
+            *Buffer = buffer;
+            status = gcvSTATUS_OK;
+            break;
+        }
+    }
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->virtualBufferLock));
+
+    return status;
+}
+#endif
+
+#if gcdLINK_QUEUE_SIZE
+static void
+gckLINKQUEUE_Dequeue(
+    IN gckLINKQUEUE LinkQueue
+    )
+{
+    gcmASSERT(LinkQueue->count == gcdLINK_QUEUE_SIZE);
+
+    LinkQueue->count--;
+    LinkQueue->front = (LinkQueue->front + 1) % gcdLINK_QUEUE_SIZE;
+}
+
+void
+gckLINKQUEUE_Enqueue(
+    IN gckLINKQUEUE LinkQueue,
+    IN gctUINT32 start,
+    IN gctUINT32 end
+    )
+{
+    if (LinkQueue->count == gcdLINK_QUEUE_SIZE)
+    {
+        gckLINKQUEUE_Dequeue(LinkQueue);
+    }
+
+    gcmkASSERT(LinkQueue->count < gcdLINK_QUEUE_SIZE);
+
+    LinkQueue->count++;
+
+    LinkQueue->data[LinkQueue->rear].start = start;
+    LinkQueue->data[LinkQueue->rear].end = end;
+
+    gcmkVERIFY_OK(
+        gckOS_GetProcessID(&LinkQueue->data[LinkQueue->rear].pid));
+
+    LinkQueue->rear = (LinkQueue->rear + 1) % gcdLINK_QUEUE_SIZE;
+}
+
+void
+gckLINKQUEUE_GetData(
+    IN gckLINKQUEUE LinkQueue,
+    IN gctUINT32 Index,
+    OUT gckLINKDATA * Data
+    )
+{
+    gcmkASSERT(Index >= 0 && Index < gcdLINK_QUEUE_SIZE);
+
+    *Data = &LinkQueue->data[(Index + LinkQueue->front) % gcdLINK_QUEUE_SIZE];
 }
 #endif
 

@@ -840,7 +840,7 @@ gckGALDEVICE_Construct(
                 }
 #endif
 
-                device->contiguousPhysical = (gctPHYS_ADDR)(gctUINTPTR_T) ContiguousBase;
+                device->contiguousPhysical = gcvNULL;
                 device->contiguousSize     = ContiguousSize;
                 device->contiguousMapped   = gcvTRUE;
             }

@@ -47,7 +47,7 @@ typedef struct __BITFIELDINFO{
 
 #elif defined(LINUX) && defined(EGL_API_DFB) && !defined(__APPLE__)
 #include <directfb.h>
-typedef IDirectFB * HALNativeDisplayType;
+typedef struct _DFBDisplay * HALNativeDisplayType;
 typedef IDirectFBWindow *  HALNativeWindowType;
 typedef struct _DFBPixmap *  HALNativePixmapType;
 
@@ -258,6 +258,17 @@ gceSTATUS
 gcoOS_SetDisplayVirtual(
     IN HALNativeDisplayType Display,
     IN HALNativeWindowType Window,
+    IN gctUINT Offset,
+    IN gctINT X,
+    IN gctINT Y
+    );
+
+gceSTATUS
+gcoOS_SetDisplayVirtualEx(
+    IN HALNativeDisplayType Display,
+    IN HALNativeWindowType Window,
+    IN gctPOINTER Context,
+    IN gcoSURF Surface,
     IN gctUINT Offset,
     IN gctINT X,
     IN gctINT Y

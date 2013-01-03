@@ -213,18 +213,6 @@ typedef struct _gcsPageInfo
 }
 gcsPageInfo;
 
-typedef struct _gcsiDEBUG_REGISTERS * gcsiDEBUG_REGISTERS_PTR;
-typedef struct _gcsiDEBUG_REGISTERS
-{
-    gctSTRING       module;
-    gctUINT         index;
-    gctUINT         shift;
-    gctUINT         data;
-    gctUINT         count;
-    gctUINT32       signature;
-}
-gcsiDEBUG_REGISTERS;
-
 typedef struct _gcsOSTIMER * gcsOSTIMER_PTR;
 typedef struct _gcsOSTIMER
 {
@@ -236,318 +224,6 @@ typedef struct _gcsOSTIMER
 /******************************************************************************\
 ******************************* Private Functions ******************************
 \******************************************************************************/
-
-static gceSTATUS
-_VerifyDMA(
-    IN gckOS Os,
-    IN gceCORE Core,
-    gctUINT32_PTR Address1,
-    gctUINT32_PTR Address2,
-    gctUINT32_PTR State1,
-    gctUINT32_PTR State2
-    )
-{
-    gceSTATUS status;
-    gctUINT32 i;
-
-    gcmkONERROR(gckOS_ReadRegisterEx(Os, Core, 0x660, State1));
-    gcmkONERROR(gckOS_ReadRegisterEx(Os, Core, 0x664, Address1));
-
-    for (i = 0; i < 500; i += 1)
-    {
-        gcmkONERROR(gckOS_ReadRegisterEx(Os, Core, 0x660, State2));
-        gcmkONERROR(gckOS_ReadRegisterEx(Os, Core, 0x664, Address2));
-
-        if (*Address1 != *Address2)
-        {
-            break;
-        }
-
-#if gcdDETECT_DMA_STATE
-        if (*State1 != *State2)
-        {
-            break;
-        }
-#endif
-    }
-
-OnError:
-    return status;
-}
-
-static gceSTATUS
-_DumpDebugRegisters(
-    IN gckOS Os,
-    IN gcsiDEBUG_REGISTERS_PTR Descriptor
-    )
-{
-    gceSTATUS status;
-    gctUINT32 select;
-    gctUINT32 data;
-    gctUINT i;
-
-    gcmkHEADER_ARG("Os=0x%X Descriptor=0x%X", Os, Descriptor);
-
-    gcmkPRINT_N(4, "  %s debug registers:\n", Descriptor->module);
-
-    for (i = 0; i < Descriptor->count; i += 1)
-    {
-        select = i << Descriptor->shift;
-
-        gcmkONERROR(gckOS_WriteRegister(Os, Descriptor->index, select));
-#if !gcdENABLE_RECOVERY
-        gcmkONERROR(gckOS_Delay(Os, 1000));
-#endif
-        gcmkONERROR(gckOS_ReadRegister(Os, Descriptor->data, &data));
-
-        gcmkPRINT_N(12, "    [0x%02X] 0x%08X\n", i, data);
-    }
-
-    select = 0xF << Descriptor->shift;
-
-    for (i = 0; i < 500; i += 1)
-    {
-        gcmkONERROR(gckOS_WriteRegister(Os, Descriptor->index, select));
-#if !gcdENABLE_RECOVERY
-        gcmkONERROR(gckOS_Delay(Os, 1000));
-#endif
-        gcmkONERROR(gckOS_ReadRegister(Os, Descriptor->data, &data));
-
-        if (data == Descriptor->signature)
-        {
-            break;
-        }
-    }
-
-    if (i == 500)
-    {
-        gcmkPRINT_N(4, "    failed to obtain the signature (read 0x%08X).\n", data);
-    }
-    else
-    {
-        gcmkPRINT_N(8, "    signature = 0x%08X (%d read attempt(s))\n", data, i + 1);
-    }
-
-OnError:
-    /* Return the error. */
-    gcmkFOOTER();
-    return status;
-}
-
-static gceSTATUS
-_DumpGPUState(
-    IN gckOS Os,
-    IN gceCORE Core
-    )
-{
-    static gctCONST_STRING _cmdState[] =
-    {
-        "PAR_IDLE_ST", "PAR_DEC_ST", "PAR_ADR0_ST", "PAR_LOAD0_ST",
-        "PAR_ADR1_ST", "PAR_LOAD1_ST", "PAR_3DADR_ST", "PAR_3DCMD_ST",
-        "PAR_3DCNTL_ST", "PAR_3DIDXCNTL_ST", "PAR_INITREQDMA_ST",
-        "PAR_DRAWIDX_ST", "PAR_DRAW_ST", "PAR_2DRECT0_ST", "PAR_2DRECT1_ST",
-        "PAR_2DDATA0_ST", "PAR_2DDATA1_ST", "PAR_WAITFIFO_ST", "PAR_WAIT_ST",
-        "PAR_LINK_ST", "PAR_END_ST", "PAR_STALL_ST"
-    };
-
-    static gctCONST_STRING _cmdDmaState[] =
-    {
-        "CMD_IDLE_ST", "CMD_START_ST", "CMD_REQ_ST", "CMD_END_ST"
-    };
-
-    static gctCONST_STRING _cmdFetState[] =
-    {
-        "FET_IDLE_ST", "FET_RAMVALID_ST", "FET_VALID_ST"
-    };
-
-    static gctCONST_STRING _reqDmaState[] =
-    {
-        "REQ_IDLE_ST", "REQ_WAITIDX_ST", "REQ_CAL_ST"
-    };
-
-    static gctCONST_STRING _calState[] =
-    {
-        "CAL_IDLE_ST", "CAL_LDADR_ST", "CAL_IDXCALC_ST"
-    };
-
-    static gctCONST_STRING _veReqState[] =
-    {
-        "VER_IDLE_ST", "VER_CKCACHE_ST", "VER_MISS_ST"
-    };
-
-    static gcsiDEBUG_REGISTERS _dbgRegs[] =
-    {
-        { "RA", 0x474, 16, 0x448, 16, 0x12344321 },
-        { "TX", 0x474, 24, 0x44C, 16, 0x12211221 },
-        { "FE", 0x470,  0, 0x450, 16, 0xBABEF00D },
-        { "PE", 0x470, 16, 0x454, 16, 0xBABEF00D },
-        { "DE", 0x470,  8, 0x458, 16, 0xBABEF00D },
-        { "SH", 0x470, 24, 0x45C, 16, 0xDEADBEEF },
-        { "PA", 0x474,  0, 0x460, 16, 0x0000AAAA },
-        { "SE", 0x474,  8, 0x464, 16, 0x5E5E5E5E },
-        { "MC", 0x478,  0, 0x468, 16, 0x12345678 },
-        { "HI", 0x478,  8, 0x46C, 16, 0xAAAAAAAA }
-    };
-
-    static gctUINT32 _otherRegs[] =
-    {
-        0x040, 0x044, 0x04C, 0x050, 0x054, 0x058, 0x05C, 0x060,
-        0x43c, 0x440, 0x444, 0x414,
-    };
-
-    gceSTATUS status;
-    gctBOOL acquired = gcvFALSE;
-    gckGALDEVICE device;
-    gckKERNEL kernel;
-    gctUINT32 idle, axi;
-    gctUINT32 dmaAddress1, dmaAddress2;
-    gctUINT32 dmaState1, dmaState2;
-    gctUINT32 dmaLow, dmaHigh;
-    gctUINT32 cmdState, cmdDmaState, cmdFetState;
-    gctUINT32 dmaReqState, calState, veReqState;
-    gctUINT i;
-
-    gcmkHEADER_ARG("Os=0x%X, Core=%d", Os, Core);
-
-    gcmkONERROR(gckOS_AcquireMutex(Os, Os->debugLock, gcvINFINITE));
-    acquired = gcvTRUE;
-
-    /* Extract the pointer to the gckGALDEVICE class. */
-    device = (gckGALDEVICE) Os->device;
-
-    /* TODO: Kernel shortcut. */
-    kernel = device->kernels[Core];
-    gcmkPRINT_N(4, "GPU[%d]:\n",Core);
-
-    if (kernel == gcvNULL)
-    {
-        gcmkFOOTER();
-        return gcvSTATUS_OK;
-    }
-
-    /* Reset register values. */
-    idle        = axi         =
-    dmaState1   = dmaState2   =
-    dmaAddress1 = dmaAddress2 =
-    dmaLow      = dmaHigh     = 0;
-
-    /* Verify whether DMA is running. */
-    gcmkONERROR(_VerifyDMA(
-        Os, kernel->core, &dmaAddress1, &dmaAddress2, &dmaState1, &dmaState2
-        ));
-
-    cmdState    =  dmaState2        & 0x1F;
-    cmdDmaState = (dmaState2 >>  8) & 0x03;
-    cmdFetState = (dmaState2 >> 10) & 0x03;
-    dmaReqState = (dmaState2 >> 12) & 0x03;
-    calState    = (dmaState2 >> 14) & 0x03;
-    veReqState  = (dmaState2 >> 16) & 0x03;
-
-    gcmkONERROR(gckOS_ReadRegisterEx(Os, kernel->core, 0x004, &idle));
-    gcmkONERROR(gckOS_ReadRegisterEx(Os, kernel->core, 0x00C, &axi));
-    gcmkONERROR(gckOS_ReadRegisterEx(Os, kernel->core, 0x668, &dmaLow));
-    gcmkONERROR(gckOS_ReadRegisterEx(Os, kernel->core, 0x66C, &dmaHigh));
-
-    gcmkPRINT_N(0, "**************************\n");
-    gcmkPRINT_N(0, "***   GPU STATE DUMP   ***\n");
-    gcmkPRINT_N(0, "**************************\n");
-
-    gcmkPRINT_N(4, "  axi      = 0x%08X\n", axi);
-
-    gcmkPRINT_N(4, "  idle     = 0x%08X\n", idle);
-    if ((idle & 0x00000001) == 0) gcmkPRINT_N(0, "    FE not idle\n");
-    if ((idle & 0x00000002) == 0) gcmkPRINT_N(0, "    DE not idle\n");
-    if ((idle & 0x00000004) == 0) gcmkPRINT_N(0, "    PE not idle\n");
-    if ((idle & 0x00000008) == 0) gcmkPRINT_N(0, "    SH not idle\n");
-    if ((idle & 0x00000010) == 0) gcmkPRINT_N(0, "    PA not idle\n");
-    if ((idle & 0x00000020) == 0) gcmkPRINT_N(0, "    SE not idle\n");
-    if ((idle & 0x00000040) == 0) gcmkPRINT_N(0, "    RA not idle\n");
-    if ((idle & 0x00000080) == 0) gcmkPRINT_N(0, "    TX not idle\n");
-    if ((idle & 0x00000100) == 0) gcmkPRINT_N(0, "    VG not idle\n");
-    if ((idle & 0x00000200) == 0) gcmkPRINT_N(0, "    IM not idle\n");
-    if ((idle & 0x00000400) == 0) gcmkPRINT_N(0, "    FP not idle\n");
-    if ((idle & 0x00000800) == 0) gcmkPRINT_N(0, "    TS not idle\n");
-    if ((idle & 0x80000000) != 0) gcmkPRINT_N(0, "    AXI low power mode\n");
-
-    if (
-        (dmaAddress1 == dmaAddress2)
-
-#if gcdDETECT_DMA_STATE
-     && (dmaState1 == dmaState2)
-#endif
-    )
-    {
-        gcmkPRINT_N(0, "  DMA appears to be stuck at this address:\n");
-        gcmkPRINT_N(4, "    0x%08X\n", dmaAddress1);
-    }
-    else
-    {
-        if (dmaAddress1 == dmaAddress2)
-        {
-            gcmkPRINT_N(0, "  DMA address is constant, but state is changing:\n");
-            gcmkPRINT_N(4, "    0x%08X\n", dmaState1);
-            gcmkPRINT_N(4, "    0x%08X\n", dmaState2);
-        }
-        else
-        {
-            gcmkPRINT_N(0, "  DMA is running; known addresses are:\n");
-            gcmkPRINT_N(4, "    0x%08X\n", dmaAddress1);
-            gcmkPRINT_N(4, "    0x%08X\n", dmaAddress2);
-        }
-    }
-
-    gcmkPRINT_N(4, "  dmaLow   = 0x%08X\n", dmaLow);
-    gcmkPRINT_N(4, "  dmaHigh  = 0x%08X\n", dmaHigh);
-    gcmkPRINT_N(4, "  dmaState = 0x%08X\n", dmaState2);
-    gcmkPRINT_N(8, "    command state       = %d (%s)\n", cmdState,    _cmdState   [cmdState]);
-    gcmkPRINT_N(8, "    command DMA state   = %d (%s)\n", cmdDmaState, _cmdDmaState[cmdDmaState]);
-    gcmkPRINT_N(8, "    command fetch state = %d (%s)\n", cmdFetState, _cmdFetState[cmdFetState]);
-    gcmkPRINT_N(8, "    DMA request state   = %d (%s)\n", dmaReqState, _reqDmaState[dmaReqState]);
-    gcmkPRINT_N(8, "    cal state           = %d (%s)\n", calState,    _calState   [calState]);
-    gcmkPRINT_N(8, "    VE request state    = %d (%s)\n", veReqState,  _veReqState [veReqState]);
-
-    for (i = 0; i < gcmCOUNTOF(_dbgRegs); i += 1)
-    {
-        gcmkONERROR(_DumpDebugRegisters(Os, &_dbgRegs[i]));
-    }
-
-    if (kernel->hardware->identity.chipFeatures & (1 << 4))
-    {
-        gctUINT32 read0, read1, write;
-
-        read0 = read1 = write = 0;
-
-        gcmkONERROR(gckOS_ReadRegisterEx(Os, kernel->core, 0x43C, &read0));
-        gcmkONERROR(gckOS_ReadRegisterEx(Os, kernel->core, 0x440, &read1));
-        gcmkONERROR(gckOS_ReadRegisterEx(Os, kernel->core, 0x444, &write));
-
-        gcmkPRINT_N(4, "  read0    = 0x%08X\n", read0);
-        gcmkPRINT_N(4, "  read1    = 0x%08X\n", read1);
-        gcmkPRINT_N(4, "  write    = 0x%08X\n", write);
-    }
-
-    gcmkPRINT_N(0, "  Other Registers:\n");
-    for (i = 0; i < gcmCOUNTOF(_otherRegs); i += 1)
-    {
-        gctUINT32 read;
-        gcmkONERROR(gckOS_ReadRegisterEx(Os, kernel->core, _otherRegs[i], &read));
-        gcmkPRINT_N(12, "    [0x%04X] 0x%08X\n", _otherRegs[i], read);
-    }
-
-    /* Dump call stack. */
-    dump_stack();
-
-OnError:
-    if (acquired)
-    {
-        /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Os, Os->debugLock));
-    }
-
-    /* Return the error. */
-    gcmkFOOTER();
-    return status;
-}
 
 static gctINT
 _GetProcessID(
@@ -1770,6 +1446,14 @@ gckOS_MapMemory(
 
     if (mdlMap->vmaAddr == gcvNULL)
     {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+        mdlMap->vmaAddr = (char *)vm_mmap(gcvNULL,
+                    0L,
+                    mdl->numPages * PAGE_SIZE,
+                    PROT_READ | PROT_WRITE,
+                    MAP_SHARED,
+                    0);
+#else
         down_write(&current->mm->mmap_sem);
 
         mdlMap->vmaAddr = (char *)do_mmap_pgoff(gcvNULL,
@@ -1778,6 +1462,9 @@ gckOS_MapMemory(
                     PROT_READ | PROT_WRITE,
                     MAP_SHARED,
                     0);
+
+        up_write(&current->mm->mmap_sem);
+#endif
 
         if (IS_ERR(mdlMap->vmaAddr))
         {
@@ -1797,13 +1484,13 @@ gckOS_MapMemory(
 
             mdlMap->vmaAddr = gcvNULL;
 
-            up_write(&current->mm->mmap_sem);
-
             MEMORY_UNLOCK(Os);
 
             gcmkFOOTER_ARG("status=%d", gcvSTATUS_OUT_OF_MEMORY);
             return gcvSTATUS_OUT_OF_MEMORY;
         }
+
+        down_write(&current->mm->mmap_sem);
 
         mdlMap->vma = find_vma(current->mm, (unsigned long)mdlMap->vmaAddr);
 
@@ -2226,6 +1913,14 @@ gckOS_AllocateNonPagedMemory(
         /* Only after mmap this will be valid. */
 
         /* We need to map this to user space. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+        mdlMap->vmaAddr = (gctSTRING) vm_mmap(gcvNULL,
+                0L,
+                mdl->numPages * PAGE_SIZE,
+                PROT_READ | PROT_WRITE,
+                MAP_SHARED,
+                0);
+#else
         down_write(&current->mm->mmap_sem);
 
         mdlMap->vmaAddr = (gctSTRING) do_mmap_pgoff(gcvNULL,
@@ -2234,6 +1929,9 @@ gckOS_AllocateNonPagedMemory(
                 PROT_READ | PROT_WRITE,
                 MAP_SHARED,
                 0);
+
+        up_write(&current->mm->mmap_sem);
+#endif
 
         if (IS_ERR(mdlMap->vmaAddr))
         {
@@ -2245,10 +1943,10 @@ gckOS_AllocateNonPagedMemory(
 
             mdlMap->vmaAddr = gcvNULL;
 
-            up_write(&current->mm->mmap_sem);
-
             gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
         }
+
+        down_write(&current->mm->mmap_sem);
 
         mdlMap->vma = find_vma(current->mm, (unsigned long)mdlMap->vmaAddr);
 
@@ -4105,7 +3803,7 @@ gckOS_AllocatePagedMemoryEx(
         /* Get contiguous pages, and suppress warning (stack dump) from kernel when
            we run out of memory. */
         mdl->u.contiguousPages =
-            alloc_pages(GFP_KERNEL | __GFP_NOWARN, GetOrder(numPages));
+            alloc_pages(GFP_KERNEL | __GFP_NOWARN | __GFP_NORETRY, GetOrder(numPages));
 
         if (mdl->u.contiguousPages == gcvNULL)
         {
@@ -4370,6 +4068,14 @@ gckOS_LockPages(
 
     if (mdlMap->vmaAddr == gcvNULL)
     {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+        mdlMap->vmaAddr = (gctSTRING)vm_mmap(gcvNULL,
+                        0L,
+                        mdl->numPages * PAGE_SIZE,
+                        PROT_READ | PROT_WRITE,
+                        MAP_SHARED,
+                        0);
+#else
         down_write(&current->mm->mmap_sem);
 
         mdlMap->vmaAddr = (gctSTRING)do_mmap_pgoff(gcvNULL,
@@ -4378,6 +4084,9 @@ gckOS_LockPages(
                         PROT_READ | PROT_WRITE,
                         MAP_SHARED,
                         0);
+
+        up_write(&current->mm->mmap_sem);
+#endif
 
         gcmkTRACE_ZONE(
             gcvLEVEL_INFO, gcvZONE_OS,
@@ -4389,8 +4098,6 @@ gckOS_LockPages(
 
         if (IS_ERR(mdlMap->vmaAddr))
         {
-            up_write(&current->mm->mmap_sem);
-
             gcmkTRACE_ZONE(
                 gcvLEVEL_INFO, gcvZONE_OS,
                 "%s(%d): do_mmap_pgoff error",
@@ -4404,6 +4111,8 @@ gckOS_LockPages(
             gcmkFOOTER_ARG("*status=%d", gcvSTATUS_OUT_OF_MEMORY);
             return gcvSTATUS_OUT_OF_MEMORY;
         }
+
+        down_write(&current->mm->mmap_sem);
 
         mdlMap->vma = find_vma(current->mm, (unsigned long)mdlMap->vmaAddr);
 
@@ -5068,12 +4777,10 @@ gckOS_MapUserPointer(
     OUT gctPOINTER * KernelPointer
     )
 {
-    gcmkHEADER_ARG("Os=0x%X Pointer=0x%X Size=%lu", Os, Pointer, Size);
-
-#if NO_USER_DIRECT_ACCESS_FROM_KERNEL
-{
     gctPOINTER buf = gcvNULL;
     gctUINT32 len;
+
+    gcmkHEADER_ARG("Os=0x%X Pointer=0x%X Size=%lu", Os, Pointer, Size);
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
@@ -5113,10 +4820,6 @@ gckOS_MapUserPointer(
     }
 
     *KernelPointer = buf;
-}
-#else
-    *KernelPointer = Pointer;
-#endif /* NO_USER_DIRECT_ACCESS_FROM_KERNEL */
 
     gcmkFOOTER_ARG("*KernelPointer=0x%X", *KernelPointer);
     return gcvSTATUS_OK;
@@ -5154,12 +4857,11 @@ gckOS_UnmapUserPointer(
     IN gctPOINTER KernelPointer
     )
 {
+    gctUINT32 len;
+
     gcmkHEADER_ARG("Os=0x%X Pointer=0x%X Size=%lu KernelPointer=0x%X",
                    Os, Pointer, Size, KernelPointer);
 
-#if NO_USER_DIRECT_ACCESS_FROM_KERNEL
-{
-    gctUINT32 len;
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
@@ -5182,8 +4884,6 @@ gckOS_UnmapUserPointer(
         gcmkFOOTER_ARG("status=%d", gcvSTATUS_GENERIC_IO);
         return gcvSTATUS_GENERIC_IO;
     }
-}
-#endif /* NO_USER_DIRECT_ACCESS_FROM_KERNEL */
 
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
@@ -5223,13 +4923,8 @@ gckOS_QueryNeedCopy(
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
     gcmkVERIFY_ARGUMENT(NeedCopy != gcvNULL);
 
-#if NO_USER_DIRECT_ACCESS_FROM_KERNEL
     /* We need to copy data. */
     *NeedCopy = gcvTRUE;
-#else
-    /* No need to copy data. */
-    *NeedCopy = gcvFALSE;
-#endif
 
     /* Success. */
     gcmkFOOTER_ARG("*NeedCopy=%d", *NeedCopy);
@@ -5391,7 +5086,6 @@ gckOS_WriteMemory(
     gcmkVERIFY_ARGUMENT(Address != gcvNULL);
 
     /* Write memory. */
-#if NO_USER_DIRECT_ACCESS_FROM_KERNEL
     if (access_ok(VERIFY_WRITE, Address, 4))
     {
         /* User address. */
@@ -5401,7 +5095,6 @@ gckOS_WriteMemory(
         }
     }
     else
-#endif
     {
         /* Kernel address. */
         *(gctUINT32 *)Address = Data;
@@ -6594,14 +6287,14 @@ gckOS_Broadcast(
     case gcvBROADCAST_GPU_STUCK:
         gcmkTRACE_N(gcvLEVEL_ERROR, 0, "gcvBROADCAST_GPU_STUCK\n");
 #if !gcdENABLE_RECOVERY
-        gcmkONERROR(_DumpGPUState(Os, Hardware->core));
+        gcmkONERROR(gckHARDWARE_DumpGPUState(Hardware));
 #endif
         gcmkONERROR(gckKERNEL_Recovery(Hardware->kernel));
         break;
 
     case gcvBROADCAST_AXI_BUS_ERROR:
         gcmkTRACE_N(gcvLEVEL_ERROR, 0, "gcvBROADCAST_AXI_BUS_ERROR\n");
-        gcmkONERROR(_DumpGPUState(Os, Hardware->core));
+        gcmkONERROR(gckHARDWARE_DumpGPUState(Hardware));
         gcmkONERROR(gckKERNEL_Recovery(Hardware->kernel));
         break;
     }
@@ -8256,41 +7949,6 @@ gckOS_VerifyThread(
 }
 #endif
 
-/*******************************************************************************
-**
-**  gckOS_DumpGPUState
-**
-**  Dump GPU state.
-**
-**  INPUT:
-**
-**      gckOS Os
-**          Pointer to the gckOS object.
-**
-**      gceCORE Core
-**          The core type of kernel.
-**
-**  OUTPUT:
-**
-**      Nothing.
-*/
-gceSTATUS
-gckOS_DumpGPUState(
-    IN gckOS Os,
-    IN gceCORE Core
-    )
-{
-    gcmkHEADER_ARG("Os=0x%X Core=%d", Os, Core);
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
-
-    _DumpGPUState(Os, Core);
-
-    gcmkFOOTER_NO();
-    /* Success. */
-    return gcvSTATUS_OK;
-}
-
 /******************************************************************************\
 ******************************** Software Timer ********************************
 \******************************************************************************/
@@ -8494,3 +8152,49 @@ gckOS_StopTimer(
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 }
+
+
+gceSTATUS
+gckOS_DumpCallStack(
+    IN gckOS Os
+    )
+{
+    gcmkHEADER_ARG("Os=0x%X", Os);
+
+    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
+
+    dump_stack();
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+
+
+gceSTATUS
+gckOS_GetProcessNameByPid(
+    IN gctINT Pid,
+    IN gctSIZE_T Length,
+    OUT gctUINT8_PTR String
+    )
+{
+    struct task_struct *task;
+
+    /* Get the task_struct of the task with pid. */
+    rcu_read_lock();
+
+    task = FIND_TASK_BY_PID(Pid);
+
+    if (task == gcvNULL)
+    {
+        rcu_read_unlock();
+        return gcvSTATUS_NOT_FOUND;
+    }
+
+    /* Get name of process. */
+    strncpy(String, task->comm, Length);
+
+    rcu_read_unlock();
+
+    return gcvSTATUS_OK;
+}
+

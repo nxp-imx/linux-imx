@@ -88,6 +88,10 @@ struct _gckHARDWARE
     /* FSCALE_VAL when gcvPOWER_ON. */
     gctUINT32                   powerOnFscaleVal;
 #endif
+
+#if gcdLINK_QUEUE_SIZE
+    struct _gckLINKQUEUE        linkQueue;
+#endif
 };
 
 gceSTATUS

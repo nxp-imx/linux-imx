@@ -48,6 +48,126 @@ extern "C" {
 |******************************* SHADER LANGUAGE ******************************|
 \******************************************************************************/
 
+    /* allocator/deallocator function pointer */
+typedef gceSTATUS (*gctAllocatorFunc)(
+    IN gctSIZE_T Bytes,
+    OUT gctPOINTER * Memory
+    );
+
+typedef gceSTATUS (*gctDeallocatorFunc)(
+    IN gctPOINTER Memory
+    );
+
+typedef gctBOOL (*compareFunc) (
+     IN void *    data,
+     IN void *    key
+     );
+
+typedef struct _gcsListNode gcsListNode;
+struct _gcsListNode
+{
+    gcsListNode *       next;
+    void *              data;
+};
+
+typedef struct _gcsAllocator
+{
+    gctAllocatorFunc    allocate;
+    gctDeallocatorFunc  deallocate;
+} gcsAllocator;
+
+/* simple map structure */
+typedef struct _SimpleMap SimpleMap;
+struct _SimpleMap
+{
+    gctUINT32     key;
+    gctUINT32     val;
+    SimpleMap    *next;
+    gcsAllocator *allocator;
+
+};
+
+/* SimpleMap Operations */
+/* return -1 if not found, otherwise return the mapped value */
+gctUINT32
+gcSimpleMap_Find(
+     IN SimpleMap *Map,
+     IN gctUINT32    Key
+     );
+
+gceSTATUS
+gcSimpleMap_Destory(
+     IN SimpleMap *    Map,
+     IN gcsAllocator * Allocator
+     );
+
+/* Add a pair <Key, Val> to the Map head, the user should be aware that the
+ * map pointer is always changed when adding a new node :
+ *
+ *   gcSimpleMap_AddNode(&theMap, key, val, allocator);
+ *
+ */
+gceSTATUS
+gcSimpleMap_AddNode(
+     IN SimpleMap **   Map,
+     IN gctUINT32      Key,
+     IN gctUINT32      Val,
+     IN gcsAllocator * Allocator
+     );
+
+/* gcsList data structure and related operations */
+typedef struct _gcsList
+{
+    gcsListNode  *head;
+    gcsListNode  *tail;
+    gctINT        count;
+    gcsAllocator *allocator;
+} gcsList;
+
+/* List operations */
+void
+gcList_Init(
+    IN gcsList *list,
+    IN gcsAllocator *allocator
+    );
+
+gceSTATUS
+gcList_CreateNode(
+    IN void *             Data,
+    IN gctAllocatorFunc   Allocator,
+    OUT gcsListNode **    ListNode
+    );
+
+gceSTATUS
+gcList_Clean(
+    IN gcsList *          List,
+    IN gctBOOL            FreeData
+    );
+
+gcsListNode *
+gcList_FindNode(
+    IN gcsList *      List,
+    IN void *         Key,
+    IN compareFunc    compare
+    );
+
+gceSTATUS
+gcList_AddNode(
+    IN gcsList *          List,
+    IN void *             Data
+    );
+
+gceSTATUS
+gcList_RemoveNode(
+    IN gcsList *          List,
+    IN gcsListNode *      Node
+    );
+
+/*  link list structure for code list */
+typedef gcsList gcsCodeList;
+typedef gcsCodeList * gctCodeList;
+typedef gcsListNode gcsCodeListNode;
+
 /* Possible shader language opcodes. */
 typedef enum _gcSL_OPCODE
 {
@@ -392,8 +512,8 @@ struct _gcsHINT
 /* gcSHADER_TYPE enumeration. */
 typedef enum _gcSHADER_TYPE
 {
-	gcSHADER_FLOAT_X1,				/* 0x00 */
-	gcSHADER_FLOAT_X2,				/* 0x01 */
+    gcSHADER_FLOAT_X1   = 0,        /* 0x00 */
+    gcSHADER_FLOAT_X2,				/* 0x01 */
 	gcSHADER_FLOAT_X3,				/* 0x02 */
 	gcSHADER_FLOAT_X4,				/* 0x03 */
 	gcSHADER_FLOAT_2X2,				/* 0x04 */
@@ -431,9 +551,49 @@ typedef enum _gcSHADER_TYPE
 	gcSHADER_USAMPLER_3D,			/* 0x24 */
 	gcSHADER_USAMPLER_CUBIC,		/* 0x25 */
 	gcSHADER_SAMPLER_EXTERNAL_OES,		/* 0x26 */
-    gcSHADER_TYPE_COUNT
-}
+
+	gcSHADER_UINT_X1,			/* 0x27 */
+	gcSHADER_UINT_X2,			/* 0x28 */
+	gcSHADER_UINT_X3,			/* 0x29 */
+	gcSHADER_UINT_X4,			/* 0x2A */
+
+    gcSHADER_UNKONWN_TYPE,      /* do not add type after this */
+    gcSHADER_TYPE_COUNT         /* must to change gcvShaderTypeInfo at the
+                                 * same time if you add any new type! */}
 gcSHADER_TYPE;
+
+typedef enum _gcSHADER_TYPE_KIND
+{
+    gceTK_UNKOWN,
+    gceTK_FLOAT,
+    gceTK_INT,
+    gceTK_UINT,
+    gceTK_BOOL,
+    gceTK_FIXED,
+    gceTK_SAMPLER,
+    gceTK_IMAGE,
+    gceTK_OTHER
+} gcSHADER_TYPE_KIND;
+
+typedef struct _gcSHADER_TYPEINFO
+{
+    gcSHADER_TYPE      type;              /* e.g. gcSHADER_FLOAT_2X4 */
+    gctINT             components;        /* e.g. 4 components       */
+    gctINT             rows;              /* e.g. 2 rows             */
+    gcSHADER_TYPE      componentType;     /* e.g. gcSHADER_FLOAT_X4  */
+    gcSHADER_TYPE_KIND kind;              /* e.g. gceTK_FLOAT */
+    gctCONST_STRING    name;              /* e.g. "FLOAT_2X4" */
+} gcSHADER_TYPEINFO;
+
+extern gcSHADER_TYPEINFO gcvShaderTypeInfo[];
+
+#define gcmType_Comonents(Type)    (gcvShaderTypeInfo[Type].components)
+#define gcmType_Rows(Type)         (gcvShaderTypeInfo[Type].rows)
+#define gcmType_ComonentType(Type) (gcvShaderTypeInfo[Type].componentType)
+#define gcmType_Kind(Type)         (gcvShaderTypeInfo[Type].kind)
+#define gcmType_Name(Type)         (gcvShaderTypeInfo[Type].name)
+
+#define gcmType_isMatrix(type) (gcmType_Rows(type) > 1)
 
 typedef enum _gcSHADER_VAR_CATEGORY
 {
@@ -451,7 +611,6 @@ typedef enum _gceTYPE_QUALIFIER
 typedef gctUINT16  gctTYPE_QUALIFIER;
 
 #if GC_ENABLE_LOADTIME_OPT
-
 typedef struct _gcSHADER_TYPE_INFO
 {
     gcSHADER_TYPE    type;        /* eg. gcSHADER_FLOAT_2X3 is the type */
@@ -462,6 +621,8 @@ typedef struct _gcSHADER_TYPE_INFO
     gctINT           size;        /* the size in byte */
 } gcSHADER_TYPE_INFO;
 
+extern gcSHADER_TYPE_INFO shader_type_info[];
+
 enum gceLTCDumpOption {
     gceLTC_DUMP_UNIFORM      = 0x0001,
     gceLTC_DUMP_EVALUATION   = 0x0002,
@@ -471,10 +632,7 @@ enum gceLTCDumpOption {
 
 gctBOOL gcDumpOption(gctINT Opt);
 
-extern gcSHADER_TYPE_INFO shader_type_info[];
-
 #endif /* GC_ENABLE_LOADTIME_OPT */
-
 
 #define IS_MATRIX_TYPE(type) \
     (((type >= gcSHADER_FLOAT_2X2) && (type <= gcSHADER_FLOAT_4X4)) || \
@@ -524,6 +682,268 @@ gcSHADER_CheckClipW(
     IN gctCONST_STRING VertexSource,
     IN gctCONST_STRING FragmentSource,
     OUT gctBOOL * clipW);
+
+/*******************************************************************************
+**							gcOptimizer Data Structures
+*******************************************************************************/
+typedef enum _gceSHADER_OPTIMIZATION
+{
+    /*  No optimization. */
+	gcvOPTIMIZATION_NONE,
+
+    /*  Flow graph construction. */
+	gcvOPTIMIZATION_CONSTRUCTION                = 1 << 0,
+
+    /*  Dead code elimination. */
+	gcvOPTIMIZATION_DEAD_CODE                   = 1 << 1,
+
+    /*  Redundant move instruction elimination. */
+	gcvOPTIMIZATION_REDUNDANT_MOVE              = 1 << 2,
+
+    /*  Inline expansion. */
+	gcvOPTIMIZATION_INLINE_EXPANSION            = 1 << 3,
+
+    /*  Constant propagation. */
+	gcvOPTIMIZATION_CONSTANT_PROPAGATION        = 1 << 4,
+
+    /*  Redundant bounds/checking elimination. */
+	gcvOPTIMIZATION_REDUNDANT_CHECKING          = 1 << 5,
+
+    /*  Loop invariant movement. */
+	gcvOPTIMIZATION_LOOP_INVARIANT              = 1 << 6,
+
+    /*  Induction variable removal. */
+	gcvOPTIMIZATION_INDUCTION_VARIABLE          = 1 << 7,
+
+    /*  Common subexpression elimination. */
+	gcvOPTIMIZATION_COMMON_SUBEXPRESSION        = 1 << 8,
+
+    /*  Control flow/banch optimization. */
+	gcvOPTIMIZATION_CONTROL_FLOW                = 1 << 9,
+
+    /*  Vector component operation merge. */
+	gcvOPTIMIZATION_VECTOR_INSTRUCTION_MERGE    = 1 << 10,
+
+    /*  Algebra simplificaton. */
+	gcvOPTIMIZATION_ALGEBRAIC_SIMPLIFICATION    = 1 << 11,
+
+    /*  Pattern matching and replacing. */
+	gcvOPTIMIZATION_PATTERN_MATCHING            = 1 << 12,
+
+    /*  Interprocedural constant propagation. */
+	gcvOPTIMIZATION_IP_CONSTANT_PROPAGATION     = 1 << 13,
+
+    /*  Interprecedural register optimization. */
+	gcvOPTIMIZATION_IP_REGISTRATION             = 1 << 14,
+
+    /*  Optimization option number. */
+	gcvOPTIMIZATION_OPTION_NUMBER               = 1 << 15,
+
+	/*  Loadtime constant. */
+    gcvOPTIMIZATION_LOADTIME_CONSTANT           = 1 << 16,
+
+    /*  MAD instruction optimization. */
+	gcvOPTIMIZATION_MAD_INSTRUCTION             = 1 << 17,
+
+    /*  Special optimization for LOAD SW workaround. */
+	gcvOPTIMIZATION_LOAD_SW_WORKAROUND          = 1 << 18,
+
+    /* move code into conditional block if possile */
+	gcvOPTIMIZATION_CONDITIONALIZE              = 1 << 19,
+
+    /* expriemental: power optimization mode
+        1. add extra dummy texld to tune performance
+        2. insert NOP after high power instrucitons
+        3. split high power vec3/vec4 instruciton to vec2/vec1 operation
+        4. ...
+     */
+	gcvOPTIMIZATION_POWER_OPTIMIZATION           = 1 << 20,
+
+    /* optimize varying packing */
+    gcvOPTIMIZATION_VARYINGPACKING              = 1 << 22,
+
+    /*  Full optimization. */
+    /*  Note that gcvOPTIMIZATION_LOAD_SW_WORKAROUND is off. */
+	gcvOPTIMIZATION_FULL                        = 0x7FFFFFFF &
+                                                  ~gcvOPTIMIZATION_LOAD_SW_WORKAROUND &
+                                                  ~gcvOPTIMIZATION_POWER_OPTIMIZATION,
+
+	/* Optimization Unit Test flag. */
+    gcvOPTIMIZATION_UNIT_TEST                   = 1 << 31
+}
+gceSHADER_OPTIMIZATION;
+
+typedef enum _gceOPTIMIZATION_VaryingPaking
+{
+    gcvOPTIMIZATION_VARYINGPACKING_NONE = 0,
+    gcvOPTIMIZATION_VARYINGPACKING_NOSPLIT,
+    gcvOPTIMIZATION_VARYINGPACKING_SPLIT
+} gceOPTIMIZATION_VaryingPaking;
+
+typedef struct _gcOPTIMIZER_OPTION
+{
+    gceSHADER_OPTIMIZATION     optFlags;
+
+    /* debug & dump options:
+
+         VC_OPTION=-DUMP:SRC:OPT|:OPTV|:CG|:CGV:|ALL|ALLV
+
+         SRC:  dump shader source code
+         OPT:  dump incoming and final IR
+         OPTV: dump result IR in each optimization phase
+         CG:   dump generated machine code
+         CGV:  dump BE tree and optimization detail
+
+         ALL = SRC|OPT|CG
+         ALLV = SRC|OPT|OPTV|CG|CGV
+     */
+    gctBOOL     dumpShaderSource;      /* dump shader source code */
+    gctBOOL     dumpOptimizer;         /* dump incoming and final IR */
+    gctBOOL     dumpOptimizerVerbose;  /* dump result IR in each optimization phase */
+    gctBOOL     dumpBEGenertedCode;    /* dump generated machine code */
+    gctBOOL     dumpBEVerbose;         /* dump BE tree and optimization detail */
+
+    /* Code generation */
+
+    /* Varying Packing:
+
+          VC_OPTION=-PACKVARYING:[0-2]|:T[-]m[,n]|:LshaderIdx,min,max
+
+          0: turn off varying packing
+          1: pack varyings, donot split any varying
+          2: pack varyings, may split to make fully packed output
+
+          Tm:    only packing shader pair which vertex shader id is m
+          Tm,n:  only packing shader pair which vertex shader id
+                   is in range of [m, n]
+          T-m:   do not packing shader pair which vertex shader id is m
+          T-m,n: do not packing shader pair which vertex shader id
+                   is in range of [m, n]
+
+          LshaderIdx,min,max : set  load balance (min, max) for shaderIdx
+                               if shaderIdx is -1, all shaders are impacted
+                               newMin = origMin * (min/100.);
+                               newMax = origMax * (max/100.);
+     */
+    gceOPTIMIZATION_VaryingPaking    packVarying;
+    gctINT                           _triageStart;
+    gctINT                           _triageEnd;
+    gctINT                           _loadBalanceShaderIdx;
+    gctINT                           _loadBalanceMin;
+    gctINT                           _loadBalanceMax;
+
+    /* Do not generate immdeiate
+
+          VC_OPTION=-NOIMM
+
+       Force generate immediate even the machine model don't support it,
+       for testing purpose only
+
+          VC_OPTION=-FORCEIMM
+     */
+    gctBOOL     noImmediate;
+    gctBOOL     forceImmediate;
+
+    /* Power reduction mode options */
+    gctBOOL   needPowerOptimization;
+
+    /* Patch TEXLD instruction by adding dummy texld
+       (can be used to tune GPU power usage):
+         for every TEXLD we seen, add n dummy TEXLD
+
+        it can be enabled by environment variable:
+
+          VC_OPTION=-PATCH_TEXLD:M:N
+
+        (for each M texld, add N dummy texld)
+     */
+    gctINT      patchEveryTEXLDs;
+    gctINT      patchDummyTEXLDs;
+
+    /* Insert NOP after high power consumption instructions
+
+         VC_OPTION="-INSERTNOP:MUL:MULLO:DP3:DP4:SEENTEXLD"
+     */
+    gctBOOL     insertNOP;
+    gctBOOL     insertNOPAfterMUL;
+    gctBOOL     insertNOPAfterMULLO;
+    gctBOOL     insertNOPAfterDP3;
+    gctBOOL     insertNOPAfterDP4;
+    gctBOOL     insertNOPOnlyWhenTexldSeen;
+
+    /* split MAD to MUL and ADD:
+
+         VC_OPTION=-SPLITMAD
+     */
+    gctBOOL     splitMAD;
+
+    /* Convert vect3/vec4 operations to multiple vec2/vec1 operations
+
+         VC_OPTION=-SPLITVEC:MUL:MULLO:DP3:DP4
+     */
+    gctBOOL     splitVec;
+    gctBOOL     splitVec4MUL;
+    gctBOOL     splitVec4MULLO;
+    gctBOOL     splitVec4DP3;
+    gctBOOL     splitVec4DP4;
+
+    /* turn/off features:
+
+          VC_OPTION=-F:n,[0|1]
+          Note: n must be decimal number
+     */
+    gctUINT     featureBits;
+} gcOPTIMIZER_OPTION;
+
+extern gcOPTIMIZER_OPTION theOptimizerOption;
+#define gcmGetOptimizerOption() gcGetOptimizerOption()
+
+#define gcmOPT_DUMP_SHADER_SRC()         \
+             (gcmGetOptimizerOption()->dumpShaderSource != 0)
+#define gcmOPT_DUMP_OPTIMIZER()          \
+             (gcmGetOptimizerOption()->dumpOptimizer != 0 || \
+              gcmOPT_DUMP_OPTIMIZER_VERBOSE() )
+#define gcmOPT_DUMP_OPTIMIZER_VERBOSE()  \
+             (gcmGetOptimizerOption()->dumpOptimizerVerbose != 0)
+#define gcmOPT_DUMP_CODEGEN()            \
+             (gcmGetOptimizerOption()->dumpBEGenertedCode != 0 || \
+              gcmOPT_DUMP_CODEGEN_VERBOSE() )
+#define gcmOPT_DUMP_CODEGEN_VERBOSE()    \
+             (gcmGetOptimizerOption()->dumpBEVerbose != 0)
+
+#define gcmOPT_SET_DUMP_SHADER_SRC(v)   \
+             gcmGetOptimizerOption()->dumpShaderSource = (v)
+
+#define gcmOPT_PATCH_TEXLD()  (gcmGetOptimizerOption()->patchDummyTEXLDs != 0)
+#define gcmOPT_INSERT_NOP()   (gcmGetOptimizerOption()->insertNOP == gcvTRUE)
+#define gcmOPT_SPLITMAD()     (gcmGetOptimizerOption()->splitMAD == gcvTRUE)
+#define gcmOPT_SPLITVEC()     (gcmGetOptimizerOption()->splitVec == gcvTRUE)
+
+#define gcmOPT_NOIMMEDIATE()  (gcmGetOptimizerOption()->noImmediate == gcvTRUE)
+#define gcmOPT_FORCEIMMEDIATE()  (gcmGetOptimizerOption()->forceImmediate == gcvTRUE)
+
+#define gcmOPT_PACKVARYING()     (gcmGetOptimizerOption()->packVarying)
+#define gcmOPT_PACKVARYING_triageStart()   (gcmGetOptimizerOption()->_triageStart)
+#define gcmOPT_PACKVARYING_triageEnd()     (gcmGetOptimizerOption()->_triageEnd)
+
+/* Setters */
+#define gcmOPT_SetPatchTexld(m,n) (gcmGetOptimizerOption()->patchEveryTEXLDs = (m),\
+                                   gcmGetOptimizerOption()->patchDummyTEXLDs = (n))
+#define gcmOPT_SetSplitVecMUL() (gcmGetOptimizerOption()->splitVec = gcvTRUE, \
+                                 gcmGetOptimizerOption()->splitVec4MUL = gcvTRUE)
+#define gcmOPT_SetSplitVecMULLO() (gcmGetOptimizerOption()->splitVec = gcvTRUE, \
+                                  gcmGetOptimizerOption()->splitVec4MULLO = gcvTRUE)
+#define gcmOPT_SetSplitVecDP3() (gcmGetOptimizerOption()->splitVec = gcvTRUE, \
+                                 gcmGetOptimizerOption()->splitVec4DP3 = gcvTRUE)
+#define gcmOPT_SetSplitVecDP4() (gcmGetOptimizerOption()->splitVec = gcvTRUE, \
+                                 gcmGetOptimizerOption()->splitVec4DP4 = gcvTRUE)
+
+#define gcmOPT_SetPackVarying(v)     (gcmGetOptimizerOption()->packVarying = v)
+
+#define FB_LIVERANGE_FIX1     0x0001
+
+
+#define PredefinedDummySamplerId       8
 
 /* Function argument qualifier */
 typedef enum _gceINPUT_OUTPUT
@@ -575,6 +995,50 @@ typedef enum _gceVARIABLE_UPDATE_FLAGS
     gcvVARIABLE_UPDATE_TEMPREG,
     gcvVARIABLE_UPDATE_TYPE_QUALIFIER,
 }gceVARIABLE_UPDATE_FLAGS;
+
+typedef struct _gcMACHINE_INST
+{
+    gctUINT        state0;
+    gctUINT        state1;
+    gctUINT        state2;
+    gctUINT        state3;
+}gcMACHINE_INST, *gcMACHINE_INST_PTR;
+
+typedef struct _gcMACHINECODE
+{
+    gcMACHINE_INST_PTR   pCode;          /* machine code  */
+    gctUINT              instCount;      /* 128-bit count */
+    gctUINT              maxConstRegNo;
+    gctUINT              maxTempRegNo;
+    gctUINT              endPCOfMainRoutine;
+}gcMACHINECODE, *gcMACHINECODE_PTR;
+
+typedef enum NP2_ADDRESS_MODE
+{
+    NP2_ADDRESS_MODE_CLAMP  = 0,
+    NP2_ADDRESS_MODE_REPEAT = 1,
+    NP2_ADDRESS_MODE_MIRROR = 2
+}NP2_ADDRESS_MODE;
+
+typedef struct _gcNPOT_PATCH_PARAM
+{
+    gctINT               samplerSlot;
+    NP2_ADDRESS_MODE     addressMode[3];
+    gctINT               texDimension;    /* 2 or 3 */
+}gcNPOT_PATCH_PARAM, *gcNPOT_PATCH_PARAM_PTR;
+
+void
+gcGetOptionFromEnv(
+    IN OUT gcOPTIMIZER_OPTION * Option
+    );
+
+void
+gcSetOptimizerOption(
+    IN gceSHADER_FLAGS Flags
+    );
+
+gcOPTIMIZER_OPTION *
+gcGetOptimizerOption();
 
 /*******************************************************************************
 **  gcSHADER_SetCompilerVersion
@@ -636,6 +1100,9 @@ gcSHADER_GetType(
     IN gcSHADER Shader,
     OUT gctINT *Type
     );
+
+gctUINT
+gcSHADER_NextId();
 /*******************************************************************************
 **                             gcSHADER_Construct
 ********************************************************************************
@@ -3356,7 +3823,9 @@ gcLinkShaders(
 	IN gceSHADER_FLAGS Flags,
 	OUT gctSIZE_T * StateBufferSize,
 	OUT gctPOINTER * StateBuffer,
-	OUT gcsHINT_PTR * Hints
+	OUT gcsHINT_PTR * Hints,
+    OUT gcMACHINECODE_PTR *ppVsMachineCode,
+    OUT gcMACHINECODE_PTR *ppFsMachineCode
 	);
 
 /*******************************************************************************
@@ -3388,6 +3857,24 @@ gcLoadShaders(
 	IN gcsHINT_PTR Hints
 	);
 
+gceSTATUS
+gcRecompileShaders(
+    IN gcoHAL Hal,
+    IN gcMACHINECODE_PTR pVsMachineCode,
+    IN gcMACHINECODE_PTR pPsMachineCode,
+    /*Recompile variables*/
+    IN OUT gctPOINTER *ppRecompileStateBuffer,
+    IN OUT gctSIZE_T *pRecompileStateBufferSize,
+    IN OUT gcsHINT_PTR *ppRecompileHints,
+    /* natvie state*/
+    IN gctPOINTER pNativeStateBuffer,
+    IN gctSIZE_T nativeStateBufferSize,
+    IN gcsHINT_PTR pNativeHints,
+    /* npt info */
+    IN gctUINT32 Samplers,
+    IN gctUINT32 *SamplerWrapS,
+    IN gctUINT32 *SamplerWrapT
+    );
 /*******************************************************************************
 **                                gcSaveProgram
 ********************************************************************************
@@ -3587,6 +4074,31 @@ gcLoadKernel(
 gceSTATUS
 gcInvokeThreadWalker(
     IN gcsTHREAD_WALKER_INFO_PTR Info
+    );
+
+void
+gcTYPE_GetTypeInfo(
+    IN gcSHADER_TYPE      Type,
+    OUT gctINT *          Components,
+    OUT gctINT *          Rows,
+    OUT gctCONST_STRING * Name
+    );
+
+gctBOOL
+gcOPT_doVaryingPackingForShader(
+	IN gcSHADER Shader
+    );
+
+gceSTATUS
+gcSHADER_PatchNPOTForMachineCode(
+    IN     gcSHADER_KIND          shaderType,
+    IN     gcMACHINECODE_PTR      pMachineCode,
+    IN     gcNPOT_PATCH_PARAM_PTR pPatchParam,
+    IN     gctUINT                countOfPatchParam,
+    IN     gctUINT                hwSupportedInstCount,
+    OUT    gctPOINTER*            ppCmdBuffer,
+    OUT    gctUINT32*             pByteSizeOfCmdBuffer,
+    IN OUT gcsHINT_PTR            pHints /* User needs copy original hints to this one, then passed this one in */
     );
 
 #ifdef __cplusplus

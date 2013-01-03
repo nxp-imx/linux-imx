@@ -578,6 +578,8 @@ extern "C" {
 #define VPG_ES11_TIME   0x170000
 #define VPG_ES20_TIME   0x180000
 #define VPG_FRAME       0x190000
+#define VPG_ES11_DRAW 0x200000
+#define VPG_ES20_DRAW 0x210000
 #define VPG_END         0xff0000
 
 /* Info. */
@@ -1093,6 +1095,12 @@ extern "C" {
 #define VPC_PPSUNIFORMCOUNT         (VPG_PPS + PPS_UNIFORMCOUNT)
 #define VPC_PPSFUNCTIONCOUNT        (VPG_PPS + PPS_FUNCTIONCOUNT)
 
+
+#define VPG_ES20_DRAW_NO  (VPG_ES20_DRAW + 1)
+#define VPG_ES11_DRAW_NO  (VPG_ES11_DRAW + 1)
+
+#define VPG_FRAME_USEVBO (VPG_FRAME + 1)
+
 #endif
 
 
@@ -1290,6 +1298,13 @@ gcoPROFILER_Flush(
 gceSTATUS
 gcoPROFILER_EndFrame(
     IN gcoHAL Hal
+    );
+
+/* Call to signal end of draw. */
+gceSTATUS
+gcoPROFILER_EndDraw(
+    IN gcoHAL Hal,
+    IN gctBOOL FirstDraw
     );
 
 /* Increase profile counter Enum by Value. */

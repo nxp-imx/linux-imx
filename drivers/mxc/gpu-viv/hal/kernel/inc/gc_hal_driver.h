@@ -95,6 +95,9 @@ typedef enum _gceHAL_COMMAND_CODES
 
     gcvHAL_READ_ALL_PROFILE_REGISTERS,
     gcvHAL_PROFILE_REGISTERS_2D,
+#if VIVANTE_PROFILER_PERDRAW
+    gcvHAL_READ_PROFILER_REGISTER_SETTING,
+#endif
 
     /* Power management. */
     gcvHAL_SET_POWER_MANAGEMENT_STATE,
@@ -701,6 +704,16 @@ typedef struct _gcsHAL_INTERFACE
             IN gctCHAR              fileName[gcdMAX_PROFILE_FILE_NAME];
         }
         SetProfileSetting;
+
+#if VIVANTE_PROFILER_PERDRAW
+        /* gcvHAL_READ_PROFILER_REGISTER_SETTING */
+        struct _gcsHAL_READ_PROFILER_REGISTER_SETTING
+         {
+            /*Should Clear Register*/
+            IN gctBOOL               bclear;
+         }
+        SetProfilerRegisterClear;
+#endif
 
         /* gcvHAL_READ_ALL_PROFILE_REGISTERS */
         struct _gcsHAL_READ_ALL_PROFILE_REGISTERS

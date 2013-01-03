@@ -650,7 +650,7 @@ static int drv_mmap(
         ret = io_remap_pfn_range(
             vma,
             vma->vm_start,
-            (gctUINTPTR_T) device->contiguousPhysical >> PAGE_SHIFT,
+            device->requestedContiguousBase >> PAGE_SHIFT,
             size,
             vma->vm_page_prot
             );
