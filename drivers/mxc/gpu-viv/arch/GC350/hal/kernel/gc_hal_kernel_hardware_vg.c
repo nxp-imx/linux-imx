@@ -1801,6 +1801,8 @@ gckVGHARDWARE_SetPowerManagementState(
 
     if (flag & gcvPOWER_FLAG_INITIALIZE)
     {
+        gcmkONERROR(gckVGHARDWARE_SetMMU(Hardware, Hardware->kernel->mmu->pageTableLogical));
+
         /* Force the command queue to reload the next context. */
         command->currentContext = 0;
     }

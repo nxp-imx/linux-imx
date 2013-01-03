@@ -49,7 +49,7 @@ extern "C" {
 
 #define gcmALIGN_BASE(n, align) \
 ( \
-    (n) & ~((align) - 1) \
+    ((n) & ~((align) - 1)) \
 )
 
 /******************************************************************************\
@@ -579,10 +579,18 @@ gckOS_AtomClearMask(
 #endif
 
 gceSTATUS
-gckOS_DumpGPUState(
-    IN gckOS Os,
-    IN gceCORE Core
+gckOS_DumpCallStack(
+    IN gckOS Os
     );
+
+gceSTATUS
+gckOS_GetProcessNameByPid(
+    IN gctINT Pid,
+    IN gctSIZE_T Length,
+    OUT gctUINT8_PTR String
+    );
+
+
 
 /*******************************************************************************
 **
@@ -2045,6 +2053,11 @@ gckHARDWARE_DumpMMUException(
     IN gckHARDWARE Hardware
     );
 
+gceSTATUS
+gckHARDWARE_DumpGPUState(
+    IN gckHARDWARE Hardware
+    );
+
 #if !gcdENABLE_VG
 /******************************************************************************\
 ***************************** gckINTERRUPT Object ******************************
@@ -2316,6 +2329,13 @@ gckCOMMAND_Detach(
     IN gckCONTEXT Context
     );
 
+#if gcdVIRTUAL_COMMAND_BUFFER
+gceSTATUS
+gckCOMMAND_DumpExecutingBuffer(
+    IN gckCOMMAND Command
+    );
+#endif
+
 /******************************************************************************\
 ********************************* gckMMU Object ********************************
 \******************************************************************************/
@@ -2395,11 +2415,18 @@ gckMMU_Flush(
     IN gckMMU Mmu
     );
 
+gceSTATUS
+gckMMU_DumpPageTableEntry(
+    IN gckMMU Mmu,
+    IN gctUINT32 Address
+    );
+
 
 #if VIVANTE_PROFILER
 gceSTATUS
 gckHARDWARE_QueryProfileRegisters(
     IN gckHARDWARE Hardware,
+    IN gctBOOL   Clear,
     OUT gcsPROFILER_COUNTERS * Counters
     );
 #endif

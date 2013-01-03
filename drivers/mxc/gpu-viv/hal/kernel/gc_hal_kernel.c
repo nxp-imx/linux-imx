@@ -70,6 +70,9 @@ gctCONST_STRING _DispatchText[] =
     gcmDEFINE2TEXT(gcvHAL_GET_PROFILE_SETTING),
     gcmDEFINE2TEXT(gcvHAL_SET_PROFILE_SETTING),
     gcmDEFINE2TEXT(gcvHAL_READ_ALL_PROFILE_REGISTERS),
+#if VIVANTE_PROFILER_PERDRAW
+    gcmDEFINE2TEXT(gcvHAL_READ_PROFILER_REGISTER_SETTING),
+#endif
     gcmDEFINE2TEXT(gcvHAL_PROFILE_REGISTERS_2D),
     gcmDEFINE2TEXT(gcvHAL_SET_POWER_MANAGEMENT_STATE),
     gcmDEFINE2TEXT(gcvHAL_QUERY_POWER_MANAGEMENT_STATE),
@@ -286,6 +289,7 @@ gckKERNEL_Construct(
 #else
     kernel->profileEnable = gcvTRUE;
 #endif
+    kernel->profileCleanRegister = gcvTRUE;
 
     gcmkVERIFY_OK(
         gckOS_MemCopy(kernel->profileFileName,
@@ -1554,6 +1558,7 @@ gckKERNEL_Dispatch(
         gcmkONERROR(
             gckHARDWARE_QueryProfileRegisters(
                 Kernel->hardware,
+                Kernel->profileCleanRegister,
                 &Interface->u.RegisterProfileData.counters));
 #else
         status = gcvSTATUS_OK;
@@ -1585,7 +1590,6 @@ gckKERNEL_Dispatch(
 
         status = gcvSTATUS_OK;
         break;
-
     case gcvHAL_SET_PROFILE_SETTING:
 #if VIVANTE_PROFILER
         /* Set profile setting */
@@ -1599,6 +1603,15 @@ gckKERNEL_Dispatch(
 
         status = gcvSTATUS_OK;
         break;
+
+#if VIVANTE_PROFILER_PERDRAW
+    case gcvHAL_READ_PROFILER_REGISTER_SETTING:
+    #if VIVANTE_PROFILER
+        Kernel->profileCleanRegister = Interface->u.SetProfilerRegisterClear.bclear;
+    #endif
+        status = gcvSTATUS_OK;
+        break;
+#endif
 
     case gcvHAL_QUERY_KERNEL_SETTINGS:
         /* Get kernel settings. */
@@ -1650,7 +1663,11 @@ gckKERNEL_Dispatch(
             {
                 Interface->u.ReadRegisterData.data = 1;
                 gcmkVERIFY_OK(
-                    gckOS_DumpGPUState(Kernel->os, Kernel->core));
+                    gckHARDWARE_DumpGPUState(Kernel->hardware));
+#if gcdVIRTUAL_COMMAND_BUFFER
+                gcmkVERIFY_OK(
+                    gckCOMMAND_DumpExecutingBuffer(Kernel->command));
+#endif
             }
             else
             {
@@ -1662,8 +1679,10 @@ gckKERNEL_Dispatch(
 
     case gcvHAL_DUMP_EVENT:
         /* Dump GPU event */
-        gcmkVERIFY_OK(
-            gckEVENT_Dump(Kernel->eventObj));
+        gcmkVERIFY_OK(gckEVENT_Dump(Kernel->eventObj));
+
+        /* Dump Process DB. */
+        gcmkVERIFY_OK(gckKERNEL_DumpProcessDB(Kernel));
         break;
 
     case gcvHAL_CACHE:
@@ -3368,6 +3387,88 @@ gckKERNEL_GetGPUAddress(
 
     gcmkFOOTER_NO();
     return status;
+}
+
+gceSTATUS
+gckKERNEL_QueryGPUAddress(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 GpuAddress,
+    OUT gckVIRTUAL_COMMAND_BUFFER_PTR * Buffer
+    )
+{
+    gckVIRTUAL_COMMAND_BUFFER_PTR buffer;
+    gctUINT32 start;
+    gceSTATUS status = gcvSTATUS_NOT_SUPPORTED;
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, Kernel->virtualBufferLock, gcvINFINITE));
+
+    /* Walk all command buffers. */
+    for (buffer = Kernel->virtualBufferHead; buffer != gcvNULL; buffer = buffer->next)
+    {
+        start = (gctUINT32)buffer->gpuAddress;
+
+        if (GpuAddress >= start && GpuAddress < (start + buffer->pageCount * 4096))
+        {
+            /* Find a range matched. */
+            *Buffer = buffer;
+            status = gcvSTATUS_OK;
+            break;
+        }
+    }
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->virtualBufferLock));
+
+    return status;
+}
+#endif
+
+#if gcdLINK_QUEUE_SIZE
+static void
+gckLINKQUEUE_Dequeue(
+    IN gckLINKQUEUE LinkQueue
+    )
+{
+    gcmASSERT(LinkQueue->count == gcdLINK_QUEUE_SIZE);
+
+    LinkQueue->count--;
+    LinkQueue->front = (LinkQueue->front + 1) % gcdLINK_QUEUE_SIZE;
+}
+
+void
+gckLINKQUEUE_Enqueue(
+    IN gckLINKQUEUE LinkQueue,
+    IN gctUINT32 start,
+    IN gctUINT32 end
+    )
+{
+    if (LinkQueue->count == gcdLINK_QUEUE_SIZE)
+    {
+        gckLINKQUEUE_Dequeue(LinkQueue);
+    }
+
+    gcmkASSERT(LinkQueue->count < gcdLINK_QUEUE_SIZE);
+
+    LinkQueue->count++;
+
+    LinkQueue->data[LinkQueue->rear].start = start;
+    LinkQueue->data[LinkQueue->rear].end = end;
+
+    gcmkVERIFY_OK(
+        gckOS_GetProcessID(&LinkQueue->data[LinkQueue->rear].pid));
+
+    LinkQueue->rear = (LinkQueue->rear + 1) % gcdLINK_QUEUE_SIZE;
+}
+
+void
+gckLINKQUEUE_GetData(
+    IN gckLINKQUEUE LinkQueue,
+    IN gctUINT32 Index,
+    OUT gckLINKDATA * Data
+    )
+{
+    gcmkASSERT(Index >= 0 && Index < gcdLINK_QUEUE_SIZE);
+
+    *Data = &LinkQueue->data[(Index + LinkQueue->front) % gcdLINK_QUEUE_SIZE];
 }
 #endif
 
