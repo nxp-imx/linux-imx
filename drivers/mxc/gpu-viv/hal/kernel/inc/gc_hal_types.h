@@ -977,6 +977,25 @@ typedef struct _gcsHAL_FRAME_INFO
 }
 gcsHAL_FRAME_INFO;
 
+#if gcdLINK_QUEUE_SIZE
+typedef struct _gckLINKDATA * gckLINKDATA;
+struct _gckLINKDATA
+{
+    gctUINT32                   start;
+    gctUINT32                   end;
+    gctINT                      pid;
+};
+
+typedef struct _gckLINKQUEUE * gckLINKQUEUE;
+struct _gckLINKQUEUE
+{
+    struct _gckLINKDATA         data[gcdLINK_QUEUE_SIZE];
+    gctUINT32                   rear;
+    gctUINT32                   front;
+    gctUINT32                   count;
+};
+#endif
+
 #ifdef __cplusplus
 }
 #endif

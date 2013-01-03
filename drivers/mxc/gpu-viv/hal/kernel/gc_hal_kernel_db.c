@@ -1449,3 +1449,48 @@ OnError:
     return status;
 }
 #endif
+
+gceSTATUS
+gckKERNEL_DumpProcessDB(
+    IN gckKERNEL Kernel
+    )
+{
+    gcsDATABASE_PTR database;
+    gctINT i, pid;
+    gctUINT8 name[24];
+
+    gcmkHEADER_ARG("Kernel=0x%x", Kernel);
+
+    /* Acquire the database mutex. */
+    gcmkVERIFY_OK(
+        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
+
+    gcmkPRINT("**************************\n");
+    gcmkPRINT("***  PROCESS DB DUMP   ***\n");
+    gcmkPRINT("**************************\n");
+
+    gcmkPRINT_N(8, "%-8s%s\n", "PID", "NAME");
+    /* Walk the databases. */
+    for (i = 0; i < gcmCOUNTOF(Kernel->db->db); ++i)
+    {
+        for (database = Kernel->db->db[i];
+             database != gcvNULL;
+             database = database->next)
+        {
+            pid = database->processID;
+
+            gcmkVERIFY_OK(gckOS_ZeroMemory(name, gcmSIZEOF(name)));
+
+            gcmkVERIFY_OK(gckOS_GetProcessNameByPid(pid, gcmSIZEOF(name), name));
+
+            gcmkPRINT_N(8, "%-8d%s\n", pid, name);
+        }
+    }
+
+    /* Release the database mutex. */
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+
+    /* Success. */
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}

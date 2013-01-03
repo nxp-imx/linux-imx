@@ -37,6 +37,8 @@ gceMMU_TYPE;
 
 #define gcdMMU_TABLE_DUMP       0
 
+#define gcdUSE_MMU_EXCEPTION    0
+
 /*
     gcdMMU_CLEAR_VALUE
 
@@ -480,9 +482,16 @@ _SetupDynamicSpace(
                 &Mmu->pageTablePhysical,
                 (gctPOINTER)&Mmu->pageTableLogical));
 
+#if gcdUSE_MMU_EXCEPTION
+    gcmkONERROR(_FillPageTable(Mmu->pageTableLogical,
+                               Mmu->pageTableEntries,
+                               /* Enable exception */
+                               1 << 1));
+#else
     /* Invalidate all entries. */
     gcmkONERROR(gckOS_ZeroMemory(Mmu->pageTableLogical,
                 Mmu->pageTableSize));
+#endif
 
     /* Initilization. */
     pageTable      = Mmu->pageTableLogical;
@@ -1237,13 +1246,28 @@ _FreePages(
     if (PageCount == 1)
     {
         /* Single page node. */
-        pageTable[0] = (~((1U<<8)-1)) | gcvMMU_SINGLE;
+        pageTable[0] = (~((1U<<8)-1)) | gcvMMU_SINGLE
+#if gcdUSE_MMU_EXCEPTION
+                     /* Enable exception */
+                     | (1 << 1)
+#endif
+                     ;
     }
     else
     {
         /* Mark the node as free. */
-        pageTable[0] = (PageCount << 8) | gcvMMU_FREE;
+        pageTable[0] = (PageCount << 8) | gcvMMU_FREE
+#if gcdUSE_MMU_EXCEPTION
+                     /* Enable exception */
+                     | (1 << 1)
+#endif
+                     ;
         pageTable[1] = ~0U;
+
+#if gcdUSE_MMU_EXCEPTION
+        /* Enable exception */
+        gcmkVERIFY_OK(_FillPageTable(pageTable + 2, PageCount - 2, 1 << 1));
+#endif
     }
 
     /* We have free nodes. */
@@ -1483,7 +1507,7 @@ gckMMU_SetPage(
         {
             pageEntry = mmu->pageTableLogical + offset / 4;
 
-            if (Mmu->hardware->mmuVersion == 0)
+            if (mmu->hardware->mmuVersion == 0)
             {
                 *pageEntry = PageAddress;
             }
@@ -1664,6 +1688,39 @@ gckMMU_Flush(
         gckOS_AtomSet(hardware->os, hardware->pageTableDirty, 1));
 #endif
 
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+gckMMU_DumpPageTableEntry(
+    IN gckMMU Mmu,
+    IN gctUINT32 Address
+    )
+{
+    gctUINT32_PTR pageTable;
+    gctUINT32 index;
+    gctUINT32 mtlb, stlb;
+
+    gcmkHEADER_ARG("Mmu=0x%08X Address=0x%08X", Mmu, Address);
+    gcmkVERIFY_OBJECT(Mmu, gcvOBJ_MMU);
+
+    gcmkASSERT(Mmu->hardware->mmuVersion > 0);
+
+    mtlb   = (Address & gcdMMU_MTLB_MASK) >> gcdMMU_MTLB_SHIFT;
+    stlb   = (Address & gcdMMU_STLB_4K_MASK) >> gcdMMU_STLB_4K_SHIFT;
+
+    if (Address >= 0x80000000)
+    {
+        pageTable = Mmu->pageTableLogical;
+
+        index = (mtlb - Mmu->dynamicMappingStart)
+              * gcdMMU_STLB_4K_ENTRY_NUM
+              + stlb;
+
+        gcmkPRINT("    Page table entry = 0x%08X", pageTable[index]);
+    }
+
+    gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 }
 

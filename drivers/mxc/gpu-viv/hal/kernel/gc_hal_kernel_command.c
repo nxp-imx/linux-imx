@@ -351,6 +351,86 @@ OnError:
     return status;
 }
 
+#if gcdVIRTUAL_COMMAND_BUFFER
+static void
+_DumpBuffer(
+    IN gctPOINTER Buffer,
+    IN gctUINT32 GpuAddress,
+    IN gctSIZE_T Size
+    )
+{
+    gctINT i, line, left;
+    gctUINT32_PTR data = Buffer;
+
+    line = Size / 32;
+    left = Size % 32;
+
+
+    for (i = 0; i < line; i++)
+    {
+        gcmkPRINT("%X : %08X %08X %08X %08X %08X %08X %08X %08X ",
+                  GpuAddress, data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+        data += 8;
+        GpuAddress += 8 * 4;
+    }
+
+    switch(left)
+    {
+        case 28:
+            gcmkPRINT("%X : %08X %08X %08X %08X %08X %08X %08X ",
+                      GpuAddress, data[0], data[1], data[2], data[3], data[4], data[5], data[6]);
+            break;
+        case 24:
+            gcmkPRINT("%X : %08X %08X %08X %08X %08X %08X ",
+                      GpuAddress, data[0], data[1], data[2], data[3], data[4], data[5]);
+            break;
+        case 20:
+            gcmkPRINT("%X : %08X %08X %08X %08X %08X ",
+                      GpuAddress, data[0], data[1], data[2], data[3], data[4]);
+            break;
+        case 16:
+            gcmkPRINT("%X : %08X %08X %08X %08X ",
+                      GpuAddress, data[0], data[1], data[2], data[3]);
+            break;
+        case 12:
+            gcmkPRINT("%X : %08X %08X %08X ",
+                      GpuAddress, data[0], data[1], data[2]);
+            break;
+        case 8:
+            gcmkPRINT("%X : %08X %08X ",
+                      GpuAddress, data[0], data[1]);
+            break;
+        case 4:
+            gcmkPRINT("%X : %08X ",
+                      GpuAddress, data[0]);
+            break;
+        default:
+            break;
+    }
+}
+
+static void
+_DumpKernelCommandBuffer(
+    IN gckCOMMAND Command
+)
+{
+    gctINT i;
+    gctUINT32 physical;
+    gctPOINTER entry;
+
+    for (i = 0; i < gcdCOMMAND_QUEUES; i++)
+    {
+        entry = Command->queues[i].logical;
+
+        gckOS_GetPhysicalAddress(Command->os, entry, &physical);
+
+        gcmkPRINT("Kernel command buffer %d\n", i);
+
+        _DumpBuffer(entry, physical, Command->pageSize);
+    }
+}
+#endif
+
 /******************************************************************************\
 ****************************** gckCOMMAND API Code ******************************
 \******************************************************************************/
@@ -2667,3 +2747,262 @@ OnError:
     gcmkFOOTER();
     return status;
 }
+
+#if gcdVIRTUAL_COMMAND_BUFFER
+/*******************************************************************************
+**
+**  gckCOMMAND_DumpExecutingBuffer
+**
+**  Dump the command buffer which GPU is executing.
+**
+**  INPUT:
+**
+**      gckCOMMAND Command
+**          Pointer to a gckCOMMAND object.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckCOMMAND_DumpExecutingBuffer(
+    IN gckCOMMAND Command
+    )
+{
+    gceSTATUS status;
+    gckVIRTUAL_COMMAND_BUFFER_PTR buffer;
+    gctUINT32 gpuAddress;
+    gctSIZE_T pageCount;
+    gctPOINTER entry;
+    gckOS os = Command->os;
+    gckKERNEL kernel = Command->kernel;
+#if gcdLINK_QUEUE_SIZE
+    gctINT pid;
+    gctINT i, rear;
+    gctUINT32 start, end;
+    gctUINT32 dumpFront, dumpRear;
+    gckLINKQUEUE queue = &kernel->hardware->linkQueue;
+    gckLINKQUEUE queueMirror;
+    gctUINT32 bytes;
+    gckLINKDATA linkData;
+#endif
+
+    gcmkPRINT("**************************\n");
+    gcmkPRINT("**** COMMAND BUF DUMP ****\n");
+    gcmkPRINT("**************************\n");
+
+    gcmkVERIFY_OK(gckOS_ReadRegisterEx(os, kernel->core, 0x664, &gpuAddress));
+
+    gcmkPRINT("DMA Address 0x%08X", gpuAddress);
+
+#if gcdLINK_QUEUE_SIZE
+    /* Duplicate queue because it will be changed.*/
+    gcmkONERROR(gckOS_AllocateMemory(os,
+                                     sizeof(struct _gckLINKQUEUE),
+                                     (gctPOINTER *)&queueMirror));
+
+    gcmkONERROR(gckOS_MemCopy(queueMirror,
+                              queue,
+                              sizeof(struct _gckLINKQUEUE)));
+
+    /* If kernel command buffer link to a context buffer, then link to a user command
+    ** buffer, the second link will be in queue first, so we must fix this.
+    **     In Queue:    C1 U1 U2 C2 U3 U4 U5 C3
+    **         Real: C1 X1 U1 C2 U2 U3 U4 C3 U5
+    ** Command buffer X1 which is after C1 is out of queue, so C1 is meaningless.
+    */
+    for (i = 0; i < gcdLINK_QUEUE_SIZE; i++)
+    {
+        gckLINKQUEUE_GetData(queueMirror, i, &linkData);
+
+        status = gckKERNEL_QueryGPUAddress(kernel, linkData->start, &buffer);
+
+        if (gcmIS_ERROR(status))
+        {
+            /* Can't find it in virtual command buffer list, ignore it. */
+            continue;
+        }
+
+        if (buffer->kernelLogical)
+        {
+            /* It is a context buffer. */
+            if (i == 0)
+            {
+                /* The real command buffer is out, so clear this slot. */
+                linkData->start = 0;
+                linkData->end = 0;
+                linkData->pid = 0;
+            }
+            else
+            {
+                /* switch context buffer and command buffer. */
+                struct _gckLINKDATA tmp = *linkData;
+                gckLINKDATA linkDataPrevious;
+
+                gckLINKQUEUE_GetData(queueMirror, i - 1, &linkDataPrevious);
+                *linkData = *linkDataPrevious;
+                *linkDataPrevious = tmp;
+           }
+        }
+    }
+
+    /* Clear search result. */
+    dumpFront = dumpRear = gcvINFINITE;
+
+    gcmkPRINT("Link Stack:");
+
+    /* Search stuck address in link queue from rear. */
+    rear = gcdLINK_QUEUE_SIZE - 1;
+    for (i = 0; i < gcdLINK_QUEUE_SIZE; i++)
+    {
+        gckLINKQUEUE_GetData(queueMirror, rear, &linkData);
+
+        start = linkData->start;
+        end = linkData->end;
+        pid = linkData->pid;
+
+        if (gpuAddress >= start && gpuAddress < end)
+        {
+            /* Find latest matched command buffer. */
+            gcmkPRINT("  %d, [%08X - %08X]", pid, start, end);
+
+            /* Initiliaze dump information. */
+            dumpFront = dumpRear = rear;
+        }
+
+        /* Advance to previous one. */
+        rear--;
+
+        if (dumpFront != gcvINFINITE)
+        {
+            break;
+        }
+    }
+
+    if (dumpFront == gcvINFINITE)
+    {
+        /* Can't find matched record in link queue, dump kernel command buffer. */
+        _DumpKernelCommandBuffer(Command);
+
+        /* Free local copy. */
+        gcmkOS_SAFE_FREE(os, queueMirror);
+        return gcvSTATUS_OK;
+    }
+
+    /* Search the last context buffer linked. */
+    while (rear >= 0)
+    {
+        gckLINKQUEUE_GetData(queueMirror, rear, &linkData);
+
+        gcmkPRINT("  %d, [%08X - %08X]",
+                  linkData->pid,
+                  linkData->start,
+                  linkData->end);
+
+        status = gckKERNEL_QueryGPUAddress(kernel, linkData->start, &buffer);
+
+        if (gcmIS_SUCCESS(status) && buffer->kernelLogical)
+        {
+            /* Find a context buffer. */
+            dumpFront = rear;
+            break;
+        }
+
+        rear--;
+    }
+
+    /* Dump from last context buffer to last command buffer where hang happens. */
+    for (i = dumpFront; i <= dumpRear; i++)
+    {
+        gckLINKQUEUE_GetData(queueMirror, i, &linkData);
+
+        /* Get gpu address of this command buffer. */
+        gpuAddress = linkData->start;
+        bytes = linkData->end - gpuAddress;
+
+        /* Get the whole buffer. */
+        status = gckKERNEL_QueryGPUAddress(kernel, gpuAddress, &buffer);
+
+        if (gcmIS_ERROR(status))
+        {
+            gcmkPRINT("Buffer [%08X - %08X] is lost",
+                      linkData->start,
+                      linkData->end);
+            continue;
+        }
+
+        /* Get kernel logical for dump. */
+        if (buffer->kernelLogical)
+        {
+            /* Get kernel logical directly if it is a context buffer. */
+            entry = buffer->kernelLogical;
+            gcmkPRINT("Context Buffer:");
+        }
+        else
+        {
+            /* Make it accessiable by kernel if it is a user command buffer. */
+            gcmkVERIFY_OK(
+                gckOS_CreateKernelVirtualMapping(buffer->physical,
+                                                 &pageCount,
+                                                 &entry));
+            gcmkPRINT("User Command Buffer:");
+        }
+
+        /* Dump from the entry. */
+        _DumpBuffer(entry + (gpuAddress - buffer->gpuAddress), gpuAddress, bytes);
+
+        /* Release kernel logical address if neccessary. */
+        if (!buffer->kernelLogical)
+        {
+            gcmkVERIFY_OK(gckOS_DestroyKernelVirtualMapping(entry));
+        }
+    }
+
+    /* Free local copy. */
+    gcmkOS_SAFE_FREE(os, queueMirror);
+    return gcvSTATUS_OK;
+OnError:
+    return status;
+#else
+    /* Without link queue information, we don't know the entry of last command
+    ** buffer, just dump the page where GPU stuck. */
+    status = gckKERNEL_QueryGPUAddress(kernel, gpuAddress, &buffer);
+
+    if (gcmIS_SUCCESS(status))
+    {
+        gcmkVERIFY_OK(
+            gckOS_CreateKernelVirtualMapping(buffer->physical, &pageCount, &entry));
+
+        if (entry)
+        {
+            gctUINT32 offset = gpuAddress - buffer->gpuAddress;
+            gctPOINTER entryDump = entry;
+
+            /* Dump one pages. */
+            gctUINT32 bytes = 4096;
+
+            /* Align to page. */
+            offset &= 0xfffff000;
+
+            /* Kernel address of page where stall point stay. */
+            entryDump += offset;
+
+            /* Align to page. */
+            gpuAddress &= 0xfffff000;
+
+            gcmkPRINT("User Command Buffer:\n");
+            _DumpBuffer(entryDump, gpuAddress, bytes);
+        }
+
+        gcmkVERIFY_OK(
+            gckOS_DestroyKernelVirtualMapping(entry));
+    }
+    else
+    {
+        _DumpKernelCommandBuffer(Command);
+    }
+
+    return gcvSTATUS_OK;
+#endif
+}
+#endif

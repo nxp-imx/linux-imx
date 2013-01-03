@@ -58,6 +58,8 @@ typedef struct _gcoDUMP *               gcoDUMP;
 typedef struct _gcoHARDWARE *           gcoHARDWARE;
 typedef union  _gcuVIDMEM_NODE *        gcuVIDMEM_NODE_PTR;
 
+typedef struct gcsATOM *                gcsATOM_PTR;
+
 #if gcdENABLE_VG
 typedef struct _gcoVG *                 gcoVG;
 typedef struct _gcsCOMPLETION_SIGNAL *	gcsCOMPLETION_SIGNAL_PTR;
@@ -96,6 +98,15 @@ typedef struct _gcsPLS
     gctPOINTER                  eglDisplayInfo;
     gctPOINTER                  eglSurfaceInfo;
     gceSURF_FORMAT              eglConfigFormat;
+
+    /* PorcessID of the constrcutor process */
+    gctUINT32                   processID;
+
+    /* Reference count for destructor. */
+    gcsATOM_PTR                 reference;
+#if gcdUSE_NPOT_PATCH
+    gctBOOL                     bNeedSupportNP2Texture;
+#endif
 
 }
 gcsPLS;
@@ -358,6 +369,11 @@ gcoHAL_GetFscaleValue(
     OUT gctUINT * FscaleValue,
     OUT gctUINT * MinFscaleValue,
     OUT gctUINT * MaxFscaleValue
+    );
+
+gceSTATUS
+gcoHAL_SetBltNP2Texture(
+    gctBOOL enable
     );
 
 #ifndef VIVANTE_NO_3D
@@ -1182,6 +1198,11 @@ gcoOS_SetProfileSetting(
         );
 #endif
 
+gctBOOL
+gcoOS_IsNeededSupportNP2Texture(
+    IN gctCHAR* ProcName
+    );
+
 /* Query the video memory. */
 gceSTATUS
 gcoOS_QueryVideoMemory(
@@ -1209,8 +1230,6 @@ gcoOS_DetectProcessByName(
 
 /*----------------------------------------------------------------------------*/
 /*----- Atoms ----------------------------------------------------------------*/
-
-typedef struct gcsATOM * gcsATOM_PTR;
 
 /* Construct an atom. */
 gceSTATUS
@@ -3702,6 +3721,7 @@ gcGetUserDebugOption(
     void
     );
 
+#if gcdHAS_ELLIPSES
 #define gcmUSER_DEBUG_MSG(level, ...) \
     do \
     { \
@@ -3713,6 +3733,11 @@ gcGetUserDebugOption(
 
 #define gcmUSER_DEBUG_ERROR_MSG(...)   gcmUSER_DEBUG_MSG(gcvDEBUG_MSG_ERROR, "Error: " __VA_ARGS__)
 #define gcmUSER_DEBUG_WARNING_MSG(...) gcmUSER_DEBUG_MSG(gcvDEBUG_MSG_WARNING, "Warring: " __VA_ARGS__)
+#else
+#define gcmUSER_DEBUG_MSG
+#define gcmUSER_DEBUG_ERROR_MSG
+#define gcmUSER_DEBUG_WARNING_MSG
+#endif
 
 #ifdef __cplusplus
 }

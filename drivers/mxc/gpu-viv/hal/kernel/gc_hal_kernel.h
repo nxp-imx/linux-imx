@@ -252,6 +252,12 @@ gckKERNEL_QueryProcessDB(
     OUT gcuDATABASE_INFO * Info
     );
 
+/* Dump the process database. */
+gceSTATUS
+gckKERNEL_DumpProcessDB(
+    IN gckKERNEL Kernel
+    );
+
 #if gcdSECURE_USER
 /* Get secure cache from the process database. */
 gceSTATUS
@@ -347,6 +353,10 @@ struct _gckKERNEL
 
     /* The profile file name */
     gctCHAR                     profileFileName[gcdMAX_PROFILE_FILE_NAME];
+
+    /* Clear profile register or not*/
+    gctBOOL                     profileCleanRegister;
+
 #endif
 
 #ifdef QNX_SINGLE_THREADED_DEBUGGING
@@ -798,6 +808,13 @@ gckKERNEL_GetGPUAddress(
     IN gctPOINTER Logical,
     OUT gctUINT32 * Address
     );
+
+gceSTATUS
+gckKERNEL_QueryGPUAddress(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 GpuAddress,
+    OUT gckVIRTUAL_COMMAND_BUFFER_PTR * Buffer
+    );
 #endif
 
 gceSTATUS
@@ -859,6 +876,23 @@ gckCONTEXT_Update(
     IN gctUINT32 ProcessID,
     IN gcsSTATE_DELTA_PTR StateDelta
     );
+
+#if gcdLINK_QUEUE_SIZE
+void
+gckLINKQUEUE_Enqueue(
+    IN gckLINKQUEUE LinkQueue,
+    IN gctUINT32 start,
+    IN gctUINT32 end
+    );
+
+void
+gckLINKQUEUE_GetData(
+    IN gckLINKQUEUE LinkQueue,
+    IN gctUINT32 Index,
+    OUT gckLINKDATA * Data
+    );
+#endif
+
 
 #ifdef __cplusplus
 }
