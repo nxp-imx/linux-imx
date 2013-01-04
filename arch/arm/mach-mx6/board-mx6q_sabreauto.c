@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -93,7 +93,7 @@
 #define SABREAUTO_USB_OTG_OC		IMX_GPIO_NR(2, 8)
 #define SABREAUTO_LDB_BACKLIGHT3	IMX_GPIO_NR(2, 9)
 #define SABREAUTO_LDB_BACKLIGHT4	IMX_GPIO_NR(2, 10)
-#define SABREAUTO_ANDROID_MENU		IMX_GPIO_NR(2, 12)
+#define SABREAUTO_ANDROID_POWER		IMX_GPIO_NR(2, 12)
 #define SABREAUTO_ANDROID_VOLUP		IMX_GPIO_NR(2, 15)
 #define SABREAUTO_CAP_TCH_INT		IMX_GPIO_NR(2, 28)
 #define SABREAUTO_eCOMPASS_INT		IMX_GPIO_NR(2, 29)
@@ -195,9 +195,9 @@ enum sd_pad_mode {
 static struct gpio_keys_button ard_buttons[] = {
 	GPIO_BUTTON(SABREAUTO_ANDROID_HOME,    KEY_HOME,       1, "home",        0),
 	GPIO_BUTTON(SABREAUTO_ANDROID_BACK,    KEY_BACK,       1, "back",        0),
-	GPIO_BUTTON(SABREAUTO_ANDROID_MENU,    KEY_MENU,       1, "menu",        0),
 	GPIO_BUTTON(SABREAUTO_ANDROID_VOLUP,   KEY_VOLUMEUP,   1, "volume-up",   0),
 	GPIO_BUTTON(SABREAUTO_ANDROID_VOLDOWN, KEY_VOLUMEDOWN, 1, "volume-down", 0),
+	GPIO_BUTTON(SABREAUTO_ANDROID_POWER,   KEY_POWER,      1, "power-key",   1),
 };
 
 static struct gpio_keys_platform_data ard_android_button_data = {
