@@ -3187,7 +3187,7 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		u32 temp;
 		if (udc_controller->stopped)
 			dr_clk_gate(true);
-		usb_debounce_id_vbus();
+		usb_debounce_id_pin();
 		if (fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) {
 			temp = fsl_readl(&dr_regs->otgsc);
 			/* if b_session_irq_en is cleared by otg */
