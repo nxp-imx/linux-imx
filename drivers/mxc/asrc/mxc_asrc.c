@@ -1213,33 +1213,6 @@ static int imx_asrc_dma_config(
 
 }
 
-static int asrc_get_output_buffer_size(int input_buffer_size,
-				       int input_sample_rate,
-				       int output_sample_rate)
-{
-	int i = 0;
-	int outbuffer_size = 0;
-	int outsample = output_sample_rate;
-	while (outsample >= input_sample_rate) {
-		++i;
-		outsample -= input_sample_rate;
-	}
-	outbuffer_size = i * input_buffer_size;
-	i = 1;
-	while (((input_buffer_size >> i) > 2) && (outsample != 0)) {
-		if (((outsample << 1) - input_sample_rate) >= 0) {
-			outsample = (outsample << 1) - input_sample_rate;
-			outbuffer_size += (input_buffer_size >> i);
-		} else {
-			outsample = outsample << 1;
-		}
-		i++;
-	}
-	outbuffer_size = (outbuffer_size >> 3) << 3;
-	return outbuffer_size;
-}
-
-
 static int mxc_asrc_prepare_input_buffer(struct asrc_pair_params *params,
 					struct asrc_convert_buffer *pbuf)
 {
