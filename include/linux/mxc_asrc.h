@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -34,6 +34,7 @@
 #define ASRC_FLUSH	_IOW(ASRC_IOC_MAGIC, 7, enum asrc_pair_index)
 
 enum asrc_pair_index {
+	ASRC_UNVALID_PAIR = -1,
 	ASRC_PAIR_A,
 	ASRC_PAIR_B,
 	ASRC_PAIR_C

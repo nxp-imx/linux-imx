@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1535,6 +1535,13 @@ static long asrc_ioctl(struct file *file,
 				err = -EFAULT;
 				break;
 			}
+
+			if (index < 0) {
+				pr_err("unvalid index: %d!\n", index);
+				err = -EFAULT;
+				break;
+			}
+
 			params->asrc_active = 0;
 
 			spin_lock_irqsave(&pair_lock, lock_flags);
