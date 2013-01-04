@@ -124,4 +124,10 @@ config SND_SOC_IMX_HDMI
 	help
 	  Say Y if you want to add support for SoC audio through IMX HDMI.
 
+config SND_MXC_SOC_IRAM
+	bool "Locate SSI Audio DMA playback buffers in IRAM"
+	depends on MACH_MX6SL_EVK && MACH_MX6SL_ARM2
+	help
+	  Say Y if you don't want Audio playback buffers in external ram
+
 endif	# SND_IMX_SOC
