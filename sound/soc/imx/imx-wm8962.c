@@ -1,7 +1,7 @@
 /*
  * imx-wm8962.c
  *
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -225,23 +225,26 @@ static int imx_event_hp(struct snd_soc_dapm_widget *w,
 	char *envp[3];
 	char *buf;
 
-	buf = kmalloc(32, GFP_ATOMIC);
-	if (!buf) {
-		pr_err("%s kmalloc failed\n", __func__);
-		return -ENOMEM;
+	if (plat->hp_gpio != -1) {
+		priv->hp_status = gpio_get_value(plat->hp_gpio);
+
+		buf = kmalloc(32, GFP_ATOMIC);
+		if (!buf) {
+			pr_err("%s kmalloc failed\n", __func__);
+			return -ENOMEM;
+		}
+
+		if (priv->hp_status != plat->hp_active_low)
+			snprintf(buf, 32, "STATE=%d", 2);
+		else
+			snprintf(buf, 32, "STATE=%d", 0);
+
+		envp[0] = "NAME=headphone";
+		envp[1] = buf;
+		envp[2] = NULL;
+		kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
+		kfree(buf);
 	}
-	priv->hp_status = gpio_get_value(plat->hp_gpio);
-
-	if (priv->hp_status != plat->hp_active_low)
-		snprintf(buf, 32, "STATE=%d", 2);
-	else
-		snprintf(buf, 32, "STATE=%d", 0);
-
-	envp[0] = "NAME=headphone";
-	envp[1] = buf;
-	envp[2] = NULL;
-	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
-	kfree(buf);
 
 	return 0;
 }
@@ -255,24 +258,26 @@ static int imx_event_mic(struct snd_soc_dapm_widget *w,
 	char *envp[3];
 	char *buf;
 
-	priv->amic_status = gpio_get_value(plat->mic_gpio);
+	if (plat->mic_gpio != -1) {
+		priv->amic_status = gpio_get_value(plat->mic_gpio);
 
-	buf = kmalloc(32, GFP_ATOMIC);
-	if (!buf) {
-		pr_err("%s kmalloc failed\n", __func__);
-		return -ENOMEM;
+		buf = kmalloc(32, GFP_ATOMIC);
+		if (!buf) {
+			pr_err("%s kmalloc failed\n", __func__);
+			return -ENOMEM;
+		}
+
+		if (priv->amic_status == 0)
+			snprintf(buf, 32, "STATE=%d", 2);
+		else
+			snprintf(buf, 32, "STATE=%d", 0);
+
+		envp[0] = "NAME=amic";
+		envp[1] = buf;
+		envp[2] = NULL;
+		kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
+		kfree(buf);
 	}
-
-	if (priv->amic_status == 0)
-		snprintf(buf, 32, "STATE=%d", 2);
-	else
-		snprintf(buf, 32, "STATE=%d", 0);
-
-	envp[0] = "NAME=amic";
-	envp[1] = buf;
-	envp[2] = NULL;
-	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
-	kfree(buf);
 
 	return 0;
 }
@@ -381,8 +386,6 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_enable_pin(&codec->dapm, "Headphone Jack");
 	snd_soc_dapm_enable_pin(&codec->dapm, "AMIC");
 
-	snd_soc_dapm_sync(&codec->dapm);
-
 	if (plat->hp_gpio != -1) {
 		imx_hp_jack_gpio.gpio = plat->hp_gpio;
 		snd_soc_jack_new(codec, "Ext Spk", SND_JACK_LINEOUT,
@@ -417,7 +420,11 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 			ret = -EINVAL;
 			return ret;
 		}
+	} else {
+		snd_soc_dapm_nc_pin(&codec->dapm, "DMIC");
 	}
+
+	snd_soc_dapm_sync(&codec->dapm);
 
 	return 0;
 }
