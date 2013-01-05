@@ -1740,6 +1740,7 @@ static int csi_v4l2_master_attach(struct v4l2_int_device *slave)
 	vidioc_int_dev_init(slave);
 	csi_enable_mclk(CSI_MCLK_I2C, false, false);
 	cam_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	vidioc_int_g_fmt_cap(cam->sensor, &cam_fmt);
 
 	/* Used to detect TV in (type 1) vs. camera (type 0) */
 	cam->device_type = cam_fmt.fmt.pix.priv;
