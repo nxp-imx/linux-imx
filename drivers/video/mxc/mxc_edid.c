@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -78,12 +78,12 @@ const struct fb_videomode mxc_cea_mode[64] = {
 	},
 	/* #8: 720(1440)x240pH@59.94/60Hz 4:3 */
 	[8] = {
-		NULL, 60, 1440, 240, 18554, 114, 38, 16, 4, 124, 3, 0,
-		FB_VMODE_NONINTERLACED | FB_VMODE_ASPECT_16_9, 0,
+		NULL, 60, 1440, 240, 37108, 114, 38, 15, 4, 124, 3, 0,
+		FB_VMODE_NONINTERLACED | FB_VMODE_ASPECT_4_3, 0,
 	},
 	/* #9: 720(1440)x240pH@59.94/60Hz 16:9 */
 	[9] = {
-		NULL, 60, 1440, 240, 18554, 114, 38, 16, 4, 124, 3, 0,
+		NULL, 60, 1440, 240, 37108, 114, 38, 15, 4, 124, 3, 0,
 		FB_VMODE_NONINTERLACED | FB_VMODE_ASPECT_16_9, 0,
 	},
 	/* #16: 1920x1080p@60Hz 16:9 */
