@@ -3,7 +3,7 @@
  *
  * PCIe host controller driver for IMX6 SOCs
  *
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * Bits taken from arch/arm/mach-dove/pcie.c
  *
@@ -34,6 +34,7 @@
 #include <mach/pcie.h>
 
 #include <asm/sizes.h>
+#include <asm/signal.h>
 
 #include "crm_regs.h"
 
@@ -356,6 +357,15 @@ static int imx_pcie_rd_conf(struct pci_bus *bus, u32 devfn, int where,
 	struct imx_pcie_port *pp = bus_to_port(bus->number);
 	u32 va_address;
 
+	/*  Added to change transaction TYPE  */
+	if (bus->number < 2) {
+		writel(0, dbi_base + ATU_VIEWPORT_R);
+		writel(CfgRdWr0, dbi_base + ATU_REGION_CTRL1_R);
+	} else {
+		writel(0, dbi_base + ATU_VIEWPORT_R);
+		writel(CfgRdWr1, dbi_base + ATU_REGION_CTRL1_R);
+	}
+
 	if (pp) {
 		if (devfn != 0) {
 			*val = 0xffffffff;
@@ -363,11 +373,15 @@ static int imx_pcie_rd_conf(struct pci_bus *bus, u32 devfn, int where,
 		}
 
 		va_address = (u32)dbi_base + (where & ~0x3);
-	} else
-		va_address = (u32)base + (PCIE_CONF_BUS(bus->number - 1) +
-					  PCIE_CONF_DEV(PCI_SLOT(devfn)) +
-					  PCIE_CONF_FUNC(PCI_FUNC(devfn)) +
-					  PCIE_CONF_REG(where));
+	} else {
+		writel(0, dbi_base + ATU_VIEWPORT_R);
+
+		writel((((PCIE_CONF_BUS(bus->number)
+				+ PCIE_CONF_DEV(PCI_SLOT(devfn))
+				+ PCIE_CONF_FUNC(PCI_FUNC(devfn)))) << 8),
+				dbi_base + ATU_REGION_LOW_TRGT_ADDR_R);
+		va_address = (u32)base + PCIE_CONF_REG(where);
+	}
 
 	*val = readl(va_address);
 
@@ -386,16 +400,29 @@ static int imx_pcie_wr_conf(struct pci_bus *bus, u32 devfn,
 	u32 va_address = 0, mask = 0, tmp = 0;
 	int ret = PCIBIOS_SUCCESSFUL;
 
+	/*  Added to change transaction TYPE  */
+	if (bus->number < 2) {
+		writel(0, dbi_base + ATU_VIEWPORT_R);
+		writel(CfgRdWr0, dbi_base + ATU_REGION_CTRL1_R);
+	} else {
+		writel(0, dbi_base + ATU_VIEWPORT_R);
+		writel(CfgRdWr1, dbi_base + ATU_REGION_CTRL1_R);
+	}
+
 	if (pp) {
 		if (devfn != 0)
 			return PCIBIOS_DEVICE_NOT_FOUND;
 
 		va_address = (u32)dbi_base + (where & ~0x3);
-	} else
-		va_address = (u32)base + (PCIE_CONF_BUS(bus->number - 1) +
-					  PCIE_CONF_DEV(PCI_SLOT(devfn)) +
-					  PCIE_CONF_FUNC(PCI_FUNC(devfn)) +
-					  PCIE_CONF_REG(where));
+	} else {
+		writel(0, dbi_base + ATU_VIEWPORT_R);
+
+		writel((((PCIE_CONF_BUS(bus->number)
+				+ PCIE_CONF_DEV(PCI_SLOT(devfn))
+				+ PCIE_CONF_FUNC(PCI_FUNC(devfn)))) << 8),
+				dbi_base + ATU_REGION_LOW_TRGT_ADDR_R);
+		va_address = (u32)base + PCIE_CONF_REG(where);
+	}
 
 	if (size == 4) {
 		writel(val, va_address);
@@ -667,6 +694,19 @@ static void __init add_pcie_port(void __iomem *base, void __iomem *dbi_base,
 	}
 }
 
+/*  Added for PCI abort handling */
+static int imx6q_pcie_abort_handler(unsigned long addr,
+		unsigned int fsr, struct pt_regs *regs)
+{
+	/*
+	 * If it was an imprecise abort, then we need to correct the
+	 * return address to be _after_ the instruction.
+	 */
+	if (fsr & (1 << 10))
+		regs->ARM_pc += 4;
+	return 0;
+}
+
 static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 {
 	struct resource *mem;
@@ -678,6 +718,10 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 		dev_err(dev, "no mmio space\n");
 		return -EINVAL;
 	}
+
+	/*  Added for PCI abort handling */
+	hook_fault_code(16 + 6, imx6q_pcie_abort_handler, SIGBUS, 0,
+			"imprecise external abort");
 
 	base = ioremap_nocache(PCIE_ARB_END_ADDR - SZ_1M + 1, SZ_1M - SZ_16K);
 	if (!base) {
