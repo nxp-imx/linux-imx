@@ -113,7 +113,7 @@ struct fsl_usb2_platform_data {
 	unsigned			already_suspended:1;
 	unsigned            lowpower:1;
 	unsigned            irq_delay:1;
-	unsigned            wakeup_event:1;
+	enum usb_wakeup_event            wakeup_event;
 	struct fsl_usb2_wakeup_platform_data *wakeup_pdata;
 
 	u32				id_gpio;
