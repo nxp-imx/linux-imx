@@ -2157,9 +2157,11 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 
 	spin_lock_irqsave(&udc->lock, flags);
 
-	if (try_wake_up_udc(udc) == false) {
+	if (try_wake_up_udc(udc) == false)
 		goto irq_end;
-	}
+	else
+		status = IRQ_HANDLED;
+
 #ifdef CONFIG_USB_OTG
 	/* if no gadget register in this driver, we need do noting */
 	if (udc->transceiver->gadget == NULL) {
@@ -3164,7 +3166,6 @@ static int fsl_udc_resume(struct platform_device *pdev)
 	struct fsl_usb2_wakeup_platform_data *wake_up_pdata = pdata->wakeup_pdata;
 	printk(KERN_DEBUG "USB Gadget resume begins\n");
 
-	mutex_lock(&udc_resume_mutex);
 	if (pdev->dev.power.status == DPM_RESUMING) {
 		printk(KERN_DEBUG "%s, Wait for wakeup thread finishes\n", __func__);
 		wait_event_interruptible(wake_up_pdata->wq, !wake_up_pdata->usb_wakeup_is_pending);
@@ -3173,10 +3174,8 @@ static int fsl_udc_resume(struct platform_device *pdev)
 	pr_debug("%s(): stopped %d  suspended %d\n", __func__,
 		 udc_controller->stopped, udc_controller->suspended);
 #ifdef CONFIG_USB_OTG
-	if (udc_controller->transceiver->gadget == NULL) {
-		mutex_unlock(&udc_resume_mutex);
+	if (udc_controller->transceiver->gadget == NULL)
 		return 0;
-	}
 #endif
 	mutex_lock(&udc_resume_mutex);
 

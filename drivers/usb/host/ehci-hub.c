@@ -26,6 +26,11 @@
  * Registers don't need cpu_to_le32, that happens transparently
  */
 
+#ifdef CONFIG_ARCH_MXS
+#define MXS_USB_HOST_HACK
+
+#include <linux/fsl_devices.h>
+#endif
 /*-------------------------------------------------------------------------*/
 
 #define	PORT_WAKE_BITS	(PORT_WKOC_E|PORT_WKDISC_E|PORT_WKCONN_E)
@@ -393,6 +398,14 @@ static int ehci_bus_resume (struct usb_hcd *hcd)
 	if (resume_needed) {
 		spin_unlock_irq(&ehci->lock);
 		msleep(20);
+#ifdef MXS_USB_HOST_HACK
+		{
+			struct fsl_usb2_platform_data *pdata;
+			pdata = hcd->self.controller->platform_data;
+			if (pdata && pdata->platform_resume)
+				pdata->platform_resume(pdata);
+		}
+#endif
 		spin_lock_irq(&ehci->lock);
 	}
 
@@ -1008,6 +1021,16 @@ static int ehci_hub_control (
 			temp &= ~PORT_WKCONN_E;
 			temp |= PORT_WKDISC_E | PORT_WKOC_E;
 			ehci_writel(ehci, temp | PORT_SUSPEND, status_reg);
+#ifdef MXS_USB_HOST_HACK
+			spin_unlock_irqrestore(&ehci->lock, flags);
+			{
+				struct fsl_usb2_platform_data *pdata;
+				pdata = hcd->self.controller->platform_data;
+				if (pdata && pdata->platform_suspend)
+					pdata->platform_suspend(pdata);
+			}
+			spin_lock_irqsave(&ehci->lock, flags);
+#endif
 			if (hostpc_reg) {
 				spin_unlock_irqrestore(&ehci->lock, flags);
 				msleep(5);/* 5ms for HCD enter low pwr mode */

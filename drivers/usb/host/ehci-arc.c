@@ -147,11 +147,11 @@ static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
 	pdata = hcd->self.controller->platform_data;
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
-		if (pdata->irq_delay || !pdata->wakeup_event)
+		if (pdata->irq_delay || ((pdata->wakeup_event == WAKEUP_EVENT_VBUS) || (pdata->wakeup_event == WAKEUP_EVENT_INVALID)))
 			return IRQ_NONE;
 
 		pr_debug("%s\n", __func__);
-		pdata->wakeup_event = 0;
+		pdata->wakeup_event = WAKEUP_EVENT_INVALID;
 		fsl_usb_recover_hcd(pdev);
 		return IRQ_HANDLED;
 	}
@@ -425,9 +425,6 @@ static int ehci_fsl_bus_suspend(struct usb_hcd *hcd)
 		ehci_writel(ehci, tmp, &ehci->regs->command);
 	}
 
-	if (pdata->platform_suspend)
-		pdata->platform_suspend(pdata);
-
 	usb_host_set_wakeup(hcd->self.controller, true);
 	fsl_usb_lowpower_mode(pdata, true);
 	fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
@@ -459,8 +456,6 @@ static int ehci_fsl_bus_resume(struct usb_hcd *hcd)
 		fsl_usb_lowpower_mode(pdata, false);
 	}
 
-	if (pdata->platform_resume)
-		pdata->platform_resume(pdata);
 	ret = ehci_bus_resume(hcd);
 	if (ret)
 		return ret;
@@ -639,6 +634,7 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 			usb_host_set_wakeup(hcd->self.controller, false);
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		}
+		disable_irq(hcd->irq);
 		return 0;
 	}
 
@@ -730,6 +726,7 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 				fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 			}
 		}
+		enable_irq(hcd->irq);
 		return 0;
 	}
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
