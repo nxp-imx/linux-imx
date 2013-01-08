@@ -6,7 +6,7 @@
  *
  * Maintainer: Kumar Gala <galak@kernel.crashing.org>
  *
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -114,7 +114,7 @@ struct fsl_usb2_platform_data {
 	unsigned			already_suspended:1;
 	unsigned            lowpower:1;
 	unsigned            irq_delay:1;
-	unsigned            wakeup_event:1;
+	enum usb_wakeup_event            wakeup_event;
 	struct fsl_usb2_wakeup_platform_data *wakeup_pdata;
 
 	u32				id_gpio;
