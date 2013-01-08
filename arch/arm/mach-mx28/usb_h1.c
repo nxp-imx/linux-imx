@@ -30,17 +30,10 @@
 #include "usb.h"
 
 extern int clk_get_usecount(struct clk *clk);
-extern void fsl_usb_recover_hcd(struct platform_device *pdev);
 static struct clk *usb_clk;
 static struct clk *usb_phy_clk;
 static struct platform_device *h1_pdev;
 
-static void usb_host_phy_resume(struct fsl_usb2_platform_data *plat)
-{
-	fsl_platform_set_usb_phy_dis(plat, 0);
-}
-
-static int internal_phy_clk_already_on;
 #ifdef CONFIG_WORKAROUND_ARCUSB_REG_RW
 static void fsl_safe_writel(u32 val32, volatile u32 *addr)
 {
@@ -49,26 +42,16 @@ static void fsl_safe_writel(u32 val32, volatile u32 *addr)
 #endif
 static void usbh1_internal_phy_clock_gate(bool on)
 {
-	u32 tmp;
 	void __iomem *phy_reg = IO_ADDRESS(USBPHY1_PHYS_ADDR);
-	if (on) {
-		internal_phy_clk_already_on += 1;
-		if (internal_phy_clk_already_on == 1) {
-			pr_debug ("%s, Clock on UTMI \n", __func__);
-			tmp = BM_USBPHY_CTRL_SFTRST | BM_USBPHY_CTRL_CLKGATE;
-			__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_CLR);
-		}
-	} else {
-		internal_phy_clk_already_on -= 1;
-		if (internal_phy_clk_already_on == 0) {
-			pr_debug ("%s, Clock off UTMI \n", __func__);
-			tmp = BM_USBPHY_CTRL_CLKGATE;
-			__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_SET);
-		}
-	}
-	if (internal_phy_clk_already_on < 0)
-		printk(KERN_ERR "please check internal phy clock ON/OFF sequence \n");
+
+	pr_debug ("%s, Clock %s UTMI \n", __func__, on ? "on" : "off");
+
+	if (on)
+		__raw_writel(BM_USBPHY_CTRL_CLKGATE, phy_reg + HW_USBPHY_CTRL_CLR);
+	else
+		__raw_writel(BM_USBPHY_CTRL_CLKGATE, phy_reg + HW_USBPHY_CTRL_SET);
 }
+
 static int fsl_usb_host_init_ext(struct platform_device *pdev)
 {
 	usb_clk = clk_get(NULL, "usb_clk1");
@@ -97,9 +80,7 @@ static void usbh1_clock_gate(bool on)
 	if (on) {
 		clk_enable(usb_clk);
 		clk_enable(usb_phy_clk);
-		usbh1_internal_phy_clock_gate(on);
 	} else {
-		usbh1_internal_phy_clock_gate(on);
 		clk_disable(usb_phy_clk);
 		clk_disable(usb_clk);
 	}
@@ -157,10 +138,17 @@ static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool ena
 			| BM_USBPHY_PWD_RXPWDRX);
 		__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_SET);
 
-		pr_debug ("%s, Polling UTMI enter suspend \n", __func__);
-		while (tmp & BM_USBPHY_CTRL_UTMI_SUSPENDM)
-			tmp = __raw_readl(phy_reg + HW_USBPHY_CTRL);
+		usbh1_internal_phy_clock_gate(false);
 	} else {
+		tmp = __raw_readl(usb_reg + UOG_PORTSC1);
+		if (tmp & PORTSC_PHCD) {
+			tmp &= ~PORTSC_PHCD;
+			fsl_safe_writel(tmp, usb_reg + UOG_PORTSC1);
+			mdelay(1);
+		}
+
+		usbh1_internal_phy_clock_gate(true);
+
 		tmp = (BM_USBPHY_PWD_TXPWDFS
 			| BM_USBPHY_PWD_TXPWDIBIAS
 			| BM_USBPHY_PWD_TXPWDV2I
@@ -169,10 +157,6 @@ static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool ena
 			| BM_USBPHY_PWD_RXPWDDIFF
 			| BM_USBPHY_PWD_RXPWDRX);
 		__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_CLR);
-
-		tmp = __raw_readl(usb_reg + UOG_PORTSC1);
-		tmp &= ~PORTSC_PHCD;
-		fsl_safe_writel(tmp, usb_reg + UOG_PORTSC1);
 	}
 }
 
@@ -185,16 +169,15 @@ static enum usb_wakeup_event _is_usbh1_wakeup(struct fsl_usb2_platform_data *pda
 	tmp = BM_USBPHY_CTRL_RESUME_IRQ | BM_USBPHY_CTRL_WAKEUP_IRQ;
 	if (__raw_readl(phy_reg + HW_USBPHY_CTRL) && tmp) {
 		__raw_writel(tmp, phy_reg + HW_USBPHY_CTRL_CLR);
-		return !WAKEUP_EVENT_INVALID;
+		return WAKEUP_EVENT_DPDM;
 	} else
 		return WAKEUP_EVENT_INVALID;
 }
 
 static void h1_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 {
-	_wake_up_enable(pdata, false);
 	_phy_lowpower_suspend(pdata, false);
-	fsl_usb_recover_hcd(h1_pdev);
+	_wake_up_enable(pdata, false);
 }
 
 static void usbh1_wakeup_event_clear(void)
@@ -208,6 +191,97 @@ static void usbh1_wakeup_event_clear(void)
 		__raw_writel(wakeup_irq_bits, phy_reg + HW_USBPHY_CTRL_CLR);
 	}
 }
+
+static void fsl_platform_h1_set_usb_phy_dis(
+		struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	u32 usb_phy_ctrl_dcdt = 0;
+	usb_phy_ctrl_dcdt = __raw_readl(
+			IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL) &
+			BM_USBPHY_CTRL_ENHOSTDISCONDETECT;
+	if (enable) {
+		if (usb_phy_ctrl_dcdt == 0) {
+			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				IO_ADDRESS(pdata->phy_regs)
+				+ HW_USBPHY_CTRL_SET);
+		}
+	} else {
+		if (usb_phy_ctrl_dcdt
+				== BM_USBPHY_CTRL_ENHOSTDISCONDETECT)
+			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				IO_ADDRESS(pdata->phy_regs)
+				+ HW_USBPHY_CTRL_CLR);
+	}
+}
+
+static void usb_host_phy_suspend(struct fsl_usb2_platform_data *pdata)
+{
+	void __iomem *phy_reg = IO_ADDRESS(USBPHY1_PHYS_ADDR);
+	void __iomem *usb_reg = pdata->regs;
+	u32 tmp;
+	u32 index = 0;
+	tmp = __raw_readl(usb_reg + UOG_PORTSC1);
+
+	/* before we set and then clear PWD bit,
+	 * we must wait LS to be J */
+	if ((tmp & (3 << 26)) != (1 << 26)) {
+		while (((tmp & PORTSC_LS_MASK) != PORTSC_LS_J_STATE) &&
+				(index < 4)) {
+			index++;
+			msleep(1);
+			tmp = __raw_readl(usb_reg + UOG_PORTSC1);
+		}
+	} else {
+		while (((tmp & PORTSC_LS_MASK) != PORTSC_LS_K_STATE) &&
+				(index < 4)) {
+			index++;
+			msleep(1);
+			tmp = __raw_readl(usb_reg + UOG_PORTSC1);
+		}
+	}
+
+	if (index >= 4)
+		printk(KERN_INFO "%s big error\n", __func__);
+
+	tmp = (BM_USBPHY_PWD_TXPWDFS
+		| BM_USBPHY_PWD_TXPWDIBIAS
+		| BM_USBPHY_PWD_TXPWDV2I
+		| BM_USBPHY_PWD_RXPWDENV
+		| BM_USBPHY_PWD_RXPWD1PT1
+		| BM_USBPHY_PWD_RXPWDDIFF
+		| BM_USBPHY_PWD_RXPWDRX);
+	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_SET);
+
+	__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_CLR);
+
+	fsl_platform_h1_set_usb_phy_dis(pdata, 0);
+}
+
+static void usb_host_phy_resume(struct fsl_usb2_platform_data *pdata)
+{
+	u32 index = 0;
+	u32 tmp;
+	void __iomem *usb_reg = pdata->regs;
+	tmp = __raw_readl(usb_reg + UOG_PORTSC1);
+
+	if ((tmp & (3 << 26)) != (2 << 26))
+		return ;
+
+	while ((tmp & PORTSC_PORT_FORCE_RESUME)
+			&& (index < 500)) {
+		msleep(1);
+		index++;
+		tmp = __raw_readl(usb_reg + UOG_PORTSC1);
+	}
+
+	if (index >= 500)
+		printk(KERN_ERR "%s big error\n", __func__);
+
+	udelay(500);
+
+	fsl_platform_h1_set_usb_phy_dis(pdata, 1);
+}
+
 static struct fsl_usb2_platform_data usbh1_config = {
 	.name = "Host 1",
 	.platform_init = fsl_usb_host_init_ext,
@@ -215,6 +289,7 @@ static struct fsl_usb2_platform_data usbh1_config = {
 	.operating_mode = FSL_USB2_MPH_HOST,
 	.phy_mode = FSL_USB2_PHY_UTMI_WIDE,
 	.power_budget = 500,	/* 500 mA max power */
+	.platform_suspend = usb_host_phy_suspend,
 	.platform_resume = usb_host_phy_resume,
 	.transceiver = "utmi",
 	.usb_clock_for_pm  = usbh1_clock_gate,

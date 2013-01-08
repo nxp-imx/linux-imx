@@ -60,9 +60,15 @@ static bool usb2_is_in_lowpower(struct wakeup_ctrl *ctrl)
 static void delay_process_wakeup(struct wakeup_ctrl *ctrl)
 {
 	struct fsl_usb2_wakeup_platform_data *pdata = ctrl->pdata;
+	int i;
 	disable_irq_nosync(ctrl->wakeup_irq);
 	if ((ctrl->usb_irq > 0) && (ctrl->wakeup_irq != ctrl->usb_irq))
 		disable_irq_nosync(ctrl->usb_irq);
+
+	for (i = 0; i < 3; i++) {
+		if (pdata->usb_pdata[i])
+			pdata->usb_pdata[i]->irq_delay = 1;
+	}
 
 	pdata->usb_wakeup_is_pending = true;
 	complete(&ctrl->event);
@@ -105,7 +111,9 @@ static void wakeup_event_handler(struct wakeup_ctrl *ctrl)
 	for (i = 0; i < 3; i++) {
 		struct fsl_usb2_platform_data *usb_pdata = pdata->usb_pdata[i];
 		if (usb_pdata) {
+			usb_pdata->irq_delay = 0;
 			wakeup_evt = is_wakeup(usb_pdata);
+			usb_pdata->wakeup_event = wakeup_evt;
 			if (wakeup_evt != WAKEUP_EVENT_INVALID) {
 				if (usb2_is_in_lowpower(ctrl))
 					if (usb_pdata->usb_clock_for_pm)
