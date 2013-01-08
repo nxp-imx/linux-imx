@@ -2,7 +2,7 @@
  * Driver for Novatek NT11003 Multiple Touch Controller
  *
  * Copyright (C) 2012 Novatek Ltd.
- * Copyright (C) 2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -30,6 +30,7 @@
 
 #define NOVATEK_MAX_X		1280
 #define NOVATEK_MAX_Y		800
+#define NT_QUIRK_ID		((0xFF >> 3) - 1)
 
 struct tp_event {
 	u16 x;
@@ -118,7 +119,15 @@ static irqreturn_t novatek_ts_threaded_irq_handler(int irq, void *dev_id)
 		memset(&event, 0, sizeof(event));
 		parser_finger_events(&buffer[i * FINGER_EVENT_LEN], &event);
 
-		if (event.status == 0 /* || event.id > MAX_SUPPORT_POINTS */)
+		/* workaround FW sometime report touch up is not
+		 * corrent, but report all 0xFF package, so it lost
+		 * track of ID, so workaround by add a touch ID by the
+		 * parser id. */
+		if (ts->fingers[i] == FINGER_MOVE && event.status == FINGER_UP
+		    && event.id == NT_QUIRK_ID)
+			event.id = i;
+
+		if (event.status == 0)
 			continue;
 
 		/* ignore the event already up. */
