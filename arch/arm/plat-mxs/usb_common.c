@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -278,6 +278,13 @@ int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 
 	/* Power up the PHY */
 	__raw_writel(0, phy_reg + HW_USBPHY_PWD);
+
+	__raw_writel(BM_USBPHY_CTRL_ENAUTOSET_USBCLKS
+		| BM_USBPHY_CTRL_ENAUTOCLR_PHY_PWD
+		| BM_USBPHY_CTRL_ENAUTOCLR_CLKGATE
+		| BM_USBPHY_CTRL_ENAUTOCLR_USBCLKGATE
+		| BM_USBPHY_CTRL_ENAUTO_PWRON_PLL,
+		phy_reg + HW_USBPHY_CTRL_SET);
 
 	return 0;
 }
