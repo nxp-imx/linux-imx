@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -562,6 +562,8 @@ static void dr_controller_stop(struct fsl_udc *udc)
 	tmp &= ~USB_CMD_RUN_STOP;
 	fsl_writel(tmp, &dr_regs->usbcmd);
 
+	/* disable pulldown dp and dm */
+	dr_discharge_line(udc->pdata, true);
 	return;
 }
 
@@ -2519,6 +2521,7 @@ int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)
 
 	dr_phy_low_power_mode(udc_controller, true);
 
+	dr_clk_gate(false);
 	printk(KERN_INFO "unregistered gadget driver '%s'\r\n",
 	       driver->driver.name);
 	return 0;
