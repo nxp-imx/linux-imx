@@ -152,6 +152,12 @@ struct hdmi_data_info {
 	struct hdmi_vmode video_mode;
 };
 
+struct hdmi_phy_reg_config {
+	/* HDMI PHY register config for pass HCT */
+	u16 reg_vlev;
+	u16 reg_cksymtx;
+};
+
 struct mxc_hdmi {
 	struct platform_device *pdev;
 	struct platform_device *core_pdev;
@@ -179,6 +185,8 @@ struct mxc_hdmi {
 	struct fb_videomode previous_mode;
 	struct fb_videomode previous_non_vga_mode;
 	bool requesting_vga_for_initialization;
+
+	struct hdmi_phy_reg_config phy_config;
 };
 
 struct i2c_client *hdmi_i2c;
@@ -1087,6 +1095,14 @@ static int hdmi_phy_configure(struct mxc_hdmi *hdmi, unsigned char pRep,
 	hdmi_phy_i2c_write(hdmi, 0x800d, 0x09);  /* CKSYMTXCTRL */
 	/* TX/CK LVL 10 */
 	hdmi_phy_i2c_write(hdmi, 0x01ad, 0x0E);  /* VLEVCTRL */
+
+	/* Board specific setting for PHY register 0x09, 0x0e to pass HCT */
+	if (hdmi->phy_config.reg_cksymtx != 0)
+		hdmi_phy_i2c_write(hdmi, hdmi->phy_config.reg_cksymtx, 0x09);
+
+	if (hdmi->phy_config.reg_vlev != 0)
+		hdmi_phy_i2c_write(hdmi, hdmi->phy_config.reg_vlev, 0x0E);
+
 	/* REMOVE CLK TERM */
 	hdmi_phy_i2c_write(hdmi, 0x8000, 0x05);  /* CKCALCTRL */
 
@@ -2188,6 +2204,10 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	/* Initialize HDMI */
 	if (plat->init)
 		plat->init(mxc_hdmi_ipu_id, mxc_hdmi_disp_id);
+
+	/* Specific phy config */
+	hdmi->phy_config.reg_cksymtx = plat->phy_reg_cksymtx;
+	hdmi->phy_config.reg_vlev = plat->phy_reg_vlev;
 
 	hdmi->hdmi_isfr_clk = clk_get(&hdmi->pdev->dev, "hdmi_isfr_clk");
 	if (IS_ERR(hdmi->hdmi_isfr_clk)) {
