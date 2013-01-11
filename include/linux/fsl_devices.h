@@ -6,7 +6,7 @@
  *
  * Maintainer: Kumar Gala <galak@kernel.crashing.org>
  *
- * Copyright 2004-2012 Freescale Semiconductor, Inc.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -284,6 +284,9 @@ struct fsl_mxc_hdmi_platform_data {
 	void (*put_pins) (void);
 	void (*enable_pins) (void);
 	void (*disable_pins) (void);
+	/* HDMI PHY register config for pass HCT */
+	u16 phy_reg_vlev;
+	u16 phy_reg_cksymtx;
 };
 
 struct fsl_mxc_hdmi_core_platform_data {
