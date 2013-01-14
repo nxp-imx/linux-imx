@@ -28,6 +28,7 @@
 #include <linux/mman.h>
 #include <linux/slab.h>
 #include <mach/hardware.h>
+#include <linux/pm_runtime.h>
 
 #define _GC_OBJ_ZONE    gcvZONE_DEVICE
 
@@ -359,9 +360,14 @@ gckGALDEVICE_Construct(
 	 	gckDebugFileSystemSetCurrentNode(device->dbgnode);
 	}
     }
+#ifdef CONFIG_PM
+    /*Init runtime pm for gpu*/
+    pm_runtime_enable(pdev);
+    device->pmdev = pdev;
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
     device->gpu_regulator =(struct regulator*)0xffffffff ;
-
 #else
     /*get gpu regulator*/
     device->gpu_regulator = regulator_get(pdev, "cpu_vddgpu");
