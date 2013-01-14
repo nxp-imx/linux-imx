@@ -39,6 +39,7 @@
 #include <linux/math64.h>
 #endif
 #include <linux/delay.h>
+#include <linux/pm_runtime.h>
 
 #define _GC_OBJ_ZONE    gcvZONE_OS
 
@@ -6738,9 +6739,14 @@ gckOS_SetGPUPower(
         }
 #endif
     }
-	if((Power == gcvTRUE) && (oldPowerState == gcvFALSE) &&
-		!IS_ERR(Os->device->gpu_regulator))
+	if((Power == gcvTRUE) && (oldPowerState == gcvFALSE))
+	{
+		if(!IS_ERR(Os->device->gpu_regulator))
             regulator_enable(Os->device->gpu_regulator);
+#ifdef CONFIG_PM
+		pm_runtime_get_sync(Os->device->pmdev);
+#endif
+	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
     if (Clock == gcvTRUE) {
@@ -6843,9 +6849,14 @@ gckOS_SetGPUPower(
         }
     }
 #endif
-	if((Power == gcvFALSE) && (oldPowerState == gcvTRUE) &&
-		!IS_ERR(Os->device->gpu_regulator))
+	if((Power == gcvFALSE) && (oldPowerState == gcvTRUE))
+	{
+#ifdef CONFIG_PM
+		pm_runtime_put_sync(Os->device->pmdev);
+#endif
+		if(!IS_ERR(Os->device->gpu_regulator))
             regulator_disable(Os->device->gpu_regulator);
+	}
     /* TODO: Put your code here. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;

@@ -43,9 +43,10 @@
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
 #include <mach/viv_gpu.h>
+#else
+#include <linux/pm_runtime.h>
+#include <mach/busfreq.h>
 #endif
-
-
 /* Zone used for header/footer. */
 #define _GC_OBJ_ZONE    gcvZONE_DRIVER
 
@@ -1164,6 +1165,24 @@ static const struct of_device_id mxs_gpu_dt_ids[] = {
 	{/* sentinel */}
 };
 MODULE_DEVICE_TABLE(of, mxs_gpu_dt_ids);
+
+#ifdef CONFIG_PM
+int gpu_runtime_suspend(struct device *dev)
+{
+	release_bus_freq(BUS_FREQ_HIGH);
+	return 0;
+}
+
+int gpu_runtime_resume(struct device *dev)
+{
+	request_bus_freq(BUS_FREQ_HIGH);
+	return 0;
+}
+
+static const struct dev_pm_ops gpu_pm_ops = {
+	SET_RUNTIME_PM_OPS(gpu_runtime_suspend, gpu_runtime_resume, NULL)
+};
+#endif
 #endif
 
 static struct platform_driver gpu_driver = {
@@ -1177,6 +1196,9 @@ static struct platform_driver gpu_driver = {
         .name   = DEVICE_NAME,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
 		.of_match_table = mxs_gpu_dt_ids,
+#if CONFIG_PM
+		.pm		= &gpu_pm_ops,
+#endif
 #endif
     }
 };

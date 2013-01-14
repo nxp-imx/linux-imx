@@ -93,6 +93,8 @@ typedef struct _gckGALDEVICE
     /*Power management.*/
     struct regulator      *gpu_regulator;
 
+	/*Run time pm*/
+	struct device		*pmdev;
 }
 * gckGALDEVICE;
 
