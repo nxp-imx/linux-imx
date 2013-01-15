@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -2183,7 +2183,7 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 			(ipu->thrd_chan_en[IPU_CHAN_ID(channel)] &&
 			idma_is_set(ipu, IDMAC_CHA_BUSY, thrd_dma))) {
 			uint32_t irq = 0xffffffff;
-			int timeout = 50;
+			int timeout = 50000;
 
 			if (idma_is_set(ipu, IDMAC_CHA_BUSY, out_dma))
 				irq = out_dma;
@@ -2209,7 +2209,7 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 			while (((ipu_cm_read(ipu, IPUIRQ_2_STATREG(irq))
 				& IPUIRQ_2_MASK(irq)) == 0) &&
 				(idma_is_set(ipu, IDMAC_CHA_BUSY, irq))) {
-				msleep(10);
+				udelay(10);
 				timeout -= 10;
 				if (timeout <= 0) {
 					ipu_dump_registers(ipu);
@@ -2217,6 +2217,7 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 					break;
 				}
 			}
+			dev_dbg(ipu->dev, "wait_time:%d\n", 50000 - timeout);
 
 		}
 	}
