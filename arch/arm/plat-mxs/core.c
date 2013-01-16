@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,8 @@
 
 #include <mach/hardware.h>
 #include <mach/regs-rtc.h>
+#include <mach/../../regs-clkctrl.h>
+
 
 void (*machine_arch_reset) (char mode, const char *cmd);
 
@@ -38,11 +40,9 @@ void arch_reset(char mode, const char *cmd)
 	if (machine_arch_reset)
 		machine_arch_reset(mode, cmd);
 	else {
-		void *base = IO_ADDRESS(RTC_PHYS_ADDR);
+		void *base = IO_ADDRESS(CLKCTRL_PHYS_ADDR);
+		__raw_writel(BM_CLKCTRL_RESET_CHIP, base + HW_CLKCTRL_RESET);
 
-		__raw_writel(1, base + HW_RTC_WATCHDOG);
-		__raw_writel(0x80000000, base + HW_RTC_PERSISTENT1_SET);
-		__raw_writel(BM_RTC_CTRL_WATCHDOGEN, base + HW_RTC_CTRL_SET);
 	}
 	cpu_reset(0);
 }
