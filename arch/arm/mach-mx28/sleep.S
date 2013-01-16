@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -294,7 +294,6 @@ __mx28_temp_stack:
 
 	PM_BITS_SET     HW_POWER_MINPWR_ADDR, BM_POWER_MINPWR_LESSANA_I
 
-	PM_BITS_SET     HW_POWER_5VCTRL_ADDR, BM_POWER_5VCTRL_ILIMIT_EQ_ZERO
 	//Gated PLL0
 	PM_BITS_CLR	HW_CLKCTRL_PLL0CTRL0_ADDR, BM_CLKCTRL_PLL0CTRL0_POWER
 
@@ -346,7 +345,6 @@ __mx28_temp_stack:
 
 	PM_BITS_CLR     HW_POWER_MINPWR_ADDR, BM_POWER_MINPWR_LESSANA_I
 
-	PM_BITS_CLR     HW_POWER_5VCTRL_ADDR, BM_POWER_5VCTRL_ILIMIT_EQ_ZERO
 	// vddio
 	PM_SET_RESTORE_REG HW_POWER_VDDIOCTRL_ADDR, VDDIOCTRL_BACKUP
 77:
