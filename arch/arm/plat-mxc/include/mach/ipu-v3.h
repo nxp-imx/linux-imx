@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2010 Sascha Hauer <s.hauer@pengutronix.de>
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -419,10 +419,10 @@ typedef struct {
  * Enumeration of CSI data bus widths.
  */
 enum {
-	IPU_CSI_DATA_WIDTH_4,
-	IPU_CSI_DATA_WIDTH_8,
-	IPU_CSI_DATA_WIDTH_10,
-	IPU_CSI_DATA_WIDTH_16,
+	IPU_CSI_DATA_WIDTH_4 = 0,
+	IPU_CSI_DATA_WIDTH_8 = 1,
+	IPU_CSI_DATA_WIDTH_10 = 3,
+	IPU_CSI_DATA_WIDTH_16 = 9,
 };
 
 /*!
