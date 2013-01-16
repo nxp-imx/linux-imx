@@ -4,7 +4,7 @@
  * Author: Steve Longerbeam <stevel@embeddedalley.com>
  *
  * Copyright (C) 2008 EmbeddedAlley Solutions Inc.
- * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -814,13 +814,20 @@ static int mxs_bat_probe(struct platform_device *pdev)
 	struct mxs_info *info;
 	int ret = 0;
 	void *base = IO_ADDRESS(RTC_PHYS_ADDR);
-  int powersource = NORMAL_SOURCE;
 
 
 	/* enable usb device presence detection */
 	fsl_enable_usb_plugindetect();
 
+	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	if (!info)
+		return -ENOMEM;
 
+	info->powersource = NORMAL_SOURCE;
+
+	platform_set_drvdata(pdev, info);
+
+	mutex_init(&info->sm_lock);
 
 	/* check bit 11, bit 11 is set in power_prep.c if it is 5V only build.
 			we don't need initialize battery for 5V only build
@@ -830,7 +837,7 @@ static int mxs_bat_probe(struct platform_device *pdev)
 
 			/* InitializeFiqSystem(); */
 			ddi_power_InitOutputBrownouts();
-			powersource = NO_DCDC_BATT_SOURCE;
+			info->powersource = NO_DCDC_BATT_SOURCE;
 		return 0;
 	}
 
@@ -838,7 +845,7 @@ static int mxs_bat_probe(struct platform_device *pdev)
     */
 	if ((__raw_readl(base + HW_RTC_PERSISTENT1) & 0x1000)) {
 			__raw_writel(0x1000, base + HW_RTC_PERSISTENT1_CLR);
-			powersource = NO_VDD5V_SOURCE;
+			info->powersource = NO_VDD5V_SOURCE;
 	}
 
 
@@ -848,17 +855,11 @@ static int mxs_bat_probe(struct platform_device *pdev)
 		return 1;
 	}
 
-
 	if (!pdev->dev.platform_data) {
 		printk(KERN_ERR "%s: missing platform data\n", __func__);
-		return -ENODEV;
+		ret = -ENODEV;
+		goto free_info;
 	}
-
-	info = kzalloc(sizeof(*info), GFP_KERNEL);
-	if (!info)
-		return -ENOMEM;
-
-	info->powersource = powersource;
 
 	info->irq_vdd5v = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (info->irq_vdd5v == NULL) {
@@ -906,9 +907,6 @@ static int mxs_bat_probe(struct platform_device *pdev)
 	}
 #endif
 
-
-	platform_set_drvdata(pdev, info);
-
 	info->dev    = &pdev->dev;
 	info->sm_cfg = pdev->dev.platform_data;
 
@@ -937,7 +935,6 @@ static int mxs_bat_probe(struct platform_device *pdev)
 	info->sm_timer.data = (unsigned long)info;
 	info->sm_timer.function = state_machine_timer;
 
-	mutex_init(&info->sm_lock);
 	INIT_WORK(&info->sm_work, state_machine_work);
 
 	/* init LRADC channels to measure battery voltage and die temp */
@@ -1131,11 +1128,11 @@ static int mxs_bat_suspend(struct platform_device *pdev, pm_message_t msg)
 	mutex_lock(&info->sm_lock);
 
 	/* enable USB 5v wake up so don't disable irq here*/
-
-	ddi_bc_SetDisable();
-	/* cancel state machine timer */
-	del_timer_sync(&info->sm_timer);
-
+	if (info->powersource == NORMAL_SOURCE) {
+		ddi_bc_SetDisable();
+		/* cancel state machine timer */
+		del_timer_sync(&info->sm_timer);
+	}
 	backup_power_reg(info);
 
 	mutex_unlock(&info->sm_lock);
@@ -1150,39 +1147,43 @@ static int mxs_bat_resume(struct platform_device *pdev)
 	mutex_lock(&info->sm_lock);
 
 	resume_power_reg(info);
-	if (is_ac_online()) {
-		/* ac supply connected */
-		dev_dbg(info->dev, "ac/5v present, enabling state machine\n");
 
-		info->is_ac_online = 1;
-		info->is_usb_online = 0;
-		ddi_bc_SetCurrentLimit(
-			NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA /*mA*/);
-		ddi_bc_SetEnable();
-	} else if (is_usb_online()) {
-		/* usb supply connected */
-		dev_dbg(info->dev, "usb/5v present, enabling state machine\n");
+	if (info->powersource == NORMAL_SOURCE) {
+		if (is_ac_online()) {
+			/* ac supply connected */
+			dev_dbg(info->dev,
+				"ac/5v present, enabling state machine\n");
 
-		info->is_ac_online = 0;
-		info->is_usb_online = 1;
-		ddi_bc_SetCurrentLimit(POWERED_USB_5V_CURRENT_LIMIT_MA /*mA*/);
-		ddi_bc_SetEnable();
-	} else {
-		/* not powered */
-		dev_dbg(info->dev, "%s: 5v not present\n", __func__);
+			info->is_ac_online = 1;
+			info->is_usb_online = 0;
+			ddi_bc_SetCurrentLimit(
+				NON_USB_5V_SUPPLY_CURRENT_LIMIT_MA /*mA*/);
+			ddi_bc_SetEnable();
+		} else if (is_usb_online()) {
+			/* usb supply connected */
+			dev_dbg(info->dev,
+				"usb/5v present, enabling state machine\n");
 
-		info->is_ac_online = 0;
-		info->is_usb_online = 0;
+			info->is_ac_online = 0;
+			info->is_usb_online = 1;
+			ddi_bc_SetCurrentLimit(POWERED_USB_5V_CURRENT_LIMIT_MA /*mA*/);
+			ddi_bc_SetEnable();
+		} else {
+			/* not powered */
+			dev_dbg(info->dev, "%s: 5v not present\n", __func__);
+
+			info->is_ac_online = 0;
+			info->is_usb_online = 0;
+		}
+
+		/* enable 5v irq */
+		__raw_writel(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO,
+			REGS_POWER_BASE + HW_POWER_CTRL_SET);
+
+		/* reschedule calls to state machine */
+		mod_timer(&info->sm_timer,
+			jiffies + msecs_to_jiffies(cfg->u32StateMachinePeriod));
 	}
-
-	/* enable 5v irq */
-	__raw_writel(BM_POWER_CTRL_ENIRQ_VDD5V_GT_VDDIO,
-		REGS_POWER_BASE + HW_POWER_CTRL_SET);
-
-	/* reschedule calls to state machine */
-	mod_timer(&info->sm_timer,
-		  jiffies + msecs_to_jiffies(cfg->u32StateMachinePeriod));
-
 	mutex_unlock(&info->sm_lock);
 	return 0;
 }
