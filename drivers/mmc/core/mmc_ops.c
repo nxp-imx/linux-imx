@@ -440,6 +440,12 @@ int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 	if (!use_busy_signal)
 		return 0;
 
+	/*
+	 * WORKAROUND: for Sandisk eMMC cards, it might need certain delay
+	 * before sending CMD13 after CMD6
+	 */
+	mdelay(1);
+
 	/* Must check status to be sure of no errors */
 	timeout = jiffies + msecs_to_jiffies(MMC_OPS_TIMEOUT_MS);
 	do {
