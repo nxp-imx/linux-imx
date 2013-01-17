@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2006-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -553,59 +553,58 @@ static int vpu_release(struct inode *inode, struct file *filp)
 
 		/* Wait for vpu go to idle state */
 		clk_enable(vpu_clk);
-		timeout = jiffies + HZ;
-		while (READ_REG(BIT_BUSY_FLAG)) {
-			msleep(1);
-			if (time_after(jiffies, timeout)) {
-				printk(KERN_WARNING "VPU timeout during release\n");
-				break;
-			}
-		}
-		clk_disable(vpu_clk);
+		if (READ_REG(BIT_CUR_PC)) {
 
-		/* Clean up interrupt */
-		cancel_work_sync(&vpu_data.work);
-		flush_workqueue(vpu_data.workqueue);
-		irq_status = 0;
-
-		clk_enable(vpu_clk);
-		if (READ_REG(BIT_BUSY_FLAG)) {
-
-			if (cpu_is_mx51() || cpu_is_mx53()) {
-				printk(KERN_ERR
-					"fatal error: can't gate/power off when VPU is busy\n");
-				clk_disable(vpu_clk);
-				mutex_unlock(&vpu_data.lock);
-				return -EFAULT;
-			}
-
-#ifdef CONFIG_SOC_IMX6Q
-			if (cpu_is_mx6dl() || cpu_is_mx6q()) {
-				WRITE_REG(0x11, 0x10F0);
-				timeout = jiffies + HZ;
-				while (READ_REG(0x10F4) != 0x77) {
-					msleep(1);
-					if (time_after(jiffies, timeout))
-						break;
+			timeout = jiffies + HZ;
+			while (READ_REG(BIT_BUSY_FLAG)) {
+				msleep(1);
+				if (time_after(jiffies, timeout)) {
+					printk(KERN_WARNING "VPU timeout during release\n");
+					break;
 				}
+			}
+			clk_disable(vpu_clk);
 
-				if (READ_REG(0x10F4) != 0x77) {
+			/* Clean up interrupt */
+			cancel_work_sync(&vpu_data.work);
+			flush_workqueue(vpu_data.workqueue);
+			irq_status = 0;
+
+			clk_enable(vpu_clk);
+			if (READ_REG(BIT_BUSY_FLAG)) {
+
+				if (cpu_is_mx51() || cpu_is_mx53()) {
 					printk(KERN_ERR
 						"fatal error: can't gate/power off when VPU is busy\n");
-					WRITE_REG(0x0, 0x10F0);
 					clk_disable(vpu_clk);
 					mutex_unlock(&vpu_data.lock);
 					return -EFAULT;
-				} else {
-					if (vpu_plat->reset)
-						vpu_plat->reset();
-					WRITE_REG(0x1, BIT_BUSY_FLAG);
-					WRITE_REG(0x1, BIT_CODE_RUN);
-					while (READ_REG(BIT_BUSY_FLAG))
-						;
 				}
-			}
+
+#ifdef CONFIG_SOC_IMX6Q
+				if (cpu_is_mx6dl() || cpu_is_mx6q()) {
+					WRITE_REG(0x11, 0x10F0);
+					timeout = jiffies + HZ;
+					while (READ_REG(0x10F4) != 0x77) {
+						msleep(1);
+						if (time_after(jiffies, timeout))
+							break;
+					}
+
+					if (READ_REG(0x10F4) != 0x77) {
+						printk(KERN_ERR
+							"fatal error: can't gate/power off when VPU is busy\n");
+						WRITE_REG(0x0, 0x10F0);
+						clk_disable(vpu_clk);
+						mutex_unlock(&vpu_data.lock);
+						return -EFAULT;
+					} else {
+						if (vpu_plat->reset)
+							vpu_plat->reset();
+					}
+				}
 #endif
+			}
 		}
 		clk_disable(vpu_clk);
 
