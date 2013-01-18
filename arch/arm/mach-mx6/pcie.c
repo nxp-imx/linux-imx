@@ -466,7 +466,13 @@ imx_pcie_scan_bus(int nr, struct pci_sys_data *sys)
 
 static int __init imx_pcie_map_irq(struct pci_dev *dev, u8 slot, u8 pin)
 {
-	return MXC_INT_PCIE_3;
+       switch (pin) {
+       case 1: return MXC_INT_PCIE_3;
+       case 2: return MXC_INT_PCIE_2;
+       case 3: return MXC_INT_PCIE_1;
+       case 4: return MXC_INT_PCIE_0;
+       default: return -1;
+       }
 }
 
 static struct hw_pci imx_pci __initdata = {
