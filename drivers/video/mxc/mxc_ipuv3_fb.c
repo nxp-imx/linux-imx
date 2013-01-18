@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -481,6 +481,14 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	ipu_disable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_nf_irq);
 	ipu_disable_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch, true);
 	ipu_uninit_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch);
+
+	/*
+	 * Disable IPU hsp clock if it is enabled for an
+	 * additional time in ipu common driver.
+	 */
+	if (mxc_fbi->first_set_par && mxc_fbi->late_init)
+		ipu_disable_hsp_clk(mxc_fbi->ipu);
+
 	mxcfb_set_fix(fbi);
 
 	mem_len = fbi->var.yres_virtual * fbi->fix.line_length;
@@ -2035,15 +2043,7 @@ static int mxcfb_register(struct fb_info *fbi)
 		/*
 		 * Setup the channel again though bootloader
 		 * has done this, then set_par() can stop the
-		 * channel and re-initialize it. Moreover,
-		 * ipu_init_channel() enables ipu hsp clock,
-		 * so we may keep the clock on until user
-		 * space triggers set_par(), i.e., any ipu
-		 * interface which enables/disables ipu hsp
-		 * clock with pair(called in IPUv3 fb driver
-		 * or mxc v4l2 driver<probed after fb driver>)
-		 * cannot eventually disables the clock to
-		 * damage the channel.
+		 * channel neatly and re-initialize it .
 		 */
 		if (mxcfbi->next_blank == FB_BLANK_UNBLANK) {
 			console_lock();
