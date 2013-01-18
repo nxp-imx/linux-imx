@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2010 Sascha Hauer <s.hauer@pengutronix.de>
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -587,6 +587,7 @@ struct ipu_soc;
 struct ipu_soc *ipu_get_soc(int id);
 int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel_params_t *params);
 void ipu_uninit_channel(struct ipu_soc *ipu, ipu_channel_t channel);
+void ipu_disable_hsp_clk(struct ipu_soc *ipu);
 
 static inline bool ipu_can_rotate_in_place(ipu_rotate_mode_t rot)
 {
