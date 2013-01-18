@@ -163,8 +163,18 @@ static int __devinit ipu_clk_setup_enable(struct ipu_soc *ipu,
 	clk_debug_register(&ipu->pixel_clk[0]);
 	clk_debug_register(&ipu->pixel_clk[1]);
 
-	if (!plat_data->bypass_reset)
-		clk_enable(ipu->ipu_clk);
+	/*
+	 * Enable ipu hsp clock anyway, so that we
+	 * may keep the clock on until user space
+	 * triggers frame buffer set_par(), i.e., any
+	 * ipu interface which enables/disables ipu
+	 * hsp clock with pair(called in IPUv3 fb
+	 * driver or mxc v4l2 driver<probed after fb
+	 * driver>) cannot eventually disables the
+	 * clock to damage the channel setup by
+	 * bootloader.
+	 */
+	clk_enable(ipu->ipu_clk);
 
 	ipu->pixel_clk[0].parent = ipu->ipu_clk;
 	ipu->pixel_clk[1].parent = ipu->ipu_clk;
@@ -202,6 +212,12 @@ void _ipu_put(struct ipu_soc *ipu)
 {
 	clk_disable(ipu->ipu_clk);
 }
+
+void ipu_disable_hsp_clk(struct ipu_soc *ipu)
+{
+	_ipu_put(ipu);
+}
+EXPORT_SYMBOL(ipu_disable_hsp_clk);
 
 /*!
  * This function is called by the driver framework to initialize the IPU
