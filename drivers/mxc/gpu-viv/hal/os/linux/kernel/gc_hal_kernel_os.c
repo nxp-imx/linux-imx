@@ -38,8 +38,12 @@
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23)
 #include <linux/math64.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+#include <mach/common.h>
+#endif
 #include <linux/delay.h>
 #include <linux/pm_runtime.h>
+
 
 #define _GC_OBJ_ZONE    gcvZONE_OS
 
@@ -6886,10 +6890,10 @@ gckOS_ResetGPU(
     IN gceCORE Core
     )
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
 #define SRC_SCR_OFFSET 0
 #define BP_SRC_SCR_GPU3D_RST 1
 #define BP_SRC_SCR_GPU2D_RST 4
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
     void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
     gctUINT32 bit_offset,val;
 
@@ -6913,6 +6917,8 @@ gckOS_ResetGPU(
     }
 
     gcmkFOOTER_NO();
+#else
+    imx_src_reset_gpu((int)Core);
 #endif
     return gcvSTATUS_OK;
 }
