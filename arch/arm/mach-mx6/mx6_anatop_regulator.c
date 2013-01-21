@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -42,6 +42,9 @@
 #define GPC_PGC_GPU_PGCR_OFFSET	0x260
 #define GPC_CNTR_OFFSET		0x0
 
+#define LDO_RAMP_UP_UNIT_IN_CYCLES	64 /* 64 cycles per step */
+#define LDO_RAMP_UP_FREQ_IN_MHZ		24 /* time base on 24M OSC */
+
 extern struct platform_device sgtl5000_vdda_reg_devices;
 extern struct platform_device sgtl5000_vddio_reg_devices;
 extern struct platform_device sgtl5000_vddd_reg_devices;
@@ -79,6 +82,7 @@ static int get_voltage(struct anatop_regulator *sreg)
 static int set_voltage(struct anatop_regulator *sreg, int uv)
 {
 	u32 val, reg;
+	u32 delay, steps, old_val;
 
 	pr_debug("%s: uv %d, min %d, max %d\n", __func__,
 		uv, sreg->rdata->min_voltage, sreg->rdata->max_voltage);
@@ -94,8 +98,56 @@ static int set_voltage(struct anatop_regulator *sreg, int uv)
 			~(sreg->rdata->vol_bit_mask <<
 			sreg->rdata->vol_bit_shift));
 		pr_debug("%s: calculated val %d\n", __func__, val);
+
+		old_val = (__raw_readl(sreg->rdata->control_reg) >>
+			sreg->rdata->vol_bit_shift) & sreg->rdata->vol_bit_mask;
+
 		__raw_writel((val << sreg->rdata->vol_bit_shift) | reg,
 			     sreg->rdata->control_reg);
+
+		if (sreg->rdata->control_reg == (unsigned int)(MXC_PLL_BASE +
+			HW_ANADIG_REG_CORE)) {
+			/* calculate how many steps to ramp up */
+			steps = (val > old_val) ? val - old_val : 0;
+			if (steps) {
+				switch (sreg->rdata->vol_bit_shift) {
+				case BP_ANADIG_REG_CORE_REG0_TRG:
+				reg = (__raw_readl(MXC_PLL_BASE +
+					HW_ANADIG_ANA_MISC2) &
+					BM_ANADIG_ANA_MISC2_REG0_STEP_TIME) >>
+					BP_ANADIG_ANA_MISC2_REG0_STEP_TIME;
+					break;
+				case BP_ANADIG_REG_CORE_REG1_TRG:
+				reg = (__raw_readl(MXC_PLL_BASE +
+					HW_ANADIG_ANA_MISC2) &
+					BM_ANADIG_ANA_MISC2_REG1_STEP_TIME) >>
+					BP_ANADIG_ANA_MISC2_REG1_STEP_TIME;
+					break;
+				case BP_ANADIG_REG_CORE_REG2_TRG:
+				reg = (__raw_readl(MXC_PLL_BASE +
+					HW_ANADIG_ANA_MISC2) &
+					BM_ANADIG_ANA_MISC2_REG2_STEP_TIME) >>
+					BP_ANADIG_ANA_MISC2_REG2_STEP_TIME;
+					break;
+				default:
+					break;
+				}
+
+				/*
+				 * the delay time for LDO ramp up time is
+				 * based on the register setting, we need
+				 * to calculate how many steps LDO need to
+				 * ramp up, and how much delay needs. (us)
+				 */
+				delay = steps * ((LDO_RAMP_UP_UNIT_IN_CYCLES <<
+					reg) / LDO_RAMP_UP_FREQ_IN_MHZ + 1);
+				udelay(delay);
+				pr_debug("%s: %s: delay %d, steps %d, uv %d\n",
+					__func__, sreg->rdata->name, delay,
+					steps, uv);
+			}
+		}
+
 		return 0;
 	} else {
 		pr_debug("Regulator not supported.\n");
@@ -532,6 +584,8 @@ static struct anatop_regulator vdd3p0_reg = {
 
 static int __init regulators_init(void)
 {
+	unsigned int reg;
+
 	anatop_register_regulator(&vddpu_reg, ANATOP_VDDPU, &vddpu_init);
 	anatop_register_regulator(&vddcore_reg, ANATOP_VDDCORE, &vddcore_init);
 	anatop_register_regulator(&vddsoc_reg, ANATOP_VDDSOC, &vddsoc_init);
@@ -539,7 +593,19 @@ static int __init regulators_init(void)
 	anatop_register_regulator(&vdd1p1_reg, ANATOP_VDD1P1, &vdd1p1_init);
 	anatop_register_regulator(&vdd3p0_reg, ANATOP_VDD3P0, &vdd3p0_init);
 
-	/* clear flag in boot*/
+	/* Set the REGx step time back to reset value,
+	 * as ROM may modify it according to fuse setting,
+	 * so we need to set it back, otherwise, the delay
+	 * time in cpu freq change will be impacted, the reset
+	 * value is 0'b00, 64 cycles of 24M clock.
+	 */
+	reg = __raw_readl(ANADIG_MISC2_REG);
+	reg &= ~ANADIG_ANA_MISC2_REG0_STEP_TIME_MASK;
+	reg &= ~ANADIG_ANA_MISC2_REG1_STEP_TIME_MASK;
+	reg &= ~ANADIG_ANA_MISC2_REG2_STEP_TIME_MASK;
+	__raw_writel(reg, ANADIG_MISC2_REG);
+
+	/* clear flag in boot */
 	pu_is_enabled = 0;
 	get_clk = 0;
 	return 0;
