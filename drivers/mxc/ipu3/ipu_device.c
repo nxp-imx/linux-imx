@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1856,6 +1856,7 @@ static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	int out_uoff = 0, out_voff = 0, out_rot;
 	int out_w = 0, out_h = 0, out_stride;
 	int out_fmt;
+	u32 vdi_frame_idx = 0;
 
 	memset(&params, 0, sizeof(params));
 
@@ -1908,6 +1909,19 @@ static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		}
 	}
 
+	if (t->input.deinterlace.enable) {
+		if (t->input.deinterlace.field_fmt & IPU_DEINTERLACE_FIELD_MASK)
+			params.mem_prp_vf_mem.field_fmt =
+				IPU_DEINTERLACE_FIELD_BOTTOM;
+		else
+			params.mem_prp_vf_mem.field_fmt =
+				IPU_DEINTERLACE_FIELD_TOP;
+
+		if (t->input.deinterlace.field_fmt & IPU_DEINTERLACE_RATE_EN)
+			vdi_frame_idx = t->input.deinterlace.field_fmt &
+						IPU_DEINTERLACE_RATE_FRAME1;
+	}
+
 	if (t->set.mode & VDOA_MODE)
 		ipu->vdoa_en = 1;
 
@@ -1921,13 +1935,6 @@ static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	}
 
 	if (deinterlace_3_field(t)) {
-		if (IPU_DEINTERLACE_FIELD_TOP == t->input.deinterlace.field_fmt)
-			params.mem_prp_vf_mem.field_fmt = V4L2_FIELD_INTERLACED_TB;
-		else if (IPU_DEINTERLACE_FIELD_BOTTOM == t->input.deinterlace.field_fmt)
-			params.mem_prp_vf_mem.field_fmt = V4L2_FIELD_INTERLACED_BT;
-		else
-			dev_err(t->dev, "ERR[no-0x%x]invalid field fmt:0x%x!\n",
-				t->task_no, t->input.deinterlace.field_fmt);
 		ret = ipu_init_channel(ipu, t->set.vdi_ic_p_chan, &params);
 		if (ret < 0) {
 			t->state = STATE_INIT_CHAN_FAIL;
@@ -1949,13 +1956,57 @@ static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	} else {
 		if ((deinterlace_3_field(t)) &&
 			(IPU_PIX_FMT_TILED_NV12F != t->input.format)) {
-				inbuf_p = t->input.paddr + t->set.istride +
-						t->set.i_off;
-				inbuf = t->input.paddr_n + t->set.i_off;
-				inbuf_n = t->input.paddr_n + t->set.istride +
-						t->set.i_off;
-		} else
-			inbuf = t->input.paddr + t->set.i_off;
+			if (params.mem_prp_vf_mem.field_fmt ==
+				IPU_DEINTERLACE_FIELD_TOP) {
+				if (vdi_frame_idx) {
+					inbuf_p = t->input.paddr + t->set.istride +
+							t->set.i_off;
+					inbuf = t->input.paddr_n + t->set.i_off;
+					inbuf_n = t->input.paddr_n + t->set.istride +
+							t->set.i_off;
+					params.mem_prp_vf_mem.field_fmt =
+						IPU_DEINTERLACE_FIELD_BOTTOM;
+				} else {
+					inbuf_p = t->input.paddr + t->set.i_off;
+					inbuf = t->input.paddr + t->set.istride + t->set.i_off;
+					inbuf_n = t->input.paddr_n + t->set.i_off;
+				}
+			} else {
+				if (vdi_frame_idx) {
+					inbuf_p = t->input.paddr + t->set.i_off;
+					inbuf = t->input.paddr_n + t->set.istride + t->set.i_off;
+					inbuf_n = t->input.paddr_n + t->set.i_off;
+					params.mem_prp_vf_mem.field_fmt =
+						IPU_DEINTERLACE_FIELD_TOP;
+				} else {
+					inbuf_p = t->input.paddr + t->set.istride +
+							t->set.i_off;
+					inbuf = t->input.paddr + t->set.i_off;
+					inbuf_n = t->input.paddr_n + t->set.istride +
+							t->set.i_off;
+				}
+			}
+		} else {
+			if (t->input.deinterlace.enable) {
+				if (params.mem_prp_vf_mem.field_fmt ==
+					IPU_DEINTERLACE_FIELD_TOP) {
+					if (vdi_frame_idx) {
+						inbuf = t->input.paddr + t->set.istride + t->set.i_off;
+						params.mem_prp_vf_mem.field_fmt =
+							IPU_DEINTERLACE_FIELD_BOTTOM;
+					} else
+						inbuf = t->input.paddr + t->set.i_off;
+				} else {
+					if (vdi_frame_idx) {
+						inbuf = t->input.paddr + t->set.i_off;
+						params.mem_prp_vf_mem.field_fmt =
+							IPU_DEINTERLACE_FIELD_TOP;
+					} else
+						inbuf = t->input.paddr + t->set.istride + t->set.i_off;
+				}
+			} else
+				inbuf = t->input.paddr + t->set.i_off;
+		}
 
 		if (t->overlay_en)
 			ovbuf = t->overlay.paddr + t->set.ov_off;
