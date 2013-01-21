@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -117,7 +117,6 @@ int set_cpu_freq(int freq)
 			printk(KERN_DEBUG "COULD NOT SET GP VOLTAGE!!!!\n");
 			return ret;
 		}
-		udelay(50);
 	}
 	ret = clk_set_rate(cpu_clk, freq);
 	if (ret != 0) {
