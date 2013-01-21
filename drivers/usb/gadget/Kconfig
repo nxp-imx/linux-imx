@@ -499,14 +499,6 @@ config USB_ARC
 	default USB_GADGET
 	select USB_GADGET_SELECTED
 
-config WORKAROUND_ARCUSB_REG_RW
-        bool "work around mx28 arch register write"
-        depends on ARCH_MX28 && USB_ARC
-        default ARCH_MX28
-        help
-           MX28 require read ARC register before write. Use SWP intructure to
-           implement this requirement.
-
 config USB_GADGET_LANGWELL
 	boolean "Intel Langwell USB Device Controller"
 	depends on PCI
