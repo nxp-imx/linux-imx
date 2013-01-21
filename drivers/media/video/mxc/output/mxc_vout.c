@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -112,6 +112,7 @@ struct mxc_vout_output {
 	struct workqueue_struct *v4l_wq;
 	struct work_struct disp_work;
 	unsigned long frame_count;
+	unsigned long vdi_frame_cnt;
 	unsigned long start_jiffies;
 
 	int ctrl_rotate;
@@ -135,6 +136,7 @@ struct mxc_vout_dev {
 
 /* Variables configurable through module params*/
 static int debug;
+static int vdi_rate_double;
 static int video_nr = 16;
 
 /* Module parameters */
@@ -142,6 +144,8 @@ module_param(video_nr, int, S_IRUGO);
 MODULE_PARM_DESC(video_nr, "video device numbers");
 module_param(debug, int, 0600);
 MODULE_PARM_DESC(debug, "Debug level (0-1)");
+module_param(vdi_rate_double, int, 0600);
+MODULE_PARM_DESC(vdi_rate_double, "vdi frame rate double on/off");
 
 const static struct v4l2_fmtdesc mxc_formats[] = {
 	{
@@ -516,6 +520,9 @@ static void disp_work_func(struct work_struct *work)
 	struct ipu_pos ipos;
 	int ret = 0;
 	u32 in_fmt = 0;
+	u32 vdi_cnt = 0;
+	u32 vdi_frame;
+	u32 index = 0;
 	u32 ocrop_h = 0;
 	u32 o_height = 0;
 	u32 tiled_interlaced = 0;
@@ -549,6 +556,7 @@ static void disp_work_func(struct work_struct *work)
 
 	spin_unlock_irqrestore(q->irqlock, flags);
 
+vdi_frame_rate_double:
 	mutex_lock(&vout->task_lock);
 
 	if (vb->memory == V4L2_MEMORY_USERPTR)
@@ -556,6 +564,10 @@ static void disp_work_func(struct work_struct *work)
 	else
 		vout->task.input.paddr = videobuf_to_dma_contig(vb);
 
+	if (vout->task.input.deinterlace.field_fmt & IPU_DEINTERLACE_RATE_EN)
+		index = vout->vdi_frame_cnt % FB_BUFS;
+	else
+		index = vout->frame_count % FB_BUFS;
 	if (vout->linear_bypass_pp) {
 		vout->task.output.paddr = vout->task.input.paddr;
 		ipos.x = vout->task.input.crop.pos.x;
@@ -568,8 +580,7 @@ static void disp_work_func(struct work_struct *work)
 				vout->task.input.paddr_n =
 					videobuf_to_dma_contig(vb_next);
 		}
-		vout->task.output.paddr =
-			vout->disp_bufs[vout->frame_count % FB_BUFS];
+		vout->task.output.paddr = vout->disp_bufs[index];
 		if (vout->vdoa_1080p) {
 			o_height =  vout->task.output.height;
 			ocrop_h = vout->task.output.crop.h;
@@ -619,10 +630,24 @@ static void disp_work_func(struct work_struct *work)
 
 	mutex_unlock(&vout->task_lock);
 
-	ret = show_buf(vout, vout->frame_count % FB_BUFS, &ipos);
+	ret = show_buf(vout, index, &ipos);
 	if (ret < 0)
 		v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "show buf with ret %d\n", ret);
 
+	if (vout->task.input.deinterlace.field_fmt & IPU_DEINTERLACE_RATE_EN) {
+		vdi_frame = vout->task.input.deinterlace.field_fmt
+				& IPU_DEINTERLACE_RATE_FRAME1;
+		if (vdi_frame)
+			vout->task.input.deinterlace.field_fmt &=
+			~IPU_DEINTERLACE_RATE_FRAME1;
+		else
+			vout->task.input.deinterlace.field_fmt |=
+			IPU_DEINTERLACE_RATE_FRAME1;
+		vout->vdi_frame_cnt++;
+		vdi_cnt++;
+		if (vdi_cnt < IPU_DEINTERLACE_MAX_FRAME)
+			goto vdi_frame_rate_double;
+	}
 	spin_lock_irqsave(q->irqlock, flags);
 
 	list_del(&vb->queue);
@@ -862,6 +887,7 @@ static int mxc_vout_open(struct file *file)
 
 		vout->fmt_init = false;
 		vout->frame_count = 0;
+		vout->vdi_frame_cnt = 0;
 
 		vout->win_pos.x = 0;
 		vout->win_pos.y = 0;
@@ -1183,6 +1209,10 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 	default:
 		break;
 	}
+
+	if (vout->task.input.deinterlace.enable && vdi_rate_double)
+		vout->task.input.deinterlace.field_fmt |=
+				IPU_DEINTERLACE_RATE_EN;
 
 	if (f->fmt.pix.priv) {
 		vout->task.input.crop.pos.x = rect.left;
