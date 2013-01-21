@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -55,6 +55,7 @@
 #define PFD_528_BASE_ADDR		(MXC_PLL_BASE + 0x100)
 #define ANADIG_REG_CORE		(MXC_PLL_BASE + 0x140)
 #define ANADIG_MISC1_REG		(MXC_PLL_BASE + 0x160)
+#define ANADIG_MISC2_REG		(MXC_PLL_BASE + 0x170)
 #define ANATOP_LVDS_CLK1_SRC_SATA	0xB
 #define ANATOP_LVDS_CLK1_OBEN_MASK	0x400
 #define ANATOP_LVDS_CLK1_IBEN_MASK	0x1000
@@ -154,6 +155,9 @@
 #define ANADIG_ANA_MISC2_REG1_BO_EN			(1 << 13)
 #define ANADIG_ANA_MISC2_CONTROL3_MASK		0xC0000000
 #define ANADIG_ANA_MISC2_CONTROL3_OFFSET	30
+#define ANADIG_ANA_MISC2_REG0_STEP_TIME_MASK		0x30000000
+#define ANADIG_ANA_MISC2_REG1_STEP_TIME_MASK		0xC000000
+#define ANADIG_ANA_MISC2_REG2_STEP_TIME_MASK		0x3000000
 
 #define MXC_CCM_BASE		MX6_IO_ADDRESS(CCM_BASE_ADDR)
 /* CCM Register Offsets. */
