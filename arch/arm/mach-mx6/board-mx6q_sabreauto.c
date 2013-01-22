@@ -1704,6 +1704,14 @@ static void __init mx6_board_init(void)
 	imx6q_add_perfmon(0);
 	imx6q_add_perfmon(1);
 	imx6q_add_perfmon(2);
+
+	/* acquire this irq is want to let touch driver failed to
+	 * request this irq gpio, and the driver will disable suspend
+	 * funtion, to workaround sabreauto board have isssue on gpio
+	 * of touch use. */
+	gpio_request(SABREAUTO_CAP_TCH_INT, "touch irq");
+	gpio_direction_input(SABREAUTO_CAP_TCH_INT);
+
 }
 
 extern void __iomem *twd_base;
