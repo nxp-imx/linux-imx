@@ -592,6 +592,187 @@ static void qtd_list_free (
 	}
 }
 
+#ifdef CONFIG_FSL_USB_TEST_MODE
+/*
+ * create a list of filled qtds for this URB; won't link into qh.
+ */
+static struct list_head *
+single_step_qh_urb_transaction(
+	struct ehci_hcd		*ehci,
+	struct urb		*urb,
+	struct list_head	*head,
+	gfp_t			flags
+) {
+	struct ehci_qtd		*qtd, *qtd_prev;
+	dma_addr_t		buf;
+	int			len, this_sg_len, maxpacket;
+	int			is_input;
+	u32			token;
+	int			i;
+	struct scatterlist	*sg;
+#define SINGLE_STEP_PHASE_SETUP  0
+#define SINGLE_STEP_PHASE_DATA   1
+#define SINGLE_STEP_PHASE_STATUS 2
+#define SINGLE_STEP_PHASE_NONE   0xFF
+	static u32  phase_state = SINGLE_STEP_PHASE_NONE;
+
+	/*
+	 * URBs map to sequences of QTDs:  one logical transaction
+	 */
+	qtd = ehci_qtd_alloc(ehci, flags);
+	if (unlikely(!qtd))
+		return NULL;
+	list_add_tail(&qtd->qtd_list, head);
+	qtd->urb = urb;
+
+	token = QTD_STS_ACTIVE;
+	token |= (EHCI_TUNE_CERR << 10);
+	/* for split transactions, SplitXState initialized to zero */
+	len = urb->transfer_buffer_length;
+	is_input = usb_pipein(urb->pipe);
+	if (!is_input) {
+		printk(KERN_INFO "single step can only send IN\n");
+		return NULL;
+	}
+
+	if (!usb_pipecontrol(urb->pipe)) {
+		printk(KERN_INFO "single step can only send control pipe\n");
+		return NULL;
+	}
+
+	if (phase_state == SINGLE_STEP_PHASE_NONE) {
+		/*
+		 * SETUP pid
+		 * we use transfer_buffer_length to identfiy whether it
+		 * is in setup phase or data phase
+		 */
+		qtd_fill(ehci, qtd, urb->setup_dma,
+				sizeof(struct usb_ctrlrequest),
+				token | (2 /* "setup" */ << 8), 8);
+
+		/* ... and always at least one more pid */
+		qtd->urb = urb;
+		phase_state = SINGLE_STEP_PHASE_SETUP;
+	}
+	/*
+	 * data transfer stage:  buffer setup
+	 */
+	else
+		if (phase_state == SINGLE_STEP_PHASE_SETUP &&
+		len != 0) {
+		i = urb->num_sgs;
+		if (len > 0 && i > 0) {
+			sg = urb->sg;
+			buf = sg_dma_address(sg);
+
+			/* urb->transfer_buffer_length may be smaller than the
+			* size of the scatterlist (or vice versa)
+			*/
+			this_sg_len = min_t(int, sg_dma_len(sg), len);
+		} else {
+			sg = NULL;
+			buf = urb->transfer_dma;
+			this_sg_len = len;
+		}
+
+		if (is_input)
+			token |= (1 /* "in" */ << 8);
+		/* else it's already initted to "out" pid (0 << 8) */
+		maxpacket = max_packet(usb_maxpacket(urb->dev,
+						urb->pipe, !is_input));
+		/* for the first data qtd, the toggle should be 1 */
+		token ^= QTD_TOGGLE;
+
+		/*
+		 * buffer gets wrapped in one or more qtds;
+		 * last one may be "short" (including zero len)
+		 * and may serve as a control status ack
+		 */
+		for (;;) {
+			int this_qtd_len;
+
+			this_qtd_len = qtd_fill(ehci, qtd, buf, this_sg_len,
+							token, maxpacket);
+			this_sg_len -= this_qtd_len;
+			len -= this_qtd_len;
+			buf += this_qtd_len;
+
+			/*
+			* short reads advance to a "magic" dummy instead of
+			* the next qtd ... that forces the queue to stop, for
+			* manual cleanup. (will usually be overridden later.)
+			*/
+			if (is_input)
+				qtd->hw_alt_next = ehci->async->hw->hw_alt_next;
+
+			/* qh makes control packets use qtd toggle; switch it*/
+			if ((maxpacket & (this_qtd_len + (maxpacket - 1))) == 0)
+				token ^= QTD_TOGGLE;
+
+			if (likely(this_sg_len <= 0)) {
+				if (--i <= 0 || len <= 0)
+					break;
+				sg = sg_next(sg);
+				buf = sg_dma_address(sg);
+				this_sg_len = min_t(int, sg_dma_len(sg), len);
+			}
+
+			qtd_prev = qtd;
+			qtd = ehci_qtd_alloc(ehci, flags);
+			if (unlikely(!qtd))
+				goto cleanup;
+			qtd->urb = urb;
+			qtd_prev->hw_next = QTD_NEXT(ehci, qtd->qtd_dma);
+			list_add_tail(&qtd->qtd_list, head);
+		}
+
+		phase_state = SINGLE_STEP_PHASE_DATA;
+
+		/*
+		 * unless the caller requires manual cleanup after short reads,
+		 * have the alt_next mechanism keep the queue running after the
+		 * last data qtd (the only one, for control and other cases).
+		 */
+		if (likely((urb->transfer_flags & URB_SHORT_NOT_OK) == 0
+					|| usb_pipecontrol(urb->pipe)))
+			qtd->hw_alt_next = EHCI_LIST_END(ehci);
+	}
+
+	/*
+	 * control requests may need a terminating data "status" ack;
+	 * bulk ones may need a terminating short packet (zero length).
+	 */
+	else
+		if (phase_state == SINGLE_STEP_PHASE_DATA) {
+		int	one_more = 0;
+		if (usb_pipecontrol(urb->pipe)) {
+			one_more = 1;
+			/* for single step, it always be out here */
+			token &= ~(3 << 8);
+			token |= QTD_TOGGLE;	/* force DATA1 */
+		} else if (usb_pipebulk(urb->pipe)
+				&& (urb->transfer_flags & URB_ZERO_PACKET)
+				&& !(urb->transfer_buffer_length % maxpacket)) {
+			one_more = 1;
+		}
+		if (one_more) {
+			/* never any data in such packets */
+			qtd_fill(ehci, qtd, 0, 0, token, 0);
+		}
+	}
+
+	/* by default, enable interrupt on urb completion */
+	if (likely(!(urb->transfer_flags & URB_NO_INTERRUPT)))
+		qtd->hw_token |= cpu_to_hc32(ehci, QTD_IOC);
+	return head;
+
+cleanup:
+	qtd_list_free(ehci, urb, head);
+	phase_state = SINGLE_STEP_PHASE_NONE;
+	return NULL;
+}
+#endif
+
 /*
  * create a list of filled qtds for this URB; won't link into qh.
  */
