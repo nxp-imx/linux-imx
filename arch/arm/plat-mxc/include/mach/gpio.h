@@ -1,5 +1,5 @@
 /*
- * Copyright 2007-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2007-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -41,6 +41,7 @@ struct mxc_gpio_port {
 	u32 suspend_wakeup;
 	u32 saved_wakeup;
 	spinlock_t lock;
+	u32 dir;
 };
 
 int mxc_gpio_init(struct mxc_gpio_port*, int);
