@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -550,6 +550,24 @@ pfuze100_regulator_set_voltage(struct regulator_dev *rdev, int min_uV,
 
 }
 
+static int pfuze100_regulator_set_voltage_sel(struct regulator_dev *rdev,
+					      unsigned selector)
+{
+	struct pfuze_regulator_priv *priv = rdev_get_drvdata(rdev);
+	int  id = rdev_get_id(rdev);
+	int ret;
+
+	dev_dbg(rdev_get_dev(rdev), "%s id: %d vol: %d\n",
+		__func__, id, pfuze100_regulators[id].voltages[selector]);
+
+	pfuze_lock(priv->pfuze);
+	ret = pfuze_reg_rmw(priv->pfuze, pfuze100_regulators[id].reg,
+			    pfuze100_regulators[id].vsel_mask,
+			    selector << pfuze100_regulators[id].vsel_shift);
+	pfuze_unlock(priv->pfuze);
+	return ret;
+}
+
 static int pfuze100_regulator_get_voltage(struct regulator_dev *rdev)
 {
 	struct pfuze_regulator_priv *priv = rdev_get_drvdata(rdev);
@@ -567,6 +585,66 @@ static int pfuze100_regulator_get_voltage(struct regulator_dev *rdev)
 	dev_dbg(rdev_get_dev(rdev), "%s id: %d val: %d\n", __func__, id, val);
 	BUG_ON(val > pfuze100_regulators[id].desc.n_voltages);
 	return pfuze100_regulators[id].voltages[val];
+}
+
+static int pfuze100_regulator_get_voltage_sel(struct regulator_dev *rdev)
+{
+	struct pfuze_regulator_priv *priv = rdev_get_drvdata(rdev);
+	int id = rdev_get_id(rdev);
+	int ret;
+	unsigned char val;
+
+	pfuze_lock(priv->pfuze);
+	ret = pfuze_reg_read(priv->pfuze, pfuze100_regulators[id].reg, &val);
+	pfuze_unlock(priv->pfuze);
+	if (ret)
+		return ret;
+
+	val &= pfuze100_regulators[id].vsel_mask;
+	val >>= pfuze100_regulators[id].vsel_shift;
+	dev_dbg(rdev_get_dev(rdev), "%s id: %d, vol=%d\n", __func__, id,
+		pfuze100_regulators[id].voltages[val]);
+	return (int) val;
+}
+
+static int pfuze100_regulator_set_voltage_time_sel(struct regulator_dev *rdev,
+					     unsigned int old_sel,
+					     unsigned int new_sel)
+{
+	struct pfuze_regulator_priv *priv = rdev_get_drvdata(rdev);
+	int id = rdev_get_id(rdev);
+	int ret;
+	unsigned char step_delay;
+
+	pfuze_lock(priv->pfuze);
+	/*read SWxDVSSPEED from SWxCONF,got ramp step value*/
+	ret = pfuze_reg_read(priv->pfuze, pfuze100_regulators[id].reg + 0x4,
+				&step_delay);
+	pfuze_unlock(priv->pfuze);
+
+	if (ret)
+		return ret;
+	/*
+	 * one step
+	 * 00: 2us,
+	 * 01: 4us,
+	 * 02: 8us,
+	 * 03: 16us,
+	 */
+	step_delay >>= 5;
+	step_delay &= 0x3;
+	step_delay <<= 1;
+
+	if (pfuze100_regulators[id].voltages[old_sel] <
+		pfuze100_regulators[id].voltages[new_sel])
+		ret = DIV_ROUND_UP(pfuze100_regulators[id].voltages[new_sel] -
+			pfuze100_regulators[id].voltages[old_sel], 25000)
+			* step_delay;
+	else
+		ret = 0; /* no delay if voltage drop */
+	dev_dbg(rdev_get_dev(rdev), "%s id: %d, new_sel = %d, old_sel = %d, \
+		delay = %d\n", __func__, id, new_sel, old_sel, ret);
+	return ret;
 }
 
 static int pfuze100_regulator_ldo_standby_enable(struct regulator_dev *rdev)
@@ -681,11 +759,13 @@ static int pfuze100_regulator_sw_standby_disable(struct regulator_dev *rdev)
 static struct regulator_ops pfuze100_sw_regulator_ops = {
 	.is_enabled = pfuze100_sw_regulator_is_enabled,
 	.list_voltage = pfuze100_regulator_list_voltage,
-	.set_voltage = pfuze100_regulator_set_voltage,
-	.get_voltage = pfuze100_regulator_get_voltage,
+	.set_voltage_sel = pfuze100_regulator_set_voltage_sel,
+	.get_voltage_sel = pfuze100_regulator_get_voltage_sel,
 	.set_suspend_enable = pfuze100_regulator_sw_standby_enable,
 	.set_suspend_disable = pfuze100_regulator_sw_standby_disable,
 	.set_suspend_voltage = pfuze100_regulator_sw_standby_voltage,
+	.set_voltage_time_sel = pfuze100_regulator_set_voltage_time_sel,
+
 };
 
 static int __devinit pfuze100_regulator_probe(struct platform_device *pdev)
