@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -494,40 +494,29 @@ static int mxs_saif_prepare(struct snd_pcm_substream *substream,
 static int mxs_saif_trigger(struct snd_pcm_substream *substream, int cmd,
 				struct snd_soc_dai *cpu_dai)
 {
-	void __iomem *reg_data, *reg_ctrl;
-	struct mxs_saif *saif = (struct mxs_saif *)cpu_dai->private_data;
+	void __iomem *reg;
+	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		if (((saif->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) &&
-			(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) ||
-			((saif->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0)
-			&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE))) {
-			reg_data = (void __iomem *)SAIF0_DATA;
-			reg_ctrl = (void __iomem *)SAIF0_CTRL;
-		} else {
-			reg_data = (void __iomem *)SAIF1_DATA;
-			reg_ctrl = (void __iomem *)SAIF1_CTRL;
-		}
 
-		/*
-		 * FIXME: we need to toggle the RUN bit to restart saif
-		 * for playback, or the dma may hang abnormally in rare cases.
-		 * For capture, we still have to read some bits from
-		 * data register to trigger transfer.
-		 */
-		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			/* Toggle the RUN bit from 1 to 0. */
-			writel(1, reg_ctrl + HW_SAIF_CTRL_TOG);
+	 if (((saif_select->stream_mapping == PLAYBACK_SAIF0_CAPTURE_SAIF1) && \
+		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)) || \
+		((saif_select->stream_mapping == PLAYBACK_SAIF1_CAPTURE_SAIF0) \
+		&& (substream->stream == SNDRV_PCM_STREAM_CAPTURE)))
+			reg = (void __iomem *)SAIF0_DATA;
+		else
+			reg = (void __iomem *)SAIF1_DATA;
 
-			/* Toggle back the RUN bit from 0 to 1. */
-			writel(1, reg_ctrl + HW_SAIF_CTRL_TOG);
-		} else {
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			/*write a data to saif data register to trigger
+				the transfer*/
+			__raw_writel(0, reg);
+		else
 			/*read a data from saif data register to trigger
 				the receive*/
-			__raw_readl(reg_data);
-		}
+			__raw_readl(reg);
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_STOP:
