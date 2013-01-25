@@ -502,26 +502,8 @@ gckKERNEL_Destroy(
 #include <linux/sched.h>
 #include <linux/notifier.h>
 
-static struct task_struct *lowmem_deathpending;
+extern struct task_struct *lowmem_deathpending;
 static unsigned long lowmem_deathpending_timeout;
-
-static int
-task_notify_func(struct notifier_block *self, unsigned long val, void *data);
-
-static struct notifier_block task_nb = {
-	.notifier_call	= task_notify_func,
-};
-
-static int
-task_notify_func(struct notifier_block *self, unsigned long val, void *data)
-{
-	struct task_struct *task = data;
-
-	if (task == lowmem_deathpending)
-		lowmem_deathpending = NULL;
-
-	return NOTIFY_OK;
-}
 
 static int force_contiguous_lowmem_shrink(IN gckKERNEL Kernel)
 {
@@ -644,9 +626,6 @@ _AllocateMemory(
     gcuVIDMEM_NODE_PTR node = gcvNULL;
     gctBOOL tileStatusInVirtual;
     gctBOOL forceContiguous = gcvFALSE;
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
-    gctBOOL forceContiguousShrinking = gcvFALSE;
-#endif
 
     gcmkHEADER_ARG("Kernel=0x%x *Pool=%d Bytes=%lu Alignment=%lu Type=%d",
                    Kernel, *Pool, Bytes, Alignment, Type);
@@ -806,12 +785,6 @@ _AllocateMemory_Retry:
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
         if(forceContiguous == gcvTRUE)
         {
-            if(forceContiguousShrinking == gcvFALSE)
-            {
-                 forceContiguousShrinking = gcvTRUE;
-                 task_free_register(&task_nb);
-            }
-
             if(force_contiguous_lowmem_shrink(Kernel) == 0)
             {
                  /* Sleep 1 millisecond. */
@@ -823,13 +796,6 @@ _AllocateMemory_Retry:
         /* Nothing allocated. */
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
-
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
-    if(forceContiguous == gcvTRUE && forceContiguousShrinking == gcvTRUE)
-    {
-        task_free_unregister(&task_nb);
-    }
-#endif
 
     /* Return node and pool used for allocation. */
     *Node = node;

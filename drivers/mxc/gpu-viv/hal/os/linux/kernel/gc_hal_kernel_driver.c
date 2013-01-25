@@ -41,6 +41,31 @@
 
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
 #    include <linux/resmem_account.h>
+#    include <linux/kernel.h>
+#    include <linux/mm.h>
+#    include <linux/oom.h>
+#    include <linux/sched.h>
+#    include <linux/notifier.h>
+
+struct task_struct *lowmem_deathpending;
+
+static int
+task_notify_func(struct notifier_block *self, unsigned long val, void *data);
+
+static struct notifier_block task_nb = {
+	.notifier_call	= task_notify_func,
+};
+
+static int
+task_notify_func(struct notifier_block *self, unsigned long val, void *data)
+{
+	struct task_struct *task = data;
+
+	if (task == lowmem_deathpending)
+		lowmem_deathpending = NULL;
+
+	return NOTIFY_OK;
+}
 #endif
 
 
@@ -819,6 +844,7 @@ static int drv_init(void)
     }
 
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+    task_free_register(&task_nb);
     viv_gpu_resmem_handler.data = device->kernels[gcvCORE_MAJOR];
     register_reserved_memory_account(&viv_gpu_resmem_handler);
 #endif
@@ -904,6 +930,7 @@ static void drv_exit(void)
     gcmkHEADER();
 
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+    task_free_unregister(&task_nb);
     unregister_reserved_memory_account(&viv_gpu_resmem_handler);
 #endif
 
