@@ -1,7 +1,7 @@
 /*
  *  L2 switch Controller (Etheren switch) driver for Mx28.
  *
- *  Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *    Shrek Wu (B16972@freescale.com)
  *
  *  This program is free software; you can redistribute  it and/or modify it
@@ -349,7 +349,7 @@ static struct eswPortInfo *esw_portinfofifo_read(
 
 	fecp = fep->hwp;
 	if (readl(&fecp->ESW_LSR) == 0) {
-		printk(KERN_ERR "%s: ESW_LSR = %lx\n",
+		printk(KERN_ERR "%s: ESW_LSR = %x\n",
 			__func__, readl(&fecp->ESW_LSR));
 		return NULL;
 	}
@@ -973,7 +973,7 @@ static int esw_ip_snoop_config(struct switch_enet_private *fep,
 	protocol_type = ip_header_protocol;
 	writel(tmp | MCF_ESW_IPSNP_PROTOCOL(protocol_type),
 		 &fecp->ESW_IPSNP[num]);
-	printk(KERN_INFO "%s : ESW_IPSNP[%d] %#lx\n",
+	printk(KERN_INFO "%s : ESW_IPSNP[%d] %#x\n",
 		__func__, num, readl(&fecp->ESW_IPSNP[num]));
 	return 0;
 }
@@ -1237,10 +1237,10 @@ static int esw_port_mirroring_config(struct switch_enet_private *fep,
 
 
 	writel(tmp, &fecp->ESW_MCR);
-	printk(KERN_INFO "%s : MCR %#lx, EGMAP %#lx, INGMAP %#lx;\n"
-		"ENGSAH %#lx, ENGSAL %#lx ;ENGDAH %#lx, ENGDAL %#lx;\n"
-		"INGSAH %#lx, INGSAL %#lx\n;INGDAH %#lx, INGDAL %#lx;\n",
-		__func__, readl(fecp->ESW_MCR),
+	printk(KERN_INFO "%s : MCR %#x, EGMAP %#x, INGMAP %#x;\n"
+		"ENGSAH %#x, ENGSAL %#x ;ENGDAH %#x, ENGDAL %#x;\n"
+		"INGSAH %#x, INGSAL %#x\n;INGDAH %#x, INGDAL %#x;\n",
+		__func__, readl(&fecp->ESW_MCR),
 		readl(&fecp->ESW_EGMAP),
 		readl(&fecp->ESW_INGMAP),
 		readl(&fecp->ESW_ENGSAH),
@@ -1954,8 +1954,8 @@ void esw_check_rxb_txb_interrupt(struct switch_enet_private *fep)
 	writel(MCF_ESW_IMR_TXB | MCF_ESW_IMR_TXF |
 		MCF_ESW_IMR_LRN | MCF_ESW_IMR_RXB | MCF_ESW_IMR_RXF,
 		&fecp->switch_imask);
-	printk(KERN_ERR "%s: fecp->ESW_DBCR %#lx, fecp->ESW_P0FFEN %#lx"
-		" fecp->ESW_BKLR %#lx\n", __func__, fecp->ESW_DBCR,
+	printk(KERN_ERR "%s: fecp->ESW_DBCR %#lx, fecp->ESW_P0FFEN %#x"
+		" fecp->ESW_BKLR %#x\n", __func__, fecp->ESW_DBCR,
 		readl(&fecp->ESW_P0FFEN),
 		readl(&fecp->ESW_BKLR));
 }
