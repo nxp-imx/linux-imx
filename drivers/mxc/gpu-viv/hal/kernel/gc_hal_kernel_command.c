@@ -30,9 +30,6 @@
 
 #define _GC_OBJ_ZONE            gcvZONE_COMMAND
 
-#if gcdENABLE_FSCALE_VAL_ADJUST
-extern int thermal_hot;
-#endif
 /******************************************************************************\
 ********************************* Support Code *********************************
 \******************************************************************************/
@@ -1162,24 +1159,6 @@ gckCOMMAND_Commit(
 
     /* Extract the gckHARDWARE and gckEVENT objects. */
     hardware = Command->kernel->hardware;
-
-#if gcdENABLE_FSCALE_VAL_ADJUST
-    if(hardware->core == gcvCORE_MAJOR){
-        static gctUINT orgFscale,minFscale,maxFscale;
-        static gctBOOL bAlreadyTooHot = gcvFALSE;
-        if((thermal_hot > 0) && (!bAlreadyTooHot)) {
-            gckHARDWARE_GetFscaleValue(hardware,&orgFscale,&minFscale, &maxFscale);
-            gckHARDWARE_SetFscaleValue(hardware, minFscale);
-            bAlreadyTooHot = gcvTRUE;
-            gckOS_Print("System is too hot. GPU3D will work at %d/64 clock.\n", minFscale);
-        } else if((!(thermal_hot > 0)) && bAlreadyTooHot) {
-            gckHARDWARE_SetFscaleValue(hardware, orgFscale);
-            gckOS_Print("Hot alarm is canceled. GPU3D clock will return to %d/64\n", orgFscale);
-            bAlreadyTooHot = gcvFALSE;
-        }
-
-    }
-#endif
 
     /* Check wehther we need to copy the structures or not. */
     gcmkONERROR(gckOS_QueryNeedCopy(Command->os, ProcessID, &needCopy));
