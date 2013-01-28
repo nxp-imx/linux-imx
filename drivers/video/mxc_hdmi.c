@@ -185,9 +185,9 @@ struct mxc_hdmi {
 	struct fb_videomode previous_mode;
 	struct fb_videomode previous_non_vga_mode;
 	bool requesting_vga_for_initialization;
-	struct switch_dev sdev;
-
 	struct hdmi_phy_reg_config phy_config;
+	struct switch_dev sdev_audio;
+	struct switch_dev sdev_display;
 };
 
 struct i2c_client *hdmi_i2c;
@@ -1784,12 +1784,14 @@ static void hotplug_worker(struct work_struct *work)
 #endif
 			hdmi_set_cable_state(1);
 
-			switch_set_state(&hdmi->sdev, 1);
+			switch_set_state(&hdmi->sdev_audio, 1);
+			switch_set_state(&hdmi->sdev_display, 1);
 
 		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
 			/* Plugout event */
 			dev_dbg(&hdmi->pdev->dev, "EVENT=plugout\n");
-			switch_set_state(&hdmi->sdev, 0);
+			switch_set_state(&hdmi->sdev_audio, 0);
+			switch_set_state(&hdmi->sdev_display, 0);
 
 			hdmi_set_cable_state(0);
 			mxc_hdmi_abort_stream();
@@ -2387,8 +2389,10 @@ static int __devinit mxc_hdmi_probe(struct platform_device *pdev)
 		goto edispdrv;
 	}
 
-	hdmi->sdev.name = "hdmi_audio";
-	switch_dev_register(&hdmi->sdev);
+	hdmi->sdev_audio.name = "hdmi_audio";
+	hdmi->sdev_display.name = "hdmi";
+	switch_dev_register(&hdmi->sdev_audio);
+	switch_dev_register(&hdmi->sdev_display);
 
 	mxc_dispdrv_setdata(hdmi->disp_mxc_hdmi, hdmi);
 
@@ -2412,7 +2416,8 @@ static int mxc_hdmi_remove(struct platform_device *pdev)
 
 	fb_unregister_client(&hdmi->nb);
 
-	switch_dev_unregister(&hdmi->sdev);
+	switch_dev_unregister(&hdmi->sdev_audio);
+	switch_dev_unregister(&hdmi->sdev_display);
 
 	mxc_dispdrv_puthandle(hdmi->disp_mxc_hdmi);
 	mxc_dispdrv_unregister(hdmi->disp_mxc_hdmi);
