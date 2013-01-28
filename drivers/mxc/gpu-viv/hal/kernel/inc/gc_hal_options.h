@@ -161,14 +161,6 @@
         When non-zero, FSCALE_VAL when gcvPOWER_ON can be adjusted externally.
  */
 #ifndef gcdENABLE_FSCALE_VAL_ADJUST
-#   define gcdENABLE_FSCALE_VAL_ADJUST          0
-#endif
-
-/*
-    gcdENABLE_FSCALE_VAL_ADJUST
-        When non-zero, FSCALE_VAL when gcvPOWER_ON can be adjusted externally.
- */
-#ifndef gcdENABLE_FSCALE_VAL_ADJUST
 #   define gcdENABLE_FSCALE_VAL_ADJUST          1
 #endif
 
