@@ -6801,12 +6801,11 @@ gckOS_SetGPUPower(
             case gcvCORE_MAJOR:
                 clk_prepare(clk_3dcore);
                 clk_enable(clk_3dcore);
-                /*if (cpu_is_mx6q())*/
-                    clk_prepare(clk_3dshader);
-                    clk_enable(clk_3dshader);
-                    clk_prepare(clk_3d_axi);
-                    clk_enable(clk_3d_axi);
-                    break;
+                clk_prepare(clk_3dshader);
+                clk_enable(clk_3dshader);
+                clk_prepare(clk_3d_axi);
+                clk_enable(clk_3d_axi);
+                break;
             case gcvCORE_2D:
                 clk_prepare(clk_2dcore);
                 clk_enable(clk_2dcore);
@@ -6827,9 +6826,8 @@ gckOS_SetGPUPower(
         if (oldClockState == gcvTRUE) {
             switch (Core) {
             case gcvCORE_MAJOR:
-                /*if (cpu_is_mx6q())*/
-                    clk_disable(clk_3dshader);
-                    clk_unprepare(clk_3dshader);
+                clk_disable(clk_3dshader);
+                clk_unprepare(clk_3dshader);
                 clk_disable(clk_3dcore);
                 clk_unprepare(clk_3dcore);
                 clk_disable(clk_3d_axi);
