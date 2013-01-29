@@ -300,7 +300,7 @@ static int imx_pcie_link_up(void __iomem *dbi_base)
 					0x0000);
 		}
 
-		if ((iterations < 0))
+		if (iterations == 0)
 			pr_info("link up failed, DB_R0:0x%08x, DB_R1:0x%08x!\n"
 					, readl(dbi_base + DB_R0)
 					, readl(dbi_base + DB_R1));
