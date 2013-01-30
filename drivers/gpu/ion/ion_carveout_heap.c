@@ -31,6 +31,7 @@ struct ion_carveout_heap {
 	struct ion_heap heap;
 	struct gen_pool *pool;
 	ion_phys_addr_t base;
+	unsigned int cacheable;
 };
 
 ion_phys_addr_t ion_carveout_allocate(struct ion_heap *heap,
@@ -99,8 +100,12 @@ void ion_carveout_heap_unmap_dma(struct ion_heap *heap,
 void *ion_carveout_heap_map_kernel(struct ion_heap *heap,
 				   struct ion_buffer *buffer)
 {
+	struct ion_carveout_heap *carveout_heap =
+		container_of(heap, struct ion_carveout_heap, heap);
+
 	return __arch_ioremap(buffer->priv_phys, buffer->size,
-			      MT_MEMORY_NONCACHED);
+			      carveout_heap->cacheable ? MT_MEMORY :
+					MT_MEMORY_NONCACHED);
 }
 
 void ion_carveout_heap_unmap_kernel(struct ion_heap *heap,
@@ -114,10 +119,15 @@ void ion_carveout_heap_unmap_kernel(struct ion_heap *heap,
 int ion_carveout_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 			       struct vm_area_struct *vma)
 {
+	struct ion_carveout_heap *carveout_heap =
+		container_of(heap, struct ion_carveout_heap, heap);
+	pgprot_t prot = carveout_heap->cacheable ? vma->vm_page_prot :
+					pgprot_writecombine(vma->vm_page_prot);
+
 	return remap_pfn_range(vma, vma->vm_start,
 			       __phys_to_pfn(buffer->priv_phys) + vma->vm_pgoff,
 			       buffer->size,
-			       pgprot_writecombine(vma->vm_page_prot));
+			       prot);
 }
 
 static struct ion_heap_ops carveout_heap_ops = {
@@ -147,6 +157,7 @@ struct ion_heap *ion_carveout_heap_create(struct ion_platform_heap *heap_data)
 		     -1);
 	carveout_heap->heap.ops = &carveout_heap_ops;
 	carveout_heap->heap.type = ION_HEAP_TYPE_CARVEOUT;
+	carveout_heap->cacheable = heap_data->cacheable;
 
 	return &carveout_heap->heap;
 }
