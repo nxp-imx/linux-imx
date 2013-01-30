@@ -418,6 +418,48 @@ static bool deinterlace_3_field(struct mxc_vout_output *vout)
 		(vout->task.input.deinterlace.motion != HIGH_MOTION));
 }
 
+static int set_field_fmt(struct mxc_vout_output *vout, enum v4l2_field field)
+{
+	struct ipu_deinterlace *deinterlace = &vout->task.input.deinterlace;
+
+	switch (field) {
+	/* Images are in progressive format, not interlaced */
+	case V4L2_FIELD_NONE:
+	case V4L2_FIELD_ANY:
+		deinterlace->enable = false;
+		deinterlace->field_fmt = 0;
+		v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "Progressive frame.\n");
+		break;
+	case V4L2_FIELD_INTERLACED_TB:
+		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+				"Enable deinterlace TB.\n");
+		deinterlace->enable = true;
+		deinterlace->field_fmt = IPU_DEINTERLACE_FIELD_TOP;
+		break;
+	case V4L2_FIELD_INTERLACED_BT:
+		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+				"Enable deinterlace BT.\n");
+		deinterlace->enable = true;
+		deinterlace->field_fmt = IPU_DEINTERLACE_FIELD_BOTTOM;
+		break;
+	default:
+		v4l2_err(vout->vfd->v4l2_dev,
+			"field format:%d not supported yet!\n", field);
+		return -EINVAL;
+	}
+
+	if (IPU_PIX_FMT_TILED_NV12F == vout->task.input.format) {
+		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+				"tiled fmt enable deinterlace.\n");
+		deinterlace->enable = true;
+	}
+
+	if (deinterlace->enable && vdi_rate_double)
+		deinterlace->field_fmt |= IPU_DEINTERLACE_RATE_EN;
+
+	return 0;
+}
+
 static bool is_pp_bypass(struct mxc_vout_output *vout)
 {
 	if ((IPU_PIX_FMT_TILED_NV12 == vout->task.input.format) ||
@@ -532,33 +574,47 @@ static void disp_work_func(struct work_struct *work)
 
 	spin_lock_irqsave(q->irqlock, flags);
 
+	if (list_empty(&vout->active_list)) {
+		v4l2_warn(vout->vfd->v4l2_dev,
+			"no entry in active_list, should not be here\n");
+		spin_unlock_irqrestore(q->irqlock, flags);
+		return;
+	}
+
+	vb = list_first_entry(&vout->active_list,
+			struct videobuf_buffer, queue);
+	ret = set_field_fmt(vout, vb->field);
+	if (ret < 0) {
+		spin_unlock_irqrestore(q->irqlock, flags);
+		return;
+	}
 	if (deinterlace_3_field(vout)) {
 		if (list_is_singular(&vout->active_list)) {
 			v4l2_warn(vout->vfd->v4l2_dev,
-					"deinterlacing: no enough entry in active_list\n");
+				"no enough entry for 3 fields deinterlacer\n");
 			spin_unlock_irqrestore(q->irqlock, flags);
 			return;
-		}
-	} else {
-		if (list_empty(&vout->active_list)) {
-			v4l2_warn(vout->vfd->v4l2_dev,
-					"no entry in active_list, should not be here\n");
-			spin_unlock_irqrestore(q->irqlock, flags);
-			return;
-		}
+		} else
+			vb_next = list_first_entry(vout->active_list.next,
+						struct videobuf_buffer, queue);
+		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+			"cur field_fmt:%d, next field_fmt:%d.\n",
+			vb->field, vb_next->field);
+		/* repeat the last field during field format changing */
+		if ((vb->field != vb_next->field) &&
+			(vb_next->field != V4L2_FIELD_NONE))
+			vb_next = vb;
 	}
-	vb = list_first_entry(&vout->active_list,
-			struct videobuf_buffer, queue);
-
-	if (deinterlace_3_field(vout))
-		vb_next = list_first_entry(vout->active_list.next,
-				struct videobuf_buffer, queue);
 
 	spin_unlock_irqrestore(q->irqlock, flags);
 
 vdi_frame_rate_double:
 	mutex_lock(&vout->task_lock);
 
+	v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+		"v4l2 frame_cnt:%ld, vb_field:%d, fmt:%d\n",
+		vout->frame_count, vb->field,
+		vout->task.input.deinterlace.field_fmt);
 	if (vb->memory == V4L2_MEMORY_USERPTR)
 		vout->task.input.paddr = vb->baddr;
 	else
@@ -1177,42 +1233,9 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format 
 	vout->task.input.height = f->fmt.pix.height;
 	vout->task.input.format = f->fmt.pix.pixelformat;
 
-	if (IPU_PIX_FMT_TILED_NV12F == vout->task.input.format) {
-		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
-				"tiled fmt enable deinterlace.\n");
-		vout->task.input.deinterlace.enable = true;
-		vout->task.input.deinterlace.field_fmt =
-				IPU_DEINTERLACE_FIELD_TOP;
-	}
-	switch (f->fmt.pix.field) {
-	/* Images are in progressive format, not interlaced */
-	case V4L2_FIELD_NONE:
-		break;
-	/* The two fields of a frame are passed in separate buffers,
-	   in temporal order, i. e. the older one first. */
-	case V4L2_FIELD_ALTERNATE:
-		v4l2_err(vout->vfd->v4l2_dev,
-			"V4L2_FIELD_ALTERNATE field format not supported yet!\n");
-		break;
-	case V4L2_FIELD_INTERLACED_TB:
-		v4l2_info(vout->vfd->v4l2_dev, "Enable deinterlace TB.\n");
-		vout->task.input.deinterlace.enable = true;
-		vout->task.input.deinterlace.field_fmt =
-				IPU_DEINTERLACE_FIELD_TOP;
-		break;
-	case V4L2_FIELD_INTERLACED_BT:
-		v4l2_info(vout->vfd->v4l2_dev, "Enable deinterlace BT.\n");
-		vout->task.input.deinterlace.enable = true;
-		vout->task.input.deinterlace.field_fmt =
-				IPU_DEINTERLACE_FIELD_BOTTOM;
-		break;
-	default:
-		break;
-	}
-
-	if (vout->task.input.deinterlace.enable && vdi_rate_double)
-		vout->task.input.deinterlace.field_fmt |=
-				IPU_DEINTERLACE_RATE_EN;
+	ret = set_field_fmt(vout, f->fmt.pix.field);
+	if (ret < 0)
+		return ret;
 
 	if (f->fmt.pix.priv) {
 		vout->task.input.crop.pos.x = rect.left;
