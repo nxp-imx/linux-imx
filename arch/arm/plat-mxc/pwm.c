@@ -6,7 +6,7 @@
  * published by the Free Software Foundation.
  *
  * Derived from pxa PWM driver by eric miao <eric.miao@marvell.com>
- * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 #include <linux/module.h>
@@ -87,11 +87,7 @@ int pwm_config(struct pwm_device *pwm, int duty_ns, int period_ns)
 		prescale = period_cycles / 0x10000 + 1;
 
 		period_cycles /= prescale;
-		/* the chip document says the counter counts up to
-		 * period_cycles + 1 and then is reset to 0, so the
-		 *  actual period of the PWM wave is period_cycles + 2
-		 */
-		c = (unsigned long long)(period_cycles + 2) * duty_ns;
+		c = (unsigned long long)period_cycles * duty_ns;
 		do_div(c, period_ns);
 		duty_cycles = c;
 
