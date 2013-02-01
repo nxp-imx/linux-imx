@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,9 @@
 #include <mach/hardware.h>
 #ifdef CONFIG_CPU_FREQ_GOV_INTERACTIVE
 #include <linux/cpufreq.h>
+#endif
+#ifdef CONFIG_PCI_MSI
+#include "msi.h"
 #endif
 
 int mx6q_register_gpios(void);
@@ -130,5 +133,8 @@ void mx6_init_irq(void)
 #ifdef CONFIG_CPU_FREQ_GOV_INTERACTIVE
 	for (i = 0; i < ARRAY_SIZE(mxc_irq_tuner); i++)
 		cpufreq_gov_irq_tuner_register(mxc_irq_tuner[i]);
+#endif
+#ifdef CONFIG_PCI_MSI
+	imx_msi_init();
 #endif
 }

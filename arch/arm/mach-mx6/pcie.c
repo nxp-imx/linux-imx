@@ -37,6 +37,9 @@
 #include <asm/signal.h>
 
 #include "crm_regs.h"
+#ifdef CONFIG_PCI_MSI
+#include "msi.h"
+#endif
 
 /* Register Definitions */
 #define PRT_LOG_R_BaseAddress 0x700
@@ -158,6 +161,18 @@
 #define LNK_CAP_RegisterSize 32
 #define LNK_CAP_RegisterResetValue 0x011cc12
 #define LNK_CAP_RegisterResetMask 0xffffffff
+
+#ifdef CONFIG_PCI_MSI
+#define PCIE_RC_MSI_CAP   0x50
+
+#define PCIE_PL_MSICA    0x820
+#define PCIE_PL_MSICUA    0x824
+#define PCIE_PL_MSIC_INT  0x828
+
+#define MSIC_INT_EN  0x0
+#define MSIC_INT_MASK  0x4
+#define MSIC_INT_STATUS  0x8
+#endif
 
 /* End of Register Definitions */
 
@@ -313,6 +328,11 @@ static int imx_pcie_link_up(void __iomem *dbi_base)
 
 static void imx_pcie_regions_setup(void __iomem *dbi_base)
 {
+	unsigned int i;
+#ifdef CONFIG_PCI_MSI
+	void __iomem *p = dbi_base + PCIE_PL_MSIC_INT;
+#endif
+
 	/*
 	 * i.MX6 defines 16MB in the AXI address map for PCIe.
 	 *
@@ -322,7 +342,7 @@ static void imx_pcie_regions_setup(void __iomem *dbi_base)
 	 *
 	 * 0x0100_0000 --- 0x010F_FFFF 1MB IORESOURCE_IO
 	 * 0x0110_0000 --- 0x01EF_FFFF 14MB IORESOURCE_MEM
-	 * 0x01F0_0000 --- 0x01FF_FFFF 1MB Cfg + Registers
+	 * 0x01F0_0000 --- 0x01FF_FFFF 1MB Cfg + MSI + Registers
 	 */
 
 	/* CMD reg:I/O space, MEM space, and Bus Master Enable */
@@ -342,14 +362,88 @@ static void imx_pcie_regions_setup(void __iomem *dbi_base)
 	 */
 	writel(0, dbi_base + ATU_VIEWPORT_R);
 	writel(PCIE_ARB_END_ADDR - SZ_1M + 1, dbi_base + ATU_REGION_LOWBASE_R);
-	writel(PCIE_ARB_END_ADDR, dbi_base + ATU_REGION_LIMIT_ADDR_R);
+	writel(PCIE_ARB_END_ADDR - SZ_64K, dbi_base + ATU_REGION_LIMIT_ADDR_R);
 	writel(0, dbi_base + ATU_REGION_UPBASE_R);
 
 	writel(0, dbi_base + ATU_REGION_LOW_TRGT_ADDR_R);
 	writel(0, dbi_base + ATU_REGION_UP_TRGT_ADDR_R);
 	writel(CfgRdWr0, dbi_base + ATU_REGION_CTRL1_R);
 	writel((1<<31), dbi_base + ATU_REGION_CTRL2_R);
+
+#ifdef CONFIG_PCI_MSI
+	writel(MSI_MATCH_ADDR, dbi_base + PCIE_PL_MSICA);
+	writel(0, dbi_base + PCIE_PL_MSICUA);
+	for (i = 0; i < 8 ; i++) {
+		writel(0, p + MSIC_INT_EN);
+		writel(0xFFFFFFFF, p + MSIC_INT_MASK);
+		writel(0xFFFFFFFF, p + MSIC_INT_STATUS);
+		p += 12;
+	}
+#endif
 }
+
+#ifdef CONFIG_PCI_MSI
+void imx_pcie_mask_irq(unsigned int pos, int set)
+{
+	unsigned int mask = 1 << (pos & 0x1F);
+	unsigned int val, newval;
+	void __iomem *p;
+
+	p = dbi_base + PCIE_PL_MSIC_INT + MSIC_INT_MASK + ((pos >> 5) * 12);
+
+	if (pos >= (8 * 32))
+		return;
+	val = readl(p);
+	if (set)
+		newval = val | mask;
+	else
+		newval = val & ~mask;
+	if (val != newval)
+		writel(newval, p);
+}
+
+void imx_pcie_enable_irq(unsigned int pos, int set)
+{
+	unsigned int mask = 1 << (pos & 0x1F);
+	unsigned int val, newval;
+	void __iomem *p;
+
+	p = dbi_base + PCIE_PL_MSIC_INT + MSIC_INT_EN + ((pos >> 5) * 12);
+
+	/* RC: MSI CAP enable */
+	if (set) {
+		val = readl(dbi_base + PCIE_RC_MSI_CAP);
+		val |= (PCI_MSI_FLAGS_ENABLE << 16);
+		writel(val, dbi_base + PCIE_RC_MSI_CAP);
+	}
+
+	if (pos >= (8 * 32))
+		return;
+	val = readl(p);
+	if (set)
+		newval = val | mask;
+	else
+		newval = val & ~mask;
+	if (val != newval)
+		writel(newval, p);
+	if (set && (val != newval))
+		imx_pcie_mask_irq(pos, 0);  /* unmask when enabled */
+	}
+
+unsigned int imx_pcie_msi_pending(unsigned int index)
+{
+	unsigned int val, mask;
+	void __iomem *p = dbi_base + PCIE_PL_MSIC_INT + (index * 12);
+
+	if (index >= 8)
+		return 0;
+	val = readl(p + MSIC_INT_STATUS);
+	mask = readl(p + MSIC_INT_MASK);
+	val &= ~mask;
+	writel(val, p + MSIC_INT_STATUS);
+	return val;
+}
+#endif
 
 static int imx_pcie_rd_conf(struct pci_bus *bus, u32 devfn, int where,
 			int size, u32 *val)
@@ -368,7 +462,7 @@ static int imx_pcie_rd_conf(struct pci_bus *bus, u32 devfn, int where,
 
 	if (pp) {
 		if (devfn != 0) {
-			*val = 0xffffffff;
+			*val = 0xFFFFFFFF;
 			return PCIBIOS_DEVICE_NOT_FOUND;
 		}
 
@@ -440,7 +534,6 @@ static int imx_pcie_wr_conf(struct pci_bus *bus, u32 devfn,
 	tmp |= val << ((where & 0x3) * 8);
 	writel(tmp, va_address);
 exit:
-
 	return ret;
 }
 
@@ -545,7 +638,7 @@ static int pcie_phy_cr_read(int addr , int *data)
 
 	/* after got ack return data */
 	temp_rd_data = readl(dbi_base + PHY_STS_R);
-	*data = (temp_rd_data & (0xffff << PCIE_CR_STAT_DATA_LOC)) ;
+	*data = (temp_rd_data & (0xFFFF << PCIE_CR_STAT_DATA_LOC)) ;
 
 	/* deassert rd signal */
 	temp_wr_data = 0x0;

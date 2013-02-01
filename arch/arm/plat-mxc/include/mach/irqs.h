@@ -1,5 +1,5 @@
 /*
- *  Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -72,7 +72,14 @@
 #define MX5_IPU_IRQS 0
 #endif
 
-#define NR_IRQS	(MXC_IPU_IRQ_START + MX3_IPU_IRQS + MX5_IPU_IRQS)
+#ifdef CONFIG_ARCH_MX6
+#define MX6_MSI_IRQS 128
+#else
+#define MX6_MSI_IRQS 0
+#endif
+
+#define IRQ_IMX_MSI_0 (MXC_IPU_IRQ_START + MX3_IPU_IRQS + MX5_IPU_IRQS)
+#define NR_IRQS  (IRQ_IMX_MSI_0 + MX6_MSI_IRQS)
 
 extern int imx_irq_set_priority(unsigned char irq, unsigned char prio);
 
