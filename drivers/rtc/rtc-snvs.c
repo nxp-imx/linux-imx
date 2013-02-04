@@ -41,6 +41,8 @@ struct snvs_rtc_data {
 	spinlock_t lock;
 };
 
+static void __iomem *snvs_base;
+
 static u32 rtc_read_lp_counter(void __iomem *ioaddr)
 {
 	u64 read1, read2;
@@ -241,6 +243,15 @@ static irqreturn_t snvs_rtc_irq_handler(int irq, void *dev_id)
 	return events ? IRQ_HANDLED : IRQ_NONE;
 }
 
+static void snvs_poweroff(void)
+{
+	u32 value;
+
+	value = readl(snvs_base + SNVS_LPCR);
+	/* set TOP and DP_EN bit */
+	writel(value | 0x60, snvs_base + SNVS_LPCR);
+}
+
 static int snvs_rtc_probe(struct platform_device *pdev)
 {
 	struct snvs_rtc_data *data;
@@ -270,6 +281,7 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 	/* Clear interrupt status */
 	writel(0xffffffff, data->ioaddr + SNVS_LPSR);
 
+	snvs_base = data->ioaddr;
 	/* Enable RTC */
 	snvs_rtc_enable(data, true);
 
@@ -291,6 +303,12 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to register rtc: %d\n", ret);
 		return ret;
 	}
+	/*
+	 * if no specific power off function in board file, power off system by
+	 * SNVS
+	 */
+	if (!pm_power_off)
+		pm_power_off = snvs_poweroff;
 
 	return 0;
 }
