@@ -70,29 +70,6 @@
 #define ATU_REGION_LOW_TRGT_ADDR_R (ATU_R_BaseAddress + 0x18)
 #define ATU_REGION_UP_TRGT_ADDR_R (ATU_R_BaseAddress + 0x1C)
 
-/* GPR1: iomuxc_gpr1_pcie_ref_clk_en(iomuxc_gpr1[16]) */
-#define iomuxc_gpr1_pcie_ref_clk_en		(1 << 16)
-/* GPR1: iomuxc_gpr1_test_powerdown(iomuxc_gpr1_18) */
-#define iomuxc_gpr1_test_powerdown		(1 << 18)
-
-/* GPR12: iomuxc_gpr12_los_level(iomuxc_gpr12[8:4]) */
-#define iomuxc_gpr12_los_level			(0x1F << 4)
-/* GPR12: iomuxc_gpr12_app_ltssm_enable(iomuxc_gpr12[10]) */
-#define iomuxc_gpr12_app_ltssm_enable		(1 << 10)
-/* GPR12: iomuxc_gpr12_device_type(iomuxc_gpr12[15:12]) */
-#define iomuxc_gpr12_device_type		(0xF << 12)
-
-/* GPR8: iomuxc_gpr8_tx_deemph_gen1(iomuxc_gpr8[5:0]) */
-#define iomuxc_gpr8_tx_deemph_gen1		(0x3F << 0)
-/* GPR8: iomuxc_gpr8_tx_deemph_gen2_3p5db(iomuxc_gpr8[11:6]) */
-#define iomuxc_gpr8_tx_deemph_gen2_3p5db	(0x3F << 6)
-/* GPR8: iomuxc_gpr8_tx_deemph_gen2_6db(iomuxc_gpr8[17:12]) */
-#define iomuxc_gpr8_tx_deemph_gen2_6db		(0x3F << 12)
-/* GPR8: iomuxc_gpr8_tx_swing_full(iomuxc_gpr8[24:18]) */
-#define iomuxc_gpr8_tx_swing_full		(0x7F << 18)
-/* GPR8: iomuxc_gpr8_tx_swing_low(iomuxc_gpr8[31:25]) */
-#define iomuxc_gpr8_tx_swing_low		(0x7F << 25)
-
 /* Registers of PHY */
 /* Register PHY_STS_R */
 /* PHY Status Register */
@@ -721,7 +698,7 @@ static void imx_pcie_enable_controller(struct device *dev)
 	/* activate PCIE_PWR_EN */
 	gpio_direction_output(pdata->pcie_pwr_en, 1);
 
-	imx_pcie_clrset(iomuxc_gpr1_test_powerdown, 0 << 18, IOMUXC_GPR1);
+	imx_pcie_clrset(IOMUXC_GPR1_TEST_POWERDOWN, 0 << 18, IOMUXC_GPR1);
 
 	/* enable the clks */
 	pcie_clk = clk_get(NULL, "pcie_clk");
@@ -732,7 +709,7 @@ static void imx_pcie_enable_controller(struct device *dev)
 		pr_err("can't enable pcie clock.\n");
 		clk_put(pcie_clk);
 	}
-	imx_pcie_clrset(iomuxc_gpr1_pcie_ref_clk_en, 1 << 16, IOMUXC_GPR1);
+	imx_pcie_clrset(IOMUXC_GPR1_PCIE_REF_CLK_EN, 1 << 16, IOMUXC_GPR1);
 }
 
 static void card_reset(struct device *dev)
@@ -779,7 +756,7 @@ static void __init add_pcie_port(void __iomem *base, void __iomem *dbi_base,
 		clk_disable(pcie_clk);
 		clk_put(pcie_clk);
 
-		imx_pcie_clrset(iomuxc_gpr1_pcie_ref_clk_en, 0 << 16,
+		imx_pcie_clrset(IOMUXC_GPR1_PCIE_REF_CLK_EN, 0 << 16,
 				IOMUXC_GPR1);
 
 		/* Disable PCIE power */
@@ -788,7 +765,7 @@ static void __init add_pcie_port(void __iomem *base, void __iomem *dbi_base,
 		/* activate PCIE_PWR_EN */
 		gpio_direction_output(pdata->pcie_pwr_en, 0);
 
-		imx_pcie_clrset(iomuxc_gpr1_test_powerdown, 1 << 18,
+		imx_pcie_clrset(IOMUXC_GPR1_TEST_POWERDOWN, 1 << 18,
 				IOMUXC_GPR1);
 	}
 }
@@ -835,18 +812,18 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 	}
 
 	/* FIXME the field name should be aligned to RM */
-	imx_pcie_clrset(iomuxc_gpr12_app_ltssm_enable, 0 << 10, IOMUXC_GPR12);
+	imx_pcie_clrset(IOMUXC_GPR12_APP_LTSSM_ENABLE, 0 << 10, IOMUXC_GPR12);
 
 	/* configure constant input signal to the pcie ctrl and phy */
-	imx_pcie_clrset(iomuxc_gpr12_device_type, PCI_EXP_TYPE_ROOT_PORT << 12,
+	imx_pcie_clrset(IOMUXC_GPR12_DEVICE_TYPE, PCI_EXP_TYPE_ROOT_PORT << 12,
 			IOMUXC_GPR12);
-	imx_pcie_clrset(iomuxc_gpr12_los_level, 9 << 4, IOMUXC_GPR12);
+	imx_pcie_clrset(IOMUXC_GPR12_LOS_LEVEL, 9 << 4, IOMUXC_GPR12);
 
-	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen1, 0 << 0, IOMUXC_GPR8);
-	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_3p5db, 0 << 6, IOMUXC_GPR8);
-	imx_pcie_clrset(iomuxc_gpr8_tx_deemph_gen2_6db, 20 << 12, IOMUXC_GPR8);
-	imx_pcie_clrset(iomuxc_gpr8_tx_swing_full, 127 << 18, IOMUXC_GPR8);
-	imx_pcie_clrset(iomuxc_gpr8_tx_swing_low, 127 << 25, IOMUXC_GPR8);
+	imx_pcie_clrset(IOMUXC_GPR8_TX_DEEMPH_GEN1, 0 << 0, IOMUXC_GPR8);
+	imx_pcie_clrset(IOMUXC_GPR8_TX_DEEMPH_GEN2_3P5DB, 0 << 6, IOMUXC_GPR8);
+	imx_pcie_clrset(IOMUXC_GPR8_TX_DEEMPH_GEN2_6DB, 20 << 12, IOMUXC_GPR8);
+	imx_pcie_clrset(IOMUXC_GPR8_TX_SWING_FULL, 127 << 18, IOMUXC_GPR8);
+	imx_pcie_clrset(IOMUXC_GPR8_TX_SWING_LOW, 127 << 25, IOMUXC_GPR8);
 
 	/* Enable the pwr, clks and so on */
 	imx_pcie_enable_controller(dev);
@@ -859,7 +836,7 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 	usleep_range(3000, 4000);
 
 	/* start link up */
-	imx_pcie_clrset(iomuxc_gpr12_app_ltssm_enable, 1 << 10, IOMUXC_GPR12);
+	imx_pcie_clrset(IOMUXC_GPR12_APP_LTSSM_ENABLE, 1 << 10, IOMUXC_GPR12);
 
 	/* add the pcie port */
 	add_pcie_port(base, dbi_base, pdata);
@@ -886,7 +863,7 @@ static int __devexit imx_pcie_pltfm_remove(struct platform_device *pdev)
 		clk_put(pcie_clk);
 	}
 
-	imx_pcie_clrset(iomuxc_gpr1_pcie_ref_clk_en, 0 << 16, IOMUXC_GPR1);
+	imx_pcie_clrset(IOMUXC_GPR1_PCIE_REF_CLK_EN, 0 << 16, IOMUXC_GPR1);
 
 	/* Disable PCIE power */
 	gpio_request(pdata->pcie_pwr_en, "PCIE POWER_EN");
@@ -894,7 +871,7 @@ static int __devexit imx_pcie_pltfm_remove(struct platform_device *pdev)
 	/* activate PCIE_PWR_EN */
 	gpio_direction_output(pdata->pcie_pwr_en, 0);
 
-	imx_pcie_clrset(iomuxc_gpr1_test_powerdown, 1 << 18, IOMUXC_GPR1);
+	imx_pcie_clrset(IOMUXC_GPR1_TEST_POWERDOWN, 1 << 18, IOMUXC_GPR1);
 
 	iounmap(base);
 	iounmap(dbi_base);
