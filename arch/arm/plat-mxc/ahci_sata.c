@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -152,9 +152,8 @@ int sata_init(void __iomem *addr, unsigned long timer1ms)
 	/* Reset HBA */
 	writel(HOST_RESET, addr + HOST_CTL);
 
-	tmpdata = readl(addr + HOST_VERSIONR);
 	tmpdata = 0;
-	while (readl(addr + HOST_VERSIONR) == 0) {
+	while (readl(addr + HOST_CAP) == 0) {
 		tmpdata++;
 		if (tmpdata > 100000) {
 			pr_err("Can't recover from RESET HBA!\n");
@@ -167,7 +166,6 @@ int sata_init(void __iomem *addr, unsigned long timer1ms)
 		tmpdata |= HOST_CAP_SSS;
 		writel(tmpdata, addr + HOST_CAP);
 	}
-	tmpdata = readl(addr + HOST_CAP);
 
 	if (!(readl(addr + HOST_PORTS_IMPL) & 0x1))
 		writel((readl(addr + HOST_PORTS_IMPL) | 0x1),
@@ -178,7 +176,7 @@ int sata_init(void __iomem *addr, unsigned long timer1ms)
 	/* Release resources when there is no device on the port */
 	do {
 		if ((readl(addr + PORT_SATA_SR) & 0xF) == 0)
-			msleep(25);
+			usleep_range(1000, 2000);
 		else
 			break;
 
