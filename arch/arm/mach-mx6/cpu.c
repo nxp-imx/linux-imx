@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -213,6 +213,13 @@ static int __init post_cpu_init(void)
 	else
 		chip_rev = mx6sl_revision();
 
+	/* mx6sl doesn't have pcie. save power, disable PCIe PHY */
+	if (!cpu_is_mx6sl()) {
+		reg = __raw_readl(IOMUXC_GPR1);
+		reg = reg & (~IOMUXC_GPR1_PCIE_REF_CLK_EN);
+		reg |= IOMUXC_GPR1_TEST_POWERDOWN;
+		__raw_writel(reg, IOMUXC_GPR1);
+	}
 	return 0;
 }
 postcore_initcall(post_cpu_init);
