@@ -162,6 +162,15 @@ config MTD_PXA2XX
 	help
 	  This provides a driver for the NOR flash attached to a PXA2xx chip.
 
+config MTD_IMX6X_WEIMNOR
+	tristate "CFI Flash device mapped on iMX6x based boards"
+	depends on MTD_CFI || MTD_JEDECPROBE || MTD_ROM || MTD_LPDDR
+	help
+	  This provides a driver for the WEIM (Parallel) NOR flash attached to
+	  an iMX6x chip. This driver provides a cached read to take advantage
+	  of paged reads by using memcopy.  If you have a board such as the
+	  SabreAI select 'Y' to use the NOR flash chips on it.
+
 config MTD_OCTAGON
 	tristate "JEDEC Flash device mapped on Octagon 5066 SBC"
 	depends on X86 && MTD_JEDEC && MTD_COMPLEX_MAPPINGS
