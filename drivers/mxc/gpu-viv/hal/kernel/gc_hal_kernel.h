@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #ifndef __gc_hal_kernel_h_
@@ -194,6 +192,9 @@ typedef struct _gcsDATABASE
     /* Secure cache. */
     gcskSECURE_CACHE                    cache;
 #endif
+
+    gctPOINTER                          handleDatabase;
+    gctPOINTER                          handleDatabaseMutex;
 }
 gcsDATABASE;
 
@@ -258,6 +259,57 @@ gckKERNEL_DumpProcessDB(
     IN gckKERNEL Kernel
     );
 
+/* ID database */
+gceSTATUS
+gckKERNEL_CreateIntegerDatabase(
+    IN gckKERNEL Kernel,
+    OUT gctPOINTER * Database
+    );
+
+gceSTATUS
+gckKERNEL_DestroyIntegerDatabase(
+    IN gckKERNEL Kernel,
+    IN gctPOINTER Database
+    );
+
+gceSTATUS
+gckKERNEL_AllocateIntegerId(
+    IN gctPOINTER Database,
+    IN gctPOINTER Pointer,
+    OUT gctUINT32 * Id
+    );
+
+gceSTATUS
+gckKERNEL_FreeIntegerId(
+    IN gctPOINTER Database,
+    IN gctUINT32 Id
+    );
+
+gceSTATUS
+gckKERNEL_QueryIntegerId(
+    IN gctPOINTER Database,
+    IN gctUINT32 Id,
+    OUT gctPOINTER * Pointer
+    );
+
+gctUINT32
+gckKERNEL_AllocateNameFromPointer(
+    IN gckKERNEL Kernel,
+    IN gctPOINTER Pointer
+    );
+
+gctPOINTER
+gckKERNEL_QueryPointerFromName(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 Name
+    );
+
+gceSTATUS
+gckKERNEL_DeleteName(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 Name
+    );
+
 #if gcdSECURE_USER
 /* Get secure cache from the process database. */
 gceSTATUS
@@ -297,6 +349,9 @@ struct _gckDB
     gctUINT64                   idleTime;
     gctUINT64                   lastSlowdown;
     gctUINT64                   lastSlowdownIdle;
+    /* ID - Pointer database*/
+    gctPOINTER                  pointerDatabase;
+    gctPOINTER                  pointerDatabaseMutex;
 };
 
 #if gcdVIRTUAL_COMMAND_BUFFER
@@ -370,6 +425,7 @@ struct _gckKERNEL
 #if gcdENABLE_RECOVERY
     gctPOINTER                  resetFlagClearTimer;
     gctPOINTER                  resetAtom;
+    gctUINT64                   resetTimeStamp;
 #endif
 
     /* Pointer to gckEVENT object. */
@@ -385,6 +441,30 @@ struct _gckKERNEL
     gckVIRTUAL_COMMAND_BUFFER_PTR virtualBufferTail;
     gctPOINTER                    virtualBufferLock;
 #endif
+
+#if gcdDVFS
+    gckDVFS                     dvfs;
+#endif
+};
+
+struct _FrequencyHistory
+{
+    gctUINT32                   frequency;
+    gctUINT32                   count;
+};
+
+/* gckDVFS object. */
+struct _gckDVFS
+{
+    gckOS                       os;
+    gckHARDWARE                 hardware;
+    gctPOINTER                  timer;
+    gctUINT32                   pollingTime;
+    gctBOOL                     stop;
+    gctUINT32                   totalConfig;
+    gctUINT32                   loads[8];
+    gctUINT8                    currentScale;
+    struct _FrequencyHistory    frequencyHistory[16];
 };
 
 /* gckCOMMAND object. */

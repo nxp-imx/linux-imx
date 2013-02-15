@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #include "gc_hal_kernel_precomp.h"
@@ -176,6 +174,15 @@ gckKERNEL_Construct(
     kernel->command      = gcvNULL;
     kernel->eventObj     = gcvNULL;
     kernel->mmu          = gcvNULL;
+#if gcdDVFS
+    kernel->dvfs         = gcvNULL;
+#endif
+
+    /* Initialize the gckKERNEL object. */
+    kernel->object.type = gcvOBJ_KERNEL;
+    kernel->os          = Os;
+    kernel->core        = Core;
+
 
     if (SharedDB == gcvNULL)
     {
@@ -200,6 +207,12 @@ gckKERNEL_Construct(
 
         /* Construct a database mutex. */
         gcmkONERROR(gckOS_CreateMutex(Os, &kernel->db->dbMutex));
+
+        /* Construct a id-pointer database. */
+        gcmkONERROR(gckKERNEL_CreateIntegerDatabase(kernel, &kernel->db->pointerDatabase));
+
+        /* Construct a id-pointer database mutex. */
+        gcmkONERROR(gckOS_CreateMutex(Os, &kernel->db->pointerDatabaseMutex));
     }
     else
     {
@@ -214,11 +227,6 @@ gckKERNEL_Construct(
     }
 
     kernel->timeOut      = gcdGPU_TIMEOUT;
-
-    /* Initialize the gckKERNEL object. */
-    kernel->object.type = gcvOBJ_KERNEL;
-    kernel->os          = Os;
-    kernel->core        = Core;
 
     /* Save context. */
     kernel->context = Context;
@@ -279,6 +287,16 @@ gckKERNEL_Construct(
                               (gctTIMERFUNCTION)_ResetFinishFunction,
                               (gctPOINTER)kernel,
                               &kernel->resetFlagClearTimer));
+        kernel->resetTimeStamp = 0;
+#endif
+
+#if gcdDVFS
+        if (gckHARDWARE_IsFeatureAvailable(kernel->hardware,
+                                           gcvFEATURE_DYNAMIC_FREQUENCY_SCALING))
+        {
+            gcmkONERROR(gckDVFS_Construct(kernel->hardware, &kernel->dvfs));
+            gcmkONERROR(gckDVFS_Start(kernel->dvfs));
+        }
 #endif
     }
 
@@ -346,7 +364,7 @@ OnError:
         if (kernel->resetFlagClearTimer)
         {
             gcmkVERIFY_OK(gckOS_StopTimer(Os, kernel->resetFlagClearTimer));
-            gcmkVERIFY_OK(gckOS_DestoryTimer(Os, kernel->resetFlagClearTimer));
+            gcmkVERIFY_OK(gckOS_DestroyTimer(Os, kernel->resetFlagClearTimer));
         }
 #endif
 
@@ -366,6 +384,14 @@ OnError:
         {
             /* Destroy the virtual command buffer mutex. */
             gcmkVERIFY_OK(gckOS_DeleteMutex(Os, kernel->virtualBufferLock));
+        }
+#endif
+
+#if gcdDVFS
+        if (kernel->dvfs)
+        {
+            gcmkVERIFY_OK(gckDVFS_Stop(kernel->dvfs));
+            gcmkVERIFY_OK(gckDVFS_Destroy(kernel->dvfs));
         }
 #endif
 
@@ -444,6 +470,13 @@ gckKERNEL_Destroy(
 
         /* Destroy the database mutex. */
         gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->db->dbMutex));
+
+
+        /* Destroy id-pointer database. */
+        gcmkVERIFY_OK(gckKERNEL_DestroyIntegerDatabase(Kernel, Kernel->db->pointerDatabase));
+
+        /* Destroy id-pointer database mutex. */
+        gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->db->pointerDatabaseMutex));
     }
 
 #if gcdENABLE_VG
@@ -472,7 +505,7 @@ gckKERNEL_Destroy(
         if (Kernel->resetFlagClearTimer)
         {
             gcmkVERIFY_OK(gckOS_StopTimer(Kernel->os, Kernel->resetFlagClearTimer));
-            gcmkVERIFY_OK(gckOS_DestoryTimer(Kernel->os, Kernel->resetFlagClearTimer));
+            gcmkVERIFY_OK(gckOS_DestroyTimer(Kernel->os, Kernel->resetFlagClearTimer));
         }
 #endif
     }
@@ -482,6 +515,14 @@ gckKERNEL_Destroy(
 
 #if gcdVIRTUAL_COMMAND_BUFFER
     gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->virtualBufferLock));
+#endif
+
+#if gcdDVFS
+    if (Kernel->dvfs)
+    {
+        gcmkVERIFY_OK(gckDVFS_Stop(Kernel->dvfs));
+        gcmkVERIFY_OK(gckDVFS_Destroy(Kernel->dvfs));
+    }
 #endif
 
     /* Mark the gckKERNEL object as unknown. */
@@ -502,26 +543,8 @@ gckKERNEL_Destroy(
 #include <linux/sched.h>
 #include <linux/notifier.h>
 
-static struct task_struct *lowmem_deathpending;
+extern struct task_struct *lowmem_deathpending;
 static unsigned long lowmem_deathpending_timeout;
-
-static int
-task_notify_func(struct notifier_block *self, unsigned long val, void *data);
-
-static struct notifier_block task_nb = {
-	.notifier_call	= task_notify_func,
-};
-
-static int
-task_notify_func(struct notifier_block *self, unsigned long val, void *data)
-{
-	struct task_struct *task = data;
-
-	if (task == lowmem_deathpending)
-		lowmem_deathpending = NULL;
-
-	return NOTIFY_OK;
-}
 
 static int force_contiguous_lowmem_shrink(IN gckKERNEL Kernel)
 {
@@ -644,9 +667,6 @@ _AllocateMemory(
     gcuVIDMEM_NODE_PTR node = gcvNULL;
     gctBOOL tileStatusInVirtual;
     gctBOOL forceContiguous = gcvFALSE;
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
-    gctBOOL forceContiguousShrinking = gcvFALSE;
-#endif
 
     gcmkHEADER_ARG("Kernel=0x%x *Pool=%d Bytes=%lu Alignment=%lu Type=%d",
                    Kernel, *Pool, Bytes, Alignment, Type);
@@ -806,12 +826,6 @@ _AllocateMemory_Retry:
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
         if(forceContiguous == gcvTRUE)
         {
-            if(forceContiguousShrinking == gcvFALSE)
-            {
-                 forceContiguousShrinking = gcvTRUE;
-                 task_free_register(&task_nb);
-            }
-
             if(force_contiguous_lowmem_shrink(Kernel) == 0)
             {
                  /* Sleep 1 millisecond. */
@@ -823,13 +837,6 @@ _AllocateMemory_Retry:
         /* Nothing allocated. */
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
-
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
-    if(forceContiguous == gcvTRUE && forceContiguousShrinking == gcvTRUE)
-    {
-        task_free_unregister(&task_nb);
-    }
-#endif
 
     /* Return node and pool used for allocation. */
     *Node = node;
@@ -882,11 +889,14 @@ gckKERNEL_Dispatch(
     gcuVIDMEM_NODE_PTR node;
     gctBOOL locked = gcvFALSE;
     gctPHYS_ADDR physical = gcvNULL;
+    gctPOINTER logical = gcvNULL;
+    gctPOINTER info = gcvNULL;
+    gckCONTEXT context = gcvNULL;
     gctUINT32 address;
     gctUINT32 processID;
+    gckKERNEL kernel = Kernel;
 #if gcdSECURE_USER
     gcskSECURE_CACHE_PTR cache;
-    gctPOINTER logical;
 #endif
     gctBOOL asynchronous;
     gctPOINTER paddr = gcvNULL;
@@ -944,156 +954,185 @@ gckKERNEL_Dispatch(
         break;
 
     case gcvHAL_MAP_MEMORY:
-        physical = Interface->u.MapMemory.physical;
+        physical = gcmINT2PTR(Interface->u.MapMemory.physical);
 
         /* Map memory. */
         gcmkONERROR(
             gckKERNEL_MapMemory(Kernel,
                                 physical,
-                                Interface->u.MapMemory.bytes,
-                                &Interface->u.MapMemory.logical));
+                                (gctSIZE_T) Interface->u.MapMemory.bytes,
+                                &logical));
+
+        Interface->u.MapMemory.logical = gcmPTR_TO_UINT64(logical);
+
         gcmkVERIFY_OK(
             gckKERNEL_AddProcessDB(Kernel,
                                    processID, gcvDB_MAP_MEMORY,
-                                   Interface->u.MapMemory.logical,
+                                   logical,
                                    physical,
-                                   Interface->u.MapMemory.bytes));
+                                   (gctSIZE_T) Interface->u.MapMemory.bytes));
         break;
 
     case gcvHAL_UNMAP_MEMORY:
-        physical = Interface->u.UnmapMemory.physical;
+        physical = gcmINT2PTR(Interface->u.UnmapMemory.physical);
 
         /* Unmap memory. */
         gcmkONERROR(
             gckKERNEL_UnmapMemory(Kernel,
                                   physical,
-                                  Interface->u.UnmapMemory.bytes,
-                                  Interface->u.UnmapMemory.logical));
+                                  (gctSIZE_T) Interface->u.UnmapMemory.bytes,
+                                  gcmUINT64_TO_PTR(Interface->u.UnmapMemory.logical)));
         gcmkVERIFY_OK(
             gckKERNEL_RemoveProcessDB(Kernel,
                                       processID, gcvDB_MAP_MEMORY,
-                                      Interface->u.UnmapMemory.logical));
+                                      gcmUINT64_TO_PTR(Interface->u.UnmapMemory.logical)));
         break;
 
     case gcvHAL_ALLOCATE_NON_PAGED_MEMORY:
+        bytes = (gctSIZE_T) Interface->u.AllocateNonPagedMemory.bytes;
+
         /* Allocate non-paged memory. */
         gcmkONERROR(
             gckOS_AllocateNonPagedMemory(
                 Kernel->os,
                 FromUser,
-                &Interface->u.AllocateNonPagedMemory.bytes,
-                &Interface->u.AllocateNonPagedMemory.physical,
-                &Interface->u.AllocateNonPagedMemory.logical));
+                &bytes,
+                &physical,
+                &logical));
+
+        Interface->u.AllocateNonPagedMemory.bytes    = bytes;
+        Interface->u.AllocateNonPagedMemory.logical  = gcmPTR_TO_UINT64(logical);
+        Interface->u.AllocateNonPagedMemory.physical = gcmPTR_TO_NAME(physical);
 
         gcmkVERIFY_OK(
             gckKERNEL_AddProcessDB(Kernel,
                                    processID, gcvDB_NON_PAGED,
-                                   Interface->u.AllocateNonPagedMemory.logical,
-                                   Interface->u.AllocateNonPagedMemory.physical,
-                                   Interface->u.AllocateNonPagedMemory.bytes));
+                                   logical,
+                                   gcmINT2PTR(Interface->u.AllocateNonPagedMemory.physical),
+                                   bytes));
+
         break;
 
     case gcvHAL_ALLOCATE_VIRTUAL_COMMAND_BUFFER:
 #if gcdVIRTUAL_COMMAND_BUFFER
+        bytes = (gctSIZE_T) Interface->u.AllocateVirtualCommandBuffer.bytes;
+
         gcmkONERROR(
             gckKERNEL_AllocateVirtualCommandBuffer(
                 Kernel,
                 FromUser,
-                &Interface->u.AllocateVirtualCommandBuffer.bytes,
-                &Interface->u.AllocateVirtualCommandBuffer.physical,
-                &Interface->u.AllocateVirtualCommandBuffer.logical));
+                &bytes,
+                &physical,
+                &logical));
+
+        Interface->u.AllocateVirtualCommandBuffer.bytes    = bytes;
+        Interface->u.AllocateVirtualCommandBuffer.logical  = gcmPTR_TO_UINT64(logical);
+        Interface->u.AllocateVirtualCommandBuffer.physical = gcmPTR_TO_NAME(physical);
 
         gcmkVERIFY_OK(
             gckKERNEL_AddProcessDB(Kernel,
                                    processID, gcvDB_COMMAND_BUFFER,
-                                   Interface->u.AllocateVirtualCommandBuffer.logical,
-                                   Interface->u.AllocateVirtualCommandBuffer.physical,
-                                   Interface->u.AllocateVirtualCommandBuffer.bytes));
+                                   logical,
+                                   gcmINT2PTR(Interface->u.AllocateVirtualCommandBuffer.physical),
+                                   bytes));
 #else
         status = gcvSTATUS_NOT_SUPPORTED;
 #endif
         break;
 
     case gcvHAL_FREE_NON_PAGED_MEMORY:
-        physical = Interface->u.FreeNonPagedMemory.physical;
+        physical = gcmNAME_TO_PTR(Interface->u.FreeNonPagedMemory.physical);
 
         /* Unmap user logical out of physical memory first. */
         gcmkONERROR(gckOS_UnmapUserLogical(Kernel->os,
                                            physical,
-                                           Interface->u.FreeNonPagedMemory.bytes,
-                                           Interface->u.FreeNonPagedMemory.logical));
+                                           (gctSIZE_T) Interface->u.FreeNonPagedMemory.bytes,
+                                           gcmUINT64_TO_PTR(Interface->u.FreeNonPagedMemory.logical)));
 
         /* Free non-paged memory. */
         gcmkONERROR(
             gckOS_FreeNonPagedMemory(Kernel->os,
-                                     Interface->u.FreeNonPagedMemory.bytes,
+                                     (gctSIZE_T) Interface->u.FreeNonPagedMemory.bytes,
                                      physical,
-                                     Interface->u.FreeNonPagedMemory.logical));
+                                     gcmUINT64_TO_PTR(Interface->u.FreeNonPagedMemory.logical)));
 
         gcmkVERIFY_OK(
             gckKERNEL_RemoveProcessDB(Kernel,
                                       processID, gcvDB_NON_PAGED,
-                                      Interface->u.FreeNonPagedMemory.logical));
+                                      gcmUINT64_TO_PTR(Interface->u.FreeNonPagedMemory.logical)));
 
 #if gcdSECURE_USER
         gcmkVERIFY_OK(gckKERNEL_FlushTranslationCache(
             Kernel,
             cache,
-            Interface->u.FreeNonPagedMemory.logical,
+            gcmUINT64_TO_PTR(Interface->u.FreeNonPagedMemory.logical),
             Interface->u.FreeNonPagedMemory.bytes));
 #endif
+
+        gcmRELEASE_NAME(Interface->u.FreeNonPagedMemory.physical);
+
         break;
 
     case gcvHAL_ALLOCATE_CONTIGUOUS_MEMORY:
+        bytes = (gctSIZE_T) Interface->u.AllocateContiguousMemory.bytes;
+
         /* Allocate contiguous memory. */
         gcmkONERROR(gckOS_AllocateContiguous(
             Kernel->os,
             FromUser,
-            &Interface->u.AllocateContiguousMemory.bytes,
-            &Interface->u.AllocateContiguousMemory.physical,
-            &Interface->u.AllocateContiguousMemory.logical));
+            &bytes,
+            &physical,
+            &logical));
+
+        Interface->u.AllocateContiguousMemory.bytes    = bytes;
+        Interface->u.AllocateContiguousMemory.logical  = gcmPTR_TO_UINT64(logical);
+        Interface->u.AllocateContiguousMemory.physical = gcmPTR_TO_NAME(physical);
 
         gcmkONERROR(gckHARDWARE_ConvertLogical(
             Kernel->hardware,
-            Interface->u.AllocateContiguousMemory.logical,
+            gcmUINT64_TO_PTR(Interface->u.AllocateContiguousMemory.logical),
             &Interface->u.AllocateContiguousMemory.address));
 
         gcmkVERIFY_OK(gckKERNEL_AddProcessDB(
             Kernel,
             processID, gcvDB_CONTIGUOUS,
-            Interface->u.AllocateContiguousMemory.logical,
-            Interface->u.AllocateContiguousMemory.physical,
-            Interface->u.AllocateContiguousMemory.bytes));
+            logical,
+            gcmINT2PTR(Interface->u.AllocateContiguousMemory.physical),
+            bytes));
+
         break;
 
     case gcvHAL_FREE_CONTIGUOUS_MEMORY:
-        physical = Interface->u.FreeContiguousMemory.physical;
+        physical = gcmNAME_TO_PTR(Interface->u.FreeContiguousMemory.physical);
 
         /* Unmap user logical out of physical memory first. */
         gcmkONERROR(gckOS_UnmapUserLogical(Kernel->os,
                                            physical,
-                                           Interface->u.FreeContiguousMemory.bytes,
-                                           Interface->u.FreeContiguousMemory.logical));
+                                           (gctSIZE_T) Interface->u.FreeContiguousMemory.bytes,
+                                           gcmUINT64_TO_PTR(Interface->u.FreeContiguousMemory.logical)));
 
         /* Free contiguous memory. */
         gcmkONERROR(
             gckOS_FreeContiguous(Kernel->os,
                                  physical,
-                                 Interface->u.FreeContiguousMemory.logical,
-                                 Interface->u.FreeContiguousMemory.bytes));
+                                 gcmUINT64_TO_PTR(Interface->u.FreeContiguousMemory.logical),
+                                 (gctSIZE_T) Interface->u.FreeContiguousMemory.bytes));
 
         gcmkVERIFY_OK(
             gckKERNEL_RemoveProcessDB(Kernel,
                                       processID, gcvDB_CONTIGUOUS,
-                                      Interface->u.FreeNonPagedMemory.logical));
+                                      gcmUINT64_TO_PTR(Interface->u.FreeNonPagedMemory.logical)));
 
 #if gcdSECURE_USER
         gcmkVERIFY_OK(gckKERNEL_FlushTranslationCache(
             Kernel,
             cache,
-            Interface->u.FreeContiguousMemory.logical,
+            gcmUINT64_TO_PTR(Interface->u.FreeContiguousMemory.logical),
             Interface->u.FreeContiguousMemory.bytes));
 #endif
+
+        gcmRELEASE_NAME(Interface->u.FreeContiguousMemory.physical);
+
         break;
 
     case gcvHAL_ALLOCATE_VIDEO_MEMORY:
@@ -1110,10 +1149,8 @@ gckKERNEL_Dispatch(
                             Interface->u.AllocateLinearVideoMemory.bytes,
                             Interface->u.AllocateLinearVideoMemory.alignment,
                             Interface->u.AllocateLinearVideoMemory.type,
-                            &Interface->u.AllocateLinearVideoMemory.node));
+                            &node));
 
-        /* Get actual size of node. */
-        node = Interface->u.AllocateLinearVideoMemory.node;
         if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
         {
             bytes = node->VidMem.bytes;
@@ -1126,14 +1163,17 @@ gckKERNEL_Dispatch(
         gcmkONERROR(
             gckKERNEL_AddProcessDB(Kernel,
                                    processID, gcvDB_VIDEO_MEMORY,
-                                   Interface->u.AllocateLinearVideoMemory.node,
+                                   node,
                                    gcvNULL,
                                    bytes));
+
+        /* Get the node. */
+        Interface->u.AllocateLinearVideoMemory.node = gcmPTR_TO_UINT64(node);
         break;
 
     case gcvHAL_FREE_VIDEO_MEMORY:
+        node = gcmUINT64_TO_PTR(Interface->u.FreeVideoMemory.node);
 #ifdef __QNXNTO__
-        node = Interface->u.FreeVideoMemory.node;
         if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM
          && node->VidMem.logical != gcvNULL)
         {
@@ -1147,25 +1187,27 @@ gckKERNEL_Dispatch(
 #endif
         /* Free video memory. */
         gcmkONERROR(
-            gckVIDMEM_Free(Interface->u.FreeVideoMemory.node));
+            gckVIDMEM_Free(node));
 
         gcmkONERROR(
             gckKERNEL_RemoveProcessDB(Kernel,
                                       processID, gcvDB_VIDEO_MEMORY,
-                                      Interface->u.FreeVideoMemory.node));
+                                      node));
+
         break;
 
     case gcvHAL_LOCK_VIDEO_MEMORY:
+        node = gcmUINT64_TO_PTR(Interface->u.LockVideoMemory.node);
+
         /* Lock video memory. */
         gcmkONERROR(
             gckVIDMEM_Lock(Kernel,
-                           Interface->u.LockVideoMemory.node,
+                           node,
                            Interface->u.LockVideoMemory.cacheable,
                            &Interface->u.LockVideoMemory.address));
 
         locked = gcvTRUE;
 
-        node = Interface->u.LockVideoMemory.node;
         if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
         {
             /* Map video memory address into user space. */
@@ -1182,18 +1224,20 @@ gckKERNEL_Dispatch(
         }
         gcmkASSERT(node->VidMem.logical != gcvNULL);
 
-        Interface->u.LockVideoMemory.memory = node->VidMem.logical;
+        Interface->u.LockVideoMemory.memory = gcmPTR_TO_UINT64(node->VidMem.logical);
 #else
             gcmkONERROR(
                 gckKERNEL_MapVideoMemory(Kernel,
                                          FromUser,
                                          Interface->u.LockVideoMemory.address,
-                                         &Interface->u.LockVideoMemory.memory));
+                                         &logical));
+
+            Interface->u.LockVideoMemory.memory = gcmPTR_TO_UINT64(logical);
 #endif
         }
         else
         {
-            Interface->u.LockVideoMemory.memory = node->Virtual.logical;
+            Interface->u.LockVideoMemory.memory = gcmPTR_TO_UINT64(node->Virtual.logical);
 
             /* Success. */
             status = gcvSTATUS_OK;
@@ -1202,12 +1246,12 @@ gckKERNEL_Dispatch(
 #if gcdSECURE_USER
         /* Return logical address as physical address. */
         Interface->u.LockVideoMemory.address =
-            gcmPTR2INT(Interface->u.LockVideoMemory.memory);
+            Interface->u.LockVideoMemory.memory;
 #endif
         gcmkONERROR(
             gckKERNEL_AddProcessDB(Kernel,
                                    processID, gcvDB_VIDEO_MEMORY_LOCKED,
-                                   Interface->u.LockVideoMemory.node,
+                                   node,
                                    gcvNULL,
                                    0));
 
@@ -1215,7 +1259,7 @@ gckKERNEL_Dispatch(
 
     case gcvHAL_UNLOCK_VIDEO_MEMORY:
         /* Unlock video memory. */
-        node = Interface->u.UnlockVideoMemory.node;
+        node = gcmUINT64_TO_PTR(Interface->u.UnlockVideoMemory.node);
 
 #if gcdSECURE_USER
         /* Save node information before it disappears. */
@@ -1254,26 +1298,25 @@ gckKERNEL_Dispatch(
             gcmkONERROR(
                 gckKERNEL_RemoveProcessDB(Kernel,
                                           processID, gcvDB_VIDEO_MEMORY_LOCKED,
-                                          Interface->u.UnlockVideoMemory.node));
+                                          node));
         }
-
         break;
 
     case gcvHAL_EVENT_COMMIT:
         /* Commit an event queue. */
         gcmkONERROR(
             gckEVENT_Commit(Kernel->eventObj,
-                            Interface->u.Event.queue));
+                            gcmUINT64_TO_PTR(Interface->u.Event.queue)));
         break;
 
     case gcvHAL_COMMIT:
         /* Commit a command and context buffer. */
         gcmkONERROR(
             gckCOMMAND_Commit(Kernel->command,
-                              Interface->u.Commit.context,
-                              Interface->u.Commit.commandBuffer,
-                              Interface->u.Commit.delta,
-                              Interface->u.Commit.queue,
+                              gcmNAME_TO_PTR(Interface->u.Commit.context),
+                              gcmUINT64_TO_PTR(Interface->u.Commit.commandBuffer),
+                              gcmUINT64_TO_PTR(Interface->u.Commit.delta),
+                              gcmUINT64_TO_PTR(Interface->u.Commit.queue),
                               processID));
         break;
 
@@ -1287,42 +1330,49 @@ gckKERNEL_Dispatch(
         gcmkONERROR(
             gckOS_MapUserMemory(Kernel->os,
                                 Kernel->core,
-                                Interface->u.MapUserMemory.memory,
+                                gcmUINT64_TO_PTR(Interface->u.MapUserMemory.memory),
                                 Interface->u.MapUserMemory.physical,
-                                Interface->u.MapUserMemory.size,
-                                &Interface->u.MapUserMemory.info,
+                                (gctSIZE_T) Interface->u.MapUserMemory.size,
+                                &info,
                                 &Interface->u.MapUserMemory.address));
+
+        Interface->u.MapUserMemory.info = gcmPTR_TO_NAME(info);
+
         gcmkVERIFY_OK(
             gckKERNEL_AddProcessDB(Kernel,
                                    processID, gcvDB_MAP_USER_MEMORY,
-                                   Interface->u.MapUserMemory.info,
-                                   Interface->u.MapUserMemory.memory,
-                                   Interface->u.MapUserMemory.size));
+                                   gcmINT2PTR(Interface->u.MapUserMemory.info),
+                                   gcmUINT64_TO_PTR(Interface->u.MapUserMemory.memory),
+                                   (gctSIZE_T) Interface->u.MapUserMemory.size));
         break;
 
     case gcvHAL_UNMAP_USER_MEMORY:
         address = Interface->u.UnmapUserMemory.address;
+        info = gcmNAME_TO_PTR(Interface->u.UnmapUserMemory.info);
 
         /* Unmap user memory. */
         gcmkONERROR(
             gckOS_UnmapUserMemory(Kernel->os,
                                   Kernel->core,
-                                  Interface->u.UnmapUserMemory.memory,
-                                  Interface->u.UnmapUserMemory.size,
-                                  Interface->u.UnmapUserMemory.info,
+                                  gcmUINT64_TO_PTR(Interface->u.UnmapUserMemory.memory),
+                                  (gctSIZE_T) Interface->u.UnmapUserMemory.size,
+                                  info,
                                   address));
 
 #if gcdSECURE_USER
         gcmkVERIFY_OK(gckKERNEL_FlushTranslationCache(
             Kernel,
             cache,
-            Interface->u.UnmapUserMemory.memory,
+            gcmUINT64_TO_PTR(Interface->u.UnmapUserMemory.memory),
             Interface->u.UnmapUserMemory.size));
 #endif
         gcmkVERIFY_OK(
             gckKERNEL_RemoveProcessDB(Kernel,
                                       processID, gcvDB_MAP_USER_MEMORY,
-                                      Interface->u.UnmapUserMemory.info));
+                                      gcmINT2PTR(Interface->u.UnmapUserMemory.info)));
+
+        gcmRELEASE_NAME(Interface->u.UnmapUserMemory.info);
+
         break;
 
 #if !USE_NEW_LINUX_SIGNAL
@@ -1571,7 +1621,7 @@ gckKERNEL_Dispatch(
         gcmkONERROR(
             gckHARDWARE_ProfileEngine2D(
                 Kernel->hardware,
-                Interface->u.RegisterProfileData2D.hwProfile2D));
+                gcmUINT64_TO_PTR(Interface->u.RegisterProfileData2D.hwProfile2D)));
 #else
         status = gcvSTATUS_OK;
 #endif
@@ -1686,14 +1736,15 @@ gckKERNEL_Dispatch(
         break;
 
     case gcvHAL_CACHE:
-        if (Interface->u.Cache.node == gcvNULL)
+        node = gcmUINT64_TO_PTR(Interface->u.Cache.node);
+        if (node == gcvNULL)
         {
             /* FIXME Surface wrap some memory which is not allocated by us,
             ** So we don't have physical address to handle outer cache, ignore it*/
             status = gcvSTATUS_OK;
             break;
         }
-        else if (Interface->u.Cache.node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
+        else if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
         {
             /* Video memory has no physical handles. */
             physical = gcvNULL;
@@ -1701,9 +1752,11 @@ gckKERNEL_Dispatch(
         else
         {
             /* Grab physical handle. */
-            physical = Interface->u.Cache.node->Virtual.physical;
+            physical = node->Virtual.physical;
         }
 
+        logical = gcmUINT64_TO_PTR(Interface->u.Cache.logical);
+        bytes = (gctSIZE_T) Interface->u.Cache.bytes;
         switch(Interface->u.Cache.operation)
         {
         case gcvCACHE_FLUSH:
@@ -1712,8 +1765,8 @@ gckKERNEL_Dispatch(
                                       processID,
                                       physical,
                                       paddr,
-                                      Interface->u.Cache.logical,
-                                      Interface->u.Cache.bytes);
+                                      logical,
+                                      bytes);
             break;
         case gcvCACHE_CLEAN:
             /* Clean the cache. */
@@ -1721,8 +1774,8 @@ gckKERNEL_Dispatch(
                                       processID,
                                       physical,
                                       paddr,
-                                      Interface->u.Cache.logical,
-                                      Interface->u.Cache.bytes);
+                                      logical,
+                                      bytes);
             break;
         case gcvCACHE_INVALIDATE:
             /* Invalidate the cache. */
@@ -1730,13 +1783,13 @@ gckKERNEL_Dispatch(
                                            processID,
                                            physical,
                                            paddr,
-                                           Interface->u.Cache.logical,
-                                           Interface->u.Cache.bytes);
+                                           logical,
+                                           bytes);
             break;
 
 	case gcvCACHE_MEMORY_BARRIER:
 	   status = gckOS_MemoryBarrier(Kernel->os,
-                                        Interface->u.Cache.logical);
+                                        logical);
 	   break;
         default:
             status = gcvSTATUS_INVALID_ARGUMENT;
@@ -1836,14 +1889,17 @@ gckKERNEL_Dispatch(
         /* Attach user process. */
         gcmkONERROR(
             gckCOMMAND_Attach(Kernel->command,
-                              &Interface->u.Attach.context,
-                              &Interface->u.Attach.stateCount,
+                              &context,
+                              &bytes,
                               processID));
+
+        Interface->u.Attach.stateCount = bytes;
+        Interface->u.Attach.context = gcmPTR_TO_NAME(context);
 
         gcmkVERIFY_OK(
             gckKERNEL_AddProcessDB(Kernel,
                                    processID, gcvDB_CONTEXT,
-                                   Interface->u.Attach.context,
+                                   gcmINT2PTR(Interface->u.Attach.context),
                                    gcvNULL,
                                    0));
         break;
@@ -1852,15 +1908,18 @@ gckKERNEL_Dispatch(
         /* Detach user process. */
         gcmkONERROR(
             gckCOMMAND_Detach(Kernel->command,
-                              Interface->u.Detach.context));
+                              gcmNAME_TO_PTR(Interface->u.Detach.context)));
 
         gcmkVERIFY_OK(
             gckKERNEL_RemoveProcessDB(Kernel,
                               processID, gcvDB_CONTEXT,
-                              Interface->u.Detach.context));
+                              gcmINT2PTR(Interface->u.Detach.context)));
+
+        gcmRELEASE_NAME(Interface->u.Detach.context);
         break;
 
     case gcvHAL_COMPOSE:
+        Interface->u.Compose.physical = gcmPTR_TO_UINT64(gcmNAME_TO_PTR(Interface->u.Compose.physical));
         /* Start composition. */
         gcmkONERROR(
             gckEVENT_Compose(Kernel->eventObj,
@@ -1876,11 +1935,13 @@ gckKERNEL_Dispatch(
     case gcvHAL_GET_FRAME_INFO:
         gcmkONERROR(gckHARDWARE_GetFrameInfo(
             Kernel->hardware,
-            Interface->u.GetFrameInfo.frameInfo));
+            gcmUINT64_TO_PTR(Interface->u.GetFrameInfo.frameInfo)));
         break;
 #endif
 
     case gcvHAL_GET_SHARED_INFO:
+        bytes = (gctSIZE_T) Interface->u.GetSharedInfo.size;
+
         if (Interface->u.GetSharedInfo.dataId != 0)
         {
             gcmkONERROR(gckKERNEL_FindProcessDB(Kernel,
@@ -1891,7 +1952,7 @@ gckKERNEL_Dispatch(
                         &record));
 
             /* find a record in db, check size */
-            if (record.bytes != Interface->u.GetSharedInfo.size)
+            if (record.bytes != bytes)
             {
                 /* Size change is not allowed */
                 gcmkONERROR(gcvSTATUS_INVALID_DATA);
@@ -1901,13 +1962,13 @@ gckKERNEL_Dispatch(
             gcmkONERROR(gckOS_CopyToUserData(
                 Kernel->os,
                 record.physical,
-                Interface->u.GetSharedInfo.data,
-                Interface->u.GetSharedInfo.size
+                gcmUINT64_TO_PTR(Interface->u.GetSharedInfo.data),
+                bytes
                 ));
 
         }
 
-        if ((node = Interface->u.GetSharedInfo.node) != gcvNULL)
+        if ((node = gcmUINT64_TO_PTR(Interface->u.GetSharedInfo.node)) != gcvNULL)
         {
             switch (Interface->u.GetSharedInfo.infoType)
                 {
@@ -1926,7 +1987,7 @@ gckKERNEL_Dispatch(
                          gcmkONERROR(gckOS_CopyToUserData(
                              Kernel->os,
                              data,
-                             Interface->u.GetSharedInfo.nodeData,
+                             gcmUINT64_TO_PTR(Interface->u.GetSharedInfo.nodeData),
                              sizeof(gcsVIDMEM_NODE_SHARED_INFO)
                              ));
                     }
@@ -1964,7 +2025,7 @@ gckKERNEL_Dispatch(
                         gcmkONERROR(gckOS_CopyToUserData(
                             Kernel->os,
                             &alignedSharedInfo,
-                            Interface->u.GetSharedInfo.nodeData,
+                            gcmUINT64_TO_PTR(Interface->u.GetSharedInfo.nodeData),
                             sizeof(gcsVIDMEM_NODE_SHARED_INFO)
                             ));
 
@@ -1987,6 +2048,8 @@ gckKERNEL_Dispatch(
         break;
 
     case gcvHAL_SET_SHARED_INFO:
+        bytes = (gctSIZE_T) Interface->u.SetSharedInfo.size;
+
         if (Interface->u.SetSharedInfo.dataId != 0)
         {
             status = gckKERNEL_FindProcessDB(Kernel, processID, 0,
@@ -2000,7 +2063,7 @@ gckKERNEL_Dispatch(
                 /* Note: we count on DestoryProcessDB to free it */
                 gcmkONERROR(gckOS_AllocateMemory(
                     Kernel->os,
-                    Interface->u.SetSharedInfo.size,
+                    bytes,
                     &data
                     ));
 
@@ -2009,7 +2072,7 @@ gckKERNEL_Dispatch(
                         gcvDB_SHARED_INFO,
                         gcmINT2PTR(Interface->u.SetSharedInfo.dataId),
                         data,
-                        Interface->u.SetSharedInfo.size
+                        bytes
                         ));
             }
             else
@@ -2018,7 +2081,7 @@ gckKERNEL_Dispatch(
                 gcmkONERROR(status);
 
                 /* find a record in db, check size */
-                if (record.bytes != Interface->u.SetSharedInfo.size)
+                if (record.bytes != bytes)
                 {
                     /* Size change is not allowed */
                     gcmkONERROR(gcvSTATUS_INVALID_DATA);
@@ -2031,12 +2094,12 @@ gckKERNEL_Dispatch(
             gcmkONERROR(gckOS_CopyFromUserData(
                 Kernel->os,
                 data,
-                Interface->u.SetSharedInfo.data,
-                Interface->u.SetSharedInfo.size
+                gcmUINT64_TO_PTR(Interface->u.SetSharedInfo.data),
+                bytes
                 ));
         }
 
-        if ((node = Interface->u.SetSharedInfo.node) != gcvNULL)
+        if ((node = gcmUINT64_TO_PTR(Interface->u.SetSharedInfo.node)) != gcvNULL)
         {
             switch (Interface->u.SetSharedInfo.infoType)
                 {
@@ -2054,7 +2117,7 @@ gckKERNEL_Dispatch(
                         gcmkONERROR(gckOS_CopyFromUserData(
                             Kernel->os,
                             data,
-                            Interface->u.SetSharedInfo.nodeData,
+                            gcmUINT64_TO_PTR(Interface->u.SetSharedInfo.nodeData),
                             sizeof(gcsVIDMEM_NODE_SHARED_INFO)
                             ));
                     }
@@ -2070,7 +2133,7 @@ gckKERNEL_Dispatch(
                         gcmkONERROR(gckOS_CopyFromUserData(
                             Kernel->os,
                             &newSharedInfo,
-                            Interface->u.SetSharedInfo.nodeData,
+                            gcmUINT64_TO_PTR(Interface->u.SetSharedInfo.nodeData),
                             gcmSIZEOF(gcsVIDMEM_NODE_SHARED_INFO)
                             ));
 
@@ -2141,6 +2204,14 @@ gckKERNEL_Dispatch(
 #endif
         break;
 
+    case gcvHAL_QUERY_RESET_TIME_STAMP:
+#if gcdENABLE_RECOVERY
+        Interface->u.QueryResetTimeStamp.timeStamp = Kernel->resetTimeStamp;
+#else
+        Interface->u.QueryResetTimeStamp.timeStamp = 0;
+#endif
+        break;
+
     default:
         /* Invalid command. */
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
@@ -2157,7 +2228,7 @@ OnError:
             /* Roll back the lock. */
             gcmkVERIFY_OK(
                 gckVIDMEM_Unlock(Kernel,
-                                 Interface->u.LockVideoMemory.node,
+                                 gcmUINT64_TO_PTR(Interface->u.LockVideoMemory.node),
                                  gcvSURF_TYPE_UNKNOWN,
                                  &asynchronous));
 
@@ -2166,7 +2237,7 @@ OnError:
                 /* Bottom Half */
                 gcmkVERIFY_OK(
                     gckVIDMEM_Unlock(Kernel,
-                                     Interface->u.LockVideoMemory.node,
+                                     gcmUINT64_TO_PTR(Interface->u.LockVideoMemory.node),
                                      gcvSURF_TYPE_UNKNOWN,
                                      gcvNULL));
             }
@@ -2944,6 +3015,8 @@ gckKERNEL_Recovery(
 #endif
     gcmkONERROR(gckEVENT_Notify(eventObj, 2));
 
+    Kernel->resetTimeStamp++;
+
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
@@ -3472,6 +3545,361 @@ gckLINKQUEUE_GetData(
 }
 #endif
 
+/******************************************************************************\
+*************************** Pointer - ID translation ***************************
+\******************************************************************************/
+#define gcdID_TABLE_LENGTH 1024
+typedef struct _gcsINTEGERDB * gckINTEGERDB;
+typedef struct _gcsINTEGERDB
+{
+    gckOS                       os;
+    gctPOINTER*                 table;
+    gctPOINTER                  mutex;
+    gctUINT32                   tableLen;
+    gctUINT32                   currentID;
+    gctUINT32                   unused;
+}
+gcsINTEGERDB;
+
+gceSTATUS
+gckKERNEL_CreateIntegerDatabase(
+    IN gckKERNEL Kernel,
+    OUT gctPOINTER * Database
+    )
+{
+    gceSTATUS status;
+    gckINTEGERDB database = gcvNULL;
+
+    gcmkHEADER_ARG("Kernel=0x%08X Datbase=0x%08X", Kernel, Database);
+
+    gcmkVERIFY_OBJECT(Kernel, gcvOBJ_KERNEL);
+    gcmkVERIFY_ARGUMENT(Database != gcvNULL);
+
+    /* Allocate a database. */
+    gcmkONERROR(gckOS_Allocate(
+        Kernel->os, gcmSIZEOF(gcsINTEGERDB), (gctPOINTER *)&database));
+
+    gckOS_ZeroMemory(database, gcmSIZEOF(gcsINTEGERDB));
+
+    /* Allocate a pointer table. */
+    gcmkONERROR(gckOS_Allocate(
+        Kernel->os, gcmSIZEOF(gctPOINTER) * gcdID_TABLE_LENGTH, (gctPOINTER *)&database->table));
+
+    gckOS_ZeroMemory(database->table, gcmSIZEOF(gctPOINTER) * gcdID_TABLE_LENGTH);
+
+    /* Allocate a database mutex. */
+    gcmkONERROR(gckOS_CreateMutex(Kernel->os, &database->mutex));
+
+    /* Initialize. */
+    database->currentID = 0;
+    database->unused = gcdID_TABLE_LENGTH;
+    database->os = Kernel->os;
+    database->tableLen = gcdID_TABLE_LENGTH;
+
+    *Database = database;
+
+    gcmkFOOTER_ARG("*Database=0x%08X", *Database);
+    return gcvSTATUS_OK;
+
+OnError:
+    /* Rollback. */
+    if (database)
+    {
+        if (database->table)
+        {
+            gcmkOS_SAFE_FREE(Kernel->os, database->table);
+        }
+
+        gcmkOS_SAFE_FREE(Kernel->os, database);
+    }
+
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckKERNEL_DestroyIntegerDatabase(
+    IN gckKERNEL Kernel,
+    IN gctPOINTER Database
+    )
+{
+    gckINTEGERDB database = Database;
+
+    gcmkHEADER_ARG("Kernel=0x%08X Datbase=0x%08X", Kernel, Database);
+
+    gcmkVERIFY_OBJECT(Kernel, gcvOBJ_KERNEL);
+    gcmkVERIFY_ARGUMENT(Database != gcvNULL);
+
+    /* Destroy pointer table. */
+    gcmkOS_SAFE_FREE(Kernel->os, database->table);
+
+    /* Destroy database mutex. */
+    gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, database->mutex));
+
+    /* Destroy database. */
+    gcmkOS_SAFE_FREE(Kernel->os, database);
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+gckKERNEL_AllocateIntegerId(
+    IN gctPOINTER Database,
+    IN gctPOINTER Pointer,
+    OUT gctUINT32 * Id
+    )
+{
+    gceSTATUS status;
+    gckINTEGERDB database = Database;
+    gctUINT32 i, unused, currentID, tableLen;
+    gctPOINTER * table;
+    gckOS os = database->os;
+    gctBOOL acquired = gcvFALSE;
+
+    gcmkHEADER_ARG("Database=0x%08X Pointer=0x%08X", Database, Pointer);
+
+    gcmkVERIFY_ARGUMENT(Id != gcvNULL);
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(os, database->mutex, gcvINFINITE));
+    acquired = gcvTRUE;
+
+    if (database->unused < 1)
+    {
+        /* Extend table. */
+        gcmkONERROR(
+            gckOS_Allocate(os,
+                           gcmSIZEOF(gctPOINTER) * (database->tableLen + gcdID_TABLE_LENGTH),
+                           (gctPOINTER *)&table));
+
+        gckOS_ZeroMemory(table + database->tableLen,
+                         gcmSIZEOF(gctPOINTER) * gcdID_TABLE_LENGTH);
+
+        /* Copy data from old table. */
+        gckOS_MemCopy(table,
+                      database->table,
+                      database->tableLen * gcmSIZEOF(gctPOINTER));
+
+        gcmkOS_SAFE_FREE(os, database->table);
+
+        /* Update databse with new allocated table. */
+        database->table = table;
+        database->currentID = database->tableLen;
+        database->tableLen += gcdID_TABLE_LENGTH;
+        database->unused += gcdID_TABLE_LENGTH;
+    }
+
+    table = database->table;
+    currentID = database->currentID;
+    tableLen = database->tableLen;
+    unused = database->unused;
+
+    /* Connect id with pointer. */
+    table[currentID] = Pointer;
+
+    *Id = currentID + 1;
+
+    /* Update the currentID. */
+    if (--unused > 0)
+    {
+        for (i = 0; i < tableLen; i++)
+        {
+            if (++currentID >= tableLen)
+            {
+                /* Wrap to the begin. */
+                currentID = 0;
+            }
+
+            if (table[currentID] == gcvNULL)
+            {
+                break;
+            }
+        }
+    }
+
+    database->table = table;
+    database->currentID = currentID;
+    database->tableLen = tableLen;
+    database->unused = unused;
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(os, database->mutex));
+    acquired = gcvFALSE;
+
+    gcmkFOOTER_ARG("*Id=%d", *Id);
+    return gcvSTATUS_OK;
+
+OnError:
+    if (acquired)
+    {
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(os, database->mutex));
+    }
+
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckKERNEL_FreeIntegerId(
+    IN gctPOINTER Database,
+    IN gctUINT32 Id
+    )
+{
+    gceSTATUS status;
+    gckINTEGERDB database = Database;
+    gckOS os = database->os;
+    gctBOOL acquired = gcvFALSE;
+
+    gcmkHEADER_ARG("Database=0x%08X Id=%d", Database, Id);
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(os, database->mutex, gcvINFINITE));
+    acquired = gcvTRUE;
+
+    if (!(Id > 0 && Id <= database->tableLen))
+    {
+        gcmkONERROR(gcvSTATUS_NOT_FOUND);
+    }
+
+    Id -= 1;
+
+    database->table[Id] = gcvNULL;
+
+    if (database->unused++ == 0)
+    {
+        database->currentID = Id;
+    }
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(os, database->mutex));
+    acquired = gcvFALSE;
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    if (acquired)
+    {
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(os, database->mutex));
+    }
+
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckKERNEL_QueryIntegerId(
+    IN gctPOINTER Database,
+    IN gctUINT32 Id,
+    OUT gctPOINTER * Pointer
+    )
+{
+    gceSTATUS status;
+    gckINTEGERDB database = Database;
+    gctPOINTER pointer;
+    gckOS os = database->os;
+    gctBOOL acquired = gcvFALSE;
+
+    gcmkHEADER_ARG("Database=0x%08X Id=%d", Database, Id);
+    gcmkVERIFY_ARGUMENT(Pointer != gcvNULL);
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(os, database->mutex, gcvINFINITE));
+    acquired = gcvTRUE;
+
+    if (!(Id > 0 && Id <= database->tableLen))
+    {
+        gcmkONERROR(gcvSTATUS_NOT_FOUND);
+    }
+
+    Id -= 1;
+
+    pointer = database->table[Id];
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(os, database->mutex));
+    acquired = gcvFALSE;
+
+    if (pointer)
+    {
+        *Pointer = pointer;
+    }
+    else
+    {
+        gcmkONERROR(gcvSTATUS_NOT_FOUND);
+    }
+
+    gcmkFOOTER_ARG("*Pointer=0x%08X", *Pointer);
+    return gcvSTATUS_OK;
+
+OnError:
+    if (acquired)
+    {
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(os, database->mutex));
+    }
+
+    gcmkFOOTER();
+    return status;
+}
+
+
+gctUINT32
+gckKERNEL_AllocateNameFromPointer(
+    IN gckKERNEL Kernel,
+    IN gctPOINTER Pointer
+    )
+{
+    gceSTATUS status;
+    gctUINT32 name;
+    gctPOINTER database = Kernel->db->pointerDatabase;
+
+    gcmkHEADER_ARG("Kernel=0x%X Pointer=0x%X", Kernel, Pointer);
+
+    gcmkONERROR(
+        gckKERNEL_AllocateIntegerId(database, Pointer, &name));
+
+    gcmkFOOTER_ARG("name=%d", name);
+    return name;
+
+OnError:
+    gcmkFOOTER();
+    return 0;
+}
+
+gctPOINTER
+gckKERNEL_QueryPointerFromName(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 Name
+    )
+{
+    gceSTATUS status;
+    gctPOINTER pointer = gcvNULL;
+    gctPOINTER database = Kernel->db->pointerDatabase;
+
+    gcmkHEADER_ARG("Kernel=0x%X Name=%d", Kernel, Name);
+
+    /* Lookup in database to get pointer. */
+    gcmkONERROR(gckKERNEL_QueryIntegerId(database, Name, &pointer));
+
+    gcmkFOOTER_ARG("pointer=0x%X", pointer);
+    return pointer;
+
+OnError:
+    gcmkFOOTER();
+    return gcvNULL;
+}
+
+gceSTATUS
+gckKERNEL_DeleteName(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 Name
+    )
+{
+    gctPOINTER database = Kernel->db->pointerDatabase;
+
+    gcmkHEADER_ARG("Kernel=0x%X Name=0x%X", Kernel, Name);
+
+    /* Free name if exists. */
+    gcmkVERIFY_OK(gckKERNEL_FreeIntegerId(database, Name));
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
 /*******************************************************************************
 ***** Test Code ****************************************************************
 *******************************************************************************/

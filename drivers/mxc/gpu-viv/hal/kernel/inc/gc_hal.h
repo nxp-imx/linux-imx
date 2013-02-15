@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #ifndef __gc_hal_h_
@@ -64,6 +62,59 @@ extern "C" {
 #define gcmCOUNTOF(a) \
 ( \
     sizeof(a) / sizeof(a[0]) \
+)
+
+/******************************************************************************\
+********************************* Cast Macro **********************************
+\******************************************************************************/
+#define gcmNAME_TO_PTR(na) \
+        gckKERNEL_QueryPointerFromName(kernel, gcmALL_TO_UINT32(na))
+
+#define gcmPTR_TO_NAME(ptr) \
+        gckKERNEL_AllocateNameFromPointer(kernel, ptr)
+
+#define gcmRELEASE_NAME(na) \
+        gckKERNEL_DeleteName(kernel, gcmALL_TO_UINT32(na))
+
+#ifdef __LP64__
+
+#define gcmALL_TO_UINT32(t) \
+( \
+    (gctUINT32) (gctUINTPTR_T) (t)\
+)
+
+#define gcmPTR_TO_UINT64(p) \
+( \
+    (gctUINT64) (p)\
+)
+
+#define gcmUINT64_TO_PTR(u) \
+( \
+    (gctPOINTER) (u)\
+)
+
+#else /* 32 bit */
+
+#define gcmALL_TO_UINT32(t) \
+( \
+    (gctUINT32) (t)\
+)
+
+#define gcmPTR_TO_UINT64(p) \
+( \
+    (gctUINT64) (gctUINTPTR_T) (p)\
+)
+
+#define gcmUINT64_TO_PTR(u) \
+( \
+    (gctPOINTER) (gctUINTPTR_T) (u)\
+)
+
+#endif
+
+#define gcmUINT64_TO_TYPE(u, t) \
+( \
+    (t) (gctUINTPTR_T) (u)\
 )
 
 /******************************************************************************\
@@ -1275,6 +1326,33 @@ gckOS_ResetGPU(
     IN gceCORE Core
     );
 
+gceSTATUS
+gckOS_PrepareGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core
+    );
+
+gceSTATUS
+gckOS_FinishGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core
+    );
+
+gceSTATUS
+gckOS_QueryGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core,
+    OUT gctUINT32 * Frequency,
+    OUT gctUINT8 * Scale
+    );
+
+gceSTATUS
+gckOS_SetGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core,
+    IN gctUINT8 Scale
+    );
+
 /*******************************************************************************
 ** Semaphores.
 */
@@ -1339,7 +1417,7 @@ gckOS_CreateTimer(
 
 /* Destory a timer. */
 gceSTATUS
-gckOS_DestoryTimer(
+gckOS_DestroyTimer(
     IN gckOS Os,
     IN gctPOINTER Timer
     );
@@ -1414,6 +1492,7 @@ gckHEAP_ProfileEnd(
 typedef struct _gckVIDMEM *         gckVIDMEM;
 typedef struct _gckKERNEL *         gckKERNEL;
 typedef struct _gckDB *             gckDB;
+typedef struct _gckDVFS *           gckDVFS;
 
 /* Construct a new gckVIDMEM object. */
 gceSTATUS
@@ -1702,6 +1781,27 @@ gckKERNEL_CloseUserData(
     IN gctPOINTER UserPointer,
     IN gctSIZE_T Size,
     OUT gctPOINTER * KernelPointer
+    );
+
+gceSTATUS
+gckDVFS_Construct(
+    IN gckHARDWARE Hardware,
+    OUT gckDVFS * Frequency
+    );
+
+gceSTATUS
+gckDVFS_Destroy(
+    IN gckDVFS Dvfs
+    );
+
+gceSTATUS
+gckDVFS_Start(
+    IN gckDVFS Dvfs
+    );
+
+gceSTATUS
+gckDVFS_Stop(
+    IN gckDVFS Dvfs
     );
 
 /******************************************************************************\
@@ -2056,6 +2156,23 @@ gckHARDWARE_DumpMMUException(
 gceSTATUS
 gckHARDWARE_DumpGPUState(
     IN gckHARDWARE Hardware
+    );
+
+gceSTATUS
+gckHARDWARE_InitDVFS(
+    IN gckHARDWARE Hardware
+    );
+
+gceSTATUS
+gckHARDWARE_QueryLoad(
+    IN gckHARDWARE Hardware,
+    OUT gctUINT32 * Load
+    );
+
+gceSTATUS
+gckHARDWARE_SetDVFSPeroid(
+    IN gckHARDWARE Hardware,
+    IN gctUINT32 Frequency
     );
 
 #if !gcdENABLE_VG

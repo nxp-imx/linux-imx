@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #include "gc_hal.h"
@@ -256,6 +254,13 @@ _IdentifyHardware(
         /* Disable rectangle primitive. */
         Identity->chipMinorFeatures2
             = ((((gctUINT32) (Identity->chipMinorFeatures2)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 5:5) - (0 ? 5:5) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 5:5) - (0 ? 5:5) + 1))))))) << (0 ? 5:5))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 5:5) - (0 ? 5:5) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 5:5) - (0 ? 5:5) + 1))))))) << (0 ? 5:5)));
+    }
+
+    if ((Identity->chipModel == gcv800) && (Identity->chipRevision == 0x4605))
+    {
+        /* Correct feature bit: RTL does not have such feature. */
+        Identity->chipFeatures
+            = ((((gctUINT32) (Identity->chipFeatures)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:31) - (0 ? 31:31) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:31) - (0 ? 31:31) + 1))))))) << (0 ? 31:31))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 31:31) - (0 ? 31:31) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:31) - (0 ? 31:31) + 1))))))) << (0 ? 31:31)));
     }
 
     gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
@@ -815,7 +820,7 @@ OnError:
         if (hardware->powerOffTimer != gcvNULL)
         {
             gcmkVERIFY_OK(gckOS_StopTimer(Os, hardware->powerOffTimer));
-            gcmkVERIFY_OK(gckOS_DestoryTimer(Os, hardware->powerOffTimer));
+            gcmkVERIFY_OK(gckOS_DestroyTimer(Os, hardware->powerOffTimer));
         }
 #endif
 
@@ -868,7 +873,7 @@ gckHARDWARE_Destroy(
 
 #if gcdPOWEROFF_TIMEOUT
     gcmkVERIFY_OK(gckOS_StopTimer(Hardware->os, Hardware->powerOffTimer));
-    gcmkVERIFY_OK(gckOS_DestoryTimer(Hardware->os, Hardware->powerOffTimer));
+    gcmkVERIFY_OK(gckOS_DestroyTimer(Hardware->os, Hardware->powerOffTimer));
 #endif
 
     gcmkVERIFY_OK(gckOS_AtomDestroy(Hardware->os, Hardware->pageTableDirty));
@@ -4395,6 +4400,13 @@ gckHARDWARE_SetPowerManagementState(
     /* Save the new power state. */
     Hardware->chipPowerState = State;
 
+#if gcdDVFS
+    if (State == gcvPOWER_ON && Hardware->kernel->dvfs)
+    {
+        gckDVFS_Start(Hardware->kernel->dvfs);
+    }
+#endif
+
 #if gcdPOWEROFF_TIMEOUT
     /* Reset power off time */
     gcmkONERROR(gckOS_GetTicks(&currentTime));
@@ -5472,7 +5484,9 @@ gckHARDWARE_IsFeatureAvailable(
         available = ((((gctUINT32) (Hardware->identity.chipMinorFeatures)) >> (0 ? 22:22) & ((gctUINT32) ((((1 ? 22:22) - (0 ? 22:22) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 22:22) - (0 ? 22:22) + 1)))))) == (0x1  & ((gctUINT32) ((((1 ? 22:22) - (0 ? 22:22) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 22:22) - (0 ? 22:22) + 1)))))));
         break;
     case gcvFEATURE_DYNAMIC_FREQUENCY_SCALING:
-        available = ((((gctUINT32) (Hardware->identity.chipMinorFeatures2)) >> (0 ? 14:14) & ((gctUINT32) ((((1 ? 14:14) - (0 ? 14:14) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 14:14) - (0 ? 14:14) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 14:14) - (0 ? 14:14) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 14:14) - (0 ? 14:14) + 1)))))));
+        /* This feature doesn't apply for 2D cores. */
+        available = ((((gctUINT32) (Hardware->identity.chipMinorFeatures2)) >> (0 ? 14:14) & ((gctUINT32) ((((1 ? 14:14) - (0 ? 14:14) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 14:14) - (0 ? 14:14) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 14:14) - (0 ? 14:14) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 14:14) - (0 ? 14:14) + 1)))))))
+            &&      ((((gctUINT32) (Hardware->identity.chipFeatures)) >> (0 ? 2:2) & ((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1)))))));
         break;
 
     default:
@@ -6226,4 +6240,195 @@ OnError:
     return status;
 }
 #endif
+
+#if gcdDVFS
+#define READ_FROM_EATER1 0
+
+gceSTATUS
+gckHARDWARE_QueryLoad(
+    IN gckHARDWARE Hardware,
+    OUT gctUINT32 * Load
+    )
+{
+    gctUINT32 debug1;
+    gceSTATUS status;
+    gcmkHEADER_ARG("Hardware=0x%X", Hardware);
+
+    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+    gcmkVERIFY_ARGUMENT(Load != gcvNULL);
+
+    gckOS_AcquireMutex(Hardware->os, Hardware->powerMutex, gcvINFINITE);
+
+    if (Hardware->chipPowerState == gcvPOWER_ON)
+    {
+        gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                         Hardware->core,
+                                         0x00110,
+                                         Load));
+#if READ_FROM_EATER1
+        gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                         Hardware->core,
+                                         0x00134,
+                                         Load));
+#endif
+
+        gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                         Hardware->core,
+                                         0x00114,
+                                         &debug1));
+
+        /* Patch result of 0x110 with result of 0x114. */
+        if ((debug1 & 0xFF) == 1)
+        {
+            *Load &= ~0xFF;
+            *Load |= 1;
+        }
+
+        if (((debug1 & 0xFF00) >> 8) == 1)
+        {
+            *Load &= ~(0xFF << 8);
+            *Load |= 1 << 8;
+        }
+
+        if (((debug1 & 0xFF0000) >> 16) == 1)
+        {
+            *Load &= ~(0xFF << 16);
+            *Load |= 1 << 16;
+        }
+
+        if (((debug1 & 0xFF000000) >> 24) == 1)
+        {
+            *Load &= ~(0xFF << 24);
+            *Load |= 1 << 24;
+        }
+    }
+    else
+    {
+        status = gcvSTATUS_INVALID_REQUEST;
+    }
+
+OnError:
+
+    gckOS_ReleaseMutex(Hardware->os, Hardware->powerMutex);
+
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckHARDWARE_SetDVFSPeroid(
+    IN gckHARDWARE Hardware,
+    OUT gctUINT32 Frequency
+    )
+{
+    gceSTATUS status;
+    gctUINT32 period;
+    gctUINT32 eater;
+
+#if READ_FROM_EATER1
+    gctUINT32 period1;
+    gctUINT32 eater1;
+#endif
+
+    gcmkHEADER_ARG("Hardware=0x%X Frequency=%d", Hardware, Frequency);
+
+    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+
+    period = 0;
+
+    while((64 << period) < (gcdDVFS_ANAYLSE_WINDOW * Frequency * 1000) )
+    {
+        period++;
+    }
+
+#if READ_FROM_EATER1
+    /*
+    *  Peroid = F * 1000 * 1000 / (60 * 16 * 1024);
+    */
+    period1 = Frequency * 6250 / 6114;
+#endif
+
+    gckOS_AcquireMutex(Hardware->os, Hardware->powerMutex, gcvINFINITE);
+
+    if (Hardware->chipPowerState == gcvPOWER_ON)
+    {
+        /* Get current configure. */
+        gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                         Hardware->core,
+                                         0x0010C,
+                                         &eater));
+
+        /* Change peroid. */
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                          Hardware->core,
+                                          0x0010C,
+                                          ((((gctUINT32) (eater)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 15:8) - (0 ? 15:8) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 15:8) - (0 ? 15:8) + 1))))))) << (0 ? 15:8))) | (((gctUINT32) ((gctUINT32) (period) & ((gctUINT32) ((((1 ? 15:8) - (0 ? 15:8) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 15:8) - (0 ? 15:8) + 1))))))) << (0 ? 15:8)))));
+
+#if READ_FROM_EATER1
+        /* Config eater1. */
+        gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                         Hardware->core,
+                                         0x00130,
+                                         &eater1));
+
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                          Hardware->core,
+                                          0x00130,
+                                          ((((gctUINT32) (eater1)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:16) - (0 ? 31:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:16) - (0 ? 31:16) + 1))))))) << (0 ? 31:16))) | (((gctUINT32) ((gctUINT32) (period1) & ((gctUINT32) ((((1 ? 31:16) - (0 ? 31:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:16) - (0 ? 31:16) + 1))))))) << (0 ? 31:16)))));
+#endif
+    }
+    else
+    {
+        status = gcvSTATUS_INVALID_REQUEST;
+    }
+
+OnError:
+    gckOS_ReleaseMutex(Hardware->os, Hardware->powerMutex);
+
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckHARDWARE_InitDVFS(
+    IN gckHARDWARE Hardware
+    )
+{
+    gceSTATUS status;
+    gctUINT32 data;
+
+    gcmkHEADER_ARG("Hardware=0x%X", Hardware);
+
+    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+
+    gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                     Hardware->core,
+                                     0x0010C,
+                                     &data));
+
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))) << (0 ? 16:16))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))) << (0 ? 16:16)));
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 18:18) - (0 ? 18:18) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 18:18) - (0 ? 18:18) + 1))))))) << (0 ? 18:18))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 18:18) - (0 ? 18:18) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 18:18) - (0 ? 18:18) + 1))))))) << (0 ? 18:18)));
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 19:19) - (0 ? 19:19) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 19:19) - (0 ? 19:19) + 1))))))) << (0 ? 19:19))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 19:19) - (0 ? 19:19) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 19:19) - (0 ? 19:19) + 1))))))) << (0 ? 19:19)));
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 20:20) - (0 ? 20:20) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 20:20) - (0 ? 20:20) + 1))))))) << (0 ? 20:20))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 20:20) - (0 ? 20:20) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 20:20) - (0 ? 20:20) + 1))))))) << (0 ? 20:20)));
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:23) - (0 ? 23:23) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:23) - (0 ? 23:23) + 1))))))) << (0 ? 23:23))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 23:23) - (0 ? 23:23) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:23) - (0 ? 23:23) + 1))))))) << (0 ? 23:23)));
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 22:22) - (0 ? 22:22) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 22:22) - (0 ? 22:22) + 1))))))) << (0 ? 22:22))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 22:22) - (0 ? 22:22) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 22:22) - (0 ? 22:22) + 1))))))) << (0 ? 22:22)));
+
+    gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
+                   "DVFS Configure=0x%X",
+                   data);
+
+    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                      Hardware->core,
+                                      0x0010C,
+                                      data));
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    gcmkFOOTER();
+    return status;
+}
+#endif
+
 

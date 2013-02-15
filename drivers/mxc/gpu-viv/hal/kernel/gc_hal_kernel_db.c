@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #include "gc_hal_kernel_precomp.h"
@@ -1085,6 +1083,9 @@ gckKERNEL_DestroyProcessDB(
     gcsDATABASE_PTR database;
     gcsDATABASE_RECORD_PTR record, next;
     gctBOOL asynchronous;
+    gctPHYS_ADDR physical;
+    gcuVIDMEM_NODE_PTR node;
+    gckKERNEL kernel = Kernel;
 
     gcmkHEADER_ARG("Kernel=0x%x ProcessID=%d", Kernel, ProcessID);
 
@@ -1136,7 +1137,7 @@ gckKERNEL_DestroyProcessDB(
         {
         case gcvDB_VIDEO_MEMORY:
             /* Free the video memory. */
-            status = gckVIDMEM_Free(record->data);
+            status = gckVIDMEM_Free(gcmUINT64_TO_PTR(record->data));
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: VIDEO_MEMORY 0x%x (status=%d)",
@@ -1144,17 +1145,19 @@ gckKERNEL_DestroyProcessDB(
             break;
 
         case gcvDB_NON_PAGED:
+            physical = gcmNAME_TO_PTR(record->physical);
             /* Unmap user logical memory first. */
             status = gckOS_UnmapUserLogical(Kernel->os,
-                                            record->physical,
+                                            physical,
                                             record->bytes,
                                             record->data);
 
             /* Free the non paged memory. */
             status = gckOS_FreeNonPagedMemory(Kernel->os,
                                               record->bytes,
-                                              record->physical,
+                                              physical,
                                               record->data);
+            gcmRELEASE_NAME(record->physical);
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: NON_PAGED 0x%x, bytes=%lu (status=%d)",
@@ -1166,9 +1169,10 @@ gckKERNEL_DestroyProcessDB(
             /* Free the command buffer. */
             status = gckEVENT_DestroyVirtualCommandBuffer(record->kernel->eventObj,
                                                           record->bytes,
-                                                          record->physical,
+                                                          gcmNAME_TO_PTR(record->physical),
                                                           record->data,
                                                           gcvKERNEL_PIXEL);
+            gcmRELEASE_NAME(record->physical);
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: COMMAND_BUFFER 0x%x, bytes=%lu (status=%d)",
@@ -1177,18 +1181,20 @@ gckKERNEL_DestroyProcessDB(
 #endif
 
         case gcvDB_CONTIGUOUS:
+            physical = gcmNAME_TO_PTR(record->physical);
             /* Unmap user logical memory first. */
             status = gckOS_UnmapUserLogical(Kernel->os,
-                                            record->physical,
+                                            physical,
                                             record->bytes,
                                             record->data);
 
             /* Free the contiguous memory. */
             status = gckEVENT_FreeContiguousMemory(Kernel->eventObj,
                                                    record->bytes,
-                                                   record->physical,
+                                                   physical,
                                                    record->data,
                                                    gcvKERNEL_PIXEL);
+            gcmRELEASE_NAME(record->physical);
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: CONTIGUOUS 0x%x bytes=%lu (status=%d)",
@@ -1210,9 +1216,10 @@ gckKERNEL_DestroyProcessDB(
             break;
 
         case gcvDB_VIDEO_MEMORY_LOCKED:
+            node = gcmUINT64_TO_PTR(record->data);
             /* Unlock what we still locked */
             status = gckVIDMEM_Unlock(record->kernel,
-                                      record->data,
+                                      node,
                                       gcvSURF_TYPE_UNKNOWN,
                                       &asynchronous);
 
@@ -1220,19 +1227,20 @@ gckKERNEL_DestroyProcessDB(
             {
                 /* TODO: we maybe need to schedule a event here */
                 status = gckVIDMEM_Unlock(record->kernel,
-                                          record->data,
+                                          node,
                                           gcvSURF_TYPE_UNKNOWN,
                                           gcvNULL);
             }
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: VIDEO_MEMORY_LOCKED 0x%x (status=%d)",
-                           record->data, status);
+                           node, status);
             break;
 
         case gcvDB_CONTEXT:
             /* TODO: Free the context */
-            status = gckCOMMAND_Detach(Kernel->command, record->data);
+            status = gckCOMMAND_Detach(Kernel->command, gcmNAME_TO_PTR(record->data));
+            gcmRELEASE_NAME(record->data);
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: CONTEXT 0x%x (status=%d)",
@@ -1257,8 +1265,9 @@ gckKERNEL_DestroyProcessDB(
                                            Kernel->core,
                                            record->physical,
                                            record->bytes,
-                                           record->data,
+                                           gcmNAME_TO_PTR(record->data),
                                            0);
+            gcmRELEASE_NAME(record->data);
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: MAP USER MEMORY %d (status=%d)",
@@ -1350,21 +1359,21 @@ gckKERNEL_QueryProcessDB(
     switch (Type)
     {
     case gcvDB_VIDEO_MEMORY:
-        gcmkONERROR(gckOS_MemCopy(&Info->counters,
+        gckOS_MemCopy(&Info->counters,
                                   &database->vidMem,
-                                  gcmSIZEOF(database->vidMem)));
+                                  gcmSIZEOF(database->vidMem));
         break;
 
     case gcvDB_NON_PAGED:
-        gcmkONERROR(gckOS_MemCopy(&Info->counters,
+        gckOS_MemCopy(&Info->counters,
                                   &database->nonPaged,
-                                  gcmSIZEOF(database->vidMem)));
+                                  gcmSIZEOF(database->vidMem));
         break;
 
     case gcvDB_CONTIGUOUS:
-        gcmkONERROR(gckOS_MemCopy(&Info->counters,
+        gckOS_MemCopy(&Info->counters,
                                   &database->contiguous,
-                                  gcmSIZEOF(database->vidMem)));
+                                  gcmSIZEOF(database->vidMem));
         break;
 
     case gcvDB_IDLE:
@@ -1373,15 +1382,15 @@ gckKERNEL_QueryProcessDB(
         break;
 
     case gcvDB_MAP_MEMORY:
-        gcmkONERROR(gckOS_MemCopy(&Info->counters,
+        gckOS_MemCopy(&Info->counters,
                                   &database->mapMemory,
-                                  gcmSIZEOF(database->mapMemory)));
+                                  gcmSIZEOF(database->mapMemory));
         break;
 
     case gcvDB_MAP_USER_MEMORY:
-        gcmkONERROR(gckOS_MemCopy(&Info->counters,
+        gckOS_MemCopy(&Info->counters,
                                   &database->mapUserMemory,
-                                  gcmSIZEOF(database->mapUserMemory)));
+                                  gcmSIZEOF(database->mapUserMemory));
         break;
 
     default:
