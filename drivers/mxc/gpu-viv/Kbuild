@@ -54,7 +54,8 @@ OBJS += $(HAL_KERNEL_DIR)/gc_hal_kernel.o \
         $(HAL_KERNEL_DIR)/gc_hal_kernel_event.o \
         $(HAL_KERNEL_DIR)/gc_hal_kernel_heap.o \
         $(HAL_KERNEL_DIR)/gc_hal_kernel_mmu.o \
-        $(HAL_KERNEL_DIR)/gc_hal_kernel_video_memory.o
+        $(HAL_KERNEL_DIR)/gc_hal_kernel_video_memory.o \
+        $(HAL_KERNEL_DIR)/gc_hal_kernel_power.o
 
 OBJS += $(ARCH_KERNEL_DIR)/gc_hal_kernel_context.o \
         $(ARCH_KERNEL_DIR)/gc_hal_kernel_hardware.o

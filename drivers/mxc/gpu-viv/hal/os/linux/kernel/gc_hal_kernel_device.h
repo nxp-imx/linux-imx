@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -19,8 +19,6 @@
 *****************************************************************************/
 
 
-
-
 #ifndef __gc_hal_kernel_device_h_
 #define __gc_hal_kernel_device_h_
 
@@ -37,15 +35,18 @@ typedef struct _gckGALDEVICE
     /* Attributes. */
     gctSIZE_T           internalSize;
     gctPHYS_ADDR        internalPhysical;
+    gctUINT32           internalPhysicalName;
     gctPOINTER          internalLogical;
     gckVIDMEM           internalVidMem;
     gctSIZE_T           externalSize;
     gctPHYS_ADDR        externalPhysical;
+    gctUINT32           externalPhysicalName;
     gctPOINTER          externalLogical;
     gckVIDMEM           externalVidMem;
     gckVIDMEM           contiguousVidMem;
     gctPOINTER          contiguousBase;
     gctPHYS_ADDR        contiguousPhysical;
+    gctUINT32           contiguousPhysicalName;
     gctSIZE_T           contiguousSize;
     gctBOOL             contiguousMapped;
     gctPOINTER          contiguousMappedUser;

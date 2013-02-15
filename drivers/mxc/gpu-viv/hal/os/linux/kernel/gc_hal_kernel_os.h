@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #ifndef __gc_hal_kernel_os_h_
@@ -71,10 +69,10 @@ FindMdlMap(
 
 typedef struct _DRIVER_ARGS
 {
-    gctPOINTER              InputBuffer;
-    gctUINT32               InputBufferSize;
-    gctPOINTER              OutputBuffer;
-    gctUINT32               OutputBufferSize;
+    gctUINT64               InputBuffer;
+    gctUINT64               InputBufferSize;
+    gctUINT64               OutputBuffer;
+    gctUINT64               OutputBufferSize;
 }
 DRIVER_ARGS;
 

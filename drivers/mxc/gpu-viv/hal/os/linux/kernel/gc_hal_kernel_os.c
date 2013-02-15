@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #include "gc_hal_kernel_linux.h"
@@ -1873,12 +1871,14 @@ gckOS_AllocateNonPagedMemory(
     mdl->kaddr      = vaddr;
     mdl->u.contiguousPages = page;
 
+#if !defined(CONFIG_PPC)
     /* Cache invalidate. */
     dma_sync_single_for_device(
                 gcvNULL,
                 page_to_phys(page),
                 bytes,
                 DMA_FROM_DEVICE);
+#endif
 
     while (size > 0)
     {
@@ -3851,7 +3851,7 @@ gckOS_AllocatePagedMemoryEx(
         {
             gcmkVERIFY_OK(
                 gckOS_CacheFlush(Os, _GetProcessID(), gcvNULL,
-                                 (gctPOINTER)page_to_phys(page),
+                                 (gctPOINTER)(gctUINTPTR_T)page_to_phys(page),
                                  page_address(page),
                                  PAGE_SIZE));
         }
@@ -5333,7 +5333,7 @@ OnError:
             {
                 /* Flush(clean) the data cache. */
                 gcmkONERROR(gckOS_CacheFlush(Os, _GetProcessID(), gcvNULL,
-                                 (gctPOINTER)page_to_phys(pages[i]),
+                                 (gctPOINTER)(gctUINTPTR_T)page_to_phys(pages[i]),
                                  (gctPOINTER)(memory & PAGE_MASK) + i*PAGE_SIZE,
                                  PAGE_SIZE));
             }
@@ -6020,6 +6020,10 @@ gckOS_CacheClean(
 
     dma_cache_wback((unsigned long) Logical, Bytes);
 
+#elif defined(CONFIG_PPC)
+
+    /* TODO */
+
 #else
     dma_sync_single_for_device(
               gcvNULL,
@@ -6097,6 +6101,8 @@ gckOS_CacheInvalidate(
 
 #elif defined(CONFIG_MIPS)
     dma_cache_inv((unsigned long) Logical, Bytes);
+#elif defined(CONFIG_PPC)
+    /* TODO */
 #else
     dma_sync_single_for_device(
               gcvNULL,
@@ -6169,6 +6175,8 @@ gckOS_CacheFlush(
 
 #elif defined(CONFIG_MIPS)
     dma_cache_wback_inv((unsigned long) Logical, Bytes);
+#elif defined(CONFIG_PPC)
+    /* TODO */
 #else
     dma_sync_single_for_device(
               gcvNULL,
@@ -6921,6 +6929,134 @@ gckOS_ResetGPU(
     return gcvSTATUS_OK;
 }
 
+/*******************************************************************************
+**
+**  gckOS_PrepareGPUFrequency
+**
+**  Prepare to set GPU frequency and voltage.
+**
+**  INPUT:
+**
+**      gckOS Os
+**          Pointer to a gckOS object.
+**
+**      gckCORE Core
+**          GPU whose frequency and voltage will be set.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_PrepareGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core
+    )
+{
+    return gcvSTATUS_OK;
+}
+
+/*******************************************************************************
+**
+**  gckOS_FinishGPUFrequency
+**
+**  Finish GPU frequency setting.
+**
+**  INPUT:
+**
+**      gckOS Os
+**          Pointer to a gckOS object.
+**
+**      gckCORE Core
+**          GPU whose frequency and voltage is set.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_FinishGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core
+    )
+{
+    return gcvSTATUS_OK;
+}
+
+/*******************************************************************************
+**
+**  gckOS_QueryGPUFrequency
+**
+**  Query the current frequency of the GPU.
+**
+**  INPUT:
+**
+**      gckOS Os
+**          Pointer to a gckOS object.
+**
+**      gckCORE Core
+**          GPU whose power is set.
+**
+**      gctUINT32 * Frequency
+**          Pointer to a gctUINT32 to obtain current frequency, in MHz.
+**
+**      gctUINT8 * Scale
+**          Pointer to a gctUINT8 to obtain current scale(1 - 64).
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_QueryGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core,
+    OUT gctUINT32 * Frequency,
+    OUT gctUINT8 * Scale
+    )
+{
+    return gcvSTATUS_OK;
+}
+
+/*******************************************************************************
+**
+**  gckOS_SetGPUFrequency
+**
+**  Set frequency and voltage of the GPU.
+**
+**      1. DVFS manager gives the target scale of full frequency, BSP must find
+**         a real frequency according to this scale and board's configure.
+**
+**      2. BSP should find a suitable voltage for this frequency.
+**
+**      3. BSP must make sure setting take effect before this function returns.
+**
+**  INPUT:
+**
+**      gckOS Os
+**          Pointer to a gckOS object.
+**
+**      gckCORE Core
+**          GPU whose power is set.
+**
+**      gctUINT8 Scale
+**          Target scale of full frequency, range is [1, 64]. 1 means 1/64 of
+**          full frequency and 64 means 64/64 of full frequency.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_SetGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core,
+    IN gctUINT8 Scale
+    )
+{
+    return gcvSTATUS_OK;
+}
+
 /*----------------------------------------------------------------------------*/
 /*----- Profile --------------------------------------------------------------*/
 
@@ -7669,8 +7805,14 @@ gckOS_CreateUserSignal(
     OUT gctINT * SignalID
     )
 {
+    gceSTATUS status;
+    gctSIZE_T signal;
+
     /* Create a new signal. */
-    return gckOS_CreateSignal(Os, ManualReset, (gctSIGNAL *) SignalID);
+    status = gckOS_CreateSignal(Os, ManualReset, (gctSIGNAL *) &signal);
+    *SignalID = (gctINT) signal;
+
+    return status;
 }
 
 /*******************************************************************************
@@ -8102,7 +8244,7 @@ OnError:
 
 /*******************************************************************************
 **
-**  gckOS_DestoryTimer
+**  gckOS_DestroyTimer
 **
 **  Destory a software timer.
 **
@@ -8119,7 +8261,7 @@ OnError:
 **      Nothing.
 */
 gceSTATUS
-gckOS_DestoryTimer(
+gckOS_DestroyTimer(
     IN gckOS Os,
     IN gctPOINTER Timer
     )

@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #include "gc_hal_kernel_linux.h"
@@ -320,6 +318,7 @@ gckGALDEVICE_Construct(
     gctINT32 i;
     gceHARDWARE_TYPE type;
     gckDB sharedDB = gcvNULL;
+    gckKERNEL kernel = gcvNULL;
 
     gcmkHEADER_ARG("IrqLine=%d RegisterMemBase=0x%08x RegisterMemSize=%u "
                    "IrqLine2D=%d RegisterMemBase2D=0x%08x RegisterMemSize2D=%u "
@@ -692,6 +691,16 @@ gckGALDEVICE_Construct(
     }
 
 
+    /* Grab the first availiable kernel */
+    for (i = 0; i < gcdMAX_GPU_COUNT; i++)
+    {
+        if (device->irqLines[i] != -1)
+        {
+            kernel = device->kernels[i];
+            break;
+        }
+    }
+
     /* Set up the internal memory region. */
     if (device->internalSize > 0)
     {
@@ -718,6 +727,7 @@ gckGALDEVICE_Construct(
             }
 
             device->internalPhysical = (gctPHYS_ADDR)(gctUINTPTR_T) physical;
+            device->internalPhysicalName = gcmPTR_TO_NAME(device->internalPhysical);
             physical += device->internalSize;
         }
     }
@@ -748,6 +758,7 @@ gckGALDEVICE_Construct(
             }
 
             device->externalPhysical = (gctPHYS_ADDR)(gctUINTPTR_T) physical;
+            device->externalPhysicalName = gcmPTR_TO_NAME(device->externalPhysical);
             physical += device->externalSize;
         }
     }
@@ -772,6 +783,7 @@ gckGALDEVICE_Construct(
 
                 if (gcmIS_SUCCESS(status))
                 {
+                    device->contiguousPhysicalName = gcmPTR_TO_NAME(device->contiguousPhysical);
                     status = gckVIDMEM_Construct(
                         device->os,
                         physAddr | device->systemMemoryBaseAddress,
@@ -792,6 +804,7 @@ gckGALDEVICE_Construct(
                         device->contiguousPhysical
                         ));
 
+                    gcmRELEASE_NAME(device->contiguousPhysicalName);
                     device->contiguousBase     = gcvNULL;
                     device->contiguousPhysical = gcvNULL;
                 }
@@ -864,6 +877,7 @@ gckGALDEVICE_Construct(
 #endif
 
                 device->contiguousPhysical = gcvNULL;
+                device->contiguousPhysicalName = 0;
                 device->contiguousSize     = ContiguousSize;
                 device->contiguousMapped   = gcvTRUE;
             }
@@ -908,11 +922,38 @@ gckGALDEVICE_Destroy(
 {
     gctINT i;
     gceSTATUS status = gcvSTATUS_OK;
+    gckKERNEL kernel = gcvNULL;
 
     gcmkHEADER_ARG("Device=0x%x", Device);
 
     if (Device != gcvNULL)
     {
+        /* Grab the first availiable kernel */
+        for (i = 0; i < gcdMAX_GPU_COUNT; i++)
+        {
+            if (Device->irqLines[i] != -1)
+            {
+                kernel = Device->kernels[i];
+                break;
+            }
+        }
+        if (Device->internalPhysicalName != 0)
+        {
+            gcmRELEASE_NAME(Device->internalPhysicalName);
+            Device->internalPhysicalName = 0;
+        }
+        if (Device->externalPhysicalName != 0)
+        {
+            gcmRELEASE_NAME(Device->externalPhysicalName);
+            Device->externalPhysicalName = 0;
+        }
+        if (Device->contiguousPhysicalName != 0)
+        {
+            gcmRELEASE_NAME(Device->contiguousPhysicalName);
+            Device->contiguousPhysicalName = 0;
+        }
+
+
         for (i = 0; i < gcdMAX_GPU_COUNT; i++)
         {
             if (Device->kernels[i] != gcvNULL)
@@ -1050,7 +1091,19 @@ gckGALDEVICE_Destroy(
            Device->clk_vg_axi = NULL;
         }
 
+#ifdef CONFIG_PM
+        if(Device->pmdev)
+            pm_runtime_disable(Device->pmdev);
+#endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+        /*NULL*/
+#else
+        if (Device->gpu_regulator) {
+           regulator_put(Device->gpu_regulator);
+           Device->gpu_regulator = NULL;
+        }
+#endif
 
         /* Destroy the gckOS object. */
         if (Device->os != gcvNULL)

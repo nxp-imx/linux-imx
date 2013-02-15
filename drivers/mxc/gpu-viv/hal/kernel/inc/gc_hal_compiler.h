@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 /*
@@ -41,6 +39,9 @@ extern "C" {
 #define GC_ENABLE_LOADTIME_OPT      1
 #endif
 
+#define TEMP_OPT_CONSTANT_TEXLD_COORD    1
+
+#define TEMP_SHADER_PATCH            1
 /******************************* IR VERSION ******************/
 #define gcdSL_IR_VERSION gcmCC('\0','\0','\0','\1')
 
@@ -266,6 +267,7 @@ typedef enum _gcSL_OPCODE
 	gcSL_ADDSAT,						/* 0x5C */  /* Integer only. */
 	gcSL_SUBSAT,						/* 0x5D */  /* Integer only. */
 	gcSL_MULSAT,						/* 0x5E */  /* Integer only. */
+	gcSL_MAXOPCODE
 }
 gcSL_OPCODE;
 
@@ -507,7 +509,14 @@ struct _gcsHINT
     gctUINT32   colorKillInstruction[3];
 #endif
 
+#if TEMP_SHADER_PATCH
+	gctUINT32	pachedShaderIdentifier;
+#endif
 };
+
+#if TEMP_SHADER_PATCH
+#define INVALID_SHADER_IDENTIFIER 0xFFFFFFFF
+#endif
 
 /* gcSHADER_TYPE enumeration. */
 typedef enum _gcSHADER_TYPE
@@ -893,6 +902,16 @@ typedef struct _gcOPTIMIZER_OPTION
           Note: n must be decimal number
      */
     gctUINT     featureBits;
+
+    /* inline level (default 2 at O1):
+
+          VC_OPTION=-INLINELEVEL:[0-3]
+             0:  no inline
+             1:  only inline the function only called once or small function
+             2:  inline functions be called less than 5 times or medium size function
+             3:  inline everything possible
+     */
+    gctUINT     inlineLevel;
 } gcOPTIMIZER_OPTION;
 
 extern gcOPTIMIZER_OPTION theOptimizerOption;
@@ -925,6 +944,8 @@ extern gcOPTIMIZER_OPTION theOptimizerOption;
 #define gcmOPT_PACKVARYING()     (gcmGetOptimizerOption()->packVarying)
 #define gcmOPT_PACKVARYING_triageStart()   (gcmGetOptimizerOption()->_triageStart)
 #define gcmOPT_PACKVARYING_triageEnd()     (gcmGetOptimizerOption()->_triageEnd)
+
+#define gcmOPT_INLINELEVEL()     (gcmGetOptimizerOption()->inlineLevel)
 
 /* Setters */
 #define gcmOPT_SetPatchTexld(m,n) (gcmGetOptimizerOption()->patchEveryTEXLDs = (m),\

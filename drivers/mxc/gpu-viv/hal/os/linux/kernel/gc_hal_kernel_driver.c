@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *    Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
 *
 *    This program is free software; you can redistribute it and/or modify
@@ -18,8 +18,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #include <linux/device.h>
@@ -40,6 +38,31 @@
 
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
 #    include <linux/resmem_account.h>
+#    include <linux/kernel.h>
+#    include <linux/mm.h>
+#    include <linux/oom.h>
+#    include <linux/sched.h>
+#    include <linux/notifier.h>
+
+struct task_struct *lowmem_deathpending;
+
+static int
+task_notify_func(struct notifier_block *self, unsigned long val, void *data);
+
+static struct notifier_block task_nb = {
+	.notifier_call	= task_notify_func,
+};
+
+static int
+task_notify_func(struct notifier_block *self, unsigned long val, void *data)
+{
+	struct task_struct *task = data;
+
+	if (task == lowmem_deathpending)
+		lowmem_deathpending = NULL;
+
+	return NOTIFY_OK;
+}
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
@@ -155,6 +178,9 @@ static struct file_operations driver_fops =
     .open       = drv_open,
     .release    = drv_release,
     .unlocked_ioctl = drv_ioctl,
+#ifdef HAVE_COMPAT_IOCTL
+    .compat_ioctl = drv_ioctl,
+#endif
     .mmap       = drv_mmap,
 };
 
@@ -467,7 +493,7 @@ long drv_ioctl(
     }
 
     copyLen = copy_from_user(
-        &iface, drvArgs.InputBuffer, sizeof(gcsHAL_INTERFACE)
+        &iface, gcmUINT64_TO_PTR(drvArgs.InputBuffer), sizeof(gcsHAL_INTERFACE)
         );
 
     if (copyLen != 0)
@@ -545,25 +571,26 @@ long drv_ioctl(
 
     if (gcmIS_SUCCESS(status) && (iface.command == gcvHAL_LOCK_VIDEO_MEMORY))
     {
+        gcuVIDMEM_NODE_PTR node = gcmUINT64_TO_PTR(iface.u.LockVideoMemory.node);
         /* Special case for mapped memory. */
         if ((data->mappedMemory != gcvNULL)
-        &&  (iface.u.LockVideoMemory.node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
+        &&  (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
         )
         {
             /* Compute offset into mapped memory. */
             gctUINT32 offset
-                = (gctUINT8 *) iface.u.LockVideoMemory.memory
+                = (gctUINT8 *) gcmUINT64_TO_PTR(iface.u.LockVideoMemory.memory)
                 - (gctUINT8 *) device->contiguousBase;
 
             /* Compute offset into user-mapped region. */
             iface.u.LockVideoMemory.memory =
-                (gctUINT8 *) data->mappedMemory + offset;
+                gcmPTR_TO_UINT64((gctUINT8 *) data->mappedMemory + offset);
         }
     }
 
     /* Copy data back to the user. */
     copyLen = copy_to_user(
-        drvArgs.OutputBuffer, &iface, sizeof(gcsHAL_INTERFACE)
+        gcmUINT64_TO_PTR(drvArgs.OutputBuffer), &iface, sizeof(gcsHAL_INTERFACE)
         );
 
     if (copyLen != 0)
@@ -591,7 +618,7 @@ static int drv_mmap(
     struct vm_area_struct* vma
     )
 {
-    gceSTATUS status;
+    gceSTATUS status = gcvSTATUS_OK;
     gcsHAL_PRIVATE_DATA_PTR data;
     gckGALDEVICE device;
 
@@ -679,11 +706,12 @@ static int drv_mmap(
         }
 
         data->mappedMemory = (gctPOINTER) vma->vm_start;
+
+        /* Success. */
+        gcmkFOOTER_NO();
+        return 0;
     }
 
-    /* Success. */
-    gcmkFOOTER_NO();
-    return 0;
 
 OnError:
     gcmkFOOTER();
@@ -829,6 +857,7 @@ static int drv_init(struct device *pdev)
     }
 
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+    task_free_register(&task_nb);
     viv_gpu_resmem_handler.data = device->kernels[gcvCORE_MAJOR];
     register_reserved_memory_account(&viv_gpu_resmem_handler);
 #endif
@@ -914,6 +943,7 @@ static void drv_exit(void)
     gcmkHEADER();
 
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+    task_free_unregister(&task_nb);
     unregister_reserved_memory_account(&viv_gpu_resmem_handler);
 #endif
 

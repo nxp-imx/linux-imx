@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,9 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
-
 
 
 #ifndef __gc_hal_engine_vg_h_
@@ -527,14 +524,14 @@ gcoHAL_CombineAddress(
 gceSTATUS
 gcoHAL_ScheduleVideoMemory(
     IN gcoHAL Hal,
-    IN gcuVIDMEM_NODE_PTR Node
+    IN gctUINT64 Node
     );
 
 /* Free linear video memory allocated with gcoHAL_AllocateLinearVideoMemory. */
 gceSTATUS
 gcoHAL_FreeVideoMemory(
     IN gcoHAL Hal,
-    IN gcuVIDMEM_NODE_PTR Node
+    IN gctUINT64 Node
     );
 
 /* Query command buffer attributes. */
@@ -550,7 +547,7 @@ gcoHAL_AllocateLinearVideoMemory(
     IN gctUINT Size,
     IN gctUINT Alignment,
     IN gcePOOL Pool,
-    OUT gcuVIDMEM_NODE_PTR * Node,
+    OUT gctUINT64 * Node,
     OUT gctUINT32 * Address,
     OUT gctPOINTER * Memory
     );
