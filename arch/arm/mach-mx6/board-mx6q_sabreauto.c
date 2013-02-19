@@ -688,6 +688,12 @@ static struct fsl_mxc_tvin_platform_data adv7180_data = {
 	.io_init	= mx6q_csi0_io_init,
 };
 
+static void mx6q_mipi_csi1_io_init(void)
+{
+	if (cpu_is_mx6dl())
+		mxc_iomux_set_gpr_register(13, 3, 3, 1);
+}
+
 static struct fsl_mxc_tvin_platform_data adv7280_data = {
 	.dvddio_reg	= NULL,
 	.dvdd_reg	= NULL,
@@ -695,8 +701,9 @@ static struct fsl_mxc_tvin_platform_data adv7280_data = {
 	.pvdd_reg	= NULL,
 	.pwdn		= NULL,
 	.cvbs		= true,
+	.io_init    = mx6q_mipi_csi1_io_init,
 	/* csi slave reg address */
-	.csi_tx_addr = 0x51,
+	.csi_tx_addr = 0x52,
 };
 
 static struct imxi2c_platform_data mx6q_sabreauto_i2c2_data = {
@@ -1047,10 +1054,10 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 static struct imx_ipuv3_platform_data ipu_data[] = {
 	{
 		.rev		= 4,
-		.csi_clk[0]	= "ccm_clk0",
+		.csi_clk[0]	= "clko_clk",
 	}, {
 		.rev		= 4,
-		.csi_clk[0]	= "ccm_clk0",
+		.csi_clk[0]	= "clko_clk",
 	},
 };
 
@@ -1123,9 +1130,9 @@ static const struct flexcan_platform_data
 
 static struct mipi_csi2_platform_data mipi_csi2_pdata = {
 	.ipu_id		= 0,
-	.csi_id		= 0,
-	.v_channel	= 0,
-	.lanes		= 2,
+	.csi_id		= 1,
+	.v_channel	= 1,
+	.lanes		= 1,
 	.dphy_clk	= "mipi_pllref_clk",
 	.pixel_clk	= "emi_clk",
 };
