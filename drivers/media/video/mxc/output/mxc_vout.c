@@ -147,7 +147,7 @@ MODULE_PARM_DESC(debug, "Debug level (0-1)");
 module_param(vdi_rate_double, int, 0600);
 MODULE_PARM_DESC(vdi_rate_double, "vdi frame rate double on/off");
 
-const static struct v4l2_fmtdesc mxc_formats[] = {
+static const struct v4l2_fmtdesc mxc_formats[] = {
 	{
 		.description = "RGB565",
 		.pixelformat = V4L2_PIX_FMT_RGB565,
@@ -215,7 +215,8 @@ const static struct v4l2_fmtdesc mxc_formats[] = {
 #define DEF_INPUT_WIDTH		320
 #define DEF_INPUT_HEIGHT	240
 
-static int mxc_vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type i);
+static int mxc_vidioc_streamoff(struct file *file, void *fh,
+					enum v4l2_buf_type i);
 
 static struct mxc_vout_fb g_fb_setting[MAX_FB_NUM];
 static int config_disp_output(struct mxc_vout_output *vout);
@@ -349,7 +350,8 @@ static int update_setting_from_fbi(struct mxc_vout_output *vout,
 			if (!strcmp(fbi->fix.id, g_fb_setting[i].name)) {
 				vout->crop_bounds = g_fb_setting[i].crop_bounds;
 				vout->disp_fmt = g_fb_setting[i].disp_fmt;
-				vout->disp_support_csc = g_fb_setting[i].disp_support_csc;
+				vout->disp_support_csc =
+					g_fb_setting[i].disp_support_csc;
 				vout->disp_support_windows =
 					g_fb_setting[i].disp_support_windows;
 				found = true;
@@ -475,11 +477,15 @@ static bool is_pp_bypass(struct mxc_vout_output *vout)
 			return true;
 		else if (!need_csc(vout->task.input.format, vout->disp_fmt))
 			return true;
-	/* input crop show to full output which can show based on xres_virtual/yres_virtual */
+	/*
+	 * input crop show to full output which can show based on
+	 * xres_virtual/yres_virtual
+	 */
 	} else if ((vout->task.input.crop.w == vout->task.output.crop.w) &&
 			(vout->task.output.crop.w == vout->task.output.width) &&
 			(vout->task.input.crop.h == vout->task.output.crop.h) &&
-			(vout->task.output.crop.h == vout->task.output.height) &&
+			(vout->task.output.crop.h ==
+				vout->task.output.height) &&
 			(vout->task.output.rotate < IPU_ROTATE_HORIZ_FLIP) &&
 			!vout->task.input.deinterlace.enable) {
 		if (vout->disp_support_csc)
@@ -643,7 +649,8 @@ vdi_frame_rate_double:
 			vout->task.output.height = FRAME_HEIGHT_1080P;
 			vout->task.output.crop.h = FRAME_HEIGHT_1080P;
 		}
-		tiled_fmt = (IPU_PIX_FMT_TILED_NV12 == vout->task.input.format) ||
+		tiled_fmt =
+			(IPU_PIX_FMT_TILED_NV12 == vout->task.input.format) ||
 			(IPU_PIX_FMT_TILED_NV12F == vout->task.input.format);
 		if (vout->tiled_bypass_pp) {
 			ipos.x = vout->task.input.crop.pos.x;
@@ -688,7 +695,8 @@ vdi_frame_rate_double:
 
 	ret = show_buf(vout, index, &ipos);
 	if (ret < 0)
-		v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "show buf with ret %d\n", ret);
+		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
+			"show buf with ret %d\n", ret);
 
 	if (vout->task.input.deinterlace.field_fmt & IPU_DEINTERLACE_RATE_EN) {
 		vdi_frame = vout->task.input.deinterlace.field_fmt
@@ -778,7 +786,7 @@ static void mxc_vout_timer_handler(unsigned long arg)
 
 	if (queue_work(vout->v4l_wq, &vout->disp_work) == 0) {
 		v4l2_warn(vout->vfd->v4l2_dev,
-			"disp work was in queue already, queue buf again next time\n");
+		"disp work was in queue already, queue buf again next time\n");
 		list_del(&vb->queue);
 		list_add(&vb->queue, &vout->queue_list);
 		spin_unlock_irqrestore(q->irqlock, flags);
@@ -1033,7 +1041,8 @@ again:
 			if (ret == IPU_CHECK_ERR_SPLIT_OUTPUTW_OVER) {
 				if (vout->disp_support_windows) {
 					task->output.width -= 8;
-					task->output.crop.w = task->output.width;
+					task->output.crop.w =
+						task->output.width;
 				} else
 					task->output.crop.w -= 8;
 				goto again;
@@ -1041,7 +1050,8 @@ again:
 			if (ret == IPU_CHECK_ERR_SPLIT_OUTPUTH_OVER) {
 				if (vout->disp_support_windows) {
 					task->output.height -= 8;
-					task->output.crop.h = task->output.height;
+					task->output.crop.h =
+						task->output.height;
 				} else
 					task->output.crop.h -= 8;
 				goto again;
@@ -1213,7 +1223,8 @@ static int mxc_vout_try_task(struct mxc_vout_output *vout)
 	return ret;
 }
 
-static int mxc_vout_try_format(struct mxc_vout_output *vout, struct v4l2_format *f)
+static int mxc_vout_try_format(struct mxc_vout_output *vout,
+				struct v4l2_format *f)
 {
 	int ret = 0;
 	struct v4l2_rect rect;
@@ -1299,7 +1310,8 @@ static int mxc_vidioc_cropcap(struct file *file, void *fh,
 	return 0;
 }
 
-static int mxc_vidioc_g_crop(struct file *file, void *fh, struct v4l2_crop *crop)
+static int mxc_vidioc_g_crop(struct file *file, void *fh,
+				struct v4l2_crop *crop)
 {
 	struct mxc_vout_output *vout = fh;
 
@@ -1328,7 +1340,8 @@ static int mxc_vidioc_g_crop(struct file *file, void *fh, struct v4l2_crop *crop
 	return 0;
 }
 
-static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop)
+static int mxc_vidioc_s_crop(struct file *file, void *fh,
+				struct v4l2_crop *crop)
 {
 	struct mxc_vout_output *vout = fh;
 	struct v4l2_rect *b = &vout->crop_bounds;
@@ -1422,7 +1435,7 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh, struct v4l2_crop *crop
 			ret = config_disp_output(vout);
 			if (ret < 0) {
 				v4l2_err(vout->vfd->v4l2_dev,
-						"Config display output failed\n");
+					"Config display output failed\n");
 				goto done;
 			}
 		}
@@ -1459,7 +1472,8 @@ static int mxc_vidioc_queryctrl(struct file *file, void *fh,
 	return ret;
 }
 
-static int mxc_vidioc_g_ctrl(struct file *file, void *fh, struct v4l2_control *ctrl)
+static int mxc_vidioc_g_ctrl(struct file *file, void *fh,
+				struct v4l2_control *ctrl)
 {
 	int ret = 0;
 	struct mxc_vout_output *vout = fh;
@@ -1527,7 +1541,8 @@ static void setup_task_rotation(struct mxc_vout_output *vout)
 	}
 }
 
-static int mxc_vidioc_s_ctrl(struct file *file, void *fh, struct v4l2_control *ctrl)
+static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
+				struct v4l2_control *ctrl)
 {
 	int ret = 0;
 	struct mxc_vout_output *vout = fh;
@@ -1584,7 +1599,7 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh, struct v4l2_control *c
 			ret = config_disp_output(vout);
 			if (ret < 0) {
 				v4l2_err(vout->vfd->v4l2_dev,
-						"Config display output failed\n");
+					"Config display output failed\n");
 				goto done;
 			}
 		}
@@ -1653,7 +1668,8 @@ static int mxc_vidioc_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 		return videobuf_dqbuf(&vout->vbq, (struct v4l2_buffer *)b, 0);
 }
 
-static int set_window_position(struct mxc_vout_output *vout, struct mxcfb_pos *pos)
+static int set_window_position(struct mxc_vout_output *vout,
+				struct mxcfb_pos *pos)
 {
 	struct fb_info *fbi = vout->fbi;
 	mm_segment_t old_fs;
@@ -1825,7 +1841,8 @@ static void release_disp_output(struct mxc_vout_output *vout)
 	vout->release = true;
 }
 
-static int mxc_vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
+static int mxc_vidioc_streamon(struct file *file, void *fh,
+				enum v4l2_buf_type i)
 {
 	struct mxc_vout_output *vout = fh;
 	struct videobuf_queue *q = &vout->vbq;
@@ -1840,7 +1857,7 @@ static int mxc_vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i
 
 	if (deinterlace_3_field(vout) && list_is_singular(&q->stream)) {
 		v4l2_err(vout->vfd->v4l2_dev,
-				"deinterlacing: need queue 2 frame before streamon\n");
+			"deinterlacing: need queue 2 frame before streamon\n");
 		ret = -EINVAL;
 		goto done;
 	}
@@ -1866,7 +1883,8 @@ done:
 	return ret;
 }
 
-static int mxc_vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
+static int mxc_vidioc_streamoff(struct file *file, void *fh,
+				enum v4l2_buf_type i)
 {
 	struct mxc_vout_output *vout = fh;
 	struct videobuf_queue *q = &vout->vbq;
@@ -1889,16 +1907,16 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh, enum v4l2_buf_type 
 }
 
 static const struct v4l2_ioctl_ops mxc_vout_ioctl_ops = {
-	.vidioc_querycap      			= mxc_vidioc_querycap,
-	.vidioc_enum_fmt_vid_out 		= mxc_vidioc_enum_fmt_vid_out,
+	.vidioc_querycap			= mxc_vidioc_querycap,
+	.vidioc_enum_fmt_vid_out		= mxc_vidioc_enum_fmt_vid_out,
 	.vidioc_g_fmt_vid_out			= mxc_vidioc_g_fmt_vid_out,
 	.vidioc_s_fmt_vid_out			= mxc_vidioc_s_fmt_vid_out,
 	.vidioc_cropcap				= mxc_vidioc_cropcap,
 	.vidioc_g_crop				= mxc_vidioc_g_crop,
 	.vidioc_s_crop				= mxc_vidioc_s_crop,
-	.vidioc_queryctrl    			= mxc_vidioc_queryctrl,
-	.vidioc_g_ctrl       			= mxc_vidioc_g_ctrl,
-	.vidioc_s_ctrl       			= mxc_vidioc_s_ctrl,
+	.vidioc_queryctrl			= mxc_vidioc_queryctrl,
+	.vidioc_g_ctrl				= mxc_vidioc_g_ctrl,
+	.vidioc_s_ctrl				= mxc_vidioc_s_ctrl,
 	.vidioc_reqbufs				= mxc_vidioc_reqbufs,
 	.vidioc_querybuf			= mxc_vidioc_querybuf,
 	.vidioc_qbuf				= mxc_vidioc_qbuf,
@@ -1908,17 +1926,17 @@ static const struct v4l2_ioctl_ops mxc_vout_ioctl_ops = {
 };
 
 static const struct v4l2_file_operations mxc_vout_fops = {
-	.owner 		= THIS_MODULE,
+	.owner		= THIS_MODULE,
 	.unlocked_ioctl	= video_ioctl2,
-	.mmap 		= mxc_vout_mmap,
-	.open 		= mxc_vout_open,
-	.release 	= mxc_vout_release,
+	.mmap		= mxc_vout_mmap,
+	.open		= mxc_vout_open,
+	.release	= mxc_vout_release,
 };
 
 static struct video_device mxc_vout_template = {
-	.name 		= "MXC Video Output",
+	.name		= "MXC Video Output",
 	.fops           = &mxc_vout_fops,
-	.ioctl_ops 	= &mxc_vout_ioctl_ops,
+	.ioctl_ops	= &mxc_vout_ioctl_ops,
 	.release	= video_device_release,
 };
 
