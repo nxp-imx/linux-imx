@@ -922,6 +922,8 @@ static struct ipuv3_fb_platform_data sabr_fb_data[] = {
 static void hdmi_init(int ipu_id, int disp_id)
 {
 	int hdmi_mux_setting;
+	char ipu_di_clk[] = "ipu1_di0_clk";
+	struct clk *di_clk, *pll5_clk;
 
 	if ((ipu_id > 1) || (ipu_id < 0)) {
 		printk(KERN_ERR"Invalid IPU select for HDMI: %d. Set to 0\n",
@@ -944,6 +946,16 @@ static void hdmi_init(int ipu_id, int disp_id)
 	/* Set HDMI event as SDMA event2 while Chip version later than TO1.2 */
 	if (hdmi_SDMA_check())
 		mxc_iomux_set_gpr_register(0, 0, 1, 1);
+
+	ipu_di_clk[3] += ipu_id;
+	ipu_di_clk[7] += disp_id;
+	di_clk = clk_get(NULL, ipu_di_clk);
+	if (IS_ERR(di_clk))
+		printk(KERN_ERR "Cannot get %s clock\n", ipu_di_clk);
+	pll5_clk = clk_get(NULL, "pll5");
+	if (IS_ERR(pll5_clk))
+		printk(KERN_ERR "Cannot get pll5 clock\n");
+	clk_set_parent(di_clk, pll5_clk);
 }
 
 /* On mx6x sabreauto board i2c2 iomux with hdmi ddc,
