@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -256,6 +256,14 @@ static int set_cpu_freq(int wp)
 		while (__raw_readl(gpc_base + dvfs_data->gpc_cntr_offset)
 				& 0x4000)
 			udelay(10);
+
+		/* set software_dvfs_en bit back to original setting*/
+		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
+		reg &= ~(CCM_CDCR_SW_DVFS_EN);
+		reg |= en_sw_dvfs;
+		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
+		clk_set_rate(cpu_clk, rate);
+
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (rate < org_cpu_rate) {
@@ -268,11 +276,6 @@ static int set_cpu_freq(int wp)
 			}
 			udelay(dvfs_data->delay_time);
 		}
-		/* set software_dvfs_en bit back to original setting*/
-		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
-		reg &= ~(CCM_CDCR_SW_DVFS_EN);
-		reg |= en_sw_dvfs;
-		clk_set_rate(cpu_clk, rate);
 	} else {
 		podf = cpu_wp_tbl[wp].cpu_podf;
 		gp_volt = cpu_wp_tbl[wp].cpu_voltage;
@@ -285,20 +288,6 @@ static int set_cpu_freq(int wp)
 			       "No need to change freq and voltage!!!!\n");
 			return 0;
 		}
-
-		/* Change arm_podf only */
-		/* set ARM_FREQ_SHIFT_DIVIDER */
-		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
-
-		/* Check if software_dvfs_en bit set */
-		if ((reg & CCM_CDCR_SW_DVFS_EN) != 0)
-			en_sw_dvfs = CCM_CDCR_SW_DVFS_EN;
-		else
-			en_sw_dvfs = 0x0;
-
-		reg &= ~(CCM_CDCR_SW_DVFS_EN | CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER);
-		reg |= CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER;
-		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
 
 		/* Check if FSVAI indicate freq up */
 		if (podf < arm_podf) {
@@ -315,11 +304,26 @@ static int set_cpu_freq(int wp)
 			vinc = 0;
 		}
 
+		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
+
+		/* Change arm_podf only */
+		/* set ARM_FREQ_SHIFT_DIVIDER */
+		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
+
+		/* Check if software_dvfs_en bit set */
+		if ((reg & CCM_CDCR_SW_DVFS_EN) != 0)
+			en_sw_dvfs = CCM_CDCR_SW_DVFS_EN;
+		else
+			en_sw_dvfs = 0x0;
+
+		reg &= ~(CCM_CDCR_SW_DVFS_EN | CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER);
+		reg |= CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER;
+		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
+
 		arm_podf = podf;
 		/* Set ARM_PODF */
 		reg &= 0xFFFFFFF8;
 		reg |= arm_podf;
-		spin_lock_irqsave(&mxc_dvfs_core_lock, flags);
 
 		__raw_writel(reg, ccm_base + dvfs_data->ccm_cacrr_offset);
 
@@ -352,6 +356,14 @@ static int set_cpu_freq(int wp)
 		}
 		/* No need to wait for !ARM_PODF_BUSY after ARM_PODF updated */
 		/* since GPC is used for ARM clock freq change */
+
+		/* Clear the ARM_FREQ_SHIFT_DIVIDER and */
+		/* set software_dvfs_en bit back to original setting*/
+		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
+		reg &= ~(CCM_CDCR_SW_DVFS_EN | CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER);
+		reg |= en_sw_dvfs;
+		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
+
 		spin_unlock_irqrestore(&mxc_dvfs_core_lock, flags);
 
 		if (vinc == 0) {
@@ -364,13 +376,6 @@ static int set_cpu_freq(int wp)
 			}
 			udelay(dvfs_data->delay_time);
 		}
-
-		/* Clear the ARM_FREQ_SHIFT_DIVIDER and */
-		/* set software_dvfs_en bit back to original setting*/
-		reg = __raw_readl(ccm_base + dvfs_data->ccm_cdcr_offset);
-		reg &= ~(CCM_CDCR_SW_DVFS_EN | CCM_CDCR_ARM_FREQ_SHIFT_DIVIDER);
-		reg |= en_sw_dvfs;
-		__raw_writel(reg, ccm_base + dvfs_data->ccm_cdcr_offset);
 	}
 
 	cpufreq_trig_needed = 1;
