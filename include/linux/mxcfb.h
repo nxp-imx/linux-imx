@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -132,6 +132,14 @@ struct mxcfb_waveform_modes {
 	int mode_gc32;
 };
 
+/*
+ * Structure used to define a 5*3 matrix of parameters for
+ * setting IPU DP CSC module related to this framebuffer.
+ */
+struct mxcfb_csc_matrix {
+	int param[5][3];
+};
+
 #define MXCFB_WAIT_FOR_VSYNC	_IOW('F', 0x20, u_int32_t)
 #define MXCFB_SET_GBL_ALPHA     _IOW('F', 0x21, struct mxcfb_gbl_alpha)
 #define MXCFB_SET_CLR_KEY       _IOW('F', 0x22, struct mxcfb_color_key)
@@ -144,6 +152,7 @@ struct mxcfb_waveform_modes {
 #define MXCFB_GET_DIFMT	       _IOR('F', 0x2A, u_int32_t)
 #define MXCFB_GET_FB_BLANK     _IOR('F', 0x2B, u_int32_t)
 #define MXCFB_SET_DIFMT		_IOW('F', 0x2C, u_int32_t)
+#define MXCFB_CSC_UPDATE	_IOW('F', 0x2D, struct mxcfb_csc_matrix)
 
 /* IOCTLs for E-ink panel updates */
 #define MXCFB_SET_WAVEFORM_MODES	_IOW('F', 0x2B, struct mxcfb_waveform_modes)
