@@ -365,6 +365,8 @@ int tick_resume_broadcast(void)
 
 /* FIXME: use cpumask_var_t. */
 static DECLARE_BITMAP(tick_broadcast_oneshot_mask, NR_CPUS);
+static DECLARE_BITMAP(tick_broadcast_pending, NR_CPUS);
+static DECLARE_BITMAP(tick_force_broadcast_mask, NR_CPUS);
 
 /*
  * Exposed for debugging: see timer_list.c
@@ -379,6 +381,15 @@ static int tick_broadcast_set_event(ktime_t expires, int force)
 	struct clock_event_device *bc = tick_broadcast_device.evtdev;
 
 	return tick_dev_program_event(bc, expires, force);
+}
+
+/*
+ * Called before going idle with interrupts disabled. Checks whether a
+ * broadcast event from the other core is about to happen.
+ */
+int tick_check_broadcast_pending(void)
+{
+	return test_bit(smp_processor_id(), tick_force_broadcast_mask);
 }
 
 int tick_resume_broadcast_oneshot(struct clock_event_device *bc)
@@ -426,10 +437,22 @@ again:
 	/* Find all expired events */
 	for_each_cpu(cpu, tick_get_broadcast_oneshot_mask()) {
 		td = &per_cpu(tick_cpu_device, cpu);
-		if (td->evtdev->next_event.tv64 <= now.tv64)
+		if (td->evtdev->next_event.tv64 <= now.tv64) {
 			cpumask_set_cpu(cpu, to_cpumask(tmpmask));
-		else if (td->evtdev->next_event.tv64 < next_event.tv64)
+			/*
+			 * Mark the remote cpu in the pending mask, so
+			 * it can avoid reprogramming the cpu local
+			 * timer in tick_broadcast_oneshot_control().
+			 */
+			set_bit(cpu, tick_broadcast_pending);
+		} else if (td->evtdev->next_event.tv64 < next_event.tv64)
 			next_event.tv64 = td->evtdev->next_event.tv64;
+	}
+
+	/* Take care of enforced broadcast requests */
+	for_each_cpu(cpu, to_cpumask(tick_force_broadcast_mask)) {
+		set_bit(cpu, tmpmask);
+		clear_bit(cpu, tick_force_broadcast_mask);
 	}
 
 	/*
@@ -467,6 +490,7 @@ void tick_broadcast_oneshot_control(unsigned long reason)
 	struct clock_event_device *bc, *dev;
 	struct tick_device *td;
 	unsigned long flags;
+	ktime_t now;
 	int cpu;
 
 	/*
@@ -491,6 +515,8 @@ void tick_broadcast_oneshot_control(unsigned long reason)
 
 	raw_spin_lock_irqsave(&tick_broadcast_lock, flags);
 	if (reason == CLOCK_EVT_NOTIFY_BROADCAST_ENTER) {
+		WARN_ON_ONCE(test_bit(cpu, tick_broadcast_pending));
+		WARN_ON_ONCE(test_bit(cpu, tick_force_broadcast_mask));
 		if (!cpumask_test_cpu(cpu, tick_get_broadcast_oneshot_mask())) {
 			cpumask_set_cpu(cpu, tick_get_broadcast_oneshot_mask());
 			clockevents_set_mode(dev, CLOCK_EVT_MODE_SHUTDOWN);
@@ -502,10 +528,63 @@ void tick_broadcast_oneshot_control(unsigned long reason)
 			cpumask_clear_cpu(cpu,
 					  tick_get_broadcast_oneshot_mask());
 			clockevents_set_mode(dev, CLOCK_EVT_MODE_ONESHOT);
-			if (dev->next_event.tv64 != KTIME_MAX)
-				tick_program_event(dev->next_event, 1);
+			if (dev->next_event.tv64 == KTIME_MAX)
+				goto out;
+			/*
+			 * The cpu handling the broadcast timer marked
+			 * this cpu in the broadcast pending mask and
+			 * fired the broadcast IPI. So we are going to
+			 * handle the expired event anyway via the
+			 * broadcast IPI handler. No need to reprogram
+			 * the timer with an already expired event.
+			 */
+			if (test_and_clear_bit(cpu, tick_broadcast_pending))
+				goto out;
+			/*
+			 * If the pending bit is not set, then we are
+			 * either the CPU handling the broadcast
+			 * interrupt or we got woken by something else.
+			 *
+			 * We are not longer in the broadcast mask, so
+			 * if the cpu local expiry time is already
+			 * reached, we would reprogram the cpu local
+			 * timer with an already expired event.
+			 *
+			 * This can lead to a ping-pong when we return
+			 * to idle and therefor rearm the broadcast
+			 * timer before the cpu local timer was able
+			 * to fire. This happens because the forced
+			 * reprogramming makes sure that the event
+			 * will happen in the future and depending on
+			 * the min_delta setting this might be far
+			 * enough out that the ping-pong starts.
+			 *
+			 * If the cpu local next_event has expired
+			 * then we know that the broadcast timer
+			 * next_event has expired as well and
+			 * broadcast is about to be handled. So we
+			 * avoid reprogramming and enforce that the
+			 * broadcast handler, which did not run yet,
+			 * will invoke the cpu local handler.
+			 *
+			 * We cannot call the handler directly from
+			 * here, because we might be in a NOHZ phase
+			 * and we did not go through the irq_enter()
+			 * nohz fixups.
+			 */
+			now = ktime_get();
+			if (dev->next_event.tv64 <= now.tv64) {
+				set_bit(cpu, tick_force_broadcast_mask);
+				goto out;
+			}
+			/*
+			 * We got woken by something else. Reprogram
+			 * the cpu local timer device.
+			 */
+			tick_program_event(dev->next_event, 1);
 		}
 	}
+out:
 	raw_spin_unlock_irqrestore(&tick_broadcast_lock, flags);
 }
 
