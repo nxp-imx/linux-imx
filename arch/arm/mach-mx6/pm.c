@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -312,9 +312,13 @@ static int mx6_suspend_enter(suspend_state_t state)
 	}
 	mx6_suspend_store();
 
-	/* i.MX6dl TO1.0 TKT094231: can't support ARM_POWER_OFF mode */
+	/*
+	 * i.MX6dl TO1.0/i.MX6dq TO1.1/1.0 TKT094231: can't support
+	 * ARM_POWER_OFF mode.
+	 */
 	if (state == PM_SUSPEND_MEM &&
-		(mx6dl_revision() == IMX_CHIP_REVISION_1_0)) {
+		((mx6dl_revision() == IMX_CHIP_REVISION_1_0) || mx6q_revision()
+		<= IMX_CHIP_REVISION_1_1)) {
 		state = PM_SUSPEND_STANDBY;
 	}
 
