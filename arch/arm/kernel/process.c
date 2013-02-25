@@ -195,7 +195,7 @@ void cpu_idle(void)
 #ifdef CONFIG_PL310_ERRATA_769419
 			wmb();
 #endif
-			if (hlt_counter) {
+			if (hlt_counter || tick_check_broadcast_pending()) {
 				local_irq_enable();
 				cpu_relax();
 			} else {
