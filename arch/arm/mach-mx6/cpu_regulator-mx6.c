@@ -85,7 +85,8 @@ void mx6_cpu_regulator_init(void)
 		soc_reg_id = "cpu_vddsoc";
 		pu_reg_id = "cpu_vddgpu";
 	}
-	printk(KERN_INFO "cpu regulator init ldo=%x\n", enable_ldo_mode);
+	printk(KERN_INFO "cpu regulator mode:%s\n", (enable_ldo_mode ==
+		LDO_MODE_BYPASSED) ? "ldo_bypass" : "ldo_enable");
 	cpu_regulator = regulator_get(NULL, gp_reg_id);
 	if (IS_ERR(cpu_regulator))
 		printk(KERN_ERR "%s: failed to get cpu regulator\n", __func__);
