@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -353,7 +353,8 @@ void mx6_cpu_op_init(void)
 		arm_max_freq = (reg > arm_max_freq) ? arm_max_freq : reg;
 	} else
 		arm_max_freq = CPU_AT_1GHz;/*mx6dl/sl max freq is 1Ghz*/
-	printk(KERN_INFO "arm_max_freq=%x\n", arm_max_freq);
+	printk(KERN_INFO "arm_max_freq=%s\n", (arm_max_freq == CPU_AT_1_2GHz) ?
+		"1.2GHz" : ((arm_max_freq == CPU_AT_1GHz) ? "1GHz" : "800MHz"));
 	get_cpu_op = mx6_get_cpu_op;
 	set_num_cpu_op = mx6_set_num_cpu_op;
 
