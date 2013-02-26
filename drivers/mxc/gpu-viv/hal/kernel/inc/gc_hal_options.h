@@ -791,7 +791,7 @@
         limited by gcdCONTIGUOUS_SIZE_LIMIT.
  */
 #ifndef gcdCONTIGUOUS_SIZE_LIMIT
-#   define gcdCONTIGUOUS_SIZE_LIMIT             4096
+#   define gcdCONTIGUOUS_SIZE_LIMIT             0
 #endif
 
 #ifndef gcdDISALBE_EARLY_EARLY_Z
