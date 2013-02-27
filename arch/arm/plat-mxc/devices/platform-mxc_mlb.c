@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,8 +44,6 @@ struct platform_device *__init imx_add_mlb(
 struct platform_device *__init imx_add_mlb(
 		const struct mxc_mlb_platform_data *pdata)
 {
-#define HW_OCOTP_CFGn(n)        (0x00000410 + (n) * 0x10)
-	unsigned int mlb_disable = 0;
 	struct resource res[] = {
 		{
 			.start = MLB_BASE_ADDR,
@@ -69,9 +67,9 @@ struct platform_device *__init imx_add_mlb(
 		},
 	};
 
-	mlb_disable = readl(MX6_IO_ADDRESS(OCOTP_BASE_ADDR) + HW_OCOTP_CFGn(2));
-	if (mlb_disable & 0x04000000)
+	if (!fuse_dev_is_available(MXC_DEV_MLB))
 		return ERR_PTR(-ENODEV);
+
 	return imx_add_platform_device("mxc_mlb150", 0,
 			res, ARRAY_SIZE(res), pdata, sizeof(*pdata));
 }

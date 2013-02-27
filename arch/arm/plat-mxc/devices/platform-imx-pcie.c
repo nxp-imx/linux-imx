@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -54,6 +54,9 @@ struct platform_device *__init imx_add_pcie(
 			.flags = IORESOURCE_IRQ,
 		},
 	};
+
+	if (!fuse_dev_is_available(MXC_DEV_PCIE))
+		return ERR_PTR(-ENODEV);
 
 	return imx_add_platform_device("imx-pcie", -1,
 			res, ARRAY_SIZE(res),

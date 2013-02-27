@@ -6,7 +6,7 @@
  * the terms of the GNU General Public License version 2 as published by the
  * Free Software Foundation.
  *
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  */
 #include <linux/dma-mapping.h>
 #include <asm/sizes.h>
@@ -73,6 +73,9 @@ struct platform_device *__init imx_add_fec(
 			.flags = IORESOURCE_IRQ,
 		},
 	};
+
+	if (!fuse_dev_is_available(MXC_DEV_ENET))
+		return ERR_PTR(-ENODEV);
 
 	return imx_add_platform_device_dmamask(data->devid, 0,
 			res, ARRAY_SIZE(res),

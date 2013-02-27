@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -22,7 +22,12 @@
 #include <mach/devices-common.h>
 
 struct platform_device *__init imx_add_hdmi_soc(void)
-{	return imx_add_platform_device("mxc_hdmi_soc", 0,
+{
+
+	if (!fuse_dev_is_available(MXC_DEV_HDMI))
+		return ERR_PTR(-ENODEV);
+
+	return imx_add_platform_device("mxc_hdmi_soc", 0,
 				       NULL, 0, NULL, 0);
 }
 
