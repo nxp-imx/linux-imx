@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -43,6 +43,10 @@ struct platform_device *__init imx_add_mxc_hdmi(
 			.flags = IORESOURCE_IRQ,
 		},
 	};
+
+	if (!fuse_dev_is_available(MXC_DEV_HDMI))
+		return ERR_PTR(-ENODEV);
+
 	imx_add_platform_device("mxc_hdmi_cec", 0,
 				       res, ARRAY_SIZE(res), NULL, 0);
 	return imx_add_platform_device_dmamask("mxc_hdmi", -1,

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -41,6 +41,9 @@ struct platform_device *__init imx_add_hdmi_soc_dai(
 			.flags = IORESOURCE_IRQ,
 		},
 	};
+
+	if (!fuse_dev_is_available(MXC_DEV_HDMI))
+		return ERR_PTR(-ENODEV);
 
 	return imx_add_platform_device("imx-hdmi-soc-dai", 0,
 				res, ARRAY_SIZE(res), NULL, 0);
