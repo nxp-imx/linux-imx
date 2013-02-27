@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007, 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright 2004-2007, 2011-2013 Freescale Semiconductor, Inc.
  * Copyright (C) 2008 Juergen Beisert (kernel@pengutronix.de)
  *
  * This program is free software; you can redistribute it and/or
@@ -275,6 +275,28 @@ int tzic_enable_wake(int is_idle);
 
 extern void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode);
 extern int tzic_enable_wake(int is_idle);
+
+/* available disableable devices in fuse */
+enum mxc_dev_type {
+	MXC_DEV_PXP,
+	MXC_DEV_OVG,
+	MXC_DEV_DSI_CSI2,
+	MXC_DEV_ENET,
+	MXC_DEV_MLB,
+	MXC_DEV_EPDC,
+	MXC_DEV_HDMI,
+	MXC_DEV_PCIE,
+	MXC_DEV_SATA,
+	MXC_DEV_DTCP,
+	MXC_DEV_2D,
+	MXC_DEV_3D,
+	MXC_DEV_VPU,
+	MXC_DEV_DIVX3,
+	MXC_DEV_RV,
+	MXC_DEV_SORENSEN,
+};
+extern int fuse_dev_is_available(enum mxc_dev_type dev);
+
 #endif
 
 #if defined(CONFIG_ARCH_MX3) || defined(CONFIG_ARCH_MX2)
