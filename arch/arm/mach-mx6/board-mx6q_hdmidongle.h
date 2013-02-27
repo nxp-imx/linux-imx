@@ -137,6 +137,9 @@ static iomux_v3_cfg_t mx6q_hdmidongle_rev_a_pads[] = {
 	MX6Q_PAD_KEY_COL0__UART4_TXD,
 	MX6Q_PAD_KEY_ROW0__UART4_RXD,
 
+	/*HDMI CEC communication PIN*/
+	MX6Q_PAD_KEY_ROW2__HDMI_TX_CEC_LINE,
+
 	/* I2C2 */
 	MX6Q_PAD_KEY_COL3__I2C2_SCL,	/* GPIO4[12] */
 	MX6Q_PAD_KEY_ROW3__I2C2_SDA,	/* GPIO4[13] */
@@ -270,6 +273,9 @@ static iomux_v3_cfg_t mx6q_hdmidongle_rev_b_pads[] = {
 
 	/*SD2_VSELECT (SD2 SDXC power exchange control signal)*/
 	MX6Q_PAD_KEY_ROW1__GPIO_4_9,
+
+	/*HDMI CEC communication PIN*/
+	MX6Q_PAD_KEY_ROW2__HDMI_TX_CEC_LINE,
 
 	/*PWRKEY_DET (Pwr button detection interrupt)*/
 	MX6Q_PAD_ENET_RXD0__GPIO_1_27,

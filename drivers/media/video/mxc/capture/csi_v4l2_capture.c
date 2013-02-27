@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -272,43 +272,48 @@ static void camera_callback(u32 mask, void *dev)
 	if (cam == NULL)
 		return;
 
-	if (list_empty(&cam->working_q)) {
-		pr_debug("v4l2 capture: %s: "
-				"working queue empty\n", __func__);
-		return;
-	}
+	spin_lock(&cam->queue_int_lock);
+	spin_lock(&cam->dqueue_int_lock);
+	if (!list_empty(&cam->working_q)) {
+		done_frame = list_entry(cam->working_q.next,
+				struct mxc_v4l_frame, queue);
 
-	done_frame =
-		list_entry(cam->working_q.next, struct mxc_v4l_frame, queue);
-	if (done_frame->buffer.flags & V4L2_BUF_FLAG_QUEUED) {
-		done_frame->buffer.flags |= V4L2_BUF_FLAG_DONE;
-		done_frame->buffer.flags &= ~V4L2_BUF_FLAG_QUEUED;
-		if (list_empty(&cam->ready_q)) {
-			cam->skip_frame++;
+		if (done_frame->csi_buf_num != cam->ping_pong_csi)
+			goto next;
+
+		if (done_frame->buffer.flags & V4L2_BUF_FLAG_QUEUED) {
+			done_frame->buffer.flags |= V4L2_BUF_FLAG_DONE;
+			done_frame->buffer.flags &= ~V4L2_BUF_FLAG_QUEUED;
+
+			/* Added to the done queue */
+			list_del(cam->working_q.next);
+			list_add_tail(&done_frame->queue, &cam->done_q);
+			cam->enc_counter++;
+			wake_up_interruptible(&cam->enc_queue);
 		} else {
-			ready_frame = list_entry(cam->ready_q.next,
-						 struct mxc_v4l_frame, queue);
-			list_del(cam->ready_q.next);
-			list_add_tail(&ready_frame->queue, &cam->working_q);
-
-			if (cam->ping_pong_csi == 1) {
-				__raw_writel(cam->frame[ready_frame->index].
-					     paddress, CSI_CSIDMASA_FB1);
-			} else {
-				__raw_writel(cam->frame[ready_frame->index].
-					     paddress, CSI_CSIDMASA_FB2);
-			}
+			pr_err("ERROR: v4l2 capture: %s: "
+					"buffer not queued\n", __func__);
 		}
-
-		/* Added to the done queue */
-		list_del(cam->working_q.next);
-		list_add_tail(&done_frame->queue, &cam->done_q);
-		cam->enc_counter++;
-		wake_up_interruptible(&cam->enc_queue);
-	} else {
-		pr_err("ERROR: v4l2 capture: %s: "
-				"buffer not queued\n", __func__);
 	}
+
+next:
+	if (!list_empty(&cam->ready_q)) {
+		ready_frame = list_entry(cam->ready_q.next,
+					 struct mxc_v4l_frame, queue);
+		list_del(cam->ready_q.next);
+		list_add_tail(&ready_frame->queue, &cam->working_q);
+
+		__raw_writel(ready_frame->paddress,
+			cam->ping_pong_csi == 1 ? CSI_CSIDMASA_FB1 :
+						  CSI_CSIDMASA_FB2);
+		ready_frame->csi_buf_num = cam->ping_pong_csi;
+	} else {
+		__raw_writel(cam->dummy_frame.paddress,
+			cam->ping_pong_csi == 1 ? CSI_CSIDMASA_FB1 :
+						  CSI_CSIDMASA_FB2);
+	}
+	spin_unlock(&cam->dqueue_int_lock);
+	spin_unlock(&cam->queue_int_lock);
 
 	return;
 }
@@ -325,7 +330,7 @@ static int csi_cap_image(cam_data *cam)
 	unsigned int value;
 
 	value = __raw_readl(CSI_CSICR3);
-	__raw_writel(value | BIT_DMA_REFLASH_RFF | BIT_FRMCNT_RST, CSI_CSICR3);
+	__raw_writel(value | BIT_FRMCNT_RST, CSI_CSICR3);
 	value = __raw_readl(CSI_CSISR);
 	__raw_writel(value, CSI_CSISR);
 
@@ -356,6 +361,13 @@ static int csi_free_frame_buf(cam_data *cam)
 					     cam->frame[i].paddress);
 			cam->frame[i].vaddress = 0;
 		}
+	}
+
+	if (cam->dummy_frame.vaddress != 0) {
+		dma_free_coherent(0, cam->dummy_frame.buffer.length,
+				  cam->dummy_frame.vaddress,
+				  cam->dummy_frame.paddress);
+		cam->dummy_frame.vaddress = 0;
 	}
 
 	return 0;
@@ -397,6 +409,7 @@ static int csi_allocate_frame_buf(cam_data *cam, int count)
 		cam->frame[i].buffer.memory = V4L2_MEMORY_MMAP;
 		cam->frame[i].buffer.m.offset = cam->frame[i].paddress;
 		cam->frame[i].index = i;
+		cam->frame[i].csi_buf_num = 0;
 	}
 
 	return 0;
@@ -418,7 +431,6 @@ static void csi_free_frames(cam_data *cam)
 	for (i = 0; i < FRAME_NUM; i++)
 		cam->frame[i].buffer.flags = V4L2_BUF_FLAG_MAPPED;
 
-	cam->skip_frame = 0;
 	INIT_LIST_HEAD(&cam->ready_q);
 	INIT_LIST_HEAD(&cam->working_q);
 	INIT_LIST_HEAD(&cam->done_q);
@@ -502,6 +514,9 @@ static inline int valid_mode(u32 palette)
 static int csi_streamon(cam_data *cam)
 {
 	struct mxc_v4l_frame *frame;
+	unsigned long flags;
+	unsigned long val;
+	int timeout, timeout2;
 
 	pr_debug("In MVC: %s\n", __func__);
 
@@ -510,32 +525,81 @@ static int csi_streamon(cam_data *cam)
 				__func__);
 		return -1;
 	}
+	cam->dummy_frame.vaddress = dma_alloc_coherent(0,
+			       PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage),
+			       &cam->dummy_frame.paddress,
+			       GFP_DMA | GFP_KERNEL);
+	if (cam->dummy_frame.vaddress == 0) {
+		pr_err("ERROR: v4l2 capture: Allocate dummy frame "
+		       "failed.\n");
+		return -ENOBUFS;
+	}
+	cam->dummy_frame.buffer.type = V4L2_BUF_TYPE_PRIVATE;
+	cam->dummy_frame.buffer.length =
+	    PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage);
+	cam->dummy_frame.buffer.m.offset = cam->dummy_frame.paddress;
 
+	spin_lock_irqsave(&cam->queue_int_lock, flags);
 	/* move the frame from readyq to workingq */
 	if (list_empty(&cam->ready_q)) {
 		pr_err("ERROR: v4l2 capture: %s: "
 				"ready_q queue empty\n", __func__);
+		spin_unlock_irqrestore(&cam->queue_int_lock, flags);
 		return -1;
 	}
 	frame = list_entry(cam->ready_q.next, struct mxc_v4l_frame, queue);
 	list_del(cam->ready_q.next);
 	list_add_tail(&frame->queue, &cam->working_q);
-	__raw_writel(cam->frame[frame->index].paddress, CSI_CSIDMASA_FB1);
+	__raw_writel(frame->paddress, CSI_CSIDMASA_FB1);
+	frame->csi_buf_num = 1;
 
 	if (list_empty(&cam->ready_q)) {
 		pr_err("ERROR: v4l2 capture: %s: "
 				"ready_q queue empty\n", __func__);
+		spin_unlock_irqrestore(&cam->queue_int_lock, flags);
 		return -1;
 	}
 	frame = list_entry(cam->ready_q.next, struct mxc_v4l_frame, queue);
 	list_del(cam->ready_q.next);
 	list_add_tail(&frame->queue, &cam->working_q);
-	__raw_writel(cam->frame[frame->index].paddress, CSI_CSIDMASA_FB2);
+	__raw_writel(frame->paddress, CSI_CSIDMASA_FB2);
+	frame->csi_buf_num = 2;
+	spin_unlock_irqrestore(&cam->queue_int_lock, flags);
 
 	cam->capture_pid = current->pid;
 	cam->capture_on = true;
 	csi_cap_image(cam);
-	csi_enable_int(1);
+
+	local_irq_save(flags);
+	for (timeout = 1000000; timeout > 0; timeout--) {
+		if (__raw_readl(CSI_CSISR) & BIT_SOF_INT) {
+			val = __raw_readl(CSI_CSICR3);
+			__raw_writel(val | BIT_DMA_REFLASH_RFF, CSI_CSICR3);
+			for (timeout2 = 1000000; timeout2 > 0; timeout2--) {
+				if (__raw_readl(CSI_CSICR3) &
+					BIT_DMA_REFLASH_RFF)
+					cpu_relax();
+				else
+					break;
+			}
+			if (timeout2 <= 0) {
+				pr_err("timeout when wait for reflash done.\n");
+				local_irq_restore(flags);
+				return -ETIME;
+			}
+
+			csi_dmareq_rff_enable();
+			csi_enable_int(1);
+			break;
+		} else
+			cpu_relax();
+	}
+	if (timeout <= 0) {
+		pr_err("timeout when wait for SOF\n");
+		local_irq_restore(flags);
+		return -ETIME;
+	}
+	local_irq_restore(flags);
 
 	return 0;
 }
@@ -549,21 +613,18 @@ static int csi_streamon(cam_data *cam)
  */
 static int csi_streamoff(cam_data *cam)
 {
-	unsigned int cr3;
-
 	pr_debug("In MVC: %s\n", __func__);
 
 	if (cam->capture_on == false)
 		return 0;
 
+	csi_dmareq_rff_disable();
 	csi_disable_int();
 	cam->capture_on = false;
 
 	/* set CSI_CSIDMASA_FB1 and CSI_CSIDMASA_FB2 to default value */
 	__raw_writel(0, CSI_CSIDMASA_FB1);
 	__raw_writel(0, CSI_CSIDMASA_FB2);
-	cr3 = __raw_readl(CSI_CSICR3);
-	__raw_writel(cr3 | BIT_DMA_REFLASH_RFF, CSI_CSICR3);
 
 	csi_free_frames(cam);
 	csi_free_frame_buf(cam);
@@ -862,6 +923,9 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 		return -ERESTARTSYS;
 	}
 
+	if (down_interruptible(&cam->busy_lock))
+		return -EBUSY;
+
 	spin_lock_irqsave(&cam->dqueue_int_lock, lock_flags);
 
 	cam->enc_counter--;
@@ -905,6 +969,7 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 		}
 		pxp_complete_update(cam);
 	}
+	up(&cam->busy_lock);
 
 	return retval;
 }
@@ -943,7 +1008,6 @@ static int csi_v4l_open(struct file *file)
 					 cam->low_power == false);
 
 		cam->enc_counter = 0;
-		cam->skip_frame = 0;
 		INIT_LIST_HEAD(&cam->ready_q);
 		INIT_LIST_HEAD(&cam->working_q);
 		INIT_LIST_HEAD(&cam->done_q);
@@ -1091,8 +1155,9 @@ static long csi_v4l_do_ioctl(struct file *file,
 	pr_debug("In MVC: %s, %x\n", __func__, ioctlnr);
 	wait_event_interruptible(cam->power_queue, cam->low_power == false);
 	/* make this _really_ smp-safe */
-	if (down_interruptible(&cam->busy_lock))
-		return -EBUSY;
+	if (ioctlnr != VIDIOC_DQBUF)
+		if (down_interruptible(&cam->busy_lock))
+			return -EBUSY;
 
 	switch (ioctlnr) {
 		/*!
@@ -1249,22 +1314,7 @@ static long csi_v4l_do_ioctl(struct file *file,
 		if ((cam->frame[index].buffer.flags & 0x7) ==
 				V4L2_BUF_FLAG_MAPPED) {
 			cam->frame[index].buffer.flags |= V4L2_BUF_FLAG_QUEUED;
-			if (cam->skip_frame > 0) {
-				list_add_tail(&cam->frame[index].queue,
-					      &cam->working_q);
-				cam->skip_frame = 0;
-
-				if (cam->ping_pong_csi == 1) {
-					__raw_writel(cam->frame[index].paddress,
-						     CSI_CSIDMASA_FB1);
-				} else {
-					__raw_writel(cam->frame[index].paddress,
-						     CSI_CSIDMASA_FB2);
-				}
-			} else {
-				list_add_tail(&cam->frame[index].queue,
-					      &cam->ready_q);
-			}
+			list_add_tail(&cam->frame[index].queue, &cam->ready_q);
 		} else if (cam->frame[index].buffer.flags &
 				V4L2_BUF_FLAG_QUEUED) {
 			pr_err("ERROR: v4l2 capture: VIDIOC_QBUF: "
@@ -1375,7 +1425,8 @@ static long csi_v4l_do_ioctl(struct file *file,
 		break;
 	}
 
-	up(&cam->busy_lock);
+	if (ioctlnr != VIDIOC_DQBUF)
+		up(&cam->busy_lock);
 	return retval;
 }
 
@@ -1415,7 +1466,7 @@ static int csi_mmap(struct file *file, struct vm_area_struct *vma)
 		return -EINTR;
 
 	size = vma->vm_end - vma->vm_start;
-	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
 
 	if (remap_pfn_range(vma, vma->vm_start,
 			    vma->vm_pgoff, size, vma->vm_page_prot)) {
@@ -1492,7 +1543,6 @@ static void init_camera_struct(cam_data *cam)
 	cam->streamparm.parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
 	cam->overlay_on = false;
 	cam->capture_on = false;
-	cam->skip_frame = 0;
 	cam->v4l2_fb.flags = V4L2_FBUF_FLAG_OVERLAY;
 
 	cam->v2f.fmt.pix.sizeimage = 480 * 640 * 2;
@@ -1694,6 +1744,7 @@ static int csi_v4l2_master_attach(struct v4l2_int_device *slave)
 	vidioc_int_dev_init(slave);
 	csi_enable_mclk(CSI_MCLK_I2C, false, false);
 	cam_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	vidioc_int_g_fmt_cap(cam->sensor, &cam_fmt);
 
 	/* Used to detect TV in (type 1) vs. camera (type 0) */
 	cam->device_type = cam_fmt.fmt.pix.priv;

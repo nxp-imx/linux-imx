@@ -59,6 +59,13 @@ config USB_EHCI_HCD
 	  To compile this driver as a module, choose M here: the
 	  module will be called ehci-hcd.
 
+config FSL_USB_TEST_MODE
+	bool "FSL High-speed Electrical Test Mode Support"
+	depends on USB_EHCI_ARC
+	default n
+	---help---
+	    enable freescale test mode
+
 config USB_EHCI_ARC
 	bool "Support for Freescale controller"
 	depends on USB_EHCI_HCD && (ARCH_MXC || ARCH_STMP3XXX || ARCH_MXS)

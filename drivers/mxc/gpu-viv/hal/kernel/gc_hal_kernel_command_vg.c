@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #include "gc_hal_kernel_precomp.h"
@@ -630,7 +628,7 @@ _RemoveRecordFromProcesDB(
                 Command->kernel->kernel,
                 pid,
                 gcvDB_VIDEO_MEMORY,
-                freeVideoMemory->node));
+                gcmUINT64_TO_PTR(freeVideoMemory->node)));
 
             /* Advance to next task. */
             size -= sizeof(gcsTASK_FREE_VIDEO_MEMORY);
@@ -645,7 +643,7 @@ _RemoveRecordFromProcesDB(
                 Command->kernel->kernel,
                 pid,
                 gcvDB_VIDEO_MEMORY_LOCKED,
-                unlockVideoMemory->node));
+                gcmUINT64_TO_PTR(unlockVideoMemory->node)));
 
             /* Advance to next task. */
             size -= sizeof(gcsTASK_UNLOCK_VIDEO_MEMORY);
@@ -963,7 +961,7 @@ _ConvertUserCommandBufferPointer(
         /* Translate the logical address to the kernel space. */
         gcmkERR_BREAK(_HardwareToKernel(
             Command->os,
-            mappedUserCommandBuffer->node,
+            gcmUINT64_TO_PTR(mappedUserCommandBuffer->node),
             headerAddress,
             (gctPOINTER *) KernelCommandBuffer
             ));
@@ -1137,7 +1135,7 @@ _AllocateCommandBuffer(
 
         /* Initialize the structure. */
         commandBuffer->completion    = gcvVACANT_BUFFER;
-        commandBuffer->node          = node;
+        commandBuffer->node          = gcmPTR_TO_UINT64(node);
         commandBuffer->address       = address + alignedHeaderSize;
         commandBuffer->bufferOffset  = alignedHeaderSize;
         commandBuffer->size          = requestedSize;
@@ -1192,7 +1190,7 @@ _FreeCommandBuffer(
     gceSTATUS status;
 
     /* Free the buffer. */
-    status = _FreeLinear(Kernel, CommandBuffer->node);
+    status = _FreeLinear(Kernel, gcmUINT64_TO_PTR(CommandBuffer->node));
 
     /* Return status. */
     return status;
@@ -1649,7 +1647,7 @@ _TaskUnlockVideoMemory(
         /* Unlock video memory. */
         gcmkERR_BREAK(gckVIDMEM_Unlock(
             Command->kernel->kernel,
-            task->node,
+            gcmUINT64_TO_PTR(task->node),
             gcvSURF_TYPE_UNKNOWN,
             gcvNULL));
 
@@ -1680,7 +1678,7 @@ _TaskFreeVideoMemory(
             = (gcsTASK_FREE_VIDEO_MEMORY_PTR) TaskHeader->task;
 
         /* Free video memory. */
-        gcmkERR_BREAK(gckVIDMEM_Free(task->node));
+        gcmkERR_BREAK(gckVIDMEM_Free(gcmUINT64_TO_PTR(task->node)));
 
         /* Update the reference counter. */
         TaskHeader->container->referenceCount -= 1;

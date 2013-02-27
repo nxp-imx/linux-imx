@@ -149,6 +149,7 @@ struct hdmi_data_info {
 	unsigned int colorimetry;
 	unsigned int pix_repet_factor;
 	unsigned int hdcp_enable;
+	unsigned int rgb_out_enable;
 	struct hdmi_vmode video_mode;
 };
 
@@ -185,6 +186,7 @@ struct mxc_hdmi {
 	struct fb_videomode previous_mode;
 	struct fb_videomode previous_non_vga_mode;
 	bool requesting_vga_for_initialization;
+
 	struct hdmi_phy_reg_config phy_config;
 	struct switch_dev sdev_audio;
 	struct switch_dev sdev_display;
@@ -257,6 +259,43 @@ static ssize_t mxc_hdmi_show_edid(struct device *dev,
 }
 
 static DEVICE_ATTR(edid, S_IRUGO, mxc_hdmi_show_edid, NULL);
+
+static ssize_t mxc_hdmi_show_rgb_out_enable(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mxc_hdmi *hdmi = dev_get_drvdata(dev);
+
+	if (hdmi->hdmi_data.rgb_out_enable == true)
+		strcpy(buf, "RGB out\n");
+	else
+		strcpy(buf, "YCbCr out\n");
+
+	return strlen(buf);
+}
+
+static ssize_t mxc_hdmi_store_rgb_out_enable(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct mxc_hdmi *hdmi = dev_get_drvdata(dev);
+	unsigned long value;
+	int ret;
+
+	ret = strict_strtoul(buf, 10, &value);
+	if (ret)
+		return ret;
+
+	hdmi->hdmi_data.rgb_out_enable = value;
+
+	/* Reconfig HDMI for output color space change */
+	mxc_hdmi_setup(hdmi, 0);
+
+	return count;
+}
+
+static DEVICE_ATTR(rgb_out_enable, S_IRUGO | S_IWUSR,
+				mxc_hdmi_show_rgb_out_enable,
+				mxc_hdmi_store_rgb_out_enable);
+
 
 /*!
  * this submodule is responsible for the video data synchronization.
@@ -1962,6 +2001,15 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 
 	hdmi->hdmi_data.enc_out_format = RGB;
 
+	/* YCbCr only enabled in HDMI mode */
+	if (!hdmi->hdmi_data.video_mode.mDVI &&
+		!hdmi->hdmi_data.rgb_out_enable) {
+		if (hdmi->edid_cfg.cea_ycbcr444)
+			hdmi->hdmi_data.enc_out_format = YCBCR444;
+		else if (hdmi->edid_cfg.cea_ycbcr422)
+			hdmi->hdmi_data.enc_out_format = YCBCR422_8BITS;
+	}
+
 	/* IPU not support depth color output */
 	hdmi->hdmi_data.enc_color_depth = 8;
 	hdmi->hdmi_data.pix_repet_factor = 0;
@@ -2275,6 +2323,9 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 
 	memset(&hdmi->hdmi_data, 0, sizeof(struct hdmi_data_info));
 
+	/* Default HDMI working in RGB mode */
+	hdmi->hdmi_data.rgb_out_enable = true;
+
 	ret = request_irq(irq, mxc_hdmi_hotplug, IRQF_SHARED,
 			  dev_name(&hdmi->pdev->dev), hdmi);
 	if (ret < 0) {
@@ -2295,6 +2346,10 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	if (ret < 0)
 		dev_warn(&hdmi->pdev->dev,
 			"cound not create sys node for edid\n");
+	ret = device_create_file(&hdmi->pdev->dev, &dev_attr_rgb_out_enable);
+	if (ret < 0)
+		dev_warn(&hdmi->pdev->dev,
+			"cound not create sys node for rgb out enable\n");
 
 	dev_dbg(&hdmi->pdev->dev, "%s exit\n", __func__);
 

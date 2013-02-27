@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -61,6 +61,7 @@
 #include <mach/iomux-mx6sl.h>
 #include <mach/imx-uart.h>
 #include <mach/viv_gpu.h>
+#include <mach/imx_rfkill.h>
 
 #include <asm/irq.h>
 #include <asm/setup.h>
@@ -89,6 +90,8 @@ extern int __init mx6sl_evk_init_pfuze100(u32 int_gpio);
 
 static int csi_enabled;
 
+#define SXSDMAN_BLUETOOTH_ENABLE
+
 static iomux_v3_cfg_t mx6sl_brd_csi_enable_pads[] = {
 	MX6SL_PAD_EPDC_GDRL__CSI_MCLK,
 	MX6SL_PAD_EPDC_SDCE3__I2C3_SDA,
@@ -111,6 +114,16 @@ static iomux_v3_cfg_t mx6sl_brd_csi_enable_pads[] = {
 	MX6SL_PAD_EPDC_SDOE__GPIO_1_25,		/* CMOS_PWDN GPIO */
 };
 
+#ifdef SXSDMAN_BLUETOOTH_ENABLE
+static iomux_v3_cfg_t mx6sl_uart4_pads[] = {
+	MX6SL_PAD_SD1_DAT4__UART4_RXD,
+	MX6SL_PAD_SD1_DAT5__UART4_TXD,
+	MX6SL_PAD_SD1_DAT6__UART4_RTS,
+	MX6SL_PAD_SD1_DAT7__UART4_CTS,
+	/* gpio for reset */
+	MX6SL_PAD_SD1_DAT0__GPIO_5_11,
+};
+#else
 /* uart2 pins */
 static iomux_v3_cfg_t mx6sl_uart2_pads[] = {
 	MX6SL_PAD_SD2_DAT5__UART2_TXD,
@@ -118,6 +131,7 @@ static iomux_v3_cfg_t mx6sl_uart2_pads[] = {
 	MX6SL_PAD_SD2_DAT6__UART2_RTS,
 	MX6SL_PAD_SD2_DAT7__UART2_CTS,
 };
+#endif
 
 enum sd_pad_mode {
 	SD_PAD_MODE_LOW_SPEED,
@@ -364,13 +378,13 @@ static struct platform_device max17135_sensor_device = {
 
 static struct max17135_platform_data max17135_pdata __initdata = {
 	.vneg_pwrup = 1,
-	.gvee_pwrup = 1,
-	.vpos_pwrup = 2,
-	.gvdd_pwrup = 1,
+	.gvee_pwrup = 2,
+	.vpos_pwrup = 10,
+	.gvdd_pwrup = 12,
 	.gvdd_pwrdn = 1,
 	.vpos_pwrdn = 2,
-	.gvee_pwrdn = 1,
-	.vneg_pwrdn = 1,
+	.gvee_pwrdn = 8,
+	.vneg_pwrdn = 10,
 	.gpio_pmic_pwrgood = MX6SL_BRD_EPDC_PWRSTAT,
 	.gpio_pmic_vcom_ctrl = MX6SL_BRD_EPDC_VCOM,
 	.gpio_pmic_wakeup = MX6SL_BRD_EPDC_PMIC_WAKE,
@@ -787,11 +801,19 @@ static struct viv_gpu_platform_data imx6q_gpu_pdata __initdata = {
 
 void __init early_console_setup(unsigned long base, struct clk *clk);
 
+#ifdef SXSDMAN_BLUETOOTH_ENABLE
+static const struct imxuart_platform_data mx6sl_evk_uart4_data __initconst = {
+	.flags      = IMXUART_HAVE_RTSCTS,
+	.dma_req_rx = MX6Q_DMA_REQ_UART4_RX,
+	.dma_req_tx = MX6Q_DMA_REQ_UART4_TX,
+};
+#else
 static const struct imxuart_platform_data mx6sl_evk_uart1_data __initconst = {
 	.flags      = IMXUART_HAVE_RTSCTS | IMXUART_SDMA,
 	.dma_req_rx = MX6Q_DMA_REQ_UART2_RX,
 	.dma_req_tx = MX6Q_DMA_REQ_UART2_TX,
 };
+#endif
 
 static inline void mx6_evk_init_uart(void)
 {
@@ -1400,6 +1422,22 @@ static void mx6_snvs_poweroff(void)
 	writel(value | 0x60, mx6_snvs_base + SNVS_LPCR);
 }
 
+#ifdef SXSDMAN_BLUETOOTH_ENABLE
+static int uart4_enabled;
+static int __init uart4_setup(char * __unused)
+{
+	uart4_enabled = 1;
+	return 1;
+}
+__setup("bluetooth", uart4_setup);
+
+static void __init uart4_init(void)
+{
+	mxc_iomux_v3_setup_multiple_pads(mx6sl_uart4_pads,
+					ARRAY_SIZE(mx6sl_uart4_pads));
+	imx6sl_add_imx_uart(3, &mx6sl_evk_uart4_data);
+}
+#else
 static int uart2_enabled;
 static int __init uart2_setup(char * __unused)
 {
@@ -1414,6 +1452,33 @@ static void __init uart2_init(void)
 					ARRAY_SIZE(mx6sl_uart2_pads));
 	imx6sl_add_imx_uart(1, &mx6sl_evk_uart1_data);
 }
+#endif
+
+static void mx6sl_evk_bt_reset(void)
+{
+	gpio_request(MX6SL_BRD_BT_RESET, "bt-reset");
+	gpio_direction_output(MX6SL_BRD_BT_RESET, 0);
+	/* pull down reset pin at least >5ms */
+	mdelay(6);
+	/* pull up after power supply BT */
+	gpio_set_value(MX6SL_BRD_BT_RESET, 1);
+	gpio_free(MX6SL_BRD_BT_RESET);
+}
+
+static int mx6sl_evk_bt_power_change(int status)
+{
+	if (status)
+		mx6sl_evk_bt_reset();
+	return 0;
+}
+
+static struct platform_device mxc_bt_rfkill = {
+	.name = "mxc_bt_rfkill",
+};
+
+static struct imx_bt_rfkill_platform_data mxc_bt_rfkill_data = {
+	.power_change = mx6sl_evk_bt_power_change,
+};
 
 static void mx6sl_evk_suspend_enter()
 {
@@ -1539,8 +1604,15 @@ static void __init mx6_evk_init(void)
 	imx6q_init_audio();
 
 	/* uart2 for bluetooth */
+#ifdef SXSDMAN_BLUETOOTH_ENABLE
+	if (uart4_enabled)
+		uart4_init();
+#else
 	if (uart2_enabled)
 		uart2_init();
+#endif
+
+	mxc_register_device(&mxc_bt_rfkill, &mxc_bt_rfkill_data);
 
 	imx6q_add_viim();
 	imx6q_add_imx2_wdt(0, NULL);

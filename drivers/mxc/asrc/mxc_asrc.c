@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -946,6 +946,7 @@ static void asrc_read_output_FIFO_S16(struct asrc_pair_params *params)
 	u16 *index = params->output_last_period.dma_vaddr;
 
 	t_size = 0;
+	udelay(100);
 	size = asrc_get_output_FIFO_size(params->index);
 	while (size) {
 		for (i = 0; i < size; i++) {
@@ -972,6 +973,7 @@ static void asrc_read_output_FIFO_S24(struct asrc_pair_params *params)
 	u32 *index = params->output_last_period.dma_vaddr;
 
 	t_size = 0;
+	udelay(100);
 	size = asrc_get_output_FIFO_size(params->index);
 	while (size) {
 		for (i = 0; i < size; i++) {
@@ -1533,6 +1535,13 @@ static long asrc_ioctl(struct file *file,
 				err = -EFAULT;
 				break;
 			}
+
+			if (index < 0) {
+				pr_err("unvalid index: %d!\n", index);
+				err = -EFAULT;
+				break;
+			}
+
 			params->asrc_active = 0;
 
 			spin_lock_irqsave(&pair_lock, lock_flags);

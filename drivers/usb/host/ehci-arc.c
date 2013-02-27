@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2005 MontaVista Software
- * Copyright (C) 2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -408,11 +408,23 @@ static void fsl_setup_phy(struct ehci_hcd *ehci,
 	ehci_writel(ehci, portsc, &ehci->regs->port_status[port_offset]);
 }
 
+static void ehci_fsl_stream_disable(struct ehci_hcd *ehci)
+{
+	u32 __iomem	*reg_ptr;
+	u32		tmp;
+
+	reg_ptr = (u32 __iomem *)(((u8 __iomem *)ehci->regs) + USBMODE);
+	tmp = ehci_readl(ehci, reg_ptr);
+	tmp |= CI_USBMODE_SDIS;
+	ehci_writel(ehci, tmp, reg_ptr);
+}
+
 /* called after powerup, by probe or system-pm "wakeup" */
 static int ehci_fsl_reinit(struct ehci_hcd *ehci)
 {
 	fsl_platform_usb_setup(ehci);
 	ehci_port_power(ehci, 0);
+	ehci_fsl_stream_disable(ehci);
 
 	return 0;
 }
@@ -805,6 +817,7 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	ehci_writel(ehci, pdata->pm_configured_flag,
 		    &ehci->regs->configured_flag);
 
+	ehci_fsl_stream_disable(ehci);
 
 	tmp = ehci_readl(ehci, &ehci->regs->command);
 	tmp |= CMD_RUN;

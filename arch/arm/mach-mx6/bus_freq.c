@@ -300,6 +300,8 @@ int set_high_bus_freq(int high_bus_freq)
 	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active)
 		return 0;
 
+	if (cpu_is_mx6sl())
+		high_bus_freq = 1;
 
 	if (high_bus_freq_mode && high_bus_freq)
 		return 0;

@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #include "gc_hal_kernel_precomp.h"
@@ -1304,8 +1302,11 @@ gckMMU_AllocatePages(
     gctUINT32 address;
     gctINT i;
     gckMMU mmu;
+    gctBOOL acquired = gcvFALSE;
+    gctBOOL allocated = gcvFALSE;
 
     gckOS_AcquireMutex(Mmu->os, mirrorPageTableMutex, gcvINFINITE);
+    acquired = gcvTRUE;
 
     /* Allocate page table for current MMU. */
     for (i = 0; i < mirrorPageTable->reference; i++)
@@ -1313,6 +1314,7 @@ gckMMU_AllocatePages(
         if (Mmu == mirrorPageTable->mmus[i])
         {
             gcmkONERROR(_AllocatePages(Mmu, PageCount, PageTable, Address));
+            allocated = gcvTRUE;
         }
     }
 
@@ -1329,9 +1331,24 @@ gckMMU_AllocatePages(
     }
 
     gckOS_ReleaseMutex(Mmu->os, mirrorPageTableMutex);
+    acquired = gcvFALSE;
 
     return gcvSTATUS_OK;
 OnError:
+
+    if (allocated)
+    {
+        /* Page tables for multiple GPU always keep the same. So it is impossible
+         * the fist one allocates successfully but others fail.
+         */
+        gcmkASSERT(0);
+    }
+
+    if (acquired)
+    {
+        gckOS_ReleaseMutex(Mmu->os, mirrorPageTableMutex);
+    }
+
     return status;
 #else
     return _AllocatePages(Mmu, PageCount, PageTable, Address);

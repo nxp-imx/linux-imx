@@ -1414,6 +1414,20 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 		mxc_fbi->vsync_pre_report_active = enable;
 		break;
 	}
+	case MXCFB_CSC_UPDATE:
+		{
+			struct mxcfb_csc_matrix csc;
+
+			if (copy_from_user(&csc, (void *) arg, sizeof(csc)))
+				return -EFAULT;
+
+			if ((mxc_fbi->ipu_ch != MEM_FG_SYNC) &&
+				(mxc_fbi->ipu_ch != MEM_BG_SYNC) &&
+				(mxc_fbi->ipu_ch != MEM_BG_ASYNC0))
+				return -EFAULT;
+			ipu_set_csc_coefficients(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+						csc.param);
+		}
 	default:
 		retval = -EINVAL;
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -69,6 +69,7 @@ void _ipu_vdi_set_motion(struct ipu_soc *ipu, ipu_motion_sel motion_sel)
 		reg |= VDI_C_MOT_SEL_LOW;
 
 	ipu_vdi_write(ipu, reg, VDI_C);
+	dev_dbg(ipu->dev, "VDI_C = \t0x%08X\n", reg);
 }
 
 void ic_dump_register(struct ipu_soc *ipu)
@@ -215,10 +216,10 @@ void _ipu_vdi_init(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel_param
 	}
 	ipu_vdi_write(ipu, reg, VDI_C);
 
-	if (params->mem_prp_vf_mem.field_fmt == V4L2_FIELD_INTERLACED_TB)
-		_ipu_vdi_set_top_field_man(ipu, false);
-	else if (params->mem_prp_vf_mem.field_fmt == V4L2_FIELD_INTERLACED_BT)
+	if (params->mem_prp_vf_mem.field_fmt == IPU_DEINTERLACE_FIELD_TOP)
 		_ipu_vdi_set_top_field_man(ipu, true);
+	else if (params->mem_prp_vf_mem.field_fmt == IPU_DEINTERLACE_FIELD_BOTTOM)
+		_ipu_vdi_set_top_field_man(ipu, false);
 
 	_ipu_vdi_set_motion(ipu, params->mem_prp_vf_mem.motion_sel);
 

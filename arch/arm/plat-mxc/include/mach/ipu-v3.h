@@ -419,10 +419,10 @@ typedef struct {
  * Enumeration of CSI data bus widths.
  */
 enum {
-	IPU_CSI_DATA_WIDTH_4,
-	IPU_CSI_DATA_WIDTH_8,
-	IPU_CSI_DATA_WIDTH_10,
-	IPU_CSI_DATA_WIDTH_16,
+	IPU_CSI_DATA_WIDTH_4 = 0,
+	IPU_CSI_DATA_WIDTH_8 = 1,
+	IPU_CSI_DATA_WIDTH_10 = 3,
+	IPU_CSI_DATA_WIDTH_16 = 9,
 };
 
 /*!

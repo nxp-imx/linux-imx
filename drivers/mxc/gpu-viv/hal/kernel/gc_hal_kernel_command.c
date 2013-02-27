@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -19,8 +19,6 @@
 *****************************************************************************/
 
 
-
-
 #include "gc_hal_kernel_precomp.h"
 #include "gc_hal_kernel_context.h"
 
@@ -30,9 +28,6 @@
 
 #define _GC_OBJ_ZONE            gcvZONE_COMMAND
 
-#if gcdENABLE_FSCALE_VAL_ADJUST
-extern int thermal_hot;
-#endif
 /******************************************************************************\
 ********************************* Support Code *********************************
 \******************************************************************************/
@@ -253,7 +248,7 @@ _ProcessHints(
         if (Command->hintArrayAllocated &&
             (Command->hintArraySize < CommandBuffer->hintArraySize))
         {
-            gcmkONERROR(gcmkOS_SAFE_FREE(Command->os, Command->hintArray));
+            gcmkONERROR(gcmkOS_SAFE_FREE(Command->os, gcmUINT64_TO_PTR(Command->hintArray)));
             Command->hintArraySize = gcvFALSE;
         }
 
@@ -267,18 +262,18 @@ _ProcessHints(
                 &pointer
                 ));
 
-            Command->hintArray          = pointer;
+            Command->hintArray          = gcmPTR_TO_UINT64(pointer);
             Command->hintArrayAllocated = gcvTRUE;
             Command->hintArraySize      = CommandBuffer->hintArraySize;
         }
 
-        hintArray = Command->hintArray;
+        hintArray = gcmUINT64_TO_PTR(Command->hintArray);
         copySize   = hintCount * gcmSIZEOF(gctUINT32);
 
         gcmkONERROR(gckOS_CopyFromUserData(
             Command->os,
             hintArray,
-            CommandBuffer->hintArray,
+            gcmUINT64_TO_PTR(CommandBuffer->hintArray),
             copySize
             ));
     }
@@ -288,7 +283,7 @@ _ProcessHints(
 
         gcmkONERROR(gckOS_MapUserPointer(
             Command->os,
-            CommandBuffer->hintArray,
+            gcmUINT64_TO_PTR(CommandBuffer->hintArray),
             CommandBuffer->hintArraySize,
             &pointer
             ));
@@ -314,7 +309,7 @@ OnError:
     {
         gcmkVERIFY_OK(gckOS_UnmapUserPointer(
             Command->os,
-            CommandBuffer->hintArray,
+            gcmUINT64_TO_PTR(CommandBuffer->hintArray),
             CommandBuffer->hintArraySize,
             hintArray
             ));
@@ -680,7 +675,7 @@ gckCOMMAND_Destroy(
     /* Free state array. */
     if (Command->hintArrayAllocated)
     {
-        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Command->os, Command->hintArray));
+        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Command->os, gcmUINT64_TO_PTR(Command->hintArray)));
         Command->hintArrayAllocated = gcvFALSE;
     }
 #endif
@@ -1163,24 +1158,6 @@ gckCOMMAND_Commit(
     /* Extract the gckHARDWARE and gckEVENT objects. */
     hardware = Command->kernel->hardware;
 
-#if gcdENABLE_FSCALE_VAL_ADJUST
-    if(hardware->core == gcvCORE_MAJOR){
-        static gctUINT orgFscale,minFscale,maxFscale;
-        static gctBOOL bAlreadyTooHot = gcvFALSE;
-        if((thermal_hot > 0) && (!bAlreadyTooHot)) {
-            gckHARDWARE_GetFscaleValue(hardware,&orgFscale,&minFscale, &maxFscale);
-            gckHARDWARE_SetFscaleValue(hardware, minFscale);
-            bAlreadyTooHot = gcvTRUE;
-            gckOS_Print("System is too hot. GPU3D will work at %d/64 clock.\n", minFscale);
-        } else if((!(thermal_hot > 0)) && bAlreadyTooHot) {
-            gckHARDWARE_SetFscaleValue(hardware, orgFscale);
-            gckOS_Print("Hot alarm is canceled. GPU3D clock will return to %d/64\n", orgFscale);
-            bAlreadyTooHot = gcvFALSE;
-        }
-
-    }
-#endif
-
     /* Check wehther we need to copy the structures or not. */
     gcmkONERROR(gckOS_QueryNeedCopy(Command->os, ProcessID, &needCopy));
 
@@ -1240,7 +1217,7 @@ gckCOMMAND_Commit(
 
     /* Compute the command buffer entry and the size. */
     commandBufferLogical
-        = (gctUINT8_PTR) commandBufferObject->logical
+        = (gctUINT8_PTR) gcmUINT64_TO_PTR(commandBufferObject->logical)
         +                commandBufferObject->startOffset;
 
     gcmkONERROR(gckOS_GetPhysicalAddress(
@@ -1913,7 +1890,7 @@ gckCOMMAND_Commit(
 
     /* Determine the location of the LINK command in the command buffer. */
     commandBufferLink
-        = (gctUINT8_PTR) commandBufferObject->logical
+        = (gctUINT8_PTR) gcmUINT64_TO_PTR(commandBufferObject->logical)
         +                commandBufferObject->offset;
 
     /* Generate a LINK from the end of the command buffer being scheduled
@@ -2055,7 +2032,7 @@ gckCOMMAND_Commit(
             ));
 
         /* Next record in the queue. */
-        nextEventRecord = eventRecord->next;
+        nextEventRecord = gcmUINT64_TO_PTR(eventRecord->next);
 
         if (!needCopy)
         {

@@ -1172,11 +1172,22 @@ static int mx6q_sabresd_sata_init(struct device *dev, void __iomem *addr)
 	tmpdata = clk_get_rate(clk) / 1000;
 	clk_put(clk);
 
+#ifdef CONFIG_SATA_AHCI_PLATFORM
 	ret = sata_init(addr, tmpdata);
 	if (ret == 0)
 		return ret;
+#else
+	usleep_range(1000, 2000);
+	/* AHCI PHY enter into PDDQ mode if the AHCI module is not enabled */
+	tmpdata = readl(addr + PORT_PHY_CTL);
+	writel(tmpdata | PORT_PHY_CTL_PDDQ_LOC, addr + PORT_PHY_CTL);
+	pr_info("No AHCI save PWR: PDDQ %s\n", ((readl(addr + PORT_PHY_CTL)
+					>> 20) & 1) ? "enabled" : "disabled");
+#endif
 
 release_sata_clk:
+	/* disable SATA_PHY PLL */
+	writel((readl(IOMUXC_GPR13) & ~0x2), IOMUXC_GPR13);
 	clk_disable(sata_clk);
 put_sata_clk:
 	clk_put(sata_clk);
@@ -1184,6 +1195,7 @@ put_sata_clk:
 	return ret;
 }
 
+#ifdef CONFIG_SATA_AHCI_PLATFORM
 static void mx6q_sabresd_sata_exit(struct device *dev)
 {
 	clk_disable(sata_clk);
@@ -1194,6 +1206,7 @@ static struct ahci_platform_data mx6q_sabresd_sata_data = {
 	.init = mx6q_sabresd_sata_init,
 	.exit = mx6q_sabresd_sata_exit,
 };
+#endif
 
 static void mx6q_sabresd_flexcan0_switch(int enable)
 {
@@ -1861,8 +1874,14 @@ static void __init mx6_sabresd_board_init(void)
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6q_sabresd_init_usb();
 	/* SATA is not supported by MX6DL/Solo */
-	if (cpu_is_mx6q())
+	if (cpu_is_mx6q()) {
+#ifdef CONFIG_SATA_AHCI_PLATFORM
 		imx6q_add_ahci(0, &mx6q_sabresd_sata_data);
+#else
+		mx6q_sabresd_sata_init(NULL,
+			(void __iomem *)ioremap(MX6Q_SATA_BASE_ADDR, SZ_4K));
+#endif
+	}
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&sabresd_vmmc_reg_devices);

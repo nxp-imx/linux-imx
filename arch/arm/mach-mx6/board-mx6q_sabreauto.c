@@ -439,6 +439,7 @@ static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
 		.platform_data	= &m25p32_spi_flash_data,
 	},
 };
+
 static void spi_device_init(void)
 {
 	spi_register_board_info(m25p32_spi0_board_info,
@@ -479,8 +480,8 @@ static struct physmap_flash_data nor_flash_data = {
 	.nr_parts	= ARRAY_SIZE(mxc_nor_partitions),
 };
 
-static struct platform_device physmap_flash_device = {
-	.name	= "physmap-flash",
+static struct platform_device imx6x_weimnor_device = {
+	.name	= "imx6x-weimnor",
 	.id	= 0,
 	.dev	= {
 		.platform_data = &nor_flash_data,
@@ -494,15 +495,45 @@ static void mx6q_setup_weimcs(void)
 	unsigned int reg;
 	void __iomem *nor_reg = MX6_IO_ADDRESS(WEIM_BASE_ADDR);
 	void __iomem *ccm_reg = MX6_IO_ADDRESS(CCM_BASE_ADDR);
+	struct clk *clk;
+	u32 rate;
 
-	/*CCM_BASE_ADDR + CLKCTL_CCGR6*/
+	/* CLKCTL_CCGR6: Set emi_slow_clock to be on in all modes */
 	reg = readl(ccm_reg + 0x80);
 	reg |= 0x00000C00;
 	writel(reg, ccm_reg + 0x80);
 
-	__raw_writel(0x00620081, nor_reg);
-	__raw_writel(0x1C022000, nor_reg + 0x00000008);
+	/* Timing settings below based upon datasheet for M29W256GL7AN6E
+	   These setting assume that the EIM_SLOW_CLOCK is set to 132 MHz */
+	clk = clk_get(NULL, "emi_slow_clk");
+	if (IS_ERR(clk))
+		printk(KERN_ERR "emi_slow_clk not found\n");
+
+	rate = clk_get_rate(clk);
+	if (rate != 132000000)
+		printk(KERN_ERR "Warning: emi_slow_clk not set to 132 MHz!"
+		       " WEIM NOR timing may be incorrect!\n");
+
+	/* EIM_CS0GCR1: 16-bit port on DATA[31:16],  Burst Length 8 words,
+	   Chip select enable is set */
+	__raw_writel(0x00020181, nor_reg);
+
+	/* EIM_CS0GCR2: Address hold time is set to cycle after ADV negation */
+	__raw_writel(0x00000001, nor_reg + 0x00000004);
+
+	/* EIM_CS0RCR1: RWSC = 9 EIM Clocks, ADV Negation = 2 EIM Clocks,
+	   OE Assertion = 2 EIM Clocks */
+	__raw_writel(0x0a022000, nor_reg + 0x00000008);
+
+	/* EIM_CS0RCR2: APR = Page read enabled, PAT = 4 EIM Clocks */
+	__raw_writel(0x0000c000, nor_reg + 0x0000000c);
+
+	/* EIM_CS0WCR1: WWSC = 8 EIM Clocks, WADVN = 1,  WBEA = 1, WBEN = 1,
+	   WEA = 1, WEN = 1  */
 	__raw_writel(0x0804a240, nor_reg + 0x00000010);
+
+	/* EIM_WCR: WDOG_EN = 1, INTPOL = 1  */
+	__raw_writel(0x00000120, nor_reg + 0x00000090);
 }
 
 static int max7310_1_setup(struct i2c_client *client,
@@ -622,16 +653,10 @@ static struct pca953x_platform_data max7310_u43_platdata = {
 
 static void adv7180_pwdn(int pwdn)
 {
-	int status = -1;
-
-	status = gpio_request(SABREAUTO_VIDEOIN_PWR, "tvin-pwr");
-
 	if (pwdn)
-		gpio_direction_output(SABREAUTO_VIDEOIN_PWR, 0);
+		gpio_set_value_cansleep(SABREAUTO_VIDEOIN_PWR, 0);
 	else
-		gpio_direction_output(SABREAUTO_VIDEOIN_PWR, 1);
-
-	gpio_free(SABREAUTO_VIDEOIN_PWR);
+		gpio_set_value_cansleep(SABREAUTO_VIDEOIN_PWR, 1);
 }
 
 static void mx6q_csi0_io_init(void)
@@ -846,11 +871,22 @@ static int mx6q_sabreauto_sata_init(struct device *dev, void __iomem *addr)
 	tmpdata = clk_get_rate(clk) / 1000;
 	clk_put(clk);
 
+#ifdef CONFIG_SATA_AHCI_PLATFORM
 	ret = sata_init(addr, tmpdata);
 	if (ret == 0)
 		return ret;
+#else
+	usleep_range(1000, 2000);
+	/* AHCI PHY enter into PDDQ mode if the AHCI module is not enabled */
+	tmpdata = readl(addr + PORT_PHY_CTL);
+	writel(tmpdata | PORT_PHY_CTL_PDDQ_LOC, addr + PORT_PHY_CTL);
+	pr_info("No AHCI save PWR: PDDQ %s\n", ((readl(addr + PORT_PHY_CTL)
+					>> 20) & 1) ? "enabled" : "disabled");
+#endif
 
 release_sata_clk:
+	/* disable SATA_PHY PLL */
+	writel((readl(IOMUXC_GPR13) & ~0x2), IOMUXC_GPR13);
 	clk_disable(sata_clk);
 put_sata_clk:
 	clk_put(sata_clk);
@@ -858,6 +894,7 @@ put_sata_clk:
 	return ret;
 }
 
+#ifdef CONFIG_SATA_AHCI_PLATFORM
 static void mx6q_sabreauto_sata_exit(struct device *dev)
 {
 	clk_disable(sata_clk);
@@ -869,6 +906,7 @@ static struct ahci_platform_data mx6q_sabreauto_sata_data = {
 	.init = mx6q_sabreauto_sata_init,
 	.exit = mx6q_sabreauto_sata_exit,
 };
+#endif
 
 static struct imx_asrc_platform_data imx_asrc_data = {
 	.channel_bits	= 4,
@@ -1626,12 +1664,12 @@ static void __init mx6_board_init(void)
 	}
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabreauto_spi_data);
-		if (spinor_en)
-			spi_device_init();
-		else if (weimnor_en) {
-			mx6q_setup_weimcs();
-			platform_device_register(&physmap_flash_device);
-		}
+	if (spinor_en)
+		spi_device_init();
+	else if (weimnor_en) {
+		mx6q_setup_weimcs();
+		platform_device_register(&imx6x_weimnor_device);
+	}
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
@@ -1646,8 +1684,14 @@ static void __init mx6_board_init(void)
 
 	imx_add_viv_gpu(&imx6_gpu_data, &imx6q_gpu_pdata);
 	imx6q_sabreauto_init_usb();
-	if (cpu_is_mx6q())
+	if (cpu_is_mx6q()) {
+#ifdef CONFIG_SATA_AHCI_PLATFORM
 		imx6q_add_ahci(0, &mx6q_sabreauto_sata_data);
+#else
+		mx6q_sabreauto_sata_init(NULL,
+			(void __iomem *)ioremap(MX6Q_SATA_BASE_ADDR, SZ_4K));
+#endif
+	}
 	imx6q_add_vpu();
 	imx6q_init_audio();
 	platform_device_register(&sabreauto_vmmc_reg_devices);

@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #ifndef __gc_hal_engine_h_
@@ -390,6 +388,37 @@ gceSTATUS
 gcoSURF_IsRenderable(
     IN gcoSURF Surface
     );
+
+#if gcdSYNC
+gceSTATUS
+gcoSURF_GetFence(
+    IN gcoSURF Surface
+    );
+gceSTATUS
+gcoSURF_WaitFence(
+    IN gcoSURF Surface
+    );
+
+gceSTATUS
+gcoSTREAM_GetFence(
+    IN gcoSTREAM stream
+    );
+
+gceSTATUS
+gcoSTREAM_WaitFence(
+    IN gcoSTREAM stream
+    );
+
+gceSTATUS
+gcoINDEX_GetFence(
+    IN gcoINDEX index
+    );
+
+gceSTATUS
+gcoINDEX_WaitFence(
+    IN gcoINDEX index
+    );
+#endif
 
 /******************************************************************************\
 ******************************** gcoINDEX Object *******************************
@@ -1976,7 +2005,7 @@ gcoHAL_GetSharedInfo(
     IN gctUINT32 DataId,
     OUT gctUINT8_PTR Data,
     IN gctSIZE_T Bytes,
-    IN gcuVIDMEM_NODE_PTR Node,
+    IN gctUINT64 Node,
     OUT gctUINT8_PTR NodeData,
     IN gceVIDMEM_NODE_SHARED_INFO_TYPE SharedInfoType
     );
@@ -1986,7 +2015,7 @@ gcoHAL_SetSharedInfo(
     IN gctUINT32 DataId,
     IN gctUINT8_PTR Data,
     IN gctSIZE_T Bytes,
-    IN gcuVIDMEM_NODE_PTR Node,
+    IN gctUINT64 Node,
     IN gctUINT8_PTR NodeData,
     IN gceVIDMEM_NODE_SHARED_INFO_TYPE SharedInfoType
     );

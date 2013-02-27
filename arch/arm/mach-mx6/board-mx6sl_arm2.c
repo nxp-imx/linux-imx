@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -315,13 +315,13 @@ static struct platform_device max17135_sensor_device = {
 
 static struct max17135_platform_data max17135_pdata __initdata = {
 	.vneg_pwrup = 1,
-	.gvee_pwrup = 1,
-	.vpos_pwrup = 2,
-	.gvdd_pwrup = 1,
+	.gvee_pwrup = 2,
+	.vpos_pwrup = 10,
+	.gvdd_pwrup = 12,
 	.gvdd_pwrdn = 1,
 	.vpos_pwrdn = 2,
-	.gvee_pwrdn = 1,
-	.vneg_pwrdn = 1,
+	.gvee_pwrdn = 8,
+	.vneg_pwrdn = 10,
 	.gpio_pmic_pwrgood = MX6SL_BRD_EPDC_PWRSTAT,
 	.gpio_pmic_vcom_ctrl = MX6SL_BRD_EPDC_VCOM,
 	.gpio_pmic_wakeup = MX6SL_BRD_EPDC_PMIC_WAKE,

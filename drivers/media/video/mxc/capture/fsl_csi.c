@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -45,20 +45,17 @@ static irqreturn_t csi_irq_handler(int irq, void *data)
 {
 	cam_data *cam = (cam_data *) data;
 	unsigned long status = __raw_readl(CSI_CSISR);
-	unsigned long cr3 = __raw_readl(CSI_CSICR3);
-	unsigned int frame_count = (cr3 >> 16) & 0xFFFF;
 
 	__raw_writel(status, CSI_CSISR);
 
-	if (status & BIT_SOF_INT) {
-		/* reflash the embeded DMA controller */
-		if (frame_count % 2 == 1)
-			__raw_writel(cr3 | BIT_DMA_REFLASH_RFF, CSI_CSICR3);
-	}
+	if (status & BIT_HRESP_ERR_INT)
+		pr_warning("Hresponse error is detected.\n");
 
 	if (status & BIT_DMA_TSF_DONE_FB1) {
 		if (cam->capture_on) {
+			spin_lock(&cam->queue_int_lock);
 			cam->ping_pong_csi = 1;
+			spin_unlock(&cam->queue_int_lock);
 			cam->enc_callback(0, cam);
 		} else {
 			cam->still_counter++;
@@ -68,7 +65,9 @@ static irqreturn_t csi_irq_handler(int irq, void *data)
 
 	if (status & BIT_DMA_TSF_DONE_FB2) {
 		if (cam->capture_on) {
+			spin_lock(&cam->queue_int_lock);
 			cam->ping_pong_csi = 2;
+			spin_unlock(&cam->queue_int_lock);
 			cam->enc_callback(0, cam);
 		} else {
 			cam->still_counter++;
@@ -260,6 +259,24 @@ void csi_mclk_disable(void)
 	clk_disable(&csi_mclk);
 }
 
+void csi_dmareq_rff_enable(void)
+{
+	unsigned long cr3 = __raw_readl(CSI_CSICR3);
+
+	cr3 |= BIT_DMA_REQ_EN_RFF;
+	cr3 |= BIT_HRESP_ERR_EN;
+	__raw_writel(cr3, CSI_CSICR3);
+}
+
+void csi_dmareq_rff_disable(void)
+{
+	unsigned long cr3 = __raw_readl(CSI_CSICR3);
+
+	cr3 &= ~BIT_DMA_REQ_EN_RFF;
+	cr3 &= ~BIT_HRESP_ERR_EN;
+	__raw_writel(cr3, CSI_CSICR3);
+}
+
 static int __devinit csi_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -289,6 +306,7 @@ static int __devinit csi_probe(struct platform_device *pdev)
 
 	csihw_reset();
 	csi_init_interface();
+	csi_dmareq_rff_disable();
 
 	per_clk = clk_get(NULL, "csi_clk");
 	if (IS_ERR(per_clk))

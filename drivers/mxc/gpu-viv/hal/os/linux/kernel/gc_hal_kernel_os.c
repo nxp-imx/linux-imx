@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #include "gc_hal_kernel_linux.h"
@@ -38,7 +36,12 @@
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,23)
 #include <linux/math64.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+#include <mach/common.h>
+#endif
 #include <linux/delay.h>
+#include <linux/pm_runtime.h>
+
 
 #define _GC_OBJ_ZONE    gcvZONE_OS
 
@@ -1868,12 +1871,14 @@ gckOS_AllocateNonPagedMemory(
     mdl->kaddr      = vaddr;
     mdl->u.contiguousPages = page;
 
+#if !defined(CONFIG_PPC)
     /* Cache invalidate. */
     dma_sync_single_for_device(
                 gcvNULL,
                 page_to_phys(page),
                 bytes,
                 DMA_FROM_DEVICE);
+#endif
 
     while (size > 0)
     {
@@ -3846,7 +3851,7 @@ gckOS_AllocatePagedMemoryEx(
         {
             gcmkVERIFY_OK(
                 gckOS_CacheFlush(Os, _GetProcessID(), gcvNULL,
-                                 (gctPOINTER)page_to_phys(page),
+                                 (gctPOINTER)(gctUINTPTR_T)page_to_phys(page),
                                  page_address(page),
                                  PAGE_SIZE));
         }
@@ -5328,7 +5333,7 @@ OnError:
             {
                 /* Flush(clean) the data cache. */
                 gcmkONERROR(gckOS_CacheFlush(Os, _GetProcessID(), gcvNULL,
-                                 (gctPOINTER)page_to_phys(pages[i]),
+                                 (gctPOINTER)(gctUINTPTR_T)page_to_phys(pages[i]),
                                  (gctPOINTER)(memory & PAGE_MASK) + i*PAGE_SIZE,
                                  PAGE_SIZE));
             }
@@ -6015,6 +6020,10 @@ gckOS_CacheClean(
 
     dma_cache_wback((unsigned long) Logical, Bytes);
 
+#elif defined(CONFIG_PPC)
+
+    /* TODO */
+
 #else
     dma_sync_single_for_device(
               gcvNULL,
@@ -6092,6 +6101,8 @@ gckOS_CacheInvalidate(
 
 #elif defined(CONFIG_MIPS)
     dma_cache_inv((unsigned long) Logical, Bytes);
+#elif defined(CONFIG_PPC)
+    /* TODO */
 #else
     dma_sync_single_for_device(
               gcvNULL,
@@ -6164,6 +6175,8 @@ gckOS_CacheFlush(
 
 #elif defined(CONFIG_MIPS)
     dma_cache_wback_inv((unsigned long) Logical, Bytes);
+#elif defined(CONFIG_PPC)
+    /* TODO */
 #else
     dma_sync_single_for_device(
               gcvNULL,
@@ -6709,6 +6722,9 @@ gckOS_SetGPUPower(
 {
     struct clk *clk_3dcore = Os->device->clk_3d_core;
     struct clk *clk_3dshader = Os->device->clk_3d_shader;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+    struct clk *clk_3d_axi = Os->device->clk_3d_axi;
+#endif
     struct clk *clk_2dcore = Os->device->clk_2d_core;
     struct clk *clk_2d_axi = Os->device->clk_2d_axi;
     struct clk *clk_vg_axi = Os->device->clk_vg_axi;
@@ -6735,10 +6751,16 @@ gckOS_SetGPUPower(
         }
 #endif
     }
-	if((Power == gcvTRUE) && (oldPowerState == gcvFALSE) &&
-		!IS_ERR(Os->device->gpu_regulator))
+	if((Power == gcvTRUE) && (oldPowerState == gcvFALSE))
+	{
+		if(!IS_ERR(Os->device->gpu_regulator))
             regulator_enable(Os->device->gpu_regulator);
+#ifdef CONFIG_PM
+		pm_runtime_get_sync(Os->device->pmdev);
+#endif
+	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
     if (Clock == gcvTRUE) {
         if (oldClockState == gcvFALSE) {
             switch (Core) {
@@ -6780,9 +6802,71 @@ gckOS_SetGPUPower(
             }
         }
     }
-	if((Power == gcvFALSE) && (oldPowerState == gcvTRUE) &&
-		!IS_ERR(Os->device->gpu_regulator))
+#else
+    if (Clock == gcvTRUE) {
+        if (oldClockState == gcvFALSE) {
+            switch (Core) {
+            case gcvCORE_MAJOR:
+                clk_prepare(clk_3dcore);
+                clk_enable(clk_3dcore);
+                clk_prepare(clk_3dshader);
+                clk_enable(clk_3dshader);
+                clk_prepare(clk_3d_axi);
+                clk_enable(clk_3d_axi);
+                break;
+            case gcvCORE_2D:
+                clk_prepare(clk_2dcore);
+                clk_enable(clk_2dcore);
+                clk_prepare(clk_2d_axi);
+                clk_enable(clk_2d_axi);
+                break;
+            case gcvCORE_VG:
+                clk_prepare(clk_2dcore);
+                clk_enable(clk_2dcore);
+                clk_prepare(clk_vg_axi);
+                clk_enable(clk_vg_axi);
+                break;
+            default:
+                break;
+            }
+        }
+    } else {
+        if (oldClockState == gcvTRUE) {
+            switch (Core) {
+            case gcvCORE_MAJOR:
+                clk_disable(clk_3dshader);
+                clk_unprepare(clk_3dshader);
+                clk_disable(clk_3dcore);
+                clk_unprepare(clk_3dcore);
+                clk_disable(clk_3d_axi);
+                clk_unprepare(clk_3d_axi);
+                break;
+           case gcvCORE_2D:
+                clk_disable(clk_2dcore);
+                clk_unprepare(clk_2dcore);
+                clk_disable(clk_2d_axi);
+                clk_unprepare(clk_2d_axi);
+                break;
+            case gcvCORE_VG:
+                clk_disable(clk_2dcore);
+                clk_unprepare(clk_2dcore);
+                clk_disable(clk_vg_axi);
+                clk_unprepare(clk_vg_axi);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+#endif
+	if((Power == gcvFALSE) && (oldPowerState == gcvTRUE))
+	{
+#ifdef CONFIG_PM
+		pm_runtime_put_sync(Os->device->pmdev);
+#endif
+		if(!IS_ERR(Os->device->gpu_regulator))
             regulator_disable(Os->device->gpu_regulator);
+	}
     /* TODO: Put your code here. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
@@ -6812,10 +6896,10 @@ gckOS_ResetGPU(
     IN gceCORE Core
     )
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
 #define SRC_SCR_OFFSET 0
 #define BP_SRC_SCR_GPU3D_RST 1
 #define BP_SRC_SCR_GPU2D_RST 4
-
     void __iomem *src_base = IO_ADDRESS(SRC_BASE_ADDR);
     gctUINT32 bit_offset,val;
 
@@ -6839,6 +6923,137 @@ gckOS_ResetGPU(
     }
 
     gcmkFOOTER_NO();
+#else
+    imx_src_reset_gpu((int)Core);
+#endif
+    return gcvSTATUS_OK;
+}
+
+/*******************************************************************************
+**
+**  gckOS_PrepareGPUFrequency
+**
+**  Prepare to set GPU frequency and voltage.
+**
+**  INPUT:
+**
+**      gckOS Os
+**          Pointer to a gckOS object.
+**
+**      gckCORE Core
+**          GPU whose frequency and voltage will be set.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_PrepareGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core
+    )
+{
+    return gcvSTATUS_OK;
+}
+
+/*******************************************************************************
+**
+**  gckOS_FinishGPUFrequency
+**
+**  Finish GPU frequency setting.
+**
+**  INPUT:
+**
+**      gckOS Os
+**          Pointer to a gckOS object.
+**
+**      gckCORE Core
+**          GPU whose frequency and voltage is set.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_FinishGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core
+    )
+{
+    return gcvSTATUS_OK;
+}
+
+/*******************************************************************************
+**
+**  gckOS_QueryGPUFrequency
+**
+**  Query the current frequency of the GPU.
+**
+**  INPUT:
+**
+**      gckOS Os
+**          Pointer to a gckOS object.
+**
+**      gckCORE Core
+**          GPU whose power is set.
+**
+**      gctUINT32 * Frequency
+**          Pointer to a gctUINT32 to obtain current frequency, in MHz.
+**
+**      gctUINT8 * Scale
+**          Pointer to a gctUINT8 to obtain current scale(1 - 64).
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_QueryGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core,
+    OUT gctUINT32 * Frequency,
+    OUT gctUINT8 * Scale
+    )
+{
+    return gcvSTATUS_OK;
+}
+
+/*******************************************************************************
+**
+**  gckOS_SetGPUFrequency
+**
+**  Set frequency and voltage of the GPU.
+**
+**      1. DVFS manager gives the target scale of full frequency, BSP must find
+**         a real frequency according to this scale and board's configure.
+**
+**      2. BSP should find a suitable voltage for this frequency.
+**
+**      3. BSP must make sure setting take effect before this function returns.
+**
+**  INPUT:
+**
+**      gckOS Os
+**          Pointer to a gckOS object.
+**
+**      gckCORE Core
+**          GPU whose power is set.
+**
+**      gctUINT8 Scale
+**          Target scale of full frequency, range is [1, 64]. 1 means 1/64 of
+**          full frequency and 64 means 64/64 of full frequency.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gckOS_SetGPUFrequency(
+    IN gckOS Os,
+    IN gceCORE Core,
+    IN gctUINT8 Scale
+    )
+{
     return gcvSTATUS_OK;
 }
 
@@ -7590,8 +7805,14 @@ gckOS_CreateUserSignal(
     OUT gctINT * SignalID
     )
 {
+    gceSTATUS status;
+    gctSIZE_T signal;
+
     /* Create a new signal. */
-    return gckOS_CreateSignal(Os, ManualReset, (gctSIGNAL *) SignalID);
+    status = gckOS_CreateSignal(Os, ManualReset, (gctSIGNAL *) &signal);
+    *SignalID = (gctINT) signal;
+
+    return status;
 }
 
 /*******************************************************************************
@@ -8023,7 +8244,7 @@ OnError:
 
 /*******************************************************************************
 **
-**  gckOS_DestoryTimer
+**  gckOS_DestroyTimer
 **
 **  Destory a software timer.
 **
@@ -8040,7 +8261,7 @@ OnError:
 **      Nothing.
 */
 gceSTATUS
-gckOS_DestoryTimer(
+gckOS_DestroyTimer(
     IN gckOS Os,
     IN gctPOINTER Timer
     )

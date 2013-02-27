@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2013 Boundary Devices, Inc. All Rights Reserved.
+ * Copyright (C) 2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,20 +17,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <linux/init.h>
-#include <linux/smp.h>
-#include <linux/clockchips.h>
-#include <asm/smp_twd.h>
-#include <asm/localtimer.h>
-#include <mach/irqs.h>
-#include <mach/hardware.h>
+extern void imx_pcie_enable_irq(unsigned pos, int set);
+void imx_pcie_mask_irq(unsigned pos, int set);
+unsigned imx_pcie_msi_pending(unsigned index);
 
-/*
- * Setup the local clock events for a CPU.
- */
-int __cpuinit local_timer_setup(struct clock_event_device *evt)
-{
-	evt->irq = IRQ_LOCALTIMER;
-	twd_timer_setup(evt);
-	return 0;
-}
+#define MSI_MATCH_ADDR  0x01FF8000
+
+void imx_msi_init(void);

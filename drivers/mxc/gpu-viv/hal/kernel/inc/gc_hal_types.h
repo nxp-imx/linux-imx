@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2012 by Vivante Corp.
+*    Copyright (C) 2005 - 2013 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,8 +17,6 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
-
-
 
 
 #ifndef __gc_hal_types_h_
@@ -588,13 +586,13 @@ gceSTATUS;
 #if gcmIS_DEBUG(gcdDEBUG_CODE)
 
 #   define gcmSTORELOADSTATE(CommandBuffer, Memory, Address, Count) \
-        CommandBuffer->lastLoadStatePtr     = Memory; \
+        CommandBuffer->lastLoadStatePtr     = gcmPTR_TO_UINT64(Memory); \
         CommandBuffer->lastLoadStateAddress = Address; \
         CommandBuffer->lastLoadStateCount   = Count
 
 #   define gcmVERIFYLOADSTATE(CommandBuffer, Memory, Address) \
         gcmASSERT( \
-            (gctUINT) (Memory  - CommandBuffer->lastLoadStatePtr - 1) \
+            (gctUINT) (Memory  - gcmUINT64_TO_TYPE(CommandBuffer->lastLoadStatePtr, gctUINT32_PTR) - 1) \
             == \
             (gctUINT) (Address - CommandBuffer->lastLoadStateAddress) \
             ); \
@@ -623,10 +621,10 @@ gceSTATUS;
 #   define gcmBEGINSECUREUSER() \
         __secure_user_offset__ = reserve->lastOffset; \
         \
-        __secure_user_hintArray__ = reserve->hintArrayTail
+        __secure_user_hintArray__ = gcmUINT64_TO_PTR(reserve->hintArrayTail)
 
 #   define gcmENDSECUREUSER() \
-        reserve->hintArrayTail = __secure_user_hintArray__
+        reserve->hintArrayTail = gcmPTR_TO_UINT64(__secure_user_hintArray__)
 
 #   define gcmSKIPSECUREUSER() \
         __secure_user_offset__ += gcmSIZEOF(gctUINT32)
@@ -682,7 +680,7 @@ gceSTATUS;
         Hardware->buffer, ReserveSize, gcvTRUE, &CommandBuffer \
         )); \
     \
-    Memory = (gctUINT32_PTR) CommandBuffer->lastReserve; \
+    Memory =  gcmUINT64_TO_PTR(CommandBuffer->lastReserve); \
     \
     StateDelta = Hardware->delta; \
     \
@@ -694,7 +692,7 @@ gceSTATUS;
     gcmENDSECUREUSER(); \
     \
     gcmASSERT( \
-        ((gctUINT8_PTR) CommandBuffer->lastReserve) + ReserveSize \
+        gcmUINT64_TO_TYPE(CommandBuffer->lastReserve, gctUINT8_PTR) + ReserveSize \
         == \
          (gctUINT8_PTR) Memory \
         ); \
@@ -704,7 +702,8 @@ gceSTATUS;
 
 #define gcmBEGINSTATEBATCH(CommandBuffer, Memory, FixedPoint, Address, Count) \
 { \
-    gcmASSERT(((Memory - (gctUINT32_PTR) CommandBuffer->lastReserve) & 1) == 0); \
+    gcmASSERT(((Memory - gcmUINT64_TO_TYPE(CommandBuffer->lastReserve, gctUINT32_PTR)) & 1) == 0); \
+    gcmASSERT((gctUINT32)Count <= 1024); \
     \
     gcmVERIFYLOADSTATEDONE(CommandBuffer); \
     \
@@ -723,7 +722,7 @@ gceSTATUS;
 { \
     gcmVERIFYLOADSTATEDONE(CommandBuffer); \
     \
-    gcmASSERT(((Memory - (gctUINT32_PTR) CommandBuffer->lastReserve) & 1) == 0); \
+    gcmASSERT(((Memory - gcmUINT64_TO_TYPE(CommandBuffer->lastReserve, gctUINT32_PTR)) & 1) == 0); \
 }
 
 /*----------------------------------------------------------------------------*/
@@ -902,13 +901,13 @@ gceSTATUS;
 typedef struct _gcsDATABASE_COUNTERS
 {
     /* Number of currently allocated bytes. */
-    gctSIZE_T                   bytes;
+    gctUINT64                   bytes;
 
     /* Maximum number of bytes allocated (memory footprint). */
-    gctSIZE_T                   maxBytes;
+    gctUINT64                   maxBytes;
 
     /* Total number of bytes allocated. */
-    gctSIZE_T                   totalBytes;
+    gctUINT64                   totalBytes;
 }
 gcsDATABASE_COUNTERS;
 
