@@ -2,7 +2,7 @@
  * drivers/cpufreq/cpufreq_interactive.c
  *
  * Copyright (C) 2010 Google, Inc.
- * Copyright (C) 2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -113,6 +113,11 @@ static struct cpufreq_interactive_inputopen inputopen;
  * Non-zero means longer-term speed boost active.
  */
 
+/* Duration of a boot pulse in usecs */
+static int boostpulse_duration_val = DEFAULT_MIN_SAMPLE_TIME;
+/* End time of boost pulse in ktime converted to usecs */
+static u64 boostpulse_endtime;
+
 static int boost_val;
 
 static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
@@ -182,6 +187,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	unsigned int index;
 	unsigned long flags;
 	bool irq_load;
+	bool boosted;
 
 	smp_rmb();
 
@@ -240,8 +246,9 @@ static void cpufreq_interactive_timer(unsigned long data)
 	if (load_since_change > cpu_load)
 		cpu_load = load_since_change;
 
+	boosted = boost_val || pcpu->timer_run_time < boostpulse_endtime;
 	irq_load = cpufreq_interactive_check_irq();
-	if (cpu_load >= go_hispeed_load || boost_val || irq_load) {
+	if (cpu_load >= go_hispeed_load || boosted || irq_load) {
 		if (pcpu->target_freq <= pcpu->policy->min || irq_load) {
 			new_freq = hispeed_freq;
 		} else {
@@ -292,9 +299,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 		}
 	}
 
-	pcpu->floor_freq = new_freq;
-	pcpu->floor_validate_time = pcpu->timer_run_time;
-
 	if (pcpu->target_freq == new_freq) {
 		trace_cpufreq_interactive_already(data, cpu_load,
 						  pcpu->target_freq, new_freq);
@@ -305,6 +309,19 @@ static void cpufreq_interactive_timer(unsigned long data)
 					 new_freq);
 	pcpu->target_set_time_in_idle = now_idle;
 	pcpu->target_set_time = pcpu->timer_run_time;
+
+	/*
+	 * Update the timestamp for checking whether speed has been held at
+	 * or above the selected frequency for a minimum of min_sample_time,
+	 * if not boosted to hispeed_freq.  If boosted to hispeed_freq then we
+	 * allow the speed to drop as soon as the boostpulse duration expires
+	 * (or the indefinite boost is turned off) or irq_load is not set.
+	 */
+
+	if (!boosted || new_freq > hispeed_freq || !irq_load) {
+		pcpu->floor_freq = new_freq;
+		pcpu->floor_validate_time = pcpu->timer_run_time;
+	}
 
 	if (new_freq < pcpu->target_freq) {
 		pcpu->target_freq = new_freq;
@@ -832,6 +849,7 @@ static ssize_t store_boostpulse(struct kobject *kobj, struct attribute *attr,
 	if (ret < 0)
 		return ret;
 
+	boostpulse_endtime = ktime_to_us(ktime_get()) + boostpulse_duration_val;
 	trace_cpufreq_interactive_boost("pulse");
 	cpufreq_interactive_boost();
 	return count;
@@ -881,6 +899,29 @@ static ssize_t store_irq_param(struct kobject *kobj,
 static struct global_attr irq_param_attr = __ATTR(irq_scaling, 0644,
 		show_irq_param, store_irq_param);
 
+static ssize_t show_boostpulse_duration(
+	struct kobject *kobj, struct attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", boostpulse_duration_val);
+}
+
+static ssize_t store_boostpulse_duration(
+	struct kobject *kobj, struct attribute *attr, const char *buf,
+	size_t count)
+{
+	int ret;
+	unsigned long val;
+
+	ret = kstrtoul(buf, 0, &val);
+	if (ret < 0)
+		return ret;
+
+	boostpulse_duration_val = val;
+	return count;
+}
+
+define_one_global_rw(boostpulse_duration);
+
 static struct attribute *interactive_attributes[] = {
 	&hispeed_freq_attr.attr,
 	&go_hispeed_load_attr.attr,
@@ -891,6 +932,7 @@ static struct attribute *interactive_attributes[] = {
 	&input_boost.attr,
 	&boost.attr,
 	&boostpulse.attr,
+	&boostpulse_duration.attr,
 	NULL,
 };
 
