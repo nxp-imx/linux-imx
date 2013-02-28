@@ -635,6 +635,32 @@ static void ov5640_soft_reset(void)
 	msleep(10);
 }
 
+/* set sensor driver capability
+ * 0x302c[7:6] - strength
+	00     - 1x
+	01     - 2x
+	10     - 3x
+	11     - 4x
+ */
+static int ov5640_driver_capability(int strength)
+{
+	u8 temp = 0;
+
+	if (strength > 4 || strength < 1) {
+		pr_err("The valid driver capability of ov5640 is 1x~4x\n");
+		return -EINVAL;
+	}
+
+	ov5640_read_reg(0x302c, &temp);
+
+	temp &= ~0xc0;	/* clear [7:6] */
+	temp |= ((strength - 1) << 6);	/* set [7:6] */
+
+	ov5640_write_reg(0x302c, temp);
+
+	return 0;
+}
+
 /* calculate sysclk */
 static int ov5640_get_sysclk(void)
 {
@@ -952,6 +978,10 @@ static int ov5640_init_mode(void)
 	if (retval < 0)
 		goto err;
 
+	/* change driver capability to 2x according to validation board.
+	 * if the image is not stable, please increase the driver strength.
+	 */
+	ov5640_driver_capability(2);
 	ov5640_set_bandingfilter();
 	ov5640_set_AE_target(AE_Target);
 	ov5640_set_night_mode(night_mode);
