@@ -1094,6 +1094,14 @@ static void imx6q_sabresd_usbotg_vbus(bool on)
 		gpio_set_value(SABRESD_USB_OTG_PWR, 0);
 }
 
+static void imx6q_sabresd_host1_vbus(bool on)
+{
+	if (on)
+		gpio_set_value(SABRESD_USB_H1_PWR, 1);
+	else
+		gpio_set_value(SABRESD_USB_H1_PWR, 0);
+}
+
 static void __init imx6q_sabresd_init_usb(void)
 {
 	int ret = 0;
@@ -1116,13 +1124,14 @@ static void __init imx6q_sabresd_init_usb(void)
 			ret);
 		return;
 	}
-	gpio_direction_output(SABRESD_USB_H1_PWR, 1);
+	gpio_direction_output(SABRESD_USB_H1_PWR, 0);
 	if (board_is_mx6_reva())
 		mxc_iomux_set_gpr_register(1, 13, 1, 1);
 	else
 		mxc_iomux_set_gpr_register(1, 13, 1, 0);
 
 	mx6_set_otghost_vbus_func(imx6q_sabresd_usbotg_vbus);
+	mx6_set_host1_vbus_func(imx6q_sabresd_host1_vbus);
 
 }
 
