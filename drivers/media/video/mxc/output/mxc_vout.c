@@ -1379,6 +1379,14 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 	/* stride line limitation */
 	crop->c.height -= crop->c.height % 8;
 	crop->c.width -= crop->c.width % 8;
+	if ((crop->c.width <= 0) || (crop->c.height <= 0) ||
+		((crop->c.left + crop->c.width) > (b->left + b->width)) ||
+		((crop->c.top + crop->c.height) > (b->top + b->height))) {
+		v4l2_err(vout->vfd->v4l2_dev, "s_crop err: %d, %d, %d, %d",
+			crop->c.left, crop->c.top,
+			crop->c.width, crop->c.height);
+		return -EINVAL;
+	}
 
 	/* the same setting, return */
 	if (vout->disp_support_windows) {
