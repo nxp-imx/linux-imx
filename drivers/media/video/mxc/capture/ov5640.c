@@ -1861,7 +1861,7 @@ err2:
 		regulator_put(io_regulator);
 	}
 err1:
-	return -1;
+	return retval;
 }
 
 /*!
