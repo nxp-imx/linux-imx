@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -401,8 +401,7 @@ static int  __init mx6_usb_h1_init(void)
 		imx_mxc_ehci_data_entry_single(MX6SL, 1, HS1)};
 
 	mx6_get_host1_vbus_func(&mx6_set_usb_host1_vbus);
-	if (mx6_set_usb_host1_vbus)
-		mx6_set_usb_host1_vbus(true);
+	usbh1_config.platform_driver_vbus = mx6_set_usb_host1_vbus;
 
 	/* Some phy and power's special controls for host1
 	 * 1. The external charger detector needs to be disabled
@@ -457,8 +456,6 @@ static void __exit mx6_usb_h1_exit(void)
 			| BM_ANADIG_USB2_PLL_480_CTRL_POWER \
 			| BM_ANADIG_USB2_PLL_480_CTRL_EN_USB_CLKS, \
 			anatop_base_addr + HW_ANADIG_USB2_PLL_480_CTRL_CLR);
-	if (mx6_set_usb_host1_vbus)
-		mx6_set_usb_host1_vbus(false);
 
 	return ;
 }
