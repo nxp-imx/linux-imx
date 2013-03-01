@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -2999,6 +2999,7 @@ static s32 ov5642_write_reg(u16 reg, u8 val);
 
 static const struct i2c_device_id ov5642_id[] = {
 	{"ov5642", 0},
+	{"ov564x", 0},
 	{},
 };
 
@@ -4060,13 +4061,13 @@ static int ov5642_probe(struct i2c_client *client,
 
 	retval = ov5642_read_reg(OV5642_CHIP_ID_HIGH_BYTE, &chip_id_high);
 	if (retval < 0 || chip_id_high != 0x56) {
-		pr_err("%s:cannot find camera\n", __func__);
+		pr_warning("camera ov5642 is not found\n");
 		retval = -ENODEV;
 		goto err4;
 	}
 	retval = ov5642_read_reg(OV5642_CHIP_ID_LOW_BYTE, &chip_id_low);
 	if (retval < 0 || chip_id_low != 0x42) {
-		pr_err("%s:cannot find camera\n", __func__);
+		pr_warning("camera ov5642 is not found\n");
 		retval = -ENODEV;
 		goto err4;
 	}
@@ -4079,6 +4080,7 @@ static int ov5642_probe(struct i2c_client *client,
 	ov5642_int_device.priv = &ov5642_data;
 	retval = v4l2_int_device_register(&ov5642_int_device);
 
+	pr_info("camera ov5642 is found\n");
 	return retval;
 
 err4:

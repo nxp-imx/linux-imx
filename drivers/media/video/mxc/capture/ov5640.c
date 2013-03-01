@@ -43,6 +43,9 @@
 #define OV5640_XCLK_MIN 6000000
 #define OV5640_XCLK_MAX 24000000
 
+#define OV5640_CHIP_ID_HIGH_BYTE        0x300A
+#define OV5640_CHIP_ID_LOW_BYTE         0x300B
+
 enum ov5640_mode {
 	ov5640_mode_MIN = 0,
 	ov5640_mode_VGA_640_480 = 0,
@@ -565,6 +568,7 @@ static s32 ov5640_write_reg(u16 reg, u8 val);
 
 static const struct i2c_device_id ov5640_id[] = {
 	{"ov5640", 0},
+	{"ov564x", 0},
 	{},
 };
 
@@ -1736,6 +1740,7 @@ static int ov5640_probe(struct i2c_client *client,
 {
 	int retval;
 	struct fsl_mxc_camera_platform_data *plat_data = client->dev.platform_data;
+	u8 chip_id_high, chip_id_low;
 
 	/* Set initial values for the sensor struct. */
 	memset(&ov5640_data, 0, sizeof(ov5640_data));
@@ -1813,13 +1818,38 @@ static int ov5640_probe(struct i2c_client *client,
 	if (plat_data->io_init)
 		plat_data->io_init();
 
+	if (plat_data->pwdn)
+		plat_data->pwdn(0);
+
+	retval = ov5640_read_reg(OV5640_CHIP_ID_HIGH_BYTE, &chip_id_high);
+	if (retval < 0 || chip_id_high != 0x56) {
+		pr_warning("camera ov5640 is not found\n");
+		retval = -ENODEV;
+		goto err4;
+	}
+	retval = ov5640_read_reg(OV5640_CHIP_ID_LOW_BYTE, &chip_id_low);
+	if (retval < 0 || chip_id_low != 0x40) {
+		pr_warning("camera ov5640 is not found\n");
+		retval = -ENODEV;
+		goto err4;
+	}
+
+	if (plat_data->pwdn)
+		plat_data->pwdn(1);
+
 	camera_plat = plat_data;
 
 	ov5640_int_device.priv = &ov5640_data;
 	retval = v4l2_int_device_register(&ov5640_int_device);
 
+	pr_info("camera ov5640 is found\n");
 	return retval;
 
+err4:
+	if (analog_regulator) {
+		regulator_disable(analog_regulator);
+		regulator_put(analog_regulator);
+	}
 err3:
 	if (core_regulator) {
 		regulator_disable(core_regulator);
