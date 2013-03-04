@@ -65,6 +65,7 @@ static struct fsl_usb2_platform_data dr_utmi_config = {
 	.transceiver       = "utmi",
 	.phy_regs = USB_PHY0_BASE_ADDR,
 	.dr_discharge_line = _dr_discharge_line,
+	.lowpower	   = true, /* Default driver low power is true */
 };
 
 /* Platform data for wakeup operation */
