@@ -246,6 +246,7 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	 * do platform specific init: check the clock, grab/config pins, etc.
 	 */
 	if (pdata->init && pdata->init(pdev)) {
+		pdata->lowpower = false;
 		retval = -ENODEV;
 		goto err4;
 	}
