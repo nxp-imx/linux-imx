@@ -1042,7 +1042,7 @@ static int ov5640_change_mode_direct(enum ov5640_frame_rate frame_rate,
 	ov5640_set_night_mode(night_mode);
 
 	/* skip 9 vysnc: start capture at 10th vsync */
-	if (mode == ov5640_mode_XGA_1024_768) {
+	if (mode == ov5640_mode_XGA_1024_768 && frame_rate == ov5640_30_fps) {
 		pr_warning("ov5640: actual frame rate of XGA is 22.5fps\n");
 		/* 1/22.5 * 9*/
 		msleep(400);
