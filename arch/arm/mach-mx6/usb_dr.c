@@ -163,9 +163,6 @@ static void usbotg_uninit_ext(struct platform_device *pdev)
 {
 	otg_used--;
 	if (!otg_used) {
-		enter_phy_lowpower_suspend(pdev->dev.platform_data, true);
-		mdelay(3);
-
 		clk_disable(usb_phy1_clk);
 		clk_put(usb_phy1_clk);
 
