@@ -26,11 +26,6 @@ config VIDEO_MXC_CSI_DMA
 	  with this method the CSC (Color Space Conversion) and resize are not supported.
 	  If unsure, say N.
 
-choice
-	prompt "Select Camera/TV Decoder"
-	default MXC_CAMERA_OV3640
-	depends on VIDEO_MXC_CAMERA
-
 config MXC_CAMERA_MC521DA
 	tristate "Magnachip mc521da camera support"
 	select I2C_MXC
@@ -98,8 +93,6 @@ config MXC_CAMERA_OV5642
 	select MXC_CAMERA_SENSOR_CLK
 	---help---
 	  If you plan to use the ov5642 Camera with your MXC system, say Y here.
-
-endchoice
 
 config MXC_TVIN_ADV7180
 	tristate "Analog Device adv7180 TV Decoder Input support"
