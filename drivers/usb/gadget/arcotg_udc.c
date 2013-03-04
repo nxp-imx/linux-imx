@@ -3299,7 +3299,6 @@ static int  fsl_udc_remove(struct platform_device *pdev)
 	release_mem_region(res->start, resource_size(res));
 }
 #endif
-	dr_clk_gate(false);
 	device_unregister(&udc_controller->gadget.dev);
 	/* free udc --wait for the release() finished */
 	wait_for_completion(&done);
