@@ -3075,6 +3075,7 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 	 * do platform specific init: check the clock, grab/config pins, etc.
 	 */
 	if (pdata->init && pdata->init(pdev)) {
+		pdata->lowpower = false;
 		ret = -ENODEV;
 		goto err2a;
 	}
