@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -2643,6 +2643,7 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	cam->win.w.left = 0;
 	cam->win.w.top = 0;
 
+	cam->ipu_id = pdata->ipu;
 	cam->csi = pdata->csi;
 	cam->mclk_source = pdata->mclk_source;
 	cam->mclk_on[cam->mclk_source] = false;
@@ -2686,6 +2687,17 @@ static ssize_t show_overlay(struct device *dev,
 		return sprintf(buf, "overlay off\n");
 }
 static DEVICE_ATTR(fsl_v4l2_overlay_property, S_IRUGO, show_overlay, NULL);
+
+static ssize_t show_csi(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct video_device *video_dev = container_of(dev,
+						struct video_device, dev);
+	cam_data *cam = video_get_drvdata(video_dev);
+
+	return sprintf(buf, "ipu%d_csi%d\n", cam->ipu_id, cam->csi);
+}
+static DEVICE_ATTR(fsl_csi_property, S_IRUGO, show_csi, NULL);
 
 /*!
  * This function is called to probe the devices if registered.
@@ -2732,6 +2744,11 @@ static int mxc_v4l2_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Error on creating sysfs file"
 			" for overlay\n");
 
+	if (device_create_file(&cam->video_dev->dev,
+			&dev_attr_fsl_csi_property))
+		dev_err(&pdev->dev, "Error on creating sysfs file"
+			" for csi number\n");
+
 	return 0;
 }
 
@@ -2755,6 +2772,8 @@ static int mxc_v4l2_remove(struct platform_device *pdev)
 			&dev_attr_fsl_v4l2_capture_property);
 		device_remove_file(&cam->video_dev->dev,
 			&dev_attr_fsl_v4l2_overlay_property);
+		device_remove_file(&cam->video_dev->dev,
+			&dev_attr_fsl_csi_property);
 
 		pr_info("V4L2 freeing image input device\n");
 		v4l2_int_device_unregister(cam->self);
