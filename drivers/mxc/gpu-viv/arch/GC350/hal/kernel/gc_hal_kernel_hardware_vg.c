@@ -308,6 +308,7 @@ gckVGHARDWARE_Construct(
 
     do
     {
+        gcmkERR_BREAK(gckOS_SetGPUPower(Os, gcvCORE_VG, gcvTRUE, gcvTRUE));
         status = _ResetGPU(Os);
 
         if (status != gcvSTATUS_OK)
@@ -340,10 +341,10 @@ gckVGHARDWARE_Construct(
 
         hardware->powerMutex            = gcvNULL;
         hardware->idleSignal            = gcvNULL;
-        hardware->chipPowerState        = gcvPOWER_OFF;
+        hardware->chipPowerState        = gcvPOWER_ON;
         hardware->chipPowerStateGlobal  = gcvPOWER_ON;
-        hardware->clockState            = gcvFALSE;
-        hardware->powerState            = gcvFALSE;
+        hardware->clockState            = gcvTRUE;
+        hardware->powerState            = gcvTRUE;
         hardware->powerOffTimeout       = gcdPOWEROFF_TIMEOUT;
         hardware->powerOffTime          = 0;
         hardware->timeIdleThread        = gcvNULL;
