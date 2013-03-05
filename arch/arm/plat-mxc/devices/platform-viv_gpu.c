@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -90,12 +90,35 @@ struct platform_device *__init imx_add_viv_gpu(
 		},
 	};
 
-	if (cpu_is_mx6q() || cpu_is_mx6sl())
-		res_count = ARRAY_SIZE(res);
-	else if (cpu_is_mx6dl())
-		/* No openVG on i.mx6 Solo/DL */
-		res_count = ARRAY_SIZE(res) - 2;
+	res_count = ARRAY_SIZE(res);
 	BUG_ON(!res_count);
+
+	if (!fuse_dev_is_available(MXC_DEV_3D)) {
+		res[1].start = 0;
+		res[1].end = 0;
+		res[2].start = -1;
+		res[2].end = -1;
+	}
+
+	if (!fuse_dev_is_available(MXC_DEV_2D)) {
+		res[3].start = 0;
+		res[3].end = 0;
+		res[4].start = -1;
+		res[4].end = -1;
+	}
+
+	if (!fuse_dev_is_available(MXC_DEV_OVG)) {
+		res[5].start = 0;
+		res[5].end = 0;
+		res[6].start = -1;
+		res[6].end = -1;
+	}
+
+	/* None GPU core exists */
+	if ((res[2].start == -1) &&
+			(res[4].start == -1) &&
+			(res[6].start == -1))
+		return ERR_PTR(-ENODEV);
 
 	return imx_add_platform_device_dmamask("galcore", 0,
 			res, res_count,
