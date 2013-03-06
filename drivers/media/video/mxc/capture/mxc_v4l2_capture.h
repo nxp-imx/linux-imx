@@ -198,6 +198,7 @@ typedef struct _cam_data {
 	int capture_pid;
 	bool low_power;
 	wait_queue_head_t power_queue;
+	unsigned int ipu_id;
 	unsigned int csi;
 	u8 mclk_source;
 	bool mclk_on[2];	/* two mclk sources at most now */

@@ -246,6 +246,7 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	 * do platform specific init: check the clock, grab/config pins, etc.
 	 */
 	if (pdata->init && pdata->init(pdev)) {
+		pdata->lowpower = false;
 		retval = -ENODEV;
 		goto err4;
 	}
@@ -350,9 +351,6 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 		}
 	}
 
-	/* DDD shouldn't we turn off the power here? */
-	fsl_platform_set_vbus_power(pdata, 0);
-
 	if (ehci->transceiver) {
 		(void)otg_set_host(ehci->transceiver, 0);
 		otg_put_transceiver(ehci->transceiver);
@@ -361,11 +359,15 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	}
 	/*disable the host wakeup and put phy to low power mode */
 	usb_host_set_wakeup(hcd->self.controller, false);
-	fsl_usb_lowpower_mode(pdata, true);
 	/*free the ehci_fsl_pre_irq  */
 	free_irq(hcd->irq, (void *)pdev);
 	usb_remove_hcd(hcd);
 	usb_put_hcd(hcd);
+
+	fsl_usb_lowpower_mode(pdata, true);
+
+	/* DDD shouldn't we turn off the power here? */
+	fsl_platform_set_vbus_power(pdata, 0);
 
 	/*
 	 * do platform specific un-initialization:

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * Author: Li Yang <LeoLi@freescale.com>
  *         Jerry Huang <Chang-Ming.Huang@freescale.com>
@@ -631,6 +631,11 @@ static int fsl_otg_set_host(struct otg_transceiver *otg_p, struct usb_bus *host)
 
 		if (otg_dev->fsm.id) {
 			otg_dev->host_first_call = true;
+			/* The discharge will be false when the controller
+			 * is ready to use.
+			 */
+			if (pdata->dr_discharge_line)
+				pdata->dr_discharge_line(true);
 			schedule_otg_work(&otg_dev->otg_event, 100);
 		}
 		else {

@@ -43,6 +43,9 @@
 #define OV5640_XCLK_MIN 6000000
 #define OV5640_XCLK_MAX 24000000
 
+#define OV5640_CHIP_ID_HIGH_BYTE        0x300A
+#define OV5640_CHIP_ID_LOW_BYTE         0x300B
+
 enum ov5640_mode {
 	ov5640_mode_MIN = 0,
 	ov5640_mode_VGA_640_480 = 0,
@@ -565,6 +568,7 @@ static s32 ov5640_write_reg(u16 reg, u8 val);
 
 static const struct i2c_device_id ov5640_id[] = {
 	{"ov5640", 0},
+	{"ov564x", 0},
 	{},
 };
 
@@ -633,6 +637,32 @@ static void ov5640_soft_reset(void)
 
 	/* delay at least 5ms */
 	msleep(10);
+}
+
+/* set sensor driver capability
+ * 0x302c[7:6] - strength
+	00     - 1x
+	01     - 2x
+	10     - 3x
+	11     - 4x
+ */
+static int ov5640_driver_capability(int strength)
+{
+	u8 temp = 0;
+
+	if (strength > 4 || strength < 1) {
+		pr_err("The valid driver capability of ov5640 is 1x~4x\n");
+		return -EINVAL;
+	}
+
+	ov5640_read_reg(0x302c, &temp);
+
+	temp &= ~0xc0;	/* clear [7:6] */
+	temp |= ((strength - 1) << 6);	/* set [7:6] */
+
+	ov5640_write_reg(0x302c, temp);
+
+	return 0;
 }
 
 /* calculate sysclk */
@@ -952,6 +982,10 @@ static int ov5640_init_mode(void)
 	if (retval < 0)
 		goto err;
 
+	/* change driver capability to 2x according to validation board.
+	 * if the image is not stable, please increase the driver strength.
+	 */
+	ov5640_driver_capability(2);
 	ov5640_set_bandingfilter();
 	ov5640_set_AE_target(AE_Target);
 	ov5640_set_night_mode(night_mode);
@@ -1008,7 +1042,7 @@ static int ov5640_change_mode_direct(enum ov5640_frame_rate frame_rate,
 	ov5640_set_night_mode(night_mode);
 
 	/* skip 9 vysnc: start capture at 10th vsync */
-	if (mode == ov5640_mode_XGA_1024_768) {
+	if (mode == ov5640_mode_XGA_1024_768 && frame_rate == ov5640_30_fps) {
 		pr_warning("ov5640: actual frame rate of XGA is 22.5fps\n");
 		/* 1/22.5 * 9*/
 		msleep(400);
@@ -1706,6 +1740,7 @@ static int ov5640_probe(struct i2c_client *client,
 {
 	int retval;
 	struct fsl_mxc_camera_platform_data *plat_data = client->dev.platform_data;
+	u8 chip_id_high, chip_id_low;
 
 	/* Set initial values for the sensor struct. */
 	memset(&ov5640_data, 0, sizeof(ov5640_data));
@@ -1783,13 +1818,38 @@ static int ov5640_probe(struct i2c_client *client,
 	if (plat_data->io_init)
 		plat_data->io_init();
 
+	if (plat_data->pwdn)
+		plat_data->pwdn(0);
+
+	retval = ov5640_read_reg(OV5640_CHIP_ID_HIGH_BYTE, &chip_id_high);
+	if (retval < 0 || chip_id_high != 0x56) {
+		pr_warning("camera ov5640 is not found\n");
+		retval = -ENODEV;
+		goto err4;
+	}
+	retval = ov5640_read_reg(OV5640_CHIP_ID_LOW_BYTE, &chip_id_low);
+	if (retval < 0 || chip_id_low != 0x40) {
+		pr_warning("camera ov5640 is not found\n");
+		retval = -ENODEV;
+		goto err4;
+	}
+
+	if (plat_data->pwdn)
+		plat_data->pwdn(1);
+
 	camera_plat = plat_data;
 
 	ov5640_int_device.priv = &ov5640_data;
 	retval = v4l2_int_device_register(&ov5640_int_device);
 
+	pr_info("camera ov5640 is found\n");
 	return retval;
 
+err4:
+	if (analog_regulator) {
+		regulator_disable(analog_regulator);
+		regulator_put(analog_regulator);
+	}
 err3:
 	if (core_regulator) {
 		regulator_disable(core_regulator);
@@ -1801,7 +1861,7 @@ err2:
 		regulator_put(io_regulator);
 	}
 err1:
-	return -1;
+	return retval;
 }
 
 /*!

@@ -1900,8 +1900,9 @@ static int init_ic(struct ipu_soc *ipu, struct ipu_task_entry *t)
 		params.mem_prp_vf_mem.graphics_combine_en = 1;
 		if (t->overlay.alpha.mode == IPU_ALPHA_MODE_GLOBAL)
 			params.mem_prp_vf_mem.global_alpha_en = 1;
-		else
+		else if (t->overlay.alpha.loc_alp_paddr)
 			params.mem_prp_vf_mem.alpha_chan_en = 1;
+		/* otherwise, alpha bending per pixel is used. */
 		params.mem_prp_vf_mem.alpha = t->overlay.alpha.gvalue;
 		if (t->overlay.colorkey.enable) {
 			params.mem_prp_vf_mem.key_color_en = 1;

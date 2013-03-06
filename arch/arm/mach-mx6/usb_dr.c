@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,6 +65,7 @@ static struct fsl_usb2_platform_data dr_utmi_config = {
 	.transceiver       = "utmi",
 	.phy_regs = USB_PHY0_BASE_ADDR,
 	.dr_discharge_line = _dr_discharge_line,
+	.lowpower	   = true, /* Default driver low power is true */
 };
 
 /* Platform data for wakeup operation */
@@ -73,51 +74,6 @@ static struct fsl_usb2_wakeup_platform_data dr_wakeup_config = {
 	.usb_clock_for_pm  = usbotg_clock_gate,
 	.usb_wakeup_exhandle = usbotg_wakeup_event_clear,
 };
-
-static void fsl_platform_otg_set_usb_phy_dis(
-		struct fsl_usb2_platform_data *pdata, bool enable)
-{
-	u32 usb_phy_ctrl_dcdt = 0;
-	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
-	usb_phy_ctrl_dcdt = __raw_readl(
-			MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL) &
-			BM_USBPHY_CTRL_ENHOSTDISCONDETECT;
-	if (enable) {
-		if (usb_phy_ctrl_dcdt == 0) {
-			__raw_writel(BM_ANADIG_USB1_PLL_480_CTRL_EN_USB_CLKS,
-					anatop_base_addr + HW_ANADIG_USB1_PLL_480_CTRL_CLR);
-
-			__raw_writel(BM_USBPHY_PWD_RXPWDENV,
-					MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_PWD_SET);
-
-			udelay(300);
-
-			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
-				MX6_IO_ADDRESS(pdata->phy_regs)
-				+ HW_USBPHY_CTRL_SET);
-
-			UOG_USBSTS |= (1 << 7);
-
-			while ((UOG_USBSTS & (1 << 7)) == 0)
-				;
-
-			udelay(2);
-
-			__raw_writel(BM_USBPHY_PWD_RXPWDENV,
-					MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_PWD_CLR);
-
-			__raw_writel(BM_ANADIG_USB1_PLL_480_CTRL_EN_USB_CLKS,
-					anatop_base_addr + HW_ANADIG_USB1_PLL_480_CTRL_SET);
-
-		}
-	} else {
-		if (usb_phy_ctrl_dcdt
-				== BM_USBPHY_CTRL_ENHOSTDISCONDETECT)
-			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
-				MX6_IO_ADDRESS(pdata->phy_regs)
-				+ HW_USBPHY_CTRL_CLR);
-	}
-}
 
 static void usbotg_internal_phy_clock_gate(bool on)
 {
@@ -208,9 +164,6 @@ static void usbotg_uninit_ext(struct platform_device *pdev)
 {
 	otg_used--;
 	if (!otg_used) {
-		enter_phy_lowpower_suspend(pdev->dev.platform_data, true);
-		mdelay(3);
-
 		clk_disable(usb_phy1_clk);
 		clk_put(usb_phy1_clk);
 
@@ -387,6 +340,51 @@ static void usbotg_wakeup_event_clear(void)
 
 #ifdef CONFIG_USB_EHCI_ARC_OTG
 /* Beginning of host related operation for DR port */
+static void fsl_platform_otg_set_usb_phy_dis(
+		struct fsl_usb2_platform_data *pdata, bool enable)
+{
+	u32 usb_phy_ctrl_dcdt = 0;
+	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
+	usb_phy_ctrl_dcdt = __raw_readl(
+			MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_CTRL) &
+			BM_USBPHY_CTRL_ENHOSTDISCONDETECT;
+	if (enable) {
+		if (usb_phy_ctrl_dcdt == 0) {
+			__raw_writel(BM_ANADIG_USB1_PLL_480_CTRL_EN_USB_CLKS,
+					anatop_base_addr + HW_ANADIG_USB1_PLL_480_CTRL_CLR);
+
+			__raw_writel(BM_USBPHY_PWD_RXPWDENV,
+					MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_PWD_SET);
+
+			udelay(300);
+
+			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				MX6_IO_ADDRESS(pdata->phy_regs)
+				+ HW_USBPHY_CTRL_SET);
+
+			UOG_USBSTS |= (1 << 7);
+
+			while ((UOG_USBSTS & (1 << 7)) == 0)
+				;
+
+			udelay(2);
+
+			__raw_writel(BM_USBPHY_PWD_RXPWDENV,
+					MX6_IO_ADDRESS(pdata->phy_regs) + HW_USBPHY_PWD_CLR);
+
+			__raw_writel(BM_ANADIG_USB1_PLL_480_CTRL_EN_USB_CLKS,
+					anatop_base_addr + HW_ANADIG_USB1_PLL_480_CTRL_SET);
+
+		}
+	} else {
+		if (usb_phy_ctrl_dcdt
+				== BM_USBPHY_CTRL_ENHOSTDISCONDETECT)
+			__raw_writel(BM_USBPHY_CTRL_ENHOSTDISCONDETECT,
+				MX6_IO_ADDRESS(pdata->phy_regs)
+				+ HW_USBPHY_CTRL_CLR);
+	}
+}
+
 static void _host_platform_rh_suspend_swfix(struct fsl_usb2_platform_data *pdata)
 {
 	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
@@ -612,11 +610,11 @@ static int  __init mx6_usb_dr_init(void)
 	void __iomem *anatop_base_addr = MX6_IO_ADDRESS(ANATOP_BASE_ADDR);
 	struct imx_fsl_usb2_wakeup_data imx6q_fsl_otg_wakeup_data =
 		imx_fsl_usb2_wakeup_data_entry_single(MX6Q, 0, OTG);
-	struct imx_mxc_ehci_data imx6q_mxc_ehci_otg_data =
+	struct imx_mxc_ehci_data __maybe_unused imx6q_mxc_ehci_otg_data =
 		imx_mxc_ehci_data_entry_single(MX6Q, 0, OTG);
-	struct imx_fsl_usb2_udc_data imx6q_fsl_usb2_udc_data =
+	struct imx_fsl_usb2_udc_data __maybe_unused imx6q_fsl_usb2_udc_data =
 		imx_fsl_usb2_udc_data_entry_single(MX6Q);
-	struct imx_fsl_usb2_otg_data imx6q_fsl_usb2_otg_data  =
+	struct imx_fsl_usb2_otg_data __maybe_unused imx6q_fsl_usb2_otg_data  =
 		imx_fsl_usb2_otg_data_entry_single(MX6Q);
 
 	/* Some phy and power's special controls for otg

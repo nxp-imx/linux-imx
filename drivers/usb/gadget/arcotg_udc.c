@@ -3075,6 +3075,7 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 	 * do platform specific init: check the clock, grab/config pins, etc.
 	 */
 	if (pdata->init && pdata->init(pdev)) {
+		pdata->lowpower = false;
 		ret = -ENODEV;
 		goto err2a;
 	}
@@ -3299,7 +3300,6 @@ static int  fsl_udc_remove(struct platform_device *pdev)
 	release_mem_region(res->start, resource_size(res));
 }
 #endif
-	dr_clk_gate(false);
 	device_unregister(&udc_controller->gadget.dev);
 	/* free udc --wait for the release() finished */
 	wait_for_completion(&done);

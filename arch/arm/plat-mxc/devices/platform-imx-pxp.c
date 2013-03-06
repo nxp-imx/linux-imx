@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -54,18 +54,27 @@ struct platform_device *__init imx_add_imx_pxp(
 		},
 	};
 
+	if (!fuse_dev_is_available(MXC_DEV_PXP))
+		return ERR_PTR(-ENODEV);
+
 	return imx_add_platform_device_dmamask("imx-pxp", -1,
 		res, ARRAY_SIZE(res), NULL, 0, DMA_BIT_MASK(32));
 }
 
 struct platform_device *__init imx_add_imx_pxp_client()
 {
-    return imx_add_platform_device("imx-pxp-client", -1,
+	if (!fuse_dev_is_available(MXC_DEV_PXP))
+		return ERR_PTR(-ENODEV);
+
+	return imx_add_platform_device("imx-pxp-client", -1,
 		NULL, 0, NULL, 0);
 }
 
 struct platform_device *__init imx_add_imx_pxp_v4l2()
 {
-    return imx_add_platform_device_dmamask("pxp-v4l2", -1,
+	if (!fuse_dev_is_available(MXC_DEV_PXP))
+		return ERR_PTR(-ENODEV);
+
+	return imx_add_platform_device_dmamask("pxp-v4l2", -1,
 		NULL, 0, NULL, 0, DMA_BIT_MASK(32));
 }

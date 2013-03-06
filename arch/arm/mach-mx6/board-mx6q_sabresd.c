@@ -257,6 +257,16 @@ static int mx6q_sabresd_fec_phy_init(struct phy_device *phydev)
 {
 	unsigned short val;
 
+	/* Ar8031 phy SmartEEE feature cause link status generates glitch,
+	 * which cause ethernet link down/up issue, so disable SmartEEE
+	 */
+	phy_write(phydev, 0xd, 0x3);
+	phy_write(phydev, 0xe, 0x805d);
+	phy_write(phydev, 0xd, 0x4003);
+	val = phy_read(phydev, 0xe);
+	val &= ~(0x1 << 8);
+	phy_write(phydev, 0xe, val);
+
 	/* To enable AR8031 ouput a 125MHz clk from CLK_25M */
 	phy_write(phydev, 0xd, 0x7);
 	phy_write(phydev, 0xe, 0x8016);
@@ -785,7 +795,7 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 		I2C_BOARD_INFO("wm89**", 0x1a),
 	},
 	{
-		I2C_BOARD_INFO("ov5642", 0x3c),
+		I2C_BOARD_INFO("ov564x", 0x3c),
 		.platform_data = (void *)&camera_data,
 	},
 	{
@@ -1091,6 +1101,14 @@ static void imx6q_sabresd_usbotg_vbus(bool on)
 		gpio_set_value(SABRESD_USB_OTG_PWR, 0);
 }
 
+static void imx6q_sabresd_host1_vbus(bool on)
+{
+	if (on)
+		gpio_set_value(SABRESD_USB_H1_PWR, 1);
+	else
+		gpio_set_value(SABRESD_USB_H1_PWR, 0);
+}
+
 static void __init imx6q_sabresd_init_usb(void)
 {
 	int ret = 0;
@@ -1113,13 +1131,14 @@ static void __init imx6q_sabresd_init_usb(void)
 			ret);
 		return;
 	}
-	gpio_direction_output(SABRESD_USB_H1_PWR, 1);
+	gpio_direction_output(SABRESD_USB_H1_PWR, 0);
 	if (board_is_mx6_reva())
 		mxc_iomux_set_gpr_register(1, 13, 1, 1);
 	else
 		mxc_iomux_set_gpr_register(1, 13, 1, 0);
 
 	mx6_set_otghost_vbus_func(imx6q_sabresd_usbotg_vbus);
+	mx6_set_host1_vbus_func(imx6q_sabresd_host1_vbus);
 
 }
 
