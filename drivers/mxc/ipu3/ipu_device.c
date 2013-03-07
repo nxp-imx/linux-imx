@@ -812,6 +812,7 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 	struct stripe_param down_stripe;
 	u32 iw, ih, ow, oh;
 	u32 max_width;
+	int ret;
 
 	if (t->output.rotate >= IPU_ROTATE_90_RIGHT)
 		return IPU_CHECK_ERR_SPLIT_WITH_ROT;
@@ -822,12 +823,26 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 	ow = t->output.crop.w;
 	oh = t->output.crop.h;
 
+	memset(&left_stripe, 0, sizeof(left_stripe));
+	memset(&right_stripe, 0, sizeof(right_stripe));
+	memset(&up_stripe, 0, sizeof(up_stripe));
+	memset(&down_stripe, 0, sizeof(down_stripe));
+
 	if (t->set.split_mode & RL_SPLIT) {
+		/*
+		 * We do want equal strips: initialize stripes in case
+		 * calc_stripes returns before actually doing the calculation
+		 */
+		left_stripe.input_width = iw / 2;
+		left_stripe.output_width = ow / 2;
+		right_stripe.input_column = iw / 2;
+		right_stripe.output_column = ow / 2;
+
 		if (vdi_split)
 			max_width = soc_max_vdi_in_width();
 		else
 			max_width = soc_max_out_width();
-		ipu_calc_stripes_sizes(iw,
+		ret = ipu_calc_stripes_sizes(iw,
 				ow,
 				max_width,
 				(((unsigned long long)1) << 32), /* 32bit for fractional*/
@@ -836,6 +851,9 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 				t->output.format,
 				&left_stripe,
 				&right_stripe);
+		if (ret)
+			dev_err(t->dev, "Warn: no:0x%x,calc_stripes ret:%d\n",
+				 t->task_no, ret);
 		t->set.sp_setting.iw = left_stripe.input_width;
 		t->set.sp_setting.ow = left_stripe.output_width;
 		t->set.sp_setting.outh_resize_ratio = left_stripe.irr;
@@ -859,7 +877,15 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 		return IPU_CHECK_ERR_SPLIT_OUTPUTW_OVER;
 
 	if (t->set.split_mode & UD_SPLIT) {
-		ipu_calc_stripes_sizes(ih,
+		/*
+		 * We do want equal strips: initialize stripes in case
+		 * calc_stripes returns before actually doing the calculation
+		 */
+		up_stripe.input_width = ih / 2;
+		up_stripe.output_width = oh / 2;
+		down_stripe.input_column = ih / 2;
+		down_stripe.output_column = oh / 2;
+		ret = ipu_calc_stripes_sizes(ih,
 				oh,
 				soc_max_out_height(),
 				(((unsigned long long)1) << 32), /* 32bit for fractional*/
@@ -868,6 +894,9 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 				t->output.format,
 				&up_stripe,
 				&down_stripe);
+		if (ret)
+			dev_err(t->dev, "Warn: no:0x%x,calc_stripes ret:%d\n",
+				 t->task_no, ret);
 		t->set.sp_setting.ih = up_stripe.input_width;
 		t->set.sp_setting.oh = up_stripe.output_width;
 		t->set.sp_setting.outv_resize_ratio = up_stripe.irr;
