@@ -1428,7 +1428,8 @@ exit:
  */
 static int mxc_v4l2_s_std(cam_data *cam, v4l2_std_id e)
 {
-	printk(KERN_ERR "In mxc_v4l2_s_std %Lx\n", e);
+	pr_debug("In mxc_v4l2_s_std %Lx\n", e);
+
 	if (e == V4L2_STD_PAL) {
 		pr_debug("   Setting standard to PAL %Lx\n", V4L2_STD_PAL);
 		cam->standard.id = V4L2_STD_PAL;
