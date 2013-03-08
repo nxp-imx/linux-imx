@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -146,6 +146,21 @@ ipu_csi_init_interface(struct ipu_soc *ipu, uint16_t width, uint16_t height,
 		if (width == 720 && height == 625) {
 			/* PAL case */
 			/*
+			 * Field0BlankEnd = 0x6, Field0BlankStart = 0x2,
+			 * Field0ActiveEnd = 0x4, Field0ActiveStart = 0
+			 */
+			ipu_csi_write(ipu, csi, 0x40596, CSI_CCIR_CODE_1);
+			/*
+			 * Field1BlankEnd = 0x7, Field1BlankStart = 0x3,
+			 * Field1ActiveEnd = 0x5, Field1ActiveStart = 0x1
+			 */
+			ipu_csi_write(ipu, csi, 0xD07DF, CSI_CCIR_CODE_2);
+
+			ipu_csi_write(ipu, csi, 0xFF0000, CSI_CCIR_CODE_3);
+
+		} else if (width == 720 && height == 525) {
+			/* NTSC case */
+			/*
 			 * Field0BlankEnd = 0x7, Field0BlankStart = 0x3,
 			 * Field0ActiveEnd = 0x5, Field0ActiveStart = 0x1
 			 */
@@ -155,20 +170,6 @@ ipu_csi_init_interface(struct ipu_soc *ipu, uint16_t width, uint16_t height,
 			 * Field1ActiveEnd = 0x4, Field1ActiveStart = 0
 			 */
 			ipu_csi_write(ipu, csi, 0x40596, CSI_CCIR_CODE_2);
-			ipu_csi_write(ipu, csi, 0xFF0000, CSI_CCIR_CODE_3);
-
-		} else if (width == 720 && height == 525) {
-			/* NTSC case */
-			/*
-			 * Field1BlankEnd = 0x6, Field1BlankStart = 0x2,
-			 * Field1ActiveEnd = 0x4, Field1ActiveStart = 0
-			 */
-			ipu_csi_write(ipu, csi, 0x40596, CSI_CCIR_CODE_1);
-			/*
-			 * Field0BlankEnd = 0x7, Field0BlankStart = 0x3,
-			 * Field0ActiveEnd = 0x5, Field0ActiveStart = 0x1
-			 */
-			ipu_csi_write(ipu, csi, 0xD07DF, CSI_CCIR_CODE_2);
 			ipu_csi_write(ipu, csi, 0xFF0000, CSI_CCIR_CODE_3);
 		} else {
 			dev_err(ipu->dev, "Unsupported CCIR656 interlaced "
