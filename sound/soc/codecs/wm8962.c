@@ -5,7 +5,7 @@
  *
  * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
  *
- * Copyright (C) 2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -2218,6 +2218,8 @@ SOC_ENUM("Capture LHPF Mode", cap_lhpf_mode),
 SOC_DOUBLE_R_TLV("Sidetone Volume", WM8962_DAC_DSP_MIXING_1,
 		 WM8962_DAC_DSP_MIXING_2, 4, 12, 0, st_tlv),
 
+SOC_DOUBLE_R_TLV("Digital Playback Volume", WM8962_LEFT_DAC_VOLUME,
+		 WM8962_RIGHT_DAC_VOLUME, 1, 127, 0, digital_tlv),
 SOC_SINGLE("DAC High Performance Switch", WM8962_ADC_DAC_CONTROL_2, 0, 1, 0),
 
 SOC_SINGLE("ADC High Performance Switch", WM8962_ADDITIONAL_CONTROL_1,
@@ -4102,10 +4104,6 @@ static int wm8962_probe(struct snd_soc_codec *codec)
 			    WM8962_SPKOUTL_VOL_MASK, 0x72);
 	snd_soc_update_bits(codec, WM8962_SPKOUTR_VOLUME,
 			    WM8962_SPKOUTR_VOL_MASK, 0x72);
-	snd_soc_update_bits(codec, WM8962_LEFT_DAC_VOLUME,
-			    WM8962_DACL_VOL_MASK, 0xd8);
-	snd_soc_update_bits(codec, WM8962_RIGHT_DAC_VOLUME,
-			    WM8962_DACR_VOL_MASK, 0xd8);
 
 	snd_soc_update_bits(codec, WM8962_LEFT_INPUT_VOLUME,
 			    WM8962_INL_VOL_MASK, 0x3f);
