@@ -53,6 +53,8 @@ struct imx_priv {
 	int amic_irq;
 	int amic_status;
 	struct platform_device *pdev;
+	struct snd_pcm_substream *first_stream;
+	struct snd_pcm_substream *second_stream;
 };
 unsigned int sample_format = SNDRV_PCM_FMTBIT_S16_LE;
 static struct imx_priv card_priv;
@@ -126,6 +128,11 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 	u32 dai_format;
 	unsigned int pll_out;
 
+	if (!priv->first_stream)
+		priv->first_stream = substream;
+	else
+		priv->second_stream = substream;
+
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 		SND_SOC_DAIFMT_CBM_CFM;
 
@@ -171,6 +178,43 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
+	return 0;
+}
+
+
+static int imx_hifi_hw_free(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
+	struct imx_priv *priv = &card_priv;
+	int ret;
+
+	if (priv->first_stream == substream)
+		priv->first_stream = priv->second_stream;
+	priv->second_stream = NULL;
+
+	if (!priv->first_stream) {
+		/*
+		 * wm8962 doesn't allow us to continuously setting FLL,
+		 * So we set MCLK as sysclk once, which'd remove the limitation.
+		 */
+		ret = snd_soc_dai_set_sysclk(codec_dai, WM8962_SYSCLK_MCLK,
+				0, SND_SOC_CLOCK_IN);
+		if (ret < 0) {
+			pr_err("Failed to set SYSCLK: %d\n", ret);
+			return ret;
+		}
+
+		/*
+		 * Continuously setting FLL would cause playback distortion.
+		 * We can fix it just by mute codec after playback.
+		 */
+		ret = snd_soc_dai_digital_mute(codec_dai, 1);
+		if (ret < 0) {
+			pr_err("Failed to set MUTE: %d\n", ret);
+			return ret;
+		}
+	}
 	return 0;
 }
 
@@ -433,6 +477,7 @@ static struct snd_soc_ops imx_hifi_ops = {
 	.startup = imx_hifi_startup,
 	.shutdown = imx_hifi_shutdown,
 	.hw_params = imx_hifi_hw_params,
+	.hw_free = imx_hifi_hw_free,
 	.trigger = imx_hifi_trigger,
 };
 
@@ -496,6 +541,9 @@ static int __devinit imx_wm8962_probe(struct platform_device *pdev)
 	}
 
 	priv->sysclk = plat->sysclk;
+
+	priv->first_stream = NULL;
+	priv->second_stream = NULL;
 
 	return ret;
 }
