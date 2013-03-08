@@ -21,16 +21,11 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
-#include <linux/slab.h>
-#include <linux/ctype.h>
 #include <linux/types.h>
 #include <linux/delay.h>
-#include <linux/semaphore.h>
 #include <linux/device.h>
 #include <linux/i2c.h>
-#include <linux/wait.h>
 #include <linux/videodev2.h>
-#include <linux/workqueue.h>
 #include <linux/regulator/consumer.h>
 #include <linux/fsl_devices.h>
 #include <media/v4l2-chip-ident.h>
