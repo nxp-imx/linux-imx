@@ -203,7 +203,6 @@ static struct clk *clko;
 static int mma8451_position = 1;
 static int mag3110_position = 2;
 static int max11801_mode = 1;
-static int enable_lcd_ldb;
 static int caam_enabled;
 
 extern char *gp_reg_id;
@@ -1364,11 +1363,11 @@ static struct fsl_mxc_lcd_platform_data lcdif_data = {
 
 static struct fsl_mxc_ldb_platform_data ldb_data = {
 	.ipu_id = 1,
-	.disp_id = 0,
+	.disp_id = 1,
 	.ext_ref = 1,
-	.mode = LDB_SEP0,
+	.mode = LDB_SEP1,
 	.sec_ipu_id = 1,
-	.sec_disp_id = 1,
+	.sec_disp_id = 0,
 };
 
 static struct max8903_pdata charger1_data = {
@@ -1680,13 +1679,6 @@ static const struct imx_pcie_platform_data mx6_sabresd_pcie_data __initconst = {
 	.pcie_dis	= SABRESD_PCIE_DIS_B,
 };
 
-static int __init early_enable_lcd_ldb(char *p)
-{
-	enable_lcd_ldb = 1;
-	return 0;
-}
-early_param("enable_lcd_ldb", early_enable_lcd_ldb);
-
 /*!
  * Board specific initialization.
  */
@@ -1728,16 +1720,7 @@ static void __init mx6_sabresd_board_init(void)
 	 */
 	if (cpu_is_mx6dl()) {
 		ldb_data.ipu_id = 0;
-		ldb_data.disp_id = 0;
 		ldb_data.sec_ipu_id = 0;
-		ldb_data.sec_disp_id = 1;
-		hdmi_core_data.disp_id = 1;
-		mipi_dsi_pdata.ipu_id = 0;
-		mipi_dsi_pdata.disp_id = 1;
-		if (enable_lcd_ldb) {
-			ldb_data.disp_id = 1;
-			ldb_data.mode = LDB_SIN1;
-		}
 	}
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 
