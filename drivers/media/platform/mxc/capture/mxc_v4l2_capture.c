@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1354,19 +1354,11 @@ static int mxc_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 	csi_param.csi = cam->csi;
 	csi_param.mclk = 0;
 
-	/*This may not work on other platforms. Check when adding a new one.*/
-	/*The mclk clock was never set correclty in the ipu register*/
-	/*for now we are going to use this mclk as pixel clock*/
-	/*to set csi0_data_dest register.*/
-	/*This is a workaround which should be fixed*/
 	pr_debug("   clock_curr=mclk=%d\n", ifparm.u.bt656.clock_curr);
-	if (ifparm.u.bt656.clock_curr == 0) {
+	if (ifparm.u.bt656.clock_curr == 0)
 		csi_param.clk_mode = IPU_CSI_CLK_MODE_CCIR656_INTERLACED;
-		/*protocol bt656 use 27Mhz pixel clock */
-		csi_param.mclk = 27000000;
-	} else {
+	else
 		csi_param.clk_mode = IPU_CSI_CLK_MODE_GATED_CLK;
-	}
 
 	csi_param.pixclk_pol = ifparm.u.bt656.latch_clk_inv;
 
