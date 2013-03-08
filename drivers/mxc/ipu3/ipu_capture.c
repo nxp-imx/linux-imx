@@ -131,10 +131,6 @@ ipu_csi_init_interface(struct ipu_soc *ipu, uint16_t width, uint16_t height,
 
 	ipu_csi_write(ipu, csi, data, CSI_SENS_CONF);
 
-	/* Setup the mclk */
-	if (cfg_param.mclk > 0)
-		_ipu_csi_mclk_set(ipu, cfg_param.mclk, csi);
-
 	/* Setup sensor frame size */
 	ipu_csi_write(ipu, csi, (width - 1) | (height - 1) << 16, CSI_SENS_FRM_SIZE);
 
