@@ -2379,6 +2379,16 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 				(msg.event & PM_EVENT_AUTO ? "auto-" : ""));
 		msleep(25);
 
+#ifdef MXS_USB_HOST_HACK
+		if (hub->hdev->parent == NULL) {
+			struct usb_device *hdev = hub->hdev;
+			struct usb_hcd *hcd = bus_to_hcd(hdev->bus);
+			struct fsl_usb2_platform_data *pdata;
+			pdata = hcd->self.controller->platform_data;
+			if (pdata && pdata->platform_resume)
+				pdata->platform_resume(pdata);
+		}
+#endif
 		/* Virtual root hubs can trigger on GET_PORT_STATUS to
 		 * stop resume signaling.  Then finish the resume
 		 * sequence.
@@ -2390,6 +2400,16 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 	}
 
  SuspendCleared:
+#ifdef MXS_USB_HOST_HACK
+	if (hub->hdev->parent == NULL) {
+		struct usb_device *hdev = hub->hdev;
+		struct usb_hcd *hcd = bus_to_hcd(hdev->bus);
+		struct fsl_usb2_platform_data *pdata;
+		pdata = hcd->self.controller->platform_data;
+		if (pdata && pdata->platform_resume)
+			pdata->platform_resume(pdata);
+	}
+#endif
 	if (status == 0) {
 		if (portchange & USB_PORT_STAT_C_SUSPEND)
 			clear_port_feature(hub->hdev, port1,
@@ -2871,13 +2891,14 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 
 #ifdef MXS_USB_HOST_HACK
 	{	/*Must enable HOSTDISCONDETECT after second reset*/
-		if (port1 == 1) {
+		if ((port1 == 1) && (udev->level == 1)) {
 			if (udev->speed == USB_SPEED_HIGH) {
 				struct device *dev = hcd->self.controller;
 				struct fsl_usb2_platform_data *pdata;
 				pdata = (struct fsl_usb2_platform_data *)
 					 dev->platform_data;
-				fsl_platform_set_usb_phy_dis(pdata, 1);
+				if (pdata)
+					fsl_platform_set_usb_phy_dis(pdata, 1);
 			}
 		}
 	}
@@ -3020,8 +3041,8 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 			if (port1 == 1 && pdata->platform_init)
 				pdata->platform_init(NULL);
 		}
-		if (port1 == 1) {
-			if (!(portstatus&USB_PORT_STAT_CONNECTION)) {
+		if ((port1 == 1) && (hdev->level == 0)) {
+			if (pdata && !(portstatus&USB_PORT_STAT_CONNECTION)) {
 				/* Must clear HOSTDISCONDETECT when disconnect*/
 				fsl_platform_set_usb_phy_dis(pdata, 0);
 			}

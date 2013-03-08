@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -2175,9 +2175,11 @@ static irqreturn_t fsl_udc_irq(int irq, void *_udc)
 
 	spin_lock_irqsave(&udc->lock, flags);
 
-	if (try_wake_up_udc(udc) == false) {
+	if (try_wake_up_udc(udc) == false)
 		goto irq_end;
-	}
+	else
+		status = IRQ_HANDLED;
+
 #ifdef CONFIG_USB_OTG
 	/* if no gadget register in this driver, we need do noting */
 	if (udc->transceiver->gadget == NULL) {
