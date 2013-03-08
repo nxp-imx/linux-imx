@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -238,10 +238,6 @@ static void adv7180_get_std(v4l2_std_id *std)
 
 	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180_get_std\n");
 
-	/* Make sure power on */
-	if (tvin_plat->pwdn)
-		tvin_plat->pwdn(0);
-
 	/* Read the AD_RESULT to get the detect output video standard */
 	tmp = adv7180_read(ADV7180_STATUS_1) & 0x70;
 
@@ -332,13 +328,14 @@ static int ioctl_s_power(struct v4l2_int_device *s, int on)
 
 	if (on && !sensor->sen.on) {
 		gpio_sensor_active();
-
-		/* Make sure pwoer on */
-		if (tvin_plat->pwdn)
-			tvin_plat->pwdn(0);
-
-		if (adv7180_write_reg(ADV7180_PWR_MNG, 0) != 0)
+		if (adv7180_write_reg(ADV7180_PWR_MNG, 0x04) != 0)
 			return -EIO;
+
+		/*
+		 * FIXME:Additional 400ms to wait the chip to be stable?
+		 * This is a workaround for preview scrolling issue.
+		 */
+		msleep(400);
 	} else if (!on && sensor->sen.on) {
 		if (adv7180_write_reg(ADV7180_PWR_MNG, 0x24) != 0)
 			return -EIO;
@@ -503,10 +500,6 @@ static int ioctl_g_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 
 	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180:ioctl_g_ctrl\n");
 
-	/* Make sure power on */
-	if (tvin_plat->pwdn)
-		tvin_plat->pwdn(0);
-
 	switch (vc->id) {
 	case V4L2_CID_BRIGHTNESS:
 		dev_dbg(&adv7180_data.sen.i2c_client->dev,
@@ -600,10 +593,6 @@ static int ioctl_s_ctrl(struct v4l2_int_device *s, struct v4l2_control *vc)
 	u8 tmp;
 
 	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180:ioctl_s_ctrl\n");
-
-	/* Make sure power on */
-	if (tvin_plat->pwdn)
-		tvin_plat->pwdn(0);
 
 	switch (vc->id) {
 	case V4L2_CID_BRIGHTNESS:
@@ -1203,14 +1192,12 @@ static int adv7180_probe(struct i2c_client *client,
  */
 static int adv7180_detach(struct i2c_client *client)
 {
-	struct fsl_mxc_tvin_platform_data *plat_data = client->dev.platform_data;
-
 	dev_dbg(&adv7180_data.sen.i2c_client->dev,
 		"%s:Removing %s video decoder @ 0x%02X from adapter %s\n",
 		__func__, IF_NAME, client->addr << 1, client->adapter->name);
 
-	if (plat_data->pwdn)
-		plat_data->pwdn(1);
+	/* Power down via i2c */
+	adv7180_write_reg(ADV7180_PWR_MNG, 0x24);
 
 	if (dvddio_regulator) {
 		regulator_disable(dvddio_regulator);
