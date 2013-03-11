@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -2249,7 +2249,7 @@
 #define _MX6Q_PAD_KEY_ROW4__KPP_ROW_4			\
 		IOMUX_PAD(0x05EC, 0x021C, 3, 0x0000, 0, 0)
 #define _MX6Q_PAD_KEY_ROW4__UART5_CTS			\
-		IOMUX_PAD(0x05EC, 0x021C, 4, 0x093C, 1, 0)
+		IOMUX_PAD(0x05EC, 0x021C, 4, 0x0000, 0, 0)
 #define _MX6Q_PAD_KEY_ROW4__GPIO_4_15			\
 		IOMUX_PAD(0x05EC, 0x021C, 5, 0x0000, 0, 0)
 #define _MX6Q_PAD_KEY_ROW4__MMDC_MMDC_DEBUG_50		\
