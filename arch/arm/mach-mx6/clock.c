@@ -1,6 +1,6 @@
 
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -5258,6 +5258,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("imx-uart.1", NULL, uart_clk[0]),
 	_REGISTER_CLOCK("imx-uart.2", NULL, uart_clk[0]),
 	_REGISTER_CLOCK("imx-uart.3", NULL, uart_clk[0]),
+	_REGISTER_CLOCK("imx-uart.4", NULL, uart_clk[0]),
 	_REGISTER_CLOCK(NULL, "hsi_tx", hsi_tx_clk[0]),
 	_REGISTER_CLOCK(NULL, "caam_clk", caam_clk[0]),
 	_REGISTER_CLOCK(NULL, "asrc_clk", asrc_clk[0]),
