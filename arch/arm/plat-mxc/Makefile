@@ -3,7 +3,7 @@
 #
 
 # Common support
-obj-y := clock.o gpio.o time.o devices.o cpu.o system.o irq-common.o usb_common.o usb_wakeup.o fuse.o
+obj-y := clock.o gpio.o time.o devices.o cpu.o system.o irq-common.o usb_common.o usb_wakeup.o
 
 # MX51 uses the TZIC interrupt controller, older platforms use AVIC
 obj-$(CONFIG_MXC_TZIC) += tzic.o
@@ -28,7 +28,7 @@ endif
 obj-y += devices/
 
 obj-$(CONFIG_ARCH_MX5) += dvfs_core.o
-obj-$(CONFIG_ARCH_MX6) += dvfs_core.o
+obj-$(CONFIG_ARCH_MX6) += dvfs_core.o fuse.o
 
 # DVFS-PER support
 obj-$(CONFIG_MXC_DVFS_PER) 	+= dvfs_per.o
