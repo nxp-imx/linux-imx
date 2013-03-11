@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -283,6 +283,8 @@
 #define MX6Q_UART2_BASE_ADDR		UART2_BASE_ADDR
 #define MX6Q_UART3_BASE_ADDR		UART3_BASE_ADDR
 #define MX6Q_UART4_BASE_ADDR		UART4_BASE_ADDR
+#define MX6Q_UART5_BASE_ADDR		UART5_BASE_ADDR
+
 #define MX6Q_FEC_BASE_ADDR		ENET_BASE_ADDR
 #define MX6DL_FEC_BASE_ADDR		ENET_BASE_ADDR
 #define MX6Q_MIPI_DSI_BASE_ADDR		MIPI_DSI_BASE_ADDR
@@ -486,6 +488,7 @@
 #define MX6Q_INT_UART2			MXC_INT_UART2_ANDED
 #define MX6Q_INT_UART3			MXC_INT_UART3_ANDED
 #define MX6Q_INT_UART4			MXC_INT_UART4_ANDED
+#define MX6Q_INT_UART5			MXC_INT_UART5_ANDED
 #define MX6SL_INT_UART1			MXC_INT_UART1_ANDED
 #define MX6SL_INT_UART2			MXC_INT_UART2_ANDED
 #define MX6SL_INT_UART3			MXC_INT_UART3_ANDED
