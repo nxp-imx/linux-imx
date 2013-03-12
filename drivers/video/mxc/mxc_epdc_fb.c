@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -5026,7 +5026,7 @@ static int mxc_epdc_fb_resume(struct platform_device *pdev)
 	return 0;
 }
 
-static int mxc_epdc_fb_shutdown(struct platform_device *pdev)
+static void mxc_epdc_fb_shutdown(struct platform_device *pdev)
 {
 	struct mxc_epdc_fb_data *fb_data = platform_get_drvdata(pdev);
 
@@ -5045,8 +5045,6 @@ static int mxc_epdc_fb_shutdown(struct platform_device *pdev)
 
 	/* turn off the V3p3 */
 	regulator_disable(fb_data->v3p3_regulator);
-
-	return 0;
 }
 #else
 #define mxc_epdc_fb_suspend	NULL
