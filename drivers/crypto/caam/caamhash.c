@@ -1,7 +1,7 @@
 /*
  * caam - Freescale FSL CAAM support for ahash functions of crypto API
  *
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  *
  * Based on caamalg.c crypto API driver.
  *
@@ -807,7 +807,7 @@ static int ahash_update_ctx(struct ahash_request *req)
 	int *next_buflen = state->current_buf ? &state->buflen_0 :
 			   &state->buflen_1, last_buflen;
 	int in_len = *buflen + req->nbytes, to_hash;
-	u32 *sh_desc = ctx->sh_desc_update, *desc;
+	u32 *sh_desc = ctx->sh_desc_update, *desc = NULL;
 	dma_addr_t ptr = ctx->sh_desc_update_dma;
 	int src_nents, sec4_sg_bytes, sec4_sg_src_index;
 	struct ahash_edesc *edesc;
