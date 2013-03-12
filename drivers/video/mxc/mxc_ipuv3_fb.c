@@ -2177,33 +2177,6 @@ static int mxcfb_register(struct fb_info *fbi)
 	fb_var_to_videomode(&m, &fbi->var);
 	fb_add_videomode(&m, &fbi->modelist);
 
-	if (!mxcfbi->late_init) {
-		fbi->var.activate |= FB_ACTIVATE_FORCE;
-		console_lock();
-		fbi->flags |= FBINFO_MISC_USEREVENT;
-		ret = fb_set_var(fbi, &fbi->var);
-		fbi->flags &= ~FBINFO_MISC_USEREVENT;
-		console_unlock();
-
-		if (mxcfbi->next_blank == FB_BLANK_UNBLANK) {
-			console_lock();
-			fb_blank(fbi, FB_BLANK_UNBLANK);
-			console_unlock();
-		}
-	} else {
-		/*
-		 * Setup the channel again though bootloader
-		 * has done this, then set_par() can stop the
-		 * channel neatly and re-initialize it .
-		 */
-		if (mxcfbi->next_blank == FB_BLANK_UNBLANK) {
-			console_lock();
-			_setup_disp_channel1(fbi);
-			ipu_enable_channel(mxcfbi->ipu, mxcfbi->ipu_ch);
-			console_unlock();
-		}
-	}
-
 	if (ipu_request_irq(mxcfbi->ipu, mxcfbi->ipu_ch_irq,
 		mxcfb_irq_handler, IPU_IRQF_ONESHOT, MXCFB_NAME, fbi) != 0) {
 		dev_err(fbi->device, "Error registering EOF irq handler.\n");
@@ -2241,22 +2214,48 @@ static int mxcfb_register(struct fb_info *fbi)
 			goto err3;
 		}
 
+	if (!mxcfbi->late_init) {
+		fbi->var.activate |= FB_ACTIVATE_FORCE;
+		console_lock();
+		fbi->flags |= FBINFO_MISC_USEREVENT;
+		ret = fb_set_var(fbi, &fbi->var);
+		fbi->flags &= ~FBINFO_MISC_USEREVENT;
+		console_unlock();
+		if (ret < 0) {
+			dev_err(fbi->device, "Error fb_set_var ret:%d\n", ret);
+			goto err4;
+		}
+
+		if (mxcfbi->next_blank == FB_BLANK_UNBLANK) {
+			console_lock();
+			ret = fb_blank(fbi, FB_BLANK_UNBLANK);
+			console_unlock();
+			if (ret < 0) {
+				dev_err(fbi->device,
+					"Error fb_blank ret:%d\n", ret);
+				goto err5;
+			}
+		}
+	} else {
+		/*
+		 * Setup the channel again though bootloader
+		 * has done this, then set_par() can stop the
+		 * channel neatly and re-initialize it .
+		 */
+		if (mxcfbi->next_blank == FB_BLANK_UNBLANK) {
+			console_lock();
+			_setup_disp_channel1(fbi);
+			ipu_enable_channel(mxcfbi->ipu, mxcfbi->ipu_ch);
+			console_unlock();
+		}
+	}
+
 	ret = register_framebuffer(fbi);
 	if (ret < 0)
-		goto err4;
+		goto err6;
 
 	return ret;
-err4:
-	if (mxcfbi->ipu_alp_ch_irq != -1)
-		ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_alp_ch_irq, fbi);
-err3:
-	if (mxcfbi->ipu_vsync_pre_irq != -1)
-		ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq, fbi);
-err2:
-	ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_ch_nf_irq, fbi);
-err1:
-	ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_ch_irq, fbi);
-err0:
+err6:
 	if (mxcfbi->next_blank == FB_BLANK_UNBLANK) {
 		console_lock();
 		if (!mxcfbi->late_init)
@@ -2268,6 +2267,18 @@ err0:
 		}
 		console_unlock();
 	}
+err5:
+err4:
+	if (mxcfbi->ipu_alp_ch_irq != -1)
+		ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_alp_ch_irq, fbi);
+err3:
+	if (mxcfbi->ipu_vsync_pre_irq != -1)
+		ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_vsync_pre_irq, fbi);
+err2:
+	ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_ch_nf_irq, fbi);
+err1:
+	ipu_free_irq(mxcfbi->ipu, mxcfbi->ipu_ch_irq, fbi);
+err0:
 	return ret;
 }
 
