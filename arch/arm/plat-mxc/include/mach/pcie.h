@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -35,5 +35,6 @@ struct imx_pcie_platform_data {
 	unsigned int pcie_rst;
 	unsigned int pcie_wake_up;
 	unsigned int pcie_dis;
+	unsigned int type_ep; /* 1 EP, 0 RC */
 };
 #endif /* __ASM_ARCH_IMX_PCIE_H */

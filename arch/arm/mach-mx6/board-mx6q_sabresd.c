@@ -1677,6 +1677,11 @@ static const struct imx_pcie_platform_data mx6_sabresd_pcie_data __initconst = {
 	.pcie_rst	= SABRESD_PCIE_RST_B_REVB,
 	.pcie_wake_up	= SABRESD_PCIE_WAKE_B,
 	.pcie_dis	= SABRESD_PCIE_DIS_B,
+#ifdef CONFIG_IMX_PCIE_EP_MODE_IN_EP_RC_SYS
+	.type_ep	= 1,
+#else
+	.type_ep	= 0,
+#endif
 };
 
 /*!
