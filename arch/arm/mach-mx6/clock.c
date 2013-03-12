@@ -4770,6 +4770,7 @@ static int _clk_pcie_enable(struct clk *clk)
 {
 	unsigned int reg;
 
+#ifndef CONFIG_IMX_PCIE_RC_MODE_IN_EP_RC_SYS
 	/* Activate LVDS CLK1 (the MiniPCIe slot clock input) */
 	reg = __raw_readl(ANADIG_MISC1_REG);
 	reg &= ~ANATOP_LVDS_CLK1_IBEN_MASK;
@@ -4782,6 +4783,7 @@ static int _clk_pcie_enable(struct clk *clk)
 	reg = __raw_readl(ANADIG_MISC1_REG);
 	reg |= ANATOP_LVDS_CLK1_OBEN_MASK;
 	__raw_writel(reg, ANADIG_MISC1_REG);
+#endif
 
 	/* Enable PCIE ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
@@ -4799,9 +4801,10 @@ static void _clk_pcie_disable(struct clk *clk)
 
 	_clk_disable(clk);
 
+#ifndef CONFIG_IMX_PCIE_RC_MODE_IN_EP_RC_SYS
 	/* De-activate LVDS CLK1 (the MiniPCIe slot clock input) */
 	reg = __raw_readl(ANADIG_MISC1_REG);
-	reg &= ~ANATOP_LVDS_CLK1_IBEN_MASK;
+	reg |= ANATOP_LVDS_CLK1_IBEN_MASK;
 	__raw_writel(reg, ANADIG_MISC1_REG);
 
 	reg = __raw_readl(ANADIG_MISC1_REG);
@@ -4811,6 +4814,7 @@ static void _clk_pcie_disable(struct clk *clk)
 	reg = __raw_readl(ANADIG_MISC1_REG);
 	reg &= ~ANATOP_LVDS_CLK1_OBEN_MASK;
 	__raw_writel(reg, ANADIG_MISC1_REG);
+#endif
 
 	/* Disable PCIE ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
@@ -4837,6 +4841,53 @@ static struct clk pcie_clk[] = {
 	 */
 	.parent = &sata_clk[0],
 	.secondary = &pcie_clk[2],
+	},
+	{
+	.parent = &mmdc_ch0_axi_clk[0],
+	.secondary = &mx6fast1_clk,
+	},
+};
+
+static int _clk_pcie_ep_enable(struct clk *clk)
+{
+	unsigned int reg;
+
+	/* Enable PCIE ref clock */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg |= ANADIG_PLL_ENET_EN_PCIE;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	_clk_enable(clk);
+
+	return 0;
+}
+
+static void _clk_pcie_ep_disable(struct clk *clk)
+{
+	unsigned int reg;
+
+	_clk_disable(clk);
+
+	/* Disable PCIE ref clock */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg &= ~ANADIG_PLL_ENET_EN_PCIE;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+}
+
+static struct clk pcie_ep_clk[] = {
+	{
+	__INIT_CLK_DEBUG(pcie_ep_clk)
+	.parent = &pcie_axi_clk,
+	.enable = _clk_pcie_ep_enable,
+	.disable = _clk_pcie_ep_disable,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
+	.secondary = &pcie_ep_clk[1],
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	},
+	{
+	.parent = &pll8_enet_main_clk,
+	.secondary = &pcie_ep_clk[2],
 	},
 	{
 	.parent = &mmdc_ch0_axi_clk[0],
@@ -5279,6 +5330,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_pwm.2", NULL, pwm_clk[2]),
 	_REGISTER_CLOCK("mxc_pwm.3", NULL, pwm_clk[3]),
 	_REGISTER_CLOCK(NULL, "pcie_clk", pcie_clk[0]),
+	_REGISTER_CLOCK(NULL, "pcie_ep_clk", pcie_ep_clk[0]),
 	_REGISTER_CLOCK("enet.0", NULL, enet_clk[0]),
 	_REGISTER_CLOCK(NULL, "imx_sata_clk", sata_clk[0]),
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk[0]),

@@ -288,6 +288,14 @@ config IMX_PCIE
 	bool "PCI Express support"
 	select PCI
 
+config IMX_PCIE_EP_MODE_IN_EP_RC_SYS
+	bool "PCI Express EP mode in the IMX6 RC/EP interconnection system"
+	depends on IMX_PCIE
+
+config IMX_PCIE_RC_MODE_IN_EP_RC_SYS
+	bool "PCI Express RC mode in the IMX6 RC/EP interconnection system"
+	depends on IMX_PCIE
+
 config USB_EHCI_ARC_H1
 	tristate "USB Host 1 support"
 	depends on USB_EHCI_ARC
