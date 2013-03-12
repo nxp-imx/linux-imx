@@ -83,8 +83,10 @@
 #include "cpu_op-mx6.h"
 #include "board-mx6q_sabresd.h"
 #include "board-mx6dl_sabresd.h"
+#include <mach/imx_rfkill.h>
 
 #define SABRESD_USR_DEF_GRN_LED	IMX_GPIO_NR(1, 1)
+#define SABRESD_BT_RESET	IMX_GPIO_NR(1, 2)
 #define SABRESD_USR_DEF_RED_LED	IMX_GPIO_NR(1, 2)
 #define SABRESD_VOLUME_UP	IMX_GPIO_NR(1, 4)
 #define SABRESD_VOLUME_DN	IMX_GPIO_NR(1, 5)
@@ -245,6 +247,12 @@ static const struct esdhc_platform_data mx6q_sabresd_sd4_data __initconst = {
 static const struct anatop_thermal_platform_data
 	mx6q_sabresd_anatop_thermal_data __initconst = {
 		.name = "anatop_thermal",
+};
+
+static const struct imxuart_platform_data mx6q_sd_uart5_data __initconst = {
+	.flags      = IMXUART_HAVE_RTSCTS,
+	.dma_req_rx = MX6Q_DMA_REQ_UART5_RX,
+	.dma_req_tx = MX6Q_DMA_REQ_UART5_TX,
 };
 
 static inline void mx6q_sabresd_init_uart(void)
@@ -1429,7 +1437,33 @@ static struct fsl_mxc_capture_platform_data capture_data[] = {
 	},
 };
 
+static void mx6q_sd_bt_reset(void)
+{
+	printk(KERN_INFO "mx6q_sd_bt_reset");
+	gpio_request(SABRESD_BT_RESET, "bt-reset");
+	gpio_direction_output(SABRESD_BT_RESET, 0);
+	/* pull down reset pin at least >5ms */
+	mdelay(6);
+	/* pull up after power supply BT */
+	gpio_direction_output(SABRESD_BT_RESET, 1);
+	gpio_free(SABRESD_BT_RESET);
+	msleep(100);
+}
 
+static int mx6q_sd_bt_power_change(int status)
+{
+	if (status)
+		mx6q_sd_bt_reset();
+	return 0;
+}
+
+static struct platform_device mxc_bt_rfkill = {
+	.name = "mxc_bt_rfkill",
+};
+
+static struct imx_bt_rfkill_platform_data mxc_bt_rfkill_data = {
+	.power_change = mx6q_sd_bt_power_change,
+};
 static void sabresd_suspend_enter(void)
 {
 	/* suspend preparation */
@@ -1776,6 +1810,31 @@ static int __init imx6x_add_ram_console(void)
 #define imx6x_add_ram_console() do {} while (0)
 #endif
 
+static iomux_v3_cfg_t mx6q_uart5_pads[] = {
+	MX6Q_PAD_KEY_ROW1__UART5_RXD,
+	MX6Q_PAD_KEY_COL1__UART5_TXD,
+	MX6Q_PAD_KEY_COL4__UART5_RTS,
+	MX6Q_PAD_KEY_ROW4__UART5_CTS,
+	/* gpio for reset */
+	MX6Q_PAD_GPIO_2__GPIO_1_2,
+};
+
+static int uart5_enabled;
+static int __init uart5_setup(char * __unused)
+{
+	uart5_enabled = 1;
+	return 1;
+}
+__setup("bluetooth", uart5_setup);
+
+static void __init uart5_init(void)
+{
+	printk(KERN_INFO "uart5 is added\n");
+	mxc_iomux_v3_setup_multiple_pads(mx6q_uart5_pads,
+	ARRAY_SIZE(mx6q_uart5_pads));
+	imx6q_add_imx_uart(4, &mx6q_sd_uart5_data);
+}
+
 /*!
  * Board specific initialization.
  */
@@ -1809,6 +1868,11 @@ static void __init mx6_sabresd_board_init(void)
 	mx6q_sabresd_init_uart();
 	imx6x_add_ram_console();
 
+	/*add bt support*/
+	if (uart5_enabled) {
+		uart5_init();
+		mxc_register_device(&mxc_bt_rfkill, &mxc_bt_rfkill_data);
+	}
 	/*
 	 * MX6DL/Solo only supports single IPU
 	 * The following codes are used to change ipu id
@@ -1998,8 +2062,11 @@ static void __init mx6_sabresd_board_init(void)
 	pm_power_off = mx6_snvs_poweroff;
 	imx6q_add_busfreq();
 
-	/* Add PCIe RC interface support */
-	imx6q_add_pcie(&mx6_sabresd_pcie_data);
+	/* Add PCIe RC interface support
+	 * uart5 has pin mux with pcie. or you will use uart5 or use pcie
+	 */
+	if (!uart5_enabled)
+		imx6q_add_pcie(&mx6_sabresd_pcie_data);
 	if (cpu_is_mx6dl()) {
 		mxc_iomux_v3_setup_multiple_pads(mx6dl_arm2_elan_pads,
 						ARRAY_SIZE(mx6dl_arm2_elan_pads));
