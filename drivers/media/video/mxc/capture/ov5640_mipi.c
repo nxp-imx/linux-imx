@@ -904,6 +904,7 @@ int OV5640_get_light_freq(void)
 			light_freq = 50;
 		} else {
 			/* 60Hz */
+			light_freq = 60;
 		}
 	}
 	return light_freq;

@@ -828,6 +828,7 @@ static int ov5640_get_light_freq(void)
 			light_frequency = 50;
 		} else {
 			/* 60Hz */
+			light_frequency = 60;
 		}
 	}
 
