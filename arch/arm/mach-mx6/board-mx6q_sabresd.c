@@ -206,7 +206,6 @@ static struct clk *clko;
 static int mma8451_position;
 static int mag3110_position = 1;
 static int max11801_mode = 1;
-static int enable_lcd_ldb;
 static int caam_enabled;
 
 extern char *gp_reg_id;
@@ -1783,13 +1782,6 @@ static const struct imx_pcie_platform_data mx6_sabresd_pcie_data __initconst = {
 	.pcie_power_always_on = 1,
 };
 
-static int __init early_enable_lcd_ldb(char *p)
-{
-	enable_lcd_ldb = 1;
-	return 0;
-}
-early_param("enable_lcd_ldb", early_enable_lcd_ldb);
-
 #ifdef CONFIG_ANDROID_RAM_CONSOLE
 static struct resource ram_console_resource = {
 	.name = "android ram console",
@@ -1887,6 +1879,7 @@ static void __init mx6_sabresd_board_init(void)
 		hdmi_core_data.disp_id = 0;
 		mipi_dsi_pdata.ipu_id = 0;
 		mipi_dsi_pdata.disp_id = 1;
+		ldb_data.sec_ipu_id = 0;
 	}
 	imx6q_add_mxc_hdmi_core(&hdmi_core_data);
 

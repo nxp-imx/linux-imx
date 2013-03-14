@@ -3,7 +3,7 @@
 #
 
 # Common support
-obj-y := clock.o gpio.o time.o devices.o cpu.o system.o irq-common.o usb_common.o usb_wakeup.o
+obj-y := clock.o gpio.o time.o devices.o cpu.o system.o irq-common.o usb_common.o usb_wakeup.o fuse.o
 
 # MX51 uses the TZIC interrupt controller, older platforms use AVIC
 obj-$(CONFIG_MXC_TZIC) += tzic.o
