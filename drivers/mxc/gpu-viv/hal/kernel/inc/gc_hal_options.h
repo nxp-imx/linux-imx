@@ -114,6 +114,30 @@
 #define COMMAND_PROCESSOR_VERSION               1
 
 /*
+    gcdDUMP_KEY
+
+        Set this to a string that appears in 'cat /proc/<pid>/cmdline'. E.g. 'camera'.
+        HAL will create dumps for the processes matching this key.
+*/
+#ifndef gcdDUMP_KEY
+#   define gcdDUMP_KEY                          "process"
+#endif
+
+/*
+    gcdDUMP_PATH
+
+        The dump file location. Some processes cannot write to the sdcard.
+        Try apps' data dir, e.g. /data/data/com.android.launcher
+*/
+#ifndef gcdDUMP_PATH
+#if defined(ANDROID)
+#   define gcdDUMP_PATH                         "/mnt/sdcard/"
+#else
+#   define gcdDUMP_PATH                         "./"
+#endif
+#endif
+
+/*
     gcdDUMP
 
         When set to 1, a dump of all states and memory uploads, as well as other
@@ -339,6 +363,17 @@
 */
 #ifndef gcdREGISTER_ACCESS_FROM_USER
 #   define gcdREGISTER_ACCESS_FROM_USER         1
+#endif
+
+/*
+    gcdUSER_HEAP_ALLOCATOR
+
+        Set to 1 to enable user mode heap allocator for fast memory allocation
+        and destroying. Otherwise, memory allocation/destroying in user mode
+        will be directly managed by system. Only for linux for now.
+*/
+#ifndef gcdUSER_HEAP_ALLOCATOR
+#   define gcdUSER_HEAP_ALLOCATOR               1
 #endif
 
 /*

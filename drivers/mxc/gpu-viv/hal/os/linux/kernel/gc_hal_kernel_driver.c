@@ -663,7 +663,7 @@ static int drv_mmap(
 
 #if !gcdPAGED_MEMORY_CACHEABLE
     vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
-    vma->vm_flags    |= VM_IO | VM_DONTCOPY | VM_DONTEXPAND;
+    vma->vm_flags    |= gcdVM_FLAGS;
 #endif
     vma->vm_pgoff     = 0;
 

@@ -232,7 +232,8 @@ _IdentifyHardware(
     }
 
     /* Exception for GC1000, revision 5035 &  GC800, revision 4612 */
-    if (((Identity->chipModel == gcv1000) && (Identity->chipRevision == 0x5035))
+    if (((Identity->chipModel == gcv1000) && ((Identity->chipRevision == 0x5035)
+                                           || (Identity->chipRevision == 0x5036)))
 	 || ((Identity->chipModel == gcv800) && (Identity->chipRevision == 0x4612)))
     {
         Identity->superTileMode = 1;

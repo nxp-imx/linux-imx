@@ -227,7 +227,8 @@ gcoOS_GetDisplayInfoEx(
     );
 
 gceSTATUS
-gcoOS_GetNextDisplayInfoEx(
+gcoOS_GetNextDisplayInfoExByIndex(
+    IN gctINT Index,
     IN HALNativeDisplayType Display,
     IN HALNativeWindowType Window,
     IN gctUINT DisplayInfoSize,
@@ -274,15 +275,15 @@ gcoOS_SetDisplayVirtualEx(
 
 gceSTATUS
 gcoOS_SetSwapInterval(
-	IN HALNativeDisplayType Display,
-	IN gctINT Interval
+    IN HALNativeDisplayType Display,
+    IN gctINT Interval
 );
 
 gceSTATUS
 gcoOS_GetSwapInterval(
-	IN HALNativeDisplayType Display,
-	IN gctINT_PTR Min,
-	IN gctINT_PTR Max
+    IN HALNativeDisplayType Display,
+    IN gctINT_PTR Min,
+    IN gctINT_PTR Max
 );
 
 gceSTATUS

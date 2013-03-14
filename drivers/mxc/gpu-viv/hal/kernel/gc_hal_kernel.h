@@ -186,7 +186,7 @@ typedef struct _gcsDATABASE
     gctUINT64                           idle;
 
     /* Pointer to database. */
-    gcsDATABASE_RECORD_PTR              list;
+    gcsDATABASE_RECORD_PTR              list[48];
 
 #if gcdSECURE_USER
     /* Secure cache. */

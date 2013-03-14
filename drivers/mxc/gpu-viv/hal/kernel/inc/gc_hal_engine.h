@@ -1430,6 +1430,16 @@ typedef enum _gceTEXTURE_FACE
 }
 gceTEXTURE_FACE;
 
+#if gcdFORCE_MIPMAP
+typedef enum
+{
+    gcvForceMipDisabled  = 0,
+    gcvForceMipEnable    = 1,
+    gcvForceMipGenerated = 2,
+    gcvForceMipNever     = 3,
+}gceFORCE_MIPMAP;
+#endif
+
 typedef struct _gcsTEXTURE
 {
     /* Addressing modes. */
@@ -1446,6 +1456,10 @@ typedef struct _gcsTEXTURE
     gceTEXTURE_FILTER           mipFilter;
     gctUINT                     anisoFilter;
     gctBOOL                     forceTopLevel;
+    gctBOOL                     autoMipmap;
+#if gcdFORCE_MIPMAP
+    gceFORCE_MIPMAP             forceMipmap;
+#endif
     /* Level of detail. */
     gctFIXED_POINT              lodBias;
     gctFIXED_POINT              lodMin;
@@ -1479,7 +1493,18 @@ gceSTATUS
 gcoTEXTURE_Destroy(
     IN gcoTEXTURE Texture
     );
+#if gcdFORCE_MIPMAP
+gceSTATUS
+gcoTEXTURE_DestroyForceMipmap(
+    IN gcoTEXTURE Texture
+    );
 
+gceSTATUS
+gcoTEXTURE_GetMipLevels(
+    IN gcoTEXTURE Texture,
+    OUT gctINT * levels
+    );
+#endif
 /* Replace a mipmap in gcoTEXTURE object. */
 gceSTATUS
 gcoTEXTURE_ReplaceMipMap(
