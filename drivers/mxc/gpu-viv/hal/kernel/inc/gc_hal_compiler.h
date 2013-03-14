@@ -945,11 +945,8 @@ extern gcOPTIMIZER_OPTION theOptimizerOption;
 #define gcmOPT_PACKVARYING_triageStart()   (gcmGetOptimizerOption()->_triageStart)
 #define gcmOPT_PACKVARYING_triageEnd()     (gcmGetOptimizerOption()->_triageEnd)
 
-<<<<<<< HEAD
-=======
 #define gcmOPT_INLINELEVEL()     (gcmGetOptimizerOption()->inlineLevel)
 
->>>>>>> fsl-linux-sdk/imx_3.0.35
 /* Setters */
 #define gcmOPT_SetPatchTexld(m,n) (gcmGetOptimizerOption()->patchEveryTEXLDs = (m),\
                                    gcmGetOptimizerOption()->patchDummyTEXLDs = (n))
