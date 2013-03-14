@@ -1737,7 +1737,9 @@ static int csi_v4l2_master_attach(struct v4l2_int_device *slave)
 	}
 
 	csi_enable_mclk(CSI_MCLK_I2C, true, true);
+	vidioc_int_s_power(cam->sensor, 1);
 	vidioc_int_dev_init(slave);
+	vidioc_int_s_power(cam->sensor, 0);
 	csi_enable_mclk(CSI_MCLK_I2C, false, false);
 	cam_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	vidioc_int_g_fmt_cap(cam->sensor, &cam_fmt);
