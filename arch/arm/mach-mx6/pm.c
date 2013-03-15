@@ -317,8 +317,8 @@ static int mx6_suspend_enter(suspend_state_t state)
 	 * ARM_POWER_OFF mode.
 	 */
 	if (state == PM_SUSPEND_MEM &&
-		((mx6dl_revision() == IMX_CHIP_REVISION_1_0) || mx6q_revision()
-		<= IMX_CHIP_REVISION_1_1)) {
+		((mx6dl_revision() == IMX_CHIP_REVISION_1_0) ||
+		(cpu_is_mx6q() && mx6q_revision() <= IMX_CHIP_REVISION_1_1))) {
 		state = PM_SUSPEND_STANDBY;
 	}
 
