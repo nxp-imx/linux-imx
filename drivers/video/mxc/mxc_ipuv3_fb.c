@@ -447,9 +447,15 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	if (mxc_fbi->ovfbi)
 		mxc_fbi_fg = (struct mxcfb_info *)mxc_fbi->ovfbi->par;
 
-	if (mxc_fbi->ovfbi && mxc_fbi_fg)
-		if (mxc_fbi_fg->next_blank == FB_BLANK_UNBLANK)
+	if (mxc_fbi->ovfbi && mxc_fbi_fg) {
+		if (mxc_fbi_fg->cur_blank == FB_BLANK_UNBLANK) {
+			dev_warn(fbi->device, "overlay is still on.\n");
+			return 0;
+		}
+		if ((mxc_fbi_fg->next_blank == FB_BLANK_UNBLANK) &&
+			mxcfb_need_to_set_par(mxc_fbi->ovfbi))
 			ovfbi_enable = true;
+	}
 
 	if (!mxcfb_need_to_set_par(fbi))
 		return 0;
@@ -473,6 +479,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		ipu_disable_irq(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch_nf_irq);
 		ipu_disable_channel(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch, true);
 		ipu_uninit_channel(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch);
+		mxc_fbi_fg->cur_blank = FB_BLANK_POWERDOWN;
 	}
 
 	ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
@@ -656,6 +663,10 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	}
 
 	mxc_fbi->cur_var = fbi->var;
+	if (ovfbi_enable) {
+		mxc_fbi_fg->cur_blank = FB_BLANK_UNBLANK;
+		mxc_fbi_fg->cur_var = mxc_fbi->ovfbi->var;
+	}
 
 	return retval;
 }
