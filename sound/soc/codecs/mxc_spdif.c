@@ -888,8 +888,10 @@ static int mxc_spdif_capture_get(struct snd_kcontrol *kcontrol,
 
 	clk_enable(plat_data->spdif_clk);
 
-	if (!(__raw_readl(spdif_base_addr + SPDIF_REG_SIS) & INT_CNEW))
+	if (!(__raw_readl(spdif_base_addr + SPDIF_REG_SIS) & INT_CNEW)) {
+		clk_disable(plat_data->spdif_clk);
 		return -EAGAIN;
+	}
 
 	cstatus = __raw_readl(spdif_base_addr + SPDIF_REG_SRCSLH);
 	ucontrol->value.iec958.status[0] = (cstatus >> 16) & 0xFF;
