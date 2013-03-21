@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -182,7 +182,7 @@ void fsl_usb_xcvr_unregister(struct fsl_xcvr_ops *xcvr_ops)
 
 	pr_debug("%s\n", __func__);
 	for (i = 0; i < MXC_NUMBER_USB_TRANSCEIVER; i++) {
-		if (g_xc_ops[i] == xcvr_ops) {
+		if (g_xc_ops[i] && (g_xc_ops[i] == xcvr_ops)) {
 			g_xc_ops[i] = NULL;
 			return;
 		}
@@ -203,7 +203,7 @@ static struct fsl_xcvr_ops *fsl_usb_get_xcvr(char *name)
 	}
 
 	for (i = 0; i < MXC_NUMBER_USB_TRANSCEIVER; i++) {
-		if (strcmp(g_xc_ops[i]->name, name) == 0) {
+		if (g_xc_ops[i] && (strcmp(g_xc_ops[i]->name, name) == 0)) {
 			return g_xc_ops[i];
 		}
 	}
