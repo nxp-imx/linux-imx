@@ -499,20 +499,78 @@ static struct platform_device physmap_flash_device = {
 	.num_resources	= 1,
 };
 
+/* These registers settings are just valid for Numonyx M29W256GL7AN6E. */
 static void mx6q_setup_weimcs(void)
 {
-	unsigned int reg;
 	void __iomem *nor_reg = MX6_IO_ADDRESS(WEIM_BASE_ADDR);
 	void __iomem *ccm_reg = MX6_IO_ADDRESS(CCM_BASE_ADDR);
+	unsigned int reg;
+	struct clk *clk;
+	u32 rate;
 
-	/*CCM_BASE_ADDR + CLKCTL_CCGR6*/
+	/* CLKCTL_CCGR6: Set emi_slow_clock to be on in all modes */
 	reg = readl(ccm_reg + 0x80);
 	reg |= 0x00000C00;
 	writel(reg, ccm_reg + 0x80);
 
-	__raw_writel(0x00620081, nor_reg);
-	__raw_writel(0x1C022000, nor_reg + 0x00000008);
-	__raw_writel(0x0804a240, nor_reg + 0x00000010);
+	/* Timing settings below based upon datasheet for M29W256GL7AN6E
+	   These setting assume that the EIM_SLOW_CLOCK is set to 132 MHz */
+	clk = clk_get(NULL, "emi_slow_clk");
+	if (IS_ERR(clk))
+		printk(KERN_ERR "emi_slow_clk not found\n");
+
+	rate = clk_get_rate(clk);
+	if (rate != 132000000)
+		printk(KERN_ERR "Warning: emi_slow_clk not set to 132 MHz!"
+		       " WEIM NOR timing may be incorrect!\n");
+
+	/*
+	 * For EIM General Configuration registers.
+	 *
+	 * CS0GCR1:
+	 *	GBC = 0; CSREC = 6; DSZ = 2; BL = 0;
+	 *	CREP = 1; CSEN = 1;
+	 *
+	 *	EIM Operation Mode: MUM = SRD = SWR = 0.
+	 *		(Async write/Async page read, none multiplexed)
+	 *
+	 * CS0GCR2:
+	 *	ADH = 1
+	 */
+	writel(0x00620081, nor_reg);
+	writel(0x00000001, nor_reg + 0x00000004);
+
+	/*
+	 * For EIM Read Configuration registers.
+	 *
+	 * CS0RCR1:
+	 *	RWSC = 1C;
+	 *	RADVA = 0; RADVN = 2;
+	 *	OEA = 2; OEN = 0;
+	 *	RCSA = 0; RCSN = 0
+	 *
+	 * CS0RCR2:
+	 *	APR = 1 (Async Page Read);
+	 *	PAT = 4 (6 EIM clock sycles)
+	 */
+	writel(0x1C022000, nor_reg + 0x00000008);
+	writel(0x0000C000, nor_reg + 0x0000000C);
+
+	/*
+	 * For EIM Write Configuration registers.
+	 *
+	 * CS0WCR1:
+	 *	WWSC = 20;
+	 *	WADVA = 0; WADVN = 1;
+	 *	WBEA = 1; WBEN = 2;
+	 *	WEA = 1; WEN = 6;
+	 *	WCSA = 1; WCSN = 2;
+	 *
+	 * CS0WCR2:
+	 *	WBCDD = 0
+	 */
+	writel(0x1404a38e, nor_reg + 0x00000010);
+	writel(0x00000000, nor_reg + 0x00000014);
 }
 
 static int max7310_1_setup(struct i2c_client *client,
