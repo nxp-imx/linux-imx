@@ -315,7 +315,7 @@ err2:
 	usb_put_hcd(hcd);
 err1:
 	dev_err(&pdev->dev, "init %s fail, %d\n", dev_name(&pdev->dev), retval);
-	if (pdata->exit)
+	if (pdata->exit && pdata->pdev)
 		pdata->exit(pdata->pdev);
 	return retval;
 }
@@ -373,7 +373,7 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	 * do platform specific un-initialization:
 	 * release iomux pins clocks, etc.
 	 */
-	if (pdata->exit)
+	if (pdata->exit && pdata->pdev)
 		pdata->exit(pdata->pdev);
 
 	iounmap(hcd->regs);
