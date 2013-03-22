@@ -148,6 +148,8 @@ static int fsl_usb_host_init_ext(struct platform_device *pdev)
 	ret = fsl_usb_host_init(pdev);
 	if (ret) {
 		printk(KERN_ERR "host1 init fails......\n");
+		clk_disable(usb_oh3_clk);
+		clk_put(usb_oh3_clk);
 		return ret;
 	}
 	usbh1_internal_phy_clock_gate(true);
