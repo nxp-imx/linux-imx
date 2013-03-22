@@ -1823,8 +1823,9 @@ static int ov5640_probe(struct i2c_client *client,
 	if (plat_data->pwdn)
 		plat_data->pwdn(0);
 
-	if (cpu_is_mx6sl())
-		csi_enable_mclk(CSI_MCLK_I2C, true, true);
+#ifdef CONFIG_SOC_IMX6SL
+	csi_enable_mclk(CSI_MCLK_I2C, true, true);
+#endif
 	retval = ov5640_read_reg(OV5640_CHIP_ID_HIGH_BYTE, &chip_id_high);
 	if (retval < 0 || chip_id_high != 0x56) {
 		pr_warning("camera ov5640 is not found\n");
@@ -1841,8 +1842,9 @@ static int ov5640_probe(struct i2c_client *client,
 	if (plat_data->pwdn)
 		plat_data->pwdn(1);
 
-	if (cpu_is_mx6sl())
-		csi_enable_mclk(CSI_MCLK_I2C, false, false);
+#ifdef CONFIG_SOC_IMX6SL
+	csi_enable_mclk(CSI_MCLK_I2C, false, false);
+#endif
 
 	camera_plat = plat_data;
 
