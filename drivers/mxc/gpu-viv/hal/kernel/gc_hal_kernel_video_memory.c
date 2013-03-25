@@ -1027,7 +1027,8 @@ gckVIDMEM_AllocateLinear(
     )
     {
         /* The left memory is for small memory.*/
-        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+        status = gcvSTATUS_OUT_OF_MEMORY;
+        goto OnError;
     }
 #endif
 

@@ -869,6 +869,60 @@ _UnmapUserLogical(
 #endif
 }
 
+gceSTATUS
+_QueryProcessPageTable(
+    IN gctPOINTER Logical,
+    OUT gctUINT32 * Address
+    )
+{
+    spinlock_t *lock;
+    gctUINTPTR_T logical = (gctUINTPTR_T)Logical;
+    pgd_t *pgd;
+    pud_t *pud;
+    pmd_t *pmd;
+    pte_t *pte;
+
+    if (!current->mm)
+    {
+        return gcvSTATUS_NOT_FOUND;
+    }
+
+    pgd = pgd_offset(current->mm, logical);
+    if (pgd_none(*pgd) || pgd_bad(*pgd))
+    {
+        return gcvSTATUS_NOT_FOUND;
+    }
+
+    pud = pud_offset(pgd, logical);
+    if (pud_none(*pud) || pud_bad(*pud))
+    {
+        return gcvSTATUS_NOT_FOUND;
+    }
+
+    pmd = pmd_offset(pud, logical);
+    if (pmd_none(*pmd) || pmd_bad(*pmd))
+    {
+        return gcvSTATUS_NOT_FOUND;
+    }
+
+    pte = pte_offset_map_lock(current->mm, pmd, logical, &lock);
+    if (!pte)
+    {
+        return gcvSTATUS_NOT_FOUND;
+    }
+
+    if (!pte_present(*pte))
+    {
+        pte_unmap_unlock(pte, lock);
+        return gcvSTATUS_NOT_FOUND;
+    }
+
+    *Address = (pte_pfn(*pte) << PAGE_SHIFT) | (logical & ~PAGE_MASK);
+    pte_unmap_unlock(pte, lock);
+
+    return gcvSTATUS_OK;
+}
+
 /*******************************************************************************
 **
 **  gckOS_Construct
@@ -1106,6 +1160,9 @@ _CreateKernelVirtualMapping(
                     numPages,
                     0,
                     PAGE_KERNEL);
+
+        /* Trigger a page fault. */
+        memset(addr, 0, numPages * PAGE_SIZE);
     }
 #else
     struct page ** pages;
@@ -1135,6 +1192,9 @@ _CreateKernelVirtualMapping(
 
     /* ioremap() can't work on system memory since 2.6.38. */
     addr = vmap(pages, numPages, 0, gcmkNONPAGED_MEMROY_PROT(PAGE_KERNEL));
+
+    /* Trigger a page fault. */
+    memset(addr, 0, numPages * PAGE_SIZE);
 
     if (free)
     {
@@ -1540,7 +1600,7 @@ gckOS_MapMemory(
 #else
 #if !gcdPAGED_MEMORY_CACHEABLE
         mdlMap->vma->vm_page_prot = gcmkPAGED_MEMROY_PROT(mdlMap->vma->vm_page_prot);
-        mdlMap->vma->vm_flags |= VM_IO | VM_DONTCOPY | VM_DONTEXPAND | VM_RESERVED;
+        mdlMap->vma->vm_flags |= gcdVM_FLAGS;
 #   endif
         mdlMap->vma->vm_pgoff = 0;
 
@@ -1987,7 +2047,7 @@ gckOS_AllocateNonPagedMemory(
         }
 #else
         mdlMap->vma->vm_page_prot = gcmkNONPAGED_MEMROY_PROT(mdlMap->vma->vm_page_prot);
-        mdlMap->vma->vm_flags |= VM_IO | VM_DONTCOPY | VM_DONTEXPAND | VM_RESERVED;
+        mdlMap->vma->vm_flags |= gcdVM_FLAGS;
         mdlMap->vma->vm_pgoff = 0;
 
         if (remap_pfn_range(mdlMap->vma,
@@ -2367,12 +2427,18 @@ gckOS_GetPhysicalAddress(
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
     gcmkVERIFY_ARGUMENT(Address != gcvNULL);
 
-    /* Get current process ID. */
-    processID = _GetProcessID();
+    /* Query page table of current process first. */
+    status = _QueryProcessPageTable(Logical, Address);
 
-    /* Route through other function. */
-    gcmkONERROR(
-        gckOS_GetPhysicalAddressProcess(Os, Logical, processID, Address));
+    if (gcmIS_ERROR(status))
+    {
+        /* Get current process ID. */
+        processID = _GetProcessID();
+
+        /* Route through other function. */
+        gcmkONERROR(
+            gckOS_GetPhysicalAddressProcess(Os, Logical, processID, Address));
+    }
 
     /* Success. */
     gcmkFOOTER_ARG("*Address=0x%08x", *Address);
@@ -4139,7 +4205,7 @@ gckOS_LockPages(
             return gcvSTATUS_OUT_OF_RESOURCES;
         }
 
-        mdlMap->vma->vm_flags |= VM_RESERVED;
+        mdlMap->vma->vm_flags |= gcdVM_FLAGS;
 #if !gcdPAGED_MEMORY_CACHEABLE
         if (Cacheable == gcvFALSE)
         {

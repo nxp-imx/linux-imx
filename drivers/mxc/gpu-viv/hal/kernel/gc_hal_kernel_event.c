@@ -959,6 +959,8 @@ gckEVENT_AddList(
     record->kernel = Event->kernel;
 #endif
 
+    gcmkONERROR(__RemoveRecordFromProcessDB(Event, record));
+
     /* Acquire the mutex. */
     gcmkONERROR(gckOS_AcquireMutex(Event->os, Event->eventListMutex, gcvINFINITE));
     acquired = gcvTRUE;
@@ -1538,9 +1540,6 @@ gckEVENT_Submit(
             /* Release the list mutex. */
             gcmkONERROR(gckOS_ReleaseMutex(Event->os, Event->eventListMutex));
             acquired = gcvFALSE;
-
-            gcmkONERROR(__RemoveRecordFromProcessDB(Event,
-                Event->queues[id].head));
 
 #if gcdNULL_DRIVER
             /* Notify immediately on infinite hardware. */

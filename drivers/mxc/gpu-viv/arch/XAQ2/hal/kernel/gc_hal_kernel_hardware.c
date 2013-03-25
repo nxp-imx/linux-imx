@@ -232,7 +232,8 @@ _IdentifyHardware(
     }
 
     /* Exception for GC1000, revision 5035 &  GC800, revision 4612 */
-    if (((Identity->chipModel == gcv1000) && (Identity->chipRevision == 0x5035))
+    if (((Identity->chipModel == gcv1000) && ((Identity->chipRevision == 0x5035)
+                                           || (Identity->chipRevision == 0x5036)))
 	 || ((Identity->chipModel == gcv800) && (Identity->chipRevision == 0x4612)))
     {
         Identity->superTileMode = 1;
@@ -747,7 +748,7 @@ gckHARDWARE_Construct(
     /* Initialize the fast clear. */
     gcmkONERROR(gckHARDWARE_SetFastClear(hardware, -1, -1));
 
-#if !gcdENABLE_128B_MERGE  
+#if !gcdENABLE_128B_MERGE
 
     if (((((gctUINT32) (hardware->identity.chipMinorFeatures2)) >> (0 ? 21:21) & ((gctUINT32) ((((1 ? 21:21) - (0 ? 21:21) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 21:21) - (0 ? 21:21) + 1)))))) == (0x1  & ((gctUINT32) ((((1 ? 21:21) - (0 ? 21:21) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 21:21) - (0 ? 21:21) + 1))))))))
     {
@@ -1023,7 +1024,7 @@ gckHARDWARE_InitializeHardware(
                                       0x00424,
                                       baseAddress));
 
-#if !VIVANTE_PROFILER 
+#if !VIVANTE_PROFILER
     {
         gctUINT32 data;
 
