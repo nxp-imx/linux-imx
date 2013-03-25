@@ -545,12 +545,14 @@ static int show_buf(struct mxc_vout_output *vout, int idx,
 		fbi->var.yoffset = ipos->y + 1;
 		var.xoffset = ipos->x;
 		var.yoffset = ipos->y;
+		var.vmode |= FB_VMODE_YWRAP;
 		ret = fb_pan_display(fbi, &var);
 		fbi->fix.smem_start = fb_base;
 		console_unlock();
 	} else {
 		console_lock();
 		var.yoffset = idx * fbi->var.yres;
+		var.vmode &= ~FB_VMODE_YWRAP;
 		ret = fb_pan_display(fbi, &var);
 		console_unlock();
 	}
