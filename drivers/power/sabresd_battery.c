@@ -2,7 +2,7 @@
  * sabresd_battery.c - Maxim 8903 USB/Adapter Charger Driver
  *
  * Copyright (C) 2011 Samsung Electronics
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  * Based on max8903_charger.c
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -300,12 +300,8 @@ static void max8903_battery_update_status(struct max8903_data *data)
 			temp_last = temp;
 		}
 		if (data->charger_online == 0 && temp_last != 0) {
-			if (temp < temp_last) {
-				temp_last = temp;
-				data->voltage_uV = temp;
-			} else {
-			data->voltage_uV = temp_last;
-			}
+			temp_last = temp;
+			data->voltage_uV = temp;
 		}
 		if (data->charger_online == 1 || data->usb_charger_online == 1) {
 			data->voltage_uV = temp;
