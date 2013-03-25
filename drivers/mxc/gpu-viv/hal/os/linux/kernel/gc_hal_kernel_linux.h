@@ -73,6 +73,12 @@
 
 #define GetPageCount(size, offset) 	((((size) + ((offset) & ~PAGE_CACHE_MASK)) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT)
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION (3,7,0)
+#define gcdVM_FLAGS (VM_IO | VM_DONTCOPY | VM_DONTEXPAND | VM_DONTDUMP)
+#else
+#define gcdVM_FLAGS (VM_IO | VM_DONTCOPY | VM_DONTEXPAND | VM_RESERVED)
+#endif
+
 static inline gctINT
 GetOrder(
 	IN gctINT numPages
