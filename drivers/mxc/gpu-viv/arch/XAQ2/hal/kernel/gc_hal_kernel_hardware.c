@@ -748,7 +748,7 @@ gckHARDWARE_Construct(
     /* Initialize the fast clear. */
     gcmkONERROR(gckHARDWARE_SetFastClear(hardware, -1, -1));
 
-#if !gcdENABLE_128B_MERGE  
+#if !gcdENABLE_128B_MERGE
 
     if (((((gctUINT32) (hardware->identity.chipMinorFeatures2)) >> (0 ? 21:21) & ((gctUINT32) ((((1 ? 21:21) - (0 ? 21:21) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 21:21) - (0 ? 21:21) + 1)))))) == (0x1  & ((gctUINT32) ((((1 ? 21:21) - (0 ? 21:21) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 21:21) - (0 ? 21:21) + 1))))))))
     {
@@ -1024,7 +1024,7 @@ gckHARDWARE_InitializeHardware(
                                       0x00424,
                                       baseAddress));
 
-#if !VIVANTE_PROFILER 
+#if !VIVANTE_PROFILER
     {
         gctUINT32 data;
 

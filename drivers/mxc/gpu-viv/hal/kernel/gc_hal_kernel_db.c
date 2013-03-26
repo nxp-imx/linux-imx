@@ -27,7 +27,7 @@
 ***** Private fuctions ********************************************************/
 
 #define _GetSlot(database, x) \
-    ((gcmPTR_TO_UINT64(x) >> 7) % gcmCOUNTOF(database->list))
+    (gctUINT32)(((gcmPTR_TO_UINT64(x) >> 7) % gcmCOUNTOF(database->list)))
 
 /*******************************************************************************
 **  gckKERNEL_NewDatabase

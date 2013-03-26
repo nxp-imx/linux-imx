@@ -471,7 +471,7 @@ _InitializeContextBuffer(
     index += _SwitchPipe(Context, index, gcvPIPE_3D);
 
     /* Current context pointer. */
-#if gcdDEBUG 
+#if gcdDEBUG
     index += _State(Context, index, 0x03850 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
 #endif
 
