@@ -207,6 +207,7 @@ static int mma8451_position;
 static int mag3110_position = 1;
 static int max11801_mode = 1;
 static int caam_enabled;
+static int uart5_enabled;
 
 extern char *gp_reg_id;
 extern char *soc_reg_id;
@@ -1584,9 +1585,13 @@ static struct platform_device imx6q_gpio_led_device = {
 	}
 };
 
+/* For BT_PWD_L is conflict with charger's LED trigger gpio on sabresd_revC.
+ * add mutual exclusion here to be decided which one to be used by board config
+ */
 static void __init imx6q_add_device_gpio_leds(void)
 {
-	platform_device_register(&imx6q_gpio_led_device);
+	if (!uart5_enabled)
+		platform_device_register(&imx6q_gpio_led_device);
 }
 #else
 static void __init imx6q_add_device_gpio_leds(void) {}
@@ -1811,7 +1816,6 @@ static iomux_v3_cfg_t mx6q_uart5_pads[] = {
 	MX6Q_PAD_GPIO_2__GPIO_1_2,
 };
 
-static int uart5_enabled;
 static int __init uart5_setup(char * __unused)
 {
 	uart5_enabled = 1;
