@@ -23,6 +23,8 @@
 
 #if gcdENABLE_VG
 
+#define ENABLE_VG_TRY_VIRTUAL_MEMORY 0
+
 #define _GC_OBJ_ZONE            gcvZONE_VG
 
 /******************************************************************************\
@@ -331,11 +333,18 @@ gckKERNEL_AllocateLinearMemory(
         else if (pool == gcvPOOL_SYSTEM)
         {
             /* Advance to virtual memory. */
+#if ENABLE_VG_TRY_VIRTUAL_MEMORY
             pool = gcvPOOL_VIRTUAL;
+#else
+            /*VG non-contiguous memory support is not ready yet, disable it temporary*/
+            status = gcvSTATUS_OUT_OF_MEMORY;
+            break;
+#endif
         }
         else
         {
             /* Out of pools. */
+            status = gcvSTATUS_OUT_OF_MEMORY;
             break;
         }
     }
