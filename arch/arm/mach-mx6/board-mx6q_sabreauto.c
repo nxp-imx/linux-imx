@@ -290,12 +290,16 @@ static const struct esdhc_platform_data mx6q_sabreauto_sd3_data __initconst = {
 	.support_8bit		= 1,
 	.delay_line		= 0,
 	.platform_pad_change	= plt_sd_pad_change,
+	.cd_type = ESDHC_CD_CONTROLLER,
+	.runtime_pm = 1,
 };
 
 static const struct esdhc_platform_data mx6q_sabreauto_sd1_data __initconst = {
 	.cd_gpio = SABREAUTO_SD1_CD,
 	.wp_gpio = SABREAUTO_SD1_WP,
 	.keep_power_at_suspend = 1,
+	.cd_type = ESDHC_CD_CONTROLLER,
+	.runtime_pm = 1,
 };
 
 
