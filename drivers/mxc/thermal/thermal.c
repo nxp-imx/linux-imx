@@ -883,13 +883,13 @@ static int anatop_thermal_counting_ratio(unsigned int fuse_data)
 	raw_hot = (fuse_data & 0xfff00) >> 8;
 	hot_temp = fuse_data & 0xff;
 
-	if (!calibration_valid && cpu_is_mx6q())
+	if (!calibration_valid && !cpu_is_mx6sl())
 		/*
 		 * The universal equation for thermal sensor
 		 * is slope = 0.4297157 - (0.0015976 * 25C fuse),
 		 * here we convert them to integer to make them
 		 * easy for counting, FACTOR1 is 15976,
-		 * FACTORs is 4297157. Our ratio = -100 * slope.
+		 * FACTOR2 is 4297157. Our ratio = -100 * slope.
 		 */
 		ratio = ((FACTOR1 * raw_25c - FACTOR2) + 50000) / 100000;
 	else
