@@ -198,6 +198,13 @@
 #define SABRESD_ELAN_RST	IMX_GPIO_NR(3, 8)
 #define SABRESD_ELAN_INT	IMX_GPIO_NR(3, 28)
 
+#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
+#define MX6_ENET_IRQ		IMX_GPIO_NR(1, 6)
+#define IOMUX_OBSRV_MUX1_OFFSET	0x3c
+#define OBSRV_MUX1_MASK			0x3f
+#define OBSRV_MUX1_ENET_IRQ		0x9
+#endif
+
 static struct clk *sata_clk;
 static struct clk *clko;
 static int mma8451_position = 1;
@@ -291,6 +298,9 @@ static int mx6q_sabresd_fec_phy_init(struct phy_device *phydev)
 static struct fec_platform_data fec_data __initdata = {
 	.init = mx6q_sabresd_fec_phy_init,
 	.phy = PHY_INTERFACE_MODE_RGMII,
+#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
+	.gpio_irq = MX6_ENET_IRQ,
+#endif
 };
 
 static int mx6q_sabresd_spi_cs[] = {
@@ -1785,6 +1795,12 @@ static void __init mx6_sabresd_board_init(void)
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabresd_anatop_thermal_data);
 	imx6_init_fec(fec_data);
+#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
+	/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
+	mxc_iomux_set_specialbits_register(IOMUX_OBSRV_MUX1_OFFSET,
+		OBSRV_MUX1_ENET_IRQ, OBSRV_MUX1_MASK);
+#endif
+
 	imx6q_add_pm_imx(0, &mx6q_sabresd_pm_data);
 
 	/* Move sd4 to first because sd4 connect to emmc.
