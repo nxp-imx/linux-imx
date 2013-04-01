@@ -3,7 +3,7 @@
  * Copyright (c) 2009 Orex Computed Radiography
  *   Baruch Siach <baruch@tkos.co.il>
  *
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
  *
  * Header file for the FEC platform data
  *
@@ -21,6 +21,9 @@ struct fec_platform_data {
 	int (*power_hibernate) (struct phy_device *);
 	phy_interface_t phy;
 	unsigned char mac[ETH_ALEN];
+#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
+	unsigned int gpio_irq;
+#endif
 };
 
 #endif
