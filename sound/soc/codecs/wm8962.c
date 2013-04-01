@@ -3464,6 +3464,9 @@ static int wm8962_set_fll(struct snd_soc_codec *codec, int fll_id, int source,
 	if (fll_div.theta || fll_div.lambda)
 		fll1 |= WM8962_FLL_FRAC;
 
+	/* Stop the FLL while we reconfigure */
+	snd_soc_update_bits(codec, WM8962_FLL_CONTROL_1, WM8962_FLL_ENA, 0);
+
 	snd_soc_update_bits(codec, WM8962_FLL_CONTROL_2,
 			    WM8962_FLL_OUTDIV_MASK |
 			    WM8962_FLL_REFCLK_DIV_MASK,
