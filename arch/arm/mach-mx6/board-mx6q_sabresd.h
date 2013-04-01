@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -132,9 +132,13 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_KEY_COL3__I2C2_SCL,
 	MX6Q_PAD_KEY_ROW3__I2C2_SDA,
 
+#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
+	MX6Q_PAD_GPIO_6__OBSERVE_MUX_OBSRV_INT_OUT1,
+#else
 	/* I2C3 */
 	MX6Q_PAD_GPIO_3__I2C3_SCL,	/* GPIO1[3] */
 	MX6Q_PAD_GPIO_6__I2C3_SDA,
+#endif
 
 	/* DISPLAY */
 	MX6Q_PAD_DI0_DISP_CLK__IPU1_DI0_DISP_CLK,

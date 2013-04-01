@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,6 +57,7 @@ volatile unsigned int num_cpu_idle;
 volatile unsigned int num_cpu_idle_lock = 0x0;
 int wait_mode_arm_podf;
 int cur_arm_podf;
+bool enet_is_active;
 void arch_idle_with_workaround(int cpu);
 
 extern void *mx6sl_wfi_iram_base;
@@ -406,7 +407,7 @@ void arch_idle_multi_core(void)
 
 void arch_idle(void)
 {
-	if (enable_wait_mode) {
+	if (enable_wait_mode && !enet_is_active) {
 		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
 		if (mem_clk_on_in_wait) {
 			u32 reg;
