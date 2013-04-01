@@ -2191,7 +2191,8 @@ int32_t ipu_disable_channel(struct ipu_soc *ipu, ipu_channel_t channel, bool wai
 				}
 			}
 		}
-	} else if (wait_for_stop && !_ipu_is_smfc_chan(out_dma)) {
+	} else if (wait_for_stop && !_ipu_is_smfc_chan(out_dma) &&
+		   channel != CSI_PRP_VF_MEM && channel != CSI_PRP_ENC_MEM) {
 		while (idma_is_set(ipu, IDMAC_CHA_BUSY, in_dma) ||
 		       idma_is_set(ipu, IDMAC_CHA_BUSY, out_dma) ||
 			(ipu->sec_chan_en[IPU_CHAN_ID(channel)] &&
