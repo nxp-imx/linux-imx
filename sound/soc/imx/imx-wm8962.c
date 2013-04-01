@@ -163,8 +163,8 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 	else
 		pll_out = sample_rate * 256;
 
-	ret = snd_soc_dai_set_pll(codec_dai, WM8962_FLL_OSC,
-				  WM8962_FLL_OSC, priv->sysclk,
+	ret = snd_soc_dai_set_pll(codec_dai, WM8962_FLL_MCLK,
+				  WM8962_FLL_MCLK, priv->sysclk,
 				  pll_out);
 	if (ret < 0)
 		pr_err("Failed to start FLL: %d\n", ret);
