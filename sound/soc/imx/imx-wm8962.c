@@ -214,6 +214,14 @@ static int imx_hifi_hw_free(struct snd_pcm_substream *substream)
 			pr_err("Failed to set MUTE: %d\n", ret);
 			return ret;
 		}
+
+		/* Disable FLL */
+		ret = snd_soc_dai_set_pll(codec_dai, WM8962_FLL,
+				WM8962_FLL_MCLK, 0, 0);
+		if (ret < 0) {
+			pr_err("Failed to set FLL: %d\n", ret);
+			return ret;
+		}
 	}
 	return 0;
 }
