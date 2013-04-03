@@ -289,6 +289,12 @@ static void otg_wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable
 				| BM_USBPHY_CTRL_ENAUTO_PWRON_PLL , phy_reg + HW_USBPHY_CTRL_SET);
 		USB_OTG_CTRL |= UCTRL_OWIE;
 	} else {
+		__raw_writel(BM_USBPHY_CTRL_ENDPDMCHG_WKUP
+				| BM_USBPHY_CTRL_ENAUTOSET_USBCLKS
+				| BM_USBPHY_CTRL_ENAUTOCLR_PHY_PWD
+				| BM_USBPHY_CTRL_ENAUTOCLR_CLKGATE
+				| BM_USBPHY_CTRL_ENAUTOCLR_USBCLKGATE
+				| BM_USBPHY_CTRL_ENAUTO_PWRON_PLL , phy_reg + HW_USBPHY_CTRL_CLR);
 		USB_OTG_CTRL &= ~UCTRL_OWIE;
 		/* The interrupt must be disabled for at least 3 clock
 		 * cycles of the standby clock(32k Hz) , that is 0.094 ms*/
