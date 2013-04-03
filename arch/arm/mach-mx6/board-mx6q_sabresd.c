@@ -1826,6 +1826,14 @@ static iomux_v3_cfg_t mx6q_uart5_pads[] = {
 	MX6Q_PAD_GPIO_2__GPIO_1_2,
 };
 
+static iomux_v3_cfg_t mx6dl_uart5_pads[] = {
+	MX6DL_PAD_KEY_ROW1__UART5_RXD,
+	MX6DL_PAD_KEY_COL1__UART5_TXD,
+	MX6DL_PAD_KEY_COL4__UART5_RTS,
+	MX6DL_PAD_KEY_ROW4__UART5_CTS,
+	/* gpio for reset */
+	MX6DL_PAD_GPIO_2__GPIO_1_2,
+};
 static int __init uart5_setup(char * __unused)
 {
 	uart5_enabled = 1;
@@ -1836,8 +1844,12 @@ __setup("bluetooth", uart5_setup);
 static void __init uart5_init(void)
 {
 	printk(KERN_INFO "uart5 is added\n");
-	mxc_iomux_v3_setup_multiple_pads(mx6q_uart5_pads,
-	ARRAY_SIZE(mx6q_uart5_pads));
+	if (cpu_is_mx6q())
+		mxc_iomux_v3_setup_multiple_pads(mx6q_uart5_pads,
+				ARRAY_SIZE(mx6q_uart5_pads));
+	else if (cpu_is_mx6dl())
+		mxc_iomux_v3_setup_multiple_pads(mx6dl_uart5_pads,
+				ARRAY_SIZE(mx6dl_uart5_pads));
 	imx6q_add_imx_uart(4, &mx6q_sd_uart5_data);
 }
 
