@@ -1255,6 +1255,14 @@ static void imx6_evk_usbotg_vbus(bool on)
 		gpio_set_value(MX6_BRD_USBOTG1_PWR, 0);
 }
 
+static void imx6_evk_usbh1_vbus(bool on)
+{
+	if (on)
+		gpio_set_value(MX6_BRD_USBOTG2_PWR, 1);
+	else
+		gpio_set_value(MX6_BRD_USBOTG2_PWR, 0);
+}
+
 static void __init mx6_evk_init_usb(void)
 {
 	int ret = 0;
@@ -1277,9 +1285,10 @@ static void __init mx6_evk_init_usb(void)
 		pr_err("failed to get GPIO MX6_BRD_USBOTG2_PWR:%d\n", ret);
 		return;
 	}
-	gpio_direction_output(MX6_BRD_USBOTG2_PWR, 1);
+	gpio_direction_output(MX6_BRD_USBOTG2_PWR, 0);
 
 	mx6_set_otghost_vbus_func(imx6_evk_usbotg_vbus);
+	mx6_set_host1_vbus_func(imx6_evk_usbh1_vbus);
 
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mx6_usb_h2_init();
