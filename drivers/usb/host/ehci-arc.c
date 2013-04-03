@@ -676,17 +676,21 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	/* Only handles OTG mode switch event, system suspend event will be done in bus suspend */
 	if (pdata->pmflags == 0) {
 		printk(KERN_DEBUG "%s, pm event \n", __func__);
+		disable_irq(hcd->irq);
 		if (!host_can_wakeup_system(pdev)) {
 			/* Need open clock for register access */
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+			fsl_usb_lowpower_mode(pdata, false);
 
 			usb_host_set_wakeup(hcd->self.controller, false);
+			fsl_usb_lowpower_mode(pdata, true);
 
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		} else {
 			if (pdata->platform_phy_power_on)
 				pdata->platform_phy_power_on();
 		}
+		enable_irq(hcd->irq);
 
 		printk(KERN_DEBUG "host suspend ends\n");
 		return 0;
@@ -772,9 +776,11 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	if (pdata->pmflags == 0) {
 		printk(KERN_DEBUG "%s,pm event, wait for wakeup irq if needed\n", __func__);
 		wait_event_interruptible(wake_up_pdata->wq, !wake_up_pdata->usb_wakeup_is_pending);
+		disable_irq(hcd->irq);
 		if (!host_can_wakeup_system(pdev)) {
 			/* Need open clock for register access */
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+			fsl_usb_lowpower_mode(pdata, false);
 
 			usb_host_set_wakeup(hcd->self.controller, true);
 
@@ -793,8 +799,10 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 						&ehci->regs->port_status[0]);
 			}
 #endif
+			fsl_usb_lowpower_mode(pdata, true);
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		}
+		enable_irq(hcd->irq);
 		return 0;
 	}
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
