@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -21,7 +21,7 @@
 
 #include <linux/module.h>
 #include <linux/ipu.h>
-#include <asm/div64.h>
+#include <linux/math64.h>
 
 #define BPP_32 0
 #define BPP_16 3
@@ -30,21 +30,13 @@
 #define BPP_12 4
 #define BPP_18 2
 
-static u64 _do_div(u64 a, u32 b)
-{
-	u64 div;
-	div = a;
-	do_div(div, b);
-	return div;
-}
-
 static u32 truncate(u32 up, /* 0: down; else: up */
 					u64 a, /* must be non-negative */
 					u32 b)
 {
 	u32 d;
 	u64 div;
-	div = _do_div(a, b);
+	div = div_u64(a, b);
 	d = b * (div >> 32);
 	if (up && (a > (((u64)d) << 32)))
 		return d+b;
@@ -227,9 +219,9 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 	    || (output_frame_width < 4))
 		return 1;
 
-	irr_opt = _do_div((((u64)(input_frame_width - 1)) << 32),
+	irr_opt = div_u64((((u64)(input_frame_width - 1)) << 32),
 			  (output_frame_width - 1));
-	rr_opt = _do_div((((u64)(output_frame_width - 1)) << 32),
+	rr_opt = div_u64((((u64)(output_frame_width - 1)) << 32),
 			 (input_frame_width - 1));
 
 	if ((input_m == 0) || (output_m == 0) || (input_f == 0) || (output_f == 0)
@@ -262,7 +254,7 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 			left->output_width = right->output_width = right->output_column =
 				output_frame_width >> 1;
 			left->input_column = right->input_column = 0;
-			div = _do_div(((((u64)irr_steps) << 32) *
+			div = div_u64(((((u64)irr_steps) << 32) *
 				       (right->input_width - 1)), (right->output_width - 1));
 			left->irr = right->irr = truncate(0, div, 1);
 		} else { /* with overlap */
@@ -272,7 +264,7 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 			/* this is the maximal inw which allows the same resizing ratio */
 			/* in both stripes */
 			onw = truncate(1, (inw * rr_opt), output_f);
-			div = _do_div((((u64)(irr_steps * inw)) <<
+			div = div_u64((((u64)(irr_steps * inw)) <<
 				       32), onw);
 			left->irr = right->irr = truncate(0, div, 1);
 			left->output_width = right->output_width =
@@ -280,14 +272,14 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 			/* These are valid assignments for output_width, */
 			/* assuming output_f is a multiple of output_m */
 			div = (((u64)(left->output_width-1) * (left->irr)) << 32);
-			div = (((u64)1) << 32) + _do_div(div, irr_steps);
+			div = (((u64)1) << 32) + div_u64(div, irr_steps);
 
 			left->input_width = right->input_width = truncate(1, div, input_m);
 
-			div = _do_div((((u64)((right->output_width - 1) * right->irr)) <<
+			div = div_u64((((u64)((right->output_width - 1) * right->irr)) <<
 				       32), irr_steps);
 			difwr = (((u64)(input_frame_width - 1 - inw)) << 32) - div;
-			div = _do_div((difwr + (((u64)input_f) << 32)), 2);
+			div = div_u64((difwr + (((u64)input_f) << 32)), 2);
 			left->input_column = truncate(0, div, input_f);
 
 
@@ -312,13 +304,13 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 		/* in both stripes */
 		onw = truncate(1, inw * rr_opt, output_f);
 		do {
-			div = _do_div((((u64)(irr_steps * inw)) << 32), onw);
+			div = div_u64((((u64)(irr_steps * inw)) << 32), onw);
 			left->irr = truncate(0, div, 1);
-			div = _do_div((((u64)(onw * left->irr)) << 32),
+			div = div_u64((((u64)(onw * left->irr)) << 32),
 				      irr_steps);
 			dinw = (((u64)inw) << 32) - div;
 
-			div = _do_div((((u64)((output_frame_width - 1 - onw) * left->irr)) <<
+			div = div_u64((((u64)((output_frame_width - 1 - onw) * left->irr)) <<
 				       32), irr_steps);
 
 			difwl = (((u64)(input_frame_width - 1 - inw)) << 32) - div;
@@ -338,7 +330,7 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 
 		inw = inw_best;
 		onw = truncate(1, inw * rr_opt, output_f);
-		div = _do_div((((u64)(irr_steps * inw)) << 32), onw);
+		div = div_u64((((u64)(irr_steps * inw)) << 32), onw);
 		left->irr = truncate(0, div, 1);
 
 		left->output_width = onw;
@@ -349,18 +341,18 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 		right->input_width = truncate(1, ((u64)(input_frame_width - inw)) <<
 					      32, input_m);
 
-		div = _do_div((((u64)(irr_steps * (input_frame_width - 1 - inw))) <<
+		div = div_u64((((u64)(irr_steps * (input_frame_width - 1 - inw))) <<
 			       32), (right->output_width - 1));
 		right->irr = truncate(0, div, 1);
 		temp = truncate(0, ((u64)left->irr) * ((((u64)1) << 32) + dirr), 1);
 		if (temp < right->irr)
 			right->irr = temp;
-		div = _do_div(((u64)((right->output_width - 1) * right->irr) <<
+		div = div_u64(((u64)((right->output_width - 1) * right->irr) <<
 			       32), irr_steps);
 		difwr = (u64)(input_frame_width - 1 - inw) - div;
 
 
-		div = _do_div((difwr + (((u64)input_f) << 32)), 2);
+		div = div_u64((difwr + (((u64)input_f) << 32)), 2);
 		left->input_column = truncate(0, div, input_f);
 
 		/* This splits the truncated input columns evenly */
