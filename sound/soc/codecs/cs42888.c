@@ -1,6 +1,6 @@
 /*
  * cs42888.c  -- CS42888 ALSA SoC Audio Driver
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 /*
  * The code contained herein is licensed under the GNU General Public
@@ -128,6 +128,11 @@ static const char *cs42888_supply_names[CS42888_NUM_SUPPLIES] = {
 #define CS42888_TRANS_MUTE_ADC_SP_MASK	(1 << CS42888_TRANS_MUTE_ADC_SP_OFFSET)
 #define CS42888_TRANS_ADC_SNGVOL_MASK	(1 << CS42888_TRANS_ADC_SNGVOL_OFFSET)
 #define CS42888_TRANS_ADC_SZC_MASK	(3 << CS42888_TRANS_ADC_SZC_OFFSET)
+
+#define CS42888_TRANS_DAC_SZC_IC     (0 << CS42888_TRANS_DAC_SZC_OFFSET)
+#define CS42888_TRANS_DAC_SZC_ZC     (1 << CS42888_TRANS_DAC_SZC_OFFSET)
+#define CS42888_TRANS_DAC_SZC_SR     (2 << CS42888_TRANS_DAC_SZC_OFFSET)
+#define CS42888_TRANS_DAC_SZC_SRZC   (3 << CS42888_TRANS_DAC_SZC_OFFSET)
 
 #define CS42888_MUTE_AOUT8	(0x1 << 7)
 #define CS42888_MUTE_AOUT7	(0x1 << 6)
@@ -717,7 +722,6 @@ static int cs42888_hw_params(struct snd_pcm_substream *substream,
 		pr_err("i2c write failed\n");
 		return ret;
 	}
-	 msleep(400);
 
 	ret = cs42888_fill_cache(codec);
 	if (ret < 0) {
@@ -884,6 +888,8 @@ static int cs42888_probe(struct snd_soc_codec *codec)
 	/* Disable auto-mute */
 	val = snd_soc_read(codec, CS42888_TRANS);
 	val &= ~CS42888_TRANS_AMUTE_MASK;
+	val &= ~CS42888_TRANS_DAC_SZC_MASK;
+	val |=  CS42888_TRANS_DAC_SZC_SR;
 	ret = snd_soc_write(codec, CS42888_TRANS, val);
 	if (ret < 0) {
 		pr_err("i2c write failed\n");

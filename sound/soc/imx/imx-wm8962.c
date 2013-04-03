@@ -165,8 +165,8 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 	else
 		pll_out = sample_rate * 256;
 
-	ret = snd_soc_dai_set_pll(codec_dai, WM8962_FLL_OSC,
-				  WM8962_FLL_OSC, priv->sysclk,
+	ret = snd_soc_dai_set_pll(codec_dai, WM8962_FLL_MCLK,
+				  WM8962_FLL_MCLK, priv->sysclk,
 				  pll_out);
 	if (ret < 0)
 		pr_err("Failed to start FLL: %d\n", ret);
@@ -214,6 +214,14 @@ static int imx_hifi_hw_free(struct snd_pcm_substream *substream)
 		ret = snd_soc_dai_digital_mute(codec_dai, 1);
 		if (ret < 0) {
 			pr_err("Failed to set MUTE: %d\n", ret);
+			return ret;
+		}
+
+		/* Disable FLL */
+		ret = snd_soc_dai_set_pll(codec_dai, WM8962_FLL,
+				WM8962_FLL_MCLK, 0, 0);
+		if (ret < 0) {
+			pr_err("Failed to set FLL: %d\n", ret);
 			return ret;
 		}
 	}

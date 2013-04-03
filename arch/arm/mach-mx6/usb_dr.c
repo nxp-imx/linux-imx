@@ -144,6 +144,10 @@ static int usbotg_init_ext(struct platform_device *pdev)
 
 	ret = usbotg_init(pdev);
 	if (ret) {
+		clk_disable(usb_oh3_clk);
+		clk_put(usb_oh3_clk);
+		clk_disable(usb_phy1_clk);
+		clk_put(usb_phy1_clk);
 		printk(KERN_ERR "otg init fails......\n");
 		return ret;
 	}

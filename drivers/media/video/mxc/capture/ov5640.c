@@ -31,6 +31,7 @@
 #include <media/v4l2-chip-ident.h>
 #include <media/v4l2-int-device.h>
 #include "mxc_v4l2_capture.h"
+#include "fsl_csi.h"
 
 #define OV5640_VOLTAGE_ANALOG               2800000
 #define OV5640_VOLTAGE_DIGITAL_CORE         1500000
@@ -827,6 +828,7 @@ static int ov5640_get_light_freq(void)
 			light_frequency = 50;
 		} else {
 			/* 60Hz */
+			light_frequency = 60;
 		}
 	}
 
@@ -1821,6 +1823,9 @@ static int ov5640_probe(struct i2c_client *client,
 	if (plat_data->pwdn)
 		plat_data->pwdn(0);
 
+#ifdef CONFIG_SOC_IMX6SL
+	csi_enable_mclk(CSI_MCLK_I2C, true, true);
+#endif
 	retval = ov5640_read_reg(OV5640_CHIP_ID_HIGH_BYTE, &chip_id_high);
 	if (retval < 0 || chip_id_high != 0x56) {
 		pr_warning("camera ov5640 is not found\n");
@@ -1836,6 +1841,10 @@ static int ov5640_probe(struct i2c_client *client,
 
 	if (plat_data->pwdn)
 		plat_data->pwdn(1);
+
+#ifdef CONFIG_SOC_IMX6SL
+	csi_enable_mclk(CSI_MCLK_I2C, false, false);
+#endif
 
 	camera_plat = plat_data;
 
