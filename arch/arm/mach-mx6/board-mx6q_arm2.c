@@ -155,12 +155,6 @@
 
 #define MX6_ARM2_CAN2_STBY		MX6_ARM2_IO_EXP_GPIO2(1)
 
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-#define MX6_ENET_IRQ		IMX_GPIO_NR(1, 6)
-#define IOMUX_OBSRV_MUX1_OFFSET	0x3c
-#define OBSRV_MUX1_MASK			0x3f
-#define OBSRV_MUX1_ENET_IRQ		0x9
-#endif
 
 #define BMCR_PDOWN			0x0800 /* PHY Powerdown */
 
@@ -393,9 +387,6 @@ static struct fec_platform_data fec_data __initdata = {
 	.init			= mx6_arm2_fec_phy_init,
 	.power_hibernate	= mx6_arm2_fec_power_hibernate,
 	.phy			= PHY_INTERFACE_MODE_RGMII,
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	.gpio_irq = MX6_ENET_IRQ,
-#endif
 };
 
 static int mx6_arm2_spi_cs[] = {
@@ -2182,14 +2173,8 @@ static void __init mx6_arm2_init(void)
 
 	imx6q_add_anatop_thermal_imx(1, &mx6_arm2_anatop_thermal_data);
 
-	if (!esai_record) {
+	if (!esai_record)
 		imx6_init_fec(fec_data);
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
-	mxc_iomux_set_specialbits_register(IOMUX_OBSRV_MUX1_OFFSET,
-		OBSRV_MUX1_ENET_IRQ, OBSRV_MUX1_MASK);
-#endif
-	}
 
 	imx6q_add_pm_imx(0, &mx6_arm2_pm_data);
 	imx6q_add_sdhci_usdhc_imx(3, &mx6_arm2_sd4_data);
