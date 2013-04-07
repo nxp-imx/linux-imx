@@ -464,7 +464,6 @@ static struct spi_board_info m25p32_spi0_board_info[] __initdata = {
 		.platform_data	= &m25p32_spi_flash_data,
 	},
 };
-
 static void spi_device_init(void)
 {
 	spi_register_board_info(m25p32_spi0_board_info,
@@ -505,8 +504,8 @@ static struct physmap_flash_data nor_flash_data = {
 	.nr_parts	= ARRAY_SIZE(mxc_nor_partitions),
 };
 
-static struct platform_device imx6x_weimnor_device = {
-	.name	= "imx6x-weimnor",
+static struct platform_device physmap_flash_device = {
+	.name	= "physmap-flash",
 	.id	= 0,
 	.dev	= {
 		.platform_data = &nor_flash_data,
@@ -515,11 +514,12 @@ static struct platform_device imx6x_weimnor_device = {
 	.num_resources	= 1,
 };
 
+/* These registers settings are just valid for Numonyx M29W256GL7AN6E. */
 static void mx6q_setup_weimcs(void)
 {
-	unsigned int reg;
 	void __iomem *nor_reg = MX6_IO_ADDRESS(WEIM_BASE_ADDR);
 	void __iomem *ccm_reg = MX6_IO_ADDRESS(CCM_BASE_ADDR);
+	unsigned int reg;
 	struct clk *clk;
 	u32 rate;
 
@@ -539,26 +539,53 @@ static void mx6q_setup_weimcs(void)
 		printk(KERN_ERR "Warning: emi_slow_clk not set to 132 MHz!"
 		       " WEIM NOR timing may be incorrect!\n");
 
-	/* EIM_CS0GCR1: 16-bit port on DATA[31:16],  Burst Length 8 words,
-	   Chip select enable is set */
-	__raw_writel(0x00020181, nor_reg);
+	/*
+	 * For EIM General Configuration registers.
+	 *
+	 * CS0GCR1:
+	 *	GBC = 0; CSREC = 6; DSZ = 2; BL = 0;
+	 *	CREP = 1; CSEN = 1;
+	 *
+	 *	EIM Operation Mode: MUM = SRD = SWR = 0.
+	 *		(Async write/Async page read, none multiplexed)
+	 *
+	 * CS0GCR2:
+	 *	ADH = 1
+	 */
+	writel(0x00620081, nor_reg);
+	writel(0x00000001, nor_reg + 0x00000004);
 
-	/* EIM_CS0GCR2: Address hold time is set to cycle after ADV negation */
-	__raw_writel(0x00000001, nor_reg + 0x00000004);
+	/*
+	 * For EIM Read Configuration registers.
+	 *
+	 * CS0RCR1:
+	 *	RWSC = 1C;
+	 *	RADVA = 0; RADVN = 2;
+	 *	OEA = 2; OEN = 0;
+	 *	RCSA = 0; RCSN = 0
+	 *
+	 * CS0RCR2:
+	 *	APR = 1 (Async Page Read);
+	 *	PAT = 4 (6 EIM clock sycles)
+	 */
+	writel(0x1C022000, nor_reg + 0x00000008);
+	writel(0x0000C000, nor_reg + 0x0000000C);
 
-	/* EIM_CS0RCR1: RWSC = 9 EIM Clocks, ADV Negation = 2 EIM Clocks,
-	   OE Assertion = 2 EIM Clocks */
-	__raw_writel(0x0a022000, nor_reg + 0x00000008);
-
-	/* EIM_CS0RCR2: APR = Page read enabled, PAT = 4 EIM Clocks */
-	__raw_writel(0x0000c000, nor_reg + 0x0000000c);
-
-	/* EIM_CS0WCR1: WWSC = 8 EIM Clocks, WADVN = 1,  WBEA = 1, WBEN = 1,
-	   WEA = 1, WEN = 1  */
-	__raw_writel(0x0804a240, nor_reg + 0x00000010);
-
-	/* EIM_WCR: WDOG_EN = 1, INTPOL = 1  */
-	__raw_writel(0x00000120, nor_reg + 0x00000090);
+	/*
+	 * For EIM Write Configuration registers.
+	 *
+	 * CS0WCR1:
+	 *	WWSC = 20;
+	 *	WADVA = 0; WADVN = 1;
+	 *	WBEA = 1; WBEN = 2;
+	 *	WEA = 1; WEN = 6;
+	 *	WCSA = 1; WCSN = 2;
+	 *
+	 * CS0WCR2:
+	 *	WBCDD = 0
+	 */
+	writel(0x1404a38e, nor_reg + 0x00000010);
+	writel(0x00000000, nor_reg + 0x00000014);
 }
 
 static int max7310_1_setup(struct i2c_client *client,
@@ -703,6 +730,12 @@ static struct fsl_mxc_tvin_platform_data adv7180_data = {
 	.io_init	= mx6q_csi0_io_init,
 };
 
+static void mx6q_mipi_csi1_io_init(void)
+{
+	if (cpu_is_mx6dl())
+		mxc_iomux_set_gpr_register(13, 3, 3, 1);
+}
+
 static struct fsl_mxc_tvin_platform_data adv7280_data = {
 	.dvddio_reg	= NULL,
 	.dvdd_reg	= NULL,
@@ -710,8 +743,9 @@ static struct fsl_mxc_tvin_platform_data adv7280_data = {
 	.pvdd_reg	= NULL,
 	.pwdn		= NULL,
 	.cvbs		= true,
+	.io_init    = mx6q_mipi_csi1_io_init,
 	/* csi slave reg address */
-	.csi_tx_addr = 0x51,
+	.csi_tx_addr = 0x52,
 };
 
 static struct imxi2c_platform_data mx6q_sabreauto_i2c2_data = {
@@ -1074,10 +1108,10 @@ static struct fsl_mxc_ldb_platform_data ldb_data = {
 static struct imx_ipuv3_platform_data ipu_data[] = {
 	{
 		.rev		= 4,
-		.csi_clk[0]	= "ccm_clk0",
+		.csi_clk[0]	= "clko_clk",
 	}, {
 		.rev		= 4,
-		.csi_clk[0]	= "ccm_clk0",
+		.csi_clk[0]	= "clko_clk",
 	},
 };
 
@@ -1161,9 +1195,9 @@ static const struct flexcan_platform_data
 
 static struct mipi_csi2_platform_data mipi_csi2_pdata = {
 	.ipu_id		= 0,
-	.csi_id		= 0,
-	.v_channel	= 0,
-	.lanes		= 2,
+	.csi_id		= 1,
+	.v_channel	= 1,
+	.lanes		= 1,
 	.dphy_clk	= "mipi_pllref_clk",
 	.pixel_clk	= "emi_clk",
 };
@@ -1689,12 +1723,12 @@ static void __init mx6_board_init(void)
 	}
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6q_sabreauto_spi_data);
-	if (spinor_en)
-		spi_device_init();
-	else if (weimnor_en) {
-		mx6q_setup_weimcs();
-		platform_device_register(&imx6x_weimnor_device);
-	}
+		if (spinor_en)
+			spi_device_init();
+		else if (weimnor_en) {
+			mx6q_setup_weimcs();
+			platform_device_register(&physmap_flash_device);
+		}
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);

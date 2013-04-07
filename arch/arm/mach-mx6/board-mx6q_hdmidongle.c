@@ -100,7 +100,6 @@
 #define HDMIDONGLE_PCIE_RST 	IMX_GPIO_NR(3, 9)
 #define HDMIDONGLE_PCIE_WAKE	IMX_GPIO_NR(3, 22)
 #define HDMIDONGLE_PCIE_DIS		IMX_GPIO_NR(3, 10)
-static struct wake_lock pcie_wake_lock;
 #endif
 
 extern char *gp_reg_id;
@@ -629,8 +628,6 @@ static void __init mx6_hdmidongle_board_init(void)
 	} else if (board_is_mx6_revb() || board_is_mx6_revc()) {
 		/* Add PCIe RC interface support */
 		imx6q_add_pcie(&mx6_hdmidongle_pcie_data);
-		wake_lock_init(&pcie_wake_lock, WAKE_LOCK_SUSPEND, "pcie_workaround");
-		wake_lock(&pcie_wake_lock);
 #endif
 	}
 	pm_power_off = mx6_snvs_poweroff;
