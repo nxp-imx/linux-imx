@@ -27,7 +27,6 @@
 #include <linux/string.h>
 #include <linux/ptrace.h>
 #include <linux/errno.h>
-#include <linux/gpio.h>
 #include <linux/ioport.h>
 #include <linux/slab.h>
 #include <linux/interrupt.h>
@@ -1867,17 +1866,6 @@ fec_probe(struct platform_device *pdev)
 	if (pdata)
 		fep->phy_interface = pdata->phy;
 
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	gpio_request(pdata->gpio_irq, "gpio_enet_irq");
-	gpio_direction_input(pdata->gpio_irq);
-
-	irq = gpio_to_irq(pdata->gpio_irq);
-	ret = request_irq(irq, fec_enet_interrupt,
-			IRQF_TRIGGER_RISING,
-			 pdev->name, ndev);
-	if (ret)
-		goto failed_irq;
-#else
 	/* This device has up to three irqs on some platforms */
 	for (i = 0; i < 3; i++) {
 		irq = platform_get_irq(pdev, i);
@@ -1892,7 +1880,6 @@ fec_probe(struct platform_device *pdev)
 			goto failed_irq;
 		}
 	}
-#endif
 
 	fep->clk = clk_get(&pdev->dev, "fec_clk");
 	if (IS_ERR(fep->clk)) {
@@ -1943,15 +1930,11 @@ failed_init:
 	clk_disable(fep->clk);
 	clk_put(fep->clk);
 failed_clk:
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	free_irq(irq, ndev);
-#else
 	for (i = 0; i < 3; i++) {
 		irq = platform_get_irq(pdev, i);
 		if (irq > 0)
 			free_irq(irq, ndev);
 	}
-#endif
 failed_irq:
 	iounmap(fep->hwp);
 failed_ioremap:
