@@ -50,7 +50,6 @@ extern int lp_med_freq;
 extern int wait_mode_arm_podf;
 extern int lp_audio_freq;
 extern int cur_arm_podf;
-extern bool enet_is_active;
 
 void __iomem *apll_base;
 
@@ -3724,23 +3723,6 @@ static unsigned long _clk_enet_get_rate(struct clk *clk)
 	return 500000000 / div;
 }
 
-static int _clk_enet_enable(struct clk *clk)
-{
-#ifndef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	enet_is_active = true;
-#endif
-	_clk_enable(clk);
-	return 0;
-}
-
-static void _clk_enet_disable(struct clk *clk)
-{
-	_clk_disable(clk);
-#ifndef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	enet_is_active = false;
-#endif
-}
-
 static struct clk enet_clk[] = {
 	{
 	__INIT_CLK_DEBUG(enet_clk)
@@ -3748,8 +3730,8 @@ static struct clk enet_clk[] = {
 	 .parent = &pll8_enet_main_clk,
 	 .enable_reg = MXC_CCM_CCGR1,
 	 .enable_shift = MXC_CCM_CCGRx_CG5_OFFSET,
-	 .enable = _clk_enet_enable,
-	 .disable = _clk_enet_disable,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable,
 	 .set_rate = _clk_enet_set_rate,
 	 .get_rate = _clk_enet_get_rate,
 	.secondary = &enet_clk[1],

@@ -57,7 +57,6 @@ volatile unsigned int num_cpu_idle;
 volatile unsigned int num_cpu_idle_lock = 0x0;
 int wait_mode_arm_podf;
 int cur_arm_podf;
-bool enet_is_active;
 void arch_idle_with_workaround(int cpu);
 
 extern void *mx6sl_wfi_iram_base;
@@ -407,7 +406,7 @@ void arch_idle_multi_core(void)
 
 void arch_idle(void)
 {
-	if (enable_wait_mode && !enet_is_active) {
+	if (enable_wait_mode) {
 		mxc_cpu_lp_set(WAIT_UNCLOCKED_POWER_OFF);
 		if (mem_clk_on_in_wait) {
 			u32 reg;
