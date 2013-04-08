@@ -2379,9 +2379,9 @@ static int sysclk_event(struct snd_soc_dapm_widget *w,
 		break;
 
 	case SND_SOC_DAPM_POST_PMD:
-		if (fll)
-			snd_soc_update_bits(codec, WM8962_FLL_CONTROL_1,
-					    WM8962_FLL_ENA, 0);
+		/* After Power-down, close FLL if FLL-enabled */
+		snd_soc_update_bits(codec, WM8962_FLL_CONTROL_1,
+				WM8962_FLL_ENA, 0);
 		break;
 
 	default:
