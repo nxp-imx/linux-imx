@@ -303,6 +303,11 @@ config USB_EHCI_ARC_H1
 config USB_FSL_ARC_OTG
 	tristate "FSL USB OTG support"
 
+config USB_ID_WAKEUP_ENABLE
+	bool "Enable USB ID Pin As System Wakeup Source"
+	depends on SOC_IMX6SL
+	default n
+
 config MX6_INTER_LDO_BYPASS
 	bool "Internal LDO in MX6Q/DL bypass"
 	depends on  REGULATOR_PFUZE100 && CPU_FREQ_IMX && ARCH_MX6
