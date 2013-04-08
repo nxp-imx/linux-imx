@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -622,7 +622,8 @@
 #define BF_ANADIG_ANA_MISC0_OSC_I(v)  \
 	(((v) << 14) & BM_ANADIG_ANA_MISC0_OSC_I)
 #define BM_ANADIG_ANA_MISC0_RTC_RINGOSC_EN 0x00002000
-#define BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG 0x00001000
+#define BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG \
+	(cpu_is_mx6sl() ? 0x00000800 : 0x00001000)
 #define BP_ANADIG_ANA_MISC0_RSVD0      10
 #define BM_ANADIG_ANA_MISC0_RSVD0 0x00000C00
 #define BF_ANADIG_ANA_MISC0_RSVD0(v)  \
