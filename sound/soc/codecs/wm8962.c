@@ -3486,8 +3486,6 @@ static int wm8962_set_fll(struct snd_soc_codec *codec, int fll_id, int source,
 			    WM8962_FLL_FRAC | WM8962_FLL_REFCLK_SRC_MASK |
 			    WM8962_FLL_ENA, fll1);
 
-	fll1 |= WM8962_FLL_ENA;
-
 	dev_dbg(codec->dev, "FLL configured for %dHz->%dHz\n", Fref, Fout);
 
 	ret = 0;
