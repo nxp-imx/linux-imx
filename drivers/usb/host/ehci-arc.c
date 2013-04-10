@@ -680,9 +680,20 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 		if (!host_can_wakeup_system(pdev)) {
 			/* Need open clock for register access */
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+			/*
+			 * Disable wakeup interrupt, since there is wakeup
+			 * when phcd from 1->0 if wakeup interrupt is enabled
+			 */
+			usb_host_set_wakeup(hcd->self.controller, false);
+
+			/*
+			 * Open PHY's clock, then the wakeup settings
+			 * can be wroten correctly
+			 */
 			fsl_usb_lowpower_mode(pdata, false);
 
 			usb_host_set_wakeup(hcd->self.controller, false);
+
 			fsl_usb_lowpower_mode(pdata, true);
 
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
