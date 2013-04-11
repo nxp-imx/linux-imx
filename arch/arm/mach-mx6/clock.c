@@ -1152,7 +1152,11 @@ static int _clk_pll_mlb_main_enable(struct clk *clk)
 	reg = __raw_readl(pllbase);
 	reg &= ~ANADIG_PLL_BYPASS;
 
-	reg = 0x0da20800;
+	reg = (0x3 << ANADIG_PLL_MLB_FLT_RES_CFG_OFFSET) |
+		(0x3 << ANADIG_PLL_MLB_RX_CLK_DELAY_CFG_OFFSET) |
+		(0x2 << ANADIG_PLL_MLB_VDDD_DELAY_CFG_OFFSET) |
+		(0x1 << ANADIG_PLL_MLB_VDDA_DELAY_CFG_OFFSET) |
+		(ANADIG_PLL_HOLD_RING_OFF);
 	__raw_writel(reg, pllbase);
 
 	return 0;
@@ -4939,6 +4943,7 @@ static int _clk_mlb_set_parent(struct clk *clk, struct clk *parent)
 static struct clk mlb150_clk = {
 	__INIT_CLK_DEBUG(mlb150_clk)
 	.id = 0,
+	.secondary = &ocram_clk,
 	.set_parent = _clk_mlb_set_parent,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG9_OFFSET,
