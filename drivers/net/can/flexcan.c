@@ -126,7 +126,8 @@
 	(FLEXCAN_ESR_ERR_BUS | FLEXCAN_ESR_ERR_STATE)
 
 /* FLEXCAN interrupt flag register (IFLAG) bits */
-#define FLEXCAN_TX_BUF_ID		8
+#define FLEXCAN_RESERVED_BUF_ID		8
+#define FLEXCAN_TX_BUF_ID		13
 #define FLEXCAN_IFLAG_BUF(x)		BIT(x)
 #define FLEXCAN_IFLAG_RX_FIFO_OVERFLOW	BIT(7)
 #define FLEXCAN_IFLAG_RX_FIFO_WARN	BIT(6)
@@ -317,6 +318,11 @@ static int flexcan_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	writel(can_id, &regs->cantxfg[FLEXCAN_TX_BUF_ID].can_id);
 	writel(ctrl, &regs->cantxfg[FLEXCAN_TX_BUF_ID].can_ctrl);
+
+	if (priv->version == FLEXCAN_VER_10_0_12) {
+		writel(0x0, &regs->cantxfg[FLEXCAN_RESERVED_BUF_ID].can_ctrl);
+		writel(0x0, &regs->cantxfg[FLEXCAN_RESERVED_BUF_ID].can_ctrl);
+	}
 
 	return NETDEV_TX_OK;
 }
