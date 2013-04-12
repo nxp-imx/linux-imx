@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,155 +43,155 @@
 /*!
  * MLB module memory map registers define
  */
-#define MLB150_REG_MLBC0		0x0
-#define MLB150_MLBC0_MLBEN		(0x1)
-#define MLB150_MLBC0_MLBCLK_MASK	(0x7 << 2)
-#define MLB150_MLBC0_MLBCLK_SHIFT	(2)
-#define MLB150_MLBC0_MLBPEN		(0x1 << 5)
-#define MLB150_MLBC0_MLBLK		(0x1 << 7)
-#define MLB150_MLBC0_ASYRETRY		(0x1 << 12)
-#define MLB150_MLBC0_CTLRETRY		(0x1 << 12)
-#define MLB150_MLBC0_FCNT_MASK		(0x7 << 15)
-#define MLB150_MLBC0_FCNT_SHIFT		(15)
+#define REG_MLBC0		0x0
+#define MLBC0_MLBEN		(0x1)
+#define MLBC0_MLBCLK_MASK	(0x7 << 2)
+#define MLBC0_MLBCLK_SHIFT	(2)
+#define MLBC0_MLBPEN		(0x1 << 5)
+#define MLBC0_MLBLK		(0x1 << 7)
+#define MLBC0_ASYRETRY		(0x1 << 12)
+#define MLBC0_CTLRETRY		(0x1 << 12)
+#define MLBC0_FCNT_MASK		(0x7 << 15)
+#define MLBC0_FCNT_SHIFT		(15)
 
-#define MLB150_REG_MLBPC0		0x8
-#define MLB150_MLBPC0_MCLKHYS		(0x1 << 11)
+#define REG_MLBPC0		0x8
+#define MLBPC0_MCLKHYS		(0x1 << 11)
 
-#define MLB150_REG_MS0			0xC
-#define MLB150_REG_MS1			0x14
+#define REG_MS0			0xC
+#define REG_MS1			0x14
 
-#define MLB150_REG_MSS			0x20
-#define MLB150_MSS_RSTSYSCMD		(0x1)
-#define MLB150_MSS_LKSYSCMD		(0x1 << 1)
-#define MLB150_MSS_ULKSYSCMD		(0x1 << 2)
-#define MLB150_MSS_CSSYSCMD		(0x1 << 3)
-#define MLB150_MSS_SWSYSCMD		(0x1 << 4)
-#define MLB150_MSS_SERVREQ		(0x1 << 5)
+#define REG_MSS			0x20
+#define MSS_RSTSYSCMD		(0x1)
+#define MSS_LKSYSCMD		(0x1 << 1)
+#define MSS_ULKSYSCMD		(0x1 << 2)
+#define MSS_CSSYSCMD		(0x1 << 3)
+#define MSS_SWSYSCMD		(0x1 << 4)
+#define MSS_SERVREQ		(0x1 << 5)
 
-#define MLB150_REG_MSD			0x24
+#define REG_MSD			0x24
 
-#define MLB150_REG_MIEN			0x2C
-#define MLB150_MIEN_ISOC_PE		(0x1)
-#define MLB150_MIEN_ISOC_BUFO		(0x1 << 1)
-#define MLB150_MIEN_SYNC_PE		(0x1 << 16)
-#define MLB150_MIEN_ARX_DONE		(0x1 << 17)
-#define MLB150_MIEN_ARX_PE		(0x1 << 18)
-#define MLB150_MIEN_ARX_BREAK		(0x1 << 19)
-#define MLB150_MIEN_ATX_DONE		(0x1 << 20)
-#define MLB150_MIEN_ATX_PE		(0x1 << 21)
-#define MLB150_MIEN_ATX_BREAK		(0x1 << 22)
-#define MLB150_MIEN_CRX_DONE		(0x1 << 24)
-#define MLB150_MIEN_CRX_PE		(0x1 << 25)
-#define MLB150_MIEN_CRX_BREAK		(0x1 << 26)
-#define MLB150_MIEN_CTX_DONE		(0x1 << 27)
-#define MLB150_MIEN_CTX_PE		(0x1 << 28)
-#define MLB150_MIEN_CTX_BREAK		(0x1 << 29)
+#define REG_MIEN			0x2C
+#define MIEN_ISOC_PE		(0x1)
+#define MIEN_ISOC_BUFO		(0x1 << 1)
+#define MIEN_SYNC_PE		(0x1 << 16)
+#define MIEN_ARX_DONE		(0x1 << 17)
+#define MIEN_ARX_PE		(0x1 << 18)
+#define MIEN_ARX_BREAK		(0x1 << 19)
+#define MIEN_ATX_DONE		(0x1 << 20)
+#define MIEN_ATX_PE		(0x1 << 21)
+#define MIEN_ATX_BREAK		(0x1 << 22)
+#define MIEN_CRX_DONE		(0x1 << 24)
+#define MIEN_CRX_PE		(0x1 << 25)
+#define MIEN_CRX_BREAK		(0x1 << 26)
+#define MIEN_CTX_DONE		(0x1 << 27)
+#define MIEN_CTX_PE		(0x1 << 28)
+#define MIEN_CTX_BREAK		(0x1 << 29)
 
-#define MLB150_REG_MLBPC2		0x34
-#define MLB150_REG_MLBPC1		0x38
-#define MLB150_MLBPC1_VAL		(0x00000888)
+#define REG_MLBPC2		0x34
+#define REG_MLBPC1		0x38
+#define MLBPC1_VAL		(0x00000888)
 
-#define MLB150_REG_MLBC1		0x3C
-#define MLB150_MLBC1_LOCK		(0x1 << 6)
-#define MLB150_MLBC1_CLKM		(0x1 << 7)
-#define MLB150_MLBC1_NDA_MASK		(0xFF << 8)
-#define MLB150_MLBC1_NDA_SHIFT		(8)
+#define REG_MLBC1		0x3C
+#define MLBC1_LOCK		(0x1 << 6)
+#define MLBC1_CLKM		(0x1 << 7)
+#define MLBC1_NDA_MASK		(0xFF << 8)
+#define MLBC1_NDA_SHIFT		(8)
 
-#define MLB150_REG_HCTL			0x80
-#define MLB150_HCTL_RST0		(0x1)
-#define MLB150_HCTL_RST1		(0x1 << 1)
-#define MLB150_HCTL_EN			(0x1 << 15)
+#define REG_HCTL			0x80
+#define HCTL_RST0		(0x1)
+#define HCTL_RST1		(0x1 << 1)
+#define HCTL_EN			(0x1 << 15)
 
-#define MLB150_REG_HCMR0		0x88
-#define MLB150_REG_HCMR1		0x8C
-#define MLB150_REG_HCER0		0x90
-#define MLB150_REG_HCER1		0x94
-#define MLB150_REG_HCBR0		0x98
-#define MLB150_REG_HCBR1		0x9C
+#define REG_HCMR0		0x88
+#define REG_HCMR1		0x8C
+#define REG_HCER0		0x90
+#define REG_HCER1		0x94
+#define REG_HCBR0		0x98
+#define REG_HCBR1		0x9C
 
-#define MLB150_REG_MDAT0		0xC0
-#define MLB150_REG_MDAT1		0xC4
-#define MLB150_REG_MDAT2		0xC8
-#define MLB150_REG_MDAT3		0xCC
+#define REG_MDAT0		0xC0
+#define REG_MDAT1		0xC4
+#define REG_MDAT2		0xC8
+#define REG_MDAT3		0xCC
 
-#define MLB150_REG_MDWE0		0xD0
-#define MLB150_REG_MDWE1		0xD4
-#define MLB150_REG_MDWE2		0xD8
-#define MLB150_REG_MDWE3		0xDC
+#define REG_MDWE0		0xD0
+#define REG_MDWE1		0xD4
+#define REG_MDWE2		0xD8
+#define REG_MDWE3		0xDC
 
-#define MLB150_REG_MCTL			0xE0
-#define MLB150_MCTL_XCMP		(0x1)
+#define REG_MCTL			0xE0
+#define MCTL_XCMP		(0x1)
 
-#define MLB150_REG_MADR			0xE4
-#define MLB150_MADR_WNR			(0x1 << 31)
-#define MLB150_MADR_TB			(0x1 << 30)
-#define MLB150_MADR_ADDR_MASK		(0x7f << 8)
-#define MLB150_MADR_ADDR_SHIFT		(0)
+#define REG_MADR			0xE4
+#define MADR_WNR			(0x1 << 31)
+#define MADR_TB			(0x1 << 30)
+#define MADR_ADDR_MASK		(0x7f << 8)
+#define MADR_ADDR_SHIFT		(0)
 
-#define MLB150_REG_ACTL			0x3C0
-#define MLB150_ACTL_MPB			(0x1 << 4)
-#define MLB150_ACTL_DMAMODE		(0x1 << 2)
-#define MLB150_ACTL_SMX			(0x1 << 1)
-#define MLB150_ACTL_SCE			(0x1)
+#define REG_ACTL			0x3C0
+#define ACTL_MPB			(0x1 << 4)
+#define ACTL_DMAMODE		(0x1 << 2)
+#define ACTL_SMX			(0x1 << 1)
+#define ACTL_SCE			(0x1)
 
-#define MLB150_REG_ACSR0		0x3D0
-#define MLB150_REG_ACSR1		0x3D4
-#define MLB150_REG_ACMR0		0x3D8
-#define MLB150_REG_ACMR1		0x3DC
+#define REG_ACSR0		0x3D0
+#define REG_ACSR1		0x3D4
+#define REG_ACMR0		0x3D8
+#define REG_ACMR1		0x3DC
 
-#define MLB150_REG_CAT_MDATn(ch) (MLB150_REG_MDAT0 + ((ch % 8) >> 1) * 4)
-#define MLB150_REG_CAT_MDWEn(ch) (MLB150_REG_MDWE0 + ((ch % 8) >> 1) * 4)
+#define REG_CAT_MDATn(ch) (REG_MDAT0 + ((ch % 8) >> 1) * 4)
+#define REG_CAT_MDWEn(ch) (REG_MDWE0 + ((ch % 8) >> 1) * 4)
 
-#define MLB150_LOGIC_CH_NUM		(64)
-#define MLB150_BUF_CDT_OFFSET		(0x0)
-#define MLB150_BUF_ADT_OFFSET		(0x40)
-#define MLB150_BUF_CAT_MLB_OFFSET	(0x80)
-#define MLB150_BUF_CAT_HBI_OFFSET	(0x88)
-#define MLB150_BUF_CTR_END_OFFSET	(0x8F)
+#define LOGIC_CH_NUM		(64)
+#define BUF_CDT_OFFSET		(0x0)
+#define BUF_ADT_OFFSET		(0x40)
+#define BUF_CAT_MLB_OFFSET	(0x80)
+#define BUF_CAT_HBI_OFFSET	(0x88)
+#define BUF_CTR_END_OFFSET	(0x8F)
 
-#define MLB150_CAT_MODE_RX		(0x1 << 0)
-#define MLB150_CAT_MODE_TX		(0x1 << 1)
-#define MLB150_CAT_MODE_INBOUND_DMA	(0x1 << 8)
-#define MLB150_CAT_MODE_OUTBOUND_DMA	(0x1 << 9)
+#define CAT_MODE_RX		(0x1 << 0)
+#define CAT_MODE_TX		(0x1 << 1)
+#define CAT_MODE_INBOUND_DMA	(0x1 << 8)
+#define CAT_MODE_OUTBOUND_DMA	(0x1 << 9)
 
-#define MLB150_CH_SYNC_BUF_DEP		(128 * 4 * 4)
-#define MLB150_CH_CTRL_BUF_DEP		(64)
-#define MLB150_CH_ASYNC_BUF_DEP		(2048)
-#define MLB150_CH_ISOC_BLK_SIZE		(196)
-#define MLB150_CH_ISOC_BLK_NUM		(3)
-#define MLB150_CH_ISOC_BUF_DEP		(MLB150_CH_ISOC_BLK_SIZE * MLB150_CH_ISOC_BLK_NUM)
+#define CH_SYNC_BUF_DEP		(128 * 4 * 4)
+#define CH_CTRL_BUF_DEP		(64)
+#define CH_ASYNC_BUF_DEP		(2048)
+#define CH_ISOC_BLK_SIZE		(196)
+#define CH_ISOC_BLK_NUM		(3)
+#define CH_ISOC_BUF_DEP		(CH_ISOC_BLK_SIZE * CH_ISOC_BLK_NUM)
 
-#define MLB150_CH_SYNC_DBR_BUF_OFFSET	(0x0)
-#define MLB150_CH_CTRL_DBR_BUF_OFFSET	(MLB150_CH_SYNC_DBR_BUF_OFFSET + 2 * MLB150_CH_SYNC_BUF_DEP)
-#define MLB150_CH_ASYNC_DBR_BUF_OFFSET	(MLB150_CH_CTRL_DBR_BUF_OFFSET + 2 * MLB150_CH_CTRL_BUF_DEP)
-#define MLB150_CH_ISOC_DBR_BUF_OFFSET	(MLB150_CH_ASYNC_DBR_BUF_OFFSET + 2 * MLB150_CH_ASYNC_BUF_DEP)
+#define CH_SYNC_DBR_BUF_OFFSET	(0x0)
+#define CH_CTRL_DBR_BUF_OFFSET	(CH_SYNC_DBR_BUF_OFFSET + 2 * CH_SYNC_BUF_DEP)
+#define CH_ASYNC_DBR_BUF_OFFSET	(CH_CTRL_DBR_BUF_OFFSET + 2 * CH_CTRL_BUF_DEP)
+#define CH_ISOC_DBR_BUF_OFFSET	(CH_ASYNC_DBR_BUF_OFFSET + 2 * CH_ASYNC_BUF_DEP)
 
 static u32 mlb150_ch_packet_buf_size[4] = {
-	MLB150_CH_SYNC_BUF_DEP,
-	MLB150_CH_CTRL_BUF_DEP,
-	MLB150_CH_ASYNC_BUF_DEP,
-	MLB150_CH_ISOC_BUF_DEP
+	CH_SYNC_BUF_DEP,
+	CH_CTRL_BUF_DEP,
+	CH_ASYNC_BUF_DEP,
+	CH_ISOC_BUF_DEP
 };
 
-#define MLB150_DBR_BUF_START 0x00000
+#define DBR_BUF_START 0x00000
 
-#define MLB150_CDT_LEN			(16)
-#define MLB150_ADT_LEN			(16)
-#define MLB150_CAT_LEN			(2)
+#define CDT_LEN			(16)
+#define ADT_LEN			(16)
+#define CAT_LEN			(2)
 
-#define MLB150_CDT_SZ		(MLB150_CDT_LEN * MLB150_LOGIC_CH_NUM)
-#define MLB150_ADT_SZ		(MLB150_ADT_LEN * MLB150_LOGIC_CH_NUM)
-#define MLB150_CAT_SZ		(MLB150_CAT_LEN * MLB150_LOGIC_CH_NUM * 2)
+#define CDT_SZ		(CDT_LEN * LOGIC_CH_NUM)
+#define ADT_SZ		(ADT_LEN * LOGIC_CH_NUM)
+#define CAT_SZ		(CAT_LEN * LOGIC_CH_NUM * 2)
 
-#define MLB150_CDT_BASE(base)		(base + MLB150_BUF_CDT_OFFSET)
-#define MLB150_ADT_BASE(base)		(base + MLB150_BUF_ADT_OFFSET)
-#define MLB150_CAT_MLB_BASE(base)	(base + MLB150_BUF_CAT_MLB_OFFSET)
-#define MLB150_CAT_HBI_BASE(base)	(base + MLB150_BUF_CAT_HBI_OFFSET)
+#define CDT_BASE(base)		(base + BUF_CDT_OFFSET)
+#define ADT_BASE(base)		(base + BUF_ADT_OFFSET)
+#define CAT_MLB_BASE(base)	(base + BUF_CAT_MLB_OFFSET)
+#define CAT_HBI_BASE(base)	(base + BUF_CAT_HBI_OFFSET)
 
-#define MLB150_CDTn_ADDR(base, n)	(base + MLB150_BUF_CDT_OFFSET + n * MLB150_CDT_LEN)
-#define MLB150_ADTn_ADDR(base, n)	(base + MLB150_BUF_ADT_OFFSET + n * MLB150_ADT_LEN)
-#define MLB150_CATn_MLB_ADDR(base, n)	(base + MLB150_BUF_CAT_MLB_OFFSET + n * MLB150_CAT_LEN)
-#define MLB150_CATn_HBI_ADDR(base, n)	(base + MLB150_BUF_CAT_HBI_OFFSET + n * MLB150_CAT_LEN)
+#define CDTn_ADDR(base, n)	(base + BUF_CDT_OFFSET + n * CDT_LEN)
+#define ADTn_ADDR(base, n)	(base + BUF_ADT_OFFSET + n * ADT_LEN)
+#define CATn_MLB_ADDR(base, n)	(base + BUF_CAT_MLB_OFFSET + n * CAT_LEN)
+#define CATn_HBI_ADDR(base, n)	(base + BUF_CAT_HBI_OFFSET + n * CAT_LEN)
 
 #define CAT_CL_SHIFT		(0x0)
 #define CAT_CT_SHIFT		(8)
@@ -277,15 +277,15 @@ enum MLB_CTYPE {
 	MLB_CTYPE_ISOC,
 };
 
-enum MLB150_CLK_SPEED {
-	MLB150_CLK_256FS,
-	MLB150_CLK_512FS,
-	MLB150_CLK_1024FS,
-	MLB150_CLK_2048FS,
-	MLB150_CLK_3072FS,
-	MLB150_CLK_4096FS,
-	MLB150_CLK_6144FS,
-	MLB150_CLK_8192FS,
+enum CLK_SPEED {
+	CLK_256FS,
+	CLK_512FS,
+	CLK_1024FS,
+	CLK_2048FS,
+	CLK_3072FS,
+	CLK_4096FS,
+	CLK_6144FS,
+	CLK_8192FS,
 };
 
 /*!
@@ -351,7 +351,7 @@ struct mlb_dev_info {
 	/* channel type */
 	const unsigned int channel_type;
 	/* ch fps */
-	enum MLB150_CLK_SPEED fps;
+	enum CLK_SPEED fps;
 	/* channel info for tx/rx */
 	struct mlb_channel_info channels[2];
 	/* rx ring buffer */
@@ -377,16 +377,16 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.channel_type = MLB_CTYPE_SYNC,
 	.channels = {
 		[0] = {
-			.buf_size = MLB150_CH_SYNC_BUF_DEP,
-			.dbr_buf_head = MLB150_CH_SYNC_DBR_BUF_OFFSET,
+			.buf_size = CH_SYNC_BUF_DEP,
+			.dbr_buf_head = CH_SYNC_DBR_BUF_OFFSET,
 			.buf_lock =
 				__RW_LOCK_UNLOCKED(mlb_devinfo[0].channels[0].
 					buf_lock),
 		},
 		[1] = {
-			.buf_size = MLB150_CH_SYNC_BUF_DEP,
-			.dbr_buf_head = MLB150_CH_SYNC_DBR_BUF_OFFSET
-					+ MLB150_CH_SYNC_BUF_DEP,
+			.buf_size = CH_SYNC_BUF_DEP,
+			.dbr_buf_head = CH_SYNC_DBR_BUF_OFFSET
+					+ CH_SYNC_BUF_DEP,
 			.buf_lock =
 				__RW_LOCK_UNLOCKED(mlb_devinfo[0].channels[1].
 					buf_lock),
@@ -403,16 +403,16 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.channel_type = MLB_CTYPE_CTRL,
 	.channels = {
 		[0] = {
-			.buf_size = MLB150_CH_CTRL_BUF_DEP,
-			.dbr_buf_head = MLB150_CH_CTRL_DBR_BUF_OFFSET,
+			.buf_size = CH_CTRL_BUF_DEP,
+			.dbr_buf_head = CH_CTRL_DBR_BUF_OFFSET,
 			.buf_lock =
 			__RW_LOCK_UNLOCKED(mlb_devinfo[1].channels[0].
 					buf_lock),
 		},
 		[1] = {
-			.buf_size = MLB150_CH_CTRL_BUF_DEP,
-			.dbr_buf_head = MLB150_CH_CTRL_DBR_BUF_OFFSET
-					+ MLB150_CH_CTRL_BUF_DEP,
+			.buf_size = CH_CTRL_BUF_DEP,
+			.dbr_buf_head = CH_CTRL_DBR_BUF_OFFSET
+					+ CH_CTRL_BUF_DEP,
 			.buf_lock =
 			__RW_LOCK_UNLOCKED(mlb_devinfo[1].channels[1].
 					buf_lock),
@@ -429,16 +429,16 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.channel_type = MLB_CTYPE_ASYNC,
 	.channels = {
 		[0] = {
-			.buf_size = MLB150_CH_ASYNC_BUF_DEP,
-			.dbr_buf_head = MLB150_CH_ASYNC_DBR_BUF_OFFSET,
+			.buf_size = CH_ASYNC_BUF_DEP,
+			.dbr_buf_head = CH_ASYNC_DBR_BUF_OFFSET,
 			.buf_lock =
 			__RW_LOCK_UNLOCKED(mlb_devinfo[2].channels[0].
 					buf_lock),
 		},
 		[1] = {
-			.buf_size = MLB150_CH_ASYNC_BUF_DEP,
-			.dbr_buf_head = MLB150_CH_ASYNC_DBR_BUF_OFFSET
-					+ MLB150_CH_ASYNC_BUF_DEP,
+			.buf_size = CH_ASYNC_BUF_DEP,
+			.dbr_buf_head = CH_ASYNC_DBR_BUF_OFFSET
+					+ CH_ASYNC_BUF_DEP,
 			.buf_lock =
 				__RW_LOCK_UNLOCKED(mlb_devinfo[2].channels[1].
 					buf_lock),
@@ -455,16 +455,16 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.channel_type = MLB_CTYPE_ISOC,
 	.channels = {
 		[0] = {
-			.buf_size = MLB150_CH_ISOC_BUF_DEP,
-			.dbr_buf_head = MLB150_CH_ISOC_DBR_BUF_OFFSET,
+			.buf_size = CH_ISOC_BUF_DEP,
+			.dbr_buf_head = CH_ISOC_DBR_BUF_OFFSET,
 			.buf_lock =
 				__RW_LOCK_UNLOCKED(mlb_devinfo[3].channels[0].
 					buf_lock),
 		},
 		[1] = {
-			.buf_size = MLB150_CH_ISOC_BUF_DEP,
-			.dbr_buf_head = MLB150_CH_ISOC_DBR_BUF_OFFSET
-					+ MLB150_CH_ISOC_BUF_DEP,
+			.buf_size = CH_ISOC_BUF_DEP,
+			.dbr_buf_head = CH_ISOC_DBR_BUF_OFFSET
+					+ CH_ISOC_BUF_DEP,
 			.buf_lock =
 				__RW_LOCK_UNLOCKED(mlb_devinfo[3].channels[1].
 					buf_lock),
@@ -496,38 +496,38 @@ DEFINE_SPINLOCK(ctr_lock);
 static void mlb150_dev_dump_reg(void)
 {
 	pr_debug("mxc_mlb150: Dump registers:\n");
-	DUMP_REG(MLB150_REG_MLBC0);
-	DUMP_REG(MLB150_REG_MLBPC0);
-	DUMP_REG(MLB150_REG_MS0);
-	DUMP_REG(MLB150_REG_MS1);
-	DUMP_REG(MLB150_REG_MSS);
-	DUMP_REG(MLB150_REG_MSD);
-	DUMP_REG(MLB150_REG_MIEN);
-	DUMP_REG(MLB150_REG_MLBPC2);
-	DUMP_REG(MLB150_REG_MLBPC1);
-	DUMP_REG(MLB150_REG_MLBC1);
-	DUMP_REG(MLB150_REG_HCTL);
-	DUMP_REG(MLB150_REG_HCMR0);
-	DUMP_REG(MLB150_REG_HCMR1);
-	DUMP_REG(MLB150_REG_HCER0);
-	DUMP_REG(MLB150_REG_HCER1);
-	DUMP_REG(MLB150_REG_HCBR0);
-	DUMP_REG(MLB150_REG_HCBR1);
-	DUMP_REG(MLB150_REG_MDAT0);
-	DUMP_REG(MLB150_REG_MDAT1);
-	DUMP_REG(MLB150_REG_MDAT2);
-	DUMP_REG(MLB150_REG_MDAT3);
-	DUMP_REG(MLB150_REG_MDWE0);
-	DUMP_REG(MLB150_REG_MDWE1);
-	DUMP_REG(MLB150_REG_MDWE2);
-	DUMP_REG(MLB150_REG_MDWE3);
-	DUMP_REG(MLB150_REG_MCTL);
-	DUMP_REG(MLB150_REG_MADR);
-	DUMP_REG(MLB150_REG_ACTL);
-	DUMP_REG(MLB150_REG_ACSR0);
-	DUMP_REG(MLB150_REG_ACSR1);
-	DUMP_REG(MLB150_REG_ACMR0);
-	DUMP_REG(MLB150_REG_ACMR1);
+	DUMP_REG(REG_MLBC0);
+	DUMP_REG(REG_MLBPC0);
+	DUMP_REG(REG_MS0);
+	DUMP_REG(REG_MS1);
+	DUMP_REG(REG_MSS);
+	DUMP_REG(REG_MSD);
+	DUMP_REG(REG_MIEN);
+	DUMP_REG(REG_MLBPC2);
+	DUMP_REG(REG_MLBPC1);
+	DUMP_REG(REG_MLBC1);
+	DUMP_REG(REG_HCTL);
+	DUMP_REG(REG_HCMR0);
+	DUMP_REG(REG_HCMR1);
+	DUMP_REG(REG_HCER0);
+	DUMP_REG(REG_HCER1);
+	DUMP_REG(REG_HCBR0);
+	DUMP_REG(REG_HCBR1);
+	DUMP_REG(REG_MDAT0);
+	DUMP_REG(REG_MDAT1);
+	DUMP_REG(REG_MDAT2);
+	DUMP_REG(REG_MDAT3);
+	DUMP_REG(REG_MDWE0);
+	DUMP_REG(REG_MDWE1);
+	DUMP_REG(REG_MDWE2);
+	DUMP_REG(REG_MDWE3);
+	DUMP_REG(REG_MCTL);
+	DUMP_REG(REG_MADR);
+	DUMP_REG(REG_ACTL);
+	DUMP_REG(REG_ACSR0);
+	DUMP_REG(REG_ACSR1);
+	DUMP_REG(REG_ACMR0);
+	DUMP_REG(REG_ACMR1);
 }
 
 static void mlb150_dev_dump_hex(const u8 *buf, u32 len)
@@ -614,10 +614,10 @@ static void mlb150_dev_dump_hex(const u8 *buf, u32 len)
 static inline void mlb150_dev_enable_ctr_write(u32 mdat0_bits_en,
 		u32 mdat1_bits_en, u32 mdat2_bits_en, u32 mdat3_bits_en)
 {
-	__raw_writel(mdat0_bits_en, mlb_base + MLB150_REG_MDWE0);
-	__raw_writel(mdat1_bits_en, mlb_base + MLB150_REG_MDWE1);
-	__raw_writel(mdat2_bits_en, mlb_base + MLB150_REG_MDWE2);
-	__raw_writel(mdat3_bits_en, mlb_base + MLB150_REG_MDWE3);
+	__raw_writel(mdat0_bits_en, mlb_base + REG_MDWE0);
+	__raw_writel(mdat1_bits_en, mlb_base + REG_MDWE1);
+	__raw_writel(mdat2_bits_en, mlb_base + REG_MDWE2);
+	__raw_writel(mdat3_bits_en, mlb_base + REG_MDWE3);
 }
 
 static inline u8 mlb150_dev_dbr_read(u32 dbr_addr)
@@ -627,20 +627,20 @@ static inline u8 mlb150_dev_dbr_read(u32 dbr_addr)
 	unsigned long flags;
 
 	spin_lock_irqsave(&ctr_lock, flags);
-	__raw_writel(MLB150_MADR_TB | dbr_addr,
-		mlb_base + MLB150_REG_MADR);
+	__raw_writel(MADR_TB | dbr_addr,
+		mlb_base + REG_MADR);
 
-	while ((!(__raw_readl(mlb_base + MLB150_REG_MCTL)
-			& MLB150_MCTL_XCMP)) &&
+	while ((!(__raw_readl(mlb_base + REG_MCTL)
+			& MCTL_XCMP)) &&
 			timeout--)
 		;
 
 	if (unlikely(0 == timeout))
 		return -ETIME;
 
-	dbr_val = __raw_readl(mlb_base + MLB150_REG_MDAT0) & 0x000000ff;
+	dbr_val = __raw_readl(mlb_base + REG_MDAT0) & 0x000000ff;
 
-	__raw_writel(0, mlb_base + MLB150_REG_MCTL);
+	__raw_writel(0, mlb_base + REG_MCTL);
 	spin_unlock_irqrestore(&ctr_lock, flags);
 
 	return dbr_val;
@@ -653,20 +653,20 @@ static inline s32 mlb150_dev_dbr_write(u32 dbr_addr, u8 dbr_val)
 	unsigned long flags;
 
 	spin_lock_irqsave(&ctr_lock, flags);
-	__raw_writel(mdat0, mlb_base + MLB150_REG_MDAT0);
+	__raw_writel(mdat0, mlb_base + REG_MDAT0);
 
-	__raw_writel(MLB150_MADR_WNR | MLB150_MADR_TB | dbr_addr,
-			mlb_base + MLB150_REG_MADR);
+	__raw_writel(MADR_WNR | MADR_TB | dbr_addr,
+			mlb_base + REG_MADR);
 
-	while ((!(__raw_readl(mlb_base + MLB150_REG_MCTL)
-			& MLB150_MCTL_XCMP)) &&
+	while ((!(__raw_readl(mlb_base + REG_MCTL)
+			& MCTL_XCMP)) &&
 			timeout--)
 		;
 
 	if (unlikely(timeout <= 0))
 		return -ETIME;
 
-	__raw_writel(0, mlb_base + MLB150_REG_MCTL);
+	__raw_writel(0, mlb_base + REG_MCTL);
 	spin_unlock_irqrestore(&ctr_lock, flags);
 
 	return 0;
@@ -678,10 +678,10 @@ static s32 mlb150_dev_ctr_read(u32 ctr_offset, u32 *ctr_val)
 	unsigned long flags;
 
 	spin_lock_irqsave(&ctr_lock, flags);
-	__raw_writel(ctr_offset, mlb_base + MLB150_REG_MADR);
+	__raw_writel(ctr_offset, mlb_base + REG_MADR);
 
-	while ((!(__raw_readl(mlb_base + MLB150_REG_MCTL)
-			& MLB150_MCTL_XCMP)) &&
+	while ((!(__raw_readl(mlb_base + REG_MCTL)
+			& MCTL_XCMP)) &&
 			timeout--)
 		;
 
@@ -690,12 +690,12 @@ static s32 mlb150_dev_ctr_read(u32 ctr_offset, u32 *ctr_val)
 		return -ETIME;
 	}
 
-	ctr_val[0] = __raw_readl(mlb_base + MLB150_REG_MDAT0);
-	ctr_val[1] = __raw_readl(mlb_base + MLB150_REG_MDAT1);
-	ctr_val[2] = __raw_readl(mlb_base + MLB150_REG_MDAT2);
-	ctr_val[3] = __raw_readl(mlb_base + MLB150_REG_MDAT3);
+	ctr_val[0] = __raw_readl(mlb_base + REG_MDAT0);
+	ctr_val[1] = __raw_readl(mlb_base + REG_MDAT1);
+	ctr_val[2] = __raw_readl(mlb_base + REG_MDAT2);
+	ctr_val[3] = __raw_readl(mlb_base + REG_MDAT3);
 
-	__raw_writel(0, mlb_base + MLB150_REG_MCTL);
+	__raw_writel(0, mlb_base + REG_MCTL);
 
 	spin_unlock_irqrestore(&ctr_lock, flags);
 
@@ -709,16 +709,16 @@ static s32 mlb150_dev_ctr_write(u32 ctr_offset, const u32 *ctr_val)
 
 	spin_lock_irqsave(&ctr_lock, flags);
 
-	__raw_writel(ctr_val[0], mlb_base + MLB150_REG_MDAT0);
-	__raw_writel(ctr_val[1], mlb_base + MLB150_REG_MDAT1);
-	__raw_writel(ctr_val[2], mlb_base + MLB150_REG_MDAT2);
-	__raw_writel(ctr_val[3], mlb_base + MLB150_REG_MDAT3);
+	__raw_writel(ctr_val[0], mlb_base + REG_MDAT0);
+	__raw_writel(ctr_val[1], mlb_base + REG_MDAT1);
+	__raw_writel(ctr_val[2], mlb_base + REG_MDAT2);
+	__raw_writel(ctr_val[3], mlb_base + REG_MDAT3);
 
-	__raw_writel(MLB150_MADR_WNR | ctr_offset,
-			mlb_base + MLB150_REG_MADR);
+	__raw_writel(MADR_WNR | ctr_offset,
+			mlb_base + REG_MADR);
 
-	while ((!(__raw_readl(mlb_base + MLB150_REG_MCTL)
-			& MLB150_MCTL_XCMP)) &&
+	while ((!(__raw_readl(mlb_base + REG_MCTL)
+			& MCTL_XCMP)) &&
 			timeout--)
 		;
 
@@ -727,7 +727,7 @@ static s32 mlb150_dev_ctr_write(u32 ctr_offset, const u32 *ctr_val)
 		return -ETIME;
 	}
 
-	__raw_writel(0, mlb_base + MLB150_REG_MCTL);
+	__raw_writel(0, mlb_base + REG_MCTL);
 
 	spin_unlock_irqrestore(&ctr_lock, flags);
 
@@ -762,11 +762,11 @@ static s32 mlb150_dev_get_adt_sts(u32 ch)
 	u32 reg;
 
 	spin_lock_irqsave(&ctr_lock, flags);
-	__raw_writel(MLB150_BUF_ADT_OFFSET + ch,
-			mlb_base + MLB150_REG_MADR);
+	__raw_writel(BUF_ADT_OFFSET + ch,
+			mlb_base + REG_MADR);
 
-	while ((!(__raw_readl(mlb_base + MLB150_REG_MCTL)
-			& MLB150_MCTL_XCMP)) &&
+	while ((!(__raw_readl(mlb_base + REG_MCTL)
+			& MCTL_XCMP)) &&
 			timeout--)
 		;
 
@@ -775,9 +775,9 @@ static s32 mlb150_dev_get_adt_sts(u32 ch)
 		return -ETIME;
 	}
 
-	reg = __raw_readl(mlb_base + MLB150_REG_MDAT1);
+	reg = __raw_readl(mlb_base + REG_MDAT1);
 
-	__raw_writel(0, mlb_base + MLB150_REG_MCTL);
+	__raw_writel(0, mlb_base + REG_MCTL);
 	spin_unlock_irqrestore(&ctr_lock, flags);
 
 #ifdef DEBUG_ADT
@@ -802,22 +802,22 @@ static s32 mlb150_dev_cat_write(u32 ctr_offset, u32 ch, const u16 cat_val)
 }
 
 #define mlb150_dev_cat_mlb_read(ch, cat_val)	\
-	mlb150_dev_cat_read(MLB150_BUF_CAT_MLB_OFFSET + (ch >> 3), ch, cat_val)
+	mlb150_dev_cat_read(BUF_CAT_MLB_OFFSET + (ch >> 3), ch, cat_val)
 #define mlb150_dev_cat_mlb_write(ch, cat_val)	\
-	mlb150_dev_cat_write(MLB150_BUF_CAT_MLB_OFFSET + (ch >> 3), ch, cat_val)
+	mlb150_dev_cat_write(BUF_CAT_MLB_OFFSET + (ch >> 3), ch, cat_val)
 #define mlb150_dev_cat_hbi_read(ch, cat_val)	\
-	mlb150_dev_cat_read(MLB150_BUF_CAT_HBI_OFFSET + (ch >> 3), ch, cat_val)
+	mlb150_dev_cat_read(BUF_CAT_HBI_OFFSET + (ch >> 3), ch, cat_val)
 #define mlb150_dev_cat_hbi_write(ch, cat_val)	\
-	mlb150_dev_cat_write(MLB150_BUF_CAT_HBI_OFFSET + (ch >> 3), ch, cat_val)
+	mlb150_dev_cat_write(BUF_CAT_HBI_OFFSET + (ch >> 3), ch, cat_val)
 
 #define mlb150_dev_cdt_read(ch, cdt_val)	\
-	mlb150_dev_ctr_read(MLB150_BUF_CDT_OFFSET + ch, cdt_val)
+	mlb150_dev_ctr_read(BUF_CDT_OFFSET + ch, cdt_val)
 #define mlb150_dev_cdt_write(ch, cdt_val)	\
-	mlb150_dev_ctr_write(MLB150_BUF_CDT_OFFSET + ch, cdt_val)
+	mlb150_dev_ctr_write(BUF_CDT_OFFSET + ch, cdt_val)
 #define mlb150_dev_adt_read(ch, adt_val)	\
-	mlb150_dev_ctr_read(MLB150_BUF_ADT_OFFSET + ch, adt_val)
+	mlb150_dev_ctr_read(BUF_ADT_OFFSET + ch, adt_val)
 #define mlb150_dev_adt_write(ch, adt_val)	\
-	mlb150_dev_ctr_write(MLB150_BUF_ADT_OFFSET + ch, adt_val)
+	mlb150_dev_ctr_write(BUF_ADT_OFFSET + ch, adt_val)
 
 #ifdef DEBUG
 static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
@@ -826,8 +826,8 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
 	u32 ctr_val[4] = { 0 };
 
 	pr_debug("mxc_mlb150: CDT Table");
-	for (i = MLB150_BUF_CDT_OFFSET + ch_start;
-			i < MLB150_BUF_CDT_OFFSET + ch_end;
+	for (i = BUF_CDT_OFFSET + ch_start;
+			i < BUF_CDT_OFFSET + ch_end;
 			++i) {
 		mlb150_dev_ctr_read(i, ctr_val);
 		pr_debug("CTR 0x%02x: 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
@@ -835,8 +835,8 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
 	}
 
 	pr_debug("mxc_mlb150: ADT Table");
-	for (i = MLB150_BUF_ADT_OFFSET + ch_start;
-			i < MLB150_BUF_ADT_OFFSET + ch_end;
+	for (i = BUF_ADT_OFFSET + ch_start;
+			i < BUF_ADT_OFFSET + ch_end;
 			++i) {
 		mlb150_dev_ctr_read(i, ctr_val);
 		pr_debug("CTR 0x%02x: 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
@@ -844,8 +844,8 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
 	}
 
 	pr_debug("mxc_mlb150: CAT MLB Table");
-	for (i = MLB150_BUF_CAT_MLB_OFFSET + (ch_start >> 3);
-			i < MLB150_BUF_CAT_MLB_OFFSET + (ch_end >> 3) + 1;
+	for (i = BUF_CAT_MLB_OFFSET + (ch_start >> 3);
+			i < BUF_CAT_MLB_OFFSET + (ch_end >> 3) + 1;
 			++i) {
 		mlb150_dev_ctr_read(i, ctr_val);
 		pr_debug("CTR 0x%02x: 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
@@ -853,8 +853,8 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
 	}
 
 	pr_debug("mxc_mlb150: CAT HBI Table");
-	for (i = MLB150_BUF_CAT_HBI_OFFSET + (ch_start >> 3);
-			i < MLB150_BUF_CAT_HBI_OFFSET + (ch_end >> 3) + 1;
+	for (i = BUF_CAT_HBI_OFFSET + (ch_start >> 3);
+			i < BUF_CAT_HBI_OFFSET + (ch_end >> 3) + 1;
 			++i) {
 		mlb150_dev_ctr_read(i, ctr_val);
 		pr_debug("CTR 0x%02x: 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
@@ -869,11 +869,11 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
 static inline s32 mlb150_dev_enable_dma_irq(u32 enable)
 {
 	if (enable) {
-		__raw_writel(0xffffffff, mlb_base + MLB150_REG_ACMR0);
-		__raw_writel(0xffffffff, mlb_base + MLB150_REG_ACMR1);
+		__raw_writel(0xffffffff, mlb_base + REG_ACMR0);
+		__raw_writel(0xffffffff, mlb_base + REG_ACMR1);
 	} else {
-		__raw_writel(0x0, mlb_base + MLB150_REG_ACMR0);
-		__raw_writel(0x0, mlb_base + MLB150_REG_ACMR1);
+		__raw_writel(0x0, mlb_base + REG_ACMR0);
+		__raw_writel(0x0, mlb_base + REG_ACMR1);
 	}
 
 	return 0;
@@ -892,10 +892,10 @@ static s32 mlb150_dev_init_ir_amba_ahb(void)
 	 * ACTL.SCE = 0, hardware clears on read
 	 * ACTL.SCE = 1, software writes a '1' to clear */
 	/* We only support DMA MODE 1 */
-	reg = __raw_readl(mlb_base + MLB150_REG_ACTL);
-	reg |= MLB150_ACTL_DMAMODE;
-#ifdef MLB150_MULTIPLE_PACKAGE_MODE
-	reg |= MLB150_REG_ACTL_MPB;
+	reg = __raw_readl(mlb_base + REG_ACTL);
+	reg |= ACTL_DMAMODE;
+#ifdef MULTIPLE_PACKAGE_MODE
+	reg |= REG_ACTL_MPB;
 #endif
 
 	/* Step 3. Select 1 or 2 interrupt signals:
@@ -904,10 +904,10 @@ static s32 mlb150_dev_init_ir_amba_ahb(void)
 	 * ACTL.SMX = 1: singel interrupt all channels on ahb_init[0]
 	 * */
 	/*
-	reg |= MLB150_ACTL_SMX;
+	reg |= ACTL_SMX;
 	*/
 
-	__raw_writel(reg, mlb_base + MLB150_REG_ACTL);
+	__raw_writel(reg, mlb_base + REG_ACTL);
 
 	return 0;
 }
@@ -916,19 +916,19 @@ static inline s32 mlb150_dev_enable_ir_mlb(u32 enable)
 {
 	/* Step 1, Select the MSn to be cleared by software,
 	 * writing a '0' to the appropriate bits */
-	__raw_writel(0, mlb_base + MLB150_REG_MS0);
-	__raw_writel(0, mlb_base + MLB150_REG_MS1);
+	__raw_writel(0, mlb_base + REG_MS0);
+	__raw_writel(0, mlb_base + REG_MS1);
 
 	/* Step 1, Program MIEN to enable protocol error
 	 * interrupts for all active MLB channels */
 	if (enable)
-		__raw_writel(MLB150_MIEN_CTX_PE |
-			MLB150_MIEN_CRX_PE | MLB150_MIEN_ATX_PE |
-			MLB150_MIEN_ARX_PE | MLB150_MIEN_SYNC_PE |
-			MLB150_MIEN_ISOC_PE,
-			mlb_base + MLB150_REG_MIEN);
+		__raw_writel(MIEN_CTX_PE |
+			MIEN_CRX_PE | MIEN_ATX_PE |
+			MIEN_ARX_PE | MIEN_SYNC_PE |
+			MIEN_ISOC_PE,
+			mlb_base + REG_MIEN);
 	else
-		__raw_writel(0, mlb_base + MLB150_REG_MIEN);
+		__raw_writel(0, mlb_base + REG_MIEN);
 
 	return 0;
 }
@@ -937,20 +937,20 @@ static inline int mlb150_enable_pll(void)
 {
 	u32 c0_val;
 
-	__raw_writel(MLB150_MLBPC1_VAL,
-			mlb_base + MLB150_REG_MLBPC1);
+	__raw_writel(MLBPC1_VAL,
+			mlb_base + REG_MLBPC1);
 
-	c0_val = __raw_readl(mlb_base + MLB150_REG_MLBC0);
-	if (c0_val & MLB150_MLBC0_MLBPEN) {
-		c0_val &= ~MLB150_MLBC0_MLBPEN;
+	c0_val = __raw_readl(mlb_base + REG_MLBC0);
+	if (c0_val & MLBC0_MLBPEN) {
+		c0_val &= ~MLBC0_MLBPEN;
 		__raw_writel(c0_val,
-				mlb_base + MLB150_REG_MLBC0);
+				mlb_base + REG_MLBC0);
 	}
 
 	clk_enable(mlb_pll_clk);
 
-	c0_val |= (MLB150_MLBC0_MLBPEN);
-	__raw_writel(c0_val, mlb_base + MLB150_REG_MLBC0);
+	c0_val |= (MLBC0_MLBPEN);
+	__raw_writel(c0_val, mlb_base + REG_MLBC0);
 
 	return 0;
 }
@@ -961,12 +961,12 @@ static inline int mlb150_disable_pll(void)
 
 	clk_disable(mlb_pll_clk);
 
-	c0_val = __raw_readl(mlb_base + MLB150_REG_MLBC0);
+	c0_val = __raw_readl(mlb_base + REG_MLBC0);
 
-	__raw_writel(0x0, mlb_base + MLB150_REG_MLBPC1);
+	__raw_writel(0x0, mlb_base + REG_MLBPC1);
 
-	c0_val &= ~MLB150_MLBC0_MLBPEN;
-	__raw_writel(c0_val, mlb_base + MLB150_REG_MLBC0);
+	c0_val &= ~MLBC0_MLBPEN;
+	__raw_writel(c0_val, mlb_base + REG_MLBC0);
 
 	return 0;
 }
@@ -976,27 +976,27 @@ static void mlb150_dev_init(void)
 	u32 c0_val, hctl_val;
 
 	/* Disable EN bits */
-	c0_val = __raw_readl(mlb_base + MLB150_REG_MLBC0);
-	c0_val &= ~MLB150_MLBC0_MLBEN;
-	__raw_writel(c0_val, mlb_base + MLB150_REG_MLBC0);
+	c0_val = __raw_readl(mlb_base + REG_MLBC0);
+	c0_val &= ~MLBC0_MLBEN;
+	__raw_writel(c0_val, mlb_base + REG_MLBC0);
 
-	hctl_val = __raw_readl(mlb_base + MLB150_REG_HCTL);
-	hctl_val &= ~MLB150_HCTL_EN;
-	__raw_writel(hctl_val, mlb_base + MLB150_REG_HCTL);
+	hctl_val = __raw_readl(mlb_base + REG_HCTL);
+	hctl_val &= ~HCTL_EN;
+	__raw_writel(hctl_val, mlb_base + REG_HCTL);
 
 	/* Step 1, Configure the MediaLB interface */
 	/* Select pin mode and clock, 3-pin and 256fs */
-	c0_val = __raw_readl(mlb_base + MLB150_REG_MLBC0);
-	c0_val &= ~(MLB150_MLBC0_MLBPEN | MLB150_MLBC0_MLBCLK_MASK);
-	__raw_writel(c0_val, mlb_base + MLB150_REG_MLBC0);
+	c0_val = __raw_readl(mlb_base + REG_MLBC0);
+	c0_val &= ~(MLBC0_MLBPEN | MLBC0_MLBCLK_MASK);
+	__raw_writel(c0_val, mlb_base + REG_MLBC0);
 
-	c0_val |= MLB150_MLBC0_MLBEN;
-	__raw_writel(c0_val, mlb_base + MLB150_REG_MLBC0);
+	c0_val |= MLBC0_MLBEN;
+	__raw_writel(c0_val, mlb_base + REG_MLBC0);
 
 	/* Step 2, Configure the HBI interface */
-	__raw_writel(0xffffffff, mlb_base + MLB150_REG_HCMR0);
-	__raw_writel(0xffffffff, mlb_base + MLB150_REG_HCMR1);
-	__raw_writel(MLB150_HCTL_EN, mlb_base + MLB150_REG_HCTL);
+	__raw_writel(0xffffffff, mlb_base + REG_HCMR0);
+	__raw_writel(0xffffffff, mlb_base + REG_HCMR1);
+	__raw_writel(HCTL_EN, mlb_base + REG_HCTL);
 
 	mlb150_dev_init_ir_amba_ahb();
 
@@ -1008,8 +1008,8 @@ static s32 mlb150_dev_reset_cdt(void)
 	int i = 0;
 	u32 ctr_val[4] = { 0 };
 
-	for (i = 0; i < (MLB150_LOGIC_CH_NUM); ++i)
-		mlb150_dev_ctr_write(MLB150_BUF_CDT_OFFSET + i, ctr_val);
+	for (i = 0; i < (LOGIC_CH_NUM); ++i)
+		mlb150_dev_ctr_write(BUF_CDT_OFFSET + i, ctr_val);
 
 	return 0;
 }
@@ -1029,25 +1029,25 @@ static s32 mlb150_dev_init_ch_cdt(u32 ch, enum MLB_CTYPE ctype, u32 ch_func)
 	switch (ctype) {
 	case MLB_CTYPE_SYNC:
 		/* For synchronous channels: (BD + 1) = 4 * m * bpf */
-		cdt_val[3] |= (MLB150_CH_SYNC_BUF_DEP - 1) << CDT_BD_SHIFT;
+		cdt_val[3] |= (CH_SYNC_BUF_DEP - 1) << CDT_BD_SHIFT;
 		break;
 	case MLB_CTYPE_CTRL:
 		/* For control channels: (BD + 1) >= max packet length (64) */
 		/* BD */
-		cdt_val[3] |= ((MLB150_CH_CTRL_BUF_DEP - 1) << CDT_BD_SHIFT);
+		cdt_val[3] |= ((CH_CTRL_BUF_DEP - 1) << CDT_BD_SHIFT);
 		break;
 	case MLB_CTYPE_ASYNC:
 		/* For asynchronous channels: (BD + 1) >= max packet length
 		 * 1024 for a MOST Data packet (MDP);
 		 * 1536 for a MOST Ethernet Packet (MEP) */
-		cdt_val[3] |= ((MLB150_CH_ASYNC_BUF_DEP - 1) << CDT_BD_SHIFT);
+		cdt_val[3] |= ((CH_ASYNC_BUF_DEP - 1) << CDT_BD_SHIFT);
 		break;
 	case MLB_CTYPE_ISOC:
 		/* For isochronous channels: (BD + 1) mod (BS + 1) = 0 */
 		/* BS */
-		cdt_val[1] |= (MLB150_CH_ISOC_BLK_SIZE - 1);
+		cdt_val[1] |= (CH_ISOC_BLK_SIZE - 1);
 		/* BD */
-		cdt_val[3] |= (MLB150_CH_ISOC_BUF_DEP - 1)
+		cdt_val[3] |= (CH_ISOC_BUF_DEP - 1)
 				<< CDT_BD_SHIFT;
 		break;
 	default:
@@ -1098,7 +1098,7 @@ static s32 mlb150_dev_init_ch_cat(u32 ch, u32 cat_mode, enum MLB_CTYPE ctype)
 
 	cat_val = CAT_CE | (ctype << CAT_CT_SHIFT) | ch;
 
-	if (cat_mode & MLB150_CAT_MODE_OUTBOUND_DMA)
+	if (cat_mode & CAT_MODE_OUTBOUND_DMA)
 		cat_val |= CAT_RNW;
 
 	if (MLB_CTYPE_SYNC == ctype)
@@ -1108,8 +1108,8 @@ static s32 mlb150_dev_init_ch_cat(u32 ch, u32 cat_mode, enum MLB_CTYPE ctype)
 			ch, ctype, cat_val);
 
 	switch (cat_mode) {
-	case MLB150_CAT_MODE_RX | MLB150_CAT_MODE_INBOUND_DMA:
-	case MLB150_CAT_MODE_TX | MLB150_CAT_MODE_OUTBOUND_DMA:
+	case CAT_MODE_RX | CAT_MODE_INBOUND_DMA:
+	case CAT_MODE_TX | CAT_MODE_OUTBOUND_DMA:
 		if (unlikely(mlb150_dev_cat_mlb_write(ch, cat_val)))
 			return -ETIME;
 #ifdef DEBUG_CTR
@@ -1123,8 +1123,8 @@ static s32 mlb150_dev_init_ch_cat(u32 ch, u32 cat_mode, enum MLB_CTYPE ctype)
 		}
 #endif
 		break;
-	case MLB150_CAT_MODE_TX | MLB150_CAT_MODE_INBOUND_DMA:
-	case MLB150_CAT_MODE_RX | MLB150_CAT_MODE_OUTBOUND_DMA:
+	case CAT_MODE_TX | CAT_MODE_INBOUND_DMA:
+	case CAT_MODE_RX | CAT_MODE_OUTBOUND_DMA:
 		if (unlikely(mlb150_dev_cat_hbi_write(ch, cat_val)))
 			return -ETIME;
 #ifdef DEBUG_CTR
@@ -1161,9 +1161,9 @@ static s32 mlb150_dev_reset_cat(void)
 	int i = 0;
 	u32 ctr_val[4] = { 0 };
 
-	for (i = 0; i < (MLB150_LOGIC_CH_NUM >> 3); ++i) {
-		mlb150_dev_ctr_write(MLB150_BUF_CAT_MLB_OFFSET + i, ctr_val);
-		mlb150_dev_ctr_write(MLB150_BUF_CAT_HBI_OFFSET + i, ctr_val);
+	for (i = 0; i < (LOGIC_CH_NUM >> 3); ++i) {
+		mlb150_dev_ctr_write(BUF_CAT_MLB_OFFSET + i, ctr_val);
+		mlb150_dev_ctr_write(BUF_CAT_HBI_OFFSET + i, ctr_val);
 	}
 
 	return 0;
@@ -1182,16 +1182,16 @@ static s32 mlb150_dev_init_rfb(u32 rx_ch, u32 tx_ch, enum MLB_CTYPE ctype)
 
 	/* Step 4&5, Program the CAT for the inbound and outbound DMA */
 	mlb150_dev_init_ch_cat(rx_ch,
-			MLB150_CAT_MODE_RX | MLB150_CAT_MODE_INBOUND_DMA,
+			CAT_MODE_RX | CAT_MODE_INBOUND_DMA,
 			ctype);
 	mlb150_dev_init_ch_cat(rx_ch,
-			MLB150_CAT_MODE_RX | MLB150_CAT_MODE_OUTBOUND_DMA,
+			CAT_MODE_RX | CAT_MODE_OUTBOUND_DMA,
 			ctype);
 	mlb150_dev_init_ch_cat(tx_ch,
-			MLB150_CAT_MODE_TX | MLB150_CAT_MODE_INBOUND_DMA,
+			CAT_MODE_TX | CAT_MODE_INBOUND_DMA,
 			ctype);
 	mlb150_dev_init_ch_cat(tx_ch,
-			MLB150_CAT_MODE_TX | MLB150_CAT_MODE_OUTBOUND_DMA,
+			CAT_MODE_TX | CAT_MODE_OUTBOUND_DMA,
 			ctype);
 
 	return 0;
@@ -1202,8 +1202,8 @@ static s32 mlb150_dev_reset_adt(void)
 	int i = 0;
 	u32 ctr_val[4] = { 0 };
 
-	for (i = 0; i < (MLB150_LOGIC_CH_NUM); ++i)
-		mlb150_dev_ctr_write(MLB150_BUF_ADT_OFFSET + i, ctr_val);
+	for (i = 0; i < (LOGIC_CH_NUM); ++i)
+		mlb150_dev_ctr_write(BUF_ADT_OFFSET + i, ctr_val);
 
 	return 0;
 }
@@ -1344,16 +1344,16 @@ static s32 mlb150_dev_unmute_syn_ch(u32 rx_ch, u32 tx_ch)
 	/* Check that MediaLB clock is running (MLBC1.CLKM = 0)
 	 * If MLBC1.CLKM = 1, clear the register bit, wait one
 	 * APB or I/O clock cycle and repeat the check */
-	while ((__raw_readl(mlb_base + MLB150_REG_MLBC1) & MLB150_MLBC1_CLKM)
+	while ((__raw_readl(mlb_base + REG_MLBC1) & MLBC1_CLKM)
 			|| timeout--)
-		__raw_writel(~MLB150_MLBC1_CLKM, mlb_base + MLB150_REG_MLBC1);
+		__raw_writel(~MLBC1_CLKM, mlb_base + REG_MLBC1);
 
 	if (unlikely(0 == timeout))
 		return -ETIME;
 
 	timeout = 10000;
 	/* Poll for MLB lock (MLBC0.MLBLK = 1) */
-	while (!(__raw_readl(mlb_base + MLB150_REG_MLBC0) & MLB150_MLBC0_MLBLK)
+	while (!(__raw_readl(mlb_base + REG_MLBC0) & MLBC0_MLBLK)
 			|| timeout--)
 		;
 
@@ -1376,8 +1376,8 @@ static void mlb150_dev_exit(void)
 	mlb150_dev_enable_dma_irq(0);
 	mlb150_dev_enable_ir_mlb(0);
 
-	__raw_writel(0, mlb_base + MLB150_REG_HCTL);
-	__raw_writel(0, mlb_base + MLB150_REG_MLBC0);
+	__raw_writel(0, mlb_base + REG_HCTL);
+	__raw_writel(0, mlb_base + REG_MLBC0);
 }
 
 /*!
@@ -1435,7 +1435,7 @@ static void mlb_channel_enable(int chan_dev_id, int on)
 				ADT_PS2 | ADT_MEP2,
 				0xffffffff, 0xffffffff);
 
-		if (pdevinfo->fps >= MLB150_CLK_2048FS)
+		if (pdevinfo->fps >= CLK_2048FS)
 			mlb150_enable_pll();
 
 		atomic_set(&pdevinfo->on, 1);
@@ -1454,7 +1454,7 @@ static void mlb_channel_enable(int chan_dev_id, int on)
 
 		atomic_set(&mlb_devinfo[chan_dev_id].on, 0);
 
-		if (mlb_devinfo[chan_dev_id].fps >= MLB150_CLK_2048FS)
+		if (mlb_devinfo[chan_dev_id].fps >= CLK_2048FS)
 			mlb150_disable_pll();
 	}
 }
@@ -1536,17 +1536,17 @@ static irqreturn_t mlb_ahb_isr(int irq, void *dev_id)
 
 	/* Step 5, Read the ACSRn registers to determine which channel or
 	 * channels are causing the interrupt */
-	acsr0 = __raw_readl(mlb_base + MLB150_REG_ACSR0);
-	acsr1 = __raw_readl(mlb_base + MLB150_REG_ACSR1);
+	acsr0 = __raw_readl(mlb_base + REG_ACSR0);
+	acsr1 = __raw_readl(mlb_base + REG_ACSR1);
 
-	hcer0 = __raw_readl(mlb_base + MLB150_REG_HCER0);
-	hcer1 = __raw_readl(mlb_base + MLB150_REG_HCER1);
+	hcer0 = __raw_readl(mlb_base + REG_HCER0);
+	hcer1 = __raw_readl(mlb_base + REG_HCER1);
 
 	/* Step 6, If ACTL.SCE = 1, write the result of step 5 back to ACSR0
 	 * and ACSR1 to clear the interrupt */
-	if (MLB150_ACTL_SCE & __raw_readl(mlb_base + MLB150_REG_ACTL)) {
-		__raw_writel(acsr0, mlb_base + MLB150_REG_ACSR0);
-		__raw_writel(acsr1, mlb_base + MLB150_REG_ACSR1);
+	if (ACTL_SCE & __raw_readl(mlb_base + REG_ACTL)) {
+		__raw_writel(acsr0, mlb_base + REG_ACSR0);
+		__raw_writel(acsr1, mlb_base + REG_ACSR1);
 	}
 
 	for (minor = 0; minor < MLB_MINOR_DEVICES; minor++) {
@@ -1593,8 +1593,8 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 
 	/* Step 4, Read the MSn register to determine which channel(s)
 	 * are causing the interrupt */
-	ms0 = __raw_readl(mlb_base + MLB150_REG_MS0);
-	ms1 = __raw_readl(mlb_base + MLB150_REG_MS1);
+	ms0 = __raw_readl(mlb_base + REG_MS0);
+	ms1 = __raw_readl(mlb_base + REG_MS1);
 	pr_debug("mxc_mlb150: mlb interrupt:0x%08x 0x%08x\n",
 			(u32)ms0, (u32)ms1);
 
@@ -1869,8 +1869,8 @@ static long mxc_mlb150_ioctl(struct file *filp,
 			if (plat_data->fps_sel)
 				plat_data->fps_sel(fps);
 
-			c0_val = __raw_readl(mlb_base + MLB150_REG_MLBC0);
-			c0_val &= ~MLB150_MLBC0_MLBCLK_MASK;
+			c0_val = __raw_readl(mlb_base + REG_MLBC0);
+			c0_val &= ~MLBC0_MLBCLK_MASK;
 
 			/* check fps value */
 			switch (fps) {
@@ -1878,26 +1878,26 @@ static long mxc_mlb150_ioctl(struct file *filp,
 			case 512:
 			case 1024:
 				mlb_devinfo[minor].fps = fps >> 9;
-				c0_val &= ~MLB150_MLBC0_MLBPEN;
+				c0_val &= ~MLBC0_MLBPEN;
 				c0_val |= (fps >> 9)
-					<< MLB150_MLBC0_MLBCLK_SHIFT;
+					<< MLBC0_MLBCLK_SHIFT;
 				break;
 			case 2048:
 			case 3072:
 			case 4096:
 				mlb_devinfo[minor].fps = (fps >> 10) + 1;
 				c0_val |= ((fps >> 10) + 1)
-					<< MLB150_MLBC0_MLBCLK_SHIFT;
+					<< MLBC0_MLBCLK_SHIFT;
 				break;
 			case 6144:
 				mlb_devinfo[minor].fps = fps >> 10;
 				c0_val |= ((fps >> 10) + 1)
-					<< MLB150_MLBC0_MLBCLK_SHIFT;
+					<< MLBC0_MLBCLK_SHIFT;
 				break;
 			case 8192:
 				mlb_devinfo[minor].fps = (fps >> 10) - 1;
 				c0_val |= ((fps >> 10) - 1)
-						<< MLB150_MLBC0_MLBCLK_SHIFT;
+						<< MLBC0_MLBCLK_SHIFT;
 				break;
 			default:
 				pr_debug("mxc_mlb150: invalid fps argument: %d\n",
@@ -1905,11 +1905,11 @@ static long mxc_mlb150_ioctl(struct file *filp,
 				return -EINVAL;
 			}
 
-			__raw_writel(c0_val, mlb_base + MLB150_REG_MLBC0);
+			__raw_writel(c0_val, mlb_base + REG_MLBC0);
 
 			pr_debug("mxc_mlb150: set fps to %d, MLBC0: 0x%08x\n",
 				fps,
-				(u32)__raw_readl(mlb_base + MLB150_REG_MLBC0));
+				(u32)__raw_readl(mlb_base + REG_MLBC0));
 
 			break;
 		}
@@ -1943,13 +1943,13 @@ static long mxc_mlb150_ioctl(struct file *filp,
 				return -EFAULT;
 			}
 
-			c1_val = __raw_readl(mlb_base + MLB150_REG_MLBC1);
-			c1_val &= ~MLB150_MLBC1_NDA_MASK;
-			c1_val |= devaddr << MLB150_MLBC1_NDA_SHIFT;
-			__raw_writel(c1_val, mlb_base + MLB150_REG_MLBC1);
+			c1_val = __raw_readl(mlb_base + REG_MLBC1);
+			c1_val &= ~MLBC1_NDA_MASK;
+			c1_val |= devaddr << MLBC1_NDA_SHIFT;
+			__raw_writel(c1_val, mlb_base + REG_MLBC1);
 			pr_debug("mxc_mlb150: set dev addr, dev addr: %d, "
 				"MLBC1: 0x%08x\n", devaddr,
-				(u32)__raw_readl(mlb_base + MLB150_REG_MLBC1));
+				(u32)__raw_readl(mlb_base + REG_MLBC1));
 
 			break;
 		}
