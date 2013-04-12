@@ -288,25 +288,6 @@ enum CLK_SPEED {
 	CLK_8192FS,
 };
 
-/*!
- * Ring buffer
- */
-#define MLB_RING_BUF_INIT(r)	{	\
-	r->wpos = 0;	\
-	r->rpos = 0;	\
-}
-
-#define MLB_RING_BUF_IS_FULL(r) (((r->wpos + 1) % TRANS_RING_NODES) == r->rpos)
-#define MLB_RING_BUF_IS_EMPTY(r) (r->rpos == r->wpos)
-#define MLB_RING_BUF_ENQUE(r, buf) {	\
-	memcpy(r->node[r->wpos].data, buf, r->node.size);	\
-	r->wpos = (r->wpos + 1) % TRANS_RING_NODES;	\
-}
-#define MLB_RING_BUF_DEQUE(r, buf) {	\
-	memcpy(buf, r->node[r->rpos].data, r->node.size);	\
-	r->rpos = (r->rpos + 1) % TRANS_RING_NODES;	\
-}
-
 struct mlb_ringbuf {
 	u32 wpos;
 	u32 rpos;
@@ -532,82 +513,8 @@ static void mlb150_dev_dump_reg(void)
 
 static void mlb150_dev_dump_hex(const u8 *buf, u32 len)
 {
-	u32 i, remain, round_len;
-
-	pr_debug("buf: 0x%08x, len: %d\n", (u32)buf, len);
-	remain = len & 0x7;
-	round_len = len - remain;
-	for (i = 0; i < round_len; i += 8) {
-		pr_debug("%02x %02x %02x %02x %02x %02x %02x %02x\n",
-			*(buf + i),
-			*(buf + i + 1),
-			*(buf + i + 2),
-			*(buf + i + 3),
-			*(buf + i + 4),
-			*(buf + i + 5),
-			*(buf + i + 6),
-			*(buf + i + 7));
-	}
-
-	if (remain) {
-		i = round_len;
-		switch (remain) {
-		case 1:
-			pr_debug("%02x\n",
-				*(buf + i));
-			break;
-		case 2:
-			pr_debug("%02x %02x\n",
-				*(buf + i),
-				*(buf + i + 1));
-			break;
-		case 3:
-			pr_debug("%02x %02x %02x\n",
-				*(buf + i),
-				*(buf + i + 1),
-				*(buf + i + 2));
-			break;
-		case 4:
-			pr_debug("%02x %02x %02x %02x\n",
-				*(buf + i),
-				*(buf + i + 1),
-				*(buf + i + 2),
-				*(buf + i + 3));
-			break;
-		case 5:
-			pr_debug("%02x %02x %02x %02x %02x\n",
-				*(buf + i),
-				*(buf + i + 1),
-				*(buf + i + 2),
-				*(buf + i + 3),
-				*(buf + i + 4));
-			break;
-		case 6:
-			pr_debug("%02x %02x %02x %02x %02x %02x\n",
-				*(buf + i),
-				*(buf + i + 1),
-				*(buf + i + 2),
-				*(buf + i + 3),
-				*(buf + i + 4),
-				*(buf + i + 5));
-			break;
-		case 7:
-			pr_debug("%02x %02x %02x %02x %02x %02x %02x\n",
-				*(buf + i),
-				*(buf + i + 1),
-				*(buf + i + 2),
-				*(buf + i + 3),
-				*(buf + i + 4),
-				*(buf + i + 5),
-				*(buf + i + 6));
-			break;
-		default:
-			break;
-		}
-	}
-
-	if (i % 8 != 0)
-		pr_debug("\n");
+	print_hex_dump(KERN_DEBUG, "CTR DUMP:",
+			DUMP_PREFIX_OFFSET, 8, 1, buf, len, 0);
 }
 #endif
 
@@ -620,6 +527,7 @@ static inline void mlb150_dev_enable_ctr_write(u32 mdat0_bits_en,
 	__raw_writel(mdat3_bits_en, mlb_base + REG_MDWE3);
 }
 
+#ifdef DEBUG
 static inline u8 mlb150_dev_dbr_read(u32 dbr_addr)
 {
 	s32 timeout = 1000;
@@ -635,7 +543,8 @@ static inline u8 mlb150_dev_dbr_read(u32 dbr_addr)
 			timeout--)
 		;
 
-	if (unlikely(0 == timeout))
+	if (0 == timeout) {
+		spin_unlock_irqrestore(&ctr_lock, flags);
 		return -ETIME;
 
 	dbr_val = __raw_readl(mlb_base + REG_MDAT0) & 0x000000ff;
@@ -663,14 +572,40 @@ static inline s32 mlb150_dev_dbr_write(u32 dbr_addr, u8 dbr_val)
 			timeout--)
 		;
 
-	if (unlikely(timeout <= 0))
+	if (timeout <= 0) {
+		spin_unlock_irqrestore(&ctr_lock, flags);
 		return -ETIME;
+	}
 
 	__raw_writel(0, mlb_base + REG_MCTL);
 	spin_unlock_irqrestore(&ctr_lock, flags);
 
 	return 0;
 }
+
+static inline s32 mlb150_dev_dbr_dump(u32 addr, u32 size)
+{
+	u8 *dump_buf = NULL;
+	u8 *buf_ptr = NULL;
+	s32 i;
+
+	dump_buf = kzalloc(size, GFP_KERNEL);
+	if (!dump_buf) {
+		pr_err("can't allocate enough memory\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0, buf_ptr = dump_buf;
+			i < size; ++i, ++buf_ptr)
+		*buf_ptr = mlb150_dev_dbr_read(addr + i);
+
+	mlb150_dev_dump_hex(dump_buf, size);
+
+	kfree(dump_buf);
+
+	return 0;
+}
+#endif
 
 static s32 mlb150_dev_ctr_read(u32 ctr_offset, u32 *ctr_val)
 {
@@ -685,7 +620,8 @@ static s32 mlb150_dev_ctr_read(u32 ctr_offset, u32 *ctr_val)
 			timeout--)
 		;
 
-	if (unlikely(timeout <= 0)) {
+	if (timeout <= 0) {
+		spin_unlock_irqrestore(&ctr_lock, flags);
 		pr_debug("mxc_mlb150: Read CTR timeout\n");
 		return -ETIME;
 	}
@@ -722,7 +658,8 @@ static s32 mlb150_dev_ctr_write(u32 ctr_offset, const u32 *ctr_val)
 			timeout--)
 		;
 
-	if (unlikely(timeout <= 0)) {
+	if (timeout <= 0) {
+		spin_unlock_irqrestore(&ctr_lock, flags);
 		pr_debug("mxc_mlb150: Write CTR timeout\n");
 		return -ETIME;
 	}
@@ -743,6 +680,13 @@ static s32 mlb150_dev_ctr_write(u32 ctr_offset, const u32 *ctr_val)
 				return 0;
 			else {
 				pr_debug("mxc_mlb150: ctr write failed\n");
+				pr_debug("offset: 0x%x\n", ctr_offset);
+				pr_debug("Write: 0x%x 0x%x 0x%x 0x%x\n",
+						ctr_val[3], ctr_val[2],
+						ctr_val[1], ctr_val[0]);
+				pr_debug("Read: 0x%x 0x%x 0x%x 0x%x\n",
+						ctr_rd[3], ctr_rd[2],
+						ctr_rd[1], ctr_rd[0]);
 				return -EBADE;
 			}
 		} else {
@@ -755,37 +699,23 @@ static s32 mlb150_dev_ctr_write(u32 ctr_offset, const u32 *ctr_val)
 	return 0;
 }
 
-static s32 mlb150_dev_get_adt_sts(u32 ch)
+#ifdef DEBUG
+static s32 mlb150_dev_cat_read(u32 ctr_offset, u32 ch, u16 *cat_val)
 {
-	s32 timeout = 1000;
-	unsigned long flags;
-	u32 reg;
+	u16 ctr_val[8] = { 0 };
 
-	spin_lock_irqsave(&ctr_lock, flags);
-	__raw_writel(BUF_ADT_OFFSET + ch,
-			mlb_base + REG_MADR);
-
-	while ((!(__raw_readl(mlb_base + REG_MCTL)
-			& MCTL_XCMP)) &&
-			timeout--)
-		;
-
-	if (unlikely(timeout <= 0)) {
-		pr_debug("mxc_mlb150: Read CTR timeout\n");
+	if (mlb150_dev_ctr_read(ctr_offset, (u32 *)ctr_val))
 		return -ETIME;
-	}
 
-	reg = __raw_readl(mlb_base + REG_MDAT1);
+	/*
+	 * Use u16 array to get u32 array value,
+	 * need to convert
+	 * */
+	cat_val = ctr_val[ch % 8];
 
-	__raw_writel(0, mlb_base + REG_MCTL);
-	spin_unlock_irqrestore(&ctr_lock, flags);
-
-#ifdef DEBUG_ADT
-	pr_debug("mxc_mlb150: Get ch %d adt sts: 0x%08x\n", ch, reg);
-#endif
-
-	return reg;
+	 return 0;
 }
+#endif
 
 static s32 mlb150_dev_cat_write(u32 ctr_offset, u32 ch, const u16 cat_val)
 {
@@ -818,6 +748,39 @@ static s32 mlb150_dev_cat_write(u32 ctr_offset, u32 ch, const u16 cat_val)
 	mlb150_dev_ctr_read(BUF_ADT_OFFSET + ch, adt_val)
 #define mlb150_dev_adt_write(ch, adt_val)	\
 	mlb150_dev_ctr_write(BUF_ADT_OFFSET + ch, adt_val)
+
+static s32 mlb150_dev_get_adt_sts(u32 ch)
+{
+	s32 timeout = 1000;
+	unsigned long flags;
+	u32 reg;
+
+	spin_lock_irqsave(&ctr_lock, flags);
+	__raw_writel(BUF_ADT_OFFSET + ch,
+			mlb_base + REG_MADR);
+
+	while ((!(__raw_readl(mlb_base + REG_MCTL)
+			& MCTL_XCMP)) &&
+			timeout--)
+		;
+
+	if (timeout <= 0) {
+		spin_unlock_irqrestore(&ctr_lock, flags);
+		pr_debug("mxc_mlb150: Read CTR timeout\n");
+		return -ETIME;
+	}
+
+	reg = __raw_readl(mlb_base + REG_MDAT1);
+
+	__raw_writel(0, mlb_base + REG_MCTL);
+	spin_unlock_irqrestore(&ctr_lock, flags);
+
+#ifdef DEBUG_ADT
+	pr_debug("mxc_mlb150: Get ch %d adt sts: 0x%08x\n", ch, reg);
+#endif
+
+	return reg;
+}
 
 #ifdef DEBUG
 static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
