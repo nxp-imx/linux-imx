@@ -142,6 +142,9 @@
 #define REG_CAT_MDATn(ch) (REG_MDAT0 + ((ch % 8) >> 1) * 4)
 #define REG_CAT_MDWEn(ch) (REG_MDWE0 + ((ch % 8) >> 1) * 4)
 
+#define INT_AHB0_CH_START	(0)
+#define INT_AHB1_CH_START	(32)
+
 #define LOGIC_CH_NUM		(64)
 #define BUF_CDT_OFFSET		(0x0)
 #define BUF_ADT_OFFSET		(0x40)
@@ -246,11 +249,6 @@ static u32 mlb150_ch_packet_buf_size[4] = {
 #define ADT_MEP1		(0x1 << 11)
 #define ADT_MEP2		(0x1 << 27)
 
-#define MLB_CONTROL_TX_CHANN	(0 << 4)
-#define MLB_CONTROL_RX_CHANN	(1 << 4)
-#define MLB_ASYNC_TX_CHANN	(2 << 4)
-#define MLB_ASYNC_RX_CHANN	(3 << 4)
-
 #define MLB_MINOR_DEVICES	4
 #define MLB_CONTROL_DEV_NAME	"ctrl"
 #define MLB_ASYNC_DEV_NAME	"async"
@@ -352,6 +350,23 @@ struct mlb_dev_info {
 	spinlock_t event_lock;
 };
 
+#define SYNC_RX_CL_AHB0		0
+#define CTRL_RX_CL_AHB0		1
+#define ASYNC_RX_CL_AHB0	2
+#define ISOC_RX_CL_AHB0		3
+#define SYNC_TX_CL_AHB0		4
+#define CTRL_TX_CL_AHB0		5
+#define ASYNC_TX_CL_AHB0	6
+#define ISOC_TX_CL_AHB0		7
+
+#define SYNC_RX_CL_AHB1		32
+#define CTRL_RX_CL_AHB1		33
+#define ASYNC_RX_CL_AHB1	34
+#define ISOC_RX_CL_AHB1		35
+#define SYNC_TX_CL_AHB1		36
+#define CTRL_TX_CL_AHB1		37
+#define ASYNC_TX_CL_AHB1	38
+#define ISOC_TX_CL_AHB1		39
 static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	{
 	.dev_name = MLB_SYNC_DEV_NAME,
@@ -934,42 +949,13 @@ static inline int mlb150_disable_pll(void)
 	return 0;
 }
 
-static void mlb150_dev_init(void)
-{
-	u32 c0_val, hctl_val;
-
-	/* Disable EN bits */
-	c0_val = __raw_readl(mlb_base + REG_MLBC0);
-	c0_val &= ~MLBC0_MLBEN;
-	__raw_writel(c0_val, mlb_base + REG_MLBC0);
-
-	hctl_val = __raw_readl(mlb_base + REG_HCTL);
-	hctl_val &= ~HCTL_EN;
-	__raw_writel(hctl_val, mlb_base + REG_HCTL);
-
-	/* Step 1, Configure the MediaLB interface */
-	/* Select pin mode and clock, 3-pin and 256fs */
-	c0_val = __raw_readl(mlb_base + REG_MLBC0);
-	c0_val &= ~(MLBC0_MLBPEN | MLBC0_MLBCLK_MASK);
-	__raw_writel(c0_val, mlb_base + REG_MLBC0);
-
-	c0_val |= MLBC0_MLBEN;
-	__raw_writel(c0_val, mlb_base + REG_MLBC0);
-
-	/* Step 2, Configure the HBI interface */
-	__raw_writel(0xffffffff, mlb_base + REG_HCMR0);
-	__raw_writel(0xffffffff, mlb_base + REG_HCMR1);
-	__raw_writel(HCTL_EN, mlb_base + REG_HCTL);
-
-	mlb150_dev_init_ir_amba_ahb();
-
-	mlb150_dev_enable_ir_mlb(1);
-}
-
 static s32 mlb150_dev_reset_cdt(void)
 {
 	int i = 0;
 	u32 ctr_val[4] = { 0 };
+
+	mlb150_dev_enable_ctr_write(0xffffffff, 0xffffffff,
+			0xffffffff, 0xffffffff);
 
 	for (i = 0; i < (LOGIC_CH_NUM); ++i)
 		mlb150_dev_ctr_write(BUF_CDT_OFFSET + i, ctr_val);
@@ -1124,6 +1110,9 @@ static s32 mlb150_dev_reset_cat(void)
 	int i = 0;
 	u32 ctr_val[4] = { 0 };
 
+	mlb150_dev_enable_ctr_write(0xffffffff, 0xffffffff,
+			0xffffffff, 0xffffffff);
+
 	for (i = 0; i < (LOGIC_CH_NUM >> 3); ++i) {
 		mlb150_dev_ctr_write(BUF_CAT_MLB_OFFSET + i, ctr_val);
 		mlb150_dev_ctr_write(BUF_CAT_HBI_OFFSET + i, ctr_val);
@@ -1165,8 +1154,62 @@ static s32 mlb150_dev_reset_adt(void)
 	int i = 0;
 	u32 ctr_val[4] = { 0 };
 
+	mlb150_dev_enable_ctr_write(0xffffffff, 0xffffffff,
+			0xffffffff, 0xffffffff);
+
 	for (i = 0; i < (LOGIC_CH_NUM); ++i)
 		mlb150_dev_ctr_write(BUF_ADT_OFFSET + i, ctr_val);
+
+	return 0;
+}
+
+static s32 mlb150_dev_reset_whole_ctr(void)
+{
+	mlb150_dev_enable_ctr_write(0xffffffff, 0xffffffff,
+			0xffffffff, 0xffffffff);
+	mlb150_dev_reset_cdt();
+	mlb150_dev_reset_adt();
+	mlb150_dev_reset_cat();
+
+	return 0;
+}
+
+#define CLR_REG(reg)  __raw_writel(0x0, mlb_base + reg)
+
+static s32 mlb150_dev_reset_all_regs(void)
+{
+	CLR_REG(REG_MLBC0);
+	CLR_REG(REG_MLBPC0);
+	CLR_REG(REG_MS0);
+	CLR_REG(REG_MS1);
+	CLR_REG(REG_MSS);
+	CLR_REG(REG_MSD);
+	CLR_REG(REG_MIEN);
+	CLR_REG(REG_MLBPC2);
+	CLR_REG(REG_MLBPC1);
+	CLR_REG(REG_MLBC1);
+	CLR_REG(REG_HCTL);
+	CLR_REG(REG_HCMR0);
+	CLR_REG(REG_HCMR1);
+	CLR_REG(REG_HCER0);
+	CLR_REG(REG_HCER1);
+	CLR_REG(REG_HCBR0);
+	CLR_REG(REG_HCBR1);
+	CLR_REG(REG_MDAT0);
+	CLR_REG(REG_MDAT1);
+	CLR_REG(REG_MDAT2);
+	CLR_REG(REG_MDAT3);
+	CLR_REG(REG_MDWE0);
+	CLR_REG(REG_MDWE1);
+	CLR_REG(REG_MDWE2);
+	CLR_REG(REG_MDWE3);
+	CLR_REG(REG_MCTL);
+	CLR_REG(REG_MADR);
+	CLR_REG(REG_ACTL);
+	CLR_REG(REG_ACSR0);
+	CLR_REG(REG_ACSR1);
+	CLR_REG(REG_ACMR0);
+	CLR_REG(REG_ACMR1);
 
 	return 0;
 }
@@ -1300,6 +1343,71 @@ static s32 mlb150_dev_init_amba_ahb(struct mlb_channel_info *rx_chinfo,
 	return 0;
 }
 
+static void mlb150_dev_exit(void)
+{
+	u32 c0_val, hctl_val;
+
+	/* Disable EN bits */
+	c0_val = __raw_readl(mlb_base + REG_MLBC0);
+	c0_val &= ~(MLBC0_MLBEN | MLBC0_MLBPEN);
+	__raw_writel(c0_val, mlb_base + REG_MLBC0);
+
+	hctl_val = __raw_readl(mlb_base + REG_HCTL);
+	hctl_val &= ~HCTL_EN;
+	__raw_writel(hctl_val, mlb_base + REG_HCTL);
+
+	__raw_writel(0x0, mlb_base + REG_HCMR0);
+	__raw_writel(0x0, mlb_base + REG_HCMR1);
+
+	mlb150_dev_enable_dma_irq(0);
+	mlb150_dev_enable_ir_mlb(0);
+}
+
+static void mlb150_dev_init(void)
+{
+	u32 c0_val;
+	u32 ch_rx_mask = (1 << SYNC_RX_CL_AHB0) | (1 << CTRL_RX_CL_AHB0)
+			| (1 << ASYNC_RX_CL_AHB0) | (1 << ISOC_RX_CL_AHB0)
+			| (1 << SYNC_TX_CL_AHB0) | (1 << CTRL_TX_CL_AHB0)
+			| (1 << ASYNC_TX_CL_AHB0) | (1 << ISOC_TX_CL_AHB0);
+	u32 ch_tx_mask = (1 << (SYNC_RX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (CTRL_RX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (ASYNC_RX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (ISOC_RX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (SYNC_TX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (CTRL_TX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (ASYNC_TX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (ISOC_TX_CL_AHB1 - INT_AHB1_CH_START));
+
+	/* Disable EN bits */
+	mlb150_dev_exit();
+
+	/* Step 1. Initialize CTR and registers
+	 * a. Set all bit of the CTR (CAT, CDT, and ADT) to 0. */
+	mlb150_dev_reset_whole_ctr();
+
+	/* a. Set all bit of the CTR (CAT, CDT, and ADT) to 0. */
+	mlb150_dev_reset_all_regs();
+
+	/* Step 2, Configure the MediaLB interface */
+	/* Select pin mode and clock, 3-pin and 256fs */
+	c0_val = __raw_readl(mlb_base + REG_MLBC0);
+	c0_val &= ~(MLBC0_MLBPEN | MLBC0_MLBCLK_MASK);
+	__raw_writel(c0_val, mlb_base + REG_MLBC0);
+
+	c0_val |= MLBC0_MLBEN;
+	__raw_writel(c0_val, mlb_base + REG_MLBC0);
+
+	/* Step 3, Configure the HBI interface */
+	__raw_writel(ch_rx_mask, mlb_base + REG_HCMR0);
+	__raw_writel(ch_tx_mask, mlb_base + REG_HCMR1);
+	__raw_writel(HCTL_EN, mlb_base + REG_HCTL);
+
+	mlb150_dev_init_ir_amba_ahb();
+
+	mlb150_dev_enable_ir_mlb(1);
+}
+
 static s32 mlb150_dev_unmute_syn_ch(u32 rx_ch, u32 tx_ch)
 {
 	u32 timeout = 10000;
@@ -1332,15 +1440,6 @@ static s32 mlb150_dev_unmute_syn_ch(u32 rx_ch, u32 tx_ch)
 	mlb150_dev_cat_hbi_write(tx_ch, CAT_CE | tx_ch);
 
 	return 0;
-}
-
-static void mlb150_dev_exit(void)
-{
-	mlb150_dev_enable_dma_irq(0);
-	mlb150_dev_enable_ir_mlb(0);
-
-	__raw_writel(0, mlb_base + REG_HCTL);
-	__raw_writel(0, mlb_base + REG_MLBC0);
 }
 
 /*!
