@@ -333,7 +333,6 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 {
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
-	u32 tmp;
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		/* Need open clock for register access */
@@ -343,13 +342,20 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 		/*disable the wakeup to avoid an abnormal wakeup interrupt*/
 		usb_host_set_wakeup(hcd->self.controller, false);
 
-		tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
-		if (tmp & PORT_PTS_PHCD) {
-			tmp &= ~PORT_PTS_PHCD;
-			ehci_writel(ehci, tmp, &ehci->regs->port_status[0]);
-			msleep(100);
-		}
+		/* Put the PHY out of low power mode */
+		fsl_usb_lowpower_mode(pdata, false);
 	}
+
+	/* disable the host wakeup */
+	usb_host_set_wakeup(hcd->self.controller, false);
+	/*free the ehci_fsl_pre_irq  */
+	free_irq(hcd->irq, (void *)pdev);
+
+	usb_remove_hcd(hcd);
+
+	ehci_port_power(ehci, 0);
+
+	iounmap(hcd->regs);
 
 	if (ehci->transceiver) {
 		(void)otg_set_host(ehci->transceiver, 0);
@@ -357,17 +363,14 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	} else {
 		release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
 	}
-	/*disable the host wakeup and put phy to low power mode */
-	usb_host_set_wakeup(hcd->self.controller, false);
-	/*free the ehci_fsl_pre_irq  */
-	free_irq(hcd->irq, (void *)pdev);
-	usb_remove_hcd(hcd);
+
 	usb_put_hcd(hcd);
 
 	fsl_usb_lowpower_mode(pdata, true);
 
-	/* DDD shouldn't we turn off the power here? */
-	fsl_platform_set_vbus_power(pdata, 0);
+	/* Close the VBUS */
+	if (pdata->xcvr_ops && pdata->xcvr_ops->set_vbus_power)
+		pdata->xcvr_ops->set_vbus_power(pdata->xcvr_ops, pdata, 0);
 
 	/*
 	 * do platform specific un-initialization:
@@ -375,8 +378,6 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	 */
 	if (pdata->exit && pdata->pdev)
 		pdata->exit(pdata->pdev);
-
-	iounmap(hcd->regs);
 }
 
 static void fsl_setup_phy(struct ehci_hcd *ehci,
