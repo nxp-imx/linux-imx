@@ -1040,17 +1040,13 @@ static void __xipram xip_udelay(struct map_info *map, struct flchip *chip,
 
 #define UDELAY(map, chip, adr, usec)  \
 do {  \
-	mutex_unlock(&chip->mutex);  \
 	cfi_udelay(usec);  \
-	mutex_lock(&chip->mutex);  \
 } while (0)
 
 #define INVALIDATE_CACHE_UDELAY(map, chip, adr, len, usec)  \
 do {  \
-	mutex_unlock(&chip->mutex);  \
 	INVALIDATE_CACHED_RANGE(map, adr, len);  \
 	cfi_udelay(usec);  \
-	mutex_lock(&chip->mutex);  \
 } while (0)
 
 #endif
