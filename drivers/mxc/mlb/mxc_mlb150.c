@@ -52,7 +52,7 @@
 #define MLBC0_ASYRETRY		(0x1 << 12)
 #define MLBC0_CTLRETRY		(0x1 << 12)
 #define MLBC0_FCNT_MASK		(0x7 << 15)
-#define MLBC0_FCNT_SHIFT		(15)
+#define MLBC0_FCNT_SHIFT	(15)
 
 #define REG_MLBPC0		0x8
 #define MLBPC0_MCLKHYS		(0x1 << 11)
@@ -70,7 +70,7 @@
 
 #define REG_MSD			0x24
 
-#define REG_MIEN			0x2C
+#define REG_MIEN		0x2C
 #define MIEN_ISOC_PE		(0x1)
 #define MIEN_ISOC_BUFO		(0x1 << 1)
 #define MIEN_SYNC_PE		(0x1 << 16)
@@ -97,7 +97,7 @@
 #define MLBC1_NDA_MASK		(0xFF << 8)
 #define MLBC1_NDA_SHIFT		(8)
 
-#define REG_HCTL			0x80
+#define REG_HCTL		0x80
 #define HCTL_RST0		(0x1)
 #define HCTL_RST1		(0x1 << 1)
 #define HCTL_EN			(0x1 << 15)
@@ -119,20 +119,20 @@
 #define REG_MDWE2		0xD8
 #define REG_MDWE3		0xDC
 
-#define REG_MCTL			0xE0
+#define REG_MCTL		0xE0
 #define MCTL_XCMP		(0x1)
 
-#define REG_MADR			0xE4
-#define MADR_WNR			(0x1 << 31)
+#define REG_MADR		0xE4
+#define MADR_WNR		(0x1 << 31)
 #define MADR_TB			(0x1 << 30)
 #define MADR_ADDR_MASK		(0x7f << 8)
 #define MADR_ADDR_SHIFT		(0)
 
-#define REG_ACTL			0x3C0
-#define ACTL_MPB			(0x1 << 4)
+#define REG_ACTL		0x3C0
+#define ACTL_MPB		(0x1 << 4)
 #define ACTL_DMAMODE		(0x1 << 2)
-#define ACTL_SMX			(0x1 << 1)
-#define ACTL_SCE			(0x1)
+#define ACTL_SMX		(0x1 << 1)
+#define ACTL_SCE		(0x1)
 
 #define REG_ACSR0		0x3D0
 #define REG_ACSR1		0x3D4
@@ -182,9 +182,9 @@ static u32 mlb150_ch_packet_buf_size[4] = {
 #define ADT_LEN			(16)
 #define CAT_LEN			(2)
 
-#define CDT_SZ		(CDT_LEN * LOGIC_CH_NUM)
-#define ADT_SZ		(ADT_LEN * LOGIC_CH_NUM)
-#define CAT_SZ		(CAT_LEN * LOGIC_CH_NUM * 2)
+#define CDT_SZ			(CDT_LEN * LOGIC_CH_NUM)
+#define ADT_SZ			(ADT_LEN * LOGIC_CH_NUM)
+#define CAT_SZ			(CAT_LEN * LOGIC_CH_NUM * 2)
 
 #define CDT_BASE(base)		(base + BUF_CDT_OFFSET)
 #define ADT_BASE(base)		(base + BUF_ADT_OFFSET)
@@ -262,7 +262,8 @@ static u32 mlb150_ch_packet_buf_size[4] = {
 /* max package data size */
 #define ASYNC_PACKET_SIZE	1024
 #define CTRL_PACKET_SIZE	64
-#define TRANS_RING_NODES	10
+
+#define TRANS_RING_NODES	(1 << 3)
 
 #define MLB_IRAM_SIZE		(MLB_MINOR_DEVICES * (PING_BUF_MAX_SIZE + PONG_BUF_MAX_SIZE))
 #define _get_txchan(dev)	mlb_devinfo[dev].channels[TX_CHANNEL]
@@ -287,40 +288,22 @@ enum CLK_SPEED {
 };
 
 struct mlb_ringbuf {
-	u32 wpos;
-	u32 rpos;
-	u32 size;
-	/* Last buffer is for package drop */
-	u8  *virt_bufs[TRANS_RING_NODES + 1];
+	s8 *virt_bufs[TRANS_RING_NODES + 1];
 	u32 phy_addrs[TRANS_RING_NODES + 1];
+	s32 head;
+	s32 tail;
+	s32 unit_size;
+	s32 total_size;
+	rwlock_t rb_lock ____cacheline_aligned; /* ring index lock */
 };
 
 struct mlb_channel_info {
-
-	/* channel address */
-	s32 address;
+	/* Input MLB channel address */
+	u32 address;
+	/* Internal AHB channel label */
+	u32 cl;
 	/* DBR buf head */
 	u32 dbr_buf_head;
-	/* ping buffer head */
-	u32 ping_buf_head;
-	/* pong buffer head */
-	u32 pong_buf_head;
-	/* ping buffer physical head */
-	u32 ping_phy_head;
-	/* pong buffer physical head */
-	u32 pong_phy_head;
-	/* channel buffer size */
-	u32 buf_size;
-	/* channel buffer current ptr */
-	u32 buf_ptr;
-	/* channel buffer phy addr */
-	u32 buf_phy_addr;
-	/* packet start indicator */
-	u32 ps_ind;
-	/* packet remain size */
-	u32 pkt_remain_size;
-	/* buffer spin lock */
-	rwlock_t buf_lock;
 };
 
 struct mlb_dev_info {
@@ -333,8 +316,11 @@ struct mlb_dev_info {
 	enum CLK_SPEED fps;
 	/* channel info for tx/rx */
 	struct mlb_channel_info channels[2];
-	/* rx ring buffer */
-	struct mlb_ringbuf rx_bufs;
+	/* ring buffer */
+	u8 *rbuf_base_virt;
+	u32 rbuf_base_phy;
+	struct mlb_ringbuf rx_rbuf;
+	struct mlb_ringbuf tx_rbuf;
 	/* exception event */
 	unsigned long ex_event;
 	/* tx busy indicator */
@@ -344,12 +330,49 @@ struct mlb_dev_info {
 	/* device open count */
 	atomic_t opencnt;
 	/* wait queue head for channel */
-	wait_queue_head_t rd_wq;
-	wait_queue_head_t wt_wq;
+	wait_queue_head_t rx_wq;
+	wait_queue_head_t tx_wq;
+	/* TX OK */
+	s32 tx_ok;
 	/* spinlock for event access */
 	spinlock_t event_lock;
+	/* Block size for isoc mode
+	 * This variable can be configured in ioctl */
+	u32 isoc_blksz;
+	/* Quads number for sync mode
+	 * This variable can be confifured in ioctl */
+	u32 sync_quad;
+	/* Buffer depth in cdt */
+	u32 cdt_buf_dep;
+	/* Buffer depth in adt */
+	u32 adt_buf_dep;
+	/* Buffer size to hold data */
+	u32 buf_size;
 };
 
+struct mlb_data {
+	struct mlb_dev_info *devinfo;
+	struct clk *clk_mlb3p;
+	struct clk *clk_mlb6p;
+	struct cdev cdev;
+	struct class *class;	/* device class */
+	dev_t firstdev;
+#ifdef CONFIG_REGULATOR
+	struct regulator *nvcc;
+#endif
+	u32 membase;	/* mlb module base address */
+	u32 irq_ahb0;
+	u32 irq_ahb1;
+	u32 irq_mlb;
+};
+
+/* For optimization, we use fixed channel label for
+ * input channels of each mode */
+/* SYNC: CL = 0 for RX, CL = 64 for TX
+ * CTRL: CL = 1 for RX, CL = 65 for TX
+ * ASYNC: CL = 2 for RX, CL = 66 for TX
+ * ISOC: CL = 3 for RX, CL = 67 for TX
+ * */
 #define SYNC_RX_CL_AHB0		0
 #define CTRL_RX_CL_AHB0		1
 #define ASYNC_RX_CL_AHB0	2
@@ -367,31 +390,49 @@ struct mlb_dev_info {
 #define CTRL_TX_CL_AHB1		37
 #define ASYNC_TX_CL_AHB1	38
 #define ISOC_TX_CL_AHB1		39
+
+#define SYNC_RX_CL	SYNC_RX_CL_AHB0
+#define CTRL_RX_CL	CTRL_RX_CL_AHB0
+#define ASYNC_RX_CL	ASYNC_RX_CL_AHB0
+#define ISOC_RX_CL	ISOC_RX_CL_AHB0
+
+#define SYNC_TX_CL	SYNC_TX_CL_AHB0
+#define CTRL_TX_CL	CTRL_TX_CL_AHB0
+#define ASYNC_TX_CL	ASYNC_TX_CL_AHB0
+#define ISOC_TX_CL	ISOC_TX_CL_AHB0
+
 static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	{
 	.dev_name = MLB_SYNC_DEV_NAME,
 	.channel_type = MLB_CTYPE_SYNC,
 	.channels = {
 		[0] = {
-			.buf_size = CH_SYNC_BUF_DEP,
+			.cl = SYNC_TX_CL,
 			.dbr_buf_head = CH_SYNC_DBR_BUF_OFFSET,
-			.buf_lock =
-				__RW_LOCK_UNLOCKED(mlb_devinfo[0].channels[0].
-					buf_lock),
 		},
 		[1] = {
-			.buf_size = CH_SYNC_BUF_DEP,
+			.cl = SYNC_RX_CL,
 			.dbr_buf_head = CH_SYNC_DBR_BUF_OFFSET
-					+ CH_SYNC_BUF_DEP,
-			.buf_lock =
-				__RW_LOCK_UNLOCKED(mlb_devinfo[0].channels[1].
-					buf_lock),
+					+ CH_SYNC_BUF_SZ,
 		},
 	},
+	.rx_rbuf = {
+		.unit_size = CH_SYNC_BUF_SZ,
+		.rb_lock =
+			__RW_LOCK_UNLOCKED(mlb_devinfo[0].rx_rbuf.rb_lock),
+	},
+	.tx_rbuf = {
+		.unit_size = CH_SYNC_BUF_SZ,
+		.rb_lock =
+			__RW_LOCK_UNLOCKED(mlb_devinfo[0].tx_rbuf.rb_lock),
+	},
+	.cdt_buf_dep = CH_SYNC_CDT_BUF_DEP,
+	.adt_buf_dep = CH_SYNC_ADT_BUF_DEP,
+	.buf_size = CH_SYNC_BUF_SZ,
 	.on = ATOMIC_INIT(0),
 	.opencnt = ATOMIC_INIT(0),
-	.rd_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[0].rd_wq),
-	.wt_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[0].wt_wq),
+	.rx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[0].rx_wq),
+	.tx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[0].tx_wq),
 	.event_lock = __SPIN_LOCK_UNLOCKED(mlb_devinfo[0].event_lock),
 	},
 	{
@@ -399,25 +440,32 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.channel_type = MLB_CTYPE_CTRL,
 	.channels = {
 		[0] = {
-			.buf_size = CH_CTRL_BUF_DEP,
+			.cl = CTRL_TX_CL,
 			.dbr_buf_head = CH_CTRL_DBR_BUF_OFFSET,
-			.buf_lock =
-			__RW_LOCK_UNLOCKED(mlb_devinfo[1].channels[0].
-					buf_lock),
 		},
 		[1] = {
-			.buf_size = CH_CTRL_BUF_DEP,
+			.cl = CTRL_RX_CL,
 			.dbr_buf_head = CH_CTRL_DBR_BUF_OFFSET
-					+ CH_CTRL_BUF_DEP,
-			.buf_lock =
-			__RW_LOCK_UNLOCKED(mlb_devinfo[1].channels[1].
-					buf_lock),
+					+ CH_CTRL_BUF_SZ,
 		},
 	},
+	.rx_rbuf = {
+		.unit_size = CH_CTRL_BUF_SZ,
+		.rb_lock =
+			__RW_LOCK_UNLOCKED(mlb_devinfo[1].rx_rbuf.rb_lock),
+	},
+	.tx_rbuf = {
+		.unit_size = CH_CTRL_BUF_SZ,
+		.rb_lock =
+			__RW_LOCK_UNLOCKED(mlb_devinfo[1].tx_rbuf.rb_lock),
+	},
+	.cdt_buf_dep = CH_CTRL_CDT_BUF_DEP,
+	.adt_buf_dep = CH_CTRL_ADT_BUF_DEP,
+	.buf_size = CH_CTRL_BUF_SZ,
 	.on = ATOMIC_INIT(0),
 	.opencnt = ATOMIC_INIT(0),
-	.rd_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[1].rd_wq),
-	.wt_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[1].wt_wq),
+	.rx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[1].rx_wq),
+	.tx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[1].tx_wq),
 	.event_lock = __SPIN_LOCK_UNLOCKED(mlb_devinfo[1].event_lock),
 	},
 	{
@@ -425,25 +473,32 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.channel_type = MLB_CTYPE_ASYNC,
 	.channels = {
 		[0] = {
-			.buf_size = CH_ASYNC_BUF_DEP,
+			.cl = ASYNC_TX_CL,
 			.dbr_buf_head = CH_ASYNC_DBR_BUF_OFFSET,
-			.buf_lock =
-			__RW_LOCK_UNLOCKED(mlb_devinfo[2].channels[0].
-					buf_lock),
 		},
 		[1] = {
-			.buf_size = CH_ASYNC_BUF_DEP,
+			.cl = ASYNC_RX_CL,
 			.dbr_buf_head = CH_ASYNC_DBR_BUF_OFFSET
-					+ CH_ASYNC_BUF_DEP,
-			.buf_lock =
-				__RW_LOCK_UNLOCKED(mlb_devinfo[2].channels[1].
-					buf_lock),
+					+ CH_ASYNC_BUF_SZ,
 		},
 	},
+	.rx_rbuf = {
+		.unit_size = CH_ASYNC_BUF_SZ,
+		.rb_lock =
+			__RW_LOCK_UNLOCKED(mlb_devinfo[2].rx_rbuf.rb_lock),
+	},
+	.tx_rbuf = {
+		.unit_size = CH_ASYNC_BUF_SZ,
+		.rb_lock =
+			__RW_LOCK_UNLOCKED(mlb_devinfo[2].tx_rbuf.rb_lock),
+	},
+	.cdt_buf_dep = CH_ASYNC_CDT_BUF_DEP,
+	.adt_buf_dep = CH_ASYNC_ADT_BUF_DEP,
+	.buf_size = CH_ASYNC_BUF_SZ,
 	.on = ATOMIC_INIT(0),
 	.opencnt = ATOMIC_INIT(0),
-	.rd_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[2].rd_wq),
-	.wt_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[2].wt_wq),
+	.rx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[2].rx_wq),
+	.tx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[2].tx_wq),
 	.event_lock = __SPIN_LOCK_UNLOCKED(mlb_devinfo[2].event_lock),
 	},
 	{
@@ -451,42 +506,42 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.channel_type = MLB_CTYPE_ISOC,
 	.channels = {
 		[0] = {
-			.buf_size = CH_ISOC_BUF_DEP,
+			.cl = ISOC_TX_CL,
 			.dbr_buf_head = CH_ISOC_DBR_BUF_OFFSET,
-			.buf_lock =
-				__RW_LOCK_UNLOCKED(mlb_devinfo[3].channels[0].
-					buf_lock),
 		},
 		[1] = {
-			.buf_size = CH_ISOC_BUF_DEP,
+			.cl = ISOC_RX_CL,
 			.dbr_buf_head = CH_ISOC_DBR_BUF_OFFSET
-					+ CH_ISOC_BUF_DEP,
-			.buf_lock =
-				__RW_LOCK_UNLOCKED(mlb_devinfo[3].channels[1].
-					buf_lock),
+					+ CH_ISOC_BUF_SZ,
 		},
 	},
+	.rx_rbuf = {
+		.unit_size = CH_ISOC_BUF_SZ,
+		.rb_lock =
+			__RW_LOCK_UNLOCKED(mlb_devinfo[3].rx_rbuf.rb_lock),
+	},
+	.tx_rbuf = {
+		.unit_size = CH_ISOC_BUF_SZ,
+		.rb_lock =
+			__RW_LOCK_UNLOCKED(mlb_devinfo[3].tx_rbuf.rb_lock),
+	},
+	.cdt_buf_dep = CH_ISOC_CDT_BUF_DEP,
+	.adt_buf_dep = CH_ISOC_ADT_BUF_DEP,
+	.buf_size = CH_ISOC_BUF_SZ,
 	.on = ATOMIC_INIT(0),
 	.opencnt = ATOMIC_INIT(0),
-	.rd_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[3].rd_wq),
-	.wt_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[3].wt_wq),
+	.rx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[3].rx_wq),
+	.tx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[3].tx_wq),
 	.event_lock = __SPIN_LOCK_UNLOCKED(mlb_devinfo[3].event_lock),
+	.isoc_blksz = CH_ISOC_BLK_SIZE_188,
 	},
 };
 
-static struct regulator *reg_nvcc;	/* NVCC_MLB regulator */
-static struct clk *mlb_clk;
-static struct clk *mlb_pll_clk;
-static dev_t dev;
-static struct class *mlb_class;	/* device class */
-static struct device *class_dev;
-static u32 mlb_base;	/* mlb module base address */
-static u32 ahb0_irq, ahb1_irq, mlb_irq;
+static u32 mlb_base;
 
 DEFINE_SPINLOCK(ctr_lock);
 
 #ifdef DEBUG
-
 #define DUMP_REG(reg) pr_debug(#reg": 0x%08x\n", __raw_readl(mlb_base + reg))
 
 static void mlb150_dev_dump_reg(void)
@@ -561,6 +616,7 @@ static inline u8 mlb150_dev_dbr_read(u32 dbr_addr)
 	if (0 == timeout) {
 		spin_unlock_irqrestore(&ctr_lock, flags);
 		return -ETIME;
+	}
 
 	dbr_val = __raw_readl(mlb_base + REG_MDAT0) & 0x000000ff;
 
@@ -736,11 +792,11 @@ static s32 mlb150_dev_cat_write(u32 ctr_offset, u32 ch, const u16 cat_val)
 {
 	u16 ctr_val[8] = { 0 };
 
-	if (unlikely(mlb150_dev_ctr_read(ctr_offset, (u32 *)ctr_val)))
+	if (mlb150_dev_ctr_read(ctr_offset, (u32 *)ctr_val))
 		return -ETIME;
 
 	ctr_val[ch % 8] = cat_val;
-	if (unlikely(mlb150_dev_ctr_write(ctr_offset, (u32 *)ctr_val)))
+	if (mlb150_dev_ctr_write(ctr_offset, (u32 *)ctr_val))
 		return -ETIME;
 
 	return 0;
@@ -823,7 +879,7 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
 
 	pr_debug("mxc_mlb150: CAT MLB Table");
 	for (i = BUF_CAT_MLB_OFFSET + (ch_start >> 3);
-			i < BUF_CAT_MLB_OFFSET + (ch_end >> 3) + 1;
+			i <= BUF_CAT_MLB_OFFSET + ((ch_end + 8) >> 3);
 			++i) {
 		mlb150_dev_ctr_read(i, ctr_val);
 		pr_debug("CTR 0x%02x: 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
@@ -832,7 +888,7 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
 
 	pr_debug("mxc_mlb150: CAT HBI Table");
 	for (i = BUF_CAT_HBI_OFFSET + (ch_start >> 3);
-			i < BUF_CAT_HBI_OFFSET + (ch_end >> 3) + 1;
+			i <= BUF_CAT_HBI_OFFSET + ((ch_end + 8) >> 3);
 			++i) {
 		mlb150_dev_ctr_read(i, ctr_val);
 		pr_debug("CTR 0x%02x: 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
@@ -846,9 +902,22 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
  */
 static inline s32 mlb150_dev_enable_dma_irq(u32 enable)
 {
+	u32 ch_rx_mask = (1 << SYNC_RX_CL_AHB0) | (1 << CTRL_RX_CL_AHB0)
+			| (1 << ASYNC_RX_CL_AHB0) | (1 << ISOC_RX_CL_AHB0)
+			| (1 << SYNC_TX_CL_AHB0) | (1 << CTRL_TX_CL_AHB0)
+			| (1 << ASYNC_TX_CL_AHB0) | (1 << ISOC_TX_CL_AHB0);
+	u32 ch_tx_mask = (1 << (SYNC_RX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (CTRL_RX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (ASYNC_RX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (ISOC_RX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (SYNC_TX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (CTRL_TX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (ASYNC_TX_CL_AHB1 - INT_AHB1_CH_START)) |
+			(1 << (ISOC_TX_CL_AHB1 - INT_AHB1_CH_START));
+
 	if (enable) {
-		__raw_writel(0xffffffff, mlb_base + REG_ACMR0);
-		__raw_writel(0xffffffff, mlb_base + REG_ACMR1);
+		__raw_writel(ch_rx_mask, mlb_base + REG_ACMR0);
+		__raw_writel(ch_tx_mask, mlb_base + REG_ACMR1);
 	} else {
 		__raw_writel(0x0, mlb_base + REG_ACMR0);
 		__raw_writel(0x0, mlb_base + REG_ACMR1);
@@ -881,9 +950,7 @@ static s32 mlb150_dev_init_ir_amba_ahb(void)
 	 *	and another interrupt for channels 32 - 63 on ahb_init[1]
 	 * ACTL.SMX = 1: singel interrupt all channels on ahb_init[0]
 	 * */
-	/*
-	reg |= ACTL_SMX;
-	*/
+	reg &= ~ACTL_SMX;
 
 	__raw_writel(reg, mlb_base + REG_ACTL);
 
@@ -911,40 +978,40 @@ static inline s32 mlb150_dev_enable_ir_mlb(u32 enable)
 	return 0;
 }
 
-static inline int mlb150_enable_pll(void)
+static inline int mlb150_enable_pll(struct mlb_data *drvdata)
 {
 	u32 c0_val;
 
 	__raw_writel(MLBPC1_VAL,
-			mlb_base + REG_MLBPC1);
+			drvdata->membase + REG_MLBPC1);
 
-	c0_val = __raw_readl(mlb_base + REG_MLBC0);
+	c0_val = __raw_readl(drvdata->membase + REG_MLBC0);
 	if (c0_val & MLBC0_MLBPEN) {
 		c0_val &= ~MLBC0_MLBPEN;
 		__raw_writel(c0_val,
-				mlb_base + REG_MLBC0);
+				drvdata->membase + REG_MLBC0);
 	}
 
-	clk_enable(mlb_pll_clk);
+	clk_enable(drvdata->clk_mlb6p);
 
 	c0_val |= (MLBC0_MLBPEN);
-	__raw_writel(c0_val, mlb_base + REG_MLBC0);
+	__raw_writel(c0_val, drvdata->membase + REG_MLBC0);
 
 	return 0;
 }
 
-static inline int mlb150_disable_pll(void)
+static inline int mlb150_disable_pll(struct mlb_data *drvdata)
 {
 	u32 c0_val;
 
-	clk_disable(mlb_pll_clk);
+	clk_disable(drvdata->clk_mlb6p);
 
-	c0_val = __raw_readl(mlb_base + REG_MLBC0);
+	c0_val = __raw_readl(drvdata->membase + REG_MLBC0);
 
-	__raw_writel(0x0, mlb_base + REG_MLBPC1);
+	__raw_writel(0x0, drvdata->membase + REG_MLBPC1);
 
 	c0_val &= ~MLBC0_MLBPEN;
-	__raw_writel(c0_val, mlb_base + REG_MLBC0);
+	__raw_writel(c0_val, drvdata->membase + REG_MLBC0);
 
 	return 0;
 }
@@ -963,57 +1030,42 @@ static s32 mlb150_dev_reset_cdt(void)
 	return 0;
 }
 
-static s32 mlb150_dev_init_ch_cdt(u32 ch, enum MLB_CTYPE ctype, u32 ch_func)
+static s32 mlb150_dev_init_ch_cdt(struct mlb_dev_info *pdevinfo, u32 ch,
+		enum MLB_CTYPE ctype, u32 ch_func)
 {
 	u32 cdt_val[4] = { 0 };
 
 	/* a. Set the 14-bit base address (BA) */
 	pr_debug("mxc_mlb150: ctype: %d, ch: %d, dbr_buf_head: 0x%08x",
-		ctype, ch, mlb_devinfo[ctype].channels[ch_func].dbr_buf_head);
-	cdt_val[3] = (mlb_devinfo[ctype].channels[ch_func].dbr_buf_head)
+		ctype, ch, pdevinfo->channels[ch_func].dbr_buf_head);
+	cdt_val[3] = (pdevinfo->channels[ch_func].dbr_buf_head)
 			<< CDT_BA_SHIFT;
 
 	/* b. Set the 12-bit or 13-bit buffer depth (BD)
 	 * BD = buffer depth in bytes - 1 */
-	switch (ctype) {
-	case MLB_CTYPE_SYNC:
-		/* For synchronous channels: (BD + 1) = 4 * m * bpf */
-		cdt_val[3] |= (CH_SYNC_BUF_DEP - 1) << CDT_BD_SHIFT;
-		break;
-	case MLB_CTYPE_CTRL:
-		/* For control channels: (BD + 1) >= max packet length (64) */
-		/* BD */
-		cdt_val[3] |= ((CH_CTRL_BUF_DEP - 1) << CDT_BD_SHIFT);
-		break;
-	case MLB_CTYPE_ASYNC:
-		/* For asynchronous channels: (BD + 1) >= max packet length
-		 * 1024 for a MOST Data packet (MDP);
-		 * 1536 for a MOST Ethernet Packet (MEP) */
-		cdt_val[3] |= ((CH_ASYNC_BUF_DEP - 1) << CDT_BD_SHIFT);
-		break;
-	case MLB_CTYPE_ISOC:
-		/* For isochronous channels: (BD + 1) mod (BS + 1) = 0 */
-		/* BS */
-		cdt_val[1] |= (CH_ISOC_BLK_SIZE - 1);
-		/* BD */
-		cdt_val[3] |= (CH_ISOC_BUF_DEP - 1)
-				<< CDT_BD_SHIFT;
-		break;
-	default:
-		break;
-	}
+	/* For synchronous channels: (BD + 1) = 4 * m * bpf */
+	/* For control channels: (BD + 1) >= max packet length (64) */
+	/* For asynchronous channels: (BD + 1) >= max packet length
+	 * 1024 for a MOST Data packet (MDP);
+	 * 1536 for a MOST Ethernet Packet (MEP) */
+	/* For isochronous channels: (BD + 1) mod (BS + 1) = 0 */
+	/* BS */
+	if (MLB_CTYPE_ISOC == ctype)
+		cdt_val[1] |= (pdevinfo->isoc_blksz - 1);
+	/* BD */
+	cdt_val[3] |= (pdevinfo->cdt_buf_dep - 1) << CDT_BD_SHIFT;
 
 	pr_debug("mxc_mlb150: Set CDT val of channel %d, type: %d: "
 		"0x%08x 0x%08x 0x%08x 0x%08x\n",
 		ch, ctype, cdt_val[3], cdt_val[2], cdt_val[1], cdt_val[0]);
 
-	if (unlikely(mlb150_dev_cdt_write(ch, cdt_val)))
+	if (mlb150_dev_cdt_write(ch, cdt_val))
 		return -ETIME;
 
 #ifdef DEBUG_CTR
 	{
 		u32 cdt_rd[4] = { 0 };
-		if (likely(!mlb150_dev_cdt_read(ch, cdt_rd))) {
+		if (!mlb150_dev_cdt_read(ch, cdt_rd)) {
 			pr_debug("mxc_mlb150: CDT val of channel %d: "
 				"0x%08x 0x%08x 0x%08x 0x%08x\n",
 				ch, cdt_rd[3], cdt_rd[2], cdt_rd[1], cdt_rd[0]);
@@ -1038,14 +1090,15 @@ static s32 mlb150_dev_init_ch_cdt(u32 ch, enum MLB_CTYPE ctype, u32 ch_func)
 	return 0;
 }
 
-static s32 mlb150_dev_init_ch_cat(u32 ch, u32 cat_mode, enum MLB_CTYPE ctype)
+static s32 mlb150_dev_init_ch_cat(u32 ch, u32 cl,
+		u32 cat_mode, enum MLB_CTYPE ctype)
 {
 	u16 cat_val = 0;
 #ifdef DEBUG_CTR
 	u16 cat_rd = 0;
 #endif
 
-	cat_val = CAT_CE | (ctype << CAT_CT_SHIFT) | ch;
+	cat_val = CAT_CE | (ctype << CAT_CT_SHIFT) | cl;
 
 	if (cat_mode & CAT_MODE_OUTBOUND_DMA)
 		cat_val |= CAT_RNW;
@@ -1053,16 +1106,16 @@ static s32 mlb150_dev_init_ch_cat(u32 ch, u32 cat_mode, enum MLB_CTYPE ctype)
 	if (MLB_CTYPE_SYNC == ctype)
 		cat_val |= CAT_MT;
 
-	pr_debug("mxc_mlb150: set CAT val of channel %d, type: %d: 0x%04x\n",
-			ch, ctype, cat_val);
-
 	switch (cat_mode) {
 	case CAT_MODE_RX | CAT_MODE_INBOUND_DMA:
 	case CAT_MODE_TX | CAT_MODE_OUTBOUND_DMA:
-		if (unlikely(mlb150_dev_cat_mlb_write(ch, cat_val)))
+		pr_debug("mxc_mlb150: set CAT val of channel %d, type: %d: 0x%04x\n",
+			ch, ctype, cat_val);
+
+		if (mlb150_dev_cat_mlb_write(ch, cat_val))
 			return -ETIME;
 #ifdef DEBUG_CTR
-		if (likely(!mlb150_dev_cat_mlb_read(ch, &cat_rd)))
+		if (!mlb150_dev_cat_mlb_read(ch, &cat_rd))
 			pr_debug("mxc_mlb150: CAT val of mlb channel %d: 0x%04x",
 					ch, cat_rd);
 		else {
@@ -1074,15 +1127,18 @@ static s32 mlb150_dev_init_ch_cat(u32 ch, u32 cat_mode, enum MLB_CTYPE ctype)
 		break;
 	case CAT_MODE_TX | CAT_MODE_INBOUND_DMA:
 	case CAT_MODE_RX | CAT_MODE_OUTBOUND_DMA:
-		if (unlikely(mlb150_dev_cat_hbi_write(ch, cat_val)))
+		pr_debug("mxc_mlb150: set CAT val of channel %d, type: %d: 0x%04x\n",
+			cl, ctype, cat_val);
+
+		if (mlb150_dev_cat_hbi_write(cl, cat_val))
 			return -ETIME;
 #ifdef DEBUG_CTR
-		if (likely(!mlb150_dev_cat_hbi_read(ch, &cat_rd)))
+		if (!mlb150_dev_cat_hbi_read(cl, &cat_rd))
 			pr_debug("mxc_mlb150: CAT val of hbi channel %d: 0x%04x",
-					ch, cat_rd);
+					cl, cat_rd);
 		else {
 			pr_debug("mxc_mlb150: Read CAT of hbi channel %d failed\n",
-					ch);
+					cl);
 				return -EBADE;
 		}
 #endif
@@ -1121,28 +1177,31 @@ static s32 mlb150_dev_reset_cat(void)
 	return 0;
 }
 
-static s32 mlb150_dev_init_rfb(u32 rx_ch, u32 tx_ch, enum MLB_CTYPE ctype)
+static s32 mlb150_dev_init_rfb(struct mlb_dev_info *pdevinfo, u32 rx_ch,
+		u32 tx_ch, enum MLB_CTYPE ctype)
 {
+	u32 rx_cl = pdevinfo->channels[RX_CHANNEL].cl;
+	u32 tx_cl = pdevinfo->channels[TX_CHANNEL].cl;
 	/* Step 1, Initialize all bits of CAT to '0' */
 	mlb150_dev_reset_cat();
 	mlb150_dev_reset_cdt();
 
 	/* Step 2, Initialize logical channel */
 	/* Step 3, Program the CDT for channel N */
-	mlb150_dev_init_ch_cdt(rx_ch, ctype, RX_CHANNEL);
-	mlb150_dev_init_ch_cdt(tx_ch, ctype, TX_CHANNEL);
+	mlb150_dev_init_ch_cdt(pdevinfo, rx_cl, ctype, RX_CHANNEL);
+	mlb150_dev_init_ch_cdt(pdevinfo, tx_cl, ctype, TX_CHANNEL);
 
 	/* Step 4&5, Program the CAT for the inbound and outbound DMA */
-	mlb150_dev_init_ch_cat(rx_ch,
+	mlb150_dev_init_ch_cat(rx_ch, rx_cl,
 			CAT_MODE_RX | CAT_MODE_INBOUND_DMA,
 			ctype);
-	mlb150_dev_init_ch_cat(rx_ch,
+	mlb150_dev_init_ch_cat(rx_ch, rx_cl,
 			CAT_MODE_RX | CAT_MODE_OUTBOUND_DMA,
 			ctype);
-	mlb150_dev_init_ch_cat(tx_ch,
+	mlb150_dev_init_ch_cat(tx_ch, tx_cl,
 			CAT_MODE_TX | CAT_MODE_INBOUND_DMA,
 			ctype);
-	mlb150_dev_init_ch_cat(tx_ch,
+	mlb150_dev_init_ch_cat(tx_ch, tx_cl,
 			CAT_MODE_TX | CAT_MODE_OUTBOUND_DMA,
 			ctype);
 
@@ -1273,16 +1332,17 @@ static inline s32 mlb150_dev_set_ch_amba_ahb(u32 ch, enum MLB_CTYPE ctype,
       return 0;
 }
 
-static s32 mlb150_dev_init_ch_amba_ahb(struct mlb_channel_info *chinfo,
+static s32 mlb150_dev_init_ch_amba_ahb(struct mlb_dev_info *pdevinfo,
+					struct mlb_channel_info *chinfo,
 					enum MLB_CTYPE ctype)
 {
 	u32 ctr_val[4] = { 0 };
 
 	/* a. Set the 32-bit base address (BA1) */
-	ctr_val[3] = chinfo->pong_phy_head;
-	ctr_val[2] = chinfo->ping_phy_head;
-	ctr_val[1] = (chinfo->buf_size - 1) << ADT_BD1_SHIFT;
-	ctr_val[1] |= (chinfo->buf_size - 1) << ADT_BD2_SHIFT;
+	ctr_val[3] = 0;
+	ctr_val[2] = 0;
+	ctr_val[1] = (pdevinfo->adt_buf_dep - 1) << ADT_BD1_SHIFT;
+	ctr_val[1] |= (pdevinfo->adt_buf_dep - 1) << ADT_BD2_SHIFT;
 	if (MLB_CTYPE_ASYNC == ctype ||
 		MLB_CTYPE_CTRL == ctype) {
 		ctr_val[1] |= ADT_PS1;
@@ -1293,19 +1353,19 @@ static s32 mlb150_dev_init_ch_amba_ahb(struct mlb_channel_info *chinfo,
 
 	pr_debug("mxc_mlb150: Set ADT val of channel %d, ctype: %d: "
 		"0x%08x 0x%08x 0x%08x 0x%08x\n",
-		chinfo->address, ctype, ctr_val[3], ctr_val[2],
+		chinfo->cl, ctype, ctr_val[3], ctr_val[2],
 		ctr_val[1], ctr_val[0]);
 
-	if (unlikely(mlb150_dev_adt_write(chinfo->address, ctr_val)))
+	if (mlb150_dev_adt_write(chinfo->cl, ctr_val))
 		return -ETIME;
 
 #ifdef DEBUG_CTR
 	{
 		u32 ctr_rd[4] = { 0 };
-		if (likely(!mlb150_dev_adt_read(chinfo->address, ctr_rd))) {
+		if (!mlb150_dev_adt_read(chinfo->cl, ctr_rd)) {
 			pr_debug("mxc_mlb150: ADT val of channel %d: "
 				"0x%08x 0x%08x 0x%08x 0x%08x\n",
-				chinfo->address, ctr_rd[3], ctr_rd[2],
+				chinfo->cl, ctr_rd[3], ctr_rd[2],
 				ctr_rd[1], ctr_rd[0]);
 			if (ctr_rd[3] == ctr_val[3] &&
 				ctr_rd[2] == ctr_val[2] &&
@@ -1319,7 +1379,7 @@ static s32 mlb150_dev_init_ch_amba_ahb(struct mlb_channel_info *chinfo,
 			}
 		} else {
 			pr_debug("mxc_mlb150: Read ADT val of channel %d failed\n",
-					chinfo->address);
+					chinfo->cl);
 			return -EBADE;
 		}
 	}
@@ -1328,17 +1388,20 @@ static s32 mlb150_dev_init_ch_amba_ahb(struct mlb_channel_info *chinfo,
 	return 0;
 }
 
-static s32 mlb150_dev_init_amba_ahb(struct mlb_channel_info *rx_chinfo,
-		struct mlb_channel_info *tx_chinfo, enum MLB_CTYPE ctype)
+static s32 mlb150_dev_init_amba_ahb(struct mlb_dev_info *pdevinfo,
+					enum MLB_CTYPE ctype)
 {
+	struct mlb_channel_info *tx_chinfo = &pdevinfo->channels[TX_CHANNEL];
+	struct mlb_channel_info *rx_chinfo = &pdevinfo->channels[RX_CHANNEL];
+
 	/* Step 1, Initialize all bits of the ADT to '0' */
 	mlb150_dev_reset_adt();
 
 	/* Step 2, Select a logic channel */
 	/* Step 3, Program the AMBA AHB block ping page for channel N */
 	/* Step 4, Program the AMBA AHB block pong page for channel N */
-	mlb150_dev_init_ch_amba_ahb(rx_chinfo, ctype);
-	mlb150_dev_init_ch_amba_ahb(tx_chinfo, ctype);
+	mlb150_dev_init_ch_amba_ahb(pdevinfo, rx_chinfo, ctype);
+	mlb150_dev_init_ch_amba_ahb(pdevinfo, tx_chinfo, ctype);
 
 	return 0;
 }
@@ -1408,7 +1471,7 @@ static void mlb150_dev_init(void)
 	mlb150_dev_enable_ir_mlb(1);
 }
 
-static s32 mlb150_dev_unmute_syn_ch(u32 rx_ch, u32 tx_ch)
+static s32 mlb150_dev_unmute_syn_ch(u32 rx_ch, u32 rx_cl, u32 tx_ch, u32 tx_cl)
 {
 	u32 timeout = 10000;
 
@@ -1419,7 +1482,7 @@ static s32 mlb150_dev_unmute_syn_ch(u32 rx_ch, u32 tx_ch)
 			|| timeout--)
 		__raw_writel(~MLBC1_CLKM, mlb_base + REG_MLBC1);
 
-	if (unlikely(0 == timeout))
+	if (0 == timeout)
 		return -ETIME;
 
 	timeout = 10000;
@@ -1428,16 +1491,16 @@ static s32 mlb150_dev_unmute_syn_ch(u32 rx_ch, u32 tx_ch)
 			|| timeout--)
 		;
 
-	if (unlikely(0 == timeout))
+	if (0 == timeout)
 		return -ETIME;
 
 	/* Unmute synchronous channel(s) */
-	mlb150_dev_cat_mlb_write(rx_ch, CAT_CE | rx_ch);
+	mlb150_dev_cat_mlb_write(rx_ch, CAT_CE | rx_cl);
 	mlb150_dev_cat_mlb_write(tx_ch,
-			CAT_CE | tx_ch | CAT_RNW);
-	mlb150_dev_cat_hbi_write(rx_ch,
-			CAT_CE | rx_ch | CAT_RNW);
-	mlb150_dev_cat_hbi_write(tx_ch, CAT_CE | tx_ch);
+			CAT_CE | tx_cl | CAT_RNW);
+	mlb150_dev_cat_hbi_write(rx_cl,
+			CAT_CE | rx_cl | CAT_RNW);
+	mlb150_dev_cat_hbi_write(tx_cl, CAT_CE | tx_cl);
 
 	return 0;
 }
@@ -1467,57 +1530,66 @@ static inline void mlb_start_tx(u32 ch, s32 ctype, u32 dne_sts, u32 buf_addr)
 /*!
  * Enable the MLB channel
  */
-static void mlb_channel_enable(int chan_dev_id, int on)
+static void mlb_channel_enable(struct mlb_data *drvdata,
+				int chan_dev_id, int on)
 {
-	struct mlb_dev_info *pdevinfo = &mlb_devinfo[chan_dev_id];
+	struct mlb_dev_info *pdevinfo = drvdata->devinfo;
+	struct mlb_channel_info *tx_chinfo = &pdevinfo->channels[TX_CHANNEL];
+	struct mlb_channel_info *rx_chinfo = &pdevinfo->channels[RX_CHANNEL];
+	u32 tx_ch = tx_chinfo->address;
+	u32 rx_ch = rx_chinfo->address;
+	u32 tx_cl = tx_chinfo->cl;
+	u32 rx_cl = rx_chinfo->cl;
+
 	/*!
 	 * setup the direction, enable, channel type,
 	 * mode select, channel address and mask buf start
 	 */
 	if (on) {
 		u32 ctype = pdevinfo->channel_type;
-		struct mlb_channel_info *tx_chinfo = &_get_txchan(chan_dev_id);
-		struct mlb_channel_info *rx_chinfo = &_get_rxchan(chan_dev_id);
-		u32 tx_ch = tx_chinfo->address;
-		u32 rx_ch = rx_chinfo->address;
 
 		mlb150_dev_enable_ctr_write(0xffffffff, 0xffffffff,
 				0xffffffff, 0xffffffff);
-		mlb150_dev_init_rfb(rx_ch, tx_ch, ctype);
+		mlb150_dev_init_rfb(pdevinfo, rx_ch, tx_ch, ctype);
 
-		mlb150_dev_init_amba_ahb(rx_chinfo, tx_chinfo, ctype);
+		mlb150_dev_init_amba_ahb(pdevinfo, ctype);
 
+#ifdef DEBUG
+		mlb150_dev_dump_ctr_tbl(0, tx_chinfo->cl + 1);
+#endif
 		/* Synchronize and unmute synchrouous channel */
 		if (MLB_CTYPE_SYNC == ctype)
-			mlb150_dev_unmute_syn_ch(rx_ch, tx_ch);
+			mlb150_dev_unmute_syn_ch(rx_ch, rx_cl, tx_ch, tx_cl);
 
 		mlb150_dev_enable_ctr_write(0x0, ADT_RDY1 | ADT_DNE1 |
 				ADT_ERR1 | ADT_PS1 |
-				ADT_MEP1 | ADT_RDY2 | ADT_DNE2 | ADT_ERR2 |
-				ADT_PS2 | ADT_MEP2,
+				ADT_RDY2 | ADT_DNE2 | ADT_ERR2 | ADT_PS2,
 				0xffffffff, 0xffffffff);
 
 		if (pdevinfo->fps >= CLK_2048FS)
-			mlb150_enable_pll();
+			mlb150_enable_pll(drvdata);
 
 		atomic_set(&pdevinfo->on, 1);
 
 #ifdef DEBUG
 		mlb150_dev_dump_reg();
-		mlb150_dev_dump_ctr_tbl(0, tx_chinfo->address + 1);
+		mlb150_dev_dump_ctr_tbl(0, tx_chinfo->cl + 1);
 #endif
-		mlb_start_rx(rx_ch, ctype, ADT_DNE2,
-				pdevinfo->rx_bufs.phy_addrs[0]);
+		/* Init RX ADT */
+		mlb150_dev_pipo_start(&pdevinfo->rx_rbuf, rx_cl,
+					pdevinfo->rx_rbuf.phy_addrs[0]);
 	} else {
+		mlb150_dev_pipo_stop(&pdevinfo->rx_rbuf, rx_cl);
+
 		mlb150_dev_enable_dma_irq(0);
 		mlb150_dev_enable_ir_mlb(0);
 
 		mlb150_dev_reset_cat();
 
-		atomic_set(&mlb_devinfo[chan_dev_id].on, 0);
+		atomic_set(&pdevinfo->on, 0);
 
-		if (mlb_devinfo[chan_dev_id].fps >= CLK_2048FS)
-			mlb150_disable_pll();
+		if (pdevinfo->fps >= CLK_2048FS)
+			mlb150_disable_pll(drvdata);
 	}
 }
 
@@ -1649,7 +1721,6 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 {
 	u32 rx_int_sts, tx_int_sts, ms0,
 		ms1, tx_cis, rx_cis, ctype;
-	struct mlb_dev_info *pdev;
 	int minor;
 	u32 cdt_val[4] = { 0 };
 
@@ -1661,26 +1732,30 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 			(u32)ms0, (u32)ms1);
 
 	for (minor = 0; minor < MLB_MINOR_DEVICES; minor++) {
-		pdev = &mlb_devinfo[minor];
+		struct mlb_dev_info *pdevinfo = &mlb_devinfo[minor];
+		u32 rx_mlb_ch = pdevinfo->channels[RX_CHANNEL].address;
+		u32 tx_mlb_ch = pdevinfo->channels[TX_CHANNEL].address;
+		u32 rx_mlb_cl = pdevinfo->channels[RX_CHANNEL].cl;
+		u32 tx_mlb_cl = pdevinfo->channels[TX_CHANNEL].cl;
+
 		tx_cis = rx_cis = 0;
 
-		ctype = pdev->channel_type;
-		rx_int_sts = (_get_rxchan(minor).address < 31) ? ms0 : ms1;
-		tx_int_sts = (_get_txchan(minor).address < 31) ? ms0 : ms1;
+		ctype = pdevinfo->channel_type;
+		rx_int_sts = (rx_mlb_ch < 31) ? ms0 : ms1;
+		tx_int_sts = (tx_mlb_ch < 31) ? ms0 : ms1;
 
 		pr_debug("mxc_mlb150: channel interrupt: "
-				"tx: 0x%08x, rx: 0x%08x\n",
-			(u32)tx_int_sts, (u32)rx_int_sts);
+				"tx %d: 0x%08x, rx %d: 0x%08x\n",
+			tx_mlb_ch, (u32)tx_int_sts, rx_mlb_ch, (u32)rx_int_sts);
 
 		/* Get tx channel interrupt status */
-		if (tx_int_sts & (1 << (_get_txchan(minor).address % 32))) {
-			mlb150_dev_cdt_read(_get_txchan(minor).address,
-					cdt_val);
-			pr_debug("mxc_mlb150: cdt_val[3]: 0x%08x, "
+		if (tx_int_sts & (1 << (tx_mlb_ch % 32))) {
+			mlb150_dev_cdt_read(tx_mlb_cl, cdt_val);
+			pr_debug("mxc_mlb150: TX_CH: %d, cdt_val[3]: 0x%08x, "
 					"cdt_val[2]: 0x%08x, "
 					"cdt_val[1]: 0x%08x, "
 					"cdt_val[0]: 0x%08x\n",
-					cdt_val[3], cdt_val[2],
+					tx_mlb_ch, cdt_val[3], cdt_val[2],
 					cdt_val[1], cdt_val[0]);
 			switch (ctype) {
 			case MLB_CTYPE_SYNC:
@@ -1714,14 +1789,18 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 			default:
 				break;
 			}
-			mlb150_dev_cdt_write(_get_txchan(minor).address,
-					cdt_val);
+			mlb150_dev_cdt_write(tx_mlb_ch, cdt_val);
 		}
 
 		/* Get rx channel interrupt status */
-		if (rx_int_sts & (1 << (_get_rxchan(minor).address % 32))) {
-			mlb150_dev_cdt_read(_get_rxchan(minor).address,
-					cdt_val);
+		if (rx_int_sts & (1 << (rx_mlb_ch % 32))) {
+			mlb150_dev_cdt_read(rx_mlb_cl, cdt_val);
+			pr_debug("mxc_mlb150: RX_CH: %d, cdt_val[3]: 0x%08x, "
+					"cdt_val[2]: 0x%08x, "
+					"cdt_val[1]: 0x%08x, "
+					"cdt_val[0]: 0x%08x\n",
+					rx_mlb_ch, cdt_val[3], cdt_val[2],
+					cdt_val[1], cdt_val[0]);
 			switch (ctype) {
 			case MLB_CTYPE_SYNC:
 				tx_cis = (cdt_val[2] & ~CDT_SYNC_RSTS_MASK)
@@ -1747,17 +1826,16 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 			default:
 				break;
 			}
-			mlb150_dev_cdt_write(_get_rxchan(minor).address,
-					cdt_val);
+			mlb150_dev_cdt_write(rx_mlb_ch, cdt_val);
 		}
 
 		if (!tx_cis && !rx_cis)
 			continue;
 
 		/* fill exception event */
-		spin_lock(&pdev->event_lock);
-		pdev->ex_event |= (rx_cis << 16) | tx_cis;
-		spin_unlock(&pdev->event_lock);
+		spin_lock(&pdevinfo->event_lock);
+		pdevinfo->ex_event |= (rx_cis << 16) | tx_cis;
+		spin_unlock(&pdevinfo->event_lock);
 	}
 
 	return IRQ_HANDLED;
@@ -1767,64 +1845,70 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 {
 	int minor, ring_buf_size, buf_size, j, ret;
 	void __iomem *buf_addr;
-	ulong phyaddr;
-	struct mxc_mlb_platform_data *plat_data;
+	ulong phy_addr;
 	struct mlb_dev_info *pdevinfo = NULL;
 	struct mlb_channel_info *pchinfo = NULL;
-
-	plat_data = container_of(inode->i_cdev, struct mxc_mlb_platform_data,
-				cdev);
-	filp->private_data = plat_data;
+	struct mlb_data *drvdata;
 
 	minor = MINOR(inode->i_rdev);
 
-	if (unlikely(minor < 0 || minor >= MLB_MINOR_DEVICES))
+	if (minor < 0 || minor >= MLB_MINOR_DEVICES) {
+		pr_err("no device\n");
 		return -ENODEV;
+	}
 
 	/* open for each channel device */
-	if (unlikely(atomic_cmpxchg(&mlb_devinfo[minor].opencnt, 0, 1) != 0))
+	if (atomic_cmpxchg(&mlb_devinfo[minor].opencnt, 0, 1) != 0) {
+		pr_err("busy\n");
 		return -EBUSY;
+	}
+
+	/* initial MLB module */
+	mlb150_dev_init();
 
 	pdevinfo = &mlb_devinfo[minor];
-	pchinfo = &_get_txchan(minor);
+	pchinfo = &pdevinfo->channels[TX_CHANNEL];
 
-	ring_buf_size = mlb150_ch_packet_buf_size[minor];
-	buf_size = ring_buf_size * (TRANS_RING_NODES + 1) + PING_BUF_MAX_SIZE;
-	buf_addr = iram_alloc(buf_size, &phyaddr);
-	memset(buf_addr, 0, buf_size);
-	if (unlikely(buf_addr == NULL)) {
+	ring_buf_size = pdevinfo->buf_size;
+	buf_size = ring_buf_size * (TRANS_RING_NODES * 2 + 1);
+	buf_addr = iram_alloc(buf_size, &phy_addr);
+	if (buf_addr == NULL) {
 		ret = -ENOMEM;
-		dev_err(plat_data->dev, "can not alloc rx buffers\n");
+		pr_err("can not alloc rx buffers\n");
 		return ret;
 	}
+	pdevinfo->rbuf_base_virt = buf_addr;
+	pdevinfo->rbuf_base_phy = phy_addr;
+	memset(buf_addr, 0, buf_size);
 
-	dev_dbg(plat_data->dev, "ch_type: %d, RX ring buf virt base: 0x%08x "
-			"phy base: 0x%08x\n",
-			pdevinfo->channel_type, (u32)buf_addr, (u32)phyaddr);
+	for (j = 0; j < (TRANS_RING_NODES + 1);
+		++j, buf_addr += ring_buf_size, phy_addr += ring_buf_size) {
+		pdevinfo->rx_rbuf.virt_bufs[j] = buf_addr;
+		pdevinfo->rx_rbuf.phy_addrs[j] = phy_addr;
+	}
+	pdevinfo->rx_rbuf.unit_size = ring_buf_size;
+	pdevinfo->rx_rbuf.total_size = buf_size;
 
-	for (j = 0; j < TRANS_RING_NODES + 1;
-		++j, buf_addr += ring_buf_size, phyaddr += ring_buf_size) {
-		pdevinfo->rx_bufs.virt_bufs[j] = buf_addr;
-		pdevinfo->rx_bufs.phy_addrs[j] = phyaddr;
-		pdevinfo->rx_bufs.size = pchinfo->buf_size;
+	buf_addr += ring_buf_size;
+	phy_addr += ring_buf_size;
+	for (j = 0; j < (TRANS_RING_NODES);
+		++j, buf_addr += ring_buf_size, phy_addr += ring_buf_size) {
+		pdevinfo->tx_rbuf.virt_bufs[j] = buf_addr;
+		pdevinfo->tx_rbuf.phy_addrs[j] = phy_addr;
 	}
 
-	/* set the virtual and physical buf head address */
-	pchinfo->ping_buf_head = pchinfo->pong_buf_head = (u32)buf_addr;
-	pchinfo->ping_phy_head = pchinfo->pong_phy_head = phyaddr;
-
-	pchinfo->buf_ptr = (u32)buf_addr;
-	pchinfo->buf_phy_addr = phyaddr;
-
-	dev_dbg(plat_data->dev, "ctype: %d, tx phy_head: 0x%08x, "
-		"buf_head: 0x%08x\n",
-		pchinfo->address,
-		(u32)pchinfo->buf_phy_addr,
-		(u32)pchinfo->buf_ptr);
+	pdevinfo->tx_rbuf.unit_size = ring_buf_size;
+	pdevinfo->tx_rbuf.total_size = buf_size;
 
 	/* reset the buffer read/write ptr */
-	pdevinfo->rx_bufs.rpos = pdevinfo->rx_bufs.wpos = 0;
+	pdevinfo->rx_rbuf.head = pdevinfo->rx_rbuf.tail = 0;
+	pdevinfo->tx_rbuf.head = pdevinfo->tx_rbuf.tail = 0;
 	pdevinfo->ex_event = 0;
+	pdevinfo->tx_ok = 0;
+
+	drvdata = container_of(inode->i_cdev, struct mlb_data, cdev);
+	drvdata->devinfo = pdevinfo;
+	filp->private_data = drvdata;
 
 	return 0;
 }
@@ -1832,26 +1916,24 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 static int mxc_mlb150_release(struct inode *inode, struct file *filp)
 {
 	int minor;
-	u32 buf_size;
+	struct mlb_data *drvdata = filp->private_data;
+	struct mlb_dev_info *pdevinfo = drvdata->devinfo;
+	struct mlb_ringbuf *rx_rbuf = &pdevinfo->rx_rbuf;
 
 	minor = MINOR(inode->i_rdev);
 
 #ifdef DEBUG
 	mlb150_dev_dump_reg();
-	mlb150_dev_dump_ctr_tbl(0, _get_txchan(minor).address + 1);
-	mlb150_dev_dump_hex((const u8 *)mlb_devinfo[minor].rx_bufs.virt_bufs[0],
-			mlb_devinfo[minor].rx_bufs.size);
+	mlb150_dev_dump_ctr_tbl(0, pdevinfo->channels[TX_CHANNEL].cl + 1);
 #endif
 
 	/* clear channel settings and info */
-	mlb_channel_enable(minor, 0);
+	mlb_channel_enable(drvdata, minor, 0);
 
-	buf_size = mlb150_ch_packet_buf_size[minor] *
-			(TRANS_RING_NODES + 1) + PING_BUF_MAX_SIZE;
-	iram_free(mlb_devinfo[minor].rx_bufs.phy_addrs[0], buf_size);
+	iram_free(pdevinfo->rbuf_base_phy, rx_rbuf->total_size);
 
 	/* decrease the open count */
-	atomic_set(&mlb_devinfo[minor].opencnt, 0);
+	atomic_set(&pdevinfo->opencnt, 0);
 
 	return 0;
 }
@@ -1860,10 +1942,11 @@ static long mxc_mlb150_ioctl(struct file *filp,
 			 unsigned int cmd, unsigned long arg)
 {
 	struct inode *inode = filp->f_dentry->d_inode;
+	struct mlb_data *drvdata = filp->private_data;
+	struct mlb_dev_info *pdevinfo = drvdata->devinfo;
 	void __user *argp = (void __user *)arg;
 	unsigned long flags, event;
 	int minor;
-	struct mxc_mlb_platform_data *plat_data = filp->private_data;
 
 	minor = MINOR(inode->i_rdev);
 
@@ -1876,45 +1959,43 @@ static long mxc_mlb150_ioctl(struct file *filp,
 				pr_err("mxc_mlb150: copy from user failed\n");
 				return -EFAULT;
 			}
-			_get_txchan(minor).address = (caddr >> 16) & 0xFFFF;
-			_get_rxchan(minor).address = caddr & 0xFFFF;
+			pdevinfo->channels[TX_CHANNEL].address =
+							(caddr >> 16) & 0xFFFF;
+			pdevinfo->channels[RX_CHANNEL].address = caddr & 0xFFFF;
 			pr_debug("mxc_mlb150: set ch addr, tx: %d, rx: %d\n",
-					_get_txchan(minor).address,
-					_get_rxchan(minor).address);
+					pdevinfo->channels[TX_CHANNEL].address,
+					pdevinfo->channels[RX_CHANNEL].address);
 			break;
 		}
 
 	case MLB_CHAN_STARTUP:
-		if (unlikely(atomic_read(&mlb_devinfo[minor].on))) {
-			pr_debug("mxc_mlb150: channel areadly startup\n");
+		if (atomic_read(&pdevinfo->on)) {
+			pr_debug("mxc_mlb150: channel alreadly startup\n");
 			break;
 		}
-		pr_debug("mxc_mlb150: start channel\n");
-		mlb_channel_enable(minor, 1);
+		mlb_channel_enable(drvdata, minor, 1);
 		break;
 	case MLB_CHAN_SHUTDOWN:
-		if (unlikely(atomic_read(&mlb_devinfo[minor].on) == 0)) {
+		if (atomic_read(&pdevinfo->on) == 0) {
 			pr_debug("mxc_mlb150: channel areadly shutdown\n");
 			break;
 		}
-		pr_debug("mxc_mlb150: shutdown channel\n");
-		mlb_channel_enable(minor, 0);
+		mlb150_trans_complete_check(pdevinfo);
+		mlb_channel_enable(drvdata, minor, 0);
 		break;
 	case MLB_CHAN_GETEVENT:
 		/* get and clear the ex_event */
-		spin_lock_irqsave(&mlb_devinfo[minor].event_lock, flags);
-		event = mlb_devinfo[minor].ex_event;
-		mlb_devinfo[minor].ex_event = 0;
-		spin_unlock_irqrestore(&mlb_devinfo[minor].event_lock, flags);
+		spin_lock_irqsave(&pdevinfo->event_lock, flags);
+		event = pdevinfo->ex_event;
+		pdevinfo->ex_event = 0;
+		spin_unlock_irqrestore(&pdevinfo->event_lock, flags);
 
-		pr_debug("mxc_mlb150: get event\n");
 		if (event) {
 			if (copy_to_user(argp, &event, sizeof(event))) {
 				pr_err("mxc_mlb150: copy to user failed\n");
 				return -EFAULT;
 			}
-		} else {
-			pr_debug("mxc_mlb150: no exception event now\n");
+		} else
 			return -EAGAIN;
 		}
 		break;
@@ -1923,13 +2004,10 @@ static long mxc_mlb150_ioctl(struct file *filp,
 			u32 fps, c0_val;
 
 			/* get fps from user space */
-			if (unlikely(copy_from_user(&fps, argp, sizeof(fps)))) {
+			if (copy_from_user(&fps, argp, sizeof(fps))) {
 				pr_err("mxc_mlb150: copy from user failed\n");
 				return -EFAULT;
 			}
-
-			if (plat_data->fps_sel)
-				plat_data->fps_sel(fps);
 
 			c0_val = __raw_readl(mlb_base + REG_MLBC0);
 			c0_val &= ~MLBC0_MLBCLK_MASK;
@@ -1939,25 +2017,32 @@ static long mxc_mlb150_ioctl(struct file *filp,
 			case 256:
 			case 512:
 			case 1024:
-				mlb_devinfo[minor].fps = fps >> 9;
+				pdevinfo->fps = fps >> 9;
 				c0_val &= ~MLBC0_MLBPEN;
 				c0_val |= (fps >> 9)
 					<< MLBC0_MLBCLK_SHIFT;
+
+				if (1024 == fps) {
+					/* Invert output clock phase
+					 * in 1024 fps */
+					__raw_writel(0x1,
+						mlb_base + REG_MLBPC2);
+				}
 				break;
 			case 2048:
 			case 3072:
 			case 4096:
-				mlb_devinfo[minor].fps = (fps >> 10) + 1;
+				pdevinfo->fps = (fps >> 10) + 1;
 				c0_val |= ((fps >> 10) + 1)
 					<< MLBC0_MLBCLK_SHIFT;
 				break;
 			case 6144:
-				mlb_devinfo[minor].fps = fps >> 10;
+				pdevinfo->fps = fps >> 10;
 				c0_val |= ((fps >> 10) + 1)
 					<< MLBC0_MLBCLK_SHIFT;
 				break;
 			case 8192:
-				mlb_devinfo[minor].fps = (fps >> 10) - 1;
+				pdevinfo->fps = (fps >> 10) - 1;
 				c0_val |= ((fps >> 10) - 1)
 						<< MLBC0_MLBCLK_SHIFT;
 				break;
@@ -1999,8 +2084,8 @@ static long mxc_mlb150_ioctl(struct file *filp,
 			u8 devaddr;
 
 			/* get MLB device address from user space */
-			if (unlikely(copy_from_user
-				(&devaddr, argp, sizeof(unsigned char)))) {
+			if (copy_from_user
+				(&devaddr, argp, sizeof(unsigned char))) {
 				pr_err("mxc_mlb150: copy from user failed\n");
 				return -EFAULT;
 			}
@@ -2186,175 +2271,180 @@ static const struct file_operations mxc_mlb150_fops = {
 static int __devinit mxc_mlb150_probe(struct platform_device *pdev)
 {
 	int ret, mlb_major, i;
-	struct mxc_mlb_platform_data *plat_data;
+	struct mlb_data *drvdata;
 	struct resource *res;
-	void __iomem *base;
+	struct mxc_mlb_platform_data *plat_data;
+
 
 	plat_data =
 		(struct mxc_mlb_platform_data *)pdev->dev.platform_data;
 	plat_data->dev = &pdev->dev;
+	drvdata = kzalloc(sizeof(struct mlb_data), GFP_KERNEL);
+	if (!drvdata) {
+		dev_err(&pdev->dev, "can't allocate enough memory\n");
+		return -ENOMEM;
+	}
 
 	/**
 	 * Register MLB lld as four character devices
 	 */
-	ret = alloc_chrdev_region(&dev, 0, MLB_MINOR_DEVICES, "mxc_mlb150");
-	mlb_major = MAJOR(dev);
-	dev_dbg(plat_data->dev, "MLB device major: %d\n", mlb_major);
+	ret = alloc_chrdev_region(&drvdata->firstdev, 0,
+			MLB_MINOR_DEVICES, "mxc_mlb150");
+	mlb_major = MAJOR(drvdata->firstdev);
+	dev_dbg(&pdev->dev, "MLB device major: %d\n", mlb_major);
 
-	if (unlikely(ret < 0)) {
-		dev_err(plat_data->dev, "can't get major %d\n", mlb_major);
-		goto err2;
+	if (ret < 0) {
+		dev_err(&pdev->dev, "can't get major %d\n", mlb_major);
+		goto err_reg;
 	}
 
-	cdev_init(&plat_data->cdev, &mxc_mlb150_fops);
-	plat_data->cdev.owner = THIS_MODULE;
+	cdev_init(&drvdata->cdev, &mxc_mlb150_fops);
+	drvdata->cdev.owner = THIS_MODULE;
 
-	ret = cdev_add(&plat_data->cdev, dev, MLB_MINOR_DEVICES);
-	if (unlikely(ret)) {
-		dev_err(plat_data->dev, "can't add cdev\n");
-		goto err2;
+	ret = cdev_add(&drvdata->cdev, drvdata->firstdev, MLB_MINOR_DEVICES);
+	if (ret) {
+		dev_err(&pdev->dev, "can't add cdev\n");
+		goto err_reg;
 	}
 
 	/* create class and device for udev information */
-	mlb_class = class_create(THIS_MODULE, "mlb150");
-	if (unlikely(IS_ERR(mlb_class))) {
-		dev_err(plat_data->dev, "failed to create mlb150 class\n");
+	drvdata->class = class_create(THIS_MODULE, "mlb150");
+	if (IS_ERR(drvdata->class)) {
+		dev_err(&pdev->dev, "failed to create device class\n");
 		ret = -ENOMEM;
-		goto err2;
+		goto err_reg;
 	}
 
 	for (i = 0; i < MLB_MINOR_DEVICES; i++) {
-		class_dev = device_create(mlb_class, NULL, MKDEV(mlb_major, i),
-					  NULL, mlb_devinfo[i].dev_name);
-		if (unlikely(IS_ERR(class_dev))) {
-			dev_err(plat_data->dev, "failed to create mlb150 %s"
+		struct device *class_dev;
+
+		class_dev = device_create(drvdata->class, NULL,
+				MKDEV(mlb_major, i),
+				NULL, mlb_devinfo[i].dev_name);
+		if (IS_ERR(class_dev)) {
+			dev_err(&pdev->dev, "failed to create mlb150 %s"
 				" class device\n", mlb_devinfo[i].dev_name);
 			ret = -ENOMEM;
-			goto err1;
+			goto err_dev;
 		}
 	}
 
-	/* get irq line */
-	/* AHB0 IRQ */
+	/* get irq */
+	/* ahb0 irq */
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
 	if (unlikely(res == NULL)) {
-		dev_err(plat_data->dev, "No mlb150 ahb0 irq line provided\n");
-		goto err0;
+		dev_err(&pdev->dev, "No ahb0 irq line provided\n");
+		goto err_irq;
+	}
+	drvdata->irq_ahb0 = res->start;
+	dev_dbg(&pdev->dev, "ahb0_irq: %d\n", drvdata->irq_ahb0);
+	if (request_irq(drvdata->irq_ahb0, mlb_ahb_isr, 0, "mlb_ahb0", NULL)) {
+		dev_err(&pdev->dev, "can't claim irq %d\n", drvdata->irq_ahb0);
+		goto err_irq;
 	}
 
-	ahb0_irq = res->start;
-	dev_dbg(plat_data->dev, "ahb0_irq: %d\n", ahb0_irq);
-	if (request_irq(ahb0_irq, mlb_ahb_isr, 0, "mlb_ahb0", NULL)) {
-		dev_err(plat_data->dev, "failed to request irq\n");
-		ret = -EBUSY;
-		goto err0;
-	}
-
-	/* AHB1 IRQ */
+	/* ahb1 irq */
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 2);
 	if (unlikely(res == NULL)) {
-		dev_err(plat_data->dev, "No mlb150 ahb0 irq line provided\n");
-		goto err0;
+		dev_err(&pdev->dev, "No ahb1 irq line provided\n");
+		goto err_irq;
+	}
+	drvdata->irq_ahb1 = res->start;
+	dev_dbg(&pdev->dev, "ahb1_irq: %d\n", drvdata->irq_ahb1);
+	if (request_irq(drvdata->irq_ahb1, mlb_ahb_isr, 0, "mlb_ahb1", NULL)) {
+		dev_err(&pdev->dev, "can't claim irq %d\n", drvdata->irq_ahb1);
+		goto err_irq;
 	}
 
-	ahb1_irq = res->start;
-	dev_dbg(plat_data->dev, "ahb1_irq: %d\n", ahb1_irq);
-	if (request_irq(ahb1_irq, mlb_ahb_isr, 0, "mlb_ahb1", NULL)) {
-		dev_err(plat_data->dev, "failed to request irq\n");
-		ret = -EBUSY;
-		goto err0;
-	}
-
-	/* MLB IRQ */
+	/* mlb irq */
 	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (res == NULL) {
-		dev_err(plat_data->dev, "No mlb150 irq line provided\n");
-		goto err0;
+	if (unlikely(res == NULL)) {
+		dev_err(&pdev->dev, "No mlb irq line provided\n");
+		goto err_irq;
 	}
-
-	mlb_irq = res->start;
-	dev_dbg(plat_data->dev, "mlb_irq: %d\n", mlb_irq);
-	if (request_irq(mlb_irq, mlb_isr, 0, "mlb", NULL)) {
-		dev_err(plat_data->dev, "failed to request irq\n");
-		ret = -EBUSY;
-		goto err0;
+	drvdata->irq_mlb  = res->start;
+	dev_dbg(&pdev->dev, "mlb_irq: %d\n", drvdata->irq_mlb);
+	if (request_irq(drvdata->irq_mlb, mlb_isr, 0, "mlb", NULL)) {
+		dev_err(&pdev->dev, "can't claim irq %d\n", drvdata->irq_mlb);
+		goto err_irq;
 	}
 
 	/* ioremap from phy mlb to kernel space */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (unlikely(res == NULL)) {
-		dev_err(plat_data->dev, "No mlb150 base address provided\n");
-		goto err0;
+	if (!res) {
+		dev_err(&pdev->dev, "can't get device resources\n");
+		ret = -ENOENT;
+		goto err_unmap;
 	}
-
-	base = ioremap(res->start, res->end - res->start);
-	dev_dbg(plat_data->dev, "mapped mlb150 base address: 0x%08x\n",
-		(u32)base);
-
-	if (unlikely(base == NULL)) {
-		dev_err(plat_data->dev,
-				"failed to do ioremap with mlb150 base\n");
-		goto err0;
+	mlb_base = (u32)ioremap(res->start, res->end - res->start);
+	dev_dbg(&pdev->dev, "mapped base address: 0x%08x\n", (u32)mlb_base);
+	if (!mlb_base) {
+		dev_err(&pdev->dev,
+			"failed to get ioremap base\n");
+		goto err_irq;
 	}
-	mlb_base = (u32)base;
+	drvdata->membase = mlb_base;
 
-	dev_dbg(plat_data->dev, "mlb reg base: 0x%08x\n", mlb_base);
-
+#ifdef CONFIG_REGULATOR
 	if (plat_data->reg_nvcc) {
 		/* power on MLB */
-		reg_nvcc = regulator_get(plat_data->dev, plat_data->reg_nvcc);
-		if (unlikely(!IS_ERR(reg_nvcc))) {
+		drvdata->nvcc = regulator_get(&pdev->dev, plat_data->reg_nvcc);
+		if (!IS_ERR(drvdata->nvcc)) {
 			/* set MAX LDO6 for NVCC to 2.5V */
-			regulator_set_voltage(reg_nvcc, 2500000, 2500000);
-			regulator_enable(reg_nvcc);
+			regulator_set_voltage(drvdata->nvcc, 2500000, 2500000);
+			regulator_enable(drvdata->nvcc);
 		}
 	}
+#endif
 
 	/* enable clock */
-	if (likely(plat_data->mlb_clk)) {
-		mlb_clk = clk_get(plat_data->dev, plat_data->mlb_clk);
-		if (unlikely(IS_ERR(mlb_clk))) {
+	if (plat_data->mlb_clk) {
+		drvdata->clk_mlb3p = clk_get(&pdev->dev, plat_data->mlb_clk);
+		if (IS_ERR(drvdata->clk_mlb3p)) {
 			dev_err(&pdev->dev, "unable to get mlb clock\n");
-			ret = PTR_ERR(mlb_clk);
-			goto err0;
+			ret = PTR_ERR(drvdata->clk_mlb3p);
+			goto err_clk;
 		}
-		clk_enable(mlb_clk);
+		clk_enable(drvdata->clk_mlb3p);
 	}
 
-	if (likely(plat_data->mlb_pll_clk)) {
-		mlb_pll_clk = clk_get(plat_data->dev, plat_data->mlb_pll_clk);
-		if (unlikely(IS_ERR(mlb_pll_clk))) {
+	if (plat_data->mlb_pll_clk) {
+		drvdata->clk_mlb6p = clk_get(&pdev->dev,
+				plat_data->mlb_pll_clk);
+		if (IS_ERR(drvdata->clk_mlb6p)) {
 			dev_err(&pdev->dev, "unable to get mlb pll clock\n");
-			ret = PTR_ERR(mlb_pll_clk);
-			goto err0;
+			ret = PTR_ERR(drvdata->clk_mlb6p);
+			goto err_clk;
 		}
 	}
 
-	/* initial MLB module */
-	mlb150_dev_init();
+	platform_set_drvdata(pdev, drvdata);
 
 	return 0;
 
-err0:
-	if (likely(ahb0_irq)) {
-		free_irq(ahb0_irq, NULL);
-		ahb0_irq = 0;
-	}
-	if (likely(ahb1_irq)) {
-		free_irq(ahb1_irq, NULL);
-		ahb1_irq = 0;
-	}
-	if (likely(mlb_irq)) {
-		free_irq(mlb_irq, NULL);
-		mlb_irq = 0;
-	}
-err1:
+err_clk:
+	if (plat_data->mlb_clk)
+		clk_disable(drvdata->clk_mlb3p);
+	if (plat_data->mlb_pll_clk)
+		clk_disable(drvdata->clk_mlb6p);
+err_irq:
+	if (drvdata->irq_ahb0)
+		free_irq(drvdata->irq_ahb0, NULL);
+	if (drvdata->irq_ahb1)
+		free_irq(drvdata->irq_ahb1, NULL);
+	if (drvdata->irq_mlb)
+		free_irq(drvdata->irq_mlb, NULL);
+err_dev:
 	for (--i; i >= 0; i--)
-		device_destroy(mlb_class, MKDEV(mlb_major, i));
+		device_destroy(drvdata->class, MKDEV(mlb_major, i));
 
-	class_destroy(mlb_class);
-err2:
-	unregister_chrdev_region(dev, MLB_MINOR_DEVICES);
+	class_destroy(drvdata->class);
+err_reg:
+	unregister_chrdev_region(drvdata->firstdev, MLB_MINOR_DEVICES);
+err_unmap:
+	iounmap((void __iomem *)drvdata->membase);
+
+	kfree(drvdata);
 
 	return ret;
 }
@@ -2363,6 +2453,7 @@ static int __devexit mxc_mlb150_remove(struct platform_device *pdev)
 {
 	int i;
 	struct mxc_mlb_platform_data *plat_data;
+	struct mlb_data *drvdata = platform_get_drvdata(pdev);
 
 	plat_data = (struct mxc_mlb_platform_data *)pdev->dev.platform_data;
 
@@ -2370,43 +2461,43 @@ static int __devexit mxc_mlb150_remove(struct platform_device *pdev)
 
 	/* disable mlb clock */
 	if (plat_data->mlb_clk) {
-		clk_disable(mlb_clk);
-		clk_put(mlb_clk);
+		clk_disable(drvdata->clk_mlb3p);
+		clk_put(drvdata->clk_mlb3p);
 	}
-
 	if (plat_data->mlb_pll_clk)
-		clk_put(mlb_pll_clk);
+		clk_put(drvdata->clk_mlb6p);
 
 	/* disable mlb power */
-	if (plat_data->reg_nvcc) {
-		regulator_disable(reg_nvcc);
-		regulator_put(reg_nvcc);
+#ifdef CONFIG_REGULATOR
+	if (drvdata->nvcc) {
+		regulator_disable(drvdata->nvcc);
+		regulator_put(drvdata->nvcc);
 	}
+#endif
 
 	/* inactive GPIO */
 	gpio_mlb_inactive();
 
 	/* iounmap */
-	if (mlb_base) {
-		iounmap((void *)mlb_base);
-		mlb_base = 0;
-	}
+	iounmap((void __iomem *)drvdata->membase);
 
-	if (ahb0_irq)
-		free_irq(ahb0_irq, NULL);
-	if (ahb1_irq)
-		free_irq(ahb1_irq, NULL);
-	if (mlb_irq)
-		free_irq(mlb_irq, NULL);
-	ahb0_irq = ahb1_irq = mlb_irq = 0;
+	if (drvdata->irq_ahb0)
+		free_irq(drvdata->irq_ahb0, NULL);
+	if (drvdata->irq_ahb1)
+		free_irq(drvdata->irq_ahb1, NULL);
+	if (drvdata->irq_mlb)
+		free_irq(drvdata->irq_mlb,  NULL);
 
 	/* destroy mlb device class */
 	for (i = MLB_MINOR_DEVICES - 1; i >= 0; i--)
-		device_destroy(mlb_class, MKDEV(MAJOR(dev), i));
-	class_destroy(mlb_class);
+		device_destroy(drvdata->class,
+				MKDEV(MAJOR(drvdata->firstdev), i));
+	class_destroy(drvdata->class);
 
 	/* Unregister the two MLB devices */
-	unregister_chrdev_region(dev, MLB_MINOR_DEVICES);
+	unregister_chrdev_region(drvdata->firstdev, MLB_MINOR_DEVICES);
+
+	kfree(drvdata);
 
 	return 0;
 }
@@ -2414,11 +2505,23 @@ static int __devexit mxc_mlb150_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM
 static int mxc_mlb150_suspend(struct platform_device *pdev, pm_message_t state)
 {
+	struct mlb_data *drvdata = platform_get_drvdata(pdev);
+
+	mlb150_dev_exit();
+
+	clk_disable(drvdata->clk_mlb3p);
+
 	return 0;
 }
 
 static int mxc_mlb150_resume(struct platform_device *pdev)
 {
+	struct mlb_data *drvdata = platform_get_drvdata(pdev);
+
+	mlb150_dev_init();
+
+	clk_enable(drvdata->clk_mlb6p);
+
 	return 0;
 }
 #else
