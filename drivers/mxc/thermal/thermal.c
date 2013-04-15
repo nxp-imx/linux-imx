@@ -43,7 +43,6 @@
 #include <linux/cpufreq.h>
 #include <linux/clk.h>
 #include "anatop_driver.h"
-#include <mach/hardware.h>
 
 /* register define of anatop */
 #define HW_ANADIG_ANA_MISC0	(0x00000150)
@@ -883,7 +882,7 @@ static int anatop_thermal_counting_ratio(unsigned int fuse_data)
 	raw_hot = (fuse_data & 0xfff00) >> 8;
 	hot_temp = fuse_data & 0xff;
 
-	if (!calibration_valid && !cpu_is_mx6sl())
+	if (!calibration_valid)
 		/*
 		 * The universal equation for thermal sensor
 		 * is slope = 0.4297157 - (0.0015976 * 25C fuse),
