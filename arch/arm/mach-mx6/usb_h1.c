@@ -174,7 +174,6 @@ static void fsl_usb_host_uninit_ext(struct platform_device *pdev)
 
 	fsl_usb_host_uninit(pdata);
 
-	clk_disable(usb_oh3_clk);
 	clk_put(usb_oh3_clk);
 
 }
