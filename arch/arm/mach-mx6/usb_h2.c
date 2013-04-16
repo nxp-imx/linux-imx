@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -89,12 +89,7 @@ static void fsl_usb_host_uninit_ext(struct platform_device *pdev)
 
 	fsl_usb_host_uninit(pdata);
 
-	usbh2_internal_phy_clock_gate(false);
-
-	clk_disable(usb_phy3_clk);
 	clk_put(usb_phy3_clk);
-
-	clk_disable(usb_oh3_clk);
 	clk_put(usb_oh3_clk);
 
 }
