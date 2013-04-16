@@ -3269,6 +3269,8 @@ static int  fsl_udc_remove(struct platform_device *pdev)
 	dr_wake_up_enable(udc_controller, false);
 
 	dr_discharge_line(pdata, true);
+
+	dr_clk_gate(false);
 	/* DR has been stopped in usb_gadget_unregister_driver() */
 	remove_proc_file();
 
@@ -3303,9 +3305,9 @@ static int  fsl_udc_remove(struct platform_device *pdev)
 	device_unregister(&udc_controller->gadget.dev);
 	/* free udc --wait for the release() finished */
 	wait_for_completion(&done);
+
 	/*
-	 * do platform specific un-initialization:
-	 * release iomux pins, etc.
+	 * do platform specific un-initialization
 	 */
 	if (pdata->exit)
 		pdata->exit(pdata->pdev);
