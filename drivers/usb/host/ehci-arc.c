@@ -372,9 +372,11 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	if (pdata->xcvr_ops && pdata->xcvr_ops->set_vbus_power)
 		pdata->xcvr_ops->set_vbus_power(pdata->xcvr_ops, pdata, 0);
 
+	if (pdata->usb_clock_for_pm)
+		pdata->usb_clock_for_pm(false);
+
 	/*
-	 * do platform specific un-initialization:
-	 * release iomux pins clocks, etc.
+	 * do platform specific un-initialization
 	 */
 	if (pdata->exit && pdata->pdev)
 		pdata->exit(pdata->pdev);
