@@ -167,7 +167,9 @@
 #define CH_CTRL_CDT_BUF_DEP	(64)
 #define CH_CTRL_ADT_BUF_DEP	(CH_CTRL_CDT_BUF_DEP)
 #define CH_CTRL_BUF_SZ		(CH_CTRL_ADT_BUF_DEP)
-#define CH_ASYNC_CDT_BUF_DEP	(2048)
+#define CH_ASYNC_MDP_PACKET_LEN	(1024)
+#define CH_ASYNC_MEP_PACKET_LEN	(1536)
+#define CH_ASYNC_CDT_BUF_DEP	(CH_ASYNC_MEP_PACKET_LEN)
 #define CH_ASYNC_ADT_BUF_DEP	(CH_ASYNC_CDT_BUF_DEP)
 #define CH_ASYNC_BUF_SZ		(CH_ASYNC_ADT_BUF_DEP)
 #define CH_ISOC_BLK_SIZE_188	(188)
@@ -264,17 +266,8 @@
 
 #define TX_CHANNEL		0
 #define RX_CHANNEL		1
-#define PING_BUF_MAX_SIZE	(2 * 1024)
-#define PONG_BUF_MAX_SIZE	(2 * 1024)
-/* max package data size */
-#define ASYNC_PACKET_SIZE	1024
-#define CTRL_PACKET_SIZE	64
 
 #define TRANS_RING_NODES	(1 << 3)
-
-#define MLB_IRAM_SIZE		(MLB_MINOR_DEVICES * (PING_BUF_MAX_SIZE + PONG_BUF_MAX_SIZE))
-#define _get_txchan(dev)	mlb_devinfo[dev].channels[TX_CHANNEL]
-#define _get_rxchan(dev)	mlb_devinfo[dev].channels[RX_CHANNEL]
 
 enum MLB_CTYPE {
 	MLB_CTYPE_SYNC,
@@ -1646,7 +1639,7 @@ static void mlb_rx_isr(s32 ctype, u32 ahb_ch, struct mlb_dev_info *pdevinfo)
 		/* wake up the reader */
 		wake_up_interruptible(&pdevinfo->rx_wq);
 	} else {
-		rx_buf_ptr = rx_rbuf->phy_addrs[TRANS_RING_NODES];
+		rx_buf_ptr = rx_rbuf->phy_addrs[head];
 		write_unlock_irqrestore(&rx_rbuf->rb_lock, flags);
 		pr_debug("drop RX package, due to no space, (%d,%d)\n",
 				head, tail);
@@ -1902,11 +1895,11 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 	pchinfo = &pdevinfo->channels[TX_CHANNEL];
 
 	ring_buf_size = pdevinfo->buf_size;
-	buf_size = ring_buf_size * (TRANS_RING_NODES * 2 + 1);
+	buf_size = ring_buf_size * (TRANS_RING_NODES * 2);
 	buf_addr = iram_alloc(buf_size, &phy_addr);
 	if (buf_addr == NULL) {
 		ret = -ENOMEM;
-		pr_err("can not alloc rx buffers\n");
+		pr_err("can not alloc rx/tx buffers: %d\n", buf_size);
 		return ret;
 	}
 	pdevinfo->rbuf_base_virt = buf_addr;
