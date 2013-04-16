@@ -111,6 +111,16 @@ static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 	UH1_USBCMD |= UCMD_RESET;
 	while ((UH1_USBCMD) & (UCMD_RESET))
 		;
+
+	/*
+	 * If the controller reset does not put the PHY be out of
+	 * low power mode, do it manually.
+	 */
+	if (UH1_PORTSC1 & PORTSC_PHCD) {
+		UH1_PORTSC1 &= ~PORTSC_PHCD;
+		mdelay(1);
+	}
+
 	/* Reset USBPHY module */
 	phy_ctrl = phy_reg + HW_USBPHY_CTRL;
 	tmp = __raw_readl(phy_ctrl);
