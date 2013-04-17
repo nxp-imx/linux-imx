@@ -338,6 +338,11 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 	*temp = (cooling_device_disable && tz->temperature >= KELVIN_TO_CEL(TEMP_CRITICAL, KELVIN_OFFSET)) ?
 			KELVIN_TO_CEL(TEMP_CRITICAL - 1, KELVIN_OFFSET) : tz->temperature;
 
+	/* Set alarm threshold if necessary */
+	if ((__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0) &
+		BM_ANADIG_TEMPSENSE0_ALARM_VALUE) == 0)
+		anatop_update_alarm(raw_critical);
+
 	return 0;
 }
 
@@ -900,7 +905,6 @@ static int anatop_thermal_counting_ratio(unsigned int fuse_data)
 	/* Init default critical temp to set alarm */
 	raw_critical = raw_25c - ratio * (KELVIN_TO_CEL(TEMP_CRITICAL, KELVIN_OFFSET) - 25) / 100;
 	clk_enable(pll3_clk);
-	anatop_update_alarm(raw_critical);
 
 	return ret;
 }
