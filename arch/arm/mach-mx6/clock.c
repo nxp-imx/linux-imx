@@ -51,6 +51,7 @@ extern int lp_med_freq;
 extern int wait_mode_arm_podf;
 extern int lp_audio_freq;
 extern int cur_arm_podf;
+extern bool enet_is_active;
 
 void __iomem *apll_base;
 
@@ -1153,7 +1154,11 @@ static int _clk_pll_mlb_main_enable(struct clk *clk)
 	reg = __raw_readl(pllbase);
 	reg &= ~ANADIG_PLL_BYPASS;
 
-	reg = 0x0da20800;
+	reg = (0x3 << ANADIG_PLL_MLB_FLT_RES_CFG_OFFSET) |
+		(0x3 << ANADIG_PLL_MLB_RX_CLK_DELAY_CFG_OFFSET) |
+		(0x2 << ANADIG_PLL_MLB_VDDD_DELAY_CFG_OFFSET) |
+		(0x1 << ANADIG_PLL_MLB_VDDA_DELAY_CFG_OFFSET) |
+		(ANADIG_PLL_HOLD_RING_OFF);
 	__raw_writel(reg, pllbase);
 
 	return 0;
@@ -3724,6 +3729,23 @@ static unsigned long _clk_enet_get_rate(struct clk *clk)
 	return 500000000 / div;
 }
 
+static int _clk_enet_enable(struct clk *clk)
+{
+#ifndef CONFIG_MX6_ENET_IRQ_TO_GPIO
+	enet_is_active = true;
+#endif
+	_clk_enable(clk);
+	return 0;
+}
+
+static void _clk_enet_disable(struct clk *clk)
+{
+	_clk_disable(clk);
+#ifndef CONFIG_MX6_ENET_IRQ_TO_GPIO
+	enet_is_active = false;
+#endif
+}
+
 static struct clk enet_clk[] = {
 	{
 	__INIT_CLK_DEBUG(enet_clk)
@@ -3731,8 +3753,8 @@ static struct clk enet_clk[] = {
 	 .parent = &pll8_enet_main_clk,
 	 .enable_reg = MXC_CCM_CCGR1,
 	 .enable_shift = MXC_CCM_CCGRx_CG5_OFFSET,
-	 .enable = _clk_enable,
-	 .disable = _clk_disable,
+	 .enable = _clk_enet_enable,
+	 .disable = _clk_enet_disable,
 	 .set_rate = _clk_enet_set_rate,
 	 .get_rate = _clk_enet_get_rate,
 	.secondary = &enet_clk[1],
@@ -4889,6 +4911,7 @@ static int _clk_mlb_set_parent(struct clk *clk, struct clk *parent)
 static struct clk mlb150_clk = {
 	__INIT_CLK_DEBUG(mlb150_clk)
 	.id = 0,
+	.secondary = &ocram_clk,
 	.set_parent = _clk_mlb_set_parent,
 	.enable_reg = MXC_CCM_CCGR3,
 	.enable_shift = MXC_CCM_CCGRx_CG9_OFFSET,
