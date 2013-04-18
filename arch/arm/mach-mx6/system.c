@@ -233,7 +233,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 			  */
 			reg = __raw_readl(MXC_CCM_CGPR);
 			reg |= MXC_CCM_CGPR_MEM_IPG_STOP_MASK;
-			if (!cpu_is_mx6sl()) {
+			if (!cpu_is_mx6sl() && stop_mode >= 2) {
 				/*
 				  * For MX6QTO1.2 or later and MX6DLTO1.1 or later,
 				  * ensure that the CCM_CGPR bit 17 is cleared before
