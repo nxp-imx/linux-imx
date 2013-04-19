@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -43,6 +43,7 @@
 #define LOAD_3FIELDS(vout) ((INTERLACED_CONTENT(vout)) && \
 			    ((vout)->motion_sel != HIGH_MOTION))
 #define SWITCH_BUF_TOUT_NSEC	(100000000)
+#define NSEC_PER_FRAME_30FPS		(33333333)
 
 struct v4l2_output mxc_outputs[1] = {
 	{
@@ -99,31 +100,6 @@ static __inline int peek_next_buf(v4l_queue *q)
 	if (q->tail == q->head)
 		return -1;	/* queue empty */
 	return q->list[q->head];
-}
-
-static __inline unsigned long get_jiffies(struct timeval *t)
-{
-	struct timeval cur;
-
-	if (t->tv_usec >= 1000000) {
-		t->tv_sec += t->tv_usec / 1000000;
-		t->tv_usec = t->tv_usec % 1000000;
-	}
-
-	do_gettimeofday(&cur);
-	if ((t->tv_sec < cur.tv_sec)
-	    || ((t->tv_sec == cur.tv_sec) && (t->tv_usec < cur.tv_usec)))
-		return jiffies;
-
-	if (t->tv_usec < cur.tv_usec) {
-		cur.tv_sec = t->tv_sec - cur.tv_sec - 1;
-		cur.tv_usec = t->tv_usec + 1000000 - cur.tv_usec;
-	} else {
-		cur.tv_sec = t->tv_sec - cur.tv_sec;
-		cur.tv_usec = t->tv_usec - cur.tv_usec;
-	}
-
-	return jiffies + timeval_to_jiffies(&cur);
 }
 
 /*!
@@ -259,29 +235,33 @@ static int select_display_buffer(vout_data *vout, int next_buf)
 
 static void setup_next_buf_timer(vout_data *vout, int index)
 {
-	unsigned long timeout;
+	ktime_t expiry_time, now;
 
 	/* Setup timer for next buffer */
 	/* if timestamp is 0, then default to 30fps */
-	if ((vout->v4l2_bufs[index].timestamp.tv_sec == 0)
-			&& (vout->v4l2_bufs[index].timestamp.tv_usec == 0)
-			&& vout->start_jiffies)
-		timeout =
-			vout->start_jiffies + vout->frame_count * HZ / 30;
+	if ((vout->v4l2_bufs[index].timestamp.tv_sec == 0) &&
+	    (vout->v4l2_bufs[index].timestamp.tv_usec == 0))
+		expiry_time = ktime_add_ns(vout->start_ktime,
+				NSEC_PER_FRAME_30FPS * vout->frame_count);
 	else
-		timeout =
-			get_jiffies(&vout->v4l2_bufs[index].timestamp);
+		expiry_time =
+			timeval_to_ktime(vout->v4l2_bufs[index].timestamp);
 
-	if (jiffies >= timeout) {
+	now = hrtimer_cb_get_time(&vout->output_timer);
+	if ((now.tv.sec > expiry_time.tv.sec) ||
+	    (now.tv.sec == expiry_time.tv.sec &&
+	     now.tv.nsec > expiry_time.tv.nsec)) {
 		dev_dbg(&vout->video_dev->dev,
 				"warning: timer timeout already expired.\n");
+		expiry_time = now;
 	}
-	if (mod_timer(&vout->output_timer, timeout))
-		dev_dbg(&vout->video_dev->dev,
-				"warning: timer was already set\n");
+
+	hrtimer_start(&vout->output_timer, expiry_time, HRTIMER_MODE_ABS);
 
 	dev_dbg(&vout->video_dev->dev,
-			"timer handler next schedule: %lu\n", timeout);
+		"timer handler next schedule: %d.%03ld%03ldsecs\n",
+		expiry_time.tv.sec, expiry_time.tv.nsec / NSEC_PER_MSEC,
+		(expiry_time.tv.nsec % NSEC_PER_MSEC) / NSEC_PER_USEC);
 }
 
 static void icbypass_work_func(struct work_struct *work)
@@ -424,11 +404,11 @@ static int get_cur_fb_blank(vout_data *vout)
 	return ret;
 }
 
-static void mxc_v4l2out_timer_handler(unsigned long arg)
+static enum hrtimer_restart mxc_v4l2out_timer_handler(struct hrtimer *timer)
 {
 	int index, ret;
 	unsigned long lock_flags = 0;
-	vout_data *vout = (vout_data *) arg;
+	vout_data *vout = container_of(timer, vout_data, output_timer);
 	static int old_fb_blank = FB_BLANK_UNBLANK;
 
 	spin_lock_irqsave(&g_lock, lock_flags);
@@ -585,13 +565,9 @@ static void mxc_v4l2out_timer_handler(unsigned long arg)
 			vout->state = STATE_STREAM_OFF;
 		}
 	}
-
-	spin_unlock_irqrestore(&g_lock, lock_flags);
-
-	return;
-
 exit0:
 	spin_unlock_irqrestore(&g_lock, lock_flags);
+	return HRTIMER_NORESTART;
 }
 
 static irqreturn_t mxc_v4l2out_work_irq_handler(int irq, void *dev_id)
@@ -1580,12 +1556,14 @@ static int mxc_v4l2out_streamon(vout_data *vout)
 			vout->state = STATE_STREAM_PAUSED;
 	}
 
-	vout->start_jiffies = jiffies;
+	vout->start_ktime = hrtimer_cb_get_time(&vout->output_timer);
 
 	msleep(1);
 
-	dev_dbg(dev,
-		"streamon: start time = %lu jiffies\n", vout->start_jiffies);
+	dev_dbg(dev, "streamon: start time = %d.%03ld%03ldsecs\n",
+		vout->start_ktime.tv.sec,
+		vout->start_ktime.tv.nsec / NSEC_PER_MSEC,
+		(vout->start_ktime.tv.nsec % NSEC_PER_MSEC) / NSEC_PER_USEC);
 
 	return 0;
 }
@@ -1662,7 +1640,7 @@ static int mxc_v4l2out_streamoff(vout_data *vout)
 
 	spin_lock_irqsave(&g_lock, lockflag);
 
-	del_timer(&vout->output_timer);
+	hrtimer_cancel(&vout->output_timer);
 
 	if (vout->state == STATE_STREAM_ON) {
 		vout->state = STATE_STREAM_STOPPING;
@@ -2019,9 +1997,9 @@ static int mxc_v4l2out_open(struct file *file)
 	if (vout->open_count++ == 0) {
 		init_waitqueue_head(&vout->v4l_bufq);
 
-		init_timer(&vout->output_timer);
+		hrtimer_init(&vout->output_timer, CLOCK_REALTIME,
+				HRTIMER_MODE_ABS);
 		vout->output_timer.function = mxc_v4l2out_timer_handler;
-		vout->output_timer.data = (unsigned long)vout;
 
 		vout->state = STATE_STREAM_OFF;
 		vout->rotate = IPU_ROTATE_NONE;
