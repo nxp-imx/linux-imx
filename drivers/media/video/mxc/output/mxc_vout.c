@@ -129,7 +129,8 @@ struct mxc_vout_output {
 
 	dma_addr_t disp_bufs[FB_BUFS];
 
-	struct videobuf_buffer *pre_vb;
+	struct videobuf_buffer *pre1_vb;
+	struct videobuf_buffer *pre2_vb;
 };
 
 struct mxc_vout_dev {
@@ -727,21 +728,24 @@ vdi_frame_rate_double:
 	list_del(&vb->queue);
 
 	/*
-	 * previous videobuf finish show, set VIDEOBUF_DONE state here
-	 * to avoid tearing issue in pp bypass case, which make sure
-	 * showing buffer will not be dequeue to write new data. It also
-	 * bring side-effect that the last buffer can not be dequeue
-	 * correctly, app need take care about it.
+	 * The videobuf before the last one has been shown. Set
+	 * VIDEOBUF_DONE state here to avoid tearing issue in ic bypass
+	 * case, which makes sure a buffer being shown will not be
+	 * dequeued to be overwritten. It also brings side-effect that
+	 * the last 2 buffers can not be dequeued correctly, apps need
+	 * to take care of it.
 	 */
-	if (vout->pre_vb) {
-		vout->pre_vb->state = VIDEOBUF_DONE;
-		wake_up_interruptible(&vout->pre_vb->done);
+	if (vout->pre2_vb) {
+		vout->pre2_vb->state = VIDEOBUF_DONE;
+		wake_up_interruptible(&vout->pre2_vb->done);
 	}
 
-	if (vout->linear_bypass_pp)
-		vout->pre_vb = vb;
-	else {
-		vout->pre_vb = NULL;
+	if (vout->linear_bypass_pp) {
+		vout->pre2_vb = vout->pre1_vb;
+		vout->pre1_vb = vb;
+	} else {
+		vout->pre1_vb = NULL;
+		vout->pre2_vb = NULL;
 		vb->state = VIDEOBUF_DONE;
 		wake_up_interruptible(&vb->done);
 	}
@@ -1897,7 +1901,8 @@ static int mxc_vidioc_streamon(struct file *file, void *fh,
 
 	vout->start_jiffies = jiffies;
 
-	vout->pre_vb = NULL;
+	vout->pre1_vb = NULL;
+	vout->pre2_vb = NULL;
 
 	ret = videobuf_streamon(q);
 done:
