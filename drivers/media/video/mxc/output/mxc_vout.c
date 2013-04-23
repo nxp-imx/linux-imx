@@ -67,6 +67,8 @@
 	    format == IPU_PIX_FMT_YVU422P ||	\
 	    format == IPU_PIX_FMT_YUV444P)
 
+#define NSEC_PER_FRAME_30FPS		(33333333)
+
 struct mxc_vout_fb {
 	char *name;
 	int ipu_id;
@@ -116,12 +118,12 @@ struct mxc_vout_output {
 	struct dma_mem vdoa_output[VDOA_FB_BUFS];
 
 	bool timer_stop;
-	struct timer_list timer;
+	struct hrtimer timer;
 	struct workqueue_struct *v4l_wq;
 	struct work_struct disp_work;
 	unsigned long frame_count;
 	unsigned long vdi_frame_cnt;
-	unsigned long start_jiffies;
+	ktime_t start_ktime;
 
 	int ctrl_rotate;
 	int ctrl_vflip;
@@ -508,29 +510,26 @@ static bool is_pp_bypass(struct mxc_vout_output *vout)
 static void setup_buf_timer(struct mxc_vout_output *vout,
 			struct videobuf_buffer *vb)
 {
-	unsigned long timeout;
+	ktime_t expiry_time, now;
 
 	/* if timestamp is 0, then default to 30fps */
-	if ((vb->ts.tv_sec == 0)
-			&& (vb->ts.tv_usec == 0)
-			&& vout->start_jiffies)
-		timeout =
-			vout->start_jiffies + vout->frame_count * HZ / 30;
+	if ((vb->ts.tv_sec == 0) && (vb->ts.tv_usec == 0))
+		expiry_time = ktime_add_ns(vout->start_ktime,
+				NSEC_PER_FRAME_30FPS * vout->frame_count);
 	else
-		timeout = get_jiffies(&vb->ts);
+		expiry_time = timeval_to_ktime(vb->ts);
 
-	if (jiffies >= timeout) {
+	now = hrtimer_cb_get_time(&vout->timer);
+	if ((now.tv64 > expiry_time.tv64)) {
 		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
 				"warning: timer timeout already expired.\n");
+		expiry_time = now;
 	}
 
-	if (mod_timer(&vout->timer, timeout)) {
-		v4l2_warn(vout->vfd->v4l2_dev,
-				"warning: timer was already set\n");
-	}
+	hrtimer_start(&vout->timer, expiry_time, HRTIMER_MODE_ABS);
 
-	v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
-			"timer handler next schedule: %lu\n", timeout);
+	v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "timer handler next "
+		"schedule: %lldnsecs\n", expiry_time.tv64);
 }
 
 static int show_buf(struct mxc_vout_output *vout, int idx,
@@ -773,10 +772,11 @@ err:
 	return;
 }
 
-static void mxc_vout_timer_handler(unsigned long arg)
+static enum hrtimer_restart mxc_vout_timer_handler(struct hrtimer *timer)
 {
-	struct mxc_vout_output *vout =
-			(struct mxc_vout_output *) arg;
+	struct mxc_vout_output *vout = container_of(timer,
+						    struct mxc_vout_output,
+						    timer);
 	struct videobuf_queue *q = &vout->vbq;
 	struct videobuf_buffer *vb;
 	unsigned long flags = 0;
@@ -789,7 +789,7 @@ static void mxc_vout_timer_handler(unsigned long arg)
 	 */
 	if (list_empty(&vout->queue_list)) {
 		spin_unlock_irqrestore(q->irqlock, flags);
-		return;
+		return HRTIMER_NORESTART;
 	}
 
 	/* move videobuf from queued list to active list */
@@ -804,12 +804,14 @@ static void mxc_vout_timer_handler(unsigned long arg)
 		list_del(&vb->queue);
 		list_add(&vb->queue, &vout->queue_list);
 		spin_unlock_irqrestore(q->irqlock, flags);
-		return;
+		return HRTIMER_NORESTART;
 	}
 
 	vb->state = VIDEOBUF_ACTIVE;
 
 	spin_unlock_irqrestore(q->irqlock, flags);
+
+	return HRTIMER_NORESTART;
 }
 
 /* Video buffer call backs */
@@ -1894,12 +1896,11 @@ static int mxc_vidioc_streamon(struct file *file, void *fh,
 		goto done;
 	}
 
-	init_timer(&vout->timer);
+	hrtimer_init(&vout->timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	vout->timer.function = mxc_vout_timer_handler;
-	vout->timer.data = (unsigned long)vout;
 	vout->timer_stop = true;
 
-	vout->start_jiffies = jiffies;
+	vout->start_ktime = hrtimer_cb_get_time(&vout->timer);
 
 	vout->pre1_vb = NULL;
 	vout->pre2_vb = NULL;
@@ -1920,7 +1921,7 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh,
 		cancel_work_sync(&vout->disp_work);
 		flush_workqueue(vout->v4l_wq);
 
-		del_timer_sync(&vout->timer);
+		hrtimer_cancel(&vout->timer);
 
 		release_disp_output(vout);
 
