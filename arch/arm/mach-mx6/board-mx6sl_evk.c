@@ -539,15 +539,7 @@ static int mxc_wm8962_init(void)
 		return PTR_ERR(extern_audio_root);
 	}
 
-	pll4 = clk_get(NULL, "pll4");
-	if (IS_ERR(pll4)) {
-		pr_err("can't get pll4 clock.\n");
-		return PTR_ERR(pll4);
-	}
-
-	clk_set_parent(extern_audio_root, pll4);
-
-	rate = clk_round_rate(extern_audio_root, 26000000);
+	rate = clk_round_rate(extern_audio_root, 24000000);
 	clk_set_rate(extern_audio_root, rate);
 
 	wm8962_data.sysclk = rate;
