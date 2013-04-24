@@ -30,8 +30,8 @@
 
 #define UYVY_BLACK	(0x00800080)
 #define RGB_BLACK	(0x0)
-#define NV12_UV_BLACK	(0x80)
-#define NV12_Y_BLACK	(0x0)
+#define UV_BLACK	(0x80)
+#define Y_BLACK		(0x0)
 
 #define MAX_FB_NUM	6
 #define FB_BUFS		3
@@ -58,6 +58,14 @@
 	       ((vout)->task.input.crop.w == FRAME_WIDTH_1080P) &&	\
 	       ((vout)->task.input.height == FRAME_HEIGHT_1080P) &&	\
 	       ((vout)->task.input.crop.h == FRAME_HEIGHT_1080P))
+#define IS_PLANAR_PIXEL_FORMAT(format) \
+	(format == IPU_PIX_FMT_NV12 ||		\
+	    format == IPU_PIX_FMT_YUV420P2 ||	\
+	    format == IPU_PIX_FMT_YUV420P ||	\
+	    format == IPU_PIX_FMT_YVU420P ||	\
+	    format == IPU_PIX_FMT_YUV422P ||	\
+	    format == IPU_PIX_FMT_YVU422P ||	\
+	    format == IPU_PIX_FMT_YUV444P)
 
 struct mxc_vout_fb {
 	char *name;
@@ -1795,11 +1803,11 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	/* fill black when video config changed */
 	color = colorspaceofpixel(vout->task.output.format) == YUV_CS ?
 			UYVY_BLACK : RGB_BLACK;
-	if (vout->task.output.format == IPU_PIX_FMT_NV12) {
+	if (IS_PLANAR_PIXEL_FORMAT(vout->task.output.format)) {
 		size = display_buf_size * 8 /
 			fmt_to_bpp(vout->task.output.format);
-		memset(fbi->screen_base, NV12_Y_BLACK, size);
-		memset(fbi->screen_base + size, NV12_UV_BLACK,
+		memset(fbi->screen_base, Y_BLACK, size);
+		memset(fbi->screen_base + size, UV_BLACK,
 				display_buf_size - size);
 	} else {
 		pixel = (u32 *)fbi->screen_base;
