@@ -484,8 +484,8 @@ static int mxc_wm8962_init(void)
 
 	clk_set_parent(extern_audio_root, pll4);
 
-	rate = clk_round_rate(extern_audio_root, 26000000);
-	clk_set_rate(extern_audio_root, rate);
+	rate = 24000000;
+	clk_set_rate(extern_audio_root, 24000000);
 
 	wm8962_data.sysclk = rate;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,7 +47,7 @@
 #include <linux/suspend.h>
 
 #define LPAPM_CLK		24000000
-#define DDR_AUDIO_CLK	50000000
+#define DDR_AUDIO_CLK	100000000
 #define DDR_MED_CLK		400000000
 #define DDR3_NORMAL_CLK		528000000
 #define GPC_PGC_GPU_PGCR_OFFSET	0x260
@@ -78,7 +78,8 @@ unsigned int ddr_normal_rate;
 int low_freq_bus_used(void);
 void set_ddr_freq(int ddr_freq);
 void *mx6sl_wfi_iram_base;
-void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr) = NULL;
+void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr,\
+		int audio_mode) = NULL;
 extern void mx6sl_wait (int arm_podf, unsigned long wfi_iram_addr);
 
 void *mx6sl_ddr_freq_base;
@@ -168,6 +169,10 @@ void reduce_bus_freq(void)
 		if (lp_audio_freq) {
 			/* PLL2 is on in this mode, as DDR is at 50MHz. */
 			/* Now change DDR freq while running from IRAM. */
+
+			/* Set AHB to 24MHz. */
+			clk_set_rate(ahb_clk,
+				clk_round_rate(ahb_clk, LPAPM_CLK / 3));
 
 			spin_lock_irqsave(&freq_lock, flags);
 			mx6sl_ddr_freq_change_iram(DDR_AUDIO_CLK,
@@ -269,7 +274,7 @@ int set_low_bus_freq(void)
 	if (!bus_freq_scaling_initialized || !bus_freq_scaling_is_active)
 		return 0;
 
-	/* Check to see if we need to got from
+	/* Check to see if we need to get from
 	  * low bus freq mode to audio bus freq mode.
 	  * If so, the change needs to be done immediately.
 	  */

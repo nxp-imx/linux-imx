@@ -61,7 +61,8 @@ bool enet_is_active;
 void arch_idle_with_workaround(int cpu);
 
 extern void *mx6sl_wfi_iram_base;
-extern void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr);
+extern void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr, \
+			int audio_mode);
 extern void mx6_wait(void *num_cpu_idle_lock, void *num_cpu_idle, \
 				int wait_arm_podf, int cur_arm_podf);
 extern bool enable_wait_mode;
@@ -276,8 +277,8 @@ void arch_idle_single_core(void)
 			if ((mmdc_ch0_axi != NULL))
 				ddr_usecount = clk_get_usecount(mmdc_ch0_axi);
 
-			if (cpu_is_mx6sl() && low_bus_freq_mode
-				&& ddr_usecount == 1) {
+			if (cpu_is_mx6sl() && (ddr_usecount == 1)  &&
+				(low_bus_freq_mode || audio_bus_freq_mode)) {
 				/* In this mode PLL2 i already in bypass,
 				  * ARM is sourced from PLL1. The code in IRAM
 				  * will set ARM to be sourced from STEP_CLK
@@ -290,7 +291,8 @@ void arch_idle_single_core(void)
 				  * we can lower DDR freq.
 				  */
 				mx6sl_wfi_iram(org_arm_podf,
-					(unsigned long)mx6sl_wfi_iram_base);
+					(unsigned long)mx6sl_wfi_iram_base,
+					audio_bus_freq_mode);
 			} else {
 				/* Need to set ARM to run at 24MHz since IPG
 				  * is at 12MHz. This is valid for audio mode on

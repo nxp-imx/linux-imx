@@ -158,9 +158,11 @@ fifo_reset2_wait:
  */
 ENTRY(mx6sl_wait)
 
-    push {r4, r5, r6, r7, r8, r9, r10}
+    push {r4-r11}
 
 mx6sl_lpm_wfi:
+    mov    r11, r2
+
     /* Get the IRAM data storage address. */
     mov    r10, r1
     mov	r9, r1 		/* get suspend_iram_base */
@@ -231,6 +233,9 @@ poll_dvfs_set_1:
      orr     r6, r6, #0x100
      str     r6, [r8, #0x410]
 
+     cmp      r11, #1
+     beq      audio_mode
+
      /* Now set DDR rate to 1MHz. */
      /* DDR is from bypassed PLL2 on periph2_clk2 path.
        * Set the periph2_clk2_podf to divide by 8.
@@ -244,6 +249,15 @@ poll_dvfs_set_1:
      bic    r6, r6, #0x38
      orr    r6, r6, #0x10
      str     r6, [r2, #0x14]
+     b       mmdc_podf
+
+audio_mode:
+     /* MMDC is from PLL2_200M.
+       * Set the mmdc_podf to div by 8.
+       */
+     ldr    r6, [r2, #0x14]
+     orr    r6, r6, #0x38
+     str     r6, [r2, #0x14]
 
     /* Loop till podf is accepted. */
 mmdc_podf:
@@ -253,6 +267,9 @@ mmdc_podf:
 
       /* Set the DDR IO in LPM state. */
      sl_ddr_io_set_lpm
+
+     cmp      r11, #1
+     beq      do_audio_arm_clk
 
      /* Check if none of the PLLs are
       * locked, except PLL1 which will get
@@ -394,6 +411,30 @@ podf_loop:
      orr     r6, r6, #0x1
      str     r6, [r3, #0x150]
 
+     b      do_wfi
+
+do_audio_arm_clk:
+    /* ARM is from PLL2_PFD2_400M here.
+      * Switch ARM to bypassed PLL1.
+      */
+     ldr    r6, [r2, #0xC]
+     bic   r6, r6, #0x4
+     str   r6, [r2, #0xC]
+
+     /* Set the ARM_PODF to divide by 2
+      * as IPG is at 4MHz, we cannot run
+      * ARM_CLK above 9.6MHz when
+      * system enters WAIT mode.
+      */
+    ldr    r6, =0x2
+    str    r6, [r2, #0x10]
+
+    /* Loop till podf is accepted. */
+podf_loop_audio:
+     ldr     r6, [r2, #0x48]
+     cmp   r6, #0x0
+     bne   podf_loop_audio
+
 do_wfi:
      /* Now do WFI. */
      wfi
@@ -406,6 +447,9 @@ podf_loop1:
      ldr     r6, [r2, #0x48]
      cmp   r6, #0x0
      bne   podf_loop1
+
+     cmp    r11, #1
+     beq    audio_arm_clk_restore
 
       /* Check if powered down
         * analog components.
@@ -489,11 +533,23 @@ ahb_podf1:
      cmp   r6, #0x0
      bne   podf_loop1
 
-    mov	r9, r10 		/* get suspend_iram_base */
+     b     wfi_restore
+
+audio_arm_clk_restore:
+     /* Move ARM back to PLL2_PFD2_400M */
+     ldr    r6, [r2, #0xC]
+     orr   r6, r6, #0x4
+     str   r6, [r2, #0xC]
+
+wfi_restore:
+     mov	r9, r10 		/* get suspend_iram_base */
      add	r9, r9, #IRAM_WAIT_SIZE	/* 4K */
 
     /* Restore the DDR IO before exiting self-refresh. */
      sl_ddr_io_restore
+
+     cmp     r11, #1
+     beq     mmdc_audio_restore
 
     /* Set MMDC back to 24MHz. */
     /* Set periph2_clk2_podf to divide by 1. */
@@ -501,6 +557,15 @@ ahb_podf1:
      ldr    r6, [r2, #0x14]
      bic   r6, r6, #0x3f
      str    r6, [r2, #0x14]
+
+     b     mmdc_podf1
+
+mmdc_audio_restore:
+     /* Set MMDC back to 100MHz. */
+     ldr    r6, [r2, #0x14]
+     bic   r6, r6, #0x38
+     orr   r6, r6, #0x8
+     str    r6, [r2, $0x14]
 
 mmdc_podf1:
      ldr     r6, [r2, #0x48]
@@ -565,7 +630,7 @@ poll_dvfs_clear_1:
      str     r6, [r8, #0x410]
 
 
-    pop {r4,r5, r6, r7, r8, r9, r10}
+    pop {r4-r11}
 
     /* Restore registers */
     mov     pc, lr
