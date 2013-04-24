@@ -1759,7 +1759,10 @@ static int config_disp_output(struct mxc_vout_output *vout)
 				"ERR:%s fb_set_var ret:%d\n", __func__, ret);
 		return ret;
 	}
-	display_buf_size = fbi->fix.line_length * fbi->var.yres;
+	if (vout->linear_bypass_pp || vout->tiled_bypass_pp)
+		display_buf_size = fbi->fix.line_length * fbi->var.yres_virtual;
+	else
+		display_buf_size = fbi->fix.line_length * fbi->var.yres;
 	for (i = 0; i < fb_num; i++)
 		vout->disp_bufs[i] = fbi->fix.smem_start + i * display_buf_size;
 	if (vout->tiled_bypass_pp) {
