@@ -1358,6 +1358,8 @@ static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 	.init = hdmi_init,
 	.enable_pins = hdmi_enable_ddc_pin,
 	.disable_pins = hdmi_disable_ddc_pin,
+	.phy_reg_vlev = 0x0294,
+	.phy_reg_cksymtx = 0x800d,
 };
 
 static struct fsl_mxc_hdmi_core_platform_data hdmi_core_data = {
