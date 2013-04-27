@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -1084,5 +1084,12 @@ enum {
 	HDMI_I2CM_CTLINT_ARBITRATION_MASK = 0x04,
 
 };
+
+/* IOCTL commands */
+#define HDMI_IOC_MAGIC  'H'
+
+#define HDMI_IOC_GET_RESOURCE	_IO(HDMI_IOC_MAGIC, 0)
+#define HDMI_IOC_GET_CPU_TYPE	_IO(HDMI_IOC_MAGIC, 1)
+
 
 #endif /* __MXC_HDMI_H__ */
