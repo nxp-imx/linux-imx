@@ -1035,7 +1035,7 @@ static void mxc_free_dma_buf(struct asrc_pair_params *params)
 	}
 
 	if (params->output_dma_total.dma_vaddr != NULL) {
-		kfree(params->input_dma_total.dma_vaddr);
+		kfree(params->output_dma_total.dma_vaddr);
 		params->output_dma_total.dma_vaddr = NULL;
 	}
 
