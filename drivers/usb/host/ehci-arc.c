@@ -246,10 +246,10 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	 * do platform specific init: check the clock, grab/config pins, etc.
 	 */
 	if (pdata->init && pdata->init(pdev)) {
-		pdata->lowpower = false;
 		retval = -ENODEV;
 		goto err4;
 	}
+	pdata->lowpower = false;
 
 	spin_lock_init(&pdata->lock);
 
@@ -315,6 +315,7 @@ err2:
 	usb_put_hcd(hcd);
 err1:
 	dev_err(&pdev->dev, "init %s fail, %d\n", dev_name(&pdev->dev), retval);
+	fsl_usb_lowpower_mode(pdata, true);
 	if (pdata->exit && pdata->pdev)
 		pdata->exit(pdata->pdev);
 	return retval;
