@@ -3075,10 +3075,10 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 	 * do platform specific init: check the clock, grab/config pins, etc.
 	 */
 	if (pdata->init && pdata->init(pdev)) {
-		pdata->lowpower = false;
 		ret = -ENODEV;
 		goto err2a;
 	}
+	pdata->lowpower = false;
 
 	spin_lock_init(&pdata->lock);
 
@@ -3234,6 +3234,7 @@ err4:
 err3:
 	free_irq(udc_controller->irq, udc_controller);
 err2:
+	dr_phy_low_power_mode(udc_controller, true);
 	if (pdata->exit)
 		pdata->exit(pdata->pdev);
 err2a:
