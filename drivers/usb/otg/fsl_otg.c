@@ -690,9 +690,16 @@ static int fsl_otg_set_peripheral(struct otg_transceiver *otg_p,
 		return -ENODEV;
 
 	if (!gadget) {
-		if (!otg_dev->otg.default_a)
+		/*
+		 * At i.mx platform, we still not implement fully
+		 * OTG.
+		 */
+		/*
+		if (!otg_dev->otg.default_a) {
 			otg_p->gadget->ops->vbus_draw(otg_p->gadget, 0);
-		usb_gadget_vbus_disconnect(otg_dev->otg.gadget);
+			usb_gadget_vbus_disconnect(otg_dev->otg.gadget);
+		}
+		*/
 		otg_dev->otg.gadget = 0;
 		otg_dev->fsm.b_bus_req = 0;
 		pdata->port_enables = 0;
