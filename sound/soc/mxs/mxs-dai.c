@@ -23,6 +23,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/suspend.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -553,11 +554,32 @@ static void mxs_saif_shutdown(struct snd_pcm_substream *substream,
 }
 
 #ifdef CONFIG_PM
+static u32 saif_ctrl_reg[2];
+static unsigned int saif_mclk_freq;
+
+suspend_state_t mxs_pm_get_target(void);
+
+
 static int mxs_saif_suspend(struct snd_soc_dai *dai)
 {
 	if (!dai->active)
 		return 0;
 	/* do we need to disable any clocks? */
+
+#ifdef CONFIG_ARCH_MX28
+  if (mxs_pm_get_target() == PM_SUSPEND_MEM)  {
+
+		struct mxs_saif *saif_select = (struct mxs_saif *)dai->private_data;
+		struct clk *saif_clk = saif_select->saif_mclk;;
+
+		saif_mclk_freq = clk_get_rate(saif_clk);
+		saif_ctrl_reg[0] = __raw_readl(SAIF0_CTRL);
+		saif_ctrl_reg[1] = __raw_readl(SAIF1_CTRL);
+
+  }
+#endif
+
+
 	return 0;
 }
 
@@ -566,6 +588,20 @@ static int mxs_saif_resume(struct snd_soc_dai *dai)
 	if (!dai->active)
 		return 0;
 	/* do we need to enable any clocks? */
+#ifdef CONFIG_ARCH_MX28
+
+  if (mxs_pm_get_target() == PM_SUSPEND_MEM)  {
+
+		struct mxs_saif *saif_select = (struct mxs_saif *)dai->private_data;
+		struct clk *saif_clk = saif_select->saif_mclk;;
+
+		clk_set_rate(saif_clk, saif_mclk_freq);
+		__raw_writel(saif_ctrl_reg[0], SAIF0_CTRL);
+		__raw_writel(saif_ctrl_reg[1], SAIF1_CTRL);
+  }
+#endif
+
+
 	return 0;
 }
 #else

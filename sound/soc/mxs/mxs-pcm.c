@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include <linux/interrupt.h>
 #include <linux/dma-mapping.h>
 #include <linux/delay.h>
+#include <linux/suspend.h>
 
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -196,6 +197,7 @@ static void mxs_pcm_stop(struct snd_pcm_substream *substream)
 
 	mxs_dma_disable(prtd->dma_ch);
 }
+suspend_state_t mxs_pm_get_target(void);
 
 static int mxs_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
@@ -224,11 +226,43 @@ static int mxs_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		break;
 
 	case SNDRV_PCM_TRIGGER_RESUME:
+		if (mxs_pm_get_target() == PM_SUSPEND_MEM) {
+
+			mxs_dma_reset(prtd->dma_ch);
+			mxs_dma_ack_irq(prtd->dma_ch);
+			mxs_dma_enable_irq(prtd->dma_ch, 1);
+			mxs_pcm_prepare(substream);
+
+			if ((prtd->params->dma_ch == MXS_DMA_CHANNEL_AHB_APBX_SPDIF) &&
+				  (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) &&
+				  (runtime->access == SNDRV_PCM_ACCESS_MMAP_INTERLEAVED) &&
+				  ((prtd->format == SNDRV_PCM_FORMAT_S24_LE)
+				   || (prtd->format == SNDRV_PCM_FORMAT_S20_3LE))) {
+				prtd->appl_ptr_bytes =
+					  frames_to_bytes(runtime,
+							  runtime->control->appl_ptr);
+				memmove(runtime->dma_area + 1, runtime->dma_area,
+					prtd->appl_ptr_bytes - 1);
+			}
+
+			mxs_dma_enable(prtd->dma_ch);
+		} else
+			mxs_dma_unfreeze(prtd->dma_ch);
+		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		mxs_dma_unfreeze(prtd->dma_ch);
 		break;
 
 	case SNDRV_PCM_TRIGGER_SUSPEND:
+		if (mxs_pm_get_target() == PM_SUSPEND_MEM) {
+			mxs_pcm_stop(substream);
+			mdelay(30);
+		}	else {
+			mxs_dma_freeze(prtd->dma_ch);
+			mdelay(30);
+		}
+		break;
+
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		mxs_dma_freeze(prtd->dma_ch);
 		mdelay(30);
