@@ -171,7 +171,7 @@ static iomux_v3_cfg_t mx6dl_sabresd_pads[] = {
 	MX6DL_PAD_SD4_DAT7__USDHC4_DAT7_50MHZ,
 
 	/* HDMI_CEC_IN*/
-	MX6DL_PAD_KEY_ROW2__GPIO_4_11,
+	MX6DL_PAD_KEY_ROW2__HDMI_TX_CEC_LINE,
 
 	/* CCM - Audio, Camera clock  */
 	MX6DL_PAD_GPIO_0__CCM_CLKO,
