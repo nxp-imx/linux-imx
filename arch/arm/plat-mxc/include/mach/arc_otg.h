@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2005-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -121,6 +121,7 @@ extern void __iomem *imx_otg_base;
 /*      configured_flag                    (0x180)	   configflag (supports HS) */
 #define UH1_PORTSC1		USBH1_REG32(0x184)	/* port status and control */
 /* end EHCI registers: */
+#define UH1_OTGSC		USBH1_REG32(0x1a4)	/* OTG status and control */
 #define UH1_USBMODE		USBH1_REG32(0x1a8)	/* USB device mode */
 
 /*

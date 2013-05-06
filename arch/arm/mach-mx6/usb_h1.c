@@ -377,7 +377,7 @@ static void usbh1_wakeup_event_clear(void)
 	int wakeup_req = USB_H1_CTRL & UCTRL_OWIR;
 
 	if (wakeup_req != 0) {
-		printk(KERN_INFO "Unknown wakeup.(H1 OTGSC 0x%x)\n", UH1_PORTSC1);
+		printk(KERN_INFO "Unknown wakeup.(H1 OTGSC 0x%x)\n", UH1_OTGSC);
 		/* Disable OWIE to clear OWIR, wait 3 clock
 		 * cycles of standly clock(32KHz)
 		 */
