@@ -797,25 +797,14 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 			fsl_usb_lowpower_mode(pdata, false);
 
-			usb_host_set_wakeup(hcd->self.controller, true);
-
-#ifndef NO_FIX_DISCONNECT_ISSUE
-			/*Unplug&plug device during suspend without remote wakeup enabled
-			For Low and full speed device, we should power on and power off
-			the USB port to make sure USB internal state machine work well.
-			*/
 			tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
-			if ((tmp & PORT_CONNECT) && !(tmp & PORT_SUSPEND) &&
-				((tmp & (0x3<<26)) != (0x2<<26))) {
-					printk(KERN_DEBUG "%s will do power off and power on port.\n", pdata->name);
-					ehci_writel(ehci, tmp & ~(PORT_RWC_BITS | PORT_POWER),
-						&ehci->regs->port_status[0]);
-					ehci_writel(ehci, tmp | PORT_POWER,
-						&ehci->regs->port_status[0]);
+			if ((tmp & PORT_CONNECT) && !hcd->self.is_b_host) {
+				set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+			} else if (!(tmp & PORT_CONNECT)) {
+				usb_host_set_wakeup(hcd->self.controller, true);
+				fsl_usb_lowpower_mode(pdata, true);
+				fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 			}
-#endif
-			fsl_usb_lowpower_mode(pdata, true);
-			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		}
 		enable_irq(hcd->irq);
 		return 0;
