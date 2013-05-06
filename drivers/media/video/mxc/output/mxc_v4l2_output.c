@@ -102,6 +102,19 @@ static __inline int peek_next_buf(v4l_queue *q)
 	return q->list[q->head];
 }
 
+static inline int regularize_timeval(struct timeval *t)
+{
+	if (t->tv_sec < 0 || t->tv_usec < 0)
+		return -1;
+
+	if (t->tv_usec >= USEC_PER_SEC) {
+		t->tv_sec += t->tv_usec / USEC_PER_SEC;
+		t->tv_usec = t->tv_usec % USEC_PER_SEC;
+	}
+
+	return 0;
+}
+
 /*!
  * Private function to free buffers
  *
@@ -236,16 +249,34 @@ static int select_display_buffer(vout_data *vout, int next_buf)
 static void setup_next_buf_timer(vout_data *vout, int index)
 {
 	ktime_t expiry_time, now;
+	struct v4l2_buffer buf = vout->v4l2_bufs[index];
+	struct timeval ts = buf.timestamp;
+	int ret = 0;
 
 	/* Setup timer for next buffer */
 	/* if timestamp is 0, then default to 30fps */
-	if ((vout->v4l2_bufs[index].timestamp.tv_sec == 0) &&
-	    (vout->v4l2_bufs[index].timestamp.tv_usec == 0))
+	if (ts.tv_sec == 0 && ts.tv_usec == 0) {
 		expiry_time = ktime_add_ns(vout->start_ktime,
 				NSEC_PER_FRAME_30FPS * vout->frame_count);
-	else
-		expiry_time =
-			timeval_to_ktime(vout->v4l2_bufs[index].timestamp);
+	} else {
+		ret = regularize_timeval(&ts);
+		if (ret < 0) {
+			ret = dequeue_buf(&vout->ready_q);
+			WARN_ON(ret < 0);
+
+			buf.flags = V4L2_BUF_FLAG_DONE;
+			queue_buf(&vout->done_q, index);
+			wake_up_interruptible(&vout->v4l_bufq);
+
+			vout->state = STATE_STREAM_PAUSED;
+
+			dev_warn(&vout->video_dev->dev, "invalid timestamp "
+				 "@%ldsec%ldusec\n", ts.tv_sec, ts.tv_usec);
+			return;
+		}
+
+		expiry_time = timeval_to_ktime(ts);
+	}
 
 	now = hrtimer_cb_get_time(&vout->output_timer);
 	if ((now.tv.sec > expiry_time.tv.sec) ||
