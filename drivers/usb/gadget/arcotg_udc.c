@@ -70,7 +70,6 @@
 #endif
 #define	DMA_ADDR_INVALID	(~(dma_addr_t)0)
 DEFINE_MUTEX(udc_resume_mutex);
-extern void usb_debounce_id_vbus(void);
 static const char driver_name[] = "fsl-usb2-udc";
 static const char driver_desc[] = DRIVER_DESC;
 
@@ -3452,7 +3451,6 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		u32 temp;
 		if (udc_controller->stopped)
 			dr_clk_gate(true);
-		usb_debounce_id_vbus();
 		if (fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) {
 			temp = fsl_readl(&dr_regs->otgsc);
 			/* if b_session_irq_en is cleared by otg */
@@ -3499,7 +3497,6 @@ static int fsl_udc_resume(struct platform_device *pdev)
 			dr_clk_gate(true);
 		dr_wake_up_enable(udc_controller, false);
 		dr_phy_low_power_mode(udc_controller, false);
-		usb_debounce_id_vbus();
 		/* if in host mode, we need to do nothing */
 		if ((fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) == 0) {
 			dr_phy_low_power_mode(udc_controller, true);
