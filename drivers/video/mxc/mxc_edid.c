@@ -207,7 +207,9 @@ int mxc_edid_fb_mode_is_equal(bool use_aspect,
 		mode1->upper_margin == mode2->upper_margin &&
 		mode1->lower_margin == mode2->lower_margin &&
 		mode1->sync         == mode2->sync &&
-		mode1->refresh         == mode2->refresh &&
+		/* refresh check, 59.94Hz and 60Hz have the same parameter
+		 * in struct of mxc_cea_mode */
+		abs(mode1->refresh - mode2->refresh) <= 1 &&
 		(mode1->vmode & mask) == (mode2->vmode & mask));
 }
 
