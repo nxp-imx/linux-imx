@@ -777,13 +777,18 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	return 0;
 }
 
+#define OTGSC_OFFSET 		0x64
+#define OTGSC_ID_VALUE		(1 << 8)
+#define OTGSC_ID_INT_STS	(1 << 16)
 static int ehci_fsl_drv_resume(struct platform_device *pdev)
 {
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	struct usb_device *roothub = hcd->self.root_hub;
 	unsigned long flags;
-	u32 tmp;
+	u32 tmp, otgsc;
+	bool id_changed;
+	int id_value;
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 	struct fsl_usb2_wakeup_platform_data *wake_up_pdata = pdata->wakeup_pdata;
 	/* Only handles OTG mode switch event */
@@ -798,12 +803,26 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 			fsl_usb_lowpower_mode(pdata, false);
 
 			tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
-			if ((tmp & PORT_CONNECT) && !hcd->self.is_b_host) {
-				set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
-			} else if (!(tmp & PORT_CONNECT)) {
-				usb_host_set_wakeup(hcd->self.controller, true);
-				fsl_usb_lowpower_mode(pdata, true);
-				fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
+			if (pdata->operating_mode == FSL_USB2_DR_OTG) {
+				otgsc = ehci_readl(ehci, (u32 __iomem *)ehci->regs + OTGSC_OFFSET / 4);
+				id_changed = !!(otgsc & OTGSC_ID_INT_STS);
+				id_value = !!(otgsc & OTGSC_ID_VALUE);
+				if (((tmp & PORT_CONNECT) && !id_value) || id_changed) {
+					set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+				} else if (!(tmp & PORT_CONNECT)) {
+					usb_host_set_wakeup(hcd->self.controller, true);
+					fsl_usb_lowpower_mode(pdata, true);
+					fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
+				}
+			} else {
+				if (tmp & PORT_CONNECT) {
+					set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+				} else {
+					usb_host_set_wakeup(hcd->self.controller, true);
+					fsl_usb_lowpower_mode(pdata, true);
+					fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
+				}
+
 			}
 		}
 		enable_irq(hcd->irq);
