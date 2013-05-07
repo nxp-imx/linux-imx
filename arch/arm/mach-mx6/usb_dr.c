@@ -263,8 +263,14 @@ static void enter_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, boo
 		 * it needs 10 clocks from 32Khz to normal work state, so
 		 * 500us is the safe value for PHY enters stable status
 		 * according to IC engineer.
+		 *
+		 * Besides, the digital value needs 1ms debounce time to
+		 * wait the value to be stable. We have expected the
+		 * value from OTGSC is correct after calling this API.
+		 *
+		 * So delay 2ms is a save value.
 		 */
-		udelay(500);
+		mdelay(2);
 
 	}
 	pr_debug("DR: %s ends, enable is %d\n", __func__, enable);
@@ -537,8 +543,6 @@ static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdat
 	/* if ID change sts, it is a host wakeup event */
 	if (otgsc & OTGSC_IS_USB_ID) {
 		pr_debug("otg host ID wakeup\n");
-		/* if host ID wakeup, we must clear the ID change sts */
-		otgsc |= OTGSC_IS_USB_ID;
 		return WAKEUP_EVENT_ID;
 	}
 	if (wakeup_req  && (!(otgsc & OTGSC_STS_USB_ID))) {
