@@ -733,26 +733,28 @@ static void update_offset(unsigned int fmt,
 	case IPU_PIX_FMT_YUV420P:
 		*off = pos_y * width + pos_x;
 		*uoff = (width * (height - pos_y) - pos_x)
-			+ ((width/2 * pos_y/2) + pos_x/2);
-		*voff = *uoff + (width/2 * height/2);
+			+ (width/2) * (pos_y/2) + pos_x/2;
+		/* In case height is odd, round up to even */
+		*voff = *uoff + (width/2) * ((height+1)/2);
 		break;
 	case IPU_PIX_FMT_YVU420P:
 		*off = pos_y * width + pos_x;
 		*voff = (width * (height - pos_y) - pos_x)
-			+ ((width/2 * pos_y/2) + pos_x/2);
-		*uoff = *voff + (width/2 * height/2);
+			+ (width/2) * (pos_y/2) + pos_x/2;
+		/* In case height is odd, round up to even */
+		*uoff = *voff + (width/2) * ((height+1)/2);
 		break;
 	case IPU_PIX_FMT_YVU422P:
 		*off = pos_y * width + pos_x;
 		*voff = (width * (height - pos_y) - pos_x)
-			+ ((width * pos_y)/2 + pos_x/2);
-		*uoff = *voff + (width * height)/2;
+			+ (width/2) * pos_y + pos_x/2;
+		*uoff = *voff + (width/2) * height;
 		break;
 	case IPU_PIX_FMT_YUV422P:
 		*off = pos_y * width + pos_x;
 		*uoff = (width * (height - pos_y) - pos_x)
-			+ (width * pos_y)/2 + pos_x/2;
-		*voff = *uoff + (width * height)/2;
+			+ (width/2) * pos_y + pos_x/2;
+		*voff = *uoff + (width/2) * height;
 		break;
 	case IPU_PIX_FMT_YUV444P:
 		*off = pos_y * width + pos_x;
@@ -762,7 +764,7 @@ static void update_offset(unsigned int fmt,
 	case IPU_PIX_FMT_NV12:
 		*off = pos_y * width + pos_x;
 		*uoff = (width * (height - pos_y) - pos_x)
-			+ width * pos_y/2 + pos_x;
+			+ width * (pos_y/2) + pos_x;
 		break;
 	case IPU_PIX_FMT_TILED_NV12:
 		/*
