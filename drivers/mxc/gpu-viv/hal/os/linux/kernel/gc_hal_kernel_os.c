@@ -6819,8 +6819,13 @@ gckOS_SetGPUPower(
     }
 	if((Power == gcvTRUE) && (oldPowerState == gcvFALSE))
 	{
-		if(!IS_ERR(Os->device->gpu_regulator))
-            regulator_enable(Os->device->gpu_regulator);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)		
+	    if(!IS_ERR(Os->device->gpu_regulator))
+            	regulator_enable(Os->device->gpu_regulator);
+#else
+	    imx_gpc_power_up_pu(true);
+#endif
+
 #ifdef CONFIG_PM
 		pm_runtime_get_sync(Os->device->pmdev);
 #endif
@@ -6930,8 +6935,13 @@ gckOS_SetGPUPower(
 #ifdef CONFIG_PM
 		pm_runtime_put_sync(Os->device->pmdev);
 #endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)		
 		if(!IS_ERR(Os->device->gpu_regulator))
-            regulator_disable(Os->device->gpu_regulator);
+			regulator_disable(Os->device->gpu_regulator);
+#else
+    		imx_gpc_power_up_pu(false);
+#endif
 	}
     /* TODO: Put your code here. */
     gcmkFOOTER_NO();
