@@ -53,16 +53,16 @@ DEFINE_SPINLOCK(pair_lock);
 DEFINE_SPINLOCK(input_int_lock);
 DEFINE_SPINLOCK(output_int_lock);
 
-#define AICPA		0	/* Input Clock Divider A Offset */
-#define AICDA		3	/* Input Clock Prescaler A Offset */
-#define AICPB           6	/* Input Clock Divider B Offset */
-#define AICDB           9	/* Input Clock Prescaler B Offset */
-#define AOCPA           12	/* Output Clock Divider A Offset */
-#define AOCDA           15	/* Output Clock Prescaler A Offset */
-#define AOCPB           18	/* Output Clock Divider B Offset */
-#define AOCDB           21	/* Output Clock Prescaler B Offset */
-#define AICPC           0	/* Input Clock Divider C Offset */
-#define AICDC           3	/* Input Clock Prescaler C Offset */
+#define AICPA		0	/* Input Clock Prescaler A Offset */
+#define AICDA		3	/* Input Clock Divider A Offset */
+#define AICPB           6	/* Input Clock Prescaler B Offset */
+#define AICDB           9	/* Input Clock Divider B Offset */
+#define AOCPA           12	/* Output Clock Prescaler A Offset */
+#define AOCDA           15	/* Output Clock Divider A Offset */
+#define AOCPB           18	/* Output Clock Prescaler B Offset */
+#define AOCDB           21	/* Output Clock Divider B Offset */
+#define AICPC           0	/* Input Clock Prescaler C Offset */
+#define AICDC           3	/* Input Clock Divider C Offset */
 #define AOCPC           6	/* Output Clock Prescaler C Offset */
 #define AOCDC           9	/* Output Clock Divider C Offset */
 
