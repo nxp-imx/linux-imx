@@ -63,8 +63,8 @@ DEFINE_SPINLOCK(output_int_lock);
 #define AOCDB           21	/* Output Clock Prescaler B Offset */
 #define AICPC           0	/* Input Clock Divider C Offset */
 #define AICDC           3	/* Input Clock Prescaler C Offset */
-#define AOCDC           6	/* Output Clock Prescaler C Offset */
-#define AOCPC           9	/* Output Clock Divider C Offset */
+#define AOCPC           6	/* Output Clock Prescaler C Offset */
+#define AOCDC           9	/* Output Clock Divider C Offset */
 
 char *asrc_pair_id[] = {
 	[0] = "ASRC RX PAIR A",
