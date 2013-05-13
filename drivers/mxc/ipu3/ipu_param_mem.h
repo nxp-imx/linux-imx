@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -283,6 +283,13 @@ static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
 		ipu_ch_param_set_field(&params, 0, 107, 3, 5);	/* bits/pixel */
 		ipu_ch_param_set_field(&params, 1, 85, 4, 6);	/* pix format */
 		ipu_ch_param_set_field(&params, 1, 78, 7, 63);	/* burst size */
+
+		break;
+	case IPU_PIX_FMT_GENERIC_16:
+		/* Represents 16-bit generic data */
+		ipu_ch_param_set_field(&params, 0, 107, 3, 3);	/* bits/pixel */
+		ipu_ch_param_set_field(&params, 1, 85, 4, 6);	/* pix format */
+		ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
 
 		break;
 	case IPU_PIX_FMT_GENERIC_32:
@@ -695,6 +702,7 @@ static inline void _ipu_ch_offset_update(struct ipu_soc *ipu,
 
 	switch (pixel_fmt) {
 	case IPU_PIX_FMT_GENERIC:
+	case IPU_PIX_FMT_GENERIC_16:
 	case IPU_PIX_FMT_GENERIC_32:
 	case IPU_PIX_FMT_RGB565:
 	case IPU_PIX_FMT_BGR24:
