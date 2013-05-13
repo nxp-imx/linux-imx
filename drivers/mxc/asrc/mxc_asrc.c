@@ -321,34 +321,42 @@ int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 	int err = 0;
 	unsigned long lock_flags;
 	struct asrc_pair *pair;
+	int imax = 0, busy = 0, i;
+
 	spin_lock_irqsave(&data_lock, lock_flags);
 
-	if (chn_num > 2) {
-		pair = &g_asrc->asrc_pair[ASRC_PAIR_B];
-		if (pair->active || (chn_num > pair->chn_max))
-			err = -EBUSY;
-		else {
-			*index = ASRC_PAIR_B;
-			pair->chn_num = chn_num;
-			pair->active = 1;
+	for (i = ASRC_PAIR_A; i < ASRC_PAIR_MAX_NUM; i++) {
+		pair = &g_asrc->asrc_pair[i];
+		if (chn_num > pair->chn_max) {
+			imax++;
+			continue;
+		} else if (pair->active) {
+			busy++;
+			continue;
 		}
-	} else {
-		pair = &g_asrc->asrc_pair[ASRC_PAIR_A];
-		if (pair->active || (pair->chn_max == 0)) {
-			pair = &g_asrc->asrc_pair[ASRC_PAIR_C];
-			if (pair->active || (pair->chn_max == 0))
-				err = -EBUSY;
-			else {
-				*index = ASRC_PAIR_C;
-				pair->chn_num = 2;
-				pair->active = 1;
-			}
-		} else {
-			*index = ASRC_PAIR_A;
-			pair->chn_num = 2;
-			pair->active = 1;
-		}
+		/* Save the current qualified pair */
+		*index = i;
+
+		/* Check if this pair is a perfect one */
+		if (chn_num == pair->chn_max)
+			break;
 	}
+
+	if (imax >= ASRC_PAIR_MAX_NUM) {
+		pr_err("No pair could afford requested channel number.\n");
+		err = -EINVAL;
+	} else if (busy >= ASRC_PAIR_MAX_NUM) {
+		pr_err("All pairs are busy now.\n");
+		err = -EBUSY;
+	} else if (busy + imax >= ASRC_PAIR_MAX_NUM) {
+		pr_err("All affordable pairs are busy now.\n");
+		err = -EBUSY;
+	} else {
+		pair = &g_asrc->asrc_pair[*index];
+		pair->chn_num = chn_num;
+		pair->active = 1;
+	}
+
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 
 	if (!err) {
@@ -1856,6 +1864,11 @@ static int asrc_write_proc_attr(struct file *file, const char *buffer,
 	}
 	reg = na | (nb << g_asrc->mxc_asrc_data->channel_bits) |
 		(nc << (g_asrc->mxc_asrc_data->channel_bits * 2));
+
+	/* Update chn_max */
+	g_asrc->asrc_pair[ASRC_PAIR_A].chn_max = na;
+	g_asrc->asrc_pair[ASRC_PAIR_B].chn_max = nb;
+	g_asrc->asrc_pair[ASRC_PAIR_C].chn_max = nc;
 
 	clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCNCR_REG);
