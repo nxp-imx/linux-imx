@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -192,7 +192,23 @@ mx6sl_lpm_wfi:
     ldr     r6, [r2]
     ldr     r6, [r1]
 
+     /* Drain all the L1 buffers. */
      dsb
+
+#ifdef CONFIG_CACHE_L2X0
+    /* Need to make sure the buffers in L2 are drained.
+      * Performing a sync operation does this. */
+     ldr     r7, =L2_BASE_ADDR
+     add   r7, r7, #PERIPBASE_VIRT
+     mov  r6, #0x0
+     str    r6, [r7, #0x730]
+#endif
+
+     /* The second dsb might be needed to keep cache sync (device write)
+       * ordering with the memory accesses before it.
+       */
+     dsb
+     isb
 
      /* Disable Automatic power savings. */
      ldr    r6, [r8, #0x404]
