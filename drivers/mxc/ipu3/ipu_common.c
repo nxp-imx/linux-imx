@@ -1165,10 +1165,17 @@ int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 			rot_mode);
 	} else if (_ipu_is_smfc_chan(dma_chan)) {
 		burst_size = _ipu_ch_param_get_burst_size(ipu, dma_chan);
-		if ((pixel_fmt == IPU_PIX_FMT_GENERIC) &&
-			((_ipu_ch_param_get_bpp(ipu, dma_chan) == 5) ||
-			(_ipu_ch_param_get_bpp(ipu, dma_chan) == 3)))
+		/*
+		 * This is different from IPUv3 spec, but it is confirmed
+		 * in IPUforum that SMFC burst size should be NPB[6:3]
+		 * when IDMAC works in 16-bit generic data mode.
+		 */
+		if (pixel_fmt == IPU_PIX_FMT_GENERIC)
+			/* 8 bits per pixel */
 			burst_size = burst_size >> 4;
+		else if (pixel_fmt == IPU_PIX_FMT_GENERIC_16)
+			/* 16 bits per pixel */
+			burst_size = burst_size >> 3;
 		else
 			burst_size = burst_size >> 2;
 		_ipu_smfc_set_burst_size(ipu, channel, burst_size-1);
@@ -2790,6 +2797,7 @@ uint32_t bytes_per_pixel(uint32_t fmt)
 	case IPU_PIX_FMT_YUV444P:
 		return 1;
 		break;
+	case IPU_PIX_FMT_GENERIC_16:	/* generic data */
 	case IPU_PIX_FMT_RGB565:
 	case IPU_PIX_FMT_YUYV:
 	case IPU_PIX_FMT_UYVY:
