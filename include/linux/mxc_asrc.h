@@ -40,6 +40,8 @@ enum asrc_pair_index {
 	ASRC_PAIR_C
 };
 
+#define ASRC_PAIR_MAX_NUM	(ASRC_PAIR_C + 1)
+
 enum asrc_inclk {
 	INCLK_NONE = 0x03,
 	INCLK_ESAI_RX = 0x00,
