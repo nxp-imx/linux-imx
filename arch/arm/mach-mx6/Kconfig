@@ -339,4 +339,11 @@ config MX6_ENET_IRQ_TO_GPIO
 	   Enabling this will direct all the ENET interrupts to a board specific GPIO.
 	   This will allow the system to enter WAIT mode when ENET is active.
 
+config SDMA_IRAM
+	bool "Use Internal RAM for SDMA data structures"
+	depends on IMX_SDMA && SOC_IMX6SL
+	help
+	  SDMA buffer or control structures are stored in the IRAM/OCRAM
+
+
 endif

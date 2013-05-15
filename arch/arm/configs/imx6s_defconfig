@@ -1,3 +1,4 @@
+
 #
 # Automatically generated make config: don't edit
 # Linux/arm 3.0.35 Kernel Configuration
@@ -316,6 +317,7 @@ CONFIG_MACH_MX6SL_EVK=y
 # CONFIG_MACH_MX6Q_SABRELITE is not set
 CONFIG_MACH_MX6Q_SABRESD=y
 # CONFIG_MACH_MX6Q_SABREAUTO is not set
+CONFIG_SDMA_IRAM=y
 
 #
 # MX6 Options:
