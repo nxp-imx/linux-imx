@@ -365,9 +365,7 @@ gckGALDEVICE_Construct(
     device->pmdev = pdev;
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
-    device->gpu_regulator =(struct regulator*)0xffffffff ;
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
     /*get gpu regulator*/
     device->gpu_regulator = regulator_get(pdev, "cpu_vddgpu");
     if (IS_ERR(device->gpu_regulator)) {
@@ -1096,9 +1094,7 @@ gckGALDEVICE_Destroy(
             pm_runtime_disable(Device->pmdev);
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
-        /*NULL*/
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
         if (Device->gpu_regulator) {
            regulator_put(Device->gpu_regulator);
            Device->gpu_regulator = NULL;
