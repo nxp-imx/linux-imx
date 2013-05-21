@@ -2620,6 +2620,7 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 {
 	uint32_t reg;
 	unsigned long lock_flags;
+	int ret = 0;
 
 	BUG_ON(irq >= IPU_IRQ_COUNT);
 
@@ -2630,8 +2631,19 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 	if (ipu->irq_list[irq].handler != NULL) {
 		dev_err(ipu->dev,
 			"handler already installed on irq %d\n", irq);
-		spin_unlock_irqrestore(&ipu->int_reg_spin_lock, lock_flags);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/*
+	 * Check sync interrupt handler only, since we do nothing for
+	 * error interrupts but than print out register values in the
+	 * error interrupt source handler.
+	 */
+	if (_ipu_is_sync_irq(irq) && (handler == NULL)) {
+		dev_err(ipu->dev, "handler is NULL for sync irq %d\n", irq);
+		ret = -EINVAL;
+		goto out;
 	}
 
 	ipu->irq_list[irq].handler = handler;
@@ -2645,12 +2657,12 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 	reg = ipu_cm_read(ipu, IPUIRQ_2_CTRLREG(irq));
 	reg |= IPUIRQ_2_MASK(irq);
 	ipu_cm_write(ipu, reg, IPUIRQ_2_CTRLREG(irq));
-
+out:
 	spin_unlock_irqrestore(&ipu->int_reg_spin_lock, lock_flags);
 
 	_ipu_put(ipu);
 
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL(ipu_request_irq);
 
