@@ -2295,6 +2295,9 @@ static void vdi_split_process(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	u32 task_no;
 	u32 i, offset_addr;
 	unsigned char  *base_off;
+	u32 pixwidth;
+	u32 crop_width;
+
 	struct ipu_task_entry *parent = t->parent;
 
 	if (!parent) {
@@ -2304,21 +2307,30 @@ static void vdi_split_process(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	stripe_mode = t->task_no & 0xf;
 	task_no = t->task_no >> 4;
 
-	base_off = (char *) __va(t->output.paddr);
+	pixwidth = fmt_to_bpp(t->output.format)/8;
+	crop_width = t->output.crop.w * pixwidth;
+
+	if (pfn_valid(t->output.paddr >> PAGE_SHIFT))
+		base_off = page_address(pfn_to_page(t->output.paddr >> PAGE_SHIFT));
+	else
+		base_off = (char *)ioremap_nocache(t->output.paddr,
+				t->output.width * t->output.height *
+				pixwidth);
+
 	if (base_off == NULL) {
 		dev_err(t->dev, "ERR[0x%p]Falied get vitual address\n", t);
 		return;
 	}
 
 	vdi_save_lines = (t->output.crop.h - t->set.sp_setting.ud_split_line)/2;
-	vdi_size = vdi_save_lines * t->output.crop.w * 2;
+	vdi_size = vdi_save_lines * t->output.crop.w * pixwidth;
 
 	if (vdi_save_lines <= 0) {
 		dev_err(t->dev, "[0x%p] vdi_save_line error\n", (void *)t);
 		return;
 	}
 
-	/*check vditmpbuf buffer have alloced or buffer size is changed */
+	/* Check vditmpbuf buffer have alloced or buffer size is changed */
 	if ((vdi_save_lines != parent->old_save_lines) ||
 		(vdi_size != parent->old_size)) {
 		if (parent->vditmpbuf[0] != NULL)
@@ -2350,120 +2362,93 @@ static void vdi_split_process(struct ipu_soc *ipu, struct ipu_task_entry *t)
 	if ((stripe_mode == UP_STRIPE) ||
 			(stripe_mode == (UP_STRIPE | LEFT_STRIPE))) {
 		if (!parent->buf0filled) {
-			offset_addr = t->set.o_off +
-				t->set.sp_setting.ud_split_line*t->set.ostride;
-			dmac_flush_range(base_off + offset_addr,
-					base_off + offset_addr + vdi_size);
-			outer_flush_range(t->output.paddr + offset_addr,
-				t->output.paddr + offset_addr + vdi_size);
+			offset_addr = t->set.o_off * pixwidth +
+				t->set.sp_setting.ud_split_line * t->set.ostride ;
 
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(parent->vditmpbuf[0] + i*t->output.crop.w*2,
+				memcpy(parent->vditmpbuf[0] + i * crop_width,
 					base_off + offset_addr +
-					i*t->set.ostride, t->output.crop.w*2);
+					i * t->set.ostride, crop_width);
 			parent->buf0filled = true;
 		} else {
-			offset_addr = t->set.o_off + (t->output.crop.h -
+			offset_addr = t->set.o_off * pixwidth + (t->output.crop.h -
 					vdi_save_lines) * t->set.ostride;
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(base_off + offset_addr + i*t->set.ostride,
-						parent->vditmpbuf[0] + i*t->output.crop.w*2,
-						t->output.crop.w*2);
+				memcpy(base_off + offset_addr + i * t->set.ostride,
+						parent->vditmpbuf[0] + i * crop_width,
+						crop_width);
 
-			dmac_flush_range(base_off + offset_addr,
-					base_off + offset_addr + i*t->set.ostride);
-			outer_flush_range(t->output.paddr + offset_addr,
-					t->output.paddr + offset_addr + i*t->set.ostride);
 			parent->buf0filled = false;
 		}
 	}
-	/*Down stripe or Down&Left stripe*/
+	/* Down stripe or Down&Left stripe */
 	else if ((stripe_mode == DOWN_STRIPE) ||
 			(stripe_mode == (DOWN_STRIPE | LEFT_STRIPE))) {
 		if (!parent->buf0filled) {
-			offset_addr = t->set.o_off + vdi_save_lines*t->set.ostride;
-			dmac_flush_range(base_off + offset_addr,
-					base_off + offset_addr + vdi_size);
-			outer_flush_range(t->output.paddr + offset_addr,
-					t->output.paddr + offset_addr + vdi_size);
+			offset_addr = t->set.o_off * pixwidth +
+				vdi_save_lines * t->set.ostride;
 
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(parent->vditmpbuf[0] + i*t->output.crop.w*2,
-						base_off + offset_addr + i*t->set.ostride,
-						t->output.crop.w*2);
+				memcpy(parent->vditmpbuf[0] + i * crop_width,
+						base_off + offset_addr + i * t->set.ostride,
+						crop_width);
 			parent->buf0filled = true;
-		} else {
-			offset_addr = t->set.o_off;
-			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(base_off + offset_addr + i*t->set.ostride,
-						parent->vditmpbuf[0] + i*t->output.crop.w*2,
-						t->output.crop.w*2);
 
-			dmac_flush_range(base_off + offset_addr,
-					base_off + offset_addr + i*t->set.ostride);
-			outer_flush_range(t->output.paddr + offset_addr,
-					t->output.paddr + offset_addr + i*t->set.ostride);
+		} else {
+			offset_addr = t->set.o_off * pixwidth;
+			for (i = 0; i < vdi_save_lines; i++)
+				memcpy(base_off + offset_addr + i * t->set.ostride,
+						parent->vditmpbuf[0] + i * crop_width,
+						crop_width);
+
 			parent->buf0filled = false;
 		}
 	}
-	/*Up&Right stripe*/
+	/* Up&Right stripe */
 	else if (stripe_mode == (UP_STRIPE | RIGHT_STRIPE)) {
 		if (!parent->buf1filled) {
-			offset_addr = t->set.o_off +
-				t->set.sp_setting.ud_split_line*t->set.ostride;
-			dmac_flush_range(base_off + offset_addr,
-					base_off + offset_addr + vdi_size);
-			outer_flush_range(t->output.paddr + offset_addr,
-					t->output.paddr + offset_addr + vdi_size);
+			offset_addr = t->set.o_off * pixwidth +
+				t->set.sp_setting.ud_split_line * t->set.ostride;
 
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(parent->vditmpbuf[1] + i*t->output.crop.w*2,
-						base_off + offset_addr + i*t->set.ostride,
-						t->output.crop.w*2);
+				memcpy(parent->vditmpbuf[1] + i * crop_width,
+						base_off + offset_addr + i * t->set.ostride,
+						crop_width);
 			parent->buf1filled = true;
 		} else {
-			offset_addr = t->set.o_off +
-				(t->output.crop.h - vdi_save_lines)*t->set.ostride;
+			offset_addr = t->set.o_off * pixwidth +
+				(t->output.crop.h - vdi_save_lines) * t->set.ostride;
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(base_off + offset_addr + i*t->set.ostride,
-						parent->vditmpbuf[1] + i*t->output.crop.w*2,
-						t->output.crop.w*2);
+				memcpy(base_off + offset_addr + i * t->set.ostride,
+						parent->vditmpbuf[1] + i * crop_width,
+						crop_width);
 
-			dmac_flush_range(base_off + offset_addr,
-					base_off + offset_addr + i*t->set.ostride);
-			outer_flush_range(t->output.paddr + offset_addr,
-					t->output.paddr + offset_addr + i*t->set.ostride);
 			parent->buf1filled = false;
 		}
 	}
-	/*Down stripe or Down&Right stript*/
+	/* Down stripe or Down&Right stript */
 	else if (stripe_mode == (DOWN_STRIPE | RIGHT_STRIPE)) {
 		if (!parent->buf1filled) {
-			offset_addr = t->set.o_off + vdi_save_lines*t->set.ostride;
-			dmac_flush_range(base_off + offset_addr,
-					base_off + offset_addr + vdi_save_lines*t->set.ostride);
-			outer_flush_range(t->output.paddr + offset_addr,
-					t->output.paddr + offset_addr + vdi_save_lines*t->set.ostride);
+			offset_addr = t->set.o_off * pixwidth +
+				vdi_save_lines * t->set.ostride;
 
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(parent->vditmpbuf[1] + i*t->output.crop.w*2,
-						base_off + offset_addr + i*t->set.ostride,
-						t->output.crop.w*2);
+				memcpy(parent->vditmpbuf[1] + i * crop_width,
+						base_off + offset_addr + i * t->set.ostride,
+						crop_width);
 			parent->buf1filled = true;
 		} else {
-			offset_addr = t->set.o_off;
+			offset_addr = t->set.o_off * pixwidth;
 			for (i = 0; i < vdi_save_lines; i++)
-				memcpy(base_off + offset_addr + i*t->set.ostride,
-						parent->vditmpbuf[1] + i*t->output.crop.w*2,
-						t->output.crop.w*2);
+				memcpy(base_off + offset_addr + i * t->set.ostride,
+						parent->vditmpbuf[1] + i * crop_width,
+						crop_width);
 
-			dmac_flush_range(base_off + offset_addr,
-					base_off + offset_addr + vdi_save_lines*t->set.ostride);
-			outer_flush_range(t->output.paddr + offset_addr,
-					t->output.paddr + offset_addr + vdi_save_lines*t->set.ostride);
 			parent->buf1filled = false;
 		}
 	}
+	if (!pfn_valid(t->output.paddr >> PAGE_SHIFT))
+		iounmap(base_off);
 }
 
 static void do_task_release(struct ipu_task_entry *t, int fail)
