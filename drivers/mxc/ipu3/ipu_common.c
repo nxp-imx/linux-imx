@@ -110,6 +110,17 @@ static inline int _ipu_is_primary_disp_chan(uint32_t dma_chan)
 		(dma_chan == 28) || (dma_chan == 41));
 }
 
+static inline int _ipu_is_sync_irq(uint32_t irq)
+{
+	/* sync interrupt register number */
+	int reg_num = irq / 32 + 1;
+
+	return ((reg_num == 1)  || (reg_num == 2)  || (reg_num == 3)  ||
+		(reg_num == 4)  || (reg_num == 7)  || (reg_num == 8)  ||
+		(reg_num == 11) || (reg_num == 12) || (reg_num == 13) ||
+		(reg_num == 14) || (reg_num == 15));
+}
+
 #define idma_is_valid(ch)	(ch != NO_DMA)
 #define idma_mask(ch)		(idma_is_valid(ch) ? (1UL << (ch & 0x1F)) : 0)
 #define idma_is_set(ipu, reg, dma)	(ipu_idmac_read(ipu, reg(dma)) & idma_mask(dma))
@@ -2464,23 +2475,40 @@ static irqreturn_t ipu_err_irq_handler(int irq, void *desc)
  * @param	ipu		ipu handler
  * @param       irq             Interrupt line to enable interrupt for.
  *
+ * @return      This function returns 0 on success or negative error code on
+ *              fail.
  */
-void ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq)
+int ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq)
 {
 	uint32_t reg;
 	unsigned long lock_flags;
+	int ret = 0;
 
 	_ipu_get(ipu);
 
 	spin_lock_irqsave(&ipu->int_reg_spin_lock, lock_flags);
 
+	/*
+	 * Check sync interrupt handler only, since we do nothing for
+	 * error interrupts but than print out register values in the
+	 * error interrupt source handler.
+	 */
+	if (_ipu_is_sync_irq(irq) && (ipu->irq_list[irq].handler == NULL)) {
+		dev_err(ipu->dev, "handler hasn't been registered on sync "
+				  "irq %d\n", irq);
+		ret = -EACCES;
+		goto out;
+	}
+
 	reg = ipu_cm_read(ipu, IPUIRQ_2_CTRLREG(irq));
 	reg |= IPUIRQ_2_MASK(irq);
 	ipu_cm_write(ipu, reg, IPUIRQ_2_CTRLREG(irq));
-
+out:
 	spin_unlock_irqrestore(&ipu->int_reg_spin_lock, lock_flags);
 
 	_ipu_put(ipu);
+
+	return ret;
 }
 EXPORT_SYMBOL(ipu_enable_irq);
 
