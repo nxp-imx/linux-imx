@@ -451,10 +451,12 @@ static int _clk_pll_enable(struct clk *clk)
 	}
 	/* Enable the PLL output now*/
 	reg = __raw_readl(pllbase);
+
+	/* If audio PLL is set to 24MHz, leave it in bypass mode. */
 	if (clk != &pll4_audio_main_clk || !audio_pll_bypass)
 		reg &= ~ANADIG_PLL_BYPASS;
-	else
-		reg |= ANADIG_PLL_ENABLE;
+
+	reg |= ANADIG_PLL_ENABLE;
 
 	__raw_writel(reg, pllbase);
 
