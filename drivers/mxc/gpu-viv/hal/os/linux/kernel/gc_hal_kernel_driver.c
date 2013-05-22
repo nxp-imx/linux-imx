@@ -1241,20 +1241,32 @@ static const struct of_device_id mxs_gpu_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, mxs_gpu_dt_ids);
 
 #ifdef CONFIG_PM
-int gpu_runtime_suspend(struct device *dev)
+static int gpu_runtime_suspend(struct device *dev)
 {
 	release_bus_freq(BUS_FREQ_HIGH);
 	return 0;
 }
 
-int gpu_runtime_resume(struct device *dev)
+static int gpu_runtime_resume(struct device *dev)
 {
 	request_bus_freq(BUS_FREQ_HIGH);
 	return 0;
 }
 
+static int gpu_system_suspend(struct device *dev)
+{
+	pm_message_t state={0};
+	return gpu_suspend(to_platform_device(dev), state);
+}
+
+static int gpu_system_resume(struct device *dev)
+{
+	return gpu_resume(to_platform_device(dev));
+}
+
 static const struct dev_pm_ops gpu_pm_ops = {
 	SET_RUNTIME_PM_OPS(gpu_runtime_suspend, gpu_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(gpu_system_suspend, gpu_system_resume)
 };
 #endif
 #endif
