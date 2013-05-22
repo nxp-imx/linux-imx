@@ -144,8 +144,8 @@ extern char *gp_reg_id;
 extern char *soc_reg_id;
 extern char *pu_reg_id;
 
-static int mma8451_position = 3;
-static int mag3110_position = 2;
+static int mma8451_position = 7;
+static int mag3110_position = 7;
 static struct clk *sata_clk;
 static int mipi_sensor;
 static int can0_enable;
