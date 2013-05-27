@@ -175,6 +175,7 @@ _IdentifyHardware(
         Identity->chipMinorFeatures1 = 0;
         Identity->chipMinorFeatures2 = 0;
         Identity->chipMinorFeatures3 = 0;
+        Identity->chipMinorFeatures4 = 0;
     }
     else
     {
@@ -206,13 +207,20 @@ _IdentifyHardware(
                 gckOS_ReadRegisterEx(Os, Core,
                                      0x00088,
                                      &Identity->chipMinorFeatures3));
+
+            /* Read chip minor featuress register #4. */
+            gcmkONERROR(
+                gckOS_ReadRegisterEx(Os, Core,
+                                     0x00094,
+                                     &Identity->chipMinorFeatures4));
         }
         else
         {
-            /* Chip doesn't has minor features register #1 or 2 or 3. */
+            /* Chip doesn't has minor features register #1 or 2 or 3 or 4. */
             Identity->chipMinorFeatures1 = 0;
             Identity->chipMinorFeatures2 = 0;
             Identity->chipMinorFeatures3 = 0;
+            Identity->chipMinorFeatures4 = 0;
         }
     }
 
@@ -233,12 +241,12 @@ _IdentifyHardware(
 
     /* Exception for GC1000, revision 5035 &  GC800, revision 4612 */
     if (((Identity->chipModel == gcv1000) && ((Identity->chipRevision == 0x5035)
-                                           || (Identity->chipRevision == 0x5036)))
+                                           || (Identity->chipRevision == 0x5036)
+                                           || (Identity->chipRevision == 0x5037)))
 	 || ((Identity->chipModel == gcv800) && (Identity->chipRevision == 0x4612)))
     {
         Identity->superTileMode = 1;
     }
-
 
 
 	/* Disable HZ when EZ is present for older chips. */
@@ -283,6 +291,10 @@ _IdentifyHardware(
     gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
                    "Identity: chipMinorFeatures3=0x%08X",
                    Identity->chipMinorFeatures3);
+
+    gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
+                   "Identity: chipMinorFeatures4=0x%08X",
+                   Identity->chipMinorFeatures4);
 
     /***************************************************************************
     ** Get chip specs.
@@ -575,7 +587,6 @@ OnError:
     return status;
 }
 
-#if gcdPOWER_MANAGEMENT
 static gceSTATUS
 _IsGPUPresent(
     IN gckHARDWARE Hardware
@@ -630,7 +641,6 @@ OnError:
     gcmkFOOTER();
     return status;
 }
-#endif
 
 /******************************************************************************\
 ****************************** gckHARDWARE API code *****************************
@@ -707,6 +717,7 @@ gckHARDWARE_Construct(
 
     case gcv300:
     case gcv320:
+    case gcv420:
         hardware->type = gcvHARDWARE_2D;
         /*set outstanding limit*/
         gcmkONERROR(gckOS_ReadRegisterEx(Os, Core, 0x00414, &axi_ot));
@@ -793,6 +804,9 @@ gckHARDWARE_Construct(
     hardware->linkQueue.rear = 0;
     hardware->linkQueue.count = 0;
 #endif
+
+    /* Enable power management by default. */
+    hardware->powerManagement = gcvTRUE;
 
     /* Return pointer to the gckHARDWARE object. */
     *Hardware = hardware;
@@ -1403,6 +1417,7 @@ gckHARDWARE_QueryChipIdentity(
     Identity->chipMinorFeatures1 = Hardware->identity.chipMinorFeatures1;
     Identity->chipMinorFeatures2 = Hardware->identity.chipMinorFeatures2;
     Identity->chipMinorFeatures3 = Hardware->identity.chipMinorFeatures3;
+    Identity->chipMinorFeatures4 = Hardware->identity.chipMinorFeatures4;
 
     /* Return chip specs. */
     Identity->streamCount            = Hardware->identity.streamCount;
@@ -3128,7 +3143,7 @@ gckHARDWARE_FlushMMU(
             | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 25:16) - (0 ? 25:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 25:16) - (0 ? 25:16) + 1))))))) << (0 ? 25:16))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 25:16) - (0 ? 25:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 25:16) - (0 ? 25:16) + 1))))))) << (0 ? 25:16)));
 
         buffer[9]
-            = (((((gctUINT32) (~0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 4:4) - (0 ? 4:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 4:4) - (0 ? 4:4) + 1))))))) << (0 ? 4:4))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 4:4) - (0 ? 4:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 4:4) - (0 ? 4:4) + 1))))))) << (0 ? 4:4))) &  ((((gctUINT32) (~0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 7:7) - (0 ? 7:7) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:7) - (0 ? 7:7) + 1))))))) << (0 ? 7:7))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 7:7) - (0 ? 7:7) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:7) - (0 ? 7:7) + 1))))))) << (0 ? 7:7))) );
+            = (((((gctUINT32) (~0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 4:4) - (0 ? 4:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 4:4) - (0 ? 4:4) + 1))))))) << (0 ? 4:4))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 4:4) - (0 ? 4:4) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 4:4) - (0 ? 4:4) + 1))))))) << (0 ? 4:4))) &  ((((gctUINT32) (~0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 7:7) - (0 ? 7:7) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:7) - (0 ? 7:7) + 1))))))) << (0 ? 7:7))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 7:7) - (0 ? 7:7) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:7) - (0 ? 7:7) + 1))))))) << (0 ? 7:7))));
 
         /* Arm the PE-FE Semaphore. */
         buffer[10]
@@ -3659,7 +3674,7 @@ typedef enum
 }
 gcePOWER_FLAGS;
 
-#if gcmIS_DEBUG(gcdDEBUG_TRACE) && gcdPOWER_MANAGEMENT
+#if gcmIS_DEBUG(gcdDEBUG_TRACE)
 static gctCONST_STRING
 _PowerEnum(gceCHIPPOWERSTATE State)
 {
@@ -3708,7 +3723,6 @@ gckHARDWARE_SetPowerManagementState(
     IN gceCHIPPOWERSTATE State
     )
 {
-#if gcdPOWER_MANAGEMENT
     gceSTATUS status;
     gckCOMMAND command = gcvNULL;
     gckOS os;
@@ -3839,6 +3853,12 @@ gckHARDWARE_SetPowerManagementState(
     gcmkVERIFY_OBJECT(Hardware->kernel, gcvOBJ_KERNEL);
     command = Hardware->kernel->command;
     gcmkVERIFY_OBJECT(command, gcvOBJ_COMMAND);
+
+    if (Hardware->powerManagement == gcvFALSE)
+    {
+        gcmkFOOTER_NO();
+        return gcvSTATUS_OK;
+    }
 
     /* Start profiler. */
     gcmkPROFILE_INIT(freq, time);
@@ -4490,10 +4510,6 @@ OnError:
     /* Return the status. */
     gcmkFOOTER();
     return status;
-#else /* gcdPOWER_MANAGEMENT */
-    /* Do nothing */
-    return gcvSTATUS_OK;
-#endif
 }
 
 /*******************************************************************************
@@ -4528,6 +4544,40 @@ gckHARDWARE_QueryPowerManagementState(
 
     /* Success. */
     gcmkFOOTER_ARG("*State=%d", *State);
+    return gcvSTATUS_OK;
+}
+
+/*******************************************************************************
+**
+**  gckHARDWARE_SetPowerManagement
+**
+**  Configure GPU power management function.
+**  Only used in driver initialization stage.
+**
+**  INPUT:
+**
+**      gckHARDWARE Harwdare
+**          Pointer to an gckHARDWARE object.
+**
+**      gctBOOL PowerManagement
+**          Power Mangement State.
+**
+*/
+gceSTATUS
+gckHARDWARE_SetPowerManagement(
+    IN gckHARDWARE Hardware,
+    IN gctBOOL PowerManagement
+    )
+{
+    gcmkHEADER_ARG("Hardware=0x%x", Hardware);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+
+    Hardware->powerManagement = PowerManagement;
+
+    /* Success. */
+    gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 }
 
@@ -4763,6 +4813,21 @@ OnError:
                              GC_DEBUG_SIGNALS_##block##_Address, \
                              &profiler->data))
 
+#define gcmkREAD_DEBUG_REGISTER_N(control, block, index, data) \
+    gcmkONERROR(\
+        gckOS_WriteRegisterEx(Hardware->os, \
+                              Hardware->core, \
+                              GC_DEBUG_CONTROL##control##_Address, \
+                              gcmSETFIELD(0, \
+                                          GC_DEBUG_CONTROL##control, \
+                                          block, \
+                                          index))); \
+    gcmkONERROR(\
+        gckOS_ReadRegisterEx(Hardware->os, \
+                             Hardware->core, \
+                             GC_DEBUG_SIGNALS_##block##_Address, \
+                             &data))
+
 #define gcmkRESET_DEBUG_REGISTER(control, block) \
     gcmkONERROR(\
         gckOS_WriteRegisterEx(Hardware->os, \
@@ -4853,6 +4918,9 @@ gckHARDWARE_QueryProfileRegisters(
 {
     gceSTATUS status;
     gcsPROFILER_COUNTERS * profiler = Counters;
+    gctUINT i, clock;
+    gctUINT32 colorKilled, colorDrawn, depthKilled, depthDrawn;
+    gctUINT32 totalRead, totalWrite;
 
     gcmkHEADER_ARG("Hardware=0x%x Counters=0x%x", Hardware, Counters);
 
@@ -4860,16 +4928,6 @@ gckHARDWARE_QueryProfileRegisters(
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
 
     /* Read the counters. */
-    gcmkONERROR(
-        gckOS_ReadRegisterEx(Hardware->os,
-                             Hardware->core,
-                             0x00040,
-                             &profiler->gpuTotalRead64BytesPerFrame));
-    gcmkONERROR(
-        gckOS_ReadRegisterEx(Hardware->os,
-                             Hardware->core,
-                             0x00044,
-                             &profiler->gpuTotalWrite64BytesPerFrame));
     gcmkONERROR(
         gckOS_ReadRegisterEx(Hardware->os,
                              Hardware->core,
@@ -4888,8 +4946,63 @@ gckHARDWARE_QueryProfileRegisters(
                              0x0007C,
                              &profiler->gpuIdleCyclesCounter));
 
-    if(Reset){
 
+    /* Read clock control register. */
+    gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                     Hardware->core,
+                                     0x00000,
+                                     &clock));
+
+    profiler->gpuTotalRead64BytesPerFrame = 0;
+    profiler->gpuTotalWrite64BytesPerFrame = 0;
+    profiler->pe_pixel_count_killed_by_color_pipe = 0;
+    profiler->pe_pixel_count_killed_by_depth_pipe = 0;
+    profiler->pe_pixel_count_drawn_by_color_pipe = 0;
+    profiler->pe_pixel_count_drawn_by_depth_pipe = 0;
+
+     /* Walk through all avaiable pixel pipes. */
+    for (i = 0; i < Hardware->identity.pixelPipes; ++i)
+    {
+        /* Select proper pipe. */
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                           Hardware->core,
+                                           0x00000,
+                                           ((((gctUINT32) (clock)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:20) - (0 ? 23:20) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:20) - (0 ? 23:20) + 1))))))) << (0 ? 23:20))) | (((gctUINT32) ((gctUINT32) (i) & ((gctUINT32) ((((1 ? 23:20) - (0 ? 23:20) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:20) - (0 ? 23:20) + 1))))))) << (0 ? 23:20)))));
+
+        /* BW */
+        gcmkONERROR(
+        gckOS_ReadRegisterEx(Hardware->os,
+                             Hardware->core,
+                             0x00040,
+                             &totalRead));
+        gcmkONERROR(
+        gckOS_ReadRegisterEx(Hardware->os,
+                             Hardware->core,
+                             0x00044,
+                             &totalWrite));
+
+        profiler->gpuTotalRead64BytesPerFrame += totalRead;
+        profiler->gpuTotalWrite64BytesPerFrame += totalWrite;
+
+        /* PE */
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470, ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16)))));gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00454, &colorKilled));
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470, ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16)))));gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00454, &depthKilled));
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470, ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (2) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16)))));gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00454, &colorDrawn));
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470, ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (3) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16)))));gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00454, &depthDrawn));
+
+        profiler->pe_pixel_count_killed_by_color_pipe += colorKilled;
+        profiler->pe_pixel_count_killed_by_depth_pipe += depthKilled;
+        profiler->pe_pixel_count_drawn_by_color_pipe += colorDrawn;
+        profiler->pe_pixel_count_drawn_by_depth_pipe += depthDrawn;
+    }
+
+    /* Reset clock control register. */
+    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                      Hardware->core,
+                                      0x00000,
+                                      clock));
+
+    if(Reset){
             /* Reset counters. */
             gcmkONERROR(
                 gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x0003C, 1));
@@ -4899,19 +5012,10 @@ gckHARDWARE_QueryProfileRegisters(
                 gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00438, 0));
             gcmkONERROR(
                 gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00078, 0));
-        }
-    /* PE */
-    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00454, &profiler->pe_pixel_count_killed_by_color_pipe));
-    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00454, &profiler->pe_pixel_count_killed_by_depth_pipe));
-    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (2) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00454, &profiler->pe_pixel_count_drawn_by_color_pipe));
-    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (3) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00454, &profiler->pe_pixel_count_drawn_by_depth_pipe));
-    if(Reset){     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (15) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) ));
+            gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (15) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) ));
 gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 23:16) - (0 ? 23:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ? 23:16)))
-)); }
+));
+    }
 
     /* SH */
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00470,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:24) - (0 ? 31:24) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:24) - (0 ? 31:24) + 1))))))) << (0 ? 31:24))) | (((gctUINT32) ((gctUINT32) (7) & ((gctUINT32) ((((1 ? 31:24) - (0 ? 31:24) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:24) - (0 ? 31:24) + 1))))))) << (0 ? 31:24))) ));

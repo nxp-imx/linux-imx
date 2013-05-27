@@ -170,6 +170,7 @@ gceSTATUS gckGALDEVICE_Construct(
     IN gctINT Signal,
     IN gctUINT LogFileSize,
     IN struct device *pdev,
+    IN gctINT PowerManagement,
     OUT gckGALDEVICE *Device
     );
 

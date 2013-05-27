@@ -36,12 +36,16 @@ extern "C" {
 #endif
 
 #ifndef GC_ENABLE_LOADTIME_OPT
-#define GC_ENABLE_LOADTIME_OPT      1
+#define GC_ENABLE_LOADTIME_OPT           1
 #endif
 
 #define TEMP_OPT_CONSTANT_TEXLD_COORD    1
 
-#define TEMP_SHADER_PATCH            1
+#define TEMP_SHADER_PATCH                1
+
+#define ADD_PRE_ROTATION_TO_VS           0
+
+#define TEMP_INLINE_ALL_EXPANSION            1
 /******************************* IR VERSION ******************/
 #define gcdSL_IR_VERSION gcmCC('\0','\0','\0','\1')
 
@@ -683,6 +687,13 @@ typedef enum _gceSHADER_FLAGS
     gcvSHADER_USE_ALPHA_KILL            = 0x100,
 #endif
 
+#if ADD_PRE_ROTATION_TO_VS
+    gcvSHADER_VS_PRE_ROTATION           = 0x200,
+#endif
+
+#if TEMP_INLINE_ALL_EXPANSION
+    gcvSHADER_INLINE_ALL_EXPANSION      = 0x200,
+#endif
 }
 gceSHADER_FLAGS;
 
@@ -771,10 +782,15 @@ typedef enum _gceSHADER_OPTIMIZATION
     /* optimize varying packing */
     gcvOPTIMIZATION_VARYINGPACKING              = 1 << 22,
 
+#if TEMP_INLINE_ALL_EXPANSION
+	gcvOPTIMIZATION_INLINE_ALL_EXPANSION        = 1 << 23,
+#endif
+
     /*  Full optimization. */
     /*  Note that gcvOPTIMIZATION_LOAD_SW_WORKAROUND is off. */
 	gcvOPTIMIZATION_FULL                        = 0x7FFFFFFF &
                                                   ~gcvOPTIMIZATION_LOAD_SW_WORKAROUND &
+                                                  ~gcvOPTIMIZATION_INLINE_ALL_EXPANSION &
                                                   ~gcvOPTIMIZATION_POWER_OPTIMIZATION,
 
 	/* Optimization Unit Test flag. */

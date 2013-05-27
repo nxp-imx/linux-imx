@@ -210,6 +210,9 @@ typedef struct _gcsHAL_QUERY_CHIP_IDENTITY
     /* Supported minor feature 3 fields. */
     gctUINT32                   chipMinorFeatures3;
 
+    /* Supported minor feature 4 fields. */
+    gctUINT32                   chipMinorFeatures4;
+
     /* Number of streams supported. */
     gctUINT32                   streamCount;
 
@@ -929,30 +932,30 @@ typedef struct _gcsHAL_INTERFACE
 
         struct _gcsHAL_GET_SHARED_INFO
         {
+            /* Process id. */
             IN gctUINT32            pid;
+
+            /* Data id. */
             IN gctUINT32            dataId;
-            /* gcuVIDMEM_NODE_PTR */
-            IN gctUINT64            node;
-            /* gctUINT8_PTR */
-            OUT gctUINT64           data;
-            /* fix size. gctUINT8_PTR*/
-            OUT gctUINT64           nodeData;
-            gctUINT64               size;
-            IN gceVIDMEM_NODE_SHARED_INFO_TYPE infoType;
+
+            /* Data size. */
+            IN gctSIZE_T            bytes;
+
+            /* Pointer to save the shared data. */
+            OUT gctPOINTER          data;
         }
         GetSharedInfo;
 
         struct _gcsHAL_SET_SHARED_INFO
         {
+            /* Data id. */
             IN gctUINT32            dataId;
-            /* gcuVIDMEM_NODE_PTR */
-            IN gctUINT64   node;
-            /* gctUINT8_PTR */
-            IN gctUINT64         data;
-            /* gctUINT8_PTR */
-            IN gctUINT64         nodeData;
-            IN gctUINT64            size;
-            IN gceVIDMEM_NODE_SHARED_INFO_TYPE infoType;
+
+            /* Data to be shared. */
+            IN gctPOINTER           data;
+
+            /* Data size. */
+            IN gctSIZE_T            bytes;
         }
         SetSharedInfo;
 

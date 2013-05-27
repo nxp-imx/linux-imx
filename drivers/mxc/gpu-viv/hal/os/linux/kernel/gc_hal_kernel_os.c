@@ -55,6 +55,7 @@ const char * _PLATFORM = "\n\0$PLATFORM$Linux$\n";
 #endif
 
 #define USER_SIGNAL_TABLE_LEN_INIT  64
+#define gcdSUPPRESS_OOM_MESSAGE 1
 
 #define MEMORY_LOCK(os) \
     gcmkVERIFY_OK(gckOS_AcquireMutex( \
@@ -83,6 +84,12 @@ const char * _PLATFORM = "\n\0$PLATFORM$Linux$\n";
 #elif !gcdNONPAGED_MEMORY_CACHEABLE
 #define gcmkIOREMAP                 ioremap_nocache
 #define gcmkNONPAGED_MEMROY_PROT(x) pgprot_noncached(x)
+#endif
+
+#if gcdSUPPRESS_OOM_MESSAGE
+#define gcdNOWARN __GFP_NOWARN
+#else
+#define gcdNOWARN 0
 #endif
 
 #define gcdINFINITE_TIMEOUT     (60 * 1000)
@@ -261,7 +268,7 @@ _CreateMdl(
 
     gcmkHEADER_ARG("ProcessID=%d", ProcessID);
 
-    mdl = (PLINUX_MDL)kzalloc(sizeof(struct _LINUX_MDL), GFP_KERNEL);
+    mdl = (PLINUX_MDL)kzalloc(sizeof(struct _LINUX_MDL), GFP_KERNEL | gcdNOWARN);
     if (mdl == gcvNULL)
     {
         gcmkFOOTER_NO();
@@ -322,7 +329,7 @@ _CreateMdlMap(
 
     gcmkHEADER_ARG("Mdl=0x%X ProcessID=%d", Mdl, ProcessID);
 
-    mdlMap = (PLINUX_MDL_MAP)kmalloc(sizeof(struct _LINUX_MDL_MAP), GFP_KERNEL);
+    mdlMap = (PLINUX_MDL_MAP)kmalloc(sizeof(struct _LINUX_MDL_MAP), GFP_KERNEL | gcdNOWARN);
     if (mdlMap == gcvNULL)
     {
         gcmkFOOTER_NO();
@@ -481,7 +488,7 @@ _NonContiguousAlloc(
 
     size = NumPages * sizeof(struct page *);
 
-    pages = kmalloc(size, GFP_KERNEL);
+    pages = kmalloc(size, GFP_KERNEL | gcdNOWARN);
 
     if (!pages)
     {
@@ -496,7 +503,7 @@ _NonContiguousAlloc(
 
     for (i = 0; i < NumPages; i++)
     {
-        p = alloc_page(GFP_KERNEL | __GFP_HIGHMEM);
+        p = alloc_page(GFP_KERNEL | __GFP_HIGHMEM | gcdNOWARN);
 
         if (!p)
         {
@@ -762,7 +769,7 @@ _AllocateIntegerId(
     int result;
 
 again:
-    if (idr_pre_get(&Database->idr, GFP_KERNEL) == 0)
+    if (idr_pre_get(&Database->idr, GFP_KERNEL | gcdNOWARN) == 0)
     {
         return gcvSTATUS_OUT_OF_MEMORY;
     }
@@ -954,7 +961,7 @@ gckOS_Construct(
     gcmkVERIFY_ARGUMENT(Os != gcvNULL);
 
     /* Allocate the gckOS object. */
-    os = (gckOS) kmalloc(gcmSIZEOF(struct _gckOS), GFP_KERNEL);
+    os = (gckOS) kmalloc(gcmSIZEOF(struct _gckOS), GFP_KERNEL | gcdNOWARN);
 
     if (os == gcvNULL)
     {
@@ -1171,7 +1178,7 @@ _CreateKernelVirtualMapping(
 
     if (Mdl->contiguous)
     {
-        pages = kmalloc(sizeof(struct page *) * numPages, GFP_KERNEL);
+        pages = kmalloc(sizeof(struct page *) * numPages, GFP_KERNEL | gcdNOWARN);
 
         if (!pages)
         {
@@ -1385,7 +1392,7 @@ gckOS_AllocateMemory(
     }
     else
     {
-        memory = (gctPOINTER) kmalloc(Bytes, GFP_KERNEL);
+        memory = (gctPOINTER) kmalloc(Bytes, GFP_KERNEL | gcdNOWARN);
     }
 
     if (memory == gcvNULL)
@@ -1904,7 +1911,7 @@ gckOS_AllocateNonPagedMemory(
         addr = dma_alloc_coherent(gcvNULL,
                 mdl->numPages * PAGE_SIZE,
                 &mdl->dmaHandle,
-                GFP_KERNEL);
+                GFP_KERNEL | gcdNOWARN);
     }
 #else
     size    = mdl->numPages * PAGE_SIZE;
@@ -1915,7 +1922,7 @@ gckOS_AllocateNonPagedMemory(
     if (page == gcvNULL)
 #endif
     {
-        page = alloc_pages(GFP_KERNEL, order);
+        page = alloc_pages(GFP_KERNEL | gcdNOWARN, order);
     }
 
     if (page == gcvNULL)
@@ -3848,6 +3855,9 @@ gckOS_AllocatePagedMemoryEx(
     gctSIZE_T bytes;
     gctBOOL locked = gcvFALSE;
     gceSTATUS status;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+    gctPOINTER addr = gcvNULL;
+#endif
 
     gcmkHEADER_ARG("Os=0x%X Contiguous=%d Bytes=%lu", Os, Contiguous, Bytes);
 
@@ -3873,13 +3883,27 @@ gckOS_AllocatePagedMemoryEx(
     {
         /* Get contiguous pages, and suppress warning (stack dump) from kernel when
            we run out of memory. */
-        mdl->u.contiguousPages =
-            alloc_pages(GFP_KERNEL | __GFP_NORETRY, GetOrder(numPages));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+        addr =
+            alloc_pages_exact(numPages * PAGE_SIZE, GFP_KERNEL | gcdNOWARN | __GFP_NORETRY);
 
+        mdl->u.contiguousPages = addr
+                               ? virt_to_page(addr)
+                               : gcvNULL;
+
+        mdl->exact = gcvTRUE;
+#else
+        mdl->u.contiguousPages =
+            alloc_pages(GFP_KERNEL | gcdNOWARN | __GFP_NORETRY, GetOrder(numPages));
+#endif
         if (mdl->u.contiguousPages == gcvNULL)
         {
             mdl->u.contiguousPages =
-                alloc_pages(GFP_KERNEL | __GFP_HIGHMEM, GetOrder(numPages));
+                alloc_pages(GFP_KERNEL | __GFP_HIGHMEM | gcdNOWARN, GetOrder(numPages));
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+            mdl->exact = gcvFALSE;
+#endif
         }
     }
     else
@@ -4024,7 +4048,16 @@ gckOS_FreePagedMemory(
 
     if (mdl->contiguous)
     {
-        __free_pages(mdl->u.contiguousPages, GetOrder(mdl->numPages));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+        if (mdl->exact == gcvTRUE)
+        {
+            free_pages_exact(page_address(mdl->u.contiguousPages), mdl->numPages * PAGE_SIZE);
+        }
+        else
+#endif
+        {
+            __free_pages(mdl->u.contiguousPages, GetOrder(mdl->numPages));
+        }
     }
     else
     {
@@ -4859,7 +4892,7 @@ gckOS_MapUserPointer(
     gcmkVERIFY_ARGUMENT(Size > 0);
     gcmkVERIFY_ARGUMENT(KernelPointer != gcvNULL);
 
-    buf = kmalloc(Size, GFP_KERNEL);
+    buf = kmalloc(Size, GFP_KERNEL | gcdNOWARN);
     if (buf == gcvNULL)
     {
         gcmkTRACE(
@@ -5274,7 +5307,7 @@ OnError:
         MEMORY_MAP_LOCK(Os);
 
         /* Allocate the Info struct. */
-        info = (gcsPageInfo_PTR)kmalloc(sizeof(gcsPageInfo), GFP_KERNEL);
+        info = (gcsPageInfo_PTR)kmalloc(sizeof(gcsPageInfo), GFP_KERNEL | gcdNOWARN);
 
         if (info == gcvNULL)
         {
@@ -5283,7 +5316,7 @@ OnError:
         }
 
         /* Allocate the array of page addresses. */
-        pages = (struct page **)kmalloc(pageCount * sizeof(struct page *), GFP_KERNEL);
+        pages = (struct page **)kmalloc(pageCount * sizeof(struct page *), GFP_KERNEL | gcdNOWARN);
 
         if (pages == gcvNULL)
         {
@@ -6502,7 +6535,7 @@ gckOS_CreateSemaphore(
     gcmkVERIFY_ARGUMENT(Semaphore != gcvNULL);
 
     /* Allocate the semaphore structure. */
-    sem = (struct semaphore *)kmalloc(gcmSIZEOF(struct semaphore), GFP_KERNEL);
+    sem = (struct semaphore *)kmalloc(gcmSIZEOF(struct semaphore), GFP_KERNEL | gcdNOWARN);
     if (sem == gcvNULL)
     {
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
@@ -6942,6 +6975,7 @@ gckOS_SetGPUPower(
 #else
         imx_gpc_power_up_pu(false);
 #endif
+
 	}
     /* TODO: Put your code here. */
     gcmkFOOTER_NO();
@@ -7255,7 +7289,7 @@ gckOS_CreateSignal(
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
 
     /* Create an event structure. */
-    signal = (gcsSIGNAL_PTR) kmalloc(sizeof(gcsSIGNAL), GFP_KERNEL);
+    signal = (gcsSIGNAL_PTR) kmalloc(sizeof(gcsSIGNAL), GFP_KERNEL | gcdNOWARN);
 
     if (signal == gcvNULL)
     {
@@ -8000,7 +8034,7 @@ gckOS_CreateSemaphoreVG(
     do
     {
         /* Allocate the semaphore structure. */
-        newSemaphore = (struct semaphore *)kmalloc(gcmSIZEOF(struct semaphore), GFP_KERNEL);
+    	newSemaphore = (struct semaphore *)kmalloc(gcmSIZEOF(struct semaphore), GFP_KERNEL | gcdNOWARN);
     	if (newSemaphore == gcvNULL)
     	{
         	gcmkERR_BREAK(gcvSTATUS_OUT_OF_MEMORY);

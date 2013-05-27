@@ -90,6 +90,8 @@ struct _gckHARDWARE
 #if gcdLINK_QUEUE_SIZE
     struct _gckLINKQUEUE        linkQueue;
 #endif
+
+    gctBOOL                     powerManagement;
 };
 
 gceSTATUS
