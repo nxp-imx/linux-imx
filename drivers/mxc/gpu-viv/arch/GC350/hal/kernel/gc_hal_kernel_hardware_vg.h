@@ -66,6 +66,8 @@ struct _gckVGHARDWARE
     gctTHREAD                   timeIdleThread;
     gctBOOL                     killThread;
     gctPOINTER                  pageTableDirty;
+
+    gctBOOL                     powerManagement;
 };
 
 #endif /* __gc_hal_kernel_hardware_h_ */

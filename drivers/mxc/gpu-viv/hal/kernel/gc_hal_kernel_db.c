@@ -1303,9 +1303,9 @@ gckKERNEL_DestroyProcessDB(
                            gcmPTR2INT(record->data), status);
             break;
 
-                    case gcvDB_SHARED_INFO:
-                        status = gckOS_FreeMemory(Kernel->os, record->physical);
-                        break;
+        case gcvDB_SHARED_INFO:
+            status = gckOS_FreeMemory(Kernel->os, record->physical);
+            break;
 
         default:
             gcmkTRACE_ZONE(gcvLEVEL_ERROR, gcvZONE_DATABASE,

@@ -323,50 +323,6 @@ gcoSURF_Resolve(
     IN gcoSURF DestSurface
     );
 
-/* Export the render target. */
-gceSTATUS
-gcoSURF_ExportRenderTarget(
-    IN gcoSURF SrcSurface
-);
-
-/* Import the render target. */
-gceSTATUS
-gcoSURF_ImportRenderTarget(
-    IN gctUINT32 Pid,
-    IN gcoSURF SrcSurface
-);
-
-/* Save the Resolve info to kernel. */
-gceSTATUS
-gcoSURF_PrepareRemoteResolveRect(
-    IN gcoSURF SrcSurface,
-    IN gcsPOINT_PTR SrcOrigin,
-    IN gcsPOINT_PTR DestOrigin,
-    IN gcsPOINT_PTR RectSize
-    );
-
-/* Resolve using the rectangle info previously saved in the vid mem node. */
-gceSTATUS
-gcoSURF_ResolveFromStoredRect(
-    IN gcoSURF SrcSurface,
-    IN gcoSURF DestSurface
-    );
-
-/* Using the info that Process Pid saved to do resolve. */
-gceSTATUS
-gcoSURF_RemoteResolveRect(
-    IN gcoSURF SrcSurface,
-    IN gcoSURF DestSurface,
-    IN gctBOOL *resolveDiscarded
-    );
-
-/* Return the "resolve submitted indicator" signal. */
-gceSTATUS
-gcoSURF_GetRTSignal(
-    IN gcoSURF RTSurface,
-    OUT gctSIGNAL * resolveSubmittedSignal
-    );
-
 /* Resolve rectangular area of a surface. */
 gceSTATUS
 gcoSURF_ResolveRect(
@@ -1684,6 +1640,12 @@ gcoTEXTURE_IsRenderable(
     );
 
 gceSTATUS
+gcoTEXTURE_IsRenderableEx(
+    IN gcoTEXTURE Texture,
+    IN gctUINT Level
+    );
+
+gceSTATUS
 gcoTEXTURE_IsComplete(
     IN gcoTEXTURE Texture,
     IN gctINT MaxLevel
@@ -2028,21 +1990,15 @@ gceSTATUS
 gcoHAL_GetSharedInfo(
     IN gctUINT32 Pid,
     IN gctUINT32 DataId,
-    OUT gctUINT8_PTR Data,
     IN gctSIZE_T Bytes,
-    IN gctUINT64 Node,
-    OUT gctUINT8_PTR NodeData,
-    IN gceVIDMEM_NODE_SHARED_INFO_TYPE SharedInfoType
+    OUT gctPOINTER Data
     );
 
 gceSTATUS
 gcoHAL_SetSharedInfo(
     IN gctUINT32 DataId,
-    IN gctUINT8_PTR Data,
-    IN gctSIZE_T Bytes,
-    IN gctUINT64 Node,
-    IN gctUINT8_PTR NodeData,
-    IN gceVIDMEM_NODE_SHARED_INFO_TYPE SharedInfoType
+    IN gctPOINTER Data,
+    IN gctSIZE_T Bytes
     );
 
 #ifdef __cplusplus

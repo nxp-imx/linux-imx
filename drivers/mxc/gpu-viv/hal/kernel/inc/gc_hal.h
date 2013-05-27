@@ -2072,6 +2072,12 @@ gckHARDWARE_QueryPowerManagementState(
     OUT gceCHIPPOWERSTATE* State
     );
 
+gceSTATUS
+gckHARDWARE_SetPowerManagement(
+    IN gckHARDWARE Hardware,
+    IN gctBOOL PowerManagement
+    );
+
 #if gcdENABLE_FSCALE_VAL_ADJUST
 gceSTATUS
 gckHARDWARE_SetFscaleValue(

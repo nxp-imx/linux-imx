@@ -904,9 +904,6 @@ gckKERNEL_Dispatch(
     gctSIGNAL   signal;
 #endif
 
-    gcsDATABASE_RECORD record;
-    gctPOINTER    data;
-
     gcmkHEADER_ARG("Kernel=0x%x FromUser=%d Interface=0x%x",
                    Kernel, FromUser, Interface);
 
@@ -1940,249 +1937,133 @@ gckKERNEL_Dispatch(
 #endif
 
     case gcvHAL_GET_SHARED_INFO:
-        bytes = (gctSIZE_T) Interface->u.GetSharedInfo.size;
-
-        if (Interface->u.GetSharedInfo.dataId != 0)
+        if (Interface->u.GetSharedInfo.data == gcvNULL)
         {
-            gcmkONERROR(gckKERNEL_FindProcessDB(Kernel,
-                        Interface->u.GetSharedInfo.pid,
-                        0,
-                        gcvDB_SHARED_INFO,
-                        gcmINT2PTR(Interface->u.GetSharedInfo.dataId),
-                        &record));
+            gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+        }
+        else
+        {
+            gctUINT32 pid    = Interface->u.GetSharedInfo.pid;
+            gctUINT32 dataId = Interface->u.GetSharedInfo.dataId;
+            gctSIZE_T bytes  = Interface->u.GetSharedInfo.bytes;
+            gctPOINTER data  = Interface->u.GetSharedInfo.data;
+            gcsDATABASE_RECORD record;
 
-            /* find a record in db, check size */
-            if (record.bytes != bytes)
+            /* Find record. */
+            gcmkONERROR(
+                gckKERNEL_FindProcessDB(Kernel,
+                                        pid,
+                                        0,
+                                        gcvDB_SHARED_INFO,
+                                        gcmINT2PTR(dataId),
+                                        &record));
+
+            /* Check memory size. */
+            if (bytes < record.bytes)
             {
-                /* Size change is not allowed */
-                gcmkONERROR(gcvSTATUS_INVALID_DATA);
+                /* Insufficient memory to hold shared data. */
+                gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
             }
 
-            /* fetch data */
-            gcmkONERROR(gckOS_CopyToUserData(
-                Kernel->os,
-                record.physical,
-                gcmUINT64_TO_PTR(Interface->u.GetSharedInfo.data),
-                bytes
-                ));
+            /* Copy to user. */
+            status = gckOS_CopyToUserData(Kernel->os,
+                                          record.physical,
+                                          data,
+                                          record.bytes);
 
-        }
-
-        if ((node = gcmUINT64_TO_PTR(Interface->u.GetSharedInfo.node)) != gcvNULL)
-        {
-            switch (Interface->u.GetSharedInfo.infoType)
-                {
-                case gcvVIDMEM_INFO_GENERIC:
-                    { /* Generic data stored */
-                        if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
-                        {
-                            data = &node->VidMem.sharedInfo;
-
-                        }
-                        else
-                        {
-                            data = &node->Virtual.sharedInfo;
-                        }
-
-                         gcmkONERROR(gckOS_CopyToUserData(
-                             Kernel->os,
-                             data,
-                             gcmUINT64_TO_PTR(Interface->u.GetSharedInfo.nodeData),
-                             sizeof(gcsVIDMEM_NODE_SHARED_INFO)
-                             ));
-                    }
-                    break;
-
-                case gcvVIDMEM_INFO_DIRTY_RECTANGLE:
-                    { /* Dirty rectangle stored */
-                        gcsVIDMEM_NODE_SHARED_INFO *storedSharedInfo;
-                        gcsVIDMEM_NODE_SHARED_INFO alignedSharedInfo;
-
-                        if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
-                        {
-                            storedSharedInfo = &node->VidMem.sharedInfo;
-                        }
-                        else
-                        {
-                            storedSharedInfo = &node->Virtual.sharedInfo;
-                        }
-
-                        /* Stored shared info holds the unaligned dirty rectangle.
-                           Align it first.                                         */
-
-                        /* Hardware requires 64-byte aligned address, and 16x4 pixel aligned rectsize.
-                           We simply align to 32 pixels which covers both 16- and 32-bpp formats. */
-
-                        /* Make sure we have a legit rectangle. */
-                        gcmkASSERT((storedSharedInfo->RectSize.width != 0) && (storedSharedInfo->RectSize.height != 0));
-
-                        alignedSharedInfo.SrcOrigin.x = gcmALIGN_BASE(storedSharedInfo->SrcOrigin.x, 32);
-                        alignedSharedInfo.RectSize.width = gcmALIGN((storedSharedInfo->RectSize.width + (storedSharedInfo->SrcOrigin.x - alignedSharedInfo.SrcOrigin.x)), 16);
-
-                        alignedSharedInfo.SrcOrigin.y = gcmALIGN_BASE(storedSharedInfo->SrcOrigin.y, 4);
-                        alignedSharedInfo.RectSize.height = gcmALIGN((storedSharedInfo->RectSize.height + (storedSharedInfo->SrcOrigin.y - alignedSharedInfo.SrcOrigin.y)), 4);
-
-                        gcmkONERROR(gckOS_CopyToUserData(
-                            Kernel->os,
-                            &alignedSharedInfo,
-                            gcmUINT64_TO_PTR(Interface->u.GetSharedInfo.nodeData),
-                            sizeof(gcsVIDMEM_NODE_SHARED_INFO)
-                            ));
-
-                        gcmkTRACE_ZONE(gcvLEVEL_VERBOSE, gcvZONE_KERNEL,
-                                        "Node = %p, unaligned rectangle (l=%d, t=%d, w=%d, h=%d) aligned to (l=%d, t=%d, w=%d, h=%d)", node,
-                                        storedSharedInfo->SrcOrigin.x, storedSharedInfo->SrcOrigin.y,
-                                        storedSharedInfo->RectSize.width, storedSharedInfo->RectSize.height,
-                                        alignedSharedInfo.SrcOrigin.x, alignedSharedInfo.SrcOrigin.y,
-                                        alignedSharedInfo.RectSize.width, alignedSharedInfo.RectSize.height);
-
-                        /* Rectangle */
-                        storedSharedInfo->SrcOrigin.x =
-                        storedSharedInfo->SrcOrigin.y =
-                        storedSharedInfo->RectSize.width =
-                        storedSharedInfo->RectSize.height = 0;
-                    }
-                    break;
-                }
+            /*
+             * Remove from process db.
+             * Every time when shared info is taken, the record is erased in
+             * kernel side.
+             */
+            gcmkVERIFY_OK(
+                gckKERNEL_RemoveProcessDB(Kernel,
+                                          pid,
+                                          gcvDB_SHARED_INFO,
+                                          gcmINT2PTR(dataId)));
+            /* Free existed data. */
+            gcmkVERIFY_OK(
+                gckOS_FreeMemory(Kernel->os, record.physical));
         }
         break;
 
     case gcvHAL_SET_SHARED_INFO:
-        bytes = (gctSIZE_T) Interface->u.SetSharedInfo.size;
-
-        if (Interface->u.SetSharedInfo.dataId != 0)
         {
-            status = gckKERNEL_FindProcessDB(Kernel, processID, 0,
-                        gcvDB_SHARED_INFO,
-                        gcmINT2PTR(Interface->u.SetSharedInfo.dataId),
-                        &record);
+            gctUINT32 dataId = Interface->u.SetSharedInfo.dataId;
+            gctPOINTER data  = Interface->u.SetSharedInfo.data;
+            gctUINT32 bytes  = Interface->u.SetSharedInfo.bytes;
+            gctPOINTER memory = gcvNULL;
+            gcsDATABASE_RECORD record;
 
-            if (status == gcvSTATUS_INVALID_DATA)
+            if (gcmIS_SUCCESS(gckKERNEL_FindProcessDB(Kernel,
+                                                     processID,
+                                                     0,
+                                                     gcvDB_SHARED_INFO,
+                                                     gcmINT2PTR(dataId),
+                                                     &record)))
             {
-                /* private data has not been created yet */
-                /* Note: we count on DestoryProcessDB to free it */
-                gcmkONERROR(gckOS_AllocateMemory(
-                    Kernel->os,
-                    bytes,
-                    &data
-                    ));
+                /* Find a record with the same id. */
+                if (bytes != record.bytes)
+                {
+                    /* Remove from process db. */
+                    gcmkVERIFY_OK(
+                        gckKERNEL_RemoveProcessDB(Kernel,
+                                                  processID,
+                                                  gcvDB_SHARED_INFO,
+                                                  gcmINT2PTR(dataId)));
 
+                    /* Free existed data. */
+                    gcmkVERIFY_OK(
+                        gckOS_FreeMemory(Kernel->os, record.physical));
+                }
+                else
+                {
+                    /* Re-use allocated memory. */
+                    memory = record.physical;
+                }
+            }
+
+            if ((data == gcvNULL) || (bytes == 0))
+            {
+                /* Nothing to record. */
+                break;
+            }
+
+            if (bytes > 1024)
+            {
+                /* Limite data size. */
+                gcmkONERROR(gcvSTATUS_TOO_COMPLEX);
+            }
+
+            if (memory == gcvNULL)
+            {
+                /* Allocate memory for holding shared data. */
                 gcmkONERROR(
-                    gckKERNEL_AddProcessDB(Kernel, processID,
-                        gcvDB_SHARED_INFO,
-                        gcmINT2PTR(Interface->u.SetSharedInfo.dataId),
-                        data,
-                        bytes
-                        ));
-            }
-            else
-            {
-                /* bail on other errors */
-                gcmkONERROR(status);
+                    gckOS_AllocateMemory(Kernel->os, bytes, &memory));
 
-                /* find a record in db, check size */
-                if (record.bytes != bytes)
+                /* Add to process db. */
+                status = gckKERNEL_AddProcessDB(Kernel,
+                                                processID,
+                                                gcvDB_SHARED_INFO,
+                                                gcmINT2PTR(dataId),
+                                                memory,
+                                                bytes);
+
+                if (gcmIS_ERROR(status))
                 {
-                    /* Size change is not allowed */
-                    gcmkONERROR(gcvSTATUS_INVALID_DATA);
-                }
-
-                /* get storage address */
-                data = record.physical;
-            }
-
-            gcmkONERROR(gckOS_CopyFromUserData(
-                Kernel->os,
-                data,
-                gcmUINT64_TO_PTR(Interface->u.SetSharedInfo.data),
-                bytes
-                ));
-        }
-
-        if ((node = gcmUINT64_TO_PTR(Interface->u.SetSharedInfo.node)) != gcvNULL)
-        {
-            switch (Interface->u.SetSharedInfo.infoType)
-                {
-                case gcvVIDMEM_INFO_GENERIC:
-                    { /* Generic data stored */
-                        if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
-                        {
-                            data = &node->VidMem.sharedInfo;
-                        }
-                        else
-                        {
-                            data = &node->Virtual.sharedInfo;
-                        }
-
-                        gcmkONERROR(gckOS_CopyFromUserData(
-                            Kernel->os,
-                            data,
-                            gcmUINT64_TO_PTR(Interface->u.SetSharedInfo.nodeData),
-                            sizeof(gcsVIDMEM_NODE_SHARED_INFO)
-                            ));
-                    }
-                    break;
-
-                case gcvVIDMEM_INFO_DIRTY_RECTANGLE:
-                    { /* Dirty rectangle stored */
-                        gcsVIDMEM_NODE_SHARED_INFO newSharedInfo;
-                        gcsVIDMEM_NODE_SHARED_INFO *currentSharedInfo;
-                        gctINT dirtyX, dirtyY, right, bottom;
-
-                        /* Expand the dirty rectangle stored in the node to include the rectangle passed in. */
-                        gcmkONERROR(gckOS_CopyFromUserData(
-                            Kernel->os,
-                            &newSharedInfo,
-                            gcmUINT64_TO_PTR(Interface->u.SetSharedInfo.nodeData),
-                            gcmSIZEOF(gcsVIDMEM_NODE_SHARED_INFO)
-                            ));
-
-                        if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
-                        {
-                            currentSharedInfo = &node->VidMem.sharedInfo;
-                        }
-                        else
-                        {
-                            currentSharedInfo = &node->Virtual.sharedInfo;
-                        }
-
-                        gcmkTRACE_ZONE(gcvLEVEL_VERBOSE, gcvZONE_KERNEL, "Node = %p Stored rectangle (l=%d, t=%d, w=%d, h=%d)", node,
-                                        currentSharedInfo->SrcOrigin.x, currentSharedInfo->SrcOrigin.y,
-                                        currentSharedInfo->RectSize.width, currentSharedInfo->RectSize.height);
-
-                        gcmkTRACE_ZONE(gcvLEVEL_VERBOSE, gcvZONE_KERNEL, "To combine with (l=%d, t=%d, w=%d, h=%d)",
-                                        newSharedInfo.SrcOrigin.x, newSharedInfo.SrcOrigin.y,
-                                        newSharedInfo.RectSize.width, newSharedInfo.RectSize.height);
-
-                        if ((currentSharedInfo->RectSize.width == 0) || (currentSharedInfo->RectSize.height == 0))
-                        { /* Setting it for the first time */
-                            currentSharedInfo->SrcOrigin.x = newSharedInfo.SrcOrigin.x;
-                            currentSharedInfo->SrcOrigin.y = newSharedInfo.SrcOrigin.y;
-                            currentSharedInfo->RectSize.width = newSharedInfo.RectSize.width;
-                            currentSharedInfo->RectSize.height = newSharedInfo.RectSize.height;
-                        }
-                        else
-                        {
-                            /* Expand the stored rectangle to include newly locked rectangle */
-                            dirtyX = (newSharedInfo.SrcOrigin.x < currentSharedInfo->SrcOrigin.x) ? newSharedInfo.SrcOrigin.x : currentSharedInfo->SrcOrigin.x;
-                            right = gcmMAX((currentSharedInfo->SrcOrigin.x + currentSharedInfo->RectSize.width), (newSharedInfo.SrcOrigin.x + newSharedInfo.RectSize.width));
-                            currentSharedInfo->RectSize.width = right - dirtyX;
-                            currentSharedInfo->SrcOrigin.x = dirtyX;
-
-                            dirtyY = (newSharedInfo.SrcOrigin.y < currentSharedInfo->SrcOrigin.y) ? newSharedInfo.SrcOrigin.y : currentSharedInfo->SrcOrigin.y;
-                            bottom = gcmMAX((currentSharedInfo->SrcOrigin.y + currentSharedInfo->RectSize.height), (newSharedInfo.SrcOrigin.y + newSharedInfo.RectSize.height));
-                            currentSharedInfo->RectSize.height = bottom - dirtyY;
-                            currentSharedInfo->SrcOrigin.y = dirtyY;
-                        }
-
-                        gcmkTRACE_ZONE(gcvLEVEL_VERBOSE, gcvZONE_KERNEL, "Combined rectangle (l=%d, t=%d, w=%d, h=%d)",
-                                       currentSharedInfo->SrcOrigin.x, currentSharedInfo->SrcOrigin.y,
-                                       currentSharedInfo->RectSize.width, currentSharedInfo->RectSize.height);
-                    }
+                    /* Failed to add process db. Free allocated memory. */
+                    gcmkVERIFY_OK(gckOS_FreeMemory(Kernel->os, memory));
                     break;
                 }
-        }
+            }
 
+            /* Copy shared data to kernel memory. */
+            gcmkONERROR(
+                gckOS_CopyFromUserData(Kernel->os,
+                                       memory,
+                                       data,
+                                       bytes));
+        }
         break;
 
     case gcvHAL_SET_FSCALE_VALUE:

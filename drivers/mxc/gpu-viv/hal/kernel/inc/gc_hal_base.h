@@ -74,7 +74,6 @@ typedef struct _gcsSYNC_CONTEXT  *      gcsSYNC_CONTEXT_PTR;
 /******************************************************************************\
 ******************************* Process local storage *************************
 \******************************************************************************/
-
 typedef struct _gcsPLS * gcsPLS_PTR;
 typedef struct _gcsPLS
 {
@@ -107,6 +106,7 @@ typedef struct _gcsPLS
 
     /* Reference count for destructor. */
     gcsATOM_PTR                 reference;
+    gctBOOL                     bKFS;
 #if gcdUSE_NPOT_PATCH
     gctBOOL                     bNeedSupportNP2Texture;
 #endif
@@ -123,7 +123,7 @@ extern gcsPLS gcPLS;
 typedef struct _gcsTLS * gcsTLS_PTR;
 
 typedef void (* gctTLS_DESTRUCTOR) (
-    gcsTLS_PTR TLS
+    gcsTLS_PTR
     );
 
 typedef struct _gcsTLS
@@ -658,8 +658,6 @@ gcoHAL_QueryChipFeature(
     IN gceFEATURE   Feature);
 
 #endif
-
-
 /******************************************************************************\
 ********************************** gcoOS Object *********************************
 \******************************************************************************/
@@ -1775,20 +1773,6 @@ gcoSURF_QueryVidMemNode(
     OUT gctUINT_PTR Bytes
     );
 
-/*  Set usage attribute of a surface. */
-gceSTATUS
-gcoSURF_SetUsage(
-    IN gcoSURF Surface,
-    IN gceSURF_USAGE Usage
-    );
-
-/*  Return usage attribute of a surface. */
-gceSTATUS
-gcoSURF_QueryUsage(
-    IN gcoSURF Surface,
-    OUT gceSURF_USAGE *Usage
-    );
-
 /* Set the color type of the surface. */
 gceSTATUS
 gcoSURF_SetColorType(
@@ -1975,6 +1959,14 @@ gcoSURF_SetWindow(
     IN gctUINT Height
     );
 
+/* Set width/height alignment of the surface directly and calculate stride/size. This is only for dri backend now. Please be careful before use. */
+gceSTATUS
+gcoSURF_SetAlignment(
+    IN gcoSURF Surface,
+    IN gctUINT Width,
+    IN gctUINT Height
+    );
+
 /* Increase reference count of the surface. */
 gceSTATUS
 gcoSURF_ReferenceSurface(
@@ -2006,6 +1998,12 @@ gceSTATUS
 gcoSURF_SetOffset(
     IN gcoSURF Surface,
     IN gctUINT Offset
+    );
+
+gceSTATUS
+gcoSURF_GetOffset(
+    IN gcoSURF Surface,
+    OUT gctUINT *Offset
     );
 
 gceSTATUS

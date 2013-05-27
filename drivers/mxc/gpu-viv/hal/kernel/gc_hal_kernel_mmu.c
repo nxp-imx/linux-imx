@@ -97,6 +97,14 @@ static gcsMirrorPageTable_PTR mirrorPageTable = gcvNULL;
 static gctPOINTER mirrorPageTableMutex = gcvNULL;
 #endif
 
+typedef struct _gcsDynamicSpaceNode * gcsDynamicSpaceNode_PTR;
+typedef struct _gcsDynamicSpaceNode
+{
+    gctUINT32       start;
+    gctINT32        entries;
+}
+gcsDynamicSpaceNode;
+
 static void
 _WritePageEntry(
     IN gctUINT32_PTR PageEntry,
@@ -482,30 +490,117 @@ OnError:
 }
 
 static gceSTATUS
+_FindDynamicSpace(
+    IN gckMMU Mmu,
+    OUT gcsDynamicSpaceNode_PTR *Array,
+    OUT gctINT * Size
+    )
+{
+    gceSTATUS status = gcvSTATUS_OK;
+    gctPOINTER pointer = gcvNULL;
+    gcsDynamicSpaceNode_PTR array = gcvNULL;
+    gctINT size = 0;
+    gctINT i = 0, nodeStart = -1, nodeEntries = 0;
+
+    /* Allocate memory for the array. */
+    gcmkONERROR(gckOS_Allocate(Mmu->os,
+                               gcmSIZEOF(*array) * (gcdMMU_MTLB_ENTRY_NUM / 2),
+                               &pointer));
+
+    array = (gcsDynamicSpaceNode_PTR)pointer;
+
+    /* Loop all the entries. */
+    while (i < gcdMMU_MTLB_ENTRY_NUM)
+    {
+        if (!Mmu->mtlbLogical[i])
+        {
+            if (nodeStart < 0)
+            {
+                /* This is the first entry of the dynamic space. */
+                nodeStart   = i;
+                nodeEntries = 1;
+            }
+            else
+            {
+                /* Other entries of the dynamic space. */
+                nodeEntries++;
+            }
+        }
+        else if (nodeStart >= 0)
+        {
+            /* Save the previous node. */
+            array[size].start   = nodeStart;
+            array[size].entries = nodeEntries;
+            size++;
+
+            /* Reset the start. */
+            nodeStart   = -1;
+            nodeEntries = 0;
+        }
+
+        i++;
+    }
+
+    /* Save the previous node. */
+    if (nodeStart >= 0)
+    {
+        array[size].start   = nodeStart;
+        array[size].entries = nodeEntries;
+        size++;
+    }
+
+#if gcdMMU_TABLE_DUMP
+    for (i = 0; i < size; i++)
+    {
+        gckOS_Print("%s(%d): [%d]: start=%d, entries=%d.\n",
+                __FUNCTION__, __LINE__,
+                i,
+                array[i].start,
+                array[i].entries);
+    }
+#endif
+
+    *Array = array;
+    *Size  = size;
+
+    return gcvSTATUS_OK;
+
+OnError:
+    if (pointer != gcvNULL)
+    {
+        gckOS_Free(Mmu->os, pointer);
+    }
+
+    return status;
+}
+
+static gceSTATUS
 _SetupDynamicSpace(
     IN gckMMU Mmu
     )
 {
     gceSTATUS status;
-    gctINT i;
+    gcsDynamicSpaceNode_PTR nodeArray = gcvNULL;
+    gctINT i, nodeArraySize = 0;
     gctUINT32 physical;
-    gctINT numEntries;
+    gctINT numEntries = 0;
     gctUINT32_PTR pageTable;
     gctBOOL acquired = gcvFALSE;
 
-    /* find the start of dynamic address space. */
-    for (i = 0; i < gcdMMU_MTLB_ENTRY_NUM; i++)
+    /* Find all the dynamic address space. */
+    gcmkONERROR(_FindDynamicSpace(Mmu, &nodeArray, &nodeArraySize));
+
+    /* TODO: We only use the largest one for now. */
+    for (i = 0; i < nodeArraySize; i++)
     {
-        if (!Mmu->mtlbLogical[i])
+        if (nodeArray[i].entries > numEntries)
         {
-            break;
+            Mmu->dynamicMappingStart = nodeArray[i].start;
+            numEntries               = nodeArray[i].entries;
         }
     }
 
-    Mmu->dynamicMappingStart = i;
-
-    /* Number of entries in Master TLB for dynamic mapping. */
-    numEntries = gcdMMU_MTLB_ENTRY_NUM - i;
+    gckOS_Free(Mmu->os, (gctPOINTER)nodeArray);
 
     Mmu->pageTableSize = numEntries * 4096;
 
@@ -545,7 +640,9 @@ _SetupDynamicSpace(
     acquired = gcvTRUE;
 
     /* Map to Master TLB. */
-    for (; i < gcdMMU_MTLB_ENTRY_NUM; i++)
+    for (i = (gctINT)Mmu->dynamicMappingStart;
+         i < (gctINT)Mmu->dynamicMappingStart + numEntries;
+         i++)
     {
         _WritePageEntry(Mmu->mtlbLogical + i,
                         physical
