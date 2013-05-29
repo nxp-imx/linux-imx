@@ -528,6 +528,20 @@ static long vpu_ioctl(struct file *filp, u_int cmd,
 		}
 		break;
 	}
+	case VPU_IOC_LOCK_DEV:
+		{
+			u32 lock_en;
+
+			if (get_user(lock_en, (u32 __user *) arg))
+				return -EFAULT;
+
+			if (lock_en)
+				mutex_lock(&vpu_data.lock);
+			else
+				mutex_unlock(&vpu_data.lock);
+
+			break;
+		}
 	default:
 		{
 			printk(KERN_ERR "No such IOCTL, cmd is %d\n", cmd);
