@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -61,7 +61,7 @@ static unsigned long _ipu_pixel_clk_get_rate(struct clk *clk)
 {
 	struct ipu_soc *ipu = pixelclk2ipu(clk);
 	u32 div;
-	u64 final_rate = clk_get_rate(clk->parent) * 16;
+	u64 final_rate = (unsigned long long)clk_get_rate(clk->parent) * 16;
 
 	_ipu_get(ipu);
 	div = ipu_di_read(ipu, clk->id, DI_BS_CLKGEN0);
@@ -1297,6 +1297,10 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 	msleep(5);
 	/* Get integer portion of divider */
 	div = clk_get_rate(clk_get_parent(&ipu->pixel_clk[disp])) / rounded_pixel_clk;
+	if (!div) {
+		dev_err(ipu->dev, "invalid pixel clk div = 0\n");
+		return -EINVAL;
+	}
 
 	mutex_lock(&ipu->mutex_lock);
 
