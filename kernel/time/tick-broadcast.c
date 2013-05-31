@@ -560,10 +560,8 @@ void tick_broadcast_oneshot_control(unsigned long reason)
 			 * nohz fixups.
 			 */
 			now = ktime_get();
-			if (dev->next_event.tv64 <= now.tv64) {
+			if (dev->next_event.tv64 <= now.tv64)
 				set_bit(cpu, tick_force_broadcast_mask);
-				goto out;
-			}
 			/*
 			 * We got woken by something else. Reprogram
 			 * the cpu local timer device.
