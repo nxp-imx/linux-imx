@@ -36,6 +36,7 @@ typedef struct _gcsiDEBUG_REGISTERS
 }
 gcsiDEBUG_REGISTERS;
 
+extern int gpu3DMinClock;
 /******************************************************************************\
 ********************************* Support Code *********************************
 \******************************************************************************/
@@ -4680,7 +4681,10 @@ gckHARDWARE_GetFscaleValue(
     )
 {
     *FscaleValue = Hardware->powerOnFscaleVal;
-    *MinFscaleValue = 1;
+    if ((gpu3DMinClock > 0) && (gpu3DMinClock <= 64) && (Hardware->core == gcvCORE_MAJOR))
+        *MinFscaleValue = gpu3DMinClock;
+    else
+        *MinFscaleValue = 1;
     *MaxFscaleValue = 64;
 
     return gcvSTATUS_OK;
