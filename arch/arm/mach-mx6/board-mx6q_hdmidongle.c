@@ -660,7 +660,7 @@ static void __init mx6q_hdmidongle_reserve(void)
 #if defined(CONFIG_MXC_GPU_VIV) || defined(CONFIG_MXC_GPU_VIV_MODULE)
 	if (imx6q_gpu_pdata.reserved_mem_size) {
 		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
-					   SZ_4K, SZ_1G);
+					   SZ_4K, SZ_2G);
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
 	}
@@ -676,8 +676,8 @@ static void __init mx6q_hdmidongle_reserve(void)
 	for (i = 0; i < ARRAY_SIZE(hdmidongle_fb_data); i++)
 		if (hdmidongle_fb_data[i].res_size[0]) {
 			/* reserve for background buffer */
-			phys = memblock_alloc(hdmidongle_fb_data[i].res_size[0],
-						SZ_4K);
+			phys = memblock_alloc_base(hdmidongle_fb_data[i].res_size[0],
+						SZ_4K, SZ_2G);
 			memblock_remove(phys, hdmidongle_fb_data[i].res_size[0]);
 			hdmidongle_fb_data[i].res_base[0] = phys;
 		}

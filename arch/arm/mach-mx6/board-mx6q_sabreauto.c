@@ -1865,6 +1865,9 @@ static void __init mx6q_reserve(void)
 	fb_array_size = ARRAY_SIZE(sabr_fb_data);
 	if (fb_array_size > 0 && sabr_fb_data[0].res_base[0] &&
 	    sabr_fb_data[0].res_size[0]) {
+		if (sabr_fb_data[0].res_base[0] > SZ_2G)
+			printk(KERN_INFO"UI Performance downgrade with FB phys address %x!\n",
+			    sabr_fb_data[0].res_base[0]);
 		memblock_reserve(sabr_fb_data[0].res_base[0],
 				 sabr_fb_data[0].res_size[0]);
 		memblock_remove(sabr_fb_data[0].res_base[0],
@@ -1876,8 +1879,8 @@ static void __init mx6q_reserve(void)
 	for (i = fb0_reserved; i < fb_array_size; i++)
 		if (sabr_fb_data[i].res_size[0]) {
 			/* Reserve for other background buffer. */
-			phys = memblock_alloc(sabr_fb_data[i].res_size[0],
-						SZ_4K);
+			phys = memblock_alloc_base(sabr_fb_data[i].res_size[0],
+						SZ_4K, SZ_2G);
 			memblock_remove(phys, sabr_fb_data[i].res_size[0]);
 			sabr_fb_data[i].res_base[0] = phys;
 		}
