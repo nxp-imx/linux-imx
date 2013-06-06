@@ -153,6 +153,7 @@ static int uart3_en;
 static int tuner_en;
 static int spinor_en;
 static int weimnor_en;
+static int caam_enabled;
 
 static int __init spinor_enable(char *p)
 {
@@ -1460,6 +1461,13 @@ static void __init fixup_mxc_board(struct machine_desc *desc, struct tag *tags,
 	}
 }
 
+static int __init caam_setup(char *__unused)
+{
+	caam_enabled = 1;
+	return 1;
+}
+early_param("caam", caam_setup);
+
 static int __init early_enable_mipi_sensor(char *p)
 {
 	mipi_sensor = 1;
@@ -1704,7 +1712,8 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_imx_snvs_rtc();
 
-	imx6q_add_imx_caam();
+	if (1 == caam_enabled)
+		imx6q_add_imx_caam();
 
 	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c1_data);
 	i2c_register_board_info(1, mxc_i2c1_board_info,
