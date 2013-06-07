@@ -1241,6 +1241,9 @@ fec_enet_close(struct net_device *dev)
 
 	/* Don't know what to do yet. */
 	fep->opened = 0;
+	if (fep->use_napi)
+		napi_disable(&fep->napi);
+
 	fec_stop(dev);
 
 	if (fep->phy_dev) {
