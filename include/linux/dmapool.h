@@ -22,10 +22,8 @@ void dma_pool_destroy(struct dma_pool *pool);
 void *dma_pool_alloc(struct dma_pool *pool, gfp_t mem_flags,
 		     dma_addr_t *handle);
 
-#ifdef CONFIG_FSL_UTP
 void *dma_pool_alloc_nonbufferable(struct dma_pool *pool, gfp_t mem_flags,
 		     dma_addr_t *handle);
-#endif
 
 void dma_pool_free(struct dma_pool *pool, void *vaddr, dma_addr_t addr);
 
