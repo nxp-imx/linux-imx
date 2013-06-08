@@ -212,7 +212,6 @@ static void pool_initialise_page(struct dma_pool *pool, struct dma_page *page)
 	} while (offset < pool->allocation);
 }
 
-#ifdef CONFIG_FSL_UTP
 static struct dma_page *pool_alloc_page_nonbufferable(struct dma_pool *pool, gfp_t mem_flags)
 {
 	struct dma_page *page;
@@ -236,7 +235,6 @@ static struct dma_page *pool_alloc_page_nonbufferable(struct dma_pool *pool, gfp
 	}
 	return page;
 }
-#endif
 
 static struct dma_page *pool_alloc_page(struct dma_pool *pool, gfp_t mem_flags)
 {
@@ -379,7 +377,6 @@ void *dma_pool_alloc(struct dma_pool *pool, gfp_t mem_flags,
 }
 EXPORT_SYMBOL(dma_pool_alloc);
 
-#ifdef CONFIG_FSL_UTP
 /**
  * dma_pool_alloc_nonbufferable - get a block of consistent memory
  * @pool: dma pool that will produce the block
@@ -439,7 +436,6 @@ void *dma_pool_alloc_nonbufferable(struct dma_pool *pool, gfp_t mem_flags,
 	return retval;
 }
 EXPORT_SYMBOL(dma_pool_alloc_nonbufferable);
-#endif
 
 static struct dma_page *pool_find_page(struct dma_pool *pool, dma_addr_t dma)
 {
