@@ -959,11 +959,8 @@ static struct ep_td_struct *fsl_build_dtd(struct fsl_req *req, unsigned *length,
 			(unsigned)EP_MAX_LENGTH_TRANSFER);
 	if (NEED_IRAM(req->ep))
 		*length = min(*length, g_iram_size);
-#ifdef CONFIG_FSL_UTP
+
 	dtd = dma_pool_alloc_nonbufferable(udc_controller->td_pool, GFP_ATOMIC, dma);
-#else
-	dtd = dma_pool_alloc(udc_controller->td_pool, GFP_ATOMIC, dma);
-#endif
 	if (dtd == NULL)
 		return dtd;
 
