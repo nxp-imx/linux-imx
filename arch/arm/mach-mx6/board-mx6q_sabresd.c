@@ -1768,6 +1768,8 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_imx_i2c(0, &mx6q_sabresd_i2c_data);
 	imx6q_add_imx_i2c(1, &mx6q_sabresd_i2c_data);
 	imx6q_add_imx_i2c(2, &mx6q_sabresd_i2c_data);
+	if (cpu_is_mx6dl())
+		imx6q_add_imx_i2c(3, &mx6q_sabresd_i2c_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
