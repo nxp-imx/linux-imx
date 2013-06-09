@@ -1371,11 +1371,11 @@ static void __init mx6q_sabrelite_reserve(void)
 	int i;
 
 #ifdef CONFIG_ANDROID_RAM_CONSOLE
-	phys = memblock_alloc_base(SZ_128K, SZ_4K, SZ_1G);
-	memblock_remove(phys, SZ_128K);
-	memblock_free(phys, SZ_128K);
+	phys = memblock_alloc_base(SZ_1M, SZ_4K, SZ_1G);
+	memblock_remove(phys, SZ_1M);
+	memblock_free(phys, SZ_1M);
 	ram_console_resource.start = phys;
-	ram_console_resource.end   = phys + SZ_128K - 1;
+	ram_console_resource.end   = phys + SZ_1M - 1;
 #endif
 
 #if defined(CONFIG_MXC_GPU_VIV) || defined(CONFIG_MXC_GPU_VIV_MODULE)

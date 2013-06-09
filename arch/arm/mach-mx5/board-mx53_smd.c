@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1465,10 +1465,10 @@ static void __init mx53_smd_reserve(void)
 	int i;
 
 #ifdef CONFIG_ANDROID_RAM_CONSOLE
-	phys = memblock_alloc(SZ_128K, SZ_4K);
-	memblock_remove(phys, SZ_128K);
+	phys = memblock_alloc(SZ_1M, SZ_4K);
+	memblock_remove(phys, SZ_1M);
 	ram_console_resource.start = phys;
-	ram_console_resource.end   = phys + SZ_128K - 1;
+	ram_console_resource.end   = phys + SZ_1M - 1;
 #endif
 
 	if (imx53_gpu_data.gmem_reserved_size) {
