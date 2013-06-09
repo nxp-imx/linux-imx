@@ -882,11 +882,7 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	},
 };
 
-static struct imxi2c_platform_data mx6_arm2_i2c0_data = {
-	.bitrate = 100000,
-};
-
-static struct imxi2c_platform_data mx6_arm2_i2c1_data = {
+static struct imxi2c_platform_data mx6_arm2_i2c_data = {
 	.bitrate = 100000,
 };
 
@@ -2160,8 +2156,8 @@ static void __init mx6_arm2_init(void)
 
 	imx6q_add_imx_caam();
 
-	imx6q_add_imx_i2c(0, &mx6_arm2_i2c0_data);
-	imx6q_add_imx_i2c(1, &mx6_arm2_i2c1_data);
+	imx6q_add_imx_i2c(0, &mx6_arm2_i2c_data);
+	imx6q_add_imx_i2c(1, &mx6_arm2_i2c_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
@@ -2173,6 +2169,8 @@ static void __init mx6_arm2_init(void)
 		i2c_register_board_info(2, mxc_i2c2_board_info,
 				ARRAY_SIZE(mxc_i2c2_board_info));
 	}
+	if (cpu_is_mx6dl())
+		imx6q_add_imx_i2c(3, &mx6_arm2_i2c_data);
 
 	/* SPI */
 	imx6q_add_ecspi(0, &mx6_arm2_spi_data);

@@ -5324,7 +5324,6 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("imx6q-ecspi.1", NULL, ecspi_clk[1]),
 	_REGISTER_CLOCK("imx6q-ecspi.2", NULL, ecspi_clk[2]),
 	_REGISTER_CLOCK("imx6q-ecspi.3", NULL, ecspi_clk[3]),
-	_REGISTER_CLOCK("imx6q-ecspi.4", NULL, ecspi_clk[4]),
 	_REGISTER_CLOCK(NULL, "emi_slow_clk", emi_slow_clk),
 	_REGISTER_CLOCK(NULL, "emi_clk", emi_clk),
 	_REGISTER_CLOCK(NULL, "enfc_clk", enfc_clk),
@@ -5382,6 +5381,11 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "apb_pclk", dummy_clk),
 };
 
+static struct
+clk_lookup imx6dl_i2c4 = _REGISTER_CLOCK("imx-i2c.3", NULL, ecspi_clk[4]);
+static struct
+clk_lookup imx6q_ecspi5 = _REGISTER_CLOCK("imx6q-ecspi.4", NULL, ecspi_clk[4]);
+
 static void clk_tree_init(void)
 
 {
@@ -5417,6 +5421,19 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	for (i = 0; i < ARRAY_SIZE(lookups); i++) {
 		clkdev_add(&lookups[i]);
 		clk_debug_register(lookups[i].clk);
+	}
+
+	/*
+	 * imx6q have 5 ecspi and 3 i2c
+	 * imx6dl have 4 ecspi and 4 i2c
+	 * imx6dl i2c4 use the imx6q ecspi5 clock source
+	 */
+	if (cpu_is_mx6dl()) {
+		clkdev_add(&imx6dl_i2c4);
+		clk_debug_register(imx6dl_i2c4.clk);
+	} else {
+		clkdev_add(&imx6q_ecspi5);
+		clk_debug_register(imx6q_ecspi5.clk);
 	}
 
 	/* Lower the ipg_perclk frequency to 22MHz.

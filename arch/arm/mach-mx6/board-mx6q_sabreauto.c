@@ -747,7 +747,7 @@ static struct imxi2c_platform_data mx6q_sabreauto_i2c2_data = {
 	.bitrate	= 400000,
 };
 
-static struct imxi2c_platform_data mx6q_sabreauto_i2c1_data = {
+static struct imxi2c_platform_data mx6q_sabreauto_i2c_data = {
 	.bitrate	= 100000,
 };
 
@@ -1650,12 +1650,15 @@ static void __init mx6_board_init(void)
 
 	imx6q_add_imx_caam();
 
-	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c1_data);
+	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c_data);
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	imx6q_add_imx_i2c(2, &mx6q_sabreauto_i2c2_data);
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
+	if (cpu_is_mx6dl())
+		imx6q_add_imx_i2c(3, &mx6q_sabreauto_i2c_data);
+
 
 	ret = gpio_request(SABREAUTO_PMIC_INT, "pFUZE-int");
 	if (ret) {
