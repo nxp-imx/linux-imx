@@ -1423,7 +1423,7 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 
 	/* wait current work finish */
 	if (vout->vbq.streaming)
-		cancel_work_sync(&vout->disp_work);
+		flush_workqueue(vout->v4l_wq);
 
 	mutex_lock(&vout->task_lock);
 
@@ -1577,7 +1577,7 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
 
 	/* wait current work finish */
 	if (vout->vbq.streaming)
-		cancel_work_sync(&vout->disp_work);
+		flush_workqueue(vout->v4l_wq);
 
 	mutex_lock(&vout->task_lock);
 	switch (ctrl->id) {
