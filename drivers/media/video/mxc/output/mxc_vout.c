@@ -737,14 +737,18 @@ vdi_frame_rate_double:
 	if (vout->pre2_vb) {
 		vout->pre2_vb->state = VIDEOBUF_DONE;
 		wake_up_interruptible(&vout->pre2_vb->done);
+		vout->pre2_vb = NULL;
 	}
 
 	if (vout->linear_bypass_pp) {
 		vout->pre2_vb = vout->pre1_vb;
 		vout->pre1_vb = vb;
 	} else {
-		vout->pre1_vb = NULL;
-		vout->pre2_vb = NULL;
+		if (vout->pre1_vb) {
+			vout->pre1_vb->state = VIDEOBUF_DONE;
+			wake_up_interruptible(&vout->pre1_vb->done);
+			vout->pre1_vb = NULL;
+		}
 		vb->state = VIDEOBUF_DONE;
 		wake_up_interruptible(&vb->done);
 	}
