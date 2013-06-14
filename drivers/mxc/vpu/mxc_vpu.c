@@ -126,7 +126,7 @@ static int vpu_alloc_dma_buffer(struct vpu_mem_desc *mem)
 	mem->cpu_addr = (unsigned long)
 	    dma_alloc_coherent(NULL, PAGE_ALIGN(mem->size),
 			       (dma_addr_t *) (&mem->phy_addr),
-			       GFP_DMA | GFP_KERNEL);
+			       GFP_DMA | GFP_KERNEL | __GFP_NOFAIL);
 	pr_debug("[ALLOC] mem alloc cpu_addr = 0x%x\n", mem->cpu_addr);
 	if ((void *)(mem->cpu_addr) == NULL) {
 		printk(KERN_ERR "Physical memory allocation error!\n");
