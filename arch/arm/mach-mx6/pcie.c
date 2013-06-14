@@ -245,7 +245,7 @@ static int __init imx_pcie_setup(int nr, struct pci_sys_data *sys)
 	pp->io_space_name[sizeof(pp->io_space_name) - 1] = 0;
 	pp->res[0].name = pp->io_space_name;
 	if (pp->index == 0) {
-		pp->res[0].start = PCIE_ARB_BASE_ADDR;
+		pp->res[0].start = PCIE_ARB_BASE_ADDR + SZ_16M - SZ_2M;
 		pp->res[0].end = pp->res[0].start + SZ_1M - 1;
 	}
 	pp->res[0].flags = IORESOURCE_IO;
@@ -261,7 +261,7 @@ static int __init imx_pcie_setup(int nr, struct pci_sys_data *sys)
 	pp->mem_space_name[sizeof(pp->mem_space_name) - 1] = 0;
 	pp->res[1].name = pp->mem_space_name;
 	if (pp->index == 0) {
-		pp->res[1].start = PCIE_ARB_BASE_ADDR + SZ_1M;
+		pp->res[1].start = PCIE_ARB_BASE_ADDR;
 		pp->res[1].end = pp->res[1].start + SZ_16M - SZ_2M - 1;
 	}
 	pp->res[1].flags = IORESOURCE_MEM;
@@ -336,8 +336,8 @@ static void imx_pcie_regions_setup(struct device *dev, void __iomem *dbi_base)
 	 * with sizes and offsets as follows:
 	 *
 	 * RC:
-	 * 0x0100_0000 --- 0x010F_FFFF 1MB IORESOURCE_IO
-	 * 0x0110_0000 --- 0x01EF_FFFF 14MB IORESOURCE_MEM
+	 * 0x0100_0000 --- 0x01DF_FFFF 14MB IORESOURCE_MEM
+	 * 0x01E0_0000 --- 0x01EF_FFFF 1MB IORESOURCE_IO
 	 * 0x01F0_0000 --- 0x01FF_FFFF 1MB Cfg + MSI + Registers
 	 *
 	 * EP (default value):
@@ -352,6 +352,44 @@ static void imx_pcie_regions_setup(struct device *dev, void __iomem *dbi_base)
 			dbi_base + PCI_COMMAND);
 
 	if (pdata->type_ep) {
+		/*
+		 * configure the class_rev(emaluate one memory ram ep device),
+		 * bar0 and bar1 of ep
+		 */
+		writel(0xdeadbeaf, dbi_base + PCI_VENDOR_ID);
+		writel(readl(dbi_base + PCI_CLASS_REVISION)
+				| (PCI_CLASS_MEMORY_RAM	<< 16),
+				dbi_base + PCI_CLASS_REVISION);
+		writel(0xdeadbeaf, dbi_base + PCI_SUBSYSTEM_VENDOR_ID);
+
+		/* 32bit none-prefetchable 8M bytes memory on bar0 */
+		writel(0x0, dbi_base + PCI_BASE_ADDRESS_0);
+		writel(SZ_8M - 1, dbi_base + (1 << 12) + PCI_BASE_ADDRESS_0);
+
+		/* None used bar1 */
+		writel(0x0, dbi_base + PCI_BASE_ADDRESS_1);
+		writel(0, dbi_base + (1 << 12) + PCI_BASE_ADDRESS_1);
+
+		/* 4K bytes IO on bar2 */
+		writel(0x1, dbi_base + PCI_BASE_ADDRESS_2);
+		writel(SZ_4K - 1, dbi_base + (1 << 12) + PCI_BASE_ADDRESS_2);
+
+		/*
+		 * 32bit prefetchable 1M bytes memory on bar3
+		 * FIXME BAR MASK3 is not changable, the size
+		 * is fixed to 256 bytes.
+		 */
+		writel(0x8, dbi_base + PCI_BASE_ADDRESS_3);
+		writel(SZ_1M - 1, dbi_base + (1 << 12) + PCI_BASE_ADDRESS_3);
+
+		/*
+		 * 64bit prefetchable 1M bytes memory on bar4-5.
+		 * FIXME BAR4,5 are not enabled yet
+		 */
+		writel(0xc, dbi_base + PCI_BASE_ADDRESS_4);
+		writel(SZ_1M - 1, dbi_base + (1 << 12) + PCI_BASE_ADDRESS_4);
+		writel(0, dbi_base + (1 << 12) + PCI_BASE_ADDRESS_5);
+
 		/*
 		 * region0 outbound used to access RC's reserved ddr memory
 		 */
