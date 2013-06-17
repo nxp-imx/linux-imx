@@ -3886,7 +3886,7 @@ gckOS_AllocatePagedMemoryEx(
         if (mdl->u.contiguousPages == gcvNULL)
         {
             mdl->u.contiguousPages =
-                alloc_pages(GFP_KERNEL | __GFP_HIGHMEM, GetOrder(numPages));
+                alloc_pages(GFP_KERNEL | __GFP_HIGHMEM | gcdNOWARN, GetOrder(numPages));
         }
     }
     else
