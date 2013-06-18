@@ -3921,8 +3921,8 @@ static int _clk_emi_set_parent(struct clk *clk, struct clk *parent)
 	int mux;
 	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & ~MXC_CCM_CSCMR1_ACLK_EMI_MASK;
 
-	mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
-			&pll2_pfd_400M, &pll2_pfd_352M, NULL, NULL);
+	mux = _get_mux6(parent, &pll2_pfd_400M, &pll3_usb_otg_main_clk,
+			&axi_clk, &pll2_pfd_352M, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_ACLK_EMI_OFFSET);
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -5436,14 +5436,6 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		clk_debug_register(imx6q_ecspi5.clk);
 	}
 
-	/* Lower the ipg_perclk frequency to 22MHz.
-	  * I2C needs a minimum of 12.8MHz as its source
-	  * to acheive 400KHz speed. IPG_PERCLK sources
-	  * I2C. 22MHz when divided by the I2C divider gives the
-	  * freq closest to 400KHz.
-	  */
-	clk_set_rate(&ipg_perclk, 22000000);
-
 	/* Timer needs to be initialized first as the
 	  * the WAIT routines use GPT counter as
 	  * a delay.
@@ -5460,6 +5452,15 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	mxc_timer_init(&gpt_clk[0], timer_base, MXC_INT_GPT);
 
 	clk_tree_init();
+
+	/*
+	 * Lower the ipg_perclk frequency to 22MHz.
+	 * I2C needs a minimum of 12.8MHz as its source
+	 * to acheive 400KHz speed. IPG_PERCLK sources
+	 * I2C. 22MHz when divided by the I2C divider gives the
+	 * freq closest to 400KHz.
+	 */
+	clk_set_rate(&ipg_perclk, 22000000);
 
 #ifdef CONFIG_MX6_VPU_352M
 	if (cpu_is_mx6q()) {
