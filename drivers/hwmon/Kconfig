@@ -1419,14 +1419,12 @@ config SENSORS_MAG3110
 	  This driver can also be built as a module.  If so, the module
 	  will be called mag3110.
 
-config MXC_MMA8450
-	tristate "MMA8450 device driver"
-	depends on I2C
-	default y
-
-config MXC_MMA8451
-	tristate "MMA8451 device driver"
-	depends on I2C
-	default y
+config SENSORS_MMA8X5X
+	tristate "MMA8451/MMA8452/MMA8453/MMA8652/MMA8653 device driver"
+	depends on I2C && SYSFS
+	default n
+	help
+	  If you say yes here you get support for the Freescale
+	  MMA8451/MMA8452/MMA8453/MMA8652/MMA8653 sensors.
 
 endif # HWMON
