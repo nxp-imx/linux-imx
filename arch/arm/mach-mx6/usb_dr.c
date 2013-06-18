@@ -37,6 +37,8 @@ static void _dr_discharge_line(bool enable);
 extern bool usb_icbug_swfix_need(void);
 static void enter_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, \
 								bool enable);
+static u32 wakeup_irq_enable_src; /* only useful at otg mode */
+static u32 low_power_enable_src; /* only useful at otg mode */
 
 /* The usb_phy1_clk do not have enable/disable function at clock.c
  * and PLL output for usb1's phy should be always enabled.
@@ -162,6 +164,8 @@ static int usbotg_init_ext(struct platform_device *pdev)
 		return ret;
 	}
 	if (!otg_used) {
+		wakeup_irq_enable_src = 0;
+		low_power_enable_src = 0;
 		usb_phy_enable(pdev->dev.platform_data);
 		enter_phy_lowpower_suspend(pdev->dev.platform_data, false);
 		/*after the phy reset,can not read the readingvalue for id/vbus at
@@ -225,7 +229,6 @@ static void _dr_discharge_line(bool enable)
 /* Below two macros are used at otg mode to indicate usb mode*/
 #define ENABLED_BY_HOST   (0x1 << 0)
 #define ENABLED_BY_DEVICE (0x1 << 1)
-static u32 low_power_enable_src; /* only useful at otg mode */
 static void enter_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
@@ -322,7 +325,6 @@ static void otg_wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable
 	}
 }
 
-static u32 wakeup_irq_enable_src; /* only useful at otg mode */
 static void __wakeup_irq_enable(struct fsl_usb2_platform_data *pdata, bool on, int source)
  {
 	/* otg host and device share the OWIE bit, only when host and device
