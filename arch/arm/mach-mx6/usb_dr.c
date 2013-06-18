@@ -519,6 +519,7 @@ static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enabl
 {
 	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
 	__wakeup_irq_enable(pdata, enable, ENABLED_BY_HOST);
+#ifdef CONFIG_USB_OTG
 	if (enable) {
 		pr_debug("host wakeup enable\n");
 		USB_OTG_CTRL |= UCTRL_WKUP_ID_EN;
@@ -532,6 +533,7 @@ static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enabl
 		udelay(100);
 	}
 	pr_debug("the otgsc is 0x%x, usbsts is 0x%x, portsc is 0x%x, otgctrl: 0x%x\n", UOG_OTGSC, UOG_USBSTS, UOG_PORTSC1, USB_OTG_CTRL);
+#endif
 }
 
 static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
