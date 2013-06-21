@@ -3934,8 +3934,8 @@ static unsigned long _clk_emi_get_rate(struct clk *clk)
 	u32 reg, div;
 
 	reg = __raw_readl(MXC_CCM_CSCMR1);
-	div = ((reg & MXC_CCM_CSCMR1_ACLK_EMI_PODF_MASK) >>
-			MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET) + 1;
+	div = (((reg & MXC_CCM_CSCMR1_ACLK_EMI_PODF_MASK) >>
+			MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET)^0x6) + 1;
 
 	return clk_get_rate(clk->parent) / div;
 }
@@ -5504,8 +5504,11 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
 
 	clk_set_parent(&emi_clk, &pll2_pfd_400M);
-	clk_set_rate(&emi_clk, 200000000);
-
+#ifdef CONFIG_MX6_VPU_352M
+	clk_set_rate(&emi_clk, 176000000);
+#else
+	clk_set_rate(&emi_clk, 198000000);
+#endif
 	/*
 	* on mx6dl, 2d core clock sources from 3d shader core clock,
 	* but 3d shader clock multiplexer of mx6dl is different from
