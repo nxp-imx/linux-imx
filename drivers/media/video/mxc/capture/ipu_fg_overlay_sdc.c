@@ -396,6 +396,7 @@ static int foreground_start(void *private)
 	fbvar.yres = cam->win.w.height;
 	fbvar.yres_virtual = cam->win.w.height * 2;
 	fbvar.yoffset = 0;
+	fbvar.vmode &= ~FB_VMODE_YWRAP;
 	fbvar.accel_flags = FB_ACCEL_DOUBLE_FLAG;
 	fbvar.activate |= FB_ACTIVATE_FORCE;
 	fb_set_var(fbi, &fbvar);
