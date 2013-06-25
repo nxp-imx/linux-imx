@@ -123,7 +123,7 @@ void mx6q_vpu_reset(void)
 	 __raw_writel(reg, src_base + 0x18);
 
 	reg = __raw_readl(src_base);
-	reg |= 0x5;    /* warm reset vpu */
+	reg |= 0x4;    /* warm reset vpu */
 	__raw_writel(reg, src_base);
 	while (__raw_readl(src_base) & 0x04)
 		;
