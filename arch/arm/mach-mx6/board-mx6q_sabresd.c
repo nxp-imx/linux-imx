@@ -210,7 +210,7 @@
 
 static struct clk *sata_clk;
 static struct clk *clko;
-static int mma8451_position;
+static int mma8x5x_position;
 static int mag3110_position = 1;
 static int max11801_mode = 1;
 static int caam_enabled;
@@ -817,8 +817,8 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 		.platform_data = (void *)&camera_data,
 	},
 	{
-		I2C_BOARD_INFO("mma8451", 0x1c),
-		.platform_data = (void *)&mma8451_position,
+		I2C_BOARD_INFO("mma8x5x", 0x1c),
+		.platform_data = (void *)&mma8x5x_position,
 	},
 };
 
