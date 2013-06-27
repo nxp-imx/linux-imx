@@ -53,6 +53,7 @@
 #include "error.h"
 #include "sg_sw_sec4.h"
 #include "key_gen.h"
+#include <linux/string.h>
 
 /*
  * crypto alg
@@ -577,10 +578,15 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 	/* Propagate errors from shared to job descriptor */
 	append_cmd(desc, SET_OK_NO_PROP_ERRORS | CMD_LOAD);
 
-	/* Load iv */
-	append_cmd(desc, CMD_SEQ_LOAD | LDST_SRCDST_BYTE_CONTEXT |
-		   LDST_CLASS_1_CCB | tfm->ivsize);
-
+	/* load IV */
+	if (strncmp(ablkcipher->base.__crt_alg->cra_name, "ctr(aes)", 8) == 0) {
+		append_cmd(desc, CMD_SEQ_LOAD | LDST_SRCDST_BYTE_CONTEXT |
+			LDST_CLASS_1_CCB | tfm->ivsize |
+			(16 << LDST_OFFSET_SHIFT));
+	} else {
+		append_cmd(desc, CMD_SEQ_LOAD | LDST_SRCDST_BYTE_CONTEXT |
+				    LDST_CLASS_1_CCB | tfm->ivsize);
+	}
 	/* Load operation */
 	append_operation(desc, ctx->class1_alg_type |
 			 OP_ALG_AS_INITFINAL | OP_ALG_ENCRYPT);
@@ -624,11 +630,20 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 	set_jump_tgt_here(desc, jump_cmd);
 
 	/* load IV */
-	append_cmd(desc, CMD_SEQ_LOAD | LDST_SRCDST_BYTE_CONTEXT |
-		   LDST_CLASS_1_CCB | tfm->ivsize);
+	if (strncmp(ablkcipher->base.__crt_alg->cra_name, "ctr(aes)", 8) == 0) {
+		append_cmd(desc, CMD_SEQ_LOAD | LDST_SRCDST_BYTE_CONTEXT |
+			LDST_CLASS_1_CCB | tfm->ivsize |
+			(16 << LDST_OFFSET_SHIFT));
 
-	/* Choose operation */
-	append_dec_op1(desc, ctx->class1_alg_type);
+		append_operation(desc, ctx->class1_alg_type |
+			OP_ALG_AS_INITFINAL | OP_ALG_DECRYPT);
+	} else {
+		append_cmd(desc, CMD_SEQ_LOAD | LDST_SRCDST_BYTE_CONTEXT |
+				    LDST_CLASS_1_CCB | tfm->ivsize);
+
+		/* Choose operation */
+		append_dec_op1(desc, ctx->class1_alg_type);
+	}
 
 	/* Perform operation */
 	ablkcipher_append_src_dst(desc);
@@ -2031,6 +2046,22 @@ static struct caam_alg_template driver_algs[] = {
 		.alg_op = OP_ALG_ALGSEL_SHA512 | OP_ALG_AAI_HMAC,
 	},
 	/* ablkcipher descriptor */
+	{
+		.name = "ctr(aes)",
+		.driver_name = "ctr-aes-caam",
+		.blocksize = AES_BLOCK_SIZE,
+		.type = CRYPTO_ALG_TYPE_ABLKCIPHER,
+		.template_ablkcipher = {
+			.setkey = ablkcipher_setkey,
+			.encrypt = ablkcipher_encrypt,
+			.decrypt = ablkcipher_decrypt,
+			.geniv = "eseqiv",
+			.min_keysize = AES_MIN_KEY_SIZE,
+			.max_keysize = AES_MAX_KEY_SIZE,
+			.ivsize = AES_BLOCK_SIZE,
+			},
+		.class1_alg_type = OP_ALG_ALGSEL_AES | OP_ALG_AAI_CTR_MOD128,
+	},
 	{
 		.name = "cbc(aes)",
 		.driver_name = "cbc-aes-caam",
