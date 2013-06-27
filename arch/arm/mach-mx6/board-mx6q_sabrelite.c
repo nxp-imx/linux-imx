@@ -1325,8 +1325,8 @@ static struct sys_timer mx6_sabrelite_timer = {
 
 static void __init mx6q_sabrelite_reserve(void)
 {
-#if defined(CONFIG_MXC_GPU_VIV) || defined(CONFIG_MXC_GPU_VIV_MODULE)
 	phys_addr_t phys;
+#if defined(CONFIG_MXC_GPU_VIV) || defined(CONFIG_MXC_GPU_VIV_MODULE)
 
 	if (imx6q_gpu_pdata.reserved_mem_size) {
 		phys = memblock_alloc_base(imx6q_gpu_pdata.reserved_mem_size,
