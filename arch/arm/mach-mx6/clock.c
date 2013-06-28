@@ -3933,9 +3933,10 @@ static unsigned long _clk_emi_get_rate(struct clk *clk)
 {
 	u32 reg, div;
 
+	/* ACLK_EMI_PODF read value matches with real divider value */
 	reg = __raw_readl(MXC_CCM_CSCMR1);
-	div = (((reg & MXC_CCM_CSCMR1_ACLK_EMI_PODF_MASK) >>
-			MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET)^0x6) + 1;
+	div = ((reg & MXC_CCM_CSCMR1_ACLK_EMI_PODF_MASK) >>
+			MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET) + 1;
 
 	return clk_get_rate(clk->parent) / div;
 }
@@ -3951,9 +3952,26 @@ static int _clk_emi_set_rate(struct clk *clk, unsigned long rate)
 	if (((parent_rate / div) != rate) || (div > 8))
 		return -EINVAL;
 
+	/*
+	 * This is a software workaround for ACLK_EMI_PODF SoC
+	 * implementation bug. The write/read/divider values
+	 * have the relationship described by the following table:
+	 *
+	 * write value       read value        description
+	 * 3b'000            3b'110            divided by 7
+	 * 3b'001            3b'111            divided by 8
+	 * 3b'010            3b'100            divided by 5
+	 * 3b'011            3b'101            divided by 6
+	 * 3b'100            3b'010            divided by 3
+	 * 3b'101            3b'011            divided by 4
+	 * 3b'110            3b'000            divided by 1
+	 * 3b'111            3b'001            divided by 2(default)
+	 *
+	 * That's why we do the xor operation below.
+	 */
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	reg &= ~MXC_CCM_CSCMR1_ACLK_EMI_PODF_MASK;
-	reg |= (div - 1) << MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET;
+	reg |= ((div - 1)^0x6) << MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
