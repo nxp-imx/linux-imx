@@ -181,13 +181,6 @@ typedef enum _gceCACHEOPERATION
 }
 gceCACHEOPERATION;
 
-typedef enum _gceVIDMEM_NODE_SHARED_INFO_TYPE
-{
-    gcvVIDMEM_INFO_GENERIC,
-    gcvVIDMEM_INFO_DIRTY_RECTANGLE
-}
-gceVIDMEM_NODE_SHARED_INFO_TYPE;
-
 /* Surface types. */
 typedef enum _gceSURF_TYPE
 {

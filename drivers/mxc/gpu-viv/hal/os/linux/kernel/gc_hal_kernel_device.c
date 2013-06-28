@@ -304,6 +304,7 @@ gckGALDEVICE_Construct(
     IN gctINT Signal,
     IN gctUINT LogFileSize,
     IN struct device *pdev,
+    IN gctINT PowerManagement,
     OUT gckGALDEVICE *Device
     )
 {
@@ -536,6 +537,9 @@ gckGALDEVICE_Construct(
             device->kernels[gcvCORE_MAJOR]->hardware, FastClear, Compression
             ));
 
+        gcmkONERROR(gckHARDWARE_SetPowerManagement(
+            device->kernels[gcvCORE_MAJOR]->hardware, PowerManagement
+            ));
 
 #if COMMAND_PROCESSOR_VERSION == 1
         /* Start the command queue. */
@@ -591,6 +595,10 @@ gckGALDEVICE_Construct(
             device
             ));
 
+        gcmkONERROR(gckHARDWARE_SetPowerManagement(
+            device->kernels[gcvCORE_2D]->hardware, PowerManagement
+            ));
+
 #if COMMAND_PROCESSOR_VERSION == 1
         /* Start the command queue. */
         gcmkONERROR(gckCOMMAND_Start(device->kernels[gcvCORE_2D]->command));
@@ -622,6 +630,11 @@ gckGALDEVICE_Construct(
             device->coreMapping[gcvHARDWARE_VG] = gcvCORE_VG;
         }
 
+
+        gcmkONERROR(gckVGHARDWARE_SetPowerManagement(
+            device->kernels[gcvCORE_VG]->vg->hardware,
+            PowerManagement
+            ));
 #endif
     }
     else

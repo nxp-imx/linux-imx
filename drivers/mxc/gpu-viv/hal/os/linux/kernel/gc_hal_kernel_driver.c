@@ -131,6 +131,9 @@ module_param(fastClear, int, 0644);
 static int compression = -1;
 module_param(compression, int, 0644);
 
+static int powerManagement = 1;
+module_param(powerManagement, int, 0644);
+
 static int signal = 48;
 module_param(signal, int, 0644);
 
@@ -781,6 +784,9 @@ static int drv_init(struct device *pdev)
     }
 #endif
 
+    printk(KERN_INFO "Galcore version %d.%d.%d.%d\n",
+        gcvVERSION_MAJOR, gcvVERSION_MINOR, gcvVERSION_PATCH, gcvVERSION_BUILD);
+
     if (showArgs)
     {
         printk("galcore options:\n");
@@ -810,7 +816,8 @@ static int drv_init(struct device *pdev)
         printk("  signal            = %d\n",      signal);
         printk("  baseAddress       = 0x%08lX\n", baseAddress);
         printk("  physSize          = 0x%08lX\n", physSize);
-	printk(" logFileSize         = %d KB \n",     logFileSize);
+        printk("  logFileSize       = %d KB \n",  logFileSize);
+        printk("  powerManagement   = %d\n",      powerManagement);
 #if ENABLE_GPU_CLOCK_BY_DRIVER
         printk("  coreClock       = %lu\n",     coreClock);
 #endif
@@ -833,6 +840,7 @@ static int drv_init(struct device *pdev)
         bankSize, fastClear, compression, baseAddress, physSize, signal,
         logFileSize,
         pdev,
+        powerManagement,
         &device
         ));
 

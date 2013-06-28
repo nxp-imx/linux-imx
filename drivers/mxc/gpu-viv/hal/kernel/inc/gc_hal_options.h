@@ -391,15 +391,6 @@
 #endif
 
 /*
-    gcdPOWER_MANAGEMENT
-
-        This define enables the power management code.
-*/
-#ifndef gcdPOWER_MANAGEMENT
-#   define gcdPOWER_MANAGEMENT                  1
-#endif
-
-/*
     gcdPOWER_SUSNPEND_WHEN_IDLE
 
         Set to 1 to make GPU enter gcvPOWER_SUSPEND when idle detected,
@@ -428,7 +419,7 @@
         If the value is 0, no timeout will be checked for.
 */
 #ifndef gcdGPU_TIMEOUT
-#   if gcdFPGA_BUILD
+#if gcdFPGA_BUILD
 #       define gcdGPU_TIMEOUT                   0
 #   else
 #       define gcdGPU_TIMEOUT                   20000
@@ -726,28 +717,10 @@
 
         Support swap with a specific rectangle.
 
-        Set the rectangle with eglSetSwapRectangleANDROID api.
+        Set the rectangle with eglSetSwapRectangleVIV api.
 */
 #ifndef gcdSUPPORT_SWAP_RECTANGLE
 #   define gcdSUPPORT_SWAP_RECTANGLE            0
-#endif
-
-/*
-    gcdDEFER_RESOLVES
-
-        Support deferred resolves for 3D apps.
-*/
-#ifndef gcdDEFER_RESOLVES
-#   define gcdDEFER_RESOLVES                    0
-#endif
-
-/*
-    gcdCOPYBLT_OPTIMIZATION
-
-        Combine dirty areas resulting from Android's copyBlt.
-*/
-#ifndef gcdCOPYBLT_OPTIMIZATION
-#   define gcdCOPYBLT_OPTIMIZATION              0
 #endif
 
 /*

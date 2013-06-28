@@ -22,7 +22,6 @@
 ARCH_TYPE                         ?= arm
 SDK_DIR                           ?= $(AQROOT)/build/sdk
 USE_3D_VG                         ?= 1
-USE_POWER_MANAGEMENT              ?= 1
 FORCE_ALL_VIDEO_MEMORY_CACHED     ?= 0
 NONPAGED_MEMORY_CACHEABLE         ?= 0
 NONPAGED_MEMORY_BUFFERABLE        ?= 1

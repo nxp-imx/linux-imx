@@ -1234,7 +1234,6 @@ _EventHandler_BusError(
     return gcvSTATUS_OK;
 }
 
-#if gcdPOWER_MANAGEMENT
 /******************************************************************************\
 ****************************** Power Stall Handler *******************************
 \******************************************************************************/
@@ -1250,7 +1249,6 @@ _EventHandler_PowerStall(
         Kernel->command->powerStallSignal,
         gcvTRUE);
 }
-#endif
 
 /******************************************************************************\
 ******************************** Task Routines *********************************
@@ -1965,15 +1963,12 @@ gcmDECLARE_INTERRUPT_HANDLER(COMMAND, 0)
                             );
                     }
                 }
-#if gcdPOWER_MANAGEMENT
                 else
                 {
-
                     status = gckVGHARDWARE_SetPowerManagementState(
                                 Kernel->command->hardware, gcvPOWER_IDLE_BROADCAST
                                 );
                 }
-#endif
 
                 /* Break out of the loop. */
                 break;
@@ -2848,7 +2843,7 @@ gckVGCOMMAND_Construct(
             _EventHandler_BusError
             ));
 
-#if gcdPOWER_MANAGEMENT
+
         command->powerStallInt = 30;
         /* Enable the interrupt. */
         gcmkERR_BREAK(gckVGINTERRUPT_Enable(
@@ -2856,7 +2851,6 @@ gckVGCOMMAND_Construct(
             &command->powerStallInt,
             _EventHandler_PowerStall
             ));
-#endif
 
         /***********************************************************************
         ** Task management initialization.
@@ -3419,7 +3413,6 @@ gckVGCOMMAND_Commit(
             gcvINFINITE
             ));
 
-#if gcdPOWER_MANAGEMENT
         status = gckVGHARDWARE_SetPowerManagementState(
             Command->hardware, gcvPOWER_ON_AUTO);
 
@@ -3447,7 +3440,7 @@ gckVGCOMMAND_Commit(
 
             break;
         }
-#endif
+
         gcmkERR_BREAK(_FlushMMU(Command));
 
         do
@@ -3676,10 +3669,9 @@ gckVGCOMMAND_Commit(
         }
         while (gcvFALSE);
 
-#if gcdPOWER_MANAGEMENT
         gcmkVERIFY_OK(gckOS_ReleaseSemaphore(
             Command->os, Command->powerSemaphore));
-#endif
+
         /* Release the mutex. */
         gcmkCHECK_STATUS(gckOS_ReleaseMutex(
             Command->os,
