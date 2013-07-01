@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -940,14 +940,14 @@ static int mxc_elcdif_fb_set_par(struct fb_info *fbi)
 
 	setup_dotclk_panel((PICOS2KHZ(fbi->var.pixclock)) * 1000UL,
 			   fbi->var.vsync_len,
-			   fbi->var.upper_margin +
-			   fbi->var.yres + fbi->var.lower_margin,
-			   fbi->var.upper_margin,
+			   fbi->var.upper_margin + fbi->var.yres +
+			   fbi->var.lower_margin + fbi->var.vsync_len,
+			   fbi->var.upper_margin + fbi->var.vsync_len,
 			   fbi->var.yres,
 			   fbi->var.hsync_len,
-			   fbi->var.left_margin +
-			   fbi->var.xres + fbi->var.right_margin,
-			   fbi->var.left_margin,
+			   fbi->var.left_margin + fbi->var.xres +
+			   fbi->var.right_margin + fbi->var.hsync_len,
+			   fbi->var.left_margin + fbi->var.hsync_len,
 			   fbi->var.xres,
 			   bpp_to_pixfmt(fbi),
 			   data->output_pix_fmt,
