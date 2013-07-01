@@ -42,10 +42,13 @@
 
 static int video_nr = -1;
 static cam_data *g_cam;
+static int req_buf_number;
 
 static int csi_v4l2_master_attach(struct v4l2_int_device *slave);
 static void csi_v4l2_master_detach(struct v4l2_int_device *slave);
 static u8 camera_power(cam_data *cam, bool cameraOn);
+struct v4l2_crop crop_current;
+struct v4l2_window win_current;
 
 /*! Information about this driver. */
 static struct v4l2_int_master csi_v4l2_master = {
@@ -108,7 +111,7 @@ static int pxp_chan_init(cam_data *cam)
 
 /*
  * Function to call PxP DMA driver and send our new V4L2 buffer
- * through the PxP and PxP will process this buffer in place.
+ * through the PxP.
  * Note: This is a blocking call, so upon return the PxP tx should be complete.
  */
 static int pxp_process_update(cam_data *cam)
@@ -177,11 +180,30 @@ static int pxp_process_update(cam_data *cam)
 	proc_data->srect.width = pxp_conf->s0_param.width;
 	proc_data->srect.height = pxp_conf->s0_param.height;
 
-	proc_data->drect.top = 0;
+	if (crop_current.c.top != 0)
+		proc_data->srect.top = crop_current.c.top;
+	if (crop_current.c.left != 0)
+		proc_data->srect.left = crop_current.c.left;
+	if (crop_current.c.width != 0)
+		proc_data->srect.width = crop_current.c.width;
+	if (crop_current.c.height != 0)
+		proc_data->srect.height = crop_current.c.height;
+
 	proc_data->drect.left = 0;
+	proc_data->drect.top = 0;
 	proc_data->drect.width = proc_data->srect.width;
 	proc_data->drect.height = proc_data->srect.height;
-	proc_data->scaling = 0;
+
+
+	if (win_current.w.left != 0)
+		proc_data->drect.left = win_current.w.left;
+	if (win_current.w.top != 0)
+		proc_data->drect.top = win_current.w.top;
+	if (win_current.w.width != 0)
+		proc_data->drect.width = win_current.w.width;
+	if (win_current.w.height != 0)
+		proc_data->drect.height = win_current.w.height;
+
 	proc_data->hflip = 0;
 	proc_data->vflip = 0;
 	proc_data->rotate = 0;
@@ -824,6 +846,10 @@ static int csi_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 	case V4L2_BUF_TYPE_VIDEO_OVERLAY:
 		pr_debug("   type=V4L2_BUF_TYPE_VIDEO_OVERLAY\n");
 		cam->win = f->fmt.win;
+		win_current = f->fmt.win;
+		size = win_current.w.width * win_current.w.height * 2;
+		if (cam->v2f.fmt.pix.sizeimage < size)
+			cam->v2f.fmt.pix.sizeimage = size;
 		break;
 	default:
 		retval = -EINVAL;
@@ -959,9 +985,9 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 	 * to RGB565; but for encoding, usually we don't use RGB format.
 	 */
 	if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_RGB565) {
-		/* PxP processes it in place */
 		sg_dma_address(&cam->sg[0]) = buf->m.offset;
-		sg_dma_address(&cam->sg[1]) = buf->m.offset;
+		sg_dma_address(&cam->sg[1]) =
+			cam->frame[req_buf_number].paddress;
 		retval = pxp_process_update(cam);
 		if (retval) {
 			pr_err("Unable to submit PxP update task.\n");
@@ -970,6 +996,9 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 		pxp_complete_update(cam);
 	}
 	up(&cam->busy_lock);
+	memcpy(cam->frame[buf->index].vaddress,
+		cam->frame[req_buf_number].vaddress,
+		cam->v2f.fmt.pix.sizeimage);
 
 	return retval;
 }
@@ -1246,9 +1275,33 @@ static long csi_v4l_do_ioctl(struct file *file,
 		}
 
 	case VIDIOC_S_CROP:
-		pr_debug("   case not supported\n");
+	{
+		struct v4l2_crop *crop = arg;
+
+		if (crop->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+			retval = -EINVAL;
+			break;
+		}
+		crop->c.width -= crop->c.width % 8;
+		crop->c.height -= crop->c.height % 8;
+
+		crop_current.c = crop->c;
+
+		break;
+	}
+	case VIDIOC_G_CROP:
+	{
+		struct v4l2_crop *crop = arg;
+
+		if (crop->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+			retval = -EINVAL;
+			break;
+		}
+		crop->c = crop_current.c;
+
 		break;
 
+	}
 	case VIDIOC_REQBUFS: {
 		struct v4l2_requestbuffers *req = arg;
 		pr_debug("   case VIDIOC_REQBUFS\n");
@@ -1269,7 +1322,8 @@ static long csi_v4l_do_ioctl(struct file *file,
 		csi_streamoff(cam);
 		if (req->memory & V4L2_MEMORY_MMAP) {
 			csi_free_frame_buf(cam);
-			retval = csi_allocate_frame_buf(cam, req->count);
+			retval = csi_allocate_frame_buf(cam, req->count + 1);
+			req_buf_number = req->count;
 		}
 		break;
 	}
@@ -1401,7 +1455,6 @@ static long csi_v4l_do_ioctl(struct file *file,
 	case VIDIOC_G_OUTPUT:
 	case VIDIOC_S_OUTPUT:
 	case VIDIOC_ENUMSTD:
-	case VIDIOC_G_CROP:
 	case VIDIOC_CROPCAP:
 	case VIDIOC_S_STD:
 	case VIDIOC_G_CTRL:
@@ -1594,6 +1647,8 @@ static int __devinit csi_v4l2_probe(struct platform_device *pdev)
 		err = -ENOMEM;
 		goto out;
 	}
+	memset(&crop_current, 0, sizeof(crop_current));
+	memset(&win_current, 0, sizeof(win_current));
 	init_camera_struct(g_cam);
 	platform_set_drvdata(pdev, (void *)g_cam);
 
