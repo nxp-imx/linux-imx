@@ -5430,6 +5430,10 @@ OnError:
         {
             for (i = 0; i < pageCount; i++)
             {
+#ifdef CONFIG_ARM
+                gctUINT32 data;
+                get_user(data, (gctUINT32*)((memory & PAGE_MASK) + i * PAGE_SIZE));
+#endif
                 /* Flush(clean) the data cache. */
                 gcmkONERROR(gckOS_CacheFlush(Os, _GetProcessID(), gcvNULL,
                                  (gctPOINTER)(gctUINTPTR_T)page_to_phys(pages[i]),
