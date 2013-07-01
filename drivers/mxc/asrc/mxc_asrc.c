@@ -798,10 +798,10 @@ static int mxc_init_asrc(void)
 	__raw_writel(0x001f00, g_asrc->vaddr + ASRC_ASRTFR1);
 
 	/* Set the processing clock for 76KHz, 133M  */
-	__raw_writel(0x30E, g_asrc->vaddr + ASRC_ASR76K_REG);
+	__raw_writel(0x06D6, g_asrc->vaddr + ASRC_ASR76K_REG);
 
 	/* Set the processing clock for 56KHz, 133M */
-	__raw_writel(0x0426, g_asrc->vaddr + ASRC_ASR56K_REG);
+	__raw_writel(0x0947, g_asrc->vaddr + ASRC_ASR56K_REG);
 
 	return 0;
 }
