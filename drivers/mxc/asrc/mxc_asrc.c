@@ -392,6 +392,9 @@ int asrc_config_pair(struct asrc_config *config)
 	int err = 0;
 	int reg, tmp, channel_num;
 	unsigned long lock_flags;
+	unsigned long aicp_shift, aocp_shift;
+	unsigned long asrc_asrcdr_reg, dp_clear_mask;
+
 	/* Set the channel number */
 	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCNCR_REG);
 	spin_lock_irqsave(&data_lock, lock_flags);
@@ -437,142 +440,68 @@ int asrc_config_pair(struct asrc_config *config)
 	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
 
 	/* Default Clock Divider Setting */
-	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR1_REG);
-	if (config->pair == ASRC_PAIR_A) {
-		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR1_REG);
-		reg &= 0xfc0fc0;
-		/* Input Part */
-		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
-			reg |= 7 << AICPA;
-		else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
-			reg |= 6 << AICPA;
-		else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 input_sample_rate);
-			reg |= tmp << AICPA;
-		} else {
-			if (config->input_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AICPA;
-			else if (config->input_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AICPA;
-			else
-				err = -EFAULT;
-		}
-		/* Output Part */
-		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
-			reg |= 7 << AOCPA;
-		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
-			reg |= 6 << AOCPA;
-		else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) &&
-				((config->inclk & 0x0f) == INCLK_NONE))
-			reg |= 5 << AOCPA;
-		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 output_sample_rate);
-			reg |= tmp << AOCPA;
-		} else {
-			if (config->output_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AOCPA;
-			else if (config->output_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AOCPA;
-			else
-				err = -EFAULT;
-		}
-
-		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCDR1_REG);
-
-	} else if (config->pair == ASRC_PAIR_B) {
-		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR1_REG);
-		reg &= 0x03f03f;
-		/* Input Part */
-		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
-			reg |= 7 << AICPB;
-		else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
-			reg |= 6 << AICPB;
-		else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 input_sample_rate);
-			reg |= tmp << AICPB;
-		} else {
-			if (config->input_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AICPB;
-			else if (config->input_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AICPB;
-			else
-				err = -EFAULT;
-		}
-		/* Output Part */
-		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
-			reg |= 7 << AOCPB;
-		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
-			reg |= 6 << AOCPB;
-		else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) &&
-				((config->inclk & 0x0f) == INCLK_NONE))
-			reg |= 5 << AOCPB;
-		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 output_sample_rate);
-			reg |= tmp << AOCPB;
-		} else {
-			if (config->output_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AOCPB;
-			else if (config->output_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AOCPB;
-			else
-				err = -EFAULT;
-		}
-
-		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCDR1_REG);
-
-	} else {
-		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR2_REG);
-		reg &= 0;
-		/* Input Part */
-		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
-			reg |= 7 << AICPC;
-		else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
-			reg |= 6 << AICPC;
-		else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 input_sample_rate);
-			reg |= tmp << AICPC;
-		} else {
-			if (config->input_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AICPC;
-			else if (config->input_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AICPC;
-			else
-				err = -EFAULT;
-		}
-		/* Output Part */
-		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
-			reg |= 7 << AOCPC;
-		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
-			reg |= 6 << AOCPC;
-		else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) &&
-				((config->inclk & 0x0f) == INCLK_NONE))
-			reg |= 5 << AOCPC;
-		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 output_sample_rate);
-			reg |= tmp << AOCPC;
-		} else {
-			if (config->output_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AOCPC;
-			else if (config->output_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AOCPC;
-			else
-				err = -EFAULT;
-		}
-		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCDR2_REG);
-
+	switch (config->pair) {
+	case ASRC_PAIR_A:
+		asrc_asrcdr_reg = ASRC_ASRCDR1_REG;
+		dp_clear_mask = 0xfc0fc0;
+		aicp_shift = AICPA;
+		aocp_shift = AOCPA;
+		break;
+	case ASRC_PAIR_B:
+		asrc_asrcdr_reg = ASRC_ASRCDR1_REG;
+		dp_clear_mask = 0x03f03f;
+		aicp_shift = AICPB;
+		aocp_shift = AOCPB;
+		break;
+	case ASRC_PAIR_C:
+		asrc_asrcdr_reg = ASRC_ASRCDR2_REG;
+		dp_clear_mask = 0x00;
+		aicp_shift = AICPC;
+		aocp_shift = AOCPC;
+		break;
+	default:
+		pr_err("Invalid Pair number %d\n", config->pair);
+		return -EFAULT;
 	}
+
+	reg = __raw_readl(g_asrc->vaddr + asrc_asrcdr_reg);
+	reg &= dp_clear_mask;
+	/* Input Part */
+	if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
+		reg |= 7 << aicp_shift;
+	else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
+		reg |= 6 << aicp_shift;
+	else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
+		tmp = asrc_get_asrck_clock_divider(config->input_sample_rate);
+		reg |= tmp << aicp_shift;
+	} else {
+		if (config->input_word_width == ASRC_WIDTH_16_BIT)
+			reg |= 5 << aicp_shift;
+		else if (config->input_word_width == ASRC_WIDTH_24_BIT)
+			reg |= 6 << aicp_shift;
+		else
+			err = -EFAULT;
+	}
+	/* Output Part */
+	if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
+		reg |= 7 << aocp_shift;
+	else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
+		reg |= 6 << aocp_shift;
+	else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK)
+			&& ((config->inclk & 0x0f) == INCLK_NONE))
+		reg |= 5 << aocp_shift;
+	else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
+		tmp = asrc_get_asrck_clock_divider(config->output_sample_rate);
+		reg |= tmp << aocp_shift;
+	} else {
+		if (config->output_word_width == ASRC_WIDTH_16_BIT)
+			reg |= 5 << aocp_shift;
+		else if (config->output_word_width == ASRC_WIDTH_24_BIT)
+			reg |= 6 << aocp_shift;
+		else
+			err = -EFAULT;
+	}
+	__raw_writel(reg, g_asrc->vaddr + asrc_asrcdr_reg);
 
 	/* check whether ideal ratio is a must */
 	if ((config->inclk & 0x0f) == INCLK_NONE) {
