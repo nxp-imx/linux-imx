@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -461,18 +461,6 @@ static int __devexit sii902x_remove(struct i2c_client *client)
 	return 0;
 }
 
-static int sii902x_suspend(struct i2c_client *client, pm_message_t message)
-{
-	/*TODO*/
-	return 0;
-}
-
-static int sii902x_resume(struct i2c_client *client)
-{
-	/*TODO*/
-	return 0;
-}
-
 static void sii902x_poweron(void)
 {
 	struct fsl_mxc_lcd_platform_data *plat = sii902x.client->dev.platform_data;
@@ -522,8 +510,6 @@ static struct i2c_driver sii902x_i2c_driver = {
 		   },
 	.probe = sii902x_probe,
 	.remove = sii902x_remove,
-	.suspend = sii902x_suspend,
-	.resume = sii902x_resume,
 	.id_table = sii902x_id,
 };
 
