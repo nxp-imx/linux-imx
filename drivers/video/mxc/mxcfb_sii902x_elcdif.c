@@ -238,11 +238,6 @@ static void det_worker(struct work_struct *work)
 			dev_dbg(&sii902x.pdev->dev, "EVENT=plugin\n");
 			sprintf(event_string, "EVENT=plugin");
 
-			/* make sure fb is powerdown */
-			console_lock();
-			fb_blank(sii902x.fbi, FB_BLANK_POWERDOWN);
-			console_unlock();
-
 			if (sii902x_read_edid(sii902x.fbi) < 0)
 				dev_err(&sii902x.client->dev,
 					"Sii902x: read edid fail\n");
@@ -286,18 +281,15 @@ static void det_worker(struct work_struct *work)
 					sii902x.fbi->flags &= ~FBINFO_MISC_USEREVENT;
 					console_unlock();
 				}
-
-				console_lock();
-				fb_blank(sii902x.fbi, FB_BLANK_UNBLANK);
-				console_unlock();
+				/* Power on sii902x */
+				sii902x_poweron();
 			}
 		} else {
 			sii902x.cable_plugin = 0;
 			dev_dbg(&sii902x.pdev->dev, "EVENT=plugout\n");
 			sprintf(event_string, "EVENT=plugout");
-			console_lock();
-			fb_blank(sii902x.fbi, FB_BLANK_POWERDOWN);
-			console_unlock();
+			/* Power off sii902x */
+			sii902x_poweroff();
 		}
 		kobject_uevent_env(&sii902x.pdev->dev.kobj, KOBJ_CHANGE, envp);
 	}
