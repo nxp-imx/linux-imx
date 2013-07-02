@@ -2845,6 +2845,7 @@ uint32_t bytes_per_pixel(uint32_t fmt)
 		break;
 	case IPU_PIX_FMT_BGR24:
 	case IPU_PIX_FMT_RGB24:
+	case IPU_PIX_FMT_YUV444:
 		return 3;
 		break;
 	case IPU_PIX_FMT_GENERIC_32:	/*generic data */
