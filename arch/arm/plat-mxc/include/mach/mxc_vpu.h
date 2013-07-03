@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -16,7 +16,7 @@
  */
 
 /*!
- * @file arch-mxc/mxc_vpu.h
+ * @file plat-mxc/include/mach/mxc_vpu.h
  *
  * @brief VPU system initialization and file operation definition
  *
