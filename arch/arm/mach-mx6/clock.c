@@ -1864,6 +1864,8 @@ static int _clk_ipg_perclk_set_rate(struct clk *clk, unsigned long rate)
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	reg &= ~MXC_CCM_CSCMR1_PERCLK_PODF_MASK;
 	reg |= (div - 1) << MXC_CCM_CSCMR1_PERCLK_PODF_OFFSET;
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -2395,6 +2397,9 @@ static int _clk_usdhc1_set_parent(struct clk *clk, struct clk *parent)
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC1_CLK_SEL);
 
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
+
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -2451,6 +2456,9 @@ static int _clk_usdhc2_set_parent(struct clk *clk, struct clk *parent)
 
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC2_CLK_SEL);
+
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -2509,6 +2517,9 @@ static int _clk_usdhc3_set_parent(struct clk *clk, struct clk *parent)
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC3_CLK_SEL);
 
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
+
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -2566,6 +2577,9 @@ static int _clk_usdhc4_set_parent(struct clk *clk, struct clk *parent)
 
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC4_CLK_SEL);
+
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -2682,6 +2696,8 @@ static int _clk_ssi1_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux6(parent, &pll3_pfd_508M, &pll3_pfd_454M,
 			&pll4_audio_main_clk, NULL, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_SSI1_CLK_SEL_OFFSET);
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -2756,6 +2772,8 @@ static int _clk_ssi2_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux6(parent, &pll3_pfd_508M, &pll3_pfd_454M,
 			&pll4_audio_main_clk, NULL, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_SSI2_CLK_SEL_OFFSET);
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -2829,6 +2847,8 @@ static int _clk_ssi3_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux6(parent, &pll3_pfd_508M, &pll3_pfd_454M,
 				&pll4_audio_main_clk, NULL, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_SSI3_CLK_SEL_OFFSET);
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -3847,6 +3867,8 @@ static int _clk_emi_slow_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
 				&pll2_pfd_400M, &pll2_pfd_352M, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_ACLK_EMI_SLOW_OFFSET);
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -3877,6 +3899,8 @@ static int _clk_emi_slow_set_rate(struct clk *clk, unsigned long rate)
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	reg &= ~MXC_CCM_CSCMR1_ACLK_EMI_SLOW_PODF_MASK;
 	reg |= (div - 1) << MXC_CCM_CSCMR1_ACLK_EMI_SLOW_PODF_OFFSET;
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -3924,6 +3948,8 @@ static int _clk_emi_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux6(parent, &pll2_pfd_400M, &pll3_usb_otg_main_clk,
 			&axi_clk, &pll2_pfd_352M, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_ACLK_EMI_OFFSET);
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
