@@ -1850,6 +1850,8 @@ int __init mxc_init_devices(void)
 		ssi1_resources[0].end -= MX53_OFFSET;
 		ssi2_resources[0].start -= MX53_OFFSET;
 		ssi2_resources[0].end -= MX53_OFFSET;
+		ssi3_resources[0].start -= MX53_OFFSET;
+		ssi3_resources[0].end -= MX53_OFFSET;
 		esai_resources[0].start -= MX53_OFFSET;
 		esai_resources[0].end -= MX53_OFFSET;
 		tve_resources[0].start -= MX53_OFFSET;
