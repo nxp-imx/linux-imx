@@ -65,6 +65,37 @@ static struct v4l2_int_device csi_v4l2_int_device = {
 	      },
 };
 
+static struct v4l2_queryctrl pxp_controls[] = {
+	{
+		.id 		= V4L2_CID_HFLIP,
+		.type 		= V4L2_CTRL_TYPE_BOOLEAN,
+		.name 		= "Horizontal Flip",
+		.minimum 	= 0,
+		.maximum 	= 1,
+		.step 		= 1,
+		.default_value	= 0,
+		.flags		= 0,
+	}, {
+		.id		= V4L2_CID_VFLIP,
+		.type		= V4L2_CTRL_TYPE_BOOLEAN,
+		.name		= "Vertical Flip",
+		.minimum	= 0,
+		.maximum	= 1,
+		.step		= 1,
+		.default_value	= 0,
+		.flags		= 0,
+	}, {
+		.id		= V4L2_CID_PRIVATE_BASE,
+		.type		= V4L2_CTRL_TYPE_INTEGER,
+		.name		= "Rotation",
+		.minimum	= 0,
+		.maximum	= 270,
+		.step		= 90,
+		.default_value	= 0,
+		.flags		= 0,
+	},
+};
+
 /* Callback function triggered after PxP receives an EOF interrupt */
 static void pxp_dma_done(void *arg)
 {
@@ -194,7 +225,6 @@ static int pxp_process_update(cam_data *cam)
 	proc_data->drect.width = proc_data->srect.width;
 	proc_data->drect.height = proc_data->srect.height;
 
-
 	if (win_current.w.left != 0)
 		proc_data->drect.left = win_current.w.left;
 	if (win_current.w.top != 0)
@@ -204,16 +234,18 @@ static int pxp_process_update(cam_data *cam)
 	if (win_current.w.height != 0)
 		proc_data->drect.height = win_current.w.height;
 
-	proc_data->hflip = 0;
-	proc_data->vflip = 0;
-	proc_data->rotate = 0;
-	proc_data->bgcolor = 0;
+	pr_debug("srect l: %d, t: %d, w: %d, h: %d; "
+		"drect l: %d, t: %d, w: %d, h: %d\n",
+		proc_data->srect.left, proc_data->srect.top,
+		proc_data->srect.width, proc_data->srect.height,
+		proc_data->drect.left, proc_data->drect.top,
+		proc_data->drect.width, proc_data->drect.height);
 
 	pxp_conf->out_param.pixel_fmt = PXP_PIX_FMT_RGB565;
 	pxp_conf->out_param.width = proc_data->drect.width;
 	pxp_conf->out_param.height = proc_data->drect.height;
 
-	if (cam->rotation >= IPU_ROTATE_90_RIGHT)
+	if (cam->rotation % 180)
 		pxp_conf->out_param.stride = pxp_conf->out_param.height;
 	else
 		pxp_conf->out_param.stride = pxp_conf->out_param.width;
@@ -764,7 +796,7 @@ static int csi_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 			 * camera can change. */
 			pr_debug("csi_v4l2_s_fmt size changed\n");
 		}
-		if (cam->rotation >= IPU_ROTATE_90_RIGHT) {
+		if (cam->rotation % 180) {
 			height = &f->fmt.pix.width;
 			width = &f->fmt.pix.height;
 		} else {
@@ -850,6 +882,7 @@ static int csi_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 		size = win_current.w.width * win_current.w.height * 2;
 		if (cam->v2f.fmt.pix.sizeimage < size)
 			cam->v2f.fmt.pix.sizeimage = size;
+
 		break;
 	default:
 		retval = -EINVAL;
@@ -922,6 +955,39 @@ static int csi_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 exit:
 	return err;
 }
+
+static int pxp_set_cstate(cam_data *cam, struct v4l2_control *vc)
+{
+	struct pxp_proc_data *proc_data = &cam->pxp_conf.proc_data;
+
+	if (vc->id == V4L2_CID_HFLIP) {
+		proc_data->hflip = vc->value;
+	} else if (vc->id == V4L2_CID_VFLIP) {
+		proc_data->vflip = vc->value;
+	} else if (vc->id == V4L2_CID_PRIVATE_BASE) {
+		if (vc->value % 90)
+			return -ERANGE;
+		proc_data->rotate = vc->value;
+		cam->rotation = vc->value;
+	}
+
+	return 0;
+}
+
+static int pxp_get_cstate(cam_data *cam, struct v4l2_control *vc)
+{
+	struct pxp_proc_data *proc_data = &cam->pxp_conf.proc_data;
+
+	if (vc->id == V4L2_CID_HFLIP)
+		vc->value = proc_data->hflip;
+	else if (vc->id == V4L2_CID_VFLIP)
+		vc->value = proc_data->vflip;
+	else if (vc->id == V4L2_CID_PRIVATE_BASE)
+		vc->value = proc_data->rotate;
+
+	return 0;
+}
+
 
 /*!
  * Dequeue one V4L capture buffer
@@ -1451,15 +1517,63 @@ static long csi_v4l_do_ioctl(struct file *file,
 	}
 
 	case VIDIOC_S_CTRL:
+	{
+		struct v4l2_control *vc = arg;
+		int i;
+
+		for (i = 0; i < ARRAY_SIZE(pxp_controls); i++)
+			if (vc->id == pxp_controls[i].id) {
+				if (vc->value < pxp_controls[i].minimum ||
+				    vc->value > pxp_controls[i].maximum) {
+					retval = -ERANGE;
+					break;
+				}
+				retval = pxp_set_cstate(cam, vc);
+				break;
+			}
+
+		if (i >= ARRAY_SIZE(pxp_controls))
+			retval = -EINVAL;
+		break;
+
+	}
+	case VIDIOC_G_CTRL:
+	{
+		struct v4l2_control *vc = arg;
+		int i;
+
+		for (i = 0; i < ARRAY_SIZE(pxp_controls); i++)
+			if (vc->id == pxp_controls[i].id) {
+				retval = pxp_get_cstate(cam, vc);
+				break;
+			}
+
+		if (i >= ARRAY_SIZE(pxp_controls))
+			retval = -EINVAL;
+		break;
+	}
+	case VIDIOC_QUERYCTRL:
+	{
+		struct v4l2_queryctrl *qc = arg;
+		int i;
+
+		for (i = 0; i < ARRAY_SIZE(pxp_controls); i++)
+			if (qc->id && qc->id == pxp_controls[i].id) {
+				memcpy(qc, &(pxp_controls[i]), sizeof(*qc));
+				break;
+			}
+
+		if (i >= ARRAY_SIZE(pxp_controls))
+			retval = -EINVAL;
+		break;
+	}
 	case VIDIOC_G_STD:
 	case VIDIOC_G_OUTPUT:
 	case VIDIOC_S_OUTPUT:
 	case VIDIOC_ENUMSTD:
 	case VIDIOC_CROPCAP:
 	case VIDIOC_S_STD:
-	case VIDIOC_G_CTRL:
 	case VIDIOC_TRY_FMT:
-	case VIDIOC_QUERYCTRL:
 	case VIDIOC_ENUMINPUT:
 	case VIDIOC_G_INPUT:
 	case VIDIOC_S_INPUT:
@@ -1559,7 +1673,13 @@ static struct video_device csi_v4l_template = {
  */
 static void init_camera_struct(cam_data *cam)
 {
+	struct pxp_proc_data *proc_data = &cam->pxp_conf.proc_data;
 	pr_debug("In MVC: %s\n", __func__);
+
+	proc_data->hflip = 0;
+	proc_data->vflip = 0;
+	proc_data->rotate = 0;
+	proc_data->bgcolor = 0;
 
 	/* Default everything to 0 */
 	memset(cam, 0, sizeof(cam_data));
