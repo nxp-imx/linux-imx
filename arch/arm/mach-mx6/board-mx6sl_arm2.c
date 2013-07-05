@@ -1092,7 +1092,7 @@ static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data = {
 static struct fb_videomode video_modes[] = {
 	{
 	 /* 800x480 @ 57 Hz , pixel clk @ 32MHz */
-	 "SEIKO-WVGA", 60, 800, 480, 29850, 99, 164, 33, 10, 10, 10,
+	 "SEIKO-WVGA", 60, 800, 480, 29850, 89, 164, 23, 10, 10, 10,
 	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},
