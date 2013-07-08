@@ -276,6 +276,7 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 	struct anatop_thermal *tz = thermal->devdata;
 	unsigned int tmp;
 	unsigned int reg;
+	unsigned int val;
 
 	if (!tz)
 		return -EINVAL;
@@ -310,11 +311,16 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 		anatop_base + HW_ANADIG_TEMPSENSE0_SET);
 
 	tmp = 0;
+	val = jiffies;
 	/* read temperature values */
 	while ((__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0)
-		& BM_ANADIG_TEMPSENSE0_FINISHED) == 0)
+		& BM_ANADIG_TEMPSENSE0_FINISHED) == 0) {
+		if (time_after(jiffies, (unsigned long)(val + HZ / 2))) {
+			pr_info("Thermal sensor timeout, retry!\n");
+			return 0;
+		}
 		msleep(10);
-
+	}
 	reg = __raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0);
 	tmp = (reg & BM_ANADIG_TEMPSENSE0_TEMP_VALUE)
 		>> BP_ANADIG_TEMPSENSE0_TEMP_VALUE;
