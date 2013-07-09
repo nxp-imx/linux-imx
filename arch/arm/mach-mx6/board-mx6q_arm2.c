@@ -155,12 +155,10 @@
 
 #define MX6_ARM2_CAN2_STBY		MX6_ARM2_IO_EXP_GPIO2(1)
 
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
 #define MX6_ENET_IRQ		IMX_GPIO_NR(1, 6)
 #define IOMUX_OBSRV_MUX1_OFFSET	0x3c
 #define OBSRV_MUX1_MASK			0x3f
 #define OBSRV_MUX1_ENET_IRQ		0x9
-#endif
 
 #define BMCR_PDOWN			0x0800 /* PHY Powerdown */
 
@@ -179,6 +177,7 @@ extern char *gp_reg_id;
 extern char *soc_reg_id;
 extern char *pu_reg_id;
 extern int epdc_enabled;
+extern bool enet_to_gpio_6;
 static int max17135_regulator_init(struct max17135 *max17135);
 
 enum sd_pad_mode {
@@ -393,9 +392,7 @@ static struct fec_platform_data fec_data __initdata = {
 	.init			= mx6_arm2_fec_phy_init,
 	.power_hibernate	= mx6_arm2_fec_power_hibernate,
 	.phy			= PHY_INTERFACE_MODE_RGMII,
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
 	.gpio_irq = MX6_ENET_IRQ,
-#endif
 };
 
 static int mx6_arm2_spi_cs[] = {
@@ -2056,6 +2053,18 @@ static void __init mx6_arm2_init(void)
 		spdif_pads_cnt =  ARRAY_SIZE(mx6q_arm2_spdif_pads);
 		flexcan_pads_cnt = ARRAY_SIZE(mx6q_arm2_can_pads);
 		i2c3_pads_cnt = ARRAY_SIZE(mx6q_arm2_i2c3_pads);
+		if (enet_to_gpio_6) {
+			iomux_v3_cfg_t enet_gpio_pad =
+				MX6Q_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6;
+			mxc_iomux_v3_setup_pad(enet_gpio_pad);
+		} else {
+			iomux_v3_cfg_t mlb_pads[] = {
+				MX6Q_PAD_GPIO_3__MLB_MLBCLK,
+				MX6Q_PAD_GPIO_6__MLB_MLBSIG,
+				MX6Q_PAD_GPIO_2__MLB_MLBDAT};
+			mxc_iomux_v3_setup_multiple_pads(mlb_pads,
+				ARRAY_SIZE(mlb_pads));
+		}
 	} else if (cpu_is_mx6dl()) {
 		common_pads = mx6dl_arm2_pads;
 		esai_rec_pads = mx6dl_arm2_esai_record_pads;
@@ -2070,6 +2079,18 @@ static void __init mx6_arm2_init(void)
 		flexcan_pads_cnt = ARRAY_SIZE(mx6dl_arm2_can_pads);
 		i2c3_pads_cnt = ARRAY_SIZE(mx6dl_arm2_i2c3_pads);
 		epdc_pads_cnt = ARRAY_SIZE(mx6dl_arm2_epdc_pads);
+		if (enet_to_gpio_6) {
+			iomux_v3_cfg_t enet_gpio_pad =
+				MX6DL_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6;
+			mxc_iomux_v3_setup_pad(enet_gpio_pad);
+		} else {
+			iomux_v3_cfg_t mlb_pads[] = {
+				MX6DL_PAD_GPIO_3__MLB_MLBCLK,
+				MX6DL_PAD_GPIO_6__MLB_MLBSIG,
+				MX6DL_PAD_GPIO_2__MLB_MLBDAT};
+			mxc_iomux_v3_setup_multiple_pads(mlb_pads,
+				ARRAY_SIZE(mlb_pads));
+		}
 	}
 
 	BUG_ON(!common_pads);
@@ -2181,12 +2202,15 @@ static void __init mx6_arm2_init(void)
 	imx6q_add_anatop_thermal_imx(1, &mx6_arm2_anatop_thermal_data);
 
 	if (!esai_record) {
+		if (enet_to_gpio_6)
+			/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
+			mxc_iomux_set_specialbits_register(
+				IOMUX_OBSRV_MUX1_OFFSET,
+				OBSRV_MUX1_ENET_IRQ,
+				OBSRV_MUX1_MASK);
+		else
+			fec_data.gpio_irq = -1;
 		imx6_init_fec(fec_data);
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
-	mxc_iomux_set_specialbits_register(IOMUX_OBSRV_MUX1_OFFSET,
-		OBSRV_MUX1_ENET_IRQ, OBSRV_MUX1_MASK);
-#endif
 	}
 
 	imx6q_add_pm_imx(0, &mx6_arm2_pm_data);

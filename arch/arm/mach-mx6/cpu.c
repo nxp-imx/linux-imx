@@ -37,6 +37,7 @@ bool enable_wait_mode = true;
 u32 enable_ldo_mode = LDO_MODE_DEFAULT;
 u32 arm_max_freq = CPU_AT_1_2GHz;
 bool mem_clk_on_in_wait;
+bool enet_to_gpio_6;
 int chip_rev;
 
 void __iomem *gpc_base;
@@ -276,5 +277,10 @@ static int __init enable_mem_clk_in_wait(char *p)
 
 early_param("mem_clk_on", enable_mem_clk_in_wait);
 
+static int __init set_enet_irq_to_gpio(char *p)
+{
+	enet_to_gpio_6 = true;
+	return 0;
+}
 
-
+early_param("enet_gpio_6", set_enet_irq_to_gpio);

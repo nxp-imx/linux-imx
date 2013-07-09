@@ -182,16 +182,7 @@ static iomux_v3_cfg_t mx6dl_arm2_pads[] = {
 
 	/* USBOTG ID pin */
 	MX6DL_PAD_GPIO_1__USBOTG_ID,
-
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	MX6DL_PAD_GPIO_6__OBSERVE_MUX_OBSRV_INT_OUT1,
-#else
-	/* MLB150 */
-	MX6DL_PAD_GPIO_3__MLB_MLBCLK,
-	MX6DL_PAD_GPIO_6__MLB_MLBSIG,
-	MX6DL_PAD_GPIO_2__MLB_MLBDAT,
-#endif
-};
+ };
 
 static iomux_v3_cfg_t mx6dl_arm2_epdc_pads[] = {
 	MX6DL_PAD_EIM_A17__GPIO_2_21,
