@@ -1768,10 +1768,18 @@ static int asrc_write_proc_attr(struct file *file, const char *buffer,
 		total = 10;
 	else
 		total = 5;
-	if ((na + nb + nc) != total) {
-		pr_info("Wrong ASRCNR settings\n");
-		return -EFAULT;
+
+	if ((na + nb + nc) > total) {
+		pr_err("Don't surpass %d for total.\n", total);
+		return -EINVAL;
+	} else if (na % 2 != 0 || nb % 2 != 0 || nc % 2 != 0) {
+		pr_err("Please set an even number for each pair.\n");
+		return -EINVAL;
+	} else if (na < 0 || nb < 0 || nc < 0) {
+		pr_err("Please set an positive number for each pair.\n");
+		return -EINVAL;
 	}
+
 	reg = na | (nb << g_asrc->mxc_asrc_data->channel_bits) |
 		(nc << (g_asrc->mxc_asrc_data->channel_bits * 2));
 
