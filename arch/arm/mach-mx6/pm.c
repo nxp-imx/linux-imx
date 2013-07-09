@@ -342,6 +342,14 @@ static int mx6_suspend_enter(suspend_state_t state)
 		return -EINVAL;
 	}
 
+	/*
+	 * L2 can exit by 'reset' or Inband beacon (from remote EP)
+	 * toggling phy_powerdown has same effect as 'inband beacon'
+	 * So, toggle bit18 of GPR1, to fix errata
+	 * "PCIe PCIe does not support L2 Power Down"
+	 */
+	__raw_writel(__raw_readl(IOMUXC_GPR1) | (1 << 18), IOMUXC_GPR1);
+
 	if (state == PM_SUSPEND_MEM || state == PM_SUSPEND_STANDBY) {
 
 		local_flush_tlb_all();
@@ -404,6 +412,14 @@ static int mx6_suspend_enter(suspend_state_t state)
 	} else {
 			cpu_do_idle();
 	}
+
+	/*
+	 * L2 can exit by 'reset' or Inband beacon (from remote EP)
+	 * toggling phy_powerdown has same effect as 'inband beacon'
+	 * So, toggle bit18 of GPR1, to fix errata
+	 * "PCIe PCIe does not support L2 Power Down"
+	 */
+	__raw_writel(__raw_readl(IOMUXC_GPR1) & (~(1 << 18)), IOMUXC_GPR1);
 
 	return 0;
 }
