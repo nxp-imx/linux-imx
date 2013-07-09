@@ -2531,10 +2531,8 @@
 #define MX6DL_PAD_GPIO_5__SIMBA_EVENTI                                         \
 		IOMUX_PAD(0x0600, 0x0230, 7, 0x0000, 0, NO_PAD_CTRL)
 
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-#define MX6DL_PAD_GPIO_6__OBSERVE_MUX_OBSRV_INT_OUT1                           \
+#define MX6DL_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6                           \
 		IOMUX_PAD(0x0604, 0x0234, 1 | IOMUX_CONFIG_SION, 0x0000, 0, ENET_IRQ_PAD_CTRL)
-#else
 #define MX6DL_PAD_GPIO_6__OBSERVE_MUX_OBSRV_INT_OUT1                           \
 		IOMUX_PAD(0x0604, 0x0234, 1, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_GPIO_6__ESAI1_SCKT                                           \
@@ -2551,7 +2549,6 @@
 		IOMUX_PAD(0x0604, 0x0234, 6, 0x0000, 0, MX6DL_USDHC_PAD_CTRL)
 #define MX6DL_PAD_GPIO_6__MLB_MLBSIG                                           \
 		IOMUX_PAD(0x0604, 0x0234, 7, 0x08E4, 1, MX6DL_MLB150_PAD_CTRL)
-#endif
 
 #define MX6DL_PAD_GPIO_7__ESAI1_TX4_RX1                                        \
 		IOMUX_PAD(0x0608, 0x0238, 0, 0x0854, 1, NO_PAD_CTRL)

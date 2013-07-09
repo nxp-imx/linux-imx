@@ -332,13 +332,6 @@ config MACH_IMX_BLUETOOTH_RFKILL
        ---help---
 	Say Y to get the standard rfkill interface of Bluetooth
 
-config MX6_ENET_IRQ_TO_GPIO
-	bool "Route ENET interrupts to GPIO"
-	default n
-	help
-	   Enabling this will direct all the ENET interrupts to a board specific GPIO.
-	   This will allow the system to enter WAIT mode when ENET is active.
-
 config SDMA_IRAM
 	bool "Use Internal RAM for SDMA data structures"
 	depends on IMX_SDMA && SOC_IMX6SL

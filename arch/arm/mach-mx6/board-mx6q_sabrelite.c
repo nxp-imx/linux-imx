@@ -93,12 +93,10 @@
 #define MX6Q_SABRELITE_CSI0_RST		IMX_GPIO_NR(1, 8)
 #define MX6Q_SABRELITE_CSI0_PWN		IMX_GPIO_NR(1, 6)
 
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
 #define MX6_ENET_IRQ		IMX_GPIO_NR(1, 6)
 #define IOMUX_OBSRV_MUX1_OFFSET	0x3c
 #define OBSRV_MUX1_MASK			0x3f
 #define OBSRV_MUX1_ENET_IRQ		0x9
-#endif
 
 #define MX6Q_SABRELITE_SD3_WP_PADCFG	(PAD_CTL_PKE | PAD_CTL_PUE |	\
 		PAD_CTL_PUS_22K_UP | PAD_CTL_SPEED_MED |	\
@@ -110,6 +108,7 @@ static struct clk *sata_clk;
 extern char *gp_reg_id;
 extern char *soc_reg_id;
 extern char *pu_reg_id;
+extern bool enet_to_gpio_6;
 static int caam_enabled;
 
 extern struct regulator *(*get_cpu_regulator)(void);
@@ -216,8 +215,8 @@ static iomux_v3_cfg_t mx6q_sabrelite_pads[] = {
 	MX6Q_PAD_EIM_D28__I2C1_SDA,	/* GPIO3[28] */
 
 	/* I2C2 Camera, MIPI */
-	MX6Q_PAD_KEY_COL3__I2C2_SCL,	/* GPIO4[12] */
-	MX6Q_PAD_KEY_ROW3__I2C2_SDA,	/* GPIO4[13] */
+	MX6Q_PAD_KEY_COL3__I2C2_SCL,    /* GPIO4[12] */
+	MX6Q_PAD_KEY_ROW3__I2C2_SDA,    /* GPIO4[13] */
 
 	/* I2C3 */
 	MX6Q_PAD_GPIO_5__I2C3_SCL,	/* GPIO1[5] - J7 - Display card */
@@ -328,9 +327,6 @@ static iomux_v3_cfg_t mx6q_sabrelite_csi0_sensor_pads[] = {
 	MX6Q_PAD_CSI0_MCLK__IPU1_CSI0_HSYNC,
 	MX6Q_PAD_CSI0_PIXCLK__IPU1_CSI0_PIXCLK,
 	MX6Q_PAD_CSI0_VSYNC__IPU1_CSI0_VSYNC,
-#ifndef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	MX6Q_PAD_GPIO_6__GPIO_1_6,		/* J5 - Camera GP */
-#endif
 	MX6Q_PAD_GPIO_8__GPIO_1_8,		/* J5 - Camera Reset */
 	MX6Q_PAD_SD1_DAT0__GPIO_1_16,		/* J5 - Camera GP */
 	MX6Q_PAD_NANDF_D5__GPIO_2_5,		/* J16 - MIPI GP */
@@ -476,9 +472,7 @@ static int mx6q_sabrelite_fec_phy_init(struct phy_device *phydev)
 static struct fec_platform_data fec_data __initdata = {
 	.init = mx6q_sabrelite_fec_phy_init,
 	.phy = PHY_INTERFACE_MODE_RGMII,
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
 	.gpio_irq = MX6_ENET_IRQ,
-#endif
 };
 
 static int mx6q_sabrelite_spi_cs[] = {
@@ -1171,6 +1165,17 @@ static void __init mx6_sabrelite_board_init(void)
 	mxc_iomux_v3_setup_multiple_pads(mx6q_sabrelite_pads,
 					ARRAY_SIZE(mx6q_sabrelite_pads));
 
+	if (enet_to_gpio_6) {
+		iomux_v3_cfg_t enet_gpio_pad =
+			MX6Q_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6;
+		mxc_iomux_v3_setup_pad(enet_gpio_pad);
+	} else {
+		/* J5 - Camera GP */
+		iomux_v3_cfg_t camera_gpio_pad =
+			MX6Q_PAD_GPIO_6__GPIO_1_6;
+		mxc_iomux_v3_setup_pad(camera_gpio_pad);
+	}
+
 #ifdef CONFIG_FEC_1588
 	/* Set GPIO_16 input for IEEE-1588 ts_clk and RMII reference clock
 	 * For MX6 GPR1 bit21 meaning:
@@ -1231,12 +1236,16 @@ static void __init mx6_sabrelite_board_init(void)
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabrelite_anatop_thermal_data);
+	if (enet_to_gpio_6)
+		/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
+		mxc_iomux_set_specialbits_register(
+			IOMUX_OBSRV_MUX1_OFFSET,
+			OBSRV_MUX1_ENET_IRQ,
+			OBSRV_MUX1_MASK);
+	else
+		fec_data.gpio_irq = -1;
+
 	imx6_init_fec(fec_data);
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
-	mxc_iomux_set_specialbits_register(IOMUX_OBSRV_MUX1_OFFSET,
-		OBSRV_MUX1_ENET_IRQ, OBSRV_MUX1_MASK);
-#endif
 	imx6q_add_pm_imx(0, &mx6q_sabrelite_pm_data);
 	imx6q_add_sdhci_usdhc_imx(3, &mx6q_sabrelite_sd4_data);
 	imx6q_add_sdhci_usdhc_imx(2, &mx6q_sabrelite_sd3_data);

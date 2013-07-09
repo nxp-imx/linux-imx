@@ -198,12 +198,10 @@
 #define SABRESD_ELAN_RST	IMX_GPIO_NR(3, 8)
 #define SABRESD_ELAN_INT	IMX_GPIO_NR(3, 28)
 
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
 #define MX6_ENET_IRQ		IMX_GPIO_NR(1, 6)
 #define IOMUX_OBSRV_MUX1_OFFSET	0x3c
 #define OBSRV_MUX1_MASK			0x3f
 #define OBSRV_MUX1_ENET_IRQ		0x9
-#endif
 
 static struct clk *sata_clk;
 static struct clk *clko;
@@ -216,6 +214,7 @@ extern char *gp_reg_id;
 extern char *soc_reg_id;
 extern char *pu_reg_id;
 extern int epdc_enabled;
+extern bool enet_to_gpio_6;
 
 static int max17135_regulator_init(struct max17135 *max17135);
 
@@ -298,9 +297,7 @@ static int mx6q_sabresd_fec_phy_init(struct phy_device *phydev)
 static struct fec_platform_data fec_data __initdata = {
 	.init = mx6q_sabresd_fec_phy_init,
 	.phy = PHY_INTERFACE_MODE_RGMII,
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
 	.gpio_irq = MX6_ENET_IRQ,
-#endif
 };
 
 static int mx6q_sabresd_spi_cs[] = {
@@ -1717,13 +1714,33 @@ static void __init mx6_sabresd_board_init(void)
 	int rate;
 	struct platform_device *voutdev;
 
-	if (cpu_is_mx6q())
+	if (cpu_is_mx6q()) {
 		mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_pads,
 			ARRAY_SIZE(mx6q_sabresd_pads));
-	else if (cpu_is_mx6dl()) {
+		if (enet_to_gpio_6) {
+			iomux_v3_cfg_t enet_gpio_pad =
+				MX6Q_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6;
+			mxc_iomux_v3_setup_pad(enet_gpio_pad);
+		} else {
+			iomux_v3_cfg_t i2c3_pad =
+				MX6Q_PAD_GPIO_6__I2C3_SDA;
+			mxc_iomux_v3_setup_pad(i2c3_pad);
+		}
+	} else if (cpu_is_mx6dl()) {
 		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabresd_pads,
 			ARRAY_SIZE(mx6dl_sabresd_pads));
+
+		if (enet_to_gpio_6) {
+			iomux_v3_cfg_t enet_gpio_pad =
+				MX6DL_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6;
+			mxc_iomux_v3_setup_pad(enet_gpio_pad);
+		} else {
+			iomux_v3_cfg_t i2c3_pad =
+				MX6DL_PAD_GPIO_6__I2C3_SDA;
+			mxc_iomux_v3_setup_pad(i2c3_pad);
+		}
 	}
+
 
 #ifdef CONFIG_FEC_1588
 	/* Set GPIO_16 input for IEEE-1588 ts_clk and RMII reference clock
@@ -1817,12 +1834,16 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabresd_anatop_thermal_data);
+
+	if (enet_to_gpio_6)
+		/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
+		mxc_iomux_set_specialbits_register(
+			IOMUX_OBSRV_MUX1_OFFSET,
+			OBSRV_MUX1_ENET_IRQ,
+			OBSRV_MUX1_MASK);
+	else
+		fec_data.gpio_irq = -1;
 	imx6_init_fec(fec_data);
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
-	mxc_iomux_set_specialbits_register(IOMUX_OBSRV_MUX1_OFFSET,
-		OBSRV_MUX1_ENET_IRQ, OBSRV_MUX1_MASK);
-#endif
 
 	imx6q_add_pm_imx(0, &mx6q_sabresd_pm_data);
 

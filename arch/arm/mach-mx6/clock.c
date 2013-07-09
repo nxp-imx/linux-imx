@@ -51,6 +51,7 @@ extern int wait_mode_arm_podf;
 extern int lp_audio_freq;
 extern int cur_arm_podf;
 extern bool enet_is_active;
+extern bool enet_to_gpio_6;
 
 void __iomem *apll_base;
 
@@ -3751,9 +3752,9 @@ static unsigned long _clk_enet_get_rate(struct clk *clk)
 
 static int _clk_enet_enable(struct clk *clk)
 {
-#ifndef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	enet_is_active = true;
-#endif
+	if (!enet_to_gpio_6)
+		enet_is_active = true;
+
 	_clk_enable(clk);
 	return 0;
 }
@@ -3761,9 +3762,9 @@ static int _clk_enet_enable(struct clk *clk)
 static void _clk_enet_disable(struct clk *clk)
 {
 	_clk_disable(clk);
-#ifndef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	enet_is_active = false;
-#endif
+
+	if (!enet_to_gpio_6)
+		enet_is_active = false;
 }
 
 static struct clk enet_clk[] = {
