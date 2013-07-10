@@ -1841,6 +1841,22 @@ err:
 	return ret;
 }
 
+static inline void wait_for_vsync(struct mxc_vout_output *vout)
+{
+	struct fb_info *fbi = vout->fbi;
+	mm_segment_t old_fs;
+
+	if (fbi->fbops->fb_ioctl) {
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		fbi->fbops->fb_ioctl(fbi, MXCFB_WAIT_FOR_VSYNC,
+				(unsigned long)NULL);
+		set_fs(old_fs);
+	}
+
+	return;
+}
+
 static void release_disp_output(struct mxc_vout_output *vout)
 {
 	struct fb_info *fbi = vout->fbi;
@@ -1925,6 +1941,14 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh,
 		flush_workqueue(vout->v4l_wq);
 
 		hrtimer_cancel(&vout->timer);
+
+		/*
+		 * Wait for 2 vsyncs to make sure
+		 * frames are drained on triple
+		 * buffer.
+		 */
+		wait_for_vsync(vout);
+		wait_for_vsync(vout);
 
 		release_disp_output(vout);
 
