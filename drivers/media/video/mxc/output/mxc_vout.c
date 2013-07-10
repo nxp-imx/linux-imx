@@ -1922,7 +1922,6 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh,
 	int ret = 0;
 
 	if (q->streaming) {
-		cancel_work_sync(&vout->disp_work);
 		flush_workqueue(vout->v4l_wq);
 
 		hrtimer_cancel(&vout->timer);
