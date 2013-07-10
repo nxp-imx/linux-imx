@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -381,11 +381,11 @@ static long hdmi_cec_ioctl(struct file *filp, u_int cmd,
 		val &= ~HDMI_MC_CLKDIS_CECCLK_DISABLE;
 		hdmi_writeb(val, HDMI_MC_CLKDIS);
 		hdmi_writeb(0x02, HDMI_CEC_CTRL);
+		val = HDMI_IH_CEC_STAT0_ERROR_INIT | HDMI_IH_CEC_STAT0_NACK | HDMI_IH_CEC_STAT0_EOM | HDMI_IH_CEC_STAT0_DONE;
+		hdmi_writeb(val, HDMI_CEC_POLARITY);
 		val = HDMI_IH_CEC_STAT0_WAKEUP | HDMI_IH_CEC_STAT0_ERROR_FOLL | HDMI_IH_CEC_STAT0_ARB_LOST;
 		hdmi_writeb(val, HDMI_CEC_MASK);
 		hdmi_writeb(val, HDMI_IH_MUTE_CEC_STAT0);
-		val = HDMI_IH_CEC_STAT0_ERROR_INIT | HDMI_IH_CEC_STAT0_NACK | HDMI_IH_CEC_STAT0_EOM | HDMI_IH_CEC_STAT0_DONE;
-		hdmi_writeb(val, HDMI_CEC_POLARITY);
 		mutex_lock(&hdmi_cec_data.lock);
 		hdmi_cec_data.cec_state = true;
 		mutex_unlock(&hdmi_cec_data.lock);
