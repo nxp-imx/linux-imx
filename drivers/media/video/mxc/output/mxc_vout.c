@@ -606,10 +606,21 @@ static void disp_work_func(struct work_struct *work)
 	}
 	if (deinterlace_3_field(vout)) {
 		if (list_is_singular(&vout->active_list)) {
-			v4l2_warn(vout->vfd->v4l2_dev,
-				"no enough entry for 3 fields deinterlacer\n");
-			spin_unlock_irqrestore(q->irqlock, flags);
-			return;
+			if (list_empty(&vout->queue_list)) {
+				vout->timer_stop = true;
+				spin_unlock_irqrestore(q->irqlock, flags);
+				v4l2_warn(vout->vfd->v4l2_dev,
+					"no enough entry for 3 fields "
+					"deinterlacer\n");
+				return;
+			}
+
+			/*
+			 * We need to use the next vb even if it is
+			 * not on the active list.
+			 */
+			vb_next = list_first_entry(&vout->queue_list,
+					struct videobuf_buffer, queue);
 		} else
 			vb_next = list_first_entry(vout->active_list.next,
 						struct videobuf_buffer, queue);
@@ -868,21 +879,21 @@ static void mxc_vout_buffer_queue(struct videobuf_queue *q,
 			  struct videobuf_buffer *vb)
 {
 	struct mxc_vout_output *vout = q->priv_data;
+	struct videobuf_buffer *active_vb;
 
 	list_add_tail(&vb->queue, &vout->queue_list);
 	vb->state = VIDEOBUF_QUEUED;
 
 	if (vout->timer_stop) {
 		if (deinterlace_3_field(vout) &&
-			list_empty(&vout->active_list)) {
-			vb = list_first_entry(&vout->queue_list,
+			!list_empty(&vout->active_list)) {
+			active_vb = list_first_entry(&vout->active_list,
 					struct videobuf_buffer, queue);
-			list_del(&vb->queue);
-			list_add_tail(&vb->queue, &vout->active_list);
+			setup_buf_timer(vout, active_vb);
 		} else {
 			setup_buf_timer(vout, vb);
-			vout->timer_stop = false;
 		}
+		vout->timer_stop = false;
 	}
 }
 
