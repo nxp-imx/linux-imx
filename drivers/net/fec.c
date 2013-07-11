@@ -196,6 +196,7 @@ struct fec_enet_private {
 	struct net_device *netdev;
 
 	struct clk *clk;
+	struct clk *mdc_clk;
 
 	/* The saved address of a sent-in-place packet/buffer, for skfree(). */
 	unsigned char *tx_bounce[TX_RING_SIZE];
@@ -1139,9 +1140,8 @@ static int fec_enet_mii_init(struct platform_device *pdev)
 	/*
 	 * Set MII speed to 2.5 MHz (= clk_get_rate() / 2 * phy_speed)
 	 */
-	fep->phy_speed = DIV_ROUND_UP(clk_get_rate(fep->clk),
+	fep->phy_speed = DIV_ROUND_UP(clk_get_rate(fep->mdc_clk),
 					(FEC_ENET_MII_CLK << 2)) << 1;
-
 	/* set hold time to 2 internal clock cycle */
 	if (cpu_is_mx6q() || cpu_is_mx6dl())
 		fep->phy_speed |= FEC_ENET_HOLD_TIME;
@@ -1900,6 +1900,11 @@ fec_probe(struct platform_device *pdev)
 		ret = PTR_ERR(fep->clk);
 		goto failed_clk;
 	}
+	fep->mdc_clk = clk_get(&pdev->dev, "fec_mdc_clk");
+	if (IS_ERR(fep->mdc_clk)) {
+		ret = PTR_ERR(fep->mdc_clk);
+		goto failed_clk;
+	}
 	clk_enable(fep->clk);
 
 	ret = fec_enet_init(ndev);
@@ -1943,6 +1948,7 @@ failed_mii_init:
 failed_init:
 	clk_disable(fep->clk);
 	clk_put(fep->clk);
+	clk_put(fep->mdc_clk);
 failed_clk:
 	if (pdata->gpio_irq < 0)
 		free_irq(irq, ndev);
@@ -1975,6 +1981,7 @@ fec_drv_remove(struct platform_device *pdev)
 	fec_enet_mii_remove(fep);
 	clk_disable(fep->clk);
 	clk_put(fep->clk);
+	clk_put(fep->mdc_clk);
 	iounmap((void __iomem *)ndev->base_addr);
 	if (fep->ptimer_present)
 		fec_ptp_cleanup(fep->ptp_priv);
