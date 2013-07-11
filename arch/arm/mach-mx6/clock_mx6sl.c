@@ -3195,6 +3195,17 @@ static struct clk fec_clk[] = {
 	},
 };
 
+static unsigned long _clk_fec_mdc_get_rate(struct clk *clk)
+{
+	return clk_get_rate(clk->parent);
+}
+
+static struct clk fec_mdc_clk = {
+	__INIT_CLK_DEBUG(fec_mdc_clk)
+	.parent = &ipg_clk,
+	.get_rate = _clk_fec_mdc_get_rate,
+};
+
 static struct clk ecspi_clk[] = {
 	{
 	__INIT_CLK_DEBUG(ecspi0_clk)
@@ -3974,7 +3985,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_pwm.1", NULL, pwm_clk[1]),
 	_REGISTER_CLOCK("mxc_pwm.2", NULL, pwm_clk[2]),
 	_REGISTER_CLOCK("mxc_pwm.3", NULL, pwm_clk[3]),
-	_REGISTER_CLOCK("fec.0", NULL, fec_clk[0]),
+	_REGISTER_CLOCK(NULL, "fec_clk", fec_clk[0]),
+	_REGISTER_CLOCK(NULL, "fec_mdc_clk", fec_mdc_clk),
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk[0]),
 	_REGISTER_CLOCK(NULL, "usb_phy1_clk", usb_phy1_clk),
 	_REGISTER_CLOCK(NULL, "usb_phy3_clk", usb_phy3_clk),

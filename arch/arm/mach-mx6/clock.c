@@ -3787,6 +3787,17 @@ static struct clk enet_clk[] = {
 	},
 };
 
+static unsigned long _clk_enet_mdc_get_rate(struct clk *clk)
+{
+	return clk_get_rate(clk->parent);
+}
+
+static struct clk enet_mdc_clk = {
+	__INIT_CLK_DEBUG(enet_mdc_clk)
+	.parent = &ipg_clk,
+	.get_rate = _clk_enet_mdc_get_rate,
+};
+
 static struct clk ecspi_clk[] = {
 	{
 	__INIT_CLK_DEBUG(ecspi0_clk)
@@ -5399,7 +5410,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_pwm.3", NULL, pwm_clk[3]),
 	_REGISTER_CLOCK(NULL, "pcie_clk", pcie_clk[0]),
 	_REGISTER_CLOCK(NULL, "pcie_ep_clk", pcie_ep_clk[0]),
-	_REGISTER_CLOCK("enet.0", NULL, enet_clk[0]),
+	_REGISTER_CLOCK(NULL, "fec_clk", enet_clk[0]),
+	_REGISTER_CLOCK(NULL, "fec_mdc_clk", enet_mdc_clk),
 	_REGISTER_CLOCK(NULL, "imx_sata_clk", sata_clk[0]),
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk[0]),
 	_REGISTER_CLOCK(NULL, "usb_phy1_clk", usb_phy1_clk),
