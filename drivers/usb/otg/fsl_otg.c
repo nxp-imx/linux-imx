@@ -551,13 +551,9 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
 			goto end;
 		else {
 			VDBG("host off......\n");
-			if (host_pdrv->suspend) {
+			if (host_pdrv->suspend)
 				retval = host_pdrv->suspend(host_pdev,
 							otg_suspend_state);
-				if (fsm->id)
-					/* default-b */
-					fsl_otg_drv_vbus(dev->platform_data, 0);
-			}
 			otg_dev->host_working = 0;
 		}
 	}
