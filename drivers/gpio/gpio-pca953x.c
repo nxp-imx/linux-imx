@@ -17,6 +17,7 @@
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
 #include <linux/platform_data/pca953x.h>
+#include <linux/reset.h>
 #include <linux/slab.h>
 #include <asm/unaligned.h>
 #include <linux/of_platform.h>
@@ -812,6 +813,10 @@ static int pca953x_probe(struct i2c_client *client,
 	 */
 	lockdep_set_subclass(&chip->i2c_lock,
 			     i2c_adapter_depth(client->adapter));
+
+	ret = device_reset(&client->dev);
+	if (ret == -ENODEV)
+		return -EPROBE_DEFER;
 
 	/* initialize cached registers from their original values.
 	 * we can't share this chip with another i2c master.
