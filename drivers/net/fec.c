@@ -1867,7 +1867,7 @@ fec_probe(struct platform_device *pdev)
 	if (pdata)
 		fep->phy_interface = pdata->phy;
 
-	if (pdata->gpio_irq < 0) {
+	if (pdata->gpio_irq > 0) {
 		gpio_request(pdata->gpio_irq, "gpio_enet_irq");
 		gpio_direction_input(pdata->gpio_irq);
 
