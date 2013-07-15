@@ -246,10 +246,10 @@ int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	 * do platform specific init: check the clock, grab/config pins, etc.
 	 */
 	if (pdata->init && pdata->init(pdev)) {
-		pdata->lowpower = false;
 		retval = -ENODEV;
 		goto err4;
 	}
+	pdata->lowpower = false;
 
 	spin_lock_init(&pdata->lock);
 
@@ -315,6 +315,9 @@ err2:
 	usb_put_hcd(hcd);
 err1:
 	dev_err(&pdev->dev, "init %s fail, %d\n", dev_name(&pdev->dev), retval);
+	fsl_usb_lowpower_mode(pdata, true);
+	if (pdata->usb_clock_for_pm)
+		pdata->usb_clock_for_pm(false);
 	if (pdata->exit && pdata->pdev)
 		pdata->exit(pdata->pdev);
 	return retval;
@@ -333,7 +336,6 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 {
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
-	u32 tmp;
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
 		/* Need open clock for register access */
@@ -343,13 +345,20 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 		/*disable the wakeup to avoid an abnormal wakeup interrupt*/
 		usb_host_set_wakeup(hcd->self.controller, false);
 
-		tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
-		if (tmp & PORT_PTS_PHCD) {
-			tmp &= ~PORT_PTS_PHCD;
-			ehci_writel(ehci, tmp, &ehci->regs->port_status[0]);
-			msleep(100);
-		}
+		/* Put the PHY out of low power mode */
+		fsl_usb_lowpower_mode(pdata, false);
 	}
+
+	/* disable the host wakeup */
+	usb_host_set_wakeup(hcd->self.controller, false);
+	/*free the ehci_fsl_pre_irq  */
+	free_irq(hcd->irq, (void *)pdev);
+
+	usb_remove_hcd(hcd);
+
+	ehci_port_power(ehci, 0);
+
+	iounmap(hcd->regs);
 
 	if (ehci->transceiver) {
 		(void)otg_set_host(ehci->transceiver, 0);
@@ -357,26 +366,23 @@ static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 	} else {
 		release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
 	}
-	/*disable the host wakeup and put phy to low power mode */
-	usb_host_set_wakeup(hcd->self.controller, false);
-	/*free the ehci_fsl_pre_irq  */
-	free_irq(hcd->irq, (void *)pdev);
-	usb_remove_hcd(hcd);
+
 	usb_put_hcd(hcd);
 
 	fsl_usb_lowpower_mode(pdata, true);
 
-	/* DDD shouldn't we turn off the power here? */
-	fsl_platform_set_vbus_power(pdata, 0);
+	/* Close the VBUS */
+	if (pdata->xcvr_ops && pdata->xcvr_ops->set_vbus_power)
+		pdata->xcvr_ops->set_vbus_power(pdata->xcvr_ops, pdata, 0);
+
+	if (pdata->usb_clock_for_pm)
+		pdata->usb_clock_for_pm(false);
 
 	/*
-	 * do platform specific un-initialization:
-	 * release iomux pins clocks, etc.
+	 * do platform specific un-initialization
 	 */
 	if (pdata->exit && pdata->pdev)
 		pdata->exit(pdata->pdev);
-
-	iounmap(hcd->regs);
 }
 
 static void fsl_setup_phy(struct ehci_hcd *ehci,
@@ -676,17 +682,32 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	/* Only handles OTG mode switch event, system suspend event will be done in bus suspend */
 	if (pdata->pmflags == 0) {
 		printk(KERN_DEBUG "%s, pm event \n", __func__);
+		disable_irq(hcd->irq);
 		if (!host_can_wakeup_system(pdev)) {
 			/* Need open clock for register access */
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+			/*
+			 * Disable wakeup interrupt, since there is wakeup
+			 * when phcd from 1->0 if wakeup interrupt is enabled
+			 */
+			usb_host_set_wakeup(hcd->self.controller, false);
+
+			/*
+			 * Open PHY's clock, then the wakeup settings
+			 * can be wroten correctly
+			 */
+			fsl_usb_lowpower_mode(pdata, false);
 
 			usb_host_set_wakeup(hcd->self.controller, false);
+
+			fsl_usb_lowpower_mode(pdata, true);
 
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		} else {
 			if (pdata->platform_phy_power_on)
 				pdata->platform_phy_power_on();
 		}
+		enable_irq(hcd->irq);
 
 		printk(KERN_DEBUG "host suspend ends\n");
 		return 0;
@@ -758,13 +779,18 @@ static int ehci_fsl_drv_suspend(struct platform_device *pdev,
 	return 0;
 }
 
+#define OTGSC_OFFSET 		0x64
+#define OTGSC_ID_VALUE		(1 << 8)
+#define OTGSC_ID_INT_STS	(1 << 16)
 static int ehci_fsl_drv_resume(struct platform_device *pdev)
 {
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	struct usb_device *roothub = hcd->self.root_hub;
 	unsigned long flags;
-	u32 tmp;
+	u32 tmp, otgsc;
+	bool id_changed;
+	int id_value;
 	struct fsl_usb2_platform_data *pdata = pdev->dev.platform_data;
 	struct fsl_usb2_wakeup_platform_data *wake_up_pdata = pdata->wakeup_pdata;
 	/* Only handles OTG mode switch event */
@@ -772,29 +798,36 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 	if (pdata->pmflags == 0) {
 		printk(KERN_DEBUG "%s,pm event, wait for wakeup irq if needed\n", __func__);
 		wait_event_interruptible(wake_up_pdata->wq, !wake_up_pdata->usb_wakeup_is_pending);
+		disable_irq(hcd->irq);
 		if (!host_can_wakeup_system(pdev)) {
 			/* Need open clock for register access */
 			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
+			fsl_usb_lowpower_mode(pdata, false);
 
-			usb_host_set_wakeup(hcd->self.controller, true);
-
-#ifndef NO_FIX_DISCONNECT_ISSUE
-			/*Unplug&plug device during suspend without remote wakeup enabled
-			For Low and full speed device, we should power on and power off
-			the USB port to make sure USB internal state machine work well.
-			*/
 			tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
-			if ((tmp & PORT_CONNECT) && !(tmp & PORT_SUSPEND) &&
-				((tmp & (0x3<<26)) != (0x2<<26))) {
-					printk(KERN_DEBUG "%s will do power off and power on port.\n", pdata->name);
-					ehci_writel(ehci, tmp & ~(PORT_RWC_BITS | PORT_POWER),
-						&ehci->regs->port_status[0]);
-					ehci_writel(ehci, tmp | PORT_POWER,
-						&ehci->regs->port_status[0]);
+			if (pdata->operating_mode == FSL_USB2_DR_OTG) {
+				otgsc = ehci_readl(ehci, (u32 __iomem *)ehci->regs + OTGSC_OFFSET / 4);
+				id_changed = !!(otgsc & OTGSC_ID_INT_STS);
+				id_value = !!(otgsc & OTGSC_ID_VALUE);
+				if (((tmp & PORT_CONNECT) && !id_value) || id_changed) {
+					set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+				} else if (!(tmp & PORT_CONNECT)) {
+					usb_host_set_wakeup(hcd->self.controller, true);
+					fsl_usb_lowpower_mode(pdata, true);
+					fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
+				}
+			} else {
+				if (tmp & PORT_CONNECT) {
+					set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+				} else {
+					usb_host_set_wakeup(hcd->self.controller, true);
+					fsl_usb_lowpower_mode(pdata, true);
+					fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
+				}
+
 			}
-#endif
-			fsl_usb_clk_gate(hcd->self.controller->platform_data, false);
 		}
+		enable_irq(hcd->irq);
 		return 0;
 	}
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {

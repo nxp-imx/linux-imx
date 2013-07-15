@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -16,7 +16,7 @@
  */
 
 /*!
- * @file arch-mxc/mxc_vpu.h
+ * @file plat-mxc/include/mach/mxc_vpu.h
  *
  * @brief VPU system initialization and file operation definition
  *
@@ -58,6 +58,7 @@ struct vpu_mem_desc {
 #define VPU_IOC_QUERY_BITWORK_MEM  _IO(VPU_IOC_MAGIC, 13)
 #define VPU_IOC_SET_BITWORK_MEM    _IO(VPU_IOC_MAGIC, 14)
 #define VPU_IOC_PHYMEM_CHECK	_IO(VPU_IOC_MAGIC, 15)
+#define VPU_IOC_LOCK_DEV	_IO(VPU_IOC_MAGIC, 16)
 
 #define BIT_CODE_RUN			0x000
 #define BIT_CODE_DOWN			0x004

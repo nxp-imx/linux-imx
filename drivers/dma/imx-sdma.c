@@ -7,7 +7,7 @@
  *
  * Based on code from Freescale:
  *
- * Copyright 2004-2012 Freescale Semiconductor, Inc.
+ * Copyright 2004-2013 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -33,11 +33,14 @@
 #include <linux/platform_device.h>
 #include <linux/dmaengine.h>
 #include <linux/delay.h>
+#include <linux/genalloc.h>
 
 #include <asm/irq.h>
 #include <mach/sdma.h>
 #include <mach/dma.h>
 #include <mach/hardware.h>
+#include <mach/iram.h>
+
 
 /* SDMA registers */
 #define SDMA_H_C0PTR		0x000
@@ -328,12 +331,42 @@ struct sdma_engine {
 	struct clk			*clk;
 	struct sdma_script_start_addrs	*script_addrs;
 	spinlock_t			irq_reg_lock;
+	spinlock_t			channel_0_lock;
 };
 
 #define SDMA_H_CONFIG_DSPDMA	(1 << 12) /* indicates if the DSPDMA is used */
 #define SDMA_H_CONFIG_RTD_PINS	(1 << 11) /* indicates if Real-Time Debug pins are enabled */
 #define SDMA_H_CONFIG_ACR	(1 << 4)  /* indicates if AHB freq /core freq = 2 or 1 */
 #define SDMA_H_CONFIG_CSM	(3)       /* indicates which context switch mode is selected*/
+
+#ifdef CONFIG_SDMA_IRAM
+static unsigned long sdma_iram_paddr;
+static void *sdma_iram_vaddr;
+#define sdma_iram_phys_to_virt(p) (sdma_iram_vaddr + ((p) - sdma_iram_paddr))
+#define sdma_iram_virt_to_phys(v) (sdma_iram_paddr + ((v) - sdma_iram_vaddr))
+static struct gen_pool *sdma_iram_pool;
+
+/*!
+ * Allocates uncacheable buffer from IRAM
+ */
+void __iomem *sdma_iram_malloc(size_t size, unsigned long *buf)
+{
+	*buf = gen_pool_alloc(sdma_iram_pool, size);
+	if (!buf)
+		return NULL;
+
+	return sdma_iram_phys_to_virt(*buf);
+}
+
+void sdma_iram_free(unsigned long *buf, u32 size)
+{
+	if (!sdma_iram_pool)
+		return;
+
+	gen_pool_free(sdma_iram_pool, buf, size);
+}
+#endif				/*CONFIG_SDMA_IRAM */
+
 
 static inline u32 chnenbl_ofs(struct sdma_engine *sdma, unsigned int event)
 {
@@ -385,14 +418,23 @@ static int sdma_run_channel(struct sdma_channel *sdmac)
 {
 	struct sdma_engine *sdma = sdmac->sdma;
 	int channel = sdmac->channel;
+	unsigned long timeout = 1000;
 	int ret;
 
-	init_completion(&sdmac->done);
+	writel(1 << channel, sdma->regs + SDMA_H_START);
 
-	wmb();
-	writel_relaxed(1 << channel, sdma->regs + SDMA_H_START);
+	while (!(ret = readl_relaxed(sdma->regs + SDMA_H_INTR) & 1)) {
+		if (timeout-- <= 0)
+			break;
+		udelay(1);
+	}
 
-	ret = wait_for_completion_timeout(&sdmac->done, HZ);
+	if (ret) {
+		/* Clear the interrupt status */
+		writel_relaxed(ret, sdma->regs + SDMA_H_INTR);
+	} else {
+		dev_err(sdma->dev, "Timeout waiting for CH0 ready\n");
+	}
 
 	return ret ? 0 : -ETIMEDOUT;
 }
@@ -403,13 +445,20 @@ static int sdma_load_script(struct sdma_engine *sdma, void *buf, int size,
 	struct sdma_buffer_descriptor *bd0 = sdma->channel[0].bd;
 	void *buf_virt;
 	dma_addr_t buf_phys;
+	unsigned long flags;
 	int ret;
 
+#ifdef CONFIG_SDMA_IRAM
+	buf_virt = sdma_iram_malloc(size, (unsigned long)&buf_phys);
+#else
 	buf_virt = dma_alloc_coherent(NULL,
 			size,
 			&buf_phys, GFP_KERNEL);
+#endif
 	if (!buf_virt)
 		return -ENOMEM;
+
+	spin_lock_irqsave(&sdma->channel_0_lock, flags);
 
 	bd0->mode.command = C0_SETPM;
 	bd0->mode.status = BD_DONE | BD_INTR | BD_WRAP | BD_EXTD;
@@ -421,7 +470,12 @@ static int sdma_load_script(struct sdma_engine *sdma, void *buf, int size,
 
 	ret = sdma_run_channel(&sdma->channel[0]);
 
+	spin_unlock_irqrestore(&sdma->channel_0_lock, flags);
+#ifdef CONFIG_SDMA_IRAM
+	sdma_iram_free(buf_phys, size);
+#else
 	dma_free_coherent(NULL, size, buf_virt, buf_phys);
+#endif
 
 	return ret;
 }
@@ -518,10 +572,6 @@ static void mxc_sdma_handle_channel(struct sdma_channel *sdmac)
 {
 	complete(&sdmac->done);
 
-	/* not interested in channel 0 interrupts */
-	if (sdmac->channel == 0)
-		return;
-
 	switch (sdmac->mode) {
 	case SDMA_MODE_LOOP:
 		sdma_handle_channel_loop(sdmac);
@@ -548,6 +598,8 @@ static irqreturn_t sdma_int_handler(int irq, void *dev_id)
 
 	spin_lock_irqsave(&sdma->irq_reg_lock, flag);
 	stat = readl_relaxed(sdma->regs + SDMA_H_INTR);
+	/* not interested in channel 0 interrupts */
+	stat &= ~1;
 	writel_relaxed(stat, sdma->regs + SDMA_H_INTR);
 	spin_unlock_irqrestore(&sdma->irq_reg_lock, flag);
 
@@ -696,6 +748,7 @@ static int sdma_load_context(struct sdma_channel *sdmac)
 	struct sdma_context_data *context = sdma->context;
 	struct sdma_buffer_descriptor *bd0 = sdma->channel[0].bd;
 	int ret;
+	unsigned long flags;
 
 
 	if (sdmac->direction == DMA_DEV_TO_MEM)
@@ -720,6 +773,7 @@ static int sdma_load_context(struct sdma_channel *sdmac)
 	dev_dbg(sdma->dev, "event_mask0 = 0x%08x\n", sdmac->event_mask0);
 	dev_dbg(sdma->dev, "event_mask1 = 0x%08x\n", sdmac->event_mask1);
 
+	spin_lock_irqsave(&sdma->channel_0_lock, flags);
 	memset(context, 0, sizeof(*context));
 	context->channel_state.pc = load_address;
 
@@ -736,6 +790,7 @@ static int sdma_load_context(struct sdma_channel *sdmac)
 
 	ret = sdma_run_channel(&sdma->channel[0]);
 
+	spin_unlock_irqrestore(&sdma->channel_0_lock, flags);
 	return ret;
 }
 
@@ -882,7 +937,12 @@ static int sdma_request_channel(struct sdma_channel *sdmac)
 	int channel = sdmac->channel;
 	int ret = -EBUSY;
 
+#ifdef CONFIG_SDMA_IRAM
+	sdmac->bd = sdma_iram_malloc(sizeof(sdmac->bd),
+					(unsigned long)&sdmac->bd_phys);
+#else
 	sdmac->bd = dma_alloc_noncached(NULL, PAGE_SIZE, &sdmac->bd_phys, GFP_KERNEL);
+#endif
 	if (!sdmac->bd) {
 		ret = -ENOMEM;
 		goto out;
@@ -1045,8 +1105,11 @@ static void sdma_free_chan_resources(struct dma_chan *chan)
 
 	sdma_set_channel_priority(sdmac, 0);
 
+#ifdef CONFIG_SDMA_IRAM
+	sdma_iram_free(sdmac->bd_phys, sizeof(sdmac->bd));
+#else
 	dma_free_coherent(NULL, PAGE_SIZE, sdmac->bd, sdmac->bd_phys);
-
+#endif
 	clk_disable(sdma->clk);
 }
 
@@ -1430,10 +1493,22 @@ static int __init sdma_init(struct sdma_engine *sdma)
 	/* Be sure SDMA has not started yet */
 	writel_relaxed(0, sdma->regs + SDMA_H_C0PTR);
 
+#ifdef CONFIG_SDMA_IRAM
+	/* Allocate memory for SDMA channel and buffer descriptors */
+	sdma_iram_vaddr = iram_alloc(SZ_4K, &sdma_iram_paddr);
+	sdma_iram_pool = gen_pool_create(PAGE_SHIFT/2, -1);
+	gen_pool_add(sdma_iram_pool, sdma_iram_paddr, SZ_4K, -1);
+
+	sdma->channel_control = sdma_iram_malloc(MAX_DMA_CHANNELS *
+			sizeof(struct sdma_channel_control)
+			+ sizeof(struct sdma_context_data),
+			&ccb_phys);
+#else
 	sdma->channel_control = dma_alloc_coherent(NULL,
 			MAX_DMA_CHANNELS * sizeof (struct sdma_channel_control) +
 			sizeof(struct sdma_context_data),
 			&ccb_phys, GFP_KERNEL);
+#endif
 
 	if (!sdma->channel_control) {
 		ret = -ENOMEM;
@@ -1500,6 +1575,8 @@ static int __init sdma_probe(struct platform_device *pdev)
 	sdma = kzalloc(sizeof(*sdma), GFP_KERNEL);
 	if (!sdma)
 		return -ENOMEM;
+
+	spin_lock_init(&sdma->channel_0_lock);
 
 	sdma->dev = &pdev->dev;
 

@@ -484,8 +484,8 @@ static int mxc_wm8962_init(void)
 
 	clk_set_parent(extern_audio_root, pll4);
 
-	rate = clk_round_rate(extern_audio_root, 26000000);
-	clk_set_rate(extern_audio_root, rate);
+	rate = 24000000;
+	clk_set_rate(extern_audio_root, 24000000);
 
 	wm8962_data.sysclk = rate;
 
@@ -1092,7 +1092,7 @@ static struct platform_pwm_backlight_data mx6_arm2_pwm_backlight_data = {
 static struct fb_videomode video_modes[] = {
 	{
 	 /* 800x480 @ 57 Hz , pixel clk @ 32MHz */
-	 "SEIKO-WVGA", 60, 800, 480, 29850, 99, 164, 33, 10, 10, 10,
+	 "SEIKO-WVGA", 60, 800, 480, 29850, 89, 164, 23, 10, 10, 10,
 	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -131,7 +131,7 @@ static struct snd_soc_card snd_soc_card_imx_3stack = {
 	.num_links = 1,
 };
 
-static int __init imx_3stack_si4763_probe(struct platform_device *pdev)
+static int __devinit imx_3stack_si4763_probe(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
 

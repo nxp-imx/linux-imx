@@ -631,9 +631,9 @@ static int pfuze100_regulator_set_voltage_time_sel(struct regulator_dev *rdev,
 	 * 02: 8us,
 	 * 03: 16us,
 	 */
-	step_delay >>= 5;
+	step_delay >>= 6;
 	step_delay &= 0x3;
-	step_delay <<= 1;
+	step_delay = 2  <<  step_delay;
 
 	if (pfuze100_regulators[id].voltages[old_sel] <
 		pfuze100_regulators[id].voltages[new_sel])

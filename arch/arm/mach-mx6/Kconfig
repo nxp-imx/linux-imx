@@ -288,12 +288,25 @@ config IMX_PCIE
 	bool "PCI Express support"
 	select PCI
 
+config IMX_PCIE_EP_MODE_IN_EP_RC_SYS
+	bool "PCI Express EP mode in the IMX6 RC/EP interconnection system"
+	depends on IMX_PCIE
+
+config IMX_PCIE_RC_MODE_IN_EP_RC_SYS
+	bool "PCI Express RC mode in the IMX6 RC/EP interconnection system"
+	depends on IMX_PCIE
+
 config USB_EHCI_ARC_H1
 	tristate "USB Host 1 support"
 	depends on USB_EHCI_ARC
 
 config USB_FSL_ARC_OTG
 	tristate "FSL USB OTG support"
+
+config USB_ID_WAKEUP_ENABLE
+	bool "Enable USB ID Pin As System Wakeup Source"
+	depends on SOC_IMX6SL
+	default n
 
 config MX6_INTER_LDO_BYPASS
 	bool "Internal LDO in MX6Q/DL bypass"
@@ -319,11 +332,10 @@ config MACH_IMX_BLUETOOTH_RFKILL
        ---help---
 	Say Y to get the standard rfkill interface of Bluetooth
 
-config MX6_ENET_IRQ_TO_GPIO
-	bool "Route ENET interrupts to GPIO"
-	default n
+config SDMA_IRAM
+	bool "Use Internal RAM for SDMA data structures"
+	depends on IMX_SDMA && SOC_IMX6SL
 	help
-	   Enabling this will direct all the ENET interrupts to a board specific GPIO.
-	   This will allow the system to enter WAIT mode when ENET is active.
+	  SDMA buffer or control structures are stored in the IRAM/OCRAM
 
 endif

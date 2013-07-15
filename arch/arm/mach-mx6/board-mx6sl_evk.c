@@ -547,8 +547,8 @@ static int mxc_wm8962_init(void)
 
 	clk_set_parent(extern_audio_root, pll4);
 
-	rate = clk_round_rate(extern_audio_root, 26000000);
-	clk_set_rate(extern_audio_root, rate);
+	rate = 24000000;
+	clk_set_rate(extern_audio_root, 24000000);
 
 	wm8962_data.sysclk = rate;
 	/* set AUDMUX pads to 1.8v */
@@ -1255,6 +1255,14 @@ static void imx6_evk_usbotg_vbus(bool on)
 		gpio_set_value(MX6_BRD_USBOTG1_PWR, 0);
 }
 
+static void imx6_evk_usbh1_vbus(bool on)
+{
+	if (on)
+		gpio_set_value(MX6_BRD_USBOTG2_PWR, 1);
+	else
+		gpio_set_value(MX6_BRD_USBOTG2_PWR, 0);
+}
+
 static void __init mx6_evk_init_usb(void)
 {
 	int ret = 0;
@@ -1277,9 +1285,10 @@ static void __init mx6_evk_init_usb(void)
 		pr_err("failed to get GPIO MX6_BRD_USBOTG2_PWR:%d\n", ret);
 		return;
 	}
-	gpio_direction_output(MX6_BRD_USBOTG2_PWR, 1);
+	gpio_direction_output(MX6_BRD_USBOTG2_PWR, 0);
 
 	mx6_set_otghost_vbus_func(imx6_evk_usbotg_vbus);
+	mx6_set_host1_vbus_func(imx6_evk_usbh1_vbus);
 
 #ifdef CONFIG_USB_EHCI_ARC_HSIC
 	mx6_usb_h2_init();
@@ -1295,7 +1304,7 @@ static struct platform_pwm_backlight_data mx6_evk_pwm_backlight_data = {
 static struct fb_videomode wvga_video_modes[] = {
 	{
 	 /* 800x480 @ 57 Hz , pixel clk @ 32MHz */
-	 "SEIKO-WVGA", 60, 800, 480, 29850, 99, 164, 33, 10, 10, 10,
+	 "SEIKO-WVGA", 60, 800, 480, 29850, 89, 164, 23, 10, 10, 10,
 	 FB_SYNC_CLK_LAT_FALL,
 	 FB_VMODE_NONINTERLACED,
 	 0,},

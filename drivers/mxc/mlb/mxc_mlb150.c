@@ -288,8 +288,8 @@ enum CLK_SPEED {
 };
 
 struct mlb_ringbuf {
-	s8 *virt_bufs[TRANS_RING_NODES + 1];
-	u32 phy_addrs[TRANS_RING_NODES + 1];
+	s8 *virt_bufs[TRANS_RING_NODES];
+	u32 phy_addrs[TRANS_RING_NODES];
 	s32 head;
 	s32 tail;
 	s32 unit_size;
@@ -1538,6 +1538,11 @@ static s32 mlb150_trans_complete_check(struct mlb_dev_info *pdevinfo)
 		return -ETIME;
 	}
 
+	/* Interrupt from TX can only inform that the data is sent
+	 * to AHB bus, not mean that it is sent to MITB. Thus we add
+	 * a delay here for data to be completed sent. */
+	udelay(1000);
+
 	return 0;
 }
 
@@ -1902,24 +1907,27 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 		pr_err("can not alloc rx/tx buffers: %d\n", buf_size);
 		return ret;
 	}
+	pr_debug("IRAM Range: Virt 0x%x - 0x%x, Phys 0x%x - 0x%x, size: 0x%x\n",
+			buf_addr, (buf_addr + buf_size - 1), phy_addr,
+			(phy_addr + buf_size - 1), buf_size);
 	pdevinfo->rbuf_base_virt = buf_addr;
 	pdevinfo->rbuf_base_phy = phy_addr;
 	memset(buf_addr, 0, buf_size);
 
-	for (j = 0; j < (TRANS_RING_NODES + 1);
+	for (j = 0; j < (TRANS_RING_NODES);
 		++j, buf_addr += ring_buf_size, phy_addr += ring_buf_size) {
 		pdevinfo->rx_rbuf.virt_bufs[j] = buf_addr;
 		pdevinfo->rx_rbuf.phy_addrs[j] = phy_addr;
+		pr_debug("RX Ringbuf[%d]: 0x%x 0x%x\n", j, buf_addr, phy_addr);
 	}
 	pdevinfo->rx_rbuf.unit_size = ring_buf_size;
 	pdevinfo->rx_rbuf.total_size = buf_size;
 
-	buf_addr += ring_buf_size;
-	phy_addr += ring_buf_size;
 	for (j = 0; j < (TRANS_RING_NODES);
 		++j, buf_addr += ring_buf_size, phy_addr += ring_buf_size) {
 		pdevinfo->tx_rbuf.virt_bufs[j] = buf_addr;
 		pdevinfo->tx_rbuf.phy_addrs[j] = phy_addr;
+		pr_debug("TX Ringbuf[%d]: 0x%x 0x%x\n", j, buf_addr, phy_addr);
 	}
 
 	pdevinfo->tx_rbuf.unit_size = ring_buf_size;
@@ -2347,9 +2355,8 @@ static ssize_t mxc_mlb150_write(struct file *filp, const char __user *buf,
 
 		/*  Set ADT for TX */
 		mlb150_dev_pipo_next(ahb_ch, ctype, adt_sts, tx_buf_ptr);
-	} else {
+	} else
 		read_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
-	}
 
 	ret = count;
 out:
@@ -2670,9 +2677,9 @@ static int mxc_mlb150_resume(struct platform_device *pdev)
 {
 	struct mlb_data *drvdata = platform_get_drvdata(pdev);
 
-	mlb150_dev_init();
-
 	clk_enable(drvdata->clk_mlb6p);
+
+	mlb150_dev_init();
 
 	return 0;
 }

@@ -481,7 +481,9 @@ static iomux_v3_cfg_t suspend_enter_pads[] = {
 	MX6SL_PAD_SD3_DAT3__GPIO_5_17,
 
 	/* USBOTG ID pin */
+#ifndef CONFIG_USB_ID_WAKEUP_ENABLE
 	MX6SL_PAD_EPDC_PWRCOM__GPIO_2_11,
+#endif
 	MX6SL_PAD_HSIC_STROBE__GPIO_3_20,
 	MX6SL_PAD_HSIC_DAT__GPIO_3_19,
 

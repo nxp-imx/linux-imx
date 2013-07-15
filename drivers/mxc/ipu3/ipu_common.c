@@ -110,6 +110,17 @@ static inline int _ipu_is_primary_disp_chan(uint32_t dma_chan)
 		(dma_chan == 28) || (dma_chan == 41));
 }
 
+static inline int _ipu_is_sync_irq(uint32_t irq)
+{
+	/* sync interrupt register number */
+	int reg_num = irq / 32 + 1;
+
+	return ((reg_num == 1)  || (reg_num == 2)  || (reg_num == 3)  ||
+		(reg_num == 4)  || (reg_num == 7)  || (reg_num == 8)  ||
+		(reg_num == 11) || (reg_num == 12) || (reg_num == 13) ||
+		(reg_num == 14) || (reg_num == 15));
+}
+
 #define idma_is_valid(ch)	(ch != NO_DMA)
 #define idma_mask(ch)		(idma_is_valid(ch) ? (1UL << (ch & 0x1F)) : 0)
 #define idma_is_set(ipu, reg, dma)	(ipu_idmac_read(ipu, reg(dma)) & idma_mask(dma))
@@ -1166,10 +1177,17 @@ int32_t ipu_init_channel_buffer(struct ipu_soc *ipu, ipu_channel_t channel,
 			rot_mode);
 	} else if (_ipu_is_smfc_chan(dma_chan)) {
 		burst_size = _ipu_ch_param_get_burst_size(ipu, dma_chan);
-		if ((pixel_fmt == IPU_PIX_FMT_GENERIC) &&
-			((_ipu_ch_param_get_bpp(ipu, dma_chan) == 5) ||
-			(_ipu_ch_param_get_bpp(ipu, dma_chan) == 3)))
+		/*
+		 * This is different from IPUv3 spec, but it is confirmed
+		 * in IPUforum that SMFC burst size should be NPB[6:3]
+		 * when IDMAC works in 16-bit generic data mode.
+		 */
+		if (pixel_fmt == IPU_PIX_FMT_GENERIC)
+			/* 8 bits per pixel */
 			burst_size = burst_size >> 4;
+		else if (pixel_fmt == IPU_PIX_FMT_GENERIC_16)
+			/* 16 bits per pixel */
+			burst_size = burst_size >> 3;
 		else
 			burst_size = burst_size >> 2;
 		_ipu_smfc_set_burst_size(ipu, channel, burst_size-1);
@@ -2458,23 +2476,40 @@ static irqreturn_t ipu_err_irq_handler(int irq, void *desc)
  * @param	ipu		ipu handler
  * @param       irq             Interrupt line to enable interrupt for.
  *
+ * @return      This function returns 0 on success or negative error code on
+ *              fail.
  */
-void ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq)
+int ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq)
 {
 	uint32_t reg;
 	unsigned long lock_flags;
+	int ret = 0;
 
 	_ipu_get(ipu);
 
 	spin_lock_irqsave(&ipu->int_reg_spin_lock, lock_flags);
 
+	/*
+	 * Check sync interrupt handler only, since we do nothing for
+	 * error interrupts but than print out register values in the
+	 * error interrupt source handler.
+	 */
+	if (_ipu_is_sync_irq(irq) && (ipu->irq_list[irq].handler == NULL)) {
+		dev_err(ipu->dev, "handler hasn't been registered on sync "
+				  "irq %d\n", irq);
+		ret = -EACCES;
+		goto out;
+	}
+
 	reg = ipu_cm_read(ipu, IPUIRQ_2_CTRLREG(irq));
 	reg |= IPUIRQ_2_MASK(irq);
 	ipu_cm_write(ipu, reg, IPUIRQ_2_CTRLREG(irq));
-
+out:
 	spin_unlock_irqrestore(&ipu->int_reg_spin_lock, lock_flags);
 
 	_ipu_put(ipu);
+
+	return ret;
 }
 EXPORT_SYMBOL(ipu_enable_irq);
 
@@ -2586,6 +2621,7 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 {
 	uint32_t reg;
 	unsigned long lock_flags;
+	int ret = 0;
 
 	BUG_ON(irq >= IPU_IRQ_COUNT);
 
@@ -2596,8 +2632,19 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 	if (ipu->irq_list[irq].handler != NULL) {
 		dev_err(ipu->dev,
 			"handler already installed on irq %d\n", irq);
-		spin_unlock_irqrestore(&ipu->int_reg_spin_lock, lock_flags);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/*
+	 * Check sync interrupt handler only, since we do nothing for
+	 * error interrupts but than print out register values in the
+	 * error interrupt source handler.
+	 */
+	if (_ipu_is_sync_irq(irq) && (handler == NULL)) {
+		dev_err(ipu->dev, "handler is NULL for sync irq %d\n", irq);
+		ret = -EINVAL;
+		goto out;
 	}
 
 	ipu->irq_list[irq].handler = handler;
@@ -2611,12 +2658,12 @@ int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,
 	reg = ipu_cm_read(ipu, IPUIRQ_2_CTRLREG(irq));
 	reg |= IPUIRQ_2_MASK(irq);
 	ipu_cm_write(ipu, reg, IPUIRQ_2_CTRLREG(irq));
-
+out:
 	spin_unlock_irqrestore(&ipu->int_reg_spin_lock, lock_flags);
 
 	_ipu_put(ipu);
 
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL(ipu_request_irq);
 
@@ -2791,6 +2838,7 @@ uint32_t bytes_per_pixel(uint32_t fmt)
 	case IPU_PIX_FMT_YUV444P:
 		return 1;
 		break;
+	case IPU_PIX_FMT_GENERIC_16:	/* generic data */
 	case IPU_PIX_FMT_RGB565:
 	case IPU_PIX_FMT_YUYV:
 	case IPU_PIX_FMT_UYVY:
@@ -2798,6 +2846,7 @@ uint32_t bytes_per_pixel(uint32_t fmt)
 		break;
 	case IPU_PIX_FMT_BGR24:
 	case IPU_PIX_FMT_RGB24:
+	case IPU_PIX_FMT_YUV444:
 		return 3;
 		break;
 	case IPU_PIX_FMT_GENERIC_32:	/*generic data */

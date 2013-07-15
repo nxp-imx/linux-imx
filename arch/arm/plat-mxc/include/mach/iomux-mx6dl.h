@@ -84,10 +84,17 @@
 		PAD_CTL_DSE_40ohm | PAD_CTL_PUS_100K_DOWN |		\
 		PAD_CTL_HYS | PAD_CTL_SPEED_MED)
 
+#define MX6DL_HDMICEC_PAD_CTRL	(PAD_CTL_HYS | PAD_CTL_PUS_100K_UP | \
+		PAD_CTL_PUE | PAD_CTL_PKE | PAD_CTL_ODE | PAD_CTL_SPEED_MED | \
+		PAD_CTL_DSE_40ohm | PAD_CTL_SRE_SLOW)
+
 #define MX6DL_GPMI_PAD_CTRL0 (PAD_CTL_PKE | PAD_CTL_PUE | PAD_CTL_PUS_100K_UP)
 #define MX6DL_GPMI_PAD_CTRL1 (PAD_CTL_DSE_40ohm | PAD_CTL_SPEED_MED | PAD_CTL_SRE_FAST)
 #define MX6DL_GPMI_PAD_CTRL2 (MX6DL_GPMI_PAD_CTRL0 | MX6DL_GPMI_PAD_CTRL1)
 #define MX6DL_SPDIF_OUT_PAD_CTRL (PAD_CTL_DSE_120ohm | PAD_CTL_SRE_FAST)
+
+#define ENET_IRQ_PAD_CTRL (PAD_CTL_SRE_FAST | PAD_CTL_DSE_40ohm | \
+		PAD_CTL_SPEED_MED)
 
 #define MX6DL_PAD_CSI0_DAT10__IPU1_CSI0_D_10                                   \
 		IOMUX_PAD(0x0360, 0x004C, 0, 0x0000, 0, NO_PAD_CTRL)
@@ -1425,7 +1432,7 @@
 #define MX6DL_PAD_EIM_A25__GPIO_5_2                                            \
 		IOMUX_PAD(0x0504, 0x0134, 5, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_EIM_A25__HDMI_TX_CEC_LINE                                    \
-		IOMUX_PAD(0x0504, 0x0134, 6, 0x085C, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x0504, 0x0134, 6, 0x085C, 0, MX6DL_HDMICEC_PAD_CTRL)
 #define MX6DL_PAD_EIM_A25__PL301_SIM_MX6DL_PER1_HBURST_0                       \
 		IOMUX_PAD(0x0504, 0x0134, 7, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_EIM_A25__EPDC_SDDO_15                                        \
@@ -2524,10 +2531,12 @@
 #define MX6DL_PAD_GPIO_5__SIMBA_EVENTI                                         \
 		IOMUX_PAD(0x0600, 0x0230, 7, 0x0000, 0, NO_PAD_CTRL)
 
-#define MX6DL_PAD_GPIO_6__ESAI1_SCKT                                           \
-		IOMUX_PAD(0x0604, 0x0234, 0, 0x0840, 1, NO_PAD_CTRL)
+#define MX6DL_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6                           \
+		IOMUX_PAD(0x0604, 0x0234, 1 | IOMUX_CONFIG_SION, 0x0000, 0, ENET_IRQ_PAD_CTRL)
 #define MX6DL_PAD_GPIO_6__OBSERVE_MUX_OBSRV_INT_OUT1                           \
 		IOMUX_PAD(0x0604, 0x0234, 1, 0x0000, 0, NO_PAD_CTRL)
+#define MX6DL_PAD_GPIO_6__ESAI1_SCKT                                           \
+		IOMUX_PAD(0x0604, 0x0234, 0, 0x0840, 1, NO_PAD_CTRL)
 #define MX6DL_PAD_GPIO_6__I2C3_SDA                                             \
 		IOMUX_PAD(0x0604, 0x0234, 2 | IOMUX_CONFIG_SION, 0x087C, 2, MX6DL_I2C_PAD_CTRL)
 #define MX6DL_PAD_GPIO_6__CCM_CCM_OUT_0                                        \
@@ -2760,7 +2769,7 @@
 #define MX6DL_PAD_KEY_ROW2__GPIO_4_11                                          \
 		IOMUX_PAD(0x0648, 0x0260, 5, 0x0000, 0, NO_PAD_CTRL)
 #define MX6DL_PAD_KEY_ROW2__HDMI_TX_CEC_LINE                                   \
-		IOMUX_PAD(0x0648, 0x0260, 6, 0x085C, 1, NO_PAD_CTRL)
+		IOMUX_PAD(0x0648, 0x0260, 6, 0x085C, 1, MX6DL_HDMICEC_PAD_CTRL)
 #define MX6DL_PAD_KEY_ROW2__PL301_SIM_MX6DL_PER1_HADDR_4                       \
 		IOMUX_PAD(0x0648, 0x0260, 7, 0x0000, 0, NO_PAD_CTRL)
 

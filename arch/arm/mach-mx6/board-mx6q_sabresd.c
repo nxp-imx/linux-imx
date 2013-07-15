@@ -201,12 +201,10 @@
 #define SABRESD_ELAN_RST	IMX_GPIO_NR(3, 8)
 #define SABRESD_ELAN_INT	IMX_GPIO_NR(3, 28)
 
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
 #define MX6_ENET_IRQ		IMX_GPIO_NR(1, 6)
 #define IOMUX_OBSRV_MUX1_OFFSET	0x3c
 #define OBSRV_MUX1_MASK			0x3f
 #define OBSRV_MUX1_ENET_IRQ		0x9
-#endif
 
 static struct clk *sata_clk;
 static struct clk *clko;
@@ -220,6 +218,7 @@ extern char *gp_reg_id;
 extern char *soc_reg_id;
 extern char *pu_reg_id;
 extern int epdc_enabled;
+extern bool enet_to_gpio_6;
 
 static int max17135_regulator_init(struct max17135 *max17135);
 
@@ -310,9 +309,7 @@ static int mx6q_sabresd_fec_phy_init(struct phy_device *phydev)
 static struct fec_platform_data fec_data __initdata = {
 	.init = mx6q_sabresd_fec_phy_init,
 	.phy = PHY_INTERFACE_MODE_RGMII,
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
 	.gpio_irq = MX6_ENET_IRQ,
-#endif
 };
 
 static int mx6q_sabresd_spi_cs[] = {
@@ -1368,6 +1365,8 @@ static struct fsl_mxc_hdmi_platform_data hdmi_data = {
 	.init = hdmi_init,
 	.enable_pins = hdmi_enable_ddc_pin,
 	.disable_pins = hdmi_disable_ddc_pin,
+	.phy_reg_vlev = 0x0294,
+	.phy_reg_cksymtx = 0x800d,
 };
 
 static struct fsl_mxc_hdmi_core_platform_data hdmi_core_data = {
@@ -1474,6 +1473,16 @@ static struct platform_device mxc_bt_rfkill = {
 static struct imx_bt_rfkill_platform_data mxc_bt_rfkill_data = {
 	.power_change = mx6q_sd_bt_power_change,
 };
+
+struct imx_vout_mem {
+	resource_size_t res_mbase;
+	resource_size_t res_msize;
+};
+
+static struct imx_vout_mem vout_mem __initdata = {
+	.res_msize = 0,
+};
+
 static void sabresd_suspend_enter(void)
 {
 	/* suspend preparation */
@@ -1794,6 +1803,11 @@ static const struct imx_pcie_platform_data mx6_sabresd_pcie_data __initconst = {
 	.pcie_rst	= SABRESD_PCIE_RST_B_REVB,
 	.pcie_wake_up	= SABRESD_PCIE_WAKE_B,
 	.pcie_dis	= SABRESD_PCIE_DIS_B,
+#ifdef CONFIG_IMX_PCIE_EP_MODE_IN_EP_RC_SYS
+	.type_ep	= 1,
+#else
+	.type_ep	= 0,
+#endif
 	.pcie_power_always_on = 1,
 };
 
@@ -1863,14 +1877,35 @@ static void __init mx6_sabresd_board_init(void)
 	struct clk *clko, *clko2;
 	struct clk *new_parent;
 	int rate;
+	struct platform_device *voutdev;
 
-	if (cpu_is_mx6q())
+	if (cpu_is_mx6q()) {
 		mxc_iomux_v3_setup_multiple_pads(mx6q_sabresd_pads,
 			ARRAY_SIZE(mx6q_sabresd_pads));
-	else if (cpu_is_mx6dl()) {
+		if (enet_to_gpio_6) {
+			iomux_v3_cfg_t enet_gpio_pad =
+				MX6Q_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6;
+			mxc_iomux_v3_setup_pad(enet_gpio_pad);
+		} else {
+			iomux_v3_cfg_t i2c3_pad =
+				MX6Q_PAD_GPIO_6__I2C3_SDA;
+			mxc_iomux_v3_setup_pad(i2c3_pad);
+		}
+	} else if (cpu_is_mx6dl()) {
 		mxc_iomux_v3_setup_multiple_pads(mx6dl_sabresd_pads,
 			ARRAY_SIZE(mx6dl_sabresd_pads));
+
+		if (enet_to_gpio_6) {
+			iomux_v3_cfg_t enet_gpio_pad =
+				MX6DL_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6;
+			mxc_iomux_v3_setup_pad(enet_gpio_pad);
+		} else {
+			iomux_v3_cfg_t i2c3_pad =
+				MX6DL_PAD_GPIO_6__I2C3_SDA;
+			mxc_iomux_v3_setup_pad(i2c3_pad);
+		}
 	}
+
 
 #ifdef CONFIG_FEC_1588
 	/* Set GPIO_16 input for IEEE-1588 ts_clk and RMII reference clock
@@ -1922,7 +1957,16 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_mipi_dsi(&mipi_dsi_pdata);
 	imx6q_add_lcdif(&lcdif_data);
 	imx6q_add_ldb(&ldb_data);
-	imx6q_add_v4l2_output(0);
+	voutdev = imx6q_add_v4l2_output(0);
+	if (vout_mem.res_msize && voutdev) {
+		dma_declare_coherent_memory(&voutdev->dev,
+					    vout_mem.res_mbase,
+					    vout_mem.res_mbase,
+					    vout_mem.res_msize,
+					    (DMA_MEMORY_MAP |
+					     DMA_MEMORY_EXCLUSIVE));
+	}
+
 	imx6q_add_v4l2_capture(0, &capture_data[0]);
 	imx6q_add_v4l2_capture(1, &capture_data[1]);
 	imx6q_add_mipi_csi2(&mipi_csi2_pdata);
@@ -1943,6 +1987,8 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_imx_i2c(0, &mx6q_sabresd_i2c_data);
 	imx6q_add_imx_i2c(1, &mx6q_sabresd_i2c_data);
 	imx6q_add_imx_i2c(2, &mx6q_sabresd_i2c_data);
+	if (cpu_is_mx6dl())
+		imx6q_add_imx_i2c(3, &mx6q_sabresd_i2c_data);
 	i2c_register_board_info(0, mxc_i2c0_board_info,
 			ARRAY_SIZE(mxc_i2c0_board_info));
 	i2c_register_board_info(1, mxc_i2c1_board_info,
@@ -1964,12 +2010,16 @@ static void __init mx6_sabresd_board_init(void)
 	imx6q_add_mxc_hdmi(&hdmi_data);
 
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabresd_anatop_thermal_data);
+
+	if (enet_to_gpio_6)
+		/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
+		mxc_iomux_set_specialbits_register(
+			IOMUX_OBSRV_MUX1_OFFSET,
+			OBSRV_MUX1_ENET_IRQ,
+			OBSRV_MUX1_MASK);
+	else
+		fec_data.gpio_irq = -1;
 	imx6_init_fec(fec_data);
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
-	mxc_iomux_set_specialbits_register(IOMUX_OBSRV_MUX1_OFFSET,
-		OBSRV_MUX1_ENET_IRQ, OBSRV_MUX1_MASK);
-#endif
 
 	imx6q_add_pm_imx(0, &mx6q_sabresd_pm_data);
 
@@ -2192,6 +2242,13 @@ static void __init mx6q_sabresd_reserve(void)
 		imx_ion_data.heaps[0].base = phys;
 	}
 #endif
+
+	if (vout_mem.res_msize) {
+		phys = memblock_alloc_base(vout_mem.res_msize,
+					   SZ_4K, SZ_1G);
+		memblock_remove(phys, vout_mem.res_msize);
+		vout_mem.res_mbase = phys;
+	}
 }
 
 /*

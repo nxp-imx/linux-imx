@@ -496,7 +496,7 @@ setup_boot_partitions(struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t count)
 {
 	int err, busy = 0;
-	u32 part, new_part;
+	u32 part;
 	u8 *ext_csd, boot_config;
 	struct mmc_command cmd;
 	struct mmc_card *card = container_of(dev, struct mmc_card, dev);
@@ -514,11 +514,27 @@ setup_boot_partitions(struct device *dev, struct device_attribute *attr,
 
 	/* it's a normal SD/MMC but user request to configure boot partition */
 	if (card->ext_csd.boot_size <= 0) {
-		printk(KERN_ERR "%s: this is a normal SD/MMC card"
-			" but you request to access boot partition!\n",
+		pr_err("%s: fail to send SWITCH command to card " \
+				"to update boot_config of the EXT_CSD!\n",
 			mmc_hostname(card->host));
 		return -EINVAL;
 	}
+
+	/*
+	 * partition must be -
+	 * 0 - user area
+	 * 1 - boot partition 1
+	 * 2 - boot partition 2
+	 * DO NOT switch the partitions that used to be accessed
+	 * in OS layer HERE
+	 */
+	if (part & EXT_CSD_BOOT_PARTITION_ACCESS_MASK) {
+		pr_err("%s: DO NOT switch the partitions that used to be\n" \
+			" accessed in OS layer HERE. please following the\n" \
+			" guidance of Documentation/mmc/mmc-dev-parts.txt.\n",
+			mmc_hostname(card->host));
+		return -EINVAL;
+       }
 
 	ext_csd = kmalloc(512, GFP_KERNEL);
 	if (!ext_csd) {
@@ -574,29 +590,11 @@ setup_boot_partitions(struct device *dev, struct device_attribute *attr,
 		goto err_rtn;
 	}
 
-	/* switch the partitions that used to be accessed in OS layer */
-	/* partition must be -
-	 * 0 - user area
-	 * 1 - boot partition 1
-	 * 2 - boot partition 2
-	 */
-	if ((part & EXT_CSD_BOOT_PARTITION_ACCESS_MASK) > 2) {
-		printk(KERN_ERR "%s: wrong partition id"
-			" 0 (user area), 1 (boot1), 2 (boot2)\n",
-			mmc_hostname(card->host));
-		err = -EINVAL;
-		goto err_rtn;
-	}
-
-
-	/* Send SWITCH command to change partition for access */
-	boot_config &= ~EXT_CSD_BOOT_PARTITION_ACCESS_MASK;
-	boot_config |= (part & EXT_CSD_BOOT_PARTITION_ACCESS_MASK);
 	err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 		EXT_CSD_PART_CONFIG, boot_config, card->ext_csd.part_time);
 	if (err) {
-		printk(KERN_ERR "%s: fail to send SWITCH command"
-				" to card to swich partition for access!\n",
+		pr_err("%s: fail to send SWITCH command to card " \
+				"to update boot_config of the EXT_CSD!\n",
 			mmc_hostname(card->host));
 		goto err_rtn;
 	}
@@ -634,14 +632,6 @@ setup_boot_partitions(struct device *dev, struct device_attribute *attr,
 		goto err_rtn;
 	}
 
-	new_part = ext_csd[EXT_CSD_PART_CONFIG] &
-		EXT_CSD_BOOT_PARTITION_ACCESS_MASK;
-	if ((part & EXT_CSD_BOOT_PARTITION_ACCESS_MASK) != new_part) {
-		printk(KERN_ERR "%s: after SWITCH, current part id %d is not"
-				" same as requested partition %d!\n",
-			mmc_hostname(card->host), new_part, part);
-		goto err_rtn;
-	}
 	card->ext_csd.boot_config = ext_csd[EXT_CSD_PART_CONFIG];
 
 err_rtn:
@@ -669,8 +659,8 @@ setup_boot_bus(struct device *dev, struct device_attribute *attr,
 	sscanf(buf, "%d\n", &boot_bus);
 
 	if (card->csd.mmca_vsn < CSD_SPEC_VER_4) {
-		printk(KERN_ERR "%s: invalid mmc version"
-			" mmc version is below version 4!)\n",
+		pr_err("%s: fail to send SWITCH command to card " \
+				"to update boot_config of the EXT_CSD!\n",
 			mmc_hostname(card->host));
 		return -EINVAL;
 	}
@@ -794,16 +784,6 @@ static ssize_t mmc_boot_info_show(struct device *dev,
 		"Reserved",
 		"User area enabled for boot"};
 
-	char *boot_partition_access[8] = {
-		"No access to boot partition",
-		"R/W boot partition 1",
-		"R/W boot partition 2",
-		"R/W Replay Protected Memory Block (RPMB)",
-		"Access to General Purpose partition 1",
-		"Access to General Purpose partition 2",
-		"Access to General Purpose partition 3",
-		"Access to General Purpose partition 4"};
-
 	char *bus_width[4] = {
 		"x1 (sdr) or x4 (ddr) bus width in boot operation mode",
 		"x4 (sdr/ddr) bus width in boot operation mode",
@@ -817,7 +797,6 @@ static ssize_t mmc_boot_info_show(struct device *dev,
 	"Reserved"};
 
 	int partition;
-	int access;
 	int width;
 	int mode;
 	u8 *ext_csd = NULL;
@@ -830,7 +809,6 @@ static ssize_t mmc_boot_info_show(struct device *dev,
 	mmc_read_ext_csd(card, ext_csd);
 
 	partition = (card->ext_csd.boot_config >> 3) & 0x7;
-	access = card->ext_csd.boot_config & 0x7;
 	width =  card->ext_csd.boot_bus_width & 0x3;
 	mode = (card->ext_csd.boot_bus_width >> 3) & 0x3;
 
@@ -843,7 +821,6 @@ static ssize_t mmc_boot_info_show(struct device *dev,
 		"boot_partition:0x%02x;\n"
 		"  BOOT_ACK:%x - %s\n"
 		"  BOOT_PARTITION-ENABLE: %x - %s\n"
-		"  PARTITION_ACCESS:%x - %s\n"
 		"boot_bus:0x%02x\n"
 		"  BOOT_MODE:%x - %s\n"
 		"  RESET_BOOT_BUS_WIDTH:%x - %s\n"
@@ -872,8 +849,6 @@ static ssize_t mmc_boot_info_show(struct device *dev,
 			"No boot acknowledge sent",
 		partition,
 		boot_partition[partition],
-		access,
-		boot_partition_access[access],
 
 		card->ext_csd.boot_bus_width,
 		mode,

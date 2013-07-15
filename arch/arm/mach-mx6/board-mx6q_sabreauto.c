@@ -115,12 +115,10 @@
 #define SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
 #define SABREAUTO_MAX7310_3_BASE_ADDR	IMX_GPIO_NR(8, 16)
 
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
 #define MX6_ENET_IRQ		IMX_GPIO_NR(1, 6)
 #define IOMUX_OBSRV_MUX1_OFFSET	0x3c
 #define OBSRV_MUX1_MASK			0x3f
 #define OBSRV_MUX1_ENET_IRQ		0x9
-#endif
 
 #define SABREAUTO_IO_EXP_GPIO1(x)	(SABREAUTO_MAX7310_1_BASE_ADDR + (x))
 #define SABREAUTO_IO_EXP_GPIO2(x)	(SABREAUTO_MAX7310_2_BASE_ADDR + (x))
@@ -143,6 +141,7 @@
 extern char *gp_reg_id;
 extern char *soc_reg_id;
 extern char *pu_reg_id;
+extern bool enet_to_gpio_6;
 
 static int mma8x5x_position = 7;
 static int mag3110_position = 7;
@@ -417,9 +416,7 @@ static struct fec_platform_data fec_data __initdata = {
 	.init			= mx6q_sabreauto_fec_phy_init,
 	.power_hibernate	= mx6q_sabreauto_fec_power_hibernate,
 	.phy			= PHY_INTERFACE_MODE_RGMII,
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	.gpio_irq = MX6_ENET_IRQ,
-#endif
+	.gpio_irq		= MX6_ENET_IRQ,
 };
 
 static int mx6q_sabreauto_spi_cs[] = {
@@ -753,7 +750,7 @@ static struct imxi2c_platform_data mx6q_sabreauto_i2c2_data = {
 	.bitrate	= 400000,
 };
 
-static struct imxi2c_platform_data mx6q_sabreauto_i2c1_data = {
+static struct imxi2c_platform_data mx6q_sabreauto_i2c_data = {
 	.bitrate	= 100000,
 };
 
@@ -1570,6 +1567,18 @@ static void __init mx6_board_init(void)
 			mxc_iomux_v3_setup_multiple_pads(extra_pads,
 					extra_pads_cnt);
 		}
+		if (enet_to_gpio_6) {
+			iomux_v3_cfg_t enet_gpio_pad =
+				MX6Q_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6;
+			mxc_iomux_v3_setup_pad(enet_gpio_pad);
+		} else {
+			iomux_v3_cfg_t mlb_pads[] = {
+				MX6Q_PAD_ENET_TXD1__MLB_MLBCLK,
+				MX6Q_PAD_GPIO_6__MLB_MLBSIG,
+				MX6Q_PAD_GPIO_2__MLB_MLBDAT};
+			mxc_iomux_v3_setup_multiple_pads(mlb_pads,
+				ARRAY_SIZE(mlb_pads));
+		}
 	} else if (cpu_is_mx6dl()) {
 		common_pads = mx6dl_sabreauto_pads;
 		can0_pads = mx6dl_sabreauto_can0_pads;
@@ -1601,6 +1610,18 @@ static void __init mx6_board_init(void)
 			extra_pads_cnt = ARRAY_SIZE(mx6dl_extra_pads_rev_b);
 			mxc_iomux_v3_setup_multiple_pads(extra_pads,
 					extra_pads_cnt);
+		}
+		if (enet_to_gpio_6) {
+			iomux_v3_cfg_t enet_gpio_pad =
+				MX6DL_PAD_GPIO_6__ENET_IRQ_TO_GPIO_6;
+			mxc_iomux_v3_setup_pad(enet_gpio_pad);
+		} else {
+			iomux_v3_cfg_t mlb_pads[] = {
+				MX6DL_PAD_ENET_TXD1__MLB_MLBCLK,
+				MX6DL_PAD_GPIO_6__MLB_MLBSIG,
+				MX6DL_PAD_GPIO_2__MLB_MLBDAT};
+			mxc_iomux_v3_setup_multiple_pads(mlb_pads,
+				ARRAY_SIZE(mlb_pads));
 		}
 	}
 
@@ -1715,12 +1736,15 @@ static void __init mx6_board_init(void)
 	if (1 == caam_enabled)
 		imx6q_add_imx_caam();
 
-	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c1_data);
+	imx6q_add_imx_i2c(1, &mx6q_sabreauto_i2c_data);
 	i2c_register_board_info(1, mxc_i2c1_board_info,
 			ARRAY_SIZE(mxc_i2c1_board_info));
 	imx6q_add_imx_i2c(2, &mx6q_sabreauto_i2c2_data);
 	i2c_register_board_info(2, mxc_i2c2_board_info,
 			ARRAY_SIZE(mxc_i2c2_board_info));
+	if (cpu_is_mx6dl())
+		imx6q_add_imx_i2c(3, &mx6q_sabreauto_i2c_data);
+
 
 	ret = gpio_request(SABREAUTO_PMIC_INT, "pFUZE-int");
 	if (ret) {
@@ -1743,13 +1767,15 @@ static void __init mx6_board_init(void)
 	imx6q_add_anatop_thermal_imx(1, &mx6q_sabreauto_anatop_thermal_data);
 
 	if (!can0_enable) {
+		if (enet_to_gpio_6)
+			/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
+			mxc_iomux_set_specialbits_register(
+				IOMUX_OBSRV_MUX1_OFFSET,
+				OBSRV_MUX1_ENET_IRQ,
+				OBSRV_MUX1_MASK);
+		else
+			fec_data.gpio_irq = -1;
 		imx6_init_fec(fec_data);
-#ifdef CONFIG_MX6_ENET_IRQ_TO_GPIO
-		/* Make sure the IOMUX_OBSRV_MUX1 is set to ENET_IRQ. */
-		mxc_iomux_set_specialbits_register(IOMUX_OBSRV_MUX1_OFFSET,
-			OBSRV_MUX1_ENET_IRQ, OBSRV_MUX1_MASK);
-#endif
-
 	}
 	imx6q_add_pm_imx(0, &mx6q_sabreauto_pm_data);
 

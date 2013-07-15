@@ -207,12 +207,7 @@ static iomux_v3_cfg_t mx6dl_sabreauto_pads[] = {
 
 	/* HDMI */
 	MX6DL_PAD_EIM_A25__HDMI_TX_CEC_LINE,
-
-	/* MLB150 */
-	MX6DL_PAD_ENET_TXD1__MLB_MLBCLK,
-	MX6DL_PAD_GPIO_6__MLB_MLBSIG,
-	MX6DL_PAD_GPIO_2__MLB_MLBDAT,
-};
+ };
 
 static iomux_v3_cfg_t mx6dl_sabreauto_can0_pads[] = {
 	/* CAN1 */

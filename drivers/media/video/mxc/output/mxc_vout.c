@@ -30,8 +30,8 @@
 
 #define UYVY_BLACK	(0x00800080)
 #define RGB_BLACK	(0x0)
-#define NV12_UV_BLACK	(0x80)
-#define NV12_Y_BLACK	(0x0)
+#define UV_BLACK	(0x80)
+#define Y_BLACK		(0x0)
 
 #define MAX_FB_NUM	6
 #define FB_BUFS		3
@@ -58,6 +58,16 @@
 	       ((vout)->task.input.crop.w == FRAME_WIDTH_1080P) &&	\
 	       ((vout)->task.input.height == FRAME_HEIGHT_1080P) &&	\
 	       ((vout)->task.input.crop.h == FRAME_HEIGHT_1080P))
+#define IS_PLANAR_PIXEL_FORMAT(format) \
+	(format == IPU_PIX_FMT_NV12 ||		\
+	    format == IPU_PIX_FMT_YUV420P2 ||	\
+	    format == IPU_PIX_FMT_YUV420P ||	\
+	    format == IPU_PIX_FMT_YVU420P ||	\
+	    format == IPU_PIX_FMT_YUV422P ||	\
+	    format == IPU_PIX_FMT_YVU422P ||	\
+	    format == IPU_PIX_FMT_YUV444P)
+
+#define NSEC_PER_FRAME_30FPS		(33333333)
 
 struct mxc_vout_fb {
 	char *name;
@@ -108,12 +118,12 @@ struct mxc_vout_output {
 	struct dma_mem vdoa_output[VDOA_FB_BUFS];
 
 	bool timer_stop;
-	struct timer_list timer;
+	struct hrtimer timer;
 	struct workqueue_struct *v4l_wq;
 	struct work_struct disp_work;
 	unsigned long frame_count;
 	unsigned long vdi_frame_cnt;
-	unsigned long start_jiffies;
+	ktime_t start_ktime;
 
 	int ctrl_rotate;
 	int ctrl_vflip;
@@ -121,7 +131,8 @@ struct mxc_vout_output {
 
 	dma_addr_t disp_bufs[FB_BUFS];
 
-	struct videobuf_buffer *pre_vb;
+	struct videobuf_buffer *pre1_vb;
+	struct videobuf_buffer *pre2_vb;
 };
 
 struct mxc_vout_dev {
@@ -499,29 +510,26 @@ static bool is_pp_bypass(struct mxc_vout_output *vout)
 static void setup_buf_timer(struct mxc_vout_output *vout,
 			struct videobuf_buffer *vb)
 {
-	unsigned long timeout;
+	ktime_t expiry_time, now;
 
 	/* if timestamp is 0, then default to 30fps */
-	if ((vb->ts.tv_sec == 0)
-			&& (vb->ts.tv_usec == 0)
-			&& vout->start_jiffies)
-		timeout =
-			vout->start_jiffies + vout->frame_count * HZ / 30;
+	if ((vb->ts.tv_sec == 0) && (vb->ts.tv_usec == 0))
+		expiry_time = ktime_add_ns(vout->start_ktime,
+				NSEC_PER_FRAME_30FPS * vout->frame_count);
 	else
-		timeout = get_jiffies(&vb->ts);
+		expiry_time = timeval_to_ktime(vb->ts);
 
-	if (jiffies >= timeout) {
+	now = hrtimer_cb_get_time(&vout->timer);
+	if ((now.tv64 > expiry_time.tv64)) {
 		v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
 				"warning: timer timeout already expired.\n");
+		expiry_time = now;
 	}
 
-	if (mod_timer(&vout->timer, timeout)) {
-		v4l2_warn(vout->vfd->v4l2_dev,
-				"warning: timer was already set\n");
-	}
+	hrtimer_start(&vout->timer, expiry_time, HRTIMER_MODE_ABS);
 
-	v4l2_dbg(1, debug, vout->vfd->v4l2_dev,
-			"timer handler next schedule: %lu\n", timeout);
+	v4l2_dbg(1, debug, vout->vfd->v4l2_dev, "timer handler next "
+		"schedule: %lldnsecs\n", expiry_time.tv64);
 }
 
 static int show_buf(struct mxc_vout_output *vout, int idx,
@@ -598,10 +606,21 @@ static void disp_work_func(struct work_struct *work)
 	}
 	if (deinterlace_3_field(vout)) {
 		if (list_is_singular(&vout->active_list)) {
-			v4l2_warn(vout->vfd->v4l2_dev,
-				"no enough entry for 3 fields deinterlacer\n");
-			spin_unlock_irqrestore(q->irqlock, flags);
-			return;
+			if (list_empty(&vout->queue_list)) {
+				vout->timer_stop = true;
+				spin_unlock_irqrestore(q->irqlock, flags);
+				v4l2_warn(vout->vfd->v4l2_dev,
+					"no enough entry for 3 fields "
+					"deinterlacer\n");
+				return;
+			}
+
+			/*
+			 * We need to use the next vb even if it is
+			 * not on the active list.
+			 */
+			vb_next = list_first_entry(&vout->queue_list,
+					struct videobuf_buffer, queue);
 		} else
 			vb_next = list_first_entry(vout->active_list.next,
 						struct videobuf_buffer, queue);
@@ -719,21 +738,28 @@ vdi_frame_rate_double:
 	list_del(&vb->queue);
 
 	/*
-	 * previous videobuf finish show, set VIDEOBUF_DONE state here
-	 * to avoid tearing issue in pp bypass case, which make sure
-	 * showing buffer will not be dequeue to write new data. It also
-	 * bring side-effect that the last buffer can not be dequeue
-	 * correctly, app need take care about it.
+	 * The videobuf before the last one has been shown. Set
+	 * VIDEOBUF_DONE state here to avoid tearing issue in ic bypass
+	 * case, which makes sure a buffer being shown will not be
+	 * dequeued to be overwritten. It also brings side-effect that
+	 * the last 2 buffers can not be dequeued correctly, apps need
+	 * to take care of it.
 	 */
-	if (vout->pre_vb) {
-		vout->pre_vb->state = VIDEOBUF_DONE;
-		wake_up_interruptible(&vout->pre_vb->done);
+	if (vout->pre2_vb) {
+		vout->pre2_vb->state = VIDEOBUF_DONE;
+		wake_up_interruptible(&vout->pre2_vb->done);
+		vout->pre2_vb = NULL;
 	}
 
-	if (vout->linear_bypass_pp)
-		vout->pre_vb = vb;
-	else {
-		vout->pre_vb = NULL;
+	if (vout->linear_bypass_pp) {
+		vout->pre2_vb = vout->pre1_vb;
+		vout->pre1_vb = vb;
+	} else {
+		if (vout->pre1_vb) {
+			vout->pre1_vb->state = VIDEOBUF_DONE;
+			wake_up_interruptible(&vout->pre1_vb->done);
+			vout->pre1_vb = NULL;
+		}
 		vb->state = VIDEOBUF_DONE;
 		wake_up_interruptible(&vb->done);
 	}
@@ -761,10 +787,11 @@ err:
 	return;
 }
 
-static void mxc_vout_timer_handler(unsigned long arg)
+static enum hrtimer_restart mxc_vout_timer_handler(struct hrtimer *timer)
 {
-	struct mxc_vout_output *vout =
-			(struct mxc_vout_output *) arg;
+	struct mxc_vout_output *vout = container_of(timer,
+						    struct mxc_vout_output,
+						    timer);
 	struct videobuf_queue *q = &vout->vbq;
 	struct videobuf_buffer *vb;
 	unsigned long flags = 0;
@@ -777,7 +804,7 @@ static void mxc_vout_timer_handler(unsigned long arg)
 	 */
 	if (list_empty(&vout->queue_list)) {
 		spin_unlock_irqrestore(q->irqlock, flags);
-		return;
+		return HRTIMER_NORESTART;
 	}
 
 	/* move videobuf from queued list to active list */
@@ -792,12 +819,14 @@ static void mxc_vout_timer_handler(unsigned long arg)
 		list_del(&vb->queue);
 		list_add(&vb->queue, &vout->queue_list);
 		spin_unlock_irqrestore(q->irqlock, flags);
-		return;
+		return HRTIMER_NORESTART;
 	}
 
 	vb->state = VIDEOBUF_ACTIVE;
 
 	spin_unlock_irqrestore(q->irqlock, flags);
+
+	return HRTIMER_NORESTART;
 }
 
 /* Video buffer call backs */
@@ -850,21 +879,21 @@ static void mxc_vout_buffer_queue(struct videobuf_queue *q,
 			  struct videobuf_buffer *vb)
 {
 	struct mxc_vout_output *vout = q->priv_data;
+	struct videobuf_buffer *active_vb;
 
 	list_add_tail(&vb->queue, &vout->queue_list);
 	vb->state = VIDEOBUF_QUEUED;
 
 	if (vout->timer_stop) {
 		if (deinterlace_3_field(vout) &&
-			list_empty(&vout->active_list)) {
-			vb = list_first_entry(&vout->queue_list,
+			!list_empty(&vout->active_list)) {
+			active_vb = list_first_entry(&vout->active_list,
 					struct videobuf_buffer, queue);
-			list_del(&vb->queue);
-			list_add_tail(&vb->queue, &vout->active_list);
+			setup_buf_timer(vout, active_vb);
 		} else {
 			setup_buf_timer(vout, vb);
-			vout->timer_stop = false;
 		}
+		vout->timer_stop = false;
 	}
 }
 
@@ -1379,6 +1408,14 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 	/* stride line limitation */
 	crop->c.height -= crop->c.height % 8;
 	crop->c.width -= crop->c.width % 8;
+	if ((crop->c.width <= 0) || (crop->c.height <= 0) ||
+		((crop->c.left + crop->c.width) > (b->left + b->width)) ||
+		((crop->c.top + crop->c.height) > (b->top + b->height))) {
+		v4l2_err(vout->vfd->v4l2_dev, "s_crop err: %d, %d, %d, %d",
+			crop->c.left, crop->c.top,
+			crop->c.width, crop->c.height);
+		return -EINVAL;
+	}
 
 	/* the same setting, return */
 	if (vout->disp_support_windows) {
@@ -1397,7 +1434,7 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 
 	/* wait current work finish */
 	if (vout->vbq.streaming)
-		cancel_work_sync(&vout->disp_work);
+		flush_workqueue(vout->v4l_wq);
 
 	mutex_lock(&vout->task_lock);
 
@@ -1551,7 +1588,7 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
 
 	/* wait current work finish */
 	if (vout->vbq.streaming)
-		cancel_work_sync(&vout->disp_work);
+		flush_workqueue(vout->v4l_wq);
 
 	mutex_lock(&vout->task_lock);
 	switch (ctrl->id) {
@@ -1751,7 +1788,10 @@ static int config_disp_output(struct mxc_vout_output *vout)
 				"ERR:%s fb_set_var ret:%d\n", __func__, ret);
 		return ret;
 	}
-	display_buf_size = fbi->fix.line_length * fbi->var.yres;
+	if (vout->linear_bypass_pp || vout->tiled_bypass_pp)
+		display_buf_size = fbi->fix.line_length * fbi->var.yres_virtual;
+	else
+		display_buf_size = fbi->fix.line_length * fbi->var.yres;
 	for (i = 0; i < fb_num; i++)
 		vout->disp_bufs[i] = fbi->fix.smem_start + i * display_buf_size;
 	if (vout->tiled_bypass_pp) {
@@ -1784,11 +1824,11 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	/* fill black when video config changed */
 	color = colorspaceofpixel(vout->task.output.format) == YUV_CS ?
 			UYVY_BLACK : RGB_BLACK;
-	if (vout->task.output.format == IPU_PIX_FMT_NV12) {
+	if (IS_PLANAR_PIXEL_FORMAT(vout->task.output.format)) {
 		size = display_buf_size * 8 /
 			fmt_to_bpp(vout->task.output.format);
-		memset(fbi->screen_base, NV12_Y_BLACK, size);
-		memset(fbi->screen_base + size, NV12_UV_BLACK,
+		memset(fbi->screen_base, Y_BLACK, size);
+		memset(fbi->screen_base + size, UV_BLACK,
 				display_buf_size - size);
 	} else {
 		pixel = (u32 *)fbi->screen_base;
@@ -1810,6 +1850,22 @@ err:
 			free_dma_buf(vout, buf);
 	}
 	return ret;
+}
+
+static inline void wait_for_vsync(struct mxc_vout_output *vout)
+{
+	struct fb_info *fbi = vout->fbi;
+	mm_segment_t old_fs;
+
+	if (fbi->fbops->fb_ioctl) {
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
+		fbi->fbops->fb_ioctl(fbi, MXCFB_WAIT_FOR_VSYNC,
+				(unsigned long)NULL);
+		set_fs(old_fs);
+	}
+
+	return;
 }
 
 static void release_disp_output(struct mxc_vout_output *vout)
@@ -1871,14 +1927,14 @@ static int mxc_vidioc_streamon(struct file *file, void *fh,
 		goto done;
 	}
 
-	init_timer(&vout->timer);
+	hrtimer_init(&vout->timer, CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	vout->timer.function = mxc_vout_timer_handler;
-	vout->timer.data = (unsigned long)vout;
 	vout->timer_stop = true;
 
-	vout->start_jiffies = jiffies;
+	vout->start_ktime = hrtimer_cb_get_time(&vout->timer);
 
-	vout->pre_vb = NULL;
+	vout->pre1_vb = NULL;
+	vout->pre2_vb = NULL;
 
 	ret = videobuf_streamon(q);
 done:
@@ -1893,10 +1949,17 @@ static int mxc_vidioc_streamoff(struct file *file, void *fh,
 	int ret = 0;
 
 	if (q->streaming) {
-		cancel_work_sync(&vout->disp_work);
 		flush_workqueue(vout->v4l_wq);
 
-		del_timer_sync(&vout->timer);
+		hrtimer_cancel(&vout->timer);
+
+		/*
+		 * Wait for 2 vsyncs to make sure
+		 * frames are drained on triple
+		 * buffer.
+		 */
+		wait_for_vsync(vout);
+		wait_for_vsync(vout);
 
 		release_disp_output(vout);
 
@@ -2048,9 +2111,13 @@ static int mxc_vout_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	dev->dev = &pdev->dev;
-	dev->dev->dma_mask = kmalloc(sizeof(*dev->dev->dma_mask), GFP_KERNEL);
-	*dev->dev->dma_mask = DMA_BIT_MASK(32);
-	dev->dev->coherent_dma_mask = DMA_BIT_MASK(32);
+	if (!dev->dev->dma_mask) {
+		dev->dev->dma_mask = kmalloc(sizeof(*dev->dev->dma_mask),
+					     GFP_KERNEL);
+		if (dev->dev->dma_mask)
+			*dev->dev->dma_mask = DMA_BIT_MASK(32);
+		dev->dev->coherent_dma_mask = DMA_BIT_MASK(32);
+	}
 
 	ret = v4l2_device_register(dev->dev, &dev->v4l2_dev);
 	if (ret) {

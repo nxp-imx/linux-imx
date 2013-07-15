@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -182,13 +182,7 @@ static iomux_v3_cfg_t mx6dl_arm2_pads[] = {
 
 	/* USBOTG ID pin */
 	MX6DL_PAD_GPIO_1__USBOTG_ID,
-
-	/* MLB150 */
-	MX6DL_PAD_GPIO_3__MLB_MLBCLK,
-	MX6DL_PAD_GPIO_6__MLB_MLBSIG,
-	MX6DL_PAD_GPIO_2__MLB_MLBDAT,
-
-};
+ };
 
 static iomux_v3_cfg_t mx6dl_arm2_epdc_pads[] = {
 	MX6DL_PAD_EIM_A17__GPIO_2_21,

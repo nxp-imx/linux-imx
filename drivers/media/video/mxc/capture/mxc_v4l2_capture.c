@@ -2677,7 +2677,7 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 
 	cam->self = kmalloc(sizeof(struct v4l2_int_device), GFP_KERNEL);
 	cam->self->module = THIS_MODULE;
-	sprintf(cam->self->name, "mxc_v4l2_cap%d", cam->csi);
+	sprintf(cam->self->name, "mxc_v4l2_cap%d", pdev->id);
 	cam->self->type = v4l2_int_type_master;
 	cam->self->u.master = &mxc_v4l2_master;
 }

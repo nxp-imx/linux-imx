@@ -37,6 +37,8 @@ static void _dr_discharge_line(bool enable);
 extern bool usb_icbug_swfix_need(void);
 static void enter_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, \
 								bool enable);
+static u32 wakeup_irq_enable_src; /* only useful at otg mode */
+static u32 low_power_enable_src; /* only useful at otg mode */
 
 /* The usb_phy1_clk do not have enable/disable function at clock.c
  * and PLL output for usb1's phy should be always enabled.
@@ -99,6 +101,16 @@ static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 	UOG_USBCMD |= UCMD_RESET;
 	while ((UOG_USBCMD) & (UCMD_RESET))
 		;
+
+	/*
+	 * If the controller reset does not put the PHY be out of
+	 * low power mode, do it manually.
+	 */
+	if (UOG_PORTSC1 & PORTSC_PHCD) {
+		UOG_PORTSC1 &= ~PORTSC_PHCD;
+		mdelay(1);
+	}
+
 	/* Reset USBPHY module */
 	phy_ctrl = phy_reg + HW_USBPHY_CTRL;
 	tmp = __raw_readl(phy_ctrl);
@@ -152,6 +164,8 @@ static int usbotg_init_ext(struct platform_device *pdev)
 		return ret;
 	}
 	if (!otg_used) {
+		wakeup_irq_enable_src = 0;
+		low_power_enable_src = 0;
 		usb_phy_enable(pdev->dev.platform_data);
 		enter_phy_lowpower_suspend(pdev->dev.platform_data, false);
 		/*after the phy reset,can not read the readingvalue for id/vbus at
@@ -168,10 +182,7 @@ static void usbotg_uninit_ext(struct platform_device *pdev)
 {
 	otg_used--;
 	if (!otg_used) {
-		clk_disable(usb_phy1_clk);
 		clk_put(usb_phy1_clk);
-
-		clk_disable(usb_oh3_clk);
 		clk_put(usb_oh3_clk);
 	}
 }
@@ -218,7 +229,6 @@ static void _dr_discharge_line(bool enable)
 /* Below two macros are used at otg mode to indicate usb mode*/
 #define ENABLED_BY_HOST   (0x1 << 0)
 #define ENABLED_BY_DEVICE (0x1 << 1)
-static u32 low_power_enable_src; /* only useful at otg mode */
 static void enter_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool enable)
 {
 	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
@@ -251,6 +261,19 @@ static void enter_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, boo
 			| BM_USBPHY_PWD_RXPWDDIFF
 			| BM_USBPHY_PWD_RXPWDRX);
 		__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_CLR);
+		/*
+		 * The PHY works at 32Khz clock when it is at low power mode,
+		 * it needs 10 clocks from 32Khz to normal work state, so
+		 * 500us is the safe value for PHY enters stable status
+		 * according to IC engineer.
+		 *
+		 * Besides, the digital value needs 1ms debounce time to
+		 * wait the value to be stable. We have expected the
+		 * value from OTGSC is correct after calling this API.
+		 *
+		 * So delay 2ms is a save value.
+		 */
+		mdelay(2);
 
 	}
 	pr_debug("DR: %s ends, enable is %d\n", __func__, enable);
@@ -289,6 +312,12 @@ static void otg_wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable
 				| BM_USBPHY_CTRL_ENAUTO_PWRON_PLL , phy_reg + HW_USBPHY_CTRL_SET);
 		USB_OTG_CTRL |= UCTRL_OWIE;
 	} else {
+		__raw_writel(BM_USBPHY_CTRL_ENDPDMCHG_WKUP
+				| BM_USBPHY_CTRL_ENAUTOSET_USBCLKS
+				| BM_USBPHY_CTRL_ENAUTOCLR_PHY_PWD
+				| BM_USBPHY_CTRL_ENAUTOCLR_CLKGATE
+				| BM_USBPHY_CTRL_ENAUTOCLR_USBCLKGATE
+				| BM_USBPHY_CTRL_ENAUTO_PWRON_PLL , phy_reg + HW_USBPHY_CTRL_CLR);
 		USB_OTG_CTRL &= ~UCTRL_OWIE;
 		/* The interrupt must be disabled for at least 3 clock
 		 * cycles of the standby clock(32k Hz) , that is 0.094 ms*/
@@ -296,7 +325,6 @@ static void otg_wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable
 	}
 }
 
-static u32 wakeup_irq_enable_src; /* only useful at otg mode */
 static void __wakeup_irq_enable(struct fsl_usb2_platform_data *pdata, bool on, int source)
  {
 	/* otg host and device share the OWIE bit, only when host and device
@@ -491,6 +519,7 @@ static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enabl
 {
 	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
 	__wakeup_irq_enable(pdata, enable, ENABLED_BY_HOST);
+#ifdef CONFIG_USB_OTG
 	if (enable) {
 		pr_debug("host wakeup enable\n");
 		USB_OTG_CTRL |= UCTRL_WKUP_ID_EN;
@@ -504,6 +533,7 @@ static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enabl
 		udelay(100);
 	}
 	pr_debug("the otgsc is 0x%x, usbsts is 0x%x, portsc is 0x%x, otgctrl: 0x%x\n", UOG_OTGSC, UOG_USBSTS, UOG_PORTSC1, USB_OTG_CTRL);
+#endif
 }
 
 static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdata)
@@ -517,8 +547,6 @@ static enum usb_wakeup_event _is_host_wakeup(struct fsl_usb2_platform_data *pdat
 	/* if ID change sts, it is a host wakeup event */
 	if (otgsc & OTGSC_IS_USB_ID) {
 		pr_debug("otg host ID wakeup\n");
-		/* if host ID wakeup, we must clear the ID change sts */
-		otgsc |= OTGSC_IS_USB_ID;
 		return WAKEUP_EVENT_ID;
 	}
 	if (wakeup_req  && (!(otgsc & OTGSC_STS_USB_ID))) {

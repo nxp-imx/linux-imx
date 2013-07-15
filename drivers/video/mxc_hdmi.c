@@ -54,6 +54,7 @@
 #include <linux/types.h>
 #include <linux/switch.h>
 
+#include "edid.h"
 #include <mach/mxc_edid.h>
 #include "mxc/mxc_dispdrv.h"
 
@@ -167,6 +168,7 @@ struct mxc_hdmi {
 	struct clk *hdmi_isfr_clk;
 	struct clk *hdmi_iahb_clk;
 	struct delayed_work hotplug_work;
+	struct delayed_work hdcp_hdp_work;
 	struct notifier_block nb;
 
 	struct hdmi_data_info hdmi_data;
@@ -192,7 +194,10 @@ struct mxc_hdmi {
 	struct switch_dev sdev_display;
 };
 
+static int hdmi_major;
+static struct class *hdmi_class;
 struct i2c_client *hdmi_i2c;
+struct mxc_hdmi *g_hdmi;
 
 static bool hdmi_inited;
 
@@ -200,6 +205,8 @@ extern const struct fb_videomode mxc_cea_mode[64];
 extern void mxc_hdmi_cec_handle(u16 cec_stat);
 
 static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event);
+static void mxc_hdmi_enable_pins(struct mxc_hdmi *hdmi);
+static void mxc_hdmi_disable_pins(struct mxc_hdmi *hdmi);
 
 #ifdef DEBUG
 static void dump_fb_videomode(struct fb_videomode *m)
@@ -296,6 +303,51 @@ static DEVICE_ATTR(rgb_out_enable, S_IRUGO | S_IWUSR,
 				mxc_hdmi_show_rgb_out_enable,
 				mxc_hdmi_store_rgb_out_enable);
 
+static ssize_t mxc_hdmi_show_hdcp_enable(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mxc_hdmi *hdmi = dev_get_drvdata(dev);
+
+	if (hdmi->hdmi_data.hdcp_enable == false)
+		strcpy(buf, "hdcp disable\n");
+	else
+		strcpy(buf, "hdcp enable\n");
+
+	return strlen(buf);
+}
+
+static ssize_t mxc_hdmi_store_hdcp_enable(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct mxc_hdmi *hdmi = dev_get_drvdata(dev);
+	char event_string[32];
+	char *envp[] = { event_string, NULL };
+	unsigned long value;
+	int ret;
+
+	ret = strict_strtoul(buf, 10, &value);
+	if (ret)
+		return ret;
+
+	hdmi->hdmi_data.hdcp_enable = value;
+
+	/* Reconfig HDMI for HDCP */
+	mxc_hdmi_setup(hdmi, 0);
+
+	if (hdmi->hdmi_data.hdcp_enable == false) {
+		sprintf(event_string, "EVENT=hdcpdisable");
+		kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
+	} else {
+		sprintf(event_string, "EVENT=hdcpenable");
+		kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
+	}
+
+	return count;
+
+}
+
+static DEVICE_ATTR(hdcp_enable, S_IRUGO | S_IWUSR,
+			mxc_hdmi_show_hdcp_enable, mxc_hdmi_store_hdcp_enable);
 
 /*!
  * this submodule is responsible for the video data synchronization.
@@ -830,6 +882,45 @@ static int hdmi_phy_i2c_write_verify(struct mxc_hdmi *hdmi, unsigned short data,
 }
 #endif
 
+static bool  hdmi_edid_wait_i2c_done(struct mxc_hdmi *hdmi, int msec)
+{
+    unsigned char val = 0;
+    val = hdmi_readb(HDMI_IH_I2CM_STAT0) & 0x2;
+    while (val == 0) {
+		udelay(1000);
+		if (msec-- == 0) {
+			dev_dbg(&hdmi->pdev->dev,
+					"HDMI EDID i2c operation time out!!\n");
+			return false;
+		}
+		val = hdmi_readb(HDMI_IH_I2CM_STAT0) & 0x2;
+	}
+	return true;
+}
+
+static u8 hdmi_edid_i2c_read(struct mxc_hdmi *hdmi,
+					u8 addr, u8 blockno)
+{
+	u8 spointer = blockno / 2;
+	u8 edidaddress = ((blockno % 2) * 0x80) + addr;
+	u8 data;
+
+	hdmi_writeb(0xFF, HDMI_IH_I2CM_STAT0);
+	hdmi_writeb(edidaddress, HDMI_I2CM_ADDRESS);
+	hdmi_writeb(spointer, HDMI_I2CM_SEGADDR);
+	if (spointer == 0)
+		hdmi_writeb(HDMI_I2CM_OPERATION_READ,
+			HDMI_I2CM_OPERATION);
+	else
+		hdmi_writeb(HDMI_I2CM_OPERATION_READ_EXT,
+			HDMI_I2CM_OPERATION);
+
+	hdmi_edid_wait_i2c_done(hdmi, 1000);
+	data = hdmi_readb(HDMI_I2CM_DATAI);
+	hdmi_writeb(0xFF, HDMI_IH_I2CM_STAT0);
+	return data;
+}
+
 /* "Power-down enable (active low)"
  * That mean that power up == 1! */
 static void mxc_hdmi_phy_enable_power(u8 enable)
@@ -1174,28 +1265,13 @@ static void mxc_hdmi_phy_init(struct mxc_hdmi *hdmi)
 
 static void hdmi_tx_hdcp_config(struct mxc_hdmi *hdmi)
 {
-	u8 de, val;
-
-	if (hdmi->hdmi_data.video_mode.mDataEnablePolarity)
-		de = HDMI_A_VIDPOLCFG_DATAENPOL_ACTIVE_HIGH;
-	else
-		de = HDMI_A_VIDPOLCFG_DATAENPOL_ACTIVE_LOW;
-
-	/* disable rx detect */
-	val = hdmi_readb(HDMI_A_HDCPCFG0);
-	val &= HDMI_A_HDCPCFG0_RXDETECT_MASK;
-	val |= HDMI_A_HDCPCFG0_RXDETECT_DISABLE;
-	hdmi_writeb(val, HDMI_A_HDCPCFG0);
-
-	val = hdmi_readb(HDMI_A_VIDPOLCFG);
-	val &= HDMI_A_VIDPOLCFG_DATAENPOL_MASK;
-	val |= de;
-	hdmi_writeb(val, HDMI_A_VIDPOLCFG);
-
-	val = hdmi_readb(HDMI_A_HDCPCFG1);
-	val &= HDMI_A_HDCPCFG1_ENCRYPTIONDISABLE_MASK;
-	val |= HDMI_A_HDCPCFG1_ENCRYPTIONDISABLE_DISABLE;
-	hdmi_writeb(val, HDMI_A_HDCPCFG1);
+	if (hdmi->hdmi_data.hdcp_enable) {
+		/* Enable HDMI DDC pin */
+		mxc_hdmi_enable_pins(hdmi);
+	} else {
+		/* Disable HDMI DDC pin */
+		mxc_hdmi_disable_pins(hdmi);
+	}
 }
 
 static void hdmi_config_AVI(struct mxc_hdmi *hdmi)
@@ -1422,19 +1498,131 @@ static void hdmi_av_composer(struct mxc_hdmi *hdmi)
 	dev_dbg(&hdmi->pdev->dev, "%s exit\n", __func__);
 }
 
+static int mxc_edid_read_internal(struct mxc_hdmi *hdmi, unsigned char *edid,
+			struct mxc_edid_cfg *cfg, struct fb_info *fbi)
+{
+	int extblknum;
+	int i, j, ret;
+	unsigned char *ediddata = edid;
+	unsigned char tmpedid[EDID_LENGTH];
+
+	dev_info(&hdmi->pdev->dev, "%s\n", __func__);
+
+	if (!edid || !cfg || !fbi)
+		return -EINVAL;
+
+	/* init HDMI I2CM for read edid*/
+	hdmi_writeb(0x0, HDMI_I2CM_DIV);
+	hdmi_writeb(0x00, HDMI_I2CM_SS_SCL_HCNT_1_ADDR);
+	hdmi_writeb(0x79, HDMI_I2CM_SS_SCL_HCNT_0_ADDR);
+	hdmi_writeb(0x00, HDMI_I2CM_SS_SCL_LCNT_1_ADDR);
+	hdmi_writeb(0x91, HDMI_I2CM_SS_SCL_LCNT_0_ADDR);
+
+	hdmi_writeb(0x00, HDMI_I2CM_FS_SCL_HCNT_1_ADDR);
+	hdmi_writeb(0x0F, HDMI_I2CM_FS_SCL_HCNT_0_ADDR);
+	hdmi_writeb(0x00, HDMI_I2CM_FS_SCL_LCNT_1_ADDR);
+	hdmi_writeb(0x21, HDMI_I2CM_FS_SCL_LCNT_0_ADDR);
+
+	hdmi_writeb(0x50, HDMI_I2CM_SLAVE);
+	hdmi_writeb(0x30, HDMI_I2CM_SEGADDR);
+
+	/* Umask edid interrupt */
+	hdmi_writeb(HDMI_I2CM_INT_DONE_POL,
+		    HDMI_I2CM_INT);
+
+	hdmi_writeb(HDMI_I2CM_CTLINT_NAC_POL |
+		    HDMI_I2CM_CTLINT_ARBITRATION_POL,
+		    HDMI_I2CM_CTLINT);
+
+	/* reset edid data zero */
+	memset(edid, 0, EDID_LENGTH*4);
+	memset(cfg, 0, sizeof(struct mxc_edid_cfg));
+
+	/* Check first three byte of EDID head */
+	if (!(hdmi_edid_i2c_read(hdmi, 0, 0) == 0x00) ||
+		!(hdmi_edid_i2c_read(hdmi, 1, 0) == 0xFF) ||
+		!(hdmi_edid_i2c_read(hdmi, 2, 0) == 0xFF)) {
+		dev_info(&hdmi->pdev->dev, "EDID head check failed!");
+		return -ENOENT;
+	}
+
+	for (i = 0; i < 128; i++) {
+		*ediddata = hdmi_edid_i2c_read(hdmi, i, 0);
+		ediddata++;
+	}
+
+	extblknum = edid[0x7E];
+	if (extblknum < 0)
+		return extblknum;
+
+	if (extblknum) {
+		ediddata = edid + EDID_LENGTH;
+		for (i = 0; i < 128; i++) {
+			*ediddata = hdmi_edid_i2c_read(hdmi, i, 1);
+			ediddata++;
+		}
+	}
+
+	/* edid first block parsing */
+	memset(&fbi->monspecs, 0, sizeof(fbi->monspecs));
+	fb_edid_to_monspecs(edid, &fbi->monspecs);
+
+	ret = mxc_edid_parse_ext_blk(edid + EDID_LENGTH,
+			cfg, &fbi->monspecs);
+	if (ret < 0)
+		return -ENOENT;
+
+	/* need read segment block? */
+	if (extblknum > 1) {
+		for (j = 1; j <= extblknum; j++) {
+			for (i = 0; i < 128; i++)
+				*(tmpedid + 1) = hdmi_edid_i2c_read(hdmi, i, j);
+
+			/* edid ext block parsing */
+			ret = mxc_edid_parse_ext_blk(tmpedid + EDID_LENGTH,
+					cfg, &fbi->monspecs);
+			if (ret < 0)
+				return -ENOENT;
+		}
+	}
+
+	return 0;
+}
+
 static int mxc_hdmi_read_edid(struct mxc_hdmi *hdmi)
 {
 	int ret;
 	u8 edid_old[HDMI_EDID_LEN];
+	u8 clkdis;
 
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
 	/* save old edid */
 	memcpy(edid_old, hdmi->edid, HDMI_EDID_LEN);
 
-	ret = mxc_edid_read(hdmi_i2c->adapter, hdmi_i2c->addr, hdmi->edid,
+	if (!hdmi->hdmi_data.hdcp_enable)
+		ret = mxc_edid_read(hdmi_i2c->adapter, hdmi_i2c->addr,
+				hdmi->edid, &hdmi->edid_cfg, hdmi->fbi);
+	else {
+
+		/* Disable HDCP clk */
+		if (hdmi->hdmi_data.hdcp_enable) {
+			clkdis = hdmi_readb(HDMI_MC_CLKDIS);
+			clkdis |= HDMI_MC_CLKDIS_HDCPCLK_DISABLE;
+			hdmi_writeb(clkdis, HDMI_MC_CLKDIS);
+		}
+
+		ret = mxc_edid_read_internal(hdmi, hdmi->edid,
 				&hdmi->edid_cfg, hdmi->fbi);
 
+		/* Enable HDCP clk */
+		if (hdmi->hdmi_data.hdcp_enable) {
+			clkdis = hdmi_readb(HDMI_MC_CLKDIS);
+			clkdis &= ~HDMI_MC_CLKDIS_HDCPCLK_DISABLE;
+			hdmi_writeb(clkdis, HDMI_MC_CLKDIS);
+		}
+
+	}
 	if (ret < 0)
 		return HDMI_EDID_FAIL;
 
@@ -1452,6 +1640,28 @@ static int mxc_hdmi_read_edid(struct mxc_hdmi *hdmi)
 	}
 
 	return HDMI_EDID_SUCCESS;
+}
+
+static void mxc_hdmi_enable_pins(struct mxc_hdmi *hdmi)
+{
+	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
+
+	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
+
+	/* Enable pins to HDMI */
+	if (plat->enable_pins)
+		plat->enable_pins();
+}
+
+static void mxc_hdmi_disable_pins(struct mxc_hdmi *hdmi)
+{
+	struct fsl_mxc_hdmi_platform_data *plat = hdmi->pdev->dev.platform_data;
+
+	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
+
+	/* Disable pins to HDMI */
+	if (plat->disable_pins)
+		plat->disable_pins();
 }
 
 static void mxc_hdmi_phy_disable(struct mxc_hdmi *hdmi)
@@ -1696,7 +1906,7 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi)
 		return;
 	}
 
-	/* If video mode same as previous, init HDMI PHY and return */
+	/* If video mode same as previous, init HDMI again */
 	if (fb_mode_is_equal(&hdmi->previous_non_vga_mode, mode)) {
 		dev_dbg(&hdmi->pdev->dev,
 				"%s: Video mode same as previous\n", __func__);
@@ -1707,7 +1917,6 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi)
 	} else {
 		dev_dbg(&hdmi->pdev->dev, "%s: New video mode\n", __func__);
 		mxc_hdmi_set_mode_to_vga_dvi(hdmi);
-
 		fb_videomode_to_var(&hdmi->fbi->var, mode);
 		dump_fb_videomode((struct fb_videomode *)mode);
 		mxc_hdmi_notify_fb(hdmi);
@@ -1779,9 +1988,12 @@ static void mxc_hdmi_cable_disconnected(struct mxc_hdmi *hdmi)
 {
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
-	hdmi_disable_overflow_interrupts();
+	/* Disable All HDMI clock */
+	hdmi_writeb(0xff, HDMI_MC_CLKDIS);
 
 	mxc_hdmi_phy_disable(hdmi);
+
+	hdmi_disable_overflow_interrupts();
 
 	hdmi->cable_plugin = false;
 }
@@ -1794,7 +2006,7 @@ static void hotplug_worker(struct work_struct *work)
 	u32 phy_int_stat, phy_int_pol, phy_int_mask;
 	u8 val;
 	unsigned long flags;
-	char event_string[16];
+	char event_string[32];
 	char *envp[] = { event_string, NULL };
 
 	phy_int_stat = hdmi->latest_intr_stat;
@@ -1869,6 +2081,21 @@ static void hotplug_worker(struct work_struct *work)
 	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
 }
 
+static void hdcp_hdp_worker(struct work_struct *work)
+{
+	struct delayed_work *delay_work = to_delayed_work(work);
+	struct mxc_hdmi *hdmi =
+		container_of(delay_work, struct mxc_hdmi, hdcp_hdp_work);
+	char event_string[32];
+	char *envp[] = { event_string, NULL };
+
+	/* HDCP interrupt */
+	sprintf(event_string, "EVENT=hdcpint");
+	kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
+
+	/* Unmute interrupts in HDCP application*/
+}
+
 static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
 {
 	struct mxc_hdmi *hdmi = data;
@@ -1917,6 +2144,17 @@ static irqreturn_t mxc_hdmi_hotplug(int irq, void *data)
 		schedule_delayed_work(&(hdmi->hotplug_work), msecs_to_jiffies(20));
 	}
 
+	/* Check HDCP  interrupt state */
+	if (hdmi->hdmi_data.hdcp_enable) {
+		val = hdmi_readb(HDMI_A_APIINTSTAT);
+		if (val != 0) {
+			/* Mute interrupts until interrupt handled */
+			val = 0xFF;
+			hdmi_writeb(val, HDMI_A_APIINTMSK);
+			schedule_delayed_work(&(hdmi->hdcp_hdp_work), msecs_to_jiffies(50));
+		}
+	}
+
 	spin_unlock_irqrestore(&hdmi->irq_lock, flags);
 	return IRQ_HANDLED;
 }
@@ -1931,15 +2169,6 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 	fb_var_to_videomode(&m, &hdmi->fbi->var);
 	dump_fb_videomode(&m);
 
-	/* Exit the setup if we get mode change and are already set to
-	 * this video mode */
-	if ((event == FB_EVENT_MODE_CHANGE) &&
-		fb_mode_is_equal(&hdmi->previous_mode, &m)) {
-		dev_dbg(&hdmi->pdev->dev,
-			"%s video mode did not change.\n", __func__);
-		mxc_hdmi_phy_init(hdmi);
-		return;
-	}
 	dev_dbg(&hdmi->pdev->dev, "%s - video mode changed\n", __func__);
 
 	/* Save mode as 'previous_mode' so that we can know if mode changed. */
@@ -1961,17 +2190,12 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 
 	hdmi_disable_overflow_interrupts();
 
-	if (hdmi->vic == 0) {
-		dev_dbg(&hdmi->pdev->dev, "Non-CEA mode used in HDMI\n");
+	dev_dbg(&hdmi->pdev->dev, "CEA mode used vic=%d\n", hdmi->vic);
+	if (hdmi->edid_cfg.hdmi_cap)
+		hdmi->hdmi_data.video_mode.mDVI = false;
+	else {
+		dev_dbg(&hdmi->pdev->dev, "CEA mode vic=%d work in DVI\n", hdmi->vic);
 		hdmi->hdmi_data.video_mode.mDVI = true;
-	} else {
-		dev_dbg(&hdmi->pdev->dev, "CEA mode used vic=%d\n", hdmi->vic);
-		if (hdmi->edid_cfg.hdmi_cap)
-			hdmi->hdmi_data.video_mode.mDVI = false;
-		else {
-			dev_dbg(&hdmi->pdev->dev, "CEA mode vic=%d work in DVI\n", hdmi->vic);
-			hdmi->hdmi_data.video_mode.mDVI = true;
-		}
 	}
 
 	if ((hdmi->vic == 6) || (hdmi->vic == 7) ||
@@ -2013,7 +2237,6 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 	/* IPU not support depth color output */
 	hdmi->hdmi_data.enc_color_depth = 8;
 	hdmi->hdmi_data.pix_repet_factor = 0;
-	hdmi->hdmi_data.hdcp_enable = 0;
 	hdmi->hdmi_data.video_mode.mDataEnablePolarity = true;
 
 	/* HDMI Initialization Step B.1 */
@@ -2308,6 +2531,7 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	hdmi->edid_cfg.hdmi_cap = true;
 
 	INIT_DELAYED_WORK(&hdmi->hotplug_work, hotplug_worker);
+	INIT_DELAYED_WORK(&hdmi->hdcp_hdp_work, hdcp_hdp_worker);
 
 	/* Configure registers related to HDMI interrupt
 	 * generation before registering IRQ. */
@@ -2346,10 +2570,16 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	if (ret < 0)
 		dev_warn(&hdmi->pdev->dev,
 			"cound not create sys node for edid\n");
+
 	ret = device_create_file(&hdmi->pdev->dev, &dev_attr_rgb_out_enable);
 	if (ret < 0)
 		dev_warn(&hdmi->pdev->dev,
 			"cound not create sys node for rgb out enable\n");
+
+	ret = device_create_file(&hdmi->pdev->dev, &dev_attr_hdcp_enable);
+	if (ret < 0)
+		dev_warn(&hdmi->pdev->dev,
+			"cound not create sys node for hdcp enable\n");
 
 	dev_dbg(&hdmi->pdev->dev, "%s exit\n", __func__);
 
@@ -2408,9 +2638,50 @@ static struct mxc_dispdrv_driver mxc_hdmi_drv = {
 	.disable = mxc_hdmi_power_off,
 };
 
+
+static int mxc_hdmi_open(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static long mxc_hdmi_ioctl(struct file *file,
+		unsigned int cmd, unsigned long arg)
+{
+	int __user *argp = (void __user *)arg;
+	int ret = 0;
+
+	switch (cmd) {
+	case HDMI_IOC_GET_RESOURCE:
+		ret = copy_to_user(argp, &g_hdmi->hdmi_data,
+				sizeof(g_hdmi->hdmi_data)) ? -EFAULT : 0;
+		break;
+	case HDMI_IOC_GET_CPU_TYPE:
+		*argp = mxc_cpu_type;
+		break;
+	default:
+		pr_debug("Unsupport cmd %d\n", cmd);
+		break;
+     }
+     return ret;
+}
+
+static int mxc_hdmi_release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static const struct file_operations mxc_hdmi_fops = {
+	.owner = THIS_MODULE,
+	.open = mxc_hdmi_open,
+	.release = mxc_hdmi_release,
+	.unlocked_ioctl = mxc_hdmi_ioctl,
+};
+
+
 static int __devinit mxc_hdmi_probe(struct platform_device *pdev)
 {
 	struct mxc_hdmi *hdmi;
+	struct device *temp_class;
 	int ret = 0;
 
 	/* Check that I2C driver is loaded and available */
@@ -2423,6 +2694,28 @@ static int __devinit mxc_hdmi_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto ealloc;
 	}
+	g_hdmi = hdmi;
+
+	hdmi_major = register_chrdev(hdmi_major, "mxc_hdmi", &mxc_hdmi_fops);
+	if (hdmi_major < 0) {
+		printk(KERN_ERR "HDMI: unable to get a major for HDMI\n");
+		ret = -EBUSY;
+		goto ealloc;
+	}
+
+	hdmi_class = class_create(THIS_MODULE, "mxc_hdmi");
+	if (IS_ERR(hdmi_class)) {
+		ret = PTR_ERR(hdmi_class);
+		goto err_out_chrdev;
+	}
+
+	temp_class = device_create(hdmi_class, NULL, MKDEV(hdmi_major, 0),
+				   NULL, "mxc_hdmi");
+	if (IS_ERR(temp_class)) {
+		ret = PTR_ERR(temp_class);
+		goto err_out_class;
+	}
+
 
 	hdmi->pdev = pdev;
 
@@ -2460,6 +2753,11 @@ edispdrv:
 	platform_device_put(hdmi->core_pdev);
 ecore:
 	kfree(hdmi);
+err_out_class:
+	device_destroy(hdmi_class, MKDEV(hdmi_major, 0));
+	class_destroy(hdmi_class);
+err_out_chrdev:
+	unregister_chrdev(hdmi_major, "mxc_hdmi");
 ealloc:
 	return ret;
 }
@@ -2479,6 +2777,7 @@ static int mxc_hdmi_remove(struct platform_device *pdev)
 	/* No new work will be scheduled, wait for running ISR */
 	free_irq(irq, hdmi);
 	kfree(hdmi);
+	g_hdmi = NULL;
 
 	return 0;
 }
@@ -2500,6 +2799,13 @@ module_init(mxc_hdmi_init);
 
 static void __exit mxc_hdmi_exit(void)
 {
+	if (hdmi_major > 0) {
+		device_destroy(hdmi_class, MKDEV(hdmi_major, 0));
+		class_destroy(hdmi_class);
+		unregister_chrdev(hdmi_major, "mxc_hdmi");
+		hdmi_major = 0;
+	}
+
 	platform_driver_unregister(&mxc_hdmi_driver);
 }
 module_exit(mxc_hdmi_exit);

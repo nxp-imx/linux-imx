@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -401,20 +401,6 @@ ddr_freq_change:
 
 	adr   r10, ddr_freq_change               @Address in this function.
 
-
-	mcr   p15, 0, r10, c8, c7, 1      @//@ Make sure freq code address
-	                                       @//  @ is not already in TLB.
-	mcr   p15, 0, r6, c8, c7, 1      @//@ Make sure CCM address
-	                                         @//@ is not already in TLB.
-	mcr   p15, 0, r5, c8, c7, 1      @//@ make sure MMDC address
-	                                         @//@ is not already in TLB.
-	mcr   p15, 0, r7, c8, c7, 1      @//@ make sure IOMUX address
-	                                         @//@ is not already in TLB.
-
-	mrc   p15, 0, r0, c10, c0, 0    @//@ Read the TLB lockdown register
-	orr    r0, r0, #1                    @//@ Set the Preserve bit.
-	mcr   p15, 0, r0, c10, c0, 0    @//@ Write to the lockdown register
-
 	ldr    r2, [r6]                        @ TLB will miss,
 	                                         @CCM address will be loaded
 	ldr    r2, [r5]                        @ TLB will miss,
@@ -423,18 +409,33 @@ ddr_freq_change:
 	                                         @IOMUX will be loaded
 
 	ldr    r2, [r8]                        @ Get the DDR settings.
-
 	ldr    r2, [r10]                        @ TLB will miss
-
 	ldr    r2, [r11]				@Get the IOMUX settings
 
-	mrc  p15, 0, r0, c10, c0, 0      @//@ Read the lockdown register
-	                                             @//@ (victim will be incremented)
-	bic   r0, r0, #1                     @//@ Clear the preserve bit
-	mcr   p15, 0, r0, c10, c0, 0     @//@ Write to the lockdown register
+	/* Make sure all the L1 & L2 buffers are drained, as
+	  * we don't want any writes to the DDR when it is
+	  * in self-refresh.
+	  */
+	/* Make sure the L1 buffers are drained. */
+	dsb
+
+#ifdef CONFIG_CACHE_L2X0
+	/* Make sure the L2 buffers are drained.
+	  * Sync operation on L2 drains the buffers.
+	  */
+	ldr      r0, =L2_BASE_ADDR
+	add     r0, r0, #PERIPBASE_VIRT
+	mov    r1, #0x0
+	str      r1, [r0, #0x730]
+#endif
+
+     /* The second dsb might be needed to keep cache sync (device write)
+       * ordering with the memory accesses before it.
+       */
+	dsb
+	isb
 
 	/* Disable automatic power saving. */
-
 	ldr    r0, [r5, #0x404]
 	orr    r0, r0, #0x01
 	str    r0, [r5, #0x404]

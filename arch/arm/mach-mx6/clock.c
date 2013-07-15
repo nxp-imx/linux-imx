@@ -52,6 +52,7 @@ extern int wait_mode_arm_podf;
 extern int lp_audio_freq;
 extern int cur_arm_podf;
 extern bool enet_is_active;
+extern bool enet_to_gpio_6;
 
 void __iomem *apll_base;
 
@@ -1025,7 +1026,8 @@ static int _clk_audio_video_set_rate(struct clk *clk, unsigned long rate)
 	__raw_writel(mfn, pllbase + PLL_NUM_DIV_OFFSET);
 	__raw_writel(mfd, pllbase + PLL_DENOM_DIV_OFFSET);
 
-	if (rev >= IMX_CHIP_REVISION_1_1) {
+	if ((rev >= IMX_CHIP_REVISION_1_1) &&
+		(pllbase == PLL5_VIDEO_BASE_ADDR)) {
 		reg = __raw_readl(ANA_MISC2_BASE_ADDR)
 			& ~ANADIG_ANA_MISC2_CONTROL3_MASK;
 		reg |= control3 << ANADIG_ANA_MISC2_CONTROL3_OFFSET;
@@ -1865,6 +1867,8 @@ static int _clk_ipg_perclk_set_rate(struct clk *clk, unsigned long rate)
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	reg &= ~MXC_CCM_CSCMR1_PERCLK_PODF_MASK;
 	reg |= (div - 1) << MXC_CCM_CSCMR1_PERCLK_PODF_OFFSET;
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -2396,6 +2400,9 @@ static int _clk_usdhc1_set_parent(struct clk *clk, struct clk *parent)
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC1_CLK_SEL);
 
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
+
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -2452,6 +2459,9 @@ static int _clk_usdhc2_set_parent(struct clk *clk, struct clk *parent)
 
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC2_CLK_SEL);
+
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -2510,6 +2520,9 @@ static int _clk_usdhc3_set_parent(struct clk *clk, struct clk *parent)
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC3_CLK_SEL);
 
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
+
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -2567,6 +2580,9 @@ static int _clk_usdhc4_set_parent(struct clk *clk, struct clk *parent)
 
 	if (parent == &pll2_pfd_352M)
 		reg |= (MXC_CCM_CSCMR1_USDHC4_CLK_SEL);
+
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -2683,6 +2699,8 @@ static int _clk_ssi1_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux6(parent, &pll3_pfd_508M, &pll3_pfd_454M,
 			&pll4_audio_main_clk, NULL, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_SSI1_CLK_SEL_OFFSET);
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -2757,6 +2775,8 @@ static int _clk_ssi2_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux6(parent, &pll3_pfd_508M, &pll3_pfd_454M,
 			&pll4_audio_main_clk, NULL, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_SSI2_CLK_SEL_OFFSET);
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -2830,6 +2850,8 @@ static int _clk_ssi3_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux6(parent, &pll3_pfd_508M, &pll3_pfd_454M,
 				&pll4_audio_main_clk, NULL, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_SSI3_CLK_SEL_OFFSET);
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
@@ -3731,9 +3753,9 @@ static unsigned long _clk_enet_get_rate(struct clk *clk)
 
 static int _clk_enet_enable(struct clk *clk)
 {
-#ifndef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	enet_is_active = true;
-#endif
+	if (!enet_to_gpio_6)
+		enet_is_active = true;
+
 	_clk_enable(clk);
 	return 0;
 }
@@ -3741,9 +3763,9 @@ static int _clk_enet_enable(struct clk *clk)
 static void _clk_enet_disable(struct clk *clk)
 {
 	_clk_disable(clk);
-#ifndef CONFIG_MX6_ENET_IRQ_TO_GPIO
-	enet_is_active = false;
-#endif
+
+	if (!enet_to_gpio_6)
+		enet_is_active = false;
 }
 
 static struct clk enet_clk[] = {
@@ -3848,6 +3870,8 @@ static int _clk_emi_slow_set_parent(struct clk *clk, struct clk *parent)
 	mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
 				&pll2_pfd_400M, &pll2_pfd_352M, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_ACLK_EMI_SLOW_OFFSET);
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -3878,6 +3902,8 @@ static int _clk_emi_slow_set_rate(struct clk *clk, unsigned long rate)
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	reg &= ~MXC_CCM_CSCMR1_ACLK_EMI_SLOW_PODF_MASK;
 	reg |= (div - 1) << MXC_CCM_CSCMR1_ACLK_EMI_SLOW_PODF_OFFSET;
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -3922,9 +3948,11 @@ static int _clk_emi_set_parent(struct clk *clk, struct clk *parent)
 	int mux;
 	u32 reg = __raw_readl(MXC_CCM_CSCMR1) & ~MXC_CCM_CSCMR1_ACLK_EMI_MASK;
 
-	mux = _get_mux6(parent, &axi_clk, &pll3_usb_otg_main_clk,
-			&pll2_pfd_400M, &pll2_pfd_352M, NULL, NULL);
+	mux = _get_mux6(parent, &pll2_pfd_400M, &pll3_usb_otg_main_clk,
+			&axi_clk, &pll2_pfd_352M, NULL, NULL);
 	reg |= (mux << MXC_CCM_CSCMR1_ACLK_EMI_OFFSET);
+	/* aclk_podf fixup */
+	reg ^= 0x00600000;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -3934,6 +3962,7 @@ static unsigned long _clk_emi_get_rate(struct clk *clk)
 {
 	u32 reg, div;
 
+	/* ACLK_EMI_PODF read value matches with real divider value */
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	div = ((reg & MXC_CCM_CSCMR1_ACLK_EMI_PODF_MASK) >>
 			MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET) + 1;
@@ -3952,9 +3981,26 @@ static int _clk_emi_set_rate(struct clk *clk, unsigned long rate)
 	if (((parent_rate / div) != rate) || (div > 8))
 		return -EINVAL;
 
+	/*
+	 * This is a software workaround for ACLK_EMI_PODF SoC
+	 * implementation bug. The write/read/divider values
+	 * have the relationship described by the following table:
+	 *
+	 * write value       read value        description
+	 * 3b'000            3b'110            divided by 7
+	 * 3b'001            3b'111            divided by 8
+	 * 3b'010            3b'100            divided by 5
+	 * 3b'011            3b'101            divided by 6
+	 * 3b'100            3b'010            divided by 3
+	 * 3b'101            3b'011            divided by 4
+	 * 3b'110            3b'000            divided by 1
+	 * 3b'111            3b'001            divided by 2(default)
+	 *
+	 * That's why we do the xor operation below.
+	 */
 	reg = __raw_readl(MXC_CCM_CSCMR1);
 	reg &= ~MXC_CCM_CSCMR1_ACLK_EMI_PODF_MASK;
-	reg |= (div - 1) << MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET;
+	reg |= ((div - 1)^0x6) << MXC_CCM_CSCMR1_ACLK_EMI_PODF_OFFSET;
 	__raw_writel(reg, MXC_CCM_CSCMR1);
 
 	return 0;
@@ -4793,6 +4839,7 @@ static int _clk_pcie_enable(struct clk *clk)
 {
 	unsigned int reg;
 
+#ifndef CONFIG_IMX_PCIE_RC_MODE_IN_EP_RC_SYS
 	/* Activate LVDS CLK1 (the MiniPCIe slot clock input) */
 	reg = __raw_readl(ANADIG_MISC1_REG);
 	reg &= ~ANATOP_LVDS_CLK1_IBEN_MASK;
@@ -4805,6 +4852,7 @@ static int _clk_pcie_enable(struct clk *clk)
 	reg = __raw_readl(ANADIG_MISC1_REG);
 	reg |= ANATOP_LVDS_CLK1_OBEN_MASK;
 	__raw_writel(reg, ANADIG_MISC1_REG);
+#endif
 
 	/* Enable PCIE ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
@@ -4822,9 +4870,10 @@ static void _clk_pcie_disable(struct clk *clk)
 
 	_clk_disable(clk);
 
+#ifndef CONFIG_IMX_PCIE_RC_MODE_IN_EP_RC_SYS
 	/* De-activate LVDS CLK1 (the MiniPCIe slot clock input) */
 	reg = __raw_readl(ANADIG_MISC1_REG);
-	reg &= ~ANATOP_LVDS_CLK1_IBEN_MASK;
+	reg |= ANATOP_LVDS_CLK1_IBEN_MASK;
 	__raw_writel(reg, ANADIG_MISC1_REG);
 
 	reg = __raw_readl(ANADIG_MISC1_REG);
@@ -4834,6 +4883,7 @@ static void _clk_pcie_disable(struct clk *clk)
 	reg = __raw_readl(ANADIG_MISC1_REG);
 	reg &= ~ANATOP_LVDS_CLK1_OBEN_MASK;
 	__raw_writel(reg, ANADIG_MISC1_REG);
+#endif
 
 	/* Disable PCIE ref clock */
 	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
@@ -4860,6 +4910,53 @@ static struct clk pcie_clk[] = {
 	 */
 	.parent = &sata_clk[0],
 	.secondary = &pcie_clk[2],
+	},
+	{
+	.parent = &mmdc_ch0_axi_clk[0],
+	.secondary = &mx6fast1_clk,
+	},
+};
+
+static int _clk_pcie_ep_enable(struct clk *clk)
+{
+	unsigned int reg;
+
+	/* Enable PCIE ref clock */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg |= ANADIG_PLL_ENET_EN_PCIE;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+
+	_clk_enable(clk);
+
+	return 0;
+}
+
+static void _clk_pcie_ep_disable(struct clk *clk)
+{
+	unsigned int reg;
+
+	_clk_disable(clk);
+
+	/* Disable PCIE ref clock */
+	reg = __raw_readl(PLL8_ENET_BASE_ADDR);
+	reg &= ~ANADIG_PLL_ENET_EN_PCIE;
+	__raw_writel(reg, PLL8_ENET_BASE_ADDR);
+}
+
+static struct clk pcie_ep_clk[] = {
+	{
+	__INIT_CLK_DEBUG(pcie_ep_clk)
+	.parent = &pcie_axi_clk,
+	.enable = _clk_pcie_ep_enable,
+	.disable = _clk_pcie_ep_disable,
+	.enable_reg = MXC_CCM_CCGR4,
+	.enable_shift = MXC_CCM_CCGRx_CG0_OFFSET,
+	.secondary = &pcie_ep_clk[1],
+	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
+	},
+	{
+	.parent = &pll8_enet_main_clk,
+	.secondary = &pcie_ep_clk[2],
 	},
 	{
 	.parent = &mmdc_ch0_axi_clk[0],
@@ -5274,7 +5371,6 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("imx6q-ecspi.1", NULL, ecspi_clk[1]),
 	_REGISTER_CLOCK("imx6q-ecspi.2", NULL, ecspi_clk[2]),
 	_REGISTER_CLOCK("imx6q-ecspi.3", NULL, ecspi_clk[3]),
-	_REGISTER_CLOCK("imx6q-ecspi.4", NULL, ecspi_clk[4]),
 	_REGISTER_CLOCK(NULL, "emi_slow_clk", emi_slow_clk),
 	_REGISTER_CLOCK(NULL, "emi_clk", emi_clk),
 	_REGISTER_CLOCK(NULL, "enfc_clk", enfc_clk),
@@ -5303,6 +5399,7 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_pwm.2", NULL, pwm_clk[2]),
 	_REGISTER_CLOCK("mxc_pwm.3", NULL, pwm_clk[3]),
 	_REGISTER_CLOCK(NULL, "pcie_clk", pcie_clk[0]),
+	_REGISTER_CLOCK(NULL, "pcie_ep_clk", pcie_ep_clk[0]),
 	_REGISTER_CLOCK("enet.0", NULL, enet_clk[0]),
 	_REGISTER_CLOCK(NULL, "imx_sata_clk", sata_clk[0]),
 	_REGISTER_CLOCK(NULL, "usboh3_clk", usboh3_clk[0]),
@@ -5330,6 +5427,11 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK(NULL, "anaclk_2", anaclk_2),
 	_REGISTER_CLOCK(NULL, "apb_pclk", dummy_clk),
 };
+
+static struct
+clk_lookup imx6dl_i2c4 = _REGISTER_CLOCK("imx-i2c.3", NULL, ecspi_clk[4]);
+static struct
+clk_lookup imx6q_ecspi5 = _REGISTER_CLOCK("imx6q-ecspi.4", NULL, ecspi_clk[4]);
 
 static void clk_tree_init(void)
 
@@ -5368,13 +5470,18 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 		clk_debug_register(lookups[i].clk);
 	}
 
-	/* Lower the ipg_perclk frequency to 22MHz.
-	  * I2C needs a minimum of 12.8MHz as its source
-	  * to acheive 400KHz speed. IPG_PERCLK sources
-	  * I2C. 22MHz when divided by the I2C divider gives the
-	  * freq closest to 400KHz.
-	  */
-	clk_set_rate(&ipg_perclk, 22000000);
+	/*
+	 * imx6q have 5 ecspi and 3 i2c
+	 * imx6dl have 4 ecspi and 4 i2c
+	 * imx6dl i2c4 use the imx6q ecspi5 clock source
+	 */
+	if (cpu_is_mx6dl()) {
+		clkdev_add(&imx6dl_i2c4);
+		clk_debug_register(imx6dl_i2c4.clk);
+	} else {
+		clkdev_add(&imx6q_ecspi5);
+		clk_debug_register(imx6q_ecspi5.clk);
+	}
 
 	/* Timer needs to be initialized first as the
 	  * the WAIT routines use GPT counter as
@@ -5392,6 +5499,15 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	mxc_timer_init(&gpt_clk[0], timer_base, MXC_INT_GPT);
 
 	clk_tree_init();
+
+	/*
+	 * Lower the ipg_perclk frequency to 22MHz.
+	 * I2C needs a minimum of 12.8MHz as its source
+	 * to acheive 400KHz speed. IPG_PERCLK sources
+	 * I2C. 22MHz when divided by the I2C divider gives the
+	 * freq closest to 400KHz.
+	 */
+	clk_set_rate(&ipg_perclk, 22000000);
 
 #ifdef CONFIG_MX6_VPU_352M
 	if (cpu_is_mx6q()) {
@@ -5461,8 +5577,11 @@ int __init mx6_clocks_init(unsigned long ckil, unsigned long osc,
 	clk_set_parent(&ipu2_di_clk[1], &pll5_video_main_clk);
 
 	clk_set_parent(&emi_clk, &pll2_pfd_400M);
-	clk_set_rate(&emi_clk, 200000000);
-
+#ifdef CONFIG_MX6_VPU_352M
+	clk_set_rate(&emi_clk, 176000000);
+#else
+	clk_set_rate(&emi_clk, 198000000);
+#endif
 	/*
 	* on mx6dl, 2d core clock sources from 3d shader core clock,
 	* but 3d shader clock multiplexer of mx6dl is different from

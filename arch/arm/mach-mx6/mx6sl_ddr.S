@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -116,13 +116,6 @@ mmdc_podf0:
 
 	  .macro	ddr_switch_400MHz
 
-     /* Check if we are switching between
-       * 400Mhz <-> 50MHz. If so, we only need to
-       * update MMDC divider.
-       */
-      cmp    r1, #0
-      beq     change_divider_only
-
     /* Set MMDC divider first, in case PLL3 is at 480MHz. */
       ldr     r6, [r3, #0x10]
       and    r6, r6, #0x10000
@@ -141,6 +134,13 @@ mmdc_podf:
 
 pll3_in_bypass:
 
+     /* Check if we are switching between
+       * 400Mhz <-> 100MHz.If so, we should
+       * try to source MMDC from PLL2_200M.
+       */
+      cmp    r1, #0
+      beq     not_low_bus_freq
+
      /* Ensure that MMDC is sourced from PLL2 mux first. */
      ldr     r6, [r2, #0x14]
      bic     r6, r6, #0x4000000
@@ -151,6 +151,7 @@ periph2_clk_switch4:
      cmp     r6, #0
      bne     periph2_clk_switch4
 
+not_low_bus_freq:
      /* Now ensure periph2_clk2_sel mux is set to PLL3 */
      ldr     r6, [r2, #0x18]
      bic     r6, r6, #0x100000
@@ -165,6 +166,12 @@ periph2_clk_switch5:
      ldr     r6, [r2, #0x48]
      cmp     r6, #0
      bne     periph2_clk_switch5
+
+     /* Check if PLL2 is already unlocked.
+       * If so do nothing with PLL2.
+       */
+     cmp    r1, #0
+     beq	pll2_already_on
 
      /* Now power up PLL2 and unbypass it. */
      ldr    r6, [r3, #0x30]
@@ -192,27 +199,43 @@ wait_for_pll_lock:
      bic    r6, r6, #0x800000
      str     r6, [r3, #0x100]
 
+pll2_already_on:
     /* Now switch MMDC clk back to pll2_mux option. */
     /* Ensure pre_periph2_clk2 is set to pll2_pfd_400M */
+    /* If switching to audio DDR freq, set the
+     * pre_periph2_clk2 to PLL2_PFD_200M
+     */
+    ldr     r6, =400000000
+    cmp   r6, r0
+    bne    use_pll2_pfd_200M
+
      ldr     r6, [r2, #0x18]
      bic     r6, r6, #0x600000
      orr     r6, r6, #0x200000
      str     r6, [r2, #0x18]
+     ldr     r6, =400000000
+     b       cont2
 
-     ldr     r6, [r2, #0x14]
-     bic     r6, r6, #0x4000000
-     str     r6, [r2, #0x14]
+use_pll2_pfd_200M:
+     ldr     r6, [r2, #0x18]
+     orr     r6, r6, #0x600000
+     str     r6, [r2, #0x18]
+     ldr     r6, =200000000
+
+cont2:
+     ldr     r4, [r2, #0x14]
+     bic     r4, r4, #0x4000000
+     str     r4, [r2, #0x14]
 
 periph2_clk_switch6:
-     ldr     r6, [r2, #0x48]
-     cmp     r6, #0
+     ldr     r4, [r2, #0x48]
+     cmp     r4, #0
      bne     periph2_clk_switch6
 
 change_divider_only:
     /* Calculate the MMDC divider
      * based on the requested freq.
      */
-    ldr    r6, =400000000
     ldr    r4, =0
 Loop2:
     sub    r6, r6, r0
@@ -306,7 +329,7 @@ force_measure1:
  */
 ENTRY(mx6sl_ddr_iram)
 
-    push {r4, r5, r6, r7, r8, r9, r10 }
+    push {r4-r10}
 
 mx6sl_ddr_freq_change:
     ldr     r3, =ANATOP_BASE_ADDR
@@ -326,6 +349,21 @@ mx6sl_ddr_freq_change:
     ldr     r6, [r3]
     ldr     r6, [r2]
 
+     /* Drain all the L1 buffers. */
+     dsb
+
+#ifdef CONFIG_CACHE_L2X0
+    /* Need to make sure the buffers in L2 are drained.
+      * Performing a sync operation does this. */
+     ldr     r7, =L2_BASE_ADDR
+     add   r7, r7, #PERIPBASE_VIRT
+     mov  r6, #0x0
+     str    r6, [r7, #0x730]
+#endif
+
+     /* The second dsb might be needed to keep cache sync (device write)
+       * ordering with the memory accesses before it.
+       */
      dsb
      isb
 
@@ -421,7 +459,7 @@ skip_power_down:
      bic     r6, r6, #0x100
      str     r6, [r8, #0x410]
 
-    pop {r4,r5, r6, r7, r8, r9, r10}
+    pop {r4-r10}
 
     /* Restore registers */
     mov     pc, lr

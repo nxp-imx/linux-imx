@@ -70,7 +70,6 @@
 #endif
 #define	DMA_ADDR_INVALID	(~(dma_addr_t)0)
 DEFINE_MUTEX(udc_resume_mutex);
-extern void usb_debounce_id_vbus(void);
 static const char driver_name[] = "fsl-usb2-udc";
 static const char driver_desc[] = DRIVER_DESC;
 
@@ -960,11 +959,8 @@ static struct ep_td_struct *fsl_build_dtd(struct fsl_req *req, unsigned *length,
 			(unsigned)EP_MAX_LENGTH_TRANSFER);
 	if (NEED_IRAM(req->ep))
 		*length = min(*length, g_iram_size);
-#ifdef CONFIG_FSL_UTP
+
 	dtd = dma_pool_alloc_nonbufferable(udc_controller->td_pool, GFP_ATOMIC, dma);
-#else
-	dtd = dma_pool_alloc(udc_controller->td_pool, GFP_ATOMIC, dma);
-#endif
 	if (dtd == NULL)
 		return dtd;
 
@@ -3075,10 +3071,10 @@ static int __devinit fsl_udc_probe(struct platform_device *pdev)
 	 * do platform specific init: check the clock, grab/config pins, etc.
 	 */
 	if (pdata->init && pdata->init(pdev)) {
-		pdata->lowpower = false;
 		ret = -ENODEV;
 		goto err2a;
 	}
+	pdata->lowpower = false;
 
 	spin_lock_init(&pdata->lock);
 
@@ -3234,6 +3230,7 @@ err4:
 err3:
 	free_irq(udc_controller->irq, udc_controller);
 err2:
+	dr_phy_low_power_mode(udc_controller, true);
 	if (pdata->exit)
 		pdata->exit(pdata->pdev);
 err2a:
@@ -3269,6 +3266,8 @@ static int  fsl_udc_remove(struct platform_device *pdev)
 	dr_wake_up_enable(udc_controller, false);
 
 	dr_discharge_line(pdata, true);
+
+	dr_clk_gate(false);
 	/* DR has been stopped in usb_gadget_unregister_driver() */
 	remove_proc_file();
 
@@ -3303,9 +3302,9 @@ static int  fsl_udc_remove(struct platform_device *pdev)
 	device_unregister(&udc_controller->gadget.dev);
 	/* free udc --wait for the release() finished */
 	wait_for_completion(&done);
+
 	/*
-	 * do platform specific un-initialization:
-	 * release iomux pins, etc.
+	 * do platform specific un-initialization
 	 */
 	if (pdata->exit)
 		pdata->exit(pdata->pdev);
@@ -3449,7 +3448,6 @@ static int fsl_udc_resume(struct platform_device *pdev)
 		u32 temp;
 		if (udc_controller->stopped)
 			dr_clk_gate(true);
-		usb_debounce_id_vbus();
 		if (fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) {
 			temp = fsl_readl(&dr_regs->otgsc);
 			/* if b_session_irq_en is cleared by otg */
@@ -3496,7 +3494,6 @@ static int fsl_udc_resume(struct platform_device *pdev)
 			dr_clk_gate(true);
 		dr_wake_up_enable(udc_controller, false);
 		dr_phy_low_power_mode(udc_controller, false);
-		usb_debounce_id_vbus();
 		/* if in host mode, we need to do nothing */
 		if ((fsl_readl(&dr_regs->otgsc) & OTGSC_STS_USB_ID) == 0) {
 			dr_phy_low_power_mode(udc_controller, true);

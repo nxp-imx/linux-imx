@@ -277,6 +277,7 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 	struct anatop_thermal *tz = thermal->devdata;
 	unsigned int tmp;
 	unsigned int reg;
+	unsigned int val;
 
 	if (!tz)
 		return -EINVAL;
@@ -311,11 +312,16 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 		anatop_base + HW_ANADIG_TEMPSENSE0_SET);
 
 	tmp = 0;
+	val = jiffies;
 	/* read temperature values */
 	while ((__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0)
-		& BM_ANADIG_TEMPSENSE0_FINISHED) == 0)
+		& BM_ANADIG_TEMPSENSE0_FINISHED) == 0) {
+		if (time_after(jiffies, (unsigned long)(val + HZ / 2))) {
+			pr_info("Thermal sensor timeout, retry!\n");
+			return 0;
+		}
 		msleep(10);
-
+	}
 	reg = __raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0);
 	tmp = (reg & BM_ANADIG_TEMPSENSE0_TEMP_VALUE)
 		>> BP_ANADIG_TEMPSENSE0_TEMP_VALUE;
@@ -338,6 +344,11 @@ static int anatop_thermal_get_temp(struct thermal_zone_device *thermal,
 
 	*temp = (cooling_device_disable && tz->temperature >= KELVIN_TO_CEL(TEMP_CRITICAL, KELVIN_OFFSET)) ?
 			KELVIN_TO_CEL(TEMP_CRITICAL - 1, KELVIN_OFFSET) : tz->temperature;
+
+	/* Set alarm threshold if necessary */
+	if ((__raw_readl(anatop_base + HW_ANADIG_TEMPSENSE0) &
+		BM_ANADIG_TEMPSENSE0_ALARM_VALUE) == 0)
+		anatop_update_alarm(raw_critical);
 
 	return 0;
 }
@@ -883,7 +894,7 @@ static int anatop_thermal_counting_ratio(unsigned int fuse_data)
 	raw_hot = (fuse_data & 0xfff00) >> 8;
 	hot_temp = fuse_data & 0xff;
 
-	if (!calibration_valid && !cpu_is_mx6sl())
+	if (!calibration_valid)
 		/*
 		 * The universal equation for thermal sensor
 		 * is slope = 0.4297157 - (0.0015976 * 25C fuse),
@@ -901,7 +912,6 @@ static int anatop_thermal_counting_ratio(unsigned int fuse_data)
 	/* Init default critical temp to set alarm */
 	raw_critical = raw_25c - ratio * (KELVIN_TO_CEL(TEMP_CRITICAL, KELVIN_OFFSET) - 25) / 100;
 	clk_enable(pll3_clk);
-	anatop_update_alarm(raw_critical);
 
 	return ret;
 }

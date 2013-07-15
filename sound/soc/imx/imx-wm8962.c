@@ -117,6 +117,56 @@ static void imx_hifi_shutdown(struct snd_pcm_substream *substream)
 	return;
 }
 
+static int check_hw_params(struct snd_pcm_substream *substream,
+				struct snd_pcm_hw_params *params)
+{
+	struct imx_priv *priv = &card_priv;
+	unsigned int channels = params_channels(params);
+	unsigned int sample_rate = params_rate(params);
+	snd_pcm_format_t sample_format = params_format(params);
+
+	substream->runtime->sample_bits =
+		snd_pcm_format_physical_width(sample_format);
+	substream->runtime->rate = sample_rate;
+	substream->runtime->format = sample_format;
+	substream->runtime->channels = channels;
+
+	if (!priv->first_stream) {
+		priv->first_stream = substream;
+	} else {
+		priv->second_stream = substream;
+
+		/* Check two sample rates of two streams */
+		if (priv->first_stream->runtime->rate !=
+				priv->second_stream->runtime->rate) {
+			pr_err("\n!KEEP THE SAME SAMPLE RATE: %d!\n",
+					priv->first_stream->runtime->rate);
+			return -EINVAL;
+		}
+
+		/* Check two sample bits of two streams */
+		if (priv->first_stream->runtime->sample_bits !=
+				priv->second_stream->runtime->sample_bits) {
+			snd_pcm_format_t first_format =
+				priv->first_stream->runtime->format;
+
+			pr_err("\n!KEEP THE SAME FORMAT: %s!\n",
+					snd_pcm_format_name(first_format));
+			return -EINVAL;
+		}
+
+		/* Check two channel numbers of two streams */
+		if (priv->first_stream->runtime->channels !=
+				priv->second_stream->runtime->channels) {
+			pr_err("\n!KEEP THE SAME CHANNEL NUMBER: %d!\n",
+					priv->first_stream->runtime->channels);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 				     struct snd_pcm_hw_params *params)
 {
@@ -130,10 +180,17 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 	u32 dai_format;
 	unsigned int pll_out;
 
-	if (!priv->first_stream)
-		priv->first_stream = substream;
-	else
-		priv->second_stream = substream;
+	/*
+	 * WM8962 doesn't support two substreams in different parameters
+	 * (i.e. different sample rates, audio formats, channel numbers)
+	 * So we here check the three parameters above of two substreams
+	 * if they are running in the same time.
+	 */
+	ret = check_hw_params(substream, params);
+	if (ret < 0) {
+		pr_err("Failed to match hw params: %d\n", ret);
+		return ret;
+	}
 
 	dai_format = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 		SND_SOC_DAIFMT_CBM_CFM;

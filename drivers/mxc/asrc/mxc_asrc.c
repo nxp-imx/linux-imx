@@ -53,18 +53,18 @@ DEFINE_SPINLOCK(pair_lock);
 DEFINE_SPINLOCK(input_int_lock);
 DEFINE_SPINLOCK(output_int_lock);
 
-#define AICPA		0	/* Input Clock Divider A Offset */
-#define AICDA		3	/* Input Clock Prescaler A Offset */
-#define AICPB           6	/* Input Clock Divider B Offset */
-#define AICDB           9	/* Input Clock Prescaler B Offset */
-#define AOCPA           12	/* Output Clock Divider A Offset */
-#define AOCDA           15	/* Output Clock Prescaler A Offset */
-#define AOCPB           18	/* Output Clock Divider B Offset */
-#define AOCDB           21	/* Output Clock Prescaler B Offset */
-#define AICPC           0	/* Input Clock Divider C Offset */
-#define AICDC           3	/* Input Clock Prescaler C Offset */
-#define AOCDC           6	/* Output Clock Prescaler C Offset */
-#define AOCPC           9	/* Output Clock Divider C Offset */
+#define AICPA		0	/* Input Clock Prescaler A Offset */
+#define AICDA		3	/* Input Clock Divider A Offset */
+#define AICPB           6	/* Input Clock Prescaler B Offset */
+#define AICDB           9	/* Input Clock Divider B Offset */
+#define AOCPA           12	/* Output Clock Prescaler A Offset */
+#define AOCDA           15	/* Output Clock Divider A Offset */
+#define AOCPB           18	/* Output Clock Prescaler B Offset */
+#define AOCDB           21	/* Output Clock Divider B Offset */
+#define AICPC           0	/* Input Clock Prescaler C Offset */
+#define AICDC           3	/* Input Clock Divider C Offset */
+#define AOCPC           6	/* Output Clock Prescaler C Offset */
+#define AOCDC           9	/* Output Clock Divider C Offset */
 
 char *asrc_pair_id[] = {
 	[0] = "ASRC RX PAIR A",
@@ -144,12 +144,15 @@ static unsigned char output_clk_map_v1[] = {
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf,
 };
 
+/* V2 uses the same map for input and output */
 static unsigned char input_clk_map_v2[] = {
-	0, 1, 2, 3, 4, 5, 0xf, 0xf, 0xf, 8, 9, 0xa, 0xb, 0xc, 0xf, 0xd,
+/*	0x0  0x1  0x2  0x3  0x4  0x5  0x6  0x7  0x8  0x9  0xa  0xb  0xc  0xd  0xe  0xf*/
+	0x0, 0x1, 0x2, 0x7, 0x4, 0x5, 0x6, 0x3, 0x8, 0x9, 0xa, 0xb, 0xc, 0xf, 0xe, 0xd,
 };
 
 static unsigned char output_clk_map_v2[] = {
-	8, 9, 0xa, 0, 0xc, 0x5, 0xf, 0xf, 0, 1, 2, 0xf, 0xf, 4, 0xf, 0xd,
+/*	0x0  0x1  0x2  0x3  0x4  0x5  0x6  0x7  0x8  0x9  0xa  0xb  0xc  0xd  0xe  0xf*/
+	0x8, 0x9, 0xa, 0x7, 0xc, 0x5, 0x6, 0xb, 0x0, 0x1, 0x2, 0x3, 0x4, 0xf, 0xe, 0xd,
 };
 
 static unsigned char *input_clk_map, *output_clk_map;
@@ -318,34 +321,42 @@ int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 	int err = 0;
 	unsigned long lock_flags;
 	struct asrc_pair *pair;
+	int imax = 0, busy = 0, i;
+
 	spin_lock_irqsave(&data_lock, lock_flags);
 
-	if (chn_num > 2) {
-		pair = &g_asrc->asrc_pair[ASRC_PAIR_B];
-		if (pair->active || (chn_num > pair->chn_max))
-			err = -EBUSY;
-		else {
-			*index = ASRC_PAIR_B;
-			pair->chn_num = chn_num;
-			pair->active = 1;
+	for (i = ASRC_PAIR_A; i < ASRC_PAIR_MAX_NUM; i++) {
+		pair = &g_asrc->asrc_pair[i];
+		if (chn_num > pair->chn_max) {
+			imax++;
+			continue;
+		} else if (pair->active) {
+			busy++;
+			continue;
 		}
-	} else {
-		pair = &g_asrc->asrc_pair[ASRC_PAIR_A];
-		if (pair->active || (pair->chn_max == 0)) {
-			pair = &g_asrc->asrc_pair[ASRC_PAIR_C];
-			if (pair->active || (pair->chn_max == 0))
-				err = -EBUSY;
-			else {
-				*index = ASRC_PAIR_C;
-				pair->chn_num = 2;
-				pair->active = 1;
-			}
-		} else {
-			*index = ASRC_PAIR_A;
-			pair->chn_num = 2;
-			pair->active = 1;
-		}
+		/* Save the current qualified pair */
+		*index = i;
+
+		/* Check if this pair is a perfect one */
+		if (chn_num == pair->chn_max)
+			break;
 	}
+
+	if (imax >= ASRC_PAIR_MAX_NUM) {
+		pr_err("No pair could afford requested channel number.\n");
+		err = -EINVAL;
+	} else if (busy >= ASRC_PAIR_MAX_NUM) {
+		pr_err("All pairs are busy now.\n");
+		err = -EBUSY;
+	} else if (busy + imax >= ASRC_PAIR_MAX_NUM) {
+		pr_err("All affordable pairs are busy now.\n");
+		err = -EBUSY;
+	} else {
+		pair = &g_asrc->asrc_pair[*index];
+		pair->chn_num = chn_num;
+		pair->active = 1;
+	}
+
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 
 	if (!err) {
@@ -381,6 +392,9 @@ int asrc_config_pair(struct asrc_config *config)
 	int err = 0;
 	int reg, tmp, channel_num;
 	unsigned long lock_flags;
+	unsigned long aicp_shift, aocp_shift;
+	unsigned long asrc_asrcdr_reg, dp_clear_mask;
+
 	/* Set the channel number */
 	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCNCR_REG);
 	spin_lock_irqsave(&data_lock, lock_flags);
@@ -426,142 +440,68 @@ int asrc_config_pair(struct asrc_config *config)
 	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
 
 	/* Default Clock Divider Setting */
-	reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR1_REG);
-	if (config->pair == ASRC_PAIR_A) {
-		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR1_REG);
-		reg &= 0xfc0fc0;
-		/* Input Part */
-		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
-			reg |= 7 << AICPA;
-		else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
-			reg |= 6 << AICPA;
-		else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 input_sample_rate);
-			reg |= tmp << AICPA;
-		} else {
-			if (config->input_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AICPA;
-			else if (config->input_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AICPA;
-			else
-				err = -EFAULT;
-		}
-		/* Output Part */
-		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
-			reg |= 7 << AOCPA;
-		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
-			reg |= 6 << AOCPA;
-		else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) &&
-				((config->inclk & 0x0f) == INCLK_NONE))
-			reg |= 5 << AOCPA;
-		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 output_sample_rate);
-			reg |= tmp << AOCPA;
-		} else {
-			if (config->output_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AOCPA;
-			else if (config->output_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AOCPA;
-			else
-				err = -EFAULT;
-		}
-
-		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCDR1_REG);
-
-	} else if (config->pair == ASRC_PAIR_B) {
-		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR1_REG);
-		reg &= 0x03f03f;
-		/* Input Part */
-		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
-			reg |= 7 << AICPB;
-		else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
-			reg |= 6 << AICPB;
-		else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 input_sample_rate);
-			reg |= tmp << AICPB;
-		} else {
-			if (config->input_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AICPB;
-			else if (config->input_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AICPB;
-			else
-				err = -EFAULT;
-		}
-		/* Output Part */
-		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
-			reg |= 7 << AOCPB;
-		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
-			reg |= 6 << AOCPB;
-		else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) &&
-				((config->inclk & 0x0f) == INCLK_NONE))
-			reg |= 5 << AOCPB;
-		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 output_sample_rate);
-			reg |= tmp << AOCPB;
-		} else {
-			if (config->output_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AOCPB;
-			else if (config->output_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AOCPB;
-			else
-				err = -EFAULT;
-		}
-
-		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCDR1_REG);
-
-	} else {
-		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCDR2_REG);
-		reg &= 0;
-		/* Input Part */
-		if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
-			reg |= 7 << AICPC;
-		else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
-			reg |= 6 << AICPC;
-		else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 input_sample_rate);
-			reg |= tmp << AICPC;
-		} else {
-			if (config->input_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AICPC;
-			else if (config->input_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AICPC;
-			else
-				err = -EFAULT;
-		}
-		/* Output Part */
-		if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
-			reg |= 7 << AOCPC;
-		else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
-			reg |= 6 << AOCPC;
-		else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) &&
-				((config->inclk & 0x0f) == INCLK_NONE))
-			reg |= 5 << AOCPC;
-		else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
-			tmp =
-			    asrc_get_asrck_clock_divider(config->
-							 output_sample_rate);
-			reg |= tmp << AOCPC;
-		} else {
-			if (config->output_word_width == ASRC_WIDTH_16_BIT)
-				reg |= 5 << AOCPC;
-			else if (config->output_word_width == ASRC_WIDTH_24_BIT)
-				reg |= 6 << AOCPC;
-			else
-				err = -EFAULT;
-		}
-		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCDR2_REG);
-
+	switch (config->pair) {
+	case ASRC_PAIR_A:
+		asrc_asrcdr_reg = ASRC_ASRCDR1_REG;
+		dp_clear_mask = 0xfc0fc0;
+		aicp_shift = AICPA;
+		aocp_shift = AOCPA;
+		break;
+	case ASRC_PAIR_B:
+		asrc_asrcdr_reg = ASRC_ASRCDR1_REG;
+		dp_clear_mask = 0x03f03f;
+		aicp_shift = AICPB;
+		aocp_shift = AOCPB;
+		break;
+	case ASRC_PAIR_C:
+		asrc_asrcdr_reg = ASRC_ASRCDR2_REG;
+		dp_clear_mask = 0x00;
+		aicp_shift = AICPC;
+		aocp_shift = AOCPC;
+		break;
+	default:
+		pr_err("Invalid Pair number %d\n", config->pair);
+		return -EFAULT;
 	}
+
+	reg = __raw_readl(g_asrc->vaddr + asrc_asrcdr_reg);
+	reg &= dp_clear_mask;
+	/* Input Part */
+	if ((config->inclk & 0x0f) == INCLK_SPDIF_RX)
+		reg |= 7 << aicp_shift;
+	else if ((config->inclk & 0x0f) == INCLK_SPDIF_TX)
+		reg |= 6 << aicp_shift;
+	else if ((config->inclk & 0x0f) == INCLK_ASRCK1_CLK) {
+		tmp = asrc_get_asrck_clock_divider(config->input_sample_rate);
+		reg |= tmp << aicp_shift;
+	} else {
+		if (config->input_word_width == ASRC_WIDTH_16_BIT)
+			reg |= 5 << aicp_shift;
+		else if (config->input_word_width == ASRC_WIDTH_24_BIT)
+			reg |= 6 << aicp_shift;
+		else
+			err = -EFAULT;
+	}
+	/* Output Part */
+	if ((config->outclk & 0x0f) == OUTCLK_SPDIF_RX)
+		reg |= 7 << aocp_shift;
+	else if ((config->outclk & 0x0f) == OUTCLK_SPDIF_TX)
+		reg |= 6 << aocp_shift;
+	else if (((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK)
+			&& ((config->inclk & 0x0f) == INCLK_NONE))
+		reg |= 5 << aocp_shift;
+	else if ((config->outclk & 0x0f) == OUTCLK_ASRCK1_CLK) {
+		tmp = asrc_get_asrck_clock_divider(config->output_sample_rate);
+		reg |= tmp << aocp_shift;
+	} else {
+		if (config->output_word_width == ASRC_WIDTH_16_BIT)
+			reg |= 5 << aocp_shift;
+		else if (config->output_word_width == ASRC_WIDTH_24_BIT)
+			reg |= 6 << aocp_shift;
+		else
+			err = -EFAULT;
+	}
+	__raw_writel(reg, g_asrc->vaddr + asrc_asrcdr_reg);
 
 	/* check whether ideal ratio is a must */
 	if ((config->inclk & 0x0f) == INCLK_NONE) {
@@ -595,25 +535,6 @@ int asrc_config_pair(struct asrc_config *config)
 			     config->input_sample_rate);
 			err = -EFAULT;
 		}
-	}
-
-	if ((config->inclk == INCLK_NONE) &&
-			(config->outclk == OUTCLK_ESAI_TX)) {
-		reg = __raw_readl(g_asrc->vaddr + ASRC_ASRCTR_REG);
-		reg &= ~(1 << (20 + config->pair));
-		reg |= (0x03 << (13 + (config->pair << 1)));
-		__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCTR_REG);
-		err = asrc_set_clock_ratio(config->pair,
-					   config->input_sample_rate,
-					   config->output_sample_rate);
-		if (err < 0)
-			return err;
-		err = asrc_set_process_configuration(config->pair,
-						     config->input_sample_rate,
-						     config->
-						     output_sample_rate);
-		if (err < 0)
-			return err;
 	}
 
 	/* Config input and output wordwidth */
@@ -877,10 +798,10 @@ static int mxc_init_asrc(void)
 	__raw_writel(0x001f00, g_asrc->vaddr + ASRC_ASRTFR1);
 
 	/* Set the processing clock for 76KHz, 133M  */
-	__raw_writel(0x30E, g_asrc->vaddr + ASRC_ASR76K_REG);
+	__raw_writel(0x06D6, g_asrc->vaddr + ASRC_ASR76K_REG);
 
 	/* Set the processing clock for 56KHz, 133M */
-	__raw_writel(0x0426, g_asrc->vaddr + ASRC_ASR56K_REG);
+	__raw_writel(0x0947, g_asrc->vaddr + ASRC_ASR56K_REG);
 
 	return 0;
 }
@@ -1035,7 +956,7 @@ static void mxc_free_dma_buf(struct asrc_pair_params *params)
 	}
 
 	if (params->output_dma_total.dma_vaddr != NULL) {
-		kfree(params->input_dma_total.dma_vaddr);
+		kfree(params->output_dma_total.dma_vaddr);
 		params->output_dma_total.dma_vaddr = NULL;
 	}
 
@@ -1847,12 +1768,25 @@ static int asrc_write_proc_attr(struct file *file, const char *buffer,
 		total = 10;
 	else
 		total = 5;
-	if ((na + nb + nc) != total) {
-		pr_info("Wrong ASRCNR settings\n");
-		return -EFAULT;
+
+	if ((na + nb + nc) > total) {
+		pr_err("Don't surpass %d for total.\n", total);
+		return -EINVAL;
+	} else if (na % 2 != 0 || nb % 2 != 0 || nc % 2 != 0) {
+		pr_err("Please set an even number for each pair.\n");
+		return -EINVAL;
+	} else if (na < 0 || nb < 0 || nc < 0) {
+		pr_err("Please set an positive number for each pair.\n");
+		return -EINVAL;
 	}
+
 	reg = na | (nb << g_asrc->mxc_asrc_data->channel_bits) |
 		(nc << (g_asrc->mxc_asrc_data->channel_bits * 2));
+
+	/* Update chn_max */
+	g_asrc->asrc_pair[ASRC_PAIR_A].chn_max = na;
+	g_asrc->asrc_pair[ASRC_PAIR_B].chn_max = nb;
+	g_asrc->asrc_pair[ASRC_PAIR_C].chn_max = nc;
 
 	clk_enable(g_asrc->mxc_asrc_data->asrc_core_clk);
 	__raw_writel(reg, g_asrc->vaddr + ASRC_ASRCNCR_REG);

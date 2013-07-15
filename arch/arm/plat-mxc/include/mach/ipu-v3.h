@@ -641,7 +641,7 @@ int32_t ipu_disable_csi(struct ipu_soc *ipu, uint32_t csi);
 int ipu_lowpwr_display_enable(void);
 int ipu_lowpwr_display_disable(void);
 
-void ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq);
+int ipu_enable_irq(struct ipu_soc *ipu, uint32_t irq);
 void ipu_disable_irq(struct ipu_soc *ipu, uint32_t irq);
 void ipu_clear_irq(struct ipu_soc *ipu, uint32_t irq);
 int ipu_request_irq(struct ipu_soc *ipu, uint32_t irq,

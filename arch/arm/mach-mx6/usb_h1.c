@@ -111,6 +111,16 @@ static int usb_phy_enable(struct fsl_usb2_platform_data *pdata)
 	UH1_USBCMD |= UCMD_RESET;
 	while ((UH1_USBCMD) & (UCMD_RESET))
 		;
+
+	/*
+	 * If the controller reset does not put the PHY be out of
+	 * low power mode, do it manually.
+	 */
+	if (UH1_PORTSC1 & PORTSC_PHCD) {
+		UH1_PORTSC1 &= ~PORTSC_PHCD;
+		mdelay(1);
+	}
+
 	/* Reset USBPHY module */
 	phy_ctrl = phy_reg + HW_USBPHY_CTRL;
 	tmp = __raw_readl(phy_ctrl);
@@ -164,7 +174,6 @@ static void fsl_usb_host_uninit_ext(struct platform_device *pdev)
 
 	fsl_usb_host_uninit(pdata);
 
-	clk_disable(usb_oh3_clk);
 	clk_put(usb_oh3_clk);
 
 }
@@ -194,9 +203,14 @@ static void _wake_up_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 				| BM_USBPHY_CTRL_ENAUTO_PWRON_PLL , phy_reg + HW_USBPHY_CTRL_SET);
 		USB_H1_CTRL |= (UCTRL_OWIE);
 	} else {
-		USB_H1_CTRL &= ~(UCTRL_OWIE);
 		__raw_writel(BM_USBPHY_CTRL_ENIDCHG_WKUP | BM_USBPHY_CTRL_ENVBUSCHG_WKUP
-				| BM_USBPHY_CTRL_ENDPDMCHG_WKUP, phy_reg + HW_USBPHY_CTRL_CLR);
+				| BM_USBPHY_CTRL_ENDPDMCHG_WKUP
+				| BM_USBPHY_CTRL_ENAUTOSET_USBCLKS
+				| BM_USBPHY_CTRL_ENAUTOCLR_PHY_PWD
+				| BM_USBPHY_CTRL_ENAUTOCLR_CLKGATE
+				| BM_USBPHY_CTRL_ENAUTOCLR_USBCLKGATE
+				| BM_USBPHY_CTRL_ENAUTO_PWRON_PLL , phy_reg + HW_USBPHY_CTRL_CLR);
+		USB_H1_CTRL &= ~(UCTRL_OWIE);
 		/* The interrupt must be disabled for at least 3
 		* cycles of the standby clock(32k Hz) , that is 0.094 ms*/
 		udelay(100);
@@ -331,6 +345,13 @@ static void _phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, bool ena
 			| BM_USBPHY_PWD_RXPWDDIFF
 			| BM_USBPHY_PWD_RXPWDRX);
 		__raw_writel(tmp, phy_reg + HW_USBPHY_PWD_CLR);
+		/*
+		 * The PHY works at 32Khz clock when it is at low power mode,
+		 * it needs 10 clocks from 32Khz to normal work state, so
+		 * 500us is the safe value for PHY enters stable status
+		 * according to IC engineer.
+		 */
+		udelay(500);
 
 	}
 }
@@ -353,13 +374,16 @@ static void h1_wakeup_handler(struct fsl_usb2_platform_data *pdata)
 
 static void usbh1_wakeup_event_clear(void)
 {
-	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY1_BASE_ADDR);
-	u32 wakeup_irq_bits;
+	int wakeup_req = USB_H1_CTRL & UCTRL_OWIR;
 
-	wakeup_irq_bits = BM_USBPHY_CTRL_RESUME_IRQ | BM_USBPHY_CTRL_WAKEUP_IRQ;
-	if (__raw_readl(phy_reg + HW_USBPHY_CTRL) && wakeup_irq_bits) {
-		/* clear the wakeup interrupt status */
-		__raw_writel(wakeup_irq_bits, phy_reg + HW_USBPHY_CTRL_CLR);
+	if (wakeup_req != 0) {
+		printk(KERN_INFO "Unknown wakeup.(H1 OTGSC 0x%x)\n", UH1_OTGSC);
+		/* Disable OWIE to clear OWIR, wait 3 clock
+		 * cycles of standly clock(32KHz)
+		 */
+		USB_H1_CTRL &= ~UCTRL_OWIE;
+		udelay(100);
+		USB_H1_CTRL |= UCTRL_OWIE;
 	}
 }
 
