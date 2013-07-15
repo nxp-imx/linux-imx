@@ -949,8 +949,15 @@ static int csi_v4l2_s_param(cam_data *cam, struct v4l2_streamparm *parm)
 
 	vidioc_int_g_ifparm(cam->sensor, &ifparm);
 	cam_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	vidioc_int_g_fmt_cap(cam->sensor, &cam_fmt);
 	pr_debug("   g_fmt_cap returns widthxheight of input as %d x %d\n",
 		 cam_fmt.fmt.pix.width, cam_fmt.fmt.pix.height);
+
+	cam->crop_bounds.top = cam->crop_bounds.left = 0;
+	cam->crop_bounds.width = cam_fmt.fmt.pix.width;
+	cam->crop_bounds.height = cam_fmt.fmt.pix.height;
+	cam->crop_current.width = cam->crop_bounds.width;
+	cam->crop_current.height = cam->crop_bounds.height;
 
 exit:
 	return err;
@@ -1340,14 +1347,29 @@ static long csi_v4l_do_ioctl(struct file *file,
 			break;
 		}
 
+	case VIDIOC_CROPCAP:
+	{
+		struct v4l2_cropcap *cap = arg;
+
+		if (cap->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
+		    cap->type != V4L2_BUF_TYPE_VIDEO_OVERLAY) {
+			retval = -EINVAL;
+			break;
+		}
+		cap->bounds = cam->crop_bounds;
+		cap->defrect = cam->crop_defrect;
+		break;
+	}
 	case VIDIOC_S_CROP:
 	{
 		struct v4l2_crop *crop = arg;
+		struct v4l2_rect *b = &cam->crop_bounds;
 
 		if (crop->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 			retval = -EINVAL;
 			break;
 		}
+
 		crop->c.width -= crop->c.width % 8;
 		crop->c.height -= crop->c.height % 8;
 
@@ -1571,7 +1593,6 @@ static long csi_v4l_do_ioctl(struct file *file,
 	case VIDIOC_G_OUTPUT:
 	case VIDIOC_S_OUTPUT:
 	case VIDIOC_ENUMSTD:
-	case VIDIOC_CROPCAP:
 	case VIDIOC_S_STD:
 	case VIDIOC_TRY_FMT:
 	case VIDIOC_ENUMINPUT:
@@ -1724,6 +1745,12 @@ static void init_camera_struct(cam_data *cam)
 	cam->win.w.left = 0;
 	cam->win.w.top = 0;
 	cam->still_counter = 0;
+	/* setup cropping */
+	cam->crop_bounds.left = 0;
+	cam->crop_bounds.width = 640;
+	cam->crop_bounds.top = 0;
+	cam->crop_bounds.height = 480;
+	cam->crop_current = cam->crop_defrect = cam->crop_bounds;
 
 	cam->enc_callback = camera_callback;
 	csi_start_callback(cam);
@@ -1921,6 +1948,20 @@ static int csi_v4l2_master_attach(struct v4l2_int_device *slave)
 
 	/* Used to detect TV in (type 1) vs. camera (type 0) */
 	cam->device_type = cam_fmt.fmt.pix.priv;
+
+	cam->crop_bounds.top = cam->crop_bounds.left = 0;
+	cam->crop_bounds.width = cam_fmt.fmt.pix.width;
+	cam->crop_bounds.height = cam_fmt.fmt.pix.height;
+
+	/* This also is the max crop size for this device. */
+	cam->crop_defrect.top = cam->crop_defrect.left = 0;
+	cam->crop_defrect.width = cam_fmt.fmt.pix.width;
+	cam->crop_defrect.height = cam_fmt.fmt.pix.height;
+
+	/* At this point, this is also the current image size. */
+	cam->crop_current.top = cam->crop_current.left = 0;
+	cam->crop_current.width = cam_fmt.fmt.pix.width;
+	cam->crop_current.height = cam_fmt.fmt.pix.height;
 
 	pr_debug("End of %s: v2f pix widthxheight %d x %d\n",
 		 __func__, cam->v2f.fmt.pix.width, cam->v2f.fmt.pix.height);
