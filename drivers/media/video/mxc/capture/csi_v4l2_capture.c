@@ -1370,6 +1370,22 @@ static long csi_v4l_do_ioctl(struct file *file,
 			break;
 		}
 
+		crop->c.top = (crop->c.top < b->top) ? b->top
+			      : crop->c.top;
+		if (crop->c.top > b->top + b->height)
+			crop->c.top = b->top + b->height - 1;
+		if (crop->c.height > b->top + b->height - crop->c.top)
+			crop->c.height =
+				b->top + b->height - crop->c.top;
+
+		crop->c.left = (crop->c.left < b->left) ? b->left
+		    : crop->c.left;
+		if (crop->c.left > b->left + b->width)
+			crop->c.left = b->left + b->width - 1;
+		if (crop->c.width > b->left - crop->c.left + b->width)
+			crop->c.width =
+				b->left - crop->c.left + b->width;
+
 		crop->c.width -= crop->c.width % 8;
 		crop->c.height -= crop->c.height % 8;
 
