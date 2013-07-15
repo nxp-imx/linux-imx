@@ -458,8 +458,7 @@ static int csi_allocate_frame_buf(cam_data *cam, int count)
 		cam->frame[i].buffer.index = i;
 		cam->frame[i].buffer.flags = V4L2_BUF_FLAG_MAPPED;
 		cam->frame[i].buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		cam->frame[i].buffer.length = PAGE_ALIGN(cam->v2f.fmt.
-							 pix.sizeimage);
+		cam->frame[i].buffer.length = cam->v2f.fmt.pix.sizeimage;
 		cam->frame[i].buffer.memory = V4L2_MEMORY_MMAP;
 		cam->frame[i].buffer.m.offset = cam->frame[i].paddress;
 		cam->frame[i].index = i;
@@ -526,7 +525,7 @@ static int csi_v4l2_prepare_bufs(cam_data *cam, struct v4l2_buffer *buf)
 	pr_debug("In MVC:csi_v4l2_prepare_bufs\n");
 
 	if (buf->index < 0 || buf->index >= FRAME_NUM || buf->length <
-			PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage)) {
+			cam->v2f.fmt.pix.sizeimage) {
 		pr_err("ERROR: v4l2 capture: csi_v4l2_prepare_bufs buffers "
 			"not allocated,index=%d, length=%d\n", buf->index,
 			buf->length);
@@ -589,8 +588,7 @@ static int csi_streamon(cam_data *cam)
 		return -ENOBUFS;
 	}
 	cam->dummy_frame.buffer.type = V4L2_BUF_TYPE_PRIVATE;
-	cam->dummy_frame.buffer.length =
-	    PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage);
+	cam->dummy_frame.buffer.length = cam->v2f.fmt.pix.sizeimage;
 	cam->dummy_frame.buffer.m.offset = cam->dummy_frame.paddress;
 
 	spin_lock_irqsave(&cam->queue_int_lock, flags);
