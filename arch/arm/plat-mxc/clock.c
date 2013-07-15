@@ -58,12 +58,12 @@ static void __clk_disable(struct clk *clk)
 {
 	if (clk == NULL || IS_ERR(clk))
 		return;
-
+#ifdef CONFIG_CLK_DEBUG
 	if (!clk->usecount) {
 		WARN(1, "clock enable/disable mismatch! clk  %s\n", clk->name);
 		return;
 	}
-
+#endif
 	if (!(--clk->usecount)) {
 		if (clk->disable)
 			clk->disable(clk);
