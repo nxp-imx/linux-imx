@@ -1907,9 +1907,9 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 		pr_err("can not alloc rx/tx buffers: %d\n", buf_size);
 		return ret;
 	}
-	pr_debug("IRAM Range: Virt 0x%x - 0x%x, Phys 0x%x - 0x%x, size: 0x%x\n",
-			buf_addr, (buf_addr + buf_size - 1), phy_addr,
-			(phy_addr + buf_size - 1), buf_size);
+	pr_debug("IRAM Range: Virt 0x%p - 0x%p, Phys 0x%x - 0x%x, size: 0x%x\n",
+			buf_addr, (buf_addr + buf_size - 1), (u32)phy_addr,
+			(u32)(phy_addr + buf_size - 1), buf_size);
 	pdevinfo->rbuf_base_virt = buf_addr;
 	pdevinfo->rbuf_base_phy = phy_addr;
 	memset(buf_addr, 0, buf_size);
@@ -1918,7 +1918,7 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 		++j, buf_addr += ring_buf_size, phy_addr += ring_buf_size) {
 		pdevinfo->rx_rbuf.virt_bufs[j] = buf_addr;
 		pdevinfo->rx_rbuf.phy_addrs[j] = phy_addr;
-		pr_debug("RX Ringbuf[%d]: 0x%x 0x%x\n", j, buf_addr, phy_addr);
+		pr_debug("RX Ringbuf[%d]: 0x%p 0x%x\n", j, buf_addr, (u32)phy_addr);
 	}
 	pdevinfo->rx_rbuf.unit_size = ring_buf_size;
 	pdevinfo->rx_rbuf.total_size = buf_size;
@@ -1927,7 +1927,7 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 		++j, buf_addr += ring_buf_size, phy_addr += ring_buf_size) {
 		pdevinfo->tx_rbuf.virt_bufs[j] = buf_addr;
 		pdevinfo->tx_rbuf.phy_addrs[j] = phy_addr;
-		pr_debug("TX Ringbuf[%d]: 0x%x 0x%x\n", j, buf_addr, phy_addr);
+		pr_debug("TX Ringbuf[%d]: 0x%p 0x%x\n", j, buf_addr, (u32)phy_addr);
 	}
 
 	pdevinfo->tx_rbuf.unit_size = ring_buf_size;
