@@ -1,6 +1,6 @@
 /* OTG Finite State Machine from OTG spec
  *
- * Copyright (C) 2006-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2006-2013 Freescale Semiconductor, Inc.
  *
  * Author: 	Li Yang <LeoLi@freescale.com>
  * 		Jerry Huang <Chang-Ming.Huang@freescale.com>
@@ -253,6 +253,8 @@ int otg_statemachine(struct otg_fsm *fsm)
 {
 	enum usb_otg_state state;
 	unsigned long flags;
+
+	return 0;
 
 	spin_lock_irqsave(&fsm->lock, flags);
 

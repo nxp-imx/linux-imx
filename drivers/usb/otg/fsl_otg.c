@@ -666,8 +666,6 @@ static int fsl_otg_set_host(struct otg_transceiver *otg_p, struct usb_bus *host)
 
 	otg_dev->host_working = 0;
 
-	otg_statemachine(&otg_dev->fsm);
-
 	return 0;
 }
 
@@ -699,7 +697,6 @@ static int fsl_otg_set_peripheral(struct otg_transceiver *otg_p,
 		otg_dev->otg.gadget = 0;
 		otg_dev->fsm.b_bus_req = 0;
 		pdata->port_enables = 0;
-		otg_statemachine(&otg_dev->fsm);
 		return 0;
 	}
 	pdata->port_enables = 1;
