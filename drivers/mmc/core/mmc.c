@@ -840,7 +840,7 @@ static ssize_t mmc_boot_info_show(struct device *dev,
 			"Supports high speed timing during boot" :
 			"Does not support high speed timing during boot",
 
-		card->ext_csd.boot_size * 128,
+		card->ext_csd.boot_size >> 10,
 
 		card->ext_csd.boot_config,
 		!!(card->ext_csd.boot_config & 0x40),
