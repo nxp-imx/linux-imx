@@ -358,7 +358,7 @@ void __iomem *sdma_iram_malloc(size_t size, unsigned long *buf)
 	return sdma_iram_phys_to_virt(*buf);
 }
 
-void sdma_iram_free(unsigned long *buf, u32 size)
+void sdma_iram_free(unsigned long buf, size_t size)
 {
 	if (!sdma_iram_pool)
 		return;
@@ -449,7 +449,7 @@ static int sdma_load_script(struct sdma_engine *sdma, void *buf, int size,
 	int ret;
 
 #ifdef CONFIG_SDMA_IRAM
-	buf_virt = sdma_iram_malloc(size, (unsigned long)&buf_phys);
+	buf_virt = sdma_iram_malloc(size, (unsigned long *)&buf_phys);
 #else
 	buf_virt = dma_alloc_coherent(NULL,
 			size,
@@ -939,7 +939,7 @@ static int sdma_request_channel(struct sdma_channel *sdmac)
 
 #ifdef CONFIG_SDMA_IRAM
 	sdmac->bd = sdma_iram_malloc(sizeof(sdmac->bd),
-					(unsigned long)&sdmac->bd_phys);
+					(unsigned long *)&sdmac->bd_phys);
 #else
 	sdmac->bd = dma_alloc_noncached(NULL, PAGE_SIZE, &sdmac->bd_phys, GFP_KERNEL);
 #endif
@@ -1502,7 +1502,7 @@ static int __init sdma_init(struct sdma_engine *sdma)
 	sdma->channel_control = sdma_iram_malloc(MAX_DMA_CHANNELS *
 			sizeof(struct sdma_channel_control)
 			+ sizeof(struct sdma_context_data),
-			&ccb_phys);
+			(unsigned long *)&ccb_phys);
 #else
 	sdma->channel_control = dma_alloc_coherent(NULL,
 			MAX_DMA_CHANNELS * sizeof (struct sdma_channel_control) +
