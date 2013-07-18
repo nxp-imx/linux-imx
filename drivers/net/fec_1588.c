@@ -1,7 +1,7 @@
 /*
  * drivers/net/fec_1588.c
  *
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  * Copyright (C) 2009 IXXAT Automation, GmbH
  *
  * FEC Ethernet Driver -- IEEE 1588 interface functionality
@@ -273,14 +273,14 @@ u8 *fec_ptp_parse_packet(struct sk_buff *skb, u16 *eth_type)
 
 	*eth_type = *((u16 *)position);
 	/* Check if outer vlan tag is here */
-	if (*eth_type == ETH_P_8021Q) {
+	if (ntohs(*eth_type) == ETH_P_8021Q) {
 		position += FEC_VLAN_TAG_LEN;
 		*eth_type = *((u16 *)position);
 	}
 
 	/* set position after ethertype */
 	position += FEC_ETHTYPE_LEN;
-	if (ETH_P_1588 == *eth_type) {
+	if (ETH_P_1588 == ntohs(*eth_type)) {
 		ptp_loc = position;
 		/* IEEE1588 event message which needs timestamping */
 		if ((ptp_loc[0] & 0xF) <= 3) {
