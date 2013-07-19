@@ -63,3 +63,4 @@ obj-$(CONFIG_MWIFIEX)	+= mwifiex/
 obj-$(CONFIG_BCM4329)	+= bcm4329/
 obj-$(CONFIG_BCMDHD)	+= bcmdhd/
 obj-$(CONFIG_RTL8192CE) += rtl8192ce/
+obj-$(CONFIG_RTL8723AS) += rtl8723as/
