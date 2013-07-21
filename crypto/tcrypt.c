@@ -921,12 +921,18 @@ static void test_ahash_speed(const char *algo, unsigned int sec,
 	char *output = kmalloc(output_size, GFP_KERNEL);
 	int i, ret;
 
+	if (!output) {
+		printk(KERN_INFO "\nUnable to allocate output buffer memory\n");
+		return;
+	}
+
 	printk(KERN_INFO "\ntesting speed of async %s\n", algo);
 
 	tfm = crypto_alloc_ahash(algo, 0, 0);
 	if (IS_ERR(tfm)) {
 		pr_err("failed to load transform for %s: %ld\n",
 		       algo, PTR_ERR(tfm));
+		kfree(output);
 		return;
 	}
 
@@ -976,6 +982,7 @@ static void test_ahash_speed(const char *algo, unsigned int sec,
 	ahash_request_free(req);
 
 out:
+	kfree(output);
 	crypto_free_ahash(tfm);
 }
 
