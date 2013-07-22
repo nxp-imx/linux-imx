@@ -75,6 +75,7 @@ struct mxc_elcdif_fb_data {
 	bool running;
 	struct completion vsync_complete;
 	struct completion frame_done_complete;
+	ktime_t vsync_nf_timestamp;
 	struct semaphore flip_sem;
 	struct fb_var_screeninfo var;
 	u32 pseudo_palette[16];
@@ -775,6 +776,7 @@ static irqreturn_t lcd_irq_handler(int irq, void *dev_id)
 		__raw_writel(BM_ELCDIF_CTRL1_VSYNC_EDGE_IRQ_EN,
 			     elcdif_base + HW_ELCDIF_CTRL1_CLR);
 		data->wait4vsync = 0;
+		data->vsync_nf_timestamp = ktime_get();
 		complete(&data->vsync_complete);
 	}
 	if ((status_lcd & BM_ELCDIF_CTRL1_CUR_FRAME_DONE_IRQ) &&
@@ -1125,7 +1127,19 @@ static int mxc_elcdif_fb_ioctl(struct fb_info *info, unsigned int cmd,
 
 	switch (cmd) {
 	case MXCFB_WAIT_FOR_VSYNC:
-		ret = mxc_elcdif_fb_wait_for_vsync(info);
+		{
+			struct mxc_elcdif_fb_data *data =
+				(struct mxc_elcdif_fb_data *)info->par;
+			long long timestamp;
+			ret = mxc_elcdif_fb_wait_for_vsync(info);
+			timestamp = ktime_to_ns(data->vsync_nf_timestamp);
+			if ((ret == 0) && copy_to_user((void *)arg,
+					&timestamp, sizeof(timestamp))) {
+				ret = -EFAULT;
+				break;
+			}
+		}
+
 		break;
 	case MXCFB_GET_FB_BLANK:
 		{
