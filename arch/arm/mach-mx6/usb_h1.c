@@ -260,7 +260,7 @@ static void usbh1_platform_rh_resume_swfix(struct fsl_usb2_platform_data *pdata)
 {
 	u32 index = 0;
 
-	if ((UOG_PORTSC1 & (PORTSC_PORT_SPEED_MASK)) != PORTSC_PORT_SPEED_HIGH)
+	if ((UH1_PORTSC1 & (PORTSC_PORT_SPEED_MASK)) != PORTSC_PORT_SPEED_HIGH)
 		return ;
 	while ((UH1_PORTSC1 & PORTSC_PORT_FORCE_RESUME)
 			&& (index < 1000)) {
@@ -293,7 +293,7 @@ static void usbh1_platform_rh_resume(struct fsl_usb2_platform_data *pdata)
 	/*for mx6sl ,we do not need any sw fix*/
 	if (cpu_is_mx6sl())
 		return ;
-	if ((UOG_PORTSC1 & (PORTSC_PORT_SPEED_MASK)) != PORTSC_PORT_SPEED_HIGH)
+	if ((UH1_PORTSC1 & (PORTSC_PORT_SPEED_MASK)) != PORTSC_PORT_SPEED_HIGH)
 		return ;
 	while ((UH1_PORTSC1 & PORTSC_PORT_FORCE_RESUME)
 			&& (index < 1000)) {
