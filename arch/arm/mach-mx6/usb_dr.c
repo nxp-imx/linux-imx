@@ -519,7 +519,7 @@ static void _host_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, boo
 
 static void _host_wakeup_enable(struct fsl_usb2_platform_data *pdata, bool enable)
 {
-	void __iomem *phy_reg = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
+	void __iomem *phy_reg __maybe_unused = MX6_IO_ADDRESS(USB_PHY0_BASE_ADDR);
 	__wakeup_irq_enable(pdata, enable, ENABLED_BY_HOST);
 #ifdef CONFIG_USB_OTG
 	if (enable) {
