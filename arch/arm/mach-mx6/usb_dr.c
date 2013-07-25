@@ -248,10 +248,12 @@ static void enter_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, boo
 		usbotg_internal_phy_clock_gate(false);
 
 	} else {
-		if (UOG_PORTSC1 & PORTSC_PHCD) {
+		if (UOG_PORTSC1 & PORTSC_PHCD)
 			UOG_PORTSC1 &= ~PORTSC_PHCD;
-			mdelay(1);
-		}
+
+		/* Wait PHY clock stable */
+		mdelay(1);
+
 		usbotg_internal_phy_clock_gate(true);
 		tmp = (BM_USBPHY_PWD_TXPWDFS
 			| BM_USBPHY_PWD_TXPWDIBIAS

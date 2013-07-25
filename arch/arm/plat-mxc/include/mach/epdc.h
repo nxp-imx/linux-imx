@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -36,6 +36,7 @@ struct imx_epdc_fb_platform_data {
     void (*put_pins) (void);
     void (*enable_pins) (void);
     void (*disable_pins) (void);
+    bool pg_display_mix;
 };
 
 struct imx_spdc_panel_init_set {
