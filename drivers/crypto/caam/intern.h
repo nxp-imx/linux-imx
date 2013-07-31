@@ -9,9 +9,6 @@
 #ifndef INTERN_H
 #define INTERN_H
 
-#define JOBR_UNASSIGNED 0
-#define JOBR_ASSIGNED 1
-
 /* Default clock/sample settings for an RNG4 entropy source */
 #define RNG4_ENT_CLOCKS_SAMPLE 3200
 
@@ -49,7 +46,6 @@ struct caam_drv_private_jr {
 	struct caam_job_ring __iomem *rregs;	/* JobR's register space */
 	struct tasklet_struct irqtask;
 	int irq;			/* One per queue */
-	int assign;			/* busy/free */
 
 	/* Job ring info */
 	int ringsize;	/* Size of rings (assume input = output) */
@@ -73,7 +69,6 @@ struct caam_drv_private {
 	struct device *smdev;
 	struct device *secviodev;
 	struct device **jrdev; /* Alloc'ed array per sub-device */
-	spinlock_t jr_alloc_lock;
 	struct platform_device *pdev;
 
 	/* Physical-presence section */
