@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -186,6 +186,7 @@ typedef void (*csi_irq_callback_t) (void *data, unsigned long status);
 
 int32_t csi_enable_mclk(int src, bool flag, bool wait);
 void csi_init_interface(void);
+void csi_init_format(int fmt);
 void csi_set_16bit_imagpara(int width, int height);
 void csi_set_12bit_imagpara(int width, int height);
 int csi_read_mclk_flag(void);

@@ -554,6 +554,7 @@ static int csi_v4l2_prepare_bufs(cam_data *cam, struct v4l2_buffer *buf)
 static inline int valid_mode(u32 palette)
 {
 	return (palette == V4L2_PIX_FMT_RGB565) ||
+	    (palette == V4L2_PIX_FMT_YUYV) ||
 	    (palette == V4L2_PIX_FMT_UYVY) || (palette == V4L2_PIX_FMT_YUV420);
 }
 
@@ -825,12 +826,21 @@ static int csi_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 		switch (f->fmt.pix.pixelformat) {
 		case V4L2_PIX_FMT_RGB565:
 			size = f->fmt.pix.width * f->fmt.pix.height * 2;
+			csi_init_format(V4L2_PIX_FMT_UYVY);
 			csi_set_16bit_imagpara(f->fmt.pix.width,
 					       f->fmt.pix.height);
 			bytesperline = f->fmt.pix.width * 2;
 			break;
 		case V4L2_PIX_FMT_UYVY:
 			size = f->fmt.pix.width * f->fmt.pix.height * 2;
+			csi_init_format(f->fmt.pix.pixelformat);
+			csi_set_16bit_imagpara(f->fmt.pix.width,
+					       f->fmt.pix.height);
+			bytesperline = f->fmt.pix.width * 2;
+			break;
+		case V4L2_PIX_FMT_YUYV:
+			size = f->fmt.pix.width * f->fmt.pix.height * 2;
+			csi_init_format(f->fmt.pix.pixelformat);
 			csi_set_16bit_imagpara(f->fmt.pix.width,
 					       f->fmt.pix.height);
 			bytesperline = f->fmt.pix.width * 2;
