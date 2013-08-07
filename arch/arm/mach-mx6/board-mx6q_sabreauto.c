@@ -1116,6 +1116,15 @@ static int flexcan1_en;
 static void mx6q_flexcan_switch(void)
 {
   if (flexcan0_en || flexcan1_en) {
+	/*
+	 * The transceiver TJA1041A on sabreauto RevE baseboard will
+	 * fail to transit to Normal state if EN/STBY is high by default
+	 * after board power up. So we set the EN/STBY initial state to low
+	 * first then to high to guarantee the state transition successfully.
+	 */
+	gpio_set_value_cansleep(SABREAUTO_CAN_EN, 0);
+	gpio_set_value_cansleep(SABREAUTO_CAN_STBY, 0);
+
 	gpio_set_value_cansleep(SABREAUTO_CAN_EN, 1);
 	gpio_set_value_cansleep(SABREAUTO_CAN_STBY, 1);
 	/* Enable STEER pin if CAN1 interface is required.
