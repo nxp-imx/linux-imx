@@ -124,6 +124,24 @@ void csi_init_interface(void)
 }
 EXPORT_SYMBOL(csi_init_interface);
 
+void csi_init_format(int fmt)
+{
+	unsigned int val;
+
+	val = __raw_readl(CSI_CSICR1);
+	if (fmt == V4L2_PIX_FMT_YUYV) {
+		val &= ~BIT_PACK_DIR;
+		val &= ~BIT_SWAP16_EN;
+	} else if (fmt == V4L2_PIX_FMT_UYVY) {
+		val |= BIT_PACK_DIR;
+		val |= BIT_SWAP16_EN;
+	} else
+		pr_warning("unsupported format, old format remains.\n");
+
+	__raw_writel(val, CSI_CSICR1);
+}
+EXPORT_SYMBOL(csi_init_format);
+
 /*!
  * csi_enable_mclk
  *
