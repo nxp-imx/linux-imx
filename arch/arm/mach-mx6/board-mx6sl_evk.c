@@ -1084,7 +1084,6 @@ static struct imx_epdc_fb_platform_data epdc_data = {
 	.put_pins = epdc_put_pins,
 	.enable_pins = epdc_enable_pins,
 	.disable_pins = epdc_disable_pins,
-	.pg_display_mix = true,
 };
 
 static int spdc_get_pins(void)
@@ -1317,7 +1316,6 @@ static struct mxc_fb_platform_data wvga_fb_data[] = {
 	 .mode_str = "SEIKO-WVGA",
 	 .mode = wvga_video_modes,
 	 .num_modes = ARRAY_SIZE(wvga_video_modes),
-	 .pg_display_mix = true,
 	 },
 };
 

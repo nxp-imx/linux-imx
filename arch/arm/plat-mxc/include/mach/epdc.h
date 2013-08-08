@@ -36,7 +36,6 @@ struct imx_epdc_fb_platform_data {
     void (*put_pins) (void);
     void (*enable_pins) (void);
     void (*disable_pins) (void);
-    bool pg_display_mix;
 };
 
 struct imx_spdc_panel_init_set {

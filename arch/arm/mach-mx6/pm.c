@@ -50,7 +50,11 @@
 #define GPC_ISR3_OFFSET				0x20
 #define GPC_ISR4_OFFSET				0x24
 #define GPC_CNTR_OFFSET				0x0
-#define GPC_PGC_DISP_PGCR_OFFSET		0x240
+#define GPC_PGC_DISP_PGCR_OFFSET	0x240
+#define GPC_PGC_DISP_PUPSCR_OFFSET	0x244
+#define GPC_PGC_DISP_PDNSCR_OFFSET	0x248
+#define GPC_PGC_DISP_SR_OFFSET		0x24c
+#define GPC_PGC_GPU_PGCR_OFFSET		0x260
 #define GPC_PGC_CPU_PDN_OFFSET		0x2a0
 #define GPC_PGC_CPU_PUPSCR_OFFSET	0x2a4
 #define GPC_PGC_CPU_PDNSCR_OFFSET	0x2a8
@@ -170,6 +174,47 @@ static void usb_power_up_handler(void)
 }
 
 
+static void disp_power_down(void)
+{
+	if (cpu_is_mx6sl() && (mx6sl_revision() >= IMX_CHIP_REVISION_1_2)) {
+
+		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_DISP_PUPSCR_OFFSET);
+		__raw_writel(0xFFFFFFFF, gpc_base + GPC_PGC_DISP_PDNSCR_OFFSET);
+
+		__raw_writel(0x1, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
+		__raw_writel(0x10, gpc_base + GPC_CNTR_OFFSET);
+
+		/* Disable EPDC/LCDIF pix clock, and EPDC/LCDIF/PXP axi clock */
+		__raw_writel(ccgr3 &
+			~MXC_CCM_CCGRx_CG5_MASK &
+			~MXC_CCM_CCGRx_CG4_MASK &
+			~MXC_CCM_CCGRx_CG3_MASK &
+			~MXC_CCM_CCGRx_CG2_MASK &
+			~MXC_CCM_CCGRx_CG1_MASK, MXC_CCM_CCGR3);
+
+	}
+}
+
+static void disp_power_up(void)
+{
+	if (cpu_is_mx6sl() && (mx6sl_revision() >= IMX_CHIP_REVISION_1_2)) {
+		/*
+		 * Need to enable EPDC/LCDIF pix clock, and
+		 * EPDC/LCDIF/PXP axi clock before power up.
+		 */
+		__raw_writel(ccgr3 |
+			MXC_CCM_CCGRx_CG5_MASK |
+			MXC_CCM_CCGRx_CG4_MASK |
+			MXC_CCM_CCGRx_CG3_MASK |
+			MXC_CCM_CCGRx_CG2_MASK |
+			MXC_CCM_CCGRx_CG1_MASK, MXC_CCM_CCGR3);
+
+		__raw_writel(0x0, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
+		__raw_writel(0x20, gpc_base + GPC_CNTR_OFFSET);
+		__raw_writel(0x1, gpc_base + GPC_PGC_DISP_SR_OFFSET);
+	}
+}
+
 static void mx6_suspend_store(void)
 {
 	/* save some settings before suspend */
@@ -274,12 +319,14 @@ static int mx6_suspend_enter(suspend_state_t state)
 
 	switch (state) {
 	case PM_SUSPEND_MEM:
+		disp_power_down();
 		usb_power_down_handler();
 		mxc_cpu_lp_set(ARM_POWER_OFF);
 		arm_pg = true;
 		break;
 	case PM_SUSPEND_STANDBY:
 		if (cpu_is_mx6sl()) {
+			disp_power_down();
 			usb_power_down_handler();
 			mxc_cpu_lp_set(STOP_XTAL_ON);
 			arm_pg = true;
@@ -347,8 +394,10 @@ static int mx6_suspend_enter(suspend_state_t state)
 			restore_gic_dist_state(0, &gds);
 			restore_gic_cpu_state(0, &gcs);
 		}
-		if (state == PM_SUSPEND_MEM || (cpu_is_mx6sl()))
+		if (state == PM_SUSPEND_MEM || (cpu_is_mx6sl())) {
 			usb_power_up_handler();
+			disp_power_up();
+		}
 
 		mx6_suspend_restore();
 
