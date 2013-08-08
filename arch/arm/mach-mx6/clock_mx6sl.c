@@ -89,11 +89,6 @@ DEFINE_SPINLOCK(mx6sl_clk_lock);
 #define MXC_TPRER		0x04
 #define V2_TPRER_PRE24M_OFFSET	12
 #define V2_TPRER_PRE24M_MASK	0xF
-#define GPC_CNTR_OFFSET				0x0
-#define GPC_PGC_DISP_PGCR_OFFSET		0x240
-#define GPC_PGC_DISP_PUPSCR_OFFSET	0x244
-#define GPC_PGC_DISP_PDNSCR_OFFSET	0x248
-#define GPC_PGC_DISP_SR_OFFSET		0x24c
 
 /* We need to check the exp status again after timer expiration,
  * as there might be interrupt coming between the first time exp
@@ -1904,33 +1899,6 @@ static struct clk i2c_clk[] = {
 	 },
 };
 
-static int _display_mix_enable(struct clk *clk)
-{
-	if (cpu_is_mx6sl() && (mx6sl_revision() >= IMX_CHIP_REVISION_1_2)) {
-		__raw_writel(0x0, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
-		__raw_writel(0x20, gpc_base + GPC_CNTR_OFFSET);
-		__raw_writel(0x1, gpc_base + GPC_PGC_DISP_SR_OFFSET);
-	}
-	return 0;
-}
-
-static void _display_mix_disable(struct clk *clk)
-{
-	if (cpu_is_mx6sl() && (mx6sl_revision() >= IMX_CHIP_REVISION_1_2)) {
-		__raw_writel(0x101, gpc_base + GPC_PGC_DISP_PUPSCR_OFFSET);
-		__raw_writel(0x101, gpc_base + GPC_PGC_DISP_PDNSCR_OFFSET);
-
-		__raw_writel(0x1, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
-		__raw_writel(0x10, gpc_base + GPC_CNTR_OFFSET);
-	}
-}
-
-static struct clk display_mix = {
-	 __INIT_CLK_DEBUG(display_mix)
-	.enable = _display_mix_enable,
-	.disable = _display_mix_disable,
-};
-
 static int _clk_ipu1_set_parent(struct clk *clk, struct clk *parent)
 {
 	int mux;
@@ -2069,7 +2037,6 @@ static struct clk ipu2_clk = {
 	.set_rate = _clk_ipu2_set_rate,
 	.get_rate = _clk_ipu2_get_rate,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	.secondary = &display_mix,
 };
 
 static struct clk usdhc_dep_clk = {
@@ -2836,7 +2803,6 @@ static struct clk pxp_axi_clk = {
 	.round_rate = _clk_pxp_epdc_axi_round_rate,
 	.get_rate = _clk_pxp_axi_get_rate,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	.secondary = &display_mix,
 };
 
 static struct clk epdc_axi_clk = {
@@ -2852,7 +2818,6 @@ static struct clk epdc_axi_clk = {
 	.round_rate = _clk_pxp_epdc_axi_round_rate,
 	.get_rate = _clk_epdc_axi_get_rate,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	.secondary = &display_mix,
 };
 
 static unsigned long _clk_lcdif_pix_get_rate(struct clk *clk)
@@ -3002,7 +2967,6 @@ static struct clk lcdif_pix_clk = {
 	.round_rate = _clk_epdc_lcdif_pix_round_rate,
 	.get_rate = _clk_lcdif_pix_get_rate,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	.secondary = &display_mix,
 };
 
 static struct clk epdc_pix_clk = {
@@ -3018,7 +2982,6 @@ static struct clk epdc_pix_clk = {
 	.round_rate = _clk_epdc_lcdif_pix_round_rate,
 	.get_rate = _clk_epdc_pix_get_rate,
 	.flags = AHB_HIGH_SET_POINT | CPU_FREQ_TRIG_UPDATE,
-	.secondary = &display_mix,
 };
 static unsigned long _clk_spdif_round_rate(struct clk *clk,
 						unsigned long rate)
