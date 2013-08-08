@@ -1065,11 +1065,11 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 			return retval;
 		}
 		pxp_complete_update(cam);
+		memcpy(cam->frame[buf->index].vaddress,
+			cam->frame[req_buf_number].vaddress,
+			cam->v2f.fmt.pix.sizeimage);
 	}
 	up(&cam->busy_lock);
-	memcpy(cam->frame[buf->index].vaddress,
-		cam->frame[req_buf_number].vaddress,
-		cam->v2f.fmt.pix.sizeimage);
 
 	return retval;
 }
