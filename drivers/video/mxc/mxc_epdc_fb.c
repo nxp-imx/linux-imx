@@ -1089,10 +1089,7 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 	clk_enable(fb_data->epdc_clk_axi);
 	clk_enable(fb_data->epdc_clk_pix);
 
-	if (fb_data->pdata->pg_display_mix)
-		epdc_init_settings(fb_data);
-	else
-		__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_CLEAR);
+	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_CLEAR);
 
 	/* Enable power to the EPD panel */
 	ret = regulator_enable(fb_data->display_regulator);

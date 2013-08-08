@@ -78,7 +78,6 @@ struct mxc_elcdif_fb_data {
 	struct semaphore flip_sem;
 	struct fb_var_screeninfo var;
 	u32 pseudo_palette[16];
-	bool pg_display_mix;
 };
 
 struct elcdif_signal_cfg {
@@ -1171,12 +1170,6 @@ static int mxc_elcdif_fb_blank(int blank, struct fb_info *info)
 	}
 
 	if (data->cur_blank != FB_BLANK_UNBLANK) {
-
-		if (data->pg_display_mix) {
-			mxc_elcdif_stop();
-			mxc_elcdif_dma_release();
-			data->running = false;
-		}
 		if (g_elcdif_axi_clk_enable) {
 			clk_disable(g_elcdif_axi_clk);
 			g_elcdif_axi_clk_enable = false;
@@ -1482,8 +1475,6 @@ static int mxc_elcdif_fb_probe(struct platform_device *pdev)
 	ret = register_framebuffer(fbi);
 	if (ret)
 		goto err3;
-
-	data->pg_display_mix = pdata->pg_display_mix;
 
 	platform_set_drvdata(pdev, fbi);
 
