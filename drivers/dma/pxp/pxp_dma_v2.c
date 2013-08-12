@@ -800,8 +800,6 @@ static void pxp_clk_enable(struct pxps *pxp)
 	}
 
 	clk_enable(pxp->clk);
-	/* Pull PxP out of reset */
-	__raw_writel(0, pxp->base + HW_PXP_CTRL);
 	pxp->clk_stat = CLK_STAT_ON;
 
 	mutex_unlock(&pxp->clk_mutex);
@@ -820,13 +818,6 @@ static void pxp_clk_disable(struct pxps *pxp)
 
 	spin_lock_irqsave(&pxp->lock, flags);
 	if ((pxp->pxp_ongoing == 0) && list_empty(&head)) {
-		/* Put the PXP into reset as the Display MIX is going
-		  * to be Power gated.
-		  */
-		while (__raw_readl(pxp->base + HW_PXP_CTRL)
-			& BM_PXP_CTRL_ENABLE)
-			;
-		__raw_writel(BM_PXP_CTRL_SFTRST, pxp->base + HW_PXP_CTRL);
 		spin_unlock_irqrestore(&pxp->lock, flags);
 		clk_disable(pxp->clk);
 		pxp->clk_stat = CLK_STAT_OFF;
@@ -1636,11 +1627,11 @@ static int pxp_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct pxps *pxp = platform_get_drvdata(pdev);
 
-	/* Need to call the enable/disable sequence here to
-	  * ensure that the PXP is in the right state before the
-	  * SOC enters suspend state.
-	  */
 	pxp_clk_enable(pxp);
+	while (__raw_readl(pxp->base + HW_PXP_CTRL) & BM_PXP_CTRL_ENABLE)
+		;
+
+	__raw_writel(BM_PXP_CTRL_SFTRST, pxp->base + HW_PXP_CTRL);
 	pxp_clk_disable(pxp);
 
 	return 0;
@@ -1650,11 +1641,9 @@ static int pxp_resume(struct platform_device *pdev)
 {
 	struct pxps *pxp = platform_get_drvdata(pdev);
 
-	/* Need to call the enable/disable sequence here to
-	  * ensure that the PXP is in the right state after the
-	  * SOC exits suspend state.
-	  */
 	pxp_clk_enable(pxp);
+	/* Pull PxP out of reset */
+	__raw_writel(0, pxp->base + HW_PXP_CTRL);
 	pxp_clk_disable(pxp);
 
 	return 0;
