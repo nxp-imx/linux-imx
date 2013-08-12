@@ -40,7 +40,7 @@ static const struct snd_pcm_hardware imx_pcm_hardware = {
 		SNDRV_PCM_INFO_MMAP_VALID |
 		SNDRV_PCM_INFO_PAUSE |
 		SNDRV_PCM_INFO_RESUME,
-	.buffer_bytes_max = IMX_SSI_DMABUF_SIZE,
+	.buffer_bytes_max = IMX_DEFAULT_DMABUF_SIZE,
 	.period_bytes_min = 128,
 	.period_bytes_max = 65535, /* Limited by SDMA engine */
 	.periods_min = 2,
@@ -52,7 +52,7 @@ static const struct snd_dmaengine_pcm_config imx_dmaengine_pcm_config = {
 	.pcm_hardware = &imx_pcm_hardware,
 	.prepare_slave_config = snd_dmaengine_pcm_prepare_slave_config,
 	.compat_filter_fn = filter,
-	.prealloc_buffer_size = IMX_SSI_DMABUF_SIZE,
+	.prealloc_buffer_size = IMX_DEFAULT_DMABUF_SIZE,
 };
 
 int imx_pcm_dma_init(struct platform_device *pdev)
