@@ -41,4 +41,5 @@ struct platform_device *ci_hdrc_add_device(struct device *dev,
 /* Remove ci hdrc device */
 void ci_hdrc_remove_device(struct platform_device *pdev);
 
+void ci_hdrc_enter_lpm(struct platform_device *pdev, bool enable);
 #endif
