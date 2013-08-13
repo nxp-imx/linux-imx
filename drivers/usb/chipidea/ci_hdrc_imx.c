@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Freescale Semiconductor, Inc.
+ * Copyright 2012-2013 Freescale Semiconductor, Inc.
  * Copyright (C) 2012 Marek Vasut <marex@denx.de>
  * on behalf of DENX Software Engineering GmbH
  *
@@ -186,6 +186,75 @@ static int ci_hdrc_imx_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int imx_controller_suspend(struct device *dev)
+{
+	struct ci_hdrc_imx_data *data = dev_get_drvdata(dev);
+
+	dev_dbg(dev, "at the beginning of %s\n", __func__);
+
+	ci_hdrc_enter_lpm(data->ci_pdev, true);
+
+	if (data->phy)
+		usb_phy_set_suspend(data->phy, 1);
+
+	clk_disable_unprepare(data->clk);
+
+	dev_dbg(dev, "at the end of %s\n", __func__);
+
+	return 0;
+
+}
+static int imx_controller_resume(struct device *dev)
+{
+	struct ci_hdrc_imx_data *data = dev_get_drvdata(dev);
+	int ret;
+
+	dev_dbg(dev, "at the beginning of %s\n", __func__);
+
+	ret = clk_prepare_enable(data->clk);
+	if (ret) {
+		dev_err(dev,
+			"Failed to prepare or enable clock, err=%d\n", ret);
+		return ret;
+	}
+
+	ci_hdrc_enter_lpm(data->ci_pdev, false);
+
+	if (data->phy) {
+		/*
+		 * USB PHY needs to wait 6 times of 32K cycles
+		 * for clock stable.
+		 */
+		udelay(500);
+		usb_phy_set_suspend(data->phy, 0);
+	}
+
+	dev_dbg(dev, "at the end of %s\n", __func__);
+
+	return ret;
+}
+
+static int ci_hdrc_imx_suspend(struct device *dev)
+{
+	dev_dbg(dev, "at %s\n", __func__);
+
+	return imx_controller_suspend(dev);
+}
+
+static int ci_hdrc_imx_resume(struct device *dev)
+{
+	dev_dbg(dev, "at %s\n", __func__);
+
+	return imx_controller_resume(dev);
+}
+
+#endif /* CONFIG_PM_SLEEP */
+
+static const struct dev_pm_ops ci_hdrc_imx_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(ci_hdrc_imx_suspend, ci_hdrc_imx_resume)
+};
+
 static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
 	{ .compatible = "fsl,imx27-usb", },
 	{ /* sentinel */ }
@@ -199,6 +268,7 @@ static struct platform_driver ci_hdrc_imx_driver = {
 		.name = "imx_usb",
 		.owner = THIS_MODULE,
 		.of_match_table = ci_hdrc_imx_dt_ids,
+		.pm = &ci_hdrc_imx_pm_ops,
 	 },
 };
 
