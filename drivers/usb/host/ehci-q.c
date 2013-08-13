@@ -1144,6 +1144,7 @@ submit_async (
 }
 
 /*-------------------------------------------------------------------------*/
+#ifdef CONFIG_USB_HCD_TEST_MODE
 /*
  * This function creates the qtds and submits them for the
  * SINGLE_STEP_SET_FEATURE Test.
@@ -1243,6 +1244,7 @@ cleanup:
 	qtd_list_free(ehci, urb, head);
 	return -1;
 }
+#endif /* CONFIG_USB_HCD_TEST_MODE */
 
 /*-------------------------------------------------------------------------*/
 
