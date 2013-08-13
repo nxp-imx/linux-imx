@@ -53,6 +53,7 @@
 #include <sound/wm8962.h>
 #include <sound/pcm.h>
 #include <linux/power/sabresd_battery.h>
+#include <linux/ion.h>
 
 #include <mach/common.h>
 #include <mach/hardware.h>
@@ -91,6 +92,19 @@ extern int __init mx6sl_evk_init_pfuze100(u32 int_gpio);
 static int csi_enabled;
 
 #define SXSDMAN_BLUETOOTH_ENABLE
+
+static struct ion_platform_data imx_ion_data = {
+	.nr = 1,
+	.heaps = {
+		{
+		.id = 0,
+		.type = ION_HEAP_TYPE_CARVEOUT,
+		.name = "vpu_ion",
+		.size = SZ_16M,
+		.cacheable = 1,
+		},
+	},
+};
 
 static iomux_v3_cfg_t mx6sl_brd_csi_enable_pads[] = {
 	MX6SL_PAD_EPDC_GDRL__CSI_MCLK,
@@ -1646,6 +1660,11 @@ static void __init mx6_evk_init(void)
 	platform_device_register(&evk_max8903_charger_1);
 	pm_power_off = mx6_snvs_poweroff;
 	imx6q_add_pm_imx(0, &mx6sl_evk_pm_data);
+
+	if (imx_ion_data.heaps[0].size)
+		platform_device_register_resndata(NULL, "ion-mxc", 0, NULL, 0, \
+		&imx_ion_data, sizeof(imx_ion_data) + sizeof(struct ion_platform_heap));
+
 }
 
 extern void __iomem *twd_base;
@@ -1676,6 +1695,14 @@ static void __init mx6_evk_reserve(void)
 					   SZ_4K, MEMBLOCK_ALLOC_ACCESSIBLE);
 		memblock_remove(phys, imx6q_gpu_pdata.reserved_mem_size);
 		imx6q_gpu_pdata.reserved_mem_base = phys;
+	}
+#endif
+
+#if defined(CONFIG_ION)
+	if (imx_ion_data.heaps[0].size) {
+		phys = memblock_alloc(imx_ion_data.heaps[0].size, SZ_4K);
+		memblock_remove(phys, imx_ion_data.heaps[0].size);
+		imx_ion_data.heaps[0].base = phys;
 	}
 #endif
 }
