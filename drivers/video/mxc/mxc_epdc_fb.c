@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -613,7 +613,8 @@ static inline int epdc_get_next_lut(void)
 
 static int epdc_choose_next_lut(int *next_lut)
 {
-	u32 luts_status = __raw_readl(EPDC_STATUS_LUTS);
+	u32 luts_status = (__raw_readl(EPDC_STATUS_LUTS)|
+		__raw_readl(EPDC_IRQ))&0xFFFF;
 
 	*next_lut = fls(luts_status & 0xFFFF);
 
@@ -3073,9 +3074,6 @@ static void epdc_intr_work_func(struct work_struct *work)
 			continue;
 
 		dev_dbg(fb_data->dev, "\nLUT %d completed\n", i);
-
-		/* Disable IRQ for completed LUT */
-		epdc_lut_complete_intr(i, false);
 
 		/*
 		 * Go through all updates in the collision list and
