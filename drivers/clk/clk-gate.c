@@ -148,3 +148,4 @@ struct clk *clk_register_gate(struct device *dev, const char *name,
 
 	return clk;
 }
+EXPORT_SYMBOL_GPL(clk_register_gate);

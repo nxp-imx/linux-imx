@@ -163,6 +163,7 @@ struct clk *clk_register_mux_table(struct device *dev, const char *name,
 
 	return clk;
 }
+EXPORT_SYMBOL_GPL(clk_register_mux_table);
 
 struct clk *clk_register_mux(struct device *dev, const char *name,
 		const char **parent_names, u8 num_parents, unsigned long flags,
@@ -175,3 +176,4 @@ struct clk *clk_register_mux(struct device *dev, const char *name,
 				      flags, reg, shift, mask, clk_mux_flags,
 				      NULL, lock);
 }
+EXPORT_SYMBOL_GPL(clk_register_mux);
