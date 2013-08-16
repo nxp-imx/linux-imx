@@ -247,12 +247,14 @@ static const struct esdhc_platform_data mx6_evk_sd1_data __initconst = {
 };
 
 static const struct esdhc_platform_data mx6_evk_sd2_data __initconst = {
+	.always_present = 1,
 	.cd_gpio		= MX6_BRD_SD2_CD,
 	.wp_gpio		= MX6_BRD_SD2_WP,
 	.keep_power_at_suspend	= 1,
 	.delay_line		= 0,
 	.support_18v		= 1,
 	.platform_pad_change = plt_sd_pad_change,
+	.cd_type = ESDHC_CD_PERMANENT,
 };
 
 static const struct esdhc_platform_data mx6_evk_sd3_data __initconst = {
@@ -1591,8 +1593,8 @@ static void __init mx6_evk_init(void)
 	imx6_init_fec(fec_data);
 
 	platform_device_register(&evk_vmmc_reg_devices);
-	imx6q_add_sdhci_usdhc_imx(0, &mx6_evk_sd1_data);
 	imx6q_add_sdhci_usdhc_imx(1, &mx6_evk_sd2_data);
+	imx6q_add_sdhci_usdhc_imx(0, &mx6_evk_sd1_data);
 	imx6q_add_sdhci_usdhc_imx(2, &mx6_evk_sd3_data);
 
 	mx6_evk_init_usb();
