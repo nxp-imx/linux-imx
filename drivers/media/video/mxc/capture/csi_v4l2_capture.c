@@ -484,6 +484,7 @@ static void csi_free_frames(cam_data *cam)
 	for (i = 0; i < FRAME_NUM; i++)
 		cam->frame[i].buffer.flags = V4L2_BUF_FLAG_MAPPED;
 
+	cam->enc_counter = 0;
 	INIT_LIST_HEAD(&cam->ready_q);
 	INIT_LIST_HEAD(&cam->working_q);
 	INIT_LIST_HEAD(&cam->done_q);
@@ -1035,6 +1036,12 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 
 	spin_lock_irqsave(&cam->dqueue_int_lock, lock_flags);
 
+	if (list_empty(&cam->done_q)) {
+		spin_unlock_irqrestore(&cam->dqueue_int_lock, lock_flags);
+		up(&cam->busy_lock);
+		return -EINVAL;
+	}
+
 	cam->enc_counter--;
 
 	frame = list_entry(cam->done_q.next, struct mxc_v4l_frame, queue);
@@ -1075,7 +1082,8 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 			return retval;
 		}
 		pxp_complete_update(cam);
-		memcpy(cam->frame[buf->index].vaddress,
+		if (cam->frame[buf->index].vaddress)
+			memcpy(cam->frame[buf->index].vaddress,
 			cam->frame[req_buf_number].vaddress,
 			cam->v2f.fmt.pix.sizeimage);
 	}
