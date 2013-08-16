@@ -288,7 +288,6 @@ _func_enter_;
 	sdio_claim_host(func);
 	sdio_set_drvdata(func, dvobj);
 	mmc_host = func->card->host;
-   	sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
 	sdio_release_host(func);
 #else
 	sdio_set_drvdata(func, dvobj);
