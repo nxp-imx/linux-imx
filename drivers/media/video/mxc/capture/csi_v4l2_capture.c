@@ -1110,7 +1110,7 @@ static int csi_v4l_open(struct file *file)
 
 	pr_debug("   device name is %s\n", dev->name);
 
-	if (!cam) {
+	if (!cam || !cam->sensor) {
 		pr_err("ERROR: v4l2 capture: Internal error, "
 		       "cam_data not found!\n");
 		return -EBADF;
