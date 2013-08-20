@@ -255,6 +255,9 @@ static void enter_phy_lowpower_suspend(struct fsl_usb2_platform_data *pdata, boo
 		mdelay(1);
 
 		usbotg_internal_phy_clock_gate(true);
+
+		udelay(2);
+
 		tmp = (BM_USBPHY_PWD_TXPWDFS
 			| BM_USBPHY_PWD_TXPWDIBIAS
 			| BM_USBPHY_PWD_TXPWDV2I
