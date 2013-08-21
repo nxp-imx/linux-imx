@@ -876,6 +876,18 @@ static void bus_remove_attrs(struct bus_type *bus)
 	}
 }
 
+static int bus_add_groups(struct bus_type *bus,
+			  const struct attribute_group **groups)
+{
+	return sysfs_create_groups(&bus->p->subsys.kobj, groups);
+}
+
+static void bus_remove_groups(struct bus_type *bus,
+			      const struct attribute_group **groups)
+{
+	sysfs_remove_groups(&bus->p->subsys.kobj, groups);
+}
+
 static void klist_devices_get(struct klist_node *n)
 {
 	struct device_private *dev_prv = to_device_private_bus(n);
