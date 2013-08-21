@@ -372,7 +372,7 @@ gckGALDEVICE_Construct(
     /*get gpu regulator*/
     device->gpu_regulator = regulator_get(pdev, "cpu_vddgpu");
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-    device->gpu_regulator = regulator_get(pdev, "vddpu");
+    device->gpu_regulator = devm_regulator_get(pdev, "pu");
 #endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
     if (IS_ERR(device->gpu_regulator)) {
