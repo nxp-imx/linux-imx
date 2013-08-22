@@ -1358,18 +1358,18 @@ static struct mxc_fb_platform_data hdmi_fb_data[] = {
 };
 
 static int mx6sl_evk_keymap[] = {
-	KEY(0, 0, KEY_SELECT),
-	KEY(0, 1, KEY_BACK),
-	KEY(0, 2, KEY_F1),
+	KEY(0, 0, KEY_VOLUMEUP),
+	KEY(0, 1, KEY_VOLUMEDOWN),
+	KEY(0, 2, KEY_RIGHT),
 	KEY(0, 3, KEY_F2),
 
-	KEY(1, 0, KEY_F3),
-	KEY(1, 1, KEY_F4),
+	KEY(1, 0, KEY_LEFT),
+	KEY(1, 1, KEY_UP),
 	KEY(1, 2, KEY_POWER),
 	KEY(1, 3, KEY_MENU),
 
-	KEY(2, 0, KEY_PREVIOUS),
-	KEY(2, 1, KEY_NEXT),
+	KEY(2, 0, KEY_BACK),
+	KEY(2, 1, KEY_DOWN),
 	KEY(2, 2, KEY_HOME),
 	KEY(2, 3, KEY_NEXT),
 
