@@ -461,7 +461,6 @@ struct nand_buffers {
  *			supported, 0 otherwise.
  * @onfi_set_features:	[REPLACEABLE] set the features for ONFI nand
  * @onfi_get_features:	[REPLACEABLE] get the features for ONFI nand
- * @ecclayout:		[REPLACEABLE] the default ECC placement scheme
  * @bbt:		[INTERN] bad block table pointer
  * @bbt_td:		[REPLACEABLE] bad block table descriptor for flash
  *			lookup.
@@ -535,7 +534,6 @@ struct nand_chip {
 
 	uint8_t *oob_poi;
 	struct nand_hw_control *controller;
-	struct nand_ecclayout *ecclayout;
 
 	struct nand_ecc_ctrl ecc;
 	struct nand_buffers *buffers;
