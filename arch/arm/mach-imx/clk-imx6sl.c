@@ -67,6 +67,30 @@ static struct clk_div_table video_div_table[] = {
 
 static struct clk *clks[IMX6SL_CLK_CLK_END];
 static struct clk_onecell_data clk_data;
+static u32 cur_arm_podf;
+
+/*
+  * On MX6SL, need to ensure that the ARM:IPG clock ratio is maintained
+  * within 12:5 when the clocks to ARM are gated when the SOC enters
+  * WAIT mode. This is necessary to avoid WAIT mode issue (an early
+  * interrupt waking up the ARM).
+  * This function will set the ARM clk to max value within the 12:5 limit.
+  */
+void imx6sl_set_wait_clk(bool enter)
+{
+	u32 parent_rate = clk_get_rate(clk_get_parent(clks[IMX6SL_CLK_ARM]));
+
+	if (enter) {
+		u32 ipg_rate = clk_get_rate(clks[IMX6SL_CLK_IPG]);
+		u32 max_arm_wait_clk = (12 * ipg_rate) / 5;
+		u32 wait_podf = (parent_rate + max_arm_wait_clk - 1) /
+						max_arm_wait_clk;
+
+		cur_arm_podf = parent_rate / clk_get_rate(clks[IMX6SL_CLK_ARM]);
+		clk_set_rate(clks[IMX6SL_CLK_ARM], parent_rate / wait_podf);
+	} else
+		clk_set_rate(clks[IMX6SL_CLK_ARM], parent_rate / cur_arm_podf);
+}
 
 static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 {
@@ -257,6 +281,11 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 
 	clk_register_clkdev(clks[IMX6SL_CLK_GPT], "ipg", "imx-gpt.0");
 	clk_register_clkdev(clks[IMX6SL_CLK_GPT_SERIAL], "per", "imx-gpt.0");
+
+	/* Ensure the AHB clk is at 132MHz. */
+	ret = clk_set_rate(clks[IMX6SL_CLK_AHB], 132000000);
+	if (ret)
+		pr_warn("%s: failed to set AHB clock rate %d\n", __func__, ret);
 
 	/*
 	 * To prevent the bus clock from being disabled accidently when

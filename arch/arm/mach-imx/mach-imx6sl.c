@@ -19,6 +19,7 @@
 #include <asm/mach/map.h>
 
 #include "common.h"
+#include "cpuidle.h"
 #include "hardware.h"
 
 static struct platform_device imx6sl_cpufreq_pdev = {
@@ -93,6 +94,9 @@ static void __init imx6sl_init_late(void)
 			IMX6Q_GPR1_GINT_ASSERT);
 	else
 		pr_err("failed to find fsl,imx6sl-iomux-gpr regmap\n");
+
+	/* Init CPUIDLE */
+	imx6sl_cpuidle_init();
 
 	if (IS_ENABLED(CONFIG_ARM_IMX6_CPUFREQ)) {
 		imx6sl_opp_init(&imx6sl_cpufreq_pdev.dev);
