@@ -149,6 +149,12 @@ static int __init post_cpu_init(void)
 	__raw_writel(reg, base + 0x50);
 	iounmap(base);
 
+	/* Force IOMUXC irq to be pending for CCM LPM */
+	base = IO_ADDRESS(MX6Q_IOMUXC_BASE_ADDR);
+	reg = __raw_readl(base + 0x4);
+	reg |= 0x1000;
+	__raw_writel(reg, base + 0x4);
+
 	/* Allow SCU_CLK to be disabled when all cores are in WFI*/
 	base = IO_ADDRESS(SCU_BASE_ADDR);
 	reg = __raw_readl(base);
