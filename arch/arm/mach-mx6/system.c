@@ -113,12 +113,12 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	 * is a dsm_wakeup_signal, which means the wakeup source
 	 * must be seen by GPC, then CCM will clean its state machine
 	 * and re-sample necessary signal to decide whether it can
-	 * enter LPM mode. Here we use the forever pending irq #125,
+	 * enter LPM mode. Here we force irq #32 to be always pending,
 	 * unmask it before we enable LPM mode and mask it after LPM
 	 * is enabled, this flow will make sure CCM state machine in
 	 * reliable state before we enter LPM mode.
 	 */
-	gpc_mask_single_irq(MXC_INT_CHEETAH_PARITY, false);
+	gpc_mask_single_irq(MXC_INT_GPR, false);
 
 	switch (mode) {
 	case WAIT_CLOCKED:
@@ -177,7 +177,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		break;
 	default:
 		printk(KERN_WARNING "UNKNOWN cpu power mode: %d\n", mode);
-		gpc_mask_single_irq(MXC_INT_CHEETAH_PARITY, true);
+		gpc_mask_single_irq(MXC_INT_GPR, true);
 		return;
 	}
 
@@ -275,7 +275,7 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		}
 	}
 	__raw_writel(ccm_clpcr, MXC_CCM_CLPCR);
-	gpc_mask_single_irq(MXC_INT_CHEETAH_PARITY, true);
+	gpc_mask_single_irq(MXC_INT_GPR, true);
 }
 
 extern int tick_broadcast_oneshot_active(void);
