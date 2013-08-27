@@ -31,6 +31,7 @@
  * @clk_hw:	 clock source
  * @base:	 base address of PLL registers
  * @powerup_set: set POWER bit to power up the PLL
+ * @always_on : Leave the PLL powered up all the time.
  * @div_mask:	 mask of divider bits
  *
  * IMX PLL clock version 3, found on i.MX6 series.  Divider for pllv3
@@ -40,6 +41,7 @@ struct clk_pllv3 {
 	struct clk_hw	hw;
 	void __iomem	*base;
 	bool		powerup_set;
+	bool		always_on;
 	u32		div_mask;
 };
 
@@ -116,7 +118,8 @@ static void clk_pllv3_disable(struct clk_hw *hw)
 	u32 val;
 
 	val = readl_relaxed(pll->base);
-	val &= ~BM_PLL_ENABLE;
+	if (!pll->always_on)
+		val &= ~BM_PLL_ENABLE;
 	writel_relaxed(val, pll->base);
 }
 
@@ -322,7 +325,7 @@ static const struct clk_ops clk_pllv3_mlb_ops = {
 
 struct clk *imx_clk_pllv3(enum imx_pllv3_type type, const char *name,
 			  const char *parent_name, void __iomem *base,
-			  u32 div_mask)
+			  u32 div_mask, bool always_on)
 {
 	struct clk_pllv3 *pll;
 	const struct clk_ops *ops;
@@ -355,6 +358,7 @@ struct clk *imx_clk_pllv3(enum imx_pllv3_type type, const char *name,
 	}
 	pll->base = base;
 	pll->div_mask = div_mask;
+	pll->always_on = always_on;
 
 	init.name = name;
 	init.ops = ops;
