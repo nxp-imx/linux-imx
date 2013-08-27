@@ -85,13 +85,13 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	WARN_ON(!base);
 
 	/*                                             type               name            parent  base         div_mask */
-	clks[IMX6SL_CLK_PLL1_SYS]      = imx_clk_pllv3(IMX_PLLV3_SYS,	  "pll1_sys",	   "osc", base,        0x7f);
-	clks[IMX6SL_CLK_PLL2_BUS]      = imx_clk_pllv3(IMX_PLLV3_GENERIC, "pll2_bus",	   "osc", base + 0x30, 0x1);
-	clks[IMX6SL_CLK_PLL3_USB_OTG]  = imx_clk_pllv3(IMX_PLLV3_USB,	  "pll3_usb_otg",  "osc", base + 0x10, 0x3);
-	clks[IMX6SL_CLK_PLL4_AUDIO]    = imx_clk_pllv3(IMX_PLLV3_AV,	  "pll4_audio",	   "osc", base + 0x70, 0x7f);
-	clks[IMX6SL_CLK_PLL5_VIDEO]    = imx_clk_pllv3(IMX_PLLV3_AV,	  "pll5_video",	   "osc", base + 0xa0, 0x7f);
-	clks[IMX6SL_CLK_PLL6_ENET]     = imx_clk_pllv3(IMX_PLLV3_ENET,	  "pll6_enet",	   "osc", base + 0xe0, 0x3);
-	clks[IMX6SL_CLK_PLL7_USB_HOST] = imx_clk_pllv3(IMX_PLLV3_USB,     "pll7_usb_host", "osc", base + 0x20, 0x3);
+	clks[IMX6SL_CLK_PLL1_SYS]      = imx_clk_pllv3(IMX_PLLV3_SYS,	  "pll1_sys",	   "osc", base,        0x7f, true);
+	clks[IMX6SL_CLK_PLL2_BUS]      = imx_clk_pllv3(IMX_PLLV3_GENERIC, "pll2_bus",	   "osc", base + 0x30, 0x1, true);
+	clks[IMX6SL_CLK_PLL3_USB_OTG]  = imx_clk_pllv3(IMX_PLLV3_USB,	  "pll3_usb_otg",  "osc", base + 0x10, 0x3, false);
+	clks[IMX6SL_CLK_PLL4_AUDIO]    = imx_clk_pllv3(IMX_PLLV3_AV,	  "pll4_audio",	   "osc", base + 0x70, 0x7f, false);
+	clks[IMX6SL_CLK_PLL5_VIDEO]    = imx_clk_pllv3(IMX_PLLV3_AV,	  "pll5_video",	   "osc", base + 0xa0, 0x7f, false);
+	clks[IMX6SL_CLK_PLL6_ENET]     = imx_clk_pllv3(IMX_PLLV3_ENET,	  "pll6_enet",	   "osc", base + 0xe0, 0x3, false);
+	clks[IMX6SL_CLK_PLL7_USB_HOST] = imx_clk_pllv3(IMX_PLLV3_USB,     "pll7_usb_host", "osc", base + 0x20, 0x3, false);
 
 	/*
 	 * usbphy1 and usbphy2 are implemented as dummy gates using reserve
