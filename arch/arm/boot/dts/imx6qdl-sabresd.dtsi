@@ -207,6 +207,12 @@
 	status = "okay";
 };
 
+&cpu0 {
+	arm-supply = <&sw1a_reg>;
+	soc-supply = <&sw1c_reg>;
+	pu-supply = <&pu_dummy>; /* use pu_dummy if VDDSOC share with VDDPU */
+};
+
 &ecspi1 {
 	fsl,spi-num-chipselects = <1>;
 	cs-gpios = <&gpio4 9 0>;
@@ -235,6 +241,12 @@
 	fsl,cpu_pupscr_sw = <0xf>;
 	fsl,cpu_pdnscr_iso2sw = <0x1>;
 	fsl,cpu_pdnscr_iso = <0x1>;
+	fsl,ldo-bypass; /* use ldo-bypass, u-boot will check it and configure */
+	pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+};
+
+&gpu {
+	pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
 };
 
 &hdmi_cec {
@@ -331,6 +343,7 @@
 				regulator-max-microvolt = <1875000>;
 				regulator-boot-on;
 				regulator-always-on;
+				regulator-ramp-delay = <6250>;
 			};
 
 			sw2_reg: sw2 {
@@ -572,4 +585,8 @@
 	cd-gpios = <&gpio2 0 0>;
 	wp-gpios = <&gpio2 1 0>;
 	status = "okay";
+};
+
+&vpu {
+	pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
 };

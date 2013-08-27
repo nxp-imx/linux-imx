@@ -20,7 +20,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		cpu@0 {
+		cpu0: cpu@0 {
 			compatible = "arm,cortex-a9";
 			device_type = "cpu";
 			reg = <0>;
@@ -84,7 +84,7 @@
 			fsl,max_ddr_freq = <528000000>;
 		};
 
-		gpu@00130000 {
+		gpu: gpu@00130000 {
 			compatible = "fsl,imx6q-gpu";
 			reg = <0x00130000 0x4000>, <0x00134000 0x4000>,
 			      <0x02204000 0x4000>, <0x0 0x0>;
@@ -100,6 +100,7 @@
 				      "gpu3d_clk", "gpu3d_shader_clk";
 			resets = <&src 0>, <&src 3>, <&src 3>;
 			reset-names = "gpu3d", "gpu2d", "gpuvg";
+			pu-supply = <&reg_pu>;
 		};
 
 		ocram: sram@00900000 {
