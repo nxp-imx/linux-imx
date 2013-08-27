@@ -9,6 +9,7 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
+#include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/of.h>
@@ -36,6 +37,10 @@
 #define BM_ANADIG_ANA_MISC0_DISCON_HIGH_SNVS	0x2000
 #define BM_ANADIG_USB_CHRG_DETECT_CHK_CHRG_B	0x80000
 #define BM_ANADIG_USB_CHRG_DETECT_EN_B		0x100000
+
+#define ANADIG_REG_TARG_MASK	0x1f
+#define ANADIG_REG1_TARG_SHIFT	9	/* VDDPU */
+#define ANADIG_REG2_TARG_SHIFT	18	/* VDDSOC */
 
 static struct regmap *anatop;
 
@@ -103,6 +108,28 @@ static void imx_anatop_usb_chrg_detect_disable(void)
 		BM_ANADIG_USB_CHRG_DETECT_CHK_CHRG_B);
 }
 
+void imx_anatop_pu_enable(bool enable)
+{
+	u32 val;
+
+	regmap_read(anatop, ANADIG_REG_CORE, &val);
+	val &= ANADIG_REG_TARG_MASK << ANADIG_REG2_TARG_SHIFT;
+	/*
+	 * set pu regulator only in LDO_BYPASS mode(know by VDDSOC reg 0x1f),
+	 * else handled by anatop regulator driver.
+	 */
+	if (((val >> (ANADIG_REG2_TARG_SHIFT)) & ANADIG_REG_TARG_MASK)
+		== ANADIG_REG_TARG_MASK) {
+		if (enable) {
+			regmap_write(anatop, ANADIG_REG_CORE + REG_SET,
+				ANADIG_REG_TARG_MASK << ANADIG_REG1_TARG_SHIFT);
+			udelay(70);	/* bypass need 70us to be stable */
+		} else {
+			regmap_write(anatop, ANADIG_REG_CORE + REG_CLR,
+				ANADIG_REG_TARG_MASK << ANADIG_REG1_TARG_SHIFT);
+		}
+	}
+}
 void __init imx_init_revision_from_anatop(void)
 {
 	struct device_node *np;
