@@ -60,6 +60,10 @@
 		};
 	};
 
+	pu_dummy: pudummy_reg {
+		compatible = "fsl,imx6-dummy-pureg"; /* only used in ldo-bypass */
+	};
+
 	soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
