@@ -21,6 +21,8 @@
 #include <linux/platform_device.h>
 #include <linux/irqchip/arm-gic.h>
 #include <linux/regulator/consumer.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/machine.h>
 #include "common.h"
 #include "hardware.h"
 
@@ -53,6 +55,15 @@ static struct clk *openvg_axi_clk, *vpu_clk, *ipg_clk;
 static struct device *gpc_dev;
 struct regulator *pu_reg;
 struct notifier_block nb;
+static struct regulator_dev *pu_dummy_regulator_rdev;
+static struct regulator_init_data pu_dummy_initdata = {
+	.constraints = {
+		.max_uV = 1450000,	/* allign with real max of anatop */
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS |
+				REGULATOR_CHANGE_VOLTAGE,
+	},
+};
+static int pu_dummy_enable;
 
 void imx_gpc_pre_suspend(bool arm_power_off)
 {
@@ -187,6 +198,7 @@ static void imx_gpc_pu_enable(bool enable)
 	rate = clk_get_rate(ipg_clk);
 
 	if (enable) {
+		imx_anatop_pu_enable(true);
 		/*
 		 * need to add necessary delay between powering up PU LDO and
 		 * disabling PU isolation in PGC, the counter of PU isolation
@@ -231,6 +243,7 @@ static void imx_gpc_pu_enable(bool enable)
 		delay_us = (gpu_pdnscr_iso2sw + gpu_pdnscr_iso) * 1000000
 			/ rate + 1;
 		udelay(delay_us);
+		imx_anatop_pu_enable(false);
 	}
 }
 
@@ -308,6 +321,86 @@ void __init imx_gpc_init(void)
 	writel_relaxed(val, gpc_base + GPC_PGC_CPU_PDNSCR);
 }
 
+static int imx_pureg_set_voltage(struct regulator_dev *reg, int min_uV,
+					int max_uV, unsigned *selector)
+{
+	return 0;
+}
+
+static int imx_pureg_enable(struct regulator_dev *rdev)
+{
+	pu_dummy_enable = 1;
+
+	return 0;
+}
+
+static int imx_pureg_disable(struct regulator_dev *rdev)
+{
+	pu_dummy_enable = 0;
+
+	return 0;
+}
+
+static int imx_pureg_is_enable(struct regulator_dev *rdev)
+{
+	return pu_dummy_enable;
+}
+
+static int imx_pureg_list_voltage(struct regulator_dev *rdev,
+				unsigned int selector)
+{
+	return 0;
+}
+
+static struct regulator_ops pu_dummy_ops = {
+	.set_voltage = imx_pureg_set_voltage,
+	.enable	= imx_pureg_enable,
+	.disable = imx_pureg_disable,
+	.is_enabled = imx_pureg_is_enable,
+	.list_voltage = imx_pureg_list_voltage,
+};
+
+static struct regulator_desc pu_dummy_desc = {
+	.name = "pureg-dummy",
+	.id = -1,
+	.type = REGULATOR_VOLTAGE,
+	.owner = THIS_MODULE,
+	.ops = &pu_dummy_ops,
+};
+
+static int pu_dummy_probe(struct platform_device *pdev)
+{
+	struct regulator_config config = { };
+	int ret;
+
+	config.dev = &pdev->dev;
+	config.init_data = &pu_dummy_initdata;
+	config.of_node = pdev->dev.of_node;
+
+	pu_dummy_regulator_rdev = regulator_register(&pu_dummy_desc, &config);
+	if (IS_ERR(pu_dummy_regulator_rdev)) {
+		ret = PTR_ERR(pu_dummy_regulator_rdev);
+		dev_err(&pdev->dev, "Failed to register regulator: %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static const struct of_device_id imx_pudummy_ids[] = {
+	{ .compatible = "fsl,imx6-dummy-pureg" },
+};
+MODULE_DEVICE_TABLE(of, imx_pudummy_ids);
+
+static struct platform_driver pu_dummy_driver = {
+	.probe	= pu_dummy_probe,
+	.driver	= {
+		.name	= "pu-dummy",
+		.owner	= THIS_MODULE,
+		.of_match_table = imx_pudummy_ids,
+	},
+};
+
 static int imx_gpc_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -315,6 +408,11 @@ static int imx_gpc_probe(struct platform_device *pdev)
 	gpc_dev = &pdev->dev;
 
 	pu_reg = devm_regulator_get(gpc_dev, "pu");
+	if (IS_ERR(pu_reg)) {
+		ret = PTR_ERR(pu_reg);
+		dev_info(gpc_dev, "pu regulator not ready.\n");
+		return ret;
+	}
 	nb.notifier_call = &imx_gpc_regulator_notify;
 
 	/* Get gpu&vpu clk for power up PU by GPC */
@@ -368,6 +466,8 @@ static struct platform_driver imx_gpc_platdrv = {
 	.probe		= imx_gpc_probe,
 };
 module_platform_driver(imx_gpc_platdrv);
+
+module_platform_driver(pu_dummy_driver);
 
 MODULE_AUTHOR("Anson Huang <b20788@freescale.com>");
 MODULE_DESCRIPTION("Freescale i.MX GPC driver");
