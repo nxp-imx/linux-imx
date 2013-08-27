@@ -961,6 +961,11 @@ static int mxc_elcdif_fb_set_par(struct fb_info *fbi)
 
 	fbi->mode = (struct fb_videomode *)fb_match_mode(&fbi->var,
 							 &fbi->modelist);
+	/* Clear activate as not Reconfiguring framebuffer again */
+	if ((fbi->var.activate & FB_ACTIVATE_FORCE) &&
+		(fbi->var.activate & FB_ACTIVATE_MASK) == FB_ACTIVATE_NOW)
+		fbi->var.activate = FB_ACTIVATE_NOW;
+
 	data->var = fbi->var;
 
 	return 0;
