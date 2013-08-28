@@ -37,6 +37,15 @@
 	};
 };
 
+&epdc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_epdc_0>;
+	V3P3_supply = <&V3P3_reg>;
+	VCOM_supply = <&VCOM_reg>;
+	DISPLAY_supply = <&DISPLAY_reg>;
+	status = "okay";
+};
+
 &fec {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_fec_1>;

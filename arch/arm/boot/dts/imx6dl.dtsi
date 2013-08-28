@@ -133,8 +133,11 @@
 			};
 
 			epdc: epdc@020f4000 {
+				compatible = "fsl,imx6dl-epdc";
 				reg = <0x020f4000 0x4000>;
 				interrupts = <0 97 0x04>;
+				clocks = <&clks 133>, <&clks 137>;
+				clock-names = "epdc_axi", "epdc_pix";
 			};
 
 			lcdif: lcdif@020f8000 {
@@ -162,6 +165,35 @@
 				interrupts = <0 35 0x04>;
 				status = "disabled";
 			};
+		};
+	};
+};
+
+&iomuxc {
+	epdc {
+		pinctrl_epdc_0: epdcgrp-0 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_A16__EPDC_DATA00	   0x80000000
+				MX6QDL_PAD_EIM_DA10__EPDC_DATA01   0x80000000
+				MX6QDL_PAD_EIM_DA12__EPDC_DATA02   0x80000000
+				MX6QDL_PAD_EIM_DA11__EPDC_DATA03   0x80000000
+				MX6QDL_PAD_EIM_LBA__EPDC_DATA04	   0x80000000
+				MX6QDL_PAD_EIM_EB2__EPDC_DATA05	   0x80000000
+				MX6QDL_PAD_EIM_CS0__EPDC_DATA06	   0x80000000
+				MX6QDL_PAD_EIM_RW__EPDC_DATA07	   0x80000000
+				MX6QDL_PAD_EIM_A21__EPDC_GDCLK	   0x80000000
+				MX6QDL_PAD_EIM_A22__EPDC_GDSP	   0x80000000
+				MX6QDL_PAD_EIM_A23__EPDC_GDOE	   0x80000000
+				MX6QDL_PAD_EIM_A24__EPDC_GDRL	   0x80000000
+				MX6QDL_PAD_EIM_D31__EPDC_SDCLK_P   0x80000000
+				MX6QDL_PAD_EIM_D27__EPDC_SDOE	   0x80000000
+				MX6QDL_PAD_EIM_DA1__EPDC_SDLE	   0x80000000
+				MX6QDL_PAD_EIM_EB1__EPDC_SDSHR	   0x80000000
+				MX6QDL_PAD_EIM_DA2__EPDC_BDR0	   0x80000000
+				MX6QDL_PAD_EIM_DA4__EPDC_SDCE0	   0x80000000
+				MX6QDL_PAD_EIM_DA5__EPDC_SDCE1	   0x80000000
+				MX6QDL_PAD_EIM_DA6__EPDC_SDCE2	   0x80000000
+			>;
 		};
 	};
 };
