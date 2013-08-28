@@ -189,7 +189,7 @@ static int __init msg_init(void)
 {
 	return usb_composite_probe(&msg_driver);
 }
-module_init(msg_init);
+late_initcall(msg_init);
 
 static void msg_cleanup(void)
 {
