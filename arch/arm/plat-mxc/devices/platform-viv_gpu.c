@@ -34,7 +34,7 @@ const struct imx_viv_gpu_data imx6_gpu_data __initconst = {
 };
 #else
 const struct imx_viv_gpu_data imx6_gpu_data __initconst = {
-	.phys_baseaddr = 0,
+	.phys_baseaddr = MMDC0_ARB_BASE_ADDR,
 	.iobase_3d = GPU_3D_ARB_BASE_ADDR,
 	.irq_3d = MXC_INT_GPU3D_IRQ,
 	.iobase_2d = GPU_2D_ARB_BASE_ADDR,
