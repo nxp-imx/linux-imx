@@ -1,0 +1,23 @@
+* ELAN Resistive Touch Controller
+
+Required properties:
+- compatible: must be "elan,elan-touch"
+- reg: i2c slave address
+- interrupt-parent: the phandle for the interrupt controller
+- interrupts: touch controller interrupt
+- gpio_elan_cs: the gpio pin for chip select
+- gpio_elan_rst: the gpio pin for chip reset
+- gpio_intr: the gpio pin to be used for interrupt pin
+
+Example:
+
+	elan@10 {
+		compatible = "elan,elan-touch";
+		reg = <0x10>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <28 3>;
+		gpio_elan_cs = <&gpio2 18 0>;
+		gpio_elan_rst = <&gpio3 8 0>;
+		gpio_intr = <&gpio3 28 0>;
+		status = "okay";
+	};
