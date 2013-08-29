@@ -37,6 +37,7 @@ The full ID of peripheral types can be found below.
 	19	IPU Memory
 	20	ASRC
 	21	ESAI
+	22	HDMI Audio
 
 The third cell specifies the transfer priority as below.
 

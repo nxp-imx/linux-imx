@@ -39,6 +39,7 @@ enum sdma_peripheral_type {
 	IMX_DMATYPE_IPU_MEMORY,	/* IPU Memory */
 	IMX_DMATYPE_ASRC,	/* ASRC */
 	IMX_DMATYPE_ESAI,	/* ESAI */
+	IMX_DMATYPE_HDMI,	/* HDMI Audio */
 };
 
 enum imx_dma_prio {
@@ -52,6 +53,7 @@ struct imx_dma_data {
 	int dma_request1;
 	enum sdma_peripheral_type peripheral_type;
 	int priority;
+	void *data_addr1, *data_addr2;
 };
 
 static inline int imx_dma_is_ipu(struct dma_chan *chan)
