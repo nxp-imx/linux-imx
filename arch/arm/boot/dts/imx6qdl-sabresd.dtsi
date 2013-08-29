@@ -444,6 +444,17 @@
 		interrupts = <16 2>;
 	};
 
+	elan@10 {
+		compatible = "elan,elan-touch";
+		reg = <0x10>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <28 3>;
+		gpio_elan_cs = <&gpio2 18 0>;
+		gpio_elan_rst = <&gpio3 8 0>;
+		gpio_intr = <&gpio3 28 0>;
+		status = "okay";
+	};
+
 	isl29023@44 {
 		compatible = "fsl,isl29023";
 		reg = <0x44>;
