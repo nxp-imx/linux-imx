@@ -1,0 +1,5 @@
+config VIDEO_MXC_CSI_CAMERA
+	tristate "CSI camera support"
+	depends on VIDEO_MXC_CAPTURE && VIDEO_V4L2
+	---help---
+	  This is the video4linux2 capture driver based on CSI module.
