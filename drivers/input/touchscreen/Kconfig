@@ -244,6 +244,18 @@ config TOUCHSCREEN_EGALAX_SINGLE_TOUCH
 	  on the eGalax I2C controller.
 	  If you say "no", you'll get the normal multi-touch
 
+config TOUCHSCREEN_ELAN
+	tristate "ELAN touchscreen input driver"
+	depends on I2C
+	help
+	  Say Y here if you have an I2C ELAN touchscreen
+	  attached.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called elan-touch.
+
 config TOUCHSCREEN_FUJITSU
 	tristate "Fujitsu serial touchscreen"
 	select SERIO
