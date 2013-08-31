@@ -293,3 +293,6 @@ PWM
 PHY
   devm_usb_get_phy()
   devm_usb_put_phy()
+
+SPI
+  devm_spi_register_master()
