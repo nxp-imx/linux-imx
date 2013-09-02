@@ -134,6 +134,19 @@ struct _gckCONTEXT
 #if gcdSECURE_USER
     gctBOOL_PTR                 hint;
 #endif
+
+#if VIVANTE_PROFILER_CONTEXT
+    gcsPROFILER_COUNTERS        latestProfiler;
+    gcsPROFILER_COUNTERS        histroyProfiler;
+    gctUINT32                   prevVSInstCount;
+    gctUINT32                   prevVSBranchInstCount;
+    gctUINT32                   prevVSTexInstCount;
+    gctUINT32                   prevVSVertexCount;
+    gctUINT32                   prevPSInstCount;
+    gctUINT32                   prevPSBranchInstCount;
+    gctUINT32                   prevPSTexInstCount;
+    gctUINT32                   prevPSPixelCount;
+#endif
 };
 
 #ifdef __cplusplus

@@ -71,10 +71,17 @@ typedef struct _gcoFENCE *              gcoFENCE;
 typedef struct _gcsSYNC_CONTEXT  *      gcsSYNC_CONTEXT_PTR;
 #endif
 
+typedef struct _gcoOS_SymbolsList gcoOS_SymbolsList;
+
 /******************************************************************************\
 ******************************* Process local storage *************************
 \******************************************************************************/
 typedef struct _gcsPLS * gcsPLS_PTR;
+
+typedef void (* gctPLS_DESTRUCTOR) (
+    gcsPLS_PTR
+    );
+
 typedef struct _gcsPLS
 {
     /* Global objects. */
@@ -103,6 +110,12 @@ typedef struct _gcsPLS
 
     /* PorcessID of the constrcutor process */
     gctUINT32                   processID;
+#if gcdFORCE_GAL_LOAD_TWICE
+    /* ThreadID of the constrcutor process. */
+    gctSIZE_T                   threadID;
+    /* Flag for calling module destructor. */
+    gctBOOL                     exiting;
+#endif
 
     /* Reference count for destructor. */
     gcsATOM_PTR                 reference;
@@ -111,6 +124,8 @@ typedef struct _gcsPLS
     gctBOOL                     bNeedSupportNP2Texture;
 #endif
 
+    /* Destructor for eglDisplayInfo. */
+    gctPLS_DESTRUCTOR           destructor;
 }
 gcsPLS;
 
@@ -148,6 +163,11 @@ typedef struct _gcsTLS
 #endif
 	gco2D						engine2D;
     gctBOOL                     copied;
+
+#if gcdFORCE_GAL_LOAD_TWICE
+    /* libGAL.so handle */
+    gctHANDLE                   handle;
+#endif
 }
 gcsTLS;
 
@@ -160,6 +180,7 @@ typedef enum _gcePLS_VALUE
   gcePLS_VALUE_EGL_DISPLAY_INFO,
   gcePLS_VALUE_EGL_SURFACE_INFO,
   gcePLS_VALUE_EGL_CONFIG_FORMAT_INFO,
+  gcePLS_VALUE_EGL_DESTRUCTOR_INFO,
 }
 gcePLS_VALUE;
 
@@ -577,6 +598,12 @@ gcoHAL_Call(
     IN OUT gcsHAL_INTERFACE_PTR Interface
     );
 
+gceSTATUS
+gcoHAL_GetPatchID(
+    IN  gcoHAL Hal,
+    OUT gcePATCH_ID * PatchID
+    );
+
 /* Schedule an event. */
 gceSTATUS
 gcoHAL_ScheduleEvent(
@@ -635,6 +662,16 @@ gcoHAL_QueryChipCount(
 gceSTATUS
 gcoHAL_QuerySeparated3D2D(
     IN gcoHAL Hal
+    );
+
+gceSTATUS
+gcoHAL_QuerySpecialHint(
+    IN gceSPECIAL_HINT Hint
+    );
+
+gceSTATUS
+gcoHAL_SetSpecialHintData(
+    IN gcoHARDWARE Hardware
     );
 
 /* Get pointer to gcoVG object. */
@@ -786,7 +823,6 @@ gcoOS_FreeVideoMemory(
     IN gctPOINTER Handle
     );
 
-#if gcdENABLE_BANK_ALIGNMENT
 gceSTATUS
 gcoSURF_GetBankOffsetBytes(
     IN gcoSURF Surfce,
@@ -794,7 +830,6 @@ gcoSURF_GetBankOffsetBytes(
     IN gctUINT32 Stride,
     IN gctUINT32_PTR Bytes
     );
-#endif
 
 /* Map user memory. */
 gceSTATUS
@@ -918,6 +953,21 @@ gcoOS_Flush(
     IN gctFILE File
     );
 
+/* Close a file descriptor. */
+gceSTATUS
+gcoOS_CloseFD(
+    IN gcoOS Os,
+    IN gctINT FD
+    );
+
+/* Dup file descriptor to another. */
+gceSTATUS
+gcoOS_DupFD(
+    IN gcoOS Os,
+    IN gctINT FD,
+    OUT gctINT * FD2
+    );
+
 /* Create an endpoint for communication. */
 gceSTATUS
 gcoOS_Socket(
@@ -975,6 +1025,14 @@ gcoOS_GetEnv(
     IN gcoOS Os,
     IN gctCONST_STRING VarName,
     OUT gctSTRING * Value
+    );
+
+/* Set environment variable value. */
+gceSTATUS
+gcoOS_SetEnv(
+    IN gcoOS Os,
+    IN gctCONST_STRING VarName,
+    IN gctSTRING Value
     );
 
 /* Get current working directory. */
@@ -1210,6 +1268,13 @@ gcoOS_DetectProcessByEncryptedName(
     IN gctCONST_STRING Name
     );
 
+#if defined(ANDROID)
+gceSTATUS
+gcoOS_DetectProgrameByEncryptedSymbols(
+    IN gcoOS_SymbolsList Symbols
+    );
+#endif
+
 /*----------------------------------------------------------------------------*/
 /*----- Atoms ----------------------------------------------------------------*/
 
@@ -1403,6 +1468,42 @@ gcoOS_UnmapSignal(
     IN gctSIGNAL Signal
     );
 
+/*----------------------------------------------------------------------------*/
+/*----- Android Native Fence -------------------------------------------------*/
+
+/* Create sync point. */
+gceSTATUS
+gcoOS_CreateSyncPoint(
+    IN gcoOS Os,
+    OUT gctSYNC_POINT * SyncPoint
+    );
+
+/* Destroy sync point. */
+gceSTATUS
+gcoOS_DestroySyncPoint(
+    IN gcoOS Os,
+    IN gctSYNC_POINT SyncPoint
+    );
+
+/* Create native fence. */
+gceSTATUS
+gcoOS_CreateNativeFence(
+    IN gcoOS Os,
+    IN gctSYNC_POINT SyncPoint,
+    OUT gctINT * FenceFD
+    );
+
+/* Wait on native fence. */
+gceSTATUS
+gcoOS_WaitNativeFence(
+    IN gcoOS Os,
+    IN gctINT FenceFD,
+    IN gctUINT32 Timeout
+    );
+
+/*----------------------------------------------------------------------------*/
+/*----- Memory Access and Cache ----------------------------------------------*/
+
 /* Write a register. */
 gceSTATUS
 gcoOS_WriteRegister(
@@ -1578,6 +1679,28 @@ typedef struct _gcsRECT
     gctINT32                    bottom;
 }
 gcsRECT;
+
+typedef union _gcsPIXEL
+{
+    struct
+    {
+        gctFLOAT r, g, b, a;
+        gctFLOAT d, s;
+    } pf;
+
+    struct
+    {
+        gctINT32 r, g, b, a;
+        gctINT32 d, s;
+    } pi;
+
+    struct
+    {
+        gctUINT32 r, g, b, a;
+        gctUINT32 d, s;
+    } pui;
+
+} gcsPIXEL;
 
 
 /******************************************************************************\
@@ -1795,6 +1918,18 @@ gcoSURF_SetRotation(
     );
 
 gceSTATUS
+gcoSURF_SetPreRotation(
+    IN gcoSURF Surface,
+    IN gceSURF_ROTATION Rotation
+    );
+
+gceSTATUS
+gcoSURF_GetPreRotation(
+    IN gcoSURF Surface,
+    IN gceSURF_ROTATION *Rotation
+    );
+
+gceSTATUS
 gcoSURF_IsValid(
     IN gcoSURF Surface
     );
@@ -1823,6 +1958,15 @@ gceSTATUS
 gcoSURF_DisableTileStatus(
     IN gcoSURF Surface,
     IN gctBOOL Decompress
+    );
+
+gceSTATUS
+gcoSURF_AlignResolveRect(
+    IN gcoSURF Surf,
+    IN gcsPOINT_PTR RectOrigin,
+    IN gcsPOINT_PTR RectSize,
+    OUT gcsPOINT_PTR AlignedOrigin,
+    OUT gcsPOINT_PTR AlignedSize
     );
 #endif /* VIVANTE_NO_3D */
 
@@ -1910,6 +2054,9 @@ gcoSURF_FillFromTile(
     IN gcoSURF Surface
     );
 
+/* Check if surface needs a filler. */
+gceSTATUS gcoSURF_NeedFiller(IN gcoSURF Surface);
+
 /* Fill surface with a value. */
 gceSTATUS
 gcoSURF_Fill(
@@ -1947,6 +2094,19 @@ gcoSURF_SetBuffer(
     IN gctUINT Stride,
     IN gctPOINTER Logical,
     IN gctUINT32 Physical
+    );
+
+/* Set the underlying video buffer for the surface wrapper. */
+gceSTATUS
+gcoSURF_SetVideoBuffer(
+    IN gcoSURF Surface,
+    IN gceSURF_TYPE Type,
+    IN gceSURF_FORMAT Format,
+    IN gctUINT Width,
+    IN gctUINT Height,
+    IN gctUINT Stride,
+    IN gctPOINTER *LogicalPlane1,
+    IN gctUINT32 *PhysicalPlane1
     );
 
 /* Set the size of the surface in pixels and map the underlying buffer. */
@@ -3704,6 +3864,12 @@ gcsUSER_DEBUG_OPTION *
 gcGetUserDebugOption(
     void
     );
+
+struct _gcoOS_SymbolsList
+{
+    gcePATCH_ID patchId;
+    const char * symList[10];
+};
 
 #if gcdHAS_ELLIPSES
 #define gcmUSER_DEBUG_MSG(level, ...) \

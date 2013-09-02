@@ -494,6 +494,11 @@ gckCOMMAND_Construct(
     /* Create the context switching mutex. */
     gcmkONERROR(gckOS_CreateMutex(os, &command->mutexContext));
 
+#if VIVANTE_PROFILER_CONTEXT
+    /* Create the context switching mutex. */
+    gcmkONERROR(gckOS_CreateMutex(os, &command->mutexContextSeq));
+#endif
+
     /* Create the power management semaphore. */
     gcmkONERROR(gckOS_CreateSemaphore(os, &command->powerSemaphore));
 
@@ -571,6 +576,13 @@ OnError:
         {
             gcmkVERIFY_OK(gckOS_DeleteMutex(os, command->mutexContext));
         }
+
+#if VIVANTE_PROFILER_CONTEXT
+        if (command->mutexContextSeq != gcvNULL)
+        {
+            gcmkVERIFY_OK(gckOS_DeleteMutex(os, command->mutexContextSeq));
+        }
+#endif
 
         if (command->mutexQueue != gcvNULL)
         {
@@ -661,6 +673,11 @@ gckCOMMAND_Destroy(
 
     /* Delete the context switching mutex. */
     gcmkVERIFY_OK(gckOS_DeleteMutex(Command->os, Command->mutexContext));
+
+#if VIVANTE_PROFILER_CONTEXT
+    if (Command->mutexContextSeq != gcvNULL)
+        gcmkVERIFY_OK(gckOS_DeleteMutex(Command->os, Command->mutexContextSeq));
+#endif
 
     /* Delete the command queue mutex. */
     gcmkVERIFY_OK(gckOS_DeleteMutex(Command->os, Command->mutexQueue));
@@ -1127,6 +1144,10 @@ gckCOMMAND_Commit(
 # endif
 #endif
 
+#if VIVANTE_PROFILER_CONTEXT
+    gctBOOL sequenceAcquired = gcvFALSE;
+#endif
+
     gctPOINTER pointer = gcvNULL;
 
     gcmkHEADER_ARG(
@@ -1144,6 +1165,17 @@ gckCOMMAND_Commit(
     }
 
     gcmkONERROR(_FlushMMU(Command));
+
+#if VIVANTE_PROFILER_CONTEXT
+    if((Command->kernel->hardware->gpuProfiler) && (Command->kernel->profileEnable))
+    {
+        /* Acquire the context sequnence mutex. */
+        gcmkONERROR(gckOS_AcquireMutex(
+            Command->os, Command->mutexContextSeq, gcvINFINITE
+            ));
+        sequenceAcquired = gcvTRUE;
+    }
+#endif
 
     /* Acquire the command queue. */
     gcmkONERROR(gckCOMMAND_EnterCommit(Command, gcvFALSE));
@@ -2002,6 +2034,23 @@ gckCOMMAND_Commit(
     gcmkONERROR(gckCOMMAND_ExitCommit(Command, gcvFALSE));
     commitEntered = gcvFALSE;
 
+#if VIVANTE_PROFILER_CONTEXT
+    if(sequenceAcquired)
+    {
+        gcmkONERROR(gckCOMMAND_Stall(Command, gcvTRUE));
+        if (Command->currContext)
+        {
+            gcmkONERROR(gckHARDWARE_UpdateContextProfile(
+                hardware,
+                Command->currContext));
+        }
+
+        /* Release the context switching mutex. */
+        gcmkONERROR(gckOS_ReleaseMutex(Command->os, Command->mutexContextSeq));
+        sequenceAcquired = gcvFALSE;
+    }
+#endif
+
     /* Loop while there are records in the queue. */
     while (EventQueue != gcvNULL)
     {
@@ -2113,6 +2162,14 @@ OnError:
         /* Release the command queue mutex. */
         gcmkVERIFY_OK(gckCOMMAND_ExitCommit(Command, gcvFALSE));
     }
+
+#if VIVANTE_PROFILER_CONTEXT
+    if (sequenceAcquired)
+    {
+        /* Release the context sequence mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Command->os, Command->mutexContextSeq));
+    }
+#endif
 
     /* Unmap the command buffer pointer. */
     if (commandBufferMapped)

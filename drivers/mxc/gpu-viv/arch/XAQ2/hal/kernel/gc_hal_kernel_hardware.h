@@ -92,6 +92,7 @@ struct _gckHARDWARE
 #endif
 
     gctBOOL                     powerManagement;
+    gctBOOL                     gpuProfiler;
 };
 
 gceSTATUS

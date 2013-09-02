@@ -45,8 +45,6 @@ OBJS := $(OS_KERNEL_DIR)/gc_hal_kernel_device.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_os.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_debugfs.o
 
-ifeq ($(USE_3D_VG), 1)
-
 OBJS += $(HAL_KERNEL_DIR)/gc_hal_kernel.o \
         $(HAL_KERNEL_DIR)/gc_hal_kernel_command.o \
         $(HAL_KERNEL_DIR)/gc_hal_kernel_db.o \
@@ -69,19 +67,9 @@ OBJS +=\
           $(ARCH_VG_KERNEL_DIR)/gc_hal_kernel_hardware_command_vg.o\
           $(ARCH_VG_KERNEL_DIR)/gc_hal_kernel_hardware_vg.o
 endif
-else
 
-OBJS += $(HAL_KERNEL_DIR)/gc_hal_kernel.o \
-        $(HAL_KERNEL_DIR)/gc_hal_kernel_command.o \
-        $(HAL_KERNEL_DIR)/gc_hal_kernel_heap.o \
-        $(HAL_KERNEL_DIR)/gc_hal_kernel_interrupt.o \
-        $(HAL_KERNEL_DIR)/gc_hal_kernel_mmu.o \
-        $(HAL_KERNEL_DIR)/gc_hal_kernel_video_memory.o \
-        $(OS_KERNEL_DIR)/gc_hal_kernel_debug.o
-
-OBJS += $(ARCH_KERNEL_DIR)/gc_hal_kernel_hardware.o \
-        $(ARCH_KERNEL_DIR)/gc_hal_kernel_hardware_command.o
-
+ifneq ($(CONFIG_SYNC),)
+OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_sync.o
 endif
 
 ifeq ($(KERNELRELEASE), )
@@ -129,23 +117,16 @@ ifeq ($(CONFIG_DOVE_GPU), 1)
 EXTRA_CFLAGS += -DCONFIG_DOVE_GPU=1
 endif
 
-ifeq ($(USE_POWER_MANAGEMENT), 1)
-EXTRA_CFLAGS += -DgcdPOWER_MANAGEMENT=1
-else
-EXTRA_CFLAGS += -DgcdPOWER_MANAGEMENT=0
-endif
-
 ifneq ($(USE_PLATFORM_DRIVER), 0)
 EXTRA_CFLAGS += -DUSE_PLATFORM_DRIVER=1
 else
 EXTRA_CFLAGS += -DUSE_PLATFORM_DRIVER=0
 endif
 
-ifeq ($(USE_PROFILER), 1)
+
 EXTRA_CFLAGS += -DVIVANTE_PROFILER=1
-else
-EXTRA_CFLAGS += -DVIVANTE_PROFILER=0
-endif
+EXTRA_CFLAGS += -DVIVANTE_PROFILER_CONTEXT=1
+
 
 ifeq ($(ANDROID), 1)
 EXTRA_CFLAGS += -DANDROID=1
@@ -233,6 +214,10 @@ ifeq ($(USE_BANK_ALIGNMENT), 1)
     ifneq ($(BANK_CHANNEL_BIT), 0)
         EXTRA_CFLAGS += -DgcdBANK_CHANNEL_BIT=$(BANK_CHANNEL_BIT)
     endif
+endif
+
+ifneq ($(CONFIG_SYNC),)
+EXTRA_CFLAGS += -DgcdANDROID_NATIVE_FENCE_SYNC=1
 endif
 
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/inc

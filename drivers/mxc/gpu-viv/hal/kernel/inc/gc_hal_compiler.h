@@ -39,11 +39,9 @@ extern "C" {
 #define GC_ENABLE_LOADTIME_OPT           1
 #endif
 
-#define TEMP_OPT_CONSTANT_TEXLD_COORD    1
+#define TEMP_OPT_CONSTANT_TEXLD_COORD    0
 
 #define TEMP_SHADER_PATCH                1
-
-#define ADD_PRE_ROTATION_TO_VS           0
 
 #define TEMP_INLINE_ALL_EXPANSION            1
 /******************************* IR VERSION ******************/
@@ -271,6 +269,7 @@ typedef enum _gcSL_OPCODE
 	gcSL_ADDSAT,						/* 0x5C */  /* Integer only. */
 	gcSL_SUBSAT,						/* 0x5D */  /* Integer only. */
 	gcSL_MULSAT,						/* 0x5E */  /* Integer only. */
+	gcSL_DP2,							/* 0x5F */
 	gcSL_MAXOPCODE
 }
 gcSL_OPCODE;
@@ -474,6 +473,9 @@ struct _gcsHINT
 
     gctBOOL     clipW;
 
+    /* Flag whether or not the shader has a KILL instruction. */
+    gctBOOL     hasKill;
+
     /* Element count. */
     gctUINT32   elementCount;
 
@@ -495,11 +497,17 @@ struct _gcsHINT
     /* Balance maximum. */
     gctUINT32   balanceMax;
 
+    /* Auto-shift balancing. */
+    gctBOOL     autoShift;
+
     /* Flag whether the PS outputs the depth value or not. */
     gctBOOL     psHasFragDepthOut;
 
 	/* Flag whether the ThreadWalker is in PS. */
 	gctBOOL		threadWalkerInPS;
+
+    /* HW reg number for position of VS */
+    gctUINT32   hwRegNoOfSIVPos;
 
 #if gcdALPHA_KILL_IN_SHADER
     /* States to set when alpha kill is enabled. */
@@ -687,12 +695,12 @@ typedef enum _gceSHADER_FLAGS
     gcvSHADER_USE_ALPHA_KILL            = 0x100,
 #endif
 
-#if ADD_PRE_ROTATION_TO_VS
+#if gcdPRE_ROTATION && (ANDROID_SDK_VERSION >= 14)
     gcvSHADER_VS_PRE_ROTATION           = 0x200,
 #endif
 
 #if TEMP_INLINE_ALL_EXPANSION
-    gcvSHADER_INLINE_ALL_EXPANSION      = 0x200,
+    gcvSHADER_INLINE_ALL_EXPANSION      = 0x400,
 #endif
 }
 gceSHADER_FLAGS;
@@ -827,6 +835,7 @@ typedef struct _gcOPTIMIZER_OPTION
     gctBOOL     dumpOptimizerVerbose;  /* dump result IR in each optimization phase */
     gctBOOL     dumpBEGenertedCode;    /* dump generated machine code */
     gctBOOL     dumpBEVerbose;         /* dump BE tree and optimization detail */
+    gctBOOL     dumpBEFinalIR;         /* dump BE final IR */
 
     /* Code generation */
 
@@ -945,6 +954,8 @@ extern gcOPTIMIZER_OPTION theOptimizerOption;
               gcmOPT_DUMP_CODEGEN_VERBOSE() )
 #define gcmOPT_DUMP_CODEGEN_VERBOSE()    \
              (gcmGetOptimizerOption()->dumpBEVerbose != 0)
+#define gcmOPT_DUMP_FINAL_IR()    \
+             (gcmGetOptimizerOption()->dumpBEFinalIR != 0)
 
 #define gcmOPT_SET_DUMP_SHADER_SRC(v)   \
              gcmGetOptimizerOption()->dumpShaderSource = (v)
@@ -1063,6 +1074,13 @@ typedef struct _gcNPOT_PATCH_PARAM
     NP2_ADDRESS_MODE     addressMode[3];
     gctINT               texDimension;    /* 2 or 3 */
 }gcNPOT_PATCH_PARAM, *gcNPOT_PATCH_PARAM_PTR;
+
+typedef struct _gcZBIAS_PATCH_PARAM
+{
+    /* Driver uses this to program uniform that designating zbias */
+    gctINT               uniformAddr;
+    gctINT               channel;
+}gcZBIAS_PATCH_PARAM, *gcZBIAS_PATCH_PARAM_PTR;
 
 void
 gcGetOptionFromEnv(
@@ -1556,6 +1574,43 @@ gcSHADER_AddUniform(
 	OUT gcUNIFORM * Uniform
 	);
 
+/*******************************************************************************
+**							   gcSHADER_AddPreRotationUniform
+********************************************************************************
+**
+**	Add an uniform to a gcSHADER object.
+**
+**	INPUT:
+**
+**		gcSHADER Shader
+**			Pointer to a gcSHADER object.
+**
+**		gctCONST_STRING Name
+**			Name of the uniform to add.
+**
+**		gcSHADER_TYPE Type
+**			Type of the uniform to add.
+**
+**		gctSIZE_T Length
+**			Array length of the uniform to add.  'Length' must be at least 1.
+**
+**		gctINT col
+**			Which uniform.
+**
+**	OUTPUT:
+**
+**		gcUNIFORM * Uniform
+**			Pointer to a variable receiving the gcUNIFORM object pointer.
+*/
+gceSTATUS
+gcSHADER_AddPreRotationUniform(
+	IN gcSHADER Shader,
+	IN gctCONST_STRING Name,
+	IN gcSHADER_TYPE Type,
+	IN gctSIZE_T Length,
+    IN gctINT col,
+	OUT gcUNIFORM * Uniform
+	);
 
 /*******************************************************************************
 **							   gcSHADER_AddUniformEx
@@ -1674,6 +1729,28 @@ gceSTATUS
 gcSHADER_GetUniformCount(
 	IN gcSHADER Shader,
 	OUT gctSIZE_T * Count
+	);
+
+/*******************************************************************************
+**                         gcSHADER_GetPreRotationUniform
+********************************************************************************
+**
+**	Get the preRotate Uniform.
+**
+**	INPUT:
+**
+**		gcSHADER Shader
+**			Pointer to a gcSHADER object.
+**
+**	OUTPUT:
+**
+**		gcUNIFORM ** pUniform
+**			Pointer to a preRotation uniforms array.
+*/
+gceSTATUS
+gcSHADER_GetPreRotationUniform(
+	IN gcSHADER Shader,
+	OUT gcUNIFORM ** pUniform
 	);
 
 /*******************************************************************************
@@ -3438,6 +3515,34 @@ gcUNIFORM_SetValueF(
 	);
 
 /*******************************************************************************
+**  gcUNIFORM_ProgramF
+**
+**  Set the value of a uniform in floating point.
+**
+**  INPUT:
+**
+**      gctUINT32 Address
+**          Address of Uniform.
+**
+**      gctSIZE_T Row/Col
+**
+**      const gctFLOAT * Value
+**          Pointer to a buffer holding the floating point values for the
+**          uniform.
+**
+**  OUTPUT:
+**
+**      Nothing.
+*/
+gceSTATUS
+gcUNIFORM_ProgramF(
+    IN gctUINT32 Address,
+    IN gctSIZE_T Row,
+    IN gctSIZE_T Col,
+    IN const gctFLOAT * Value
+    );
+
+/*******************************************************************************
 **						 gcUNIFORM_GetModelViewProjMatrix
 ********************************************************************************
 **
@@ -3912,6 +4017,23 @@ gcRecompileShaders(
     IN gctUINT32 *SamplerWrapS,
     IN gctUINT32 *SamplerWrapT
     );
+
+gceSTATUS
+gcRecompileDepthBias(
+    IN gcoHAL Hal,
+    IN gcMACHINECODE_PTR pVsMachineCode,
+    /*Recompile variables*/
+    IN OUT gctPOINTER *ppRecompileStateBuffer,
+    IN OUT gctSIZE_T *pRecompileStateBufferSize,
+    IN OUT gcsHINT_PTR *ppRecompileHints,
+    /* natvie state*/
+    IN gctPOINTER pNativeStateBuffer,
+    IN gctSIZE_T nativeStateBufferSize,
+    IN gcsHINT_PTR pNativeHints,
+	OUT gctINT * uniformAddr,
+	OUT gctINT * uniformChannel
+    );
+
 /*******************************************************************************
 **                                gcSaveProgram
 ********************************************************************************
@@ -4136,6 +4258,16 @@ gcSHADER_PatchNPOTForMachineCode(
     OUT    gctPOINTER*            ppCmdBuffer,
     OUT    gctUINT32*             pByteSizeOfCmdBuffer,
     IN OUT gcsHINT_PTR            pHints /* User needs copy original hints to this one, then passed this one in */
+    );
+
+gceSTATUS
+gcSHADER_PatchZBiasForMachineCodeVS(
+    IN     gcMACHINECODE_PTR       pMachineCode,
+    IN OUT gcZBIAS_PATCH_PARAM_PTR pPatchParam,
+    IN     gctUINT                 hwSupportedInstCount,
+    OUT    gctPOINTER*             ppCmdBuffer,
+    OUT    gctUINT32*              pByteSizeOfCmdBuffer,
+    IN OUT gcsHINT_PTR             pHints /* User needs copy original hints to this one, then passed this one in */
     );
 
 #ifdef __cplusplus
