@@ -240,6 +240,17 @@ config SND_SOC_IMX_MC13783
 	select SND_SOC_MC13783
 	select SND_SOC_IMX_PCM_DMA
 
+config SND_SOC_IMX_HDMI
+	tristate "SoC Audio support for i.MX boards with HDMI port"
+	depends on MFD_MXC_HDMI
+	select SND_SOC_IMX_HDMI_DMA
+	select SND_SOC_FSL_HDMI
+	select SND_SOC_OMAP_HDMI_CODEC
+	help
+	  SoC Audio support for i.MX boards with HDMI audio
+	  Say Y if you want to add support for SoC audio on an i.MX board with
+	  IMX HDMI.
+
 config SND_SOC_IMX_SI476X
 	tristate "SoC Audio support for i.MX boards with si476x"
 	select SND_SOC_IMX_PCM_DMA
