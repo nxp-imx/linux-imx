@@ -16,6 +16,7 @@ snd-soc-fsl-asrc-pcm-objs := fsl_asrc_pcm.o
 snd-soc-fsl-asrc-objs := fsl_asrc.o
 snd-soc-fsl-esai-objs := fsl_esai.o
 snd-soc-fsl-spdif-objs := fsl_spdif.o
+snd-soc-fsl-hdmi-objs := fsl_hdmi.o
 snd-soc-fsl-utils-objs := fsl_utils.o
 snd-soc-fsl-dma-objs := fsl_dma.o
 obj-$(CONFIG_SND_SOC_FSL_SSI) += snd-soc-fsl-ssi.o
@@ -23,6 +24,7 @@ obj-$(CONFIG_SND_SOC_FSL_ASRC) += snd-soc-fsl-asrc-pcm.o
 obj-$(CONFIG_SND_SOC_FSL_ASRC) += snd-soc-fsl-asrc.o
 obj-$(CONFIG_SND_SOC_FSL_ESAI) += snd-soc-fsl-esai.o
 obj-$(CONFIG_SND_SOC_FSL_SPDIF) += snd-soc-fsl-spdif.o
+obj-$(CONFIG_SND_SOC_FSL_HDMI) += snd-soc-fsl-hdmi.o
 obj-$(CONFIG_SND_SOC_FSL_UTILS) += snd-soc-fsl-utils.o
 obj-$(CONFIG_SND_SOC_POWERPC_DMA) += snd-soc-fsl-dma.o
 
