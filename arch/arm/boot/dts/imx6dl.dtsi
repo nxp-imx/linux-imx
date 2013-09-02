@@ -108,6 +108,15 @@
 			status = "disabled";
 		};
 
+		hdmi_audio: hdmi_audio@00120000 {
+			compatible = "fsl,imx6dl-hdmi-audio";
+			clocks = <&clks 124>, <&clks 123>;
+			clock-names = "hdmi_isfr", "hdmi_iahb";
+			dmas = <&sdma 2 22 0>;
+			dma-names = "tx";
+			status = "disabled";
+		};
+
 		hdmi_cec: hdmi_cec@00120000 {
 			compatible = "fsl,imx6dl-hdmi-cec";
 			interrupts = <0 115 0x04>;
