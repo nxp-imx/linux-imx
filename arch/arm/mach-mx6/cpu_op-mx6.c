@@ -64,7 +64,7 @@ static struct cpu_op mx6q_cpu_op_1_2G[] = {
 	  .cpu_podf = 0,
 	  .pu_voltage = 1250000,
 	  .soc_voltage = 1250000,
-	  .cpu_voltage = 950000,},
+	  .cpu_voltage = 1050000,},
 #else
 	 {
 	  .pll_rate = 396000000,
@@ -72,7 +72,7 @@ static struct cpu_op mx6q_cpu_op_1_2G[] = {
 	  .cpu_podf = 0,
 	  .pu_voltage = 1175000,
 	  .soc_voltage = 1175000,
-	  .cpu_voltage = 950000,},
+	  .cpu_voltage = 975000,},
 #endif
 };
 
@@ -108,7 +108,7 @@ static struct cpu_op mx6q_cpu_op_1G[] = {
 	  .cpu_podf = 0,
 	  .pu_voltage = 1250000,
 	  .soc_voltage = 1250000,
-	  .cpu_voltage = 950000,},
+	  .cpu_voltage = 1050000,},
 #else
 	 {
 	  .pll_rate = 396000000,
@@ -116,7 +116,7 @@ static struct cpu_op mx6q_cpu_op_1G[] = {
 	  .cpu_podf = 0,
 	  .pu_voltage = 1175000,
 	  .soc_voltage = 1175000,
-	  .cpu_voltage = 950000,},
+	  .cpu_voltage = 975000,},
 #endif
 };
 
@@ -144,7 +144,7 @@ static struct cpu_op mx6q_cpu_op[] = {
 	  .cpu_podf = 0,
 	  .pu_voltage = 1250000,
 	  .soc_voltage = 1250000,
-	  .cpu_voltage = 950000,},
+	  .cpu_voltage = 1050000,},
 #else
 	 {
 	  .pll_rate = 396000000,
@@ -152,7 +152,7 @@ static struct cpu_op mx6q_cpu_op[] = {
 	  .cpu_podf = 0,
 	  .pu_voltage = 1175000,
 	  .soc_voltage = 1175000,
-	  .cpu_voltage = 950000,},
+	  .cpu_voltage = 975000,},
 #endif
 };
 
