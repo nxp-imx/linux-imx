@@ -17,6 +17,7 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
+#include <linux/suspend.h>
 
 static struct regulator *arm_reg;
 static struct regulator *pu_reg;
@@ -31,6 +32,7 @@ static struct clk *pll2_pfd2_396m_clk;
 static struct device *cpu_dev;
 static struct cpufreq_frequency_table *freq_table;
 static unsigned int transition_latency;
+static struct mutex set_cpufreq_lock;
 
 struct soc_opp {
 	u32 arm_freq;
@@ -59,11 +61,14 @@ static int imx6_set_target(struct cpufreq_policy *policy,
 	unsigned int index, soc_opp_index = 0;
 	int ret;
 
+	mutex_lock(&set_cpufreq_lock);
+
 	ret = cpufreq_frequency_table_target(policy, freq_table, target_freq,
 					     relation, &index);
 	if (ret) {
 		dev_err(cpu_dev, "failed to match target frequency %d: %d\n",
 			target_freq, ret);
+		mutex_unlock(&set_cpufreq_lock);
 		return ret;
 	}
 
@@ -71,8 +76,10 @@ static int imx6_set_target(struct cpufreq_policy *policy,
 	freq_hz = freqs.new * 1000;
 	freqs.old = clk_get_rate(arm_clk) / 1000;
 
-	if (freqs.old == freqs.new)
+	if (freqs.old == freqs.new) {
+		mutex_unlock(&set_cpufreq_lock);
 		return 0;
+	}
 
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
 
@@ -81,6 +88,7 @@ static int imx6_set_target(struct cpufreq_policy *policy,
 	if (IS_ERR(opp)) {
 		rcu_read_unlock();
 		dev_err(cpu_dev, "failed to find OPP for %ld\n", freq_hz);
+		mutex_unlock(&set_cpufreq_lock);
 		return PTR_ERR(opp);
 	}
 
@@ -97,6 +105,7 @@ static int imx6_set_target(struct cpufreq_policy *policy,
 	if (soc_opp_index >= soc_opp_count) {
 		dev_err(cpu_dev,
 			"Cannot find matching imx6_soc_opp voltage\n");
+			mutex_unlock(&set_cpufreq_lock);
 			return -EINVAL;
 	}
 
@@ -215,8 +224,10 @@ static int imx6_set_target(struct cpufreq_policy *policy,
 
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
 
+	mutex_unlock(&set_cpufreq_lock);
 	return 0;
 err1:
+	mutex_unlock(&set_cpufreq_lock);
 	return -1;
 }
 
@@ -260,6 +271,40 @@ static struct cpufreq_driver imx6_cpufreq_driver = {
 	.exit = imx6_cpufreq_exit,
 	.name = "imx6-cpufreq",
 	.attr = imx6_cpufreq_attr,
+};
+
+static int imx6_cpufreq_pm_notify(struct notifier_block *nb,
+	unsigned long event, void *dummy)
+{
+	struct cpufreq_policy *data = cpufreq_cpu_get(0);
+	static u32 cpufreq_policy_min_pre_suspend;
+
+	/*
+	 * During suspend/resume, When cpufreq driver try to increase
+	 * voltage/freq, it needs to control I2C/SPI to communicate
+	 * with external PMIC to adjust voltage, but these I2C/SPI
+	 * devices may be already suspended, to avoid such scenario,
+	 * we just increase cpufreq to highest setpoint before suspend.
+	 */
+	switch (event) {
+	case PM_SUSPEND_PREPARE:
+		cpufreq_policy_min_pre_suspend = data->user_policy.min;
+		data->user_policy.min = data->user_policy.max;
+		break;
+	case PM_POST_SUSPEND:
+		data->user_policy.min = cpufreq_policy_min_pre_suspend;
+		break;
+	default:
+		break;
+	}
+
+	cpufreq_update_policy(0);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block imx6_cpufreq_pm_notifier = {
+	.notifier_call = imx6_cpufreq_pm_notify,
 };
 
 static int imx6_cpufreq_probe(struct platform_device *pdev)
@@ -418,6 +463,9 @@ static int imx6_cpufreq_probe(struct platform_device *pdev)
 		dev_err(cpu_dev, "failed register driver: %d\n", ret);
 		goto free_freq_table;
 	}
+
+	mutex_init(&set_cpufreq_lock);
+	register_pm_notifier(&imx6_cpufreq_pm_notifier);
 
 	of_node_put(np);
 	return 0;
