@@ -29,7 +29,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		cpu@0 {
+		cpu0: cpu@0 {
 			compatible = "arm,cortex-a9";
 			device_type = "cpu";
 			reg = <0x0>;
@@ -81,6 +81,10 @@
 			compatible = "fixed-clock";
 			clock-frequency = <24000000>;
 		};
+	};
+
+	pu_dummy: pudummy_reg {
+		compatible = "fsl,imx6-dummy-pureg"; /* only used in ldo-bypass */
 	};
 
 	soc {
@@ -792,7 +796,7 @@
 				status = "disabled";
 			};
 
-			gpu@02200000 {
+			gpu: gpu@02200000 {
 				compatible = "fsl,imx6sl-gpu", "fsl,imx6q-gpu";
 				reg = <0x02200000 0x4000>, <0x02204000 0x4000>,
 					  <0x80000000 0x0>;
@@ -807,6 +811,7 @@
 						  "gpu2d_clk";
 				resets = <&src 3>, <&src 3>;
 				reset-names = "gpu2d", "gpuvg";
+				pu-supply = <&reg_pu>;
 			};
 
 		};
