@@ -26,7 +26,7 @@
 static struct snd_soc_codec_driver omap_hdmi_codec;
 
 static struct snd_soc_dai_driver omap_hdmi_codec_dai = {
-	.name = "omap-hdmi-hifi",
+	.name = "hdmi-hifi",
 	.playback = {
 		.channels_min = 2,
 		.channels_max = 8,
