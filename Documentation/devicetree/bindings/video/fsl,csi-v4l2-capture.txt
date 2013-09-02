@@ -1,0 +1,61 @@
+* Freescale CMOS Sensor Interface (CSI) V4L2 Capture
+
+Required properties for CSI
+- compatible: "fsl,<soc>-csi". Supported chip includes imx6sl
+- reg: Address and length of the register set for CSI
+- interrupts: Should contain CSI interrupts
+
+Required properties for v4l2_capture
+- compatible: should be "fsl,<soc>-csi-v4l2", supported socs include imx6sl
+
+Required properties for sensor
+- compatible:  "<vendor>,<sensor>"
+  please check the supported sensor in the Supported Sensor fields.
+- reg: sensor I2C slave address
+- pinctrl-names: should be "default" for parallel sensor
+- pinctrl-0: should depend on the connection between sensor and i.MX
+  connection between sensor and i.MX could be only legacy parallel on i.MX6SL
+- clocks: should be the clock source provided to sensor.
+- clock-names: should be "csi_mclk"
+- AVDD-supply: set according to the board.
+- DVDD-supply: set according to the board.
+- pwn-gpios: set according to the board.
+- rst-gpios: set according to the board.
+- csi_id: csi id for v4l2 capture device
+  should be 0 for i.MX6SL
+- mclk: should the value of mclk clock send out the sensor. unit is Hz.
+- mclk_source: should be 0 for i.MX6SL
+
+Supported Sensor
+- ovti, ov5640
+
+Example for CSI:
+	csi: csi@020e4000 {
+		compatible = "fsl,imx6sl-csi";
+		reg = <0x020e4000 0x4000>;
+		interrupts = <0 7 0x04>;
+		status = "disabled";
+	};
+
+Examples for v4l2_capture:
+	csi_v4l2_cap {
+		compatible = "fsl,imx6q-v4l2-capture";
+		status = "okay";
+	};
+
+Examples for sensors:
+	ov564x: ov564x@3c {
+		compatible = "ovti,ov564x";
+		reg = <0x3c>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_csi_0>;
+		clocks = <&clks IMX6SL_CLK_CSI>;
+		clock-names = "csi_mclk";
+		AVDD-supply = <&vgen6_reg>;  /* 2.8v */
+		DVDD-supply = <&vgen2_reg>;  /* 1.5v*/
+		pwn-gpios = <&gpio1 25 1>;
+		rst-gpios = <&gpio1 26 0>;
+		csi_id = <0>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+	};
