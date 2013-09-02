@@ -19,6 +19,7 @@
 *
 *****************************************************************************/
 
+
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/notifier.h>
@@ -150,6 +151,9 @@ module_param(compression, int, 0644);
 static int powerManagement = 1;
 module_param(powerManagement, int, 0644);
 
+static int gpuProfiler = 0;
+module_param(gpuProfiler, int, 0644);
+
 static int signal = 48;
 module_param(signal, int, 0644);
 
@@ -253,7 +257,7 @@ int drv_open(
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
     }
 
-    data = kmalloc(sizeof(gcsHAL_PRIVATE_DATA), GFP_KERNEL | __GFP_NOWARN);
+    data = kmalloc(sizeof(gcsHAL_PRIVATE_DATA), GFP_KERNEL);
 
     if (data == gcvNULL)
     {
@@ -802,7 +806,9 @@ static int drv_init(struct device *pdev)
 
     printk(KERN_INFO "Galcore version %d.%d.%d.%d\n",
         gcvVERSION_MAJOR, gcvVERSION_MINOR, gcvVERSION_PATCH, gcvVERSION_BUILD);
-
+    /* when enable gpu profiler, we need to turn off gpu powerMangement */
+    if(gpuProfiler)
+        powerManagement = 0;
     if (showArgs)
     {
         printk("galcore options:\n");
@@ -834,6 +840,7 @@ static int drv_init(struct device *pdev)
         printk("  physSize          = 0x%08lX\n", physSize);
         printk("  logFileSize       = %d KB \n",  logFileSize);
         printk("  powerManagement   = %d\n",      powerManagement);
+        printk("  gpuProfiler   = %d\n",      gpuProfiler);
 #if ENABLE_GPU_CLOCK_BY_DRIVER
         printk("  coreClock       = %lu\n",     coreClock);
 #endif
@@ -857,6 +864,7 @@ static int drv_init(struct device *pdev)
         logFileSize,
         pdev,
         powerManagement,
+        gpuProfiler,
         &device
         ));
 
@@ -1048,7 +1056,7 @@ static struct notifier_block thermal_hot_pm_notifier = {
 
 
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int gpu_probe(struct platform_device *pdev)
 #else
 static int __devinit gpu_probe(struct platform_device *pdev)
@@ -1167,7 +1175,7 @@ static int __devinit gpu_probe(struct platform_device *pdev)
     return ret;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int gpu_remove(struct platform_device *pdev)
 #else
 static int __devexit gpu_remove(struct platform_device *pdev)
@@ -1356,7 +1364,7 @@ static const struct dev_pm_ops gpu_pm_ops = {
 
 static struct platform_driver gpu_driver = {
     .probe      = gpu_probe,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
     .remove     = gpu_remove,
 #else
     .remove     = __devexit_p(gpu_remove),

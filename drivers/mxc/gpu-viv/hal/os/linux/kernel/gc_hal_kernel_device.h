@@ -184,6 +184,7 @@ gceSTATUS gckGALDEVICE_Construct(
     IN gctUINT LogFileSize,
     IN struct device *pdev,
     IN gctINT PowerManagement,
+    IN gctINT GpuProfiler,
     OUT gckGALDEVICE *Device
     );
 

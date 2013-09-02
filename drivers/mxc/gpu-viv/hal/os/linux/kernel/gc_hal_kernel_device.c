@@ -307,6 +307,7 @@ gckGALDEVICE_Construct(
     IN gctUINT LogFileSize,
     IN struct device *pdev,
     IN gctINT PowerManagement,
+    IN gctINT GpuProfiler,
     OUT gckGALDEVICE *Device
     )
 {
@@ -547,6 +548,10 @@ gckGALDEVICE_Construct(
             device->kernels[gcvCORE_MAJOR]->hardware, PowerManagement
             ));
 
+        gcmkONERROR(gckHARDWARE_SetGpuProfiler(
+            device->kernels[gcvCORE_MAJOR]->hardware, GpuProfiler
+            ));
+
 #if COMMAND_PROCESSOR_VERSION == 1
         /* Start the command queue. */
         gcmkONERROR(gckCOMMAND_Start(device->kernels[gcvCORE_MAJOR]->command));
@@ -605,6 +610,7 @@ gckGALDEVICE_Construct(
             device->kernels[gcvCORE_2D]->hardware, PowerManagement
             ));
 
+
 #if COMMAND_PROCESSOR_VERSION == 1
         /* Start the command queue. */
         gcmkONERROR(gckCOMMAND_Start(device->kernels[gcvCORE_2D]->command));
@@ -641,6 +647,7 @@ gckGALDEVICE_Construct(
             device->kernels[gcvCORE_VG]->vg->hardware,
             PowerManagement
             ));
+
 #endif
     }
     else
