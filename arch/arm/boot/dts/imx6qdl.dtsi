@@ -852,14 +852,15 @@
 				clocks = <&clks 196>;
 			};
 
-			ocotp: ocotp@021bc000 {
-				compatible = "fsl,imx6q-ocotp", "syscon";
+			ocotp: ocotp-ctrl@021bc000 {
+				compatible = "syscon";
 				reg = <0x021bc000 0x4000>;
 			};
 
-			ocotp@021c0000 {
-				reg = <0x021c0000 0x4000>;
-				interrupts = <0 21 0x04>;
+			ocotp-fuse@021bc000 {
+				compatible = "fsl,imx6q-ocotp";
+				reg = <0x021bc000 0x4000>;
+				clocks = <&clks 128>;
 			};
 
 			tzasc@021d0000 { /* TZASC1 */
