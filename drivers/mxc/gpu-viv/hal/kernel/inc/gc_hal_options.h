@@ -46,11 +46,20 @@
         This define enables the profiler.
 */
 #ifndef VIVANTE_PROFILER
-#   define VIVANTE_PROFILER                     0
+#   define VIVANTE_PROFILER                     1
 #endif
 
 #ifndef VIVANTE_PROFILER_PERDRAW
 #   define  VIVANTE_PROFILER_PERDRAW    0
+#endif
+
+/*
+    VIVANTE_PROFILER_CONTEXT
+
+        This define enables the profiler according to each hw context.
+*/
+#ifndef VIVANTE_PROFILER_CONTEXT
+#   define VIVANTE_PROFILER_CONTEXT             1
 #endif
 
 /*
@@ -729,7 +738,24 @@
         Use linear buffer for GPU apps so HWC can do 2D composition.
 */
 #ifndef gcdGPU_LINEAR_BUFFER_ENABLED
-#   define gcdGPU_LINEAR_BUFFER_ENABLED         0
+#   define gcdGPU_LINEAR_BUFFER_ENABLED         1
+#endif
+
+/*
+    gcdENABLE_RENDER_INTO_WINDOW
+
+        Enable Render-Into-Window (ie, No-Resolve) feature on android.
+        NOTE that even if enabled, it still depends on hardware feature and
+        android application behavior. When hardware feature or application
+        behavior can not support render into window mode, it will fail back
+        to normal mode.
+        When Render-Into-Window is finally used, window back buffer of android
+        applications will be allocated matching render target tiling format.
+        Otherwise buffer tiling is decided by the above option
+        'gcdGPU_LINEAR_BUFFER_ENABLED'.
+*/
+#ifndef gcdENABLE_RENDER_INTO_WINDOW
+#   define gcdENABLE_RENDER_INTO_WINDOW         1
 #endif
 
 /*
@@ -758,7 +784,11 @@
 #endif
 
 #ifndef gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST
-#   define  gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST    0
+#   ifdef ANDROID
+#      define  gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST    1
+#   else
+#      define  gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST    0
+#   endif
 #endif
 
 #ifndef gcdENABLE_PE_DITHER_FIX
@@ -798,6 +828,10 @@
 
 #ifndef gcdDISALBE_EARLY_EARLY_Z
 #   define gcdDISALBE_EARLY_EARLY_Z             1
+#endif
+
+#ifndef gcdSHADER_SRC_BY_MACHINECODE
+#   define gcdSHADER_SRC_BY_MACHINECODE         1
 #endif
 
 /*
@@ -849,9 +883,18 @@
 #define gcdUSE_NPOT_PATCH                       1
 #endif
 
-
 #ifndef gcdSYNC
 #   define gcdSYNC                              1
+#endif
+
+#ifndef gcdENABLE_SPECIAL_HINT3
+#   define gcdENABLE_SPECIAL_HINT3               1
+#endif
+
+#if defined(ANDROID)
+#ifndef gcdPRE_ROTATION
+#   define gcdPRE_ROTATION                      1
+#endif
 #endif
 
 /*
@@ -864,6 +907,41 @@
 #   define gcdDVFS                               0
 #   define gcdDVFS_ANAYLSE_WINDOW                4
 #   define gcdDVFS_POLLING_TIME                  (gcdDVFS_ANAYLSE_WINDOW * 4)
+#endif
+
+/*
+    gcdANDROID_NATIVE_FENCE_SYNC
+
+        Enable android native fence sync. It is introduced since jellybean-4.2.
+        Depends on linux kernel option: CONFIG_SYNC.
+
+        0: Disabled
+        1: Build framework for native fence sync feature, and EGL extension
+        2: Enable async swap buffers for client
+           * Native fence sync for client 'queueBuffer' in EGL, which is
+             'acquireFenceFd' for layer in compositor side.
+        3. Enable async hwcomposer composition.
+           * 'releaseFenceFd' for layer in compositor side, which is native
+             fence sync when client 'dequeueBuffer'
+           * Native fence sync for compositor 'queueBuffer' in EGL, which is
+             'acquireFenceFd' for framebuffer target for DC
+ */
+#ifndef gcdANDROID_NATIVE_FENCE_SYNC
+#   define gcdANDROID_NATIVE_FENCE_SYNC        0
+#endif
+
+#ifndef gcdFORCE_MIPMAP
+#   define gcdFORCE_MIPMAP                     0
+#endif
+
+/*
+    gcdFORCE_GAL_LOAD_TWICE
+
+        When non-zero, each thread except the main one will load libGAL.so twice to avoid potential segmetantion fault when app using dlopen/dlclose.
+        If threads exit arbitrarily, libGAL.so may not unload until the process quit.
+ */
+#ifndef gcdFORCE_GAL_LOAD_TWICE
+#   define gcdFORCE_GAL_LOAD_TWICE             0
 #endif
 
 #endif /* __gc_hal_options_h_ */

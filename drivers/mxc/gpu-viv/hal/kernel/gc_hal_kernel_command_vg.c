@@ -2819,6 +2819,7 @@ gckVGCOMMAND_Construct(
         ** Enable TS overflow interrupt.
         */
 
+        command->info.tsOverflowInt = 0;
         gcmkERR_BREAK(gckVGINTERRUPT_Enable(
             Kernel->interrupt,
             &command->info.tsOverflowInt,
@@ -3406,38 +3407,26 @@ gckVGCOMMAND_Commit(
         gctBOOL previousExecuted;
         gctUINT controlIndex;
 
+        gcmkERR_BREAK(gckVGHARDWARE_SetPowerManagementState(
+            Command->hardware, gcvPOWER_ON_AUTO
+            ));
+
+        /* Acquire the power semaphore. */
+        gcmkERR_BREAK(gckOS_AcquireSemaphore(
+            Command->os, Command->powerSemaphore
+            ));
+
         /* Acquire the mutex. */
-        gcmkERR_BREAK(gckOS_AcquireMutex(
+        status = gckOS_AcquireMutex(
             Command->os,
             Command->commitMutex,
             gcvINFINITE
-            ));
-
-        status = gckVGHARDWARE_SetPowerManagementState(
-            Command->hardware, gcvPOWER_ON_AUTO);
+            );
 
         if (gcmIS_ERROR(status))
         {
-            /* Acquire the mutex. */
-            gcmkVERIFY_OK(gckOS_ReleaseMutex(
-                Command->os,
-                Command->commitMutex
-                ));
-
-            break;
-        }
-            /* Acquire the power semaphore. */
-        status = gckOS_AcquireSemaphore(
-            Command->os, Command->powerSemaphore);
-
-        if (gcmIS_ERROR(status))
-        {
-            /* Acquire the mutex. */
-            gcmkVERIFY_OK(gckOS_ReleaseMutex(
-                Command->os,
-                Command->commitMutex
-                ));
-
+            gcmkVERIFY_OK(gckOS_ReleaseSemaphore(
+                Command->os, Command->powerSemaphore));
             break;
         }
 
@@ -3669,14 +3658,14 @@ gckVGCOMMAND_Commit(
         }
         while (gcvFALSE);
 
-        gcmkVERIFY_OK(gckOS_ReleaseSemaphore(
-            Command->os, Command->powerSemaphore));
-
         /* Release the mutex. */
         gcmkCHECK_STATUS(gckOS_ReleaseMutex(
             Command->os,
             Command->commitMutex
             ));
+
+        gcmkVERIFY_OK(gckOS_ReleaseSemaphore(
+            Command->os, Command->powerSemaphore));
     }
     while (gcvFALSE);
 
