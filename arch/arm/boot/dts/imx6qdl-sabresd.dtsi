@@ -122,6 +122,13 @@
 		mux-ext-port = <3>;
 	};
 
+	sound-hdmi {
+		compatible = "fsl,imx6q-audio-hdmi",
+			     "fsl,imx-audio-hdmi";
+		model = "imx-audio-hdmi";
+		hdmi-controller = <&hdmi_audio>;
+	};
+
 	mxcfb1: fb@0 {
 		compatible = "fsl,mxc_sdc_fb";
 		disp_dev = "ldb";
@@ -247,6 +254,10 @@
 
 &gpu {
 	pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+};
+
+&hdmi_audio {
+	status = "okay";
 };
 
 &hdmi_cec {
