@@ -16,9 +16,12 @@
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/of_i2c.h>
+#include <linux/of_gpio.h>
 #include <linux/slab.h>
+#include <linux/gpio.h>
 #include <linux/clk.h>
 #include <sound/soc.h>
+#include <sound/jack.h>
 #include <sound/pcm_params.h>
 #include <sound/soc-dapm.h>
 #include <linux/pinctrl/consumer.h>
@@ -37,11 +40,166 @@ struct imx_wm8962_data {
 };
 
 struct imx_priv {
+	int hp_gpio;
+	int hp_active_low;
+	int mic_gpio;
+	int mic_active_low;
+	bool amic_mono;
+	bool dmic_mono;
+	struct snd_soc_codec *codec;
 	struct platform_device *pdev;
 	struct snd_pcm_substream *first_stream;
 	struct snd_pcm_substream *second_stream;
 };
 static struct imx_priv card_priv;
+
+static struct snd_soc_jack imx_hp_jack;
+static struct snd_soc_jack_pin imx_hp_jack_pins[] = {
+	{
+		.pin = "Headphone Jack",
+		.mask = SND_JACK_HEADPHONE,
+	},
+};
+static struct snd_soc_jack_gpio imx_hp_jack_gpio = {
+	.name = "headphone detect",
+	.report = SND_JACK_HEADPHONE,
+	.debounce_time = 250,
+	.invert = 0,
+};
+
+static struct snd_soc_jack imx_mic_jack;
+static struct snd_soc_jack_pin imx_mic_jack_pins[] = {
+	{
+		.pin = "AMIC",
+		.mask = SND_JACK_MICROPHONE,
+	},
+};
+static struct snd_soc_jack_gpio imx_mic_jack_gpio = {
+	.name = "microphone detect",
+	.report = SND_JACK_MICROPHONE,
+	.debounce_time = 250,
+	.invert = 0,
+};
+
+static int hpjack_status_check(void)
+{
+	struct imx_priv *priv = &card_priv;
+	struct platform_device *pdev = priv->pdev;
+	char *envp[3], *buf;
+	int hp_status, ret;
+
+	if (!gpio_is_valid(priv->hp_gpio))
+		return 0;
+
+	hp_status = gpio_get_value(priv->hp_gpio) ? 1 : 0;
+
+	buf = kmalloc(32, GFP_ATOMIC);
+	if (!buf) {
+		dev_err(&pdev->dev, "%s kmalloc failed\n", __func__);
+		return -ENOMEM;
+	}
+
+	if (hp_status != priv->hp_active_low) {
+		snprintf(buf, 32, "STATE=%d", 2);
+		snd_soc_dapm_disable_pin(&priv->codec->dapm, "Ext Spk");
+		ret = imx_hp_jack_gpio.report;
+	} else {
+		snprintf(buf, 32, "STATE=%d", 0);
+		snd_soc_dapm_enable_pin(&priv->codec->dapm, "Ext Spk");
+		ret = 0;
+	}
+	snd_soc_dapm_sync(&priv->codec->dapm);
+
+	envp[0] = "NAME=headphone";
+	envp[1] = buf;
+	envp[2] = NULL;
+	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
+	kfree(buf);
+
+	return ret;
+}
+
+static int micjack_status_check(void)
+{
+	struct imx_priv *priv = &card_priv;
+	struct platform_device *pdev = priv->pdev;
+	char *envp[3], *buf;
+	int mic_status, ret;
+
+	if (!gpio_is_valid(priv->mic_gpio))
+		return 0;
+
+	mic_status = gpio_get_value(priv->mic_gpio) ? 1 : 0;
+
+	if ((mic_status != priv->mic_active_low && priv->amic_mono)
+		|| (mic_status == priv->mic_active_low && priv->dmic_mono))
+		snd_soc_update_bits(priv->codec, WM8962_THREED1,
+				WM8962_ADC_MONOMIX_MASK, WM8962_ADC_MONOMIX);
+	else
+		snd_soc_update_bits(priv->codec, WM8962_THREED1,
+				WM8962_ADC_MONOMIX_MASK, 0);
+
+	buf = kmalloc(32, GFP_ATOMIC);
+	if (!buf) {
+		dev_err(&pdev->dev, "%s kmalloc failed\n", __func__);
+		return -ENOMEM;
+	}
+
+	if (mic_status != priv->mic_active_low) {
+		snprintf(buf, 32, "STATE=%d", 2);
+		snd_soc_dapm_disable_pin(&priv->codec->dapm, "DMIC");
+		ret = imx_mic_jack_gpio.report;
+	} else {
+		snprintf(buf, 32, "STATE=%d", 0);
+		snd_soc_dapm_enable_pin(&priv->codec->dapm, "DMIC");
+		ret = 0;
+	}
+	snd_soc_dapm_sync(&priv->codec->dapm);
+
+	envp[0] = "NAME=microphone";
+	envp[1] = buf;
+	envp[2] = NULL;
+	kobject_uevent_env(&pdev->dev.kobj, KOBJ_CHANGE, envp);
+	kfree(buf);
+
+	return ret;
+}
+
+static void imx_resume_event(struct work_struct *wor)
+{
+	struct imx_priv *priv = &card_priv;
+	struct snd_soc_jack *jack;
+	int enable, report;
+
+	if (gpio_is_valid(priv->hp_gpio)) {
+		jack = imx_hp_jack_gpio.jack;
+
+		enable = gpio_get_value_cansleep(imx_hp_jack_gpio.gpio);
+		if (imx_hp_jack_gpio.invert)
+			enable = !enable;
+
+		report = enable ? imx_hp_jack_gpio.report : 0;
+
+		snd_soc_jack_report(jack, report, imx_hp_jack_gpio.report);
+	}
+
+	if (gpio_is_valid(priv->mic_gpio)) {
+		jack = imx_mic_jack_gpio.jack;
+
+		enable = gpio_get_value_cansleep(imx_mic_jack_gpio.gpio);
+		if (imx_mic_jack_gpio.invert)
+			enable = !enable;
+
+		report = enable ? imx_mic_jack_gpio.report : 0;
+
+		snd_soc_jack_report(jack, report, imx_mic_jack_gpio.report);
+	}
+
+	return;
+}
+
+static DECLARE_DELAYED_WORK(resume_jack_event, imx_resume_event);
+
 
 static const struct snd_soc_dapm_widget imx_wm8962_dapm_widgets[] = {
 	SND_SOC_DAPM_HP("Headphone Jack", NULL),
@@ -156,6 +314,99 @@ static struct snd_soc_ops imx_hifi_ops = {
 	.hw_free = imx_hifi_hw_free,
 };
 
+static int imx_wm8962_gpio_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_codec *codec = rtd->codec;
+	struct imx_priv *priv = &card_priv;
+
+	priv->codec = codec;
+
+	if (gpio_is_valid(priv->hp_gpio)) {
+		imx_hp_jack_gpio.gpio = priv->hp_gpio;
+		imx_hp_jack_gpio.jack_status_check = hpjack_status_check;
+
+		snd_soc_jack_new(codec, "Headphone Jack", SND_JACK_HEADPHONE, &imx_hp_jack);
+		snd_soc_jack_add_pins(&imx_hp_jack,
+				ARRAY_SIZE(imx_hp_jack_pins), imx_hp_jack_pins);
+		snd_soc_jack_add_gpios(&imx_hp_jack, 1, &imx_hp_jack_gpio);
+	}
+
+	if (gpio_is_valid(priv->mic_gpio)) {
+		imx_mic_jack_gpio.gpio = priv->mic_gpio;
+		imx_mic_jack_gpio.jack_status_check = micjack_status_check;
+
+		snd_soc_jack_new(codec, "AMIC", SND_JACK_MICROPHONE, &imx_mic_jack);
+		snd_soc_jack_add_pins(&imx_mic_jack,
+				ARRAY_SIZE(imx_mic_jack_pins), imx_mic_jack_pins);
+		snd_soc_jack_add_gpios(&imx_mic_jack, 1, &imx_mic_jack_gpio);
+	} else if (priv->amic_mono || priv->dmic_mono) {
+		/*
+		 * Permanent set monomix bit if only one microphone
+		 * is present on the board while it needs monomix.
+		 */
+		snd_soc_update_bits(priv->codec, WM8962_THREED1,
+				WM8962_ADC_MONOMIX_MASK, WM8962_ADC_MONOMIX);
+	}
+
+	return 0;
+}
+
+static ssize_t show_headphone(struct device_driver *dev, char *buf)
+{
+	struct imx_priv *priv = &card_priv;
+	int hp_status;
+
+	if (!gpio_is_valid(priv->hp_gpio)) {
+		strcpy(buf, "no detect gpio connected\n");
+		return strlen(buf);
+	}
+
+	/* Check if headphone is plugged in */
+	hp_status = gpio_get_value(priv->hp_gpio) ? 1 : 0;
+
+	if (hp_status != priv->hp_active_low)
+		strcpy(buf, "headphone\n");
+	else
+		strcpy(buf, "speaker\n");
+
+	return strlen(buf);
+}
+
+static DRIVER_ATTR(headphone, S_IRUGO | S_IWUSR, show_headphone, NULL);
+
+static ssize_t show_mic(struct device_driver *dev, char *buf)
+{
+	struct imx_priv *priv = &card_priv;
+	int mic_status;
+
+	if (!gpio_is_valid(priv->mic_gpio)) {
+		strcpy(buf, "no detect gpio connected\n");
+		return strlen(buf);
+	}
+
+	/* Check if analog microphone is plugged in */
+	mic_status = gpio_get_value(priv->mic_gpio) ? 1 : 0;
+
+	if (mic_status != priv->mic_active_low)
+		strcpy(buf, "amic\n");
+	else
+		strcpy(buf, "dmic\n");
+
+	return strlen(buf);
+}
+
+static DRIVER_ATTR(microphone, S_IRUGO | S_IWUSR, show_mic, NULL);
+
+static int imx_wm8962_resume(struct snd_soc_card *card)
+{
+	struct imx_priv *priv = &card_priv;
+
+	if (gpio_is_valid(priv->hp_gpio) || gpio_is_valid(priv->mic_gpio))
+		schedule_delayed_work(&resume_jack_event, msecs_to_jiffies(200));
+
+	return 0;
+}
+
 static int imx_wm8962_late_probe(struct snd_soc_card *card)
 {
 	struct snd_soc_dai *codec_dai = card->rtd[0].codec_dai;
@@ -261,6 +512,14 @@ static int imx_wm8962_probe(struct platform_device *pdev)
 
 	data->clk_frequency = clk_get_rate(codec_clk);
 
+	priv->amic_mono = of_property_read_bool(codec_np, "amic-mono");
+	priv->dmic_mono = of_property_read_bool(codec_np, "dmic-mono");
+
+	priv->hp_gpio = of_get_named_gpio_flags(np, "hp-det-gpios", 0,
+				(enum of_gpio_flags *)&priv->hp_active_low);
+	priv->mic_gpio = of_get_named_gpio_flags(np, "mic-det-gpios", 0,
+				(enum of_gpio_flags *)&priv->mic_active_low);
+
 	data->dai.name = "HiFi";
 	data->dai.stream_name = "HiFi";
 	data->dai.codec_dai_name = "wm8962";
@@ -268,6 +527,7 @@ static int imx_wm8962_probe(struct platform_device *pdev)
 	data->dai.cpu_dai_name = dev_name(&ssi_pdev->dev);
 	data->dai.platform_of_node = ssi_np;
 	data->dai.ops = &imx_hifi_ops;
+	data->dai.init = &imx_wm8962_gpio_init;
 	data->dai.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			    SND_SOC_DAIFMT_CBM_CFM;
 
@@ -284,6 +544,7 @@ static int imx_wm8962_probe(struct platform_device *pdev)
 	data->card.num_dapm_widgets = ARRAY_SIZE(imx_wm8962_dapm_widgets);
 
 	data->card.late_probe = imx_wm8962_late_probe;
+	data->card.resume_post = &imx_wm8962_resume;
 
 	ret = snd_soc_register_card(&data->card);
 	if (ret) {
@@ -293,6 +554,28 @@ static int imx_wm8962_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, data);
 
+	if (gpio_is_valid(priv->hp_gpio)) {
+		ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
+		if (ret) {
+			dev_err(&pdev->dev, "create hp attr failed (%d)\n", ret);
+			goto fail_hp;
+		}
+	}
+
+	if (gpio_is_valid(priv->mic_gpio)) {
+		ret = driver_create_file(pdev->dev.driver, &driver_attr_microphone);
+		if (ret) {
+			dev_err(&pdev->dev, "create mic attr failed (%d)\n", ret);
+			goto fail_mic;
+		}
+	}
+
+	goto fail;
+
+fail_mic:
+	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
+fail_hp:
+	snd_soc_unregister_card(&data->card);
 fail:
 	if (ssi_np)
 		of_node_put(ssi_np);
@@ -305,6 +588,9 @@ fail:
 static int imx_wm8962_remove(struct platform_device *pdev)
 {
 	struct imx_wm8962_data *data = platform_get_drvdata(pdev);
+
+	driver_remove_file(pdev->dev.driver, &driver_attr_microphone);
+	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
 
 	snd_soc_unregister_card(&data->card);
 
