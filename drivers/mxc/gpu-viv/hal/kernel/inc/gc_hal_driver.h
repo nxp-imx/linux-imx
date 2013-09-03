@@ -166,6 +166,9 @@ typedef enum _gceHAL_COMMAND_CODES
 
     /* Reset time stamp. */
     gcvHAL_QUERY_RESET_TIME_STAMP,
+
+    /* Video memory database */
+    gcvHAL_VIDMEM_DATABASE,
 }
 gceHAL_COMMAND_CODES;
 
@@ -836,6 +839,23 @@ typedef struct _gcsHAL_INTERFACE
             OUT gcuDATABASE_INFO        gpuIdle;
         }
         Database;
+
+        /* gcvHAL_VIDMEM_DATABASE */
+        struct _gcsHAL_VIDMEM_DATABASE
+        {
+            /* Set to gcvTRUE if you want to query a particular process ID.
+            ** Set to gcvFALSE to query the last detached process. */
+            IN gctBOOL                  validProcessID;
+
+            /* Process ID to query. */
+            IN gctUINT32                processID;
+
+            /* Information. */
+            OUT gcuDATABASE_INFO        vidMemResv;
+            OUT gcuDATABASE_INFO        vidMemCont;
+            OUT gcuDATABASE_INFO        vidMemVirt;
+        }
+        VidMemDatabase;
 
         /* gcvHAL_VERSION */
         struct _gcsHAL_VERSION
