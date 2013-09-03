@@ -1144,13 +1144,13 @@ static int fsl_ssi_runtime_suspend(struct device *dev)
 	release_bus_freq(BUS_FREQ_AUDIO);
 	return 0;
 }
+#endif
 
 static const struct dev_pm_ops fsl_ssi_pm = {
 	SET_RUNTIME_PM_OPS(fsl_ssi_runtime_suspend,
 			fsl_ssi_runtime_resume,
 			NULL)
 };
-#endif
 
 static const struct of_device_id fsl_ssi_ids[] = {
 	{ .compatible = "fsl,mpc8610-ssi", },
@@ -1164,6 +1164,7 @@ static struct platform_driver fsl_ssi_driver = {
 		.name = "fsl-ssi-dai",
 		.owner = THIS_MODULE,
 		.of_match_table = fsl_ssi_ids,
+		.pm = &fsl_ssi_pm,
 	},
 	.probe = fsl_ssi_probe,
 	.remove = fsl_ssi_remove,
