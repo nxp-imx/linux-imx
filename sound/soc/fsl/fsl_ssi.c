@@ -424,43 +424,6 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 		 * finished initializing the DMA controller.
 		 */
 	} else {
-		if (synchronous) {
-			struct snd_pcm_runtime *first_runtime =
-				ssi_private->first_stream->runtime;
-			/*
-			 * This is the second stream open, and we're in
-			 * synchronous mode, so we need to impose sample
-			 * sample size constraints. This is because STCCR is
-			 * used for playback and capture in synchronous mode,
-			 * so there's no way to specify different word
-			 * lengths.
-			 *
-			 * Note that this can cause a race condition if the
-			 * second stream is opened before the first stream is
-			 * fully initialized.  We provide some protection by
-			 * checking to make sure the first stream is
-			 * initialized, but it's not perfect.  ALSA sometimes
-			 * re-initializes the driver with a different sample
-			 * rate or size.  If the second stream is opened
-			 * before the first stream has received its final
-			 * parameters, then the second stream may be
-			 * constrained to the wrong sample rate or size.
-			 */
-			if (!first_runtime->sample_bits) {
-				dev_err(substream->pcm->card->dev,
-					"set sample size in %s stream first\n",
-					substream->stream ==
-					SNDRV_PCM_STREAM_PLAYBACK
-					? "capture" : "playback");
-				return -EAGAIN;
-			}
-
-			snd_pcm_hw_constraint_minmax(substream->runtime,
-				SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
-				first_runtime->sample_bits,
-				first_runtime->sample_bits);
-		}
-
 		ssi_private->second_stream = substream;
 	}
 
