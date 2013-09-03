@@ -21,6 +21,8 @@
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of_irq.h>
+#include <linux/pm_runtime.h>
+#include <linux/busfreq-imx6.h>
 
 #include <sound/asoundef.h>
 #include <sound/soc.h>
@@ -421,6 +423,8 @@ int fsl_spdif_startup(struct snd_pcm_substream *substream,
 	u32 scr, mask, i;
 	int ret;
 
+	pm_runtime_get_sync(cpu_dai->dev);
+
 	/* Reset module and interrupts only for first initialization */
 	if (!cpu_dai->active) {
 		ret = spdif_softreset(spdif_priv);
@@ -485,6 +489,8 @@ static void fsl_spdif_shutdown(struct snd_pcm_substream *substream,
 		regmap_update_bits(regmap, REG_SPDIF_SCR,
 				SCR_LOW_POWER, SCR_LOW_POWER);
 	}
+
+	pm_runtime_put_sync(cpu_dai->dev);
 }
 
 static int fsl_spdif_hw_params(struct snd_pcm_substream *substream,
@@ -1177,6 +1183,8 @@ static int fsl_spdif_probe(struct platform_device *pdev)
 	spdif_priv->dma_params_tx.addr = res->start + REG_SPDIF_STL;
 	spdif_priv->dma_params_rx.addr = res->start + REG_SPDIF_SRL;
 
+	pm_runtime_enable(&pdev->dev);
+
 	/* Register with ASoC */
 	dev_set_drvdata(&pdev->dev, spdif_priv);
 
@@ -1209,6 +1217,26 @@ static int fsl_spdif_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_RUNTIME
+static int fsl_spdif_runtime_resume(struct device *dev)
+{
+	request_bus_freq(BUS_FREQ_HIGH);
+	return 0;
+}
+
+static int fsl_spdif_runtime_suspend(struct device *dev)
+{
+	release_bus_freq(BUS_FREQ_HIGH);
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops fsl_spdif_pm = {
+	SET_RUNTIME_PM_OPS(fsl_spdif_runtime_suspend,
+			fsl_spdif_runtime_resume,
+			NULL)
+};
+
 static const struct of_device_id fsl_spdif_dt_ids[] = {
 	{ .compatible = "fsl,imx35-spdif", },
 	{}
@@ -1220,6 +1248,7 @@ static struct platform_driver fsl_spdif_driver = {
 		.name = "fsl-spdif-dai",
 		.owner = THIS_MODULE,
 		.of_match_table = fsl_spdif_dt_ids,
+		.pm = &fsl_spdif_pm,
 	},
 	.probe = fsl_spdif_probe,
 	.remove = fsl_spdif_remove,
