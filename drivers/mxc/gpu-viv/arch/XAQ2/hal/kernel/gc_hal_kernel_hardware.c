@@ -728,6 +728,13 @@ gckHARDWARE_Construct(
 
     default:
         hardware->type = gcvHARDWARE_3D;
+        if(hardware->identity.chipModel == gcv880)
+        {
+            /*set outstanding limit*/
+            gcmkONERROR(gckOS_ReadRegisterEx(Os, Core, 0x00414, &axi_ot));
+            axi_ot = (axi_ot & (~0xFF)) | 0x10;
+            gcmkONERROR(gckOS_WriteRegisterEx(Os, Core, 0x00414, axi_ot));
+        }
 
         if ((((((gctUINT32) (hardware->identity.chipFeatures)) >> (0 ? 9:9)) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1)))))) ))
         {
@@ -1198,6 +1205,14 @@ gckHARDWARE_InitializeHardware(
 #endif
 
     /* Limit 2D outstanding request. */
+    if(Hardware->identity.chipModel == gcv880)
+    {
+        gctUINT32 axi_ot;
+        gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00414, &axi_ot));
+        axi_ot = (axi_ot & (~0xFF)) | 0x10;
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00414, axi_ot));
+    }
+
     if ((Hardware->identity.chipModel == gcv320)
         && ((Hardware->identity.chipRevision == 0x5007)
         || (Hardware->identity.chipRevision == 0x5220)))
