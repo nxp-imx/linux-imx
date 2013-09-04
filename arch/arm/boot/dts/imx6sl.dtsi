@@ -373,8 +373,10 @@
 			};
 
 			kpp: kpp@020b8000 {
+				compatible = "fsl,imx6sl-kpp", "fsl,imx21-kpp";
 				reg = <0x020b8000 0x4000>;
 				interrupts = <0 82 0x04>;
+				clocks = <&clks IMX6SL_CLK_DUMMY>;
 			};
 
 			wdog1: wdog@020bc000 {
@@ -893,6 +895,19 @@
 			fsl,pins = <
 				MX6SL_PAD_EPDC_SDCE2__I2C3_SCL 0x4001b8b1
 				MX6SL_PAD_EPDC_SDCE3__I2C3_SDA 0x4001b8b1
+			>;
+		};
+	};
+
+	kpp {
+		pinctrl_kpp_1: kpp_grp_1 {
+			fsl,pins = <
+				MX6SL_PAD_KEY_ROW0__KEY_ROW0      0x1b010
+				MX6SL_PAD_KEY_ROW1__KEY_ROW1      0x1b010
+				MX6SL_PAD_KEY_ROW2__KEY_ROW2      0x1b0b0
+				MX6SL_PAD_KEY_COL0__KEY_COL0      0x80000000
+				MX6SL_PAD_KEY_COL1__KEY_COL1      0x80000000
+				MX6SL_PAD_KEY_COL2__KEY_COL2      0x80000000
 			>;
 		};
 	};
