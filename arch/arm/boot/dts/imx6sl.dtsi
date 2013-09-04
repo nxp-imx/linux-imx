@@ -124,8 +124,25 @@
 				ranges;
 
 				spdif: spdif@02004000 {
+					compatible = "fsl,imx6sl-spdif",
+						"fsl,imx35-spdif";
 					reg = <0x02004000 0x4000>;
 					interrupts = <0 52 0x04>;
+					dmas = <&sdma 14 18 0>,
+					       <&sdma 15 18 0>;
+					dma-names = "rx", "tx";
+					clocks = <&clks IMX6SL_CLK_SPDIF>,
+					       <&clks IMX6SL_CLK_OSC>,
+					       <&clks IMX6SL_CLK_SPDIF>,
+					       <&clks 0>, <&clks 0>, <&clks 0>,
+					       <&clks IMX6SL_CLK_IPG>,
+					       <&clks 0>, <&clks 0>;
+					clock-names = "core", "rxtx0",
+						"rxtx1", "rxtx2",
+						"rxtx3", "rxtx4",
+						"rxtx5", "rxtx6",
+						"rxtx7";
+					status = "disabled";
 				};
 
 				ecspi1: ecspi@02008000 {
@@ -969,6 +986,14 @@
 		pinctrl_pwm1_0: pwm1grp-0 {
 			fsl,pins = <
 				MX6SL_PAD_PWM1__PWM1_OUT 0x110b0
+			>;
+		};
+	};
+
+	spdif {
+		pinctrl_spdif_1: spdifgrp-1 {
+			fsl,pins = <
+				MX6SL_PAD_SD2_DAT4__SPDIF_OUT 0x80000000
 			>;
 		};
 	};
