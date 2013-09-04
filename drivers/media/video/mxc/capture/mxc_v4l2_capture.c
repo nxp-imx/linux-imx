@@ -1526,11 +1526,15 @@ static int mxc_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 		retval = -EINVAL;
 	}
 
+	cam->frame[frame->index].buffer.field = cam->device_type ?
+				V4L2_FIELD_INTERLACED : V4L2_FIELD_NONE;
+
 	buf->bytesused = cam->v2f.fmt.pix.sizeimage;
 	buf->index = frame->index;
 	buf->flags = frame->buffer.flags;
 	buf->m = cam->frame[frame->index].buffer.m;
 	buf->timestamp = cam->frame[frame->index].buffer.timestamp;
+	buf->field = cam->frame[frame->index].buffer.field;
 	spin_unlock_irqrestore(&cam->dqueue_int_lock, lock_flags);
 
 	up(&cam->busy_lock);
