@@ -1,0 +1,24 @@
+/*
+ * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "imx6sl-evk.dts"
+
+&cpu0 {
+	arm-supply = <&reg_arm>;
+	soc-supply = <&reg_soc>;
+	pu-supply = <&reg_pu>; /* use pu_dummy if VDDSOC share with VDDPU */
+};
+
+&gpc {
+	fsl,ldo-bypass = <0>; /* use ldo-bypass, u-boot will check it and configure */
+	pu-supply = <&reg_pu>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+};
+
+&gpu {
+	pu-supply = <&reg_pu>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+};
