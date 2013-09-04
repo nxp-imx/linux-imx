@@ -324,6 +324,22 @@
 	};
 };
 
+&kpp {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_kpp_1>;
+	linux,keymap = <
+			0x00000067      /* KEY_UP */
+			0x0001006c      /* KEY_DOWN */
+			0x0002001c      /* KEY_ENTER */
+			0x01000066      /* KEY_HOME */
+			0x0101006a      /* KEY_RIGHT */
+			0x01020069      /* KEY_LEFT */
+			0x02000072      /* KEY_VOLUMEDOWN */
+			0x02010073      /* KEY_VOLUMEUP */
+		>;
+        status = "okay";
+};
+
 &lcdif {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lcdif_dat_0
