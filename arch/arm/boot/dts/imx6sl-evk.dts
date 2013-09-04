@@ -39,6 +39,22 @@
 			gpio = <&gpio4 3 0>;
 			enable-active-high;
 		};
+
+		reg_aud3v: wm8962_supply_3v15 {
+			compatible = "regulator-fixed";
+			regulator-name = "wm8962-supply-3v15";
+			regulator-min-microvolt = <3150000>;
+			regulator-max-microvolt = <3150000>;
+			regulator-boot-on;
+		};
+
+		reg_aud4v: wm8962_supply_4v2 {
+			compatible = "regulator-fixed";
+			regulator-name = "wm8962-supply-4v2";
+			regulator-min-microvolt = <4325000>;
+			regulator-max-microvolt = <4325000>;
+			regulator-boot-on;
+		};
 	};
 
 	backlight {
@@ -52,6 +68,31 @@
 		compatible = "fsl,imx6sl-pxp-v4l2";
 		status = "okay";
 	};
+
+	sound {
+		compatible = "fsl,imx6q-sabresd-wm8962",
+			   "fsl,imx-audio-wm8962";
+		model = "wm8962-audio";
+		ssi-controller = <&ssi2>;
+		audio-codec = <&codec>;
+		audio-routing =
+			"Headphone Jack", "HPOUTL",
+			"Headphone Jack", "HPOUTR",
+			"Ext Spk", "SPKOUTL",
+			"Ext Spk", "SPKOUTR",
+			"AMIC", "MICBIAS",
+			"IN3R", "AMIC";
+		amic-mono;
+		mux-int-port = <2>;
+		mux-ext-port = <3>;
+		hp-det-gpios = <&gpio4 19 1>;
+	};
+};
+
+&audmux {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_audmux_1>;
+	status = "okay";
 };
 
 &epdc {
@@ -285,6 +326,21 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_i2c2_1>;
 	status = "okay";
+
+	codec: wm8962@1a {
+		compatible = "wlf,wm8962";
+		reg = <0x1a>;
+		clocks = <&clks IMX6SL_CLK_EXTERN_AUDIO>;
+		DCVDD-supply = <&vgen3_reg>;
+		DBVDD-supply = <&reg_aud3v>;
+		AVDD-supply = <&vgen3_reg>;
+		CPVDD-supply = <&vgen3_reg>;
+		MICVDD-supply = <&reg_aud3v>;
+		PLLVDD-supply = <&vgen3_reg>;
+		SPKVDD1-supply = <&reg_aud4v>;
+		SPKVDD2-supply = <&reg_aud4v>;
+		amic-mono;
+	};
 };
 
 &i2c3 {
@@ -319,6 +375,7 @@
 				MX6SL_PAD_ECSPI2_MISO__GPIO4_IO14 0x17000
 				MX6SL_PAD_ECSPI2_MOSI__GPIO4_IO13 0x17000
 				MX6SL_PAD_ECSPI2_SS0__GPIO4_IO15  0x17000
+				MX6SL_PAD_FEC_RX_ER__GPIO4_IO19   0x80000000
 			>;
 		};
 	};
@@ -380,6 +437,11 @@
 };
 
 &pxp {
+	status = "okay";
+};
+
+&ssi2 {
+	fsl,mode = "i2s-slave";
 	status = "okay";
 };
 
