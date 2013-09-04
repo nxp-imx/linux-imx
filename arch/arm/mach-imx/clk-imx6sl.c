@@ -291,6 +291,12 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	clk_set_parent(clks[IMX6SL_CLK_LCDIF_AXI_SEL], clks[IMX6SL_CLK_PLL2_PFD2]);
 	clk_set_rate(clks[IMX6SL_CLK_LCDIF_AXI], 200000000);
 
+	/* Audio clocks */
+	clk_set_parent(clks[IMX6SL_CLK_SPDIF0_SEL], clks[IMX6SL_CLK_PLL3_PFD3]);
+
+	/* set extern_audio to 24MHz */
+	clk_set_rate(clks[IMX6SL_CLK_EXTERN_AUDIO], 24000000);
+
 	/* set perclk to source from OSC 24MHz */
 	clk_set_parent(clks[IMX6SL_CLK_PERCLK_SEL], clks[IMX6SL_CLK_OSC]);
 
