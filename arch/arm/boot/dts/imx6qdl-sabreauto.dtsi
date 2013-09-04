@@ -37,6 +37,44 @@
 		};
 	};
 
+	gpio-keys {
+		compatible = "gpio-keys";
+		home {
+			label = "Home";
+			gpios = <&gpio1 11 0>;
+			linux,code = <102>; /* KEY_HOME */
+			gpio-key,wakeup;
+		};
+
+		back {
+			label = "Back";
+			gpios = <&gpio1 12 0>;
+			linux,code = <158>; /* KEY_BACK */
+			gpio-key,wakeup;
+		};
+
+		program {
+			label = "Program";
+			gpios = <&gpio2 12 0>;
+			linux,code = <362>; /* KEY_PROGRAM */
+			gpio-key,wakeup;
+		};
+
+		volume-up {
+			label = "Volume Up";
+			gpios = <&gpio2 15 0>;
+			linux,code = <115>; /* KEY_VOLUMEUP */
+			gpio-key,wakeup;
+		};
+
+		volume-down {
+			label = "Volume Down";
+			gpios = <&gpio5 14 0>;
+			linux,code = <114>; /* KEY_VOLUMEDOWN */
+			gpio-key,wakeup;
+		};
+	};
+
 	max7310_reset: max7310-reset {
 		compatible = "gpio-reset";
 		reset-gpios = <&gpio1 15 GPIO_ACTIVE_LOW>;
@@ -439,6 +477,11 @@
 				MX6QDL_PAD_EIM_EB0__GPIO2_IO28   0x80000000
 				MX6QDL_PAD_EIM_EB1__GPIO2_IO29	0x80000000
 				MX6QDL_PAD_DISP0_DAT23__GPIO5_IO17 0x80000000
+				MX6QDL_PAD_SD2_CMD__GPIO1_IO11 0x80000000
+				MX6QDL_PAD_SD2_DAT3__GPIO1_IO12 0x80000000
+				MX6QDL_PAD_SD4_DAT4__GPIO2_IO12 0x80000000
+				MX6QDL_PAD_SD4_DAT7__GPIO2_IO15 0x80000000
+				MX6QDL_PAD_DISP0_DAT20__GPIO5_IO14 0x80000000
 			>;
 		};
 	};
