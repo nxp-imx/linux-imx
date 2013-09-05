@@ -2901,6 +2901,7 @@ int sdhci_add_host(struct sdhci_host *host)
 
 	/* Auto-CMD23 stuff only works in ADMA or PIO. */
 	if ((host->version >= SDHCI_SPEC_300) &&
+	    !(host->quirks2 & SDHCI_QUIRK2_BROKEN_AUTO_CMD23) &&
 	    ((host->flags & SDHCI_USE_ADMA) ||
 	     !(host->flags & SDHCI_USE_SDMA))) {
 		host->flags |= SDHCI_AUTO_CMD23;
