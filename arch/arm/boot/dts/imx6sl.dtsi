@@ -632,8 +632,10 @@
 			};
 
 			csi: csi@020e4000 {
+				compatible = "fsl,imx6sl-csi";
 				reg = <0x020e4000 0x4000>;
 				interrupts = <0 7 IRQ_TYPE_LEVEL_HIGH>;
+				status = "disabled";
 			};
 
 			spdc: spdc@020e8000 {
