@@ -544,17 +544,32 @@ static int fsl_hdmi_dai_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	hdmi_data->dma_dev = platform_device_register_simple("imx-hdmi-audio", -1, NULL, 0);
-	if (IS_ERR(hdmi_data->dma_dev)) {
+	hdmi_data->codec_dev = platform_device_register_simple(
+			"hdmi-audio-codec", -1, NULL, 0);
+	if (IS_ERR(hdmi_data->codec_dev)) {
 		dev_err(&pdev->dev, "failed to register HDMI audio codec\n");
-		ret = PTR_ERR(hdmi_data->dma_dev);
+		ret = PTR_ERR(hdmi_data->codec_dev);
 		goto fail;
+	}
+
+	hdmi_data->dma_dev = platform_device_alloc("imx-hdmi-audio", -1);
+	if (IS_ERR(hdmi_data->dma_dev)) {
+		ret = PTR_ERR(hdmi_data->dma_dev);
+		goto fail_dma;
 	}
 
 	platform_set_drvdata(hdmi_data->dma_dev, hdmi_data);
 
+	ret = platform_device_add(hdmi_data->dma_dev);
+	if (ret) {
+		platform_device_put(hdmi_data->dma_dev);
+		goto fail_dma;
+	}
+
 	return 0;
 
+fail_dma:
+	platform_device_unregister(hdmi_data->codec_dev);
 fail:
 	snd_soc_unregister_component(&pdev->dev);
 
@@ -566,6 +581,7 @@ static int fsl_hdmi_dai_remove(struct platform_device *pdev)
 	struct imx_hdmi *hdmi_data = platform_get_drvdata(pdev);
 
 	platform_device_unregister(hdmi_data->dma_dev);
+	platform_device_unregister(hdmi_data->codec_dev);
 	snd_soc_unregister_component(&pdev->dev);
 
 	return 0;
