@@ -3,3 +3,9 @@ config VIDEO_MXC_CSI_CAMERA
 	depends on VIDEO_MXC_CAPTURE && VIDEO_V4L2
 	---help---
 	  This is the video4linux2 capture driver based on CSI module.
+
+config MXC_CAMERA_OV5640
+        tristate "OmniVision ov5640 camera support"
+        depends on !VIDEO_MXC_EMMA_CAMERA && I2C
+        ---help---
+          If you plan to use the ov5640 Camera with your MXC system, say Y here.
