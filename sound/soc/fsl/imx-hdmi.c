@@ -37,8 +37,6 @@ static struct snd_soc_card snd_soc_card_imx_hdmi = {
 	.num_links = 1,
 };
 
-static struct platform_device *codec_dev;
-
 static int imx_hdmi_audio_probe(struct platform_device *pdev)
 {
 	struct device_node *hdmi_np, *np = pdev->dev.of_node;
@@ -65,26 +63,13 @@ static int imx_hdmi_audio_probe(struct platform_device *pdev)
 		goto end;
 	}
 
-	codec_dev = platform_device_register_simple("hdmi-audio-codec", -1, NULL, 0);
-	if (IS_ERR(codec_dev)) {
-		dev_err(&pdev->dev, "failed to register HDMI audio codec\n");
-		ret = PTR_ERR(codec_dev);
-		goto end;
-	}
-
 	card->dev = &pdev->dev;
 	card->dai_link->cpu_dai_name = dev_name(&hdmi_pdev->dev);
 
 	ret = snd_soc_register_card(card);
-	if (ret) {
+	if (ret)
 		dev_err(&pdev->dev, "failed to register card: %d\n", ret);
-		goto err_card;
-	}
 
-	goto end;
-
-err_card:
-	platform_device_unregister(codec_dev);
 end:
 	if (hdmi_np)
 		of_node_put(hdmi_np);
@@ -96,7 +81,6 @@ static int imx_hdmi_audio_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &snd_soc_card_imx_hdmi;
 
-	platform_device_unregister(codec_dev);
 	snd_soc_unregister_card(card);
 
 	return 0;

@@ -27,6 +27,7 @@ struct imx_hdmi_sdma_params {
 
 struct imx_hdmi {
 	struct snd_soc_dai_driver cpu_dai_drv;
+	struct platform_device *codec_dev;
 	struct platform_device *dma_dev;
 	struct platform_device *pdev;
 	struct clk *isfr_clk;
