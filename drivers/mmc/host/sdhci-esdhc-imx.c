@@ -564,8 +564,11 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	 * The imx6q ROM code will change the default watermark level setting
 	 * to something insane.  Change it back here.
 	 */
-	if (is_imx6q_usdhc(imx_data))
+	if (is_imx6q_usdhc(imx_data)) {
 		writel(0x08100810, host->ioaddr + ESDHC_WTMK_LVL);
+		/* FIXME: ACMD23 can not work well on imx6q */
+		host->quirks2 |= SDHCI_QUIRK2_BROKEN_AUTO_CMD23;
+	}
 
 	boarddata = &imx_data->boarddata;
 	if (sdhci_esdhc_imx_probe_dt(pdev, boarddata) < 0) {
