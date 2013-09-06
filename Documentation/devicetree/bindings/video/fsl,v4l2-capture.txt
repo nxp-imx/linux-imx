@@ -1,0 +1,102 @@
+* Freescale V4L2 Capture for i.MX6DQ/i.MX6SDL
+
+Required board properties for IPUv3 capture:
+- clocks: should include the clock provided by i.MX6 to sensor
+- clock-names: sensor clock's name should be "ipux_csiy"
+  x should be 1 or 2 for i.MX6DQ; should be 1 for i.MX6SDL
+  y is 0 or 1 for i.MX6DQ/i.MX6SDL
+Note: other detailed information for IPUv3, please refer to
+Documentation/devicetree/bindings/fb/fsl_ipuv3_fb.txt
+
+Required properties for v4l2_capture
+- compatible: should be "fsl,imx6q-v4l2-capture"
+- ipu_id: ipu id for v4l2 capture device
+  should be 0 or 1 for i.MX6DQ; should be 0 for i.MX6SDL
+- csi_id: csi id for v4l2 capture device
+  should be 0 or 1 for i.MX6DQ/i.MX6SDL
+- mclk_source: should be 0 or 1. two mclk sources at most now
+- status: should be set to "okay" to enable this device
+
+Required properties for sensor
+- compatible:  "<vendor>,<sensor>"
+  please check the supported sensor in the Supported Sensor fields.
+- reg: sensor I2C slave address
+- pinctrl-names: should be "default" for parallel sensor
+- pinctrl-0: should depend on the connection between sensor and i.MX
+  connection between sensor and i.MX could be MIPI-CSI2 or legacy parallel
+- clocks: should be the clock source provided to sensor.
+- clock-names: should be "csi_mclk"
+- DOVDD-supply: set according to the board.
+- AVDD-supply: set according to the board.
+- DVDD-supply: set according to the board.
+- pwn-gpios: set according to the board.
+- rst-gpios: set according to the board.
+- csi_id: csi id for v4l2 capture device
+  should be 0 or 1 for i.MX6DQ/i.MX6SDL.
+- mclk: should the value of mclk clock send out the sensor. unit is Hz.
+- mclk_source: should be 0 or 1 and should be the same as the setting in
+  v4l2_capture.
+- cvbs: 1 for CVBS input, 0 YPbPr input. This property is only needed for
+  adv7180 tv decoder.
+
+Supported Sensor
+- ov5640
+- ov5642
+- ov5640_mipi
+- adv7180
+
+
+Example for IPUv3 including capture settings on imx6q-sabresd.dts:
+	ipu1: ipu@02400000 { /* IPU1 */
+		compatible = "fsl,imx6q-ipuv3";
+		reg = <0x02400000 0x400000>;
+		interrupts = <0 5 0x04>, < 0 6 0x04>;
+		clocks = <&clks 130>, <&clks 131>, <&clks 132>, <&clks 39>, <&clks 40>, <&clks 169>;
+		clock-names = "ipu1", "ipu1_di0", "ipu1_di1", "ipu1_di0_sel", "ipu1_di1_sel", "ipu1_csi0";
+		status = "disabled";
+	};
+
+Examples for v4l2_capture:
+	v4l2_cap {
+		compatible = "fsl,imx6q-v4l2-capture";
+		ipu_id = <0>;
+		csi_id = <0>;
+		mclk_source = <0>;
+		status = "okay";
+	};
+
+Examples for sensors:
+	ov5642: ov5642@3c {
+		compatible = "ovti,ov5642";
+		reg = <0x3c>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ipu1_2>;
+		clocks = <&clks 201>;
+		clock-names = "csi_mclk";
+		DOVDD-supply = <&vgen4_reg>; /* 1.8v */
+		AVDD-supply = <&vgen3_reg>;  /* 2.8v, on rev C board is VGEN3 */
+		DVDD-supply = <&vgen2_reg>;  /* 1.5v*/
+		pwn-gpios = <&gpio1 16 1>;   /* active low: SD1_DAT0 */
+		rst-gpios = <&gpio1 17 0>;   /* active high: SD1_DAT1 */
+		csi_id = <0>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+	};
+
+	adv7180: adv7180@21 {
+		compatible = "adv,adv7180";
+		reg = <0x21>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ipu1_3>;
+		clocks = <&clks 201>;
+		clock-names = "csi_mclk";
+		DOVDD-supply = <&reg_3p3v>; /* 3.3v, enabled via 2.8 VGEN6 */
+		AVDD-supply = <&reg_3p3v>;  /* 1.8v */
+		DVDD-supply = <&reg_3p3v>;  /* 1.8v */
+		PVDD-supply = <&reg_3p3v>;  /* 1.8v */
+		pwn-gpios = <&max7310_b 2 0>;
+		csi_id = <0>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+		cvbs = <1>;
+	};
