@@ -515,6 +515,7 @@
 				MX6QDL_PAD_SD4_DAT4__GPIO2_IO12 0x80000000
 				MX6QDL_PAD_SD4_DAT7__GPIO2_IO15 0x80000000
 				MX6QDL_PAD_DISP0_DAT20__GPIO5_IO14 0x80000000
+				MX6QDL_PAD_GPIO_18__SD3_VSELECT	0x17059
 			>;
 		};
 	};
@@ -593,8 +594,10 @@
 };
 
 &usdhc3 {
-	pinctrl-names = "default";
+	pinctrl-names = "default", "state_100mhz", "state_200mhz";
 	pinctrl-0 = <&pinctrl_usdhc3_1>;
+	pinctrl-1 = <&pinctrl_usdhc3_1_100mhz>;
+	pinctrl-2 = <&pinctrl_usdhc3_1_200mhz>;
 	cd-gpios = <&gpio6 15 0>;
 	wp-gpios = <&gpio1 13 0>;
 	status = "okay";
