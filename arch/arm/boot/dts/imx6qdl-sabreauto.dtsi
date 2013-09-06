@@ -238,7 +238,6 @@
 	cs-gpios = <&gpio3 19 0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_ecspi1_1>;
-	status = "disabled"; /* pin conflict with WEIM NOR */
 
 	flash: m25p80@0 {
 		#address-cells = <1>;
@@ -548,7 +547,7 @@
 &gpmi {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_gpmi_nand_1>;
-	status = "okay";
+	status = "disabled"; /* pin conflict with uart3 */
 };
 
 &uart4 {
@@ -583,7 +582,7 @@
 	#address-cells = <2>;
 	#size-cells = <1>;
 	ranges = <0 0 0x08000000 0x08000000>;
-	status = "disabled"; /* pin conflict with SPI NOR */
+	status = "disabled"; /* pin conflict with ecspi1, i2c3 and uart3 */
 
 	nor@0,0 {
 		compatible = "cfi-flash";
