@@ -55,6 +55,24 @@
 			regulator-max-microvolt = <4325000>;
 			regulator-boot-on;
 		};
+
+		reg_usb_otg1_vbus: usb_otg1_vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "usb_otg1_vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			gpio = <&gpio4 0 0>;
+			enable-active-high;
+		};
+
+		reg_usb_otg2_vbus: usb_otg2_vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "usb_otg2_vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			gpio = <&gpio4 2 0>;
+			enable-active-high;
+		};
 	};
 
 	backlight {
@@ -402,6 +420,8 @@
 				MX6SL_PAD_ECSPI2_SS0__GPIO4_IO15  0x17000
 				MX6SL_PAD_FEC_RX_ER__GPIO4_IO19   0x80000000
 				MX6SL_PAD_LCD_RESET__GPIO2_IO19 0x1b0b0
+				MX6SL_PAD_KEY_COL4__GPIO4_IO00	0x80000000
+				MX6SL_PAD_KEY_COL5__GPIO4_IO02	0x80000000
 			>;
 		};
 	};
@@ -480,6 +500,21 @@
 &uart1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart1_1>;
+	status = "okay";
+};
+
+&usbotg1 {
+	vbus-supply = <&reg_usb_otg1_vbus>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usbotg1_1>;
+	disable-over-current;
+	status = "okay";
+};
+
+&usbotg2 {
+	vbus-supply = <&reg_usb_otg2_vbus>;
+	dr_mode = "host";
+	disable-over-current;
 	status = "okay";
 };
 
