@@ -1,0 +1,42 @@
+* Freescale MIPI CSI2 Controller for i.MX6DQ/i.MX6SDL
+
+Required properties for mipi csi2 controller:
+- compatible: should be "fsl,imx6q-mipi-csi2"
+- reg: <base addr, range> contains mipi csi2 register base address and range
+- interrupts: <type num flag> where type is a interrupt type, num is the
+  interrupt number and flag is a field that level/trigger information for
+  the interrupt.
+- clocks: the clock sources that mipi csi2 depends on.
+- clock-names: the name is related to the clock source one by one.
+- status: should be set to "disable".
+
+Required properties for mipi csi2 on specified board:
+- ipu_id: ipu id which mipi csi2 connected to.
+  should be 0 or 1 for i.MX6DQ; should be 0 for i.MX6SDL
+- csi_id: csi id which mipi csi2 connected to.
+  should be 0 or 1 for i.MX6DQ/i.MX6SDL
+- v_channel: virtual channel which send to MIPI CSI2 controller
+  should keep consistent with the input MIPI signal.
+- lanes: data lanes of input MIPI signal. The maximum data lanes is 4.
+  should keep consistent with the input MIPI signal.
+- status: should be set to "okay".
+
+Examples:
+for SOC imx6qdl.dtsi:
+	mipi_csi@021dc000 {
+		compatible = "fsl,imx6q-mipi-csi2";
+		reg = <0x021dc000 0x4000>;
+		interrupts = <0 100 0x04>, <0 101 0x04>;
+		clocks = <&clks 138>, <&clks 53>;
+		clock-names = "dphy_clk", "pixel_clk";
+		status = "disabled";
+	};
+
+for board imx6qdl-sabresd.dtsi:
+	mipi_csi@021dc000 {
+		status = "okay";
+		ipu_id = <0>;
+		csi_id = <1>;
+		v_channel = <0>;
+		lanes = <2>;
+	};
