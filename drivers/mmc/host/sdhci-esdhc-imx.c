@@ -574,9 +574,52 @@ static int esdhc_pltfm_bus_width(struct sdhci_host *host, int width)
 	return 0;
 }
 
+static void esdhc_reset(struct sdhci_host *host, u32 rst_bits)
+{
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	struct pltfm_imx_data *imx_data = pltfm_host->priv;
+	u32 timeout;
+	u32 reg;
+
+	reg = readl(host->ioaddr + ESDHC_SYSTEM_CONTROL);
+	reg |= rst_bits;
+	writel(reg, host->ioaddr + ESDHC_SYSTEM_CONTROL);
+
+	/* Wait for max 100ms */
+	timeout = 100;
+
+	/* hw clears the bit when it's done */
+	while (readl(host->ioaddr + ESDHC_SYSTEM_CONTROL) & rst_bits) {
+		if (timeout == 0) {
+			dev_err(mmc_dev(host->mmc),
+				"Reset never completes!\n");
+			return;
+		}
+		timeout--;
+		mdelay(1);
+	}
+
+	/*
+	* The RSTA, reset all, on usdhc will not clear following regs:
+	* > SDHCI_MIX_CTRL
+	* > SDHCI_TUNE_CTRL_STATUS
+	*
+	* Do it manually here.
+	*/
+	if ((rst_bits & ESDHC_SYS_CTRL_RSTA) && is_imx6q_usdhc(imx_data)) {
+		writel(0, host->ioaddr + ESDHC_MIX_CTRL);
+		writel(0, host->ioaddr + ESDHC_TUNE_CTRL_STATUS);
+		/* FIXME: delay for clear tuning status or some cards may not work */
+		mdelay(1);
+	}
+}
+
 static void esdhc_prepare_tuning(struct sdhci_host *host, u32 val)
 {
 	u32 reg;
+
+	/* reset controller before tuning or it may fail on some cards */
+	esdhc_reset(host, ESDHC_SYS_CTRL_RSTA);
 
 	reg = readl(host->ioaddr + ESDHC_MIX_CTRL);
 	reg |= ESDHC_MIX_CTRL_EXE_TUNE | ESDHC_MIX_CTRL_SMPCLK_SEL |
