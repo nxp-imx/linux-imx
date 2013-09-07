@@ -1,7 +1,7 @@
 /*
  * CAAM public-level include definitions for the JobR backend
  *
- * Copyright 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
  */
 
 #ifndef JR_H
@@ -18,4 +18,5 @@ int caam_jr_enqueue(struct device *dev, u32 *desc,
 extern int caam_jr_probe(struct platform_device *pdev, struct device_node *np,
 			 int ring);
 extern int caam_jr_shutdown(struct device *dev);
+extern struct device *caam_get_jrdev(void);
 #endif /* JR_H */
