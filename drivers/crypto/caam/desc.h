@@ -2,19 +2,35 @@
  * CAAM descriptor composition header
  * Definitions to support CAAM descriptor instruction generation
  *
- * Copyright 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
  */
 
 #ifndef DESC_H
 #define DESC_H
 
+/*
+ * 16-byte hardware scatter/gather table
+ * An 8-byte table exists in the hardware spec, but has never been
+ * implemented to date. The 8/16 option is selected at RTL-compile-time.
+ * and this selection is visible in the Compile Time Parameters Register
+ */
+
+#define SEC4_SG_LEN_EXT		0x80000000	/* Entry points to table */
+#define SEC4_SG_LEN_FIN		0x40000000	/* Last ent in table */
+#define SEC4_SG_BPID_MASK	0x000000ff
+#define SEC4_SG_BPID_SHIFT	16
+#define SEC4_SG_LEN_MASK	0x3fffffff	/* Excludes EXT and FINAL */
+#define SEC4_SG_OFFS_MASK	0x00001fff
+
 struct sec4_sg_entry {
+#ifdef CONFIG_64BIT
 	u64 ptr;
-#define SEC4_SG_LEN_FIN 0x40000000
-#define SEC4_SG_LEN_EXT 0x80000000
+#else
+	u32 reserved;
+	u32 ptr;
+#endif
 	u32 len;
-	u8 reserved;
-	u8 buf_pool_id;
+	u16 buf_pool_id;
 	u16 offset;
 };
 
@@ -1087,6 +1103,23 @@ struct sec4_sg_entry {
 #define OP_PCL_PKPROT_ECC			 0x0002
 #define OP_PCL_PKPROT_F2M			 0x0001
 
+/* Blob protocol protinfo bits */
+#define OP_PCL_BLOB_TK			0x0200
+#define OP_PCL_BLOB_EKT			0x0100
+
+#define OP_PCL_BLOB_K2KR_MEM		0x0000
+#define OP_PCL_BLOB_K2KR_C1KR		0x0010
+#define OP_PCL_BLOB_K2KR_C2KR		0x0030
+#define OP_PCL_BLOB_K2KR_AFHAS		0x0050
+#define OP_PCL_BLOB_K2KR_C2KR_SPLIT	0x0070
+
+#define OP_PCL_BLOB_PTXT_SECMEM		0x0008
+#define OP_PCL_BLOB_BLACK		0x0004
+
+#define OP_PCL_BLOB_FMT_NORMAL		0x0000
+#define OP_PCL_BLOB_FMT_MSTR		0x0002
+#define OP_PCL_BLOB_FMT_TEST		0x0003
+
 /* For non-protocol/alg-only op commands */
 #define OP_ALG_TYPE_SHIFT	24
 #define OP_ALG_TYPE_MASK	(0x7 << OP_ALG_TYPE_SHIFT)
@@ -1599,5 +1632,29 @@ struct sec4_sg_entry {
 
 #define NFIFOENTRY_PLEN_SHIFT	0
 #define NFIFOENTRY_PLEN_MASK	(0xFF << NFIFOENTRY_PLEN_SHIFT)
+
+/*
+ * PDB internal definitions
+ */
+
+/* IPSec ESP CBC Encap/Decap Options */
+#define PDBOPTS_ESPCBC_ARSNONE	0x00	/* no antireplay window	*/
+#define PDBOPTS_ESPCBC_ARS32	0x40	/* 32-entry antireplay window */
+#define PDBOPTS_ESPCBC_ARS64	0xc0	/* 64-entry antireplay window */
+#define PDBOPTS_ESPCBC_IVSRC	0x20	/* IV comes from internal random gen */
+#define PDBOPTS_ESPCBC_ESN	0x10	/* extended sequence included */
+#define PDBOPTS_ESPCBC_OUTFMT	0x08	/* output only decapsulation (decap) */
+#define PDBOPTS_ESPCBC_IPHDRSRC 0x08	/* IP header comes from PDB (encap) */
+#define PDBOPTS_ESPCBC_INCIPHDR 0x04	/* Prepend IP header to output frame */
+#define PDBOPTS_ESPCBC_IPVSN	0x02	/* process IPv6 header */
+#define PDBOPTS_ESPCBC_TUNNEL	0x01	/* tunnel mode next-header byte */
+
+#define ARC4_BLOCK_SIZE       1
+#define ARC4_MAX_KEY_SIZE     256
+#define ARC4_MIN_KEY_SIZE     1
+
+#define XCBC_MAC_DIGEST_SIZE  16
+#define XCBC_MAC_BLOCK_WORDS  16
+
 
 #endif /* DESC_H */

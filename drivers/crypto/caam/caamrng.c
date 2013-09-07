@@ -1,7 +1,7 @@
 /*
  * caam - Freescale FSL CAAM support for hw_random
  *
- * Copyright 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
  *
  * Based on caamalg.c crypto API driver.
  *
@@ -76,13 +76,16 @@ struct caam_rng_ctx {
 	struct buf_data bufs[2];
 };
 
-static struct caam_rng_ctx rng_ctx;
+static struct caam_rng_ctx *rng_ctx;
 
 static inline void rng_unmap_buf(struct device *jrdev, struct buf_data *bd)
 {
-	if (bd->addr)
+	if (bd->addr) {
+		dma_sync_single_for_cpu(jrdev, bd->addr, RN_BUF_SIZE,
+					DMA_FROM_DEVICE);
 		dma_unmap_single(jrdev, bd->addr, RN_BUF_SIZE,
 				 DMA_FROM_DEVICE);
+	}
 }
 
 static inline void rng_unmap_ctx(struct caam_rng_ctx *ctx)
@@ -137,7 +140,7 @@ static inline int submit_job(struct caam_rng_ctx *ctx, int to_current)
 
 static int caam_read(struct hwrng *rng, void *data, size_t max, bool wait)
 {
-	struct caam_rng_ctx *ctx = &rng_ctx;
+	struct caam_rng_ctx *ctx = rng_ctx;
 	struct buf_data *bd = &ctx->bufs[ctx->current_buf];
 	int next_buf_idx, copied_idx;
 	int err;
@@ -206,6 +209,9 @@ static inline void rng_create_sh_desc(struct caam_rng_ctx *ctx)
 
 	ctx->sh_desc_dma = dma_map_single(jrdev, desc, desc_bytes(desc),
 					  DMA_TO_DEVICE);
+	dma_sync_single_for_device(jrdev, ctx->sh_desc_dma, desc_bytes(desc),
+			       DMA_TO_DEVICE);
+
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "rng shdesc@: ", DUMP_PREFIX_ADDRESS, 16, 4,
 		       desc, desc_bytes(desc), 1);
@@ -237,13 +243,56 @@ static void caam_cleanup(struct hwrng *rng)
 	struct buf_data *bd;
 
 	for (i = 0; i < 2; i++) {
-		bd = &rng_ctx.bufs[i];
+		bd = &rng_ctx->bufs[i];
 		if (atomic_read(&bd->empty) == BUF_PENDING)
 			wait_for_completion(&bd->filled);
 	}
 
-	rng_unmap_ctx(&rng_ctx);
+	rng_unmap_ctx(rng_ctx);
 }
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_TEST
+static inline void test_len(struct hwrng *rng, size_t len, bool wait)
+{
+	u8 *buf;
+	int real_len;
+
+	buf = kzalloc(sizeof(u8) * len, GFP_KERNEL);
+	real_len = rng->read(rng, buf, len, wait);
+	if (real_len == 0 && wait)
+		pr_err("WAITING FAILED\n");
+	pr_info("wanted %d bytes, got %d\n", len, real_len);
+	print_hex_dump(KERN_INFO, "random bytes@: ", DUMP_PREFIX_ADDRESS,
+		       16, 4, buf, real_len, 1);
+	kfree(buf);
+}
+
+static inline void test_mode_once(struct hwrng *rng, bool wait)
+{
+#define TEST_CHUNK (RN_BUF_SIZE / 4)
+
+	test_len(rng, TEST_CHUNK, wait);
+	test_len(rng, RN_BUF_SIZE * 2, wait);
+	test_len(rng, RN_BUF_SIZE * 2 - TEST_CHUNK, wait);
+}
+
+static inline void test_mode(struct hwrng *rng, bool wait)
+{
+#define TEST_PASS 1
+	int i;
+
+	for (i = 0; i < TEST_PASS; i++)
+		test_mode_once(rng, wait);
+}
+
+static void self_test(struct hwrng *rng)
+{
+	pr_info("testing without waiting\n");
+	test_mode(rng, false);
+	pr_info("testing with waiting\n");
+	test_mode(rng, true);
+}
+#endif
 
 static void caam_init_buf(struct caam_rng_ctx *ctx, int buf_id)
 {
@@ -298,7 +347,17 @@ static int __init caam_rng_init(void)
 	priv = dev_get_drvdata(ctrldev);
 	of_node_put(dev_node);
 
-	caam_init_rng(&rng_ctx, priv->jrdev[0]);
+	/* Check RNG present in hardware before registration */
+	if (!(rd_reg64(&priv->ctrl->perfmon.cha_num) & CHA_ID_RNG_MASK))
+		return -ENODEV;
+
+	rng_ctx = kmalloc(sizeof(struct caam_rng_ctx), GFP_KERNEL | GFP_DMA);
+
+	caam_init_rng(rng_ctx, priv->jrdev[0]);
+
+#ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_TEST
+	self_test(&caam_rng);
+#endif
 
 	dev_info(priv->jrdev[0], "registering rng-caam\n");
 	return hwrng_register(&caam_rng);
