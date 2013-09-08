@@ -30,6 +30,12 @@ config MXC_CAMERA_OV5640_MIPI
 	---help---
 	  If you plan to use the ov5640 Camera with mipi interface in your MXC system, say Y here.
 
+config MXC_TVIN_ADV7180
+	tristate "Analog Device adv7180 TV Decoder Input support"
+	depends on !VIDEO_MXC_EMMA_CAMERA && I2C
+	---help---
+	  If you plan to use the adv7180 video decoder with your MXC system, say Y here.
+
 choice
 	prompt "Select Overlay Rounting"
 	default MXC_IPU_DEVICE_QUEUE_SDC
