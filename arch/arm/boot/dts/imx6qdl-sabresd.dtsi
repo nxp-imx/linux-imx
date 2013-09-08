@@ -327,6 +327,24 @@
 		>;
        };
 
+	ov564x: ov564x@3c {
+		compatible = "ovti,ov564x";
+		reg = <0x3c>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ipu1_2>;
+		clocks = <&clks 201>;
+		clock-names = "csi_mclk";
+		DOVDD-supply = <&vgen4_reg>; /* 1.8v */
+		AVDD-supply = <&vgen3_reg>;  /* 2.8v, on rev C board is VGEN3,
+						on rev B board is VGEN5 */
+		DVDD-supply = <&vgen2_reg>;  /* 1.5v*/
+		pwn-gpios = <&gpio1 16 1>;   /* active low: SD1_DAT0 */
+		rst-gpios = <&gpio1 17 0>;   /* active high: SD1_DAT1 */
+		csi_id = <0>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+	};
+
 	mma8451@1c {
 		compatible = "fsl,mma8451";
 		reg = <0x1c>;
