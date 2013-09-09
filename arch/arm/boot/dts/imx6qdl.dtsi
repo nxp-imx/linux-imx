@@ -899,8 +899,18 @@
 				status = "disabled";
 			};
 
-			mipi@021dc000 { /* MIPI-CSI */
+			mipi_csi: mipi_csi@021dc000 {
+				compatible = "fsl,imx6q-mipi-csi2";
 				reg = <0x021dc000 0x4000>;
+				interrupts = <0 100 0x04>, <0 101 0x04>;
+				clocks = <&clks 138>, <&clks 53>;
+				/* Note: clks 138 is hsi_tx, however, the dphy_c
+				 * hsi_tx and pll_refclk use the same clk gate.
+				 * In current clk driver, open/close clk gate do
+				 * use hsi_tx for a temporary debug purpose.
+				 */
+				clock-names = "dphy_clk", "pixel_clk";
+				status = "disabled";
 			};
 
 			vdoa@021e4000 {
