@@ -2156,12 +2156,19 @@ static int __init caam_algapi_hash_init(void)
 	}
 
 	pdev = of_find_device_by_node(dev_node);
-	if (!pdev) {
-		of_node_put(dev_node);
+	of_node_put(dev_node);
+	if (!pdev)
 		return -ENODEV;
-	}
+
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
+
+	/*
+	 * If priv is NULL, it's probably because the caam driver wasn't
+	 * properly initialized (e.g. RNG4 init failed). Thus, bail out here.
+	 */
+	if (!priv)
+		return -ENODEV;
 
 	INIT_LIST_HEAD(&priv->hash_list);
 
@@ -2221,7 +2228,6 @@ static int __init caam_algapi_hash_init(void)
 			list_add_tail(&t_alg->entry, &priv->hash_list);
 	}
 
-	of_node_put(dev_node);
 	return err;
 }
 

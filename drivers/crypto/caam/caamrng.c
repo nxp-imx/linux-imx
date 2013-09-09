@@ -340,12 +340,19 @@ static int __init caam_rng_init(void)
 	}
 
 	pdev = of_find_device_by_node(dev_node);
+	of_node_put(dev_node);
 	if (!pdev)
 		return -ENODEV;
 
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
-	of_node_put(dev_node);
+
+	/*
+	 * If priv is NULL, it's probably because the caam driver wasn't
+	 * properly initialized (e.g. RNG4 init failed). Thus, bail out here.
+	 */
+	if (!priv)
+		return -ENODEV;
 
 	/* Check RNG present in hardware before registration */
 	if (!(rd_reg64(&priv->ctrl->perfmon.cha_num) & CHA_ID_RNG_MASK))

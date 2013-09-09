@@ -2342,6 +2342,15 @@ static int __init caam_algapi_init(void)
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
 
+	/*
+	 * If priv is NULL, it's probably because the caam driver wasn't
+	 * properly initialized (e.g. RNG4 init failed). Thus, bail out here.
+	 */
+	if (!priv) {
+		of_node_put(dev_node);
+		return -ENODEV;
+	}
+
 	INIT_LIST_HEAD(&priv->alg_list);
 
 	atomic_set(&priv->tfm_count, -1);
