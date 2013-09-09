@@ -9,9 +9,6 @@
 #ifndef INTERN_H
 #define INTERN_H
 
-/* Default clock/sample settings for an RNG4 entropy source */
-#define RNG4_ENT_CLOCKS_SAMPLE 3200
-
 /* Currently comes from Kconfig param as a ^2 (driver-required) */
 #define JOBR_DEPTH (1 << CONFIG_CRYPTO_DEV_FSL_CAAM_RINGSIZE)
 
