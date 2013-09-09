@@ -99,6 +99,13 @@ struct caam_drv_private {
 	struct clk *caam_aclk;
 	struct clk *caam_emi_slow;
 #endif
+
+	/* RNG4 block */
+	bool rng4_init;		/* If RNG4 block is initialized by this driver,
+				   then this will be set; if it was initialized
+				   by another entity (e.g. u-boot), it will be
+				   cleared. */
+
 	/*
 	 * debugfs entries for developer view into driver/device
 	 * variables at runtime.
