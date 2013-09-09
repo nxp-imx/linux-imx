@@ -17,6 +17,139 @@
 /* Used to capture the array of job rings */
 struct device **caam_jr_dev;
 
+/*
+ * Descriptor to instantiate RNG State Handle 0 in normal mode and
+ * load the JDKEK, TDKEK and TDSK registers
+ */
+static void build_instantiation_desc(u32 *desc)
+{
+	u32 *jump_cmd;
+
+	init_job_desc(desc, 0);
+
+	/* INIT RNG in non-test mode */
+	append_operation(desc, OP_TYPE_CLASS1_ALG | OP_ALG_ALGSEL_RNG |
+			 OP_ALG_AS_INIT);
+
+	/* wait for done */
+	jump_cmd = append_jump(desc, JUMP_CLASS_CLASS1);
+	set_jump_tgt_here(desc, jump_cmd);
+
+	/*
+	 * load 1 to clear written reg:
+	 * resets the done interrupt and returns the RNG to idle.
+	 */
+	append_load_imm_u32(desc, 1, LDST_SRCDST_WORD_CLRW);
+
+	/* generate secure keys (non-test) */
+	append_operation(desc, OP_TYPE_CLASS1_ALG | OP_ALG_ALGSEL_RNG |
+			 OP_ALG_RNG4_SK);
+
+	append_jump(desc, JUMP_CLASS_CLASS1 | JUMP_TYPE_HALT);
+}
+
+
+/*
+ * run_descriptor_deco0 - runs a descriptor on DECO0, under direct control of
+ *			  the software (no JR/QI used).
+ * @ctrldev - pointer to device
+ * Return: - 0 if no error occurred
+ *	   - -ENODEV if the DECO couldn't be acquired
+ *	   - -EAGAIN if an error occurred while executing the descriptor
+ */
+static inline int run_descriptor_deco0(struct device *ctrldev, u32 *desc)
+{
+	struct caam_drv_private *ctrlpriv = dev_get_drvdata(ctrldev);
+	struct caam_full __iomem *topregs;
+	unsigned int timeout = 100000;
+	u32 deco_dbg_reg, flags;
+	int i, ret = 0;
+
+	/* Set the bit to request direct access to DECO0 */
+	topregs = (struct caam_full __iomem *)ctrlpriv->ctrl;
+	setbits32(&topregs->ctrl.deco_rq, DECORR_RQD0ENABLE);
+
+	while (!(rd_reg32(&topregs->ctrl.deco_rq) & DECORR_DEN0) &&
+								 --timeout)
+		cpu_relax();
+
+	if (!timeout) {
+		dev_err(ctrldev, "failed to acquire DECO 0\n");
+		clrbits32(&topregs->ctrl.deco_rq, DECORR_RQD0ENABLE);
+		return -ENODEV;
+	}
+
+	for (i = 0; i < desc_len(desc); i++)
+		wr_reg32(&topregs->deco.descbuf[i], *(desc + i));
+
+	flags = DECO_JQCR_WHL;
+	/*
+	 * If the descriptor length is longer than 4 words, then the
+	 * FOUR bit in JRCTRL register must be set.
+	 */
+	if (desc_len(desc) >= 4)
+		flags |= DECO_JQCR_FOUR;
+
+	/* Instruct the DECO to execute it */
+	wr_reg32(&topregs->deco.jr_ctl_hi, flags);
+
+	timeout = 10000000;
+	do {
+		deco_dbg_reg = rd_reg32(&topregs->deco.desc_dbg);
+		/*
+		 * If an error occured in the descriptor, then
+		 * the DECO status field will be set to 0x0D
+		 */
+		if ((deco_dbg_reg & DESC_DBG_DECO_STAT_MASK) ==
+		    DESC_DBG_DECO_STAT_HOST_ERR)
+			break;
+		cpu_relax();
+	} while ((deco_dbg_reg & DESC_DBG_DECO_STAT_VALID) && --timeout);
+
+	if (!timeout) {
+		dev_err(ctrldev, "failed to instantiate RNG\n");
+		ret = -EIO;
+	}
+
+	/* Mark the DECO as free */
+	clrbits32(&topregs->ctrl.deco_rq, DECORR_RQD0ENABLE);
+
+	if (!timeout)
+		return -EAGAIN;
+
+	return 0;
+}
+
+/*
+ * instantiate_rng - builds and executes a descriptor on DECO0,
+ *		     which initializes the RNG block.
+ * @ctrldev - pointer to device
+ * Return: - 0 if no error occurred
+ *	   - -ENOMEM if there isn't enough memory to allocate the descriptor
+ *	   - -ENODEV if DECO0 couldn't be acquired
+ *	   - -EAGAIN if an error occurred when executing the descriptor
+ *	      f.i. there was a RNG hardware error due to not "good enough"
+ *	      entropy being aquired.
+ */
+static int instantiate_rng(struct device *ctrldev)
+{
+	u32 *desc;
+	int ret = 0;
+
+	desc = kmalloc(CAAM_CMD_SZ * 7, GFP_KERNEL);
+	if (!desc)
+		return -ENOMEM;
+	/* Create the descriptor for instantiating RNG State Handle 0 */
+	build_instantiation_desc(desc);
+
+	/* Try to run it through DECO0 */
+	ret = run_descriptor_deco0(ctrldev, desc);
+
+	kfree(desc);
+
+	return ret;
+}
+
 static int caam_remove(struct platform_device *pdev)
 {
 	struct device *ctrldev;
@@ -55,95 +188,6 @@ static int caam_remove(struct platform_device *pdev)
 	kfree(ctrlpriv->jrdev);
 	kfree(ctrlpriv);
 
-	return ret;
-}
-
-/*
- * Descriptor to instantiate RNG State Handle 0 in normal mode and
- * load the JDKEK, TDKEK and TDSK registers
- */
-static void build_instantiation_desc(u32 *desc)
-{
-	u32 *jump_cmd;
-
-	init_job_desc(desc, 0);
-
-	/* INIT RNG in non-test mode */
-	append_operation(desc, OP_TYPE_CLASS1_ALG | OP_ALG_ALGSEL_RNG |
-			 OP_ALG_AS_INIT);
-
-	/* wait for done */
-	jump_cmd = append_jump(desc, JUMP_CLASS_CLASS1);
-	set_jump_tgt_here(desc, jump_cmd);
-
-	/*
-	 * load 1 to clear written reg:
-	 * resets the done interrupt and returns the RNG to idle.
-	 */
-	append_load_imm_u32(desc, 1, LDST_SRCDST_WORD_CLRW);
-
-	/* generate secure keys (non-test) */
-	append_operation(desc, OP_TYPE_CLASS1_ALG | OP_ALG_ALGSEL_RNG |
-			 OP_ALG_RNG4_SK);
-
-	append_jump(desc, JUMP_CLASS_CLASS1 | JUMP_TYPE_HALT);
-}
-
-static int instantiate_rng(struct device *ctrldev)
-{
-	struct caam_drv_private *ctrlpriv = dev_get_drvdata(ctrldev);
-	struct caam_full __iomem *topregs;
-	unsigned int timeout = 100000;
-	u32 *desc, deco_dbg_reg;
-	int i, ret = 0;
-
-	desc = kmalloc(CAAM_CMD_SZ * 7, GFP_KERNEL | GFP_DMA);
-	if (!desc) {
-		dev_err(ctrldev, "can't allocate RNG init descriptor memory\n");
-		return -ENOMEM;
-	}
-	build_instantiation_desc(desc);
-
-	/* Set the bit to request direct access to DECO0 */
-	topregs = (struct caam_full __iomem *)ctrlpriv->ctrl;
-	setbits32(&topregs->ctrl.deco_rq, DECORR_RQD0ENABLE);
-
-	while (!(rd_reg32(&topregs->ctrl.deco_rq) & DECORR_DEN0) &&
-								 --timeout)
-		cpu_relax();
-
-	if (!timeout) {
-		dev_err(ctrldev, "failed to acquire DECO 0\n");
-		ret = -EIO;
-		goto out;
-	}
-
-	for (i = 0; i < desc_len(desc); i++)
-		topregs->deco.descbuf[i] = *(desc + i);
-
-	wr_reg32(&topregs->deco.jr_ctl_hi, DECO_JQCR_WHL | DECO_JQCR_FOUR);
-
-	timeout = 10000000;
-	do {
-		deco_dbg_reg = rd_reg32(&topregs->deco.desc_dbg);
-		/*
-		 * If an error occured in the descriptor, then
-		 * the DECO status field will be set to 0x0D
-		 */
-		if ((deco_dbg_reg & DESC_DBG_DECO_STAT_MASK) ==
-		    DESC_DBG_DECO_STAT_HOST_ERR)
-			break;
-		cpu_relax();
-	} while ((deco_dbg_reg & DESC_DBG_DECO_STAT_VALID) && --timeout);
-
-	if (!timeout) {
-		dev_err(ctrldev, "failed to instantiate RNG\n");
-		ret = -EIO;
-	}
-
-	clrbits32(&topregs->ctrl.deco_rq, DECORR_RQD0ENABLE);
-out:
-	kfree(desc);
 	return ret;
 }
 
@@ -509,7 +553,7 @@ static int caam_probe(struct platform_device *pdev)
 			kick_trng(pdev, ent_delay);
 			ret = instantiate_rng(dev);
 			ent_delay += 400;
-		} while ((ret == -EIO) && (ent_delay < RTSDCTL_ENT_DLY_MAX));
+		} while ((ret == -EAGAIN) && (ent_delay < RTSDCTL_ENT_DLY_MAX));
 		if (ret) {
 			dev_err(dev, "failed to instantiate RNG");
 			caam_remove(pdev);
