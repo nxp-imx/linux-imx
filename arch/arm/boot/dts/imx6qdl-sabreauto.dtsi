@@ -530,7 +530,7 @@
 	status = "okay";
 };
 
-&mipi {
+&mipi_csi {
 	status = "okay";
 	ipu_id = <0>;
 	csi_id = <1>;
