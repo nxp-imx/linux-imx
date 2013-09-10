@@ -1002,8 +1002,8 @@ static void imx_hdmi_dma_pcm_free(struct snd_pcm *pcm)
 {
 	int stream = SNDRV_PCM_STREAM_PLAYBACK;
 	struct snd_pcm_substream *substream = pcm->streams[stream].substream;
-	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct hdmi_dma_priv *priv = runtime->private_data;
+	struct snd_soc_pcm_runtime *rtd = pcm->private_data;
+	struct hdmi_dma_priv *priv = dev_get_drvdata(rtd->platform->dev);
 
 	if (substream) {
 		snd_dma_free_pages(&substream->dma_buffer);
