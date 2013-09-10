@@ -25,6 +25,7 @@
 #include <asm/fncpy.h>
 #include <asm/proc-fns.h>
 #include <asm/suspend.h>
+#include <asm/tlb.h>
 #include <asm/hardware/cache-l2x0.h>
 #include <asm/mach/map.h>
 
@@ -212,6 +213,7 @@ static int imx6_suspend_finish(unsigned long val)
 	 * call low level suspend function in iram,
 	 * as we need to float DDR IO.
 	 */
+	local_flush_tlb_all();
 	suspend_in_iram_fn(suspend_iram_base, iram_paddr, cpu_type);
 	return 0;
 }
