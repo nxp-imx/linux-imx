@@ -34,6 +34,7 @@
 #include "fsl_csi.h"
 
 void __iomem *csi_regbase;
+EXPORT_SYMBOL(csi_regbase);
 static int irq_nr;
 static csi_irq_callback_t g_callback;
 static void *g_callback_data;
@@ -228,6 +229,7 @@ void csi_dmareq_rff_enable(void)
 	cr3 |= BIT_HRESP_ERR_EN;
 	__raw_writel(cr3, CSI_CSICR3);
 }
+EXPORT_SYMBOL(csi_dmareq_rff_enable);
 
 void csi_dmareq_rff_disable(void)
 {
@@ -237,6 +239,7 @@ void csi_dmareq_rff_disable(void)
 	cr3 &= ~BIT_HRESP_ERR_EN;
 	__raw_writel(cr3, CSI_CSICR3);
 }
+EXPORT_SYMBOL(csi_dmareq_rff_disable);
 
 static const struct of_device_id fsl_csi_dt_ids[] = {
 	{ .compatible = "fsl,imx6sl-csi", },
