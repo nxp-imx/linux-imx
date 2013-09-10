@@ -619,8 +619,9 @@ rbc_loop:
 	 */
 	ldr	r8, =IMX_IO_P2V(MX6Q_ANATOP_BASE_ADDR)
 	ldr	r7, [r8, #MX6Q_ANATOP_CORE]
-	ands	r7, r7, #0x1f
-	beq	ldo_check_done1
+	and	r7, r7, #0x1f
+	cmp	r7, #0x1f
+	bne	ldo_check_done1
 ldo_analog_bypass:
 	ldr	r7, [r8, #MX6Q_ANATOP_CORE]
 	bic	r7, r7, #0x1f
