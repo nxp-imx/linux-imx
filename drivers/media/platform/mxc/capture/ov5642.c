@@ -3054,7 +3054,7 @@ static int ov5642_power_on(struct device *dev)
 	int ret = 0;
 
 	io_regulator = devm_regulator_get(dev, "DOVDD");
-	if (io_regulator) {
+	if (!IS_ERR(io_regulator)) {
 		regulator_set_voltage(io_regulator,
 				      OV5642_VOLTAGE_DIGITAL_IO,
 				      OV5642_VOLTAGE_DIGITAL_IO);
