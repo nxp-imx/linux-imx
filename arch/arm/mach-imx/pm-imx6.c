@@ -243,8 +243,12 @@ static int imx6_pm_enter(suspend_state_t state)
 		imx6_set_lpm(STOP_POWER_ON);
 		imx6_set_cache_lpm_in_wait(true);
 		imx_gpc_pre_suspend(false);
+		if (cpu_is_imx6sl())
+			imx6sl_set_wait_clk(true);
 		/* Zzz ... */
 		cpu_do_idle();
+		if (cpu_is_imx6sl())
+			imx6sl_set_wait_clk(false);
 		imx_gpc_post_resume();
 		imx6_set_lpm(WAIT_CLOCKED);
 		break;
