@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -47,6 +47,14 @@
 		PAD_CTL_PUS_22K_UP  | PAD_CTL_SPEED_HIGH |		\
 		PAD_CTL_DSE_34ohm   | PAD_CTL_SRE_FAST   | PAD_CTL_HYS)
 
+#define MX6SL_USDHC_CD_PAD_CTRL	(PAD_CTL_HYS | PAD_CTL_PKE | PAD_CTL_PUE | \
+		PAD_CTL_PUS_100K_UP | PAD_CTL_SPEED_LOW | PAD_CTL_DSE_40ohm | \
+		PAD_CTL_SRE_FAST)
+
+#define MX6SL_USDHC_WP_PAD_CTRL (PAD_CTL_HYS | PAD_CTL_PKE | PAD_CTL_PUE | \
+		PAD_CTL_PUS_100K_UP | PAD_CTL_SPEED_LOW | PAD_CTL_DSE_40ohm | \
+		PAD_CTL_SRE_FAST)
+
 #define MX6SL_ENET_PAD_CTRL (PAD_CTL_PKE | PAD_CTL_PUE  |		\
 		PAD_CTL_PUS_100K_UP | PAD_CTL_SPEED_MED |		\
 		PAD_CTL_DSE_40ohm   | PAD_CTL_HYS)
@@ -78,7 +86,7 @@
 		PAD_CTL_DSE_40ohm | PAD_CTL_PUS_100K_DOWN |		\
 		PAD_CTL_HYS | PAD_CTL_SPEED_MED)
 #define MX6SL_CHG_PAD_CTRL	(PAD_CTL_HYS | PAD_CTL_PKE | PAD_CTL_PUE | \
-		PAD_CTL_PUS_47K_UP)
+		PAD_CTL_PUS_100K_UP | PAD_CTL_SPEED_MED)
 
 
 #define MX6SL_PAD_AUD_MCLK		0x02A4
@@ -1329,7 +1337,7 @@
 #define MX6SL_PAD_FEC_MDIO__GPT_CAPIN1                                        \
 		IOMUX_PAD(0x0420, 0x0130, 4, 0x0710, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_FEC_MDIO__GPIO_4_20                                         \
-		IOMUX_PAD(0x0420, 0x0130, 5, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x0420, 0x0130, 5, 0x0000, 0, PAD_CTL_SPEED_LOW)
 #define MX6SL_PAD_FEC_MDIO__KITTEN_TRACE_26                                   \
 		IOMUX_PAD(0x0420, 0x0130, 6, 0x0000, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_FEC_MDIO__PL301_SIM_MX6SL_PER1_HADDR_15                     \
@@ -1510,7 +1518,7 @@
 #define MX6SL_PAD_I2C1_SCL__USDHC3_RST                                        \
 		IOMUX_PAD(0x044C, 0x015C, 4, 0x0000, 0, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_I2C1_SCL__GPIO_3_12                                         \
-		IOMUX_PAD(0x044C, 0x015C, 5, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x044C, 0x015C, 5, 0x0000, 0, PAD_CTL_SPEED_LOW)
 #define MX6SL_PAD_I2C1_SCL__ECSPI1_SS1                                        \
 		IOMUX_PAD(0x044C, 0x015C, 6, 0x0690, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_I2C1_SCL__PL301_SIM_MX6SL_PER1_HSIZE_0                      \
@@ -1529,7 +1537,7 @@
 #define MX6SL_PAD_I2C1_SDA__USDHC3_VSELECT                                    \
 		IOMUX_PAD(0x0450, 0x0160, 4, 0x0000, 0, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_I2C1_SDA__GPIO_3_13                                         \
-		IOMUX_PAD(0x0450, 0x0160, 5, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x0450, 0x0160, 5, 0x0000, 0, PAD_CTL_SPEED_LOW)
 #define MX6SL_PAD_I2C1_SDA__ECSPI1_SS2                                        \
 		IOMUX_PAD(0x0450, 0x0160, 6, 0x0694, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_I2C1_SDA__PL301_SIM_MX6SL_PER1_HSIZE_1                      \
@@ -1546,7 +1554,7 @@
 #define MX6SL_PAD_I2C2_SCL__USDHC3_WP                                         \
 		IOMUX_PAD(0x0454, 0x0164, 4, 0x084C, 2, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_I2C2_SCL__GPIO_3_14                                         \
-		IOMUX_PAD(0x0454, 0x0164, 5, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x0454, 0x0164, 5, 0x0000, 0, PAD_CTL_SPEED_LOW)
 #define MX6SL_PAD_I2C2_SCL__ECSPI1_RDY                                        \
 		IOMUX_PAD(0x0454, 0x0164, 6, 0x0680, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_I2C2_SCL__PL301_SIM_MX6SL_PER1_HSIZE_2                      \
@@ -1563,17 +1571,17 @@
 #define MX6SL_PAD_I2C2_SDA__USDHC3_CD                                         \
 		IOMUX_PAD(0x0458, 0x0168, 4, 0x0838, 2, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_I2C2_SDA__GPIO_3_15                                         \
-		IOMUX_PAD(0x0458, 0x0168, 5, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x0458, 0x0168, 5, 0x0000, 0, PAD_CTL_SPEED_LOW)
 #define MX6SL_PAD_I2C2_SDA__ANATOP_ANATOP_TESTO_0                             \
 		IOMUX_PAD(0x0458, 0x0168, 6, 0x0000, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_I2C2_SDA__PL301_SIM_MX6SL_PER1_HWRITE                       \
 		IOMUX_PAD(0x0458, 0x0168, 7, 0x0000, 0, NO_PAD_CTRL)
 
 #define MX6SL_PAD_JTAG_MOD__SJC_MOD                                           \
-		IOMUX_PAD(0x045C, NO_MUX_I, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x045C, NO_MUX_I, 0, 0x0000, 0, PAD_CTL_PKE|PAD_CTL_SPEED_LOW|PAD_CTL_DSE_60ohm)
 
 #define MX6SL_PAD_JTAG_TCK__SJC_TCK                                           \
-		IOMUX_PAD(0x0460, NO_MUX_I, 0, 0x0000, 0, NO_PAD_CTRL)
+		IOMUX_PAD(0x0460, NO_MUX_I, 0, 0x0000, 0, PAD_CTL_PKE|PAD_CTL_SPEED_LOW|PAD_CTL_DSE_60ohm)
 
 #define MX6SL_PAD_JTAG_TDI__SJC_TDI                                           \
 		IOMUX_PAD(0x0464, NO_MUX_I, 0, 0x0000, 0, NO_PAD_CTRL)
@@ -1721,7 +1729,7 @@
 #define MX6SL_PAD_KEY_COL7__USDHC4_DAT4                                       \
 		IOMUX_PAD(0x0490, 0x0188, 4, 0x086C, 1, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_KEY_COL7__GPIO_4_6                                          \
-		IOMUX_PAD(0x0490, 0x0188, 5, 0x0000, 0, MX6SL_USDHC_PAD_CTRL)
+		IOMUX_PAD(0x0490, 0x0188, 5, 0x0000, 0, MX6SL_USDHC_WP_PAD_CTRL)
 #define MX6SL_PAD_KEY_COL7__USDHC1_WP                                         \
 		IOMUX_PAD(0x0490, 0x0188, 6, 0x082C, 2, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_KEY_COL7__TPSMP_HDATA_14                                    \
@@ -1861,7 +1869,7 @@
 #define MX6SL_PAD_KEY_ROW7__USDHC4_DAT5                                       \
 		IOMUX_PAD(0x04B0, 0x01A8, 4, 0x0870, 1, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_KEY_ROW7__GPIO_4_7                                          \
-		IOMUX_PAD(0x04B0, 0x01A8, 5, 0x0000, 0, MX6SL_USDHC_PAD_CTRL)
+		IOMUX_PAD(0x04B0, 0x01A8, 5, 0x0000, 0, MX6SL_USDHC_CD_PAD_CTRL)
 #define MX6SL_PAD_KEY_ROW7__USDHC1_CD                                         \
 		IOMUX_PAD(0x04B0, 0x01A8, 6, 0x0828, 3, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_KEY_ROW7__TPSMP_HDATA_15                                    \
@@ -2430,7 +2438,7 @@
 #define MX6SL_PAD_REF_CLK_32K__USDHC1_LCTL                                    \
 		IOMUX_PAD(0x0530, 0x0228, 4, 0x0000, 0, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_REF_CLK_32K__GPIO_3_22                                      \
-		IOMUX_PAD(0x0530, 0x0228, 5, 0x0000, 0, MX6SL_USDHC_PAD_CTRL)
+		IOMUX_PAD(0x0530, 0x0228, 5, 0x0000, 0, MX6SL_USDHC_CD_PAD_CTRL)
 #define MX6SL_PAD_REF_CLK_32K__USDHC3_CD                                      \
 		IOMUX_PAD(0x0530, 0x0228, 6, 0x0838, 3, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_REF_CLK_32K__OBSERVE_MUX_OUT_3                              \
@@ -2854,7 +2862,7 @@
 #define MX6SL_PAD_SD2_DAT6__USDHC2_WP                                         \
 		IOMUX_PAD(0x057C, 0x0274, 4, 0x0834, 2, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_SD2_DAT6__GPIO_4_29                                         \
-		IOMUX_PAD(0x057C, 0x0274, 5, 0x0000, 0, MX6SL_USDHC_PAD_CTRL)
+		IOMUX_PAD(0x057C, 0x0274, 5, 0x0000, 0, MX6SL_USDHC_WP_PAD_CTRL)
 #define MX6SL_PAD_SD2_DAT6__MMDC_MMDC_DEBUG_34                                \
 		IOMUX_PAD(0x057C, 0x0274, 6, 0x0000, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_SD2_DAT6__PL301_SIM_MX6SL_PER1_HADDR_19                     \
@@ -2877,7 +2885,7 @@
 #define MX6SL_PAD_SD2_DAT7__USDHC2_CD                                         \
 		IOMUX_PAD(0x0580, 0x0278, 4, 0x0830, 2, MX6SL_USDHC_PAD_CTRL)
 #define MX6SL_PAD_SD2_DAT7__GPIO_5_0                                          \
-		IOMUX_PAD(0x0580, 0x0278, 5, 0x0000, 0, MX6SL_USDHC_PAD_CTRL)
+		IOMUX_PAD(0x0580, 0x0278, 5, 0x0000, 0, MX6SL_USDHC_CD_PAD_CTRL)
 #define MX6SL_PAD_SD2_DAT7__MMDC_MMDC_DEBUG_33                                \
 		IOMUX_PAD(0x0580, 0x0278, 6, 0x0000, 0, NO_PAD_CTRL)
 #define MX6SL_PAD_SD2_DAT7__PL301_SIM_MX6SL_PER1_HADDR_16                     \
