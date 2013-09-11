@@ -1147,7 +1147,9 @@ static int csi_v4l_open(struct file *file)
 
 		cam_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		clk_prepare_enable(sensor->sensor_clk);
+		vidioc_int_s_power(cam->sensor, 1);
 		vidioc_int_init(cam->sensor);
+		vidioc_int_dev_init(cam->sensor);
 	}
 
 	file->private_data = dev;
@@ -1199,6 +1201,7 @@ static int csi_v4l_close(struct file *file)
 		wait_event_interruptible(cam->power_queue,
 					 cam->low_power == false);
 		file->private_data = NULL;
+		vidioc_int_s_power(cam->sensor, 0);
 		clk_disable_unprepare(sensor->sensor_clk);
 	}
 
@@ -1999,9 +2002,6 @@ static int csi_v4l2_master_attach(struct v4l2_int_device *slave)
 		return -1;
 	}
 
-	vidioc_int_s_power(cam->sensor, 1);
-	vidioc_int_dev_init(slave);
-	vidioc_int_s_power(cam->sensor, 0);
 	cam_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	vidioc_int_g_fmt_cap(cam->sensor, &cam_fmt);
 
