@@ -1877,6 +1877,8 @@ static int ov5640_probe(struct i2c_client *client,
 		return retval;
 	}
 
+	clk_prepare_enable(ov5640_data.sensor_clk);
+
 	ov5640_data.io_init = ov5640_reset;
 	ov5640_data.i2c_client = client;
 	ov5640_data.pix.pixelformat = V4L2_PIX_FMT_YUYV;
@@ -1896,16 +1898,20 @@ static int ov5640_probe(struct i2c_client *client,
 
 	retval = ov5640_read_reg(OV5640_CHIP_ID_HIGH_BYTE, &chip_id_high);
 	if (retval < 0 || chip_id_high != 0x56) {
+		clk_disable_unprepare(ov5640_data.sensor_clk);
 		pr_warning("camera ov5640 is not found\n");
 		return -ENODEV;
 	}
 	retval = ov5640_read_reg(OV5640_CHIP_ID_LOW_BYTE, &chip_id_low);
 	if (retval < 0 || chip_id_low != 0x40) {
+		clk_disable_unprepare(ov5640_data.sensor_clk);
 		pr_warning("camera ov5640 is not found\n");
 		return -ENODEV;
 	}
 
 	ov5640_power_down(1);
+
+	clk_disable_unprepare(ov5640_data.sensor_clk);
 
 	ov5640_int_device.priv = &ov5640_data;
 	retval = v4l2_int_device_register(&ov5640_int_device);
