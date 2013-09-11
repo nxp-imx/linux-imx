@@ -1183,11 +1183,60 @@ static void mx6sl_suspend_enter()
 	/* Set PADCTRL to 0 for all IOMUX. */
 	for (i = 0; i < ARRAY_SIZE(suspend_enter_pads); i++) {
 		suspend_exit_pads[i] = *p;
-		*p &= ~MUX_PAD_CTRL_MASK;
-		/* Enable the Pull down and the keeper
-		  * Set the drive strength to 0.
-		  */
-		*p |= ((u64)0x3000 << MUX_PAD_CTRL_SHIFT);
+		if (*p == MX6SL_PAD_I2C1_SCL__GPIO_3_12 ||
+			*p == MX6SL_PAD_I2C1_SDA__GPIO_3_13 ||
+			*p == MX6SL_PAD_I2C2_SCL__GPIO_3_14 ||
+			*p == MX6SL_PAD_I2C2_SDA__GPIO_3_15 ||
+			*p == MX6SL_PAD_SD1_CLK__GPIO_5_15 ||
+			*p == MX6SL_PAD_SD1_CMD__GPIO_5_14 ||
+			*p == MX6SL_PAD_SD1_DAT0__GPIO_5_11 ||
+			*p == MX6SL_PAD_SD1_DAT1__GPIO_5_8 ||
+			*p == MX6SL_PAD_SD1_DAT2__GPIO_5_13 ||
+			*p == MX6SL_PAD_SD1_DAT3__GPIO_5_6 ||
+			*p == MX6SL_PAD_SD1_DAT4__GPIO_5_12 ||
+			*p == MX6SL_PAD_SD1_DAT5__GPIO_5_9 ||
+			*p == MX6SL_PAD_SD1_DAT6__GPIO_5_7 ||
+			*p == MX6SL_PAD_SD1_DAT7__GPIO_5_10 ||
+			*p == MX6SL_PAD_SD2_CLK__GPIO_5_5 ||
+			*p == MX6SL_PAD_SD2_CMD__GPIO_5_4 ||
+			*p == MX6SL_PAD_SD2_DAT0__GPIO_5_1 ||
+			*p == MX6SL_PAD_SD2_DAT1__GPIO_4_30 ||
+			*p == MX6SL_PAD_SD2_DAT2__GPIO_5_3 ||
+			*p == MX6SL_PAD_SD2_DAT3__GPIO_4_28 ||
+			*p == MX6SL_PAD_SD2_DAT4__GPIO_5_2 ||
+			*p == MX6SL_PAD_SD2_DAT5__GPIO_4_31 ||
+			*p == MX6SL_PAD_SD3_CLK__GPIO_5_18 ||
+			*p == MX6SL_PAD_SD3_CMD__GPIO_5_21 ||
+			*p == MX6SL_PAD_SD3_DAT0__GPIO_5_19 ||
+			*p == MX6SL_PAD_SD3_DAT1__GPIO_5_20 ||
+			*p == MX6SL_PAD_SD3_DAT2__GPIO_5_16 ||
+			*p == MX6SL_PAD_SD3_DAT3__GPIO_5_17 ||
+			*p == MX6SL_PAD_FEC_MDIO__GPIO_4_20 ||
+			*p == MX6SL_PAD_ECSPI1_SS0__GPIO_4_11 ||
+			*p == MX6SL_PAD_EPDC_PWRCTRL2__GPIO_2_9 ||
+			*p == MX6SL_PAD_KEY_COL4__GPIO_4_0 ||
+			*p == MX6SL_PAD_KEY_COL5__GPIO_4_2 ||
+			*p == MX6SL_PAD_KEY_ROW5__GPIO_4_3 ||
+			*p == MX6SL_PAD_KEY_COL6__GPIO_4_4 ||
+			*p == MX6SL_PAD_FEC_TX_CLK__GPIO_4_21 ||
+			*p == MX6SL_PAD_SD2_DAT6__GPIO_4_29 ||
+			*p == MX6SL_PAD_SD2_DAT7__GPIO_5_0 ||
+			*p == MX6SL_PAD_KEY_ROW7__GPIO_4_7 ||
+			*p == MX6SL_PAD_KEY_COL7__GPIO_4_6 ||
+			*p == MX6SL_PAD_REF_CLK_32K__GPIO_3_22) {
+			/*
+			 * These pins are either external pull up or may
+			 * idle at high state. Do not enable internal
+			 * pull down on these pins.
+			 */
+		} else {
+			*p &= ~MUX_PAD_CTRL_MASK;
+			/*
+			 * Enable the Pull down and the keeper
+			 * Set the drive strength to 0.
+			 */
+			*p |= ((u64)0x3000 << MUX_PAD_CTRL_SHIFT);
+		}
 		p++;
 	}
 	mxc_iomux_v3_get_multiple_pads(suspend_exit_pads,
