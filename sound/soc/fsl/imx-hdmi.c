@@ -66,6 +66,8 @@ static int imx_hdmi_audio_probe(struct platform_device *pdev)
 	card->dev = &pdev->dev;
 	card->dai_link->cpu_dai_name = dev_name(&hdmi_pdev->dev);
 
+	platform_set_drvdata(pdev, card);
+
 	ret = snd_soc_register_card(card);
 	if (ret)
 		dev_err(&pdev->dev, "failed to register card: %d\n", ret);
@@ -79,7 +81,7 @@ end:
 
 static int imx_hdmi_audio_remove(struct platform_device *pdev)
 {
-	struct snd_soc_card *card = &snd_soc_card_imx_hdmi;
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
 	snd_soc_unregister_card(card);
 
@@ -99,6 +101,7 @@ static struct platform_driver imx_hdmi_audio_driver = {
 		.of_match_table = imx_hdmi_dt_ids,
 		.name = "imx-audio-hdmi",
 		.owner = THIS_MODULE,
+		.pm = &snd_soc_pm_ops,
 	},
 };
 
