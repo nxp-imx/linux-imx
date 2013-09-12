@@ -180,7 +180,8 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct imx_priv *priv = &card_priv;
 	struct device *dev = &priv->pdev->dev;
-	struct imx_wm8962_data *data = platform_get_drvdata(priv->pdev);
+	struct snd_soc_card *card = codec_dai->codec->card;
+	struct imx_wm8962_data *data = snd_soc_card_get_drvdata(card);
 	unsigned int sample_rate = params_rate(params);
 	snd_pcm_format_t sample_format = params_format(params);
 	u32 dai_format, pll_out;
@@ -366,7 +367,7 @@ static int imx_wm8962_late_probe(struct snd_soc_card *card)
 {
 	struct snd_soc_dai *codec_dai = card->rtd[0].codec_dai;
 	struct imx_priv *priv = &card_priv;
-	struct imx_wm8962_data *data = platform_get_drvdata(priv->pdev);
+	struct imx_wm8962_data *data = snd_soc_card_get_drvdata(card);
 	struct device *dev = &priv->pdev->dev;
 	int ret;
 
@@ -500,13 +501,14 @@ static int imx_wm8962_probe(struct platform_device *pdev)
 
 	data->card.late_probe = imx_wm8962_late_probe;
 
+	platform_set_drvdata(pdev, &data->card);
+	snd_soc_card_set_drvdata(&data->card, data);
+
 	ret = snd_soc_register_card(&data->card);
 	if (ret) {
 		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
 		goto fail;
 	}
-
-	platform_set_drvdata(pdev, data);
 
 	if (gpio_is_valid(priv->hp_gpio)) {
 		ret = driver_create_file(pdev->dev.driver, &driver_attr_headphone);
@@ -541,12 +543,12 @@ fail:
 
 static int imx_wm8962_remove(struct platform_device *pdev)
 {
-	struct imx_wm8962_data *data = platform_get_drvdata(pdev);
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
 	driver_remove_file(pdev->dev.driver, &driver_attr_microphone);
 	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
 
-	snd_soc_unregister_card(&data->card);
+	snd_soc_unregister_card(card);
 
 	return 0;
 }
@@ -561,6 +563,7 @@ static struct platform_driver imx_wm8962_driver = {
 	.driver = {
 		.name = "imx-wm8962",
 		.owner = THIS_MODULE,
+		.pm = &snd_soc_pm_ops,
 		.of_match_table = imx_wm8962_dt_ids,
 	},
 	.probe = imx_wm8962_probe,

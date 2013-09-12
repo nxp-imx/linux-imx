@@ -119,6 +119,8 @@ static int imx_si476x_probe(struct platform_device *pdev)
 	card->dai_link->cpu_dai_name = dev_name(&ssi_pdev->dev);
 	card->dai_link->platform_of_node = ssi_np;
 
+	platform_set_drvdata(pdev, card);
+
 	ret = snd_soc_register_card(card);
 	if (ret)
 		dev_err(&pdev->dev, "Failed to register card: %d\n", ret);
@@ -149,6 +151,7 @@ static struct platform_driver imx_si476x_driver = {
 	.driver = {
 		.name = "imx-tuner-si476x",
 		.owner = THIS_MODULE,
+		.pm = &snd_soc_pm_ops,
 		.of_match_table = imx_si476x_dt_ids,
 	},
 	.probe = imx_si476x_probe,
