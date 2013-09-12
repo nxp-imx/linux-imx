@@ -441,14 +441,14 @@ static int imx6_cpufreq_probe(struct platform_device *pdev)
 	if (ret > 0)
 		transition_latency += ret * 1000;
 
+	mutex_init(&set_cpufreq_lock);
+	register_pm_notifier(&imx6_cpufreq_pm_notifier);
+
 	ret = cpufreq_register_driver(&imx6_cpufreq_driver);
 	if (ret) {
 		dev_err(cpu_dev, "failed register driver: %d\n", ret);
 		goto free_freq_table;
 	}
-
-	mutex_init(&set_cpufreq_lock);
-	register_pm_notifier(&imx6_cpufreq_pm_notifier);
 
 	of_node_put(np);
 	return 0;
