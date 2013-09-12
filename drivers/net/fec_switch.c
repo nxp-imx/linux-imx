@@ -103,8 +103,9 @@ static void switch_enet_tx(struct net_device *dev);
 static void switch_enet_rx(struct net_device *dev);
 static int switch_enet_close(struct net_device *dev);
 static void set_multicast_list(struct net_device *dev);
-static void switch_restart(struct net_device *dev, int duplex);
+static void switch_restart(struct net_device *dev, int duplex0, int duplex1);
 static void switch_stop(struct net_device *dev);
+static void enet_reset(struct net_device *dev, int duplex0, int duplex1);
 
 #define		NMII	20
 
@@ -2857,7 +2858,7 @@ switch_timeout(struct net_device *dev)
 		bdp++;
 	}
 	}
-	switch_restart(dev, fep->full_duplex);
+	switch_restart(dev, fep->full_duplex[0], fep->full_duplex[1]);
 	netif_wake_queue(dev);
 }
 
@@ -3197,7 +3198,7 @@ static void switch_adjust_link0(struct net_device *dev)
 
 	/* Duplex link change */
 	if (phy_dev->link) {
-		if (fep->full_duplex != phy_dev->duplex)
+		if (fep->full_duplex[0] != phy_dev->duplex)
 			status_change = 1;
 	}
 
@@ -3238,7 +3239,7 @@ static void switch_adjust_link1(struct net_device *dev)
 
 	/* Duplex link change */
 	if (phy_dev->link) {
-		if (fep->full_duplex != phy_dev->duplex)
+		if (fep->full_duplex[1] != phy_dev->duplex)
 			status_change = 1;
 	}
 
@@ -3378,7 +3379,8 @@ static int fec_enet_mii_probe(struct net_device *dev)
 
 	fep->link[0] = 0;
 	fep->link[1] = 0;
-	fep->full_duplex = 0;
+	fep->full_duplex[0] = 0;
+	fep->full_duplex[1] = 0;
 
 	printk(KERN_INFO "%s: Freescale FEC PHY driver [%s] "
 		"(mii_bus:phy_addr=%s, irq=%d)\n", dev->name,
@@ -3591,7 +3593,7 @@ switch_enet_open(struct net_device *dev)
 	fep->link[0] = 1;
 	fep->link[1] = 1;
 
-	switch_restart(dev, 1);
+	switch_restart(dev, 1, 1);
 
 	fep->currTime = 0;
 	fep->learning_irqhandle_enable = 1;
@@ -3979,7 +3981,7 @@ static int __init switch_enet_init(struct net_device *dev,
 	return 0;
 }
 
-static void enet_reset(struct net_device *dev, int duplex)
+static void enet_reset(struct net_device *dev, int duplex0, int duplex1)
 {
 	struct switch_enet_private	*fep = netdev_priv(dev);
 	struct phy_device *phydev0 = fep->phy_dev[0];
@@ -4013,7 +4015,8 @@ static void enet_reset(struct net_device *dev, int duplex)
 	writel(fep->phy_speed,
 			fep->enet_addr + MCF_FEC_MSCR1);
 #endif
-	fep->full_duplex = duplex;
+	fep->full_duplex[0] = duplex0;
+	fep->full_duplex[1] = duplex1;
 
 	/* EIR */
 	writel(0, fep->enet_addr + MCF_FEC_EIR0);
@@ -4064,21 +4067,63 @@ static void enet_reset(struct net_device *dev, int duplex)
 
 	/* RCR */
 	if (phydev0 && phydev0->speed == SPEED_100) {
-		writel(readl(fep->enet_addr + MCF_FEC_RCR0)
-			| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM,
-			fep->enet_addr + MCF_FEC_RCR0);
-		writel(readl(fep->enet_addr + MCF_FEC_RCR1)
-			| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM,
-			fep->enet_addr + MCF_FEC_RCR1);
-	} else {
+		if (duplex0) {
+			/* full duplex mode */
+			writel((readl(fep->enet_addr + MCF_FEC_RCR0)
+				| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM)
+				& ~(MCF_FEC_RCR_RMII_10BASET | MCF_FEC_RCR_DRT),
+				fep->enet_addr + MCF_FEC_RCR0);
+		} else {
+		/* half duplex mode */
 		writel((readl(fep->enet_addr + MCF_FEC_RCR0)
-			| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_10BASET)
-			& ~(MCF_FEC_RCR_DRT),
+			| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM | MCF_FEC_RCR_DRT)
+			& ~(MCF_FEC_RCR_RMII_10BASET),
 			fep->enet_addr + MCF_FEC_RCR0);
-		writel((readl(fep->enet_addr + MCF_FEC_RCR1)
-			| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_10BASET)
-			& ~(MCF_FEC_RCR_DRT),
-			fep->enet_addr + MCF_FEC_RCR1);
+		}
+	} else {
+		if (duplex0) {
+			/* full duplex mode */
+			writel((readl(fep->enet_addr + MCF_FEC_RCR0)
+				| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_10BASET)
+				& ~(MCF_FEC_RCR_DRT),
+				fep->enet_addr + MCF_FEC_RCR0);
+		} else {
+			/* half duplex mode */
+			writel(readl(fep->enet_addr + MCF_FEC_RCR0)
+				| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_10BASET
+				| MCF_FEC_RCR_DRT,
+				fep->enet_addr + MCF_FEC_RCR0);
+		}
+	}
+
+	if (phydev1 && phydev1->speed == SPEED_100) {
+		if (duplex1) {
+			/* full duplex mode */
+			writel((readl(fep->enet_addr + MCF_FEC_RCR1)
+				| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM)
+				& ~(MCF_FEC_RCR_RMII_10BASET | MCF_FEC_RCR_DRT),
+				fep->enet_addr + MCF_FEC_RCR1);
+		} else {
+			/* half duplex mode */
+			writel((readl(fep->enet_addr + MCF_FEC_RCR1)
+				| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM | MCF_FEC_RCR_DRT)
+				& ~(MCF_FEC_RCR_RMII_10BASET),
+				fep->enet_addr + MCF_FEC_RCR1);
+		}
+	} else {
+		if (duplex1) {
+			/* full duplex mode */
+			writel((readl(fep->enet_addr + MCF_FEC_RCR1)
+				| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_10BASET)
+				& ~(MCF_FEC_RCR_DRT),
+				fep->enet_addr + MCF_FEC_RCR1);
+		} else {
+			/* half duplex mode */
+			writel(readl(fep->enet_addr + MCF_FEC_RCR1)
+				| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_10BASET
+				| MCF_FEC_RCR_DRT,
+				fep->enet_addr + MCF_FEC_RCR1);
+		}
 	}
 
 #ifdef FEC_MIIGSK_ENR
@@ -4109,8 +4154,14 @@ static void enet_reset(struct net_device *dev, int duplex)
 #endif
 
 	/* TCR */
-	writel(0x1c, fep->enet_addr + MCF_FEC_TCR0);
-	writel(0x1c, fep->enet_addr + MCF_FEC_TCR1);
+	if (duplex0)
+		writel(0x1c, fep->enet_addr + MCF_FEC_TCR0);
+	else
+		writel(0x18, fep->enet_addr + MCF_FEC_TCR0);
+	if (duplex1)
+		writel(0x1c, fep->enet_addr + MCF_FEC_TCR1);
+	else
+		writel(0x18, fep->enet_addr + MCF_FEC_TCR1);
 
 	/* ECR */
 	writel(readl(fep->enet_addr + MCF_FEC_ECR0) | MCF_FEC_ECR_ETHER_EN,
@@ -4124,8 +4175,7 @@ static void enet_reset(struct net_device *dev, int duplex)
  * change.  This only happens when switching between half and full
  * duplex.
  */
-static void
-switch_restart(struct net_device *dev, int duplex)
+static void switch_restart(struct net_device *dev, int duplex0, int duplex1)
 {
 	struct switch_enet_private *fep;
 	struct switch_t *fecp;
@@ -4194,7 +4244,7 @@ switch_restart(struct net_device *dev, int duplex)
 		}
 	}
 
-	enet_reset(dev, duplex);
+	enet_reset(dev, duplex0, duplex1);
 	esw_clear_atable(fep);
 
 	/* And last, enable the transmit and receive processing */

@@ -652,7 +652,7 @@ struct switch_enet_private {
 	uint    phy_speed;
 	int     index;
 	int     link[2];
-	int     full_duplex;
+	int     full_duplex[2];
 	struct  completion mdio_done;
 
 	int	mac0_irq;
