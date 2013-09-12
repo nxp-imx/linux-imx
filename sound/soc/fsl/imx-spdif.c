@@ -87,13 +87,14 @@ static int imx_spdif_audio_probe(struct platform_device *pdev)
 	if (ret)
 		goto error_dir;
 
+	platform_set_drvdata(pdev, &data->card);
+	snd_soc_card_set_drvdata(&data->card, data);
+
 	ret = snd_soc_register_card(&data->card);
 	if (ret) {
 		dev_err(&pdev->dev, "snd_soc_register_card failed: %d\n", ret);
 		goto error_dir;
 	}
-
-	platform_set_drvdata(pdev, data);
 
 	goto end;
 
@@ -112,14 +113,15 @@ end:
 
 static int imx_spdif_audio_remove(struct platform_device *pdev)
 {
-	struct imx_spdif_data *data = platform_get_drvdata(pdev);
+	struct snd_soc_card *card = platform_get_drvdata(pdev);
+	struct imx_spdif_data *data = snd_soc_card_get_drvdata(card);
 
 	if (data->rxdev)
 		platform_device_unregister(data->rxdev);
 	if (data->txdev)
 		platform_device_unregister(data->txdev);
 
-	snd_soc_unregister_card(&data->card);
+	snd_soc_unregister_card(card);
 
 	return 0;
 }
@@ -134,6 +136,7 @@ static struct platform_driver imx_spdif_driver = {
 	.driver = {
 		.name = "imx-spdif",
 		.owner = THIS_MODULE,
+		.pm = &snd_soc_pm_ops,
 		.of_match_table = imx_spdif_dt_ids,
 	},
 	.probe = imx_spdif_audio_probe,

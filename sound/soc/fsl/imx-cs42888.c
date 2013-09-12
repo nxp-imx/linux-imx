@@ -328,6 +328,8 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 
 	snd_soc_card_imx_cs42888.dev = &pdev->dev;
 
+	platform_set_drvdata(pdev, &snd_soc_card_imx_cs42888);
+
 	ret = snd_soc_register_card(&snd_soc_card_imx_cs42888);
 	if (ret)
 		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
@@ -356,6 +358,7 @@ static struct platform_driver imx_cs42888_driver = {
 	.driver = {
 		.name = "imx-cs42888",
 		.owner = THIS_MODULE,
+		.pm = &snd_soc_pm_ops,
 		.of_match_table = imx_cs42888_dt_ids,
 	},
 };
