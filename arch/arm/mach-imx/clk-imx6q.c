@@ -515,6 +515,8 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk_set_parent(clk[ssi2_sel], clk[pll4_audio_div]);
 	clk_set_parent(clk[ssi3_sel], clk[pll4_audio_div]);
 	clk_set_parent(clk[spdif_sel], clk[pll3_pfd3_454m]);
+	clk_set_parent(clk[asrc_sel], clk[pll3_usb_otg]);
+	clk_set_rate(clk[asrc_sel], 7500000);
 
 	/* Set pll4_audio to a value that can derive 5K-88.2KHz and 8K-96KHz */
 	clk_set_rate(clk[pll4_audio_div], 541900800);

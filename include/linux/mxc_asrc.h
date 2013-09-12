@@ -30,7 +30,7 @@
 
 
 /* Ideal Ratio mode doesn't care the outclk frequency, so be fixed */
-#define ASRC_PRESCALER_IDEAL_RATIO	7
+#define ASRC_PRESCALER_IDEAL_RATIO	5
 /* SPDIF rxclk pulse rate is 128 * samplerate, so 2 ^ 7 */
 #define ASRC_PRESCALER_SPDIF_RX		7
 /* SPDIF txclk pulse rate is 64 * samplerate, so 2 ^ 6 */
