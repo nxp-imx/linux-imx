@@ -680,6 +680,8 @@ EXPORT_SYMBOL(asrc_get_per_addr);
 
 static int mxc_init_asrc(void)
 {
+	clk_enable(asrc->asrc_clk);
+
 	/* Halt ASRC internal FP when input FIFO needs data for pair A, B, C */
 	asrc_regmap_write(asrc->regmap, REG_ASRCTR, ASRCTR_ASRCEN);
 
@@ -707,6 +709,8 @@ static int mxc_init_asrc(void)
 
 	/* Set the processing clock for 56KHz, 133M */
 	asrc_regmap_write(asrc->regmap, REG_ASR56K, 0x0947);
+
+	clk_disable(asrc->asrc_clk);
 
 	return 0;
 }
@@ -1927,7 +1931,7 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 		goto err_iomap;
 	}
 #ifndef ASRC_USE_REGMAP
-	clk_prepare_enable(asrc->asrc_clk);
+	clk_prepare(asrc->asrc_clk);
 #endif
 
 	ret = of_property_read_u32_array(pdev->dev.of_node,
@@ -1984,6 +1988,9 @@ err_iomap:
 
 static int mxc_asrc_remove(struct platform_device *pdev)
 {
+#ifndef ASRC_USE_REGMAP
+	clk_unprepare(asrc->asrc_clk);
+#endif
 	asrc_proc_remove();
 	misc_deregister(&asrc_miscdev);
 
