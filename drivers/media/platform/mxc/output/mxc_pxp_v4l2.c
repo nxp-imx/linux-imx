@@ -291,6 +291,12 @@ static int pxp_show_buf(struct pxps *pxp, bool toshow)
 	struct fb_info *fbi = pxp->fbi;
 	int ret;
 
+	ret = pxp_set_fbinfo(pxp);
+	if (ret) {
+		dev_err(&pxp->pdev->dev, "failed to call pxp_set_fbinfo\n");
+		return ret;
+	}
+
 	console_lock();
 	fbi->fix.smem_start = toshow ?
 			pxp->outb_phys : (unsigned long)pxp->fb.base;
@@ -787,6 +793,12 @@ static int pxp_buf_prepare(struct videobuf_queue *q,
 					sizeof(struct pxp_layer_param));
 			} else if (pxp_conf->ol_param[0].combine_enable) {
 				/* Overlay */
+				ret = pxp_set_fbinfo(pxp);
+				if (ret) {
+					dev_err(&pxp->pdev->dev,
+						"call pxp_set_fbinfo failed");
+					goto fail;
+				}
 				pxp_conf->ol_param[0].paddr =
 						(dma_addr_t)pxp->fb.base;
 				pxp_conf->ol_param[0].width = pxp->fb.fmt.width;
