@@ -418,7 +418,7 @@ static int bg_overlay_stop(void *private)
 	}
 #endif
 
-	flush_work_sync(&cam->csi_work_struct);
+	flush_work(&cam->csi_work_struct);
 	cancel_work_sync(&cam->csi_work_struct);
 
 	if (cam->vf_bufs_vaddr[0]) {
