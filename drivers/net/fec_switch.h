@@ -4,7 +4,7 @@
  *	mcfswitch -- L2 Switch Controller for Modelo ColdFire SoC
  *		   processors.
  *
- *      Copyright (C) 2010 Freescale Semiconductor,Inc.All rights reserved.
+ *     Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All rights reserved.
  *
  *     This program is free software; you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
@@ -248,10 +248,17 @@ struct  eswAddrTable_t {
 #define MCF_FEC_EMRBR0         (0x188 / sizeof(unsigned long))
 #define MCF_FEC_EMRBR1         (0x4188 / sizeof(unsigned long))
 
+#define MCF_FEC_MIIGSK_CFGR0   (0x300 / sizeof(unsigned long))
+#define MCF_FEC_MIIGSK_CFGR1   (0x4300 / sizeof(unsigned long))
+
+#define MCF_FEC_MIIGSK_ENR0    (0x308 / sizeof(unsigned long))
+#define MCF_FEC_MIIGSK_ENR1    (0x4308 / sizeof(unsigned long))
+
 #define MCF_FEC_RCR_DRT	(0x00000002)
 #define MCF_FEC_RCR_PROM       (0x00000008)
 #define MCF_FEC_RCR_FCE	(0x00000020)
 #define MCF_FEC_RCR_RMII_MODE  (0x00000100)
+#define MCF_FEC_RCR_RMII_10BASET  (0x00000200)
 #define MCF_FEC_RCR_MAX_FL(x)  (((x)&0x00003FFF)<<16)
 #define MCF_FEC_RCR_CRC_FWD    (0x00004000)
 #define MCF_FEC_RCR_NO_LGTH_CHECK (0x40000000)

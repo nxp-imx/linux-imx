@@ -155,15 +155,32 @@ static void switch_set_mii(struct net_device *dev)
 {
 	struct switch_enet_private *fep = netdev_priv(dev);
 	struct switch_t *fecp;
+	struct phy_device *phydev0 = fep->phy_dev[0];
+	struct phy_device *phydev1 = fep->phy_dev[1];
+	int val;
 
 	fecp = (struct switch_t *)fep->hwp;
 
-	writel(MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_MODE |
-			MCF_FEC_RCR_MAX_FL(1522) | MCF_FEC_RCR_CRC_FWD,
-			fep->enet_addr + MCF_FEC_RCR0);
-	writel(MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_MODE |
-			MCF_FEC_RCR_MAX_FL(1522) | MCF_FEC_RCR_CRC_FWD,
-			fep->enet_addr + MCF_FEC_RCR1);
+	if (phydev0 && phydev0->speed == SPEED_100)	{
+		writel(MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_MODE |
+				MCF_FEC_RCR_MAX_FL(1522) | MCF_FEC_RCR_CRC_FWD,
+				fep->enet_addr + MCF_FEC_RCR0);
+	} else {
+		writel(MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_MODE | MCF_FEC_RCR_RMII_10BASET |
+				MCF_FEC_RCR_MAX_FL(1522) | MCF_FEC_RCR_CRC_FWD,
+				fep->enet_addr + MCF_FEC_RCR0);
+	}
+
+	if (phydev1 && phydev1->speed == SPEED_100)	{
+		writel(MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_MODE |
+				MCF_FEC_RCR_MAX_FL(1522) | MCF_FEC_RCR_CRC_FWD,
+				fep->enet_addr + MCF_FEC_RCR1);
+	} else {
+		writel(MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_MODE | MCF_FEC_RCR_RMII_10BASET |
+				MCF_FEC_RCR_MAX_FL(1522) | MCF_FEC_RCR_CRC_FWD,
+				fep->enet_addr + MCF_FEC_RCR1);
+	}
+
 	/* TCR */
 	writel(MCF_FEC_TCR_FDEN, fep->enet_addr + MCF_FEC_TCR0);
 	writel(MCF_FEC_TCR_FDEN, fep->enet_addr + MCF_FEC_TCR1);
@@ -199,6 +216,32 @@ static void switch_set_mii(struct net_device *dev)
 	writel(fep->phy_speed, fep->enet_addr + MCF_FEC_MSCR1);
 #endif
 
+#ifdef FEC_MIIGSK_ENR
+	if (fep->phy_interface == PHY_INTERFACE_MODE_RMII) {
+		/* disable the gasket and wait */
+		writel(0, fep->enet_addr + MCF_FEC_MIIGSK_ENR0);
+		while (readl(fep->enet_addr + MCF_FEC_MIIGSK_ENR0) & 4)
+			udelay(1);
+		writel(0, fep->enet_addr + MCF_FEC_MIIGSK_ENR1);
+		while (readl(fep->enet_addr + MCF_FEC_MIIGSK_ENR1) & 4)
+			udelay(1);
+
+		/* configure the gasket: RMII, 50 MHz, no loopback, no echo */
+		val = 1;
+		if (phydev0 && phydev0->speed == SPEED_10)
+			val |= 1 << 6;
+		writel(val, fep->enet_addr + MCF_FEC_MIIGSK_CFGR0);
+
+		val = 1;
+		if (phydev1 && phydev1->speed == SPEED_10)
+			val |= 1 << 6;
+		writel(val, fep->enet_addr + MCF_FEC_MIIGSK_CFGR1);
+
+		/* re-enable the gasket */
+		writel(2, fep->enet_addr + MCF_FEC_MIIGSK_ENR0);
+		writel(2, fep->enet_addr + MCF_FEC_MIIGSK_ENR1);
+	}
+#endif
 }
 
 static void switch_get_mac(struct net_device *dev)
@@ -3939,6 +3982,9 @@ static int __init switch_enet_init(struct net_device *dev,
 static void enet_reset(struct net_device *dev, int duplex)
 {
 	struct switch_enet_private	*fep = netdev_priv(dev);
+	struct phy_device *phydev0 = fep->phy_dev[0];
+	struct phy_device *phydev1 = fep->phy_dev[1];
+	int val;
 
 	/* ECR */
 	writel(MCF_FEC_ECR_MAGIC_ENA,
@@ -4017,12 +4063,50 @@ static void enet_reset(struct net_device *dev, int duplex)
 		fep->enet_addr + MCF_FEC_PAUR1);
 
 	/* RCR */
-	writel(readl(fep->enet_addr + MCF_FEC_RCR0)
-		| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM,
-		fep->enet_addr + MCF_FEC_RCR0);
-	writel(readl(fep->enet_addr + MCF_FEC_RCR1)
-		| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM,
-		fep->enet_addr + MCF_FEC_RCR1);
+	if (phydev0 && phydev0->speed == SPEED_100) {
+		writel(readl(fep->enet_addr + MCF_FEC_RCR0)
+			| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM,
+			fep->enet_addr + MCF_FEC_RCR0);
+		writel(readl(fep->enet_addr + MCF_FEC_RCR1)
+			| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM,
+			fep->enet_addr + MCF_FEC_RCR1);
+	} else {
+		writel((readl(fep->enet_addr + MCF_FEC_RCR0)
+			| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_10BASET)
+			& ~(MCF_FEC_RCR_DRT),
+			fep->enet_addr + MCF_FEC_RCR0);
+		writel((readl(fep->enet_addr + MCF_FEC_RCR1)
+			| MCF_FEC_RCR_FCE | MCF_FEC_RCR_PROM | MCF_FEC_RCR_RMII_10BASET)
+			& ~(MCF_FEC_RCR_DRT),
+			fep->enet_addr + MCF_FEC_RCR1);
+	}
+
+#ifdef FEC_MIIGSK_ENR
+	if (fep->phy_interface == PHY_INTERFACE_MODE_RMII) {
+		/* disable the gasket and wait */
+		writel(0, fep->enet_addr + MCF_FEC_MIIGSK_ENR0);
+		while (readl(fep->enet_addr + MCF_FEC_MIIGSK_ENR0) & 4)
+			udelay(1);
+		writel(0, fep->enet_addr + MCF_FEC_MIIGSK_ENR1);
+		while (readl(fep->enet_addr + MCF_FEC_MIIGSK_ENR1) & 4)
+			udelay(1);
+
+		/* configure the gasket: RMII, 50 MHz, no loopback, no echo */
+		val = 1;
+		if (phydev0 && phydev0->speed == SPEED_10)
+			val |= 1 << 6;
+		writel(val, fep->enet_addr + MCF_FEC_MIIGSK_CFGR0);
+
+		val = 1;
+		if (phydev1 && phydev1->speed == SPEED_10)
+			val |= 1 << 6;
+		writel(val, fep->enet_addr + MCF_FEC_MIIGSK_CFGR1);
+
+		/* re-enable the gasket */
+		writel(2, fep->enet_addr + MCF_FEC_MIIGSK_ENR0);
+		writel(2, fep->enet_addr + MCF_FEC_MIIGSK_ENR1);
+	}
+#endif
 
 	/* TCR */
 	writel(0x1c, fep->enet_addr + MCF_FEC_TCR0);
