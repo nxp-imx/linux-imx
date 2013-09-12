@@ -3198,14 +3198,22 @@ static void switch_adjust_link0(struct net_device *dev)
 
 	/* Duplex link change */
 	if (phy_dev->link) {
-		if (fep->full_duplex[0] != phy_dev->duplex)
+		if (fep->full_duplex[0] != phy_dev->duplex)	{
+			if (phy_dev->link) {
+				switch_restart(dev, phy_dev->duplex, fep->full_duplex[1]);
+				esw_main(fep);
+			}
 			status_change = 1;
+		}
 	}
 
 	/* Link on or off change */
 	if (phy_dev->link != fep->link[0]) {
 		fep->link[0] = phy_dev->link;
 		if (phy_dev->link) {
+			switch_restart(dev, phy_dev->duplex, fep->full_duplex[1]);
+			esw_main(fep);
+
 			/* if link becomes up and tx be stopped, start it */
 			if (netif_queue_stopped(dev)) {
 				netif_start_queue(dev);
@@ -3239,14 +3247,22 @@ static void switch_adjust_link1(struct net_device *dev)
 
 	/* Duplex link change */
 	if (phy_dev->link) {
-		if (fep->full_duplex[1] != phy_dev->duplex)
+		if (fep->full_duplex[1] != phy_dev->duplex)	{
+			if (phy_dev->link) {
+				switch_restart(dev, fep->full_duplex[0], phy_dev->duplex);
+				esw_main(fep);
+			}
 			status_change = 1;
+		}
 	}
 
 	/* Link on or off change */
 	if (phy_dev->link != fep->link[1]) {
 		fep->link[1] = phy_dev->link;
 		if (phy_dev->link) {
+			switch_restart(dev, fep->full_duplex[0], phy_dev->duplex);
+			esw_main(fep);
+
 			/* if link becomes up and tx be stopped, start it */
 			if (netif_queue_stopped(dev)) {
 				netif_start_queue(dev);
@@ -3570,6 +3586,7 @@ static int
 switch_enet_open(struct net_device *dev)
 {
 	int ret;
+	int value;
 	struct switch_enet_private *fep = netdev_priv(dev);
 	/* I should reset the ring buffers here, but I don't yet know
 	 * a simple way to do that.
@@ -3587,11 +3604,14 @@ switch_enet_open(struct net_device *dev)
 		fec_enet_free_buffers(dev);
 		return ret;
 	}
+	value = phy_read(fep->phy_dev[0], MII_BMCR);
+	phy_write(fep->phy_dev[0], MII_BMCR, (value & ~BMCR_PDOWN));
+	value = phy_read(fep->phy_dev[1], MII_BMCR);
+	phy_write(fep->phy_dev[1], MII_BMCR, (value & ~BMCR_PDOWN));
+
 	phy_start(fep->phy_dev[0]);
 	phy_start(fep->phy_dev[1]);
 	fep->old_link = 0;
-	fep->link[0] = 1;
-	fep->link[1] = 1;
 
 	switch_restart(dev, 1, 1);
 
