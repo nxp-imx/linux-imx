@@ -4283,7 +4283,7 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	fb_data->waveform_buffer_virt = dma_alloc_coherent(fb_data->dev,
 						fb_data->waveform_buffer_size,
 						&fb_data->waveform_buffer_phys,
-						GFP_DMA);
+						GFP_DMA | GFP_KERNEL);
 	if (fb_data->waveform_buffer_virt == NULL) {
 		dev_err(fb_data->dev, "Can't allocate mem for waveform!\n");
 		return;
@@ -4578,7 +4578,7 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 	info->screen_base = dma_alloc_writecombine(&pdev->dev,
 						  fb_data->map_size,
 						  &fb_data->phys_start,
-						  GFP_DMA);
+						  GFP_DMA | GFP_KERNEL);
 
 	if (info->screen_base == NULL) {
 		ret = -ENOMEM;
@@ -4773,7 +4773,8 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 	 */
 	fb_data->virt_addr_copybuf =
 	    dma_alloc_coherent(fb_data->info.device, fb_data->max_pix_size*2,
-			       &fb_data->phys_addr_copybuf, GFP_DMA);
+			       &fb_data->phys_addr_copybuf,
+			       GFP_DMA | GFP_KERNEL);
 	if (fb_data->virt_addr_copybuf == NULL) {
 		ret = -ENOMEM;
 		goto out_upd_buffers;
@@ -4783,7 +4784,8 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 	/* Allocate memory for EPDC working buffer */
 	fb_data->working_buffer_virt =
 	    dma_alloc_coherent(&pdev->dev, fb_data->working_buffer_size,
-			       &fb_data->working_buffer_phys, GFP_DMA);
+			       &fb_data->working_buffer_phys,
+			       GFP_DMA | GFP_KERNEL);
 	if (fb_data->working_buffer_virt == NULL) {
 		dev_err(&pdev->dev, "Can't allocate mem for working buf!\n");
 		ret = -ENOMEM;
