@@ -969,7 +969,7 @@ static bool fsl_spdif_readable_reg(struct device *dev, unsigned int reg)
 		return true;
 	default:
 		return false;
-	};
+	}
 }
 
 static bool fsl_spdif_writeable_reg(struct device *dev, unsigned int reg)
@@ -988,7 +988,7 @@ static bool fsl_spdif_writeable_reg(struct device *dev, unsigned int reg)
 		return true;
 	default:
 		return false;
-	};
+	}
 }
 
 static const struct regmap_config fsl_spdif_regmap_config = {
