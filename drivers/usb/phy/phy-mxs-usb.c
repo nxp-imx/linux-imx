@@ -21,6 +21,8 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/of_device.h>
+#include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
 
 #define DRIVER_NAME "mxs_phy"
 
@@ -58,6 +60,9 @@
  */
 #define MXS_PHY_SENDING_SOF_TOO_FAST		BIT(2)
 
+/* The SoCs who have anatop module */
+#define MXS_PHY_HAS_ANATOP			BIT(3)
+
 struct mxs_phy_data {
 	unsigned int flags;
 };
@@ -68,11 +73,13 @@ static const struct mxs_phy_data imx23_phy_data = {
 
 static const struct mxs_phy_data imx6q_phy_data = {
 	.flags = MXS_PHY_SENDING_SOF_TOO_FAST |
-		MXS_PHY_DISCONNECT_LINE_WITHOUT_VBUS,
+		MXS_PHY_DISCONNECT_LINE_WITHOUT_VBUS |
+		MXS_PHY_HAS_ANATOP,
 };
 
 static const struct mxs_phy_data imx6sl_phy_data = {
-	.flags = MXS_PHY_DISCONNECT_LINE_WITHOUT_VBUS,
+	.flags = MXS_PHY_DISCONNECT_LINE_WITHOUT_VBUS |
+		MXS_PHY_HAS_ANATOP,
 };
 
 static const struct of_device_id mxs_phy_dt_ids[] = {
@@ -87,6 +94,7 @@ struct mxs_phy {
 	struct usb_phy phy;
 	struct clk *clk;
 	const struct mxs_phy_data *data;
+	struct regmap *regmap_anatop;
 };
 
 static int mxs_phy_hw_init(struct mxs_phy *mxs_phy)
@@ -190,6 +198,7 @@ static int mxs_phy_probe(struct platform_device *pdev)
 	int ret;
 	const struct of_device_id *of_id =
 			of_match_device(mxs_phy_dt_ids, &pdev->dev);
+	struct device_node *np = pdev->dev.of_node;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap_resource(&pdev->dev, res);
@@ -225,6 +234,16 @@ static int mxs_phy_probe(struct platform_device *pdev)
 	mxs_phy->data = of_id->data;
 
 	platform_set_drvdata(pdev, &mxs_phy->phy);
+
+	if (mxs_phy->data->flags & MXS_PHY_HAS_ANATOP) {
+		mxs_phy->regmap_anatop = syscon_regmap_lookup_by_phandle
+			(np, "fsl,anatop");
+		if (IS_ERR(mxs_phy->regmap_anatop)) {
+			dev_dbg(&pdev->dev,
+				"failed to find regmap for anatop\n");
+			return PTR_ERR(mxs_phy->regmap_anatop);
+		}
+	}
 
 	ret = usb_add_phy_dev(&mxs_phy->phy);
 	if (ret)
