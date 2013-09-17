@@ -61,7 +61,6 @@
 				"periph_pre", "periph_clk2", "periph_clk2_sel", "osc";
 			interrupts = <0 107 0x04>, <0 112 0x4>;
 			interrupt-names = "irq_busfreq_0", "irq_busfreq_1";
-			status = "disabled";
 			fsl,max_ddr_freq = <400000000>;
 		};
 
