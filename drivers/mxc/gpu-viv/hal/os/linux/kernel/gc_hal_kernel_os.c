@@ -3856,9 +3856,6 @@ gckOS_AllocatePagedMemoryEx(
     gctSIZE_T bytes;
     gctBOOL locked = gcvFALSE;
     gceSTATUS status;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-    gctPOINTER addr = gcvNULL;
-#endif
 
     gcmkHEADER_ARG("Os=0x%X Contiguous=%d Bytes=%lu", Os, Contiguous, Bytes);
 
@@ -3884,27 +3881,13 @@ gckOS_AllocatePagedMemoryEx(
     {
         /* Get contiguous pages, and suppress warning (stack dump) from kernel when
            we run out of memory. */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-        addr =
-            alloc_pages_exact(numPages * PAGE_SIZE, GFP_KERNEL | gcdNOWARN | __GFP_NORETRY);
-
-        mdl->u.contiguousPages = addr
-                               ? virt_to_page(addr)
-                               : gcvNULL;
-
-        mdl->exact = gcvTRUE;
-#else
         mdl->u.contiguousPages =
             alloc_pages(GFP_KERNEL | gcdNOWARN | __GFP_NORETRY, GetOrder(numPages));
-#endif
+
         if (mdl->u.contiguousPages == gcvNULL)
         {
             mdl->u.contiguousPages =
                 alloc_pages(GFP_KERNEL | __GFP_HIGHMEM | gcdNOWARN, GetOrder(numPages));
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-            mdl->exact = gcvFALSE;
-#endif
         }
     }
     else
@@ -4049,16 +4032,7 @@ gckOS_FreePagedMemory(
 
     if (mdl->contiguous)
     {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-        if (mdl->exact == gcvTRUE)
-        {
-            free_pages_exact(page_address(mdl->u.contiguousPages), mdl->numPages * PAGE_SIZE);
-        }
-        else
-#endif
-        {
-            __free_pages(mdl->u.contiguousPages, GetOrder(mdl->numPages));
-        }
+	__free_pages(mdl->u.contiguousPages, GetOrder(mdl->numPages));
     }
     else
     {
