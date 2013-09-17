@@ -54,6 +54,13 @@ static void __iomem *l2_base;
 static void __iomem *gic_dist_base;
 static u32 *irqs_used;
 
+static void *ddr_freq_change_iram_base;
+static int ddr_settings_size;
+static int iomux_settings_size;
+static volatile unsigned int cpus_in_wfe;
+static volatile bool wait_for_ddr_freq_update;
+static int curr_ddr_rate;
+
 void (*mx6_change_ddr_freq)(u32 freq, void *ddr_settings,
 	bool dll_mode, void *iomux_offsets) = NULL;
 
@@ -63,13 +70,6 @@ extern int low_bus_freq_mode;
 extern int audio_bus_freq_mode;
 extern void mx6_ddr3_freq_change(u32 freq, void *ddr_settings,
 	bool dll_mode, void *iomux_offsets);
-
-static void *ddr_freq_change_iram_base;
-static int ddr_settings_size;
-static int iomux_settings_size;
-static volatile unsigned int cpus_in_wfe;
-static volatile bool wait_for_ddr_freq_update;
-static int curr_ddr_rate;
 
 #define MIN_DLL_ON_FREQ		333000000
 #define MAX_DLL_OFF_FREQ		125000000
@@ -250,7 +250,7 @@ int update_ddr_freq(int ddr_rate)
 	return 0;
 }
 
-int init_mmdc_settings(struct platform_device *busfreq_pdev)
+int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 {
 	struct device *dev = &busfreq_pdev->dev;
 	struct platform_device *ocram_dev;
@@ -400,17 +400,17 @@ int init_mmdc_settings(struct platform_device *busfreq_pdev)
 	}
 
 	/*
-	  * Allocate extra space to store the number of entries in the
-	  * ddr_settings plus 4 extra regsiter information that needs
-	  * to be passed to the frequency change code.
-	  * sizeof(iram_ddr_settings) = sizeof(ddr_settings) +
-	  *					entries in ddr_settings + 16.
-	  * The last 4 enties store the addresses of the registers:
-	  * CCM_BASE_ADDR
-	  * MMDC_BASE_ADDR
-	  * IOMUX_BASE_ADDR
-	  * L2X0_BASE_ADDR
-	  */
+	 * Allocate extra space to store the number of entries in the
+	 * ddr_settings plus 4 extra regsiter information that needs
+	 * to be passed to the frequency change code.
+	 * sizeof(iram_ddr_settings) = sizeof(ddr_settings) +
+	 *				entries in ddr_settings + 16.
+	 * The last 4 enties store the addresses of the registers:
+	 * CCM_BASE_ADDR
+	 * MMDC_BASE_ADDR
+	 * IOMUX_BASE_ADDR
+	 * L2X0_BASE_ADDR
+	 */
 	iram_addr = (void *)gen_pool_alloc(iram_pool,
 					(ddr_settings_size * 8) + 8 + 32);
 	iram_ddr_settings = iram_addr;
@@ -456,7 +456,7 @@ int init_mmdc_settings(struct platform_device *busfreq_pdev)
 	iram_paddr = gen_pool_virt_to_phys(iram_pool,
 				(unsigned long)ddr_freq_change_iram_base);
 	/*
-	 * need to remap the area here since we want
+	 * Need to remap the area here since we want
 	 * the memory region to be executable.
 	 */
 	ddr_freq_change_iram_base = __arm_ioremap(iram_paddr,

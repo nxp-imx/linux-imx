@@ -7,9 +7,13 @@
  *
  */
 
+#define CCM_CCDR_OFFSET	0x4
+#define CCDR_CH0_HS_BYP	17
+
 #include <linux/clk.h>
 #include <linux/clkdev.h>
 #include <linux/err.h>
+#include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
@@ -25,10 +29,11 @@ static const char const *ocram_sels[]		= { "periph", "ocram_alt_sels", };
 static const char const *pre_periph_sels[]	= { "pll2_bus", "pll2_pfd2", "pll2_pfd0", "pll2_198m", };
 static const char const *periph_clk2_sels[]	= { "pll3_usb_otg", "osc", "osc", "dummy", };
 static const char const *periph2_clk2_sels[]	= { "pll3_usb_otg", "pll2_bus", };
-static const char const *periph_sels[]		= { "pre_periph_sel", "periph_clk2_podf", };
-static const char const *periph2_sels[]		= { "pre_periph2_sel", "periph2_clk2_podf", };
+static const char const *periph_sels[]		= { "pre_periph_sel", "periph_clk2", };
+static const char const *periph2_sels[]		= { "pre_periph2_sel", "periph2_clk2", };
 static const char const *csi_sels[]		= { "osc", "pll2_pfd2", "pll3_120m", "pll3_pfd1", };
 static const char const *lcdif_axi_sels[]	= { "pll2_bus", "pll2_pfd2", "pll3_usb_otg", "pll3_pfd1", };
+static const char const *csi_lcdif_sels[]	= { "mmdc", "pll2_pfd2", "pll3_120m", "pll3_pfd1", };
 static const char const *usdhc_sels[]		= { "pll2_pfd2", "pll2_pfd0", };
 static const char const *ssi_sels[]		= { "pll3_pfd2", "pll3_pfd3", "pll4_audio_div", "dummy", };
 static const char const *perclk_sels[]		= { "ipg", "osc", };
@@ -69,27 +74,49 @@ static struct clk *clks[IMX6SL_CLK_CLK_END];
 static struct clk_onecell_data clk_data;
 static u32 cur_arm_podf;
 
+extern int low_bus_freq_mode;
+
 /*
-  * On MX6SL, need to ensure that the ARM:IPG clock ratio is maintained
-  * within 12:5 when the clocks to ARM are gated when the SOC enters
-  * WAIT mode. This is necessary to avoid WAIT mode issue (an early
-  * interrupt waking up the ARM).
-  * This function will set the ARM clk to max value within the 12:5 limit.
-  */
+ * On MX6SL, need to ensure that the ARM:IPG clock ratio is maintained
+ * within 12:5 when the clocks to ARM are gated when the SOC enters
+ * WAIT mode. This is necessary to avoid WAIT mode issue (an early
+ * interrupt waking up the ARM).
+ * This function will set the ARM clk to max value within the 12:5 limit.
+ */
 void imx6sl_set_wait_clk(bool enter)
 {
-	u32 parent_rate = clk_get_rate(clk_get_parent(clks[IMX6SL_CLK_ARM]));
+	u32 parent_rate;
 
 	if (enter) {
+		u32 wait_podf, new_parent_rate;
 		u32 ipg_rate = clk_get_rate(clks[IMX6SL_CLK_IPG]);
 		u32 max_arm_wait_clk = (12 * ipg_rate) / 5;
-		u32 wait_podf = (parent_rate + max_arm_wait_clk - 1) /
+		parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
+		cur_arm_podf = parent_rate / clk_get_rate(clks[IMX6SL_CLK_ARM]);
+		if (low_bus_freq_mode) {
+			/*
+			 * IPG clk is at 12MHz at this point, we can only run
+			 * ARM at a max of 28.8MHz. So we need to set ARM
+			 * to run from the 24MHz OSC, as there is no way to
+			 * get 28.8MHz when ARM is sourced from PLL1.
+			 */
+			clk_set_parent(clks[IMX6SL_CLK_STEP],
+							clks[IMX6SL_CLK_OSC]);
+			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
+							clks[IMX6SL_CLK_STEP]);
+		}
+		new_parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
+		wait_podf = (new_parent_rate + max_arm_wait_clk - 1) /
 						max_arm_wait_clk;
 
-		cur_arm_podf = parent_rate / clk_get_rate(clks[IMX6SL_CLK_ARM]);
-		clk_set_rate(clks[IMX6SL_CLK_ARM], parent_rate / wait_podf);
-	} else
+		clk_set_rate(clks[IMX6SL_CLK_ARM], new_parent_rate / wait_podf);
+	} else {
+		if (low_bus_freq_mode)
+			/* Move ARM back to PLL1. */
+			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW], clks[IMX6SL_CLK_PLL1_SYS]);
+		parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
 		clk_set_rate(clks[IMX6SL_CLK_ARM], parent_rate / cur_arm_podf);
+	}
 }
 
 static void __init imx6sl_clocks_init(struct device_node *ccm_node)
@@ -99,6 +126,7 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	int irq;
 	int ret;
 	int i;
+	u32 reg;
 
 	clks[IMX6SL_CLK_DUMMY] = imx_clk_fixed("dummy", 0);
 	clks[IMX6SL_CLK_CKIL] = imx_obtain_fixed_clock("ckil", 0);
@@ -193,8 +221,8 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 
 	/*                                                   name                 parent_name          reg       shift width */
 	clks[IMX6SL_CLK_OCRAM_PODF]        = imx_clk_divider("ocram_podf",        "ocram_sel",         base + 0x14, 16, 3);
-	clks[IMX6SL_CLK_PERIPH_CLK2_PODF]  = imx_clk_divider("periph_clk2_podf",  "periph_clk2_sel",   base + 0x14, 27, 3);
-	clks[IMX6SL_CLK_PERIPH2_CLK2_PODF] = imx_clk_divider("periph2_clk2_podf", "periph2_clk2_sel",  base + 0x14, 0,  3);
+	clks[IMX6SL_CLK_PERIPH_CLK2]  = imx_clk_divider("periph_clk2",  "periph_clk2_sel",   base + 0x14, 27, 3);
+	clks[IMX6SL_CLK_PERIPH2_CLK2] = imx_clk_divider("periph2_clk2", "periph2_clk2_sel",  base + 0x14, 0,  3);
 	clks[IMX6SL_CLK_IPG]               = imx_clk_divider("ipg",               "ahb",               base + 0x14, 8,  2);
 	clks[IMX6SL_CLK_CSI_PODF]          = imx_clk_divider("csi_podf",          "csi_sel",           base + 0x3c, 11, 3);
 	clks[IMX6SL_CLK_LCDIF_AXI_PODF]    = imx_clk_divider("lcdif_axi_podf",    "lcdif_axi_sel",     base + 0x3c, 16, 3);
@@ -331,6 +359,11 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 
 	/* Set initial power mode */
 	imx6_set_lpm(WAIT_CLOCKED);
+
+	/* Ensure that CH0 handshake is bypassed. */
+	reg = readl_relaxed(base + CCM_CCDR_OFFSET);
+	reg |= 1 << CCDR_CH0_HS_BYP;
+	writel_relaxed(reg, base + CCM_CCDR_OFFSET);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx6sl-gpt");
 	base = of_iomap(np, 0);
