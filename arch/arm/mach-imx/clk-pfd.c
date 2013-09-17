@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Freescale Semiconductor, Inc.
+ * Copyright 2012-2013 Freescale Semiconductor, Inc.
  * Copyright 2012 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -16,6 +16,8 @@
 #include <linux/slab.h>
 #include <linux/err.h>
 #include "clk.h"
+
+#define BYPASS_RATE		24000000
 
 /**
  * struct clk_pfd - IMX PFD clock
@@ -62,9 +64,14 @@ static unsigned long clk_pfd_recalc_rate(struct clk_hw *hw,
 	u64 tmp = parent_rate;
 	u8 frac = (readl_relaxed(pfd->reg) >> (pfd->idx * 8)) & 0x3f;
 
-	tmp *= 18;
-	do_div(tmp, frac);
-
+	/*
+	 * If the parent PLL is in bypass state, the PFDs
+	 * are also in bypass state.
+	 */
+	if (tmp != BYPASS_RATE) {
+		tmp *= 18;
+		do_div(tmp, frac);
+	}
 	return tmp;
 }
 
@@ -74,17 +81,22 @@ static long clk_pfd_round_rate(struct clk_hw *hw, unsigned long rate,
 	u64 tmp = *prate;
 	u8 frac;
 
-	tmp = tmp * 18 + rate / 2;
-	do_div(tmp, rate);
-	frac = tmp;
-	if (frac < 12)
-		frac = 12;
-	else if (frac > 35)
-		frac = 35;
-	tmp = *prate;
-	tmp *= 18;
-	do_div(tmp, frac);
-
+	/*
+	 * If the parent PLL is in bypass state, the PFDs
+	 * are also in bypass state.
+	 */
+	if (tmp != BYPASS_RATE) {
+		tmp = tmp * 18 + rate / 2;
+		do_div(tmp, rate);
+		frac = tmp;
+		if (frac < 12)
+			frac = 12;
+		else if (frac > 35)
+			frac = 35;
+		tmp = *prate;
+		tmp *= 18;
+		do_div(tmp, frac);
+	}
 	return tmp;
 }
 
@@ -94,6 +106,9 @@ static int clk_pfd_set_rate(struct clk_hw *hw, unsigned long rate,
 	struct clk_pfd *pfd = to_clk_pfd(hw);
 	u64 tmp = parent_rate;
 	u8 frac;
+
+	if (tmp == BYPASS_RATE)
+		return 0;
 
 	tmp = tmp * 18 + rate / 2;
 	do_div(tmp, rate);

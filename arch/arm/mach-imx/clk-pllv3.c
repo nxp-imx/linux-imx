@@ -25,6 +25,8 @@
 #define BM_PLL_ENABLE		(0x1 << 13)
 #define BM_PLL_BYPASS		(0x1 << 16)
 #define BM_PLL_LOCK		(0x1 << 31)
+#define BYPASS_RATE		24000000
+#define BYPASS_MASK	0x10000
 
 /**
  * struct clk_pllv3 - IMX PLL clock version 3
@@ -128,14 +130,27 @@ static unsigned long clk_pllv3_recalc_rate(struct clk_hw *hw,
 {
 	struct clk_pllv3 *pll = to_clk_pllv3(hw);
 	u32 div = readl_relaxed(pll->base)  & pll->div_mask;
+	u32 bypass = readl_relaxed(pll->base) & BYPASS_MASK;
+	u32 rate;
 
-	return (div == 1) ? parent_rate * 22 : parent_rate * 20;
+	if (bypass)
+		rate = BYPASS_RATE;
+	else
+		rate = (div == 1) ? parent_rate * 22 : parent_rate * 20;
+
+	return rate;
 }
 
 static long clk_pllv3_round_rate(struct clk_hw *hw, unsigned long rate,
 				 unsigned long *prate)
 {
 	unsigned long parent_rate = *prate;
+	struct clk_pllv3 *pll = to_clk_pllv3(hw);
+	u32 bypass = readl_relaxed(pll->base) & BYPASS_MASK;
+
+	/* If the PLL is bypassed, its rate is 24MHz. */
+	if (bypass)
+		return BYPASS_RATE;
 
 	return (rate >= parent_rate * 22) ? parent_rate * 22 :
 					    parent_rate * 20;
@@ -146,6 +161,11 @@ static int clk_pllv3_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk_pllv3 *pll = to_clk_pllv3(hw);
 	u32 val, div;
+	u32 bypass = readl_relaxed(pll->base) & BYPASS_MASK;
+
+	/* If the PLL is bypassed, its rate is 24MHz. */
+	if (bypass)
+		return 0;
 
 	if (rate == parent_rate * 22)
 		div = 1;
