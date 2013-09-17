@@ -94,6 +94,23 @@
 		interrupt-parent = <&intc>;
 		ranges;
 
+		busfreq { /* BUSFREQ */
+			compatible = "fsl,imx6_busfreq";
+			clocks = <&clks IMX6SL_CLK_PLL2_BUS>, <&clks IMX6SL_CLK_PLL2_PFD2>,
+					<&clks IMX6SL_CLK_PLL2_198M>, <&clks IMX6SL_CLK_ARM>,
+					<&clks IMX6SL_CLK_PLL3_USB_OTG>, <&clks IMX6SL_CLK_PERIPH>,
+					<&clks IMX6SL_CLK_PRE_PERIPH_SEL>, <&clks IMX6SL_CLK_PERIPH_CLK2>,
+					<&clks IMX6SL_CLK_PERIPH_CLK2_SEL>, <&clks IMX6SL_CLK_OSC>,
+					<&clks IMX6SL_CLK_PLL1_SYS>, <&clks IMX6SL_CLK_PERIPH2>,
+					<&clks IMX6SL_CLK_AHB>, <&clks IMX6SL_CLK_OCRAM>,
+					<&clks IMX6SL_CLK_PLL1_SW>, <&clks IMX6SL_CLK_PRE_PERIPH2_SEL>,
+					<&clks IMX6SL_CLK_PERIPH2_CLK2_SEL>, <&clks IMX6SL_CLK_PERIPH2_CLK2>;
+			clock-names = "pll2_bus", "pll2_pfd2_396m", "pll2_198m", "arm", "pll3_usb_otg", "periph",
+				"periph_pre", "periph_clk2", "periph_clk2_sel", "osc", "pll1_sys", "periph2", "ahb", "ocram", "pll1_sw",
+				"periph2_pre", "periph2_clk2_sel", "periph2_clk2";
+			fsl,max_ddr_freq = <400000000>;
+		};
+
 		L2: l2-cache@00a02000 {
 			compatible = "arm,pl310-cache";
 			reg = <0x00a02000 0x1000>;
