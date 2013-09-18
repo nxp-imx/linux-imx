@@ -94,6 +94,37 @@ struct cprng_testvec {
 
 static char zeroed_string[48];
 
+#define HMAC_MD5_AES_CBC_ENC_TEST_VECTORS	1
+
+static struct aead_testvec hmac_md5_aes_cbc_enc_tv_template[] = {
+	{
+#ifdef __LITTLE_ENDIAN
+		.key    = "\x08\x00"            /* rta length */
+			 "\x01\x00"            /* rta type */
+#else
+		.key    = "\x00\x08"            /* rta length */
+			 "\x00\x01"            /* rta type */
+#endif
+			 "\x00\x00\x00\x10"    /* enc key length */
+			 "\x00\x00\x00\x00\x00\x00\x00\x00"
+			 "\x00\x00\x00\x00\x00\x00\x00\x00"
+			 "\x06\xa9\x21\x40\x36\xb8\xa1\x5b"
+			 "\x51\x2e\x03\xd5\x34\x12\x00\x06",
+		.klen   = 8 + 16 + 16,
+		.iv     = "\x3d\xaf\xba\x42\x9d\x9e\xb4\x30"
+			 "\xb4\x22\xda\x80\x2c\x9f\xac\x41",
+		.assoc  = "\x00\x00\x43\x21\x00\x00\x00\x01",
+		.alen   = 8,
+		.input  = "Single block msg",
+		.ilen   = 16,
+		.result = "\xe3\x53\x77\x9c\x10\x79\xae\xb8"
+			 "\x27\x08\x94\x2d\xbe\x77\x18\x1a"
+			 "\x76\xa8\x43\x89\xbd\xfe\xf9\x79"
+			 "\x96\x64\x77\x02\x95\x21\x08\x4c",
+		.rlen   = 16 + 16,
+	},
+};
+
 /*
  * MD4 test vectors from RFC1320
  */
