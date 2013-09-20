@@ -54,6 +54,7 @@ int high_bus_freq_mode;
 int med_bus_freq_mode;
 int audio_bus_freq_mode;
 int low_bus_freq_mode;
+int ultra_low_bus_freq_mode;
 unsigned int ddr_med_rate;
 unsigned int ddr_normal_rate;
 
@@ -62,7 +63,7 @@ static struct device *busfreq_dev;
 static int busfreq_suspended;
 static u32 org_arm_rate;
 static int bus_freq_scaling_is_active;
-static int high_bus_count, med_bus_count, audio_bus_count;
+static int high_bus_count, med_bus_count, audio_bus_count, low_bus_count;
 static unsigned int ddr_low_rate;
 
 extern int init_mmdc_lpddr2_settings(struct platform_device *dev);
@@ -91,6 +92,7 @@ static struct clk *pll1_sw_clk;
 static struct clk *periph2_pre_clk;
 static struct clk *periph2_clk2_sel;
 static struct clk *periph2_clk2;
+static struct clk *step_clk;
 
 static u32 pll2_org_rate;
 static struct delayed_work low_bus_freq_handler;
@@ -120,7 +122,7 @@ static void enter_lpm_imx6sl(void)
 		clk_set_parent(periph2_pre_clk, pll2_200);
 		clk_set_parent(periph2_clk, periph2_pre_clk);
 
-		if (low_bus_freq_mode) {
+		if (low_bus_freq_mode || ultra_low_bus_freq_mode) {
 			/*
 			 * Swtich ARM to run off PLL2_PFD2_400MHz
 			 * since DDR is anyway at 100MHz.
@@ -133,46 +135,73 @@ static void enter_lpm_imx6sl(void)
 			clk_set_rate(cpu_clk, org_arm_rate);
 		}
 		low_bus_freq_mode = 0;
+		ultra_low_bus_freq_mode = 0;
 		audio_bus_freq_mode = 1;
 	} else {
 		u32 arm_div, pll1_rate;
 		org_arm_rate = clk_get_rate(cpu_clk);
-		/*
-		 * Set DDR to 24MHz.
-		 * Since we are going to bypass PLL2, we need
-		 * to move ARM clk off PLL2_PFD2 to PLL1.
-		 * Make sure the PLL1 is running at the lowest possible freq.
-		 */
-		clk_set_rate(pll1_sys, clk_round_rate(pll1_sys, org_arm_rate));
-		pll1_rate = clk_get_rate(pll1_sys);
-		arm_div = pll1_rate / org_arm_rate + 1;
-		/* Ensure ARM CLK is lower before changing the parent. */
-		clk_set_rate(cpu_clk, org_arm_rate / arm_div);
-		/* Now set the ARM clk parent to PLL1_SYS. */
-		clk_set_parent(pll1_sw_clk, pll1_sys);
+		if (low_bus_freq_mode && low_bus_count == 0) {
+			/*
+			 * We are already in DDR @ 24MHz state, but
+			 * no one but ARM needs the DDR. In this case,
+			 * we can lower the DDR freq to 1MHz when ARM
+			 * enters WFI in this state. Keep track of this state.
+			 */
+			ultra_low_bus_freq_mode = 1;
+			low_bus_freq_mode = 0;
+			audio_bus_freq_mode = 0;
+		} else {
+			if (!ultra_low_bus_freq_mode && !low_bus_freq_mode) {
+				/*
+				 * Set DDR to 24MHz.
+				 * Since we are going to bypass PLL2,
+				 * we need to move ARM clk off PLL2_PFD2
+				 * to PLL1. Make sure the PLL1 is running
+				 * at the lowest possible freq.
+				 */
+				clk_set_rate(pll1_sys,
+					clk_round_rate(pll1_sys, org_arm_rate));
+				pll1_rate = clk_get_rate(pll1_sys);
+				arm_div = pll1_rate / org_arm_rate + 1;
+				/*
+				 * Ensure ARM CLK is lower before
+				 * changing the parent.
+				 */
+				clk_set_rate(cpu_clk, org_arm_rate / arm_div);
+				/* Now set the ARM clk parent to PLL1_SYS. */
+				clk_set_parent(pll1_sw_clk, pll1_sys);
 
-		/* Now set DDR to 24MHz. */
-		spin_lock_irqsave(&freq_lock, flags);
-		update_lpddr2_freq(LPAPM_CLK);
-		spin_unlock_irqrestore(&freq_lock, flags);
+				/* Now set DDR to 24MHz. */
+				spin_lock_irqsave(&freq_lock, flags);
+				update_lpddr2_freq(LPAPM_CLK);
+				spin_unlock_irqrestore(&freq_lock, flags);
 
-		/*
-		 * Fix the clock tree in kernel.
-		 * Make sure PLL2 rate is updated as it gets
-		 * bypassed in the DDR freq change code.
-		 */
-		clk_set_rate(pll2, LPAPM_CLK);
-		clk_set_parent(periph2_clk2_sel, pll2);
-		clk_set_parent(periph2_clk, periph2_clk2_sel);
+				/*
+				 * Fix the clock tree in kernel.
+				 * Make sure PLL2 rate is updated as it gets
+				 * bypassed in the DDR freq change code.
+				 */
+				clk_set_rate(pll2, LPAPM_CLK);
+				clk_set_parent(periph2_clk2_sel, pll2);
+				clk_set_parent(periph2_clk, periph2_clk2_sel);
 
-		low_bus_freq_mode = 1;
-		audio_bus_freq_mode = 0;
+			}
+			if (low_bus_count == 0) {
+				ultra_low_bus_freq_mode = 1;
+				low_bus_freq_mode = 0;
+			} else {
+				ultra_low_bus_freq_mode = 0;
+				low_bus_freq_mode = 1;
+			}
+			audio_bus_freq_mode = 0;
+		}
 	}
 }
 
 static void exit_lpm_imx6sl(void)
 {
 	unsigned long flags;
+
 	spin_lock_irqsave(&freq_lock, flags);
 	/* Change DDR freq in IRAM. */
 	update_lpddr2_freq(ddr_normal_rate);
@@ -197,10 +226,12 @@ static void exit_lpm_imx6sl(void)
 	clk_set_rate(ocram_clk, LPAPM_CLK / 2);
 	clk_set_parent(periph_clk, periph_pre_clk);
 
-	if (low_bus_freq_mode) {
+	if (low_bus_freq_mode || ultra_low_bus_freq_mode) {
 		/* Move ARM from PLL1_SW_CLK to PLL2_400. */
-		clk_set_parent(pll1_sw_clk, pll2_400);
+		clk_set_parent(step_clk, pll2_400);
+		clk_set_parent(pll1_sw_clk, step_clk);
 		clk_set_rate(cpu_clk, org_arm_rate);
+		ultra_low_bus_freq_mode = 0;
 	}
 }
 
@@ -287,7 +318,7 @@ static void reduce_bus_freq_handler(struct work_struct *work)
  * This mode will be activated only when none of the modules that
  * need a higher DDR or AHB frequency are active.
  */
-int set_low_bus_freq(int low_bus_mode)
+int set_low_bus_freq(void)
 {
 	if (busfreq_suspended)
 		return 0;
@@ -417,6 +448,8 @@ void request_bus_freq(enum bus_freq_mode mode)
 		med_bus_count++;
 	else if (mode == BUS_FREQ_AUDIO)
 		audio_bus_count++;
+	else if (mode == BUS_FREQ_LOW)
+		low_bus_count++;
 
 	if (busfreq_suspended || !bus_freq_scaling_initialized ||
 		!bus_freq_scaling_is_active) {
@@ -448,7 +481,7 @@ void request_bus_freq(enum bus_freq_mode mode)
 	}
 	if ((mode == BUS_FREQ_AUDIO) && (!high_bus_freq_mode) &&
 		(!med_bus_freq_mode) && (!audio_bus_freq_mode)) {
-		set_low_bus_freq(1);
+		set_low_bus_freq();
 		mutex_unlock(&bus_freq_mutex);
 		return;
 	}
@@ -485,6 +518,14 @@ void release_bus_freq(enum bus_freq_mode mode)
 			return;
 		}
 		audio_bus_count--;
+	} else if (mode == BUS_FREQ_LOW) {
+		if (low_bus_count == 0) {
+			dev_err(busfreq_dev, "low bus count mismatch!\n");
+			dump_stack();
+			mutex_unlock(&bus_freq_mutex);
+			return;
+		}
+		low_bus_count--;
 	}
 
 	if (busfreq_suspended || !bus_freq_scaling_initialized ||
@@ -503,13 +544,24 @@ void release_bus_freq(enum bus_freq_mode mode)
 
 	if ((!audio_bus_freq_mode) && (high_bus_count == 0) &&
 		(med_bus_count == 0) && (audio_bus_count != 0)) {
-		set_low_bus_freq(1);
+		set_low_bus_freq();
 		mutex_unlock(&bus_freq_mutex);
 		return;
 	}
 	if ((!low_bus_freq_mode) && (high_bus_count == 0) &&
-		(med_bus_count == 0) && (audio_bus_count == 0))
-		set_low_bus_freq(0);
+		(med_bus_count == 0) && (audio_bus_count == 0) &&
+		(low_bus_count != 0)) {
+		set_low_bus_freq();
+		mutex_unlock(&bus_freq_mutex);
+		return;
+	}
+	if ((!ultra_low_bus_freq_mode) && (high_bus_count == 0) &&
+		(med_bus_count == 0) && (audio_bus_count == 0) &&
+		(low_bus_count == 0)) {
+		set_low_bus_freq();
+		mutex_unlock(&bus_freq_mutex);
+		return;
+	}
 
 	mutex_unlock(&bus_freq_mutex);
 	return;
@@ -521,7 +573,7 @@ static void bus_freq_daemon_handler(struct work_struct *work)
 	mutex_lock(&bus_freq_mutex);
 	if ((!low_bus_freq_mode) && (high_bus_count == 0) &&
 		(med_bus_count == 0) && (audio_bus_count == 0))
-		set_low_bus_freq(0);
+		set_low_bus_freq();
 	mutex_unlock(&bus_freq_mutex);
 }
 
@@ -744,6 +796,14 @@ static int busfreq_probe(struct platform_device *pdev)
 			return PTR_ERR(periph2_clk2_sel);
 		}
 
+		step_clk = devm_clk_get(&pdev->dev, "step");
+		if (IS_ERR(step_clk)) {
+			dev_err(busfreq_dev,
+				"%s: failed to get step_clk\n",
+				__func__);
+			return PTR_ERR(periph2_clk2_sel);
+		}
+
 	}
 
 	err = sysfs_create_file(&busfreq_dev->kobj, &dev_attr_enable.attr);
@@ -763,6 +823,7 @@ static int busfreq_probe(struct platform_device *pdev)
 	med_bus_freq_mode = 0;
 	low_bus_freq_mode = 0;
 	audio_bus_freq_mode = 0;
+	ultra_low_bus_freq_mode = 0;
 
 	bus_freq_scaling_is_active = 1;
 	bus_freq_scaling_initialized = 1;
