@@ -50,14 +50,15 @@ static void __iomem *l2_base;
 static struct device *busfreq_dev;
 static void *ddr_freq_change_iram_base;
 static int curr_ddr_rate;
-static unsigned long reg_addrs[4];
+
+unsigned long reg_addrs[4];
 
 void (*mx6_change_lpddr2_freq)(u32 ddr_freq, int bus_freq_mode,
 	void *iram_addr) = NULL;
 
 extern unsigned int ddr_normal_rate;
 extern int low_bus_freq_mode;
-extern int audio_bus_freq_mode;
+extern int ultra_low_bus_freq_mode;
 extern void mx6_lpddr2_freq_change(u32 freq, int bus_freq_mode,
 	void *iram_addr);
 
@@ -71,7 +72,9 @@ int update_lpddr2_freq(int ddr_rate)
 	if (ddr_rate == curr_ddr_rate)
 		return 0;
 
-	mx6_change_lpddr2_freq(ddr_rate, low_bus_freq_mode, reg_addrs);
+	mx6_change_lpddr2_freq(ddr_rate,
+		(low_bus_freq_mode | ultra_low_bus_freq_mode),
+		reg_addrs);
 
 	curr_ddr_rate = ddr_rate;
 

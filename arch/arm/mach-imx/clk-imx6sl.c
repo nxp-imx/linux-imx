@@ -74,6 +74,7 @@ static struct clk_onecell_data clk_data;
 static u32 cur_arm_podf;
 
 extern int low_bus_freq_mode;
+extern int audio_bus_freq_mode;
 
 /*
  * On MX6SL, need to ensure that the ARM:IPG clock ratio is maintained
@@ -103,6 +104,15 @@ void imx6sl_set_wait_clk(bool enter)
 							clks[IMX6SL_CLK_OSC]);
 			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
 							clks[IMX6SL_CLK_STEP]);
+		} else if (audio_bus_freq_mode) {
+			/*
+			 * In this mode ARM is from PLL2_PFD2 (396MHz),
+			 * but IPG is at 12MHz. Need to switch ARM to run
+			 * from the bypassed PLL1 clocks so that we can run
+			 * ARM at 24MHz.
+			 */
+			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
+				clks[IMX6SL_CLK_PLL1_SYS]);
 		}
 		new_parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
 		wait_podf = (new_parent_rate + max_arm_wait_clk - 1) /
@@ -112,7 +122,12 @@ void imx6sl_set_wait_clk(bool enter)
 	} else {
 		if (low_bus_freq_mode)
 			/* Move ARM back to PLL1. */
-			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW], clks[IMX6SL_CLK_PLL1_SYS]);
+			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
+				clks[IMX6SL_CLK_PLL1_SYS]);
+		else if (audio_bus_freq_mode)
+			/* Move ARM back to PLL2_PFD2 via STEP_CLK. */
+			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
+				clks[IMX6SL_CLK_STEP]);
 		parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
 		clk_set_rate(clks[IMX6SL_CLK_ARM], parent_rate / cur_arm_podf);
 	}

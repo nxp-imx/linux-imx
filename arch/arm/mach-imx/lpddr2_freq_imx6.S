@@ -341,7 +341,7 @@ force_measure1:
  * r1: low_bus_freq_mode flag
  * r2: Pointer to array containing addresses of registers.
  */
-	.align 8
+	.align 3
 ENTRY(mx6_lpddr2_freq_change)
 
 	push {r4-r10}
