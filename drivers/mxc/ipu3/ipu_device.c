@@ -665,6 +665,12 @@ static void dump_check_err(struct device *dev, int err)
 	case IPU_CHECK_ERR_SPLIT_WITH_ROT:
 		dev_err(dev, "not support split mode with rotation\n");
 		break;
+	case IPU_CHECK_ERR_W_DOWNSIZE_OVER:
+		dev_err(dev, "horizontal downsizing ratio overflow\n");
+		break;
+	case IPU_CHECK_ERR_H_DOWNSIZE_OVER:
+		dev_err(dev, "vertical downsizing ratio overflow\n");
+		break;
 	default:
 		break;
 	}
@@ -965,6 +971,16 @@ static int check_task(struct ipu_task_entry *t)
 				t->output.crop.pos.x, t->output.crop.pos.y,
 				&t->set.o_off, &t->set.o_uoff,
 				&t->set.o_voff, &t->set.ostride);
+
+	if (t->output.crop.w * 8 <= t->input.crop.w) {
+		ret = IPU_CHECK_ERR_W_DOWNSIZE_OVER;
+		goto done;
+	}
+
+	if (t->output.crop.h * 8 <= t->input.crop.h) {
+		ret = IPU_CHECK_ERR_H_DOWNSIZE_OVER;
+		goto done;
+	}
 
 	if ((IPU_PIX_FMT_TILED_NV12 == t->input.format) ||
 		(IPU_PIX_FMT_TILED_NV12F == t->input.format)) {
