@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -287,7 +287,8 @@ int _ipu_disp_chan_is_interlaced(struct ipu_soc *ipu, ipu_channel_t channel);
 
 void _ipu_ic_enable_task(struct ipu_soc *ipu, ipu_channel_t channel);
 void _ipu_ic_disable_task(struct ipu_soc *ipu, ipu_channel_t channel);
-void _ipu_ic_init_prpvf(struct ipu_soc *ipu, ipu_channel_params_t *params, bool src_is_csi);
+int  _ipu_ic_init_prpvf(struct ipu_soc *ipu, ipu_channel_params_t *params,
+			bool src_is_csi);
 void _ipu_vdi_init(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel_params_t *params);
 void _ipu_vdi_uninit(struct ipu_soc *ipu);
 void _ipu_ic_uninit_prpvf(struct ipu_soc *ipu);
@@ -295,11 +296,12 @@ void _ipu_ic_init_rotate_vf(struct ipu_soc *ipu, ipu_channel_params_t *params);
 void _ipu_ic_uninit_rotate_vf(struct ipu_soc *ipu);
 void _ipu_ic_init_csi(struct ipu_soc *ipu, ipu_channel_params_t *params);
 void _ipu_ic_uninit_csi(struct ipu_soc *ipu);
-void _ipu_ic_init_prpenc(struct ipu_soc *ipu, ipu_channel_params_t *params, bool src_is_csi);
+int  _ipu_ic_init_prpenc(struct ipu_soc *ipu, ipu_channel_params_t *params,
+			 bool src_is_csi);
 void _ipu_ic_uninit_prpenc(struct ipu_soc *ipu);
 void _ipu_ic_init_rotate_enc(struct ipu_soc *ipu, ipu_channel_params_t *params);
 void _ipu_ic_uninit_rotate_enc(struct ipu_soc *ipu);
-void _ipu_ic_init_pp(struct ipu_soc *ipu, ipu_channel_params_t *params);
+int  _ipu_ic_init_pp(struct ipu_soc *ipu, ipu_channel_params_t *params);
 void _ipu_ic_uninit_pp(struct ipu_soc *ipu);
 void _ipu_ic_init_rotate_pp(struct ipu_soc *ipu, ipu_channel_params_t *params);
 void _ipu_ic_uninit_rotate_pp(struct ipu_soc *ipu);
