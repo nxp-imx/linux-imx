@@ -291,12 +291,6 @@ static int pxp_show_buf(struct pxps *pxp, bool toshow)
 	struct fb_info *fbi = pxp->fbi;
 	int ret;
 
-	ret = pxp_set_fbinfo(pxp);
-	if (ret) {
-		dev_err(&pxp->pdev->dev, "failed to call pxp_set_fbinfo\n");
-		return ret;
-	}
-
 	console_lock();
 	fbi->fix.smem_start = toshow ?
 			pxp->outb_phys : (unsigned long)pxp->fb.base;
@@ -793,12 +787,6 @@ static int pxp_buf_prepare(struct videobuf_queue *q,
 					sizeof(struct pxp_layer_param));
 			} else if (pxp_conf->ol_param[0].combine_enable) {
 				/* Overlay */
-				ret = pxp_set_fbinfo(pxp);
-				if (ret) {
-					dev_err(&pxp->pdev->dev,
-						"call pxp_set_fbinfo failed");
-					goto fail;
-				}
 				pxp_conf->ol_param[0].paddr =
 						(dma_addr_t)pxp->fb.base;
 				pxp_conf->ol_param[0].width = pxp->fb.fmt.width;
@@ -1081,6 +1069,12 @@ out:
 	if (ret)
 		return ret;
 
+	ret = pxp_set_fbinfo(pxp);
+	if (ret) {
+		dev_err(&pxp->pdev->dev, "failed to call pxp_set_fbinfo\n");
+		return ret;
+	}
+
 	videobuf_queue_dma_contig_init(&pxp->s0_vbq,
 				&pxp_vbq_ops,
 				&pxp->pdev->dev,
@@ -1216,12 +1210,6 @@ static int pxp_probe(struct platform_device *pdev)
 	err = video_register_device(pxp->vdev, VFL_TYPE_GRABBER, video_nr);
 	if (err) {
 		dev_err(&pdev->dev, "failed to register video device\n");
-		goto freevdev;
-	}
-
-	err = pxp_set_fbinfo(pxp);
-	if (err) {
-		dev_err(&pdev->dev, "failed to call pxp_set_fbinfo\n");
 		goto freevdev;
 	}
 
