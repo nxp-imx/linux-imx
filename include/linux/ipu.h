@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2013 Freescale Semiconductor, Inc.
+ * Copyright 2005-2014 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -263,6 +263,8 @@ enum {
 	IPU_CHECK_ERR_SPLIT_WITH_ROT,
 	IPU_CHECK_ERR_NOT_SUPPORT,
 	IPU_CHECK_ERR_NOT16ALIGN,
+	IPU_CHECK_ERR_W_DOWNSIZE_OVER,
+	IPU_CHECK_ERR_H_DOWNSIZE_OVER,
 };
 
 /* IOCTL commands */
