@@ -365,7 +365,7 @@ static int __init multi_init(void)
 {
 	return usb_composite_probe(&multi_driver);
 }
-module_init(multi_init);
+late_initcall(multi_init);
 
 static void __exit multi_exit(void)
 {

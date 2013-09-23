@@ -402,7 +402,7 @@ webcam_cleanup(void)
 	usb_composite_unregister(&webcam_driver);
 }
 
-module_init(webcam_init);
+late_initcall(webcam_init);
 module_exit(webcam_cleanup);
 
 MODULE_AUTHOR("Laurent Pinchart");

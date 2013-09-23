@@ -256,7 +256,7 @@ static int __init hidg_init(void)
 
 	return status;
 }
-module_init(hidg_init);
+late_initcall(hidg_init);
 
 static void __exit hidg_cleanup(void)
 {
