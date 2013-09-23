@@ -275,7 +275,7 @@ static int __init init(void)
 {
 	return usb_composite_probe(&acm_ms_driver);
 }
-module_init(init);
+late_initcall(init);
 
 static void __exit cleanup(void)
 {
