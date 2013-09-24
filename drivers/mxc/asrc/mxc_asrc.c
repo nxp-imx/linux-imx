@@ -48,8 +48,6 @@
 
 DEFINE_SPINLOCK(data_lock);
 DEFINE_SPINLOCK(pair_lock);
-DEFINE_SPINLOCK(input_int_lock);
-DEFINE_SPINLOCK(output_int_lock);
 
 /* Sample rates are aligned with that defined in pcm.h file */
 static const unsigned char asrc_process_table[][8][2] = {
@@ -668,17 +666,11 @@ static int mxc_init_asrc(void)
 static void asrc_input_dma_callback(void *data)
 {
 	struct asrc_pair_params *params = (struct asrc_pair_params *)data;
-	unsigned long lock_flags;
 
 	dma_unmap_sg(NULL, params->input_sg, params->input_sg_nodes,
 			DMA_MEM_TO_DEV);
 
-	spin_lock_irqsave(&input_int_lock, lock_flags);
-
-	params->input_counter++;
-	wake_up_interruptible(&params->input_wait_queue);
-
-	spin_unlock_irqrestore(&input_int_lock, lock_flags);
+	complete(&params->input_complete);
 
 	schedule_work(&params->task_output_work);
 
@@ -691,6 +683,8 @@ static void asrc_output_dma_callback(void *data)
 
 	dma_unmap_sg(NULL, params->output_sg, params->output_sg_nodes,
 			DMA_MEM_TO_DEV);
+
+	complete(&params->output_complete);
 }
 
 static unsigned int asrc_get_output_FIFO_size(enum asrc_pair_index index)
@@ -734,18 +728,14 @@ static void asrc_read_output_FIFO(struct asrc_pair_params *params)
 	u32 *reg24 = params->output_last_period.dma_vaddr;
 	u16 *reg16 = params->output_last_period.dma_vaddr;
 	enum asrc_pair_index index = params->index;
-	u32 d, i, j, reg, size, t_size;
+	u32 i, j, reg, size, t_size;
 	bool bit24 = false;
 
 	if (params->output_word_width == ASRC_WIDTH_24_BIT)
 		bit24 = true;
 
-	/* Delay for last period data output */
-	d = 1000000 / params->output_sample_rate * params->last_period_sample;
-
 	t_size = 0;
 	do {
-		mdelay(1);
 		size = asrc_get_output_FIFO_size(index);
 		for (i = 0; i < size; i++) {
 			for (j = 0; j < params->channel_nums; j++) {
@@ -779,17 +769,19 @@ static void asrc_output_task_worker(struct work_struct *w)
 	if (!params->pair_hold)
 		return;
 
+	if (!wait_for_completion_interruptible_timeout(&params->output_complete, HZ)) {
+		dev_err(asrc->dev, "output dma callback timeout for Pair %c\n",
+				'A' + params->index);
+		return;
+	}
+
+	init_completion(&params->output_complete);
+
 	spin_lock_irqsave(&pair_lock, lock_flags);
 	asrc_read_output_FIFO(params);
 	spin_unlock_irqrestore(&pair_lock, lock_flags);
 
-	/* Finish receiving all output data */
-	spin_lock_irqsave(&output_int_lock, lock_flags);
-
-	params->output_counter++;
-	wake_up_interruptible(&params->output_wait_queue);
-
-	spin_unlock_irqrestore(&output_int_lock, lock_flags);
+	complete(&params->lastperiod_complete);
 }
 
 static void mxc_free_dma_buf(struct asrc_pair_params *params)
@@ -1051,42 +1043,34 @@ int mxc_asrc_process_io_buffer(struct asrc_pair_params *params,
 {
 	void *last_vaddr = params->output_last_period.dma_vaddr;
 	unsigned int *last_len = &params->output_last_period.length;
-	unsigned int *counter, dma_len, *buf_len;
-	unsigned long lock_flags;
+	unsigned int dma_len, *buf_len;
+	struct completion *complete;
 	void __user *buf_vaddr;
 	void *dma_vaddr;
-	wait_queue_head_t *q;
-	spinlock_t *lock;
 
 	if (in) {
 		dma_vaddr = params->input_dma_total.dma_vaddr;
 		dma_len = params->input_dma_total.length;
-		q = &params->input_wait_queue;
-		counter = &params->input_counter;
 		buf_len = &pbuf->input_buffer_length;
-		lock = &input_int_lock;
+		complete = &params->input_complete;
 		buf_vaddr = (void __user *)pbuf->input_buffer_vaddr;
 	} else {
 		dma_vaddr = params->output_dma_total.dma_vaddr;
 		dma_len = params->output_dma_total.length;
-		q = &params->output_wait_queue;
-		counter = &params->output_counter;
 		buf_len = &pbuf->output_buffer_length;
-		lock = &output_int_lock;
+		complete = &params->lastperiod_complete;
 		buf_vaddr = (void __user *)pbuf->output_buffer_vaddr;
 	}
 
-	if (!wait_event_interruptible_timeout(*q, *counter != 0, 10 * HZ)) {
-		dev_err(asrc->dev, "ASRC_DQ_OUTBUF timeout counter %x\n", *counter);
+	if (!wait_for_completion_interruptible_timeout(complete, 10 * HZ)) {
+		dev_err(asrc->dev, "ASRC_DQ_OUTBUF timeout\n");
 		return -ETIME;
 	} else if (signal_pending(current)) {
 		dev_err(asrc->dev, "ASRC_DQ_INBUF interrupt received.\n");
 		return -ERESTARTSYS;
 	}
 
-	spin_lock_irqsave(lock, lock_flags);
-	(*counter)--;
-	spin_unlock_irqrestore(lock, lock_flags);
+	init_completion(complete);
 
 	*buf_len = dma_len;
 
@@ -1272,8 +1256,9 @@ static long asrc_ioctl_config_pair(struct asrc_pair_params *params,
 		return  -EBUSY;
 	}
 
-	init_waitqueue_head(&params->input_wait_queue);
-	init_waitqueue_head(&params->output_wait_queue);
+	init_completion(&params->input_complete);
+	init_completion(&params->output_complete);
+	init_completion(&params->lastperiod_complete);
 
 	/* Add work struct to receive last period of output data */
 	INIT_WORK(&params->task_output_work, asrc_output_task_worker);
@@ -1422,17 +1407,10 @@ static long asrc_ioctl_flush(struct asrc_pair_params *params,
 		void __user *user)
 {
 	enum asrc_pair_index index = params->index;
-	unsigned long lock_flags;
 
-	/* Flush input dma buffer */
-	spin_lock_irqsave(&input_int_lock, lock_flags);
-	params->input_counter = 0;
-	spin_unlock_irqrestore(&input_int_lock, lock_flags);
-
-	/* Flush output dma buffer */
-	spin_lock_irqsave(&output_int_lock, lock_flags);
-	params->output_counter = 0;
-	spin_unlock_irqrestore(&output_int_lock, lock_flags);
+	init_completion(&params->input_complete);
+	init_completion(&params->output_complete);
+	init_completion(&params->lastperiod_complete);
 
 	/* Release DMA and request again */
 	dma_release_channel(params->input_dma_channel);
@@ -1536,8 +1514,9 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 
 		asrc_stop_conv(pair_params->index);
 
-		wake_up_interruptible(&pair_params->input_wait_queue);
-		wake_up_interruptible(&pair_params->output_wait_queue);
+		complete(&pair_params->input_complete);
+		complete(&pair_params->output_complete);
+		complete(&pair_params->lastperiod_complete);
 	}
 	if (pair_params->pair_hold) {
 		spin_lock_irqsave(&pair_lock, lock_flags);

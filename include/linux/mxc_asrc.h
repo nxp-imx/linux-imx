@@ -313,10 +313,9 @@ struct asrc_p2p_params {
 
 struct asrc_pair_params {
 	enum asrc_pair_index index;
-	wait_queue_head_t input_wait_queue;
-	wait_queue_head_t output_wait_queue;
-	unsigned int input_counter;
-	unsigned int output_counter;
+	struct completion input_complete;
+	struct completion output_complete;
+	struct completion lastperiod_complete;
 	struct dma_chan *input_dma_channel;
 	struct dma_chan *output_dma_channel;
 	unsigned int input_buffer_size;
