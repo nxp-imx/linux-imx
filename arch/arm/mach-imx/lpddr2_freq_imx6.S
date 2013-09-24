@@ -341,6 +341,7 @@ force_measure1:
  * r1: low_bus_freq_mode flag
  * r2: Pointer to array containing addresses of registers.
  */
+	.align 8
 ENTRY(mx6_lpddr2_freq_change)
 
 	push {r4-r10}
@@ -349,7 +350,7 @@ ENTRY(mx6_lpddr2_freq_change)
 	ldr	r3, [r4]			@ANATOP_BASE_ADDR
 	ldr	r2, [r4, #0x4]		@CCM_BASE_ADDR
 	ldr	r8, [r4, #0x8]		@MMDC_P0_BASE_ADDR
-	ldr	r7, [r4, #0x8]		@L2_BASE_ADDR
+	ldr	r7, [r4, #0xC]		@L2_BASE_ADDR
 
 lpddr2_freq_change:
 	adr	r9, lpddr2_freq_change
