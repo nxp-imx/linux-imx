@@ -349,7 +349,6 @@ struct asrc_data {
 	struct asrc_pair asrc_pair[3];
 	struct proc_dir_entry *proc_asrc;
 	struct regmap *regmap;
-	unsigned long vaddr;
 	unsigned long paddr;
 	struct class *asrc_class;
 	int asrc_major;

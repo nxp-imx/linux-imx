@@ -96,48 +96,12 @@ static unsigned char output_clk_map_v2[] = {
 
 static unsigned char *input_clk_map, *output_clk_map;
 
-/* ALL registers of ASRC are 24-bit efficient */
-static u32 asrc_regmap_read(struct regmap *map, unsigned int reg,
-			      unsigned int *val)
-{
-#ifndef ASRC_USE_REGMAP
-	*val = readl((void __iomem *)asrc->vaddr + reg) & 0xffffff;
-	return *val;
-#else
-	return regmap_read(map, reg, val);
-#endif
-}
-
-static void asrc_regmap_write(struct regmap *map, unsigned int reg,
-			       unsigned int val)
-{
-#ifndef ASRC_USE_REGMAP
-	writel(val & 0xffffff, (void __iomem *)asrc->vaddr + reg);
-#else
-	return regmap_write(map, reg, val);
-#endif
-}
-
-static void asrc_regmap_update_bits(struct regmap *map, unsigned int reg,
-				     unsigned int mask, unsigned int val)
-{
-#ifndef ASRC_USE_REGMAP
-	u32 regval;
-
-	regval = readl((void __iomem *)asrc->vaddr + reg) & 0xffffff;
-	regval = (regval & ~mask) | (val & mask);
-	writel(regval & 0xffffff, (void __iomem *)asrc->vaddr + reg);
-#else
-	regmap_update_bits(map, reg, mask, val);
-#endif
-}
-
 /* Set ASRC_REG_ASRCNCR reg, only supporting one-pair setting at once */
 static int asrc_set_channel_number(enum asrc_pair_index index, u32 val)
 {
 	u32 num;
 
-	asrc_regmap_read(asrc->regmap, REG_ASRCNCR, &num);
+	regmap_read(asrc->regmap, REG_ASRCNCR, &num);
 
 	switch (index) {
 	case ASRC_PAIR_A:
@@ -157,7 +121,7 @@ static int asrc_set_channel_number(enum asrc_pair_index index, u32 val)
 		return -EINVAL;
 	}
 
-	asrc_regmap_write(asrc->regmap, REG_ASRCNCR, num);
+	regmap_write(asrc->regmap, REG_ASRCNCR, num);
 
 	return 0;
 }
@@ -208,7 +172,7 @@ static void dump_regs(void)
 
 	for (i = 0; i < ARRAY_SIZE(asrc_reg); i++) {
 		reg = asrc_reg[i];
-		asrc_regmap_read(asrc->regmap, reg, &val);
+		regmap_read(asrc->regmap, reg, &val);
 		pr_debug("REG addr=0x%x val=0x%x\n", reg, val);
 	}
 }
@@ -246,8 +210,8 @@ static int asrc_set_clock_ratio(enum asrc_pair_index index,
 			break;
 	}
 
-	asrc_regmap_write(asrc->regmap, REG_ASRIDRL(index), val);
-	asrc_regmap_write(asrc->regmap, REG_ASRIDRH(index), (val >> 24));
+	regmap_write(asrc->regmap, REG_ASRIDRL(index), val);
+	regmap_write(asrc->regmap, REG_ASRIDRH(index), (val >> 24));
 
 	return 0;
 }
@@ -287,7 +251,7 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 		return -EINVAL;
 	}
 
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRCFG,
+	regmap_update_bits(asrc->regmap, REG_ASRCFG,
 			ASRCFG_PREMODx_MASK(index) | ASRCFG_POSTMODx_MASK(index),
 			ASRCFG_PREMOD(index, asrc_process_table[in][out][0]) |
 			ASRCFG_POSTMOD(index, asrc_process_table[in][out][1]));
@@ -372,7 +336,7 @@ int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 
 	if (!ret) {
 		clk_enable(asrc->asrc_clk);
-		clk_enable(asrc->dma_clk);
+		clk_prepare_enable(asrc->dma_clk);
 	}
 
 	return ret;
@@ -389,11 +353,10 @@ void asrc_release_pair(enum asrc_pair_index index)
 	pair->active = 0;
 	pair->overload_error = 0;
 
-	/* Disable PAIR */
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRCTR,
-			ASRCTR_ASRCEx_MASK(index), 0);
-
 	spin_unlock_irqrestore(&data_lock, lock_flags);
+
+	/* Disable PAIR */
+	regmap_update_bits(asrc->regmap, REG_ASRCTR, ASRCTR_ASRCEx_MASK(index), 0);
 }
 EXPORT_SYMBOL(asrc_release_pair);
 
@@ -419,16 +382,15 @@ int asrc_config_pair(struct asrc_config *config)
 	asrc_set_channel_number(index, channel_num);
 
 	/* Set the clock source */
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRCSR,
+	regmap_update_bits(asrc->regmap, REG_ASRCSR,
 			ASRCSR_AICSx_MASK(index) | ASRCSR_AOCSx_MASK(index),
 			ASRCSR_AICS(index, input_clk_map[config->inclk]) |
 			ASRCSR_AOCS(index, output_clk_map[config->outclk]));
 
 	/* Default setting: Automatic selection for processing mode */
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRCTR,
+	regmap_update_bits(asrc->regmap, REG_ASRCTR,
 			ASRCTR_ATSx_MASK(index), ASRCTR_ATS(index));
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRCTR,
-			ASRCTR_USRx_MASK(index), 0);
+	regmap_update_bits(asrc->regmap, REG_ASRCTR, ASRCTR_USRx_MASK(index), 0);
 
 	/* Default Input Clock Divider Setting */
 	switch (config->inclk & ASRCSR_AxCSx_MASK) {
@@ -488,7 +450,7 @@ int asrc_config_pair(struct asrc_config *config)
 	}
 
 	/* indiv and outdiv'd include prescaler's value, so add its MASK too */
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRCDR(index),
+	regmap_update_bits(asrc->regmap, REG_ASRCDR(index),
 			ASRCDRx_AOCPx_MASK(index) | ASRCDRx_AICPx_MASK(index) |
 			ASRCDRx_AOCDx_MASK(index) | ASRCDRx_AICDx_MASK(index),
 			ASRCDRx_AOCP(index, outdiv) | ASRCDRx_AICP(index, indiv));
@@ -497,10 +459,10 @@ int asrc_config_pair(struct asrc_config *config)
 	switch (config->inclk & ASRCSR_AxCSx_MASK) {
 	case INCLK_NONE:
 		/* Clear ASTSx bit to use ideal ratio */
-		asrc_regmap_update_bits(asrc->regmap, REG_ASRCTR,
+		regmap_update_bits(asrc->regmap, REG_ASRCTR,
 				ASRCTR_ATSx_MASK(index), 0);
 
-		asrc_regmap_update_bits(asrc->regmap, REG_ASRCTR,
+		regmap_update_bits(asrc->regmap, REG_ASRCTR,
 				ASRCTR_IDRx_MASK(index) | ASRCTR_USRx_MASK(index),
 				ASRCTR_IDR(index) | ASRCTR_USR(index));
 
@@ -540,13 +502,13 @@ int asrc_config_pair(struct asrc_config *config)
 		return -EINVAL;
 	}
 
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRMCR1(index),
+	regmap_update_bits(asrc->regmap, REG_ASRMCR1(index),
 			ASRMCR1x_OW16_MASK | ASRMCR1x_IWD_MASK,
 			ASRMCR1x_OW16(config->output_word_width) |
 			ASRMCR1x_IWD(config->input_word_width));
 
 	/* Enable BUFFER STALL */
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRMCR(index),
+	regmap_update_bits(asrc->regmap, REG_ASRMCR(index),
 			ASRMCRx_BUFSTALLx_MASK, ASRMCRx_BUFSTALLx);
 
 	/* Set Threshold for input and output FIFO */
@@ -567,7 +529,7 @@ int asrc_set_watermark(enum asrc_pair_index index, u32 in_wm, u32 out_wm)
 		return -EINVAL;
 	}
 
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRMCR(index),
+	regmap_update_bits(asrc->regmap, REG_ASRMCR(index),
 			ASRMCRx_EXTTHRSHx_MASK | ASRMCRx_INFIFO_THRESHOLD_MASK |
 			ASRMCRx_OUTFIFO_THRESHOLD_MASK,
 			ASRMCRx_EXTTHRSHx | ASRMCRx_INFIFO_THRESHOLD(in_wm) |
@@ -579,25 +541,20 @@ EXPORT_SYMBOL(asrc_set_watermark);
 
 void asrc_start_conv(enum asrc_pair_index index)
 {
-	unsigned long lock_flags;
 	int reg, retry;
 
-	spin_lock_irqsave(&data_lock, lock_flags);
-
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRCTR,
+	regmap_update_bits(asrc->regmap, REG_ASRCTR,
 			ASRCTR_ASRCEx_MASK(index), ASRCTR_ASRCE(index));
 
 	/* Wait for status of initialization */
 	for (retry = 10, reg = 0; !reg && retry; --retry) {
 		udelay(5);
-		asrc_regmap_read(asrc->regmap, REG_ASRCFG, &reg);
+		regmap_read(asrc->regmap, REG_ASRCFG, &reg);
 		reg &= ASRCFG_INIRQx_MASK(index);
 	}
 
 	/* Overload Interrupt Enable */
-	asrc_regmap_write(asrc->regmap, REG_ASRIER, ASRIER_AOLIE);
-
-	spin_unlock_irqrestore(&data_lock, lock_flags);
+	regmap_write(asrc->regmap, REG_ASRIER, ASRIER_AOLIE);
 
 	return;
 }
@@ -605,22 +562,14 @@ EXPORT_SYMBOL(asrc_start_conv);
 
 void asrc_stop_conv(enum asrc_pair_index index)
 {
-	unsigned long lock_flags;
-
-	spin_lock_irqsave(&data_lock, lock_flags);
-
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRCTR,
+	regmap_update_bits(asrc->regmap, REG_ASRCTR,
 			ASRCTR_ASRCEx_MASK(index), 0);
-
-	spin_unlock_irqrestore(&data_lock, lock_flags);
-
-	return;
 }
 EXPORT_SYMBOL(asrc_stop_conv);
 
 void asrc_finish_conv(enum asrc_pair_index index)
 {
-	clk_disable(asrc->dma_clk);
+	clk_disable_unprepare(asrc->dma_clk);
 	clk_disable(asrc->asrc_clk);
 	return;
 }
@@ -634,7 +583,7 @@ static irqreturn_t asrc_isr(int irq, void *dev_id)
 	enum asrc_pair_index index;
 	u32 status;
 
-	asrc_regmap_read(asrc->regmap, REG_ASRSTR, &status);
+	regmap_read(asrc->regmap, REG_ASRSTR, &status);
 
 	for (index = ASRC_PAIR_A; index < ASRC_PAIR_MAX_NUM; index++) {
 		if (asrc->asrc_pair[index].active == 0)
@@ -652,8 +601,7 @@ static irqreturn_t asrc_isr(int irq, void *dev_id)
 	}
 
 	/* Clean overload error  */
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRSTR,
-			ASRSTR_AOLE_MASK, ASRSTR_AOLE);
+	regmap_write(asrc->regmap, REG_ASRSTR, ASRSTR_AOLE);
 
 	return IRQ_HANDLED;
 }
@@ -683,13 +631,11 @@ EXPORT_SYMBOL(asrc_get_per_addr);
 
 static int mxc_init_asrc(void)
 {
-	clk_enable(asrc->asrc_clk);
-
 	/* Halt ASRC internal FP when input FIFO needs data for pair A, B, C */
-	asrc_regmap_write(asrc->regmap, REG_ASRCTR, ASRCTR_ASRCEN);
+	regmap_write(asrc->regmap, REG_ASRCTR, ASRCTR_ASRCEN);
 
 	/* Disable interrupt by default */
-	asrc_regmap_write(asrc->regmap, REG_ASRIER, 0x0);
+	regmap_write(asrc->regmap, REG_ASRIER, 0x0);
 
 	/* Default 2: 6: 2 channel assignment */
 	asrc_set_channel_number(ASRC_PAIR_A, 2);
@@ -697,23 +643,21 @@ static int mxc_init_asrc(void)
 	asrc_set_channel_number(ASRC_PAIR_C, 2);
 
 	/* Parameter Registers recommended settings */
-	asrc_regmap_write(asrc->regmap, REG_ASRPM1, 0x7fffff);
-	asrc_regmap_write(asrc->regmap, REG_ASRPM2, 0x255555);
-	asrc_regmap_write(asrc->regmap, REG_ASRPM3, 0xff7280);
-	asrc_regmap_write(asrc->regmap, REG_ASRPM4, 0xff7280);
-	asrc_regmap_write(asrc->regmap, REG_ASRPM5, 0xff7280);
+	regmap_write(asrc->regmap, REG_ASRPM1, 0x7fffff);
+	regmap_write(asrc->regmap, REG_ASRPM2, 0x255555);
+	regmap_write(asrc->regmap, REG_ASRPM3, 0xff7280);
+	regmap_write(asrc->regmap, REG_ASRPM4, 0xff7280);
+	regmap_write(asrc->regmap, REG_ASRPM5, 0xff7280);
 
 	/* Base address for task queue FIFO. Set to 0x7C */
-	asrc_regmap_update_bits(asrc->regmap, REG_ASRTFR1,
+	regmap_update_bits(asrc->regmap, REG_ASRTFR1,
 			ASRTFR1_TF_BASE_MASK, ASRTFR1_TF_BASE(0xfc));
 
 	/* Set the processing clock for 76KHz, 133M */
-	asrc_regmap_write(asrc->regmap, REG_ASR76K, 0x06D6);
+	regmap_write(asrc->regmap, REG_ASR76K, 0x06D6);
 
 	/* Set the processing clock for 56KHz, 133M */
-	asrc_regmap_write(asrc->regmap, REG_ASR56K, 0x0947);
-
-	clk_disable(asrc->asrc_clk);
+	regmap_write(asrc->regmap, REG_ASR56K, 0x0947);
 
 	return 0;
 }
@@ -753,7 +697,7 @@ static unsigned int asrc_get_output_FIFO_size(enum asrc_pair_index index)
 {
 	u32 val;
 
-	asrc_regmap_read(asrc->regmap, REG_ASRFST(index), &val);
+	regmap_read(asrc->regmap, REG_ASRFST(index), &val);
 
 	val &= ASRFSTx_OUTPUT_FIFO_MASK;
 
@@ -764,7 +708,7 @@ static unsigned int asrc_get_input_FIFO_size(enum asrc_pair_index index)
 {
 	u32 val;
 
-	asrc_regmap_read(asrc->regmap, REG_ASRFST(index), &val);
+	regmap_read(asrc->regmap, REG_ASRFST(index), &val);
 
 	val &= ASRFSTx_INPUT_FIFO_MASK;
 
@@ -775,14 +719,14 @@ static u32 asrc_read_one_from_output_FIFO(enum asrc_pair_index index)
 {
 	u32 val;
 
-	asrc_regmap_read(asrc->regmap, REG_ASRDO(index), &val);
+	regmap_read(asrc->regmap, REG_ASRDO(index), &val);
 
 	return val;
 }
 
 static void asrc_write_one_to_output_FIFO(enum asrc_pair_index index, u32 val)
 {
-	asrc_regmap_write(asrc->regmap, REG_ASRDI(index), val);
+	regmap_write(asrc->regmap, REG_ASRDI(index), val);
 }
 
 static void asrc_read_output_FIFO(struct asrc_pair_params *params)
@@ -1660,7 +1604,7 @@ static int asrc_read_proc_attr(struct file *file, char __user *buf,
 	if (*off)
 		return 0;
 
-	asrc_regmap_read(asrc->regmap, REG_ASRCNCR, &reg);
+	regmap_read(asrc->regmap, REG_ASRCNCR, &reg);
 
 	len += sprintf(tmpbuf, "ANCA: %d\nANCB: %d\nANCC: %d\n",
 			(int)ASRCNCR_ANCA_get(reg, asrc->channel_bits),
@@ -1754,9 +1698,6 @@ static void asrc_proc_remove(void)
 }
 
 
-#ifdef ASRC_USE_REGMAP
-/* ============= ASRC REGMAP ============= */
-
 static bool asrc_readable_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
@@ -1811,6 +1752,7 @@ static bool asrc_writeable_reg(struct device *dev, unsigned int reg)
 	case REG_ASRCSR:
 	case REG_ASRCDR1:
 	case REG_ASRCDR2:
+	case REG_ASRSTR:
 	case REG_ASRPM1:
 	case REG_ASRPM2:
 	case REG_ASRPM3:
@@ -1841,13 +1783,7 @@ static bool asrc_writeable_reg(struct device *dev, unsigned int reg)
 	}
 }
 
-static bool asrc_volatile_reg(struct device *dev, unsigned int reg)
-{
-	/* Sync all registers after reset */
-	return true;
-}
-
-static const struct regmap_config asrc_regmap_config = {
+static struct regmap_config asrc_regmap_config = {
 	.reg_bits = 32,
 	.reg_stride = 4,
 	.val_bits = 32,
@@ -1855,10 +1791,7 @@ static const struct regmap_config asrc_regmap_config = {
 	.max_register = REG_ASRMCR1C,
 	.readable_reg = asrc_readable_reg,
 	.writeable_reg = asrc_writeable_reg,
-	.volatile_reg = asrc_volatile_reg,
-	.cache_type = REGCACHE_RBTREE,
 };
-#endif
 
 static int mxc_asrc_probe(struct platform_device *pdev)
 {
@@ -1902,18 +1835,14 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to map io resources.\n");
 		return IS_ERR(regs);
 	}
-	asrc->vaddr = (unsigned long)regs;
 
-#ifdef ASRC_USE_REGMAP
+	/* Register regmap and let it prepare core clock */
 	asrc->regmap = devm_regmap_init_mmio_clk(&pdev->dev,
 			"core", regs, &asrc_regmap_config);
 	if (IS_ERR(asrc->regmap)) {
 		dev_err(&pdev->dev, "regmap init failed\n");
 		ret = PTR_ERR(asrc->regmap);
 	}
-
-	regcache_cache_only(asrc->regmap, false);
-#endif
 
 	asrc->irq = irq_of_parse_and_map(np, 0);
 	if (asrc->irq == NO_IRQ) {
@@ -1939,10 +1868,6 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 		ret = PTR_ERR(asrc->dma_clk);
 		goto err_iomap;
 	}
-#ifndef ASRC_USE_REGMAP
-	clk_prepare(asrc->asrc_clk);
-	clk_prepare(asrc->dma_clk);
-#endif
 
 	ret = of_property_read_u32_array(pdev->dev.of_node,
 			"fsl,clk-channel-bits", &asrc->channel_bits, 1);
@@ -1998,10 +1923,6 @@ err_iomap:
 
 static int mxc_asrc_remove(struct platform_device *pdev)
 {
-#ifndef ASRC_USE_REGMAP
-	clk_unprepare(asrc->dma_clk);
-	clk_unprepare(asrc->asrc_clk);
-#endif
 	asrc_proc_remove();
 	misc_deregister(&asrc_miscdev);
 
