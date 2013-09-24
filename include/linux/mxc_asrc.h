@@ -345,15 +345,15 @@ struct asrc_pair_params {
 };
 
 struct asrc_data {
-	struct asrc_pair asrc_pair[3];
+	struct asrc_pair asrc_pair[ASRC_PAIR_MAX_NUM];
 	struct proc_dir_entry *proc_asrc;
-	struct regmap *regmap;
-	unsigned long paddr;
 	struct class *asrc_class;
-	int asrc_major;
+	struct regmap *regmap;
 	struct clk *asrc_clk;
 	struct clk *dma_clk;
+	unsigned long paddr;
 	unsigned int channel_bits;
+	int asrc_major;
 	int clk_map_ver;
 	int irq;
 	struct device *dev;

@@ -1,50 +1,35 @@
 /*
+ * Freescale Asynchronous Sample Rate Converter (ASRC) driver
+ *
  * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
- * The code contained herein is licensed under the GNU General Public
- * License. You may obtain a copy of the GNU General Public License
- * Version 2 or later at the following locations:
- *
- * http://www.opensource.org/licenses/gpl-license.html
- * http://www.gnu.org/copyleft/gpl.html
- *
- * @file mxc_asrc.c
- *
- * @brief MXC Asynchronous Sample Rate Converter
- *
- * @ingroup Audio
+ * This file is licensed under the terms of the GNU General Public License
+ * version 2.  This program  is licensed "as is" without any warranty of any
+ * kind, whether express or implied.
  */
 
-#include <linux/module.h>
-#include <linux/platform_device.h>
-#include <linux/miscdevice.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
 #include <linux/clk.h>
 #include <linux/slab.h>
-#include <linux/ctype.h>
-#include <linux/regmap.h>
-#include <linux/pagemap.h>
-#include <linux/vmalloc.h>
-#include <linux/types.h>
-#include <linux/version.h>
-#include <linux/interrupt.h>
-#include <linux/proc_fs.h>
-#include <linux/dma-mapping.h>
-#include <linux/fsl_devices.h>
-#include <linux/sched.h>
-#include <asm/irq.h>
-#include <linux/memory.h>
 #include <linux/delay.h>
-#include <linux/of_address.h>
-#include <linux/of_irq.h>
+#include <linux/sched.h>
+#include <linux/regmap.h>
+#include <linux/module.h>
+#include <linux/proc_fs.h>
+#include <linux/pagemap.h>
+#include <linux/interrupt.h>
+#include <linux/miscdevice.h>
+#include <linux/dma-mapping.h>
 #include <linux/of_platform.h>
 #include <linux/platform_data/dma-imx.h>
+
 #include <linux/mxc_asrc.h>
 
 #define ASRC_PROC_PATH "driver/asrc"
 
 #define ASRC_RATIO_DECIMAL_DEPTH 26
+
+#define pair_err(fmt, ...) \
+	dev_err(asrc->dev, "Pair %c: " fmt, 'A' + index, ##__VA_ARGS__)
 
 DEFINE_SPINLOCK(data_lock);
 DEFINE_SPINLOCK(pair_lock);
@@ -83,12 +68,12 @@ static unsigned char output_clk_map_v1[] = {
 
 /* V2 uses the same map for input and output */
 static unsigned char input_clk_map_v2[] = {
-/*	0x0  0x1  0x2  0x3  0x4  0x5  0x6  0x7  0x8  0x9  0xa  0xb  0xc  0xd  0xe  0xf*/
+/*	0x0  0x1  0x2  0x3  0x4  0x5  0x6  0x7  0x8  0x9  0xa  0xb  0xc  0xd  0xe  0xf */
 	0x0, 0x1, 0x2, 0x7, 0x4, 0x5, 0x6, 0x3, 0x8, 0x9, 0xa, 0xb, 0xc, 0xf, 0xe, 0xd,
 };
 
 static unsigned char output_clk_map_v2[] = {
-/*	0x0  0x1  0x2  0x3  0x4  0x5  0x6  0x7  0x8  0x9  0xa  0xb  0xc  0xd  0xe  0xf*/
+/*	0x0  0x1  0x2  0x3  0x4  0x5  0x6  0x7  0x8  0x9  0xa  0xb  0xc  0xd  0xe  0xf */
 	0x8, 0x9, 0xa, 0x7, 0xc, 0x5, 0x6, 0xb, 0x0, 0x1, 0x2, 0x3, 0x4, 0xf, 0xe, 0xd,
 };
 
@@ -115,13 +100,11 @@ static int asrc_set_channel_number(enum asrc_pair_index index, u32 val)
 		num |= val << asrc->channel_bits * 2;
 		break;
 	default:
-		dev_err(asrc->dev, "ASRC pair number not exists.\n");
+		dev_err(asrc->dev, "invalid pair number\n");
 		return -EINVAL;
 	}
 
-	regmap_write(asrc->regmap, REG_ASRCNCR, num);
-
-	return 0;
+	return regmap_write(asrc->regmap, REG_ASRCNCR, num);
 }
 
 #ifdef DEBUG
@@ -171,7 +154,7 @@ static void dump_regs(void)
 	for (i = 0; i < ARRAY_SIZE(asrc_reg); i++) {
 		reg = asrc_reg[i];
 		regmap_read(asrc->regmap, reg, &val);
-		pr_debug("REG addr=0x%x val=0x%x\n", reg, val);
+		dev_debug(asrc->dev, "REG addr=0x%x val=0x%x\n", reg, val);
 	}
 }
 #else
@@ -180,14 +163,13 @@ static void dump_regs(void) {}
 
 /* Only used for Ideal Ratio mode */
 static int asrc_set_clock_ratio(enum asrc_pair_index index,
-		int inrate, int outrate)
+				int inrate, int outrate)
 {
 	unsigned long val = 0;
-	int integ;
-	int i;
+	int integ, i;
 
 	if (outrate == 0) {
-		dev_err(asrc->dev, "Wrong output sample rate: %d\n", outrate);
+		dev_err(asrc->dev, "wrong output sample rate: %d\n", outrate);
 		return -EINVAL;
 	}
 
@@ -225,7 +207,7 @@ static int supported_output_rate[] = {
 };
 
 static int asrc_set_process_configuration(enum asrc_pair_index index,
-		int inrate, int outrate)
+					int inrate, int outrate)
 {
 	int in, out;
 
@@ -235,7 +217,7 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 	}
 
 	if (in == ARRAY_SIZE(supported_input_rate)) {
-		dev_err(asrc->dev, "Unsupported input sample rate: %d\n", in);
+		dev_err(asrc->dev, "unsupported input sample rate: %d\n", in);
 		return -EINVAL;
 	}
 
@@ -245,7 +227,7 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 	}
 
 	if (out == ARRAY_SIZE(supported_output_rate)) {
-		dev_err(asrc->dev, "Unsupported output sample rate: %d\n", out);
+		dev_err(asrc->dev, "unsupported output sample rate: %d\n", out);
 		return -EINVAL;
 	}
 
@@ -259,19 +241,17 @@ static int asrc_set_process_configuration(enum asrc_pair_index index,
 
 static int asrc_get_asrck_clock_divider(int samplerate)
 {
-	unsigned int prescaler, divider;
-	unsigned int ratio, ra;
+	unsigned int prescaler, divider, ratio, ra, i;
 	unsigned long bitclk;
-	unsigned int i;
 
 	if (samplerate == 0) {
-		dev_err(asrc->dev, "Wrong sample rate: %d\n", samplerate);
+		dev_err(asrc->dev, "invalid sample rate: %d\n", samplerate);
 		return -EINVAL;
 	}
 
 	bitclk = clk_get_rate(asrc->asrc_clk);
 
-	ra = bitclk/samplerate;
+	ra = bitclk / samplerate;
 	ratio = ra;
 
 	/* Calculate the prescaler */
@@ -281,10 +261,7 @@ static int asrc_get_asrck_clock_divider(int samplerate)
 	prescaler = i;
 
 	/* Calculate the divider */
-	if (i)
-		divider = ((ra + (1 << (i - 1)) - 1) >> i) - 1;
-	else
-		divider = ra - 1;
+	divider = i ? (((ra + (1 << (i - 1)) - 1) >> i) - 1) : (ra - 1);
 
 	/* The totally divider is (2 ^ prescaler) * divider */
 	return (divider << ASRCDRx_AxCPx_WIDTH) + prescaler;
@@ -292,9 +269,9 @@ static int asrc_get_asrck_clock_divider(int samplerate)
 
 int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 {
-	struct asrc_pair *pair;
-	unsigned long lock_flags;
 	int imax = 0, busy = 0, i, ret = 0;
+	unsigned long lock_flags;
+	struct asrc_pair *pair;
 
 	spin_lock_irqsave(&data_lock, lock_flags);
 
@@ -316,13 +293,13 @@ int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 	}
 
 	if (imax == ASRC_PAIR_MAX_NUM) {
-		dev_err(asrc->dev, "No pair could afford requested channel number.\n");
+		dev_err(asrc->dev, "no pair could afford required channel number\n");
 		ret = -EINVAL;
 	} else if (busy == ASRC_PAIR_MAX_NUM) {
-		dev_err(asrc->dev, "All pairs are busy now.\n");
+		dev_err(asrc->dev, "all pairs are busy now\n");
 		ret = -EBUSY;
 	} else if (busy + imax >= ASRC_PAIR_MAX_NUM) {
-		pr_err("All affordable pairs are busy now.\n");
+		dev_err(asrc->dev, "all affordable pairs are busy now\n");
 		ret = -EBUSY;
 	} else {
 		pair = &asrc->asrc_pair[*index];
@@ -362,10 +339,8 @@ int asrc_config_pair(struct asrc_config *config)
 {
 	u32 inrate = config->input_sample_rate, indiv;
 	u32 outrate = config->output_sample_rate, outdiv;
+	int ret, channel_num, index = config->pair;
 	unsigned long lock_flags;
-	int index = config->pair;
-	int channel_num;
-	int ret;
 
 	/* Set the channel number */
 	spin_lock_irqsave(&data_lock, lock_flags);
@@ -410,7 +385,7 @@ int asrc_config_pair(struct asrc_config *config)
 			indiv = ASRC_PRESCALER_I2S_24BIT;
 			break;
 		default:
-			dev_err(asrc->dev, "Unsupported input word width %d\n",
+			pair_err("unsupported input word width %d\n",
 					config->input_word_width);
 			return -EINVAL;
 		}
@@ -440,7 +415,7 @@ int asrc_config_pair(struct asrc_config *config)
 			outdiv = ASRC_PRESCALER_I2S_24BIT;
 			break;
 		default:
-			dev_err(asrc->dev, "Unsupported output word width %d\n",
+			pair_err("unsupported output word width %d\n",
 					config->input_word_width);
 			return -EINVAL;
 		}
@@ -476,7 +451,7 @@ int asrc_config_pair(struct asrc_config *config)
 	case INCLK_ASRCK1_CLK:
 		/* This case and default are both remained for v1 */
 		if (inrate == 44100 || inrate == 88200) {
-			dev_err(asrc->dev, "Unsupported sample rate %d by ASRC clock.\n",
+			pair_err("unsupported sample rate %d by selected clock\n",
 					inrate);
 			return -EINVAL;
 		}
@@ -486,7 +461,7 @@ int asrc_config_pair(struct asrc_config *config)
 			break;
 
 		if (outrate == 44100 || outrate == 88200) {
-			dev_err(asrc->dev, "Unsupported sample rate %d by ASRC clock.\n",
+			pair_err("unsupported sample rate %d by selected clock\n",
 					outrate);
 			return -EINVAL;
 		}
@@ -495,8 +470,8 @@ int asrc_config_pair(struct asrc_config *config)
 
 	/* Config input and output wordwidth */
 	if (config->output_word_width == ASRC_WIDTH_8_BIT) {
-		dev_err(asrc->dev, "Unsupported wordwidth for output: 8bit.\n");
-		dev_err(asrc->dev, "Output only support: 16bit or 24bit.\n");
+		pair_err("unsupported wordwidth for output: 8bit\n");
+		pair_err("output only support: 16bit or 24bit\n");
 		return -EINVAL;
 	}
 
@@ -510,10 +485,8 @@ int asrc_config_pair(struct asrc_config *config)
 			ASRMCRx_BUFSTALLx_MASK, ASRMCRx_BUFSTALLx);
 
 	/* Set Threshold for input and output FIFO */
-	ret = asrc_set_watermark(index, ASRC_INPUTFIFO_THRESHOLD,
+	return asrc_set_watermark(index, ASRC_INPUTFIFO_THRESHOLD,
 			ASRC_INPUTFIFO_THRESHOLD);
-
-	return ret;
 }
 EXPORT_SYMBOL(asrc_config_pair);
 
@@ -521,19 +494,16 @@ EXPORT_SYMBOL(asrc_config_pair);
 
 int asrc_set_watermark(enum asrc_pair_index index, u32 in_wm, u32 out_wm)
 {
-	if (in_wm > ASRC_MAX_FIFO_THRESHOLD ||
-			out_wm > ASRC_MAX_FIFO_THRESHOLD) {
-		dev_err(asrc->dev, "Error watermark!\n");
+	if (in_wm > ASRC_MAX_FIFO_THRESHOLD || out_wm > ASRC_MAX_FIFO_THRESHOLD) {
+		pair_err("invalid watermark!\n");
 		return -EINVAL;
 	}
 
-	regmap_update_bits(asrc->regmap, REG_ASRMCR(index),
+	return regmap_update_bits(asrc->regmap, REG_ASRMCR(index),
 			ASRMCRx_EXTTHRSHx_MASK | ASRMCRx_INFIFO_THRESHOLD_MASK |
 			ASRMCRx_OUTFIFO_THRESHOLD_MASK,
 			ASRMCRx_EXTTHRSHx | ASRMCRx_INFIFO_THRESHOLD(in_wm) |
 			ASRMCRx_OUTFIFO_THRESHOLD(out_wm));
-
-	return 0;
 }
 EXPORT_SYMBOL(asrc_set_watermark);
 
@@ -553,15 +523,12 @@ void asrc_start_conv(enum asrc_pair_index index)
 
 	/* Overload Interrupt Enable */
 	regmap_write(asrc->regmap, REG_ASRIER, ASRIER_AOLIE);
-
-	return;
 }
 EXPORT_SYMBOL(asrc_start_conv);
 
 void asrc_stop_conv(enum asrc_pair_index index)
 {
-	regmap_update_bits(asrc->regmap, REG_ASRCTR,
-			ASRCTR_ASRCEx_MASK(index), 0);
+	regmap_update_bits(asrc->regmap, REG_ASRCTR, ASRCTR_ASRCEx_MASK(index), 0);
 }
 EXPORT_SYMBOL(asrc_stop_conv);
 
@@ -569,7 +536,6 @@ void asrc_finish_conv(enum asrc_pair_index index)
 {
 	clk_disable_unprepare(asrc->dma_clk);
 	clk_disable(asrc->asrc_clk);
-	return;
 }
 EXPORT_SYMBOL(asrc_finish_conv);
 
@@ -614,16 +580,12 @@ void asrc_get_status(struct asrc_status_flags *flags)
 	flags->overload_error = asrc->asrc_pair[index].overload_error;
 
 	spin_unlock_irqrestore(&data_lock, lock_flags);
-
-	return;
 }
 EXPORT_SYMBOL(asrc_get_status);
 
 u32 asrc_get_per_addr(enum asrc_pair_index index, bool in)
 {
-	u32 addr = in ? REG_ASRDI(index) : REG_ASRDO(index);
-
-	return asrc->paddr + addr;
+	return asrc->paddr + (in ? REG_ASRDI(index) : REG_ASRDO(index));
 }
 EXPORT_SYMBOL(asrc_get_per_addr);
 
@@ -655,9 +617,7 @@ static int mxc_init_asrc(void)
 	regmap_write(asrc->regmap, REG_ASR76K, 0x06D6);
 
 	/* Set the processing clock for 56KHz, 133M */
-	regmap_write(asrc->regmap, REG_ASR56K, 0x0947);
-
-	return 0;
+	return regmap_write(asrc->regmap, REG_ASR56K, 0x0947);
 }
 
 #define ASRC_xPUT_DMA_CALLBACK(in) \
@@ -673,8 +633,6 @@ static void asrc_input_dma_callback(void *data)
 	complete(&params->input_complete);
 
 	schedule_work(&params->task_output_work);
-
-	return;
 }
 
 static void asrc_output_dma_callback(void *data)
@@ -718,7 +676,7 @@ static u32 asrc_read_one_from_output_FIFO(enum asrc_pair_index index)
 	return val;
 }
 
-static void asrc_write_one_to_output_FIFO(enum asrc_pair_index index, u32 val)
+static void asrc_write_one_to_input_FIFO(enum asrc_pair_index index, u32 val)
 {
 	regmap_write(asrc->regmap, REG_ASRDI(index), val);
 }
@@ -764,14 +722,14 @@ static void asrc_output_task_worker(struct work_struct *w)
 {
 	struct asrc_pair_params *params =
 		container_of(w, struct asrc_pair_params, task_output_work);
+	enum asrc_pair_index index = params->index;
 	unsigned long lock_flags;
 
 	if (!params->pair_hold)
 		return;
 
 	if (!wait_for_completion_interruptible_timeout(&params->output_complete, HZ)) {
-		dev_err(asrc->dev, "output dma callback timeout for Pair %c\n",
-				'A' + params->index);
+		pair_err("output dma task timeout\n");
 		return;
 	}
 
@@ -802,13 +760,12 @@ static void mxc_free_dma_buf(struct asrc_pair_params *params)
 				params->output_last_period.dma_paddr);
 		params->output_last_period.dma_vaddr = NULL;
 	}
-
-	return;
 }
 
 static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 {
 	struct dma_block *input_a, *output_a, *last_period;
+	enum asrc_pair_index index = params->index;
 
 	input_a = &params->input_dma_total;
 	output_a = &params->output_dma_total;
@@ -816,14 +773,14 @@ static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 
 	input_a->dma_vaddr = kzalloc(input_a->length, GFP_KERNEL);
 	if (!input_a->dma_vaddr) {
-		dev_err(asrc->dev, "failed to allocate input dma buffer!\n");
+		pair_err("failed to allocate input dma buffer\n");
 		goto exit;
 	}
 	input_a->dma_paddr = virt_to_dma(NULL, input_a->dma_vaddr);
 
 	output_a->dma_vaddr = kzalloc(output_a->length, GFP_KERNEL);
 	if (!output_a->dma_vaddr) {
-		dev_err(asrc->dev, "failed to allocate output dma buffer!\n");
+		pair_err("failed to allocate output dma buffer\n");
 		goto exit;
 	}
 	output_a->dma_paddr = virt_to_dma(NULL, output_a->dma_vaddr);
@@ -831,30 +788,34 @@ static int mxc_allocate_dma_buf(struct asrc_pair_params *params)
 	last_period->dma_vaddr = dma_alloc_coherent(NULL,
 			1024 * params->last_period_sample,
 			&last_period->dma_paddr, GFP_KERNEL);
+	if (!last_period->dma_vaddr) {
+		pair_err("failed to allocate last period buffer\n");
+		goto exit;
+	}
 
 	return 0;
 
 exit:
 	mxc_free_dma_buf(params);
-	dev_err(asrc->dev, "failed to allocate buffer.\n");
 
 	return -ENOBUFS;
 }
 
-static struct dma_chan *imx_asrc_dma_request_channel(
-		struct asrc_pair_params *params, bool in)
+static struct dma_chan *imx_asrc_get_dma_channel(enum asrc_pair_index index, bool in)
 {
 	char name[4];
 
-	sprintf(name, "%cx%c", in ? 'r' : 't', params->index + 'a');
+	sprintf(name, "%cx%c", in ? 'r' : 't', index + 'a');
 
 	return dma_request_slave_channel(asrc->dev, name);
 }
 
 static int imx_asrc_dma_config(struct asrc_pair_params *params,
-		struct dma_chan *chan, u32 dma_addr, void *buf_addr,
-		u32 buf_len, bool in, enum asrc_word_width word_width)
+				struct dma_chan *chan, u32 dma_addr,
+				void *buf_addr, u32 buf_len, bool in,
+				enum asrc_word_width word_width)
 {
+	enum asrc_pair_index index = params->index;
 	struct dma_async_tx_descriptor *desc;
 	struct dma_slave_config slave_config;
 	enum dma_slave_buswidth buswidth;
@@ -880,7 +841,7 @@ static int imx_asrc_dma_config(struct asrc_pair_params *params,
 		buswidth = DMA_SLAVE_BUSWIDTH_4_BYTES;
 		break;
 	default:
-		dev_err(asrc->dev, "Error word_width.\n");
+		pair_err("invalid word width\n");
 		return -EINVAL;
 	}
 
@@ -902,7 +863,8 @@ static int imx_asrc_dma_config(struct asrc_pair_params *params,
 	}
 	ret = dmaengine_slave_config(chan, &slave_config);
 	if (ret) {
-		dev_err(asrc->dev, "imx_asrc_dma_config(%d) failed: %d\r\n", in, ret);
+		pair_err("failed to config dmaengine for %sput task: %d\n",
+				in ? "in" : "out", ret);
 		return -EINVAL;
 	}
 
@@ -922,18 +884,24 @@ static int imx_asrc_dma_config(struct asrc_pair_params *params,
 				buf_len - ASRC_MAX_BUFFER_SIZE * i);
 		break;
 	default:
-		dev_err(asrc->dev, "Error Input DMA nodes number[%d]!\n", sg_nent);
+		pair_err("invalid input DMA nodes number: %d\n", sg_nent);
 		return -EINVAL;
 	}
 
 	ret = dma_map_sg(NULL, sg, sg_nent, slave_config.direction);
 	if (ret != sg_nent) {
-		dev_err(asrc->dev, "DMA mapping error!\n");
+		pair_err("failed to map dma sg for %sput task\n",
+				in ? "in" : "out");
 		return -EINVAL;
 	}
 
-	desc = chan->device->device_prep_slave_sg(chan, sg, sg_nent,
-			slave_config.direction, 1, NULL);
+	desc = dmaengine_prep_slave_sg(chan, sg, sg_nent,
+			slave_config.direction, DMA_PREP_INTERRUPT);
+	if (!desc) {
+		pair_err("failed to prepare slave sg for %sput task\n",
+				in ? "in" : "out");
+		return -EINVAL;
+	}
 
 	if (in) {
 		params->desc_in = desc;
@@ -943,19 +911,16 @@ static int imx_asrc_dma_config(struct asrc_pair_params *params,
 		params->desc_out->callback = asrc_output_dma_callback;
 	}
 
-	if (desc) {
-		desc->callback = ASRC_xPUT_DMA_CALLBACK(in);
-		desc->callback_param = params;
-	} else {
-		return -EINVAL;
-	}
+	desc->callback = ASRC_xPUT_DMA_CALLBACK(in);
+	desc->callback_param = params;
 
 	return 0;
 }
 
 static int mxc_asrc_prepare_io_buffer(struct asrc_pair_params *params,
-		struct asrc_convert_buffer *pbuf, bool in)
+				struct asrc_convert_buffer *pbuf, bool in)
 {
+	enum asrc_pair_index index = params->index;
 	struct dma_chan *dma_channel;
 	enum asrc_word_width width;
 	unsigned int *dma_len, *sg_nodes, buf_len, wm;
@@ -992,13 +957,13 @@ static int mxc_asrc_prepare_io_buffer(struct asrc_pair_params *params,
 		word_size = 2;
 		break;
 	default:
-		dev_err(asrc->dev, "error %s word size!\n", in ? "input" : "output");
+		pair_err("invalid %sput word size!\n", in ? "in" : "out");
 		return -EINVAL;
 	}
 
 	if (buf_len < word_size * params->channel_nums * wm) {
-		dev_err(asrc->dev, "%s buffer size[%d] is too small!\n",
-				in ? "input" : "output", buf_len);
+		pair_err("%sput buffer size[%d] is too small!\n",
+				in ? "in" : "out", buf_len);
 		return -EINVAL;
 	}
 
@@ -1019,19 +984,20 @@ static int mxc_asrc_prepare_io_buffer(struct asrc_pair_params *params,
 }
 
 static int mxc_asrc_prepare_buffer(struct asrc_pair_params *params,
-		struct asrc_convert_buffer *pbuf)
+				struct asrc_convert_buffer *pbuf)
 {
+	enum asrc_pair_index index = params->index;
 	int ret;
 
 	ret = mxc_asrc_prepare_io_buffer(params, pbuf, true);
 	if (ret) {
-		dev_err(asrc->dev, "failed to prepare input buffer: %d\n", ret);
+		pair_err("failed to prepare input buffer: %d\n", ret);
 		return ret;
 	}
 
 	ret = mxc_asrc_prepare_io_buffer(params, pbuf, false);
 	if (ret) {
-		dev_err(asrc->dev, "failed to prepare output buffer: %d\n", ret);
+		pair_err("failed to prepare output buffer: %d\n", ret);
 		return ret;
 	}
 
@@ -1039,10 +1005,11 @@ static int mxc_asrc_prepare_buffer(struct asrc_pair_params *params,
 }
 
 int mxc_asrc_process_io_buffer(struct asrc_pair_params *params,
-		struct asrc_convert_buffer *pbuf, bool in)
+				struct asrc_convert_buffer *pbuf, bool in)
 {
 	void *last_vaddr = params->output_last_period.dma_vaddr;
 	unsigned int *last_len = &params->output_last_period.length;
+	enum asrc_pair_index index = params->index;
 	unsigned int dma_len, *buf_len;
 	struct completion *complete;
 	void __user *buf_vaddr;
@@ -1063,10 +1030,10 @@ int mxc_asrc_process_io_buffer(struct asrc_pair_params *params,
 	}
 
 	if (!wait_for_completion_interruptible_timeout(complete, 10 * HZ)) {
-		dev_err(asrc->dev, "ASRC_DQ_OUTBUF timeout\n");
+		pair_err("%s task timeout\n", in ? "input dma" : "last period");
 		return -ETIME;
 	} else if (signal_pending(current)) {
-		dev_err(asrc->dev, "ASRC_DQ_INBUF interrupt received.\n");
+		pair_err("%sput task forcibly aborted\n", in ? "in" : "out");
 		return -ERESTARTSYS;
 	}
 
@@ -1089,19 +1056,20 @@ int mxc_asrc_process_io_buffer(struct asrc_pair_params *params,
 }
 
 int mxc_asrc_process_buffer(struct asrc_pair_params *params,
-		struct asrc_convert_buffer *pbuf)
+			struct asrc_convert_buffer *pbuf)
 {
+	enum asrc_pair_index index = params->index;
 	int ret;
 
 	ret = mxc_asrc_process_io_buffer(params, pbuf, true);
 	if (ret) {
-		dev_err(asrc->dev, "failed to process input buffer: %d\n", ret);
+		pair_err("failed to process input buffer: %d\n", ret);
 		return ret;
 	}
 
 	ret = mxc_asrc_process_io_buffer(params, pbuf, false);
 	if (ret) {
-		dev_err(asrc->dev, "failed to process output buffer: %d\n", ret);
+		pair_err("failed to process output buffer: %d\n", ret);
 		return ret;
 	}
 
@@ -1136,7 +1104,7 @@ static void mxc_asrc_submit_dma(struct asrc_pair_params *params)
 	size = asrc_get_input_FIFO_size(index);
 	while (size < 3) {
 		for (i = 0; i < params->channel_nums; i++)
-			asrc_write_one_to_output_FIFO(index, 0);
+			asrc_write_one_to_input_FIFO(index, 0);
 		size = asrc_get_input_FIFO_size(index);
 	}
 
@@ -1151,7 +1119,7 @@ static void mxc_asrc_submit_dma(struct asrc_pair_params *params)
 }
 
 static long asrc_ioctl_req_pair(struct asrc_pair_params *params,
-		void __user *user)
+				void __user *user)
 {
 	struct asrc_req req;
 	long ret;
@@ -1182,7 +1150,7 @@ static long asrc_ioctl_req_pair(struct asrc_pair_params *params,
 }
 
 static long asrc_ioctl_config_pair(struct asrc_pair_params *params,
-		void __user *user)
+				void __user *user)
 {
 	struct asrc_config config;
 	enum asrc_pair_index index;
@@ -1194,13 +1162,13 @@ static long asrc_ioctl_config_pair(struct asrc_pair_params *params,
 		return ret;
 	}
 
+	index = config.pair;
+
 	ret = asrc_config_pair(&config);
 	if (ret) {
-		dev_err(asrc->dev, "failed to config pair: %ld\n", ret);
+		pair_err("failed to config pair: %ld\n", ret);
 		return ret;
 	}
-
-	index = config.pair;
 
 	params->input_wm = 4;
 	params->output_wm = 2;
@@ -1235,24 +1203,20 @@ static long asrc_ioctl_config_pair(struct asrc_pair_params *params,
 
 	ret = mxc_allocate_dma_buf(params);
 	if (ret) {
-		dev_err(asrc->dev, "failed to allocate dma buffer: %ld\n", ret);
+		pair_err("failed to allocate dma buffer: %ld\n", ret);
 		return ret;
 	}
 
 	/* Request DMA channel for both input and output */
-	params->input_dma_channel =
-			imx_asrc_dma_request_channel(params, true);
+	params->input_dma_channel = imx_asrc_get_dma_channel(index, true);
 	if (params->input_dma_channel == NULL) {
-		dev_err(asrc->dev, "failed to request rx channel for Pair %c\n",
-				'A' + index);
+		pair_err("failed to request input task dma channel\n");
 		return  -EBUSY;
 	}
 
-	params->output_dma_channel =
-			imx_asrc_dma_request_channel(params, false);
+	params->output_dma_channel = imx_asrc_get_dma_channel(index, false);
 	if (params->output_dma_channel == NULL) {
-		dev_err(asrc->dev, "failed to request tx channel for Pair %c\n",
-				'A' + index);
+		pair_err("failed to request output task dma channel\n");
 		return  -EBUSY;
 	}
 
@@ -1265,7 +1229,7 @@ static long asrc_ioctl_config_pair(struct asrc_pair_params *params,
 
 	ret = copy_to_user(user, &config, sizeof(config));
 	if (ret) {
-		dev_err(asrc->dev, "failed to send config to user space: %ld\n", ret);
+		pair_err("failed to send config to user space: %ld\n", ret);
 		return ret;
 	}
 
@@ -1273,7 +1237,7 @@ static long asrc_ioctl_config_pair(struct asrc_pair_params *params,
 }
 
 static long asrc_ioctl_release_pair(struct asrc_pair_params *params,
-		void __user *user)
+				void __user *user)
 {
 	enum asrc_pair_index index;
 	unsigned long lock_flags;
@@ -1307,20 +1271,21 @@ static long asrc_ioctl_release_pair(struct asrc_pair_params *params,
 }
 
 static long asrc_ioctl_convert(struct asrc_pair_params *params,
-		void __user *user)
+				void __user *user)
 {
+	enum asrc_pair_index index = params->index;
 	struct asrc_convert_buffer buf;
 	long ret;
 
 	ret = copy_from_user(&buf, user, sizeof(buf));
 	if (ret) {
-		dev_err(asrc->dev, "failed to get buf from user space: %ld\n", ret);
+		pair_err("failed to get buf from user space: %ld\n", ret);
 		return ret;
 	}
 
 	ret = mxc_asrc_prepare_buffer(params, &buf);
 	if (ret) {
-		dev_err(asrc->dev, "failed to prepare buffer: %ld\n", ret);
+		pair_err("failed to prepare buffer: %ld\n", ret);
 		return ret;
 	}
 
@@ -1328,13 +1293,13 @@ static long asrc_ioctl_convert(struct asrc_pair_params *params,
 
 	ret = mxc_asrc_process_buffer(params, &buf);
 	if (ret) {
-		dev_err(asrc->dev, "failed to process buffer: %ld\n", ret);
+		pair_err("failed to process buffer: %ld\n", ret);
 		return ret;
 	}
 
 	ret = copy_to_user(user, &buf, sizeof(buf));
 	if (ret) {
-		dev_err(asrc->dev, "failed to send buf to user space: %ld\n", ret);
+		pair_err("failed to send buf to user space: %ld\n", ret);
 		return ret;
 	}
 
@@ -1342,7 +1307,7 @@ static long asrc_ioctl_convert(struct asrc_pair_params *params,
 }
 
 static long asrc_ioctl_start_conv(struct asrc_pair_params *params,
-		void __user *user)
+				void __user *user)
 {
 	enum asrc_pair_index index;
 	long ret;
@@ -1360,7 +1325,7 @@ static long asrc_ioctl_start_conv(struct asrc_pair_params *params,
 }
 
 static long asrc_ioctl_stop_conv(struct asrc_pair_params *params,
-		void __user *user)
+				void __user *user)
 {
 	enum asrc_pair_index index;
 	long ret;
@@ -1381,14 +1346,15 @@ static long asrc_ioctl_stop_conv(struct asrc_pair_params *params,
 }
 
 static long asrc_ioctl_status(struct asrc_pair_params *params,
-		void __user *user)
+				void __user *user)
 {
+	enum asrc_pair_index index = params->index;
 	struct asrc_status_flags flags;
 	long ret;
 
 	ret = copy_from_user(&flags, user, sizeof(flags));
 	if (ret) {
-		dev_err(asrc->dev, "failed to get flags from user space: %ld\n", ret);
+		pair_err("failed to get flags from user space: %ld\n", ret);
 		return ret;
 	}
 
@@ -1396,7 +1362,7 @@ static long asrc_ioctl_status(struct asrc_pair_params *params,
 
 	ret = copy_to_user(user, &flags, sizeof(flags));
 	if (ret) {
-		dev_err(asrc->dev, "failed to send flags to user space: %ld\n", ret);
+		pair_err("failed to send flags to user space: %ld\n", ret);
 		return ret;
 	}
 
@@ -1404,10 +1370,9 @@ static long asrc_ioctl_status(struct asrc_pair_params *params,
 }
 
 static long asrc_ioctl_flush(struct asrc_pair_params *params,
-		void __user *user)
+				void __user *user)
 {
 	enum asrc_pair_index index = params->index;
-
 	init_completion(&params->input_complete);
 	init_completion(&params->output_complete);
 	init_completion(&params->lastperiod_complete);
@@ -1416,18 +1381,15 @@ static long asrc_ioctl_flush(struct asrc_pair_params *params,
 	dma_release_channel(params->input_dma_channel);
 	dma_release_channel(params->output_dma_channel);
 
-	params->input_dma_channel = imx_asrc_dma_request_channel(params, true);
+	params->input_dma_channel = imx_asrc_get_dma_channel(index, true);
 	if (params->input_dma_channel == NULL) {
-		dev_err(asrc->dev, "failed to request rx channel for Pair %c\n",
-				'A' + index);
+		pair_err("failed to request input task dma channel\n");
 		return -EBUSY;
 	}
 
-	params->output_dma_channel =
-			imx_asrc_dma_request_channel(params, false);
+	params->output_dma_channel = imx_asrc_get_dma_channel(index, false);
 	if (params->output_dma_channel == NULL) {
-		dev_err(asrc->dev, "failed to request tx channel for Pair %c\n",
-				'A' + index);
+		pair_err("failed to request output task dma channel\n");
 		return -EBUSY;
 	}
 
@@ -1467,7 +1429,7 @@ static long asrc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		ret = asrc_ioctl_flush(params, user);
 		break;
 	default:
-		dev_err(asrc->dev, "Unsupported ioctl cmd!\n");
+		dev_err(asrc->dev, "invalid ioctl cmd!\n");
 		break;
 	}
 
@@ -1476,65 +1438,66 @@ static long asrc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 static int mxc_asrc_open(struct inode *inode, struct file *file)
 {
-	struct asrc_pair_params *pair_params;
+	struct asrc_pair_params *params;
 	int ret = 0;
 
 	ret = signal_pending(current);
 	if (ret) {
-		dev_err(asrc->dev, "Current process has a signal pending.\n");
+		dev_err(asrc->dev, "current process has a signal pending\n");
 		return ret;
 	}
 
-	pair_params = kzalloc(sizeof(struct asrc_pair_params), GFP_KERNEL);
-	if (pair_params == NULL) {
-		dev_err(asrc->dev, "failed to allocate pair_params.\n");
+	params = kzalloc(sizeof(struct asrc_pair_params), GFP_KERNEL);
+	if (params == NULL) {
+		dev_err(asrc->dev, "failed to allocate pair_params\n");
 		return -ENOBUFS;
 	}
 
-	file->private_data = pair_params;
+	file->private_data = params;
 
 	return ret;
 }
 
 static int mxc_asrc_close(struct inode *inode, struct file *file)
 {
-	struct asrc_pair_params *pair_params;
+	struct asrc_pair_params *params;
 	unsigned long lock_flags;
 
-	pair_params = file->private_data;
+	params = file->private_data;
 
-	if (!pair_params)
+	if (!params)
 		return 0;
 
-	if (pair_params->asrc_active) {
-		pair_params->asrc_active = 0;
+	if (params->asrc_active) {
+		params->asrc_active = 0;
 
-		dmaengine_terminate_all(pair_params->input_dma_channel);
-		dmaengine_terminate_all(pair_params->output_dma_channel);
+		dmaengine_terminate_all(params->input_dma_channel);
+		dmaengine_terminate_all(params->output_dma_channel);
 
-		asrc_stop_conv(pair_params->index);
+		asrc_stop_conv(params->index);
 
-		complete(&pair_params->input_complete);
-		complete(&pair_params->output_complete);
-		complete(&pair_params->lastperiod_complete);
+		complete(&params->input_complete);
+		complete(&params->output_complete);
+		complete(&params->lastperiod_complete);
 	}
-	if (pair_params->pair_hold) {
+
+	if (params->pair_hold) {
 		spin_lock_irqsave(&pair_lock, lock_flags);
-		pair_params->pair_hold = 0;
+		params->pair_hold = 0;
 		spin_unlock_irqrestore(&pair_lock, lock_flags);
 
-		if (pair_params->input_dma_channel)
-			dma_release_channel(pair_params->input_dma_channel);
-		if (pair_params->output_dma_channel)
-			dma_release_channel(pair_params->output_dma_channel);
+		if (params->input_dma_channel)
+			dma_release_channel(params->input_dma_channel);
+		if (params->output_dma_channel)
+			dma_release_channel(params->output_dma_channel);
 
-		mxc_free_dma_buf(pair_params);
+		mxc_free_dma_buf(params);
 
-		asrc_release_pair(pair_params->index);
-		asrc_finish_conv(pair_params->index);
+		asrc_release_pair(params->index);
+		asrc_finish_conv(params->index);
 	}
 
-	kfree(pair_params);
+	kfree(params);
 	file->private_data = NULL;
 
 	return 0;
@@ -1611,12 +1574,12 @@ static int asrc_write_proc_attr(struct file *file, const char __user *buffer,
 	int total;
 
 	if (count > ASRC_MAX_PROC_BUFFER_SIZE) {
-		dev_err(asrc->dev, "Attr proc write: The input string was too long.\n");
+		dev_err(asrc->dev, "proc write: the input string was too long\n");
 		return -EINVAL;
 	}
 
 	if (copy_from_user(buf, buffer, count)) {
-		dev_err(asrc->dev, "Attr proc write: Failed to copy buffer from user.\n");
+		dev_err(asrc->dev, "proc write: failed to copy buffer from user\n");
 		return -EFAULT;
 	}
 
@@ -1625,13 +1588,13 @@ static int asrc_write_proc_attr(struct file *file, const char __user *buffer,
 	total = asrc->channel_bits > 3 ? 10 : 5;
 
 	if (na + nb + nc > total) {
-		dev_err(asrc->dev, "Don't surpass %d for total.\n", total);
+		dev_err(asrc->dev, "don't surpass %d for total\n", total);
 		return -EINVAL;
 	} else if (na % 2 != 0 || nb % 2 != 0 || nc % 2 != 0) {
-		dev_err(asrc->dev, "Please set an even number for each pair.\n");
+		dev_err(asrc->dev, "please set an even number for each pair\n");
 		return -EINVAL;
 	} else if (na < 0 || nb < 0 || nc < 0) {
-		dev_err(asrc->dev, "Please set an positive number for each pair.\n");
+		dev_err(asrc->dev, "please set an positive number for each pair\n");
 		return -EINVAL;
 	}
 
@@ -1666,7 +1629,7 @@ static void asrc_proc_create(void)
 			asrc->proc_asrc, &asrc_proc_fops);
 	if (!proc_attr) {
 		remove_proc_entry(ASRC_PROC_PATH, NULL);
-		dev_err(asrc->dev, "failed to create proc attribute entry.\n");
+		dev_err(asrc->dev, "failed to create proc attribute entry\n");
 	}
 }
 
@@ -1775,21 +1738,17 @@ static struct regmap_config asrc_regmap_config = {
 static int mxc_asrc_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
-	struct resource res;
+	struct resource *res;
 	void __iomem *regs;
 	int ret;
 
 	/* Check if the device is existed */
-	if (!of_device_is_available(np)) {
-		dev_err(&pdev->dev, "improper devicetree status.\n");
+	if (!np)
 		return -ENODEV;
-	}
 
 	asrc = devm_kzalloc(&pdev->dev, sizeof(struct asrc_data), GFP_KERNEL);
-	if (asrc == NULL) {
-		dev_err(&pdev->dev, "failed to allocate asrc.\n");
+	if (!asrc)
 		return -ENOMEM;
-	}
 
 	asrc->dev = &pdev->dev;
 	asrc->dev->coherent_dma_mask = DMA_BIT_MASK(32);
@@ -1802,64 +1761,63 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	asrc->asrc_pair[ASRC_PAIR_C].overload_error = 0;
 
 	/* Map the address */
-	ret = of_address_to_resource(np, 0, &res);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to map address: %d\n", ret);
-		return ret;
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (IS_ERR(res)) {
+		dev_err(&pdev->dev, "could not determine device resources\n");
+		return PTR_ERR(res);
 	}
-	asrc->paddr = res.start;
 
-	regs = of_iomap(np, 0);
+	regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(regs)) {
-		dev_err(&pdev->dev, "failed to map io resources.\n");
-		return IS_ERR(regs);
+		dev_err(&pdev->dev, "could not map device resources\n");
+		return PTR_ERR(regs);
 	}
+	asrc->paddr = res->start;
 
 	/* Register regmap and let it prepare core clock */
 	asrc->regmap = devm_regmap_init_mmio_clk(&pdev->dev,
 			"core", regs, &asrc_regmap_config);
 	if (IS_ERR(asrc->regmap)) {
 		dev_err(&pdev->dev, "regmap init failed\n");
-		ret = PTR_ERR(asrc->regmap);
+		return PTR_ERR(asrc->regmap);
 	}
 
-	asrc->irq = irq_of_parse_and_map(np, 0);
+	asrc->irq = platform_get_irq(pdev, 0);
 	if (asrc->irq == NO_IRQ) {
 		dev_err(&pdev->dev, "no irq for node %s\n", np->full_name);
-		goto err_iomap;
+		return asrc->irq;
 	}
 
-	ret = devm_request_irq(&pdev->dev, asrc->irq,
-			asrc_isr, 0, "asrc", NULL);
+	ret = devm_request_irq(&pdev->dev, asrc->irq, asrc_isr, 0, np->name, NULL);
 	if (ret) {
-		dev_err(&pdev->dev, "failed to request IRQ: %d\n", ret);
-		goto err_iomap;
+		dev_err(&pdev->dev, "could not claim irq %u: %d\n", asrc->irq, ret);
+		return ret;
 	}
 
 	asrc->asrc_clk = devm_clk_get(&pdev->dev, "core");
 	if (IS_ERR(asrc->asrc_clk)) {
-		ret = PTR_ERR(asrc->asrc_clk);
-		goto err_iomap;
+		dev_err(&pdev->dev, "failed to get core clock\n");
+		return PTR_ERR(asrc->asrc_clk);
 	}
 
 	asrc->dma_clk = devm_clk_get(&pdev->dev, "dma");
 	if (IS_ERR(asrc->dma_clk)) {
-		ret = PTR_ERR(asrc->dma_clk);
-		goto err_iomap;
+		dev_err(&pdev->dev, "failed to get dma script clock\n");
+		return PTR_ERR(asrc->dma_clk);
 	}
 
 	ret = of_property_read_u32_array(pdev->dev.of_node,
 			"fsl,clk-channel-bits", &asrc->channel_bits, 1);
 	if (ret) {
-		dev_err(&pdev->dev, "failed to get clk-channel-bits.\n");
-		goto err_iomap;
+		dev_err(&pdev->dev, "failed to get clk-channel-bits\n");
+		return ret;
 	}
 
 	ret = of_property_read_u32_array(pdev->dev.of_node,
 			"fsl,clk-map-version", &asrc->clk_map_ver, 1);
 	if (ret) {
-		dev_err(&pdev->dev, "failed to get clk-map-version.\n");
-		goto err_iomap;
+		dev_err(&pdev->dev, "failed to get clk-map-version\n");
+		return ret;
 	}
 
 	switch (asrc->clk_map_ver) {
@@ -1877,25 +1835,23 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	ret = misc_register(&asrc_miscdev);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to register char device %d\n", ret);
-		goto err_iomap;
+		return ret;
 	}
 
 	asrc_proc_create();
 
 	ret = mxc_init_asrc();
-	if (ret)
+	if (ret) {
+		dev_err(&pdev->dev, "failed to init asrc %d\n", ret);
 		goto err_misc;
+	}
 
-	dev_info(&pdev->dev, "mxc_asrc registered.\n");
+	dev_info(&pdev->dev, "mxc_asrc registered\n");
 
 	return ret;
 
 err_misc:
 	misc_deregister(&asrc_miscdev);
-err_iomap:
-	iounmap(regs);
-
-	dev_err(&pdev->dev, "mxc_asrc register failed: err %d\n", ret);
 
 	return ret;
 }
@@ -1927,3 +1883,4 @@ module_platform_driver(mxc_asrc_driver);
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_DESCRIPTION("Asynchronous Sample Rate Converter");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:mxc_asrc");
