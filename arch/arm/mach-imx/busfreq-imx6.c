@@ -771,7 +771,7 @@ static int busfreq_probe(struct platform_device *pdev)
 	if (cpu_is_imx6q()) {
 		if (of_property_read_u32(pdev->dev.of_node, "fsl,med_ddr_freq",
 				&ddr_med_rate)) {
-			dev_WARN(busfreq_dev,
+			dev_info(busfreq_dev,
 					"DDR medium rate not supported.\n");
 			ddr_med_rate = ddr_normal_rate;
 		}
