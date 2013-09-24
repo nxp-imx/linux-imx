@@ -280,8 +280,8 @@
 					interrupts = <0 50 0x04>;
 					clocks = <&clks 107>, <&clks 156>;
 					clock-names = "core", "dma";
-					dmas = <&sdma 17 20 0>, <&sdma 18 20 0>, <&sdma 19 20 0>,
-					     <&sdma 20 20 0>, <&sdma 21 20 0>, <&sdma 22 20 0>;
+					dmas = <&sdma 17 20 1>, <&sdma 18 20 1>, <&sdma 19 20 1>,
+					     <&sdma 20 20 1>, <&sdma 21 20 1>, <&sdma 22 20 1>;
 					dma-names = "rxa", "rxb", "rxc",
 						"txa", "txb", "txc";
 					fsl,clk-map-version = <2>;
