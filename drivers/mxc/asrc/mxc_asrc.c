@@ -370,8 +370,10 @@ int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 
-	if (!ret)
+	if (!ret) {
 		clk_enable(asrc->asrc_clk);
+		clk_enable(asrc->dma_clk);
+	}
 
 	return ret;
 }
@@ -618,6 +620,7 @@ EXPORT_SYMBOL(asrc_stop_conv);
 
 void asrc_finish_conv(enum asrc_pair_index index)
 {
+	clk_disable(asrc->dma_clk);
 	clk_disable(asrc->asrc_clk);
 	return;
 }
@@ -1925,13 +1928,20 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 		goto err_iomap;
 	}
 
-	asrc->asrc_clk = devm_clk_get(&pdev->dev, NULL);
+	asrc->asrc_clk = devm_clk_get(&pdev->dev, "core");
 	if (IS_ERR(asrc->asrc_clk)) {
 		ret = PTR_ERR(asrc->asrc_clk);
 		goto err_iomap;
 	}
+
+	asrc->dma_clk = devm_clk_get(&pdev->dev, "dma");
+	if (IS_ERR(asrc->dma_clk)) {
+		ret = PTR_ERR(asrc->dma_clk);
+		goto err_iomap;
+	}
 #ifndef ASRC_USE_REGMAP
 	clk_prepare(asrc->asrc_clk);
+	clk_prepare(asrc->dma_clk);
 #endif
 
 	ret = of_property_read_u32_array(pdev->dev.of_node,
@@ -1989,6 +1999,7 @@ err_iomap:
 static int mxc_asrc_remove(struct platform_device *pdev)
 {
 #ifndef ASRC_USE_REGMAP
+	clk_unprepare(asrc->dma_clk);
 	clk_unprepare(asrc->asrc_clk);
 #endif
 	asrc_proc_remove();
