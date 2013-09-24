@@ -33,7 +33,6 @@ static const char const *periph_sels[]		= { "pre_periph_sel", "periph_clk2", };
 static const char const *periph2_sels[]		= { "pre_periph2_sel", "periph2_clk2", };
 static const char const *csi_sels[]		= { "osc", "pll2_pfd2", "pll3_120m", "pll3_pfd1", };
 static const char const *lcdif_axi_sels[]	= { "pll2_bus", "pll2_pfd2", "pll3_usb_otg", "pll3_pfd1", };
-static const char const *csi_lcdif_sels[]	= { "mmdc", "pll2_pfd2", "pll3_120m", "pll3_pfd1", };
 static const char const *usdhc_sels[]		= { "pll2_pfd2", "pll2_pfd0", };
 static const char const *ssi_sels[]		= { "pll3_pfd2", "pll3_pfd3", "pll4_audio_div", "dummy", };
 static const char const *perclk_sels[]		= { "ipg", "osc", };
