@@ -354,6 +354,7 @@ struct asrc_data {
 	struct class *asrc_class;
 	int asrc_major;
 	struct clk *asrc_clk;
+	struct clk *dma_clk;
 	unsigned int channel_bits;
 	int clk_map_ver;
 	int irq;
