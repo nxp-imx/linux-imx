@@ -542,6 +542,8 @@
 				MX6QDL_PAD_SD4_DAT7__GPIO2_IO15 0x80000000
 				MX6QDL_PAD_DISP0_DAT20__GPIO5_IO14 0x80000000
 				MX6QDL_PAD_GPIO_18__SD3_VSELECT	0x17059
+				MX6QDL_PAD_CSI0_DATA_EN__GPIO5_IO20 0x17059
+				MX6QDL_PAD_GPIO_1__GPIO1_IO01 0x17059
 			>;
 		};
 	};
@@ -616,6 +618,16 @@
 	vbus-supply = <&reg_usb_otg_vbus>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usbotg_2>;
+	status = "okay";
+};
+
+&usdhc1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc1_1>;
+	cd-gpios = <&gpio1 1 0>;
+	wp-gpios = <&gpio5 20 0>;
+	bus-width = <8>;
+	no-1-8-v;
 	status = "okay";
 };
 
