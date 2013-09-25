@@ -134,12 +134,10 @@
 #define ASRIER_ADIE(x)			(1 << ASRIER_ADIEx_SHIFT(x))
 
 /* REG2 0x0C REG_ASRCNCR */
-#define ASRCNCR_ANCA_MASK(b)		((1 << b) - 1)
-#define ASRCNCR_ANCA_get(v, b)		(v & ASRCNCR_ANCA_MASK(b))
-#define ASRCNCR_ANCB_MASK(b)		(((1 << b) - 1) << b)
-#define ASRCNCR_ANCB_get(v, b)		((v & ASRCNCR_ANCB_MASK(b)) >> b)
-#define ASRCNCR_ANCC_MASK(b)		(((1 << b) - 1) << (b << 1))
-#define ASRCNCR_ANCC_get(v, b)		((v & ASRCNCR_ANCC_MASK(b)) >> (b << 1))
+#define ASRCNCR_ANCx_SHIFT(x, b)	(b * x)
+#define ASRCNCR_ANCx_MASK(x, b)		(((1 << b) - 1) << ASRCNCR_ANCx_SHIFT(x, b))
+#define ASRCNCR_ANCx_get(x, v, b)	((v & ASRCNCR_ANCx_MASK(x, b)) >> ASRCNCR_ANCx_SHIFT(x, b))
+#define ASRCNCR_ANCx_set(x, v, b)	((v << ASRCNCR_ANCx_SHIFT(x, b)) & ASRCNCR_ANCx_MASK(x, b))
 
 /* REG3 0x10 REG_ASRCFG */
 #define ASRCFG_INIRQx_SHIFT(x)		(21 + x)
