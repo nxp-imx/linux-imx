@@ -111,34 +111,6 @@ static const struct of_device_id fsl_asrc_ids[] = {
 MODULE_DEVICE_TABLE(of, fsl_asrc_ids);
 
 
-/* Set ASRC_REG_ASRCNCR reg, only supporting one-pair setting at once */
-static int asrc_set_channel_number(enum asrc_pair_index index, u32 val)
-{
-	u32 num;
-
-	regmap_read(asrc->regmap, REG_ASRCNCR, &num);
-
-	switch (index) {
-	case ASRC_PAIR_A:
-		num &= ~ASRCNCR_ANCA_MASK(asrc->channel_bits);
-		num |= val;
-		break;
-	case ASRC_PAIR_B:
-		num &= ~ASRCNCR_ANCB_MASK(asrc->channel_bits);
-		num |= val << asrc->channel_bits;
-		break;
-	case ASRC_PAIR_C:
-		num &= ~ASRCNCR_ANCC_MASK(asrc->channel_bits);
-		num |= val << asrc->channel_bits * 2;
-		break;
-	default:
-		dev_err(asrc->dev, "invalid pair number\n");
-		return -EINVAL;
-	}
-
-	return regmap_write(asrc->regmap, REG_ASRCNCR, num);
-}
-
 #ifdef DEBUG
 u32 asrc_reg[] = {
 	REG_ASRCTR,
@@ -371,7 +343,7 @@ int asrc_config_pair(struct asrc_config *config)
 {
 	u32 inrate = config->input_sample_rate, indiv;
 	u32 outrate = config->output_sample_rate, outdiv;
-	int ret, channel_num, index = config->pair;
+	int ret, channels, index = config->pair;
 	unsigned long lock_flags;
 
 	/* Set the channel number */
@@ -380,11 +352,14 @@ int asrc_config_pair(struct asrc_config *config)
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 
 	if (asrc->channel_bits > 3)
-		channel_num = config->channel_num;
+		channels = config->channel_num;
 	else
-		channel_num = (config->channel_num + 1) / 2;
+		channels = (config->channel_num + 1) / 2;
 
-	asrc_set_channel_number(index, channel_num);
+	/* Update channel number of current pair */
+	regmap_update_bits(asrc->regmap, REG_ASRCNCR,
+			ASRCNCR_ANCx_MASK(index, asrc->channel_bits),
+			ASRCNCR_ANCx_set(index, channels, asrc->channel_bits));
 
 	/* Set the clock source */
 	regmap_update_bits(asrc->regmap, REG_ASRCSR,
@@ -541,7 +516,7 @@ EXPORT_SYMBOL(asrc_set_watermark);
 
 void asrc_start_conv(enum asrc_pair_index index)
 {
-	int reg, retry;
+	int reg, retry, channels, i;
 
 	regmap_update_bits(asrc->regmap, REG_ASRCTR,
 			ASRCTR_ASRCEx_MASK(index), ASRCTR_ASRCE(index));
@@ -552,6 +527,12 @@ void asrc_start_conv(enum asrc_pair_index index)
 		regmap_read(asrc->regmap, REG_ASRCFG, &reg);
 		reg &= ASRCFG_INIRQx_MASK(index);
 	}
+
+	/* Set the input fifo to ASRC STALL level */
+	regmap_read(asrc->regmap, REG_ASRCNCR, &reg);
+	channels = ASRCNCR_ANCx_get(index, reg, asrc->channel_bits);
+	for (i = 0; i < channels * 4; i++)
+		regmap_write(asrc->regmap, REG_ASRDI(index), 0);
 
 	/* Overload Interrupt Enable */
 	regmap_write(asrc->regmap, REG_ASRIER, ASRIER_AOLIE);
@@ -630,9 +611,15 @@ static int mxc_init_asrc(void)
 	regmap_write(asrc->regmap, REG_ASRIER, 0x0);
 
 	/* Default 2: 6: 2 channel assignment */
-	asrc_set_channel_number(ASRC_PAIR_A, 2);
-	asrc_set_channel_number(ASRC_PAIR_B, 6);
-	asrc_set_channel_number(ASRC_PAIR_C, 2);
+	regmap_update_bits(asrc->regmap, REG_ASRCNCR,
+			ASRCNCR_ANCx_MASK(ASRC_PAIR_A, asrc->channel_bits),
+			ASRCNCR_ANCx_set(ASRC_PAIR_A, 2, asrc->channel_bits));
+	regmap_update_bits(asrc->regmap, REG_ASRCNCR,
+			ASRCNCR_ANCx_MASK(ASRC_PAIR_B, asrc->channel_bits),
+			ASRCNCR_ANCx_set(ASRC_PAIR_B, 6, asrc->channel_bits));
+	regmap_update_bits(asrc->regmap, REG_ASRCNCR,
+			ASRCNCR_ANCx_MASK(ASRC_PAIR_C, asrc->channel_bits),
+			ASRCNCR_ANCx_set(ASRC_PAIR_C, 2, asrc->channel_bits));
 
 	/* Parameter Registers recommended settings */
 	regmap_write(asrc->regmap, REG_ASRPM1, 0x7fffff);
@@ -688,17 +675,6 @@ static unsigned int asrc_get_output_FIFO_size(enum asrc_pair_index index)
 	return val >> ASRFSTx_OUTPUT_FIFO_SHIFT;
 }
 
-static unsigned int asrc_get_input_FIFO_size(enum asrc_pair_index index)
-{
-	u32 val;
-
-	regmap_read(asrc->regmap, REG_ASRFST(index), &val);
-
-	val &= ASRFSTx_INPUT_FIFO_MASK;
-
-	return val >> ASRFSTx_INPUT_FIFO_SHIFT;
-}
-
 static u32 asrc_read_one_from_output_FIFO(enum asrc_pair_index index)
 {
 	u32 val;
@@ -706,11 +682,6 @@ static u32 asrc_read_one_from_output_FIFO(enum asrc_pair_index index)
 	regmap_read(asrc->regmap, REG_ASRDO(index), &val);
 
 	return val;
-}
-
-static void asrc_write_one_to_input_FIFO(enum asrc_pair_index index, u32 val)
-{
-	regmap_write(asrc->regmap, REG_ASRDI(index), val);
 }
 
 static void asrc_read_output_FIFO(struct asrc_pair_params *params)
@@ -1119,25 +1090,10 @@ static void mxc_asrc_submit_dma(struct asrc_pair_params *params)
 		for (j = 0; j < size; j++)
 			for (i = 0; i < params->channel_nums; i++)
 				asrc_read_one_from_output_FIFO(index);
-		/*
-		 * delay before size-getting should be:
-		 * 1s / output_sample_rate * last_period_sample
-		 * but we don't know last time's output_sample_rate and
-		 * last_period_sample, and in order to cover max case
-		 * so use min(sample_rate)=32kHz and max(last_period_sample)=32
-		 * Thus 1s / 32k * 32 = 1ms
-		 */
-		mdelay(1);
+		/* Fetch the data every 100us */
+		udelay(100);
 
 		size = asrc_get_output_FIFO_size(index);
-	}
-
-	/* Fill the input FIFO until reach the stall level */
-	size = asrc_get_input_FIFO_size(index);
-	while (size < 3) {
-		for (i = 0; i < params->channel_nums; i++)
-			asrc_write_one_to_input_FIFO(index, 0);
-		size = asrc_get_input_FIFO_size(index);
 	}
 
 	/* Submit dma request */
@@ -1226,12 +1182,6 @@ static long asrc_ioctl_config_pair(struct asrc_pair_params *params,
 	params->output_sample_rate = config.output_sample_rate;
 
 	params->last_period_sample = ASRC_OUTPUT_LAST_SAMPLE_DEFAULT;
-
-	/* Expand last period buffer if output_sample_rate is much bigger */
-	if (params->output_sample_rate / params->input_sample_rate > 2)
-		params->last_period_sample *= 5;
-	else if (params->output_sample_rate / params->input_sample_rate > 1)
-		params->last_period_sample *= 3;
 
 	ret = mxc_allocate_dma_buf(params);
 	if (ret) {
@@ -1581,9 +1531,9 @@ static int asrc_read_proc_attr(struct file *file, char __user *buf,
 	regmap_read(asrc->regmap, REG_ASRCNCR, &reg);
 
 	len += sprintf(tmpbuf, "ANCA: %d\nANCB: %d\nANCC: %d\n",
-			(int)ASRCNCR_ANCA_get(reg, asrc->channel_bits),
-			(int)ASRCNCR_ANCB_get(reg, asrc->channel_bits),
-			(int)ASRCNCR_ANCC_get(reg, asrc->channel_bits));
+			ASRCNCR_ANCx_get(ASRC_PAIR_A, reg, asrc->channel_bits),
+			ASRCNCR_ANCx_get(ASRC_PAIR_B, reg, asrc->channel_bits),
+			ASRCNCR_ANCx_get(ASRC_PAIR_C, reg, asrc->channel_bits));
 
 	if (len > count)
 		return 0;
@@ -1635,9 +1585,16 @@ static int asrc_write_proc_attr(struct file *file, const char __user *buffer,
 	asrc->asrc_pair[ASRC_PAIR_B].chn_max = nb;
 	asrc->asrc_pair[ASRC_PAIR_C].chn_max = nc;
 
-	asrc_set_channel_number(ASRC_PAIR_A, na);
-	asrc_set_channel_number(ASRC_PAIR_B, nb);
-	asrc_set_channel_number(ASRC_PAIR_C, nc);
+	/* Update channel number settings */
+	regmap_update_bits(asrc->regmap, REG_ASRCNCR,
+			ASRCNCR_ANCx_MASK(ASRC_PAIR_A, asrc->channel_bits),
+			ASRCNCR_ANCx_set(ASRC_PAIR_A, na, asrc->channel_bits));
+	regmap_update_bits(asrc->regmap, REG_ASRCNCR,
+			ASRCNCR_ANCx_MASK(ASRC_PAIR_B, asrc->channel_bits),
+			ASRCNCR_ANCx_set(ASRC_PAIR_B, nb, asrc->channel_bits));
+	regmap_update_bits(asrc->regmap, REG_ASRCNCR,
+			ASRCNCR_ANCx_MASK(ASRC_PAIR_C, asrc->channel_bits),
+			ASRCNCR_ANCx_set(ASRC_PAIR_C, nc, asrc->channel_bits));
 
 	return count;
 }
