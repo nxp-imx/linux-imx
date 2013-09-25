@@ -396,11 +396,16 @@ static void pxp_set_oln(int layer_no, struct pxps *pxp)
 	dma_addr_t phys_addr = olparams_data->paddr;
 	__raw_writel(phys_addr, pxp->base + HW_PXP_AS_BUF);
 
-	/* Fixme */
-	__raw_writel(0x0, pxp->base + HW_PXP_OUT_AS_ULC);
-	__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->width) |
-		     BF_PXP_OUT_AS_LRC_Y(olparams_data->height),
-		     pxp->base + HW_PXP_OUT_AS_LRC);
+	if (olparams_data->combine_enable) {
+		__raw_writel(0x0, pxp->base + HW_PXP_OUT_AS_ULC);
+		__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->width - 1) |
+			     BF_PXP_OUT_AS_LRC_Y(olparams_data->height - 1),
+			     pxp->base + HW_PXP_OUT_AS_LRC);
+	} else {
+		/* will not fetch data from AS if ULC is at left top of LRC */
+		__raw_writel(0xFFFFFFFF, pxp->base + HW_PXP_OUT_AS_ULC);
+		__raw_writel(0x0, pxp->base + HW_PXP_OUT_AS_LRC);
+	}
 
 	if (olparams_data->pixel_fmt == PXP_PIX_FMT_RGB24)
 		__raw_writel(olparams_data->width << 2,
@@ -429,8 +434,7 @@ static void pxp_set_olparam(int layer_no, struct pxps *pxp)
 		    (BV_PXP_AS_CTRL_ALPHA_CTRL__Override);
 	if (olparams_data->color_key_enable)
 		olparam |= BM_PXP_AS_CTRL_ENABLE_COLORKEY;
-	if (olparams_data->combine_enable)
-		;
+
 	__raw_writel(olparam, pxp->base + HW_PXP_AS_CTRL);
 }
 
