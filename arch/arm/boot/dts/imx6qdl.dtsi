@@ -275,7 +275,7 @@
 				};
 
 				asrc: asrc@02034000 {
-					compatible = "fsl,imx6q-asrc";
+					compatible = "fsl,imx53-asrc";
 					reg = <0x02034000 0x4000>;
 					interrupts = <0 50 0x04>;
 					clocks = <&clks 107>, <&clks 156>;
@@ -284,8 +284,6 @@
 					     <&sdma 20 20 1>, <&sdma 21 20 1>, <&sdma 22 20 1>;
 					dma-names = "rxa", "rxb", "rxc",
 						"txa", "txb", "txc";
-					fsl,clk-map-version = <2>;
-					fsl,clk-channel-bits = <4>;
 					status = "okay";
 				};
 
