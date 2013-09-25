@@ -1079,6 +1079,70 @@ int mxc_asrc_process_buffer(struct asrc_pair_params *params,
 	return 0;
 }
 
+#ifdef ASRC_POLLING_WITHOUT_DMA
+static void asrc_write_one_to_input_FIFO(enum asrc_pair_index index, u32 val)
+{
+	regmap_write(asrc->regmap, REG_ASRDI(index), val);
+}
+
+/* THIS FUNCTION ONLY EXISTS FOR DEBUGGING AND ONLY SUPPORTS TWO CHANNELS */
+static void asrc_polling_debug(struct asrc_pair_params *params)
+{
+	enum asrc_pair_index index = params->index;
+	u32 *in24 = params->input_dma_total.dma_vaddr;
+	u32 dma_len = params->input_dma_total.length / (params->channel_nums * 4);
+	u32 size, i, j, t_size, reg;
+	u32 *reg24 = params->output_dma_total.dma_vaddr;
+
+	t_size = 0;
+
+	for (i = 0; i < dma_len; ) {
+		for (j = 0; j < 2; j++) {
+			asrc_write_one_to_input_FIFO(index, *in24);
+			in24++;
+			asrc_write_one_to_input_FIFO(index, *in24);
+			in24++;
+			i++;
+		}
+		udelay(50);
+		udelay(50 * params->output_sample_rate / params->input_sample_rate);
+
+		size = asrc_get_output_FIFO_size(index);
+		for (j = 0; j < size; j++) {
+			reg = asrc_read_one_from_output_FIFO(index);
+			*(reg24) = reg;
+			reg24++;
+			reg = asrc_read_one_from_output_FIFO(index);
+			*(reg24) = reg;
+			reg24++;
+		}
+		t_size += size;
+	}
+
+	mdelay(1);
+	size = asrc_get_output_FIFO_size(index);
+	for (j = 0; j < size; j++) {
+		reg = asrc_read_one_from_output_FIFO(index);
+		*(reg24) = reg;
+		reg24++;
+		reg = asrc_read_one_from_output_FIFO(index);
+		*(reg24) = reg;
+		reg24++;
+	}
+	t_size += size;
+
+	params->output_dma_total.length = t_size * params->channel_nums * 4;
+	params->output_last_period.length = 0;
+
+	dma_unmap_sg(NULL, params->input_sg, params->input_sg_nodes,
+			DMA_MEM_TO_DEV);
+	dma_unmap_sg(NULL, params->output_sg, params->output_sg_nodes,
+			DMA_MEM_TO_DEV);
+
+	complete(&params->input_complete);
+	complete(&params->lastperiod_complete);
+}
+#else
 static void mxc_asrc_submit_dma(struct asrc_pair_params *params)
 {
 	enum asrc_pair_index index = params->index;
@@ -1105,6 +1169,7 @@ static void mxc_asrc_submit_dma(struct asrc_pair_params *params)
 
 	sdma_set_event_pending(params->input_dma_channel);
 }
+#endif
 
 static long asrc_ioctl_req_pair(struct asrc_pair_params *params,
 				void __user *user)
@@ -1271,7 +1336,11 @@ static long asrc_ioctl_convert(struct asrc_pair_params *params,
 		return ret;
 	}
 
+#ifdef ASRC_POLLING_WITHOUT_DMA
+	asrc_polling_debug(params);
+#else
 	mxc_asrc_submit_dma(params);
+#endif
 
 	ret = mxc_asrc_process_buffer(params, &buf);
 	if (ret) {
