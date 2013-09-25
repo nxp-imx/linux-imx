@@ -371,7 +371,8 @@ static int __devinit ipu_probe(struct platform_device *pdev)
 	if (!plat_data->bypass_reset)
 		clk_disable(ipu->ipu_clk);
 
-	register_ipu_device(ipu, pdev->id);
+	if (pdev->id == 0)
+		register_ipu_device(ipu, pdev->id);
 
 	ipu->online = true;
 
@@ -407,7 +408,8 @@ int __devexit ipu_remove(struct platform_device *pdev)
 {
 	struct ipu_soc *ipu = platform_get_drvdata(pdev);
 
-	unregister_ipu_device(ipu, pdev->id);
+	if (pdev->id == 0)
+		unregister_ipu_device(ipu, pdev->id);
 
 	free_irq(ipu->irq_sync, ipu);
 	free_irq(ipu->irq_err, ipu);
