@@ -354,7 +354,6 @@ struct asrc_data {
 	unsigned long paddr;
 	unsigned int channel_bits;
 	int asrc_major;
-	int clk_map_ver;
 	int irq;
 	struct device *dev;
 };
