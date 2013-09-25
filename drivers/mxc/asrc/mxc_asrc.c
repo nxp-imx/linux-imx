@@ -79,6 +79,38 @@ static unsigned char output_clk_map_v2[] = {
 
 static unsigned char *input_clk_map, *output_clk_map;
 
+enum mxc_asrc_type {
+	IMX35_ASRC,
+	IMX53_ASRC,
+};
+
+static const struct platform_device_id mxc_asrc_devtype[] = {
+	{
+		.name = "imx35-asrc",
+		.driver_data = IMX35_ASRC,
+	}, {
+		.name = "imx53-asrc",
+		.driver_data = IMX53_ASRC,
+	}, {
+		/* sentinel */
+	}
+};
+MODULE_DEVICE_TABLE(platform, mxc_asrc_devtype);
+
+static const struct of_device_id fsl_asrc_ids[] = {
+	{
+		.compatible = "fsl,imx35-asrc",
+		.data = &mxc_asrc_devtype[IMX35_ASRC],
+	}, {
+		.compatible = "fsl,imx53-asrc",
+		.data = &mxc_asrc_devtype[IMX53_ASRC],
+	}, {
+		/* sentinel */
+	}
+};
+MODULE_DEVICE_TABLE(of, fsl_asrc_ids);
+
+
 /* Set ASRC_REG_ASRCNCR reg, only supporting one-pair setting at once */
 static int asrc_set_channel_number(enum asrc_pair_index index, u32 val)
 {
@@ -1737,7 +1769,9 @@ static struct regmap_config asrc_regmap_config = {
 
 static int mxc_asrc_probe(struct platform_device *pdev)
 {
+	const struct of_device_id *of_id = of_match_device(fsl_asrc_ids, &pdev->dev);
 	struct device_node *np = pdev->dev.of_node;
+	enum mxc_asrc_type devtype;
 	struct resource *res;
 	void __iomem *regs;
 	int ret;
@@ -1749,6 +1783,13 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 	asrc = devm_kzalloc(&pdev->dev, sizeof(struct asrc_data), GFP_KERNEL);
 	if (!asrc)
 		return -ENOMEM;
+
+	if (of_id) {
+		const struct platform_device_id *id_entry = of_id->data;
+		devtype = id_entry->driver_data;
+	} else {
+		devtype = pdev->id_entry->driver_data;
+	}
 
 	asrc->dev = &pdev->dev;
 	asrc->dev->coherent_dma_mask = DMA_BIT_MASK(32);
@@ -1806,30 +1847,20 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 		return PTR_ERR(asrc->dma_clk);
 	}
 
-	ret = of_property_read_u32_array(pdev->dev.of_node,
-			"fsl,clk-channel-bits", &asrc->channel_bits, 1);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to get clk-channel-bits\n");
-		return ret;
-	}
-
-	ret = of_property_read_u32_array(pdev->dev.of_node,
-			"fsl,clk-map-version", &asrc->clk_map_ver, 1);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to get clk-map-version\n");
-		return ret;
-	}
-
-	switch (asrc->clk_map_ver) {
-	case 1:
+	switch (devtype) {
+	case IMX35_ASRC:
+		asrc->channel_bits = 3;
 		input_clk_map = input_clk_map_v1;
 		output_clk_map = output_clk_map_v1;
 		break;
-	case 2:
-	default:
+	case IMX53_ASRC:
+		asrc->channel_bits = 4;
 		input_clk_map = input_clk_map_v2;
 		output_clk_map = output_clk_map_v2;
 		break;
+	default:
+		dev_err(&pdev->dev, "unsupported device type\n");
+		return -EINVAL;
 	}
 
 	ret = misc_register(&asrc_miscdev);
@@ -1863,11 +1894,6 @@ static int mxc_asrc_remove(struct platform_device *pdev)
 
 	return 0;
 }
-
-static const struct of_device_id fsl_asrc_ids[] = {
-	{ .compatible = "fsl,imx6q-asrc", },
-	{}
-};
 
 static struct platform_driver mxc_asrc_driver = {
 	.driver = {
