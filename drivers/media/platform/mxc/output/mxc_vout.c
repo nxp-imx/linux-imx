@@ -1771,6 +1771,7 @@ static int config_disp_output(struct mxc_vout_output *vout)
 	struct dma_mem *buf = NULL;
 	struct fb_info *fbi = vout->fbi;
 	struct fb_var_screeninfo var;
+	struct mxcfb_pos pos;
 	int i, fb_num, ret;
 	u32 fb_base;
 	u32 size;
@@ -1810,9 +1811,29 @@ static int config_disp_output(struct mxc_vout_output *vout)
 			"set display fb to %d %d\n",
 			var.xres, var.yres);
 
-	ret = set_window_position(vout, &vout->win_pos);
+	/*
+	 * To setup the overlay fb from scratch without
+	 * the last time overlay fb position or resolution's
+	 * impact, we take the following steps:
+	 * - blank fb
+	 * - set fb position to the starting point
+	 * - reconfigure fb
+	 * - set fb position to a specific point
+	 * - unblank fb
+	 * This procedure applies to non-overlay fbs as well.
+	 */
+	console_lock();
+	fbi->flags |= FBINFO_MISC_USEREVENT;
+	fb_blank(fbi, FB_BLANK_POWERDOWN);
+	fbi->flags &= ~FBINFO_MISC_USEREVENT;
+	console_unlock();
+
+	pos.x = 0;
+	pos.y = 0;
+	ret = set_window_position(vout, &pos);
 	if (ret < 0) {
-		v4l2_err(vout->vfd->v4l2_dev, "ERR: set_win_pos ret:%d\n", ret);
+		v4l2_err(vout->vfd->v4l2_dev, "failed to set fb position "
+			"to starting point\n");
 		return ret;
 	}
 
@@ -1829,6 +1850,13 @@ static int config_disp_output(struct mxc_vout_output *vout)
 				"ERR:%s fb_set_var ret:%d\n", __func__, ret);
 		return ret;
 	}
+
+	ret = set_window_position(vout, &vout->win_pos);
+	if (ret < 0) {
+		v4l2_err(vout->vfd->v4l2_dev, "failed to set fb position\n");
+		return ret;
+	}
+
 	if (vout->linear_bypass_pp || vout->tiled_bypass_pp)
 		display_buf_size = fbi->fix.line_length * fbi->var.yres_virtual;
 	else
