@@ -135,6 +135,9 @@ struct hw_bank {
  * @id_event: indicates there is an id event, and handled at ci_otg_work
  * @b_sess_valid_event: indicates there is a vbus event, and handled
  * at ci_otg_work
+ * @imx28_write_fix: for fsl imx28 write
+ * @supports_runtime_pm: if runtime pm is supported
+ * @in_lpm: if the core in low power mode
  */
 struct ci_hdrc {
 	struct device			*dev;
@@ -175,6 +178,8 @@ struct ci_hdrc {
 	bool				b_sess_valid_event;
 	/* imx28 needs swp instruction for writing */
 	bool				imx28_write_fix;
+	bool				supports_runtime_pm;
+	bool				in_lpm;
 };
 
 static inline struct ci_role_driver *ci_role(struct ci_hdrc *ci)
