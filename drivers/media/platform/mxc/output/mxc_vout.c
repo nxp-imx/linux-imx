@@ -1311,6 +1311,43 @@ static int mxc_vout_try_format(struct mxc_vout_output *vout,
 	return ret;
 }
 
+static bool mxc_vout_need_fb_reconfig(struct mxc_vout_output *vout,
+				      struct mxc_vout_output *pre_vout)
+{
+	if (!vout->vbq.streaming)
+		return false;
+
+	if (vout->tiled_bypass_pp)
+		return true;
+
+	if (vout->linear_bypass_pp != pre_vout->linear_bypass_pp)
+		return true;
+
+	/* cropped output resolution or format are changed */
+	if (vout->task.output.format != pre_vout->task.output.format ||
+	    vout->task.output.crop.w != pre_vout->task.output.crop.w ||
+	    vout->task.output.crop.h != pre_vout->task.output.crop.h)
+		return true;
+
+	/* overlay: window position or resolution are changed */
+	if (vout->disp_support_windows &&
+	    (vout->win_pos.x != pre_vout->win_pos.x ||
+	     vout->win_pos.y != pre_vout->win_pos.y ||
+	     vout->task.output.width  != pre_vout->task.output.width ||
+	     vout->task.output.height != pre_vout->task.output.height))
+		return true;
+
+	/* background: cropped position is changed */
+	if (!vout->disp_support_windows &&
+	    (vout->task.output.crop.pos.x !=
+	     pre_vout->task.output.crop.pos.x ||
+	     vout->task.output.crop.pos.y !=
+	     pre_vout->task.output.crop.pos.y))
+		return true;
+
+	return false;
+}
+
 static int mxc_vidioc_s_fmt_vid_out(struct file *file, void *fh,
 			struct v4l2_format *f)
 {
@@ -1376,7 +1413,7 @@ static int mxc_vidioc_g_crop(struct file *file, void *fh,
 static int mxc_vidioc_s_crop(struct file *file, void *fh,
 				const struct v4l2_crop *crop)
 {
-	struct mxc_vout_output *vout = fh;
+	struct mxc_vout_output *vout = fh, pre_vout;
 	struct v4l2_rect *b = &vout->crop_bounds;
 	struct v4l2_crop fix_up_crop;
 	int ret = 0;
@@ -1445,6 +1482,8 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 
 	mutex_lock(&vout->task_lock);
 
+	memcpy(&pre_vout, vout, sizeof(*vout));
+
 	if (vout->disp_support_windows) {
 		vout->task.output.crop.pos.x = 0;
 		vout->task.output.crop.pos.y = 0;
@@ -1466,9 +1505,6 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 	 * check ipu task too.
 	 */
 	if (vout->fmt_init) {
-		if (vout->vbq.streaming)
-			release_disp_output(vout);
-
 		memcpy(&vout->task.input.crop, &vout->in_rect,
 			sizeof(vout->in_rect));
 		ret = mxc_vout_try_task(vout);
@@ -1477,13 +1513,12 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 					"vout check task failed\n");
 			goto done;
 		}
-		if (vout->vbq.streaming) {
+
+		if (mxc_vout_need_fb_reconfig(vout, &pre_vout)) {
 			ret = config_disp_output(vout);
-			if (ret < 0) {
+			if (ret < 0)
 				v4l2_err(vout->vfd->v4l2_dev,
 					"Config display output failed\n");
-				goto done;
-			}
 		}
 	}
 
@@ -1591,13 +1626,16 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
 				struct v4l2_control *ctrl)
 {
 	int ret = 0;
-	struct mxc_vout_output *vout = fh;
+	struct mxc_vout_output *vout = fh, pre_vout;
 
 	/* wait current work finish */
 	if (vout->vbq.streaming)
 		flush_workqueue(vout->v4l_wq);
 
 	mutex_lock(&vout->task_lock);
+
+	memcpy(&pre_vout, vout, sizeof(*vout));
+
 	switch (ctrl->id) {
 	case V4L2_CID_ROTATE:
 	{
@@ -1630,9 +1668,6 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
 	}
 
 	if (vout->fmt_init) {
-		if (vout->vbq.streaming)
-			release_disp_output(vout);
-
 		memcpy(&vout->task.input.crop, &vout->in_rect,
 				sizeof(vout->in_rect));
 		ret = mxc_vout_try_task(vout);
@@ -1641,13 +1676,12 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
 					"vout check task failed\n");
 			goto done;
 		}
-		if (vout->vbq.streaming) {
+
+		if (mxc_vout_need_fb_reconfig(vout, &pre_vout)) {
 			ret = config_disp_output(vout);
-			if (ret < 0) {
+			if (ret < 0)
 				v4l2_err(vout->vfd->v4l2_dev,
 					"Config display output failed\n");
-				goto done;
-			}
 		}
 	}
 
