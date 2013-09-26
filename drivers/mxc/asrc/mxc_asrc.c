@@ -497,11 +497,9 @@ int asrc_config_pair(struct asrc_config *config)
 }
 EXPORT_SYMBOL(asrc_config_pair);
 
-#define ASRC_MAX_FIFO_THRESHOLD		63
-
 int asrc_set_watermark(enum asrc_pair_index index, u32 in_wm, u32 out_wm)
 {
-	if (in_wm > ASRC_MAX_FIFO_THRESHOLD || out_wm > ASRC_MAX_FIFO_THRESHOLD) {
+	if (in_wm > ASRC_FIFO_THRESHOLD_MAX || out_wm > ASRC_FIFO_THRESHOLD_MAX) {
 		pair_err("invalid watermark!\n");
 		return -EINVAL;
 	}
@@ -1167,7 +1165,16 @@ static void mxc_asrc_submit_dma(struct asrc_pair_params *params)
 	dmaengine_submit(params->desc_out);
 	dma_async_issue_pending(params->desc_out->chan);
 
-	sdma_set_event_pending(params->input_dma_channel);
+	/*
+	 * Clear dma request during the stall state of ASRC:
+	 * During STALL state, the remaining in input fifo would never be
+	 * smaller than the input threshold while the output fifo would not
+	 * be bigger than output one. Thus the dma request would be cleared.
+	 */
+	asrc_set_watermark(index, ASRC_FIFO_THRESHOLD_MIN, ASRC_FIFO_THRESHOLD_MAX);
+
+	/* Update the real input threshold to raise dma request */
+	asrc_set_watermark(index, params->input_wm, params->output_wm);
 }
 #endif
 
