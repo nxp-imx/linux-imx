@@ -24,6 +24,8 @@
 #define ASRC_DMA_BUFFER_NUM		2
 #define ASRC_INPUTFIFO_THRESHOLD	32
 #define ASRC_OUTPUTFIFO_THRESHOLD	32
+#define ASRC_FIFO_THRESHOLD_MIN		0
+#define ASRC_FIFO_THRESHOLD_MAX		63
 #define ASRC_DMA_BUFFER_SIZE		(1024 * 48 * 4)
 #define ASRC_MAX_BUFFER_SIZE		(1024 * 48)
 #define ASRC_OUTPUT_LAST_SAMPLE_DEFAULT	8
@@ -380,6 +382,5 @@ extern int asrc_get_dma_request(enum asrc_pair_index index, bool i);
 extern void asrc_finish_conv(enum asrc_pair_index index);
 extern int asrc_set_watermark(enum asrc_pair_index index,
 		u32 in_wm, u32 out_wm);
-extern void sdma_set_event_pending(struct dma_chan *chan);
 
 #endif/* __MXC_ASRC_H__ */

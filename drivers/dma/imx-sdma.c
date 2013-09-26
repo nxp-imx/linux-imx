@@ -1291,21 +1291,6 @@ static void sdma_issue_pending(struct dma_chan *chan)
 		sdma_enable_channel(sdma, sdmac->channel);
 }
 
-void sdma_set_event_pending(struct dma_chan *chan)
-{
-	struct sdma_channel *sdmac = to_sdma_chan(chan);
-	struct sdma_engine *sdma = sdmac->sdma;
-	u32 channel = sdmac->channel;
-	u32 reg;
-
-	reg = readl_relaxed(sdma->regs + SDMA_H_EVTPEND);
-	reg |= 1 << channel;
-	writel_relaxed(reg, sdma->regs + SDMA_H_EVTPEND);
-
-	return;
-}
-EXPORT_SYMBOL(sdma_set_event_pending);
-
 #define SDMA_SCRIPT_ADDRS_ARRAY_SIZE_V1	38
 
 static void sdma_add_scripts(struct sdma_engine *sdma,
