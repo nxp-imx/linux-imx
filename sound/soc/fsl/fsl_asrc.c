@@ -133,14 +133,8 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 		dev_err(rtd->card->dev, "can not config dma channel\n");
 		goto error;
 	}
-	asrc_p2p->asrc_p2p_desc = chan->device->device_prep_dma_cyclic(
-						chan,
-						0xffff,
-						64,
-						64,
-						DMA_DEV_TO_DEV,
-						0,
-						NULL);
+	asrc_p2p->asrc_p2p_desc = dmaengine_prep_dma_cyclic(chan, 0xffff, 64,
+							64, DMA_DEV_TO_DEV, 0);
 	if (!asrc_p2p->asrc_p2p_desc) {
 		dev_err(&chan->dev->device,
 				"cannot prepare slave dma\n");
