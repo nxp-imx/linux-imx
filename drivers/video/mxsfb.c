@@ -43,11 +43,13 @@
 #include <linux/kernel.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
+#include <linux/interrupt.h>
 #include <linux/clk.h>
 #include <linux/dma-mapping.h>
 #include <linux/io.h>
 #include <linux/pinctrl/consumer.h>
 #include <linux/fb.h>
+#include <linux/mxcfb.h>
 #include <linux/regulator/consumer.h>
 #include <video/of_display_timing.h>
 #include <video/videomode.h>
@@ -100,6 +102,14 @@
 #define CTRL1_FIFO_CLEAR				(1 << 21)
 #define CTRL1_SET_BYTE_PACKAGING(x)		(((x) & 0xf) << 16)
 #define CTRL1_GET_BYTE_PACKAGING(x)		(((x) >> 16) & 0xf)
+#define CTRL1_OVERFLOW_IRQ_EN			(1 << 15)
+#define CTRL1_UNDERFLOW_IRQ_EN			(1 << 14)
+#define CTRL1_CUR_FRAME_DONE_IRQ_EN		(1 << 13)
+#define CTRL1_VSYNC_EDGE_IRQ_EN			(1 << 12)
+#define CTRL1_OVERFLOW_IRQ				(1 << 11)
+#define CTRL1_UNDERFLOW_IRQ				(1 << 10)
+#define CTRL1_CUR_FRAME_DONE_IRQ		(1 << 9)
+#define CTRL1_VSYNC_EDGE_IRQ			(1 << 8)
 
 #define TRANSFER_COUNT_SET_VCOUNT(x)	(((x) & 0xffff) << 16)
 #define TRANSFER_COUNT_GET_VCOUNT(x)	(((x) >> 16) & 0xffff)
@@ -182,6 +192,10 @@ struct mxsfb_info {
 	unsigned dotclk_delay;
 	const struct mxsfb_devdata *devdata;
 	struct regulator *reg_lcd;
+	bool wait4vsync;
+	struct completion vsync_complete;
+	struct semaphore flip_sem;
+	int cur_blank;
 };
 
 #define mxsfb_is_v3(host) (host->devdata->ipversion == 3)
@@ -305,6 +319,37 @@ static inline unsigned chan_to_field(unsigned chan, struct fb_bitfield *bf)
 	chan &= 0xffff;
 	chan >>= 16 - bf->length;
 	return chan << bf->offset;
+}
+
+static irqreturn_t mxsfb_irq_handler(int irq, void *dev_id)
+{
+	struct mxsfb_info *host = dev_id;
+	u32 status_lcd = readl(host->base + LCDC_CTRL1);
+
+	if ((status_lcd & CTRL1_VSYNC_EDGE_IRQ) &&
+		host->wait4vsync) {
+		writel(CTRL1_VSYNC_EDGE_IRQ_EN,
+			     host->base + LCDC_CTRL1 + REG_CLR);
+		host->wait4vsync = 0;
+		complete(&host->vsync_complete);
+	}
+
+	if (status_lcd & CTRL1_CUR_FRAME_DONE_IRQ) {
+		writel(CTRL1_CUR_FRAME_DONE_IRQ_EN,
+			     host->base + LCDC_CTRL1 + REG_CLR);
+		up(&host->flip_sem);
+	}
+
+	if (status_lcd & CTRL1_UNDERFLOW_IRQ) {
+		writel(CTRL1_UNDERFLOW_IRQ,
+			     host->base + LCDC_CTRL1 + REG_CLR);
+	}
+
+	if (status_lcd & CTRL1_OVERFLOW_IRQ) {
+		writel(CTRL1_OVERFLOW_IRQ,
+			     host->base + LCDC_CTRL1 + REG_CLR);
+	}
+	return IRQ_HANDLED;
 }
 
 static int mxsfb_check_var(struct fb_var_screeninfo *var,
@@ -447,6 +492,7 @@ static int mxsfb_set_par(struct fb_info *fb_info)
 
 	clk_enable_axi(host);
 
+	dev_dbg(&host->pdev->dev, "%s\n", __func__);
 	/*
 	 * It seems, you can't re-program the controller if it is still running.
 	 * This may lead into shifted pictures (FIFO issue?).
@@ -456,6 +502,8 @@ static int mxsfb_set_par(struct fb_info *fb_info)
 		reenable = 1;
 		mxsfb_disable_controller(fb_info);
 	}
+
+	sema_init(&host->flip_sem, 1);
 
 	/* clear the FIFOs */
 	writel(CTRL1_FIFO_CLEAR, host->base + LCDC_CTRL1 + REG_SET);
@@ -604,9 +652,57 @@ static int mxsfb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
 	return ret;
 }
 
+static int mxsfb_wait_for_vsync(struct fb_info *fb_info)
+{
+	struct mxsfb_info *host = to_imxfb_host(fb_info);
+	int ret = 0;
+
+	if (host->cur_blank != FB_BLANK_UNBLANK) {
+		dev_err(fb_info->device, "can't wait for VSYNC when fb "
+			"is blank\n");
+		return -EINVAL;
+	}
+
+	init_completion(&host->vsync_complete);
+
+	writel(CTRL1_VSYNC_EDGE_IRQ,
+		host->base + LCDC_CTRL1 + REG_CLR);
+	host->wait4vsync = 1;
+	writel(CTRL1_VSYNC_EDGE_IRQ_EN,
+		host->base + LCDC_CTRL1 + REG_SET);
+	ret = wait_for_completion_interruptible_timeout(
+				&host->vsync_complete, 1 * HZ);
+	if (ret == 0) {
+		dev_err(fb_info->device,
+			"mxs wait for vsync timeout\n");
+		host->wait4vsync = 0;
+		ret = -ETIME;
+	} else if (ret > 0) {
+		ret = 0;
+	}
+	return ret;
+}
+
+static int mxsfb_ioctl(struct fb_info *fb_info, unsigned int cmd,
+			unsigned long arg)
+{
+	int ret = -EINVAL;
+
+	switch (cmd) {
+	case MXCFB_WAIT_FOR_VSYNC:
+		ret = mxsfb_wait_for_vsync(fb_info);
+		break;
+	default:
+		break;
+	}
+	return ret;
+}
+
 static int mxsfb_blank(int blank, struct fb_info *fb_info)
 {
 	struct mxsfb_info *host = to_imxfb_host(fb_info);
+
+	host->cur_blank = blank;
 
 	switch (blank) {
 	case FB_BLANK_POWERDOWN:
@@ -633,16 +729,39 @@ static int mxsfb_pan_display(struct fb_var_screeninfo *var,
 	struct mxsfb_info *host = to_imxfb_host(fb_info);
 	unsigned offset;
 
-	if (var->xoffset != 0)
+	if (host->cur_blank != FB_BLANK_UNBLANK) {
+		dev_err(fb_info->device, "can't do pan display when fb "
+			"is blank\n");
 		return -EINVAL;
+	}
+
+	if (var->xoffset > 0) {
+		dev_dbg(fb_info->device, "x panning not supported\n");
+		return -EINVAL;
+	}
+
+	if ((var->yoffset + var->yres > var->yres_virtual)) {
+		dev_err(fb_info->device, "y panning exceeds\n");
+		return -EINVAL;
+	}
 
 	clk_enable_axi(host);
 
 	offset = fb_info->fix.line_length * var->yoffset;
 
+	if (down_timeout(&host->flip_sem, HZ / 2)) {
+		dev_err(fb_info->device, "timeout when waiting for flip irq\n");
+		return -ETIMEDOUT;
+	}
+
 	/* update on next VSYNC */
 	writel(fb_info->fix.smem_start + offset,
 			host->base + host->devdata->next_buf);
+
+	writel(CTRL1_CUR_FRAME_DONE_IRQ,
+		host->base + LCDC_CTRL1 + REG_CLR);
+	writel(CTRL1_CUR_FRAME_DONE_IRQ_EN,
+		host->base + LCDC_CTRL1 + REG_SET);
 
 	return 0;
 }
@@ -680,6 +799,7 @@ static struct fb_ops mxsfb_ops = {
 	.fb_check_var = mxsfb_check_var,
 	.fb_set_par = mxsfb_set_par,
 	.fb_setcolreg = mxsfb_setcolreg,
+	.fb_ioctl = mxsfb_ioctl,
 	.fb_blank = mxsfb_blank,
 	.fb_pan_display = mxsfb_pan_display,
 	.fb_mmap = mxsfb_mmap,
@@ -1007,6 +1127,7 @@ static int mxsfb_probe(struct platform_device *pdev)
 	struct mxsfb_info *host;
 	struct fb_info *fb_info;
 	struct pinctrl *pinctrl;
+	int irq = platform_get_irq(pdev, 0);
 	int ret;
 
 	if (of_id)
@@ -1025,6 +1146,14 @@ static int mxsfb_probe(struct platform_device *pdev)
 	}
 
 	host = to_imxfb_host(fb_info);
+
+	ret = devm_request_irq(&pdev->dev, irq, mxsfb_irq_handler, 0,
+			  dev_name(&pdev->dev), host);
+	if (ret) {
+		dev_err(&pdev->dev, "request_irq (%d) failed with error %d\n",
+				irq, ret);
+		return -ENODEV;
+	}
 
 	host->base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(host->base)) {
@@ -1075,16 +1204,16 @@ static int mxsfb_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, fb_info);
 
-	ret = register_framebuffer(fb_info);
-	if (ret != 0) {
-		dev_err(&pdev->dev,"Failed to register framebuffer\n");
-		goto fb_destroy;
-	}
-
 	if (!host->enabled) {
 		writel(0, host->base + LCDC_CTRL);
 		mxsfb_set_par(fb_info);
 		mxsfb_enable_controller(fb_info);
+	}
+
+	ret = register_framebuffer(fb_info);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "Failed to register framebuffer\n");
+		goto fb_destroy;
 	}
 
 	dev_info(&pdev->dev, "initialized\n");
