@@ -674,7 +674,6 @@ static int hdmi_sdma_config(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct device *dai_dev = &params->pdev->dev;
 	struct device *dev = rtd->platform->dev;
-	struct dma_device *dmac_dev;
 	struct dma_slave_config slave_config;
 	int ret;
 
@@ -698,9 +697,8 @@ static int hdmi_sdma_config(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	dmac_dev = params->dma_channel->device;
-	params->desc = dmac_dev->device_prep_dma_cyclic(params->dma_channel,
-			0, 0, 0, DMA_TRANS_NONE, 0, NULL);
+	params->desc = dmaengine_prep_dma_cyclic(params->dma_channel, 0, 0, 0,
+						DMA_TRANS_NONE, 0);
 	if (!params->desc) {
 		dev_err(dev, "failed to prepare slave dma\n");
 		return -EINVAL;
