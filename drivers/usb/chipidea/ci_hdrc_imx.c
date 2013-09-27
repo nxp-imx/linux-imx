@@ -177,6 +177,15 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		}
 	}
 
+	if (data->usbmisc_data) {
+		ret = imx_usbmisc_set_wakeup(data->usbmisc_data, false);
+		if (ret) {
+			dev_err(&pdev->dev, "usbmisc set_wakeup failed, ret=%d\n",
+					ret);
+			goto disable_device;
+		}
+	}
+
 	platform_set_drvdata(pdev, data);
 
 	device_set_wakeup_capable(&pdev->dev, true);
@@ -214,11 +223,22 @@ static int ci_hdrc_imx_remove(struct platform_device *pdev)
 static int imx_controller_suspend(struct device *dev)
 {
 	struct ci_hdrc_imx_data *data = dev_get_drvdata(dev);
+	int ret;
 
 	dev_dbg(dev, "at %s\n", __func__);
 
 	if (data->in_lpm)
 		return 0;
+
+	if (data->usbmisc_data) {
+		ret = imx_usbmisc_set_wakeup(data->usbmisc_data, true);
+		if (ret) {
+			dev_err(dev,
+				"usbmisc set_wakeup failed, ret=%d\n",
+				ret);
+			return ret;
+		}
+	}
 
 	clk_disable_unprepare(data->clk);
 
@@ -242,6 +262,22 @@ static int imx_controller_resume(struct device *dev)
 		return ret;
 
 	data->in_lpm = false;
+
+	if (data->usbmisc_data) {
+		ret = imx_usbmisc_set_wakeup(data->usbmisc_data, false);
+		if (ret) {
+			dev_err(dev,
+				"usbmisc set_wakeup failed, ret=%d\n",
+				ret);
+			ret = -EINVAL;
+			goto clk_disable;
+		}
+	}
+
+	return 0;
+
+clk_disable:
+	clk_disable_unprepare(data->clk);
 
 	return ret;
 }
