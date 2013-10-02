@@ -976,9 +976,7 @@ static int imx_startup(struct uart_port *port)
 
 	clk_enable(sport->clk);
 
-#ifndef CONFIG_SERIAL_CORE_CONSOLE
 	imx_setup_ufcr(sport, 0);
-#endif
 
 	/* disable the DREN bit (Data Ready interrupt enable) before
 	 * requesting IRQs
