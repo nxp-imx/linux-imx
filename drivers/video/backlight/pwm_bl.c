@@ -27,6 +27,7 @@ struct pwm_bl_data {
 	unsigned int		period;
 	unsigned int		lth_brightness;
 	unsigned int		*levels;
+	bool			enabled;
 	int			(*notify)(struct device *,
 					  int brightness);
 	void			(*notify_after)(struct device *,
@@ -41,6 +42,9 @@ static void pwm_backlight_power_on(struct pwm_bl_data *pb, int brightness,
 {
 	int duty_cycle, err;
 
+	if (pb->enabled)
+		return;
+
 	if (pb->levels) {
 		duty_cycle = pb->levels[brightness];
 		max = pb->levels[max];
@@ -53,12 +57,18 @@ static void pwm_backlight_power_on(struct pwm_bl_data *pb, int brightness,
 
 	pwm_config(pb->pwm, duty_cycle, pb->period);
 	pwm_enable(pb->pwm);
+	pb->enabled = true;
 }
 
 static void pwm_backlight_power_off(struct pwm_bl_data *pb)
 {
+	if (!pb->enabled)
+		return;
+
 	pwm_config(pb->pwm, 0, pb->period);
 	pwm_disable(pb->pwm);
+
+	pb->enabled = false;
 }
 
 static int pwm_backlight_update_status(struct backlight_device *bl)
@@ -247,6 +257,7 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 	pb->check_fb = np ? pwm_backlight_check_fb_dt : data->check_fb;
 	pb->exit = data->exit;
 	pb->dev = &pdev->dev;
+	pb->enabled = false;
 
 	pb->pwm = devm_pwm_get(&pdev->dev, NULL);
 	if (IS_ERR(pb->pwm)) {
