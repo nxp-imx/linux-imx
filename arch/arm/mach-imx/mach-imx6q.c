@@ -16,7 +16,6 @@
 #include <linux/clkdev.h>
 #include <linux/clocksource.h>
 #include <linux/cpu.h>
-#include <linux/delay.h>
 #include <linux/export.h>
 #include <linux/gpio.h>
 #include <linux/init.h>
@@ -42,60 +41,6 @@
 #include "common.h"
 #include "cpuidle.h"
 #include "hardware.h"
-
-static void imx6q_restart(char mode, const char *cmd)
-{
-	struct device_node *np;
-	void __iomem *wdog_base;
-	u32 wdog_source = 1; /* use WDOG1 default */
-	unsigned int value;
-
-	np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-gpc");
-	if (np)
-		of_property_read_u32(np, "fsl,wdog-reset", &wdog_source);
-	pr_info("Use WDOG%d as reset source\n", wdog_source);
-
-	np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-wdt");
-	wdog_base = of_iomap(np, 0);
-	if (!wdog_base)
-		goto soft;
-
-	imx_src_prepare_restart();
-
-	if (wdog_source == 2) {
-		/*
-		 * Some boards  use WDOG2 to reset external pmic in bypass mode,
-		 * so do WDOG2 reset here. Do not set SRS,since we will
-		 * trigger external POR later. Use WDOG1 to reset in ldo-enable
-		 * mode.
-		 */
-		np = of_find_compatible_node(np, NULL, "fsl,imx6q-wdt");
-		wdog_base = of_iomap(np, 0);
-		if (!wdog_base) {
-			pr_warn("Not found wdt2, please check your dts!\n");
-			goto soft;
-		}
-		value = 0x14;
-	} else {
-		value = (1 << 2);
-	}
-	/* enable wdog */
-	writew_relaxed(value, wdog_base);
-	/* write twice to ensure the request will not get ignored */
-	writew_relaxed(value, wdog_base);
-
-	/* wait for reset to assert ... */
-	mdelay(500);
-
-	pr_err("Watchdog reset failed to assert reset\n");
-
-	/* delay to allow the serial port to show the message */
-	mdelay(50);
-
-soft:
-	/* we'll take a jump through zero as a poor second */
-	soft_restart(0);
-}
 
 static struct flexcan_platform_data flexcan_pdata[2];
 static int flexcan_en_gpio;
@@ -395,6 +340,7 @@ static void __init imx6q_init_machine(void)
 {
 	struct device *parent;
 
+	mxc_arch_reset_init_dt();
 	parent = imx_soc_device_init();
 	if (parent == NULL)
 		pr_warn("failed to initialize soc device\n");
@@ -566,5 +512,5 @@ DT_MACHINE_START(IMX6Q, "Freescale i.MX6 Quad/DualLite (Device Tree)")
 	.init_machine	= imx6q_init_machine,
 	.init_late      = imx6q_init_late,
 	.dt_compat	= imx6q_dt_compat,
-	.restart	= imx6q_restart,
+	.restart	= mxc_restart,
 MACHINE_END
