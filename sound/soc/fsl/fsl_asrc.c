@@ -133,13 +133,6 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 		dev_err(rtd->card->dev, "can not config dma channel\n");
 		goto error;
 	}
-	asrc_p2p->asrc_p2p_desc = dmaengine_prep_dma_cyclic(chan, 0xffff, 64,
-							64, DMA_DEV_TO_DEV, 0);
-	if (!asrc_p2p->asrc_p2p_desc) {
-		dev_err(&chan->dev->device,
-				"cannot prepare slave dma\n");
-		goto error;
-	}
 
 	return 0;
 error:
@@ -274,16 +267,38 @@ static int fsl_asrc_p2p_hw_free(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int fsl_asrc_dma_prepare_and_submit(struct snd_pcm_substream *substream,
+					struct fsl_asrc_p2p *asrc_p2p)
+{
+	struct dma_async_tx_descriptor *desc = asrc_p2p->asrc_p2p_desc;
+	struct dma_chan *chan = asrc_p2p->asrc_p2p_dma_chan;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct device *dev = rtd->platform->dev;
+
+	desc = dmaengine_prep_dma_cyclic(chan, 0xffff, 64, 64, DMA_DEV_TO_DEV, 0);
+	if (!desc) {
+		dev_err(dev, "failed to prepare slave dma\n");
+		return -EINVAL;
+	}
+
+	dmaengine_submit(desc);
+
+	return 0;
+}
+
 static int fsl_asrc_p2p_trigger(struct snd_pcm_substream *substream, int cmd,
 			    struct snd_soc_dai *cpu_dai)
 {
 	struct fsl_asrc_p2p *asrc_p2p = snd_soc_dai_get_drvdata(cpu_dai);
+	int ret;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-		dmaengine_submit(asrc_p2p->asrc_p2p_desc);
+		ret = fsl_asrc_dma_prepare_and_submit(substream, asrc_p2p);
+		if (ret)
+			return ret;
 		dma_async_issue_pending(asrc_p2p->asrc_p2p_dma_chan);
 		asrc_p2p->asrc_ops.asrc_p2p_start_conv(asrc_p2p->asrc_index);
 		break;

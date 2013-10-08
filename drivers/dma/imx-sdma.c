@@ -1286,8 +1286,7 @@ static void sdma_issue_pending(struct dma_chan *chan)
 	struct sdma_channel *sdmac = to_sdma_chan(chan);
 	struct sdma_engine *sdma = sdmac->sdma;
 
-	/* Only HDMI audio uses other_script, and it does not care status */
-	if (sdmac->status == DMA_IN_PROGRESS || sdmac->other_script)
+	if (sdmac->status == DMA_IN_PROGRESS)
 		sdma_enable_channel(sdma, sdmac->channel);
 }
 

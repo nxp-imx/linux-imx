@@ -697,16 +697,6 @@ static int hdmi_sdma_config(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	priv->desc = dmaengine_prep_dma_cyclic(priv->dma_channel, 0, 0, 0,
-						DMA_TRANS_NONE, 0);
-	if (!priv->desc) {
-		dev_err(dev, "failed to prepare slave dma\n");
-		return -EINVAL;
-	}
-
-	priv->desc->callback = hdmi_sdma_callback;
-	priv->desc->callback_param = (void *)priv;
-
 	return 0;
 }
 
@@ -810,12 +800,33 @@ static void hdmi_dma_trigger_init(struct snd_pcm_substream *substream,
 	hdmi_writeb(status, HDMI_IH_AHBDMAAUD_STAT0);
 }
 
+static int hdmi_dma_prepare_and_submit(struct snd_pcm_substream *substream,
+					struct hdmi_dma_priv *priv)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct device *dev = rtd->platform->dev;
+
+	priv->desc = dmaengine_prep_dma_cyclic(priv->dma_channel, 0, 0, 0,
+						DMA_TRANS_NONE, 0);
+	if (!priv->desc) {
+		dev_err(dev, "failed to prepare slave dma\n");
+		return -EINVAL;
+	}
+
+	priv->desc->callback = hdmi_sdma_callback;
+	priv->desc->callback_param = (void *)priv;
+	dmaengine_submit(priv->desc);
+
+	return 0;
+}
+
 static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct hdmi_dma_priv *priv = runtime->private_data;
 	struct device *dev = rtd->platform->dev;
+	int ret;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -831,7 +842,9 @@ static int hdmi_dma_trigger(struct snd_pcm_substream *substream, int cmd)
 		hdmi_audio_writeb(AHB_DMA_START, START, 0x1);
 		hdmi_dma_irq_set(false);
 		hdmi_set_dma_mode(1);
-		dmaengine_submit(priv->desc);
+		ret = hdmi_dma_prepare_and_submit(substream, priv);
+		if (ret)
+			return ret;
 		dma_async_issue_pending(priv->desc->chan);
 		break;
 	case SNDRV_PCM_TRIGGER_STOP:
