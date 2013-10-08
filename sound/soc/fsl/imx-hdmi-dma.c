@@ -669,43 +669,43 @@ static int hdmi_sdma_initbuf(struct device *dev, struct hdmi_dma_priv *priv)
 }
 
 static int hdmi_sdma_config(struct snd_pcm_substream *substream,
-			struct hdmi_dma_priv *params)
+			struct hdmi_dma_priv *priv)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct device *dai_dev = &params->pdev->dev;
+	struct device *dai_dev = &priv->pdev->dev;
 	struct device *dev = rtd->platform->dev;
 	struct dma_slave_config slave_config;
 	int ret;
 
-	params->dma_channel = dma_request_slave_channel(dai_dev, "tx");
-	if (params->dma_channel == NULL) {
+	priv->dma_channel = dma_request_slave_channel(dai_dev, "tx");
+	if (priv->dma_channel == NULL) {
 		dev_err(dev, "failed to alloc dma channel\n");
 		return -EBUSY;
 	}
 
-	params->dma_data.data_addr1 = &params->sdma_params.buffer_num;
-	params->dma_data.data_addr2 = &params->sdma_params.phyaddr;
-	params->dma_channel->private = &params->dma_data;
+	priv->dma_data.data_addr1 = &priv->sdma_params.buffer_num;
+	priv->dma_data.data_addr2 = &priv->sdma_params.phyaddr;
+	priv->dma_channel->private = &priv->dma_data;
 
 	slave_config.direction = DMA_TRANS_NONE;
 	slave_config.dma_request0 = 0;
 	slave_config.dma_request1 = 0;
 
-	ret = dmaengine_slave_config(params->dma_channel, &slave_config);
+	ret = dmaengine_slave_config(priv->dma_channel, &slave_config);
 	if (ret) {
 		dev_err(dev, "failed to config slave dma\n");
 		return -EINVAL;
 	}
 
-	params->desc = dmaengine_prep_dma_cyclic(params->dma_channel, 0, 0, 0,
+	priv->desc = dmaengine_prep_dma_cyclic(priv->dma_channel, 0, 0, 0,
 						DMA_TRANS_NONE, 0);
-	if (!params->desc) {
+	if (!priv->desc) {
 		dev_err(dev, "failed to prepare slave dma\n");
 		return -EINVAL;
 	}
 
-	params->desc->callback = hdmi_sdma_callback;
-	params->desc->callback_param = (void *)params;
+	priv->desc->callback = hdmi_sdma_callback;
+	priv->desc->callback_param = (void *)priv;
 
 	return 0;
 }
@@ -713,11 +713,11 @@ static int hdmi_sdma_config(struct snd_pcm_substream *substream,
 static int hdmi_dma_hw_free(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
-	struct hdmi_dma_priv *params = runtime->private_data;
+	struct hdmi_dma_priv *priv = runtime->private_data;
 
-	if (params->dma_channel) {
-		dma_release_channel(params->dma_channel);
-		params->dma_channel = NULL;
+	if (priv->dma_channel) {
+		dma_release_channel(priv->dma_channel);
+		priv->dma_channel = NULL;
 	}
 
 	return 0;
