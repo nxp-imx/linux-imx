@@ -21,6 +21,7 @@
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
+#include <linux/busfreq-imx6.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
@@ -42,6 +43,7 @@
 #include <linux/kthread.h>
 #include <linux/dmaengine.h>
 #include <linux/pxp_dma.h>
+#include <linux/pm_runtime.h>
 #include <linux/mxcfb.h>
 #include <linux/mxcfb_epdc.h>
 #include <linux/gpio.h>
@@ -1209,6 +1211,8 @@ static void epdc_powerup(struct mxc_epdc_fb_data *fb_data)
 
 	msleep(1);
 
+	pm_runtime_get_sync(fb_data->dev);
+
 	/* Enable clocks to EPDC */
 	clk_prepare_enable(fb_data->epdc_clk_axi);
 	clk_prepare_enable(fb_data->epdc_clk_pix);
@@ -1259,6 +1263,8 @@ static void epdc_powerdown(struct mxc_epdc_fb_data *fb_data)
 	__raw_writel(EPDC_CTRL_CLKGATE, EPDC_CTRL_SET);
 	clk_disable_unprepare(fb_data->epdc_clk_pix);
 	clk_disable_unprepare(fb_data->epdc_clk_axi);
+
+	pm_runtime_put_sync_suspend(fb_data->dev);
 
 	/* turn off the V3p3 */
 	regulator_disable(fb_data->v3p3_regulator);
@@ -5014,6 +5020,8 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 	}
 #endif
 
+	pm_runtime_enable(fb_data->dev);
+
 	goto out;
 
 out_lutmap:
@@ -5107,10 +5115,10 @@ static int mxc_epdc_fb_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int mxc_epdc_fb_suspend(struct platform_device *pdev, pm_message_t state)
+#ifdef CONFIG_PM_SLEEP
+static int mxc_epdc_fb_suspend(struct device *dev)
 {
-	struct mxc_epdc_fb_data *data = platform_get_drvdata(pdev);
+	struct mxc_epdc_fb_data *data = dev_get_drvdata(dev);
 	int ret;
 
 	data->pwrdown_delay = FB_POWERDOWN_DISABLE;
@@ -5122,9 +5130,9 @@ out:
 	return ret;
 }
 
-static int mxc_epdc_fb_resume(struct platform_device *pdev)
+static int mxc_epdc_fb_resume(struct device *dev)
 {
-	struct mxc_epdc_fb_data *data = platform_get_drvdata(pdev);
+	struct mxc_epdc_fb_data *data = dev_get_drvdata(dev);
 
 	mxc_epdc_fb_blank(FB_BLANK_UNBLANK, &data->info);
 	epdc_init_settings(data);
@@ -5132,6 +5140,37 @@ static int mxc_epdc_fb_resume(struct platform_device *pdev)
 
 	return 0;
 }
+#else
+#define mxc_epdc_fb_suspend	NULL
+#define mxc_epdc_fb_resume	NULL
+#endif
+
+#ifdef CONFIG_PM_RUNTIME
+static int mxc_epdc_fb_runtime_suspend(struct device *dev)
+{
+	release_bus_freq(BUS_FREQ_HIGH);
+	dev_dbg(dev, "epdc busfreq high release.\n");
+
+	return 0;
+}
+
+static int mxc_epdc_fb_runtime_resume(struct device *dev)
+{
+	request_bus_freq(BUS_FREQ_HIGH);
+	dev_dbg(dev, "epdc busfreq high request.\n");
+
+	return 0;
+}
+#else
+#define mxc_epdc_fb_runtime_suspend	NULL
+#define mxc_epdc_fb_runtime_resume	NULL
+#endif
+
+static const struct dev_pm_ops mxc_epdc_fb_pm_ops = {
+	SET_RUNTIME_PM_OPS(mxc_epdc_fb_runtime_suspend,
+				mxc_epdc_fb_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(mxc_epdc_fb_suspend, mxc_epdc_fb_resume)
+};
 
 static void mxc_epdc_fb_shutdown(struct platform_device *pdev)
 {
@@ -5154,22 +5193,16 @@ static void mxc_epdc_fb_shutdown(struct platform_device *pdev)
 	if (regulator_is_enabled(fb_data->v3p3_regulator))
 		regulator_disable(fb_data->v3p3_regulator);
 }
-#else
-#define mxc_epdc_fb_suspend	NULL
-#define mxc_epdc_fb_resume	NULL
-#define mxc_epdc_fb_shutdown	NULL
-#endif
 
 static struct platform_driver mxc_epdc_fb_driver = {
 	.probe = mxc_epdc_fb_probe,
 	.remove = mxc_epdc_fb_remove,
-	.suspend = mxc_epdc_fb_suspend,
-	.resume = mxc_epdc_fb_resume,
 	.shutdown = mxc_epdc_fb_shutdown,
 	.driver = {
 		   .name = "imx_epdc_fb",
 		   .owner = THIS_MODULE,
 		   .of_match_table = of_match_ptr(imx_epdc_dt_ids),
+		   .pm = &mxc_epdc_fb_pm_ops,
 		   },
 };
 

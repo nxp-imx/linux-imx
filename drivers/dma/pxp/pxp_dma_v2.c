@@ -21,6 +21,7 @@
  * Copyright 2008-2009 Embedded Alley Solutions, Inc All Rights Reserved.
  */
 
+#include <linux/busfreq-imx6.h>
 #include <linux/dma-mapping.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -29,6 +30,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/dmaengine.h>
@@ -808,6 +810,8 @@ static void pxp_clk_enable(struct pxps *pxp)
 		return;
 	}
 
+	pm_runtime_get_sync(pxp->dev);
+
 	clk_prepare_enable(pxp->clk);
 	pxp->clk_stat = CLK_STAT_ON;
 
@@ -832,6 +836,8 @@ static void pxp_clk_disable(struct pxps *pxp)
 		pxp->clk_stat = CLK_STAT_OFF;
 	} else
 		spin_unlock_irqrestore(&pxp->lock, flags);
+
+	pm_runtime_put_sync_suspend(pxp->dev);
 
 	mutex_unlock(&pxp->clk_mutex);
 }
@@ -1615,6 +1621,8 @@ static int pxp_probe(struct platform_device *pdev)
 
 	register_pxp_device();
 
+	pm_runtime_enable(pxp->dev);
+
 exit:
 	if (err)
 		dev_err(&pdev->dev, "Exiting (unsuccessfully) pxp_probe()\n");
@@ -1634,10 +1642,10 @@ static int pxp_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int pxp_suspend(struct platform_device *pdev, pm_message_t state)
+#ifdef CONFIG_PM_SLEEP
+static int pxp_suspend(struct device *dev)
 {
-	struct pxps *pxp = platform_get_drvdata(pdev);
+	struct pxps *pxp = dev_get_drvdata(dev);
 
 	pxp_clk_enable(pxp);
 	while (__raw_readl(pxp->base + HW_PXP_CTRL) & BM_PXP_CTRL_ENABLE)
@@ -1649,9 +1657,9 @@ static int pxp_suspend(struct platform_device *pdev, pm_message_t state)
 	return 0;
 }
 
-static int pxp_resume(struct platform_device *pdev)
+static int pxp_resume(struct device *dev)
 {
-	struct pxps *pxp = platform_get_drvdata(pdev);
+	struct pxps *pxp = dev_get_drvdata(dev);
 
 	pxp_clk_enable(pxp);
 	/* Pull PxP out of reset */
@@ -1665,15 +1673,40 @@ static int pxp_resume(struct platform_device *pdev)
 #define	pxp_resume	NULL
 #endif
 
+#ifdef CONFIG_PM_RUNTIME
+static int pxp_runtime_suspend(struct device *dev)
+{
+	release_bus_freq(BUS_FREQ_HIGH);
+	dev_dbg(dev, "pxp busfreq high release.\n");
+
+	return 0;
+}
+
+static int pxp_runtime_resume(struct device *dev)
+{
+	request_bus_freq(BUS_FREQ_HIGH);
+	dev_dbg(dev, "pxp busfreq high request.\n");
+
+	return 0;
+}
+#else
+#define	pxp_runtime_suspend	NULL
+#define	pxp_runtime_resume	NULL
+#endif
+
+static const struct dev_pm_ops pxp_pm_ops = {
+	SET_RUNTIME_PM_OPS(pxp_runtime_suspend, pxp_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(pxp_suspend, pxp_resume)
+};
+
 static struct platform_driver pxp_driver = {
 	.driver = {
 			.name = "imx-pxp",
 			.of_match_table = of_match_ptr(imx_pxpdma_dt_ids),
+			.pm = &pxp_pm_ops,
 		   },
 	.probe = pxp_probe,
 	.remove = pxp_remove,
-	.suspend = pxp_suspend,
-	.resume = pxp_resume,
 };
 
 module_platform_driver(pxp_driver);
