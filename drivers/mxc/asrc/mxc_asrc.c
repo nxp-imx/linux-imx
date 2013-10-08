@@ -31,6 +31,9 @@
 #define pair_err(fmt, ...) \
 	dev_err(asrc->dev, "Pair %c: " fmt, 'A' + index, ##__VA_ARGS__)
 
+#define pair_dbg(fmt, ...) \
+	dev_dbg(asrc->dev, "Pair %c: " fmt, 'A' + index, ##__VA_ARGS__)
+
 DEFINE_SPINLOCK(data_lock);
 DEFINE_SPINLOCK(pair_lock);
 
@@ -158,7 +161,7 @@ static void dump_regs(void)
 	for (i = 0; i < ARRAY_SIZE(asrc_reg); i++) {
 		reg = asrc_reg[i];
 		regmap_read(asrc->regmap, reg, &val);
-		dev_debug(asrc->dev, "REG addr=0x%x val=0x%x\n", reg, val);
+		dev_dbg(asrc->dev, "REG addr=0x%x val=0x%x\n", reg, val);
 	}
 }
 #else
@@ -550,8 +553,11 @@ void asrc_finish_conv(enum asrc_pair_index index)
 }
 EXPORT_SYMBOL(asrc_finish_conv);
 
-#define SET_OVERLOAD_ERR(index, err) \
-	do {asrc->asrc_pair[index].overload_error |= err; } while (0)
+#define SET_OVERLOAD_ERR(index, err, msg) \
+	do { \
+		asrc->asrc_pair[index].overload_error |= err; \
+		pair_dbg(msg); \
+	} while (0)
 
 static irqreturn_t asrc_isr(int irq, void *dev_id)
 {
@@ -564,15 +570,20 @@ static irqreturn_t asrc_isr(int irq, void *dev_id)
 		if (asrc->asrc_pair[index].active == 0)
 			continue;
 		if (status & ASRSTR_ATQOL)
-			SET_OVERLOAD_ERR(index, ASRC_TASK_Q_OVERLOAD);
+			SET_OVERLOAD_ERR(index, ASRC_TASK_Q_OVERLOAD,
+					"Task Queue FIFO overload");
 		if (status & ASRSTR_AOOL(index))
-			SET_OVERLOAD_ERR(index, ASRC_OUTPUT_TASK_OVERLOAD);
+			SET_OVERLOAD_ERR(index, ASRC_OUTPUT_TASK_OVERLOAD,
+					"Output Task Overload");
 		if (status & ASRSTR_AIOL(index))
-			SET_OVERLOAD_ERR(index, ASRC_INPUT_TASK_OVERLOAD);
+			SET_OVERLOAD_ERR(index, ASRC_INPUT_TASK_OVERLOAD,
+					"Input Task Overload");
 		if (status & ASRSTR_AODO(index))
-			SET_OVERLOAD_ERR(index, ASRC_OUTPUT_BUFFER_OVERFLOW);
+			SET_OVERLOAD_ERR(index, ASRC_OUTPUT_BUFFER_OVERFLOW,
+					"Output Data Buffer has overflowed");
 		if (status & ASRSTR_AIDU(index))
-			SET_OVERLOAD_ERR(index, ASRC_INPUT_BUFFER_UNDERRUN);
+			SET_OVERLOAD_ERR(index, ASRC_INPUT_BUFFER_UNDERRUN,
+					"Input Data Buffer has underflowed");
 	}
 
 	/* Clean overload error  */
