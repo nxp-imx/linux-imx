@@ -146,10 +146,26 @@ typedef enum _gceFEATURE
     gcvFEATURE_FRUSTUM_CLIP_FIX,
     gcvFEATURE_TEXTURE_LINEAR,
     gcvFEATURE_TEXTURE_YUV_ASSEMBLER,
+    gcvFEATURE_SHADER_HAS_INSTRUCTION_CACHE,
     gcvFEATURE_DYNAMIC_FREQUENCY_SCALING,
     gcvFEATURE_BUGFIX15,
+    gcvFEATURE_2D_GAMMA,
+    gcvFEATURE_2D_COLOR_SPACE_CONVERSION,
+    gcvFEATURE_2D_SUPER_TILE_VERSION,
     gcvFEATURE_2D_MIRROR_EXTENSION,
+    gcvFEATURE_2D_SUPER_TILE_V1,
+    gcvFEATURE_2D_SUPER_TILE_V2,
+    gcvFEATURE_2D_SUPER_TILE_V3,
+    gcvFEATURE_2D_MULTI_SOURCE_BLT_EX2,
     gcvFEATURE_ELEMENT_INDEX_UINT,
+    gcvFEATURE_2D_COMPRESSION,
+    gcvFEATURE_2D_OPF_YUV_OUTPUT,
+    gcvFEATURE_2D_MULTI_SRC_BLT_TO_UNIFIED_DST_RECT,
+    gcvFEATURE_2D_YUV_MODE,
+    gcvFEATURE_DECOMPRESS_Z16,
+	gcvFEATURE_LINEAR_RENDER_TARGET,
+    gcvFEATURE_BUG_FIXES8,
+    gcvFEATURE_HALTI2,
 }
 gceFEATURE;
 
@@ -203,10 +219,13 @@ typedef enum _gceSURF_TYPE
     gcvSURF_NO_VIDMEM      = 0x200, /* Used to allocate surfaces with no underlying vidmem node.
                                        In Android, vidmem node is allocated by another process. */
     gcvSURF_CACHEABLE      = 0x400, /* Used to allocate a cacheable surface */
-#if gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST
     gcvSURF_FLIP           = 0x800, /* The Resolve Target the will been flip resolve from RT */
-#endif
     gcvSURF_TILE_STATUS_DIRTY  = 0x1000, /* Init tile status to all dirty */
+
+    gcvSURF_LINEAR             = 0x2000,
+
+    gcvSURF_TEXTURE_LINEAR               = gcvSURF_TEXTURE
+                                         | gcvSURF_LINEAR,
 
     gcvSURF_RENDER_TARGET_NO_TILE_STATUS = gcvSURF_RENDER_TARGET
                                          | gcvSURF_NO_TILE_STATUS,
@@ -216,6 +235,9 @@ typedef enum _gceSURF_TYPE
 
     gcvSURF_DEPTH_NO_TILE_STATUS         = gcvSURF_DEPTH
                                          | gcvSURF_NO_TILE_STATUS,
+
+    gcvSURF_DEPTH_TS_DIRTY               = gcvSURF_DEPTH
+                                         | gcvSURF_TILE_STATUS_DIRTY,
 
     /* Supported surface types with no vidmem node. */
     gcvSURF_BITMAP_NO_VIDMEM             = gcvSURF_BITMAP
@@ -231,10 +253,8 @@ typedef enum _gceSURF_TYPE
     gcvSURF_CACHEABLE_BITMAP             = gcvSURF_BITMAP
                                          | gcvSURF_CACHEABLE,
 
-#if gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST
     gcvSURF_FLIP_BITMAP                  = gcvSURF_BITMAP
                                          | gcvSURF_FLIP,
-#endif
 }
 gceSURF_TYPE;
 
@@ -263,6 +283,9 @@ typedef enum _gceSURF_ROTATION
     gcvSURF_270_DEGREE,
     gcvSURF_FLIP_X,
     gcvSURF_FLIP_Y,
+
+	gcvSURF_POST_FLIP_X = 0x40000000,
+    gcvSURF_POST_FLIP_Y = 0x80000000,
 }
 gceSURF_ROTATION;
 
@@ -622,21 +645,16 @@ gce2D_PORTER_DUFF_RULE;
 typedef enum _gce2D_YUV_COLOR_MODE
 {
     gcv2D_YUV_601= 0,
-    gcv2D_YUV_709
+    gcv2D_YUV_709,
+    gcv2D_YUV_USER_DEFINED,
+    gcv2D_YUV_USER_DEFINED_CLAMP,
+
+    /* Default setting is for src. gcv2D_YUV_DST
+        can be ORed to set dst.
+    */
+    gcv2D_YUV_DST = 0x80000000,
 }
 gce2D_YUV_COLOR_MODE;
-
-/* 2D Rotation and flipping. */
-typedef enum _gce2D_ORIENTATION
-{
-    gcv2D_0_DEGREE = 0,
-    gcv2D_90_DEGREE,
-    gcv2D_180_DEGREE,
-    gcv2D_270_DEGREE,
-    gcv2D_X_FLIP,
-    gcv2D_Y_FLIP
-}
-gce2D_ORIENTATION;
 
 typedef enum _gce2D_COMMAND
 {
@@ -656,21 +674,39 @@ typedef enum _gce2D_TILE_STATUS_CONFIG
     gcv2D_TSC_ENABLE        = 0x00000001,
     gcv2D_TSC_COMPRESSED    = 0x00000002,
     gcv2D_TSC_DOWN_SAMPLER  = 0x00000004,
+    gcv2D_TSC_2D_COMPRESSED = 0x00000008,
 }
 gce2D_TILE_STATUS_CONFIG;
 
 typedef enum _gce2D_QUERY
 {
-    gcv2D_QUERY_RGB_ADDRESS_MAX_ALIGN       = 0,
-    gcv2D_QUERY_RGB_STRIDE_MAX_ALIGN,
-    gcv2D_QUERY_YUV_ADDRESS_MAX_ALIGN,
-    gcv2D_QUERY_YUV_STRIDE_MAX_ALIGN,
+    gcv2D_QUERY_RGB_ADDRESS_MIN_ALIGN       = 0,
+    gcv2D_QUERY_RGB_STRIDE_MIN_ALIGN,
+    gcv2D_QUERY_YUV_ADDRESS_MIN_ALIGN,
+    gcv2D_QUERY_YUV_STRIDE_MIN_ALIGN,
 }
 gce2D_QUERY;
+
+typedef enum _gce2D_SUPER_TILE_VERSION
+{
+    gcv2D_SUPER_TILE_VERSION_V1       = 1,
+    gcv2D_SUPER_TILE_VERSION_V2       = 2,
+    gcv2D_SUPER_TILE_VERSION_V3       = 3,
+}
+gce2D_SUPER_TILE_VERSION;
 
 typedef enum _gce2D_STATE
 {
     gcv2D_STATE_SPECIAL_FILTER_MIRROR_MODE       = 1,
+    gcv2D_STATE_SUPER_TILE_VERSION,
+    gcv2D_STATE_EN_GAMMA,
+    gcv2D_STATE_DE_GAMMA,
+    gcv2D_STATE_MULTI_SRC_BLIT_UNIFIED_DST_RECT,
+
+    gcv2D_STATE_ARRAY_EN_GAMMA                   = 0x10001,
+    gcv2D_STATE_ARRAY_DE_GAMMA,
+    gcv2D_STATE_ARRAY_CSC_YUV_TO_RGB,
+    gcv2D_STATE_ARRAY_CSC_RGB_TO_YUV,
 }
 gce2D_STATE;
 
@@ -809,6 +845,15 @@ typedef enum _gceUSER_SIGNAL_COMMAND_CODES
 }
 gceUSER_SIGNAL_COMMAND_CODES;
 
+/* Sync point command codes. */
+typedef enum _gceSYNC_POINT_COMMAND_CODES
+{
+    gcvSYNC_POINT_CREATE,
+    gcvSYNC_POINT_DESTROY,
+    gcvSYNC_POINT_SIGNAL,
+}
+gceSYNC_POINT_COMMAND_CODES;
+
 /* Event locations. */
 typedef enum _gceKERNEL_WHERE
 {
@@ -847,6 +892,44 @@ typedef enum _gceDEBUG_MESSAGE_TYPE
     gcvMESSAGE_DUMP
 }
 gceDEBUG_MESSAGE_TYPE;
+
+typedef enum _gceSPECIAL_HINT
+{
+    gceSPECIAL_HINT0,
+    gceSPECIAL_HINT1,
+    gceSPECIAL_HINT2,
+    gceSPECIAL_HINT3,
+    /* For disable dynamic stream/index */
+    gceSPECIAL_HINT4
+}
+gceSPECIAL_HINT;
+
+typedef enum _gceMACHINECODE
+{
+    gcvMACHINECODE_HOVERJET0       = 0x0,
+    gcvMACHINECODE_HOVERJET1      ,
+
+    gcvMACHINECODE_TAIJI0         ,
+    gcvMACHINECODE_TAIJI1         ,
+    gcvMACHINECODE_TAIJI2         ,
+
+    gcvMACHINECODE_ANTUTU0        ,
+
+    gcvMACHINECODE_GLB27_RELEASE_0,
+    gcvMACHINECODE_GLB27_RELEASE_1,
+
+    gcvMACHINECODE_WAVESCAPE0     ,
+    gcvMACHINECODE_WAVESCAPE1     ,
+
+    gcvMACHINECODE_NENAMARKV2_4_0 ,
+    gcvMACHINECODE_NENAMARKV2_4_1 ,
+
+    gcvMACHINECODE_GLB25_RELEASE_0,
+    gcvMACHINECODE_GLB25_RELEASE_1,
+    gcvMACHINECODE_GLB25_RELEASE_2,
+}
+gceMACHINECODE;
+
 
 /******************************************************************************\
 ****************************** Object Declarations *****************************

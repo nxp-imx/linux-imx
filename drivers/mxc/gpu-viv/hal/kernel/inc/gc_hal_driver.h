@@ -167,6 +167,12 @@ typedef enum _gceHAL_COMMAND_CODES
     /* Reset time stamp. */
     gcvHAL_QUERY_RESET_TIME_STAMP,
 
+    /* Sync point operations. */
+    gcvHAL_SYNC_POINT,
+
+    /* Create native fence and return its fd. */
+    gcvHAL_CREATE_NATIVE_FENCE,
+
     /* Video memory database */
     gcvHAL_VIDMEM_DATABASE,
 }
@@ -726,6 +732,10 @@ typedef struct _gcsHAL_INTERFACE
         /* gcvHAL_READ_ALL_PROFILE_REGISTERS */
         struct _gcsHAL_READ_ALL_PROFILE_REGISTERS
         {
+#if VIVANTE_PROFILER_CONTEXT
+            /* Context buffer object gckCONTEXT. Just a name. */
+            IN gctUINT32                context;
+#endif
             /* Data read. */
             OUT gcsPROFILER_COUNTERS    counters;
         }
@@ -998,6 +1008,33 @@ typedef struct _gcsHAL_INTERFACE
             OUT gctUINT64           timeStamp;
         }
         QueryResetTimeStamp;
+
+        struct _gcsHAL_SYNC_POINT
+        {
+            /* Command. */
+            gceSYNC_POINT_COMMAND_CODES command;
+
+            /* Sync point. */
+            IN OUT gctUINT64            syncPoint;
+
+            /* From where. */
+            IN gceKERNEL_WHERE          fromWhere;
+
+            /* Signaled state. */
+            OUT gctBOOL                 state;
+        }
+        SyncPoint;
+
+        struct _gcsHAL_CREATE_NATIVE_FENCE
+        {
+            /* Signal id to dup. */
+            IN gctUINT64                syncPoint;
+
+            /* Native fence file descriptor. */
+            OUT gctINT                  fenceFD;
+
+        }
+        CreateNativeFence;
     }
     u;
 }

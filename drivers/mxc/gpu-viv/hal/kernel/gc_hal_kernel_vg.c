@@ -655,6 +655,7 @@ gceSTATUS gckVGKERNEL_Dispatch(
             gcmNAME_TO_PTR(kernelInterface->u.UnmapUserMemory.info),
             kernelInterface->u.UnmapUserMemory.address
             ));
+        gcmRELEASE_NAME(kernelInterface->u.UnmapUserMemory.info);
         break;
     case gcvHAL_LOCK_VIDEO_MEMORY:
         node = gcmUINT64_TO_PTR(Interface->u.LockVideoMemory.node);

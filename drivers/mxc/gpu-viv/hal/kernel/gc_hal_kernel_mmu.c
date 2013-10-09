@@ -1436,7 +1436,7 @@ gckMMU_AllocatePages(
     acquired = gcvTRUE;
 
     /* Allocate page table for current MMU. */
-    for (i = 0; i < mirrorPageTable->reference; i++)
+    for (i = 0; i < (gctINT)mirrorPageTable->reference; i++)
     {
         if (Mmu == mirrorPageTable->mmus[i])
         {
@@ -1446,7 +1446,7 @@ gckMMU_AllocatePages(
     }
 
     /* Allocate page table for other MMUs. */
-    for (i = 0; i < mirrorPageTable->reference; i++)
+    for (i = 0; i < (gctINT)mirrorPageTable->reference; i++)
     {
         mmu = mirrorPageTable->mmus[i];
 
@@ -1500,7 +1500,7 @@ gckMMU_FreePages(
 
     offset = (gctUINT32)PageTable - (gctUINT32)Mmu->pageTableLogical;
 
-    for (i = 0; i < mirrorPageTable->reference; i++)
+    for (i = 0; i < (gctINT)mirrorPageTable->reference; i++)
     {
         mmu = mirrorPageTable->mmus[i];
 
@@ -1639,7 +1639,7 @@ gckMMU_SetPage(
     _WritePageEntry(PageEntry, data);
 
 #if gcdMIRROR_PAGETABLE
-    for (i = 0; i < mirrorPageTable->reference; i++)
+    for (i = 0; i < (gctINT)mirrorPageTable->reference; i++)
     {
         mmu = mirrorPageTable->mmus[i];
 

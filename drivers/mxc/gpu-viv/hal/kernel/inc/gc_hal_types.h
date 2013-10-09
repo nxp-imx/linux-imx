@@ -128,6 +128,7 @@ typedef int                     gctBOOL;
 typedef gctBOOL *               gctBOOL_PTR;
 
 typedef int                     gctINT;
+typedef long                    gctLONG;
 typedef signed char             gctINT8;
 typedef signed short            gctINT16;
 typedef signed int              gctINT32;
@@ -171,6 +172,7 @@ typedef void *                  gctFILE;
 typedef void *                  gctSIGNAL;
 typedef void *                  gctWINDOW;
 typedef void *                  gctIMAGE;
+typedef void *                  gctSYNC_POINT;
 
 typedef void *					gctSEMAPHORE;
 
@@ -941,12 +943,19 @@ typedef struct _gcsHAL_FRAME_INFO
     OUT gctUINT                 readRequests[8];
     OUT gctUINT                 writeRequests[8];
 
+    /* FE counters. */
+    OUT gctUINT                 drawCount;
+    OUT gctUINT                 vertexOutCount;
+    OUT gctUINT                 vertexMissCount;
+
     /* 3D counters. */
     OUT gctUINT                 vertexCount;
     OUT gctUINT                 primitiveCount;
     OUT gctUINT                 rejectedPrimitives;
     OUT gctUINT                 culledPrimitives;
     OUT gctUINT                 clippedPrimitives;
+    OUT gctUINT                 droppedPrimitives;
+    OUT gctUINT                 frustumClippedPrimitives;
     OUT gctUINT                 outPrimitives;
     OUT gctUINT                 inPrimitives;
     OUT gctUINT                 culledQuadCount;
@@ -964,17 +973,85 @@ typedef struct _gcsHAL_FRAME_INFO
     OUT gctUINT                 shaderCycles;
     OUT gctUINT                 vsInstructionCount;
     OUT gctUINT                 vsTextureCount;
+    OUT gctUINT                 vsBranchCount;
+    OUT gctUINT                 vsVertices;
     OUT gctUINT                 psInstructionCount;
     OUT gctUINT                 psTextureCount;
+    OUT gctUINT                 psBranchCount;
+    OUT gctUINT                 psPixels;
 
     /* Texture counters. */
     OUT gctUINT                 bilinearRequests;
     OUT gctUINT                 trilinearRequests;
-    OUT gctUINT                 txBytes8;
+    OUT gctUINT                 txBytes8[2];
     OUT gctUINT                 txHitCount;
     OUT gctUINT                 txMissCount;
 }
 gcsHAL_FRAME_INFO;
+
+typedef enum _gcePATCH_ID
+{
+    gcePATCH_UNKNOWN = 0xFFFFFFFF,
+
+    /* Benchmark list*/
+    gcePATCH_GLB11 = 0x0,
+    gcePATCH_GLB21,
+    gcePATCH_GLB25,
+    gcePATCH_GLB27,
+
+    gcePATCH_BM21,
+    gcePATCH_MM,
+    gcePATCH_MM06,
+    gcePATCH_MM07,
+    gcePATCH_QUADRANT,
+    gcePATCH_ANTUTU,
+    gcePATCH_SMARTBENCH,
+    gcePATCH_JPCT,
+    gcePATCH_NENAMARK,
+    gcePATCH_NENAMARK2,
+    gcePATCH_NEOCORE,
+    gcePATCH_GLB,
+    gcePATCH_GB,
+    gcePATCH_RTESTVA,
+    gcePATCH_BMX,
+    gcePATCH_BMGUI,
+
+    /* Game list */
+    gcePATCH_NBA2013,
+    gcePATCH_BARDTALE,
+    gcePATCH_BUSPARKING3D,
+    gcePATCH_FISHBOODLE,
+    gcePATCH_SUBWAYSURFER,
+    gcePATCH_HIGHWAYDRIVER,
+    gcePATCH_PREMIUM,
+    gcePATCH_RACEILLEGAL,
+    gcePATCH_BLABLA,
+    gcePATCH_MEGARUN,
+    gcePATCH_GALAXYONFIRE2,
+    gcePATCH_GLOFTR3HM,
+    gcePATCH_GLOFTSXHM,
+    gcePATCH_GLOFTF3HM,
+    gcePATCH_GLOFTGANG,
+    gcePATCH_XRUNNER,
+    gcePATCH_WP,
+    gcePATCH_DEVIL,
+    gcePATCH_HOLYARCH,
+    gcePATCH_MUSE,
+    gcePATCH_SG,
+    gcePATCH_SIEGECRAFT,
+    gcePATCH_CARCHALLENGE,
+    gcePATCH_HEROESCALL,
+    gcePATCH_MONOPOLY,
+    gcePATCH_CTGL20,
+    gcePATCH_FIREFOX,
+    gcePATCH_CHORME,
+    gcePATCH_DUOKANTV,
+    gcePATCH_TESTAPP,
+
+    /* Count enum*/
+    gcePATCH_COUNT,
+}
+gcePATCH_ID;
 
 #if gcdLINK_QUEUE_SIZE
 typedef struct _gckLINKDATA * gckLINKDATA;
