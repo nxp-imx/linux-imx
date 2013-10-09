@@ -1122,7 +1122,7 @@ gckGALDEVICE_Destroy(
             pm_runtime_disable(Device->pmdev);
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
         if (Device->gpu_regulator) {
            regulator_put(Device->gpu_regulator);
            Device->gpu_regulator = NULL;
