@@ -123,6 +123,12 @@ extern "C" {
 
 #define gcvINVALID_ADDRESS          ~0U
 
+#define gcmGET_PRE_ROTATION(rotate) \
+    ((rotate) & (~(gcvSURF_POST_FLIP_X | gcvSURF_POST_FLIP_Y)))
+
+#define gcmGET_POST_ROTATION(rotate) \
+    ((rotate) & (gcvSURF_POST_FLIP_X | gcvSURF_POST_FLIP_Y))
+
 /******************************************************************************\
 ******************************** gcsOBJECT Object *******************************
 \******************************************************************************/
@@ -1124,6 +1130,60 @@ gckOS_UnmapUserMemory(
     IN gctUINT32 Address
     );
 
+/******************************************************************************\
+************************** Android Native Fence Sync ***************************
+\******************************************************************************/
+gceSTATUS
+gckOS_CreateSyncTimeline(
+    IN gckOS Os,
+    OUT gctHANDLE * Timeline
+    );
+
+gceSTATUS
+gckOS_DestroySyncTimeline(
+    IN gckOS Os,
+    IN gctHANDLE Timeline
+    );
+
+gceSTATUS
+gckOS_CreateSyncPoint(
+    IN gckOS Os,
+    OUT gctSYNC_POINT * SyncPoint
+    );
+
+gceSTATUS
+gckOS_ReferenceSyncPoint(
+    IN gckOS Os,
+    IN gctSYNC_POINT SyncPoint
+    );
+
+gceSTATUS
+gckOS_DestroySyncPoint(
+    IN gckOS Os,
+    IN gctSYNC_POINT SyncPoint
+    );
+
+gceSTATUS
+gckOS_SignalSyncPoint(
+    IN gckOS Os,
+    IN gctSYNC_POINT SyncPoint
+    );
+
+gceSTATUS
+gckOS_QuerySyncPoint(
+    IN gckOS Os,
+    IN gctSYNC_POINT SyncPoint,
+    OUT gctBOOL_PTR State
+    );
+
+gceSTATUS
+gckOS_CreateNativeFence(
+    IN gckOS Os,
+    IN gctHANDLE Timeline,
+    IN gctSYNC_POINT SyncPoint,
+    OUT gctINT * FenceFD
+    );
+
 #if !USE_NEW_LINUX_SIGNAL
 /* Create signal to be used in the user space. */
 gceSTATUS
@@ -1758,7 +1818,7 @@ gckKERNEL_Recovery(
 void
 gckKERNEL_SetTimeOut(
     IN gckKERNEL Kernel,
-	IN gctUINT32 timeOut
+    IN gctUINT32 timeOut
     );
 
 /* Get access to the user data. */
@@ -2076,6 +2136,12 @@ gceSTATUS
 gckHARDWARE_SetPowerManagement(
     IN gckHARDWARE Hardware,
     IN gctBOOL PowerManagement
+    );
+
+gceSTATUS
+gckHARDWARE_SetGpuProfiler(
+    IN gckHARDWARE Hardware,
+    IN gctBOOL GpuProfiler
     );
 
 #if gcdENABLE_FSCALE_VAL_ADJUST
@@ -2551,6 +2617,22 @@ gckHARDWARE_QueryProfileRegisters(
     IN gckHARDWARE Hardware,
     IN gctBOOL   Clear,
     OUT gcsPROFILER_COUNTERS * Counters
+    );
+#endif
+
+#if VIVANTE_PROFILER_CONTEXT
+gceSTATUS
+gckHARDWARE_QueryContextProfile(
+    IN gckHARDWARE Hardware,
+    IN gctBOOL   Clear,
+    IN gckCONTEXT Context,
+    OUT gcsPROFILER_COUNTERS * Counters
+    );
+
+gceSTATUS
+gckHARDWARE_UpdateContextProfile(
+    IN gckHARDWARE Hardware,
+    IN gckCONTEXT Context
     );
 #endif
 

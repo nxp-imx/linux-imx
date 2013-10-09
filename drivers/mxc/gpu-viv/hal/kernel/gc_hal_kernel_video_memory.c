@@ -1741,6 +1741,11 @@ gckVIDMEM_Lock(
         gcmkONERROR(gckOS_AcquireMutex(os, Node->Virtual.mutex, gcvINFINITE));
         acquired = gcvTRUE;
 
+#if gcdPAGED_MEMORY_CACHEABLE
+        /* Force video memory cacheable. */
+        Cacheable = gcvTRUE;
+#endif
+
         gcmkONERROR(
             gckOS_LockPages(os,
                             Node->Virtual.physical,

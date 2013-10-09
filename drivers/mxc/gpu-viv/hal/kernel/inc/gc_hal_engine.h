@@ -323,6 +323,15 @@ gcoSURF_Resolve(
     IN gcoSURF DestSurface
     );
 
+gceSTATUS
+gcoSURF_IsHWResolveable(
+    IN gcoSURF SrcSurface,
+    IN gcoSURF DestSurface,
+    IN gcsPOINT_PTR SrcOrigin,
+    IN gcsPOINT_PTR DestOrigin,
+    IN gcsPOINT_PTR RectSize
+    );
+
 /* Resolve rectangular area of a surface. */
 gceSTATUS
 gcoSURF_ResolveRect(
@@ -342,6 +351,11 @@ gcoSURF_SetResolvability(
 
 gceSTATUS
 gcoSURF_IsRenderable(
+    IN gcoSURF Surface
+    );
+
+gceSTATUS
+gcoSURF_IsFormatRenderableAsRT(
     IN gcoSURF Surface
     );
 
@@ -1006,6 +1020,7 @@ typedef struct _gcsALPHA_INFO
     gctBOOL                 test;
     gceCOMPARE              compare;
     gctUINT8                reference;
+    gctFLOAT                floatReference;
 
     /* Alpha blending states. */
     gctBOOL                 blend;
@@ -1040,7 +1055,8 @@ gco3D_SetAlphaCompare(
 gceSTATUS
 gco3D_SetAlphaReference(
     IN gco3D Engine,
-    IN gctUINT8 Reference
+    IN gctUINT8 Reference,
+    IN gctFLOAT FloatReference
     );
 
 /* Set alpha test reference in fixed point. */
@@ -1504,6 +1520,19 @@ gcoTEXTURE_UploadSub(
     IN gceSURF_FORMAT Format
     );
 
+/* Upload YUV data to an gcoTEXTURE object. */
+gceSTATUS
+gcoTEXTURE_UploadYUV(
+    IN gcoTEXTURE Texture,
+    IN gceTEXTURE_FACE Face,
+    IN gctUINT Width,
+    IN gctUINT Height,
+    IN gctUINT Slice,
+    IN gctPOINTER Memory[3],
+    IN gctINT Stride[3],
+    IN gceSURF_FORMAT Format
+    );
+
 /* Upload compressed data to an gcoTEXTURE object. */
 gceSTATUS
 gcoTEXTURE_UploadCompressed(
@@ -1618,6 +1647,13 @@ gcoTEXTURE_QueryCaps(
     OUT gctBOOL * NonPowerOfTwo,
     OUT gctUINT * VertexSamplers,
     OUT gctUINT * PixelSamplers
+    );
+
+gceSTATUS
+gcoTEXTURE_GetTiling(
+    IN gcoTEXTURE Texture,
+    IN gctINT preferLevel,
+	OUT gceTILING * Tiling
     );
 
 gceSTATUS
@@ -2000,6 +2036,14 @@ gcoHAL_SetSharedInfo(
     IN gctPOINTER Data,
     IN gctSIZE_T Bytes
     );
+
+#if VIVANTE_PROFILER_CONTEXT
+gceSTATUS
+gcoHARDWARE_GetContext(
+    IN gcoHARDWARE Hardware,
+    OUT gctUINT32 * Context
+    );
+#endif
 
 #ifdef __cplusplus
 }
