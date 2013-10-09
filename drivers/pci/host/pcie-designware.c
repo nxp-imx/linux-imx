@@ -159,7 +159,7 @@ static struct irq_chip dw_msi_irq_chip = {
 void dw_handle_msi_irq(struct pcie_port *pp)
 {
 	unsigned long val;
-	int i, pos;
+	int i, pos, irq;
 
 	for (i = 0; i < MAX_MSI_CTRLS; i++) {
 		dw_pcie_rd_own_conf(pp, PCIE_MSI_INTR0_STATUS + i * 12, 4,
@@ -167,8 +167,9 @@ void dw_handle_msi_irq(struct pcie_port *pp)
 		if (val) {
 			pos = 0;
 			while ((pos = find_next_bit(&val, 32, pos)) != 32) {
-				generic_handle_irq(pp->msi_irq_start
-					+ (i * 32) + pos);
+				irq = irq_find_mapping(pp->irq_domain,
+						i * 32 + pos);
+				generic_handle_irq(irq);
 				pos++;
 			}
 		}
@@ -239,9 +240,8 @@ static int assign_irq(int no_irqs, struct msi_desc *desc, int *pos)
 		}
 	}
 
-	irq = (pp->msi_irq_start + pos0);
-
-	if ((irq + no_irqs) > (pp->msi_irq_start + MAX_MSI_IRQS-1))
+	irq = irq_find_mapping(pp->irq_domain, pos0);
+	if (!irq)
 		goto no_valid_irq;
 
 	i = 0;
@@ -272,6 +272,7 @@ static void clear_irq(unsigned int irq)
 	struct irq_desc *desc;
 	struct msi_desc *msi;
 	struct pcie_port *pp;
+	struct irq_data *data = irq_get_irq_data(irq);
 
 	/* get the port structure */
 	desc = irq_to_desc(irq);
@@ -282,7 +283,7 @@ static void clear_irq(unsigned int irq)
 		return;
 	}
 
-	pos = irq - pp->msi_irq_start;
+	pos = data->hwirq;
 
 	irq_free_desc(irq);
 
@@ -373,8 +374,7 @@ int __init dw_pcie_host_init(struct pcie_port *pp)
 	struct of_pci_range range;
 	struct of_pci_range_parser parser;
 	u32 val;
-
-	struct irq_domain *irq_domain;
+	int i;
 
 	if (of_pci_range_parser_init(&parser, np)) {
 		dev_err(pp->dev, "missing ranges property\n");
@@ -443,15 +443,16 @@ int __init dw_pcie_host_init(struct pcie_port *pp)
 	}
 
 	if (IS_ENABLED(CONFIG_PCI_MSI)) {
-		irq_domain = irq_domain_add_linear(pp->dev->of_node,
+		pp->irq_domain = irq_domain_add_linear(pp->dev->of_node,
 					MAX_MSI_IRQS, &msi_domain_ops,
 					&dw_pcie_msi_chip);
-		if (!irq_domain) {
+		if (!pp->irq_domain) {
 			dev_err(pp->dev, "irq domain init failed\n");
 			return -ENXIO;
 		}
 
-		pp->msi_irq_start = irq_find_mapping(irq_domain, 0);
+		for (i = 0; i < MAX_MSI_IRQS; i++)
+			irq_create_mapping(pp->irq_domain, i);
 	}
 
 	if (pp->ops->host_init)
