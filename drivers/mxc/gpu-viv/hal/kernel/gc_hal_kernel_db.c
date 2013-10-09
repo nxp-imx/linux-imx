@@ -1340,6 +1340,18 @@ gckKERNEL_DestroyProcessDB(
             status = gckOS_FreeMemory(Kernel->os, record->physical);
             break;
 
+#if gcdANDROID_NATIVE_FENCE_SYNC
+        case gcvDB_SYNC_POINT:
+            /* Free the user signal. */
+            status = gckOS_DestroySyncPoint(Kernel->os,
+                                            (gctSYNC_POINT) record->data);
+
+            gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
+                           "DB: SYNC POINT %d (status=%d)",
+                           (gctINT)(gctUINTPTR_T)record->data, status);
+            break;
+#endif
+
         case gcvDB_VIDEO_MEMORY_RESERVED:
         case gcvDB_VIDEO_MEMORY_CONTIGUOUS:
         case gcvDB_VIDEO_MEMORY_VIRTUAL:

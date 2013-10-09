@@ -2399,10 +2399,10 @@ gckOS_SetDebugZones(
 
 void
 gckOS_Verify(
-    IN gceSTATUS Status
+    IN gceSTATUS status
     )
 {
-    _lastError = Status;
+    _lastError = status;
 }
 
 /*******************************************************************************
