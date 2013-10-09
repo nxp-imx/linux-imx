@@ -1528,11 +1528,6 @@ err_dma_request:
 	iram_free((unsigned long)ccb_phys, MAX_DMA_CHANNELS
 			* sizeof(struct sdma_channel_control)
 			+ sizeof(struct sdma_context_data));
-#else
-	dma_free_coherent(NULL, MAX_DMA_CHANNELS
-			* sizeof(struct sdma_channel_control)
-			+ sizeof(struct sdma_context_data),
-			sdma->channel_control, ccb_phys);
 #endif
 err_dma_alloc:
 	clk_disable(sdma->clk);
