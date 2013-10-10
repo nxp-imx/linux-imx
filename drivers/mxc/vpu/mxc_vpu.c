@@ -141,11 +141,13 @@ static wait_queue_head_t vpu_queue;
 static int vpu_jpu_irq;
 #endif
 
+#ifdef CONFIG_PM
 static unsigned int regBk[64];
+static unsigned int pc_before_suspend;
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 static struct regulator *vpu_regulator;
 #endif
-static unsigned int pc_before_suspend;
 static atomic_t clk_cnt_from_ioc = ATOMIC_INIT(0);
 
 #define	READ_REG(x)		readl_relaxed(vpu_base + x)
@@ -193,7 +195,7 @@ static long vpu_power_get(bool on)
 		ret = IS_ERR(vpu_regulator);
 #endif
 	} else {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
 		if (!IS_ERR(vpu_regulator))
 			regulator_put(vpu_regulator);
 #endif
@@ -1026,6 +1028,9 @@ out:
 
 static int vpu_dev_remove(struct platform_device *pdev)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+	pm_runtime_disable(&pdev->dev);
+#endif
 	free_irq(vpu_ipi_irq, &vpu_data);
 #ifdef MXC_VPU_HAS_JPU
 	free_irq(vpu_jpu_irq, &vpu_data);
