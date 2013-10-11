@@ -25,6 +25,7 @@
 
 #define CI_HDRC_IMX_IMX28_WRITE_FIX		BIT(0)
 #define CI_HDRC_IMX_SUPPORT_RUNTIME_PM		BIT(1)
+#define CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK		BIT(2)
 
 struct ci_hdrc_imx_platform_flag {
 	unsigned int flags;
@@ -33,12 +34,18 @@ struct ci_hdrc_imx_platform_flag {
 static const struct ci_hdrc_imx_platform_flag imx27_usb_data = {
 };
 
+static const struct ci_hdrc_imx_platform_flag imx23_usb_data = {
+	.flags = CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK,
+};
+
 static const struct ci_hdrc_imx_platform_flag imx28_usb_data = {
-	.flags = CI_HDRC_IMX_IMX28_WRITE_FIX,
+	.flags = CI_HDRC_IMX_IMX28_WRITE_FIX |
+		CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6q_usb_data = {
-	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM,
+	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM |
+		CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sl_usb_data = {
@@ -49,6 +56,7 @@ static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
 	{ .compatible = "fsl,imx6sl-usb", .data = &imx6sl_usb_data},
 	{ .compatible = "fsl,imx6q-usb", .data = &imx6q_usb_data},
 	{ .compatible = "fsl,imx28-usb", .data = &imx28_usb_data},
+	{ .compatible = "fsl,imx23-usb", .data = &imx23_usb_data},
 	{ .compatible = "fsl,imx27-usb", .data = &imx27_usb_data},
 	{ /* sentinel */ }
 };
@@ -159,10 +167,13 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	if (imx_platform_flag->flags & CI_HDRC_IMX_IMX28_WRITE_FIX)
 		pdata.flags |= CI_HDRC_IMX28_WRITE_FIX;
 
-	if (imx_platform_flag->flags & CI_HDRC_IMX_SUPPORT_RUNTIME_PM)
+	if (imx_platform_flag->flags & CI_HDRC_IMX_SUPPORT_RUNTIME_PM) {
 		pdata.flags |= CI_HDRC_SUPPORTS_RUNTIME_PM;
 		data->supports_runtime_pm = true;
 	}
+
+	if (imx_platform_flag->flags & CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK)
+		pdata.flags |= CI_HDRC_IMX_EHCI_QUIRK;
 
 	if (data->usbmisc_data) {
 		ret = imx_usbmisc_init(data->usbmisc_data);
