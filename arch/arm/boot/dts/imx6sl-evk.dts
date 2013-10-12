@@ -153,8 +153,9 @@
 };
 
 &fec {
-	pinctrl-names = "default";
+	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_fec_1>;
+	pinctrl-1 = <&pinctrl_fec_1_sleep>;
 	phy-mode = "rmii";
 	phy-reset-gpios = <&gpio4 21 0>; /* GPIO4_21 */
 	phy-reset-duration = <1>;
