@@ -17,6 +17,7 @@ source "drivers/mxc/asrc/Kconfig"
 source "drivers/mxc/vpu/Kconfig"
 source "drivers/mxc/hdmi-cec/Kconfig"
 source "drivers/mxc/mipi/Kconfig"
+source "drivers/mxc/mlb/Kconfig"
 
 endmenu
 
