@@ -1,7 +1,7 @@
 /*
  * IMX pinmux core definitions
  *
- * Copyright (C) 2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc.
  * Copyright (C) 2012 Linaro Ltd.
  *
  * Author: Dong Aisheng <dong.aisheng@linaro.org>
@@ -92,4 +92,8 @@ struct imx_pinctrl_soc_info {
 int imx_pinctrl_probe(struct platform_device *pdev,
 			struct imx_pinctrl_soc_info *info);
 int imx_pinctrl_remove(struct platform_device *pdev);
+#ifdef CONFIG_PM
+int imx_pinctrl_suspend(struct platform_device *pdev, pm_message_t state);
+int imx_pinctrl_resume(struct platform_device *pdev);
+#endif
 #endif /* __DRIVERS_PINCTRL_IMX_H */
