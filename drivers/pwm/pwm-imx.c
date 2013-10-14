@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2013 Freescale Semiconductor, Inc.
  * simple driver for PWM (Pulse Width Modulator) controller
  *
  * This program is free software; you can redistribute it and/or modify
@@ -292,10 +293,34 @@ static int imx_pwm_remove(struct platform_device *pdev)
 	return pwmchip_remove(&imx->chip);
 }
 
+#ifdef CONFIG_PM
+static int imx_pwm_suspend(struct device *dev)
+{
+	pinctrl_pm_select_sleep_state(dev);
+
+	return 0;
+}
+
+static int imx_pwm_resume(struct device *dev)
+{
+	pinctrl_pm_select_default_state(dev);
+
+	return 0;
+}
+
+static const struct dev_pm_ops imx_pwm_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(imx_pwm_suspend, imx_pwm_resume)
+};
+#endif
+
+
 static struct platform_driver imx_pwm_driver = {
 	.driver		= {
 		.name	= "imx-pwm",
 		.of_match_table = of_match_ptr(imx_pwm_dt_ids),
+#ifdef CONFIG_PM
+		.pm     = &imx_pwm_pm_ops,
+#endif
 	},
 	.probe		= imx_pwm_probe,
 	.remove		= imx_pwm_remove,
