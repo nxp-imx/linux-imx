@@ -455,8 +455,9 @@
 };
 
 &kpp {
-	pinctrl-names = "default";
+	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_kpp_1>;
+	pinctrl-1 = <&pinctrl_kpp_1_sleep>;
 	linux,keymap = <
 			0x00000067      /* KEY_UP */
 			0x0001006c      /* KEY_DOWN */
