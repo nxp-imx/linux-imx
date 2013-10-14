@@ -1043,6 +1043,12 @@
 				MX6SL_PAD_PWM1__PWM1_OUT 0x110b0
 			>;
 		};
+
+		pinctrl_pwm1_0_sleep: pwm1grp-0-sleep {
+			fsl,pins = <
+				MX6SL_PAD_PWM1__GPIO3_IO23 0x3080
+			>;
+		};
 	};
 
 	spdif {

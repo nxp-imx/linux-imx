@@ -504,8 +504,9 @@
 };
 
 &pwm1 {
-	pinctrl-names = "default";
+	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_pwm1_0>;
+	pinctrl-1 = <&pinctrl_pwm1_0_sleep>;
 	status = "okay";
 };
 
