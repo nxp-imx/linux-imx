@@ -1,7 +1,7 @@
 /*
  * Core driver for the imx pin controller
  *
- * Copyright (C) 2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc.
  * Copyright (C) 2012 Linaro Ltd.
  *
  * Author: Dong Aisheng <dong.aisheng@linaro.org>
@@ -649,3 +649,25 @@ int imx_pinctrl_remove(struct platform_device *pdev)
 
 	return 0;
 }
+
+#ifdef CONFIG_PM
+int imx_pinctrl_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct imx_pinctrl *ipctl = platform_get_drvdata(pdev);
+
+	if (!ipctl)
+		return -EINVAL;
+
+	return pinctrl_force_sleep(ipctl->pctl);
+}
+
+int imx_pinctrl_resume(struct platform_device *pdev)
+{
+	struct imx_pinctrl *ipctl = platform_get_drvdata(pdev);
+
+	if (!ipctl)
+		return -EINVAL;
+
+	return pinctrl_force_default(ipctl->pctl);
+}
+#endif

@@ -384,6 +384,10 @@ static struct platform_driver imx6sl_pinctrl_driver = {
 	},
 	.probe = imx6sl_pinctrl_probe,
 	.remove = imx_pinctrl_remove,
+#ifdef CONFIG_PM
+	.suspend = imx_pinctrl_suspend,
+	.resume = imx_pinctrl_resume,
+#endif
 };
 
 static int __init imx6sl_pinctrl_init(void)
