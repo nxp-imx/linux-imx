@@ -1,6 +1,7 @@
 /*
  * Driver for the IMX keypad port.
  * Copyright (C) 2009 Alberto Panizzo <maramaopercheseimorto@gmail.com>
+ * Copyright (C) 2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -553,6 +554,8 @@ static int imx_kbd_suspend(struct device *dev)
 
 	if (device_may_wakeup(&pdev->dev))
 		enable_irq_wake(kbd->irq);
+	else
+		pinctrl_pm_select_sleep_state(dev);
 
 	return 0;
 }
@@ -566,6 +569,8 @@ static int imx_kbd_resume(struct device *dev)
 
 	if (device_may_wakeup(&pdev->dev))
 		disable_irq_wake(kbd->irq);
+	else
+		pinctrl_pm_select_default_state(dev);
 
 	mutex_lock(&input_dev->mutex);
 
