@@ -13,6 +13,7 @@
 #include <linux/clk.h>
 #include <linux/clkdev.h>
 #include <linux/err.h>
+#include <linux/init.h>
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -22,6 +23,7 @@
 #include "clk.h"
 #include "common.h"
 
+static bool uart_from_osc;
 static const char const *step_sels[]		= { "osc", "pll2_pfd2", };
 static const char const *pll1_sw_sels[]		= { "pll1_sys", "step", };
 static const char const *ocram_alt_sels[]	= { "pll2_pfd2", "pll3_pfd1", };
@@ -44,7 +46,7 @@ static const char const *lcdif_pix_sels[]	= { "pll2_bus", "pll3_usb_otg", "pll5_
 static const char const *epdc_pix_sels[]	= { "pll2_bus", "pll3_usb_otg", "pll5_video_div", "pll2_pfd0", "pll2_pfd1", "pll3_pfd1", };
 static const char const *audio_sels[]		= { "pll4_audio_div", "pll3_pfd2", "pll3_pfd3", "pll3_usb_otg", };
 static const char const *ecspi_sels[]		= { "pll3_60m", "osc", };
-static const char const *uart_sels[]		= { "pll3_80m", "osc", };
+static const char const *uart_sels[]		= { "pll3_80m", "uart_osc_4M", };
 
 static struct clk_div_table clk_enet_ref_table[] = {
 	{ .val = 0, .div = 20, },
@@ -133,6 +135,14 @@ void imx6sl_set_wait_clk(bool enter)
 	}
 }
 
+static int __init setup_uart_clk(char *uart_rate)
+{
+	uart_from_osc = true;
+	return 1;
+}
+
+__setup("uart_at_4M", setup_uart_clk);
+
 static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 {
 	struct device_node *np;
@@ -187,11 +197,12 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SL_CLK_PLL3_PFD2] = imx_clk_pfd("pll3_pfd2", "pll3_usb_otg", base + 0xf0,  2);
 	clks[IMX6SL_CLK_PLL3_PFD3] = imx_clk_pfd("pll3_pfd3", "pll3_usb_otg", base + 0xf0,  3);
 
-	/*                                                name         parent_name     mult div */
-	clks[IMX6SL_CLK_PLL2_198M] = imx_clk_fixed_factor("pll2_198m", "pll2_pfd2",      1, 2);
-	clks[IMX6SL_CLK_PLL3_120M] = imx_clk_fixed_factor("pll3_120m", "pll3_usb_otg",   1, 4);
-	clks[IMX6SL_CLK_PLL3_80M]  = imx_clk_fixed_factor("pll3_80m",  "pll3_usb_otg",   1, 6);
-	clks[IMX6SL_CLK_PLL3_60M]  = imx_clk_fixed_factor("pll3_60m",  "pll3_usb_otg",   1, 8);
+	/*                                                       name         parent_name     mult div */
+	clks[IMX6SL_CLK_PLL2_198M]    = imx_clk_fixed_factor("pll2_198m", "pll2_pfd2",      1, 2);
+	clks[IMX6SL_CLK_PLL3_120M]    = imx_clk_fixed_factor("pll3_120m", "pll3_usb_otg",   1, 4);
+	clks[IMX6SL_CLK_PLL3_80M]     = imx_clk_fixed_factor("pll3_80m",  "pll3_usb_otg",   1, 6);
+	clks[IMX6SL_CLK_PLL3_60M]     = imx_clk_fixed_factor("pll3_60m",  "pll3_usb_otg",   1, 8);
+	clks[IMX6SL_CLK_UART_OSC_4M]  = imx_clk_fixed_factor("uart_osc_4M", "osc",          1, 6);
 
 	np = ccm_node;
 	base = of_iomap(np, 0);
@@ -379,6 +390,10 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	reg = readl_relaxed(base + CCM_CCDR_OFFSET);
 	reg |= 1 << CCDR_CH0_HS_BYP;
 	writel_relaxed(reg, base + CCM_CCDR_OFFSET);
+
+	/* Set the UART parent if needed. */
+	if (uart_from_osc)
+		ret = clk_set_parent(clks[IMX6SL_CLK_UART_SEL], clks[IMX6SL_CLK_UART_OSC_4M]);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx6sl-gpt");
 	base = of_iomap(np, 0);
