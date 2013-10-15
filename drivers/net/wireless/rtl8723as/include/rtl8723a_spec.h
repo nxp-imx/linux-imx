@@ -69,8 +69,8 @@
 //	0x0400h ~ 0x047Fh	Protocol Configuration
 //
 //-----------------------------------------------------
-#define REG_EARLY_MODE_CONTROL		0x4D0
-
+//#define REG_EARLY_MODE_CONTROL		0x4D0
+#define REG_MACID_NO_LINK 0x4D0
 
 //-----------------------------------------------------
 //
@@ -100,6 +100,8 @@
 //
 #define	REG_NAV_UPPER			0x0652	// unit of 128
 
+#define REG_BT_COEX_TABLE_1		0x06C0
+#define REG_BT_COEX_TABLE_2		0x06C4
 
 //============================================================================
 //	8723 Regsiter Bit and Content definition
@@ -525,6 +527,11 @@
 //============================================================================
 //	General definitions
 //============================================================================
+
+#ifdef CONFIG_RF_GAIN_OFFSET
+#define	EEPROM_RF_GAIN_OFFSET			0x2F
+#define	EEPROM_RF_GAIN_VAL				0x1F6
+#endif //CONFIG_RF_GAIN_OFFSET
 
 
 #endif

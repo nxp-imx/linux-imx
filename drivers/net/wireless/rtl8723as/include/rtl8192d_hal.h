@@ -850,6 +850,5 @@ VOID PHY_SetPowerOnFor8192D(PADAPTER Adapter);
 //void PHY_ConfigMacPhyMode92D(PADAPTER Adapter);
 void rtl8192d_free_hal_data(_adapter * padapter);
 void rtl8192d_set_hal_ops(struct hal_ops *pHalFunc);
-void	rtl8192d_clone_haldata(_adapter* dst_adapter, _adapter* src_adapter);
 #endif
 

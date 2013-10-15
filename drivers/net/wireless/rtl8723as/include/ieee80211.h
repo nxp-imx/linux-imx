@@ -821,7 +821,10 @@ struct ieee80211_softmac_stats{
 #define WEP_KEYS 4
 #define WEP_KEY_LEN 13
 
-
+#ifdef CONFIG_IEEE80211W
+#define BIP_MAX_KEYID 5
+#define BIP_AAD_SIZE  20
+#endif //CONFIG_IEEE80211W
 
 #if defined(PLATFORM_LINUX) || defined(CONFIG_RTL8711FW)
 
@@ -1184,6 +1187,8 @@ enum ieee80211_state {
 #define DEFAULT_FTS 2346
 #define MAC_FMT "%02x:%02x:%02x:%02x:%02x:%02x"
 #define MAC_ARG(x) ((u8*)(x))[0],((u8*)(x))[1],((u8*)(x))[2],((u8*)(x))[3],((u8*)(x))[4],((u8*)(x))[5]
+#define IP_FMT "%d.%d.%d.%d"
+#define IP_ARG(x) ((u8*)(x))[0],((u8*)(x))[1],((u8*)(x))[2],((u8*)(x))[3]
 
 #ifdef PLATFORM_FREEBSD //Baron change func to macro
 #define is_multicast_mac_addr(Addr) ((((Addr[0]) & 0x01) == 0x01) && ((Addr[0]) != 0xff))
@@ -1200,6 +1205,12 @@ extern __inline int is_broadcast_mac_addr(const u8 *addr)
 {
 	return ((addr[0] == 0xff) && (addr[1] == 0xff) && (addr[2] == 0xff) &&   \
 		(addr[3] == 0xff) && (addr[4] == 0xff) && (addr[5] == 0xff));
+}
+
+extern __inline int is_zero_mac_addr(const u8 *addr)
+{
+	return ((addr[0] == 0x00) && (addr[1] == 0x00) && (addr[2] == 0x00) &&   \
+		(addr[3] == 0x00) && (addr[4] == 0x00) && (addr[5] == 0x00));
 }
 #endif //PLATFORM_FREEBSD
 
@@ -1248,7 +1259,9 @@ enum rtw_ieee80211_category {
 	RTW_WLAN_CATEGORY_FT = 6,
 	RTW_WLAN_CATEGORY_HT = 7,
 	RTW_WLAN_CATEGORY_SA_QUERY = 8,
+	RTW_WLAN_CATEGORY_UNPROTECTED_WNM = 11, // add for CONFIG_IEEE80211W, none 11w also can use
 	RTW_WLAN_CATEGORY_TDLS = 12,
+	RTW_WLAN_CATEGORY_SELF_PROTECTED = 15, // add for CONFIG_IEEE80211W, none 11w also can use
 	RTW_WLAN_CATEGORY_WMM = 17,
 	RTW_WLAN_CATEGORY_P2P = 0x7f,//P2P action frames
 };
@@ -1513,6 +1526,7 @@ int rtw_parse_wpa2_ie(u8* wpa_ie, int wpa_ie_len, int *group_cipher, int *pairwi
 int rtw_get_sec_ie(u8 *in_ie,uint in_len,u8 *rsn_ie,u16 *rsn_len,u8 *wpa_ie,u16 *wpa_len);
 
 u8 rtw_is_wps_ie(u8 *ie_ptr, uint *wps_ielen);
+u8 *rtw_get_wps_ie_from_scan_queue(u8 *in_ie, uint in_len, u8 *wps_ie, uint *wps_ielen, u8 frame_type);
 u8 *rtw_get_wps_ie(u8 *in_ie, uint in_len, u8 *wps_ie, uint *wps_ielen);
 u8 *rtw_get_wps_attr(u8 *wps_ie, uint wps_ielen, u16 target_attr_id ,u8 *buf_attr, u32 *len_attr);
 u8 *rtw_get_wps_attr_content(u8 *wps_ie, uint wps_ielen, u16 target_attr_id ,u8 *buf_content, uint *len_content);
@@ -1530,8 +1544,11 @@ void dump_ies(u8 *buf, u32 buf_len);
 void dump_wps_ie(u8 *ie, u32 ie_len);
 
 #ifdef CONFIG_P2P
+u32 rtw_get_p2p_merged_ies_len(u8 *in_ie, u32 in_len);
+int rtw_p2p_merge_ies(u8 *in_ie, u32 in_len, u8 *merge_ie);
 void dump_p2p_ie(u8 *ie, u32 ie_len);
 u8 *rtw_get_p2p_ie(u8 *in_ie, int in_len, u8 *p2p_ie, uint *p2p_ielen);
+u8 *rtw_get_p2p_ie_from_scan_queue(u8 *in_ie, int in_len, u8 *p2p_ie, uint *p2p_ielen, u8 frame_type);
 u8 *rtw_get_p2p_attr(u8 *p2p_ie, uint p2p_ielen, u8 target_attr_id ,u8 *buf_attr, u32 *len_attr);
 u8 *rtw_get_p2p_attr_content(u8 *p2p_ie, uint p2p_ielen, u8 target_attr_id ,u8 *buf_content, uint *len_content);
 u32 rtw_set_p2p_attr_content(u8 *pbuf, u8 attr_id, u16 attr_len, u8 *pdata_attr);
@@ -1539,7 +1556,9 @@ void rtw_WLAN_BSSID_EX_remove_p2p_attr(WLAN_BSSID_EX *bss_ex, u8 attr_id);
 #endif
 
 #ifdef CONFIG_WFD
+void dump_wfd_ie(u8 *ie, u32 ie_len);
 int rtw_get_wfd_ie(u8 *in_ie, int in_len, u8 *wfd_ie, uint *wfd_ielen);
+int rtw_get_wfd_ie_from_scan_queue(u8 *in_ie, int in_len, u8 *p2p_ie, uint *p2p_ielen, u8 frame_type);
 int rtw_get_wfd_attr_content(u8 *wfd_ie, uint wfd_ielen, u8 target_attr_id ,u8 *attr_content, uint *attr_contentlen);
 #endif // CONFIG_WFD
 

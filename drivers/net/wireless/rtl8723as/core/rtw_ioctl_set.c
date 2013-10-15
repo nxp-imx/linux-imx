@@ -47,6 +47,20 @@ extern void indicate_wx_scan_complete_event(_adapter *padapter);
 		(addr[4] == 0xff) && (addr[5] == 0xff) )  ? _TRUE : _FALSE \
 )
 
+u8 rtw_validate_bssid(u8 *bssid)
+{
+	u8 ret = _TRUE;
+
+	if (is_zero_mac_addr(bssid)
+		|| is_broadcast_mac_addr(bssid)
+		|| is_multicast_mac_addr(bssid)
+	) { 
+		ret = _FALSE;
+	}
+
+	return ret;
+}
+
 u8 rtw_validate_ssid(NDIS_802_11_SSID *ssid)
 {
 	u8	 i;
@@ -60,6 +74,7 @@ _func_enter_;
 		goto exit;
 	}
 
+#ifdef CONFIG_VALIDATE_SSID
 	for(i = 0; i < ssid->SsidLength; i++)
 	{
 		//wifi, printable ascii code must be supported
@@ -69,6 +84,7 @@ _func_enter_;
 			break;
 		}
 	}
+#endif /* CONFIG_VALIDATE_SSID */
 
 exit:	
 
@@ -374,24 +390,10 @@ _func_enter_;
 	}
 
 handle_tkip_countermeasure:
-	//should we add something here...?
-
-#ifdef PLATFORM_LINUX
-	if (padapter->securitypriv.btkip_countermeasure == _TRUE) {
-		cur_time = rtw_get_current_time();
-
-		if( (cur_time - padapter->securitypriv.btkip_countermeasure_time) > 60 * HZ )
-		{
-			padapter->securitypriv.btkip_countermeasure = _FALSE;
-			padapter->securitypriv.btkip_countermeasure_time = 0;
-		}
-		else
-		{
-			status = _FAIL;
-			goto release_mlme_lock;
-		}
+	if (rtw_handle_tkip_countermeasure(padapter, __func__) == _FAIL) {
+		status = _FAIL;
+		goto release_mlme_lock;
 	}
-#endif
 
 	_rtw_memcpy(&pmlmepriv->assoc_bssid, bssid, ETH_ALEN);
 	pmlmepriv->assoc_by_bssid=_TRUE;
@@ -506,56 +508,15 @@ _func_enter_;
 	}
 
 handle_tkip_countermeasure:
-#ifdef PLATFORM_WINDOWS
-	if (padapter->securitypriv.btkip_countermeasure==_TRUE)
-	{
-		LARGE_INTEGER	sys_time;
-		u32  diff_time,cur_time ;
-		RT_TRACE(_module_rtl871x_ioctl_set_c_,_drv_info_,("rtw_set_802_11_ssid:padapter->securitypriv.btkip_countermeasure==_TRUE\n"));
-		NdisGetCurrentSystemTime(&sys_time);	
-		cur_time=(u32)(sys_time.QuadPart/10);  // In micro-second.
-		RT_TRACE(_module_rtl871x_ioctl_set_c_,_drv_info_,("rtw_set_802_11_ssid:cur_time=0x%x\n",cur_time));
-		RT_TRACE(_module_rtl871x_ioctl_set_c_,_drv_info_,("rtw_set_802_11_ssid:psecuritypriv->last_mic_err_time=0x%x\n",padapter->securitypriv.btkip_countermeasure_time));
-		diff_time = cur_time -padapter->securitypriv.btkip_countermeasure_time; // In micro-second.
-		RT_TRACE(_module_rtl871x_ioctl_set_c_,_drv_info_,("rtw_set_802_11_ssid:diff_time=0x%x\n",diff_time));
-
-		if (diff_time > 60000000) {
-			RT_TRACE(_module_rtl871x_ioctl_set_c_,_drv_info_,("rtw_set_802_11_ssid(): countermeasure time >60s.\n"));
-			padapter->securitypriv.btkip_countermeasure=_FALSE;
-			// Update MIC error time.
-			padapter->securitypriv.btkip_countermeasure_time=0;
-		} else {
-			// can't join  in 60 seconds.
-			status = _FAIL;
-			RT_TRACE(_module_rtl871x_ioctl_set_c_,_drv_info_,("rtw_set_802_11_ssid(): countermeasure time <60s.\n"));
-			goto release_mlme_lock;
-		}
+	if (rtw_handle_tkip_countermeasure(padapter, __func__) == _FAIL) {
+		status = _FAIL;
+		goto release_mlme_lock;
 	}
-#endif
 
-#ifdef PLATFORM_LINUX
-	if (padapter->securitypriv.btkip_countermeasure == _TRUE) {
-		cur_time = rtw_get_current_time();
-
-		if( (cur_time - padapter->securitypriv.btkip_countermeasure_time) > 60 * HZ )
-		{
-			padapter->securitypriv.btkip_countermeasure = _FALSE;
-			padapter->securitypriv.btkip_countermeasure_time = 0;
-		}
-		else
-		{
-			status = _FAIL;
-			goto release_mlme_lock;
-		}
-	}
-#endif
-
-	#ifdef CONFIG_VALIDATE_SSID
 	if (rtw_validate_ssid(ssid) == _FALSE) {
 		status = _FAIL;
 		goto release_mlme_lock;
 	}
-	#endif
 
 	_rtw_memcpy(&pmlmepriv->assoc_ssid, ssid, sizeof(NDIS_802_11_SSID));
 	pmlmepriv->assoc_by_bssid=_FALSE;
@@ -578,6 +539,79 @@ _func_exit_;
 
 	return status;
 	
+}
+
+u8 rtw_set_802_11_connect(_adapter* padapter, u8 *bssid, NDIS_802_11_SSID *ssid)
+{
+	_irqL irqL;
+	u8 status = _SUCCESS;
+	u32 cur_time = 0;
+	bool bssid_valid = _TRUE;
+	bool ssid_valid = _TRUE;
+	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
+
+_func_enter_;
+
+	if (!ssid || rtw_validate_ssid(ssid) == _FALSE)
+		ssid_valid = _FALSE;
+
+	if (!bssid || rtw_validate_bssid(bssid) == _FALSE)
+		bssid_valid = _FALSE;
+
+	if (ssid_valid == _FALSE && bssid_valid == _FALSE) {
+		DBG_871X(FUNC_ADPT_FMT" ssid:%p, ssid_valid:%d, bssid:%p, bssid_valid:%d\n",
+			FUNC_ADPT_ARG(padapter), ssid, ssid_valid, bssid, bssid_valid);
+		status = _FAIL;
+		goto exit;
+	}
+
+	if(padapter->hw_init_completed==_FALSE){
+		RT_TRACE(_module_rtl871x_ioctl_set_c_, _drv_err_,
+			 ("set_ssid: hw_init_completed==_FALSE=>exit!!!\n"));
+		status = _FAIL;
+		goto exit;
+	}
+
+	_enter_critical_bh(&pmlmepriv->lock, &irqL);
+
+	DBG_871X_LEVEL(_drv_always_, FUNC_ADPT_FMT"  fw_state=0x%08x\n",
+		FUNC_ADPT_ARG(padapter), get_fwstate(pmlmepriv));
+
+	if (check_fwstate(pmlmepriv, _FW_UNDER_SURVEY) == _TRUE) {
+		goto handle_tkip_countermeasure;
+	} else if (check_fwstate(pmlmepriv, _FW_UNDER_LINKING) == _TRUE) {
+		goto release_mlme_lock;
+	}
+
+handle_tkip_countermeasure:
+	if (rtw_handle_tkip_countermeasure(padapter, __func__) == _FAIL) {
+		status = _FAIL;
+		goto release_mlme_lock;
+	}
+
+	if (ssid && ssid_valid)
+		_rtw_memcpy(&pmlmepriv->assoc_ssid, ssid, sizeof(NDIS_802_11_SSID));
+
+	if (bssid && bssid_valid) {
+		_rtw_memcpy(&pmlmepriv->assoc_bssid, bssid, ETH_ALEN);
+		pmlmepriv->assoc_by_bssid = _TRUE;
+	}
+
+	if (check_fwstate(pmlmepriv, _FW_UNDER_SURVEY) == _TRUE) {
+		pmlmepriv->to_join = _TRUE;	
+	}
+	else {
+		status = rtw_do_join(padapter);
+	}
+
+release_mlme_lock:
+	_exit_critical_bh(&pmlmepriv->lock, &irqL);
+
+exit:
+	
+_func_exit_;
+
+	return status;
 }
 
 u8 rtw_set_802_11_infrastructure_mode(_adapter* padapter, 
@@ -683,7 +717,8 @@ _func_enter_;
 
 		rtw_disassoc_cmd(padapter, 0, _TRUE);
 		rtw_indicate_disconnect(padapter);
-		rtw_free_assoc_resources(padapter, 1);	
+		//modify for CONFIG_IEEE80211W, none 11w can use it
+		rtw_free_assoc_resources_cmd(padapter);
 		rtw_pwr_wakeup(padapter);		
 	}
 
@@ -832,7 +867,7 @@ _func_enter_;
 		psecuritypriv->dot11DefKey[keyid].skey[9],psecuritypriv->dot11DefKey[keyid].skey[10],psecuritypriv->dot11DefKey[keyid].skey[11],
 		psecuritypriv->dot11DefKey[keyid].skey[12]));
 
-	res=rtw_set_key(padapter,psecuritypriv, keyid, 1);
+	res=rtw_set_key(padapter,psecuritypriv, keyid, 1,_TRUE);
 	
 	if(res==_FAIL)
 		ret= _FALSE;
@@ -864,7 +899,7 @@ _func_enter_;
 			
 			_rtw_memset(&psecuritypriv->dot11DefKey[keyindex], 0, 16);
 			
-			res=rtw_set_key(padapter,psecuritypriv,keyindex, 0);
+			res=rtw_set_key(padapter,psecuritypriv,keyindex, 0,_TRUE);
 			
 			psecuritypriv->dot11DefKeylen[keyindex]=0;
 			
@@ -1180,7 +1215,7 @@ _func_enter_;
 		
 		RT_TRACE(_module_rtl871x_ioctl_set_c_,_drv_err_,("reset group key"));
 		
-		res=rtw_set_key(padapter,&padapter->securitypriv, key->KeyIndex, 1);
+		res=rtw_set_key(padapter,&padapter->securitypriv, key->KeyIndex, 1,_TRUE);
 
 		if(res==_FAIL)
 			ret= _FAIL;
@@ -1230,11 +1265,11 @@ _func_enter_;
 			//Set key to CAM through H2C command
 			if(bgrouptkey)//never go to here
 			{
-				res=rtw_setstakey_cmd(padapter, (unsigned char *)stainfo, _FALSE);
+				res=rtw_setstakey_cmd(padapter, (unsigned char *)stainfo, _FALSE, _TRUE);
 				RT_TRACE(_module_rtl871x_ioctl_set_c_,_drv_err_,("\n rtw_set_802_11_add_key:rtw_setstakey_cmd(group)\n"));
 			}
 			else{
-				res=rtw_setstakey_cmd(padapter, (unsigned char *)stainfo, _TRUE);
+				res=rtw_setstakey_cmd(padapter, (unsigned char *)stainfo, _TRUE, _TRUE);
 				RT_TRACE(_module_rtl871x_ioctl_set_c_,_drv_err_,("\n rtw_set_802_11_add_key:rtw_setstakey_cmd(unicast)\n"));
 			}
 			
@@ -1441,6 +1476,8 @@ int rtw_set_country(_adapter *adapter, const char *country_code)
 		channel_plan = RT_CHANNEL_DOMAIN_MKK;
 	else if(0 == strcmp(country_code, "CN"))
 		channel_plan = RT_CHANNEL_DOMAIN_CHINA;
+	else if(0 == strcmp(country_code, "IN"))
+		channel_plan = RT_CHANNEL_DOMAIN_GLOBAL_DOAMIN;
 	else
 		DBG_871X("%s unknown country_code:%s\n", __FUNCTION__, country_code);
 	

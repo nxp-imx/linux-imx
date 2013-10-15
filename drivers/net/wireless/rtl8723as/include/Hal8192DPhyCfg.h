@@ -481,6 +481,7 @@ PHY_InitPABias92D(IN	PADAPTER Adapter);
 #define PHY_SetRFReg(Adapter, eRFPath, RegAddr, BitMask, Data) rtl8192d_PHY_SetRFReg((Adapter), (eRFPath), (RegAddr), (BitMask), (Data))
 
 #define PHY_SetMacReg	PHY_SetBBReg
+#define PHY_QueryMacReg PHY_QueryBBReg
 
 #endif	// __INC_HAL8192SPHYCFG_H
 

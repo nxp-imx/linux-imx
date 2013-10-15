@@ -47,9 +47,9 @@
 #define CONFIG_80211N_HT
 #define CONFIG_RECV_REORDERING_CTRL
 
-#define CONFIG_IOCTL_CFG80211
+//#define CONFIG_IOCTL_CFG80211
 #ifdef CONFIG_IOCTL_CFG80211
-	#define RTW_USE_CFG80211_STA_EVENT /* Indecate new sta asoc through cfg80211_new_sta */
+	//#define RTW_USE_CFG80211_STA_EVENT /* Indecate new sta asoc through cfg80211_new_sta */
 	#define CONFIG_CFG80211_FORCE_COMPATIBLE_2_6_37_UNDER
 	//#define CONFIG_DEBUG_CFG80211
 	#define CONFIG_SET_SCAN_DENY_TIMER
@@ -76,8 +76,9 @@
 	#endif
 	//#define CONFIG_DBG_P2P
 
-	//#define CONFIG_P2P_PS
+	#define CONFIG_P2P_PS
 	//#define CONFIG_P2P_IPS
+	#define P2P_OP_CHECK_SOCIAL_CH
 #endif
 
 //	Added by Kurt 20110511
@@ -119,6 +120,7 @@
 #define CONFIG_LONG_DELAY_ISSUE
 #define CONFIG_NEW_SIGNAL_STAT_PROCESS
 #define RTW_NOTCH_FILTER 0 /* 0:Disable, 1:Enable, */
+#define CONFIG_DEAUTH_BEFORE_CONNECT
 //#define CONFIG_PATCH_JOIN_WRONG_CHANNEL
 
 
@@ -141,10 +143,11 @@
 #endif
 
 
-#define CONFIG_CONCURRENT_MODE 
+//#define CONFIG_CONCURRENT_MODE 
 #ifdef CONFIG_CONCURRENT_MODE
 	#define CONFIG_TSF_RESET_OFFLOAD 			// For 2 PORT TSF SYNC.
 	//#define CONFIG_HWPORT_SWAP				//Port0->Sec , Port1 -> Pri
+	//#define CONFIG_STA_MODE_SCAN_UNDER_AP_MODE
 #endif	// CONFIG_CONCURRENT_MODE
 
 
@@ -183,6 +186,7 @@
 	#ifndef CONFIG_LPS
 		#define CONFIG_LPS	// download reserved page to FW
 	#endif
+	#define CONFIG_CHECK_BT_HANG
 #endif
 
 
@@ -190,6 +194,8 @@
 #define CONFIG_SW_ANTENNA_DIVERSITY
 //#define CONFIG_HW_ANTENNA_DIVERSITY
 #endif
+
+//#define CONFIG_RF_GAIN_OFFSET
 
 #ifndef DISABLE_BB_RF
 #define DISABLE_BB_RF	0

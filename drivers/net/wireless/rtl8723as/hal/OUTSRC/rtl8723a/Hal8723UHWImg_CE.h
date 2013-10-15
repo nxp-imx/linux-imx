@@ -9,7 +9,7 @@ extern u8 Rtl8723UFwImgArray[Rtl8723UImgArrayLength];
 #define Rtl8723UBTImgArrayLength 1
 extern u8 Rtl8723UFwBTImgArray[Rtl8723UBTImgArrayLength];
 
-#define Rtl8723UUMCBCutImgArrayWithBTLength 24118
+#define Rtl8723UUMCBCutImgArrayWithBTLength 24348
 #define Rtl8723UUMCBCutImgArrayWithoutBTLength 19200
 
 extern u8 Rtl8723UFwUMCBCutImgArrayWithBT[Rtl8723UUMCBCutImgArrayWithBTLength];
@@ -18,7 +18,7 @@ extern u8 Rtl8723UFwUMCBCutImgArrayWithoutBT[Rtl8723UUMCBCutImgArrayWithoutBTLen
 #define Rtl8723SUMCBCutMPImgArrayLength 24174
 extern const u8 Rtl8723SFwUMCBCutMPImgArray[Rtl8723SUMCBCutMPImgArrayLength];
 
-#define Rtl8723EBTImgArrayLength 15275
+#define Rtl8723EBTImgArrayLength 16404
 extern u8 Rtl8723EFwBTImgArray[Rtl8723EBTImgArrayLength] ;
 
 

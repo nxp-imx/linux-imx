@@ -120,6 +120,9 @@ struct sta_info {
 	union Keytype	dot11tkiprxmickey;
 	union Keytype	dot118021x_UncstKey;	
 	union pn48		dot11txpn;			// PN48 used for Unicast xmit.
+#ifdef CONFIG_IEEE80211W
+	union pn48		dot11wtxpn;			// PN48 used for Unicast mgmt xmit.
+#endif //CONFIG_IEEE80211W
 	union pn48		dot11rxpn;			// PN48 used for Unicast recv.
 
 
@@ -261,10 +264,22 @@ struct sta_info {
 	u32 assoc_req_len;
 #endif
 
+#ifdef DBG_TRX_STA_PKTS
+	//per AC dbg irp cnts
+	int rx_be_cnt;
+	int rx_bk_cnt;
+	int rx_vi_cnt;
+	int rx_vo_cnt;
+	//per AC dbg irp cnts
+	int tx_be_cnt;
+	int tx_bk_cnt;
+	int tx_vi_cnt;
+	int tx_vo_cnt;
+#endif
 	//for DM
 	RSSI_STA	 rssi_stat;
 	
-	//
+	//ODM_STA_INFO_T
 	// ================ODM Relative Info=======================
 	// Please be care, dont declare too much structure here. It will cost memory * STA support num.
 	//
@@ -274,15 +289,15 @@ struct sta_info {
 	// Driver Write
 	u8		bValid;				// record the sta status link or not?
 	//u8		WirelessMode;		// 
-	u8		IOTPeer;			// Enum value.	HT_IOT_PEER_E
-	u8		rssi_level;			//for Refresh RA mask
+	u8		IOTPeer;			// Enum value.	HT_IOT_PEER_E	
 	// ODM Write
 	//1 PHY_STATUS_INFO
 	u8		RSSI_Path[4];		// 
 	u8		RSSI_Ave;
 	u8		RXEVM[4];
 	u8		RXSNR[4];
-
+	
+	u8		rssi_level;			//for Refresh RA mask
 	// ODM Write
 	//1 TX_INFO (may changed by IC)
 	//TX_INFO_T		pTxInfo;				// Define in IC folder. Move lower layer.

@@ -245,7 +245,7 @@ void rtl8192c_query_rx_phy_status(union recv_frame *prframe, struct phy_stat *pp
 		// (2)PWDB, Average PWDB cacluated by hardware (for rate adaptive)
 		//
 
-		if(padapter->pwrctrlpriv.rf_pwrstate == rf_on)
+		if(adapter_to_pwrctl(padapter)->rf_pwrstate == rf_on)
 			cck_highpwr = (u8)pHalData->bCckHighPower;
 		else
 			cck_highpwr = _FALSE;

@@ -26,20 +26,55 @@
 #endif
 
 struct rtw_wdev_invit_info {
+	u8 state; /* 0: req, 1:rep */
+	u8 peer_mac[ETH_ALEN];
+	u8 active;
 	u8 token;
 	u8 flags;
 	u8 status;
 	u8 req_op_ch;
-	u8 rsp_op_ch;	
+	u8 rsp_op_ch;
 };
 
 #define rtw_wdev_invit_info_init(invit_info) \
 	do { \
+		(invit_info)->state = 0xff; \
+		_rtw_memset((invit_info)->peer_mac, 0, ETH_ALEN); \
+		(invit_info)->active = 0xff; \
 		(invit_info)->token = 0; \
 		(invit_info)->flags = 0x00; \
 		(invit_info)->status = 0xff; \
 		(invit_info)->req_op_ch = 0; \
 		(invit_info)->rsp_op_ch = 0; \
+	} while (0)
+
+struct rtw_wdev_nego_info {
+	u8 state; /* 0: req, 1:rep, 3:conf */
+	u8 peer_mac[ETH_ALEN];
+	u8 active;
+	u8 token;
+	u8 status;
+	u8 req_intent;
+	u8 req_op_ch;
+	u8 req_listen_ch;
+	u8 rsp_intent;
+	u8 rsp_op_ch;
+	u8 conf_op_ch;
+};
+
+#define rtw_wdev_nego_info_init(nego_info) \
+	do { \
+		(nego_info)->state = 0xff; \
+		_rtw_memset((nego_info)->peer_mac, 0, ETH_ALEN); \
+		(nego_info)->active = 0xff; \
+		(nego_info)->token = 0; \
+		(nego_info)->status = 0xff; \
+		(nego_info)->req_intent = 0xff; \
+		(nego_info)->req_op_ch = 0; \
+		(nego_info)->req_listen_ch = 0; \
+		(nego_info)->rsp_intent = 0xff; \
+		(nego_info)->rsp_op_ch = 0; \
+		(nego_info)->conf_op_ch = 0; \
 	} while (0)
 
 struct rtw_wdev_priv
@@ -59,6 +94,7 @@ struct rtw_wdev_priv
 	u8 provdisc_req_issued;
 
 	struct rtw_wdev_invit_info invit_info;
+	struct rtw_wdev_nego_info nego_info;
 
 	u8 bandroid_scan;
 	bool block;
@@ -84,7 +120,8 @@ void rtw_wdev_unregister(struct wireless_dev *wdev);
 void rtw_cfg80211_init_wiphy(_adapter *padapter);
 
 void rtw_cfg80211_surveydone_event_callback(_adapter *padapter);
-
+struct cfg80211_bss *rtw_cfg80211_inform_bss(_adapter *padapter, struct wlan_network *pnetwork);
+int rtw_cfg80211_check_bss(_adapter *padapter);
 void rtw_cfg80211_indicate_connect(_adapter *padapter);
 void rtw_cfg80211_indicate_disconnect(_adapter *padapter);
 void rtw_cfg80211_indicate_scan_done(struct rtw_wdev_priv *pwdev_priv, bool aborted);

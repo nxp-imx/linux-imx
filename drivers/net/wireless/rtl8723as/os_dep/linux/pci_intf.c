@@ -163,7 +163,7 @@ static u8 rtw_pci_switch_clk_req(_adapter *padapter, u8 value)
 void rtw_pci_disable_aspm(_adapter *padapter)
 {
 	struct dvobj_priv	*pdvobjpriv = adapter_to_dvobj(padapter);
-	struct pwrctrl_priv	*pwrpriv = &padapter->pwrctrlpriv;
+	struct pwrctrl_priv	*pwrpriv = dvobj_to_pwrctl(pdvobjpriv);
 	struct pci_priv	*pcipriv = &(pdvobjpriv->pcipriv);
 	u32	pcicfg_addrport = 0;
 	u8	num4bytes;
@@ -254,7 +254,7 @@ void rtw_pci_disable_aspm(_adapter *padapter)
 void rtw_pci_enable_aspm(_adapter *padapter)
 {
 	struct dvobj_priv	*pdvobjpriv = adapter_to_dvobj(padapter);
-	struct pwrctrl_priv	*pwrpriv = &padapter->pwrctrlpriv;
+	struct pwrctrl_priv	*pwrpriv = dvobj_to_pwrctl(pdvobjpriv);
 	struct pci_priv	*pcipriv = &(pdvobjpriv->pcipriv);
 	u16	aspmlevel = 0;
 	u32	pcicfg_addrport = 0;
@@ -728,7 +728,7 @@ rtw_get_amd_l1_patch(_adapter *padapter, u8 busnum, u8 devnum,
 void rtw_pci_disable_aspm(_adapter *padapter)
 {
 	struct dvobj_priv	*pdvobjpriv = adapter_to_dvobj(padapter);
-	struct pwrctrl_priv	*pwrpriv = &padapter->pwrctrlpriv;
+	struct pwrctrl_priv	*pwrpriv = dvobj_to_pwrctl(pdvobjpriv);
 	struct pci_dev	*pdev = pdvobjpriv->ppcidev;
 	struct pci_dev	*bridge_pdev = pdev->bus->self;
 	struct pci_priv	*pcipriv = &(pdvobjpriv->pcipriv);
@@ -802,7 +802,7 @@ or the system will show bluescreen.*/
 void rtw_pci_enable_aspm(_adapter *padapter)
 {
 	struct dvobj_priv	*pdvobjpriv = adapter_to_dvobj(padapter);
-	struct pwrctrl_priv	*pwrpriv = &padapter->pwrctrlpriv;
+	struct pwrctrl_priv	*pwrpriv = dvobj_to_pwrctl(pdvobjpriv);
 	struct pci_dev	*pdev = pdvobjpriv->ppcidev;
 	struct pci_dev	*bridge_pdev = pdev->bus->self;
 	struct pci_priv	*pcipriv = &(pdvobjpriv->pcipriv);
@@ -978,7 +978,7 @@ static void rtw_pci_update_default_setting(_adapter *padapter)
 {
 	struct dvobj_priv	*pdvobjpriv = adapter_to_dvobj(padapter);
 	struct pci_priv	*pcipriv = &(pdvobjpriv->pcipriv);
-	struct pwrctrl_priv	*pwrpriv = &padapter->pwrctrlpriv;
+	struct pwrctrl_priv	*pwrpriv = dvobj_to_pwrctl(pdvobjpriv);
 
 	//reset pPSC->reg_rfps_level & priv->b_support_aspm
 	pwrpriv->reg_rfps_level = 0;
@@ -1078,7 +1078,7 @@ static void rtw_pci_update_default_setting(_adapter *padapter)
 
 static void rtw_pci_initialize_adapter_common(_adapter *padapter)
 {
-	struct pwrctrl_priv	*pwrpriv = &padapter->pwrctrlpriv;
+	struct pwrctrl_priv	*pwrpriv = adapter_to_pwrctl(padapter);
 
 	rtw_pci_update_default_setting(padapter);
 
@@ -1158,7 +1158,7 @@ _func_enter_;
 	_rtw_mutex_init(&dvobj->setch_mutex);
 	_rtw_mutex_init(&dvobj->setbw_mutex);
 
-
+	dvobj->processing_dev_remove = _FALSE;
 	if ( (err = pci_enable_device(pdev)) != 0) {
 		DBG_871X(KERN_ERR "%s : Cannot enable new PCI device\n", pci_name(pdev));
 		goto free_dvobj;
@@ -1531,7 +1531,7 @@ static void pci_intf_stop(_adapter *padapter)
 }
 
 
-static void rtw_dev_unload(_adapter *padapter)
+void rtw_dev_unload(_adapter *padapter)
 {
 	struct net_device *pnetdev= (struct net_device*)padapter->pnetdev;
 
@@ -1779,7 +1779,7 @@ static void rtw_pci_if1_deinit(_adapter *if1)
 
 	rtw_cancel_all_timer(if1);
 #ifdef CONFIG_WOWLAN
-	if1->pwrctrlpriv.wowlan_mode=_FALSE;
+	adapter_to_pwrctl(if1)->wowlan_mode=_FALSE;
 #endif //CONFIG_WOWLAN
 	rtw_dev_unload(if1);
 
@@ -1892,6 +1892,7 @@ exit:
 	return status == _SUCCESS?0:-ENODEV;
 }
 
+extern void rtw_unregister_netdevs(struct dvobj_priv *dvobj);
 /*
  * dev_remove() - our device is being removed
 */
@@ -1906,6 +1907,9 @@ _func_exit_;
 
 	DBG_871X("+rtw_dev_remove\n");
 
+	pdvobjpriv->processing_dev_remove = _TRUE;
+	rtw_unregister_netdevs(pdvobjpriv);
+	
 	if (unlikely(!padapter)) {
 		return;
 	}
@@ -1929,7 +1933,7 @@ _func_exit_;
 	#endif
 
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_ANDROID_POWER)
-	rtw_unregister_early_suspend(&padapter->pwrctrlpriv);
+	rtw_unregister_early_suspend(dvobj_to_pwrctl(pdvobjpriv));
 #endif
 
 	rtw_pm_set_ips(padapter, IPS_NONE);
@@ -1979,13 +1983,16 @@ static void __exit rtw_drv_halt(void)
 {
 	RT_TRACE(_module_hci_intfs_c_,_drv_err_,("+rtw_drv_halt\n"));
 	DBG_871X("+rtw_drv_halt\n");
-
-	rtw_suspend_lock_uninit();	
+	
 	pci_drvpriv.drv_registered = _FALSE;
 	
 	pci_unregister_driver(&pci_drvpriv.rtw_pci_drv);
 
+	rtw_suspend_lock_uninit();	
+	
 	DBG_871X("-rtw_drv_halt\n");
+
+	rtw_mstat_dump();
 }
 
 

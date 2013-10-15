@@ -155,12 +155,7 @@ void update_recvframe_phyinfo(
 	}
 	pkt_info.Rate = pattrib->mcs_rate;
 		
-	#ifdef CONFIG_CONCURRENT_MODE	
-	//get Primary adapter's odmpriv
-	if(padapter->adapter_type > PRIMARY_ADAPTER){
-		pHalData = GET_HAL_DATA(padapter->pbuddy_adapter);		
-	}
-	#endif	
+
 	//rtl8192c_query_rx_phy_status(precvframe, pphy_status);
 	//_enter_critical_bh(&pHalData->odm_stainfo_lock, &irqL);
 	ODM_PhyStatusQuery(&pHalData->odmpriv,pPHYInfo,(u8 *)pphy_status,&(pkt_info));
@@ -234,24 +229,24 @@ static s32 pre_recv_entry(union recv_frame *precvframe, struct recv_buf	*precvbu
 		_rtw_memcpy(&precvframe_if2->u.hdr.attrib, &precvframe->u.hdr.attrib, sizeof(struct rx_pkt_attrib));
 		pattrib = &precvframe_if2->u.hdr.attrib;
 
-		//driver need to set skb len for skb_copy().
-		//If skb->len is zero, skb_copy() will not copy data from original skb.
+		//driver need to set skb len for rtw_skb_copy().
+		//If skb->len is zero, rtw_skb_copy() will not copy data from original skb.
 		skb_put(precvframe->u.hdr.pkt, pattrib->pkt_len);
 
-		pkt_copy = skb_copy( precvframe->u.hdr.pkt, GFP_ATOMIC);
+		pkt_copy = rtw_skb_copy(precvframe->u.hdr.pkt);
 		if (pkt_copy == NULL)
 		{
 			if((pattrib->mfrag == 1)&&(pattrib->frag_num == 0))
 			{				
-				DBG_8192C("pre_recv_entry(): skb_copy fail , drop frag frame \n");
+				DBG_8192C("pre_recv_entry(): rtw_skb_copy fail , drop frag frame \n");
 				rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 				return ret;
 			}
 
-			pkt_copy = skb_clone( precvframe->u.hdr.pkt, GFP_ATOMIC);
+			pkt_copy = rtw_skb_clone(precvframe->u.hdr.pkt);
 			if(pkt_copy == NULL)
 			{
-				DBG_8192C("pre_recv_entry(): skb_clone fail , drop frame\n");
+				DBG_8192C("pre_recv_entry(): rtw_skb_clone fail , drop frame\n");
 				rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 				return ret;
 			}
@@ -330,9 +325,11 @@ void rtl8723as_recv(PADAPTER padapter, struct recv_buf *precvbuf)
 		// fix Hardware RX data error, drop whole recv_buffer
 		if ((!(pHalData->ReceiveConfig & RCR_ACRC32)) && pattrib->crc_err)
 		{
-			#if !(MP_DRIVER==1)
-			DBG_8192C("%s()-%d: RX Warning! rx CRC ERROR !!\n", __FUNCTION__, __LINE__);
-			#endif
+			if (padapter->registrypriv.mp_mode == 1)
+				padapter->mppriv.rx_crcerrpktcount++;
+			else	
+				DBG_8192C("%s()-%d: RX Warning! rx CRC ERROR !!\n", __FUNCTION__, __LINE__);
+
 			rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 			break;
 		}
@@ -352,6 +349,7 @@ void rtl8723as_recv(PADAPTER padapter, struct recv_buf *precvbuf)
 
 		if ((pattrib->crc_err) || (pattrib->icv_err))
 		{
+			if (padapter->registrypriv.mp_mode == 0)
 			DBG_8192C("%s: crc_err=%d icv_err=%d, skip!\n", __FUNCTION__, pattrib->crc_err, pattrib->icv_err);
 			rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 		}
@@ -386,11 +384,8 @@ void rtl8723as_recv(PADAPTER padapter, struct recv_buf *precvbuf)
 					alloc_sz += 14;
 			}
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)) // http://www.mail-archive.com/netdev@vger.kernel.org/msg17214.html
-			pkt_copy = __dev_alloc_skb(alloc_sz, GFP_KERNEL);
-#else
-			pkt_copy = __netdev_alloc_skb(padapter->pnetdev, alloc_sz, GFP_KERNEL);
-#endif
+			pkt_copy = rtw_skb_alloc(alloc_sz);
+
 			if(pkt_copy)
 			{
 				pkt_copy->dev = padapter->pnetdev;
@@ -411,7 +406,7 @@ void rtl8723as_recv(PADAPTER padapter, struct recv_buf *precvbuf)
 					break;
 				}
 
-				precvframe->u.hdr.pkt = skb_clone(precvbuf->pskb, GFP_ATOMIC);
+				precvframe->u.hdr.pkt = rtw_skb_clone(precvbuf->pskb);
 				if(precvframe->u.hdr.pkt)
 				{
 					_pkt	*pkt_clone = precvframe->u.hdr.pkt;
@@ -424,7 +419,7 @@ void rtl8723as_recv(PADAPTER padapter, struct recv_buf *precvbuf)
 				}
 				else
 				{
-					DBG_8192C("rtl8723as_recv_tasklet: skb_clone fail\n");
+					DBG_8192C("rtl8723as_recv_tasklet: rtw_skb_clone fail\n");
 					rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 					break;
 				}
@@ -531,9 +526,11 @@ static void rtl8723as_recv_tasklet(void *priv)
 			// fix Hardware RX data error, drop whole recv_buffer
 			if ((!(pHalData->ReceiveConfig & RCR_ACRC32)) && pattrib->crc_err)
 			{
-				#if !(MP_DRIVER==1)
-				DBG_8192C("%s()-%d: RX Warning! rx CRC ERROR !!\n", __FUNCTION__, __LINE__);
-				#endif
+				if (padapter->registrypriv.mp_mode == 1)
+					padapter->mppriv.rx_crcerrpktcount++;
+				else
+					DBG_8192C("%s()-%d: RX Warning! rx CRC ERROR !!\n", __FUNCTION__, __LINE__);
+
 				rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 				break;
 			}
@@ -553,6 +550,7 @@ static void rtl8723as_recv_tasklet(void *priv)
 
 			if ((pattrib->crc_err) || (pattrib->icv_err))
 			{
+				if (padapter->registrypriv.mp_mode == 0)
 				DBG_8192C("%s: crc_err=%d icv_err=%d, skip!\n", __FUNCTION__, pattrib->crc_err, pattrib->icv_err);
 				rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 			}
@@ -587,11 +585,8 @@ static void rtl8723as_recv_tasklet(void *priv)
 					alloc_sz += 14;
 				}
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)) // http://www.mail-archive.com/netdev@vger.kernel.org/msg17214.html
-				pkt_copy = dev_alloc_skb(alloc_sz);
-#else			
-				pkt_copy = netdev_alloc_skb(padapter->pnetdev, alloc_sz);
-#endif		
+				pkt_copy = rtw_skb_alloc(alloc_sz);
+
 				if(pkt_copy)
 				{
 					pkt_copy->dev = padapter->pnetdev;
@@ -612,7 +607,7 @@ static void rtl8723as_recv_tasklet(void *priv)
 						break;
 					}
 					
-					precvframe->u.hdr.pkt = skb_clone(precvbuf->pskb, GFP_ATOMIC);
+					precvframe->u.hdr.pkt = rtw_skb_clone(precvbuf->pskb);
 					if(precvframe->u.hdr.pkt)
 					{
 						_pkt	*pkt_clone = precvframe->u.hdr.pkt;
@@ -625,7 +620,7 @@ static void rtl8723as_recv_tasklet(void *priv)
 					}
 					else
 					{
-						DBG_8192C("rtl8723as_recv_tasklet: skb_clone fail\n");
+						DBG_8192C("rtl8723as_recv_tasklet: rtw_skb_clone fail\n");
 						rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 						break;
 					}
@@ -730,7 +725,10 @@ static void rtl8723as_recv_tasklet(void *priv)
 			// fix Hardware RX data error, drop whole recv_buffer
 			if ((!(pHalData->ReceiveConfig & RCR_ACRC32)) && pattrib->crc_err)
 			{
-				DBG_8192C("%s()-%d: RX Warning! rx CRC ERROR !!\n", __FUNCTION__, __LINE__);
+				if (padapter->registrypriv.mp_mode == 1)
+					padapter->mppriv.rx_crcerrpktcount++;
+				else
+					DBG_8192C("%s()-%d: RX Warning! rx CRC ERROR !!\n", __FUNCTION__, __LINE__);
 				rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 				break;
 			}
@@ -748,12 +746,13 @@ static void rtl8723as_recv_tasklet(void *priv)
 
 			if ((pattrib->crc_err) || (pattrib->icv_err))
 			{
+				if (padapter->registrypriv.mp_mode == 0)
 				DBG_8192C("%s: crc_err=%d icv_err=%d, skip!\n", __FUNCTION__, pattrib->crc_err, pattrib->icv_err);
 				rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
 			}
 			else
 			{
-				ppkt = skb_clone(precvbuf->pskb, GFP_ATOMIC);
+				ppkt = rtw_skb_clone(precvbuf->pskb);
 				if (ppkt == NULL)
 				{
 					RT_TRACE(_module_rtl871x_recv_c_, _drv_crit_, ("rtl8723as_recv_tasklet: no enough memory to allocate SKB!\n"));
@@ -819,7 +818,7 @@ static void rtl8723as_recv_tasklet(void *priv)
 			ptr = precvbuf->pdata;
 		}
 
-		dev_kfree_skb_any(precvbuf->pskb);
+		rtw_skb_free(precvbuf->pskb);
 		precvbuf->pskb = NULL;
 		rtw_enqueue_recvbuf(precvbuf, &precvpriv->free_recv_buf_queue);
 	} while (1);
@@ -876,11 +875,7 @@ s32 rtl8723as_init_recv_priv(PADAPTER padapter)
 			SIZE_PTR tmpaddr=0;
 			SIZE_PTR alignment=0;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)) // http://www.mail-archive.com/netdev@vger.kernel.org/msg17214.html
-			precvbuf->pskb = __dev_alloc_skb(MAX_RECVBUF_SZ + RECVBUFF_ALIGN_SZ, GFP_KERNEL);
-#else
-			precvbuf->pskb = __netdev_alloc_skb(padapter->pnetdev, MAX_RECVBUF_SZ + RECVBUFF_ALIGN_SZ, GFP_KERNEL);
-#endif
+			precvbuf->pskb = rtw_skb_alloc(MAX_RECVBUF_SZ + RECVBUFF_ALIGN_SZ);
 
 			if(precvbuf->pskb)
 			{

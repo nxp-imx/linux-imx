@@ -343,7 +343,10 @@ _InitQueueReservedPage(
 	u8			value8;
 	BOOLEAN		bWiFiConfig	= pregistrypriv->wifi_spec;
 	//u32			txQPageNum, txQPageUnit,txQRemainPage;
- 
+	
+	if( (pregistrypriv->wifi_spec==_TRUE)	 ||(pregistrypriv->qos_opt_enable==_TRUE))
+		bWiFiConfig = _TRUE;
+
 	{ //for WMM 
 		//RT_ASSERT((outEPNum>=2), ("for WMM ,number of out-ep must more than or equal to 2!\n"));
 
@@ -591,9 +594,11 @@ _InitHardwareDropIncorrectBulkOut(
 	IN  PADAPTER Adapter
 	)
 {
+#ifdef ENABLE_USB_DROP_INCORRECT_OUT
 	u32	value32 = rtw_read32(Adapter, REG_TXDMA_OFFSET_CHK);
 	value32 |= DROP_DATA_EN;
 	rtw_write32(Adapter, REG_TXDMA_OFFSET_CHK, value32);
+#endif
 }
 
 static VOID
@@ -1178,9 +1183,8 @@ static VOID _BBTurnOnBlock(
 #define MgntActSet_RF_State(...)
 static void _RfPowerSave(PADAPTER padapter)
 {
-#if 0
-	PHAL_DATA_TYPE pHalData = GET_HAL_DATA(padapter);
-	struct pwrctrl_priv *ppwrctrl = &padapter->pwrctrlpriv;
+	PHAL_DATA_TYPE pHalData;
+	struct pwrctrl_priv *pwrctrl;
 	rt_rf_power_state eRfPowerStateToSet;
 	u8 u1bTmp;
 
@@ -1188,6 +1192,10 @@ static void _RfPowerSave(PADAPTER padapter)
 #if (DISABLE_BB_RF)
 	return;
 #endif
+
+	pHalData = GET_HAL_DATA(padapter);
+	pwrctrl = adapter_to_pwrctl(padapter);
+
 	//
 	// 2010/08/11 MH Merge from 8192SE for Minicard init. We need to confirm current radio status
 	// and then decide to enable RF or not.!!!??? For Selective suspend mode. We may not 
@@ -1197,35 +1205,38 @@ static void _RfPowerSave(PADAPTER padapter)
 	// in MgntActSet_RF_State() after wake up, because the value of pHalData->eRFPowerState 
 	// is the same as eRfOff, we should change it to eRfOn after we config RF parameters.
 	// Added by tynli. 2010.03.30.
-	ppwrctrl->rf_pwrstate = rf_on;
-	RT_CLEAR_PS_LEVEL(ppwrctrl, RT_RF_OFF_LEVL_HALT_NIC);
+	pwrctrl->rf_pwrstate = rf_on;
+	RT_CLEAR_PS_LEVEL(pwrctrl, RT_RF_OFF_LEVL_HALT_NIC);
 	//Added by chiyokolin, 2011.10.12 for Tx
 	rtw_write8(padapter, REG_TXPAUSE, 0x00);
 
 	// 20100326 Joseph: Copy from GPIOChangeRFWorkItemCallBack() function to check HW radio on/off.
 	// 20100329 Joseph: Revise and integrate the HW/SW radio off code in initialization.
-
+#if 1
+	pwrctrl->b_hw_radio_off = _FALSE;
+	eRfPowerStateToSet = rf_on;
+#else
 	eRfPowerStateToSet = (rt_rf_power_state) RfOnOffDetect(padapter);
-	ppwrctrl->rfoff_reason |= eRfPowerStateToSet==rf_on ? RF_CHANGE_BY_INIT : RF_CHANGE_BY_HW;
-	ppwrctrl->rfoff_reason |= (ppwrctrl->reg_rfoff) ? RF_CHANGE_BY_SW : 0;
+	pwrctrl->rfoff_reason |= eRfPowerStateToSet==rf_on ? RF_CHANGE_BY_INIT : RF_CHANGE_BY_HW;
+	pwrctrl->rfoff_reason |= (pwrctrl->reg_rfoff) ? RF_CHANGE_BY_SW : 0;
 
-	if (ppwrctrl->rfoff_reason & RF_CHANGE_BY_HW)
-		ppwrctrl->b_hw_radio_off = _TRUE;
+	if (pwrctrl->rfoff_reason & RF_CHANGE_BY_HW)
+		pwrctrl->b_hw_radio_off = _TRUE;
 
-	if (ppwrctrl->reg_rfoff == _TRUE)
+	if (pwrctrl->reg_rfoff == _TRUE)
 	{
 		// User disable RF via registry.
-		RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("InitializeAdapter8192CUsb(): Turn off RF for RegRfOff.\n"));
+		RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("%s: Turn off RF for RegRfOff\n", __FUNCTION__));
 		MgntActSet_RF_State(padapter, rf_off, RF_CHANGE_BY_SW, _TRUE);
 
 //		if (padapter->bSlaveOfDMSP)
 //			return;
 	}
-	else if (ppwrctrl->rfoff_reason > RF_CHANGE_BY_PS)
+	else if (pwrctrl->rfoff_reason > RF_CHANGE_BY_PS)
 	{
 		// H/W or S/W RF OFF before sleep.
 		RT_TRACE(_module_hci_hal_init_c_, _drv_notice_, ("InitializeAdapter8192CUsb(): Turn off RF for RfOffReason(%ld).\n", pMgntInfo->RfOffReason));
-		MgntActSet_RF_State(padapter, rf_off, ppwrctrl->rfoff_reason, _TRUE);
+		MgntActSet_RF_State(padapter, rf_off, pwrctrl->rfoff_reason, _TRUE);
 	}
 	else
 	{
@@ -1252,22 +1263,23 @@ static void _RfPowerSave(PADAPTER padapter)
 		else
 #endif
 		{
-			ppwrctrl->rf_pwrstate = rf_off;
-			ppwrctrl->rfoff_reason = RF_CHANGE_BY_INIT;
-			MgntActSet_RF_State(padapter, rf_on, ppwrctrl->rfoff_reason, _TRUE);
+			pwrctrl->rf_pwrstate = rf_off;
+			pwrctrl->rfoff_reason = RF_CHANGE_BY_INIT;
+			MgntActSet_RF_State(padapter, rf_on, pwrctrl->rfoff_reason, _TRUE);
 		}
 
-		ppwrctrl->rfoff_reason = 0; 
-		ppwrctrl->b_hw_radio_off = _FALSE;
-		ppwrctrl->rf_pwrstate = rf_on;
+		pwrctrl->rfoff_reason = 0; 
+		pwrctrl->b_hw_radio_off = _FALSE;
+		pwrctrl->rf_pwrstate = rf_on;
 		if (padapter->ledpriv.LedControlHandler)
 			padapter->ledpriv.LedControlHandler(padapter, LED_CTL_POWER_ON);
 	}
-
+#endif
 	// 2010/-8/09 MH For power down module, we need to enable register block contrl reg at 0x1c.
 	// Then enable power down control bit of register 0x04 BIT4 and BIT15 as 1.
 	if (pHalData->pwrdown && eRfPowerStateToSet == rf_off)
 	{
+		DBG_871X("%s pwrdown\n", __FUNCTION__);
 		// Enable register area 0x0-0xc.
 		rtw_write8(padapter, REG_RSV_CTRL, 0x0);
 
@@ -1280,7 +1292,6 @@ static void _RfPowerSave(PADAPTER padapter)
 		u1bTmp |= WL_HWPDN_EN;
 		rtw_write8(padapter, REG_MULTI_FUNC_CTRL, u1bTmp);
 	}
-#endif	
 }
 
 enum {
@@ -1298,7 +1309,7 @@ HalDetectPwrDownMode(
 {
 	u8	tmpvalue;
 	HAL_DATA_TYPE		*pHalData	= GET_HAL_DATA(Adapter);
-	struct pwrctrl_priv		*pwrctrlpriv = &Adapter->pwrctrlpriv;
+	struct pwrctrl_priv		*pwrctrlpriv = adapter_to_pwrctl(Adapter);
 	
 	EFUSE_ShadowRead(Adapter, 1, EEPROM_RF_OPT3, (u32 *)&tmpvalue);
 
@@ -1423,7 +1434,7 @@ rt_rf_power_state RfOnOffDetect(IN	PADAPTER pAdapter )
 	u8	val8;
 	rt_rf_power_state rfpowerstate = rf_off;
 
-	if(pAdapter->pwrctrlpriv.bHWPowerdown)
+	if(adapter_to_pwrctl(pAdapter)->bHWPowerdown)
 	{
 		val8 = rtw_read8(pAdapter, REG_HSISR);
 		DBG_8192C("pwrdown, 0x5c(BIT7)=%02x\n", val8);
@@ -1446,7 +1457,7 @@ u32 rtl8723au_hal_init(PADAPTER Adapter)
 	u8	val8 = 0;
 	u32	boundary, status = _SUCCESS;
 	HAL_DATA_TYPE		*pHalData = GET_HAL_DATA(Adapter);
-	struct pwrctrl_priv		*pwrctrlpriv = &Adapter->pwrctrlpriv;
+	struct pwrctrl_priv		*pwrctrlpriv = adapter_to_pwrctl(Adapter);
 	struct registry_priv	*pregistrypriv = &Adapter->registrypriv; 
 	u8	is92C = IS_92C_SERIAL(pHalData->VersionID);
 	rt_rf_power_state		eRfPowerStateToSet;
@@ -1530,7 +1541,7 @@ u32 rtl8723au_hal_init(PADAPTER Adapter)
 _func_enter_;
 
 HAL_INIT_PROFILE_TAG(HAL_INIT_STAGES_BEGIN);
-	if(Adapter->pwrctrlpriv.bkeepfwalive)
+	if(pwrctrlpriv->bkeepfwalive)
 	{
 		_ps_open_RF(Adapter);
 
@@ -1825,13 +1836,15 @@ HAL_INIT_PROFILE_TAG(HAL_INIT_STAGES_MISC02);
 	_InitAdhocWorkaroundParams(Adapter);
 #endif
 
-#if ENABLE_USB_DROP_INCORRECT_OUT
 	_InitHardwareDropIncorrectBulkOut(Adapter);
-#endif
 
 #if defined(CONFIG_CONCURRENT_MODE) || defined(CONFIG_TX_MCAST2UNI)
+
+#ifdef CONFIG_CHECK_AC_LIFETIME
 	// Enable lifetime check for the four ACs
 	rtw_write8(Adapter, REG_LIFETIME_EN, 0x0F);
+#endif	// CONFIG_CHECK_AC_LIFETIME
+
 #ifdef CONFIG_TX_MCAST2UNI
 	rtw_write16(Adapter, REG_PKT_VO_VI_LIFE_TIME, 0x0400);	// unit: 256us. 256ms
 	rtw_write16(Adapter, REG_PKT_BE_BK_LIFE_TIME, 0x0400);	// unit: 256us. 256ms
@@ -2027,6 +2040,7 @@ phy_SsPwrSwitch92CU(
 	IN	int bRegSSPwrLvl
 	)
 {
+	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(Adapter);
 	HAL_DATA_TYPE		*pHalData = GET_HAL_DATA(Adapter);
 	u8				value8;
 	
@@ -2152,9 +2166,9 @@ phy_SsPwrSwitch92CU(
 					//	(2)Reg878[21:19]= 0	//Turn off RF-B
 					//	(3) RegC04[7:4]= 0 	// turn off all paths for packet detection
 					//	(4) Reg800[1] = 1 		// enable preamble power saving
-					Adapter->pwrctrlpriv.PS_BBRegBackup[PSBBREG_RF0] = PHY_QueryBBReg(Adapter, rFPGA0_XAB_RFParameter, bMaskDWord);
-					Adapter->pwrctrlpriv.PS_BBRegBackup[PSBBREG_RF1] = PHY_QueryBBReg(Adapter, rOFDM0_TRxPathEnable, bMaskDWord);
-					Adapter->pwrctrlpriv.PS_BBRegBackup[PSBBREG_RF2] = PHY_QueryBBReg(Adapter, rFPGA0_RFMOD, bMaskDWord);
+					pwrctl->PS_BBRegBackup[PSBBREG_RF0] = PHY_QueryBBReg(Adapter, rFPGA0_XAB_RFParameter, bMaskDWord);
+					pwrctl->PS_BBRegBackup[PSBBREG_RF1] = PHY_QueryBBReg(Adapter, rOFDM0_TRxPathEnable, bMaskDWord);
+					pwrctl->PS_BBRegBackup[PSBBREG_RF2] = PHY_QueryBBReg(Adapter, rFPGA0_RFMOD, bMaskDWord);
 					if (pHalData->rf_type ==  RF_2T2R)
 					{
 						PHY_SetBBReg(Adapter, rFPGA0_XAB_RFParameter, 0x380038, 0);							
@@ -2167,7 +2181,7 @@ phy_SsPwrSwitch92CU(
 					PHY_SetBBReg(Adapter, rFPGA0_RFMOD, BIT1,1);
 					
 					// 2 .AFE control register to power down. bit[30:22]
-					Adapter->pwrctrlpriv.PS_BBRegBackup[PSBBREG_AFE0] = PHY_QueryBBReg(Adapter, rRx_Wait_CCA, bMaskDWord);	
+					pwrctl->PS_BBRegBackup[PSBBREG_AFE0] = PHY_QueryBBReg(Adapter, rRx_Wait_CCA, bMaskDWord);	
 					if (pHalData->rf_type ==  RF_2T2R)
 						PHY_SetBBReg(Adapter, rRx_Wait_CCA, bMaskDWord ,0x00DB25A0);
 					else if (pHalData->rf_type ==  RF_1T1R)
@@ -2216,9 +2230,9 @@ phy_SsPwrSwitch92CU(
 					//	(2)Reg878[21:19]= 0	//Turn off RF-B
 					//	(3) RegC04[7:4]= 0 	// turn off all paths for packet detection
 					//	(4) Reg800[1] = 1 		// enable preamble power saving
-					Adapter->pwrctrlpriv.PS_BBRegBackup[PSBBREG_RF0] = PHY_QueryBBReg(Adapter, rFPGA0_XAB_RFParameter, bMaskDWord);
-					Adapter->pwrctrlpriv.PS_BBRegBackup[PSBBREG_RF1] = PHY_QueryBBReg(Adapter, rOFDM0_TRxPathEnable, bMaskDWord);
-					Adapter->pwrctrlpriv.PS_BBRegBackup[PSBBREG_RF2] = PHY_QueryBBReg(Adapter, rFPGA0_RFMOD, bMaskDWord);
+					pwrctl->PS_BBRegBackup[PSBBREG_RF0] = PHY_QueryBBReg(Adapter, rFPGA0_XAB_RFParameter, bMaskDWord);
+					pwrctl->PS_BBRegBackup[PSBBREG_RF1] = PHY_QueryBBReg(Adapter, rOFDM0_TRxPathEnable, bMaskDWord);
+					pwrctl->PS_BBRegBackup[PSBBREG_RF2] = PHY_QueryBBReg(Adapter, rFPGA0_RFMOD, bMaskDWord);
 					if (pHalData->rf_type ==  RF_2T2R)
 					{
 						PHY_SetBBReg(Adapter, rFPGA0_XAB_RFParameter, 0x380038, 0);							
@@ -2231,7 +2245,7 @@ phy_SsPwrSwitch92CU(
 					PHY_SetBBReg(Adapter, rFPGA0_RFMOD, BIT1,1);
 					
 					// 2 .AFE control register to power down. bit[30:22]
-					Adapter->pwrctrlpriv.PS_BBRegBackup[PSBBREG_AFE0] = PHY_QueryBBReg(Adapter, rRx_Wait_CCA, bMaskDWord);	
+					pwrctl->PS_BBRegBackup[PSBBREG_AFE0] = PHY_QueryBBReg(Adapter, rRx_Wait_CCA, bMaskDWord);	
 					if (pHalData->rf_type ==  RF_2T2R)
 						PHY_SetBBReg(Adapter, rRx_Wait_CCA, bMaskDWord ,0x00DB25A0);
 					else if (pHalData->rf_type ==  RF_1T1R)
@@ -3153,33 +3167,35 @@ readAntennaDiversity(
 // Read HW power down mode selection 
 static void _ReadPSSetting(IN PADAPTER Adapter,IN u8*PROMContent,IN u8	AutoloadFail)
 {
+	struct pwrctrl_priv *pwrctl = adapter_to_pwrctl(Adapter);
+
 	if(AutoloadFail){
-		Adapter->pwrctrlpriv.bHWPowerdown = _FALSE;
-		Adapter->pwrctrlpriv.bSupportRemoteWakeup = _FALSE;
+		pwrctl->bHWPowerdown = _FALSE;
+		pwrctl->bSupportRemoteWakeup = _FALSE;
 	}
 	else	{
 		//if(SUPPORT_HW_RADIO_DETECT(Adapter))
-			Adapter->pwrctrlpriv.bHWPwrPindetect = Adapter->registrypriv.hwpwrp_detect;
+			pwrctl->bHWPwrPindetect = Adapter->registrypriv.hwpwrp_detect;
 		//else
-			//Adapter->pwrctrlpriv.bHWPwrPindetect = _FALSE;//dongle not support new
+			//pwrctl->bHWPwrPindetect = _FALSE;//dongle not support new
 			
 			
 		//hw power down mode selection , 0:rf-off / 1:power down
 
 		if(Adapter->registrypriv.hwpdn_mode==2)
-			Adapter->pwrctrlpriv.bHWPowerdown = (PROMContent[EEPROM_RF_OPT3] & BIT4);
+			pwrctl->bHWPowerdown = (PROMContent[EEPROM_RF_OPT3] & BIT4);
 		else
-			Adapter->pwrctrlpriv.bHWPowerdown = Adapter->registrypriv.hwpdn_mode;
+			pwrctl->bHWPowerdown = Adapter->registrypriv.hwpdn_mode;
 				
 		// decide hw if support remote wakeup function
 		// if hw supported, 8051 (SIE) will generate WeakUP signal( D+/D- toggle) when autoresume
-		Adapter->pwrctrlpriv.bSupportRemoteWakeup = (PROMContent[EEPROM_TEST_USB_OPT] & BIT1)?_TRUE :_FALSE;
+		pwrctl->bSupportRemoteWakeup = (PROMContent[EEPROM_TEST_USB_OPT] & BIT1)?_TRUE :_FALSE;
 
 		//if(SUPPORT_HW_RADIO_DETECT(Adapter))	
-			//Adapter->registrypriv.usbss_enable = Adapter->pwrctrlpriv.bSupportRemoteWakeup ;
+			//Adapter->registrypriv.usbss_enable = pwrctl->bSupportRemoteWakeup ;
 		
 		DBG_8192C("%s...bHWPwrPindetect(%x)-bHWPowerdown(%x) ,bSupportRemoteWakeup(%x)\n",__FUNCTION__,
-		Adapter->pwrctrlpriv.bHWPwrPindetect,Adapter->pwrctrlpriv.bHWPowerdown ,Adapter->pwrctrlpriv.bSupportRemoteWakeup);
+			pwrctl->bHWPwrPindetect, pwrctl->bHWPowerdown, pwrctl->bSupportRemoteWakeup);
 
 		DBG_8192C("### PS params=>  power_mgnt(%x),usbss_enable(%x) ###\n",Adapter->registrypriv.power_mgnt,Adapter->registrypriv.usbss_enable);
 		
@@ -3651,6 +3667,9 @@ _func_enter_;
 
 	switch (variable)
 	{
+		case HW_VAR_GET_CPWM:
+			*val =  rtw_read8(Adapter, REG_USB_HCPWM);			
+			break;
 		default:
 			GetHwReg8723A(Adapter, variable, val);
 			break;
@@ -3700,22 +3719,11 @@ GetHalDefVar8192CUsb(
 		case HAL_DEF_DBG_DUMP_RXPKT:
 			*(( u8*)pValue) = pHalData->bDumpRxPkt;
 			break;
-		case HAL_DEF_DBG_DM_FUNC:
-			*(( u32*)pValue) =pHalData->odmpriv.SupportAbility;
-			break;
 		case HW_VAR_MAX_RX_AMPDU_FACTOR:
 			*(( u32*)pValue) = MAX_AMPDU_FACTOR_64K;
 			break;
-		case HW_DEF_ODM_DBG_FLAG:
-			{
-				u8Byte	DebugComponents = *((u32*)pValue);	
-				PDM_ODM_T	pDM_Odm = &(pHalData->odmpriv);
-				printk("pDM_Odm->DebugComponents = 0x%llx \n",pDM_Odm->DebugComponents );			
-			}
-			break;
 		default:
-			//RT_TRACE(COMP_INIT, DBG_WARNING, ("GetHalDefVar8192CUsb(): Unkown variable: %d!\n", eVariable));
-			bResult = _FAIL;
+			bResult = GetHalDefVar(Adapter, eVariable, pValue);
 			break;
 	}
 
@@ -3783,27 +3791,8 @@ SetHalDefVar8192CUsb(
 				}			
 			}
 			break;
-		case HW_DEF_FA_CNT_DUMP:
-			{
-				u8 bRSSIDump = *((u8*)pValue);	
-				PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
-				if(bRSSIDump)
-					pDM_Odm->DebugComponents	=	ODM_COMP_DIG|ODM_COMP_FA_CNT	;					
-				else
-					pDM_Odm->DebugComponents	= 0;					
-				
-			}
-			break;
-		case HW_DEF_ODM_DBG_FLAG:
-			{
-				u8Byte	DebugComponents = *((u8Byte*)pValue);	
-				PDM_ODM_T	pDM_Odm = &(pHalData->odmpriv);
-				pDM_Odm->DebugComponents = DebugComponents;			
-			}
-			break;
 		default:
-			//RT_TRACE(COMP_INIT, DBG_TRACE, ("SetHalDefVar819xUsb(): Unkown variable: %d!\n", eVariable));
-			bResult = _FAIL;
+			bResult = SetHalDefVar(Adapter, eVariable, pValue);
 			break;
 	}
 
@@ -3857,10 +3846,6 @@ void UpdateHalRAMask8192CUsb(PADAPTER padapter, u32 mac_id,u8 rssi_level )
 	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
 	WLAN_BSSID_EX 		*cur_network = &(pmlmeinfo->network);
-#ifdef CONFIG_CONCURRENT_MODE
-	if(rtw_buddy_adapter_up(padapter) && padapter->adapter_type > PRIMARY_ADAPTER)	
-		pHalData = GET_HAL_DATA(padapter->pbuddy_adapter);				
-#endif //CONFIG_CONCURRENT_MODE
 
 	if (mac_id >= NUM_STA) //CAM_SIZE
 	{
@@ -4002,10 +3987,17 @@ void rtl8723au_set_hal_ops(_adapter * padapter)
 
 _func_enter_;
 
-	padapter->HalData = rtw_zmalloc(sizeof(HAL_DATA_TYPE));
-	if(padapter->HalData == NULL){
-		DBG_8192C("cant not alloc memory for HAL DATA \n");
+#ifdef CONFIG_CONCURRENT_MODE
+	if(padapter->isprimary)
+#endif //CONFIG_CONCURRENT_MODE
+	{
+		//set hardware operation functions
+		padapter->HalData = rtw_zmalloc(sizeof(HAL_DATA_TYPE));
+		if(padapter->HalData == NULL){
+			DBG_8192C("cant not alloc memory for HAL DATA \n");
+		}
 	}
+
 	//_rtw_memset(padapter->HalData, 0, sizeof(HAL_DATA_TYPE));
 	padapter->hal_data_sz = sizeof(HAL_DATA_TYPE);
 

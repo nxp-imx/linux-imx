@@ -39,11 +39,6 @@
 //for Android here. If you are sure there is no risk on your system about this,
 //mask this macro define to support non-printable ascii ssid.
 //#define CONFIG_VALIDATE_SSID
-#ifdef CONFIG_PLATFORM_ARM_SUNxI
-	#ifdef CONFIG_VALIDATE_SSID
-		#undef CONFIG_VALIDATE_SSID
-	#endif
-#endif
 
 //Android expect dbm as the rx signal strength unit
 #define CONFIG_SIGNAL_DISPLAY_DBM

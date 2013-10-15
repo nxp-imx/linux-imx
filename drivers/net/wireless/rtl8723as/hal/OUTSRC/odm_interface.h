@@ -307,7 +307,7 @@ ODM_StallExecution(
 
 VOID
 ODM_delay_ms(IN u4Byte	ms);
-
+
 
 VOID
 ODM_delay_us(IN u4Byte	us);

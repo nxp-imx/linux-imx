@@ -504,7 +504,11 @@ struct mlme_ext_priv
 	u8	mlmeext_init;
 	ATOMIC_T		event_seq;
 	u16	mgnt_seq;
-	
+#ifdef CONFIG_IEEE80211W
+	u16	sa_query_seq;
+	u64 mgnt_80211w_IPN;
+	u64 mgnt_80211w_IPN_rx;
+#endif //CONFIG_IEEE80211W
 	//struct fw_priv 	fwpriv;
 	
 	unsigned char	cur_channel;
@@ -523,6 +527,9 @@ struct mlme_ext_priv
                                                      //for ap mode, network includes ap's cap_info
 	_timer		survey_timer;
 	_timer		link_timer;
+#ifdef CONFIG_IEEE80211W
+	_timer		sa_query_timer;
+#endif //CONFIG_IEEE80211W
 	//_timer		ADDBA_timer;
 	u16			chan_scan_time;
 
@@ -583,13 +590,15 @@ u8 rtw_get_oper_bw(_adapter *adapter);
 void rtw_set_oper_bw(_adapter *adapter, u8 bw);
 u8 rtw_get_oper_choffset(_adapter *adapter);
 void rtw_set_oper_choffset(_adapter *adapter, u8 offset);
+u32 rtw_get_on_oper_ch_time(_adapter *adapter);
+u32 rtw_get_on_cur_ch_time(_adapter *adapter);
 
 void set_channel_bwmode(_adapter *padapter, unsigned char channel, unsigned char channel_offset, unsigned short bwmode);
 void SelectChannel(_adapter *padapter, unsigned char channel);
 void SetBWMode(_adapter *padapter, unsigned short bwmode, unsigned char channel_offset);
 
 unsigned int decide_wait_for_beacon_timeout(unsigned int bcn_interval);
-
+void read_cam(_adapter *padapter ,u8 entry);
 void write_cam(_adapter *padapter, u8 entry, u16 ctrl, u8 *mac, u8 *key);
 void clear_cam_entry(_adapter *padapter, u8 entry);
 
@@ -640,6 +649,11 @@ void update_wireless_mode(_adapter * padapter);
 void update_tx_basic_rate(_adapter *padapter, u8 modulation);
 void update_bmc_sta_support_rate(_adapter *padapter, u32 mac_id);
 int update_sta_support_rate(_adapter *padapter, u8* pvar_ie, uint var_ie_len, int cam_idx);
+
+#ifdef CONFIG_WOWLAN
+void rtw_get_current_ip_address(PADAPTER padapter, u8 *pcurrentip);
+void rtw_get_sec_iv(PADAPTER padapter, u8*pcur_dot11txpn, u8 *StaAddr);
+#endif
 
 //for sta/adhoc mode
 void update_sta_info(_adapter *padapter, struct sta_info *psta);
@@ -694,6 +708,9 @@ int issue_deauth(_adapter *padapter, unsigned char *da, unsigned short reason);
 int issue_deauth_ex(_adapter *padapter, u8 *da, unsigned short reason, int try_cnt, int wait_ms);
 void issue_action_spct_ch_switch(_adapter *padapter, u8 *ra, u8 new_ch, u8 ch_offset);
 void issue_action_BA(_adapter *padapter, unsigned char *raddr, unsigned char action, unsigned short status);
+#ifdef CONFIG_IEEE80211W
+void issue_action_SA_Query(_adapter *padapter, unsigned char *raddr, unsigned char action, unsigned short tid);
+#endif //CONFIG_IEEE80211W
 unsigned int send_delba(_adapter *padapter, u8 initiator, u8 *addr);
 unsigned int send_beacon(_adapter *padapter);
 
@@ -721,6 +738,9 @@ unsigned int OnAction_dls(_adapter *padapter, union recv_frame *precv_frame);
 unsigned int OnAction_back(_adapter *padapter, union recv_frame *precv_frame);
 unsigned int on_action_public(_adapter *padapter, union recv_frame *precv_frame);
 unsigned int OnAction_ht(_adapter *padapter, union recv_frame *precv_frame);
+#ifdef CONFIG_IEEE80211W
+unsigned int OnAction_sa_query(_adapter *padapter, union recv_frame *precv_frame);
+#endif //CONFIG_IEEE80211W
 unsigned int OnAction_wmm(_adapter *padapter, union recv_frame *precv_frame);
 unsigned int OnAction_p2p(_adapter *padapter, union recv_frame *precv_frame);
 
@@ -734,6 +754,9 @@ void linked_status_chk(_adapter *padapter);
 void survey_timer_hdl (_adapter *padapter);
 void link_timer_hdl (_adapter *padapter);
 void addba_timer_hdl(struct sta_info *psta);
+#ifdef CONFIG_IEEE80211W
+void sa_query_timer_hdl(_adapter *padapter);
+#endif //CONFIG_IEEE80211W
 //void reauth_timer_hdl(_adapter *padapter);
 //void reassoc_timer_hdl(_adapter *padapter);
 
@@ -748,7 +771,13 @@ void addba_timer_hdl(struct sta_info *psta);
 		/*DBG_871X("%s set_link_timer(%p, %d)\n", __FUNCTION__, (mlmeext), (ms));*/ \
 		_set_timer(&(mlmeext)->link_timer, (ms)); \
 	} while(0)
-
+#ifdef CONFIG_IEEE80211W
+#define set_sa_query_timer(mlmeext, ms) \
+	do { \
+		DBG_871X("%s set_sa_query_timer(%p, %d)\n", __FUNCTION__, (mlmeext), (ms)); \
+		_set_timer(&(mlmeext)->sa_query_timer, (ms)); \
+	} while(0)
+#endif //CONFIG_IEEE80211W
 extern int cckrates_included(unsigned char *rate, int ratelen);
 extern int cckratesonly_included(unsigned char *rate, int ratelen);
 
@@ -760,7 +789,6 @@ extern void correct_TSF(_adapter *padapter, struct mlme_ext_priv *pmlmeext);
 
 #ifdef CONFIG_CONCURRENT_MODE
  sint check_buddy_mlmeinfo_state(_adapter *padapter, u32 state);
-int concurrent_chk_start_clnt_join(_adapter *padapter);
 void concurrent_chk_joinbss_done(_adapter *padapter, int join_res);
 #endif //CONFIG_CONCURRENT_MODE
 
@@ -778,6 +806,9 @@ void	dc_set_ap_channel_bandwidth(_adapter *padapter, u8 channel, u8 channel_offs
 void	dc_resume_xmit(_adapter *padapter);
 u8	dc_check_xmit(_adapter *padapter);
 #endif
+
+int rtw_chk_start_clnt_join(_adapter *padapter);
+int rtw_get_ch_setting_union(_adapter *adapter, u8 *ch, u8 *bw, u8 *offset);
 
 struct cmd_hdl {
 	uint	parmsize;

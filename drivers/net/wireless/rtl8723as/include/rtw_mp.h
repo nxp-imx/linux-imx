@@ -403,6 +403,9 @@ enum {
 	CTA_TEST,
 	MP_DISABLE_BT_COEXIST,
 	MP_PwrCtlDM,
+#ifdef CONFIG_WOWLAN
+	MP_WOW_ENABLE,
+#endif
 	MP_NULL,
 };
 

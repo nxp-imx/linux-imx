@@ -204,7 +204,7 @@ SwLedBlink(
 
 	if(bStopBlinking)
 	{
-		//if( padapter->pwrctrlpriv.cpwm >= PS_STATE_S2)
+		//if(adapter_to_pwrctl(padapter)->cpwm >= PS_STATE_S2)
 		if(0)
 		{
 			SwLedOff(padapter, pLed);
@@ -317,7 +317,7 @@ SwLedBlink1(
 
 #endif
 
-	if( padapter->pwrctrlpriv.rf_pwrstate != rf_on )
+	if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on )
 	{
 		SwLedOff(padapter, pLed);
 		ResetLedStatus(pLed);
@@ -501,7 +501,7 @@ SwLedBlink2(
 
 			if(bStopBlinking)
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on )
+				if( adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on )
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -524,7 +524,7 @@ SwLedBlink2(
 			}
 			else
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on )
+				if( adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on )
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -547,7 +547,7 @@ SwLedBlink2(
 			}
 			if(bStopBlinking)
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on )
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on )
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -570,7 +570,7 @@ SwLedBlink2(
 			}
 			else
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on )
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on )
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -624,7 +624,7 @@ SwLedBlink3(
 
 			if(bStopBlinking)
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on )
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on )
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -650,7 +650,7 @@ SwLedBlink3(
 			}
 			else
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on )
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on )
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -673,7 +673,7 @@ SwLedBlink3(
 			}
 			if(bStopBlinking)
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on )
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on )
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -702,7 +702,7 @@ SwLedBlink3(
 			}
 			else
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on )
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on )
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -739,7 +739,7 @@ SwLedBlink3(
 
 			if(bStopBlinking)
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on )
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on )
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -824,7 +824,7 @@ SwLedBlink4(
 
 			if(bStopBlinking)
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on && padapter->pwrctrlpriv.rfoff_reason > RF_CHANGE_BY_PS)
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on && adapter_to_pwrctl(padapter)->rfoff_reason > RF_CHANGE_BY_PS)
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -842,7 +842,7 @@ SwLedBlink4(
 			}
 			else
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on && padapter->pwrctrlpriv.rfoff_reason > RF_CHANGE_BY_PS)
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on && adapter_to_pwrctl(padapter)->rfoff_reason > RF_CHANGE_BY_PS)
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -865,7 +865,7 @@ SwLedBlink4(
 			}
 			if(bStopBlinking)
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on && padapter->pwrctrlpriv.rfoff_reason > RF_CHANGE_BY_PS)
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on && adapter_to_pwrctl(padapter)->rfoff_reason > RF_CHANGE_BY_PS)
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -883,7 +883,7 @@ SwLedBlink4(
 			}
 			else
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on && padapter->pwrctrlpriv.rfoff_reason > RF_CHANGE_BY_PS)
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on && adapter_to_pwrctl(padapter)->rfoff_reason > RF_CHANGE_BY_PS)
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -993,7 +993,7 @@ SwLedBlink5(
 
 			if(bStopBlinking)
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on && padapter->pwrctrlpriv.rfoff_reason > RF_CHANGE_BY_PS)
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on && adapter_to_pwrctl(padapter)->rfoff_reason > RF_CHANGE_BY_PS)
 				{
 					pLed->CurrLedState = RTW_LED_OFF;
 					pLed->BlinkingLedState = RTW_LED_OFF;
@@ -1011,7 +1011,7 @@ SwLedBlink5(
 			}
 			else
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on && padapter->pwrctrlpriv.rfoff_reason > RF_CHANGE_BY_PS)
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on && adapter_to_pwrctl(padapter)->rfoff_reason > RF_CHANGE_BY_PS)
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -1036,7 +1036,7 @@ SwLedBlink5(
 
 			if(bStopBlinking)
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on && padapter->pwrctrlpriv.rfoff_reason > RF_CHANGE_BY_PS)
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on && adapter_to_pwrctl(padapter)->rfoff_reason > RF_CHANGE_BY_PS)
 				{
 					pLed->CurrLedState = RTW_LED_OFF;
 					pLed->BlinkingLedState = RTW_LED_OFF;
@@ -1055,7 +1055,7 @@ SwLedBlink5(
 			}
 			else
 			{
-				if( padapter->pwrctrlpriv.rf_pwrstate != rf_on && padapter->pwrctrlpriv.rfoff_reason > RF_CHANGE_BY_PS)
+				if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on && adapter_to_pwrctl(padapter)->rfoff_reason > RF_CHANGE_BY_PS)
 				{
 					SwLedOff(padapter, pLed);
 				}
@@ -1589,7 +1589,7 @@ SwLedControlMode2(
 
 		case LED_CTL_STOP_WPS:
 			pLed->bLedWPSBlinkInProgress = _FALSE;
-			if(padapter->pwrctrlpriv.rf_pwrstate != rf_on)
+			if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on)
 			{
 				SwLedOff(padapter, pLed);
 			}
@@ -1604,7 +1604,7 @@ SwLedControlMode2(
 
 		case LED_CTL_STOP_WPS_FAIL:
 			pLed->bLedWPSBlinkInProgress = _FALSE;
-			if(padapter->pwrctrlpriv.rf_pwrstate != rf_on)
+			if(adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on)
 			{
 				SwLedOff(padapter, pLed);
 			}
@@ -2371,8 +2371,8 @@ LedControl871x(
 	//if(priv->bInHctTest)
 	//	return;
 
-	if( (padapter->pwrctrlpriv.rf_pwrstate != rf_on &&
-		padapter->pwrctrlpriv.rfoff_reason > RF_CHANGE_BY_PS) &&
+	if( (adapter_to_pwrctl(padapter)->rf_pwrstate != rf_on &&
+		adapter_to_pwrctl(padapter)->rfoff_reason > RF_CHANGE_BY_PS) &&
 		(LedAction == LED_CTL_TX || LedAction == LED_CTL_RX ||
 		 LedAction == LED_CTL_SITE_SURVEY ||
 		 LedAction == LED_CTL_LINK ||

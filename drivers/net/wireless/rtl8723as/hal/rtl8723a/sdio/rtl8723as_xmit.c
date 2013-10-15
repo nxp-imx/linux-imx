@@ -105,7 +105,13 @@ s32 rtl8723_dequeue_writeport(PADAPTER padapter, u8 *freePage)
 		}
 //		_exit_critical_bh(&phal->SdioTxFIFOFreePageLock, &irql);
 
-		ret = (padapter->bDriverStopped == _TRUE) || (padapter->bSurpriseRemoved == _TRUE);
+		ret = (padapter->bDriverStopped == _TRUE) || (padapter->bSurpriseRemoved == _TRUE)
+#ifdef CONFIG_CONCURRENT_MODE
+		||((padapter->pbuddy_adapter) 
+		&& ((padapter->pbuddy_adapter->bSurpriseRemoved) ||(padapter->pbuddy_adapter->bDriverStopped)))
+#endif
+		;
+
 		if (ret) {
 			RT_TRACE(_module_hal_xmit_c_, _drv_notice_,
 				 ("%s: bSurpriseRemoved(update TX FIFO page)\n", __func__));
@@ -114,11 +120,27 @@ s32 rtl8723_dequeue_writeport(PADAPTER padapter, u8 *freePage)
 
 		n++;
 		//if ((n & 0x3FF) == 0) 
-		if ((n % 2) == 0) 
+		if ((n % 100) == 0) 
 		{		
-			if (n > 5000) {
+			if (n >= 5000) {
+				u8 reg_value_1 = 0;
+				u8 reg_value_2 = 0;
+				u8 reg_value_3 = 0;
+				
 				DBG_8192C(KERN_NOTICE "%s: FIFO starvation!(%d) len=%d agg=%d page=(R)%d(A)%d\n",
 					__func__, n, pxmitbuf->len, pxmitbuf->agg_num, pxmitbuf->pg_num, freePage[PageIdx] + freePage[PUBLIC_QUEUE_IDX]);
+
+				//try to recover the transmission
+				reg_value_1 = rtw_read8(padapter, REG_SYS_FUNC_EN);
+				reg_value_2 = rtw_read8(padapter, REG_CR);
+				reg_value_3 = rtw_read8(padapter, REG_TXPAUSE);
+				DBG_871X("Before recovery: REG_SYS_FUNC_EN = 0x%X, REG_CR = 0x%X, REG_TXPAUSE = 0x%X\n", reg_value_1, reg_value_2, reg_value_3);
+
+				rtw_write8(padapter, REG_SYS_FUNC_EN, reg_value_1 | 0x01);
+				rtw_write8(padapter, REG_CR, reg_value_2 | 0xC0);
+				rtw_write8(padapter, REG_TXPAUSE, 0);
+				DBG_871X("After recovery: REG_SYS_FUNC_EN = 0x%X, REG_CR = 0x%X, REG_TXPAUSE = 0x%X\n", 
+					rtw_read8(padapter, REG_SYS_FUNC_EN), rtw_read8(padapter, REG_CR), rtw_read8(padapter, REG_TXPAUSE));
 			} else {
 				//RT_TRACE(_module_hal_xmit_c_, _drv_notice_,
 				//	("%s: FIFO starvation!(%d) len=%d agg=%d page=(R)%d(A)%d\n",
@@ -348,6 +370,7 @@ static s32 xmit_xmitframes(PADAPTER padapter, struct xmit_priv *pxmitpriv)
 				if (ret == _FAIL) {
 					RT_TRACE(_module_hal_xmit_c_, _drv_err_, ("%s: coalesce FAIL!", __FUNCTION__));
 					// Todo: error handler
+					DBG_871X("%s: coalesce FAIL!", __FUNCTION__);
 				} else {
 					k++;
 					if (k != 1)
@@ -421,16 +444,14 @@ static s32 xmit_xmitframes(PADAPTER padapter, struct xmit_priv *pxmitpriv)
 s32 rtl8723as_xmit_handler(PADAPTER padapter)
 {
 	struct xmit_priv *pxmitpriv;
-	PHAL_DATA_TYPE phal;
 	s32 ret;
 	_irqL irql;
 
 
 	pxmitpriv = &padapter->xmitpriv;
-	phal = GET_HAL_DATA(padapter);
 
 wait:
-	ret = _rtw_down_sema(&phal->SdioXmitSema);
+	ret = _rtw_down_sema(&pxmitpriv->SdioXmitSema);
 	if (_FAIL == ret) {
 		RT_TRACE(_module_hal_xmit_c_, _drv_emerg_, ("%s: down sema fail!\n", __FUNCTION__));
 		return _FAIL;
@@ -475,13 +496,11 @@ thread_return rtl8723as_xmit_thread(thread_context context)
 {
 	PADAPTER padapter;
 	struct xmit_priv *pxmitpriv;
-	PHAL_DATA_TYPE phal;
 	s32 ret;
 
 
 	padapter = (PADAPTER)context;
 	pxmitpriv = &padapter->xmitpriv;
-	phal = GET_HAL_DATA(padapter);
 	ret = _SUCCESS;
 
 	thread_enter("RTWHALXT");
@@ -493,7 +512,7 @@ thread_return rtl8723as_xmit_thread(thread_context context)
 		}
 	} while (_SUCCESS == ret);
 
-	_rtw_up_sema(&phal->SdioXmitTerminateSema);
+	_rtw_up_sema(&pxmitpriv->SdioXmitTerminateSema);
 
 	RT_TRACE(_module_hal_xmit_c_, _drv_notice_, ("-%s\n", __FUNCTION__));
 
@@ -556,14 +575,12 @@ s32 rtl8723as_mgnt_xmit(PADAPTER padapter, struct xmit_frame *pmgntframe)
 s32 rtl8723as_hal_xmit(PADAPTER padapter, struct xmit_frame *pxmitframe)
 {
 	struct xmit_priv *pxmitpriv;
-	PHAL_DATA_TYPE phal;
 	_irqL irql;
 	s32 err;
 
 
 	pxmitframe->attrib.qsel = pxmitframe->attrib.priority;
 	pxmitpriv = &padapter->xmitpriv;
-	phal = GET_HAL_DATA(padapter);
 
 #ifdef CONFIG_80211N_HT
 	if ((pxmitframe->frame_tag == DATA_FRAMETAG) &&
@@ -589,7 +606,7 @@ s32 rtl8723as_hal_xmit(PADAPTER padapter, struct xmit_frame *pxmitframe)
 		return _TRUE;
 	}
 
-	_rtw_up_sema(&phal->SdioXmitSema);
+	_rtw_up_sema(&pxmitpriv->SdioXmitSema);
 
 	return _FALSE;
 }
@@ -597,7 +614,6 @@ s32 rtl8723as_hal_xmit(PADAPTER padapter, struct xmit_frame *pxmitframe)
 s32	rtl8723as_hal_xmitframe_enqueue(_adapter *padapter, struct xmit_frame *pxmitframe)
 {
 	struct xmit_priv 	*pxmitpriv = &padapter->xmitpriv;
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
 	s32 err;
 	
 	if ((err=rtw_xmitframe_enqueue(padapter, pxmitframe)) != _SUCCESS) 
@@ -613,7 +629,7 @@ s32	rtl8723as_hal_xmitframe_enqueue(_adapter *padapter, struct xmit_frame *pxmit
 #ifdef CONFIG_SDIO_TX_TASKLET
 		tasklet_hi_schedule(&pxmitpriv->xmit_tasklet);					
 #else
-		_rtw_up_sema(&pHalData->SdioXmitSema);
+		_rtw_up_sema(&pxmitpriv->SdioXmitSema);
 #endif
 	}
 	
@@ -629,14 +645,15 @@ s32	rtl8723as_hal_xmitframe_enqueue(_adapter *padapter, struct xmit_frame *pxmit
  */
 s32 rtl8723as_init_xmit_priv(PADAPTER padapter)
 {
+	struct xmit_priv *xmitpriv = &padapter->xmitpriv;
 	PHAL_DATA_TYPE phal;
 
 
 	phal = GET_HAL_DATA(padapter);
 
 	_rtw_spinlock_init(&phal->SdioTxFIFOFreePageLock);
-	_rtw_init_sema(&phal->SdioXmitSema, 0);
-	_rtw_init_sema(&phal->SdioXmitTerminateSema, 0);
+	_rtw_init_sema(&xmitpriv->SdioXmitSema, 0);
+	_rtw_init_sema(&xmitpriv->SdioXmitTerminateSema, 0);
 
 	return _SUCCESS;
 }

@@ -165,7 +165,7 @@ rtl8192c_PHY_SetBBReg(
 	if(BitMask!= bMaskDWord){//if not "double word" write
 		OriginalValue = rtw_read32(Adapter, RegAddr);
 		BitShift = phy_CalculateBitShift(BitMask);
-		Data = ((OriginalValue & (~BitMask)) | (Data << BitShift));
+		Data = ((OriginalValue & (~BitMask)) | ((Data << BitShift) & BitMask));
 	}
 
 	rtw_write32(Adapter, RegAddr, Data);
@@ -708,7 +708,7 @@ s32 PHY_MACConfig8723A(PADAPTER Adapter)
 
 
 	// 2010.07.13 AMPDU aggregation number 9
-	//rtw_write16(Adapter, REG_MAX_AGGR_NUM, MAX_AGGR_NUM);
+	//rtw_write8(Adapter, REG_MAX_AGGR_NUM, MAX_AGGR_NUM);
 	rtw_write8(Adapter, REG_MAX_AGGR_NUM, 0x0A); //By tynli. 2010.11.18.
 #ifdef CONFIG_USB_HCI
 	if(is92C && (BOARD_USB_DONGLE == pHalData->BoardType))
@@ -2803,7 +2803,16 @@ static void _PHY_SwChnl8192C(PADAPTER Adapter, u8 channel)
 		PHY_SetRFReg(Adapter, (RF_RADIO_PATH_E)eRFPath, param1, bRFRegOffsetMask, pHalData->RfRegChnlVal[eRFPath]);
 	}
 
-
+	if(channel >= 1 && channel <= 9)
+	{
+				//DBG_8192C("phy_SwitchRfSetting8723A REG_AFE_PLL_CTRL 0xF0FFFF83\n");
+				PHY_SetBBReg(Adapter, REG_AFE_PLL_CTRL, bMaskDWord, 0xF0FFFF83);
+	}
+	else if (channel >= 10 && channel <= 14)
+	{
+				//DBG_8192C("phy_SwitchRfSetting8723A REG_AFE_PLL_CTRL 0xF2FFFF83\n");
+				PHY_SetBBReg(Adapter, REG_AFE_PLL_CTRL, bMaskDWord, 0xF2FFFF83);
+	}		
 	//s3. post common command - CmdID_End, None
 
 }

@@ -673,15 +673,11 @@ s32 rtl8192cu_xmitframe_complete(_adapter *padapter, struct xmit_priv *pxmitpriv
 		//pxmitframe->agg_num = 1; // alloc xmitframe should assign to 1.
 		pxmitframe->pkt_offset = 1; // first frame of aggregation, reserve offset
 
-#ifdef IDEA_CONDITION
-		rtw_xmitframe_coalesce(padapter, pxmitframe->pkt, pxmitframe);
-#else
-		res = rtw_xmitframe_coalesce(padapter, pxmitframe->pkt, pxmitframe);
-		if (res == _FALSE) {
-//			rtw_free_xmitframe(pxmitpriv, pxmitframe);
+		if (rtw_xmitframe_coalesce(padapter, pxmitframe->pkt, pxmitframe) == _FALSE) {
+			DBG_871X("%s coalesce 1st xmitframe failed \n",__FUNCTION__);
 			continue;
 		}
-#endif
+
 
 		// always return ndis_packet after rtw_xmitframe_coalesce
 		rtw_os_xmit_complete(padapter, pxmitframe);
@@ -777,15 +773,12 @@ s32 rtl8192cu_xmitframe_complete(_adapter *padapter, struct xmit_priv *pxmitpriv
 		pxmitframe->agg_num = 0; // not first frame of aggregation
 		pxmitframe->pkt_offset = 0; // not first frame of aggregation, no need to reserve offset
 
-#ifdef IDEA_CONDITION
-		rtw_xmitframe_coalesce(padapter, pxmitframe->pkt, pxmitframe);
-#else
-		res = rtw_xmitframe_coalesce(padapter, pxmitframe->pkt, pxmitframe);
-		if (res == _FALSE) {
+		if (rtw_xmitframe_coalesce(padapter, pxmitframe->pkt, pxmitframe) == _FALSE) {
+			DBG_871X("%s coalesce failed \n",__FUNCTION__);
 			rtw_free_xmitframe(pxmitpriv, pxmitframe);
 			continue;
 		}
-#endif
+
 
 		// always return ndis_packet after rtw_xmitframe_coalesce
 		rtw_os_xmit_complete(padapter, pxmitframe);
@@ -1112,7 +1105,7 @@ static void rtl8192cu_hostap_mgnt_xmit_cb(struct urb *urb)
 
 	//DBG_8192C("%s\n", __FUNCTION__);
 
-	dev_kfree_skb_any(skb);
+	rtw_skb_free(skb);
 #endif	
 }
 
@@ -1145,11 +1138,7 @@ s32 rtl8192cu_hostap_mgnt_xmit_entry(_adapter *padapter, _pkt *pkt)
 	if ((fc & IEEE80211_FCTL_FTYPE) != IEEE80211_FTYPE_MGMT)
 		goto _exit;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,18)) // http://www.mail-archive.com/netdev@vger.kernel.org/msg17214.html
-	pxmit_skb = dev_alloc_skb(len + TXDESC_SIZE);			
-#else			
-	pxmit_skb = netdev_alloc_skb(pnetdev, len + TXDESC_SIZE);
-#endif		
+	pxmit_skb = rtw_skb_alloc(len + TXDESC_SIZE);
 
 	if(!pxmit_skb)
 		goto _exit;
@@ -1230,7 +1219,7 @@ s32 rtl8192cu_hostap_mgnt_xmit_entry(_adapter *padapter, _pkt *pkt)
 	
 _exit:	
 	
-	dev_kfree_skb_any(skb);
+	rtw_skb_free(skb);
 
 #endif
 

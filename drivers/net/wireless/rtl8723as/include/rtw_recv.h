@@ -101,6 +101,26 @@ struct signal_stat {
 	u32	total_num;		//num of valid elements
 	u32	total_val;		//sum of valid elements	
 };
+/*
+#define MAX_PATH_NUM_92CS		2
+
+typedef struct _ODM_Phy_Status_Info_
+{	
+	u1Byte		RxPWDBAll;	
+	u1Byte		SignalQuality;	 // in 0-100 index. 
+	u1Byte		RxMIMOSignalQuality[MAX_PATH_NUM_92CS]; //EVM
+	u1Byte		RxMIMOSignalStrength[MAX_PATH_NUM_92CS];// in 0~100 index
+#if (DM_ODM_SUPPORT_TYPE &  (ODM_MP|ODM_CE))
+	s1Byte		RxPower; // in dBm Translate from PWdB
+	s1Byte		RecvSignalPower;// Real power in dBm for this packet, no beautification and aggregation. Keep this raw info to be used for the other procedures.
+	u1Byte		BTRxRSSIPercentage;	
+	u1Byte		SignalStrength; // in 0-100 index.
+	u1Byte		RxPwr[MAX_PATH_NUM_92CS];//per-path's pwdb
+#endif
+	u1Byte		RxSNR[MAX_PATH_NUM_92CS];//per-path's SNR	
+}ODM_PHY_INFO_T,*PODM_PHY_INFO_T;
+*/
+
 #define MAX_PATH_NUM_92CS		2
 struct phy_info //ODM_PHY_INFO_T
 {	

@@ -89,6 +89,7 @@ typedef enum _HW_VARIABLES{
 	HW_VAR_AMPDU_FACTOR,
 	HW_VAR_RXDMA_AGG_PG_TH,
 	HW_VAR_SET_RPWM,
+	HW_VAR_GET_CPWM,
 	HW_VAR_H2C_FW_PWRMODE,
 	HW_VAR_H2C_FW_JOINBSSRPT,
 	HW_VAR_FWLPS_RF_ON,
@@ -123,6 +124,8 @@ typedef enum _HW_VARIABLES{
 	HW_VAR_H2C_MEDIA_STATUS_RPT,
 	HW_VAR_CHK_HI_QUEUE_EMPTY,
 	HW_VAR_READ_LLT_TAB,
+	HW_VAR_C2HEVT_CLEAR,
+	HW_VAR_C2HEVT_MSG_NORMAL,
 }HW_VARIABLES;
 
 typedef enum _HAL_DEF_VARIABLE{
@@ -142,6 +145,7 @@ typedef enum _HAL_DEF_VARIABLE{
 	HAL_DEF_DBG_DUMP_TXPKT,
 	HW_DEF_FA_CNT_DUMP,
 	HW_DEF_ODM_DBG_FLAG,
+	HW_DEF_ODM_DBG_LEVEL,
 }HAL_DEF_VARIABLE;
 
 typedef enum _HAL_ODM_VARIABLE{
@@ -210,9 +214,7 @@ struct hal_ops {
 	void	(*SetBeaconRelatedRegistersHandler)(_adapter *padapter);
 
 	void	(*Add_RateATid)(_adapter *padapter, u32 bitmap, u8 arg, u8 rssi_level);
-#ifdef CONFIG_CONCURRENT_MODE	
-	void	(*clone_haldata)(_adapter *dst_padapter, _adapter *src_padapter);
-#endif
+
 	void	(*run_thread)(_adapter *padapter);
 	void	(*cancel_thread)(_adapter *padapter);
 
@@ -428,7 +430,7 @@ void	rtw_hal_free_recv_priv(_adapter *padapter);
 
 void rtw_hal_update_ra_mask(struct sta_info *psta, u8 rssi_level);
 void	rtw_hal_add_ra_tid(_adapter *padapter, u32 bitmap, u8 arg, u8 rssi_level);
-void	rtw_hal_clone_data(_adapter *dst_padapter, _adapter *src_padapter);
+
 void	rtw_hal_start_thread(_adapter *padapter);
 void	rtw_hal_stop_thread(_adapter *padapter);
 

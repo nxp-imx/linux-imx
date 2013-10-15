@@ -573,7 +573,9 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 #define	EID_BSSCoexistence			72 // 20/40 BSS Coexistence
 #define	EID_BSSIntolerantChlReport	73
 #define _RIC_Descriptor_IE_			75
-
+#ifdef CONFIG_IEEE80211W
+#define _MME_IE_					76 //802.11w Management MIC element
+#endif //CONFIG_IEEE80211W
 #define _LINK_ID_IE_					101
 #define _CH_SWITCH_TIMING_		104
 #define _PTI_BUFFER_STATUS_		106
@@ -630,7 +632,10 @@ __inline static int IsFrameTypeCtrl(unsigned char *pframe)
 #define _WEP_104_PRIVACY_		5
 #define _WEP_WPA_MIXED_PRIVACY_ 6	// WEP + WPA
 */
-				
+
+#ifdef CONFIG_IEEE80211W
+#define _MME_IE_LENGTH_  18
+#endif //CONFIG_IEEE80211W				
 /*-----------------------------------------------------------------------------
 				Below is the definition for WMM
 ------------------------------------------------------------------------------*/

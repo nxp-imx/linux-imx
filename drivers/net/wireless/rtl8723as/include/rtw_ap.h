@@ -62,4 +62,4 @@ void stop_ap_mode(_adapter *padapter);
 #endif //end of CONFIG_AP_MODE
 
 #endif
-
+void update_bmc_sta(_adapter *padapter);

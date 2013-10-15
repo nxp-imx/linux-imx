@@ -286,6 +286,9 @@
 #define REG_RD_RESP_PKT_TH			0x0463	
 #define REG_INIRTS_RATE_SEL				0x0480
 //#define REG_INIDATA_RATE_SEL			0x0484
+#define REG_MACID_NO_LINK_0			0x0484
+#define REG_MACID_NO_LINK_1			0x0488
+
 #define REG_POWER_STATUS				0x04A4
 #define REG_POWER_STAGE1				0x04B4
 #define REG_POWER_STAGE2				0x04B8
@@ -306,6 +309,11 @@
 #define REG_TX_RPT_CTRL				0x04EC
 #define REG_TX_RPT_TIME				0x04F0	// 2 byte
 #define REG_DUMMY					0x04FC
+
+#ifdef CONFIG_WOWLAN
+#define REG_TXPKTBUF_IV_LOW             0x0484
+#define REG_TXPKTBUF_IV_HIGH            0x0488
+#endif
 
 //-----------------------------------------------------
 //
@@ -1531,7 +1539,7 @@ Current IOREG MAP
 #define POLLING_READY_TIMEOUT_COUNT		1000 
 //#endif
 // GPIO BIT
-#define	HAL_8192C_HW_GPIO_WPS_BIT		BIT2
+#define	HAL_8188E_HW_GPIO_WPS_BIT		BIT7
 
 #if 0//(RTL8188E_SUPPORT == 1)
 ////////////////////////////////ONLY for 88EE/////////////////////////////////
@@ -1618,7 +1626,8 @@ Current IOREG MAP
 #define	EEPROM_RF_ANTENNA_OPT_88E			0xC9
 
 #ifdef CONFIG_RF_GAIN_OFFSET
-#define	EEPROM_RF_GAIN_OFFSET_88E			0xFD
+#define	EEPROM_RF_GAIN_OFFSET_88E			0xC1
+#define	EEPROM_RF_GAIN_VAL_88E				0xF6 //Physical address which is the BB gain offset value
 #endif //CONFIG_RF_GAIN_OFFSET
 
 // RTL88EE

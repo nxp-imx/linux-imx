@@ -886,6 +886,28 @@ u8 rtw_is_wps_ie(u8 *ie_ptr, uint *wps_ielen)
 	return match;
 }
 
+u8 *rtw_get_wps_ie_from_scan_queue(u8 *in_ie, uint in_len, u8 *wps_ie, uint *wps_ielen, u8 frame_type)
+{
+	u8*	wps = NULL;
+
+	DBG_871X( "[%s] frame_type = %d\n", __FUNCTION__, frame_type );
+	switch( frame_type )
+	{
+		case 1:
+		case 3:
+		{	//	Beacon or Probe Response
+			wps = rtw_get_wps_ie(in_ie + _PROBERSP_IE_OFFSET_, in_len - _PROBERSP_IE_OFFSET_, wps_ie, wps_ielen);
+			break;
+		}
+		case 2:
+		{	//	Probe Request
+			wps = rtw_get_wps_ie(in_ie + _PROBEREQ_IE_OFFSET_ , in_len - _PROBEREQ_IE_OFFSET_ , wps_ie, wps_ielen);
+			break;
+		}
+	}
+	return wps;
+}
+
 /**
  * rtw_get_wps_ie - Search WPS IE from a series of IEs
  * @in_ie: Address of IEs to search
@@ -1331,32 +1353,37 @@ void rtw_macaddr_cfg(u8 *mac_addr)
 	DBG_871X("rtw_macaddr_cfg MAC Address  = "MAC_FMT"\n", MAC_ARG(mac_addr));
 }
 
-void dump_ies(u8 *buf, u32 buf_len) {
+void dump_ies(u8 *buf, u32 buf_len)
+{
 	u8* pos = (u8*)buf;
 	u8 id, len;
-	
+
 	while(pos-buf<=buf_len){
 		id = *pos;
 		len = *(pos+1);
 
 		DBG_871X("%s ID:%u, LEN:%u\n", __FUNCTION__, id, len);
+		dump_wps_ie(pos, len);
 		#ifdef CONFIG_P2P
 		dump_p2p_ie(pos, len);
+		#ifdef CONFIG_WFD
+		dump_wfd_ie(pos, len);
 		#endif
-		dump_wps_ie(pos, len);
+		#endif
 
 		pos+=(2+len);
-	}	
+	}
 }
 
-void dump_wps_ie(u8 *ie, u32 ie_len) {
+void dump_wps_ie(u8 *ie, u32 ie_len)
+{
 	u8* pos = (u8*)ie;
 	u16 id;
 	u16 len;
 
 	u8 *wps_ie;
 	uint wps_ielen;
-	
+
 	wps_ie = rtw_get_wps_ie(ie, ie_len, NULL, &wps_ielen);
 	if(wps_ie != ie || wps_ielen == 0)
 		return;
@@ -1369,10 +1396,81 @@ void dump_wps_ie(u8 *ie, u32 ie_len) {
 		DBG_871X("%s ID:0x%04x, LEN:%u\n", __FUNCTION__, id, len);
 
 		pos+=(4+len);
-	}	
+	}
 }
 
 #ifdef CONFIG_P2P
+/**
+ * rtw_get_p2p_merged_len - Get merged ie length from muitiple p2p ies.
+ * @in_ie: Pointer of the first p2p ie
+ * @in_len: Total len of muiltiple p2p ies
+ * Returns: Length of merged p2p ie length
+ */
+u32 rtw_get_p2p_merged_ies_len(u8 *in_ie, u32 in_len)
+{
+	PNDIS_802_11_VARIABLE_IEs	pIE;
+	u8 OUI[4] = { 0x50, 0x6f, 0x9a, 0x09 };
+	int i=0;
+	int j=0, len=0;
+
+	while( i < in_len)
+	{
+		pIE = (PNDIS_802_11_VARIABLE_IEs)(in_ie+ i);
+
+		if( pIE->ElementID == _VENDOR_SPECIFIC_IE_ && _rtw_memcmp(pIE->data, OUI, 4) )
+		{
+			len += pIE->Length-4; // 4 is P2P OUI length, don't count it in this loop
+		}
+
+		i += (pIE->Length + 2);
+	}
+
+	return len + 4;	// Append P2P OUI length at last.
+}
+
+/**
+ * rtw_p2p_merge_ies - Merge muitiple p2p ies into one
+ * @in_ie: Pointer of the first p2p ie
+ * @in_len: Total len of muiltiple p2p ies
+ * @merge_ie: Pointer of merged ie
+ * Returns: Length of merged p2p ie
+ */
+int rtw_p2p_merge_ies(u8 *in_ie, u32 in_len, u8 *merge_ie)
+{
+	PNDIS_802_11_VARIABLE_IEs	pIE;
+	u8 len = 0;
+	u8 OUI[4] = { 0x50, 0x6f, 0x9a, 0x09 };
+	u8 ELOUI[6] = { 0xDD, 0x00, 0x50, 0x6f, 0x9a, 0x09 };	//EID;Len;OUI, Len would copy at the end of function
+	int i=0;
+
+	if( merge_ie != NULL)
+	{
+		//Set first P2P OUI
+		_rtw_memcpy(merge_ie, ELOUI, 6);
+		merge_ie += 6;
+
+		while( i < in_len)
+		{
+			pIE = (PNDIS_802_11_VARIABLE_IEs)(in_ie+ i);
+
+			// Take out the rest of P2P OUIs
+			if( pIE->ElementID == _VENDOR_SPECIFIC_IE_ && _rtw_memcmp(pIE->data, OUI, 4) )
+			{
+				_rtw_memcpy( merge_ie, pIE->data +4, pIE->Length -4);
+				len += pIE->Length-4;
+				merge_ie += pIE->Length-4;
+			}
+
+			i += (pIE->Length + 2);
+		}
+
+		return len + 4;	// 4 is for P2P OUI
+
+	}
+
+	return 0;
+}
+
 void dump_p2p_ie(u8 *ie, u32 ie_len) {
 	u8* pos = (u8*)ie;
 	u8 id;
@@ -1394,6 +1492,28 @@ void dump_p2p_ie(u8 *ie, u32 ie_len) {
 
 		pos+=(3+len);
 	}	
+}
+
+u8 *rtw_get_p2p_ie_from_scan_queue(u8 *in_ie, int in_len, u8 *p2p_ie, uint *p2p_ielen, u8 frame_type)
+{
+	u8*	p2p = NULL;
+
+	DBG_871X( "[%s] frame_type = %d\n", __FUNCTION__, frame_type );
+	switch( frame_type )
+	{
+		case 1:
+		case 3:
+		{	//	Beacon or Probe Response
+			p2p = rtw_get_p2p_ie(in_ie + _PROBERSP_IE_OFFSET_, in_len - _PROBERSP_IE_OFFSET_, p2p_ie, p2p_ielen);
+			break;
+		}
+		case 2:
+		{	//	Probe Request
+			p2p = rtw_get_p2p_ie(in_ie + _PROBEREQ_IE_OFFSET_ , in_len - _PROBEREQ_IE_OFFSET_ , p2p_ie, p2p_ielen);
+			break;
+		}
+	}
+	return p2p;
 }
 
 /**
@@ -1640,6 +1760,29 @@ void rtw_WLAN_BSSID_EX_remove_p2p_attr(WLAN_BSSID_EX *bss_ex, u8 attr_id)
 #endif //CONFIG_P2P
 
 #ifdef CONFIG_WFD
+void dump_wfd_ie(u8 *ie, u32 ie_len)
+{
+	u8* pos = (u8*)ie;
+	u8 id;
+	u16 len;
+
+	u8 *wfd_ie;
+	uint wfd_ielen;
+
+	if(rtw_get_wfd_ie(ie, ie_len, NULL, &wfd_ielen) == _FALSE)
+		return;
+
+	pos+=6;
+	while(pos-ie < ie_len){
+		id = *pos;
+		len = RTW_GET_BE16(pos+1);
+
+		DBG_871X("%s ID:%u, LEN:%u\n", __FUNCTION__, id, len);
+
+		pos+=(3+len);
+	}
+}
+
 int rtw_get_wfd_ie(u8 *in_ie, int in_len, u8 *wfd_ie, uint *wfd_ielen)
 {
 	int match;
@@ -1697,6 +1840,30 @@ int rtw_get_wfd_ie(u8 *in_ie, int in_len, u8 *wfd_ie, uint *wfd_ielen)
 	
 	return match;
 
+}
+
+int rtw_get_wfd_ie_from_scan_queue(u8 *in_ie, int in_len, u8 *wfd_ie, uint *wfd_ielen, u8 frame_type)
+{
+	int match;
+
+	match=_FALSE;
+
+	DBG_871X( "[%s] frame_type = %d\n", __FUNCTION__, frame_type );
+	switch( frame_type )
+	{
+		case 1:
+		case 3:
+		{	//	Beacon or Probe Response
+			match = rtw_get_wfd_ie(in_ie + _PROBERSP_IE_OFFSET_, in_len - _PROBERSP_IE_OFFSET_, wfd_ie, wfd_ielen);
+			break;
+		}
+		case 2:
+		{	//	Probe Request
+			match = rtw_get_wfd_ie(in_ie + _PROBEREQ_IE_OFFSET_ , in_len - _PROBEREQ_IE_OFFSET_ , wfd_ie, wfd_ielen);
+			break;
+		}
+	}
+	return match;
 }
 
 //	attr_content: The output buffer, contains the "body field" of WFD attribute.

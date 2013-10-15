@@ -65,6 +65,9 @@ void dump_chip_info(HAL_VERSION	ChipVersion)
 	else if(IS_C_CUT(ChipVersion)) cnt += sprintf((buf+cnt), "C_CUT_");
 	else if(IS_D_CUT(ChipVersion)) cnt += sprintf((buf+cnt), "D_CUT_");
 	else if(IS_E_CUT(ChipVersion)) cnt += sprintf((buf+cnt), "E_CUT_");
+	else if(IS_I_CUT(ChipVersion)) cnt += sprintf((buf+cnt), "I_CUT_");
+	else if(IS_J_CUT(ChipVersion)) cnt += sprintf((buf+cnt), "J_CUT_");
+	else if(IS_K_CUT(ChipVersion)) cnt += sprintf((buf+cnt), "K_CUT_");
 	else cnt += sprintf((buf+cnt), "UNKNOWN_CUT(%d)_", ChipVersion.CUTVersion);
 
 	if(IS_1T1R(ChipVersion)) cnt += sprintf((buf+cnt), "1T1R_");
@@ -391,5 +394,60 @@ clear_evt:
 	c2h_evt_clear(adapter);
 exit:
 	return ret;
+}
+
+u8
+SetHalDefVar(_adapter *adapter, HAL_DEF_VARIABLE variable, void *value)
+{
+	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(adapter);
+	PDM_ODM_T pDM_Odm = &(pHalData->odmpriv);
+	u8 bResult = _SUCCESS;
+
+	switch(variable) {
+	case HW_DEF_FA_CNT_DUMP:
+		if(*((u8*)value))
+			pDM_Odm->DebugComponents |= (ODM_COMP_DIG |ODM_COMP_FA_CNT);
+		else
+			pDM_Odm->DebugComponents &= ~(ODM_COMP_DIG |ODM_COMP_FA_CNT);
+		break;
+	case HW_DEF_ODM_DBG_FLAG:
+		ODM_CmnInfoUpdate(pDM_Odm, ODM_CMNINFO_DBG_COMP, *((u8Byte*)value));
+		break;
+	case HW_DEF_ODM_DBG_LEVEL:
+		ODM_CmnInfoUpdate(pDM_Odm, ODM_CMNINFO_DBG_LEVEL, *((u4Byte*)value));
+		break;
+	default:
+		DBG_871X_LEVEL(_drv_always_, "%s: [WARNING] HAL_DEF_VARIABLE(%d) not defined!\n", __FUNCTION__, variable);
+		bResult = _FAIL;
+		break;
+	}
+
+	return bResult;
+}
+
+u8
+GetHalDefVar(_adapter *adapter, HAL_DEF_VARIABLE variable, void *value)
+{
+	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(adapter);
+	PDM_ODM_T pDM_Odm = &(pHalData->odmpriv);
+	u8 bResult = _SUCCESS;
+
+	switch(variable) {
+	case HW_DEF_ODM_DBG_FLAG:
+		*((u8Byte*)value) = pDM_Odm->DebugComponents;
+		break;
+	case HW_DEF_ODM_DBG_LEVEL:
+		*((u4Byte*)value) = pDM_Odm->DebugLevel;
+		break;
+	case HAL_DEF_DBG_DM_FUNC:
+		*((u32*)value) = pHalData->odmpriv.SupportAbility;
+		break;
+	default:
+		DBG_871X_LEVEL(_drv_always_, "%s: [WARNING] HAL_DEF_VARIABLE(%d) not defined!\n", __FUNCTION__, variable);
+		bResult = _FAIL;
+		break;
+	}
+
+	return bResult;
 }
 

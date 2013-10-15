@@ -48,74 +48,106 @@
 	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(pAdapter);
     u32					u4RF_IPA[3], u4RF_TXBIAS, u4RF_SYN_G2;
     
-	//default value
+		DBG_8192C("phy_SwitchRfSetting8723A channel=%d\n",channel);
+
+
+	if(channel >= 1 && channel <= 9)
 	{
-		u4RF_IPA[0] = 0x4F424;			//CCK
-		u4RF_IPA[1] = 0xCF424;			//OFDM
-		u4RF_IPA[2] = 0x8F424;			//MCS	
-		u4RF_TXBIAS = 0xC0356;							
-		u4RF_SYN_G2 = 0x4F200;																
+				DBG_8192C("phy_SwitchRfSetting8723A REG_AFE_PLL_CTRL 0xF0FFFF83\n");
+				PHY_SetBBReg(pAdapter, REG_AFE_PLL_CTRL, bMaskDWord, 0xF0FFFF83);
 	}
-
-	switch(channel)
+	else if (channel >= 10 && channel <= 14)
 	{
-		case 1:
-			u4RF_IPA[0] = 0x4F40C;			
-			u4RF_IPA[1] = 0xCF466;	
-			u4RF_TXBIAS = 0xC0350;						
-			break;
-
-		case 2:
-			u4RF_IPA[0] =  0x4F407; 		
-			u4RF_TXBIAS =  0xC0350; 								
-			break;
-
-		case 3:
-			u4RF_IPA[0] =  0x4F407; 		
-			u4RF_IPA[2] =  0x8F466; 			
-			u4RF_TXBIAS =  0xC0350; 								
-			break;
-
-		case 5:
-		case 8: 
-			u4RF_SYN_G2 =  0x0F400; 											
-			break;
-
-		case 6:
-		case 13:	
-			u4RF_IPA[0] =  0x4F40C; 		
-			break;
-
-		case 7: 
-			u4RF_IPA[0] =  0x4F40C; 		
-			u4RF_SYN_G2 =  0x0F400; 														
-			break;			
-
-		case 9:
-			u4RF_IPA[2] =  0x8F454; 		
-			u4RF_SYN_G2 =  0x0F400; 														
-			break;
-
-		case 11:	
-			u4RF_IPA[0] =  0x4F40C; 		
-			u4RF_IPA[1] =  0xCF454; 
-			u4RF_SYN_G2 =  0x0F400; 														
-			break;
-
-		default:
-			u4RF_IPA[0] =  0x4F424; 		
-			u4RF_IPA[1] =  0x8F424; 			
-			u4RF_IPA[2] =  0xCF424; 				
-			u4RF_TXBIAS =  0xC0356; 						
-			u4RF_SYN_G2 =  0x4F200; 																
-			break;
-	}
-
-	PHY_SetRFReg(pAdapter, RF_PATH_A, RF_IPA, bRFRegOffsetMask, u4RF_IPA[0]);
-	PHY_SetRFReg(pAdapter, RF_PATH_A, RF_IPA, bRFRegOffsetMask, u4RF_IPA[1]);
-	PHY_SetRFReg(pAdapter, RF_PATH_A, RF_IPA, bRFRegOffsetMask, u4RF_IPA[2]);
-	PHY_SetRFReg(pAdapter, RF_PATH_A, RF_TXBIAS, bRFRegOffsetMask, u4RF_TXBIAS);	
-	PHY_SetRFReg(pAdapter, RF_PATH_A, RF_SYN_G2, bRFRegOffsetMask, u4RF_SYN_G2);
+				DBG_8192C("phy_SwitchRfSetting8723A REG_AFE_PLL_CTRL 0xF2FFFF83\n");
+				PHY_SetBBReg(pAdapter, REG_AFE_PLL_CTRL, bMaskDWord, 0xF2FFFF83);
+	}	
+		
+		
+#if	DEV_BUS_TYPE==RT_PCI_INTERFACE
+		u4Byte				u4RF_IPA[3], u4RF_TXBIAS, u4RF_SYN_G2;
+		//default value
+		{
+			u4RF_IPA[0] = 0x4F424;			//CCK
+			u4RF_IPA[1] = 0xCF424;			//OFDM
+			u4RF_IPA[2] = 0x8F424;			//MCS	
+			u4RF_TXBIAS = 0xC0356;							
+			u4RF_SYN_G2 = 0x4F200;																
+		}
+	
+		switch(channel)
+		{
+			case 1:
+				u4RF_IPA[0] = 0x4F40C;			
+				u4RF_IPA[1] = 0xCF466;	
+				u4RF_TXBIAS = 0xC0350;						
+				u4RF_SYN_G2 = 0x0F400;																			
+				break;
+	
+			case 2:
+				u4RF_IPA[0] =  0x4F407; 		
+				u4RF_TXBIAS =  0xC0350; 								
+				u4RF_SYN_G2 = 0x0F400;																						
+				break;
+	
+			case 3:
+				u4RF_IPA[0] =  0x4F407; 		
+				u4RF_IPA[2] =  0x8F466; 			
+				u4RF_TXBIAS =  0xC0350; 								
+				u4RF_SYN_G2 = 0x0F400;																						
+				break;
+	
+			case 5:
+			case 8: 
+				u4RF_SYN_G2 =  0x0F400; 											
+				break;
+	
+			case 6:
+			case 13:	
+				u4RF_IPA[0] =  0x4F40C; 		
+				break;
+	
+			case 7: 
+				u4RF_IPA[0] =  0x4F40C; 		
+				u4RF_SYN_G2 =  0x0F400; 														
+				break;			
+	
+			case 9:
+				u4RF_IPA[2] =  0x8F454; 		
+				u4RF_SYN_G2 =  0x0F400; 														
+				break;
+	
+			case 11:	
+				u4RF_IPA[0] =  0x4F40C; 		
+				u4RF_IPA[1] =  0xCF454; 
+				u4RF_SYN_G2 =  0x0F400; 														
+				break;
+	
+			default:
+				u4RF_IPA[0] =  0x4F424; 		
+				u4RF_IPA[1] =  0x8F424; 			
+				u4RF_IPA[2] =  0xCF424; 				
+				u4RF_TXBIAS =  0xC0356; 						
+				u4RF_SYN_G2 =  0x4F200; 																
+				break;
+		}
+	
+		PHY_SetRFReg(pAdapter, ODM_RF_PATH_A, RF_IPA, bRFRegOffsetMask, u4RF_IPA[0]);
+		PHY_SetRFReg(pAdapter, ODM_RF_PATH_A, RF_IPA, bRFRegOffsetMask, u4RF_IPA[1]);
+		PHY_SetRFReg(pAdapter, ODM_RF_PATH_A, RF_IPA, bRFRegOffsetMask, u4RF_IPA[2]);
+		PHY_SetRFReg(pAdapter, ODM_RF_PATH_A, RF_TXBIAS, bRFRegOffsetMask, u4RF_TXBIAS);	
+		PHY_SetRFReg(pAdapter, ODM_RF_PATH_A, RF_SYN_G2, bRFRegOffsetMask, u4RF_SYN_G2);
+	
+		if((channel >= 1 && channel <= 5) || (channel >= 8 && channel <= 9))
+		{
+			PHY_SetBBReg(pAdapter, REG_AFE_PLL_CTRL, bMaskDWord, 0xF0FFFF83);
+		}
+		else 
+		{
+			PHY_SetBBReg(pAdapter, REG_AFE_PLL_CTRL, bMaskDWord, 0xF2FFFF83);
+		}		
+	
+#endif
+	
 
 }	
 
@@ -126,7 +158,10 @@ void Hal_mpt_SwitchRfSetting(PADAPTER pAdapter)
 {
 	HAL_DATA_TYPE		*pHalData = GET_HAL_DATA(pAdapter);
 	PMPT_CONTEXT		pMptCtx = &(pAdapter->mppriv.MptCtx);
-	u8				ChannelToSw = pMptCtx->MptChannelToSw;
+	u8				ChannelToSw ;
+	
+	pMptCtx->MptChannelToSw=pAdapter->mppriv.channel;
+	ChannelToSw =pMptCtx->MptChannelToSw;
 	
 	phy_SwitchRfSetting8723A(pAdapter, ChannelToSw);
 }	
@@ -408,7 +443,7 @@ void Hal_SetChannel(PADAPTER pAdapter)
 	Hal_mpt_SwitchRfSetting(pAdapter);
 
 	SelectChannel(pAdapter, channel);
-
+	
 	if (pHalData->CurrentChannel == 14 && !pHalData->dmpriv.bCCKinCH14) {
 		pHalData->dmpriv.bCCKinCH14 = _TRUE;
 		Hal_MPT_CCKTxPowerAdjust(pAdapter, pHalData->dmpriv.bCCKinCH14);

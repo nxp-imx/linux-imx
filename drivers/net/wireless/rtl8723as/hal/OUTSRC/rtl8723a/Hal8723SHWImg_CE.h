@@ -5,7 +5,7 @@
 
 #define Rtl8723SUMCBCutMPImgArrayLength 24174
 
-#define Rtl8723SUMCBCutImgArrayWithBTLength 24118
+#define Rtl8723SUMCBCutImgArrayWithBTLength 24348
 #define Rtl8723SUMCBCutImgArrayWithoutBTLength 19200
 
 #define Rtl8723SImgArrayLength 20606
@@ -14,7 +14,7 @@ extern const u8 Rtl8723SFwImgArray[Rtl8723SImgArrayLength];
 extern const u8 Rtl8723SFwBTImgArray[Rtl8723SBTImgArrayLength];
 
 #ifdef CONFIG_MP_INCLUDED
-#define Rtl8723EBTImgArrayLength 15275
+#define Rtl8723EBTImgArrayLength 16404
 extern u8 Rtl8723EFwBTImgArray[Rtl8723EBTImgArrayLength] ;
 extern const u8 Rtl8723SFwUMCBCutMPImgArray[Rtl8723SUMCBCutMPImgArrayLength];
 #endif //CONFIG_MP_INCLUDED

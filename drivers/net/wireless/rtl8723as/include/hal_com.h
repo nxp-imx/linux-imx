@@ -178,5 +178,8 @@ void hal_init_macaddr(_adapter *adapter);
 void c2h_evt_clear(_adapter *adapter);
 s32 c2h_evt_read(_adapter *adapter, u8 *buf);
 
+u8 SetHalDefVar(_adapter *adapter, HAL_DEF_VARIABLE variable, void *value);
+u8 GetHalDefVar(_adapter *adapter, HAL_DEF_VARIABLE variable, void *value);
+
 #endif //__HAL_COMMON_H__
 

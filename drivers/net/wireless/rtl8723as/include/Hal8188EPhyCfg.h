@@ -347,6 +347,7 @@ storePwrIndexDiffRateOffset(
 #define PHY_SetRFReg(Adapter, eRFPath, RegAddr, BitMask, Data) rtl8188e_PHY_SetRFReg((Adapter), (eRFPath), (RegAddr), (BitMask), (Data))
 
 #define PHY_SetMacReg	PHY_SetBBReg
+#define PHY_QueryMacReg PHY_QueryBBReg
 
 
 //

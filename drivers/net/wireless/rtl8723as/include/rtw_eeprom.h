@@ -138,6 +138,7 @@ struct eeprom_priv
 
 #ifdef CONFIG_RF_GAIN_OFFSET
 	u8		EEPROMRFGainOffset;
+	u8		EEPROMRFGainVal;
 #endif //CONFIG_RF_GAIN_OFFSET
 
 #ifdef CONFIG_SDIO_HCI

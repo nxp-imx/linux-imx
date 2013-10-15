@@ -286,6 +286,12 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 			  off_t offset, int count,
 			  int *eof, void *data);
 
+#ifdef DBG_MEM_ALLOC
+	int proc_get_mstat(char *page, char **start,
+			  off_t offset, int count,
+			  int *eof, void *data);
+#endif /* DBG_MEM_ALLOC */
+
 	int proc_get_write_reg(char *page, char **start,
 			  off_t offset, int count,
 			  int *eof, void *data);
@@ -395,6 +401,8 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 	int proc_get_best_channel(char *page, char **start,
 			  off_t offset, int count,
 			  int *eof, void *data);
+	int proc_set_best_channel(struct file *file, const char *buffer,
+		unsigned long count, void *data);
 #endif
 
 	int proc_get_rx_signal(char *page, char **start,
@@ -459,6 +467,14 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 int proc_get_sreset(char *page, char **start, off_t offset, int count, int *eof, void *data);
 int proc_set_sreset(struct file *file, const char *buffer, unsigned long count, void *data);
 #endif /* DBG_CONFIG_ERROR_DETECT */
+
+int proc_get_odm_dbg_comp(char *page, char **start, off_t offset, int count, int *eof, void *data);
+int proc_set_odm_dbg_comp(struct file *file, const char *buffer, unsigned long count, void *data);
+int proc_get_odm_dbg_level(char *page, char **start, off_t offset, int count, int *eof, void *data);
+int proc_set_odm_dbg_level(struct file *file, const char *buffer, unsigned long count, void *data);
+
+int proc_get_odm_adaptivity(char *page, char **start, off_t offset, int count, int *eof, void *data);
+int proc_set_odm_adaptivity(struct file *file, const char *buffer, unsigned long count, void *data);
 
 #endif //CONFIG_PROC_DEBUG
 

@@ -71,6 +71,7 @@
 		u32	cmd_done_cnt;
 		u32	rsp_cnt;
 		u8 cmdthd_running;
+		u8 stop_req;
 		_adapter *padapter;
 	};
 
@@ -148,6 +149,7 @@ extern struct evt_obj *rtw_dequeue_evt(_queue *queue);
 extern void rtw_free_evt_obj(struct evt_obj *pcmd);
 #endif
 
+void rtw_stop_cmd_thread(_adapter *adapter);
 thread_return rtw_cmd_thread(thread_context context);
 
 extern u32 rtw_init_cmd_priv (struct cmd_priv *pcmdpriv);
@@ -180,6 +182,11 @@ enum rtw_drvextra_cmd_id
 	INTEl_WIDI_WK_CID,
 	C2H_WK_CID,
 	RTP_TIMER_CFG_WK_CID,
+	RESET_SECURITYPRIV, // add for CONFIG_IEEE80211W, none 11w also can use
+	FREE_ASSOC_RESOURCES, // add for CONFIG_IEEE80211W, none 11w also can use
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
+	EVENT_POLLING_CID,
+#endif	
 	MAX_WK_CID
 };
 
@@ -938,11 +945,11 @@ u8 rtw_sitesurvey_cmd(_adapter  *padapter, NDIS_802_11_SSID *ssid, int ssid_num,
 extern u8 rtw_createbss_cmd(_adapter  *padapter);
 extern u8 rtw_createbss_cmd_ex(_adapter  *padapter, unsigned char *pbss, unsigned int sz);
 extern u8 rtw_setphy_cmd(_adapter  *padapter, u8 modem, u8 ch);
-extern u8 rtw_setstakey_cmd(_adapter  *padapter, u8 *psta, u8 unicast_key);
+extern u8 rtw_setstakey_cmd(_adapter  *padapter, u8 *psta, u8 unicast_key, bool enqueue);
 extern u8 rtw_clearstakey_cmd(_adapter *padapter, u8 *psta, u8 entry, u8 enqueue);
 extern u8 rtw_joinbss_cmd(_adapter  *padapter, struct wlan_network* pnetwork);
 u8 rtw_disassoc_cmd(_adapter *padapter, u32 deauth_timeout_ms, bool enqueue);
-extern u8 rtw_setopmode_cmd(_adapter  *padapter, NDIS_802_11_NETWORK_INFRASTRUCTURE networktype);
+extern u8 rtw_setopmode_cmd(_adapter  *padapter, NDIS_802_11_NETWORK_INFRASTRUCTURE networktype, bool enqueue);
 extern u8 rtw_setdatarate_cmd(_adapter  *padapter, u8 *rateset);
 extern u8 rtw_setbasicrate_cmd(_adapter  *padapter, u8 *rateset);
 extern u8 rtw_setbbreg_cmd(_adapter * padapter, u8 offset, u8 val);
@@ -958,7 +965,9 @@ extern u8 rtw_setfwdig_cmd(_adapter*padapter, u8 type);
 extern u8 rtw_setfwra_cmd(_adapter*padapter, u8 type);
 
 extern u8 rtw_addbareq_cmd(_adapter*padapter, u8 tid, u8 *addr);
-
+// add for CONFIG_IEEE80211W, none 11w also can use
+extern u8 rtw_reset_securitypriv_cmd(_adapter*padapter);
+extern u8 rtw_free_assoc_resources_cmd(_adapter *padapter);
 extern u8 rtw_dynamic_chk_wk_cmd(_adapter *adapter);
 
 u8 rtw_lps_ctrl_wk_cmd(_adapter*padapter, u8 lps_ctrl_type, u8 enqueue);
@@ -983,6 +992,10 @@ extern u8 rtw_set_csa_cmd(_adapter*padapter, u8 new_ch_no);
 extern u8 rtw_tdls_cmd(_adapter*padapter, u8 *addr, u8 option);
 
 extern u8 rtw_c2h_wk_cmd(PADAPTER padapter, u8 *c2h_evt);
+
+#ifdef CONFIG_DETECT_C2H_BY_POLLING
+extern u8 rtw_event_polling_cmd(_adapter*padapter);
+#endif
 
 u8 rtw_drvextra_cmd_hdl(_adapter *padapter, unsigned char *pbuf);
 

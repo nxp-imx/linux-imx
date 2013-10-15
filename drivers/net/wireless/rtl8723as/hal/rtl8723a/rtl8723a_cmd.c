@@ -49,6 +49,7 @@ static u8 _is_fw_read_cmd_down(_adapter* padapter, u8 msgbox_num)
 
 	do{
 		valid = rtw_read8(padapter,REG_HMETFR) & BIT(msgbox_num);
+
 		if(0 == valid ){
 			read_down = _TRUE;
 		}
@@ -125,8 +126,8 @@ _func_enter_;
 
 		bcmd_down = _TRUE;
 
-	//	DBG_8192C("MSG_BOX:%d,CmdLen(%d), reg:0x%x =>h2c_cmd:0x%x, reg:0x%x =>h2c_cmd_ex:0x%x ..\n"
-	//	 	,pHalData->LastHMEBoxNum ,CmdLen,msgbox_addr,h2c_cmd,msgbox_ex_addr,h2c_cmd_ex);
+		//DBG_8192C("MSG_BOX:%d,CmdLen(%d), reg:0x%x =>h2c_cmd:0x%x, reg:0x%x =>h2c_cmd_ex:0x%x ..\n"
+		// 	,pHalData->LastHMEBoxNum ,CmdLen,msgbox_addr,h2c_cmd,msgbox_ex_addr,h2c_cmd_ex);
 
 		pHalData->LastHMEBoxNum = (h2c_box_num+1) % RTL92C_MAX_H2C_BOX_NUMS;
 
@@ -222,12 +223,6 @@ void rtl8192c_Add_RateATid(PADAPTER pAdapter, u32 bitmap, u8 arg, u8 rssi_level)
 	
 #ifdef CONFIG_ODM_REFRESH_RAMASK
 	u8 raid = (bitmap>>28) & 0x0f;
-
-#ifdef CONFIG_CONCURRENT_MODE
-	if(rtw_buddy_adapter_up(pAdapter) && pAdapter->adapter_type > PRIMARY_ADAPTER)	
-		pHalData = GET_HAL_DATA(pAdapter->pbuddy_adapter);				
-#endif //CONFIG_CONCURRENT_MODE
-
 	bitmap &=0x0fffffff;	
 	if(rssi_level != DM_RATR_STA_INIT)
 		bitmap = ODM_Get_Rate_Bitmap(&pHalData->odmpriv, macid, bitmap, rssi_level);	
@@ -260,23 +255,54 @@ void rtl8192c_Add_RateATid(PADAPTER pAdapter, u32 bitmap, u8 arg, u8 rssi_level)
 void rtl8723a_set_FwPwrMode_cmd(PADAPTER padapter, u8 Mode)
 {
 	SETPWRMODE_PARM H2CSetPwrMode;
-	struct pwrctrl_priv *pwrpriv = &padapter->pwrctrlpriv;
+	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
 
 _func_enter_;
-
-	DBG_871X("%s: Mode=%d SmartPS=%d UAPSD=%d BcnMode=0x%02x\n", __FUNCTION__,
-			Mode, pwrpriv->smart_ps, padapter->registrypriv.uapsd_enable, pwrpriv->bcn_ant_mode);
 
 	H2CSetPwrMode.Mode = Mode;
 	H2CSetPwrMode.SmartPS = pwrpriv->smart_ps;
 	H2CSetPwrMode.AwakeInterval = 1;
 	H2CSetPwrMode.bAllQueueUAPSD = padapter->registrypriv.uapsd_enable;
-	H2CSetPwrMode.BcnAntMode = pwrpriv->bcn_ant_mode;
+
+	if(0 == Mode)
+	{
+		/* Leave LPS, set BcnAntMode to 0 */
+		H2CSetPwrMode.BcnAntMode = 0;
+	}
+	else 
+	{
+		H2CSetPwrMode.BcnAntMode = pwrpriv->bcn_ant_mode;
+	}
+
+	DBG_871X("%s: Mode=%d SmartPS=%d UAPSD=%d BcnMode=0x%02x\n", __FUNCTION__,
+	        H2CSetPwrMode.Mode, H2CSetPwrMode.SmartPS, H2CSetPwrMode.bAllQueueUAPSD, H2CSetPwrMode.BcnAntMode);
 
 	FillH2CCmd(padapter, SET_PWRMODE_EID, sizeof(H2CSetPwrMode), (u8 *)&H2CSetPwrMode);
 
 _func_exit_;
 }
+
+
+void rtl8723a_set_FwMediaStatus_cmd(PADAPTER padapter, u16 mstatus_rpt )
+{
+	u8 opmode,macid;
+	u16 mst_rpt = cpu_to_le16 (mstatus_rpt);
+	u32 reg_macid_no_link = REG_MACID_NO_LINK;
+	opmode = (u8) mst_rpt;
+	macid = (u8)(mst_rpt >> 8)  ;
+	DBG_871X("### %s: MStatus=%x MACID=%d \n", __FUNCTION__,opmode,macid);
+
+	//Delete select macid (MACID 0~63) from queue list.
+	if(opmode == 1)// 1:connect
+	{
+		rtw_write32(padapter,reg_macid_no_link, (rtw_read32(padapter,reg_macid_no_link) & (~BIT(macid))));
+	}
+	else//0: disconnect
+	{
+		rtw_write32(padapter,reg_macid_no_link, (rtw_read32(padapter,reg_macid_no_link)|BIT(macid)));
+	}
+}
+
 
 void ConstructBeacon(_adapter *padapter, u8 *pframe, u32 *pLength)
 {
@@ -949,7 +975,7 @@ void rtl8723a_set_BTCoex_AP_mode_FwRsvdPkt_cmd(PADAPTER padapter)
 void rtl8192c_set_p2p_ps_offload_cmd(_adapter* padapter, u8 p2p_ps_state)
 {
 	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(padapter);
-	struct pwrctrl_priv		*pwrpriv = &padapter->pwrctrlpriv;
+	struct pwrctrl_priv		*pwrpriv = adapter_to_pwrctl(padapter);
 	struct wifidirect_info	*pwdinfo = &( padapter->wdinfo );
 	struct P2P_PS_Offload_t	*p2p_ps_offload = &pHalData->p2p_ps_offload;
 	u8	i;

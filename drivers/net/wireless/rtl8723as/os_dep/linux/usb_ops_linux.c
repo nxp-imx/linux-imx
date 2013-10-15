@@ -27,7 +27,7 @@ static void _usbctrl_vendorreq_async_callback(struct urb *urb, struct pt_regs *r
 {
 	if (urb) {
 		if (urb->context) {
-			kfree(urb->context);
+			rtw_mfree(urb->context);
 		}
 		usb_free_urb(urb);
 	}
@@ -223,7 +223,7 @@ static u32 usb_bulkout_zero(struct intf_hdl *pintfhdl, u32 addr)
 	//DBG_871X("%s\n", __func__);
 	
 		
-	if((padapter->bDriverStopped) || (padapter->bSurpriseRemoved) ||(padapter->pwrctrlpriv.pnp_bstop_trx))
+	if((padapter->bDriverStopped) || (padapter->bSurpriseRemoved) ||(dvobj_to_pwrctl(pdvobj)->pnp_bstop_trx))
 	{		
 		return _FAIL;
 	}
@@ -475,12 +475,12 @@ _func_enter_;
 	
 	RT_TRACE(_module_hci_ops_os_c_,_drv_err_,("+usb_write_port\n"));
 	
-	if ((padapter->bDriverStopped) || (padapter->bSurpriseRemoved) ||(padapter->pwrctrlpriv.pnp_bstop_trx)) {
+	if ((padapter->bDriverStopped) || (padapter->bSurpriseRemoved) ||(dvobj_to_pwrctl(pdvobj)->pnp_bstop_trx)) {
 		#ifdef DBG_TX
 		DBG_871X(" DBG_TX %s:%d bDriverStopped%d, bSurpriseRemoved:%d, pnp_bstop_trx:%d\n",__FUNCTION__, __LINE__
-			,padapter->bDriverStopped, padapter->bSurpriseRemoved, padapter->pwrctrlpriv.pnp_bstop_trx );
+			,padapter->bDriverStopped, padapter->bSurpriseRemoved, dvobj_to_pwrctl(pdvobj)->pnp_bstop_trx );
 		#endif
-		RT_TRACE(_module_hci_ops_os_c_,_drv_err_,("usb_write_port:( padapter->bDriverStopped ||padapter->bSurpriseRemoved ||adapter->pwrctrlpriv.pnp_bstop_trx)!!!\n"));
+		RT_TRACE(_module_hci_ops_os_c_,_drv_err_,("usb_write_port:( padapter->bDriverStopped ||padapter->bSurpriseRemoved ||pwrctl->pnp_bstop_trx)!!!\n"));
 		rtw_sctx_done_err(&pxmitbuf->sctx, RTW_SCTX_DONE_TX_DENY);
 		goto exit;
 	}
@@ -512,8 +512,60 @@ _func_enter_;
 			pxmitbuf->flags = MGT_QUEUE_INX;
 			break;
 	}
-		
+
 	_exit_critical(&pxmitpriv->lock, &irqL);
+
+	#ifdef DBG_TRX_STA_PKTS
+	{
+		struct sta_info *psta = NULL;
+	 	struct sta_priv *pstapriv = &padapter->stapriv;		
+		int bmcast = IS_MCAST(pattrib->dst);
+		u8 agg_num = 1;
+		
+		#ifdef CONFIG_USB_HCI
+		#ifdef CONFIG_USB_TX_AGGREGATION
+			if(pxmitframe->agg_num>1)
+				agg_num = pxmitframe->agg_num;
+		#endif
+		#endif
+		
+		#if defined(CONFIG_SDIO_HCI) || defined(CONFIG_GSPI_HCI)
+			if(pxmitframe->agg_num>1)
+				agg_num = pxmitframe->agg_num;
+		#endif
+
+		if(bmcast)
+		{
+			psta = rtw_get_bcmc_stainfo(padapter);
+	
+		} else {
+			psta = rtw_get_stainfo(pstapriv, pattrib->dst);
+		}
+		if(psta)
+		{
+			switch(pattrib->priority)
+			{
+				case 1:
+				case 2:						
+					psta->tx_bk_cnt += agg_num;
+					break;
+				case 4:
+				case 5:					
+					psta->tx_vi_cnt += agg_num;					
+					break;
+				case 6:
+				case 7:
+					psta->tx_vo_cnt += agg_num;					
+					break;
+				case 0:
+				case 3:
+				default:						
+					psta->tx_be_cnt += agg_num;			
+					break;	
+			}
+		}		
+	}	
+	#endif
 		
 	purb	= pxmitbuf->pxmit_urb[0];
 

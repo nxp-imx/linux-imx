@@ -149,5 +149,12 @@ void rtw_drv_if2_stop(_adapter *if2);
 int rtw_drv_register_netdev(_adapter *padapter);
 void rtw_ndev_destructor(_nic_hdl ndev);
 
+int rtw_suspend_common(_adapter *padapter);
+int rtw_resume_common(_adapter *padapter);
+
+#ifdef CONFIG_ARP_KEEP_ALIVE
+int	rtw_gw_addr_query(_adapter *padapter);
+#endif
+
 #endif	//_OSDEP_INTF_H_
 

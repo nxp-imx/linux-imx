@@ -843,7 +843,6 @@ void rtl8192c_ReadBluetoothCoexistInfo(PADAPTER Adapter, u8 *PROMContent, BOOLEA
 //void rtl8192c_free_hal_data(_adapter * padapter);
 VOID rtl8192c_EfuseParseIDCode(PADAPTER pAdapter, u8 *hwinfo);
 void rtl8192c_set_hal_ops(struct hal_ops *pHalFunc);
-void	rtl8192c_clone_haldata(_adapter* dst_adapter, _adapter* src_adapter);
 
 s32 c2h_id_filter_ccx_8192c(u8 id);
 #endif

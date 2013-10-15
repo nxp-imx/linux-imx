@@ -219,6 +219,8 @@ void rtl8192c_set_p2p_ps_offload_cmd(PADAPTER padapter, u8 p2p_ps_state);
 
 void CheckFwRsvdPageContent(PADAPTER padapter);
 
+void rtl8723a_set_FwMediaStatus_cmd(PADAPTER padapter, u16 mstatus_rpt );
+
 #endif
 
 #ifdef CONFIG_TSF_RESET_OFFLOAD

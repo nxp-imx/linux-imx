@@ -330,29 +330,29 @@ static void Update_ODM_ComInfo_8723a(PADAPTER	Adapter)
 {
 	struct mlme_ext_priv	*pmlmeext = &Adapter->mlmeextpriv;
 	struct mlme_priv		*pmlmepriv = &Adapter->mlmepriv;
-	struct pwrctrl_priv *pwrctrlpriv = &Adapter->pwrctrlpriv;
+	struct pwrctrl_priv *pwrctrlpriv = adapter_to_pwrctl(Adapter);
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
 	PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
 	struct dm_priv	*pdmpriv = &pHalData->dmpriv;	
-	int i;	
-	pdmpriv->InitODMFlag =	ODM_BB_DIG				|
-#ifdef	CONFIG_ODM_REFRESH_RAMASK
-							ODM_BB_RA_MASK			|
+	int i;
+
+	pdmpriv->InitODMFlag = 0
+		| ODM_BB_DIG
+#ifdef CONFIG_ODM_REFRESH_RAMASK
+		| ODM_BB_RA_MASK
 #endif
-							ODM_BB_DYNAMIC_TXPWR	|
-							ODM_BB_FA_CNT			|
-							ODM_BB_RSSI_MONITOR	|
-							ODM_BB_CCK_PD			|							
-							ODM_BB_PWR_SAVE		|							
-							ODM_MAC_EDCA_TURBO	|
-							ODM_RF_TX_PWR_TRACK	|
-							ODM_RF_CALIBRATION		;		
-	//
-	// Pointer reference
-	//
-	//ODM_CMNINFO_MAC_PHY_MODE pHalData->MacPhyMode92D
-	//	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_MAC_PHY_MODE,&(pDM_Odm->u1Byte_temp));
-	
+		| ODM_BB_DYNAMIC_TXPWR
+		| ODM_BB_FA_CNT
+		| ODM_BB_RSSI_MONITOR
+		| ODM_BB_CCK_PD
+		| ODM_BB_PWR_SAVE
+		| ODM_MAC_EDCA_TURBO
+		| ODM_RF_TX_PWR_TRACK
+		| ODM_RF_CALIBRATION
+#ifdef CONFIG_ODM_ADAPTIVITY
+		| ODM_BB_ADAPTIVITY
+#endif
+		;
 
 #ifdef CONFIG_ANTENNA_DIVERSITY
 	if(pHalData->AntDivCfg)
@@ -360,12 +360,23 @@ static void Update_ODM_ComInfo_8723a(PADAPTER	Adapter)
 #endif
 
 #if (MP_DRIVER==1)
-			if (Adapter->registrypriv.mp_mode == 1)
-			{
-			pdmpriv->InitODMFlag =	ODM_RF_CALIBRATION	|
-									ODM_RF_TX_PWR_TRACK;	
-			}
+	if (Adapter->registrypriv.mp_mode == 1) {
+		pdmpriv->InitODMFlag = 0
+			| ODM_RF_CALIBRATION
+			| ODM_RF_TX_PWR_TRACK
+			;
+	}
 #endif//(MP_DRIVER==1)
+
+#ifdef CONFIG_DISABLE_ODM
+	pdmpriv->InitODMFlag = 0;
+#endif//CONFIG_DISABLE_ODM
+
+	//
+	// Pointer reference
+	//
+	//ODM_CMNINFO_MAC_PHY_MODE pHalData->MacPhyMode92D
+	//	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_MAC_PHY_MODE,&(pDM_Odm->u1Byte_temp));
 
 	ODM_CmnInfoUpdate(pDM_Odm,ODM_CMNINFO_ABILITY,pdmpriv->InitODMFlag);
 
@@ -453,16 +464,8 @@ rtl8723a_HalDmWatchDog(
 		goto skip_dm;
 
 #ifdef CONFIG_LPS
-	#ifdef CONFIG_CONCURRENT_MODE
-	if (Adapter->iface_type != IFACE_PORT0 && pbuddy_adapter) {
-		bFwCurrentInPSMode = pbuddy_adapter->pwrctrlpriv.bFwCurrentInPSMode;
-		rtw_hal_get_hwreg(pbuddy_adapter, HW_VAR_FWLPS_RF_ON, (u8 *)(&bFwPSAwake));
-	} else
-	#endif //CONFIG_CONCURRENT_MODE
-	{
-		bFwCurrentInPSMode = Adapter->pwrctrlpriv.bFwCurrentInPSMode;
-		rtw_hal_get_hwreg(Adapter, HW_VAR_FWLPS_RF_ON, (u8 *)(&bFwPSAwake));
-	}
+	bFwCurrentInPSMode = adapter_to_pwrctl(Adapter)->bFwCurrentInPSMode;
+	rtw_hal_get_hwreg(Adapter, HW_VAR_FWLPS_RF_ON, (u8 *)(&bFwPSAwake));
 #endif
 
 #ifdef CONFIG_P2P_PS

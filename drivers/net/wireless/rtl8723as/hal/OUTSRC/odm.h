@@ -98,6 +98,12 @@
 #define		DM_DIG_HIGH_PWR_IGI_LOWER_BOUND	0x22
 #define  		DM_DIG_Gmode_HIGH_PWR_IGI_LOWER_BOUND 0x28
 #define		DM_DIG_HIGH_PWR_THRESHOLD	0x3a
+#define		DM_DIG_LOW_PWR_THRESHOLD	0x14
+
+//ANT Test
+#define 		ANTTESTALL		0x00		//Ant A or B will be Testing   
+#define		ANTTESTA		0x01		//Ant A will be Testing	
+#define		ANTTESTB		0x02		//Ant B will be testing
 
 // LPS define
 #define DM_DIG_FA_TH0_LPS				4 //-> 4 in lps
@@ -162,6 +168,7 @@ typedef struct _Dynamic_Initial_Gain_Threshold_
 
 	u1Byte		PreIGValue;
 	u1Byte		CurIGValue;
+	u1Byte		BT30_CurIGI;
 	u1Byte		BackupIGValue;
 
 	s1Byte		BackoffVal;
@@ -197,7 +204,7 @@ typedef struct _Dynamic_Power_Saving_
 	u1Byte		PreRFState;
 	u1Byte		CurRFState;
 
-	int		    Rssi_val_min;
+	int		    	Rssi_val_min;
 	
 	u1Byte		initialize;
 	u4Byte		Reg874,RegC70,Reg85C,RegA74;
@@ -352,7 +359,7 @@ typedef struct _SW_Antenna_Switch_
 typedef struct _EDCA_TURBO_
 {
 	BOOLEAN bCurrentTurboEDCA;
-	BOOLEAN bIsCurRDLState;
+	BOOLEAN bIsCurRDLState;
 	#if(DM_ODM_SUPPORT_TYPE == ODM_CE	)
 	u4Byte	prv_traffic_idx; // edca turbo
 	#endif
@@ -453,10 +460,12 @@ typedef struct _ODM_Phy_Dbg_Info_
 	u8Byte		NumQryPhyStatus;
 	u8Byte		NumQryPhyStatusCCK;
 	u8Byte		NumQryPhyStatusOFDM;
+	u1Byte		NumQryBeaconPkt;
 	//Others
 	s4Byte		RxEVM[MAX_PATH_NUM_92CS];	
 	
 }ODM_PHY_DBG_INFO_T;
+
 
 typedef struct _ODM_Per_Pkt_Info_
 {
@@ -661,7 +670,7 @@ typedef enum _ODM_Support_Ability_Definition
 	ODM_BB_DYNAMIC_TXPWR		= BIT2,
 	ODM_BB_FA_CNT					= BIT3,
 	ODM_BB_RSSI_MONITOR			= BIT4,
-	ODM_BB_CCK_PD					= BIT5,
+	ODM_BB_CCK_PD				= BIT5,
 	ODM_BB_ANT_DIV				= BIT6,
 	ODM_BB_PWR_SAVE				= BIT7,
 	ODM_BB_PWR_TRAIN				= BIT8,
@@ -669,6 +678,8 @@ typedef enum _ODM_Support_Ability_Definition
 	ODM_BB_PATH_DIV				= BIT10,
 	ODM_BB_PSD					= BIT11,
 	ODM_BB_RXHP					= BIT12,
+	ODM_BB_ADAPTIVITY				= BIT13,
+	ODM_BB_DYNAMIC_ATC			= BIT14,
 	
 	//
 	// MAC DM section BIT 16-23
@@ -704,6 +715,10 @@ typedef enum tag_ODM_Support_IC_Type_Definition
 	ODM_RTL8188E 	=	BIT4,
 	ODM_RTL8812 	=	BIT5,
 	ODM_RTL8821 	=	BIT6,
+	ODM_RTL8192E 	=	BIT7,	
+	ODM_RTL8723B	=	BIT8,
+	ODM_RTL8813A	=	BIT9,	
+	ODM_RTL8881A 	=	BIT10
 }ODM_IC_TYPE_E;
 
 #define ODM_IC_11N_SERIES		(ODM_RTL8192S|ODM_RTL8192C|ODM_RTL8192D|ODM_RTL8723A|ODM_RTL8188E)
@@ -853,6 +868,20 @@ typedef enum tag_Bandwidth_Definition
 // ODM_CMNINFO_CHNL
 
 // ODM_CMNINFO_BOARD_TYPE
+#if 1
+typedef enum tag_Board_Definition
+{
+    ODM_BOARD_DEFAULT  	= 0, 	  // The DEFAULT case.
+    ODM_BOARD_MINICARD  	= BIT(0), // 0 = non-mini card, 1= mini card.
+    ODM_BOARD_SLIM      		= BIT(1), // 0 = non-slim card, 1 = slim card
+    ODM_BOARD_BT        		= BIT(2), // 0 = without BT card, 1 = with BT
+    ODM_BOARD_EXT_PA    	= BIT(3), // 0 = no 2G ext-PA, 1 = existing 2G ext-PA
+    ODM_BOARD_EXT_LNA   	= BIT(4), // 0 = no 2G ext-LNA, 1 = existing 2G ext-LNA
+    ODM_BOARD_EXT_TRSW  	= BIT(5), // 0 = no ext-TRSW, 1 = existing ext-TRSW
+    ODM_BOARD_EXT_PA_5G	= BIT(6), // 0 = no 5G ext-PA, 1 = existing 5G ext-PA
+    ODM_BOARD_EXT_LNA_5G	= BIT(7), // 0 = no 5G ext-LNA, 1 = existing 5G ext-LNA
+}ODM_BOARD_TYPE_E;
+#else
 typedef enum tag_Board_Definition
 {
 	ODM_BOARD_NORMAL 	= 0,
@@ -862,6 +891,9 @@ typedef enum tag_Board_Definition
 	ODM_BOARD_COMBO		= 4,
 	
 }ODM_BOARD_TYPE_E;
+#endif
+
+
 
 // ODM_CMNINFO_ONE_PATH_CCA
 typedef enum tag_CCA_Path
@@ -889,7 +921,8 @@ typedef struct _ODM_RA_Info_
 	u4Byte NscDown;
 	u2Byte RTY[5];
 	u4Byte TOTAL;
-	u2Byte DROP;
+	u2Byte DROP;//Retry over or drop
+	u2Byte DROP1;//LifeTime over
 	u1Byte Active;
 	u2Byte RptTime;
 	u1Byte RAWaitingCounter;
@@ -977,6 +1010,10 @@ typedef struct ODM_RF_Calibration_Structure
 	u1Byte 	CCK_index;
 	u1Byte 	OFDM_index[2];
 	BOOLEAN bDoneTxpower;
+	s1Byte	PowerIndexOffset;
+	s1Byte	DeltaPowerIndex;
+	s1Byte	DeltaPowerIndexLast;	
+	BOOLEAN bTxPowerChanged;
 		
 	u1Byte 	ThermalValue_HP[HP_THERMAL_NUM];
 	u1Byte 	ThermalValue_HP_index;
@@ -1197,6 +1234,7 @@ typedef  struct DM_Out_Source_Dynamic_Mechanism_Structure
 //--------- POINTER REFERENCE-----------//
 	//
 //------------CALL BY VALUE-------------//
+	BOOLEAN			bLinkInProcess;
 	BOOLEAN			bWIFI_Direct;
 	BOOLEAN			bWIFI_Display;
 	BOOLEAN			bLinked;
@@ -1206,11 +1244,47 @@ typedef  struct DM_Out_Source_Dynamic_Mechanism_Structure
 	BOOLEAN			bOneEntryOnly;
 	// Common info for BTDM
 	BOOLEAN			bBtDisabled;			// BT is disabled
+	BOOLEAN			bBtConnectProcess;	// BT HS is under connection progress.
+	u1Byte			btHsRssi;				// BT HS mode wifi rssi value.
 	BOOLEAN			bBtHsOperation;		// BT HS mode is under progress
 	u1Byte			btHsDigVal;			// use BT rssi to decide the DIG value
 	BOOLEAN			bBtDisableEdcaTurbo;	// Under some condition, don't enable the EDCA Turbo
-	BOOLEAN			bBtBusy;   			// BT is busy.
+	BOOLEAN			bBtLimitedDig;   		// BT is busy.
 //------------CALL BY VALUE-------------//
+	u1Byte			RSSI_A;
+	u1Byte			RSSI_B;
+	u8Byte			RSSI_TRSW;	
+	u8Byte			RSSI_TRSW_H;
+	u8Byte			RSSI_TRSW_L;	
+	u8Byte			RSSI_TRSW_iso;
+
+	u1Byte			RxRate;
+	BOOLEAN			StopDIG;
+	u1Byte			TxRate;
+	u1Byte			LinkedInterval;
+	u1Byte			preChannel;
+	u4Byte			TxagcOffsetValueA;
+	BOOLEAN			IsTxagcOffsetPositiveA;
+	u4Byte			TxagcOffsetValueB;
+	BOOLEAN			IsTxagcOffsetPositiveB;
+	u8Byte			lastTxOkCnt;
+	u8Byte			lastRxOkCnt;
+	u4Byte			BbSwingOffsetA;
+	BOOLEAN			IsBbSwingOffsetPositiveA;
+	u4Byte			BbSwingOffsetB;
+	BOOLEAN			IsBbSwingOffsetPositiveB;
+	s1Byte			TH_L2H_ini;
+	s1Byte			TH_EDCCA_HL_diff;
+	u4Byte			IGI_Base;
+	u4Byte			IGI_target;
+	BOOLEAN			ForceEDCCA;
+	u1Byte			AdapEn_RSSI;
+	u1Byte			AntType;
+	u1Byte			antdiv_rssi;
+	u1Byte			antdiv_period;
+	u4Byte			Force_TH_H;
+	u4Byte			Force_TH_L;
+	u1Byte			IGI_LowerBound;
 	
 	//2 Define STA info.
 	// _ODM_STA_INFO
@@ -1311,7 +1385,11 @@ typedef  struct DM_Out_Source_Dynamic_Mechanism_Structure
 	u1Byte			BbSwingIdxCck;
 	u1Byte			BbSwingIdxCckCurrent;
 	u1Byte			BbSwingIdxCckBase;
+	u1Byte			DefaultOfdmIndex;
+	u1Byte			DefaultCckIndex;	
 	BOOLEAN			BbSwingFlagCck;
+	
+	
 	u1Byte			*mp_mode; 
 	//
 	// ODM system resource.
@@ -1446,23 +1524,21 @@ typedef enum tag_DIG_Connect_Definition
 #define DM_MultiSTA_InitGainChangeNotify_DISCONNECT(_ADAPTER)	\
 	DM_MultiSTA_InitGainChangeNotify(DIG_MultiSTA_DISCONNECT)
 */
+
 #define		DM_DIG_THRESH_HIGH			40
 #define		DM_DIG_THRESH_LOW			35
-
-#define		DM_SCAN_RSSI_TH				0x14 //scan return issue for LC
-
 
 #define		DM_FALSEALARM_THRESH_LOW	400
 #define		DM_FALSEALARM_THRESH_HIGH	1000
 
-#define		DM_DIG_MAX_NIC				0x3e
+#define		DM_DIG_MAX_NIC				0x4A
 #define		DM_DIG_MIN_NIC				0x1e //0x22//0x1c
 
 #define		DM_DIG_MAX_AP					0x32
 #define		DM_DIG_MIN_AP					0x20
 
 #define		DM_DIG_MAX_NIC_HP			0x46
-#define		DM_DIG_MIN_NIC_HP			0x2e
+#define		DM_DIG_MIN_NIC_HP				0x2e
 
 #define		DM_DIG_MAX_AP_HP				0x42
 #define		DM_DIG_MIN_AP_HP				0x30

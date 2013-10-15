@@ -45,15 +45,6 @@
 #include <linux/usb/ch9.h>
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35))
-#define rtw_usb_buffer_alloc(dev, size, dma) usb_alloc_coherent((dev), (size), (in_interrupt() ? GFP_ATOMIC : GFP_KERNEL), (dma))
-#define rtw_usb_buffer_free(dev, size, addr, dma) usb_free_coherent((dev), (size), (addr), (dma))
-#else
-#define rtw_usb_buffer_alloc(dev, size, dma) usb_buffer_alloc((dev), (size), (in_interrupt() ? GFP_ATOMIC : GFP_KERNEL), (dma))
-#define rtw_usb_buffer_free(dev, size, addr, dma) usb_buffer_free((dev), (size), (addr), (dma))
-#endif
-
-
 #endif //CONFIG_USB_HCI
 
 #endif //PLATFORM_LINUX
@@ -333,8 +324,22 @@ struct reg_protocol_wt {
 #endif
 
 };
+#ifdef CONFIG_PCI_HCI
+#define MAX_CONTINUAL_IO_ERR 4
+#endif
+
+#ifdef CONFIG_USB_HCI
+#define MAX_CONTINUAL_IO_ERR 4
+#endif
+
+#ifdef CONFIG_SDIO_HCI
+#define SD_IO_TRY_CNT (8)
+#define MAX_CONTINUAL_IO_ERR SD_IO_TRY_CNT
+#endif
 
 
+int rtw_inc_and_chk_continual_io_error(struct dvobj_priv *dvobj);
+void rtw_reset_continual_io_error(struct dvobj_priv *dvobj);
 
 /*
 Below is the data structure used by _io_handler

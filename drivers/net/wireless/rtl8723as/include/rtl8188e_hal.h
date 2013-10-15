@@ -573,11 +573,6 @@ typedef struct hal_data_8188e
 	// HIQ, MID, LOW, PUB free pages; padapter->xmitpriv.free_txpg
 	u8			SdioTxFIFOFreePage[SDIO_TX_FREE_PG_QUEUE];
 	_lock		SdioTxFIFOFreePageLock;
-#ifndef CONFIG_SDIO_TX_TASKLET
-	_thread_hdl_ 	SdioXmitThread;
-	_sema		SdioXmitSema;
-	_sema		SdioXmitTerminateSema;
-#endif
 
 	//
 	// SDIO Rx FIFO related.
@@ -707,7 +702,6 @@ void rtl8188e_set_hal_ops(struct hal_ops *pHalFunc);
 // register
 void SetBcnCtrlReg(PADAPTER padapter, u8 SetBits, u8 ClearBits);
 
-void rtl8188e_clone_haldata(_adapter *dst_adapter, _adapter *src_adapter);
 void rtl8188e_start_thread(_adapter *padapter);
 void rtl8188e_stop_thread(_adapter *padapter);
 

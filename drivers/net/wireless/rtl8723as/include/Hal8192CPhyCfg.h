@@ -390,6 +390,7 @@ extern void	PHY_Reconfig_To_1T1R(_adapter *padapter);
 #define PHY_SetRFReg(Adapter, eRFPath, RegAddr, BitMask, Data) rtl8192c_PHY_SetRFReg((Adapter), (eRFPath), (RegAddr), (BitMask), (Data))
 
 #define PHY_SetMacReg	PHY_SetBBReg
+#define PHY_QueryMacReg	PHY_QueryBBReg
 
 #endif	// __INC_HAL8192CPHYCFG_H
 

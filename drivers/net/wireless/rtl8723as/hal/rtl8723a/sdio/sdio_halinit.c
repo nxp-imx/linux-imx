@@ -823,7 +823,7 @@ static void _RfPowerSave(PADAPTER padapter)
 
 	pHalData = GET_HAL_DATA(padapter);
 //	pMgntInfo = &padapter->MgntInfo;
-	pwrctrlpriv = &padapter->pwrctrlpriv;
+	pwrctrlpriv = adapter_to_pwrctl(padapter);
 
 	//
 	// 2010/08/11 MH Merge from 8192SE for Minicard init. We need to confirm current radio status
@@ -989,7 +989,7 @@ static BOOLEAN HalDetectPwrDownMode(PADAPTER Adapter)
 {
 	u8 tmpvalue;
 	HAL_DATA_TYPE *pHalData = GET_HAL_DATA(Adapter);
-	struct pwrctrl_priv *pwrctrlpriv = &Adapter->pwrctrlpriv;
+	struct pwrctrl_priv *pwrctrlpriv = adapter_to_pwrctl(Adapter);
 
 
 	EFUSE_ShadowRead(Adapter, 1, 0x7B/*EEPROM_RF_OPT3_92C*/, (u32 *)&tmpvalue);
@@ -1024,7 +1024,7 @@ static u32 rtl8723as_hal_init(PADAPTER padapter)
 
 
 	pHalData = GET_HAL_DATA(padapter);
-	pwrctrlpriv = &padapter->pwrctrlpriv;
+	pwrctrlpriv = adapter_to_pwrctl(padapter);
 	pregistrypriv = &padapter->registrypriv;
 	is92C = IS_92C_SERIAL(pHalData->VersionID);
 
@@ -1112,7 +1112,7 @@ static u32 rtl8723as_hal_init(PADAPTER padapter)
 	}
 	else
 #endif
-		rtw_write8(padapter, REG_EARLY_MODE_CONTROL, 0);
+		//rtw_write8(padapter, REG_EARLY_MODE_CONTROL, 0);
 
 #if (MP_DRIVER == 1)
 	if (padapter->registrypriv.mp_mode == 1)
@@ -1121,7 +1121,7 @@ static u32 rtl8723as_hal_init(PADAPTER padapter)
 	//RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("%s: Don't Download Firmware!!\n", __FUNCTION__));
 	//padapter->bFWReady = _FALSE;
 	}
-	else
+//	else
 #endif
 	{
 	ret = rtl8723a_FirmwareDownload(padapter);
@@ -1841,7 +1841,7 @@ static u32 Hal_readPGDataFromConfigFile(
 
 	temp[2] = 0; // add end of string '\0'
 
-	fp = filp_open("/system/etc/wifi/wifi_efuse.map", O_RDWR,  0644);
+	fp = filp_open("/system/etc/wifi/wifi_efuse.map", O_RDONLY, 0);
 	if (IS_ERR(fp)) {
 		pEEPROM->bloadfile_fail_flag = _TRUE;
 		DBG_871X("Error, Efuse configure file doesn't exist.\n");
@@ -1981,6 +1981,11 @@ readAdapterInfo(
 	Hal_InitChannelPlan(padapter);
 	Hal_CustomizeByCustomerID_8723AS(padapter);
 
+#ifdef CONFIG_RF_GAIN_OFFSET
+	Hal_ReadRFGainOffset(padapter, hwinfo, pEEPROM->bautoload_fail_flag);
+#endif	//CONFIG_RF_GAIN_OFFSET
+
+
 	RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("<==== readpadapterInfo_8723S()\n"));
 }
 
@@ -2102,6 +2107,9 @@ _func_enter_;
 
 	switch (variable)
 	{
+		case HW_VAR_GET_CPWM:
+			*val =  rtw_read8(padapter, SDIO_LOCAL_BASE | SDIO_REG_HCPWM1);
+			break;			
 		default:
 			GetHwReg8723A(padapter, variable, val);
 			break;
@@ -2142,22 +2150,11 @@ GetHalDefVar8723ASDIO(
 		case HAL_DEF_DBG_DUMP_RXPKT:
 			*(( u8*)pValue) = pHalData->bDumpRxPkt;
 			break;
-		case HAL_DEF_DBG_DM_FUNC:
-			*(( u32*)pValue) =pHalData->odmpriv.SupportAbility;
-			break;
 		case HW_VAR_MAX_RX_AMPDU_FACTOR:
 			*(( u32*)pValue) = MAX_AMPDU_FACTOR_64K;
-			break;	
-		case HW_DEF_ODM_DBG_FLAG:
-			{
-				u8Byte	DebugComponents = *((u32*)pValue);	
-				PDM_ODM_T	pDM_Odm = &(pHalData->odmpriv);
-				printk("pDM_Odm->DebugComponents = 0x%llx \n",pDM_Odm->DebugComponents );			
-			}
 			break;
 		default:
-			//RT_TRACE(COMP_INIT, DBG_WARNING, ("GetHalDefVar8723ASDIO(): Unkown variable: %d!\n", eVariable));
-			bResult = _FAIL;
+			bResult = GetHalDefVar(Adapter, eVariable, pValue);
 			break;
 	}
 
@@ -2222,27 +2219,8 @@ SetHalDefVar8723ASDIO(
 				}			
 			}
 			break;
-		case HW_DEF_FA_CNT_DUMP:
-			{
-				u8 bRSSIDump = *((u8*)pValue);	
-				PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
-				if(bRSSIDump)
-					pDM_Odm->DebugComponents	=	ODM_COMP_DIG|ODM_COMP_FA_CNT	;					
-				else
-					pDM_Odm->DebugComponents	= 0;					
-				
-			}
-			break;
-		case HW_DEF_ODM_DBG_FLAG:
-			{
-				u8Byte	DebugComponents = *((u8Byte*)pValue);	
-				PDM_ODM_T	pDM_Odm = &(pHalData->odmpriv);
-				pDM_Odm->DebugComponents = DebugComponents;			
-			}
-			break;
 		default:
-			//RT_TRACE(COMP_INIT, DBG_TRACE, ("SetHalDefVar819xUsb(): Unkown variable: %d!\n", eVariable));
-			bResult = _FAIL;
+			bResult = SetHalDefVar(Adapter, eVariable, pValue);
 			break;
 	}
 
@@ -2263,10 +2241,7 @@ void UpdateHalRAMask8192CUsb(PADAPTER padapter, u32 mac_id, u8 rssi_level)
 	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
 	WLAN_BSSID_EX 		*cur_network = &(pmlmeinfo->network);
-#ifdef CONFIG_CONCURRENT_MODE
-	if(rtw_buddy_adapter_up(padapter) && padapter->adapter_type > PRIMARY_ADAPTER)	
-		pHalData = GET_HAL_DATA(padapter->pbuddy_adapter);				
-#endif //CONFIG_CONCURRENT_MODE
+
 
 	if (mac_id >= NUM_STA) //CAM_SIZE
 	{
@@ -2378,14 +2353,21 @@ void rtl8723as_set_hal_ops(PADAPTER padapter)
 
 _func_enter_;
 
-	//set hardware operation functions
-	padapter->HalData = rtw_zmalloc(sizeof(HAL_DATA_TYPE));
-	if (padapter->HalData == NULL) {
-		RT_TRACE(_module_hci_hal_init_c_, _drv_err_,
-			 ("can't alloc memory for HAL DATA\n"));		
+
+#ifdef CONFIG_CONCURRENT_MODE
+	if(padapter->isprimary)
+#endif //CONFIG_CONCURRENT_MODE
+	{
+		//set hardware operation functions
+		padapter->HalData = rtw_zmalloc(sizeof(HAL_DATA_TYPE));
+		if(padapter->HalData == NULL){
+			DBG_8192C("cant not alloc memory for HAL DATA \n");
+		}
 	}
+
+	//_rtw_memset(padapter->HalData, 0, sizeof(HAL_DATA_TYPE));
+	padapter->hal_data_sz = sizeof(HAL_DATA_TYPE);	
 	
-	padapter->hal_data_sz = sizeof(HAL_DATA_TYPE);
 	
 	rtl8723a_set_hal_ops(pHalFunc);
 

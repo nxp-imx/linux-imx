@@ -51,11 +51,6 @@
 #define SUPPORT_HW_RFOFF_DETECTED	
 
 //#define CONFIG_IOCTL_CFG80211 
-#ifdef CONFIG_PLATFORM_ARM_SUNxI
-	#ifndef CONFIG_IOCTL_CFG80211 
-		#define CONFIG_IOCTL_CFG80211 
-	#endif
-#endif
 
 #ifdef CONFIG_IOCTL_CFG80211
 	//#define RTW_USE_CFG80211_STA_EVENT /* Indecate new sta asoc through cfg80211_new_sta */
@@ -87,6 +82,7 @@
 
 	#define CONFIG_P2P_PS
 	//#define CONFIG_P2P_IPS
+	#define P2P_OP_CHECK_SOCIAL_CH
 #endif
 
 //	Added by Kurt 20110511
@@ -106,6 +102,7 @@
 #ifdef CONFIG_CONCURRENT_MODE
 	#define CONFIG_TSF_RESET_OFFLOAD 			// For 2 PORT TSF SYNC.
 	//#define CONFIG_HWPORT_SWAP				//Port0->Sec , Port1 -> Pri
+	//#define CONFIG_STA_MODE_SCAN_UNDER_AP_MODE
 #endif	// CONFIG_CONCURRENT_MODE
 
 #define CONFIG_SKB_COPY	//for amsdu
@@ -119,7 +116,7 @@
 #define CONFIG_LONG_DELAY_ISSUE
 #define CONFIG_NEW_SIGNAL_STAT_PROCESS
 #define RTW_NOTCH_FILTER 0 /* 0:Disable, 1:Enable,  */
-
+#define CONFIG_DEAUTH_BEFORE_CONNECT
 
 
 //#define CONFIG_ANTENNA_DIVERSITY
@@ -174,7 +171,7 @@
 #endif	// CONFIG_BR_EXT
 
 //#define CONFIG_TX_MCAST2UNI		// Support IP multicast->unicast
-
+//#define CONFIG_CHECK_AC_LIFETIME 	// Check packet lifetime of 4 ACs.
 
 #if defined(CONFIG_BT_COEXIST) || defined(CONFIG_POWER_SAVING)
 #ifndef CONFIG_USB_INTERRUPT_IN_PIPE
@@ -182,6 +179,9 @@
 #endif
 #endif
 
+#if defined(CONFIG_BT_COEXIST)
+	#define CONFIG_CHECK_BT_HANG
+#endif
 /*
  * Interface  Related Config
  */
@@ -199,12 +199,6 @@
 //#define CONFIG_USE_USB_BUFFER_ALLOC_RX 	// For RX path
 #ifdef CONFIG_USE_USB_BUFFER_ALLOC_RX
 #undef CONFIG_PREALLOC_RECV_SKB
-#endif
-
-#ifdef CONFIG_PLATFORM_ARM_SUNxI
-	#ifndef 	CONFIG_USE_USB_BUFFER_ALLOC_TX 
-		#define CONFIG_USE_USB_BUFFER_ALLOC_TX
-	#endif
 #endif
 
 /* 
@@ -236,7 +230,7 @@
 
 #define CONFIG_OUT_EP_WIFI_MODE	0
 
-#define ENABLE_USB_DROP_INCORRECT_OUT	0
+#define ENABLE_USB_DROP_INCORRECT_OUT
 
 #define RTL8192CU_ASIC_VERIFICATION	0	// For ASIC verification.
 

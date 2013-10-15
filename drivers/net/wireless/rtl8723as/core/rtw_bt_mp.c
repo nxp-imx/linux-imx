@@ -44,7 +44,7 @@ u32 WaitC2Hevent( PADAPTER pAdapter,BOOLEAN *C2H_event ,u32 delay_time)
 {
 	PMPT_CONTEXT		pMptCtx=&(pAdapter->mppriv.MptCtx);
 	pMptCtx->bMPh2c_timeout=_FALSE;
-	
+	DBG_8192C("WaitC2Hevent _set_timer \n");
 	_set_timer( &pMptCtx->MPh2c_timeout_timer, delay_time );
 	
 	_rtw_down_sema(&pMptCtx->MPh2c_Sema);
@@ -52,7 +52,7 @@ u32 WaitC2Hevent( PADAPTER pAdapter,BOOLEAN *C2H_event ,u32 delay_time)
 	if( pMptCtx->bMPh2c_timeout == _TRUE )
 	{
 		C2H_event =_FALSE;
-		
+		DBG_8192C("WaitC2Hevent bMPh2c_timeout _TRUE \n");
 		return _FALSE;
 	}
 	
@@ -119,12 +119,12 @@ mptbt_SendH2c(
 			pMptCtx->h2cReqNum++;
 			pMptCtx->h2cReqNum %= 16;
 
-			if(WaitC2Hevent(Adapter, &pMptCtx->MptH2cRspEvent, 100))
+			if(WaitC2Hevent(Adapter, &pMptCtx->MptH2cRspEvent, 200))
 			{
 				DBG_8192C("[MPT], Received WiFi MptH2cRspEvent!!!\n");
-				if(WaitC2Hevent(Adapter, &pMptCtx->MptBtC2hEvent, 400))
+				if(WaitC2Hevent(Adapter, &pMptCtx->MptBtC2hEvent, 800))
 				{
-					DBG_8192C("[MPT], Received MptBtC2hEvent!!!\n");
+					DBG_8192C("[MPT], Received BT MptBtC2hEvent!!!\n");
 					break;
 				}
 				else
@@ -542,6 +542,7 @@ MPTBT_FwC2hBtMpCtrl(
 				_rtw_up_sema(&pMptCtx->MPh2c_Sema);
 			break;
 		default:
+			DBG_8192C("[MPT], EXT_C2H Target not found,pExtC2h->extendId =%d ,pExtC2h->reqNum=%d\n",pExtC2h->extendId,pExtC2h->reqNum);
 			break;
 	}
 	

@@ -496,6 +496,16 @@ odm_TXPowerTrackingCallback_ThermalMeter_92C(
 			pdmpriv->ThermalValue_IQK = ThermalValue;
 			rtl8192c_PHY_IQCalibrate(Adapter,_FALSE);
 		}
+		
+#if 1
+		if(delta > 0 && IS_HARDWARE_TYPE_8723A(Adapter))
+		{
+					if(ThermalValue >= 15)
+						PHY_SetBBReg(Adapter, REG_AFE_XTAL_CTRL, bMaskDWord, 0x038180fd );
+					else
+						PHY_SetBBReg(Adapter, REG_AFE_XTAL_CTRL, bMaskDWord, 0x0381808d );				
+		}
+#endif
 
 		//update thermal meter value
 		if(pdmpriv->TxPowerTrackControl)
@@ -563,7 +573,6 @@ odm_CheckTXPowerTracking_ThermalMeter(
 	struct dm_priv	*pdmpriv = &pHalData->dmpriv;
 	DM_ODM_T 		*podmpriv = &pHalData->odmpriv;
 	//u1Byte					TxPowerCheckCnt = 5;	//10 sec
-
 	//if(!pMgntInfo->bTXPowerTracking /*|| (!pdmpriv->TxPowerTrackControl && pdmpriv->bAPKdone)*/)
 	if(!(podmpriv->SupportAbility & ODM_RF_TX_PWR_TRACK))
 	{
