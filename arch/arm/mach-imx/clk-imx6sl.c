@@ -7,8 +7,20 @@
  *
  */
 
-#define CCM_CCDR_OFFSET	0x4
-#define CCDR_CH0_HS_BYP	17
+#define CCM_CCDR_OFFSET		0x4
+#define ANATOP_PLL_USB1		0x10
+#define ANATOP_PLL_USB2		0x20
+#define ANATOP_PLL_ENET		0xE0
+#define ANATOP_PLL_BYPASS_OFFSET	(1 << 16)
+#define ANATOP_PLL_ENABLE_OFFSET	(1 << 13)
+#define ANATOP_PLL_POWER_OFFSET	(1 << 12)
+#define ANATOP_PFD_480n_OFFSET	0xf0
+#define ANATOP_PFD_528n_OFFSET	0x100
+#define PFD0_CLKGATE			(1 << 7)
+#define PFD1_CLK_GATE			(1 << 15)
+#define PFD2_CLK_GATE			(1 << 23)
+#define PFD3_CLK_GATE			(1 << 31)
+#define CCDR_CH0_HS_BYP		17
 
 #include <linux/clk.h>
 #include <linux/clkdev.h>
@@ -204,6 +216,30 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SL_CLK_PLL3_60M]     = imx_clk_fixed_factor("pll3_60m",  "pll3_usb_otg",   1, 8);
 	clks[IMX6SL_CLK_UART_OSC_4M]  = imx_clk_fixed_factor("uart_osc_4M", "osc",          1, 6);
 
+	/* Ensure all PFDs but PLL2_PFD2 are disabled. */
+	reg = readl_relaxed(base + ANATOP_PFD_480n_OFFSET);
+	reg |= (PFD0_CLKGATE | PFD1_CLK_GATE | PFD2_CLK_GATE | PFD3_CLK_GATE);
+	writel_relaxed(reg, base + ANATOP_PFD_480n_OFFSET);
+	reg = readl_relaxed(base + ANATOP_PFD_528n_OFFSET);
+	reg |= (PFD0_CLKGATE | PFD1_CLK_GATE);
+	writel_relaxed(reg, base + ANATOP_PFD_528n_OFFSET);
+
+	/* Ensure Unused PLLs are disabled. */
+	reg = readl_relaxed(base + ANATOP_PLL_USB1);
+	reg |= ANATOP_PLL_BYPASS_OFFSET;
+	reg &= ~(ANATOP_PLL_ENABLE_OFFSET | ANATOP_PLL_POWER_OFFSET);
+	writel_relaxed(reg, base + ANATOP_PLL_USB1);
+
+	reg = readl_relaxed(base + ANATOP_PLL_USB2);
+	reg |= ANATOP_PLL_BYPASS_OFFSET;
+	reg &= ~(ANATOP_PLL_ENABLE_OFFSET | ANATOP_PLL_POWER_OFFSET);
+	writel_relaxed(reg, base + ANATOP_PLL_USB2);
+
+	reg = readl_relaxed(base + ANATOP_PLL_ENET);
+	reg |= (ANATOP_PLL_BYPASS_OFFSET | ANATOP_PLL_POWER_OFFSET);
+	reg &= ~ANATOP_PLL_ENABLE_OFFSET;
+	writel_relaxed(reg, base + ANATOP_PLL_ENET);
+
 	np = ccm_node;
 	base = of_iomap(np, 0);
 	WARN_ON(!base);
@@ -349,6 +385,15 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	ret = clk_prepare_enable(clks[IMX6SL_CLK_IPG]);
 	if (ret)
 		pr_warn("%s: failed to enable IPG clock %d\n", __func__, ret);
+
+	/*
+	 * Make sure the ARM clk is enabled to maintain the correct usecount
+	 * and enabling/disabling of parent PLLs.
+	 */
+	ret = clk_prepare_enable(clks[IMX6SL_CLK_ARM]);
+	if (ret)
+		pr_warn("%s: failed to enable ARM core clock %d\n",
+			__func__, ret);
 
 	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
 		clk_prepare_enable(clks[IMX6SL_CLK_USBPHY1_GATE]);
