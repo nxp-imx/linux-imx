@@ -20,6 +20,7 @@
  */
 #define IMX_DEFAULT_DMABUF_SIZE (256 * 1024)
 #define IMX_SSI_DMABUF_SIZE	(64 * 1024)
+#define IMX_SAI_DMABUF_SIZE	(64 * 1024)
 #define IMX_SPDIF_DMABUF_SIZE	(64 * 1024)
 #define IMX_ESAI_DMABUF_SIZE	(256 * 1024)
 #define IMX_ASRC_DMABUF_SIZE	(256 * 1024)
@@ -43,9 +44,9 @@ struct imx_pcm_fiq_params {
 };
 
 #if IS_ENABLED(CONFIG_SND_SOC_IMX_PCM_DMA)
-int imx_pcm_dma_init(struct platform_device *pdev);
+int imx_pcm_dma_init(struct platform_device *pdev, size_t size);
 #else
-static inline int imx_pcm_dma_init(struct platform_device *pdev)
+static inline int imx_pcm_dma_init(struct platform_device *pdev, size_t size)
 {
 	return -ENODEV;
 }

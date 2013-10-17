@@ -1,7 +1,7 @@
 /*
  * Freescale ALSA SoC Digital Audio Interface (SAI) driver.
  *
- * Copyright 2012-2013 Freescale Semiconductor, Inc.
+ * Copyright 2012-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software, you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -634,7 +634,7 @@ static int fsl_sai_probe(struct platform_device *pdev)
 		return ret;
 
 	if (sai->sai_on_imx)
-		return imx_pcm_dma_init(pdev);
+		return imx_pcm_dma_init(pdev, IMX_SAI_DMABUF_SIZE);
 	else
 		return devm_snd_dmaengine_pcm_register(&pdev->dev, NULL,
 				SND_DMAENGINE_PCM_FLAG_NO_RESIDUE);
