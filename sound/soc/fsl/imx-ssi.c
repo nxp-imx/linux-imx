@@ -596,7 +596,8 @@ static int imx_ssi_probe(struct platform_device *pdev)
 
 	ret = imx_pcm_dma_init(pdev, SND_DMAENGINE_PCM_FLAG_NO_RESIDUE |
 				     SND_DMAENGINE_PCM_FLAG_NO_DT |
-				     SND_DMAENGINE_PCM_FLAG_COMPAT);
+				     SND_DMAENGINE_PCM_FLAG_COMPAT,
+				     IMX_SSI_DMABUF_SIZE);
 	if (ret)
 		goto failed_pcm_dma;
 

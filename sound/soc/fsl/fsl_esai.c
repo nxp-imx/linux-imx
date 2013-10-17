@@ -642,7 +642,8 @@ static int fsl_esai_probe(struct platform_device *pdev)
 
 	ret = imx_pcm_dma_init(pdev, SND_DMAENGINE_PCM_FLAG_NO_RESIDUE |
 				     SND_DMAENGINE_PCM_FLAG_NO_DT |
-				     SND_DMAENGINE_PCM_FLAG_COMPAT);
+				     SND_DMAENGINE_PCM_FLAG_COMPAT,
+				     IMX_ESAI_DMABUF_SIZE);
 	if (ret) {
 		dev_err(&pdev->dev, "init pcm dma failed\n");
 		goto failed_pcm_init;

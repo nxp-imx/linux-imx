@@ -449,7 +449,8 @@ static int fsl_asrc_p2p_probe(struct platform_device *pdev)
 
 	ret = imx_pcm_dma_init(asrc_p2p->soc_platform_pdev, SND_DMAENGINE_PCM_FLAG_NO_RESIDUE |
 				     SND_DMAENGINE_PCM_FLAG_NO_DT |
-				     SND_DMAENGINE_PCM_FLAG_COMPAT);
+				     SND_DMAENGINE_PCM_FLAG_COMPAT,
+				     IMX_ASRC_DMABUF_SIZE);
 	if (ret) {
 		dev_err(&pdev->dev, "init pcm dma failed\n");
 		goto failed_pcm_init;
