@@ -1032,7 +1032,8 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	if (esdhc_is_usdhc(imx_data)) {
 		writel(0x08100810, host->ioaddr + ESDHC_WTMK_LVL);
 		/* FIXME: ACMD23 can not work well on imx6q */
-		host->quirks2 |= SDHCI_QUIRK2_BROKEN_AUTO_CMD23;
+		host->quirks2 |= SDHCI_QUIRK2_BROKEN_AUTO_CMD23 |
+				SDHCI_QUIRK2_PRESET_VALUE_BROKEN;
 	}
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_MAN_TUNING)
