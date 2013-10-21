@@ -47,6 +47,7 @@
 
 static LIST_HEAD(head);
 static int timeout_in_ms = 600;
+static unsigned int block_size;
 
 struct pxp_dma {
 	struct dma_device dma;
@@ -91,7 +92,7 @@ struct pxps {
 				BM_PXP_STAT_IRQ) != BM_PXP_STAT_IRQ)
 
 static uint32_t pxp_s0_formats[] = {
-	PXP_PIX_FMT_RGB24,
+	PXP_PIX_FMT_RGB32,
 	PXP_PIX_FMT_RGB565,
 	PXP_PIX_FMT_RGB555,
 	PXP_PIX_FMT_YUV420P,
@@ -219,9 +220,13 @@ static bool is_yuv(u32 pix_fmt)
 {
 	if ((pix_fmt == PXP_PIX_FMT_YUYV) |
 	    (pix_fmt == PXP_PIX_FMT_UYVY) |
+	    (pix_fmt == PXP_PIX_FMT_YVYU) |
+	    (pix_fmt == PXP_PIX_FMT_VYUY) |
 	    (pix_fmt == PXP_PIX_FMT_Y41P) |
 	    (pix_fmt == PXP_PIX_FMT_YUV444) |
 	    (pix_fmt == PXP_PIX_FMT_NV12) |
+	    (pix_fmt == PXP_PIX_FMT_NV16) |
+	    (pix_fmt == PXP_PIX_FMT_NV61) |
 	    (pix_fmt == PXP_PIX_FMT_GREY) |
 	    (pix_fmt == PXP_PIX_FMT_GY04) |
 	    (pix_fmt == PXP_PIX_FMT_YVU410P) |
@@ -243,10 +248,11 @@ static void pxp_set_ctrl(struct pxps *pxp)
 	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
 	u32 ctrl;
 	u32 fmt_ctrl;
+	int need_swap = 0;   /* to support YUYV and YVYU formats */
 
 	/* Configure S0 input format */
 	switch (pxp_conf->s0_param.pixel_fmt) {
-	case PXP_PIX_FMT_RGB24:
+	case PXP_PIX_FMT_RGB32:
 		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__RGB888;
 		break;
 	case PXP_PIX_FMT_RGB565:
@@ -256,6 +262,9 @@ static void pxp_set_ctrl(struct pxps *pxp)
 		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__RGB555;
 		break;
 	case PXP_PIX_FMT_YUV420P:
+		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV420;
+		break;
+	case PXP_PIX_FMT_YVU420P:
 		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV420;
 		break;
 	case PXP_PIX_FMT_GREY:
@@ -270,17 +279,46 @@ static void pxp_set_ctrl(struct pxps *pxp)
 	case PXP_PIX_FMT_UYVY:
 		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__UYVY1P422;
 		break;
+	case PXP_PIX_FMT_YUYV:
+		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__UYVY1P422;
+		need_swap = 1;
+		break;
+	case PXP_PIX_FMT_VYUY:
+		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__VYUY1P422;
+		break;
+	case PXP_PIX_FMT_YVYU:
+		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__VYUY1P422;
+		need_swap = 1;
+		break;
+	case PXP_PIX_FMT_NV12:
+		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV2P420;
+		break;
+	case PXP_PIX_FMT_NV21:
+		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YVU2P420;
+		break;
+	case PXP_PIX_FMT_NV16:
+		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV2P422;
+		break;
+	case PXP_PIX_FMT_NV61:
+		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YVU2P422;
+		break;
 	default:
 		fmt_ctrl = 0;
 	}
 
-	ctrl = BF_PXP_PS_CTRL_FORMAT(fmt_ctrl);
-	__raw_writel(ctrl, pxp->base + HW_PXP_PS_CTRL);
+	ctrl = BF_PXP_PS_CTRL_FORMAT(fmt_ctrl) | BF_PXP_PS_CTRL_SWAP(need_swap);
+	__raw_writel(ctrl, pxp->base + HW_PXP_PS_CTRL_SET);
 
 	/* Configure output format based on out_channel format */
 	switch (pxp_conf->out_param.pixel_fmt) {
-	case PXP_PIX_FMT_RGB24:
+	case PXP_PIX_FMT_RGB32:
 		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__RGB888;
+		break;
+	case PXP_PIX_FMT_BGRA32:
+		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__ARGB8888;
+		break;
+	case PXP_PIX_FMT_RGB24:
+		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__RGB888P;
 		break;
 	case PXP_PIX_FMT_RGB565:
 		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__RGB565;
@@ -288,17 +326,29 @@ static void pxp_set_ctrl(struct pxps *pxp)
 	case PXP_PIX_FMT_RGB555:
 		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__RGB555;
 		break;
-	case PXP_PIX_FMT_YUV420P:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__YUV2P420;
-		break;
-	case PXP_PIX_FMT_YUV422P:
-		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__YUV2P422;
-		break;
 	case PXP_PIX_FMT_GREY:
 		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__Y8;
 		break;
 	case PXP_PIX_FMT_GY04:
 		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__Y4;
+		break;
+	case PXP_PIX_FMT_UYVY:
+		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__UYVY1P422;
+		break;
+	case PXP_PIX_FMT_VYUY:
+		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__VYUY1P422;
+		break;
+	case PXP_PIX_FMT_NV12:
+		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__YUV2P420;
+		break;
+	case PXP_PIX_FMT_NV21:
+		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__YVU2P420;
+		break;
+	case PXP_PIX_FMT_NV16:
+		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__YUV2P422;
+		break;
+	case PXP_PIX_FMT_NV61:
+		fmt_ctrl = BV_PXP_OUT_CTRL_FORMAT__YVU2P422;
 		break;
 	default:
 		fmt_ctrl = 0;
@@ -314,13 +364,17 @@ static void pxp_set_ctrl(struct pxps *pxp)
 		ctrl |= BM_PXP_CTRL_VFLIP;
 	if (proc_data->hflip)
 		ctrl |= BM_PXP_CTRL_HFLIP;
-	if (proc_data->rotate)
+	if (proc_data->rotate) {
 		ctrl |= BF_PXP_CTRL_ROTATE(proc_data->rotate / 90);
+		if (proc_data->rot_pos)
+			ctrl |= BM_PXP_CTRL_ROT_POS;
+	}
 
-	/* H/W support: controls where rotation will occur in the PXP datapath,
-	 * will export an interfance if needed
+	/* In default, the block size is set to 8x8
+	 * But block size can be set to 16x16 due to
+	 * blocksize variable modification
 	 */
-	/* ctrl |= BM_PXP_CTRL_ROT_POS; post rotation */
+	ctrl |= block_size << 23;
 
 	__raw_writel(ctrl, pxp->base + HW_PXP_CTRL);
 }
@@ -345,14 +399,41 @@ static void pxp_set_outbuf(struct pxps *pxp)
 		     BF_PXP_OUT_LRC_Y(out_params->height - 1),
 		     pxp->base + HW_PXP_OUT_LRC);
 
-	if (out_params->pixel_fmt == PXP_PIX_FMT_RGB24)
+	if (out_params->pixel_fmt == PXP_PIX_FMT_RGB24) {
+		__raw_writel(out_params->stride * 3,
+				pxp->base + HW_PXP_OUT_PITCH);
+	} else if (out_params->pixel_fmt == PXP_PIX_FMT_BGRA32 ||
+		 out_params->pixel_fmt == PXP_PIX_FMT_RGB32) {
 		__raw_writel(out_params->stride << 2,
 				pxp->base + HW_PXP_OUT_PITCH);
-	else if (out_params->pixel_fmt == PXP_PIX_FMT_RGB565)
+	} else if (out_params->pixel_fmt == PXP_PIX_FMT_RGB565) {
 		__raw_writel(out_params->stride << 1,
 				pxp->base + HW_PXP_OUT_PITCH);
-	else
-		__raw_writel(out_params->stride, pxp->base + HW_PXP_OUT_PITCH);
+	} else if (out_params->pixel_fmt == PXP_PIX_FMT_UYVY ||
+		(out_params->pixel_fmt == PXP_PIX_FMT_VYUY)) {
+		__raw_writel(out_params->stride << 1,
+				pxp->base + HW_PXP_OUT_PITCH);
+	} else if (out_params->pixel_fmt == PXP_PIX_FMT_GREY ||
+		   out_params->pixel_fmt == PXP_PIX_FMT_NV12 ||
+		   out_params->pixel_fmt == PXP_PIX_FMT_NV21 ||
+		   out_params->pixel_fmt == PXP_PIX_FMT_NV16 ||
+		   out_params->pixel_fmt == PXP_PIX_FMT_NV61) {
+		__raw_writel(out_params->stride,
+				pxp->base + HW_PXP_OUT_PITCH);
+	} else if (out_params->pixel_fmt == PXP_PIX_FMT_GY04) {
+		__raw_writel(out_params->stride >> 1,
+				pxp->base + HW_PXP_OUT_PITCH);
+	} else {
+		__raw_writel(0, pxp->base + HW_PXP_OUT_PITCH);
+	}
+
+	/* set global alpha if necessary */
+	if (out_params->global_alpha_enable) {
+		__raw_writel(out_params->global_alpha << 24,
+				pxp->base + HW_PXP_OUT_CTRL_SET);
+		__raw_writel(BM_PXP_OUT_CTRL_ALPHA_OUTPUT,
+				pxp->base + HW_PXP_OUT_CTRL_SET);
+	}
 }
 
 static void pxp_set_s0colorkey(struct pxps *pxp)
@@ -361,7 +442,7 @@ static void pxp_set_s0colorkey(struct pxps *pxp)
 	struct pxp_layer_param *s0_params = &pxp_conf->s0_param;
 
 	/* Low and high are set equal. V4L does not allow a chromakey range */
-	if (s0_params->color_key == -1) {
+	if (s0_params->color_key_enable == 0 || s0_params->color_key == -1) {
 		/* disable color key */
 		__raw_writel(0xFFFFFF, pxp->base + HW_PXP_PS_CLRKEYLOW);
 		__raw_writel(0, pxp->base + HW_PXP_PS_CLRKEYHIGH);
@@ -398,23 +479,40 @@ static void pxp_set_oln(int layer_no, struct pxps *pxp)
 	dma_addr_t phys_addr = olparams_data->paddr;
 	__raw_writel(phys_addr, pxp->base + HW_PXP_AS_BUF);
 
-	if (olparams_data->combine_enable) {
-		__raw_writel(0x0, pxp->base + HW_PXP_OUT_AS_ULC);
-		__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->width - 1) |
-			     BF_PXP_OUT_AS_LRC_Y(olparams_data->height - 1),
-			     pxp->base + HW_PXP_OUT_AS_LRC);
-	} else {
-		/* will not fetch data from AS if ULC is at left top of LRC */
-		__raw_writel(0xFFFFFFFF, pxp->base + HW_PXP_OUT_AS_ULC);
+	/* Fixme */
+	if (olparams_data->width == 0 && olparams_data->height == 0) {
+		__raw_writel(0xffffffff, pxp->base + HW_PXP_OUT_AS_ULC);
 		__raw_writel(0x0, pxp->base + HW_PXP_OUT_AS_LRC);
+	} else {
+		__raw_writel(0x0, pxp->base + HW_PXP_OUT_AS_ULC);
+		if (pxp_conf->proc_data.rotate == 90 ||
+		    pxp_conf->proc_data.rotate == 270) {
+			if (pxp_conf->proc_data.rot_pos == 1) {
+				__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->height - 1) |
+					BF_PXP_OUT_AS_LRC_Y(olparams_data->width - 1),
+					pxp->base + HW_PXP_OUT_AS_LRC);
+			} else {
+				__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->width - 1) |
+					BF_PXP_OUT_AS_LRC_Y(olparams_data->height - 1),
+					pxp->base + HW_PXP_OUT_AS_LRC);
+			}
+		} else {
+			__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->width - 1) |
+				BF_PXP_OUT_AS_LRC_Y(olparams_data->height - 1),
+				pxp->base + HW_PXP_OUT_AS_LRC);
+		}
 	}
 
-	if (olparams_data->pixel_fmt == PXP_PIX_FMT_RGB24)
+	if ((olparams_data->pixel_fmt == PXP_PIX_FMT_BGRA32) |
+		 (olparams_data->pixel_fmt == PXP_PIX_FMT_RGB32)) {
 		__raw_writel(olparams_data->width << 2,
 				pxp->base + HW_PXP_AS_PITCH);
-	else
+	} else if (olparams_data->pixel_fmt == PXP_PIX_FMT_RGB565) {
 		__raw_writel(olparams_data->width << 1,
 				pxp->base + HW_PXP_AS_PITCH);
+	} else {
+		__raw_writel(0, pxp->base + HW_PXP_AS_PITCH);
+	}
 }
 
 static void pxp_set_olparam(int layer_no, struct pxps *pxp)
@@ -424,16 +522,35 @@ static void pxp_set_olparam(int layer_no, struct pxps *pxp)
 	u32 olparam;
 
 	olparam = BF_PXP_AS_CTRL_ALPHA(olparams_data->global_alpha);
-	if (olparams_data->pixel_fmt == PXP_PIX_FMT_RGB24)
+	if (olparams_data->pixel_fmt == PXP_PIX_FMT_RGB32) {
 		olparam |=
 		    BF_PXP_AS_CTRL_FORMAT(BV_PXP_AS_CTRL_FORMAT__RGB888);
-	else
+	} else if (olparams_data->pixel_fmt == PXP_PIX_FMT_BGRA32) {
+		olparam |=
+		    BF_PXP_AS_CTRL_FORMAT(BV_PXP_AS_CTRL_FORMAT__ARGB8888);
+		if (!olparams_data->combine_enable) {
+			olparam |=
+				BF_PXP_AS_CTRL_ALPHA_CTRL
+				(BV_PXP_AS_CTRL_ALPHA_CTRL__ROPs);
+			olparam |= 0x3 << 16;
+		}
+	} else if (olparams_data->pixel_fmt == PXP_PIX_FMT_RGB565) {
 		olparam |=
 		    BF_PXP_AS_CTRL_FORMAT(BV_PXP_AS_CTRL_FORMAT__RGB565);
-	if (olparams_data->global_alpha_enable)
-		olparam |=
-		    BF_PXP_AS_CTRL_ALPHA_CTRL
-		    (BV_PXP_AS_CTRL_ALPHA_CTRL__Override);
+	}
+	if (olparams_data->global_alpha_enable) {
+		if (olparams_data->global_override) {
+			olparam |=
+				BF_PXP_AS_CTRL_ALPHA_CTRL
+				(BV_PXP_AS_CTRL_ALPHA_CTRL__Override);
+		} else {
+			olparam |=
+				BF_PXP_AS_CTRL_ALPHA_CTRL
+				(BV_PXP_AS_CTRL_ALPHA_CTRL__Multiply);
+		}
+		if (olparams_data->alpha_invert)
+			olparam |= BM_PXP_AS_CTRL_ALPHA_INVERT;
+	}
 	if (olparams_data->color_key_enable)
 		olparam |= BM_PXP_AS_CTRL_ENABLE_COLORKEY;
 
@@ -447,14 +564,20 @@ static void pxp_set_s0param(struct pxps *pxp)
 	u32 s0param;
 
 	/* contains the coordinate for the PS in the OUTPUT buffer. */
-	s0param = BF_PXP_OUT_PS_ULC_X(proc_data->drect.left);
-	s0param |= BF_PXP_OUT_PS_ULC_Y(proc_data->drect.top);
-	__raw_writel(s0param, pxp->base + HW_PXP_OUT_PS_ULC);
-	s0param = BF_PXP_OUT_PS_LRC_X(proc_data->drect.left +
-					proc_data->drect.width - 1);
-	s0param |= BF_PXP_OUT_PS_LRC_Y(proc_data->drect.top +
-					proc_data->drect.height - 1);
-	__raw_writel(s0param, pxp->base + HW_PXP_OUT_PS_LRC);
+	if ((pxp_conf->s0_param).width == 0 &&
+		(pxp_conf->s0_param).height == 0) {
+		__raw_writel(0xffffffff, pxp->base + HW_PXP_OUT_PS_ULC);
+		__raw_writel(0x0, pxp->base + HW_PXP_OUT_PS_LRC);
+	} else {
+		s0param = BF_PXP_OUT_PS_ULC_X(proc_data->drect.left);
+		s0param |= BF_PXP_OUT_PS_ULC_Y(proc_data->drect.top);
+		__raw_writel(s0param, pxp->base + HW_PXP_OUT_PS_ULC);
+		s0param = BF_PXP_OUT_PS_LRC_X(proc_data->drect.left +
+				proc_data->drect.width - 1);
+		s0param |= BF_PXP_OUT_PS_LRC_Y(proc_data->drect.top +
+				proc_data->drect.height - 1);
+		__raw_writel(s0param, pxp->base + HW_PXP_OUT_PS_LRC);
+	}
 }
 
 /* crop behavior is re-designed in h/w. */
@@ -470,18 +593,56 @@ static int pxp_set_scaling(struct pxps *pxp)
 {
 	int ret = 0;
 	u32 xscale, yscale, s0scale;
+	u32 decx, decy, xdec = 0, ydec = 0;
 	struct pxp_proc_data *proc_data = &pxp->pxp_conf_state.proc_data;
 
-	if ((proc_data->srect.width == proc_data->drect.width) &&
-	    (proc_data->srect.height == proc_data->drect.height)) {
+	if (((proc_data->srect.width == proc_data->drect.width) &&
+	    (proc_data->srect.height == proc_data->drect.height)) ||
+	    ((proc_data->srect.width == 0) && (proc_data->srect.height == 0))) {
 		proc_data->scaling = 0;
 		__raw_writel(0x10001000, pxp->base + HW_PXP_PS_SCALE);
+		__raw_writel(0, pxp->base + HW_PXP_PS_CTRL);
 		goto out;
 	}
 
 	proc_data->scaling = 1;
-	xscale = proc_data->srect.width * 0x1000 / proc_data->drect.width;
-	yscale = proc_data->srect.height * 0x1000 / proc_data->drect.height;
+	decx = proc_data->srect.width / proc_data->drect.width;
+	decy = proc_data->srect.height / proc_data->drect.height;
+	if (decx > 0) {
+		if (decx >= 2 && decx < 4) {
+			decx = 2;
+			xdec = 1;
+		} else if (decx >= 4 && decx < 8) {
+			decx = 4;
+			xdec = 2;
+		} else if (decx >= 8) {
+			decx = 8;
+			xdec = 3;
+		}
+		xscale = proc_data->srect.width * 0x1000 /
+			 (proc_data->drect.width * decx);
+	} else
+		xscale = proc_data->srect.width * 0x1000 /
+			 proc_data->drect.width;
+	if (decy > 0) {
+		if (decy >= 2 && decy < 4) {
+			decy = 2;
+			ydec = 1;
+		} else if (decy >= 4 && decy < 8) {
+			decy = 4;
+			ydec = 2;
+		} else if (decy >= 8) {
+			decy = 8;
+			ydec = 3;
+		}
+		yscale = proc_data->srect.height * 0x1000 /
+			 (proc_data->drect.height * decy);
+	} else
+		yscale = proc_data->srect.height * 0x1000 /
+			 proc_data->drect.height;
+
+	__raw_writel((xdec << 10) | (ydec << 8), pxp->base + HW_PXP_PS_CTRL);
+
 	if (xscale > PXP_DOWNSCALE_THRESHOLD)
 		xscale = PXP_DOWNSCALE_THRESHOLD;
 	if (yscale > PXP_DOWNSCALE_THRESHOLD)
@@ -730,7 +891,7 @@ static void pxp_set_s0buf(struct pxps *pxp)
 
 	if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB565)
 		bpp = 2;
-	else if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB24)
+	else if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB32)
 		bpp = 4;
 	offset = (proc_data->srect.top * s0_params->width +
 		 proc_data->srect.left) * bpp;
@@ -751,17 +912,50 @@ static void pxp_set_s0buf(struct pxps *pxp)
 		V1 = V + offset;
 		__raw_writel(U1, pxp->base + HW_PXP_PS_UBUF);
 		__raw_writel(V1, pxp->base + HW_PXP_PS_VBUF);
+	} else if ((s0_params->pixel_fmt == PXP_PIX_FMT_NV12) ||
+		 (s0_params->pixel_fmt == PXP_PIX_FMT_NV21) ||
+		 (s0_params->pixel_fmt == PXP_PIX_FMT_NV16) ||
+		 (s0_params->pixel_fmt == PXP_PIX_FMT_NV61)) {
+		int s = 2;
+		if ((s0_params->pixel_fmt == PXP_PIX_FMT_NV16) ||
+		    (s0_params->pixel_fmt == PXP_PIX_FMT_NV61))
+			s = 1;
+
+		offset = (proc_data->srect.top * s0_params->width +
+			  proc_data->srect.left) / s;
+		U = Y + (s0_params->width * s0_params->height);
+		U1 = U + offset;
+
+		__raw_writel(U1, pxp->base + HW_PXP_PS_UBUF);
 	}
 
 	/* TODO: only support RGB565, Y8, Y4, YUV420 */
 	if (s0_params->pixel_fmt == PXP_PIX_FMT_GREY ||
-	    s0_params->pixel_fmt == PXP_PIX_FMT_YUV420P)
+	    s0_params->pixel_fmt == PXP_PIX_FMT_YUV420P ||
+	    s0_params->pixel_fmt == PXP_PIX_FMT_YVU420P ||
+	    s0_params->pixel_fmt == PXP_PIX_FMT_NV12 ||
+	    s0_params->pixel_fmt == PXP_PIX_FMT_NV21 ||
+	    s0_params->pixel_fmt == PXP_PIX_FMT_NV16 ||
+	    s0_params->pixel_fmt == PXP_PIX_FMT_NV61) {
 		__raw_writel(s0_params->width, pxp->base + HW_PXP_PS_PITCH);
+	}
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_GY04)
 		__raw_writel(s0_params->width >> 1,
 				pxp->base + HW_PXP_PS_PITCH);
+	else if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB32)
+		__raw_writel(s0_params->width << 2,
+				pxp->base + HW_PXP_PS_PITCH);
+	else if (s0_params->pixel_fmt == PXP_PIX_FMT_UYVY ||
+		 s0_params->pixel_fmt == PXP_PIX_FMT_YUYV ||
+		 s0_params->pixel_fmt == PXP_PIX_FMT_VYUY ||
+		 s0_params->pixel_fmt == PXP_PIX_FMT_YVYU)
+		__raw_writel(s0_params->width << 1,
+				pxp->base + HW_PXP_PS_PITCH);
+	else if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB565)
+		__raw_writel(s0_params->width << 1,
+				pxp->base + HW_PXP_PS_PITCH);
 	else
-		__raw_writel(s0_params->width * 2, pxp->base + HW_PXP_PS_PITCH);
+		__raw_writel(0, pxp->base + HW_PXP_PS_PITCH);
 }
 
 /**
@@ -1540,6 +1734,28 @@ static ssize_t clk_off_timeout_store(struct device *dev,
 static DEVICE_ATTR(clk_off_timeout, 0644, clk_off_timeout_show,
 		   clk_off_timeout_store);
 
+static ssize_t block_size_show(struct device *dev,
+			       struct device_attribute *attr,
+			       char *buf)
+{
+	return sprintf(buf, "%d\n", block_size);
+}
+
+static ssize_t block_size_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	char **last = NULL;
+
+	block_size = simple_strtoul(buf, last, 0);
+	if (block_size > 1)
+		block_size = 1;
+
+	return count;
+}
+static DEVICE_ATTR(block_size, S_IWUSR | S_IRUGO,
+		   block_size_show, block_size_store);
+
 static const struct of_device_id imx_pxpdma_dt_ids[] = {
 	{ .compatible = "fsl,imx6dl-pxp-dma", },
 	{ /* sentinel */ }
@@ -1611,6 +1827,8 @@ static int pxp_probe(struct platform_device *pdev)
 			"Unable to create file from clk_off_timeout\n");
 		goto exit;
 	}
+
+	device_create_file(&pdev->dev, &dev_attr_block_size);
 	dump_pxp_reg(pxp);
 
 	INIT_WORK(&pxp->work, clkoff_callback);
@@ -1638,6 +1856,8 @@ static int pxp_remove(struct platform_device *pdev)
 	del_timer_sync(&pxp->clk_timer);
 	clk_disable_unprepare(pxp->clk);
 	device_remove_file(&pdev->dev, &dev_attr_clk_off_timeout);
+	device_remove_file(&pdev->dev, &dev_attr_block_size);
+	dma_async_device_unregister(&(pxp->pxp_dma.dma));
 
 	return 0;
 }

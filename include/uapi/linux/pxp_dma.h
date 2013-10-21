@@ -25,6 +25,7 @@
 typedef unsigned long dma_addr_t;
 typedef unsigned char bool;
 #endif
+#define __u32 unsigned int
 
 /*  PXP Pixel format definitions */
 /*  Four-character-code (FOURCC) */
@@ -58,10 +59,15 @@ typedef unsigned char bool;
 /*! @{ */
 #define PXP_PIX_FMT_YUYV    fourcc('Y', 'U', 'Y', 'V')	/*!< 16 YUV 4:2:2 */
 #define PXP_PIX_FMT_UYVY    fourcc('U', 'Y', 'V', 'Y')	/*!< 16 YUV 4:2:2 */
+#define PXP_PIX_FMT_VYUY    fourcc('V', 'Y', 'U', 'Y')  /*!< 16 YVU 4:2:2 */
+#define PXP_PIX_FMT_YVYU    fourcc('Y', 'V', 'Y', 'U')  /*!< 16 YVU 4:2:2 */
 #define PXP_PIX_FMT_Y41P    fourcc('Y', '4', '1', 'P')	/*!< 12 YUV 4:1:1 */
 #define PXP_PIX_FMT_YUV444  fourcc('Y', '4', '4', '4')	/*!< 24 YUV 4:4:4 */
 /* two planes -- one Y, one Cb + Cr interleaved  */
 #define PXP_PIX_FMT_NV12    fourcc('N', 'V', '1', '2')	/* 12  Y/CbCr 4:2:0  */
+#define PXP_PIX_FMT_NV21    fourcc('N', 'V', '2', '1')	/* 12  Y/CbCr 4:2:0  */
+#define PXP_PIX_FMT_NV16    fourcc('N', 'V', '1', '6')	/* 12  Y/CbCr 4:2:2  */
+#define PXP_PIX_FMT_NV61    fourcc('N', 'V', '6', '1')	/* 12  Y/CbCr 4:2:2  */
 /*! @} */
 /*! @name YUV Planar Formats */
 /*! @{ */
@@ -121,7 +127,10 @@ struct pxp_layer_param {
 	unsigned int color_key_enable;
 	unsigned int color_key;
 	bool global_alpha_enable;
+	/* global alpha is either override or multiply */
+	bool global_override;
 	unsigned char global_alpha;
+	bool alpha_invert;
 	bool local_alpha_enable;
 
 	dma_addr_t paddr;
@@ -133,6 +142,7 @@ struct pxp_proc_data {
 	int hflip;
 	int vflip;
 	int rotate;
+	int rot_pos;
 	int yuv;
 
 	/* Source rectangle (srect) defines the sub-rectangle
@@ -155,6 +165,7 @@ struct pxp_proc_data {
 	int lut_transform;
 	unsigned char *lut_map; /* 256 entries */
 	bool lut_map_updated; /* Map recently changed */
+	bool combine_enable;
 };
 
 struct pxp_config_data {
