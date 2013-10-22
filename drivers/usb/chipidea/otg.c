@@ -78,10 +78,15 @@ static void ci_otg_work(struct work_struct *work)
 
 	if (ci->id_event) {
 		ci->id_event = false;
+		/* Keep controller active during id switch */
+		pm_runtime_get_sync(ci->dev);
 		ci_handle_id_switch(ci);
+		pm_runtime_put_sync(ci->dev);
 	} else if (ci->b_sess_valid_event) {
 		ci->b_sess_valid_event = false;
+		pm_runtime_get_sync(ci->dev);
 		ci_handle_vbus_change(ci);
+		pm_runtime_put_sync(ci->dev);
 	} else
 		dev_err(ci->dev, "unexpected event occurs at %s\n", __func__);
 
