@@ -16,32 +16,32 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <linux/slab.h>
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
-#include <linux/io.h>
-#include <linux/device.h>
-#include <linux/fs.h>
-#include <linux/poll.h>
 #include <linux/cdev.h>
-#include <linux/clk.h>
-#include <linux/interrupt.h>
-#include <linux/errno.h>
-#include <linux/platform_device.h>
-#include <linux/regulator/consumer.h>
-#include <linux/uaccess.h>
-#include <linux/mxc_mlb.h>
-#include <linux/delay.h>
-#include <linux/spinlock.h>
-#include <linux/sched.h>
 #include <linux/circ_buf.h>
+#include <linux/clk.h>
+#include <linux/delay.h>
+#include <linux/device.h>
+#include <linux/errno.h>
+#include <linux/fs.h>
 #include <linux/genalloc.h>
+#include <linux/init.h>
+#include <linux/interrupt.h>
+#include <linux/io.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/mxc_mlb.h>
 #include <linux/of.h>
+#include <linux/platform_device.h>
+#include <linux/poll.h>
+#include <linux/regulator/consumer.h>
+#include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/spinlock.h>
+#include <linux/uaccess.h>
 
 #define DRIVER_NAME "mxc_mlb150"
 
-/*!
+/*
  * MLB module memory map registers define
  */
 #define REG_MLBC0		0x0
@@ -163,7 +163,8 @@
 #define CH_SYNC_CDT_BUF_DEP	(CH_SYNC_DEFAULT_QUAD * 4 * 4)
 #define CH_SYNC_ADT_BUF_MULTI	(4)
 #define CH_SYNC_ADT_BUF_DEP	(CH_SYNC_CDT_BUF_DEP * CH_SYNC_ADT_BUF_MULTI)
-#define CH_SYNC_BUF_SZ		(CH_SYNC_MAX_QUAD * 4 * 4 * CH_SYNC_ADT_BUF_MULTI)
+#define CH_SYNC_BUF_SZ		(CH_SYNC_MAX_QUAD * 4 * 4 * \
+				CH_SYNC_ADT_BUF_MULTI)
 #define CH_CTRL_CDT_BUF_DEP	(64)
 #define CH_CTRL_ADT_BUF_DEP	(CH_CTRL_CDT_BUF_DEP)
 #define CH_CTRL_BUF_SZ		(CH_CTRL_ADT_BUF_DEP)
@@ -181,9 +182,12 @@
 #define CH_ISOC_BUF_SZ		(1024)
 
 #define CH_SYNC_DBR_BUF_OFFSET	(0x0)
-#define CH_CTRL_DBR_BUF_OFFSET	(CH_SYNC_DBR_BUF_OFFSET + 2 * (CH_SYNC_MAX_QUAD * 4 * 4))
-#define CH_ASYNC_DBR_BUF_OFFSET	(CH_CTRL_DBR_BUF_OFFSET + 2 * CH_CTRL_CDT_BUF_DEP)
-#define CH_ISOC_DBR_BUF_OFFSET	(CH_ASYNC_DBR_BUF_OFFSET + 2 * CH_ASYNC_CDT_BUF_DEP)
+#define CH_CTRL_DBR_BUF_OFFSET	(CH_SYNC_DBR_BUF_OFFSET + \
+				2 * (CH_SYNC_MAX_QUAD * 4 * 4))
+#define CH_ASYNC_DBR_BUF_OFFSET	(CH_CTRL_DBR_BUF_OFFSET + \
+				2 * CH_CTRL_CDT_BUF_DEP)
+#define CH_ISOC_DBR_BUF_OFFSET	(CH_ASYNC_DBR_BUF_OFFSET + \
+				2 * CH_ASYNC_CDT_BUF_DEP)
 
 #define DBR_BUF_START 0x00000
 
@@ -307,7 +311,6 @@ struct mlb_channel_info {
 };
 
 struct mlb_dev_info {
-
 	/* device node name */
 	const char dev_name[20];
 	/* channel type */
@@ -336,11 +339,15 @@ struct mlb_dev_info {
 	s32 tx_ok;
 	/* spinlock for event access */
 	spinlock_t event_lock;
-	/* Block size for isoc mode
-	 * This variable can be configured in ioctl */
+	/*
+	 * Block size for isoc mode
+	 * This variable can be configured in ioctl
+	 */
 	u32 isoc_blksz;
-	/* Quads number for sync mode
-	 * This variable can be confifured in ioctl */
+	/*
+	 * Quads number for sync mode
+	 * This variable can be confifured in ioctl
+	 */
 	u32 sync_quad;
 	/* Buffer depth in cdt */
 	u32 cdt_buf_dep;
@@ -368,13 +375,14 @@ struct mlb_data {
 	u32 irq_mlb;
 };
 
-/* For optimization, we use fixed channel label for
- * input channels of each mode */
-/* SYNC: CL = 0 for RX, CL = 64 for TX
+/*
+ * For optimization, we use fixed channel label for
+ * input channels of each mode
+ * SYNC: CL = 0 for RX, CL = 64 for TX
  * CTRL: CL = 1 for RX, CL = 65 for TX
  * ASYNC: CL = 2 for RX, CL = 66 for TX
  * ISOC: CL = 3 for RX, CL = 67 for TX
- * */
+ */
 #define SYNC_RX_CL_AHB0		0
 #define CTRL_RX_CL_AHB0		1
 #define ASYNC_RX_CL_AHB0	2
@@ -783,7 +791,7 @@ static s32 mlb150_dev_cat_read(u32 ctr_offset, u32 ch, u16 *cat_val)
 	/*
 	 * Use u16 array to get u32 array value,
 	 * need to convert
-	 * */
+	 */
 	cat_val = ctr_val[ch % 8];
 
 	 return 0;
@@ -899,10 +907,10 @@ static void mlb150_dev_dump_ctr_tbl(u32 ch_start, u32 ch_end)
 }
 #endif
 
-/*!
+/*
  * Initial the MLB module device
  */
-static inline s32 mlb150_dev_enable_dma_irq(u32 enable)
+static inline void  mlb150_dev_enable_dma_irq(u32 enable)
 {
 	u32 ch_rx_mask = (1 << SYNC_RX_CL_AHB0) | (1 << CTRL_RX_CL_AHB0)
 			| (1 << ASYNC_RX_CL_AHB0) | (1 << ISOC_RX_CL_AHB0)
@@ -924,50 +932,55 @@ static inline s32 mlb150_dev_enable_dma_irq(u32 enable)
 		__raw_writel(0x0, mlb_base + REG_ACMR0);
 		__raw_writel(0x0, mlb_base + REG_ACMR1);
 	}
-
-	return 0;
 }
 
 
-static s32 mlb150_dev_init_ir_amba_ahb(void)
+static void mlb150_dev_init_ir_amba_ahb(void)
 {
 	u32 reg = 0;
 
-	/* Step 1. Program the ACMRn registers to enable interrupts from all
-	 * active DMA channels */
+	/*
+	 * Step 1. Program the ACMRn registers to enable interrupts from all
+	 * active DMA channels
+	 */
 	mlb150_dev_enable_dma_irq(1);
 
-	/* Step 2. Select the status clear method:
+	/*
+	 * Step 2. Select the status clear method:
 	 * ACTL.SCE = 0, hardware clears on read
-	 * ACTL.SCE = 1, software writes a '1' to clear */
-	/* We only support DMA MODE 1 */
+	 * ACTL.SCE = 1, software writes a '1' to clear
+	 * We only support DMA MODE 1
+	 */
 	reg = __raw_readl(mlb_base + REG_ACTL);
 	reg |= ACTL_DMAMODE;
 #ifdef MULTIPLE_PACKAGE_MODE
 	reg |= REG_ACTL_MPB;
 #endif
 
-	/* Step 3. Select 1 or 2 interrupt signals:
+	/*
+	 *  Step 3. Select 1 or 2 interrupt signals:
 	 * ACTL.SMX = 0: one interrupt for channels 0 - 31 on ahb_init[0]
 	 *	and another interrupt for channels 32 - 63 on ahb_init[1]
 	 * ACTL.SMX = 1: singel interrupt all channels on ahb_init[0]
-	 * */
+	 */
 	reg &= ~ACTL_SMX;
 
 	__raw_writel(reg, mlb_base + REG_ACTL);
-
-	return 0;
 }
 
-static inline s32 mlb150_dev_enable_ir_mlb(u32 enable)
+static inline void mlb150_dev_enable_ir_mlb(u32 enable)
 {
-	/* Step 1, Select the MSn to be cleared by software,
-	 * writing a '0' to the appropriate bits */
+	/*
+	 * Step 1, Select the MSn to be cleared by software,
+	 * writing a '0' to the appropriate bits
+	 */
 	__raw_writel(0, mlb_base + REG_MS0);
 	__raw_writel(0, mlb_base + REG_MS1);
 
-	/* Step 1, Program MIEN to enable protocol error
-	 * interrupts for all active MLB channels */
+	/*
+	 * Step 1, Program MIEN to enable protocol error
+	 * interrupts for all active MLB channels
+	 */
 	if (enable)
 		__raw_writel(MIEN_CTX_PE |
 			MIEN_CRX_PE | MIEN_ATX_PE |
@@ -976,11 +989,9 @@ static inline s32 mlb150_dev_enable_ir_mlb(u32 enable)
 			mlb_base + REG_MIEN);
 	else
 		__raw_writel(0, mlb_base + REG_MIEN);
-
-	return 0;
 }
 
-static inline int mlb150_enable_pll(struct mlb_data *drvdata)
+static inline void mlb150_enable_pll(struct mlb_data *drvdata)
 {
 	u32 c0_val;
 
@@ -998,11 +1009,9 @@ static inline int mlb150_enable_pll(struct mlb_data *drvdata)
 
 	c0_val |= (MLBC0_MLBPEN);
 	__raw_writel(c0_val, drvdata->membase + REG_MLBC0);
-
-	return 0;
 }
 
-static inline int mlb150_disable_pll(struct mlb_data *drvdata)
+static inline void mlb150_disable_pll(struct mlb_data *drvdata)
 {
 	u32 c0_val;
 
@@ -1014,11 +1023,9 @@ static inline int mlb150_disable_pll(struct mlb_data *drvdata)
 
 	c0_val &= ~MLBC0_MLBPEN;
 	__raw_writel(c0_val, drvdata->membase + REG_MLBC0);
-
-	return 0;
 }
 
-static s32 mlb150_dev_reset_cdt(void)
+static void mlb150_dev_reset_cdt(void)
 {
 	int i = 0;
 	u32 ctr_val[4] = { 0 };
@@ -1028,8 +1035,6 @@ static s32 mlb150_dev_reset_cdt(void)
 
 	for (i = 0; i < (LOGIC_CH_NUM); ++i)
 		mlb150_dev_ctr_write(BUF_CDT_OFFSET + i, ctr_val);
-
-	return 0;
 }
 
 static s32 mlb150_dev_init_ch_cdt(struct mlb_dev_info *pdevinfo, u32 ch,
@@ -1042,16 +1047,17 @@ static s32 mlb150_dev_init_ch_cdt(struct mlb_dev_info *pdevinfo, u32 ch,
 		ctype, ch, pdevinfo->channels[ch_func].dbr_buf_head);
 	cdt_val[3] = (pdevinfo->channels[ch_func].dbr_buf_head)
 			<< CDT_BA_SHIFT;
-
-	/* b. Set the 12-bit or 13-bit buffer depth (BD)
-	 * BD = buffer depth in bytes - 1 */
-	/* For synchronous channels: (BD + 1) = 4 * m * bpf */
-	/* For control channels: (BD + 1) >= max packet length (64) */
-	/* For asynchronous channels: (BD + 1) >= max packet length
+	/*
+	 * b. Set the 12-bit or 13-bit buffer depth (BD)
+	 * BD = buffer depth in bytes - 1
+	 * For synchronous channels: (BD + 1) = 4 * m * bpf
+	 * For control channels: (BD + 1) >= max packet length (64)
+	 * For asynchronous channels: (BD + 1) >= max packet length
 	 * 1024 for a MOST Data packet (MDP);
-	 * 1536 for a MOST Ethernet Packet (MEP) */
-	/* For isochronous channels: (BD + 1) mod (BS + 1) = 0 */
-	/* BS */
+	 * 1536 for a MOST Ethernet Packet (MEP)
+	 * For isochronous channels: (BD + 1) mod (BS + 1) = 0
+	 * BS
+	 */
 	if (MLB_CTYPE_ISOC == ctype)
 		cdt_val[1] |= (pdevinfo->isoc_blksz - 1);
 	/* BD */
@@ -1163,7 +1169,7 @@ static s32 mlb150_dev_init_ch_cat(u32 ch, u32 cl,
 	return 0;
 }
 
-static s32 mlb150_dev_reset_cat(void)
+static void mlb150_dev_reset_cat(void)
 {
 	int i = 0;
 	u32 ctr_val[4] = { 0 };
@@ -1175,11 +1181,9 @@ static s32 mlb150_dev_reset_cat(void)
 		mlb150_dev_ctr_write(BUF_CAT_MLB_OFFSET + i, ctr_val);
 		mlb150_dev_ctr_write(BUF_CAT_HBI_OFFSET + i, ctr_val);
 	}
-
-	return 0;
 }
 
-static s32 mlb150_dev_init_rfb(struct mlb_dev_info *pdevinfo, u32 rx_ch,
+static void mlb150_dev_init_rfb(struct mlb_dev_info *pdevinfo, u32 rx_ch,
 		u32 tx_ch, enum MLB_CTYPE ctype)
 {
 	u32 rx_cl = pdevinfo->channels[RX_CHANNEL].cl;
@@ -1187,9 +1191,10 @@ static s32 mlb150_dev_init_rfb(struct mlb_dev_info *pdevinfo, u32 rx_ch,
 	/* Step 1, Initialize all bits of CAT to '0' */
 	mlb150_dev_reset_cat();
 	mlb150_dev_reset_cdt();
-
-	/* Step 2, Initialize logical channel */
-	/* Step 3, Program the CDT for channel N */
+	/*
+	 * Step 2, Initialize logical channel
+	 * Step 3, Program the CDT for channel N
+	 */
 	mlb150_dev_init_ch_cdt(pdevinfo, rx_cl, ctype, RX_CHANNEL);
 	mlb150_dev_init_ch_cdt(pdevinfo, tx_cl, ctype, TX_CHANNEL);
 
@@ -1206,11 +1211,9 @@ static s32 mlb150_dev_init_rfb(struct mlb_dev_info *pdevinfo, u32 rx_ch,
 	mlb150_dev_init_ch_cat(tx_ch, tx_cl,
 			CAT_MODE_TX | CAT_MODE_OUTBOUND_DMA,
 			ctype);
-
-	return 0;
 }
 
-static s32 mlb150_dev_reset_adt(void)
+static void mlb150_dev_reset_adt(void)
 {
 	int i = 0;
 	u32 ctr_val[4] = { 0 };
@@ -1220,24 +1223,20 @@ static s32 mlb150_dev_reset_adt(void)
 
 	for (i = 0; i < (LOGIC_CH_NUM); ++i)
 		mlb150_dev_ctr_write(BUF_ADT_OFFSET + i, ctr_val);
-
-	return 0;
 }
 
-static s32 mlb150_dev_reset_whole_ctr(void)
+static void mlb150_dev_reset_whole_ctr(void)
 {
 	mlb150_dev_enable_ctr_write(0xffffffff, 0xffffffff,
 			0xffffffff, 0xffffffff);
 	mlb150_dev_reset_cdt();
 	mlb150_dev_reset_adt();
 	mlb150_dev_reset_cat();
-
-	return 0;
 }
 
 #define CLR_REG(reg)  __raw_writel(0x0, mlb_base + reg)
 
-static s32 mlb150_dev_reset_all_regs(void)
+static void mlb150_dev_reset_all_regs(void)
 {
 	CLR_REG(REG_MLBC0);
 	CLR_REG(REG_MLBPC0);
@@ -1271,8 +1270,6 @@ static s32 mlb150_dev_reset_all_regs(void)
 	CLR_REG(REG_ACSR1);
 	CLR_REG(REG_ACMR0);
 	CLR_REG(REG_ACMR1);
-
-	return 0;
 }
 
 static inline s32 mlb150_dev_pipo_start(struct mlb_ringbuf *rbuf,
@@ -1300,8 +1297,10 @@ static inline s32 mlb150_dev_pipo_next(u32 ahb_ch, enum MLB_CTYPE ctype,
 		ctr_val[1] |= ADT_PS2;
 	}
 
-	/* Clear DNE1 and ERR1 */
-	/* Set the page ready bit (RDY1) */
+	/*
+	 * Clear DNE1 and ERR1
+	 * Set the page ready bit (RDY1)
+	 */
 	if (dne_sts & ADT_DNE1) {
 		ctr_val[1] |= ADT_RDY2;
 		ctr_val[3] = buf_addr;
@@ -1387,7 +1386,7 @@ static s32 mlb150_dev_init_ch_amba_ahb(struct mlb_dev_info *pdevinfo,
 	return 0;
 }
 
-static s32 mlb150_dev_init_amba_ahb(struct mlb_dev_info *pdevinfo,
+static void mlb150_dev_init_amba_ahb(struct mlb_dev_info *pdevinfo,
 					enum MLB_CTYPE ctype)
 {
 	struct mlb_channel_info *tx_chinfo = &pdevinfo->channels[TX_CHANNEL];
@@ -1396,13 +1395,13 @@ static s32 mlb150_dev_init_amba_ahb(struct mlb_dev_info *pdevinfo,
 	/* Step 1, Initialize all bits of the ADT to '0' */
 	mlb150_dev_reset_adt();
 
-	/* Step 2, Select a logic channel */
-	/* Step 3, Program the AMBA AHB block ping page for channel N */
-	/* Step 4, Program the AMBA AHB block pong page for channel N */
+	/*
+	 * Step 2, Select a logic channel
+	 * Step 3, Program the AMBA AHB block ping page for channel N
+	 * Step 4, Program the AMBA AHB block pong page for channel N
+	 */
 	mlb150_dev_init_ch_amba_ahb(pdevinfo, rx_chinfo, ctype);
 	mlb150_dev_init_ch_amba_ahb(pdevinfo, tx_chinfo, ctype);
-
-	return 0;
 }
 
 static void mlb150_dev_exit(void)
@@ -1444,15 +1443,19 @@ static void mlb150_dev_init(void)
 	/* Disable EN bits */
 	mlb150_dev_exit();
 
-	/* Step 1. Initialize CTR and registers
-	 * a. Set all bit of the CTR (CAT, CDT, and ADT) to 0. */
+	/*
+	 * Step 1. Initialize CTR and registers
+	 * a. Set all bit of the CTR (CAT, CDT, and ADT) to 0.
+	 */
 	mlb150_dev_reset_whole_ctr();
 
 	/* a. Set all bit of the CTR (CAT, CDT, and ADT) to 0. */
 	mlb150_dev_reset_all_regs();
 
-	/* Step 2, Configure the MediaLB interface */
-	/* Select pin mode and clock, 3-pin and 256fs */
+	/*
+	 * Step 2, Configure the MediaLB interface
+	 * Select pin mode and clock, 3-pin and 256fs
+	 */
 	c0_val = __raw_readl(mlb_base + REG_MLBC0);
 	c0_val &= ~(MLBC0_MLBPEN | MLBC0_MLBCLK_MASK);
 	__raw_writel(c0_val, mlb_base + REG_MLBC0);
@@ -1474,9 +1477,11 @@ static s32 mlb150_dev_unmute_syn_ch(u32 rx_ch, u32 rx_cl, u32 tx_ch, u32 tx_cl)
 {
 	u32 timeout = 10000;
 
-	/* Check that MediaLB clock is running (MLBC1.CLKM = 0)
+	/*
+	 * Check that MediaLB clock is running (MLBC1.CLKM = 0)
 	 * If MLBC1.CLKM = 1, clear the register bit, wait one
-	 * APB or I/O clock cycle and repeat the check */
+	 * APB or I/O clock cycle and repeat the check
+	 */
 	while ((__raw_readl(mlb_base + REG_MLBC1) & MLBC1_CLKM)
 			|| timeout--)
 		__raw_writel(~MLBC1_CLKM, mlb_base + REG_MLBC1);
@@ -1540,15 +1545,17 @@ static s32 mlb150_trans_complete_check(struct mlb_dev_info *pdevinfo)
 		return -ETIME;
 	}
 
-	/* Interrupt from TX can only inform that the data is sent
+	/*
+	 * Interrupt from TX can only inform that the data is sent
 	 * to AHB bus, not mean that it is sent to MITB. Thus we add
-	 * a delay here for data to be completed sent. */
+	 * a delay here for data to be completed sent.
+	 */
 	udelay(1000);
 
 	return 0;
 }
 
-/*!
+/*
  * Enable the MLB channel
  */
 static void mlb_channel_enable(struct mlb_data *drvdata,
@@ -1562,7 +1569,7 @@ static void mlb_channel_enable(struct mlb_data *drvdata,
 	u32 tx_cl = tx_chinfo->cl;
 	u32 rx_cl = rx_chinfo->cl;
 
-	/*!
+	/*
 	 * setup the direction, enable, channel type,
 	 * mode select, channel address and mask buf start
 	 */
@@ -1614,7 +1621,7 @@ static void mlb_channel_enable(struct mlb_data *drvdata,
 	}
 }
 
-/*!
+/*
  * MLB interrupt handler
  */
 static void mlb_rx_isr(s32 ctype, u32 ahb_ch, struct mlb_dev_info *pdevinfo)
@@ -1697,19 +1704,19 @@ static irqreturn_t mlb_ahb_isr(int irq, void *dev_id)
 			| (1 << SYNC_TX_CL) | (1 << CTRL_TX_CL)
 			| (1 << ASYNC_TX_CL) | (1 << ISOC_TX_CL);
 
-	/* Step 5, Read the ACSRn registers to determine which channel or
-	 * channels are causing the interrupt */
+	/*
+	 * Step 5, Read the ACSRn registers to determine which channel or
+	 * channels are causing the interrupt
+	 */
 	acsr0 = __raw_readl(mlb_base + REG_ACSR0);
 
 	hcer0 = __raw_readl(mlb_base + REG_HCER0);
 
-	/* Step 6, If ACTL.SCE = 1, write the result of step 5 back to ACSR0
-	 * and ACSR1 to clear the interrupt */
-	/* We'll not set ACTL_SCE */
 	/*
-	if (ACTL_SCE & __raw_readl(mlb_base + REG_ACTL))
-		__raw_writel(acsr0, mlb_base + REG_ACSR0);
-	*/
+	 * Step 6, If ACTL.SCE = 1, write the result of step 5 back to ACSR0
+	 * and ACSR1 to clear the interrupt
+	 * We'll not set ACTL_SCE
+	 */
 
 	if (ch_mask & hcer0)
 		pr_err("CH encounters an AHB error: 0x%x\n", hcer0);
@@ -1756,8 +1763,10 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 	int minor;
 	u32 cdt_val[4] = { 0 };
 
-	/* Step 4, Read the MSn register to determine which channel(s)
-	 * are causing the interrupt */
+	/*
+	 * Step 4, Read the MSn register to determine which channel(s)
+	 * are causing the interrupt
+	 */
 	ms0 = __raw_readl(mlb_base + REG_MS0);
 	ms1 = __raw_readl(mlb_base + REG_MS1);
 	pr_debug("mxc_mlb150: mlb interrupt:0x%08x 0x%08x\n",
@@ -1793,9 +1802,11 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 			case MLB_CTYPE_SYNC:
 				tx_cis = (cdt_val[2] & ~CDT_SYNC_WSTS_MASK)
 					>> CDT_SYNC_WSTS_SHIFT;
-				/* Clear RSTS/WSTS errors to resume
-				 * channel operation */
-				/* a. For synchronous channels: WSTS[3] = 0 */
+				/*
+				 * Clear RSTS/WSTS errors to resume
+				 * channel operation
+				 * a. For synchronous channels: WSTS[3] = 0
+				 */
 				cdt_val[2] &= ~(0x8 << CDT_SYNC_WSTS_SHIFT);
 				break;
 			case MLB_CTYPE_CTRL:
@@ -1805,9 +1816,11 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 					>> CDT_CTRL_ASYNC_WSTS_SHIFT;
 				tx_cis = (cdt_val[3] & CDT_CTRL_ASYNC_WSTS_1) ?
 					(tx_cis | (0x1 << 4)) : tx_cis;
-				/* b. For async and ctrl channels:
+				/*
+				 * b. For async and ctrl channels:
 				 * RSTS[4]/WSTS[4] = 0
-				 * and RSTS[2]/WSTS[2] = 0 */
+				 * and RSTS[2]/WSTS[2] = 0
+				 */
 				cdt_val[3] &= ~CDT_CTRL_ASYNC_WSTS_1;
 				cdt_val[2] &=
 					~(0x4 << CDT_CTRL_ASYNC_WSTS_SHIFT);
@@ -1924,7 +1937,8 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 		++j, buf_addr += ring_buf_size, phy_addr += ring_buf_size) {
 		pdevinfo->rx_rbuf.virt_bufs[j] = buf_addr;
 		pdevinfo->rx_rbuf.phy_addrs[j] = phy_addr;
-		pr_debug("RX Ringbuf[%d]: 0x%p 0x%x\n", j, buf_addr, (u32)phy_addr);
+		pr_debug("RX Ringbuf[%d]: 0x%p 0x%x\n",
+			j, buf_addr, (u32)phy_addr);
 	}
 	pdevinfo->rx_rbuf.unit_size = ring_buf_size;
 	pdevinfo->rx_rbuf.total_size = buf_size;
@@ -1932,7 +1946,8 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 		++j, buf_addr += ring_buf_size, phy_addr += ring_buf_size) {
 		pdevinfo->tx_rbuf.virt_bufs[j] = buf_addr;
 		pdevinfo->tx_rbuf.phy_addrs[j] = phy_addr;
-		pr_debug("TX Ringbuf[%d]: 0x%p 0x%x\n", j, buf_addr, (u32)phy_addr);
+		pr_debug("TX Ringbuf[%d]: 0x%p 0x%x\n",
+			j, buf_addr, (u32)phy_addr);
 	}
 
 	pdevinfo->tx_rbuf.unit_size = ring_buf_size;
@@ -2092,8 +2107,10 @@ static long mxc_mlb150_ioctl(struct file *filp,
 					<< MLBC0_MLBCLK_SHIFT;
 
 				if (1024 == fps) {
-					/* Invert output clock phase
-					 * in 1024 fps */
+					/*
+					 * Invert output clock phase
+					 * in 1024 fps
+					 */
 					__raw_writel(0x1,
 						mlb_base + REG_MLBPC2);
 				}
@@ -2177,9 +2194,8 @@ static long mxc_mlb150_ioctl(struct file *filp,
 	return 0;
 }
 
-/*!
+/*
  * MLB read routine
- *
  * Read the current received data from queued buffer,
  * and free this buffer for hw to fill ingress data.
  */
@@ -2264,9 +2280,8 @@ static ssize_t mxc_mlb150_read(struct file *filp, char __user *buf,
 	return size;
 }
 
-/*!
+/*
  * MLB write routine
- *
  * Copy the user data to tx channel buffer,
  * and prepare the channel current/next buffer ptr.
  */
@@ -2282,8 +2297,8 @@ static ssize_t mxc_mlb150_write(struct file *filp, const char __user *buf,
 	unsigned long flags;
 
 	/*
-	minor = MINOR(filp->f_dentry->d_inode->i_rdev);
-	*/
+	 * minor = MINOR(filp->f_dentry->d_inode->i_rdev);
+	 */
 	pchinfo = &pdevinfo->channels[TX_CHANNEL];
 
 	if (count > pdevinfo->buf_size) {
@@ -2415,7 +2430,7 @@ static unsigned int mxc_mlb150_poll(struct file *filp,
 	return ret;
 }
 
-/*!
+/*
  * char dev file operations structure
  */
 static const struct file_operations mxc_mlb150_fops = {
@@ -2444,7 +2459,7 @@ static const struct of_device_id mlb150_imx_dt_ids[] = {
 	{ /* sentinel */ }
 };
 
-/*!
+/*
  * This function is called whenever the MLB device is detected.
  */
 static int mxc_mlb150_probe(struct platform_device *pdev)
@@ -2461,7 +2476,7 @@ static int mxc_mlb150_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	/**
+	/*
 	 * Register MLB lld as four character devices
 	 */
 	ret = alloc_chrdev_region(&drvdata->firstdev, 0,
@@ -2504,7 +2519,6 @@ static int mxc_mlb150_probe(struct platform_device *pdev)
 		}
 	}
 
-	/* get irq */
 	/* ahb0 irq */
 	drvdata->irq_ahb0 = platform_get_irq(pdev,  1);
 	if (drvdata->irq_ahb0 < 0) {
@@ -2551,7 +2565,7 @@ static int mxc_mlb150_probe(struct platform_device *pdev)
 		ret = -ENOENT;
 		goto err_dev;
 	}
-	mlb_base = devm_ioremap_resource(&pdev->dev, res);
+	mlb_base = devm_request_and_ioremap(&pdev->dev, res);
 	dev_dbg(&pdev->dev, "mapped base address: 0x%08x\n", (u32)mlb_base);
 	if (IS_ERR(mlb_base)) {
 		dev_err(&pdev->dev,
@@ -2674,7 +2688,7 @@ static int mxc_mlb150_resume(struct platform_device *pdev)
 #define mxc_mlb150_resume NULL
 #endif
 
-/*!
+/*
  * platform driver structure for MLB
  */
 static struct platform_driver mxc_mlb150_driver = {
