@@ -190,6 +190,13 @@ static void ci_hdrc_enter_lpm(struct ci_hdrc *ci, bool enable)
 		 * than 1ms) to leave low power mode.
 		 */
 		usleep_range(1500, 2000);
+	} else if (!enable) {
+		/*
+		 * At wakeup interrupt, the phcd will be cleared by hardware
+		 * automatically, but the controller needs at least 1ms
+		 * to reflect PHY's status.
+		 */
+		usleep_range(1200, 1800);
 	}
 }
 
@@ -354,6 +361,13 @@ static irqreturn_t ci_irq(int irq, void *data)
 	struct ci_hdrc *ci = data;
 	irqreturn_t ret = IRQ_NONE;
 	u32 otgsc = 0;
+
+	if (ci->in_lpm) {
+		disable_irq_nosync(irq);
+		ci->wakeup_int = true;
+		pm_runtime_get(ci->dev);
+		return IRQ_HANDLED;
+	}
 
 	if (ci->is_otg)
 		otgsc = hw_read(ci, OP_OTGSC, ~0);
@@ -743,6 +757,12 @@ static int ci_controller_resume(struct device *dev)
 	}
 
 	ci->in_lpm = false;
+
+	if (ci->wakeup_int) {
+		ci->wakeup_int = false;
+		enable_irq(ci->irq);
+		pm_runtime_put(ci->dev);
+	}
 
 	return 0;
 }
