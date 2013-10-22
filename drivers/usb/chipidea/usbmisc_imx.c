@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Freescale Semiconductor, Inc.
+ * Copyright 2012-2013 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -11,7 +11,6 @@
 
 #include <linux/module.h>
 #include <linux/of_platform.h>
-#include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/delay.h>
@@ -40,7 +39,6 @@ struct usbmisc_ops {
 struct imx_usbmisc {
 	void __iomem *base;
 	spinlock_t lock;
-	struct clk *clk;
 	const struct usbmisc_ops *ops;
 };
 
@@ -177,7 +175,6 @@ static int usbmisc_imx_probe(struct platform_device *pdev)
 {
 	struct resource	*res;
 	struct imx_usbmisc *data;
-	int ret;
 	struct of_device_id *tmp_dev;
 
 	if (usbmisc)
@@ -194,20 +191,6 @@ static int usbmisc_imx_probe(struct platform_device *pdev)
 	if (IS_ERR(data->base))
 		return PTR_ERR(data->base);
 
-	data->clk = devm_clk_get(&pdev->dev, NULL);
-	if (IS_ERR(data->clk)) {
-		dev_err(&pdev->dev,
-			"failed to get clock, err=%ld\n", PTR_ERR(data->clk));
-		return PTR_ERR(data->clk);
-	}
-
-	ret = clk_prepare_enable(data->clk);
-	if (ret) {
-		dev_err(&pdev->dev,
-			"clk_prepare_enable failed, err=%d\n", ret);
-		return ret;
-	}
-
 	tmp_dev = (struct of_device_id *)
 		of_match_device(usbmisc_imx_dt_ids, &pdev->dev);
 	data->ops = (const struct usbmisc_ops *)tmp_dev->data;
@@ -218,7 +201,6 @@ static int usbmisc_imx_probe(struct platform_device *pdev)
 
 static int usbmisc_imx_remove(struct platform_device *pdev)
 {
-	clk_disable_unprepare(usbmisc->clk);
 	usbmisc = NULL;
 	return 0;
 }
