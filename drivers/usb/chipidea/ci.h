@@ -180,6 +180,7 @@ struct ci_hdrc {
 	bool				imx28_write_fix;
 	bool				supports_runtime_pm;
 	bool				in_lpm;
+	bool				wakeup_int;
 };
 
 static inline struct ci_role_driver *ci_role(struct ci_hdrc *ci)
