@@ -1,0 +1,22 @@
+* Freescale Media Local Bus Host Controller (MLB) for i.MX6Q/DL
+
+The Media Local Bus Host Controller on Freescale i.MX family
+provides an interface for MOST network.
+
+Required properties:
+- compatible : Should be "fsl,<chip>-mlb150"
+- reg : Should contain mlb registers location and length
+- interrupts : Should contain mlb interrupt
+- clocks: Should contain the mlb clock sources
+- clock-names: Should be the names of mlb clock sources
+- iram : phandle pointing to the SRAM device node
+
+Examples:
+mlb@0218c000 {
+	compatible = "fsl,imx6q-mlb150";
+	reg = <0x0218c000 0x4000>;
+	interrupts = <0 53 0x04 0 117 0x04 0 126 0x04>;
+	clocks = <&clks 139>, <&clks 175>;
+	clock-names = "mlb", "pll8_mlb";
+	iram = <&ocram>;
+};
