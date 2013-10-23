@@ -47,7 +47,7 @@ static u32 pre_suspend_rate;
 int cpufreq_suspended;
 #endif
 static bool cpufreq_suspend;
-static struct mutex set_cpufreq_lock;
+struct mutex set_cpufreq_lock;
 
 extern struct regulator *cpu_regulator;
 extern struct regulator *soc_regulator;
@@ -108,6 +108,13 @@ int set_cpu_freq(int freq)
 					"COULD NOT SET PU VOLTAGE!!!!\n");
 				goto err2;
 			}
+			/* 
+			 * Force sync setting PU since regulator mabye maintain
+			 * the old volatage setting before disable PU, then will
+			 * miss this time setting if the two setting is same.
+			 * So do force sync again here. 
+			 */
+			regulator_sync_voltage(pu_regulator);
 		}
 		ret = regulator_set_voltage(cpu_regulator, gp_volt,
 					    gp_volt);
@@ -148,6 +155,13 @@ int set_cpu_freq(int freq)
 					"COULD NOT SET PU VOLTAGE!!!!\n");
 				goto err7;
 			}
+			/* 
+			 * Force sync setting PU since regulator mabye maintain
+			 * the old volatage setting before disable PU, then will
+			 * miss this time setting if the two setting is same.
+			 * So do force sync again here. 
+			 */
+			regulator_sync_voltage(pu_regulator);
 		}
 		/* Check if the bus freq can be decreased.*/
 		bus_freq_update(cpu_clk, false);
