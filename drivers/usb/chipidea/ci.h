@@ -173,6 +173,8 @@ struct ci_hdrc {
 	struct dentry			*debugfs;
 	bool				id_event;
 	bool				b_sess_valid_event;
+	/* imx28 needs swp instruction for writing */
+	bool				imx28_write_fix;
 };
 
 static inline struct ci_role_driver *ci_role(struct ci_hdrc *ci)
@@ -253,6 +255,26 @@ static inline u32 hw_read(struct ci_hdrc *ci, enum ci_hw_regs reg, u32 mask)
 	return ioread32(ci->hw_bank.regmap[reg]) & mask;
 }
 
+#ifdef CONFIG_SOC_IMX28
+static inline void imx28_ci_writel(u32 val32, volatile u32 *addr)
+{
+	__asm__ ("swp %0, %0, [%1]" : : "r"(val32), "r"(addr));
+}
+#endif
+
+static inline void __hw_write(struct ci_hdrc *ci, u32 val,
+		void __iomem *addr)
+{
+#ifdef CONFIG_SOC_IMX28
+	if (ci->imx28_write_fix)
+		imx28_ci_writel(val, addr);
+	else
+		iowrite32(val, addr);
+#else
+	iowrite32(val, addr);
+#endif
+}
+
 /**
  * hw_write: writes to a hw register
  * @reg:  register index
@@ -266,7 +288,7 @@ static inline void hw_write(struct ci_hdrc *ci, enum ci_hw_regs reg,
 		data = (ioread32(ci->hw_bank.regmap[reg]) & ~mask)
 			| (data & mask);
 
-	iowrite32(data, ci->hw_bank.regmap[reg]);
+	__hw_write(ci, data, ci->hw_bank.regmap[reg]);
 }
 
 /**
@@ -281,7 +303,7 @@ static inline u32 hw_test_and_clear(struct ci_hdrc *ci, enum ci_hw_regs reg,
 {
 	u32 val = ioread32(ci->hw_bank.regmap[reg]) & mask;
 
-	iowrite32(val, ci->hw_bank.regmap[reg]);
+	__hw_write(ci, val, ci->hw_bank.regmap[reg]);
 	return val;
 }
 
