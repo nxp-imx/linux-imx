@@ -1967,12 +1967,14 @@ static int caam_hash_cra_init(struct crypto_tfm *tfm)
 					 HASH_MSG_LEN + SHA512_DIGEST_SIZE };
 	int tgt_jr = atomic_inc_return(&priv->tfm_count);
 	int ret = 0;
+	struct platform_device *pdev;
 
 	/*
 	 * distribute tfms across job rings to ensure in-order
 	 * crypto request processing per tfm
 	 */
-	ctx->jrdev = priv->jrdev[tgt_jr % priv->total_jobrs];
+	pdev = priv->jrpdev[tgt_jr % priv->total_jobrs];
+	ctx->jrdev = &pdev->dev;
 
 	/* copy descriptor header template value */
 	ctx->alg_type = OP_TYPE_CLASS2_ALG | caam_hash->alg_type;
@@ -2003,12 +2005,14 @@ static int caam_axcbc_cra_init(struct crypto_tfm *tfm)
 	struct caam_drv_private *priv = dev_get_drvdata(caam_hash->ctrldev);
 	int tgt_jr = atomic_inc_return(&priv->tfm_count);
 	int ret = 0;
+	struct platform_device *pdev;
 
 	/*
 	 * distribute tfms across job rings to ensure in-order
 	 * crypto request processing per tfm
 	 */
-	ctx->jrdev = priv->jrdev[tgt_jr % priv->total_jobrs];
+	pdev = priv->jrpdev[tgt_jr % priv->total_jobrs];
+	ctx->jrdev = &pdev->dev;
 
 	/* copy descriptor header template value */
 	ctx->alg_type = OP_TYPE_CLASS1_ALG | caam_hash->alg_type;

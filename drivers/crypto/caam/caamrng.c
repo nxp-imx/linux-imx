@@ -328,7 +328,7 @@ static void __exit caam_rng_exit(void)
 static int __init caam_rng_init(void)
 {
 	struct device_node *dev_node;
-	struct platform_device *pdev;
+	struct platform_device *pdev, *jrpdev;
 	struct device *ctrldev;
 	struct caam_drv_private *priv;
 
@@ -360,13 +360,14 @@ static int __init caam_rng_init(void)
 
 	rng_ctx = kmalloc(sizeof(struct caam_rng_ctx), GFP_KERNEL | GFP_DMA);
 
-	caam_init_rng(rng_ctx, priv->jrdev[0]);
+	jrpdev = priv->jrpdev[0];
+	caam_init_rng(rng_ctx, &jrpdev->dev);
 
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_TEST
 	self_test(&caam_rng);
 #endif
 
-	dev_info(priv->jrdev[0], "registering rng-caam\n");
+	dev_info(&jrpdev->dev, "registering rng-caam\n");
 	return hwrng_register(&caam_rng);
 }
 
