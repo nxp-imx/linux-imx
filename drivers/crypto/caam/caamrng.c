@@ -322,14 +322,15 @@ static struct hwrng caam_rng = {
 
 static void __exit caam_rng_exit(void)
 {
+	caam_jr_free(rng_ctx->jrdev);
 	hwrng_unregister(&caam_rng);
 }
 
 static int __init caam_rng_init(void)
 {
 	struct device_node *dev_node;
-	struct platform_device *pdev, *jrpdev;
-	struct device *ctrldev;
+	struct platform_device *pdev;
+	struct device *ctrldev, *dev;
 	struct caam_drv_private *priv;
 
 	dev_node = of_find_compatible_node(NULL, NULL, "fsl,sec-v4.0");
@@ -360,14 +361,19 @@ static int __init caam_rng_init(void)
 
 	rng_ctx = kmalloc(sizeof(struct caam_rng_ctx), GFP_KERNEL | GFP_DMA);
 
-	jrpdev = priv->jrpdev[0];
-	caam_init_rng(rng_ctx, &jrpdev->dev);
+	dev = caam_jr_alloc();
+	if (IS_ERR(dev)) {
+		pr_err("Job Ring Device allocation for transform failed\n");
+		return PTR_ERR(dev);
+	}
+
+	caam_init_rng(rng_ctx, dev);
 
 #ifdef CONFIG_CRYPTO_DEV_FSL_CAAM_RNG_TEST
 	self_test(&caam_rng);
 #endif
 
-	dev_info(&jrpdev->dev, "registering rng-caam\n");
+	dev_info(dev, "registering rng-caam\n");
 	return hwrng_register(&caam_rng);
 }
 

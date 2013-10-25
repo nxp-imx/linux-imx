@@ -89,13 +89,6 @@ struct caam_drv_private {
 	int secvio_irq;		/* Security violation interrupt number */
 	int rng_inst;		/* Total instantiated RNGs */
 
-	/* which jr allocated to scatterlist crypto */
-	atomic_t tfm_count ____cacheline_aligned;
-	/* list of registered crypto algorithms (mk generic context handle?) */
-	struct list_head alg_list;
-	/* list of registered hash algorithms (mk generic context handle?) */
-	struct list_head hash_list;
-
 #ifdef CONFIG_ARM
 	struct clk *caam_ipg;
 	struct clk *caam_mem;

@@ -688,10 +688,9 @@ int caam_sm_startup(struct platform_device *pdev)
 	struct caam_drv_private *ctrlpriv;
 	struct caam_drv_private_sm *smpriv;
 	struct caam_drv_private_jr *jrpriv;	/* need this for reg page */
-	struct platform_device *sm_pdev, *jrpdev;
+	struct platform_device *sm_pdev;
 	struct sm_page_descriptor *lpagedesc;
 	u32 page, pgstat, lpagect, detectedpage;
-	int tgt_jr;
 
 	struct device_node *np;
 	ctrldev = &pdev->dev;
@@ -754,19 +753,12 @@ int caam_sm_startup(struct platform_device *pdev)
 #endif
 
 	/*
-	 * distribute tfms across job rings to ensure in-order
-	 * crypto request processing per tfm
-	 */
-	tgt_jr = atomic_inc_return(&ctrlpriv->tfm_count);
-
-	/*
 	 * Now probe for partitions/pages to which we have access. Note that
 	 * these have likely been set up by a bootloader or platform
 	 * provisioning application, so we have to assume that we "inherit"
 	 * a configuration and work within the constraints of what it might be.
 	 */
-	jrpdev = ctrlpriv->jrpdev[tgt_jr % ctrlpriv->total_jobrs];
-	smpriv->smringdev = &jrpdev->dev;
+	smpriv->smringdev = caam_jr_alloc();
 	jrpriv = dev_get_drvdata(smpriv->smringdev);
 	lpagect = 0;
 	lpagedesc = kzalloc(sizeof(struct sm_page_descriptor)
