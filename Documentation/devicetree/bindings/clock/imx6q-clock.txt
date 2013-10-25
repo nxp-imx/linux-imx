@@ -223,6 +223,9 @@ clocks and IDs.
 	lvds1_sel      		210
 	lvds1_in      		211
 	lvds1_out		212
+	caam_mem		213
+	caam_aclk		214
+	caam_ipg		215
 
 Examples:
 
