@@ -150,7 +150,11 @@ static irqreturn_t ehci_fsl_pre_irq(int irq, void *dev)
 	pdata = hcd->self.controller->platform_data;
 
 	if (!test_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags)) {
+#if defined(CONFIG_ARCH_MX28)
 		if (pdata->irq_delay || ((pdata->wakeup_event == WAKEUP_EVENT_VBUS) || (pdata->wakeup_event == WAKEUP_EVENT_INVALID)))
+#else
+		if (pdata->irq_delay || !pdata->wakeup_event)
+#endif
 			return IRQ_NONE;
 
 		pr_debug("%s\n", __func__);
