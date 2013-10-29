@@ -1414,8 +1414,6 @@ static void task_mem_free(struct kref *ref)
 {
 	struct ipu_task_entry *tsk =
 			container_of(ref, struct ipu_task_entry, refcount);
-
-	memset(tsk, 0, sizeof(*tsk));
 	kfree(tsk);
 }
 
@@ -1731,7 +1729,6 @@ err_exit:
 		if (!tsk)
 			continue;
 		kfree(tsk);
-		memset(tsk, 0, sizeof(*tsk));
 	}
 	t->state = STATE_ERR;
 	return ret;
