@@ -1403,7 +1403,7 @@ static struct ipu_task_entry *create_task_entry(struct ipu_task *task)
 	tsk->overlay_en = task->overlay_en;
 	if (tsk->overlay_en)
 		tsk->overlay = task->overlay;
-	if (tsk->timeout && (tsk->timeout > DEF_TIMEOUT_MS))
+	if (task->timeout > DEF_TIMEOUT_MS)
 		tsk->timeout = task->timeout;
 	else
 		tsk->timeout = DEF_TIMEOUT_MS;
