@@ -1162,8 +1162,7 @@ static int prepare_task(struct ipu_task_entry *t)
 		return -EINVAL;
 
 	if (t->set.mode & VDI_MODE) {
-		if (t->task_id != IPU_TASK_ID_VF)
-			t->task_id = IPU_TASK_ID_VF;
+		t->task_id = IPU_TASK_ID_VF;
 		t->set.task = VDI_VF;
 		if (t->set.mode & ROT_MODE)
 			t->set.task |= ROT_VF;
