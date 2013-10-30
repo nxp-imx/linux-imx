@@ -1313,6 +1313,7 @@ static struct mxs_audio_platform_data audio_plat_data;
 static int audio_clk_init(void)
 {
 	struct clk *clk;
+	struct clk *clk1;
 	struct clk *pll_clk;
 	struct clk *saif_mclk0;
 	struct clk *saif_mclk1;
@@ -1322,6 +1323,11 @@ static int audio_clk_init(void)
 		return 0;
 	clk = clk_get(NULL, "saif.0");
 	if (IS_ERR(clk)) {
+		pr_err("%s:failed to get clk\n", __func__);
+		goto err_clk_init;
+	}
+	clk1 = clk_get(NULL, "saif.1");
+	if (IS_ERR(clk1)) {
 		pr_err("%s:failed to get clk\n", __func__);
 		goto err_clk_init;
 	}
@@ -1345,10 +1351,18 @@ static int audio_clk_init(void)
 		pr_err("%s:failed to set parent clk\n", __func__);
 		goto err_clk_init;
 	}
+	ret = clk_set_parent(clk1, pll_clk);
+	if (ret) {
+		pr_err("%s:failed to set parent clk\n", __func__);
+		goto err_clk_init;
+	}
+
 	ret = 0;
 	/*set a default freq of 12M to sgtl5000*/
 	clk_set_rate(clk, 12000000);
 	clk_enable(clk);
+	clk_set_rate(clk1, 12000000);
+	clk_enable(clk1);
 	/*set the saif clk mux, saif0/saif1 both use saif0 clk*/
 	__raw_writel(BF_DIGCTL_CTRL_SAIF_CLKMUX_SEL(0x2), \
 			IO_ADDRESS(DIGCTL_PHYS_ADDR) + HW_DIGCTL_CTRL);
@@ -1358,6 +1372,7 @@ static int audio_clk_init(void)
 	clk_enable(saif_mclk1);
 
   clk_put(clk);
+  clk_put(clk1);
   clk_put(pll_clk);
   clk_put(saif_mclk0);
   clk_put(saif_mclk1);
@@ -1371,6 +1386,7 @@ err_clk_init:
 static int audio_clk_finit(void)
 {
 	struct clk *saif_clk;
+	struct clk *saif_clk1;
 	struct clk *saif_mclk0;
 	struct clk *saif_mclk1;
 	int ret = 0;
@@ -1385,6 +1401,15 @@ static int audio_clk_finit(void)
 	}
 	clk_disable(saif_clk);
   clk_put(saif_clk);
+	saif_clk1 = clk_get(NULL, "saif.1");
+	if (IS_ERR(saif_clk1)) {
+		pr_err("%s:failed to get saif_clk\n", __func__);
+		ret = -EINVAL;
+		goto err_clk_finit;
+	}
+	clk_disable(saif_clk1);
+  clk_put(saif_clk1);
+
 
 	saif_mclk0 = clk_get(NULL, "saif_mclk.0");
 	if (IS_ERR(saif_mclk0)) {
@@ -1419,6 +1444,7 @@ void __init mx28_init_audio(void)
 	mxs_add_device(pdev, 3);
 	audio_plat_data.inited = 0;
 	audio_plat_data.saif_mclock = clk_get(NULL, "saif.0");
+	audio_plat_data.saif_mclock1 = clk_get(NULL, "saif.1");
 	audio_plat_data.init = audio_clk_init;
 	audio_plat_data.finit = audio_clk_finit;
 	audio_clk_init();

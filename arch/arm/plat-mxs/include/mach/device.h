@@ -137,6 +137,7 @@ struct mxs_audio_platform_data {
 	int intr_id_hp;
 	int ext_ram;
 	struct clk *saif_mclock;
+	struct clk *saif_mclock1;
 
 	int hp_irq;
 	int (*hp_status) (void);
