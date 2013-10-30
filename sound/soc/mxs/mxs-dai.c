@@ -233,6 +233,7 @@ static int mxs_saif_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 				  int clk_id, unsigned int freq, int dir)
 {
 	struct clk *saif_clk;
+	struct clk *saif_clk1;
 	u32 scr;
 	struct mxs_saif *saif_select = (struct mxs_saif *)cpu_dai->private_data;
 
@@ -245,6 +246,15 @@ static int mxs_saif_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 		}
 		clk_set_rate(saif_clk, freq);
 		clk_enable(saif_clk);
+
+		saif_clk1 = saif_select->saif_mclk1;
+		if (IS_ERR(saif_clk1)) {
+			pr_err("%s:failed to get sys_clk\n", __func__);
+			return -EINVAL;
+		}
+		clk_set_rate(saif_clk1, freq);
+		clk_enable(saif_clk1);
+
 		break;
 	default:
 		return -EINVAL;

@@ -219,6 +219,7 @@ static int __devinit mxs_evk_sgtl5000_probe(struct platform_device *pdev)
 	saif_select = (struct mxs_saif *)mxs_evk_dai.cpu_dai->private_data;
 	saif_select->stream_mapping = PLAYBACK_SAIF0_CAPTURE_SAIF1;
 	saif_select->saif_mclk = plat->saif_mclock;
+	saif_select->saif_mclk1 = plat->saif_mclock1;
 	saif_select->saif_clk = SAIF0;
 	return 0;
 err_plat_init:

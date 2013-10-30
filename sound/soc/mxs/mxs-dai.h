@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ struct mxs_saif {
 #define PLAYBACK_SAIF1_CAPTURE_SAIF0 1
 	u16 stream_mapping;
 	struct clk *saif_mclk;
+	struct clk *saif_mclk1;
 };
 
 extern struct snd_soc_dai mxs_saif_dai[];
