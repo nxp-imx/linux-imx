@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -566,51 +566,51 @@ static struct pin_desc mx28evk_fixed_pins[] = {
 	 .name	= "SAIF0_MCLK",
 	 .id	= PINID_SAIF0_MCLK,
 	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
+	 .strength	= PAD_4MA,
 	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
+	 .pullup	= 0,
 	 .drive 	= 1,
-	 .pull 		= 1,
+	 .pull		= 0,
 	 },
 	{
 	 .name	= "SAIF0_LRCLK",
 	 .id	= PINID_SAIF0_LRCLK,
 	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
+	 .strength	= PAD_4MA,
 	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
+	 .pullup	= 0,
 	 .drive 	= 1,
-	 .pull 		= 1,
+	 .pull		= 0,
 	 },
 	{
 	 .name	= "SAIF0_BITCLK",
 	 .id	= PINID_SAIF0_BITCLK,
 	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
+	 .strength	= PAD_4MA,
 	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
+	 .pullup	= 0,
 	 .drive 	= 1,
-	 .pull 		= 1,
+	 .pull		= 0,
 	 },
 	{
 	 .name	= "SAIF0_SDATA0",
 	 .id	= PINID_SAIF0_SDATA0,
 	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
+	 .strength	= PAD_4MA,
 	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
+	 .pullup	= 0,
 	 .drive 	= 1,
-	 .pull 		= 1,
+	 .pull		= 0,
 	 },
 	{
 	 .name	= "SAIF1_SDATA0",
 	 .id	= PINID_SAIF1_SDATA0,
 	 .fun	= PIN_FUN1,
-	 .strength	= PAD_12MA,
+	 .strength	= PAD_4MA,
 	 .voltage	= PAD_3_3V,
-	 .pullup	= 1,
+	 .pullup	= 0,
 	 .drive 	= 1,
-	 .pull 		= 1,
+	 .pull		= 0,
 	 },
 #endif
 #if defined(CONFIG_SND_SOC_MXS_SPDIF) || \
