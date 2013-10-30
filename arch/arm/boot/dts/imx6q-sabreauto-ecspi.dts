@@ -29,5 +29,6 @@
 
 &usbotg {
 	/* max7310_c on i2c3 is gone */
-	status = "disabled";
+	status = "okay";
+	dr_mode = "peripheral";
 };
