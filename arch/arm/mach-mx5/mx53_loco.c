@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -919,8 +919,9 @@ static void __init mxc_board_init(void)
 	mxc_register_device(&mxci2c_devices[0], &mxci2c_data);
 	mxc_register_device(&mxci2c_devices[1], &mxci2c_data);
 	mxc_register_device(&mxci2c_devices[2], &mxci2c_data);
+	mxc_register_device(&mx5_pmu_device, NULL);
 
-    if (board_is_mx53_loco_mc34708()) {
+	if (board_is_mx53_loco_mc34708()) {
 		/* set pmic INT gpio pin */
 		if (board_is_rev(BOARD_REV_2)) {/*Board rev A*/
 			mc34708_int = MX53_PAD_CSI0_DAT12__GPIO5_30;
@@ -938,8 +939,7 @@ static void __init mxc_board_init(void)
 		bus_freq_data.gp_reg_id = "SW1A";
 		bus_freq_data.lp_reg_id = "SW2";
 		mxc_register_device(&mxc_powerkey_device, &pwrkey_data);
-	}
-    else {
+	} else {
 		da9052_csi0_d12 = MX53_PAD_CSI0_DAT12__IPU_CSI0_D_12;
 		mxc_iomux_v3_setup_pad(da9052_csi0_d12);
 		mx53_loco_init_da9052();

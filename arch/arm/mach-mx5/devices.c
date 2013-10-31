@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -35,6 +35,21 @@
 int iram_ready;
 /* Flag used to indicate if dvfs_core is active. */
 int dvfs_core_is_active;
+
+static struct resource mx5_pmu_resources[] = {
+	{
+		.start = MXC_INT_PMU,
+		.end = MXC_INT_PMU,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+struct platform_device mx5_pmu_device = {
+	.name = "arm-pmu",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(mx5_pmu_resources),
+	.resource = mx5_pmu_resources,
+};
 
 static struct resource sdma_resources[] = {
 	{

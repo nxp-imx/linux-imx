@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -92,5 +92,6 @@ extern struct platform_device fixed_volt_reg_device;
 extern struct platform_device mxc_zq_calib_device;
 extern struct platform_device mxc_asrc_device;
 extern struct platform_device mxc_perfmon;
+extern struct platform_device mx5_pmu_device;
 extern struct mxs_platform_perfmon_data mxc_perfmon_data;
 extern struct mxc_gpu_platform_data gpu_data;
