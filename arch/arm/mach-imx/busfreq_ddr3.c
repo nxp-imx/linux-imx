@@ -343,7 +343,7 @@ int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 	irqs_used = devm_kzalloc(dev, sizeof(u32) * num_present_cpus(),
 					GFP_KERNEL);
 
-	for_each_present_cpu(cpu) {
+	for_each_online_cpu(cpu) {
 		int irq;
 
 		/*
