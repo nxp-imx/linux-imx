@@ -364,7 +364,7 @@ static void __init imx6q_opp_check_speed_grading(struct device *cpu_dev)
 
 	/*
 	 * SPEED_GRADING[1:0] defines the max speed of ARM:
-	 * 2b'11: 1200000000Hz;
+	 * 2b'11: 1200000000Hz; -- i.MX6Q only.
 	 * 2b'10: 1000000000Hz;
 	 * 2b'01: 850000000Hz; -- i.MX6Q Only, exclusive with 1GHz.
 	 * 2b'00: 800000000Hz;
@@ -372,9 +372,11 @@ static void __init imx6q_opp_check_speed_grading(struct device *cpu_dev)
 	 */
 	val = readl_relaxed(base + OCOTP_CFG3);
 	val >>= OCOTP_CFG3_SPEED_SHIFT;
-	if ((val & 0x3) < OCOTP_CFG3_SPEED_1P2GHZ)
-		if (opp_disable(cpu_dev, 1200000000))
-			pr_warn("failed to disable 1.2 GHz OPP\n");
+	if (cpu_is_imx6q()) {
+		if ((val & 0x3) < OCOTP_CFG3_SPEED_1P2GHZ)
+			if (opp_disable(cpu_dev, 1200000000))
+				pr_warn("failed to disable 1.2 GHz OPP\n");
+	}
 	if ((val & 0x3) < OCOTP_CFG3_SPEED_1GHZ)
 		if (opp_disable(cpu_dev, 996000000))
 			pr_warn("failed to disable 1 GHz OPP\n");
