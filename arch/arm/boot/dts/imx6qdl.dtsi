@@ -356,12 +356,12 @@
 				clock-names = "ipg", "per";
 			};
 
-			can1: flexcan@02090000 {
+			flexcan1: can@02090000 {
 				reg = <0x02090000 0x4000>;
 				interrupts = <0 110 0x04>;
 			};
 
-			can2: flexcan@02094000 {
+			flexcan2: can@02094000 {
 				reg = <0x02094000 0x4000>;
 				interrupts = <0 111 0x04>;
 			};
