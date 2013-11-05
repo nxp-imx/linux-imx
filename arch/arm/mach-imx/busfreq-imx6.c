@@ -48,7 +48,8 @@
 #include "hardware.h"
 
 #define LPAPM_CLK		24000000
-#define DDR_AUDIO_CLK		100000000
+#define DDR3_AUDIO_CLK		50000000
+#define LPDDR2_AUDIO_CLK	100000000
 
 int high_bus_freq_mode;
 int med_bus_freq_mode;
@@ -114,7 +115,7 @@ static void enter_lpm_imx6sl(void)
 	if (audio_bus_count) {
 		/* Set up DDR to 100MHz. */
 		spin_lock_irqsave(&freq_lock, flags);
-		update_lpddr2_freq(DDR_AUDIO_CLK);
+		update_lpddr2_freq(LPDDR2_AUDIO_CLK);
 		spin_unlock_irqrestore(&freq_lock, flags);
 
 		/* Fix the clock tree in kernel */
@@ -245,7 +246,7 @@ int reduce_bus_freq(void)
 		if (audio_bus_count) {
 			/* Need to ensure that PLL2_PFD_400M is kept ON. */
 			clk_prepare_enable(pll2_400);
-			update_ddr_freq(DDR_AUDIO_CLK);
+			update_ddr_freq(DDR3_AUDIO_CLK);
 			/* Make sure periph clk's parent also got updated */
 			ret = clk_set_parent(periph_clk2_sel, pll3);
 			if (ret)
@@ -283,9 +284,6 @@ int reduce_bus_freq(void)
 			low_bus_freq_mode = 1;
 			audio_bus_freq_mode = 0;
 		}
-		if (high_bus_freq_mode && cpu_is_imx6dl())
-			clk_disable_unprepare(pll2_400);
-
 	}
 	clk_disable_unprepare(pll3);
 
