@@ -442,20 +442,6 @@ void ci_hdrc_remove_device(struct platform_device *pdev)
 }
 EXPORT_SYMBOL_GPL(ci_hdrc_remove_device);
 
-void ci_hdrc_enter_lpm(struct platform_device *pdev, bool enable)
-{
-	struct ci_hdrc *ci = platform_get_drvdata(pdev);
-	enum ci_hw_regs reg = ci->hw_bank.lpm ? OP_DEVLC : OP_PORTSC;
-
-	if (enable)
-		hw_write(ci, reg, PORTSC_PHCD(ci->hw_bank.lpm),
-				PORTSC_PHCD(ci->hw_bank.lpm));
-	else
-		hw_write(ci, reg, PORTSC_PHCD(ci->hw_bank.lpm),
-				0);
-}
-EXPORT_SYMBOL_GPL(ci_hdrc_enter_lpm);
-
 static inline void ci_role_destroy(struct ci_hdrc *ci)
 {
 	ci_hdrc_gadget_destroy(ci);
