@@ -26,7 +26,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
-#define SRAM_GRANULARITY	32
+#define SRAM_GRANULARITY	4096
 
 struct sram_partition {
 	void __iomem *base;
