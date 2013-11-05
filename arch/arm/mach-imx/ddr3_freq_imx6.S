@@ -64,7 +64,6 @@
 	 * set the AHB dividers before the switch,
 	 * don't change AXI clock divider,
 	 * set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=4,
-	 * (need to maintain GPT divider).
 	 */
 	ldr	r0, [r6, #CCM_CBCDR]
 	ldr	r2, =0x3f1f00
@@ -93,7 +92,6 @@ periph_clk_switch3:
 set_ahb_podf_before_switch:
 	/*
 	 * set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=4,
-	 * (need to maintain GPT divider).
 	 */
 	ldr	r0, [r6, #CCM_CBCDR]
 	ldr	r2, =0x3f1f00
@@ -124,11 +122,6 @@ periph_clk_switch4:
 	cmp	r0, #0
 	bne	periph_clk_switch4
 
-	/* change the perclk divider so that its at 6MHz. */
-	ldr	r0, [r6, #CCM_CSCMR1]
-	bic	r0, r0, #0x3F
-	orr	r0, r0, #0xA
-	str	r0, [r6, #CCM_CSCMR1]
 	.endm
 
 	.macro	switch_to_400MHz
@@ -163,7 +156,6 @@ periph_clk_switch5:
 set_ahb_podf_before_switch1:
 	/*
 	 * set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=4,
-	 * (need to maintain GPT divider).
 	 */
 	ldr	r0, [r6, #CCM_CBCDR]
 	ldr	r2, =0x3f1f00
@@ -199,7 +191,6 @@ periph_clk_switch6:
 	 * change AHB divider so that we are at 400/3=133MHz.
 	 * don't change AXI clock divider.
 	 * set the MMDC_DIV=1, AXI_DIV=2, AHB_DIV=3,
-	 * (need to maintain GPT divider).
 	 */
 	ldr	r0, [r6, #CCM_CBCDR]
 	ldr	r2, =0x3f1f00
@@ -212,12 +203,6 @@ wait_div_update400_2:
 	ldr	r0, [r6, #CCM_CDHIPR]
 	cmp	r0, #0
 	bne	wait_div_update400_2
-
-	/* change the perclk divider so that its at 6MHz. */
-	ldr	r0, [r6, #CCM_CSCMR1]
-	bic	r0, r0, #0x3F
-	orr	r0, r0, #0xA
-	str	r0, [r6, #CCM_CSCMR1]
 
 	.endm
 
@@ -261,7 +246,6 @@ switch_pre_periph_clk_50:
 
 	/*
 	 * set the MMDC_DIV=4, AXI_DIV = 4, AHB_DIV=8,
-	 * (need to maintain GPT divider).
 	 */
 	ldr	r0, [r6, #CCM_CBCDR]
 	ldr	r2, =0x3f1f00
@@ -290,12 +274,6 @@ periph_clk_switch2:
 	ldr	r0, [r6, #CCM_CDHIPR]
 	cmp	r0, #0
 	bne	periph_clk_switch2
-
-	/* change the perclk divider so that its at 6MHz. */
-	ldr	r0, [r6, #CCM_CSCMR1]
-	bic	r0, r0, #0x3F
-	orr	r0, r0, #0x1
-	str	r0, [r6, #CCM_CSCMR1]
 
 	.endm
 
@@ -338,12 +316,6 @@ wait_div_update:
 	ldr	r0, [r6, #CCM_CDHIPR]
 	cmp	r0, #0
 	bne	wait_div_update
-
-	/* change the perclk divider so that its at 6MHz. */
-	ldr	r0, [r6, #CCM_CSCMR1]
-	bic	r0, r0, #0x3F
-	orr	r0, r0, #0x1
-	str	r0, [r6, #CCM_CSCMR1]
 
 	.endm
 
