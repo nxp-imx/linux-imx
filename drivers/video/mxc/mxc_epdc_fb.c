@@ -5013,14 +5013,14 @@ int mxc_epdc_fb_probe(struct platform_device *pdev)
 
 	g_fb_data = fb_data;
 
+	pm_runtime_enable(fb_data->dev);
+
 #ifdef DEFAULT_PANEL_HW_INIT
 	ret = mxc_epdc_fb_init_hw((struct fb_info *)fb_data);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to initialize HW!\n");
 	}
 #endif
-
-	pm_runtime_enable(fb_data->dev);
 
 	goto out;
 
