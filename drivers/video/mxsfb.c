@@ -1204,9 +1204,11 @@ static int mxsfb_probe(struct platform_device *pdev)
 
 	INIT_LIST_HEAD(&fb_info->modelist);
 
+	pm_runtime_enable(&host->pdev->dev);
+
 	ret = mxsfb_init_fbinfo(host);
 	if (ret != 0)
-		goto fb_release;
+		goto fb_pm_runtime_disable;
 
 	platform_set_drvdata(pdev, fb_info);
 
@@ -1222,8 +1224,6 @@ static int mxsfb_probe(struct platform_device *pdev)
 		goto fb_destroy;
 	}
 
-	pm_runtime_enable(&host->pdev->dev);
-
 	dev_info(&pdev->dev, "initialized\n");
 
 	return 0;
@@ -1232,6 +1232,8 @@ fb_destroy:
 	if (host->enabled)
 		clk_disable_unprepare(host->clk_pix);
 	fb_destroy_modelist(&fb_info->modelist);
+fb_pm_runtime_disable:
+	pm_runtime_disable(&host->pdev->dev);
 fb_release:
 	framebuffer_release(fb_info);
 
@@ -1246,6 +1248,7 @@ static int mxsfb_remove(struct platform_device *pdev)
 	if (host->enabled)
 		mxsfb_disable_controller(fb_info);
 
+	pm_runtime_disable(&host->pdev->dev);
 	unregister_framebuffer(fb_info);
 	mxsfb_free_videomem(host);
 
