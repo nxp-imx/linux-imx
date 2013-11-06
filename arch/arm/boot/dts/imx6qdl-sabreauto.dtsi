@@ -549,6 +549,23 @@
 	};
 };
 
+&flexcan1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexcan1_1>;
+	pinctrl-assert-gpios = <&max7310_b 3 GPIO_ACTIVE_HIGH>; /* TX */
+	trx-en-gpio = <&max7310_b 6 GPIO_ACTIVE_HIGH>;
+	trx-stby-gpio = <&max7310_b 5 GPIO_ACTIVE_HIGH>;
+	status = "disabled"; /* pin conflict with fec */
+};
+
+&flexcan2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexcan2_1>;
+	trx-en-gpio = <&max7310_c 6 GPIO_ACTIVE_HIGH>;
+	trx-stby-gpio = <&max7310_c 5 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
 &ldb {
 	ipu_id = <1>;
 	disp_id = <0>;
