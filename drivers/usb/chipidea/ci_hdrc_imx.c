@@ -19,6 +19,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/usb/chipidea.h>
 #include <linux/clk.h>
+#include <linux/busfreq-imx6.h>
 
 #include "ci.h"
 #include "ci_hdrc_imx.h"
@@ -137,6 +138,7 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	if (IS_ERR(data->usbmisc_data))
 		return PTR_ERR(data->usbmisc_data);
 
+	request_bus_freq(BUS_FREQ_HIGH);
 	data->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(data->clk)) {
 		dev_err(&pdev->dev,
@@ -242,6 +244,7 @@ static int ci_hdrc_imx_remove(struct platform_device *pdev)
 		pm_runtime_put_noidle(&pdev->dev);
 	}
 	clk_disable_unprepare(data->clk);
+	release_bus_freq(BUS_FREQ_HIGH);
 
 	return 0;
 }
@@ -268,7 +271,7 @@ static int imx_controller_suspend(struct device *dev)
 	}
 
 	clk_disable_unprepare(data->clk);
-
+	release_bus_freq(BUS_FREQ_HIGH);
 	data->in_lpm = true;
 
 	return 0;
@@ -284,6 +287,7 @@ static int imx_controller_resume(struct device *dev)
 	if (!data->in_lpm)
 		return 0;
 
+	request_bus_freq(BUS_FREQ_HIGH);
 	ret = clk_prepare_enable(data->clk);
 	if (ret)
 		return ret;
