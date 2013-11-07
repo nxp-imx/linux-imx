@@ -402,7 +402,7 @@ static int mxs_phy_probe(struct platform_device *pdev)
 		mxs_phy->phy.notify_resume = mxs_phy_on_resume;
 	}
 
-	platform_set_drvdata(pdev, &mxs_phy->phy);
+	platform_set_drvdata(pdev, mxs_phy);
 
 	if (mxs_phy->data->flags & MXS_PHY_HAS_ANATOP) {
 		mxs_phy->regmap_anatop = syscon_regmap_lookup_by_phandle
