@@ -122,24 +122,6 @@
 			interrupts = <0 94 0x04>;
 		};
 
-                pcie: pcie@01000000 {
-			compatible = "fsl,imx-pcie";
-			device_type = "pci";
-			reg = <0x01ffc000 0x4000>;
-			reg-names = "pcie_reg";
-			interrupts = <0 123 0x04>;
-			interrupt-names = "imx_pcie";
-			clocks = <&clks 144>, <&clks 189>, <&clks 211>, <&clks 212>;
-			clock-names = "pcie_axi", "pcie_ref", "pcie_bus_in", "pcie_bus_out";
-			#address-cells = <3>;
-			#size-cells = <2>;
-			ranges = <0x00000800 0 0x01f00000 0x01f00000 0 0x00080000   /* configuration space */
-				  0x81000000 0 0	  0x01f80000 0 0x00010000   /* downstream I/O */
-				  0x82000000 0 0x01000000 0x01000000 0 0x00f00000>; /* non-prefetchable memory */
-			num-lanes = <1>;
-			status = "disabled";
-		};
-
 		aips-bus@02000000 { /* AIPS1 */
 			compatible = "fsl,aips-bus", "simple-bus";
 			#address-cells = <1>;
