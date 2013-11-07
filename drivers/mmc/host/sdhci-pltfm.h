@@ -101,6 +101,8 @@ extern int sdhci_pltfm_unregister(struct platform_device *pdev);
 extern unsigned int sdhci_pltfm_clk_get_max_clock(struct sdhci_host *host);
 
 #ifdef CONFIG_PM
+extern int sdhci_pltfm_suspend(struct device *dev);
+extern int sdhci_pltfm_resume(struct device *dev);
 extern const struct dev_pm_ops sdhci_pltfm_pmops;
 #define SDHCI_PLTFM_PMOPS (&sdhci_pltfm_pmops)
 #else
