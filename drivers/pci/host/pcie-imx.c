@@ -468,7 +468,6 @@ static int __init imx_pcie_probe(struct platform_device *pdev)
 
 	regmap_update_bits(imx_pcie->gpr, IOMUXC_GPR1,
 			IMX6Q_GPR1_PCIE_REF_CLK_EN, 1 << 16);
-	usleep_range(1000, 2000);
 
 	/* PCIE RESET, togle the external card's reset */
 	imx_pcie->rst_gpio = of_get_named_gpio(np, "rst-gpios", 0);
