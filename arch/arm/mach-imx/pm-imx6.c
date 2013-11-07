@@ -226,7 +226,7 @@ static int imx6_suspend_finish(unsigned long val)
 
 static int imx6_pm_enter(suspend_state_t state)
 {
-	struct regmap *g;
+	struct regmap *gpr;
 
 	/*
 	 * L2 can exit by 'reset' or Inband beacon (from remote EP)
@@ -234,15 +234,13 @@ static int imx6_pm_enter(suspend_state_t state)
 	 * So, toggle bit18 of GPR1, to fix errata
 	 * "PCIe PCIe does not support L2 Power Down"
 	 */
-	if (IS_ENABLED(CONFIG_PCIE_IMX)) {
-		g = syscon_regmap_lookup_by_compatible("fsl,imx6q-iomuxc-gpr");
-		if (IS_ERR(g)) {
-			pr_err("failed to find fsl,imx6q-iomux-gpr regmap\n");
-			return PTR_ERR(g);
-		}
-		regmap_update_bits(g, IOMUXC_GPR1, IMX6Q_GPR1_PCIE_TEST_PD,
-				IMX6Q_GPR1_PCIE_TEST_PD);
+	gpr = syscon_regmap_lookup_by_compatible("fsl,imx6q-iomuxc-gpr");
+	if (IS_ERR(gpr)) {
+		pr_err("failed to find fsl,imx6q-iomux-gpr regmap\n");
+		return PTR_ERR(gpr);
 	}
+	regmap_update_bits(gpr, IOMUXC_GPR1, IMX6Q_GPR1_PCIE_TEST_PD,
+			IMX6Q_GPR1_PCIE_TEST_PD);
 
 	switch (state) {
 	case PM_SUSPEND_STANDBY:
@@ -286,10 +284,8 @@ static int imx6_pm_enter(suspend_state_t state)
 	 * So, toggle bit18 of GPR1, to fix errata
 	 * "PCIe PCIe does not support L2 Power Down"
 	 */
-	if (IS_ENABLED(CONFIG_PCIE_IMX)) {
-		regmap_update_bits(g, IOMUXC_GPR1, IMX6Q_GPR1_PCIE_TEST_PD,
-				!IMX6Q_GPR1_PCIE_TEST_PD);
-	}
+	regmap_update_bits(gpr, IOMUXC_GPR1, IMX6Q_GPR1_PCIE_TEST_PD,
+			!IMX6Q_GPR1_PCIE_TEST_PD);
 
 	return 0;
 }
