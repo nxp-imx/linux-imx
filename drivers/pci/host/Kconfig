@@ -14,10 +14,4 @@ config PCI_EXYNOS
 	select PCIEPORTBUS
 	select PCIE_DW
 
-config PCIE_IMX
-	bool "Freescale i.MX PCIe controller"
-	depends on SOC_IMX6Q
-	select PCIEPORTBUS
-	select PCIE_DW
-
 endmenu
