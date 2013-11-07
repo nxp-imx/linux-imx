@@ -1050,6 +1050,7 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		/* FIXME: ACMD23 can not work well on imx6q */
 		host->quirks2 |= SDHCI_QUIRK2_BROKEN_AUTO_CMD23 |
 				SDHCI_QUIRK2_PRESET_VALUE_BROKEN;
+		host->mmc->caps |= MMC_CAP_1_8V_DDR;
 	}
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_MAN_TUNING)
