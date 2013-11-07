@@ -94,6 +94,8 @@ static struct clk *periph2_pre_clk;
 static struct clk *periph2_clk2_sel;
 static struct clk *periph2_clk2;
 static struct clk *step_clk;
+static struct clk *axi_sel_clk;
+static struct clk *pll3_pfd1_540m;
 
 static u32 pll2_org_rate;
 static struct delayed_work low_bus_freq_handler;
@@ -243,6 +245,11 @@ int reduce_bus_freq(void)
 	if (cpu_is_imx6sl())
 		enter_lpm_imx6sl();
 	else {
+		if (cpu_is_imx6dl() && (clk_get_parent(axi_sel_clk)
+			!= periph_clk))
+			/* Set axi to periph_clk */
+			clk_set_parent(axi_sel_clk, periph_clk);
+
 		if (audio_bus_count) {
 			/* Need to ensure that PLL2_PFD_400M is kept ON. */
 			clk_prepare_enable(pll2_400);
@@ -394,6 +401,10 @@ int set_high_bus_freq(int high_bus_freq)
 				dev_WARN(busfreq_dev,
 					"%s: %d: clk set parent fail!\n",
 					__func__, __LINE__);
+			if (cpu_is_imx6dl() && (clk_get_parent(axi_sel_clk)
+				!= pll3_pfd1_540m))
+				/* Set axi to pll3_pfd1_540m */
+				clk_set_parent(axi_sel_clk, pll3_pfd1_540m);
 		} else {
 			update_ddr_freq(ddr_med_rate);
 			/* Make sure periph clk's parent also got updated */
@@ -732,6 +743,22 @@ static int busfreq_probe(struct platform_device *pdev)
 		dev_err(busfreq_dev, "%s: failed to get osc_clk\n",
 			__func__);
 		return PTR_ERR(osc_clk);
+	}
+
+	if (cpu_is_imx6dl()) {
+		axi_sel_clk = devm_clk_get(&pdev->dev, "axi_sel");
+		if (IS_ERR(axi_sel_clk)) {
+			dev_err(busfreq_dev, "%s: failed to get axi_sel_clk\n",
+				__func__);
+			return PTR_ERR(axi_sel_clk);
+		}
+
+		pll3_pfd1_540m = devm_clk_get(&pdev->dev, "pll3_pfd1_540m");
+		if (IS_ERR(pll3_pfd1_540m)) {
+			dev_err(busfreq_dev,
+				"%s: failed to get pll3_pfd1_540m\n", __func__);
+			return PTR_ERR(pll3_pfd1_540m);
+		}
 	}
 
 	if (cpu_is_imx6sl()) {
