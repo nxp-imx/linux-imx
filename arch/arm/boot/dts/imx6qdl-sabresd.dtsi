@@ -611,12 +611,6 @@
 	status = "okay";
 };
 
-&pcie {
-	pwr-gpios = <&gpio3 19 0>;
-	rst-gpios = <&gpio7 12 0>;
-	status = "okay";
-};
-
 &pwm1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_pwm1_1>;
