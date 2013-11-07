@@ -220,9 +220,9 @@ clocks and IDs.
 	ldb_di0_div_sel		207
 	ldb_di1_div_sel		208
 	pll4_audio_div		209
-	lvds1_sel      		210
-	lvds1_in      		211
-	lvds1_out		212
+	pcie_dummy1   		210
+	pcie_dummy2   		211
+	pcie_dummy3   		212
 	caam_mem		213
 	caam_aclk		214
 	caam_ipg		215
