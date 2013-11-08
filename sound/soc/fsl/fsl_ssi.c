@@ -339,6 +339,15 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 
 		clk_prepare_enable(ssi_private->coreclk);
 		clk_prepare_enable(ssi_private->clk);
+
+		/* When using dual fifo mode, it would be safer if we ensure
+		 * its period size to be an even number. If appearing to an
+		 * odd number, the 2nd fifo might be neglected by SDMA sciprt
+		 * at the end of each period.
+		 */
+		if (ssi_private->use_dual_fifo)
+			snd_pcm_hw_constraint_step(substream->runtime, 0,
+					SNDRV_PCM_HW_PARAM_PERIOD_SIZE, 2);
 	}
 
 	/*
