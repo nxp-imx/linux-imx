@@ -395,6 +395,15 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 		pr_warn("%s: failed to enable ARM core clock %d\n",
 			__func__, ret);
 
+	/*
+	 * Make sure the MMDC clk is enabled to maintain the correct usecount
+	 * and enabling/disabling of parent PLLs.
+	 */
+	ret = clk_prepare_enable(clks[IMX6SL_CLK_MMDC_ROOT]);
+	if (ret)
+		pr_warn("%s: failed to enable MMDC clock %d\n",
+			__func__, ret);
+
 	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
 		clk_prepare_enable(clks[IMX6SL_CLK_USBPHY1_GATE]);
 		clk_prepare_enable(clks[IMX6SL_CLK_USBPHY2_GATE]);
