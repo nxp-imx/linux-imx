@@ -461,7 +461,6 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 		snd_pcm_format_width(params_format(hw_params));
 	u32 wl = CCSR_SSI_SxCCR_WL(sample_size);
 	int enabled = read_ssi(&ssi->scr) & CCSR_SSI_SCR_SSIEN;
-	u32 dc = CCSR_SSI_SxCCR_DC(params_channels(hw_params));
 	int ret;
 
 	/*
@@ -491,13 +490,10 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 
 	/* In synchronous mode, the SSI uses STCCR for capture */
 	if ((substream->stream == SNDRV_PCM_STREAM_PLAYBACK) ||
-	    ssi_private->cpu_dai_drv.symmetric_rates) {
+	    ssi_private->cpu_dai_drv.symmetric_rates)
 		write_ssi_mask(&ssi->stccr, CCSR_SSI_SxCCR_WL_MASK, wl);
-		write_ssi_mask(&ssi->stccr, CCSR_SSI_SxCCR_DC_MASK, dc);
-	} else {
+	else
 		write_ssi_mask(&ssi->srccr, CCSR_SSI_SxCCR_WL_MASK, wl);
-		write_ssi_mask(&ssi->srccr, CCSR_SSI_SxCCR_WL_MASK, dc);
-	}
 
 	return 0;
 }
@@ -743,6 +739,28 @@ static int fsl_ssi_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 	return 0;
 }
 
+static int fsl_ssi_set_dai_tdm_slot(struct snd_soc_dai *cpu_dai, u32 tx_mask,
+				u32 rx_mask, int slots, int slot_width)
+{
+	struct fsl_ssi_private *ssi_private = snd_soc_dai_get_drvdata(cpu_dai);
+	struct ccsr_ssi __iomem *ssi = ssi_private->ssi;
+
+	write_ssi_mask(&ssi->stccr, CCSR_SSI_SxCCR_DC_MASK,
+			CCSR_SSI_SxCCR_DC(slots));
+	write_ssi_mask(&ssi->srccr, CCSR_SSI_SxCCR_DC_MASK,
+			CCSR_SSI_SxCCR_DC(slots));
+
+	/* The register SxMSKs need SSI to provide essential clock due to
+	 * hardware design. So we here temporarily enable SSI to set them.
+	 */
+	write_ssi_mask(&ssi->scr, 0, CCSR_SSI_SCR_SSIEN);
+	write_ssi(tx_mask, &ssi->stmsk);
+	write_ssi(rx_mask, &ssi->srmsk);
+	write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_SSIEN, 0);
+
+	return 0;
+}
+
 /**
  * fsl_ssi_shutdown: shutdown the SSI
  *
@@ -793,6 +811,7 @@ static const struct snd_soc_dai_ops fsl_ssi_dai_ops = {
 	.hw_params	= fsl_ssi_hw_params,
 	.set_fmt	= fsl_ssi_set_dai_fmt,
 	.set_sysclk	= fsl_ssi_set_dai_sysclk,
+	.set_tdm_slot	= fsl_ssi_set_dai_tdm_slot,
 	.shutdown	= fsl_ssi_shutdown,
 	.trigger	= fsl_ssi_trigger,
 };
