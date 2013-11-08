@@ -149,7 +149,8 @@ static int __init imx6q_flexcan_fixup_auto(void)
 
 	flexcan_en_gpio = of_get_named_gpio(np, "trx-en-gpio", 0);
 	flexcan_stby_gpio = of_get_named_gpio(np, "trx-stby-gpio", 0);
-	if (!gpio_request_one(flexcan_en_gpio, GPIOF_DIR_OUT, "flexcan-trx-en") &&
+	if (gpio_is_valid(flexcan_en_gpio) && gpio_is_valid(flexcan_stby_gpio) &&
+		!gpio_request_one(flexcan_en_gpio, GPIOF_DIR_OUT, "flexcan-trx-en") &&
 		!gpio_request_one(flexcan_stby_gpio, GPIOF_DIR_OUT, "flexcan-trx-stby")) {
 		/* flexcan 0 & 1 are using the same GPIOs for transceiver */
 		flexcan_pdata[0].transceiver_switch = imx6q_flexcan0_switch_auto;
