@@ -461,6 +461,8 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 		snd_pcm_format_width(params_format(hw_params));
 	u32 wl = CCSR_SSI_SxCCR_WL(sample_size);
 	int enabled = read_ssi(&ssi->scr) & CCSR_SSI_SCR_SSIEN;
+	unsigned int channels = params_channels(hw_params);
+	static u8 i2s_mode;
 	int ret;
 
 	/*
@@ -494,6 +496,20 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 		write_ssi_mask(&ssi->stccr, CCSR_SSI_SxCCR_WL_MASK, wl);
 	else
 		write_ssi_mask(&ssi->srccr, CCSR_SSI_SxCCR_WL_MASK, wl);
+
+	/* Save i2s mode configuration so that we can restore it later */
+	switch (read_ssi(&ssi->scr) & CCSR_SSI_SCR_I2S_MODE_MASK) {
+	case CCSR_SSI_SCR_I2S_MODE_SLAVE:
+	case CCSR_SSI_SCR_I2S_MODE_MASTER:
+		i2s_mode = read_ssi(&ssi->scr) & CCSR_SSI_SCR_I2S_MODE_MASK;
+	default:
+		break;
+	}
+
+	write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_NET,
+			channels == 1 ? 0 : CCSR_SSI_SCR_NET);
+	write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_I2S_MODE_MASK,
+			channels == 1 ? 0 : i2s_mode);
 
 	return 0;
 }
@@ -820,14 +836,13 @@ static const struct snd_soc_dai_ops fsl_ssi_dai_ops = {
 static struct snd_soc_dai_driver fsl_ssi_dai_template = {
 	.probe = fsl_ssi_dai_probe,
 	.playback = {
-		/* The SSI does not support monaural audio. */
-		.channels_min = 2,
+		.channels_min = 1,
 		.channels_max = 2,
 		.rates = FSLSSI_I2S_RATES,
 		.formats = FSLSSI_I2S_FORMATS,
 	},
 	.capture = {
-		.channels_min = 2,
+		.channels_min = 1,
 		.channels_max = 2,
 		.rates = FSLSSI_I2S_RATES,
 		.formats = FSLSSI_I2S_FORMATS,
