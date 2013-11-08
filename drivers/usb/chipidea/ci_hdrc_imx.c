@@ -138,7 +138,6 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	if (IS_ERR(data->usbmisc_data))
 		return PTR_ERR(data->usbmisc_data);
 
-	request_bus_freq(BUS_FREQ_HIGH);
 	data->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(data->clk)) {
 		dev_err(&pdev->dev,
@@ -146,8 +145,10 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		return PTR_ERR(data->clk);
 	}
 
+	request_bus_freq(BUS_FREQ_HIGH);
 	ret = clk_prepare_enable(data->clk);
 	if (ret) {
+		release_bus_freq(BUS_FREQ_HIGH);
 		dev_err(&pdev->dev,
 			"Failed to prepare or enable clock, err=%d\n", ret);
 		return ret;
@@ -230,6 +231,7 @@ disable_device:
 	ci_hdrc_remove_device(data->ci_pdev);
 err_clk:
 	clk_disable_unprepare(data->clk);
+	release_bus_freq(BUS_FREQ_HIGH);
 	return ret;
 }
 
@@ -289,8 +291,10 @@ static int imx_controller_resume(struct device *dev)
 
 	request_bus_freq(BUS_FREQ_HIGH);
 	ret = clk_prepare_enable(data->clk);
-	if (ret)
+	if (ret) {
+		release_bus_freq(BUS_FREQ_HIGH);
 		return ret;
+	}
 
 	data->in_lpm = false;
 
@@ -309,6 +313,7 @@ static int imx_controller_resume(struct device *dev)
 
 clk_disable:
 	clk_disable_unprepare(data->clk);
+	release_bus_freq(BUS_FREQ_HIGH);
 
 	return ret;
 }
