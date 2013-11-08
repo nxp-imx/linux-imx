@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2011 Canonical Ltd <jeremy.kerr@canonical.com>
  * Copyright (C) 2011-2012 Mike Turquette, Linaro Ltd <mturquette@linaro.org>
+ * Copyright (C) 2013 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -72,7 +73,7 @@ static int clk_gate2_is_enabled(struct clk_hw *hw)
 
 	reg = readl(gate->reg);
 
-	if (((reg >> gate->bit_idx) & 3) == 3)
+	if (((reg >> gate->bit_idx) & 1) == 1)
 		return 1;
 
 	return 0;
