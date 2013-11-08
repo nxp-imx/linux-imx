@@ -22,6 +22,8 @@
 #define PFD3_CLK_GATE			(1 << 31)
 #define CCDR_CH0_HS_BYP		17
 
+#define CCM_CCGR_OFFSET(index)  (index * 2)
+
 #include <linux/clk.h>
 #include <linux/clkdev.h>
 #include <linux/err.h>
@@ -364,6 +366,25 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 		if (IS_ERR(clks[i]))
 			pr_err("i.MX6SL clk %d: register failed with %ld\n",
 				i, PTR_ERR(clks[i]));
+
+	/* Initialize clock gate status */
+	writel_relaxed(1 << CCM_CCGR_OFFSET(11) |
+		3 << CCM_CCGR_OFFSET(1) |
+		3 << CCM_CCGR_OFFSET(0), base + 0x68);
+	writel_relaxed(3 << CCM_CCGR_OFFSET(10), base + 0x6c);
+	writel_relaxed(1 << CCM_CCGR_OFFSET(11) |
+		3 << CCM_CCGR_OFFSET(10) |
+		3 << CCM_CCGR_OFFSET(9) |
+		3 << CCM_CCGR_OFFSET(8), base + 0x70);
+	writel_relaxed(3 << CCM_CCGR_OFFSET(14) |
+		3 << CCM_CCGR_OFFSET(13) |
+		3 << CCM_CCGR_OFFSET(12) |
+		3 << CCM_CCGR_OFFSET(11) |
+		3 << CCM_CCGR_OFFSET(10), base + 0x74);
+	writel_relaxed(3 << CCM_CCGR_OFFSET(7) |
+		3 << CCM_CCGR_OFFSET(4), base + 0x78);
+	writel_relaxed(1 << CCM_CCGR_OFFSET(0), base + 0x7c);
+	writel_relaxed(0, base + 0x80);
 
 	clk_data.clks = clks;
 	clk_data.clk_num = ARRAY_SIZE(clks);
