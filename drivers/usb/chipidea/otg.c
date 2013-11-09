@@ -18,6 +18,8 @@
 #include <linux/usb/otg.h>
 #include <linux/usb/gadget.h>
 #include <linux/usb/chipidea.h>
+#include <linux/kthread.h>
+#include <linux/freezer.h>
 
 #include "ci.h"
 #include "bits.h"
@@ -68,14 +70,19 @@ static void ci_handle_id_switch(struct ci_hdrc *ci)
 		ci_role_start(ci, role);
 	}
 }
-/**
- * ci_otg_work - perform otg (vbus/id) event handle
- * @work: work struct
- */
-static void ci_otg_work(struct work_struct *work)
-{
-	struct ci_hdrc *ci = container_of(work, struct ci_hdrc, work);
 
+/* If there is pending otg event */
+static inline bool ci_otg_event_is_pending(struct ci_hdrc *ci)
+{
+	return ci->id_event || ci->b_sess_valid_event;
+}
+
+/**
+ * ci_otg_event - perform otg (vbus/id) event handle
+ * @ci: ci_hdrc struct
+ */
+static void ci_otg_event(struct ci_hdrc *ci)
+{
 	if (ci->id_event) {
 		ci->id_event = false;
 		/* Keep controller active during id switch */
@@ -93,6 +100,23 @@ static void ci_otg_work(struct work_struct *work)
 	enable_irq(ci->irq);
 }
 
+static int ci_otg_thread(void *ptr)
+{
+	struct ci_hdrc *ci = ptr;
+
+	set_freezable();
+
+	do {
+		wait_event_freezable(ci->otg_wait,
+				ci_otg_event_is_pending(ci) ||
+				kthread_should_stop());
+		ci_otg_event(ci);
+	} while (!kthread_should_stop());
+
+	dev_warn(ci->dev, "ci_otg_thread quits\n");
+
+	return 0;
+}
 
 /**
  * ci_hdrc_otg_init - initialize otg struct
@@ -100,11 +124,11 @@ static void ci_otg_work(struct work_struct *work)
  */
 int ci_hdrc_otg_init(struct ci_hdrc *ci)
 {
-	INIT_WORK(&ci->work, ci_otg_work);
-	ci->wq = create_singlethread_workqueue("ci_otg");
-	if (!ci->wq) {
-		dev_err(ci->dev, "can't create workqueue\n");
-		return -ENODEV;
+	init_waitqueue_head(&ci->otg_wait);
+	ci->otg_task = kthread_run(ci_otg_thread, ci, "ci otg thread");
+	if (IS_ERR(ci->otg_task)) {
+		dev_err(ci->dev, "error to create otg thread\n");
+		return PTR_ERR(ci->otg_task);
 	}
 
 	return 0;
@@ -116,10 +140,7 @@ int ci_hdrc_otg_init(struct ci_hdrc *ci)
  */
 void ci_hdrc_otg_destroy(struct ci_hdrc *ci)
 {
-	if (ci->wq) {
-		flush_workqueue(ci->wq);
-		destroy_workqueue(ci->wq);
-	}
+	kthread_stop(ci->otg_task);
 	ci_disable_otg_interrupt(ci, OTGSC_INT_EN_BITS);
 	ci_clear_otg_interrupt(ci, OTGSC_INT_STATUS_BITS);
 }

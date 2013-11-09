@@ -380,7 +380,7 @@ static irqreturn_t ci_irq(int irq, void *data)
 		ci->id_event = true;
 		ci_clear_otg_interrupt(ci, OTGSC_IDIS);
 		disable_irq_nosync(ci->irq);
-		queue_work(ci->wq, &ci->work);
+		wake_up(&ci->otg_wait);
 		return IRQ_HANDLED;
 	}
 
@@ -392,7 +392,7 @@ static irqreturn_t ci_irq(int irq, void *data)
 		ci->b_sess_valid_event = true;
 		ci_clear_otg_interrupt(ci, OTGSC_BSVIS);
 		disable_irq_nosync(ci->irq);
-		queue_work(ci->wq, &ci->work);
+		wake_up(&ci->otg_wait);
 		return IRQ_HANDLED;
 	}
 
