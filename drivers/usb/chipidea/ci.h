@@ -110,8 +110,8 @@ struct hw_bank {
  * @roles: array of supported roles for this controller
  * @role: current role
  * @is_otg: if the device is otg-capable
- * @work: work for role changing
- * @wq: workqueue thread
+ * @otg_task: the thread for handling otg task
+ * @otg_wait: the otg event waitqueue head
  * @qh_pool: allocation pool for queue heads
  * @td_pool: allocation pool for transfer descriptors
  * @gadget: device side representation for peripheral controller
@@ -147,8 +147,8 @@ struct ci_hdrc {
 	struct ci_role_driver		*roles[CI_ROLE_END];
 	enum ci_role			role;
 	bool				is_otg;
-	struct work_struct		work;
-	struct workqueue_struct		*wq;
+	struct task_struct		*otg_task;
+	wait_queue_head_t		otg_wait;
 
 	struct dma_pool			*qh_pool;
 	struct dma_pool			*td_pool;
