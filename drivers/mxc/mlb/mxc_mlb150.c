@@ -1628,17 +1628,17 @@ static void mlb_rx_isr(s32 ctype, u32 ahb_ch, struct mlb_dev_info *pdevinfo)
 {
 	struct mlb_ringbuf *rx_rbuf = &pdevinfo->rx_rbuf;
 	s32 head, tail, adt_sts;
-	unsigned long flags;
 	u32 rx_buf_ptr;
 
 #ifdef DEBUG_RX
 	pr_debug("mxc_mlb150: mlb_rx_isr\n");
 #endif
 
-	write_lock_irqsave(&rx_rbuf->rb_lock, flags);
+	read_lock(&rx_rbuf->rb_lock);
 
 	head = (rx_rbuf->head + 1) & (TRANS_RING_NODES - 1);
 	tail = ACCESS_ONCE(rx_rbuf->tail);
+	read_unlock(&rx_rbuf->rb_lock);
 
 	if (CIRC_SPACE(head, tail, TRANS_RING_NODES) >= 1) {
 		rx_buf_ptr = rx_rbuf->phy_addrs[head];
@@ -1646,15 +1646,14 @@ static void mlb_rx_isr(s32 ctype, u32 ahb_ch, struct mlb_dev_info *pdevinfo)
 		/* commit the item before incrementing the head */
 		smp_wmb();
 
+		write_lock(&rx_rbuf->rb_lock);
 		rx_rbuf->head = head;
-
-		write_unlock_irqrestore(&rx_rbuf->rb_lock, flags);
+		write_unlock(&rx_rbuf->rb_lock);
 
 		/* wake up the reader */
 		wake_up_interruptible(&pdevinfo->rx_wq);
 	} else {
 		rx_buf_ptr = rx_rbuf->phy_addrs[head];
-		write_unlock_irqrestore(&rx_rbuf->rb_lock, flags);
 		pr_debug("drop RX package, due to no space, (%d,%d)\n",
 				head, tail);
 	}
@@ -1669,14 +1668,17 @@ static void mlb_tx_isr(s32 ctype, u32 ahb_ch, struct mlb_dev_info *pdevinfo)
 	struct mlb_ringbuf *tx_rbuf = &pdevinfo->tx_rbuf;
 	s32 head, tail, adt_sts;
 	u32 tx_buf_ptr;
-	unsigned long flags;
 
-	write_lock_irqsave(&tx_rbuf->rb_lock, flags);
+	read_lock(&tx_rbuf->rb_lock);
 
 	head = ACCESS_ONCE(tx_rbuf->head);
 	tail = (tx_rbuf->tail + 1) & (TRANS_RING_NODES - 1);
+	read_unlock(&tx_rbuf->rb_lock);
+
 	smp_mb();
+	write_lock(&tx_rbuf->rb_lock);
 	tx_rbuf->tail = tail;
+	write_unlock(&tx_rbuf->rb_lock);
 
 	/* check the current tx buffer is available or not */
 	if (CIRC_CNT(head, tail, TRANS_RING_NODES) >= 1) {
@@ -1685,15 +1687,12 @@ static void mlb_tx_isr(s32 ctype, u32 ahb_ch, struct mlb_dev_info *pdevinfo)
 
 		tx_buf_ptr = tx_rbuf->phy_addrs[tail];
 
-		write_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
-
 		wake_up_interruptible(&pdevinfo->tx_wq);
 
 		adt_sts = mlb150_dev_get_adt_sts(ahb_ch);
 		/*  Set ADT for TX */
 		mlb150_dev_pipo_next(ahb_ch, ctype, adt_sts, tx_buf_ptr);
-	} else
-		write_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
+	}
 }
 
 static irqreturn_t mlb_ahb_isr(int irq, void *dev_id)
@@ -2186,6 +2185,18 @@ static long mxc_mlb150_ioctl(struct file *filp,
 
 			break;
 		}
+
+	case MLB_IRQ_DISABLE:
+		{
+			disable_irq(drvdata->irq_mlb);
+			break;
+		}
+
+	case MLB_IRQ_ENABLE:
+		{
+			enable_irq(drvdata->irq_mlb);
+			break;
+		}
 	default:
 		pr_info("mxc_mlb150: Invalid ioctl command\n");
 		return -EINVAL;
@@ -2214,9 +2225,10 @@ static ssize_t mxc_mlb150_read(struct file *filp, char __user *buf,
 	head = ACCESS_ONCE(rx_rbuf->head);
 	tail = rx_rbuf->tail;
 
+	read_unlock_irqrestore(&rx_rbuf->rb_lock, flags);
+
 	/* check the current rx buffer is available or not */
 	if (0 == CIRC_CNT(head, tail, TRANS_RING_NODES)) {
-		read_unlock_irqrestore(&rx_rbuf->rb_lock, flags);
 
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
@@ -2246,9 +2258,7 @@ static ssize_t mxc_mlb150_read(struct file *filp, char __user *buf,
 			}
 			finish_wait(&pdevinfo->rx_wq, &__wait);
 		} while (0);
-		read_lock_irqsave(&rx_rbuf->rb_lock, flags);
 	}
-	read_unlock_irqrestore(&rx_rbuf->rb_lock, flags);
 
 	/* read index before reading contents at that index */
 	smp_read_barrier_depends();
@@ -2313,9 +2323,9 @@ static ssize_t mxc_mlb150_write(struct file *filp, const char __user *buf,
 
 	head = tx_rbuf->head;
 	tail = ACCESS_ONCE(tx_rbuf->tail);
+	read_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
 
 	if (0 == CIRC_SPACE(head, tail, TRANS_RING_NODES)) {
-		read_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
 		do {
@@ -2352,13 +2362,11 @@ static ssize_t mxc_mlb150_write(struct file *filp, const char __user *buf,
 		goto out;
 	}
 
-	read_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
 	write_lock_irqsave(&tx_rbuf->rb_lock, flags);
 	smp_wmb();
 	tx_rbuf->head = (head + 1) & (TRANS_RING_NODES - 1);
 	write_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
 
-	read_lock_irqsave(&tx_rbuf->rb_lock, flags);
 	if (0 == CIRC_CNT(head, tail, TRANS_RING_NODES)) {
 		u32 tx_buf_ptr, ahb_ch;
 		s32 adt_sts;
@@ -2368,15 +2376,13 @@ static ssize_t mxc_mlb150_write(struct file *filp, const char __user *buf,
 		smp_read_barrier_depends();
 
 		tx_buf_ptr = tx_rbuf->phy_addrs[tail];
-		read_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
 
 		ahb_ch = pdevinfo->channels[TX_CHANNEL].cl;
 		adt_sts = mlb150_dev_get_adt_sts(ahb_ch);
 
 		/*  Set ADT for TX */
 		mlb150_dev_pipo_next(ahb_ch, ctype, adt_sts, tx_buf_ptr);
-	} else
-		read_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
+	}
 
 	ret = count;
 out:
@@ -2402,26 +2408,23 @@ static unsigned int mxc_mlb150_poll(struct file *filp,
 	poll_wait(filp, &pdevinfo->tx_wq, wait);
 
 	read_lock_irqsave(&tx_rbuf->rb_lock, flags);
-
 	head = tx_rbuf->head;
 	tail = tx_rbuf->tail;
+	read_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
 
 	/* check the tx buffer is avaiable or not */
 	if (CIRC_SPACE(head, tail, TRANS_RING_NODES) >= 1)
 		ret |= POLLOUT | POLLWRNORM;
 
-	read_unlock_irqrestore(&tx_rbuf->rb_lock, flags);
-
 	read_lock_irqsave(&rx_rbuf->rb_lock, flags);
-
 	head = rx_rbuf->head;
 	tail = rx_rbuf->tail;
+	read_unlock_irqrestore(&rx_rbuf->rb_lock, flags);
 
 	/* check the rx buffer filled or not */
 	if (CIRC_CNT(head, tail, TRANS_RING_NODES) >= 1)
 		ret |= POLLIN | POLLRDNORM;
 
-	read_unlock_irqrestore(&rx_rbuf->rb_lock, flags);
 
 	/* check the exception event */
 	if (pdevinfo->ex_event)
