@@ -34,6 +34,8 @@
 #define MLB_SET_ISOC_BLKSIZE_188 _IO('S', 0x17)
 #define MLB_SET_ISOC_BLKSIZE_196 _IO('S', 0x18)
 #define MLB_SET_SYNC_QUAD	_IOW('S', 0x19, unsigned int)
+#define MLB_IRQ_ENABLE		_IO('S', 0x20)
+#define MLB_IRQ_DISABLE		_IO('S', 0x21)
 
 /*!
  * MLB event define
