@@ -222,6 +222,7 @@ static void ath6kl_sdio_setup_scat_data(struct hif_scatter_req *scat_req,
 					struct mmc_data *data)
 {
 	struct scatterlist *sg;
+	struct hif_scatter_item *scat_list;
 	int i;
 
 	data->blksz = HIF_MBOX_BLOCK_SIZE;
@@ -240,14 +241,14 @@ static void ath6kl_sdio_setup_scat_data(struct hif_scatter_req *scat_req,
 	sg = scat_req->sgentries;
 	sg_init_table(sg, scat_req->scat_entries);
 
-	/* assemble SG list */
-	for (i = 0; i < scat_req->scat_entries; i++, sg++) {
-		ath6kl_dbg(ATH6KL_DBG_SCATTER, "%d: addr:0x%p, len:%d\n",
-			   i, scat_req->scat_list[i].buf,
-			   scat_req->scat_list[i].len);
+	scat_list = &scat_req->scat_list[0];
 
-		sg_set_buf(sg, scat_req->scat_list[i].buf,
-			   scat_req->scat_list[i].len);
+	/* assemble SG list */
+	for (i = 0; i < scat_req->scat_entries; i++, sg++, scat_list++) {
+		ath6kl_dbg(ATH6KL_DBG_SCATTER, "%d: addr:0x%p, len:%d\n",
+			   i, scat_list->buf, scat_list->len);
+
+		sg_set_buf(sg, scat_list->buf, scat_list->len);
 	}
 
 	/* set scatter-gather table for request */
