@@ -128,8 +128,8 @@
 				  0x82000000 0 0x01000000 0x01000000 0 0x00f00000>; /* non-prefetchable memory */
 			num-lanes = <1>;
 			interrupts = <0 123 0x04>;
-			clocks = <&clks 189>, <&clks 187>, <&clks 206>, <&clks 144>;
-			clock-names = "pcie_ref_125m", "sata_ref_100m", "lvds_gate", "pcie_axi";
+			clocks = <&clks 189>, <&clks 187>, <&clks 144>, <&clks 212>;
+			clock-names = "pcie_ref_125m", "sata_ref_100m", "pcie_axi", "lvds_gate";
 			status = "disabled";
 		};
 
