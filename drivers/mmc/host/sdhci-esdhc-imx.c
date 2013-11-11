@@ -11,6 +11,7 @@
  * the Free Software Foundation; either version 2 of the License.
  */
 
+#include <linux/busfreq-imx6.h>
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/err.h>
@@ -996,6 +997,9 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 
 	pltfm_host->clk = imx_data->clk_per;
 	pltfm_host->clock = clk_get_rate(pltfm_host->clk);
+
+	request_bus_freq(BUS_FREQ_HIGH);
+
 	clk_prepare_enable(imx_data->clk_per);
 	clk_prepare_enable(imx_data->clk_ipg);
 	clk_prepare_enable(imx_data->clk_ahb);
@@ -1132,6 +1136,7 @@ disable_clk:
 	clk_disable_unprepare(imx_data->clk_per);
 	clk_disable_unprepare(imx_data->clk_ipg);
 	clk_disable_unprepare(imx_data->clk_ahb);
+	release_bus_freq(BUS_FREQ_HIGH);
 free_sdhci:
 	sdhci_pltfm_free(pdev);
 	return err;
@@ -1174,6 +1179,8 @@ static int sdhci_esdhc_runtime_suspend(struct device *dev)
 	clk_disable_unprepare(imx_data->clk_ipg);
 	clk_disable_unprepare(imx_data->clk_ahb);
 
+	release_bus_freq(BUS_FREQ_HIGH);
+
 	return ret;
 }
 
@@ -1182,6 +1189,8 @@ static int sdhci_esdhc_runtime_resume(struct device *dev)
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = pltfm_host->priv;
+
+	request_bus_freq(BUS_FREQ_HIGH);
 
 	clk_prepare_enable(imx_data->clk_per);
 	clk_prepare_enable(imx_data->clk_ipg);
