@@ -310,23 +310,28 @@ static int dw_msi_setup_irq(struct msi_chip *chip, struct pci_dev *pdev,
 		return -EINVAL;
 	}
 
-	pci_read_config_word(pdev, desc->msi_attrib.pos+PCI_MSI_FLAGS,
-				&msg_ctr);
-	msgvec = (msg_ctr&PCI_MSI_FLAGS_QSIZE) >> 4;
-	if (msgvec == 0)
-		msgvec = (msg_ctr & PCI_MSI_FLAGS_QMASK) >> 1;
-	if (msgvec > 5)
-		msgvec = 0;
+	if (pp->quirks & DW_PCIE_QUIRK_NO_MSI_VEC) {
+		irq = assign_irq(1, desc, &pos);
+		set_irq_flags(irq, IRQF_VALID);
+	} else {
+		pci_read_config_word(pdev, desc->msi_attrib.pos+PCI_MSI_FLAGS,
+					&msg_ctr);
+		msgvec = (msg_ctr&PCI_MSI_FLAGS_QSIZE) >> 4;
+		if (msgvec == 0)
+			msgvec = (msg_ctr & PCI_MSI_FLAGS_QMASK) >> 1;
+		if (msgvec > 5)
+			msgvec = 0;
 
-	irq = assign_irq((1 << msgvec), desc, &pos);
-	if (irq < 0)
-		return irq;
+		irq = assign_irq((1 << msgvec), desc, &pos);
+		if (irq < 0)
+			return irq;
 
-	msg_ctr &= ~PCI_MSI_FLAGS_QSIZE;
-	msg_ctr |= msgvec << 4;
-	pci_write_config_word(pdev, desc->msi_attrib.pos + PCI_MSI_FLAGS,
-				msg_ctr);
-	desc->msi_attrib.multiple = msgvec;
+		msg_ctr &= ~PCI_MSI_FLAGS_QSIZE;
+		msg_ctr |= msgvec << 4;
+		pci_write_config_word(pdev, desc->msi_attrib.pos + PCI_MSI_FLAGS,
+					msg_ctr);
+		desc->msi_attrib.multiple = msgvec;
+	}
 
 	msg.address_lo = virt_to_phys((void *)pp->msi_data);
 	msg.address_hi = 0x0;
@@ -341,9 +346,30 @@ static void dw_msi_teardown_irq(struct msi_chip *chip, unsigned int irq)
 	clear_irq(irq);
 }
 
+static int dw_msi_check_device(struct msi_chip *chip, struct pci_dev *pdev,
+		int nvec, int type)
+{
+	struct pcie_port *pp = sys_to_pcie(pdev->bus->sysdata);
+	u32 val;
+
+	if (pp->quirks & DW_PCIE_QUIRK_MSI_SELF_EN) {
+		if ((type == PCI_CAP_ID_MSI) || (type == PCI_CAP_ID_MSIX)) {
+			/* Set MSI enable of RC here */
+			val = readl(pp->dbi_base + 0x50);
+			if ((val & (PCI_MSI_FLAGS_ENABLE << 16)) == 0) {
+				val |= PCI_MSI_FLAGS_ENABLE << 16;
+				writel(val, pp->dbi_base + 0x50);
+			}
+		}
+	}
+
+	return 0;
+}
+
 static struct msi_chip dw_pcie_msi_chip = {
 	.setup_irq = dw_msi_setup_irq,
 	.teardown_irq = dw_msi_teardown_irq,
+	.check_device = dw_msi_check_device,
 };
 
 int dw_pcie_link_up(struct pcie_port *pp)

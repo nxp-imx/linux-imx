@@ -49,6 +49,11 @@ struct pcie_port {
 	int			irq;
 	u32			lanes;
 	struct pcie_host_ops	*ops;
+	u32			quirks;		/* Deviations from spec. */
+/* Controller doesn't support MSI VEC */
+#define DW_PCIE_QUIRK_NO_MSI_VEC	(1<<0)
+/* MSI EN of Controller should be configured when MSI is enabled */
+#define DW_PCIE_QUIRK_MSI_SELF_EN	(1<<1)
 	int			msi_irq;
 	struct irq_domain	*irq_domain;
 	unsigned long		msi_data;
