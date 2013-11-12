@@ -373,7 +373,11 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	 */
 	bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, bufaddr,
 			FEC_ENET_TX_FRSIZE, DMA_TO_DEVICE);
-
+	if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
+		bdp->cbd_bufaddr = 0;
+		netdev_err(ndev, "Tx DMA memory map failed\n");
+		return NETDEV_TX_OK;
+	}
 	/* Send it on its way.  Tell FEC it's ready, interrupt when done,
 	 * it's the last BD of the frame, and to put the CRC on the end.
 	 */
@@ -1012,6 +1016,9 @@ fec_enet_rx(struct net_device *ndev, int budget)
 
 		bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, data,
 				FEC_ENET_TX_FRSIZE, DMA_FROM_DEVICE);
+		/* here dma mapping shouldn't be error, just avoid kernel dump */
+		if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr))
+			netdev_err(ndev, "Rx DMA memory map failed\n");
 rx_processing_done:
 		/* Clear the status flags for this buffer */
 		status &= ~BD_ENET_RX_STATS;
@@ -1764,6 +1771,11 @@ static int fec_enet_alloc_buffers(struct net_device *ndev)
 
 		bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, skb->data,
 				FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
+		if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
+			fec_enet_free_buffers(ndev);
+			netdev_err(ndev, "Rx DMA memory map failed\n");
+			return -ENOMEM;
+		}
 		bdp->cbd_sc = BD_ENET_RX_EMPTY;
 
 		if (fep->bufdesc_ex) {
