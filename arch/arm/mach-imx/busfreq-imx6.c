@@ -130,7 +130,8 @@ static void enter_lpm_imx6sl(void)
 			 * Swtich ARM to run off PLL2_PFD2_400MHz
 			 * since DDR is anyway at 100MHz.
 			 */
-			clk_set_parent(pll1_sw_clk, pll2_400);
+			clk_set_parent(step_clk, pll2_400);
+			clk_set_parent(pll1_sw_clk, step_clk);
 			/*
 			 * Ensure that the clock will be
 			 * at original speed.
@@ -174,6 +175,15 @@ static void enter_lpm_imx6sl(void)
 				/* Now set the ARM clk parent to PLL1_SYS. */
 				clk_set_parent(pll1_sw_clk, pll1_sys);
 
+				/*
+				 * Set STEP_CLK back to OSC to save power and
+				 * also to maintain the parent.The WFI iram code
+				 * will switch step_clk to osc, but the clock API
+				 * is not aware of the change and when a new request
+				 * to change the step_clk parent to pll2_pfd2_400M
+				 * is requested sometime later, the change is ignored.
+				 */
+				clk_set_parent(step_clk, osc_clk);
 				/* Now set DDR to 24MHz. */
 				spin_lock_irqsave(&freq_lock, flags);
 				update_lpddr2_freq(LPAPM_CLK);
@@ -336,7 +346,7 @@ int set_low_bus_freq(void)
 	 * low bus freq mode to audio bus freq mode.
 	 * If so, the change needs to be done immediately.
 	 */
-	if (audio_bus_count && low_bus_freq_mode)
+	if (audio_bus_count && (low_bus_freq_mode || ultra_low_bus_freq_mode))
 		reduce_bus_freq();
 	else
 		/*
@@ -465,7 +475,6 @@ void request_bus_freq(enum bus_freq_mode mode)
 		mutex_unlock(&bus_freq_mutex);
 		return;
 	}
-
 	cancel_delayed_work_sync(&low_bus_freq_handler);
 
 	if (cpu_is_imx6dl()) {
