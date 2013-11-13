@@ -21,6 +21,7 @@
 #define PFD2_CLK_GATE			(1 << 23)
 #define PFD3_CLK_GATE			(1 << 31)
 #define CCDR_CH0_HS_BYP		17
+#define OSC_RATE			24000000
 
 #define CCM_CCGR_OFFSET(index)  (index * 2)
 
@@ -88,6 +89,7 @@ static struct clk_div_table video_div_table[] = {
 static struct clk *clks[IMX6SL_CLK_CLK_END];
 static struct clk_onecell_data clk_data;
 static u32 cur_arm_podf;
+static u32 pll1_org_rate;
 
 extern int low_bus_freq_mode;
 extern int audio_bus_freq_mode;
@@ -104,7 +106,8 @@ void imx6sl_set_wait_clk(bool enter)
 	u32 parent_rate;
 
 	if (enter) {
-		u32 wait_podf, new_parent_rate;
+		u32 wait_podf;
+		u32 new_parent_rate = OSC_RATE;
 		u32 ipg_rate = clk_get_rate(clks[IMX6SL_CLK_IPG]);
 		u32 max_arm_wait_clk = (12 * ipg_rate) / 5;
 		parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
@@ -127,10 +130,12 @@ void imx6sl_set_wait_clk(bool enter)
 			 * from the bypassed PLL1 clocks so that we can run
 			 * ARM at 24MHz.
 			 */
-			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
-				clks[IMX6SL_CLK_PLL1_SYS]);
-		}
-		new_parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
+			pll1_org_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SYS]);
+			/* Ensure PLL1 is at 24MHz. */
+			clk_set_rate(clks[IMX6SL_CLK_PLL1_SYS], OSC_RATE);
+			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW], clks[IMX6SL_CLK_PLL1_SYS]);
+		} else
+			new_parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
 		wait_podf = (new_parent_rate + max_arm_wait_clk - 1) /
 						max_arm_wait_clk;
 
@@ -140,10 +145,11 @@ void imx6sl_set_wait_clk(bool enter)
 			/* Move ARM back to PLL1. */
 			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
 				clks[IMX6SL_CLK_PLL1_SYS]);
-		else if (audio_bus_freq_mode)
+		else if (audio_bus_freq_mode) {
 			/* Move ARM back to PLL2_PFD2 via STEP_CLK. */
-			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
-				clks[IMX6SL_CLK_STEP]);
+			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW], clks[IMX6SL_CLK_STEP]);
+			clk_set_rate(clks[IMX6SL_CLK_PLL1_SYS], pll1_org_rate);
+		}
 		parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
 		clk_set_rate(clks[IMX6SL_CLK_ARM], parent_rate / cur_arm_podf);
 	}
@@ -274,7 +280,7 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SL_CLK_EPDC_PIX_SEL]     = imx_clk_mux_flags("epdc_pix_sel",     base + 0x38, 15, 3, epdc_pix_sels,     ARRAY_SIZE(epdc_pix_sels), CLK_SET_RATE_PARENT);
 	clks[IMX6SL_CLK_SPDIF0_SEL]       = imx_clk_mux("spdif0_sel",       base + 0x30, 20, 2, audio_sels,        ARRAY_SIZE(audio_sels));
 	clks[IMX6SL_CLK_SPDIF1_SEL]       = imx_clk_mux("spdif1_sel",       base + 0x30, 7,  2, audio_sels,        ARRAY_SIZE(audio_sels));
-	clks[IMX6SL_CLK_EXTERN_AUDIO_SEL] = imx_clk_mux("extern_audio_sel", base + 0x20, 19, 2, audio_sels,        ARRAY_SIZE(audio_sels));
+	clks[IMX6SL_CLK_EXTERN_AUDIO_SEL] = imx_clk_mux_flags("extern_audio_sel", base + 0x20, 19, 2, audio_sels,        ARRAY_SIZE(audio_sels), CLK_SET_RATE_PARENT);
 	clks[IMX6SL_CLK_ECSPI_SEL]        = imx_clk_mux("ecspi_sel",        base + 0x38, 18, 1, ecspi_sels,        ARRAY_SIZE(ecspi_sels));
 	clks[IMX6SL_CLK_UART_SEL]         = imx_clk_mux("uart_sel",         base + 0x24, 6,  1, uart_sels,         ARRAY_SIZE(uart_sels));
 
@@ -452,8 +458,15 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	/* Audio clocks */
 	clk_set_parent(clks[IMX6SL_CLK_SPDIF0_SEL], clks[IMX6SL_CLK_PLL3_PFD3]);
 
+	/* set extern_audio to be sourced from PLL4/audio PLL */
+	clk_set_parent(clks[IMX6SL_CLK_EXTERN_AUDIO_SEL], clks[IMX6SL_CLK_PLL4_AUDIO_DIV]);
 	/* set extern_audio to 24MHz */
+	clk_set_rate(clks[IMX6SL_CLK_PLL4_AUDIO], 24000000);
 	clk_set_rate(clks[IMX6SL_CLK_EXTERN_AUDIO], 24000000);
+
+	/* set SSI2 parent to PLL4 */
+	clk_set_parent(clks[IMX6SL_CLK_SSI2_SEL], clks[IMX6SL_CLK_PLL4_AUDIO_DIV]);
+	clk_set_rate(clks[IMX6SL_CLK_SSI2], 24000000);
 
 	/* set perclk to source from OSC 24MHz */
 	clk_set_parent(clks[IMX6SL_CLK_PERCLK_SEL], clks[IMX6SL_CLK_OSC]);
