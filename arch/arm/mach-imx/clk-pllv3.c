@@ -45,6 +45,7 @@ struct clk_pllv3 {
 	bool		powerup_set;
 	bool		always_on;
 	u32		div_mask;
+	u32		rate_req;
 };
 
 #define to_clk_pllv3(_hw) container_of(_hw, struct clk_pllv3, hw)
@@ -105,7 +106,8 @@ static int clk_pllv3_enable(struct clk_hw *hw)
 	struct clk_pllv3 *pll = to_clk_pllv3(hw);
 	u32 val;
 
-	clk_pllv3_power_up_down(hw, true);
+	if (pll->rate_req != BYPASS_RATE)
+		clk_pllv3_power_up_down(hw, true);
 
 	val = readl_relaxed(pll->base);
 	val |= BM_PLL_ENABLE;
@@ -124,7 +126,8 @@ static void clk_pllv3_disable(struct clk_hw *hw)
 		val &= ~BM_PLL_ENABLE;
 	writel_relaxed(val, pll->base);
 
-	clk_pllv3_power_up_down(hw, false);
+	if (pll->rate_req != BYPASS_RATE)
+		clk_pllv3_power_up_down(hw, false);
 }
 
 static unsigned long clk_pllv3_recalc_rate(struct clk_hw *hw,
@@ -135,7 +138,7 @@ static unsigned long clk_pllv3_recalc_rate(struct clk_hw *hw,
 	u32 bypass = readl_relaxed(pll->base) & BYPASS_MASK;
 	u32 rate;
 
-	if (bypass)
+	if (pll->rate_req == BYPASS_RATE && bypass)
 		rate = BYPASS_RATE;
 	else
 		rate = (div == 1) ? parent_rate * 22 : parent_rate * 20;
@@ -147,11 +150,9 @@ static long clk_pllv3_round_rate(struct clk_hw *hw, unsigned long rate,
 				 unsigned long *prate)
 {
 	unsigned long parent_rate = *prate;
-	struct clk_pllv3 *pll = to_clk_pllv3(hw);
-	u32 bypass = readl_relaxed(pll->base) & BYPASS_MASK;
 
 	/* If the PLL is bypassed, its rate is 24MHz. */
-	if (bypass)
+	if (rate == BYPASS_RATE)
 		return BYPASS_RATE;
 
 	return (rate >= parent_rate * 22) ? parent_rate * 22 :
@@ -163,12 +164,22 @@ static int clk_pllv3_set_rate(struct clk_hw *hw, unsigned long rate,
 {
 	struct clk_pllv3 *pll = to_clk_pllv3(hw);
 	u32 val, div;
-	u32 bypass = readl_relaxed(pll->base) & BYPASS_MASK;
+
+	pll->rate_req = rate;
+	val = readl_relaxed(pll->base);
 
 	/* If the PLL is bypassed, its rate is 24MHz. */
-	if (bypass)
-		return 0;
+	if (rate == BYPASS_RATE) {
+		/* Set the bypass bit. */
+		val |= BM_PLL_BYPASS;
+		if (pll->powerup_set)
+			val |= BM_PLL_POWER;
+		else
+			val &= ~BM_PLL_POWER;
+		writel_relaxed(val, pll->base);
 
+		return 0;
+	}
 	if (rate == parent_rate * 22)
 		div = 1;
 	else if (rate == parent_rate * 20)
@@ -197,6 +208,10 @@ static unsigned long clk_pllv3_sys_recalc_rate(struct clk_hw *hw,
 {
 	struct clk_pllv3 *pll = to_clk_pllv3(hw);
 	u32 div = readl_relaxed(pll->base) & pll->div_mask;
+	u32 bypass = readl_relaxed(pll->base) & BYPASS_MASK;
+
+	if (pll->rate_req == BYPASS_RATE && bypass)
+		return BYPASS_RATE;
 
 	return parent_rate * div / 2;
 }
@@ -208,6 +223,9 @@ static long clk_pllv3_sys_round_rate(struct clk_hw *hw, unsigned long rate,
 	unsigned long min_rate = parent_rate * 54 / 2;
 	unsigned long max_rate = parent_rate * 108 / 2;
 	u32 div;
+
+	if (rate == BYPASS_RATE)
+		return BYPASS_RATE;
 
 	if (rate > max_rate)
 		rate = max_rate;
@@ -226,9 +244,26 @@ static int clk_pllv3_sys_set_rate(struct clk_hw *hw, unsigned long rate,
 	unsigned long max_rate = parent_rate * 108 / 2;
 	u32 val, div;
 
-	if (rate < min_rate || rate > max_rate)
+	if (rate != BYPASS_RATE && (rate < min_rate || rate > max_rate))
 		return -EINVAL;
 
+	pll->rate_req = rate;
+	val = readl_relaxed(pll->base);
+
+	if (rate == BYPASS_RATE) {
+		/*
+		 * Set the PLL in bypass mode if rate requested is
+		 * BYPASS_RATE.
+		 */
+		val |= BM_PLL_BYPASS;
+		/* Power down the PLL. */
+		if (pll->powerup_set)
+			val &= ~BM_PLL_POWER;
+		else
+			val |= BM_PLL_POWER;
+		writel_relaxed(val, pll->base);
+		return 0;
+	}
 	div = rate * 2 / parent_rate;
 	val = readl_relaxed(pll->base);
 	val &= ~pll->div_mask;
@@ -253,6 +288,10 @@ static unsigned long clk_pllv3_av_recalc_rate(struct clk_hw *hw,
 	u32 mfn = readl_relaxed(pll->base + PLL_NUM_OFFSET);
 	u32 mfd = readl_relaxed(pll->base + PLL_DENOM_OFFSET);
 	u32 div = readl_relaxed(pll->base) & pll->div_mask;
+	u32 bypass = readl_relaxed(pll->base) & BYPASS_MASK;
+
+	if (pll->rate_req == BYPASS_RATE && bypass)
+		return BYPASS_RATE;
 
 	return (parent_rate * div) + ((parent_rate / mfd) * mfn);
 }
@@ -266,6 +305,9 @@ static long clk_pllv3_av_round_rate(struct clk_hw *hw, unsigned long rate,
 	u32 div;
 	u32 mfn, mfd = 1000000;
 	s64 temp64;
+
+	if (rate == BYPASS_RATE)
+		return BYPASS_RATE;
 
 	if (rate > max_rate)
 		rate = max_rate;
@@ -291,8 +333,30 @@ static int clk_pllv3_av_set_rate(struct clk_hw *hw, unsigned long rate,
 	u32 mfn, mfd = 1000000;
 	s64 temp64;
 
-	if (rate < min_rate || rate > max_rate)
+	if (rate != BYPASS_RATE && (rate < min_rate || rate > max_rate))
 		return -EINVAL;
+
+	pll->rate_req = rate;
+	val = readl_relaxed(pll->base);
+
+	if (rate == BYPASS_RATE) {
+		/*
+		 * Set the PLL in bypass mode if rate requested is
+		 * BYPASS_RATE.
+		 */
+		/* Bypass the PLL */
+		val |= BM_PLL_BYPASS;
+		/* Power down the PLL. */
+		if (pll->powerup_set)
+			val &= ~BM_PLL_POWER;
+		else
+			val |= BM_PLL_POWER;
+		writel_relaxed(val, pll->base);
+		return 0;
+	}
+	/* Else clear the bypass bit. */
+	val &= ~BM_PLL_BYPASS;
+	writel_relaxed(val, pll->base);
 
 	div = rate / parent_rate;
 	temp64 = (u64) (rate - div * parent_rate);
