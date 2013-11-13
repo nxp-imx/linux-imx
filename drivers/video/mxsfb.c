@@ -440,6 +440,7 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 	reg |= VDCTRL4_SYNC_SIGNALS_ON;
 	writel(reg, host->base + LCDC_VDCTRL4);
 
+	writel(CTRL_MASTER, host->base + LCDC_CTRL + REG_SET);
 	writel(CTRL_RUN, host->base + LCDC_CTRL + REG_SET);
 
 	/* Recovery on underflow */
@@ -471,6 +472,8 @@ static void mxsfb_disable_controller(struct fb_info *fb_info)
 			break;
 		loop--;
 	}
+
+	writel(CTRL_MASTER, host->base + LCDC_CTRL + REG_CLR);
 
 	reg = readl(host->base + LCDC_VDCTRL4);
 	writel(reg & ~VDCTRL4_SYNC_SIGNALS_ON, host->base + LCDC_VDCTRL4);
@@ -1270,6 +1273,7 @@ static void mxsfb_shutdown(struct platform_device *pdev)
 	 * might interfere with the BootROM's boot mode pads sampling.
 	 */
 	writel(CTRL_RUN, host->base + LCDC_CTRL + REG_CLR);
+	writel(CTRL_MASTER, host->base + LCDC_CTRL + REG_CLR);
 	clk_disable_axi(host);
 }
 
