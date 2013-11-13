@@ -1483,7 +1483,7 @@ static s32 mlb150_dev_unmute_syn_ch(u32 rx_ch, u32 rx_cl, u32 tx_ch, u32 tx_cl)
 	 * APB or I/O clock cycle and repeat the check
 	 */
 	while ((__raw_readl(mlb_base + REG_MLBC1) & MLBC1_CLKM)
-			|| timeout--)
+			&& --timeout)
 		__raw_writel(~MLBC1_CLKM, mlb_base + REG_MLBC1);
 
 	if (0 == timeout)
@@ -1492,7 +1492,7 @@ static s32 mlb150_dev_unmute_syn_ch(u32 rx_ch, u32 rx_cl, u32 tx_ch, u32 tx_cl)
 	timeout = 10000;
 	/* Poll for MLB lock (MLBC0.MLBLK = 1) */
 	while (!(__raw_readl(mlb_base + REG_MLBC0) & MLBC0_MLBLK)
-			|| timeout--)
+			&& --timeout)
 		;
 
 	if (0 == timeout)
@@ -1558,7 +1558,7 @@ static s32 mlb150_trans_complete_check(struct mlb_dev_info *pdevinfo)
 /*
  * Enable the MLB channel
  */
-static void mlb_channel_enable(struct mlb_data *drvdata,
+static s32 mlb_channel_enable(struct mlb_data *drvdata,
 				int chan_dev_id, int on)
 {
 	struct mlb_dev_info *pdevinfo = drvdata->devinfo;
@@ -1568,6 +1568,7 @@ static void mlb_channel_enable(struct mlb_data *drvdata,
 	u32 rx_ch = rx_chinfo->address;
 	u32 tx_cl = tx_chinfo->cl;
 	u32 rx_cl = rx_chinfo->cl;
+	s32 ret = 0;
 
 	/*
 	 * setup the direction, enable, channel type,
@@ -1586,8 +1587,12 @@ static void mlb_channel_enable(struct mlb_data *drvdata,
 		mlb150_dev_dump_ctr_tbl(0, tx_chinfo->cl + 1);
 #endif
 		/* Synchronize and unmute synchrouous channel */
-		if (MLB_CTYPE_SYNC == ctype)
-			mlb150_dev_unmute_syn_ch(rx_ch, rx_cl, tx_ch, tx_cl);
+		if (MLB_CTYPE_SYNC == ctype) {
+			ret = mlb150_dev_unmute_syn_ch(rx_ch, rx_cl,
+							tx_ch, tx_cl);
+			if (ret)
+				return ret;
+		}
 
 		mlb150_dev_enable_ctr_write(0x0, ADT_RDY1 | ADT_DNE1 |
 				ADT_ERR1 | ADT_PS1 |
@@ -1619,6 +1624,8 @@ static void mlb_channel_enable(struct mlb_data *drvdata,
 		if (pdevinfo->fps >= CLK_2048FS)
 			mlb150_disable_pll(drvdata);
 	}
+
+	return 0;
 }
 
 /*
@@ -2035,7 +2042,8 @@ static long mxc_mlb150_ioctl(struct file *filp,
 			pr_debug("mxc_mlb150: channel alreadly startup\n");
 			break;
 		}
-		mlb_channel_enable(drvdata, minor, 1);
+		if (mlb_channel_enable(drvdata, minor, 1))
+			return -EFAULT;
 		break;
 	case MLB_CHAN_SHUTDOWN:
 		if (atomic_read(&pdevinfo->on) == 0) {
