@@ -26,6 +26,7 @@
 #include <linux/resource.h>
 #include <linux/signal.h>
 #include <linux/types.h>
+#include <linux/busfreq-imx6.h>
 
 #include "pcie-designware.h"
 
@@ -204,24 +205,6 @@ static int imx6q_pcie_abort_handler(unsigned long addr,
 	return 0;
 }
 
-static int imx6_pcie_assert_core_reset(struct pcie_port *pp)
-{
-	struct imx6_pcie *imx6_pcie = to_imx6_pcie(pp);
-
-	regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR1,
-			IMX6Q_GPR1_PCIE_TEST_PD, 1 << 18);
-	regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
-			IMX6Q_GPR12_PCIE_CTL_2, 1 << 10);
-	regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR1,
-			IMX6Q_GPR1_PCIE_REF_CLK_EN, 0 << 16);
-
-	gpio_set_value(imx6_pcie->reset_gpio, 0);
-	msleep(100);
-	gpio_set_value(imx6_pcie->reset_gpio, 1);
-
-	return 0;
-}
-
 static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 {
 	struct imx6_pcie *imx6_pcie = to_imx6_pcie(pp);
@@ -234,6 +217,7 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 			IMX6Q_GPR1_PCIE_TEST_PD, 0 << 18);
 	regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR1,
 			IMX6Q_GPR1_PCIE_REF_CLK_EN, 1 << 16);
+	request_bus_freq(BUS_FREQ_HIGH);
 
 	ret = clk_prepare_enable(imx6_pcie->sata_ref_100m);
 	if (ret) {
@@ -262,6 +246,10 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 	/* allow the clocks to stabilize */
 	usleep_range(200, 500);
 
+	gpio_set_value(imx6_pcie->reset_gpio, 0);
+	msleep(100);
+	gpio_set_value(imx6_pcie->reset_gpio, 1);
+
 	return 0;
 
 err_pcie_axi:
@@ -271,6 +259,7 @@ err_lvds_gate:
 err_pcie_ref:
 	clk_disable_unprepare(imx6_pcie->sata_ref_100m);
 err_sata_ref:
+	release_bus_freq(BUS_FREQ_HIGH);
 	return ret;
 
 }
@@ -313,8 +302,6 @@ static void imx6_pcie_host_init(struct pcie_port *pp)
 {
 	int count = 0;
 	struct imx6_pcie *imx6_pcie = to_imx6_pcie(pp);
-
-	imx6_pcie_assert_core_reset(pp);
 
 	imx6_pcie_init_phy(pp);
 
