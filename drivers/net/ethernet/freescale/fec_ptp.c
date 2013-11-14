@@ -550,7 +550,7 @@ void fec_ptp_start_cyclecounter(struct net_device *ndev)
 	unsigned long flags;
 	int inc;
 
-	inc = FEC_T_PERIOD_ONE_SEC / clk_get_rate(fep->clk_ptp);
+	inc = FEC_T_PERIOD_ONE_SEC / fep->cycle_speed;
 
 	/* grab the ptp lock */
 	spin_lock_irqsave(&fep->tmreg_lock, flags);
