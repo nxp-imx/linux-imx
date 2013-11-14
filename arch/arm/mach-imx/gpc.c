@@ -31,6 +31,10 @@
 #define GPC_PGC_GPU_PDN		0x260
 #define GPC_PGC_GPU_PUPSCR	0x264
 #define GPC_PGC_GPU_PDNSCR	0x268
+#define GPC_PGC_DISP_PGCR_OFFSET	0x240
+#define GPC_PGC_DISP_PUPSCR_OFFSET	0x244
+#define GPC_PGC_DISP_PDNSCR_OFFSET	0x248
+#define GPC_PGC_DISP_SR_OFFSET		0x24c
 #define GPC_PGC_GPU_SW_SHIFT		0
 #define GPC_PGC_GPU_SW_MASK		0x3f
 #define GPC_PGC_GPU_SW2ISO_SHIFT	8
@@ -51,6 +55,8 @@ static void __iomem *gpc_base;
 static u32 gpc_wake_irqs[IMR_NUM];
 static u32 gpc_saved_imrs[IMR_NUM];
 static struct clk *gpu3d_clk, *gpu3d_shader_clk, *gpu2d_clk, *gpu2d_axi_clk;
+static struct clk *lcd_axi_clk, *lcd_pix_clk, *epdc_axi_clk, *epdc_pix_clk;
+static struct clk *pxp_axi_clk;
 static struct clk *openvg_axi_clk, *vpu_clk, *ipg_clk;
 static struct device *gpc_dev;
 struct regulator *pu_reg;
@@ -65,10 +71,62 @@ static struct regulator_init_data pu_dummy_initdata = {
 };
 static int pu_dummy_enable;
 
+static void imx_disp_clk(bool enable)
+{
+	if (enable) {
+		clk_prepare_enable(lcd_axi_clk);
+		clk_prepare_enable(lcd_pix_clk);
+		clk_prepare_enable(epdc_axi_clk);
+		clk_prepare_enable(epdc_pix_clk);
+		clk_prepare_enable(pxp_axi_clk);
+	} else {
+		clk_disable_unprepare(lcd_axi_clk);
+		clk_disable_unprepare(lcd_pix_clk);
+		clk_disable_unprepare(epdc_axi_clk);
+		clk_disable_unprepare(epdc_pix_clk);
+		clk_disable_unprepare(pxp_axi_clk);
+	}
+}
+
+static void imx_gpc_dispmix_on(void)
+{
+	if (cpu_is_imx6sl()) {
+		imx_disp_clk(true);
+
+		writel_relaxed(0x0, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
+		writel_relaxed(0x20, gpc_base + GPC_CNTR);
+		while (readl_relaxed(gpc_base + GPC_CNTR) & 0x20)
+			;
+		writel_relaxed(0x1, gpc_base + GPC_PGC_DISP_SR_OFFSET);
+
+		imx_disp_clk(false);
+	}
+}
+
+static void imx_gpc_dispmix_off(void)
+{
+	if (cpu_is_imx6sl()) {
+		imx_disp_clk(true);
+
+		writel_relaxed(0xFFFFFFFF,
+				gpc_base + GPC_PGC_DISP_PUPSCR_OFFSET);
+		writel_relaxed(0xFFFFFFFF,
+				gpc_base + GPC_PGC_DISP_PDNSCR_OFFSET);
+		writel_relaxed(0x1, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
+		writel_relaxed(0x10, gpc_base + GPC_CNTR);
+		while (readl_relaxed(gpc_base + GPC_CNTR) & 0x10)
+			;
+
+		imx_disp_clk(false);
+	}
+}
+
 void imx_gpc_pre_suspend(bool arm_power_off)
 {
 	void __iomem *reg_imr1 = gpc_base + GPC_IMR1;
 	int i;
+
+	imx_gpc_dispmix_off();
 
 	if (arm_power_off)
 		/* Tell GPC to power off ARM core when suspend */
@@ -90,6 +148,8 @@ void imx_gpc_post_resume(void)
 
 	for (i = 0; i < IMR_NUM; i++)
 		writel_relaxed(gpc_saved_imrs[i], reg_imr1 + i * 4);
+
+	imx_gpc_dispmix_on();
 }
 
 static int imx_gpc_irq_set_wake(struct irq_data *d, unsigned int on)
@@ -420,8 +480,15 @@ static int imx_gpc_probe(struct platform_device *pdev)
 		gpu2d_clk = devm_clk_get(gpc_dev, "gpu2d_podf");
 		openvg_axi_clk = devm_clk_get(gpc_dev, "gpu2d_ovg");
 		ipg_clk = devm_clk_get(gpc_dev, "ipg");
+		lcd_axi_clk = devm_clk_get(gpc_dev, "lcd_axi");
+		lcd_pix_clk = devm_clk_get(gpc_dev, "lcd_pix");
+		epdc_axi_clk = devm_clk_get(gpc_dev, "epdc_axi");
+		epdc_pix_clk = devm_clk_get(gpc_dev, "epdc_pix");
+		pxp_axi_clk = devm_clk_get(gpc_dev, "pxp_axi");
 		if (IS_ERR(gpu2d_clk) || IS_ERR(openvg_axi_clk)
-			|| IS_ERR(ipg_clk)) {
+			|| IS_ERR(ipg_clk) || IS_ERR(lcd_axi_clk)
+			|| IS_ERR(lcd_pix_clk) || IS_ERR(epdc_axi_clk)
+			|| IS_ERR(epdc_pix_clk) || IS_ERR(pxp_axi_clk)) {
 			dev_err(gpc_dev, "failed to get clk!\n");
 			return -ENOENT;
 		}
