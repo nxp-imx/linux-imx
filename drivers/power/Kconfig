@@ -370,6 +370,12 @@ config BATTERY_GOLDFISH
 	  Say Y to enable support for the battery and AC power in the
 	  Goldfish emulator.
 
+config IMX6_USB_CHARGER
+	tristate "Freescale imx6 USB Charger"
+	depends on USB_CHIPIDEA && USB_GADGET
+	help
+	  Say Y to enable Freescale imx6 USB Charger Detect.
+
 source "drivers/power/reset/Kconfig"
 
 endif # POWER_SUPPLY
