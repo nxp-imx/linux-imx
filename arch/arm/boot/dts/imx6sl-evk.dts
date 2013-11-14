@@ -562,6 +562,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usbotg1_1>;
 	disable-over-current;
+	imx6-usb-charger-detection;
 	status = "okay";
 };
 

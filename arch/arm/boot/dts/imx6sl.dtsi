@@ -689,6 +689,7 @@
 				clocks = <&clks IMX6SL_CLK_USBOH3>;
 				fsl,usbphy = <&usbphy1>;
 				fsl,usbmisc = <&usbmisc 0>;
+				fsl,anatop = <&anatop>;
 				status = "disabled";
 			};
 
