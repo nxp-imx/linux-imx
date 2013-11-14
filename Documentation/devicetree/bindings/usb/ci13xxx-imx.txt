@@ -18,6 +18,12 @@ Optional properties:
 - vbus-supply: regulator for vbus
 - disable-over-current: disable over current detect
 - external-vbus-divider: enables off-chip resistor divider for Vbus
+- imx6-usb-charger-detection: enable imx6 usb charger detect function,
+only set it when the user wants SoC usb charger detection capabilities.
+If the user wants to use charger IC's usb charger detection capabilities,
+please do not set it.
+- fsl,anatop: phandle for anatop module, anatop module is only existed
+at imx6 SoC series
 
 Examples:
 usb@02184000 { /* USB OTG */
@@ -28,4 +34,6 @@ usb@02184000 { /* USB OTG */
 	fsl,usbmisc = <&usbmisc 0>;
 	disable-over-current;
 	external-vbus-divider;
+	imx6-usb-charger-detection;
+	fsl,anatop = <&anatop>;
 };
