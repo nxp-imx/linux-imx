@@ -34,6 +34,7 @@
 
 static void __iomem *wdog_base;
 static struct clk *wdog_clk;
+static u32 wdog_source = 1; /* use WDOG1 default */
 
 /*
  * Reset the system. It is called by machine_restart().
@@ -47,6 +48,15 @@ void mxc_restart(char mode, const char *cmd)
 
 	if (cpu_is_mx1())
 		wcr_enable = (1 << 0);
+	/*
+	 * Some i.MX6 boards use WDOG2 to reset external pmic in bypass mode,
+	 * so do WDOG2 reset here. Do not set SRS, since we will
+	 * trigger external POR later. Use WDOG1 to reset in ldo-enable
+	 * mode. You can set it by "fsl,wdog-reset" in dts.
+	 */
+	else if (wdog_source == 2 && (cpu_is_imx6q() || cpu_is_imx6dl() ||
+			cpu_is_imx6sl()))
+		wcr_enable = 0x14;
 	else
 		wcr_enable = (1 << 2);
 
@@ -83,11 +93,28 @@ void __init mxc_arch_reset_init(void __iomem *base)
 
 void __init mxc_arch_reset_init_dt(void)
 {
-	struct device_node *np;
+	struct device_node *np = NULL;
+
+	if (cpu_is_imx6q() || cpu_is_imx6dl())
+		np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-gpc");
+	else if (cpu_is_imx6sl())
+		np = of_find_compatible_node(NULL, NULL, "fsl,imx6sl-gpc");
+
+	if (np)
+		of_property_read_u32(np, "fsl,wdog-reset", &wdog_source);
+	pr_info("Use WDOG%d as reset source\n", wdog_source);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx21-wdt");
 	wdog_base = of_iomap(np, 0);
 	WARN_ON(!wdog_base);
+
+	/* Some i.MX6 boards use WDOG2 to reset board in ldo-bypass mode */
+	if (wdog_source == 2 && (cpu_is_imx6q() || cpu_is_imx6dl() ||
+		cpu_is_imx6sl())) {
+		np = of_find_compatible_node(np, NULL, "fsl,imx21-wdt");
+		wdog_base = of_iomap(np, 0);
+		WARN_ON(!wdog_base);
+	}
 
 	wdog_clk = of_clk_get(np, 0);
 	if (IS_ERR(wdog_clk)) {
