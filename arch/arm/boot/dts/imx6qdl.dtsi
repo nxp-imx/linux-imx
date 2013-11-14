@@ -737,6 +737,7 @@
 				clocks = <&clks 162>;
 				fsl,usbphy = <&usbphy1>;
 				fsl,usbmisc = <&usbmisc 0>;
+				fsl,anatop = <&anatop>;
 				status = "disabled";
 			};
 
