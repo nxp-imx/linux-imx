@@ -20,6 +20,18 @@ config PCI_IMX6
 	select PCIEPORTBUS
 	select PCIE_DW
 
+config EP_MODE_IN_EP_RC_SYS
+	bool "PCI Express EP mode in the IMX6 RC/EP interconnection system"
+	depends on PCI_IMX6
+
+config EP_SELF_IO_TEST
+	bool "PCI Express EP_SELF_IO_TEST in EP mode"
+	depends on EP_MODE_IN_EP_RC_SYS
+
+config RC_MODE_IN_EP_RC_SYS
+	bool "PCI Express RC mode in the IMX6 RC/EP interconnection system"
+	depends on PCI_IMX6
+
 config PCI_TEGRA
 	bool "NVIDIA Tegra PCIe controller"
 	depends on ARCH_TEGRA
