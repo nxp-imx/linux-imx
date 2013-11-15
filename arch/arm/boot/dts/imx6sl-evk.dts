@@ -84,7 +84,7 @@
 
 	csi_v4l2_cap {
 		compatible = "fsl,imx6sl-csi-v4l2";
-		status = "okay";
+		status = "disabled";
 	};
 
 	pxp_v4l2_out {
@@ -134,7 +134,7 @@
 };
 
 &csi {
-	status = "okay";
+	status = "disabled";
 };
 
 &ecspi1 {
@@ -417,7 +417,7 @@
 	clock-frequency = <100000>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_i2c3_1>;
-	status = "okay";
+	status = "disabled";
 
 	ov564x: ov564x@3c {
 		compatible = "ovti,ov564x";
