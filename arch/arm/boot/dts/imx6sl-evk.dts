@@ -92,7 +92,7 @@
 
 	csi_v4l2_cap {
 		compatible = "fsl,imx6sl-csi-v4l2";
-		status = "okay";
+		status = "disabled";
 	};
 
 	pxp_v4l2_out {
@@ -148,7 +148,7 @@
 };
 
 &csi {
-	status = "okay";
+	status = "disabled";
 };
 
 &cpu0 {
