@@ -719,9 +719,11 @@ static int set_crop(struct ipu_crop *crop, int width, int height, int fmt)
 		}
 	} else {
 		if (crop->w || crop->h) {
-			if (((crop->w + crop->pos.x) > width)
-			|| ((crop->h + crop->pos.y) > height))
+			if (((crop->w + crop->pos.x) > (width + 16))
+			|| ((crop->h + crop->pos.y) > height + 16)) {
+				pr_err("set_crop error exceeds width/height.\n");
 				return -EINVAL;
+			}
 		} else {
 			crop->pos.x = 0;
 			crop->pos.y = 0;
@@ -880,7 +882,7 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 		t->set.sp_setting.i_right_pos = 0;
 		t->set.sp_setting.o_right_pos = 0;
 	}
-	if ((t->set.sp_setting.iw + t->set.sp_setting.i_right_pos) > iw)
+	if ((t->set.sp_setting.iw + t->set.sp_setting.i_right_pos) > (iw+16))
 		return IPU_CHECK_ERR_SPLIT_INPUTW_OVER;
 	if (((t->set.sp_setting.ow + t->set.sp_setting.o_right_pos) > ow)
 		|| (t->set.sp_setting.ow > soc_max_out_width()))
@@ -899,7 +901,7 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 				oh,
 				soc_max_out_height(),
 				(((unsigned long long)1) << 32), /* 32bit for fractional*/
-				1, /* equal stripes */
+				0x1 | 0x2, /* equal stripes and vertical */
 				t->input.format,
 				t->output.format,
 				&up_stripe,
@@ -925,7 +927,8 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 		t->set.sp_setting.i_bottom_pos = 0;
 		t->set.sp_setting.o_bottom_pos = 0;
 	}
-	if ((t->set.sp_setting.ih + t->set.sp_setting.i_bottom_pos) > ih)
+
+	if ((t->set.sp_setting.ih + t->set.sp_setting.i_bottom_pos) > (ih+16))
 		return IPU_CHECK_ERR_SPLIT_INPUTH_OVER;
 	if (((t->set.sp_setting.oh + t->set.sp_setting.o_bottom_pos) > oh)
 		|| (t->set.sp_setting.oh > soc_max_out_height()))
