@@ -1065,6 +1065,13 @@ static int fsl_spdif_probe_txclk(struct fsl_spdif_priv *spdif_priv,
 		if (!clk_get_rate(clk))
 			continue;
 
+		/* TODO: We here ignore sysclk source due to imperfect clock
+		 * selecting mechanism: sysclk is a bit different which we can
+		 * not change its clock rate but use another inner divider to
+		 * derive a proper clock rate. */
+		if (i == SPDIF_CLK_SRC_SYSCLK)
+			continue;
+
 		ret = fsl_spdif_txclk_caldiv(spdif_priv, clk, savesub, index);
 		if (savesub == ret)
 			continue;
