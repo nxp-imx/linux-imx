@@ -20,7 +20,7 @@
 #include "common.h"
 #include "cpuidle.h"
 
-extern u32 low_bus_freq_mode;
+extern u32 audio_bus_freq_mode;
 extern u32 ultra_low_bus_freq_mode;
 extern unsigned long reg_addrs[];
 extern void imx6sl_low_power_wfi(void);
@@ -29,7 +29,7 @@ static void __iomem *iomux_base;
 static void *wfi_iram_base;
 
 void (*imx6sl_wfi_in_iram_fn)(void *wfi_iram_base,
-	void *iomux_addr, void *regs_addr) = NULL;
+	void *iomux_addr, void *regs_addr, u32 audio_mode) = NULL;
 
 #define WFI_IN_IRAM_SIZE	0x1000
 
@@ -37,13 +37,13 @@ static int imx6sl_enter_wait(struct cpuidle_device *dev,
 			    struct cpuidle_driver *drv, int index)
 {
 	imx6_set_lpm(WAIT_UNCLOCKED);
-	if (ultra_low_bus_freq_mode)
+	if (ultra_low_bus_freq_mode || audio_bus_freq_mode)
 		/*
 		 * Run WFI code from IRAM.
 		 * Drop the DDR freq to 1MHz and AHB to 3MHz
 		 * Also float DDR IO pads.
 		 */
-		imx6sl_wfi_in_iram_fn(wfi_iram_base, iomux_base, reg_addrs);
+		imx6sl_wfi_in_iram_fn(wfi_iram_base, iomux_base, reg_addrs, audio_bus_freq_mode);
 	else {
 		imx6sl_set_wait_clk(true);
 		cpu_do_idle();

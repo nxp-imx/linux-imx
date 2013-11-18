@@ -115,6 +115,9 @@ static void enter_lpm_imx6sl(void)
 		clk_set_rate(ocram_clk, LPAPM_CLK);
 	}
 	if (audio_bus_count) {
+		/* Set AHB to 8MHz to lower pwer.*/
+		clk_set_rate(ahb_clk, LPAPM_CLK / 3);
+
 		/* Set up DDR to 100MHz. */
 		spin_lock_irqsave(&freq_lock, flags);
 		update_lpddr2_freq(LPDDR2_AUDIO_CLK);
