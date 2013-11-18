@@ -362,6 +362,7 @@ void fec_ptp_store_txstamp(struct fec_enet_private *priv,
 {
 	struct fec_ptp_ts_data tmp_tx_time;
 	struct bufdesc_ex *bdp_ex = NULL;
+	struct ptp_rtc_time curr_time;
 	u8 *ptp_loc;
 	u16 eth_type;
 
@@ -389,7 +390,11 @@ void fec_ptp_store_txstamp(struct fec_enet_private *priv,
 		memcpy(tmp_tx_time.ident.spid, &ptp_loc[PTP_SPID_OFFS],
 						PTP_SOURCE_PORT_LENGTH);
 		/* store tx timestamp */
-		tmp_tx_time.ts.sec = priv->prtc;
+		fec_get_curr_cnt(priv, &curr_time);
+		if (curr_time.rtc_time.nsec < bdp_ex->ts)
+			tmp_tx_time.ts.sec = priv->prtc - 1;
+		else
+			tmp_tx_time.ts.sec = priv->prtc;
 		tmp_tx_time.ts.nsec = bdp_ex->ts;
 		/* insert timestamp in circular buffer */
 		fec_ptp_insert(&(priv->tx_timestamps), &tmp_tx_time);
@@ -402,6 +407,7 @@ void fec_ptp_store_rxstamp(struct fec_enet_private *priv,
 {
 	struct fec_ptp_ts_data tmp_rx_time;
 	struct bufdesc_ex *bdp_ex = NULL;
+	struct ptp_rtc_time curr_time;
 	u8 *ptp_loc;
 	u16 eth_type;
 
@@ -429,7 +435,11 @@ void fec_ptp_store_rxstamp(struct fec_enet_private *priv,
 		memcpy(tmp_rx_time.ident.spid, &ptp_loc[PTP_SPID_OFFS],
 						PTP_SOURCE_PORT_LENGTH);
 		/* store rx timestamp */
-		tmp_rx_time.ts.sec = priv->prtc;
+		fec_get_curr_cnt(priv, &curr_time);
+		if (curr_time.rtc_time.nsec < bdp_ex->ts)
+			tmp_rx_time.ts.sec = priv->prtc - 1;
+		else
+			tmp_rx_time.ts.sec = priv->prtc;
 		tmp_rx_time.ts.nsec = bdp_ex->ts;
 
 		/* insert timestamp in circular buffer */
