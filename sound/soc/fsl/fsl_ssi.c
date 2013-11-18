@@ -142,6 +142,7 @@ struct fsl_ssi_private {
 	bool new_binding;
 	bool ssi_on_imx;
 	bool use_dual_fifo;
+	u8 i2s_mode;
 	struct clk *coreclk;
 	struct clk *clk;
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
@@ -372,9 +373,10 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 		 *
 		 * FIXME: Little-endian samples require a different shift dir
 		 */
+		ssi_private->i2s_mode = CCSR_SSI_SCR_I2S_MODE_SLAVE;
 		write_ssi_mask(&ssi->scr,
 			CCSR_SSI_SCR_I2S_MODE_MASK | CCSR_SSI_SCR_SYN,
-			CCSR_SSI_SCR_TFR_CLK_DIS | CCSR_SSI_SCR_I2S_MODE_SLAVE
+			CCSR_SSI_SCR_TFR_CLK_DIS | ssi_private->i2s_mode
 			| (synchronous ? CCSR_SSI_SCR_SYN : 0));
 
 		write_ssi(CCSR_SSI_STCR_TXBIT0 | CCSR_SSI_STCR_TFEN0 |
@@ -462,7 +464,6 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 	u32 wl = CCSR_SSI_SxCCR_WL(sample_size);
 	int enabled = read_ssi(&ssi->scr) & CCSR_SSI_SCR_SSIEN;
 	unsigned int channels = params_channels(hw_params);
-	static u8 i2s_mode;
 	int ret;
 
 	/*
@@ -497,19 +498,8 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 	else
 		write_ssi_mask(&ssi->srccr, CCSR_SSI_SxCCR_WL_MASK, wl);
 
-	/* Save i2s mode configuration so that we can restore it later */
-	switch (read_ssi(&ssi->scr) & CCSR_SSI_SCR_I2S_MODE_MASK) {
-	case CCSR_SSI_SCR_I2S_MODE_SLAVE:
-	case CCSR_SSI_SCR_I2S_MODE_MASTER:
-		i2s_mode = read_ssi(&ssi->scr) & CCSR_SSI_SCR_I2S_MODE_MASK;
-	default:
-		break;
-	}
-
-	write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_NET,
-			channels == 1 ? 0 : CCSR_SSI_SCR_NET);
-	write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_I2S_MODE_MASK,
-			channels == 1 ? 0 : i2s_mode);
+	write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_NET | CCSR_SSI_SCR_I2S_MODE_MASK,
+			channels == 1 ? 0 : ssi_private->i2s_mode);
 
 	return 0;
 }
@@ -589,18 +579,18 @@ static int fsl_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 		/* Pre-set SSI I2S mode */
 		switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 		case SND_SOC_DAIFMT_CBS_CFS:
-			scr &= ~CCSR_SSI_SCR_I2S_MODE_MASK;
-			scr |= CCSR_SSI_SCR_I2S_MODE_MASTER;
+			ssi_private->i2s_mode = CCSR_SSI_SCR_I2S_MODE_MASTER;
 			break;
 		case SND_SOC_DAIFMT_CBM_CFM:
-			scr &= ~CCSR_SSI_SCR_I2S_MODE_MASK;
-			scr |= CCSR_SSI_SCR_I2S_MODE_SLAVE;
+			ssi_private->i2s_mode = CCSR_SSI_SCR_I2S_MODE_SLAVE;
 			break;
 		default:
 			dev_err(cpu_dai->dev, "unsupported SND_SOC_DAIFMT_MASTER: %d",
 					fmt & SND_SOC_DAIFMT_MASTER_MASK);
 			return -EINVAL;
 		}
+		scr &= ~CCSR_SSI_SCR_I2S_MODE_MASK;
+		scr |= ssi_private->i2s_mode;
 
 		/* Data on rising edge of bclk, frame low, 1clk before data */
 		strcr |= CCSR_SSI_STCR_TFSI | CCSR_SSI_STCR_TSCKP
