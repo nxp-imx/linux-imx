@@ -113,7 +113,7 @@ static void ci_otg_event(struct ci_hdrc *ci)
 		ci_handle_vbus_change(ci);
 		pm_runtime_put_sync(ci->dev);
 	} else
-		dev_err(ci->dev, "unexpected event occurs at %s\n", __func__);
+		dev_dbg(ci->dev, "it should be quit event\n");
 
 	enable_irq(ci->irq);
 }
