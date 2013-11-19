@@ -201,23 +201,6 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 #error "FEC: descriptor ring size constants too large"
 #endif
 
-/* Interrupt events/masks. */
-#define FEC_ENET_HBERR	((uint)0x80000000)	/* Heartbeat error */
-#define FEC_ENET_BABR	((uint)0x40000000)	/* Babbling receiver */
-#define FEC_ENET_BABT	((uint)0x20000000)	/* Babbling transmitter */
-#define FEC_ENET_GRA	((uint)0x10000000)	/* Graceful stop complete */
-#define FEC_ENET_TXF	((uint)0x08000000)	/* Full frame transmitted */
-#define FEC_ENET_TXB	((uint)0x04000000)	/* A buffer was transmitted */
-#define FEC_ENET_RXF	((uint)0x02000000)	/* Full frame received */
-#define FEC_ENET_RXB	((uint)0x01000000)	/* A buffer was received */
-#define FEC_ENET_MII	((uint)0x00800000)	/* MII interrupt */
-#define FEC_ENET_EBERR	((uint)0x00400000)	/* SDMA bus error */
-#define FEC_ENET_TS_AVAIL       ((uint)0x00010000)
-#define FEC_ENET_TS_TIMER       ((uint)0x00008000)
-
-#define FEC_DEFAULT_IMASK (FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_MII)
-#define FEC_RX_DISABLED_IMASK (FEC_DEFAULT_IMASK & (~FEC_ENET_RXF))
-
 /* The FEC stores dest/src/type/vlan, data, and checksum for receive packets.
  */
 #define PKT_MAXBUF_SIZE		1522
@@ -667,13 +650,8 @@ fec_restart(struct net_device *ndev, int duplex)
 	writel(ecntl, fep->hwp + FEC_ECNTRL);
 	writel(0, fep->hwp + FEC_R_DES_ACTIVE);
 
-	if (fep->bufdesc_ex) {
+	if (fep->bufdesc_ex)
 		fec_ptp_start_cyclecounter(ndev);
-		/* Enable interrupts we wish to service */
-		writel(FEC_DEFAULT_IMASK | FEC_ENET_TS_AVAIL |
-			FEC_ENET_TS_TIMER, fep->hwp + FEC_IMASK);
-	} else
-		writel(FEC_DEFAULT_IMASK, fep->hwp + FEC_IMASK);
 
 	/* Enable interrupts we wish to service */
 	writel(FEC_DEFAULT_IMASK, fep->hwp + FEC_IMASK);
@@ -1061,7 +1039,16 @@ fec_enet_interrupt(int irq, void *dev_id)
 
 	do {
 		int_events = readl(fep->hwp + FEC_IEVENT);
-		writel(int_events, fep->hwp + FEC_IEVENT);
+		writel(int_events & (~FEC_ENET_TS_TIMER),
+			fep->hwp + FEC_IEVENT);
+
+		if ((int_events & FEC_ENET_TS_TIMER) && fep->bufdesc_ex) {
+			ret = IRQ_HANDLED;
+			if (fep->hwts_tx_en_ioctl || fep->hwts_rx_en_ioctl)
+				fep->prtc++;
+
+			writel(FEC_ENET_TS_TIMER, fep->hwp + FEC_IEVENT);
+		}
 
 		if (int_events & (FEC_ENET_RXF | FEC_ENET_TXF)) {
 			ret = IRQ_HANDLED;
@@ -1072,12 +1059,6 @@ fec_enet_interrupt(int irq, void *dev_id)
 					fep->hwp + FEC_IMASK);
 				__napi_schedule(&fep->napi);
 			}
-		}
-
-		if ((int_events & FEC_ENET_TS_TIMER) && fep->bufdesc_ex) {
-			ret = IRQ_HANDLED;
-			if (fep->hwts_tx_en_ioctl || fep->hwts_rx_en_ioctl)
-				fep->prtc++;
 		}
 
 		if (int_events & FEC_ENET_MII) {
