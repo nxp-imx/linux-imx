@@ -371,8 +371,8 @@ config BATTERY_GOLDFISH
 	  Goldfish emulator.
 
 config IMX6_USB_CHARGER
-	tristate "Freescale imx6 USB Charger"
-	depends on USB_CHIPIDEA && USB_GADGET
+	bool "Freescale imx6 USB Charger"
+	depends on SOC_IMX6Q || SOC_IMX6SL
 	help
 	  Say Y to enable Freescale imx6 USB Charger Detect.
 
