@@ -1821,9 +1821,6 @@ static int udc_start(struct ci_hdrc *ci)
 	pm_runtime_no_callbacks(&ci->gadget.dev);
 	pm_runtime_enable(&ci->gadget.dev);
 
-	/* Notify vbus connected event if it is existed */
-	ci_handle_vbus_connected(ci);
-
 	return retval;
 
 destroy_eps:
