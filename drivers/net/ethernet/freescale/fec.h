@@ -262,6 +262,23 @@ struct bufdesc_ex {
 #define FALSE                  0
 #define TRUE                   1
 
+/* Interrupt events/masks. */
+#define FEC_ENET_HBERR  ((uint)0x80000000)      /* Heartbeat error */
+#define FEC_ENET_BABR   ((uint)0x40000000)      /* Babbling receiver */
+#define FEC_ENET_BABT   ((uint)0x20000000)      /* Babbling transmitter */
+#define FEC_ENET_GRA    ((uint)0x10000000)      /* Graceful stop complete */
+#define FEC_ENET_TXF    ((uint)0x08000000)      /* Full frame transmitted */
+#define FEC_ENET_TXB    ((uint)0x04000000)      /* A buffer was transmitted */
+#define FEC_ENET_RXF    ((uint)0x02000000)      /* Full frame received */
+#define FEC_ENET_RXB    ((uint)0x01000000)      /* A buffer was received */
+#define FEC_ENET_MII    ((uint)0x00800000)      /* MII interrupt */
+#define FEC_ENET_EBERR  ((uint)0x00400000)      /* SDMA bus error */
+#define FEC_ENET_TS_AVAIL       ((uint)0x00010000)
+#define FEC_ENET_TS_TIMER       ((uint)0x00008000)
+
+#define FEC_DEFAULT_IMASK (FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_MII | FEC_ENET_TS_TIMER)
+#define FEC_RX_DISABLED_IMASK (FEC_DEFAULT_IMASK & (~FEC_ENET_RXF))
+
 /* IEEE 1588 definition */
 #define FEC_T_PERIOD_ONE_SEC           0x3B9ACA00
 
@@ -303,6 +320,8 @@ struct bufdesc_ex {
 #define FEC_PTP_ORIG_COMP              0x15555555
 #define FEC_PTP_SPINNER_2              2
 #define FEC_PTP_SPINNER_4              4
+#define FEC_PTP_TIMEOUT_TS		10
+#define FEC_PTP_TIMEOUT_EVENT		1000
 
 /* PTP standard time representation structure */
 struct ptp_time{
