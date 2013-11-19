@@ -172,32 +172,23 @@ u8 hw_port_test_get(struct ci_hdrc *ci)
 	return hw_read(ci, OP_PORTSC, PORTSC_PTC) >> __ffs(PORTSC_PTC);
 }
 
+static void hw_wait_phy_stable(void)
+{
+	/* The controller needs at least 1ms to reflect PHY's status */
+	usleep_range(2000, 2500);
+}
+
 /* The PHY enters/leaves low power mode */
 static void ci_hdrc_enter_lpm(struct ci_hdrc *ci, bool enable)
 {
 	enum ci_hw_regs reg = ci->hw_bank.lpm ? OP_DEVLC : OP_PORTSC;
 	bool lpm = !!(hw_read(ci, reg, PORTSC_PHCD(ci->hw_bank.lpm)));
 
-	if (enable && !lpm) {
+	if (enable && !lpm)
 		hw_write(ci, reg, PORTSC_PHCD(ci->hw_bank.lpm),
 				PORTSC_PHCD(ci->hw_bank.lpm));
-	} else  if (!enable && lpm) {
-		hw_write(ci, reg, PORTSC_PHCD(ci->hw_bank.lpm),
-				0);
-		/* 
-		 * The controller needs at least 1ms to reflect
-		 * PHY's status, the PHY also needs some time (less
-		 * than 1ms) to leave low power mode.
-		 */
-		usleep_range(1500, 2000);
-	} else if (!enable) {
-		/*
-		 * At wakeup interrupt, the phcd will be cleared by hardware
-		 * automatically, but the controller needs at least 1ms
-		 * to reflect PHY's status.
-		 */
-		usleep_range(1200, 1800);
-	}
+	else if (!enable && lpm)
+		hw_write(ci, reg, PORTSC_PHCD(ci->hw_bank.lpm), 0);
 }
 
 static int hw_device_init(struct ci_hdrc *ci, void __iomem *base)
@@ -516,9 +507,14 @@ static void ci_get_otg_capable(struct ci_hdrc *ci)
 
 static int ci_usb_phy_init(struct ci_hdrc *ci)
 {
+	int ret;
+
 	if (ci->platdata->phy) {
 		ci->transceiver = ci->platdata->phy;
-		return usb_phy_init(ci->transceiver);
+		ret = usb_phy_init(ci->transceiver);
+		if (!ret)
+			hw_wait_phy_stable();
+		return ret;
 	} else {
 		ci->global_phy = true;
 		ci->transceiver = usb_get_phy(USB_PHY_TYPE_USB2);
@@ -641,11 +637,6 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 
 	if (ci->roles[CI_ROLE_HOST] && ci->roles[CI_ROLE_GADGET]) {
 		if (ci->is_otg) {
-			/*
-			 * ID pin needs 1ms debouce time,
-			 * we delay 2ms for safe.
-			 */
-			mdelay(2);
 			ci->role = ci_otg_role(ci);
 			ci_enable_otg_interrupt(ci, OTGSC_IDIE);
 		} else {
@@ -754,6 +745,7 @@ static int ci_controller_resume(struct device *dev)
 	if (ci->transceiver) {
 		usb_phy_set_suspend(ci->transceiver, 0);
 		usb_phy_set_wakeup(ci->transceiver, false);
+		hw_wait_phy_stable();
 	}
 
 	ci->in_lpm = false;
