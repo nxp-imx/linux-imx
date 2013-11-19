@@ -125,6 +125,57 @@ static unsigned int m_calc(unsigned int pfs)
 	return m_calculated;
 }
 
+static int calc_split_resize_coeffs(unsigned int inSize, unsigned int outSize,
+				    unsigned int *resizeCoeff,
+				    unsigned int *downsizeCoeff)
+{
+	uint32_t tempSize;
+	uint32_t tempDownsize;
+
+	if (inSize > 4096) {
+		pr_debug("IC input size(%d) cannot exceed 4096\n",
+			inSize);
+		return -EINVAL;
+	}
+
+	if (outSize > 1024) {
+		pr_debug("IC output size(%d) cannot exceed 1024\n",
+			outSize);
+		return -EINVAL;
+	}
+
+	if ((outSize << 3) < inSize) {
+		pr_debug("IC cannot downsize more than 8:1\n");
+		return -EINVAL;
+	}
+
+	/* Compute downsizing coefficient */
+	/* Output of downsizing unit cannot be more than 1024 */
+	tempDownsize = 0;
+	tempSize = inSize;
+	while (((tempSize > 1024) || (tempSize >= outSize * 2)) &&
+	       (tempDownsize < 2)) {
+		tempSize >>= 1;
+		tempDownsize++;
+	}
+	*downsizeCoeff = tempDownsize;
+
+	/* compute resizing coefficient using the following equation:
+	   resizeCoeff = M*(SI -1)/(SO - 1)
+	   where M = 2^13, SI - input size, SO - output size    */
+	*resizeCoeff = (8192L * (tempSize - 1)) / (outSize - 1);
+	if (*resizeCoeff >= 16384L) {
+		pr_debug("Overflow on IC resize coefficient.\n");
+		return -EINVAL;
+	}
+
+	pr_debug("resizing from %u -> %u pixels, "
+		"downsize=%u, resize=%u.%lu (reg=%u)\n", inSize, outSize,
+		*downsizeCoeff, (*resizeCoeff >= 8192L) ? 1 : 0,
+		((*resizeCoeff & 0x1FFF) * 10000L) / 8192L, *resizeCoeff);
+
+	return 0;
+}
 
 /* Stripe parameters calculator */
 /**************************************************************************
@@ -202,6 +253,8 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 	u64 div; /* result of division */
 
 	unsigned int input_m, input_f, output_m, output_f; /* parameters for upsizing by stripes */
+	unsigned int resize_coeff;
+	unsigned int downsize_coeff;
 
 	status = 0;
 
@@ -292,7 +345,16 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 			left->output_column = 0;
 			right->output_column = onw;
 		}
-	} else { /* independent stripes */
+		if (left->input_width > left->output_width) {
+			if (calc_split_resize_coeffs(left->input_width,
+						     left->output_width,
+						     &resize_coeff,
+						     &downsize_coeff) < 0)
+				return -EINVAL;
+			left->irr = right->irr =
+				(downsize_coeff << 14) | resize_coeff;
+		}
+		} else { /* independent stripes */
 		onw_min = output_frame_width - maximal_stripe_width;
 		/* onw is a multiple of output_f, in the range */
 		/* [max(output_f,output_frame_width-maximal_stripe_width),*/
@@ -363,6 +425,22 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 		right->input_column = left->input_column + inw;
 		left->output_column = 0;
 		right->output_column = onw;
+		if (left->input_width > left->output_width) {
+			if (calc_split_resize_coeffs(left->input_width,
+						     left->output_width,
+						     &resize_coeff,
+						     &downsize_coeff) < 0)
+				return -EINVAL;
+			left->irr = (downsize_coeff << 14) | resize_coeff;
+		}
+		if (right->input_width > right->output_width) {
+			if (calc_split_resize_coeffs(right->input_width,
+						     right->output_width,
+						     &resize_coeff,
+						     &downsize_coeff) < 0)
+				return -EINVAL;
+			right->irr = (downsize_coeff << 14) | resize_coeff;
+		}
 	}
 	return status;
 }

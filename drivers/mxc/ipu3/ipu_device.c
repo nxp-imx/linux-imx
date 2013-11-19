@@ -859,7 +859,9 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 				t->output.format,
 				&left_stripe,
 				&right_stripe);
-		if (ret)
+		if (ret < 0)
+			return IPU_CHECK_ERR_W_DOWNSIZE_OVER;
+		else if (ret)
 			dev_dbg(t->dev, "Warn: no:0x%x,calc_stripes ret:%d\n",
 				 t->task_no, ret);
 		t->set.sp_setting.iw = left_stripe.input_width;
@@ -902,7 +904,9 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 				t->output.format,
 				&up_stripe,
 				&down_stripe);
-		if (ret)
+		if (ret < 0)
+			return IPU_CHECK_ERR_H_DOWNSIZE_OVER;
+		else if (ret)
 			dev_err(t->dev, "Warn: no:0x%x,calc_stripes ret:%d\n",
 				 t->task_no, ret);
 		t->set.sp_setting.ih = up_stripe.input_width;
