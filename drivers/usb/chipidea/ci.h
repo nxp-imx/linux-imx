@@ -138,6 +138,8 @@ struct hw_bank {
  * @imx28_write_fix: for fsl imx28 write
  * @supports_runtime_pm: if runtime pm is supported
  * @in_lpm: if the core in low power mode
+ * @wakeup_int: if wakeup interrupt occur
+ * @timer: timer to delay clock closing
  */
 struct ci_hdrc {
 	struct device			*dev;
@@ -181,6 +183,7 @@ struct ci_hdrc {
 	bool				supports_runtime_pm;
 	bool				in_lpm;
 	bool				wakeup_int;
+	struct timer_list		timer;
 };
 
 static inline struct ci_role_driver *ci_role(struct ci_hdrc *ci)
