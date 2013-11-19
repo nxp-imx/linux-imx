@@ -441,8 +441,6 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.buf_size = CH_SYNC_BUF_SZ,
 	.on = ATOMIC_INIT(0),
 	.opencnt = ATOMIC_INIT(0),
-	.rx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[0].rx_wq),
-	.tx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[0].tx_wq),
 	.event_lock = __SPIN_LOCK_UNLOCKED(mlb_devinfo[0].event_lock),
 	},
 	{
@@ -474,8 +472,6 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.buf_size = CH_CTRL_BUF_SZ,
 	.on = ATOMIC_INIT(0),
 	.opencnt = ATOMIC_INIT(0),
-	.rx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[1].rx_wq),
-	.tx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[1].tx_wq),
 	.event_lock = __SPIN_LOCK_UNLOCKED(mlb_devinfo[1].event_lock),
 	},
 	{
@@ -507,8 +503,6 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.buf_size = CH_ASYNC_BUF_SZ,
 	.on = ATOMIC_INIT(0),
 	.opencnt = ATOMIC_INIT(0),
-	.rx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[2].rx_wq),
-	.tx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[2].tx_wq),
 	.event_lock = __SPIN_LOCK_UNLOCKED(mlb_devinfo[2].event_lock),
 	},
 	{
@@ -540,8 +534,6 @@ static struct mlb_dev_info mlb_devinfo[MLB_MINOR_DEVICES] = {
 	.buf_size = CH_ISOC_BUF_SZ,
 	.on = ATOMIC_INIT(0),
 	.opencnt = ATOMIC_INIT(0),
-	.rx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[3].rx_wq),
-	.tx_wq = __WAIT_QUEUE_HEAD_INITIALIZER(mlb_devinfo[3].tx_wq),
 	.event_lock = __SPIN_LOCK_UNLOCKED(mlb_devinfo[3].event_lock),
 	.isoc_blksz = CH_ISOC_BLK_SIZE_188,
 	},
@@ -1556,6 +1548,22 @@ static s32 mlb150_trans_complete_check(struct mlb_dev_info *pdevinfo)
 }
 
 /*
+ * Enable/Disable the MLB IRQ
+ */
+static void mxc_mlb150_irq_enable(struct mlb_data *drvdata, u8 enable)
+{
+	if (enable) {
+		enable_irq(drvdata->irq_ahb0);
+		enable_irq(drvdata->irq_ahb1);
+		enable_irq(drvdata->irq_mlb);
+	} else {
+		disable_irq(drvdata->irq_ahb0);
+		disable_irq(drvdata->irq_ahb1);
+		disable_irq(drvdata->irq_mlb);
+	}
+}
+
+/*
  * Enable the MLB channel
  */
 static s32 mlb_channel_enable(struct mlb_data *drvdata,
@@ -1967,8 +1975,12 @@ static int mxc_mlb150_open(struct inode *inode, struct file *filp)
 	pdevinfo->ex_event = 0;
 	pdevinfo->tx_ok = 0;
 
+	init_waitqueue_head(&pdevinfo->rx_wq);
+	init_waitqueue_head(&pdevinfo->tx_wq);
+
 	drvdata = container_of(inode->i_cdev, struct mlb_data, cdev);
 	drvdata->devinfo = pdevinfo;
+	mxc_mlb150_irq_enable(drvdata, 1);
 	filp->private_data = drvdata;
 
 	return 0;
@@ -1981,6 +1993,7 @@ static int mxc_mlb150_release(struct inode *inode, struct file *filp)
 	struct mlb_dev_info *pdevinfo = drvdata->devinfo;
 
 	minor = MINOR(inode->i_rdev);
+	mxc_mlb150_irq_enable(drvdata, 0);
 
 #ifdef DEBUG
 	mlb150_dev_dump_reg();
@@ -2633,6 +2646,7 @@ static int mxc_mlb150_probe(struct platform_device *pdev)
 	}
 
 	drvdata->devinfo = NULL;
+	mxc_mlb150_irq_enable(drvdata, 0);
 	platform_set_drvdata(pdev, drvdata);
 	return 0;
 
