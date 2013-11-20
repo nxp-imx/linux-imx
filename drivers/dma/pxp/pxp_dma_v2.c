@@ -478,6 +478,8 @@ static void pxp_set_oln(int layer_no, struct pxps *pxp)
 	struct pxp_layer_param *olparams_data = &pxp_conf->ol_param[layer_no];
 	dma_addr_t phys_addr = olparams_data->paddr;
 	__raw_writel(phys_addr, pxp->base + HW_PXP_AS_BUF);
+	u32 pitch = olparams_data->stride ? olparams_data->stride :
+					    olparams_data->width;
 
 	/* Fixme */
 	if (olparams_data->width == 0 && olparams_data->height == 0) {
@@ -505,10 +507,10 @@ static void pxp_set_oln(int layer_no, struct pxps *pxp)
 
 	if ((olparams_data->pixel_fmt == PXP_PIX_FMT_BGRA32) |
 		 (olparams_data->pixel_fmt == PXP_PIX_FMT_RGB32)) {
-		__raw_writel(olparams_data->width << 2,
+		__raw_writel(pitch << 2,
 				pxp->base + HW_PXP_AS_PITCH);
 	} else if (olparams_data->pixel_fmt == PXP_PIX_FMT_RGB565) {
-		__raw_writel(olparams_data->width << 1,
+		__raw_writel(pitch << 1,
 				pxp->base + HW_PXP_AS_PITCH);
 	} else {
 		__raw_writel(0, pxp->base + HW_PXP_AS_PITCH);
@@ -886,6 +888,8 @@ static void pxp_set_s0buf(struct pxps *pxp)
 	dma_addr_t Y, U, V;
 	dma_addr_t Y1, U1, V1;
 	u32 offset, bpp = 1;
+	u32 pitch = s0_params->stride ? s0_params->stride :
+					s0_params->width;
 
 	Y = s0_params->paddr;
 
@@ -937,22 +941,22 @@ static void pxp_set_s0buf(struct pxps *pxp)
 	    s0_params->pixel_fmt == PXP_PIX_FMT_NV21 ||
 	    s0_params->pixel_fmt == PXP_PIX_FMT_NV16 ||
 	    s0_params->pixel_fmt == PXP_PIX_FMT_NV61) {
-		__raw_writel(s0_params->width, pxp->base + HW_PXP_PS_PITCH);
+		__raw_writel(pitch, pxp->base + HW_PXP_PS_PITCH);
 	}
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_GY04)
-		__raw_writel(s0_params->width >> 1,
+		__raw_writel(pitch >> 1,
 				pxp->base + HW_PXP_PS_PITCH);
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB32)
-		__raw_writel(s0_params->width << 2,
+		__raw_writel(pitch << 2,
 				pxp->base + HW_PXP_PS_PITCH);
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_UYVY ||
 		 s0_params->pixel_fmt == PXP_PIX_FMT_YUYV ||
 		 s0_params->pixel_fmt == PXP_PIX_FMT_VYUY ||
 		 s0_params->pixel_fmt == PXP_PIX_FMT_YVYU)
-		__raw_writel(s0_params->width << 1,
+		__raw_writel(pitch << 1,
 				pxp->base + HW_PXP_PS_PITCH);
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB565)
-		__raw_writel(s0_params->width << 1,
+		__raw_writel(pitch << 1,
 				pxp->base + HW_PXP_PS_PITCH);
 	else
 		__raw_writel(0, pxp->base + HW_PXP_PS_PITCH);
