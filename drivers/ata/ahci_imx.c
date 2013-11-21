@@ -26,6 +26,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/mfd/syscon/imx6q-iomuxc-gpr.h>
 #include <linux/libata.h>
+#include <linux/busfreq-imx6.h>
 #include "ahci.h"
 
 enum {
@@ -76,6 +77,7 @@ static void ahci_imx_error_handler(struct ata_port *ap)
 			IMX6Q_GPR13_SATA_MPLL_CLK_EN,
 			!IMX6Q_GPR13_SATA_MPLL_CLK_EN);
 	clk_disable_unprepare(imxpriv->sata_ref_clk);
+	release_bus_freq(BUS_FREQ_HIGH);
 	imxpriv->no_device = true;
 }
 
@@ -109,6 +111,7 @@ static int imx6q_sata_init(struct device *dev, void __iomem *mmio)
 		dev_err(dev, "prepare-enable sata_ref clock err:%d\n", ret);
 		return ret;
 	}
+	request_bus_freq(BUS_FREQ_HIGH);
 
 	/*
 	 * set PHY Paremeters, two steps to configure the GPR13,
@@ -165,9 +168,13 @@ static void imx6q_sata_exit(struct device *dev)
 {
 	struct imx_ahci_priv *imxpriv =  dev_get_drvdata(dev->parent);
 
-	regmap_update_bits(imxpriv->gpr, 0x34, IMX6Q_GPR13_SATA_MPLL_CLK_EN,
-			!IMX6Q_GPR13_SATA_MPLL_CLK_EN);
-	clk_disable_unprepare(imxpriv->sata_ref_clk);
+	if (!imxpriv->no_device) {
+		regmap_update_bits(imxpriv->gpr, 0x34,
+				IMX6Q_GPR13_SATA_MPLL_CLK_EN,
+				!IMX6Q_GPR13_SATA_MPLL_CLK_EN);
+		clk_disable_unprepare(imxpriv->sata_ref_clk);
+		release_bus_freq(BUS_FREQ_HIGH);
+	}
 }
 
 static int imx_ahci_suspend(struct device *dev)
@@ -183,6 +190,7 @@ static int imx_ahci_suspend(struct device *dev)
 				IMX6Q_GPR13_SATA_MPLL_CLK_EN,
 				!IMX6Q_GPR13_SATA_MPLL_CLK_EN);
 		clk_disable_unprepare(imxpriv->sata_ref_clk);
+		release_bus_freq(BUS_FREQ_HIGH);
 	}
 
 	return 0;
@@ -199,6 +207,7 @@ static int imx_ahci_resume(struct device *dev)
 			dev_err(dev, "pre-enable sata_ref clock err:%d\n", ret);
 			return ret;
 		}
+		request_bus_freq(BUS_FREQ_HIGH);
 
 		regmap_update_bits(imxpriv->gpr, IOMUXC_GPR13,
 				IMX6Q_GPR13_SATA_MPLL_CLK_EN,
