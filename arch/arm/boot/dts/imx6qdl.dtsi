@@ -30,6 +30,8 @@
 		serial2 = &uart3;
 		serial3 = &uart4;
 		serial4 = &uart5;
+		usbphy0 = &usbphy1;
+		usbphy1 = &usbphy2;
 	};
 
 	intc: interrupt-controller@00a01000 {

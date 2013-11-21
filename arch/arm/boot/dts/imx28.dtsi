@@ -29,6 +29,8 @@
 		serial4 = &auart4;
 		ethernet0 = &mac0;
 		ethernet1 = &mac1;
+		usbphy0 = &usbphy0;
+		usbphy1 = &usbphy1;
 	};
 
 	cpus {

@@ -20,6 +20,7 @@
 		gpio2 = &gpio2;
 		serial0 = &auart0;
 		serial1 = &auart1;
+		usbphy0 = &usbphy0;
 	};
 
 	cpus {
