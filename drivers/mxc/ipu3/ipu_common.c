@@ -588,8 +588,8 @@ void ipu_dump_registers(struct ipu_soc *ipu)
 int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel_params_t *params)
 {
 	int ret = 0;
-	uint32_t ipu_conf;
-	uint32_t reg;
+	bool bad_pixfmt;
+	uint32_t ipu_conf, reg, in_g_pixel_fmt, sec_dma;
 
 	dev_dbg(ipu->dev, "init channel = %d\n", IPU_CHAN_ID(channel));
 
@@ -743,16 +743,30 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 		_ipu_ic_init_prpvf(ipu, params, true);
 		break;
 	case MEM_PRP_VF_MEM:
-		ipu->ic_use_count++;
+		if (params->mem_prp_vf_mem.graphics_combine_en) {
+			sec_dma = channel_2_dma(channel, IPU_GRAPH_IN_BUFFER);
+			in_g_pixel_fmt = params->mem_prp_vf_mem.in_g_pixel_fmt;
+			bad_pixfmt =
+				_ipu_ch_param_bad_alpha_pos(in_g_pixel_fmt);
+
+			if (params->mem_prp_vf_mem.alpha_chan_en) {
+				if (bad_pixfmt) {
+					dev_err(ipu->dev, "bad pixel format "
+						"for graphics plane from "
+						"ch%d\n", sec_dma);
+					ret = -EINVAL;
+					goto err;
+				}
+				ipu->thrd_chan_en[IPU_CHAN_ID(channel)] = true;
+			}
+			ipu->sec_chan_en[IPU_CHAN_ID(channel)] = true;
+		}
+
 		reg = ipu_cm_read(ipu, IPU_FS_PROC_FLOW1);
 		ipu_cm_write(ipu, reg | FS_VF_IN_VALID, IPU_FS_PROC_FLOW1);
 
-		if (params->mem_prp_vf_mem.graphics_combine_en)
-			ipu->sec_chan_en[IPU_CHAN_ID(channel)] = true;
-		if (params->mem_prp_vf_mem.alpha_chan_en)
-			ipu->thrd_chan_en[IPU_CHAN_ID(channel)] = true;
-
 		_ipu_ic_init_prpvf(ipu, params, false);
+		ipu->ic_use_count++;
 		break;
 	case MEM_VDI_PRP_VF_MEM:
 		if ((ipu->using_ic_dirct_ch == CSI_PRP_VF_MEM) ||
@@ -809,10 +823,26 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 		_ipu_ic_init_rotate_enc(ipu, params);
 		break;
 	case MEM_PP_MEM:
-		if (params->mem_pp_mem.graphics_combine_en)
+		if (params->mem_pp_mem.graphics_combine_en) {
+			sec_dma = channel_2_dma(channel, IPU_GRAPH_IN_BUFFER);
+			in_g_pixel_fmt = params->mem_pp_mem.in_g_pixel_fmt;
+			bad_pixfmt =
+				_ipu_ch_param_bad_alpha_pos(in_g_pixel_fmt);
+
+			if (params->mem_pp_mem.alpha_chan_en) {
+				if (bad_pixfmt) {
+					dev_err(ipu->dev, "bad pixel format "
+						"for graphics plane from "
+						"ch%d\n", sec_dma);
+					ret = -EINVAL;
+					goto err;
+				}
+				ipu->thrd_chan_en[IPU_CHAN_ID(channel)] = true;
+			}
+
 			ipu->sec_chan_en[IPU_CHAN_ID(channel)] = true;
-		if (params->mem_pp_mem.alpha_chan_en)
-			ipu->thrd_chan_en[IPU_CHAN_ID(channel)] = true;
+		}
+
 		_ipu_ic_init_pp(ipu, params);
 		ipu->ic_use_count++;
 		break;
@@ -3013,6 +3043,12 @@ bool ipu_pixel_format_has_alpha(uint32_t fmt)
 	}
 	return false;
 }
+
+bool ipu_ch_param_bad_alpha_pos(uint32_t pixel_fmt)
+{
+	return _ipu_ch_param_bad_alpha_pos(pixel_fmt);
+}
+EXPORT_SYMBOL(ipu_ch_param_bad_alpha_pos);
 
 #ifdef CONFIG_PM
 static int ipu_suspend(struct device *dev)
