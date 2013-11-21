@@ -739,7 +739,7 @@ static int mxsfb_pan_display(struct fb_var_screeninfo *var,
 	unsigned offset;
 
 	if (host->cur_blank != FB_BLANK_UNBLANK) {
-		dev_err(fb_info->device, "can't do pan display when fb "
+		dev_dbg(fb_info->device, "can't do pan display when fb "
 			"is blank\n");
 		return -EINVAL;
 	}
