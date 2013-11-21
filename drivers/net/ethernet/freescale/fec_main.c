@@ -960,13 +960,13 @@ fec_enet_rx(struct net_device *ndev, int budget)
 		 * include that when passing upstream as it messes up
 		 * bridging applications.
 		 */
-		skb = netdev_alloc_skb(ndev, pkt_len - 4 + NET_IP_ALIGN);
+		skb = __netdev_alloc_skb_ip_align(ndev, pkt_len - 4,
+			GFP_ATOMIC | __GFP_NOWARN);
 
 		if (unlikely(!skb)) {
 			ndev->stats.rx_dropped++;
 		} else {
 			int payload_offset = (2 * ETH_ALEN);
-			skb_reserve(skb, NET_IP_ALIGN);
 			skb_put(skb, pkt_len - 4);	/* Make room */
 
 			/* Extract the frame data without the VLAN header. */
