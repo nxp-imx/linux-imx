@@ -13,6 +13,7 @@
 
 #include <linux/module.h>
 #include <linux/of_platform.h>
+#include <linux/of_i2c.h>
 #include <sound/soc.h>
 
 #include "imx-audmux.h"
@@ -95,6 +96,8 @@ static int imx_si476x_probe(struct platform_device *pdev)
 	struct snd_soc_card *card = &snd_soc_card_imx_3stack;
 	struct device_node *ssi_np, *np = pdev->dev.of_node;
 	struct platform_device *ssi_pdev;
+	struct i2c_client *fm_dev;
+	struct device_node *fm_np;
 	int int_port, ext_port, ret;
 
 	ret = of_property_read_u32(np, "mux-int-port", &int_port);
@@ -124,6 +127,20 @@ static int imx_si476x_probe(struct platform_device *pdev)
 		goto end;
 	}
 
+	fm_np = of_parse_phandle(pdev->dev.of_node, "fm-controller", 0);
+	if (!fm_np) {
+		dev_err(&pdev->dev, "phandle missing or invalid\n");
+		ret = -EINVAL;
+		goto end;
+	}
+
+	fm_dev = of_find_i2c_device_by_node(fm_np);
+	if (!fm_dev || !fm_dev->driver) {
+		dev_err(&pdev->dev, "failed to find FM platform device\n");
+		ret = -EINVAL;
+		goto end;
+	}
+
 	card->dev = &pdev->dev;
 	card->dai_link->cpu_dai_name = dev_name(&ssi_pdev->dev);
 	card->dai_link->platform_of_node = ssi_np;
@@ -137,6 +154,8 @@ static int imx_si476x_probe(struct platform_device *pdev)
 end:
 	if (ssi_np)
 		of_node_put(ssi_np);
+	if (fm_np)
+		of_node_put(fm_np);
 
 	return ret;
 }
