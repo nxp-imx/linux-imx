@@ -477,9 +477,10 @@ static void pxp_set_oln(int layer_no, struct pxps *pxp)
 	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
 	struct pxp_layer_param *olparams_data = &pxp_conf->ol_param[layer_no];
 	dma_addr_t phys_addr = olparams_data->paddr;
-	__raw_writel(phys_addr, pxp->base + HW_PXP_AS_BUF);
 	u32 pitch = olparams_data->stride ? olparams_data->stride :
 					    olparams_data->width;
+
+	__raw_writel(phys_addr, pxp->base + HW_PXP_AS_BUF);
 
 	/* Fixme */
 	if (olparams_data->width == 0 && olparams_data->height == 0) {
@@ -1114,9 +1115,6 @@ static void pxpdma_dostart_work(struct pxps *pxp)
 	struct pxp_channel *pxp_chan = NULL;
 	unsigned long flags, flags1;
 
-	while (__raw_readl(pxp->base + HW_PXP_CTRL) & BM_PXP_CTRL_ENABLE)
-		;
-
 	spin_lock_irqsave(&pxp->lock, flags);
 	if (list_empty(&head)) {
 		pxp->pxp_ongoing = 0;
@@ -1323,7 +1321,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	list_splice_init(&desc->tx_list, &pxp_chan->free_list);
 	list_move(&desc->list, &pxp_chan->free_list);
 
-	wake_up(&pxp->done);
+	wake_up_interruptible(&pxp->done);
 	pxp->pxp_ongoing = 0;
 	mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(timeout_in_ms));
 
@@ -1439,6 +1437,7 @@ static void pxp_issue_pending(struct dma_chan *chan)
 	struct pxp_dma *pxp_dma = to_pxp_dma(chan->device);
 	struct pxps *pxp = to_pxp(pxp_dma);
 	unsigned long flags0, flags;
+	int ret;
 
 	spin_lock_irqsave(&pxp->lock, flags0);
 	spin_lock_irqsave(&pxp_chan->lock, flags);
@@ -1456,11 +1455,10 @@ static void pxp_issue_pending(struct dma_chan *chan)
 	spin_unlock_irqrestore(&pxp->lock, flags0);
 
 	pxp_clk_enable(pxp);
-	if (!wait_event_interruptible_timeout(pxp->done, PXP_WAITCON, 2 * HZ) ||
-		signal_pending(current)) {
-		pxp_clk_disable(pxp);
-		return;
-	}
+again:
+	ret = wait_event_interruptible_exclusive(pxp->done, PXP_WAITCON);
+	if (ret < 0)
+		goto again;
 
 	spin_lock_irqsave(&pxp->lock, flags);
 	pxp->pxp_ongoing = 1;

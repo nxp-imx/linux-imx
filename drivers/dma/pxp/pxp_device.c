@@ -433,12 +433,10 @@ static long pxp_device_ioctl(struct file *filp,
 			if (chan_id < 0 || chan_id >= NR_PXP_VIRT_CHANNEL)
 				return -ENODEV;
 
-			if (!wait_event_interruptible_timeout
+			ret = wait_event_interruptible
 			    (irq_info[chan_id].waitq,
-			     (irq_info[chan_id].irq_pending != 0), 2 * HZ)) {
-				pr_warning("pxp blocking: timeout.\n");
-				return -ETIME;
-			} else if (signal_pending(current)) {
+			     (irq_info[chan_id].irq_pending != 0));
+			if (ret < 0) {
 				printk(KERN_WARNING
 				       "pxp interrupt received.\n");
 				return -ERESTARTSYS;
