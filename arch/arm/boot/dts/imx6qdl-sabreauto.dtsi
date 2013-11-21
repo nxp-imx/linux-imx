@@ -210,6 +210,7 @@
 		model = "imx-radio-si4763";
 
 		ssi-controller = <&ssi2>;
+		fm-controller = <&si4763>;
 		mux-int-port = <2>;
 		mux-ext-port = <5>;
 	};
