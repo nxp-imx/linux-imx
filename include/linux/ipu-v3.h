@@ -728,6 +728,8 @@ void ipu_csi_set_window_pos(struct ipu_soc *ipu, uint32_t left, uint32_t top, ui
 
 uint32_t bytes_per_pixel(uint32_t fmt);
 
+bool ipu_ch_param_bad_alpha_pos(uint32_t fmt);
+
 struct ipuv3_fb_platform_data {
 	char				disp_dev[32];
 	u32				interface_pix_fmt;

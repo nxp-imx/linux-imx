@@ -898,4 +898,24 @@ static inline void _ipu_ch_param_set_bandmode(struct ipu_soc *ipu,
 	dev_dbg(ipu->dev, "BNDM 0x%x, ",
 		 ipu_ch_param_read_field_io(ipu_ch_param_addr(ipu, ch), 0, 114, 3));
 }
+
+/*
+ * The IPUv3 IDMAC has a bug to read 32bpp pixels from a graphics plane
+ * whose alpha component is at the most significant 8 bits. The bug only
+ * impacts on cases in which the relevant separate alpha channel is enabled.
+ *
+ * Return true on bad alpha component position, otherwise, return false.
+ */
+static inline bool _ipu_ch_param_bad_alpha_pos(uint32_t pixel_fmt)
+{
+	switch (pixel_fmt) {
+	case IPU_PIX_FMT_BGRA32:
+	case IPU_PIX_FMT_BGR32:
+	case IPU_PIX_FMT_RGBA32:
+	case IPU_PIX_FMT_RGB32:
+		return true;
+	}
+
+	return false;
+}
 #endif
