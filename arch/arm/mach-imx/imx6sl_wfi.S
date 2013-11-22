@@ -420,18 +420,20 @@ podf_loop:
 	b	do_wfi
 
 do_audio_arm_clk:
-	/* ARM is from PLL2_PFD2_400M here.
+	/*
+	 * ARM is from PLL2_PFD2_400M here.
 	 * Switch ARM to bypassed PLL1.
 	 */
 	ldr	r6, [r2, #0xC]
 	bic	r6, r6, #0x4
 	str	r6, [r2, #0xC]
 
-	/* Set the ARM_PODF to divide by 2
-	* as IPG is at 4MHz, we cannot run
-	* ARM_CLK above 9.6MHz when
-	* system enters WAIT mode.
-	*/
+	/*
+	 * Set the ARM_PODF to divide by 2
+	 * as IPG is at 4MHz, we cannot run
+	 * ARM_CLK above 9.6MHz when
+	 * system enters WAIT mode.
+	 */
 	ldr	r6, =0x2
 	str	r6, [r2, #0x10]
 

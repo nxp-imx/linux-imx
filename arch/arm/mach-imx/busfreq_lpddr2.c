@@ -72,13 +72,21 @@ int update_lpddr2_freq(int ddr_rate)
 	if (ddr_rate == curr_ddr_rate)
 		return 0;
 
+	dev_dbg(busfreq_dev, "\nBus freq set to %d start...\n", ddr_rate);
+
+	/*
+	 * Flush the TLB, to ensure no TLB maintenance occurs
+	 * when DDR is in self-refresh.
+	 */
+	local_flush_tlb_all();
+	/* Now change DDR frequency. */
 	mx6_change_lpddr2_freq(ddr_rate,
 		(low_bus_freq_mode | ultra_low_bus_freq_mode),
 		reg_addrs);
 
 	curr_ddr_rate = ddr_rate;
 
-	dev_dbg(busfreq_dev, "\nBus freq set to %d start...\n", ddr_rate);
+	dev_dbg(busfreq_dev, "\nBus freq set to %d done...\n", ddr_rate);
 
 	return 0;
 }
