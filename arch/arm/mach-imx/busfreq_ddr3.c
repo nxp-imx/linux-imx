@@ -229,6 +229,11 @@ int update_ddr_freq(int ddr_rate)
 	while (cpus_in_wfe != online_cpus)
 		udelay(5);
 
+	/*
+	 * Flush the TLB, to ensure no TLB maintenance occurs
+	 * when DDR is in self-refresh.
+	 */
+	local_flush_tlb_all();
 	/* Now we can change the DDR frequency. */
 	mx6_change_ddr_freq(ddr_rate, iram_ddr_settings,
 		dll_off, iram_iomux_settings);
@@ -288,7 +293,7 @@ int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 		return -EINVAL;
 	}
 	ccm_base = of_iomap(node, 0);
-	WARN(!mmdc_base, "unable to map mmdc registers\n");
+	WARN(!ccm_base, "unable to map mmdc registers\n");
 
 	node = of_find_compatible_node(NULL, NULL, "arm,pl310-cache");
 	if (!node) {
@@ -296,7 +301,7 @@ int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 		return -EINVAL;
 	}
 	l2_base = of_iomap(node, 0);
-	WARN(!mmdc_base, "unable to map mmdc registers\n");
+	WARN(!ccm_base, "unable to map mmdc registers\n");
 
 	node = NULL;
 	node = of_find_compatible_node(NULL, NULL, "arm,cortex-a9-gic");
