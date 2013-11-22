@@ -737,10 +737,7 @@ static void asrc_output_task_worker(struct work_struct *w)
 	enum asrc_pair_index index = params->index;
 	unsigned long lock_flags;
 
-	if (!params->pair_hold)
-		return;
-
-	if (!wait_for_completion_interruptible_timeout(&params->output_complete, HZ)) {
+	if (!wait_for_completion_interruptible_timeout(&params->output_complete, HZ / 10)) {
 		pair_err("output dma task timeout\n");
 		return;
 	}
@@ -748,6 +745,10 @@ static void asrc_output_task_worker(struct work_struct *w)
 	init_completion(&params->output_complete);
 
 	spin_lock_irqsave(&pair_lock, lock_flags);
+	if (!params->pair_hold) {
+		spin_unlock_irqrestore(&pair_lock, lock_flags);
+		return;
+	}
 	asrc_read_output_FIFO(params);
 	spin_unlock_irqrestore(&pair_lock, lock_flags);
 
