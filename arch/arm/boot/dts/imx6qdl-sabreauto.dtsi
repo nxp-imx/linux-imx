@@ -651,7 +651,6 @@
 	pinctrl-0 = <&pinctrl_usdhc1_1>;
 	cd-gpios = <&gpio1 1 0>;
 	wp-gpios = <&gpio5 20 0>;
-	bus-width = <8>;
 	no-1-8-v;
 	status = "okay";
 };
