@@ -16,6 +16,7 @@
 #include <asm/fncpy.h>
 #include <asm/mach/map.h>
 #include <asm/proc-fns.h>
+#include <asm/tlb.h>
 
 #include "common.h"
 #include "cpuidle.h"
@@ -37,14 +38,19 @@ static int imx6sl_enter_wait(struct cpuidle_device *dev,
 			    struct cpuidle_driver *drv, int index)
 {
 	imx6_set_lpm(WAIT_UNCLOCKED);
-	if (ultra_low_bus_freq_mode || audio_bus_freq_mode)
+	if (ultra_low_bus_freq_mode || audio_bus_freq_mode) {
+		/*
+		 * Flush the TLB, to ensure no TLB maintenance occurs
+		 * when DDR is in self-refresh.
+		 */
+		local_flush_tlb_all();
 		/*
 		 * Run WFI code from IRAM.
 		 * Drop the DDR freq to 1MHz and AHB to 3MHz
 		 * Also float DDR IO pads.
 		 */
 		imx6sl_wfi_in_iram_fn(wfi_iram_base, iomux_base, reg_addrs, audio_bus_freq_mode);
-	else {
+	} else {
 		imx6sl_set_wait_clk(true);
 		cpu_do_idle();
 		imx6sl_set_wait_clk(false);
