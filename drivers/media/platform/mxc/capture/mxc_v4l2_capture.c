@@ -44,7 +44,6 @@
 #include "ipu_prp_sw.h"
 
 #define init_MUTEX(sem)         sema_init(sem, 1)
-#define MXC_SENSOR_NUM 2
 
 static struct platform_device_id imx_v4l2_devtype[] = {
 	{
@@ -3055,7 +3054,7 @@ static void mxc_v4l2_master_detach(struct v4l2_int_device *slave)
 			/* Move all the sensors behind this
 			 * sensor one step forward
 			 */
-			for (; i < cam->sensor_index - 1; i++)
+			for (; i <= MXC_SENSOR_NUM - 2; i++)
 				cam->all_sensors[i] = cam->all_sensors[i+1];
 			break;
 		}

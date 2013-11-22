@@ -41,6 +41,7 @@
 
 
 #define FRAME_NUM 10
+#define MXC_SENSOR_NUM 2
 
 enum imx_v4l2_devtype {
 	IMX5_V4L2,
@@ -213,7 +214,7 @@ typedef struct _cam_data {
 
 	/* camera sensor interface */
 	struct camera_sensor *cam_sensor;	/* old version */
-	struct v4l2_int_device *all_sensors[2];
+	struct v4l2_int_device *all_sensors[MXC_SENSOR_NUM];
 	struct v4l2_int_device *sensor;
 	struct v4l2_int_device *self;
 	int sensor_index;
