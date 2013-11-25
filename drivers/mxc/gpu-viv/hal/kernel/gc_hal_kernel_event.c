@@ -776,13 +776,13 @@ gckEVENT_GetEvent(
         /* Increment the wait timer. */
         timer += 1;
 
-        if (timer == gcdGPU_TIMEOUT)
+        if (timer == Event->kernel->timeOut)
         {
             /* Try to call any outstanding events. */
             gcmkONERROR(gckHARDWARE_Interrupt(Event->kernel->hardware,
                                               gcvTRUE));
         }
-        else if (timer > gcdGPU_TIMEOUT)
+        else if (timer > Event->kernel->timeOut)
         {
             gcmkTRACE_N(
                 gcvLEVEL_ERROR,
