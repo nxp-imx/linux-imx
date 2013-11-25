@@ -1516,12 +1516,12 @@ gckKERNEL_Dispatch(
                         if (hardware)
                         {
                             /* This signal is bound to a hardware,
-                            ** so the timeout is limited by gcdGPU_TIMEOUT.
+                            ** so the timeout is limited by Kernel->timeOut.
                             */
                             timer += gcdGPU_ADVANCETIMER;
                         }
 
-                        if (timer >= gcdGPU_TIMEOUT)
+                        if (timer >= Kernel->timeOut)
                         {
                             gcmkONERROR(
                                 gckOS_Broadcast(Kernel->os,
