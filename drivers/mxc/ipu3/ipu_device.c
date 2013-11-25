@@ -943,6 +943,7 @@ static int check_task(struct ipu_task_entry *t)
 	int ret = IPU_CHECK_OK;
 	int timeout;
 	bool vdi_split = false;
+	int ocw, och;
 
 	if ((IPU_PIX_FMT_TILED_NV12 == t->overlay.format) ||
 		(IPU_PIX_FMT_TILED_NV12F == t->overlay.format) ||
@@ -979,12 +980,25 @@ static int check_task(struct ipu_task_entry *t)
 				&t->set.o_off, &t->set.o_uoff,
 				&t->set.o_voff, &t->set.ostride);
 
-	if (t->output.crop.w * 8 <= t->input.crop.w) {
+	if (t->output.rotate >= IPU_ROTATE_90_RIGHT) {
+		/*
+		 * Cache output width and height and
+		 * swap them so that we may check
+		 * downsize overflow correctly.
+		 */
+		ocw = t->output.crop.h;
+		och = t->output.crop.w;
+	} else {
+		ocw = t->output.crop.w;
+		och = t->output.crop.h;
+	}
+
+	if (ocw * 8 <= t->input.crop.w) {
 		ret = IPU_CHECK_ERR_W_DOWNSIZE_OVER;
 		goto done;
 	}
 
-	if (t->output.crop.h * 8 <= t->input.crop.h) {
+	if (och * 8 <= t->input.crop.h) {
 		ret = IPU_CHECK_ERR_H_DOWNSIZE_OVER;
 		goto done;
 	}
@@ -1019,14 +1033,15 @@ static int check_task(struct ipu_task_entry *t)
 			ret = IPU_CHECK_ERR_OVERLAY_CROP;
 			goto done;
 		} else {
-			int ow = t->output.crop.w;
-			int oh = t->output.crop.h;
+			ocw = t->output.crop.w;
+			och = t->output.crop.h;
 
 			if (t->output.rotate >= IPU_ROTATE_90_RIGHT) {
-				ow = t->output.crop.h;
-				oh = t->output.crop.w;
+				ocw = t->output.crop.h;
+				och = t->output.crop.w;
 			}
-			if ((t->overlay.crop.w != ow) || (t->overlay.crop.h != oh)) {
+			if ((t->overlay.crop.w != ocw) ||
+			    (t->overlay.crop.h != och)) {
 				ret = IPU_CHECK_ERR_OV_OUT_NO_FIT;
 				goto done;
 			}
