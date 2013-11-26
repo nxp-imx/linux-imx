@@ -1,7 +1,7 @@
 /*
  * drivers/net/fec_1588.h
  *
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -89,6 +89,8 @@
 #define FEC_PTP_ORIG_COMP		0x15555555
 #define FEC_PTP_SPINNER_2		2
 #define FEC_PTP_SPINNER_4		4
+#define FEC_PTP_TIMEOUT_TS		10
+#define FEC_PTP_TIMEOUT_EVENT		1000
 
 /* PTP standard time representation structure */
 struct ptp_time{
@@ -167,6 +169,7 @@ struct fec_ptp_private {
 	spinlock_t cnt_lock;
 
 	u64	prtc;
+	bool    prtc_acc_flag;
 	u8	ptp_active;
 	u8	ptp_slave;
 	struct circ_buf	txstamp;
