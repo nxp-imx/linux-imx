@@ -40,6 +40,7 @@
  */
 
 #include <linux/busfreq-imx6.h>
+#include <linux/console.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/of_device.h>
@@ -198,6 +199,7 @@ struct mxsfb_info {
 	struct completion vsync_complete;
 	struct semaphore flip_sem;
 	int cur_blank;
+	int restore_blank;
 };
 
 #define mxsfb_is_v3(host) (host->devdata->ipversion == 3)
@@ -1298,8 +1300,42 @@ static int mxsfb_runtime_resume(struct device *dev)
 #define	mxsfb_runtime_resume	NULL
 #endif
 
+#ifdef CONFIG_PM
+static int mxsfb_suspend(struct device *pdev)
+{
+	struct fb_info *fb_info = dev_get_drvdata(pdev);
+	struct mxsfb_info *host = to_imxfb_host(fb_info);
+	int saved_blank;
+
+	console_lock();
+	fb_set_suspend(fb_info, 1);
+	saved_blank = host->cur_blank;
+	mxsfb_blank(FB_BLANK_POWERDOWN, fb_info);
+	host->restore_blank = saved_blank;
+	console_unlock();
+	return 0;
+}
+
+static int mxsfb_resume(struct device *pdev)
+{
+	struct fb_info *fb_info = dev_get_drvdata(pdev);
+	struct mxsfb_info *host = to_imxfb_host(fb_info);
+
+	console_lock();
+	mxsfb_blank(host->restore_blank, fb_info);
+	fb_set_suspend(fb_info, 0);
+	console_unlock();
+
+	return 0;
+}
+#else
+#define	mxsfb_suspend	NULL
+#define	mxsfb_resume	NULL
+#endif
+
 static const struct dev_pm_ops mxsfb_pm_ops = {
 	SET_RUNTIME_PM_OPS(mxsfb_runtime_suspend, mxsfb_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(mxsfb_suspend, mxsfb_resume)
 };
 
 static struct platform_driver mxsfb_driver = {
