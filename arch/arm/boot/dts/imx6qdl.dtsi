@@ -166,12 +166,12 @@
 					       <&clks 197>, <&clks 107>,
 					       <&clks 0>, <&clks 118>,
 					       <&clks 62>, <&clks 139>,
-					       <&clks 0>;
+					       <&clks 0>, <&clks 156>;
 					clock-names = "core", "rxtx0",
 						"rxtx1", "rxtx2",
 						"rxtx3", "rxtx4",
 						"rxtx5", "rxtx6",
-						"rxtx7";
+						"rxtx7", "dma";
 					status = "disabled";
 				};
 
@@ -234,7 +234,8 @@
 					compatible = "fsl,imx6q-esai";
 					reg = <0x02024000 0x4000>;
 					interrupts = <0 51 0x04>;
-					clocks = <&clks 118>;
+					clocks = <&clks 118>, <&clks 156>;
+					clock-names = "core", "dma";
 					fsl,esai-dma-events = <24 23>;
 					fsl,flags = <1>;
 					status = "disabled";
