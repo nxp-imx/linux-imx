@@ -83,6 +83,7 @@ struct fsl_spdif_priv {
 	struct clk *txclk[SPDIF_TXRATE_MAX];
 	struct clk *rxclk;
 	struct clk *sysclk;
+	struct clk *dmaclk;
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
 	struct snd_dmaengine_dai_dma_data dma_params_rx;
 
@@ -425,6 +426,7 @@ static int fsl_spdif_startup(struct snd_pcm_substream *substream,
 	int ret;
 
 	pm_runtime_get_sync(cpu_dai->dev);
+	clk_prepare_enable(spdif_priv->dmaclk);
 
 	/* Reset module and interrupts only for first initialization */
 	if (!cpu_dai->active) {
@@ -491,6 +493,7 @@ static void fsl_spdif_shutdown(struct snd_pcm_substream *substream,
 				SCR_LOW_POWER, SCR_LOW_POWER);
 	}
 
+	clk_disable_unprepare(spdif_priv->dmaclk);
 	pm_runtime_put_sync(cpu_dai->dev);
 }
 
@@ -1157,6 +1160,13 @@ static int fsl_spdif_probe(struct platform_device *pdev)
 	if (IS_ERR(spdif_priv->sysclk)) {
 		dev_err(&pdev->dev, "no system clock(rxtx5) in devicetree\n");
 		return PTR_ERR(spdif_priv->sysclk);
+	}
+
+	/* Get dma clock for dma script operation */
+	spdif_priv->dmaclk = devm_clk_get(&pdev->dev, "dma");
+	if (IS_ERR(spdif_priv->dmaclk)) {
+		dev_err(&pdev->dev, "no dma clock in devicetree\n");
+		return PTR_ERR(spdif_priv->dmaclk);
 	}
 
 	/* Select clock source for rx/tx clock */

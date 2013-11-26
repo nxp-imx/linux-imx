@@ -294,6 +294,7 @@ static int fsl_esai_startup(struct snd_pcm_substream *substream,
 	struct fsl_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
 
 	clk_enable(esai->clk);
+	clk_prepare_enable(esai->dmaclk);
 	if (!cpu_dai->active) {
 		writel(ESAI_GPIO_ESAI, esai->base + ESAI_PRRC);
 		writel(ESAI_GPIO_ESAI, esai->base + ESAI_PCRC);
@@ -438,6 +439,7 @@ static void fsl_esai_shutdown(struct snd_pcm_substream *substream,
 {
 	struct fsl_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
 
+	clk_disable_unprepare(esai->dmaclk);
 	clk_disable(esai->clk);
 }
 
@@ -576,13 +578,20 @@ static int fsl_esai_probe(struct platform_device *pdev)
 	}
 	esai->flags = flag;
 
-	esai->clk = devm_clk_get(&pdev->dev, NULL);
+	esai->clk = devm_clk_get(&pdev->dev, "core");
 	if (IS_ERR(esai->clk)) {
 		ret = PTR_ERR(esai->clk);
 		dev_err(&pdev->dev, "Cannot get the clock: %d\n", ret);
 		return ret;
 	}
 	clk_prepare(esai->clk);
+
+	esai->dmaclk = devm_clk_get(&pdev->dev, "dma");
+	if (IS_ERR(esai->dmaclk)) {
+		ret = PTR_ERR(esai->dmaclk);
+		dev_err(&pdev->dev, "Cannot get dma clock: %d\n", ret);
+		goto failed_get_resource;
+	}
 
 	ret = of_address_to_resource(np, 0, &res);
 	if (ret) {
