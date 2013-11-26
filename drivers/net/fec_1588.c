@@ -214,6 +214,50 @@ void fec_ptp_stop(struct fec_ptp_private *priv)
 static void fec_get_curr_cnt(struct fec_ptp_private *priv,
 			struct ptp_rtc_time *curr_time)
 {
+	u32 tempval, old_sec;
+	u32 timeout_event, timeout_ts = 0;
+
+	struct fec_ptp_private *tmp_priv;
+
+	if (!priv->ptp_slave)
+		tmp_priv = priv;
+	else
+		tmp_priv = ptp_private[0];
+
+	do {
+		old_sec = tmp_priv->prtc;
+		timeout_event = 0;
+
+		tempval = readl(tmp_priv->hwp + FEC_ATIME_CTRL);
+		tempval |= FEC_T_CTRL_CAPTURE;
+		writel(tempval, tmp_priv->hwp + FEC_ATIME_CTRL);
+
+		curr_time->rtc_time.nsec = readl(tmp_priv->hwp + FEC_ATIME);
+
+		while (readl(tmp_priv->hwp + FEC_IEVENT) & FEC_ENET_TS_TIMER) {
+			timeout_event++;
+			udelay(20);
+
+			if (timeout_event >= FEC_PTP_TIMEOUT_EVENT)
+				break;
+		}
+
+		curr_time->rtc_time.sec = tmp_priv->prtc;
+		timeout_ts++;
+
+		if (timeout_event >= FEC_PTP_TIMEOUT_EVENT)
+			pr_err("timeout: TS TIMER event\n");
+
+	} while (old_sec != curr_time->rtc_time.sec &&
+		timeout_ts < FEC_PTP_TIMEOUT_TS);
+
+	if (timeout_ts >= FEC_PTP_TIMEOUT_TS)
+		pr_err("timeout: current timestamp unmatched\n");
+}
+
+static void fec_get_curr_cnt_isr(struct fec_ptp_private *priv,
+				struct ptp_rtc_time *curr_time)
+{
 	u32 tempval;
 	struct fec_ptp_private *tmp_priv;
 
@@ -224,19 +268,12 @@ static void fec_get_curr_cnt(struct fec_ptp_private *priv,
 
 	tempval = readl(priv->hwp + FEC_ATIME_CTRL);
 	tempval |= FEC_T_CTRL_CAPTURE;
-
-	writel(tempval, priv->hwp + FEC_ATIME_CTRL);
 	writel(tempval, priv->hwp + FEC_ATIME_CTRL);
 	curr_time->rtc_time.nsec = readl(priv->hwp + FEC_ATIME);
+
 	curr_time->rtc_time.sec = tmp_priv->prtc;
-
 	writel(tempval, priv->hwp + FEC_ATIME_CTRL);
-	tempval = readl(priv->hwp + FEC_ATIME);
-
-	if (tempval < curr_time->rtc_time.nsec) {
-		curr_time->rtc_time.nsec = tempval;
-		curr_time->rtc_time.sec = tmp_priv->prtc;
-	}
+	curr_time->rtc_time.nsec = readl(priv->hwp + FEC_ATIME);
 }
 
 /* Set the 1588 timer counter registers */
@@ -364,6 +401,7 @@ void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
 {
 	struct fec_ptp_ts_data tmp_tx_time;
 	struct fec_ptp_private *fpp;
+	struct ptp_rtc_time curr_time;
 	u8 *ptp_loc;
 	u16 eth_type;
 
@@ -395,7 +433,11 @@ void fec_ptp_store_txstamp(struct fec_ptp_private *priv,
 		memcpy(tmp_tx_time.ident.spid, &ptp_loc[PTP_SPID_OFFS],
 						PTP_SOURCE_PORT_LENGTH);
 		/* store tx timestamp */
-		tmp_tx_time.ts.sec = fpp->prtc;
+		fec_get_curr_cnt_isr(priv, &curr_time);
+		if (curr_time.rtc_time.nsec < bdp->ts && priv->prtc_acc_flag)
+			tmp_tx_time.ts.sec = curr_time.rtc_time.sec - 1;
+		else
+			tmp_tx_time.ts.sec = curr_time.rtc_time.sec;
 		tmp_tx_time.ts.nsec = bdp->ts;
 		/* insert timestamp in circular buffer */
 		fec_ptp_insert(&(priv->tx_timestamps), &tmp_tx_time);
@@ -408,6 +450,7 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 {
 	struct fec_ptp_ts_data tmp_rx_time;
 	struct fec_ptp_private *fpp;
+	struct ptp_rtc_time curr_time;
 	u8 *ptp_loc;
 	u16 eth_type;
 
@@ -439,7 +482,11 @@ void fec_ptp_store_rxstamp(struct fec_ptp_private *priv,
 		memcpy(tmp_rx_time.ident.spid, &ptp_loc[PTP_SPID_OFFS],
 						PTP_SOURCE_PORT_LENGTH);
 		/* store rx timestamp */
-		tmp_rx_time.ts.sec = fpp->prtc;
+		fec_get_curr_cnt(priv, &curr_time);
+		if (curr_time.rtc_time.nsec < bdp->ts)
+			tmp_rx_time.ts.sec = curr_time.rtc_time.sec - 1;
+		else
+			tmp_rx_time.ts.sec = curr_time.rtc_time.sec;
 		tmp_rx_time.ts.nsec = bdp->ts;
 
 		/* insert timestamp in circular buffer */

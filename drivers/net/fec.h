@@ -177,5 +177,28 @@ struct bufdesc {
 #define BD_ENET_TX_INT          0x40000000
 #define BD_ENET_TX_PTP          ((ushort)0x0100)
 
+/* Interrupt events/masks. */
+#define FEC_ENET_HBERR		((uint)0x80000000)
+#define FEC_ENET_BABR		((uint)0x40000000)
+#define FEC_ENET_BABT		((uint)0x20000000)
+#define FEC_ENET_GRA		((uint)0x10000000)
+#define FEC_ENET_TXF		((uint)0x08000000)
+#define FEC_ENET_TXB		((uint)0x04000000)
+#define FEC_ENET_RXF		((uint)0x02000000)
+#define FEC_ENET_RXB		((uint)0x01000000)
+#define FEC_ENET_MII		((uint)0x00800000)
+#define FEC_ENET_EBERR		((uint)0x00400000)
+#define FEC_ENET_TS_AVAIL	((uint)0x00010000)
+#define FEC_ENET_TS_TIMER	((uint)0x00008000)
+#define FEC_ENET_MII_CLK	((uint)2500000)
+#define FEC_ENET_HOLD_TIME	((uint)0x100)  /* 2 internal clock cycle*/
+
+#define FEC_DEFAULT_IMASK (FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_MII)
+#if defined(CONFIG_FEC_1588)
+#define FEC_1588_IMASK	FEC_ENET_TS_TIMER
+#else
+#define FEC_1588_IMASK  0
+#endif
+
 /****************************************************************************/
 #endif /* FEC_H */
