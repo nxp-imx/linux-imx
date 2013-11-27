@@ -48,6 +48,7 @@
 static LIST_HEAD(head);
 static int timeout_in_ms = 600;
 static unsigned int block_size;
+struct mutex hard_lock;
 
 struct pxp_dma {
 	struct dma_device dma;
@@ -70,7 +71,6 @@ struct pxps {
 	struct device *dev;
 	struct pxp_dma pxp_dma;
 	struct pxp_channel channel[NR_PXP_VIRT_CHANNEL];
-	wait_queue_head_t done;
 	struct work_struct work;
 
 	/* describes most recent processing configuration */
@@ -87,9 +87,6 @@ struct pxps {
 
 #define PXP_DEF_BUFS	2
 #define PXP_MIN_PIX	8
-
-#define PXP_WAITCON	((__raw_readl(pxp->base + HW_PXP_STAT) & \
-				BM_PXP_STAT_IRQ) != BM_PXP_STAT_IRQ)
 
 static uint32_t pxp_s0_formats[] = {
 	PXP_PIX_FMT_RGB32,
@@ -1321,7 +1318,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	list_splice_init(&desc->tx_list, &pxp_chan->free_list);
 	list_move(&desc->list, &pxp_chan->free_list);
 
-	wake_up_interruptible(&pxp->done);
+	mutex_unlock(&hard_lock);
 	pxp->pxp_ongoing = 0;
 	mod_timer(&pxp->clk_timer, jiffies + msecs_to_jiffies(timeout_in_ms));
 
@@ -1437,7 +1434,6 @@ static void pxp_issue_pending(struct dma_chan *chan)
 	struct pxp_dma *pxp_dma = to_pxp_dma(chan->device);
 	struct pxps *pxp = to_pxp(pxp_dma);
 	unsigned long flags0, flags;
-	int ret;
 
 	spin_lock_irqsave(&pxp->lock, flags0);
 	spin_lock_irqsave(&pxp_chan->lock, flags);
@@ -1455,10 +1451,7 @@ static void pxp_issue_pending(struct dma_chan *chan)
 	spin_unlock_irqrestore(&pxp->lock, flags0);
 
 	pxp_clk_enable(pxp);
-again:
-	ret = wait_event_interruptible_exclusive(pxp->done, PXP_WAITCON);
-	if (ret < 0)
-		goto again;
+	mutex_lock(&hard_lock);
 
 	spin_lock_irqsave(&pxp->lock, flags);
 	pxp->pxp_ongoing = 1;
@@ -1795,6 +1788,7 @@ static int pxp_probe(struct platform_device *pdev)
 
 	spin_lock_init(&pxp->lock);
 	mutex_init(&pxp->clk_mutex);
+	mutex_init(&hard_lock);
 
 	pxp->base = devm_request_and_ioremap(&pdev->dev, res);
 	if (pxp->base == NULL) {
@@ -1834,7 +1828,6 @@ static int pxp_probe(struct platform_device *pdev)
 	dump_pxp_reg(pxp);
 
 	INIT_WORK(&pxp->work, clkoff_callback);
-	init_waitqueue_head(&pxp->done);
 	init_timer(&pxp->clk_timer);
 	pxp->clk_timer.function = pxp_clkoff_timer;
 	pxp->clk_timer.data = (unsigned long)pxp;
