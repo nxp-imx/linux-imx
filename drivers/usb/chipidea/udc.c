@@ -1479,10 +1479,12 @@ static int ci_udc_vbus_session(struct usb_gadget *_gadget, int is_active)
 		 * It can make disconnect interrupt (BSV 1->0) occur when
 		 * the cable is disconnected.
 		 */
-		if (is_active)
+		if (is_active) {
 			pm_runtime_get_sync(&_gadget->dev);
-		else
+			hw_write(ci, OP_USBCMD, USBCMD_RS, 0);
+		} else {
 			pm_runtime_put_sync(&_gadget->dev);
+		}
 
 		ret = ci->platdata->notify_event
 			(ci, CI_HDRC_CONTROLLER_CHARGER_EVENT);
