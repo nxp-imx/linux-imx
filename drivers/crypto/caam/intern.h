@@ -66,6 +66,8 @@ struct caam_drv_private_jr {
 struct caam_drv_private {
 
 	struct device *dev;
+	struct device *smdev;
+	struct device *secviodev;
 	struct platform_device **jrpdev; /* Alloc'ed array per sub-device */
 	struct platform_device *pdev;
 
@@ -74,6 +76,9 @@ struct caam_drv_private {
 	struct caam_deco **deco; /* DECO/CCB views */
 	struct caam_assurance *ac;
 	struct caam_queue_if *qi; /* QI control region */
+	struct snvs_full __iomem *snvs;	/* SNVS HP+LP register space */
+	dma_addr_t __iomem *sm_base;	/* Secure memory storage base */
+	u32 sm_size;
 
 	/*
 	 * Detected geometry block. Filled in from device tree if powerpc,
