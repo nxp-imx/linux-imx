@@ -107,7 +107,7 @@ config CRYPTO_DEV_FSL_CAAM_RNG_TEST
 	  Selecting this will enable self-test for caam rng.
 
 config CRYPTO_DEV_FSL_CAAM_SM
-	boolean "CAAM Secure Memory / Keystore API (EXPERIMENTAL)"
+	tristate "CAAM Secure Memory / Keystore API (EXPERIMENTAL)"
 	default n
 	help
 	  Enables use of a prototype kernel-level Keystore API with CAAM
@@ -130,7 +130,7 @@ config CRYPTO_DEV_FSL_CAAM_SM_SLOTSIZE
 		9 => 512 bytes
 
 config CRYPTO_DEV_FSL_CAAM_SM_TEST
-	boolean "CAAM Secure Memory - Keystore Test/Example (EXPERIMENTAL)"
+	tristate "CAAM Secure Memory - Keystore Test/Example (EXPERIMENTAL)"
 	depends on CRYPTO_DEV_FSL_CAAM_SM
 	default n
 	help
@@ -139,7 +139,7 @@ config CRYPTO_DEV_FSL_CAAM_SM_TEST
 	  encryption/decryption.
 
 config CRYPTO_DEV_FSL_CAAM_SECVIO
-	boolean "CAAM/SNVS Security Violation Handler (EXPERIMENTAL)"
+	tristate "CAAM/SNVS Security Violation Handler (EXPERIMENTAL)"
 	depends on CRYPTO_DEV_FSL_CAAM
 	default n
 	help

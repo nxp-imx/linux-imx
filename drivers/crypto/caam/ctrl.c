@@ -12,6 +12,7 @@
 #include "desc_constr.h"
 #include "error.h"
 #include "ctrl.h"
+#include "sm.h"
 
 /* Used to capture the array of job rings */
 struct device **caam_jr_dev;
@@ -236,6 +237,7 @@ static int caam_probe(struct platform_device *pdev)
 	struct device_node *nprop, *np;
 	struct caam_ctrl __iomem *ctrl;
 	struct caam_full __iomem *topregs;
+	struct snvs_full __iomem *snvsregs;
 	struct caam_drv_private *ctrlpriv;
 #ifdef CONFIG_DEBUG_FS
 	struct caam_perfmon *perfmon;
@@ -264,6 +266,23 @@ static int caam_probe(struct platform_device *pdev)
 
 	/* Get the IRQ of the controller (for security violations only) */
 	ctrlpriv->secvio_irq = of_irq_to_resource(nprop, 0, NULL);
+
+	/* Get SNVS register Page */
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-caam-snvs");
+
+	if (!np)
+		return -ENODEV;
+
+	snvsregs = of_iomap(np, 0);
+	ctrlpriv->snvs = snvsregs;
+	/* Get CAAM-SM node and of_iomap() and save */
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-caam-sm");
+
+	if (!np)
+		return -ENODEV;
+
+	ctrlpriv->sm_base = of_iomap(np, 0);
+	ctrlpriv->sm_size = 0x3fff;
 
 /*
  * ARM targets tend to have clock control subsystems that can
