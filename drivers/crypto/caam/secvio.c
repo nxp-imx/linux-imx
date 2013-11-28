@@ -198,8 +198,6 @@ int caam_secvio_startup(struct platform_device *pdev)
 	else
 		secvio_inten_src = HP_SECVIO_INTEN_ALL;
 
-	printk(KERN_ERR "secvio_inten_src = %x\n", secvio_inten_src);
-
 	svpdev = of_platform_device_create(np, NULL, ctrldev);
 	if (!svpdev)
 		return -ENODEV;
