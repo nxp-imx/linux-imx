@@ -243,9 +243,10 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		data->charger.dev = &pdev->dev;
 		ret = imx6_usb_create_charger(&data->charger,
 			"imx6_usb_charger");
-		if (ret)
+		if (ret && ret != -ENODEV)
 			goto err_clk;
-		dev_dbg(&pdev->dev, "USB Charger is created\n");
+		if (!ret)
+			dev_dbg(&pdev->dev, "USB Charger is created\n");
 	}
 
 	data->ci_pdev = ci_hdrc_add_device(&pdev->dev,
