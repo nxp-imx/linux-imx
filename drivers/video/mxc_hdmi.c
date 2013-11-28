@@ -1885,17 +1885,14 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi)
 	dev_dbg(&hdmi->pdev->dev, "%s\n", __func__);
 
 	/* Set the default mode only once. */
-	if (!hdmi->dft_mode_set) {
-		dev_dbg(&hdmi->pdev->dev, "%s: setting to default=%s bpp=%d\n",
-			__func__, hdmi->dft_mode_str, hdmi->default_bpp);
+	dev_dbg(&hdmi->pdev->dev, "%s: setting to default=%s bpp=%d\n",
+		__func__, hdmi->dft_mode_str, hdmi->default_bpp);
 
-		fb_find_mode(&var, hdmi->fbi,
-			     hdmi->dft_mode_str, NULL, 0, NULL,
-			     hdmi->default_bpp);
+	fb_find_mode(&var, hdmi->fbi,
+		     hdmi->dft_mode_str, NULL, 0, NULL,
+		     hdmi->default_bpp);
 
-		hdmi->dft_mode_set = true;
-	} else
-		fb_videomode_to_var(&var, &hdmi->previous_non_vga_mode);
+	hdmi->dft_mode_set = true;
 
 	fb_var_to_videomode(&m, &var);
 	dump_fb_videomode(&m);
