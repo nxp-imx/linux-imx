@@ -1220,9 +1220,32 @@ static void mx6q_sabresd_sata_exit(struct device *dev)
 	clk_put(sata_clk);
 }
 
+static int imx_ahci_suspend(struct device *dev)
+{
+	writel((readl(IOMUXC_GPR13) & ~0x2), IOMUXC_GPR13);
+	clk_disable(sata_clk);
+
+	return 0;
+}
+
+static int imx_ahci_resume(struct device *dev)
+{
+	int ret;
+
+	ret = clk_enable(sata_clk);
+	if (ret)
+		dev_err(dev, "can't enable sata clock.\n");
+
+	writel(((readl(IOMUXC_GPR13) & ~0x2) | 0x2), IOMUXC_GPR13);
+
+	return 0;
+}
+
 static struct ahci_platform_data mx6q_sabresd_sata_data = {
 	.init = mx6q_sabresd_sata_init,
 	.exit = mx6q_sabresd_sata_exit,
+	.suspend = imx_ahci_suspend,
+	.resume = imx_ahci_resume,
 };
 #endif
 
