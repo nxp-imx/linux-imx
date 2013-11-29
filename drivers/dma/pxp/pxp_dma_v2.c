@@ -902,9 +902,12 @@ static void pxp_set_s0buf(struct pxps *pxp)
 	__raw_writel(Y1, pxp->base + HW_PXP_PS_BUF);
 	if ((s0_params->pixel_fmt == PXP_PIX_FMT_YUV420P) ||
 	    (s0_params->pixel_fmt == PXP_PIX_FMT_YVU420P) ||
-	    (s0_params->pixel_fmt == PXP_PIX_FMT_GREY)) {
+	    (s0_params->pixel_fmt == PXP_PIX_FMT_GREY)    ||
+	    (s0_params->pixel_fmt == PXP_PIX_FMT_YUV422P)) {
 		/* Set to 1 if YUV format is 4:2:2 rather than 4:2:0 */
 		int s = 2;
+		if (s0_params->pixel_fmt == PXP_PIX_FMT_YUV422P)
+			s = 1;
 
 		offset = proc_data->srect.top * s0_params->width / 4 +
 			 proc_data->srect.left / 2;
@@ -938,7 +941,8 @@ static void pxp_set_s0buf(struct pxps *pxp)
 	    s0_params->pixel_fmt == PXP_PIX_FMT_NV12 ||
 	    s0_params->pixel_fmt == PXP_PIX_FMT_NV21 ||
 	    s0_params->pixel_fmt == PXP_PIX_FMT_NV16 ||
-	    s0_params->pixel_fmt == PXP_PIX_FMT_NV61) {
+	    s0_params->pixel_fmt == PXP_PIX_FMT_NV61 ||
+	    s0_params->pixel_fmt == PXP_PIX_FMT_YUV422P) {
 		__raw_writel(pitch, pxp->base + HW_PXP_PS_PITCH);
 	}
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_GY04)
