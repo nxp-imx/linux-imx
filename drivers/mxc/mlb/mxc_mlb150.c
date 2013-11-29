@@ -2702,14 +2702,14 @@ static int mxc_mlb150_suspend(struct platform_device *pdev, pm_message_t state)
 	struct mlb_data *drvdata = platform_get_drvdata(pdev);
 	struct mlb_dev_info *pdevinfo = drvdata->devinfo;
 
-	mlb150_dev_exit();
-
 	if (pdevinfo && atomic_read(&pdevinfo->on)
 		&& (pdevinfo->fps >= CLK_2048FS))
 		clk_disable_unprepare(drvdata->clk_mlb6p);
 
-	if (pdevinfo && atomic_read(&pdevinfo->opencnt))
+	if (pdevinfo && atomic_read(&pdevinfo->opencnt)) {
+		mlb150_dev_exit();
 		clk_disable_unprepare(drvdata->clk_mlb3p);
+	}
 
 	return 0;
 }
@@ -2719,14 +2719,14 @@ static int mxc_mlb150_resume(struct platform_device *pdev)
 	struct mlb_data *drvdata = platform_get_drvdata(pdev);
 	struct mlb_dev_info *pdevinfo = drvdata->devinfo;
 
-	if (pdevinfo && atomic_read(&pdevinfo->opencnt))
+	if (pdevinfo && atomic_read(&pdevinfo->opencnt)) {
 		clk_prepare_enable(drvdata->clk_mlb3p);
+		mlb150_dev_init();
+	}
 
 	if (pdevinfo && atomic_read(&pdevinfo->on) &&
 		(pdevinfo->fps >= CLK_2048FS))
 		clk_prepare_enable(drvdata->clk_mlb6p);
-
-	mlb150_dev_init();
 
 	return 0;
 }
