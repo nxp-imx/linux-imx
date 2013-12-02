@@ -1104,7 +1104,14 @@ void caam_sm_shutdown(struct platform_device *pdev)
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
 	smdev = priv->smdev;
+
+	/* Return if resource not initialized by startup */
+	if (smdev == NULL)
+		return;
+
 	smpriv = dev_get_drvdata(smdev);
+
+	platform_device_unregister(to_platform_device(smdev));
 
 	kfree(smpriv->pagedesc);
 	kfree(smpriv);

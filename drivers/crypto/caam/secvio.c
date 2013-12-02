@@ -1,7 +1,7 @@
 
 /*
  * CAAM/SEC 4.x Security Violation Handler
- * Copyright (C) 2012 Freescale Semiconductor, Inc., All Rights Reserved
+ * Copyright (C) 2012-2013 Freescale Semiconductor, Inc., All Rights Reserved
  */
 
 #include "compat.h"
@@ -239,6 +239,11 @@ void caam_secvio_shutdown(struct platform_device *pdev)
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
 	svdev = priv->secviodev;
+
+	/* Return if resource not initialized by startup */
+	if (svdev == NULL)
+		return;
+
 	svpriv = dev_get_drvdata(svdev);
 
 	/* Shut off all sources */
@@ -249,7 +254,7 @@ void caam_secvio_shutdown(struct platform_device *pdev)
 		tasklet_kill(&svpriv->irqtask[i]);
 
 	free_irq(priv->secvio_irq, svdev);
-
+	platform_device_unregister(to_platform_device(svdev));
 	kfree(svpriv);
 }
 

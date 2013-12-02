@@ -2,7 +2,7 @@
  * CAAM/SEC 4.x transport/backend driver
  * JobR backend functionality
  *
- * Copyright 2008-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
  */
 
 #include "compat.h"
@@ -465,6 +465,9 @@ int caam_jr_shutdown(struct device *dev)
 			 DMA_FROM_DEVICE);
 	dma_unmap_single(dev, inpbusaddr, sizeof(u32 *) * JOBR_DEPTH,
 			 DMA_TO_DEVICE);
+
+	platform_device_unregister(to_platform_device(dev));
+
 	kfree(jrp->entinfo);
 
 	return ret;
