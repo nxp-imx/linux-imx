@@ -1,7 +1,7 @@
 /*
  * CAAM hardware register-level view
  *
- * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
  */
 
 #ifndef REGS_H
@@ -378,7 +378,13 @@ struct rng4tst {
 		u32 rtfrqmax;	/* PRGM=1: freq. count max. limit register */
 		u32 rtfrqcnt;	/* PRGM=0: freq. count register */
 	};
-	u32 rsvd1[56];
+	u32 rsvd1[40];
+#define RDSTA_IF 0x00000003 /* state handle instantiated flags 0 and 1 */
+#define RDSTA_SKVN 0x40000000 /* Secure Key Valid Non-Test mode */
+#define RDSTA_SKVT 0x80000000 /* Secure Key Valid Test. non-test mode */
+#define RDSTA_TF   0x00000300 /* State handle instantiated Test-mode */
+	u32 rdsta;              /* DRNG status register */
+	u32 rsvd2[15];
 };
 
 /*
