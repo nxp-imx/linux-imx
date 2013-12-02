@@ -445,6 +445,13 @@ static int mxcfb_set_par(struct fb_info *fbi)
 	struct mxcfb_info *mxc_fbi_fg = NULL;
 	bool ovfbi_enable = false;
 
+	if (ipu_ch_param_bad_alpha_pos(fbi_to_pixfmt(fbi)) &&
+	    mxc_fbi->alpha_chan_en) {
+		dev_err(fbi->device, "Bad pixel format for "
+				"graphics plane fb\n");
+		return -EINVAL;
+	}
+
 	if (mxc_fbi->ovfbi)
 		mxc_fbi_fg = (struct mxcfb_info *)mxc_fbi->ovfbi->par;
 
@@ -986,21 +993,24 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 	case MXCFB_SET_LOC_ALPHA:
 		{
 			struct mxcfb_loc_alpha la;
+			bool bad_pixfmt =
+				ipu_ch_param_bad_alpha_pos(fbi_to_pixfmt(fbi));
 
 			if (copy_from_user(&la, (void *)arg, sizeof(la))) {
 				retval = -EFAULT;
 				break;
 			}
 
-			if (ipu_disp_set_global_alpha(mxc_fbi->ipu, mxc_fbi->ipu_ch,
-						      !(bool)la.enable, 0)) {
-				retval = -EINVAL;
-				break;
-			}
-
 			if (la.enable && !la.alpha_in_pixel) {
 				struct fb_info *fbi_tmp;
 				ipu_channel_t ipu_ch;
+
+				if (bad_pixfmt) {
+					dev_err(fbi->device, "Bad pixel format "
+						"for graphics plane fb\n");
+					retval = -EINVAL;
+					break;
+				}
 
 				mxc_fbi->alpha_chan_en = true;
 
@@ -1018,6 +1028,13 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 					((struct mxcfb_info *)(fbi_tmp->par))->alpha_chan_en = false;
 			} else
 				mxc_fbi->alpha_chan_en = false;
+
+			if (ipu_disp_set_global_alpha(mxc_fbi->ipu,
+						      mxc_fbi->ipu_ch,
+						      !(bool)la.enable, 0)) {
+				retval = -EINVAL;
+				break;
+			}
 
 			fbi->var.activate = (fbi->var.activate & ~FB_ACTIVATE_MASK) |
 						FB_ACTIVATE_NOW | FB_ACTIVATE_FORCE;
