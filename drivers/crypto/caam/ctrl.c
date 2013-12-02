@@ -480,6 +480,7 @@ static int caam_probe(struct platform_device *pdev)
 			kick_trng(pdev);
 			ret = instantiate_rng(ctrlpriv->jrdev[0], rng_skvn);
 			if (ret) {
+				dev_err(dev, "error instantiating rng, terminating\n");
 				caam_remove(pdev);
 				return -ENODEV;
 			}
