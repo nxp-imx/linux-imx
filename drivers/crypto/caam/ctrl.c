@@ -2,7 +2,7 @@
  * CAAM control-plane driver backend
  * Controller-level driver, kernel property detection, initialization
  *
- * Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
  */
 
 #include "compat.h"
@@ -99,9 +99,14 @@ static void build_instantiation_desc(u32 *desc)
 	 */
 	append_load_imm_u32(desc, 1, LDST_SRCDST_WORD_CLRW);
 
+
+}
+
+static void generate_secure_keys_desc(u32 *desc)
+{
 	/* generate secure keys (non-test) */
 	append_operation(desc, OP_TYPE_CLASS1_ALG | OP_ALG_ALGSEL_RNG |
-			 OP_ALG_RNG4_SK);
+			OP_ALG_RNG4_SK);
 }
 
 struct instantiate_result {
@@ -124,7 +129,7 @@ static void rng4_init_done(struct device *dev, u32 *desc, u32 err,
 	complete(&instantiation->completion);
 }
 
-static int instantiate_rng(struct device *jrdev)
+static int instantiate_rng(struct device *jrdev, u32 keys_generated)
 {
 	struct instantiate_result instantiation;
 
@@ -139,6 +144,11 @@ static int instantiate_rng(struct device *jrdev)
 	}
 
 	build_instantiation_desc(desc);
+
+	/* If keys have not been generated, add op code to generate key. */
+	if (!keys_generated)
+		generate_secure_keys_desc(desc);
+
 	desc_dma = dma_map_single(jrdev, desc, desc_bytes(desc), DMA_TO_DEVICE);
 	dma_sync_single_for_device(jrdev, desc_dma, desc_bytes(desc),
 				   DMA_TO_DEVICE);
@@ -174,6 +184,7 @@ static void kick_trng(struct platform_device *pdev)
 	topregs = (struct caam_full __iomem *)ctrlpriv->ctrl;
 	r4tst = &topregs->ctrl.r4tst[0];
 
+	val = rd_reg32(&r4tst->rtmctl);
 	/* put RNG4 into program mode */
 	setbits32(&r4tst->rtmctl, RTMCTL_PRGM);
 	/* Set clocks per sample to the default, and divider to zero */
@@ -451,13 +462,29 @@ static int caam_probe(struct platform_device *pdev)
 	 */
 	if ((rd_reg64(&topregs->ctrl.perfmon.cha_id) & CHA_ID_RNG_MASK)
 	    == CHA_ID_RNG_4) {
-		kick_trng(pdev);
-		ret = instantiate_rng(ctrlpriv->jrdev[0]);
-		if (ret) {
-			caam_remove(pdev);
-			return -ENODEV;
+		struct rng4tst __iomem *r4tst;
+		u32 rdsta, rng_if, rng_skvn;
+		/*
+		 * Check to see if the RNG has already been instantiated.
+		 * If either the state 0 or 1 instantiated flags are set,
+		 * then don't continue on and try to instantiate the RNG
+		 * again.
+		 */
+		r4tst = &topregs->ctrl.r4tst[0];
+		rdsta = rd_reg32(&r4tst->rdsta); /* Read RDSTA register */
+		/* Check IF bit for non-deterministic instantiation */
+		rng_if = rdsta & RDSTA_IF;
+		/* Check SKVN bit for non-deterministic key generation */
+		rng_skvn = rdsta & RDSTA_SKVN;
+		if (!rng_if) {
+			kick_trng(pdev);
+			ret = instantiate_rng(ctrlpriv->jrdev[0], rng_skvn);
+			if (ret) {
+				caam_remove(pdev);
+				return -ENODEV;
+			}
+			ctrlpriv->rng_inst++;
 		}
-		ctrlpriv->rng_inst++;
 	}
 
 	/* NOTE: RTIC detection ought to go here, around Si time */
