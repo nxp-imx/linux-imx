@@ -465,12 +465,6 @@ static int ipu_probe(struct platform_device *pdev)
 	}
 
 	ipu->online = true;
-	ret = ipu_clk_setup_enable(ipu, pltfm_data);
-	if (ret < 0) {
-		dev_err(ipu->dev, "ipu clk setup failed\n");
-		ipu->online = false;
-		return ret;
-	}
 
 	platform_set_drvdata(pdev, ipu);
 
@@ -488,6 +482,14 @@ static int ipu_probe(struct platform_device *pdev)
 		/* Set MCU_T to divide MCU access window into 2 */
 		ipu_cm_write(ipu, 0x00400000L | (IPU_MCU_T_DEFAULT << 18),
 			     IPU_DISP_GEN);
+	}
+
+	/* setup ipu clk tree after ipu reset  */
+	ret = ipu_clk_setup_enable(ipu, pltfm_data);
+	if (ret < 0) {
+		dev_err(ipu->dev, "ipu clk setup failed\n");
+		ipu->online = false;
+		return ret;
 	}
 
 	/* Set sync refresh channels and CSI->mem channel as high priority */
