@@ -385,7 +385,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	 * data.
 	 */
 	bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, bufaddr,
-			FEC_ENET_TX_FRSIZE, DMA_TO_DEVICE);
+			skb->len, DMA_TO_DEVICE);
 	if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
 		bdp->cbd_bufaddr = 0;
 		netdev_err(ndev, "Tx DMA memory map failed\n");
@@ -876,11 +876,10 @@ fec_enet_tx(struct net_device *ndev)
 			else
 				index = bdp - txq->tx_bd_base;
 
-			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
-					FEC_ENET_TX_FRSIZE, DMA_TO_DEVICE);
-			bdp->cbd_bufaddr = 0;
-
 			skb = txq->tx_skbuff[index];
+			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
+					skb->len, DMA_TO_DEVICE);
+			bdp->cbd_bufaddr = 0;
 
 			/* Check for errors. */
 			if (status & (BD_ENET_TX_HB | BD_ENET_TX_LC |
