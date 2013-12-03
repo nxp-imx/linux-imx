@@ -172,10 +172,11 @@ static int clk_pllv3_set_rate(struct clk_hw *hw, unsigned long rate,
 	if (rate == BYPASS_RATE) {
 		/* Set the bypass bit. */
 		val |= BM_PLL_BYPASS;
+		/* Power down the PLL. */
 		if (pll->powerup_set)
-			val |= BM_PLL_POWER;
-		else
 			val &= ~BM_PLL_POWER;
+		else
+			val |= BM_PLL_POWER;
 		writel_relaxed(val, pll->base);
 
 		return 0;
