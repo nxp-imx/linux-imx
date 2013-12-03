@@ -54,7 +54,7 @@ static unsigned int f_calc(unsigned int pfs, unsigned int bpp, unsigned int *wri
 	case IPU_PIX_FMT_YUV420P:
 	case IPU_PIX_FMT_YVU420P:
 	case IPU_PIX_FMT_YUV444P:
-		f_calculated = 8;
+		f_calculated = 16;
 		break;
 
 	case IPU_PIX_FMT_RGB565:
