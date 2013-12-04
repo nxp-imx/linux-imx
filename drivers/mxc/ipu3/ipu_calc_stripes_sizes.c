@@ -250,13 +250,13 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 	unsigned int status;
 	unsigned int temp;
 	unsigned int onw_min;
-	unsigned int inw, onw, inw_best = 0;
+	unsigned int inw = 0, onw = 0, inw_best = 0;
 	/* number of pixels in the left stripe NOT hidden by the right stripe */
 	u64 irr_opt; /* the optimal inverse resizing ratio */
 	u64 rr_opt; /* the optimal resizing ratio = 1/irr_opt*/
 	u64 dinw; /* the misalignment between the stripes */
 	/* (measured in units of input columns) */
-	u64 difwl, difwr;
+	u64 difwl, difwr = 0;
 	/* The number of input columns not reflected in the output */
 	/* the resizing ratio used for the right stripe is */
 	/*   left->irr and right->irr respectively */
