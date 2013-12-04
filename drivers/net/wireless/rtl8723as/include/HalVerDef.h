@@ -128,6 +128,7 @@ typedef	struct tag_HAL_VERSION
 #define IS_J_CUT(version)					((GET_CVID_CUT_VERSION(version) == J_CUT_VERSION) ? TRUE : FALSE)
 #define IS_K_CUT(version)					((GET_CVID_CUT_VERSION(version) == K_CUT_VERSION) ? TRUE : FALSE)
 
+#define IS_VENDOR_8188E_I_CUT_SERIES(_Adapter)		((IS_8188E(GET_HAL_DATA(_Adapter)->VersionID)) ? ((GET_CVID_CUT_VERSION(GET_HAL_DATA(_Adapter)->VersionID) >= I_CUT_VERSION) ? TRUE : FALSE) : FALSE)
 
 //HAL_VENDOR_E
 #define IS_CHIP_VENDOR_TSMC(version)	((GET_CVID_MANUFACTUER(version) == CHIP_VENDOR_TSMC)? TRUE: FALSE)

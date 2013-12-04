@@ -1310,7 +1310,11 @@ _func_enter_;
 						pmlmepriv->to_join = _TRUE;
 					}
 				}
+				else
 				#endif
+				{
+					rtw_indicate_disconnect(adapter);
+				}
 				_clr_fwstate_(pmlmepriv, _FW_UNDER_LINKING);
 			}
 		}
@@ -2256,6 +2260,7 @@ _func_enter_;
 		{
 			_enter_critical_bh(&(pmlmepriv->scanned_queue.lock), &irqL);
 			ptarget_wlan = rtw_find_network(&pmlmepriv->scanned_queue, cur_network->network.MacAddress);
+			pmlmepriv->cur_network_scanned = ptarget_wlan;
 			if(ptarget_wlan)	ptarget_wlan->fixed = _TRUE;
 			_exit_critical_bh(&(pmlmepriv->scanned_queue.lock), &irqL);
 			// a sta + bc/mc_stainfo (not Ibss_stainfo)
@@ -3077,7 +3082,7 @@ _func_enter_;
 		} else if (rtw_to_roaming(adapter) > 0) {
 		
 			if(	(roaming_candidate == NULL ||roaming_candidate->network.Rssi<pnetwork->network.Rssi )
-				&& is_same_ess(&pnetwork->network, &pmlmepriv->cur_network.network) 
+				&& is_same_ess(&pnetwork->network, &pmlmepriv->cur_network.network)
 				//&&(!is_same_network(&pnetwork->network, &pmlmepriv->cur_network.network, 0))
 				&&  rtw_get_time_interval_ms((u32)pnetwork->last_scanned,cur_time) < 5000
 				) {
@@ -4130,6 +4135,17 @@ sint check_buddy_fwstate(_adapter *padapter, sint state)
 		return _TRUE;
 
 	return _FALSE;
+}
+
+u8 rtw_get_buddy_bBusyTraffic(_adapter *padapter)
+{
+	if(padapter == NULL)
+		return _FALSE;	
+	
+	if(padapter->pbuddy_adapter == NULL)
+		return _FALSE;	
+	
+	return padapter->pbuddy_adapter->mlmepriv.LinkDetectInfo.bBusyTraffic;
 }
 
 #endif //CONFIG_CONCURRENT_MODE

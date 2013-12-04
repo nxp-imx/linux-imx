@@ -95,6 +95,11 @@ u32 rtw_hal_power_on(_adapter *padapter)
 		return padapter->HalFunc.hal_power_on(padapter);
 	return _FAIL;
 }
+void rtw_hal_power_off(_adapter *padapter)
+{
+	if(padapter->HalFunc.hal_power_off)
+		padapter->HalFunc.hal_power_off(padapter);	
+}
 
 
 uint	 rtw_hal_init(_adapter *padapter) 

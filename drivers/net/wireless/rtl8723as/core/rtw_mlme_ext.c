@@ -779,15 +779,23 @@ u32 p2p_listen_state_process(_adapter *padapter, unsigned char *da)
 #ifdef CONFIG_IOCTL_CFG80211
 	if( padapter->wdinfo.driver_interface == DRIVER_CFG80211 )
 	{
-		if (wdev_to_priv(padapter->rtw_wdev)->p2p_enabled == _FALSE
+		if(padapter->cfg80211_wdinfo.is_ro_ch == _FALSE
+			|| rtw_get_oper_ch(padapter) != padapter->wdinfo.listen_channel
+			|| wdev_to_priv(padapter->rtw_wdev)->p2p_enabled == _FALSE
 			|| padapter->mlmepriv.wps_probe_resp_ie == NULL
 			|| padapter->mlmepriv.p2p_probe_resp_ie == NULL
 		)
 		{
-			DBG_871X("DON'T issue_probersp_p2p: p2p_enabled:%d, wps_probe_resp_ie:%p, p2p_probe_resp_ie:%p\n",
+#ifdef CONFIG_DEBUG_CFG80211
+			DBG_871X("DON'T issue_probersp_p2p: p2p_enabled:%d, wps_probe_resp_ie:%p, p2p_probe_resp_ie:%p, ",
 				wdev_to_priv(padapter->rtw_wdev)->p2p_enabled,
 				padapter->mlmepriv.wps_probe_resp_ie,
 				padapter->mlmepriv.p2p_probe_resp_ie);
+			DBG_871X("is_ro_ch:%d, op_ch:%d, p2p_listen_channel:%d\n", 
+				padapter->cfg80211_wdinfo.is_ro_ch,
+				rtw_get_oper_ch(padapter),
+				padapter->wdinfo.listen_channel);
+#endif
 			response = _FALSE;
 		}
 	}
@@ -827,6 +835,15 @@ unsigned int OnProbeReq(_adapter *padapter, union recv_frame *precv_frame)
 	u8 *pframe = precv_frame->u.hdr.rx_data;
 	uint len = precv_frame->u.hdr.len;
 	u8 is_valid_p2p_probereq = _FALSE;
+
+#ifdef CONFIG_ATMEL_RC_PATCH
+	u8 *target_ie=NULL, *wps_ie=NULL;
+	u8 *start;
+	uint search_len = 0, wps_ielen = 0, target_ielen = 0;
+	struct sta_info	*psta;
+	struct sta_priv *pstapriv = &padapter->stapriv;
+#endif
+
 
 #ifdef CONFIG_P2P
 	struct wifidirect_info	*pwdinfo = &(padapter->wdinfo);
@@ -896,6 +913,23 @@ _continue:
 
 	//DBG_871X("+OnProbeReq\n");
 
+
+#ifdef CONFIG_ATMEL_RC_PATCH
+		if ((wps_ie = rtw_get_wps_ie(
+			pframe + WLAN_HDR_A3_LEN + _PROBEREQ_IE_OFFSET_,
+			len - WLAN_HDR_A3_LEN - _PROBEREQ_IE_OFFSET_,
+			 NULL, &wps_ielen))) {
+		
+			target_ie = rtw_get_wps_attr_content( wps_ie, wps_ielen, WPS_ATTR_MANUFACTURER, NULL, &target_ielen);
+		}
+		if ((target_ie && (target_ielen == 4)) && (_TRUE ==_rtw_memcmp((void *)target_ie, "Ozmo",4 ))) {
+			//psta->flag_atmel_rc = 1;
+			unsigned char *sa_addr = get_sa(pframe);
+			DBG_871X("%s: Find Ozmo RC -- %02x:%02x:%02x:%02x:%02x:%02x  \n\n",
+				__func__, *sa_addr, *(sa_addr+1), *(sa_addr+2), *(sa_addr+3), *(sa_addr+4), *(sa_addr+5));
+			_rtw_memcpy(  pstapriv->atmel_rc_pattern, get_sa(pframe), ETH_ALEN);
+		}
+#endif
 #ifdef CONFIG_CONCURRENT_MODE
 	if(((pmlmeinfo->state&0x03) == WIFI_FW_AP_STATE) &&
 		check_buddy_fwstate(padapter, _FW_UNDER_LINKING|_FW_UNDER_SURVEY))
@@ -5658,7 +5692,7 @@ unsigned int on_action_public_p2p(union recv_frame *precv_frame)
 
 					merged_p2p_ielen = rtw_get_p2p_merged_ies_len(frame_body + _PUBLIC_ACTION_IE_OFFSET_, len - _PUBLIC_ACTION_IE_OFFSET_);
 
-					merged_p2pie = rtw_malloc(merged_p2p_ielen);
+					merged_p2pie = rtw_zmalloc(merged_p2p_ielen + 2);	// 2 is for EID and Length
 					if (merged_p2pie == NULL)
 					{
 						DBG_871X( "[%s] Malloc p2p ie fail\n", __FUNCTION__);
@@ -5926,7 +5960,7 @@ exit:
 
 	if(merged_p2pie)
 	{
-		rtw_mfree(merged_p2pie, merged_p2p_ielen);
+		rtw_mfree(merged_p2pie, merged_p2p_ielen + 2);
 	}
 
 	return _SUCCESS;
@@ -9091,14 +9125,38 @@ void site_survey(_adapter *padapter)
 				}
 			}
 		}
-
+#ifdef CONFIG_ATMEL_RC_PATCH
+	#ifdef CONFIG_P2P
+		if( !rtw_p2p_chk_state(pwdinfo, P2P_STATE_SCAN)  && 
+			!rtw_p2p_chk_state(pwdinfo, P2P_STATE_FIND_PHASE_SEARCH)
+			)
+	#endif//CONFIG_P2P
+		{
+			if(ScanType == SCAN_ACTIVE){	
+				if( check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE){
+					if(survey_channel == pmlmeext->cur_channel )					
+						set_survey_timer(pmlmeext, 200);
+					else
+						set_survey_timer(pmlmeext, 20);
+				}
+				else{
+					set_survey_timer(pmlmeext, 40);
+				}
+			}
+			else{//SCAN_PASSIVE
+				set_survey_timer(pmlmeext, pmlmeext->chan_scan_time);
+			}
+		}
+		else
+#endif //CONFIG_ATMEL_RC_PATCH
+		{
 #ifdef CONFIG_STA_MODE_SCAN_UNDER_AP_MODE
 		if( stay_buddy_ch == 1 )
 			set_survey_timer(pmlmeext, pmlmeext->chan_scan_time * RTW_STAY_AP_CH_MILLISECOND );
 		else
 #endif //CONFIG_STA_MODE_SCAN_UNDER_AP_MODE
 			set_survey_timer(pmlmeext, pmlmeext->chan_scan_time);
-
+		}
 	}
 	else
 	{
@@ -9611,6 +9669,7 @@ void start_create_ibss(_adapter* padapter)
 
 			report_join_res(padapter, 1);
 			pmlmeinfo->state |= WIFI_FW_ASSOC_SUCCESS;
+			rtw_indicate_connect(padapter);
 		}
 	}
 	else
@@ -11308,6 +11367,7 @@ u8 join_cmd_hdl(_adapter *padapter, u8 *pbuf)
 	u32 i;
         //u32	initialgain;
 	//u32	acparm;
+	u8 ch, bw, offset;
 
 	//check already connecting to AP or not
 	if (pmlmeinfo->state & WIFI_FW_ASSOC_SUCCESS)
@@ -11411,6 +11471,7 @@ u8 join_cmd_hdl(_adapter *padapter, u8 *pbuf)
 								break;
 				
 							default:
+								pmlmeext->cur_bwmode = HT_CHANNEL_WIDTH_20;
 								pmlmeext->cur_ch_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
 								break;
 						}
@@ -11456,6 +11517,20 @@ u8 join_cmd_hdl(_adapter *padapter, u8 *pbuf)
 		rtw_hal_set_hwreg(padapter, HW_VAR_AC_PARAM_BK, (u8 *)(&acparm));
 	}
 #endif
+
+	/* check channel, bandwidth, offset and switch */
+#ifdef CONFIG_DUALMAC_CONCURRENT
+	if(dc_handle_join_request(padapter, &ch, &bw, &offset) == _FAIL) {
+		DBG_871X("dc_handle_join_request fail !!!\n");
+		return H2C_SUCCESS;
+	}
+#else //NON CONFIG_DUALMAC_CONCURRENT
+	if(rtw_chk_start_clnt_join(padapter, &ch, &bw, &offset) == _FAIL) {
+		report_join_res(padapter, (-4));
+		return H2C_SUCCESS;
+	}
+#endif
+
 	//disable dynamic functions, such as high power, DIG
 	//Switch_DM_Func(padapter, DYNAMIC_FUNC_DISABLE, _FALSE);
 
@@ -11463,23 +11538,11 @@ u8 join_cmd_hdl(_adapter *padapter, u8 *pbuf)
 	//initialgain = 0x1E;
 	//rtw_hal_set_hwreg(padapter, HW_VAR_INITIAL_GAIN, (u8 *)(&initialgain));
 
-	/* check channel, bandwidth, offset and switch */
-#ifdef CONFIG_DUALMAC_CONCURRENT
-	if(dc_handle_join_request(padapter) == _FAIL) {
-		DBG_871X("dc_handle_join_request fail !!!\n");
-		return H2C_SUCCESS;
-	}
-	set_channel_bwmode(padapter, pmlmeext->cur_channel, pmlmeext->cur_ch_offset, pmlmeext->cur_bwmode);
-#else //NON CONFIG_DUALMAC_CONCURRENT
-	if(rtw_chk_start_clnt_join(padapter) == _FAIL) {
-		report_join_res(padapter, (-4));
-		return H2C_SUCCESS;
-	}
-#endif
-
 	rtw_hal_set_hwreg(padapter, HW_VAR_BSSID, pmlmeinfo->network.MacAddress);
 	join_type = 0;
 	rtw_hal_set_hwreg(padapter, HW_VAR_MLME_JOIN, (u8 *)(&join_type));
+
+	set_channel_bwmode(padapter, ch, offset, bw);
 
 	//cancel link timer 
 	_cancel_timer_ex(&pmlmeext->link_timer);
@@ -11576,7 +11639,7 @@ int rtw_scan_ch_decision(_adapter *padapter, struct rtw_ieee80211_channel *out,
 			_rtw_memcpy(&out[j], &in[i], sizeof(struct rtw_ieee80211_channel));
 			
 			if(pmlmeext->channel_set[set_idx].ScanType == SCAN_PASSIVE)
-				out[j].flags &= RTW_IEEE80211_CHAN_PASSIVE_SCAN;
+				out[j].flags |= RTW_IEEE80211_CHAN_PASSIVE_SCAN;
 				
 			j++;
 		}
@@ -11590,7 +11653,7 @@ int rtw_scan_ch_decision(_adapter *padapter, struct rtw_ieee80211_channel *out,
 			out[i].hw_value = pmlmeext->channel_set[i].ChannelNum;
 			
 			if(pmlmeext->channel_set[i].ScanType == SCAN_PASSIVE)
-				out[i].flags &= RTW_IEEE80211_CHAN_PASSIVE_SCAN;
+				out[i].flags |= RTW_IEEE80211_CHAN_PASSIVE_SCAN;
 
 			j++;
 		}
@@ -12295,7 +12358,7 @@ void dc_set_channel_bwmode_disconnect(_adapter *padapter)
 	}
 }
 
-u8 dc_handle_join_request(_adapter *padapter)
+u8 dc_handle_join_request(_adapter *padapter, u8 *ch, u8 *bw, u8 *offset)
 {
 	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
@@ -12348,6 +12411,18 @@ u8 dc_handle_join_request(_adapter *padapter)
 		}
 	}
 
+	if (!ch || !bw || !offset) {
+		rtw_warn_on(1);
+		ret = _FAIL;
+	}
+
+	if (ret == _SUCCESS) {
+		*ch = pmlmeext->cur_channel;
+		*bw = pmlmeext->cur_bwmode;
+		*offset = pmlmeext->cur_ch_offset;
+	}
+
+exit:
 	return ret;
 }
 
@@ -13009,7 +13084,7 @@ void concurrent_chk_joinbss_done(_adapter *padapter, int join_res)
 }
 #endif //CONFIG_CONCURRENT_MODE
 
-int rtw_chk_start_clnt_join(_adapter *padapter)
+int rtw_chk_start_clnt_join(_adapter *padapter, u8 *ch, u8 *bw, u8 *offset)
 {
 	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
 	unsigned char	cur_ch = pmlmeext->cur_channel;
@@ -13019,13 +13094,13 @@ int rtw_chk_start_clnt_join(_adapter *padapter)
 	bool connect_allow = _TRUE;
 
 #ifdef CONFIG_CONCURRENT_MODE
-	PADAPTER pbuddy_adapter;	
+	PADAPTER pbuddy_adapter;
 	struct mlme_ext_priv *pbuddy_mlmeext;
 	struct mlme_ext_info	*pbuddy_pmlmeinfo;
 	struct mlme_priv *pbuddy_mlmepriv;
 
 	if (!rtw_buddy_adapter_up(padapter)) {
-		goto start_join_set_ch_bw;
+		goto exit;
 	}
 
 	pbuddy_adapter = padapter->pbuddy_adapter;		
@@ -13099,7 +13174,7 @@ int rtw_chk_start_clnt_join(_adapter *padapter)
 
 		connect_allow = chbw_allow;
 
-		#if defined(CONFIG_P2P) && defined(CONFIG_IOCTL_CFG80211) 	
+		#if defined(CONFIG_P2P) && defined(CONFIG_IOCTL_CFG80211)
 		/* wlan0-sta mode has higher priority than p2p0-p2p client */
 		if (!rtw_p2p_chk_state(&(pbuddy_adapter->wdinfo), P2P_STATE_NONE)
 			&& pbuddy_adapter->wdinfo.driver_interface == DRIVER_CFG80211)
@@ -13117,12 +13192,19 @@ int rtw_chk_start_clnt_join(_adapter *padapter)
 		}
 	}	
 
-start_join_set_ch_bw:
+exit:
 #endif /* CONFIG_CONCURRENT_MODE */
+
+	if (!ch || !bw || !offset) {
+		rtw_warn_on(1);
+		connect_allow = _FALSE;
+	}
 
 	if (connect_allow == _TRUE) {
 		DBG_871X("start_join_set_ch_bw: ch=%d, bwmode=%d, ch_offset=%d\n", cur_ch, cur_bw, cur_ch_offset);
-		set_channel_bwmode(padapter, cur_ch, cur_ch_offset, cur_bw);
+		*ch = cur_ch;
+		*bw = cur_bw;
+		*offset = cur_ch_offset;
 	}
 
 	return connect_allow == _TRUE ? _SUCCESS : _FAIL;

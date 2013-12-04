@@ -1099,10 +1099,12 @@ ODM_ConfigRFWithHeaderFile(
 #if (RTL8188E_SUPPORT == 1)
 	if (pDM_Odm->SupportICType == ODM_RTL8188E)
 	{
-		if(eRFPath == ODM_RF_PATH_A)
+		if(IS_VENDOR_8188E_I_CUT_SERIES(pDM_Odm->Adapter))
+			READ_AND_CONFIG(8188E,_RadioA_1T_ICUT_);
+		else
 			READ_AND_CONFIG(8188E,_RadioA_1T_);
-		//else if(eRFPath == ODM_RF_PATH_B)
-		//	READ_AND_CONFIG(8188E,_RadioB_1T_);
+		
+	
 		ODM_RT_TRACE(pDM_Odm, ODM_COMP_INIT, ODM_DBG_LOUD, (" ===> ODM_ConfigRFWithHeaderFile() Radio_A:Rtl8188ERadioA_1TArray\n"));
 		ODM_RT_TRACE(pDM_Odm, ODM_COMP_INIT, ODM_DBG_LOUD, (" ===> ODM_ConfigRFWithHeaderFile() Radio_B:Rtl8188ERadioB_1TArray\n"));
 	}
@@ -1143,15 +1145,17 @@ ODM_ConfigBBWithHeaderFile(
 
 		if(ConfigType == CONFIG_BB_PHY_REG)
 		{
-			READ_AND_CONFIG(8188E,_PHY_REG_1T_);
+			if(IS_VENDOR_8188E_I_CUT_SERIES(pDM_Odm->Adapter))
+				READ_AND_CONFIG(8188E,_PHY_REG_1T_ICUT_);
+			else
+				READ_AND_CONFIG(8188E,_PHY_REG_1T_);
 		}
-//        else if(ConfigType == ODM_BaseBand_Config_PHY_REG_MP)
-//		{
-			//READ_AND_CONFIG(8188E,_PHY_REG_MP_);
-//		}
 		else if(ConfigType == CONFIG_BB_AGC_TAB)
 		{
-			READ_AND_CONFIG(8188E,_AGC_TAB_1T_);
+			if(IS_VENDOR_8188E_I_CUT_SERIES(pDM_Odm->Adapter))
+				READ_AND_CONFIG(8188E,_AGC_TAB_1T_ICUT_);
+			else
+				READ_AND_CONFIG(8188E,_AGC_TAB_1T_);
 		}
 		else if(ConfigType == CONFIG_BB_PHY_REG_PG)
 		{
@@ -1179,7 +1183,10 @@ ODM_ConfigMACWithHeaderFile(
 #if (RTL8188E_SUPPORT == 1)  
 	if (pDM_Odm->SupportICType == ODM_RTL8188E)
 	{
-		result = READ_AND_CONFIG(8188E,_MAC_REG_);
+		if(IS_VENDOR_8188E_I_CUT_SERIES(pDM_Odm->Adapter))
+			READ_AND_CONFIG(8188E,_MAC_REG_ICUT_);
+		else			
+			result =READ_AND_CONFIG(8188E,_MAC_REG_);
 	}
 #endif
 	 

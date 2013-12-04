@@ -93,28 +93,15 @@ int rtl8189es_sdio_poweroff(void)
 #endif //defined(CONFIG_MMC_SUNXI_POWER_CONTROL)
 #endif //CONFIG_PLATFORM_ARM_SUNxI
 
-#ifdef CONFIG_PLATFORM_ARM_SUN6I
+#if defined(CONFIG_PLATFORM_ARM_SUN6I) || defined(CONFIG_PLATFORM_ARM_SUN7I)
 #ifdef CONFIG_MMC
-
-#ifdef CONFIG_A31_EVB
-#define SDIOID 0
-#else
-#define SDIOID 1
-#endif
-#define SUNXI_SDIO_WIFI_NUM_RTL8723AS  3
-#define SUNXI_SDIO_WIFI_NUM_RTL8189ES  4
-
-#ifdef CONFIG_RTL8188E
-#define SUNXI_SDIO_WIFI_NUM SUNXI_SDIO_WIFI_NUM_RTL8189ES 
-#else // CONFIG_RTL8723A
-#define SUNXI_SDIO_WIFI_NUM SUNXI_SDIO_WIFI_NUM_RTL8723AS
-#endif
-
+#include <mach/sys_config.h>
+static unsigned sdc_id = 0;
 extern void sw_mci_rescan_card(unsigned id, unsigned insert);
 extern int wifi_pm_get_mod_type(void);
 extern void wifi_pm_power(int on);
 #endif //CONFIG_MMC
-#endif //CONFIG_PLATFORM_ARM_SUN6I
+#endif //#if defined(CONFIG_PLATFORM_ARM_SUN6I) || defined(CONFIG_PLATFORM_ARM_SUN7I)
 
 #ifndef dev_to_sdio_func
 #define dev_to_sdio_func(d)     container_of(d, struct sdio_func, dev)
@@ -866,7 +853,7 @@ _func_exit_;
 #if 1
 
 #ifdef CONFIG_WOWLAN
-static int rtw_suspend_wow(_adapter *padapter,struct sdio_func *func )
+static int rtw_suspend_wow(_adapter *padapter)
 {
 	_adapter *pbuddy_adapter = padapter->pbuddy_adapter;
 	
@@ -989,27 +976,6 @@ static int rtw_suspend_wow(_adapter *padapter,struct sdio_func *func )
 	}
 
 exit:
-	
-#if (!(defined ANDROID_2X)) &&  (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34))
-	//Android 4.0 don't support WIFI close power
-	//or power down or clock will close after wifi resume,
-	//this is sprd's bug in Android 4.0, but sprd don't
-	//want to fix it.
-	//we have test power under 8723as, power consumption is ok
-	if (func) {
-		mmc_pm_flag_t pm_flag = 0;
-		pm_flag = sdio_get_host_pm_caps(func);
-		DBG_871X("cmd: %s: suspend: PM flag = 0x%x\n", sdio_func_id(func), pm_flag);
-		if (!(pm_flag & MMC_PM_KEEP_POWER)) {
-			DBG_871X("%s: cannot remain alive while host is suspended\n", sdio_func_id(func));
-			return -ENOSYS;
-		} else {
-			DBG_871X("cmd: suspend with MMC_PM_KEEP_POWER\n");
-			sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
-		}
-	}
-#endif
-
 
 	_func_exit_;
 	return ret;
@@ -1050,6 +1016,15 @@ static int rtw_sdio_suspend(struct device *dev)
 	while (pwrpriv->bips_processing == _TRUE)
 		rtw_msleep_os(1);
 
+#ifdef CONFIG_IOL_READ_EFUSE_MAP	
+	if(!padapter->bup){
+		u8 bMacPwrCtrlOn = _FALSE;
+		rtw_hal_get_hwreg(padapter, HW_VAR_APFM_ON_MAC, &bMacPwrCtrlOn);
+		if(bMacPwrCtrlOn)
+			rtw_hal_power_off(padapter);
+	}
+#endif
+
 	if((!padapter->bup) || (padapter->bDriverStopped)||(padapter->bSurpriseRemoved))
 	{
 		DBG_871X("%s bup=%d bDriverStopped=%d bSurpriseRemoved = %d\n", __FUNCTION__
@@ -1059,8 +1034,9 @@ static int rtw_sdio_suspend(struct device *dev)
 
 
 #ifdef CONFIG_WOWLAN
-	rtw_suspend_wow(padapter,func);
+	rtw_suspend_wow(padapter);
 #else		
+	LeaveAllPowerSaveMode(padapter);
 	rtw_suspend_common(padapter);
 #endif	
 
@@ -1071,8 +1047,15 @@ static int rtw_sdio_suspend(struct device *dev)
 			rtw_get_passing_time_ms(start_time));
 
 exit:
-    if (func) {
-        mmc_pm_flag_t pm_flag = 0;
+
+#ifdef CONFIG_MMC_PM_KEEP_POWER
+	//Android 4.0 don't support WIFI close power
+	//or power down or clock will close after wifi resume,
+	//this is sprd's bug in Android 4.0, but sprd don't
+	//want to fix it.
+	//we have test power under 8723as, power consumption is ok
+	if (func) {
+		mmc_pm_flag_t pm_flag = 0;
 		pm_flag = sdio_get_host_pm_caps(func);
 		DBG_871X("cmd: %s: suspend: PM flag = 0x%x\n", sdio_func_id(func), pm_flag);
 		if (!(pm_flag & MMC_PM_KEEP_POWER)) {
@@ -1083,6 +1066,7 @@ exit:
 			sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
 		}
 	}
+#endif	
 
 #ifdef CONFIG_PLATFORM_SPRD
 #ifndef CONFIG_WOWLAN
@@ -1097,7 +1081,6 @@ exit:
 #endif // CONFIG_RTL8188E
 #endif // CONFIG_WOWLAN
 #endif // CONFIG_PLATFORM_SPRD
-
 
 	DBG_871X("<===  %s return %d.............. in %dms\n", __FUNCTION__
 		, ret, rtw_get_passing_time_ms(start_time));
@@ -1840,25 +1823,6 @@ static int __init rtw_drv_entry(void)
 /*depends on sunxi power control */
 #if defined CONFIG_MMC_SUNXI_POWER_CONTROL
 	unsigned int mod_sel = mmc_pm_get_mod_type();
-#endif
-#endif
-
-#ifdef CONFIG_PLATFORM_ARM_SUN6I
-#ifdef CONFIG_MMC
-	unsigned int mod_sel = wifi_pm_get_mod_type();
-#endif //CONFIG_MMC
-#endif //CONFIG_PLATFORM_ARM_SUN6I
-
-	DBG_871X_LEVEL(_drv_always_, "module init start version:"DRIVERVERSION"\n");
-
-//	DBG_871X(KERN_INFO "+%s", __func__);
-	RT_TRACE(_module_hci_intfs_c_, _drv_notice_, ("+rtw_drv_entry\n"));
-	DBG_871X(DRV_NAME " driver version=%s\n", DRIVERVERSION);
-	DBG_871X("build time: %s %s\n", __DATE__, __TIME__);
-
-#ifdef CONFIG_PLATFORM_ARM_SUNxI
-/*depends on sunxi power control */
-#if defined CONFIG_MMC_SUNXI_POWER_CONTROL
 
 	if(mod_sel == SUNXI_SDIO_WIFI_NUM_RTL8189ES)
 	{
@@ -1877,25 +1841,40 @@ static int __init rtw_drv_entry(void)
 	
 #endif //CONFIG_PLATFORM_ARM_SUNxI
 
-#ifdef CONFIG_PLATFORM_ARM_SUN6I
+#if defined(CONFIG_PLATFORM_ARM_SUN6I) || defined(CONFIG_PLATFORM_ARM_SUN7I)
 #ifdef CONFIG_MMC
-	DBG_871X("----- %s mod_sel: %d, sdio num: %d\n", __FUNCTION__, mod_sel, SUNXI_SDIO_WIFI_NUM);
-	if(mod_sel == SUNXI_SDIO_WIFI_NUM)
+	script_item_value_type_e type;
+	script_item_u item;
+
+	unsigned int mod_sel = wifi_pm_get_mod_type();
+
+	type = script_get_item("wifi_para", "wifi_sdc_id", &item);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type)
 	{
-		wifi_pm_power(1);
-		mdelay(10);
-		sw_mci_rescan_card(SDIOID, 1);
-		printk("[rtw_sdio] %s: power up, rescan card.\n", __FUNCTION__);  			
+		DBG_871X("ERR: script_get_item wifi_sdc_id failed\n");
+		ret = -1;
 	}
 	else
 	{
-		ret = -1;
-		printk("[rtw_sdio] %s: mod_sel = %d is incorrect.\n", __FUNCTION__, mod_sel);	
+		sdc_id = item.val;
+		DBG_871X("----- %s sdc_id: %d, mod_sel: %d\n", __FUNCTION__, sdc_id, mod_sel);
+		wifi_pm_power(1);
+		mdelay(10);
+		sw_mci_rescan_card(sdc_id, 1);
+		DBG_871X("[rtw_sdio] %s: power up, rescan card.\n", __FUNCTION__);  
 	}
 #endif	//CONFIG_MMC
 	if(ret != 0)
 		goto exit;		
-#endif //CONFIG_PLATFORM_ARM_SUN6I
+	
+#endif //#if defined(CONFIG_PLATFORM_ARM_SUN6I) || defined(CONFIG_PLATFORM_ARM_SUN7I)
+
+	DBG_871X_LEVEL(_drv_always_, "module init start version:"DRIVERVERSION"\n");
+
+//	DBG_871X(KERN_INFO "+%s", __func__);
+	RT_TRACE(_module_hci_intfs_c_, _drv_notice_, ("+rtw_drv_entry\n"));
+	DBG_871X(DRV_NAME " driver version=%s\n", DRIVERVERSION);
+	DBG_871X("build time: %s %s\n", __DATE__, __TIME__);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)) 
 	//console_suspend_enabled=0;
@@ -1974,13 +1953,13 @@ static void __exit rtw_drv_halt(void)
 #endif //defined(CONFIG_MMC_SUNXI_POWER_CONTROL)
 #endif //CONFIG_PLATFORM_ARM_SUNxI
 
-#ifdef CONFIG_PLATFORM_ARM_SUN6I
+#if defined(CONFIG_PLATFORM_ARM_SUN6I) || defined(CONFIG_PLATFORM_ARM_SUN7I)
 #ifdef CONFIG_MMC
 	wifi_pm_power(0);
-	sw_mci_rescan_card(SDIOID, 0);
+	sw_mci_rescan_card(sdc_id, 0);
 	printk("[rtl8723as] %s: remove card, power off.\n", __FUNCTION__);
 #endif //CONFIG_MMC
-#endif //CONFIG_PLATFORM_ARM_SUN6I
+#endif //#if defined(CONFIG_PLATFORM_ARM_SUN6I) || defined(CONFIG_PLATFORM_ARM_SUN7I)
 	rtw_suspend_lock_uninit();
       	DBG_871X_LEVEL(_drv_always_, "module exit success\n");
 
