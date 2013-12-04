@@ -46,7 +46,6 @@ struct pxp_channel {
 	unsigned int n_tx_desc;
 	struct pxp_tx_desc *desc;	/* allocated tx-descriptors */
 	struct list_head active_list;	/* active tx-descriptors */
-	struct list_head free_list;	/* free tx-descriptors */
 	struct list_head queue;	/* queued tx-descriptors */
 	struct list_head list;	/* track queued channel number */
 	spinlock_t lock;	/* protects sg[0,1], queue */
