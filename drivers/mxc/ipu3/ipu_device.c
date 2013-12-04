@@ -26,6 +26,7 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/ipu-v3.h>
+#include <linux/kernel.h>
 #include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -887,6 +888,9 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 	if (((t->set.sp_setting.ow + t->set.sp_setting.o_right_pos) > ow)
 		|| (t->set.sp_setting.ow > soc_max_out_width()))
 		return IPU_CHECK_ERR_SPLIT_OUTPUTW_OVER;
+	if (rounddown(t->set.sp_setting.ow, 8) * 8 <=
+	    rounddown(t->set.sp_setting.iw, 8))
+		return IPU_CHECK_ERR_W_DOWNSIZE_OVER;
 
 	if (t->set.split_mode & UD_SPLIT) {
 		/*
@@ -933,6 +937,9 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 	if (((t->set.sp_setting.oh + t->set.sp_setting.o_bottom_pos) > oh)
 		|| (t->set.sp_setting.oh > soc_max_out_height()))
 		return IPU_CHECK_ERR_SPLIT_OUTPUTH_OVER;
+	if (rounddown(t->set.sp_setting.oh, 8) * 8 <=
+	    rounddown(t->set.sp_setting.ih, 8))
+		return IPU_CHECK_ERR_H_DOWNSIZE_OVER;
 
 	return IPU_CHECK_OK;
 }
