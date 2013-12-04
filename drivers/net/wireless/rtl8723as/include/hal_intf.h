@@ -118,6 +118,7 @@ typedef enum _HW_VARIABLES{
 #ifdef CONFIG_WOWLAN
 	HW_VAR_WOWLAN,
 #endif
+	HW_VAR_SYS_CLKR,
 	HW_VAR_NAV_UPPER,
 	HW_VAR_RPT_TIMER_SETTING,
 	HW_VAR_TX_RPT_MAX_MACID,	
@@ -163,6 +164,7 @@ typedef s32 (*c2h_id_filter)(u8 id);
 
 struct hal_ops {
 	u32	(*hal_power_on)(_adapter *padapter);
+	void	(*hal_power_off)(_adapter *padapter);
 	u32	(*hal_init)(_adapter *padapter);
 	u32	(*hal_deinit)(_adapter *padapter);
 
@@ -394,6 +396,7 @@ void rtw_hal_sw_led_init(_adapter *padapter);
 void rtw_hal_sw_led_deinit(_adapter *padapter);
 
 u32 rtw_hal_power_on(_adapter *padapter);
+void rtw_hal_power_off(_adapter *padapter);
 uint rtw_hal_init(_adapter *padapter);
 uint rtw_hal_deinit(_adapter *padapter);
 void rtw_hal_stop(_adapter *padapter);

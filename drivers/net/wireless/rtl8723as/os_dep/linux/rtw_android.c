@@ -343,6 +343,10 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 	int cmd_num;
 	int bytes_written = 0;
 	android_wifi_priv_cmd priv_cmd;
+	_adapter*	padapter = ( _adapter * ) rtw_netdev_priv(net);
+#ifdef CONFIG_WFD
+	struct wifi_display_info		*pwfd_info;
+#endif
 
 	rtw_lock_suspend();
 
@@ -526,10 +530,7 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		//	Commented by Albert 2012/07/24
 		//	We can enable the WFD function by using the following command:
 		//	wpa_cli driver wfd-enable
-		
-		struct wifi_display_info		*pwfd_info;
-		_adapter*	padapter = ( _adapter * ) rtw_netdev_priv(net);
-	
+
 		pwfd_info = &padapter->wfd_info;
 		if( padapter->wdinfo.driver_interface == DRIVER_CFG80211 )
 			pwfd_info->wfd_enable = _TRUE;
@@ -541,10 +542,7 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		//	Commented by Albert 2012/07/24
 		//	We can disable the WFD function by using the following command:
 		//	wpa_cli driver wfd-disable
-				
-		struct wifi_display_info		*pwfd_info;
-		_adapter*	padapter = ( _adapter * ) rtw_netdev_priv(net);
-	
+
 		pwfd_info = &padapter->wfd_info;
 		if( padapter->wdinfo.driver_interface == DRIVER_CFG80211 )
 			pwfd_info->wfd_enable = _FALSE;
@@ -555,10 +553,7 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		//	Commented by Albert 2012/07/24
 		//	We can set the tcp port number by using the following command:
 		//	wpa_cli driver wfd-set-tcpport = 554
-		
-		struct wifi_display_info		*pwfd_info;
-		_adapter*	padapter = ( _adapter * ) rtw_netdev_priv(net);
-	
+
 		pwfd_info = &padapter->wfd_info;
 		if( padapter->wdinfo.driver_interface == DRIVER_CFG80211 )
 			pwfd_info->rtsp_ctrlport = ( u16 ) get_int_from_command( priv_cmd.buf );
@@ -566,8 +561,6 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 	}
 	case ANDROID_WIFI_CMD_WFD_SET_MAX_TPUT:
 	{
-		
-		
 		break;
 	}
 	case ANDROID_WIFI_CMD_WFD_SET_DEVTYPE:

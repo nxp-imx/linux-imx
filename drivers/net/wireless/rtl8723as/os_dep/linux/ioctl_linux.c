@@ -242,13 +242,19 @@ void indicate_wx_scan_complete_event(_adapter *padapter)
 void rtw_indicate_wx_assoc_event(_adapter *padapter)
 {	
 	union iwreq_data wrqu;
-	struct	mlme_priv *pmlmepriv = &padapter->mlmepriv;	
+	struct	mlme_priv *pmlmepriv = &padapter->mlmepriv;
+	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
+	struct mlme_ext_info	*pmlmeinfo = &(pmlmeext->mlmext_info);
+	WLAN_BSSID_EX		*pnetwork = (WLAN_BSSID_EX*)(&(pmlmeinfo->network));
 
 	_rtw_memset(&wrqu, 0, sizeof(union iwreq_data));
 	
 	wrqu.ap_addr.sa_family = ARPHRD_ETHER;	
 	
-	_rtw_memcpy(wrqu.ap_addr.sa_data, pmlmepriv->cur_network.network.MacAddress, ETH_ALEN);
+	if(check_fwstate(pmlmepriv, WIFI_ADHOC_MASTER_STATE)==_TRUE )
+		_rtw_memcpy(wrqu.ap_addr.sa_data, pnetwork->MacAddress, ETH_ALEN);
+	else
+		_rtw_memcpy(wrqu.ap_addr.sa_data, pmlmepriv->cur_network.network.MacAddress, ETH_ALEN);
 
 	DBG_871X_LEVEL(_drv_always_, "assoc success\n");
 #ifndef CONFIG_IOCTL_CFG80211
@@ -2047,11 +2053,15 @@ if (padapter->registrypriv.mp_mode == 1)
 	// When Busy Traffic, driver do not site survey. So driver return success.
 	// wpa_supplicant will not issue SIOCSIWSCAN cmd again after scan timeout.
 	// modify by thomas 2011-02-22.
-	if (pmlmepriv->LinkDetectInfo.bBusyTraffic == _TRUE)
+	if (pmlmepriv->LinkDetectInfo.bBusyTraffic == _TRUE
+#ifdef CONFIG_CONCURRENT_MODE
+	|| rtw_get_buddy_bBusyTraffic(padapter) == _TRUE
+#endif //CONFIG_CONCURRENT_MODE
+	)
 	{
 		indicate_wx_scan_complete_event(padapter);
 		goto exit;
-	} 
+	}
 
 	if (check_fwstate(pmlmepriv, _FW_UNDER_SURVEY|_FW_UNDER_LINKING) == _TRUE)
 	{
@@ -11791,6 +11801,18 @@ static int rtw_mp_set(struct net_device *dev,
 		return -ENETDOWN;
 	}
 
+	if((padapter->bup == _FALSE )||(padapter->hw_init_completed == _FALSE))
+	{
+		DBG_871X(" %s fail =>(padapter->bup == _FALSE )||(padapter->hw_init_completed == _FALSE) \n",__FUNCTION__);
+		return -ENETDOWN;
+	}
+
+	if( (padapter->bSurpriseRemoved == _TRUE) || ( padapter->bDriverStopped == _TRUE))
+       {	
+       	DBG_871X("%s fail =>(padapter->bSurpriseRemoved == _TRUE) || ( padapter->bDriverStopped == _TRUE) \n",__FUNCTION__);
+             return -ENETDOWN;
+       }
+	
 	//_rtw_memset(extra, 0x00, IW_PRIV_SIZE_MASK);
 
 	if (extra == NULL)

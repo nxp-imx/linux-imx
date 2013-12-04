@@ -796,7 +796,7 @@ void concurrent_chk_joinbss_done(_adapter *padapter, int join_res);
 void	dc_SelectChannel(_adapter *padapter, unsigned char channel);
 void	dc_SetBWMode(_adapter *padapter, unsigned short bwmode, unsigned char channel_offset);
 void	dc_set_channel_bwmode_disconnect(_adapter *padapter);
-u8	dc_handle_join_request(_adapter *padapter);
+u8	dc_handle_join_request(_adapter *padapter, u8 *ch, u8 *bw, u8 *offset);
 void	dc_handle_join_done(_adapter *padapter, u8 join_res);
 sint	dc_check_fwstate(_adapter *padapter, sint fw_state);
 u8	dc_handle_site_survey(_adapter *padapter);
@@ -807,7 +807,7 @@ void	dc_resume_xmit(_adapter *padapter);
 u8	dc_check_xmit(_adapter *padapter);
 #endif
 
-int rtw_chk_start_clnt_join(_adapter *padapter);
+int rtw_chk_start_clnt_join(_adapter *padapter, u8 *ch, u8 *bw, u8 *offset);
 int rtw_get_ch_setting_union(_adapter *adapter, u8 *ch, u8 *bw, u8 *offset);
 
 struct cmd_hdl {

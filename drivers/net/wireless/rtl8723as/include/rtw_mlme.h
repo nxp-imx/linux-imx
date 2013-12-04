@@ -744,6 +744,7 @@ __inline static void up_scanned_network(struct mlme_priv *pmlmepriv)
 #ifdef CONFIG_CONCURRENT_MODE
 sint rtw_buddy_adapter_up(_adapter *padapter);
 sint check_buddy_fwstate(_adapter *padapter, sint state);
+u8 rtw_get_buddy_bBusyTraffic(_adapter *padapter);
 #endif //CONFIG_CONCURRENT_MODE
 
 __inline static void down_scanned_network(struct mlme_priv *pmlmepriv)

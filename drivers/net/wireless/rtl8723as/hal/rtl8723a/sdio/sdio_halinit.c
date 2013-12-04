@@ -2109,7 +2109,10 @@ _func_enter_;
 	{
 		case HW_VAR_GET_CPWM:
 			*val =  rtw_read8(padapter, SDIO_LOCAL_BASE | SDIO_REG_HCPWM1);
-			break;			
+			break;
+		case HW_VAR_SYS_CLKR:
+			*val = rtw_read8(padapter, REG_SYS_CLKR);
+			break;
 		default:
 			GetHwReg8723A(padapter, variable, val);
 			break;

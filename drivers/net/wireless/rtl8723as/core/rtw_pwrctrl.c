@@ -620,16 +620,18 @@ _func_enter_;
 				delay_ms = 20;
 				start_time = rtw_get_current_time();
 				do {
-					val8 = rtw_read8(padapter, 0x90);
-					if (!(val8 & BIT(0))) break;
+					rtw_hal_get_hwreg(padapter, HW_VAR_SYS_CLKR, &val8);
+					if (!(val8 & BIT(4))){ //0x08 bit4 =1 --> in 32k, bit4 = 0 --> leave 32k
+						pwrpriv->cpwm = PS_STATE_S4;
+						break;
+					}
 					if (rtw_get_passing_time_ms(start_time) > delay_ms)
 					{
 						DBG_871X("%s: Wait for FW 32K leave more than %u ms!!!\n", __FUNCTION__, delay_ms);
 						break;
 					}
-						rtw_usleep_os(100);
+					rtw_usleep_os(100);
 				} while (1);
-				pwrpriv->cpwm = PS_STATE_S4;
 			}
 #endif
 			rtw_hal_set_hwreg(padapter, HW_VAR_H2C_FW_PWRMODE, (u8 *)(&ps_mode));

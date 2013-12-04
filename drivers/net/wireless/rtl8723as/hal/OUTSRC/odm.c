@@ -1193,7 +1193,9 @@ ODM_CmnInfoUpdate(
 		case	ODM_CMNINFO_LINK:
 			pDM_Odm->bLinked = (BOOLEAN)Value;
 			break;
-
+		case ODM_CMNINFO_STATION_STATE:
+			pDM_Odm->bsta_state = (BOOLEAN)Value;
+			break;
 		case	ODM_CMNINFO_RSSI_MIN:
 			pDM_Odm->RSSI_Min= (u1Byte)Value;
 			break;
@@ -2390,7 +2392,7 @@ odm_DIG(
 	}
 	ODM_RT_TRACE(pDM_Odm, ODM_COMP_DIG, ODM_DBG_LOUD, ("odm_DIG(): pDM_DigTable->LargeFAHit=%d\n",pDM_DigTable->LargeFAHit));
 
-	if((pDM_Odm->SupportPlatform&(ODM_MP|ODM_CE))&&(pDM_Odm->PhyDbgInfo.NumQryBeaconPkt < 10))
+	if((pDM_Odm->SupportPlatform&(ODM_MP|ODM_CE))&&(pDM_Odm->PhyDbgInfo.NumQryBeaconPkt < 10) && (pDM_Odm->bsta_state))
 		pDM_DigTable->rx_gain_range_min = dm_dig_min;
 	
 	if(pDM_DigTable->rx_gain_range_min > pDM_DigTable->rx_gain_range_max)
@@ -2456,8 +2458,8 @@ odm_DIG(
 						CurrentIGI = CurrentIGI - 2;//pDM_DigTable->CurIGValue =pDM_DigTable->PreIGValue-1;	
 
 					if((pDM_Odm->SupportPlatform&(ODM_MP|ODM_CE))&&(pDM_Odm->PhyDbgInfo.NumQryBeaconPkt < 10)
-						&&(pFalseAlmCnt->Cnt_all < DM_DIG_FA_TH1))
-					{
+						&&(pFalseAlmCnt->Cnt_all < DM_DIG_FA_TH1) && (pDM_Odm->bsta_state))
+					{						
 						CurrentIGI = pDM_DigTable->rx_gain_range_min;
 						ODM_RT_TRACE(pDM_Odm, ODM_COMP_DIG, ODM_DBG_LOUD, ("odm_DIG(): Beacon is less than 10 and FA is less than 768, IGI GOES TO 0x1E!!!!!!!!!!!!\n"));
 					}

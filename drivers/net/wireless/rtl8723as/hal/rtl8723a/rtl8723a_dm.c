@@ -524,6 +524,7 @@ _record_initrate:
 	if (hw_init_completed == _TRUE)
 	{
 		u8	bLinked=_FALSE;
+		u8	bsta_state=_FALSE;
 
 		#ifdef CONFIG_DISABLE_ODM
 		pHalData->odmpriv.SupportAbility = 0;
@@ -537,7 +538,17 @@ _record_initrate:
 			bLinked = _TRUE;
 #endif //CONFIG_CONCURRENT_MODE
 
-		ODM_CmnInfoUpdate(&pHalData->odmpriv ,ODM_CMNINFO_LINK, bLinked);				
+		ODM_CmnInfoUpdate(&pHalData->odmpriv ,ODM_CMNINFO_LINK, bLinked);
+
+		if (check_fwstate(&Adapter->mlmepriv, WIFI_STATION_STATE))
+			bsta_state = _TRUE;
+#ifdef CONFIG_CONCURRENT_MODE
+		if(pbuddy_adapter && check_fwstate(&pbuddy_adapter->mlmepriv, WIFI_STATION_STATE))
+			bsta_state = _TRUE;
+#endif //CONFIG_CONCURRENT_MODE	
+		ODM_CmnInfoUpdate(&pHalData->odmpriv ,ODM_CMNINFO_STATION_STATE, bsta_state);
+
+
 		ODM_DMWatchdog(&pHalData->odmpriv);
 
 	}

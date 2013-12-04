@@ -1276,7 +1276,7 @@ __inline static void _set_workitem(_workitem *pwork)
 
 extern int RTW_STATUS_CODE(int error_code);
 
-#define CONFIG_USE_VMALLOC
+//#define CONFIG_USE_VMALLOC
 
 /* flags used for rtw_mstat_update() */
 enum mstat_f {

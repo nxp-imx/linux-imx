@@ -952,17 +952,18 @@ s32 rtl8723a_FirmwareDownload(PADAPTER padapter)
 
 		rtStatus = _WriteFW(padapter, pFirmwareBuf, FirmwareLen);
 
-		if(rtStatus == _SUCCESS
-			||(rtw_get_passing_time_ms(fwdl_start_time) > 500 && writeFW_retry++ >= 3)
+		if(rtStatus == _SUCCESS || padapter->bDriverStopped || padapter->bSurpriseRemoved
+			||(writeFW_retry++ >= 3 && rtw_get_passing_time_ms(fwdl_start_time) > 500)
 		)
 			break;
-
-		DBG_871X("%s writeFW_retry:%u, time after fwdl_start_time:%ums\n", __FUNCTION__
-			, writeFW_retry
-			, rtw_get_passing_time_ms(fwdl_start_time)
-		);
 	}
 	_FWDownloadEnable(padapter, _FALSE);
+
+	DBG_871X("%s writeFW_retry:%u, time after fwdl_start_time:%ums\n", __FUNCTION__
+		, writeFW_retry
+		, rtw_get_passing_time_ms(fwdl_start_time)
+	);
+
 	if(_SUCCESS != rtStatus){
 		DBG_871X("DL Firmware failed!\n");
 		goto Exit;

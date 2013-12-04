@@ -8262,7 +8262,7 @@ btdm_1AntPsTdma(
 				if (btdm_Is1AntPsTdmaStateChange(padapter))
 				{
 					// protect 3 beacons in 3-beacon period & no Tx pause at BT slot
-					BTDM_SetFw3a(padapter, 0x93, 0x15, 0x03, 0x14, 0x0);
+					BTDM_SetFw3a(padapter, 0x93, 0x15, 0x03, 0x10, 0x0);
 					btdm_1AntSetBTCoexTable(padapter, 1);
 				}
 				break;
@@ -8278,7 +8278,7 @@ btdm_1AntPsTdma(
 				if (btdm_Is1AntPsTdmaStateChange(padapter))
 				{
 					// narrow duration for WiFi
-					BTDM_SetFw3a(padapter, 0xd3, 0xa, 0xa, 0x0, 0x58); //narrow duration for WiFi
+					BTDM_SetFw3a(padapter, 0xd3, 0xa, 0xa, 0x0, 0x50); //narrow duration for WiFi
 					btdm_1AntSetBTCoexTable(padapter, 6);
 				}
 				break;
@@ -8329,7 +8329,7 @@ btdm_1AntPsTdma(
 			case 29: // WiFi DHCP/Site Survey & BT ACL busy
 				if (btdm_Is1AntPsTdmaStateChange(padapter))
 				{
-					BTDM_SetFw3a(padapter, 0xeb, 0x1a, 0x1a, 0x01, 0x18);
+					BTDM_SetFw3a(padapter, 0xeb, 0x25, 0x03, 0x11, 0x00);
 					btdm_1AntSetBTCoexTable(padapter, 1);
 				}
 				break;
@@ -8350,7 +8350,7 @@ btdm_1AntPsTdma(
 			case 32:  // BT SCO & Inquiry
 				if (btdm_Is1AntPsTdmaStateChange(padapter))
 				{
-					BTDM_SetFw3a(padapter, 0xa3, 0x0a, 0x03, 0x14, 0x00);
+					BTDM_SetFw3a(padapter, 0xa3, 0x0a, 0x03, 0x10, 0x00);
 					btdm_1AntSetBTCoexTable(padapter, 0);
 				}
 				break;

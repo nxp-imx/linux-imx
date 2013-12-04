@@ -643,6 +643,7 @@ typedef enum _ODM_Common_Info_Definition
 	ODM_CMNINFO_BT_DIG,
 	ODM_CMNINFO_BT_BUSY,					//Check Bt is using or not//neil
 	ODM_CMNINFO_BT_DISABLE_EDCA,
+	ODM_CMNINFO_STATION_STATE,
 //------------CALL BY VALUE-------------//
 
 	//
@@ -1238,6 +1239,7 @@ typedef  struct DM_Out_Source_Dynamic_Mechanism_Structure
 	BOOLEAN			bWIFI_Direct;
 	BOOLEAN			bWIFI_Display;
 	BOOLEAN			bLinked;
+	BOOLEAN			bsta_state;
 	u1Byte			RSSI_Min;	
 	u1Byte          	InterfaceIndex; // Add for 92D  dual MAC: 0--Mac0 1--Mac1
 	BOOLEAN         	bIsMPChip;
