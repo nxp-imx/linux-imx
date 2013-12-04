@@ -1413,7 +1413,7 @@ static int mxc_vidioc_g_crop(struct file *file, void *fh,
 static int mxc_vidioc_s_crop(struct file *file, void *fh,
 				const struct v4l2_crop *crop)
 {
-	struct mxc_vout_output *vout = fh, pre_vout;
+	struct mxc_vout_output *vout = fh, *pre_vout;
 	struct v4l2_rect *b = &vout->crop_bounds;
 	struct v4l2_crop fix_up_crop;
 	int ret = 0;
@@ -1476,13 +1476,17 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 			return 0;
 	}
 
+	pre_vout = vmalloc(sizeof(*pre_vout));
+	if (!pre_vout)
+		return -ENOMEM;
+
 	/* wait current work finish */
 	if (vout->vbq.streaming)
 		flush_workqueue(vout->v4l_wq);
 
 	mutex_lock(&vout->task_lock);
 
-	memcpy(&pre_vout, vout, sizeof(*vout));
+	memcpy(pre_vout, vout, sizeof(*vout));
 
 	if (vout->disp_support_windows) {
 		vout->task.output.crop.pos.x = 0;
@@ -1514,7 +1518,7 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 			goto done;
 		}
 
-		if (mxc_vout_need_fb_reconfig(vout, &pre_vout)) {
+		if (mxc_vout_need_fb_reconfig(vout, pre_vout)) {
 			ret = config_disp_output(vout);
 			if (ret < 0)
 				v4l2_err(vout->vfd->v4l2_dev,
@@ -1523,6 +1527,7 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 	}
 
 done:
+	vfree(pre_vout);
 	mutex_unlock(&vout->task_lock);
 
 	return ret;
@@ -1626,7 +1631,11 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
 				struct v4l2_control *ctrl)
 {
 	int ret = 0;
-	struct mxc_vout_output *vout = fh, pre_vout;
+	struct mxc_vout_output *vout = fh, *pre_vout;
+
+	pre_vout = vmalloc(sizeof(*pre_vout));
+	if (!pre_vout)
+		return -ENOMEM;
 
 	/* wait current work finish */
 	if (vout->vbq.streaming)
@@ -1634,7 +1643,7 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
 
 	mutex_lock(&vout->task_lock);
 
-	memcpy(&pre_vout, vout, sizeof(*vout));
+	memcpy(pre_vout, vout, sizeof(*vout));
 
 	switch (ctrl->id) {
 	case V4L2_CID_ROTATE:
@@ -1677,7 +1686,7 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
 			goto done;
 		}
 
-		if (mxc_vout_need_fb_reconfig(vout, &pre_vout)) {
+		if (mxc_vout_need_fb_reconfig(vout, pre_vout)) {
 			ret = config_disp_output(vout);
 			if (ret < 0)
 				v4l2_err(vout->vfd->v4l2_dev,
@@ -1686,6 +1695,7 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
 	}
 
 done:
+	vfree(pre_vout);
 	mutex_unlock(&vout->task_lock);
 
 	return ret;
