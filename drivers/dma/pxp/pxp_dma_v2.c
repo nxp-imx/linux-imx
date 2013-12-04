@@ -49,6 +49,7 @@
 static LIST_HEAD(head);
 static int timeout_in_ms = 600;
 static unsigned int block_size;
+static struct kmem_cache *tx_desc_cache;
 
 struct pxp_dma {
 	struct dma_device dma;
@@ -1190,36 +1191,6 @@ static dma_cookie_t pxp_tx_submit(struct dma_async_tx_descriptor *tx)
 	return cookie;
 }
 
-/* Called with pxp_chan->chan_mutex held */
-static int pxp_desc_alloc(struct pxp_channel *pxp_chan, int n)
-{
-	struct pxp_tx_desc *desc = vmalloc(n * sizeof(struct pxp_tx_desc));
-
-	if (!desc)
-		return -ENOMEM;
-
-	pxp_chan->n_tx_desc = n;
-	pxp_chan->desc = desc;
-	INIT_LIST_HEAD(&pxp_chan->active_list);
-	INIT_LIST_HEAD(&pxp_chan->queue);
-	INIT_LIST_HEAD(&pxp_chan->free_list);
-
-	while (n--) {
-		struct dma_async_tx_descriptor *txd = &desc->txd;
-
-		memset(txd, 0, sizeof(*txd));
-		INIT_LIST_HEAD(&desc->tx_list);
-		dma_async_tx_descriptor_init(txd, &pxp_chan->dma_chan);
-		txd->tx_submit = pxp_tx_submit;
-
-		list_add(&desc->list, &pxp_chan->free_list);
-
-		desc++;
-	}
-
-	return 0;
-}
-
 /**
  * pxp_init_channel() - initialize a PXP channel.
  * @pxp_dma:   PXP DMA context.
@@ -1229,9 +1200,7 @@ static int pxp_desc_alloc(struct pxp_channel *pxp_chan, int n)
 static int pxp_init_channel(struct pxp_dma *pxp_dma,
 			    struct pxp_channel *pxp_chan)
 {
-	unsigned long flags;
-	struct pxps *pxp = to_pxp(pxp_dma);
-	int ret = 0, n_desc = 0;
+	int ret = 0;
 
 	/*
 	 * We are using _virtual_ channel here.
@@ -1240,34 +1209,8 @@ static int pxp_init_channel(struct pxp_dma *pxp_dma,
 	 * (i.e., pxp_tx_desc) here.
 	 */
 
-	spin_lock_irqsave(&pxp->lock, flags);
-
-	/* max desc nr: S0+OL+OUT = 1+8+1 */
-	n_desc = 16;
-
-	spin_unlock_irqrestore(&pxp->lock, flags);
-
-	if (n_desc && !pxp_chan->desc)
-		ret = pxp_desc_alloc(pxp_chan, n_desc);
-
-	return ret;
-}
-
-/**
- * pxp_uninit_channel() - uninitialize a PXP channel.
- * @pxp_dma:   PXP DMA context.
- * @pchan:  pointer to the channel object.
- * @return      0 on success or negative error code on failure.
- */
-static int pxp_uninit_channel(struct pxp_dma *pxp_dma,
-			      struct pxp_channel *pxp_chan)
-{
-	int ret = 0;
-
-	if (pxp_chan->desc)
-		vfree(pxp_chan->desc);
-
-	pxp_chan->desc = NULL;
+	INIT_LIST_HEAD(&pxp_chan->active_list);
+	INIT_LIST_HEAD(&pxp_chan->queue);
 
 	return ret;
 }
@@ -1277,6 +1220,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	struct pxps *pxp = dev_id;
 	struct pxp_channel *pxp_chan;
 	struct pxp_tx_desc *desc;
+	struct pxp_tx_desc *child, *_child;
 	dma_async_tx_callback callback;
 	void *callback_param;
 	unsigned long flags;
@@ -1323,8 +1267,12 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 
 	pxp_chan->status = PXP_CHANNEL_INITIALIZED;
 
-	list_splice_init(&desc->tx_list, &pxp_chan->free_list);
-	list_move(&desc->list, &pxp_chan->free_list);
+	list_for_each_entry_safe(child, _child, &desc->tx_list, list) {
+		list_del_init(&child->list);
+		kmem_cache_free(tx_desc_cache, (void *)child);
+	}
+	list_del_init(&desc->list);
+	kmem_cache_free(tx_desc_cache, (void *)desc);
 
 	if (list_empty(&pxp_chan->active_list))
 		list_del_init(&pxp_chan->list);
@@ -1338,35 +1286,23 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-/* called with pxp_chan->lock held */
-static struct pxp_tx_desc *pxpdma_desc_get(struct pxp_channel *pxp_chan)
+/* allocate/free dma tx descriptor dynamically*/
+static struct pxp_tx_desc *pxpdma_desc_alloc(struct pxp_channel *pxp_chan)
 {
-	struct pxp_tx_desc *desc, *_desc;
-	struct pxp_tx_desc *ret = NULL;
+	struct pxp_tx_desc *desc = NULL;
+	struct dma_async_tx_descriptor *txd = NULL;
 
-	list_for_each_entry_safe(desc, _desc, &pxp_chan->free_list, list) {
-		list_del_init(&desc->list);
-		ret = desc;
-		break;
-	}
+	desc = kmem_cache_alloc(tx_desc_cache, GFP_KERNEL | __GFP_ZERO);
+	if (desc == NULL)
+		return NULL;
 
-	return ret;
-}
+	INIT_LIST_HEAD(&desc->list);
+	INIT_LIST_HEAD(&desc->tx_list);
+	txd = &desc->txd;
+	dma_async_tx_descriptor_init(txd, &pxp_chan->dma_chan);
+	txd->tx_submit = pxp_tx_submit;
 
-/* called with pxp_chan->lock held */
-static void pxpdma_desc_put(struct pxp_channel *pxp_chan,
-			    struct pxp_tx_desc *desc)
-{
-	if (desc) {
-		struct device *dev = &pxp_chan->dma_chan.dev->device;
-		struct pxp_tx_desc *child;
-
-		list_for_each_entry(child, &desc->tx_list, list)
-		    dev_info(dev, "moving child desc %p to freelist\n", child);
-		list_splice_init(&desc->tx_list, &pxp_chan->free_list);
-		dev_info(dev, "moving desc %p to freelist\n", desc);
-		list_add(&desc->list, &pxp_chan->free_list);
-	}
+	return desc;
 }
 
 /* Allocate and initialise a transfer descriptor. */
@@ -1401,11 +1337,10 @@ static struct dma_async_tx_descriptor *pxp_prep_slave_sg(struct dma_chan *chan,
 
 	spin_lock_irqsave(&pxp_chan->lock, flags);
 	for_each_sg(sgl, sg, sg_len, i) {
-		desc = pxpdma_desc_get(pxp_chan);
+		desc = pxpdma_desc_alloc(pxp_chan);
 		if (!desc) {
-			pxpdma_desc_put(pxp_chan, first);
-			dev_err(chan->device->dev, "Can't get DMA desc.\n");
 			spin_unlock_irqrestore(&pxp_chan->lock, flags);
+			dev_err(chan->device->dev, "no enough memory to allocate tx descriptor\n");
 			return NULL;
 		}
 
@@ -1484,14 +1419,6 @@ static void pxp_issue_pending(struct dma_chan *chan)
 static void __pxp_terminate_all(struct dma_chan *chan)
 {
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
-	unsigned long flags;
-
-	/* pchan->queue is modified in ISR, have to spinlock */
-	spin_lock_irqsave(&pxp_chan->lock, flags);
-	list_splice_init(&pxp_chan->queue, &pxp_chan->free_list);
-	list_splice_init(&pxp_chan->active_list, &pxp_chan->free_list);
-
-	spin_unlock_irqrestore(&pxp_chan->lock, flags);
 
 	pxp_chan->status = PXP_CHANNEL_INITIALIZED;
 }
@@ -1544,15 +1471,12 @@ err_chan:
 static void pxp_free_chan_resources(struct dma_chan *chan)
 {
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
-	struct pxp_dma *pxp_dma = to_pxp_dma(chan->device);
 
 	mutex_lock(&pxp_chan->chan_mutex);
 
 	__pxp_terminate_all(chan);
 
 	pxp_chan->status = PXP_CHANNEL_FREE;
-
-	pxp_uninit_channel(pxp_dma, pxp_chan);
 
 	mutex_unlock(&pxp_chan->chan_mutex);
 }
@@ -1900,6 +1824,12 @@ static int pxp_probe(struct platform_device *pdev)
 		goto exit;
 	}
 	init_waitqueue_head(&pxp->thread_waitq);
+	tx_desc_cache = kmem_cache_create("tx_desc", sizeof(struct pxp_tx_desc),
+					  0, SLAB_HWCACHE_ALIGN, NULL);
+	if (!tx_desc_cache) {
+		err = -ENOMEM;
+		goto exit;
+	}
 
 	register_pxp_device();
 
@@ -1916,6 +1846,7 @@ static int pxp_remove(struct platform_device *pdev)
 	struct pxps *pxp = platform_get_drvdata(pdev);
 
 	unregister_pxp_device();
+	kmem_cache_destroy(tx_desc_cache);
 	kthread_stop(pxp->dispatch);
 	cancel_work_sync(&pxp->work);
 	del_timer_sync(&pxp->clk_timer);
