@@ -1,7 +1,7 @@
 
 /*
  * CAAM Secure Memory/Keywrap API Definitions
- * Copyright (C) 2008, 2012-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
  */
 
 #ifndef SM_H
