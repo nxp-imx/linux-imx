@@ -1,7 +1,7 @@
 
 /*
  * CAAM Secure Memory Storage Interface
- * Copyright (C) 2008, 2012-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
  *
  * Loosely based on the SHW Keystore API for SCC/SCC2
  * Experimental implementation and NOT intended for upstream use. Expect
