@@ -1066,11 +1066,6 @@ static void pxp_clkoff_timer(unsigned long arg)
 			  jiffies + msecs_to_jiffies(timeout_in_ms));
 }
 
-static struct pxp_tx_desc *pxpdma_first_active(struct pxp_channel *pxp_chan)
-{
-	return list_entry(pxp_chan->active_list.next, struct pxp_tx_desc, list);
-}
-
 static struct pxp_tx_desc *pxpdma_first_queued(struct pxp_channel *pxp_chan)
 {
 	return list_entry(pxp_chan->queue.next, struct pxp_tx_desc, list);
@@ -1085,9 +1080,8 @@ static void __pxpdma_dostart(struct pxp_channel *pxp_chan)
 	struct pxp_tx_desc *child;
 	int i = 0;
 
-	/* so far we presume only one transaction on active_list */
 	/* S0 */
-	desc = pxpdma_first_active(pxp_chan);
+	desc = list_first_entry(&head, struct pxp_tx_desc, list);
 	memcpy(&pxp->pxp_conf_state.s0_param,
 	       &desc->layer_param.s0_param, sizeof(struct pxp_layer_param));
 	memcpy(&pxp->pxp_conf_state.proc_data,
@@ -1120,7 +1114,8 @@ static void __pxpdma_dostart(struct pxp_channel *pxp_chan)
 static void pxpdma_dostart_work(struct pxps *pxp)
 {
 	struct pxp_channel *pxp_chan = NULL;
-	unsigned long flags, flags1;
+	unsigned long flags;
+	struct pxp_tx_desc *desc = NULL;
 
 	spin_lock_irqsave(&pxp->lock, flags);
 	if (list_empty(&head)) {
@@ -1129,16 +1124,10 @@ static void pxpdma_dostart_work(struct pxps *pxp)
 		return;
 	}
 
-	pxp_chan = list_entry(head.next, struct pxp_channel, list);
+	desc = list_entry(head.next, struct pxp_tx_desc, list);
+	pxp_chan = to_pxp_channel(desc->txd.chan);
 
-	spin_lock_irqsave(&pxp_chan->lock, flags1);
-	if (!list_empty(&pxp_chan->active_list)) {
-		struct pxp_tx_desc *desc;
-		/* REVISIT */
-		desc = pxpdma_first_active(pxp_chan);
-		__pxpdma_dostart(pxp_chan);
-	}
-	spin_unlock_irqrestore(&pxp_chan->lock, flags1);
+	__pxpdma_dostart(pxp_chan);
 
 	/* Configure PxP */
 	pxp_config(pxp, pxp_chan);
@@ -1209,7 +1198,6 @@ static int pxp_init_channel(struct pxp_dma *pxp_dma,
 	 * (i.e., pxp_tx_desc) here.
 	 */
 
-	INIT_LIST_HEAD(&pxp_chan->active_list);
 	INIT_LIST_HEAD(&pxp_chan->queue);
 
 	return ret;
@@ -1241,18 +1229,9 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 		return IRQ_NONE;
 	}
 
-	pxp_chan = list_entry(head.next, struct pxp_channel, list);
-
-	if (list_empty(&pxp_chan->active_list)) {
-		pr_debug("PXP_IRQ pxp_chan->active_list empty. chan_id %d\n",
-			 pxp_chan->dma_chan.chan_id);
-		pxp->pxp_ongoing = 0;
-		spin_unlock_irqrestore(&pxp->lock, flags);
-		return IRQ_NONE;
-	}
-
 	/* Get descriptor and call callback */
-	desc = pxpdma_first_active(pxp_chan);
+	desc = list_entry(head.next, struct pxp_tx_desc, list);
+	pxp_chan = to_pxp_channel(desc->txd.chan);
 
 	pxp_chan->completed = desc->txd.cookie;
 
@@ -1273,9 +1252,6 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	}
 	list_del_init(&desc->list);
 	kmem_cache_free(tx_desc_cache, (void *)desc);
-
-	if (list_empty(&pxp_chan->active_list))
-		list_del_init(&pxp_chan->list);
 
 	complete(&pxp->complete);
 	pxp->pxp_ongoing = 0;
@@ -1380,30 +1356,13 @@ static void pxp_issue_pending(struct dma_chan *chan)
 	struct pxp_dma *pxp_dma = to_pxp_dma(chan->device);
 	struct pxps *pxp = to_pxp(pxp_dma);
 	unsigned long flags0, flags;
-	struct list_head *iter;
 
 	spin_lock_irqsave(&pxp->lock, flags0);
 	spin_lock_irqsave(&pxp_chan->lock, flags);
 
 	if (!list_empty(&pxp_chan->queue)) {
-		pxpdma_dequeue(pxp_chan, &pxp_chan->active_list);
+		pxpdma_dequeue(pxp_chan, &head);
 		pxp_chan->status = PXP_CHANNEL_READY;
-		iter = head.next;
-		/* Avoid adding a pxp channel to head list which
-		 * has been already listed in it. And this may
-		 * cause the head list to be broken down.
-		 */
-		if (list_empty(&head)) {
-			list_add_tail(&pxp_chan->list, &head);
-		} else {
-			while (iter != &head) {
-				if (&pxp_chan->list == iter)
-					break;
-				iter = iter->next;
-			}
-			if (iter == &head)
-				list_add_tail(&pxp_chan->list, &head);
-		}
 	} else {
 		spin_unlock_irqrestore(&pxp_chan->lock, flags);
 		spin_unlock_irqrestore(&pxp->lock, flags0);
