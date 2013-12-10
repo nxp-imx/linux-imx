@@ -1515,6 +1515,7 @@ static int mxc_vidioc_s_crop(struct file *file, void *fh,
 		if (ret < 0) {
 			v4l2_err(vout->vfd->v4l2_dev,
 					"vout check task failed\n");
+			memcpy(vout, pre_vout, sizeof(*vout));
 			goto done;
 		}
 
@@ -1683,6 +1684,7 @@ static int mxc_vidioc_s_ctrl(struct file *file, void *fh,
 		if (ret < 0) {
 			v4l2_err(vout->vfd->v4l2_dev,
 					"vout check task failed\n");
+			memcpy(vout, pre_vout, sizeof(*vout));
 			goto done;
 		}
 
