@@ -1783,6 +1783,15 @@ static irqreturn_t mlb_isr(int irq, void *dev_id)
 	 */
 	ms0 = __raw_readl(mlb_base + REG_MS0);
 	ms1 = __raw_readl(mlb_base + REG_MS1);
+
+	/*
+	 * The MLB150_MS0, MLB150_MS1 registers need to be cleared. In
+	 * the spec description, the registers should  be cleared when
+	 * enabling interrupt. In fact, we also should clear it in ISR.
+	 */
+	__raw_writel(0, mlb_base + REG_MS0);
+	__raw_writel(0, mlb_base + REG_MS1);
+
 	pr_debug("mxc_mlb150: mlb interrupt:0x%08x 0x%08x\n",
 			(u32)ms0, (u32)ms1);
 
