@@ -37,7 +37,6 @@ static DEFINE_SPINLOCK(pxp_mem_lock);
 static DEFINE_SPINLOCK(pxp_chan_lock);
 static LIST_HEAD(head);
 static LIST_HEAD(list);
-static struct pxp_irq_info irq_info[NR_PXP_VIRT_CHANNEL];
 
 struct pxp_chan_handle {
 	int chan_id;
@@ -54,6 +53,14 @@ struct pxp_chan_info {
 	struct dma_chan *dma_chan;
 	struct list_head list;
 };
+
+struct pxp_irq_info {
+	wait_queue_head_t waitq;
+	int irq_pending;
+	int hist_status;
+	spinlock_t lock;
+};
+static struct pxp_irq_info irq_info[NR_PXP_VIRT_CHANNEL];
 
 static int pxp_alloc_dma_buffer(struct pxp_mem_desc *mem)
 {
