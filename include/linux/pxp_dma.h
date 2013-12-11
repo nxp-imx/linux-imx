@@ -47,8 +47,9 @@ struct pxp_channel {
 	struct pxp_tx_desc *desc;	/* allocated tx-descriptors */
 	struct list_head queue;	/* queued tx-descriptors */
 	struct list_head list;	/* track queued channel number */
-	spinlock_t lock;	/* protects sg[0,1], queue */
-	struct mutex chan_mutex;	/* protects status, cookie, free_list */
+	spinlock_t lock;	/* protects sg[0,1], queue,
+				 * status, cookie, free_list
+				 */
 	int active_buffer;
 	unsigned int eof_irq;
 	char eof_name[16];	/* EOF IRQ name for request_irq()  */
