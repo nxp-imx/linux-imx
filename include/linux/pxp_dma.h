@@ -58,6 +58,7 @@ struct pxp_irq_info {
 	wait_queue_head_t waitq;
 	int irq_pending;
 	int hist_status;
+	spinlock_t lock;
 };
 
 #define to_tx_desc(tx) container_of(tx, struct pxp_tx_desc, txd)
