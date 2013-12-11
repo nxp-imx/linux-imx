@@ -1155,7 +1155,8 @@ static dma_cookie_t pxp_tx_submit(struct dma_async_tx_descriptor *tx)
 
 	dev_dbg(&pxp_chan->dma_chan.dev->device, "received TX\n");
 
-	mutex_lock(&pxp_chan->chan_mutex);
+	/* pxp_chan->lock can be taken under ichan->lock, but not v.v. */
+	spin_lock_irqsave(&pxp_chan->lock, flags);
 
 	cookie = pxp_chan->dma_chan.cookie;
 
@@ -1166,9 +1167,6 @@ static dma_cookie_t pxp_tx_submit(struct dma_async_tx_descriptor *tx)
 	pxp_chan->dma_chan.cookie = cookie;
 	tx->cookie = cookie;
 
-	/* pxp_chan->lock can be taken under ichan->lock, but not v.v. */
-	spin_lock_irqsave(&pxp_chan->lock, flags);
-
 	/* Here we add the tx descriptor to our PxP task queue. */
 	list_add_tail(&desc->list, &pxp_chan->queue);
 
@@ -1176,7 +1174,6 @@ static dma_cookie_t pxp_tx_submit(struct dma_async_tx_descriptor *tx)
 
 	dev_dbg(&pxp_chan->dma_chan.dev->device, "done TX\n");
 
-	mutex_unlock(&pxp_chan->chan_mutex);
 	return cookie;
 }
 
@@ -1385,15 +1382,16 @@ static void __pxp_terminate_all(struct dma_chan *chan)
 static int pxp_control(struct dma_chan *chan, enum dma_ctrl_cmd cmd,
 			unsigned long arg)
 {
+	unsigned long flags;
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
 
 	/* Only supports DMA_TERMINATE_ALL */
 	if (cmd != DMA_TERMINATE_ALL)
 		return -ENXIO;
 
-	mutex_lock(&pxp_chan->chan_mutex);
+	spin_lock_irqsave(&pxp_chan->lock, flags);
 	__pxp_terminate_all(chan);
-	mutex_unlock(&pxp_chan->chan_mutex);
+	spin_unlock_irqrestore(&pxp_chan->lock, flags);
 
 	return 0;
 }
@@ -1429,15 +1427,16 @@ err_chan:
 
 static void pxp_free_chan_resources(struct dma_chan *chan)
 {
+	unsigned long flags;
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
 
-	mutex_lock(&pxp_chan->chan_mutex);
+	spin_lock_irqsave(&pxp_chan->lock, flags);
 
 	__pxp_terminate_all(chan);
 
 	pxp_chan->status = PXP_CHANNEL_FREE;
 
-	mutex_unlock(&pxp_chan->chan_mutex);
+	spin_unlock_irqrestore(&pxp_chan->lock, flags);
 }
 
 static enum dma_status pxp_tx_status(struct dma_chan *chan,
@@ -1595,7 +1594,6 @@ static int pxp_dma_init(struct pxps *pxp)
 		struct dma_chan *dma_chan = &pxp_chan->dma_chan;
 
 		spin_lock_init(&pxp_chan->lock);
-		mutex_init(&pxp_chan->chan_mutex);
 
 		/* Only one EOF IRQ for PxP, shared by all channels */
 		pxp_chan->eof_irq = pxp->irq;
