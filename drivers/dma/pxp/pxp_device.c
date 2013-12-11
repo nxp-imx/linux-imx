@@ -51,7 +51,6 @@ struct memalloc_record {
 };
 
 struct pxp_chan_info {
-	int chan_id;
 	struct dma_chan *dma_chan;
 	struct list_head list;
 };
@@ -104,11 +103,14 @@ static void pxp_dma_done(void *arg)
 	struct dma_chan *chan = tx_desc->txd.chan;
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
 	int chan_id = pxp_chan->dma_chan.chan_id;
+	unsigned long flags;
 
 	pr_debug("DMA Done ISR, chan_id %d\n", chan_id);
 
-	irq_info[chan_id].irq_pending++;
+	spin_lock_irqsave(&(irq_info[chan_id].lock), flags);
+	irq_info[chan_id].irq_pending--;
 	irq_info[chan_id].hist_status = tx_desc->hist_status;
+	spin_unlock_irqrestore(&(irq_info[chan_id].lock), flags);
 
 	wake_up_interruptible(&(irq_info[chan_id].waitq));
 }
@@ -123,6 +125,7 @@ static int pxp_ioc_config_chan(unsigned long arg)
 	dma_cookie_t cookie;
 	int chan_id;
 	int i, length, ret;
+	unsigned long flags;
 
 	ret = copy_from_user(&pxp_conf,
 			     (struct pxp_config_data *)arg,
@@ -133,8 +136,6 @@ static int pxp_ioc_config_chan(unsigned long arg)
 	chan_id = pxp_conf.chan_id;
 	if (chan_id < 0 || chan_id >= NR_PXP_VIRT_CHANNEL)
 		return -ENODEV;
-
-	init_waitqueue_head(&(irq_info[chan_id].waitq));
 
 	/* find the channel */
 	spin_lock(&pxp_chan_lock);
@@ -190,6 +191,10 @@ static int pxp_ioc_config_chan(unsigned long arg)
 		pr_err("Error tx_submit\n");
 		return -EIO;
 	}
+
+	spin_lock_irqsave(&(irq_info[chan_id].lock), flags);
+	irq_info[chan_id].irq_pending++;
+	spin_unlock_irqrestore(&(irq_info[chan_id].lock), flags);
 
 	return 0;
 }
@@ -283,6 +288,7 @@ static long pxp_device_ioctl(struct file *filp,
 			list_add_tail(&info->list, &list);
 			spin_unlock(&pxp_chan_lock);
 
+			init_waitqueue_head(&(irq_info[info->dma_chan->chan_id].waitq));
 			if (put_user
 			    (info->dma_chan->chan_id, (u32 __user *) arg))
 				return -EFAULT;
@@ -320,7 +326,6 @@ static long pxp_device_ioctl(struct file *filp,
 		}
 	case PXP_IOC_CONFIG_CHAN:
 		{
-
 			int ret;
 
 			ret = pxp_ioc_config_chan(arg);
@@ -373,14 +378,14 @@ static long pxp_device_ioctl(struct file *filp,
 				kfree(rec);
 				printk(KERN_ERR
 				       "Physical memory allocation error!\n");
-				break;
+				return ret;
 			}
 			ret = copy_to_user((void __user *)arg, &(rec->mem),
 					   sizeof(struct pxp_mem_desc));
 			if (ret) {
 				kfree(rec);
 				ret = -EFAULT;
-				break;
+				return ret;
 			}
 
 			spin_lock(&pxp_mem_lock);
@@ -435,13 +440,12 @@ static long pxp_device_ioctl(struct file *filp,
 
 			ret = wait_event_interruptible
 			    (irq_info[chan_id].waitq,
-			     (irq_info[chan_id].irq_pending != 0));
+			     (irq_info[chan_id].irq_pending == 0));
 			if (ret < 0) {
 				printk(KERN_WARNING
-				       "pxp interrupt received.\n");
+				       "WAIT4CMPLT: signal received.\n");
 				return -ERESTARTSYS;
-			} else
-				irq_info[chan_id].irq_pending--;
+			}
 
 			chan_handle.hist_status = irq_info[chan_id].hist_status;
 			ret = copy_to_user((struct pxp_chan_handle *)arg,
@@ -473,11 +477,14 @@ static struct miscdevice pxp_device_miscdev = {
 
 int register_pxp_device(void)
 {
-	int ret;
+	int i, ret;
 
 	ret = misc_register(&pxp_device_miscdev);
 	if (ret)
 		return ret;
+
+	for (i = 0; i < NR_PXP_VIRT_CHANNEL; i++)
+		spin_lock_init(&(irq_info[i].lock));
 
 	pr_debug("PxP_Device registered Successfully\n");
 	return 0;
