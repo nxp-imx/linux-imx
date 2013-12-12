@@ -1048,7 +1048,6 @@ static int rtw_sdio_suspend(struct device *dev)
 
 exit:
 
-#ifdef CONFIG_MMC_PM_KEEP_POWER
 	//Android 4.0 don't support WIFI close power
 	//or power down or clock will close after wifi resume,
 	//this is sprd's bug in Android 4.0, but sprd don't
@@ -1066,7 +1065,6 @@ exit:
 			sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
 		}
 	}
-#endif	
 
 #ifdef CONFIG_PLATFORM_SPRD
 #ifndef CONFIG_WOWLAN
