@@ -696,7 +696,6 @@ static int pxp_buf_setup(struct videobuf_queue *q,
 static void pxp_buf_free(struct videobuf_queue *q, struct pxp_buffer *buf)
 {
 	struct videobuf_buffer *vb = &buf->vb;
-	struct dma_async_tx_descriptor *txd = buf->txd;
 
 	BUG_ON(in_interrupt());
 
@@ -708,8 +707,6 @@ static void pxp_buf_free(struct videobuf_queue *q, struct pxp_buffer *buf)
 	 * longer in STATE_QUEUED or STATE_ACTIVE
 	 */
 	videobuf_waiton(q, vb, 0, 0);
-	if (txd)
-		async_tx_ack(txd);
 
 	videobuf_dma_contig_free(q, vb);
 	buf->txd = NULL;
