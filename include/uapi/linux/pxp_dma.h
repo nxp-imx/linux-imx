@@ -20,12 +20,12 @@
 #define _UAPI_PXP_DMA
 
 #include <linux/posix_types.h>
+#include <linux/types.h>
 
 #ifndef __KERNEL__
 typedef unsigned long dma_addr_t;
 typedef unsigned char bool;
 #endif
-#define __u32 unsigned int
 
 /*  PXP Pixel format definitions */
 /*  Four-character-code (FOURCC) */
