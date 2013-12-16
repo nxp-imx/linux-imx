@@ -1127,7 +1127,7 @@ static inline int pci_msi_vec_count(struct pci_dev *dev)
 
 static inline int pci_enable_msi_block(struct pci_dev *dev, int nvec)
 {
-	return -1;
+	return -ENOSYS;
 }
 
 static inline void pci_msi_shutdown(struct pci_dev *dev)
@@ -1142,7 +1142,7 @@ static inline int pci_msix_vec_count(struct pci_dev *dev)
 static inline int pci_enable_msix(struct pci_dev *dev,
 				  struct msix_entry *entries, int nvec)
 {
-	return -1;
+	return -ENOSYS;
 }
 
 static inline void pci_msix_shutdown(struct pci_dev *dev)
