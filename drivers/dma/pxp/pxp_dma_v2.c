@@ -1132,12 +1132,16 @@ static void pxpdma_dostart_work(struct pxps *pxp)
 	spin_unlock_irqrestore(&pxp->lock, flags);
 }
 
-static void pxpdma_dequeue(struct pxp_channel *pxp_chan, struct list_head *list)
+static void pxpdma_dequeue(struct pxp_channel *pxp_chan, struct pxps *pxp)
 {
+	unsigned long flags;
 	struct pxp_tx_desc *desc = NULL;
+
 	do {
 		desc = pxpdma_first_queued(pxp_chan);
-		list_move_tail(&desc->list, list);
+		spin_lock_irqsave(&pxp->lock, flags);
+		list_move_tail(&desc->list, &head);
+		spin_unlock_irqrestore(&pxp->lock, flags);
 	} while (!list_empty(&pxp_chan->queue));
 }
 
@@ -1146,12 +1150,11 @@ static dma_cookie_t pxp_tx_submit(struct dma_async_tx_descriptor *tx)
 	struct pxp_tx_desc *desc = to_tx_desc(tx);
 	struct pxp_channel *pxp_chan = to_pxp_channel(tx->chan);
 	dma_cookie_t cookie;
-	unsigned long flags;
 
 	dev_dbg(&pxp_chan->dma_chan.dev->device, "received TX\n");
 
 	/* pxp_chan->lock can be taken under ichan->lock, but not v.v. */
-	spin_lock_irqsave(&pxp_chan->lock, flags);
+	spin_lock(&pxp_chan->lock);
 
 	cookie = pxp_chan->dma_chan.cookie;
 
@@ -1165,7 +1168,7 @@ static dma_cookie_t pxp_tx_submit(struct dma_async_tx_descriptor *tx)
 	/* Here we add the tx descriptor to our PxP task queue. */
 	list_add_tail(&desc->list, &pxp_chan->queue);
 
-	spin_unlock_irqrestore(&pxp_chan->lock, flags);
+	spin_unlock(&pxp_chan->lock);
 
 	dev_dbg(&pxp_chan->dma_chan.dev->device, "done TX\n");
 
@@ -1343,21 +1346,18 @@ static void pxp_issue_pending(struct dma_chan *chan)
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
 	struct pxp_dma *pxp_dma = to_pxp_dma(chan->device);
 	struct pxps *pxp = to_pxp(pxp_dma);
-	unsigned long flags0, flags;
 
-	spin_lock_irqsave(&pxp->lock, flags0);
-	spin_lock_irqsave(&pxp_chan->lock, flags);
+	spin_lock(&pxp_chan->lock);
 
-	if (!list_empty(&pxp_chan->queue)) {
-		pxpdma_dequeue(pxp_chan, &head);
-		pxp_chan->status = PXP_CHANNEL_READY;
-	} else {
-		spin_unlock_irqrestore(&pxp_chan->lock, flags);
-		spin_unlock_irqrestore(&pxp->lock, flags0);
+	if (list_empty(&pxp_chan->queue)) {
+		spin_unlock(&pxp_chan->lock);
 		return;
 	}
-	spin_unlock_irqrestore(&pxp_chan->lock, flags);
-	spin_unlock_irqrestore(&pxp->lock, flags0);
+
+	pxpdma_dequeue(pxp_chan, pxp);
+	pxp_chan->status = PXP_CHANNEL_READY;
+
+	spin_unlock(&pxp_chan->lock);
 
 	pxp_clk_enable(pxp);
 	wake_up_interruptible(&pxp->thread_waitq);
@@ -1373,16 +1373,15 @@ static void __pxp_terminate_all(struct dma_chan *chan)
 static int pxp_control(struct dma_chan *chan, enum dma_ctrl_cmd cmd,
 			unsigned long arg)
 {
-	unsigned long flags;
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
 
 	/* Only supports DMA_TERMINATE_ALL */
 	if (cmd != DMA_TERMINATE_ALL)
 		return -ENXIO;
 
-	spin_lock_irqsave(&pxp_chan->lock, flags);
+	spin_lock(&pxp_chan->lock);
 	__pxp_terminate_all(chan);
-	spin_unlock_irqrestore(&pxp_chan->lock, flags);
+	spin_unlock(&pxp_chan->lock);
 
 	return 0;
 }
@@ -1418,16 +1417,15 @@ err_chan:
 
 static void pxp_free_chan_resources(struct dma_chan *chan)
 {
-	unsigned long flags;
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
 
-	spin_lock_irqsave(&pxp_chan->lock, flags);
+	spin_lock(&pxp_chan->lock);
 
 	__pxp_terminate_all(chan);
 
 	pxp_chan->status = PXP_CHANNEL_FREE;
 
-	spin_unlock_irqrestore(&pxp_chan->lock, flags);
+	spin_unlock(&pxp_chan->lock);
 }
 
 static enum dma_status pxp_tx_status(struct dma_chan *chan,
