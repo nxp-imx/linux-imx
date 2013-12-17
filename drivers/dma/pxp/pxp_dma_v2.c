@@ -1118,11 +1118,6 @@ static void pxpdma_dostart_work(struct pxps *pxp)
 	struct pxp_tx_desc *desc = NULL;
 
 	spin_lock_irqsave(&pxp->lock, flags);
-	if (list_empty(&head)) {
-		pxp->pxp_ongoing = 0;
-		spin_unlock_irqrestore(&pxp->lock, flags);
-		return;
-	}
 
 	desc = list_entry(head.next, struct pxp_tx_desc, list);
 	pxp_chan = to_pxp_channel(desc->txd.chan);
