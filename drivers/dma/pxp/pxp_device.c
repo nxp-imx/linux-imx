@@ -34,19 +34,12 @@
 static atomic_t open_count = ATOMIC_INIT(0);
 
 static DEFINE_SPINLOCK(pxp_mem_lock);
-static DEFINE_SPINLOCK(pxp_chan_lock);
 static LIST_HEAD(head);
-static LIST_HEAD(list);
 
 /* To track the allocated memory buffer */
 struct memalloc_record {
 	struct list_head list;
 	struct pxp_mem_desc mem;
-};
-
-struct pxp_chan_info {
-	struct dma_chan *dma_chan;
-	struct list_head list;
 };
 
 struct pxp_irq_info {
@@ -55,6 +48,8 @@ struct pxp_irq_info {
 	int hist_status;
 	spinlock_t lock;
 };
+
+static struct dma_chan *dma_chans[NR_PXP_VIRT_CHANNEL];
 static struct pxp_irq_info irq_info[NR_PXP_VIRT_CHANNEL];
 
 static int pxp_alloc_dma_buffer(struct pxp_mem_desc *mem)
@@ -122,12 +117,12 @@ static int pxp_ioc_config_chan(unsigned long arg)
 	struct scatterlist sg[3];
 	struct pxp_tx_desc *desc;
 	struct dma_async_tx_descriptor *txd;
-	struct pxp_chan_info *info;
 	struct pxp_config_data pxp_conf;
 	dma_cookie_t cookie;
 	int chan_id;
 	int i, length, ret;
 	unsigned long flags;
+	struct dma_chan *chan;
 
 	ret = copy_from_user(&pxp_conf,
 			     (struct pxp_config_data *)arg,
@@ -138,23 +133,15 @@ static int pxp_ioc_config_chan(unsigned long arg)
 	chan_id = pxp_conf.chan_id;
 	if (chan_id < 0 || chan_id >= NR_PXP_VIRT_CHANNEL)
 		return -ENODEV;
-
-	/* find the channel */
-	spin_lock(&pxp_chan_lock);
-	list_for_each_entry(info, &list, list) {
-		if (info->dma_chan->chan_id == chan_id)
-			break;
-	}
-	spin_unlock(&pxp_chan_lock);
+	chan = dma_chans[chan_id];
 
 	sg_init_table(sg, 3);
 
-	txd =
-	    info->dma_chan->device->device_prep_slave_sg(info->dma_chan,
-							 sg, 3,
-							 DMA_TO_DEVICE,
-							 DMA_PREP_INTERRUPT,
-							 NULL);
+	txd = chan->device->device_prep_slave_sg(chan,
+						 sg, 3,
+						 DMA_TO_DEVICE,
+						 DMA_PREP_INTERRUPT,
+						 NULL);
 	if (!txd) {
 		pr_err("Error preparing a DMA transaction descriptor.\n");
 		return -EIO;
@@ -263,36 +250,27 @@ static long pxp_device_ioctl(struct file *filp,
 	switch (cmd) {
 	case PXP_IOC_GET_CHAN:
 		{
-			struct pxp_chan_info *info;
+			struct dma_chan *chan = NULL;
 			dma_cap_mask_t mask;
 
 			pr_debug("drv: PXP_IOC_GET_CHAN Line %d\n", __LINE__);
-			info = kzalloc(sizeof(*info), GFP_KERNEL);
-			if (!info) {
-				pr_err("%d: alloc err\n", __LINE__);
-				return -ENOMEM;
-			}
 
 			dma_cap_zero(mask);
 			dma_cap_set(DMA_SLAVE, mask);
 			dma_cap_set(DMA_PRIVATE, mask);
-			info->dma_chan =
-				dma_request_channel(mask, chan_filter, NULL);
-			if (!info->dma_chan) {
+			chan = dma_request_channel(mask, chan_filter, NULL);
+			if (!chan) {
 				pr_err("Unsccessfully received channel!\n");
-				kfree(info);
 				return -EBUSY;
 			}
+			BUG_ON(dma_chans[chan->chan_id] != NULL);
+
 			pr_debug("Successfully received channel."
-				 "chan_id %d\n", info->dma_chan->chan_id);
+				 "chan_id %d\n", chan->chan_id);
 
-			spin_lock(&pxp_chan_lock);
-			list_add_tail(&info->list, &list);
-			spin_unlock(&pxp_chan_lock);
-
-			init_waitqueue_head(&(irq_info[info->dma_chan->chan_id].waitq));
-			if (put_user
-			    (info->dma_chan->chan_id, (u32 __user *) arg))
+			dma_chans[chan->chan_id] = chan;
+			init_waitqueue_head(&(irq_info[chan->chan_id].waitq));
+			if (put_user(chan->chan_id, (u32 __user *) arg))
 				return -EFAULT;
 
 			break;
@@ -300,7 +278,7 @@ static long pxp_device_ioctl(struct file *filp,
 	case PXP_IOC_PUT_CHAN:
 		{
 			int chan_id;
-			struct pxp_chan_info *info;
+			struct dma_chan *chan;
 
 			if (get_user(chan_id, (u32 __user *) arg))
 				return -EFAULT;
@@ -308,21 +286,14 @@ static long pxp_device_ioctl(struct file *filp,
 			if (chan_id < 0 || chan_id >= NR_PXP_VIRT_CHANNEL)
 				return -ENODEV;
 
-			spin_lock(&pxp_chan_lock);
-			list_for_each_entry(info, &list, list) {
-				if (info->dma_chan->chan_id == chan_id)
-					break;
-			}
-			spin_unlock(&pxp_chan_lock);
+			if (!dma_chans[chan_id])
+				return -ENODEV;
 
-			pr_debug("%d release chan_id %d\n", __LINE__,
-				 info->dma_chan->chan_id);
+			pr_debug("%d release chan_id %d\n", __LINE__, chan_id);
 			/* REVISIT */
-			dma_release_channel(info->dma_chan);
-			spin_lock(&pxp_chan_lock);
-			list_del_init(&info->list);
-			spin_unlock(&pxp_chan_lock);
-			kfree(info);
+			chan = dma_chans[chan_id];
+			dma_chans[chan_id] = NULL;
+			dma_release_channel(chan);
 
 			break;
 		}
@@ -338,21 +309,15 @@ static long pxp_device_ioctl(struct file *filp,
 		}
 	case PXP_IOC_START_CHAN:
 		{
-			struct pxp_chan_info *info;
 			int chan_id;
 
 			if (get_user(chan_id, (u32 __user *) arg))
 				return -EFAULT;
 
-			/* find the channel */
-			spin_lock(&pxp_chan_lock);
-			list_for_each_entry(info, &list, list) {
-				if (info->dma_chan->chan_id == chan_id)
-					break;
-			}
-			spin_unlock(&pxp_chan_lock);
+			if (chan_id < 0 || chan_id >= NR_PXP_VIRT_CHANNEL)
+				return -ENODEV;
 
-			dma_async_issue_pending(info->dma_chan);
+			dma_async_issue_pending(dma_chans[chan_id]);
 
 			break;
 		}
