@@ -27,7 +27,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/sched.h>
 #include <linux/module.h>
-#include <linux/pxp_dma.h>
+#include <linux/pxp_device.h>
 #include <linux/atomic.h>
 #include <linux/platform_data/dma-imx.h>
 
@@ -37,11 +37,6 @@ static DEFINE_SPINLOCK(pxp_mem_lock);
 static DEFINE_SPINLOCK(pxp_chan_lock);
 static LIST_HEAD(head);
 static LIST_HEAD(list);
-
-struct pxp_chan_handle {
-	int chan_id;
-	int hist_status;
-};
 
 /* To track the allocated memory buffer */
 struct memalloc_record {
