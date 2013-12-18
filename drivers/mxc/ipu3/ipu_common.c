@@ -803,7 +803,6 @@ int32_t ipu_init_channel(struct ipu_soc *ipu, ipu_channel_t channel, ipu_channel
 		ipu->using_ic_dirct_ch = MEM_VDI_MEM;
 		ipu->ic_use_count++;
 		ipu->vdi_use_count++;
-		_ipu_ic_init_prpvf(ipu, params, false);
 		_ipu_vdi_init(ipu, channel, params);
 		break;
 	case MEM_ROT_VF_MEM:
@@ -1044,7 +1043,6 @@ void ipu_uninit_channel(struct ipu_soc *ipu, ipu_channel_t channel)
 		ipu->vdi_use_count--;
 		if (ipu->using_ic_dirct_ch == MEM_VDI_MEM)
 			ipu->using_ic_dirct_ch = 0;
-		_ipu_ic_uninit_prpvf(ipu);
 		_ipu_vdi_uninit(ipu);
 		break;
 	case MEM_VDI_PRP_VF_MEM_P:
