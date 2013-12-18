@@ -6,7 +6,7 @@
  *
  * Maintainer: Kumar Gala <galak@kernel.crashing.org>
  *
- * Copyright 2004-2013 Freescale Semiconductor, Inc.
+ * Copyright 2004-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -407,6 +407,8 @@ struct mxc_pwm_platform_data {
 	void (*disable_pwm_pad) (void);
 };
 
+struct mxc_epit_platform_data {
+};
 struct mxc_spdif_platform_data {
 	int spdif_tx;		/* S/PDIF tx enabled for this board */
 	int spdif_rx;		/* S/PDIF rx enabled for this board */
