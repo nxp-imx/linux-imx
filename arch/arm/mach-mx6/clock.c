@@ -4799,6 +4799,26 @@ static struct clk pwm_clk[] = {
 	 },
 };
 
+static struct clk epit_clk[] = {
+	{
+	__INIT_CLK_DEBUG(epit_clk_0)
+	 .parent = &ipg_perclk,
+	 .id = 0,
+	 .enable_reg = MXC_CCM_CCGR1,
+	 .enable_shift = MXC_CCM_CCGRx_CG6_OFFSET,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable,
+	 },
+	{
+	__INIT_CLK_DEBUG(epit_clk_1)
+	 .parent = &ipg_perclk,
+	 .id = 1,
+	 .enable_reg = MXC_CCM_CCGR1,
+	 .enable_shift = MXC_CCM_CCGRx_CG7_OFFSET,
+	 .enable = _clk_enable,
+	 .disable = _clk_disable,
+	 },
+};
 static int _clk_sata_enable(struct clk *clk)
 {
 	unsigned int reg;
@@ -5409,6 +5429,8 @@ static struct clk_lookup lookups[] = {
 	_REGISTER_CLOCK("mxc_pwm.1", NULL, pwm_clk[1]),
 	_REGISTER_CLOCK("mxc_pwm.2", NULL, pwm_clk[2]),
 	_REGISTER_CLOCK("mxc_pwm.3", NULL, pwm_clk[3]),
+	_REGISTER_CLOCK("mxc_epit.0", NULL, epit_clk[0]),
+	_REGISTER_CLOCK("mxc_epit.1", NULL, epit_clk[1]),
 	_REGISTER_CLOCK(NULL, "pcie_clk", pcie_clk[0]),
 	_REGISTER_CLOCK(NULL, "pcie_ep_clk", pcie_ep_clk[0]),
 	_REGISTER_CLOCK(NULL, "fec_clk", enet_clk[0]),

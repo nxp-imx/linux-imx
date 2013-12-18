@@ -305,6 +305,15 @@ struct platform_device *__init imx_add_mxc_nand(
 		const struct imx_mxc_nand_data *data,
 		const struct mxc_nand_platform_data *pdata);
 
+struct imx_mxc_epit_data {
+    int id;
+    resource_size_t iobase;
+    resource_size_t iosize;
+    resource_size_t irq;
+};
+struct platform_device *__init imx_add_mxc_epit(
+		const struct imx_mxc_epit_data *data);
+
 struct imx_mxc_pwm_data {
 	int id;
 	resource_size_t iobase;

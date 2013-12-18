@@ -407,6 +407,8 @@ struct mxc_pwm_platform_data {
 	void (*disable_pwm_pad) (void);
 };
 
+struct mxc_epit_platform_data {
+};
 struct mxc_spdif_platform_data {
 	int spdif_tx;		/* S/PDIF tx enabled for this board */
 	int spdif_rx;		/* S/PDIF rx enabled for this board */
