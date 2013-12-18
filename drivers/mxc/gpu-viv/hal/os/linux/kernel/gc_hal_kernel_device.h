@@ -91,9 +91,10 @@ typedef struct _gckGALDEVICE
     struct clk         *clk_2d_axi;
     struct clk         *clk_vg_axi;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
     /*Power management.*/
     struct regulator      *gpu_regulator;
-
+#endif
 	/*Run time pm*/
 	struct device		*pmdev;
 }
@@ -169,6 +170,7 @@ gceSTATUS gckGALDEVICE_Construct(
     IN gctINT Signal,
     IN gctUINT LogFileSize,
     IN struct device *pdev,
+    IN gctINT PowerManagement,
     OUT gckGALDEVICE *Device
     );
 

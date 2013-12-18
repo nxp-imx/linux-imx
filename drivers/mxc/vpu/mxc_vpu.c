@@ -113,6 +113,7 @@ static int vpu_jpu_irq;
 static unsigned int regBk[64];
 static struct regulator *vpu_regulator;
 static unsigned int pc_before_suspend;
+extern struct mutex set_cpufreq_lock;
 
 #define	READ_REG(x)		__raw_readl(vpu_base + x)
 #define	WRITE_REG(val, x)	__raw_writel(val, vpu_base + x)
@@ -252,8 +253,10 @@ static int vpu_open(struct inode *inode, struct file *filp)
 	mutex_lock(&vpu_data.lock);
 
 	if (open_count++ == 0) {
+		mutex_lock(&set_cpufreq_lock);
 		if (!IS_ERR(vpu_regulator))
 			regulator_enable(vpu_regulator);
+		mutex_unlock(&set_cpufreq_lock);
 
 #ifdef CONFIG_SOC_IMX6Q
 		clk_enable(vpu_clk);
@@ -620,8 +623,10 @@ static int vpu_release(struct inode *inode, struct file *filp)
 		for (i = 0; i < vpu_clk_usercount; i++)
 			clk_disable(vpu_clk);
 
+		mutex_lock(&set_cpufreq_lock);
 		if (!IS_ERR(vpu_regulator))
 			regulator_disable(vpu_regulator);
+		mutex_unlock(&set_cpufreq_lock);
 
 	}
 	mutex_unlock(&vpu_data.lock);
@@ -910,8 +915,10 @@ static int vpu_suspend(struct platform_device *pdev, pm_message_t state)
 
 		/* If VPU is working before suspend, disable
 		 * regulator to make usecount right. */
+		mutex_lock(&set_cpufreq_lock);
 		if (!IS_ERR(vpu_regulator))
 			regulator_disable(vpu_regulator);
+		mutex_unlock(&set_cpufreq_lock);
 	}
 
 	mutex_unlock(&vpu_data.lock);
@@ -938,8 +945,10 @@ static int vpu_resume(struct platform_device *pdev)
 
 		/* If VPU is working before suspend, enable
 		 * regulator to make usecount right. */
+		mutex_lock(&set_cpufreq_lock);
 		if (!IS_ERR(vpu_regulator))
 			regulator_enable(vpu_regulator);
+		mutex_unlock(&set_cpufreq_lock);
 
 		if (vpu_plat->pg)
 			vpu_plat->pg(0);

@@ -141,7 +141,10 @@ typedef enum _gceDATABASE_TYPE
     gcvDB_IDLE,                         /* GPU idle. */
     gcvDB_MAP_MEMORY,                   /* Map memory */
     gcvDB_SHARED_INFO,                 /* Private data */
-    gcvDB_MAP_USER_MEMORY               /* Map user memory */
+    gcvDB_MAP_USER_MEMORY,              /* Map user memory */
+    gcvDB_VIDEO_MEMORY_RESERVED,        /* Reserved video memory */
+    gcvDB_VIDEO_MEMORY_CONTIGUOUS,      /* Contiguous video memory */
+    gcvDB_VIDEO_MEMORY_VIRTUAL,         /* Virtual video memory */
 }
 gceDATABASE_TYPE;
 
@@ -180,6 +183,9 @@ typedef struct _gcsDATABASE
     gcsDATABASE_COUNTERS                contiguous;
     gcsDATABASE_COUNTERS                mapUserMemory;
     gcsDATABASE_COUNTERS                mapMemory;
+    gcsDATABASE_COUNTERS                vidMemResv;
+    gcsDATABASE_COUNTERS                vidMemCont;
+    gcsDATABASE_COUNTERS                vidMemVirt;
 
     /* Idle time management. */
     gctUINT64                           lastIdle;

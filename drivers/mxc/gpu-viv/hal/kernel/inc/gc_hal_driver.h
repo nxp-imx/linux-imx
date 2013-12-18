@@ -166,6 +166,9 @@ typedef enum _gceHAL_COMMAND_CODES
 
     /* Reset time stamp. */
     gcvHAL_QUERY_RESET_TIME_STAMP,
+
+    /* Video memory database */
+    gcvHAL_VIDMEM_DATABASE,
 }
 gceHAL_COMMAND_CODES;
 
@@ -209,6 +212,9 @@ typedef struct _gcsHAL_QUERY_CHIP_IDENTITY
 
     /* Supported minor feature 3 fields. */
     gctUINT32                   chipMinorFeatures3;
+
+    /* Supported minor feature 4 fields. */
+    gctUINT32                   chipMinorFeatures4;
 
     /* Number of streams supported. */
     gctUINT32                   streamCount;
@@ -834,6 +840,23 @@ typedef struct _gcsHAL_INTERFACE
         }
         Database;
 
+        /* gcvHAL_VIDMEM_DATABASE */
+        struct _gcsHAL_VIDMEM_DATABASE
+        {
+            /* Set to gcvTRUE if you want to query a particular process ID.
+            ** Set to gcvFALSE to query the last detached process. */
+            IN gctBOOL                  validProcessID;
+
+            /* Process ID to query. */
+            IN gctUINT32                processID;
+
+            /* Information. */
+            OUT gcuDATABASE_INFO        vidMemResv;
+            OUT gcuDATABASE_INFO        vidMemCont;
+            OUT gcuDATABASE_INFO        vidMemVirt;
+        }
+        VidMemDatabase;
+
         /* gcvHAL_VERSION */
         struct _gcsHAL_VERSION
         {
@@ -929,30 +952,30 @@ typedef struct _gcsHAL_INTERFACE
 
         struct _gcsHAL_GET_SHARED_INFO
         {
+            /* Process id. */
             IN gctUINT32            pid;
+
+            /* Data id. */
             IN gctUINT32            dataId;
-            /* gcuVIDMEM_NODE_PTR */
-            IN gctUINT64            node;
-            /* gctUINT8_PTR */
-            OUT gctUINT64           data;
-            /* fix size. gctUINT8_PTR*/
-            OUT gctUINT64           nodeData;
-            gctUINT64               size;
-            IN gceVIDMEM_NODE_SHARED_INFO_TYPE infoType;
+
+            /* Data size. */
+            IN gctSIZE_T            bytes;
+
+            /* Pointer to save the shared data. */
+            OUT gctPOINTER          data;
         }
         GetSharedInfo;
 
         struct _gcsHAL_SET_SHARED_INFO
         {
+            /* Data id. */
             IN gctUINT32            dataId;
-            /* gcuVIDMEM_NODE_PTR */
-            IN gctUINT64   node;
-            /* gctUINT8_PTR */
-            IN gctUINT64         data;
-            /* gctUINT8_PTR */
-            IN gctUINT64         nodeData;
-            IN gctUINT64            size;
-            IN gceVIDMEM_NODE_SHARED_INFO_TYPE infoType;
+
+            /* Data to be shared. */
+            IN gctPOINTER           data;
+
+            /* Data size. */
+            IN gctSIZE_T            bytes;
         }
         SetSharedInfo;
 

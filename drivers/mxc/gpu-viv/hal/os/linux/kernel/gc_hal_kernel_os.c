@@ -336,9 +336,10 @@ _CreateMdlMap(
         return gcvNULL;
     }
 
-    mdlMap->pid     = ProcessID;
-    mdlMap->vmaAddr = gcvNULL;
-    mdlMap->vma     = gcvNULL;
+    mdlMap->pid       = ProcessID;
+    mdlMap->vmaAddr   = gcvNULL;
+    mdlMap->vma       = gcvNULL;
+    mdlMap->reference = 0;
 
     mdlMap->next    = Mdl->maps;
     Mdl->maps       = mdlMap;
@@ -4031,7 +4032,7 @@ gckOS_FreePagedMemory(
 
     if (mdl->contiguous)
     {
-        __free_pages(mdl->u.contiguousPages, GetOrder(mdl->numPages));
+	__free_pages(mdl->u.contiguousPages, GetOrder(mdl->numPages));
     }
     else
     {
@@ -4289,6 +4290,8 @@ gckOS_LockPages(
 
         up_write(&current->mm->mmap_sem);
     }
+
+#if 0
     else
     {
         /* mdlMap->vmaAddr != gcvNULL means current process has already locked this node. */
@@ -4297,6 +4300,7 @@ gckOS_LockPages(
         gcmkFOOTER_ARG("*status=%d, mdlMap->vmaAddr=%x", gcvSTATUS_MEMORY_LOCKED, mdlMap->vmaAddr);
         return gcvSTATUS_MEMORY_LOCKED;
     }
+#endif
 
     /* Convert pointer to MDL. */
     *Logical = mdlMap->vmaAddr;
@@ -4306,6 +4310,9 @@ gckOS_LockPages(
     gcmkASSERT((PAGE_SIZE / 4096) >= 1);
 
     *PageCount = mdl->numPages * (PAGE_SIZE / 4096);
+
+    /* Increase reference count. */
+    mdlMap->reference++;
 
     MEMORY_UNLOCK(Os);
 
@@ -4573,6 +4580,11 @@ gckOS_UnlockPages(
     {
         if ((mdlMap->vmaAddr != gcvNULL) && (_GetProcessID() == mdlMap->pid))
         {
+            if (--mdlMap->reference > 0)
+            {
+                continue;
+            }
+
             _UnmapUserLogical(mdlMap->pid, mdlMap->vmaAddr, mdl->numPages * PAGE_SIZE);
             mdlMap->vmaAddr = gcvNULL;
         }
@@ -5404,6 +5416,10 @@ OnError:
         {
             for (i = 0; i < pageCount; i++)
             {
+#ifdef CONFIG_ARM
+                gctUINT32 data;
+                get_user(data, (gctUINT32*)((memory & PAGE_MASK) + i * PAGE_SIZE));
+#endif
                 /* Flush(clean) the data cache. */
                 gcmkONERROR(gckOS_CacheFlush(Os, _GetProcessID(), gcvNULL,
                                  (gctPOINTER)(gctUINTPTR_T)page_to_phys(pages[i]),
@@ -6785,6 +6801,7 @@ gckOS_GetThreadID(
 **
 **      Nothing.
 */
+extern struct mutex set_cpufreq_lock;
 gceSTATUS
 gckOS_SetGPUPower(
     IN gckOS Os,
@@ -6826,8 +6843,15 @@ gckOS_SetGPUPower(
     }
 	if((Power == gcvTRUE) && (oldPowerState == gcvFALSE))
 	{
-		if(!IS_ERR(Os->device->gpu_regulator))
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
+            mutex_lock(&set_cpufreq_lock);
+        if(!IS_ERR(Os->device->gpu_regulator))
             regulator_enable(Os->device->gpu_regulator);
+	    mutex_unlock(&set_cpufreq_lock);
+#else
+        imx_gpc_power_up_pu(true);
+#endif
+
 #ifdef CONFIG_PM
 		pm_runtime_get_sync(Os->device->pmdev);
 #endif
@@ -6937,8 +6961,16 @@ gckOS_SetGPUPower(
 #ifdef CONFIG_PM
 		pm_runtime_put_sync(Os->device->pmdev);
 #endif
-		if(!IS_ERR(Os->device->gpu_regulator))
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
+	    mutex_lock(&set_cpufreq_lock);
+        if(!IS_ERR(Os->device->gpu_regulator))
             regulator_disable(Os->device->gpu_regulator);
+	    mutex_unlock(&set_cpufreq_lock);
+#else
+        imx_gpc_power_up_pu(false);
+#endif
+
 	}
     /* TODO: Put your code here. */
     gcmkFOOTER_NO();
@@ -8400,7 +8432,17 @@ gckOS_StartTimer(
 
     if (unlikely(delayed_work_pending(&timer->work)))
     {
-        cancel_delayed_work(&timer->work);
+        if (unlikely(!cancel_delayed_work(&timer->work)))
+        {
+            cancel_work_sync(&timer->work.work);
+
+            if (unlikely(delayed_work_pending(&timer->work)))
+            {
+                gckOS_Print("gckOS_StartTimer error, the pending worker cannot complete!!!! \n");
+
+                return gcvSTATUS_INVALID_REQUEST;
+            }
+        }
     }
 
     queue_delayed_work(Os->workqueue, &timer->work, msecs_to_jiffies(Delay));

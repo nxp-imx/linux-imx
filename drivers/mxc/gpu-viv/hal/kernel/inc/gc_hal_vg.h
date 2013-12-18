@@ -552,6 +552,12 @@ gckVGHARDWARE_QueryPowerManagementState(
     );
 
 gceSTATUS
+gckVGHARDWARE_SetPowerManagement(
+    IN gckVGHARDWARE Hardware,
+    IN gctBOOL PowerManagement
+    );
+
+gceSTATUS
 gckVGHARDWARE_SetPowerOffTimeout(
     IN gckVGHARDWARE  Hardware,
     IN gctUINT32    Timeout

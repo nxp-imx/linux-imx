@@ -304,6 +304,7 @@ gckGALDEVICE_Construct(
     IN gctINT Signal,
     IN gctUINT LogFileSize,
     IN struct device *pdev,
+    IN gctINT PowerManagement,
     OUT gckGALDEVICE *Device
     )
 {
@@ -365,9 +366,7 @@ gckGALDEVICE_Construct(
     device->pmdev = pdev;
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
-    device->gpu_regulator =(struct regulator*)0xffffffff ;
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
     /*get gpu regulator*/
     device->gpu_regulator = regulator_get(pdev, "cpu_vddgpu");
     if (IS_ERR(device->gpu_regulator)) {
@@ -538,6 +537,9 @@ gckGALDEVICE_Construct(
             device->kernels[gcvCORE_MAJOR]->hardware, FastClear, Compression
             ));
 
+        gcmkONERROR(gckHARDWARE_SetPowerManagement(
+            device->kernels[gcvCORE_MAJOR]->hardware, PowerManagement
+            ));
 
 #if COMMAND_PROCESSOR_VERSION == 1
         /* Start the command queue. */
@@ -593,6 +595,10 @@ gckGALDEVICE_Construct(
             device
             ));
 
+        gcmkONERROR(gckHARDWARE_SetPowerManagement(
+            device->kernels[gcvCORE_2D]->hardware, PowerManagement
+            ));
+
 #if COMMAND_PROCESSOR_VERSION == 1
         /* Start the command queue. */
         gcmkONERROR(gckCOMMAND_Start(device->kernels[gcvCORE_2D]->command));
@@ -624,6 +630,11 @@ gckGALDEVICE_Construct(
             device->coreMapping[gcvHARDWARE_VG] = gcvCORE_VG;
         }
 
+
+        gcmkONERROR(gckVGHARDWARE_SetPowerManagement(
+            device->kernels[gcvCORE_VG]->vg->hardware,
+            PowerManagement
+            ));
 #endif
     }
     else
@@ -1096,9 +1107,7 @@ gckGALDEVICE_Destroy(
             pm_runtime_disable(Device->pmdev);
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
-        /*NULL*/
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
         if (Device->gpu_regulator) {
            regulator_put(Device->gpu_regulator);
            Device->gpu_regulator = NULL;

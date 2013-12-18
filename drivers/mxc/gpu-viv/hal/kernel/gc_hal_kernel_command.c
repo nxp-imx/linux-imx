@@ -2047,14 +2047,14 @@ gckCOMMAND_Commit(
         EventQueue = nextEventRecord;
     }
 
-#if gcdPOWER_MANAGEMENT
-    if (Command->kernel->eventObj->queueHead == gcvNULL)
+    if (Command->kernel->eventObj->queueHead == gcvNULL
+     && Command->kernel->hardware->powerManagement == gcvTRUE
+    )
     {
         /* Commit done event by which work thread knows all jobs done. */
         gcmkVERIFY_OK(
             gckEVENT_CommitDone(Command->kernel->eventObj, gcvKERNEL_PIXEL));
     }
-#endif
 
     /* Submit events. */
     status = gckEVENT_Submit(Command->kernel->eventObj, gcvTRUE, gcvFALSE);

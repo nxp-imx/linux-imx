@@ -2151,6 +2151,9 @@ gckVIDMEM_Unlock(
 
             if (!Node->Virtual.contiguous
             &&  (Node->Virtual.lockeds[Kernel->core] == 1)
+#if gcdENABLE_VG
+            && (Kernel->vg == gcvNULL)
+#endif
             )
             {
                 if (Type == gcvSURF_BITMAP)
