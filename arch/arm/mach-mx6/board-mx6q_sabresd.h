@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -151,7 +151,7 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	MX6Q_PAD_DISP0_DAT6__IPU1_DISP0_DAT_6,
 	MX6Q_PAD_DISP0_DAT7__IPU1_DISP0_DAT_7,
 	MX6Q_PAD_DISP0_DAT8__IPU1_DISP0_DAT_8,
-	MX6Q_PAD_DISP0_DAT9__IPU1_DISP0_DAT_9,
+	MX6Q_PAD_DISP0_DAT9__PWM2_PWMO,
 	MX6Q_PAD_DISP0_DAT10__IPU1_DISP0_DAT_10,
 	MX6Q_PAD_DISP0_DAT11__IPU1_DISP0_DAT_11,
 	MX6Q_PAD_DISP0_DAT12__IPU1_DISP0_DAT_12,

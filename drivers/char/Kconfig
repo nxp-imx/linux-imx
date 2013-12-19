@@ -79,6 +79,14 @@ config TTY_PRINTK
 
 	  If unsure, say N.
 
+config DEVIR
+	bool "/dev/ir IR device support"
+	default y
+	help
+	  Say Y here if you want to support the /dev/ir device. The
+	  /dev/ir device is used for consumer IR.
+	  When this device is not exist, say "N".
+
 config BRIQ_PANEL
 	tristate 'Total Impact briQ front panel driver'
 	depends on PPC_CHRP
