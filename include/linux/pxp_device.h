@@ -21,4 +21,17 @@
 
 #include <uapi/linux/pxp_device.h>
 
+/* To track the allocated memory buffer */
+struct memalloc_record {
+	struct list_head list;
+	struct pxp_mem_desc mem;
+};
+
+struct pxp_irq_info {
+	wait_queue_head_t waitq;
+	int irq_pending;
+	int hist_status;
+	spinlock_t lock;
+};
+
 #endif
