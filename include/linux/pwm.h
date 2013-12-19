@@ -28,4 +28,10 @@ int pwm_enable(struct pwm_device *pwm);
  */
 void pwm_disable(struct pwm_device *pwm);
 
+/*
+ * pwm_out_enable - enable/disable PWM output
+ */
+void pwm_out_enable(struct pwm_device *pwm, int enable);
+
+
 #endif /* __LINUX_PWM_H */

@@ -14,6 +14,7 @@ config ARCH_MX6Q
 	select IMX_HAVE_PLATFORM_IMX_ANATOP_THERMAL
 	select IMX_HAVE_PLATFORM_IMX_IPUV3
 	select IMX_HAVE_PLATFORM_MXC_PWM
+	select IMX_HAVE_PLATFORM_MXC_EPIT
 	select IMX_HAVE_PLATFORM_LDB
 	select IMX_HAVE_PLATFORM_IMX_SPDIF
 	select IMX_HAVE_PLATFORM_IMX_VDOA
@@ -325,6 +326,13 @@ config MX6_CLK_FOR_BOOTUI_TRANS
 	 This is choosed to keep enable IPU related clocks and PWM clocks and
 	 avoid setting IPU related clocks' parents when initializing clock tree
 	 so that bootloader splashimage can transition to kernel smoothly.
+
+config MX6_IR
+	bool "MX6 IR Support"
+	depends on IMX_HAVE_PLATFORM_MXC_PWM
+	default y
+	help
+	 This config is for MX6 IR support. Enable it if hardware supported.
 
 config MACH_IMX_BLUETOOTH_RFKILL
        tristate "i.MX Bluetooth rfkill interface support"

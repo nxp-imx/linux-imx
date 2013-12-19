@@ -22,3 +22,4 @@ obj-$(CONFIG_USB_FSL_ARC_OTG) += usb_dr.o
 obj-$(CONFIG_USB_EHCI_ARC_H1) += usb_h1.o
 obj-$(CONFIG_MACH_IMX_BLUETOOTH_RFKILL) += mx6_bt_rfkill.o
 obj-$(CONFIG_PCI_MSI) += msi.o
+obj-$(CONFIG_MX6_IR) += mx6_ir.o

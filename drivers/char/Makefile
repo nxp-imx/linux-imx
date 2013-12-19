@@ -67,4 +67,5 @@ obj-$(CONFIG_MXC_IIM)           += mxc_iim.o
 obj-$(CONFIG_MXS_VIIM)		+= mxs_viim.o
 
 obj-$(CONFIG_JS_RTC)		+= js-rtc.o
+obj-$(CONFIG_DEVIR)		+= ir.o
 js-rtc-y = rtc.o
