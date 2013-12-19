@@ -36,19 +36,6 @@ static atomic_t open_count = ATOMIC_INIT(0);
 static DEFINE_SPINLOCK(pxp_mem_lock);
 static LIST_HEAD(head);
 
-/* To track the allocated memory buffer */
-struct memalloc_record {
-	struct list_head list;
-	struct pxp_mem_desc mem;
-};
-
-struct pxp_irq_info {
-	wait_queue_head_t waitq;
-	int irq_pending;
-	int hist_status;
-	spinlock_t lock;
-};
-
 static struct dma_chan *dma_chans[NR_PXP_VIRT_CHANNEL];
 static struct pxp_irq_info irq_info[NR_PXP_VIRT_CHANNEL];
 
