@@ -932,7 +932,14 @@ static int update_split_setting(struct ipu_task_entry *t, bool vdi_split)
 		t->set.sp_setting.o_bottom_pos = 0;
 	}
 
-	if ((t->set.sp_setting.ih + t->set.sp_setting.i_bottom_pos) > (ih+16))
+	/* downscale case: enforce limits */
+	if (((t->set.sp_setting.ih + t->set.sp_setting.i_bottom_pos) > (ih))
+	     && (t->set.sp_setting.ih >= t->set.sp_setting.oh))
+		return IPU_CHECK_ERR_SPLIT_INPUTH_OVER;
+	/* upscale case: relax limits because ipu_calc_stripes_sizes() may
+	   create input stripe that falls just outside of the input window */
+	else if ((t->set.sp_setting.ih + t->set.sp_setting.i_bottom_pos)
+		 > (ih+16))
 		return IPU_CHECK_ERR_SPLIT_INPUTH_OVER;
 	if (((t->set.sp_setting.oh + t->set.sp_setting.o_bottom_pos) > oh)
 		|| (t->set.sp_setting.oh > soc_max_out_height()))
