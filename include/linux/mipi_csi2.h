@@ -19,22 +19,24 @@
 #ifndef __INCLUDE_MIPI_CSI2_H
 #define __INCLUDE_MIPI_CSI2_H
 
-/* mipi csi2 register */
-#define	CSI2_VERSION					0x000
-#define	CSI2_N_LANES					(0x004/4)
-#define	CSI2_PHY_SHUTDOWNZ				(0x008/4)
-#define	CSI2_DPHY_RSTZ					(0x00c/4)
-#define	CSI2_RESETN					(0x010/4)
-#define	CSI2_PHY_STATE					(0x014/4)
-#define	CSI2_DATA_IDS_1					(0x018/4)
-#define	CSI2_DATA_IDS_2					(0x01c/4)
-#define	CSI2_ERR1					(0x020/4)
-#define	CSI2_ERR2					(0x024/4)
-#define	CSI2_MSK1					(0x028/4)
-#define	CSI2_MSK2					(0x02c/4)
-#define	CSI2_PHY_TST_CTRL0				(0x030/4)
-#define	CSI2_PHY_TST_CTRL1				(0x034/4)
-#define	CSI2_SFT_RESET					(0xf00/4)
+/* MIPI CSI2 registers */
+#define MIPI_CSI2_REG(offset)		(offset)
+
+#define	MIPI_CSI2_VERSION		MIPI_CSI2_REG(0x000)
+#define	MIPI_CSI2_N_LANES		MIPI_CSI2_REG(0x004)
+#define	MIPI_CSI2_PHY_SHUTDOWNZ		MIPI_CSI2_REG(0x008)
+#define	MIPI_CSI2_DPHY_RSTZ		MIPI_CSI2_REG(0x00c)
+#define	MIPI_CSI2_CSI2_RESETN		MIPI_CSI2_REG(0x010)
+#define	MIPI_CSI2_PHY_STATE		MIPI_CSI2_REG(0x014)
+#define	MIPI_CSI2_DATA_IDS_1		MIPI_CSI2_REG(0x018)
+#define	MIPI_CSI2_DATA_IDS_2		MIPI_CSI2_REG(0x01c)
+#define	MIPI_CSI2_ERR1			MIPI_CSI2_REG(0x020)
+#define	MIPI_CSI2_ERR2			MIPI_CSI2_REG(0x024)
+#define	MIPI_CSI2_MASK1			MIPI_CSI2_REG(0x028)
+#define	MIPI_CSI2_MASK2			MIPI_CSI2_REG(0x02c)
+#define	MIPI_CSI2_PHY_TST_CTRL0		MIPI_CSI2_REG(0x030)
+#define	MIPI_CSI2_PHY_TST_CTRL1		MIPI_CSI2_REG(0x034)
+#define	MIPI_CSI2_SFT_RESET		MIPI_CSI2_REG(0xf00)
 
 /* mipi data type */
 #define MIPI_DT_YUV420		0x18 /* YYY.../UYVY.... */

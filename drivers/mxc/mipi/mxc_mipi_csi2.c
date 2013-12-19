@@ -144,8 +144,8 @@ unsigned int mipi_csi2_set_lanes(struct mipi_csi2_info *info)
 	unsigned int lanes;
 
 	_mipi_csi2_lock(info);
-	mipi_csi2_write(info, info->lanes - 1, CSI2_N_LANES);
-	lanes = mipi_csi2_read(info, CSI2_N_LANES);
+	mipi_csi2_write(info, info->lanes - 1, MIPI_CSI2_N_LANES);
+	lanes = mipi_csi2_read(info, MIPI_CSI2_N_LANES);
 	_mipi_csi2_unlock(info);
 
 	return lanes;
@@ -201,7 +201,7 @@ unsigned int mipi_csi2_dphy_status(struct mipi_csi2_info *info)
 	unsigned int status;
 
 	_mipi_csi2_lock(info);
-	status = mipi_csi2_read(info, CSI2_PHY_STATE);
+	status = mipi_csi2_read(info, MIPI_CSI2_PHY_STATE);
 	_mipi_csi2_unlock(info);
 
 	return status;
@@ -219,7 +219,7 @@ unsigned int mipi_csi2_get_error1(struct mipi_csi2_info *info)
 	unsigned int err1;
 
 	_mipi_csi2_lock(info);
-	err1 = mipi_csi2_read(info, CSI2_ERR1);
+	err1 = mipi_csi2_read(info, MIPI_CSI2_ERR1);
 	_mipi_csi2_unlock(info);
 
 	return err1;
@@ -237,7 +237,7 @@ unsigned int mipi_csi2_get_error2(struct mipi_csi2_info *info)
 	unsigned int err2;
 
 	_mipi_csi2_lock(info);
-	err2 = mipi_csi2_read(info, CSI2_ERR2);
+	err2 = mipi_csi2_read(info, MIPI_CSI2_ERR2);
 	_mipi_csi2_unlock(info);
 
 	return err2;
@@ -278,23 +278,23 @@ int mipi_csi2_reset(struct mipi_csi2_info *info)
 {
 	_mipi_csi2_lock(info);
 
-	mipi_csi2_write(info, 0x0, CSI2_PHY_SHUTDOWNZ);
-	mipi_csi2_write(info, 0x0, CSI2_DPHY_RSTZ);
-	mipi_csi2_write(info, 0x0, CSI2_RESETN);
+	mipi_csi2_write(info, 0x0, MIPI_CSI2_PHY_SHUTDOWNZ);
+	mipi_csi2_write(info, 0x0, MIPI_CSI2_DPHY_RSTZ);
+	mipi_csi2_write(info, 0x0, MIPI_CSI2_CSI2_RESETN);
 
-	mipi_csi2_write(info, 0x00000001, CSI2_PHY_TST_CTRL0);
-	mipi_csi2_write(info, 0x00000000, CSI2_PHY_TST_CTRL1);
-	mipi_csi2_write(info, 0x00000000, CSI2_PHY_TST_CTRL0);
-	mipi_csi2_write(info, 0x00000002, CSI2_PHY_TST_CTRL0);
-	mipi_csi2_write(info, 0x00010044, CSI2_PHY_TST_CTRL1);
-	mipi_csi2_write(info, 0x00000000, CSI2_PHY_TST_CTRL0);
-	mipi_csi2_write(info, 0x00000014, CSI2_PHY_TST_CTRL1);
-	mipi_csi2_write(info, 0x00000002, CSI2_PHY_TST_CTRL0);
-	mipi_csi2_write(info, 0x00000000, CSI2_PHY_TST_CTRL0);
+	mipi_csi2_write(info, 0x00000001, MIPI_CSI2_PHY_TST_CTRL0);
+	mipi_csi2_write(info, 0x00000000, MIPI_CSI2_PHY_TST_CTRL1);
+	mipi_csi2_write(info, 0x00000000, MIPI_CSI2_PHY_TST_CTRL0);
+	mipi_csi2_write(info, 0x00000002, MIPI_CSI2_PHY_TST_CTRL0);
+	mipi_csi2_write(info, 0x00010044, MIPI_CSI2_PHY_TST_CTRL1);
+	mipi_csi2_write(info, 0x00000000, MIPI_CSI2_PHY_TST_CTRL0);
+	mipi_csi2_write(info, 0x00000014, MIPI_CSI2_PHY_TST_CTRL1);
+	mipi_csi2_write(info, 0x00000002, MIPI_CSI2_PHY_TST_CTRL0);
+	mipi_csi2_write(info, 0x00000000, MIPI_CSI2_PHY_TST_CTRL0);
 
-	mipi_csi2_write(info, 0xffffffff, CSI2_PHY_SHUTDOWNZ);
-	mipi_csi2_write(info, 0xffffffff, CSI2_DPHY_RSTZ);
-	mipi_csi2_write(info, 0xffffffff, CSI2_RESETN);
+	mipi_csi2_write(info, 0xffffffff, MIPI_CSI2_PHY_SHUTDOWNZ);
+	mipi_csi2_write(info, 0xffffffff, MIPI_CSI2_DPHY_RSTZ);
+	mipi_csi2_write(info, 0xffffffff, MIPI_CSI2_CSI2_RESETN);
 
 	_mipi_csi2_unlock(info);
 
@@ -458,7 +458,7 @@ static int mipi_csi2_probe(struct platform_device *pdev)
 	/* mipi dphy clk enable for register access */
 	clk_prepare_enable(gmipi_csi2->dphy_clk);
 	/* get mipi csi2 dphy version */
-	mipi_csi2_dphy_ver = mipi_csi2_read(gmipi_csi2, CSI2_VERSION);
+	mipi_csi2_dphy_ver = mipi_csi2_read(gmipi_csi2, MIPI_CSI2_VERSION);
 
 	clk_disable_unprepare(gmipi_csi2->dphy_clk);
 
