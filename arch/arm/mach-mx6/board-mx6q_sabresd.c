@@ -1700,11 +1700,13 @@ static struct platform_pwm_backlight_data mx6_sabresd_pwm_backlight_data = {
 	.pwm_period_ns = 50000,
 };
 
+#ifdef CONFIG_HAVE_EPIT
 static struct platform_ir_data mx6_sabresd_ir_data = {
     .pwm_id = 1,
     .epit_id = 0,
     .gpio_id = 0,
 };
+#endif
 
 static struct mxc_dvfs_platform_data sabresd_dvfscore_data = {
 	.reg_id = "VDDCORE",
@@ -2065,16 +2067,21 @@ static void __init mx6_sabresd_board_init(void)
 	gpio_request(SABRESD_CABC_EN1, "cabc-en1");
 	gpio_direction_output(SABRESD_CABC_EN1, 0);
 
+#ifdef CONFIG_HAVE_EPIT
 	imx6q_add_mxc_epit(0);
 	imx6q_add_mxc_epit(1);
+#endif
 
 	imx6q_add_mxc_pwm(0);
 	imx6q_add_mxc_pwm(1);
 	imx6q_add_mxc_pwm(2);
 	imx6q_add_mxc_pwm(3);
 	imx6q_add_mxc_pwm_backlight(0, &mx6_sabresd_pwm_backlight_data);
+
+#ifdef CONFIG_MX6_IR
 	/* add MXC IR device */
 	imx6q_add_mxc_ir(0, &mx6_sabresd_ir_data);
+#endif
 
 	imx6q_add_otp();
 	imx6q_add_viim();
