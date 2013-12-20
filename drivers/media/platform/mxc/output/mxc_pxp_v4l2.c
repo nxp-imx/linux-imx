@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -168,6 +168,30 @@ struct v4l2_queryctrl pxp_controls[] = {
 	},
 };
 
+static void free_dma_buf(struct pxps *pxp, struct dma_mem *buf)
+{
+	dma_free_coherent(&pxp->pdev->dev, buf->size, buf->vaddr, buf->paddr);
+	dev_dbg(&pxp->pdev->dev,
+			"free dma size:0x%x, paddr:0x%x\n",
+			buf->size, buf->paddr);
+	memset(buf, 0, sizeof(*buf));
+}
+
+static int alloc_dma_buf(struct pxps *pxp, struct dma_mem *buf)
+{
+
+	buf->vaddr = dma_alloc_coherent(&pxp->pdev->dev, buf->size, &buf->paddr,
+						GFP_DMA | GFP_KERNEL);
+	if (!buf->vaddr) {
+		dev_err(&pxp->pdev->dev,
+			"cannot get dma buf size:0x%x\n", buf->size);
+		return -ENOMEM;
+	}
+	dev_dbg(&pxp->pdev->dev,
+		"alloc dma buf size:0x%x, paddr:0x%x\n", buf->size, buf->paddr);
+	return 0;
+}
+
 /* callback function */
 static void video_dma_done(void *arg)
 {
@@ -300,7 +324,7 @@ static int pxp_show_buf(struct pxps *pxp, bool toshow)
 
 	console_lock();
 	fbi->fix.smem_start = toshow ?
-			pxp->outb_phys : (unsigned long)pxp->fb.base;
+			pxp->outbuf.paddr : (unsigned long)pxp->fb.base;
 	ret = fb_pan_display(fbi, &fbi->var);
 	console_unlock();
 
@@ -381,7 +405,7 @@ static int pxp_enumoutput(struct file *file, void *fh,
 	}
 	o->type = V4L2_OUTPUT_TYPE_INTERNAL;
 	o->std = 0;
-	o->reserved[0] = pxp->outb_phys;
+	o->reserved[0] = pxp->outbuf.paddr;
 
 	return 0;
 }
@@ -401,13 +425,11 @@ static int pxp_s_output(struct file *file, void *fh,
 {
 	struct pxps *pxp = video_get_drvdata(video_devdata(file));
 	struct v4l2_pix_format *fmt = &pxp->fb.fmt;
-	int bpp;
+	u32 size;
+	int ret, bpp;
 
 	if ((i < 0) || (i > 1))
 		return -EINVAL;
-
-	if (pxp->outb)
-		return 0;
 
 	/* Output buffer is same format as fbdev */
 	if (fmt->pixelformat == V4L2_PIX_FMT_RGB24)
@@ -415,16 +437,15 @@ static int pxp_s_output(struct file *file, void *fh,
 	else
 		bpp = 2;
 
-	pxp->outb_size = fmt->width * fmt->height * bpp;
-	pxp->outb = kmalloc(fmt->width * fmt->height * bpp,
-				GFP_KERNEL | GFP_DMA);
-	if (pxp->outb == NULL) {
-		dev_err(&pxp->pdev->dev, "No enough memory!\n");
-		return -ENOMEM;
+	size = fmt->width * fmt->height * bpp;
+	if (size > pxp->outbuf.size) {
+		if (pxp->outbuf.vaddr)
+			free_dma_buf(pxp, &pxp->outbuf);
+		pxp->outbuf.size = size;
+		ret = alloc_dma_buf(pxp, &pxp->outbuf);
+		if (ret < 0)
+			return ret;
 	}
-	pxp->outb_phys = virt_to_phys(pxp->outb);
-	dma_map_single(NULL, pxp->outb,
-			fmt->width * fmt->height * bpp, DMA_TO_DEVICE);
 
 	pxp->pxp_conf.out_param.width = fmt->width;
 	pxp->pxp_conf.out_param.height = fmt->height;
@@ -726,6 +747,12 @@ static int pxp_buf_prepare(struct videobuf_queue *q,
 	int ret = 0;
 	int i, length;
 
+	if (!pxp->outbuf.paddr)  {
+		dev_err(&pxp->pdev->dev, "Not allocate memory for "
+			"PxP Out buffer?\n");
+		return -ENOMEM;
+	}
+
 	vb->width = pxp->pxp_conf.s0_param.width;
 	vb->height = pxp->pxp_conf.s0_param.height;
 	vb->size = vb->width * vb->height * pxp->s0_fmt->bpp;
@@ -785,7 +812,7 @@ static int pxp_buf_prepare(struct videobuf_queue *q,
 						pxp->fb.fmt.height;
 				}
 
-				pxp_conf->out_param.paddr = pxp->outb_phys;
+				pxp_conf->out_param.paddr = pxp->outbuf.paddr;
 				memcpy(&desc->layer_param.out_param,
 					&pxp_conf->out_param,
 					sizeof(struct pxp_layer_param));
@@ -1100,8 +1127,6 @@ static int pxp_close(struct file *file)
 	videobuf_stop(&pxp->s0_vbq);
 	videobuf_mmap_free(&pxp->s0_vbq);
 	pxp->active = NULL;
-	kfree(pxp->outb);
-	pxp->outb = NULL;
 
 	mutex_lock(&pxp->mutex);
 	pxp->users--;
@@ -1237,6 +1262,8 @@ static int pxp_remove(struct platform_device *pdev)
 
 	video_unregister_device(pxp->vdev);
 	video_device_release(pxp->vdev);
+
+	free_dma_buf(pxp, &pxp->outbuf);
 
 	kfree(pxp);
 
