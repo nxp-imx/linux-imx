@@ -32,21 +32,149 @@
 #include <linux/platform_data/dma-imx.h>
 
 static atomic_t open_count = ATOMIC_INIT(0);
+#define BUFFER_HASH_ORDER 4
 
-static DEFINE_SPINLOCK(pxp_mem_lock);
-static LIST_HEAD(head);
-
+static struct pxp_buffer_hash bufhash;
 static struct dma_chan *dma_chans[NR_PXP_VIRT_CHANNEL];
 static struct pxp_irq_info irq_info[NR_PXP_VIRT_CHANNEL];
 
+static int pxp_ht_create(struct pxp_buffer_hash *hash, int order)
+{
+	unsigned long i;
+	unsigned long table_size;
+
+	table_size = 1U << order;
+
+	hash->order = order;
+	hash->hash_table = kmalloc(sizeof(*hash->hash_table) * table_size, GFP_KERNEL);
+
+	if (!hash->hash_table) {
+		pr_err("%s: Out of memory for hash table\n", __func__);
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < table_size; i++)
+		INIT_HLIST_HEAD(&hash->hash_table[i]);
+
+	return 0;
+}
+
+static int pxp_ht_insert_item(struct pxp_buffer_hash *hash,
+			      struct pxp_buf_obj *new)
+{
+	unsigned long hashkey;
+	struct hlist_head *h_list;
+
+	hashkey = hash_long(new->offset >> PAGE_SHIFT, hash->order);
+	h_list = &hash->hash_table[hashkey];
+
+	spin_lock(&hash->hash_lock);
+	hlist_add_head_rcu(&new->item, h_list);
+	spin_unlock(&hash->hash_lock);
+
+	return 0;
+}
+
+static int pxp_ht_remove_item(struct pxp_buffer_hash *hash,
+			      struct pxp_buf_obj *obj)
+{
+	spin_lock(&hash->hash_lock);
+	hlist_del_init_rcu(&obj->item);
+	spin_unlock(&hash->hash_lock);
+	return 0;
+}
+
+static struct hlist_node *pxp_ht_find_key(struct pxp_buffer_hash *hash,
+					  unsigned long key)
+{
+	struct pxp_buf_obj *entry;
+	struct hlist_head *h_list;
+	unsigned long hashkey;
+
+	hashkey = hash_long(key, hash->order);
+	h_list = &hash->hash_table[hashkey];
+
+	hlist_for_each_entry_rcu(entry, h_list, item) {
+		if (entry->offset >> PAGE_SHIFT == key)
+			return &entry->item;
+	}
+
+	return NULL;
+}
+
+static void pxp_ht_destroy(struct pxp_buffer_hash *hash)
+{
+	kfree(hash->hash_table);
+	hash->hash_table = NULL;
+}
+
+static int pxp_buffer_handle_create(struct pxp_file *file_priv,
+				    struct pxp_buf_obj *obj,
+				    uint32_t *handlep)
+{
+	int ret;
+
+	idr_preload(GFP_KERNEL);
+	spin_lock(&file_priv->buffer_lock);
+
+	ret = idr_alloc(&file_priv->buffer_idr, obj, 1, 0, GFP_NOWAIT);
+
+	spin_unlock(&file_priv->buffer_lock);
+	idr_preload_end();
+
+	if (ret < 0)
+		return ret;
+
+	*handlep = ret;
+
+	return 0;
+}
+
+static struct pxp_buf_obj *
+pxp_buffer_object_lookup(struct pxp_file *file_priv,
+			 uint32_t handle)
+{
+	struct pxp_buf_obj *obj;
+
+	spin_lock(&file_priv->buffer_lock);
+
+	obj = idr_find(&file_priv->buffer_idr, handle);
+	if (!obj) {
+		spin_unlock(&file_priv->buffer_lock);
+		return NULL;
+	}
+
+	spin_unlock(&file_priv->buffer_lock);
+
+	return obj;
+}
+
+static int pxp_buffer_handle_delete(struct pxp_file *file_priv,
+				    uint32_t handle)
+{
+	struct pxp_buf_obj *obj;
+
+	spin_lock(&file_priv->buffer_lock);
+
+	obj = idr_find(&file_priv->buffer_idr, handle);
+	if (!obj) {
+		spin_unlock(&file_priv->buffer_lock);
+		return -EINVAL;
+	}
+
+	idr_remove(&file_priv->buffer_idr, handle);
+	spin_unlock(&file_priv->buffer_lock);
+
+	return 0;
+}
+
 static int pxp_alloc_dma_buffer(struct pxp_mem_desc *mem)
 {
-	mem->cpu_addr = (unsigned long)
-	    dma_alloc_coherent(NULL, PAGE_ALIGN(mem->size),
+	mem->cpu_addr = dma_alloc_coherent(NULL, PAGE_ALIGN(mem->size),
 			       (dma_addr_t *) (&mem->phys_addr),
 			       GFP_DMA | GFP_KERNEL);
 	pr_debug("[ALLOC] mem alloc phys_addr = 0x%x\n", mem->phys_addr);
-	if ((void *)(mem->cpu_addr) == NULL) {
+	if (mem->cpu_addr == NULL) {
 		printk(KERN_ERR "Physical memory allocation error!\n");
 		return -1;
 	}
@@ -55,29 +183,40 @@ static int pxp_alloc_dma_buffer(struct pxp_mem_desc *mem)
 
 static void pxp_free_dma_buffer(struct pxp_mem_desc *mem)
 {
-	if (mem->cpu_addr != 0) {
+	if (mem->cpu_addr != NULL) {
 		dma_free_coherent(0, PAGE_ALIGN(mem->size),
-				  (void *)mem->cpu_addr, mem->phys_addr);
+				  mem->cpu_addr, mem->phys_addr);
 	}
 }
 
-static int pxp_free_buffers(void)
+static int
+pxp_buffer_object_free(int id, void *ptr, void *data)
 {
-	struct memalloc_record *rec, *n;
-	struct pxp_mem_desc mem;
+	struct pxp_file *file_priv = data;
+	struct pxp_buf_obj *obj = ptr;
+	struct pxp_mem_desc buffer;
+	int ret;
 
-	list_for_each_entry_safe(rec, n, &head, list) {
-		mem = rec->mem;
-		if (mem.cpu_addr != 0) {
-			pxp_free_dma_buffer(&mem);
-			pr_debug("[FREE] freed paddr=0x%08X\n", mem.phys_addr);
-			/* delete from list */
-			list_del(&rec->list);
-			kfree(rec);
-		}
-	}
+	ret = pxp_buffer_handle_delete(file_priv, obj->handle);
+	if (ret < 0)
+		return ret;
+
+	buffer.size = obj->size;
+	buffer.cpu_addr  = obj->virtual;
+	buffer.phys_addr = obj->offset;
+
+	pxp_ht_remove_item(&bufhash, obj);
+	pxp_free_dma_buffer(&buffer);
+	kfree(obj);
 
 	return 0;
+}
+
+static void pxp_free_buffers(struct pxp_file *file_priv)
+{
+	idr_for_each(&file_priv->buffer_idr,
+			&pxp_buffer_object_free, file_priv);
+	idr_destroy(&file_priv->buffer_idr);
 }
 
 /* Callback function triggered after PxP receives an EOF interrupt */
@@ -177,42 +316,56 @@ static int pxp_ioc_config_chan(unsigned long arg)
 
 static int pxp_device_open(struct inode *inode, struct file *filp)
 {
+	struct pxp_file *priv;
+
 	atomic_inc(&open_count);
+	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+
+	if (!priv)
+		return -ENOMEM;
+
+	filp->private_data = priv;
+	priv->filp = filp;
+
+	idr_init(&priv->buffer_idr);
+	spin_lock_init(&priv->buffer_lock);
 
 	return 0;
 }
 
 static int pxp_device_release(struct inode *inode, struct file *filp)
 {
-	if (atomic_dec_and_test(&open_count))
-		pxp_free_buffers();
+	struct pxp_file *priv = NULL;
+
+	if (atomic_dec_and_test(&open_count)) {
+		priv = filp->private_data;
+		pxp_free_buffers(priv);
+		kfree(priv);
+		filp->private_data = NULL;
+	}
 
 	return 0;
 }
 
 static int pxp_device_mmap(struct file *file, struct vm_area_struct *vma)
 {
-	struct memalloc_record *rec, *n;
-	int request_size, found;
+	int request_size;
+	struct hlist_node *node;
+	struct pxp_buf_obj *obj;
 
 	request_size = vma->vm_end - vma->vm_start;
-	found = 0;
 
 	pr_debug("start=0x%x, pgoff=0x%x, size=0x%x\n",
 		 (unsigned int)(vma->vm_start), (unsigned int)(vma->vm_pgoff),
 		 request_size);
 
-	spin_lock(&pxp_mem_lock);
-	list_for_each_entry_safe(rec, n, &head, list) {
-		if (rec->mem.phys_addr == (vma->vm_pgoff << PAGE_SHIFT) &&
-			(rec->mem.size <= request_size)) {
-			found = 1;
-			break;
-		}
-	}
-	spin_unlock(&pxp_mem_lock);
+	node = pxp_ht_find_key(&bufhash, vma->vm_pgoff);
+	if (!node)
+		return -EINVAL;
 
-	if (found == 0)
+	obj = list_entry(node, struct pxp_buf_obj, item);
+	if (obj->offset + (obj->size >> PAGE_SHIFT) <
+		(vma->vm_pgoff + vma_pages(vma)))
 		return -ENOMEM;
 
 	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
@@ -233,6 +386,7 @@ static long pxp_device_ioctl(struct file *filp,
 			    unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
+	struct pxp_file *file_priv = filp->private_data;
 
 	switch (cmd) {
 	case PXP_IOC_GET_CHAN:
@@ -310,48 +464,60 @@ static long pxp_device_ioctl(struct file *filp,
 		}
 	case PXP_IOC_GET_PHYMEM:
 		{
-			struct memalloc_record *rec;
+			struct pxp_mem_desc buffer;
+			struct pxp_buf_obj *obj;
 
-			rec = kzalloc(sizeof(*rec), GFP_KERNEL);
-			if (!rec)
-				return -ENOMEM;
-
-			ret = copy_from_user(&(rec->mem),
+			ret = copy_from_user(&buffer,
 					     (struct pxp_mem_desc *)arg,
 					     sizeof(struct pxp_mem_desc));
-			if (ret) {
-				kfree(rec);
+			if (ret)
 				return -EFAULT;
-			}
 
 			pr_debug("[ALLOC] mem alloc size = 0x%x\n",
-				 rec->mem.size);
+				 buffer.size);
 
-			ret = pxp_alloc_dma_buffer(&(rec->mem));
+			ret = pxp_alloc_dma_buffer(&buffer);
 			if (ret == -1) {
-				kfree(rec);
 				printk(KERN_ERR
 				       "Physical memory allocation error!\n");
 				return ret;
 			}
-			ret = copy_to_user((void __user *)arg, &(rec->mem),
-					   sizeof(struct pxp_mem_desc));
-			if (ret) {
-				kfree(rec);
-				ret = -EFAULT;
-				return ret;
+
+			obj = kzalloc(sizeof(*obj), GFP_KERNEL);
+			if (!obj) {
+				pxp_free_dma_buffer(&buffer);
+				return -ENOMEM;
 			}
 
-			spin_lock(&pxp_mem_lock);
-			list_add(&rec->list, &head);
-			spin_unlock(&pxp_mem_lock);
+			obj->size   = buffer.size;
+			obj->offset = buffer.phys_addr;
+			obj->virtual = buffer.cpu_addr;
+
+			ret = pxp_buffer_handle_create(file_priv, obj, &obj->handle);
+			if (ret) {
+				kfree(obj);
+				pxp_free_dma_buffer(&buffer);
+				return ret;
+			}
+			buffer.handle = obj->handle;
+
+			ret = copy_to_user((void __user *)arg, &buffer,
+					   sizeof(struct pxp_mem_desc));
+			if (ret) {
+				pxp_buffer_handle_delete(file_priv, buffer.handle);
+				kfree(obj);
+				pxp_free_dma_buffer(&buffer);
+				return -EFAULT;
+			}
+
+			pxp_ht_insert_item(&bufhash, obj);
 
 			break;
 		}
 	case PXP_IOC_PUT_PHYMEM:
 		{
-			struct memalloc_record *rec, *n;
 			struct pxp_mem_desc pxp_mem;
+			struct pxp_buf_obj *obj;
 
 			ret = copy_from_user(&pxp_mem,
 					     (struct pxp_mem_desc *)arg,
@@ -359,21 +525,23 @@ static long pxp_device_ioctl(struct file *filp,
 			if (ret)
 				return -EACCES;
 
-			pr_debug("[FREE] mem freed cpu_addr = 0x%x\n",
+			pr_debug("[FREE] mem freed cpu_addr = 0x%p\n",
 				 pxp_mem.cpu_addr);
-			if ((void *)pxp_mem.cpu_addr != NULL)
-				pxp_free_dma_buffer(&pxp_mem);
 
-			spin_lock(&pxp_mem_lock);
-			list_for_each_entry_safe(rec, n, &head, list) {
-				if (rec->mem.cpu_addr == pxp_mem.cpu_addr) {
-					/* delete from list */
-					list_del(&rec->list);
-					kfree(rec);
-					break;
-				}
-			}
-			spin_unlock(&pxp_mem_lock);
+			obj = pxp_buffer_object_lookup(file_priv, pxp_mem.handle);
+			if (!obj)
+				return -EINVAL;
+			pxp_mem.size = obj->size;
+			pxp_mem.cpu_addr = obj->virtual;
+			pxp_mem.phys_addr = obj->offset;
+
+			ret = pxp_buffer_handle_delete(file_priv, obj->handle);
+			if (ret)
+				return ret;
+
+			pxp_ht_remove_item(&bufhash, obj);
+			kfree(obj);
+			pxp_free_dma_buffer(&pxp_mem);
 
 			break;
 		}
@@ -440,11 +608,17 @@ int register_pxp_device(void)
 	for (i = 0; i < NR_PXP_VIRT_CHANNEL; i++)
 		spin_lock_init(&(irq_info[i].lock));
 
+	ret = pxp_ht_create(&bufhash, BUFFER_HASH_ORDER);
+	if (ret)
+		return ret;
+	spin_lock_init(&(bufhash.hash_lock));
+
 	pr_debug("PxP_Device registered Successfully\n");
 	return 0;
 }
 
 void unregister_pxp_device(void)
 {
+	pxp_ht_destroy(&bufhash);
 	misc_deregister(&pxp_device_miscdev);
 }
