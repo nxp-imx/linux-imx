@@ -81,7 +81,7 @@ config TTY_PRINTK
 
 config DEVIR
 	bool "/dev/ir IR device support"
-	default y
+	default n
 	help
 	  Say Y here if you want to support the /dev/ir device. The
 	  /dev/ir device is used for consumer IR.
