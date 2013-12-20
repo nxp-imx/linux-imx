@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,6 +37,12 @@ struct pxp_buffer {
 	struct scatterlist			sg[3];
 };
 
+struct dma_mem {
+	void *vaddr;
+	dma_addr_t paddr;
+	size_t size;
+};
+
 struct pxps {
 	struct platform_device *pdev;
 
@@ -51,11 +57,9 @@ struct pxps {
 	struct list_head outq;
 	struct pxp_channel	*pxp_channel[1];	/* We need 1 channel */
 	struct pxp_config_data pxp_conf;
+	struct dma_mem outbuf;
 
 	int output;
-	u32 *outb;
-	dma_addr_t outb_phys;
-	u32 outb_size;
 
 	/* Current S0 configuration */
 	struct pxp_data_format *s0_fmt;
