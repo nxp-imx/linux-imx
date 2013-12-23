@@ -179,14 +179,14 @@ static int mma8451_change_mode(struct i2c_client *client, int mode)
 	result = i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1, 0);
 	if (result < 0)
 		goto out;
+	mma_status.active = MMA_STANDBY;
 
-	mma_status.mode = mode;
 	result = i2c_smbus_write_byte_data(client, MMA8451_XYZ_DATA_CFG,
-					   mma_status.mode);
+					   mode);
 	if (result < 0)
 		goto out;
-	mma_status.active = MMA_STANDBY;
 	mdelay(MODE_CHANGE_DELAY_MS);
+	mma_status.mode = mode;
 
 	return 0;
 out:
@@ -331,14 +331,74 @@ static ssize_t mma8451_position_store(struct device *dev,
 	return count;
 }
 
+static ssize_t mma8451_scalemode_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	int mode = 0;
+	mutex_lock(&mma8451_lock);
+	mode = (int)mma_status.mode;
+	mutex_unlock(&mma8451_lock);
+
+	return sprintf(buf, "%d\n", mode);
+}
+
+static ssize_t mma8451_scalemode_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	unsigned long  mode;
+	int ret, active_save;
+	struct i2c_client *client = mma8451_i2c_client;
+
+	ret = strict_strtoul(buf, 10, &mode);
+	if (ret) {
+		dev_err(dev, "string transform error\n");
+		goto out;
+	}
+
+	if (mode > MODE_8G) {
+		dev_warn(dev, "not supported mode\n");
+		ret = count;
+		goto out;
+	}
+
+	mutex_lock(&mma8451_lock);
+	if (mode == mma_status.mode) {
+		ret = count;
+		goto out_unlock;
+	}
+
+	active_save = mma_status.active;
+	ret = mma8451_change_mode(client, mode);
+	if (ret)
+		goto out_unlock;
+
+	if (active_save == MMA_ACTIVED) {
+		ret = i2c_smbus_write_byte_data(client, MMA8451_CTRL_REG1, 1);
+
+		if (ret)
+			goto out_unlock;
+		mma_status.active = active_save;
+	}
+
+out_unlock:
+	mutex_unlock(&mma8451_lock);
+out:
+	return ret;
+}
+
 static DEVICE_ATTR(enable, S_IWUSR | S_IRUGO,
-		   mma8451_enable_show, mma8451_enable_store);
+			mma8451_enable_show, mma8451_enable_store);
 static DEVICE_ATTR(position, S_IWUSR | S_IRUGO,
-		   mma8451_position_show, mma8451_position_store);
+			mma8451_position_show, mma8451_position_store);
+static DEVICE_ATTR(scalemode, S_IWUSR | S_IRUGO,
+			mma8451_scalemode_show, mma8451_scalemode_store);
 
 static struct attribute *mma8451_attributes[] = {
 	&dev_attr_enable.attr,
 	&dev_attr_position.attr,
+	&dev_attr_scalemode.attr,
 	NULL
 };
 
