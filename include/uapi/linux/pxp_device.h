@@ -30,7 +30,6 @@ struct pxp_mem_desc {
 	unsigned int handle;
 	unsigned int size;
 	dma_addr_t phys_addr;
-	void *cpu_addr;			/* cpu address to free the dma mem */
 	unsigned int virt_uaddr;		/* virtual user space address */
 };
 
