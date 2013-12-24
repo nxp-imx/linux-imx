@@ -282,14 +282,11 @@ static void pxp_dma_done(void *arg)
 	struct dma_chan *chan = tx_desc->txd.chan;
 	struct pxp_channel *pxp_chan = to_pxp_channel(chan);
 	int chan_id = pxp_chan->dma_chan.chan_id;
-	unsigned long flags;
 
 	pr_debug("DMA Done ISR, chan_id %d\n", chan_id);
 
-	spin_lock_irqsave(&(irq_info[chan_id].lock), flags);
-	irq_info[chan_id].irq_pending--;
+	atomic_dec(&irq_info[chan_id].irq_pending);
 	irq_info[chan_id].hist_status = tx_desc->hist_status;
-	spin_unlock_irqrestore(&(irq_info[chan_id].lock), flags);
 
 	wake_up_interruptible(&(irq_info[chan_id].waitq));
 }
@@ -303,7 +300,6 @@ static int pxp_ioc_config_chan(struct pxp_file *priv, unsigned long arg)
 	dma_cookie_t cookie;
 	int handle, chan_id;
 	int i, length, ret;
-	unsigned long flags;
 	struct dma_chan *chan;
 	struct pxp_chan_obj *obj;
 
@@ -366,9 +362,7 @@ static int pxp_ioc_config_chan(struct pxp_file *priv, unsigned long arg)
 		return -EIO;
 	}
 
-	spin_lock_irqsave(&(irq_info[chan_id].lock), flags);
-	irq_info[chan_id].irq_pending++;
-	spin_unlock_irqrestore(&(irq_info[chan_id].lock), flags);
+	atomic_inc(&irq_info[chan_id].irq_pending);
 
 	return 0;
 }
@@ -638,7 +632,7 @@ static long pxp_device_ioctl(struct file *filp,
 
 			ret = wait_event_interruptible
 			    (irq_info[chan_id].waitq,
-			     (irq_info[chan_id].irq_pending == 0));
+			     (atomic_read(&irq_info[chan_id].irq_pending) == 0));
 			if (ret < 0) {
 				printk(KERN_WARNING
 				       "WAIT4CMPLT: signal received.\n");
@@ -675,14 +669,11 @@ static struct miscdevice pxp_device_miscdev = {
 
 int register_pxp_device(void)
 {
-	int i, ret;
+	int ret;
 
 	ret = misc_register(&pxp_device_miscdev);
 	if (ret)
 		return ret;
-
-	for (i = 0; i < NR_PXP_VIRT_CHANNEL; i++)
-		spin_lock_init(&(irq_info[i].lock));
 
 	ret = pxp_ht_create(&bufhash, BUFFER_HASH_ORDER);
 	if (ret)
