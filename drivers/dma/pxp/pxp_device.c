@@ -168,24 +168,26 @@ static int pxp_buffer_handle_delete(struct pxp_file *file_priv,
 	return 0;
 }
 
-static int pxp_alloc_dma_buffer(struct pxp_mem_desc *mem)
+static int pxp_alloc_dma_buffer(struct pxp_buf_obj *obj)
 {
-	mem->cpu_addr = dma_alloc_coherent(NULL, PAGE_ALIGN(mem->size),
-			       (dma_addr_t *) (&mem->phys_addr),
+	obj->virtual = dma_alloc_coherent(NULL, PAGE_ALIGN(obj->size),
+			       (dma_addr_t *) (&obj->offset),
 			       GFP_DMA | GFP_KERNEL);
-	pr_debug("[ALLOC] mem alloc phys_addr = 0x%x\n", mem->phys_addr);
-	if (mem->cpu_addr == NULL) {
+	pr_debug("[ALLOC] mem alloc phys_addr = 0x%lx\n", obj->offset);
+
+	if (obj->virtual == NULL) {
 		printk(KERN_ERR "Physical memory allocation error!\n");
 		return -1;
 	}
+
 	return 0;
 }
 
-static void pxp_free_dma_buffer(struct pxp_mem_desc *mem)
+static void pxp_free_dma_buffer(struct pxp_buf_obj *obj)
 {
-	if (mem->cpu_addr != NULL) {
-		dma_free_coherent(0, PAGE_ALIGN(mem->size),
-				  mem->cpu_addr, mem->phys_addr);
+	if (obj->virtual != NULL) {
+		dma_free_coherent(0, PAGE_ALIGN(obj->size),
+				  obj->virtual, (dma_addr_t)obj->offset);
 	}
 }
 
@@ -194,19 +196,14 @@ pxp_buffer_object_free(int id, void *ptr, void *data)
 {
 	struct pxp_file *file_priv = data;
 	struct pxp_buf_obj *obj = ptr;
-	struct pxp_mem_desc buffer;
 	int ret;
 
 	ret = pxp_buffer_handle_delete(file_priv, obj->handle);
 	if (ret < 0)
 		return ret;
 
-	buffer.size = obj->size;
-	buffer.cpu_addr  = obj->virtual;
-	buffer.phys_addr = obj->offset;
-
 	pxp_ht_remove_item(&bufhash, obj);
-	pxp_free_dma_buffer(&buffer);
+	pxp_free_dma_buffer(obj);
 	kfree(obj);
 
 	return 0;
@@ -476,37 +473,34 @@ static long pxp_device_ioctl(struct file *filp,
 			pr_debug("[ALLOC] mem alloc size = 0x%x\n",
 				 buffer.size);
 
-			ret = pxp_alloc_dma_buffer(&buffer);
+			obj = kzalloc(sizeof(*obj), GFP_KERNEL);
+			if (!obj)
+				return -ENOMEM;
+			obj->size = buffer.size;
+
+			ret = pxp_alloc_dma_buffer(obj);
 			if (ret == -1) {
 				printk(KERN_ERR
 				       "Physical memory allocation error!\n");
+				kfree(obj);
 				return ret;
 			}
-
-			obj = kzalloc(sizeof(*obj), GFP_KERNEL);
-			if (!obj) {
-				pxp_free_dma_buffer(&buffer);
-				return -ENOMEM;
-			}
-
-			obj->size   = buffer.size;
-			obj->offset = buffer.phys_addr;
-			obj->virtual = buffer.cpu_addr;
 
 			ret = pxp_buffer_handle_create(file_priv, obj, &obj->handle);
 			if (ret) {
+				pxp_free_dma_buffer(obj);
 				kfree(obj);
-				pxp_free_dma_buffer(&buffer);
 				return ret;
 			}
 			buffer.handle = obj->handle;
+			buffer.phys_addr = obj->offset;
 
 			ret = copy_to_user((void __user *)arg, &buffer,
 					   sizeof(struct pxp_mem_desc));
 			if (ret) {
 				pxp_buffer_handle_delete(file_priv, buffer.handle);
+				pxp_free_dma_buffer(obj);
 				kfree(obj);
-				pxp_free_dma_buffer(&buffer);
 				return -EFAULT;
 			}
 
@@ -525,23 +519,17 @@ static long pxp_device_ioctl(struct file *filp,
 			if (ret)
 				return -EACCES;
 
-			pr_debug("[FREE] mem freed cpu_addr = 0x%p\n",
-				 pxp_mem.cpu_addr);
-
 			obj = pxp_buffer_object_lookup(file_priv, pxp_mem.handle);
 			if (!obj)
 				return -EINVAL;
-			pxp_mem.size = obj->size;
-			pxp_mem.cpu_addr = obj->virtual;
-			pxp_mem.phys_addr = obj->offset;
 
 			ret = pxp_buffer_handle_delete(file_priv, obj->handle);
 			if (ret)
 				return ret;
 
 			pxp_ht_remove_item(&bufhash, obj);
+			pxp_free_dma_buffer(obj);
 			kfree(obj);
-			pxp_free_dma_buffer(&pxp_mem);
 
 			break;
 		}
