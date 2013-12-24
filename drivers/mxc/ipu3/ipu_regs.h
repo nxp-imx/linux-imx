@@ -146,8 +146,6 @@ extern int g_ipu_hw_rev;
 				   (0x0160/4 + (ch / 32)); })
 
 #define IPU_INT_CTRL(n)		(0x003C/4 + ((n) - 1))
-#define IPU_INT_CTRL_IRQ(irq)	IPU_INT_CTRL(((irq) / 32))
-#define IPU_INT_STAT_IRQ(irq)	IPU_INT_STAT(((irq) / 32))
 #define IPU_INT_STAT(n)		({g_ipu_hw_rev >= 2 ? \
 				  (0x0200/4 + ((n) - 1)) : \
 				  (0x00E8/4 + ((n) - 1)); })
