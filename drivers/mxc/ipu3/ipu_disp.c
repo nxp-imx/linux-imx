@@ -333,24 +333,24 @@ static void _ipu_dc_write_tmpl(struct ipu_soc *ipu,
 		reg |= (glue << 4);
 		reg |= (++wave << 11);
 		reg |= ((operand & 0x1FFFF) << 15);
-		ipu_dc_tmpl_write(ipu, reg, word * 2);
+		ipu_dc_tmpl_write(ipu, reg, word * 8);
 
 		reg = (operand >> 17);
 		reg |= opcode << 7;
 		reg |= (stop << 9);
-		ipu_dc_tmpl_write(ipu, reg, word * 2 + 1);
+		ipu_dc_tmpl_write(ipu, reg, word * 8 + 4);
 	} else {
 		reg = sync;
 		reg |= (glue << 4);
 		reg |= (++wave << 11);
 		reg |= (++map << 15);
 		reg |= (operand << 20) & 0xFFF00000;
-		ipu_dc_tmpl_write(ipu, reg, word * 2);
+		ipu_dc_tmpl_write(ipu, reg, word * 8);
 
 		reg = (operand >> 12);
 		reg |= opcode << 4;
 		reg |= (stop << 9);
-		ipu_dc_tmpl_write(ipu, reg, word * 2 + 1);
+		ipu_dc_tmpl_write(ipu, reg, word * 8 + 4);
 	}
 }
 
