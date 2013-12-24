@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,6 +48,11 @@ struct pxp_buf_obj {
 	struct hlist_node item;
 };
 
+struct pxp_chan_obj {
+	uint32_t handle;
+	struct dma_chan *chan;
+};
+
 /* File private data */
 struct pxp_file {
 	struct file *filp;
@@ -55,6 +60,10 @@ struct pxp_file {
 	/* record allocated dma buffer */
 	struct idr buffer_idr;
 	spinlock_t buffer_lock;
+
+	/* record allocated dma channel */
+	struct idr channel_idr;
+	spinlock_t channel_lock;
 };
 
 #endif
