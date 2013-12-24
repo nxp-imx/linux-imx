@@ -25,9 +25,8 @@
 
 struct pxp_irq_info {
 	wait_queue_head_t waitq;
-	int irq_pending;
+	atomic_t irq_pending;
 	int hist_status;
-	spinlock_t lock;
 };
 
 struct pxp_buffer_hash {
