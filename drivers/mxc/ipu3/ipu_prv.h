@@ -80,20 +80,20 @@ struct ipu_soc {
 	struct ipu_irq_node irq_list[IPU_IRQ_COUNT];
 
 	/*reg*/
-	u32 *cm_reg;
-	u32 *idmac_reg;
-	u32 *dp_reg;
-	u32 *ic_reg;
-	u32 *dc_reg;
-	u32 *dc_tmpl_reg;
-	u32 *dmfc_reg;
-	u32 *di_reg[2];
-	u32 *smfc_reg;
-	u32 *csi_reg[2];
-	u32 *cpmem_base;
-	u32 *tpmem_base;
-	u32 *disp_base[2];
-	u32 *vdi_reg;
+	void __iomem *cm_reg;
+	void __iomem *idmac_reg;
+	void __iomem *dp_reg;
+	void __iomem *ic_reg;
+	void __iomem *dc_reg;
+	void __iomem *dc_tmpl_reg;
+	void __iomem *dmfc_reg;
+	void __iomem *di_reg[2];
+	void __iomem *smfc_reg;
+	void __iomem *csi_reg[2];
+	void __iomem *cpmem_base;
+	void __iomem *tpmem_base;
+	void __iomem *disp_base[2];
+	void __iomem *vdi_reg;
 
 	struct device *dev;
 

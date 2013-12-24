@@ -766,17 +766,17 @@ static void _init_csc(struct ipu_soc *ipu, uint8_t ic_task, ipu_color_space_t in
 	uint32_t *base = NULL;
 
 	if (ic_task == IC_TASK_ENCODER) {
-		base = ipu->tpmem_base + 0x2008 / 4;
+		base = (uint32_t *)ipu->tpmem_base + 0x2008 / 4;
 	} else if (ic_task == IC_TASK_VIEWFINDER) {
 		if (csc_index == 1)
-			base = ipu->tpmem_base + 0x4028 / 4;
+			base = (uint32_t *)ipu->tpmem_base + 0x4028 / 4;
 		else
-			base = ipu->tpmem_base + 0x4040 / 4;
+			base = (uint32_t *)ipu->tpmem_base + 0x4040 / 4;
 	} else if (ic_task == IC_TASK_POST_PROCESSOR) {
 		if (csc_index == 1)
-			base = ipu->tpmem_base + 0x6060 / 4;
+			base = (uint32_t *)ipu->tpmem_base + 0x6060 / 4;
 		else
-			base = ipu->tpmem_base + 0x6078 / 4;
+			base = (uint32_t *)ipu->tpmem_base + 0x6078 / 4;
 	} else {
 		BUG();
 	}
