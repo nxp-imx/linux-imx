@@ -31,7 +31,6 @@
 #include <linux/atomic.h>
 #include <linux/platform_data/dma-imx.h>
 
-static atomic_t open_count = ATOMIC_INIT(0);
 #define BUFFER_HASH_ORDER 4
 
 static struct pxp_buffer_hash bufhash;
@@ -268,11 +267,36 @@ pxp_buffer_object_free(int id, void *ptr, void *data)
 	return 0;
 }
 
+static int
+pxp_channel_object_free(int id, void *ptr, void *data)
+{
+	struct pxp_file *file_priv = data;
+	struct pxp_chan_obj *obj = ptr;
+	int chan_id;
+
+	chan_id = obj->chan->chan_id;
+	wait_event(irq_info[chan_id].waitq,
+		atomic_read(&irq_info[chan_id].irq_pending) == 0);
+
+	pxp_channel_handle_delete(file_priv, obj->handle);
+	dma_release_channel(obj->chan);
+	kfree(obj);
+
+	return 0;
+}
+
 static void pxp_free_buffers(struct pxp_file *file_priv)
 {
 	idr_for_each(&file_priv->buffer_idr,
 			&pxp_buffer_object_free, file_priv);
 	idr_destroy(&file_priv->buffer_idr);
+}
+
+static void pxp_free_channels(struct pxp_file *file_priv)
+{
+	idr_for_each(&file_priv->channel_idr,
+			&pxp_channel_object_free, file_priv);
+	idr_destroy(&file_priv->channel_idr);
 }
 
 /* Callback function triggered after PxP receives an EOF interrupt */
@@ -288,7 +312,7 @@ static void pxp_dma_done(void *arg)
 	atomic_dec(&irq_info[chan_id].irq_pending);
 	irq_info[chan_id].hist_status = tx_desc->hist_status;
 
-	wake_up_interruptible(&(irq_info[chan_id].waitq));
+	wake_up(&(irq_info[chan_id].waitq));
 }
 
 static int pxp_ioc_config_chan(struct pxp_file *priv, unsigned long arg)
@@ -371,7 +395,6 @@ static int pxp_device_open(struct inode *inode, struct file *filp)
 {
 	struct pxp_file *priv;
 
-	atomic_inc(&open_count);
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 
 	if (!priv)
@@ -391,10 +414,10 @@ static int pxp_device_open(struct inode *inode, struct file *filp)
 
 static int pxp_device_release(struct inode *inode, struct file *filp)
 {
-	struct pxp_file *priv = NULL;
+	struct pxp_file *priv = filp->private_data;
 
-	if (atomic_dec_and_test(&open_count)) {
-		priv = filp->private_data;
+	if (priv) {
+		pxp_free_channels(priv);
 		pxp_free_buffers(priv);
 		kfree(priv);
 		filp->private_data = NULL;
