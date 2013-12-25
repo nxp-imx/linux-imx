@@ -317,14 +317,18 @@ static int _get_cur_fb_blank(struct pxps *pxp)
 	return err;
 }
 
-static int pxp_show_buf(struct pxps *pxp, bool toshow)
+static int pxp_show_buf(struct pxps *pxp, unsigned long paddr)
 {
 	struct fb_info *fbi = pxp->fbi;
-	int ret;
+	int ret = -EINVAL;
+
+	if (paddr == 0) {
+		dev_err(&pxp->pdev->dev, "Invalid paddr\n");
+		return ret;
+	}
 
 	console_lock();
-	fbi->fix.smem_start = toshow ?
-			pxp->outbuf.paddr : (unsigned long)pxp->fb.base;
+	fbi->fix.smem_start = paddr;
 	ret = fb_pan_display(fbi, &fbi->var);
 	console_unlock();
 
@@ -675,7 +679,7 @@ static int pxp_streamon(struct file *file, void *priv,
 	ret = videobuf_streamon(&pxp->s0_vbq);
 
 	if (!ret && (pxp->output == 0))
-		pxp_show_buf(pxp, true);
+		pxp_show_buf(pxp, pxp->outbuf.paddr);
 
 	return ret;
 }
@@ -691,8 +695,7 @@ static int pxp_streamoff(struct file *file, void *priv,
 
 	ret = videobuf_streamoff(&pxp->s0_vbq);
 
-	if (!ret)
-		pxp_show_buf(pxp, false);
+	pxp_show_buf(pxp, (unsigned long)pxp->fb.base);
 
 	if (pxp->fb_blank)
 		set_fb_blank(FB_BLANK_POWERDOWN);
@@ -1124,6 +1127,7 @@ static int pxp_close(struct file *file)
 {
 	struct pxps *pxp = video_get_drvdata(video_devdata(file));
 
+	pxp_streamoff(file, NULL, V4L2_BUF_TYPE_VIDEO_OUTPUT);
 	videobuf_stop(&pxp->s0_vbq);
 	videobuf_mmap_free(&pxp->s0_vbq);
 	pxp->active = NULL;
