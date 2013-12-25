@@ -447,7 +447,19 @@ static int pxp_device_mmap(struct file *file, struct vm_area_struct *vma)
 		(vma->vm_pgoff + vma_pages(vma)))
 		return -ENOMEM;
 
-	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	switch (obj->mem_type) {
+	case MEMORY_TYPE_UNCACHED:
+		vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+		break;
+	case MEMORY_TYPE_WC:
+		vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+		break;
+	case MEMORY_TYPE_CACHED:
+		break;
+	default:
+		pr_err("%s: invalid memory type!\n", __func__);
+		return -EINVAL;
+	}
 
 	return remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
 			       request_size, vma->vm_page_prot) ? -EAGAIN : 0;
@@ -579,6 +591,7 @@ static long pxp_device_ioctl(struct file *filp,
 			if (!obj)
 				return -ENOMEM;
 			obj->size = buffer.size;
+			obj->mem_type = buffer.mtype;
 
 			ret = pxp_alloc_dma_buffer(obj);
 			if (ret == -1) {
@@ -632,6 +645,44 @@ static long pxp_device_ioctl(struct file *filp,
 			pxp_ht_remove_item(&bufhash, obj);
 			pxp_free_dma_buffer(obj);
 			kfree(obj);
+
+			break;
+		}
+	case PXP_IOC_FLUSH_PHYMEM:
+		{
+			int ret;
+			struct pxp_mem_flush flush;
+			struct pxp_buf_obj *obj;
+
+			ret = copy_from_user(&flush,
+					     (struct pxp_mem_flush *)arg,
+					     sizeof(struct pxp_mem_flush));
+			if (ret)
+				return -EACCES;
+
+			obj = pxp_buffer_object_lookup(file_priv, flush.handle);
+			if (!obj)
+				return -EINVAL;
+
+			switch (flush.type) {
+			case CACHE_CLEAN:
+				dma_sync_single_for_device(NULL, obj->offset,
+						obj->size, DMA_TO_DEVICE);
+				break;
+			case CACHE_INVALIDATE:
+				dma_sync_single_for_device(NULL, obj->offset,
+						obj->size, DMA_FROM_DEVICE);
+				break;
+			case CACHE_FLUSH:
+				dma_sync_single_for_device(NULL, obj->offset,
+						obj->size, DMA_TO_DEVICE);
+				dma_sync_single_for_device(NULL, obj->offset,
+						obj->size, DMA_FROM_DEVICE);
+				break;
+			default:
+				pr_err("%s: invalid cache flush type\n", __func__);
+				return -EINVAL;
+			}
 
 			break;
 		}

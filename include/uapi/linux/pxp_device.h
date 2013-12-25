@@ -31,6 +31,12 @@ struct pxp_mem_desc {
 	unsigned int size;
 	dma_addr_t phys_addr;
 	unsigned int virt_uaddr;		/* virtual user space address */
+	unsigned int mtype;
+};
+
+struct pxp_mem_flush {
+	unsigned int handle;
+	unsigned int type;
 };
 
 #define PXP_IOC_MAGIC  'P'
@@ -42,5 +48,16 @@ struct pxp_mem_desc {
 #define PXP_IOC_GET_PHYMEM    _IOWR(PXP_IOC_MAGIC, 4, struct pxp_mem_desc)
 #define PXP_IOC_PUT_PHYMEM    _IOW(PXP_IOC_MAGIC, 5, struct pxp_mem_desc)
 #define PXP_IOC_WAIT4CMPLT    _IOWR(PXP_IOC_MAGIC, 6, struct pxp_mem_desc)
+#define PXP_IOC_FLUSH_PHYMEM   _IOR(PXP_IOC_MAGIC, 7, struct pxp_mem_flush)
+
+/* Memory types supported*/
+#define MEMORY_TYPE_UNCACHED 0x0
+#define MEMORY_TYPE_WC	     0x1
+#define MEMORY_TYPE_CACHED   0x2
+
+/* Cache flush operations */
+#define CACHE_CLEAN      0x1
+#define CACHE_INVALIDATE 0x2
+#define CACHE_FLUSH      0x4
 
 #endif
