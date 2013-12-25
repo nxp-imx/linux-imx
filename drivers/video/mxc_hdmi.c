@@ -2032,7 +2032,8 @@ static void hotplug_worker(struct work_struct *work)
 #endif
 			hdmi_set_cable_state(1);
 
-			switch_set_state(&hdmi->sdev_audio, 1);
+			if (!hdmi->hdmi_data.video_mode.mDVI)
+				switch_set_state(&hdmi->sdev_audio, 1);
 			switch_set_state(&hdmi->sdev_display, 1);
 
 		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
