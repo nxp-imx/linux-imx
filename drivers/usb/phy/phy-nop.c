@@ -67,6 +67,16 @@ EXPORT_SYMBOL(usb_nop_xceiv_unregister);
 
 static int nop_set_suspend(struct usb_phy *x, int suspend)
 {
+	struct nop_usb_xceiv *nop = dev_get_drvdata(x->dev);
+
+	if (IS_ERR(nop->clk))
+		return 0;
+
+	if (suspend)
+		clk_disable_unprepare(nop->clk);
+	else
+		clk_prepare_enable(nop->clk);
+
 	return 0;
 }
 
