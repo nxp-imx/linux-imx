@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2013 Freescale Semiconductor, Inc.
+ * Copyright 2012-2014 Freescale Semiconductor, Inc.
  * Copyright (C) 2012 Marek Vasut <marex@denx.de>
  * on behalf of DENX Software Engineering GmbH
  *
@@ -31,6 +31,7 @@
 #define CI_HDRC_IMX_IMX28_WRITE_FIX		BIT(0)
 #define CI_HDRC_IMX_SUPPORT_RUNTIME_PM		BIT(1)
 #define CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK		BIT(2)
+#define CI_HDRC_IMX_HAS_HSIC			BIT(3)
 
 struct ci_hdrc_imx_platform_flag {
 	unsigned int flags;
@@ -50,11 +51,13 @@ static const struct ci_hdrc_imx_platform_flag imx28_usb_data = {
 
 static const struct ci_hdrc_imx_platform_flag imx6q_usb_data = {
 	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM |
-		CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK,
+		CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK |
+		CI_HDRC_IMX_HAS_HSIC,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sl_usb_data = {
-	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM,
+	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM |
+		CI_HDRC_IMX_HAS_HSIC,
 };
 
 static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
@@ -76,6 +79,9 @@ struct ci_hdrc_imx_data {
 	bool in_lpm;
 	bool imx6_usb_charger_detection;
 	struct usb_charger charger;
+	struct regmap *anatop;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *pinctrl_hsic_active;
 };
 
 /* Common functions shared by usbmisc drivers */
@@ -115,6 +121,26 @@ static struct imx_usbmisc_data *usbmisc_get_init_data(struct device *dev)
 	if (of_find_property(np, "external-vbus-divider", NULL))
 		data->evdo = 1;
 
+	if (of_find_property(np, "osc-clkgate-delay", NULL)) {
+		ret = of_property_read_u32(np, "osc-clkgate-delay",
+			&data->osc_clkgate_delay);
+		if (ret) {
+			dev_err(dev,
+				"failed to get osc-clkgate-delay value\n");
+			return ERR_PTR(ret);
+		}
+		/*
+		 * 0 <= osc_clkgate_delay <=7
+		 * - 0x0 (default) is 0.5ms,
+		 * - 0x1-0x7: 1-7ms
+		 */
+		if (data->osc_clkgate_delay > 7) {
+			dev_err(dev,
+				"value of osc-clkgate-delay is incorrect\n");
+			return ERR_PTR(-EINVAL);
+		}
+	}
+
 	return data;
 }
 
@@ -144,6 +170,28 @@ static int ci_hdrc_imx_notify_event(struct ci_hdrc *ci, unsigned event)
 			return ret;
 		imx6_usb_charger_detect_post(&data->charger);
 		break;
+	case CI_HDRC_IMX_HSIC_ACTIVE_EVENT:
+		if (!IS_ERR(data->pinctrl) &&
+			!IS_ERR(data->pinctrl_hsic_active)) {
+			ret = pinctrl_select_state(data->pinctrl
+				, data->pinctrl_hsic_active);
+			if (ret)
+				dev_err(dev,
+					 "hsic_active select failed, err=%d\n",
+					 ret);
+			return ret;
+		}
+		break;
+	case CI_HDRC_IMX_HSIC_SUSPEND_EVENT:
+		if (data->usbmisc_data) {
+			ret = imx_usbmisc_hsic_set_connect(data->usbmisc_data);
+			if (ret)
+				dev_err(dev,
+					 "hsic_set_connect failed, err=%d\n",
+					 ret);
+			return ret;
+		}
+		break;
 	default:
 		dev_dbg(dev, "unknown event\n");
 	}
@@ -166,6 +214,7 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 			of_match_device(ci_hdrc_imx_dt_ids, &pdev->dev);
 	const struct ci_hdrc_imx_platform_flag *imx_platform_flag = of_id->data;
 	struct device_node *np = pdev->dev.of_node;
+	struct pinctrl_state *pinctrl_hsic_idle;
 
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
 	if (!data) {
@@ -178,6 +227,35 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	data->usbmisc_data = usbmisc_get_init_data(&pdev->dev);
 	if (IS_ERR(data->usbmisc_data))
 		return PTR_ERR(data->usbmisc_data);
+
+	data->pinctrl = devm_pinctrl_get(&pdev->dev);
+	if (IS_ERR(data->pinctrl)) {
+		dev_dbg(&pdev->dev, "pinctrl get failed, err=%ld\n",
+			PTR_ERR(data->pinctrl));
+	} else {
+		pinctrl_hsic_idle = pinctrl_lookup_state(data->pinctrl, "idle");
+		if (IS_ERR(pinctrl_hsic_idle)) {
+			dev_dbg(&pdev->dev,
+				 "pinctrl_hsic_idle lookup failed, err=%ld\n",
+				 PTR_ERR(pinctrl_hsic_idle));
+		} else {
+			ret = pinctrl_select_state(data->pinctrl,
+					pinctrl_hsic_idle);
+			if (ret) {
+				dev_err(&pdev->dev,
+					 "hsic_idle select failed, err=%d\n",
+					 ret);
+				return ret;
+			}
+		}
+
+		data->pinctrl_hsic_active = pinctrl_lookup_state
+			(data->pinctrl, "active");
+		if (IS_ERR(data->pinctrl_hsic_active))
+			dev_dbg(&pdev->dev,
+				 "pinctrl_hsic_active lookup failed, err=%ld\n",
+				 PTR_ERR(data->pinctrl_hsic_active));
+	}
 
 	data->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(data->clk)) {
@@ -219,34 +297,44 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	if (imx_platform_flag->flags & CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK)
 		pdata.flags |= CI_HDRC_IMX_EHCI_QUIRK;
 
+	if (data->usbmisc_data && data->usbmisc_data->index > 1 &&
+		(imx_platform_flag->flags & CI_HDRC_IMX_HAS_HSIC))
+		pdata.flags |= CI_HDRC_IMX_IS_HSIC;
+
+	if (of_find_property(np, "imx6-usb-charger-detection", NULL))
+		data->imx6_usb_charger_detection = true;
+
+	if (of_find_property(np, "fsl,anatop", NULL)) {
+		data->anatop = syscon_regmap_lookup_by_phandle
+			(np, "fsl,anatop");
+		if (IS_ERR(data->anatop)) {
+			dev_dbg(&pdev->dev,
+				"failed to find regmap for anatop\n");
+			ret = PTR_ERR(data->anatop);
+			goto err_clk;
+		}
+		if (data->usbmisc_data)
+			data->usbmisc_data->anatop = data->anatop;
+		if (data->imx6_usb_charger_detection) {
+			data->charger.anatop = data->anatop;
+			data->charger.dev = &pdev->dev;
+			ret = imx6_usb_create_charger(&data->charger,
+				"imx6_usb_charger");
+			if (ret && ret != -ENODEV)
+				goto err_clk;
+			if (!ret)
+				dev_dbg(&pdev->dev,
+					"USB Charger is created\n");
+		}
+	}
+
 	if (data->usbmisc_data) {
 		ret = imx_usbmisc_init(data->usbmisc_data);
 		if (ret) {
 			dev_err(&pdev->dev, "usbmisc init failed, ret=%d\n",
 					ret);
-			goto err_clk;
+			goto remove_charger;
 		}
-	}
-
-	if (of_find_property(np, "imx6-usb-charger-detection", NULL))
-		data->imx6_usb_charger_detection = true;
-
-	if (data->imx6_usb_charger_detection) {
-		data->charger.anatop = syscon_regmap_lookup_by_phandle
-			(np, "fsl,anatop");
-		if (IS_ERR(data->charger.anatop)) {
-			dev_dbg(&pdev->dev,
-				"failed to find regmap for anatop\n");
-			ret = PTR_ERR(data->charger.anatop);
-			goto err_clk;
-		}
-		data->charger.dev = &pdev->dev;
-		ret = imx6_usb_create_charger(&data->charger,
-			"imx6_usb_charger");
-		if (ret && ret != -ENODEV)
-			goto err_clk;
-		if (!ret)
-			dev_dbg(&pdev->dev, "USB Charger is created\n");
 	}
 
 	data->ci_pdev = ci_hdrc_add_device(&pdev->dev,
@@ -335,6 +423,13 @@ static int imx_controller_suspend(struct device *dev)
 				ret);
 			return ret;
 		}
+		ret = imx_usbmisc_hsic_set_clk(data->usbmisc_data, false);
+		if (ret) {
+			dev_err(dev,
+				"usbmisc hsic_set_clk failed, ret=%d\n",
+				ret);
+			goto hsic_set_clk_fail;
+		}
 	}
 
 	clk_disable_unprepare(data->clk);
@@ -342,6 +437,11 @@ static int imx_controller_suspend(struct device *dev)
 	data->in_lpm = true;
 
 	return 0;
+
+hsic_set_clk_fail:
+	imx_usbmisc_set_wakeup(data->usbmisc_data, false);
+
+	return ret;
 }
 
 static int imx_controller_resume(struct device *dev)
@@ -369,13 +469,21 @@ static int imx_controller_resume(struct device *dev)
 			dev_err(dev,
 				"usbmisc set_wakeup failed, ret=%d\n",
 				ret);
-			ret = -EINVAL;
 			goto clk_disable;
+		}
+		ret = imx_usbmisc_hsic_set_clk(data->usbmisc_data, true);
+		if (ret) {
+			dev_err(dev,
+				"usbmisc hsic_set_clk failed, ret=%d\n",
+				ret);
+			goto hsic_set_clk_fail;
 		}
 	}
 
 	return 0;
 
+hsic_set_clk_fail:
+	imx_usbmisc_set_wakeup(data->usbmisc_data, true);
 clk_disable:
 	clk_disable_unprepare(data->clk);
 	release_bus_freq(BUS_FREQ_HIGH);
