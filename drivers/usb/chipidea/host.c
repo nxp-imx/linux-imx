@@ -39,11 +39,27 @@ static int (*orig_hub_control)(struct usb_hcd *hcd,
 				u16 typeReq, u16 wValue, u16 wIndex,
 				char *buf, u16 wLength);
 
+/* This function is used to override WKCN, WKDN, and WKOC */
+static void ci_ehci_override_wakeup_flag(struct ehci_hcd *ehci,
+		u32 __iomem *reg, u32 flags, bool set)
+{
+	u32 val = ehci_readl(ehci, reg);
+
+	if (set)
+		val |= flags;
+	else
+		val &= ~flags;
+
+	ehci_writel(ehci, val, reg);
+}
+
 static int ci_ehci_bus_suspend(struct usb_hcd *hcd)
 {
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	int port;
 	u32 tmp;
+	struct device *dev = hcd->self.controller;
+	struct ci_hdrc *ci = dev_get_drvdata(dev);
 
 	int ret = orig_bus_suspend(hcd);
 
@@ -89,6 +105,9 @@ static int ci_ehci_bus_suspend(struct usb_hcd *hcd)
 				usb_phy_notify_suspend(hcd->phy,
 					USB_SPEED_HIGH);
 		}
+		if (ci->platdata->flags & CI_HDRC_IMX_IS_HSIC)
+			ci_ehci_override_wakeup_flag(ehci, reg,
+				PORT_WKDISC_E | PORT_WKCONN_E, false);
 	}
 
 	return 0;
@@ -145,6 +164,8 @@ static int ci_imx_ehci_hub_control(
 	spin_lock_irqsave(&ehci->lock, flags);
 
 	if (typeReq == SetPortFeature && wValue == USB_PORT_FEAT_SUSPEND) {
+		struct device *dev = hcd->self.controller;
+		struct ci_hdrc *ci = dev_get_drvdata(dev);
 		temp = ehci_readl(ehci, status_reg);
 		if ((temp & PORT_PE) == 0 || (temp & PORT_RESET) != 0) {
 			retval = -EPIPE;
@@ -155,6 +176,13 @@ static int ci_imx_ehci_hub_control(
 		temp |= PORT_WKDISC_E | PORT_WKOC_E;
 		ehci_writel(ehci, temp | PORT_SUSPEND, status_reg);
 
+		if (ci->platdata->flags & CI_HDRC_IMX_IS_HSIC) {
+			if (ci->platdata->notify_event)
+				ci->platdata->notify_event
+					(ci, CI_HDRC_IMX_HSIC_SUSPEND_EVENT);
+			ci_ehci_override_wakeup_flag(ehci, status_reg,
+				PORT_WKDISC_E | PORT_WKCONN_E, false);
+		}
 		/*
 		 * If a transaction is in progress, there may be a delay in
 		 * suspending the port. Poll until the port is suspended.
@@ -251,6 +279,11 @@ static int host_start(struct ci_hdrc *ci)
 		goto disable_reg;
 	else
 		ci->hcd = hcd;
+
+	if (ci->platdata->notify_event &&
+		(ci->platdata->flags & CI_HDRC_IMX_IS_HSIC))
+		ci->platdata->notify_event
+			(ci, CI_HDRC_IMX_HSIC_ACTIVE_EVENT);
 
 	if (ci->platdata->flags & CI_HDRC_DISABLE_STREAMING)
 		hw_write(ci, OP_USBMODE, USBMODE_CI_SDIS, USBMODE_CI_SDIS);
