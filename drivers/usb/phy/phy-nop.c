@@ -80,7 +80,7 @@ static int nop_init(struct usb_phy *phy)
 	}
 
 	if (!IS_ERR(nop->clk))
-		clk_enable(nop->clk);
+		clk_prepare_enable(nop->clk);
 
 	if (!IS_ERR(nop->reset)) {
 		/* De-assert RESET */
@@ -102,7 +102,7 @@ static void nop_shutdown(struct usb_phy *phy)
 	}
 
 	if (!IS_ERR(nop->clk))
-		clk_disable(nop->clk);
+		clk_disable_unprepare(nop->clk);
 
 	if (!IS_ERR(nop->vcc)) {
 		if (regulator_disable(nop->vcc))
@@ -189,14 +189,6 @@ static int nop_usb_xceiv_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (!IS_ERR(nop->clk)) {
-		err = clk_prepare(nop->clk);
-		if (err) {
-			dev_err(&pdev->dev, "Error preparing clock\n");
-			return err;
-		}
-	}
-
 	nop->vcc = devm_regulator_get(&pdev->dev, "vcc");
 	if (IS_ERR(nop->vcc)) {
 		dev_dbg(&pdev->dev, "Error getting vcc regulator: %ld\n",
@@ -240,17 +232,12 @@ static int nop_usb_xceiv_probe(struct platform_device *pdev)
 	return 0;
 
 err_add:
-	if (!IS_ERR(nop->clk))
-		clk_unprepare(nop->clk);
 	return err;
 }
 
 static int nop_usb_xceiv_remove(struct platform_device *pdev)
 {
 	struct nop_usb_xceiv *nop = platform_get_drvdata(pdev);
-
-	if (!IS_ERR(nop->clk))
-		clk_unprepare(nop->clk);
 
 	usb_remove_phy(&nop->phy);
 
