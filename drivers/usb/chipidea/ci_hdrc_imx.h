@@ -9,6 +9,9 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
+#ifndef __DRIVER_USB_CHIPIDEA_CI_HDRC_IMX_H
+#define __DRIVER_USB_CHIPIDEA_CI_HDRC_IMX_H
+
 #include <linux/usb/otg.h>
 
 struct imx_usbmisc_data {
@@ -31,3 +34,5 @@ int imx_usbmisc_set_wakeup(struct imx_usbmisc_data *, bool);
 /* Call it before setting portsc.suspendM */
 int imx_usbmisc_hsic_set_connect(struct imx_usbmisc_data *);
 int imx_usbmisc_hsic_set_clk(struct imx_usbmisc_data *, bool);
+
+#endif /* __DRIVER_USB_CHIPIDEA_CI_HDRC_IMX_H */
