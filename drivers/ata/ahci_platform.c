@@ -21,6 +21,7 @@
 #include <linux/platform_device.h>
 #include <linux/libata.h>
 #include <linux/ahci_platform.h>
+#include <mach/ahci_sata.h>
 #include "ahci.h"
 
 static struct scsi_host_template ahci_platform_sht = {
@@ -211,12 +212,30 @@ static int ahci_device_resume(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct ahci_platform_data *pdata = dev_get_platdata(dev);
 	struct ata_host *host = dev_get_drvdata(dev);
-	int rc;
+	struct ahci_host_priv *hpriv = host->private_data;
+	void __iomem *mmio = hpriv->mmio;
+	int i, rc;
 
 	if (pdata && pdata->resume) {
 		rc = pdata->resume(dev);
 		if (rc)
 			return rc;
+	}
+
+	usleep_range(100, 200);
+	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_RESET, mmio);
+	sata_phy_cr_write(SATA_PHY_CR_RESET_EN, mmio);
+	usleep_range(100, 200);
+	/* waiting for the rx_pll is stable */
+	for (i = 0; i <= 5; i++) {
+		sata_phy_cr_addr(SATA_PHY_CR_LANE0_OUT_STAT, mmio);
+		sata_phy_cr_read(&rc, mmio);
+		if (rc & SATA_PHY_CR_LANE0_RX_STABLE) {
+			pr_info("sata phy rx_pll is stable!\n");
+			break;
+		} else if (i == 5)
+			pr_info("wating for sata rx_pll lock time out\n");
+		usleep_range(1000, 2000);
 	}
 
 	if (dev->power.power_state.event == PM_EVENT_SUSPEND) {
