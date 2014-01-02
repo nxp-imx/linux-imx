@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -26,6 +26,16 @@
 
 #include <mach/hardware.h>
 #include <mach/ahci_sata.h>
+
+enum {
+	HOST_CAP = 0x00,
+	HOST_CAP_SSS = (1 << 27), /* Staggered Spin-up */
+	HOST_CTL		= 0x04, /* global host control */
+	HOST_RESET		= (1 << 0),  /* reset controller; self-clear */
+	HOST_PORTS_IMPL	= 0x0c,
+	HOST_TIMER1MS = 0xe0, /* Timer 1-ms */
+	HOST_VERSIONR = 0xfc, /* host version register*/
+};
 
 int write_phy_ctl_ack_polling(u32 data, void __iomem *mmio,
 		int max_iterations, u32 exp_val)
@@ -79,6 +89,7 @@ int sata_phy_cr_write(u32 data, void __iomem *mmio)
 
 	/* write data */
 	temp_wr_data = data;
+	writel(temp_wr_data, mmio + PORT_PHY_CTL);
 
 	/* capture data */
 	temp_wr_data |= PORT_PHY_CTL_CAP_DAT_LOC;

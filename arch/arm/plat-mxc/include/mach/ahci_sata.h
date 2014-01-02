@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -20,14 +20,6 @@
 #define __PLAT_MXC_AHCI_SATA_H__
 
 enum {
-	HOST_CAP = 0x00,
-	HOST_CAP_SSS = (1 << 27), /* Staggered Spin-up */
-	HOST_CTL		= 0x04, /* global host control */
-	HOST_RESET		= (1 << 0),  /* reset controller; self-clear */
-	HOST_PORTS_IMPL	= 0x0c,
-	HOST_TIMER1MS = 0xe0, /* Timer 1-ms */
-	HOST_VERSIONR = 0xfc, /* host version register*/
-
 	/* Offest used to control the MPLL input clk */
 	PHY_CR_CLOCK_FREQ_OVRD = 0x12,
 	/* Port0 SATA Status */
@@ -51,6 +43,12 @@ enum {
 	SATA_PHY_CR_CLOCK_RTUNE_CTL = 0x0009,
 	SATA_PHY_CR_CLOCK_ADC_OUT = 0x000A,
 	SATA_PHY_CR_CLOCK_MPLL_TST = 0x0017,
+
+	SATA_PHY_CR_CLOCK_RESET = 0x7F3F,
+	SATA_PHY_CR_RESET_EN = 0x0001,
+
+	SATA_PHY_CR_LANE0_OUT_STAT = 0x2003,
+	SATA_PHY_CR_LANE0_RX_STABLE = 0x0002,
 };
 
 extern int write_phy_ctl_ack_polling(u32 data, void __iomem *mmio,
