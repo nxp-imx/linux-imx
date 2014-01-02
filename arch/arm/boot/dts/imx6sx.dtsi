@@ -1,0 +1,370 @@
+/*
+ * Copyright 2011, 2014 Freescale Semiconductor, Inc.
+ * Copyright 2011 Linaro Ltd.
+ *
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
+
+#include <dt-bindings/clock/imx6sx-clock.h>
+#include <dt-bindings/gpio/gpio.h>
+#include "imx6sx-pinfunc.h"
+#include "skeleton.dtsi"
+
+/ {
+	aliases {
+		gpio1 = &gpio2;
+		serial0 = &uart1;
+		serial1 = &uart2;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "arm,cortex-a9";
+			device_type = "cpu";
+			reg = <0>;
+			next-level-cache = <&L2>;
+		};
+	};
+
+	intc: interrupt-controller@00a01000 {
+		compatible = "arm,cortex-a9-gic";
+		#interrupt-cells = <3>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		interrupt-controller;
+		reg = <0x00a01000 0x1000>,
+		      <0x00a00100 0x100>;
+	};
+
+	clocks {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ckil {
+			compatible = "fsl,imx-ckil", "fixed-clock";
+			clock-frequency = <32768>;
+		};
+
+		ckih1 {
+			compatible = "fsl,imx-ckih1", "fixed-clock";
+			clock-frequency = <0>;
+		};
+
+		osc {
+			compatible = "fsl,imx-osc", "fixed-clock";
+			clock-frequency = <24000000>;
+		};
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		interrupt-parent = <&intc>;
+		ranges;
+
+		pmu {
+			compatible = "arm,cortex-a9-pmu";
+			interrupts = <0 94 0x04>;
+		};
+
+		ocrams: sram@008f8000 {
+			compatible = "mmio-sram";
+			reg = <0x008f8000 0x4000>;
+			clocks = <&clks IMX6SX_CLK_OCRAM_S>;
+		};
+
+		ocram: sram@00900000 {
+			compatible = "mmio-sram";
+			reg = <0x00900000 0x20000>;
+			clocks = <&clks IMX6SX_CLK_OCRAM>;
+		};
+
+		L2: l2-cache@00a02000 {
+			compatible = "arm,pl310-cache";
+			reg = <0x00a02000 0x1000>;
+			interrupts = <0 92 0x04>;
+			cache-unified;
+			cache-level = <2>;
+			arm,tag-latency = <4 2 3>;
+			arm,data-latency = <4 2 3>;
+		};
+
+		aips-bus@02000000 { /* AIPS1 */
+			compatible = "fsl,aips-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x02000000 0x100000>;
+			ranges;
+
+			spba-bus@02000000 {
+				compatible = "fsl,spba-bus", "simple-bus";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0x02000000 0x40000>;
+				ranges;
+
+				uart1: serial@02020000 {
+					compatible = "fsl,imx6q-uart", "fsl,imx21-uart";
+					reg = <0x02020000 0x4000>;
+					interrupts = <0 26 0x04>;
+					clocks = <&clks IMX6SX_CLK_UART_IPG>, <&clks IMX6SX_CLK_UART_SERIAL>;
+					clock-names = "ipg", "per";
+					dmas = <&sdma 25 4 0>, <&sdma 26 4 0>;
+					dma-names = "rx", "tx";
+					status = "disabled";
+				};
+
+				spba@0203c000 {
+					reg = <0x0203c000 0x4000>;
+				};
+			};
+
+			aipstz@0207c000 { /* AIPSTZ1 */
+				reg = <0x0207c000 0x4000>;
+			};
+
+			gpt: gpt@02098000 {
+				compatible = "fsl,imx6sx-gpt";
+				reg = <0x02098000 0x4000>;
+				interrupts = <0 55 0x04>;
+				clocks = <&clks IMX6SX_CLK_GPT_BUS>, <&clks IMX6SX_CLK_GPT_SERIAL>;
+				clock-names = "ipg", "per";
+			};
+
+			clks: ccm@020c4000 {
+				compatible = "fsl,imx6sx-ccm";
+				reg = <0x020c4000 0x4000>;
+				interrupts = <0 87 0x04 0 88 0x04>;
+				#clock-cells = <1>;
+			};
+
+			anatop: anatop@020c8000 {
+				compatible = "fsl,imx6sx-anatop", "fsl,imx6q-anatop",
+						"syscon", "simple-bus";
+				reg = <0x020c8000 0x1000>;
+				interrupts = <0 49 0x04 0 54 0x04 0 127 0x04>;
+			};
+
+			snvs@020cc000 {
+				compatible = "fsl,sec-v4.0-mon", "simple-bus";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				ranges = <0 0x020cc000 0x4000>;
+
+				snvs-rtc-lp@34 {
+					compatible = "fsl,sec-v4.0-mon-rtc-lp";
+					reg = <0x34 0x58>;
+					interrupts = <0 19 0x04 0 20 0x04>;
+				};
+			};
+
+			src: src@020d8000 {
+				compatible = "fsl,imx6q-src", "fsl,imx51-src";
+				reg = <0x020d8000 0x4000>;
+				interrupts = <0 91 0x04 0 96 0x04>;
+				#reset-cells = <1>;
+			};
+
+			gpc: gpc@020dc000 {
+				compatible = "fsl,imx6q-gpc";
+				reg = <0x020dc000 0x4000>;
+				interrupts = <0 89 0x04>;
+			};
+
+			gpio2: gpio@020a0000 {
+				compatible = "fsl,imx6q-gpio", "fsl,imx35-gpio";
+				reg = <0x020a0000 0x4000>;
+				interrupts = <0 68 0x04 0 69 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+
+			wdog1: wdog@020bc000 {
+				compatible = "fsl,imx6q-wdt", "fsl,imx21-wdt";
+				reg = <0x020bc000 0x4000>;
+				interrupts = <0 80 0x04>;
+				clocks = <&clks IMX6SX_CLK_DUMMY>;
+			};
+
+			iomuxc: iomuxc@020e0000 {
+				compatible = "fsl,imx6sx-iomuxc";
+				reg = <0x020e0000 0x4000>;
+			};
+
+			gpr: iomuxc-gpr@020e4000 {
+				compatible = "fsl,imx6sx-iomuxc-gpr", "syscon";
+				reg = <0x020e4000 0x4000>;
+			};
+
+			sdma: sdma@020ec000 {
+				compatible = "fsl,imx6q-sdma", "fsl,imx35-sdma";
+				reg = <0x020ec000 0x4000>;
+				interrupts = <0 2 0x04>;
+				clocks = <&clks IMX6SX_CLK_SDMA>, <&clks IMX6SX_CLK_SDMA>;
+				clock-names = "ipg", "ahb";
+				#dma-cells = <3>;
+				fsl,sdma-ram-script-name = "imx/sdma/sdma-imx6q.bin";
+			};
+		};
+
+		aips-bus@02100000 { /* AIPS2 */
+			compatible = "fsl,aips-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x02100000 0x100000>;
+			ranges;
+
+			aipstz@0217c000 { /* AIPSTZ2 */
+				reg = <0x0217c000 0x4000>;
+			};
+
+			usdhc3: usdhc@02198000 {
+				compatible = "fsl,imx6sx-usdhc", "fsl,imx6sl-usdhc";
+				reg = <0x02198000 0x4000>;
+				interrupts = <0 24 0x04>;
+				clocks = <&clks IMX6SX_CLK_USDHC3>, <&clks IMX6SX_CLK_USDHC3>, <&clks IMX6SX_CLK_USDHC3>;
+				clock-names = "ipg", "ahb", "per";
+				bus-width = <4>;
+				status = "disabled";
+			};
+
+			mmdc0: mmdc@021b0000 { /* MMDC0 */
+				compatible = "fsl,imx6q-mmdc";
+				reg = <0x021b0000 0x4000>;
+			};
+
+			tzasc@021d0000 { /* TZASC1 */
+				reg = <0x021d0000 0x4000>;
+				interrupts = <0 108 0x04>;
+			};
+
+			uart2: serial@021e8000 {
+				compatible = "fsl,imx6q-uart", "fsl,imx21-uart";
+				reg = <0x021e8000 0x4000>;
+				interrupts = <0 27 0x04>;
+				clocks = <&clks IMX6SX_CLK_UART_IPG>, <&clks IMX6SX_CLK_UART_SERIAL>;
+				clock-names = "ipg", "per";
+				dmas = <&sdma 27 4 0>, <&sdma 28 4 0>;
+				dma-names = "rx", "tx";
+				status = "disabled";
+			};
+		};
+
+		aips-bus@02200000 { /* AIPS3 */
+			compatible = "fsl,aips-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x02200000 0x100000>;
+			ranges;
+
+			spba-bus@02200000 {
+				compatible = "fsl,spba-bus", "simple-bus";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0x02240000 0x40000>;
+				ranges;
+
+				spba@0223c000 {
+					reg = <0x0223c000 0x4000>;
+				};
+			};
+
+			aipstz@0227c000 { /* AIPSTZ3 */
+				reg = <0x0227c000 0x4000>;
+			};
+		};
+	};
+};
+
+&iomuxc {
+	uart1 {
+		pinctrl_uart1_1: uart1grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_GPIO1_IO04__UART1_TX 0x1b0b1
+				MX6SX_PAD_GPIO1_IO05__UART1_RX 0x1b0b1
+			>;
+		};
+
+		pinctrl_uart1_2: uart1grp-2 {
+			fsl,pins = <
+				MX6SX_PAD_ENET2_COL__UART1_RX 0x1b0b1
+				MX6SX_PAD_ENET2_CRS__UART1_TX 0x1b0b1
+			>;
+		};
+	};
+
+	uart2 {
+		pinctrl_uart2_1: uart2grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_GPIO1_IO07__UART2_RX 0x1b0b1
+				MX6SX_PAD_GPIO1_IO06__UART2_TX 0x1b0b1
+			>;
+		};
+
+		pinctrl_uart2_2: uart2grp-2 {
+			fsl,pins = <
+				MX6SX_PAD_SD1_DATA0__UART2_RX 0x1b0b1
+				MX6SX_PAD_SD1_DATA1__UART2_TX 0x1b0b1
+			>;
+		};
+	};
+
+	usdhc3 {
+		pinctrl_usdhc3_1: usdhc3grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_SD3_CMD__USDHC3_CMD	  0x17059
+				MX6SX_PAD_SD3_CLK__USDHC3_CLK	  0x10059
+				MX6SX_PAD_SD3_DATA0__USDHC3_DATA0 0x17059
+				MX6SX_PAD_SD3_DATA1__USDHC3_DATA1 0x17059
+				MX6SX_PAD_SD3_DATA2__USDHC3_DATA2 0x17059
+				MX6SX_PAD_SD3_DATA3__USDHC3_DATA3 0x17059
+				MX6SX_PAD_SD3_DATA4__USDHC3_DATA4 0x17059
+				MX6SX_PAD_SD3_DATA5__USDHC3_DATA5 0x17059
+				MX6SX_PAD_SD3_DATA6__USDHC3_DATA6 0x17059
+				MX6SX_PAD_SD3_DATA7__USDHC3_DATA7 0x17059
+			>;
+		};
+
+		pinctrl_usdhc3_1_100mhz: usdhc3grp-1-100mhz {
+			fsl,pins = <
+				MX6SX_PAD_SD3_CMD__USDHC3_CMD	  0x170b9
+				MX6SX_PAD_SD3_CLK__USDHC3_CLK	  0x100b9
+				MX6SX_PAD_SD3_DATA0__USDHC3_DATA0 0x170b9
+				MX6SX_PAD_SD3_DATA1__USDHC3_DATA1 0x170b9
+				MX6SX_PAD_SD3_DATA2__USDHC3_DATA2 0x170b9
+				MX6SX_PAD_SD3_DATA3__USDHC3_DATA3 0x170b9
+				MX6SX_PAD_SD3_DATA4__USDHC3_DATA4 0x170b9
+				MX6SX_PAD_SD3_DATA5__USDHC3_DATA5 0x170b9
+				MX6SX_PAD_SD3_DATA6__USDHC3_DATA6 0x170b9
+				MX6SX_PAD_SD3_DATA7__USDHC3_DATA7 0x170b9
+			>;
+		};
+
+		pinctrl_usdhc3_1_200mhz: usdhc3grp-1-200mhz {
+			fsl,pins = <
+				MX6SX_PAD_SD3_CMD__USDHC3_CMD	  0x170f9
+				MX6SX_PAD_SD3_CLK__USDHC3_CLK	  0x100f9
+				MX6SX_PAD_SD3_DATA0__USDHC3_DATA0 0x170f9
+				MX6SX_PAD_SD3_DATA1__USDHC3_DATA1 0x170f9
+				MX6SX_PAD_SD3_DATA2__USDHC3_DATA2 0x170f9
+				MX6SX_PAD_SD3_DATA3__USDHC3_DATA3 0x170f9
+				MX6SX_PAD_SD3_DATA4__USDHC3_DATA4 0x170f9
+				MX6SX_PAD_SD3_DATA5__USDHC3_DATA5 0x170f9
+				MX6SX_PAD_SD3_DATA6__USDHC3_DATA6 0x170f9
+				MX6SX_PAD_SD3_DATA7__USDHC3_DATA7 0x170f9
+			>;
+		};
+
+	};
+};
