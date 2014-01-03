@@ -9,6 +9,8 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
+#include <linux/usb/otg.h>
+
 struct imx_usbmisc_data {
 	int index;
 
@@ -20,6 +22,7 @@ struct imx_usbmisc_data {
 	 */
 	unsigned int osc_clkgate_delay;
 	struct regmap *anatop;
+	enum usb_dr_mode available_role;
 };
 
 int imx_usbmisc_init(struct imx_usbmisc_data *);
