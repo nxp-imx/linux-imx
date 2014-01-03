@@ -12,6 +12,8 @@
 #ifndef __DRIVER_USB_CHIPIDEA_CI_HDRC_IMX_H
 #define __DRIVER_USB_CHIPIDEA_CI_HDRC_IMX_H
 
+#include <linux/usb/otg.h>
+
 struct imx_usbmisc_data {
 	struct device *dev;
 	int index;
@@ -24,6 +26,7 @@ struct imx_usbmisc_data {
 	 */
 	unsigned int osc_clkgate_delay;
 	struct regmap *anatop;
+	enum usb_dr_mode available_role;
 };
 
 int imx_usbmisc_init(struct imx_usbmisc_data *);
