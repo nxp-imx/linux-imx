@@ -348,6 +348,11 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		goto remove_charger;
 	}
 
+	/* usbmisc needs to know dr mode to choose wakeup setting */
+	if (data->usbmisc_data)
+		data->usbmisc_data->available_role =
+			ci_hdrc_query_available_role(data->ci_pdev);
+
 	if (data->usbmisc_data) {
 		ret = imx_usbmisc_init_post(data->usbmisc_data);
 		if (ret) {

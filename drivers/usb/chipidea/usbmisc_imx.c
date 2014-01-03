@@ -214,12 +214,21 @@ static int usbmisc_imx6q_hsic_set_clk
 	return 0;
 }
 
+static u32 imx6q_finalize_wakeup_setting(struct imx_usbmisc_data *data)
+{
+	if (data->available_role == USB_DR_MODE_PERIPHERAL)
+		return MX6_BM_VBUS_WAKEUP;
+	else if (data->available_role == USB_DR_MODE_OTG)
+		return MX6_BM_VBUS_WAKEUP | MX6_BM_ID_WAKEUP;
+
+	return 0;
+}
+
 static int usbmisc_imx6q_set_wakeup
 	(struct imx_usbmisc_data *data, bool enabled)
 {
 	unsigned long flags;
-	u32 reg, val = MX6_BM_WAKEUP_ENABLE | MX6_BM_VBUS_WAKEUP
-		| MX6_BM_ID_WAKEUP;
+	u32 reg, val = MX6_BM_WAKEUP_ENABLE;
 
 	if (data->index > 3)
 		return -EINVAL;
@@ -227,10 +236,13 @@ static int usbmisc_imx6q_set_wakeup
 	spin_lock_irqsave(&usbmisc->lock, flags);
 	reg = readl(usbmisc->base + data->index * 4);
 	if (enabled) {
+		val |= imx6q_finalize_wakeup_setting(data);
 		writel(reg | val, usbmisc->base + data->index * 4);
 	} else {
 		if (reg & MX6_BM_WAKEUP_INTR)
 			pr_debug("wakeup int at ci_hdrc.%d\n", data->index);
+		val = MX6_BM_WAKEUP_ENABLE | MX6_BM_VBUS_WAKEUP
+			| MX6_BM_ID_WAKEUP;
 		writel(reg & ~val, usbmisc->base + data->index * 4);
 	}
 	spin_unlock_irqrestore(&usbmisc->lock, flags);
