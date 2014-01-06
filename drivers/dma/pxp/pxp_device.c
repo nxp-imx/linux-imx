@@ -707,11 +707,8 @@ static long pxp_device_ioctl(struct file *filp,
 			ret = wait_event_interruptible
 			    (irq_info[chan_id].waitq,
 			     (atomic_read(&irq_info[chan_id].irq_pending) == 0));
-			if (ret < 0) {
-				printk(KERN_WARNING
-				       "WAIT4CMPLT: signal received.\n");
+			if (ret < 0)
 				return -ERESTARTSYS;
-			}
 
 			chan_handle.hist_status = irq_info[chan_id].hist_status;
 			ret = copy_to_user((struct pxp_chan_handle *)arg,
