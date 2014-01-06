@@ -431,6 +431,12 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 		 * finished initializing the DMA controller.
 		 */
 
+		/* Set default slot number -- 2 */
+		write_ssi_mask(&ssi->stccr, CCSR_SSI_SxCCR_DC_MASK,
+				CCSR_SSI_SxCCR_DC(2));
+		write_ssi_mask(&ssi->srccr, CCSR_SSI_SxCCR_DC_MASK,
+				CCSR_SSI_SxCCR_DC(2));
+
 		spin_lock_irqsave(&ssi_private->baudclk_lock, flags);
 		ssi_private->baudclk_locked = false;
 		spin_unlock_irqrestore(&ssi_private->baudclk_lock, flags);
