@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
  *
  * Based on imx-sgtl5000.c
  * Copyright (C) 2012 Freescale Semiconductor, Inc.
@@ -205,7 +205,7 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	if (sample_format == SNDRV_PCM_FORMAT_S24_LE)
-		pll_out = sample_rate * 192;
+		pll_out = sample_rate * 384;
 	else
 		pll_out = sample_rate * 256;
 
