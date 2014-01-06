@@ -134,11 +134,12 @@ struct fsl_ssi_private {
 	struct device_attribute dev_attr;
 	struct platform_device *pdev;
 
-	unsigned long sysrate;
 	bool new_binding;
 	bool ssi_on_imx;
 	bool use_dual_fifo;
+	bool baudclk_locked;
 	u8 i2s_mode;
+	spinlock_t baudclk_lock;
 	struct clk *coreclk;
 	struct clk *clk;
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
@@ -330,6 +331,7 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 	struct fsl_ssi_private *ssi_private =
 		snd_soc_dai_get_drvdata(rtd->cpu_dai);
 	int synchronous = ssi_private->cpu_dai_drv.symmetric_rates;
+	unsigned long flags;
 
 	if (ssi_private->ssi_on_imx) {
 		pm_runtime_get_sync(dai->dev);
@@ -428,6 +430,10 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 		 * this is bad is because at this point, the PCM driver has not
 		 * finished initializing the DMA controller.
 		 */
+
+		spin_lock_irqsave(&ssi_private->baudclk_lock, flags);
+		ssi_private->baudclk_locked = false;
+		spin_unlock_irqrestore(&ssi_private->baudclk_lock, flags);
 	}
 
 	return 0;
@@ -456,7 +462,6 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 	u32 wl = CCSR_SSI_SxCCR_WL(sample_size);
 	int enabled = read_ssi(&ssi->scr) & CCSR_SSI_SCR_SSIEN;
 	unsigned int channels = params_channels(hw_params);
-	int ret;
 
 	/*
 	 * If we're in synchronous mode, and the SSI is already enabled,
@@ -464,14 +469,6 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 	 */
 	if (enabled && ssi_private->cpu_dai_drv.symmetric_rates)
 		return 0;
-
-	if (ssi_private->sysrate) {
-		ret = clk_set_rate(ssi_private->clk, ssi_private->sysrate);
-		if (ret) {
-			dev_err(cpu_dai->dev, "failed to set clock rate\n");
-			return ret;
-		}
-	}
 
 	/*
 	 * FIXME: The documentation says that SxCCR[WL] should not be
@@ -511,6 +508,7 @@ static int fsl_ssi_trigger(struct snd_pcm_substream *substream, int cmd,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct fsl_ssi_private *ssi_private = snd_soc_dai_get_drvdata(rtd->cpu_dai);
 	struct ccsr_ssi __iomem *ssi = ssi_private->ssi;
+	unsigned long flags;
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -538,8 +536,12 @@ static int fsl_ssi_trigger(struct snd_pcm_substream *substream, int cmd,
 			write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_RE, 0);
 			write_ssi_mask(&ssi->sier, CCSR_SSI_SIER_RDMAE, 0);
 		}
-		if ((read_ssi(&ssi->scr) & (CCSR_SSI_SCR_TE | CCSR_SSI_SCR_RE)) == 0)
+		if ((read_ssi(&ssi->scr) & (CCSR_SSI_SCR_TE | CCSR_SSI_SCR_RE)) == 0) {
 			write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_SSIEN, 0);
+			spin_lock_irqsave(&ssi_private->baudclk_lock, flags);
+			ssi_private->baudclk_locked = false;
+			spin_unlock_irqrestore(&ssi_private->baudclk_lock, flags);
+		}
 		break;
 
 	default:
@@ -669,9 +671,9 @@ static int fsl_ssi_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 {
 	struct fsl_ssi_private *ssi_private = snd_soc_dai_get_drvdata(cpu_dai);
 	struct ccsr_ssi __iomem *ssi = ssi_private->ssi;
-	int synchronous = ssi_private->cpu_dai_drv.symmetric_rates;
+	int synchronous = ssi_private->cpu_dai_drv.symmetric_rates, ret;
 	u32 pm = 999, div2, psr, stccr, mask, afreq, factor, i;
-	unsigned long clkrate, sysrate = 0;
+	unsigned long clkrate, sysrate = 0, baudrate, flags;
 	u64 sub, savesub = 100000;
 
 	/*
@@ -708,7 +710,7 @@ static int fsl_ssi_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 		do_div(sub, freq);
 
 		if (sub < savesub) {
-			ssi_private->sysrate = sysrate;
+			baudrate = sysrate;
 			savesub = sub;
 			pm = i;
 		}
@@ -733,6 +735,18 @@ static int fsl_ssi_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 		write_ssi_mask(&ssi->stccr, mask, stccr);
 	else
 		write_ssi_mask(&ssi->srccr, mask, stccr);
+
+	spin_lock_irqsave(&ssi_private->baudclk_lock, flags);
+	if (!ssi_private->baudclk_locked) {
+		ret = clk_set_rate(ssi_private->clk, baudrate);
+		if (ret) {
+			spin_unlock_irqrestore(&ssi_private->baudclk_lock, flags);
+			dev_err(cpu_dai->dev, "failed to set baudclk rate\n");
+			return -EINVAL;
+		}
+		ssi_private->baudclk_locked = true;
+	}
+	spin_unlock_irqrestore(&ssi_private->baudclk_lock, flags);
 
 	return 0;
 }
@@ -775,8 +789,6 @@ static void fsl_ssi_shutdown(struct snd_pcm_substream *substream,
 		struct ccsr_ssi __iomem *ssi = ssi_private->ssi;
 
 		write_ssi_mask(&ssi->sier, SIER_FLAGS, 0);
-
-		ssi_private->sysrate = 0;
 	}
 
 	if (ssi_private->ssi_on_imx) {
@@ -974,6 +986,9 @@ static int fsl_ssi_probe(struct platform_device *pdev)
                 /* Older 8610 DTs didn't have the fifo-depth property */
 		ssi_private->fifo_depth = 8;
 
+	ssi_private->baudclk_locked = false;
+	spin_lock_init(&ssi_private->baudclk_lock);
+
 	if (of_device_is_compatible(pdev->dev.of_node, "fsl,imx21-ssi")) {
 		ssi_private->ssi_on_imx = true;
 
@@ -1003,8 +1018,6 @@ static int fsl_ssi_probe(struct platform_device *pdev)
 		ssi_private->dma_params_rx.addr =
 			ssi_private->ssi_phys + offsetof(struct ccsr_ssi, srx0);
 	}
-
-	ssi_private->sysrate = 0;
 
 	/* Initialize the the device_attribute structure */
 	dev_attr = &ssi_private->dev_attr;
