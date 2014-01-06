@@ -756,6 +756,14 @@ static int fsl_ssi_set_dai_tdm_slot(struct snd_soc_dai *cpu_dai, u32 tx_mask,
 {
 	struct fsl_ssi_private *ssi_private = snd_soc_dai_get_drvdata(cpu_dai);
 	struct ccsr_ssi __iomem *ssi = ssi_private->ssi;
+	u32 val;
+
+	/* The slot number should be >= 2 if using Network mode or I2S mode */
+	val = read_ssi(&ssi->scr) & (CCSR_SSI_SCR_I2S_MODE_MASK | CCSR_SSI_SCR_NET);
+	if (val && slots < 2) {
+		dev_err(cpu_dai->dev, "slot number should be >= 2 in I2S or NET\n");
+		return -EINVAL;
+	}
 
 	write_ssi_mask(&ssi->stccr, CCSR_SSI_SxCCR_DC_MASK,
 			CCSR_SSI_SxCCR_DC(slots));
@@ -765,10 +773,11 @@ static int fsl_ssi_set_dai_tdm_slot(struct snd_soc_dai *cpu_dai, u32 tx_mask,
 	/* The register SxMSKs need SSI to provide essential clock due to
 	 * hardware design. So we here temporarily enable SSI to set them.
 	 */
+	val = read_ssi(&ssi->scr) & CCSR_SSI_SCR_SSIEN;
 	write_ssi_mask(&ssi->scr, 0, CCSR_SSI_SCR_SSIEN);
 	write_ssi(tx_mask, &ssi->stmsk);
 	write_ssi(rx_mask, &ssi->srmsk);
-	write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_SSIEN, 0);
+	write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_SSIEN, val);
 
 	return 0;
 }
