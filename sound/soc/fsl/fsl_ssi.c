@@ -3,7 +3,7 @@
  *
  * Author: Timur Tabi <timur@freescale.com>
  *
- * Copyright (C) 2007-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2007-2014 Freescale Semiconductor, Inc.
  *
  * This file is licensed under the terms of the GNU General Public License
  * version 2.  This program is licensed "as is" without any warranty of any
@@ -118,8 +118,6 @@ void dump_reg(struct ccsr_ssi __iomem *ssi) {}
  * @ssi: pointer to the SSI's registers
  * @ssi_phys: physical address of the SSI registers
  * @irq: IRQ of this SSI
- * @first_stream: pointer to the stream that was opened first
- * @second_stream: pointer to second stream
  * @playback: the number of playback streams opened
  * @capture: the number of capture streams opened
  * @cpu_dai: the CPU DAI for this device
@@ -131,8 +129,6 @@ struct fsl_ssi_private {
 	struct ccsr_ssi __iomem *ssi;
 	dma_addr_t ssi_phys;
 	unsigned int irq;
-	struct snd_pcm_substream *first_stream;
-	struct snd_pcm_substream *second_stream;
 	unsigned int fifo_depth;
 	struct snd_soc_dai_driver cpu_dai_drv;
 	struct device_attribute dev_attr;
@@ -355,10 +351,8 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 	 * If this is the first stream opened, then request the IRQ
 	 * and initialize the SSI registers.
 	 */
-	if (!ssi_private->first_stream) {
+	if (!dai->active) {
 		struct ccsr_ssi __iomem *ssi = ssi_private->ssi;
-
-		ssi_private->first_stream = substream;
 
 		/*
 		 * Section 16.5 of the MPC8610 reference manual says that the
@@ -434,8 +428,6 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 		 * this is bad is because at this point, the PCM driver has not
 		 * finished initializing the DMA controller.
 		 */
-	} else {
-		ssi_private->second_stream = substream;
 	}
 
 	return 0;
@@ -778,13 +770,8 @@ static void fsl_ssi_shutdown(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct fsl_ssi_private *ssi_private = snd_soc_dai_get_drvdata(rtd->cpu_dai);
 
-	if (ssi_private->first_stream == substream)
-		ssi_private->first_stream = ssi_private->second_stream;
-
-	ssi_private->second_stream = NULL;
-
 	/* If this is the last active substream, disable the interrupts. */
-	if (!ssi_private->first_stream) {
+	if (!dai->active) {
 		struct ccsr_ssi __iomem *ssi = ssi_private->ssi;
 
 		write_ssi_mask(&ssi->sier, SIER_FLAGS, 0);
@@ -973,8 +960,11 @@ static int fsl_ssi_probe(struct platform_device *pdev)
 	}
 
 	/* Are the RX and the TX clocks locked? */
-	if (!of_find_property(np, "fsl,ssi-asynchronous", NULL))
+	if (!of_find_property(np, "fsl,ssi-asynchronous", NULL)) {
 		ssi_private->cpu_dai_drv.symmetric_rates = 1;
+		ssi_private->cpu_dai_drv.symmetric_channels = 1;
+		ssi_private->cpu_dai_drv.symmetric_samplebits = 1;
+	}
 
 	/* Determine the FIFO depth. */
 	iprop = of_get_property(np, "fsl,fifo-depth", NULL);
