@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,25 +22,26 @@
  */
 
 #include <linux/busfreq-imx6.h>
+#include <linux/clk.h>
 #include <linux/dma-mapping.h>
+#include <linux/dmaengine.h>
+#include <linux/freezer.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
+#include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
-#include <linux/slab.h>
-#include <linux/vmalloc.h>
-#include <linux/dmaengine.h>
 #include <linux/pxp_dma.h>
-#include <linux/timer.h>
-#include <linux/clk.h>
-#include <linux/workqueue.h>
 #include <linux/sched.h>
-#include <linux/of.h>
-#include <linux/kthread.h>
+#include <linux/slab.h>
+#include <linux/timer.h>
+#include <linux/vmalloc.h>
+#include <linux/workqueue.h>
 
 #include "regs-pxp_v2.h"
 
@@ -1667,11 +1668,14 @@ static int pxp_dispatch_thread(void *argv)
 	struct pxp_channel *pending = NULL;
 	unsigned long flags;
 
+	set_freezable();
+
 	while (!kthread_should_stop()) {
 		int ret;
-		ret = wait_event_interruptible(pxp->thread_waitq,
-					has_pending_task(pxp, pending));
-		if (signal_pending(current))
+		ret = wait_event_freezable(pxp->thread_waitq,
+					has_pending_task(pxp, pending) ||
+					kthread_should_stop());
+		if (ret < 0)
 			continue;
 
 		spin_lock_irqsave(&pxp->lock, flags);
