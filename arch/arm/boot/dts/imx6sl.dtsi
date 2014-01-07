@@ -89,6 +89,12 @@
 		compatible = "fsl,imx6-dummy-pureg"; /* only used in ldo-bypass */
 	};
 
+	mxs_viim {
+		compatible = "fsl,mxs_viim";
+		reg = <0x02098000 0x1000>, /* GPT base */
+		      <0x021bc000 0x1000>; /* OCOTP base */
+	};
+
 	soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
