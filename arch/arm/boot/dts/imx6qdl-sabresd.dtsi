@@ -612,7 +612,7 @@
 
 &mipi_dsi {
 	dev_id = <0>;
-	disp_id = <0>;
+	disp_id = <1>;
 	lcd_panel = "TRULY-WVGA";
 	disp-power-on-supply = <&reg_mipi_dsi_pwr_on>;
 	resets = <&mipi_dsi_reset>;
