@@ -922,8 +922,13 @@ static void pxp_set_s0buf(struct pxps *pxp)
 		U1 = U + offset;
 		V = U + ((s0_params->width * s0_params->height) >> s);
 		V1 = V + offset;
-		__raw_writel(U1, pxp->base + HW_PXP_PS_UBUF);
-		__raw_writel(V1, pxp->base + HW_PXP_PS_VBUF);
+		if (s0_params->pixel_fmt == PXP_PIX_FMT_YVU420P) {
+			__raw_writel(V1, pxp->base + HW_PXP_PS_UBUF);
+			__raw_writel(U1, pxp->base + HW_PXP_PS_VBUF);
+		} else {
+			__raw_writel(U1, pxp->base + HW_PXP_PS_UBUF);
+			__raw_writel(V1, pxp->base + HW_PXP_PS_VBUF);
+		}
 	} else if ((s0_params->pixel_fmt == PXP_PIX_FMT_NV12) ||
 		 (s0_params->pixel_fmt == PXP_PIX_FMT_NV21) ||
 		 (s0_params->pixel_fmt == PXP_PIX_FMT_NV16) ||
