@@ -125,6 +125,16 @@ static void fec_reset_phy(struct platform_device *pdev);
  * to wait mode.
  */
 #define FEC_QUIRK_BUG_WAITMODE		(1 << 9)
+/*
+ * i.MX6SX ENET IP add Audio Video Bridging (AVB) feature support.
+ * ENET IP hw AVB main function:
+ * - Two class indicators on receive with configurable priority
+ * - Two class indicators and line speed timer on transmit allowing
+ *   implementation class credit based shapers externally
+ * - Additional DMA registers provisioned to allow managing up to 3
+ *   independent rings
+ */
+#define FEC_QUIRK_HAS_AVB		(1 << 10)
 
 static struct platform_device_id fec_devtype[] = {
 	{
@@ -149,6 +159,12 @@ static struct platform_device_id fec_devtype[] = {
 	}, {
 		.name = "mvf600-fec",
 		.driver_data = FEC_QUIRK_ENET_MAC,
+	}, {
+		.name = "imx6sx-fec",
+		.driver_data = FEC_QUIRK_ENET_MAC | FEC_QUIRK_HAS_GBIT |
+				FEC_QUIRK_HAS_BUFDESC_EX | FEC_QUIRK_HAS_CSUM |
+				FEC_QUIRK_HAS_VLAN | FEC_QUIRK_ERR006358 |
+				FEC_QUIRK_HAS_AVB,
 	}, {
 		/* sentinel */
 	}
