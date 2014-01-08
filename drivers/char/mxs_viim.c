@@ -17,6 +17,8 @@
 #include <linux/err.h>
 #include <linux/mm.h>
 #include <linux/miscdevice.h>
+#include <linux/module.h>
+#include <linux/of.h>
 
 static unsigned long iim_reg_base0, iim_reg_end0, iim_reg_size0;
 static unsigned long iim_reg_base1, iim_reg_end1, iim_reg_size1;
@@ -147,27 +149,22 @@ static int mxs_viim_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id mxs_viim_dt_ids[] = {
+	{ .compatible = "fsl,mxs_viim", },
+	{ /* sentinel */ }
+};
+MODULE_DEVICE_TABLE(of, mxs_viim_dt_ids);
+
 static struct platform_driver mxs_viim_driver = {
 	.driver = {
 		   .owner = THIS_MODULE,
 		   .name = "mxs_viim",
+		   .of_match_table = mxs_viim_dt_ids,
 		   },
 	.probe = mxs_viim_probe,
 	.remove = mxs_viim_remove,
 };
-
-static int __init mxs_viim_dev_init(void)
-{
-	return platform_driver_register(&mxs_viim_driver);
-}
-
-static void __exit mxs_viim_dev_cleanup(void)
-{
-	platform_driver_unregister(&mxs_viim_driver);
-}
-
-module_init(mxs_viim_dev_init);
-module_exit(mxs_viim_dev_cleanup);
+module_platform_driver(mxs_viim_driver);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_DESCRIPTION("IMX Virtual IIM driver");
