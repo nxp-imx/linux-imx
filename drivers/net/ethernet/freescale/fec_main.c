@@ -2159,6 +2159,39 @@ static void fec_reset_phy(struct platform_device *pdev)
 }
 
 static int
+fec_enet_get_queue_num(struct platform_device *pdev, int *num_tx, int *num_rx)
+{
+	struct device_node *np = pdev->dev.of_node;
+	int err;
+
+	if (!np || !of_device_is_available(np))
+		return -ENODEV;
+
+	/* parse the num of tx and rx queues */
+	err = of_property_read_u32(np, "fsl,num_tx_queues", num_tx);
+	err |= of_property_read_u32(np, "fsl,num_rx_queues", num_rx);
+	if (err) {
+		*num_tx = 1;
+		*num_rx = 1;
+		return 0;
+	}
+
+	if (*num_tx < 1 || *num_tx > FEC_ENET_MAX_TX_QS) {
+		dev_err(&pdev->dev, "num_tx(=%d) greater than MAX_TX_QS(=%d)\n",
+			 *num_tx, FEC_ENET_MAX_TX_QS);
+		return -EINVAL;
+	}
+
+	if (*num_rx < 1 || *num_rx > FEC_ENET_MAX_RX_QS) {
+		dev_err(&pdev->dev, "num_rx(=%d) greater than MAX_RX_QS(=%d)\n",
+			*num_rx, FEC_ENET_MAX_RX_QS);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int
 fec_probe(struct platform_device *pdev)
 {
 	struct fec_enet_private *fep;
@@ -2168,6 +2201,8 @@ fec_probe(struct platform_device *pdev)
 	struct resource *r;
 	const struct of_device_id *of_id;
 	static int dev_id;
+	int num_tx_qs = 1;
+	int num_rx_qs = 1;
 
 	of_id = of_match_device(fec_dt_ids, &pdev->dev);
 	if (of_id)
@@ -2177,8 +2212,15 @@ fec_probe(struct platform_device *pdev)
 	if (!r)
 		return -ENXIO;
 
+	if (pdev->id_entry &&
+	    (pdev->id_entry->driver_data & FEC_QUIRK_HAS_AVB)) {
+		ret = fec_enet_get_queue_num(pdev, &num_tx_qs, &num_rx_qs);
+		if (ret)
+			return ret;
+	}
+
 	/* Init network device */
-	ndev = alloc_etherdev(sizeof(struct fec_enet_private));
+	ndev = alloc_etherdev_mqs(sizeof(struct fec_enet_private), num_tx_qs, num_rx_qs);
 	if (!ndev)
 		return -ENOMEM;
 
@@ -2186,6 +2228,10 @@ fec_probe(struct platform_device *pdev)
 
 	/* setup board info structure */
 	fep = netdev_priv(ndev);
+
+	fep->num_rx_queues = num_rx_qs;
+	fep->num_tx_queues = num_tx_qs;
+	netif_set_real_num_rx_queues(ndev, num_rx_qs);
 
 #if !defined(CONFIG_M5272)
 	/* default enable pause frame auto negotiation */

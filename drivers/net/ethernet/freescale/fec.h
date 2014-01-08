@@ -236,6 +236,14 @@ struct bufdesc_ex {
 /* This device has up to three irqs on some platforms */
 #define FEC_IRQ_NUM		3
 
+/*
+ * Maximum number of queues supported
+ * ENET with AVB IP can support up to 3 independent tx queues and rx queues.
+ * User can point the queue number that is less than or equal to 3.
+ */
+#define FEC_ENET_MAX_TX_QS	3
+#define FEC_ENET_MAX_RX_QS	3
+
 /* The number of Tx and Rx buffers.  These are allocated from the page
  * pool.  The code may assume these are power of two, so it it best
  * to keep them that size.
@@ -395,6 +403,9 @@ struct fec_enet_private {
 	struct clk *clk_ref;
 	struct clk *clk_enet_out;
 	struct clk *clk_ptp;
+
+	int num_tx_queues;
+	int num_rx_queues;
 
 	/* The saved address of a sent-in-place packet/buffer, for skfree(). */
 	unsigned char *tx_bounce[TX_RING_SIZE];
