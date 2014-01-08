@@ -1683,6 +1683,9 @@ static int pxp_dispatch_thread(void *argv)
 		if (ret < 0)
 			continue;
 
+		if (kthread_should_stop())
+			break;
+
 		spin_lock_irqsave(&pxp->lock, flags);
 		pxp->pxp_ongoing = 1;
 		spin_unlock_irqrestore(&pxp->lock, flags);
