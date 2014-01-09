@@ -18,7 +18,6 @@
 *
 *****************************************************************************/
 
-
 /*
 **	Include file the defines the front- and back-end compilers, as well as the
 **	objects they use.
@@ -710,6 +709,27 @@ gcSHADER_CheckClipW(
     IN gctCONST_STRING VertexSource,
     IN gctCONST_STRING FragmentSource,
     OUT gctBOOL * clipW);
+
+/*******************************************************************************
+**  gcSHADER_GetUniformVectorCount
+**
+**  Get the number of vectors used by uniforms for this shader.
+**
+**  INPUT:
+**
+**      gcSHADER Shader
+**          Pointer to a gcSHADER object.
+**
+**  OUTPUT:
+**
+**      gctSIZE_T * Count
+**          Pointer to a variable receiving the number of vectors.
+*/
+gceSTATUS
+gcSHADER_GetUniformVectorCount(
+    IN gcSHADER Shader,
+    OUT gctSIZE_T * Count
+    );
 
 /*******************************************************************************
 **							gcOptimizer Data Structures

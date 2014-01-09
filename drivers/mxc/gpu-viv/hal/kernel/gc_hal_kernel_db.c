@@ -689,6 +689,15 @@ gckKERNEL_CreateProcessDB(
     database->mapUserMemory.bytes      = 0;
     database->mapUserMemory.maxBytes   = 0;
     database->mapUserMemory.totalBytes = 0;
+    database->vidMemResv.bytes         = 0;
+    database->vidMemResv.maxBytes      = 0;
+    database->vidMemResv.totalBytes    = 0;
+    database->vidMemCont.bytes         = 0;
+    database->vidMemCont.maxBytes      = 0;
+    database->vidMemCont.totalBytes    = 0;
+    database->vidMemVirt.bytes         = 0;
+    database->vidMemVirt.maxBytes      = 0;
+    database->vidMemVirt.totalBytes    = 0;
 
     for (i = 0; i < gcmCOUNTOF(database->list); i++)
     {
@@ -905,6 +914,18 @@ gckKERNEL_AddProcessDB(
         count = &database->mapUserMemory;
         break;
 
+    case gcvDB_VIDEO_MEMORY_RESERVED:
+        count = &database->vidMemResv;
+        break;
+
+    case gcvDB_VIDEO_MEMORY_CONTIGUOUS:
+        count = &database->vidMemCont;
+        break;
+
+    case gcvDB_VIDEO_MEMORY_VIRTUAL:
+        count = &database->vidMemVirt;
+        break;
+
     default:
         count = gcvNULL;
         break;
@@ -1002,6 +1023,18 @@ gckKERNEL_RemoveProcessDB(
 
     case gcvDB_MAP_USER_MEMORY:
         database->mapUserMemory.bytes -= bytes;
+        break;
+
+    case gcvDB_VIDEO_MEMORY_RESERVED:
+        database->vidMemResv.bytes -= bytes;
+        break;
+
+    case gcvDB_VIDEO_MEMORY_CONTIGUOUS:
+        database->vidMemCont.bytes -= bytes;
+        break;
+
+    case gcvDB_VIDEO_MEMORY_VIRTUAL:
+        database->vidMemVirt.bytes -= bytes;
         break;
 
     default:
@@ -1319,6 +1352,11 @@ gckKERNEL_DestroyProcessDB(
             break;
 #endif
 
+        case gcvDB_VIDEO_MEMORY_RESERVED:
+        case gcvDB_VIDEO_MEMORY_CONTIGUOUS:
+        case gcvDB_VIDEO_MEMORY_VIRTUAL:
+            break;//Nothing to do
+
         default:
             gcmkTRACE_ZONE(gcvLEVEL_ERROR, gcvZONE_DATABASE,
                            "DB: Correcupted record=0x%08x type=%d",
@@ -1434,6 +1472,24 @@ gckKERNEL_QueryProcessDB(
         gckOS_MemCopy(&Info->counters,
                                   &database->mapUserMemory,
                                   gcmSIZEOF(database->mapUserMemory));
+        break;
+
+    case gcvDB_VIDEO_MEMORY_RESERVED:
+        gckOS_MemCopy(&Info->counters,
+                                  &database->vidMemResv,
+                                  gcmSIZEOF(database->vidMemResv));
+        break;
+
+    case gcvDB_VIDEO_MEMORY_CONTIGUOUS:
+        gckOS_MemCopy(&Info->counters,
+                                  &database->vidMemCont,
+                                  gcmSIZEOF(database->vidMemCont));
+        break;
+
+    case gcvDB_VIDEO_MEMORY_VIRTUAL:
+        gckOS_MemCopy(&Info->counters,
+                                  &database->vidMemVirt,
+                                  gcmSIZEOF(database->vidMemVirt));
         break;
 
     default:

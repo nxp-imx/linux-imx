@@ -336,7 +336,7 @@ gckGALDEVICE_Construct(
                    PhysBaseAddr, PhysSize, Signal);
 
     /* Allocate device structure. */
-    device = kmalloc(sizeof(struct _gckGALDEVICE), GFP_KERNEL | __GFP_NOWARN);
+    device = kmalloc(sizeof(struct _gckGALDEVICE), GFP_KERNEL);
 
     if (!device)
     {

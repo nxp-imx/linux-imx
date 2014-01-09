@@ -3485,12 +3485,12 @@ gckOS_DebugBreak(
 
 void
 gcoOS_Verify(
-    IN gceSTATUS Status
+    IN gceSTATUS status
     );
 
 void
 gckOS_Verify(
-    IN gceSTATUS Status
+    IN gceSTATUS status
     );
 
 #if gcmIS_DEBUG(gcdDEBUG_ASSERT)
