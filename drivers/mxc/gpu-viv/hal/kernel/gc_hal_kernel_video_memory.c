@@ -2181,34 +2181,40 @@ gckVIDMEM_Unlock(
                     /* No flush required. */
                     flush = (gceKERNEL_FLUSH) 0;
                 }
-
-                gcmkONERROR(
-                    gckHARDWARE_Flush(hardware, flush, gcvNULL, &requested));
-
-                if (requested != 0)
+                if(hardware)
                 {
-                    /* Acquire the command queue. */
-                    gcmkONERROR(gckCOMMAND_EnterCommit(command, gcvFALSE));
-                    commitEntered = gcvTRUE;
+                    gcmkONERROR(
+                        gckHARDWARE_Flush(hardware, flush, gcvNULL, &requested));
 
-                    gcmkONERROR(gckCOMMAND_Reserve(
-                        command, requested, &buffer, &bufferSize
-                        ));
+                    if (requested != 0)
+                    {
+                        /* Acquire the command queue. */
+                        gcmkONERROR(gckCOMMAND_EnterCommit(command, gcvFALSE));
+                        commitEntered = gcvTRUE;
 
-                    gcmkONERROR(gckHARDWARE_Flush(
-                        hardware, flush, buffer, &bufferSize
-                        ));
+                        gcmkONERROR(gckCOMMAND_Reserve(
+                            command, requested, &buffer, &bufferSize
+                            ));
 
-                    /* Mark node as pending. */
+                        gcmkONERROR(gckHARDWARE_Flush(
+                            hardware, flush, buffer, &bufferSize
+                            ));
+
+                        /* Mark node as pending. */
 #ifdef __QNXNTO__
-                    Node->Virtual.unlockPendings[Kernel->core] = gcvTRUE;
+                        Node->Virtual.unlockPendings[Kernel->core] = gcvTRUE;
 #endif
 
-                    gcmkONERROR(gckCOMMAND_Execute(command, requested));
+                        gcmkONERROR(gckCOMMAND_Execute(command, requested));
 
-                    /* Release the command queue. */
-                    gcmkONERROR(gckCOMMAND_ExitCommit(command, gcvFALSE));
-                    commitEntered = gcvFALSE;
+                        /* Release the command queue. */
+                        gcmkONERROR(gckCOMMAND_ExitCommit(command, gcvFALSE));
+                        commitEntered = gcvFALSE;
+                    }
+                }
+                else
+                {
+                    gckOS_Print("Hardware already is freed.\n");
                 }
             }
 
