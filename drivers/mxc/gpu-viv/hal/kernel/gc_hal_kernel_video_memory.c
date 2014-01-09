@@ -1814,8 +1814,9 @@ gckVIDMEM_Lock(
                 {
                     /* Allocate pages inside the MMU. */
                     gcmkONERROR(
-                        gckMMU_AllocatePages(Kernel->mmu,
+                        gckMMU_AllocatePagesEx(Kernel->mmu,
                                              Node->Virtual.pageCount,
+                                             Node->Virtual.type,
                                              &Node->Virtual.pageTables[Kernel->core],
                                              &Node->Virtual.addresses[Kernel->core]));
                 }
