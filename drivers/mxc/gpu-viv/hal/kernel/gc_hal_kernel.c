@@ -933,6 +933,7 @@ gckKERNEL_Dispatch(
 #if !USE_NEW_LINUX_SIGNAL
     gctSIGNAL   signal;
 #endif
+    gceSURF_TYPE type;
 
     gcmkHEADER_ARG("Kernel=0x%x FromUser=%d Interface=0x%x",
                    Kernel, FromUser, Interface);
@@ -1169,6 +1170,8 @@ gckKERNEL_Dispatch(
         break;
 
     case gcvHAL_ALLOCATE_LINEAR_VIDEO_MEMORY:
+        type = Interface->u.AllocateLinearVideoMemory.type;
+
         /* Allocate memory. */
         gcmkONERROR(
             _AllocateMemory(Kernel,
@@ -1181,6 +1184,7 @@ gckKERNEL_Dispatch(
         if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
         {
             bytes = node->VidMem.bytes;
+            node->VidMem.type = type;
 
             gcmkONERROR(
                 gckKERNEL_AddProcessDB(Kernel,
@@ -1192,6 +1196,7 @@ gckKERNEL_Dispatch(
         else
         {
             bytes = node->Virtual.bytes;
+            node->Virtual.type = type;
 
             if(node->Virtual.contiguous)
             {

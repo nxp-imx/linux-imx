@@ -734,6 +734,9 @@ typedef union _gcuVIDMEM_NODE
 #if gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
         gctPOINTER              kernelVirtual;
 #endif
+
+        /* Surface type. */
+        gceSURF_TYPE            type;
     }
     VidMem;
 
@@ -790,6 +793,9 @@ typedef union _gcuVIDMEM_NODE
 
         /* */
         gcsVIDMEM_NODE_SHARED_INFO sharedInfo;
+
+        /* Surface type. */
+        gceSURF_TYPE            type;
     }
     Virtual;
 }
