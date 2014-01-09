@@ -525,6 +525,10 @@ gckVIDMEM_Construct(
 
         node->VidMem.locked    = 0;
 
+#if gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
+        node->VidMem.kernelVirtual = gcvNULL;
+#endif
+
         gcmkONERROR(gckOS_ZeroMemory(&node->VidMem.sharedInfo, gcmSIZEOF(gcsVIDMEM_NODE_SHARED_INFO)));
 
 #ifdef __QNXNTO__
