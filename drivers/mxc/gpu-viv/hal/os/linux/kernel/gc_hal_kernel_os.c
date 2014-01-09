@@ -375,10 +375,10 @@ _CreateMdlMap(
         return gcvNULL;
     }
 
-    mdlMap->pid       = ProcessID;
-    mdlMap->vmaAddr   = gcvNULL;
-    mdlMap->vma       = gcvNULL;
-    mdlMap->reference = 0;
+    mdlMap->pid     = ProcessID;
+    mdlMap->vmaAddr = gcvNULL;
+    mdlMap->vma     = gcvNULL;
+    mdlMap->count   = 0;
 
     mdlMap->next    = Mdl->maps;
     Mdl->maps       = mdlMap;
@@ -4433,16 +4433,7 @@ gckOS_LockPages(
         up_write(&current->mm->mmap_sem);
     }
 
-#if 0
-    else
-    {
-        /* mdlMap->vmaAddr != gcvNULL means current process has already locked this node. */
-        MEMORY_UNLOCK(Os);
-
-        gcmkFOOTER_ARG("*status=%d, mdlMap->vmaAddr=%x", gcvSTATUS_MEMORY_LOCKED, mdlMap->vmaAddr);
-        return gcvSTATUS_MEMORY_LOCKED;
-    }
-#endif
+    mdlMap->count++;
 
     /* Convert pointer to MDL. */
     *Logical = mdlMap->vmaAddr;
@@ -4452,9 +4443,6 @@ gckOS_LockPages(
     gcmkASSERT((PAGE_SIZE / 4096) >= 1);
 
     *PageCount = mdl->numPages * (PAGE_SIZE / 4096);
-
-    /* Increase reference count. */
-    mdlMap->reference++;
 
     MEMORY_UNLOCK(Os);
 
@@ -4722,13 +4710,11 @@ gckOS_UnlockPages(
     {
         if ((mdlMap->vmaAddr != gcvNULL) && (_GetProcessID() == mdlMap->pid))
         {
-            if (--mdlMap->reference > 0)
+            if (--mdlMap->count == 0)
             {
-                continue;
+                _UnmapUserLogical(mdlMap->pid, mdlMap->vmaAddr, mdl->numPages * PAGE_SIZE);
+                mdlMap->vmaAddr = gcvNULL;
             }
-
-            _UnmapUserLogical(mdlMap->pid, mdlMap->vmaAddr, mdl->numPages * PAGE_SIZE);
-            mdlMap->vmaAddr = gcvNULL;
         }
 
         mdlMap = mdlMap->next;
@@ -8593,7 +8579,17 @@ gckOS_StartTimer(
 
     if (unlikely(delayed_work_pending(&timer->work)))
     {
-        cancel_delayed_work(&timer->work);
+        if (unlikely(!cancel_delayed_work(&timer->work)))
+        {
+            cancel_work_sync(&timer->work.work);
+
+            if (unlikely(delayed_work_pending(&timer->work)))
+            {
+                gckOS_Print("gckOS_StartTimer error, the pending worker cannot complete!!!! \n");
+
+                return gcvSTATUS_INVALID_REQUEST;
+            }
+        }
     }
 
     queue_delayed_work(Os->workqueue, &timer->work, msecs_to_jiffies(Delay));
