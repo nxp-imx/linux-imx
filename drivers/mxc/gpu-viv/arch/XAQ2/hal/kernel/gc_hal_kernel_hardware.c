@@ -4163,6 +4163,23 @@ gckHARDWARE_SetPowerManagementState(
                 ** if lock holder call gckCOMMAND_Stall() */
                 gcmkONERROR(gcvSTATUS_INVALID_REQUEST);
             }
+#if gcdPOWEROFF_TIMEOUT
+            else if(State == gcvPOWER_OFF && timeout == gcvTRUE)
+            {
+                /*
+                ** try to aqcuire the mutex with more milliseconds,
+                ** flush_delayed_work should be running with timeout,
+                ** so waiting here will cause deadlock */
+                status = gckOS_AcquireMutex(os, Hardware->powerMutex, gcdPOWEROFF_TIMEOUT);
+
+                if (status == gcvSTATUS_TIMEOUT)
+                {
+                    gckOS_Print("GPU Timer deadlock, exit by timeout!!!!\n");
+
+                    gcmkONERROR(gcvSTATUS_INVALID_REQUEST);
+                }
+            }
+#endif
             else
             {
                 /* Acquire the power mutex. */

@@ -1047,6 +1047,7 @@ typedef enum _gcePATCH_ID
     gcePATCH_CHORME,
     gcePATCH_DUOKANTV,
     gcePATCH_TESTAPP,
+    gcePATCH_GOOGLEEARTH,
 
     /* Count enum*/
     gcePATCH_COUNT,
