@@ -2562,6 +2562,15 @@ gckMMU_AllocatePages(
     OUT gctUINT32 * Address
     );
 
+gceSTATUS
+gckMMU_AllocatePagesEx(
+    IN gckMMU Mmu,
+    IN gctSIZE_T PageCount,
+    IN gceSURF_TYPE Type,
+    OUT gctPOINTER * PageTable,
+    OUT gctUINT32 * Address
+    );
+
 /* Remove a page table from the MMU. */
 gceSTATUS
 gckMMU_FreePages(

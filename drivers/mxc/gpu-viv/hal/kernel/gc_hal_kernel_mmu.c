@@ -46,6 +46,9 @@ gceMMU_TYPE;
 #   define gcdMMU_CLEAR_VALUE                   0x00000ABC
 #endif
 
+/* VIV: Start GPU address for gcvSURF_VERTEX.  */
+#define gcdVERTEX_START      (128 << 10)
+
 typedef struct _gcsMMU_STLB *gcsMMU_STLB_PTR;
 
 typedef struct _gcsMMU_STLB
@@ -973,6 +976,88 @@ _Destroy(
     return gcvSTATUS_OK;
 }
 
+/*******************************************************************************
+** _AdjstIndex
+**
+**  Adjust the index from which we search for a usable node to make sure
+**  index allocated is greater than Start.
+*/
+gceSTATUS
+_AdjustIndex(
+    IN gckMMU Mmu,
+    IN gctUINT32 Index,
+    IN gctUINT32 PageCount,
+    IN gctUINT32 Start,
+    OUT gctUINT32 * IndexAdjusted
+    )
+{
+    gceSTATUS status;
+    gctUINT32 index = Index;
+    gctUINT32_PTR map = Mmu->pageTableLogical;
+
+    gcmkHEADER();
+
+    for (; index < Mmu->pageTableEntries;)
+    {
+        gctUINT32 result = 0;
+        gctUINT32 nodeSize = 0;
+
+        if (index >= Start)
+        {
+            break;
+        }
+
+        switch (gcmENTRY_TYPE(map[index]))
+        {
+        case gcvMMU_SINGLE:
+            nodeSize = 1;
+            break;
+
+        case gcvMMU_FREE:
+            nodeSize = map[index] >> 8;
+            break;
+
+        default:
+            gcmkFATAL("MMU table correcupted at index %u!", index);
+            gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+        }
+
+        if (nodeSize > PageCount)
+        {
+            result = index + (nodeSize - PageCount);
+
+            if (result >= Start)
+            {
+                break;
+            }
+        }
+
+        switch (gcmENTRY_TYPE(map[index]))
+        {
+        case gcvMMU_SINGLE:
+            index = map[index] >> 8;
+            break;
+
+        case gcvMMU_FREE:
+            index = map[index + 1];
+            break;
+
+        default:
+            gcmkFATAL("MMU table correcupted at index %u!", index);
+            gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+        }
+    }
+
+    *IndexAdjusted = index;
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    gcmkFOOTER();
+    return status;
+}
+
 gceSTATUS
 gckMMU_Construct(
     IN gckKERNEL Kernel,
@@ -1136,6 +1221,7 @@ gceSTATUS
 _AllocatePages(
     IN gckMMU Mmu,
     IN gctSIZE_T PageCount,
+    IN gceSURF_TYPE Type,
     OUT gctPOINTER * PageTable,
     OUT gctUINT32 * Address
     )
@@ -1170,8 +1256,21 @@ _AllocatePages(
     /* Cast pointer to page table. */
     for (pageTable = Mmu->pageTableLogical, gotIt = gcvFALSE; !gotIt;)
     {
+        index = Mmu->heapList;
+
+        if ((Mmu->hardware->mmuVersion == 0) && (Type == gcvSURF_VERTEX))
+        {
+            gcmkONERROR(_AdjustIndex(
+                Mmu,
+                index,
+                PageCount,
+                gcdVERTEX_START / gcmSIZEOF(gctUINT32),
+                &index
+                ));
+        }
+
         /* Walk the heap list. */
-        for (index = Mmu->heapList; !gotIt && (index < Mmu->pageTableEntries);)
+        for (; !gotIt && (index < Mmu->pageTableEntries);)
         {
             /* Check the node type. */
             switch (gcmENTRY_TYPE(_ReadPageEntry(&pageTable[index])))
@@ -1423,6 +1522,19 @@ gckMMU_AllocatePages(
     OUT gctUINT32 * Address
     )
 {
+    return gckMMU_AllocatePagesEx(
+                Mmu, PageCount, gcvSURF_UNKNOWN, PageTable, Address);
+}
+
+gceSTATUS
+gckMMU_AllocatePagesEx(
+    IN gckMMU Mmu,
+    IN gctSIZE_T PageCount,
+    IN gceSURF_TYPE Type,
+    OUT gctPOINTER * PageTable,
+    OUT gctUINT32 * Address
+    )
+{
 #if gcdMIRROR_PAGETABLE
     gceSTATUS status;
     gctPOINTER pageTable;
@@ -1440,7 +1552,7 @@ gckMMU_AllocatePages(
     {
         if (Mmu == mirrorPageTable->mmus[i])
         {
-            gcmkONERROR(_AllocatePages(Mmu, PageCount, PageTable, Address));
+            gcmkONERROR(_AllocatePages(Mmu, PageCount, Type, PageTable, Address));
             allocated = gcvTRUE;
         }
     }
@@ -1452,7 +1564,7 @@ gckMMU_AllocatePages(
 
         if (Mmu != mmu)
         {
-            gcmkONERROR(_AllocatePages(mmu, PageCount, &pageTable, &address));
+            gcmkONERROR(_AllocatePages(mmu, PageCount, Type, &pageTable, &address));
             gcmkASSERT(address == *Address);
         }
     }
@@ -1478,7 +1590,7 @@ OnError:
 
     return status;
 #else
-    return _AllocatePages(Mmu, PageCount, PageTable, Address);
+    return _AllocatePages(Mmu, PageCount, Type, PageTable, Address);
 #endif
 }
 
