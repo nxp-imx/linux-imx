@@ -53,8 +53,6 @@
 #define GPC_PGC_GPU_PGCR_OFFSET	0x260
 #define GPC_CNTR_OFFSET		0x0
 
-static DEFINE_SPINLOCK(freq_lock);
-
 int low_bus_freq_mode;
 int audio_bus_freq_mode;
 int high_bus_freq_mode;
@@ -78,15 +76,22 @@ unsigned int ddr_normal_rate;
 int low_freq_bus_used(void);
 void set_ddr_freq(int ddr_freq);
 void *mx6sl_wfi_iram_base;
+unsigned long mx6sl_wfi_iram_phys_addr;
+unsigned long total_wfi_lpddr2_iram_size;
+
+
 void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr,\
 		int audio_mode) = NULL;
 extern void mx6sl_wait (int arm_podf, unsigned long wfi_iram_addr);
 
-
 extern int init_mmdc_settings(void);
 extern struct cpu_op *(*get_cpu_op)(int *op);
 extern int update_ddr_freq(int ddr_rate);
+extern unsigned long total_suspend_size;
 extern int chip_rev;
+
+extern unsigned long mx6sl_wfi_iram_end asm("mx6sl_wfi_iram_end");
+extern unsigned long mx6sl_wfi_iram_start asm("mx6sl_wfi_iram_start");
 
 DEFINE_MUTEX(bus_freq_mutex);
 
@@ -151,7 +156,6 @@ void reduce_bus_freq(void)
 	} else {
 		u32 reg;
 		u32  div;
-		unsigned long flags;
 
 		if (high_bus_freq_mode) {
 			/* Set periph_clk to be sourced from OSC_CLK */
@@ -164,20 +168,19 @@ void reduce_bus_freq(void)
 				clk_round_rate(ahb_clk, LPAPM_CLK));
 		}
 		if (lp_audio_freq) {
-			/* PLL2 is on in this mode, as DDR is at 50MHz. */
+			/* PLL2 is on in this mode, as DDR is at 100MHz. */
 			/* Now change DDR freq while running from IRAM. */
 
 			/* Set AHB to 24MHz. */
 			clk_set_rate(ahb_clk,
 				clk_round_rate(ahb_clk, LPAPM_CLK / 3));
 
-			spin_lock_irqsave(&freq_lock, flags);
+
 			update_ddr_freq(DDR_AUDIO_CLK);
-			spin_unlock_irqrestore(&freq_lock, flags);
 
 			if (low_bus_freq_mode) {
 				/* Swtich ARM to run off PLL2_PFD2_400MHz
-				 * since DDR is anway at 50MHz.
+				 * since DDR is anyway at 100MHz.
 				 */
 				clk_set_parent(pll1_sw_clk, pll2_400);
 
@@ -215,10 +218,8 @@ void reduce_bus_freq(void)
 				;
 			clk_set_parent(pll1_sw_clk, pll1);
 
-			spin_lock_irqsave(&freq_lock, flags);
-			/* Now change DDR freq while running from IRAM. */
+
 			update_ddr_freq(LPAPM_CLK);
-			spin_unlock_irqrestore(&freq_lock, flags);
 
 			low_bus_freq_mode = 1;
 			audio_bus_freq_mode = 0;
@@ -324,12 +325,9 @@ int set_high_bus_freq(int high_bus_freq)
 
 	if (cpu_is_mx6sl()) {
 		u32 reg;
-		unsigned long flags;
 
-		spin_lock_irqsave(&freq_lock, flags);
 		/* Change DDR freq in IRAM. */
 		update_ddr_freq(ddr_normal_rate);
-		spin_unlock_irqrestore(&freq_lock, flags);
 
 		/* Set periph_clk to be sourced from pll2_pfd2_400M */
 		/* First need to set the divider before changing the */
@@ -716,24 +714,29 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&low_bus_freq_handler, reduce_bus_freq_handler);
 	register_pm_notifier(&imx_bus_freq_pm_notifier);
 
-
 	if (cpu_is_mx6sl()) {
-		unsigned long iram_paddr;
+		u32 wfi_code_size;
 
-		/* Allocate IRAM for WFI code when system is
-		  * in low freq mode.
-		  */
-		iram_alloc(SZ_4K, &iram_paddr);
-		/* Need to remap the area here since we want
-		   * the memory region to be executable.
-		   */
-		mx6sl_wfi_iram_base = __arm_ioremap(iram_paddr,
-						SZ_4K, MT_MEMORY_NONCACHED);
-		memcpy(mx6sl_wfi_iram_base, mx6sl_wait, SZ_4K);
+		/* Use preallocated memory */
+		mx6sl_wfi_iram_phys_addr = MX6_SUSPEND_IRAM_CODE + total_suspend_size;
+
+		wfi_code_size = (&mx6sl_wfi_iram_end -&mx6sl_wfi_iram_start) *4;
+		total_wfi_lpddr2_iram_size = wfi_code_size + MX6_LPDDR2_WFI_DATA_SIZE;
+
+		/*
+		 * Don't ioremap the address, we have fixed the IRAM address
+		 * at IRAM_BASE_ADDR_VIRT
+		 */
+		mx6sl_wfi_iram_base = (void *)IRAM_BASE_ADDR_VIRT +
+			(mx6sl_wfi_iram_phys_addr - IRAM_BASE_ADDR);
+
+		memcpy(mx6sl_wfi_iram_base, mx6sl_wait, wfi_code_size);
 		mx6sl_wfi_iram = (void *)mx6sl_wfi_iram_base;
-
 	}
-	init_mmdc_settings();
+
+	err = init_mmdc_settings();
+	if (err)
+		return err;
 
 	return 0;
 }

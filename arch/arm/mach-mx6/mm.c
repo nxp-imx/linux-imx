@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,6 +56,11 @@ static struct map_desc mx6_io_desc[] __initdata = {
 	.pfn = __phys_to_pfn(ARM_PERIPHBASE),
 	.length = ARM_PERIPHBASE_SIZE,
 	.type = MT_DEVICE},
+	{
+	.virtual = IRAM_BASE_ADDR_VIRT,
+	.pfn = __phys_to_pfn(IRAM_BASE_ADDR),
+	.length = IRAM_VIRT_SIZE,
+	.type = MT_MEMORY_NONCACHED},
 };
 
 static void mx6_set_cpu_type(void)
