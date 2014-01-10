@@ -18,6 +18,9 @@
 
 #include <linux/linkage.h>
 #include <mach/hardware.h>
+.extern iram_tlb_phys_addr
+.globl mx6sl_lpddr2_iram_start
+.globl mx6sl_lpddr2_iram_end
 
 
 	 .macro    mx6sl_switch_to_24MHz
@@ -213,6 +216,7 @@ pll2_already_on:
      bic     r6, r6, #0x600000
      orr     r6, r6, #0x200000
      str     r6, [r2, #0x18]
+
      ldr     r6, =400000000
      b       cont2
 
@@ -318,6 +322,7 @@ force_measure1:
       bne    force_measure1
       .endm
 
+    .align 3
 /*
  *  mx6sl_ddr_iram
  *
@@ -329,46 +334,85 @@ force_measure1:
  * r2: MMDC array
  */
 ENTRY(mx6sl_ddr_iram)
-
+mx6sl_lpddr2_iram_start:
     push {r4-r10}
 
-mx6sl_ddr_freq_change:
-
     mov  r9, r2                      @save MMDC array
-    ldr     r3, =ANATOP_BASE_ADDR
-    add   r3, r3, #PERIPBASE_VIRT
 
-    ldr     r2, =CCM_BASE_ADDR
-    add   r2, r2, #PERIPBASE_VIRT
+    /*
+     * To ensure no page table walks occur in DDR, we
+     * have a another page table stored in IRAM that only
+     * contains entries pointing to IRAM, AIPS1 and AIPS2.
+     * We need to set the TTBR1 to the new IRAM TLB.
+     * Do the following steps:
+     * 1. Flush the Branch Target Address Cache (BTAC)
+     * 2. Set TTBR1 to point to IRAM page table.
+     * 3. Disable page table walks in TTBR0 (PD0 = 1)
+     * 4. Set TTBR0.N=1, implying 0-2G is translated by TTBR0
+     *     and 2-4G is translated by TTBR1.
+     */
+    ldr    r6, =iram_tlb_phys_addr
+    ldr    r7, [r6]
 
-    ldr     r8, =MMDC_P0_BASE_ADDR
-    add   r8, r8, #PERIPBASE_VIRT
+    /* Disable Branch Prediction, Z bit in SCTLR. */
+    mrc    p15, 0, r6, c1, c0, 0
+    bic    r6, r6, #0x800
+    mcr    p15, 0, r6, c1, c0, 0
 
-    /* Prime all TLB entries. */
-    adr   r7, mx6sl_ddr_freq_change               @Address in this function.
+    /* Flush the Branch Target Address Cache (BTAC) */
+    ldr    r6, =0x0
+    mcr    p15, 0, r6, c7, c1, 6
 
-    ldr     r6, [r7]
-    ldr     r6, [r8]
-    ldr     r6, [r3]
-    ldr     r6, [r2]
+    dsb
+    isb
+    /* Store the IRAM table in TTBR1 */
+    mcr    p15, 0, r7, c2, c0, 1
 
-     /* Drain all the L1 buffers. */
-     dsb
+    /* Read TTBCR and set PD0=1, N = 1 */
+    mrc    p15, 0, r6, c2, c0, 2
+    orr    r6, r6, #0x11
+    mcr    p15, 0, r6, c2, c0, 2
 
+    dsb
+    isb
+
+mx6sl_ddr_freq_change:
+    /* flush the TLB */
+    ldr    r6, =0x0
+    mcr    p15, 0, r6, c8, c3, 0
+
+
+    /* Disable L1 data cache. */
+    mrc    p15, 0, r6, c1, c0, 0
+    bic    r6, r6, #0x4
+    mcr    p15, 0, r6, c1, c0, 0
+
+    dsb
 #ifdef CONFIG_CACHE_L2X0
-    /* Need to make sure the buffers in L2 are drained.
-      * Performing a sync operation does this. */
-     ldr     r7, =L2_BASE_ADDR
-     add   r7, r7, #PERIPBASE_VIRT
-     mov  r6, #0x0
-     str    r6, [r7, #0x730]
-#endif
+    /*
+     * Sync L2 and then disable it.
+     */
+    ldr   r4, =L2_BASE_ADDR
+    add   r4, r4, #PERIPBASE_VIRT
+    /* Wait for background operations to complete. */
+wait_for_l2_to_idle:
+    ldr   r6, [r4, #0x730]
+    cmp   r6, #0x0
+    bne   wait_for_l2_to_idle
+    ldr   r6, =0x0
+    str   r6, [r4, #0x730]
+    /* Disable L2. */
+    str   r6, [r4, #0x100]
 
-     /* The second dsb might be needed to keep cache sync (device write)
-       * ordering with the memory accesses before it.
-       */
-     dsb
-     isb
+    dsb
+    isb
+#endif
+    ldr     r3, =ANATOP_BASE_ADDR
+    add     r3, r3, #PERIPBASE_VIRT
+    ldr     r2, =CCM_BASE_ADDR
+    add     r2, r2, #PERIPBASE_VIRT
+    ldr     r8, =MMDC_P0_BASE_ADDR
+    add     r8, r8, #PERIPBASE_VIRT
 
      /* Disable Automatic power savings. */
      ldr    r6, [r8, #0x404]
@@ -461,6 +505,7 @@ poll_dvfs_clear_1:
      str    r6, [r8, #0x404]
 
      ldr     r10, =24000000
+
      cmp    r0, r10
      beq     skip_power_down
 
@@ -475,12 +520,86 @@ skip_power_down:
      bic     r6, r6, #0x100
      str     r6, [r8, #0x410]
 
+#ifdef CONFIG_CACHE_L2X0
+    /* Enable L2. */
+    ldr   r1, =L2_BASE_ADDR
+    add   r1, r1, #PERIPBASE_VIRT
+    ldr   r6, =0x1
+    str   r6, [r1, #0x100]
+#endif
+
+    /* Enable L1 data cache. */
+    mrc    p15, 0, r6, c1, c0, 0
+    orr    r6, r6, #0x4
+    mcr    p15, 0, r6, c1, c0, 0
+
+    /* Restore the TTBCR */
+    dsb
+    isb
+    /* Read TTBCR and set PD0=0, N = 0 */
+    mrc    p15, 0, r6, c2, c0, 2
+    bic    r6, r6, #0x11
+    mcr    p15, 0, r6, c2, c0, 2
+    dsb
+    isb
+
+    /* flush the TLB */
+    ldr    r6, =0x0
+    mcr    p15, 0, r6, c8, c3, 0
+
+    dsb
+    isb
+
+    /* Enable Branch Prediction, Z bit in SCTLR. */
+    mrc    p15, 0, r6, c1, c0, 0
+    orr    r6, r6, #0x800
+    mcr    p15, 0, r6, c1, c0, 0
+
+    /* Flush the Branch Target Address Cache (BTAC) */
+    ldr    r6, =0x0
+    mcr    p15, 0, r6, c7, c1, 6
+
+    nop
+    nop
+    nop
+    nop
+    nop
+
+    nop
+    nop
+    nop
+    nop
+    nop
+
+    nop
+    nop
+    nop
+    nop
+    nop
+
+    nop
+    nop
+    nop
+    nop
+    nop
+
+    nop
+    nop
+    nop
+    nop
+    nop
+
     pop {r4-r10}
 
     /* Restore registers */
     mov     pc, lr
 
-    .type   mx6sl_ddr_do_iram, #object
-ENTRY(mx6sl_ddr_do_iram)
-    .word   mx6sl_ddr_iram
-    .size    mx6sl_ddr_iram, . - mx6sl_ddr_iram
+    /*
+     * Add ltorg here to ensure that all
+     * literals are stored here and are
+     * within the text space.
+     */
+   .ltorg
+mx6sl_lpddr2_iram_end:
+
+ENDPROC(mx6sl_ddr_iram)

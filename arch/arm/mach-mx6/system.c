@@ -65,6 +65,9 @@ extern void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr, \
 			int audio_mode);
 extern void mx6_wait(void *num_cpu_idle_lock, void *num_cpu_idle, \
 				int wait_arm_podf, int cur_arm_podf);
+extern unsigned long save_ttbr1(void);
+extern void restore_ttbr1(u32 ttbr1);
+
 extern bool enable_wait_mode;
 extern int low_bus_freq_mode;
 extern int audio_bus_freq_mode;
@@ -320,13 +323,17 @@ void arch_idle_single_core(void)
 				  * reduce power.
 				  */
 				u32 org_arm_podf = __raw_readl(MXC_CCM_CACRR);
+				u32 ttbr1;
 
+				outer_sync();
 				/* Need to run WFI code from IRAM so that
-				  * we can lower DDR freq.
-				  */
+				 * we can lower DDR freq.
+				 */
+				ttbr1 = save_ttbr1();
 				mx6sl_wfi_iram(org_arm_podf,
 					(unsigned long)mx6sl_wfi_iram_base,
 					audio_bus_freq_mode);
+				restore_ttbr1(ttbr1);
 			} else {
 				/* Need to set ARM to run at 24MHz since IPG
 				  * is at 12MHz. This is valid for audio mode on

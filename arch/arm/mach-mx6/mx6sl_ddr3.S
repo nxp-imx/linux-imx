@@ -19,6 +19,10 @@
 #include <linux/linkage.h>
 #include <mach/hardware.h>
 
+.extern iram_tlb_phys_addr
+.globl mx6sl_ddr3_iram_start
+.globl mx6sl_ddr3_iram_end
+
 	  .macro	ddr_switch_400MHz
 
     /* Set MMDC divider first, in case PLL3 is at 480MHz. */
@@ -325,24 +329,15 @@ mmdc_podf0:
 	.endm
 
 /*
- *  mx6l_ddr3_freq_change
+ *  mx6sl_ddr3_freq_change
  *
  *  Idle the processor (eg, wait for interrupt).
  *  Make sure DDR is in self-refresh.
  *  IRQs are already disabled.
  */
-ENTRY(mx6l_ddr3_freq_change)
-
+ENTRY(mx6sl_ddr3_freq_change)
+mx6sl_ddr3_iram_start:
 	stmfd   sp!, {r4,r5,r6, r7, r8, r9, r10, r11,r12}      @ Save registers
-
-	ldr     r6, =CCM_BASE_ADDR
-	add     r6, r6, #PERIPBASE_VIRT
-	ldr     r5, =MMDC_P0_BASE_ADDR
-	add     r5, r5, #PERIPBASE_VIRT
-	ldr     r7, =MX6Q_IOMUXC_BASE_ADDR
-	add     r7, r7, #PERIPBASE_VIRT
-  ldr     r12, =ANATOP_BASE_ADDR
-  add   	r12, r12, #PERIPBASE_VIRT
 
 	mov			r10, r4				@save low_bus_freq_mode
 	mov     r4, r0				@save new freq requested
@@ -351,47 +346,83 @@ ENTRY(mx6l_ddr3_freq_change)
 	mov     r11, r3			@save iomux offsets
 
 ddr_freq_change:
-	/* Make sure no TLB miss will occur when the DDR is in self refresh. */
-	/* Invalidate TLB single entry to ensure that the address is not
-	  * already in the TLB.
-	  */
+	/*
+	 * To ensure no page table walks occur in DDR, we
+	 * have a another page table stored in IRAM that only
+	 * contains entries pointing to IRAM, AIPS1 and AIPS2.
+	 * We need to set the TTBR1 to the new IRAM TLB.
+	 * Do the following steps:
+	 * 1. Flush the Branch Target Address Cache (BTAC)
+	 * 2. Set TTBR1 to point to IRAM page table.
+	 * 3. Disable page table walks in TTBR0 (PD0 = 1)
+	 * 4. Set TTBR0.N=1, implying 0-2G is translated by TTBR0
+	 *     and 2-4G is translated by TTBR1.
+	 */
+	ldr    r6, =iram_tlb_phys_addr
+	ldr    r7, [r6]
 
-	adr   r3, ddr_freq_change               @Address in this function.
+	/* Disable Branch Prediction, Z bit in SCTLR. */
+	mrc    p15, 0, r6, c1, c0, 0
+	bic    r6, r6, #0x800
+	mcr    p15, 0, r6, c1, c0, 0
 
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr    r6, =0x0
+	mcr    p15, 0, r6, c7, c1, 6
 
-	mcr   p15, 0, r3, c8, c7, 1      @//@ Make sure freq code address
-	                                       @//  @ is not already in TLB.
-	mcr   p15, 0, r6, c8, c7, 1      @//@ Make sure CCM address
-	                                         @//@ is not already in TLB.
-	mcr   p15, 0, r5, c8, c7, 1      @//@ make sure MMDC address
-	                                         @//@ is not already in TLB.
-	mcr   p15, 0, r7, c8, c7, 1      @//@ make sure IOMUX address
-	                                         @//@ is not already in TLB.
-	mcr   p15, 0, r12, c8, c7, 1      @//@ make sure ANATOP address
-	                                         @//@ is not already in TLB.
+	dsb
+	isb
 
-	mrc   p15, 0, r0, c10, c0, 0    @//@ Read the TLB lockdown register
-	orr    r0, r0, #1                    @//@ Set the Preserve bit.
-	mcr   p15, 0, r0, c10, c0, 0    @//@ Write to the lockdown register
+	/* Store the IRAM table in TTBR1 */
+	mcr    p15, 0, r7, c2, c0, 1
 
-	ldr    r2, [r6]                        @ TLB will miss,
-	                                         @CCM address will be loaded
-	ldr    r2, [r5]                        @ TLB will miss,
-	                                         @MMDC address will be loaded
-	ldr    r2, [r7]                        @ TLB will miss,
-	                                         @IOMUX will be loaded
+	/* Read TTBCR and set PD0=1, N = 1 */
+	mrc    p15, 0, r6, c2, c0, 2
+	orr    r6, r6, #0x11
+	mcr    p15, 0, r6, c2, c0, 2
 
-	ldr    r2, [r8]                        @ Get the DDR settings.
+	dsb
+	isb
 
-	ldr    r2, [r3]                        @ TLB will miss
+	/* flush the TLB */
+	ldr    r6, =0x0
+	mcr    p15, 0, r6, c8, c3, 0
 
-	ldr    r2, [r11]				@Get the IOMUX settings
-	ldr    r2, [r12]
+	/* Disable L1 data cache. */
+	mrc    p15, 0, r6, c1, c0, 0
+	bic    r6, r6, #0x4
+	mcr    p15, 0, r6, c1, c0, 0
 
-	mrc  p15, 0, r0, c10, c0, 0      @//@ Read the lockdown register
-	                                             @//@ (victim will be incremented)
-	bic   r0, r0, #1                     @//@ Clear the preserve bit
-	mcr   p15, 0, r0, c10, c0, 0     @//@ Write to the lockdown register
+	dsb
+
+#ifdef CONFIG_CACHE_L2X0
+	/*
+	 * Sync L2 and then disable it.
+	 */
+	ldr   r7, =L2_BASE_ADDR
+	add   r7, r7, #PERIPBASE_VIRT
+	/* Wait for background operations to complete. */
+wait_for_l2_to_idle:
+	ldr   r6, [r7, #0x730]
+	cmp   r6, #0x0
+	bne   wait_for_l2_to_idle
+	ldr   r6, =0x0
+	str   r6, [r7, #0x730]
+	/* Disable L2. */
+	str   r6, [r7, #0x100]
+
+	dsb
+	isb
+#endif
+
+	ldr     r6, =CCM_BASE_ADDR
+	add     r6, r6, #PERIPBASE_VIRT
+	ldr     r5, =MMDC_P0_BASE_ADDR
+	add     r5, r5, #PERIPBASE_VIRT
+	ldr     r7, =MX6Q_IOMUXC_BASE_ADDR
+	add     r7, r7, #PERIPBASE_VIRT
+	ldr     r12, =ANATOP_BASE_ADDR
+	add     r12, r12, #PERIPBASE_VIRT
 
 	/* Disable automatic power saving. */
 
@@ -819,13 +850,58 @@ poll_conreq_clear_2:
 
 done:
 
+#ifdef CONFIG_CACHE_L2X0
+	/* Enable L2. */
+	ldr   r1, =L2_BASE_ADDR
+	add   r1, r1, #PERIPBASE_VIRT
+	ldr   r6, =0x1
+	str   r6, [r1, #0x100]
+#endif
+
+	/* Enable L1 data cache. */
+	mrc    p15, 0, r6, c1, c0, 0
+	orr    r6, r6, #0x4
+	mcr    p15, 0, r6, c1, c0, 0
+
+	/* Restore the TTBCR */
+	dsb
+	isb
+
+	/* Read TTBCR and set PD0=0, N = 0 */
+	mrc    p15, 0, r6, c2, c0, 2
+	bic    r6, r6, #0x11
+	mcr    p15, 0, r6, c2, c0, 2
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr    r6, =0x0
+	mcr    p15, 0, r6, c8, c3, 0
+
+	dsb
+	isb
+
+	/* Enable Branch Prediction, Z bit in SCTLR. */
+	mrc    p15, 0, r6, c1, c0, 0
+	orr    r6, r6, #0x800
+	mcr    p15, 0, r6, c1, c0, 0
+
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr    r6, =0x0
+	mcr    p15, 0, r6, c7, c1, 6
+
 	/* Restore registers */
 
 	ldmfd sp!, {r4,r5,r6, r7, r8, r9, r10, r11, r12}
 
 	mov     pc, lr
+	/*
+	 * Add ltorg here to ensure that all
+	 * literals are stored here and are
+	 * within the text space.
+	 */
+	.ltorg
+mx6sl_ddr3_iram_end:
 
-	.type   mx6l_do_ddr_freq_change, #object
-ENTRY(mx6l_do_ddr_freq_change)
-	.word   mx6l_ddr3_freq_change
-	.size    mx6l_ddr3_freq_change, . - mx6l_ddr3_freq_change
+ENDPROC(mx6sl_ddr3_freq_change)
+
