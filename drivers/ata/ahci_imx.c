@@ -30,9 +30,24 @@
 #include "ahci.h"
 
 enum {
+	HOST_TIMER1MS = 0xe0,			/* Timer 1-ms */
 	PORT_PHY_CTL = 0x178,			/* Port0 PHY Control */
 	PORT_PHY_CTL_PDDQ_LOC = 0x100000,	/* PORT_PHY_CTL bits */
-	HOST_TIMER1MS = 0xe0,			/* Timer 1-ms */
+	/* PORT_PHY_CTL bits */
+	PORT_PHY_CTL_CAP_ADR_LOC = 0x10000,
+	PORT_PHY_CTL_CAP_DAT_LOC = 0x20000,
+	PORT_PHY_CTL_WRITE_LOC = 0x40000,
+	PORT_PHY_CTL_READ_LOC = 0x80000,
+	/* Port0 PHY Status */
+	PORT_PHY_SR = 0x17c,
+	/* PORT_PHY_SR */
+	PORT_PHY_STAT_DATA_LOC = 0,
+	PORT_PHY_STAT_ACK_LOC = 18,
+
+	SATA_PHY_CR_CLOCK_RESET = 0x7F3F,
+	SATA_PHY_CR_RESET_EN = 0x0001,
+	SATA_PHY_CR_LANE0_OUT_STAT = 0x2003,
+	SATA_PHY_CR_LANE0_RX_STABLE = 0x0002,
 };
 
 struct imx_ahci_priv {
@@ -93,9 +108,119 @@ static const struct ata_port_info ahci_imx_port_info = {
 	.port_ops	= &ahci_imx_ops,
 };
 
+static int write_phy_ctl_ack_polling(u32 data, void __iomem *mmio,
+		int max_iterations, u32 exp_val)
+{
+	u32 i, val;
+
+	writel(data, mmio + PORT_PHY_CTL);
+
+	for (i = 0; i < max_iterations + 1; i++) {
+		val = readl(mmio + PORT_PHY_SR);
+		val =  (val >> PORT_PHY_STAT_ACK_LOC) & 0x1;
+		if (val == exp_val)
+			return 0;
+		if (i == max_iterations) {
+			pr_err("Wait for CR ACK error!\n");
+			return 1;
+		}
+		usleep_range(100, 200);
+	}
+	return 0;
+}
+
+static int sata_phy_cr_addr(u32 addr, void __iomem *mmio)
+{
+	u32 temp_wr_data;
+
+	/* write addr */
+	temp_wr_data = addr;
+	writel(temp_wr_data, mmio + PORT_PHY_CTL);
+
+	/* capture addr */
+	temp_wr_data |= PORT_PHY_CTL_CAP_ADR_LOC;
+
+	/* wait for ack */
+	if (write_phy_ctl_ack_polling(temp_wr_data, mmio, 100, 1))
+		return 1;
+
+	/* deassert cap addr */
+	temp_wr_data &= 0xffff;
+
+	/* wait for ack de-assetion */
+	if (write_phy_ctl_ack_polling(temp_wr_data, mmio, 100, 0))
+		return 1;
+
+	return 0;
+}
+
+static int sata_phy_cr_write(u32 data, void __iomem *mmio)
+{
+	u32 temp_wr_data;
+
+	/* write data */
+	temp_wr_data = data;
+	writel(temp_wr_data, mmio + PORT_PHY_CTL);
+
+	/* capture data */
+	temp_wr_data |= PORT_PHY_CTL_CAP_DAT_LOC;
+
+	/* wait for ack */
+	if (write_phy_ctl_ack_polling(temp_wr_data, mmio, 100, 1))
+		return 1;
+
+	/* deassert cap data */
+	temp_wr_data &= 0xffff;
+
+	/* wait for ack de-assetion */
+	if (write_phy_ctl_ack_polling(temp_wr_data, mmio, 100, 0))
+		return 1;
+
+	/* assert wr signal */
+	temp_wr_data |= PORT_PHY_CTL_WRITE_LOC;
+
+	/* wait for ack */
+	if (write_phy_ctl_ack_polling(temp_wr_data, mmio, 100, 1))
+		return 1;
+
+	/* deassert wr _signal */
+	temp_wr_data = 0x0;
+
+	/* wait for ack de-assetion */
+	if (write_phy_ctl_ack_polling(temp_wr_data, mmio, 100, 0))
+		return 1;
+
+	return 0;
+}
+
+static int sata_phy_cr_read(u32 *data, void __iomem *mmio)
+{
+	u32 temp_rd_data, temp_wr_data;
+
+	/* assert rd signal */
+	temp_wr_data = PORT_PHY_CTL_READ_LOC;
+
+	/* wait for ack */
+	if (write_phy_ctl_ack_polling(temp_wr_data, mmio, 100, 1))
+		return 1;
+
+	/* after got ack return data */
+	temp_rd_data = readl(mmio + PORT_PHY_SR);
+	*data = (temp_rd_data & 0xffff);
+
+	/* deassert rd _signal */
+	temp_wr_data = 0x0 ;
+
+	/* wait for ack de-assetion */
+	if (write_phy_ctl_ack_polling(temp_wr_data, mmio, 100, 0))
+		return 1;
+
+	return 0;
+}
+
 static int imx6q_sata_init(struct device *dev, void __iomem *mmio)
 {
-	int ret = 0;
+	int i, ret = 0;
 	unsigned int reg_val;
 	struct imx_ahci_priv *imxpriv = dev_get_drvdata(dev->parent);
 
@@ -128,6 +253,7 @@ static int imx6q_sata_init(struct device *dev, void __iomem *mmio)
 			| IMX6Q_GPR13_SATA_TX_BOOST_MASK
 			| IMX6Q_GPR13_SATA_TX_LVL_MASK
 			| IMX6Q_GPR13_SATA_TX_EDGE_RATE
+			| IMX6Q_GPR13_SATA_MPLL_CLK_EN
 			, IMX6Q_GPR13_SATA_RX_EQ_VAL_3_0_DB
 			| IMX6Q_GPR13_SATA_RX_LOS_LVL_SATA2M
 			| IMX6Q_GPR13_SATA_RX_DPLL_MODE_2P_4F
@@ -135,11 +261,25 @@ static int imx6q_sata_init(struct device *dev, void __iomem *mmio)
 			| IMX6Q_GPR13_SATA_MPLL_SS_EN
 			| IMX6Q_GPR13_SATA_TX_ATTEN_9_16
 			| IMX6Q_GPR13_SATA_TX_BOOST_3_33_DB
-			| IMX6Q_GPR13_SATA_TX_LVL_1_025_V);
+			| IMX6Q_GPR13_SATA_TX_LVL_1_104_V);
 	regmap_update_bits(imxpriv->gpr, 0x34, IMX6Q_GPR13_SATA_MPLL_CLK_EN,
 			IMX6Q_GPR13_SATA_MPLL_CLK_EN);
 	usleep_range(100, 200);
 
+	sata_phy_cr_addr(SATA_PHY_CR_CLOCK_RESET, mmio);
+	sata_phy_cr_write(SATA_PHY_CR_RESET_EN, mmio);
+	usleep_range(100, 200);
+	/* waiting for the rx_pll is stable */
+	for (i = 0; i <= 5; i++) {
+		sata_phy_cr_addr(SATA_PHY_CR_LANE0_OUT_STAT, mmio);
+		sata_phy_cr_read(&ret, mmio);
+		if (ret & SATA_PHY_CR_LANE0_RX_STABLE) {
+			pr_info("sata phy RX_PLL is stable!\n");
+			break;
+		} else if (i == 5)
+			pr_info("Wating for RX_PLL lock time out\n");
+		usleep_range(1000, 2000);
+	}
 	/*
 	 * Configure the HWINIT bits of the HOST_CAP and HOST_PORTS_IMPL,
 	 * and IP vendor specific register HOST_TIMER1MS.
@@ -199,7 +339,10 @@ static int imx_ahci_suspend(struct device *dev)
 static int imx_ahci_resume(struct device *dev)
 {
 	struct imx_ahci_priv *imxpriv =  dev_get_drvdata(dev->parent);
-	int ret;
+	int i, ret;
+	struct ata_host *host = dev_get_drvdata(dev);
+	struct ahci_host_priv *hpriv = host->private_data;
+	void __iomem *mmio = hpriv->mmio;
 
 	if (!imxpriv->no_device) {
 		ret = clk_prepare_enable(imxpriv->sata_ref_clk);
@@ -212,7 +355,22 @@ static int imx_ahci_resume(struct device *dev)
 		regmap_update_bits(imxpriv->gpr, IOMUXC_GPR13,
 				IMX6Q_GPR13_SATA_MPLL_CLK_EN,
 				IMX6Q_GPR13_SATA_MPLL_CLK_EN);
-		usleep_range(1000, 2000);
+		usleep_range(100, 200);
+
+		sata_phy_cr_addr(SATA_PHY_CR_CLOCK_RESET, mmio);
+		sata_phy_cr_write(SATA_PHY_CR_RESET_EN, mmio);
+		usleep_range(100, 200);
+		/* waiting for the rx_pll is stable */
+		for (i = 0; i <= 5; i++) {
+			sata_phy_cr_addr(SATA_PHY_CR_LANE0_OUT_STAT, mmio);
+			sata_phy_cr_read(&ret, mmio);
+			if (ret & SATA_PHY_CR_LANE0_RX_STABLE) {
+				pr_info("sata phy rx_pll is stable!\n");
+				break;
+			} else if (i == 5)
+				pr_info("wating for sata rx_pll lock time out\n");
+			usleep_range(1000, 2000);
+		}
 	}
 
 	return 0;
