@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -816,6 +816,7 @@ static struct i2c_board_info mxc_i2c0_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("mma8x5x", 0x1c),
+		.irq =	gpio_to_irq(SABRESD_ACCL_INT),
 		.platform_data = (void *)&mma8x5x_position,
 	},
 };
@@ -2100,6 +2101,9 @@ static void __init mx6_sabresd_board_init(void)
 	gpio_request(SABRESD_SENSOR_EN, "sensor-en");
 	gpio_direction_output(SABRESD_SENSOR_EN, 1);
 
+	/* enable accel intr */
+	gpio_request(SABRESD_ACCL_INT, "accel-int");
+	gpio_direction_input(SABRESD_ACCL_INT);
 	/* enable ecompass intr */
 	gpio_request(SABRESD_eCOMPASS_INT, "ecompass-int");
 	gpio_direction_input(SABRESD_eCOMPASS_INT);

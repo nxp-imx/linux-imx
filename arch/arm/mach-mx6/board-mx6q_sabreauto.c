@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -110,6 +110,7 @@
 #define SABREAUTO_SD1_WP		IMX_GPIO_NR(5, 20)
 #define SABREAUTO_USB_HOST1_OC		IMX_GPIO_NR(5, 0)
 #define SABREAUTO_SD3_CD		IMX_GPIO_NR(6, 15)
+#define SABREAUTO_ACCL_INT		IMX_GPIO_NR(6, 31)
 
 #define SABREAUTO_MAX7310_1_BASE_ADDR	IMX_GPIO_NR(8, 0)
 #define SABREAUTO_MAX7310_2_BASE_ADDR	IMX_GPIO_NR(8, 8)
@@ -790,6 +791,7 @@ static struct i2c_board_info mxc_i2c2_board_info[] __initdata = {
 	},
 	{
 		I2C_BOARD_INFO("mma8x5x", 0x1c),
+		.irq =  gpio_to_irq(SABREAUTO_ACCL_INT),
 		.platform_data = (void *)&mma8x5x_position,
 	},
 };
@@ -1822,6 +1824,16 @@ static void __init mx6_board_init(void)
 
 	gpio_request(SABREAUTO_DISP0_PWR, "disp0-pwr");
 	gpio_direction_output(SABREAUTO_DISP0_PWR, 1);
+
+	/*enable ecompass intr*/
+	gpio_request(SABREAUTO_eCOMPASS_INT, "ecompass-int");
+	gpio_direction_input(SABREAUTO_eCOMPASS_INT);
+	/*enable als intr*/
+	gpio_request(SABREAUTO_ALS_INT, "als-int");
+	gpio_direction_input(SABREAUTO_ALS_INT);
+	/*enable accel intr*/
+	gpio_request(SABREAUTO_ACCL_INT, "accel-int");
+	gpio_direction_input(SABREAUTO_ACCL_INT);
 
 	gpio_request(SABREAUTO_LDB_BACKLIGHT3, "ldb-backlight3");
 	gpio_direction_output(SABREAUTO_LDB_BACKLIGHT3, 1);
