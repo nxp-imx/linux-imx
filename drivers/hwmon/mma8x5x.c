@@ -2,7 +2,7 @@
  *  mma8x5x.c - Linux kernel modules for 3-Axis Orientation/Motion
  *  Detection Sensor MMA8451/MMA8452/MMA8453/MMA8652/MMA8653
  *
- *  Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ *  Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -30,9 +30,10 @@
 #include <linux/irq.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/err.h>
+#include <linux/poll.h>
 #include <linux/hwmon.h>
-#include <linux/input-polldev.h>
-
+#include <linux/input.h>
+#include <linux/miscdevice.h>
 
 #define MMA8X5X_I2C_ADDR        0x1D
 #define MMA8451_ID                      0x1A
@@ -55,6 +56,7 @@
 #define MMA8X5X_STATUS_ZYXDR    0x08
 #define MMA8X5X_BUF_SIZE    6
 
+#define MMA8X5X_FIFO_SIZE		32
 /* register enum for mma8x5x registers */
 enum {
 	MMA8X5X_STATUS = 0x00,
@@ -126,20 +128,40 @@ enum {
 	MMA_STANDBY = 0,
 	MMA_ACTIVED,
 };
+#pragma pack(1)
 struct mma8x5x_data_axis {
 	short x;
 	short y;
 	short z;
 };
+struct mma8x5x_fifo{
+	int count;
+	s64 period;
+	s64 timestamp;
+	struct mma8x5x_data_axis fifo_data[MMA8X5X_FIFO_SIZE];
+};
+#pragma pack()
+
 struct mma8x5x_data {
 	struct i2c_client *client;
-	struct input_polled_dev *poll_dev;
+	struct input_dev *idev;
+	struct delayed_work work;
 	struct mutex data_lock;
+	struct mma8x5x_fifo fifo;
+	wait_queue_head_t fifo_wq;
+	atomic_t fifo_ready;
 	int active;
+	int delay;
 	int position;
-	u8 chip_id;
+	u8  chip_id;
 	int mode;
+	int awaken;			// is just awake from suspend
+	s64 period_rel;
+	int fifo_wakeup;
+	int fifo_timeout;
 };
+static struct mma8x5x_data * p_mma8x5x_data = NULL;
+
 /* Addresses scanned */
 static const unsigned short normal_i2c[] = { 0x1c, 0x1d, I2C_CLIENT_END };
 
@@ -168,7 +190,6 @@ static int mma8x5x_position_setting[8][3][3] = {
 	{ { 0,	1,  0  }, { 1,	0,  0	   }, { 0, 0, -1     } },
 	{ { 1,	0,  0  }, { 0,	-1, 0	   }, { 0, 0, -1     } },
 };
-
 static int mma8x5x_data_convert(struct mma8x5x_data *pdata,
 		struct mma8x5x_data_axis *axis_data)
 {
@@ -204,6 +225,70 @@ static char *mma8x5x_id2name(u8 id)
 {
 	return mma8x5x_names[(id >> 4) - 1];
 }
+
+static int mma8x5x_i2c_read_fifo(struct i2c_client *client,u8 reg, char * buf, int len)
+{
+	char send_buf[] = {reg};
+	struct i2c_msg msgs[] = {
+		{
+			.addr = client->addr,
+			.flags = 0,
+			.len = 1,
+			.buf = send_buf,
+		},
+		{
+			.addr = client->addr,
+			.flags = I2C_M_RD,
+			.len = len,
+			.buf = buf,
+		},
+	};
+	if (i2c_transfer(client->adapter, msgs, 2) < 0) {
+		printk(KERN_ERR "mma8x5x: transfer error\n");
+		return -EIO;
+	} else
+		return len;
+}
+
+/*period is ms, return the real period per event*/
+static s64 mma8x5x_odr_set(struct i2c_client * client, int period){
+	u8 odr;
+	u8 val;
+	s64 period_rel;
+	val = i2c_smbus_read_byte_data(client, MMA8X5X_CTRL_REG1);
+	i2c_smbus_write_byte_data(client, MMA8X5X_CTRL_REG1,val &(~0x01));  //standby
+	val &= ~(0x07 << 3);
+	if(period >= 640){							/*1.56HZ*/
+		odr = 0x7;
+		period_rel = 640 * NSEC_PER_MSEC;
+	}
+	else if(period >= 160){						/*6.25HZ*/
+		odr = 0x06;
+		period_rel = 160 * NSEC_PER_MSEC;
+	}
+	else if(period >= 80){						/*12.5HZ*/
+		odr = 0x05;
+		period_rel = 80 * NSEC_PER_MSEC;
+	}else if(period >= 20){						/*50HZ*/
+		odr = 0x04;
+		period_rel = 20 * NSEC_PER_MSEC;
+	}else if(period >= 10){						/*100HZ*/
+		odr = 0x03;
+		period_rel = 10 * NSEC_PER_MSEC;
+	}else if(period >= 5){						/*200HZ*/
+		odr = 0x02;
+		period_rel = 5 * NSEC_PER_MSEC;
+	}else if((period * 2) >= 5){ 				/*400HZ*/
+		odr = 0x01;
+		period_rel = 2500 * NSEC_PER_USEC;
+	}else{                /*800HZ*/
+		odr = 0x00;
+		period_rel = 1250 * NSEC_PER_USEC;
+	}
+	val |= (odr << 3);
+	i2c_smbus_write_byte_data(client, MMA8X5X_CTRL_REG1,val);  //standby
+	return period_rel;
+}
 static int mma8x5x_device_init(struct i2c_client *client)
 {
 	int result;
@@ -232,7 +317,6 @@ static int mma8x5x_device_stop(struct i2c_client *client)
 	i2c_smbus_write_byte_data(client, MMA8X5X_CTRL_REG1, val & 0xfe);
 	return 0;
 }
-
 static int mma8x5x_read_data(struct i2c_client *client,
 		struct mma8x5x_data_axis *data)
 {
@@ -251,42 +335,127 @@ static int mma8x5x_read_data(struct i2c_client *client,
 	data->z = ((tmp_data[4] << 8) & 0xff00) | tmp_data[5];
 	return 0;
 }
+static int mma8x5x_fifo_interrupt(struct i2c_client *client,int enable)
+{
+	u8 val,sys_mode;
+	sys_mode =  i2c_smbus_read_byte_data(client,MMA8X5X_CTRL_REG1);
+	i2c_smbus_write_byte_data(client,MMA8X5X_CTRL_REG1,(sys_mode & (~0x01))); //standby
+	val = i2c_smbus_read_byte_data(client,MMA8X5X_CTRL_REG4);
+	val &= ~(0x01 << 6);
+	if(enable)
+		val |= (0x01 << 6);
+	i2c_smbus_write_byte_data(client,MMA8X5X_CTRL_REG4,val);
+	i2c_smbus_write_byte_data(client,MMA8X5X_CTRL_REG1,sys_mode);
+	return 0;
+}
+static int mma8x5x_fifo_setting(struct mma8x5x_data *pdata,int time_out,int is_overwrite)
+{
+	u8 val,sys_mode,pin_cfg;
+	struct i2c_client *client = pdata->client;
+	sys_mode =  i2c_smbus_read_byte_data(client,MMA8X5X_CTRL_REG1);
+	i2c_smbus_write_byte_data(client,MMA8X5X_CTRL_REG1,(sys_mode & (~0x01))); //standby
+	pin_cfg = i2c_smbus_read_byte_data(client,MMA8X5X_CTRL_REG5);
+	val = i2c_smbus_read_byte_data(client,MMA8X5X_F_SETUP);
+	val &= ~(0x03 << 6);
+	if(time_out > 0){
+		if(is_overwrite)
+			val |= (0x01 << 6);
+		else
+			val |= (0x02 << 6);
+	}
+	i2c_smbus_write_byte_data(client,MMA8X5X_F_SETUP,val);
+	i2c_smbus_write_byte_data(client,MMA8X5X_CTRL_REG5,pin_cfg |(0x01 << 6));//route to pin 1
+	i2c_smbus_write_byte_data(client,MMA8X5X_CTRL_REG1,sys_mode);
+	if(time_out > 0){
+		 pdata->period_rel = mma8x5x_odr_set(client,time_out/32);  //fifo len is 32
+	}
+	return 0;
+}
+static int mma8x5x_read_fifo_data(struct mma8x5x_data *pdata){
+	int count,cnt;
+	u8 buf[256],val;
+	int i,index;
+	struct i2c_client *client = pdata->client;
+	struct mma8x5x_fifo *pfifo = &pdata->fifo;
+	struct timespec ts;
+	val = i2c_smbus_read_byte_data(client,MMA8X5X_STATUS);
+	if(val & (0x01 << 7)) //fifo overflow
+	{
+		cnt = (val & 0x3f);
+		count = mma8x5x_i2c_read_fifo(client,MMA8X5X_OUT_X_MSB,buf,MMA8X5X_BUF_SIZE * cnt);
+		if(count > 0){
+			ktime_get_ts(&ts);
+			for(i = 0; i < count/MMA8X5X_BUF_SIZE ;i++){
+				index = MMA8X5X_BUF_SIZE * i;
+				pfifo->fifo_data[i].x = ((buf[index] << 8) & 0xff00) | buf[index + 1];
+				pfifo->fifo_data[i].y = ((buf[index + 2] << 8) & 0xff00) | buf[index + 3];
+				pfifo->fifo_data[i].z = ((buf[index + 4] << 8) & 0xff00) | buf[index + 5];
+				mma8x5x_data_convert(pdata, &pfifo->fifo_data[i]);
+			}
+			pfifo->period = pdata->period_rel;
+			pfifo->count = count / MMA8X5X_BUF_SIZE;
+			pfifo->timestamp = ((s64)ts.tv_sec) * NSEC_PER_SEC  + ts.tv_nsec;
+			return 0;
+		}
+	}
+	return -1;
+}
 
 static void mma8x5x_report_data(struct mma8x5x_data *pdata)
 {
-	struct input_polled_dev *poll_dev = pdata->poll_dev;
 	struct mma8x5x_data_axis data;
-
-	mutex_lock(&pdata->data_lock);
-	if (pdata->active == MMA_STANDBY) {
-		/* if standby ,set as 10s to slow the poll */
-		poll_dev->poll_interval = POLL_STOP_TIME;
-		goto out;
-	} else if (poll_dev->poll_interval == POLL_STOP_TIME)
-		poll_dev->poll_interval = POLL_INTERVAL;
-	if (mma8x5x_read_data(pdata->client, &data) != 0)
-		goto out;
-	mma8x5x_data_convert(pdata, &data);
-	input_report_abs(poll_dev->input, ABS_X, data.x);
-	input_report_abs(poll_dev->input, ABS_Y, data.y);
-	input_report_abs(poll_dev->input, ABS_Z, data.z);
-	input_sync(poll_dev->input);
-out:
-	mutex_unlock(&pdata->data_lock);
+	int ret;
+	ret = mma8x5x_read_data(pdata->client, &data);
+	if(!ret){
+		mma8x5x_data_convert(pdata, &data);
+		input_report_abs(pdata->idev, ABS_X, data.x);
+		input_report_abs(pdata->idev, ABS_Y, data.y);
+		input_report_abs(pdata->idev, ABS_Z, data.z);
+		input_sync(pdata->idev);
+	}
 }
-
-static void mma8x5x_dev_poll(struct input_polled_dev *dev)
+static void mma8x5x_work(struct mma8x5x_data * pdata){
+	int delay;
+	if(pdata->active == MMA_ACTIVED){
+		delay = msecs_to_jiffies(pdata->delay);
+		if (delay >= HZ)
+			delay = round_jiffies_relative(delay);
+		schedule_delayed_work(&pdata->work, delay);
+	}
+}
+static void mma8x5x_dev_poll(struct work_struct *work)
 {
-	struct mma8x5x_data *pdata = (struct mma8x5x_data *)dev->private;
-
+	struct mma8x5x_data *pdata = container_of(work, struct mma8x5x_data,work.work);
 	mma8x5x_report_data(pdata);
+	mma8x5x_work(pdata);
 }
+static irqreturn_t mma8x5x_irq_handler(int irq, void *dev)
+{
+	int ret;
+	u8 int_src;
+	struct mma8x5x_data *pdata = (struct mma8x5x_data *)dev;
+	int_src = i2c_smbus_read_byte_data(pdata->client,MMA8X5X_INT_SOURCE);
+	if(int_src & (0x01 << 6)){
+		ret = mma8x5x_read_fifo_data(pdata);
+		if(!ret){
+			atomic_set(&pdata->fifo_ready, 1);
+			wake_up(&pdata->fifo_wq);
+		}
+		if(pdata->awaken) /*is just awken from suspend*/
+		{
+			mma8x5x_fifo_setting(pdata,pdata->fifo_timeout,0); //10s timeout
+			mma8x5x_fifo_interrupt(pdata->client,1);
+			pdata->awaken = 0;
+		}
+	}
+	return IRQ_HANDLED;
+}
+
 
 static ssize_t mma8x5x_enable_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
 {
-	struct input_polled_dev *poll_dev = dev_get_drvdata(dev);
-	struct mma8x5x_data *pdata = (struct mma8x5x_data *)(poll_dev->private);
+	struct mma8x5x_data *pdata = dev_get_drvdata(dev);
 	struct i2c_client *client = pdata->client;
 	u8 val;
 	int enable;
@@ -305,8 +474,7 @@ static ssize_t mma8x5x_enable_store(struct device *dev,
 				    struct device_attribute *attr,
 				    const char *buf, size_t count)
 {
-	struct input_polled_dev *poll_dev = dev_get_drvdata(dev);
-	struct mma8x5x_data *pdata = (struct mma8x5x_data *)(poll_dev->private);
+	struct mma8x5x_data *pdata = dev_get_drvdata(dev);
 	struct i2c_client *client = pdata->client;
 	int ret;
 	unsigned long enable;
@@ -317,10 +485,15 @@ static ssize_t mma8x5x_enable_store(struct device *dev,
 	enable = (enable > 0) ? 1 : 0;
 	if (enable && pdata->active == MMA_STANDBY) {
 		val = i2c_smbus_read_byte_data(client, MMA8X5X_CTRL_REG1);
-		ret = i2c_smbus_write_byte_data(client,
-				MMA8X5X_CTRL_REG1, val | 0x01);
+		ret = i2c_smbus_write_byte_data(client,MMA8X5X_CTRL_REG1, val | 0x01);
 		if (!ret) {
 			pdata->active = MMA_ACTIVED;
+			if(pdata->fifo_timeout <= 0) //continuous mode
+				mma8x5x_work(pdata);
+			else{       /*fifo mode*/
+				mma8x5x_fifo_setting(pdata,pdata->fifo_timeout,0); //no overwirte fifo
+				mma8x5x_fifo_interrupt(client,1);
+			}
 			printk(KERN_INFO"mma enable setting active \n");
 		}
 	} else if (enable == 0  && pdata->active == MMA_ACTIVED) {
@@ -328,19 +501,100 @@ static ssize_t mma8x5x_enable_store(struct device *dev,
 		ret = i2c_smbus_write_byte_data(client, MMA8X5X_CTRL_REG1, val & 0xFE);
 		if (!ret) {
 			pdata->active = MMA_STANDBY;
+			if(pdata->fifo_timeout <= 0) //continuous mode
+				cancel_delayed_work_sync(&pdata->work);
+			else{ 						/*fifo mode*/
+				mma8x5x_fifo_setting(pdata,0,0); //no overwirte fifo
+				mma8x5x_fifo_interrupt(client,0);
+			}
 			printk(KERN_INFO"mma enable setting inactive \n");
 		}
 	}
 	mutex_unlock(&pdata->data_lock);
 	return count;
 }
+
+static ssize_t mma8x5x_delay_show(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	struct mma8x5x_data *pdata = dev_get_drvdata(dev);
+	int delay;
+	mutex_lock(&pdata->data_lock);
+	delay  = pdata->delay;
+	mutex_unlock(&pdata->data_lock);
+	return sprintf(buf, "%d\n", delay);
+}
+
+static ssize_t mma8x5x_delay_store(struct device *dev,
+				    struct device_attribute *attr,
+				    const char *buf, size_t count)
+{
+	struct mma8x5x_data *pdata = dev_get_drvdata(dev);
+	struct i2c_client * client = pdata->client;
+	int delay;
+	delay = simple_strtoul(buf, NULL, 10);
+	mutex_lock(&pdata->data_lock);
+	cancel_delayed_work_sync(&pdata->work);
+	pdata->delay = delay;
+	if(pdata->active == MMA_ACTIVED && pdata->fifo_timeout <= 0){
+		mma8x5x_odr_set(client,delay);
+		mma8x5x_work(pdata);
+	}
+	mutex_unlock(&pdata->data_lock);
+	return count;
+}
+
+static ssize_t mma8x5x_fifo_show(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	int count = 0;
+	struct mma8x5x_data *pdata = dev_get_drvdata(dev);
+	mutex_lock(&pdata->data_lock);
+	count = sprintf(&buf[count], "period poll  :%d  ms\n", pdata->delay);
+	count += sprintf(&buf[count],"period fifo  :%lld  ns\n",pdata->period_rel);
+	count += sprintf(&buf[count],"timeout :%d ms\n", pdata->fifo_timeout);
+	count += sprintf(&buf[count],"interrupt wake up: %s\n", (pdata->fifo_wakeup ? "yes" : "no"));  /*is the interrupt enable*/ 
+	mutex_unlock(&pdata->data_lock);
+	return count;
+}
+
+static ssize_t mma8x5x_fifo_store(struct device *dev,
+				    struct device_attribute *attr,
+				    const char *buf, size_t count)
+{
+	struct mma8x5x_data *pdata = dev_get_drvdata(dev);
+	struct i2c_client * client = pdata->client;
+	int period,timeout,wakeup;
+	sscanf(buf,"%d,%d,%d",&period,&timeout,&wakeup);
+	printk("period %d ,timeout is %d, wake up is :%d\n",period,timeout,wakeup);
+	if(timeout > 0){
+		mutex_lock(&pdata->data_lock);
+		cancel_delayed_work_sync(&pdata->work);
+		pdata->delay = period;
+		mutex_unlock(&pdata->data_lock);
+		mma8x5x_fifo_setting(pdata,timeout,0); //no overwirte fifo
+		mma8x5x_fifo_interrupt(client,1);
+		pdata->fifo_timeout = timeout;
+		pdata->fifo_wakeup = wakeup;
+	}else{
+		mma8x5x_fifo_setting(pdata,timeout,0); //no overwirte fifo
+		mma8x5x_fifo_interrupt(client,0);
+		pdata->fifo_timeout = timeout;
+		pdata->fifo_wakeup = wakeup;
+		mutex_lock(&pdata->data_lock);
+		pdata->delay = period;
+		if(pdata->active == MMA_ACTIVED)
+			mma8x5x_work(pdata);
+		mutex_unlock(&pdata->data_lock);
+	}
+	return count;
+}
+
 static ssize_t mma8x5x_position_show(struct device *dev,
 				     struct device_attribute *attr, char *buf)
 {
-	struct input_polled_dev *poll_dev = dev_get_drvdata(dev);
-	struct mma8x5x_data *pdata = (struct mma8x5x_data *)(poll_dev->private);
+	struct mma8x5x_data *pdata  = dev_get_drvdata(dev);
 	int position = 0;
-
 	mutex_lock(&pdata->data_lock);
 	position = pdata->position;
 	mutex_unlock(&pdata->data_lock);
@@ -351,10 +605,8 @@ static ssize_t mma8x5x_position_store(struct device *dev,
 				      struct device_attribute *attr,
 				      const char *buf, size_t count)
 {
-	struct input_polled_dev *poll_dev = dev_get_drvdata(dev);
-	struct mma8x5x_data *pdata = (struct mma8x5x_data *)(poll_dev->private);
+	struct mma8x5x_data *pdata  = dev_get_drvdata(dev);
 	int position;
-
 	position = simple_strtoul(buf, NULL, 10);
 	mutex_lock(&pdata->data_lock);
 	pdata->position = position;
@@ -364,11 +616,18 @@ static ssize_t mma8x5x_position_store(struct device *dev,
 
 static DEVICE_ATTR(enable, S_IWUSR | S_IRUGO,
 		   mma8x5x_enable_show, mma8x5x_enable_store);
+static DEVICE_ATTR(poll_delay, S_IWUSR | S_IRUGO,
+		   mma8x5x_delay_show, mma8x5x_delay_store);
+
+static DEVICE_ATTR(fifo, S_IWUSR | S_IRUGO,
+		   mma8x5x_fifo_show, mma8x5x_fifo_store);
 static DEVICE_ATTR(position, S_IWUSR | S_IRUGO,
 		   mma8x5x_position_show, mma8x5x_position_store);
 
 static struct attribute *mma8x5x_attributes[] = {
 	&dev_attr_enable.attr,
+	&dev_attr_poll_delay.attr,
+	&dev_attr_fifo.attr,
 	&dev_attr_position.attr,
 	NULL
 };
@@ -392,6 +651,55 @@ static int mma8x5x_detect(struct i2c_client *client,
 	strlcpy(info->type, "mma8x5x", I2C_NAME_SIZE);
 	return 0;
 }
+static int mma8x5x_open(struct inode *inode, struct file *file){
+	int err;
+	err = nonseekable_open(inode, file);
+	if (err)
+		return err;
+	file->private_data = p_mma8x5x_data;
+	return 0;
+}
+static ssize_t mma8x5x_read(struct file *file, char __user *buf, size_t size, loff_t *ppos){
+	struct mma8x5x_data *pdata = file->private_data;
+	int ret = 0;
+	if (!(file->f_flags & O_NONBLOCK)) {
+		ret = wait_event_interruptible(pdata->fifo_wq, (atomic_read(&pdata->fifo_ready) != 0));
+		if (ret)
+			return ret;
+	}
+	if (!atomic_read(&pdata->fifo_ready))
+		return -ENODEV;
+	if(size < sizeof(struct mma8x5x_fifo)){
+		printk(KERN_ERR "the buffer leght less than need\n");
+		return -ENOMEM;
+	}
+	if(!copy_to_user(buf,&pdata->fifo,sizeof(struct mma8x5x_fifo))){
+		atomic_set(&pdata->fifo_ready,0);
+		return size;
+	}
+	return -ENOMEM ;
+}
+static unsigned int mma8x5x_poll(struct file * file, struct poll_table_struct * wait){
+	struct mma8x5x_data *pdata = file->private_data;
+	poll_wait(file, &pdata->fifo_wq, wait);
+	if (atomic_read(&pdata->fifo_ready))
+		return POLLIN | POLLRDNORM;
+	return 0;
+}
+
+static const struct file_operations mma8x5x_fops = {
+	.owner = THIS_MODULE,
+	.open = mma8x5x_open,
+	.read = mma8x5x_read,
+	.poll = mma8x5x_poll,
+};
+
+static struct miscdevice mma8x5x_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "mma8x5x",
+	.fops = &mma8x5x_fops,
+};
+
 static int __devinit mma8x5x_probe(struct i2c_client *client,
 				   const struct i2c_device_id *id)
 {
@@ -399,7 +707,6 @@ static int __devinit mma8x5x_probe(struct i2c_client *client,
 	struct input_dev *idev;
 	struct mma8x5x_data *pdata;
 	struct i2c_adapter *adapter;
-	struct input_polled_dev *poll_dev;
 
 	adapter = to_i2c_adapter(client->dev.parent);
 	result = i2c_check_functionality(adapter,
@@ -425,25 +732,23 @@ static int __devinit mma8x5x_probe(struct i2c_client *client,
 		goto err_out;
 	}
 	/* Initialize the MMA8X5X chip */
+	memset(pdata,0,sizeof(struct mma8x5x_data));
 	pdata->client = client;
 	pdata->chip_id = chip_id;
 	pdata->mode = MODE_2G;
+	pdata->fifo_wakeup = 0;
+	pdata->fifo_timeout = 0;
 	pdata->position = *(int *)client->dev.platform_data;
+	p_mma8x5x_data = pdata;
 	mutex_init(&pdata->data_lock);
 	i2c_set_clientdata(client, pdata);
 	mma8x5x_device_init(client);
-	poll_dev = input_allocate_polled_device();
-	if (!poll_dev) {
+	idev = input_allocate_device();
+	if (!idev) {
 		result = -ENOMEM;
-		dev_err(&client->dev, "alloc poll device failed!\n");
-		goto err_alloc_poll_device;
+		dev_err(&client->dev, "alloc input device failed!\n");
+		goto err_alloc_input_device;
 	}
-	poll_dev->poll = mma8x5x_dev_poll;
-	poll_dev->poll_interval = POLL_STOP_TIME;
-	poll_dev->poll_interval_min = POLL_INTERVAL_MIN;
-	poll_dev->poll_interval_max = POLL_INTERVAL_MAX;
-	poll_dev->private = pdata;
-	idev = poll_dev->input;
 	idev->name = "FreescaleAccelerometer";
 	idev->uniq = mma8x5x_id2name(pdata->chip_id);
 	idev->id.bustype = BUS_I2C;
@@ -451,25 +756,48 @@ static int __devinit mma8x5x_probe(struct i2c_client *client,
 	input_set_abs_params(idev, ABS_X, -0x7fff, 0x7fff, 0, 0);
 	input_set_abs_params(idev, ABS_Y, -0x7fff, 0x7fff, 0, 0);
 	input_set_abs_params(idev, ABS_Z, -0x7fff, 0x7fff, 0, 0);
-	pdata->poll_dev = poll_dev;
-	result = input_register_polled_device(pdata->poll_dev);
+	dev_set_drvdata(&idev->dev,pdata);
+	pdata->idev= idev ;
+	result = input_register_device(pdata->idev);
 	if (result) {
-		dev_err(&client->dev, "register poll device failed!\n");
-		goto err_register_polled_device;
+		dev_err(&client->dev, "register input device failed!\n");
+		goto err_register_input_device;
 	}
+	pdata->delay = POLL_INTERVAL;
+	INIT_DELAYED_WORK(&pdata->work, mma8x5x_dev_poll);
 	result = sysfs_create_group(&idev->dev.kobj, &mma8x5x_attr_group);
 	if (result) {
 		dev_err(&client->dev, "create device file failed!\n");
 		result = -EINVAL;
 		goto err_create_sysfs;
 	}
+	init_waitqueue_head(&pdata->fifo_wq);
+	if(client->irq){
+		result= request_threaded_irq(client->irq,NULL, mma8x5x_irq_handler,
+				  IRQF_TRIGGER_LOW | IRQF_ONESHOT, client->dev.driver->name, pdata);
+		if (result < 0) {
+			dev_err(&client->dev, "failed to register MMA8x5x irq %d!\n",
+				client->irq);
+			goto err_register_irq;
+		}else{
+			result = misc_register(&mma8x5x_dev);
+			if (result) {
+				dev_err(&client->dev,"register fifo device error\n");
+				goto err_reigster_dev;
+			}
+		}
+	}
 	printk(KERN_INFO"mma8x5x device driver probe successfully\n");
 	return 0;
+err_reigster_dev:
+	free_irq(client->irq,pdata);
+err_register_irq:
+	sysfs_remove_group(&idev->dev.kobj,&mma8x5x_attr_group);
 err_create_sysfs:
-	input_unregister_polled_device(pdata->poll_dev);
-err_register_polled_device:
-	input_free_polled_device(poll_dev);
-err_alloc_poll_device:
+	input_unregister_device(pdata->idev);
+err_register_input_device:
+	input_free_device(idev);
+err_alloc_input_device:
 	kfree(pdata);
 err_out:
 	return result;
@@ -477,12 +805,12 @@ err_out:
 static int __devexit mma8x5x_remove(struct i2c_client *client)
 {
 	struct mma8x5x_data *pdata = i2c_get_clientdata(client);
-	struct input_polled_dev *poll_dev = pdata->poll_dev;
-
+	struct input_dev *idev = pdata->idev;
 	mma8x5x_device_stop(client);
 	if (pdata) {
-		input_unregister_polled_device(poll_dev);
-		input_free_polled_device(poll_dev);
+		sysfs_remove_group(&idev->dev.kobj,&mma8x5x_attr_group);
+		input_unregister_device(pdata->idev);
+		input_free_device(pdata->idev);
 		kfree(pdata);
 	}
 	return 0;
@@ -493,9 +821,20 @@ static int mma8x5x_suspend(struct device *dev)
 {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct mma8x5x_data *pdata = i2c_get_clientdata(client);
-
-	if (pdata->active == MMA_ACTIVED)
-		mma8x5x_device_stop(client);
+	if(pdata->fifo_timeout <= 0){
+		if (pdata->active == MMA_ACTIVED)
+				mma8x5x_device_stop(client);
+	}else{
+		if (pdata->active == MMA_ACTIVED){
+			if (pdata->fifo_wakeup){
+				mma8x5x_fifo_setting(pdata,10000,0); //10s timeout , overwrite
+				mma8x5x_fifo_interrupt(client,1);
+			}else{
+				mma8x5x_fifo_interrupt(client,0);
+				mma8x5x_fifo_setting(pdata,10000,1); //10s timeout , overwrite
+			}
+		}
+	}
 	return 0;
 }
 
@@ -504,10 +843,16 @@ static int mma8x5x_resume(struct device *dev)
 	int val = 0;
 	struct i2c_client *client = to_i2c_client(dev);
 	struct mma8x5x_data *pdata = i2c_get_clientdata(client);
-
-	if (pdata->active == MMA_ACTIVED) {
-		val = i2c_smbus_read_byte_data(client, MMA8X5X_CTRL_REG1);
-		i2c_smbus_write_byte_data(client, MMA8X5X_CTRL_REG1, val | 0x01);
+	if(pdata->fifo_timeout <= 0){
+		if (pdata->active == MMA_ACTIVED) {
+			val = i2c_smbus_read_byte_data(client, MMA8X5X_CTRL_REG1);
+			i2c_smbus_write_byte_data(client, MMA8X5X_CTRL_REG1, val | 0x01);
+		}
+	}else{
+		if (pdata->active == MMA_ACTIVED) {
+			mma8x5x_fifo_interrupt(client,1);
+			pdata->awaken = 1; //awake from suspend
+		}
 	}
 	return 0;
 
