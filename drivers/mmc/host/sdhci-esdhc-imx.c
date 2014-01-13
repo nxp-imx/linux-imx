@@ -976,6 +976,9 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 	if (of_find_property(np, "keep-power-in-suspend", NULL))
 		host->mmc->pm_caps |= MMC_PM_KEEP_POWER;
 
+	if (of_find_property(np, "enable-sdio-wakeup", NULL))
+		host->mmc->pm_caps |= MMC_PM_WAKE_SDIO_IRQ;
+
 	return 0;
 }
 #else
@@ -1166,6 +1169,10 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	} else {
 		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 	}
+
+	if (host->mmc->pm_caps & MMC_PM_KEEP_POWER &&
+		host->mmc->pm_caps & MMC_PM_WAKE_SDIO_IRQ)
+		device_init_wakeup(&pdev->dev, 1);
 
 	err = sdhci_add_host(host);
 	if (err)
