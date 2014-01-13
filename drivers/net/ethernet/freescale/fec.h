@@ -30,8 +30,8 @@
  */
 #define FEC_IEVENT		0x004 /* Interrupt event reg */
 #define FEC_IMASK		0x008 /* Interrupt mask reg */
-#define FEC_R_DES_ACTIVE	0x010 /* Receive descriptor reg */
-#define FEC_X_DES_ACTIVE	0x014 /* Transmit descriptor reg */
+#define FEC_R_DES_ACTIVE_0	0x010 /* Receive descriptor reg */
+#define FEC_X_DES_ACTIVE_0	0x014 /* Transmit descriptor reg */
 #define FEC_ECNTRL		0x024 /* Ethernet control reg */
 #define FEC_MII_DATA		0x040 /* MII manage frame reg */
 #define FEC_MII_SPEED		0x044 /* MII speed control reg */
@@ -41,6 +41,12 @@
 #define FEC_ADDR_LOW		0x0e4 /* Low 32bits MAC address */
 #define FEC_ADDR_HIGH		0x0e8 /* High 16bits MAC address */
 #define FEC_OPD			0x0ec /* Opcode + Pause duration */
+#define FEC_TXIC0		0xF0  /* Transmit Interrupt Coalescing for ring 0 */
+#define FEC_TXIC1		0xF4  /* Transmit Interrupt Coalescing for ring 1 */
+#define FEC_TXIC2		0xF8  /* Transmit Interrupt Coalescing for ring 2 */
+#define FEC_RXIC0		0x100 /* Receive Interrupt Coalescing for ring 0 */
+#define FEC_RXIC1		0x104 /* Receive Interrupt Coalescing for ring 1 */
+#define FEC_RXIC2		0x108 /* Receive Interrupt Coalescing for ring 2 */
 #define FEC_HASH_TABLE_HIGH	0x118 /* High 32bits hash table */
 #define FEC_HASH_TABLE_LOW	0x11c /* Low 32bits hash table */
 #define FEC_GRP_HASH_TABLE_HIGH	0x120 /* High 32bits hash table */
@@ -48,14 +54,27 @@
 #define FEC_X_WMRK		0x144 /* FIFO transmit water mark */
 #define FEC_R_BOUND		0x14c /* FIFO receive bound reg */
 #define FEC_R_FSTART		0x150 /* FIFO receive start reg */
-#define FEC_R_DES_START		0x180 /* Receive descriptor ring */
-#define FEC_X_DES_START		0x184 /* Transmit descriptor ring */
+#define FEC_R_DES_START_1	0x160 /* Receive descriptor ring 1 */
+#define FEC_X_DES_START_1	0x164 /* Transmit descriptor ring 1 */
+#define FEC_R_DES_START_2	0x16c /* Receive descriptor ring 2 */
+#define FEC_X_DES_START_2	0x170 /* Transmit descriptor ring 2 */
+#define FEC_R_DES_START_0	0x180 /* Receive descriptor ring */
+#define FEC_X_DES_START_0	0x184 /* Transmit descriptor ring */
 #define FEC_R_BUFF_SIZE		0x188 /* Maximum receive buff size */
 #define FEC_R_FIFO_RSFL		0x190 /* Receive FIFO section full threshold */
 #define FEC_R_FIFO_RSEM		0x194 /* Receive FIFO section empty threshold */
 #define FEC_R_FIFO_RAEM		0x198 /* Receive FIFO almost empty threshold */
 #define FEC_R_FIFO_RAFL		0x19c /* Receive FIFO almost full threshold */
 #define FEC_RACC		0x1C4 /* Receive Accelerator function */
+#define FEC_RCMR_1		0x1c8 /* Receive classification match ring 1 */
+#define FEC_RCMR_2		0x1cc /* Receive classification match ring 2 */
+#define FEC_DMA_CFG_1		0x1d8 /* DMA class based configuration for ring 1 */
+#define FEC_DMA_CFG_2		0x1dc /* DMA class based Configuration for ring 2 */
+#define FEC_R_DES_ACTIVE_1	0x1e0 /* Receive descriptor active for ring 1 */
+#define FEC_X_DES_ACTIVE_1	0x1e4 /* Transmit descriptor active for ring 1 */
+#define FEC_R_DES_ACTIVE_2	0x1e8 /* Receive descriptor active for ring 2 */
+#define FEC_X_DES_ACTIVE_2	0x1ec /* Transmit descriptor active for ring 2 */
+#define FEC_QOS_SCHEME		0x1f0 /* Set multi queues Qos scheme */
 #define FEC_MIIGSK_CFGR		0x300 /* MIIGSK Configuration reg */
 #define FEC_MIIGSK_ENR		0x308 /* MIIGSK Enable reg */
 
@@ -275,17 +294,48 @@ struct bufdesc_ex {
 #define FEC_ENET_BABR   ((uint)0x40000000)      /* Babbling receiver */
 #define FEC_ENET_BABT   ((uint)0x20000000)      /* Babbling transmitter */
 #define FEC_ENET_GRA    ((uint)0x10000000)      /* Graceful stop complete */
-#define FEC_ENET_TXF    ((uint)0x08000000)      /* Full frame transmitted */
+#define FEC_ENET_TXF_0	((uint)0x08000000)	/* Full frame transmitted */
+#define FEC_ENET_TXF_1	((uint)0x00000008)	/* Full frame transmitted */
+#define FEC_ENET_TXF_2	((uint)0x00000080)	/* Full frame transmitted */
 #define FEC_ENET_TXB    ((uint)0x04000000)      /* A buffer was transmitted */
-#define FEC_ENET_RXF    ((uint)0x02000000)      /* Full frame received */
+#define FEC_ENET_RXF_0	((uint)0x02000000)	/* Full frame received */
+#define FEC_ENET_RXF_1	((uint)0x00000002)	/* Full frame received */
+#define FEC_ENET_RXF_2	((uint)0x00000020)	/* Full frame received */
 #define FEC_ENET_RXB    ((uint)0x01000000)      /* A buffer was received */
 #define FEC_ENET_MII    ((uint)0x00800000)      /* MII interrupt */
 #define FEC_ENET_EBERR  ((uint)0x00400000)      /* SDMA bus error */
+#define FEC_ENET_TXF	(FEC_ENET_TXF_0 | FEC_ENET_TXF_1 | FEC_ENET_TXF_2)
+#define FEC_ENET_RXF	(FEC_ENET_RXF_0 | FEC_ENET_RXF_1 | FEC_ENET_RXF_2)
 #define FEC_ENET_TS_AVAIL       ((uint)0x00010000)
 #define FEC_ENET_TS_TIMER       ((uint)0x00008000)
 
 #define FEC_DEFAULT_IMASK (FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_MII | FEC_ENET_TS_TIMER)
 #define FEC_RX_DISABLED_IMASK (FEC_DEFAULT_IMASK & (~FEC_ENET_RXF))
+
+/* ENET AVB related macros define */
+#define FEC_R_DES_START(X)	((X == 1) ? FEC_R_DES_START_1 : \
+				((X == 2) ? FEC_R_DES_START_2 : FEC_R_DES_START_0))
+#define FEC_X_DES_START(X)	((X == 1) ? FEC_X_DES_START_1 : \
+				((X == 2) ? FEC_X_DES_START_2 : FEC_X_DES_START_0))
+#define FEC_R_DES_ACTIVE(X)	((X == 1) ? FEC_R_DES_ACTIVE_1 : \
+				((X == 2) ? FEC_R_DES_ACTIVE_2 : FEC_R_DES_ACTIVE_0))
+#define FEC_X_DES_ACTIVE(X)	((X == 1) ? FEC_X_DES_ACTIVE_1 : \
+				((X == 2) ? FEC_X_DES_ACTIVE_2 : FEC_X_DES_ACTIVE_0))
+#define FEC_DMA_CFG(X)		((X == 2) ? FEC_DMA_CFG_2 : FEC_DMA_CFG_1)
+#define FEC_RCMR(X)		((X == 2) ? FEC_RCMR_2 : FEC_RCMR_1)
+#define DMA_CLASS_EN		(1 << 16)
+#define IDLE_SLOPE_MASK		0xFFFF
+#define IDLE_SLOPE_1		0x200 /* BW fraction: 0.5 */
+#define IDLE_SLOPE_2		0x100 /* BW fraction: 0.33 */
+#define IDLE_SLOPE(X)		((X == 1) ? (IDLE_SLOPE_1 & IDLE_SLOPE_MASK) : \
+				(IDLE_SLOPE_2 & IDLE_SLOPE_MASK))
+#define RCMR_MATCHEN		(0x1 << 16)
+#define RCMR_CMP_CFG(v, n)	((v & 0x7) <<  (n << 2))
+#define RCMR_CMP_1		(RCMR_CMP_CFG(0, 0) | RCMR_CMP_CFG(1, 1) | \
+				RCMR_CMP_CFG(2, 2) | RCMR_CMP_CFG(3, 3))
+#define RCMR_CMP_2		(RCMR_CMP_CFG(4, 0) | RCMR_CMP_CFG(5, 1) | \
+				RCMR_CMP_CFG(6, 2) | RCMR_CMP_CFG(7, 3))
+#define RCMR_CMP(X)		((X == 1) ? RCMR_CMP_1 : RCMR_CMP_2)
 
 /* IEEE 1588 definition */
 #define FEC_T_PERIOD_ONE_SEC           0x3B9ACA00
@@ -381,7 +431,7 @@ struct ptp_time_correct {
 struct fec_enet_delayed_work {
 	struct delayed_work delay_work;
 	bool timeout;
-	bool trig_tx;
+	int trig_tx;
 };
 
 struct fec_enet_priv_tx_q {

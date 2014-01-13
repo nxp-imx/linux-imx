@@ -416,7 +416,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	bdp_pre = fec_enet_get_prevdesc(bdp, fep->bufdesc_ex);
 	if ((id_entry->driver_data & FEC_QUIRK_ERR006358) &&
 	    !(bdp_pre->cbd_sc & BD_ENET_TX_READY)) {
-		fep->delay_work.trig_tx = true;
+		fep->delay_work.trig_tx = queue + 1;
 		schedule_delayed_work(&(fep->delay_work.delay_work),
 					msecs_to_jiffies(1));
 	}
@@ -435,7 +435,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		netif_tx_stop_queue(nq);
 
 	/* Trigger transmission start */
-	writel(0, fep->hwp + FEC_X_DES_ACTIVE);
+	writel(0, fep->hwp + FEC_X_DES_ACTIVE(queue));
 
 	return NETDEV_TX_OK;
 }
@@ -497,17 +497,41 @@ static void fec_enet_bd_init(struct net_device *dev)
 	}
 }
 
-static inline void fec_enet_enable_ring(struct net_device *ndev)
+static void fec_enet_active_rxring(struct net_device *ndev)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+	int i;
+
+	for (i = 0; i < fep->num_rx_queues; i++)
+		writel(0, fep->hwp + FEC_R_DES_ACTIVE(i));
+}
+
+static void fec_enet_enable_ring(struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	struct fec_enet_priv_tx_q *tx_queue;
 	struct fec_enet_priv_rx_q *rx_queue;
+	int i;
 
-	rx_queue = fep->rx_queue[0];
-	writel(rx_queue->bd_dma, fep->hwp + FEC_R_DES_START);
+	for (i = 0; i < fep->num_rx_queues; i++) {
+		rx_queue = fep->rx_queue[i];
+		writel(rx_queue->bd_dma, fep->hwp + FEC_R_DES_START(i));
 
-	tx_queue = fep->tx_queue[0];
-	writel(tx_queue->bd_dma, fep->hwp + FEC_X_DES_START);
+		/* enable DMA1/2 */
+		if (i)
+			writel(RCMR_MATCHEN | RCMR_CMP(i),
+				fep->hwp + FEC_RCMR(i));
+	}
+
+	for (i = 0; i < fep->num_tx_queues; i++) {
+		tx_queue = fep->tx_queue[i];
+		writel(tx_queue->bd_dma, fep->hwp + FEC_X_DES_START(i));
+
+		/* enable DMA1/2 */
+		if (i)
+			writel(DMA_CLASS_EN | IDLE_SLOPE(i),
+				fep->hwp + FEC_DMA_CFG(i));
+	}
 }
 
 static void fec_enet_reset_skb(struct net_device *ndev)
@@ -709,7 +733,7 @@ fec_restart(struct net_device *ndev, int duplex)
 
 	/* And last, enable the transmit and receive processing */
 	writel(ecntl, fep->hwp + FEC_ECNTRL);
-	writel(0, fep->hwp + FEC_R_DES_ACTIVE);
+	fec_enet_active_rxring(ndev);
 
 	if (fep->bufdesc_ex)
 		fec_ptp_start_cyclecounter(ndev);
@@ -793,8 +817,9 @@ static void fec_enet_work(struct work_struct *work)
 	}
 
 	if (fep->delay_work.trig_tx) {
-		fep->delay_work.trig_tx = false;
-		writel(0, fep->hwp + FEC_X_DES_ACTIVE);
+		writel(0, fep->hwp +
+			FEC_X_DES_ACTIVE(fep->delay_work.trig_tx - 1));
+		fep->delay_work.trig_tx = 0;
 	}
 }
 
@@ -1111,7 +1136,7 @@ rx_processing_done:
 			 * incoming frames.  On a heavily loaded network, we should be
 			 * able to keep up at the expense of system resources.
 			 */
-			writel(0, fep->hwp + FEC_R_DES_ACTIVE);
+			writel(0, fep->hwp + FEC_R_DES_ACTIVE(queue_id));
 		}
 		rxq->cur_rx = bdp;
 	}
@@ -1132,9 +1157,17 @@ static bool fec_enet_collect_events(struct fec_enet_private *fep)
 
 	if (int_events & FEC_ENET_RXF)
 		fep->work_rx |= (1 << 2);
+	if (int_events & FEC_ENET_RXF_1)
+		fep->work_rx |= (1 << 0);
+	if (int_events & FEC_ENET_RXF_2)
+		fep->work_rx |= (1 << 1);
 
 	if (int_events & FEC_ENET_TXF)
 		fep->work_tx |= (1 << 2);
+	if (int_events & FEC_ENET_TXF_1)
+		fep->work_tx |= (1 << 0);
+	if (int_events & FEC_ENET_TXF_2)
+		fep->work_tx |= (1 << 1);
 
 	if (int_events & FEC_ENET_TS_TIMER)
 		fep->work_ts = 1;
@@ -1856,10 +1889,12 @@ static void fec_enet_free_buffers(struct net_device *ndev)
 		}
 	}
 
-	tx_queue = fep->tx_queue[0];
-	bdp = tx_queue->tx_bd_base;
-	for (i = 0; i < tx_queue->tx_ring_size; i++)
-		kfree(tx_queue->tx_bounce[i]);
+	for (j = 0; j < fep->num_tx_queues; j++) {
+		tx_queue = fep->tx_queue[j];
+		bdp = tx_queue->tx_bd_base;
+		for (i = 0; i < tx_queue->tx_ring_size; i++)
+			kfree(tx_queue->tx_bounce[i]);
+	}
 }
 
 static int fec_enet_alloc_buffers(struct net_device *ndev)
@@ -1910,32 +1945,35 @@ static int fec_enet_alloc_buffers(struct net_device *ndev)
 		bdp->cbd_sc |= BD_SC_WRAP;
 	}
 
-	/* legacy for the previous enet IP verision with only
-	 * support one queue
+	/* legacy for the previous enet IP verision that enet uDMA don't
+	 * support tx data buffer byte align.
 	 */
-	tx_queue = fep->tx_queue[0];
-	bdp = tx_queue->tx_bd_base;
-	for (i = 0; i < tx_queue->tx_ring_size; i++) {
-		tx_queue->tx_bounce[i] = kmalloc(FEC_ENET_TX_FRSIZE, GFP_KERNEL);
-		if (!tx_queue->tx_bounce[i]) {
-			fec_enet_free_buffers(ndev);
-			return -ENOMEM;
+	for (j = 0; j < fep->num_tx_queues; j++) {
+		tx_queue = fep->tx_queue[j];
+		bdp = tx_queue->tx_bd_base;
+
+		for (i = 0; i < tx_queue->tx_ring_size; i++) {
+			tx_queue->tx_bounce[i] = kmalloc(FEC_ENET_TX_FRSIZE, GFP_KERNEL);
+			if (!tx_queue->tx_bounce[i]) {
+				fec_enet_free_buffers(ndev);
+				return -ENOMEM;
+			}
+
+			bdp->cbd_sc = 0;
+			bdp->cbd_bufaddr = 0;
+
+			if (fep->bufdesc_ex) {
+				struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
+				ebdp->cbd_esc = BD_ENET_TX_INT;
+			}
+
+			bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
 		}
 
-		bdp->cbd_sc = 0;
-		bdp->cbd_bufaddr = 0;
-
-		if (fep->bufdesc_ex) {
-			struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
-			ebdp->cbd_esc = BD_ENET_TX_INT;
-		}
-
-		bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
+		/* Set the last buffer to wrap. */
+		bdp = fec_enet_get_prevdesc(bdp, fep->bufdesc_ex);
+		bdp->cbd_sc |= BD_SC_WRAP;
 	}
-
-	/* Set the last buffer to wrap. */
-	bdp = fec_enet_get_prevdesc(bdp, fep->bufdesc_ex);
-	bdp->cbd_sc |= BD_SC_WRAP;
 
 	return 0;
 }
