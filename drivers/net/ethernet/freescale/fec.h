@@ -384,6 +384,30 @@ struct fec_enet_delayed_work {
 	bool trig_tx;
 };
 
+struct fec_enet_priv_tx_q {
+	int index;
+	unsigned char *tx_bounce[TX_RING_SIZE];
+	struct  sk_buff *tx_skbuff[TX_RING_SIZE];
+
+	dma_addr_t	bd_dma;
+	struct bufdesc	*tx_bd_base;
+	uint tx_ring_size;
+
+	struct bufdesc	*cur_tx;
+	struct bufdesc	*dirty_tx;
+};
+
+struct fec_enet_priv_rx_q {
+	int index;
+	struct  sk_buff *rx_skbuff[RX_RING_SIZE];
+
+	dma_addr_t	bd_dma;
+	struct bufdesc	*rx_bd_base;
+	uint rx_ring_size;
+
+	struct bufdesc	*cur_rx;
+};
+
 /* The FEC buffer descriptors track the ring buffers.  The rx_bd_base and
  * tx_bd_base always point to the base of the buffer descriptors.  The
  * cur_rx and cur_tx point to the currently available buffer.
@@ -408,19 +432,16 @@ struct fec_enet_private {
 	int num_rx_queues;
 
 	/* The saved address of a sent-in-place packet/buffer, for skfree(). */
-	unsigned char *tx_bounce[TX_RING_SIZE];
-	struct	sk_buff *tx_skbuff[TX_RING_SIZE];
-	struct	sk_buff *rx_skbuff[RX_RING_SIZE];
+	struct fec_enet_priv_tx_q *tx_queue[FEC_ENET_MAX_TX_QS];
+	struct fec_enet_priv_rx_q *rx_queue[FEC_ENET_MAX_RX_QS];
 
-	/* CPM dual port RAM relative addresses */
-	dma_addr_t	bd_dma;
-	/* Address of Rx and Tx buffers */
-	struct bufdesc	*rx_bd_base;
-	struct bufdesc	*tx_bd_base;
-	/* The next free ring entry */
-	struct bufdesc	*cur_rx, *cur_tx;
-	/* The ring entries to be free()ed */
-	struct bufdesc	*dirty_tx;
+	unsigned int total_tx_ring_size;
+	unsigned int total_rx_ring_size;
+
+	unsigned long work_tx;
+	unsigned long work_rx;
+	unsigned long work_ts;
+	unsigned long work_mdio;
 
 	struct	platform_device *pdev;
 

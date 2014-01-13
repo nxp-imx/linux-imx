@@ -80,6 +80,7 @@ static void fec_reset_phy(struct platform_device *pdev);
 
 #define DRIVER_NAME	"fec"
 #define FEC_NAPI_WEIGHT	64
+#define FEC_ENET_GET_QUQUE(_x) ((_x == 0) ? 1 : ((_x == 1) ? 2 : 0))
 
 /* Pause frame feild and FIFO threshold */
 #define FEC_ENET_FCE	(1 << 5)
@@ -310,12 +311,19 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	const struct platform_device_id *id_entry =
 				platform_get_device_id(fep->pdev);
 	struct bufdesc *bdp, *bdp_pre;
+	struct fec_enet_priv_tx_q *txq;
+	struct netdev_queue *nq;
+	unsigned short queue;
 	void *bufaddr;
 	unsigned short	status;
 	unsigned int index;
 
+	queue = skb_get_queue_mapping(skb);
+	txq = fep->tx_queue[queue];
+	nq = netdev_get_tx_queue(ndev, queue);
+
 	/* Fill in a Tx ring entry */
-	bdp = fep->cur_tx;
+	bdp = txq->cur_tx;
 
 	status = bdp->cbd_sc;
 
@@ -347,13 +355,13 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	 */
 	if (fep->bufdesc_ex)
 		index = (struct bufdesc_ex *)bdp -
-			(struct bufdesc_ex *)fep->tx_bd_base;
+			(struct bufdesc_ex *)txq->tx_bd_base;
 	else
-		index = bdp - fep->tx_bd_base;
+		index = bdp - txq->tx_bd_base;
 
 	if (((unsigned long) bufaddr) & FEC_ALIGNMENT) {
-		memcpy(fep->tx_bounce[index], skb->data, skb->len);
-		bufaddr = fep->tx_bounce[index];
+		memcpy(txq->tx_bounce[index], skb->data, skb->len);
+		bufaddr = txq->tx_bounce[index];
 	}
 
 	/*
@@ -365,7 +373,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		swap_buffer(bufaddr, skb->len);
 
 	/* Save skb pointer */
-	fep->tx_skbuff[index] = skb;
+	txq->tx_skbuff[index] = skb;
 
 	/* Push the data cache so the CPM does not get stale memory
 	 * data.
@@ -415,16 +423,16 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	/* If this was the last BD in the ring, start at the beginning again. */
 	if (status & BD_ENET_TX_WRAP)
-		bdp = fep->tx_bd_base;
+		bdp = txq->tx_bd_base;
 	else
 		bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
 
 	skb_tx_timestamp(skb);
 
-	fep->cur_tx = bdp;
+	txq->cur_tx = bdp;
 
-	if (fep->cur_tx == fep->dirty_tx)
-		netif_stop_queue(ndev);
+	if (txq->cur_tx == txq->dirty_tx)
+		netif_tx_stop_queue(nq);
 
 	/* Trigger transmission start */
 	writel(0, fep->hwp + FEC_X_DES_ACTIVE);
@@ -437,46 +445,87 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 static void fec_enet_bd_init(struct net_device *dev)
 {
 	struct fec_enet_private *fep = netdev_priv(dev);
+	struct fec_enet_priv_tx_q *tx_queue;
+	struct fec_enet_priv_rx_q *rx_queue;
 	struct bufdesc *bdp;
-	unsigned int i;
+	unsigned int i, j;
 
 	/* Initialize the receive buffer descriptors. */
-	bdp = fep->rx_bd_base;
-	for (i = 0; i < RX_RING_SIZE; i++) {
+	for (i = 0; i < fep->num_rx_queues; i++) {
+		rx_queue = fep->rx_queue[i];
+		bdp = rx_queue->rx_bd_base;
 
-		/* Initialize the BD for every fragment in the page. */
-		if (bdp->cbd_bufaddr)
-			bdp->cbd_sc = BD_ENET_RX_EMPTY;
-		else
-			bdp->cbd_sc = 0;
-		bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
+		for (j = 0; j < rx_queue->rx_ring_size; j++) {
+
+			/* Initialize the BD for every fragment in the page. */
+			if (bdp->cbd_bufaddr)
+				bdp->cbd_sc = BD_ENET_RX_EMPTY;
+			else
+				bdp->cbd_sc = 0;
+			bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
+		}
+
+		/* Set the last buffer to wrap */
+		bdp = fec_enet_get_prevdesc(bdp, fep->bufdesc_ex);
+		bdp->cbd_sc |= BD_SC_WRAP;
+
+		rx_queue->cur_rx = rx_queue->rx_bd_base;
 	}
-
-	/* Set the last buffer to wrap */
-	bdp = fec_enet_get_prevdesc(bdp, fep->bufdesc_ex);
-	bdp->cbd_sc |= BD_SC_WRAP;
-
-	fep->cur_rx = fep->rx_bd_base;
 
 	/* ...and the same for transmit */
-	bdp = fep->tx_bd_base;
-	fep->cur_tx = bdp;
-	for (i = 0; i < TX_RING_SIZE; i++) {
+	for (i = 0; i < fep->num_tx_queues; i++) {
+		tx_queue = fep->tx_queue[i];
+		bdp = tx_queue->tx_bd_base;
+		tx_queue->cur_tx = bdp;
 
-		/* Initialize the BD for every fragment in the page. */
-		bdp->cbd_sc = 0;
-		if (bdp->cbd_bufaddr && fep->tx_skbuff[i]) {
-			dev_kfree_skb_any(fep->tx_skbuff[i]);
-			fep->tx_skbuff[i] = NULL;
+		for (j = 0; j < tx_queue->tx_ring_size; j++) {
+
+			/* Initialize the BD for every fragment in the page. */
+			bdp->cbd_sc = 0;
+			if (bdp->cbd_bufaddr && tx_queue->tx_skbuff[i]) {
+				dev_kfree_skb_any(tx_queue->tx_skbuff[i]);
+				tx_queue->tx_skbuff[i] = NULL;
+			}
+			bdp->cbd_bufaddr = 0;
+			bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
 		}
-		bdp->cbd_bufaddr = 0;
-		bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
-	}
 
-	/* Set the last buffer to wrap */
-	bdp = fec_enet_get_prevdesc(bdp, fep->bufdesc_ex);
-	bdp->cbd_sc |= BD_SC_WRAP;
-	fep->dirty_tx = bdp;
+		/* Set the last buffer to wrap */
+		bdp = fec_enet_get_prevdesc(bdp, fep->bufdesc_ex);
+		bdp->cbd_sc |= BD_SC_WRAP;
+		tx_queue->dirty_tx = bdp;
+	}
+}
+
+static inline void fec_enet_enable_ring(struct net_device *ndev)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+	struct fec_enet_priv_tx_q *tx_queue;
+	struct fec_enet_priv_rx_q *rx_queue;
+
+	rx_queue = fep->rx_queue[0];
+	writel(rx_queue->bd_dma, fep->hwp + FEC_R_DES_START);
+
+	tx_queue = fep->tx_queue[0];
+	writel(tx_queue->bd_dma, fep->hwp + FEC_X_DES_START);
+}
+
+static void fec_enet_reset_skb(struct net_device *ndev)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+	struct fec_enet_priv_tx_q *tx_queue;
+	int i, j;
+
+	for (i = 0; i < fep->num_tx_queues; i++) {
+		tx_queue = fep->tx_queue[i];
+
+		for (j = 0; j < tx_queue->tx_ring_size; j++) {
+			if (tx_queue->tx_skbuff[j]) {
+				dev_kfree_skb_any(tx_queue->tx_skbuff[j]);
+				tx_queue->tx_skbuff[j] = NULL;
+			}
+		}
+	}
 }
 
 /* This function is called to start or restart the FEC during a link
@@ -489,7 +538,6 @@ fec_restart(struct net_device *ndev, int duplex)
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	const struct platform_device_id *id_entry =
 				platform_get_device_id(fep->pdev);
-	int i;
 	u32 val;
 	u32 temp_mac[2];
 	u32 rcntl = OPT_FRAME_SIZE | 0x04;
@@ -498,7 +546,7 @@ fec_restart(struct net_device *ndev, int duplex)
 	if (netif_running(ndev)) {
 		netif_device_detach(ndev);
 		napi_disable(&fep->napi);
-		netif_stop_queue(ndev);
+		netif_tx_stop_all_queues(ndev);
 		netif_tx_lock_bh(ndev);
 	}
 
@@ -533,21 +581,10 @@ fec_restart(struct net_device *ndev, int duplex)
 	fec_enet_bd_init(ndev);
 
 	/* Set receive and transmit descriptor base. */
-	writel(fep->bd_dma, fep->hwp + FEC_R_DES_START);
-	if (fep->bufdesc_ex)
-		writel((unsigned long)fep->bd_dma + sizeof(struct bufdesc_ex)
-			* RX_RING_SIZE, fep->hwp + FEC_X_DES_START);
-	else
-		writel((unsigned long)fep->bd_dma + sizeof(struct bufdesc)
-			* RX_RING_SIZE,	fep->hwp + FEC_X_DES_START);
+	fec_enet_enable_ring(ndev);
 
-
-	for (i = 0; i <= TX_RING_MOD_MASK; i++) {
-		if (fep->tx_skbuff[i]) {
-			dev_kfree_skb_any(fep->tx_skbuff[i]);
-			fep->tx_skbuff[i] = NULL;
-		}
-	}
+	/* Reset tx SKB buffers. */
+	fec_enet_reset_skb(ndev);
 
 	/* Enable MII mode */
 	if (duplex) {
@@ -674,7 +711,7 @@ fec_restart(struct net_device *ndev, int duplex)
 
 	if (netif_running(ndev)) {
 		netif_tx_unlock_bh(ndev);
-		netif_wake_queue(ndev);
+		netif_tx_wake_all_queues(ndev);
 		napi_enable(&fep->napi);
 		netif_device_attach(ndev);
 	}
@@ -736,7 +773,7 @@ static void fec_enet_work(struct work_struct *work)
 	if (fep->delay_work.timeout) {
 		fep->delay_work.timeout = false;
 		fec_restart(fep->netdev, fep->full_duplex);
-		netif_wake_queue(fep->netdev);
+		netif_tx_wake_all_queues(fep->netdev);
 	}
 
 	if (fep->delay_work.trig_tx) {
@@ -752,98 +789,111 @@ fec_enet_tx(struct net_device *ndev)
 	struct bufdesc *bdp;
 	unsigned short status;
 	struct	sk_buff	*skb;
+	struct fec_enet_priv_tx_q *txq;
+	struct netdev_queue *nq;
+	int	queue_id;
 	int	index = 0;
 
 	fep = netdev_priv(ndev);
-	bdp = fep->dirty_tx;
 
-	/* get next bdp of dirty_tx */
-	if (bdp->cbd_sc & BD_ENET_TX_WRAP)
-		bdp = fep->tx_bd_base;
-	else
-		bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
+	/* First process class A queue, then Class B and Best Effort queue */
+	for_each_set_bit(queue_id, &fep->work_tx, FEC_ENET_MAX_TX_QS) {
+		clear_bit(queue_id, &fep->work_tx);
+		queue_id = FEC_ENET_GET_QUQUE(queue_id);
 
-	while (((status = bdp->cbd_sc) & BD_ENET_TX_READY) == 0) {
+		txq = fep->tx_queue[queue_id];
+		nq = netdev_get_tx_queue(ndev, queue_id);
+		bdp = txq->dirty_tx;
 
-		/* current queue is empty */
-		if (bdp == fep->cur_tx)
-			break;
-
-		if (fep->bufdesc_ex)
-			index = (struct bufdesc_ex *)bdp -
-				(struct bufdesc_ex *)fep->tx_bd_base;
-		else
-			index = bdp - fep->tx_bd_base;
-
-		dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
-				FEC_ENET_TX_FRSIZE, DMA_TO_DEVICE);
-		bdp->cbd_bufaddr = 0;
-
-		skb = fep->tx_skbuff[index];
-
-		/* Check for errors. */
-		if (status & (BD_ENET_TX_HB | BD_ENET_TX_LC |
-				   BD_ENET_TX_RL | BD_ENET_TX_UN |
-				   BD_ENET_TX_CSL)) {
-			ndev->stats.tx_errors++;
-			if (status & BD_ENET_TX_HB)  /* No heartbeat */
-				ndev->stats.tx_heartbeat_errors++;
-			if (status & BD_ENET_TX_LC)  /* Late collision */
-				ndev->stats.tx_window_errors++;
-			if (status & BD_ENET_TX_RL)  /* Retrans limit */
-				ndev->stats.tx_aborted_errors++;
-			if (status & BD_ENET_TX_UN)  /* Underrun */
-				ndev->stats.tx_fifo_errors++;
-			if (status & BD_ENET_TX_CSL) /* Carrier lost */
-				ndev->stats.tx_carrier_errors++;
-		} else {
-			ndev->stats.tx_packets++;
-			ndev->stats.tx_bytes += bdp->cbd_datlen;
-		}
-
-		if (unlikely((skb_shinfo(skb)->tx_flags & SKBTX_IN_PROGRESS) &&
-				fep->hwts_tx_en) && fep->bufdesc_ex) {
-			struct skb_shared_hwtstamps shhwtstamps;
-			unsigned long flags;
-			struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
-
-			memset(&shhwtstamps, 0, sizeof(shhwtstamps));
-			spin_lock_irqsave(&fep->tmreg_lock, flags);
-			shhwtstamps.hwtstamp = ns_to_ktime(
-				timecounter_cyc2time(&fep->tc, ebdp->ts));
-			spin_unlock_irqrestore(&fep->tmreg_lock, flags);
-			skb_tstamp_tx(skb, &shhwtstamps);
-		} else if (unlikely(fep->hwts_tx_en_ioctl) && fep->bufdesc_ex)
-			fec_ptp_store_txstamp(fep, skb, bdp);
-
-		if (status & BD_ENET_TX_READY)
-			netdev_err(ndev, "HEY! Enet xmit interrupt and TX_READY\n");
-
-		/* Deferred means some collisions occurred during transmit,
-		 * but we eventually sent the packet OK.
-		 */
-		if (status & BD_ENET_TX_DEF)
-			ndev->stats.collisions++;
-
-		/* Free the sk buffer associated with this last transmit */
-		dev_kfree_skb_any(skb);
-		fep->tx_skbuff[index] = NULL;
-
-		fep->dirty_tx = bdp;
-
-		/* Update pointer to next buffer descriptor to be transmitted */
-		if (status & BD_ENET_TX_WRAP)
-			bdp = fep->tx_bd_base;
+		/* get next bdp of dirty_tx */
+		if (bdp->cbd_sc & BD_ENET_TX_WRAP)
+			bdp = txq->tx_bd_base;
 		else
 			bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
 
-		/* Since we have freed up a buffer, the ring is no longer full
-		 */
-		if (fep->dirty_tx != fep->cur_tx) {
-			if (netif_queue_stopped(ndev))
-				netif_wake_queue(ndev);
+		while (((status = bdp->cbd_sc) & BD_ENET_TX_READY) == 0) {
+
+			/* current queue is empty */
+			if (bdp == txq->cur_tx)
+				break;
+
+			if (fep->bufdesc_ex)
+				index = (struct bufdesc_ex *)bdp -
+					(struct bufdesc_ex *)txq->tx_bd_base;
+			else
+				index = bdp - txq->tx_bd_base;
+
+			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
+					FEC_ENET_TX_FRSIZE, DMA_TO_DEVICE);
+			bdp->cbd_bufaddr = 0;
+
+			skb = txq->tx_skbuff[index];
+
+			/* Check for errors. */
+			if (status & (BD_ENET_TX_HB | BD_ENET_TX_LC |
+				   BD_ENET_TX_RL | BD_ENET_TX_UN |
+				   BD_ENET_TX_CSL)) {
+				ndev->stats.tx_errors++;
+				if (status & BD_ENET_TX_HB)  /* No heartbeat */
+					ndev->stats.tx_heartbeat_errors++;
+				if (status & BD_ENET_TX_LC)  /* Late collision */
+					ndev->stats.tx_window_errors++;
+				if (status & BD_ENET_TX_RL)  /* Retrans limit */
+					ndev->stats.tx_aborted_errors++;
+				if (status & BD_ENET_TX_UN)  /* Underrun */
+					ndev->stats.tx_fifo_errors++;
+				if (status & BD_ENET_TX_CSL) /* Carrier lost */
+					ndev->stats.tx_carrier_errors++;
+			} else {
+				ndev->stats.tx_packets++;
+				ndev->stats.tx_bytes += bdp->cbd_datlen;
+			}
+
+			if (unlikely((skb_shinfo(skb)->tx_flags & SKBTX_IN_PROGRESS) &&
+					fep->hwts_tx_en) && fep->bufdesc_ex) {
+				struct skb_shared_hwtstamps shhwtstamps;
+				unsigned long flags;
+				struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
+
+				memset(&shhwtstamps, 0, sizeof(shhwtstamps));
+				spin_lock_irqsave(&fep->tmreg_lock, flags);
+				shhwtstamps.hwtstamp = ns_to_ktime(
+					timecounter_cyc2time(&fep->tc, ebdp->ts));
+				spin_unlock_irqrestore(&fep->tmreg_lock, flags);
+				skb_tstamp_tx(skb, &shhwtstamps);
+			} else if (unlikely(fep->hwts_tx_en_ioctl) && fep->bufdesc_ex)
+				fec_ptp_store_txstamp(fep, skb, bdp);
+
+			if (status & BD_ENET_TX_READY)
+				netdev_err(ndev, "HEY! Enet xmit interrupt and TX_READY\n");
+
+			/* Deferred means some collisions occurred during transmit,
+			 * but we eventually sent the packet OK.
+			 */
+			if (status & BD_ENET_TX_DEF)
+				ndev->stats.collisions++;
+
+			/* Free the sk buffer associated with this last transmit */
+			dev_kfree_skb_any(skb);
+			txq->tx_skbuff[index] = NULL;
+
+			txq->dirty_tx = bdp;
+
+			/* Update pointer to next buffer descriptor to be transmitted */
+			if (status & BD_ENET_TX_WRAP)
+				bdp = txq->tx_bd_base;
+			else
+				bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
+
+			/* Since we have freed up a buffer, the ring is no longer full
+			 */
+			if (txq->dirty_tx != txq->cur_tx) {
+				if (netif_tx_queue_stopped(nq))
+					netif_tx_wake_queue(nq);
+			}
 		}
 	}
+
 	return;
 }
 
@@ -859,6 +909,7 @@ fec_enet_rx(struct net_device *ndev, int budget)
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	const struct platform_device_id *id_entry =
 				platform_get_device_id(fep->pdev);
+	struct fec_enet_priv_rx_q *rxq;
 	struct bufdesc *bdp;
 	unsigned short status;
 	struct	sk_buff	*skb;
@@ -868,181 +919,214 @@ fec_enet_rx(struct net_device *ndev, int budget)
 	struct	bufdesc_ex *ebdp = NULL;
 	bool	vlan_packet_rcvd = false;
 	u16	vlan_tag = 0;
+	u16	queue_id;
 
 #ifdef CONFIG_M532x
 	flush_cache_all();
 #endif
 
-	/* First, grab all of the stats for the incoming packet.
-	 * These get messed up if we get called due to a busy condition.
-	 */
-	bdp = fep->cur_rx;
+	for_each_set_bit(queue_id, &fep->work_rx, FEC_ENET_MAX_RX_QS) {
+		clear_bit(queue_id, &fep->work_rx);
+		queue_id = FEC_ENET_GET_QUQUE(queue_id);
+		rxq = fep->rx_queue[queue_id];
 
-	while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) {
-
-		if (pkt_received >= budget)
-			break;
-		pkt_received++;
-
-		/* Since we have allocated space to hold a complete frame,
-		 * the last indicator should be set.
+		/* First, grab all of the stats for the incoming packet.
+		 * These get messed up if we get called due to a busy condition.
 		 */
-		if ((status & BD_ENET_RX_LAST) == 0)
-			netdev_err(ndev, "rcv is not +last\n");
+		bdp = rxq->cur_rx;
 
-		if (!fep->opened)
-			goto rx_processing_done;
+		while (!((status = bdp->cbd_sc) & BD_ENET_RX_EMPTY)) {
 
-		/* Check for errors. */
-		if (status & (BD_ENET_RX_LG | BD_ENET_RX_SH | BD_ENET_RX_NO |
-			   BD_ENET_RX_CR | BD_ENET_RX_OV)) {
-			ndev->stats.rx_errors++;
-			if (status & (BD_ENET_RX_LG | BD_ENET_RX_SH)) {
-				/* Frame too long or too short. */
-				ndev->stats.rx_length_errors++;
+			if (pkt_received >= budget)
+				break;
+			pkt_received++;
+
+			/* Since we have allocated space to hold a complete frame,
+			 * the last indicator should be set.
+			 */
+			if ((status & BD_ENET_RX_LAST) == 0)
+				netdev_err(ndev, "rcv is not +last\n");
+
+			if (!fep->opened)
+				goto rx_processing_done;
+
+			/* Check for errors. */
+			if (status & (BD_ENET_RX_LG | BD_ENET_RX_SH | BD_ENET_RX_NO |
+				   BD_ENET_RX_CR | BD_ENET_RX_OV)) {
+				ndev->stats.rx_errors++;
+				if (status & (BD_ENET_RX_LG | BD_ENET_RX_SH)) {
+					/* Frame too long or too short. */
+					ndev->stats.rx_length_errors++;
+				}
+				if (status & BD_ENET_RX_NO)	/* Frame alignment */
+					ndev->stats.rx_frame_errors++;
+				if (status & BD_ENET_RX_CR)	/* CRC Error */
+					ndev->stats.rx_crc_errors++;
+				if (status & BD_ENET_RX_OV)	/* FIFO overrun */
+					ndev->stats.rx_fifo_errors++;
 			}
-			if (status & BD_ENET_RX_NO)	/* Frame alignment */
+
+			/* Report late collisions as a frame error.
+			 * On this error, the BD is closed, but we don't know what we
+			 * have in the buffer.  So, just drop this frame on the floor.
+			 */
+			if (status & BD_ENET_RX_CL) {
+				ndev->stats.rx_errors++;
 				ndev->stats.rx_frame_errors++;
-			if (status & BD_ENET_RX_CR)	/* CRC Error */
-				ndev->stats.rx_crc_errors++;
-			if (status & BD_ENET_RX_OV)	/* FIFO overrun */
-				ndev->stats.rx_fifo_errors++;
-		}
+				goto rx_processing_done;
+			}
 
-		/* Report late collisions as a frame error.
-		 * On this error, the BD is closed, but we don't know what we
-		 * have in the buffer.  So, just drop this frame on the floor.
-		 */
-		if (status & BD_ENET_RX_CL) {
-			ndev->stats.rx_errors++;
-			ndev->stats.rx_frame_errors++;
-			goto rx_processing_done;
-		}
+			/* Process the incoming frame. */
+			ndev->stats.rx_packets++;
+			pkt_len = bdp->cbd_datlen;
+			ndev->stats.rx_bytes += pkt_len;
+			data = (__u8 *)__va(bdp->cbd_bufaddr);
 
-		/* Process the incoming frame. */
-		ndev->stats.rx_packets++;
-		pkt_len = bdp->cbd_datlen;
-		ndev->stats.rx_bytes += pkt_len;
-		data = (__u8*)__va(bdp->cbd_bufaddr);
+			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
+					FEC_ENET_TX_FRSIZE, DMA_FROM_DEVICE);
 
-		dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
-				FEC_ENET_TX_FRSIZE, DMA_FROM_DEVICE);
+			if (id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)
+				swap_buffer(data, pkt_len);
 
-		if (id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)
-			swap_buffer(data, pkt_len);
+			/* Extract the enhanced buffer descriptor */
+			ebdp = NULL;
+			if (fep->bufdesc_ex)
+				ebdp = (struct bufdesc_ex *)bdp;
 
-		/* Extract the enhanced buffer descriptor */
-		ebdp = NULL;
-		if (fep->bufdesc_ex)
-			ebdp = (struct bufdesc_ex *)bdp;
-
-		/* If this is a VLAN packet remove the VLAN Tag */
-		vlan_packet_rcvd = false;
-		if ((ndev->features & NETIF_F_HW_VLAN_CTAG_RX) &&
-		    fep->bufdesc_ex && (ebdp->cbd_esc & BD_ENET_RX_VLAN)) {
-			/* Push and remove the vlan tag */
-			struct vlan_hdr *vlan_header =
+			/* If this is a VLAN packet remove the VLAN Tag */
+			vlan_packet_rcvd = false;
+			if ((ndev->features & NETIF_F_HW_VLAN_CTAG_RX) &&
+			    fep->bufdesc_ex && (ebdp->cbd_esc & BD_ENET_RX_VLAN)) {
+				/* Push and remove the vlan tag */
+				struct vlan_hdr *vlan_header =
 					(struct vlan_hdr *) (data + ETH_HLEN);
-			vlan_tag = ntohs(vlan_header->h_vlan_TCI);
-			pkt_len -= VLAN_HLEN;
+				vlan_tag = ntohs(vlan_header->h_vlan_TCI);
+				pkt_len -= VLAN_HLEN;
 
-			vlan_packet_rcvd = true;
-		}
+				vlan_packet_rcvd = true;
+			}
 
-		/* This does 16 byte alignment, exactly what we need.
-		 * The packet length includes FCS, but we don't want to
-		 * include that when passing upstream as it messes up
-		 * bridging applications.
-		 */
-		skb = __netdev_alloc_skb_ip_align(ndev, pkt_len - 4,
-			GFP_ATOMIC | __GFP_NOWARN);
+			/* This does 16 byte alignment, exactly what we need.
+			 * The packet length includes FCS, but we don't want to
+			 * include that when passing upstream as it messes up
+			 * bridging applications.
+			 */
+			skb = __netdev_alloc_skb_ip_align(ndev, pkt_len - 4,
+				GFP_ATOMIC | __GFP_NOWARN);
 
-		if (unlikely(!skb)) {
-			ndev->stats.rx_dropped++;
-		} else {
-			int payload_offset = (2 * ETH_ALEN);
-			skb_put(skb, pkt_len - 4);	/* Make room */
+			if (unlikely(!skb)) {
+				ndev->stats.rx_dropped++;
+			} else {
+				int payload_offset = (2 * ETH_ALEN);
+				skb_put(skb, pkt_len - 4);	/* Make room */
 
-			/* Extract the frame data without the VLAN header. */
-			skb_copy_to_linear_data(skb, data, (2 * ETH_ALEN));
-			if (vlan_packet_rcvd)
-				payload_offset = (2 * ETH_ALEN) + VLAN_HLEN;
-			skb_copy_to_linear_data_offset(skb, (2 * ETH_ALEN),
+				/* Extract the frame data without the VLAN header. */
+				skb_copy_to_linear_data(skb, data, (2 * ETH_ALEN));
+				if (vlan_packet_rcvd)
+					payload_offset = (2 * ETH_ALEN) + VLAN_HLEN;
+				skb_copy_to_linear_data_offset(skb, (2 * ETH_ALEN),
 						       data + payload_offset,
 						       pkt_len - 4 - (2 * ETH_ALEN));
 
-			/* Get receive timestamp from the skb */
-			if (fep->hwts_rx_en && fep->bufdesc_ex) {
-				struct skb_shared_hwtstamps *shhwtstamps =
+				/* Get receive timestamp from the skb */
+				if (fep->hwts_rx_en && fep->bufdesc_ex) {
+					struct skb_shared_hwtstamps *shhwtstamps =
 							    skb_hwtstamps(skb);
-				unsigned long flags;
+					unsigned long flags;
 
-				memset(shhwtstamps, 0, sizeof(*shhwtstamps));
+					memset(shhwtstamps, 0, sizeof(*shhwtstamps));
 
-				spin_lock_irqsave(&fep->tmreg_lock, flags);
-				shhwtstamps->hwtstamp = ns_to_ktime(
-				    timecounter_cyc2time(&fep->tc, ebdp->ts));
-				spin_unlock_irqrestore(&fep->tmreg_lock, flags);
-			} else if (unlikely(fep->hwts_rx_en_ioctl) &&
-					fep->bufdesc_ex)
-				fec_ptp_store_rxstamp(fep, skb, bdp);
+					spin_lock_irqsave(&fep->tmreg_lock, flags);
+					shhwtstamps->hwtstamp = ns_to_ktime(
+					    timecounter_cyc2time(&fep->tc, ebdp->ts));
+					spin_unlock_irqrestore(&fep->tmreg_lock, flags);
+				} else if (unlikely(fep->hwts_rx_en_ioctl) &&
+						fep->bufdesc_ex)
+					fec_ptp_store_rxstamp(fep, skb, bdp);
 
-			skb->protocol = eth_type_trans(skb, ndev);
-			if (fep->bufdesc_ex &&
-			    (fep->csum_flags & FLAG_RX_CSUM_ENABLED)) {
-				if (!(ebdp->cbd_esc & FLAG_RX_CSUM_ERROR)) {
-					/* don't check it */
-					skb->ip_summed = CHECKSUM_UNNECESSARY;
-				} else {
-					skb_checksum_none_assert(skb);
+				skb->protocol = eth_type_trans(skb, ndev);
+				if (fep->bufdesc_ex &&
+				    (fep->csum_flags & FLAG_RX_CSUM_ENABLED)) {
+					if (!(ebdp->cbd_esc & FLAG_RX_CSUM_ERROR)) {
+						/* don't check it */
+						skb->ip_summed = CHECKSUM_UNNECESSARY;
+					} else {
+						skb_checksum_none_assert(skb);
+					}
 				}
-			}
 
-			/* Handle received VLAN packets */
-			if (vlan_packet_rcvd)
-				__vlan_hwaccel_put_tag(skb,
+				/* Handle received VLAN packets */
+				if (vlan_packet_rcvd)
+					__vlan_hwaccel_put_tag(skb,
 						       htons(ETH_P_8021Q),
 						       vlan_tag);
 
-			if (!skb_defer_rx_timestamp(skb))
-				napi_gro_receive(&fep->napi, skb);
-		}
+				if (!skb_defer_rx_timestamp(skb))
+					napi_gro_receive(&fep->napi, skb);
+			}
 
-		bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, data,
-				FEC_ENET_TX_FRSIZE, DMA_FROM_DEVICE);
-		/* here dma mapping shouldn't be error, just avoid kernel dump */
-		if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr))
-			netdev_err(ndev, "Rx DMA memory map failed\n");
+			bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, data,
+					FEC_ENET_TX_FRSIZE, DMA_FROM_DEVICE);
+			/* here dma mapping shouldn't be error, just avoid kernel dump */
+			if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr))
+				netdev_err(ndev, "Rx DMA memory map failed\n");
 rx_processing_done:
-		/* Clear the status flags for this buffer */
-		status &= ~BD_ENET_RX_STATS;
+			/* Clear the status flags for this buffer */
+			status &= ~BD_ENET_RX_STATS;
 
-		/* Mark the buffer empty */
-		status |= BD_ENET_RX_EMPTY;
-		bdp->cbd_sc = status;
+			/* Mark the buffer empty */
+			status |= BD_ENET_RX_EMPTY;
+			bdp->cbd_sc = status;
 
-		if (fep->bufdesc_ex) {
-			struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
+			if (fep->bufdesc_ex) {
+				struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
 
-			ebdp->cbd_esc = BD_ENET_RX_INT;
-			ebdp->cbd_prot = 0;
-			ebdp->cbd_bdu = 0;
+				ebdp->cbd_esc = BD_ENET_RX_INT;
+				ebdp->cbd_prot = 0;
+				ebdp->cbd_bdu = 0;
+			}
+
+			/* Update BD pointer to next entry */
+			if (status & BD_ENET_RX_WRAP)
+				bdp = rxq->rx_bd_base;
+			else
+				bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
+			/* Doing this here will keep the FEC running while we process
+			 * incoming frames.  On a heavily loaded network, we should be
+			 * able to keep up at the expense of system resources.
+			 */
+			writel(0, fep->hwp + FEC_R_DES_ACTIVE);
 		}
-
-		/* Update BD pointer to next entry */
-		if (status & BD_ENET_RX_WRAP)
-			bdp = fep->rx_bd_base;
-		else
-			bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
-		/* Doing this here will keep the FEC running while we process
-		 * incoming frames.  On a heavily loaded network, we should be
-		 * able to keep up at the expense of system resources.
-		 */
-		writel(0, fep->hwp + FEC_R_DES_ACTIVE);
+		rxq->cur_rx = bdp;
 	}
-	fep->cur_rx = bdp;
 
 	return pkt_received;
+}
+
+static bool fec_enet_collect_events(struct fec_enet_private *fep)
+{
+	uint int_events;
+
+	int_events = readl(fep->hwp + FEC_IEVENT);
+	writel(int_events & (~FEC_ENET_TS_TIMER),
+			fep->hwp + FEC_IEVENT);
+
+	if (int_events == 0)
+		return false;
+
+	if (int_events & FEC_ENET_RXF)
+		fep->work_rx |= (1 << 2);
+
+	if (int_events & FEC_ENET_TXF)
+		fep->work_tx |= (1 << 2);
+
+	if (int_events & FEC_ENET_TS_TIMER)
+		fep->work_ts = 1;
+
+	if (int_events & FEC_ENET_MII)
+		fep->work_mdio = 1;
+
+	return true;
 }
 
 static irqreturn_t
@@ -1050,23 +1134,22 @@ fec_enet_interrupt(int irq, void *dev_id)
 {
 	struct net_device *ndev = dev_id;
 	struct fec_enet_private *fep = netdev_priv(ndev);
-	uint int_events;
 	irqreturn_t ret = IRQ_NONE;
 
 	do {
-		int_events = readl(fep->hwp + FEC_IEVENT);
-		writel(int_events & (~FEC_ENET_TS_TIMER),
-			fep->hwp + FEC_IEVENT);
+		if (unlikely(!fec_enet_collect_events(fep)))
+			return IRQ_NONE;
 
-		if ((int_events & FEC_ENET_TS_TIMER) && fep->bufdesc_ex) {
+		if (fep->work_ts && fep->bufdesc_ex) {
 			ret = IRQ_HANDLED;
 			if (fep->hwts_tx_en_ioctl || fep->hwts_rx_en_ioctl)
 				fep->prtc++;
 
 			writel(FEC_ENET_TS_TIMER, fep->hwp + FEC_IEVENT);
+			fep->work_ts = 0;
 		}
 
-		if (int_events & (FEC_ENET_RXF | FEC_ENET_TXF)) {
+		if (fep->work_tx || fep->work_rx) {
 			ret = IRQ_HANDLED;
 
 			/* Disable the RX interrupt */
@@ -1077,11 +1160,12 @@ fec_enet_interrupt(int irq, void *dev_id)
 			}
 		}
 
-		if (int_events & FEC_ENET_MII) {
+		if (fep->work_mdio) {
 			ret = IRQ_HANDLED;
 			complete(&fep->mdio_done);
+			fep->work_mdio = 0;
 		}
-	} while (int_events);
+	} while (fec_enet_collect_events(fep));
 
 	return ret;
 }
@@ -1733,67 +1817,94 @@ static int fec_enet_ioctl(struct net_device *ndev, struct ifreq *rq, int cmd)
 static void fec_enet_free_buffers(struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
-	unsigned int i;
+	struct fec_enet_priv_tx_q *tx_queue;
+	struct fec_enet_priv_rx_q *rx_queue;
+	unsigned int i, j;
 	struct sk_buff *skb;
 	struct bufdesc	*bdp;
 
-	bdp = fep->rx_bd_base;
-	for (i = 0; i < RX_RING_SIZE; i++) {
-		skb = fep->rx_skbuff[i];
+	for (j = 0; j < fep->num_rx_queues; j++) {
+		rx_queue = fep->rx_queue[j];
+		bdp = rx_queue->rx_bd_base;
 
-		if (bdp->cbd_bufaddr)
-			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
-					FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
-		if (skb)
-			dev_kfree_skb(skb);
-		bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
+		for (i = 0; i < rx_queue->rx_ring_size; i++) {
+			skb = rx_queue->rx_skbuff[i];
+
+			if (bdp->cbd_bufaddr)
+				dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
+						FEC_ENET_RX_FRSIZE - FEC_ALIGNMENT,
+						DMA_FROM_DEVICE);
+			if (skb)
+				dev_kfree_skb(skb);
+			bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
+		}
 	}
 
-	bdp = fep->tx_bd_base;
-	for (i = 0; i < TX_RING_SIZE; i++)
-		kfree(fep->tx_bounce[i]);
+	tx_queue = fep->tx_queue[0];
+	bdp = tx_queue->tx_bd_base;
+	for (i = 0; i < tx_queue->tx_ring_size; i++)
+		kfree(tx_queue->tx_bounce[i]);
 }
 
 static int fec_enet_alloc_buffers(struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
-	unsigned int i;
+	struct fec_enet_priv_tx_q *tx_queue;
+	struct fec_enet_priv_rx_q *rx_queue;
+	unsigned int i, j;
 	struct sk_buff *skb;
 	struct bufdesc	*bdp;
+	int off;
 
-	bdp = fep->rx_bd_base;
-	for (i = 0; i < RX_RING_SIZE; i++) {
-		skb = netdev_alloc_skb(ndev, FEC_ENET_RX_FRSIZE);
-		if (!skb) {
-			fec_enet_free_buffers(ndev);
-			return -ENOMEM;
+	for (j = 0; j < fep->num_rx_queues; j++) {
+		rx_queue = fep->rx_queue[j];
+		bdp = rx_queue->rx_bd_base;
+
+		for (i = 0; i < rx_queue->rx_ring_size; i++) {
+			skb = netdev_alloc_skb(ndev, FEC_ENET_RX_FRSIZE);
+			if (!skb) {
+				fec_enet_free_buffers(ndev);
+				return -ENOMEM;
+			}
+			rx_queue->rx_skbuff[i] = skb;
+
+			off = ((unsigned long)skb->data) & FEC_ALIGNMENT;
+			if (off)
+				skb_reserve(skb, FEC_ALIGNMENT + 1 - off);
+
+			bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, skb->data,
+				FEC_ENET_RX_FRSIZE - FEC_ALIGNMENT, DMA_FROM_DEVICE);
+			if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
+				fec_enet_free_buffers(ndev);
+				netdev_err(ndev, "Rx DMA memory map failed\n");
+				return -ENOMEM;
+			}
+			bdp->cbd_sc = BD_ENET_RX_EMPTY;
+
+			if (fep->bufdesc_ex) {
+				struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
+				ebdp->cbd_esc = BD_ENET_RX_INT;
+			}
+
+			bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
 		}
-		fep->rx_skbuff[i] = skb;
 
-		bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, skb->data,
-				FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
-		if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
-			fec_enet_free_buffers(ndev);
-			netdev_err(ndev, "Rx DMA memory map failed\n");
-			return -ENOMEM;
-		}
-		bdp->cbd_sc = BD_ENET_RX_EMPTY;
-
-		if (fep->bufdesc_ex) {
-			struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
-			ebdp->cbd_esc = BD_ENET_RX_INT;
-		}
-
-		bdp = fec_enet_get_nextdesc(bdp, fep->bufdesc_ex);
+		/* Set the last buffer to wrap. */
+		bdp = fec_enet_get_prevdesc(bdp, fep->bufdesc_ex);
+		bdp->cbd_sc |= BD_SC_WRAP;
 	}
 
-	/* Set the last buffer to wrap. */
-	bdp = fec_enet_get_prevdesc(bdp, fep->bufdesc_ex);
-	bdp->cbd_sc |= BD_SC_WRAP;
-
-	bdp = fep->tx_bd_base;
-	for (i = 0; i < TX_RING_SIZE; i++) {
-		fep->tx_bounce[i] = kmalloc(FEC_ENET_TX_FRSIZE, GFP_KERNEL);
+	/* legacy for the previous enet IP verision with only
+	 * support one queue
+	 */
+	tx_queue = fep->tx_queue[0];
+	bdp = tx_queue->tx_bd_base;
+	for (i = 0; i < tx_queue->tx_ring_size; i++) {
+		tx_queue->tx_bounce[i] = kmalloc(FEC_ENET_TX_FRSIZE, GFP_KERNEL);
+		if (!tx_queue->tx_bounce[i]) {
+			fec_enet_free_buffers(ndev);
+			return -ENOMEM;
+		}
 
 		bdp->cbd_sc = 0;
 		bdp->cbd_bufaddr = 0;
@@ -1853,7 +1964,7 @@ fec_enet_open(struct net_device *ndev)
 	}
 
 	phy_start(fep->phy_dev);
-	netif_start_queue(ndev);
+	netif_tx_start_all_queues(ndev);
 	fep->opened = 1;
 
 	/* reset phy */
@@ -1870,7 +1981,7 @@ fec_enet_close(struct net_device *ndev)
 	/* Don't know what to do yet. */
 	napi_disable(&fep->napi);
 	fep->opened = 0;
-	netif_stop_queue(ndev);
+	netif_tx_stop_all_queues(ndev);
 	fec_stop(ndev);
 
 	if (fep->phy_dev) {
@@ -2026,7 +2137,7 @@ static int fec_set_features(struct net_device *netdev,
 		if (netif_running(netdev)) {
 			fec_stop(netdev);
 			fec_restart(netdev, fep->phy_dev->duplex);
-			netif_wake_queue(netdev);
+			netif_tx_wake_all_queues(netdev);
 		} else {
 			fec_restart(netdev, fep->phy_dev->duplex);
 		}
@@ -2035,10 +2146,16 @@ static int fec_set_features(struct net_device *netdev,
 	return 0;
 }
 
+u16 fec_enet_select_queue(struct net_device *ndev, struct sk_buff *skb)
+{
+	return skb_tx_hash(ndev, skb);
+}
+
 static const struct net_device_ops fec_netdev_ops = {
 	.ndo_open		= fec_enet_open,
 	.ndo_stop		= fec_enet_close,
 	.ndo_start_xmit		= fec_enet_start_xmit,
+	.ndo_select_queue       = fec_enet_select_queue,
 	.ndo_set_rx_mode	= set_multicast_list,
 	.ndo_change_mtu		= eth_change_mtu,
 	.ndo_validate_addr	= eth_validate_addr,
@@ -2060,28 +2177,84 @@ static int fec_enet_init(struct net_device *ndev)
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	const struct platform_device_id *id_entry =
 				platform_get_device_id(fep->pdev);
+	struct fec_enet_priv_tx_q *tx_queue;
+	struct fec_enet_priv_rx_q *rx_queue;
 	struct bufdesc *cbd_base;
+	dma_addr_t bd_dma;
+	int i, ret;
+	int bd_size;
+
+	for (i = 0; i < fep->num_tx_queues; i++) {
+		fep->tx_queue[i] = kzalloc(sizeof(struct fec_enet_priv_tx_q),
+					GFP_KERNEL);
+		if (!fep->tx_queue[i])
+			return -ENOMEM;
+
+		fep->tx_queue[i]->tx_ring_size = TX_RING_SIZE;
+		fep->total_tx_ring_size += fep->tx_queue[i]->tx_ring_size;
+	}
+
+	for (i = 0; i < fep->num_rx_queues; i++) {
+		fep->rx_queue[i] = kzalloc(sizeof(struct fec_enet_priv_rx_q),
+					GFP_KERNEL);
+		if (!fep->rx_queue[i]) {
+			ret = -ENOMEM;
+			goto rx_alloc_failed;
+		}
+
+		fep->rx_queue[i]->rx_ring_size = RX_RING_SIZE;
+		fep->total_rx_ring_size += fep->rx_queue[i]->rx_ring_size;
+	}
 
 	/* Allocate memory for buffer descriptors. */
-	cbd_base = dma_alloc_coherent(NULL, PAGE_SIZE, &fep->bd_dma,
-				      GFP_KERNEL);
-	if (!cbd_base)
-		return -ENOMEM;
+	if (fep->bufdesc_ex)
+		bd_size = (fep->total_tx_ring_size + fep->total_rx_ring_size) *
+				sizeof(struct bufdesc_ex);
+	else
+		bd_size = (fep->total_tx_ring_size + fep->total_rx_ring_size) *
+				sizeof(struct bufdesc);
+	cbd_base = dma_alloc_coherent(NULL, bd_size, &bd_dma, GFP_KERNEL);
+	if (!cbd_base) {
+		ret = -ENOMEM;
+		goto bd_alloc_failed;
+	}
 
-	memset(cbd_base, 0, PAGE_SIZE);
+	memset(cbd_base, 0, bd_size);
+
+	for (i = 0; i < fep->num_rx_queues; i++) {
+		rx_queue = fep->rx_queue[i];
+		rx_queue->index = i;
+		rx_queue->rx_bd_base = (struct bufdesc *) cbd_base;
+		rx_queue->bd_dma = bd_dma;
+		if (fep->bufdesc_ex) {
+			bd_dma += sizeof(struct bufdesc_ex) * rx_queue->rx_ring_size;
+			cbd_base = (struct bufdesc *)
+				(((struct bufdesc_ex *)cbd_base) + rx_queue->rx_ring_size);
+		} else {
+			bd_dma += sizeof(struct bufdesc) * rx_queue->rx_ring_size;
+			cbd_base += rx_queue->rx_ring_size;
+		}
+	}
+
+	for (i = 0; i < fep->num_tx_queues; i++) {
+		tx_queue = fep->tx_queue[i];
+		tx_queue->index = i;
+		tx_queue->tx_bd_base = (struct bufdesc *) cbd_base;
+		tx_queue->bd_dma = bd_dma;
+		if (fep->bufdesc_ex) {
+			 bd_dma += sizeof(struct bufdesc_ex) * tx_queue->tx_ring_size;
+			cbd_base = (struct bufdesc *)
+				(((struct bufdesc_ex *)cbd_base) + tx_queue->tx_ring_size);
+		} else {
+			bd_dma += sizeof(struct bufdesc) * tx_queue->tx_ring_size;
+			cbd_base += tx_queue->tx_ring_size;
+		}
+	}
 
 	fep->netdev = ndev;
 
 	/* Get the Ethernet address */
 	fec_get_mac(ndev);
-
-	/* Set receive and transmit descriptor base. */
-	fep->rx_bd_base = cbd_base;
-	if (fep->bufdesc_ex)
-		fep->tx_bd_base = (struct bufdesc *)
-			(((struct bufdesc_ex *)cbd_base) + RX_RING_SIZE);
-	else
-		fep->tx_bd_base = cbd_base + RX_RING_SIZE;
 
 	/* The FEC Ethernet specific entries in the device structure */
 	ndev->watchdog_timeo = TX_TIMEOUT;
@@ -2109,6 +2282,15 @@ static int fec_enet_init(struct net_device *ndev)
 	fec_restart(ndev, 0);
 
 	return 0;
+
+bd_alloc_failed:
+	for (i = 0; i < fep->num_rx_queues; i++)
+		kfree(fep->rx_queue[i]);
+rx_alloc_failed:
+	for (i = 0; i < fep->num_tx_queues; i++)
+		kfree(fep->tx_queue[i]);
+
+	return ret;
 }
 
 static void fec_of_init(struct platform_device *pdev)
