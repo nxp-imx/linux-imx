@@ -73,7 +73,7 @@ static void set_multicast_list(struct net_device *ndev);
 static void fec_reset_phy(struct platform_device *pdev);
 
 #if defined(CONFIG_ARM)
-#define FEC_ALIGNMENT	0xf
+#define FEC_ALIGNMENT	0x3f
 #else
 #define FEC_ALIGNMENT	0x3
 #endif
