@@ -664,6 +664,7 @@
 	cd-gpios = <&gpio1 1 0>;
 	wp-gpios = <&gpio5 20 0>;
 	no-1-8-v;
+	keep-power-in-suspend;
 	status = "okay";
 };
 
@@ -686,6 +687,7 @@
 	 * Note: reg_sd3_vmmc is also need to be enabled
 	 */
 	/* vmmc-supply = <&reg_sd3_vmmc>; */
+	keep-power-in-suspend;
 	status = "okay";
 };
 
