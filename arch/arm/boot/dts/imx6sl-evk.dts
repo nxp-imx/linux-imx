@@ -822,6 +822,7 @@
 	bus-width = <8>;
 	cd-gpios = <&gpio4 7 0>;
 	wp-gpios = <&gpio4 6 0>;
+	keep-power-in-suspend;
 	status = "okay";
 };
 
@@ -832,6 +833,7 @@
 	pinctrl-2 = <&pinctrl_usdhc2_200mhz>;
 	cd-gpios = <&gpio5 0 0>;
 	wp-gpios = <&gpio4 29 0>;
+	keep-power-in-suspend;
 	status = "okay";
 };
 
@@ -841,5 +843,6 @@
 	pinctrl-1 = <&pinctrl_usdhc3_100mhz>;
 	pinctrl-2 = <&pinctrl_usdhc3_200mhz>;
 	cd-gpios = <&gpio3 22 0>;
+	keep-power-in-suspend;
 	status = "okay";
 };

@@ -767,6 +767,7 @@
 	 * Note: reg_sd3_vmmc is also need to be enabled
 	 */
 	/* vmmc-supply = <&reg_sd3_vmmc>; */
+	keep-power-in-suspend;
 	status = "okay";
 };
 
