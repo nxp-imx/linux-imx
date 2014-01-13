@@ -665,6 +665,7 @@
 	wp-gpios = <&gpio5 20 0>;
 	no-1-8-v;
 	keep-power-in-suspend;
+	enable-sdio-wakeup;
 	status = "okay";
 };
 
@@ -688,6 +689,7 @@
 	 */
 	/* vmmc-supply = <&reg_sd3_vmmc>; */
 	keep-power-in-suspend;
+	enable-sdio-wakeup;
 	status = "okay";
 };
 
