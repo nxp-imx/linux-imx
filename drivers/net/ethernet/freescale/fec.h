@@ -337,6 +337,14 @@ struct bufdesc_ex {
 				RCMR_CMP_CFG(6, 2) | RCMR_CMP_CFG(7, 3))
 #define RCMR_CMP(X)		((X == 1) ? RCMR_CMP_1 : RCMR_CMP_2)
 
+/* ENET interrupt coalescing macro define */
+#define FEC_ITR_CLK_SEL		(0x1 << 30)
+#define FEC_ITR_EN		(0x1 << 31)
+#define FEC_ITR_ICFT(X)		((X & 0xFF) << 20)
+#define FEC_ITR_ICTT(X)		((X) & 0xFFFF)
+#define FEC_ITR_ICFT_DEFAULT	200  /* Set 200 frame count threshold */
+#define FEC_ITR_ICTT_DEFAULT	1000 /* Set 1000us timer threshold */
+
 /* IEEE 1588 definition */
 #define FEC_T_PERIOD_ONE_SEC           0x3B9ACA00
 
@@ -538,6 +546,12 @@ struct fec_enet_private {
 	struct timer_list time_keep;
 	struct fec_enet_delayed_work delay_work;
 	struct regulator *reg_phy;
+
+	/* hw interrupt coalesce */
+	uint rx_pkts_itr;
+	uint rx_time_itr;
+	uint tx_pkts_itr;
+	uint tx_time_itr;
 };
 
 void fec_ptp_init(struct platform_device *pdev);

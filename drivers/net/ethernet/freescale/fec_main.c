@@ -71,6 +71,7 @@
 
 static void set_multicast_list(struct net_device *ndev);
 static void fec_reset_phy(struct platform_device *pdev);
+static void fec_enet_itr_coal_init(struct net_device *ndev);
 
 #if defined(CONFIG_ARM)
 #define FEC_ALIGNMENT	0x3f
@@ -742,6 +743,9 @@ fec_restart(struct net_device *ndev, int duplex)
 
 	/* Enable interrupts we wish to service */
 	writel(FEC_DEFAULT_IMASK, fep->hwp + FEC_IMASK);
+
+	/* Init the interrupt coalescing */
+	fec_enet_itr_coal_init(ndev);
 
 	if (netif_running(ndev)) {
 		netif_tx_unlock_bh(ndev);
@@ -1827,6 +1831,110 @@ static int fec_enet_nway_reset(struct net_device *dev)
 	return genphy_restart_aneg(phydev);
 }
 
+/*
+ * ITR clock source is enet system clock (clk_ahb).
+ * TCTT unit is cycle_ns * 64 cycle
+ * So, the ICTT value = X us / (cycle_ns * 64)
+ */
+static int fec_enet_us_to_itr_clock(struct net_device *ndev, int us)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+
+	return us * (clk_get_rate(fep->clk_ahb) / 64000) / 1000;
+}
+
+/* Set threshold for interrupt coalescing */
+static void fec_enet_itr_coal_set(struct net_device *ndev)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+	const struct platform_device_id *id_entry =
+				platform_get_device_id(fep->pdev);
+	int rx_itr, tx_itr;
+
+	if (!(id_entry->driver_data & FEC_QUIRK_HAS_AVB))
+		return;
+
+	/* Must be greater than zero to avoid unpredictable behavior */
+	if (!fep->rx_time_itr || !fep->rx_pkts_itr ||
+		!fep->tx_time_itr || !fep->tx_pkts_itr)
+		return;
+	/*
+	 * Select enet system clock as Interrupt Coalescing
+	 * timer Clock Source
+	 */
+	rx_itr = FEC_ITR_CLK_SEL;
+	tx_itr = FEC_ITR_CLK_SEL;
+
+	/* set ICFT and ICTT */
+	rx_itr |= FEC_ITR_ICFT(fep->rx_pkts_itr);
+	rx_itr |= FEC_ITR_ICTT(fec_enet_us_to_itr_clock(ndev, fep->rx_time_itr));
+	tx_itr |= FEC_ITR_ICFT(fep->tx_pkts_itr);
+	tx_itr |= FEC_ITR_ICTT(fec_enet_us_to_itr_clock(ndev, fep->tx_time_itr));
+
+	rx_itr |= FEC_ITR_EN;
+	tx_itr |= FEC_ITR_EN;
+
+	writel(tx_itr, fep->hwp + FEC_TXIC0);
+	writel(rx_itr, fep->hwp + FEC_RXIC0);
+	writel(tx_itr, fep->hwp + FEC_TXIC1);
+	writel(rx_itr, fep->hwp + FEC_RXIC1);
+	writel(tx_itr, fep->hwp + FEC_TXIC2);
+	writel(rx_itr, fep->hwp + FEC_RXIC2);
+}
+
+static int fec_enet_get_coalesce(struct net_device *ndev,
+				struct ethtool_coalesce *ec)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+	const struct platform_device_id *id_entry =
+				platform_get_device_id(fep->pdev);
+
+	if (!(id_entry->driver_data & FEC_QUIRK_HAS_AVB))
+		return -EOPNOTSUPP;
+
+	ec->rx_coalesce_usecs = fep->rx_time_itr;
+	ec->rx_max_coalesced_frames = fep->rx_pkts_itr;
+
+	ec->tx_coalesce_usecs = fep->tx_time_itr;
+	ec->tx_max_coalesced_frames = fep->tx_pkts_itr;
+
+	return 0;
+}
+
+static int fec_enet_set_coalesce(struct net_device *ndev,
+				struct ethtool_coalesce *ec)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+	const struct platform_device_id *id_entry =
+				platform_get_device_id(fep->pdev);
+
+	if (!(id_entry->driver_data & FEC_QUIRK_HAS_AVB))
+		return -EOPNOTSUPP;
+
+	fep->rx_time_itr = ec->rx_coalesce_usecs;
+	fep->rx_pkts_itr = ec->rx_max_coalesced_frames;
+
+	fep->tx_time_itr = ec->tx_coalesce_usecs;
+	fep->tx_pkts_itr = ec->tx_max_coalesced_frames;
+
+	fec_enet_itr_coal_set(ndev);
+
+	return 0;
+}
+
+static void fec_enet_itr_coal_init(struct net_device *ndev)
+{
+	struct ethtool_coalesce ec;
+
+	ec.rx_coalesce_usecs = FEC_ITR_ICTT_DEFAULT;
+	ec.rx_max_coalesced_frames = FEC_ITR_ICFT_DEFAULT;
+
+	ec.tx_coalesce_usecs = FEC_ITR_ICTT_DEFAULT;
+	ec.tx_max_coalesced_frames = FEC_ITR_ICFT_DEFAULT;
+
+	fec_enet_set_coalesce(ndev, &ec);
+}
+
 static const struct ethtool_ops fec_enet_ethtool_ops = {
 #if !defined(CONFIG_M5272)
 	.get_pauseparam		= fec_enet_get_pauseparam,
@@ -1838,6 +1946,8 @@ static const struct ethtool_ops fec_enet_ethtool_ops = {
 	.get_link		= ethtool_op_get_link,
 	.get_ts_info		= fec_enet_get_ts_info,
 	.nway_reset		= fec_enet_nway_reset,
+	.get_coalesce		= fec_enet_get_coalesce,
+	.set_coalesce		= fec_enet_set_coalesce,
 #ifndef CONFIG_M5272
 	.get_ethtool_stats	= fec_enet_get_ethtool_stats,
 	.get_strings		= fec_enet_get_strings,
