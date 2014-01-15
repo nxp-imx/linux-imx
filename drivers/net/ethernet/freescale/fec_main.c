@@ -83,6 +83,8 @@ static void fec_enet_itr_coal_init(struct net_device *ndev);
 #define FEC_NAPI_WEIGHT	64
 #define FEC_ENET_GET_QUQUE(_x) ((_x == 0) ? 1 : ((_x == 1) ? 2 : 0))
 
+static const u16 fec_enet_vlan_pri_to_queue[8] = {1, 1, 1, 1, 2, 2, 2, 2};
+
 /* Pause frame feild and FIFO threshold */
 #define FEC_ENET_FCE	(1 << 5)
 #define FEC_ENET_RSEM_V	0x84
@@ -2312,9 +2314,34 @@ static int fec_set_features(struct net_device *netdev,
 	return 0;
 }
 
+u16 fec_enet_get_raw_vlan_tci(struct sk_buff *skb)
+{
+	struct vlan_ethhdr *vhdr;
+	unsigned short vlan_TCI = 0;
+
+	if (skb->protocol == ntohs(ETH_P_ALL)) {
+		vhdr = (struct vlan_ethhdr *)(skb->data);
+		vlan_TCI = ntohs(vhdr->h_vlan_TCI);
+	}
+
+	return vlan_TCI;
+}
+
 u16 fec_enet_select_queue(struct net_device *ndev, struct sk_buff *skb)
 {
-	return skb_tx_hash(ndev, skb);
+	struct fec_enet_private *fep = netdev_priv(ndev);
+	const struct platform_device_id *id_entry =
+				platform_get_device_id(fep->pdev);
+	u16 vlan_tag;
+
+	if (!(id_entry->driver_data & FEC_QUIRK_HAS_AVB))
+		return skb_tx_hash(ndev, skb);
+
+	vlan_tag = fec_enet_get_raw_vlan_tci(skb);
+	if (!vlan_tag)
+		return vlan_tag;
+
+	return  fec_enet_vlan_pri_to_queue[vlan_tag >> 13];
 }
 
 static const struct net_device_ops fec_netdev_ops = {

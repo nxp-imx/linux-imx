@@ -326,7 +326,7 @@ struct bufdesc_ex {
 #define DMA_CLASS_EN		(1 << 16)
 #define IDLE_SLOPE_MASK		0xFFFF
 #define IDLE_SLOPE_1		0x200 /* BW fraction: 0.5 */
-#define IDLE_SLOPE_2		0x100 /* BW fraction: 0.33 */
+#define IDLE_SLOPE_2		0x200 /* BW fraction: 0.5 */
 #define IDLE_SLOPE(X)		((X == 1) ? (IDLE_SLOPE_1 & IDLE_SLOPE_MASK) : \
 				(IDLE_SLOPE_2 & IDLE_SLOPE_MASK))
 #define RCMR_MATCHEN		(0x1 << 16)
