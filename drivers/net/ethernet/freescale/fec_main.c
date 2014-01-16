@@ -364,7 +364,8 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	else
 		index = bdp - txq->tx_bd_base;
 
-	if (((unsigned long) bufaddr) & FEC_ALIGNMENT) {
+	if (!(id_entry->driver_data & FEC_QUIRK_HAS_AVB) &&
+		((unsigned long) bufaddr) & FEC_ALIGNMENT) {
 		memcpy(txq->tx_bounce[index], skb->data, skb->len);
 		bufaddr = txq->tx_bounce[index];
 	}
