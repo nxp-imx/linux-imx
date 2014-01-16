@@ -1001,10 +1001,14 @@ gckVIDMEM_AllocateLinear(
     gctUINT32 alignment;
     gctINT bank, i;
     gctBOOL acquired = gcvFALSE;
+#if gcdSMALL_BLOCK_SIZE
+    gctBOOL force_allocate = (Type == gcvSURF_TILE_STATUS) || (Type & gcvSURF_VG);
+#endif
 
     gcmkHEADER_ARG("Memory=0x%x Bytes=%lu Alignment=%u Type=%d",
                    Memory, Bytes, Alignment, Type);
 
+    Type &= ~gcvSURF_VG;
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Memory, gcvOBJ_VIDMEM);
     gcmkVERIFY_ARGUMENT(Bytes > 0);
@@ -1026,7 +1030,7 @@ gckVIDMEM_AllocateLinear(
 #endif
 
 #if gcdSMALL_BLOCK_SIZE
-    if ((Memory->freeBytes < (Memory->bytes/gcdRATIO_FOR_SMALL_MEMORY))
+    if ((!force_allocate) && (Memory->freeBytes < (Memory->bytes/gcdRATIO_FOR_SMALL_MEMORY))
     &&  (Bytes >= gcdSMALL_BLOCK_SIZE)
     )
     {
