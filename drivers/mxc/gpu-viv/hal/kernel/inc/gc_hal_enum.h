@@ -224,6 +224,7 @@ typedef enum _gceSURF_TYPE
     gcvSURF_TILE_STATUS_DIRTY  = 0x1000, /* Init tile status to all dirty */
 
     gcvSURF_LINEAR             = 0x2000,
+    gcvSURF_VG                     = 0x4000,
 
     gcvSURF_TEXTURE_LINEAR               = gcvSURF_TEXTURE
                                          | gcvSURF_LINEAR,
