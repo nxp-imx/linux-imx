@@ -760,7 +760,7 @@ _AllocateMemory_Retry:
 
                     if((physAddr & 0x80000000) || ((physAddr + Bytes) & 0x80000000))
                     {
-                        gckOS_Print("gpu virtual memory 0x%x cannot be allocated for external use !\n", physAddr);
+                        gckOS_Print("gpu virtual memory 0x%x cannot be allocated in force contiguous request!\n", physAddr);
 
                         gckVIDMEM_Free(node);
 
