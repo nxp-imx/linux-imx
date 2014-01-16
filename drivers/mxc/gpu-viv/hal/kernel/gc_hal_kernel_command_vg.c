@@ -3430,10 +3430,10 @@ gckVGCOMMAND_Commit(
             break;
         }
 
-        gcmkERR_BREAK(_FlushMMU(Command));
-
         do
         {
+            gcmkERR_BREAK(_FlushMMU(Command));
+
             /* Assign a context ID if not yet assigned. */
             if (Context->id == 0)
             {
