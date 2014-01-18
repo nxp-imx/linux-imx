@@ -1,6 +1,6 @@
 
 /*
- * Copyright (C) 2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -116,8 +116,7 @@ DEFINE_SPINLOCK(clk_lock);
 	reg = __raw_readl(timer_base + V2_TSTAT);\
 	/* Clear the GPT roll over interrupt. */ \
 	if (reg & V2_TSTAT_ROV) { \
-		reg |= V2_TSTAT_ROV;\
-		__raw_writel(reg, timer_base + V2_TSTAT);\
+		__raw_writel(V2_TSTAT_ROV, timer_base + V2_TSTAT);\
 	} \
 	gpt_cnt = __raw_readl(timer_base + V2_TCN); \
 	while (!(exp)) { \
@@ -130,13 +129,13 @@ DEFINE_SPINLOCK(clk_lock);
 			if (reg & V2_TSTAT_ROV) { \
 				u32 old_cnt = gpt_cnt; \
 				/* Timer has rolled over. \
-				  * Calculate the new tcik count. \
+				  * Calculate the new tick count. \
 				  */ \
 				gpt_cnt = __raw_readl(timer_base + V2_TCN); \
 				gpt_ticks -= (0xFFFFFFFF - old_cnt + gpt_cnt); \
 				/* Clear the roll over interrupt. */ \
-				reg |= V2_TSTAT_ROV;\
-				__raw_writel(reg, timer_base + V2_TSTAT);\
+				__raw_writel(V2_TSTAT_ROV, \
+						timer_base + V2_TSTAT); \
 			} \
 		} \
 	} \
