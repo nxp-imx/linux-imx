@@ -45,35 +45,35 @@
 
 		home {
 			label = "Home";
-			gpios = <&gpio1 11 0>;
+			gpios = <&gpio1 11 1>;
 			gpio-key,wakeup;
 			linux,code = <KEY_HOME>;
 		};
 
 		back {
 			label = "Back";
-			gpios = <&gpio1 12 0>;
+			gpios = <&gpio1 12 1>;
 			gpio-key,wakeup;
 			linux,code = <KEY_BACK>;
 		};
 
 		program {
 			label = "Program";
-			gpios = <&gpio2 12 0>;
+			gpios = <&gpio2 12 1>;
 			gpio-key,wakeup;
 			linux,code = <KEY_PROGRAM>;
 		};
 
 		volume-up {
 			label = "Volume Up";
-			gpios = <&gpio2 15 0>;
+			gpios = <&gpio2 15 1>;
 			gpio-key,wakeup;
 			linux,code = <KEY_VOLUMEUP>;
 		};
 
 		volume-down {
 			label = "Volume Down";
-			gpios = <&gpio5 14 0>;
+			gpios = <&gpio5 14 1>;
 			gpio-key,wakeup;
 			linux,code = <KEY_VOLUMEDOWN>;
 		};
