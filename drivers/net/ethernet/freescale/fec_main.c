@@ -417,6 +417,9 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 			if (skb->ip_summed == CHECKSUM_PARTIAL)
 				ebdp->cbd_esc |= BD_ENET_TX_PINS;
 		}
+
+		if (id_entry->driver_data & FEC_QUIRK_HAS_AVB)
+			ebdp->cbd_esc |= FEC_TX_BD_FTYPE(queue);
 	}
 
 	bdp_pre = fec_enet_get_prevdesc(bdp, fep->bufdesc_ex);
