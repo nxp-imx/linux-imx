@@ -94,20 +94,20 @@
 		compatible = "gpio-keys";
 		power {
 			label = "Power Button";
-			gpios = <&gpio3 29 0>;
+			gpios = <&gpio3 29 1>;
 			linux,code = <116>; /* KEY_POWER */
 			gpio-key,wakeup;
 		};
 
 		volume-up {
 			label = "Volume Up";
-			gpios = <&gpio1 4 0>;
+			gpios = <&gpio1 4 1>;
 			linux,code = <115>; /* KEY_VOLUMEUP */
 		};
 
 		volume-down {
 			label = "Volume Down";
-			gpios = <&gpio1 5 0>;
+			gpios = <&gpio1 5 1>;
 			linux,code = <114>; /* KEY_VOLUMEDOWN */
 		};
 	};

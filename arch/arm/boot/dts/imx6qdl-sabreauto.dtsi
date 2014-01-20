@@ -41,35 +41,35 @@
 		compatible = "gpio-keys";
 		home {
 			label = "Home";
-			gpios = <&gpio1 11 0>;
+			gpios = <&gpio1 11 1>;
 			linux,code = <102>; /* KEY_HOME */
 			gpio-key,wakeup;
 		};
 
 		back {
 			label = "Back";
-			gpios = <&gpio1 12 0>;
+			gpios = <&gpio1 12 1>;
 			linux,code = <158>; /* KEY_BACK */
 			gpio-key,wakeup;
 		};
 
 		program {
 			label = "Program";
-			gpios = <&gpio2 12 0>;
+			gpios = <&gpio2 12 1>;
 			linux,code = <362>; /* KEY_PROGRAM */
 			gpio-key,wakeup;
 		};
 
 		volume-up {
 			label = "Volume Up";
-			gpios = <&gpio2 15 0>;
+			gpios = <&gpio2 15 1>;
 			linux,code = <115>; /* KEY_VOLUMEUP */
 			gpio-key,wakeup;
 		};
 
 		volume-down {
 			label = "Volume Down";
-			gpios = <&gpio5 14 0>;
+			gpios = <&gpio5 14 1>;
 			linux,code = <114>; /* KEY_VOLUMEDOWN */
 			gpio-key,wakeup;
 		};
