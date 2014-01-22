@@ -4,7 +4,7 @@
  * This code is based on:
  * Author: Vitaly Wool <vital@embeddedalley.com>
  *
- * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -434,6 +434,9 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 	clk_prepare_enable(host->clk_pix);
 	clk_set_rate(host->clk_pix, PICOS2KHZ(fb_info->var.pixclock) * 1000U);
 
+	/* Clean soft reset and clock gate bit if it was enabled  */
+	writel(CTRL_SFTRST | CTRL_CLKGATE, host->base + LCDC_CTRL + REG_CLR);
+
 	/* if it was disabled, re-enable the mode again */
 	writel(CTRL_DOTCLK_MODE, host->base + LCDC_CTRL + REG_SET);
 
@@ -729,6 +732,7 @@ static int mxsfb_blank(int blank, struct fb_info *fb_info)
 	case FB_BLANK_UNBLANK:
 		if (!host->enabled)
 			mxsfb_enable_controller(fb_info);
+		mxsfb_set_par(&host->fb_info);
 		break;
 	}
 	return 0;
