@@ -212,6 +212,8 @@ struct imx_port {
 	struct work_struct	tsk_dma_rx, tsk_dma_tx;
 	unsigned int		dma_tx_nents;
 	bool			dma_is_rxing;
+	unsigned long flags;
+#define DMA_TX_IS_WORKING 1
 	wait_queue_head_t	dma_wait;
 };
 
@@ -410,8 +412,9 @@ static void dma_tx_callback(void *data)
 	sport->port.icount.tx += sport->tx_bytes;
 	spin_unlock(&sport->port.lock);
 
-	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-		uart_write_wakeup(&sport->port);
+	clear_bit(DMA_TX_IS_WORKING, &sport->flags);
+	smp_mb__after_clear_bit();
+	uart_write_wakeup(&sport->port);
 	schedule_work(&sport->tsk_dma_tx);
 }
 
@@ -422,12 +425,10 @@ static void dma_tx_work(struct work_struct *w)
 	struct scatterlist *sgl = &sport->tx_sgl[0];
 	struct dma_async_tx_descriptor *desc;
 	struct dma_chan	*chan = sport->dma_chan_tx;
-	enum dma_status status;
 	unsigned long flags;
 	int ret;
 
-	status = chan->device->device_tx_status(chan, (dma_cookie_t)NULL, NULL);
-	if (DMA_IN_PROGRESS == status)
+	if (test_and_set_bit(DMA_TX_IS_WORKING, &sport->flags))
 		return;
 
 	spin_lock_irqsave(&sport->port.lock, flags);
@@ -450,13 +451,13 @@ static void dma_tx_work(struct work_struct *w)
 				sport->dma_tx_nents, DMA_TO_DEVICE);
 		if (ret == 0) {
 			pr_err("DMA mapping error for TX.\n");
-			return;
+			goto err_out;
 		}
 		desc = chan->device->device_prep_slave_sg(chan, sgl,
 				sport->dma_tx_nents, DMA_TO_DEVICE, 0);
 		if (!desc) {
 			pr_err("We cannot prepare for the TX slave dma!\n");
-			return;
+			goto err_out;
 		}
 		desc->callback = dma_tx_callback;
 		desc->callback_param = sport;
@@ -466,6 +467,9 @@ static void dma_tx_work(struct work_struct *w)
 		return;
 	}
 	spin_unlock_irqrestore(&sport->port.lock, flags);
+err_out:
+	clear_bit(DMA_TX_IS_WORKING, &sport->flags);
+	smp_mb__after_clear_bit();
 	return;
 }
 
@@ -1049,6 +1053,7 @@ static int imx_startup(struct uart_port *port)
 		INIT_WORK(&sport->tsk_dma_tx, dma_tx_work);
 		INIT_WORK(&sport->tsk_dma_rx, dma_rx_work);
 		init_waitqueue_head(&sport->dma_wait);
+		sport->flags = 0;
 	}
 
 	spin_lock_irqsave(&sport->port.lock, flags);
