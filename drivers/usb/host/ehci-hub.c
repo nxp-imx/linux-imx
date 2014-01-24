@@ -289,6 +289,15 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 			ehci_vdbg (ehci, "port %d, %08x -> %08x\n",
 				port + 1, t1, t2);
 			ehci_writel(ehci, t2, reg);
+			if ((t2 & PORT_WKDISC_E)
+				&& (ehci_port_speed(ehci, t2) ==
+					USB_PORT_STAT_HIGH_SPEED))
+				/*
+				 * If the high-speed device has not switched
+				 * to full-speed idle before WKDISC_E has
+				 * effected, there will be a WKDISC event.
+				 */
+				mdelay(4);
 			changed = 1;
 		}
 	}
