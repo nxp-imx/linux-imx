@@ -43,5 +43,6 @@
 };
 
 &weim {
+	pinctrl-assert-gpios = <&gpio5 4 GPIO_ACTIVE_LOW>;
 	status = "okay";
 };
