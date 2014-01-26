@@ -1072,6 +1072,12 @@
 	};
 
 	ecspi1 {
+		pinctrl_ecspi1_cs_1: ecspi1_cs_grp-1 {
+			fsl,pins = <
+				MX6QDL_PAD_EIM_D19__GPIO3_IO19 0x80000000
+			>;
+		};
+
 		pinctrl_ecspi1_1: ecspi1grp-1 {
 			fsl,pins = <
 				MX6QDL_PAD_EIM_D17__ECSPI1_MISO 0x100b1
