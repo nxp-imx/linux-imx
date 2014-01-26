@@ -150,6 +150,16 @@ config TI_AM335X_ADC
 	  Say yes here to build support for Texas Instruments ADC
 	  driver which is also a MFD client.
 
+config VF610_ADC
+	tristate "Freescale vf610 ADC driver"
+	depends on OF
+	help
+	  Say yes here to support for Vybrid board analog-to-digital converter.
+	  Since the IP is used for i.MX6SLX, the driver also support i.MX6SLX.
+
+	  This driver can also be built as a module. If so, the module will be
+	  called vf610_adc.
+
 config VIPERBOARD_ADC
 	tristate "Viperboard ADC support"
 	depends on MFD_VIPERBOARD && USB
