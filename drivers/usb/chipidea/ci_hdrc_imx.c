@@ -60,7 +60,13 @@ static const struct ci_hdrc_imx_platform_flag imx6sl_usb_data = {
 		CI_HDRC_IMX_HAS_HSIC,
 };
 
+static const struct ci_hdrc_imx_platform_flag imx6sx_usb_data = {
+	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM |
+		CI_HDRC_IMX_HAS_HSIC,
+};
+
 static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
+	{ .compatible = "fsl,imx6sx-usb", .data = &imx6sx_usb_data},
 	{ .compatible = "fsl,imx6sl-usb", .data = &imx6sl_usb_data},
 	{ .compatible = "fsl,imx6q-usb", .data = &imx6q_usb_data},
 	{ .compatible = "fsl,imx28-usb", .data = &imx28_usb_data},
