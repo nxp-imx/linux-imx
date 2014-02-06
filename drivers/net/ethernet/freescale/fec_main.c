@@ -2096,6 +2096,9 @@ static int fec_enet_alloc_buffers(struct net_device *ndev)
 }
 
 static int
+fec_enet_close(struct net_device *ndev);
+
+static int
 fec_enet_open(struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
@@ -2130,7 +2133,7 @@ fec_enet_open(struct net_device *ndev)
 	/* Probe and connect to PHY when open the interface */
 	ret = fec_enet_mii_probe(ndev);
 	if (ret) {
-		fec_enet_free_buffers(ndev);
+		fec_enet_close(ndev);
 		return ret;
 	}
 
