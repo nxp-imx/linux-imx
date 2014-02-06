@@ -176,7 +176,6 @@ static struct mtd_info *cfi_staa_setup(struct map_info *map)
 	//printk(KERN_DEBUG "number of CFI chips: %d\n", cfi->numchips);
 
 	if (!mtd) {
-		printk(KERN_ERR "Failed to allocate memory for MTD device\n");
 		kfree(cfi->cmdset_priv);
 		return NULL;
 	}
@@ -189,7 +188,6 @@ static struct mtd_info *cfi_staa_setup(struct map_info *map)
 	mtd->eraseregions = kmalloc(sizeof(struct mtd_erase_region_info)
 			* mtd->numeraseregions, GFP_KERNEL);
 	if (!mtd->eraseregions) {
-		printk(KERN_ERR "Failed to allocate memory for MTD erase region info\n");
 		kfree(cfi->cmdset_priv);
 		kfree(mtd);
 		return NULL;
