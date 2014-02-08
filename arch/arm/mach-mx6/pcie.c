@@ -3,7 +3,7 @@
  *
  * PCIe host controller driver for IMX6 SOCs
  *
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * Bits taken from arch/arm/mach-dove/pcie.c
  *
@@ -163,16 +163,17 @@
 #define  PCIE_CONF_REG(r)		((r) & ~0x3)
 
 /*
- * The default values of the RC's reserved ddr memory
- * used to verify EP mode.
+ * The default value of the reserved ddr memory
+ * used to verify EP/RC memory space access operations.
  * BTW, here is the layout of the 1G ddr on SD boards
  * 0x1000_0000 ~ 0x4FFF_FFFF
  */
-static u32 rc_ddr_test_region = 0x40000000;
-static u32 rc_ddr_test_region_size = (SZ_16M - SZ_16K);
+static u32 ddr_test_region = 0x40000000;
+/* The upper 1MB space is reserved for CFG, MSI, and so on usage */
+static u32 ddr_test_region_size = (SZ_16M - SZ_1M);
 
 #ifdef EP_SELF_IO_TEST
-static void *rc_ddr_test_reg1, *rc_ddr_test_reg2;
+static void *ddr_test_reg1, *ddr_test_reg2;
 static void __iomem *pcie_arb_base_addr;
 static struct timeval tv1, tv2, tv3;
 static u32 tv_count1, tv_count2;
@@ -396,10 +397,10 @@ static void imx_pcie_regions_setup(struct device *dev, void __iomem *dbi_base)
 		writel(0, dbi_base + ATU_VIEWPORT_R);
 		writel(PCIE_ARB_BASE_ADDR, dbi_base + ATU_REGION_LOWBASE_R);
 		writel(0, dbi_base + ATU_REGION_UPBASE_R);
-		writel(PCIE_ARB_BASE_ADDR + rc_ddr_test_region_size,
+		writel(PCIE_ARB_BASE_ADDR + ddr_test_region_size,
 				dbi_base + ATU_REGION_LIMIT_ADDR_R);
 
-		writel(rc_ddr_test_region,
+		writel(ddr_test_region,
 				dbi_base + ATU_REGION_LOW_TRGT_ADDR_R);
 		writel(0, dbi_base + ATU_REGION_UP_TRGT_ADDR_R);
 		writel(MemRdWr, dbi_base + ATU_REGION_CTRL1_R);
@@ -424,6 +425,24 @@ static void imx_pcie_regions_setup(struct device *dev, void __iomem *dbi_base)
 		writel(0, dbi_base + ATU_REGION_UP_TRGT_ADDR_R);
 		writel(CfgRdWr0, dbi_base + ATU_REGION_CTRL1_R);
 		writel((1<<31), dbi_base + ATU_REGION_CTRL2_R);
+
+#ifdef CONFIG_IMX_PCIE_RC_MODE_IN_EP_RC_SYS
+		/*
+		 * region1 outbound used to access target mem
+		 * in imx6 pcie ep/rc validation system
+		 */
+		writel(1, dbi_base + ATU_VIEWPORT_R);
+		writel(PCIE_ARB_BASE_ADDR,
+				dbi_base + ATU_REGION_LOWBASE_R);
+		writel(PCIE_ARB_BASE_ADDR + SZ_8M,
+				dbi_base + ATU_REGION_LIMIT_ADDR_R);
+		writel(0, dbi_base + ATU_REGION_UPBASE_R);
+
+		writel(ddr_test_region, dbi_base + ATU_REGION_LOW_TRGT_ADDR_R);
+		writel(0, dbi_base + ATU_REGION_UP_TRGT_ADDR_R);
+		writel(MemRdWr, dbi_base + ATU_REGION_CTRL1_R);
+		writel((1<<31), dbi_base + ATU_REGION_CTRL2_R);
+#endif
 	}
 
 #ifdef CONFIG_PCI_MSI
@@ -875,15 +894,33 @@ static int imx6q_pcie_abort_handler(unsigned long addr,
 }
 
 #ifdef CONFIG_IMX_PCIE_EP_MODE_IN_EP_RC_SYS
-static ssize_t imx_pcie_rc_memw_info(struct device *dev,
+static ssize_t imx_pcie_bar0_addr_info(struct device *dev,
+		struct device_attribute *devattr, char *buf)
+{
+	return sprintf(buf, "imx-pcie-bar0-addr-info start 0x%08x\n",
+			readl(dbi_base + PCI_BASE_ADDRESS_0));
+}
+
+static ssize_t imx_pcie_bar0_addr_start(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	u32 bar_start;
+
+	sscanf(buf, "%x\n", &bar_start);
+	writel(bar_start, dbi_base + PCI_BASE_ADDRESS_0);
+
+	return count;
+}
+
+static ssize_t imx_pcie_memw_info(struct device *dev,
 		struct device_attribute *devattr, char *buf)
 {
 	return sprintf(buf, "imx-pcie-rc-memw-info start 0x%08x, size 0x%08x\n",
-			rc_ddr_test_region, rc_ddr_test_region_size);
+			ddr_test_region, ddr_test_region_size);
 }
 
 static ssize_t
-imx_pcie_rc_memw_start(struct device *dev, struct device_attribute *attr,
+imx_pcie_memw_start(struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t count)
 {
 	u32 memw_start;
@@ -896,8 +933,8 @@ imx_pcie_rc_memw_start(struct device *dev, struct device_attribute *attr,
 		return -1;
 	}
 
-	if (rc_ddr_test_region != memw_start) {
-		rc_ddr_test_region = memw_start;
+	if (ddr_test_region != memw_start) {
+		ddr_test_region = memw_start;
 		/* Re-setup the iATU */
 		imx_pcie_regions_setup(dev, dbi_base);
 	}
@@ -906,21 +943,21 @@ imx_pcie_rc_memw_start(struct device *dev, struct device_attribute *attr,
 }
 
 static ssize_t
-imx_pcie_rc_memw_size(struct device *dev, struct device_attribute *attr,
+imx_pcie_memw_size(struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t count)
 {
 	u32 memw_size;
 
 	sscanf(buf, "%x\n", &memw_size);
 
-	if ((memw_size > (SZ_16M - SZ_16K)) || (memw_size < SZ_64K)) {
-		dev_err(dev, "Invalid, should be [SZ_64K,SZ_16M - SZ_16KB].\n");
+	if ((memw_size > (SZ_16M - SZ_1M)) || (memw_size < SZ_64K)) {
+		dev_err(dev, "Invalid, should be [SZ_64K,SZ_16M - SZ_1MB].\n");
 		dev_info(dev, "For example: echo 0x800000 > /sys/...");
 		return -1;
 	}
 
-	if (rc_ddr_test_region_size != memw_size) {
-		rc_ddr_test_region_size = memw_size;
+	if (ddr_test_region_size != memw_size) {
+		ddr_test_region_size = memw_size;
 		/* Re-setup the iATU */
 		imx_pcie_regions_setup(dev, dbi_base);
 	}
@@ -928,19 +965,22 @@ imx_pcie_rc_memw_size(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
-static DEVICE_ATTR(rc_memw_info, S_IRUGO, imx_pcie_rc_memw_info, NULL);
-static DEVICE_ATTR(rc_memw_start_set, S_IWUGO, NULL, imx_pcie_rc_memw_start);
-static DEVICE_ATTR(rc_memw_size_set, S_IWUGO, NULL, imx_pcie_rc_memw_size);
+static DEVICE_ATTR(memw_info, S_IRUGO, imx_pcie_memw_info, NULL);
+static DEVICE_ATTR(memw_start_set, S_IWUGO, NULL, imx_pcie_memw_start);
+static DEVICE_ATTR(memw_size_set, S_IWUGO, NULL, imx_pcie_memw_size);
+static DEVICE_ATTR(ep_bar0_addr, S_IRWXUGO, imx_pcie_bar0_addr_info,
+		imx_pcie_bar0_addr_start);
 
 static struct attribute *imx_pcie_attrs[] = {
 	/*
-	 * The start address, and the limitation (64KB ~ (16MB - 16KB))
+	 * The start address, and the limitation (64KB ~ (16MB - 1MB))
 	 * of the ddr mem window reserved by RC, and used for EP to access.
 	 * BTW, these attrs are only configured at EP side.
 	 */
-	&dev_attr_rc_memw_info.attr,
-	&dev_attr_rc_memw_start_set.attr,
-	&dev_attr_rc_memw_size_set.attr,
+	&dev_attr_memw_info.attr,
+	&dev_attr_memw_start_set.attr,
+	&dev_attr_memw_size_set.attr,
+	&dev_attr_ep_bar0_addr.attr,
 	NULL
 };
 
@@ -1032,30 +1072,30 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 	if (pdata->type_ep) {
 #ifdef EP_SELF_IO_TEST
 		/* Prepare the test regions and data */
-		rc_ddr_test_reg1 = kzalloc(rc_ddr_test_region_size, GFP_KERNEL);
-		if (!rc_ddr_test_reg1)
+		ddr_test_reg1 = kzalloc(ddr_test_region_size, GFP_KERNEL);
+		if (!ddr_test_reg1)
 			pr_err("PCIe EP: can't alloc the test region1.\n");
 
-		rc_ddr_test_reg2 = kzalloc(rc_ddr_test_region_size, GFP_KERNEL);
-		if (!rc_ddr_test_reg2) {
-			kfree(rc_ddr_test_reg1);
+		ddr_test_reg2 = kzalloc(ddr_test_region_size, GFP_KERNEL);
+		if (!ddr_test_reg2) {
+			kfree(ddr_test_reg1);
 			pr_err("PCIe EP: can't alloc the test region2.\n");
 		}
 
 		pcie_arb_base_addr = ioremap_cached(PCIE_ARB_BASE_ADDR,
-				rc_ddr_test_region_size);
+				ddr_test_region_size);
 
 		if (!pcie_arb_base_addr) {
 			pr_err("error with ioremap in function %s\n", __func__);
 			ret = PTR_ERR(pcie_arb_base_addr);
-			kfree(rc_ddr_test_reg2);
-			kfree(rc_ddr_test_reg1);
+			kfree(ddr_test_reg2);
+			kfree(ddr_test_reg1);
 			goto err_base;
 		}
 
-		for (i = 0; i < rc_ddr_test_region_size; i = i + 4) {
-			writel(0xE6600D00 + i, rc_ddr_test_reg1 + i);
-			writel(0xDEADBEAF, rc_ddr_test_reg2 + i);
+		for (i = 0; i < ddr_test_region_size; i = i + 4) {
+			writel(0xE6600D00 + i, ddr_test_reg1 + i);
+			writel(0xDEADBEAF, ddr_test_reg2 + i);
 		}
 #endif
 
@@ -1070,8 +1110,8 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 		} else {
 			pr_info("PCIe EP: ERROR link is down, exit!\n");
 #ifdef EP_SELF_IO_TEST
-			kfree(rc_ddr_test_reg2);
-			kfree(rc_ddr_test_reg1);
+			kfree(ddr_test_reg2);
+			kfree(ddr_test_reg1);
 			iounmap(pcie_arb_base_addr);
 #endif
 			goto err_link_down;
@@ -1084,16 +1124,16 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 		do_gettimeofday(&tv1);
 
 		memcpy((unsigned long *)pcie_arb_base_addr,
-				(unsigned long *)rc_ddr_test_reg1, 0xFFC000);
+				(unsigned long *)ddr_test_reg1, 0xFFC000);
 
 		do_gettimeofday(&tv2);
 
-		memcpy((unsigned long *)rc_ddr_test_reg2,
+		memcpy((unsigned long *)ddr_test_reg2,
 				(unsigned long *)pcie_arb_base_addr, 0xFFC000);
 
 		do_gettimeofday(&tv3);
 
-		if (memcmp(rc_ddr_test_reg2, rc_ddr_test_reg1, 0xFFC000) != 0) {
+		if (memcmp(ddr_test_reg2, ddr_test_reg1, 0xFFC000) != 0) {
 			pr_info("PCIe EP: Data transfer is failed.\n");
 		} else {
 			tv_count1 = (tv2.tv_sec - tv1.tv_sec) * USEC_PER_SEC
@@ -1112,7 +1152,6 @@ static int __devinit imx_pcie_pltfm_probe(struct platform_device *pdev)
 					/(tv_count2));
 		}
 #endif
-
 	} else {
 		/* add the pcie port */
 		add_pcie_port(base, dbi_base, pdata);
