@@ -789,7 +789,6 @@ static struct clk usb_phy1_clk = {
 	__INIT_CLK_DEBUG(usb_phy1_clk)
 	.parent = &pll3_usb_otg_main_clk,
 	.set_rate = _clk_pll3_usb_otg_set_rate,
-	.get_rate = _clk_pll3_usb_otg_get_rate,
 };
 
 /* For HSIC port 1 */
@@ -797,7 +796,6 @@ static struct clk usb_phy3_clk = {
 	__INIT_CLK_DEBUG(usb_phy3_clk)
 	.parent = &pll3_usb_otg_main_clk,
 	.set_rate = _clk_pll3_usb_otg_set_rate,
-	.get_rate = _clk_pll3_usb_otg_get_rate,
 };
 
 /* For HSIC port 2 */
@@ -805,7 +803,6 @@ static struct clk usb_phy4_clk = {
 	__INIT_CLK_DEBUG(usb_phy4_clk)
 	.parent = &pll3_usb_otg_main_clk,
 	.set_rate = _clk_pll3_usb_otg_set_rate,
-	.get_rate = _clk_pll3_usb_otg_get_rate,
 };
 
 static struct clk pll3_pfd_508M = {
