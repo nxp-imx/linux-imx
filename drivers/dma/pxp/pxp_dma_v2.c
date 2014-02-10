@@ -1786,7 +1786,9 @@ static int pxp_probe(struct platform_device *pdev)
 	}
 
 	device_create_file(&pdev->dev, &dev_attr_block_size);
+	pxp_clk_enable(pxp);
 	dump_pxp_reg(pxp);
+	pxp_clk_disable(pxp);
 
 	INIT_WORK(&pxp->work, clkoff_callback);
 	init_timer(&pxp->clk_timer);
