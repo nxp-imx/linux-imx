@@ -246,6 +246,19 @@ static bool is_yuv(u32 pix_fmt)
 	}
 }
 
+static void pxp_soft_reset(struct pxps *pxp)
+{
+	__raw_writel(BM_PXP_CTRL_SFTRST, pxp->base + HW_PXP_CTRL_CLR);
+	__raw_writel(BM_PXP_CTRL_CLKGATE, pxp->base + HW_PXP_CTRL_CLR);
+
+	__raw_writel(BM_PXP_CTRL_SFTRST, pxp->base + HW_PXP_CTRL_SET);
+	while (!(__raw_readl(pxp->base + HW_PXP_CTRL) & BM_PXP_CTRL_CLKGATE))
+		dev_dbg(pxp->dev, "%s: wait for clock gate off", __func__);
+
+	__raw_writel(BM_PXP_CTRL_SFTRST, pxp->base + HW_PXP_CTRL_CLR);
+	__raw_writel(BM_PXP_CTRL_CLKGATE, pxp->base + HW_PXP_CTRL_CLR);
+}
+
 static void pxp_set_ctrl(struct pxps *pxp)
 {
 	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
@@ -1221,6 +1234,11 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	    __raw_readl(pxp->base + HW_PXP_HIST_CTRL) & BM_PXP_HIST_CTRL_STATUS;
 
 	__raw_writel(BM_PXP_STAT_IRQ, pxp->base + HW_PXP_STAT_CLR);
+
+	/* set the SFTRST bit to be 1 to reset
+	 * the PXP block to its default state.
+	 */
+	pxp_soft_reset(pxp);
 
 	spin_lock_irqsave(&pxp->lock, flags);
 
