@@ -1,6 +1,7 @@
 /*
  * PCIe host controller driver for Freescale i.MX6 SoCs
  *
+ * Copyright (C) 2014 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2013 Kosagi
  *		http://www.kosagi.com
  *
@@ -33,12 +34,12 @@
 #define to_imx6_pcie(x)	container_of(x, struct imx6_pcie, pp)
 
 /*
- * The default values of the RC's reserved ddr memory
- * used to verify EP mode.
+ * The default value of the reserved ddr memory
+ * used to verify EP/RC memory space access operations.
  * BTW, here is the layout of the 1G ddr on SD boards
  * 0x1000_0000 ~ 0x4FFF_FFFF
  */
-static u32 rc_ddr_test_region = 0x40000000;
+static u32 ddr_test_region = 0x40000000;
 static u32 test_region_size = SZ_2M;
 
 struct imx6_pcie {
@@ -445,36 +446,80 @@ static int imx6_add_pcie_port(struct pcie_port *pp,
 	return 0;
 }
 
+static ssize_t imx_pcie_bar0_addr_info(struct device *dev,
+		struct device_attribute *devattr, char *buf)
+{
+	struct imx6_pcie *imx6_pcie = dev_get_drvdata(dev);
+	struct pcie_port *pp = &imx6_pcie->pp;
+
+	return sprintf(buf, "imx-pcie-bar0-addr-info start 0x%08x\n",
+			readl(pp->dbi_base + PCI_BASE_ADDRESS_0));
+}
+
+static ssize_t imx_pcie_bar0_addr_start(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	u32 bar_start;
+	struct imx6_pcie *imx6_pcie = dev_get_drvdata(dev);
+	struct pcie_port *pp = &imx6_pcie->pp;
+
+	sscanf(buf, "%x\n", &bar_start);
+	writel(bar_start, pp->dbi_base + PCI_BASE_ADDRESS_0);
+
+	return count;
+}
+
 static void imx_pcie_regions_setup(struct device *dev)
 {
 	struct imx6_pcie *imx6_pcie = dev_get_drvdata(dev);
 	struct pcie_port *pp = &imx6_pcie->pp;
 
-	/*
-	 * region0 outbound used to access RC's reserved ddr memory
-	 */
-	writel(0, pp->dbi_base + PCIE_ATU_VIEWPORT);
-	writel(0x01000000, pp->dbi_base + PCIE_ATU_LOWER_BASE);
-	writel(0, pp->dbi_base + PCIE_ATU_UPPER_BASE);
-	writel(0x01000000 + test_region_size,
-			pp->dbi_base + PCIE_ATU_LIMIT);
+	if (IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)) {
+		/*
+		 * region2 outbound used to access rc mem
+		 * in imx6 pcie ep/rc validation system
+		 */
+		writel(0, pp->dbi_base + PCIE_ATU_VIEWPORT);
+		writel(0x01000000, pp->dbi_base + PCIE_ATU_LOWER_BASE);
+		writel(0, pp->dbi_base + PCIE_ATU_UPPER_BASE);
+		writel(0x01000000 + test_region_size,
+				pp->dbi_base + PCIE_ATU_LIMIT);
 
-	writel(rc_ddr_test_region,
-			pp->dbi_base + PCIE_ATU_LOWER_TARGET);
-	writel(0, pp->dbi_base + PCIE_ATU_UPPER_TARGET);
-	writel(PCIE_ATU_TYPE_MEM, pp->dbi_base + PCIE_ATU_CR1);
-	writel(PCIE_ATU_ENABLE, pp->dbi_base + PCIE_ATU_CR2);
+		writel(ddr_test_region,
+				pp->dbi_base + PCIE_ATU_LOWER_TARGET);
+		writel(0, pp->dbi_base + PCIE_ATU_UPPER_TARGET);
+		writel(PCIE_ATU_TYPE_MEM, pp->dbi_base + PCIE_ATU_CR1);
+		writel(PCIE_ATU_ENABLE, pp->dbi_base + PCIE_ATU_CR2);
+	}
+
+	if (IS_ENABLED(CONFIG_RC_MODE_IN_EP_RC_SYS)) {
+		/*
+		 * region2 outbound used to access ep mem
+		 * in imx6 pcie ep/rc validation system
+		 */
+		writel(2, pp->dbi_base + PCIE_ATU_VIEWPORT);
+		writel(0x01000000, pp->dbi_base + PCIE_ATU_LOWER_BASE);
+		writel(0, pp->dbi_base + PCIE_ATU_UPPER_BASE);
+		writel(0x01000000 + test_region_size,
+				pp->dbi_base + PCIE_ATU_LIMIT);
+
+		writel(ddr_test_region,
+				pp->dbi_base + PCIE_ATU_LOWER_TARGET);
+		writel(0, pp->dbi_base + PCIE_ATU_UPPER_TARGET);
+		writel(PCIE_ATU_TYPE_MEM, pp->dbi_base + PCIE_ATU_CR1);
+		writel(PCIE_ATU_ENABLE, pp->dbi_base + PCIE_ATU_CR2);
+	}
 }
 
-static ssize_t imx_pcie_rc_memw_info(struct device *dev,
+static ssize_t imx_pcie_memw_info(struct device *dev,
 		struct device_attribute *devattr, char *buf)
 {
 	return sprintf(buf, "imx-pcie-rc-memw-info start 0x%08x, size 0x%08x\n",
-			rc_ddr_test_region, test_region_size);
+			ddr_test_region, test_region_size);
 }
 
 static ssize_t
-imx_pcie_rc_memw_start(struct device *dev, struct device_attribute *attr,
+imx_pcie_memw_start(struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t count)
 {
 	u32 memw_start;
@@ -487,8 +532,8 @@ imx_pcie_rc_memw_start(struct device *dev, struct device_attribute *attr,
 		return -1;
 	}
 
-	if (rc_ddr_test_region != memw_start) {
-		rc_ddr_test_region = memw_start;
+	if (ddr_test_region != memw_start) {
+		ddr_test_region = memw_start;
 		/* Re-setup the iATU */
 		imx_pcie_regions_setup(dev);
 	}
@@ -497,15 +542,15 @@ imx_pcie_rc_memw_start(struct device *dev, struct device_attribute *attr,
 }
 
 static ssize_t
-imx_pcie_rc_memw_size(struct device *dev, struct device_attribute *attr,
+imx_pcie_memw_size(struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t count)
 {
 	u32 memw_size;
 
 	sscanf(buf, "%x\n", &memw_size);
 
-	if ((memw_size > (SZ_16M - SZ_16K)) || (memw_size < SZ_64K)) {
-		dev_err(dev, "Invalid, should be [SZ_64K,SZ_16M - SZ_16KB].\n");
+	if ((memw_size > (SZ_16M - SZ_1M)) || (memw_size < SZ_64K)) {
+		dev_err(dev, "Invalid, should be [SZ_64K,SZ_16M - SZ_1MB].\n");
 		dev_info(dev, "For example: echo 0x800000 > /sys/...");
 		return -1;
 	}
@@ -519,19 +564,22 @@ imx_pcie_rc_memw_size(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
-static DEVICE_ATTR(rc_memw_info, S_IRUGO, imx_pcie_rc_memw_info, NULL);
-static DEVICE_ATTR(rc_memw_start_set, S_IWUGO, NULL, imx_pcie_rc_memw_start);
-static DEVICE_ATTR(rc_memw_size_set, S_IWUGO, NULL, imx_pcie_rc_memw_size);
+static DEVICE_ATTR(memw_info, S_IRUGO, imx_pcie_memw_info, NULL);
+static DEVICE_ATTR(memw_start_set, S_IWUGO, NULL, imx_pcie_memw_start);
+static DEVICE_ATTR(memw_size_set, S_IWUGO, NULL, imx_pcie_memw_size);
+static DEVICE_ATTR(ep_bar0_addr, S_IRWXUGO, imx_pcie_bar0_addr_info,
+		imx_pcie_bar0_addr_start);
 
 static struct attribute *imx_pcie_attrs[] = {
 	/*
-	 * The start address, and the limitation (64KB ~ (16MB - 16KB))
+	 * The start address, and the limitation (64KB ~ (16MB - 1MB))
 	 * of the ddr mem window reserved by RC, and used for EP to access.
 	 * BTW, these attrs are only configured at EP side.
 	 */
-	&dev_attr_rc_memw_info.attr,
-	&dev_attr_rc_memw_start_set.attr,
-	&dev_attr_rc_memw_size_set.attr,
+	&dev_attr_memw_info.attr,
+	&dev_attr_memw_start_set.attr,
+	&dev_attr_memw_size_set.attr,
+	&dev_attr_ep_bar0_addr.attr,
 	NULL
 };
 
@@ -823,6 +871,9 @@ static int __init imx6_pcie_probe(struct platform_device *pdev)
 			goto err;
 
 		platform_set_drvdata(pdev, imx6_pcie);
+
+		/* Re-setup the iATU */
+		imx_pcie_regions_setup(&pdev->dev);
 	}
 	return 0;
 
