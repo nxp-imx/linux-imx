@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2007, 2010, 2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2007, 2010, 2013-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2008 Juergen Beisert (kernel@pengutronix.de)
  *
  * This program is free software; you can redistribute it and/or
@@ -36,6 +36,7 @@
 #define MXC_CPU_MX53		53
 #define MXC_CPU_IMX6SL		0x60
 #define MXC_CPU_IMX6DL		0x61
+#define MXC_CPU_IMX6SX		0x62
 #define MXC_CPU_IMX6Q		0x63
 
 #define IMX_CHIP_REVISION_1_0		0x10
@@ -155,6 +156,11 @@ extern unsigned int __mxc_cpu_type;
 #endif
 
 #ifndef __ASSEMBLY__
+static inline bool cpu_is_imx6sx(void)
+{
+	return __mxc_cpu_type == MXC_CPU_IMX6SX;
+}
+
 static inline bool cpu_is_imx6sl(void)
 {
 	return __mxc_cpu_type == MXC_CPU_IMX6SL;

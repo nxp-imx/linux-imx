@@ -1,5 +1,5 @@
 /*
- * Copyright 2011, 2013 Freescale Semiconductor, Inc.
+ * Copyright 2011, 2013-2014 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -20,6 +20,7 @@
 #include "common.h"
 
 #define SRC_SCR				0x000
+#define SRC_SMBR1			0x004
 #define SRC_GPR1			0x020
 #define BP_SRC_SCR_WARM_RESET_ENABLE	0
 #define BP_SRC_SCR_SW_GPU_RST		1
@@ -107,6 +108,11 @@ u32 imx_get_cpu_arg(int cpu)
 {
 	cpu = cpu_logical_map(cpu);
 	return readl_relaxed(src_base + SRC_GPR1 + cpu * 8 + 4);
+}
+
+u32 imx_get_smbr1(void)
+{
+	return readl_relaxed(src_base + SRC_SMBR1);
 }
 
 void imx_set_cpu_arg(int cpu, u32 arg)
