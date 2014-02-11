@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Freescale Semiconductor, Inc.
+ * Copyright 2011-2014 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -64,6 +64,15 @@
 
 #define MX6_INT_IOMUXC			32
 
+#define ROMC_ROMPATCH0D			0xf0
+#define ROMC_ROMPATCHCNTL		0xf4
+#define ROMC_ROMPATCHENL		0xfc
+#define ROMC_ROMPATCH0A			0x100
+#define BM_ROMPATCHCNTL_0D		(0x1 << 0)
+#define BM_ROMPATCHCNTL_DIS		(0x1 << 29)
+#define BM_ROMPATCHENL_0D		(0x1 << 0)
+#define ROM_ADDR_FOR_INTERNAL_RAM_BASE	0x10d7c
+
 static struct gen_pool *iram_pool;
 static void *suspend_iram_base;
 static unsigned long iram_size, iram_paddr;
@@ -71,6 +80,7 @@ static int (*suspend_in_iram_fn)(void *iram_vbase,
 	unsigned long iram_pbase, unsigned int cpu_type);
 static unsigned int cpu_type;
 static void __iomem *ccm_base;
+struct regmap *romcp;
 
 void imx6_set_cache_lpm_in_wait(bool enable)
 {
@@ -169,7 +179,7 @@ int imx6_set_lpm(enum mxc_cpu_pwr_mode mode)
 		val |= BM_CLPCR_ARM_CLK_DIS_ON_LPM;
 		val &= ~BM_CLPCR_VSTBY;
 		val &= ~BM_CLPCR_SBYOS;
-		if (cpu_is_imx6sl())
+		if (cpu_is_imx6sl() || cpu_is_imx6sx())
 			val |= BM_CLPCR_BYP_MMDC_CH0_LPM_HS;
 		else
 			val |= BM_CLPCR_BYP_MMDC_CH1_LPM_HS;
@@ -178,8 +188,9 @@ int imx6_set_lpm(enum mxc_cpu_pwr_mode mode)
 		val |= 0x2 << BP_CLPCR_LPM;
 		val &= ~BM_CLPCR_VSTBY;
 		val &= ~BM_CLPCR_SBYOS;
-		if (cpu_is_imx6sl()) {
+		if (cpu_is_imx6sl())
 			val |= BM_CLPCR_BYPASS_PMIC_READY;
+		if (cpu_is_imx6sl() || cpu_is_imx6sx()) {
 			val |= BM_CLPCR_BYP_MMDC_CH0_LPM_HS;
 		} else {
 			val |= BM_CLPCR_BYP_MMDC_CH1_LPM_HS;
@@ -195,8 +206,9 @@ int imx6_set_lpm(enum mxc_cpu_pwr_mode mode)
 		val |= 0x3 << BP_CLPCR_STBY_COUNT;
 		val |= BM_CLPCR_VSTBY;
 		val |= BM_CLPCR_SBYOS;
-		if (cpu_is_imx6sl()) {
+		if (cpu_is_imx6sl())
 			val |= BM_CLPCR_BYPASS_PMIC_READY;
+		if (cpu_is_imx6sl() || cpu_is_imx6sx()) {
 			val |= BM_CLPCR_BYP_MMDC_CH0_LPM_HS;
 		} else {
 			val |= BM_CLPCR_BYP_MMDC_CH1_LPM_HS;
@@ -265,9 +277,17 @@ static int imx6_pm_enter(suspend_state_t state)
 		imx_gpc_pre_suspend(true);
 		imx_anatop_pre_suspend();
 		imx_set_cpu_jump(0, v7_cpu_resume);
+		/* Enable ROM patch for i.MX6SX */
+		if (cpu_is_imx6sx())
+			regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
+				BM_ROMPATCHCNTL_DIS, ~BM_ROMPATCHCNTL_DIS);
 		/* Zzz ... */
 		cpu_suspend(0, imx6_suspend_finish);
-		if (!cpu_is_imx6sl())
+		/* Disable ROM patch for i.MX6SX */
+		if (cpu_is_imx6sx())
+			regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
+				BM_ROMPATCHCNTL_DIS, BM_ROMPATCHCNTL_DIS);
+		if (!cpu_is_imx6sl() && !cpu_is_imx6sx())
 			imx_smp_prepare();
 		imx_anatop_post_resume();
 		imx_gpc_post_resume();
@@ -374,6 +394,31 @@ void __init imx6_pm_init(void)
 		cpu_type = MXC_CPU_IMX6Q;
 	else if (cpu_is_imx6dl())
 		cpu_type = MXC_CPU_IMX6DL;
-	else
+	else if (cpu_is_imx6sl())
 		cpu_type = MXC_CPU_IMX6SL;
+	else {
+		cpu_type = MXC_CPU_IMX6SX;
+		/*
+		 * As there is a 16K OCRAM(start from 0x8f8000)
+		 * dedicated for low power function on i.MX6SX,
+		 * but ROM did NOT do the ocram address change
+		 * accordingly, so we need to add a data patch
+		 * to workaround this issue, otherwise, system
+		 * will fail to resume from DSM mode.
+		 */
+		romcp = syscon_regmap_lookup_by_compatible("fsl,imx6sx-romcp");
+		if (IS_ERR(romcp)) {
+			pr_err("failed to find fsl,imx6sx-romcp regmap\n");
+			return;
+		}
+		regmap_write(romcp, ROMC_ROMPATCH0D, iram_paddr);
+		regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
+			BM_ROMPATCHCNTL_DIS, BM_ROMPATCHCNTL_DIS);
+		regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
+			BM_ROMPATCHCNTL_0D, BM_ROMPATCHCNTL_0D);
+		regmap_update_bits(romcp, ROMC_ROMPATCHENL,
+			BM_ROMPATCHENL_0D, BM_ROMPATCHENL_0D);
+		regmap_write(romcp, ROMC_ROMPATCH0A,
+			ROM_ADDR_FOR_INTERNAL_RAM_BASE);
+	}
 }

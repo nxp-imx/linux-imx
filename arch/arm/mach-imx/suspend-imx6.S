@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,18 @@
 #define MX6Q_ANATOP_CORE	0x140
 
 	.align 3
+
+	.macro	imx6sx_ddr_io_save
+
+	.endm
+
+	.macro	imx6sx_ddr_io_restore
+
+	.endm
+
+	.macro	imx6sx_ddr_io_set_lpm
+
+	.endm
 
 	.macro	imx6sl_ddr_io_save
 
@@ -513,7 +525,12 @@ dl_io_dsm_save:
 	imx6dl_ddr_io_save
 	b	ddr_io_save_dsm_done
 sl_io_save:
+	cmp	r2, #MXC_CPU_IMX6SL
+	bne	sx_io_save
 	imx6sl_ddr_io_save
+	b	ddr_io_save_dsm_done
+sx_io_save:
+	imx6sx_ddr_io_save
 ddr_io_save_dsm_done:
 
 	/* need to sync L2 cache before DSM. */
@@ -550,7 +567,12 @@ dl_io_dsm_set_lpm:
 	imx6dl_ddr_io_set_lpm
 	b	ddr_io_set_lpm_dsm_done
 sl_io_dsm_set_lpm:
+	cmp	r2, #MXC_CPU_IMX6SL
+	bne	sx_io_dsm_set_lpm
 	imx6sl_ddr_io_set_lpm
+	b	ddr_io_set_lpm_dsm_done
+sx_io_dsm_set_lpm:
+	imx6sx_ddr_io_set_lpm
 ddr_io_set_lpm_dsm_done:
 
 	/*
@@ -672,6 +694,8 @@ dl_io_restore:
 	imx6dl_ddr_io_restore
 	b	ddr_io_restore_done
 sl_io_restore:
+	cmp	r2, #MXC_CPU_IMX6SL
+	bne	sx_io_restore
 	imx6sl_ddr_io_restore
 	ldr	r8, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
 	/* reset read FIFO, RST_RD_FIFO */
@@ -694,6 +718,9 @@ fifo_reset2_wait:
 	and	r6, r6, #(1 << 31)
 	cmp	r6, #0
 	bne	fifo_reset2_wait
+	b	ddr_io_restore_done
+sx_io_restore:
+	imx6sx_ddr_io_restore
 ddr_io_restore_done:
 
 	ldr	r8, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
@@ -760,6 +787,8 @@ dl_io_dsm_restore:
 	imx6dl_ddr_io_restore
 	b	ddr_io_restore_dsm_done
 sl_io_dsm_restore:
+	cmp	r2, #MXC_CPU_IMX6SL
+	bne	sx_io_dsm_restore
 	imx6sl_ddr_io_restore
 	ldr	r8, =MX6Q_MMDC_P0_BASE_ADDR
 	/* reset read FIFO, RST_RD_FIFO */
@@ -782,6 +811,9 @@ dsm_fifo_reset2_wait:
 	and	r6, r6, #(1 << 31)
 	cmp	r6, #0
 	bne	dsm_fifo_reset2_wait
+	b	ddr_io_restore_dsm_done
+sx_io_dsm_restore:
+	imx6sx_ddr_io_restore
 ddr_io_restore_dsm_done:
 
 	ldr	r8, =MX6Q_MMDC_P0_BASE_ADDR
