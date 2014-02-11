@@ -95,14 +95,6 @@ struct pxps {
 #define PXP_DEF_BUFS	2
 #define PXP_MIN_PIX	8
 
-static uint32_t pxp_s0_formats[] = {
-	PXP_PIX_FMT_RGB32,
-	PXP_PIX_FMT_RGB565,
-	PXP_PIX_FMT_RGB555,
-	PXP_PIX_FMT_YUV420P,
-	PXP_PIX_FMT_YUV422P,
-};
-
 /*
  * PXP common functions
  */
@@ -1469,117 +1461,6 @@ static enum dma_status pxp_tx_status(struct dma_chan *chan,
 	return DMA_SUCCESS;
 }
 
-static int pxp_hw_init(struct pxps *pxp)
-{
-	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
-	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
-	u32 reg_val;
-
-	/* Pull PxP out of reset */
-	__raw_writel(0, pxp->base + HW_PXP_CTRL);
-
-	/* Config defaults */
-
-	/* Initialize non-channel-specific PxP parameters */
-	proc_data->drect.left = proc_data->srect.left = 0;
-	proc_data->drect.top = proc_data->srect.top = 0;
-	proc_data->drect.width = proc_data->srect.width = 0;
-	proc_data->drect.height = proc_data->srect.height = 0;
-	proc_data->scaling = 0;
-	proc_data->hflip = 0;
-	proc_data->vflip = 0;
-	proc_data->rotate = 0;
-	proc_data->bgcolor = 0;
-
-	/* Initialize S0 channel parameters */
-	pxp_conf->s0_param.pixel_fmt = pxp_s0_formats[0];
-	pxp_conf->s0_param.width = 0;
-	pxp_conf->s0_param.height = 0;
-	pxp_conf->s0_param.color_key = -1;
-	pxp_conf->s0_param.color_key_enable = false;
-
-	/* Initialize OL channel parameters */
-	pxp_conf->ol_param[0].combine_enable = false;
-	pxp_conf->ol_param[0].width = 0;
-	pxp_conf->ol_param[0].height = 0;
-	pxp_conf->ol_param[0].pixel_fmt = PXP_PIX_FMT_RGB565;
-	pxp_conf->ol_param[0].color_key_enable = false;
-	pxp_conf->ol_param[0].color_key = -1;
-	pxp_conf->ol_param[0].global_alpha_enable = false;
-	pxp_conf->ol_param[0].global_alpha = 0;
-	pxp_conf->ol_param[0].local_alpha_enable = false;
-
-	/* Initialize Output channel parameters */
-	pxp_conf->out_param.width = 0;
-	pxp_conf->out_param.height = 0;
-	pxp_conf->out_param.pixel_fmt = PXP_PIX_FMT_RGB565;
-
-	proc_data->overlay_state = 0;
-
-	/* Write default h/w config */
-	pxp_set_ctrl(pxp);
-	pxp_set_s0param(pxp);
-	pxp_set_s0crop(pxp);
-	/*
-	 * simply program the ULC to a higher value than the LRC
-	 * to avoid any AS pixels to show up in the output buffer.
-	 */
-	__raw_writel(0xFFFFFFFF, pxp->base + HW_PXP_OUT_AS_ULC);
-	pxp_set_olparam(0, pxp);
-	pxp_set_olcolorkey(0, pxp);
-
-	pxp_set_s0colorkey(pxp);
-	pxp_set_csc(pxp);
-	pxp_set_bg(pxp);
-	pxp_set_lut(pxp);
-
-	/* One-time histogram configuration */
-	reg_val =
-	    BF_PXP_HIST_CTRL_PANEL_MODE(BV_PXP_HIST_CTRL_PANEL_MODE__GRAY16);
-	__raw_writel(reg_val, pxp->base + HW_PXP_HIST_CTRL);
-
-	reg_val = BF_PXP_HIST2_PARAM_VALUE0(0x00) |
-	    BF_PXP_HIST2_PARAM_VALUE1(0x00F);
-	__raw_writel(reg_val, pxp->base + HW_PXP_HIST2_PARAM);
-
-	reg_val = BF_PXP_HIST4_PARAM_VALUE0(0x00) |
-	    BF_PXP_HIST4_PARAM_VALUE1(0x05) |
-	    BF_PXP_HIST4_PARAM_VALUE2(0x0A) | BF_PXP_HIST4_PARAM_VALUE3(0x0F);
-	__raw_writel(reg_val, pxp->base + HW_PXP_HIST4_PARAM);
-
-	reg_val = BF_PXP_HIST8_PARAM0_VALUE0(0x00) |
-	    BF_PXP_HIST8_PARAM0_VALUE1(0x02) |
-	    BF_PXP_HIST8_PARAM0_VALUE2(0x04) | BF_PXP_HIST8_PARAM0_VALUE3(0x06);
-	__raw_writel(reg_val, pxp->base + HW_PXP_HIST8_PARAM0);
-	reg_val = BF_PXP_HIST8_PARAM1_VALUE4(0x09) |
-	    BF_PXP_HIST8_PARAM1_VALUE5(0x0B) |
-	    BF_PXP_HIST8_PARAM1_VALUE6(0x0D) | BF_PXP_HIST8_PARAM1_VALUE7(0x0F);
-	__raw_writel(reg_val, pxp->base + HW_PXP_HIST8_PARAM1);
-
-	reg_val = BF_PXP_HIST16_PARAM0_VALUE0(0x00) |
-	    BF_PXP_HIST16_PARAM0_VALUE1(0x01) |
-	    BF_PXP_HIST16_PARAM0_VALUE2(0x02) |
-	    BF_PXP_HIST16_PARAM0_VALUE3(0x03);
-	__raw_writel(reg_val, pxp->base + HW_PXP_HIST16_PARAM0);
-	reg_val = BF_PXP_HIST16_PARAM1_VALUE4(0x04) |
-	    BF_PXP_HIST16_PARAM1_VALUE5(0x05) |
-	    BF_PXP_HIST16_PARAM1_VALUE6(0x06) |
-	    BF_PXP_HIST16_PARAM1_VALUE7(0x07);
-	__raw_writel(reg_val, pxp->base + HW_PXP_HIST16_PARAM1);
-	reg_val = BF_PXP_HIST16_PARAM2_VALUE8(0x08) |
-	    BF_PXP_HIST16_PARAM2_VALUE9(0x09) |
-	    BF_PXP_HIST16_PARAM2_VALUE10(0x0A) |
-	    BF_PXP_HIST16_PARAM2_VALUE11(0x0B);
-	__raw_writel(reg_val, pxp->base + HW_PXP_HIST16_PARAM2);
-	reg_val = BF_PXP_HIST16_PARAM3_VALUE12(0x0C) |
-	    BF_PXP_HIST16_PARAM3_VALUE13(0x0D) |
-	    BF_PXP_HIST16_PARAM3_VALUE14(0x0E) |
-	    BF_PXP_HIST16_PARAM3_VALUE15(0x0F);
-	__raw_writel(reg_val, pxp->base + HW_PXP_HIST16_PARAM3);
-
-	return 0;
-}
-
 static int pxp_dma_init(struct pxps *pxp)
 {
 	struct pxp_dma *pxp_dma = &pxp->pxp_dma;
@@ -1761,14 +1642,6 @@ static int pxp_probe(struct platform_device *pdev)
 	pxp->pdev = pdev;
 
 	pxp->clk = devm_clk_get(&pdev->dev, "pxp-axi");
-	clk_prepare_enable(pxp->clk);
-
-	err = pxp_hw_init(pxp);
-	clk_disable_unprepare(pxp->clk);
-	if (err) {
-		dev_err(&pdev->dev, "failed to initialize hardware\n");
-		goto exit;
-	}
 
 	err = devm_request_irq(&pdev->dev, pxp->irq, pxp_irq, 0,
 				"pxp-dmaengine", pxp);
