@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -115,6 +115,9 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 
 	/* eCompass int */
 	MX6Q_PAD_EIM_D16__GPIO_3_16,
+
+	/* Acc int */
+	MX6Q_PAD_EIM_BCLK__GPIO_6_31,
 
 	/* GPIO5 */
 	MX6Q_PAD_EIM_WAIT__GPIO_5_0,	/* J12 - Boot Mode Select */
