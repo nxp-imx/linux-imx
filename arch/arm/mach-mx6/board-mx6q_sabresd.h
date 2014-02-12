@@ -116,6 +116,9 @@ static iomux_v3_cfg_t mx6q_sabresd_pads[] = {
 	/* eCompass int */
 	MX6Q_PAD_EIM_D16__GPIO_3_16,
 
+	/* Acc int */
+	MX6Q_PAD_EIM_BCLK__GPIO_6_31,
+
 	/* GPIO5 */
 	MX6Q_PAD_EIM_WAIT__GPIO_5_0,	/* J12 - Boot Mode Select */
 	MX6Q_PAD_EIM_A24__GPIO_5_4,	/* J12 - Boot Mode Select */
