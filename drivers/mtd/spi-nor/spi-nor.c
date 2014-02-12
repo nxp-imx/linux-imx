@@ -837,6 +837,9 @@ static int set_quad_mode(struct spi_nor *nor, u32 jedec_id)
 			return -EINVAL;
 		}
 		return status;
+	case CFI_MFR_ST:
+		/* For Micron, we use the extended mode for the Quad read */
+		return 0;
 	default:
 		status = spansion_quad_enable(nor);
 		if (status) {
