@@ -626,5 +626,6 @@ config MXS_VIIM
 	help
 	  Support for access to MXS Virtual IIM device, most people should say N here.
 
+source "drivers/char/xillybus/Kconfig"
 endmenu
 
