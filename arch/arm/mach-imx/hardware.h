@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2014 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  *
  * This program is free software; you can redistribute it and/or
@@ -94,12 +94,22 @@
  *	ANATOP	0x020c8000+0x004000	->	0xf42c8000+0x004000
  *	UART4	0x021f0000+0x004000	->	0xf42f0000+0x004000
  */
+ #if defined(CONFIG_SOC_IMX6Q) || defined(CONFIG_SOC_IMX6SL)
+#define IMX_IO_P2V(x)	(						\
+			(((x) & 0x80000000) >> 7) |			\
+			(0xf4000000 +					\
+			(((x) & 0x50000000) >> 6) +			\
+			(((x) & 0x0b000000) >> 4) +			\
+			(((x) & 0x00100000) << 5) +			\
+			(((x) & 0x000fffff))))
+#else
 #define IMX_IO_P2V(x)	(						\
 			(((x) & 0x80000000) >> 7) |			\
 			(0xf4000000 +					\
 			(((x) & 0x50000000) >> 6) +			\
 			(((x) & 0x0b000000) >> 4) +			\
 			(((x) & 0x000fffff))))
+#endif
 
 #define IMX_IO_ADDRESS(x)	IOMEM(IMX_IO_P2V(x))
 

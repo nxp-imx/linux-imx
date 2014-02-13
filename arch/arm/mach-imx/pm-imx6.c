@@ -73,14 +73,36 @@
 #define BM_ROMPATCHENL_0D		(0x1 << 0)
 #define ROM_ADDR_FOR_INTERNAL_RAM_BASE	0x10d7c
 
-static struct gen_pool *iram_pool;
+unsigned long iram_tlb_base_addr;
+unsigned long iram_tlb_phys_addr;
+
 static void *suspend_iram_base;
-static unsigned long iram_size, iram_paddr;
+static unsigned long iram_paddr;
 static int (*suspend_in_iram_fn)(void *iram_vbase,
 	unsigned long iram_pbase, unsigned int cpu_type);
 static unsigned int cpu_type;
 static void __iomem *ccm_base;
 struct regmap *romcp;
+
+unsigned long save_ttbr1(void)
+{
+	unsigned long lttbr1;
+	asm volatile(
+		".align 4\n"
+		"mrc p15, 0, %0, c2, c0, 1\n"
+	: "=r" (lttbr1)
+	);
+	return lttbr1;
+}
+
+void restore_ttbr1(unsigned long ttbr1)
+{
+	asm volatile(
+		".align 4\n"
+		"mcr p15, 0, %0, c2, c0, 1\n"
+	: : "r" (ttbr1)
+	);
+}
 
 void imx6_set_cache_lpm_in_wait(bool enable)
 {
@@ -231,8 +253,11 @@ static int imx6_suspend_finish(unsigned long val)
 	 * call low level suspend function in iram,
 	 * as we need to float DDR IO.
 	 */
-	local_flush_tlb_all();
+	u32 ttbr1;
+
+	ttbr1 = save_ttbr1();
 	suspend_in_iram_fn(suspend_iram_base, iram_paddr, cpu_type);
+	restore_ttbr1(ttbr1);
 	return 0;
 }
 
@@ -323,11 +348,54 @@ static struct map_desc imx6_pm_io_desc[] __initdata = {
 	imx_map_entry(MX6Q, ANATOP, MT_DEVICE),
 	imx_map_entry(MX6Q, GPC, MT_DEVICE),
 	imx_map_entry(MX6Q, L2, MT_DEVICE),
+	imx_map_entry(MX6Q, IRAM_TLB, MT_MEMORY_NONCACHED),
 };
 
 void __init imx6_pm_map_io(void)
 {
+	unsigned long i;
+
 	iotable_init(imx6_pm_io_desc, ARRAY_SIZE(imx6_pm_io_desc));
+
+	/*
+	 * Allocate IRAM for page tables to be used
+	 * when DDR is in self-refresh.
+	 */
+	iram_tlb_phys_addr = MX6Q_IRAM_TLB_BASE_ADDR;
+	iram_tlb_base_addr = IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR);
+
+	/* Set all entries to 0. */
+	memset((void *)iram_tlb_base_addr, 0, SZ_16K);
+
+	/*
+	 * Make sure the IRAM virtual address has a mapping
+	 * in the IRAM page table.
+	 */
+	i = (IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR) >> 18) / 4;
+	*((unsigned long *)iram_tlb_base_addr + i) =
+		MX6Q_IRAM_TLB_BASE_ADDR | TT_ATTRIB_NON_CACHEABLE_1M;
+	/*
+	 * Make sure the AIPS1 virtual address has a mapping
+	 * in the IRAM page table.
+	 */
+	i = (IMX_IO_P2V(MX6Q_AIPS1_BASE_ADDR) >> 18) / 4;
+	*((unsigned long *)iram_tlb_base_addr + i) =
+		MX6Q_AIPS1_BASE_ADDR | TT_ATTRIB_NON_CACHEABLE_1M;
+	/*
+	* Make sure the AIPS2 virtual address has a mapping
+	* in the IRAM page table.
+	*/
+	i = (IMX_IO_P2V(MX6Q_AIPS2_BASE_ADDR) >> 18) / 4;
+	*((unsigned long *)iram_tlb_base_addr + i) =
+		MX6Q_AIPS2_BASE_ADDR | TT_ATTRIB_NON_CACHEABLE_1M;
+	/*
+	 * Make sure the AIPS2 virtual address has a mapping
+	 * in the IRAM page table.
+	 */
+	i = (IMX_IO_P2V(MX6Q_L2_BASE_ADDR) >> 18) / 4;
+	*((unsigned long *)iram_tlb_base_addr + i) =
+		MX6Q_L2_BASE_ADDR | TT_ATTRIB_NON_CACHEABLE_1M;
+
 }
 
 static int imx6_pm_valid(suspend_state_t state)
@@ -349,46 +417,14 @@ void imx6_pm_set_ccm_base(void __iomem *base)
 
 void __init imx6_pm_init(void)
 {
-	struct device_node *node;
-	unsigned long iram_base;
-	struct platform_device *pdev;
 
-	if (cpu_is_imx6sx())
-		node = of_find_compatible_node(NULL, NULL, "fsl,lpm-sram");
-	else
-		node = of_find_compatible_node(NULL, NULL, "mmio-sram");
-	if (!node) {
-		pr_err("failed to find ocram node!\n");
-		return;
-	}
-
-	pdev = of_find_device_by_node(node);
-	if (!pdev) {
-		pr_err("failed to find ocram device!\n");
-		return;
-	}
-
-	iram_pool = dev_get_gen_pool(&pdev->dev);
-	if (!iram_pool) {
-		pr_err("iram pool unavailable!\n");
-		return;
-	}
-
-	iram_size = MX6_SUSPEND_IRAM_SIZE;
-
-	iram_base = gen_pool_alloc(iram_pool, iram_size);
-	if (!iram_base) {
-		pr_err("unable to alloc iram!\n");
-		return;
-	}
-
-	iram_paddr = gen_pool_virt_to_phys(iram_pool, iram_base);
-
-	suspend_iram_base = __arm_ioremap(iram_paddr, iram_size,
-			MT_MEMORY_NONCACHED);
+	iram_paddr = MX6_SUSPEND_IRAM_ADDR;
+	/* Get the virtual address of the suspend code. */
+	suspend_iram_base = (void *)IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR) +
+			(iram_paddr - MX6Q_IRAM_TLB_BASE_ADDR);
 
 	suspend_in_iram_fn = (void *)fncpy(suspend_iram_base,
-		&imx6_suspend, iram_size);
+		&imx6_suspend, MX6_SUSPEND_IRAM_SIZE);
 
 	suspend_set_ops(&imx6_pm_ops);
 

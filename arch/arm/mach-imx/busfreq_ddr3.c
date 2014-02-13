@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -49,8 +49,6 @@ static unsigned long (*iram_iomux_settings)[2];
 
 static void __iomem *mmdc_base;
 static void __iomem *iomux_base;
-static void __iomem *ccm_base;
-static void __iomem *l2_base;
 static void __iomem *gic_dist_base;
 static u32 *irqs_used;
 
@@ -70,10 +68,11 @@ extern int low_bus_freq_mode;
 extern int audio_bus_freq_mode;
 extern void mx6_ddr3_freq_change(u32 freq, void *ddr_settings,
 	bool dll_mode, void *iomux_offsets);
+extern unsigned long save_ttbr1(void);
+extern void restore_ttbr1(unsigned long ttbr1);
 
 #define MIN_DLL_ON_FREQ		333000000
 #define MAX_DLL_OFF_FREQ		125000000
-#define DDR_FREQ_CHANGE_SIZE	0x2000
 
 unsigned long ddr3_dll_mx6q[][2] = {
 	{0x0c, 0x0},
@@ -173,6 +172,7 @@ int update_ddr_freq(int ddr_rate)
 	unsigned int online_cpus = 0;
 	int cpu = 0;
 	int me;
+	unsigned long ttbr1;
 
 	if (!can_change_ddr_freq())
 		return -1;
@@ -229,15 +229,11 @@ int update_ddr_freq(int ddr_rate)
 	while (cpus_in_wfe != online_cpus)
 		udelay(5);
 
-	/*
-	 * Flush the TLB, to ensure no TLB maintenance occurs
-	 * when DDR is in self-refresh.
-	 */
-	local_flush_tlb_all();
+	ttbr1 = save_ttbr1();
 	/* Now we can change the DDR frequency. */
 	mx6_change_ddr_freq(ddr_rate, iram_ddr_settings,
 		dll_off, iram_iomux_settings);
-
+	restore_ttbr1(ttbr1);
 	curr_ddr_rate = ddr_rate;
 
 	/* DDR frequency change is done . */
@@ -258,13 +254,10 @@ int update_ddr_freq(int ddr_rate)
 int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 {
 	struct device *dev = &busfreq_pdev->dev;
-	struct platform_device *ocram_dev;
 	unsigned int iram_paddr;
 	int i, err;
 	u32 cpu;
 	struct device_node *node;
-	struct gen_pool *iram_pool;
-	void *iram_addr;
 
 	node = of_find_compatible_node(NULL, NULL, "fsl,imx6q-mmdc-combine");
 	if (!node) {
@@ -286,22 +279,6 @@ int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 	}
 	iomux_base = of_iomap(node, 0);
 	WARN(!iomux_base, "unable to map iomux registers\n");
-
-	node = of_find_compatible_node(NULL, NULL, "fsl,imx6q-ccm");
-	if (!node) {
-		printk(KERN_ERR "failed to find imx6q-ccm device tree data!\n");
-		return -EINVAL;
-	}
-	ccm_base = of_iomap(node, 0);
-	WARN(!ccm_base, "unable to map mmdc registers\n");
-
-	node = of_find_compatible_node(NULL, NULL, "arm,pl310-cache");
-	if (!node) {
-		printk(KERN_ERR "failed to find imx6q-pl310-cache device tree data!\n");
-		return -EINVAL;
-	}
-	l2_base = of_iomap(node, 0);
-	WARN(!ccm_base, "unable to map mmdc registers\n");
 
 	node = NULL;
 	node = of_find_compatible_node(NULL, NULL, "arm,cortex-a9-gic");
@@ -374,61 +351,11 @@ int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 		}
 		irqs_used[cpu] = irq;
 	}
-
-	node = NULL;
-	node = of_find_compatible_node(NULL, NULL, "mmio-sram");
-	if (!node) {
-		dev_err(dev, "%s: failed to find ocram node\n",
-			__func__);
-		return -EINVAL;
-	}
-
-	ocram_dev = of_find_device_by_node(node);
-	if (!ocram_dev) {
-		dev_err(dev, "failed to find ocram device!\n");
-		return -EINVAL;
-	}
-
-	iram_pool = dev_get_gen_pool(&ocram_dev->dev);
-	if (!iram_pool) {
-		dev_err(dev, "iram pool unavailable!\n");
-		return -EINVAL;
-	}
-
 	iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6q);
-	iram_addr = (void *)gen_pool_alloc(iram_pool,
-						(iomux_settings_size * 8) + 8);
-	iram_iomux_settings = iram_addr;
-	if (!iram_iomux_settings) {
-		dev_err(dev, "unable to alloc iram for IOMUX settings!\n");
-		return -ENOMEM;
-	}
 
-	/*
-	 * Allocate extra space to store the number of entries in the
-	 * ddr_settings plus 4 extra regsiter information that needs
-	 * to be passed to the frequency change code.
-	 * sizeof(iram_ddr_settings) = sizeof(ddr_settings) +
-	 *				entries in ddr_settings + 16.
-	 * The last 4 enties store the addresses of the registers:
-	 * CCM_BASE_ADDR
-	 * MMDC_BASE_ADDR
-	 * IOMUX_BASE_ADDR
-	 * L2X0_BASE_ADDR
-	 */
-	iram_addr = (void *)gen_pool_alloc(iram_pool,
-					(ddr_settings_size * 8) + 8 + 32);
-	iram_ddr_settings = iram_addr;
-	if (!iram_ddr_settings) {
-		dev_err(dev, "unable to alloc iram for ddr settings!\n");
-		return -ENOMEM;
-	}
-
-	i = ddr_settings_size + 1;
-	iram_ddr_settings[i][0] = (unsigned long)mmdc_base;
-	iram_ddr_settings[i+1][0] = (unsigned long)ccm_base;
-	iram_ddr_settings[i+2][0] = (unsigned long)iomux_base;
-	iram_ddr_settings[i+3][0] = (unsigned long)l2_base;
+	iram_iomux_settings = (void *)IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR) +
+			(DDR3_IOMUX_SETTINGS_ADDR - MX6Q_IRAM_TLB_BASE_ADDR);
+	iram_ddr_settings = iram_iomux_settings + (iomux_settings_size * 8) + 8;
 
 	if (cpu_is_imx6q()) {
 		/* store the IOMUX settings at boot. */
@@ -451,24 +378,13 @@ int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 		}
 	}
 
-	ddr_freq_change_iram_base = (void *)gen_pool_alloc(iram_pool,
-						DDR_FREQ_CHANGE_SIZE);
-	if (!ddr_freq_change_iram_base) {
-		dev_err(dev, "Cannot alloc iram for ddr freq change code!\n");
-		return -ENOMEM;
-	}
-
-	iram_paddr = gen_pool_virt_to_phys(iram_pool,
-				(unsigned long)ddr_freq_change_iram_base);
-	/*
-	 * Need to remap the area here since we want
-	 * the memory region to be executable.
-	 */
-	ddr_freq_change_iram_base = __arm_ioremap(iram_paddr,
-						DDR_FREQ_CHANGE_SIZE,
-						MT_MEMORY_NONCACHED);
+	iram_paddr = DDR3_FREQ_CODE_ADDR;
+	/* Calculate the virtual address of the code */
+	ddr_freq_change_iram_base =
+			(void *)IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR) +
+			(iram_paddr - MX6Q_IRAM_TLB_BASE_ADDR);
 	mx6_change_ddr_freq = (void *)fncpy(ddr_freq_change_iram_base,
-		&mx6_ddr3_freq_change, DDR_FREQ_CHANGE_SIZE);
+		&mx6_ddr3_freq_change, DDR3_FREQ_CODE_SIZE);
 
 	curr_ddr_rate = ddr_normal_rate;
 
