@@ -587,6 +587,7 @@ out_unroll:
 		kobject_put(&entry->kobj);
 		count--;
 	}
+	kfree(msi_attrs);
 	return ret;
 }
 
