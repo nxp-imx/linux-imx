@@ -605,9 +605,9 @@
 				#reset-cells = <1>;
 			};
 
-			ocram: sram@00900000 {
+			ocram: sram@00904000 {
 				compatible = "mmio-sram";
-				reg = <0x00900000 0x20000>;
+				reg = <0x00904000 0x1C000>;
 				clocks = <&clks IMX6SL_CLK_OCRAM>;
 			};
 
