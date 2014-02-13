@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
  */
 
 #include <linux/linkage.h>
+#include "hardware.h"
 
 #define MMDC0_MDPDC		0x4
 #define MMDC0_MDCF0			0x0c
@@ -40,6 +41,8 @@
 #define CCM_CDHIPR			0x48
 
 #define L2_CACHE_SYNC		0x730
+
+.extern iram_tlb_phys_addr
 
 	.align 3
 
@@ -331,56 +334,58 @@ ENTRY(mx6_ddr3_freq_change)
 	stmfd	sp!, {r4-r12}
 
 	/*
-	  * r5 -> mmdc_base
-	  * r6 -> ccm_base
-	  * r7 -> iomux_base
-	  * r12 -> l2_base
-	  */
+	 * r5 -> mmdc_base
+	 * r6 -> ccm_base
+	 * r7 -> iomux_base
+	 * r12 -> l2_base
+	 */
 	mov	r4, r0
 	mov	r8, r1
 	mov	r9, r2
 	mov	r11, r3
 
-	/*
-	  * Get the addresses of the registers.
-	  * They are last few entries in the
-	  * ddr_settings parameter.
-	  * The first entry contains the count,
-	  * and each entry is 2 words.
-	  */
-	ldr	r0, [r1]
-	add	r0, r0, #1
-	lsl	r0, r0, #3
-	add	r1, r0, r1
-	/* mmdc_base. */
-	ldr	r5, [r1]
-	add	r1, #8
-	/* ccm_base */
-	ldr	r6, [r1]
-	add	r1, #8
-	/*iomux_base */
-	ldr	r7, [r1]
-	add	r1, #8
-	/*l2_base */
-	ldr	r12, [r1]
-
 ddr_freq_change:
 	/*
-	 * make sure no TLB miss will occur when
-	 * the DDR is in self refresh. invalidate
-	 * TLB single entry to ensure that the
-	 * address is not already in the TLB.
+	 * To ensure no page table walks occur in DDR, we
+	 * have a another page table stored in IRAM that only
+	 * contains entries pointing to IRAM, AIPS1 and AIPS2.
+	 * We need to set the TTBR1 to the new IRAM TLB.
+	 * Do the following steps:
+	 * 1. Flush the Branch Target Address Cache (BTAC)
+	 * 2. Set TTBR1 to point to IRAM page table.
+	 * 3. Disable page table walks in TTBR0 (PD0 = 1)
+	 * 4. Set TTBR0.N=1, implying 0-2G is translated by TTBR0
+	 *     and 2-4G is translated by TTBR1.
 	 */
 
-	adr	r10, ddr_freq_change
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
+	ldr	r6, =iram_tlb_phys_addr
+	ldr	r6, [r6]
+	dsb
+	isb
+	/* Store the IRAM table in TTBR1 */
+	mcr	p15, 0, r6, c2, c0, 1
 
-	ldr	r2, [r6]
-	ldr	r2, [r5]
-	ldr	r2, [r7]
-	ldr	r2, [r8]
-	ldr	r2, [r10]
-	ldr	r2, [r11]
-	ldr	r2, [r12]
+	/* Read TTBCR and set PD0=1, N = 1 */
+	mrc	p15, 0, r6, c2, c0, 2
+	orr	r6, r6, #0x11
+	mcr	p15, 0, r6, c2, c0, 2
+
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+	dsb
+	isb
+
+	ldr	r5, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
+	ldr	r6, =IMX_IO_P2V(MX6Q_CCM_BASE_ADDR)
+	ldr	r7, =IMX_IO_P2V(MX6Q_IOMUXC_BASE_ADDR)
+	ldr	r12, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
 
 #ifdef CONFIG_CACHE_L2X0
 	/*
@@ -882,6 +887,22 @@ poll_conreq_clear_2:
 	beq	poll_conreq_clear_2
 
 done:
+	/* Restore the TTBCR */
+	dsb
+	isb
+	/* Read TTBCR and set PD0=0, N = 0 */
+	mrc	p15, 0, r6, c2, c0, 2
+	bic	r6, r6, #0x11
+	mcr	p15, 0, r6, c2, c0, 2
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+	dsb
+	isb
+
 	/* restore registers */
 
 	ldmfd	sp!, {r4-r12}

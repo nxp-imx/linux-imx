@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
  */
 
 #include <linux/linkage.h>
+#include "hardware.h"
 
 	.macro    mx6sl_switch_to_24MHz
 
@@ -339,30 +340,55 @@ force_measure1:
  *  IRQs are already disabled.
  * r0 : DDR freq.
  * r1: low_bus_freq_mode flag
- * r2: Pointer to array containing addresses of registers.
  */
 	.align 3
 ENTRY(mx6_lpddr2_freq_change)
 
 	push {r4-r10}
 
-	mov	r4, r2
-	ldr	r3, [r4]			@ANATOP_BASE_ADDR
-	ldr	r2, [r4, #0x4]		@CCM_BASE_ADDR
-	ldr	r8, [r4, #0x8]		@MMDC_P0_BASE_ADDR
-	ldr	r7, [r4, #0xC]		@L2_BASE_ADDR
+	/*
+	 * To ensure no page table walks occur in DDR, we
+	 * have a another page table stored in IRAM that only
+	 * contains entries pointing to IRAM, AIPS1 and AIPS2.
+	 * We need to set the TTBR1 to the new IRAM TLB.
+	 * Do the following steps:
+	 * 1. Flush the Branch Target Address Cache (BTAC)
+	 * 2. Set TTBR1 to point to IRAM page table.
+	 * 3. Disable page table walks in TTBR0 (PD0 = 1)
+	 * 4. Set TTBR0.N=1, implying 0-2G is translated by TTBR0
+	 *     and 2-4G is translated by TTBR1.
+	 */
 
-lpddr2_freq_change:
-	adr	r9, lpddr2_freq_change
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
 
-	/* Prime all TLB entries. */
-	ldr	r6, [r9]
-	ldr	r6, [r8]
-	ldr	r6, [r3]
-	ldr	r6, [r2]
+	ldr	r6, =iram_tlb_phys_addr
+	ldr	r6, [r6]
+	dsb
+	isb
+	/* Store the IRAM table in TTBR1 */
+	mcr	p15, 0, r6, c2, c0, 1
 
-	 /* Drain all the L1 buffers. */
-	 dsb
+	/* Read TTBCR and set PD0=1, N = 1 */
+	mrc	p15, 0, r6, c2, c0, 2
+	orr	r6, r6, #0x11
+	mcr	p15, 0, r6, c2, c0, 2
+
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	dsb
+	isb
+
+	ldr	r3, =IMX_IO_P2V(MX6Q_ANATOP_BASE_ADDR)
+	ldr	r2, =IMX_IO_P2V(MX6Q_CCM_BASE_ADDR)
+	ldr	r8, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
+	ldr	r7, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
 
 #ifdef CONFIG_CACHE_L2X0
 	/*
@@ -371,14 +397,13 @@ lpddr2_freq_change:
 	 */
 	mov	r6, #0x0
 	str	r6, [r7, #0x730]
-#endif
-
 	/*
 	 * The second dsb might be needed to keep cache sync (device write)
 	 * ordering with the memory accesses before it.
 	 */
 	dsb
 	isb
+#endif
 
 	/* Disable Automatic power savings. */
 	ldr	r6, [r8, #0x404]
@@ -472,6 +497,53 @@ skip_power_down:
 	ldr	r6, [r8, #0x410]
 	bic	r6, r6, #0x100
 	str	r6, [r8, #0x410]
+
+	/* Restore the TTBCR */
+	dsb
+	isb
+	/* Read TTBCR and set PD0=0, N = 0 */
+	mrc	p15, 0, r6, c2, c0, 2
+	bic	r6, r6, #0x11
+	mcr	p15, 0, r6, c2, c0, 2
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	dsb
+	isb
+
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
+
+	nop
+	nop
+	nop
+	nop
+	nop
 
 	pop {r4-r10}
 
