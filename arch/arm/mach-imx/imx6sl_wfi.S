@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,9 @@
  */
 
 #include <linux/linkage.h>
-#define IRAM_WAIT_SIZE 	(1 << 11)
+#include "hardware.h"
+
+.extern iram_tlb_phys_addr
 
 	.macro	sl_ddr_io_save
 
@@ -154,8 +156,7 @@ fifo_reset2_wait:
  *  IRQs are already disabled.
  * r0: WFI IRAMcode base address.
  * r1: IOMUX base address
- * r2: Base address of CCM, ANATOP and MMDC
- * r3: 1 if in audio_bus_freq_mode
+ * r2: 1 if in audio_bus_freq_mode
  */
 	.align 3
 ENTRY(imx6sl_low_power_wfi)
@@ -164,27 +165,57 @@ ENTRY(imx6sl_low_power_wfi)
 
 mx6sl_lpm_wfi:
 	/* Store audio_bus_freq_mode */
-	mov	r11, r3
+	mov	r11, r2
 
-	mov	r4,r2
 	/* Get the IRAM data storage address. */
 	mov	r10, r0
-	mov	r9, r0		/* get suspend_iram_base */
-	add	r9, r9, #IRAM_WAIT_SIZE
+	mov	r9, r0		/* get wfi_iram_base */
+	add	r9, r9, #MX6SL_WFI_IRAM_CODE_SIZE
 
-	/* Anatop Base address in r3. */
-	ldr	r3, [r4]
-	/* CCM Base Address in r2 */
-	ldr	r2, [r4, #0x4]
-	/* MMDC Base Address in r8 */
-	ldr	r8, [r4, #0x8]
-	/* L2 Base Address in r7 */
-	ldr	r7, [r4, #0xC]
+	/*
+	 * To ensure no page table walks occur in DDR, we
+	 * have a another page table stored in IRAM that only
+	 * contains entries pointing to IRAM, AIPS1 and AIPS2.
+	 * We need to set the TTBR1 to the new IRAM TLB.
+	 * Do the following steps:
+	 * 1. Flush the Branch Target Address Cache (BTAC)
+	 * 2. Set TTBR1 to point to IRAM page table.
+	 * 3. Disable page table walks in TTBR0 (PD0 = 1)
+	 * 4. Set TTBR0.N=1, implying 0-2G is translated by TTBR0
+	 *     and 2-4G is translated by TTBR1.
+	 */
+	/* Flush the BTAC. */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
 
-	ldr	r6, [r8]
-	ldr	r6, [r3]
-	ldr	r6, [r2]
-	ldr	r6, [r1]
+	ldr	r6, =iram_tlb_phys_addr
+	ldr	r6, [r6]
+	dsb
+	isb
+
+	/* Store the IRAM table in TTBR1 */
+	mcr	p15, 0, r6, c2, c0, 1
+
+	/* Read TTBCR and set PD0=1, N = 1 */
+	mrc	p15, 0, r6, c2, c0, 2
+	orr	r6, r6, #0x11
+	mcr	p15, 0, r6, c2, c0, 2
+
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	dsb
+	isb
+
+	ldr	r1, =IMX_IO_P2V(MX6Q_IOMUXC_BASE_ADDR)
+	ldr	r3, =IMX_IO_P2V(MX6Q_ANATOP_BASE_ADDR)
+	ldr	r2, =IMX_IO_P2V(MX6Q_CCM_BASE_ADDR)
+	ldr	r8, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
+	ldr	r7, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
 
 	/* Store the original ARM PODF. */
 	ldr	r0, [r2, #0x10]
@@ -546,7 +577,7 @@ ahb_podf1:
 
 	b	wfi_restore
 
-	audio_arm_clk_restore:
+audio_arm_clk_restore:
 	/* Move ARM back to PLL2_PFD2_400M */
 	ldr	r6, [r2, #0xC]
 	orr	r6, r6, #0x4
@@ -555,7 +586,7 @@ ahb_podf1:
 wfi_restore:
 	/* get suspend_iram_base */
 	mov	r9, r10
-	add	r9, r9, #IRAM_WAIT_SIZE
+	add	r9, r9, #MX6SL_WFI_IRAM_CODE_SIZE
 
 	/* Restore the DDR IO before exiting self-refresh. */
 	sl_ddr_io_restore
@@ -584,6 +615,35 @@ poll_dvfs_clear_1:
 	and	r6, r6, #0x2000000
 	cmp	r6, #0x2000000
 	beq	poll_dvfs_clear_1
+
+	/* Enable Automatic power savings. */
+	ldr	r6, [r8, #0x404]
+	bic	r6, r6, #0x01
+	str	r6, [r8, #0x404]
+
+	/* clear SBS - unblock DDR accesses */
+	ldr	r6, [r8, #0x410]
+	bic	r6, r6, #0x100
+	str	r6, [r8, #0x410]
+
+	/* Restore the TTBCR */
+
+	dsb
+	isb
+	/* Read TTBCR and set PD0=0, N = 0 */
+	mrc	p15, 0, r6, c2, c0, 2
+	bic	r6, r6, #0x11
+	mcr	p15, 0, r6, c2, c0, 2
+
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	dsb
+	isb
 
 	/*
 	 * Add these nops so that the
@@ -621,16 +681,6 @@ poll_dvfs_clear_1:
 	nop
 	nop
 	nop
-
-	/* Enable Automatic power savings. */
-	ldr	r6, [r8, #0x404]
-	bic	r6, r6, #0x01
-	str	r6, [r8, #0x404]
-
-	/* clear SBS - unblock DDR accesses */
-	ldr	r6, [r8, #0x410]
-	bic	r6, r6, #0x100
-	str	r6, [r8, #0x410]
 
 
 	pop {r4-r11}

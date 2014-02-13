@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -519,6 +519,41 @@ ddr_io_save_dsm_done:
 	/* need to sync L2 cache before DSM. */
 	sync_l2_cache
 
+	/*
+	 * To ensure no page table walks occur in DDR, we
+	 * have a another page table stored in IRAM that only
+	 * contains entries pointing to IRAM, AIPS1 and AIPS2.
+	 * We need to set the TTBR1 to the new IRAM TLB.
+	 * Do the following steps:
+	 * 1. Flush the Branch Target Address Cache (BTAC)
+	 * 2. Set TTBR1 to point to IRAM page table.
+	 * 3. Disable page table walks in TTBR0 (PD0 = 1)
+	 * 4. Set TTBR0.N=1, implying 0-2G is translated by TTBR0
+	 *     and 2-4G is translated by TTBR1.
+	 */
+	/* Flush the BTAC. */
+	ldr r6, =0x0
+	mcr p15, 0, r6, c7, c1, 6
+
+	ldr r6, =iram_tlb_phys_addr
+	ldr r6, [r6]
+	dsb
+	isb
+
+	/* Store the IRAM table in TTBR1 */
+	mcr    p15, 0, r6, c2, c0, 1
+	/* Read TTBCR and set PD0=1, N = 1 */
+	mrc    p15, 0, r6, c2, c0, 2
+	orr    r6, r6, #0x11
+	mcr    p15, 0, r6, c2, c0, 2
+
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr r6, =0x0
+	mcr p15, 0, r6, c8, c3, 0
+
 	ldr	r8, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
 	/*
 	 * put DDR explicitly into self-refresh and
@@ -710,6 +745,21 @@ poll_dvfs_clear_2:
 	ldr	r7, [r8, #MX6Q_MMDC_MAPSR]
 	bic	r7, r7, #0x1
 	str	r7, [r8, #MX6Q_MMDC_MAPSR]
+
+	/* Restore TTBCR */
+	dsb
+	isb
+	/* Read TTBCR and set PD0=0, N = 0 */
+	mrc    p15, 0, r6, c2, c0, 2
+	bic    r6, r6, #0x11
+	mcr    p15, 0, r6, c2, c0, 2
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
 	/* return to suspend finish */
 	mov	pc, lr
 
