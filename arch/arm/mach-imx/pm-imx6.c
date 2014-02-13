@@ -87,7 +87,7 @@ void imx6_set_cache_lpm_in_wait(bool enable)
 	if ((cpu_is_imx6q() && imx_get_soc_revision() >
 		IMX_CHIP_REVISION_1_1) ||
 		(cpu_is_imx6dl() && imx_get_soc_revision() >
-		IMX_CHIP_REVISION_1_0)) {
+		IMX_CHIP_REVISION_1_0) || cpu_is_imx6sx()) {
 		u32 val;
 
 		val = readl_relaxed(ccm_base + CGPR);

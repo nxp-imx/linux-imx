@@ -104,6 +104,23 @@ static void __init imx6sx_init_machine(void)
 	imx6_pm_init();
 }
 
+static void __init imx6sx_init_late(void)
+{
+	struct regmap *gpr;
+
+	/*
+	 * Need to force IOMUXC irq pending to meet CCM low power mode
+	 * restriction, this is recommended by hardware team.
+	 */
+	gpr = syscon_regmap_lookup_by_compatible("fsl,imx6sx-iomuxc-gpr");
+	if (!IS_ERR(gpr))
+		regmap_update_bits(gpr, IOMUXC_GPR1,
+			IMX6Q_GPR1_GINT_MASK,
+			IMX6Q_GPR1_GINT_ASSERT);
+
+	imx6q_cpuidle_init();
+}
+
 static void __init imx6sx_map_io(void)
 {
 	debug_ll_io_init();
@@ -141,6 +158,7 @@ DT_MACHINE_START(IMX6SX, "Freescale i.MX6 SoloX (Device Tree)")
 	.init_irq	= imx6sx_init_irq,
 	.init_time	= imx6sx_timer_init,
 	.init_machine	= imx6sx_init_machine,
+	.init_late	= imx6sx_init_late,
 	.dt_compat	= imx6sx_dt_compat,
 	.restart	= mxc_restart,
 MACHINE_END
