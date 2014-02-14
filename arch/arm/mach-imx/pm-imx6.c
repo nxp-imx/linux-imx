@@ -353,7 +353,10 @@ void __init imx6_pm_init(void)
 	unsigned long iram_base;
 	struct platform_device *pdev;
 
-	node = of_find_compatible_node(NULL, NULL, "mmio-sram");
+	if (cpu_is_imx6sx())
+		node = of_find_compatible_node(NULL, NULL, "fsl,lpm-sram");
+	else
+		node = of_find_compatible_node(NULL, NULL, "mmio-sram");
 	if (!node) {
 		pr_err("failed to find ocram node!\n");
 		return;
