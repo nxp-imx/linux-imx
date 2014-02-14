@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -2377,6 +2377,17 @@ static long mxc_v4l_do_ioctl(struct file *file,
 		if (cam->sensor)
 			retval = vidioc_int_enum_framesizes(cam->sensor, fsize);
 		else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
+		break;
+	}
+	case VIDIOC_ENUM_FRAMEINTERVALS: {
+		struct v4l2_frmivalenum *fival = arg;
+		if (cam->sensor) {
+			retval = vidioc_int_enum_frameintervals(cam->sensor,
+								fival);
+		} else {
 			pr_err("ERROR: v4l2 capture: slave not found!\n");
 			retval = -ENODEV;
 		}
