@@ -78,7 +78,7 @@
 		};
 
 		ocrams: sram@008f8000 {
-			compatible = "mmio-sram";
+			compatible = "fsl,lpm-sram","mmio-sram";
 			reg = <0x008f8000 0x4000>;
 			clocks = <&clks IMX6SX_CLK_OCRAM_S>;
 		};
