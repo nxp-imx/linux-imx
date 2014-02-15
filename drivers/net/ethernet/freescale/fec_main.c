@@ -219,10 +219,6 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 #endif
 #endif /* CONFIG_M5272 */
 
-#if (((RX_RING_SIZE + TX_RING_SIZE) * 32) > PAGE_SIZE)
-#error "FEC: descriptor ring size constants too large"
-#endif
-
 /* The FEC stores dest/src/type/vlan, data, and checksum for receive packets.
  */
 #define PKT_MAXBUF_SIZE		1522
