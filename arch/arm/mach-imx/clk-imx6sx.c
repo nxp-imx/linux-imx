@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -159,6 +159,13 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_ENET_REF] = clk_register_divider_table(NULL, "enet_ref", "pll6_enet", 0,
 			base + 0xe0, 0, 2, 0, clk_enet_ref_table,
 			&imx_ccm_lock);
+	clks[IMX6SX_CLK_ENET2_REF] = clk_register_divider_table(NULL, "enet2_ref", "pll6_enet", 0,
+			base + 0xe0, 2, 2, 0, clk_enet_ref_table,
+			&imx_ccm_lock);
+	clks[IMX6SX_CLK_ENET2_REF_125M] = imx_clk_gate("enet2_ref_125m", "enet2_ref", base + 0xe0, 20);
+
+	clks[IMX6SX_CLK_ENET_PTP_REF] = imx_clk_fixed_factor("enet_ptp_ref", "pll6_enet", 1, 20);
+	clks[IMX6SX_CLK_ENET_PTP] = imx_clk_gate("enet_ptp_25m", "enet_ptp_ref", base + 0xe0, 21);
 
 	/*                                       name              parent_name     reg           idx */
 	clks[IMX6SX_CLK_PLL2_PFD0] = imx_clk_pfd("pll2_pfd0_352m", "pll2_bus",     base + 0x100, 0);
@@ -422,6 +429,22 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 
 	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
 		clk_prepare_enable(clks[clks_init_on[i]]);
+
+	/*
+	 * Init enet system AHB clock, set to 200Mhz
+	 * pll2_pfd2_396m-> ENET_PODF-> ENET_AHB
+	 */
+	clk_set_parent(clks[IMX6SX_CLK_ENET_PRE_SEL], clks[IMX6SX_CLK_PLL2_PFD2]);
+	clk_set_parent(clks[IMX6SX_CLK_ENET_SEL], clks[IMX6SX_CLK_ENET_PODF]);
+	clk_set_rate(clks[IMX6SX_CLK_ENET_PODF], 200000000);
+	clk_set_rate(clks[IMX6SX_CLK_ENET_REF], 125000000);
+	clk_set_rate(clks[IMX6SX_CLK_ENET2_REF], 125000000);
+
+	/*
+	 * Need to keep the ENET clocks enabled, else the system
+	 * hangs when ENET clocks are disabled in the driver.
+	 */
+	clk_prepare_enable(clks[IMX6SX_CLK_ENET]);
 
 	/* Set initial power mode */
 	imx6_set_lpm(WAIT_CLOCKED);
