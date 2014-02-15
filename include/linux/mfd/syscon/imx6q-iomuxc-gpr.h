@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -377,5 +377,10 @@
 /* For imx6sl iomux gpr register field define */
 #define IMX6SL_GPR1_FEC_CLOCK_MUX1_SEL_MASK    (0x3 << 17)
 #define IMX6SL_GPR1_FEC_CLOCK_MUX2_SEL_MASK    (0x1 << 14)
+
+/* For imx6sx iomux gpr register field define */
+#define IMX6SX_GPR1_FEC_CLOCK_MUX_SEL_MASK      (0x3 << 13)
+#define IMX6SX_GPR1_FEC_CLOCK_PAD_DIR_MASK      (0x3 << 17)
+#define IMX6SX_GPR1_FEC_CLOCK_MUX_SEL_EXT       (0x3 << 13)
 
 #endif /* __LINUX_IMX6Q_IOMUXC_GPR_H */
