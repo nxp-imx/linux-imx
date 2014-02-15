@@ -18,7 +18,7 @@
  * Bug fixes and cleanup by Philippe De Muyter (phdm@macqel.be)
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -1264,19 +1264,23 @@ static inline void fec_enet_clk_enable(struct net_device *ndev, bool enable)
 	struct fec_enet_private *fep = netdev_priv(ndev);
 
 	if (enable) {
-		clk_prepare_enable(fep->clk_ahb);
 		clk_prepare_enable(fep->clk_ipg);
+		clk_prepare_enable(fep->clk_ahb);
+		if (fep->clk_ref)
+			clk_prepare_enable(fep->clk_ref);
 		if (fep->clk_enet_out)
 			clk_prepare_enable(fep->clk_enet_out);
 		if (fep->clk_ptp)
 			clk_prepare_enable(fep->clk_ptp);
 	} else {
-		clk_disable_unprepare(fep->clk_ahb);
-		clk_disable_unprepare(fep->clk_ipg);
-		if (fep->clk_enet_out)
-			clk_disable_unprepare(fep->clk_enet_out);
 		if (fep->clk_ptp)
 			clk_disable_unprepare(fep->clk_ptp);
+		if (fep->clk_enet_out)
+			clk_disable_unprepare(fep->clk_enet_out);
+		if (fep->clk_ref)
+			clk_disable_unprepare(fep->clk_ref);
+		clk_disable_unprepare(fep->clk_ahb);
+		clk_disable_unprepare(fep->clk_ipg);
 	}
 }
 
@@ -2218,6 +2222,11 @@ fec_probe(struct platform_device *pdev)
 	fep->clk_enet_out = devm_clk_get(&pdev->dev, "enet_out");
 	if (IS_ERR(fep->clk_enet_out))
 		fep->clk_enet_out = NULL;
+
+	/* clk_ref is optional, depends on board */
+	fep->clk_ref = devm_clk_get(&pdev->dev, "enet_clk_ref");
+	if (IS_ERR(fep->clk_ref))
+		fep->clk_ref = NULL;
 
 	fep->clk_ptp = devm_clk_get(&pdev->dev, "ptp");
 	fep->bufdesc_ex =
