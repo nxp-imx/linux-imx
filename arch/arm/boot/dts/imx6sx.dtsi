@@ -229,6 +229,26 @@
 				reg = <0x0217c000 0x4000>;
 			};
 
+			fec1: ethernet@02188000 {
+				compatible = "fsl,imx6sx-fec";
+				reg = <0x02188000 0x4000>;
+				interrupts = <0 118 0x04 0 119 0x04>;
+				clocks = <&clks IMX6SX_CLK_ENET>, <&clks IMX6SX_CLK_ENET_AHB>,
+					<&clks IMX6SX_CLK_ENET_PTP>, <&clks IMX6SX_CLK_ENET_REF>;
+				clock-names = "ipg", "ahb", "ptp", "enet_clk_ref";
+				status = "disabled";
+                        };
+
+			fec2: ethernet@021b4000 {
+				compatible = "fsl,imx6sx-fec";
+				reg = <0x021b4000 0x4000>;
+				interrupts = <0 102 0x04 0 103 0x04>;
+				clocks = <&clks IMX6SX_CLK_ENET>, <&clks IMX6SX_CLK_ENET_AHB>,
+					<&clks IMX6SX_CLK_ENET_PTP>, <&clks IMX6SX_CLK_ENET2_REF_125M>;
+				clock-names = "ipg", "ahb", "ptp", "enet_clk_ref";
+				status = "disabled";
+			};
+
 			usdhc3: usdhc@02198000 {
 				compatible = "fsl,imx6sx-usdhc", "fsl,imx6sl-usdhc";
 				reg = <0x02198000 0x4000>;
@@ -293,6 +313,46 @@
 };
 
 &iomuxc {
+	enet1 {
+		pinctrl_enet1_1: enet1grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_ENET1_MDIO__ENET1_MDIO        0xa0b1
+				MX6SX_PAD_ENET1_MDC__ENET1_MDC          0xa0b1
+				MX6SX_PAD_RGMII1_TXC__ENET1_RGMII_TXC   0xa0b1
+				MX6SX_PAD_RGMII1_TD0__ENET1_TX_DATA_0   0xa0b1
+				MX6SX_PAD_RGMII1_TD1__ENET1_TX_DATA_1   0xa0b1
+				MX6SX_PAD_RGMII1_TD2__ENET1_TX_DATA_2   0xa0b1
+				MX6SX_PAD_RGMII1_TD3__ENET1_TX_DATA_3   0xa0b1
+				MX6SX_PAD_RGMII1_TX_CTL__ENET1_TX_EN    0xa0b1
+				MX6SX_PAD_RGMII1_RXC__ENET1_RX_CLK      0x3081
+				MX6SX_PAD_RGMII1_RD0__ENET1_RX_DATA_0   0x3081
+				MX6SX_PAD_RGMII1_RD1__ENET1_RX_DATA_1   0x3081
+				MX6SX_PAD_RGMII1_RD2__ENET1_RX_DATA_2   0x3081
+				MX6SX_PAD_RGMII1_RD3__ENET1_RX_DATA_3   0x3081
+				MX6SX_PAD_RGMII1_RX_CTL__ENET1_RX_EN    0x3081
+			>;
+		};
+	};
+
+	enet2 {
+		pinctrl_enet2_1: enet2grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_RGMII2_TXC__ENET2_RGMII_TXC   0xa0b1
+				MX6SX_PAD_RGMII2_TD0__ENET2_TX_DATA_0   0xa0b1
+				MX6SX_PAD_RGMII2_TD1__ENET2_TX_DATA_1   0xa0b0
+				MX6SX_PAD_RGMII2_TD2__ENET2_TX_DATA_2   0xa0b0
+				MX6SX_PAD_RGMII2_TD3__ENET2_TX_DATA_3   0xa0b0
+				MX6SX_PAD_RGMII2_TX_CTL__ENET2_TX_EN    0xa0b0
+				MX6SX_PAD_RGMII2_RXC__ENET2_RX_CLK      0x3081
+				MX6SX_PAD_RGMII2_RD0__ENET2_RX_DATA_0   0x3081
+				MX6SX_PAD_RGMII2_RD1__ENET2_RX_DATA_1   0x3081
+				MX6SX_PAD_RGMII2_RD2__ENET2_RX_DATA_2   0x3081
+				MX6SX_PAD_RGMII2_RD3__ENET2_RX_DATA_3   0x3081
+				MX6SX_PAD_RGMII2_RX_CTL__ENET2_RX_EN    0x3081
+			>;
+		};
+	};
+
 	uart1 {
 		pinctrl_uart1_1: uart1grp-1 {
 			fsl,pins = <
