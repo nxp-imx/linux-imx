@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -132,14 +132,14 @@ static int imx_cs42888_surround_hw_params(struct snd_pcm_substream *substream,
 		}
 
 		dai_format = SND_SOC_DAIFMT_LEFT_J | SND_SOC_DAIFMT_NB_NF |
-			SND_SOC_DAIFMT_CBM_CFM;
+			SND_SOC_DAIFMT_CBS_CFS;
 
 		snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL,
-			priv->mclk_freq, SND_SOC_CLOCK_IN);
+			priv->mclk_freq, SND_SOC_CLOCK_OUT);
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 0);
 		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 0);
 		snd_soc_dai_set_sysclk(codec_dai, 0, priv->mclk_freq,\
-			SND_SOC_CLOCK_OUT);
+			SND_SOC_CLOCK_IN);
 	}
 
 	/* set cpu DAI configuration */
