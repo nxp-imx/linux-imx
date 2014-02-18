@@ -484,8 +484,10 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk_register_clkdev(clk[ahb], "ahb", NULL);
 	clk_register_clkdev(clk[cko1], "cko1", NULL);
 	clk_register_clkdev(clk[arm], NULL, "cpu0");
-	clk_register_clkdev(clk[pll4_post_div], "pll4_post_div", NULL);
-	clk_register_clkdev(clk[pll4_audio], "pll4_audio", NULL);
+	clk_register_clkdev(clk[pll4_audio_div], "pll4_audio_div", NULL);
+	clk_register_clkdev(clk[pll4_sel], "pll4_sel", NULL);
+	clk_register_clkdev(clk[lvds2_in], "lvds2_in", NULL);
+	clk_register_clkdev(clk[esai], "esai", NULL);
 
 	if ((imx_get_soc_revision() != IMX_CHIP_REVISION_1_0) || cpu_is_imx6dl()) {
 		clk_set_parent(clk[ldb_di0_sel], clk[pll5_video_div]);
@@ -558,6 +560,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk_set_parent(clk[ssi1_sel], clk[pll4_audio_div]);
 	clk_set_parent(clk[ssi2_sel], clk[pll4_audio_div]);
 	clk_set_parent(clk[ssi3_sel], clk[pll4_audio_div]);
+	clk_set_parent(clk[esai_sel], clk[pll4_audio_div]);
 	clk_set_parent(clk[spdif_sel], clk[pll3_pfd3_454m]);
 	clk_set_parent(clk[asrc_sel], clk[pll3_usb_otg]);
 	clk_set_rate(clk[asrc_sel], 7500000);
