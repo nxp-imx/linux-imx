@@ -566,6 +566,32 @@ static const struct snd_soc_component_driver fsl_esai_component = {
 	.name		= "fsl-esai",
 };
 
+static int fsl_esai_reg_init(struct fsl_esai *esai)
+{
+	u32 xccr, slots = 2;
+
+	clk_enable(esai->clk);
+
+	/* Reset and enable the ESAI module */
+	writel(ESAI_ECR_ERST, esai->base + ESAI_ECR);
+	writel(ESAI_ECR_ESAIEN, esai->base + ESAI_ECR);
+
+	/* Set default slot number to 2 for common DAI FMTs */
+	xccr = readl(esai->base + ESAI_TCCR);
+	xccr &= ESAI_TCCR_TDC_MASK;
+	xccr |= ESAI_TCCR_TDC(slots - 1);
+	writel(xccr, esai->base + ESAI_TCCR);
+
+	xccr = readl(esai->base + ESAI_RCCR);
+	xccr &= ESAI_RCCR_RDC_MASK;
+	xccr |= ESAI_RCCR_RDC(slots - 1);
+	writel(xccr, esai->base + ESAI_RCCR);
+
+	clk_disable(esai->clk);
+
+	return 0;
+}
+
 static int fsl_esai_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -670,8 +696,8 @@ static int fsl_esai_probe(struct platform_device *pdev)
 		goto failed_pcm_init;
 	}
 
-	writel(ESAI_ECR_ERST, esai->base + ESAI_ECR);
-	writel(ESAI_ECR_ESAIEN, esai->base + ESAI_ECR);
+	fsl_esai_reg_init(esai);
+
 	return 0;
 
 failed_pcm_init:
