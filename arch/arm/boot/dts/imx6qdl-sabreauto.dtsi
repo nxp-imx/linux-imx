@@ -75,6 +75,14 @@
 		};
 	};
 
+	hannstar_cabc {
+		compatible = "hannstar,cabc";
+
+		lvds_share {
+			gpios = <&max7310_a 0 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
 	max7310_reset: max7310-reset {
 		compatible = "gpio-reset";
 		reset-gpios = <&gpio1 15 GPIO_ACTIVE_LOW>;
