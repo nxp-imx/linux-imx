@@ -30,7 +30,7 @@
 	};
 
 	clocks {
-		codec_osc: codec_osc {
+		codec_osc: anaclk2 {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency = <24576000>;
