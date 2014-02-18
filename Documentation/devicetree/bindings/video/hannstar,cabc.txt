@@ -1,0 +1,28 @@
+* Hannstar CABC device tree bindings
+
+The Hannstar CABC function may turn a display plane's backlight
+automatically according to the content shown on the plane.  The
+function is controlled(enabled/disabled) by a GPIO.
+
+Required properties:
+- compatible : Should be "hannstar,cabc".
+
+Each standalone CABC gpio is represented as a sub-node of "hannstar_cabc":
+Required subnode properties:
+- gpios: OF device-tree gpio specification.
+
+Optional subnode properties:
+- cabc-enable: Provide this bool property if you want to enable the CABC feature.
+
+Example:
+	hannstar_cabc {
+		compatible = "hannstar,cabc";
+
+		lvds0 {
+			gpios = <&gpio6 15 GPIO_ACTIVE_HIGH>;
+		};
+
+		lvds1 {
+			gpios = <&gpio6 16 GPIO_ACTIVE_HIGH>;
+		};
+	};
