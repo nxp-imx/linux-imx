@@ -235,11 +235,6 @@
 		status = "okay";
 	};
 
-	lvds_cabc_ctrl {
-		lvds0-gpios = <&gpio6 15 0>;
-		lvds1-gpios = <&gpio6 16 0>;
-	};
-
 	mipi_dsi_reset: mipi-dsi-reset {
 		compatible = "gpio-reset";
 		reset-gpios = <&gpio6 11 GPIO_ACTIVE_LOW>;
