@@ -61,3 +61,11 @@ config FB_MXC_EINK_AUTO_UPDATE_MODE
 config FB_MXS_SII902X
 	tristate "Si Image SII9022 DVI/HDMI Interface Chip"
 	depends on FB_MXS && I2C
+
+config HANNSTAR_CABC
+	tristate "Hannstar CABC function"
+	help
+	  Say yes here to support switching on/off Hannstar CABC
+	  function.  This function turns backlight density of a
+	  display panel automatically according to the content
+	  shown on the panel.
