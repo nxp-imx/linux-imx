@@ -35,6 +35,18 @@
 		status = "okay";
 	};
 
+	hannstar_cabc {
+		compatible = "hannstar,cabc";
+
+		lvds0 {
+			gpios = <&gpio6 15 GPIO_ACTIVE_HIGH>;
+		};
+
+		lvds1 {
+			gpios = <&gpio6 16 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
