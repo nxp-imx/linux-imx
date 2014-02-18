@@ -229,6 +229,12 @@ clocks and IDs.
 	epit1			216
 	epit2			217
 	tzasc2			218
+	pll4_sel		219
+	lvds2_sel		220
+	lvds2_in		221
+	lvds2_out		222
+	anaclk1			223
+	anaclk2			224
 
 Examples:
 
