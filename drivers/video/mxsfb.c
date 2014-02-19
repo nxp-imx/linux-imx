@@ -114,6 +114,8 @@
 #define CTRL1_CUR_FRAME_DONE_IRQ		(1 << 9)
 #define CTRL1_VSYNC_EDGE_IRQ			(1 << 8)
 
+#define CTRL2_OUTSTANDING_REQS__REQ_16		(3 << 21)
+
 #define TRANSFER_COUNT_SET_VCOUNT(x)	(((x) & 0xffff) << 16)
 #define TRANSFER_COUNT_GET_VCOUNT(x)	(((x) >> 16) & 0xffff)
 #define TRANSFER_COUNT_SET_HCOUNT(x)	((x) & 0xffff)
@@ -455,6 +457,9 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 
 	/* Clean soft reset and clock gate bit if it was enabled  */
 	writel(CTRL_SFTRST | CTRL_CLKGATE, host->base + LCDC_CTRL + REG_CLR);
+
+	writel(CTRL2_OUTSTANDING_REQS__REQ_16,
+		host->base + LCDC_V4_CTRL2 + REG_SET);
 
 	/* if it was disabled, re-enable the mode again */
 	writel(CTRL_DOTCLK_MODE, host->base + LCDC_CTRL + REG_SET);
