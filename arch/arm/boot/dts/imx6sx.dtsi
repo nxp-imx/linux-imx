@@ -218,6 +218,42 @@
 				reg = <0x020e4000 0x4000>;
 			};
 
+			pwm1: pwm@02080000 {
+				#pwm-cells = <2>;
+				compatible = "fsl,imx6sx-pwm", "fsl,imx27-pwm";
+				reg = <0x02080000 0x4000>;
+				interrupts = <0 83 0x04>;
+				clocks = <&clks IMX6SX_CLK_PWM1>, <&clks IMX6SX_CLK_PWM1>;
+				clock-names = "ipg", "per";
+			};
+
+			pwm2: pwm@02084000 {
+				#pwm-cells = <2>;
+				compatible = "fsl,imx6sx-pwm", "fsl,imx27-pwm";
+				reg = <0x02084000 0x4000>;
+				interrupts = <0 84 0x04>;
+				clocks = <&clks IMX6SX_CLK_PWM2>, <&clks IMX6SX_CLK_PWM2>;
+				clock-names = "ipg", "per";
+			};
+
+			pwm3: pwm@02088000 {
+				#pwm-cells = <2>;
+				compatible = "fsl,imx6sx-pwm", "fsl,imx27-pwm";
+				reg = <0x02088000 0x4000>;
+				interrupts = <0 85 0x04>;
+				clocks = <&clks IMX6SX_CLK_PWM3>, <&clks IMX6SX_CLK_PWM3>;
+				clock-names = "ipg", "per";
+			};
+
+			pwm4: pwm@0208c000 {
+				#pwm-cells = <2>;
+				compatible = "fsl,imx6sx-pwm", "fsl,imx27-pwm";
+				reg = <0x0208c000 0x4000>;
+				interrupts = <0 86 0x04>;
+				clocks = <&clks IMX6SX_CLK_PWM4>, <&clks IMX6SX_CLK_PWM4>;
+				clock-names = "ipg", "per";
+			};
+
 			sdma: sdma@020ec000 {
 				compatible = "fsl,imx6q-sdma", "fsl,imx35-sdma";
 				reg = <0x020ec000 0x4000>;
