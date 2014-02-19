@@ -740,7 +740,9 @@ fec_restart(struct net_device *ndev, int duplex)
 	writel(ecntl, fep->hwp + FEC_ECNTRL);
 	fec_enet_active_rxring(ndev);
 
-	if (fep->bufdesc_ex)
+	if (fep->bufdesc_ex && (fep->hwts_tx_en_ioctl ||
+		fep->hwts_rx_en_ioctl || fep->hwts_tx_en ||
+		fep->hwts_rx_en))
 		fec_ptp_start_cyclecounter(ndev);
 
 	/* Enable interrupts we wish to service */

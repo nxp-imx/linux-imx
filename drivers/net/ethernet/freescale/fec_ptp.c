@@ -1,7 +1,7 @@
 /*
  * Fast Ethernet Controller (ENET) PTP driver for MX6x.
  *
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -220,6 +220,8 @@ void fec_ptp_stop(struct net_device *ndev)
 
 	writel(0, priv->hwp + FEC_ATIME_CTRL);
 	writel(FEC_T_CTRL_RESTART, priv->hwp + FEC_ATIME_CTRL);
+
+	del_timer_sync(&priv->time_keep);
 }
 
 static void fec_get_curr_cnt(struct fec_enet_private *priv,
@@ -606,6 +608,9 @@ void fec_ptp_start_cyclecounter(struct net_device *ndev)
 	timecounter_init(&fep->tc, &fep->cc, ktime_to_ns(ktime_get_real()));
 
 	spin_unlock_irqrestore(&fep->tmreg_lock, flags);
+
+	if (!timer_pending(&fep->time_keep) && fep->opened)
+		add_timer(&fep->time_keep);
 }
 
 /**
@@ -943,7 +948,6 @@ void fec_ptp_init(struct platform_device *pdev)
 	fep->time_keep.data = (unsigned long)fep;
 	fep->time_keep.function = fec_time_keep;
 	fep->time_keep.expires = jiffies + HZ;
-	add_timer(&fep->time_keep);
 
 	fep->ptp_clock = ptp_clock_register(&fep->ptp_caps, &pdev->dev);
 	if (IS_ERR(fep->ptp_clock)) {
