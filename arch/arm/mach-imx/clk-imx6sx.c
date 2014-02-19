@@ -440,12 +440,6 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clk_set_rate(clks[IMX6SX_CLK_ENET_REF], 125000000);
 	clk_set_rate(clks[IMX6SX_CLK_ENET2_REF], 125000000);
 
-	/*
-	 * Need to keep the ENET clocks enabled, else the system
-	 * hangs when ENET clocks are disabled in the driver.
-	 */
-	clk_prepare_enable(clks[IMX6SX_CLK_ENET]);
-
 	/* Set initial power mode */
 	imx6_set_lpm(WAIT_CLOCKED);
 
