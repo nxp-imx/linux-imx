@@ -59,6 +59,7 @@ struct pxp_dma {
 struct pxps {
 	struct platform_device *pdev;
 	struct clk *clk;
+	struct clk *clk_disp_axi;	/* may exist on some SoC for gating */
 	void __iomem *base;
 	int irq;		/* PXP IRQ to the CPU */
 
@@ -1029,6 +1030,8 @@ static void pxp_clk_enable(struct pxps *pxp)
 
 	pm_runtime_get_sync(pxp->dev);
 
+	if (pxp->clk_disp_axi)
+		clk_prepare_enable(pxp->clk_disp_axi);
 	clk_prepare_enable(pxp->clk);
 	pxp->clk_stat = CLK_STAT_ON;
 
@@ -1050,6 +1053,8 @@ static void pxp_clk_disable(struct pxps *pxp)
 	if ((pxp->pxp_ongoing == 0) && list_empty(&head)) {
 		spin_unlock_irqrestore(&pxp->lock, flags);
 		clk_disable_unprepare(pxp->clk);
+		if (pxp->clk_disp_axi)
+			clk_disable_unprepare(pxp->clk_disp_axi);
 		pxp->clk_stat = CLK_STAT_OFF;
 	} else
 		spin_unlock_irqrestore(&pxp->lock, flags);
@@ -1641,6 +1646,9 @@ static int pxp_probe(struct platform_device *pdev)
 
 	pxp->pdev = pdev;
 
+	pxp->clk_disp_axi = devm_clk_get(&pdev->dev, "disp-axi");
+	if (IS_ERR(pxp->clk_disp_axi))
+		pxp->clk_disp_axi = NULL;
 	pxp->clk = devm_clk_get(&pdev->dev, "pxp-axi");
 
 	err = devm_request_irq(&pdev->dev, pxp->irq, pxp_irq, 0,
@@ -1702,6 +1710,8 @@ static int pxp_remove(struct platform_device *pdev)
 	cancel_work_sync(&pxp->work);
 	del_timer_sync(&pxp->clk_timer);
 	clk_disable_unprepare(pxp->clk);
+	if (pxp->clk_disp_axi)
+		clk_disable_unprepare(pxp->clk_disp_axi);
 	device_remove_file(&pdev->dev, &dev_attr_clk_off_timeout);
 	device_remove_file(&pdev->dev, &dev_attr_block_size);
 	dma_async_device_unregister(&(pxp->pxp_dma.dma));
