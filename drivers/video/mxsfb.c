@@ -187,7 +187,9 @@ struct mxsfb_info {
 	struct platform_device *pdev;
 	struct clk *clk_pix;
 	struct clk *clk_axi;
+	struct clk *clk_disp_axi;
 	bool clk_axi_enabled;
+	bool clk_disp_axi_enabled;
 	void __iomem *base;	/* registers */
 	unsigned allocated_size;
 	int enabled;
@@ -234,8 +236,7 @@ static int mxsfb_unmap_videomem(struct fb_info *info);
 /* enable lcdif axi clock */
 static inline void clk_enable_axi(struct mxsfb_info *host)
 {
-	if (!host->clk_axi_enabled && host &&
-		host->clk_axi && !IS_ERR(host->clk_axi)) {
+	if (!host->clk_axi_enabled && (host->clk_axi != NULL)) {
 		clk_prepare_enable(host->clk_axi);
 		host->clk_axi_enabled = true;
 	}
@@ -244,10 +245,27 @@ static inline void clk_enable_axi(struct mxsfb_info *host)
 /* disable lcdif axi clock */
 static inline void clk_disable_axi(struct mxsfb_info *host)
 {
-	if (host->clk_axi_enabled && host &&
-		host->clk_axi && !IS_ERR(host->clk_axi)) {
+	if (host->clk_axi_enabled && (host->clk_axi != NULL)) {
 		clk_disable_unprepare(host->clk_axi);
 		host->clk_axi_enabled = false;
+	}
+}
+
+/* enable DISP axi clock */
+static inline void clk_enable_disp_axi(struct mxsfb_info *host)
+{
+	if (!host->clk_disp_axi_enabled && (host->clk_disp_axi != NULL)) {
+		clk_prepare_enable(host->clk_disp_axi);
+		host->clk_disp_axi_enabled = true;
+	}
+}
+
+/* disable DISP axi clock */
+static inline void clk_disable_disp_axi(struct mxsfb_info *host)
+{
+	if (host->clk_disp_axi_enabled && (host->clk_disp_axi != NULL)) {
+		clk_disable_unprepare(host->clk_disp_axi);
+		host->clk_disp_axi_enabled = false;
 	}
 }
 
@@ -430,6 +448,7 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 	pm_runtime_get_sync(&host->pdev->dev);
 
 	clk_enable_axi(host);
+	clk_enable_disp_axi(host);
 
 	clk_prepare_enable(host->clk_pix);
 	clk_set_rate(host->clk_pix, PICOS2KHZ(fb_info->var.pixclock) * 1000U);
@@ -464,6 +483,7 @@ static void mxsfb_disable_controller(struct fb_info *fb_info)
 	dev_dbg(&host->pdev->dev, "%s\n", __func__);
 
 	clk_enable_axi(host);
+	clk_enable_disp_axi(host);
 	/*
 	 * Even if we disable the controller here, it will still continue
 	 * until its FIFOs are running out of data
@@ -505,6 +525,7 @@ static int mxsfb_set_par(struct fb_info *fb_info)
 	int reenable = 0;
 
 	clk_enable_axi(host);
+	clk_enable_disp_axi(host);
 
 	dev_dbg(&host->pdev->dev, "%s\n", __func__);
 	/*
@@ -726,6 +747,7 @@ static int mxsfb_blank(int blank, struct fb_info *fb_info)
 		if (host->enabled)
 			mxsfb_disable_controller(fb_info);
 
+		clk_disable_disp_axi(host);
 		clk_disable_axi(host);
 		break;
 
@@ -761,6 +783,7 @@ static int mxsfb_pan_display(struct fb_var_screeninfo *var,
 	}
 
 	clk_enable_axi(host);
+	clk_enable_disp_axi(host);
 
 	offset = fb_info->fix.line_length * var->yoffset;
 
@@ -834,6 +857,7 @@ static int mxsfb_restore_mode(struct mxsfb_info *host)
 	struct fb_videomode vmode;
 
 	clk_enable_axi(host);
+	clk_enable_disp_axi(host);
 
 	/* Only restore the mode when the controller is running */
 	ctrl = readl(host->base + LCDC_CTRL);
@@ -1190,13 +1214,22 @@ static int mxsfb_probe(struct platform_device *pdev)
 
 	host->clk_pix = devm_clk_get(&host->pdev->dev, "pix");
 	if (IS_ERR(host->clk_pix)) {
+		host->clk_pix = NULL;
 		ret = PTR_ERR(host->clk_pix);
 		goto fb_release;
 	}
 
 	host->clk_axi = devm_clk_get(&host->pdev->dev, "axi");
 	if (IS_ERR(host->clk_axi)) {
+		host->clk_axi = NULL;
 		ret = PTR_ERR(host->clk_axi);
+		goto fb_release;
+	}
+
+	host->clk_disp_axi = devm_clk_get(&host->pdev->dev, "disp_axi");
+	if (IS_ERR(host->clk_disp_axi)) {
+		host->clk_disp_axi = NULL;
+		ret = PTR_ERR(host->clk_disp_axi);
 		goto fb_release;
 	}
 
@@ -1274,12 +1307,14 @@ static void mxsfb_shutdown(struct platform_device *pdev)
 	struct mxsfb_info *host = to_imxfb_host(fb_info);
 
 	clk_enable_axi(host);
+	clk_enable_disp_axi(host);
 	/*
 	 * Force stop the LCD controller as keeping it running during reboot
 	 * might interfere with the BootROM's boot mode pads sampling.
 	 */
 	writel(CTRL_RUN, host->base + LCDC_CTRL + REG_CLR);
 	writel(CTRL_MASTER, host->base + LCDC_CTRL + REG_CLR);
+	clk_disable_disp_axi(host);
 	clk_disable_axi(host);
 }
 
