@@ -57,9 +57,9 @@ static const char *m4_sels[]		= { "m4_pre_sel", "ipp_di0", "ipp_di1", "ldb_di0",
 static const char *eim_slow_sels[]	= { "ocram", "pll3_usb_otg", "pll2_pfd2_396m", "pll2_pfd0_352m", };
 static const char *ecspi_sels[]		= { "pll3_60m", "osc", };
 static const char *lcdif1_pre_sels[]	= { "pll2_bus", "pll3_pfd3_454m", "pll5_video_div", "pll2_pfd0_352m", "pll2_pfd1_594m", "pll3_pfd1_540m", };
-static const char *lcdif1_sels[]	= { "lcdif1_pre_sel", "ipp_di0", "ipp_di1", "ldb_di0", "ldb_di1", };
+static const char *lcdif1_sels[]	= { "lcdif1_podf", "ipp_di0", "ipp_di1", "ldb_di0", "ldb_di1", };
 static const char *lcdif2_pre_sels[]	= { "pll2_bus", "pll3_pfd3_454m", "pll5_video_div", "pll2_pfd0_352m", "pll2_pfd3_594m", "pll3_pfd1_540m", };
-static const char *lcdif2_sels[]	= { "lcdif2_pre_sel", "ipp_di0", "ipp_di1", "ldb_di0", "ldb_di1", };
+static const char *lcdif2_sels[]	= { "lcdif2_podf", "ipp_di0", "ipp_di1", "ldb_di0", "ldb_di1", };
 static const char *display_sels[]	= { "pll2_bus", "pll2_pfd2_396m", "pll3_usb_otg", "pll3_pfd1_540m", };
 static const char *csi_sels[]		= { "osc", "pll2_pfd2_396m", "pll3_120m", "pll3_pfd1_540m", };
 static const char *cko1_sels[]		= {
@@ -232,8 +232,6 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_M4_PRE_SEL]         = imx_clk_mux("m4_pre_sel",       base + 0x34,  6,      3,      m4_pre_sels,       ARRAY_SIZE(m4_pre_sels));
 	clks[IMX6SX_CLK_M4_SEL]             = imx_clk_mux("m4_sel",           base + 0x34,  0,      3,      m4_sels,           ARRAY_SIZE(m4_sels));
 	clks[IMX6SX_CLK_ECSPI_SEL]          = imx_clk_mux("ecspi_sel",        base + 0x38,  18,     1,      ecspi_sels,        ARRAY_SIZE(ecspi_sels));
-	clks[IMX6SX_CLK_LCDIF1_PRE_SEL]     = imx_clk_mux("lcdif1_pre_sel",   base + 0x38,  15,     3,      lcdif1_pre_sels,   ARRAY_SIZE(lcdif1_pre_sels));
-	clks[IMX6SX_CLK_LCDIF1_SEL]         = imx_clk_mux("lcdif1_sel",       base + 0x38,  9,      3,      lcdif1_sels,       ARRAY_SIZE(lcdif1_sels));
 	clks[IMX6SX_CLK_LCDIF2_PRE_SEL]     = imx_clk_mux("lcdif2_pre_sel",   base + 0x38,  6,      3,      lcdif2_pre_sels,   ARRAY_SIZE(lcdif2_pre_sels));
 	clks[IMX6SX_CLK_LCDIF2_SEL]         = imx_clk_mux("lcdif2_sel",       base + 0x38,  0,      3,      lcdif2_sels,       ARRAY_SIZE(lcdif2_sels));
 	clks[IMX6SX_CLK_DISPLAY_SEL]        = imx_clk_mux("display_sel",      base + 0x3c,  14,     2,      display_sels,      ARRAY_SIZE(display_sels));
@@ -246,6 +244,8 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_LDB_DI0_DIV_SEL]    = imx_clk_mux_flags("ldb_di0_div_sel", base + 0x20, 10, 1, ldb_di0_div_sels, ARRAY_SIZE(ldb_di0_div_sels), CLK_SET_RATE_PARENT);
 	clks[IMX6SX_CLK_LDB_DI1_SEL]        = imx_clk_mux_flags("ldb_di1_sel",     base + 0x2c, 12, 3, ldb_di1_sels,      ARRAY_SIZE(ldb_di1_sels),    CLK_SET_RATE_PARENT);
 	clks[IMX6SX_CLK_LDB_DI0_SEL]        = imx_clk_mux_flags("ldb_di0_sel",     base + 0x2c, 9,  3, ldb_di0_sels,      ARRAY_SIZE(ldb_di0_sels),    CLK_SET_RATE_PARENT);
+	clks[IMX6SX_CLK_LCDIF1_PRE_SEL]     = imx_clk_mux_flags("lcdif1_pre_sel",  base + 0x38, 15, 3, lcdif1_pre_sels,   ARRAY_SIZE(lcdif1_pre_sels), CLK_SET_RATE_PARENT);
+	clks[IMX6SX_CLK_LCDIF1_SEL]         = imx_clk_mux_flags("lcdif1_sel",      base + 0x38, 9,  3, lcdif1_sels,       ARRAY_SIZE(lcdif1_sels),     CLK_SET_RATE_PARENT);
 
 	/*                                                    name              parent_name          reg          shift width */
 	clks[IMX6SX_CLK_PERIPH_CLK2]        = imx_clk_divider("periph_clk2",    "periph_clk2_sel",   base + 0x14, 27,   3);
@@ -253,10 +253,10 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_IPG]                = imx_clk_divider("ipg",            "ahb",               base + 0x14, 8,    2);
 	clks[IMX6SX_CLK_GPU_CORE_PODF]      = imx_clk_divider("gpu_core_podf",  "gpu_core_sel",      base + 0x18, 29,   3);
 	clks[IMX6SX_CLK_GPU_AXI_PODF]       = imx_clk_divider("gpu_axi_podf",   "gpu_axi_sel",       base + 0x18, 26,   3);
-	clks[IMX6SX_CLK_LCDIF1_PODF]        = imx_clk_divider("lcdif1_podf",    "lcdif1_sel",        base + 0x18, 23,   3);
+	clks[IMX6SX_CLK_LCDIF1_PODF]        = imx_clk_divider("lcdif1_podf",    "lcdif1_pred",       base + 0x18, 23,   3);
 	clks[IMX6SX_CLK_QSPI1_PODF]         = imx_clk_divider("qspi1_podf",     "qspi1_sel",         base + 0x1c, 26,   3);
 	clks[IMX6SX_CLK_EIM_SLOW_PODF]      = imx_clk_divider("eim_slow_podf",  "eim_slow_sel",      base + 0x1c, 23,   3);
-	clks[IMX6SX_CLK_LCDIF2_PODF]        = imx_clk_divider("lcdif2_podf",    "lcdif2_sel",        base + 0x1c, 20,   3);
+	clks[IMX6SX_CLK_LCDIF2_PODF]        = imx_clk_divider("lcdif2_podf",    "lcdif2_pred",       base + 0x1c, 20,   3);
 	clks[IMX6SX_CLK_PERCLK]             = imx_clk_divider("perclk",         "perclk_sel",        base + 0x1c, 0,    6);
 	clks[IMX6SX_CLK_VID_PODF]           = imx_clk_divider("vid_podf",       "vid_sel",           base + 0x20, 24,   2);
 	clks[IMX6SX_CLK_CAN_PODF]           = imx_clk_divider("can_podf",       "can_sel",           base + 0x20, 2,    6);
@@ -282,8 +282,8 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_ENET_PODF]          = imx_clk_divider("enet_podf",      "enet_pre_sel",      base + 0x34, 12,   3);
 	clks[IMX6SX_CLK_M4_PODF]            = imx_clk_divider("m4_podf",        "m4_sel",            base + 0x34, 3,    3);
 	clks[IMX6SX_CLK_ECSPI_PODF]         = imx_clk_divider("ecspi_podf",     "ecspi_sel",         base + 0x38, 19,   6);
-	clks[IMX6SX_CLK_LCDIF1_PRED]        = imx_clk_divider("lcdif1_pred",    "lcdif1_sel",        base + 0x38, 12,   3);
-	clks[IMX6SX_CLK_LCDIF2_PRED]        = imx_clk_divider("lcdif2_pred",    "lcdif2_sel",        base + 0x38, 3,    3);
+	clks[IMX6SX_CLK_LCDIF1_PRED]        = imx_clk_divider("lcdif1_pred",    "lcdif1_pre_sel",    base + 0x38, 12,   3);
+	clks[IMX6SX_CLK_LCDIF2_PRED]        = imx_clk_divider("lcdif2_pred",    "lcdif2_pre_sel",    base + 0x38, 3,    3);
 	clks[IMX6SX_CLK_DISPLAY_PODF]       = imx_clk_divider("display_podf",   "display_sel",       base + 0x3c, 16,   3);
 	clks[IMX6SX_CLK_CSI_PODF]           = imx_clk_divider("csi_podf",       "csi_sel",           base + 0x3c, 11,   3);
 	clks[IMX6SX_CLK_CKO1_PODF]          = imx_clk_divider("cko1_podf",      "cko1_sel",          base + 0x60, 4,    3);
@@ -354,8 +354,8 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_ENET]         = imx_clk_gate2("enet",          "ipg",               base + 0x74, 4);
 	clks[IMX6SX_CLK_ENET_AHB]     = imx_clk_gate2("enet_ahb",      "enet_sel",          base + 0x74, 4);
 	clks[IMX6SX_CLK_DISPLAY_AXI]  = imx_clk_gate2("display_axi",   "display_podf",      base + 0x74, 6);
-	clks[IMX6SX_CLK_LCDIF2_PIX]   = imx_clk_gate2("lcdif2_pix",    "lcdif2_podf",       base + 0x74, 8);
-	clks[IMX6SX_CLK_LCDIF1_PIX]   = imx_clk_gate2("lcdif1_pix",    "lcdif1_podf",       base + 0x74, 10);
+	clks[IMX6SX_CLK_LCDIF2_PIX]   = imx_clk_gate2("lcdif2_pix",    "lcdif2_sel",        base + 0x74, 8);
+	clks[IMX6SX_CLK_LCDIF1_PIX]   = imx_clk_gate2("lcdif1_pix",    "lcdif1_sel",        base + 0x74, 10);
 	clks[IMX6SX_CLK_LDB_DI0]      = imx_clk_gate2("ldb_di0",       "ldb_di0_div_sel",   base + 0x74, 12);
 	clks[IMX6SX_CLK_QSPI1]        = imx_clk_gate2("qspi1",         "qspi1_podf",        base + 0x74, 14);
 	clks[IMX6SX_CLK_MLB]          = imx_clk_gate2("mlb",           "ahb",               base + 0x74, 18);
@@ -429,6 +429,10 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 
 	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
 		clk_prepare_enable(clks[clks_init_on[i]]);
+
+	/* set parent clock for LCDIF1 pixel clock */
+	clk_set_parent(clks[IMX6SX_CLK_LCDIF1_PRE_SEL], clks[IMX6SX_CLK_PLL5_VIDEO_DIV]);
+	clk_set_parent(clks[IMX6SX_CLK_LCDIF1_SEL], clks[IMX6SX_CLK_LCDIF1_PODF]);
 
 	/*
 	 * Init enet system AHB clock, set to 200Mhz
