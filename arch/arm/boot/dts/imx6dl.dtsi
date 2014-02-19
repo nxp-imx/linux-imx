@@ -136,8 +136,8 @@
 				compatible = "fsl,imx6dl-pxp-dma";
 				reg = <0x020f0000 0x4000>;
 				interrupts = <0 98 0x04>;
-				clocks = <&clks 133>;
-				clock-names = "pxp-axi";
+				clocks = <&clks 133>, <&clks 0>;
+				clock-names = "pxp-axi", "disp-axi";
 				status = "disabled";
 			};
 

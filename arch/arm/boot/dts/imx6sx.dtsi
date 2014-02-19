@@ -418,6 +418,17 @@
 					clock-names = "pix", "axi", "disp_axi";
 					status = "disabled";
 				};
+
+				pxp: pxp@02218000 {
+					compatible = "fsl,imx6sx-pxp-dma", "fsl,imx6sl-pxp-dma", "fsl,imx6dl-pxp-dma";
+					reg = <0x02218000 0x4000>;
+					interrupts = <0 8 0x04>;
+					clocks = <&clks IMX6SX_CLK_PXP_AXI>,
+						<&clks IMX6SX_CLK_DISPLAY_AXI>;
+					clock-names = "pxp-axi", "disp-axi";
+					status = "disabled";
+				};
+
 				spba@0223c000 {
 					reg = <0x0223c000 0x4000>;
 				};
