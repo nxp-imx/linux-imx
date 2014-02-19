@@ -361,8 +361,8 @@
 				compatible = "fsl,imx23-lcdif";
 				reg = <0x80030000 2000>;
 				interrupts = <46 45>;
-				clocks = <&clks 38>, <&clks 38>;
-				clock-names = "pix", "axi";
+				clocks = <&clks 38>, <&clks 38>, <&clks 38>;
+				clock-names = "pix", "axi", "disp_axi";
 				status = "disabled";
 			};
 
