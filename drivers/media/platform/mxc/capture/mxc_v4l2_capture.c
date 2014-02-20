@@ -349,7 +349,7 @@ static int mxc_v4l2_prepare_bufs(cam_data *cam, struct v4l2_buffer *buf)
 	pr_debug("In MVC:mxc_v4l2_prepare_bufs\n");
 
 	if (buf->index < 0 || buf->index >= FRAME_NUM || buf->length <
-			PAGE_ALIGN(cam->v2f.fmt.pix.sizeimage)) {
+			cam->v2f.fmt.pix.sizeimage) {
 		pr_err("ERROR: v4l2 capture: mxc_v4l2_prepare_bufs buffers "
 			"not allocated,index=%d, length=%d\n", buf->index,
 			buf->length);
