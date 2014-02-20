@@ -17,8 +17,15 @@
 
 / {
 	aliases {
+		flexcan0 = &flexcan1;
+		flexcan1 = &flexcan2;
+		gpio0 = &gpio1;
 		gpio1 = &gpio2;
+		gpio2 = &gpio3;
 		gpio3 = &gpio4;
+		gpio4 = &gpio5;
+		gpio5 = &gpio6;
+		gpio6 = &gpio7;
 		serial0 = &uart1;
 		serial1 = &uart2;
 	};
@@ -155,6 +162,26 @@
 				interrupts = <0 49 0x04 0 54 0x04 0 127 0x04>;
 			};
 
+			flexcan1: can@02090000 {
+				compatible = "fsl,imx6q-flexcan";
+				reg = <0x02090000 0x4000>;
+				interrupts = <0 110 0x04>;
+				clocks = <&clks IMX6SX_CLK_CAN1_IPG>, <&clks IMX6SX_CLK_CAN1_SERIAL>;
+				clock-names = "ipg", "per";
+				gpr = <&gpr>;
+				status = "disabled";
+			};
+
+			flexcan2: can@02094000 {
+				compatible = "fsl,imx6q-flexcan";
+				reg = <0x02094000 0x4000>;
+				interrupts = <0 111 0x04>;
+				clocks = <&clks IMX6SX_CLK_CAN2_IPG>, <&clks IMX6SX_CLK_CAN2_SERIAL>;
+				clock-names = "ipg", "per";
+				gpr = <&gpr>;
+				status = "disabled";
+			};
+
 			snvs@020cc000 {
 				compatible = "fsl,sec-v4.0-mon", "simple-bus";
 				#address-cells = <1>;
@@ -181,6 +208,16 @@
 				interrupts = <0 89 0x04>;
 			};
 
+			gpio1: gpio@0209c000 {
+				compatible = "fsl,imx6q-gpio", "fsl,imx35-gpio";
+				reg = <0x0209c000 0x4000>;
+				interrupts = <0 66 0x04 0 67 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+
 			gpio2: gpio@020a0000 {
 				compatible = "fsl,imx6q-gpio", "fsl,imx35-gpio";
 				reg = <0x020a0000 0x4000>;
@@ -191,10 +228,50 @@
 				#interrupt-cells = <2>;
 			};
 
+			gpio3: gpio@020a4000 {
+				compatible = "fsl,imx6q-gpio", "fsl,imx35-gpio";
+				reg = <0x020a4000 0x4000>;
+				interrupts = <0 70 0x04 0 71 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+
 			gpio4: gpio@020a8000 {
 				compatible = "fsl,imx6q-gpio", "fsl,imx35-gpio";
 				reg = <0x020a8000 0x4000>;
 				interrupts = <0 72 0x04 0 73 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+
+			gpio5: gpio@020ac000 {
+				compatible = "fsl,imx6q-gpio", "fsl,imx35-gpio";
+				reg = <0x020ac000 0x4000>;
+				interrupts = <0 74 0x04 0 75 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+
+			gpio6: gpio@020b0000 {
+				compatible = "fsl,imx6q-gpio", "fsl,imx35-gpio";
+				reg = <0x020b0000 0x4000>;
+				interrupts = <0 76 0x04 0 77 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+
+			gpio7: gpio@020b4000 {
+				compatible = "fsl,imx6q-gpio", "fsl,imx35-gpio";
+				reg = <0x020b4000 0x4000>;
+				interrupts = <0 78 0x04 0 79 0x04>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
@@ -506,6 +583,24 @@
 				MX6SX_PAD_RGMII2_RD2__ENET2_RX_DATA_2   0x3081
 				MX6SX_PAD_RGMII2_RD3__ENET2_RX_DATA_3   0x3081
 				MX6SX_PAD_RGMII2_RX_CTL__ENET2_RX_EN    0x3081
+			>;
+		};
+	};
+
+	flexcan1 {
+		pinctrl_flexcan1_1: flexcan1grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_QSPI1B_DQS__CAN1_TX	0x1b0b0
+				MX6SX_PAD_QSPI1A_SS1_B__CAN1_RX	0x1b0b0
+			>;
+		};
+	};
+
+	flexcan2 {
+		pinctrl_flexcan2_1: flexcan2grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_QSPI1B_SS1_B__CAN2_RX 0x1b0b0
+				MX6SX_PAD_QSPI1A_DQS__CAN2_TX	0x1b0b0
 			>;
 		};
 	};

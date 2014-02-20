@@ -57,6 +57,24 @@
 	status = "disabled";
 };
 
+&flexcan1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexcan1_1>;
+	trx-en-gpio = <&gpio4 25 GPIO_ACTIVE_HIGH>;
+	trx-stby-gpio = <&gpio4 27 GPIO_ACTIVE_HIGH>;
+	trx-err-gpio = <&gpio4 24 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&flexcan2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexcan2_1>;
+	trx-en-gpio = <&gpio4 25 GPIO_ACTIVE_HIGH>;
+	trx-stby-gpio = <&gpio4 27 GPIO_ACTIVE_HIGH>;
+	trx-err-gpio = <&gpio4 30 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
 &gpc {
 	fsl,cpu_pupscr_sw2iso = <0xf>;
 	fsl,cpu_pupscr_sw = <0xf>;
@@ -212,7 +230,15 @@
 				MX6SX_PAD_KEY_COL0__GPIO2_IO_10		0x1f059
 				MX6SX_PAD_KEY_ROW0__GPIO2_IO_15		0x1f059
 				MX6SX_PAD_QSPI1A_SS0_B__GPIO4_IO_22     0x80000000
-			 >;
+				/* CAN1_2_EN */
+				MX6SX_PAD_QSPI1B_DATA1__GPIO4_IO_25     0x80000000
+				/* CAN1_2_STBY_B */
+				MX6SX_PAD_QSPI1B_DATA3__GPIO4_IO_27     0x80000000
+				/* CAN1_ERR_B */
+				MX6SX_PAD_QSPI1B_DATA0__GPIO4_IO_24	0x80000000
+				/* CAN2_ERR_B */
+				MX6SX_PAD_QSPI1B_SS0_B__GPIO4_IO_30     0x80000000
+			>;
 		};
 	};
 };
