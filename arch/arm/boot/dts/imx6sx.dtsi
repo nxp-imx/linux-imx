@@ -338,6 +338,26 @@
 				status = "disabled";
 			};
 
+			usdhc1: usdhc@02190000 {
+				compatible = "fsl,imx6sx-usdhc", "fsl,imx6sl-usdhc";
+				reg = <0x02190000 0x4000>;
+				interrupts = <0 22 0x04>;
+				clocks = <&clks IMX6SX_CLK_USDHC1>, <&clks IMX6SX_CLK_USDHC1>, <&clks IMX6SX_CLK_USDHC1>;
+				clock-names = "ipg", "ahb", "per";
+				bus-width = <4>;
+				status = "disabled";
+			};
+
+			usdhc2: usdhc@02194000 {
+				compatible = "fsl,imx6sx-usdhc", "fsl,imx6sl-usdhc";
+				reg = <0x02194000 0x4000>;
+				interrupts = <0 23 0x04>;
+				clocks = <&clks IMX6SX_CLK_USDHC2>, <&clks IMX6SX_CLK_USDHC2>, <&clks IMX6SX_CLK_USDHC2>;
+				clock-names = "ipg", "ahb", "per";
+				bus-width = <4>;
+				status = "disabled";
+			};
+
 			usdhc3: usdhc@02198000 {
 				compatible = "fsl,imx6sx-usdhc", "fsl,imx6sl-usdhc";
 				reg = <0x02198000 0x4000>;
@@ -617,6 +637,19 @@
 			fsl,pins = <
 				MX6SX_PAD_SD1_DATA0__UART2_RX 0x1b0b1
 				MX6SX_PAD_SD1_DATA1__UART2_TX 0x1b0b1
+			>;
+		};
+	};
+
+	usdhc2 {
+		pinctrl_usdhc2_1: usdhc2grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_SD2_CMD__USDHC2_CMD     0x17059
+				MX6SX_PAD_SD2_CLK__USDHC2_CLK     0x10059
+				MX6SX_PAD_SD2_DATA0__USDHC2_DATA0 0x17059
+				MX6SX_PAD_SD2_DATA1__USDHC2_DATA1 0x17059
+				MX6SX_PAD_SD2_DATA2__USDHC2_DATA2 0x17059
+				MX6SX_PAD_SD2_DATA3__USDHC2_DATA3 0x17059
 			>;
 		};
 	};

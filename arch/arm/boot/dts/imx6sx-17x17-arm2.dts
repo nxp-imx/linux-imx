@@ -209,6 +209,8 @@
 	hog {
 		pinctrl_hog_1: hoggrp-1 {
 			fsl,pins = <
+				MX6SX_PAD_KEY_COL0__GPIO2_IO_10		0x1f059
+				MX6SX_PAD_KEY_ROW0__GPIO2_IO_15		0x1f059
 				MX6SX_PAD_QSPI1A_SS0_B__GPIO4_IO_22     0x80000000
 			 >;
 		};
@@ -269,6 +271,16 @@
 	status = "okay";
 };
 
+&usdhc2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc2_1>;
+	/* need hw rework to enable signal voltage switch */
+	no-1-8-v;
+	keep-power-in-suspend;
+	enable-sdio-wakeup;
+	status = "okay";
+};
+
 &usdhc3 {
 	pinctrl-names = "default", "state_100mhz", "state_200mhz";
 	pinctrl-0 = <&pinctrl_usdhc3_1>;
@@ -279,5 +291,15 @@
 	wp-gpios = <&gpio2 15 0>;
 	keep-power-in-suspend;
 	enable-sdio-wakeup;
+	status = "okay";
+};
+
+&usdhc4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc4_1>;
+	bus-width = <8>;
+	non-removable;
+	/* need hw rework to enable signal voltage switch */
+	no-1-8-v;
 	status = "okay";
 };
