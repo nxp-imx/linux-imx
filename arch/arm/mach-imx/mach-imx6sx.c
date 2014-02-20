@@ -7,11 +7,14 @@
  *
  */
 
+#include <linux/can/platform/flexcan.h>
 #include <linux/clk-provider.h>
 #include <linux/delay.h>
+#include <linux/gpio.h>
 #include <linux/irqchip.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/of_gpio.h>
 #include <linux/of_platform.h>
 #include <linux/opp.h>
 #include <linux/phy.h>
@@ -25,6 +28,62 @@
 #include "common.h"
 #include "cpuidle.h"
 #include "hardware.h"
+
+static struct flexcan_platform_data flexcan_pdata[2];
+static int flexcan_en_gpio;
+static int flexcan_stby_gpio;
+static int flexcan0_en;
+static int flexcan1_en;
+static void mx6sx_flexcan_switch(void)
+{
+	if (flexcan0_en || flexcan1_en) {
+		gpio_set_value_cansleep(flexcan_en_gpio, 0);
+		gpio_set_value_cansleep(flexcan_stby_gpio, 0);
+		gpio_set_value_cansleep(flexcan_en_gpio, 1);
+		gpio_set_value_cansleep(flexcan_stby_gpio, 1);
+	} else {
+		/*
+		* avoid to disable CAN xcvr if any of the CAN interfaces
+		* are down. XCRV will be disabled only if both CAN2
+		* interfaces are DOWN.
+		*/
+		gpio_set_value_cansleep(flexcan_en_gpio, 0);
+		gpio_set_value_cansleep(flexcan_stby_gpio, 0);
+	}
+}
+
+static void imx6sx_arm2_flexcan0_switch(int enable)
+{
+	flexcan0_en = enable;
+	mx6sx_flexcan_switch();
+}
+
+static void imx6sx_arm2_flexcan1_switch(int enable)
+{
+	flexcan1_en = enable;
+	mx6sx_flexcan_switch();
+}
+
+static int __init imx6sx_arm2_flexcan_fixup(void)
+{
+	struct device_node *np;
+
+	np = of_find_node_by_path("/soc/aips-bus@02000000/can@02090000");
+	if (!np)
+		return -ENODEV;
+
+	flexcan_en_gpio = of_get_named_gpio(np, "trx-en-gpio", 0);
+	flexcan_stby_gpio = of_get_named_gpio(np, "trx-stby-gpio", 0);
+	if (gpio_is_valid(flexcan_en_gpio) && gpio_is_valid(flexcan_stby_gpio) &&
+		!gpio_request_one(flexcan_en_gpio, GPIOF_DIR_OUT, "flexcan-trx-en") &&
+		!gpio_request_one(flexcan_stby_gpio, GPIOF_DIR_OUT, "flexcan-trx-stby")) {
+		/* flexcan 0 & 1 are using the same GPIOs for transceiver */
+		flexcan_pdata[0].transceiver_switch = imx6sx_arm2_flexcan0_switch;
+		flexcan_pdata[1].transceiver_switch = imx6sx_arm2_flexcan1_switch;
+	}
+
+	return 0;
+}
 
 static void __init imx6sx_enet_clk_sel(void)
 {
@@ -87,6 +146,13 @@ static inline void imx6sx_enet_init(void)
 	imx6sx_enet_clk_sel();
 }
 
+/* Add auxdata to pass platform data */
+static const struct of_dev_auxdata imx6sx_auxdata_lookup[] __initconst = {
+	OF_DEV_AUXDATA("fsl,imx6q-flexcan", 0x02090000, NULL, &flexcan_pdata[0]),
+	OF_DEV_AUXDATA("fsl,imx6q-flexcan", 0x02094000, NULL, &flexcan_pdata[1]),
+	{ /* sentinel */ }
+};
+
 static void __init imx6sx_init_machine(void)
 {
 	struct device *parent;
@@ -97,7 +163,8 @@ static void __init imx6sx_init_machine(void)
 	if (parent == NULL)
 		pr_warn("failed to initialize soc device\n");
 
-	of_platform_populate(NULL, of_default_bus_match_table, NULL, parent);
+	of_platform_populate(NULL, of_default_bus_match_table,
+					imx6sx_auxdata_lookup, parent);
 
 	imx6sx_enet_init();
 	imx_anatop_init();
@@ -119,6 +186,9 @@ static void __init imx6sx_init_late(void)
 			IMX6Q_GPR1_GINT_ASSERT);
 
 	imx6q_cpuidle_init();
+
+	if (of_machine_is_compatible("fsl,imx6sx-17x17-arm2"))
+		imx6sx_arm2_flexcan_fixup();
 }
 
 static void __init imx6sx_map_io(void)
