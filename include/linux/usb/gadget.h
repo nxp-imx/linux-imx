@@ -832,6 +832,9 @@ struct usb_gadget_driver {
 
 	/* FIXME support safe rmmod */
 	struct device_driver	driver;
+
+	bool			attached;
+	struct list_head	list;
 };
 
 

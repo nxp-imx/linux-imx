@@ -46,6 +46,7 @@ struct usb_udc {
 
 static struct class *udc_class;
 static LIST_HEAD(udc_list);
+static LIST_HEAD(driver_list);
 static DEFINE_MUTEX(udc_lock);
 
 /* ------------------------------------------------------------------------- */
@@ -172,6 +173,9 @@ static void usb_udc_nop_release(struct device *dev)
 	dev_vdbg(dev, "%s\n", __func__);
 }
 
+static int udc_bind_to_driver(struct usb_udc *udc,
+			      struct usb_gadget_driver *driver);
+
 /**
  * usb_add_gadget_udc_release - adds a new gadget to the udc class driver list
  * @parent: the parent device to this udc. Usually the controller driver's
@@ -226,6 +230,20 @@ int usb_add_gadget_udc_release(struct device *parent, struct usb_gadget *gadget,
 		goto err4;
 
 	usb_gadget_set_state(gadget, USB_STATE_NOTATTACHED);
+
+	if (!list_empty(&driver_list)) {
+		struct usb_gadget_driver *driver;
+		list_for_each_entry(driver, &driver_list, list) {
+			if (driver->attached)
+				continue;
+			ret = udc_bind_to_driver(udc, driver);
+			if (ret)
+				goto err4;
+			else
+				break;
+		}
+
+	}
 
 	mutex_unlock(&udc_lock);
 
@@ -336,6 +354,7 @@ static int udc_bind_to_driver(struct usb_udc *udc, struct usb_gadget_driver *dri
 		goto err1;
 	}
 	usb_gadget_connect(udc->gadget);
+	driver->attached = true;
 
 	kobject_uevent(&udc->dev.kobj, KOBJ_CHANGE);
 	return 0;
@@ -391,8 +410,13 @@ int usb_gadget_probe_driver(struct usb_gadget_driver *driver)
 
 	pr_debug("couldn't find an available UDC\n");
 	mutex_unlock(&udc_lock);
-	return -ENODEV;
+
+	driver->attached = false;
+	list_add_tail(&driver->list, &driver_list);
+
+	return 0;
 found:
+	list_add_tail(&driver->list, &driver_list);
 	ret = udc_bind_to_driver(udc, driver);
 	mutex_unlock(&udc_lock);
 	return ret;
@@ -414,6 +438,9 @@ int usb_gadget_unregister_driver(struct usb_gadget_driver *driver)
 			ret = 0;
 			break;
 		}
+
+	driver->attached = false;
+	list_del(&driver->list);
 
 	mutex_unlock(&udc_lock);
 	return ret;
