@@ -18,6 +18,7 @@
 / {
 	aliases {
 		gpio1 = &gpio2;
+		gpio3 = &gpio4;
 		serial0 = &uart1;
 		serial1 = &uart2;
 	};
@@ -184,6 +185,16 @@
 				compatible = "fsl,imx6q-gpio", "fsl,imx35-gpio";
 				reg = <0x020a0000 0x4000>;
 				interrupts = <0 68 0x04 0 69 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+
+			gpio4: gpio@020a8000 {
+				compatible = "fsl,imx6q-gpio", "fsl,imx35-gpio";
+				reg = <0x020a8000 0x4000>;
+				interrupts = <0 72 0x04 0 73 0x04>;
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
@@ -380,6 +391,12 @@
 				MX6SX_PAD_RGMII1_RD2__ENET1_RX_DATA_2   0x3081
 				MX6SX_PAD_RGMII1_RD3__ENET1_RX_DATA_3   0x3081
 				MX6SX_PAD_RGMII1_RX_CTL__ENET1_RX_EN    0x3081
+			>;
+		};
+
+		pinctrl_enet1_clkout_1: enet1_clkoutgrp-1 {
+			fsl,pins = <
+				MX6SX_PAD_ENET2_RX_CLK__ENET2_REF_CLK_25M	0x91
 			>;
 		};
 	};

@@ -19,6 +19,25 @@
 	};
 };
 
+&fec1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_enet1_1 &pinctrl_enet1_clkout_1>;
+	pinctrl-assert-gpios = <&gpio4 16 GPIO_ACTIVE_HIGH>, <&gpio2 6 GPIO_ACTIVE_LOW>;
+	phy-mode = "rgmii";
+	fsl,num_tx_queues=<3>;
+	fsl,num_rx_queues=<3>;
+	status = "okay";
+};
+
+&fec2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_enet2_1>;
+	phy-mode = "rgmii";
+	fsl,num_tx_queues=<3>;
+	fsl,num_rx_queues=<3>;
+	status = "okay";
+};
+
 &gpc {
 	fsl,cpu_pupscr_sw2iso = <0xf>;
 	fsl,cpu_pupscr_sw = <0xf>;
@@ -54,6 +73,20 @@
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_i2c4_1>;
         status = "okay";
+};
+
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog>;
+
+	hog {
+		pinctrl_hog: hoggrp {
+			fsl,pins = <
+				MX6SX_PAD_ENET2_COL__GPIO2_IO_6 0x80000000
+				MX6SX_PAD_QSPI1A_DATA0__GPIO4_IO_16 0x80000000
+			>;
+		};
+	};
 };
 
 &uart1 {
