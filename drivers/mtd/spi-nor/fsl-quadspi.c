@@ -188,6 +188,9 @@
 #define SEQID_RDCR		9
 #define SEQID_EN4B		10
 #define SEQID_BRWR		11
+#define SEQID_DDR_QUAD_READ	12
+
+#define OPCODE_DDR_QUAD_READ 0x6d
 
 enum fsl_qspi_devtype {
 	FSL_QUADSPI_VYBRID,
@@ -381,6 +384,26 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 	lut_base = SEQID_BRWR * 4;
 	writel(LUT0(CMD, PAD1, OPCODE_BRWR), base + QUADSPI_LUT(lut_base));
 
+	/* DDR QUAD read */
+	lut_base = SEQID_DDR_QUAD_READ * 4;
+
+	if (q->nor_size <= SZ_16M) {
+		cmd = OPCODE_DDR_QUAD_READ;
+		addrlen = ADDR24BIT;
+		dummy = 8;
+	} else {
+		cmd = OPCODE_DDR_QUAD_READ;
+		addrlen = ADDR32BIT;
+		dummy = 6;
+	}
+
+	writel(LUT0(CMD, PAD1, cmd) | LUT1(ADDR_DDR, PAD1, addrlen),
+			base + QUADSPI_LUT(lut_base));
+	writel(LUT0(DUMMY, PAD1, dummy) | LUT1(READ_DDR, PAD4, rxfifo),
+			base + QUADSPI_LUT(lut_base + 1));
+	writel(LUT0(JMP_ON_CS, PAD1, 0),
+			base + QUADSPI_LUT(lut_base + 2));
+
 	fsl_qspi_lock_lut(q);
 }
 
@@ -412,6 +435,8 @@ static int fsl_qspi_get_seqid(struct fsl_qspi *q, u8 cmd)
 		return SEQID_EN4B;
 	case OPCODE_BRWR:
 		return SEQID_BRWR;
+	case OPCODE_DDR_QUAD_READ:
+		return SEQID_DDR_QUAD_READ;
 	default:
 		dev_err(q->dev, "Unsupported cmd 0x%.2x\n", cmd);
 		break;
@@ -577,6 +602,7 @@ static void fsl_qspi_set_map_addr(struct fsl_qspi *q)
 static void fsl_qspi_init_abh_read(struct fsl_qspi *q)
 {
 	void __iomem *base = q->iobase;
+	u32 reg, reg2;
 	int seqid;
 
 	/* AHB configuration for access buffer 0/1/2 .*/
@@ -594,6 +620,27 @@ static void fsl_qspi_init_abh_read(struct fsl_qspi *q)
 	seqid = fsl_qspi_get_seqid(q, q->nor[0].read_opcode);
 	writel(seqid << QUADSPI_BFGENCR_SEQID_SHIFT,
 		q->iobase + QUADSPI_BFGENCR);
+
+	/* enable the DDR quad read */
+	if (seqid == SEQID_DDR_QUAD_READ) {
+		reg = readl(q->iobase + QUADSPI_MCR);
+
+		/* Firstly, disable the module */
+		writel(reg | QUADSPI_MCR_MDIS_MASK, q->iobase + QUADSPI_MCR);
+
+		/* Set the Sampling Register for DDR */
+		reg2 = readl(q->iobase + QUADSPI_SMPR);
+		reg2 &= ~QUADSPI_SMPR_DDRSMP_MASK;
+		reg2 |= (2 << QUADSPI_SMPR_DDRSMP_SHIFT);
+		writel(reg2, q->iobase + QUADSPI_SMPR);
+
+		/* Enable the module again (enable the DDR too) */
+		reg |= QUADSPI_MCR_DDR_EN_MASK;
+		if (is_imx6sx_qspi(q))
+			reg |= (1 << 29); /* enable bit 29 for imx6sx */
+
+		writel(reg, q->iobase + QUADSPI_MCR);
+	}
 }
 
 /* We use this function to do some basic init for spi_nor_scan(). */
@@ -949,6 +996,9 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 		 */
 		if (nor->page_size > q->devtype_data->txfifo)
 			nor->page_size = q->devtype_data->txfifo;
+
+		/* Set DDR QUAD READ, we will remove the hardcode in future.*/
+		nor->read_opcode = OPCODE_DDR_QUAD_READ;
 
 		i++;
 	}
