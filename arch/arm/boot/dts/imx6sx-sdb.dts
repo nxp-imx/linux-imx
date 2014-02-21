@@ -58,13 +58,21 @@
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_i2c2_1>;
         status = "okay";
+
+	egalax_ts@04 {
+		compatible = "eeti,egalax_ts";
+		reg = <0x04>;
+		interrupt-parent = <&gpio4>;
+		interrupts = <19 2>;
+		wakeup-gpios = <&gpio4 19 0>;
+	};
 };
 
 
 &i2c3 {
         clock-frequency = <100000>;
         pinctrl-names = "default";
-        pinctrl-0 = <&pinctrl_i2c3_1>;
+        pinctrl-0 = <&pinctrl_i2c3_2>;
         status = "okay";
 };
 
@@ -84,6 +92,7 @@
 			fsl,pins = <
 				MX6SX_PAD_ENET2_COL__GPIO2_IO_6 0x80000000
 				MX6SX_PAD_QSPI1A_DATA0__GPIO4_IO_16 0x80000000
+				MX6SX_PAD_QSPI1A_DATA3__GPIO4_IO_19 0x80000000
 			>;
 		};
 	};
