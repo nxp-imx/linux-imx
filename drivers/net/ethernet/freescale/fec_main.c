@@ -2582,6 +2582,7 @@ fec_probe(struct platform_device *pdev)
 	static int dev_id;
 	int num_tx_qs = 1;
 	int num_rx_qs = 1;
+	struct regulator *phy_reg = NULL;
 
 	of_id = of_match_device(fec_dt_ids, &pdev->dev);
 	if (of_id)
@@ -2590,6 +2591,26 @@ fec_probe(struct platform_device *pdev)
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!r)
 		return -ENXIO;
+
+	phy_reg = devm_regulator_get(&pdev->dev, "phy");
+
+	if (!IS_ERR(phy_reg)) {
+		ret = regulator_enable(phy_reg);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"Failed to enable phy regulator: %d\n", ret);
+			return ret;
+		}
+	} else if (phy_reg == ERR_PTR(-EPROBE_DEFER)) {
+		/* Return -EPROBE_DEFER when the regulator is not
+		 * sufficient initialized. When -EPROBE_DEFER is
+		 * returned in fec_probe, the kernel will retry
+		 * fec_probe after suitalbe delay.
+		 */
+		return -EPROBE_DEFER;
+	} else {
+		phy_reg = NULL;
+	}
 
 	if (pdev->id_entry &&
 	    (pdev->id_entry->driver_data & FEC_QUIRK_HAS_AVB)) {
@@ -2608,6 +2629,7 @@ fec_probe(struct platform_device *pdev)
 	/* setup board info structure */
 	fep = netdev_priv(ndev);
 
+	fep->reg_phy = phy_reg;
 	fep->num_rx_queues = num_rx_qs;
 	fep->num_tx_queues = num_tx_qs;
 	netif_set_real_num_rx_queues(ndev, num_rx_qs);
@@ -2681,18 +2703,6 @@ fec_probe(struct platform_device *pdev)
 
 	fec_enet_clk_enable(ndev, true);
 
-	fep->reg_phy = devm_regulator_get(&pdev->dev, "phy");
-	if (!IS_ERR(fep->reg_phy)) {
-		ret = regulator_enable(fep->reg_phy);
-		if (ret) {
-			dev_err(&pdev->dev,
-				"Failed to enable phy regulator: %d\n", ret);
-			goto failed_regulator;
-		}
-	} else {
-		fep->reg_phy = NULL;
-	}
-
 	if (fep->bufdesc_ex)
 		fec_ptp_init(pdev);
 
@@ -2750,13 +2760,12 @@ failed_irq:
 			free_irq(irq, ndev);
 	}
 failed_init:
-	if (fep->reg_phy)
-		regulator_disable(fep->reg_phy);
-failed_regulator:
 	fec_enet_clk_enable(ndev, false);
 failed_clk:
 failed_ioremap:
 	free_netdev(ndev);
+	if (fep->reg_phy)
+		regulator_disable(fep->reg_phy);
 
 	return ret;
 }
