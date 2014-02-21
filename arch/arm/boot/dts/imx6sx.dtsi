@@ -458,6 +458,19 @@
 				reg = <0x021b0000 0x4000>;
 			};
 
+			qspi2: qspi@021e4000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,imx6sx-qspi";
+				reg = <0x021e4000 0x4000>, <0x70000000 0x10000000>;
+				reg-names = "QuadSPI", "QuadSPI-memory";
+				interrupts = <0 109 0x04>;
+				clocks = <&clks IMX6SX_CLK_QSPI2>,
+					<&clks IMX6SX_CLK_QSPI2>;
+				clock-names = "qspi_en", "qspi";
+				status = "disabled";
+			};
+
 			romcp@021ac000 {
 				compatible = "fsl,imx6sx-romcp", "syscon";
 				reg = <0x021ac000 0x4000>;
@@ -704,6 +717,25 @@
 		pinctrl_pwm3_1: pwm3grp-1 {
 			fsl,pins = <
 				MX6SX_PAD_SD1_DATA2__PWM3_OUT 0x110b0
+			>;
+		};
+	};
+
+	qspi2 {
+		pinctrl_qspi2_1: qspi2grp_1 {
+			fsl,pins = <
+				MX6SX_PAD_NAND_WP_B__QSPI2_A_DATA_0     0x70f1
+				MX6SX_PAD_NAND_READY_B__QSPI2_A_DATA_1  0x70f1
+				MX6SX_PAD_NAND_CE0_B__QSPI2_A_DATA_2    0x70f1
+				MX6SX_PAD_NAND_CE1_B__QSPI2_A_DATA_3    0x70f1
+				MX6SX_PAD_NAND_CLE__QSPI2_A_SCLK        0x70f1
+				MX6SX_PAD_NAND_ALE__QSPI2_A_SS0_B       0x70f1
+				MX6SX_PAD_NAND_DATA01__QSPI2_B_DATA_0   0x70f1
+				MX6SX_PAD_NAND_DATA00__QSPI2_B_DATA_1   0x70f1
+				MX6SX_PAD_NAND_WE_B__QSPI2_B_DATA_2     0x70f1
+				MX6SX_PAD_NAND_RE_B__QSPI2_B_DATA_3     0x70f1
+				MX6SX_PAD_NAND_DATA02__QSPI2_B_SCLK     0x70f1
+				MX6SX_PAD_NAND_DATA03__QSPI2_B_SS0_B    0x70f1
 			>;
 		};
 	};
