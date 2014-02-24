@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -51,6 +51,9 @@ void __iomem *gic_cpu_base;
 
 void (*mx6_change_ddr_freq)(u32 freq, void *ddr_settings, bool dll_mode, void* iomux_offsets) = NULL;
 
+void (*mx6l_lpddr2_change_freq)(u32 freq, int low_bus_freq_mode,
+								void *ddr_settings) = NULL;
+
 extern unsigned int ddr_low_rate;
 extern unsigned int ddr_med_rate;
 extern unsigned int ddr_normal_rate;
@@ -59,6 +62,7 @@ extern int audio_bus_freq_mode;
 extern int mmdc_med_rate;
 extern void __iomem *ccm_base;
 extern void mx6_ddr_freq_change(u32 freq, void *ddr_settings, bool dll_mode, void *iomux_offsets);
+extern void mx6sl_ddr_iram(int ddr_freq, int low_bus_freq_mode, void *ddr_settings);
 
 static void *ddr_freq_change_iram_base;
 static int ddr_settings_size;
@@ -66,6 +70,7 @@ static int iomux_settings_size;
 static volatile unsigned int cpus_in_wfe;
 static volatile bool wait_for_ddr_freq_update;
 static int curr_ddr_rate;
+static unsigned int ddr_type;
 
 #define MIN_DLL_ON_FREQ		333000000
 #define MAX_DLL_OFF_FREQ		125000000
@@ -134,6 +139,30 @@ unsigned long ddr3_400[][2] = {
 	{0x4850, 0x472D4833}
 };
 
+
+unsigned long lpddr2_400M_6sl[][2] = {
+	{0x0c, 0x0},
+	{0x10, 0x0},
+	{0x14, 0x0},
+	{0x38, 0x0},
+};
+
+
+unsigned long lpddr2_100M_6sl[][2] = {
+	{0x0c, 0x0C0D2073},
+	{0x10, 0x00040482},
+	{0x14, 0x00000049},
+	{0x38, 0x00060222},
+};
+
+
+unsigned long lpddr2_24M_6sl[][2] = {
+	{0x0c, 0x03032073},
+	{0x10, 0x00200482},
+	{0x14, 0x00000049},
+	{0x38, 0x00040222},
+};
+
 unsigned long *irq_used;
 
 unsigned long irqs_used_mx6q[] = {
@@ -192,29 +221,55 @@ int update_ddr_freq(int ddr_rate)
 		dll_off = true;
 
 	iram_ddr_settings[0][0] = ddr_settings_size;
-	iram_iomux_settings[0][0] = iomux_settings_size;
-	if (ddr_rate == ddr_med_rate && cpu_is_mx6q()) {
-		for (i = 0; i < ARRAY_SIZE(ddr3_dll_mx6q); i++) {
-			iram_ddr_settings[i + 1][0] =
-					normal_mmdc_settings[i][0];
-			iram_ddr_settings[i + 1][1] =
-					normal_mmdc_settings[i][1];
+	if (ddr_type == MX6_DDR3)
+		iram_iomux_settings[0][0] = iomux_settings_size;
+
+	if (cpu_is_mx6sl() && (ddr_type == MX6_LPDDR2)) {
+		if (ddr_rate == ddr_normal_rate) {
+			for (i = 0; i < iram_ddr_settings[0][0]; i++) {
+				iram_ddr_settings[i + 1][0] =
+						normal_mmdc_settings[i][0];
+				iram_ddr_settings[i + 1][1] =
+						normal_mmdc_settings[i][1];
+			}
+		} else if (ddr_rate == ddr_med_rate) {
+			for (i = 0; i < iram_ddr_settings[0][0]; i++) {
+				iram_ddr_settings[i + 1][0] =
+						lpddr2_100M_6sl[i][0];
+				iram_ddr_settings[i + 1][1] =
+						lpddr2_100M_6sl[i][1];
+			}
+		} else {
+			for (i = 0; i < iram_ddr_settings[0][0]; i++) {
+				iram_ddr_settings[i + 1][0] =
+						lpddr2_24M_6sl[i][0];
+				iram_ddr_settings[i + 1][1] =
+						lpddr2_24M_6sl[i][1];
+			}
 		}
-		for (j = 0, i = ARRAY_SIZE(ddr3_dll_mx6q); i < iram_ddr_settings[0][0]; j++, i++) {
-			iram_ddr_settings[i + 1][0] =
-					ddr3_400[j][0];
-			iram_ddr_settings[i + 1][1] =
-					ddr3_400[j][1];
-		}
-	} else if (ddr_rate == ddr_normal_rate) {
-		for (i = 0; i < iram_ddr_settings[0][0]; i++) {
-			iram_ddr_settings[i + 1][0] =
-					normal_mmdc_settings[i][0];
-			iram_ddr_settings[i + 1][1] =
-					normal_mmdc_settings[i][1];
+	} else {
+		if (ddr_rate == ddr_med_rate && cpu_is_mx6q()) {
+			for (i = 0; i < ARRAY_SIZE(ddr3_dll_mx6q); i++) {
+				iram_ddr_settings[i + 1][0] =
+						normal_mmdc_settings[i][0];
+				iram_ddr_settings[i + 1][1] =
+						normal_mmdc_settings[i][1];
+			}
+			for (j = 0, i = ARRAY_SIZE(ddr3_dll_mx6q); i < iram_ddr_settings[0][0]; j++, i++) {
+				iram_ddr_settings[i + 1][0] =
+						ddr3_400[j][0];
+				iram_ddr_settings[i + 1][1] =
+						ddr3_400[j][1];
+			}
+		} else if (ddr_rate == ddr_normal_rate) {
+			for (i = 0; i < iram_ddr_settings[0][0]; i++) {
+				iram_ddr_settings[i + 1][0] =
+						normal_mmdc_settings[i][0];
+				iram_ddr_settings[i + 1][1] =
+						normal_mmdc_settings[i][1];
+			}
 		}
 	}
-
 	/* Ensure that all Cores are in WFE. */
 	local_irq_disable();
 
@@ -224,17 +279,24 @@ int update_ddr_freq(int ddr_rate)
 	wait_for_ddr_freq_update = true;
 	for_each_online_cpu(cpu) {
 		*((char *)(&online_cpus) + (u8)cpu) = 0xff;
-		if (cpu != me) {
-			/* Set the interrupt to be pending in the GIC. */
-			reg = 1 << (irq_used[cpu] % 32);
-			writel_relaxed(reg, gic_dist_base + GIC_DIST_PENDING_SET + (irq_used[cpu] / 32) * 4);
+		if (!cpu_is_mx6sl()) {
+			if (cpu != me) {
+				/* Set the interrupt to be pending in the GIC. */
+				reg = 1 << (irq_used[cpu] % 32);
+				writel_relaxed(reg, gic_dist_base + GIC_DIST_PENDING_SET + (irq_used[cpu] / 32) * 4);
+			}
 		}
 	}
 	while (cpus_in_wfe != online_cpus)
 		udelay(5);
 
+
+
 	/* Now we can change the DDR frequency. */
-	mx6_change_ddr_freq(ddr_rate, iram_ddr_settings, dll_off, iram_iomux_settings);
+	if (cpu_is_mx6sl())
+		mx6l_lpddr2_change_freq(ddr_rate, low_bus_freq_mode, iram_ddr_settings);
+	else
+		mx6_change_ddr_freq(ddr_rate, iram_ddr_settings, dll_off, iram_iomux_settings);
 
 	curr_ddr_rate = ddr_rate;
 
@@ -261,10 +323,20 @@ int init_mmdc_settings(void)
 	gic_dist_base = ioremap(IC_DISTRIBUTOR_BASE_ADDR, SZ_16K);
 	gic_cpu_base = ioremap(IC_INTERFACES_BASE_ADDR, SZ_16K);
 
-	if (cpu_is_mx6q())
-		ddr_settings_size = ARRAY_SIZE(ddr3_dll_mx6q) + ARRAY_SIZE(ddr3_calibration);
-	if (cpu_is_mx6dl())
-		ddr_settings_size = ARRAY_SIZE(ddr3_dll_mx6dl) + ARRAY_SIZE(ddr3_calibration);
+
+	ddr_type = (__raw_readl(MMDC_MDMISC_OFFSET) & MMDC_MDMISC_DDR_TYPE_MASK) >> MMDC_MDMISC_DDR_TYPE_OFFSET;
+	printk(KERN_NOTICE "DDR type is %s\n", ddr_type == 0 ? "DDR3" : "LPDDR2");
+
+	if (ddr_type == MX6_DDR3) {
+		if (cpu_is_mx6q())
+			ddr_settings_size = ARRAY_SIZE(ddr3_dll_mx6q) + ARRAY_SIZE(ddr3_calibration);
+		if (cpu_is_mx6dl())
+			ddr_settings_size = ARRAY_SIZE(ddr3_dll_mx6dl) + ARRAY_SIZE(ddr3_calibration);
+	} else {
+		if (cpu_is_mx6sl())
+			ddr_settings_size = ARRAY_SIZE(lpddr2_400M_6sl);
+	}
+
 
 	normal_mmdc_settings = kmalloc((ddr_settings_size * 8), GFP_KERNEL);
 	if (cpu_is_mx6q()) {
@@ -274,6 +346,10 @@ int init_mmdc_settings(void)
 	if (cpu_is_mx6dl()) {
 		memcpy(normal_mmdc_settings, ddr3_dll_mx6dl, sizeof(ddr3_dll_mx6dl));
 		memcpy(((char *)normal_mmdc_settings + sizeof(ddr3_dll_mx6dl)), ddr3_calibration, sizeof(ddr3_calibration));
+	}
+	if (cpu_is_mx6sl()) {
+		if (ddr_type == MX6_LPDDR2)
+			memcpy(normal_mmdc_settings, lpddr2_400M_6sl, sizeof(lpddr2_400M_6sl));
 	}
 
 	/* Store the original DDR settings at boot. */
@@ -299,66 +375,78 @@ int init_mmdc_settings(void)
 			return ENOMEM;
 	}
 
-	iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6q);
-	/* Store the size of the iomux settings in iRAM also,
-	 * increase the size by 8 bytes.
-	 */
-	iram_iomux_settings = iram_alloc((iomux_settings_size * 8) + 8, &iram_paddr);
-	if (iram_iomux_settings == NULL) {
-			printk(KERN_DEBUG
-			"%s: failed to allocate iRAM memory for iomuxr settings\n",
-			__func__);
-			return ENOMEM;
-	}
-
-	/* Store the IOMUX settings at boot. */
-	if (cpu_is_mx6q()) {
-		for (i = 0; i < iomux_settings_size; i++) {
-			iomux_offsets_mx6q[i][1] =
-				__raw_readl(iomux_base
-				+ iomux_offsets_mx6q[i][0]);
-			iram_iomux_settings[i+1][0] = iomux_offsets_mx6q[i][0];
-			iram_iomux_settings[i+1][1] = iomux_offsets_mx6q[i][1];
+	if (ddr_type == MX6_DDR3) {
+		iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6q);
+		/* Store the size of the iomux settings in iRAM also,
+		 * increase the size by 8 bytes.
+		 */
+		iram_iomux_settings = iram_alloc((iomux_settings_size * 8) + 8, &iram_paddr);
+		if (iram_iomux_settings == NULL) {
+				printk(KERN_DEBUG
+				"%s: failed to allocate iRAM memory for iomuxr settings\n",
+				__func__);
+				return ENOMEM;
 		}
-		irq_used = irqs_used_mx6q;
-	}
 
-	if (cpu_is_mx6dl()) {
-		for (i = 0; i < iomux_settings_size; i++) {
-			iomux_offsets_mx6dl[i][1] =
-				__raw_readl(iomux_base
-				+ iomux_offsets_mx6dl[i][0]);
-			iram_iomux_settings[i+1][0] = iomux_offsets_mx6dl[i][0];
-			iram_iomux_settings[i+1][1] = iomux_offsets_mx6dl[i][1];
+		/* Store the IOMUX settings at boot. */
+		if (cpu_is_mx6q()) {
+			for (i = 0; i < iomux_settings_size; i++) {
+				iomux_offsets_mx6q[i][1] =
+					__raw_readl(iomux_base
+					+ iomux_offsets_mx6q[i][0]);
+				iram_iomux_settings[i+1][0] = iomux_offsets_mx6q[i][0];
+				iram_iomux_settings[i+1][1] = iomux_offsets_mx6q[i][1];
+			}
+			irq_used = irqs_used_mx6q;
 		}
-		irq_used = irqs_used_mx6dl;
-	}
 
+		if (cpu_is_mx6dl()) {
+			for (i = 0; i < iomux_settings_size; i++) {
+				iomux_offsets_mx6dl[i][1] =
+					__raw_readl(iomux_base
+					+ iomux_offsets_mx6dl[i][0]);
+				iram_iomux_settings[i+1][0] = iomux_offsets_mx6dl[i][0];
+				iram_iomux_settings[i+1][1] = iomux_offsets_mx6dl[i][1];
+			}
+			irq_used = irqs_used_mx6dl;
+		}
+	}
 	/* Allocate IRAM for the DDR freq change code. */
 	iram_alloc(SZ_8K, &iram_paddr);
 	/* Need to remap the area here since we want the memory region
 		 to be executable. */
 	ddr_freq_change_iram_base = __arm_ioremap(iram_paddr,
 						SZ_8K, MT_MEMORY_NONCACHED);
-	memcpy(ddr_freq_change_iram_base, mx6_ddr_freq_change, SZ_8K);
-	mx6_change_ddr_freq = (void *)ddr_freq_change_iram_base;
+
+	if (cpu_is_mx6sl()) {
+		if (ddr_type == MX6_LPDDR2) {
+			memcpy(ddr_freq_change_iram_base, mx6sl_ddr_iram, SZ_8K);
+			mx6l_lpddr2_change_freq = (void *)ddr_freq_change_iram_base;
+		}
+	}	else {
+		memcpy(ddr_freq_change_iram_base, mx6_ddr_freq_change, SZ_8K);
+		mx6_change_ddr_freq = (void *)ddr_freq_change_iram_base;
+	}
+
 
 	curr_ddr_rate = ddr_normal_rate;
 
-	for_each_online_cpu(cpu) {
-		/* Set up a reserved interrupt to get all the active cores into a WFE state
-		  * before changing the DDR frequency.
-		  */
-		err = request_irq(irq_used[cpu], wait_in_wfe_irq, IRQF_PERCPU, "mmdc_1",
-				  NULL);
-		if (err) {
-			printk(KERN_ERR "MMDC: Unable to attach to %ld,err = %d\n", irq_used[cpu], err);
-			return err;
-		}
-		err = irq_set_affinity(irq_used[cpu], cpumask_of(cpu));
-		if (err) {
-			printk(KERN_ERR "MMDC: unable to set irq affinity irq=%ld,\n", irq_used[cpu]);
-			return err;
+	if (!cpu_is_mx6sl()) {
+		for_each_online_cpu(cpu) {
+			/* Set up a reserved interrupt to get all the active cores into a WFE state
+			  * before changing the DDR frequency.
+			  */
+			err = request_irq(irq_used[cpu], wait_in_wfe_irq, IRQF_PERCPU, "mmdc_1",
+					  NULL);
+			if (err) {
+				printk(KERN_ERR "MMDC: Unable to attach to %ld,err = %d\n", irq_used[cpu], err);
+				return err;
+			}
+			err = irq_set_affinity(irq_used[cpu], cpumask_of(cpu));
+			if (err) {
+				printk(KERN_ERR "MMDC: unable to set irq affinity irq=%ld,\n", irq_used[cpu]);
+				return err;
+			}
 		}
 	}
 	return 0;

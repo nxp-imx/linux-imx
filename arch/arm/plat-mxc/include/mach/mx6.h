@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -574,5 +574,9 @@ extern int mx6q_revision(void);
 extern int mx6dl_revision(void);
 extern int mx6sl_revision(void);
 #endif
+
+
+#define MX6_DDR3		(0x0)
+#define MX6_LPDDR2		(0x1)
 
 #endif				/*  __ASM_ARCH_MXC_MX6_H__ */
