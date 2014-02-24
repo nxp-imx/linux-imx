@@ -15,8 +15,6 @@
 
 / {
 	aliases {
-		flexcan0 = &flexcan1;
-		flexcan1 = &flexcan2;
 		gpio0 = &gpio1;
 		gpio1 = &gpio2;
 		gpio2 = &gpio3;
@@ -382,7 +380,7 @@
 				interrupts = <0 110 0x04>;
 				clocks = <&clks 108>, <&clks 109>;
 				clock-names = "ipg", "per";
-				gpr = <&gpr>;
+				stop-mode = <&gpr 0x34 28 0x10 17>;
 				status = "disabled";
 			};
 
@@ -392,7 +390,7 @@
 				interrupts = <0 111 0x04>;
 				clocks = <&clks 110>, <&clks 111>;
 				clock-names = "ipg", "per";
-				gpr = <&gpr>;
+				stop-mode = <&gpr 0x34 29 0x10 18>;
 				status = "disabled";
 			};
 
