@@ -348,7 +348,7 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_CANFD]        = imx_clk_gate2("canfd",         "can_podf",          base + 0x6c, 30);
 
 	/* CCGR2 */
-	clks[IMX6SX_CLK_CSI]          = imx_clk_gate2("csi",           "display_podf",      base + 0x70, 2);
+	clks[IMX6SX_CLK_CSI]          = imx_clk_gate2("csi",           "csi_podf",          base + 0x70, 2);
 	clks[IMX6SX_CLK_I2C1]         = imx_clk_gate2("i2c1",          "perclk",            base + 0x70, 6);
 	clks[IMX6SX_CLK_I2C2]         = imx_clk_gate2("i2c2",          "perclk",            base + 0x70, 8);
 	clks[IMX6SX_CLK_I2C3]         = imx_clk_gate2("i2c3",          "perclk",            base + 0x70, 10);
