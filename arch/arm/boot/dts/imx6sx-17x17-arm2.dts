@@ -21,6 +21,13 @@
 		default-brightness-level = <6>;
 	};
 
+	max7322_reset: max7322-reset {
+		compatible = "gpio-reset";
+		reset-gpios = <&gpio4 22 GPIO_ACTIVE_LOW>;
+		reset-delay-us = <1>;
+		#reset-cells = <0>;
+	};
+
 	pxp_v4l2_out {
 		compatible = "fsl,imx6sx-pxp-v4l2", "fsl,imx6sl-pxp-v4l2";
 		status = "okay";
@@ -28,6 +35,21 @@
 
 	memory {
 		reg = <0x80000000 0x40000000>;
+	};
+
+	regulators {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		reg_rgmii_1v8: regulator@0 {
+			compatible = "regulator-fixed";
+			regulator-name = "vcc_rgmii_1v8_io";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			gpio = <&max7322 0 0>;
+			enable-active-high;
+		};
 	};
 };
 
@@ -37,6 +59,7 @@
 	phy-mode = "rgmii";
 	fsl,num_tx_queues=<3>;
 	fsl,num_rx_queues=<3>;
+	phy-supply = <&reg_rgmii_1v8>;
 	status = "okay";
 };
 
@@ -69,6 +92,14 @@
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_i2c2_1>;
         status = "okay";
+
+	max7322: gpio@68 {
+		compatible = "maxim,max7322";
+		reg = <0x68>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		resets = <&max7322_reset>;
+	};
 };
 
 
@@ -84,6 +115,19 @@
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_i2c4_1>;
         status = "okay";
+};
+
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog_1>;
+
+	hog {
+		pinctrl_hog_1: hoggrp-1 {
+			fsl,pins = <
+				MX6SX_PAD_QSPI1A_SS0_B__GPIO4_IO_22     0x80000000
+			 >;
+		};
+	};
 };
 
 &lcdif1 {
