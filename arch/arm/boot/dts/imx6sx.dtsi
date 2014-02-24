@@ -17,8 +17,6 @@
 
 / {
 	aliases {
-		flexcan0 = &flexcan1;
-		flexcan1 = &flexcan2;
 		gpio0 = &gpio1;
 		gpio1 = &gpio2;
 		gpio2 = &gpio3;
@@ -168,7 +166,7 @@
 				interrupts = <0 110 0x04>;
 				clocks = <&clks IMX6SX_CLK_CAN1_IPG>, <&clks IMX6SX_CLK_CAN1_SERIAL>;
 				clock-names = "ipg", "per";
-				gpr = <&gpr>;
+				stop-mode = <&gpr 0x10 1 0x10 17>;
 				status = "disabled";
 			};
 
@@ -178,7 +176,7 @@
 				interrupts = <0 111 0x04>;
 				clocks = <&clks IMX6SX_CLK_CAN2_IPG>, <&clks IMX6SX_CLK_CAN2_SERIAL>;
 				clock-names = "ipg", "per";
-				gpr = <&gpr>;
+				stop-mode = <&gpr 0x10 2 0x10 18>;
 				status = "disabled";
 			};
 
