@@ -81,6 +81,15 @@
 		mux-int-port = <2>;
 		mux-ext-port = <6>;
 	};
+
+	csi1_v4l2_cap {
+		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
+		status = "okay";
+	};
+};
+
+&csi1 {
+	status = "okay";
 };
 
 &adc1 {
@@ -380,7 +389,7 @@
 		     &pinctrl_lcdif_ctrl_0>;
 	lcd-supply = <&reg_lcd_3v3>;
 	display = <&display>;
-	status = "okay";
+	status = "disabled";
 
 	display: display {
 		bits-per-pixel = <16>;
