@@ -1033,7 +1033,8 @@ fec_enet_rx(struct net_device *ndev, int budget)
 			data = (__u8 *)__va(bdp->cbd_bufaddr);
 
 			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
-					FEC_ENET_TX_FRSIZE, DMA_FROM_DEVICE);
+					FEC_ENET_RX_FRSIZE - FEC_ALIGNMENT,
+					DMA_FROM_DEVICE);
 
 			if (id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)
 				swap_buffer(data, pkt_len);
@@ -1116,7 +1117,8 @@ fec_enet_rx(struct net_device *ndev, int budget)
 			}
 
 			bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, data,
-					FEC_ENET_TX_FRSIZE, DMA_FROM_DEVICE);
+						FEC_ENET_RX_FRSIZE - FEC_ALIGNMENT,
+						DMA_FROM_DEVICE);
 			/* here dma mapping shouldn't be error, just avoid kernel dump */
 			if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr))
 				netdev_err(ndev, "Rx DMA memory map failed\n");
