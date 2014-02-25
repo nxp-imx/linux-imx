@@ -281,8 +281,9 @@
 				reg = <0x02188000 0x4000>;
 				interrupts = <0 118 0x04 0 119 0x04>;
 				clocks = <&clks IMX6SX_CLK_ENET>, <&clks IMX6SX_CLK_ENET_AHB>,
-					<&clks IMX6SX_CLK_ENET_PTP>, <&clks IMX6SX_CLK_ENET_REF>;
-				clock-names = "ipg", "ahb", "ptp", "enet_clk_ref";
+					<&clks IMX6SX_CLK_ENET_PTP>, <&clks IMX6SX_CLK_ENET_REF>,
+					<&clks IMX6SX_CLK_ENET_PTP>;
+				clock-names = "ipg", "ahb", "ptp", "enet_clk_ref", "enet_out";
 				status = "disabled";
                         };
 
@@ -291,8 +292,9 @@
 				reg = <0x021b4000 0x4000>;
 				interrupts = <0 102 0x04 0 103 0x04>;
 				clocks = <&clks IMX6SX_CLK_ENET>, <&clks IMX6SX_CLK_ENET_AHB>,
-					<&clks IMX6SX_CLK_ENET_PTP>, <&clks IMX6SX_CLK_ENET2_REF_125M>;
-				clock-names = "ipg", "ahb", "ptp", "enet_clk_ref";
+					<&clks IMX6SX_CLK_ENET_PTP>, <&clks IMX6SX_CLK_ENET2_REF_125M>,
+					<&clks IMX6SX_CLK_ENET_PTP>;
+				clock-names = "ipg", "ahb", "ptp", "enet_clk_ref", "enet_out";
 				status = "disabled";
 			};
 
