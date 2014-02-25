@@ -2809,6 +2809,13 @@ fec_suspend(struct device *dev)
 	if (fep->reg_phy)
 		regulator_disable(fep->reg_phy);
 
+	/*
+	 * enet supply clock to phy, when clock is disabled, link down
+	 * when phy regulator is disabled, phy link down
+	 */
+	if (fep->clk_enet_out || fep->reg_phy)
+		fep->link = 0;
+
 	return 0;
 }
 
@@ -2828,7 +2835,8 @@ fec_resume(struct device *dev)
 	if (netif_running(ndev)) {
 		pinctrl_pm_select_default_state(&fep->pdev->dev);
 		fec_enet_clk_enable(ndev, true);
-		fec_restart(ndev, fep->full_duplex);
+		if (!fep->clk_enet_out && !fep->reg_phy)
+			fec_restart(ndev, fep->full_duplex);
 		netif_device_attach(ndev);
 	}
 
