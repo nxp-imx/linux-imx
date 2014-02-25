@@ -700,6 +700,12 @@
 				MX6SX_PAD_GPIO1_IO12__PWM3_OUT 0x110b0
 			>;
 		};
+
+		pinctrl_pwm3_1: pwm3grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_SD1_DATA2__PWM3_OUT 0x110b0
+			>;
+		};
 	};
 
 	uart1 {
