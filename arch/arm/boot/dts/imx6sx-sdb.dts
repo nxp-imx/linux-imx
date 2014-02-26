@@ -24,6 +24,17 @@
 	memory {
 		reg = <0x80000000 0x40000000>;
 	};
+
+	regulators {
+		compatible = "simple-bus";
+
+		reg_lcd_3v3: lcd-3v3 {
+			compatible = "regulator-fixed";
+			regulator-name = "lcd-3v3";
+			gpio = <&gpio3 27 0>;
+			enable-active-high;
+		};
+	};
 };
 
 &fec1 {
@@ -232,6 +243,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lcdif_dat_0
 		     &pinctrl_lcdif_ctrl_0>;
+	lcd-supply = <&reg_lcd_3v3>;
 	display = <&display>;
 	status = "okay";
 
