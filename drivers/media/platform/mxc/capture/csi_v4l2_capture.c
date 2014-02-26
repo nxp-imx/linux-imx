@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -646,6 +646,7 @@ static int csi_streamon(cam_data *cam)
 
 			csi_dmareq_rff_enable();
 			csi_enable_int(1);
+			csi_enable(1);
 			break;
 		} else
 			cpu_relax();
@@ -681,6 +682,7 @@ static int csi_streamoff(cam_data *cam)
 	/* set CSI_CSIDMASA_FB1 and CSI_CSIDMASA_FB2 to default value */
 	__raw_writel(0, CSI_CSIDMASA_FB1);
 	__raw_writel(0, CSI_CSIDMASA_FB2);
+	csi_enable(0);
 
 	csi_free_frames(cam);
 	csi_free_frame_buf(cam);
@@ -1253,6 +1255,7 @@ static ssize_t csi_v4l_read(struct file *file, char *buf, size_t count,
 		__raw_writel(__raw_readl(CSI_CSICR3) | BIT_FRMCNT_RST,
 			     CSI_CSICR3);
 		csi_enable_int(1);
+		csi_enable(1);
 	}
 
 	wait_event_interruptible(cam->still_queue, cam->still_counter);

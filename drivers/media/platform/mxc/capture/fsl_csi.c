@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -194,6 +194,18 @@ void csi_disable_int(void)
 	__raw_writel(cr1, CSI_CSICR1);
 }
 EXPORT_SYMBOL(csi_disable_int);
+
+void csi_enable(int arg)
+{
+	unsigned long cr = __raw_readl(CSI_CSICR18);
+
+	if (arg == 1)
+		cr |= BIT_CSI_ENABLE;
+	else
+		cr &= ~BIT_CSI_ENABLE;
+	__raw_writel(cr, CSI_CSICR18);
+}
+EXPORT_SYMBOL(csi_enable);
 
 void csi_set_16bit_imagpara(int width, int height)
 {

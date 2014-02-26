@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -95,6 +95,9 @@
 #define BIT_ECC_INT		(0x1 << 1)
 #define BIT_DRDY		(0x1 << 0)
 
+/* csi control reg 18 */
+#define BIT_CSI_ENABLE		(0x1 << 31)
+
 #define CSI_MCLK_VF		1
 #define CSI_MCLK_ENC		2
 #define CSI_MCLK_RAW		4
@@ -117,6 +120,9 @@ extern void __iomem *csi_regbase;
 #define CSI_CSIDMASA_FB2	(csi_regbase + 0x2C)
 #define CSI_CSIFBUF_PARA	(csi_regbase + 0x30)
 #define CSI_CSIIMAG_PARA	(csi_regbase + 0x34)
+
+#define CSI_CSICR18		(csi_regbase + 0x48)
+#define CSI_CSICR19		(csi_regbase + 0x4c)
 
 static inline void csi_clear_status(unsigned long status)
 {
@@ -191,6 +197,7 @@ int csi_read_mclk_flag(void);
 void csi_start_callback(void *data);
 void csi_stop_callback(void *data);
 void csi_enable_int(int arg);
+void csi_enable(int arg);
 void csi_disable_int(void);
 void csi_mclk_enable(void);
 void csi_mclk_disable(void);
