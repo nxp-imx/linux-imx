@@ -390,6 +390,67 @@ struct bufdesc_ex {
 #define FEC_PTP_TIMEOUT_TS		10
 #define FEC_PTP_TIMEOUT_EVENT		1000
 
+/* Controller is ENET-MAC */
+#define FEC_QUIRK_ENET_MAC              (1 << 0)
+/* Controller needs driver to swap frame */
+#define FEC_QUIRK_SWAP_FRAME            (1 << 1)
+/* Controller uses gasket */
+#define FEC_QUIRK_USE_GASKET            (1 << 2)
+/* Controller has GBIT support */
+#define FEC_QUIRK_HAS_GBIT              (1 << 3)
+/* Controller has extend desc buffer */
+#define FEC_QUIRK_HAS_BUFDESC_EX        (1 << 4)
+/* Controller has hardware checksum support */
+#define FEC_QUIRK_HAS_CSUM              (1 << 5)
+/* Controller has hardware vlan support */
+#define FEC_QUIRK_HAS_VLAN              (1 << 6)
+/* Controller is FEC-MAC */
+#define FEC_QUIRK_FEC_MAC              (1 << 7)
+/* ENET IP errata ERR006358
+ *
+ * If the ready bit in the transmit buffer descriptor (TxBD[R]) is previously
+ * detected as not set during a prior frame transmission, then the
+ * ENET_TDAR[TDAR] bit is cleared at a later time, even if additional TxBDs
+ * were added to the ring and the ENET_TDAR[TDAR] bit is set. This results in
+ * If the ready bit in the transmit buffer descriptor (TxBD[R]) is previously
+ * detected as not set during a prior frame transmission, then the
+ * ENET_TDAR[TDAR] bit is cleared at a later time, even if additional TxBDs
+ * were added to the ring and the ENET_TDAR[TDAR] bit is set. This results in
+ * frames not being transmitted until there is a 0-to-1 transition on
+ * ENET_TDAR[TDAR].
+ */
+#define FEC_QUIRK_ERR006358            (1 << 8)
+/*
+ * i.MX6Q/DL ENET cannot wake up system in wait mode because ENET tx & rx
+ * interrupt signal don't connect to GPC. So use pm qos to avoid cpu enter
+ * to wait mode.
+ */
+#define FEC_QUIRK_BUG_WAITMODE          (1 << 9)
+/*
+ * i.MX6SX ENET IP add Audio Video Bridging (AVB) feature support.
+ * ENET IP hw AVB main function:
+ * - Two class indicators on receive with configurable priority
+ * - Two class indicators and line speed timer on transmit allowing
+ *   implementation class credit based shapers externally
+ * - Additional DMA registers provisioned to allow managing up to 3
+ *   independent rings
+ */
+#define FEC_QUIRK_HAS_AVB               (1 << 10)
+/*
+ * There is a TDAR race condition for mutliQ when the software sets TDAR
+ * and the UDMA clears TDAR simultaneously or in a small window (2-4 cycles).
+ * This will cause the udma_tx and udma_tx_arbiter state machines to hang.
+ * The issue exist at i.MX6SX enet IP.
+ */
+#define FEC_QUIRK_TKT210582             (1 << 11)
+/*
+ * Incorrect behavior for ENET_ATCR[Capture and Restart Bits].
+ * These bits will always read a value zero. According to SPEC, when these
+ * bits are set to 1'b1, these should hold value 1'b1 until the counter value
+ * is capture in the register clock domain.
+ */
+#define FEC_QUIRK_TKT210590             (1 << 12)
+
 /* PTP standard time representation structure */
 struct ptp_time{
 	u64 sec;        /* seconds */

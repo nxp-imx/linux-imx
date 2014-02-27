@@ -229,6 +229,8 @@ static void fec_get_curr_cnt(struct fec_enet_private *priv,
 {
 	u32 tempval, old_sec;
 	u32 timeout_event, timeout_ts = 0;
+	const struct platform_device_id *id_entry =
+			platform_get_device_id(priv->pdev);
 
 	do {
 		old_sec = priv->prtc;
@@ -237,7 +239,8 @@ static void fec_get_curr_cnt(struct fec_enet_private *priv,
 		tempval = readl(priv->hwp + FEC_ATIME_CTRL);
 		tempval |= FEC_T_CTRL_CAPTURE;
 		writel(tempval, priv->hwp + FEC_ATIME_CTRL);
-
+		if (id_entry->driver_data & FEC_QUIRK_TKT210590)
+			udelay(1);
 		curr_time->rtc_time.nsec = readl(priv->hwp + FEC_ATIME);
 
 		while (readl(priv->hwp + FEC_IEVENT) & FEC_ENET_TS_TIMER) {
@@ -520,7 +523,7 @@ static void fec_handle_ptpdrift(struct fec_enet_private *priv,
 }
 
 static void fec_set_drift(struct fec_enet_private *priv,
-			  struct ptp_set_comp *comp)
+			struct ptp_set_comp *comp)
 {
 	struct ptp_time_correct	tc;
 	u32 tmp, corr_ns;
@@ -555,12 +558,15 @@ static cycle_t fec_ptp_read(const struct cyclecounter *cc)
 {
 	struct fec_enet_private *fep =
 		container_of(cc, struct fec_enet_private, cc);
+	const struct platform_device_id *id_entry =
+			platform_get_device_id(fep->pdev);
 	u32 tempval;
 
 	tempval = readl(fep->hwp + FEC_ATIME_CTRL);
 	tempval |= FEC_T_CTRL_CAPTURE;
 	writel(tempval, fep->hwp + FEC_ATIME_CTRL);
-
+	if (id_entry->driver_data & FEC_QUIRK_TKT210590)
+		udelay(1);
 	return readl(fep->hwp + FEC_ATIME);
 }
 
