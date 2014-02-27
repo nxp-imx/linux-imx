@@ -2113,8 +2113,12 @@ gckOS_AllocateCMAMemoryFSL(
 #if gcdUSE_NON_PAGED_MEMORY_CACHE
     if(addr == gcvNULL)
     {
+            MEMORY_UNLOCK(Os);
+            locked = gcvFALSE;
             /*Free all cache and try again*/
             _FreeAllNonPagedMemoryCache(Os);
+            MEMORY_LOCK(Os);
+            locked = gcvTRUE;
             addr = dma_alloc_writecombine(gcvNULL,
                 mdl->numPages * PAGE_SIZE,
                 &mdl->dmaHandle,
