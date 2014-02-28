@@ -26,6 +26,8 @@
 		gpio6 = &gpio7;
 		serial0 = &uart1;
 		serial1 = &uart2;
+		usbphy0 = &usbphy1;
+		usbphy1 = &usbphy2;
 	};
 
 	cpus {
@@ -484,6 +486,22 @@
 				#dma-cells = <3>;
 				fsl,sdma-ram-script-name = "imx/sdma/sdma-imx6q.bin";
 			};
+
+			usbphy1: usbphy@020c9000 {
+				compatible = "fsl,imx6sx-usbphy", "fsl,imx23-usbphy";
+				reg = <0x020c9000 0x1000>;
+				interrupts = <0 44 0x04>;
+				clocks = <&clks IMX6SX_CLK_USBPHY1>;
+				fsl,anatop = <&anatop>;
+			};
+
+			usbphy2: usbphy@020ca000 {
+				compatible = "fsl,imx6sx-usbphy", "fsl,imx23-usbphy";
+				reg = <0x020ca000 0x1000>;
+				interrupts = <0 45 0x04>;
+				clocks = <&clks IMX6SX_CLK_USBPHY2>;
+				fsl,anatop = <&anatop>;
+			};
 		};
 
 		aips-bus@02100000 { /* AIPS2 */
@@ -563,6 +581,43 @@
 				interrupts = <0 35 0x04>;
 				clocks = <&clks IMX6SX_CLK_I2C4>;
 				status = "disabled";
+			};
+
+			usbotg1: usb@02184000 {
+				compatible = "fsl,imx6sx-usb", "fsl,imx27-usb";
+				reg = <0x02184000 0x200>;
+				interrupts = <0 43 0x04>;
+				clocks = <&clks IMX6SX_CLK_USBOH3>;
+				fsl,usbphy = <&usbphy1>;
+				fsl,usbmisc = <&usbmisc 0>;
+				fsl,anatop = <&anatop>;
+				status = "disabled";
+			};
+
+			usbotg2: usb@02184200 {
+				compatible = "fsl,imx6sx-usb", "fsl,imx27-usb";
+				reg = <0x02184200 0x200>;
+				interrupts = <0 42 0x04>;
+				clocks = <&clks IMX6SX_CLK_USBOH3>;
+				fsl,usbphy = <&usbphy2>;
+				fsl,usbmisc = <&usbmisc 1>;
+				status = "disabled";
+			};
+
+			usbh: usb@02184400 {
+				compatible = "fsl,imx6sx-usb", "fsl,imx27-usb";
+				reg = <0x02184400 0x200>;
+				interrupts = <0 40 0x04>;
+				clocks = <&clks IMX6SX_CLK_USBOH3>;
+				fsl,usbmisc = <&usbmisc 2>;
+				status = "disabled";
+			};
+
+			usbmisc: usbmisc: usbmisc@02184800 {
+				#index-cells = <1>;
+				compatible = "fsl,imx6sx-usbmisc";
+				reg = <0x02184800 0x200>;
+				clocks = <&clks IMX6SX_CLK_USBOH3>;
 			};
 
 			usdhc1: usdhc@02190000 {
@@ -952,6 +1007,46 @@
 			fsl,pins = <
 				MX6SX_PAD_SD1_DATA0__UART2_RX 0x1b0b1
 				MX6SX_PAD_SD1_DATA1__UART2_TX 0x1b0b1
+			>;
+		};
+	};
+
+	usbotg1 {
+		pinctrl_usbotg1_1: usbotg1grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_GPIO1_IO10__ANATOP_OTG1_ID 0x17059
+			>;
+		};
+
+		pinctrl_usbotg1_2: usbotg1grp-2 {
+			fsl,pins = <
+				MX6SX_PAD_ENET2_COL__ANATOP_OTG1_ID 0x17059
+			>;
+		};
+
+		pinctrl_usbotg1_3: usbotg1grp-3 {
+			fsl,pins = <
+				MX6SX_PAD_QSPI1A_DATA1__ANATOP_OTG1_ID 0x17059
+			>;
+		};
+	};
+
+	usbotg2 {
+		pinctrl_usbotg2_1: usbotg2grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_GPIO1_IO13__ANATOP_OTG2_ID 0x17059
+			>;
+		};
+
+		pinctrl_usbotg2_2: usbotg2grp-2 {
+			fsl,pins = <
+				MX6SX_PAD_ENET2_CRS__ANATOP_OTG2_ID 0x17059
+			>;
+		};
+
+		pinctrl_usbotg2_3: usbotg2grp-3 {
+			fsl,pins = <
+				MX6SX_PAD_QSPI1A_SCLK__ANATOP_OTG2_ID 0x17059
 			>;
 		};
 	};
