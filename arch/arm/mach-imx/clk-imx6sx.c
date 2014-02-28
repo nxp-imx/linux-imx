@@ -431,6 +431,11 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
 		clk_prepare_enable(clks[clks_init_on[i]]);
 
+	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
+		clk_prepare_enable(clks[IMX6SX_CLK_USBPHY1_GATE]);
+		clk_prepare_enable(clks[IMX6SX_CLK_USBPHY2_GATE]);
+	}
+
 	/* set parent clock for LCDIF1 pixel clock */
 	clk_set_parent(clks[IMX6SX_CLK_LCDIF1_PRE_SEL], clks[IMX6SX_CLK_PLL5_VIDEO_DIV]);
 	clk_set_parent(clks[IMX6SX_CLK_LCDIF1_SEL], clks[IMX6SX_CLK_LCDIF1_PODF]);
