@@ -41,6 +41,7 @@
 #define MX6_BM_UTMI_ON_CLOCK		BIT(13)
 #define MX6_BM_ID_WAKEUP		BIT(16)
 #define MX6_BM_VBUS_WAKEUP		BIT(17)
+#define MX6SX_BM_DPDM_WAKEUP_EN		BIT(29)
 #define MX6_BM_WAKEUP_INTR		BIT(31)
 
 #define MX6_USB_HSIC_CTRL_OFFSET	0x10
@@ -226,6 +227,13 @@ static int usbmisc_imx6sx_init(struct imx_usbmisc_data *data)
 		/* Set vbus wakeup source as bvalid */
 		val = readl(reg);
 		writel(val | MX6SX_USB_VBUS_WAKEUP_SOURCE_BVALID, reg);
+		/*
+		 * Disable dpdm wakeup in device mode when vbus is
+		 * not there.
+		 */
+		val = readl(usbmisc->base + data->index * 4);
+		writel(val & ~MX6SX_BM_DPDM_WAKEUP_EN,
+			usbmisc->base + data->index * 4);
 		spin_unlock_irqrestore(&usbmisc->lock, flags);
 	}
 
