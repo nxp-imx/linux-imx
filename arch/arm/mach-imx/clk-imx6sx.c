@@ -226,7 +226,7 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_UART_SEL]           = imx_clk_mux("uart_sel",         base + 0x24,  6,      1,      uart_sels,         ARRAY_SIZE(uart_sels));
 	clks[IMX6SX_CLK_QSPI2_SEL]          = imx_clk_mux_flags_reparent("qspi2_sel", base + 0x2c, 15, 3, qspi2_sels, ARRAY_SIZE(qspi2_sels), CLK_SET_RATE_PARENT);
 	clks[IMX6SX_CLK_SPDIF_SEL]          = imx_clk_mux("spdif_sel",        base + 0x30,  20,     2,      audio_sels,        ARRAY_SIZE(audio_sels));
-	clks[IMX6SX_CLK_ASRC_SEL]           = imx_clk_mux("asrc_sel",         base + 0x30,  7,      2,      audio_sels,        ARRAY_SIZE(audio_sels));
+	clks[IMX6SX_CLK_AUDIO_SEL]          = imx_clk_mux("audio_sel",        base + 0x30,  7,      2,      audio_sels,        ARRAY_SIZE(audio_sels));
 	clks[IMX6SX_CLK_ENET_PRE_SEL]       = imx_clk_mux("enet_pre_sel",     base + 0x34,  15,     3,      enet_pre_sels,     ARRAY_SIZE(enet_pre_sels));
 	clks[IMX6SX_CLK_ENET_SEL]           = imx_clk_mux("enet_sel",         base + 0x34,  9,      3,      enet_sels,         ARRAY_SIZE(enet_sels));
 	clks[IMX6SX_CLK_M4_PRE_SEL]         = imx_clk_mux("m4_pre_sel",       base + 0x34,  6,      3,      m4_pre_sels,       ARRAY_SIZE(m4_pre_sels));
@@ -277,8 +277,8 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_SSI2_PODF]          = imx_clk_divider("ssi2_podf",      "ssi2_pred",         base + 0x2c, 0,    6);
 	clks[IMX6SX_CLK_SPDIF_PRED]         = imx_clk_divider("spdif_pred",     "spdif_sel",         base + 0x30, 25,   3);
 	clks[IMX6SX_CLK_SPDIF_PODF]         = imx_clk_divider("spdif_podf",     "spdif_pred",        base + 0x30, 22,   3);
-	clks[IMX6SX_CLK_ASRC_PRED]          = imx_clk_divider("asrc_pred",      "asrc_sel",          base + 0x30, 12,   3);
-	clks[IMX6SX_CLK_ASRC_PODF]          = imx_clk_divider("asrc_podf",      "asrc_pred",         base + 0x30, 9,    3);
+	clks[IMX6SX_CLK_AUDIO_PRED]         = imx_clk_divider("audio_pred",     "audio_sel",         base + 0x30, 12,   3);
+	clks[IMX6SX_CLK_AUDIO_PODF]         = imx_clk_divider("audio_podf",     "audio_pred",        base + 0x30, 9,    3);
 	clks[IMX6SX_CLK_ENET_PODF]          = imx_clk_divider("enet_podf",      "enet_pre_sel",      base + 0x34, 12,   3);
 	clks[IMX6SX_CLK_M4_PODF]            = imx_clk_divider("m4_podf",        "m4_sel",            base + 0x34, 3,    3);
 	clks[IMX6SX_CLK_ECSPI_PODF]         = imx_clk_divider("ecspi_podf",     "ecspi_sel",         base + 0x38, 19,   6);
@@ -382,6 +382,7 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_SDMA]         = imx_clk_gate2("sdma",          "ahb",               base + 0x7c, 6);
 	clks[IMX6SX_CLK_SPBA]         = imx_clk_gate2("spba",          "ipg",               base + 0x7c, 12);
 	clks[IMX6SX_CLK_SPDIF]        = imx_clk_gate2("spdif",         "spdif_podf",        base + 0x7c, 14);
+	clks[IMX6SX_CLK_AUDIO]        = imx_clk_gate2("audio",         "audio_podf",        base + 0x7c, 14);
 	clks[IMX6SX_CLK_SSI1_IPG]     = imx_clk_gate2("ssi1_ipg",      "ipg",               base + 0x7c, 18);
 	clks[IMX6SX_CLK_SSI2_IPG]     = imx_clk_gate2("ssi2_ipg",      "ipg",               base + 0x7c, 20);
 	clks[IMX6SX_CLK_SSI3_IPG]     = imx_clk_gate2("ssi3_ipg",      "ipg",               base + 0x7c, 22);
@@ -443,6 +444,11 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clk_set_rate(clks[IMX6SX_CLK_ENET_PODF], 200000000);
 	clk_set_rate(clks[IMX6SX_CLK_ENET_REF], 125000000);
 	clk_set_rate(clks[IMX6SX_CLK_ENET2_REF], 125000000);
+
+	/* Audio clocks */
+	clk_set_parent(clks[IMX6SX_CLK_AUDIO_SEL], clks[IMX6SX_CLK_PLL4_AUDIO_DIV]);
+	clk_set_rate(clks[IMX6SX_CLK_PLL4_AUDIO_DIV], 24000000);
+	clk_set_rate(clks[IMX6SX_CLK_AUDIO_PODF], 24000000);
 
 	/* default parent of can_sel clock is invalid, manually set it here */
 	clk_set_parent(clks[IMX6SX_CLK_CAN_SEL], clks[IMX6SX_CLK_PLL3_60M]);
