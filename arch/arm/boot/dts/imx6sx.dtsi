@@ -118,6 +118,52 @@
 				reg = <0x02000000 0x40000>;
 				ranges;
 
+				asrc: asrc@02034000 {
+					compatible = "fsl,imx53-asrc";
+					reg = <0x02034000 0x4000>;
+					interrupts = <0 50 0x04>;
+					clocks = <&clks IMX6SX_CLK_ASRC>, <&clks IMX6SX_CLK_SPBA>;
+					clock-names = "core", "dma";
+					dmas = <&sdma 17 20 1>, <&sdma 18 20 1>, <&sdma 19 20 1>,
+					     <&sdma 20 20 1>, <&sdma 21 20 1>, <&sdma 22 20 1>;
+					dma-names = "rxa", "rxb", "rxc",
+						"txa", "txb", "txc";
+					status = "okay";
+				};
+
+				ssi1: ssi@02028000 {
+					compatible = "fsl,imx6sx-ssi","fsl,imx21-ssi";
+					reg = <0x02028000 0x4000>;
+					interrupts = <0 46 0x04>;
+					clocks = <&clks IMX6SX_CLK_SSI1_IPG>, <&clks IMX6SX_CLK_SSI1>;
+					clock-names = "ipg", "baud";
+					dmas = <&sdma 37 1 0>, <&sdma 38 1 0>;
+					dma-names = "rx", "tx";
+					status = "disabled";
+				};
+
+				ssi2: ssi@0202c000 {
+					compatible = "fsl,imx6sx-ssi","fsl,imx21-ssi";
+					reg = <0x0202c000 0x4000>;
+					interrupts = <0 47 0x04>;
+					clocks = <&clks IMX6SX_CLK_SSI2_IPG>, <&clks IMX6SX_CLK_SSI2>;
+					clock-names = "ipg", "baud";
+					dmas = <&sdma 41 1 0>, <&sdma 42 1 0>;
+					dma-names = "rx", "tx";
+					status = "disabled";
+				};
+
+				ssi3: ssi@02030000 {
+					compatible = "fsl,imx6sx-ssi","fsl,imx21-ssi";
+					reg = <0x02030000 0x4000>;
+					interrupts = <0 48 0x04>;
+					clocks = <&clks IMX6SX_CLK_SSI3_IPG>, <&clks IMX6SX_CLK_SSI3>;
+					clock-names = "ipg", "baud";
+					dmas = <&sdma 45 1 0>, <&sdma 46 1 0>;
+					dma-names = "rx", "tx";
+					status = "disabled";
+				};
+
 				uart1: serial@02020000 {
 					compatible = "fsl,imx6q-uart", "fsl,imx21-uart";
 					reg = <0x02020000 0x4000>;
@@ -351,6 +397,12 @@
 				reg = <0x0217c000 0x4000>;
 			};
 
+			audmux: audmux@021d8000 {
+				compatible = "fsl,imx6sx-audmux", "fsl,imx31-audmux";
+				reg = <0x021d8000 0x4000>;
+				status = "disabled";
+			};
+
 			fec1: ethernet@02188000 {
 				compatible = "fsl,imx6sx-fec";
 				reg = <0x02188000 0x4000>;
@@ -552,6 +604,27 @@
 };
 
 &iomuxc {
+	audmux {
+		pinctrl_audmux_1: audmuxgrp-1 {
+			fsl,pins = <
+				MX6SX_PAD_CSI_DATA00__AUDMUX_AUD6_TXC   0x4130B0
+				MX6SX_PAD_CSI_DATA01__AUDMUX_AUD6_TXFS  0x4130B0
+				MX6SX_PAD_CSI_HSYNC__AUDMUX_AUD6_TXD    0x4130B0
+				MX6SX_PAD_CSI_VSYNC__AUDMUX_AUD6_RXD    0x4130B0
+				MX6SX_PAD_CSI_PIXCLK__AUDMUX_MCLK       0x4130B0
+			>;
+		};
+
+		pinctrl_audmux_2: audmuxgrp-2 {
+			fsl,pins = <
+				MX6SX_PAD_ENET1_COL__AUDMUX_AUD4_TXC 	 0x130b0
+				MX6SX_PAD_ENET1_CRS__AUDMUX_AUD4_TXD     0x130b0
+				MX6SX_PAD_ENET1_RX_CLK__AUDMUX_AUD4_TXFS 0x130b0
+				MX6SX_PAD_ENET1_TX_CLK__AUDMUX_AUD4_RXD  0x130b0
+			>;
+		};
+	};
+
 	enet1 {
 		pinctrl_enet1_1: enet1grp-1 {
 			fsl,pins = <
