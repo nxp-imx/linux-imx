@@ -76,6 +76,10 @@ static const char *cko2_sels[]		= {
 	"spdif", "asrc", "dummy",
 };
 static const char *cko_sels[] = { "cko1", "cko2", };
+static const char *lvds_sels[]	= {
+	"arm", "pll1_sys", "dummy", "dummy", "dummy", "dummy", "dummy", "pll5_video_div",
+	"dummy", "dummy", "pcie_ref_125m", "dummy", "usbphy1", "usbphy2",
+};
 
 static struct clk *clks[IMX6SX_CLK_CLK_END];
 static struct clk_onecell_data clk_data;
@@ -153,8 +157,11 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_USBPHY1_GATE] = imx_clk_gate("usbphy1_gate", "dummy", base + 0x10, 6);
 	clks[IMX6SX_CLK_USBPHY2_GATE] = imx_clk_gate("usbphy2_gate", "dummy", base + 0x20, 6);
 
-	clks[IMX6SX_CLK_PCIE_REF]      = imx_clk_fixed_factor("pcie_ref", "pll6_enet", 1, 4);
+	/* FIXME 100Mhz is used for pcie ref for all imx6 pcie, excepted imx6q*/
+	clks[IMX6SX_CLK_PCIE_REF] = imx_clk_fixed_factor("pcie_ref", "pll6_enet", 1, 5);
 	clks[IMX6SX_CLK_PCIE_REF_125M] = imx_clk_gate("pcie_ref_125m", "pcie_ref", base + 0xe0, 19);
+
+	clks[IMX6SX_CLK_LVDS1_OUT] = imx_clk_gate("lvds1_out", "lvds1_sel", base + 0x160, 10);
 
 	clks[IMX6SX_CLK_ENET_REF] = clk_register_divider_table(NULL, "enet_ref", "pll6_enet", 0,
 			base + 0xe0, 0, 2, 0, clk_enet_ref_table,
@@ -193,6 +200,9 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 				CLK_SET_RATE_PARENT, base + 0xa0, 19, 2, 0, post_div_table, &imx_ccm_lock);
 	clks[IMX6SX_CLK_PLL5_VIDEO_DIV] = clk_register_divider_table(NULL, "pll5_video_div", "pll5_post_div",
 				CLK_SET_RATE_PARENT, base + 0x170, 30, 2, 0, video_div_table, &imx_ccm_lock);
+
+	/*                                                name                reg           shift   width   parent_names       num_parents */
+	clks[IMX6SX_CLK_LVDS1_SEL]          = imx_clk_mux("lvds1_sel",        base + 0x160, 0,      5,      lvds_sels,         ARRAY_SIZE(lvds_sels));
 
 	np = ccm_node;
 	base = of_iomap(np, 0);
@@ -439,6 +449,12 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	/* set parent clock for LCDIF1 pixel clock */
 	clk_set_parent(clks[IMX6SX_CLK_LCDIF1_PRE_SEL], clks[IMX6SX_CLK_PLL5_VIDEO_DIV]);
 	clk_set_parent(clks[IMX6SX_CLK_LCDIF1_SEL], clks[IMX6SX_CLK_LCDIF1_PODF]);
+
+	/* Set the parent clks of PCIe lvds1 and pcie_axi to be pcie ref, axi */
+	if (clk_set_parent(clks[IMX6SX_CLK_LVDS1_SEL], clks[IMX6SX_CLK_PCIE_REF_125M]))
+		pr_err("Failed to set pcie bus parent clk.\n");
+	if (clk_set_parent(clks[IMX6SX_CLK_PCIE_AXI_SEL], clks[IMX6SX_CLK_AXI]))
+		pr_err("Failed to set pcie parent clk.\n");
 
 	/*
 	 * Init enet system AHB clock, set to 200Mhz

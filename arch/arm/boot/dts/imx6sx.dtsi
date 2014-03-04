@@ -349,7 +349,7 @@
 			};
 
 			gpc: gpc@020dc000 {
-				compatible = "fsl,imx6q-gpc";
+				compatible = "fsl,imx6q-gpc", "syscon";
 				reg = <0x020dc000 0x4000>;
 				interrupts = <0 89 0x04>;
 			};
@@ -785,6 +785,24 @@
 				num-channels = <4>;
 				status = "disabled";
                         };
+		};
+
+		pcie: pcie@0x08000000 {
+			compatible = "fsl,imx6sx-pcie", "snps,dw-pcie";
+			reg = <0x08ffc000 0x4000>; /* DBI */
+			#address-cells = <3>;
+			#size-cells = <2>;
+			device_type = "pci";
+			ranges = <0x00000800 0 0x08f00000 0x08f00000 0 0x00080000 /* configuration space */
+				  0x81000000 0 0          0x08f80000 0 0x00010000 /* downstream I/O */
+				  0x82000000 0 0x08000000 0x08000000 0 0x00f00000>; /* non-prefetchable memory */
+			num-lanes = <1>;
+			interrupts = <0 123 0x04>;
+			clocks = <&clks IMX6SX_CLK_PCIE_REF_125M>, <&clks IMX6SX_CLK_PCIE_AXI>,
+				<&clks IMX6SX_CLK_LVDS1_OUT>, <&clks IMX6SX_CLK_DISPLAY_AXI>;
+			clock-names = "pcie_ref_125m", "pcie_axi", "lvds_gate", "display_axi";
+			pcie-supply = <&reg_pcie>;
+			status = "disabled";
 		};
 	};
 };
