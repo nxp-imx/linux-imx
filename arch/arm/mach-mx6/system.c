@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -105,6 +105,9 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 	int stop_mode = 0;
 	void __iomem *anatop_base = IO_ADDRESS(ANATOP_BASE_ADDR);
 	u32 ccm_clpcr, anatop_val;
+	unsigned int ddr_type;
+
+	ddr_type = (__raw_readl(MMDC_MDMISC_OFFSET) & MMDC_MDMISC_DDR_TYPE_MASK) >> MMDC_MDMISC_DDR_TYPE_OFFSET;
 
 	ccm_clpcr = __raw_readl(MXC_CCM_CLPCR) & ~(MXC_CCM_CLPCR_LPM_MASK);
 	/*
@@ -196,7 +199,8 @@ void mxc_cpu_lp_set(enum mxc_cpu_pwr_mode mode)
 		if (stop_mode >= 2) {
 			/* dormant mode, need to power off the arm core */
 			__raw_writel(0x1, gpc_base + GPC_PGC_CPU_PDN_OFFSET);
-			if (cpu_is_mx6q() || cpu_is_mx6dl()) {
+			if (cpu_is_mx6q() || cpu_is_mx6dl() ||
+				(cpu_is_mx6sl() && ddr_type == MX6_DDR3)) {
 				/* If stop_mode_config is clear, then 2P5 will be off,
 				need to enable weak 2P5, as DDR IO need 2P5 as
 				pre-driver */

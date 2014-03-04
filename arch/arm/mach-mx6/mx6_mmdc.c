@@ -51,8 +51,10 @@ void __iomem *gic_cpu_base;
 
 void (*mx6_change_ddr_freq)(u32 freq, void *ddr_settings, bool dll_mode, void* iomux_offsets) = NULL;
 
-void (*mx6l_lpddr2_change_freq)(u32 freq, int low_bus_freq_mode,
+void (*mx6sl_lpddr2_change_freq)(u32 freq, int low_bus_freq_mode,
 								void *ddr_settings) = NULL;
+
+void (*mx6sl_ddr3_change_freq)(u32 freq, void *ddr_settings, bool dll_mode, void* iomux_offsets, int low_bus_freq_mode) = NULL;
 
 extern unsigned int ddr_low_rate;
 extern unsigned int ddr_med_rate;
@@ -63,6 +65,9 @@ extern int mmdc_med_rate;
 extern void __iomem *ccm_base;
 extern void mx6_ddr_freq_change(u32 freq, void *ddr_settings, bool dll_mode, void *iomux_offsets);
 extern void mx6sl_ddr_iram(int ddr_freq, int low_bus_freq_mode, void *ddr_settings);
+
+
+extern void mx6l_ddr3_freq_change(u32 freq, void *ddr_settings, bool dll_mode, void *iomux_offsets, int low_bus_freq_mode);
 
 static void *ddr_freq_change_iram_base;
 static int ddr_settings_size;
@@ -106,6 +111,28 @@ unsigned long ddr3_dll_mx6dl[][2] = {
 	{0x818, 0x0},
 };
 
+unsigned long ddr3_dll_mx6sl[][2] = {
+	{0x0c, 0x0},
+	{0x10, 0x0},
+	{0x30, 0x0},
+	{0x1C, 0x04008032},
+	{0x1C, 0x0400803a},
+	{0x1C, 0x00048031},
+	{0x1C, 0x00048039},
+	{0x1C, 0x05208030},
+	{0x1C, 0x05208038},
+	{0x1C, 0x04008040},
+	{0x1C, 0x04008048},
+	{0x818, 0x0},
+};
+
+unsigned long ddr3_calibration_mx6sl[][2] = {
+	{0x83c, 0x0},
+	{0x840, 0x0},
+	{0x848, 0x0},
+	{0x850, 0x0},
+};
+
 unsigned long iomux_offsets_mx6q[][2] = {
 	{0x5A8, 0x0},
 	{0x5B0, 0x0},
@@ -126,6 +153,13 @@ unsigned long iomux_offsets_mx6dl[][2] = {
 	{0x4D0, 0x0},
 	{0x4D4, 0x0},
 	{0x4D8, 0x0},
+};
+
+unsigned long iomux_offsets_mx6sl[][2] = {
+	{0x344, 0x0},
+	{0x348, 0x0},
+	{0x34c, 0x0},
+	{0x350, 0x0},
 };
 
 unsigned long ddr3_400[][2] = {
@@ -220,32 +254,47 @@ int update_ddr_freq(int ddr_rate)
 	if (low_bus_freq_mode || audio_bus_freq_mode)
 		dll_off = true;
 
-	iram_ddr_settings[0][0] = ddr_settings_size;
+	if (cpu_is_mx6sl() && (ddr_type == MX6_DDR3)) {
+		iram_ddr_settings[0][0] = ARRAY_SIZE(ddr3_dll_mx6sl);
+		iram_ddr_settings[0][1] = ARRAY_SIZE(ddr3_calibration_mx6sl);
+	} else {
+		iram_ddr_settings[0][0] = ddr_settings_size;
+	}
+
 	if (ddr_type == MX6_DDR3)
 		iram_iomux_settings[0][0] = iomux_settings_size;
 
-	if (cpu_is_mx6sl() && (ddr_type == MX6_LPDDR2)) {
-		if (ddr_rate == ddr_normal_rate) {
-			for (i = 0; i < iram_ddr_settings[0][0]; i++) {
-				iram_ddr_settings[i + 1][0] =
-						normal_mmdc_settings[i][0];
-				iram_ddr_settings[i + 1][1] =
-						normal_mmdc_settings[i][1];
-			}
-		} else if (ddr_rate == ddr_med_rate) {
-			for (i = 0; i < iram_ddr_settings[0][0]; i++) {
-				iram_ddr_settings[i + 1][0] =
-						lpddr2_100M_6sl[i][0];
-				iram_ddr_settings[i + 1][1] =
-						lpddr2_100M_6sl[i][1];
+	if (cpu_is_mx6sl()) {
+		if (ddr_type == MX6_LPDDR2) {
+			if (ddr_rate == ddr_normal_rate) {
+				for (i = 0; i < iram_ddr_settings[0][0]; i++) {
+					iram_ddr_settings[i + 1][0] =
+							normal_mmdc_settings[i][0];
+					iram_ddr_settings[i + 1][1] =
+							normal_mmdc_settings[i][1];
+				}
+			} else if (ddr_rate == ddr_med_rate) {
+				for (i = 0; i < iram_ddr_settings[0][0]; i++) {
+					iram_ddr_settings[i + 1][0] =
+							lpddr2_100M_6sl[i][0];
+					iram_ddr_settings[i + 1][1] =
+							lpddr2_100M_6sl[i][1];
+				}
+			} else {
+				for (i = 0; i < iram_ddr_settings[0][0]; i++) {
+					iram_ddr_settings[i + 1][0] =
+							lpddr2_24M_6sl[i][0];
+					iram_ddr_settings[i + 1][1] =
+							lpddr2_24M_6sl[i][1];
+				}
 			}
 		} else {
-			for (i = 0; i < iram_ddr_settings[0][0]; i++) {
-				iram_ddr_settings[i + 1][0] =
-						lpddr2_24M_6sl[i][0];
-				iram_ddr_settings[i + 1][1] =
-						lpddr2_24M_6sl[i][1];
-			}
+			for (i = 0; i < ddr_settings_size; i++) {
+					iram_ddr_settings[i + 1][0] =
+							normal_mmdc_settings[i][0];
+					iram_ddr_settings[i + 1][1] =
+							normal_mmdc_settings[i][1];
+				}
 		}
 	} else {
 		if (ddr_rate == ddr_med_rate && cpu_is_mx6q()) {
@@ -256,17 +305,17 @@ int update_ddr_freq(int ddr_rate)
 						normal_mmdc_settings[i][1];
 			}
 			for (j = 0, i = ARRAY_SIZE(ddr3_dll_mx6q); i < iram_ddr_settings[0][0]; j++, i++) {
-				iram_ddr_settings[i + 1][0] =
-						ddr3_400[j][0];
-				iram_ddr_settings[i + 1][1] =
-						ddr3_400[j][1];
+					iram_ddr_settings[i + 1][0] =
+							ddr3_400[j][0];
+					iram_ddr_settings[i + 1][1] =
+							ddr3_400[j][1];
 			}
 		} else if (ddr_rate == ddr_normal_rate) {
 			for (i = 0; i < iram_ddr_settings[0][0]; i++) {
-				iram_ddr_settings[i + 1][0] =
-						normal_mmdc_settings[i][0];
-				iram_ddr_settings[i + 1][1] =
-						normal_mmdc_settings[i][1];
+					iram_ddr_settings[i + 1][0] =
+							normal_mmdc_settings[i][0];
+					iram_ddr_settings[i + 1][1] =
+							normal_mmdc_settings[i][1];
 			}
 		}
 	}
@@ -290,13 +339,15 @@ int update_ddr_freq(int ddr_rate)
 	while (cpus_in_wfe != online_cpus)
 		udelay(5);
 
-
-
 	/* Now we can change the DDR frequency. */
 	if (cpu_is_mx6sl())
-		mx6l_lpddr2_change_freq(ddr_rate, low_bus_freq_mode, iram_ddr_settings);
+		if (ddr_type == MX6_DDR3)
+			mx6sl_ddr3_change_freq(ddr_rate, iram_ddr_settings, dll_off, iram_iomux_settings, low_bus_freq_mode);
+		else
+			mx6sl_lpddr2_change_freq(ddr_rate, low_bus_freq_mode, iram_ddr_settings);
 	else
 		mx6_change_ddr_freq(ddr_rate, iram_ddr_settings, dll_off, iram_iomux_settings);
+
 
 	curr_ddr_rate = ddr_rate;
 
@@ -332,6 +383,8 @@ int init_mmdc_settings(void)
 			ddr_settings_size = ARRAY_SIZE(ddr3_dll_mx6q) + ARRAY_SIZE(ddr3_calibration);
 		if (cpu_is_mx6dl())
 			ddr_settings_size = ARRAY_SIZE(ddr3_dll_mx6dl) + ARRAY_SIZE(ddr3_calibration);
+		if (cpu_is_mx6sl())
+			ddr_settings_size = ARRAY_SIZE(ddr3_dll_mx6sl) + ARRAY_SIZE(ddr3_calibration_mx6sl);
 	} else {
 		if (cpu_is_mx6sl())
 			ddr_settings_size = ARRAY_SIZE(lpddr2_400M_6sl);
@@ -348,7 +401,11 @@ int init_mmdc_settings(void)
 		memcpy(((char *)normal_mmdc_settings + sizeof(ddr3_dll_mx6dl)), ddr3_calibration, sizeof(ddr3_calibration));
 	}
 	if (cpu_is_mx6sl()) {
-		if (ddr_type == MX6_LPDDR2)
+		if (ddr_type == MX6_DDR3) {
+			memcpy(normal_mmdc_settings, ddr3_dll_mx6sl, sizeof(ddr3_dll_mx6sl));
+			memcpy(((char *)normal_mmdc_settings + sizeof(ddr3_dll_mx6sl)),
+				ddr3_calibration_mx6sl, sizeof(ddr3_calibration_mx6sl));
+		} else
 			memcpy(normal_mmdc_settings, lpddr2_400M_6sl, sizeof(lpddr2_400M_6sl));
 	}
 
@@ -376,7 +433,10 @@ int init_mmdc_settings(void)
 	}
 
 	if (ddr_type == MX6_DDR3) {
-		iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6q);
+		if (cpu_is_mx6sl())
+			iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6sl);
+		else
+			iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6q);
 		/* Store the size of the iomux settings in iRAM also,
 		 * increase the size by 8 bytes.
 		 */
@@ -410,6 +470,14 @@ int init_mmdc_settings(void)
 			}
 			irq_used = irqs_used_mx6dl;
 		}
+		if (cpu_is_mx6sl()) {
+			for (i = 0; i < iomux_settings_size; i++) {
+				iomux_offsets_mx6sl[i][1] =	__raw_readl(iomux_base
+					+ iomux_offsets_mx6sl[i][0]);
+				iram_iomux_settings[i+1][0] = iomux_offsets_mx6sl[i][0];
+				iram_iomux_settings[i+1][1] = iomux_offsets_mx6sl[i][1];
+			}
+		}
 	}
 	/* Allocate IRAM for the DDR freq change code. */
 	iram_alloc(SZ_8K, &iram_paddr);
@@ -419,11 +487,14 @@ int init_mmdc_settings(void)
 						SZ_8K, MT_MEMORY_NONCACHED);
 
 	if (cpu_is_mx6sl()) {
-		if (ddr_type == MX6_LPDDR2) {
+		if (ddr_type == MX6_DDR3) {
+			memcpy(ddr_freq_change_iram_base, mx6l_ddr3_freq_change, SZ_8K);
+			mx6sl_ddr3_change_freq = (void *)ddr_freq_change_iram_base;
+		} else {
 			memcpy(ddr_freq_change_iram_base, mx6sl_ddr_iram, SZ_8K);
-			mx6l_lpddr2_change_freq = (void *)ddr_freq_change_iram_base;
+			mx6sl_lpddr2_change_freq = (void *)ddr_freq_change_iram_base;
 		}
-	}	else {
+	} else {
 		memcpy(ddr_freq_change_iram_base, mx6_ddr_freq_change, SZ_8K);
 		mx6_change_ddr_freq = (void *)ddr_freq_change_iram_base;
 	}
