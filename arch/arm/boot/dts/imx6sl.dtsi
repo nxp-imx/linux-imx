@@ -89,6 +89,10 @@
 		compatible = "fsl,imx6-dummy-pureg"; /* only used in ldo-bypass */
 	};
 
+	reg_vbus_wakeup: usb_vbus_wakeup {
+		compatible = "fsl,imx6-dummy-ldo2p5";
+	};
+
 	mxs_viim {
 		compatible = "fsl,mxs_viim";
 		reg = <0x02098000 0x1000>, /* GPT base */
@@ -738,6 +742,7 @@
 				compatible = "fsl,imx6sl-usbmisc", "fsl,imx6q-usbmisc";
 				reg = <0x02184800 0x200>;
 				clocks = <&clks IMX6SL_CLK_USBOH3>;
+				vbus-wakeup-supply = <&reg_vbus_wakeup>;
 			};
 
 			fec: ethernet@02188000 {
