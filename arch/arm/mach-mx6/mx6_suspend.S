@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,6 +33,8 @@
 #define MMDC_MAPSR_PSS 		(1 << 4)
 #define MMDC_MAPSR_PSD 		(1 << 0)
 #define IRAM_SUSPEND_SIZE 	(1 << 13)
+
+#define MX6_TYPE_DDR3	0
 
 /*************************************************************
 mx6_suspend:
@@ -385,6 +387,12 @@ ahb_podf2:
 	ldr	r7, [r1, #0x318] /* DRAM_DQM3 */
 	stmfd	r0!, {r4-r7}
 
+	ldr r4, [r1, #0x344] /* DRAM_SDQS0 */
+	ldr r5, [r1, #0x348] /* DRAM_SDQS1 */
+	ldr r6, [r1, #0x34c] /* DRAM_SDQS2 */
+	ldr r7, [r1, #0x350] /* DRAM_SDQS3 */
+	stmfd   r0!, {r4-r7}
+
 	ldr	r4, [r1, #0x5c4] /* GPR_B0DS */
 	ldr	r5, [r1, #0x5cc] /* GPR_B1DS */
 	ldr	r6, [r1, #0x5d4] /* GPR_B2DS */
@@ -417,6 +425,12 @@ ahb_podf2:
 	str	r5, [r1, #0x310] /* DRAM_DQM1 */
 	str	r6, [r1, #0x314] /* DRAM_DQM2 */
 	str	r7, [r1, #0x318] /* DRAM_DQM3 */
+
+	ldmea   r0!, {r4-r7}
+	str r4, [r1, #0x344] /* DRAM_SDQS0 */
+	str r5, [r1, #0x348] /* DRAM_SDQS1 */
+	str r6, [r1, #0x34c] /* DRAM_SDQS2 */
+	str r7, [r1, #0x350] /* DRAM_SDQS3 */
 
 	ldmea	r0!, {r4-r7}
 	str	r4, [r1, #0x5c4] /* GPR_B0DS */
@@ -451,6 +465,11 @@ ahb_podf2:
 	str	r0, [r1, #0x314] /* DRAM_DQM2 */
 	str	r0, [r1, #0x318] /* DRAM_DQM3 */
 
+	str r0, [r1, #0x344] /* DRAM_SDQS0 */
+	str r0, [r1, #0x348] /* DRAM_SDQS1 */
+	str r0, [r1, #0x34c] /* DRAM_SDQS2 */
+	str r0, [r1, #0x350] /* DRAM_SDQS3 */
+
 	str	r0, [r1, #0x5c4] /* GPR_B0DS */
 	str	r0, [r1, #0x5cc] /* GPR_B1DS */
 	str	r0, [r1, #0x5d4] /* GPR_B2DS */
@@ -466,12 +485,16 @@ ahb_podf2:
 	str	r0, [r1, #0x33c] /* DRAM_SODT0*/
 	str	r0, [r1, #0x340] /* DRAM_SODT1*/
 
+	cmp r10, #MX6_TYPE_DDR3
+	beq ddr3_skip_io_set  /* keep DRAM_RESET & SDCKE if DDR3 */
+
 	mov	r0, #0x80000
 	str	r0, [r1, #0x320] /* DRAM_RESET */
 	mov	r0, #0x1000
 	str	r0, [r1, #0x330] /* DRAM_SDCKE0 */
 	str	r0, [r1, #0x334] /* DRAM_SDCKE1 */
 
+ddr3_skip_io_set:
 	.endm
 
 	.macro	dl_ddr_io_save
@@ -922,6 +945,13 @@ suspend mode entry
 	mov	r12, r3 /* Save CPU type to r12*/
 	mov	r11, r0	/* Save the state in r11 */
 
+	/* Save DDR type to r10 */
+	ldr r6, =MMDC_P0_BASE_ADDR
+	add r6, r6, #PERIPBASE_VIRT
+	ldr r10, [r6, #0x18]
+	lsr r10, #3
+	and r10, r10, #0x3
+
 	cmp	r12, #MXC_CPU_MX6SL
 	beq	dormant
 
@@ -1016,6 +1046,8 @@ saved register and context as below:
 	mov	r4, r12			@ Store cpu type
 	stmfd	r0!, {r4}
 	mov	r4, r11			@ Store state entered
+	stmfd	r0!, {r4}
+	mov r4, r10			@ Store ddr type
 	stmfd	r0!, {r4}
 
 	ldr	r1, =MX6Q_IOMUXC_BASE_ADDR
@@ -1115,18 +1147,48 @@ set ddr iomux to low power mode
 	ldr	r1, =MMDC_P0_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 
+	/* set SBS_EN to block DDR access */
+	ldr     r0, [r1, #0x410]
+	orr     r0, r0, #0x100
+	str     r0, [r1, #0x410]
+
 	/* Put DDR explicitly into self-refresh. */
 	 /* Disable Automatic power savings. */
 	 ldr    r0, [r1, #0x404]
 	 orr    r0, r0, #0x01
 	 str    r0, [r1, #0x404]
 
+	/* set CON_REG */
+	ldr     r0, =0x8000
+	str     r0, [r1, #0x1C]
+poll_conreq_set_1:
+	ldr     r0, [r1, #0x1C]
+	and     r0, r0, #0x4000
+	cmp     r0, #0x4000
+	bne     poll_conreq_set_1
+
+	/*setmem /32 0x021b001c = 0x00008010 //Precharge all on cs0  */
+	/*setmem /32 0x021b001c = 0x00008018 //Precharge all on cs1 */
+	ldr     r0, =0x00008010
+	str     r0, [r1, #0x1C]
+	ldr     r0, =0x00008018
+	str     r0, [r1, #0x1C]
+
+	/* de-assert con_req */
+	mov    r0, #0x0
+	str    r0, [r1, #0x1C]
+poll_conreq_clr_1:
+	ldr     r0, [r1, #0x1C]
+	and     r0, r0, #0x4000
+	cmp     r0, #0x4000
+	beq     poll_conreq_clr_1
+
 	 /* Make the DDR explicitly enter self-refresh. */
 	 ldr     r0, [r1, #0x404]
 	 orr    r0, r0, #0x200000
 	 str     r0, [r1, #0x404]
 
-	poll_dvfs_set_1:
+poll_dvfs_set_1:
 	 ldr     r0, [r1, #0x404]
 	 and     r0, r0, #0x2000000
 	 cmp    r0, #0x2000000
@@ -1157,6 +1219,8 @@ ddr_io_set_lpm_done:
 	bne	no_analog_savings
 	cmp	r11, #1
 	bne	no_analog_savings
+	cmp r10, #MX6_TYPE_DDR3
+	beq no_analog_savings
 
 	/* We are here because on
 	* MX6SL, we want to lower
@@ -1286,11 +1350,16 @@ ldo_check_done2:
 
 	ldmea	r0!, {r11}	@ standby or mem
 
+	ldmea   r0!, {r10}	@ ddr type
+
 	cmp	r12, #MXC_CPU_MX6SL
 	bne	no_analog_restore
 
 	cmp	r11, #0x1
 	bne	no_analog_restore
+
+	cmp r10, #MX6_TYPE_DDR3
+	beq	no_analog_restore
 
 	ldr	r3, =CCM_BASE_ADDR
 	add	r3, r3, #PERIPBASE_VIRT
@@ -1433,12 +1502,16 @@ ldo_check_done3:
 
 	ldmea	r0!, {r11}	@ standby or mem
 
+	ldmea   r0!, {r10}	@ ddr type
 
 	cmp	r12, #MXC_CPU_MX6SL
 	bne	no_analog_restore1
 
 	cmp	r11, #0x1
 	bne	no_analog_restore1
+
+	cmp r10, #MX6_TYPE_DDR3
+	beq no_analog_restore1
 
 	ldr	r1, =ANATOP_BASE_ADDR
 	ldr	r3, =CCM_BASE_ADDR
@@ -1496,6 +1569,11 @@ poll_dvfs_clear_2:
 	and	r6, r6, #0x2000000
 	cmp	r6, #0x2000000
 	beq	poll_dvfs_clear_2
+
+	/* clear SBS - unblock DDR accesses */
+	ldr     r6, [r1, #0x410]
+	bic     r6, r6, #0x100
+	str     r6, [r1, #0x410]
 
 	/* Enable Automatic power savings. */
 	ldr	r6, [r1, #0x404]
