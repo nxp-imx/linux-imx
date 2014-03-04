@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -326,12 +326,15 @@ force_measure1:
  *  IRQs are already disabled.
  * r0 : DDR freq.
  * r1: low_bus_freq_mode flag
+ * r2: MMDC array
  */
 ENTRY(mx6sl_ddr_iram)
 
     push {r4-r10}
 
 mx6sl_ddr_freq_change:
+
+    mov  r9, r2                      @save MMDC array
     ldr     r3, =ANATOP_BASE_ADDR
     add   r3, r3, #PERIPBASE_VIRT
 
@@ -428,6 +431,19 @@ set_to_24MHz:
      mx6sl_switch_to_24MHz
 
 done:
+
+	/* updater MMDC */
+	ldr     r6, [r9, #0x0]             @size of dll array
+	add   r9, r9, #8             @skip first eight bytes in array
+update_mmdc1:
+	ldr    r0, [r9, #0x0]       @ offset
+	ldr    r10, [r9, #0x4]       @ value
+	str    r10, [r8, r0]
+	add   r9, r9, #8
+	sub   r6, r6, #1
+	cmp  r6, #0
+	bgt   update_mmdc1
+
      /* clear DVFS - exit from self refresh mode */
      ldr     r6, [r8, #0x404]
      bic     r6, r6, #0x200000

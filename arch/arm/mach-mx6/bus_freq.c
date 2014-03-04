@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -82,9 +82,6 @@ void (*mx6sl_wfi_iram)(int arm_podf, unsigned long wfi_iram_addr,\
 		int audio_mode) = NULL;
 extern void mx6sl_wait (int arm_podf, unsigned long wfi_iram_addr);
 
-void *mx6sl_ddr_freq_base;
-void (*mx6sl_ddr_freq_change_iram)(int ddr_freq, int low_bus_freq_mode) = NULL;
-extern void mx6sl_ddr_iram(int ddr_freq);
 
 extern int init_mmdc_settings(void);
 extern struct cpu_op *(*get_cpu_op)(int *op);
@@ -175,8 +172,7 @@ void reduce_bus_freq(void)
 				clk_round_rate(ahb_clk, LPAPM_CLK / 3));
 
 			spin_lock_irqsave(&freq_lock, flags);
-			mx6sl_ddr_freq_change_iram(DDR_AUDIO_CLK,
-							low_bus_freq_mode);
+			update_ddr_freq(DDR_AUDIO_CLK);
 			spin_unlock_irqrestore(&freq_lock, flags);
 
 			if (low_bus_freq_mode) {
@@ -221,8 +217,7 @@ void reduce_bus_freq(void)
 
 			spin_lock_irqsave(&freq_lock, flags);
 			/* Now change DDR freq while running from IRAM. */
-			mx6sl_ddr_freq_change_iram(LPAPM_CLK,
-					low_bus_freq_mode);
+			update_ddr_freq(LPAPM_CLK);
 			spin_unlock_irqrestore(&freq_lock, flags);
 
 			low_bus_freq_mode = 1;
@@ -333,7 +328,7 @@ int set_high_bus_freq(int high_bus_freq)
 
 		spin_lock_irqsave(&freq_lock, flags);
 		/* Change DDR freq in IRAM. */
-		mx6sl_ddr_freq_change_iram(ddr_normal_rate, low_bus_freq_mode);
+		update_ddr_freq(ddr_normal_rate);
 		spin_unlock_irqrestore(&freq_lock, flags);
 
 		/* Set periph_clk to be sourced from pll2_pfd2_400M */
@@ -721,9 +716,8 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&low_bus_freq_handler, reduce_bus_freq_handler);
 	register_pm_notifier(&imx_bus_freq_pm_notifier);
 
-	if (!cpu_is_mx6sl())
-		init_mmdc_settings();
-	else {
+
+	if (cpu_is_mx6sl()) {
 		unsigned long iram_paddr;
 
 		/* Allocate IRAM for WFI code when system is
@@ -738,18 +732,8 @@ static int __devinit busfreq_probe(struct platform_device *pdev)
 		memcpy(mx6sl_wfi_iram_base, mx6sl_wait, SZ_4K);
 		mx6sl_wfi_iram = (void *)mx6sl_wfi_iram_base;
 
-		/* Allocate IRAM for WFI code when system is
-		  *in low freq mode.
-		  */
-		iram_alloc(SZ_4K, &iram_paddr);
-		/* Need to remap the area here since we want the memory region
-			 to be executable. */
-		mx6sl_ddr_freq_base = __arm_ioremap(iram_paddr,
-					SZ_4K, MT_MEMORY_NONCACHED);
-		memcpy(mx6sl_ddr_freq_base, mx6sl_ddr_iram, SZ_4K);
-		mx6sl_ddr_freq_change_iram = (void *)mx6sl_ddr_freq_base;
-
 	}
+	init_mmdc_settings();
 
 	return 0;
 }
