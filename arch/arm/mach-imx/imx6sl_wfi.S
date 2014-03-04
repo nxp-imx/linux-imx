@@ -155,15 +155,17 @@ fifo_reset2_wait:
  *  Make sure DDR is in self-refresh.
  *  IRQs are already disabled.
  * r0: WFI IRAMcode base address.
- * r1: IOMUX base address
+ * r1: 1 if vbus_ldo (ldo2p5) cannot be disabled
  * r2: 1 if in audio_bus_freq_mode
  */
 	.align 3
 ENTRY(imx6sl_low_power_wfi)
 
-	push {r4-r11}
+	push {r4-r12}
 
 mx6sl_lpm_wfi:
+	/* Can LDO2p5 be disabled */
+	mov	r12, r1
 	/* Store audio_bus_freq_mode */
 	mov	r11, r2
 
@@ -402,6 +404,17 @@ podf_loop:
 	bic	r6, r6, #0x2
 	str	r6, [r3, #0x110]
 
+	/*
+	 * Set the OSC bias current to -37.5%
+	 * to drop the power on VDDHIGH.
+	 */
+	ldr	r6, [r3, #0x150]
+	orr	r6, r6, #0xC000
+	str	r6, [r3, #0x150]
+
+	cmp	r12, #0x1
+	beq	leave_2p5_on
+
 	/* Enable the weak 2P5 */
 	ldr	r6, [r3, #0x130]
 	orr	r6, r6, #0x40000
@@ -411,14 +424,6 @@ podf_loop:
 	ldr	r6, [r3, #0x130]
 	bic	r6, r6, #0x1
 	str	r6, [r3, #0x130]
-
-	/*
-	 * Set the OSC bias current to -37.5%
-	 * to drop the power on VDDHIGH.
-	 */
-	ldr	r6, [r3, #0x150]
-	orr	r6, r6, #0xC000
-	str	r6, [r3, #0x150]
 
 	/* Enable low power bandgap */
 	ldr	r6, [r3, #0x260]
@@ -448,6 +453,7 @@ podf_loop:
 	orr	r6, r6, #0x1
 	str	r6, [r3, #0x150]
 
+leave_2p5_on:
 	b	do_wfi
 
 do_audio_arm_clk:
@@ -497,6 +503,9 @@ podf_loop1:
 	cmp	r7, #0x1
 	bne	skip_analog_restore
 
+	cmp	r12, #1
+	beq	ldo2p5_not_disabled
+
 	/* Power up the regular bandgap. */
 	ldr	r6, [r3, #0x150]
 	bic	r6, r6, #0x1
@@ -515,14 +524,6 @@ podf_loop1:
 	bic	r6, r6, #0x20
 	str	r6, [r3, #0x260]
 
-	/*
-	 * Set the OSC bias current to max
-	 * value for normal operation.
-	 */
-	ldr	r6, [r3, #0x150]
-	bic	r6, r6, #0xC000
-	str	r6, [r3, #0x150]
-
 	/* Enable main 2p5. */
 	ldr	r6, [r3, #0x130]
 	orr	r6, r6, #0x1
@@ -539,6 +540,16 @@ loop_2p5:
 	ldr	r6, [r3, #0x130]
 	bic	r6, r6, #0x40000
 	str	r6, [r3, #0x130]
+
+ldo2p5_not_disabled:
+	/*
+	 * Set the OSC bias current to max
+	 * value for normal operation.
+	 */
+	ldr	r6, [r3, #0x150]
+	bic	r6, r6, #0xC000
+	str	r6, [r3, #0x150]
+
 
 	/* Enable 1p1 brown out. */
 	ldr	r6, [r3, #0x110]
@@ -683,7 +694,7 @@ poll_dvfs_clear_1:
 	nop
 
 
-	pop {r4-r11}
+	pop {r4-r12}
 
 	/* Restore registers */
 	mov	pc, lr
