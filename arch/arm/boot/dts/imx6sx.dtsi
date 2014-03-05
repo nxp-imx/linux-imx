@@ -765,6 +765,26 @@
 			aipstz@0227c000 { /* AIPSTZ3 */
 				reg = <0x0227c000 0x4000>;
 			};
+
+			adc1: adc@02280000 {
+				compatible = "fsl,imx6sx-adc", "fsl,vf610-adc";
+				reg = <0x02280000 0x4000>;
+				interrupts = <0 100 0x04>;
+				clocks = <&clks IMX6SX_CLK_IPG>;
+				clock-names = "adc";
+				num-channels = <4>;
+				status = "disabled";
+                        };
+
+			adc2: adc@02284000 {
+				compatible = "fsl,imx6sx-adc", "fsl,vf610-adc";
+				reg = <0x02284000 0x4000>;
+				interrupts = <0 101 0x04>;
+				clocks = <&clks IMX6SX_CLK_IPG>;
+				clock-names = "adc";
+				num-channels = <4>;
+				status = "disabled";
+                        };
 		};
 	};
 };
