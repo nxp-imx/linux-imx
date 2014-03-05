@@ -52,6 +52,14 @@
 			regulator-always-on;
 		};
 
+		reg_sdb_vmmc: sdb_vmmc{
+			compatible = "regulator-fixed";
+			regulator-name = "SD2_SPWR";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			gpio = <&gpio2 11 GPIO_ACTIVE_LOW>;
+		};
+
 		reg_usb_otg1_vbus: usb_otg1_vbus {
 			compatible = "regulator-fixed";
 			regulator-name = "usb_otg1_vbus";
@@ -303,6 +311,8 @@
 				MX6SX_PAD_QSPI1B_DATA0__GPIO4_IO_24	0x80000000
 				/* CAN2_ERR_B */
 				MX6SX_PAD_QSPI1B_SS0_B__GPIO4_IO_30     0x80000000
+				/* SD2_PWROFF */
+				MX6SX_PAD_KEY_COL1__GPIO2_IO_11		0x17059
 			>;
 		};
 	};
@@ -429,6 +439,7 @@
 	wp-gpios = <&gpio2 15 0>;
 	keep-power-in-suspend;
 	enable-sdio-wakeup;
+	vmmc-supply = <&reg_sdb_vmmc>;
 	status = "okay";
 };
 
