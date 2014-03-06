@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -527,8 +527,14 @@ static struct pfuze_regulator_init_data mx6q_sabreauto_pfuze100_regulators[] = {
 
 static struct pfuze_platform_data pfuze100_plat = {
 	.flags = PFUZE_USE_REGULATOR,
-	.num_regulators = ARRAY_SIZE(mx6q_sabreauto_pfuze100_regulators),
-	.regulators = mx6q_sabreauto_pfuze100_regulators,
+	.num_regulators =  {
+		ARRAY_SIZE(mx6q_sabreauto_pfuze100_regulators),
+		0,
+	},
+	.regulators = {
+		mx6q_sabreauto_pfuze100_regulators,
+		NULL,
+	},
 	.pfuze_init = pfuze100_init,
 
 };

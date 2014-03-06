@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,10 +51,10 @@
 #define PFUZE100_SW1CVOL       46
 #define PFUZE100_SW1CVOL_VSEL_M        (0x3f<<0)
 #define PFUZE100_SW1ACON		36
-#define PFUZE100_SW1ACON_SPEED_VAL	(0x1<<6)	/*default */
+#define PFUZE100_SW1ACON_SPEED_VAL	(0x1<<6)	/* default */
 #define PFUZE100_SW1ACON_SPEED_M	(0x3<<6)
 #define PFUZE100_SW1CCON		49
-#define PFUZE100_SW1CCON_SPEED_VAL	(0x1<<6)	/*default */
+#define PFUZE100_SW1CCON_SPEED_VAL	(0x1<<6)	/* default */
 #define PFUZE100_SW1CCON_SPEED_M	(0x3<<6)
 
 extern u32 arm_max_freq;
@@ -146,7 +146,7 @@ static struct regulator_init_data sw1a_init = {
 			.always_on = 1,
 			.initial_state = PM_SUSPEND_MEM,
 			.state_mem = {
-				.uV = 975000,/*0.9V+6%*/
+				.uV = 975000,/* 0.9V+6% */
 				.mode = REGULATOR_MODE_NORMAL,
 				.enabled = 1,
 			},
@@ -179,7 +179,7 @@ static struct regulator_init_data sw1c_init = {
 			.boot_on = 1,
 			.initial_state = PM_SUSPEND_MEM,
 			.state_mem = {
-				.uV = 975000,/*0.9V+6%*/
+				.uV = 975000,/* 0.9V+6% */
 				.mode = REGULATOR_MODE_NORMAL,
 				.enabled = 1,
 			},
@@ -387,103 +387,134 @@ static int pfuze100_init(struct mc_pfuze *pfuze)
 {
 	int ret, i;
 	unsigned char value;
-	/*use default mode(ldo bypass) if no param from cmdline*/
-	if (enable_ldo_mode == LDO_MODE_DEFAULT)
-		enable_ldo_mode = LDO_MODE_BYPASSED;
-	/*read Device ID*/
-	ret = pfuze_reg_read(pfuze, PFUZE100_DEVICEID, &value);
-	if (ret)
-		goto err;
-	if (value != 0x10) {
-		printk(KERN_ERR "wrong device id:%x!\n", value);
-		goto err;
-	}
+	int chip_id;
 
-	/*read Revision ID*/
-	ret = pfuze_reg_read(pfuze, PFUZE100_REVID, &value);
-	if (ret)
-		goto err;
-	if (value == 0x10) {
-		printk(KERN_WARNING "PF100 1.0 chip found!\n");
-	/* workaround ER1 of pfuze1.0: set all buck regulators in PWM mode
-	* except SW1C(APS) in normal and  PFM mode in standby.
-	*/
-		for (i = 0; i < 7; i++) {
-			if (i == 2)/*SW1C*/
-				value = 0xc;/*normal:APS mode;standby:PFM mode*/
-			else
-				value = 0xd;/*normal:PWM mode;standby:PFM mode*/
-			ret = pfuze_reg_write(pfuze,
-					PFUZE100_SW1AMODE + (i * 7),
-					value);
-			if (ret)
-				goto err;
-		}
+	chip_id = pfuze_get_chipid(pfuze);
 
-	} else {
-	/*set all switches APS in normal and PFM mode in standby*/
-		for (i = 0; i < 7; i++) {
-			value = 0xc;
-			ret = pfuze_reg_write(pfuze,
-					PFUZE100_SW1AMODE + (i * 7),
-					value);
-			if (ret)
-				goto err;
-		}
-
-	}
-	/*use ldo active mode if use 1.2GHz,otherwise use ldo bypass mode*/
-	if (arm_max_freq == CPU_AT_1_2GHz) {
-			/*VDDARM_IN 1.425*/
-		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1AVOL,
-					PFUZE100_SW1AVOL_VSEL_M,
-					0x2d);
-		if (ret)
-			goto err;
-		/*VDDSOC_IN 1.425V*/
-		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CVOL,
-					PFUZE100_SW1CVOL_VSEL_M,
-					0x2d);
-		if (ret)
-			goto err;
+	if (chip_id == PFUZE_ID_PFUZE200) {
+		/* work in ldo-enable mode if use pfuze200 */
+		if (enable_ldo_mode == LDO_MODE_BYPASSED)
+			printk(KERN_WARNING "force to ldo-enable mode!\n");
 		enable_ldo_mode = LDO_MODE_ENABLED;
-	} else if (enable_ldo_mode == LDO_MODE_BYPASSED) {
-		/*decrease VDDARM_IN/VDDSOC_IN,since we will use ldo bypass mode*/
-		/*VDDARM_IN 1.3V*/
-		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1AVOL,
-					PFUZE100_SW1AVOL_VSEL_M,
-					0x28);
-		if (ret)
-			goto err;
-		/*VDDSOC_IN 1.3V*/
-		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CVOL,
-					PFUZE100_SW1CVOL_VSEL_M,
-					0x28);
-		if (ret)
-			goto err;
-		/*set SW1AB/1C DVSPEED as 25mV step each 4us,quick than 16us before.*/
-		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1ACON,
-				    PFUZE100_SW1ACON_SPEED_M,
-				    PFUZE100_SW1ACON_SPEED_VAL);
-		if (ret)
-			goto err;
-		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CCON,
-				    PFUZE100_SW1CCON_SPEED_M,
-				    PFUZE100_SW1CCON_SPEED_VAL);
-		if (ret)
-			goto err;
-	} else if (enable_ldo_mode != LDO_MODE_BYPASSED) {
-		/*Increase VDDARM_IN/VDDSOC_IN to 1.375V in ldo active mode*/
+
+		/* Increase VDDARM_IN/VDDSOC_IN to 1.375V in ldo active mode */
 		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1AVOL,
 					PFUZE100_SW1AVOL_VSEL_M,
 					0x2b);
 		if (ret)
 			goto err;
-		ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CVOL,
-					PFUZE100_SW1CVOL_VSEL_M,
-					0x2b);
+	} else if (chip_id == PFUZE_ID_PFUZE100) {
+		/* use default mode(ldo bypass) if no param from cmdline */
+		if (enable_ldo_mode == LDO_MODE_DEFAULT)
+			enable_ldo_mode = LDO_MODE_BYPASSED;
+		/* read Device ID */
+		ret = pfuze_reg_read(pfuze, PFUZE100_DEVICEID, &value);
 		if (ret)
 			goto err;
+		if (value != 0x10) {
+			printk(KERN_ERR "wrong device id:%x!\n", value);
+			goto err;
+		}
+
+		/* read Revision ID */
+		ret = pfuze_reg_read(pfuze, PFUZE100_REVID, &value);
+		if (ret)
+			goto err;
+		if (value == 0x10) {
+			printk(KERN_WARNING "PF100 1.0 chip found!\n");
+		/*
+		 * workaround ER1 of pfuze1.0: set all buck regulators in PWM
+		 * mode except SW1C(APS) in normal and  PFM mode in standby.
+		 */
+			for (i = 0; i < 7; i++) {
+				if (i == 2)/* SW1C */
+					/* normal:APS mode;standby:PFM mode */
+					value = 0xc;
+				else
+					/* normal:PWM mode;standby:PFM mode */
+					value = 0xd;
+				ret = pfuze_reg_write(pfuze,
+						PFUZE100_SW1AMODE + (i * 7),
+						value);
+				if (ret)
+					goto err;
+			}
+
+		} else {
+		/* set all switches APS in normal and PFM mode in standby */
+			for (i = 0; i < 7; i++) {
+				value = 0xc;
+				ret = pfuze_reg_write(pfuze,
+						PFUZE100_SW1AMODE + (i * 7),
+						value);
+				if (ret)
+					goto err;
+			}
+
+		}
+		/*
+		 * use ldo active mode if use 1.2GHz,otherwise use ldo
+		 * bypass mode
+		 */
+		if (arm_max_freq == CPU_AT_1_2GHz) {
+				/* VDDARM_IN 1.425 */
+			ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1AVOL,
+						PFUZE100_SW1AVOL_VSEL_M,
+						0x2d);
+			if (ret)
+				goto err;
+			/* VDDSOC_IN 1.425V */
+			ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CVOL,
+						PFUZE100_SW1CVOL_VSEL_M,
+						0x2d);
+			if (ret)
+				goto err;
+			enable_ldo_mode = LDO_MODE_ENABLED;
+		} else if (enable_ldo_mode == LDO_MODE_BYPASSED) {
+			/*
+			 * decrease VDDARM_IN/VDDSOC_IN,since we will use ldo
+			 * bypass mode, VDDARM_IN 1.3V/VDDSOC_IN 1.3V
+			 */
+			ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1AVOL,
+						PFUZE100_SW1AVOL_VSEL_M,
+						0x28);
+			if (ret)
+				goto err;
+			ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CVOL,
+						PFUZE100_SW1CVOL_VSEL_M,
+						0x28);
+			if (ret)
+				goto err;
+			/*
+			 * set SW1AB/1C DVSPEED as 25mV step each 4us,quick than
+			 * 16us before.
+			 */
+			ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1ACON,
+					    PFUZE100_SW1ACON_SPEED_M,
+					    PFUZE100_SW1ACON_SPEED_VAL);
+			if (ret)
+				goto err;
+			ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CCON,
+					    PFUZE100_SW1CCON_SPEED_M,
+					    PFUZE100_SW1CCON_SPEED_VAL);
+			if (ret)
+				goto err;
+		} else if (enable_ldo_mode != LDO_MODE_BYPASSED) {
+			/*
+			 * Increase VDDARM_IN/VDDSOC_IN to 1.375V in ldo active
+			 * mode
+			 */
+			ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1AVOL,
+						PFUZE100_SW1AVOL_VSEL_M,
+						0x2b);
+			if (ret)
+				goto err;
+			ret = pfuze_reg_rmw(pfuze, PFUZE100_SW1CVOL,
+						PFUZE100_SW1CVOL_VSEL_M,
+						0x2b);
+			if (ret)
+				goto err;
+		}
 	}
 	return 0;
 err:
@@ -501,7 +532,23 @@ static struct pfuze_regulator_init_data mx6q_sabreauto_pfuze100_regulators[] = {
 	{.id = PFUZE100_SW4,	.init_data = &sw4_init},
 	{.id = PFUZE100_SWBST,	.init_data = &swbst_init},
 	{.id = PFUZE100_VSNVS,	.init_data = &vsnvs_init},
-	{.id = PFUZE100_VREFDDR,	.init_data = &vrefddr_init},
+	{.id = PFUZE100_VREFDDR, .init_data = &vrefddr_init},
+	{.id = PFUZE100_VGEN1,	.init_data = &vgen1_init},
+	{.id = PFUZE100_VGEN2,	.init_data = &vgen2_init},
+	{.id = PFUZE100_VGEN3,	.init_data = &vgen3_init},
+	{.id = PFUZE100_VGEN4,	.init_data = &vgen4_init},
+	{.id = PFUZE100_VGEN5,	.init_data = &vgen5_init},
+	{.id = PFUZE100_VGEN6,	.init_data = &vgen6_init},
+};
+
+static struct pfuze_regulator_init_data mx6q_sabreauto_pfuze200_regulators[] = {
+	{.id = PFUZE100_SW1A,	.init_data = &sw1a_init},
+	{.id = PFUZE100_SW2,	.init_data = &sw2_init},
+	{.id = PFUZE100_SW3A,	.init_data = &sw3a_init},
+	{.id = PFUZE100_SW3B,	.init_data = &sw3b_init},
+	{.id = PFUZE100_SWBST,	.init_data = &swbst_init},
+	{.id = PFUZE100_VSNVS,	.init_data = &vsnvs_init},
+	{.id = PFUZE100_VREFDDR, .init_data = &vrefddr_init},
 	{.id = PFUZE100_VGEN1,	.init_data = &vgen1_init},
 	{.id = PFUZE100_VGEN2,	.init_data = &vgen2_init},
 	{.id = PFUZE100_VGEN3,	.init_data = &vgen3_init},
@@ -512,8 +559,14 @@ static struct pfuze_regulator_init_data mx6q_sabreauto_pfuze100_regulators[] = {
 
 static struct pfuze_platform_data pfuze100_plat = {
 	.flags = PFUZE_USE_REGULATOR,
-	.num_regulators = ARRAY_SIZE(mx6q_sabreauto_pfuze100_regulators),
-	.regulators = mx6q_sabreauto_pfuze100_regulators,
+	.num_regulators = {
+		ARRAY_SIZE(mx6q_sabreauto_pfuze100_regulators),
+		ARRAY_SIZE(mx6q_sabreauto_pfuze200_regulators),
+	},
+	.regulators = {
+		mx6q_sabreauto_pfuze100_regulators,
+		mx6q_sabreauto_pfuze200_regulators,
+	},
 	.pfuze_init = pfuze100_init,
 };
 
