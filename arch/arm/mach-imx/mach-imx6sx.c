@@ -187,7 +187,8 @@ static void __init imx6sx_init_late(void)
 
 	imx6q_cpuidle_init();
 
-	if (of_machine_is_compatible("fsl,imx6sx-17x17-arm2"))
+	if (of_machine_is_compatible("fsl,imx6sx-17x17-arm2") ||
+		of_machine_is_compatible("fsl,imx6sx-sdb"))
 		imx6sx_arm2_flexcan_fixup();
 }
 
