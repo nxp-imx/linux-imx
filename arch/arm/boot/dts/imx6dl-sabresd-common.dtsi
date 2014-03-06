@@ -1,0 +1,130 @@
+/*
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+&battery {
+	offset-charger = <1485>;
+	offset-discharger = <1464>;
+	offset-usb-charger = <1285>;
+};
+
+&i2c3 {
+	max17135@48 {
+		compatible = "maxim,max17135";
+		reg = <0x48>;
+		vneg_pwrup = <1>;
+		gvee_pwrup = <1>;
+		vpos_pwrup = <2>;
+		gvdd_pwrup = <1>;
+		gvdd_pwrdn = <1>;
+		vpos_pwrdn = <2>;
+		gvee_pwrdn = <1>;
+		vneg_pwrdn = <1>;
+		SENSOR-supply = <&reg_sensor>;
+		gpio_pmic_pwrgood = <&gpio2 21 0>;
+		gpio_pmic_vcom_ctrl = <&gpio3 17 0>;
+		gpio_pmic_wakeup = <&gpio3 20 0>;
+		gpio_pmic_v3p3 = <&gpio2 20 0>;
+		gpio_pmic_intr = <&gpio2 25 0>;
+
+		regulators {
+			DISPLAY_reg: DISPLAY {
+				regulator-name = "DISPLAY";
+			};
+
+			GVDD_reg: GVDD {
+				/* 20v */
+				regulator-name = "GVDD";
+			};
+
+			GVEE_reg: GVEE {
+				/* -22v */
+				regulator-name = "GVEE";
+			};
+
+			HVINN_reg: HVINN {
+				/* -22v */
+				regulator-name = "HVINN";
+			};
+
+			HVINP_reg: HVINP {
+				/* 20v */
+				regulator-name = "HVINP";
+			};
+
+			VCOM_reg: VCOM {
+				regulator-name = "VCOM";
+				/* 2's-compliment, -4325000 */
+				regulator-min-microvolt = <0xffbe0178>;
+				/* 2's-compliment, -500000 */
+				regulator-max-microvolt = <0xfff85ee0>;
+			};
+
+			VNEG_reg: VNEG {
+				/* -15v */
+				regulator-name = "VNEG";
+			};
+
+			VPOS_reg: VPOS {
+				/* 15v */
+				regulator-name = "VPOS";
+			};
+
+			V3P3_reg: V3P3 {
+				regulator-name = "V3P3";
+			};
+		};
+	};
+};
+
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog_1>, <&pinctrl_hog_2>;
+
+	hog {
+		pinctrl_hog_2: hoggrp-2 {
+			fsl,pins = <
+				/* MAX17135 */
+				MX6QDL_PAD_EIM_A17__GPIO2_IO21 0x80000000
+				MX6QDL_PAD_EIM_D17__GPIO3_IO17 0x80000000
+				MX6QDL_PAD_EIM_D20__GPIO3_IO20 0x80000000
+				MX6QDL_PAD_EIM_A18__GPIO2_IO20 0x80000000
+				MX6QDL_PAD_EIM_OE__GPIO2_IO25 0x80000000
+				/* elan touch */
+				MX6QDL_PAD_EIM_A20__GPIO2_IO18 0x80000000
+				MX6QDL_PAD_EIM_DA8__GPIO3_IO08 0x80000000
+				MX6QDL_PAD_EIM_D28__GPIO3_IO28 0x170b0
+			>;
+		};
+	};
+};
+
+&epdc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_epdc_0>;
+	V3P3-supply = <&V3P3_reg>;
+	VCOM-supply = <&VCOM_reg>;
+	DISPLAY-supply = <&DISPLAY_reg>;
+	status = "okay";
+};
+
+&ldb {
+	ipu_id = <0>;
+	sec_ipu_id = <0>;
+};
+
+&mxcfb1 {
+	status = "okay";
+};
+
+&mxcfb2 {
+	status = "okay";
+};
+
+&pxp {
+	status = "okay";
+};
