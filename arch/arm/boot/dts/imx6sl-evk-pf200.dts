@@ -12,25 +12,33 @@
 #include "imx6sl-evk-common.dtsi"
 
 / {
-	model = "Freescale i.MX6 SoloLite EVK Board(PFUZE100)";
+	model = "Freescale i.MX6 SoloLite EVK Board(PFUZE200)";
 	compatible = "fsl,imx6sl-evk", "fsl,imx6sl";
 };
 
+&cpu0 {
+	arm-supply = <&reg_arm>;
+	soc-supply = <&reg_soc>;
+	pu-supply = <&reg_pu>; /* use pu_dummy if VDDSOC share with VDDPU */
+};
+
+&gpc {
+	fsl,ldo-bypass = <0>; /* use ldo-bypass, u-boot will check it and configure */
+	fsl,wdog-reset = <1>; /* watchdog select of reset source */
+	pu-supply = <&reg_pu>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+};
+
+&gpu {
+	pu-supply = <&reg_pu>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
+};
+
 &i2c1 {
-	pmic: pfuze100@08 {
-		compatible = "fsl,pfuze100";
+	pmic: pfuze200@08 {
+		compatible = "fsl,pfuze200";
 		reg = <0x08>;
 
 		regulators {
 			sw1a_reg: sw1ab {
-				regulator-min-microvolt = <300000>;
-				regulator-max-microvolt = <1875000>;
-				regulator-boot-on;
-				regulator-always-on;
-				regulator-ramp-delay = <6250>;
-			};
-
-			sw1c_reg: sw1c {
 				regulator-min-microvolt = <300000>;
 				regulator-max-microvolt = <1875000>;
 				regulator-boot-on;
@@ -57,11 +65,6 @@
 				regulator-max-microvolt = <1975000>;
 				regulator-boot-on;
 				regulator-always-on;
-			};
-
-			sw4_reg: sw4 {
-				regulator-min-microvolt = <800000>;
-				regulator-max-microvolt = <3300000>;
 			};
 
 			swbst_reg: swbst {
