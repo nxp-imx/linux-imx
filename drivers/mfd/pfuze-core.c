@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@
 #define PFUZE_REG_INT_SENSE0	7
 
 struct mc_pfuze {
+	enum pfuze_id chip_id;
 	struct i2c_client *i2c_client;
 	struct mutex lock;
 	int irq;		/*irq number */
@@ -44,15 +45,13 @@ struct mc_pfuze {
 
 static const struct i2c_device_id pfuze_device_id[] = {
 	{"pfuze100", 0},
+	{"pfuze200", 1},
 	{},
 };
 
-enum pfuze_id {
-	PFUZE_ID_PFUZE100,
-	PFUZE_ID_INVALID,
-};
 static const char *pfuze_chipname[] = {
 	[PFUZE_ID_PFUZE100] = "pfuze100",
+	[PFUZE_ID_PFUZE200] = "pfuze200",
 };
 
 void pfuze_lock(struct mc_pfuze *mc_pfuze)
@@ -333,28 +332,22 @@ static irqreturn_t pfuze_irq_thread(int irq, void *data)
 	return IRQ_RETVAL(handled);
 }
 
-static int pfuze_identify(struct mc_pfuze *mc_pfuze, enum pfuze_id *id)
+static int pfuze_identify(struct mc_pfuze *mc_pfuze)
 {
 	unsigned char value;
 	int ret;
 	ret = pfuze_reg_read(mc_pfuze, PFUZE_REG_DEVICE_ID, &value);
 	if (ret)
 		return ret;
-	switch (value & 0x0f) {
-	case 0x0:
-		*id = PFUZE_ID_PFUZE100;
-		break;
-	default:
-		*id = PFUZE_ID_INVALID;
-		dev_warn(&mc_pfuze->i2c_client->dev, "Illegal ID: %x\n", value);
-		break;
-	}
+	/* override chip_id by reading device_id register */
+	mc_pfuze->chip_id = value & 0x0f;
+
 	ret = pfuze_reg_read(mc_pfuze, PFUZE_REG_REVISION_ID, &value);
 	if (ret)
 		return ret;
 	dev_info(&mc_pfuze->i2c_client->dev,
 		 "ID: %d,Full lay: %x ,Metal lay: %x\n",
-		 *id, (value & 0xf0) >> 4, value & 0x0f);
+		 mc_pfuze->chip_id, (value & 0xf0) >> 4, value & 0x0f);
 	ret = pfuze_reg_read(mc_pfuze, PFUZE_REG_FAB_ID, &value);
 	if (ret)
 		return ret;
@@ -363,28 +356,17 @@ static int pfuze_identify(struct mc_pfuze *mc_pfuze, enum pfuze_id *id)
 	return 0;
 }
 
-static const struct i2c_device_id *i2c_match_id(const struct i2c_device_id *id,
-						const struct i2c_client *client)
-{
-	while (id->name[0]) {
-		if (strcmp(client->name, id->name) == 0)
-			return id;
-		id++;
-	}
-	return NULL;
-
-}
-
 static const char *pfuze_get_chipname(struct mc_pfuze *mc_pfuze)
 {
-	const struct i2c_driver *idrv =
-	    to_i2c_driver(mc_pfuze->i2c_client->dev.driver);
-	const struct i2c_device_id *devid =
-	    i2c_match_id(idrv->id_table, mc_pfuze->i2c_client);
-	if (!devid)
-		return NULL;
-	return pfuze_chipname[devid->driver_data];
+	/* always return pfuze100 since pfuze200 share the same driver */
+	return pfuze_chipname[0];
 }
+
+unsigned int pfuze_get_chipid(struct mc_pfuze *mc_pfuze)
+{
+	return mc_pfuze->chip_id;
+}
+EXPORT_SYMBOL(pfuze_get_chipid);
 
 unsigned int pfuze_get_flags(struct mc_pfuze *mc_pfuze)
 {
@@ -485,7 +467,7 @@ static int pfuze_probe(struct i2c_client *client,
 	struct mc_pfuze *mc_pfuze;
 	struct pfuze_platform_data *pdata = client->dev.platform_data;
 	int ret, i;
-	enum pfuze_id pfuze_id;
+
 	mc_pfuze = kzalloc(sizeof(*mc_pfuze), GFP_KERNEL);
 	if (!mc_pfuze)
 		return -ENOMEM;
@@ -494,9 +476,13 @@ static int pfuze_probe(struct i2c_client *client,
 
 	mutex_init(&mc_pfuze->lock);
 	pfuze_lock(mc_pfuze);
-	ret = pfuze_identify(mc_pfuze, &pfuze_id);
-	if (ret || pfuze_id == PFUZE_ID_INVALID)
+	ret = pfuze_identify(mc_pfuze);
+	if (ret || mc_pfuze->chip_id == PFUZE_ID_INVALID)
 		goto err_revision;
+
+	dev_info(&client->dev, "pfuze%s found.\n",
+		(mc_pfuze->chip_id == PFUZE_ID_PFUZE100) ? "100" : "200");
+
 	/* mask all of irqs */
 	for (i = 0; i < 7; i++) {
 		ret =
@@ -520,8 +506,8 @@ static int pfuze_probe(struct i2c_client *client,
 	pfuze_unlock(mc_pfuze);
 	if (pdata->flags & PFUZE_USE_REGULATOR) {
 		struct pfuze_regulator_platform_data regulator_pdata = {
-			.num_regulators = pdata->num_regulators,
-			.regulators = pdata->regulators,
+			.num_regulators = pdata->num_regulators[mc_pfuze->chip_id],
+			.regulators = pdata->regulators[mc_pfuze->chip_id],
 			.pfuze_init = pdata->pfuze_init,
 		};
 		pfuze_add_subdevice_pdata(mc_pfuze, "%s-regulator",

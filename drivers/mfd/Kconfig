@@ -526,7 +526,7 @@ config MFD_PFUZE
 	depends on I2C
 	select MFD_CORE
 	help
-	 Support for Freescale's PMIC: PFUZE100
+	 Support for Freescale's PMIC: PFUZE100/PFUZE200
 config PCF50633_ADC
 	tristate "Support for NXP PCF50633 ADC"
 	depends on MFD_PCF50633
