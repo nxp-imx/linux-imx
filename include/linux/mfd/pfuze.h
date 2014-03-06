@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,6 +43,7 @@ int pfuze_irq_request(struct mc_pfuze *mc_pfuze, int irq, irq_handler_t handler,
 		      const char *name, void *dev);
 int pfuze_irq_free(struct mc_pfuze *mc_pfuze, int irq, void *dev);
 unsigned int pfuze_get_flags(struct mc_pfuze *mc_pfuze);
+unsigned int pfuze_get_chipid(struct mc_pfuze *mc_pfuze);
 
 #define PFUZE_I2C_RETRY_TIMES   10
 #define PFUZE_NUM_IRQ		56
@@ -90,6 +91,12 @@ unsigned int pfuze_get_flags(struct mc_pfuze *mc_pfuze);
 #define PFUZE100_SW4_VOL6	1
 /*#define PFUZE100_FIRST_VERSION*/
 
+enum pfuze_id {
+	PFUZE_ID_PFUZE100,
+	PFUZE_ID_PFUZE200,
+	PFUZE_ID_INVALID,
+};
+
 struct regulator_init_data;
 struct pfuze_regulator_init_data {
 	int id;
@@ -104,8 +111,8 @@ struct pfuze_regulator_platform_data {
 struct pfuze_platform_data {
 #define PFUZE_USE_REGULATOR	(1 << 0)
 	unsigned int flags;
-	int num_regulators;
-	struct pfuze_regulator_init_data *regulators;
+	int num_regulators[PFUZE_ID_INVALID];
+	struct pfuze_regulator_init_data *regulators[PFUZE_ID_INVALID];
 	int (*pfuze_init)(struct mc_pfuze *pfuze);
 };
 #endif
