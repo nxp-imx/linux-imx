@@ -786,6 +786,7 @@ static void hdmi_dma_trigger_init(struct snd_pcm_substream *substream,
 {
 	unsigned long status;
 
+	priv->offset = 0;
 	priv->frame_idx = 0;
 
 	/* Copy data by buffer_bytes */
