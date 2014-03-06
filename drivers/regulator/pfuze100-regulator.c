@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -445,6 +445,22 @@ static struct pfuze_regulator pfuze100_regulators[] = {
 	PFUZE100_VGEN_DEFINE(VGEN6, VGEN6VOL, pfuze100_vgen36),
 };
 
+static struct pfuze_regulator pfuze200_regulators[] = {
+	PFUZE100_SW_DEFINE(SW1A, SW1AVOL, pfuze100_sw1),
+	PFUZE100_SW_DEFINE(SW2, SW2VOL, pfuze100_sw2),
+	PFUZE100_SW_DEFINE(SW3A, SW3AVOL, pfuze100_sw3),
+	PFUZE100_SW_DEFINE(SW3B, SW3BVOL, pfuze100_sw3),
+	PFUZE100_SWBST_DEFINE(SWBST, SWBSTCON1, pfuze100_swbst),
+	PFUZE100_SWBST_DEFINE(VSNVS, VSNVSVOL, pfuze100_vsnvs),
+	PFUZE100_FIXED_VOL_DEFINE(VREFDDR, VREFDDRCON, pfuze100_vrefddr),
+	PFUZE100_VGEN_DEFINE(VGEN1, VGEN1VOL, pfuze100_vgen12),
+	PFUZE100_VGEN_DEFINE(VGEN2, VGEN2VOL, pfuze100_vgen12),
+	PFUZE100_VGEN_DEFINE(VGEN3, VGEN3VOL, pfuze100_vgen36),
+	PFUZE100_VGEN_DEFINE(VGEN4, VGEN4VOL, pfuze100_vgen36),
+	PFUZE100_VGEN_DEFINE(VGEN5, VGEN5VOL, pfuze100_vgen36),
+	PFUZE100_VGEN_DEFINE(VGEN6, VGEN6VOL, pfuze100_vgen36),
+};
+
 static int pfuze100_regulator_enable(struct regulator_dev *rdev)
 {
 	struct pfuze_regulator_priv *priv = rdev_get_drvdata(rdev);
@@ -776,14 +792,22 @@ static int __devinit pfuze100_regulator_probe(struct platform_device *pdev)
 	    dev_get_platdata(&pdev->dev);
 	struct pfuze_regulator_init_data *init_data;
 	int i, ret;
+	int chip_id;
 
 	priv = kzalloc(sizeof(*priv) +
 		       pdata->num_regulators * sizeof(priv->regulators[0]),
 		       GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
-	priv->pfuze_regulators = pfuze100_regulators;
+
 	priv->pfuze = pfuze100;
+
+	chip_id = pfuze_get_chipid(pfuze100);
+	if (chip_id == PFUZE_ID_PFUZE200)
+		priv->pfuze_regulators = pfuze200_regulators;
+	else
+		priv->pfuze_regulators = pfuze100_regulators;
+
 	pfuze_lock(pfuze100);
 	ret = pdata->pfuze_init(pfuze100);
 	if (ret)
@@ -792,11 +816,11 @@ static int __devinit pfuze100_regulator_probe(struct platform_device *pdev)
 	for (i = 0; i < pdata->num_regulators; i++) {
 		init_data = &pdata->regulators[i];
 		priv->regulators[i] =
-		    regulator_register(&pfuze100_regulators[init_data->id].desc,
+		    regulator_register(&priv->pfuze_regulators[init_data->id].desc,
 				       &pdev->dev, init_data->init_data, priv);
 		if (IS_ERR(priv->regulators[i])) {
 			dev_err(&pdev->dev, "failed to register regulator %s\n",
-				pfuze100_regulators[i].desc.name);
+				priv->pfuze_regulators[i].desc.name);
 			ret = PTR_ERR(priv->regulators[i]);
 			goto err;
 		}
