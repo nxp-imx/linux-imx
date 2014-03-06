@@ -79,6 +79,17 @@ struct hdmi_dma_priv {
 /* max 8 channels supported; channels are interleaved */
 static u8 g_packet_head_table[48 * 8];
 
+void hdmi_dma_copy_16_neon_lut(unsigned short *src, unsigned int *dst,
+		int samples, unsigned char *lookup_table);
+void hdmi_dma_copy_16_neon_fast(unsigned short *src, unsigned int *dst,
+		int samples);
+void hdmi_dma_copy_24_neon_lut(unsigned int *src, unsigned int *dst,
+		int samples, unsigned char *lookup_table);
+void hdmi_dma_copy_24_neon_fast(unsigned int *src, unsigned int *dst,
+		int samples);
+static void hdmi_dma_irq_enable(struct hdmi_dma_priv *priv);
+static void hdmi_dma_irq_disable(struct hdmi_dma_priv *priv);
+
 union hdmi_audio_header_t iec_header;
 EXPORT_SYMBOL(iec_header);
 
@@ -275,6 +286,7 @@ static void init_table(int channels)
 	}
 }
 
+#ifdef HDMI_DMA_NO_NEON
 /* Optimization for IEC head */
 static void hdmi_dma_copy_16_c_lut(u16 *src, u32 *dst, int samples,
 				u8 *lookup_table)
@@ -356,6 +368,45 @@ static void hdmi_dma_copy_16(u16 *src, u32 *dst, int framecnt, int channelcnt)
 		dst += samples;
 	}
 }
+#else
+/* NEON optimization for IEC head*/
+
+/**
+ * Convert pcm samples to iec samples suitable for HDMI transfer.
+ * PCM sample is 16 bits length.
+ * Frame index always starts from 0.
+ * Channel count can be 1, 2, 4, 6, or 8
+ * Sample count (frame_count * channel_count) is multipliable by 8.
+ */
+static void hdmi_dma_copy_16(u16 *src, u32 *dst, int framecount, int channelcount)
+{
+	/* split input frames into 192-frame each */
+	int i, count_in_192 = (framecount + 191) / 192;
+
+	for (i = 0; i < count_in_192; i++) {
+		int count, samples;
+
+		/* handles frame index [0, 48) */
+		count = (framecount < 48) ? framecount : 48;
+		samples = count * channelcount;
+		hdmi_dma_copy_16_neon_lut(src, dst, samples, g_packet_head_table);
+		framecount -= count;
+		if (framecount == 0)
+			break;
+
+		src += samples;
+		dst += samples;
+
+		/* handles frame index [48, 192) */
+		count = (framecount < 192 - 48) ? framecount : (192 - 48);
+		samples = count * channelcount;
+		hdmi_dma_copy_16_neon_fast(src, dst, samples);
+		framecount -= count;
+		src += samples;
+		dst += samples;
+	}
+}
+#endif
 
 static void hdmi_dma_mmap_copy(struct snd_pcm_substream *substream,
 				int offset, int count)
