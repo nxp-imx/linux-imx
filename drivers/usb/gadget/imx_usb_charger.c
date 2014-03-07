@@ -190,7 +190,8 @@ static int usb_charger_detect(struct usb_charger *charger)
 
 	msleep(40);
 
-	if ((readl(&dr_regs->portsc1) & PORTSCX_LINE_STATUS_KSTATE)) {
+	if (readl(addr + HW_ANADIG_USB1_CHRG_DET_STAT) &
+		BM_ANADIG_USB1_CHRG_DET_STAT_DM_STATE) {
 		dev_info(charger->dev, "It is a dedicate charging port\n");
 		charger->psy.type = POWER_SUPPLY_TYPE_USB_DCP;
 	} else {
