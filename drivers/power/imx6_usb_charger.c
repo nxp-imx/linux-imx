@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -142,7 +142,7 @@ static int imx6_usb_charger_detect(struct usb_charger *charger)
 	regmap_write(regmap, HW_ANADIG_USB1_CHRG_DETECT_CLR,
 			BM_ANADIG_USB1_CHRG_DETECT_CHK_CONTACT |
 			BM_ANADIG_USB1_CHRG_DETECT_CHK_CHRG_B);
-	msleep(45);
+	msleep(100);
 
 	/* Check if it is a charger */
 	regmap_read(regmap, HW_ANADIG_USB1_CHRG_DET_STAT, &val);
