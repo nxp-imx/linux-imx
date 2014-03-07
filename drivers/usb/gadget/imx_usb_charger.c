@@ -104,7 +104,7 @@ static void usb_charger_work(struct work_struct *data)
 static int usb_charger_detect(struct usb_charger *charger)
 {
 	void __iomem *addr = charger->charger_base_addr;
-	int i;
+	int i, data_pin_contact_count = 0;
 
 	BUG_ON(!addr);
 
@@ -132,16 +132,26 @@ static int usb_charger_detect(struct usb_charger *charger)
 			addr + HW_ANADIG_USB1_CHRG_DETECT_SET);
 
 	/* Check if plug is connected */
-	for (i = 0; i < 1000; i = i + 1) {
+	for (i = 0; i < 100; i = i + 1) {
 		if (readl(addr + HW_ANADIG_USB1_CHRG_DET_STAT) &
 			BM_ANADIG_USB1_CHRG_DET_STAT_PLUG_CONTACT) {
-			dev_dbg(charger->dev, "Plug Contact = 1\n");
-			break;
-		} else if (i > 800) {
-			dev_err(charger->dev, "VBUS is coming from a dedicated power supply.\n");
-			return 0;
-		} else
-			msleep(1);
+			if (data_pin_contact_count++ > 5) {
+				/* Data pin makes contact */
+				dev_dbg(charger->dev, "Plug Contact = 1\n");
+				break;
+			} else {
+				usleep_range(5000, 10000);
+			}
+		} else {
+			data_pin_contact_count = 0;
+			msleep(20);
+		}
+	}
+
+	if (i == 100) {
+		dev_err(charger->dev,
+			"VBUS is coming from a dedicated power supply.\n");
+		return 0;
 	}
 
 	/*
