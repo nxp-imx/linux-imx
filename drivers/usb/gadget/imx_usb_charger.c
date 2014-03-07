@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -152,7 +152,7 @@ static int usb_charger_detect(struct usb_charger *charger)
 			| BM_ANADIG_USB1_CHRG_DETECT_CHK_CHRG_B,
 			addr + HW_ANADIG_USB1_CHRG_DETECT_CLR);
 
-	msleep(40);
+	msleep(100);
 
 	/* Check if it is a charger */
 	if (!(readl(addr + HW_ANADIG_USB1_CHRG_DET_STAT) &
