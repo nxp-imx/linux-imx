@@ -77,6 +77,13 @@
 			gpio = <&gpio1 12 0>;
 			enable-active-high;
 		};
+
+		reg_vref_3v3: regulator@0 {
+			compatible = "regulator-fixed";
+			regulator-name = "vref-3v3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+		};
 	};
 
 	memory {
@@ -95,6 +102,16 @@
 		mux-int-port = <1>;
 		mux-ext-port = <4>;
 	};
+};
+
+&adc1 {
+	vref-supply = <&reg_vref_3v3>;
+	status = "okay";
+};
+
+&adc2 {
+	vref-supply = <&reg_vref_3v3>;
+	status = "okay";
 };
 
 &audmux {
