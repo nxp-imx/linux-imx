@@ -1,7 +1,7 @@
 /*
  * imx-hdmi-dma.c  --  HDMI DMA driver for ALSA Soc Audio Layer
  *
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc.
  *
  * based on imx-pcm-dma-mx2.c
  * Copyright 2009 Sascha Hauer <s.hauer@pengutronix.de>
@@ -121,9 +121,9 @@ EXPORT_SYMBOL(iec_header);
  *    transmitted in a period, it can be continued in the next period.  This
  *    is necessary for 6 ch.
  */
-#define HDMI_DMA_PERIOD_BYTES		(6144)
-#define HDMI_DMA_BUF_SIZE		(64 * 1024)
-#define HDMI_PCM_BUF_SIZE		(64 * 1024)
+#define HDMI_DMA_PERIOD_BYTES		(12288)
+#define HDMI_DMA_BUF_SIZE		(128 * 1024)
+#define HDMI_PCM_BUF_SIZE		(128 * 1024)
 
 #define hdmi_audio_debug(dev, reg) \
 	dev_dbg(dev, #reg ": 0x%02x\n", hdmi_readb(reg))
