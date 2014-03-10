@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -529,7 +529,7 @@ static int ldb_ipu_ldb_route(int ipu, int di, struct ldb_data *ldb)
 static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 	struct mxc_dispdrv_setting *setting)
 {
-	int ret = 0, i, lvds_channel = 0;
+	int ret = 0, i, lvds_channel = 0, dev_id, ipu_di;
 	struct ldb_data *ldb = mxc_dispdrv_getdata(disp);
 	struct fsl_mxc_ldb_platform_data *plat_data = ldb->pdev->dev.platform_data;
 	struct resource *res;
@@ -563,7 +563,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		ldb->gpr3_reg = ldb->reg + 3;
 
 		/* ipu selected by platform data setting */
-		setting->dev_id = plat_data->ipu_id;
+		dev_id = plat_data->ipu_id;
 
 		reg = readl(ldb->control_reg);
 
@@ -628,23 +628,23 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		if (ldb->mode == LDB_SPL_DI0) {
 			reg |= LDB_SPLIT_MODE_EN | LDB_CH0_MODE_EN_TO_DI0
 				| LDB_CH1_MODE_EN_TO_DI0;
-			setting->disp_id = 0;
+			ipu_di = 0;
 		} else if (ldb->mode == LDB_SPL_DI1) {
 			reg |= LDB_SPLIT_MODE_EN | LDB_CH0_MODE_EN_TO_DI1
 				| LDB_CH1_MODE_EN_TO_DI1;
-			setting->disp_id = 1;
+			ipu_di = 1;
 		} else if (ldb->mode == LDB_DUL_DI0) {
 			reg &= ~LDB_SPLIT_MODE_EN;
 			reg |= LDB_CH0_MODE_EN_TO_DI0 | LDB_CH1_MODE_EN_TO_DI0;
-			setting->disp_id = 0;
+			ipu_di = 0;
 		} else if (ldb->mode == LDB_DUL_DI1) {
 			reg &= ~LDB_SPLIT_MODE_EN;
 			reg |= LDB_CH0_MODE_EN_TO_DI1 | LDB_CH1_MODE_EN_TO_DI1;
-			setting->disp_id = 1;
+			ipu_di = 1;
 		} else if (ldb->mode == LDB_SIN0) {
 			reg &= ~LDB_SPLIT_MODE_EN;
-			setting->disp_id = plat_data->disp_id;
-			if (setting->disp_id == 0)
+			ipu_di = plat_data->disp_id;
+			if (ipu_di == 0)
 				reg |= LDB_CH0_MODE_EN_TO_DI0;
 			else
 				reg |= LDB_CH0_MODE_EN_TO_DI1;
@@ -652,15 +652,15 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 			ch_val = reg & LDB_CH0_MODE_MASK;
 		} else if (ldb->mode == LDB_SIN1) {
 			reg &= ~LDB_SPLIT_MODE_EN;
-			setting->disp_id = plat_data->disp_id;
-			if (setting->disp_id == 0)
+			ipu_di = plat_data->disp_id;
+			if (ipu_di == 0)
 				reg |= LDB_CH1_MODE_EN_TO_DI0;
 			else
 				reg |= LDB_CH1_MODE_EN_TO_DI1;
 			ch_mask = LDB_CH1_MODE_MASK;
 			ch_val = reg & LDB_CH1_MODE_MASK;
 		} else { /* separate mode*/
-			setting->disp_id = plat_data->disp_id;
+			ipu_di = plat_data->disp_id;
 
 			/* first output is LVDS0 or LVDS1 */
 			if (ldb->mode == LDB_SEP0)
@@ -670,11 +670,11 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 
 			reg &= ~LDB_SPLIT_MODE_EN;
 
-			if ((lvds_channel == 0) && (setting->disp_id == 0))
+			if ((lvds_channel == 0) && (ipu_di == 0))
 				reg |= LDB_CH0_MODE_EN_TO_DI0;
-			else if ((lvds_channel == 0) && (setting->disp_id == 1))
+			else if ((lvds_channel == 0) && (ipu_di == 1))
 				reg |= LDB_CH0_MODE_EN_TO_DI1;
-			else if ((lvds_channel == 1) && (setting->disp_id == 0))
+			else if ((lvds_channel == 1) && (ipu_di == 0))
 				reg |= LDB_CH1_MODE_EN_TO_DI0;
 			else
 				reg |= LDB_CH1_MODE_EN_TO_DI1;
@@ -714,13 +714,13 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 
 		setting_idx = 1;
 		if (is_imx6_ldb(plat_data)) {
-			setting->dev_id = plat_data->sec_ipu_id;
-			setting->disp_id = plat_data->sec_disp_id;
+			dev_id = plat_data->sec_ipu_id;
+			ipu_di = plat_data->sec_disp_id;
 		} else {
-			setting->dev_id = plat_data->ipu_id;
-			setting->disp_id = !plat_data->disp_id;
+			dev_id = plat_data->ipu_id;
+			ipu_di = !plat_data->disp_id;
 		}
-		if (setting->disp_id == ldb->setting[0].di) {
+		if (ipu_di == ldb->setting[0].di) {
 			dev_err(&ldb->pdev->dev, "Err: for second ldb disp in"
 				"separate mode, DI should be different!\n");
 			return -EINVAL;
@@ -733,11 +733,11 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 			lvds_channel = 0;
 
 		reg = readl(ldb->control_reg);
-		if ((lvds_channel == 0) && (setting->disp_id == 0))
+		if ((lvds_channel == 0) && (ipu_di == 0))
 			reg |= LDB_CH0_MODE_EN_TO_DI0;
-		else if ((lvds_channel == 0) && (setting->disp_id == 1))
+		else if ((lvds_channel == 0) && (ipu_di == 1))
 			reg |= LDB_CH0_MODE_EN_TO_DI1;
-		else if ((lvds_channel == 1) && (setting->disp_id == 0))
+		else if ((lvds_channel == 1) && (ipu_di == 0))
 			reg |= LDB_CH1_MODE_EN_TO_DI0;
 		else
 			reg |= LDB_CH1_MODE_EN_TO_DI1;
@@ -767,10 +767,10 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		div_7_clk[2] += lvds_channel;
 		div_sel_clk[2] += lvds_channel;
 	} else {
-		ldb_clk[6] += setting->disp_id;
-		div_3_5_clk[2] += setting->disp_id;
-		div_7_clk[2] += setting->disp_id;
-		div_sel_clk[2] += setting->disp_id;
+		ldb_clk[6] += ipu_di;
+		div_3_5_clk[2] += ipu_di;
+		div_7_clk[2] += ipu_di;
+		div_sel_clk[2] += ipu_di;
 	}
 	ldb->setting[setting_idx].ldb_di_clk = clk_get(&ldb->pdev->dev,
 							ldb_clk);
@@ -799,8 +799,8 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		return PTR_ERR(ldb->setting[setting_idx].div_sel_clk);
 	}
 
-	di_clk[3] += setting->dev_id;
-	di_clk[7] += setting->disp_id;
+	di_clk[3] += dev_id;
+	di_clk[7] += ipu_di;
 	ldb->setting[setting_idx].di_clk = clk_get(&ldb->pdev->dev,
 							di_clk);
 	if (IS_ERR(ldb->setting[setting_idx].di_clk)) {
@@ -812,7 +812,7 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 	ldb->setting[setting_idx].ch_val = ch_val;
 
 	if (is_imx6_ldb(plat_data))
-		ldb_ipu_ldb_route(setting->dev_id, setting->disp_id, ldb);
+		ldb_ipu_ldb_route(dev_id, ipu_di, ldb);
 
 	/* must use spec video mode defined by driver */
 	ret = fb_find_mode(&setting->fbi->var, setting->fbi, setting->dft_mode_str,
@@ -831,8 +831,13 @@ static int ldb_disp_init(struct mxc_dispdrv_handle *disp,
 		}
 	}
 
-	ldb->setting[setting_idx].ipu = setting->dev_id;
-	ldb->setting[setting_idx].di = setting->disp_id;
+	ret = ipu_di_to_crtc(&ldb->pdev->dev, dev_id,
+			     ipu_di, &setting->crtc);
+	if (ret < 0)
+		return ret;
+
+	ldb->setting[setting_idx].ipu = dev_id;
+	ldb->setting[setting_idx].di = ipu_di;
 
 	return ret;
 }

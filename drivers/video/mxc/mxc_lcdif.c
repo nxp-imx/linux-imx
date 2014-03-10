@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -56,14 +56,16 @@ static int lcdif_init(struct mxc_dispdrv_handle *disp,
 {
 	int ret, i;
 	struct mxc_lcdif_data *lcdif = mxc_dispdrv_getdata(disp);
-	struct mxc_lcd_platform_data *plat_data
-			= lcdif->pdev->dev.platform_data;
+	struct device *dev = &lcdif->pdev->dev;
+	struct mxc_lcd_platform_data *plat_data = dev->platform_data;
 	struct fb_videomode *modedb = lcdif_modedb;
 	int modedb_sz = lcdif_modedb_sz;
 
 	/* use platform defined ipu/di */
-	setting->dev_id = plat_data->ipu_id;
-	setting->disp_id = plat_data->disp_id;
+	ret = ipu_di_to_crtc(dev, plat_data->ipu_id,
+			     plat_data->disp_id, &setting->crtc);
+	if (ret < 0)
+		return ret;
 
 	ret = fb_find_mode(&setting->fbi->var, setting->fbi, setting->dft_mode_str,
 				modedb, modedb_sz, NULL, setting->default_bpp);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -13,6 +13,7 @@
 #ifndef __MXC_DISPDRV_H__
 #define __MXC_DISPDRV_H__
 #include <linux/fb.h>
+#include "crtc.h"
 
 struct mxc_dispdrv_handle {
 	struct mxc_dispdrv_driver *drv;
@@ -25,9 +26,8 @@ struct mxc_dispdrv_setting {
 	int default_bpp;
 	char *dft_mode_str;
 
-	/*feedback parameter*/
-	int dev_id;
-	int disp_id;
+	/* feedback parameter */
+	enum crtc crtc;
 };
 
 struct mxc_dispdrv_driver {

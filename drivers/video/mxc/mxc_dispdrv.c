@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -24,10 +24,10 @@
  * Move all dev_suspend() things into fb_notifier for SUSPEND, if there is;
  * Move all dev_resume() things into fb_notifier for RESUME, if there is;
  *
- * ipuv3 fb driver could call mxc_dispdrv_gethandle(name, setting) before a fb
+ * mxc fb driver could call mxc_dispdrv_gethandle(name, setting) before a fb
  * need be added, with fbi param passing by setting, after
  * mxc_dispdrv_gethandle() return, FB driver should get the basic setting
- * about fbi info and ipuv3-hw (ipu_id and disp_id).
+ * about fbi info and crtc.
  *
  * @ingroup Framebuffer
  */
