@@ -2286,10 +2286,8 @@ static int mxcfb_get_of_property(struct platform_device *pdev,
 		return err;
 	}
 	err = of_property_read_string(np, "mode_str", &mode_str);
-	if (err < 0) {
+	if (err < 0)
 		dev_dbg(&pdev->dev, "get of property mode_str fail\n");
-		return err;
-	}
 	err = of_property_read_string(np, "interface_pix_fmt", &pixfmt);
 	if (err) {
 		dev_dbg(&pdev->dev, "get of property pix fmt fail\n");
