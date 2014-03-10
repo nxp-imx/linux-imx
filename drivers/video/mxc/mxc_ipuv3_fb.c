@@ -655,7 +655,7 @@ static int mxcfb_set_par(struct fb_info *fbi)
 		ipu_enable_channel(mxc_fbi_fg->ipu, mxc_fbi_fg->ipu_ch);
 
 	if (mxc_fbi->dispdrv && mxc_fbi->dispdrv->drv->enable) {
-		retval = mxc_fbi->dispdrv->drv->enable(mxc_fbi->dispdrv);
+		retval = mxc_fbi->dispdrv->drv->enable(mxc_fbi->dispdrv, fbi);
 		if (retval < 0) {
 			dev_err(fbi->device, "enable error, dispdrv:%s.\n",
 					mxc_fbi->dispdrv->drv->name);
@@ -1380,7 +1380,7 @@ static int mxcfb_blank(int blank, struct fb_info *info)
 	case FB_BLANK_HSYNC_SUSPEND:
 	case FB_BLANK_NORMAL:
 		if (mxc_fbi->dispdrv && mxc_fbi->dispdrv->drv->disable)
-			mxc_fbi->dispdrv->drv->disable(mxc_fbi->dispdrv);
+			mxc_fbi->dispdrv->drv->disable(mxc_fbi->dispdrv, info);
 		ipu_disable_channel(mxc_fbi->ipu, mxc_fbi->ipu_ch, true);
 		if (mxc_fbi->ipu_di >= 0)
 			ipu_uninit_sync_panel(mxc_fbi->ipu, mxc_fbi->ipu_di);

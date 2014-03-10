@@ -37,9 +37,9 @@ struct mxc_dispdrv_driver {
 	int (*post_init) (struct mxc_dispdrv_handle *, int dev_id, int disp_id);
 	void (*deinit) (struct mxc_dispdrv_handle *);
 	/* display driver enable function for extension */
-	int (*enable) (struct mxc_dispdrv_handle *);
+	int (*enable) (struct mxc_dispdrv_handle *, struct fb_info *);
 	/* display driver disable function, called at early part of fb_blank */
-	void (*disable) (struct mxc_dispdrv_handle *);
+	void (*disable) (struct mxc_dispdrv_handle *, struct fb_info *);
 	/* display driver setup function, called at early part of fb_set_par */
 	int (*setup) (struct mxc_dispdrv_handle *, struct fb_info *fbi);
 };
