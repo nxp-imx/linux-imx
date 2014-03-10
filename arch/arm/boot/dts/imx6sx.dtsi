@@ -1069,6 +1069,7 @@
 				MX6SX_PAD_QSPI1A_SCLK__ANATOP_OTG2_ID 0x17059
 			>;
 		};
+	};
 
 	usdhc1 {
 			pinctrl_usdhc1_1: usdhc1grp-1 {
