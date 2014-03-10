@@ -78,10 +78,12 @@ unsigned int hdmi_set_cable_state(unsigned int state)
 	hdmi_cable_state = state;
 	spin_unlock_irqrestore(&hdmi_cable_state_lock, flags);
 
+#ifndef CONFIG_MFD_MXC_HDMI_ANDROID
 	if (check_hdmi_state() && substream && hdmi_abort_state) {
 		hdmi_abort_state = 0;
 		substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_START);
 	}
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(hdmi_set_cable_state);
@@ -95,10 +97,13 @@ unsigned int hdmi_set_blank_state(unsigned int state)
 	hdmi_blank_state = state;
 	spin_unlock_irqrestore(&hdmi_blank_state_lock, flags);
 
+#ifndef CONFIG_MFD_MXC_HDMI_ANDROID
 	if (check_hdmi_state() && substream && hdmi_abort_state) {
 		hdmi_abort_state = 0;
 		substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_START);
 	}
+#endif
+
 	return 0;
 }
 EXPORT_SYMBOL(hdmi_set_blank_state);
@@ -109,10 +114,15 @@ static void hdmi_audio_abort_stream(struct snd_pcm_substream *substream)
 
 	snd_pcm_stream_lock_irqsave(substream, flags);
 
+#ifndef CONFIG_MFD_MXC_HDMI_ANDROID
 	if (snd_pcm_running(substream)) {
 		hdmi_abort_state = 1;
 		substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_STOP);
 	}
+#else
+	if (snd_pcm_running(substream))
+		snd_pcm_stop(substream, SNDRV_PCM_STATE_DISCONNECTED);
+#endif
 
 	snd_pcm_stream_unlock_irqrestore(substream, flags);
 }
