@@ -22,6 +22,7 @@ config FB_MXC_LDB
 	tristate "MXC LDB"
 	depends on FB_MXC_SYNC_PANEL
 	depends on MXC_IPU_V3
+	select VIDEOMODE_HELPERS
 
 config FB_MXC_MIPI_DSI
 	tristate "MXC MIPI_DSI"

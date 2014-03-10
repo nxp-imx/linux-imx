@@ -690,21 +690,20 @@
 			};
 
 			ldb: ldb@020e0008 {
-				compatible = "fsl,imx6q-ldb", "fsl,imx53-ldb";
-				reg = <0x020e0000 0x4000>;
-				clocks = <&clks 135>, <&clks 136>,
-					 <&clks 39>, <&clks 40>,
-					 <&clks 41>, <&clks 42>,
-					 <&clks 184>, <&clks 185>,
-					 <&clks 205>, <&clks 206>,
-					 <&clks 207>, <&clks 208>;
-				clock-names = "ldb_di0", "ldb_di1",
-					      "ipu1_di0_sel", "ipu1_di1_sel",
-					      "ipu2_di0_sel", "ipu2_di1_sel",
-					      "di0_div_3_5", "di1_div_3_5",
-					      "di0_div_7", "di1_div_7",
-					      "di0_div_sel", "di1_div_sel";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				gpr = <&gpr>;
 				status = "disabled";
+
+				lvds-channel@0 {
+					reg = <0>;
+					status = "disabled";
+				};
+
+				lvds-channel@1 {
+					reg = <1>;
+					status = "disabled";
+				};
 			};
 
 			dcic1: dcic@020e4000 {

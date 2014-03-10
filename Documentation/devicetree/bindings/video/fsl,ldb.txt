@@ -1,0 +1,95 @@
+* Freescale LVDS Display Bridge(LDB)
+
+The LVDS Display Bridge (LDB) connects a display engine,
+such as IPU and LCDIF, to an external LVDS display interface.
+The purpose of the LDB is to support flow of synchronous RGB
+data from the display engine to external display devices
+through LVDS interfaces.  This support covers all aspects of
+these activities:
+* Connectivity to relevant devices - Displays with LVDS receivers.
+* Arranging the data as required by the external display receiver
+  and by LVDS display standards.
+* Synchronization and control capabilities.
+
+Required properties:
+- compatible: Should be "fsl,<soc>-ldb".
+- #address-cells: Must be <1>.
+- #size-cells: Must be <0>.
+- gpr: gpr is the phandle to general purpose register node.
+- clocks: The clocks provided by the SoC to LDB, including ldb_di0/1,
+  dix_sel, ldb_di0/1_div_3_5, ldb_di0/1_div_7 and ldb_di0/1_div_sel
+  clocks.
+- clock-names: Must contain entries for each entry in clocks.
+
+Optional properties:
+- ext-ref: Provide this bool property if your LDB uses an external
+  reference resistor for bandgap.
+- split-mode: Provide this bool property if your board uses LDB split
+  mode to drive a high resolution display, say 1080P@60.  In this
+  mode, two LVDS channels will drive one display.
+- dual-mode: Provide this bool property if your board uses LDB dual
+  mode to drive two displays.  In this mode, one display engine will
+  drive two displays which have the same timings and display content.
+
+Subnode for LVDS Channel
+========================
+
+Each LVDS Channel has to contain a display-timings node that describes the
+video timings for the connected LVDS display. For detailed information, also
+have a look at Documentation/devicetree/bindings/video/display-timing.txt.
+
+Required properties:
+- reg: Should be <0> or <1>.
+- fsl,data-mapping: Should be "spwg" or "jeida".
+  This describes how the color bits are laid out in the serialized LVDS signal.
+- fsl,data-width: Should be <18> or <24>.
+- crtc: Should be "ipu1/2-di0/1" for i.MX6Q, "ipu1-di0/1" or "LCDIF" for i.MX6DL,
+  "ipu-di0/1" for i.MX53 and "lcdif1/2" for i.MX6sx.
+
+Optional properties:
+- primary: Provide this bool property if this channel is the one found by a
+  framebuffer with a smaller node id.  This property is not valid for
+  dual mode and split mode.
+
+ldb: ldb@020e0008 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	gpr = <&gpr>;
+	compatible = "fsl,imx6dl-ldb", "fsl,imx53-ldb";
+	gpr = <&gpr>;
+	clocks = <&clks 135>, <&clks 136>,
+		 <&clks 39>, <&clks 40>,
+		 <&clks 41>,
+		 <&clks 184>, <&clks 185>,
+		 <&clks 205>, <&clks 206>,
+		 <&clks 207>, <&clks 208>;
+	clock-names = "ldb_di0", "ldb_di1",
+		      "di0_sel", "di1_sel",
+		      "di2_sel",
+		      "ldb_di0_div_3_5", "ldb_di1_div_3_5",
+		      "ldb_di0_div_7", "ldb_di1_div_7",
+		      "ldb_di0_div_sel", "ldb_di1_div_sel";
+
+	lvds-channel@0 {
+		reg = <0>;
+		fsl,data-mapping = "spwg";
+		fsl,data-width = <18>;
+		crtc = "ipu1-di0";
+
+		display-timings {
+			/* ... */
+		};
+	};
+
+	lvds-channel@1 {
+		reg = <1>;
+		fsl,data-mapping = "spwg";
+		fsl,data-width = <18>;
+		crtc = "ipu1-di1";
+		primary;
+
+		display-timings {
+			/* ... */
+		};
+	};
+};

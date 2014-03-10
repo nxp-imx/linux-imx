@@ -20,6 +20,16 @@
 	compatible = "fsl,imx6q-sabreauto", "fsl,imx6q";
 };
 
+&ldb {
+	lvds-channel@0 {
+		crtc = "ipu2-di0";
+	};
+
+	lvds-channel@1 {
+		crtc = "ipu2-di1";
+	};
+};
+
 &mxcfb1 {
 	status = "okay";
 };

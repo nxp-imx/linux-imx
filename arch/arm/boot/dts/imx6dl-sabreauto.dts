@@ -17,8 +17,13 @@
 };
 
 &ldb {
-	ipu_id = <0>;
-	sec_ipu_id = <0>;
+	lvds-channel@0 {
+		crtc = "ipu1-di0";
+	};
+
+	lvds-channel@1 {
+		crtc = "ipu1-di1";
+	};
 };
 
 &mxcfb1 {

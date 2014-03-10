@@ -206,3 +206,20 @@
 		};
 	};
 };
+
+&ldb {
+	compatible = "fsl,imx6dl-ldb", "fsl,imx53-ldb";
+
+	clocks = <&clks 135>, <&clks 136>,
+		 <&clks 39>, <&clks 40>,
+		 <&clks 41>,
+		 <&clks 184>, <&clks 185>,
+		 <&clks 205>, <&clks 206>,
+		 <&clks 207>, <&clks 208>;
+	clock-names = "ldb_di0", "ldb_di1",
+		      "di0_sel", "di1_sel",
+		      "di2_sel",
+		      "ldb_di0_div_3_5", "ldb_di1_div_3_5",
+		      "ldb_di0_div_7", "ldb_di1_div_7",
+		      "ldb_di0_div_sel", "ldb_di1_div_sel";
+};

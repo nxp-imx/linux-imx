@@ -8,21 +8,6 @@ display device.
 Two IPU units are on the imx6q SOC while only one IPU unit on the imx6dl SOC.
 Each IPU unit has two display interfaces.
 
-For LDB/LVDS panel, there are two LVDS channels(LVDS0 and LVDS1) which can
-transfer video data, these two channels can be used as
-split/dual/single/separate mode.
--split mode means display data from DI0 or DI1 will send to both channels
- LVDS0+LVDS1.
--dual mode means display data from DI0 or DI1 will be duplicated on LVDS0
- and LVDS1, it said, LVDS0 and LVDS1 has the same content.
--single mode means only work for DI0/DI1->LVDS0 or DI0/DI1->LVDS1.
--separate mode means you can make DI0/DI1->LVDS0 and DI0/DI1->LVDS1 work
- at the same time.
- "ldb=spl0/1"	--      split mode on DI0/1
- "ldb=dul0/1"	--      dual mode on DI0/1
- "ldb=sin0/1"	--      single mode on LVDS0/1
- "ldb=sep0/1"	--      separate mode begin from LVDS0/1
-
 Required properties for IPU:
 - bypass_reset :Bypass reset to avoid display channel being.
   stopped by probe since it may start to work in bootloader: 0 or 1.
@@ -37,8 +22,7 @@ Required properties for IPU:
 Required properties for fb:
 - compatible : should be "fsl,mxc_sdc_fb".
 - disp_dev : display device: "ldb", "lcd", "hdmi", "mipi_dsi".
-- mode_str : video mode string: "LDB-XGA" or "LDB-1080P60" for ldb,
-  "CLAA-WVGA" for lcd, "TRULY-WVGA" for TRULY mipi_dsi lcd panel,
+- mode_str : "CLAA-WVGA" for lcd, "TRULY-WVGA" for TRULY mipi_dsi lcd panel,
   "1920x1080M@60" for hdmi.
 - default_bpp : default bits per pixel: 8/16/24/32
 - int_clk : use internal clock as pixel clock: 0 or 1
@@ -51,14 +35,13 @@ Required properties for fb:
 	BGR24		IPU_PIX_FMT_BGR24
 	GBR24		IPU_PIX_FMT_GBR24
 	YUV444		IPU_PIX_FMT_YUV444
-	LVDS666		IPU_PIX_FMT_LVDS666
 	YUYV		IPU_PIX_FMT_YUYV
 	UYVY		IPU_PIX_FMT_UYVY
 	YVYV		IPU_PIX_FMT_YVYU
 	VYUY		IPU_PIX_FMT_VYUY
 
 Required properties for display:
-- compatible : should be "fsl,lcd" for lcd panel, "fsl,imx6q-ldb" for ldb
+- compatible : should be "fsl,lcd" for lcd panel
 - reg : the register address range if necessary to have.
 - interrupts : the error and sync interrupts if necessary to have.
 - clocks : the clock sources that it depends on if necessary to have.
@@ -69,19 +52,6 @@ Required properties for display:
 - pinctrl-names : should be "default"
 - pinctrl-0 : should be pinctrl_ipu1_1 or pinctrl_ipu2_1, which depends on the
   IPU connected.
-- sec_ipu_id : secondary ipu id for the second display device(ldb only): 0 or 1
-- sec_disp_id : secondary display interface id for the second display
-  device(ldb only): 0 or 1
-- ext_ref : reference resistor select for ldb only: 0 or 1
-- mode : ldb mode as below:
-	spl0		LDB_SPL_DI0
-	spl1		LDB_SPL_DI1
-	dul0		LDB_DUL_DI0
-	dul1		LDB_DUL_DI1
-	sin0		LDB_SIN0
-	sin1		LDB_SIN1
-	sep0		LDB_SEP0
-	sep1		LDB_SEP1
 - gpr : the mux controller for the display engine's display interfaces and the display encoder
 	(only valid for mipi dsi now).
 - disp-power-on-supply : the regulator to control display panel's power.
@@ -115,17 +85,6 @@ Example for fb:
 			default_bpp = <16>;
 			int_clk = <0>;
 			late_init = <0>;
-			status = "okay";
-		};
-
-Example for ldb display:
-		ldb@020e0000 {
-			ipu_id = <1>;
-			disp_id = <0>;
-			ext_ref = <1>;
-			mode = "sep0";
-			sec_ipu_id = <1>;
-			sec_disp_id = <1>;
 			status = "okay";
 		};
 
