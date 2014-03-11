@@ -57,6 +57,8 @@
 #include <video/of_display_timing.h>
 #include <video/videomode.h>
 
+#include "mxc/mxc_dispdrv.h"
+
 #define REG_SET	4
 #define REG_CLR	8
 
@@ -204,6 +206,8 @@ struct mxsfb_info {
 	struct semaphore flip_sem;
 	int cur_blank;
 	int restore_blank;
+	char disp_dev[32];
+	struct mxc_dispdrv_handle *dispdrv;
 };
 
 #define mxsfb_is_v3(host) (host->devdata->ipversion == 3)
@@ -438,6 +442,15 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 
 	dev_dbg(&host->pdev->dev, "%s\n", __func__);
 
+	if (host->dispdrv && host->dispdrv->drv->setup) {
+		ret = host->dispdrv->drv->setup(host->dispdrv, fb_info);
+		if (ret < 0) {
+			dev_err(&host->pdev->dev, "failed to setup"
+				"dispdrv:%s\n", host->dispdrv->drv->name);
+			return;
+		}
+	}
+
 	if (host->reg_lcd) {
 		ret = regulator_enable(host->reg_lcd);
 		if (ret) {
@@ -476,6 +489,13 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 	writel(CTRL1_RECOVERY_ON_UNDERFLOW, host->base + LCDC_CTRL1 + REG_SET);
 
 	host->enabled = 1;
+
+	if (host->dispdrv && host->dispdrv->drv->enable) {
+		ret = host->dispdrv->drv->enable(host->dispdrv, fb_info);
+		if (ret < 0)
+			dev_err(&host->pdev->dev, "failed to enable "
+				"dispdrv:%s\n", host->dispdrv->drv->name);
+	}
 }
 
 static void mxsfb_disable_controller(struct fb_info *fb_info)
@@ -486,6 +506,9 @@ static void mxsfb_disable_controller(struct fb_info *fb_info)
 	int ret;
 
 	dev_dbg(&host->pdev->dev, "%s\n", __func__);
+
+	if (host->dispdrv && host->dispdrv->drv->disable)
+		host->dispdrv->drv->disable(host->dispdrv, fb_info);
 
 	clk_enable_axi(host);
 	clk_enable_disp_axi(host);
@@ -954,6 +977,7 @@ static int mxsfb_init_fbinfo_dt(struct mxsfb_info *host)
 	struct device_node *display_np;
 	struct device_node *timings_np;
 	struct display_timings *timings;
+	const char *disp_dev;
 	u32 width;
 	int i;
 	int ret = 0;
@@ -993,6 +1017,13 @@ static int mxsfb_init_fbinfo_dt(struct mxsfb_info *host)
 				   &var->bits_per_pixel);
 	if (ret < 0) {
 		dev_err(dev, "failed to get property bits-per-pixel\n");
+		goto put_display_node;
+	}
+
+	ret = of_property_read_string(np, "disp-dev", &disp_dev);
+	if (!ret) {
+		memcpy(host->disp_dev, disp_dev, strlen(disp_dev));
+		/* Timing is from encoder driver */
 		goto put_display_node;
 	}
 
@@ -1079,6 +1110,29 @@ static int mxsfb_init_fbinfo(struct mxsfb_info *host)
 		memset((char *)fb_info->screen_base, 0, fb_info->fix.smem_len);
 
 	return 0;
+}
+
+static void mxsfb_dispdrv_init(struct platform_device *pdev,
+			      struct fb_info *fbi)
+{
+	struct mxsfb_info *host = to_imxfb_host(fbi);
+	struct mxc_dispdrv_setting setting;
+	struct device *dev = &pdev->dev;
+	char disp_dev[32];
+
+	setting.fbi = fbi;
+	memcpy(disp_dev, host->disp_dev, strlen(host->disp_dev));
+	disp_dev[strlen(host->disp_dev)] = '\0';
+
+	host->dispdrv = mxc_dispdrv_gethandle(disp_dev, &setting);
+	if (IS_ERR(host->dispdrv)) {
+		host->dispdrv = NULL;
+		dev_info(dev, "failed to find mxc display driver %s\n",
+			 disp_dev);
+	} else {
+		dev_info(dev, "registered mxc display driver %s\n",
+			 disp_dev);
+	}
 }
 
 static void mxsfb_free_videomem(struct mxsfb_info *host)
@@ -1211,12 +1265,6 @@ static int mxsfb_probe(struct platform_device *pdev)
 
 	host->devdata = &mxsfb_devdata[pdev->id_entry->driver_data];
 
-	pinctrl = devm_pinctrl_get_select_default(&pdev->dev);
-	if (IS_ERR(pinctrl)) {
-		ret = PTR_ERR(pinctrl);
-		goto fb_release;
-	}
-
 	host->clk_pix = devm_clk_get(&host->pdev->dev, "pix");
 	if (IS_ERR(host->clk_pix)) {
 		host->clk_pix = NULL;
@@ -1256,6 +1304,16 @@ static int mxsfb_probe(struct platform_device *pdev)
 	ret = mxsfb_init_fbinfo(host);
 	if (ret != 0)
 		goto fb_pm_runtime_disable;
+
+	mxsfb_dispdrv_init(pdev, fb_info);
+
+	if (!host->dispdrv) {
+		pinctrl = devm_pinctrl_get_select_default(&pdev->dev);
+		if (IS_ERR(pinctrl)) {
+			ret = PTR_ERR(pinctrl);
+			goto fb_pm_runtime_disable;
+		}
+	}
 
 	platform_set_drvdata(pdev, fb_info);
 

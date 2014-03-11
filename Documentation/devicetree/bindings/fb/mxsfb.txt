@@ -3,12 +3,18 @@
 Required properties:
 - compatible: Should be "fsl,<chip>-lcdif".  Supported chips include
   imx23 and imx28.
-- pinctrl-names: Should be "default"
-- pinctrl-0: pinctrl setting for lcd
-- lcd-supply: lcd power supply, usually via GPIO
 - reg: Address and length of the register set for lcdif
 - interrupts: Should contain lcdif interrupts
 - display : phandle to display node (see below for details)
+
+Optional sub-node:
+These properties are required only when driving LCD panels directly:
+- pinctrl-names: Should be "default"
+- pinctrl-0: pinctrl setting for lcd
+- lcd-supply: lcd power supply, usually via GPIO
+
+This property is required only when driving LDB:
+- disp-dev: Should be "ldb".
 
 * display node
 
@@ -16,8 +22,9 @@ Required properties:
 - bits-per-pixel : <16> for RGB565, <32> for RGB888/666.
 - bus-width : number of data lines.  Could be <8>, <16>, <18> or <24>.
 
-Required sub-node:
+Optional sub-node:
 - display-timings : Refer to binding doc display-timing.txt for details.
+  This property is required only when driving LCD panels directly.
 
 Examples:
 
