@@ -33,8 +33,6 @@ struct mxc_dispdrv_setting {
 struct mxc_dispdrv_driver {
 	const char *name;
 	int (*init) (struct mxc_dispdrv_handle *, struct mxc_dispdrv_setting *);
-	/* deferred operations after dev_id and disp_id pass usage check */
-	int (*post_init) (struct mxc_dispdrv_handle *, int dev_id, int disp_id);
 	void (*deinit) (struct mxc_dispdrv_handle *);
 	/* display driver enable function for extension */
 	int (*enable) (struct mxc_dispdrv_handle *, struct fb_info *);

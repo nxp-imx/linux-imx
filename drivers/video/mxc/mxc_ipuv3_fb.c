@@ -2407,16 +2407,6 @@ static int mxcfb_probe(struct platform_device *pdev)
 		goto ipu_in_busy;
 	}
 
-	if (mxcfbi->dispdrv->drv->post_init) {
-		ret = mxcfbi->dispdrv->drv->post_init(mxcfbi->dispdrv,
-						mxcfbi->ipu_id,
-						mxcfbi->ipu_di);
-		if (ret < 0) {
-			dev_err(&pdev->dev, "post init failed\n");
-			goto post_init_failed;
-		}
-	}
-
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (res && res->start && res->end) {
 		fbi->fix.smem_len = res->end - res->start + 1;
@@ -2505,7 +2495,6 @@ static int mxcfb_probe(struct platform_device *pdev)
 mxcfb_setupoverlay_failed:
 mxcfb_register_failed:
 get_ipu_failed:
-post_init_failed:
 	ipu_clear_usage(mxcfbi->ipu_id, mxcfbi->ipu_di);
 ipu_in_busy:
 init_dispdrv_failed:
