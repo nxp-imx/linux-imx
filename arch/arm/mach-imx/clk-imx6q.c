@@ -68,7 +68,7 @@ static const char *cko2_sels[] = {
 	"gpu3d_core", "usdhc2", "ssi1", "ssi2",
 	"ssi3", "gpu3d_shader", "vpu_axi", "can_root",
 	"ldb_di0", "ldb_di1", "esai", "eim_slow",
-	"uart_serial", "spdif", "asrc", "hsi_tx",
+	"uart_serial", "spdif", "spdif1", "hsi_tx",
 };
 static const char *cko_sels[] = { "cko1", "cko2", };
 static const char *lvds_sels[]	= { "arm", "pll1_sys", "dummy", "dummy", "dummy", "dummy", "dummy", "pll5_video_div",
@@ -80,7 +80,7 @@ enum mx6q_clks {
 	pll3_pfd0_720m, pll3_pfd1_540m, pll3_pfd2_508m, pll3_pfd3_454m,
 	pll2_198m, pll3_120m, pll3_80m, pll3_60m, twd, step, pll1_sw,
 	periph_pre, periph2_pre, periph_clk2_sel, periph2_clk2_sel, axi_sel,
-	esai_sel, asrc_sel, spdif_sel, gpu2d_axi, gpu3d_axi, gpu2d_core_sel,
+	esai_sel, spdif1_sel, spdif_sel, gpu2d_axi, gpu3d_axi, gpu2d_core_sel,
 	gpu3d_core_sel, gpu3d_shader_sel, ipu1_sel, ipu2_sel, ldb_di0_sel,
 	ldb_di1_sel, ipu1_di0_pre_sel, ipu1_di1_pre_sel, ipu2_di0_pre_sel,
 	ipu2_di1_pre_sel, ipu1_di0_sel, ipu1_di1_sel, ipu2_di0_sel,
@@ -88,14 +88,14 @@ enum mx6q_clks {
 	usdhc1_sel, usdhc2_sel, usdhc3_sel, usdhc4_sel, enfc_sel, emi_sel,
 	emi_slow_sel, vdo_axi_sel, vpu_axi_sel, cko1_sel, periph, periph2,
 	periph_clk2, periph2_clk2, ipg, ipg_per, esai_pred, esai_podf,
-	asrc_pred, asrc_podf, spdif_pred, spdif_podf, can_root, ecspi_root,
+	spdif1_pred, spdif1_podf, spdif_pred, spdif_podf, can_root, ecspi_root,
 	gpu2d_core_podf, gpu3d_core_podf, gpu3d_shader, ipu1_podf, ipu2_podf,
 	ldb_di0_podf_unused, ldb_di1_podf_unused, ipu1_di0_pre, ipu1_di1_pre,
 	ipu2_di0_pre, ipu2_di1_pre, hsi_tx_podf, ssi1_pred, ssi1_podf,
 	ssi2_pred, ssi2_podf, ssi3_pred, ssi3_podf, uart_serial_podf,
 	usdhc1_podf, usdhc2_podf, usdhc3_podf, usdhc4_podf, enfc_pred, enfc_podf,
 	emi_podf, emi_slow_podf, vpu_axi_podf, cko1_podf, axi, mmdc_ch0_axi_podf,
-	mmdc_ch1_axi_podf, arm, ahb, apbh_dma, asrc, can1_ipg, can1_serial,
+	mmdc_ch1_axi_podf, arm, ahb, apbh_dma, asrc_gate, can1_ipg, can1_serial,
 	can2_ipg, can2_serial, ecspi1, ecspi2, ecspi3, ecspi4, ecspi5, enet,
 	esai, gpt_ipg, gpt_ipg_per, gpu2d_core, gpu3d_core, hdmi_iahb,
 	hdmi_isfr, i2c1, i2c2, i2c3, iim, enfc, ipu1, ipu1_di0, ipu1_di1, ipu2,
@@ -112,7 +112,7 @@ enum mx6q_clks {
 	ldb_di0_div_7, ldb_di1_div_7, ldb_di0_div_sel, ldb_di1_div_sel,
 	pll4_audio_div, lvds1_sel, lvds1_in, lvds1_out, caam_mem, caam_aclk,
 	caam_ipg, epit1, epit2, tzasc2, pll4_sel, lvds2_sel, lvds2_in, lvds2_out,
-	anaclk1, anaclk2, clk_max
+	anaclk1, anaclk2, spdif1, asrc_ipg, asrc_mem, clk_max
 };
 
 static struct clk *clk[clk_max];
@@ -253,7 +253,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk[periph2_clk2_sel] = imx_clk_mux("periph2_clk2_sel", base + 0x18, 20, 1, periph2_clk2_sels, ARRAY_SIZE(periph2_clk2_sels));
 	clk[axi_sel]          = imx_clk_mux("axi_sel",          base + 0x14, 6,  2, axi_sels,          ARRAY_SIZE(axi_sels));
 	clk[esai_sel]         = imx_clk_mux("esai_sel",         base + 0x20, 19, 2, audio_sels,        ARRAY_SIZE(audio_sels));
-	clk[asrc_sel]         = imx_clk_mux("asrc_sel",         base + 0x30, 7,  2, audio_sels,        ARRAY_SIZE(audio_sels));
+	clk[spdif1_sel]       = imx_clk_mux("spdif1_sel",       base + 0x30, 7,  2, audio_sels,        ARRAY_SIZE(audio_sels));
 	clk[spdif_sel]        = imx_clk_mux("spdif_sel",        base + 0x30, 20, 2, audio_sels,        ARRAY_SIZE(audio_sels));
 	clk[gpu2d_axi]        = imx_clk_mux("gpu2d_axi",        base + 0x18, 0,  1, gpu_axi_sels,      ARRAY_SIZE(gpu_axi_sels));
 	clk[gpu3d_axi]        = imx_clk_mux("gpu3d_axi",        base + 0x18, 1,  1, gpu_axi_sels,      ARRAY_SIZE(gpu_axi_sels));
@@ -303,8 +303,8 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk[ipg_per]          = imx_clk_fixup_divider("ipg_per",    "ipg",               base + 0x1c, 0,  6, imx_cscmr1_fixup);
 	clk[esai_pred]        = imx_clk_divider("esai_pred",        "esai_sel",          base + 0x28, 9,  3);
 	clk[esai_podf]        = imx_clk_divider("esai_podf",        "esai_pred",         base + 0x28, 25, 3);
-	clk[asrc_pred]        = imx_clk_divider("asrc_pred",        "asrc_sel",          base + 0x30, 12, 3);
-	clk[asrc_podf]        = imx_clk_divider("asrc_podf",        "asrc_pred",         base + 0x30, 9,  3);
+	clk[spdif1_pred]      = imx_clk_divider("spdif1_pred",      "spdif1_sel",        base + 0x30, 12, 3);
+	clk[spdif1_podf]      = imx_clk_divider("spdif1_podf",      "spdif1_pred",       base + 0x30, 9,  3);
 	clk[spdif_pred]       = imx_clk_divider("spdif_pred",       "spdif_sel",         base + 0x30, 25, 3);
 	clk[spdif_podf]       = imx_clk_divider("spdif_podf",       "spdif_pred",        base + 0x30, 22, 3);
 	clk[can_root]         = imx_clk_divider("can_root",         "pll3_60m",          base + 0x20, 2,  6);
@@ -351,7 +351,9 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 
 	/*                                name             parent_name          reg         shift */
 	clk[apbh_dma]     = imx_clk_gate2("apbh_dma",      "usdhc3",            base + 0x68, 4);
-	clk[asrc]         = imx_clk_gate2("asrc",          "asrc_podf",         base + 0x68, 6);
+	clk[asrc_gate]    = imx_clk_gate2("asrc_gate",     "ahb",               base + 0x68, 6);
+	clk[asrc_ipg]     = imx_clk_fixed_factor("asrc_ipg", "asrc_gate", 1, 1);
+	clk[asrc_mem]     = imx_clk_fixed_factor("asrc_mem", "asrc_gate", 1, 1);
 	clk[caam_mem]     = imx_clk_gate2("caam_mem",      "ahb",               base + 0x68, 8);
 	clk[caam_aclk]    = imx_clk_gate2("caam_aclk",     "ahb",               base + 0x68, 10);
 	clk[caam_ipg]     = imx_clk_gate2("caam_ipg",      "ipg",               base + 0x68, 12);
@@ -562,8 +564,8 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk_set_parent(clk[ssi3_sel], clk[pll4_audio_div]);
 	clk_set_parent(clk[esai_sel], clk[pll4_audio_div]);
 	clk_set_parent(clk[spdif_sel], clk[pll3_pfd3_454m]);
-	clk_set_parent(clk[asrc_sel], clk[pll3_usb_otg]);
-	clk_set_rate(clk[asrc_sel], 7500000);
+	clk_set_parent(clk[spdif1_sel], clk[pll3_usb_otg]);
+	clk_set_rate(clk[spdif1_sel], 7500000);
 
 	/* Set pll4_audio to a value that can derive 5K-88.2KHz and 8K-96KHz */
 	clk_set_rate(clk[pll4_audio_div], 541900800);

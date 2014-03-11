@@ -36,7 +36,7 @@ clocks and IDs.
 	periph2_clk2_sel	21
 	axi_sel			22
 	esai_sel		23
-	asrc_sel		24
+	spdif1_sel		24
 	spdif_sel		25
 	gpu2d_axi		26
 	gpu3d_axi		27
@@ -78,8 +78,8 @@ clocks and IDs.
 	ipg_per			63
 	esai_pred		64
 	esai_podf		65
-	asrc_pred		66
-	asrc_podf		67
+	spdif1_pred		66
+	spdif1_podf		67
 	spdif_pred		68
 	spdif_podf		69
 	can_root		70
@@ -117,7 +117,7 @@ clocks and IDs.
 	arm			104
 	ahb			105
 	apbh_dma		106
-	asrc			107
+	asrc_gate		107
 	can1_ipg		108
 	can1_serial		109
 	can2_ipg		110
@@ -235,6 +235,9 @@ clocks and IDs.
 	lvds2_out		222
 	anaclk1			223
 	anaclk2			224
+	spdif1                  225
+	asrc_ipg                226
+	asrc_mem                227
 
 Examples:
 
