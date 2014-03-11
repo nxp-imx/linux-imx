@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1764,6 +1764,8 @@ static void setup_received_irq(struct fsl_udc *udc,
 		if (udc->driver->setup(&udc->gadget,
 				&udc->local_setup_buff) < 0)
 			ep0stall(udc);
+		else if (setup->bRequest == USB_REQ_SET_CONFIGURATION)
+			udc->usb_state = USB_STATE_CONFIGURED;
 	}
 	spin_lock(&udc->lock);
 }
