@@ -117,7 +117,7 @@
 &pwm3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_pwm3_0>;
-	status = "disabled";
+	status = "okay";
 };
 
 &pxp {
