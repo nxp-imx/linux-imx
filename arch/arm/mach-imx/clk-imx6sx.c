@@ -318,7 +318,9 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_AIPS_TZ1]     = imx_clk_gate2("aips_tz1",      "ahb",               base + 0x68, 0);
 	clks[IMX6SX_CLK_AIPS_TZ2]     = imx_clk_gate2("aips_tz2",      "ahb",               base + 0x68, 2);
 	clks[IMX6SX_CLK_APBH_DMA]     = imx_clk_gate2("apbh_dma",      "usdhc3",            base + 0x68, 4);
-	clks[IMX6SX_CLK_ASRC]         = imx_clk_gate2("asrc",          "ahb",               base + 0x68, 6);
+	clks[IMX6SX_CLK_ASRC_GATE]    = imx_clk_gate2("asrc_gate",     "ahb",               base + 0x68, 6);
+	clks[IMX6SX_CLK_ASRC_MEM]     = imx_clk_fixed_factor("asrc_mem", "asrc_gate", 1, 1);
+	clks[IMX6SX_CLK_ASRC_IPG]     = imx_clk_fixed_factor("asrc_ipg", "asrc_gate", 1, 1);
 	clks[IMX6SX_CLK_CAAM_MEM]     = imx_clk_gate2("caam_mem",      "ahb",               base + 0x68, 8);
 	clks[IMX6SX_CLK_CAAM_ACLK]    = imx_clk_gate2("caam_aclk",     "ahb",               base + 0x68, 10);
 	clks[IMX6SX_CLK_CAAM_IPG]     = imx_clk_gate2("caam_ipg",      "ipg",               base + 0x68, 12);
