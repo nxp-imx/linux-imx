@@ -124,8 +124,11 @@
 					compatible = "fsl,imx53-asrc";
 					reg = <0x02034000 0x4000>;
 					interrupts = <0 50 0x04>;
-					clocks = <&clks IMX6SX_CLK_ASRC>, <&clks IMX6SX_CLK_SPBA>;
-					clock-names = "core", "dma";
+					clocks = <&clks IMX6SX_CLK_ASRC_MEM>,
+					       <&clks IMX6SX_CLK_ASRC_IPG>,
+					       <&clks IMX6SX_CLK_SPDIF>,
+					       <&clks IMX6SX_CLK_SPBA>;
+					clock-names = "mem", "ipg", "asrck", "dma";
 					dmas = <&sdma 17 20 1>, <&sdma 18 20 1>, <&sdma 19 20 1>,
 					     <&sdma 20 20 1>, <&sdma 21 20 1>, <&sdma 22 20 1>;
 					dma-names = "rxa", "rxb", "rxc",

@@ -296,8 +296,9 @@
 					compatible = "fsl,imx53-asrc";
 					reg = <0x02034000 0x4000>;
 					interrupts = <0 50 0x04>;
-					clocks = <&clks 107>, <&clks 156>;
-					clock-names = "core", "dma";
+					clocks = <&clks 227>, <&clks 226>,
+					       <&clks 225>, <&clks 156>;
+					clock-names = "mem", "ipg", "asrck", "dma";
 					dmas = <&sdma 17 20 1>, <&sdma 18 20 1>, <&sdma 19 20 1>,
 					     <&sdma 20 20 1>, <&sdma 21 20 1>, <&sdma 22 20 1>;
 					dma-names = "rxa", "rxb", "rxc",
