@@ -1431,6 +1431,23 @@ static int fsl_vbus_session(struct usb_gadget *gadget, int is_active)
 	return 0;
 }
 
+/*
+ * Update usb charger max current according to usb state
+ */
+static void fsl_update_charger_max_current(struct fsl_udc *udc)
+{
+#ifdef CONFIG_IMX_USB_CHARGER
+	if (udc->usb_state == USB_STATE_CONFIGURED)
+		udc->charger.max_current = 500;
+	else if (udc->usb_state == USB_STATE_SUSPENDED)
+		udc->charger.max_current = 2;
+	else
+		udc->charger.max_current = 100;
+
+	power_supply_changed(&udc->charger.psy);
+#endif
+}
+
 /* constrain controller's VBUS power usage
  * This call is used by gadget drivers during SET_CONFIGURATION calls,
  * reporting how much power the device may consume.  For example, this
@@ -1764,8 +1781,10 @@ static void setup_received_irq(struct fsl_udc *udc,
 		if (udc->driver->setup(&udc->gadget,
 				&udc->local_setup_buff) < 0)
 			ep0stall(udc);
-		else if (setup->bRequest == USB_REQ_SET_CONFIGURATION)
+		else if (setup->bRequest == USB_REQ_SET_CONFIGURATION) {
 			udc->usb_state = USB_STATE_CONFIGURED;
+			fsl_update_charger_max_current(udc);
+		}
 	}
 	spin_lock(&udc->lock);
 }
@@ -2080,6 +2099,7 @@ static void suspend_irq(struct fsl_udc *udc)
 	if (udc->driver->suspend)
 		udc->driver->suspend(&udc->gadget);
 
+	fsl_update_charger_max_current(udc);
 	pr_debug("%s ends\n", __func__);
 }
 
@@ -2087,6 +2107,8 @@ static void bus_resume(struct fsl_udc *udc)
 {
 	udc->usb_state = udc->resume_state;
 	udc->resume_state = 0;
+
+	fsl_update_charger_max_current(udc);
 
 	/* report resume to the driver, serial.c does not support this */
 	if (udc->driver->resume)

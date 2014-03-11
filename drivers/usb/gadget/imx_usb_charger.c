@@ -88,7 +88,7 @@ static void usb_charger_work(struct work_struct *data)
 		charger->max_current = 900;
 		break;
 	case POWER_SUPPLY_TYPE_USB: /* SDP */
-		charger->max_current = 500;
+		charger->max_current = 100;
 	default:
 		if (charger->dp_pullup)
 			charger->dp_pullup(true);
