@@ -1929,8 +1929,6 @@ static int mxcfb_dispdrv_init(struct platform_device *pdev,
 		disp_dev[strlen(plat_data->disp_dev)] = '\0';
 	}
 
-	dev_info(&pdev->dev, "register mxc display driver %s\n", disp_dev);
-
 	mxcfbi->dispdrv = mxc_dispdrv_gethandle(disp_dev, &setting);
 	if (IS_ERR(mxcfbi->dispdrv)) {
 		ret = PTR_ERR(mxcfbi->dispdrv);
@@ -1949,6 +1947,8 @@ static int mxcfb_dispdrv_init(struct platform_device *pdev,
 				setting.if_fmt, setting.default_bpp,
 				mxcfbi->ipu_di, mxcfbi->ipu_id);
 	}
+
+	dev_info(&pdev->dev, "registered mxc display driver %s\n", disp_dev);
 
 	return ret;
 }
