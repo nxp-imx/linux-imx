@@ -27,8 +27,8 @@ for SOC imx6qdl.dtsi:
 		compatible = "fsl,imx6q-mipi-csi2";
 		reg = <0x021dc000 0x4000>;
 		interrupts = <0 100 0x04>, <0 101 0x04>;
-		clocks = <&clks 138>, <&clks 53>;
-		clock-names = "dphy_clk", "pixel_clk";
+		clocks = <&clks 138>, <&clks 53>, <&clks 204>;
+		clock-names = "dphy_clk", "pixel_clk", "cfg_clk";
 		status = "disabled";
 	};
 
