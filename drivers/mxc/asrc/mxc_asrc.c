@@ -1,7 +1,7 @@
 /*
  * Freescale Asynchronous Sample Rate Converter (ASRC) driver
  *
- * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This file is licensed under the terms of the GNU General Public License
  * version 2.  This program  is licensed "as is" without any warranty of any
@@ -256,7 +256,7 @@ static int asrc_get_asrck_clock_divider(int samplerate)
 		return -EINVAL;
 	}
 
-	bitclk = clk_get_rate(asrc->asrc_clk);
+	bitclk = clk_get_rate(asrc->asrck_clk);
 
 	ra = bitclk / samplerate;
 	ratio = ra;
@@ -317,7 +317,9 @@ int asrc_req_pair(int chn_num, enum asrc_pair_index *index)
 	spin_unlock_irqrestore(&data_lock, lock_flags);
 
 	if (!ret) {
-		clk_enable(asrc->asrc_clk);
+		clk_prepare_enable(asrc->mem_clk);
+		clk_prepare_enable(asrc->ipg_clk);
+		clk_prepare_enable(asrc->asrck_clk);
 		clk_prepare_enable(asrc->dma_clk);
 	}
 
@@ -549,7 +551,9 @@ EXPORT_SYMBOL(asrc_stop_conv);
 void asrc_finish_conv(enum asrc_pair_index index)
 {
 	clk_disable_unprepare(asrc->dma_clk);
-	clk_disable(asrc->asrc_clk);
+	clk_disable_unprepare(asrc->asrck_clk);
+	clk_disable_unprepare(asrc->ipg_clk);
+	clk_disable_unprepare(asrc->mem_clk);
 }
 EXPORT_SYMBOL(asrc_finish_conv);
 
@@ -1862,7 +1866,7 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 
 	/* Register regmap and let it prepare core clock */
 	asrc->regmap = devm_regmap_init_mmio_clk(&pdev->dev,
-			"core", regs, &asrc_regmap_config);
+			"mem", regs, &asrc_regmap_config);
 	if (IS_ERR(asrc->regmap)) {
 		dev_err(&pdev->dev, "regmap init failed\n");
 		return PTR_ERR(asrc->regmap);
@@ -1880,10 +1884,22 @@ static int mxc_asrc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	asrc->asrc_clk = devm_clk_get(&pdev->dev, "core");
-	if (IS_ERR(asrc->asrc_clk)) {
-		dev_err(&pdev->dev, "failed to get core clock\n");
-		return PTR_ERR(asrc->asrc_clk);
+	asrc->mem_clk = devm_clk_get(&pdev->dev, "mem");
+	if (IS_ERR(asrc->mem_clk)) {
+		dev_err(&pdev->dev, "failed to get mem clock\n");
+		return PTR_ERR(asrc->ipg_clk);
+	}
+
+	asrc->ipg_clk = devm_clk_get(&pdev->dev, "ipg");
+	if (IS_ERR(asrc->ipg_clk)) {
+		dev_err(&pdev->dev, "failed to get ipg clock\n");
+		return PTR_ERR(asrc->ipg_clk);
+	}
+
+	asrc->asrck_clk = devm_clk_get(&pdev->dev, "asrck");
+	if (IS_ERR(asrc->asrck_clk)) {
+		dev_err(&pdev->dev, "failed to get asrck clock\n");
+		return PTR_ERR(asrc->asrck_clk);
 	}
 
 	asrc->dma_clk = devm_clk_get(&pdev->dev, "dma");

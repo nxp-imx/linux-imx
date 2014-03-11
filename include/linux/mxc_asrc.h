@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -349,7 +349,9 @@ struct asrc_data {
 	struct proc_dir_entry *proc_asrc;
 	struct class *asrc_class;
 	struct regmap *regmap;
-	struct clk *asrc_clk;
+	struct clk *mem_clk;
+	struct clk *ipg_clk;
+	struct clk *asrck_clk;
 	struct clk *dma_clk;
 	unsigned long paddr;
 	unsigned int channel_bits;
