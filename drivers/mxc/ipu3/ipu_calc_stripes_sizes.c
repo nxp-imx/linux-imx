@@ -388,8 +388,11 @@ int ipu_calc_stripes_sizes(const unsigned int input_frame_width,
 						     &resize_coeff,
 						     &downsize_coeff) < 0)
 				return -EINVAL;
-			left->irr = right->irr =
-				(downsize_coeff << 14) | resize_coeff;
+
+			if (downsize_coeff > 0) {
+				left->irr = right->irr =
+					(downsize_coeff << 14) | resize_coeff;
+			}
 		}
 		pr_debug("inw %d, onw %d, ilw %d, ilc %d, olw %d,"
 			 " irw %d, irc %d, orw %d, orc %d, "
