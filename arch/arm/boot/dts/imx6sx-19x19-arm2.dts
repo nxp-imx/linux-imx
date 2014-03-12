@@ -21,6 +21,14 @@
 		default-brightness-level = <6>;
 	};
 
+	hannstar_cabc {
+		compatible = "hannstar,cabc";
+
+		lvds0 {
+			gpios = <&gpio2 16 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
 	max7322_reset: max7322-reset {
 		compatible = "gpio-reset";
 		reset-gpios = <&gpio6 18 GPIO_ACTIVE_LOW>;
@@ -109,6 +117,7 @@
 		pinctrl_hog_1: hoggrp-1 {
 			fsl,pins = <
 				MX6SX_PAD_SD4_DATA4__GPIO6_IO_18     0x1b0b0
+				MX6SX_PAD_KEY_ROW1__GPIO2_IO_16      0x1b0b0
 			 >;
 		};
 	};
