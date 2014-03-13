@@ -289,6 +289,43 @@ static void hw_phymode_configure(struct ci_hdrc *ci)
 }
 
 /**
+ * ci_usb_phy_init: initialize phy according to different phy type
+ * @ci: the controller
+  *
+ * This function returns an error code if usb_phy_init has failed
+ */
+static int ci_usb_phy_init(struct ci_hdrc *ci)
+{
+	int ret;
+
+	switch (ci->platdata->phy_mode) {
+	case USBPHY_INTERFACE_MODE_UTMI:
+	case USBPHY_INTERFACE_MODE_UTMIW:
+	case USBPHY_INTERFACE_MODE_HSIC:
+		ret = usb_phy_init(ci->transceiver);
+		if (!ret)
+			hw_wait_phy_stable();
+		else
+			return ret;
+		hw_phymode_configure(ci);
+		break;
+	case USBPHY_INTERFACE_MODE_ULPI:
+	case USBPHY_INTERFACE_MODE_SERIAL:
+		hw_phymode_configure(ci);
+		ret = usb_phy_init(ci->transceiver);
+		if (ret)
+			return ret;
+		break;
+	default:
+		ret = usb_phy_init(ci->transceiver);
+		if (!ret)
+			hw_wait_phy_stable();
+	}
+
+	return ret;
+}
+
+/**
  * hw_device_reset: resets chip (execute without interruption)
  * @ci: the controller
   *
@@ -589,8 +626,6 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	hw_phymode_configure(ci);
-
 	if (ci->platdata->phy)
 		ci->transceiver = ci->platdata->phy;
 	else
@@ -610,12 +645,10 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 		return -EPROBE_DEFER;
 	}
 
-	ret = usb_phy_init(ci->transceiver);
+	ret = ci_usb_phy_init(ci);
 	if (ret) {
 		dev_err(dev, "unable to init phy: %d\n", ret);
 		return ret;
-	} else {
-		hw_wait_phy_stable();
 	}
 
 	ci->hw_bank.phys = res->start;
