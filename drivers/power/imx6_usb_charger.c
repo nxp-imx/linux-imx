@@ -121,7 +121,10 @@ static int imx6_usb_charger_detect(struct usb_charger *charger)
 			if (data_pin_contact_count++ > 5)
 			/* Data pin makes contact */
 				break;
+			else
+				usleep_range(5000, 10000);
 		} else {
+			data_pin_contact_count = 0;
 			msleep(20);
 		}
 	}
