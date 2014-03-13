@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 #include <linux/module.h>
 #include <linux/mxc_mlb.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/poll.h>
 #include <linux/regulator/consumer.h>
@@ -272,6 +273,7 @@
 #define RX_CHANNEL		1
 
 #define TRANS_RING_NODES	(1 << 3)
+#define MLB_QUIRK_MLB150	(1 << 0)
 
 enum MLB_CTYPE {
 	MLB_CTYPE_SYNC,
@@ -289,6 +291,11 @@ enum CLK_SPEED {
 	CLK_4096FS,
 	CLK_6144FS,
 	CLK_8192FS,
+};
+
+enum MLB_INDEX {
+	IMX6Q_MLB = 0,
+	IMX6SX_MLB,
 };
 
 struct mlb_ringbuf {
@@ -373,6 +380,7 @@ struct mlb_data {
 	u32 irq_ahb0;
 	u32 irq_ahb1;
 	u32 irq_mlb;
+	u32 quirk_flag;
 };
 
 /*
@@ -2132,6 +2140,12 @@ static long mxc_mlb150_ioctl(struct file *filp,
 				return -EFAULT;
 			}
 
+			if ((fps > 1024) &&
+				!(drvdata->quirk_flag & MLB_QUIRK_MLB150)) {
+				pr_err("mxc_mlb150: not support fps %d\n", fps);
+				return -EINVAL;
+			}
+
 			c0_val = __raw_readl(mlb_base + REG_MLBC0);
 			c0_val &= ~MLBC0_MLBCLK_MASK;
 
@@ -2490,6 +2504,9 @@ static const struct file_operations mxc_mlb150_fops = {
 static struct platform_device_id imx_mlb150_devtype[] = {
 	{
 		.name = "imx6q-mlb150",
+		.driver_data = MLB_QUIRK_MLB150,
+	}, {
+		.name = "imx6sx-mlb50",
 		.driver_data = 0,
 	}, {
 		/* sentinel */
@@ -2498,9 +2515,13 @@ static struct platform_device_id imx_mlb150_devtype[] = {
 MODULE_DEVICE_TABLE(platform, imx_mlb150_devtype);
 
 static const struct of_device_id mlb150_imx_dt_ids[] = {
-	{ .compatible = "fsl,imx6q-mlb150", .data = &imx_mlb150_devtype[0], },
+	{ .compatible = "fsl,imx6q-mlb150",
+		.data = &imx_mlb150_devtype[IMX6Q_MLB], },
+	{ .compatible = "fsl,imx6sx-mlb50",
+		.data = &imx_mlb150_devtype[IMX6SX_MLB], },
 	{ /* sentinel */ }
 };
+MODULE_DEVICE_TABLE(of, mlb150_imx_dt_ids);
 
 /*
  * This function is called whenever the MLB device is detected.
@@ -2511,6 +2532,7 @@ static int mxc_mlb150_probe(struct platform_device *pdev)
 	struct mlb_data *drvdata;
 	struct resource *res;
 	struct device_node *np = pdev->dev.of_node;
+	const struct of_device_id *of_id;
 
 	drvdata = devm_kzalloc(&pdev->dev, sizeof(struct mlb_data),
 				GFP_KERNEL);
@@ -2519,6 +2541,11 @@ static int mxc_mlb150_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	of_id = of_match_device(mlb150_imx_dt_ids, &pdev->dev);
+	if (of_id)
+		pdev->id_entry = of_id->data;
+	else
+		return -EINVAL;
 	/*
 	 * Register MLB lld as four character devices
 	 */
@@ -2561,6 +2588,8 @@ static int mxc_mlb150_probe(struct platform_device *pdev)
 			goto err_dev;
 		}
 	}
+
+	drvdata->quirk_flag = pdev->id_entry->driver_data;
 
 	/* ahb0 irq */
 	drvdata->irq_ahb0 = platform_get_irq(pdev,  1);
@@ -2639,13 +2668,14 @@ static int mxc_mlb150_probe(struct platform_device *pdev)
 		goto err_dev;
 	}
 
-	drvdata->clk_mlb6p = devm_clk_get(&pdev->dev, "pll8_mlb");
-	if (IS_ERR(drvdata->clk_mlb6p)) {
-		dev_err(&pdev->dev, "unable to get mlb pll clock\n");
-		ret = PTR_ERR(drvdata->clk_mlb6p);
-		goto err_dev;
+	if (drvdata->quirk_flag & MLB_QUIRK_MLB150) {
+		drvdata->clk_mlb6p = devm_clk_get(&pdev->dev, "pll8_mlb");
+		if (IS_ERR(drvdata->clk_mlb6p)) {
+			dev_err(&pdev->dev, "unable to get mlb pll clock\n");
+			ret = PTR_ERR(drvdata->clk_mlb6p);
+			goto err_dev;
+		}
 	}
-
 
 	drvdata->iram_pool = of_get_named_gen_pool(np, "iram", 0);
 	if (!drvdata->iram_pool) {
