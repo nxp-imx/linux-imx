@@ -367,6 +367,12 @@
 	};
 };
 
+&mlb {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_mlb_1>;
+	status = "disabled";/* pin conflict with usdhc2*/
+};
+
 &pwm3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_pwm3_0>;

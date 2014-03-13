@@ -561,6 +561,16 @@
 				status = "disabled";
                         };
 
+			mlb: mlb@0218c000 {
+				compatible = "fsl,imx6sx-mlb50";
+				reg = <0x0218c000 0x4000>;
+				interrupts = <0 53 0x04 0 117 0x04 0 126 0x04>;
+				clocks = <&clks IMX6SX_CLK_MLB>;
+				clock-names = "mlb";
+				iram = <&ocram>;
+				status = "disabled";
+			};
+
 			fec2: ethernet@021b4000 {
 				compatible = "fsl,imx6sx-fec";
 				reg = <0x021b4000 0x4000>;
@@ -1009,6 +1019,16 @@
 				MX6SX_PAD_LCD1_VSYNC__LCDIF1_VSYNC 0x1b0b0
 				MX6SX_PAD_LCD1_HSYNC__LCDIF1_HSYNC 0x1b0b0
 				MX6SX_PAD_LCD1_RESET__GPIO3_IO_27 0x1b0b0
+			>;
+		};
+	};
+
+	mlb {
+		pinctrl_mlb_1: mlbgrp-1 {
+			fsl,pins = <
+				MX6SX_PAD_SD2_DATA3__MLB_DATA	0x31
+				MX6SX_PAD_SD2_CLK__MLB_SIG	0x31
+				MX6SX_PAD_SD2_CMD__MLB_CLK	0x31
 			>;
 		};
 	};
