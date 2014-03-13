@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -77,6 +77,7 @@ bool mipi_csi2_enable(struct mipi_csi2_info *info)
 
 	if (!info->mipi_en) {
 		info->mipi_en = true;
+		clk_prepare_enable(info->cfg_clk);
 		clk_prepare_enable(info->dphy_clk);
 	} else
 		mipi_dbg("mipi csi2 already enabled!\n");
@@ -104,6 +105,7 @@ bool mipi_csi2_disable(struct mipi_csi2_info *info)
 	if (info->mipi_en) {
 		info->mipi_en = false;
 		clk_disable_unprepare(info->dphy_clk);
+		clk_disable_unprepare(info->cfg_clk);
 	} else
 		mipi_dbg("mipi csi2 already disabled!\n");
 
@@ -425,6 +427,13 @@ static int mipi_csi2_probe(struct platform_device *pdev)
 	/* get mipi csi2 informaiton */
 	gmipi_csi2->pdev = pdev;
 	gmipi_csi2->mipi_en = false;
+
+	gmipi_csi2->cfg_clk = devm_clk_get(dev, "cfg_clk");
+	if (IS_ERR(gmipi_csi2->cfg_clk)) {
+		dev_err(&pdev->dev, "failed to get cfg_clk\n");
+		ret = PTR_ERR(gmipi_csi2->cfg_clk);
+		goto err;
+	}
 
 	/* get mipi dphy clk */
 	gmipi_csi2->dphy_clk = devm_clk_get(dev, "dphy_clk");
