@@ -173,7 +173,7 @@ struct mxc_hdmi {
 	bool irq_enabled;
 	spinlock_t irq_lock;
 	bool phy_enabled;
-	struct fb_videomode previous_mode;
+	struct fb_videomode default_mode;
 	struct fb_videomode previous_non_vga_mode;
 	bool requesting_vga_for_initialization;
 
@@ -1872,13 +1872,7 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi)
 
 	/* Set the default mode only once. */
 	if (!hdmi->dft_mode_set) {
-		dev_dbg(&hdmi->pdev->dev, "%s: setting to default=%s bpp=%d\n",
-			__func__, hdmi->dft_mode_str, hdmi->default_bpp);
-
-		fb_find_mode(&var, hdmi->fbi,
-			     hdmi->dft_mode_str, NULL, 0, NULL,
-			     hdmi->default_bpp);
-
+		fb_videomode_to_var(&var, &hdmi->default_mode);
 		hdmi->dft_mode_set = true;
 	} else
 		fb_videomode_to_var(&var, &hdmi->previous_non_vga_mode);
@@ -2149,9 +2143,6 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 
 	dev_dbg(&hdmi->pdev->dev, "%s - video mode changed\n", __func__);
 
-	/* Save mode as 'previous_mode' so that we can know if mode changed. */
-	memcpy(&hdmi->previous_mode, &m, sizeof(struct fb_videomode));
-
 	hdmi->vic = 0;
 	if (!hdmi->requesting_vga_for_initialization) {
 		/* Save mode if this isn't the result of requesting
@@ -2162,6 +2153,8 @@ static void mxc_hdmi_setup(struct mxc_hdmi *hdmi, unsigned long event)
 			edid_mode = fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
 			pr_debug("edid mode ");
 			dump_fb_videomode((struct fb_videomode *)edid_mode);
+			/* update fbi mode */
+			hdmi->fbi->mode = (struct fb_videomode *)edid_mode;
 			hdmi->vic = mxc_edid_mode_to_vic(edid_mode);
 		}
 	}
@@ -2470,8 +2463,6 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	if (irq < 0)
 		return -ENODEV;
 
-	hdmi->dft_mode_set = false;
-
 	/* Setting HDMI default to blank state */
 	hdmi->blank = FB_BLANK_POWERDOWN;
 
@@ -2570,6 +2561,10 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	fb_var_to_videomode(&m, &hdmi->fbi->var);
 	dump_fb_videomode(&m);
 
+	hdmi->dft_mode_set = false;
+	/* Save default video mode */
+	memcpy(&hdmi->default_mode, &m, sizeof(struct fb_videomode));
+
 	mode = fb_find_nearest_mode(&m, &hdmi->fbi->modelist);
 	if (!mode) {
 		pr_err("%s: could not find mode in modelist\n", __func__);
@@ -2577,6 +2572,9 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	}
 
 	fb_videomode_to_var(&hdmi->fbi->var, mode);
+
+	/* update fbi mode */
+	hdmi->fbi->mode = (struct fb_videomode *)mode;
 
 	/* Default setting HDMI working in HDMI mode*/
 	hdmi->edid_cfg.hdmi_cap = true;
