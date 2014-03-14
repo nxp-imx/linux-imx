@@ -193,6 +193,9 @@
 #define SEQID_DDR_QUAD_READ	12
 
 #define OPCODE_DDR_QUAD_READ 0x6d
+#define OPCODE_DDR_QUAD_IO_READ 0xed    /*DDR IO read data bytes*/
+
+#define MFR_SPAN 0x01
 
 enum fsl_qspi_devtype {
 	FSL_QUADSPI_VYBRID,
@@ -235,6 +238,7 @@ struct fsl_qspi {
 	u32 nor_num;
 	u32 clk_rate;
 	unsigned int chip_base_addr; /* We may support two chips. */
+	bool ddr_io_mode;
 };
 
 static inline int is_vybrid_qspi(struct fsl_qspi *q)
@@ -392,22 +396,46 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 	/* DDR QUAD read */
 	lut_base = SEQID_DDR_QUAD_READ * 4;
 
-	if (q->nor_size <= SZ_16M) {
-		cmd = OPCODE_DDR_QUAD_READ;
-		addrlen = ADDR24BIT;
-		dummy = 8;
-	} else {
-		cmd = OPCODE_DDR_QUAD_READ;
-		addrlen = ADDR32BIT;
-		dummy = 6;
-	}
+	/*DDR QUAD IO read mode*/
+	if (q->ddr_io_mode) {
 
-	writel(LUT0(CMD, PAD1, cmd) | LUT1(ADDR_DDR, PAD1, addrlen),
+		if (q->nor_size <= SZ_16M) {
+			cmd = OPCODE_DDR_QUAD_IO_READ;
+			addrlen = ADDR24BIT;
+			dummy = 3;
+		} else {
+			cmd = OPCODE_DDR_QUAD_IO_READ;
+			addrlen = ADDR32BIT;
+			dummy = 7;
+		}
+
+		writel(LUT0(CMD, PAD1, cmd) | LUT1(ADDR_DDR, PAD4, addrlen),
 			base + QUADSPI_LUT(lut_base));
-	writel(LUT0(DUMMY, PAD1, dummy) | LUT1(READ_DDR, PAD4, rxfifo),
+		writel(LUT0(MODE_DDR, PAD1, 4) | LUT1(DUMMY, PAD1, dummy),
 			base + QUADSPI_LUT(lut_base + 1));
-	writel(LUT0(JMP_ON_CS, PAD1, 0),
+		writel(LUT0(READ_DDR, PAD4, rxfifo) | LUT1(JMP_ON_CS, PAD1, 0),
 			base + QUADSPI_LUT(lut_base + 2));
+
+	/*Extended DDR QUAD read mode*/
+	} else {
+
+		if (q->nor_size <= SZ_16M) {
+			cmd = OPCODE_DDR_QUAD_READ;
+			addrlen = ADDR24BIT;
+			dummy = 8;
+		} else {
+			cmd = OPCODE_DDR_QUAD_READ;
+			addrlen = ADDR32BIT;
+			dummy = 6;
+		}
+
+		writel(LUT0(CMD, PAD1, cmd) | LUT1(ADDR_DDR, PAD1, addrlen),
+				base + QUADSPI_LUT(lut_base));
+		writel(LUT0(DUMMY, PAD1, dummy) | LUT1(READ_DDR, PAD4, rxfifo),
+				base + QUADSPI_LUT(lut_base + 1));
+		writel(LUT0(JMP_ON_CS, PAD1, 0),
+				base + QUADSPI_LUT(lut_base + 2));
+	}
 
 	fsl_qspi_lock_lut(q);
 }
@@ -441,7 +469,9 @@ static int fsl_qspi_get_seqid(struct fsl_qspi *q, u8 cmd)
 	case OPCODE_BRWR:
 		return SEQID_BRWR;
 	case OPCODE_DDR_QUAD_READ:
+	case OPCODE_DDR_QUAD_IO_READ:
 		return SEQID_DDR_QUAD_READ;
+
 	default:
 		dev_err(q->dev, "Unsupported cmd 0x%.2x\n", cmd);
 		break;
@@ -865,6 +895,7 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 	bool has_second_chip = false;
 	const struct of_device_id *of_id =
 			of_match_device(fsl_qspi_dt_ids, &pdev->dev);
+	u8 jedec_mfr_id;
 
 	q = devm_kzalloc(dev, sizeof(*q), GFP_KERNEL);
 	if (!q)
@@ -976,6 +1007,11 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 		if (!id)
 			goto map_failed;
 
+		/*get the NOR chip manufacture id*/
+		jedec_mfr_id = (*(u32 *)(id->driver_data)) >> 16;
+		if (MFR_SPAN == jedec_mfr_id)
+			q->ddr_io_mode = true;
+
 		ret = of_property_read_u32(np, "spi-max-frequency",
 				&q->clk_rate);
 		if (ret < 0)
@@ -1014,7 +1050,10 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 			nor->page_size = q->devtype_data->txfifo;
 
 		/* Set DDR QUAD READ, we will remove the hardcode in future.*/
-		nor->read_opcode = OPCODE_DDR_QUAD_READ;
+		if (q->ddr_io_mode)
+			nor->read_opcode = OPCODE_DDR_QUAD_IO_READ;
+		else
+			nor->read_opcode = OPCODE_DDR_QUAD_READ;
 
 		i++;
 	}
