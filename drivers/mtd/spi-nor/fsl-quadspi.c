@@ -655,6 +655,11 @@ static int fsl_qspi_nor_setup(struct fsl_qspi *q)
 	if (ret)
 		return ret;
 
+	/* Reset the module */
+	writel(QUADSPI_MCR_SWRSTSD_MASK | QUADSPI_MCR_SWRSTHD_MASK,
+		base + QUADSPI_MCR);
+	udelay(1);
+
 	/* Init the LUT table. */
 	fsl_qspi_init_lut(q);
 
@@ -673,6 +678,7 @@ static int fsl_qspi_nor_setup(struct fsl_qspi *q)
 			base + QUADSPI_MCR);
 
 	/* enable the interrupt */
+	writel(0xffffffff, q->iobase + QUADSPI_FR);
 	writel(QUADSPI_RSER_TFIE, q->iobase + QUADSPI_RSER);
 
 	return 0;
