@@ -589,14 +589,6 @@
 	status = "okay";
 };
 
-&mipi_csi {
-	status = "okay";
-	ipu_id = <0>;
-	csi_id = <1>;
-	v_channel = <0>;
-	lanes = <1>;
-};
-
 &mlb {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_mlb_2>;
