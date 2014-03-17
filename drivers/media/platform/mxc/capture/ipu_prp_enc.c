@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -161,10 +161,6 @@ static int prp_enc_setup(cam_data *cam)
 			enc.csi_prp_enc_mem.mipi_vc = 0;
 			enc.csi_prp_enc_mem.mipi_id = 0;
 		}
-	} else {
-		printk(KERN_ERR "%s() in %s: Fail to get mipi_csi2_info!\n",
-		       __func__, __FILE__);
-		return -EPERM;
 	}
 #endif
 
@@ -471,10 +467,6 @@ static int prp_enc_disabling_tasks(void *private)
 				&& cam->csi == csi_id)
 				mipi_csi2_pixelclk_disable(mipi_csi2_info);
 		}
-	} else {
-		printk(KERN_ERR "%s() in %s: Fail to get mipi_csi2_info!\n",
-		       __func__, __FILE__);
-		return -EPERM;
 	}
 #endif
 
