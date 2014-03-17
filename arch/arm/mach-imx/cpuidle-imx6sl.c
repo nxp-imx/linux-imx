@@ -29,6 +29,7 @@ extern void imx6sl_low_power_wfi(void);
 
 extern unsigned long save_ttbr1(void);
 extern void restore_ttbr1(unsigned long ttbr1);
+extern unsigned long iram_tlb_phys_addr;
 
 static void __iomem *iomux_base;
 static void *wfi_iram_base;
@@ -85,7 +86,6 @@ static struct cpuidle_driver imx6sl_cpuidle_driver = {
 
 int __init imx6sl_cpuidle_init(void)
 {
-	unsigned int iram_paddr;
 	struct device_node *node;
 
 	node = of_find_compatible_node(NULL, NULL, "fsl,imx6sl-iomuxc");
@@ -96,10 +96,9 @@ int __init imx6sl_cpuidle_init(void)
 	iomux_base = of_iomap(node, 0);
 	WARN(!iomux_base, "unable to map iomux registers\n");
 
-	iram_paddr = MX6SL_WFI_IRAM_ADDR;
 	/* Calculate the virtual address of the code */
-	wfi_iram_base = (void *)IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR) +
-				(iram_paddr - MX6Q_IRAM_TLB_BASE_ADDR);
+	wfi_iram_base = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
+				MX6SL_WFI_IRAM_ADDR_OFFSET;
 
 	imx6sl_wfi_in_iram_fn = (void *)fncpy(wfi_iram_base,
 		&imx6sl_low_power_wfi, MX6SL_WFI_IRAM_CODE_SIZE);

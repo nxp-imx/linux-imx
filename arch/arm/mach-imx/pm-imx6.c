@@ -348,7 +348,12 @@ static struct map_desc imx6_pm_io_desc[] __initdata = {
 	imx_map_entry(MX6Q, ANATOP, MT_DEVICE),
 	imx_map_entry(MX6Q, GPC, MT_DEVICE),
 	imx_map_entry(MX6Q, L2, MT_DEVICE),
-	imx_map_entry(MX6Q, IRAM_TLB, MT_MEMORY_NONCACHED),
+};
+
+static struct map_desc iram_tlb_io_desc __initdata = {
+	/* .virtual and .pfn are run-time assigned */
+	.length		= SZ_1M,
+	.type		= MT_MEMORY_NONCACHED,
 };
 
 void __init imx6_pm_map_io(void)
@@ -361,8 +366,18 @@ void __init imx6_pm_map_io(void)
 	 * Allocate IRAM for page tables to be used
 	 * when DDR is in self-refresh.
 	 */
-	iram_tlb_phys_addr = MX6Q_IRAM_TLB_BASE_ADDR;
-	iram_tlb_base_addr = IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR);
+	if (cpu_is_imx6sx()) {
+		iram_tlb_io_desc.virtual = IMX_IO_P2V(MX6SX_IRAM_TLB_BASE_ADDR);
+		iram_tlb_io_desc.pfn = __phys_to_pfn(MX6SX_IRAM_TLB_BASE_ADDR);
+		iram_tlb_phys_addr = MX6SX_IRAM_TLB_BASE_ADDR;
+		iram_tlb_base_addr = IMX_IO_P2V(MX6SX_IRAM_TLB_BASE_ADDR);
+	} else {
+		iram_tlb_io_desc.virtual = IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR);
+		iram_tlb_io_desc.pfn = __phys_to_pfn(MX6Q_IRAM_TLB_BASE_ADDR);
+		iram_tlb_phys_addr = MX6Q_IRAM_TLB_BASE_ADDR;
+		iram_tlb_base_addr = IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR);
+	}
+	iotable_init(&iram_tlb_io_desc, 1);
 
 	/* Set all entries to 0. */
 	memset((void *)iram_tlb_base_addr, 0, SZ_16K);
@@ -371,9 +386,9 @@ void __init imx6_pm_map_io(void)
 	 * Make sure the IRAM virtual address has a mapping
 	 * in the IRAM page table.
 	 */
-	i = (IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR) >> 18) / 4;
+	i = (iram_tlb_base_addr >> 18) / 4;
 	*((unsigned long *)iram_tlb_base_addr + i) =
-		MX6Q_IRAM_TLB_BASE_ADDR | TT_ATTRIB_NON_CACHEABLE_1M;
+		iram_tlb_phys_addr | TT_ATTRIB_NON_CACHEABLE_1M;
 	/*
 	 * Make sure the AIPS1 virtual address has a mapping
 	 * in the IRAM page table.
@@ -417,11 +432,10 @@ void imx6_pm_set_ccm_base(void __iomem *base)
 
 void __init imx6_pm_init(void)
 {
-
-	iram_paddr = MX6_SUSPEND_IRAM_ADDR;
+	iram_paddr = iram_tlb_phys_addr + MX6_SUSPEND_IRAM_ADDR_OFFSET;
 	/* Get the virtual address of the suspend code. */
-	suspend_iram_base = (void *)IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR) +
-			(iram_paddr - MX6Q_IRAM_TLB_BASE_ADDR);
+	suspend_iram_base = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
+			MX6_SUSPEND_IRAM_ADDR_OFFSET;
 
 	suspend_in_iram_fn = (void *)fncpy(suspend_iram_base,
 		&imx6_suspend, MX6_SUSPEND_IRAM_SIZE);

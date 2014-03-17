@@ -70,6 +70,7 @@ extern void mx6_ddr3_freq_change(u32 freq, void *ddr_settings,
 	bool dll_mode, void *iomux_offsets);
 extern unsigned long save_ttbr1(void);
 extern void restore_ttbr1(unsigned long ttbr1);
+extern unsigned long iram_tlb_phys_addr;
 
 #define MIN_DLL_ON_FREQ		333000000
 #define MAX_DLL_OFF_FREQ		125000000
@@ -254,7 +255,6 @@ int update_ddr_freq(int ddr_rate)
 int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 {
 	struct device *dev = &busfreq_pdev->dev;
-	unsigned int iram_paddr;
 	int i, err;
 	u32 cpu;
 	struct device_node *node;
@@ -353,8 +353,10 @@ int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 	}
 	iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6q);
 
-	iram_iomux_settings = (void *)IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR) +
-			(DDR3_IOMUX_SETTINGS_ADDR - MX6Q_IRAM_TLB_BASE_ADDR);
+
+	iram_iomux_settings = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
+			DDR3_IOMUX_SETTINGS_ADDR_OFFSET;
+
 	iram_ddr_settings = iram_iomux_settings + (iomux_settings_size * 8) + 8;
 
 	if (cpu_is_imx6q()) {
@@ -378,11 +380,11 @@ int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
 		}
 	}
 
-	iram_paddr = DDR3_FREQ_CODE_ADDR;
 	/* Calculate the virtual address of the code */
 	ddr_freq_change_iram_base =
-			(void *)IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR) +
-			(iram_paddr - MX6Q_IRAM_TLB_BASE_ADDR);
+			(void *)IMX_IO_P2V(iram_tlb_phys_addr) +
+			DDR3_FREQ_CODE_ADDR_OFFSET;
+
 	mx6_change_ddr_freq = (void *)fncpy(ddr_freq_change_iram_base,
 		&mx6_ddr3_freq_change, DDR3_FREQ_CODE_SIZE);
 
