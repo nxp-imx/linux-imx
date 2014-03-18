@@ -1199,7 +1199,7 @@ gckKERNEL_DestroyProcessDB(
         {
         case gcvDB_VIDEO_MEMORY:
             /* Free the video memory. */
-            status = gckVIDMEM_Free(gcmUINT64_TO_PTR(record->data));
+            status = gckVIDMEM_Free(Kernel, gcmUINT64_TO_PTR(record->data));
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: VIDEO_MEMORY 0x%x (status=%d)",

@@ -250,8 +250,6 @@ gckVIDMEM_ConstructVirtual(
         node->Virtual.lockKernels[i]    = gcvNULL;
     }
 
-    node->Virtual.mutex         = gcvNULL;
-
     gcmkONERROR(gckOS_GetProcessID(&node->Virtual.processID));
 
 #ifdef __QNXNTO__
@@ -266,10 +264,6 @@ gckVIDMEM_ConstructVirtual(
     node->Virtual.freed         = gcvFALSE;
 
     gcmkONERROR(gckOS_ZeroMemory(&node->Virtual.sharedInfo, gcmSIZEOF(gcsVIDMEM_NODE_SHARED_INFO)));
-
-    /* Create the mutex. */
-    gcmkONERROR(
-        gckOS_CreateMutex(os, &node->Virtual.mutex));
 
     /* Allocate the virtual memory. */
     gcmkONERROR(
@@ -303,12 +297,6 @@ OnError:
     /* Roll back. */
     if (node != gcvNULL)
     {
-        if (node->Virtual.mutex != gcvNULL)
-        {
-            /* Destroy the mutex. */
-            gcmkVERIFY_OK(gckOS_DeleteMutex(os, node->Virtual.mutex));
-        }
-
         /* Free the structure. */
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(os, node));
     }
@@ -360,9 +348,6 @@ gckVIDMEM_DestroyVirtual(
                 gckMMU_RemoveNode(Node->Virtual.kernel->mmu, Node));
     }
 #endif
-
-    /* Delete the mutex. */
-    gcmkVERIFY_OK(gckOS_DeleteMutex(os, Node->Virtual.mutex));
 
     for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
@@ -465,7 +450,6 @@ gckVIDMEM_Construct(
     memory->bytes       = Bytes;
     memory->freeBytes   = Bytes;
     memory->threshold   = Threshold;
-    memory->mutex       = gcvNULL;
 #if gcdUSE_VIDMEM_PER_PID
     gcmkONERROR(gckOS_GetProcessID(&memory->pid));
 #endif
@@ -602,9 +586,6 @@ gckVIDMEM_Construct(
                   "[GALCORE] TILE_STATUS:   bank %d",
                   memory->mapping[gcvSURF_TILE_STATUS]);
 
-    /* Allocate the mutex. */
-    gcmkONERROR(gckOS_CreateMutex(Os, &memory->mutex));
-
     /* Return pointer to the gckVIDMEM object. */
     *Memory = memory;
 
@@ -616,12 +597,6 @@ OnError:
     /* Roll back. */
     if (memory != gcvNULL)
     {
-        if (memory->mutex != gcvNULL)
-        {
-            /* Delete the mutex. */
-            gcmkVERIFY_OK(gckOS_DeleteMutex(Os, memory->mutex));
-        }
-
         for (i = 0; i < banks; ++i)
         {
             /* Free the heap. */
@@ -688,9 +663,6 @@ gckVIDMEM_Destroy(
         }
     }
 
-    /* Free the mutex. */
-    gcmkVERIFY_OK(gckOS_DeleteMutex(Memory->os, Memory->mutex));
-
     /* Mark the object as unknown. */
     Memory->object.type = gcvOBJ_UNKNOWN;
 
@@ -742,6 +714,7 @@ gckVIDMEM_Destroy(
 */
 gceSTATUS
 gckVIDMEM_Allocate(
+    IN gckKERNEL Kernel,
     IN gckVIDMEM Memory,
     IN gctUINT Width,
     IN gctUINT Height,
@@ -773,7 +746,7 @@ gckVIDMEM_Allocate(
 
     /* Allocate through linear function. */
     gcmkONERROR(
-        gckVIDMEM_AllocateLinear(Memory, bytes, Alignment, Type, Node));
+        gckVIDMEM_AllocateLinear(Kernel, Memory, bytes, Alignment, Type, Node));
 
     /* Success. */
     gcmkFOOTER_ARG("*Node=0x%x", *Node);
@@ -989,6 +962,7 @@ OnError:
 */
 gceSTATUS
 gckVIDMEM_AllocateLinear(
+    IN gckKERNEL Kernel,
     IN gckVIDMEM Memory,
     IN gctSIZE_T Bytes,
     IN gctUINT32 Alignment,
@@ -1016,7 +990,7 @@ gckVIDMEM_AllocateLinear(
     gcmkVERIFY_ARGUMENT(Type < gcvSURF_NUM_TYPES);
 
     /* Acquire the mutex. */
-    gcmkONERROR(gckOS_AcquireMutex(Memory->os, Memory->mutex, gcvINFINITE));
+    gcmkONERROR(gckOS_AcquireMutex(Memory->os, Kernel->vidmemMutex, gcvINFINITE));
 
     acquired = gcvTRUE;
 #if !gcdUSE_VIDMEM_PER_PID
@@ -1203,7 +1177,7 @@ gckVIDMEM_AllocateLinear(
 #endif
 
     /* Release the mutex. */
-    gcmkVERIFY_OK(gckOS_ReleaseMutex(Memory->os, Memory->mutex));
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Memory->os, Kernel->vidmemMutex));
 
     /* Return the pointer to the node. */
     *Node = node;
@@ -1220,7 +1194,7 @@ OnError:
     if (acquired)
     {
      /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Memory->os, Memory->mutex));
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Memory->os, Kernel->vidmemMutex));
     }
 
     /* Return the status. */
@@ -1245,6 +1219,7 @@ OnError:
 */
 gceSTATUS
 gckVIDMEM_Free(
+    IN gckKERNEL Kernel,
     IN gcuVIDMEM_NODE_PTR Node
     )
 {
@@ -1252,12 +1227,16 @@ gckVIDMEM_Free(
     gckKERNEL kernel = gcvNULL;
     gckVIDMEM memory = gcvNULL;
     gcuVIDMEM_NODE_PTR node;
-    gctBOOL mutexAcquired = gcvFALSE;
     gckOS os = gcvNULL;
     gctBOOL acquired = gcvFALSE;
     gctINT32 i, totalLocked;
 
     gcmkHEADER_ARG("Node=0x%x", Node);
+
+    /* Acquire the mutex. */
+    gcmkONERROR(
+        gckOS_AcquireMutex(Kernel->os, Kernel->vidmemMutex, gcvINFINITE));
+    acquired = gcvTRUE;
 
     /* Verify the arguments. */
     if ((Node == gcvNULL)
@@ -1277,6 +1256,9 @@ gckVIDMEM_Free(
             /* Client still has a lock, defer free op 'till when lock reaches 0. */
             Node->VidMem.freePending = gcvTRUE;
 
+            gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
+            acquired = gcvFALSE;
+
             gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
                            "Node 0x%x is locked (%d)... deferring free.",
                            Node, Node->VidMem.locked);
@@ -1287,12 +1269,6 @@ gckVIDMEM_Free(
 
         /* Extract pointer to gckVIDMEM object owning the node. */
         memory = Node->VidMem.memory;
-
-        /* Acquire the mutex. */
-        gcmkONERROR(
-            gckOS_AcquireMutex(memory->os, memory->mutex, gcvINFINITE));
-
-        mutexAcquired = gcvTRUE;
 
 #ifdef __QNXNTO__
 #if !gcdUSE_VIDMEM_PER_PID
@@ -1370,7 +1346,7 @@ gckVIDMEM_Free(
         }
 
         /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(memory->os, memory->mutex));
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
 
         gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
                        "Node 0x%x is freed.",
@@ -1393,12 +1369,6 @@ gckVIDMEM_Free(
     os = kernel->os;
     gcmkVERIFY_OBJECT(os, gcvOBJ_OS);
 
-    /* Grab the mutex. */
-    gcmkONERROR(
-        gckOS_AcquireMutex(os, Node->Virtual.mutex, gcvINFINITE));
-
-    acquired = gcvTRUE;
-
     for (i = 0, totalLocked = 0; i < gcdMAX_GPU_COUNT; i++)
     {
         totalLocked += Node->Virtual.lockeds[i];
@@ -1412,8 +1382,6 @@ gckVIDMEM_Free(
 
         /* Set Flag */
         Node->Virtual.freed = gcvTRUE;
-
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(os, Node->Virtual.mutex));
     }
     else
     {
@@ -1422,28 +1390,20 @@ gckVIDMEM_Free(
                                             Node->Virtual.physical,
                                             Node->Virtual.bytes));
 
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(os, Node->Virtual.mutex));
-
         /* Destroy the gcuVIDMEM_NODE union. */
         gcmkVERIFY_OK(gckVIDMEM_DestroyVirtual(Node));
     }
+
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
 
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
-    if (mutexAcquired)
-    {
-        /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(
-            memory->os, memory->mutex
-            ));
-    }
-
     if (acquired)
     {
-       gcmkVERIFY_OK(gckOS_ReleaseMutex(os, Node->Virtual.mutex));
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
     }
 
     /* Return the status. */
@@ -1684,6 +1644,10 @@ gckVIDMEM_Lock(
     /* Verify the arguments. */
     gcmkVERIFY_ARGUMENT(Address != gcvNULL);
 
+    /* Grab the mutex. */
+    gcmkONERROR(gckOS_AcquireMutex(Kernel->os, Kernel->vidmemMutex, gcvINFINITE));
+    acquired = gcvTRUE;
+
     if ((Node == gcvNULL)
     ||  (Node->VidMem.memory == gcvNULL)
     )
@@ -1744,10 +1708,6 @@ gckVIDMEM_Lock(
         /* Extract the gckOS object pointer. */
         os = Node->Virtual.kernel->os;
         gcmkVERIFY_OBJECT(os, gcvOBJ_OS);
-
-        /* Grab the mutex. */
-        gcmkONERROR(gckOS_AcquireMutex(os, Node->Virtual.mutex, gcvINFINITE));
-        acquired = gcvTRUE;
 
 #if gcdPAGED_MEMORY_CACHEABLE
         /* Force video memory cacheable. */
@@ -1868,10 +1828,10 @@ gckVIDMEM_Lock(
 
         /* Return hardware address. */
         *Address = Node->Virtual.addresses[Kernel->core];
-
-        /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(os, Node->Virtual.mutex));
     }
+
+    /* Release the mutex. */
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
 
     /* Success. */
     gcmkFOOTER_ARG("*Address=%08x", *Address);
@@ -1918,7 +1878,7 @@ OnError:
     if (acquired)
     {
         /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(os, Node->Virtual.mutex));
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
     }
 
     /* Return the status. */
@@ -1976,6 +1936,11 @@ gckVIDMEM_Unlock(
     gcmkHEADER_ARG("Node=0x%x Type=%d *Asynchroneous=%d",
                    Node, Type, gcmOPT_VALUE(Asynchroneous));
 
+    /* Grab the mutex. */
+    gcmkONERROR(gckOS_AcquireMutex(Kernel->os, Kernel->vidmemMutex, gcvINFINITE));
+    acquired = gcvTRUE;
+
+
     /* Verify the arguments. */
     if ((Node == gcvNULL)
     ||  (Node->VidMem.memory == gcvNULL)
@@ -2032,7 +1997,11 @@ gckVIDMEM_Unlock(
             gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
                            "Deferred-freeing Node 0x%x.",
                            Node);
-            gcmkONERROR(gckVIDMEM_Free(Node));
+
+            gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
+            acquired = gcvFALSE;
+
+            gcmkONERROR(gckVIDMEM_Free(Kernel, Node));
         }
     }
 
@@ -2051,12 +2020,6 @@ gckVIDMEM_Unlock(
         /* Get the gckOS object pointer. */
         os = Kernel->os;
         gcmkVERIFY_OBJECT(os, gcvOBJ_OS);
-
-        /* Grab the mutex. */
-        gcmkONERROR(
-            gckOS_AcquireMutex(os, Node->Virtual.mutex, gcvINFINITE));
-
-        acquired = gcvTRUE;
 
         if (Asynchroneous == gcvNULL)
         {
@@ -2119,13 +2082,13 @@ gckVIDMEM_Unlock(
                                                         Node->Virtual.physical,
                                                         Node->Virtual.bytes));
 
-                    /* Release mutex before node is destroyed */
-                    gcmkVERIFY_OK(gckOS_ReleaseMutex(os, Node->Virtual.mutex));
-
-                    acquired = gcvFALSE;
-
                     /* Destroy the gcuVIDMEM_NODE union. */
                     gcmkVERIFY_OK(gckVIDMEM_DestroyVirtual(Node));
+
+                    /* Release mutex before node is destroyed */
+                    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
+
+                    acquired = gcvFALSE;
 
                     /* Node has been destroyed, so we should not touch it any more */
                     gcmkFOOTER();
@@ -2234,10 +2197,12 @@ gckVIDMEM_Unlock(
             /* Schedule the surface to be unlocked. */
             *Asynchroneous = gcvTRUE;
         }
+    }
 
+    if (acquired)
+    {
         /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(os, Node->Virtual.mutex));
-
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
         acquired = gcvFALSE;
     }
 
@@ -2255,7 +2220,7 @@ OnError:
     if (acquired)
     {
         /* Release the mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(os, Node->Virtual.mutex));
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
     }
 
     /* Return the status. */

@@ -453,6 +453,8 @@ struct _gckKERNEL
 #if gcdANDROID_NATIVE_FENCE_SYNC
     gctHANDLE                   timeline;
 #endif
+
+    gctPOINTER                  vidmemMutex;
 };
 
 struct _FrequencyHistory
@@ -766,9 +768,6 @@ typedef union _gcuVIDMEM_NODE
         /* Actual physical address */
         gctUINT32               addresses[gcdMAX_GPU_COUNT];
 
-        /* Mutex. */
-        gctPOINTER              mutex;
-
         /* Locked counter. */
         gctINT32                lockeds[gcdMAX_GPU_COUNT];
 
@@ -823,9 +822,6 @@ struct _gckVIDMEM
 
     /* Allocation threshold. */
     gctSIZE_T                   threshold;
-
-    /* The heap mutex. */
-    gctPOINTER                  mutex;
 
 #if gcdUSE_VIDMEM_PER_PID
     /* The Pid this VidMem belongs to. */
