@@ -53,6 +53,8 @@
 #define MX6_BM_HSIC_EN			BIT(12)
 /* Force HSIC module 480M clock on, even when in Host is in suspend mode */
 #define MX6_BM_HSIC_CLK_ON		BIT(11)
+/* Send resume signal without 480Mhz PHY clock */
+#define MX6SX_BM_HSIC_AUTO_RESUME	BIT(23)
 
 #define ANADIG_ANA_MISC0		0x150
 #define ANADIG_ANA_MISC0_SET		0x154
@@ -205,7 +207,8 @@ static int usbmisc_imx6sx_init(struct imx_usbmisc_data *data)
 			usbmisc->base + data->index * 4);
 		val = readl(usbmisc->base + MX6_USB_HSIC_CTRL_OFFSET
 			+ (data->index - 2) * 4);
-		val |= MX6_BM_HSIC_EN | MX6_BM_HSIC_CLK_ON;
+		val |= MX6_BM_HSIC_EN | MX6_BM_HSIC_CLK_ON
+			| MX6SX_BM_HSIC_AUTO_RESUME;
 		writel(val, usbmisc->base + MX6_USB_HSIC_CTRL_OFFSET
 			+ (data->index - 2) * 4);
 		spin_unlock_irqrestore(&usbmisc->lock, flags);

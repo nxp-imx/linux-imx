@@ -24,6 +24,7 @@
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
 #include <linux/power/imx6_usb_charger.h>
+#include <linux/regulator/consumer.h>
 
 #include "ci.h"
 #include "ci_hdrc_imx.h"
@@ -57,11 +58,13 @@ static const struct ci_hdrc_imx_platform_flag imx6q_usb_data = {
 
 static const struct ci_hdrc_imx_platform_flag imx6sl_usb_data = {
 	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM |
+		CI_HDRC_IMX_HOST_QUIRK |
 		CI_HDRC_IMX_HAS_HSIC,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sx_usb_data = {
 	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM |
+		CI_HDRC_IMX_HOST_QUIRK |
 		CI_HDRC_IMX_HAS_HSIC,
 };
 
@@ -88,6 +91,7 @@ struct ci_hdrc_imx_data {
 	struct regmap *anatop;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pinctrl_hsic_active;
+	struct regulator *hsic_pad_regulator;
 };
 
 /* Common functions shared by usbmisc drivers */
@@ -304,8 +308,34 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		pdata.flags |= CI_HDRC_IMX_EHCI_QUIRK;
 
 	if (data->usbmisc_data && data->usbmisc_data->index > 1 &&
-		(imx_platform_flag->flags & CI_HDRC_IMX_HAS_HSIC))
+		(imx_platform_flag->flags & CI_HDRC_IMX_HAS_HSIC)) {
 		pdata.flags |= CI_HDRC_IMX_IS_HSIC;
+
+		data->hsic_pad_regulator =
+			devm_regulator_get(&pdev->dev, "pad");
+		if (PTR_ERR(data->hsic_pad_regulator) == -EPROBE_DEFER) {
+			ret = -EPROBE_DEFER;
+			goto err_clk;
+		} else if (PTR_ERR(data->hsic_pad_regulator) == -ENODEV) {
+			/* no pad regualator is needed */
+			data->hsic_pad_regulator = NULL;
+		} else if (IS_ERR(data->hsic_pad_regulator)) {
+			dev_err(&pdev->dev,
+				"Get hsic pad regulator error: %ld\n",
+				PTR_ERR(data->hsic_pad_regulator));
+			ret = PTR_ERR(data->hsic_pad_regulator);
+			goto err_clk;
+		}
+
+		if (data->hsic_pad_regulator) {
+			ret = regulator_enable(data->hsic_pad_regulator);
+			if (ret) {
+				dev_err(&pdev->dev,
+					"Fail to enable hsic pad regulator\n");
+				goto err_clk;
+			}
+		}
+	}
 
 	if (of_find_property(np, "imx6-usb-charger-detection", NULL))
 		data->imx6_usb_charger_detection = true;
@@ -317,7 +347,7 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 			dev_dbg(&pdev->dev,
 				"failed to find regmap for anatop\n");
 			ret = PTR_ERR(data->anatop);
-			goto err_clk;
+			goto disable_hsic_regulator;
 		}
 		if (data->usbmisc_data)
 			data->usbmisc_data->anatop = data->anatop;
@@ -327,7 +357,7 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 			ret = imx6_usb_create_charger(&data->charger,
 				"imx6_usb_charger");
 			if (ret && ret != -ENODEV)
-				goto err_clk;
+				goto disable_hsic_regulator;
 			if (!ret)
 				dev_dbg(&pdev->dev,
 					"USB Charger is created\n");
@@ -391,6 +421,9 @@ disable_device:
 remove_charger:
 	if (data->imx6_usb_charger_detection)
 		imx6_usb_remove_charger(&data->charger);
+disable_hsic_regulator:
+	if (data->hsic_pad_regulator)
+		ret = regulator_disable(data->hsic_pad_regulator);
 err_clk:
 	clk_disable_unprepare(data->clk);
 	release_bus_freq(BUS_FREQ_HIGH);
@@ -411,6 +444,8 @@ static int ci_hdrc_imx_remove(struct platform_device *pdev)
 	release_bus_freq(BUS_FREQ_HIGH);
 	if (data->imx6_usb_charger_detection)
 		imx6_usb_remove_charger(&data->charger);
+	if (data->hsic_pad_regulator)
+		regulator_disable(data->hsic_pad_regulator);
 
 	return 0;
 }
