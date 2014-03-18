@@ -451,6 +451,10 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 		clk_prepare_enable(clks[IMX6SX_CLK_USBPHY2_GATE]);
 	}
 
+	/* Set the default 132MHz for EIM module */
+	clk_set_parent(clks[IMX6SX_CLK_EIM_SLOW_SEL], clks[IMX6SX_CLK_PLL2_PFD2]);
+	clk_set_rate(clks[IMX6SX_CLK_EIM_SLOW], 132000000);
+
 	/* set parent clock for LCDIF1 pixel clock */
 	clk_set_parent(clks[IMX6SX_CLK_LCDIF1_PRE_SEL], clks[IMX6SX_CLK_PLL5_VIDEO_DIV]);
 	clk_set_parent(clks[IMX6SX_CLK_LCDIF1_SEL], clks[IMX6SX_CLK_LCDIF1_PODF]);
