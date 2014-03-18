@@ -308,7 +308,8 @@ gckKERNEL_AllocateLinearMemory(
                 if(*Pool == gcvPOOL_SYSTEM)
                     Type |= gcvSURF_VG;
                 /* Allocate memory. */
-                status = gckVIDMEM_AllocateLinear(videoMemory,
+                status = gckVIDMEM_AllocateLinear(Kernel,
+                                                  videoMemory,
                                                   Bytes,
                                                   Alignment,
                                                   Type,
@@ -599,7 +600,7 @@ gceSTATUS gckVGKERNEL_Dispatch(
 #endif /* __QNXNTO__ */
 
         /* Free video memory. */
-        gcmkERR_BREAK(gckVIDMEM_Free(
+        gcmkERR_BREAK(gckVIDMEM_Free(Kernel,
             node
             ));
 
