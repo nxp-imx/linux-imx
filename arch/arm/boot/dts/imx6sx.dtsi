@@ -531,6 +531,12 @@
 				clocks = <&clks IMX6SX_CLK_USBPHY2>;
 				fsl,anatop = <&anatop>;
 			};
+
+			usbphy_nop1: usbphy_nop1 {
+				compatible = "usb-nop-xceiv";
+				clocks = <&clks IMX6SX_CLK_USBPHY1>;
+				clock-names = "main_clk";
+			};
 		};
 
 		aips-bus@02100000 { /* AIPS2 */
@@ -649,6 +655,9 @@
 				interrupts = <0 40 0x04>;
 				clocks = <&clks IMX6SX_CLK_USBOH3>;
 				fsl,usbmisc = <&usbmisc 2>;
+				phy_type = "hsic";
+				fsl,usbphy = <&usbphy_nop1>;
+				fsl,anatop = <&anatop>;
 				status = "disabled";
 			};
 
@@ -1094,6 +1103,21 @@
 			fsl,pins = <
 				MX6SX_PAD_SD1_DATA0__UART2_RX 0x1b0b1
 				MX6SX_PAD_SD1_DATA1__UART2_TX 0x1b0b1
+			>;
+		};
+	};
+
+	usbh {
+		pinctrl_usbh_1: usbhgrp-1 {
+			fsl,pins = <
+				MX6SX_PAD_USB_H_STROBE__USB_H_STROBE	0x40013030
+				MX6SX_PAD_USB_H_DATA__USB_H_DATA 0x40013030
+			>;
+		};
+
+		pinctrl_usbh_2: usbhgrp-2 {
+			fsl,pins = <
+				MX6SX_PAD_USB_H_STROBE__USB_H_STROBE	0x40017030
 			>;
 		};
 	};

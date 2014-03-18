@@ -431,6 +431,15 @@
 	status = "okay";
 };
 
+&usbh {
+	pinctrl-names = "idle", "active";
+	pinctrl-0 = <&pinctrl_usbh_1>;
+	pinctrl-1 = <&pinctrl_usbh_2>;
+	osc-clkgate-delay = <0x3>;
+	pad-supply = <&vgen1_reg>;
+	status = "okay";
+};
+
 &usbotg1 {
 	vbus-supply = <&reg_usb_otg1_vbus>;
 	pinctrl-names = "default";
