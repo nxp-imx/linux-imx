@@ -30,7 +30,7 @@
 
 #define CI_HDRC_IMX_IMX28_WRITE_FIX		BIT(0)
 #define CI_HDRC_IMX_SUPPORT_RUNTIME_PM		BIT(1)
-#define CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK		BIT(2)
+#define CI_HDRC_IMX_HOST_QUIRK			BIT(2)
 #define CI_HDRC_IMX_HAS_HSIC			BIT(3)
 
 struct ci_hdrc_imx_platform_flag {
@@ -41,17 +41,17 @@ static const struct ci_hdrc_imx_platform_flag imx27_usb_data = {
 };
 
 static const struct ci_hdrc_imx_platform_flag imx23_usb_data = {
-	.flags = CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK,
+	.flags = CI_HDRC_IMX_HOST_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx28_usb_data = {
 	.flags = CI_HDRC_IMX_IMX28_WRITE_FIX |
-		CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK,
+		CI_HDRC_IMX_HOST_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6q_usb_data = {
 	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM |
-		CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK |
+		CI_HDRC_IMX_HOST_QUIRK |
 		CI_HDRC_IMX_HAS_HSIC,
 };
 
@@ -300,7 +300,7 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		data->supports_runtime_pm = true;
 	}
 
-	if (imx_platform_flag->flags & CI_HDRC_IMX_MXS_PHY_EHCI_QUIRK)
+	if (imx_platform_flag->flags & CI_HDRC_IMX_HOST_QUIRK)
 		pdata.flags |= CI_HDRC_IMX_EHCI_QUIRK;
 
 	if (data->usbmisc_data && data->usbmisc_data->index > 1 &&
