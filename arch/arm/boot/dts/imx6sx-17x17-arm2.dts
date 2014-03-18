@@ -126,7 +126,7 @@
 	phy-mode = "rgmii";
 	fsl,num_tx_queues=<3>;
 	fsl,num_rx_queues=<3>;
-	pinctrl-assert-gpios = <&max7322 0 GPIO_ACTIVE_HIGH>;
+	pinctrl-assert-gpios = <&max7322_1 0 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 };
 
@@ -136,7 +136,8 @@
 	phy-mode = "rgmii";
 	fsl,num_tx_queues=<3>;
 	fsl,num_rx_queues=<3>;
-	status = "disabled";
+	pinctrl-assert-gpios = <&max7322_2 0 GPIO_ACTIVE_HIGH>;
+	status = "okay";
 };
 
 &flexcan1 {
@@ -278,9 +279,17 @@
         pinctrl-0 = <&pinctrl_i2c2_1>;
         status = "okay";
 
-	max7322: gpio@68 {
+	max7322_1: gpio@68 {
 		compatible = "maxim,max7322";
 		reg = <0x68>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		resets = <&max7322_reset>;
+	};
+
+	max7322_2: gpio@69 {
+		compatible = "maxim,max7322";
+		reg = <0x69>;
 		gpio-controller;
 		#gpio-cells = <2>;
 		resets = <&max7322_reset>;
