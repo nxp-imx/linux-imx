@@ -33,6 +33,7 @@ struct pwm_bl_data {
 					int brightness);
 	int			(*check_fb)(struct device *, struct fb_info *);
 	void			(*exit)(struct device *);
+	const char		*fb_names[FB_MAX];
 };
 
 static int pwm_backlight_update_status(struct backlight_device *bl)
@@ -84,7 +85,7 @@ static int pwm_backlight_check_fb(struct backlight_device *bl,
 {
 	struct pwm_bl_data *pb = bl_get_data(bl);
 
-	return !pb->check_fb || pb->check_fb(pb->dev, info);
+	return pb->check_fb(pb->dev, info);
 }
 
 static const struct backlight_ops pwm_backlight_ops = {
@@ -161,15 +162,36 @@ static int pwm_backlight_parse_dt(struct device *dev,
 }
 #endif
 
+static int pwm_backlight_check_fb_dt(struct device *dev,
+				     struct fb_info *info)
+{
+	struct backlight_device *bl = dev_get_drvdata(dev);
+	struct pwm_bl_data *pb = bl_get_data(bl);
+	int i;
+
+	for (i = 0; i < FB_MAX; i++)
+		if (pb->fb_names[i] &&
+		    !strcmp(info->fix.id, pb->fb_names[i]))
+			return 1;
+
+	/* Any fb_names? */
+	for (i = 0; i < FB_MAX; i++)
+		if (pb->fb_names[i])
+			return 0;
+
+	return 1;
+}
+
 static int pwm_backlight_probe(struct platform_device *pdev)
 {
 	struct platform_pwm_backlight_data *data = pdev->dev.platform_data;
 	struct platform_pwm_backlight_data defdata;
+	struct device_node *np = pdev->dev.of_node;
 	struct backlight_properties props;
 	struct backlight_device *bl;
 	struct pwm_bl_data *pb;
 	unsigned int max;
-	int ret;
+	int ret, index;
 
 	if (!data) {
 		ret = pwm_backlight_parse_dt(&pdev->dev, &defdata);
@@ -194,6 +216,15 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 		goto err_alloc;
 	}
 
+	if (np)
+		for (index = 0; index < FB_MAX; index++) {
+			ret = of_property_read_string_index(np, "fb-names",
+						    index,
+						    &pb->fb_names[index]);
+			if (ret < 0)
+				break;
+		}
+
 	if (data->levels) {
 		max = data->levels[data->max_brightness];
 		pb->levels = data->levels;
@@ -202,7 +233,7 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 
 	pb->notify = data->notify;
 	pb->notify_after = data->notify_after;
-	pb->check_fb = data->check_fb;
+	pb->check_fb = np ? pwm_backlight_check_fb_dt : data->check_fb;
 	pb->exit = data->exit;
 	pb->dev = &pdev->dev;
 
