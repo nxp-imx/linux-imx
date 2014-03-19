@@ -234,60 +234,77 @@ static void __init imx6q_csi_mux_init(void)
 #define OCOTP_MACn(n)	(0x00000620 + (n) * 0x10)
 void __init imx6_enet_mac_init(const char *compatible)
 {
-	struct device_node *ocotp_np, *enet_np;
+	struct device_node *ocotp_np, *enet_np, *from = NULL;
 	void __iomem *base;
 	struct property *newmac;
-	u32 macaddr_low, macaddr_high;
+	u32 macaddr_low, macaddr_high, macaddr1_high;
 	u8 *macaddr;
+	int i;
 
-	enet_np = of_find_compatible_node(NULL, NULL, compatible);
-	if (!enet_np)
-		return;
+	for (i = 0; i < 2; i++) {
+		enet_np = of_find_compatible_node(from, NULL, compatible);
+		if (!enet_np)
+			return;
 
-	if (of_get_mac_address(enet_np))
-		goto put_enet_node;
+		from = enet_np;
 
-	ocotp_np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-ocotp");
-	if (!ocotp_np) {
-		pr_warn("failed to find ocotp node\n");
-		goto put_enet_node;
-	}
+		if (of_get_mac_address(enet_np))
+			goto put_enet_node;
 
-	base = of_iomap(ocotp_np, 0);
-	if (!base) {
-		pr_warn("failed to map ocotp\n");
-		goto put_ocotp_node;
-	}
+		ocotp_np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-ocotp");
+		if (!ocotp_np) {
+			pr_warn("failed to find ocotp node\n");
+			goto put_enet_node;
+		}
 
-	macaddr_high = readl_relaxed(base + OCOTP_MACn(0));
-	macaddr_low = readl_relaxed(base + OCOTP_MACn(1));
+		base = of_iomap(ocotp_np, 0);
+		if (!base) {
+			pr_warn("failed to map ocotp\n");
+			goto put_ocotp_node;
+		}
 
-	newmac = kzalloc(sizeof(*newmac) + 6, GFP_KERNEL);
-	if (!newmac)
-		goto put_ocotp_node;
+		macaddr_low = readl_relaxed(base + OCOTP_MACn(1));
+		if (i)
+			macaddr1_high = readl_relaxed(base + OCOTP_MACn(2));
+		else
+			macaddr_high = readl_relaxed(base + OCOTP_MACn(0));
 
-	newmac->value = newmac + 1;
-	newmac->length = 6;
-	newmac->name = kstrdup("local-mac-address", GFP_KERNEL);
-	if (!newmac->name) {
-		kfree(newmac);
-		goto put_ocotp_node;
-	}
+		newmac = kzalloc(sizeof(*newmac) + 6, GFP_KERNEL);
+		if (!newmac)
+			goto put_ocotp_node;
 
-	macaddr = newmac->value;
-	macaddr[5] = macaddr_high & 0xff;
-	macaddr[4] = (macaddr_high >> 8) & 0xff;
-	macaddr[3] = (macaddr_high >> 16) & 0xff;
-	macaddr[2] = (macaddr_high >> 24) & 0xff;
-	macaddr[1] = macaddr_low & 0xff;
-	macaddr[0] = (macaddr_low >> 8) & 0xff;
+		newmac->value = newmac + 1;
+		newmac->length = 6;
+		newmac->name = kstrdup("local-mac-address", GFP_KERNEL);
+		if (!newmac->name) {
+			kfree(newmac);
+			goto put_ocotp_node;
+		}
 
-	of_update_property(enet_np, newmac);
+		macaddr = newmac->value;
+		if (i) {
+			macaddr[5] = (macaddr_low >> 16) & 0xff;
+			macaddr[4] = (macaddr_low >> 24) & 0xff;
+			macaddr[3] = macaddr1_high & 0xff;
+			macaddr[2] = (macaddr1_high >> 8) & 0xff;
+			macaddr[1] = (macaddr1_high >> 16) & 0xff;
+			macaddr[0] = (macaddr1_high >> 24) & 0xff;
+		} else {
+			macaddr[5] = macaddr_high & 0xff;
+			macaddr[4] = (macaddr_high >> 8) & 0xff;
+			macaddr[3] = (macaddr_high >> 16) & 0xff;
+			macaddr[2] = (macaddr_high >> 24) & 0xff;
+			macaddr[1] = macaddr_low & 0xff;
+			macaddr[0] = (macaddr_low >> 8) & 0xff;
+		}
+
+		of_update_property(enet_np, newmac);
 
 put_ocotp_node:
 	of_node_put(ocotp_np);
 put_enet_node:
 	of_node_put(enet_np);
+	}
 }
 
 static inline void imx6q_enet_init(void)
