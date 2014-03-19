@@ -1148,6 +1148,7 @@ static int csi_v4l_open(struct file *file)
 		vidioc_int_g_ifparm(cam->sensor, &ifparm);
 
 		cam_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		csi_clk_enable();
 		clk_prepare_enable(sensor->sensor_clk);
 		vidioc_int_s_power(cam->sensor, 1);
 		vidioc_int_init(cam->sensor);
@@ -1205,6 +1206,7 @@ static int csi_v4l_close(struct file *file)
 		file->private_data = NULL;
 		vidioc_int_s_power(cam->sensor, 0);
 		clk_disable_unprepare(sensor->sensor_clk);
+		csi_clk_disable();
 	}
 
 	return err;
