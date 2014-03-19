@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2013 by Vivante Corp.
+*    Copyright (C) 2005 - 2014 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
+
 
 
 #include "gc_hal_kernel_linux.h"
@@ -421,6 +422,9 @@ gckKERNEL_MapVideoMemory(
 gceSTATUS
 gckKERNEL_Notify(
     IN gckKERNEL Kernel,
+#if gcdMULTI_GPU
+    IN gctUINT CoreId,
+#endif
     IN gceNOTIFY Notification,
     IN gctBOOL Data
     )
@@ -441,7 +445,11 @@ gckKERNEL_Notify(
 #if COMMAND_PROCESSOR_VERSION > 1
         status = gckINTERRUPT_Notify(Kernel->interrupt, Data);
 #else
-        status = gckHARDWARE_Interrupt(Kernel->hardware, Data);
+        status = gckHARDWARE_Interrupt(Kernel->hardware,
+#if gcdMULTI_GPU
+                                       CoreId,
+#endif
+                                       Data);
 #endif
         break;
 

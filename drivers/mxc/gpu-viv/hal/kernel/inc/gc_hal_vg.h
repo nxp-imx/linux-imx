@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2013 by Vivante Corp.
+*    Copyright (C) 2005 - 2014 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
+
 
 
 #ifndef __gc_hal_vg_h_
@@ -343,18 +344,6 @@ gceSTATUS
 gckVGKERNEL_Destroy(
     IN gckVGKERNEL Kernel
     );
-
-/* Allocate linear video memory. */
-gceSTATUS
-gckKERNEL_AllocateLinearMemory(
-    IN gckKERNEL Kernel,
-    IN OUT gcePOOL * Pool,
-    IN gctSIZE_T Bytes,
-    IN gctSIZE_T Alignment,
-    IN gceSURF_TYPE Type,
-    OUT gcuVIDMEM_NODE_PTR * Node
-    );
-
 /* Unmap memory. */
 gceSTATUS
 gckKERNEL_UnmapMemory(
@@ -591,7 +580,7 @@ typedef struct _gcsCMDBUFFER
     /* The user sets this to the node of the container buffer whitin which
        this particular command buffer resides. The kernel sets this to the
        node of the internally allocated buffer. */
-    gctUINT64                   node;
+    gcuVIDMEM_NODE_PTR          node;
 
     /* Command buffer hardware address. */
     gctUINT32                   address;
@@ -666,14 +655,11 @@ typedef struct _gcsVGCONTEXT
     /* State map/mod buffer. */
     gctSIZE_T                   mapFirst;
     gctSIZE_T                   mapLast;
-#ifdef __QNXNTO__
-    gctSIZE_T                   mapContainerSize;
-#endif
-    gcsVGCONTEXT_MAP_PTR            mapContainer;
-    gcsVGCONTEXT_MAP_PTR            mapPrev;
-    gcsVGCONTEXT_MAP_PTR            mapCurr;
-    gcsVGCONTEXT_MAP_PTR            firstPrevMap;
-    gcsVGCONTEXT_MAP_PTR            firstCurrMap;
+    gcsVGCONTEXT_MAP_PTR        mapContainer;
+    gcsVGCONTEXT_MAP_PTR        mapPrev;
+    gcsVGCONTEXT_MAP_PTR        mapCurr;
+    gcsVGCONTEXT_MAP_PTR        firstPrevMap;
+    gcsVGCONTEXT_MAP_PTR        firstCurrMap;
 
     /* Main context buffer. */
     gcsCMDBUFFER_PTR            header;

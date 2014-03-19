@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2013 by Vivante Corp.
+*    Copyright (C) 2005 - 2014 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 *****************************************************************************/
 
 
+
 #ifndef __gc_hal_types_h_
 #define __gc_hal_types_h_
 
@@ -33,6 +34,8 @@
 #pragma warning(disable:4131)   /* Uses old-style declarator (for Bison and
                                 ** Flex generated files). */
 #pragma warning(disable:4206)   /* Translation unit is empty. */
+#pragma warning(disable:4214)   /* Nonstandard extension used :
+                                ** bit field types other than int. */
 #endif
 
 #ifdef __cplusplus
@@ -44,26 +47,25 @@ extern "C" {
 */
 
 #if defined(__GNUC__)
-#   define gcdHAS_ELLIPSES      1       /* GCC always has it. */
+#   define gcdHAS_ELLIPSIS      1       /* GCC always has it. */
 #elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
-#   define gcdHAS_ELLIPSES      1       /* C99 has it. */
+#   define gcdHAS_ELLIPSIS      1       /* C99 has it. */
 #elif defined(_MSC_VER) && (_MSC_VER >= 1500)
-#   define gcdHAS_ELLIPSES      1       /* MSVC 2007+ has it. */
+#   define gcdHAS_ELLIPSIS      1       /* MSVC 2007+ has it. */
 #elif defined(UNDER_CE)
 #if UNDER_CE >= 600
-#       define gcdHAS_ELLIPSES  1
+#       define gcdHAS_ELLIPSIS  1
 #   else
-#       define gcdHAS_ELLIPSES  0
+#       define gcdHAS_ELLIPSIS  0
 #   endif
 #else
-#   error "gcdHAS_ELLIPSES: Platform could not be determined"
+#   error "gcdHAS_ELLIPSIS: Platform could not be determined"
 #endif
 
 /******************************************************************************\
 ************************************ Keyword ***********************************
 \******************************************************************************/
-
-#if (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L))
+#if ((defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || defined(__APPLE__))
 #   define gcmINLINE            inline      /* C99 keyword. */
 #elif defined(__GNUC__)
 #   define gcmINLINE            __inline__  /* GNU keyword. */
@@ -155,12 +157,30 @@ typedef gctUINT64 *             gctUINT64_PTR;
 
 typedef unsigned long           gctSIZE_T;
 typedef gctSIZE_T *             gctSIZE_T_PTR;
+typedef gctUINT32               gctTRACE;
 
 #ifdef __cplusplus
 #   define gcvNULL              0
 #else
 #   define gcvNULL              ((void *) 0)
 #endif
+
+#define gcvMAXINT8              0x7f
+#define gcvMININT8              0x80
+#define gcvMAXINT16             0x7fff
+#define gcvMININT16             0x8000
+#define gcvMAXINT32             0x7fffffff
+#define gcvMININT32             0x80000000
+#define gcvMAXINT64             0x7fffffffffffffff
+#define gcvMININT64             0x8000000000000000
+#define gcvMAXUINT8             0xff
+#define gcvMINUINT8             0x0
+#define gcvMAXUINT16            0xffff
+#define gcvMINUINT16            0x8000
+#define gcvMAXUINT32            0xffffffff
+#define gcvMINUINT32            0x80000000
+#define gcvMAXUINT64            0xffffffffffffffff
+#define gcvMINUINT64            0x8000000000000000
 
 typedef float                   gctFLOAT;
 typedef signed int              gctFIXED_POINT;
@@ -174,7 +194,7 @@ typedef void *                  gctWINDOW;
 typedef void *                  gctIMAGE;
 typedef void *                  gctSYNC_POINT;
 
-typedef void *					gctSEMAPHORE;
+typedef void *                  gctSEMAPHORE;
 
 typedef void *                  gctPOINTER;
 typedef const void *            gctCONST_POINTER;
@@ -203,6 +223,90 @@ gcuFLOAT_UINT32;
 #define gcvONE_X                ((gctFIXED_POINT) 0x00010000)
 #define gcvNEGONE_X             ((gctFIXED_POINT) 0xFFFF0000)
 #define gcvTWO_X                ((gctFIXED_POINT) 0x00020000)
+
+
+
+#define gcmFIXEDCLAMP_NEG1_TO_1(_x) \
+    (((_x) < gcvNEGONE_X) \
+        ? gcvNEGONE_X \
+        : (((_x) > gcvONE_X) \
+            ? gcvONE_X \
+            : (_x)))
+
+#define gcmFLOATCLAMP_NEG1_TO_1(_f) \
+    (((_f) < -1.0f) \
+        ? -1.0f \
+        : (((_f) > 1.0f) \
+            ? 1.0f \
+            : (_f)))
+
+
+#define gcmFIXEDCLAMP_0_TO_1(_x) \
+    (((_x) < 0) \
+        ? 0 \
+        : (((_x) > gcvONE_X) \
+            ? gcvONE_X \
+            : (_x)))
+
+#define gcmFLOATCLAMP_0_TO_1(_f) \
+    (((_f) < 0.0f) \
+        ? 0.0f \
+        : (((_f) > 1.0f) \
+            ? 1.0f \
+            : (_f)))
+
+
+/******************************************************************************\
+******************************* Multicast Values *******************************
+\******************************************************************************/
+
+/* Value types. */
+typedef enum _gceVALUE_TYPE
+{
+    gcvVALUE_UINT = 0x0,
+    gcvVALUE_FIXED,
+    gcvVALUE_FLOAT,
+    gcvVALUE_INT,
+
+    /*
+    ** The value need be unsigned denormalized. clamp (0.0-1.0) should be done first.
+    */
+    gcvVALUE_FLAG_UNSIGNED_DENORM = 0x00010000,
+
+    /*
+    ** The value need be signed denormalized. clamp (-1.0-1.0) should be done first.
+    */
+    gcvVALUE_FLAG_SIGNED_DENORM   = 0x00020000,
+
+    /*
+    ** The value need to gammar
+    */
+    gcvVALUE_FLAG_GAMMAR          = 0x00040000,
+
+    /*
+    ** The value need to convert from float to float16
+    */
+    gcvVALUE_FLAG_FLOAT_TO_FLOAT16 = 0x0080000,
+
+    /*
+    ** Mask for flag field.
+    */
+    gcvVALUE_FLAG_MASK            = 0xFFFF0000,
+}
+gceVALUE_TYPE;
+
+/* Value unions. */
+typedef union _gcuVALUE
+{
+    gctUINT                     uintValue;
+    gctFIXED_POINT              fixedValue;
+    gctFLOAT                    floatValue;
+    gctINT                      intValue;
+}
+gcuVALUE;
+
+
+
 
 /* Stringizing macro. */
 #define gcmSTRING(Value)        #Value
@@ -256,6 +360,7 @@ gcs2D_PROFILE;
 
 #define IN
 #define OUT
+#define INOUT
 #define OPTIONAL
 
 /******************************************************************************\
@@ -283,10 +388,8 @@ typedef enum _gceSTATUS
     gcvSTATUS_INVALID_CONFIG        =   15,
     gcvSTATUS_CHANGED               =   16,
     gcvSTATUS_NOT_SUPPORT_DITHER    =   17,
-	gcvSTATUS_EXECUTED				=	18,
+    gcvSTATUS_EXECUTED              =   18,
     gcvSTATUS_TERMINATE             =   19,
-
-    gcvSTATUS_CONVERT_TO_SINGLE_STREAM    =   20,
 
     gcvSTATUS_INVALID_ARGUMENT      =   -1,
     gcvSTATUS_INVALID_OBJECT        =   -2,
@@ -653,21 +756,19 @@ gceSTATUS;
 #   define gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, Data) \
         if (FixedPoint) \
         { \
-            gcmDUMP(gcvNULL, "@[state.x 0x%04X 0x%08X]", \
+            gcmDUMP(gcvNULL, "#[state.x 0x%04X 0x%08X]", \
                 Address, Data \
                 ); \
         } \
         else \
         { \
-            gcmDUMP(gcvNULL, "@[state 0x%04X 0x%08X]", \
+            gcmDUMP(gcvNULL, "#[state 0x%04X 0x%08X]", \
                 Address, Data \
                 ); \
         }
 #else
 #   define gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, Data)
 #endif
-
-/*----------------------------------------------------------------------------*/
 
 #define gcmDEFINESTATEBUFFER(CommandBuffer, StateDelta, Memory, ReserveSize) \
     gcmDEFINESECUREUSER() \
@@ -682,14 +783,14 @@ gceSTATUS;
         Hardware->buffer, ReserveSize, gcvTRUE, &CommandBuffer \
         )); \
     \
-    Memory =  gcmUINT64_TO_PTR(CommandBuffer->lastReserve); \
+    Memory = (gctUINT32_PTR) gcmUINT64_TO_PTR(CommandBuffer->lastReserve); \
     \
     StateDelta = Hardware->delta; \
     \
     gcmBEGINSECUREUSER(); \
 }
 
-#define gcmENDSTATEBUFFER(CommandBuffer, Memory, ReserveSize) \
+#define gcmENDSTATEBUFFER(Hardware, CommandBuffer, Memory, ReserveSize) \
 { \
     gcmENDSECUREUSER(); \
     \
@@ -749,6 +850,27 @@ gceSTATUS;
     gcmUPDATESECUREUSER(); \
 }
 
+#define gcmSETSTATEDATAWITHMASK(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                        Address, Mask, Data) \
+{ \
+    gctUINT32 __temp_data32__; \
+    \
+    gcmVERIFYLOADSTATE(CommandBuffer, Memory, Address); \
+    \
+    __temp_data32__ = Data; \
+    \
+    *Memory++ = __temp_data32__; \
+    \
+    gcoHARDWARE_UpdateDelta( \
+        StateDelta, FixedPoint, Address, Mask, __temp_data32__ \
+        ); \
+    \
+    gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
+    \
+    gcmUPDATESECUREUSER(); \
+}
+
+
 #define gcmSETCTRLSTATE(StateDelta, CommandBuffer, Memory, Address, Data) \
 { \
     gctUINT32 __temp_data32__; \
@@ -784,6 +906,16 @@ gceSTATUS;
     gcmENDSTATEBATCH(CommandBuffer, Memory); \
 }
 
+#define gcmSETSINGLESTATEWITHMASK(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                          Address, Mask, Data) \
+{ \
+    gcmBEGINSTATEBATCH(CommandBuffer, Memory, FixedPoint, Address, 1); \
+    gcmSETSTATEDATAWITHMASK(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                    Address, Mask, Data); \
+    gcmENDSTATEBATCH(CommandBuffer, Memory); \
+}
+
+
 #define gcmSETSINGLECTRLSTATE(StateDelta, CommandBuffer, Memory, FixedPoint, \
                               Address, Data) \
 { \
@@ -792,6 +924,22 @@ gceSTATUS;
     gcmENDSTATEBATCH(CommandBuffer, Memory); \
 }
 
+
+
+#define gcmSETSEMASTALLPIPE(StateDelta, CommandBuffer, Memory, Data) \
+{ \
+    gcmSETSINGLESTATE(StateDelta, CommandBuffer, Memory, gcvFALSE, AQSemaphoreRegAddrs, Data); \
+    \
+    *Memory++ = gcmSETFIELDVALUE(0, STALL_COMMAND, OPCODE, STALL); \
+    \
+    *Memory++ = Data; \
+    \
+    gcmDUMP(gcvNULL, "#[stall 0x%08X 0x%08X]", \
+        gcmSETFIELDVALUE(0, AQ_SEMAPHORE, SOURCE, FRONT_END), \
+        gcmSETFIELDVALUE(0, AQ_SEMAPHORE, DESTINATION, PIXEL_ENGINE)); \
+    \
+    gcmSKIPSECUREUSER(); \
+}
 
 /*******************************************************************************
 **
@@ -815,6 +963,315 @@ gceSTATUS;
     *Memory++ = 0xDEADDEED; \
 }
 
+
+/*----------------------------------------------------------------------------*/
+#if !gcdTEMP_CMD_BUFFER_SIZE
+
+#define gcmDEFINESTATEBUFFER_NEW(CommandBuffer, StateDelta, Memory, ReserveSize) \
+    gcmDEFINESTATEBUFFER(CommandBuffer, StateDelta, Memory, ReserveSize)
+
+#define gcmBEGINSTATEBUFFER_NEW(Hardware, CommandBuffer, StateDelta, Memory, ReserveSize, OutSide) \
+    gcmBEGINSTATEBUFFER(Hardware, CommandBuffer, StateDelta, Memory, ReserveSize)
+
+#define gcmENDSTATEBUFFER_NEW(Hardware, CommandBuffer, Memory, ReserveSize, OutSide) \
+    gcmENDSTATEBUFFER(Hardware, CommandBuffer, Memory, ReserveSize)
+
+/*----------------------------------------------------------------------------*/
+
+#define gcmBEGINSTATEBATCH_NEW(CommandBuffer, Memory, FixedPoint, Address, Count) \
+    gcmBEGINSTATEBATCH(CommandBuffer, Memory, FixedPoint, Address, Count)
+
+#define gcmENDSTATEBATCH_NEW(CommandBuffer, Memory)  \
+    gcmENDSTATEBATCH(CommandBuffer, Memory)
+/*----------------------------------------------------------------------------*/
+
+#define gcmSETSTATEDATA_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                            Address, Data) \
+    gcmSETSTATEDATA(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                            Address, Data)
+
+#define gcmSETSTATEDATAWITHMASK_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                    Address, Mask, Data) \
+    gcmSETSTATEDATAWITHMASK(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                    Address, Mask, Data) \
+
+
+#define gcmSETCTRLSTATE_NEW(StateDelta, CommandBuffer, Memory, Address, Data) \
+    gcmSETCTRLSTATE(StateDelta, CommandBuffer, Memory, Address, Data)
+
+#define gcmSETFILLER_NEW(CommandBuffer, Memory) \
+    gcmSETFILLER(CommandBuffer, Memory)
+
+    /*----------------------------------------------------------------------------*/
+
+#define gcmSETSINGLESTATE_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                  Address, Data) \
+    gcmSETSINGLESTATE(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                  Address, Data)
+
+#define gcmSETSINGLESTATEWITHMASK_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                          Address, Mask, Data) \
+    gcmSETSINGLESTATEWITHMASK(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                          Address, Mask, Data)
+
+
+#define gcmSETSINGLECTRLSTATE_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                  Address, Data) \
+    gcmSETSINGLECTRLSTATE(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                  Address, Data)
+
+
+
+#define gcmSETSEMASTALLPIPE_NEW(StateDelta, CommandBuffer, Memory, Data) \
+    gcmSETSEMASTALLPIPE(StateDelta, CommandBuffer, Memory, Data)
+
+#define gcmSETSTARTDECOMMAND_NEW(CommandBuffer, Memory, Count) \
+    gcmSETSTARTDECOMMAND(CommandBuffer, Memory, Count)
+
+
+#else
+
+#define gcmDEFINESTATEBUFFER_NEW(CommandBuffer, StateDelta, Memory, ReserveSize) \
+    gcmDEFINESECUREUSER() \
+    gctSIZE_T ReserveSize = 0; \
+    gcsTEMPCMDBUF CommandBuffer = gcvNULL; \
+    gctUINT32_PTR Memory; \
+    gcsSTATE_DELTA_PTR StateDelta
+
+#define gcmBEGINSTATEBUFFER_NEW(Hardware, CommandBuffer, StateDelta, Memory, ReserveSize, OutSide) \
+{ \
+    if (OutSide) \
+    {\
+        Memory = (gctUINT32_PTR)*OutSide; \
+    }\
+    else \
+    {\
+        gcmONERROR(gcoBUFFER_StartTEMPCMDBUF( \
+            Hardware->buffer, &CommandBuffer \
+            ));\
+        \
+        Memory = (gctUINT32_PTR)(CommandBuffer->buffer); \
+        \
+    }\
+    StateDelta = Hardware->delta; \
+    \
+    gcmBEGINSECUREUSER(); \
+}
+
+#define gcmENDSTATEBUFFER_NEW(Hardware, CommandBuffer, Memory, ReserveSize, OutSide) \
+{ \
+    gcmENDSECUREUSER(); \
+    \
+    ReserveSize = ReserveSize; \
+    \
+    if (OutSide) \
+    {\
+        *OutSide = Memory; \
+    }\
+    else \
+    {\
+        CommandBuffer->currentByteSize = (gctUINT8_PTR)Memory -  \
+                                         (gctUINT8_PTR)CommandBuffer->buffer; \
+        \
+        gcmONERROR(gcoBUFFER_EndTEMPCMDBUF(Hardware->buffer));\
+    }\
+}
+
+/*----------------------------------------------------------------------------*/
+
+#define gcmBEGINSTATEBATCH_NEW(CommandBuffer, Memory, FixedPoint, Address, Count) \
+{ \
+    gcmASSERT((gctUINT32)Count <= 1024); \
+    \
+    *Memory++ \
+        = gcmSETFIELDVALUE(0, AQ_COMMAND_LOAD_STATE_COMMAND, OPCODE,  LOAD_STATE) \
+        | gcmSETFIELD     (0, AQ_COMMAND_LOAD_STATE_COMMAND, FLOAT,   FixedPoint) \
+        | gcmSETFIELD     (0, AQ_COMMAND_LOAD_STATE_COMMAND, COUNT,   Count) \
+        | gcmSETFIELD     (0, AQ_COMMAND_LOAD_STATE_COMMAND, ADDRESS, Address); \
+    \
+    gcmSKIPSECUREUSER(); \
+}
+
+#define gcmENDSTATEBATCH_NEW(CommandBuffer, Memory)
+
+/*----------------------------------------------------------------------------*/
+
+#define gcmSETSTATEDATA_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                        Address, Data) \
+{ \
+    gctUINT32 __temp_data32__; \
+    \
+    __temp_data32__ = Data; \
+    \
+    *Memory++ = __temp_data32__; \
+    \
+    gcoHARDWARE_UpdateDelta( \
+        StateDelta, FixedPoint, Address, 0, __temp_data32__ \
+        ); \
+    \
+    gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
+    \
+    gcmUPDATESECUREUSER(); \
+}
+
+#define gcmSETSTATEDATAWITHMASK_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                Address, Mask, Data) \
+{ \
+    gctUINT32 __temp_data32__; \
+    \
+    __temp_data32__ = Data; \
+    \
+    *Memory++ = __temp_data32__; \
+    \
+    gcoHARDWARE_UpdateDelta( \
+        StateDelta, FixedPoint, Address, Mask, __temp_data32__ \
+        ); \
+    \
+    gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
+    \
+    gcmUPDATESECUREUSER(); \
+}
+
+
+#define gcmSETCTRLSTATE_NEW(StateDelta, CommandBuffer, Memory, Address, Data) \
+{ \
+    gctUINT32 __temp_data32__; \
+    \
+    __temp_data32__ = Data; \
+    \
+    *Memory++ = __temp_data32__; \
+    \
+    gcmDUMPSTATEDATA(StateDelta, gcvFALSE, Address, __temp_data32__); \
+    \
+    gcmSKIPSECUREUSER(); \
+}
+
+#define gcmSETFILLER_NEW(CommandBuffer, Memory) \
+{ \
+    Memory += 1; \
+    \
+    gcmSKIPSECUREUSER(); \
+}
+
+/*----------------------------------------------------------------------------*/
+
+#define gcmSETSINGLESTATE_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                              Address, Data) \
+{ \
+    gcmBEGINSTATEBATCH_NEW(CommandBuffer, Memory, FixedPoint, Address, 1); \
+    gcmSETSTATEDATA_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                    Address, Data); \
+    gcmENDSTATEBATCH_NEW(CommandBuffer, Memory); \
+}
+
+#define gcmSETSINGLESTATEWITHMASK_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                      Address, Mask, Data) \
+{ \
+    gcmBEGINSTATEBATCH_NEW(CommandBuffer, Memory, FixedPoint, Address, 1); \
+    gcmSETSTATEDATAWITHMASK_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                    Address, Mask, Data); \
+    gcmENDSTATEBATCH_NEW(CommandBuffer, Memory); \
+}
+
+
+#define gcmSETSINGLECTRLSTATE_NEW(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                              Address, Data) \
+{ \
+    gcmBEGINSTATEBATCH_NEW(CommandBuffer, Memory, FixedPoint, Address, 1); \
+    gcmSETCTRLSTATE_NEW(StateDelta, CommandBuffer, Memory, Address, Data); \
+    gcmENDSTATEBATCH_NEW(CommandBuffer, Memory); \
+}
+
+
+
+#define gcmSETSEMASTALLPIPE_NEW(StateDelta, CommandBuffer, Memory, Data) \
+{ \
+    gcmSETSINGLESTATE_NEW(StateDelta, CommandBuffer, Memory, gcvFALSE, AQSemaphoreRegAddrs, Data); \
+    \
+    *Memory++ = gcmSETFIELDVALUE(0, STALL_COMMAND, OPCODE, STALL); \
+    \
+    *Memory++ = Data; \
+    \
+    gcmDUMP(gcvNULL, "#[stall 0x%08X 0x%08X]", \
+        gcmSETFIELDVALUE(0, AQ_SEMAPHORE, SOURCE, FRONT_END), \
+        gcmSETFIELDVALUE(0, AQ_SEMAPHORE, DESTINATION, PIXEL_ENGINE)); \
+    \
+    gcmSKIPSECUREUSER(); \
+}
+
+#define gcmSETSTARTDECOMMAND_NEW(CommandBuffer, Memory, Count) \
+{ \
+    *Memory++ \
+        = gcmSETFIELDVALUE(0, AQ_COMMAND_START_DE_COMMAND, OPCODE,     START_DE) \
+        | gcmSETFIELD     (0, AQ_COMMAND_START_DE_COMMAND, COUNT,      Count) \
+        | gcmSETFIELD     (0, AQ_COMMAND_START_DE_COMMAND, DATA_COUNT, 0); \
+    \
+    *Memory++ = 0xDEADDEED; \
+    \
+}
+
+#endif
+
+/*******************************************************************************
+**
+**  gcmCONFIGUREUNIFORMS
+**
+**      Configure uniforms according to chip and numConstants.
+*/
+#define gcmCONFIGUREUNIFORMS(ChipModel, ChipRevision, NumConstants, \
+             UnifiedConst, VsConstBase, PsConstBase, VsConstMax, PsConstMax) \
+{ \
+    if (ChipModel == gcv2000 && ChipRevision == 0x5118) \
+    { \
+        UnifiedConst = gcvFALSE; \
+        VsConstBase  = AQVertexShaderConstRegAddrs; \
+        PsConstBase  = AQPixelShaderConstRegAddrs; \
+        VsConstMax   = 256; \
+        PsConstMax   = 64; \
+    } \
+    else if (NumConstants == 320) \
+    { \
+        UnifiedConst = gcvFALSE; \
+        VsConstBase  = AQVertexShaderConstRegAddrs; \
+        PsConstBase  = AQPixelShaderConstRegAddrs; \
+        VsConstMax   = 256; \
+        PsConstMax   = 64; \
+    } \
+    /* All GC1000 series chips can only support 64 uniforms for ps on non-unified const mode. */ \
+    else if (NumConstants > 256 && ChipModel == gcv1000) \
+    { \
+        UnifiedConst = gcvFALSE; \
+        VsConstBase  = AQVertexShaderConstRegAddrs; \
+        PsConstBase  = AQPixelShaderConstRegAddrs; \
+        VsConstMax   = 256; \
+        PsConstMax   = 64; \
+    } \
+    else if (NumConstants > 256) \
+    { \
+        UnifiedConst = gcvFALSE; \
+        VsConstBase  = AQVertexShaderConstRegAddrs; \
+        PsConstBase  = AQPixelShaderConstRegAddrs; \
+        VsConstMax   = 256; \
+        PsConstMax   = 256; \
+    } \
+    else if (NumConstants == 256) \
+    { \
+        UnifiedConst = gcvFALSE; \
+        VsConstBase  = AQVertexShaderConstRegAddrs; \
+        PsConstBase  = AQPixelShaderConstRegAddrs; \
+        VsConstMax   = 256; \
+        PsConstMax   = 256; \
+    } \
+    else \
+    { \
+        UnifiedConst = gcvFALSE; \
+        VsConstBase  = AQVertexShaderConstRegAddrs; \
+        PsConstBase  = AQPixelShaderConstRegAddrs; \
+        VsConstMax   = 168; \
+        PsConstMax   = 64; \
+    } \
+}
+
 /******************************************************************************\
 ******************************** Ceiling Macro ********************************
 \******************************************************************************/
@@ -831,6 +1288,10 @@ gceSTATUS;
 #define gcmABS(x)               (((x) < 0)    ? -(x) :  (x))
 #define gcmNEG(x)               (((x) < 0)    ?  (x) : -(x))
 
+/******************************************************************************\
+******************************** Bit Macro ********************************
+\******************************************************************************/
+#define gcmBITSET(x, y)         ((x) & (y))
 /*******************************************************************************
 **
 **  gcmPTR2INT
@@ -842,10 +1303,17 @@ gceSTATUS;
 **      p       Pointer value.
 */
 #if defined(_WIN32) || (defined(__LP64__) && __LP64__)
+#if defined(_WIN64)
+#   define gcmPTR2INT(p) \
+    ( \
+        (gctUINT64) (p) \
+    )
+#else
 #   define gcmPTR2INT(p) \
     ( \
         (gctUINT32) (gctUINT64) (p) \
     )
+#endif
 #else
 #   define gcmPTR2INT(p) \
     ( \
@@ -891,6 +1359,12 @@ gceSTATUS;
     gcmPTR2INT(& (((struct s *) 0)->field)) \
 )
 
+/*******************************************************************************
+**
+** gcmSWAB32
+**
+**      Return a value with all bytes in the 32 bit argument swapped.
+*/
 #define gcmSWAB32(x) ((gctUINT32)( \
         (((gctUINT32)(x) & (gctUINT32)0x000000FFUL) << 24) | \
         (((gctUINT32)(x) & (gctUINT32)0x0000FF00UL) << 8)  | \
@@ -943,19 +1417,12 @@ typedef struct _gcsHAL_FRAME_INFO
     OUT gctUINT                 readRequests[8];
     OUT gctUINT                 writeRequests[8];
 
-    /* FE counters. */
-    OUT gctUINT                 drawCount;
-    OUT gctUINT                 vertexOutCount;
-    OUT gctUINT                 vertexMissCount;
-
     /* 3D counters. */
     OUT gctUINT                 vertexCount;
     OUT gctUINT                 primitiveCount;
     OUT gctUINT                 rejectedPrimitives;
     OUT gctUINT                 culledPrimitives;
     OUT gctUINT                 clippedPrimitives;
-    OUT gctUINT                 droppedPrimitives;
-    OUT gctUINT                 frustumClippedPrimitives;
     OUT gctUINT                 outPrimitives;
     OUT gctUINT                 inPrimitives;
     OUT gctUINT                 culledQuadCount;
@@ -973,86 +1440,17 @@ typedef struct _gcsHAL_FRAME_INFO
     OUT gctUINT                 shaderCycles;
     OUT gctUINT                 vsInstructionCount;
     OUT gctUINT                 vsTextureCount;
-    OUT gctUINT                 vsBranchCount;
-    OUT gctUINT                 vsVertices;
     OUT gctUINT                 psInstructionCount;
     OUT gctUINT                 psTextureCount;
-    OUT gctUINT                 psBranchCount;
-    OUT gctUINT                 psPixels;
 
     /* Texture counters. */
     OUT gctUINT                 bilinearRequests;
     OUT gctUINT                 trilinearRequests;
-    OUT gctUINT                 txBytes8[2];
+    OUT gctUINT                 txBytes8;
     OUT gctUINT                 txHitCount;
     OUT gctUINT                 txMissCount;
 }
 gcsHAL_FRAME_INFO;
-
-typedef enum _gcePATCH_ID
-{
-    gcePATCH_UNKNOWN = 0xFFFFFFFF,
-
-    /* Benchmark list*/
-    gcePATCH_GLB11 = 0x0,
-    gcePATCH_GLB21,
-    gcePATCH_GLB25,
-    gcePATCH_GLB27,
-
-    gcePATCH_BM21,
-    gcePATCH_MM,
-    gcePATCH_MM06,
-    gcePATCH_MM07,
-    gcePATCH_QUADRANT,
-    gcePATCH_ANTUTU,
-    gcePATCH_SMARTBENCH,
-    gcePATCH_JPCT,
-    gcePATCH_NENAMARK,
-    gcePATCH_NENAMARK2,
-    gcePATCH_NEOCORE,
-    gcePATCH_GLB,
-    gcePATCH_GB,
-    gcePATCH_RTESTVA,
-    gcePATCH_BMX,
-    gcePATCH_BMGUI,
-
-    /* Game list */
-    gcePATCH_NBA2013,
-    gcePATCH_BARDTALE,
-    gcePATCH_BUSPARKING3D,
-    gcePATCH_FISHBOODLE,
-    gcePATCH_SUBWAYSURFER,
-    gcePATCH_HIGHWAYDRIVER,
-    gcePATCH_PREMIUM,
-    gcePATCH_RACEILLEGAL,
-    gcePATCH_BLABLA,
-    gcePATCH_MEGARUN,
-    gcePATCH_GALAXYONFIRE2,
-    gcePATCH_GLOFTR3HM,
-    gcePATCH_GLOFTSXHM,
-    gcePATCH_GLOFTF3HM,
-    gcePATCH_GLOFTGANG,
-    gcePATCH_XRUNNER,
-    gcePATCH_WP,
-    gcePATCH_DEVIL,
-    gcePATCH_HOLYARCH,
-    gcePATCH_MUSE,
-    gcePATCH_SG,
-    gcePATCH_SIEGECRAFT,
-    gcePATCH_CARCHALLENGE,
-    gcePATCH_HEROESCALL,
-    gcePATCH_MONOPOLY,
-    gcePATCH_CTGL20,
-    gcePATCH_FIREFOX,
-    gcePATCH_CHORME,
-    gcePATCH_DUOKANTV,
-    gcePATCH_TESTAPP,
-    gcePATCH_GOOGLEEARTH,
-
-    /* Count enum*/
-    gcePATCH_COUNT,
-}
-gcePATCH_ID;
 
 #if gcdLINK_QUEUE_SIZE
 typedef struct _gckLINKDATA * gckLINKDATA;
@@ -1060,13 +1458,32 @@ struct _gckLINKDATA
 {
     gctUINT32                   start;
     gctUINT32                   end;
-    gctINT                      pid;
+    gctUINT32                   pid;
 };
 
 typedef struct _gckLINKQUEUE * gckLINKQUEUE;
 struct _gckLINKQUEUE
 {
     struct _gckLINKDATA         data[gcdLINK_QUEUE_SIZE];
+    gctUINT32                   rear;
+    gctUINT32                   front;
+    gctUINT32                   count;
+};
+#endif
+
+#if gcdPROCESS_ADDRESS_SPACE
+#define gcdENTRY_QUEUE_SIZE 256
+typedef struct _gckENTRYDATA * gckENTRYDATA;
+struct _gckENTRYDATA
+{
+    gctUINT32                   physical;
+    gctUINT32                   bytes;
+};
+
+typedef struct _gckENTRYQUEUE * gckENTRYQUEUE;
+struct _gckENTRYQUEUE
+{
+    struct _gckENTRYDATA        data[gcdENTRY_QUEUE_SIZE];
     gctUINT32                   rear;
     gctUINT32                   front;
     gctUINT32                   count;

@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2013 by Vivante Corp.
+*    Copyright (C) 2005 - 2014 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
+
+
 
 #ifndef __gc_hal_eglplatform_h_
 #define __gc_hal_eglplatform_h_
@@ -51,22 +53,29 @@ typedef struct _DFBPixmap *  HALNativePixmapType;
 #elif defined(LINUX) && defined(EGL_API_FB) && !defined(__APPLE__)
 
 #if defined(EGL_API_WL)
+
+#if defined(__GNUC__)
+#   define inline            __inline__  /* GNU keyword. */
+#endif
+
 /* Wayland platform. */
-#include "wayland-server.h"
 #include <wayland-egl.h>
 
 #define WL_EGL_NUM_BACKBUFFERS 2
 
 typedef struct _gcsWL_VIV_BUFFER
 {
-   struct wl_buffer wl_buffer;
+   struct wl_resource *wl_buffer;
    gcoSURF surface;
+   gctINT32 width, height;
 } gcsWL_VIV_BUFFER;
 
 typedef struct _gcsWL_EGL_DISPLAY
 {
    struct wl_display* wl_display;
    struct wl_viv* wl_viv;
+   struct wl_registry *registry;
+   struct wl_event_queue    *wl_queue;
 } gcsWL_EGL_DISPLAY;
 
 typedef struct _gcsWL_EGL_BUFFER_INFO
@@ -79,6 +88,7 @@ typedef struct _gcsWL_EGL_BUFFER_INFO
    gcePOOL pool;
    gctUINT bytes;
    gcoSURF surface;
+   gctINT32 invalidate;
 } gcsWL_EGL_BUFFER_INFO;
 
 typedef struct _gcsWL_EGL_BUFFER
@@ -89,8 +99,12 @@ typedef struct _gcsWL_EGL_BUFFER
 
 typedef struct _gcsWL_EGL_WINDOW_INFO
 {
+   gctINT32 dx;
+   gctINT32 dy;
    gctUINT width;
    gctUINT height;
+   gctINT32 attached_width;
+   gctINT32 attached_height;
    gceSURF_FORMAT format;
    gctUINT bpp;
 } gcsWL_EGL_WINDOW_INFO;
@@ -100,8 +114,9 @@ struct wl_egl_window
    gcsWL_EGL_BUFFER backbuffers[WL_EGL_NUM_BACKBUFFERS];
    gcsWL_EGL_WINDOW_INFO info;
    gctUINT current;
+   gcoSURF attached_surface;
    struct wl_surface* surface;
-   struct wl_callback* pending;
+   struct wl_callback* frame_callback;
 };
 
 typedef void*   HALNativeDisplayType;

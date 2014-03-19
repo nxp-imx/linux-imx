@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2013 by Vivante Corp.
+*    Copyright (C) 2005 - 2014 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
+
 
 
 #ifndef __gc_hal_rename_h_
@@ -77,7 +78,6 @@
 #define gckOS_QueryNeedCopy             gcmHAL2D(gckOS_QueryNeedCopy)
 #define gckOS_CopyFromUserData          gcmHAL2D(gckOS_CopyFromUserData)
 #define gckOS_CopyToUserData            gcmHAL2D(gckOS_CopyToUserData)
-#define gckOS_MapUserPhysical           gcmHAL2D(gckOS_MapUserPhysical)
 #define gckOS_SuspendInterrupt          gcmHAL2D(gckOS_SuspendInterrupt)
 #define gckOS_ResumeInterrupt           gcmHAL2D(gckOS_ResumeInterrupt)
 #define gckOS_GetBaseAddress            gcmHAL2D(gckOS_GetBaseAddress)
@@ -209,9 +209,6 @@
 #define gckMMU_Destroy                  gcmHAL2D(gckMMU_Destroy)
 #define gckMMU_AllocatePages            gcmHAL2D(gckMMU_AllocatePages)
 #define gckMMU_FreePages                gcmHAL2D(gckMMU_FreePages)
-#define gckMMU_InsertNode               gcmHAL2D(gckMMU_InsertNode)
-#define gckMMU_RemoveNode               gcmHAL2D(gckMMU_RemoveNode)
-#define gckMMU_FreeHandleMemory         gcmHAL2D(gckMMU_FreeHandleMemory)
 #define gckMMU_Test                     gcmHAL2D(gckMMU_Test)
 #define gckHARDWARE_QueryProfileRegisters     gcmHAL2D(gckHARDWARE_QueryProfileRegisters)
 

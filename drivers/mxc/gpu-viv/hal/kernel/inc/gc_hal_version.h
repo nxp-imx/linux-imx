@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2013 by Vivante Corp.
+*    Copyright (C) 2005 - 2014 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -19,16 +19,19 @@
 *****************************************************************************/
 
 
+
 #ifndef __gc_hal_version_h_
 #define __gc_hal_version_h_
 
-#define gcvVERSION_MAJOR        4
+#define gcvVERSION_MAJOR        5
 
-#define gcvVERSION_MINOR        6
+#define gcvVERSION_MINOR        0
 
 #define gcvVERSION_PATCH        9
 
-#define gcvVERSION_BUILD     9754
+#define gcvVERSION_BUILD     17083
+
+#define gcvVERSION_STRING    "5.0.9.1.17083"
 
 #define gcvVERSION_DATE      __DATE__
 

@@ -1,6 +1,6 @@
 ##############################################################################
 #
-#    Copyright (C) 2005 - 2013 by Vivante Corp.
+#    Copyright (C) 2005 - 2014 by Vivante Corp.
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -24,16 +24,14 @@
 #
 
 AQROOT := $(srctree)/drivers/mxc/gpu-viv
-AQARCH := $(AQROOT)/arch/XAQ2
-AQVGARCH := $(AQROOT)/arch/GC350
 
 include $(AQROOT)/config
 
 KERNEL_DIR ?= $(TOOL_DIR)/kernel
 
 OS_KERNEL_DIR   := hal/os/linux/kernel
-ARCH_KERNEL_DIR := arch/$(notdir $(AQARCH))/hal/kernel
-ARCH_VG_KERNEL_DIR := arch/$(notdir $(AQVGARCH))/hal/kernel
+ARCH_KERNEL_DIR := hal/kernel/arch
+ARCH_VG_KERNEL_DIR := hal/kernel/archvg
 HAL_KERNEL_DIR  := hal/kernel
 
 EXTRA_CFLAGS += -Werror
@@ -44,6 +42,7 @@ OBJS := $(OS_KERNEL_DIR)/gc_hal_kernel_device.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_math.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_os.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_debugfs.o
+
 
 OBJS += $(HAL_KERNEL_DIR)/gc_hal_kernel.o \
         $(HAL_KERNEL_DIR)/gc_hal_kernel_command.o \
@@ -144,12 +143,6 @@ else
 EXTRA_CFLAGS += -DUSE_NEW_LINUX_SIGNAL=0
 endif
 
-ifeq ($(NO_USER_DIRECT_ACCESS_FROM_KERNEL), 1)
-EXTRA_CFLAGS += -DNO_USER_DIRECT_ACCESS_FROM_KERNEL=1
-else
-EXTRA_CFLAGS += -DNO_USER_DIRECT_ACCESS_FROM_KERNEL=0
-endif
-
 ifeq ($(FORCE_ALL_VIDEO_MEMORY_CACHED), 1)
 EXTRA_CFLAGS += -DgcdPAGED_MEMORY_CACHEABLE=1
 else
@@ -172,12 +165,6 @@ ifeq ($(CACHE_FUNCTION_UNIMPLEMENTED), 1)
 EXTRA_CFLAGS += -DgcdCACHE_FUNCTION_UNIMPLEMENTED=1
 else
 EXTRA_CFLAGS += -DgcdCACHE_FUNCTION_UNIMPLEMENTED=0
-endif
-
-ifeq ($(SUPPORT_SWAP_RECTANGLE), 1)
-EXTRA_CFLAGS += -DgcdSUPPORT_SWAP_RECTANGLE=1
-else
-EXTRA_CFLAGS += -DgcdSUPPORT_SWAP_RECTANGLE=0
 endif
 
 ifeq ($(VIVANTE_ENABLE_VG), 1)
@@ -216,17 +203,20 @@ ifeq ($(USE_BANK_ALIGNMENT), 1)
     endif
 endif
 
-ifneq ($(CONFIG_SYNC),)
-EXTRA_CFLAGS += -DgcdANDROID_NATIVE_FENCE_SYNC=1
+ifeq ($(gcdFPGA_BUILD), 1)
+EXTRA_CFLAGS += -DgcdFPGA_BUILD=1
+else
+EXTRA_CFLAGS += -DgcdFPGA_BUILD=0
 endif
 
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/inc
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel
-EXTRA_CFLAGS += -I$(AQARCH)/hal/kernel
+EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/arch
+EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/inc
 EXTRA_CFLAGS += -I$(AQROOT)/hal/os/linux/kernel
 
 ifeq ($(VIVANTE_ENABLE_VG), 1)
-EXTRA_CFLAGS += -I$(AQVGARCH)/hal/kernel
+EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/archvg
 endif
 
 obj-$(CONFIG_MXC_GPU_VIV) += galcore.o

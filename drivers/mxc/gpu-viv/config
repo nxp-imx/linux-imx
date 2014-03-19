@@ -1,6 +1,6 @@
 ##############################################################################
 #
-#    Copyright (C) 2005 - 2013 by Vivante Corp.
+#    Copyright (C) 2005 - 2014 by Vivante Corp.
 #
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -27,12 +27,11 @@ NONPAGED_MEMORY_CACHEABLE         ?= 0
 NONPAGED_MEMORY_BUFFERABLE        ?= 1
 CACHE_FUNCTION_UNIMPLEMENTED      ?= 0
 VIVANTE_ENABLE_VG                 ?= 1
-NO_USER_DIRECT_ACCESS_FROM_KERNEL ?= 1
 VIVANTE_NO_3D                     ?= 0
 ENABLE_OUTER_CACHE_PATCH          ?= 1
 USE_BANK_ALIGNMENT                ?= 1
 BANK_BIT_START                    ?= 13
 BANK_BIT_END                      ?= 15
 BANK_CHANNEL_BIT                  ?= 12
-ENABLE_GPU_CLOCK_BY_DRIVER        = 1
+ENABLE_GPU_CLOCK_BY_DRIVER        ?= 1
 

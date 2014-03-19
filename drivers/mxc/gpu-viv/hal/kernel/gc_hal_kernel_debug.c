@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2013 by Vivante Corp.
+*    Copyright (C) 2005 - 2014 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
+
 
 
 #include "gc_hal_kernel_precomp.h"
@@ -2441,119 +2442,310 @@ gckOS_DebugFlush(
 }
 gctCONST_STRING
 gckOS_DebugStatus2Name(
-	gceSTATUS status
-	)
+    gceSTATUS status
+    )
 {
-	switch (status)
-	{
-	case gcvSTATUS_OK:
-		return "gcvSTATUS_OK";
-	case gcvSTATUS_TRUE:
-		return "gcvSTATUS_TRUE";
-	case gcvSTATUS_NO_MORE_DATA:
-		return "gcvSTATUS_NO_MORE_DATA";
-	case gcvSTATUS_CACHED:
-		return "gcvSTATUS_CACHED";
-	case gcvSTATUS_MIPMAP_TOO_LARGE:
-		return "gcvSTATUS_MIPMAP_TOO_LARGE";
-	case gcvSTATUS_NAME_NOT_FOUND:
-		return "gcvSTATUS_NAME_NOT_FOUND";
-	case gcvSTATUS_NOT_OUR_INTERRUPT:
-		return "gcvSTATUS_NOT_OUR_INTERRUPT";
-	case gcvSTATUS_MISMATCH:
-		return "gcvSTATUS_MISMATCH";
-	case gcvSTATUS_MIPMAP_TOO_SMALL:
-		return "gcvSTATUS_MIPMAP_TOO_SMALL";
-	case gcvSTATUS_LARGER:
-		return "gcvSTATUS_LARGER";
-	case gcvSTATUS_SMALLER:
-		return "gcvSTATUS_SMALLER";
-	case gcvSTATUS_CHIP_NOT_READY:
-		return "gcvSTATUS_CHIP_NOT_READY";
-	case gcvSTATUS_NEED_CONVERSION:
-		return "gcvSTATUS_NEED_CONVERSION";
-	case gcvSTATUS_SKIP:
-		return "gcvSTATUS_SKIP";
-	case gcvSTATUS_DATA_TOO_LARGE:
-		return "gcvSTATUS_DATA_TOO_LARGE";
-	case gcvSTATUS_INVALID_CONFIG:
-		return "gcvSTATUS_INVALID_CONFIG";
-	case gcvSTATUS_CHANGED:
-		return "gcvSTATUS_CHANGED";
-	case gcvSTATUS_NOT_SUPPORT_DITHER:
-		return "gcvSTATUS_NOT_SUPPORT_DITHER";
+    switch (status)
+    {
+    case gcvSTATUS_OK:
+        return "gcvSTATUS_OK";
+    case gcvSTATUS_TRUE:
+        return "gcvSTATUS_TRUE";
+    case gcvSTATUS_NO_MORE_DATA:
+        return "gcvSTATUS_NO_MORE_DATA";
+    case gcvSTATUS_CACHED:
+        return "gcvSTATUS_CACHED";
+    case gcvSTATUS_MIPMAP_TOO_LARGE:
+        return "gcvSTATUS_MIPMAP_TOO_LARGE";
+    case gcvSTATUS_NAME_NOT_FOUND:
+        return "gcvSTATUS_NAME_NOT_FOUND";
+    case gcvSTATUS_NOT_OUR_INTERRUPT:
+        return "gcvSTATUS_NOT_OUR_INTERRUPT";
+    case gcvSTATUS_MISMATCH:
+        return "gcvSTATUS_MISMATCH";
+    case gcvSTATUS_MIPMAP_TOO_SMALL:
+        return "gcvSTATUS_MIPMAP_TOO_SMALL";
+    case gcvSTATUS_LARGER:
+        return "gcvSTATUS_LARGER";
+    case gcvSTATUS_SMALLER:
+        return "gcvSTATUS_SMALLER";
+    case gcvSTATUS_CHIP_NOT_READY:
+        return "gcvSTATUS_CHIP_NOT_READY";
+    case gcvSTATUS_NEED_CONVERSION:
+        return "gcvSTATUS_NEED_CONVERSION";
+    case gcvSTATUS_SKIP:
+        return "gcvSTATUS_SKIP";
+    case gcvSTATUS_DATA_TOO_LARGE:
+        return "gcvSTATUS_DATA_TOO_LARGE";
+    case gcvSTATUS_INVALID_CONFIG:
+        return "gcvSTATUS_INVALID_CONFIG";
+    case gcvSTATUS_CHANGED:
+        return "gcvSTATUS_CHANGED";
+    case gcvSTATUS_NOT_SUPPORT_DITHER:
+        return "gcvSTATUS_NOT_SUPPORT_DITHER";
 
-	case gcvSTATUS_INVALID_ARGUMENT:
-		return "gcvSTATUS_INVALID_ARGUMENT";
-	case gcvSTATUS_INVALID_OBJECT:
-		return "gcvSTATUS_INVALID_OBJECT";
-	case gcvSTATUS_OUT_OF_MEMORY:
-		return "gcvSTATUS_OUT_OF_MEMORY";
-	case gcvSTATUS_MEMORY_LOCKED:
-		return "gcvSTATUS_MEMORY_LOCKED";
-	case gcvSTATUS_MEMORY_UNLOCKED:
-		return "gcvSTATUS_MEMORY_UNLOCKED";
-	case gcvSTATUS_HEAP_CORRUPTED:
-		return "gcvSTATUS_HEAP_CORRUPTED";
-	case gcvSTATUS_GENERIC_IO:
-		return "gcvSTATUS_GENERIC_IO";
-	case gcvSTATUS_INVALID_ADDRESS:
-		return "gcvSTATUS_INVALID_ADDRESS";
-	case gcvSTATUS_CONTEXT_LOSSED:
-		return "gcvSTATUS_CONTEXT_LOSSED";
-	case gcvSTATUS_TOO_COMPLEX:
-		return "gcvSTATUS_TOO_COMPLEX";
-	case gcvSTATUS_BUFFER_TOO_SMALL:
-		return "gcvSTATUS_BUFFER_TOO_SMALL";
-	case gcvSTATUS_INTERFACE_ERROR:
-		return "gcvSTATUS_INTERFACE_ERROR";
-	case gcvSTATUS_NOT_SUPPORTED:
-		return "gcvSTATUS_NOT_SUPPORTED";
-	case gcvSTATUS_MORE_DATA:
-		return "gcvSTATUS_MORE_DATA";
-	case gcvSTATUS_TIMEOUT:
-		return "gcvSTATUS_TIMEOUT";
-	case gcvSTATUS_OUT_OF_RESOURCES:
-		return "gcvSTATUS_OUT_OF_RESOURCES";
-	case gcvSTATUS_INVALID_DATA:
-		return "gcvSTATUS_INVALID_DATA";
-	case gcvSTATUS_INVALID_MIPMAP:
-		return "gcvSTATUS_INVALID_MIPMAP";
-	case gcvSTATUS_NOT_FOUND:
-		return "gcvSTATUS_NOT_FOUND";
-	case gcvSTATUS_NOT_ALIGNED:
-		return "gcvSTATUS_NOT_ALIGNED";
-	case gcvSTATUS_INVALID_REQUEST:
-		return "gcvSTATUS_INVALID_REQUEST";
-	case gcvSTATUS_GPU_NOT_RESPONDING:
-		return "gcvSTATUS_GPU_NOT_RESPONDING";
-	case gcvSTATUS_TIMER_OVERFLOW:
-		return "gcvSTATUS_TIMER_OVERFLOW";
-	case gcvSTATUS_VERSION_MISMATCH:
-		return "gcvSTATUS_VERSION_MISMATCH";
-	case gcvSTATUS_LOCKED:
-		return "gcvSTATUS_LOCKED";
+    case gcvSTATUS_INVALID_ARGUMENT:
+        return "gcvSTATUS_INVALID_ARGUMENT";
+    case gcvSTATUS_INVALID_OBJECT:
+        return "gcvSTATUS_INVALID_OBJECT";
+    case gcvSTATUS_OUT_OF_MEMORY:
+        return "gcvSTATUS_OUT_OF_MEMORY";
+    case gcvSTATUS_MEMORY_LOCKED:
+        return "gcvSTATUS_MEMORY_LOCKED";
+    case gcvSTATUS_MEMORY_UNLOCKED:
+        return "gcvSTATUS_MEMORY_UNLOCKED";
+    case gcvSTATUS_HEAP_CORRUPTED:
+        return "gcvSTATUS_HEAP_CORRUPTED";
+    case gcvSTATUS_GENERIC_IO:
+        return "gcvSTATUS_GENERIC_IO";
+    case gcvSTATUS_INVALID_ADDRESS:
+        return "gcvSTATUS_INVALID_ADDRESS";
+    case gcvSTATUS_CONTEXT_LOSSED:
+        return "gcvSTATUS_CONTEXT_LOSSED";
+    case gcvSTATUS_TOO_COMPLEX:
+        return "gcvSTATUS_TOO_COMPLEX";
+    case gcvSTATUS_BUFFER_TOO_SMALL:
+        return "gcvSTATUS_BUFFER_TOO_SMALL";
+    case gcvSTATUS_INTERFACE_ERROR:
+        return "gcvSTATUS_INTERFACE_ERROR";
+    case gcvSTATUS_NOT_SUPPORTED:
+        return "gcvSTATUS_NOT_SUPPORTED";
+    case gcvSTATUS_MORE_DATA:
+        return "gcvSTATUS_MORE_DATA";
+    case gcvSTATUS_TIMEOUT:
+        return "gcvSTATUS_TIMEOUT";
+    case gcvSTATUS_OUT_OF_RESOURCES:
+        return "gcvSTATUS_OUT_OF_RESOURCES";
+    case gcvSTATUS_INVALID_DATA:
+        return "gcvSTATUS_INVALID_DATA";
+    case gcvSTATUS_INVALID_MIPMAP:
+        return "gcvSTATUS_INVALID_MIPMAP";
+    case gcvSTATUS_NOT_FOUND:
+        return "gcvSTATUS_NOT_FOUND";
+    case gcvSTATUS_NOT_ALIGNED:
+        return "gcvSTATUS_NOT_ALIGNED";
+    case gcvSTATUS_INVALID_REQUEST:
+        return "gcvSTATUS_INVALID_REQUEST";
+    case gcvSTATUS_GPU_NOT_RESPONDING:
+        return "gcvSTATUS_GPU_NOT_RESPONDING";
+    case gcvSTATUS_TIMER_OVERFLOW:
+        return "gcvSTATUS_TIMER_OVERFLOW";
+    case gcvSTATUS_VERSION_MISMATCH:
+        return "gcvSTATUS_VERSION_MISMATCH";
+    case gcvSTATUS_LOCKED:
+        return "gcvSTATUS_LOCKED";
+    case gcvSTATUS_INTERRUPTED:
+        return "gcvSTATUS_INTERRUPTED";
+    case gcvSTATUS_DEVICE:
+        return "gcvSTATUS_DEVICE";
+    case gcvSTATUS_NOT_MULTI_PIPE_ALIGNED:
+        return "gcvSTATUS_NOT_MULTI_PIPE_ALIGNED";
 
     /* Linker errors. */
-	case gcvSTATUS_GLOBAL_TYPE_MISMATCH:
-		return "gcvSTATUS_GLOBAL_TYPE_MISMATCH";
-	case gcvSTATUS_TOO_MANY_ATTRIBUTES:
-		return "gcvSTATUS_TOO_MANY_ATTRIBUTES";
-	case gcvSTATUS_TOO_MANY_UNIFORMS:
-		return "gcvSTATUS_TOO_MANY_UNIFORMS";
-	case gcvSTATUS_TOO_MANY_VARYINGS:
-		return "gcvSTATUS_TOO_MANY_VARYINGS";
-	case gcvSTATUS_UNDECLARED_VARYING:
-		return "gcvSTATUS_UNDECLARED_VARYING";
-	case gcvSTATUS_VARYING_TYPE_MISMATCH:
-		return "gcvSTATUS_VARYING_TYPE_MISMATCH";
-	case gcvSTATUS_MISSING_MAIN:
-		return "gcvSTATUS_MISSING_MAIN";
-	case gcvSTATUS_NAME_MISMATCH:
-		return "gcvSTATUS_NAME_MISMATCH";
-	case gcvSTATUS_INVALID_INDEX:
-		return "gcvSTATUS_INVALID_INDEX";
-	default:
-		return "nil";
-	}
+    case gcvSTATUS_GLOBAL_TYPE_MISMATCH:
+        return "gcvSTATUS_GLOBAL_TYPE_MISMATCH";
+    case gcvSTATUS_TOO_MANY_ATTRIBUTES:
+        return "gcvSTATUS_TOO_MANY_ATTRIBUTES";
+    case gcvSTATUS_TOO_MANY_UNIFORMS:
+        return "gcvSTATUS_TOO_MANY_UNIFORMS";
+    case gcvSTATUS_TOO_MANY_VARYINGS:
+        return "gcvSTATUS_TOO_MANY_VARYINGS";
+    case gcvSTATUS_UNDECLARED_VARYING:
+        return "gcvSTATUS_UNDECLARED_VARYING";
+    case gcvSTATUS_VARYING_TYPE_MISMATCH:
+        return "gcvSTATUS_VARYING_TYPE_MISMATCH";
+    case gcvSTATUS_MISSING_MAIN:
+        return "gcvSTATUS_MISSING_MAIN";
+    case gcvSTATUS_NAME_MISMATCH:
+        return "gcvSTATUS_NAME_MISMATCH";
+    case gcvSTATUS_INVALID_INDEX:
+        return "gcvSTATUS_INVALID_INDEX";
+    default:
+        return "nil";
+    }
 }
+
+/*******************************************************************************
+***** Binary Trace *************************************************************
+*******************************************************************************/
+
+/*******************************************************************************
+**  _VerifyMessage
+**
+**  Verify a binary trace message, decode it to human readable string and print
+**  it.
+**
+**  ARGUMENTS:
+**
+**      gctCONST_STRING Buffer
+**          Pointer to buffer to store.
+**
+**      gctSIZE_T Bytes
+**          Buffer length.
+*/
+void
+_VerifyMessage(
+    IN gctCONST_STRING Buffer,
+    IN gctSIZE_T Bytes
+    )
+{
+    char arguments[150] = {0};
+    char format[100] = {0};
+
+    gctSTRING function;
+    gctPOINTER args;
+    gctUINT32 numArguments;
+    int i = 0;
+    gctUINT32 functionBytes;
+
+    gcsBINARY_TRACE_MESSAGE_PTR message = (gcsBINARY_TRACE_MESSAGE_PTR)Buffer;
+
+    /* Check signature. */
+    if (message->signature != 0x7FFFFFFF)
+    {
+        gcmkPRINT("Signature error");
+        return;
+    }
+
+    /* Get function name. */
+    function = (gctSTRING)&message->payload;
+    functionBytes = strlen(function) + 1;
+
+    /* Get arguments number. */
+    numArguments = message->numArguments;
+
+    /* Get arguments . */
+    args = function + functionBytes;
+
+    /* Prepare format string. */
+    while (numArguments--)
+    {
+        format[i++] = '%';
+        format[i++] = 'x';
+        format[i++] = ' ';
+    }
+
+    format[i] = '\0';
+
+    if (numArguments)
+    {
+        gcmkVSPRINTF(arguments, 150, format, *(gctARGUMENTS *) &args);
+    }
+
+    gcmkPRINT("[%d](%d): %s(%d) %s",
+             message->pid,
+             message->tid,
+             function,
+             message->line,
+             arguments);
+}
+
+
+/*******************************************************************************
+**  gckOS_WriteToRingBuffer
+**
+**  Store a buffer to ring buffer.
+**
+**  ARGUMENTS:
+**
+**      gctCONST_STRING Buffer
+**          Pointer to buffer to store.
+**
+**      gctSIZE_T Bytes
+**          Buffer length.
+*/
+void
+gckOS_WriteToRingBuffer(
+    IN gctCONST_STRING Buffer,
+    IN gctSIZE_T Bytes
+    )
+{
+
+}
+
+/*******************************************************************************
+**  gckOS_BinaryTrace
+**
+**  Output a binary trace message.
+**
+**  ARGUMENTS:
+**
+**      gctCONST_STRING Function
+**          Pointer to function name.
+**
+**      gctINT Line
+**          Line number.
+**
+**      gctCONST_STRING Text OPTIONAL
+**          Optional pointer to a descriptive text.
+**
+**      ...
+**          Optional arguments to the descriptive text.
+*/
+void
+gckOS_BinaryTrace(
+    IN gctCONST_STRING Function,
+    IN gctINT Line,
+    IN gctCONST_STRING Text OPTIONAL,
+    ...
+    )
+{
+    static gctUINT32 messageSignature = 0x7FFFFFFF;
+    char buffer[gcdBINARY_TRACE_MESSAGE_SIZE];
+    gctUINT32 numArguments = 0;
+    gctUINT32 functionBytes;
+    gctUINT32 i = 0;
+    gctSTRING payload;
+    gcsBINARY_TRACE_MESSAGE_PTR message = (gcsBINARY_TRACE_MESSAGE_PTR)buffer;
+
+    /* Calculate arguments number. */
+    if (Text)
+    {
+        while (Text[i] != '\0')
+        {
+            if (Text[i] == '%')
+            {
+                numArguments++;
+            }
+            i++;
+        }
+    }
+
+    message->signature    = messageSignature;
+    message->pid          = gcmkGETPROCESSID();
+    message->tid          = gcmkGETTHREADID();
+    message->line         = Line;
+    message->numArguments = numArguments;
+
+    payload = (gctSTRING)&message->payload;
+
+    /* Function name. */
+    functionBytes = gcmkSTRLEN(Function) + 1;
+    gcmkMEMCPY(payload, Function, functionBytes);
+
+    /* Advance to next payload. */
+    payload += functionBytes;
+
+    /* Arguments value. */
+    if (numArguments)
+    {
+        gctARGUMENTS p;
+        gcmkARGUMENTS_START(p, Text);
+
+        for (i = 0; i < numArguments; ++i)
+        {
+            gctPOINTER value = gcmkARGUMENTS_ARG(p, gctPOINTER);
+            gcmkMEMCPY(payload, &value, gcmSIZEOF(gctPOINTER));
+            payload += gcmSIZEOF(gctPOINTER);
+        }
+
+        gcmkARGUMENTS_END(p);
+    }
+
+    gcmkASSERT(payload - buffer <= gcdBINARY_TRACE_MESSAGE_SIZE);
+
+
+    /* Send buffer to ring buffer. */
+    gckOS_WriteToRingBuffer(buffer, payload - buffer);
+}
+

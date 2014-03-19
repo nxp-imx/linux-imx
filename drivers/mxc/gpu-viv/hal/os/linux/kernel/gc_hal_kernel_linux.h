@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2013 by Vivante Corp.
+*    Copyright (C) 2005 - 2014 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
+
 
 
 #ifndef __gc_hal_kernel_linux_h_
@@ -44,8 +45,8 @@
 #include <asm/uaccess.h>
 
 #if ENABLE_GPU_CLOCK_BY_DRIVER && LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
-#include <linux/clk.h>
 #include <linux/regulator/consumer.h>
+#include <linux/clk.h>
 #endif
 
 #define NTSTRSAFE_NO_CCH_FUNCTIONS
@@ -64,31 +65,19 @@
 #define FIND_TASK_BY_PID(x) find_task_by_pid(x)
 #endif
 
-#define _WIDE(string)				L##string
-#define WIDE(string)				_WIDE(string)
+#define _WIDE(string)                L##string
+#define WIDE(string)                _WIDE(string)
 
-#define countof(a)					(sizeof(a) / sizeof(a[0]))
+#define countof(a)                    (sizeof(a) / sizeof(a[0]))
 
-#define DRV_NAME          			"galcore"
+#define DRV_NAME                      "galcore"
 
-#define GetPageCount(size, offset) 	((((size) + ((offset) & ~PAGE_CACHE_MASK)) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT)
+#define GetPageCount(size, offset)     ((((size) + ((offset) & ~PAGE_CACHE_MASK)) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION (3,7,0)
 #define gcdVM_FLAGS (VM_IO | VM_DONTCOPY | VM_DONTEXPAND | VM_DONTDUMP)
 #else
 #define gcdVM_FLAGS (VM_IO | VM_DONTCOPY | VM_DONTEXPAND | VM_RESERVED)
 #endif
-
-static inline gctINT
-GetOrder(
-	IN gctINT numPages
-	)
-{
-    gctINT order = 0;
-
-	while ((1 << order) <  numPages) order++;
-
-	return order;
-}
 
 #endif /* __gc_hal_kernel_linux_h_ */

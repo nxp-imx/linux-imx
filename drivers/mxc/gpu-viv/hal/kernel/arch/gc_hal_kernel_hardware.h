@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2013 by Vivante Corp.
+*    Copyright (C) 2005 - 2014 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 *
 *****************************************************************************/
+
 
 
 #ifndef __gc_hal_kernel_hardware_h_
@@ -80,12 +81,10 @@ struct _gckHARDWARE
     gctPOINTER                  powerOffTimer;
 #endif
 
-    gctPOINTER                  pageTableDirty;
-
 #if gcdENABLE_FSCALE_VAL_ADJUST
-    /* FSCALE_VAL when gcvPOWER_ON. */
     gctUINT32                   powerOnFscaleVal;
 #endif
+    gctPOINTER                  pageTableDirty;
 
 #if gcdLINK_QUEUE_SIZE
     struct _gckLINKQUEUE        linkQueue;
@@ -119,7 +118,6 @@ gckHARDWARE_SetFscaleValue(
     IN gckHARDWARE Hardware,
     IN gctUINT32   FscaleValue
     );
-
 gceSTATUS
 gckHARDWARE_GetFscaleValue(
     IN gckHARDWARE Hardware,
@@ -127,7 +125,6 @@ gckHARDWARE_GetFscaleValue(
     IN gctUINT * MinFscaleValue,
     IN gctUINT * MaxFscaleValue
     );
-
 #ifdef __cplusplus
 }
 #endif

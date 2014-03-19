@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2013 by Vivante Corp.
+*    Copyright (C) 2005 - 2014 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 *****************************************************************************/
 
 
+
 #ifndef __gc_hal_statistics_h_
 #define __gc_hal_statistics_h_
 
@@ -29,6 +30,7 @@
     to keep frame times for last this many frames.
 */
 #define VIV_STAT_FRAME_BUFFER_SIZE              30
+
 
 /*
     Total number of frames sampled for a mode. This means
@@ -64,14 +66,6 @@ typedef struct _gcsSTATISTICS_EARLYZ
 gcsSTATISTICS_EARLYZ;
 
 
-/* Defines the statistical data keys monitored by the statistics module */
-typedef enum _gceSTATISTICS_Call
-{
-	gcvSTAT_ES11_GLDRAWELEMENTS      =   1,
-}
-gceSTATISTICS_Call;
-
-
 /* HAL statistics information. */
 typedef struct _gcsSTATISTICS
 {
@@ -79,8 +73,6 @@ typedef struct _gcsSTATISTICS
     gctUINT64                   previousFrameTime;
     gctUINT                     frame;
     gcsSTATISTICS_EARLYZ        earlyZ;
-	gctUINT						ES11_drawElementsCount;
-	gctBOOL						applyRTestVAFix;
 }
 gcsSTATISTICS;
 
@@ -103,13 +95,6 @@ void
 gcfSTATISTICS_DisableDynamicEarlyZ (
     IN gctBOOL Disabled
     );
-
-/* Checks whether or not glDrawArray function call will be discarded */
-gctBOOL
-gcfSTATISTICS_DiscardCall(
-	gceSTATISTICS_Call Function
-	);
-
 
 #endif /*__gc_hal_statistics_h_ */
 
