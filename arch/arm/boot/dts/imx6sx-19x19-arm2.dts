@@ -38,7 +38,7 @@
 
 	pxp_v4l2_out {
 		compatible = "fsl,imx6sx-pxp-v4l2", "fsl,imx6sl-pxp-v4l2";
-		status = "disabled";
+		status = "okay";
 	};
 
 	regulators {
@@ -321,7 +321,7 @@
 };
 
 &pxp {
-	status = "disabled";
+	status = "okay";
 };
 
 &uart1 {
