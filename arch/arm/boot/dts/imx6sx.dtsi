@@ -72,6 +72,10 @@
 		};
 	};
 
+		pu_dummy: pudummy_reg {
+			compatible = "fsl,imx6-dummy-pureg"; /* only used in ldo-bypass */
+		};
+
 	soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -352,9 +356,12 @@
 			};
 
 			gpc: gpc@020dc000 {
-				compatible = "fsl,imx6q-gpc", "syscon";
+				compatible = "fsl,imx6q-gpc";
 				reg = <0x020dc000 0x4000>;
 				interrupts = <0 89 0x04>;
+				clocks = <&clks IMX6SX_CLK_GPU>, <&clks IMX6SX_CLK_IPG>;
+				clock-names = "gpu3d_core", "ipg";
+				pu-supply = <&pu_dummy>;
 			};
 
 			gpio1: gpio@0209c000 {

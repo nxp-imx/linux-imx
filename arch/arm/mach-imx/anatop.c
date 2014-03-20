@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -111,6 +111,9 @@ static void imx_anatop_usb_chrg_detect_disable(void)
 void imx_anatop_pu_enable(bool enable)
 {
 	u32 val;
+
+	if (cpu_is_imx6sx())
+		return;
 
 	regmap_read(anatop, ANADIG_REG_CORE, &val);
 	val &= ANADIG_REG_TARG_MASK << ANADIG_REG2_TARG_SHIFT;

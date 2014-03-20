@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Freescale Semiconductor, Inc.
+ * Copyright 2011-2014 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -225,6 +225,8 @@ static void imx_pu_clk(bool enable)
 		if (cpu_is_imx6sl()) {
 			clk_prepare_enable(gpu2d_clk);
 			clk_prepare_enable(openvg_axi_clk);
+		} else if (cpu_is_imx6sx()) {
+			clk_prepare_enable(gpu3d_clk);
 		} else {
 			clk_prepare_enable(gpu3d_clk);
 			clk_prepare_enable(gpu3d_shader_clk);
@@ -237,6 +239,8 @@ static void imx_pu_clk(bool enable)
 		if (cpu_is_imx6sl()) {
 			clk_disable_unprepare(gpu2d_clk);
 			clk_disable_unprepare(openvg_axi_clk);
+		} else if (cpu_is_imx6sx()) {
+			clk_disable_unprepare(gpu3d_clk);
 		} else {
 			clk_disable_unprepare(gpu3d_clk);
 			clk_disable_unprepare(gpu3d_shader_clk);
@@ -489,6 +493,13 @@ static int imx_gpc_probe(struct platform_device *pdev)
 			|| IS_ERR(ipg_clk) || IS_ERR(lcd_axi_clk)
 			|| IS_ERR(lcd_pix_clk) || IS_ERR(epdc_axi_clk)
 			|| IS_ERR(epdc_pix_clk) || IS_ERR(pxp_axi_clk)) {
+			dev_err(gpc_dev, "failed to get clk!\n");
+			return -ENOENT;
+		}
+	} else if (cpu_is_imx6sx()) {
+		gpu3d_clk = devm_clk_get(gpc_dev, "gpu3d_core");
+		ipg_clk = devm_clk_get(gpc_dev, "ipg");
+		if (IS_ERR(gpu3d_clk) || IS_ERR(ipg_clk)) {
 			dev_err(gpc_dev, "failed to get clk!\n");
 			return -ENOENT;
 		}
