@@ -876,6 +876,10 @@
 					compatible = "fsl,imx6sx-csi", "fsl,imx6sl-csi";
 					reg = <0x02214000 0x4000>;
 					interrupts = <0 7 0x04>;
+					clocks = <&clks IMX6SX_CLK_DISPLAY_AXI>,
+						<&clks IMX6SX_CLK_CSI>,
+						<&clks IMX6SX_CLK_DCIC1>;
+					clock-names = "disp-axi", "csi_mclk", "dcic";
 					status = "disabled";
 				};
 
@@ -883,6 +887,10 @@
 					compatible = "fsl,imx6sx-csi", "fsl,imx6sl-csi";
 					reg = <0x0221c000 0x4000>;
 					interrupts = <0 41 0x04>;
+					clocks = <&clks IMX6SX_CLK_DISPLAY_AXI>,
+						<&clks IMX6SX_CLK_CSI>,
+						<&clks IMX6SX_CLK_DCIC2>;
+					clock-names = "disp-axi", "csi_mclk", "dcic";
 					status = "disabled";
 				};
 
