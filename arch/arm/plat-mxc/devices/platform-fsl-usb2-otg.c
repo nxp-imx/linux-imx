@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * Based on Uwe Kleine-Koenig's platform-fsl-usb2-udc.c
  * Copyright (C) 2010 Pengutronix
@@ -50,7 +50,7 @@ struct platform_device *__init imx_add_fsl_usb2_otg(
 
 	pdev = platform_device_alloc(name, id);
 	if (!pdev)
-		goto err;
+		return ERR_PTR(ret);
 
 	if (dmamask) {
 		/*
@@ -63,7 +63,7 @@ struct platform_device *__init imx_add_fsl_usb2_otg(
 			kmalloc(sizeof(*pdev->dev.dma_mask), GFP_KERNEL);
 		if (!pdev->dev.dma_mask)
 			/* ret is still -ENOMEM; */
-			goto err;
+			goto err1;
 
 		*pdev->dev.dma_mask = dmamask;
 		pdev->dev.coherent_dma_mask = dmamask;
@@ -73,16 +73,15 @@ struct platform_device *__init imx_add_fsl_usb2_otg(
 	if (ret)
 		goto err;
 
-	if (data) {
-		ret = platform_device_add_data(pdev, pdata, size_data);
-		if (ret)
-			goto err;
-	}
+	ret = platform_device_add_data(pdev, pdata, size_data);
+	if (ret)
+		goto err;
 
 	return pdev;
 err:
 		if (dmamask)
 			kfree(pdev->dev.dma_mask);
+err1:
 		platform_device_put(pdev);
 		return ERR_PTR(ret);
 }
