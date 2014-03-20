@@ -2095,16 +2095,6 @@ fec_enet_open(struct net_device *ndev)
 				platform_get_device_id(fep->pdev);
 	int ret;
 
-	pm_runtime_get_sync(ndev->dev.parent);
-	if (id_entry->driver_data & FEC_QUIRK_BUG_WAITMODE)
-		pm_qos_add_request(&ndev->pm_qos_req,
-				   PM_QOS_CPU_DMA_LATENCY,
-				   0);
-	else
-		pm_qos_add_request(&ndev->pm_qos_req,
-				   PM_QOS_CPU_DMA_LATENCY,
-				   PM_QOS_DEFAULT_VALUE);
-
 	pinctrl_pm_select_default_state(&fep->pdev->dev);
 
 	fec_enet_clk_enable(ndev, true);
@@ -2120,7 +2110,9 @@ fec_enet_open(struct net_device *ndev)
 	/* Probe and connect to PHY when open the interface */
 	ret = fec_enet_mii_probe(ndev);
 	if (ret) {
-		fec_enet_close(ndev);
+		fec_enet_free_buffers(ndev);
+		fec_enet_clk_enable(ndev, false);
+		pinctrl_pm_select_sleep_state(&fep->pdev->dev);
 		return ret;
 	}
 
@@ -2131,6 +2123,16 @@ fec_enet_open(struct net_device *ndev)
 
 	/* reset phy */
 	fec_reset_phy(fep->pdev);
+
+	pm_runtime_get_sync(ndev->dev.parent);
+	if (id_entry->driver_data & FEC_QUIRK_BUG_WAITMODE)
+		pm_qos_add_request(&ndev->pm_qos_req,
+				   PM_QOS_CPU_DMA_LATENCY,
+				   0);
+	else
+		pm_qos_add_request(&ndev->pm_qos_req,
+				   PM_QOS_CPU_DMA_LATENCY,
+				   PM_QOS_DEFAULT_VALUE);
 
 	return 0;
 }
