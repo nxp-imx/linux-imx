@@ -1447,18 +1447,23 @@ static int fec_enet_mii_probe(struct net_device *ndev)
 	fep->phy_dev = NULL;
 
 	/* check for attached phy */
-	for (phy_id = 0; (phy_id < PHY_MAX_ADDR); phy_id++) {
-		if ((fep->mii_bus->phy_mask & (1 << phy_id)))
-			continue;
-		if (fep->mii_bus->phy_map[phy_id] == NULL)
-			continue;
-		if (fep->mii_bus->phy_map[phy_id]->phy_id == 0)
-			continue;
-		if (dev_id--)
-			continue;
-		strncpy(mdio_bus_id, fep->mii_bus->id, MII_BUS_ID_SIZE);
-		break;
+	if (IS_ERR(&fep->phy_id) || fep->phy_id >= PHY_MAX_ADDR ||
+		fep->mii_bus->phy_mask & (1 << fep->phy_id)) {
+		for (phy_id = 0; (phy_id < PHY_MAX_ADDR); phy_id++) {
+			if ((fep->mii_bus->phy_mask & (1 << phy_id)))
+				continue;
+			if (fep->mii_bus->phy_map[phy_id] == NULL)
+				continue;
+			if (fep->mii_bus->phy_map[phy_id]->phy_id == 0)
+				continue;
+			if (dev_id--)
+				continue;
+			break;
+		}
+	} else {
+		phy_id = fep->phy_id;
 	}
+	strncpy(mdio_bus_id, fep->mii_bus->id, MII_BUS_ID_SIZE);
 
 	if (phy_id >= PHY_MAX_ADDR) {
 		netdev_info(ndev, "no PHY, assuming direct connection to switch\n");
@@ -2628,6 +2633,7 @@ fec_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, ndev);
 
 	fec_of_init(pdev);
+	of_property_read_u32(pdev->dev.of_node, "phy-id", &fep->phy_id);
 	ret = of_get_phy_mode(pdev->dev.of_node);
 	if (ret < 0) {
 		pdata = pdev->dev.platform_data;
