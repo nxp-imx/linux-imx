@@ -2633,6 +2633,7 @@ fec_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, ndev);
 
 	fec_of_init(pdev);
+	fep->phy_id = PHY_MAX_ADDR;
 	of_property_read_u32(pdev->dev.of_node, "phy-id", &fep->phy_id);
 	ret = of_get_phy_mode(pdev->dev.of_node);
 	if (ret < 0) {
