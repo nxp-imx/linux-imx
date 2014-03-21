@@ -380,6 +380,9 @@ static int find_ldb_chno(struct ldb_data *ldb,
 	return -EINVAL;
 }
 
+static void ldb_disable(struct mxc_dispdrv_handle *mddh,
+			struct fb_info *fbi);
+
 static int ldb_setup(struct mxc_dispdrv_handle *mddh,
 		     struct fb_info *fbi)
 {
@@ -472,6 +475,10 @@ static int ldb_setup(struct mxc_dispdrv_handle *mddh,
 				   bus_mux.mask, mux_val);
 
 	regmap_write(ldb->regmap, ldb->ctrl_reg, ldb->ctrl);
+
+	/* disable channel for correct sequence */
+	ldb_disable(mddh, fbi);
+
 	return ret;
 }
 
