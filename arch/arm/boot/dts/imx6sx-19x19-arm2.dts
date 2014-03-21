@@ -63,6 +63,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_enet1_1>;
 	phy-mode = "rgmii";
+	phy-id = <1>;
 	fsl,num_tx_queues=<3>;
 	fsl,num_rx_queues=<3>;
 	pinctrl-assert-gpios = <&max7322_1 0 GPIO_ACTIVE_HIGH>;
@@ -73,6 +74,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_enet2_1>;
 	phy-mode = "rgmii";
+	phy-id = <0>;
 	fsl,num_tx_queues=<3>;
 	fsl,num_rx_queues=<3>;
 	pinctrl-assert-gpios = <&max7322_2 0 GPIO_ACTIVE_HIGH>;
