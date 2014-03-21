@@ -1064,6 +1064,15 @@ static int imx_soc_platform_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(&pdev->dev, priv);
 
+	switch (hdmi_readb(HDMI_REVISION_ID)) {
+	case 0x0a:
+		snd_imx_hardware.period_bytes_max = HDMI_DMA_PERIOD_BYTES / 4;
+		snd_imx_hardware.period_bytes_min = HDMI_DMA_PERIOD_BYTES / 4;
+		break;
+	default:
+		break;
+	}
+
 	ret = snd_soc_register_platform(&pdev->dev, &imx_hdmi_platform);
 	if (ret)
 		goto err_plat;
