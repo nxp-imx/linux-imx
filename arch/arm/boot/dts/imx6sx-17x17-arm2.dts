@@ -168,6 +168,12 @@
 	fsl,wdog-reset = <1>; /* watchdog select of reset source */
 };
 
+&gpmi {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_gpmi_nand_1>;
+	status = "disabled"; /* pin conflict with qspi*/
+};
+
 &i2c1 {
         clock-frequency = <100000>;
         pinctrl-names = "default";
