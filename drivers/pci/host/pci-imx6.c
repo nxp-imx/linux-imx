@@ -68,7 +68,6 @@ struct imx6_pcie {
 	struct clk		*dis_axi;
 	struct pcie_port	pp;
 	struct regmap		*iomuxc_gpr;
-	struct regmap		*gpc_ips_reg;
 	struct regulator	*pcie_regulator;
 	void __iomem		*mem_base;
 };
@@ -336,8 +335,6 @@ static void imx6_pcie_init_phy(struct pcie_port *pp)
 		if (ret)
 			dev_info(pp->dev, "failed to enable pcie regulator.\n");
 
-		/* Disable PCIe isolation, APIS1_GPC_IPS 0x020D_C000 offset 0 */
-		regmap_update_bits(imx6_pcie->gpc_ips_reg, 0, BIT(7), 1 << 7);
 	}
 	regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
 			IMX6Q_GPR12_PCIE_CTL_2, 0 << 10);
@@ -786,15 +783,6 @@ static int __init imx6_pcie_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev,
 				"dis_axi clock source missing or invalid\n");
 			ret = PTR_ERR(imx6_pcie->dis_axi);
-			goto err;
-		}
-
-		/* Grab GPC IPS config register range */
-		imx6_pcie->gpc_ips_reg =
-			 syscon_regmap_lookup_by_compatible("fsl,imx6q-gpc");
-		if (IS_ERR(imx6_pcie->gpc_ips_reg)) {
-			dev_err(&pdev->dev, "unable to find gpc ips registers\n");
-			ret = PTR_ERR(imx6_pcie->gpc_ips_reg);
 			goto err;
 		}
 
