@@ -405,6 +405,7 @@
 				clocks = <&clks IMX6SX_CLK_GPU>, <&clks IMX6SX_CLK_IPG>;
 				clock-names = "gpu3d_core", "ipg";
 				pu-supply = <&pu_dummy>;
+				pcie-supply = <&reg_pcie>;
 			};
 
 			gpio1: gpio@0209c000 {
