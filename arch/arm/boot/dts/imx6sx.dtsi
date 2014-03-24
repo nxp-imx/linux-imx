@@ -976,6 +976,22 @@
 		};
 	};
 
+	ecspi4 {
+		pinctrl_ecspi4_cs_1: ecspi4_cs_grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_SD3_DATA2__GPIO7_IO_4  0x80000000
+			>;
+		};
+
+		pinctrl_ecspi4_1: ecspi4grp-1 {
+			fsl,pins = <
+				MX6SX_PAD_SD3_DATA3__ECSPI4_MISO 0x100b1
+				MX6SX_PAD_SD3_CMD__ECSPI4_MOSI   0x100b1
+				MX6SX_PAD_SD3_CLK__ECSPI4_SCLK   0x100b1
+			>;
+		};
+	};
+
 	enet1 {
 		pinctrl_enet1_1: enet1grp-1 {
 			fsl,pins = <
