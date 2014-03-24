@@ -111,8 +111,7 @@ static struct platform_device_id fec_devtype[] = {
 		.name = "imx6q-fec",
 		.driver_data = FEC_QUIRK_ENET_MAC | FEC_QUIRK_HAS_GBIT |
 				FEC_QUIRK_HAS_BUFDESC_EX | FEC_QUIRK_HAS_CSUM |
-				FEC_QUIRK_HAS_VLAN | FEC_QUIRK_ERR006358 |
-				FEC_QUIRK_BUG_WAITMODE,
+				FEC_QUIRK_ERR006358 | FEC_QUIRK_BUG_WAITMODE,
 	}, {
 		.name = "mvf600-fec",
 		.driver_data = FEC_QUIRK_ENET_MAC,
@@ -120,8 +119,8 @@ static struct platform_device_id fec_devtype[] = {
 		.name = "imx6sx-fec",
 		.driver_data = FEC_QUIRK_ENET_MAC | FEC_QUIRK_HAS_GBIT |
 				FEC_QUIRK_HAS_BUFDESC_EX | FEC_QUIRK_HAS_CSUM |
-				FEC_QUIRK_HAS_VLAN | FEC_QUIRK_HAS_AVB |
-				FEC_QUIRK_TKT210582 | FEC_QUIRK_TKT210590,
+				FEC_QUIRK_HAS_AVB | FEC_QUIRK_TKT210582 |
+				FEC_QUIRK_TKT210590,
 	}, {
 		/* sentinel */
 	}
@@ -1037,13 +1036,13 @@ fec_enet_rx(struct net_device *ndev, int budget)
 
 			/* If this is a VLAN packet remove the VLAN Tag */
 			vlan_packet_rcvd = false;
-			if ((ndev->features & NETIF_F_HW_VLAN_CTAG_RX) &&
-			    fep->bufdesc_ex && (ebdp->cbd_esc & BD_ENET_RX_VLAN)) {
+			if (fep->bufdesc_ex && (ebdp->cbd_esc & BD_ENET_RX_VLAN)) {
 				/* Push and remove the vlan tag */
 				struct vlan_hdr *vlan_header =
 					(struct vlan_hdr *) (data + ETH_HLEN);
 				vlan_tag = ntohs(vlan_header->h_vlan_TCI);
-				pkt_len -= VLAN_HLEN;
+				if (ndev->features & NETIF_F_HW_VLAN_CTAG_RX)
+					pkt_len -= VLAN_HLEN;
 
 				vlan_packet_rcvd = true;
 			}
@@ -1063,12 +1062,16 @@ fec_enet_rx(struct net_device *ndev, int budget)
 				skb_put(skb, pkt_len - 4);	/* Make room */
 
 				/* Extract the frame data without the VLAN header. */
-				skb_copy_to_linear_data(skb, data, (2 * ETH_ALEN));
-				if (vlan_packet_rcvd)
+				if (ndev->features & NETIF_F_HW_VLAN_CTAG_RX &&
+					vlan_packet_rcvd) {
+					skb_copy_to_linear_data(skb, data, (2 * ETH_ALEN));
 					payload_offset = (2 * ETH_ALEN) + VLAN_HLEN;
-				skb_copy_to_linear_data_offset(skb, (2 * ETH_ALEN),
-						       data + payload_offset,
-						       pkt_len - 4 - (2 * ETH_ALEN));
+					skb_copy_to_linear_data_offset(skb, (2 * ETH_ALEN),
+								data + payload_offset,
+								pkt_len - 4 - (2 * ETH_ALEN));
+				} else {
+					skb_copy_to_linear_data(skb, data, pkt_len - 4);
+				}
 
 				/* Get receive timestamp from the skb */
 				if (fep->hwts_rx_en && fep->bufdesc_ex) {
