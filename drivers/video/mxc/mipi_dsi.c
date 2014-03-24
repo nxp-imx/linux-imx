@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -621,7 +621,8 @@ static int mipi_dsi_lcd_init(struct mipi_dsi_info *mipi_dsi,
 	return 0;
 }
 
-int mipi_dsi_enable(struct mxc_dispdrv_handle *disp)
+static int mipi_dsi_enable(struct mxc_dispdrv_handle *disp,
+			   struct fb_info *fbi)
 {
 	int err;
 	struct mipi_dsi_info *mipi_dsi = mxc_dispdrv_getdata(disp);
@@ -647,6 +648,14 @@ int mipi_dsi_enable(struct mxc_dispdrv_handle *disp)
 	mipi_dsi_power_on(mipi_dsi->disp_mipi);
 
 	return 0;
+}
+
+static void mipi_dsi_disable(struct mxc_dispdrv_handle *disp,
+			     struct fb_info *fbi)
+{
+	struct mipi_dsi_info *mipi_dsi = mxc_dispdrv_getdata(disp);
+
+	mipi_dsi_power_off(mipi_dsi->disp_mipi);
 }
 
 static int mipi_dsi_disp_init(struct mxc_dispdrv_handle *disp,
@@ -906,7 +915,7 @@ static struct mxc_dispdrv_driver mipi_dsi_drv = {
 	.init	= mipi_dsi_disp_init,
 	.deinit	= mipi_dsi_disp_deinit,
 	.enable	= mipi_dsi_enable,
-	.disable = mipi_dsi_power_off,
+	.disable = mipi_dsi_disable,
 };
 
 /**
