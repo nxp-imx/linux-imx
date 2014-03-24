@@ -167,6 +167,54 @@
 				reg = <0x02000000 0x40000>;
 				ranges;
 
+				ecspi1: ecspi@02008000 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					compatible = "fsl,imx6sx-ecspi", "fsl,imx51-ecspi";
+					reg = <0x02008000 0x4000>;
+					interrupts = <0 31 0x04>;
+					clocks = <&clks IMX6SX_CLK_ECSPI1>,
+					       <&clks IMX6SX_CLK_ECSPI1>;
+					clock-names = "ipg", "per";
+					status = "disabled";
+				};
+
+				ecspi2: ecspi@0200c000 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					compatible = "fsl,imx6sx-ecspi", "fsl,imx51-ecspi";
+					reg = <0x0200c000 0x4000>;
+					interrupts = <0 32 0x04>;
+					clocks = <&clks IMX6SX_CLK_ECSPI2>,
+					       <&clks IMX6SX_CLK_ECSPI2>;
+					clock-names = "ipg", "per";
+					status = "disabled";
+				};
+
+				ecspi3: ecspi@02010000 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					compatible = "fsl,imx6sx-ecspi", "fsl,imx51-ecspi";
+					reg = <0x02010000 0x4000>;
+					interrupts = <0 33 0x04>;
+					clocks = <&clks IMX6SX_CLK_ECSPI3>,
+					       <&clks IMX6SX_CLK_ECSPI3>;
+					clock-names = "ipg", "per";
+					status = "disabled";
+				};
+
+				ecspi4: ecspi@02014000 {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					compatible = "fsl,imx6sx-ecspi", "fsl,imx51-ecspi";
+					reg = <0x02014000 0x4000>;
+					interrupts = <0 34 0x04>;
+					clocks = <&clks IMX6SX_CLK_ECSPI4>,
+					       <&clks IMX6SX_CLK_ECSPI4>;
+					clock-names = "ipg", "per";
+					status = "disabled";
+				};
+
 				asrc: asrc@02034000 {
 					compatible = "fsl,imx53-asrc";
 					reg = <0x02034000 0x4000>;
