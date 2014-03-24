@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -35,9 +35,9 @@ struct mxc_dispdrv_driver {
 	int (*init) (struct mxc_dispdrv_handle *, struct mxc_dispdrv_setting *);
 	void (*deinit) (struct mxc_dispdrv_handle *);
 	/* display driver enable function for extension */
-	int (*enable) (struct mxc_dispdrv_handle *);
+	int (*enable) (struct mxc_dispdrv_handle *, struct fb_info *);
 	/* display driver disable function, called at early part of fb_blank */
-	void (*disable) (struct mxc_dispdrv_handle *);
+	void (*disable) (struct mxc_dispdrv_handle *, struct fb_info *);
 	/* display driver setup function, called at early part of fb_set_par */
 	int (*setup) (struct mxc_dispdrv_handle *, struct fb_info *fbi);
 };

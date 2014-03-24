@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1968,14 +1968,16 @@ static void mxc_hdmi_cable_connected(struct mxc_hdmi *hdmi)
 	dev_dbg(&hdmi->pdev->dev, "%s exit\n", __func__);
 }
 
-static int mxc_hdmi_power_on(struct mxc_dispdrv_handle *disp)
+static int mxc_hdmi_power_on(struct mxc_dispdrv_handle *disp,
+			     struct fb_info *fbi)
 {
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
 	mxc_hdmi_phy_init(hdmi);
 	return 0;
 }
 
-static void mxc_hdmi_power_off(struct mxc_dispdrv_handle *disp)
+static void mxc_hdmi_power_off(struct mxc_dispdrv_handle *disp,
+			       struct fb_info *fbi)
 {
 	struct mxc_hdmi *hdmi = mxc_dispdrv_getdata(disp);
 	mxc_hdmi_phy_disable(hdmi);
