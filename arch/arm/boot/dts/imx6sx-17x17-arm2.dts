@@ -120,6 +120,22 @@
        status = "okay";
 };
 
+&ecspi4 {
+	fsl,spi-num-chipselects = <1>;
+	cs-gpios = <&gpio7 4 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_ecspi4_1 &pinctrl_ecspi4_cs_1>;
+	status = "disabled"; /* pin conflict with USDHC3 */
+
+	flash: m25p80@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "st,m25p32";
+		spi-max-frequency = <20000000>;
+		reg = <0>;
+	};
+};
+
 &fec1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_enet1_1>;
