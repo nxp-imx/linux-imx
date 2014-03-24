@@ -1,7 +1,7 @@
 /*
  * imx-wm8962.c
  *
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -90,32 +90,6 @@ static struct snd_soc_jack_gpio imx_mic_jack_gpio = {
 	.debounce_time = 150,
 	.invert = 0,
 };
-
-static int imx_hifi_startup(struct snd_pcm_substream *substream)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	struct imx_priv *priv = &card_priv;
-	struct mxc_audio_platform_data *plat = priv->pdev->dev.platform_data;
-
-	if (!codec_dai->active)
-		plat->clock_enable(1);
-
-	return 0;
-}
-
-static void imx_hifi_shutdown(struct snd_pcm_substream *substream)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	struct imx_priv *priv = &card_priv;
-	struct mxc_audio_platform_data *plat = priv->pdev->dev.platform_data;
-
-	if (!codec_dai->active)
-		plat->clock_enable(0);
-
-	return;
-}
 
 static int check_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
@@ -521,8 +495,6 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 }
 
 static struct snd_soc_ops imx_hifi_ops = {
-	.startup = imx_hifi_startup,
-	.shutdown = imx_hifi_shutdown,
 	.hw_params = imx_hifi_hw_params,
 	.hw_free = imx_hifi_hw_free,
 	.trigger = imx_hifi_trigger,
@@ -613,8 +585,6 @@ static int __devexit imx_wm8962_remove(struct platform_device *pdev)
 {
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
 	struct imx_priv *priv = &card_priv;
-
-	plat->clock_enable(0);
 
 	if (plat->finit)
 		plat->finit();

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -530,10 +530,6 @@ static struct platform_device mx6_sabresd_audio_wm8962_device = {
 	.name = "imx-wm8962",
 };
 
-static struct wm8962_pdata wm8962_config_data = {
-
-};
-
 static int wm8962_clk_enable(int enable)
 {
 	if (enable)
@@ -543,6 +539,10 @@ static int wm8962_clk_enable(int enable)
 
 	return 0;
 }
+
+static struct wm8962_pdata wm8962_config_data = {
+	.clock_enable = wm8962_clk_enable,
+};
 
 static int mxc_wm8962_init(void)
 {

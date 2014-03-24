@@ -5,7 +5,7 @@
  *
  * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
  *
- * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -3066,6 +3066,7 @@ static int wm8962_set_bias_level(struct snd_soc_codec *codec,
 				 enum snd_soc_bias_level level)
 {
 	struct wm8962_priv *wm8962 = snd_soc_codec_get_drvdata(codec);
+	struct wm8962_pdata *pdata = dev_get_platdata(codec->dev);
 	int ret;
 
 	if (level == codec->dapm.bias_level)
@@ -3085,6 +3086,8 @@ static int wm8962_set_bias_level(struct snd_soc_codec *codec,
 
 	case SND_SOC_BIAS_STANDBY:
 		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
+			pdata->clock_enable(1);
+
 			ret = regulator_bulk_enable(ARRAY_SIZE(wm8962->supplies),
 						    wm8962->supplies);
 			if (ret != 0) {
@@ -3126,6 +3129,7 @@ static int wm8962_set_bias_level(struct snd_soc_codec *codec,
 
 		regulator_bulk_disable(ARRAY_SIZE(wm8962->supplies),
 				       wm8962->supplies);
+		pdata->clock_enable(0);
 		break;
 	}
 	codec->dapm.bias_level = level;
