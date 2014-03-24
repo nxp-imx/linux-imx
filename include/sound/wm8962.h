@@ -49,6 +49,8 @@ struct wm8962_pdata {
 	bool irq_active_low;
 
 	bool spk_mono;   /* Speaker outputs tied together as mono */
+	/* MCLK enable/disable for wm8962 */
+	int (*clock_enable) (int enable);
 };
 
 #endif

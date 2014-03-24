@@ -457,6 +457,7 @@ static struct wm8962_pdata wm8962_config_data = {
 		[2] = WM8962_GPIO_FN_DMICCLK,
 		[4] = 0x8000 | WM8962_GPIO_FN_DMICDAT,
 	},
+	.clock_enable = wm8962_clk_enable,
 };
 
 static struct mxc_audio_platform_data wm8962_data = {
