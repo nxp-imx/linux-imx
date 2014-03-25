@@ -24,6 +24,8 @@
 		gpio4 = &gpio5;
 		gpio5 = &gpio6;
 		gpio6 = &gpio7;
+		lcdif0 = &lcdif1;
+		lcdif1 = &lcdif2;
 		serial0 = &uart1;
 		serial1 = &uart2;
 		usbphy0 = &usbphy1;
