@@ -22,6 +22,14 @@
 		fb-names = "mxs-lcdif0";
 	};
 
+	backlight2 {
+		compatible = "pwm-backlight";
+		pwms = <&pwm4 0 5000000>;
+		brightness-levels = <0 4 8 16 32 64 128 255>;
+		default-brightness-level = <6>;
+		fb-names = "mxs-lcdif1";
+	};
+
 	memory {
 		reg = <0x80000000 0x40000000>;
 	};
@@ -473,6 +481,12 @@
 &pwm3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_pwm3_1>;
+	status = "okay";
+};
+
+&pwm4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm4_0>;
 	status = "okay";
 };
 
