@@ -94,7 +94,7 @@
 		compatible = "fsl,imx6sx-arm2-sgtl5000",
 			   "fsl,imx-audio-sgtl5000";
 		model = "imx6sx-arm2-sgtl5000";
-		ssi-controller = <&ssi1>;
+		cpu-dai = <&ssi1>;
 		audio-codec = <&codec>;
 		audio-routing =
 			"LINE_IN", "Line In Jack",

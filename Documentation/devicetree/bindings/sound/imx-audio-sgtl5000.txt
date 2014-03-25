@@ -3,7 +3,7 @@ Freescale i.MX audio complex with SGTL5000 codec
 Required properties:
 - compatible : "fsl,imx-audio-sgtl5000"
 - model : The user-visible name of this sound complex
-- ssi-controller : The phandle of the i.MX SSI controller
+- cpu-dai : The phandle of CPU dai
 - audio-codec : The phandle of the SGTL5000 audio codec
 - audio-routing : A list of the connections between audio components.
   Each entry is a pair of strings, the first being the connection's sink,
@@ -38,7 +38,7 @@ sound {
 	compatible = "fsl,imx51-babbage-sgtl5000",
 		     "fsl,imx-audio-sgtl5000";
 	model = "imx51-babbage-sgtl5000";
-	ssi-controller = <&ssi1>;
+	cpu-dai = <&ssi1>;
 	audio-codec = <&sgtl5000>;
 	audio-routing =
 		"MIC_IN", "Mic Jack",

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Freescale Semiconductor, Inc.
+ * Copyright 2012, 2014 Freescale Semiconductor, Inc.
  * Copyright 2012 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -56,13 +56,9 @@ static const struct snd_soc_dapm_widget imx_sgtl5000_dapm_widgets[] = {
 	SND_SOC_DAPM_SPK("Ext Spk", NULL),
 };
 
-static int imx_sgtl5000_probe(struct platform_device *pdev)
+static int imx_sgtl5000_audmux_config(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
-	struct device_node *ssi_np, *codec_np;
-	struct platform_device *ssi_pdev;
-	struct i2c_client *codec_dev;
-	struct imx_sgtl5000_data *data;
 	int int_port, ext_port;
 	int ret;
 
@@ -102,16 +98,33 @@ static int imx_sgtl5000_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ssi_np = of_parse_phandle(pdev->dev.of_node, "ssi-controller", 0);
+	return 0;
+}
+
+static int imx_sgtl5000_probe(struct platform_device *pdev)
+{
+	struct device_node *cpu_np, *codec_np;
+	struct platform_device *cpu_pdev;
+	struct i2c_client *codec_dev;
+	struct imx_sgtl5000_data *data;
+	int ret;
+
+	cpu_np = of_parse_phandle(pdev->dev.of_node, "cpu-dai", 0);
 	codec_np = of_parse_phandle(pdev->dev.of_node, "audio-codec", 0);
-	if (!ssi_np || !codec_np) {
+	if (!cpu_np || !codec_np) {
 		dev_err(&pdev->dev, "phandle missing or invalid\n");
 		ret = -EINVAL;
 		goto fail;
 	}
 
-	ssi_pdev = of_find_device_by_node(ssi_np);
-	if (!ssi_pdev) {
+	if (strstr(cpu_np->name, "ssi")) {
+		ret = imx_sgtl5000_audmux_config(pdev);
+		if (ret)
+			goto fail;
+	}
+
+	cpu_pdev = of_find_device_by_node(cpu_np);
+	if (!cpu_pdev) {
 		dev_err(&pdev->dev, "failed to find SSI platform device\n");
 		ret = -EINVAL;
 		goto fail;
@@ -148,8 +161,8 @@ static int imx_sgtl5000_probe(struct platform_device *pdev)
 	data->dai.stream_name = "HiFi";
 	data->dai.codec_dai_name = "sgtl5000";
 	data->dai.codec_of_node = codec_np;
-	data->dai.cpu_of_node = ssi_np;
-	data->dai.platform_of_node = ssi_np;
+	data->dai.cpu_of_node = cpu_np;
+	data->dai.platform_of_node = cpu_np;
 	data->dai.init = &imx_sgtl5000_dai_init;
 	data->dai.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			    SND_SOC_DAIFMT_CBM_CFM;
@@ -177,8 +190,8 @@ static int imx_sgtl5000_probe(struct platform_device *pdev)
 clk_fail:
 	clk_put(data->codec_clk);
 fail:
-	if (ssi_np)
-		of_node_put(ssi_np);
+	if (cpu_np)
+		of_node_put(cpu_np);
 	if (codec_np)
 		of_node_put(codec_np);
 
