@@ -265,7 +265,7 @@ static int _get_fbinfo(struct fb_info **fbi)
 	int i;
 	for (i = 0; i < num_registered_fb; i++) {
 		char *idstr = registered_fb[i]->fix.id;
-		if (strcmp(idstr, "mxs") == 0) {
+		if (strncmp(idstr, "mxs", 3) == 0) {
 			*fbi = registered_fb[i];
 			return 0;
 		}
