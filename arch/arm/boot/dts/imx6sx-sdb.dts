@@ -19,6 +19,7 @@
 		pwms = <&pwm3 0 5000000>;
 		brightness-levels = <0 4 8 16 32 64 128 255>;
 		default-brightness-level = <6>;
+		fb-names = "mxs-lcdif0";
 	};
 
 	memory {
