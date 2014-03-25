@@ -404,10 +404,10 @@
 	pinctrl-0 = <&pinctrl_lcdif_dat_0
 		     &pinctrl_lcdif_ctrl_0>;
 	lcd-supply = <&reg_lcd_3v3>;
-	display = <&display>;
+	display = <&display0>;
 	status = "disabled";
 
-	display: display {
+	display0: display {
 		bits-per-pixel = <16>;
 		bus-width = <24>;
 
