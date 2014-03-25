@@ -208,6 +208,7 @@ struct mxsfb_info {
 	int restore_blank;
 	char disp_dev[32];
 	struct mxc_dispdrv_handle *dispdrv;
+	int id;
 };
 
 #define mxsfb_is_v3(host) (host->devdata->ipversion == 3)
@@ -982,6 +983,8 @@ static int mxsfb_init_fbinfo_dt(struct mxsfb_info *host)
 	int i;
 	int ret = 0;
 
+	host->id = of_alias_get_id(np, "lcdif");
+
 	display_np = of_parse_phandle(np, "display", 0);
 	if (!display_np) {
 		dev_err(dev, "failed to find display phandle\n");
@@ -1076,7 +1079,6 @@ static int mxsfb_init_fbinfo(struct mxsfb_info *host)
 
 	fb_info->fbops = &mxsfb_ops;
 	fb_info->flags = FBINFO_FLAG_DEFAULT | FBINFO_READS_FAST;
-	strlcpy(fb_info->fix.id, "mxs", sizeof(fb_info->fix.id));
 	fb_info->fix.type = FB_TYPE_PACKED_PIXELS;
 	fb_info->fix.ypanstep = 1;
 	fb_info->fix.visual = FB_VISUAL_TRUECOLOR,
@@ -1085,6 +1087,11 @@ static int mxsfb_init_fbinfo(struct mxsfb_info *host)
 	ret = mxsfb_init_fbinfo_dt(host);
 	if (ret)
 		return ret;
+
+	if (host->id < 0)
+		sprintf(fb_info->fix.id, "mxs-lcdif");
+	else
+		sprintf(fb_info->fix.id, "mxs-lcdif%d", host->id);
 
 	/* first video mode in the modelist as default video mode  */
 	modelist = list_first_entry(&fb_info->modelist,
