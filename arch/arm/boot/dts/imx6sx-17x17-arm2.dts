@@ -102,6 +102,15 @@
 		mux-int-port = <1>;
 		mux-ext-port = <4>;
 	};
+
+	sound-spdif {
+		compatible = "fsl,imx-audio-spdif",
+			   "fsl,imx-sabreauto-spdif";
+		model = "imx-spdif";
+		spdif-controller = <&spdif>;
+		spdif-in;
+		spdif-out;
+	};
 };
 
 &adc1 {
@@ -436,6 +445,12 @@
 		spi-max-frequency = <53000000>;
 		reg = <1>;
 	};
+};
+
+&spdif {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spdif_1>;
+	status = "disabled";
 };
 
 &ssi1 {
