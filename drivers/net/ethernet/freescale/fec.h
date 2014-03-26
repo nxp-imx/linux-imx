@@ -310,7 +310,7 @@ struct bufdesc_ex {
 #define FEC_ENET_TS_TIMER       ((uint)0x00008000)
 
 #define FEC_DEFAULT_IMASK (FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_MII | FEC_ENET_TS_TIMER)
-#define FEC_RX_DISABLED_IMASK (FEC_DEFAULT_IMASK & (~FEC_ENET_RXF))
+#define FEC_RX_DISABLED_IMASK (FEC_DEFAULT_IMASK & (~(FEC_ENET_RXF | FEC_ENET_TXF)))
 
 /* ENET AVB related macros define */
 #define FEC_R_DES_START(X)	((X == 1) ? FEC_R_DES_START_1 : \
