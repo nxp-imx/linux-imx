@@ -220,6 +220,40 @@
 					status = "disabled";
 				};
 
+				spdif: spdif@02004000 {
+					compatible = "fsl,imx6sx-spdif",
+						"fsl,imx35-spdif";
+					reg = <0x02004000 0x4000>;
+					interrupts = <0 52 0x04>;
+					dmas = <&sdma 14 18 0>,
+					       <&sdma 15 18 0>;
+					dma-names = "rx", "tx";
+					clocks = <&clks IMX6SX_CLK_SPDIF>,
+					       <&clks IMX6SX_CLK_OSC>,
+					       <&clks IMX6SX_CLK_SPDIF>,
+					       <&clks 0>, <&clks 0>, <&clks 0>,
+					       <&clks IMX6SX_CLK_IPG>,
+					       <&clks 0>, <&clks 0>,
+					       <&clks IMX6SX_CLK_SPBA>;
+					clock-names = "core", "rxtx0",
+						"rxtx1", "rxtx2",
+						"rxtx3", "rxtx4",
+						"rxtx5", "rxtx6",
+						"rxtx7", "dma";
+					status = "disabled";
+				};
+
+				esai: esai@02024000 {
+					compatible = "fsl,imx6q-esai";
+					reg = <0x02024000 0x4000>;
+					interrupts = <0 51 0x04>;
+					clocks = <&clks IMX6SX_CLK_ESAI>, <&clks IMX6SX_CLK_SPBA>;
+					clock-names = "core", "dma";
+					fsl,esai-dma-events = <24 23>;
+					fsl,flags = <1>;
+					status = "disabled";
+				};
+
 				asrc: asrc@02034000 {
 					compatible = "fsl,imx53-asrc";
 					reg = <0x02034000 0x4000>;
@@ -233,6 +267,15 @@
 					     <&sdma 20 20 1>, <&sdma 21 20 1>, <&sdma 22 20 1>;
 					dma-names = "rxa", "rxb", "rxc",
 						"txa", "txb", "txc";
+					status = "okay";
+				};
+
+				asrc_p2p: asrc_p2p {
+					compatible = "fsl,imx6q-asrc-p2p";
+					fsl,output-rate  = <48000>;
+					fsl,output-width = <16>;
+					fsl,asrc-dma-rx-events = <17 18 19>;
+					fsl,asrc-dma-tx-events = <20 21 22>;
 					status = "okay";
 				};
 
@@ -657,6 +700,30 @@
 			audmux: audmux@021d8000 {
 				compatible = "fsl,imx6sx-audmux", "fsl,imx31-audmux";
 				reg = <0x021d8000 0x4000>;
+				status = "disabled";
+			};
+
+			sai1: sai@021d4000 {
+				compatible = "fsl,imx6sx-sai";
+				reg = <0x021d4000 0x4000>;
+				interrupts = <0 97 0x04>;
+				clocks = <&clks IMX6SX_CLK_SAI1_IPG>, <&clks IMX6SX_CLK_SAI1>;
+				clock-names = "ipg", "sai";
+				dma-names = "rx", "tx";
+				dmas = <&sdma 31 23 0>, <&sdma 32 23 0>;
+				dma-source = <&gpr 0 15 0 16>;
+				status = "disabled";
+			};
+
+			sai2: sai@021dc000 {
+				compatible = "fsl,imx6sx-sai";
+				reg = <0x021dc000 0x4000>;
+				interrupts = <0 98 0x04>;
+				clocks = <&clks IMX6SX_CLK_SAI2_IPG>, <&clks IMX6SX_CLK_SAI2>;
+				clock-names = "ipg", "sai";
+				dma-names = "rx", "tx";
+				dmas = <&sdma 33 23 0>, <&sdma 34 23 0>;
+				dma-source = <&gpr 0 17 0 18>;
 				status = "disabled";
 			};
 
@@ -1141,6 +1208,24 @@
 		};
 	};
 
+	esai {
+		pinctrl_esai_1: esaigrp-1 {
+			fsl,pins = <
+				MX6SX_PAD_CSI_MCLK__ESAI_TX_HF_CLK  0x1b030
+				MX6SX_PAD_CSI_DATA00__ESAI_TX_CLK   0x1b030
+				MX6SX_PAD_CSI_DATA01__ESAI_TX_FS    0x1b030
+				MX6SX_PAD_CSI_HSYNC__ESAI_TX0       0x1b030
+				MX6SX_PAD_CSI_DATA04__ESAI_TX1      0x1b030
+				MX6SX_PAD_CSI_DATA06__ESAI_TX2_RX3  0x1b030
+				MX6SX_PAD_CSI_DATA07__ESAI_TX3_RX2  0x1b030
+				MX6SX_PAD_CSI_DATA02__ESAI_RX_CLK   0x1b030
+				MX6SX_PAD_CSI_DATA03__ESAI_RX_FS    0x1b030
+				MX6SX_PAD_CSI_VSYNC__ESAI_TX5_RX0   0x1b030
+				MX6SX_PAD_CSI_DATA05__ESAI_TX4_RX1  0x1b030
+			>;
+		};
+	};
+
 	flexcan1 {
 		pinctrl_flexcan1_1: flexcan1grp-1 {
 			fsl,pins = <
@@ -1326,6 +1411,28 @@
 				MX6SX_PAD_NAND_RE_B__QSPI2_B_DATA_3     0x70f1
 				MX6SX_PAD_NAND_DATA02__QSPI2_B_SCLK     0x70f1
 				MX6SX_PAD_NAND_DATA03__QSPI2_B_SS0_B    0x70f1
+			>;
+		};
+	};
+
+	sai1 {
+		pinctrl_sai1_1: sai1grp_1 {
+			fsl,pins = <
+				MX6SX_PAD_CSI_DATA00__SAI1_TX_BCLK     0x1b030
+				MX6SX_PAD_CSI_DATA01__SAI1_TX_SYNC     0x1b030
+				MX6SX_PAD_CSI_DATA02__SAI1_RX_BCLK     0x1b030
+				MX6SX_PAD_CSI_DATA03__SAI1_RX_SYNC     0x1b030
+				MX6SX_PAD_CSI_HSYNC__SAI1_TX_DATA_0    0x1b030
+				MX6SX_PAD_CSI_VSYNC__SAI1_RX_DATA_0    0x1b030
+			>;
+		};
+	};
+
+	spdif {
+		pinctrl_spdif_1: spdifgrp-1 {
+			fsl,pins = <
+				MX6SX_PAD_ENET1_RX_CLK__SPDIF_OUT	0x1b0b0
+				MX6SX_PAD_ENET2_COL__SPDIF_IN		0x1b0b0
 			>;
 		};
 	};
