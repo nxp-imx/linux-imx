@@ -97,6 +97,7 @@
 			"IN3R", "AMIC";
 		mux-int-port = <2>;
 		mux-ext-port = <6>;
+		hp-det-gpios = <&gpio1 17 1>;
 	};
 
 	csi1_v4l2_cap {
