@@ -1187,8 +1187,10 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		if (pll1_sw_clk.parent != &pll2_pfd2_400M) {
 			if (pll2_pfd2_400M.usecount == 0) {
 				/* Check if PLL2 needs to be enabled also. */
-				if (pll2_528_bus_main_clk.usecount == 0)
+				if (pll2_528_bus_main_clk.usecount == 0) {
 					pll2_528_bus_main_clk.enable(&pll2_528_bus_main_clk);
+					osc_clk.usecount++;
+				}
 				/* Ensure parent usecount is
 				  * also incremented.
 				  */
@@ -1205,6 +1207,7 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 		if (!pll1_enabled) {
 			pll1_sys_main_clk.enable(&pll1_sys_main_clk);
 			pll1_sys_main_clk.usecount = 1;
+			osc_clk.usecount++;
 		}
 		if (cpu_op_tbl[i].pll_rate != clk_get_rate(&pll1_sys_main_clk)) {
 			if (pll1_sw_clk.parent == &pll1_sys_main_clk) {
@@ -1227,8 +1230,10 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 				  * also decremented.
 				  */
 				pll2_528_bus_main_clk.usecount--;
-				if (pll2_528_bus_main_clk.usecount == 0)
+				if (pll2_528_bus_main_clk.usecount == 0) {
 					pll2_528_bus_main_clk.disable(&pll2_528_bus_main_clk);
+					osc_clk.usecount--;
+				}
 			}
 		}
 		arm_needs_pll2_400 = false;
@@ -1267,6 +1272,7 @@ static int _clk_arm_set_rate(struct clk *clk, unsigned long rate)
 	if (pll1_sys_main_clk.usecount == 1 && arm_needs_pll2_400) {
 		pll1_sys_main_clk.disable(&pll1_sys_main_clk);
 		pll1_sys_main_clk.usecount = 0;
+		osc_clk.usecount--;
 	}
 
 	spin_unlock_irqrestore(&mx6sl_clk_lock, flags);

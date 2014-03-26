@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -147,7 +147,8 @@ int set_cpu_freq(int freq)
 			}
 		}
 		/* Check if the bus freq can be decreased.*/
-		bus_freq_update(cpu_clk, false);
+		if (freq == cpu_op_tbl[cpu_op_nr - 1].cpu_rate)
+			bus_freq_update(cpu_clk, false);
 	}
 
 	return ret;
