@@ -2008,7 +2008,8 @@ static ssize_t swap_disp_chan(struct device *dev,
 	console_unlock();
 	return count;
 }
-static DEVICE_ATTR(fsl_disp_property, 644, show_disp_chan, swap_disp_chan);
+static DEVICE_ATTR(fsl_disp_property, S_IWUSR | S_IRUGO,
+		   show_disp_chan, swap_disp_chan);
 
 static ssize_t show_disp_dev(struct device *dev,
 			     struct device_attribute *attr, char *buf)
