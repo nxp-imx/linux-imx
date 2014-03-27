@@ -69,13 +69,13 @@ static const struct {
 	int ratio1;
 	int ratio2;
 } sr_vals[] = {
-	{ 32000,  5, 3 },
-	{ 48000,  5, 3 },
-	{ 64000,  2, 1 },
-	{ 96000,  2, 1 },
-	{ 128000, 2, 1 },
-	{ 44100,  5, 3 },
-	{ 88200,  2, 1 },
+	{ 32000,  3, 3 },
+	{ 48000,  3, 3 },
+	{ 64000,  1, 1 },
+	{ 96000,  1, 1 },
+	{ 128000, 1, 1 },
+	{ 44100,  3, 3 },
+	{ 88200,  1, 1 },
 	{ 176400, 0, 0 },
 	{ 192000, 0, 0 },
 };
@@ -96,51 +96,28 @@ static int imx_cs42888_surround_hw_params(struct snd_pcm_substream *substream,
 
 	priv->hw = 1;
 
-	if (priv->codec_mclk & CODEC_CLK_ESAI_HCKT) {
-		for (i = 0; i < ARRAY_SIZE(sr_vals); i++) {
-			if (sr_vals[i].rate == rate) {
+	for (i = 0; i < ARRAY_SIZE(sr_vals); i++) {
+		if (sr_vals[i].rate == rate) {
+			if (priv->codec_mclk & CODEC_CLK_ESAI_HCKT)
 				lrclk_ratio = sr_vals[i].ratio1;
-				break;
-			}
-		}
-		if (i == ARRAY_SIZE(sr_vals)) {
-			dev_err(&priv->pdev->dev, "Unsupported rate %dHz\n", rate);
-			return -EINVAL;
-		}
-
-		dai_format = SND_SOC_DAIFMT_LEFT_J | SND_SOC_DAIFMT_NB_NF |
-			SND_SOC_DAIFMT_CBS_CFS;
-
-		/* set the ESAI system clock as output */
-		snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL_DIV,
-			priv->mclk_freq, SND_SOC_CLOCK_OUT);
-		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 2);
-		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 2);
-		/* set codec Master clock */
-		snd_soc_dai_set_sysclk(codec_dai, 0, priv->mclk_freq,\
-			SND_SOC_CLOCK_IN);
-	} else if (priv->codec_mclk & CODEC_CLK_EXTER_OSC) {
-		for (i = 0; i < ARRAY_SIZE(sr_vals); i++) {
-			if (sr_vals[i].rate == rate) {
+			if (priv->codec_mclk & CODEC_CLK_EXTER_OSC)
 				lrclk_ratio = sr_vals[i].ratio2;
-				break;
-			}
+			break;
 		}
-		if (i == ARRAY_SIZE(sr_vals)) {
-			dev_err(&priv->pdev->dev, "Unsupported rate %dHz\n", rate);
-			return -EINVAL;
-		}
-
-		dai_format = SND_SOC_DAIFMT_LEFT_J | SND_SOC_DAIFMT_NB_NF |
-			SND_SOC_DAIFMT_CBS_CFS;
-
-		snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL,
-			priv->mclk_freq, SND_SOC_CLOCK_OUT);
-		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 0);
-		snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 0);
-		snd_soc_dai_set_sysclk(codec_dai, 0, priv->mclk_freq,\
-			SND_SOC_CLOCK_IN);
 	}
+	if (i == ARRAY_SIZE(sr_vals)) {
+		dev_err(&priv->pdev->dev, "Unsupported rate %dHz\n", rate);
+		return -EINVAL;
+	}
+
+	dai_format = SND_SOC_DAIFMT_LEFT_J | SND_SOC_DAIFMT_NB_NF |
+		     SND_SOC_DAIFMT_CBS_CFS;
+
+	snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL,
+			       priv->mclk_freq, SND_SOC_CLOCK_OUT);
+	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 0);
+	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 0);
+	snd_soc_dai_set_sysclk(codec_dai, 0, priv->mclk_freq, SND_SOC_CLOCK_IN);
 
 	/* set cpu DAI configuration */
 	snd_soc_dai_set_fmt(cpu_dai, dai_format);
