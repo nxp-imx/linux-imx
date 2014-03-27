@@ -21,6 +21,11 @@
 		default-brightness-level = <6>;
 	};
 
+	csi1_v4l2_cap {
+		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
+		status = "okay";
+	};
+
 	hannstar_cabc {
 		compatible = "hannstar,cabc";
 
@@ -57,6 +62,10 @@
 	memory {
 		reg = <0x80000000 0x40000000>;
 	};
+};
+
+&csi1 {
+	status = "okay";
 };
 
 &fec1 {
@@ -268,7 +277,7 @@
 	pinctrl-0 = <&pinctrl_lcdif_dat_0
 		     &pinctrl_lcdif_ctrl_0>;
 	display = <&display0>;
-	status = "okay";
+	status = "disabled";
 
 	display0: display {
 		bits-per-pixel = <16>;
