@@ -80,6 +80,25 @@
 			regulator-max-microvolt = <5000000>;
 			regulator-boot-on;
 		};
+
+		reg_usb_otg1_vbus: usb_otg1_vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "usb_otg1_vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			gpio = <&gpio1 9 0>;
+			enable-active-high;
+		};
+
+		reg_usb_otg2_vbus: usb_otg2_vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "usb_otg2_vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			gpio = <&gpio1 12 0>;
+			enable-active-high;
+		};
+
 	};
 
 	sound {
@@ -388,6 +407,19 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart5_1>;
 	fsl,uart-has-rtscts;
+	status = "okay";
+};
+
+&usbotg1 {
+	vbus-supply = <&reg_usb_otg1_vbus>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usbotg1_1>;
+	status = "okay";
+};
+
+&usbotg2 {
+	vbus-supply = <&reg_usb_otg2_vbus>;
+	dr_mode = "host";
 	status = "okay";
 };
 
