@@ -1210,6 +1210,12 @@
 				MX6SX_PAD_CSI_DATA06__I2C4_SCL          0x4001b8b1
 			>;
 		};
+		pinctrl_i2c4_2: i2c4grp-2 {
+			fsl,pins = <
+				MX6SX_PAD_SD3_DATA1__I2C4_SDA           0x4001b8b1
+				MX6SX_PAD_SD3_DATA0__I2C4_SCL           0x4001b8b1
+			>;
+		};
 	};
 
 	lcdif1 {
