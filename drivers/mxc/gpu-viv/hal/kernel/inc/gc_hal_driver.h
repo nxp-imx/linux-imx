@@ -257,6 +257,9 @@ typedef struct _gcsHAL_QUERY_CHIP_IDENTITY
 
     /* Supertile layout style in hardware */
     gctUINT32                   superTileMode;
+
+    /* Special control bits for 2D chip. */
+    gctUINT32                   chip2DControl;
 }
 gcsHAL_QUERY_CHIP_IDENTITY;
 
