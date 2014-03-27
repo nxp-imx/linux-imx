@@ -343,6 +343,19 @@ static const struct fb_bitfield def_rgb888[] = {
 	}
 };
 
+#define bitfield_is_equal(f1, f2)  (!memcmp(&(f1), &(f2), sizeof(f1)))
+
+static inline bool pixfmt_is_equal(struct fb_var_screeninfo *var,
+				   const struct fb_bitfield *f)
+{
+	if (bitfield_is_equal(var->red, f[RED]) &&
+	    bitfield_is_equal(var->green, f[GREEN]) &&
+	    bitfield_is_equal(var->blue, f[BLUE]))
+		return true;
+
+	return false;
+}
+
 static inline unsigned chan_to_field(unsigned chan, struct fb_bitfield *bf)
 {
 	chan &= 0xffff;
@@ -413,9 +426,15 @@ static int mxsfb_check_var(struct fb_var_screeninfo *var,
 			pr_debug("Unsupported LCD bus width mapping\n");
 			break;
 		case STMLCDIF_16BIT:
-		case STMLCDIF_18BIT:
 			/* 24 bit to 18 bit mapping */
 			rgb = def_rgb666;
+			break;
+		case STMLCDIF_18BIT:
+			if (pixfmt_is_equal(var, def_rgb888))
+				rgb = def_rgb888;
+			else
+				/* 24 bit to 18 bit mapping */
+				rgb = def_rgb666;
 			break;
 		case STMLCDIF_24BIT:
 			/* real 24 bit */
@@ -608,11 +627,19 @@ static int mxsfb_set_par(struct fb_info *fb_info)
 					"Unsupported LCD bus width mapping\n");
 			return -EINVAL;
 		case STMLCDIF_16BIT:
-		case STMLCDIF_18BIT:
 			/* 24 bit to 18 bit mapping */
 			ctrl |= CTRL_DF24; /* ignore the upper 2 bits in
 					    *  each colour component
 					    */
+			break;
+		case STMLCDIF_18BIT:
+			if (pixfmt_is_equal(&fb_info->var, def_rgb888))
+				break;
+			else
+				/* 24 bit to 18 bit mapping */
+				ctrl |= CTRL_DF24; /* ignore the upper 2 bits in
+						    *  each colour component
+						    */
 			break;
 		case STMLCDIF_24BIT:
 			/* real 24 bit */
