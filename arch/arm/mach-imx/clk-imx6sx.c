@@ -471,9 +471,13 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clk_set_rate(clks[IMX6SX_CLK_ENET2_REF], 125000000);
 
 	/* Audio clocks */
-	clk_set_parent(clks[IMX6SX_CLK_AUDIO_SEL], clks[IMX6SX_CLK_PLL4_AUDIO_DIV]);
-	clk_set_rate(clks[IMX6SX_CLK_PLL4_AUDIO_DIV], 24000000);
+	clk_set_rate(clks[IMX6SX_CLK_PLL4_AUDIO_DIV], 393216000);
+
+	clk_set_parent(clks[IMX6SX_CLK_AUDIO_SEL], clks[IMX6SX_CLK_PLL3_USB_OTG]);
 	clk_set_rate(clks[IMX6SX_CLK_AUDIO_PODF], 24000000);
+
+	clk_set_parent(clks[IMX6SX_CLK_ESAI_SEL], clks[IMX6SX_CLK_PLL4_AUDIO_DIV]);
+	clk_set_rate(clks[IMX6SX_CLK_ESAI_PODF], 24576000);
 
 	/* default parent of can_sel clock is invalid, manually set it here */
 	clk_set_parent(clks[IMX6SX_CLK_CAN_SEL], clks[IMX6SX_CLK_PLL3_60M]);
