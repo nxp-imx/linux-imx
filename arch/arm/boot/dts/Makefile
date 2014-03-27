@@ -138,6 +138,7 @@ dtb-$(CONFIG_ARCH_MXC) += \
 	imx6sl-evk-pf200.dtb \
 	imx6sx-17x17-arm2.dtb \
 	imx6sx-19x19-arm2.dtb \
+	imx6sx-19x19-arm2-lcdif1.dtb \
 	imx6sx-sdb.dtb \
 	imx6sx-sdb-lcdif1.dtb \
 	vf610-twr.dtb
