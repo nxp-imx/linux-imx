@@ -704,6 +704,7 @@ typedef enum _gce2D_STATE
     gcv2D_STATE_EN_GAMMA,
     gcv2D_STATE_DE_GAMMA,
     gcv2D_STATE_MULTI_SRC_BLIT_UNIFIED_DST_RECT,
+    gcv2D_STATE_XRGB_ENABLE,
 
     gcv2D_STATE_ARRAY_EN_GAMMA                   = 0x10001,
     gcv2D_STATE_ARRAY_DE_GAMMA,
