@@ -38,6 +38,7 @@ The full ID of peripheral types can be found below.
 	20	ASRC
 	21	ESAI
 	22	HDMI Audio
+	23	SAI
 
 The third cell specifies the transfer priority as below.
 

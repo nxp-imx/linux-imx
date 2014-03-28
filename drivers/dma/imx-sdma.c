@@ -7,7 +7,7 @@
  *
  * Based on code from Freescale:
  *
- * Copyright 2004-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -659,6 +659,7 @@ static void sdma_get_pc(struct sdma_channel *sdmac,
 	case IMX_DMATYPE_CSPI:
 	case IMX_DMATYPE_EXT:
 	case IMX_DMATYPE_SSI:
+	case IMX_DMATYPE_SAI:
 		per_2_emi = sdma->script_addrs->app_2_mcu_addr;
 		emi_2_per = sdma->script_addrs->mcu_2_app_addr;
 		break;
