@@ -326,6 +326,17 @@ __v7_setup:
 	mcrlt	p15, 0, r10, c15, c0, 1		@ write diagnostic register
 1:
 #endif
+#ifdef CONFIG_ARM_ERRATA_794072
+	mrc	p15, 0, r10, c15, c0, 1		@ read diagnostic register
+	orr	r10, r10, #1 << 4		@ set bit #4
+	mcr	p15, 0, r10, c15, c0, 1		@ write diagnostic register
+#endif
+#ifdef CONFIG_ARM_ERRATA_761320
+	cmp	r6, #0x40			@ present prior to r4p0
+	mrclt	p15, 0, r10, c15, c0, 1		@ read diagnostic register
+	orrlt	r10, r10, #1 << 21		@ set bit #21
+	mcrlt	p15, 0, r10, c15, c0, 1		@ write diagnostic register
+#endif
 
 3:	mov	r10, #0
 	mcr	p15, 0, r10, c7, c5, 0		@ I+BTB cache invalidate
