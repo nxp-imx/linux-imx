@@ -1262,6 +1262,29 @@ config ARM_ERRATA_751472
 	  operation is received by a CPU before the ICIALLUIS has completed,
 	  potentially leading to corrupted entries in the cache or TLB.
 
+config ARM_ERRATA_794072
+	bool "ARM errata: A short loop including a DMB instruction might cause a denial of service"
+	depends on CPU_V7 && SMP
+	help
+	   This option enables the workaround for the 794072 Cortex-A9
+	   (all revisions). A processor which continuously executes a short
+	   loop containing a DMB instruction might prevent a CP15 operation
+	   broadcast by another processor making further progress, causing
+	   a denial of service. This erratum can be worked around by setting
+	   bit[4] of the undocumented Diagnostic Control Register to 1.
+
+config ARM_ERRATA_761320
+	bool "Full cache line writes to the same memory region from at least two processors might deadlock processor"
+	depends on CPU_V7 && SMP
+	help
+	  This option enables the workaround for the 761320 Cortex-A9 (r0..r3).
+	  Under very rare circumstances, full cache line writes
+	  from (at least) 2 processors on cache lines in hazard with
+	  other requests may cause arbitration issues in the SCU,
+	  leading to processor deadlock. This erratum can be
+	  worked around by setting bit[21] of the undocumented
+	  Diagnostic Control Register to 1.
+
 config PL310_ERRATA_753970
 	bool "PL310 errata: cache sync operation may be faulty"
 	depends on CACHE_PL310
