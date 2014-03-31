@@ -433,7 +433,7 @@
 		vdd-supply = <&reg_sensor>;
 		vddio-supply = <&reg_sensor>;
 		interrupt-parent = <&gpio3>;
-		interrupts = <16 2>;
+		interrupts = <16 1>;
 	};
 
 	elan@10 {

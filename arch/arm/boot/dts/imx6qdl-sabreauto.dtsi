@@ -502,7 +502,7 @@
 		reg = <0x0e>;
 		position = <2>;
 		interrupt-parent = <&gpio2>;
-		interrupts = <29 2>;
+		interrupts = <29 1>;
 	};
 
 	isl29023@44 {
