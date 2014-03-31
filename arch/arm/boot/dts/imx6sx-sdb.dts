@@ -8,6 +8,7 @@
 
 /dts-v1/;
 
+#include <dt-bindings/gpio/gpio.h>
 #include "imx6sx.dtsi"
 
 / {
@@ -99,6 +100,22 @@
 			enable-active-high;
 		};
 
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		volume-up {
+			label = "Volume Up";
+			gpios = <&gpio1 18 GPIO_ACTIVE_LOW>;
+			linux,code = <115>; /* KEY_VOLUMEUP */
+		};
+
+		volume-down {
+			label = "Volume Down";
+			gpios = <&gpio1 19 GPIO_ACTIVE_LOW>;
+			linux,code = <114>; /* KEY_VOLUMEDOWN */
+		};
 	};
 
 	sound {
@@ -376,6 +393,8 @@
 				MX6SX_PAD_QSPI1B_DATA1__GPIO4_IO_25 0x17059
 				MX6SX_PAD_QSPI1B_DATA2__GPIO4_IO_26 0x17059
 				MX6SX_PAD_QSPI1B_DATA3__GPIO4_IO_27 0x17059
+				MX6SX_PAD_CSI_DATA04__GPIO1_IO_18 0x17059
+				MX6SX_PAD_CSI_DATA05__GPIO1_IO_19 0x17059
 			>;
 		};
 	};
