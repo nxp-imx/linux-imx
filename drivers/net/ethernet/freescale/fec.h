@@ -251,6 +251,11 @@ struct bufdesc_ex {
 #define BD_ENET_TX_PINS         0x10000000
 #define BD_ENET_TX_IINS         0x08000000
 
+#if defined(CONFIG_ARM)
+#define FEC_ALIGNMENT   0x3f
+#else
+#define FEC_ALIGNMENT   0x3
+#endif
 
 /* This device has up to three irqs on some platforms */
 #define FEC_IRQ_NUM		3
@@ -270,10 +275,8 @@ struct bufdesc_ex {
  * the skbuffer directly.
  */
 
-#define FEC_ENET_RX_PAGES	256
-#define FEC_ENET_RX_FRSIZE	2048
-#define FEC_ENET_RX_FRPPG	(PAGE_SIZE / FEC_ENET_RX_FRSIZE)
-#define RX_RING_SIZE		(FEC_ENET_RX_FRPPG * FEC_ENET_RX_PAGES)
+#define FEC_ENET_RX_FRSIZE	(1522 + FEC_ALIGNMENT)
+#define RX_RING_SIZE		256
 #define FEC_ENET_TX_FRSIZE	2048
 #define FEC_ENET_TX_FRPPG	(PAGE_SIZE / FEC_ENET_TX_FRSIZE)
 #define TX_RING_SIZE		512	/* Must be power of two */

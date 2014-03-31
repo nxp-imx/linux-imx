@@ -73,12 +73,6 @@ static void set_multicast_list(struct net_device *ndev);
 static void fec_reset_phy(struct platform_device *pdev);
 static void fec_enet_itr_coal_init(struct net_device *ndev);
 
-#if defined(CONFIG_ARM)
-#define FEC_ALIGNMENT	0x3f
-#else
-#define FEC_ALIGNMENT	0x3
-#endif
-
 #define DRIVER_NAME	"fec"
 #define FEC_NAPI_WEIGHT	64
 #define FEC_ENET_GET_QUQUE(_x) ((_x == 0) ? 1 : ((_x == 1) ? 2 : 0))
@@ -937,6 +931,25 @@ fec_enet_tx(struct net_device *ndev)
 	return;
 }
 
+static int
+fec_new_rxbdp(struct net_device *ndev, struct bufdesc *bdp, struct sk_buff *skb)
+{
+	struct  fec_enet_private *fep = netdev_priv(ndev);
+	int off;
+
+	off = ((unsigned long)skb->data) & FEC_ALIGNMENT;
+	if (off)
+		skb_reserve(skb, FEC_ALIGNMENT + 1 - off);
+
+	bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, skb->data,
+		FEC_ENET_RX_FRSIZE - FEC_ALIGNMENT, DMA_FROM_DEVICE);
+	if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
+		netdev_err(ndev, "Rx DMA memory map failed\n");
+		return -ENOMEM;
+	}
+
+	return 0;
+}
 
 /* During a receive, the cur_rx points to the current incoming buffer.
  * When we update through the ring, if the next incoming buffer has
@@ -952,7 +965,8 @@ fec_enet_rx(struct net_device *ndev, int budget)
 	struct fec_enet_priv_rx_q *rxq;
 	struct bufdesc *bdp;
 	unsigned short status;
-	struct	sk_buff	*skb;
+	struct	sk_buff	*skb_new = NULL;
+	struct  sk_buff *skb_cur;
 	ushort	pkt_len;
 	__u8 *data;
 	int	pkt_received = 0;
@@ -960,6 +974,7 @@ fec_enet_rx(struct net_device *ndev, int budget)
 	bool	vlan_packet_rcvd = false;
 	u16	vlan_tag = 0;
 	u16	queue_id;
+	int     index = 0;
 
 #ifdef CONFIG_M532x
 	flush_cache_all();
@@ -980,6 +995,12 @@ fec_enet_rx(struct net_device *ndev, int budget)
 			if (pkt_received >= budget)
 				break;
 			pkt_received++;
+
+			if (fep->bufdesc_ex)
+				index = (struct bufdesc_ex *)bdp -
+						(struct bufdesc_ex *)rxq->rx_bd_base;
+			else
+				index = bdp - rxq->rx_bd_base;
 
 			/* Since we have allocated space to hold a complete frame,
 			 * the last indicator should be set.
@@ -1021,6 +1042,7 @@ fec_enet_rx(struct net_device *ndev, int budget)
 			pkt_len = bdp->cbd_datlen;
 			ndev->stats.rx_bytes += pkt_len;
 			data = (__u8 *)__va(bdp->cbd_bufaddr);
+			skb_cur = rxq->rx_skbuff[index];
 
 			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
 					FEC_ENET_RX_FRSIZE - FEC_ALIGNMENT,
@@ -1052,31 +1074,26 @@ fec_enet_rx(struct net_device *ndev, int budget)
 			 * include that when passing upstream as it messes up
 			 * bridging applications.
 			 */
-			skb = __netdev_alloc_skb_ip_align(ndev, pkt_len - 4,
+			skb_new = __netdev_alloc_skb_ip_align(ndev, FEC_ENET_RX_FRSIZE,
 				GFP_ATOMIC | __GFP_NOWARN);
 
-			if (unlikely(!skb)) {
+			if (unlikely(!skb_new)) {
 				ndev->stats.rx_dropped++;
 			} else {
-				int payload_offset = (2 * ETH_ALEN);
-				skb_put(skb, pkt_len - 4);	/* Make room */
+				skb_put(skb_cur, pkt_len - 4);	/* Make room */
 
 				/* Extract the frame data without the VLAN header. */
 				if (ndev->features & NETIF_F_HW_VLAN_CTAG_RX &&
 					vlan_packet_rcvd) {
-					skb_copy_to_linear_data(skb, data, (2 * ETH_ALEN));
-					payload_offset = (2 * ETH_ALEN) + VLAN_HLEN;
-					skb_copy_to_linear_data_offset(skb, (2 * ETH_ALEN),
-								data + payload_offset,
-								pkt_len - 4 - (2 * ETH_ALEN));
-				} else {
-					skb_copy_to_linear_data(skb, data, pkt_len - 4);
+					skb_copy_to_linear_data_offset(skb_cur, VLAN_HLEN,
+								data, (2 * ETH_ALEN));
+					skb_pull(skb_cur, VLAN_HLEN);
 				}
 
 				/* Get receive timestamp from the skb */
 				if (fep->hwts_rx_en && fep->bufdesc_ex) {
 					struct skb_shared_hwtstamps *shhwtstamps =
-							    skb_hwtstamps(skb);
+							    skb_hwtstamps(skb_cur);
 					unsigned long flags;
 
 					memset(shhwtstamps, 0, sizeof(*shhwtstamps));
@@ -1087,36 +1104,34 @@ fec_enet_rx(struct net_device *ndev, int budget)
 					spin_unlock_irqrestore(&fep->tmreg_lock, flags);
 				} else if (unlikely(fep->hwts_rx_en_ioctl) &&
 						fep->bufdesc_ex)
-					fec_ptp_store_rxstamp(fep, skb, bdp);
+					fec_ptp_store_rxstamp(fep, skb_cur, bdp);
 
-				skb->protocol = eth_type_trans(skb, ndev);
+				skb_cur->protocol = eth_type_trans(skb_cur, ndev);
 				if (fep->bufdesc_ex &&
 				    (fep->csum_flags & FLAG_RX_CSUM_ENABLED)) {
 					if (!(ebdp->cbd_esc & FLAG_RX_CSUM_ERROR)) {
 						/* don't check it */
-						skb->ip_summed = CHECKSUM_UNNECESSARY;
+						skb_cur->ip_summed = CHECKSUM_UNNECESSARY;
 					} else {
-						skb_checksum_none_assert(skb);
+						skb_checksum_none_assert(skb_cur);
 					}
 				}
 
 				/* Handle received VLAN packets */
 				if (vlan_packet_rcvd)
-					__vlan_hwaccel_put_tag(skb,
+					__vlan_hwaccel_put_tag(skb_cur,
 						       htons(ETH_P_8021Q),
 						       vlan_tag);
 
-				if (!skb_defer_rx_timestamp(skb))
-					napi_gro_receive(&fep->napi, skb);
+				if (!skb_defer_rx_timestamp(skb_cur))
+					napi_gro_receive(&fep->napi, skb_cur);
 			}
 
-			bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, data,
-						FEC_ENET_RX_FRSIZE - FEC_ALIGNMENT,
-						DMA_FROM_DEVICE);
-			/* here dma mapping shouldn't be error, just avoid kernel dump */
-			if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr))
-				netdev_err(ndev, "Rx DMA memory map failed\n");
 rx_processing_done:
+			/* set the new skb */
+			rxq->rx_skbuff[index] = skb_new;
+			fec_new_rxbdp(ndev, bdp, skb_new);
+
 			/* Clear the status flags for this buffer */
 			status &= ~BD_ENET_RX_STATS;
 
@@ -2019,7 +2034,6 @@ static int fec_enet_alloc_buffers(struct net_device *ndev)
 	unsigned int i, j;
 	struct sk_buff *skb;
 	struct bufdesc	*bdp;
-	int off;
 
 	for (j = 0; j < fep->num_rx_queues; j++) {
 		rx_queue = fep->rx_queue[j];
@@ -2033,15 +2047,8 @@ static int fec_enet_alloc_buffers(struct net_device *ndev)
 			}
 			rx_queue->rx_skbuff[i] = skb;
 
-			off = ((unsigned long)skb->data) & FEC_ALIGNMENT;
-			if (off)
-				skb_reserve(skb, FEC_ALIGNMENT + 1 - off);
-
-			bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, skb->data,
-				FEC_ENET_RX_FRSIZE - FEC_ALIGNMENT, DMA_FROM_DEVICE);
-			if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
+			if (fec_new_rxbdp(ndev, bdp, skb)) {
 				fec_enet_free_buffers(ndev);
-				netdev_err(ndev, "Rx DMA memory map failed\n");
 				return -ENOMEM;
 			}
 			bdp->cbd_sc = BD_ENET_RX_EMPTY;
