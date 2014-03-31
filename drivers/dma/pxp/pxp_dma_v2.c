@@ -402,12 +402,23 @@ static void pxp_set_outbuf(struct pxps *pxp)
 {
 	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
 	struct pxp_layer_param *out_params = &pxp_conf->out_param;
+	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
 
 	__raw_writel(out_params->paddr, pxp->base + HW_PXP_OUT_BUF);
 
-	__raw_writel(BF_PXP_OUT_LRC_X(out_params->width - 1) |
-		     BF_PXP_OUT_LRC_Y(out_params->height - 1),
-		     pxp->base + HW_PXP_OUT_LRC);
+	if (proc_data->rotate == 90 || proc_data->rotate == 270) {
+		if (proc_data->rot_pos == 0)
+			__raw_writel(BF_PXP_OUT_LRC_X(proc_data->drect.width - 1) |
+					BF_PXP_OUT_LRC_Y(proc_data->drect.height - 1),
+					pxp->base + HW_PXP_OUT_LRC);
+		else
+			__raw_writel(BF_PXP_OUT_LRC_X(proc_data->drect.width - 1) |
+					BF_PXP_OUT_LRC_Y(proc_data->drect.height - 1),
+					pxp->base + HW_PXP_OUT_LRC);
+	} else
+		__raw_writel(BF_PXP_OUT_LRC_X(proc_data->drect.width - 1) |
+				BF_PXP_OUT_LRC_Y(proc_data->drect.height - 1),
+				pxp->base + HW_PXP_OUT_LRC);
 
 	if (out_params->pixel_fmt == PXP_PIX_FMT_RGB24) {
 		__raw_writel(out_params->stride * 3,
@@ -574,7 +585,26 @@ static void pxp_set_s0param(struct pxps *pxp)
 {
 	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
 	struct pxp_proc_data *proc_data = &pxp_conf->proc_data;
+	struct pxp_layer_param *out_params = &pxp_conf->out_param;
 	u32 s0param;
+
+	if (proc_data->drect.left != 0 || proc_data->drect.top != 0) {
+		out_params->paddr += (proc_data->drect.top * out_params->stride +
+				proc_data->drect.left) * 2;
+		proc_data->drect.left = proc_data->drect.top = 0;
+	}
+
+	/* Since user apps always pass the rotated drect
+	 * to this driver, we need to first swap the width
+	 * and height which is used to calculate the scale
+	 * factors later.
+	 */
+	if (proc_data->rotate == 90 || proc_data->rotate == 270) {
+		int temp;
+		temp = proc_data->drect.width;
+		proc_data->drect.width = proc_data->drect.height;
+		proc_data->drect.height = temp;
+	}
 
 	/* contains the coordinate for the PS in the OUTPUT buffer. */
 	if ((pxp_conf->s0_param).width == 0 &&
@@ -585,10 +615,21 @@ static void pxp_set_s0param(struct pxps *pxp)
 		s0param = BF_PXP_OUT_PS_ULC_X(proc_data->drect.left);
 		s0param |= BF_PXP_OUT_PS_ULC_Y(proc_data->drect.top);
 		__raw_writel(s0param, pxp->base + HW_PXP_OUT_PS_ULC);
-		s0param = BF_PXP_OUT_PS_LRC_X(proc_data->drect.left +
-				proc_data->drect.width - 1);
-		s0param |= BF_PXP_OUT_PS_LRC_Y(proc_data->drect.top +
-				proc_data->drect.height - 1);
+		/* In PXP, the two different rotation
+		 * position requires different settings
+		 * on OUT_PS_LRC register
+		 */
+		if (proc_data->rot_pos == 1) {
+			s0param = BF_PXP_OUT_PS_LRC_X(proc_data->drect.left +
+					proc_data->drect.height - 1);
+			s0param |= BF_PXP_OUT_PS_LRC_Y(proc_data->drect.top +
+					proc_data->drect.width - 1);
+		} else {
+			s0param = BF_PXP_OUT_PS_LRC_X(proc_data->drect.left +
+					proc_data->drect.width - 1);
+			s0param |= BF_PXP_OUT_PS_LRC_Y(proc_data->drect.top +
+					proc_data->drect.height - 1);
+		}
 		__raw_writel(s0param, pxp->base + HW_PXP_OUT_PS_LRC);
 	}
 }
