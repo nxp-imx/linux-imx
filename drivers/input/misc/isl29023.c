@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -582,6 +582,8 @@ static ssize_t isl29023_store_mode(struct device *dev,
 	    (val > ISL29023_IR_CONT_MODE))
 		return -EINVAL;
 
+	/* clear the interrupt flag */
+	i2c_smbus_read_byte_data(client, ISL29023_COMMAND1);
 	ret = isl29023_set_mode(client, val);
 	if (ret < 0)
 		return ret;
@@ -844,6 +846,11 @@ static void isl29023_work(struct work_struct *work)
 static irqreturn_t isl29023_irq_handler(int irq, void *handle)
 {
 	struct isl29023_data *data = handle;
+	int cmd_1;
+	cmd_1 = i2c_smbus_read_byte_data(data->client, ISL29023_COMMAND1);
+	if (!(cmd_1 & ISL29023_INT_FLAG_MASK))
+		return IRQ_NONE;
+
 	queue_work(data->workqueue, &data->work);
 	return IRQ_HANDLED;
 }
@@ -862,6 +869,9 @@ static int isl29023_probe(struct i2c_client *client,
 	struct regulator *vdd = NULL;
 	u32 rext = 0;
 	struct device_node *of_node = client->dev.of_node;
+	struct irq_data *irq_data = irq_get_irq_data(client->irq);
+	u32 irq_flag;
+	bool shared_irq;
 
 	vdd = devm_regulator_get(&client->dev, "vdd");
 	if (!IS_ERR(vdd)) {
@@ -875,6 +885,7 @@ static int isl29023_probe(struct i2c_client *client,
 	err = of_property_read_u32(of_node, "rext", &rext);
 	if (err)
 		rext = DEFAULT_REGISTOR_VAL;
+	shared_irq = of_property_read_bool(of_node, "shared-interrupt");
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE))
 		return -EIO;
@@ -919,10 +930,13 @@ static int isl29023_probe(struct i2c_client *client,
 	if (err)
 		goto exit_free_input;
 
-	/* set irq type to edge falling */
-	irq_set_irq_type(client->irq, IRQF_TRIGGER_FALLING);
-	err = request_irq(client->irq, isl29023_irq_handler, 0,
-			  client->dev.driver->name, data);
+	irq_flag = irqd_get_trigger_type(irq_data);
+	irq_flag |= IRQF_ONESHOT;
+	if (shared_irq)
+		irq_flag |= IRQF_SHARED;
+	err = request_threaded_irq(client->irq, NULL,
+					isl29023_irq_handler, irq_flag,
+					client->dev.driver->name, data);
 	if (err < 0) {
 		dev_err(&client->dev, "failed to register irq %d!\n",
 			client->irq);
