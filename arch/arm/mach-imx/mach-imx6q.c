@@ -237,7 +237,9 @@ void __init imx6_enet_mac_init(const char *compatible)
 	struct device_node *ocotp_np, *enet_np, *from = NULL;
 	void __iomem *base;
 	struct property *newmac;
-	u32 macaddr_low, macaddr_high, macaddr1_high;
+	u32 macaddr_low;
+	u32 macaddr_high = 0;
+	u32 macaddr1_high = 0;
 	u8 *macaddr;
 	int i;
 
