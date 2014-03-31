@@ -2343,39 +2343,21 @@ static int sysclk_event(struct snd_soc_dapm_widget *w,
 	struct snd_soc_codec *codec = w->codec;
 	struct wm8962_priv *wm8962 = snd_soc_codec_get_drvdata(codec);
 	unsigned long timeout;
-	int src;
-	int fll;
-
-	src = snd_soc_read(codec, WM8962_CLOCKING2) & WM8962_SYSCLK_SRC_MASK;
-
-	switch (src) {
-	case 0:      /* MCLK */
-		fll = 0;
-		break;
-	case 0x200:  /* FLL */
-		fll = 1;
-		break;
-	default:
-		dev_err(codec->dev, "Unknown SYSCLK source %x\n", src);
-		return -EINVAL;
-	}
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		if (fll) {
-			try_wait_for_completion(&wm8962->fll_lock);
+		try_wait_for_completion(&wm8962->fll_lock);
 
-			snd_soc_update_bits(codec, WM8962_FLL_CONTROL_1,
-					    WM8962_FLL_ENA, WM8962_FLL_ENA);
+		snd_soc_update_bits(codec, WM8962_FLL_CONTROL_1,
+				    WM8962_FLL_ENA, WM8962_FLL_ENA);
 
-			timeout = msecs_to_jiffies(5);
-			timeout = wait_for_completion_timeout(&wm8962->fll_lock,
-							      timeout);
+		timeout = msecs_to_jiffies(5);
+		timeout = wait_for_completion_timeout(&wm8962->fll_lock,
+						      timeout);
 
-			if (wm8962->irq && timeout == 0)
-				dev_err(codec->dev,
-					"Timed out starting FLL\n");
-		}
+		if (wm8962->irq && timeout == 0)
+			dev_err(codec->dev,
+				"Timed out starting FLL\n");
 		break;
 
 	case SND_SOC_DAPM_POST_PMD:
