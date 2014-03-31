@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,12 +37,11 @@
 #define MAG3110_ID		0xC4
 #define MAG3110_XYZ_DATA_LEN	6
 #define MAG3110_STATUS_ZYXDR	0x08
-
+#define MAG3110_IRQ_USED        1
 #define MAG3110_AC_MASK         (0x01)
 #define MAG3110_AC_OFFSET       0
 #define MAG3110_DR_MODE_MASK    (0x7 << 5)
 #define MAG3110_DR_MODE_OFFSET  5
-#define MAG3110_IRQ_USED   0
 
 #define POLL_INTERVAL_MAX	500
 #define POLL_INTERVAL		100
@@ -182,9 +181,11 @@ static int mag3110_init_client(struct i2c_client *client)
 static int mag3110_read_data(short *x, short *y, short *z)
 {
 	struct mag3110_data *data;
-	int retry = 3;
 	u8 tmp_data[MAG3110_XYZ_DATA_LEN];
+#if !MAG3110_IRQ_USED
+	int retry = 3;
 	int result;
+#endif
 	if (!mag3110_pdata || mag3110_pdata->active == MAG_STANDBY)
 		return -EINVAL;
 
@@ -210,10 +211,12 @@ static int mag3110_read_data(short *x, short *y, short *z)
 
 	data->data_ready = 0;
 
-	if (mag3110_read_block_data(data->client,
+	while (i2c_smbus_read_byte_data(data->client, MAG3110_DR_STATUS)) {
+		if (mag3110_read_block_data(data->client,
 				    MAG3110_OUT_X_MSB, MAG3110_XYZ_DATA_LEN,
 				    tmp_data) < 0)
-		return -1;
+			return -1;
+	}
 
 	*x = ((tmp_data[0] << 8) & 0xff00) | tmp_data[1];
 	*y = ((tmp_data[2] << 8) & 0xff00) | tmp_data[3];
@@ -248,8 +251,26 @@ static void mag3110_dev_poll(struct input_polled_dev *dev)
 #if MAG3110_IRQ_USED
 static irqreturn_t mag3110_irq_handler(int irq, void *dev_id)
 {
+	int result;
+	u8 tmp_data[MAG3110_XYZ_DATA_LEN];
+	result = i2c_smbus_read_byte_data(mag3110_pdata->client,
+						  MAG3110_DR_STATUS);
+	if (!(result & MAG3110_STATUS_ZYXDR))
+		return IRQ_NONE;
+
 	mag3110_pdata->data_ready = 1;
-	wake_up_interruptible(&mag3110_pdata->waitq);
+
+	if (mag3110_pdata->active == MAG_STANDBY)
+		/*
+		 * Since the mode will be changed, sometimes irq will
+		 * be handled in StandBy mode because of interrupt latency.
+		 * So just clear the interrutp flag via reading block data.
+		 */
+		mag3110_read_block_data(mag3110_pdata->client,
+					MAG3110_OUT_X_MSB,
+					MAG3110_XYZ_DATA_LEN, tmp_data);
+	else
+		wake_up_interruptible(&mag3110_pdata->waitq);
 
 	return IRQ_HANDLED;
 }
@@ -284,6 +305,7 @@ static ssize_t mag3110_enable_store(struct device *dev,
 
 	mutex_lock(&mag3110_lock);
 	client = mag3110_pdata->client;
+
 	reg = mag3110_read_reg(client, MAG3110_CTRL_REG1);
 	if (enable && mag3110_pdata->active == MAG_STANDBY) {
 		reg |= MAG3110_AC_MASK;
@@ -297,12 +319,10 @@ static ssize_t mag3110_enable_store(struct device *dev,
 			mag3110_pdata->active = MAG_STANDBY;
 	}
 
-	if (mag3110_pdata->active == MAG_ACTIVED) {
-		msleep(100);
-		/* Read out MSB data to clear interrupt flag automatically */
-		mag3110_read_block_data(client, MAG3110_OUT_X_MSB,
+	/* Read out MSB data to clear interrupt flag */
+	msleep(100);
+	mag3110_read_block_data(mag3110_pdata->client, MAG3110_OUT_X_MSB,
 					MAG3110_XYZ_DATA_LEN, tmp_data);
-	}
 	mutex_unlock(&mag3110_lock);
 	return count;
 }
@@ -402,6 +422,11 @@ static int mag3110_probe(struct i2c_client *client,
 	struct regulator *vdd, *vdd_io;
 	u32 pos = 0;
 	struct device_node *of_node = client->dev.of_node;
+#if MAG3110_IRQ_USED
+	struct irq_data *irq_data = irq_get_irq_data(client->irq);
+	u32 irq_flag;
+	bool shared_irq = of_property_read_bool(of_node, "shared-interrupt");
+#endif
 	vdd = NULL;
 	vdd_io = NULL;
 
@@ -484,10 +509,14 @@ static int mag3110_probe(struct i2c_client *client,
 		ret = -EINVAL;
 		goto error_rm_poll_dev;
 	}
-	/* set irq type to edge rising */
+
 #if MAG3110_IRQ_USED
-	ret = request_irq(client->irq, mag3110_irq_handler,
-			  IRQF_TRIGGER_RISING, client->dev.driver->name, idev);
+	irq_flag = irqd_get_trigger_type(irq_data);
+	irq_flag |= IRQF_ONESHOT;
+	if (shared_irq)
+		irq_flag |= IRQF_SHARED;
+	ret = request_threaded_irq(client->irq, NULL, mag3110_irq_handler,
+			  irq_flag, client->dev.driver->name, idev);
 	if (ret < 0) {
 		dev_err(&client->dev, "failed to register irq %d!\n",
 			client->irq);
