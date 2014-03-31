@@ -1889,21 +1889,18 @@ void ci_hdrc_gadget_destroy(struct ci_hdrc *ci)
 
 static int udc_id_switch_for_device(struct ci_hdrc *ci)
 {
-	if (ci->is_otg) {
-		ci_clear_otg_interrupt(ci, OTGSC_BSVIS);
-		ci_enable_otg_interrupt(ci, OTGSC_BSVIE);
-	}
+	if (ci->is_otg)
+		hw_write_otgsc(ci, OTGSC_BSVIS | OTGSC_BSVIE,
+					OTGSC_BSVIS | OTGSC_BSVIE);
 
 	return 0;
 }
 
 static void udc_id_switch_for_host(struct ci_hdrc *ci)
 {
-	if (ci->is_otg) {
+	if (ci->is_otg)
 		/* host doesn't care B_SESSION_VALID event */
-		ci_clear_otg_interrupt(ci, OTGSC_BSVIS);
-		ci_disable_otg_interrupt(ci, OTGSC_BSVIE);
-	}
+		hw_write_otgsc(ci, OTGSC_BSVIE | OTGSC_BSVIS, OTGSC_BSVIS);
 }
 
 /**
