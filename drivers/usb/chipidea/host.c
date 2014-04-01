@@ -279,10 +279,17 @@ static int host_start(struct ci_hdrc *ci)
 	}
 
 	ret = usb_add_hcd(hcd, 0, 0);
-	if (ret)
+	if (ret) {
 		goto disable_reg;
-	else
+	} else {
+		struct usb_otg *otg = ci->transceiver->otg;
+
 		ci->hcd = hcd;
+		if (ci_otg_is_fsm_mode(ci))
+			hcd->self.otg_port = 1;
+		if (otg)
+			otg->host = &hcd->self;
+	}
 
 	if (ci->platdata->notify_event &&
 		(ci->platdata->flags & CI_HDRC_IMX_IS_HSIC))
