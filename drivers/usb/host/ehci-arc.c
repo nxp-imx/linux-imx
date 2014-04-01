@@ -801,8 +801,8 @@ static int ehci_fsl_drv_resume(struct platform_device *pdev)
 		disable_irq(hcd->irq);
 		if (!host_can_wakeup_system(pdev)) {
 			/* Need open clock for register access */
-			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 			u32 __iomem	*reg_ptr;
+			fsl_usb_clk_gate(hcd->self.controller->platform_data, true);
 
 			reg_ptr = (u32 __iomem *)(((u8 __iomem *)ehci->regs) + USBMODE);
 			tmp = ehci_readl(ehci, reg_ptr);
