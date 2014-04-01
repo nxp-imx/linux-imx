@@ -202,10 +202,8 @@ _TryToIdleGPU(
 {
     gceSTATUS status;
     gctBOOL empty = gcvFALSE, idle = gcvFALSE;
-    gctUINT32 process, thread;
     gctBOOL powerLocked = gcvFALSE;
     gckHARDWARE hardware;
-
 
     gcmkHEADER_ARG("Event=0x%x", Event);
 
@@ -216,7 +214,6 @@ _TryToIdleGPU(
     hardware = Event->kernel->hardware;
     gcmkVERIFY_OBJECT(hardware, gcvOBJ_HARDWARE);
 
-
     /* Check whether the event queue is empty. */
     gcmkONERROR(gckEVENT_IsEmpty(Event, &empty));
 
@@ -225,30 +222,17 @@ _TryToIdleGPU(
         status = gckOS_AcquireMutex(hardware->os, hardware->powerMutex, 0);
         if (status == gcvSTATUS_TIMEOUT)
         {
-            gcmkONERROR(gckOS_GetProcessID(&process));
-            gcmkONERROR(gckOS_GetThreadID(&thread));
+            gcmkFOOTER_NO();
+            return gcvSTATUS_OK;
+        }
 
-            /* Just return to prevent deadlock. */
-            if ((hardware->powerProcess != process)
-            ||  (hardware->powerThread  != thread))
-            {
-                gcmkFOOTER_NO();
-                return gcvSTATUS_OK;
-            }
-        }
-        else
-        {
-            powerLocked = gcvTRUE;
-        }
+        powerLocked = gcvTRUE;
 
         /* Query whether the hardware is idle. */
         gcmkONERROR(gckHARDWARE_QueryIdle(Event->kernel->hardware, &idle));
 
-        if (powerLocked)
-        {
-            gcmkONERROR(gckOS_ReleaseMutex(hardware->os, hardware->powerMutex));
-            powerLocked = gcvFALSE;
-        }
+        gcmkONERROR(gckOS_ReleaseMutex(hardware->os, hardware->powerMutex));
+        powerLocked = gcvFALSE;
 
         if (idle)
         {
@@ -263,7 +247,6 @@ _TryToIdleGPU(
     return gcvSTATUS_OK;
 
 OnError:
-
     if (powerLocked)
     {
         gcmkONERROR(gckOS_ReleaseMutex(hardware->os, hardware->powerMutex));
