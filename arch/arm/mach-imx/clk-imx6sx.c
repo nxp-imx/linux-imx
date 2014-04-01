@@ -393,8 +393,9 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_ROM]          = imx_clk_gate2("rom",           "ahb",               base + 0x7c, 0);
 	clks[IMX6SX_CLK_SDMA]         = imx_clk_gate2("sdma",          "ahb",               base + 0x7c, 6);
 	clks[IMX6SX_CLK_SPBA]         = imx_clk_gate2("spba",          "ipg",               base + 0x7c, 12);
-	clks[IMX6SX_CLK_SPDIF]        = imx_clk_gate2("spdif",         "spdif_podf",        base + 0x7c, 14);
-	clks[IMX6SX_CLK_AUDIO]        = imx_clk_gate2("audio",         "audio_podf",        base + 0x7c, 14);
+	clks[IMX6SX_CLK_AUDIO_GATE]   = imx_clk_gate2("audio_gate",    "audio_podf",        base + 0x7c, 14);
+	clks[IMX6SX_CLK_AUDIO]        = imx_clk_fixed_factor("audio", "audio_gate", 1, 1);
+	clks[IMX6SX_CLK_SPDIF]        = imx_clk_fixed_factor("spdif", "audio_gate", 1, 1);
 	clks[IMX6SX_CLK_SSI1_IPG]     = imx_clk_gate2("ssi1_ipg",      "ipg",               base + 0x7c, 18);
 	clks[IMX6SX_CLK_SSI2_IPG]     = imx_clk_gate2("ssi2_ipg",      "ipg",               base + 0x7c, 20);
 	clks[IMX6SX_CLK_SSI3_IPG]     = imx_clk_gate2("ssi3_ipg",      "ipg",               base + 0x7c, 22);
@@ -473,8 +474,20 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	/* Audio clocks */
 	clk_set_rate(clks[IMX6SX_CLK_PLL4_AUDIO_DIV], 393216000);
 
+	/*
+	 * IMPORTANT:
+	 * SPDIF and AUDIO clocks are sharing the same gate on i.MX6 Solo X
+	 * while their rates and gates are being handled by separate drivers.
+	 * To keep them safe, we here merge them into one clock and use one
+	 * exact rate so there'd not be any conflict during usages of them.
+	 *
+	 * But this results a limitation that if using these two simultaneous,
+	 * make sure to keep them identical as what the code does over here.
+	 */
+	clk_set_parent(clks[IMX6SX_CLK_SPDIF_SEL], clks[IMX6SX_CLK_PLL3_USB_OTG]);
 	clk_set_parent(clks[IMX6SX_CLK_AUDIO_SEL], clks[IMX6SX_CLK_PLL3_USB_OTG]);
-	clk_set_rate(clks[IMX6SX_CLK_AUDIO_PODF], 24000000);
+	clk_set_rate(clks[IMX6SX_CLK_SPDIF_PODF], 48000000);
+	clk_set_rate(clks[IMX6SX_CLK_AUDIO_PODF], 48000000);
 
 	clk_set_parent(clks[IMX6SX_CLK_ESAI_SEL], clks[IMX6SX_CLK_PLL4_AUDIO_DIV]);
 	clk_set_rate(clks[IMX6SX_CLK_ESAI_PODF], 24576000);
