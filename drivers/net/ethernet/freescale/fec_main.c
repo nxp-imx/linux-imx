@@ -304,6 +304,9 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	unsigned short queue;
 	void *bufaddr;
 	unsigned short	status;
+	unsigned int status_esc;
+	unsigned int bdbuf_len;
+	unsigned int bdbuf_addr;
 	unsigned int index;
 
 	queue = skb_get_queue_mapping(skb);
@@ -334,7 +337,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	/* Set buffer length and buffer pointer */
 	bufaddr = skb->data;
-	bdp->cbd_datlen = skb->len;
+	bdbuf_len = skb->len;
 
 	/*
 	 * On some FEC implementations data must be aligned on
@@ -367,7 +370,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	/* Push the data cache so the CPM does not get stale memory
 	 * data.
 	 */
-	bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, bufaddr,
+	bdbuf_addr = dma_map_single(&fep->pdev->dev, bufaddr,
 			skb->len, DMA_TO_DEVICE);
 	if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
 		bdp->cbd_bufaddr = 0;
@@ -378,26 +381,33 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	if (fep->bufdesc_ex) {
 
 		struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
-		ebdp->cbd_bdu = 0;
+
 		if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP &&
 			fep->hwts_tx_en) || unlikely(fep->hwts_tx_en_ioctl &&
 						fec_ptp_do_txstamp(skb))) {
-			ebdp->cbd_esc = (BD_ENET_TX_TS | BD_ENET_TX_INT);
+			status_esc = (BD_ENET_TX_TS | BD_ENET_TX_INT);
 			skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
 		} else {
-			ebdp->cbd_esc = BD_ENET_TX_INT;
+			status_esc = BD_ENET_TX_INT;
 
 			/* Enable protocol checksum flags
 			 * We do not bother with the IP Checksum bits as they
 			 * are done by the kernel
 			 */
 			if (skb->ip_summed == CHECKSUM_PARTIAL)
-				ebdp->cbd_esc |= BD_ENET_TX_PINS;
+				status_esc |= BD_ENET_TX_PINS;
 		}
 
 		if (id_entry->driver_data & FEC_QUIRK_HAS_AVB)
-			ebdp->cbd_esc |= FEC_TX_BD_FTYPE(queue);
+			status_esc |= FEC_TX_BD_FTYPE(queue);
+
+		ebdp->cbd_bdu = 0;
+		ebdp->cbd_esc = status_esc;
 	}
+
+	bdp->cbd_bufaddr = bdbuf_addr;
+	bdp->cbd_datlen = bdbuf_len;
+	dmb();
 
 	/* Send it on its way.  Tell FEC it's ready, interrupt when done,
 	 * it's the last BD of the frame, and to put the CRC on the end.
@@ -426,11 +436,13 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	/* Trigger transmission start */
 	if (!(id_entry->driver_data & FEC_QUIRK_TKT210582) ||
-		!readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
-		!readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
-		!readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
-		!readl(fep->hwp + FEC_X_DES_ACTIVE(queue)))
-		writel(0, fep->hwp + FEC_X_DES_ACTIVE(queue));
+		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
+		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
+		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
+		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue))) {
+		dmb();
+		__raw_writel(0, fep->hwp + FEC_X_DES_ACTIVE(queue));
+	}
 
 	return NETDEV_TX_OK;
 }
@@ -1137,7 +1149,6 @@ rx_processing_done:
 
 			/* Mark the buffer empty */
 			status |= BD_ENET_RX_EMPTY;
-			bdp->cbd_sc = status;
 
 			if (fep->bufdesc_ex) {
 				struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
@@ -1147,14 +1158,21 @@ rx_processing_done:
 				ebdp->cbd_bdu = 0;
 			}
 
-			/* Update BD pointer to next entry */
-			bdp = fec_enet_get_nextdesc(bdp, fep, queue_id);
+			dmb();
+
+			bdp->cbd_sc = status;
 
 			/* Doing this here will keep the FEC running while we process
 			 * incoming frames.  On a heavily loaded network, we should be
 			 * able to keep up at the expense of system resources.
 			 */
-			writel(0, fep->hwp + FEC_R_DES_ACTIVE(queue_id));
+			if (!__raw_readl(fep->hwp + FEC_R_DES_ACTIVE(queue_id))) {
+				dmb();
+				__raw_writel(0, fep->hwp + FEC_R_DES_ACTIVE(queue_id));
+			}
+
+			/* Update BD pointer to next entry */
+			bdp = fec_enet_get_nextdesc(bdp, fep, queue_id);
 		}
 		rxq->cur_rx = bdp;
 	}
@@ -1166,8 +1184,8 @@ static bool fec_enet_collect_events(struct fec_enet_private *fep)
 {
 	uint int_events;
 
-	int_events = readl(fep->hwp + FEC_IEVENT);
-	writel(int_events & (~FEC_ENET_TS_TIMER),
+	int_events = __raw_readl(fep->hwp + FEC_IEVENT);
+	__raw_writel(int_events & (~FEC_ENET_TS_TIMER),
 			fep->hwp + FEC_IEVENT);
 
 	if (int_events == 0)
@@ -1212,7 +1230,7 @@ fec_enet_interrupt(int irq, void *dev_id)
 			if (fep->hwts_tx_en_ioctl || fep->hwts_rx_en_ioctl)
 				fep->prtc++;
 
-			writel(FEC_ENET_TS_TIMER, fep->hwp + FEC_IEVENT);
+			__raw_writel(FEC_ENET_TS_TIMER, fep->hwp + FEC_IEVENT);
 			fep->work_ts = 0;
 		}
 
@@ -1221,7 +1239,7 @@ fec_enet_interrupt(int irq, void *dev_id)
 
 			/* Disable the RX interrupt */
 			if (napi_schedule_prep(&fep->napi)) {
-				writel(FEC_RX_DISABLED_IMASK,
+				__raw_writel(FEC_RX_DISABLED_IMASK,
 					fep->hwp + FEC_IMASK);
 				__napi_schedule(&fep->napi);
 			}
@@ -1240,14 +1258,17 @@ fec_enet_interrupt(int irq, void *dev_id)
 static int fec_enet_rx_napi(struct napi_struct *napi, int budget)
 {
 	struct net_device *ndev = napi->dev;
-	int pkts = fec_enet_rx(ndev, budget);
 	struct fec_enet_private *fep = netdev_priv(ndev);
+	int pkts = 0;
 
-	fec_enet_tx(ndev);
+	if (fep->work_rx)
+		pkts = fec_enet_rx(ndev, budget);
+	if (fep->work_tx)
+		fec_enet_tx(ndev);
 
 	if (pkts < budget) {
 		napi_complete(napi);
-		writel(FEC_DEFAULT_IMASK, fep->hwp + FEC_IMASK);
+		__raw_writel(FEC_DEFAULT_IMASK, fep->hwp + FEC_IMASK);
 	}
 	return pkts;
 }
@@ -2482,6 +2503,10 @@ static int fec_enet_init(struct net_device *ndev)
 				| NETIF_F_RXCSUM);
 		fep->csum_flags |= FLAG_RX_CSUM_ENABLED;
 	}
+
+	/* enable GRO in default */
+	ndev->features |= NETIF_F_GRO;
+	ndev->hw_features |= NETIF_F_GRO;
 
 	fec_restart(ndev, 0);
 
