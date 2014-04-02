@@ -643,9 +643,17 @@ static int pxp_reqbufs(struct file *file, void *priv,
 static int pxp_querybuf(struct file *file, void *priv,
 			struct v4l2_buffer *b)
 {
+	int ret;
 	struct pxps *pxp = video_get_drvdata(video_devdata(file));
 
-	return videobuf_querybuf(&pxp->s0_vbq, b);
+	ret = videobuf_querybuf(&pxp->s0_vbq, b);
+	if (!ret) {
+		struct videobuf_buffer *vb = pxp->s0_vbq.bufs[b->index];
+		if (b->flags & V4L2_BUF_FLAG_MAPPED)
+			b->m.offset = videobuf_to_dma_contig(vb);
+	}
+
+	return ret;
 }
 
 static int pxp_qbuf(struct file *file, void *priv,
