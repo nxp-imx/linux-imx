@@ -368,6 +368,12 @@
 		interrupts = <5 1>;
 		shared-interrupt;
 	};
+
+	mma8451@1c {
+		compatible = "fsl,mma8451";
+		reg = <0x1c>;
+		position = <1>;
+	};
 };
 
 &i2c4 {
