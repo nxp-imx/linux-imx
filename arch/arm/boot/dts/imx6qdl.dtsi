@@ -741,8 +741,8 @@
 				reg = <0x2100000 0x40000>;
 				ranges = <0 0x2100000 0x40000>;
 				interrupt-parent = <&intc>; /* interrupts = <0 92 0x4>; */
-				clocks = <&clks 213>, <&clks 214>, <&clks 215>;
-				clock-names = "caam_mem", "caam_aclk", "caam_ipg";
+				clocks = <&clks 213>, <&clks 214>, <&clks 215> ,<&clks 196>;
+				clock-names = "caam_mem", "caam_aclk", "caam_ipg", "caam_emi_slow";
 
 				sec_jr0: jr0@1000 {
 					compatible = "fsl,sec-v4.0-job-ring";
