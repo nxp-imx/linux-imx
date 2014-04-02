@@ -968,6 +968,11 @@
 				dma-names = "rx", "tx";
 				status = "disabled";
 			};
+
+			qosc: qosc@021fc000 {
+				compatible = "fsl,imx6sx-qosc";
+				reg = <0x021fc000 0x4000>;
+			};
 		};
 
 		aips-bus@02200000 { /* AIPS3 */
