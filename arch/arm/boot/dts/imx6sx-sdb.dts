@@ -350,6 +350,15 @@
         pinctrl-names = "default";
         pinctrl-0 = <&pinctrl_i2c3_2>;
         status = "okay";
+
+	mag3110@0e {
+		compatible = "fsl,mag3110";
+		reg = <0x0e>;
+		position = <2>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <5 1>;
+		shared-interrupt;
+	};
 };
 
 &i2c4 {
@@ -395,6 +404,7 @@
 				MX6SX_PAD_QSPI1B_DATA3__GPIO4_IO_27 0x17059
 				MX6SX_PAD_CSI_DATA04__GPIO1_IO_18 0x17059
 				MX6SX_PAD_CSI_DATA05__GPIO1_IO_19 0x17059
+				MX6SX_PAD_SD1_DATA3__GPIO6_IO_5 0xb000
 			>;
 		};
 	};
