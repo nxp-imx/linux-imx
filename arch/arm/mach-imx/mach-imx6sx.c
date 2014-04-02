@@ -153,6 +153,24 @@ static const struct of_dev_auxdata imx6sx_auxdata_lookup[] __initconst = {
 	{ /* sentinel */ }
 };
 
+static inline void imx6sx_qos_init(void)
+{
+	struct device_node *np;
+	void __iomem *src_base;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx6sx-qosc");
+	if (!np)
+		return;
+	src_base = of_iomap(np, 0);
+	WARN_ON(!src_base);
+	writel_relaxed(0, src_base); /* Disable clkgate & soft_rst */
+	writel_relaxed(0, src_base+0x60); /* Enable all masters */
+	writel_relaxed(0, src_base+0x1400); /* Disable clkgate & soft_rst for gpu */
+	writel_relaxed(0x0f000222, src_base+0x1400+0xd0); /* Set Write QoS 2 for gpu */
+	writel_relaxed(0x0f000822, src_base+0x1400+0xe0); /* Set Read QoS 8 for gpu */
+	return;
+}
+
 static void __init imx6sx_init_machine(void)
 {
 	struct device *parent;
@@ -169,6 +187,7 @@ static void __init imx6sx_init_machine(void)
 	imx6sx_enet_init();
 	imx_anatop_init();
 	imx6_pm_init();
+	imx6sx_qos_init();
 }
 
 static void __init imx6sx_init_late(void)
