@@ -2,7 +2,7 @@
  * CAAM/SEC 4.x driver backend
  * Private/internal definitions between modules
  *
- * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2014 Freescale Semiconductor, Inc.
  *
  */
 
@@ -107,6 +107,7 @@ struct caam_drv_private {
 	struct clk *caam_ipg;
 	struct clk *caam_mem;
 	struct clk *caam_aclk;
+	struct clk *caam_emi_slow;
 #endif
 	/*
 	 * debugfs entries for developer view into driver/device
