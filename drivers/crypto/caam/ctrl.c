@@ -2,7 +2,7 @@
  * CAAM control-plane driver backend
  * Controller-level driver, kernel property detection, initialization
  *
- * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2014 Freescale Semiconductor, Inc.
  */
 
 #include "compat.h"
@@ -49,6 +49,7 @@ static int caam_remove(struct platform_device *pdev)
 	clk_disable(ctrlpriv->caam_ipg);
 	clk_disable(ctrlpriv->caam_mem);
 	clk_disable(ctrlpriv->caam_aclk);
+	clk_disable(ctrlpriv->caam_emi_slow);
 #endif
 
 	kfree(ctrlpriv->jrdev);
@@ -318,6 +319,15 @@ static int caam_probe(struct platform_device *pdev)
 		ret = PTR_ERR(ctrlpriv->caam_aclk);
 		dev_err(&ctrlpriv->pdev->dev,
 			"can't identify CAAM aclk clk: %d\n", ret);
+		return -ENODEV;
+	}
+
+	ctrlpriv->caam_emi_slow = devm_clk_get(&ctrlpriv->pdev->dev,
+					       "caam_emi_slow");
+	ret = clk_prepare_enable(ctrlpriv->caam_emi_slow);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "can't prepare CAAM emi"
+			" slow clock: %d\n", ret);
 		return -ENODEV;
 	}
 
