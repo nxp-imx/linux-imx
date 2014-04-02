@@ -1,0 +1,26 @@
+* Freescale i.MX SNVS powerkey device tree bindings
+
+The snvs-pwrkey is designed to enable POWER key function which controlled
+by SNVS ONOFF, the driver can report the status of POWER key and wakeup
+system if pressed after system suspend.
+
+Required SoC Specific Properties:
+- compatible: Should be "fsl,imx6sx-snvs-pwrkey".
+
+- reg: Physical base address of the SNVS and length of memory mapped
+  region.
+
+- interrupts: The SNVS interrupt number to the CPU(s).
+
+- fsl,keycode: Keycode to emit, KEY_POWER by default.
+
+- fsl,wakeup: Button can wake-up the system
+
+Example:
+snvs-pwrkey@0x020cc000 {
+	compatible = "fsl,imx6sx-snvs-pwrkey";
+	reg = <0x020cc000 0x4000>;
+	interrupts = <0 4 0x4>;
+	fsl,keycode = <116>; /* KEY_POWER */
+	fsl,wakeup;
+};
