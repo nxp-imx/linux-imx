@@ -367,6 +367,11 @@ static int mxsfb_check_var(struct fb_var_screeninfo *var,
 	if (var->yres < MIN_YRES)
 		var->yres = MIN_YRES;
 
+	if (var->xres_virtual > var->xres) {
+		dev_dbg(fb_info->device, "stride not supported\n");
+		return -EINVAL;
+	}
+
 	if (var->xres_virtual < var->xres)
 		var->xres_virtual = var->xres;
 	if (var->yres_virtual < var->yres)
