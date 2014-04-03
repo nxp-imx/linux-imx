@@ -86,7 +86,7 @@ static int imx_snvs_pwrkey_probe(struct platform_device *pdev)
 	struct input_dev *input = NULL;
 	struct device_node *np;
 	void __iomem *ioaddr;
-	u32 lp_cr;
+	u32 val;
 	int ret = 0;
 
 	pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
@@ -108,7 +108,6 @@ static int imx_snvs_pwrkey_probe(struct platform_device *pdev)
 
 	pdata->wakeup = !!of_get_property(np, "fsl,wakeup", NULL);
 
-	ioaddr = pdata->ioaddr;
 	pdata->irq = platform_get_irq(pdev, 0);
 	if (pdata->irq < 0) {
 		dev_err(&pdev->dev, "no irq defined in platform data\n");
@@ -116,9 +115,13 @@ static int imx_snvs_pwrkey_probe(struct platform_device *pdev)
 	}
 
 	ioaddr = pdata->ioaddr;
-	lp_cr = readl_relaxed(ioaddr + SNVS_LPCR_REG);
-	lp_cr |= SNVS_LPCR_DEP_EN,
-	writel_relaxed(lp_cr, ioaddr + SNVS_LPCR_REG);
+	val = readl_relaxed(ioaddr + SNVS_LPCR_REG);
+	val |= SNVS_LPCR_DEP_EN,
+	writel_relaxed(val, ioaddr + SNVS_LPCR_REG);
+	/* clear the unexpected interrupt before driver ready */
+	val = readl_relaxed(ioaddr + SNVS_LPSR_REG);
+	if (val & SNVS_LPSR_SPO)
+		writel_relaxed(val | SNVS_LPSR_SPO, ioaddr + SNVS_LPSR_REG);
 
 	setup_timer(&pdata->check_timer,
 		    imx_imx_snvs_check_for_events, (unsigned long) pdata);
