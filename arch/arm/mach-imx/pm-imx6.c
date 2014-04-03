@@ -15,6 +15,7 @@
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_fdt.h>
 #include <linux/of_irq.h>
 #include <linux/suspend.h>
 #include <linux/genalloc.h>
@@ -265,6 +266,12 @@ static int imx6_pm_enter(suspend_state_t state)
 {
 	struct regmap *g;
 
+	if (!iram_tlb_base_addr) {
+		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume code. \
+			Please ensure device tree has an entry for fsl,lpm-sram.\n");
+			return -EINVAL;
+	}
+
 	/*
 	 * L2 can exit by 'reset' or Inband beacon (from remote EP)
 	 * toggling phy_powerdown has same effect as 'inband beacon'
@@ -356,6 +363,36 @@ static struct map_desc iram_tlb_io_desc __initdata = {
 	.type		= MT_MEMORY_NONCACHED,
 };
 
+const static char *low_power_ocram_match[] __initconst = {
+	"fsl,lpm-sram",
+	NULL
+};
+
+static int __init imx6_dt_find_lpsram(unsigned long node,
+		const char *uname, int depth, void *data)
+{
+	unsigned long lpram_addr;
+	__be32 *prop;
+
+	if (of_flat_dt_match(node, low_power_ocram_match)) {
+		prop = of_get_flat_dt_prop(node, "reg", NULL);
+		if (!prop)
+			return -EINVAL;
+
+		lpram_addr = be32_to_cpup(prop);
+
+		/* We need to create a 1M page table entry. */
+		iram_tlb_io_desc.virtual = IMX_IO_P2V(lpram_addr & 0xFFF00000);
+		iram_tlb_io_desc.pfn = __phys_to_pfn(lpram_addr & 0xFFF00000);
+		iram_tlb_phys_addr = lpram_addr;
+		iram_tlb_base_addr = IMX_IO_P2V(lpram_addr);
+
+		iotable_init(&iram_tlb_io_desc, 1);
+	}
+	return 0;
+
+}
+
 void __init imx6_pm_map_io(void)
 {
 	unsigned long i;
@@ -363,21 +400,14 @@ void __init imx6_pm_map_io(void)
 	iotable_init(imx6_pm_io_desc, ARRAY_SIZE(imx6_pm_io_desc));
 
 	/*
-	 * Allocate IRAM for page tables to be used
-	 * when DDR is in self-refresh.
+	 * Get the address of IRAM or OCRAM to be used by the low
+	 * power code from the device tree.
 	 */
-	if (cpu_is_imx6sx()) {
-		iram_tlb_io_desc.virtual = IMX_IO_P2V(MX6SX_IRAM_TLB_BASE_ADDR);
-		iram_tlb_io_desc.pfn = __phys_to_pfn(MX6SX_IRAM_TLB_BASE_ADDR);
-		iram_tlb_phys_addr = MX6SX_IRAM_TLB_BASE_ADDR;
-		iram_tlb_base_addr = IMX_IO_P2V(MX6SX_IRAM_TLB_BASE_ADDR);
-	} else {
-		iram_tlb_io_desc.virtual = IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR);
-		iram_tlb_io_desc.pfn = __phys_to_pfn(MX6Q_IRAM_TLB_BASE_ADDR);
-		iram_tlb_phys_addr = MX6Q_IRAM_TLB_BASE_ADDR;
-		iram_tlb_base_addr = IMX_IO_P2V(MX6Q_IRAM_TLB_BASE_ADDR);
-	}
-	iotable_init(&iram_tlb_io_desc, 1);
+	WARN_ON(of_scan_flat_dt(imx6_dt_find_lpsram, NULL));
+
+	/* Return if no IRAM space is allocated for suspend/resume code. */
+	if (!iram_tlb_base_addr)
+		return;
 
 	/* Set all entries to 0. */
 	memset((void *)iram_tlb_base_addr, 0, SZ_16K);
@@ -385,31 +415,34 @@ void __init imx6_pm_map_io(void)
 	/*
 	 * Make sure the IRAM virtual address has a mapping
 	 * in the IRAM page table.
+	 * Only use the top 11 bits [31-20] when storing the
+	 * physical address in the page table as only these
+	 * bits are required for 1M mapping.
 	 */
-	i = (iram_tlb_base_addr >> 18) / 4;
+	i = ((iram_tlb_base_addr >> 20) << 2) / 4;
 	*((unsigned long *)iram_tlb_base_addr + i) =
-		iram_tlb_phys_addr | TT_ATTRIB_NON_CACHEABLE_1M;
+		(iram_tlb_phys_addr & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
 	/*
 	 * Make sure the AIPS1 virtual address has a mapping
 	 * in the IRAM page table.
 	 */
-	i = (IMX_IO_P2V(MX6Q_AIPS1_BASE_ADDR) >> 18) / 4;
+	i = ((IMX_IO_P2V(MX6Q_AIPS1_BASE_ADDR) >> 20) << 2) / 4;
 	*((unsigned long *)iram_tlb_base_addr + i) =
-		MX6Q_AIPS1_BASE_ADDR | TT_ATTRIB_NON_CACHEABLE_1M;
+		(MX6Q_AIPS1_BASE_ADDR  & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
 	/*
 	* Make sure the AIPS2 virtual address has a mapping
 	* in the IRAM page table.
 	*/
-	i = (IMX_IO_P2V(MX6Q_AIPS2_BASE_ADDR) >> 18) / 4;
+	i = ((IMX_IO_P2V(MX6Q_AIPS2_BASE_ADDR) >> 20) << 2) / 4;
 	*((unsigned long *)iram_tlb_base_addr + i) =
-		MX6Q_AIPS2_BASE_ADDR | TT_ATTRIB_NON_CACHEABLE_1M;
+		(MX6Q_AIPS2_BASE_ADDR  & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
 	/*
 	 * Make sure the AIPS2 virtual address has a mapping
 	 * in the IRAM page table.
 	 */
-	i = (IMX_IO_P2V(MX6Q_L2_BASE_ADDR) >> 18) / 4;
+	i = ((IMX_IO_P2V(MX6Q_L2_BASE_ADDR) >> 20) << 2) / 4;
 	*((unsigned long *)iram_tlb_base_addr + i) =
-		MX6Q_L2_BASE_ADDR | TT_ATTRIB_NON_CACHEABLE_1M;
+		(MX6Q_L2_BASE_ADDR  & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
 
 }
 
@@ -432,6 +465,12 @@ void imx6_pm_set_ccm_base(void __iomem *base)
 
 void __init imx6_pm_init(void)
 {
+	if (!iram_tlb_base_addr) {
+		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume code. \
+Please ensure device tree has an entry fsl,lpm-sram\n");
+			return;
+	}
+
 	iram_paddr = iram_tlb_phys_addr + MX6_SUSPEND_IRAM_ADDR_OFFSET;
 	/* Get the virtual address of the suspend code. */
 	suspend_iram_base = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
