@@ -509,36 +509,6 @@ _IdentifyHardware(
          Identity->varyingsCount -= 1;
      }
 
-    Identity->chip2DControl = 0;
-    if (Identity->chipModel == gcv320)
-    {
-        gctUINT32 data;
-
-        gcmkONERROR(
-            gckOS_ReadRegisterEx(Os,
-                                 Core,
-                                 0x0002C,
-                                 &data));
-
-        if ((data != 33956864) &&
-            ((Identity->chipRevision == 0x5007) ||
-            (Identity->chipRevision == 0x5220)))
-        {
-            Identity->chip2DControl |= 0xFF &
-                (Identity->chipRevision == 0x5220 ? 8 :
-                (Identity->chipRevision == 0x5007 ? 12 : 0));
-        }
-
-        if  (Identity->chipRevision == 0x5007)
-        {
-            /* Disable splitting rectangle. */
-            Identity->chip2DControl |= 0x100;
-
-            /* Enable 2D Flush. */
-            Identity->chip2DControl |= 0x200;
-        }
-    }
-
     /* Success. */
     gcmkFOOTER();
     return gcvSTATUS_OK;
@@ -1348,24 +1318,34 @@ gckHARDWARE_InitializeHardware(
         gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00414, axi_ot));
     }
 
-    if (Hardware->identity.chip2DControl & 0xFF)
-     {
+    if ((Hardware->identity.chipModel == gcv320)
+        && ((Hardware->identity.chipRevision == 0x5007)
+        || (Hardware->identity.chipRevision == 0x5220)))
+    {
 		gctUINT32 data;
 
         gcmkONERROR(
             gckOS_ReadRegisterEx(Hardware->os,
                                  Hardware->core,
-                                 0x00414,
+                                 0x0002C,
                                  &data));
+        if (data != 33956864)
+        {
+            gcmkONERROR(
+                gckOS_ReadRegisterEx(Hardware->os,
+                                     Hardware->core,
+                                     0x00414,
+                                     &data));
 
-        data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 7:0) - (0 ? 7:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ? 7:0))) | (((gctUINT32) ((gctUINT32) (Hardware->identity.chip2DControl & 0xFF) & ((gctUINT32) ((((1 ? 7:0) - (0 ? 7:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ? 7:0)));
+            data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 7:0) - (0 ? 7:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ? 7:0))) | (((gctUINT32) ((gctUINT32) (Hardware->identity.chipRevision == 0x5220 ? 8 : (Hardware->identity.chipRevision == 0x5007 ? 16 : 0)) & ((gctUINT32) ((((1 ? 7:0) - (0 ? 7:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ? 7:0)));
 
-        gcmkONERROR(
-            gckOS_WriteRegisterEx(Hardware->os,
-                                  Hardware->core,
-                                  0x00414,
-                                  data));
-     }
+            gcmkONERROR(
+                gckOS_WriteRegisterEx(Hardware->os,
+                                      Hardware->core,
+                                      0x00414,
+                                      data));
+        }
+    }
 
     /* Update GPU AXI cache atttribute. */
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
@@ -1573,7 +1553,6 @@ gckHARDWARE_QueryChipIdentity(
     Identity->bufferSize             = Hardware->identity.bufferSize;
     Identity->varyingsCount          = Hardware->identity.varyingsCount;
     Identity->superTileMode          = Hardware->identity.superTileMode;
-    Identity->chip2DControl          = Hardware->identity.chip2DControl;
 
     /* Success. */
     gcmkFOOTER_NO();
