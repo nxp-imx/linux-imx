@@ -126,9 +126,7 @@ void csi_init_interface(void)
 	val |= BIT_REDGE;
 	val |= BIT_GCLK_MODE;
 	val |= BIT_HSYNC_POL;
-	val |= BIT_PACK_DIR;
 	val |= BIT_FCC;
-	val |= BIT_SWAP16_EN;
 	val |= 1 << SHIFT_MCLKDIV;
 	val |= BIT_MCLKEN;
 	__raw_writel(val, CSI_CSICR1);
@@ -142,23 +140,22 @@ void csi_init_interface(void)
 }
 EXPORT_SYMBOL(csi_init_interface);
 
-void csi_init_format(int fmt)
+void csi_format_swap16(bool enable)
 {
 	unsigned int val;
 
 	val = __raw_readl(CSI_CSICR1);
-	if (fmt == V4L2_PIX_FMT_YUYV) {
-		val &= ~BIT_PACK_DIR;
-		val &= ~BIT_SWAP16_EN;
-	} else if (fmt == V4L2_PIX_FMT_UYVY) {
+	if (enable) {
 		val |= BIT_PACK_DIR;
 		val |= BIT_SWAP16_EN;
-	} else
-		pr_warning("unsupported format, old format remains.\n");
+	} else {
+		val &= ~BIT_PACK_DIR;
+		val &= ~BIT_SWAP16_EN;
+	}
 
 	__raw_writel(val, CSI_CSICR1);
 }
-EXPORT_SYMBOL(csi_init_format);
+EXPORT_SYMBOL(csi_format_swap16);
 
 /*!
  * csi_read_mclk_flag
@@ -225,6 +222,72 @@ void csi_enable(int arg)
 	__raw_writel(cr, CSI_CSICR18);
 }
 EXPORT_SYMBOL(csi_enable);
+
+void csi_buf_stride_set(u32 stride)
+{
+	__raw_writel(stride, CSI_CSIFBUF_PARA);
+}
+EXPORT_SYMBOL(csi_buf_stride_set);
+
+void csi_deinterlace_enable(bool enable)
+{
+	unsigned long cr18 = __raw_readl(CSI_CSICR18);
+
+	if (enable == true)
+		cr18 |= BIT_DEINTERLACE_EN;
+	else
+		cr18 &= ~BIT_DEINTERLACE_EN;
+
+	__raw_writel(cr18, CSI_CSICR18);
+}
+EXPORT_SYMBOL(csi_deinterlace_enable);
+
+void csi_deinterlace_mode(int mode)
+{
+	unsigned long cr18 = __raw_readl(CSI_CSICR18);
+
+	if (mode == V4L2_STD_NTSC)
+		cr18 |= BIT_NTSC_EN;
+	else
+		cr18 &= ~BIT_NTSC_EN;
+
+	__raw_writel(cr18, CSI_CSICR18);
+}
+EXPORT_SYMBOL(csi_deinterlace_mode);
+
+void csi_tvdec_enable(bool enable)
+{
+	unsigned long cr18 = __raw_readl(CSI_CSICR18);
+	unsigned long cr1 = __raw_readl(CSI_CSICR1);
+
+	if (enable == true) {
+		cr18 |= (BIT_TVDECODER_IN_EN | BIT_BASEADDR_SWITCH_EN);
+		cr1 |= BIT_CCIR_MODE | BIT_EXT_VSYNC;
+		cr1 &= ~(BIT_SOF_POL | BIT_REDGE);
+	} else {
+		cr18 &= ~(BIT_TVDECODER_IN_EN | BIT_BASEADDR_SWITCH_EN);
+		cr1 &= ~(BIT_CCIR_MODE | BIT_EXT_VSYNC);
+		cr1 |= BIT_SOF_POL | BIT_REDGE;
+	}
+
+	__raw_writel(cr18, CSI_CSICR18);
+	__raw_writel(cr1, CSI_CSICR1);
+}
+EXPORT_SYMBOL(csi_tvdec_enable);
+
+void csi_set_32bit_imagpara(int width, int height)
+{
+	int imag_para = 0;
+	unsigned long cr3 = __raw_readl(CSI_CSICR3);
+
+	imag_para = (width << 16) | height;
+	__raw_writel(imag_para, CSI_CSIIMAG_PARA);
+
+
+	/* reflash the embeded DMA controller */
+	__raw_writel(cr3 | BIT_DMA_REFLASH_RFF, CSI_CSICR3);
+}
+EXPORT_SYMBOL(csi_set_32bit_imagpara);
 
 void csi_set_16bit_imagpara(int width, int height)
 {

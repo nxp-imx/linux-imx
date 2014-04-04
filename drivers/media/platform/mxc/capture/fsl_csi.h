@@ -96,7 +96,13 @@
 #define BIT_DRDY		(0x1 << 0)
 
 /* csi control reg 18 */
-#define BIT_CSI_ENABLE		(0x1 << 31)
+#define BIT_CSI_ENABLE			(0x1 << 31)
+#define BIT_BASEADDR_SWITCH_SEL	(0x1 << 5)
+#define BIT_BASEADDR_SWITCH_EN	(0x1 << 4)
+#define BIT_PARALLEL24_EN		(0x1 << 3)
+#define BIT_DEINTERLACE_EN		(0x1 << 2)
+#define BIT_TVDECODER_IN_EN		(0x1 << 1)
+#define BIT_NTSC_EN				(0x1 << 0)
 
 #define CSI_MCLK_VF		1
 #define CSI_MCLK_ENC		2
@@ -190,13 +196,18 @@ struct csi_config_t {
 typedef void (*csi_irq_callback_t) (void *data, unsigned long status);
 
 void csi_init_interface(void);
-void csi_init_format(int fmt);
+void csi_set_32bit_imagpara(int width, int height);
 void csi_set_16bit_imagpara(int width, int height);
 void csi_set_12bit_imagpara(int width, int height);
+void csi_format_swap16(bool enable);
 int csi_read_mclk_flag(void);
 void csi_start_callback(void *data);
 void csi_stop_callback(void *data);
 void csi_enable_int(int arg);
+void csi_buf_stride_set(u32 stride);
+void csi_deinterlace_mode(int mode);
+void csi_deinterlace_enable(bool enable);
+void csi_tvdec_enable(bool enable);
 void csi_enable(int arg);
 void csi_disable_int(void);
 void csi_clk_enable(void);
