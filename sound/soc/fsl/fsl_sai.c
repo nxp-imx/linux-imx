@@ -206,7 +206,7 @@ static int fsl_sai_set_dai_fmt_tr(struct snd_soc_dai *cpu_dai,
 		 * that is, together with the last bit of the previous
 		 * data word.
 		 */
-		val_cr2 &= ~FSL_SAI_CR2_BCP;
+		val_cr2 |= FSL_SAI_CR2_BCP;
 		val_cr4 |= FSL_SAI_CR4_FSE | FSL_SAI_CR4_FSP;
 		break;
 	case SND_SOC_DAIFMT_LEFT_J:
@@ -214,7 +214,7 @@ static int fsl_sai_set_dai_fmt_tr(struct snd_soc_dai *cpu_dai,
 		 * Frame high, one word length for frame sync,
 		 * frame sync asserts with the first bit of the frame.
 		 */
-		val_cr2 &= ~FSL_SAI_CR2_BCP;
+		val_cr2 |= FSL_SAI_CR2_BCP;
 		val_cr4 &= ~(FSL_SAI_CR4_FSE | FSL_SAI_CR4_FSP);
 		break;
 	case SND_SOC_DAIFMT_DSP_A:
@@ -224,7 +224,7 @@ static int fsl_sai_set_dai_fmt_tr(struct snd_soc_dai *cpu_dai,
 		 * that is, together with the last bit of the previous
 		 * data word.
 		 */
-		val_cr2 &= ~FSL_SAI_CR2_BCP;
+		val_cr2 |= FSL_SAI_CR2_BCP;
 		val_cr4 &= ~FSL_SAI_CR4_FSP;
 		val_cr4 |= FSL_SAI_CR4_FSE;
 		sai->is_dsp_mode = true;
@@ -234,7 +234,7 @@ static int fsl_sai_set_dai_fmt_tr(struct snd_soc_dai *cpu_dai,
 		 * Frame high, one bit for frame sync,
 		 * frame sync asserts with the first bit of the frame.
 		 */
-		val_cr2 &= ~FSL_SAI_CR2_BCP;
+		val_cr2 |= FSL_SAI_CR2_BCP;
 		val_cr4 &= ~(FSL_SAI_CR4_FSE | FSL_SAI_CR4_FSP);
 		sai->is_dsp_mode = true;
 		break;
