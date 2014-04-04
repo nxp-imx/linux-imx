@@ -283,6 +283,9 @@ static void pxp_set_ctrl(struct pxps *pxp)
 	case PXP_PIX_FMT_GY04:
 		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__Y4;
 		break;
+	case PXP_PIX_FMT_YUV444:
+		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV1P444;
+		break;
 	case PXP_PIX_FMT_YUV422P:
 		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV422;
 		break;
@@ -1007,7 +1010,8 @@ static void pxp_set_s0buf(struct pxps *pxp)
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_GY04)
 		__raw_writel(pitch >> 1,
 				pxp->base + HW_PXP_PS_PITCH);
-	else if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB32)
+	else if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB32 ||
+			 s0_params->pixel_fmt == PXP_PIX_FMT_YUV444)
 		__raw_writel(pitch << 2,
 				pxp->base + HW_PXP_PS_PITCH);
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_UYVY ||
