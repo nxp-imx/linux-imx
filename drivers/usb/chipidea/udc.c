@@ -1463,6 +1463,17 @@ static const struct usb_ep_ops usb_ep_ops = {
 /******************************************************************************
  * GADGET block
  *****************************************************************************/
+static bool ci_otg_fsm_charger_conn(struct ci_hdrc *ci)
+{
+	/*
+	 * OTG port is in fsm mode
+	 * only do charger notify for b sess valid event, or
+	 * when power up.
+	 */
+	return !ci_otg_is_fsm_mode(ci) || ci->fsm.power_up ||
+					ci->b_sess_valid_event;
+}
+
 static int ci_udc_vbus_session(struct usb_gadget *_gadget, int is_active)
 {
 	struct ci_hdrc *ci = container_of(_gadget, struct ci_hdrc, gadget);
@@ -1477,7 +1488,7 @@ static int ci_udc_vbus_session(struct usb_gadget *_gadget, int is_active)
 	spin_unlock_irqrestore(&ci->lock, flags);
 
 	/* Charger Detection */
-	if (ci->platdata->notify_event) {
+	if (ci->platdata->notify_event && ci_otg_fsm_charger_conn(ci)) {
 		/*
 		 * Keep controller active when the cable is connected,
 		 * It can make disconnect interrupt (BSV 1->0) occur when
@@ -1502,6 +1513,9 @@ static int ci_udc_vbus_session(struct usb_gadget *_gadget, int is_active)
 			hw_write(ci, OP_USBCMD, USBCMD_RS, 0);
 		}
 	}
+
+	if (ci_otg_is_fsm_mode(ci) && ci->b_sess_valid_event)
+		ci->b_sess_valid_event = false;
 
 	if (gadget_ready) {
 		if (is_active) {

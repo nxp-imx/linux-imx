@@ -592,10 +592,18 @@ int ci_otg_fsm_work(struct ci_hdrc *ci)
 	/*
 	 * Don't do fsm transition for B device
 	 * when there is no gadget class driver
+	 * only handle charger notify
 	 */
 	if (ci->fsm.id && !(ci->driver) &&
-		ci->transceiver->state < OTG_STATE_A_IDLE)
+		ci->transceiver->state < OTG_STATE_A_IDLE) {
+		if (ci->b_sess_valid_event) {
+			if (ci->fsm.b_sess_vld)
+				usb_gadget_vbus_connect(&ci->gadget);
+			else
+				usb_gadget_vbus_disconnect(&ci->gadget);
+		}
 		return 0;
+	}
 
 	if (otg_statemachine(&ci->fsm)) {
 		if (ci->transceiver->state == OTG_STATE_A_IDLE) {
@@ -764,6 +772,7 @@ irqreturn_t ci_otg_fsm_irq(struct ci_hdrc *ci)
 			}
 		} else if (otg_int_src & OTGSC_BSVIS) {
 			hw_write_otgsc(ci, OTGSC_BSVIS, OTGSC_BSVIS);
+			ci->b_sess_valid_event = true;
 			if (otgsc & OTGSC_BSV) {
 				fsm->b_sess_vld = 1;
 				ci_otg_del_timer(ci, B_SSEND_SRP);
