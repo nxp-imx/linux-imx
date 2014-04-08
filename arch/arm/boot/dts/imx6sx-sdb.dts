@@ -431,6 +431,12 @@
 	status = "okay";
 };
 
+&sai1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai1_2>;
+	status = "disabled";
+};
+
 &ssi2 {
 	status = "okay";
 };
