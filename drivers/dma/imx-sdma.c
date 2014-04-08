@@ -25,6 +25,7 @@
 #include <linux/interrupt.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/regmap.h>
 #include <linux/sched.h>
 #include <linux/semaphore.h>
 #include <linux/spinlock.h>
@@ -40,6 +41,8 @@
 #include <linux/of_dma.h>
 
 #include <asm/irq.h>
+#include <linux/mfd/syscon.h>
+#include <linux/mfd/syscon/imx6q-iomuxc-gpr.h>
 #include <linux/platform_data/dma-imx-sdma.h>
 #include <linux/platform_data/dma-imx.h>
 
@@ -322,6 +325,7 @@ struct sdma_firmware_header {
 enum sdma_devtype {
 	IMX31_SDMA,	/* runs on i.mx31 */
 	IMX35_SDMA,	/* runs on i.mx35 and later */
+	IMX6SX_SDMA,	/* runs on i.mx6sx */
 };
 
 struct sdma_engine {
@@ -350,6 +354,9 @@ static struct platform_device_id sdma_devtypes[] = {
 		.name = "imx35-sdma",
 		.driver_data = IMX35_SDMA,
 	}, {
+		.name = "imx6sx-sdma",
+		.driver_data = IMX6SX_SDMA,
+	}, {
 		/* sentinel */
 	}
 };
@@ -358,6 +365,7 @@ MODULE_DEVICE_TABLE(platform, sdma_devtypes);
 static const struct of_device_id sdma_dt_ids[] = {
 	{ .compatible = "fsl,imx31-sdma", .data = &sdma_devtypes[IMX31_SDMA], },
 	{ .compatible = "fsl,imx35-sdma", .data = &sdma_devtypes[IMX35_SDMA], },
+	{ .compatible = "fsl,imx6sx-sdma", .data = &sdma_devtypes[IMX6SX_SDMA], },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, sdma_dt_ids);
@@ -1366,6 +1374,79 @@ err_firmware:
 	release_firmware(fw);
 }
 
+#define EVENT_REMAP_CELLS 3
+
+static int __init sdma_event_remap(struct sdma_engine *sdma)
+{
+	struct device_node *np = sdma->dev->of_node;
+	struct device_node *gpr_np = of_parse_phandle(np, "gpr", 0);
+	struct property *event_remap;
+	struct regmap *gpr;
+	char propname[] = "fsl,sdma-event-remap";
+	u32 reg, val, shift, num_map, i;
+	int ret = 0;
+
+	/* Only apply to imx6sx platform */
+	if (sdma->devtype != IMX6SX_SDMA || IS_ERR(np))
+		goto out;
+
+	if (IS_ERR(gpr_np)) {
+		dev_err(sdma->dev, "failed to get gpr node by phandle\n");
+		ret = PTR_ERR(gpr_np);
+		goto out;
+	}
+
+	event_remap = of_find_property(np, propname, NULL);
+	num_map = event_remap ? (event_remap->length / sizeof(u32)) : 0;
+	if (!num_map) {
+		dev_warn(sdma->dev, "no event needs to be remapped\n");
+		goto out;
+	} else if (num_map % EVENT_REMAP_CELLS) {
+		dev_err(sdma->dev, "the property %s must modulo %d\n",
+				propname, EVENT_REMAP_CELLS);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	gpr = syscon_node_to_regmap(gpr_np);
+	if (IS_ERR(gpr)) {
+		dev_err(sdma->dev, "failed to get gpr regmap\n");
+		ret = PTR_ERR(gpr);
+		goto out;
+	}
+
+	for (i = 0; i < num_map; i += EVENT_REMAP_CELLS) {
+		ret = of_property_read_u32_index(np, propname, i, &reg);
+		if (ret) {
+			dev_err(sdma->dev, "failed to read property %s index %d\n",
+					propname, i);
+			goto out;
+		}
+
+		ret = of_property_read_u32_index(np, propname, i + 1, &shift);
+		if (ret) {
+			dev_err(sdma->dev, "failed to read property %s index %d\n",
+					propname, i + 1);
+			goto out;
+		}
+
+		ret = of_property_read_u32_index(np, propname, i + 2, &val);
+		if (ret) {
+			dev_err(sdma->dev, "failed to read property %s index %d\n",
+					propname, i + 2);
+			goto out;
+		}
+
+		regmap_update_bits(gpr, reg, BIT(shift), val << shift);
+	}
+
+out:
+	if (!IS_ERR(gpr_np))
+		of_node_put(gpr_np);
+
+	return ret;
+}
+
 static int __init sdma_get_firmware(struct sdma_engine *sdma,
 		const char *fw_name)
 {
@@ -1388,6 +1469,7 @@ static int __init sdma_init(struct sdma_engine *sdma)
 		sdma->num_events = 32;
 		break;
 	case IMX35_SDMA:
+	case IMX6SX_SDMA:
 		sdma->num_events = 48;
 		break;
 	default:
@@ -1602,6 +1684,10 @@ static int __init sdma_probe(struct platform_device *pdev)
 		dev_warn(&pdev->dev, "no iram assigned, using external mem\n");
 
 	ret = sdma_init(sdma);
+	if (ret)
+		goto err_init;
+
+	ret = sdma_event_remap(sdma);
 	if (ret)
 		goto err_init;
 
