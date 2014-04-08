@@ -662,12 +662,13 @@
 			};
 
 			sdma: sdma@020ec000 {
-				compatible = "fsl,imx6q-sdma", "fsl,imx35-sdma";
+				compatible = "fsl,imx6sx-sdma";
 				reg = <0x020ec000 0x4000>;
 				interrupts = <0 2 0x04>;
 				clocks = <&clks IMX6SX_CLK_SDMA>, <&clks IMX6SX_CLK_SDMA>;
 				clock-names = "ipg", "ahb";
 				#dma-cells = <3>;
+				gpr = <&gpr>;
 				fsl,sdma-ram-script-name = "imx/sdma/sdma-imx6q.bin";
 			};
 
