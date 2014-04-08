@@ -3,7 +3,7 @@ Freescale i.MX audio complex with WM8962 codec
 Required properties:
 - compatible : "fsl,imx-audio-wm8962"
 - model : The user-visible name of this sound complex
-- ssi-controller : The phandle of the i.MX SSI controller
+- cpu-dai : The phandle of CPU DAI
 - audio-codec : The phandle of the WM8962 audio codec
 - audio-routing : A list of the connections between audio components.
   Each entry is a pair of strings, the first being the connection's sink,
@@ -36,7 +36,7 @@ sound {
 	compatible = "fsl,imx6q-sabresd-wm8962",
 		     "fsl,imx-audio-wm8962";
 	model = "wm8962-audio";
-	ssi-controller = <&ssi2>;
+	cpu-dai = <&ssi2>;
 	audio-codec = <&codec>;
 		audio-routing =
 		"Headphone Jack", "HPOUTL",
