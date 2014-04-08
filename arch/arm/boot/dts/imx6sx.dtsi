@@ -716,8 +716,10 @@
 				compatible = "fsl,imx6sx-sai";
 				reg = <0x021d4000 0x4000>;
 				interrupts = <0 97 0x04>;
-				clocks = <&clks IMX6SX_CLK_SAI1_IPG>, <&clks IMX6SX_CLK_SAI1>;
-				clock-names = "ipg", "sai";
+				clocks = <&clks IMX6SX_CLK_SAI1_IPG>,
+				       <&clks IMX6SX_CLK_SAI1>,
+				       <&clks 0>, <&clks 0>;
+				clock-names = "bus", "mclk1", "mclk2", "mclk3";
 				dma-names = "rx", "tx";
 				dmas = <&sdma 31 23 0>, <&sdma 32 23 0>;
 				dma-source = <&gpr 0 15 0 16>;
@@ -728,8 +730,10 @@
 				compatible = "fsl,imx6sx-sai";
 				reg = <0x021dc000 0x4000>;
 				interrupts = <0 98 0x04>;
-				clocks = <&clks IMX6SX_CLK_SAI2_IPG>, <&clks IMX6SX_CLK_SAI2>;
-				clock-names = "ipg", "sai";
+				clocks = <&clks IMX6SX_CLK_SAI2_IPG>,
+				       <&clks IMX6SX_CLK_SAI2>,
+				       <&clks 0>, <&clks 0>;
+				clock-names = "bus", "mclk1", "mclk2", "mclk3";
 				dma-names = "rx", "tx";
 				dmas = <&sdma 33 23 0>, <&sdma 34 23 0>;
 				dma-source = <&gpr 0 17 0 18>;
@@ -1447,7 +1451,29 @@
 				MX6SX_PAD_CSI_VSYNC__SAI1_RX_DATA_0    0x1b030
 			>;
 		};
+
+		pinctrl_sai1_2: sai1grp_2 {
+			fsl,pins = <
+				MX6SX_PAD_CSI_DATA00__SAI1_TX_BCLK     0x130B0
+				MX6SX_PAD_CSI_DATA01__SAI1_TX_SYNC     0x130B0
+				MX6SX_PAD_CSI_HSYNC__SAI1_TX_DATA_0    0x120B0
+				MX6SX_PAD_CSI_VSYNC__SAI1_RX_DATA_0    0x130B0
+				MX6SX_PAD_CSI_PIXCLK__AUDMUX_MCLK      0x130B0
+			>;
+		};
 	};
+
+	sai2 {
+		pinctrl_sai2_1: sai2grp_1 {
+			fsl,pins = <
+				MX6SX_PAD_KEY_COL0__SAI2_TX_BCLK       0x1b030
+				MX6SX_PAD_KEY_COL1__SAI2_TX_SYNC       0x1b030
+				MX6SX_PAD_KEY_ROW0__SAI2_TX_DATA_0     0x1b030
+				MX6SX_PAD_KEY_ROW1__SAI2_RX_DATA_0     0x1b030
+			>;
+		};
+	};
+
 
 	spdif {
 		pinctrl_spdif_1: spdifgrp-1 {
