@@ -339,6 +339,10 @@ int ci_registers_show(struct seq_file *s, void *unused)
 	if (!ci)
 		return 0;
 
+	seq_printf(s, "Low Power Mode: %d\n", ci->in_lpm);
+	if (ci->in_lpm)
+		return 0;
+
 	/* ------ Registers ----- */
 	tmp_reg = hw_read_intr_enable(ci);
 	seq_printf(s, "USBINTR reg: %08x\n", tmp_reg);

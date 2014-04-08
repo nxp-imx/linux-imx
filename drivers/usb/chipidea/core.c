@@ -802,6 +802,38 @@ static int ci_hdrc_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
+/* Prepare wakeup by SRP before suspend */
+static void ci_otg_fsm_suspend_for_srp(struct ci_hdrc *ci)
+{
+	if ((ci->transceiver->state == OTG_STATE_A_IDLE) &&
+				!hw_read_otgsc(ci, OTGSC_ID)) {
+		hw_write(ci, OP_PORTSC, PORTSC_W1C_BITS | PORTSC_PP,
+								PORTSC_PP);
+		hw_write(ci, OP_PORTSC, PORTSC_W1C_BITS | PORTSC_WKCN,
+								PORTSC_WKCN);
+	}
+}
+
+/* Handle SRP when wakeup by data pulse */
+static void ci_otg_fsm_wakeup_by_srp(struct ci_hdrc *ci)
+{
+	/*
+	 * if a_idle wakeup by data pulse,
+	 * handle it like normal SRP
+	 */
+	if ((ci->transceiver->state == OTG_STATE_A_IDLE) &&
+		(ci->fsm.a_bus_drop == 1) && (ci->fsm.a_bus_req == 0)) {
+		if (!hw_read_otgsc(ci, OTGSC_ID)) {
+			ci->fsm.a_srp_det = 1;
+			ci->fsm.a_bus_drop = 0;
+			disable_irq_nosync(ci->irq);
+			queue_work(ci->wq, &ci->work);
+		} else {
+			ci->fsm.id = 1;
+		}
+	}
+}
+
 static int ci_controller_suspend(struct device *dev)
 {
 	struct ci_hdrc *ci = dev_get_drvdata(dev);
@@ -810,6 +842,9 @@ static int ci_controller_suspend(struct device *dev)
 
 	if (ci->in_lpm)
 		return 0;
+
+	if (ci_otg_is_fsm_mode(ci))
+		ci_otg_fsm_suspend_for_srp(ci);
 
 	disable_irq(ci->irq);
 
@@ -852,6 +887,9 @@ static int ci_controller_resume(struct device *dev)
 		enable_irq(ci->irq);
 		mod_timer(&ci->timer, jiffies + msecs_to_jiffies(2000));
 	}
+
+	if (ci_otg_is_fsm_mode(ci))
+		ci_otg_fsm_wakeup_by_srp(ci);
 
 	return 0;
 }

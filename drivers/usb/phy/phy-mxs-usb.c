@@ -221,6 +221,11 @@ static bool mxs_phy_get_vbus_status(struct mxs_phy *mxs_phy)
 		return false;
 }
 
+#ifdef CONFIG_USB_OTG_FSM
+static void mxs_phy_disconnect_line(struct mxs_phy *mxs_phy, bool on)
+{
+}
+#else
 static void __mxs_phy_disconnect_line(struct mxs_phy *mxs_phy, bool disconnect)
 {
 	void __iomem *base = mxs_phy->phy.io_priv;
@@ -273,6 +278,7 @@ static void mxs_phy_disconnect_line(struct mxs_phy *mxs_phy, bool on)
 		__mxs_phy_disconnect_line(mxs_phy, false);
 
 }
+#endif
 
 static void mxs_phy_enable_ldo_in_suspend(struct mxs_phy *mxs_phy, bool on)
 {

@@ -28,6 +28,8 @@
 
 #include "ci.h"
 #include "ci_hdrc_imx.h"
+#include "otg.h"
+#include "bits.h"
 
 #define CI_HDRC_IMX_IMX28_WRITE_FIX		BIT(0)
 #define CI_HDRC_IMX_SUPPORT_RUNTIME_PM		BIT(1)
