@@ -493,6 +493,13 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clk_set_rate(clks[IMX6SX_CLK_SPDIF_PODF], 48000000);
 	clk_set_rate(clks[IMX6SX_CLK_AUDIO_PODF], 48000000);
 
+	clk_set_parent(clks[IMX6SX_CLK_SSI1_SEL], clks[IMX6SX_CLK_PLL4_AUDIO_DIV]);
+	clk_set_parent(clks[IMX6SX_CLK_SSI2_SEL], clks[IMX6SX_CLK_PLL4_AUDIO_DIV]);
+	clk_set_parent(clks[IMX6SX_CLK_SSI3_SEL], clks[IMX6SX_CLK_PLL4_AUDIO_DIV]);
+	clk_set_rate(clks[IMX6SX_CLK_SSI1_PODF], 24576000);
+	clk_set_rate(clks[IMX6SX_CLK_SSI2_PODF], 24576000);
+	clk_set_rate(clks[IMX6SX_CLK_SSI3_PODF], 24576000);
+
 	clk_set_parent(clks[IMX6SX_CLK_ESAI_SEL], clks[IMX6SX_CLK_PLL4_AUDIO_DIV]);
 	clk_set_rate(clks[IMX6SX_CLK_ESAI_PODF], 24576000);
 
