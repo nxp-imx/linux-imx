@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -301,6 +301,9 @@ static int fsl_asrc_p2p_trigger(struct snd_pcm_substream *substream, int cmd,
 			return ret;
 		dma_async_issue_pending(asrc_p2p->asrc_p2p_dma_chan);
 		asrc_p2p->asrc_ops.asrc_p2p_start_conv(asrc_p2p->asrc_index);
+
+		/* Output enough data to content the DMA burstsize of BE */
+		mdelay(1);
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
