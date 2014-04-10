@@ -307,10 +307,7 @@ static int fsl_esai_startup(struct snd_pcm_substream *substream,
 
 	clk_enable(esai->clk);
 	clk_prepare_enable(esai->dmaclk);
-	if (!cpu_dai->active) {
-		writel(ESAI_GPIO_ESAI, esai->base + ESAI_PRRC);
-		writel(ESAI_GPIO_ESAI, esai->base + ESAI_PCRC);
-	}
+
 	ESAI_DUMP();
 	return 0;
 }
@@ -431,25 +428,40 @@ static int fsl_esai_hw_params(struct snd_pcm_substream *substream,
 			      struct snd_soc_dai *cpu_dai)
 {
 	struct fsl_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
+	int ret = 0;
 
 	/* Tx/Rx config */
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		if (readl(esai->base + ESAI_TCR) & ESAI_TCR_TE0)
 			return 0;
 
-		return fsl_esai_hw_tx_params(substream, params, cpu_dai);
+		ret = fsl_esai_hw_tx_params(substream, params, cpu_dai);
 	} else {
 		if (readl(esai->base + ESAI_RCR) & ESAI_RCR_RE1)
 			return 0;
 
-		return fsl_esai_hw_rx_params(substream, params, cpu_dai);
+		ret = fsl_esai_hw_rx_params(substream, params, cpu_dai);
 	}
+
+	/*
+	 * PRRC and PCRC should be set after control register has been set,
+	 * before the trigger() be called, according the reference manual.
+	 */
+	writel(ESAI_GPIO_ESAI, esai->base + ESAI_PRRC);
+	writel(ESAI_GPIO_ESAI, esai->base + ESAI_PCRC);
+
+	return ret;
 }
 
 static void fsl_esai_shutdown(struct snd_pcm_substream *substream,
 			      struct snd_soc_dai *cpu_dai)
 {
 	struct fsl_esai *esai = snd_soc_dai_get_drvdata(cpu_dai);
+
+	if (!cpu_dai->active) {
+		writel(0, esai->base + ESAI_PRRC);
+		writel(0, esai->base + ESAI_PCRC);
+	}
 
 	clk_disable_unprepare(esai->dmaclk);
 	clk_disable(esai->clk);
