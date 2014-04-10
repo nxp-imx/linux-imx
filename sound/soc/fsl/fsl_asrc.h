@@ -1,7 +1,7 @@
 /*
  * fsl_asrc.h - ALSA ASRC interface
  *
- * Copyright (C) 2013 Freescale Semiconductor, Inc.  This file is licensed
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.  This file is licensed
  * under the terms of the GNU General Public License version 2.  This
  * program is licensed "as is" without any warranty of any kind, whether
  * express or implied.
@@ -33,6 +33,7 @@ struct fsl_asrc_p2p {
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
 	struct imx_dma_data filter_data_tx;
 	struct imx_dma_data filter_data_rx;
+	struct snd_pcm_substream *substream[2];
 
 	struct dma_async_tx_descriptor  *asrc_p2p_desc;
 	struct dma_chan                 *asrc_p2p_dma_chan;

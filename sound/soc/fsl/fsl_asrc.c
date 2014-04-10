@@ -318,6 +318,23 @@ static int fsl_asrc_p2p_trigger(struct snd_pcm_substream *substream, int cmd,
 	return 0;
 }
 
+static int fsl_asrc_p2p_startup(struct snd_pcm_substream *substream,
+			    struct snd_soc_dai *cpu_dai)
+{
+	struct fsl_asrc_p2p *asrc_p2p   = snd_soc_dai_get_drvdata(cpu_dai);
+
+	asrc_p2p->substream[substream->stream] = substream;
+	return 0;
+}
+
+static void fsl_asrc_p2p_shutdown(struct snd_pcm_substream *substream,
+			    struct snd_soc_dai *cpu_dai)
+{
+	struct fsl_asrc_p2p *asrc_p2p   = snd_soc_dai_get_drvdata(cpu_dai);
+
+	asrc_p2p->substream[substream->stream] = NULL;
+}
+
 #define IMX_ASRC_RATES  SNDRV_PCM_RATE_8000_192000
 
 #define IMX_ASRC_FORMATS \
@@ -325,6 +342,8 @@ static int fsl_asrc_p2p_trigger(struct snd_pcm_substream *substream, int cmd,
 	SNDRV_PCM_FORMAT_S20_3LE)
 
 static struct snd_soc_dai_ops fsl_asrc_p2p_dai_ops = {
+	.startup      = fsl_asrc_p2p_startup,
+	.shutdown     = fsl_asrc_p2p_shutdown,
 	.trigger      = fsl_asrc_p2p_trigger,
 	.hw_params    = fsl_asrc_p2p_hw_params,
 	.hw_free      = fsl_asrc_p2p_hw_free,
@@ -362,6 +381,86 @@ static struct snd_soc_dai_driver fsl_asrc_p2p_dai = {
 static const struct snd_soc_component_driver fsl_asrc_p2p_component = {
 	.name		= "fsl-asrc-p2p",
 };
+
+static bool fsl_asrc_p2p_check_xrun(struct snd_pcm_substream *substream)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_dmaengine_dai_dma_data *dma_params_be = NULL;
+	struct snd_pcm_substream *be_substream;
+	struct snd_soc_dpcm *dpcm;
+	int ret = 0;
+
+	/* find the be for this fe stream */
+	list_for_each_entry(dpcm, &rtd->dpcm[substream->stream].be_clients, list_be) {
+		struct snd_soc_pcm_runtime *be = dpcm->be;
+		struct snd_soc_dai *dai = be->cpu_dai;
+
+		if (dpcm->fe != rtd)
+			continue;
+
+		be_substream = snd_soc_dpcm_get_substream(be, substream->stream);
+		dma_params_be = snd_soc_dai_get_dma_data(dai, be_substream);
+		if (dma_params_be->check_xrun && dma_params_be->check_xrun(be_substream))
+			ret = 1;
+	}
+
+	return ret;
+}
+
+static int stop_lock_stream(struct snd_pcm_substream *substream)
+{
+	if (substream) {
+		snd_pcm_stream_lock_irq(substream);
+		if (substream->runtime->status->state == SNDRV_PCM_STATE_RUNNING)
+			substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_STOP);
+	}
+	return 0;
+}
+
+static int start_unlock_stream(struct snd_pcm_substream *substream)
+{
+	if (substream) {
+		if (substream->runtime->status->state == SNDRV_PCM_STATE_RUNNING)
+			substream->ops->trigger(substream, SNDRV_PCM_TRIGGER_START);
+		snd_pcm_stream_unlock_irq(substream);
+	}
+	return 0;
+}
+
+static void fsl_asrc_p2p_reset(struct snd_pcm_substream *substream, bool stop)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	struct fsl_asrc_p2p *asrc_p2p = snd_soc_dai_get_drvdata(cpu_dai);
+	struct snd_dmaengine_dai_dma_data *dma_params_be = NULL;
+	struct snd_soc_dpcm *dpcm;
+	struct snd_pcm_substream *be_substream;
+
+	if (stop) {
+		stop_lock_stream(asrc_p2p->substream[0]);
+		stop_lock_stream(asrc_p2p->substream[1]);
+	}
+
+	/* find the be for this fe stream */
+	list_for_each_entry(dpcm, &rtd->dpcm[substream->stream].be_clients, list_be) {
+		struct snd_soc_pcm_runtime *be = dpcm->be;
+		struct snd_soc_dai *dai = be->cpu_dai;
+
+		if (dpcm->fe != rtd)
+			continue;
+
+		be_substream = snd_soc_dpcm_get_substream(be, substream->stream);
+		dma_params_be = snd_soc_dai_get_dma_data(dai, be_substream);
+		dma_params_be->device_reset(be_substream, 0);
+		break;
+	}
+
+	if (stop) {
+		start_unlock_stream(asrc_p2p->substream[1]);
+		start_unlock_stream(asrc_p2p->substream[0]);
+	}
+}
+
 
 /*
  * This function will register the snd_soc_pcm_link drivers.
@@ -429,6 +528,10 @@ static int fsl_asrc_p2p_probe(struct platform_device *pdev)
 
 	asrc_p2p->dma_params_tx.filter_data = &asrc_p2p->filter_data_tx;
 	asrc_p2p->dma_params_rx.filter_data = &asrc_p2p->filter_data_rx;
+	asrc_p2p->dma_params_tx.check_xrun = fsl_asrc_p2p_check_xrun;
+	asrc_p2p->dma_params_rx.check_xrun = fsl_asrc_p2p_check_xrun;
+	asrc_p2p->dma_params_tx.device_reset = fsl_asrc_p2p_reset;
+	asrc_p2p->dma_params_rx.device_reset = fsl_asrc_p2p_reset;
 
 	platform_set_drvdata(pdev, asrc_p2p);
 
