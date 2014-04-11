@@ -50,6 +50,7 @@ static void csi_v4l2_master_detach(struct v4l2_int_device *slave);
 static u8 camera_power(cam_data *cam, bool cameraOn);
 struct v4l2_crop crop_current;
 struct v4l2_window win_current;
+static struct v4l2_format cam_input_fmt;
 
 /*! Information about this driver. */
 static struct v4l2_int_master csi_v4l2_master = {
@@ -97,6 +98,96 @@ static struct v4l2_queryctrl pxp_controls[] = {
 	},
 };
 
+/*! List of TV input video formats supported. The video formats is corresponding
+ * to the v4l2_id in video_fmt_t.
+ * Currently, only PAL and NTSC is supported. Needs to be expanded in the
+ * future.
+ */
+typedef enum _video_fmt_idx {
+	TV_NTSC = 0,		/*!< Locked on (M) NTSC video signal. */
+	TV_PAL,			/*!< (B, G, H, I, N)PAL video signal. */
+	TV_NOT_LOCKED,		/*!< Not locked on a signal. */
+} video_fmt_idx;
+
+/*! Number of video standards supported (including 'not locked' signal). */
+#define TV_STD_MAX		(TV_NOT_LOCKED + 1)
+
+/*! Video format structure. */
+typedef struct _video_fmt_t {
+	int v4l2_id;		/*!< Video for linux ID. */
+	char name[16];		/*!< Name (e.g., "NTSC", "PAL", etc.) */
+	u16 raw_width;		/*!< Raw width. */
+	u16 raw_height;		/*!< Raw height. */
+	u16 active_width;	/*!< Active width. */
+	u16 active_height;	/*!< Active height. */
+	u16 active_top;		/*!< Active top. */
+	u16 active_left;	/*!< Active left. */
+} video_fmt_t;
+
+/*!
+ * Description of video formats supported.
+ *
+ *  PAL: raw=720x625, active=720x576.
+ *  NTSC: raw=720x525, active=720x480.
+ */
+static video_fmt_t video_fmts[] = {
+	{			/*! NTSC */
+	 .v4l2_id = V4L2_STD_NTSC,
+	 .name = "NTSC",
+	 .raw_width = 720,		/* SENS_FRM_WIDTH */
+	 .raw_height = 525,		/* SENS_FRM_HEIGHT */
+	 .active_width = 720,		/* ACT_FRM_WIDTH */
+	 .active_height = 480,		/* ACT_FRM_HEIGHT */
+	 .active_top = 13,
+	 .active_left = 0,
+	 },
+	{			/*! (B, G, H, I, N) PAL */
+	 .v4l2_id = V4L2_STD_PAL,
+	 .name = "PAL",
+	 .raw_width = 720,
+	 .raw_height = 625,
+	 .active_width = 720,
+	 .active_height = 576,
+	 .active_top = 0,
+	 .active_left = 0,
+	 },
+	{			/*! Unlocked standard */
+	 .v4l2_id = V4L2_STD_ALL,
+	 .name = "Autodetect",
+	 .raw_width = 720,
+	 .raw_height = 625,
+	 .active_width = 720,
+	 .active_height = 576,
+	 .active_top = 0,
+	 .active_left = 0,
+	 },
+};
+
+#define CSI_V4L2_CAPTURE_NUM_INPUTS	2
+static struct v4l2_input csi_capture_inputs[CSI_V4L2_CAPTURE_NUM_INPUTS] = {
+	{
+	 .index = 0,
+	 .name = "Camera",
+	 .type = V4L2_INPUT_TYPE_CAMERA,
+	 .audioset = 0,
+	 .tuner = 0,
+	 .std = V4L2_STD_UNKNOWN,
+	 .status = 0,
+	 },
+	{
+	 .index = 1,
+	 .name = "Vadc",
+	 .type = V4L2_INPUT_TYPE_CAMERA,
+	 .audioset = 0,
+	 .tuner = 0,
+	 .std = V4L2_STD_UNKNOWN,
+	 .status = 0,
+	 },
+};
+
+/*!* Standard index of TV. */
+static video_fmt_idx video_index = TV_NOT_LOCKED;
+
 /* Callback function triggered after PxP receives an EOF interrupt */
 static void pxp_dma_done(void *arg)
 {
@@ -141,6 +232,23 @@ static int pxp_chan_init(cam_data *cam)
 	return 0;
 }
 
+static int v4l2_fmt_2_pxp_fmt(int fmt)
+{
+	int ret;
+	switch (fmt) {
+	case V4L2_PIX_FMT_YUV420:
+		ret = PXP_PIX_FMT_YUV420P2;
+		break;
+	case V4L2_PIX_FMT_RGB565:
+	case V4L2_PIX_FMT_YUYV:
+	case V4L2_PIX_FMT_UYVY:
+	case V4L2_PIX_FMT_YUV444:
+	default:
+		ret = fmt;
+		break;
+	}
+	return ret;
+}
 /*
  * Function to call PxP DMA driver and send our new V4L2 buffer
  * through the PxP.
@@ -200,7 +308,7 @@ static int pxp_process_update(cam_data *cam)
 	/*
 	 * Configure PxP for processing of new v4l2 buf
 	 */
-	pxp_conf->s0_param.pixel_fmt = PXP_PIX_FMT_UYVY;
+	pxp_conf->s0_param.pixel_fmt = v4l2_fmt_2_pxp_fmt(cam_input_fmt.fmt.pix.pixelformat);
 	pxp_conf->s0_param.color_key = -1;
 	pxp_conf->s0_param.color_key_enable = false;
 	pxp_conf->s0_param.width = cam->v2f.fmt.pix.width;
@@ -243,7 +351,8 @@ static int pxp_process_update(cam_data *cam)
 		proc_data->drect.left, proc_data->drect.top,
 		proc_data->drect.width, proc_data->drect.height);
 
-	pxp_conf->out_param.pixel_fmt = PXP_PIX_FMT_RGB565;
+	/* Out buffer  */
+	pxp_conf->out_param.pixel_fmt = v4l2_fmt_2_pxp_fmt(cam->v2f.fmt.pix.pixelformat);
 	pxp_conf->out_param.width = proc_data->drect.width;
 	pxp_conf->out_param.height = proc_data->drect.height;
 
@@ -558,7 +667,9 @@ static inline int valid_mode(u32 palette)
 {
 	return (palette == V4L2_PIX_FMT_RGB565) ||
 	    (palette == V4L2_PIX_FMT_YUYV) ||
-	    (palette == V4L2_PIX_FMT_UYVY) || (palette == V4L2_PIX_FMT_YUV420);
+	    (palette == V4L2_PIX_FMT_UYVY) ||
+	    (palette == V4L2_PIX_FMT_YUV444) ||
+		(palette == V4L2_PIX_FMT_YUV420);
 }
 
 /*!
@@ -631,6 +742,7 @@ static int csi_streamon(cam_data *cam)
 		if (__raw_readl(CSI_CSISR) & BIT_SOF_INT) {
 			val = __raw_readl(CSI_CSICR3);
 			__raw_writel(val | BIT_DMA_REFLASH_RFF, CSI_CSICR3);
+			/* Wait DMA reflash done */
 			for (timeout2 = 1000000; timeout2 > 0; timeout2--) {
 				if (__raw_readl(CSI_CSICR3) &
 					BIT_DMA_REFLASH_RFF)
@@ -682,6 +794,13 @@ static int csi_streamoff(cam_data *cam)
 	/* set CSI_CSIDMASA_FB1 and CSI_CSIDMASA_FB2 to default value */
 	__raw_writel(0, CSI_CSIDMASA_FB1);
 	__raw_writel(0, CSI_CSIDMASA_FB2);
+
+	if (strcmp(csi_capture_inputs[cam->current_input].name,
+		   "Vadc") == 0) {
+		csi_buf_stride_set(0);
+		csi_deinterlace_enable(false);
+		csi_tvdec_enable(false);
+	}
 	csi_enable(0);
 
 	csi_free_frames(cam);
@@ -792,7 +911,17 @@ static int csi_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 			return -EINVAL;
 		}
 
-		/* Handle case where size requested is larger than cuurent
+		/*
+		 * Force the capture window resolution to be crop bounds
+		 * for Vadc input mode.
+		 */
+		if (strcmp(csi_capture_inputs[cam->current_input].name,
+			   "Vadc") == 0) {
+			f->fmt.pix.width = cam->crop_current.width;
+			f->fmt.pix.height = cam->crop_current.height;
+		}
+
+		/* Handle case where size requested is larger than current
 		 * camera setting. */
 		if ((f->fmt.pix.width > cam->crop_bounds.width)
 		    || (f->fmt.pix.height > cam->crop_bounds.height)) {
@@ -828,24 +957,24 @@ static int csi_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 			       "resize to %d.\n", *height);
 		}
 
-		switch (f->fmt.pix.pixelformat) {
-		case V4L2_PIX_FMT_RGB565:
-			size = f->fmt.pix.width * f->fmt.pix.height * 2;
-			csi_init_format(V4L2_PIX_FMT_UYVY);
-			csi_set_16bit_imagpara(f->fmt.pix.width,
+		cam_input_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		vidioc_int_g_fmt_cap(cam->sensor, &cam_input_fmt);
+
+		switch (cam_input_fmt.fmt.pix.pixelformat) {
+		case V4L2_PIX_FMT_YUV444:
+			size = f->fmt.pix.width * f->fmt.pix.height * 4;
+			csi_set_32bit_imagpara(f->fmt.pix.width,
 					       f->fmt.pix.height);
-			bytesperline = f->fmt.pix.width * 2;
+			bytesperline = f->fmt.pix.width * 4;
 			break;
 		case V4L2_PIX_FMT_UYVY:
 			size = f->fmt.pix.width * f->fmt.pix.height * 2;
-			csi_init_format(f->fmt.pix.pixelformat);
 			csi_set_16bit_imagpara(f->fmt.pix.width,
 					       f->fmt.pix.height);
 			bytesperline = f->fmt.pix.width * 2;
 			break;
 		case V4L2_PIX_FMT_YUYV:
 			size = f->fmt.pix.width * f->fmt.pix.height * 2;
-			csi_init_format(f->fmt.pix.pixelformat);
 			csi_set_16bit_imagpara(f->fmt.pix.width,
 					       f->fmt.pix.height);
 			bytesperline = f->fmt.pix.width * 2;
@@ -1008,6 +1137,104 @@ static int pxp_get_cstate(cam_data *cam, struct v4l2_control *vc)
 	return 0;
 }
 
+/*!
+ * V4L2 - csi_v4l_s_std function
+ *
+ * Sets the TV standard to be used.
+ *
+ * @param cam	      structure cam_data *
+ * @param parm	      structure v4l2_std_id *
+ *
+ * @return  status    0 success, -EINVAL failed
+ */
+static int csi_v4l_s_std(cam_data *cam, v4l2_std_id e)
+{
+	pr_debug("In csi_v4l2_s_std %Lx\n", e);
+
+	if (e == V4L2_STD_PAL) {
+		pr_debug("   Setting standard to PAL %Lx\n", V4L2_STD_PAL);
+		cam->standard.id = V4L2_STD_PAL;
+		video_index = TV_PAL;
+	} else if (e == V4L2_STD_NTSC) {
+		pr_debug("   Setting standard to NTSC %Lx\n",
+				V4L2_STD_NTSC);
+		/* Get rid of the white dot line in NTSC signal input */
+		cam->standard.id = V4L2_STD_NTSC;
+		video_index = TV_NTSC;
+	} else {
+		cam->standard.id = V4L2_STD_ALL;
+		video_index = TV_NOT_LOCKED;
+		pr_err("ERROR: unrecognized std! %Lx (PAL=%Lx, NTSC=%Lx\n",
+			e, V4L2_STD_PAL, V4L2_STD_NTSC);
+	}
+
+	cam->standard.index = video_index;
+	strcpy(cam->standard.name, video_fmts[video_index].name);
+
+	/* Enable csi PAL/NTSC deinterlace mode */
+	csi_buf_stride_set(video_fmts[video_index].active_width);
+	csi_deinterlace_mode(cam->standard.id);
+	csi_deinterlace_enable(true);
+
+	/* crop will overwrite */
+	cam->crop_bounds.width = video_fmts[video_index].raw_width;
+	cam->crop_bounds.height = video_fmts[video_index].raw_height;
+	cam->crop_current.width = video_fmts[video_index].active_width;
+	cam->crop_current.height = video_fmts[video_index].active_height;
+	cam->crop_current.top = video_fmts[video_index].active_top;
+	cam->crop_current.left = video_fmts[video_index].active_left;
+
+	return 0;
+}
+
+/*!
+ * V4L2 - csi_v4l_g_std function
+ *
+ * Gets the TV standard from the TV input device.
+ *
+ * @param cam	      structure cam_data *
+ *
+ * @param e	      structure v4l2_std_id *
+ *
+ * @return  status    0 success, -EINVAL failed
+ */
+static int csi_v4l_g_std(cam_data *cam, v4l2_std_id *e)
+{
+	struct v4l2_format tv_fmt;
+
+	pr_debug("In csi_v4l2_g_std\n");
+
+	if (cam->device_type == 1) {
+		/* Use this function to get what the TV-In device detects the
+		 * format to be. pixelformat is used to return the std value
+		 * since the interface has no vidioc_g_std.*/
+		tv_fmt.type = V4L2_BUF_TYPE_PRIVATE;
+		vidioc_int_g_fmt_cap(cam->sensor, &tv_fmt);
+
+		/* If the TV-in automatically detects the standard, then if it
+		 * changes, the settings need to change. */
+		if (cam->standard_autodetect) {
+			if (cam->standard.id != tv_fmt.fmt.pix.pixelformat) {
+				pr_debug("csi_v4l2_g_std: "
+					"Changing standard\n");
+				csi_v4l_s_std(cam, tv_fmt.fmt.pix.pixelformat);
+			}
+		}
+
+		*e = tv_fmt.fmt.pix.pixelformat;
+	}
+
+	return 0;
+}
+
+static void csi_input_select(int input_select)
+{
+	if (strcmp(csi_capture_inputs[input_select].name, "Vadc") == 0)
+		/* Enable csi tvdec */
+		csi_tvdec_enable(true);
+	else
+		csi_tvdec_enable(false);
+}
 
 /*!
  * Dequeue one V4L capture buffer
@@ -1076,8 +1303,9 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 	 * If want to do preview on LCD, use PxP CSC to convert from UYVY
 	 * to RGB565; but for encoding, usually we don't use RGB format.
 	 */
-	if (cam->v2f.fmt.pix.pixelformat == V4L2_PIX_FMT_RGB565) {
+	if (cam->v2f.fmt.pix.pixelformat != cam_input_fmt.fmt.pix.pixelformat) {
 		sg_dma_address(&cam->sg[0]) = buf->m.offset;
+		/* last frame buffer as pxp output buffer  */
 		sg_dma_address(&cam->sg[1]) =
 			cam->frame[req_buf_number].paddress;
 		retval = pxp_process_update(cam);
@@ -1086,11 +1314,14 @@ static int csi_v4l_dqueue(cam_data *cam, struct v4l2_buffer *buf)
 			return retval;
 		}
 		pxp_complete_update(cam);
+		/* Copy data from pxp output buffer to original buffer
+		 * Need optimization  */
 		if (cam->frame[buf->index].vaddress)
 			memcpy(cam->frame[buf->index].vaddress,
 			cam->frame[req_buf_number].vaddress,
 			cam->v2f.fmt.pix.sizeimage);
 	}
+
 	up(&cam->busy_lock);
 
 	return retval;
@@ -1413,6 +1644,7 @@ static long csi_v4l_do_ioctl(struct file *file,
 		struct v4l2_crop *crop = arg;
 		struct v4l2_rect *b = &cam->crop_bounds;
 
+		pr_debug("   case VIDIOC_S_CROP\n");
 		if (crop->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 			retval = -EINVAL;
 			break;
@@ -1444,6 +1676,7 @@ static long csi_v4l_do_ioctl(struct file *file,
 	case VIDIOC_G_CROP:
 	{
 		struct v4l2_crop *crop = arg;
+		pr_debug("   case VIDIOC_G_CROP\n");
 
 		if (crop->type != V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 			retval = -EINVAL;
@@ -1653,15 +1886,62 @@ static long csi_v4l_do_ioctl(struct file *file,
 			retval = -EINVAL;
 		break;
 	}
-	case VIDIOC_G_STD:
+
+	case VIDIOC_G_STD: {
+		v4l2_std_id *e = arg;
+		pr_debug("   case VIDIOC_G_STD\n");
+		if (cam->sensor) {
+			retval = csi_v4l_g_std(cam, e);
+		} else {
+			pr_err("ERROR: v4l2 capture: slave not found!\n");
+			retval = -ENODEV;
+		}
+		break;
+	}
+
+	case VIDIOC_S_STD: {
+		v4l2_std_id *e = arg;
+		pr_debug("   case VIDIOC_S_STD\n");
+		retval = csi_v4l_s_std(cam, *e);
+
+		break;
+	}
+
+	case VIDIOC_ENUMINPUT: {
+		struct v4l2_input *input = arg;
+		pr_debug("   case VIDIOC_ENUMINPUT\n");
+		if (input->index >= CSI_V4L2_CAPTURE_NUM_INPUTS) {
+			retval = -EINVAL;
+			break;
+		}
+		*input = csi_capture_inputs[input->index];
+		break;
+	}
+
+	case VIDIOC_G_INPUT: {
+		int *index = arg;
+		pr_debug("   case VIDIOC_G_INPUT\n");
+		*index = cam->current_input;
+		break;
+	}
+
+	case VIDIOC_S_INPUT: {
+		int *index = arg;
+		pr_debug("   case VIDIOC_S_INPUT\n");
+		if (*index >= CSI_V4L2_CAPTURE_NUM_INPUTS) {
+			retval = -EINVAL;
+			break;
+		}
+
+		cam->current_input = *index;
+
+		csi_input_select(cam->current_input);
+		break;
+	}
 	case VIDIOC_G_OUTPUT:
 	case VIDIOC_S_OUTPUT:
 	case VIDIOC_ENUMSTD:
-	case VIDIOC_S_STD:
 	case VIDIOC_TRY_FMT:
-	case VIDIOC_ENUMINPUT:
-	case VIDIOC_G_INPUT:
-	case VIDIOC_S_INPUT:
 	case VIDIOC_G_TUNER:
 	case VIDIOC_S_TUNER:
 	case VIDIOC_G_FREQUENCY:
