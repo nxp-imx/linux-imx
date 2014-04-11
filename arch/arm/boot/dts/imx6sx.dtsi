@@ -1084,6 +1084,19 @@
 				num-channels = <4>;
 				status = "disabled";
                         };
+
+			sema4: sema4@02290000 { /* sema4 */
+				compatible = "fsl,imx6sx-sema4";
+				reg = <0x02290000 0x4000>;
+				interrupts = <0 116 0x04>;
+				status = "okay";
+			};
+
+			mu: mu@02294000 { /* mu */
+				compatible = "fsl,imx6sx-mu", "syscon";
+				reg = <0x02294000 0x4000>;
+				interrupts = <0 99 0x04>;
+			};
 		};
 
 		pcie: pcie@0x08000000 {
