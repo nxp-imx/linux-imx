@@ -620,3 +620,9 @@
 		reg = <1>;
 	};
 };
+
+&vadc {
+	vadc_in = <0>;
+	csi_id = <0>;
+	status = "okay";
+};

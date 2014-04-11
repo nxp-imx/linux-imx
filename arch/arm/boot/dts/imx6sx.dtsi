@@ -1056,6 +1056,18 @@
 					status = "disabled";
 				};
 
+				vadc: vadc@02228000 {
+					compatible = "fsl,imx6sx-vadc";
+					reg = <0x02228000 0x4000>, <0x0222c000 0x4000>;
+					reg-names = "vadc-vafe", "vadc-vdec";
+					clocks = <&clks IMX6SX_CLK_VADC>,
+							<&clks IMX6SX_CLK_CSI>;
+					clock-names = "vadc", "csi";
+					gpr = <&gpr>;
+					csi_id = <0>;
+					status = "disabled";
+				};
+
 				spba@0223c000 {
 					reg = <0x0223c000 0x4000>;
 				};
