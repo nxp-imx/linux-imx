@@ -36,6 +36,12 @@ config MXC_TVIN_ADV7180
 	---help---
 	  If you plan to use the adv7180 video decoder with your MXC system, say Y here.
 
+config MXC_VADC
+	tristate "mxc VADC support"
+	depends on VIDEO_MXC_CAPTURE && VIDEO_V4L2
+	---help---
+		If you plan to use the VADC with your MXC system, say Y here.
+
 choice
 	prompt "Select Overlay Rounting"
 	default MXC_IPU_DEVICE_QUEUE_SDC
