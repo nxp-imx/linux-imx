@@ -61,6 +61,8 @@ struct dma_chan *snd_dmaengine_pcm_get_chan(struct snd_pcm_substream *substream)
  * @slave_id: Slave requester id for the DMA channel.
  * @filter_data: Custom DMA channel filter data, this will usually be used when
  * requesting the DMA channel.
+ * @check_xrun: check if hardware xrun happen in the cpu dai.
+ * @device_reset: if xrun happened, then do cpu dai reset.
  */
 struct snd_dmaengine_dai_dma_data {
 	dma_addr_t addr;
@@ -68,6 +70,16 @@ struct snd_dmaengine_dai_dma_data {
 	u32 maxburst;
 	unsigned int slave_id;
 	void *filter_data;
+	bool (*check_xrun)(struct snd_pcm_substream *substream);
+	void (*device_reset)(struct snd_pcm_substream *substream, bool stop);
+};
+
+struct dmaengine_pcm_runtime_data {
+	struct dma_chan *dma_chan;
+	dma_cookie_t cookie;
+
+	unsigned int pos;
+	dma_async_tx_callback callback;
 };
 
 void snd_dmaengine_pcm_set_config_from_dai_data(
