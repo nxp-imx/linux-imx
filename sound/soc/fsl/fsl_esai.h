@@ -1,7 +1,7 @@
 /*
  * imx-esai.h  --  ESAI driver header file for Freescale IMX
  *
- * Copyright 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -315,6 +315,7 @@
 #define IMX_DAI_ESAI_TX 0x04
 #define IMX_DAI_ESAI_RX 0x08
 #define IMX_DAI_ESAI_TXRX (IMX_DAI_ESAI_TX | IMX_DAI_ESAI_RX)
+#define REG_CACHE_NUM  20
 
 struct fsl_esai {
 	struct clk *clk;
@@ -328,8 +329,10 @@ struct fsl_esai {
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
 	struct imx_dma_data filter_data_tx;
 	struct imx_dma_data filter_data_rx;
+	struct snd_pcm_substream *substream[2];
 
 	char name[32];
+	u32 reg_cache[REG_CACHE_NUM];
 };
 
 #endif
