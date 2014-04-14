@@ -17,6 +17,7 @@
 
 #include <linux/usb/otg.h>
 #include <linux/usb/gadget.h>
+#include <linux/usb/hcd.h>
 #include <linux/usb/chipidea.h>
 
 #include "ci.h"
@@ -88,10 +89,20 @@ void ci_handle_vbus_change(struct ci_hdrc *ci)
 static void ci_handle_id_switch(struct ci_hdrc *ci)
 {
 	enum ci_role role = ci_otg_role(ci);
+	struct usb_device *roothub;
+	int i;
 
 	if (role != ci->role) {
 		dev_dbg(ci->dev, "switching from %s to %s\n",
 			ci_role(ci)->name, ci->roles[role]->name);
+
+		if ((ci->role == CI_ROLE_HOST) && ci->hcd) {
+			roothub = ci->hcd->self.root_hub;
+			for (i = 0; i < roothub->maxchild; ++i) {
+				while (usb_hub_find_child(roothub, (i + 1)))
+					usleep_range(500, 1000);
+			}
+		}
 
 		ci_role_stop(ci);
 		/* wait vbus lower than OTGSC_BSV */
