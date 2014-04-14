@@ -446,7 +446,7 @@ static irqreturn_t ci_irq(int irq, void *data)
 		ci->id_event = true;
 		hw_write_otgsc(ci, OTGSC_IDIS, OTGSC_IDIS);
 		disable_irq_nosync(ci->irq);
-		wake_up(&ci->otg_wait);
+		queue_work(ci->wq, &ci->work);
 		return IRQ_HANDLED;
 	}
 
@@ -458,7 +458,7 @@ static irqreturn_t ci_irq(int irq, void *data)
 		ci->b_sess_valid_event = true;
 		hw_write_otgsc(ci, OTGSC_BSVIS, OTGSC_BSVIS);
 		disable_irq_nosync(ci->irq);
-		wake_up(&ci->otg_wait);
+		queue_work(ci->wq, &ci->work);
 		return IRQ_HANDLED;
 	}
 
