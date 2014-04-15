@@ -1368,10 +1368,20 @@ static int mxsfb_probe(struct platform_device *pdev)
 		goto fb_destroy;
 	}
 
+	console_lock();
+	ret = fb_blank(fb_info, FB_BLANK_UNBLANK);
+	console_unlock();
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Failed to unblank framebuffer\n");
+		goto fb_unregister;
+	}
+
 	dev_info(&pdev->dev, "initialized\n");
 
 	return 0;
 
+fb_unregister:
+	unregister_framebuffer(fb_info);
 fb_destroy:
 	if (host->enabled)
 		clk_disable_unprepare(host->clk_pix);
