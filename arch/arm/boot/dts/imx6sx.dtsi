@@ -1097,6 +1097,11 @@
 				reg = <0x02294000 0x4000>;
 				interrupts = <0 99 0x04>;
 			};
+
+			mccdemo: mccdemo{
+				compatible = "fsl,imx6sx-mcc-demo";
+				status = "okay";
+			};
 		};
 
 		pcie: pcie@0x08000000 {
