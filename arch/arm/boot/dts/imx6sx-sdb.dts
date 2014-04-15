@@ -56,6 +56,7 @@
 			regulator-name = "lcd-3v3";
 			gpio = <&gpio3 27 0>;
 			enable-active-high;
+			status = "disabled";
 		};
 
 		reg_sd3_vmmc: sd3_vmmc{
@@ -305,8 +306,8 @@
 		clock-names = "csi_mclk";
 		AVDD-supply = <&vgen3_reg>;  /* 2.8v */
 		DVDD-supply = <&vgen2_reg>;  /* 1.5v*/
-		pwn-gpios = <&gpio3 26 1>;
-		rst-gpios = <&gpio3 25 0>;
+		pwn-gpios = <&gpio3 28 1>;
+		rst-gpios = <&gpio3 27 0>;
 		csi_id = <0>;
 		mclk = <24000000>;
 		mclk_source = <0>;
