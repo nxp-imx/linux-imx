@@ -882,6 +882,13 @@ static void fsl_qspi_unprep(struct spi_nor *nor, enum spi_nor_ops ops)
 	clk_disable(q->clk_en);
 }
 
+/* If the uboot enable the M4 to use the Quadspi, we should quit. */
+static bool fsl_m4_is_using(struct fsl_qspi *q)
+{
+	return (readl(q->iobase + QUADSPI_BUF0CR) ==
+			QUADSPI_BUFXCR_INVALID_MSTRID);
+}
+
 static int fsl_qspi_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -946,6 +953,12 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 		clk_disable_unprepare(q->clk_en);
 		dev_err(dev, "can not enable the qspi clock\n");
 		goto map_failed;
+	}
+
+	if (fsl_m4_is_using(q)) {
+		dev_info(dev, "The M4 is using quadspi controller, we quit.\n");
+		ret = -EINVAL;
+		goto irq_failed;
 	}
 
 	/* find the irq */
