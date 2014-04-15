@@ -1091,6 +1091,7 @@ fec_enet_rx(struct net_device *ndev, int budget)
 
 			if (unlikely(!skb_new)) {
 				ndev->stats.rx_dropped++;
+				goto rx_processing_done;
 			} else {
 				skb_put(skb_cur, pkt_len - 4);	/* Make room */
 
@@ -1139,11 +1140,11 @@ fec_enet_rx(struct net_device *ndev, int budget)
 					napi_gro_receive(&fep->napi, skb_cur);
 			}
 
-rx_processing_done:
 			/* set the new skb */
 			rxq->rx_skbuff[index] = skb_new;
 			fec_new_rxbdp(ndev, bdp, skb_new);
 
+rx_processing_done:
 			/* Clear the status flags for this buffer */
 			status &= ~BD_ENET_RX_STATS;
 
