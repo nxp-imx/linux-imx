@@ -177,8 +177,8 @@ gckVGCOMMAND_StateCommand(
     IN gctUINT32 Pipe,
     IN gctPOINTER Logical,
     IN gctUINT32 Address,
-    IN gctSIZE_T Count,
-    IN OUT gctSIZE_T * Bytes
+    IN gctUINT32 Count,
+    IN OUT gctUINT32 * Bytes
     )
 {
     gcmkHEADER_ARG("Command=0x%x Pipe=0x%x Logical=0x%x Address=0x%x Count=0x%x Bytes = 0x%x",
@@ -278,7 +278,7 @@ gckVGCOMMAND_RestartCommand(
     IN gctPOINTER Logical,
     IN gctUINT32 FetchAddress,
     IN gctUINT FetchCount,
-    IN OUT gctSIZE_T * Bytes
+    IN OUT gctUINT32 * Bytes
     )
 {
     gcmkHEADER_ARG("Command=0x%x Logical=0x%x FetchAddress=0x%x FetchCount=0x%x Bytes = 0x%x",
@@ -369,7 +369,7 @@ gckVGCOMMAND_FetchCommand(
     IN gctPOINTER Logical,
     IN gctUINT32 FetchAddress,
     IN gctUINT FetchCount,
-    IN OUT gctSIZE_T * Bytes
+    IN OUT gctUINT32 * Bytes
     )
 {
     gcmkHEADER_ARG("Command=0x%x Logical=0x%x FetchAddress=0x%x FetchCount=0x%x Bytes = 0x%x",
@@ -471,7 +471,7 @@ gckVGCOMMAND_CallCommand(
     IN gctPOINTER Logical,
     IN gctUINT32 FetchAddress,
     IN gctUINT FetchCount,
-    IN OUT gctSIZE_T * Bytes
+    IN OUT gctUINT32 * Bytes
     )
 {
     gcmkHEADER_ARG("Command=0x%x Logical=0x%x FetchAddress=0x%x FetchCount=0x%x Bytes = 0x%x",
@@ -543,7 +543,7 @@ gceSTATUS
 gckVGCOMMAND_ReturnCommand(
     IN gckVGCOMMAND Command,
     IN gctPOINTER Logical,
-    IN OUT gctSIZE_T * Bytes
+    IN OUT gctUINT32 * Bytes
     )
 {
     gcmkHEADER_ARG("Command=0x%x Logical=0x%x  Bytes = 0x%x",
@@ -620,7 +620,7 @@ gckVGCOMMAND_EventCommand(
     IN gctPOINTER Logical,
     IN gceBLOCK Block,
     IN gctINT32 InterruptId,
-    IN OUT gctSIZE_T * Bytes
+    IN OUT gctUINT32 * Bytes
     )
 {
     gcmkHEADER_ARG("Command=0x%x Logical=0x%x Block=0x%x InterruptId=0x%x Bytes = 0x%x",
@@ -858,7 +858,7 @@ gckVGCOMMAND_EndCommand(
     IN gckVGCOMMAND Command,
     IN gctPOINTER Logical,
     IN gctINT32 InterruptId,
-    IN OUT gctSIZE_T * Bytes
+    IN OUT gctUINT32 * Bytes
     )
 {
     gcmkHEADER_ARG("Command=0x%x Logical=0x%x InterruptId=0x%x Bytes = 0x%x",

@@ -63,6 +63,12 @@ typedef struct _LINUX_MDL
     PLINUX_MDL_MAP          maps;
     struct _LINUX_MDL *     prev;
     struct _LINUX_MDL *     next;
+
+    /* Pointer to allocator which allocates memory for this mdl. */
+    void *                  allocator;
+
+    /* Private data used by allocator. */
+    void *                  priv;
 }
 LINUX_MDL, *PLINUX_MDL;
 

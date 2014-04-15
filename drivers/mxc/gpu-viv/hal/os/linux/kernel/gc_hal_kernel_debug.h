@@ -92,7 +92,7 @@ typedef va_list gctARGUMENTS;
     snprintf(Destination, Size, Message, Value1, Value2, Value3)
 
 #define gcmkVSPRINTF(Destination, Size, Message, Arguments) \
-    vsnprintf(Destination, Size, Message, *(va_list *) &Arguments)
+    vsnprintf(Destination, Size, Message, *((va_list*)Arguments))
 
 #define gcmkSTRCAT(Destination, Size, String) \
     strncat(Destination, String, Size)

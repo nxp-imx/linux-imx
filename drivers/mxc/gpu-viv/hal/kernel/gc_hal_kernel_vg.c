@@ -293,7 +293,7 @@ gceSTATUS gckVGKERNEL_Dispatch(
     case gcvHAL_ALLOCATE_NON_PAGED_MEMORY:
         bytes = (gctSIZE_T) kernelInterface->u.AllocateNonPagedMemory.bytes;
         /* Allocate non-paged memory. */
-        gcmkERR_BREAK(gckOS_AllocateContiguous(
+        gcmkERR_BREAK(gckOS_AllocateNonPagedMemory(
             Kernel->os,
             gcvTRUE,
             &bytes,

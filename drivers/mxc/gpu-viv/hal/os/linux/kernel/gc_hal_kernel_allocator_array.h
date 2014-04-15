@@ -20,21 +20,25 @@
 
 
 
-#ifndef __gc_hal_version_h_
-#define __gc_hal_version_h_
+extern gceSTATUS
+_DefaultAlloctorInit(
+    IN gckOS Os,
+    OUT gckALLOCATOR * Allocator
+    );
 
-#define gcvVERSION_MAJOR        5
+extern gceSTATUS
+_CMAFSLAlloctorInit(
+    IN gckOS Os,
+    OUT gckALLOCATOR * Allocator
+    );
 
-#define gcvVERSION_MINOR        0
+gcsALLOCATOR_DESC allocatorArray[] =
+{
+    /* Default allocator. */
+    gcmkDEFINE_ALLOCATOR_DESC("default", _DefaultAlloctorInit),
+#if LINUX_CMA_FSL
+    gcmkDEFINE_ALLOCATOR_DESC("cmafsl", _CMAFSLAlloctorInit),
+#endif
+};
 
-#define gcvVERSION_PATCH        11
 
-#define gcvVERSION_BUILD     17486
-
-#define gcvVERSION_STRING    "5.0.11.14786"
-
-#define gcvVERSION_DATE      __DATE__
-
-#define gcvVERSION_TIME      __TIME__
-
-#endif /* __gc_hal_version_h_ */

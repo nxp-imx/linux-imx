@@ -2360,7 +2360,7 @@ gckGALDEVICE_Start(
         /* Setup the ISR routine. */
         gcmkONERROR(gckGALDEVICE_Setup_ISR_VG(Device));
 
-#if gcdENABLE_VG	
+#if gcdENABLE_VG
         /* Switch to SUSPEND power state. */
         gcmkONERROR(gckVGHARDWARE_SetPowerManagementState(
             Device->kernels[gcvCORE_VG]->vg->hardware, gcvPOWER_OFF_BROADCAST

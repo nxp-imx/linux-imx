@@ -34,8 +34,7 @@
 /*******************************************************************************
 ***** Structures ***************************************************************
 *******************************************************************************/
-
-#define gcdIN_USE               ((gcskNODE_PTR) ~0)
+#define gcdIN_USE               ((gcskNODE_PTR)gcvMAXUINTPTR_T)
 
 typedef struct _gcskNODE *      gcskNODE_PTR;
 typedef struct _gcskNODE

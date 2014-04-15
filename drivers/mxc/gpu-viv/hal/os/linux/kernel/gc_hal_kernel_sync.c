@@ -20,6 +20,11 @@
 
 
 
+#include <gc_hal.h>
+#include <gc_hal_base.h>
+
+#if gcdANDROID_NATIVE_FENCE_SYNC
+
 #include <linux/kernel.h>
 #include <linux/file.h>
 #include <linux/fs.h>
@@ -29,8 +34,6 @@
 #include <linux/uaccess.h>
 
 #include "gc_hal_kernel_sync.h"
-
-#if gcdANDROID_NATIVE_FENCE_SYNC
 
 static struct sync_pt *
 viv_sync_pt_dup(

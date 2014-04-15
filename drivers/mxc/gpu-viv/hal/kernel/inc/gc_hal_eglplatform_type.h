@@ -33,20 +33,20 @@ extern "C" {
 
 typedef enum _halEventType
 {
-	/* Keyboard event. */
+    /* Keyboard event. */
     HAL_KEYBOARD,
 
-	/* Mouse move event. */
+    /* Mouse move event. */
     HAL_POINTER,
 
-	/* Mouse button event. */
+    /* Mouse button event. */
     HAL_BUTTON,
 
-	/* Application close event. */
-	HAL_CLOSE,
+    /* Application close event. */
+    HAL_CLOSE,
 
-	/* Application window has been updated. */
-	HAL_WINDOW_UPDATE
+    /* Application window has been updated. */
+    HAL_WINDOW_UPDATE
 }
 halEventType;
 
@@ -172,10 +172,10 @@ halKeys;
 /* Structure that defined keyboard mapping. */
 typedef struct _halKeyMap
 {
-	/* Normal key. */
+    /* Normal key. */
     halKeys normal;
 
-	/* Extended key. */
+    /* Extended key. */
     halKeys extended;
 }
 halKeyMap;
@@ -183,50 +183,50 @@ halKeyMap;
 /* Event structure. */
 typedef struct _halEvent
 {
-	/* Event type. */
+    /* Event type. */
     halEventType type;
 
-	/* Event data union. */
+    /* Event data union. */
     union _halEventData
     {
-		/* Event data for keyboard. */
+        /* Event data for keyboard. */
         struct _halKeyboard
         {
-			/* Scancode. */
-            halKeys	scancode;
+            /* Scancode. */
+            halKeys scancode;
 
-			/* ASCII characte of the key pressed. */
-            char	key;
+            /* ASCII characte of the key pressed. */
+            char    key;
 
-			/* Flag whether the key was pressed (1) or released (0). */
-            char	pressed;
+            /* Flag whether the key was pressed (1) or released (0). */
+            char    pressed;
         }
         keyboard;
 
-		/* Event data for pointer. */
+        /* Event data for pointer. */
         struct _halPointer
         {
-			/* Current pointer coordinate. */
-            int		x;
-            int		y;
+            /* Current pointer coordinate. */
+            int     x;
+            int     y;
         }
         pointer;
 
-		/* Event data for mouse buttons. */
+        /* Event data for mouse buttons. */
         struct _halButton
         {
-			/* Left button state. */
-            int		left;
+            /* Left button state. */
+            int     left;
 
-			/* Middle button state. */
-            int		middle;
+            /* Middle button state. */
+            int     middle;
 
-			/* Right button state. */
-            int		right;
+            /* Right button state. */
+            int     right;
 
-			/* Current pointer coordinate. */
-			int		x;
-			int		y;
+            /* Current pointer coordinate. */
+            int     x;
+            int     y;
         }
         button;
     }

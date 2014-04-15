@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_driver_h_
 #define __gc_hal_driver_h_
 
@@ -271,6 +270,9 @@ typedef struct _gcsHAL_QUERY_CHIP_IDENTITY
     /* Number of 3D GPUs */
     gctUINT32                   gpuCoreCount;
 #endif
+
+    /* Special control bits for 2D chip. */
+    gctUINT32                   chip2DControl;
 }
 gcsHAL_QUERY_CHIP_IDENTITY;
 

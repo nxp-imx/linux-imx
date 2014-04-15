@@ -422,7 +422,7 @@ gceSTATUS
 gckVGHARDWARE_Execute(
     IN gckVGHARDWARE Hardware,
     IN gctUINT32 Address,
-    IN gctSIZE_T Count
+    IN gctUINT32 Count
     );
 
 /* Query the available memory. */
@@ -482,6 +482,7 @@ gceSTATUS
 gckVGHARDWARE_ConvertLogical(
     IN gckVGHARDWARE Hardware,
     IN gctPOINTER Logical,
+    IN gctBOOL InUserSpace,
     OUT gctUINT32 * Address
     );
 
@@ -568,7 +569,7 @@ gckVGHARDWARE_QueryIdle(
 \******************************************************************************/
 
 /* Vacant command buffer marker. */
-#define gcvVACANT_BUFFER        ((gcsCOMPLETION_SIGNAL_PTR) (1))
+#define gcvVACANT_BUFFER        ((gcsCOMPLETION_SIGNAL_PTR) ((gctSIZE_T)1))
 
 /* Command buffer header. */
 typedef struct _gcsCMDBUFFER * gcsCMDBUFFER_PTR;
@@ -590,7 +591,7 @@ typedef struct _gcsCMDBUFFER
 
     /* Size of the area allocated for the data portion of this particular
        command buffer (headers and tail reserves are excluded). */
-    gctSIZE_T                   size;
+    gctUINT32                   size;
 
     /* Offset into the buffer [0..size]; reflects exactly how much data has
        been put into the command buffer. */
@@ -598,7 +599,7 @@ typedef struct _gcsCMDBUFFER
 
     /* The number of command units in the buffer for the hardware to
        execute. */
-    gctSIZE_T                   dataCount;
+    gctUINT32                   dataCount;
 
     /* MANAGED BY : user HAL (gcoBUFFER object).
        USED BY    : user HAL (gcoBUFFER object).
@@ -653,8 +654,8 @@ typedef struct _gcsVGCONTEXT
     gctUINT32                   currentPipe;
 
     /* State map/mod buffer. */
-    gctSIZE_T                   mapFirst;
-    gctSIZE_T                   mapLast;
+    gctUINT32                   mapFirst;
+    gctUINT32                   mapLast;
     gcsVGCONTEXT_MAP_PTR        mapContainer;
     gcsVGCONTEXT_MAP_PTR        mapPrev;
     gcsVGCONTEXT_MAP_PTR        mapCurr;
@@ -849,7 +850,7 @@ typedef struct _gckVGMMU *          gckVGMMU;
 gceSTATUS
 gckVGMMU_Construct(
     IN gckVGKERNEL Kernel,
-    IN gctSIZE_T MmuSize,
+    IN gctUINT32 MmuSize,
     OUT gckVGMMU * Mmu
     );
 

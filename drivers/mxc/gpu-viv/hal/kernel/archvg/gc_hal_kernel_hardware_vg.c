@@ -311,8 +311,8 @@ gckVGHARDWARE_Construct(
         hardware->clockState            = gcvTRUE;
         hardware->powerState            = gcvTRUE;
 
-        hardware->powerOffTime          = 0;
 #if gcdPOWEROFF_TIMEOUT
+        hardware->powerOffTime          = 0;
         hardware->powerOffTimeout       = gcdPOWEROFF_TIMEOUT;
 
         gcmkVERIFY_OK(gckOS_CreateTimer(Os,
@@ -890,7 +890,7 @@ gceSTATUS
 gckVGHARDWARE_Execute(
     IN gckVGHARDWARE Hardware,
     IN gctUINT32 Address,
-    IN gctSIZE_T Count
+    IN gctUINT32 Count
     )
 {
     gceSTATUS status;
@@ -1043,6 +1043,9 @@ gckVGHARDWARE_AlignToTile(
 **      gctPOINTER Logical
 **          Logical address to convert.
 **
+**      gctBOOL InUserSpace
+**          gcvTRUE if the memory in user space.
+**
 **      gctUINT32* Address
 **          Return hardware specific address.
 **
@@ -1054,14 +1057,15 @@ gceSTATUS
 gckVGHARDWARE_ConvertLogical(
     IN gckVGHARDWARE Hardware,
     IN gctPOINTER Logical,
+    IN gctBOOL InUserSpace,
     OUT gctUINT32 * Address
     )
 {
     gctUINT32 address;
     gceSTATUS status;
 
-    gcmkHEADER_ARG("Hardware=0x%x Logical=0x%x Address=0x%x",
-                   Hardware, Logical, Address);
+    gcmkHEADER_ARG("Hardware=0x%x Logical=0x%x InUserSpace=%d Address=0x%x",
+                   Hardware, Logical, InUserSpace, Address);
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
@@ -1071,9 +1075,18 @@ gckVGHARDWARE_ConvertLogical(
     do
     {
         /* Convert logical address into a physical address. */
-        gcmkERR_BREAK(gckOS_GetPhysicalAddress(
-            Hardware->os, Logical, &address
-            ));
+        if (InUserSpace)
+        {
+            gcmkERR_BREAK(gckOS_UserLogicalToPhysical(
+                Hardware->os, Logical, &address
+                ));
+        }
+        else
+        {
+            gcmkERR_BREAK(gckOS_GetPhysicalAddress(
+                Hardware->os, Logical, &address
+                ));
+        }
 
         /* Return hardware specific address. */
         *Address = ((((gctUINT32) (address)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 1:0) - (0 ? 1:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:0) - (0 ? 1:0) + 1))))))) << (0 ? 1:0))) | (((gctUINT32) (0x0 & ((gctUINT32) ((((1 ? 1:0) - (0 ? 1:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:0) - (0 ? 1:0) + 1))))))) << (0 ? 1:0)));
@@ -1175,32 +1188,33 @@ gceSTATUS gckVGHARDWARE_SetMMU(
     do
     {
         /* Convert the logical address into an hardware address. */
-        gcmkERR_BREAK(gckVGHARDWARE_ConvertLogical(Hardware, Logical, &address) );
+        gcmkERR_BREAK(gckVGHARDWARE_ConvertLogical(Hardware, Logical,
+                                      gcvFALSE, &address));
 
         /* Write the AQMemoryFePageTable register. */
         gcmkERR_BREAK(gckOS_WriteRegisterEx(Hardware->os, gcvCORE_VG,
                                       0x00400,
-                                      gcmkFIXADDRESS(address)) );
+                                      gcmkFIXADDRESS(address)));
 
         /* Write the AQMemoryTxPageTable register. */
         gcmkERR_BREAK(gckOS_WriteRegisterEx(Hardware->os, gcvCORE_VG,
                                       0x00404,
-                                      gcmkFIXADDRESS(address)) );
+                                      gcmkFIXADDRESS(address)));
 
         /* Write the AQMemoryPePageTable register. */
         gcmkERR_BREAK(gckOS_WriteRegisterEx(Hardware->os, gcvCORE_VG,
                                       0x00408,
-                                      gcmkFIXADDRESS(address)) );
+                                      gcmkFIXADDRESS(address)));
 
         /* Write the AQMemoryPezPageTable register. */
         gcmkERR_BREAK(gckOS_WriteRegisterEx(Hardware->os, gcvCORE_VG,
                                       0x0040C,
-                                      gcmkFIXADDRESS(address)) );
+                                      gcmkFIXADDRESS(address)));
 
         /* Write the AQMemoryRaPageTable register. */
         gcmkERR_BREAK(gckOS_WriteRegisterEx(Hardware->os, gcvCORE_VG,
                                       0x00410,
-                                      gcmkFIXADDRESS(address)) );
+                                      gcmkFIXADDRESS(address)));
     }
     while (gcvFALSE);
 
@@ -2017,6 +2031,7 @@ gckVGHARDWARE_SetPowerManagement(
     return gcvSTATUS_OK;
 }
 
+#if gcdPOWEROFF_TIMEOUT
 gceSTATUS
 gckVGHARDWARE_SetPowerOffTimeout(
     IN gckVGHARDWARE  Hardware,
@@ -2045,6 +2060,7 @@ gckVGHARDWARE_QueryPowerOffTimeout(
     gcmkFOOTER_ARG("*Timeout=%d", *Timeout);
     return gcvSTATUS_OK;
 }
+#endif
 
 gceSTATUS
 gckVGHARDWARE_QueryIdle(

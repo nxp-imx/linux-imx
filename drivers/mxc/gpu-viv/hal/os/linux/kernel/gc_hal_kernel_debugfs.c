@@ -102,7 +102,7 @@ typedef va_list gctDBGARGS ;
   { \
       gctDBGARGS __arguments__; \
       gcmkARGS_START(__arguments__, Message); \
-      _debugfs_res = _DebugFSPrint(ArgumentSize, Message, __arguments__);\
+      _debugfs_res = _DebugFSPrint(ArgumentSize, Message, &__arguments__);\
       gcmkARGS_END(__arguments__); \
   }
 
@@ -354,7 +354,7 @@ static ssize_t
 _DebugFSPrint (
                 IN unsigned int ArgumentSize ,
                 IN const char* Message ,
-                IN gctDBGARGS Arguments
+                IN gctDBGARGS * Arguments
 
                 )
 {
@@ -371,7 +371,7 @@ _DebugFSPrint (
     {
          return - ERESTARTSYS ;
     }
-    len = vsnprintf ( buffer , sizeof (buffer ) , Message , *( va_list * ) & Arguments ) ;
+    len = vsnprintf ( buffer , sizeof (buffer ) , Message , *( va_list * ) Arguments ) ;
     buffer[len] = '\0' ;
 
     /* Add end-of-line if missing. */

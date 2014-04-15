@@ -62,6 +62,9 @@ typedef struct _gcsCONTEXT
     /* Logical address of the context buffer. */
     gctUINT32_PTR               logical;
 
+    /* Hardware address of the context buffer. */
+    gctUINT32                   address;
+
     /* Pointer to the LINK commands. */
     gctPOINTER                  link2D;
     gctPOINTER                  link3D;
@@ -90,14 +93,14 @@ struct _gckCONTEXT
     gckHARDWARE                 hardware;
 
     /* Command buffer alignment. */
-    gctSIZE_T                   alignment;
-    gctSIZE_T                   reservedHead;
-    gctSIZE_T                   reservedTail;
+    gctUINT32                   alignment;
+    gctUINT32                   reservedHead;
+    gctUINT32                   reservedTail;
 
     /* Context buffer metrics. */
     gctSIZE_T                   stateCount;
-    gctSIZE_T                   totalSize;
-    gctSIZE_T                   bufferSize;
+    gctUINT32                   totalSize;
+    gctUINT32                   bufferSize;
     gctUINT32                   linkIndex2D;
     gctUINT32                   linkIndex3D;
     gctUINT32                   linkIndexXD;

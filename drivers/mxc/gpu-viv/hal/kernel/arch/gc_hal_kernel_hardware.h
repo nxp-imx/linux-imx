@@ -92,6 +92,8 @@ struct _gckHARDWARE
 
     gctBOOL                     powerManagement;
     gctBOOL                     gpuProfiler;
+
+    gctBOOL                     endAfterFlushMmuCache;
 };
 
 gceSTATUS

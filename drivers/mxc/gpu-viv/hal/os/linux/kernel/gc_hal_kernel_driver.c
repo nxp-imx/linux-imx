@@ -261,17 +261,17 @@ static ssize_t show_meminfo(struct device_driver *dev, char *buf)
     size+= snprintf(buf+size, PAGE_SIZE-size,"Reseverd memory information:\n");
     size+= snprintf(buf+size, PAGE_SIZE-size,"Type\r\tbaseaddress\r\t\t\tsize(bytes)\r\t\t\t\t\tused(bytes)\r\t\t\t\t\t\t\tfree(bytes)\n");
     if(galDevice->internalVidMem)
-       size+= snprintf(buf+size, PAGE_SIZE-size,"Internal\r\t0x%x\r\t\t\t%lu\r\t\t\t\t\t%lu\r\t\t\t\t\t\t\t%lu\n",
+       size+= snprintf(buf+size, PAGE_SIZE-size,"Internal\r\t0x%x\r\t\t\t%u\r\t\t\t\t\t%u\r\t\t\t\t\t\t\t%u\n",
             galDevice->internalVidMem->baseAddress,galDevice->internalVidMem->bytes,
             galDevice->internalVidMem->bytes-galDevice->internalVidMem->freeBytes,
             galDevice->internalVidMem->freeBytes);
     if(galDevice->externalVidMem)
-       size+= snprintf(buf+size, PAGE_SIZE-size,"External\r\t0x%x\r\t\t\t%lu\r\t\t\t\t\t%lu\r\t\t\t\t\t\t\t%lu\n",
+       size+= snprintf(buf+size, PAGE_SIZE-size,"External\r\t0x%x\r\t\t\t%u\r\t\t\t\t\t%u\r\t\t\t\t\t\t\t%u\n",
             galDevice->externalVidMem->baseAddress,galDevice->externalVidMem->bytes,
             galDevice->externalVidMem->bytes-galDevice->externalVidMem->freeBytes,
             galDevice->externalVidMem->freeBytes);
     if(galDevice->contiguousVidMem)
-       size+= snprintf(buf+size, PAGE_SIZE-size,"System\r\t0x%x\r\t\t\t%lu\r\t\t\t\t\t%lu\r\t\t\t\t\t\t\t%lu\n",
+       size+= snprintf(buf+size, PAGE_SIZE-size,"System\r\t0x%x\r\t\t\t%u\r\t\t\t\t\t%u\r\t\t\t\t\t\t\t%u\n",
             galDevice->contiguousVidMem ->baseAddress,galDevice->contiguousVidMem->bytes,
             galDevice->contiguousVidMem->bytes-galDevice->contiguousVidMem->freeBytes,
             galDevice->contiguousVidMem->freeBytes);
@@ -280,15 +280,15 @@ static ssize_t show_meminfo(struct device_driver *dev, char *buf)
     size+= snprintf(buf+size, PAGE_SIZE-size,"Dynamic memory information:\n");
 
     size+= snprintf(buf+size, PAGE_SIZE-size,"Type\r\t\t\t\t\tused size(bytes)\n");
-    size+= snprintf(buf+size, PAGE_SIZE-size,"Cached memory\r\t\t\t\t\t%lu\n",  galDevice->cachedsize);
-    size+= snprintf(buf+size, PAGE_SIZE-size,"Non paged memory\r\t\t\t\t\t%lu\n",  galDevice->nonpagedmemorysize);
+    size+= snprintf(buf+size, PAGE_SIZE-size,"Cached memory\r\t\t\t\t\t%u\n",  galDevice->cachedsize);
+    size+= snprintf(buf+size, PAGE_SIZE-size,"Non paged memory\r\t\t\t\t\t%u\n",  galDevice->nonpagedmemorysize);
 #if LINUX_CMA_FSL
-    size+= snprintf(buf+size, PAGE_SIZE-size,"CMA memory\r\t\t\t\t\t%lu\n",  galDevice->cmasize);
+    size+= snprintf(buf+size, PAGE_SIZE-size,"CMA memory\r\t\t\t\t\t%u\n",  galDevice->cmasize);
 #endif
-    size+= snprintf(buf+size, PAGE_SIZE-size,"Contiguous paged memory(low)\r\t\t\t\t\t%lu\n",  galDevice->contiguouslowmemsize);
-    size+= snprintf(buf+size, PAGE_SIZE-size,"Contiguous paged memory(high)\r\t\t\t\t\t%lu\n",  galDevice->contiguoushighmemsize);
-    size+= snprintf(buf+size, PAGE_SIZE-size,"NonContiguous paged memory(low)\r\t\t\t\t\t%lu\n",  galDevice->noncontiguouslowmemsize);
-    size+= snprintf(buf+size, PAGE_SIZE-size,"NonContiguous paged memory(high)\r\t\t\t\t\t%lu\n",  galDevice->noncontiguoushighmemsize);
+    size+= snprintf(buf+size, PAGE_SIZE-size,"Contiguous paged memory(low)\r\t\t\t\t\t%u\n",  galDevice->contiguouslowmemsize);
+    size+= snprintf(buf+size, PAGE_SIZE-size,"Contiguous paged memory(high)\r\t\t\t\t\t%u\n",  galDevice->contiguoushighmemsize);
+    size+= snprintf(buf+size, PAGE_SIZE-size,"NonContiguous paged memory(low)\r\t\t\t\t\t%u\n",  galDevice->noncontiguouslowmemsize);
+    size+= snprintf(buf+size, PAGE_SIZE-size,"NonContiguous paged memory(high)\r\t\t\t\t\t%u\n",  galDevice->noncontiguoushighmemsize);
 #endif
     return strlen(buf);
 }
@@ -506,12 +506,15 @@ int drv_open(
 
     if ((!galDevice->contiguousMapped) && galDevice->contiguousSize)
     {
-        gcmkONERROR(gckOS_MapMemory(
-            galDevice->os,
-            galDevice->contiguousPhysical,
-            galDevice->contiguousSize,
-            &data->contiguousLogical
-            ));
+        if (galDevice->contiguousPhysical != gcvNULL)
+        {
+            gcmkONERROR(gckOS_MapMemory(
+                galDevice->os,
+                galDevice->contiguousPhysical,
+                galDevice->contiguousSize,
+                &data->contiguousLogical
+                ));
+        }
     }
 
     filp->private_data = data;
@@ -1127,8 +1130,9 @@ static int drv_init(struct device *pdev)
 #endif
 
 
+
     /* Register the character device. */
-    ret = register_chrdev(major, DRV_NAME, &driver_fops);
+    ret = register_chrdev(major, DEVICE_NAME, &driver_fops);
 
     if (ret < 0)
     {
@@ -1161,9 +1165,9 @@ static int drv_init(struct device *pdev)
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27)
-    device_create(device_class, NULL, MKDEV(major, 0), NULL, "galcore");
+    device_create(device_class, NULL, MKDEV(major, 0), NULL, DEVICE_NAME);
 #else
-    device_create(device_class, NULL, MKDEV(major, 0), "galcore");
+    device_create(device_class, NULL, MKDEV(major, 0), DEVICE_NAME);
 #endif
 
     galDevice = device;
@@ -1224,7 +1228,7 @@ static void drv_exit(void)
     device_destroy(gpuClass, MKDEV(major, 0));
     class_destroy(gpuClass);
 
-    unregister_chrdev(major, DRV_NAME);
+    unregister_chrdev(major, DEVICE_NAME);
 
     gcmkVERIFY_OK(gckGALDEVICE_Stop(galDevice));
     gcmkVERIFY_OK(gckGALDEVICE_Destroy(galDevice));
@@ -1256,15 +1260,9 @@ static void drv_exit(void)
     module_exit(drv_exit);
 #else
 
-#ifdef CONFIG_DOVE_GPU
-#   define DEVICE_NAME "dove_gpu"
-#else
-#   define DEVICE_NAME "galcore"
-#endif
-
 #if gcdENABLE_FSCALE_VAL_ADJUST
 static int thermal_hot_pm_notify(struct notifier_block *nb, unsigned long event,
-	void *dummy)
+       void *dummy)
 {
     static gctUINT orgFscale, minFscale, maxFscale;
     static gctBOOL bAlreadyTooHot = gcvFALSE;
@@ -1289,6 +1287,7 @@ static struct notifier_block thermal_hot_pm_notifier = {
 #endif
 
 
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int gpu_probe(struct platform_device *pdev)
 #else
@@ -1299,14 +1298,15 @@ static int __devinit gpu_probe(struct platform_device *pdev)
     struct resource* res;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-	struct contiguous_mem_pool *pool;
-	struct reset_control *rstc;
+       struct contiguous_mem_pool *pool;
+       struct reset_control *rstc;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
-	struct device_node *dn =pdev->dev.of_node;
-	const u32 *prop;
+       struct device_node *dn =pdev->dev.of_node;
+       const u32 *prop;
 #else
-	struct viv_gpu_platform_data *pdata;
+       struct viv_gpu_platform_data *pdata;
 #endif
+
     gcmkHEADER();
 
     res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phys_baseaddr");
@@ -1365,10 +1365,10 @@ static int __devinit gpu_probe(struct platform_device *pdev)
 	}
 	dev_set_drvdata(&pdev->dev, pool);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
-	prop = of_get_property(dn, "contiguousbase", NULL);
-	if(prop)
-		contiguousBase = *prop;
-	of_property_read_u32(dn,"contiguoussize", (u32 *)&contiguousSize);
+       prop = of_get_property(dn, "contiguousbase", NULL);
+       if(prop)
+               contiguousBase = *prop;
+       of_property_read_u32(dn,"contiguoussize", (u32 *)&contiguousSize);
 #else
     pdata = pdev->dev.platform_data;
     if (pdata) {
@@ -1389,9 +1389,11 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         rstc = devm_reset_control_get(&pdev->dev, "gpu2d");
         galDevice->rstc[gcvCORE_2D] = IS_ERR(rstc) ? NULL : rstc;
 
+
         rstc = devm_reset_control_get(&pdev->dev, "gpuvg");
         galDevice->rstc[gcvCORE_VG] = IS_ERR(rstc) ? NULL : rstc;
 #endif
+
         platform_set_drvdata(pdev, galDevice);
 
 #if gcdENABLE_FSCALE_VAL_ADJUST
@@ -1414,6 +1416,7 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         gcmkFOOTER_NO();
         return ret;
     }
+
 #if gcdENABLE_FSCALE_VAL_ADJUST
     UNREG_THERMAL_NOTIFIER(&thermal_hot_pm_notifier);
 #endif

@@ -34,6 +34,8 @@ ARCH_KERNEL_DIR := hal/kernel/arch
 ARCH_VG_KERNEL_DIR := hal/kernel/archvg
 HAL_KERNEL_DIR  := hal/kernel
 
+CUSTOMER_ALLOCATOR_OBJS :=
+
 EXTRA_CFLAGS += -Werror
 
 OBJS := $(OS_KERNEL_DIR)/gc_hal_kernel_device.o \
@@ -41,7 +43,8 @@ OBJS := $(OS_KERNEL_DIR)/gc_hal_kernel_device.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_linux.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_math.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_os.o \
-        $(OS_KERNEL_DIR)/gc_hal_kernel_debugfs.o
+        $(OS_KERNEL_DIR)/gc_hal_kernel_debugfs.o \
+        $(OS_KERNEL_DIR)/gc_hal_kernel_allocator.o \
 
 
 OBJS += $(HAL_KERNEL_DIR)/gc_hal_kernel.o \
@@ -71,6 +74,11 @@ ifneq ($(CONFIG_SYNC),)
 OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_sync.o
 endif
 
+
+ifneq ($(CUSTOMER_ALLOCATOR_OBJS),)
+OBJS += $(CUSTOMER_ALLOCATOR_OBJS)
+endif
+
 ifeq ($(KERNELRELEASE), )
 
 .PHONY: all clean install
@@ -91,12 +99,6 @@ else
 
 
 EXTRA_CFLAGS += -DLINUX -DDRIVER
-
-ifeq ($(ENUM_WORKAROUND), 1)
-EXTRA_CFLAGS += -DENUM_WORKAROUND=1
-else
-EXTRA_CFLAGS += -DENUM_WORKAROUND=0
-endif
 
 ifeq ($(FLAREON),1)
 EXTRA_CFLAGS += -DFLAREON
@@ -208,6 +210,7 @@ EXTRA_CFLAGS += -DgcdFPGA_BUILD=1
 else
 EXTRA_CFLAGS += -DgcdFPGA_BUILD=0
 endif
+
 
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/inc
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel

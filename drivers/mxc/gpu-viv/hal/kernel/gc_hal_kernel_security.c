@@ -20,21 +20,10 @@
 
 
 
-#ifndef __gc_hal_version_h_
-#define __gc_hal_version_h_
+#include "gc_hal_kernel_precomp.h"
 
-#define gcvVERSION_MAJOR        5
 
-#define gcvVERSION_MINOR        0
 
-#define gcvVERSION_PATCH        11
 
-#define gcvVERSION_BUILD     17486
+#define _GC_OBJ_ZONE    gcvZONE_KERNEL
 
-#define gcvVERSION_STRING    "5.0.11.14786"
-
-#define gcvVERSION_DATE      __DATE__
-
-#define gcvVERSION_TIME      __TIME__
-
-#endif /* __gc_hal_version_h_ */

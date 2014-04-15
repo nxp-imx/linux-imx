@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_eglplatform_h_
 #define __gc_hal_eglplatform_h_
 
@@ -624,6 +623,38 @@ gcoOS_SwapBuffers(
     OUT gctUINT *Width,
     OUT gctUINT *Height
     );
+
+#ifdef EGL_API_DRI
+gceSTATUS
+gcoOS_ResizeWindow(
+    IN gctPOINTER localDisplay,
+    IN HALNativeWindowType Drawable,
+    IN gctUINT Width,
+    IN gctUINT Height)
+    ;
+
+#ifdef USE_FREESCALE_EGL_ACCEL
+gceSTATUS
+gcoOS_SwapBuffersGeneric_Async(
+    IN gctPOINTER localDisplay,
+    IN HALNativeWindowType Drawable,
+    IN gcoSURF RenderTarget,
+    IN gcoSURF ResolveTarget,
+    IN gctPOINTER ResolveBits,
+    OUT gctUINT *Width,
+    OUT gctUINT *Height,
+    IN void * resolveRect
+    );
+
+gceSTATUS
+gcoOS_DrawSurface(
+    IN gctPOINTER localDisplay,
+    IN HALNativeWindowType Drawable
+    );
+#endif
+
+#endif
+
 #ifdef __cplusplus
 }
 #endif

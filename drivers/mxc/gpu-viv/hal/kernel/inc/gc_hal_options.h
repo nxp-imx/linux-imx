@@ -19,9 +19,16 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_options_h_
 #define __gc_hal_options_h_
+
+/*
+    gcdSECURITY
+
+*/
+#ifndef gcdSECURITY
+#   define gcdSECURITY                          0
+#endif
 
 /*
     gcdPRINT_VERSION
@@ -63,6 +70,9 @@
 #   define VIVANTE_PROFILER_PERDRAW             0
 #endif
 
+#ifndef VIVANTE_PROFILER_NEW
+#   define VIVANTE_PROFILER_NEW                 0
+#endif
 /*
     gcdUSE_VG
 
@@ -752,15 +762,6 @@
 #endif
 
 /*
-    gcdENABLE_RECOVERY
-
-        This define enables the recovery code.
-*/
-#ifndef gcdENABLE_RECOVERY
-#   define gcdENABLE_RECOVERY                   1
-#endif
-
-/*
     gcdRENDER_THREADS
 
         Number of render threads. Make it zero, and there will be no render
@@ -966,11 +967,19 @@
         Android only for now.
 */
 #ifndef gcdENABLE_RENDER_INTO_WINDOW
-#if gcdDUMP
-#   define gcdENABLE_RENDER_INTO_WINDOW         0
-#else
 #   define gcdENABLE_RENDER_INTO_WINDOW         1
 #endif
+
+/*
+    gcdENABLE_BLIT_BUFFER_PRESERVE
+
+        Render-Into-Window (ie, No-Resolve) does not include preserved swap
+        behavior.  This feature can enable buffer preserve in No-Resolve mode.
+        When enabled, previous buffer (may be part of ) will be resolve-blitted
+        to current buffer.
+*/
+#ifndef gcdENABLE_BLIT_BUFFER_PRESERVE
+#   define gcdENABLE_BLIT_BUFFER_PRESERVE       0
 #endif
 
 /*
@@ -1111,14 +1120,64 @@
 #endif
 
 /*
-    gcdTEMP_CMD_BUFFER_SIZE
-        When it's zero, use original command buffer generation logic.
-        Otherwise, set it as 0x4000 as temp buffer size.
+    gcdYINVERTED_RENDERING
+        When it's not zero, we will rendering display buffer
+        with top-bottom direction. All other offscreen rendering
+        will be bottom-top, which follow OpenGL ES spec.
 */
-
-#ifndef gcdTEMP_CMD_BUFFER_SIZE
-#define gcdTEMP_CMD_BUFFER_SIZE  0
+#ifndef gcdYINVERTED_RENDERING
+#   define gcdYINVERTED_RENDERING 1
 #endif
+
+#if gcdYINVERTED_RENDERING
+/* disable unaligned linear composition adjust in Y-inverted rendering mode. */
+#   undef  gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST
+#   define gcdANDROID_UNALIGNED_LINEAR_COMPOSITION_ADJUST 0
+#endif
+
+/*
+    gcdFENCE_WAIT_LOOP_COUNT
+        Wait fence, loop count.
+*/
+#ifndef gcdFENCE_WAIT_LOOP_COUNT
+#   define gcdFENCE_WAIT_LOOP_COUNT 100
+#endif
+
+/*
+    gcdHAL_3D_DRAWBLIT
+        When it's not zero, we will enable HAL 3D drawblit
+        to replace client 3dblit.
+*/
+#ifndef gcdHAL_3D_DRAWBLIT
+#   define gcdHAL_3D_DRAWBLIT 1
+#endif
+
+/*
+    gcdPARTIAL_FAST_CLEAR
+        When it's not zero, partial fast clear is enabled.
+        Depends on gcdHAL_3D_DRAWBLIT, if gcdHAL_3D_DRAWBLIT is not enabled,
+        only available when scissor box is completely aligned.
+        Expremental, under test.
+*/
+#ifndef gcdPARTIAL_FAST_CLEAR
+#   define gcdPARTIAL_FAST_CLEAR                0
+#endif
+
+/* Force disable bank alignment when partial fast clear enabled. */
+#if gcdPARTIAL_FAST_CLEAR
+#   undef gcdENABLE_BANK_ALIGNMENT
+#   define gcdENABLE_BANK_ALIGNMENT             0
+#endif
+
+/*
+    gcdREMOVE_SURF_ORIENTATION
+        When it's not zero, we will remove surface orientation function.
+        It wil become to a parameter of resolve function.
+*/
+#ifndef gcdREMOVE_SURF_ORIENTATION
+#   define gcdREMOVE_SURF_ORIENTATION 0
+#endif
+
 
 #define LINUX_CMA_FSL 1
 #define DYNAMIC_MEMORY_RECORD 1

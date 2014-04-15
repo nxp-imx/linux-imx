@@ -142,14 +142,14 @@
     (((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27))) | (((gctUINT32) (0x03 | 0xC0FFEE & ((gctUINT32) ((((1 ? 31:27) - (0 ? 31:27) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 31:27) - (0 ? 31:27) + 1))))))) << (0 ? 31:27))))
 
 #if !defined(VIVANTE_NO_3D)
-static gctSIZE_T
+static gctUINT32
 _TerminateStateBlock(
     IN gckCONTEXT Context,
-    IN gctSIZE_T Index
+    IN gctUINT32 Index
     )
 {
     gctUINT32_PTR buffer;
-    gctSIZE_T align;
+    gctUINT32 align;
 
     /* Determine if we need alignment. */
     align = (Index & 1) ? 1 : 0;
@@ -175,15 +175,15 @@ _TerminateStateBlock(
 #endif
 
 
-static gctSIZE_T
+static gctUINT32
 _FlushPipe(
     IN gckCONTEXT Context,
-    IN gctSIZE_T Index,
+    IN gctUINT32 Index,
     IN gcePIPE_SELECT Pipe
     )
 {
     gctBOOL fcFlushStall;
-    gctSIZE_T flushSlots;
+    gctUINT32 flushSlots;
 
     fcFlushStall
         = gckHARDWARE_IsFeatureAvailable(Context->hardware, gcvFEATURE_FC_FLUSH_STALL);
@@ -245,10 +245,10 @@ _FlushPipe(
 }
 
 #if !defined(VIVANTE_NO_3D)
-static gctSIZE_T
+static gctUINT32
 _SemaphoreStall(
     IN gckCONTEXT Context,
-    IN gctSIZE_T Index
+    IN gctUINT32 Index
     )
 {
     if (Context->buffer != gcvNULL)
@@ -282,10 +282,10 @@ _SemaphoreStall(
 }
 #endif
 
-static gctSIZE_T
+static gctUINT32
 _SwitchPipe(
     IN gckCONTEXT Context,
-    IN gctSIZE_T Index,
+    IN gctUINT32 Index,
     IN gcePIPE_SELECT Pipe
     )
 {
@@ -312,19 +312,20 @@ _SwitchPipe(
 }
 
 #if !defined(VIVANTE_NO_3D)
-static gctSIZE_T
+static gctUINT32
 _State(
     IN gckCONTEXT Context,
-    IN gctSIZE_T Index,
+    IN gctUINT32 Index,
     IN gctUINT32 Address,
     IN gctUINT32 Value,
-    IN gctSIZE_T Size,
+    IN gctUINT32 Size,
     IN gctBOOL FixedPoint,
     IN gctBOOL Hinted
     )
 {
     gctUINT32_PTR buffer;
-    gctSIZE_T align, i;
+    gctUINT32 align;
+    gctUINT32 i;
 
     /* Determine if we need alignment. */
     align = (Index & 1) ? 1 : 0;
@@ -372,13 +373,13 @@ _State(
             }
 
             /* Walk all the states. */
-            for (i = 0; i < Size; i += 1)
+            for (i = 0; i < (gctUINT32)Size; i += 1)
             {
                 /* Set state to uninitialized value. */
                 buffer[Index + 1 + i] = Value;
 
                 /* Set index in state mapping table. */
-                Context->map[Address + i].index = Index + 1 + i;
+                Context->map[Address + i].index = (gctUINT)Index + 1 + i;
 
 #if gcdSECURE_USER
                 /* Save hint. */
@@ -391,8 +392,8 @@ _State(
         }
 
         /* Save information for this LoadState. */
-        Context->lastIndex   = Index;
-        Context->lastAddress = Address + Size;
+        Context->lastIndex   = (gctUINT)Index;
+        Context->lastAddress = Address + (gctUINT32)Size;
         Context->lastSize    = Size;
         Context->lastFixed   = FixedPoint;
 
@@ -408,13 +409,13 @@ _State(
             ((((gctUINT32) (buffer[Context->lastIndex])) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 25:16) - (0 ? 25:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 25:16) - (0 ? 25:16) + 1))))))) << (0 ? 25:16))) | (((gctUINT32) ((gctUINT32) (Context->lastSize + Size) & ((gctUINT32) ((((1 ? 25:16) - (0 ? 25:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 25:16) - (0 ? 25:16) + 1))))))) << (0 ? 25:16)));
 
         /* Walk all the states. */
-        for (i = 0; i < Size; i += 1)
+        for (i = 0; i < (gctUINT32)Size; i += 1)
         {
             /* Set state to uninitialized value. */
             buffer[Index + i] = Value;
 
             /* Set index in state mapping table. */
-            Context->map[Address + i].index = Index + i;
+            Context->map[Address + i].index = (gctUINT)Index + i;
 
 #if gcdSECURE_USER
             /* Save hint. */
@@ -427,22 +428,22 @@ _State(
     }
 
     /* Update last address and size. */
-    Context->lastAddress += Size;
+    Context->lastAddress += (gctUINT32)Size;
     Context->lastSize    += Size;
 
     /* Return number of slots required. */
     return Size;
 }
 
-static gctSIZE_T
+static gctUINT32
 _StateMirror(
     IN gckCONTEXT Context,
     IN gctUINT32 Address,
-    IN gctSIZE_T Size,
+    IN gctUINT32 Size,
     IN gctUINT32 AddressMirror
     )
 {
-    gctSIZE_T i;
+    gctUINT32 i;
 
     /* Process when buffer is set. */
     if (Context->buffer != gcvNULL)
@@ -467,13 +468,13 @@ _InitializeContextBuffer(
     )
 {
     gctUINT32_PTR buffer;
-    gctSIZE_T index;
+    gctUINT32 index;
 
 #if !defined(VIVANTE_NO_3D)
     gctBOOL halti0, halti1, halti2, halti3;
     gctUINT i;
-    gctUINT vertexUniforms, fragmentUniforms;
-    gctBOOL unifiedUnforms;
+    gctUINT vertexUniforms, fragmentUniforms, unifiedConst, vsConstBase, psConstBase, constMax;
+    gctBOOL unifiedUniform;
     gctUINT fe2vsCount;
 #endif
 
@@ -502,12 +503,20 @@ _InitializeContextBuffer(
     halti2 = (((((gctUINT32) (Context->hardware->identity.chipMinorFeatures4)) >> (0 ? 16:16)) & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1)))))) );
     halti3 = (((((gctUINT32) (Context->hardware->identity.chipMinorFeatures5)) >> (0 ? 9:9)) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1)))))) );
 
-    /* Query shader support. */
-    gcmkVERIFY_OK(gckHARDWARE_QueryShaderCaps(
-        Context->hardware, &vertexUniforms, &fragmentUniforms, &unifiedUnforms));
+    /* Query how many uniforms can support for non-unified uniform mode. */
+    {    if (Context->hardware->identity.chipModel == gcv2000 && Context->hardware->identity.chipRevision == 0x5118)    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 64;        constMax     = 320;    }    else if (Context->hardware->identity.numConstants == 320)    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 64;        constMax     = 320;    }    else if (Context->hardware->identity.numConstants > 256 && Context->hardware->identity.chipModel == gcv1000)    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 64;        constMax     = 320;    }    else if (Context->hardware->identity.numConstants > 256)    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 256;        constMax     = 512;    }    else if (Context->hardware->identity.numConstants == 256)    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 256;        constMax     = 512;    }    else    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 168;        fragmentUniforms   = 64;        constMax     = 232;    }};
+
+    if (Context->hardware->identity.numConstants > 256)
+    {
+        unifiedUniform = gcvTRUE;
+    }
+    else
+    {
+        unifiedUniform = gcvFALSE;
+    }
 
     /* Store the 3D entry index. */
-    Context->entryOffset3D = index * gcmSIZEOF(gctUINT32);
+    Context->entryOffset3D = (gctUINT)index * gcmSIZEOF(gctUINT32);
 
     /* Flush 2D pipe. */
     index += _FlushPipe(Context, index, gcvPIPE_2D);
@@ -583,11 +592,6 @@ _InitializeContextBuffer(
 
     index += _CLOSE_RANGE();
 
-    if (! unifiedUnforms)
-    {
-        index += _State(Context, index, 0x05000 >> 2, 0x00000000, vertexUniforms * 4, gcvFALSE, gcvFALSE);
-    }
-
     /* Primitive Assembly states. */
     index += _State(Context, index, 0x00A00 >> 2, 0x00000000, 1, gcvTRUE, gcvFALSE);
     index += _State(Context, index, 0x00A04 >> 2, 0x00000000, 1, gcvTRUE, gcvFALSE);
@@ -609,6 +613,11 @@ _InitializeContextBuffer(
     index += _State(Context, index, 0x00A8C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x00A88 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
 
+#if gcdMULTI_GPU
+    index += _State(Context, index, 0x03A00 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x03A04 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x03A08 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+#endif
     /* Setup states. */
     index += _State(Context, index, 0x00C00 >> 2, 0x00000000, 1, gcvTRUE, gcvFALSE);
     index += _State(Context, index, 0x00C04 >> 2, 0x00000000, 1, gcvTRUE, gcvFALSE);
@@ -650,11 +659,6 @@ _InitializeContextBuffer(
     }
 
     index += _CLOSE_RANGE();
-
-    if (! unifiedUnforms)
-    {
-        index += _State(Context, index, 0x07000 >> 2, 0x00000000, fragmentUniforms * 4, gcvFALSE, gcvFALSE);
-    }
 
     /* Texture states. */
     index += _State(Context, index, 0x02000 >> 2, 0x00000000, 12, gcvFALSE, gcvFALSE);
@@ -737,6 +741,11 @@ _InitializeContextBuffer(
     if (halti2)
     {
         index += _State(Context, index, 0x10700 >> 2, 0x00000F00, 32, gcvFALSE, gcvFALSE);
+    }
+
+    if (halti3)
+    {
+        index += _State(Context, index, 0x10780 >> 2, 0x00030000, 32, gcvFALSE, gcvFALSE);
     }
 
     /* ASTC */
@@ -836,25 +845,37 @@ _InitializeContextBuffer(
         _StateMirror(Context, 0x08000 >> 2, Context->hardware->identity.instructionCount << 2 , 0x0C000 >> 2);
     }
 
-    if (unifiedUnforms)
+    if (unifiedUniform)
     {
+        gctINT numConstants = Context->hardware->identity.numConstants;
+
         index += _State(Context, index, 0x01024 >> 2, 0x00000100, 1, gcvFALSE, gcvFALSE);
         index += _State(Context, index, 0x00864 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
         index += _CLOSE_RANGE();
 
         for (i = 0;
-             i < Context->hardware->identity.numConstants << 2;
-             i += 256 << 2
+             numConstants > 0;
+             i += 256 << 2,
+             numConstants -= 256
              )
         {
-            index += _State(Context, index, (0x30000 >> 2) + i, 0x00000000, 256 << 2, gcvFALSE, gcvFALSE);
+            if (numConstants >= 256)
+            {
+                index += _State(Context, index, (0x30000 >> 2) + i, 0x00000000, 256 << 2, gcvFALSE, gcvFALSE);
+            }
+            else
+            {
+                index += _State(Context, index, (0x30000 >> 2) + i, 0x00000000, numConstants << 2, gcvFALSE, gcvFALSE);
+            }
             index += _CLOSE_RANGE();
         }
-        index += _CLOSE_RANGE();
     }
 
+    index += _State(Context, index, 0x05000 >> 2, 0x00000000, vertexUniforms * 4, gcvFALSE, gcvFALSE);
+    index += _State(Context, index, 0x07000 >> 2, 0x00000000, fragmentUniforms * 4, gcvFALSE, gcvFALSE);
+
     /* Store the index of the "XD" entry. */
-    Context->entryOffsetXDFrom3D = index * gcmSIZEOF(gctUINT32);
+    Context->entryOffsetXDFrom3D = (gctUINT)index * gcmSIZEOF(gctUINT32);
 
 
     /* Pixel Engine states. */
@@ -1028,6 +1049,12 @@ _InitializeContextBuffer(
         index += _CLOSE_RANGE();
     }
 
+    if (halti3)
+    {
+        index += _State(Context, index, 0x01A80 >> 2, 0x00000000, 8, gcvFALSE, gcvTRUE);
+        index += _CLOSE_RANGE();
+    }
+
     /* Semaphore/stall. */
     index += _SemaphoreStall(Context, index);
 #endif
@@ -1035,7 +1062,7 @@ _InitializeContextBuffer(
     /**************************************************************************/
     /* Link to another address. ***********************************************/
 
-    Context->linkIndex3D = index;
+    Context->linkIndex3D = (gctUINT)index;
 
     if (buffer != gcvNULL)
     {
@@ -1057,7 +1084,7 @@ _InitializeContextBuffer(
     /* Pipe switch for the case where neither 2D nor 3D are used. *************/
 
     /* Store the 3D entry index. */
-    Context->entryOffsetXDFrom2D = index * gcmSIZEOF(gctUINT32);
+    Context->entryOffsetXDFrom2D = (gctUINT)index * gcmSIZEOF(gctUINT32);
 
     /* Flush 2D pipe. */
     index += _FlushPipe(Context, index, gcvPIPE_2D);
@@ -1066,7 +1093,7 @@ _InitializeContextBuffer(
     index += _SwitchPipe(Context, index, gcvPIPE_3D);
 
     /* Store the location of the link. */
-    Context->linkIndexXD = index;
+    Context->linkIndexXD = (gctUINT)index;
 
     if (buffer != gcvNULL)
     {
@@ -1229,9 +1256,10 @@ gckCONTEXT_Construct(
 {
     gceSTATUS status;
     gckCONTEXT context = gcvNULL;
-    gctSIZE_T allocationSize;
+    gctUINT32 allocationSize;
     gctUINT i;
     gctPOINTER pointer = gcvNULL;
+    gctUINT32 address;
 
     gcmkHEADER_ARG("Os=0x%08X Hardware=0x%08X", Os, Hardware);
 
@@ -1299,7 +1327,7 @@ gckCONTEXT_Construct(
     /* Compute the size of the record array. **********************************/
 
     context->recordArraySize
-        = gcmSIZEOF(gcsSTATE_DELTA_RECORD) * context->stateCount;
+        = gcmSIZEOF(gcsSTATE_DELTA_RECORD) * (gctUINT)context->stateCount;
 
 
     if (context->stateCount > 0)
@@ -1344,6 +1372,8 @@ gckCONTEXT_Construct(
     {
         /* Allocate a context buffer. */
         gcsCONTEXT_PTR buffer;
+
+        gctSIZE_T totalSize = context->totalSize;
 
         /* Allocate the context buffer structure. */
         gcmkONERROR(gckOS_Allocate(
@@ -1392,9 +1422,16 @@ gckCONTEXT_Construct(
             gcmkONERROR(gckKERNEL_AllocateVirtualCommandBuffer(
                 context->hardware->kernel,
                 gcvFALSE,
-                &context->totalSize,
+                &totalSize,
                 &buffer->physical,
                 &pointer
+                ));
+
+            gcmkONERROR(gckKERNEL_GetGPUAddress(
+                context->hardware->kernel,
+                pointer,
+                gcvFALSE,
+                &address
                 ));
         }
         else
@@ -1402,13 +1439,21 @@ gckCONTEXT_Construct(
             gcmkONERROR(gckOS_AllocateContiguous(
                 Os,
                 gcvFALSE,
-                &context->totalSize,
+                &totalSize,
                 &buffer->physical,
                 &pointer
+                ));
+
+            gcmkONERROR(gckHARDWARE_ConvertLogical(
+                context->hardware,
+                pointer,
+                gcvFALSE,
+                &address
                 ));
         }
 
         buffer->logical = pointer;
+        buffer->address = address;
 
         /* Set gckEVENT object pointer. */
         buffer->eventObj = Hardware->kernel->eventObj;
@@ -1427,16 +1472,16 @@ gckCONTEXT_Construct(
         if (context->linkIndexXD != 0)
         {
             gctPOINTER xdLink;
-            gctUINT8_PTR xdEntryLogical;
-            gctSIZE_T xdEntrySize;
-            gctSIZE_T linkBytes;
+            gctUINT32 xdEntryAddress;
+            gctUINT32 xdEntrySize;
+            gctUINT32 linkBytes;
 
             /* Determine LINK parameters. */
             xdLink
                 = &buffer->logical[context->linkIndexXD];
 
-            xdEntryLogical
-                = (gctUINT8_PTR) buffer->logical
+            xdEntryAddress
+                = buffer->address
                 + context->entryOffsetXDFrom3D;
 
             xdEntrySize
@@ -1445,14 +1490,14 @@ gckCONTEXT_Construct(
 
             /* Query LINK size. */
             gcmkONERROR(gckHARDWARE_Link(
-                Hardware, gcvNULL, gcvNULL, 0, &linkBytes
+                Hardware, gcvNULL, 0, 0, &linkBytes
                 ));
 
             /* Generate a LINK. */
             gcmkONERROR(gckHARDWARE_Link(
                 Hardware,
                 xdLink,
-                xdEntryLogical,
+                xdEntryAddress,
                 xdEntrySize,
                 &linkBytes
                 ));
@@ -1640,7 +1685,7 @@ gckCONTEXT_Update(
 #if gcmIS_DEBUG(gcdDEBUG_CODE) && 1 && !defined(VIVANTE_NO_3D)
     /* Update current context token. */
     buffer->logical[Context->map[0x0E14].index]
-        = gcmPTR2INT(Context);
+        = (gctUINT32)gcmPTR2INT32(Context);
 #endif
 
     /* Are there any pending deltas? */
@@ -1968,11 +2013,10 @@ gckCONTEXT_MapBuffer(
             commandBuffer = (gckVIRTUAL_COMMAND_BUFFER_PTR)buffer->physical;
             physical = commandBuffer->physical;
 
-            gcmkONERROR(gckOS_LockPages(
+            gcmkONERROR(gckOS_CreateUserVirtualMapping(
                 kernel->os,
                 physical,
-                (gctSIZE_T)Context->totalSize,
-                gcvFALSE,
+                Context->totalSize,
                 &logical,
                 &pageCount));
         }
@@ -1983,7 +2027,7 @@ gckCONTEXT_MapBuffer(
             gcmkONERROR(gckOS_MapMemory(
                 kernel->os,
                 physical,
-                (gctSIZE_T)Context->totalSize,
+                Context->totalSize,
                 &logical));
         }
 
@@ -1994,7 +2038,7 @@ gckCONTEXT_MapBuffer(
         buffer = buffer->next;
     }
 
-    *Bytes = Context->totalSize;
+    *Bytes = (gctUINT)Context->totalSize;
 
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;

@@ -139,7 +139,7 @@ static gctUINT32 _debugZones = gcvZONE_NONE;
 
 #define gcmPTRALIGNMENT(Pointer, Alignemnt) \
 ( \
-    gcmALIGN(gcmPTR2INT(Pointer), Alignemnt) - gcmPTR2INT(Pointer) \
+    gcmALIGN(gcmPTR2INT32(Pointer), Alignemnt) - gcmPTR2INT32(Pointer) \
 )
 
 #if gcdALIGNBYSIZE
@@ -147,7 +147,7 @@ static gctUINT32 _debugZones = gcvZONE_NONE;
         (((Offset) & ((Alignment) - 1)) == 0)
 
 #   define gcmkALIGNPTR(Type, Pointer, Alignment) \
-        Pointer = (Type) gcmINT2PTR(gcmALIGN(gcmPTR2INT(Pointer), Alignment))
+        Pointer = (Type) gcmINT2PTR(gcmALIGN(gcmPTR2INT32(Pointer), Alignment))
 #else
 #   define gcmISALIGNED(Offset, Alignment) \
         gcvTRUE
@@ -503,7 +503,7 @@ _DirectPrint(
     gctARGUMENTS arguments;
 
     gcmkARGUMENTS_START(arguments, Message);
-    len = gcmkVSPRINTF(buffer, gcmSIZEOF(buffer), Message, arguments);
+    len = gcmkVSPRINTF(buffer, gcmSIZEOF(buffer), Message, &arguments);
     gcmkARGUMENTS_END(arguments);
 
     buffer[len] = '\0';
@@ -1712,7 +1712,7 @@ _Print(
     IN gctUINT ArgumentSize,
     IN gctBOOL CopyMessage,
     IN gctCONST_STRING Message,
-    IN gctARGUMENTS Arguments
+    IN gctARGUMENTS * Arguments
     )
 {
     gcsBUFFERED_OUTPUT_PTR outputBuffer;
@@ -1760,14 +1760,14 @@ _Print(
     {
         gcdOUTPUTCOPY(
             outputBuffer, outputBuffer->indent,
-            Message, ArgumentSize, * (gctPOINTER *) &Arguments
+            Message, ArgumentSize, (gctPOINTER) Arguments
             );
     }
     else
     {
         gcdOUTPUTSTRING(
             outputBuffer, outputBuffer->indent,
-            Message, ArgumentSize, * (gctPOINTER *) &Arguments
+            Message, ArgumentSize, ((gctPOINTER) Arguments)
             );
     }
 
@@ -1795,7 +1795,7 @@ extern volatile unsigned g_nQnxInIsrs;
     { \
         gctARGUMENTS __arguments__; \
         gcmkARGUMENTS_START(__arguments__, Message); \
-        _Print(ArgumentSize, CopyMessage, Message, __arguments__); \
+        _Print(ArgumentSize, CopyMessage, Message, &__arguments__); \
         gcmkARGUMENTS_END(__arguments__); \
     } \
     atomic_sub(&g_nQnxInIsrs, 1); \
@@ -1807,7 +1807,7 @@ extern volatile unsigned g_nQnxInIsrs;
 { \
     gctARGUMENTS __arguments__; \
     gcmkARGUMENTS_START(__arguments__, Message); \
-    _Print(ArgumentSize, CopyMessage, Message, __arguments__); \
+    _Print(ArgumentSize, CopyMessage, Message, &__arguments__); \
     gcmkARGUMENTS_END(__arguments__); \
 }
 
@@ -1941,10 +1941,10 @@ gckOS_DumpBuffer(
     IN gctBOOL CopyMessage
     )
 {
-    gctUINT32 address;
-    gcsBUFFERED_OUTPUT_PTR outputBuffer;
+    gctUINT32 address                   = 0;
+    gcsBUFFERED_OUTPUT_PTR outputBuffer = gcvNULL;
     static gctBOOL userLocked;
-    gctCHAR *buffer = (gctCHAR*)Buffer;
+    gctCHAR *buffer                     = (gctCHAR*)Buffer;
 
     gcmkDECLARE_LOCK(lockHandle);
 
@@ -2609,7 +2609,7 @@ _VerifyMessage(
 
     /* Get function name. */
     function = (gctSTRING)&message->payload;
-    functionBytes = strlen(function) + 1;
+    functionBytes = (gctUINT32)strlen(function) + 1;
 
     /* Get arguments number. */
     numArguments = message->numArguments;
@@ -2629,7 +2629,7 @@ _VerifyMessage(
 
     if (numArguments)
     {
-        gcmkVSPRINTF(arguments, 150, format, *(gctARGUMENTS *) &args);
+        gcmkVSPRINTF(arguments, 150, format, (gctARGUMENTS *) &args);
     }
 
     gcmkPRINT("[%d](%d): %s(%d) %s",
@@ -2720,7 +2720,7 @@ gckOS_BinaryTrace(
     payload = (gctSTRING)&message->payload;
 
     /* Function name. */
-    functionBytes = gcmkSTRLEN(Function) + 1;
+    functionBytes = (gctUINT32)gcmkSTRLEN(Function) + 1;
     gcmkMEMCPY(payload, Function, functionBytes);
 
     /* Advance to next payload. */
@@ -2746,6 +2746,6 @@ gckOS_BinaryTrace(
 
 
     /* Send buffer to ring buffer. */
-    gckOS_WriteToRingBuffer(buffer, payload - buffer);
+    gckOS_WriteToRingBuffer(buffer, (gctUINT32)(payload - buffer));
 }
 

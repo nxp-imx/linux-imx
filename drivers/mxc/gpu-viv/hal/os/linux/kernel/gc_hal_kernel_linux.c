@@ -257,13 +257,14 @@ gckKERNEL_MapVideoMemoryEx(
     OUT gctPOINTER * Logical
     )
 {
-    gckGALDEVICE device;
-    PLINUX_MDL mdl;
-    PLINUX_MDL_MAP mdlMap;
-    gcePOOL pool;
-    gctUINT32 offset, base;
+    gckGALDEVICE device   = gcvNULL;
+    PLINUX_MDL mdl        = gcvNULL;
+    PLINUX_MDL_MAP mdlMap = gcvNULL;
+    gcePOOL pool          = gcvPOOL_UNKNOWN;
+    gctUINT32 offset      = 0;
+    gctUINT32 base        = 0;
     gceSTATUS status;
-    gctPOINTER logical;
+    gctPOINTER logical    = gcvNULL;
 
     gcmkHEADER_ARG("Kernel=%p InUserSpace=%d Address=%08x",
                    Kernel, InUserSpace, Address);
