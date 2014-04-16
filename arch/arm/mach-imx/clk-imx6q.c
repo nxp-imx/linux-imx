@@ -476,7 +476,11 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk[ecspi2]       = imx_clk_gate2("ecspi2",        "ecspi_root",        base + 0x6c, 2);
 	clk[ecspi3]       = imx_clk_gate2("ecspi3",        "ecspi_root",        base + 0x6c, 4);
 	clk[ecspi4]       = imx_clk_gate2("ecspi4",        "ecspi_root",        base + 0x6c, 6);
-	clk[ecspi5]       = imx_clk_gate2("ecspi5",        "ecspi_root",        base + 0x6c, 8);
+	if (cpu_is_imx6dl())
+		/* ecspi5 is replaced with i2c4 on imx6dl & imx6s */
+		clk[ecspi5] = imx_clk_gate2("i2c4",        "ipg_per",           base + 0x6c, 8);
+	else
+		clk[ecspi5] = imx_clk_gate2("ecspi5",      "ecspi_root",        base + 0x6c, 8);
 	clk[enet]         = imx_clk_gate2("enet",          "ipg",               base + 0x6c, 10);
 	clk[epit1]        = imx_clk_gate2("epit1",         "ipg",               base + 0x6c, 12);
 	clk[epit2]        = imx_clk_gate2("epit2",         "ipg",               base + 0x6c, 14);
