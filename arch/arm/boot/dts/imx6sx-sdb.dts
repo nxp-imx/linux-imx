@@ -510,7 +510,6 @@
 	pinctrl-0 = <&pinctrl_usdhc4_2 &pinctrl_usdhc4_gpios>;
 	cd-gpios = <&gpio6 21 0>;
 	wp-gpios = <&gpio6 20 0>;
-	no-1-8-v;
 	status = "okay";
 };
 
