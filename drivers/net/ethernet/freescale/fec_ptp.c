@@ -473,8 +473,7 @@ static void fec_handle_ptpdrift(struct fec_enet_private *priv,
 	struct ptp_set_comp *comp, struct ptp_time_correct *ptc)
 {
 	u32 ndrift;
-	u32 i, adj_inc, adj_period;
-	u32 tmp_current, tmp_winner;
+	u32 i;
 	u32 ptp_ts_clk, ptp_inc;
 
 	ptp_ts_clk = clk_get_rate(priv->clk_ptp);
@@ -486,39 +485,25 @@ static void fec_handle_ptpdrift(struct fec_enet_private *priv,
 		ptc->corr_inc = 0;
 		ptc->corr_period = 0;
 		return;
-	} else if (ndrift >= ptp_ts_clk) {
-		ptc->corr_inc = (u32)(ndrift / ptp_ts_clk);
+	}
+
+	for (i = 1; i <= ptp_inc; i++) {
+		if (((i * FEC_T_PERIOD_ONE_SEC) / ndrift) > ptp_inc) {
+			ptc->corr_inc = i;
+			ptc->corr_period = ((i * FEC_T_PERIOD_ONE_SEC) /
+						(ptp_inc * ndrift));
+			break;
+		}
+	}
+
+	/* not found ? */
+	if (i > ptp_inc) {
+		/*
+		 * set it to high value - double speed
+		 * correct in every clock step.
+		 */
+		ptc->corr_inc = ptp_inc;
 		ptc->corr_period = 1;
-		return;
-	} else {
-		tmp_winner = 0xFFFFFFFF;
-		adj_inc = 1;
-
-		if (ndrift > (ptp_ts_clk / ptp_inc)) {
-			adj_inc = ptp_inc / FEC_PTP_SPINNER_2;
-		} else if (ndrift > (ptp_ts_clk /
-			(ptp_inc * FEC_PTP_SPINNER_4))) {
-			adj_inc = ptp_inc / FEC_PTP_SPINNER_4;
-			adj_period = FEC_PTP_SPINNER_2;
-		} else {
-			adj_inc = FEC_PTP_SPINNER_4;
-			adj_period = FEC_PTP_SPINNER_4;
-		}
-
-		for (i = 1; i < adj_inc; i++) {
-			tmp_current = (ptp_ts_clk * i) % ndrift;
-			if (tmp_current == 0) {
-				ptc->corr_inc = i;
-				ptc->corr_period = (u32)((ptp_ts_clk *
-						adj_period * i)	/ ndrift);
-				break;
-			} else if (tmp_current < tmp_winner) {
-				ptc->corr_inc = i;
-				ptc->corr_period = (u32)((ptp_ts_clk *
-						adj_period * i)	/ ndrift);
-				tmp_winner = tmp_current;
-			}
-		}
 	}
 }
 
