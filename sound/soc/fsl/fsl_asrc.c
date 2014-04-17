@@ -49,12 +49,12 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 	struct snd_dmaengine_dai_dma_data *dma_params_fe = NULL;
 	struct imx_dma_data *fe_filter_data = NULL;
 	struct imx_dma_data *be_filter_data = NULL;
-
+	struct fsl_asrc_p2p_params *p2p_params = &asrc_p2p->p2p_params[substream->stream];
+	enum asrc_pair_index asrc_index = p2p_params->asrc_index;
 	struct dma_slave_config slave_config;
 	dma_cap_mask_t mask;
-	struct dma_chan *chan;
-	int ret;
 	struct snd_soc_dpcm *dpcm;
+	int ret;
 
 	/* find the be for this fe stream */
 	list_for_each_entry(dpcm, &rtd->dpcm[substream->stream].be_clients, list_be) {
@@ -80,6 +80,10 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 
 	fe_filter_data = dma_params_fe->filter_data;
 	be_filter_data = dma_params_be->filter_data;
+	if (!fe_filter_data || !be_filter_data) {
+		dev_err(rtd->card->dev, "can't get be or fe filter data\n");
+		return -EINVAL;
+	}
 
 	if (asrc_p2p->p2p_width == 16)
 		buswidth = DMA_SLAVE_BUSWIDTH_2_BYTES;
@@ -87,48 +91,43 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 		buswidth = DMA_SLAVE_BUSWIDTH_4_BYTES;
 
 	/* reconfig memory to FIFO dma request */
-	dma_params_fe->addr = asrc_p2p->asrc_ops.asrc_p2p_per_addr(
-						asrc_p2p->asrc_index, 1);
-	fe_filter_data->dma_request0 = asrc_p2p->dmarx[asrc_p2p->asrc_index];
+	dma_params_fe->addr = asrc_p2p->asrc_ops.asrc_p2p_per_addr(asrc_index, 1);
 	dma_params_fe->maxburst = dma_params_be->maxburst;
+	fe_filter_data->dma_request0 = asrc_p2p->dmarx[asrc_index];
 
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_SLAVE, mask);
 	dma_cap_set(DMA_CYCLIC, mask);
 
 	/* config p2p dma channel */
-	asrc_p2p->asrc_p2p_dma_data.peripheral_type = IMX_DMATYPE_ASRC;
-	asrc_p2p->asrc_p2p_dma_data.priority        = DMA_PRIO_HIGH;
-	asrc_p2p->asrc_p2p_dma_data.dma_request1    = asrc_p2p->dmatx[asrc_p2p->asrc_index];
+	p2p_params->dma_data.peripheral_type = IMX_DMATYPE_ASRC;
+	p2p_params->dma_data.priority        = DMA_PRIO_HIGH;
+	p2p_params->dma_data.dma_request1    = asrc_p2p->dmatx[asrc_index];
 	/* need to get target device's dma dma_addr, burstsize */
-	asrc_p2p->asrc_p2p_dma_data.dma_request0    = be_filter_data->dma_request0;
+	p2p_params->dma_data.dma_request0    = be_filter_data->dma_request0;
 
 	/* Request channel */
-	asrc_p2p->asrc_p2p_dma_chan =
-		dma_request_channel(mask, filter, &asrc_p2p->asrc_p2p_dma_data);
-
-	if (!asrc_p2p->asrc_p2p_dma_chan) {
+	p2p_params->dma_chan = dma_request_channel(mask, filter, &p2p_params->dma_data);
+	if (!p2p_params->dma_chan) {
 		dev_err(rtd->card->dev, "can not request dma channel\n");
 		goto error;
 	}
-	chan = asrc_p2p->asrc_p2p_dma_chan;
 
 	/*
 	 * Buswidth is not used in the sdma for p2p. Here we set the maxburst fix to
 	 * twice of dma_params's burstsize.
 	 */
 	slave_config.direction      = DMA_DEV_TO_DEV;
-	slave_config.src_addr       = asrc_p2p->asrc_ops.asrc_p2p_per_addr(asrc_p2p->asrc_index, 0);
+	slave_config.src_addr       = asrc_p2p->asrc_ops.asrc_p2p_per_addr(asrc_index, 0);
 	slave_config.src_addr_width = buswidth;
 	slave_config.src_maxburst   = dma_params_be->maxburst * 2;
 	slave_config.dst_addr       = dma_params_be->addr;
 	slave_config.dst_addr_width = buswidth;
 	slave_config.dst_maxburst   = dma_params_be->maxburst * 2;
 	slave_config.dma_request0   = be_filter_data->dma_request0;
-	slave_config.dma_request1   = asrc_p2p->dmatx[asrc_p2p->asrc_index];
+	slave_config.dma_request1   = asrc_p2p->dmatx[asrc_index];
 
-	ret = dmaengine_slave_config(asrc_p2p->asrc_p2p_dma_chan,
-							&slave_config);
+	ret = dmaengine_slave_config(p2p_params->dma_chan, &slave_config);
 	if (ret) {
 		dev_err(rtd->card->dev, "can not config dma channel\n");
 		goto error;
@@ -136,9 +135,9 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 
 	return 0;
 error:
-	if (asrc_p2p->asrc_p2p_dma_chan) {
-		dma_release_channel(asrc_p2p->asrc_p2p_dma_chan);
-		asrc_p2p->asrc_p2p_dma_chan = NULL;
+	if (p2p_params->dma_chan) {
+		dma_release_channel(p2p_params->dma_chan);
+		p2p_params->dma_chan = NULL;
 	}
 
 	return -EINVAL;
@@ -150,6 +149,7 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai     = rtd->cpu_dai;
 	struct fsl_asrc_p2p *asrc_p2p   = snd_soc_dai_get_drvdata(cpu_dai);
+	struct fsl_asrc_p2p_params *p2p_params = &asrc_p2p->p2p_params[substream->stream];
 	unsigned int rate    = params_rate(params);
 	unsigned int channel = params_channels(params);
 	struct asrc_config config = {0};
@@ -161,7 +161,7 @@ static int config_asrc(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	ret = asrc_p2p->asrc_ops.asrc_p2p_req_pair(channel, &asrc_p2p->asrc_index);
+	ret = asrc_p2p->asrc_ops.asrc_p2p_req_pair(channel, &p2p_params->asrc_index);
 	if (ret < 0) {
 		dev_err(cpu_dai->dev, "Fail to request asrc pair\n");
 		return -EINVAL;
@@ -201,12 +201,11 @@ static int config_asrc(struct snd_pcm_substream *substream,
 
 	config.input_word_width   = word_width;
 	config.output_word_width  = p2p_word_width;
-	config.pair               = asrc_p2p->asrc_index;
+	config.pair               = p2p_params->asrc_index;
 	config.channel_num        = channel;
 	config.input_sample_rate  = rate;
 	config.output_sample_rate = asrc_p2p->p2p_rate;
 	config.inclk              = INCLK_NONE;
-
 	switch (asrc_p2p->per_dev) {
 	case SSI1:
 		config.outclk    = OUTCLK_SSI1_TX;
@@ -251,18 +250,21 @@ static int fsl_asrc_p2p_hw_free(struct snd_pcm_substream *substream,
 			      struct snd_soc_dai *cpu_dai)
 {
 	struct fsl_asrc_p2p *asrc_p2p = snd_soc_dai_get_drvdata(cpu_dai);
+	struct fsl_asrc_p2p_params *p2p_params = &asrc_p2p->p2p_params[substream->stream];
+	struct dma_chan *chan = p2p_params->dma_chan;
+	enum asrc_pair_index asrc_index = p2p_params->asrc_index;
 
-	if (asrc_p2p->asrc_p2p_dma_chan) {
+	if (chan) {
 		/* Release p2p dma resource */
-		dma_release_channel(asrc_p2p->asrc_p2p_dma_chan);
-		asrc_p2p->asrc_p2p_dma_chan = NULL;
+		dma_release_channel(chan);
+		p2p_params->dma_chan = NULL;
 	}
 
-	if (asrc_p2p->asrc_index != -1) {
-		asrc_p2p->asrc_ops.asrc_p2p_release_pair(asrc_p2p->asrc_index);
-		asrc_p2p->asrc_ops.asrc_p2p_finish_conv(asrc_p2p->asrc_index);
+	if (asrc_index != -1) {
+		asrc_p2p->asrc_ops.asrc_p2p_release_pair(asrc_index);
+		asrc_p2p->asrc_ops.asrc_p2p_finish_conv(asrc_index);
+		p2p_params->asrc_index = -1;
 	}
-	asrc_p2p->asrc_index = -1;
 
 	return 0;
 }
@@ -270,8 +272,9 @@ static int fsl_asrc_p2p_hw_free(struct snd_pcm_substream *substream,
 static int fsl_asrc_dma_prepare_and_submit(struct snd_pcm_substream *substream,
 					struct fsl_asrc_p2p *asrc_p2p)
 {
-	struct dma_async_tx_descriptor *desc = asrc_p2p->asrc_p2p_desc;
-	struct dma_chan *chan = asrc_p2p->asrc_p2p_dma_chan;
+	struct fsl_asrc_p2p_params *p2p_params = &asrc_p2p->p2p_params[substream->stream];
+	struct dma_chan *chan = p2p_params->dma_chan;
+	struct dma_async_tx_descriptor *desc = p2p_params->desc;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct device *dev = rtd->platform->dev;
 
@@ -290,6 +293,9 @@ static int fsl_asrc_p2p_trigger(struct snd_pcm_substream *substream, int cmd,
 			    struct snd_soc_dai *cpu_dai)
 {
 	struct fsl_asrc_p2p *asrc_p2p = snd_soc_dai_get_drvdata(cpu_dai);
+	struct fsl_asrc_p2p_params *p2p_params = &asrc_p2p->p2p_params[substream->stream];
+	struct dma_chan *chan = p2p_params->dma_chan;
+	enum asrc_pair_index asrc_index = p2p_params->asrc_index;
 	int ret;
 
 	switch (cmd) {
@@ -299,8 +305,8 @@ static int fsl_asrc_p2p_trigger(struct snd_pcm_substream *substream, int cmd,
 		ret = fsl_asrc_dma_prepare_and_submit(substream, asrc_p2p);
 		if (ret)
 			return ret;
-		dma_async_issue_pending(asrc_p2p->asrc_p2p_dma_chan);
-		asrc_p2p->asrc_ops.asrc_p2p_start_conv(asrc_p2p->asrc_index);
+		dma_async_issue_pending(chan);
+		asrc_p2p->asrc_ops.asrc_p2p_start_conv(asrc_index);
 
 		/* Output enough data to content the DMA burstsize of BE */
 		mdelay(1);
@@ -308,8 +314,8 @@ static int fsl_asrc_p2p_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 	case SNDRV_PCM_TRIGGER_STOP:
-		dmaengine_terminate_all(asrc_p2p->asrc_p2p_dma_chan);
-		asrc_p2p->asrc_ops.asrc_p2p_stop_conv(asrc_p2p->asrc_index);
+		dmaengine_terminate_all(chan);
+		asrc_p2p->asrc_ops.asrc_p2p_stop_conv(asrc_index);
 		break;
 	default:
 		return -EINVAL;
@@ -491,7 +497,8 @@ static int fsl_asrc_p2p_probe(struct platform_device *pdev)
 	asrc_p2p->asrc_ops.asrc_p2p_release_pair    = asrc_release_pair;
 	asrc_p2p->asrc_ops.asrc_p2p_finish_conv     = asrc_finish_conv;
 
-	asrc_p2p->asrc_index = -1;
+	asrc_p2p->p2p_params[0].asrc_index = -1;
+	asrc_p2p->p2p_params[1].asrc_index = -1;
 
 	iprop_rate = of_get_property(np, "fsl,p2p-rate", NULL);
 	if (iprop_rate)
