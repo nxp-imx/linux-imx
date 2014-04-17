@@ -161,6 +161,8 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"AIN2R", NULL, "Line In Jack"},
 	{"esai-Playback",  NULL, "asrc-Playback"},
 	{"codec-Playback",  NULL, "esai-Playback"},/* dai route for be and fe */
+	{"asrc-Capture",  NULL, "esai-Capture"},
+	{"esai-Capture",  NULL, "codec-Capture"},
 };
 
 static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,

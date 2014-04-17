@@ -54,6 +54,7 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 	struct dma_slave_config slave_config;
 	dma_cap_mask_t mask;
 	struct snd_soc_dpcm *dpcm;
+	bool playback = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	int ret;
 
 	/* find the be for this fe stream */
@@ -91,9 +92,9 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 		buswidth = DMA_SLAVE_BUSWIDTH_4_BYTES;
 
 	/* reconfig memory to FIFO dma request */
-	dma_params_fe->addr = asrc_p2p->asrc_ops.asrc_p2p_per_addr(asrc_index, 1);
+	dma_params_fe->addr = asrc_p2p->asrc_ops.asrc_p2p_per_addr(asrc_index, playback);
 	dma_params_fe->maxburst = dma_params_be->maxburst;
-	fe_filter_data->dma_request0 = asrc_p2p->dmarx[asrc_index];
+	fe_filter_data->dma_request0 = playback ? asrc_p2p->dmarx[asrc_index] : asrc_p2p->dmatx[asrc_index];
 
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_SLAVE, mask);
@@ -102,7 +103,7 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 	/* config p2p dma channel */
 	p2p_params->dma_data.peripheral_type = IMX_DMATYPE_ASRC;
 	p2p_params->dma_data.priority        = DMA_PRIO_HIGH;
-	p2p_params->dma_data.dma_request1    = asrc_p2p->dmatx[asrc_index];
+	p2p_params->dma_data.dma_request1    = playback ? asrc_p2p->dmatx[asrc_index] : asrc_p2p->dmarx[asrc_index];
 	/* need to get target device's dma dma_addr, burstsize */
 	p2p_params->dma_data.dma_request0    = be_filter_data->dma_request0;
 
@@ -118,14 +119,21 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 	 * twice of dma_params's burstsize.
 	 */
 	slave_config.direction      = DMA_DEV_TO_DEV;
-	slave_config.src_addr       = asrc_p2p->asrc_ops.asrc_p2p_per_addr(asrc_index, 0);
 	slave_config.src_addr_width = buswidth;
 	slave_config.src_maxburst   = dma_params_be->maxburst * 2;
-	slave_config.dst_addr       = dma_params_be->addr;
 	slave_config.dst_addr_width = buswidth;
 	slave_config.dst_maxburst   = dma_params_be->maxburst * 2;
 	slave_config.dma_request0   = be_filter_data->dma_request0;
-	slave_config.dma_request1   = asrc_p2p->dmatx[asrc_index];
+
+	if (playback) {
+		slave_config.src_addr       = asrc_p2p->asrc_ops.asrc_p2p_per_addr(asrc_index, !playback);
+		slave_config.dst_addr       = dma_params_be->addr;
+		slave_config.dma_request1   = asrc_p2p->dmatx[asrc_index];
+	} else {
+		slave_config.dst_addr       = asrc_p2p->asrc_ops.asrc_p2p_per_addr(asrc_index, !playback);
+		slave_config.src_addr       = dma_params_be->addr;
+		slave_config.dma_request1   = asrc_p2p->dmarx[asrc_index];
+	}
 
 	ret = dmaengine_slave_config(p2p_params->dma_chan, &slave_config);
 	if (ret) {
@@ -199,29 +207,38 @@ static int config_asrc(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	config.input_word_width   = word_width;
-	config.output_word_width  = p2p_word_width;
 	config.pair               = p2p_params->asrc_index;
 	config.channel_num        = channel;
-	config.input_sample_rate  = rate;
-	config.output_sample_rate = asrc_p2p->p2p_rate;
 	config.inclk              = INCLK_NONE;
-	switch (asrc_p2p->per_dev) {
-	case SSI1:
-		config.outclk    = OUTCLK_SSI1_TX;
-		break;
-	case SSI2:
-		config.outclk    = OUTCLK_SSI2_TX;
-		break;
-	case SSI3:
-		config.outclk    = OUTCLK_SSI3_TX;
-		break;
-	case ESAI:
-		config.outclk    = OUTCLK_ESAI_TX;
-		break;
-	default:
-		dev_err(cpu_dai->dev, "peripheral device is not correct\n");
-		return -EINVAL;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		config.input_word_width   = word_width;
+		config.output_word_width  = p2p_word_width;
+		config.input_sample_rate  = rate;
+		config.output_sample_rate = asrc_p2p->p2p_rate;
+		switch (asrc_p2p->per_dev) {
+		case SSI1:
+			config.outclk    = OUTCLK_SSI1_TX;
+			break;
+		case SSI2:
+			config.outclk    = OUTCLK_SSI2_TX;
+			break;
+		case SSI3:
+			config.outclk    = OUTCLK_SSI3_TX;
+			break;
+		case ESAI:
+			config.outclk    = OUTCLK_ESAI_TX;
+			break;
+		default:
+			dev_err(cpu_dai->dev, "peripheral device is not correct\n");
+			return -EINVAL;
+		}
+	} else {
+		config.input_word_width   = p2p_word_width;
+		config.output_word_width  = word_width;
+		config.input_sample_rate  = asrc_p2p->p2p_rate;
+		config.output_sample_rate = rate;
+		config.outclk             = OUTCLK_ASRCK1_CLK;
 	}
 
 	ret = asrc_p2p->asrc_ops.asrc_p2p_config_pair(&config);
