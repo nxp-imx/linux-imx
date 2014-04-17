@@ -308,8 +308,8 @@
 
 				asrc_p2p: asrc_p2p {
 					compatible = "fsl,imx6q-asrc-p2p";
-					fsl,output-rate  = <48000>;
-					fsl,output-width = <16>;
+					fsl,p2p-rate  = <48000>;
+					fsl,p2p-width = <16>;
 					fsl,asrc-dma-rx-events = <17 18 19>;
 					fsl,asrc-dma-tx-events = <20 21 22>;
 					status = "okay";

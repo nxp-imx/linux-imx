@@ -34,8 +34,8 @@
 
 struct imx_priv {
 	int hw;
-	int fe_output_rate;
-	int fe_output_width;
+	int fe_p2p_rate;
+	int fe_p2p_width;
 	unsigned int mclk_freq;
 	unsigned int codec_mclk;
 	struct platform_device *pdev;
@@ -160,7 +160,7 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"AIN2L", NULL, "Line In Jack"},
 	{"AIN2R", NULL, "Line In Jack"},
 	{"esai-Playback",  NULL, "asrc-Playback"},
-	{"codec-Playback",  NULL, "esai-Playback"},/*Playback is the codec dai*/
+	{"codec-Playback",  NULL, "esai-Playback"},/* dai route for be and fe */
 };
 
 static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -168,10 +168,10 @@ static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 
 	struct imx_priv *priv = &card_priv;
 
-	hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE)->min = priv->fe_output_rate;
-	hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE)->max = priv->fe_output_rate;
+	hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE)->min = priv->fe_p2p_rate;
+	hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE)->max = priv->fe_p2p_rate;
 	snd_mask_none(hw_param_mask(params, SNDRV_PCM_HW_PARAM_FORMAT));
-	if (priv->fe_output_width == 16)
+	if (priv->fe_p2p_width == 16)
 		snd_mask_set(hw_param_mask(params, SNDRV_PCM_HW_PARAM_FORMAT),
 							SNDRV_PCM_FORMAT_S16_LE);
 	else
@@ -246,8 +246,8 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 			struct fsl_asrc_p2p *asrc_p2p;
 			asrc_p2p = platform_get_drvdata(asrc_pdev);
 			asrc_p2p->per_dev = ESAI;
-			priv->fe_output_rate = asrc_p2p->output_rate;
-			priv->fe_output_width = asrc_p2p->output_width;
+			priv->fe_p2p_rate = asrc_p2p->p2p_rate;
+			priv->fe_p2p_width = asrc_p2p->p2p_width;
 		}
 	}
 

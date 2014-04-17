@@ -5,8 +5,8 @@ MXC_ASRC.
 
 Required properties:
   - compatible: Should be "fsl,<chip>-asrc-p2p".
-  - fsl,output-rate: the output rate of asrc p2p. which can be <32000> to <192000>,
-  - fsl,output-width: the output width of asrc p2p. which can be <16>, <24>.
+  - fsl,p2p-rate: the p2p rate of asrc p2p. which can be <32000> to <192000>,
+  - fsl,p2p-width: the p2p width of asrc p2p. which can be <16>, <24>.
   - fsl,asrc-dma-rx-events: The rx dma event of the asrc, <a b c> corresponding
 			    to 3 pair of asrc.
   - fsl,asrc-dma-tx-events: The tx dma event of the esai, <a b c> corresponding
@@ -15,8 +15,8 @@ Required properties:
 Example:
 asrc_p2p: asrc_p2p {
 	compatible = "fsl,imx6q-asrc-p2p";
-	fsl,output-rate  = <48000>;
-	fsl,output-width = <16>;
+	fsl,p2p-rate  = <48000>;
+	fsl,p2p-width = <16>;
 	fsl,asrc-dma-rx-events = <17 18 19>;
 	fsl,asrc-dma-tx-events = <20 21 22>;
 	status = "okay";

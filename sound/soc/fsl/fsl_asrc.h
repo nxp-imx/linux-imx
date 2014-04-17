@@ -23,8 +23,8 @@ enum peripheral_device_type {
 };
 
 struct fsl_asrc_p2p {
-	int output_rate;
-	int output_width;
+	int p2p_rate;
+	int p2p_width;
 	enum asrc_pair_index asrc_index;
 	enum peripheral_device_type per_dev;
 	struct asrc_p2p_ops asrc_ops;

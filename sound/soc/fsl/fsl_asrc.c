@@ -81,7 +81,7 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 	fe_filter_data = dma_params_fe->filter_data;
 	be_filter_data = dma_params_be->filter_data;
 
-	if (asrc_p2p->output_width == 16)
+	if (asrc_p2p->p2p_width == 16)
 		buswidth = DMA_SLAVE_BUSWIDTH_2_BYTES;
 	else
 		buswidth = DMA_SLAVE_BUSWIDTH_4_BYTES;
@@ -153,8 +153,8 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	unsigned int rate    = params_rate(params);
 	unsigned int channel = params_channels(params);
 	struct asrc_config config = {0};
-	int output_word_width = 0;
-	int input_word_width = 0;
+	int p2p_word_width = 0;
+	int word_width = 0;
 	int ret = 0;
 	if ((channel != 2) && (channel != 4) && (channel != 6)) {
 		dev_err(cpu_dai->dev, "param channel is not correct\n");
@@ -167,16 +167,16 @@ static int config_asrc(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	if (asrc_p2p->output_width == 16)
-		output_word_width = ASRC_WIDTH_16_BIT;
+	if (asrc_p2p->p2p_width == 16)
+		p2p_word_width = ASRC_WIDTH_16_BIT;
 	else
-		output_word_width = ASRC_WIDTH_24_BIT;
+		p2p_word_width = ASRC_WIDTH_24_BIT;
 
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_U16:
 	case SNDRV_PCM_FORMAT_S16_LE:
 	case SNDRV_PCM_FORMAT_S16_BE:
-		input_word_width = ASRC_WIDTH_16_BIT;
+		word_width = ASRC_WIDTH_16_BIT;
 		break;
 	case SNDRV_PCM_FORMAT_S20_3LE:
 	case SNDRV_PCM_FORMAT_S20_3BE:
@@ -188,7 +188,7 @@ static int config_asrc(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_FORMAT_U24_LE:
 	case SNDRV_PCM_FORMAT_U24_3BE:
 	case SNDRV_PCM_FORMAT_U24_3LE:
-		input_word_width =  ASRC_WIDTH_24_BIT;
+		word_width =  ASRC_WIDTH_24_BIT;
 		break;
 	case SNDRV_PCM_FORMAT_S8:
 	case SNDRV_PCM_FORMAT_U8:
@@ -199,12 +199,12 @@ static int config_asrc(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	config.input_word_width   = input_word_width;
-	config.output_word_width  = output_word_width;
+	config.input_word_width   = word_width;
+	config.output_word_width  = p2p_word_width;
 	config.pair               = asrc_p2p->asrc_index;
 	config.channel_num        = channel;
 	config.input_sample_rate  = rate;
-	config.output_sample_rate = asrc_p2p->output_rate;
+	config.output_sample_rate = asrc_p2p->p2p_rate;
 	config.inclk              = INCLK_NONE;
 
 	switch (asrc_p2p->per_dev) {
@@ -493,19 +493,19 @@ static int fsl_asrc_p2p_probe(struct platform_device *pdev)
 
 	asrc_p2p->asrc_index = -1;
 
-	iprop_rate = of_get_property(np, "fsl,output-rate", NULL);
+	iprop_rate = of_get_property(np, "fsl,p2p-rate", NULL);
 	if (iprop_rate)
-		asrc_p2p->output_rate = be32_to_cpup(iprop_rate);
+		asrc_p2p->p2p_rate = be32_to_cpup(iprop_rate);
 	else {
-		dev_err(&pdev->dev, "There is no output-rate in dts\n");
+		dev_err(&pdev->dev, "There is no p2p-rate in dts\n");
 		return -EINVAL;
 	}
-	iprop_width = of_get_property(np, "fsl,output-width", NULL);
+	iprop_width = of_get_property(np, "fsl,p2p-width", NULL);
 	if (iprop_width)
-		asrc_p2p->output_width = be32_to_cpup(iprop_width);
+		asrc_p2p->p2p_width = be32_to_cpup(iprop_width);
 
-	if (asrc_p2p->output_width != 16 && asrc_p2p->output_width != 24) {
-		dev_err(&pdev->dev, "output_width is not acceptable\n");
+	if (asrc_p2p->p2p_width != 16 && asrc_p2p->p2p_width != 24) {
+		dev_err(&pdev->dev, "p2p_width is not acceptable\n");
 		return -EINVAL;
 	}
 
