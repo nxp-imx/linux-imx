@@ -130,12 +130,12 @@ static int fec_ptp_insert(struct fec_ptp_circular *ptp_buf,
 {
 	struct fec_ptp_ts_data *tmp;
 
-	if (fec_ptp_is_full(ptp_buf))
-		ptp_buf->end = fec_ptp_calc_index(ptp_buf->size,
-						ptp_buf->end, 1);
-
 	tmp = (ptp_buf->data_buf + ptp_buf->end);
 	memcpy(tmp, data, sizeof(struct fec_ptp_ts_data));
+	if (fec_ptp_is_full(ptp_buf))
+		/* drop one in front */
+		ptp_buf->front =
+			fec_ptp_calc_index(ptp_buf->size, ptp_buf->front, 1);
 	ptp_buf->end = fec_ptp_calc_index(ptp_buf->size, ptp_buf->end, 1);
 
 	return 0;
@@ -186,7 +186,6 @@ static int fec_ptp_find_and_remove(struct fec_ptp_circular *ptp_buf,
 		return 1;
 	}
 	*ts = (ptp_buf->data_buf + i)->ts;
-	ptp_buf->front = fec_ptp_calc_index(size, ptp_buf->front, 1);
 
 	return 0;
 }
@@ -823,11 +822,14 @@ int fec_ptp_ioctl(struct net_device *ndev, struct ifreq *ifr, int cmd)
 		if (0 != copy_from_user(&p_ts.ident,
 			&p_ts_user->ident, sizeof(p_ts.ident)))
 			return -EINVAL;
-		retval = fec_ptp_find_and_remove(&fep->rx_timestamps,
-				&p_ts.ident, &rx_time);
-		if (retval == 0 &&
-			copy_to_user((void __user *)(&p_ts_user->ts),
-				&rx_time, sizeof(rx_time)))
+
+		if (fec_ptp_find_and_remove(&fep->rx_timestamps,
+			&p_ts.ident, &rx_time)) {
+			usleep_range(4000, 5000);
+			return -EAGAIN;
+		}
+		if (copy_to_user((void __user *)(&p_ts_user->ts),
+			&rx_time, sizeof(rx_time)))
 			return -EFAULT;
 		break;
 	case PTP_GET_TX_TIMESTAMP:
@@ -835,12 +837,15 @@ int fec_ptp_ioctl(struct net_device *ndev, struct ifreq *ifr, int cmd)
 		if (0 != copy_from_user(&p_ts.ident,
 			&p_ts_user->ident, sizeof(p_ts.ident)))
 			return -EINVAL;
-		retval = fec_ptp_find_and_remove(&fep->tx_timestamps,
-				&p_ts.ident, &tx_time);
-		if (retval == 0 &&
-			copy_to_user((void __user *)(&p_ts_user->ts),
-				&tx_time, sizeof(tx_time)))
-			retval = -EFAULT;
+
+		if (fec_ptp_find_and_remove(&fep->tx_timestamps,
+			&p_ts.ident, &tx_time)) {
+			usleep_range(4000, 5000);
+			return -EAGAIN;
+		}
+		if (copy_to_user((void __user *)(&p_ts_user->ts),
+			&tx_time, sizeof(tx_time)))
+			return -EFAULT;
 		break;
 	case PTP_GET_CURRENT_TIME:
 		fec_get_curr_cnt(fep, &curr_time);
