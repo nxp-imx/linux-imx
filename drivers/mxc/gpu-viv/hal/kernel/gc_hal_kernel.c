@@ -328,7 +328,7 @@ gckKERNEL_Construct(
         /* Initialize virtual command buffer. */
         /* TODO: Remove platform limitation after porting. */
 #if (defined(LINUX) || defined(__QNXNTO__))
-        kernel->virtualCommandBuffer = gcvTRUE;
+        kernel->virtualCommandBuffer = gcvFALSE;
 #else
         kernel->virtualCommandBuffer = gcvFALSE;
 #endif

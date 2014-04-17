@@ -105,7 +105,7 @@
 #define gcdNOWARN 0
 #endif
 
-#define gcdUSE_NON_PAGED_MEMORY_CACHE 0
+#define gcdUSE_NON_PAGED_MEMORY_CACHE 10
 
 /******************************************************************************\
 ********************************** Structures **********************************
