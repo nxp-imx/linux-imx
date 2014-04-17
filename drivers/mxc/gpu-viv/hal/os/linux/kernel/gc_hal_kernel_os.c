@@ -1667,7 +1667,7 @@ gckOS_AllocateCMAMemoryFSL(
     gctINT numPages;
     PLINUX_MDL mdl = gcvNULL;
     gctBOOL locked = gcvFALSE;
-    gceSTATUS status;
+    gceSTATUS status = gcvSTATUS_OUT_OF_MEMORY;
     gckALLOCATOR allocator;
     gctUINT32 flag = 0;
 
@@ -1707,6 +1707,9 @@ gckOS_AllocateCMAMemoryFSL(
             }
         }
     }
+
+    /* Check status. */
+    gcmkONERROR(status);
 
     mdl->pagedMem = 0;
     mdl->numPages = numPages;
