@@ -993,7 +993,7 @@ _AllocateMemory_Retry:
 
     /* Encode surface type and pool to database type. */
     type = gcvDB_VIDEO_MEMORY
-         | (Type << gcdDB_VIDEO_MEMORY_TYPE_SHIFT)
+         | ((Type & 0xFF) << gcdDB_VIDEO_MEMORY_TYPE_SHIFT)
          | (pool << gcdDB_VIDEO_MEMORY_POOL_SHIFT);
 
     /* Record in process db. */
@@ -1066,7 +1066,7 @@ gckKERNEL_ReleaseVideoMemory(
         gckVIDMEM_HANDLE_Lookup(Kernel, ProcessID, Handle, &nodeObject));
 
     type = gcvDB_VIDEO_MEMORY
-         | (nodeObject->type << gcdDB_VIDEO_MEMORY_TYPE_SHIFT)
+         | ((nodeObject->type & 0xFF) << gcdDB_VIDEO_MEMORY_TYPE_SHIFT)
          | (nodeObject->pool << gcdDB_VIDEO_MEMORY_POOL_SHIFT);
 
     gcmkONERROR(

@@ -647,7 +647,7 @@ _RemoveRecordFromProcesDB(
             freeVideoMemory->node = gcmALL_TO_UINT32(nodeObject);
 
             type = gcvDB_VIDEO_MEMORY
-                | (nodeObject->type << gcdDB_VIDEO_MEMORY_TYPE_SHIFT)
+                | ((nodeObject->type & 0xFF) << gcdDB_VIDEO_MEMORY_TYPE_SHIFT)
                 | (nodeObject->pool << gcdDB_VIDEO_MEMORY_POOL_SHIFT);
 
             /* Remove record from process db. */
