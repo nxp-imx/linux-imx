@@ -31,7 +31,7 @@
 
 #define gcvVERSION_BUILD     17486
 
-#define gcvVERSION_STRING    "5.0.11.14786"
+#define gcvVERSION_STRING    "5.0.11.17486"
 
 #define gcvVERSION_DATE      __DATE__
 
