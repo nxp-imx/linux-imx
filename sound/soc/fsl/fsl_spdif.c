@@ -78,6 +78,7 @@ struct fsl_spdif_priv {
 	struct regmap *regmap;
 	bool dpll_locked;
 	u8 txclk_div[SPDIF_TXRATE_MAX];
+	u8 sysclk_df[SPDIF_TXRATE_MAX];
 	u8 txclk_src[SPDIF_TXRATE_MAX];
 	u8 rxclk_src;
 	struct clk *txclk[SPDIF_TXRATE_MAX];
@@ -354,8 +355,7 @@ static int spdif_set_sample_rate(struct snd_pcm_substream *substream,
 	struct platform_device *pdev = spdif_priv->pdev;
 	unsigned long csfs = 0;
 	u32 stc, mask, rate;
-	u8 clk, div;
-	int ret;
+	u8 clk, div, df;
 
 	switch (sample_rate) {
 	case 32000:
@@ -387,19 +387,10 @@ static int spdif_set_sample_rate(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	/*
-	 * The S/PDIF block needs a clock of 64 * fs * div.  The S/PDIF block
-	 * will divide by (div).  So request 64 * fs * (div+1) which will
-	 * get rounded.
-	 */
-	ret = clk_set_rate(spdif_priv->txclk[rate], 64 * sample_rate * (div + 1));
-	if (ret) {
-		dev_err(&pdev->dev, "failed to set tx clock rate\n");
-		return ret;
-	}
+	df = spdif_priv->sysclk_df[rate];
 
 	dev_dbg(&pdev->dev, "expected clock rate = %d\n",
-			(64 * sample_rate * div));
+			(64 * sample_rate * div * df));
 	dev_dbg(&pdev->dev, "actual clock rate = %ld\n",
 			clk_get_rate(spdif_priv->txclk[rate]));
 
@@ -410,6 +401,13 @@ static int spdif_set_sample_rate(struct snd_pcm_substream *substream,
 	stc = STC_TXCLK_ALL_EN | STC_TXCLK_SRC_SET(clk) | STC_TXCLK_DIV(div);
 	mask = STC_TXCLK_ALL_EN_MASK | STC_TXCLK_SRC_MASK | STC_TXCLK_DIV_MASK;
 	regmap_update_bits(regmap, REG_SPDIF_STC, mask, stc);
+
+	/* The min of df should be 2 if valid */
+	if (df >= 2) {
+		regmap_update_bits(regmap, REG_SPDIF_STC,
+				   STC_SYSCLK_DIV_MASK, STC_SYSCLK_DIV(df));
+		dev_dbg(&pdev->dev, "use df %d clk %d\n", df, clk);
+	}
 
 	dev_dbg(&pdev->dev, "set sample rate to %d\n", sample_rate);
 
@@ -1013,40 +1011,51 @@ static u32 fsl_spdif_txclk_caldiv(struct fsl_spdif_priv *spdif_priv,
 				enum spdif_txrate index)
 {
 	const u32 rate[] = { 32000, 44100, 48000 };
-	u64 rate_ideal, rate_actual, sub;
+	bool is_sysclk = clk == spdif_priv->sysclk;
+	u64 rate_actual, sub;
+	u32 df_min, df_max, df;
 	u32 div, arate;
 
-	for (div = 1; div <= 128; div++) {
-		rate_ideal = rate[index] * (div + 1) * 64;
-		rate_actual = clk_round_rate(clk, rate_ideal);
+	/* The sysclk has an extra divisor [2, 512] */
+	df_min = is_sysclk ? 2 : 1;
+	df_max = is_sysclk ? 512 : 1;
 
-		arate = rate_actual / 64;
-		arate /= div;
+	for (df = df_min; df <= df_max; df++) {
+		for (div = 1; div <= 128; div++) {
+			rate_actual = clk_get_rate(clk);
 
-		if (arate == rate[index]) {
-			/* We are lucky */
-			savesub = 0;
-			spdif_priv->txclk_div[index] = div;
-			break;
-		} else if (arate / rate[index] == 1) {
-			/* A little bigger than expect */
-			sub = (arate - rate[index]) * 100000;
-			do_div(sub, rate[index]);
-			if (sub < savesub) {
+			arate = rate_actual / 64;
+			arate /= df * div;
+
+			if (arate == rate[index]) {
+				/* We are lucky */
+				savesub = 0;
+				spdif_priv->txclk_div[index] = div;
+				spdif_priv->sysclk_df[index] = df;
+				goto out;
+			} else if (arate / rate[index] == 1) {
+				/* A little bigger than expect */
+				sub = (arate - rate[index]) * 100000;
+				do_div(sub, rate[index]);
+				if (sub >= savesub)
+					continue;
 				savesub = sub;
 				spdif_priv->txclk_div[index] = div;
-			}
-		} else if (rate[index] / arate == 1) {
-			/* A little smaller than expect */
-			sub = (rate[index] - arate) * 100000;
-			do_div(sub, rate[index]);
-			if (sub < savesub) {
+				spdif_priv->sysclk_df[index] = df;
+			} else if (rate[index] / arate == 1) {
+				/* A little smaller than expect */
+				sub = (rate[index] - arate) * 100000;
+				do_div(sub, rate[index]);
+				if (sub >= savesub)
+					continue;
 				savesub = sub;
 				spdif_priv->txclk_div[index] = div;
+				spdif_priv->sysclk_df[index] = df;
 			}
 		}
 	}
 
+out:
 	return savesub;
 }
 
@@ -1071,13 +1080,6 @@ static int fsl_spdif_probe_txclk(struct fsl_spdif_priv *spdif_priv,
 		if (!clk_get_rate(clk))
 			continue;
 
-		/* TODO: We here ignore sysclk source due to imperfect clock
-		 * selecting mechanism: sysclk is a bit different which we can
-		 * not change its clock rate but use another inner divider to
-		 * derive a proper clock rate. */
-		if (i == SPDIF_CLK_SRC_SYSCLK)
-			continue;
-
 		ret = fsl_spdif_txclk_caldiv(spdif_priv, clk, savesub, index);
 		if (savesub == ret)
 			continue;
@@ -1095,6 +1097,9 @@ static int fsl_spdif_probe_txclk(struct fsl_spdif_priv *spdif_priv,
 			spdif_priv->txclk_src[index], rate[index]);
 	dev_dbg(&pdev->dev, "use divisor %d for %dHz sample rate\n",
 			spdif_priv->txclk_div[index], rate[index]);
+	if (spdif_priv->txclk[index] == spdif_priv->sysclk)
+		dev_dbg(&pdev->dev, "use sysclk_df %d for %dHz sample rate\n",
+				spdif_priv->sysclk_df[index], rate[index]);
 
 	return 0;
 }
