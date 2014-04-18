@@ -1,7 +1,7 @@
 /*
  * Freescale S/PDIF ALSA SoC Digital Audio Interface (DAI) driver
  *
- * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.
  *
  * Based on stmp3xxx_spdif_dai.c
  * Vladimir Barinov <vbarinov@embeddedalley.com>
@@ -82,6 +82,7 @@ struct fsl_spdif_priv {
 	u8 rxclk_src;
 	struct clk *txclk[SPDIF_TXRATE_MAX];
 	struct clk *rxclk;
+	struct clk *coreclk;
 	struct clk *sysclk;
 	struct clk *dmaclk;
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
@@ -426,6 +427,7 @@ static int fsl_spdif_startup(struct snd_pcm_substream *substream,
 	int ret;
 
 	pm_runtime_get_sync(cpu_dai->dev);
+	clk_prepare_enable(spdif_priv->coreclk);
 	clk_prepare_enable(spdif_priv->dmaclk);
 
 	/* Reset module and interrupts only for first initialization */
@@ -494,6 +496,7 @@ static void fsl_spdif_shutdown(struct snd_pcm_substream *substream,
 	}
 
 	clk_disable_unprepare(spdif_priv->dmaclk);
+	clk_disable_unprepare(spdif_priv->coreclk);
 	pm_runtime_put_sync(cpu_dai->dev);
 }
 
@@ -1160,6 +1163,13 @@ static int fsl_spdif_probe(struct platform_device *pdev)
 	if (IS_ERR(spdif_priv->sysclk)) {
 		dev_err(&pdev->dev, "no system clock(rxtx5) in devicetree\n");
 		return PTR_ERR(spdif_priv->sysclk);
+	}
+
+	/* Get core clock for data register access via DMA */
+	spdif_priv->coreclk = devm_clk_get(&pdev->dev, "core");
+	if (IS_ERR(spdif_priv->coreclk)) {
+		dev_err(&pdev->dev, "no core clock in devicetree\n");
+		return PTR_ERR(spdif_priv->coreclk);
 	}
 
 	/* Get dma clock for dma script operation */
