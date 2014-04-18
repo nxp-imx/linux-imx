@@ -247,6 +247,11 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 		if (asrc_pdev) {
 			struct fsl_asrc_p2p *asrc_p2p;
 			asrc_p2p = platform_get_drvdata(asrc_pdev);
+			if (!asrc_p2p) {
+				dev_err(&pdev->dev, "failed to get p2p params\n");
+				ret = -EINVAL;
+				goto fail;
+			}
 			asrc_p2p->per_dev = ESAI;
 			priv->fe_p2p_rate = asrc_p2p->p2p_rate;
 			priv->fe_p2p_width = asrc_p2p->p2p_width;
