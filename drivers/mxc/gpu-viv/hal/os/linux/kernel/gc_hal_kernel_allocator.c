@@ -886,9 +886,9 @@ gckALLOCATOR_Construct(
         );
 
     gcmkONERROR(
-        gckOS_Allocate(Os, gcmSIZEOF(gckALLOCATOR), (gctPOINTER *)&allocator));
+        gckOS_Allocate(Os, gcmSIZEOF(gcsALLOCATOR), (gctPOINTER *)&allocator));
 
-    gckOS_ZeroMemory(allocator, gcmSIZEOF(gckALLOCATOR));
+    gckOS_ZeroMemory(allocator, gcmSIZEOF(gcsALLOCATOR));
 
     /* Record os. */
     allocator->os = Os;
