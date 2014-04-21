@@ -1520,6 +1520,8 @@ gckCOMMAND_Commit(
         entryLogical  =                commandBufferLogical  + offset;
         entryAddress  =                commandBufferAddress  + offset;
         entryBytes    =                commandBufferSize     - offset;
+
+        Command->currContext = gcvNULL;
     }
     else if (Command->currContext != Context)
     {
