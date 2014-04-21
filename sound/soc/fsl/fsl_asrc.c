@@ -120,9 +120,9 @@ static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 	 */
 	slave_config.direction      = DMA_DEV_TO_DEV;
 	slave_config.src_addr_width = buswidth;
-	slave_config.src_maxburst   = dma_params_be->maxburst * 2;
+	slave_config.src_maxburst   = dma_params_be->maxburst;
 	slave_config.dst_addr_width = buswidth;
-	slave_config.dst_maxburst   = dma_params_be->maxburst * 2;
+	slave_config.dst_maxburst   = dma_params_be->maxburst;
 	slave_config.dma_request0   = be_filter_data->dma_request0;
 
 	if (playback) {
