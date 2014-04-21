@@ -1067,6 +1067,7 @@ static int fsl_spdif_probe_txclk(struct fsl_spdif_priv *spdif_priv,
 	struct device *dev = &pdev->dev;
 	u64 savesub = 100000, ret;
 	struct clk *clk;
+	long rate_final;
 	char tmp[16];
 	int i;
 
@@ -1100,6 +1101,10 @@ static int fsl_spdif_probe_txclk(struct fsl_spdif_priv *spdif_priv,
 	if (spdif_priv->txclk[index] == spdif_priv->sysclk)
 		dev_dbg(&pdev->dev, "use sysclk_df %d for %dHz sample rate\n",
 				spdif_priv->sysclk_df[index], rate[index]);
+	rate_final = clk_get_rate(spdif_priv->txclk[index]);
+	rate_final /= 64 * spdif_priv->txclk_div[index] * spdif_priv->sysclk_df[index];
+	dev_dbg(&pdev->dev, "The best rate for %dHz sample rate is %ldHz\n",
+			rate[index], rate_final);
 
 	return 0;
 }
