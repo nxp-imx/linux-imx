@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -577,7 +577,7 @@ static void disp_work_func(struct work_struct *work)
 	unsigned long flags = 0;
 	struct ipu_pos ipos;
 	int ret = 0;
-	u32 in_fmt = 0;
+	u32 in_fmt = 0, in_width = 0, in_height = 0;
 	u32 vdi_cnt = 0;
 	u32 vdi_frame;
 	u32 index = 0;
@@ -689,7 +689,11 @@ vdi_frame_rate_double:
 			}
 			vout->task.input.paddr = vout->vdoa_task.output.paddr;
 			in_fmt = vout->task.input.format;
+			in_width = vout->task.input.width;
+			in_height = vout->task.input.height;
 			vout->task.input.format = vout->vdoa_task.output.format;
+			vout->task.input.width = vout->vdoa_task.output.width;
+			vout->task.input.height = vout->vdoa_task.output.height;
 			if (vout->task.input.deinterlace.enable) {
 				tiled_interlaced = 1;
 				vout->task.input.deinterlace.enable = 0;
@@ -698,8 +702,11 @@ vdi_frame_rate_double:
 					"tiled queue task\n");
 		}
 		ret = ipu_queue_task(&vout->task);
-		if ((!vout->tiled_bypass_pp) && tiled_fmt)
+		if ((!vout->tiled_bypass_pp) && tiled_fmt) {
 			vout->task.input.format = in_fmt;
+			vout->task.input.width = in_width;
+			vout->task.input.height = in_height;
+		}
 		if (tiled_interlaced)
 			vout->task.input.deinterlace.enable = 1;
 		if (ret < 0) {
@@ -1101,6 +1108,7 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 {
 	int ret;
 	int is_1080p_stream;
+	int in_width, in_height;
 	size_t size;
 	struct ipu_task *ipu_task = &vout->task;
 	struct ipu_crop *icrop = &ipu_task->input.crop;
@@ -1146,6 +1154,8 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 	if (is_1080p_stream)
 		ipu_task->input.crop.h = VALID_HEIGHT_1080P;
 	in_fmt = ipu_task->input.format;
+	in_width = ipu_task->input.width;
+	in_height = ipu_task->input.height;
 	ipu_task->input.format = vdoa_task->output.format;
 	ipu_task->input.height = vdoa_task->output.height;
 	ipu_task->input.width = vdoa_task->output.width;
@@ -1155,6 +1165,8 @@ static inline int vdoaipu_try_task(struct mxc_vout_output *vout)
 	if (deinterlace)
 		ipu_task->input.deinterlace.enable = 1;
 	ipu_task->input.format = in_fmt;
+	ipu_task->input.width = in_width;
+	ipu_task->input.height = in_height;
 
 	return ret;
 }
