@@ -815,8 +815,8 @@ _AllocateMemory_Retry:
             if(node)
             {
                 bytes = node->Virtual.bytes;
+                node->Virtual.type = Type;
             }
-            node->Virtual.type = Type;
 
             /* Success. */
             break;
@@ -842,8 +842,8 @@ _AllocateMemory_Retry:
                 if(node)
                 {
                     bytes = node->Virtual.bytes;
+                    node->Virtual.type = Type;
                 }
-                node->Virtual.type = Type;
 
                 /* Memory allocated. */
                 if(node && forceContiguous == gcvTRUE)
