@@ -359,16 +359,23 @@ ENTRY(mx6_lpddr2_freq_change)
 	 *     and 2-4G is translated by TTBR1.
 	 */
 
+	ldr	r6, =iram_tlb_phys_addr
+	ldr	r7, [r6]
+
+
 	/* Flush the Branch Target Address Cache (BTAC) */
 	ldr	r6, =0x0
 	mcr	p15, 0, r6, c7, c1, 6
 
-	ldr	r6, =iram_tlb_phys_addr
-	ldr	r6, [r6]
+	/* Disable Branch Prediction, Z bit in SCTLR. */
+	mrc	p15, 0, r6, c1, c0, 0
+	bic	r6, r6, #0x800
+	mcr	p15, 0, r6, c1, c0, 0
+
 	dsb
 	isb
 	/* Store the IRAM table in TTBR1 */
-	mcr	p15, 0, r6, c2, c0, 1
+	mcr	p15, 0, r7, c2, c0, 1
 
 	/* Read TTBCR and set PD0=1, N = 1 */
 	mrc	p15, 0, r6, c2, c0, 2
@@ -382,28 +389,38 @@ ENTRY(mx6_lpddr2_freq_change)
 	ldr	r6, =0x0
 	mcr	p15, 0, r6, c8, c3, 0
 
+	/* Disable L1 data cache. */
+	mrc	p15, 0, r6, c1, c0, 0
+	bic	r6, r6, #0x4
+	mcr	p15, 0, r6, c1, c0, 0
+
 	dsb
 	isb
 
-	ldr	r3, =IMX_IO_P2V(MX6Q_ANATOP_BASE_ADDR)
-	ldr	r2, =IMX_IO_P2V(MX6Q_CCM_BASE_ADDR)
-	ldr	r8, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
-	ldr	r7, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
 
 #ifdef CONFIG_CACHE_L2X0
 	/*
 	 * Need to make sure the buffers in L2 are drained.
 	 * Performing a sync operation does this.
 	 */
+	ldr	r7, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
 	mov	r6, #0x0
 	str	r6, [r7, #0x730]
+
 	/*
 	 * The second dsb might be needed to keep cache sync (device write)
 	 * ordering with the memory accesses before it.
 	 */
 	dsb
 	isb
+
+	/* Disable L2. */
+	str	r6, [r7, #0x100]
 #endif
+
+	ldr	r3, =IMX_IO_P2V(MX6Q_ANATOP_BASE_ADDR)
+	ldr	r2, =IMX_IO_P2V(MX6Q_CCM_BASE_ADDR)
+	ldr	r8, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
 
 	/* Disable Automatic power savings. */
 	ldr	r6, [r8, #0x404]
@@ -498,9 +515,22 @@ skip_power_down:
 	bic	r6, r6, #0x100
 	str	r6, [r8, #0x410]
 
+#ifdef CONFIG_CACHE_L2X0
+	/* Enable L2. */
+	ldr	r7, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
+	ldr	r6, =0x1
+	str	r6, [r7, #0x100]
+#endif
+
+	/* Enable L1 data cache. */
+	mrc	p15, 0, r6, c1, c0, 0
+	orr	r6, r6, #0x4
+	mcr	p15, 0, r6, c1, c0, 0
+
 	/* Restore the TTBCR */
 	dsb
 	isb
+
 	/* Read TTBCR and set PD0=0, N = 0 */
 	mrc	p15, 0, r6, c2, c0, 2
 	bic	r6, r6, #0x11
@@ -514,6 +544,15 @@ skip_power_down:
 
 	dsb
 	isb
+
+	/* Enable Branch Prediction, Z bit in SCTLR. */
+	mrc	p15, 0, r6, c1, c0, 0
+	orr	r6, r6, #0x800
+	mcr	p15, 0, r6, c1, c0, 0
+
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
 
 	nop
 	nop

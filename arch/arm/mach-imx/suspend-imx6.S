@@ -640,6 +640,11 @@ ddr_io_save_dsm_done:
 	ldr r6, =0x0
 	mcr p15, 0, r6, c7, c1, 6
 
+	/* Disable Branch Prediction, Z bit in SCTLR. */
+	mrc	p15, 0, r6, c1, c0, 0
+	bic	r6, r6, #0x800
+	mcr	p15, 0, r6, c1, c0, 0
+
 	ldr r6, =iram_tlb_phys_addr
 	ldr r6, [r6]
 	dsb
@@ -658,6 +663,23 @@ ddr_io_save_dsm_done:
 	/* flush the TLB */
 	ldr r6, =0x0
 	mcr p15, 0, r6, c8, c3, 0
+
+	/* Disable L1 data cache. */
+	mrc	p15, 0, r6, c1, c0, 0
+	bic	r6, r6, #0x4
+	mcr	p15, 0, r6, c1, c0, 0
+
+	dsb
+	isb
+
+#ifdef CONFIG_CACHE_L2X0
+	ldr	r8, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
+	mov	r6, #0x0
+	str	r6, [r8, #0x100]
+
+	dsb
+	isb
+#endif
 
 	ldr	r8, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
 	/*
@@ -861,6 +883,18 @@ poll_dvfs_clear_2:
 	bic	r7, r7, #0x1
 	str	r7, [r8, #MX6Q_MMDC_MAPSR]
 
+#ifdef CONFIG_CACHE_L2X0
+	/* Enable L2. */
+	ldr	r8, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
+	ldr	r7, =0x1
+	str	r7, [r8, #0x100]
+#endif
+
+	/* Enable L1 data cache. */
+	mrc	p15, 0, r6, c1, c0, 0
+	orr	r6, r6, #0x4
+	mcr	p15, 0, r6, c1, c0, 0
+
 	/* Restore TTBCR */
 	dsb
 	isb
@@ -874,6 +908,15 @@ poll_dvfs_clear_2:
 	/* flush the TLB */
 	ldr	r6, =0x0
 	mcr	p15, 0, r6, c8, c3, 0
+
+	/* Enable Branch Prediction, Z bit in SCTLR. */
+	mrc	p15, 0, r6, c1, c0, 0
+	orr	r6, r6, #0x800
+	mcr	p15, 0, r6, c1, c0, 0
+
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
 
 	pop {r4-r12}
 
