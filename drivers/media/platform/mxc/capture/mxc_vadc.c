@@ -459,8 +459,8 @@ static void vadc_get_std(struct vadc_data *vadc, v4l2_std_id *std)
 	if (*std != vadc->std_id) {
 		video_idx = idx;
 		vadc->std_id = *std;
-		vadc->sen.pix.width = video_fmts[video_idx].raw_width;
-		vadc->sen.pix.height = video_fmts[video_idx].raw_height;
+		vadc->sen.pix.width = video_fmts[video_idx].active_width;
+		vadc->sen.pix.height = video_fmts[video_idx].active_height;
 	}
 }
 
@@ -843,8 +843,8 @@ static int vadc_probe(struct platform_device *pdev)
 	vadc->sen.streamcap.timeperframe.numerator = 1;
 	vadc->std_id = V4L2_STD_ALL;
 	video_idx = VADC_NTSC;
-	vadc->sen.pix.width = video_fmts[video_idx].raw_width;
-	vadc->sen.pix.height = video_fmts[video_idx].raw_height;
+	vadc->sen.pix.width = video_fmts[video_idx].active_width;
+	vadc->sen.pix.height = video_fmts[video_idx].active_height;
 	vadc->sen.pix.pixelformat = V4L2_PIX_FMT_YUV444;  /* YUV444 */
 	vadc->sen.pix.priv = 1;  /* 1 is used to indicate TV in */
 	vadc->sen.on = true;
