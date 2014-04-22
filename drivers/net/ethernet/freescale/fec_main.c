@@ -1251,7 +1251,7 @@ fec_enet_interrupt(int irq, void *dev_id)
 			complete(&fep->mdio_done);
 			fep->work_mdio = 0;
 		}
-	} while (fec_enet_collect_events(fep));
+	} while (1);
 
 	return ret;
 }
