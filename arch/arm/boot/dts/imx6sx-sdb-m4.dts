@@ -1,0 +1,29 @@
+/*
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "imx6sx-sdb.dts"
+
+/*
+ * The flollowing modules are conflicting with M4, disable them when m4
+ * is running.
+ */
+&flexcan1 {
+	status = "disabled";
+};
+
+&flexcan2 {
+	status = "disabled";
+};
+
+&i2c3 {
+        status = "disabled";
+};
+
+&uart2 {
+	status = "disabled";
+};
