@@ -1,7 +1,7 @@
 /*
  * OTG Finite State Machine from OTG spec
  *
- * Copyright (C) 2007,2008 Freescale Semiconductor, Inc.
+ * Copyright (C) 2007-2014 Freescale Semiconductor, Inc.
  *
  * Author:	Li Yang <LeoLi@freescale.com>
  *		Jerry Huang <Chang-Ming.Huang@freescale.com>
@@ -363,3 +363,4 @@ int otg_statemachine(struct otg_fsm *fsm)
 	VDBG("quit statemachine, changed = %d\n", state_changed);
 	return state_changed;
 }
+EXPORT_SYMBOL_GPL(otg_statemachine);
