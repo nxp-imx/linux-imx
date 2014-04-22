@@ -42,6 +42,24 @@
 
 #include "hardware.h"
 
+/*
+ * This structure is for passing necessary data for low level ocram
+ * busfreq code(arch/arm/mach-imx/ddr3_freq_imx6.S), if this struct
+ * definition is changed, the offset definition in
+ * arch/arm/mach-imx/ddr3_freq_imx6.S must be also changed accordingly,
+ * otherwise, the busfreq change function will be broken!
+ *
+ * This structure will be placed in front of the asm code on ocram.
+ */
+struct imx6_busfreq_info {
+	u32 freq;
+	void *ddr_settings;
+	u32 dll_off;
+	void *iomux_offsets;
+} __aligned(8);
+
+static struct imx6_busfreq_info *imx6sx_busfreq_info;
+
 /* DDR settings */
 static unsigned long (*iram_ddr_settings)[2];
 static unsigned long (*normal_mmdc_settings)[2];
@@ -59,6 +77,9 @@ static volatile unsigned int cpus_in_wfe;
 static volatile bool wait_for_ddr_freq_update;
 static int curr_ddr_rate;
 
+void (*imx6sx_change_ddr_freq)(struct imx6_busfreq_info *busfreq_info);
+extern void imx6sx_ddr3_freq_change(struct imx6_busfreq_info *busfreq_info);
+
 void (*mx6_change_ddr_freq)(u32 freq, void *ddr_settings,
 	bool dll_mode, void *iomux_offsets) = NULL;
 
@@ -74,6 +95,31 @@ extern unsigned long iram_tlb_phys_addr;
 
 #define MIN_DLL_ON_FREQ		333000000
 #define MAX_DLL_OFF_FREQ		125000000
+
+unsigned long ddr3_dll_mx6sx[][2] = {
+	{0x0c, 0x0},
+	{0x10, 0x0},
+	{0x30, 0x0},
+	{0x1C, 0x04008032},
+	{0x1C, 0x00068031},
+	{0x1C, 0x05208030},
+	{0x1C, 0x04008040},
+	{0x818, 0x0},
+};
+
+unsigned long ddr3_calibration_mx6sx[][2] = {
+	{0x83c, 0x0},
+	{0x840, 0x0},
+	{0x848, 0x0},
+	{0x850, 0x0},
+};
+
+unsigned long iomux_offsets_mx6sx[][2] = {
+	{0x330, 0x0},
+	{0x334, 0x0},
+	{0x338, 0x0},
+	{0x33c, 0x0},
+};
 
 unsigned long ddr3_dll_mx6q[][2] = {
 	{0x0c, 0x0},
@@ -164,8 +210,49 @@ irqreturn_t wait_in_wfe_irq(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+int update_ddr_freq_imx6sx(int ddr_rate)
+{
+	int i;
+	bool dll_off = false;
+	unsigned long ttbr1;
+
+	if (ddr_rate == curr_ddr_rate)
+		return 0;
+
+	printk(KERN_DEBUG "\nBus freq set to %d start...\n", ddr_rate);
+
+	if (low_bus_freq_mode || audio_bus_freq_mode)
+		dll_off = true;
+
+	imx6sx_busfreq_info->dll_off = dll_off;
+	iram_ddr_settings[0][0] = ddr_settings_size;
+	iram_iomux_settings[0][0] = iomux_settings_size;
+	for (i = 0; i < iram_ddr_settings[0][0]; i++) {
+		iram_ddr_settings[i + 1][0] =
+				normal_mmdc_settings[i][0];
+		iram_ddr_settings[i + 1][1] =
+				normal_mmdc_settings[i][1];
+	}
+
+	local_irq_disable();
+
+	ttbr1 = save_ttbr1();
+	imx6sx_busfreq_info->freq = ddr_rate;
+	imx6sx_busfreq_info->ddr_settings = iram_ddr_settings;
+	imx6sx_busfreq_info->iomux_offsets = iram_iomux_settings;
+	imx6sx_change_ddr_freq(imx6sx_busfreq_info);
+	restore_ttbr1(ttbr1);
+	curr_ddr_rate = ddr_rate;
+
+	local_irq_enable();
+
+	printk(KERN_DEBUG "Bus freq set to %d done!\n", ddr_rate);
+
+	return 0;
+}
+
 /* change the DDR frequency. */
-int update_ddr_freq(int ddr_rate)
+int update_ddr_freq_imx6q(int ddr_rate)
 {
 	int i, j;
 	unsigned int reg;
@@ -252,7 +339,83 @@ int update_ddr_freq(int ddr_rate)
 	return 0;
 }
 
-int init_mmdc_ddr3_settings(struct platform_device *busfreq_pdev)
+int init_mmdc_ddr3_settings_imx6sx(struct platform_device *busfreq_pdev)
+{
+	int i;
+	struct device_node *node;
+
+	node = of_find_compatible_node(NULL, NULL, "fsl,imx6q-mmdc");
+	if (!node) {
+		printk(KERN_ERR "failed to find mmdc device tree data!\n");
+		return -EINVAL;
+	}
+	mmdc_base = of_iomap(node, 0);
+	WARN(!mmdc_base, "unable to map mmdc registers\n");
+
+	node = of_find_compatible_node(NULL, NULL, "fsl,imx6sx-iomuxc");
+	if (!node) {
+		printk(KERN_ERR "failed to find iomuxc device tree data!\n");
+		return -EINVAL;
+	}
+	iomux_base = of_iomap(node, 0);
+	WARN(!iomux_base, "unable to map iomux registers\n");
+
+	ddr_settings_size = ARRAY_SIZE(ddr3_dll_mx6sx) +
+		ARRAY_SIZE(ddr3_calibration_mx6sx);
+
+	normal_mmdc_settings = kmalloc((ddr_settings_size * 8), GFP_KERNEL);
+	memcpy(normal_mmdc_settings, ddr3_dll_mx6sx,
+		sizeof(ddr3_dll_mx6sx));
+	memcpy(((char *)normal_mmdc_settings + sizeof(ddr3_dll_mx6sx)),
+		ddr3_calibration_mx6sx, sizeof(ddr3_calibration_mx6sx));
+
+	/* store the original DDR settings at boot. */
+	for (i = 0; i < ddr_settings_size; i++) {
+		/*
+		 * writes via command mode register cannot be read back.
+		 * hence hardcode them in the initial static array.
+		 * this may require modification on a per customer basis.
+		 */
+		if (normal_mmdc_settings[i][0] != 0x1C)
+			normal_mmdc_settings[i][1] =
+				readl_relaxed(mmdc_base
+				+ normal_mmdc_settings[i][0]);
+	}
+
+	iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6sx);
+
+	iram_iomux_settings = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
+			DDR3_IOMUX_SETTINGS_ADDR_OFFSET;
+
+	iram_ddr_settings = iram_iomux_settings + (iomux_settings_size * 8) + 8;
+	for (i = 0; i < iomux_settings_size; i++) {
+		iomux_offsets_mx6sx[i][1] =
+			readl_relaxed(iomux_base +
+				iomux_offsets_mx6sx[i][0]);
+		iram_iomux_settings[i + 1][0] =
+				iomux_offsets_mx6sx[i][0];
+			iram_iomux_settings[i + 1][1] =
+				iomux_offsets_mx6sx[i][1];
+	}
+
+	/* Calculate the virtual address of the code */
+	ddr_freq_change_iram_base =
+			(void *)IMX_IO_P2V(iram_tlb_phys_addr) +
+			DDR3_FREQ_CODE_ADDR_OFFSET;
+
+	imx6sx_busfreq_info = (struct imx6_busfreq_info *)ddr_freq_change_iram_base;
+
+	imx6sx_change_ddr_freq = (void *)fncpy(ddr_freq_change_iram_base +
+		sizeof(*imx6sx_busfreq_info),
+		&imx6sx_ddr3_freq_change,
+		DDR3_FREQ_CODE_SIZE - sizeof(*imx6sx_busfreq_info));
+
+	curr_ddr_rate = ddr_normal_rate;
+
+	return 0;
+}
+
+int init_mmdc_ddr3_settings_imx6q(struct platform_device *busfreq_pdev)
 {
 	struct device *dev = &busfreq_pdev->dev;
 	int i, err;
