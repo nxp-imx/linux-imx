@@ -1224,7 +1224,7 @@ fec_enet_interrupt(int irq, void *dev_id)
 
 	do {
 		if (unlikely(!fec_enet_collect_events(fep)))
-			return IRQ_NONE;
+			return ret;
 
 		if (fep->work_ts && fep->bufdesc_ex) {
 			ret = IRQ_HANDLED;
