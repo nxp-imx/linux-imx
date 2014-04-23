@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -458,6 +458,7 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 
 	/* Audio clocks */
 	clk_set_parent(clks[IMX6SL_CLK_SPDIF0_SEL], clks[IMX6SL_CLK_PLL3_PFD3]);
+	clk_set_rate(clks[IMX6SL_CLK_SPDIF0_PODF], 227368421);
 
 	/* set extern_audio to be sourced from PLL4/audio PLL */
 	clk_set_parent(clks[IMX6SL_CLK_EXTERN_AUDIO_SEL], clks[IMX6SL_CLK_PLL4_AUDIO_DIV]);

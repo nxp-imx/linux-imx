@@ -691,6 +691,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk_set_parent(clk[ssi3_sel], clk[pll4_audio_div]);
 	clk_set_parent(clk[esai_sel], clk[pll4_audio_div]);
 	clk_set_parent(clk[spdif_sel], clk[pll3_pfd3_454m]);
+	clk_set_rate(clk[spdif_podf], 227368421);
 	clk_set_parent(clk[spdif1_sel], clk[pll3_usb_otg]);
 	clk_set_rate(clk[spdif1_sel], 7500000);
 
