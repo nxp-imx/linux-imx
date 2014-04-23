@@ -240,6 +240,8 @@ gckKERNEL_Construct(
     kernel->dvfs         = gcvNULL;
 #endif
 
+    kernel->vidmemMutex  = gcvNULL;
+
     /* Initialize the gckKERNEL object. */
     kernel->object.type = gcvOBJ_KERNEL;
     kernel->os          = Os;
@@ -386,6 +388,8 @@ gckKERNEL_Construct(
     gcmkONERROR(
         gckOS_CreateMutex(Os, (gctPOINTER)&kernel->virtualBufferLock));
 
+    /* Construct a video memory mutex. */
+    gcmkONERROR(gckOS_CreateMutex(Os, &kernel->vidmemMutex));
 
     /* Return pointer to the gckKERNEL object. */
     *Kernel = kernel;
@@ -612,6 +616,7 @@ gckKERNEL_Destroy(
     gcmkVERIFY_OK(gckOS_DestroySyncTimeline(Kernel->os, Kernel->timeline));
 #endif
 
+    gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->vidmemMutex));
 
     /* Mark the gckKERNEL object as unknown. */
     Kernel->object.type = gcvOBJ_UNKNOWN;

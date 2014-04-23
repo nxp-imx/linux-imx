@@ -547,6 +547,7 @@ struct _gckKERNEL
     /* Level of dump information after stuck. */
     gctUINT                     stuckDump;
 
+    gctPOINTER                  vidmemMutex;
 };
 
 struct _FrequencyHistory
@@ -896,9 +897,6 @@ typedef union _gcuVIDMEM_NODE
         /* Actual physical address */
         gctUINT32               addresses[gcdMAX_GPU_COUNT];
 
-        /* Mutex. */
-        gctPOINTER              mutex;
-
         /* Locked counter. */
         gctINT32                lockeds[gcdMAX_GPU_COUNT];
 
@@ -938,9 +936,6 @@ struct _gckVIDMEM
 
     /* Allocation threshold. */
     gctSIZE_T                   threshold;
-
-    /* The heap mutex. */
-    gctPOINTER                  mutex;
 };
 
 typedef struct _gcsVIDMEM_NODE * gckVIDMEM_NODE;

@@ -1133,13 +1133,7 @@ _AllocateLinear(
             node->Virtual.lockKernels[i]    = gcvNULL;
         }
 
-        node->Virtual.mutex         = gcvNULL;
-
         node->Virtual.processID = 0;
-
-        /* Create the mutex. */
-        gcmkERR_BREAK(
-            gckOS_CreateMutex(Command->os, &node->Virtual.mutex));
 
         node->Virtual.bytes    = ((Size + Alignment -1)/ Alignment)*Alignment;;
 
@@ -1166,12 +1160,6 @@ _AllocateLinear(
     /* Roll back. */
     if (node != gcvNULL)
     {
-        if (node->Virtual.mutex != gcvNULL)
-        {
-            /* Destroy the mutex. */
-            gcmkCHECK_STATUS(gckOS_DeleteMutex(Command->os, node->Virtual.mutex));
-        }
-
         /* Free the structure. */
         gcmkCHECK_STATUS(gcmkOS_SAFE_FREE(Command->os, node));
     }
