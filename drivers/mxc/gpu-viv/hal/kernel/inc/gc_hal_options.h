@@ -694,7 +694,7 @@
         This define enables the recovery code.
 */
 #ifndef gcdENABLE_RECOVERY
-#   define gcdENABLE_RECOVERY                   1
+#   define gcdENABLE_RECOVERY                   0
 #endif
 
 /*
