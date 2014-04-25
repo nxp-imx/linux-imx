@@ -100,8 +100,11 @@ static void ci_handle_id_switch(struct ci_hdrc *ci)
 		if ((ci->role == CI_ROLE_HOST) && ci->hcd) {
 			roothub = ci->hcd->self.root_hub;
 			for (i = 0; i < roothub->maxchild; ++i) {
-				while (usb_hub_find_child(roothub, (i + 1)))
-					usleep_range(500, 1000);
+				while (usb_hub_find_child(roothub, (i + 1))) {
+					enable_irq(ci->irq);
+					usleep_range(10000, 15000);
+					disable_irq_nosync(ci->irq);
+				}
 			}
 		}
 
