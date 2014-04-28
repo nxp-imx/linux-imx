@@ -1591,12 +1591,19 @@ gckKERNEL_QueryProcessDB(
     }
 
     /* Release the database mutex. */
-    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
+    if(acquired)
+    {
+        /* Release the database mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    }
+
     /* Return the status. */
     gcmkFOOTER();
     return status;
