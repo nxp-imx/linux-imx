@@ -87,17 +87,6 @@
 		asrc-controller = <&asrc_p2p>;
 		audio-codec = <&cs42888>;
 	};
-
-	sound-sgtl5000 {
-		compatible = "fsl,imx6sx-arm2-sgtl5000",
-			   "fsl,imx-audio-sgtl5000";
-		model = "imx6sx-arm2-sgtl5000";
-		cpu-dai = <&sai1>;
-		audio-codec = <&sgtl5000>;
-		audio-routing =
-			"LINE_IN", "Line In Jack",
-			"Headphone Jack", "HP_OUT";
-	};
 };
 
 &esai {
