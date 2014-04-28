@@ -33,7 +33,6 @@
 #define CODEC_CLK_ESAI_HCKT   2
 
 struct imx_priv {
-	int hw;
 	int fe_p2p_rate;
 	int fe_p2p_width;
 	unsigned int mclk_freq;
@@ -43,43 +42,6 @@ struct imx_priv {
 
 static struct imx_priv card_priv;
 
-static int imx_cs42888_startup(struct snd_pcm_substream *substream)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct imx_priv *priv = &card_priv;
-
-	if (!cpu_dai->active)
-		priv->hw = 0;
-	return 0;
-}
-
-static void imx_cs42888_shutdown(struct snd_pcm_substream *substream)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct imx_priv *priv = &card_priv;
-
-	if (!cpu_dai->active)
-		priv->hw = 0;
-}
-
-static const struct {
-	int rate;
-	int ratio1;
-	int ratio2;
-} sr_vals[] = {
-	{ 32000,  3, 3 },
-	{ 48000,  3, 3 },
-	{ 64000,  1, 1 },
-	{ 96000,  1, 1 },
-	{ 128000, 1, 1 },
-	{ 44100,  3, 3 },
-	{ 88200,  1, 1 },
-	{ 176400, 0, 0 },
-	{ 192000, 0, 0 },
-};
-
 static int imx_cs42888_surround_hw_params(struct snd_pcm_substream *substream,
 					 struct snd_pcm_hw_params *params)
 {
@@ -87,47 +49,22 @@ static int imx_cs42888_surround_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct imx_priv *priv = &card_priv;
-	unsigned int rate = params_rate(params);
-	unsigned int lrclk_ratio = 0, i;
 	u32 dai_format = 0;
-
-	if (priv->hw)
-		return 0;
-
-	priv->hw = 1;
-
-	for (i = 0; i < ARRAY_SIZE(sr_vals); i++) {
-		if (sr_vals[i].rate == rate) {
-			if (priv->codec_mclk & CODEC_CLK_ESAI_HCKT)
-				lrclk_ratio = sr_vals[i].ratio1;
-			if (priv->codec_mclk & CODEC_CLK_EXTER_OSC)
-				lrclk_ratio = sr_vals[i].ratio2;
-			break;
-		}
-	}
-	if (i == ARRAY_SIZE(sr_vals)) {
-		dev_err(&priv->pdev->dev, "Unsupported rate %dHz\n", rate);
-		return -EINVAL;
-	}
 
 	dai_format = SND_SOC_DAIFMT_LEFT_J | SND_SOC_DAIFMT_NB_NF |
 		     SND_SOC_DAIFMT_CBS_CFS;
-
-	snd_soc_dai_set_sysclk(cpu_dai, ESAI_CLK_EXTAL,
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		snd_soc_dai_set_sysclk(cpu_dai, ESAI_HCKT_EXTAL,
 			       priv->mclk_freq, SND_SOC_CLOCK_OUT);
-	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PM, 0);
-	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PM, 0);
+	else
+		snd_soc_dai_set_sysclk(cpu_dai, ESAI_HCKR_EXTAL,
+			       priv->mclk_freq, SND_SOC_CLOCK_OUT);
 	snd_soc_dai_set_sysclk(codec_dai, 0, priv->mclk_freq, SND_SOC_CLOCK_IN);
 
 	/* set cpu DAI configuration */
 	snd_soc_dai_set_fmt(cpu_dai, dai_format);
 	/* set i.MX active slot mask */
 	snd_soc_dai_set_tdm_slot(cpu_dai, 0x3, 0x3, 2, 32);
-	/* set the ratio */
-	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_PSR, 1);
-	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_TX_DIV_FP, lrclk_ratio);
-	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_PSR, 1);
-	snd_soc_dai_set_clkdiv(cpu_dai, ESAI_RX_DIV_FP, lrclk_ratio);
 
 	/* set codec DAI configuration */
 	snd_soc_dai_set_fmt(codec_dai, dai_format);
@@ -135,8 +72,6 @@ static int imx_cs42888_surround_hw_params(struct snd_pcm_substream *substream,
 }
 
 static struct snd_soc_ops imx_cs42888_surround_ops = {
-	.startup = imx_cs42888_startup,
-	.shutdown = imx_cs42888_shutdown,
 	.hw_params = imx_cs42888_surround_hw_params,
 };
 

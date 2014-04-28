@@ -246,7 +246,7 @@
 				};
 
 				esai: esai@02024000 {
-					compatible = "fsl,imx6q-esai";
+					compatible = "fsl,imx35-esai";
 					reg = <0x02024000 0x4000>;
 					interrupts = <0 51 0x04>;
 					clocks = <&clks 228>, <&clks 229>, <&clks 118>, <&clks 228>, <&clks 156>;
