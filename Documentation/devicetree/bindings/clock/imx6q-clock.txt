@@ -128,7 +128,7 @@ clocks and IDs.
 	ecspi4			115
 	ecspi5			116
 	enet			117
-	esai			118
+	esai_extal		118
 	gpt_ipg			119
 	gpt_ipg_per		120
 	gpu2d_core		121
@@ -238,6 +238,8 @@ clocks and IDs.
 	spdif1                  225
 	asrc_ipg                226
 	asrc_mem                227
+	esai_ipg		228
+	esai_mem		229
 
 Examples:
 

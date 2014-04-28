@@ -72,7 +72,7 @@ static const char *cko2_sels[]		= {
 	"ecspi_root", "dummy", "usdhc3", "pcie", "arm", "csi_core",
 	"lcdif_axi", "dummy", "osc", "dummy", "gpu2d_ovg_core",
 	"usdhc2", "ssi1", "ssi2", "ssi3", "gpu2d_core", "dummy",
-	"dummy", "dummy", "dummy", "esai", "eim_slow", "uart_serial",
+	"dummy", "dummy", "dummy", "esai_extal", "eim_slow", "uart_serial",
 	"spdif", "asrc", "dummy",
 };
 static const char *cko_sels[] = { "cko1", "cko2", };
@@ -121,6 +121,7 @@ static struct clk_div_table video_div_table[] = {
 
 static u32 share_count_asrc;
 static u32 share_count_audio;
+static u32 share_count_esai;
 
 static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 {
@@ -347,7 +348,9 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_ECSPI5]       = imx_clk_gate2("ecspi5",        "ecspi_podf",        base + 0x6c, 8);
 	clks[IMX6SX_CLK_EPIT1]        = imx_clk_gate2("epit1",         "perclk",            base + 0x6c, 12);
 	clks[IMX6SX_CLK_EPIT2]        = imx_clk_gate2("epit2",         "perclk",            base + 0x6c, 14);
-	clks[IMX6SX_CLK_ESAI]         = imx_clk_gate2("esai",          "esai_podf",         base + 0x6c, 16);
+	clks[IMX6SX_CLK_ESAI_EXTAL]   = imx_clk_gate2_shared("esai_extal", "esai_podf",     base + 0x6c, 16, &share_count_esai);
+	clks[IMX6SX_CLK_ESAI_IPG]     = imx_clk_gate2_shared("esai_ipg",   "ahb",           base + 0x6c, 16, &share_count_esai);
+	clks[IMX6SX_CLK_ESAI_MEM]     = imx_clk_gate2_shared("esai_mem",   "ahb",           base + 0x6c, 16, &share_count_esai);
 	clks[IMX6SX_CLK_WAKEUP]       = imx_clk_gate2("wakeup",        "ipg",               base + 0x6c, 18);
 	clks[IMX6SX_CLK_GPT_BUS]      = imx_clk_gate2("gpt_bus",       "perclk",            base + 0x6c, 20);
 	clks[IMX6SX_CLK_GPT_SERIAL]   = imx_clk_gate2("gpt_serial",    "perclk",            base + 0x6c, 22);

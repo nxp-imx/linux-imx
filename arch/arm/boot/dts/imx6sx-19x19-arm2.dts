@@ -300,8 +300,8 @@
 	cs42888: cs42888@048 {
 		compatible = "cirrus,cs42888";
 		reg = <0x048>;
-		clocks = <&clks IMX6SX_CLK_ESAI>;
-		clock-names = "esai";
+		clocks = <&clks IMX6SX_CLK_ESAI_EXTAL>;
+		clock-names = "esai_extal";
 		VA-supply = <&reg_3p3v>;
 		VD-supply = <&reg_3p3v>;
 		VLS-supply = <&reg_3p3v>;

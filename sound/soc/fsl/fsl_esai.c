@@ -314,6 +314,7 @@ static int fsl_esai_startup(struct snd_pcm_substream *substream,
 
 	clk_enable(esai->clk);
 	clk_prepare_enable(esai->dmaclk);
+	clk_prepare_enable(esai->extalclk);
 
 	esai->substream[substream->stream] = substream;
 
@@ -474,6 +475,7 @@ static void fsl_esai_shutdown(struct snd_pcm_substream *substream,
 
 	esai->substream[substream->stream] = NULL;
 
+	clk_disable_unprepare(esai->extalclk);
 	clk_disable_unprepare(esai->dmaclk);
 	clk_disable(esai->clk);
 }
@@ -771,6 +773,13 @@ static int fsl_esai_probe(struct platform_device *pdev)
 	if (IS_ERR(esai->dmaclk)) {
 		ret = PTR_ERR(esai->dmaclk);
 		dev_err(&pdev->dev, "Cannot get dma clock: %d\n", ret);
+		goto failed_get_resource;
+	}
+
+	esai->extalclk = devm_clk_get(&pdev->dev, "extal");
+	if (IS_ERR(esai->extalclk)) {
+		ret = PTR_ERR(esai->extalclk);
+		dev_err(&pdev->dev, "Cannot get extal clock: %d\n", ret);
 		goto failed_get_resource;
 	}
 

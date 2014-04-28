@@ -67,7 +67,7 @@ static const char *cko2_sels[] = {
 	"ipu2", "vdo_axi", "osc", "gpu2d_core",
 	"gpu3d_core", "usdhc2", "ssi1", "ssi2",
 	"ssi3", "gpu3d_shader", "vpu_axi", "can_root",
-	"ldb_di0", "ldb_di1", "esai", "eim_slow",
+	"ldb_di0", "ldb_di1", "esai_extal", "eim_slow",
 	"uart_serial", "spdif", "spdif1", "hsi_tx",
 };
 static const char *cko_sels[] = { "cko1", "cko2", };
@@ -77,6 +77,7 @@ static const char *pll_av_sels[] = { "osc", "lvds1_in", "lvds2_in", "dummy", };
 static void __iomem *anatop_base;
 static void __iomem *ccm_base;
 
+static u32 share_count_esai;
 
 enum mx6q_clks {
 	dummy, ckil, ckih, osc, pll2_pfd0_352m, pll2_pfd1_594m, pll2_pfd2_396m,
@@ -100,7 +101,7 @@ enum mx6q_clks {
 	emi_podf, emi_slow_podf, vpu_axi_podf, cko1_podf, axi, mmdc_ch0_axi_podf,
 	mmdc_ch1_axi_podf, arm, ahb, apbh_dma, asrc_gate, can1_ipg, can1_serial,
 	can2_ipg, can2_serial, ecspi1, ecspi2, ecspi3, ecspi4, ecspi5, enet,
-	esai, gpt_ipg, gpt_ipg_per, gpu2d_core, gpu3d_core, hdmi_iahb,
+	esai_extal, gpt_ipg, gpt_ipg_per, gpu2d_core, gpu3d_core, hdmi_iahb,
 	hdmi_isfr, i2c1, i2c2, i2c3, iim, enfc, ipu1, ipu1_di0, ipu1_di1, ipu2,
 	ipu2_di0, ldb_di0, ldb_di1, ipu2_di1, hsi_tx, mlb, mmdc_ch0_axi,
 	mmdc_ch1_axi, ocram, openvg_axi, pcie_axi, pwm1, pwm2, pwm3, pwm4, per1_bch,
@@ -115,7 +116,7 @@ enum mx6q_clks {
 	ldb_di0_div_7, ldb_di1_div_7, ldb_di0_div_sel, ldb_di1_div_sel,
 	pll4_audio_div, lvds1_sel, lvds1_in, lvds1_out, caam_mem, caam_aclk,
 	caam_ipg, epit1, epit2, tzasc2, pll4_sel, lvds2_sel, lvds2_in, lvds2_out,
-	anaclk1, anaclk2, spdif1, asrc_ipg, asrc_mem, clk_max
+	anaclk1, anaclk2, spdif1, asrc_ipg, asrc_mem, esai_ipg, esai_mem, clk_max
 };
 
 static struct clk *clk[clk_max];
@@ -484,7 +485,9 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk[enet]         = imx_clk_gate2("enet",          "ipg",               base + 0x6c, 10);
 	clk[epit1]        = imx_clk_gate2("epit1",         "ipg",               base + 0x6c, 12);
 	clk[epit2]        = imx_clk_gate2("epit2",         "ipg",               base + 0x6c, 14);
-	clk[esai]         = imx_clk_gate2("esai",          "esai_podf",         base + 0x6c, 16);
+	clk[esai_extal]   = imx_clk_gate2_shared("esai_extal", "esai_podf",     base + 0x6c, 16, &share_count_esai);
+	clk[esai_ipg]     = imx_clk_gate2_shared("esai_ipg",   "ipg",           base + 0x6c, 16, &share_count_esai);
+	clk[esai_mem]     = imx_clk_gate2_shared("esai_mem",   "ahb",           base + 0x6c, 16, &share_count_esai);
 	clk[gpt_ipg]      = imx_clk_gate2("gpt_ipg",       "ipg",               base + 0x6c, 20);
 	clk[gpt_ipg_per]  = imx_clk_gate2("gpt_ipg_per",   "ipg_per",           base + 0x6c, 22);
 	if (cpu_is_imx6dl())
@@ -623,7 +626,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk_register_clkdev(clk[pll4_audio_div], "pll4_audio_div", NULL);
 	clk_register_clkdev(clk[pll4_sel], "pll4_sel", NULL);
 	clk_register_clkdev(clk[lvds2_in], "lvds2_in", NULL);
-	clk_register_clkdev(clk[esai], "esai", NULL);
+	clk_register_clkdev(clk[esai_extal], "esai_extal", NULL);
 
 	/*
 	 * The gpmi needs 100MHz frequency in the EDO/Sync mode,

@@ -249,8 +249,8 @@
 					compatible = "fsl,imx6q-esai";
 					reg = <0x02024000 0x4000>;
 					interrupts = <0 51 0x04>;
-					clocks = <&clks 118>, <&clks 156>;
-					clock-names = "core", "dma";
+					clocks = <&clks 228>, <&clks 229>, <&clks 118>, <&clks 228>, <&clks 156>;
+					clock-names = "core", "mem", "extal", "fsys", "dma";
 					fsl,esai-dma-events = <24 23>;
 					fsl,flags = <1>;
 					status = "disabled";

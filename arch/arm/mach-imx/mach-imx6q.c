@@ -421,14 +421,14 @@ put_node:
 
 static void __init imx6q_audio_lvds2_init(void)
 {
-	struct clk *pll4_sel, *lvds2_in, *pll4_audio_div, *esai;
+	struct clk *pll4_sel, *lvds2_in, *pll4_audio_div, *esai_extal;
 
 	pll4_audio_div = clk_get_sys(NULL, "pll4_audio_div");
 	pll4_sel = clk_get_sys(NULL, "pll4_sel");
 	lvds2_in = clk_get_sys(NULL, "lvds2_in");
-	esai = clk_get_sys(NULL, "esai");
+	esai_extal = clk_get_sys(NULL, "esai_extal");
 	if (IS_ERR(pll4_audio_div) || IS_ERR(pll4_sel) ||
-	    IS_ERR(lvds2_in) || IS_ERR(esai))
+	    IS_ERR(lvds2_in) || IS_ERR(esai_extal))
 		return;
 
 	if (clk_get_rate(lvds2_in) != ESAI_AUDIO_MCLK)
@@ -436,7 +436,7 @@ static void __init imx6q_audio_lvds2_init(void)
 
 	clk_set_parent(pll4_sel, lvds2_in);
 	clk_set_rate(pll4_audio_div, 786432000);
-	clk_set_rate(esai, ESAI_AUDIO_MCLK);
+	clk_set_rate(esai_extal, ESAI_AUDIO_MCLK);
 }
 
 static struct platform_device imx6q_cpufreq_pdev = {

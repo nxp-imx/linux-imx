@@ -320,6 +320,7 @@
 struct fsl_esai {
 	struct clk *clk;
 	struct clk *dmaclk;
+	struct clk *extalclk;
 	void __iomem *base;
 	int irq;
 	unsigned int flags;
