@@ -543,7 +543,6 @@
 		pinctrl-0 = <&pinctrl_egalax_int>;
 		interrupt-parent = <&gpio2>;
 		interrupts = <28 2>;
-		wakeup-gpios = <&gpio2 28 GPIO_ACTIVE_HIGH>;
 	};
 
 	pmic: pfuze100@08 {
