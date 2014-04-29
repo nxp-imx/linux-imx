@@ -238,7 +238,7 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 	}
 	if (!strcmp(mclk_name, "codec_osc"))
 		priv->codec_mclk = CODEC_CLK_EXTER_OSC;
-	else if (!strcmp(mclk_name, "esai"))
+	else if (!strcmp(mclk_name, "esai_extal"))
 		priv->codec_mclk = CODEC_CLK_ESAI_HCKT;
 	else {
 		dev_err(&pdev->dev, "mclk source is not correct %s\n", mclk_name);
