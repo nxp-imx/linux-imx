@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/of_device.h>
+#include <linux/of_address.h>
 #include <linux/pci.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
@@ -39,8 +40,10 @@
 /*
  * The default value of the reserved ddr memory
  * used to verify EP/RC memory space access operations.
- * BTW, here is the layout of the 1G ddr on SD boards
- * 0x1000_0000 ~ 0x4FFF_FFFF
+ * The layout of the 1G ddr on SD boards
+ * [others]0x1000_0000 ~ 0x4FFF_FFFF
+ * [imx6sx]0x8000_0000 ~ 0xBFFF_FFFF
+ *
  */
 static u32 ddr_test_region = 0x40000000;
 static u32 test_region_size = SZ_2M;
@@ -537,15 +540,18 @@ static void imx_pcie_regions_setup(struct device *dev)
 	struct imx6_pcie *imx6_pcie = dev_get_drvdata(dev);
 	struct pcie_port *pp = &imx6_pcie->pp;
 
+	if (is_imx6sx_pcie(imx6_pcie))
+		ddr_test_region = 0xb0000000;
+
 	if (IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)) {
 		/*
 		 * region2 outbound used to access rc mem
 		 * in imx6 pcie ep/rc validation system
 		 */
-		writel(0, pp->dbi_base + PCIE_ATU_VIEWPORT);
-		writel(0x01000000, pp->dbi_base + PCIE_ATU_LOWER_BASE);
+		writel(2, pp->dbi_base + PCIE_ATU_VIEWPORT);
+		writel(pp->mem_base, pp->dbi_base + PCIE_ATU_LOWER_BASE);
 		writel(0, pp->dbi_base + PCIE_ATU_UPPER_BASE);
-		writel(0x01000000 + test_region_size,
+		writel(pp->mem_base + test_region_size,
 				pp->dbi_base + PCIE_ATU_LIMIT);
 
 		writel(ddr_test_region,
@@ -561,9 +567,9 @@ static void imx_pcie_regions_setup(struct device *dev)
 		 * in imx6 pcie ep/rc validation system
 		 */
 		writel(2, pp->dbi_base + PCIE_ATU_VIEWPORT);
-		writel(0x01000000, pp->dbi_base + PCIE_ATU_LOWER_BASE);
+		writel(pp->mem_base, pp->dbi_base + PCIE_ATU_LOWER_BASE);
 		writel(0, pp->dbi_base + PCIE_ATU_UPPER_BASE);
-		writel(0x01000000 + test_region_size,
+		writel(pp->mem_base + test_region_size,
 				pp->dbi_base + PCIE_ATU_LIMIT);
 
 		writel(ddr_test_region,
@@ -1002,6 +1008,30 @@ static int __init imx6_pcie_probe(struct platform_device *pdev)
 	}
 
 	if (IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)) {
+		if (is_imx6sx_pcie(imx6_pcie)) {
+			struct device_node *np = pp->dev->of_node;
+			struct of_pci_range range;
+			struct of_pci_range_parser parser;
+			unsigned long restype;
+
+			if (of_pci_range_parser_init(&parser, np)) {
+				dev_err(pp->dev, "missing ranges property\n");
+				return -EINVAL;
+			}
+
+			/* Get the memory ranges from DT */
+			for_each_of_pci_range(&parser, &range) {
+				restype = range.flags & IORESOURCE_TYPE_BITS;
+				if (restype == IORESOURCE_MEM) {
+					of_pci_range_to_resource(&range,
+							np, &pp->mem);
+					pp->mem.name = "MEM";
+				}
+			}
+
+			pp->mem_base = pp->mem.start;
+		}
+
 		if (IS_ENABLED(CONFIG_EP_SELF_IO_TEST)) {
 			/* Prepare the test regions and data */
 			test_reg1 = devm_kzalloc(&pdev->dev,
@@ -1020,7 +1050,7 @@ static int __init imx6_pcie_probe(struct platform_device *pdev)
 				goto err;
 			}
 
-			pcie_arb_base_addr = ioremap_cached(0x01000000,
+			pcie_arb_base_addr = ioremap_cached(pp->mem_base,
 					test_region_size);
 
 			if (!pcie_arb_base_addr) {
