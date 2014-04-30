@@ -35,13 +35,99 @@
 
 	.macro	imx6sx_ddr_io_save
 
+	ldr	r4, [r8, #0x2ec] /* DRAM_DQM0 */
+	ldr	r5, [r8, #0x2f0] /* DRAM_DQM1 */
+	ldr	r6, [r8, #0x2f4] /* DRAM_DQM2 */
+	ldr	r7, [r8, #0x2f8] /* DRAM_DQM3 */
+	stmfd	r10!, {r4-r7}
+
+	ldr	r4, [r8, #0x300] /* DRAM_CAS */
+	ldr	r5, [r8, #0x2fc] /* DRAM_RAS */
+	ldr	r6, [r8, #0x32c] /* DRAM_SDCLK_0 */
+	ldr	r7, [r8, #0x5f4] /* GPR_ADDDS */
+	stmfd	r10!, {r4-r7}
+
+	ldr	r4, [r8, #0x5f8] /* DDRMODE_CTL */
+	ldr	r5, [r8, #0x608] /* DDRMODE */
+	ldr	r6, [r8, #0x310] /* DRAM_SODT0*/
+	ldr	r7, [r8, #0x314] /* DRAM_SODT1*/
+	stmfd	r10!, {r4-r7}
+
+	ldr	r4, [r8, #0x330] /* DRAM_SDQS0 */
+	ldr	r5, [r8, #0x334] /* DRAM_SDQS1 */
+	ldr	r6, [r8, #0x338] /* DRAM_SDQS2 */
+	ldr	r7, [r8, #0x33c] /* DRAM_SDQS3 */
+	stmfd	r10!, {r4-r7}
+
+	ldr	r4, [r8, #0x60c] /* GPR_B0DS */
+	ldr	r5, [r8, #0x610] /* GPR_B1DS */
+	ldr	r6, [r8, #0x61c] /* GPR_B2DS */
+	ldr	r7, [r8, #0x620] /* GPR_B3DS */
+	stmfd	r10!, {r4-r7}
+
 	.endm
 
 	.macro	imx6sx_ddr_io_restore
 
+	ldmea	r10!, {r4-r7}
+	str	r4, [r8, #0x2ec] /* DRAM_DQM0 */
+	str	r5, [r8, #0x2f0] /* DRAM_DQM1 */
+	str	r6, [r8, #0x2f4] /* DRAM_DQM2 */
+	str	r7, [r8, #0x2f8] /* DRAM_DQM3 */
+
+	ldmea	r10!, {r4-r7}
+	str	r4, [r8, #0x300] /* DRAM_CAS */
+	str	r5, [r8, #0x2fc] /* DRAM_RAS */
+	str	r6, [r8, #0x32c] /* DRAM_SDCLK_0 */
+	str	r7, [r8, #0x5f4] /* GPR_ADDDS */
+
+	ldmea	r10!, {r4-r7}
+	str	r4, [r8, #0x5f8] /* DDRMODE_CTL */
+	str	r5, [r8, #0x608] /* DDRMODE */
+	str	r6, [r8, #0x310] /* DRAM_SODT0*/
+	str	r7, [r8, #0x314] /* DRAM_SODT1*/
+
+	ldmea	r10!, {r4-r7}
+	str	r4, [r8, #0x330] /* DRAM_SDQS0 */
+	str	r5, [r8, #0x334] /* DRAM_SDQS1 */
+	str	r6, [r8, #0x338] /* DRAM_SDQS2 */
+	str	r7, [r8, #0x33c] /* DRAM_SDQS3 */
+
+	ldmea	r10!, {r4-r7}
+	str	r4, [r8, #0x60c] /* GPR_B0DS */
+	str	r5, [r8, #0x610] /* GPR_B1DS */
+	str	r6, [r8, #0x61c] /* GPR_B2DS */
+	str	r7, [r8, #0x620] /* GPR_B3DS */
+
 	.endm
 
 	.macro	imx6sx_ddr_io_set_lpm
+
+	mov     r10, #0
+	str	r10, [r8, #0x2ec] /* DRAM_DQM0 */
+	str	r10, [r8, #0x2f0] /* DRAM_DQM1 */
+	str	r10, [r8, #0x2f4] /* DRAM_DQM2 */
+	str	r10, [r8, #0x2f8] /* DRAM_DQM3 */
+
+	str	r10, [r8, #0x300] /* DRAM_CAS */
+	str	r10, [r8, #0x2fc] /* DRAM_RAS */
+	str	r10, [r8, #0x32c] /* DRAM_SDCLK_0 */
+	str	r10, [r8, #0x5f4] /* GPR_ADDDS */
+
+	str	r10, [r8, #0x5f8] /* DDRMODE_CTL */
+	str	r10, [r8, #0x608] /* DDRMODE */
+	str	r10, [r8, #0x310] /* DRAM_SODT0*/
+	str	r10, [r8, #0x314] /* DRAM_SODT1*/
+
+	str	r10, [r8, #0x330] /* DRAM_SDQS0 */
+	str	r10, [r8, #0x334] /* DRAM_SDQS1 */
+	str	r10, [r8, #0x338] /* DRAM_SDQS2 */
+	str	r10, [r8, #0x33c] /* DRAM_SDQS3 */
+
+	str	r10, [r8, #0x60c] /* GPR_B0DS */
+	str	r10, [r8, #0x610] /* GPR_B1DS */
+	str	r10, [r8, #0x61c] /* GPR_B2DS */
+	str	r10, [r8, #0x620] /* GPR_B3DS */
 
 	.endm
 
