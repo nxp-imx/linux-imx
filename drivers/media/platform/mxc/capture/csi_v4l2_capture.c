@@ -916,6 +916,12 @@ static int csi_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 			height = &f->fmt.pix.height;
 		}
 
+		if (*width == 0 || *height == 0) {
+			pr_err("ERROR: csi v4l2 capture: width or height"
+				" too small.\n");
+			return -EINVAL;
+		}
+
 		if ((cam->crop_bounds.width / *width > 8) ||
 		    ((cam->crop_bounds.width / *width == 8) &&
 		     (cam->crop_bounds.width % *width))) {
