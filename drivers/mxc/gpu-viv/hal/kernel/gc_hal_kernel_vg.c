@@ -529,6 +529,22 @@ gceSTATUS gckVGKERNEL_Dispatch(
             gckOS_GetBaseAddress(Kernel->os,
                                  &kernelInterface->u.GetBaseAddress.baseAddress));
         break;
+    case gcvHAL_IMPORT_VIDEO_MEMORY:
+        gcmkONERROR(gckVIDMEM_NODE_Import(Kernel,
+                                          Interface->u.ImportVideoMemory.name,
+                                            &Interface->u.ImportVideoMemory.handle));
+        gcmkONERROR(gckKERNEL_AddProcessDB(Kernel,
+                                    processID, gcvDB_VIDEO_MEMORY,
+                                    gcmINT2PTR(Interface->u.ImportVideoMemory.handle),
+                                    gcvNULL,
+                                    0));
+        break;
+
+    case gcvHAL_NAME_VIDEO_MEMORY:
+        gcmkONERROR(gckVIDMEM_NODE_Name(Kernel,
+                                         Interface->u.NameVideoMemory.handle,
+                                         &Interface->u.NameVideoMemory.name));
+        break;
     default:
         /* Invalid command. */
         status = gcvSTATUS_INVALID_ARGUMENT;
