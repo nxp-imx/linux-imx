@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1999 ARM Limited
  * Copyright (C) 2000 Deep Blue Solutions Ltd
- * Copyright 2006-2012 Freescale Semiconductor, Inc.
+ * Copyright 2006-2014 Freescale Semiconductor, Inc.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  * Copyright 2009 Ilya Yanok, Emcraft Systems Ltd, yanok@emcraft.com
  *
@@ -59,19 +59,21 @@ void arch_reset(char mode, const char *cmd)
 
 #ifdef CONFIG_ARCH_MX6
 	/* wait for reset to assert... */
-	if (enable_ldo_mode == LDO_MODE_BYPASSED) {
+	if (enable_ldo_mode == LDO_MODE_BYPASSED && !(machine_is_mx6sl_evk()
+		|| machine_is_mx6sl_arm2())) {
 		/*On Sabresd board use WDOG2 to reset external PMIC, so here do
 		* more WDOG2 reset.*/
 		wcr_enable = 0x14;
 		__raw_writew(wcr_enable, IO_ADDRESS(MX6Q_WDOG2_BASE_ADDR));
 		__raw_writew(wcr_enable, IO_ADDRESS(MX6Q_WDOG2_BASE_ADDR));
-	} else
+	} else {
 		wcr_enable = (1 << 2);
-	__raw_writew(wcr_enable, wdog_base);
-	/* errata TKT039676, SRS bit may be missed when
-	SRC sample it, need to write the wdog controller
-	twice to avoid it */
-	__raw_writew(wcr_enable, wdog_base);
+		__raw_writew(wcr_enable, wdog_base);
+		/* errata TKT039676, SRS bit may be missed when
+		SRC sample it, need to write the wdog controller
+		twice to avoid it */
+		__raw_writew(wcr_enable, wdog_base);
+	}
 
 	/* wait for reset to assert... */
 	mdelay(500);
