@@ -1681,8 +1681,10 @@ gckCOMMAND_Commit(
         /* Not using 2D. */
         else
         {
+#if !gcdCMD_NO_2D_CONTEXT
             /* Mark 2D as dirty. */
             Context->dirty2D = gcvTRUE;
+#endif
 
             /* Store the current context buffer. */
             Context->dirtyBuffer = contextBuffer;
