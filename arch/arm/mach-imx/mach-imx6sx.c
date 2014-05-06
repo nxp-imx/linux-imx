@@ -190,6 +190,27 @@ static void __init imx6sx_init_machine(void)
 	imx6sx_qos_init();
 }
 
+static void __init imx6sx_opp_init(struct device *cpu_dev)
+{
+	struct device_node *np;
+
+	np = of_find_node_by_path("/cpus/cpu@0");
+	if (!np) {
+		pr_warn("failed to find cpu0 node\n");
+		return;
+	}
+
+	cpu_dev->of_node = np;
+	if (of_init_opp_table(cpu_dev))
+		pr_warn("failed to init OPP table\n");
+
+	of_node_put(np);
+}
+
+static struct platform_device imx6sx_cpufreq_pdev = {
+	.name = "imx6-cpufreq",
+};
+
 static void __init imx6sx_init_late(void)
 {
 	struct regmap *gpr;
@@ -209,6 +230,11 @@ static void __init imx6sx_init_late(void)
 	if (of_machine_is_compatible("fsl,imx6sx-17x17-arm2") ||
 		of_machine_is_compatible("fsl,imx6sx-sdb"))
 		imx6sx_arm2_flexcan_fixup();
+
+	if (IS_ENABLED(CONFIG_ARM_IMX6_CPUFREQ)) {
+		imx6sx_opp_init(&imx6sx_cpufreq_pdev.dev);
+		platform_device_register(&imx6sx_cpufreq_pdev);
+	}
 }
 
 static void __init imx6sx_map_io(void)
