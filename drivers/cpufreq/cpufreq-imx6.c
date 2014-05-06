@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -122,7 +122,7 @@ static int imx6_set_target(struct cpufreq_policy *policy,
 
 	/* scaling up?  scale voltage before frequency */
 	if (freqs.new > freqs.old) {
-		if (regulator_is_enabled(pu_reg)) {
+		if (!IS_ERR(pu_reg) && regulator_is_enabled(pu_reg)) {
 			ret = regulator_set_voltage_tol(pu_reg,
 					imx6_soc_opp[soc_opp_index].soc_volt,
 					0);
@@ -187,7 +187,7 @@ static int imx6_set_target(struct cpufreq_policy *policy,
 			goto err1;
 		}
 
-		if (regulator_is_enabled(pu_reg)) {
+		if (!IS_ERR(pu_reg) && regulator_is_enabled(pu_reg)) {
 			ret = regulator_set_voltage_tol(pu_reg,
 					imx6_soc_opp[soc_opp_index].soc_volt,
 					0);
@@ -325,7 +325,7 @@ static int imx6_cpufreq_probe(struct platform_device *pdev)
 	arm_reg = devm_regulator_get(cpu_dev, "arm");
 	pu_reg = devm_regulator_get(cpu_dev, "pu");
 	soc_reg = devm_regulator_get(cpu_dev, "soc");
-	if (IS_ERR(arm_reg) || IS_ERR(pu_reg) || IS_ERR(soc_reg)) {
+	if (IS_ERR(arm_reg) || IS_ERR(soc_reg)) {
 		dev_err(cpu_dev, "failed to get regulators\n");
 		ret = -ENOENT;
 		goto put_node;
@@ -420,9 +420,11 @@ static int imx6_cpufreq_probe(struct platform_device *pdev)
 	if (ret > 0)
 		transition_latency += ret * 1000;
 
-	ret = regulator_set_voltage_time(pu_reg, min_volt, max_volt);
-	if (ret > 0)
-		transition_latency += ret * 1000;
+	if (!IS_ERR(pu_reg)) {
+		ret = regulator_set_voltage_time(pu_reg, min_volt, max_volt);
+		if (ret > 0)
+			transition_latency += ret * 1000;
+	}
 
 	/*
 	 * OPP is maintained in order of increasing frequency, and
