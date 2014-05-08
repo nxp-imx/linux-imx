@@ -558,6 +558,8 @@
 
 ENTRY(imx6_suspend)
 
+	push {r4-r12}
+
 	/*
 	 * counting the resume address in iram
 	 * to set it in SRC register.
@@ -872,6 +874,8 @@ poll_dvfs_clear_2:
 	/* flush the TLB */
 	ldr	r6, =0x0
 	mcr	p15, 0, r6, c8, c3, 0
+
+	pop {r4-r12}
 
 	/* return to suspend finish */
 	mov	pc, lr
