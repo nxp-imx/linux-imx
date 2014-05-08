@@ -1315,7 +1315,7 @@ static struct platform_pwm_backlight_data mx6_evk_pwm_backlight_data = {
 	.pwm_id		= 0,
 	.max_brightness	= 255,
 	.dft_brightness	= 128,
-	.pwm_period_ns	= 50000,
+	.pwm_period_ns	= 1000000,
 };
 static struct fb_videomode wvga_video_modes[] = {
 	{
