@@ -553,8 +553,12 @@
 				compatible = "fsl,imx6q-gpc";
 				reg = <0x020dc000 0x4000>;
 				interrupts = <0 89 0x04>;
-				clocks = <&clks IMX6SX_CLK_GPU>, <&clks IMX6SX_CLK_IPG>;
-				clock-names = "gpu3d_core", "ipg";
+				clocks = <&clks IMX6SX_CLK_GPU>, <&clks IMX6SX_CLK_IPG>,
+					<&clks IMX6SX_CLK_PXP_AXI>, <&clks IMX6SX_CLK_DISPLAY_AXI>,
+					<&clks IMX6SX_CLK_LCDIF1_PIX>, <&clks IMX6SX_CLK_LCDIF_APB>,
+					<&clks IMX6SX_CLK_LCDIF2_PIX>, <&clks IMX6SX_CLK_CSI>;
+				clock-names = "gpu3d_core", "ipg", "pxp_axi", "disp_axi", "lcdif1_pix",
+						"lcdif_axi", "lcdif2_pix", "csi_mclk";
 				pu-supply = <&pu_dummy>;
 				pcie-supply = <&reg_pcie>;
 				fsl,mf-mix-wakeup-irq = <0x7c00000 0x3d00 0x0 0x400200>;
