@@ -81,25 +81,43 @@ static int pu_dummy_enable;
 
 static void imx_disp_clk(bool enable)
 {
-	if (enable) {
-		clk_prepare_enable(lcd_axi_clk);
-		clk_prepare_enable(lcd_pix_clk);
-		clk_prepare_enable(epdc_axi_clk);
-		clk_prepare_enable(epdc_pix_clk);
-		clk_prepare_enable(pxp_axi_clk);
-	} else {
-		clk_disable_unprepare(lcd_axi_clk);
-		clk_disable_unprepare(lcd_pix_clk);
-		clk_disable_unprepare(epdc_axi_clk);
-		clk_disable_unprepare(epdc_pix_clk);
-		clk_disable_unprepare(pxp_axi_clk);
+	if (cpu_is_imx6sl()) {
+		if (enable) {
+			clk_prepare_enable(lcd_axi_clk);
+			clk_prepare_enable(lcd_pix_clk);
+			clk_prepare_enable(epdc_axi_clk);
+			clk_prepare_enable(epdc_pix_clk);
+			clk_prepare_enable(pxp_axi_clk);
+		} else {
+			clk_disable_unprepare(lcd_axi_clk);
+			clk_disable_unprepare(lcd_pix_clk);
+			clk_disable_unprepare(epdc_axi_clk);
+			clk_disable_unprepare(epdc_pix_clk);
+			clk_disable_unprepare(pxp_axi_clk);
+		}
+	} else if (cpu_is_imx6sx()) {
+		if (enable) {
+			clk_prepare_enable(lcdif_axi_clk);
+			clk_prepare_enable(lcdif1_pix_clk);
+			clk_prepare_enable(lcdif2_pix_clk);
+			clk_prepare_enable(pxp_axi_clk);
+			clk_prepare_enable(csi_mclk);
+			clk_prepare_enable(disp_axi_clk);
+		} else {
+			clk_disable_unprepare(lcdif_axi_clk);
+			clk_disable_unprepare(lcdif1_pix_clk);
+			clk_disable_unprepare(lcdif2_pix_clk);
+			clk_disable_unprepare(pxp_axi_clk);
+			clk_disable_unprepare(csi_mclk);
+			clk_disable_unprepare(disp_axi_clk);
+		}
 	}
 }
 
 static void imx_gpc_dispmix_on(void)
 {
-	if (cpu_is_imx6sl() &&
-		imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) {
+	if ((cpu_is_imx6sl() &&
+		imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) || cpu_is_imx6sx()) {
 		imx_disp_clk(true);
 
 		writel_relaxed(0x0, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
@@ -114,8 +132,8 @@ static void imx_gpc_dispmix_on(void)
 
 static void imx_gpc_dispmix_off(void)
 {
-	if (cpu_is_imx6sl() &&
-		imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) {
+	if ((cpu_is_imx6sl() &&
+		imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) || cpu_is_imx6sx()) {
 		imx_disp_clk(true);
 
 		writel_relaxed(0xFFFFFFFF,
