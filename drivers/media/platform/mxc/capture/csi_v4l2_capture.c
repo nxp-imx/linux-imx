@@ -360,10 +360,14 @@ static int pxp_process_update(cam_data *cam)
 			pxp_conf->s0_param.paddr = sg_dma_address(&sg[0]);
 			memcpy(&desc->layer_param.s0_param, &pxp_conf->s0_param,
 				sizeof(struct pxp_layer_param));
-		} else if (i == 1) {
+		} else if (i == 1) {/* output */
 			pxp_conf->out_param.paddr = sg_dma_address(&sg[1]);
 			memcpy(&desc->layer_param.out_param,
 				&pxp_conf->out_param,
+				sizeof(struct pxp_layer_param));
+		} else {/* overlay */
+			memcpy(&desc->layer_param.ol_param,
+				&pxp_conf->ol_param,
 				sizeof(struct pxp_layer_param));
 		}
 
