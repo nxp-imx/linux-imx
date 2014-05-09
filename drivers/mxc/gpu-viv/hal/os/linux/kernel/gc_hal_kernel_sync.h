@@ -19,19 +19,53 @@
 *****************************************************************************/
 
 
-#ifndef __gc_hal_version_h_
-#define __gc_hal_version_h_
+#ifndef __gc_hal_kernel_sync_h_
+#define __gc_hal_kernel_sync_h_
 
-#define gcvVERSION_MAJOR        4
+#include <linux/types.h>
 
-#define gcvVERSION_MINOR        6
+#include <linux/sync.h>
 
-#define gcvVERSION_PATCH        9
+#include <gc_hal.h>
+#include <gc_hal_base.h>
 
-#define gcvVERSION_BUILD     9754
+struct viv_sync_timeline
+{
+    /* Parent object. */
+    struct sync_timeline obj;
 
-#define gcvVERSION_DATE      __DATE__
+    /* Timestamp when sync_pt is created. */
+    gctUINT stamp;
 
-#define gcvVERSION_TIME      __TIME__
+    /* Pointer to os struct. */
+    gckOS os;
+};
 
-#endif /* __gc_hal_version_h_ */
+
+struct viv_sync_pt
+{
+    /* Parent object. */
+    struct sync_pt pt;
+
+    /* Reference sync point*/
+    gctSYNC_POINT sync;
+
+    /* Timestamp when sync_pt is created. */
+    gctUINT stamp;
+};
+
+/* Create viv_sync_timeline object. */
+struct viv_sync_timeline *
+viv_sync_timeline_create(
+    const char * Name,
+    gckOS Os
+    );
+
+/* Create viv_sync_pt object. */
+struct sync_pt *
+viv_sync_pt_create(
+    struct viv_sync_timeline * Obj,
+    gctSYNC_POINT SyncPoint
+    );
+
+#endif /* __gc_hal_kernel_sync_h_ */
