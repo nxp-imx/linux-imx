@@ -1326,11 +1326,30 @@ static void __init mx6_evk_init_usb(void)
 #endif
 }
 
+static int seiko_wvga_check_fb(struct device *dev, struct fb_info *fbi)
+{
+	struct backlight_device *bd = dev_get_drvdata(dev);
+	struct fb_event *ev = bd->fb_event;
+	int fb_blank = *(int *)ev->data;
+
+	/*
+	 * The panel's spec mentions that backlight needs to
+	 * be turned on after display enable pin and fb are
+	 * active at least for 170ms(10 frames).
+	 * It is safe to use 200ms here.
+	 */
+	if (fb_blank == FB_BLANK_UNBLANK)
+		msleep(200);
+
+	return 1;
+}
+
 static struct platform_pwm_backlight_data mx6_evk_pwm_backlight_data = {
 	.pwm_id		= 0,
 	.max_brightness	= 255,
 	.dft_brightness	= 128,
 	.pwm_period_ns	= 1000000,
+	.check_fb = seiko_wvga_check_fb,
 };
 static struct fb_videomode wvga_video_modes[] = {
 	{
