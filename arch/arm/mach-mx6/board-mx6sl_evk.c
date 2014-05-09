@@ -1609,7 +1609,7 @@ static void __init mx6_evk_init(void)
 
 		gpio_request(MX6_BRD_LCD_PWR_EN, "elcdif-power-on");
 		gpio_direction_output(MX6_BRD_LCD_PWR_EN, 1);
-		mxc_register_device(&lcd_wvga_device, NULL);
+		platform_device_register(&lcd_wvga_device);
 	}
 
 	imx6dl_add_imx_pxp();
