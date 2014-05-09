@@ -1,5 +1,5 @@
 menu "MXC Vivante GPU support"
-	depends on ARCH_MX6
+	depends on SOC_IMX6Q
 
 config MXC_GPU_VIV
 	tristate "MXC Vivante GPU support"
