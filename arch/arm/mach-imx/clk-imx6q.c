@@ -701,6 +701,21 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	/* Set pll4_audio to a value that can derive 5K-88.2KHz and 8K-96KHz */
 	clk_set_rate(clk[pll4_audio_div], 541900800);
 
+#ifdef CONFIG_MX6_VPU_352M
+	/*
+	 * If VPU 352M is enabled, then PLL2_PDF2 need to be
+	 * set to 352M, cpufreq will be disabled as VDDSOC/PU
+	 * need to be at highest voltage, scaling cpu freq is
+	 * not saving any power, and busfreq will be also disabled
+	 * as the PLL2_PFD2 is not at default freq, in a word,
+	 * all modules that sourceing clk from PLL2_PFD2 will
+	 * be impacted.
+	 */
+	clk_set_rate(clk[pll2_pfd2_396m], 352000000);
+	clk_set_parent(clk[vpu_axi_sel], clk[pll2_pfd2_396m]);
+	pr_info("VPU 352M is enabled!\n");
+#endif
+
 	/* Set initial power mode */
 	imx6_set_lpm(WAIT_CLOCKED);
 

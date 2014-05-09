@@ -466,7 +466,8 @@ static void __init imx6q_init_late(void)
 		IMX_CHIP_REVISION_1_0))
 		imx6q_cpuidle_init();
 
-	if (IS_ENABLED(CONFIG_ARM_IMX6_CPUFREQ)) {
+	if (IS_ENABLED(CONFIG_ARM_IMX6_CPUFREQ) &&
+			!IS_ENABLED(CONFIG_MX6_VPU_352M)) {
 		imx6q_opp_init(&imx6q_cpufreq_pdev.dev);
 		platform_device_register(&imx6q_cpufreq_pdev);
 	}
