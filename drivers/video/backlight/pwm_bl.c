@@ -10,7 +10,7 @@
  * published by the Free Software Foundation.
  */
 /*
- * Copyright (C) 2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc.
  */
 
 #include <linux/module.h>
@@ -69,7 +69,17 @@ static int pwm_backlight_get_brightness(struct backlight_device *bl)
 static int pwm_backlight_check_fb(struct backlight_device *bl,
 					struct fb_info *info)
 {
+	struct pwm_bl_data *pb = bl_get_data(bl);
 	char *id = info->fix.id;
+	int ret = 0;
+
+	if (pb->check_fb) {
+		ret = pb->check_fb(pb->dev, info);
+
+		if (ret)
+			return ret;
+	}
+
 	if (!strcmp(id, "DISP3 BG") ||
 		!strcmp(id, "DISP3 BG - DI1") ||
 		!strcmp(id, "DISP4 BG") ||
