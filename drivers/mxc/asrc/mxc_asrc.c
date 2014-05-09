@@ -999,7 +999,6 @@ int mxc_asrc_process_io_buffer(struct asrc_pair_params *params,
 {
 	void *last_vaddr = params->output_last_period.dma_vaddr;
 	unsigned int *last_len = &params->output_last_period.length;
-	enum asrc_pair_index index = params->index;
 	unsigned int dma_len, *buf_len;
 	struct completion *complete;
 	unsigned long lock_flags;
@@ -1044,37 +1043,37 @@ int mxc_asrc_process_io_buffer(struct asrc_pair_params *params,
 	return 0;
 }
 
+int mxc_asrc_process_buffer_pre(struct completion *complete,
+				enum asrc_pair_index index, bool in)
+{
+	if (!wait_for_completion_interruptible_timeout(complete, 10 * HZ)) {
+		pair_err("%sput dma task timeout\n", in ? "in" : "out");
+		return -ETIME;
+	} else if (signal_pending(current)) {
+		pair_err("%sput task forcibly aborted\n", in ? "in" : "out");
+		return -ERESTARTSYS;
+	}
+
+	init_completion(complete);
+
+	return 0;
+}
+
 int mxc_asrc_process_buffer(struct asrc_pair_params *params,
 			struct asrc_convert_buffer *pbuf)
 {
 	enum asrc_pair_index index = params->index;
-	struct completion *complete;
 	int ret;
-	bool in;
 
-	complete = &params->output_complete;
-	in = false;
-	if (!wait_for_completion_interruptible_timeout(complete, 10 * HZ)) {
-		pair_err("%sput dma task timeout\n", in ? "in" : "out");
-		return -ETIME;
-	} else if (signal_pending(current)) {
-		pair_err("%sput task forcibly aborted\n", in ? "in" : "out");
-		return -ERESTARTSYS;
-	}
+	/* Ouput task should be finished earilier */
+	ret = mxc_asrc_process_buffer_pre(&params->output_complete, index, false);
+	if (ret)
+		return ret;
 
-	init_completion(complete);
-
-	complete = &params->input_complete;
-	in = true;
-	if (!wait_for_completion_interruptible_timeout(complete, 10 * HZ)) {
-		pair_err("%sput dma task timeout\n", in ? "in" : "out");
-		return -ETIME;
-	} else if (signal_pending(current)) {
-		pair_err("%sput task forcibly aborted\n", in ? "in" : "out");
-		return -ERESTARTSYS;
-	}
-
-	init_completion(complete);
+	/* ...then input task*/
+	ret = mxc_asrc_process_buffer_pre(&params->input_complete, index, true);
+	if (ret)
+		return ret;
 
 	ret = mxc_asrc_process_io_buffer(params, pbuf, true);
 	if (ret) {
