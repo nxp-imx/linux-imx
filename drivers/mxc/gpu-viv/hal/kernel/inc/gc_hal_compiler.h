@@ -455,6 +455,7 @@ typedef struct _gcsKERNEL_FUNCTION *	gcKERNEL_FUNCTION;
 typedef struct _gcsHINT *               gcsHINT_PTR;
 typedef struct _gcSHADER_PROFILER *     gcSHADER_PROFILER;
 typedef struct _gcVARIABLE *			gcVARIABLE;
+typedef struct _gcSHADER_LIST *         gcSHADER_LIST;
 
 struct _gcsHINT
 {
@@ -4288,6 +4289,46 @@ gcSHADER_PatchZBiasForMachineCodeVS(
     OUT    gctPOINTER*             ppCmdBuffer,
     OUT    gctUINT32*              pByteSizeOfCmdBuffer,
     IN OUT gcsHINT_PTR             pHints /* User needs copy original hints to this one, then passed this one in */
+    );
+
+gceSTATUS
+gcSHADER_InsertList(
+    IN gcSHADER                    Shader,
+    IN gcSHADER_LIST *             Root,
+    IN gctINT                      Index,
+    IN gctINT                      Data0,
+    IN gctINT                      Data1
+    );
+
+gceSTATUS
+gcSHADER_UpdateList(
+    IN gcSHADER                    Shader,
+    IN gcSHADER_LIST               Root,
+    IN gctINT                      Index,
+    IN gctINT                      NewIndex
+    );
+
+gceSTATUS
+gcSHADER_DeleteList(
+    IN gcSHADER                    Shader,
+    IN gcSHADER_LIST *             Root,
+    IN gctINT                      Index
+    );
+
+gceSTATUS
+gcSHADER_FindList(
+    IN gcSHADER                    Shader,
+    IN gcSHADER_LIST               Root,
+    IN gctINT                      Index,
+    IN gcSHADER_LIST *             List
+    );
+
+gceSTATUS
+gcSHADER_InsertWClipList(
+    IN gcSHADER                    Shader,
+    IN gctINT                      Index,
+    IN gctINT                      Data0,
+    IN gctINT                      Data1
     );
 
 #ifdef __cplusplus
