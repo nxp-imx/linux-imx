@@ -524,6 +524,11 @@ struct _gcsHINT
 #if TEMP_SHADER_PATCH
 	gctUINT32	pachedShaderIdentifier;
 #endif
+
+#if gcdUSE_WCLIP_PATCH
+    /* Strict WClip match. */
+    gctBOOL     strictWClipMatch;
+#endif
 };
 
 #if TEMP_SHADER_PATCH
@@ -3231,6 +3236,12 @@ gcATTRIBUTE_IsEnabled(
 	OUT gctBOOL * Enabled
 	);
 
+gceSTATUS
+gcATTRIBUTE_GetIndex(
+    IN gcATTRIBUTE Attribute,
+    OUT gctUINT16 * Index
+    );
+
 /*******************************************************************************
 **                              gcUNIFORM_GetType
 ********************************************************************************
@@ -3392,6 +3403,12 @@ gcUNIFORM_GetSampler(
 	IN gcUNIFORM Uniform,
 	OUT gctUINT32 * Sampler
 	);
+
+gceSTATUS
+gcUNIFORM_GetIndex(
+    IN gcUNIFORM Uniform,
+    OUT gctUINT16 * Index
+    );
 
 /*******************************************************************************
 **  gcUNIFORM_GetFormat
