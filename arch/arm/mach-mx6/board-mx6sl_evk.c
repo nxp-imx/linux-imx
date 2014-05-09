@@ -704,6 +704,21 @@ static struct fsl_mxc_lcd_platform_data sii902x_hdmi_data = {
        .put_pins = sii902x_put_pins,
 };
 
+static void seiko_wvga_enable_pins(void)
+{
+	gpio_set_value(MX6_BRD_LCD_PWR_EN, 1);
+}
+
+static void seiko_wvga_disable_pins(void)
+{
+	gpio_set_value(MX6_BRD_LCD_PWR_EN, 0);
+}
+
+static struct fsl_mxc_lcd_platform_data seiko_wvga_data = {
+       .enable_pins = seiko_wvga_enable_pins,
+       .disable_pins = seiko_wvga_disable_pins,
+};
+
 static void mx6sl_csi_io_init(void)
 {
 	mxc_iomux_v3_setup_multiple_pads(mx6sl_brd_csi_enable_pads,	\
@@ -1337,6 +1352,9 @@ static struct mxc_fb_platform_data wvga_fb_data[] = {
 
 static struct platform_device lcd_wvga_device = {
 	.name = "lcd_seiko",
+	.dev = {
+		.platform_data = &seiko_wvga_data,
+	},
 };
 
 static struct fb_videomode hdmi_video_modes[] = {
