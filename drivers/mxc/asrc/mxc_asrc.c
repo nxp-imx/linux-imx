@@ -994,55 +994,6 @@ static int mxc_asrc_prepare_buffer(struct asrc_pair_params *params,
 	return 0;
 }
 
-int mxc_asrc_process_io_buffer(struct asrc_pair_params *params,
-				struct asrc_convert_buffer *pbuf, bool in)
-{
-	void *last_vaddr = params->output_last_period.dma_vaddr;
-	unsigned int *last_len = &params->output_last_period.length;
-	unsigned int dma_len, *buf_len;
-	struct completion *complete;
-	unsigned long lock_flags;
-	void __user *buf_vaddr;
-	void *dma_vaddr;
-
-	if (in) {
-		dma_vaddr = params->input_dma_total.dma_vaddr;
-		dma_len = params->input_dma_total.length;
-		buf_len = &pbuf->input_buffer_length;
-		complete = &params->input_complete;
-		buf_vaddr = (void __user *)pbuf->input_buffer_vaddr;
-	} else {
-		dma_vaddr = params->output_dma_total.dma_vaddr;
-		dma_len = params->output_dma_total.length;
-		buf_len = &pbuf->output_buffer_length;
-		complete = &params->output_complete;
-		buf_vaddr = (void __user *)pbuf->output_buffer_vaddr;
-	}
-
-	*buf_len = dma_len;
-
-	/* Only output need return data to user space */
-	if (!in) {
-		spin_lock_irqsave(&pair_lock, lock_flags);
-		if (!params->pair_hold) {
-			spin_unlock_irqrestore(&pair_lock, lock_flags);
-			return -EFAULT;
-		}
-		asrc_read_output_FIFO(params);
-		spin_unlock_irqrestore(&pair_lock, lock_flags);
-
-		if (copy_to_user(buf_vaddr, dma_vaddr, dma_len))
-			return -EFAULT;
-
-		*buf_len += *last_len;
-
-		if (copy_to_user(buf_vaddr + dma_len, last_vaddr, *last_len))
-			return -EFAULT;
-	}
-
-	return 0;
-}
-
 int mxc_asrc_process_buffer_pre(struct completion *complete,
 				enum asrc_pair_index index, bool in)
 {
@@ -1063,6 +1014,7 @@ int mxc_asrc_process_buffer(struct asrc_pair_params *params,
 			struct asrc_convert_buffer *pbuf)
 {
 	enum asrc_pair_index index = params->index;
+	unsigned long lock_flags;
 	int ret;
 
 	/* Ouput task should be finished earilier */
@@ -1075,17 +1027,29 @@ int mxc_asrc_process_buffer(struct asrc_pair_params *params,
 	if (ret)
 		return ret;
 
-	ret = mxc_asrc_process_io_buffer(params, pbuf, true);
-	if (ret) {
-		pair_err("failed to process input buffer: %d\n", ret);
-		return ret;
-	}
+	pbuf->input_buffer_length = params->input_dma_total.length;
+	pbuf->output_buffer_length = params->output_dma_total.length;
 
-	ret = mxc_asrc_process_io_buffer(params, pbuf, false);
-	if (ret) {
-		pair_err("failed to process output buffer: %d\n", ret);
-		return ret;
+	spin_lock_irqsave(&pair_lock, lock_flags);
+	if (!params->pair_hold) {
+		spin_unlock_irqrestore(&pair_lock, lock_flags);
+		return -EFAULT;
 	}
+	asrc_read_output_FIFO(params);
+	spin_unlock_irqrestore(&pair_lock, lock_flags);
+
+	if (copy_to_user((void __user *)pbuf->output_buffer_vaddr,
+			 params->output_dma_total.dma_vaddr,
+			 params->output_dma_total.length))
+		return -EFAULT;
+
+	pbuf->output_buffer_length += params->output_last_period.length;
+
+	if (copy_to_user((void __user *)pbuf->output_buffer_vaddr +
+			 params->output_dma_total.length,
+			 params->output_last_period.dma_vaddr,
+			 params->output_last_period.length))
+		return -EFAULT;
 
 	return 0;
 }
