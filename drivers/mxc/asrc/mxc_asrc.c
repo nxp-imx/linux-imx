@@ -663,8 +663,6 @@ static void asrc_input_dma_callback(void *data)
 			DMA_MEM_TO_DEV);
 
 	complete(&params->input_complete);
-
-	schedule_work(&params->task_output_work);
 }
 
 static void asrc_output_dma_callback(void *data)
@@ -732,31 +730,6 @@ static void asrc_read_output_FIFO(struct asrc_pair_params *params)
 	params->output_last_period.length = t_size * params->channel_nums * 2;
 	if (bit24)
 		params->output_last_period.length *= 2;
-}
-
-static void asrc_output_task_worker(struct work_struct *w)
-{
-	struct asrc_pair_params *params =
-		container_of(w, struct asrc_pair_params, task_output_work);
-	enum asrc_pair_index index = params->index;
-	unsigned long lock_flags;
-
-	if (!wait_for_completion_interruptible_timeout(&params->output_complete, HZ / 10)) {
-		pair_err("output dma task timeout\n");
-		return;
-	}
-
-	init_completion(&params->output_complete);
-
-	spin_lock_irqsave(&pair_lock, lock_flags);
-	if (!params->pair_hold) {
-		spin_unlock_irqrestore(&pair_lock, lock_flags);
-		return;
-	}
-	asrc_read_output_FIFO(params);
-	spin_unlock_irqrestore(&pair_lock, lock_flags);
-
-	complete(&params->lastperiod_complete);
 }
 
 static void mxc_free_dma_buf(struct asrc_pair_params *params)
@@ -1029,6 +1002,7 @@ int mxc_asrc_process_io_buffer(struct asrc_pair_params *params,
 	enum asrc_pair_index index = params->index;
 	unsigned int dma_len, *buf_len;
 	struct completion *complete;
+	unsigned long lock_flags;
 	void __user *buf_vaddr;
 	void *dma_vaddr;
 
@@ -1042,24 +1016,22 @@ int mxc_asrc_process_io_buffer(struct asrc_pair_params *params,
 		dma_vaddr = params->output_dma_total.dma_vaddr;
 		dma_len = params->output_dma_total.length;
 		buf_len = &pbuf->output_buffer_length;
-		complete = &params->lastperiod_complete;
+		complete = &params->output_complete;
 		buf_vaddr = (void __user *)pbuf->output_buffer_vaddr;
 	}
-
-	if (!wait_for_completion_interruptible_timeout(complete, 10 * HZ)) {
-		pair_err("%s task timeout\n", in ? "input dma" : "last period");
-		return -ETIME;
-	} else if (signal_pending(current)) {
-		pair_err("%sput task forcibly aborted\n", in ? "in" : "out");
-		return -ERESTARTSYS;
-	}
-
-	init_completion(complete);
 
 	*buf_len = dma_len;
 
 	/* Only output need return data to user space */
 	if (!in) {
+		spin_lock_irqsave(&pair_lock, lock_flags);
+		if (!params->pair_hold) {
+			spin_unlock_irqrestore(&pair_lock, lock_flags);
+			return -EFAULT;
+		}
+		asrc_read_output_FIFO(params);
+		spin_unlock_irqrestore(&pair_lock, lock_flags);
+
 		if (copy_to_user(buf_vaddr, dma_vaddr, dma_len))
 			return -EFAULT;
 
@@ -1076,7 +1048,33 @@ int mxc_asrc_process_buffer(struct asrc_pair_params *params,
 			struct asrc_convert_buffer *pbuf)
 {
 	enum asrc_pair_index index = params->index;
+	struct completion *complete;
 	int ret;
+	bool in;
+
+	complete = &params->output_complete;
+	in = false;
+	if (!wait_for_completion_interruptible_timeout(complete, 10 * HZ)) {
+		pair_err("%sput dma task timeout\n", in ? "in" : "out");
+		return -ETIME;
+	} else if (signal_pending(current)) {
+		pair_err("%sput task forcibly aborted\n", in ? "in" : "out");
+		return -ERESTARTSYS;
+	}
+
+	init_completion(complete);
+
+	complete = &params->input_complete;
+	in = true;
+	if (!wait_for_completion_interruptible_timeout(complete, 10 * HZ)) {
+		pair_err("%sput dma task timeout\n", in ? "in" : "out");
+		return -ETIME;
+	} else if (signal_pending(current)) {
+		pair_err("%sput task forcibly aborted\n", in ? "in" : "out");
+		return -ERESTARTSYS;
+	}
+
+	init_completion(complete);
 
 	ret = mxc_asrc_process_io_buffer(params, pbuf, true);
 	if (ret) {
@@ -1154,7 +1152,6 @@ static void asrc_polling_debug(struct asrc_pair_params *params)
 			DMA_DEV_TO_MEM);
 
 	complete(&params->input_complete);
-	complete(&params->lastperiod_complete);
 }
 #else
 static void mxc_asrc_submit_dma(struct asrc_pair_params *params)
@@ -1292,10 +1289,6 @@ static long asrc_ioctl_config_pair(struct asrc_pair_params *params,
 
 	init_completion(&params->input_complete);
 	init_completion(&params->output_complete);
-	init_completion(&params->lastperiod_complete);
-
-	/* Add work struct to receive last period of output data */
-	INIT_WORK(&params->task_output_work, asrc_output_task_worker);
 
 	ret = copy_to_user(user, &config, sizeof(config));
 	if (ret) {
@@ -1449,7 +1442,6 @@ static long asrc_ioctl_flush(struct asrc_pair_params *params,
 	enum asrc_pair_index index = params->index;
 	init_completion(&params->input_complete);
 	init_completion(&params->output_complete);
-	init_completion(&params->lastperiod_complete);
 
 	/* Release DMA and request again */
 	dma_release_channel(params->input_dma_channel);
@@ -1552,7 +1544,6 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 
 		complete(&params->input_complete);
 		complete(&params->output_complete);
-		complete(&params->lastperiod_complete);
 	}
 
 	if (params->pair_hold) {

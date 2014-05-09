@@ -315,7 +315,6 @@ struct asrc_pair_params {
 	enum asrc_pair_index index;
 	struct completion input_complete;
 	struct completion output_complete;
-	struct completion lastperiod_complete;
 	struct dma_chan *input_dma_channel;
 	struct dma_chan *output_dma_channel;
 	unsigned int input_buffer_size;
@@ -331,7 +330,6 @@ struct asrc_pair_params {
 	struct dma_block output_last_period;
 	struct dma_async_tx_descriptor *desc_in;
 	struct dma_async_tx_descriptor *desc_out;
-	struct work_struct task_output_work;
 	unsigned int input_sg_nodes;
 	unsigned int output_sg_nodes;
 	struct scatterlist input_sg[4], output_sg[4];
