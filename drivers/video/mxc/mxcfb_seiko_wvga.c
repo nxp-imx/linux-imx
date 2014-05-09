@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -49,6 +49,9 @@
 static void lcd_poweron(void);
 static void lcd_poweroff(void);
 
+static void lcd_enable(void);
+static void lcd_disable(void);
+
 static struct platform_device *plcd_dev;
 static struct regulator *io_reg;
 static struct regulator *core_reg;
@@ -88,16 +91,22 @@ static int lcd_fb_event(struct notifier_block *nb, unsigned long val, void *v)
 	if (strcmp(event->info->fix.id, "mxc_elcdif_fb"))
 		return 0;
 
+	if ((event->info->var.xres != 800) ||
+	    (event->info->var.yres != 480))
+		return -EINVAL;
+
 	switch (val) {
-	case FB_EVENT_BLANK:
-		if ((event->info->var.xres != 800) ||
-		    (event->info->var.yres != 480)) {
-			break;
-		}
+	case FB_EARLY_EVENT_BLANK:
 		if (*((int *)event->data) == FB_BLANK_UNBLANK)
+			lcd_enable();
+		break;
+	case FB_EVENT_BLANK:
+		if (*((int *)event->data) == FB_BLANK_UNBLANK) {
 			lcd_poweron();
-		else
+		} else {
+			lcd_disable();
 			lcd_poweroff();
+		}
 		break;
 	}
 	return 0;
@@ -216,6 +225,22 @@ static void lcd_poweroff(void)
 		regulator_disable(io_reg);
 	if (core_reg)
 		regulator_disable(core_reg);
+}
+
+static void lcd_enable(void)
+{
+	struct fsl_mxc_lcd_platform_data *plat = plcd_dev->dev.platform_data;
+
+	if (plat && plat->enable_pins)
+		plat->enable_pins();
+}
+
+static void lcd_disable(void)
+{
+	struct fsl_mxc_lcd_platform_data *plat = plcd_dev->dev.platform_data;
+
+	if (plat && plat->disable_pins)
+		plat->disable_pins();
 }
 
 static int __init seiko_wvga_lcd_init(void)
