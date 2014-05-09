@@ -652,20 +652,13 @@ static int pxp_set_scaling(struct pxps *pxp)
 	u32 xscale, yscale, s0scale;
 	u32 decx, decy, xdec = 0, ydec = 0;
 	struct pxp_proc_data *proc_data = &pxp->pxp_conf_state.proc_data;
-
-	if (((proc_data->srect.width == proc_data->drect.width) &&
-	    (proc_data->srect.height == proc_data->drect.height)) ||
-	    ((proc_data->srect.width == 0) && (proc_data->srect.height == 0))) {
-		proc_data->scaling = 0;
-		__raw_writel(0x10001000, pxp->base + HW_PXP_PS_SCALE);
-		__raw_writel(0, pxp->base + HW_PXP_PS_CTRL);
-		goto out;
-	}
+	struct pxp_config_data *pxp_conf = &pxp->pxp_conf_state;
+	struct pxp_layer_param *s0_params = &pxp_conf->s0_param;
 
 	proc_data->scaling = 1;
 	decx = proc_data->srect.width / proc_data->drect.width;
 	decy = proc_data->srect.height / proc_data->drect.height;
-	if (decx > 0) {
+	if (decx > 1) {
 		if (decx >= 2 && decx < 4) {
 			decx = 2;
 			xdec = 1;
@@ -678,10 +671,18 @@ static int pxp_set_scaling(struct pxps *pxp)
 		}
 		xscale = proc_data->srect.width * 0x1000 /
 			 (proc_data->drect.width * decx);
-	} else
-		xscale = proc_data->srect.width * 0x1000 /
-			 proc_data->drect.width;
-	if (decy > 0) {
+	} else {
+		if (!is_yuv(s0_params->pixel_fmt) ||
+		    (s0_params->pixel_fmt == PXP_PIX_FMT_GREY) ||
+		    (s0_params->pixel_fmt == PXP_PIX_FMT_GY04) ||
+		    (s0_params->pixel_fmt == PXP_PIX_FMT_YUV444))
+			xscale = (proc_data->srect.width - 1) * 0x1000 /
+				 (proc_data->drect.width - 1);
+		else
+			xscale = (proc_data->srect.width - 2) * 0x1000 /
+				 (proc_data->drect.width - 1);
+	}
+	if (decy > 1) {
 		if (decy >= 2 && decy < 4) {
 			decy = 2;
 			ydec = 1;
@@ -695,8 +696,8 @@ static int pxp_set_scaling(struct pxps *pxp)
 		yscale = proc_data->srect.height * 0x1000 /
 			 (proc_data->drect.height * decy);
 	} else
-		yscale = proc_data->srect.height * 0x1000 /
-			 proc_data->drect.height;
+		yscale = (proc_data->srect.height - 1) * 0x1000 /
+			 (proc_data->drect.height - 1);
 
 	__raw_writel((xdec << 10) | (ydec << 8), pxp->base + HW_PXP_PS_CTRL);
 
