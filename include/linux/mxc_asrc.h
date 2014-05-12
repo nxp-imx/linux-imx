@@ -117,6 +117,7 @@
 #define ASRCTR_ASRCEx_SHIFT(x)		(1 + x)
 #define ASRCTR_ASRCEx_MASK(x)		(1 << ASRCTR_ASRCEx_SHIFT(x))
 #define ASRCTR_ASRCE(x)			(1 << ASRCTR_ASRCEx_SHIFT(x))
+#define ASRCTR_ASRCEx_ALL_MASK		(0x7 << ASRCTR_ASRCEx_SHIFT(0))
 #define ASRCTR_ASRCEN_SHIFT		0
 #define ASRCTR_ASRCEN_MASK		(1 << ASRCTR_ASRCEN_SHIFT)
 #define ASRCTR_ASRCEN			(1 << ASRCTR_ASRCEN_SHIFT)
@@ -343,6 +344,7 @@ struct asrc_pair_params {
 };
 
 struct asrc_data {
+	struct asrc_pair_params *params[ASRC_PAIR_MAX_NUM];
 	struct asrc_pair asrc_pair[ASRC_PAIR_MAX_NUM];
 	struct proc_dir_entry *proc_asrc;
 	struct class *asrc_class;

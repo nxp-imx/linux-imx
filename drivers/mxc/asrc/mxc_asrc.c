@@ -1468,7 +1468,7 @@ static long asrc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 static int mxc_asrc_open(struct inode *inode, struct file *file)
 {
 	struct asrc_pair_params *params;
-	int ret = 0;
+	int i = 0, ret = 0;
 
 	ret = signal_pending(current);
 	if (ret) {
@@ -1484,6 +1484,16 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 
 	file->private_data = params;
 
+	while (asrc->params[i])
+		i++;
+
+	if (i >= ASRC_PAIR_MAX_NUM) {
+		dev_err(asrc->dev, "All pairs are being occupied\n");
+		return -EBUSY;
+	}
+
+	asrc->params[i] = params;
+
 	return ret;
 }
 
@@ -1491,8 +1501,13 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 {
 	struct asrc_pair_params *params;
 	unsigned long lock_flags;
+	int i;
 
 	params = file->private_data;
+
+	for (i = 0; i < ASRC_PAIR_MAX_NUM; i++)
+		if (asrc->params[i] == params)
+			asrc->params[i] = NULL;
 
 	if (!params)
 		return 0;
@@ -1719,6 +1734,26 @@ static bool asrc_readable_reg(struct device *dev, unsigned int reg)
 	}
 }
 
+static bool asrc_volatile_reg(struct device *dev, unsigned int reg)
+{
+	switch (reg) {
+	case REG_ASRSTR:
+	case REG_ASRDIA:
+	case REG_ASRDIB:
+	case REG_ASRDIC:
+	case REG_ASRDOA:
+	case REG_ASRDOB:
+	case REG_ASRDOC:
+	case REG_ASRFSTA:
+	case REG_ASRFSTB:
+	case REG_ASRFSTC:
+	case REG_ASRCFG:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static bool asrc_writeable_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
@@ -1767,7 +1802,9 @@ static struct regmap_config asrc_regmap_config = {
 
 	.max_register = REG_ASRMCR1C,
 	.readable_reg = asrc_readable_reg,
+	.volatile_reg = asrc_volatile_reg,
 	.writeable_reg = asrc_writeable_reg,
+	.cache_type = REGCACHE_RBTREE,
 };
 
 static int mxc_asrc_probe(struct platform_device *pdev)
@@ -1910,10 +1947,61 @@ static int mxc_asrc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#if CONFIG_PM_SLEEP
+static int mxc_asrc_suspend(struct device *dev)
+{
+	struct asrc_pair_params *params;
+	int i;
+
+	for (i = 0; i < ASRC_PAIR_MAX_NUM; i++) {
+		params = asrc->params[i];
+		if (!params)
+			continue;
+
+		if (!completion_done(&params->input_complete)) {
+			dmaengine_terminate_all(params->input_dma_channel);
+			asrc_input_dma_callback((void *)params);
+		}
+		if (!completion_done(&params->output_complete)) {
+			dmaengine_terminate_all(params->output_dma_channel);
+			asrc_output_dma_callback((void *)params);
+		}
+	}
+
+	regcache_cache_only(asrc->regmap, true);
+	regcache_mark_dirty(asrc->regmap);
+
+	return 0;
+}
+
+static int mxc_asrc_resume(struct device *dev)
+{
+	u32 asrctr;
+
+	/* Stop all pairs provisionally */
+	regmap_read(asrc->regmap, REG_ASRCTR, &asrctr);
+	regmap_update_bits(asrc->regmap, REG_ASRCTR, ASRCTR_ASRCEx_ALL_MASK, 0);
+
+	regcache_cache_only(asrc->regmap, false);
+	regcache_sync(asrc->regmap);
+
+	/* Restart enabled pairs */
+	regmap_update_bits(asrc->regmap, REG_ASRCTR,
+			   ASRCTR_ASRCEx_ALL_MASK, asrctr);
+
+	return 0;
+}
+#endif /* CONFIG_PM_SLEEP */
+
+static const struct dev_pm_ops mxc_asrc_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(mxc_asrc_suspend, mxc_asrc_resume)
+};
+
 static struct platform_driver mxc_asrc_driver = {
 	.driver = {
 		.name = "mxc_asrc",
 		.of_match_table = fsl_asrc_ids,
+		.pm = &mxc_asrc_pm_ops,
 	},
 	.probe = mxc_asrc_probe,
 	.remove = mxc_asrc_remove,
