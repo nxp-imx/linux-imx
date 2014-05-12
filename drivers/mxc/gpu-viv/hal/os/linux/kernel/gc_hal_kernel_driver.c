@@ -1,7 +1,7 @@
 /****************************************************************************
 *
 *    Copyright (C) 2005 - 2013 by Vivante Corp.
-*    Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
+*    Copyright (C) 2011-2014 Freescale Semiconductor, Inc.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -37,6 +37,9 @@
 
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
 #    include <linux/resmem_account.h>
+#endif
+
+#ifdef CONFIG_GPU_LOW_MEMORY_KILLER
 #    include <linux/kernel.h>
 #    include <linux/mm.h>
 #    include <linux/oom.h>
@@ -893,9 +896,11 @@ static int drv_init(struct device *pdev)
         /* Reset the base address */
         device->baseAddress = 0;
     }
+#ifdef CONFIG_GPU_LOW_MEMORY_KILLER
+    task_free_register(&task_nb);
+#endif
 
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
-    task_free_register(&task_nb);
     viv_gpu_resmem_handler.data = device->kernels[gcvCORE_MAJOR];
     register_reserved_memory_account(&viv_gpu_resmem_handler);
 #endif
@@ -980,8 +985,11 @@ static void drv_exit(void)
 {
     gcmkHEADER();
 
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+#ifdef CONFIG_GPU_LOW_MEMORY_KILLER
     task_free_unregister(&task_nb);
+#endif
+
+#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
     unregister_reserved_memory_account(&viv_gpu_resmem_handler);
 #endif
 
