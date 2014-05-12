@@ -7,7 +7,7 @@
  *
  * Based on code from Freescale:
  *
- * Copyright 2004-2013 Freescale Semiconductor, Inc.
+ * Copyright 2004-2014 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -847,19 +847,19 @@ static int sdma_config_channel(struct sdma_channel *sdmac)
 				sdmac->event_mask1 |=
 					1 << ((sdmac->event_id0)%32);
 			} else {
-				sdmac->event_mask0 |=
+				sdmac->event_mask0 |= 0;
+				sdmac->event_mask1 |=
 					1 << ((sdmac->event_id0)%32);
-				sdmac->event_mask1 |= 0;
 			}
 			if (sdmac->event_id1 > 31) {
 				sdmac->watermark_level |= 1 << 29;
-				sdmac->event_mask0 |= 0;
-				sdmac->event_mask1 |=
-					1 << ((sdmac->event_id1)%32);
-			} else {
+				sdmac->event_mask1 |= 0;
 				sdmac->event_mask0 |=
 					1 << ((sdmac->event_id1)%32);
+			} else {
 				sdmac->event_mask1 |= 0;
+				sdmac->event_mask0 |=
+					1 << ((sdmac->event_id1)%32);
 			}
 			sdmac->watermark_level |= (unsigned int)(3<<11);
 			sdmac->watermark_level |= (unsigned int)(1<<31);
