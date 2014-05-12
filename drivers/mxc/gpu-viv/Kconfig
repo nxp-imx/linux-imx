@@ -6,4 +6,15 @@ config MXC_GPU_VIV
 	---help---
          Say Y to get the GPU driver support.
 
+config GPU_LOW_MEMORY_KILLER
+       tristate "Reserved memory account to Low memory Killer"
+       depends on ANDROID
+       default n
+       ---help---
+         Resigter reserved memory account to low memory killer, These
+         reserved memory is mainly used by GPU driver, but it's not
+         account by low memory killer, so even it takes much memory,
+         it will not killed.  add this to fix this, it will kill the
+         large memory app in background.
+
 endmenu
