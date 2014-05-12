@@ -410,9 +410,9 @@ static void pxp_set_outbuf(struct pxps *pxp)
 	__raw_writel(out_params->paddr, pxp->base + HW_PXP_OUT_BUF);
 
 	if (proc_data->rotate == 90 || proc_data->rotate == 270) {
-		if (proc_data->rot_pos == 0)
-			__raw_writel(BF_PXP_OUT_LRC_X(proc_data->drect.width - 1) |
-					BF_PXP_OUT_LRC_Y(proc_data->drect.height - 1),
+		if (proc_data->rot_pos == 1)
+			__raw_writel(BF_PXP_OUT_LRC_X(proc_data->drect.height - 1) |
+					BF_PXP_OUT_LRC_Y(proc_data->drect.width - 1),
 					pxp->base + HW_PXP_OUT_LRC);
 		else
 			__raw_writel(BF_PXP_OUT_LRC_X(proc_data->drect.width - 1) |
