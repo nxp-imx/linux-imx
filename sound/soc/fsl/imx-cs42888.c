@@ -132,9 +132,9 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"AIN2L", NULL, "Line In Jack"},
 	{"AIN2R", NULL, "Line In Jack"},
 	{"esai-Playback",  NULL, "asrc-Playback"},
-	{"codec-Playback",  NULL, "esai-Playback"},/* dai route for be and fe */
+	{"Playback",  NULL, "esai-Playback"},/* dai route for be and fe */
 	{"asrc-Capture",  NULL, "esai-Capture"},
-	{"esai-Capture",  NULL, "codec-Capture"},
+	{"esai-Capture",  NULL, "Capture"},
 };
 
 static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
@@ -158,7 +158,7 @@ static struct snd_soc_dai_link imx_cs42888_dai[] = {
 	{
 		.name = "HiFi",
 		.stream_name = "HiFi",
-		.codec_dai_name = "CS42888",
+		.codec_dai_name = "cs42888",
 		.ops = &imx_cs42888_surround_ops,
 	},
 	{
@@ -171,7 +171,7 @@ static struct snd_soc_dai_link imx_cs42888_dai[] = {
 	{
 		.name = "HiFi-ASRC-BE",
 		.stream_name = "HiFi-ASRC-BE",
-		.codec_dai_name = "CS42888",
+		.codec_dai_name = "cs42888",
 		.platform_name = "snd-soc-dummy",
 		.no_pcm = 1,
 		.ops = &imx_cs42888_surround_ops_be,

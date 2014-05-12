@@ -441,7 +441,7 @@
 		compatible = "cirrus,cs42888";
 		reg = <0x048>;
 		clocks = <&codec_osc 0>;
-		clock-names = "codec_osc";
+		clock-names = "mclk";
 		VA-supply = <&reg_audio>;
 		VD-supply = <&reg_audio>;
 		VLS-supply = <&reg_audio>;
