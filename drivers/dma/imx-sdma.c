@@ -839,14 +839,14 @@ static int sdma_config_channel(struct sdma_channel *sdmac)
 				sdmac->event_mask[1] |=
 						BIT(sdmac->event_id0 % 32);
 			} else {
-				sdmac->event_mask[1] |= 0;
-				sdmac->event_mask[0] |=
+				sdmac->event_mask[0] |= 0;
+				sdmac->event_mask[1] |=
 						BIT(sdmac->event_id0 % 32);
 			}
 			if (sdmac->event_id1 > 31) {
-				sdmac->event_mask[0] |= 0;
+				sdmac->event_mask[1] |= 0;
 				__set_bit(29, &sdmac->watermark_level);
-				sdmac->event_mask[1] |=
+				sdmac->event_mask[0] |=
 						BIT(sdmac->event_id1 % 32);
 			} else {
 				sdmac->event_mask[1] |= 0;
