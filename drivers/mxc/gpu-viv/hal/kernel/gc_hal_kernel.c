@@ -536,7 +536,7 @@ gckKERNEL_Destroy(
     return gcvSTATUS_OK;
 }
 
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+#ifdef CONFIG_GPU_LOW_MEMORY_KILLER
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/oom.h>
@@ -677,7 +677,7 @@ _AllocateMemory(
     gcmkVERIFY_ARGUMENT(Pool != gcvNULL);
     gcmkVERIFY_ARGUMENT(Bytes != 0);
 
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+#ifdef CONFIG_GPU_LOW_MEMORY_KILLER
 _AllocateMemory_Retry:
 #endif
     /* Get initial pool. */
@@ -869,7 +869,7 @@ _AllocateMemory_Retry:
     if (node == gcvNULL)
     {
 
-#ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
+#ifdef CONFIG_GPU_LOW_MEMORY_KILLER
         if(forceContiguous == gcvTRUE)
         {
             if(force_contiguous_lowmem_shrink(Kernel) == 0)
