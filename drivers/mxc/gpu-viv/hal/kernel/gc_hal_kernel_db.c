@@ -320,9 +320,6 @@ gckKERNEL_DeleteDatabase(
     Database->mmu = gcvNULL;
 #endif
 
-    /* Release the database mutex. */
-    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
-
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
