@@ -196,6 +196,9 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 #define FEC_MMFR_RA(v)		((v & 0x1f) << 18)
 #define FEC_MMFR_TA		(2 << 16)
 #define FEC_MMFR_DATA(v)	(v & 0xffff)
+/* FEC ECR bits definition */
+#define FEC_ECR_MAGICEN		(1 << 2)
+#define FEC_ECR_SLEEP		(1 << 3)
 
 #define FEC_MII_TIMEOUT		30000 /* us */
 
@@ -204,6 +207,9 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 
 #define FEC_PAUSE_FLAG_AUTONEG	0x1
 #define FEC_PAUSE_FLAG_ENABLE	0x2
+#define FEC_WOL_HAS_MAGIC_PACKET	(0x1 << 0)
+#define FEC_WOL_FLAG_ENABLE		(0x1 << 1)
+#define FEC_WOL_FLAG_SLEEP_ON		(0x1 << 2)
 
 static int mii_cnt;
 
@@ -765,9 +771,11 @@ static void
 fec_stop(struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
+	struct fec_platform_data *pdata = fep->pdev->dev.platform_data;
 	const struct platform_device_id *id_entry =
 				platform_get_device_id(fep->pdev);
 	u32 rmii_mode = readl(fep->hwp + FEC_R_CNTRL) & (1 << 8);
+	u32 val;
 
 	/* We cannot expect a graceful transmit stop without link !!! */
 	if (fep->link) {
@@ -782,14 +790,27 @@ fec_stop(struct net_device *ndev)
 	 * For i.MX6SX SOC, enet use AXI bus, we use disable MAC
 	 * instead of reset MAC itself.
 	 */
-	if (id_entry && id_entry->driver_data & FEC_QUIRK_HAS_AVB)
-		writel(0, fep->hwp + FEC_ECNTRL);
-	else {
-		writel(1, fep->hwp + FEC_ECNTRL);
-		udelay(10);
+	if (!(fep->wol_flag & FEC_WOL_FLAG_SLEEP_ON)) {
+		if (id_entry && id_entry->driver_data & FEC_QUIRK_HAS_AVB)
+			writel(0, fep->hwp + FEC_ECNTRL);
+		else {
+			writel(1, fep->hwp + FEC_ECNTRL);
+			udelay(10);
+		}
+
+		writel(FEC_DEFAULT_IMASK, fep->hwp + FEC_IMASK);
+	} else {
+		writel(FEC_DEFAULT_IMASK | FEC_ENET_WAKEUP,
+			fep->hwp + FEC_IMASK);
+		val = readl(fep->hwp + FEC_ECNTRL);
+		val |= (FEC_ECR_MAGICEN | FEC_ECR_SLEEP);
+		writel(val, fep->hwp + FEC_ECNTRL);
+
+		if (pdata && pdata->sleep_mode_enable)
+			pdata->sleep_mode_enable(true);
 	}
+
 	writel(fep->phy_speed, fep->hwp + FEC_MII_SPEED);
-	writel(FEC_DEFAULT_IMASK, fep->hwp + FEC_IMASK);
 
 	if (fep->bufdesc_ex && (fep->hwts_tx_en_ioctl ||
 		fep->hwts_rx_en_ioctl || fep->hwts_tx_en ||
@@ -797,7 +818,8 @@ fec_stop(struct net_device *ndev)
 		fec_ptp_stop(ndev);
 
 	/* We have to keep ENET enabled to have MII interrupt stay working */
-	if (id_entry->driver_data & FEC_QUIRK_ENET_MAC) {
+	if (id_entry->driver_data & FEC_QUIRK_ENET_MAC &&
+		!(fep->wol_flag & FEC_WOL_FLAG_SLEEP_ON)) {
 		writel(2, fep->hwp + FEC_ECNTRL);
 		writel(rmii_mode, fep->hwp + FEC_R_CNTRL);
 	}
@@ -1974,6 +1996,47 @@ static void fec_enet_itr_coal_init(struct net_device *ndev)
 	fec_enet_set_coalesce(ndev, &ec);
 }
 
+#ifdef CONFIG_PM
+static void
+fec_enet_get_wol(struct net_device *ndev, struct ethtool_wolinfo *wol)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+
+	if (fep->wol_flag & FEC_WOL_HAS_MAGIC_PACKET) {
+		wol->supported = WAKE_MAGIC;
+		wol->wolopts = fep->wol_flag & FEC_WOL_FLAG_ENABLE ? WAKE_MAGIC : 0;
+	} else {
+		wol->supported = wol->wolopts = 0;
+	}
+}
+
+static int
+fec_enet_set_wol(struct net_device *ndev, struct ethtool_wolinfo *wol)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+
+	if (!(fep->wol_flag & FEC_WOL_HAS_MAGIC_PACKET) &&
+			wol->wolopts != 0)
+		return -EINVAL;
+
+	if (wol->wolopts & ~WAKE_MAGIC)
+		return -EINVAL;
+
+	device_set_wakeup_enable(&ndev->dev, wol->wolopts & WAKE_MAGIC);
+	if (device_may_wakeup(&ndev->dev)) {
+		fep->wol_flag |= FEC_WOL_FLAG_ENABLE;
+		if (fep->irq[0] > 0)
+			enable_irq_wake(fep->irq[0]);
+	} else {
+		fep->wol_flag &= (~FEC_WOL_FLAG_ENABLE);
+		if (fep->irq[0] > 0)
+			disable_irq_wake(fep->irq[0]);
+	}
+
+	return 0;
+}
+#endif
+
 static const struct ethtool_ops fec_enet_ethtool_ops = {
 #if !defined(CONFIG_M5272)
 	.get_pauseparam		= fec_enet_get_pauseparam,
@@ -1991,6 +2054,10 @@ static const struct ethtool_ops fec_enet_ethtool_ops = {
 	.get_ethtool_stats	= fec_enet_get_ethtool_stats,
 	.get_strings		= fec_enet_get_strings,
 	.get_sset_count		= fec_enet_get_sset_count,
+#endif
+#ifdef CONFIG_PM
+	.get_wol		= fec_enet_get_wol,
+	.set_wol		= fec_enet_set_wol,
 #endif
 };
 
@@ -2170,6 +2237,9 @@ fec_enet_open(struct net_device *ndev)
 		pm_qos_add_request(&ndev->pm_qos_req,
 				   PM_QOS_CPU_DMA_LATENCY,
 				   PM_QOS_DEFAULT_VALUE);
+
+	device_set_wakeup_enable(&ndev->dev,
+		fep->wol_flag & FEC_WOL_FLAG_ENABLE);
 
 	return 0;
 }
@@ -2539,6 +2609,9 @@ static void fec_of_init(struct platform_device *pdev)
 	if (!np)
 		return;
 
+	if (of_get_property(np, "fsl,magic-packet", NULL))
+		fep->wol_flag |= FEC_WOL_HAS_MAGIC_PACKET;
+
 	of_property_read_u32(np, "phy-reset-duration",
 				 &fep->reset_duration);
 	/* A sane reset duration should not be longer than 1s */
@@ -2751,6 +2824,7 @@ fec_probe(struct platform_device *pdev)
 			}
 			goto failed_irq;
 		}
+		fep->irq[i] = irq;
 	}
 
 	init_completion(&fep->mdio_done);
@@ -2760,6 +2834,9 @@ fec_probe(struct platform_device *pdev)
 
 	/* Carrier starts down, phylib will bring it up */
 	netif_carrier_off(ndev);
+	device_init_wakeup(&ndev->dev,
+		fep->wol_flag & FEC_WOL_HAS_MAGIC_PACKET);
+
 	fec_enet_clk_enable(ndev, false);
 
 	/* Select sleep pin state */
@@ -2835,9 +2912,12 @@ fec_suspend(struct device *dev)
 	struct fec_enet_private *fep = netdev_priv(ndev);
 
 	if (netif_running(ndev)) {
+		if (fep->wol_flag & FEC_WOL_FLAG_ENABLE)
+			fep->wol_flag |= FEC_WOL_FLAG_SLEEP_ON;
 		fec_stop(ndev);
 		netif_device_detach(ndev);
-		fec_enet_clk_enable(ndev, false);
+		if (!(fep->wol_flag & FEC_WOL_FLAG_ENABLE))
+			fec_enet_clk_enable(ndev, false);
 		pinctrl_pm_select_sleep_state(&fep->pdev->dev);
 	}
 
@@ -2859,7 +2939,9 @@ fec_resume(struct device *dev)
 {
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct fec_enet_private *fep = netdev_priv(ndev);
+	struct fec_platform_data *pdata = fep->pdev->dev.platform_data;
 	int ret;
+	int val;
 
 	if (fep->reg_phy) {
 		ret = regulator_enable(fep->reg_phy);
@@ -2869,7 +2951,16 @@ fec_resume(struct device *dev)
 
 	if (netif_running(ndev)) {
 		pinctrl_pm_select_default_state(&fep->pdev->dev);
-		fec_enet_clk_enable(ndev, true);
+		if (fep->wol_flag & FEC_WOL_FLAG_ENABLE) {
+			if (pdata && pdata->sleep_mode_enable)
+				pdata->sleep_mode_enable(false);
+			val = readl(fep->hwp + FEC_ECNTRL);
+			val &= (~(FEC_ECR_MAGICEN | FEC_ECR_SLEEP));
+			writel(val, fep->hwp + FEC_ECNTRL);
+			fep->wol_flag &= ~FEC_WOL_FLAG_SLEEP_ON;
+		} else {
+			fec_enet_clk_enable(ndev, true);
+		}
 		if (!fep->clk_enet_out && !fep->reg_phy)
 			fec_restart(ndev, fep->full_duplex);
 		netif_device_attach(ndev);
