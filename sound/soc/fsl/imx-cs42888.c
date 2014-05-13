@@ -31,12 +31,12 @@
 
 #define CODEC_CLK_EXTER_OSC   1
 #define CODEC_CLK_ESAI_HCKT   2
+#define SUPPORT_RATE_NUM    10
 
 struct imx_priv {
 	int fe_p2p_rate;
 	int fe_p2p_width;
 	unsigned int mclk_freq;
-	unsigned int codec_mclk;
 	struct platform_device *pdev;
 };
 
@@ -71,9 +71,46 @@ static int imx_cs42888_surround_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int imx_cs42888_surround_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	static struct snd_pcm_hw_constraint_list constraint_rates;
+	struct imx_priv *priv = &card_priv;
+	struct device *dev = &priv->pdev->dev;
+	static u32 support_rates[SUPPORT_RATE_NUM];
+	int ret;
+
+	if (priv->mclk_freq == 24576000) {
+		support_rates[0] = 48000;
+		support_rates[1] = 96000;
+		support_rates[2] = 192000;
+		constraint_rates.list = support_rates;
+		constraint_rates.count = 3;
+
+		ret = snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_RATE,
+							&constraint_rates);
+		if (ret)
+			return ret;
+	} else
+		dev_warn(dev, "mclk may be not supported %d\n", priv->mclk_freq);
+
+	return 0;
+}
+
 static struct snd_soc_ops imx_cs42888_surround_ops = {
+	.startup = imx_cs42888_surround_startup,
 	.hw_params = imx_cs42888_surround_hw_params,
 };
+
+/**
+ * imx_cs42888_surround_startup() is to set constrain for hw parameter, but
+ * backend use same runtime as frontend, for p2p backend need to use different
+ * parameter, so backend can't use the startup.
+ */
+static struct snd_soc_ops imx_cs42888_surround_ops_be = {
+	.hw_params = imx_cs42888_surround_hw_params,
+};
+
 
 static const struct snd_soc_dapm_widget imx_cs42888_dapm_widgets[] = {
 	SND_SOC_DAPM_LINE("Line Out Jack", NULL),
@@ -137,7 +174,7 @@ static struct snd_soc_dai_link imx_cs42888_dai[] = {
 		.codec_dai_name = "CS42888",
 		.platform_name = "snd-soc-dummy",
 		.no_pcm = 1,
-		.ops = &imx_cs42888_surround_ops,
+		.ops = &imx_cs42888_surround_ops_be,
 		.be_hw_params_fixup = be_hw_params_fixup,
 	},
 };
@@ -163,7 +200,6 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 	struct i2c_client *codec_dev;
 	struct imx_priv *priv = &card_priv;
 	struct clk *codec_clk = NULL;
-	const char *mclk_name;
 	int ret;
 
 	priv->pdev = pdev;
@@ -230,20 +266,6 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 		goto fail;
 	}
 	priv->mclk_freq = clk_get_rate(codec_clk);
-
-	ret = of_property_read_string(codec_np, "clock-names", &mclk_name);
-	if (ret) {
-		dev_err(&pdev->dev, "%s: failed to get mclk source\n", __func__);
-		goto fail;
-	}
-	if (!strcmp(mclk_name, "codec_osc"))
-		priv->codec_mclk = CODEC_CLK_EXTER_OSC;
-	else if (!strcmp(mclk_name, "esai_extal"))
-		priv->codec_mclk = CODEC_CLK_ESAI_HCKT;
-	else {
-		dev_err(&pdev->dev, "mclk source is not correct %s\n", mclk_name);
-		goto fail;
-	}
 
 	snd_soc_card_imx_cs42888.dev = &pdev->dev;
 

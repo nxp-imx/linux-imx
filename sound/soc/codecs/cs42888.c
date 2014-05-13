@@ -1,6 +1,6 @@
 /*
  * cs42888.c  -- CS42888 ALSA SoC Audio Driver
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 /*
  * The code contained herein is licensed under the GNU General Public
@@ -802,27 +802,6 @@ static int cs42888_i2c_probe(struct i2c_client *i2c_client,
 	}
 
 	cs42888->mclk = clk_get_rate(cs42888->clk);
-	switch (cs42888->mclk) {
-	case 24576000:
-		cs42888_dai.playback.rates = SNDRV_PCM_RATE_48000 |
-					     SNDRV_PCM_RATE_96000 |
-					     SNDRV_PCM_RATE_192000;
-		cs42888_dai.capture.rates = SNDRV_PCM_RATE_48000 |
-					     SNDRV_PCM_RATE_96000 |
-					     SNDRV_PCM_RATE_192000;
-		break;
-	case 16934400:
-		cs42888_dai.playback.rates = SNDRV_PCM_RATE_44100 |
-					     SNDRV_PCM_RATE_88200 |
-					     SNDRV_PCM_RATE_176400;
-		cs42888_dai.capture.rates = SNDRV_PCM_RATE_44100 |
-					     SNDRV_PCM_RATE_88200 |
-					     SNDRV_PCM_RATE_176400;
-		break;
-	default:
-		dev_err(&i2c_client->dev, "codec mclk is not supported %d\n", cs42888->mclk);
-		break;
-	}
 
 	ret = snd_soc_register_codec(&i2c_client->dev,
 		&cs42888_driver, &cs42888_dai, 1);
