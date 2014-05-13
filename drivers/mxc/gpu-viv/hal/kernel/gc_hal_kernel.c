@@ -533,13 +533,11 @@ gckKERNEL_Destroy(
         {
             databaseNext = database->next;
 
-            gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, database->counterMutex));
             gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Kernel->os, database));
         }
 
         if (Kernel->db->lastDatabase != gcvNULL)
         {
-            gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->db->lastDatabase->counterMutex));
             gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Kernel->os, Kernel->db->lastDatabase));
         }
 

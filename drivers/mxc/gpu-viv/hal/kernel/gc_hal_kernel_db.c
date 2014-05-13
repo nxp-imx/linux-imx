@@ -101,8 +101,6 @@ gckKERNEL_NewDatabase(
         gckOS_ZeroMemory(pointer, gcmSIZEOF(gcsDATABASE));
 
         database = pointer;
-
-        gcmkONERROR(gckOS_CreateMutex(Kernel->os, &database->counterMutex));
     }
 
     /* Insert the database into the hash. */
@@ -1018,8 +1016,6 @@ gckKERNEL_RemoveProcessDB(
     gcmkONERROR(
         gckKERNEL_DeleteRecord(Kernel, database, Type, Pointer, &bytes));
 
-    gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, database->counterMutex, gcvINFINITE));
-
     /* Update counters. */
     switch (Type)
     {
@@ -1048,8 +1044,6 @@ gckKERNEL_RemoveProcessDB(
     default:
         break;
     }
-
-    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, database->counterMutex));
 
     /* Release the database mutex. */
     gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));

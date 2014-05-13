@@ -211,7 +211,6 @@ typedef struct _gcsDATABASE
     gcsDATABASE_COUNTERS                vidMemType[gcvSURF_NUM_TYPES];
     /* Counter for each video memory pool. */
     gcsDATABASE_COUNTERS                vidMemPool[gcvPOOL_NUMBER_OF_POOLS];
-    gctPOINTER                          counterMutex;
 
     /* Idle time management. */
     gctUINT64                           lastIdle;
