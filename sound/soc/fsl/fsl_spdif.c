@@ -309,6 +309,8 @@ static int spdif_softreset(struct fsl_spdif_priv *spdif_priv)
 	struct regmap *regmap = spdif_priv->regmap;
 	u32 val, cycle = 1000;
 
+	regcache_cache_bypass(regmap, true);
+
 	regmap_write(regmap, REG_SPDIF_SCR, SCR_SOFT_RESET);
 
 	/*
@@ -318,6 +320,10 @@ static int spdif_softreset(struct fsl_spdif_priv *spdif_priv)
 	do {
 		regmap_read(regmap, REG_SPDIF_SCR, &val);
 	} while ((val & SCR_SOFT_RESET) && cycle--);
+
+	regcache_cache_bypass(regmap, false);
+	regcache_mark_dirty(regmap);
+	regcache_sync(regmap);
 
 	if (cycle)
 		return 0;
@@ -1019,6 +1025,17 @@ static bool fsl_spdif_readable_reg(struct device *dev, unsigned int reg)
 	}
 }
 
+static bool fsl_spdif_volatile_reg(struct device *dev, unsigned int reg)
+{
+	switch (reg) {
+	case REG_SPDIF_SIS:
+		return true;
+	default:
+		return false;
+	}
+
+}
+
 static bool fsl_spdif_writeable_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
@@ -1045,7 +1062,9 @@ static struct regmap_config fsl_spdif_regmap_config = {
 
 	.max_register = REG_SPDIF_STC,
 	.readable_reg = fsl_spdif_readable_reg,
+	.volatile_reg = fsl_spdif_volatile_reg,
 	.writeable_reg = fsl_spdif_writeable_reg,
+	.cache_type = REGCACHE_RBTREE,
 };
 
 static u32 fsl_spdif_txclk_caldiv(struct fsl_spdif_priv *spdif_priv,
@@ -1294,10 +1313,31 @@ static int fsl_spdif_runtime_suspend(struct device *dev)
 }
 #endif
 
+#ifdef CONFIG_PM_SLEEP
+static int fsl_spdif_suspend(struct device *dev)
+{
+	struct fsl_spdif_priv *spdif_priv = dev_get_drvdata(dev);
+
+	regcache_cache_only(spdif_priv->regmap, true);
+	regcache_mark_dirty(spdif_priv->regmap);
+
+	return 0;
+}
+
+static int fsl_spdif_resume(struct device *dev)
+{
+	struct fsl_spdif_priv *spdif_priv = dev_get_drvdata(dev);
+
+	regcache_cache_only(spdif_priv->regmap, false);
+	return regcache_sync(spdif_priv->regmap);
+}
+#endif /* CONFIG_PM_SLEEP */
+
 static const struct dev_pm_ops fsl_spdif_pm = {
 	SET_RUNTIME_PM_OPS(fsl_spdif_runtime_suspend,
 			fsl_spdif_runtime_resume,
 			NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(fsl_spdif_suspend, fsl_spdif_resume)
 };
 
 static const struct of_device_id fsl_spdif_dt_ids[] = {
