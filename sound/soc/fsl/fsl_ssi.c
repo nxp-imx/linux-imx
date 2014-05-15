@@ -53,9 +53,9 @@ static inline void write_ssi_mask(u32 __iomem *addr, u32 clear, u32 set)
 }
 #endif
 
-#ifdef DEBUG
 #define NUM_OF_SSI_REG (sizeof(struct ccsr_ssi) / sizeof(__be32))
 
+#ifdef DEBUG
 void dump_reg(struct ccsr_ssi __iomem *ssi)
 {
 	u32 val, i;
@@ -169,8 +169,24 @@ struct fsl_ssi_private {
 		unsigned int tfe0;
 	} stats;
 
+	u32 regcache[NUM_OF_SSI_REG];
 	char name[1];
 };
+
+static bool fsl_ssi_volatile_reg(unsigned int reg)
+{
+	switch (reg) {
+	case 0x0:	/* stx0 */
+	case 0x4:	/* stx1 */
+	case 0x8:	/* srx0 */
+	case 0xc:	/* srx1 */
+	case 0x14:	/* sisr */
+	case 0x50:	/* saccst */
+		return true;
+	default:
+		return false;
+	}
+}
 
 /**
  * fsl_ssi_isr: SSI interrupt handler
@@ -1163,10 +1179,51 @@ static int fsl_ssi_runtime_suspend(struct device *dev)
 }
 #endif
 
+#ifdef CONFIG_PM_SLEEP
+static int fsl_ssi_suspend(struct device *dev)
+{
+	struct fsl_ssi_private *ssi_private = dev_get_drvdata(dev);
+	struct ccsr_ssi __iomem *ssi = ssi_private->ssi;
+	int i;
+
+	clk_prepare_enable(ssi_private->coreclk);
+
+	for (i = 0; i < NUM_OF_SSI_REG; i++) {
+		if (&ssi->stx0 + i == NULL || fsl_ssi_volatile_reg(i * 0x4))
+			continue;
+		ssi_private->regcache[i] = read_ssi(&ssi->stx0 + i);
+	}
+
+	clk_disable_unprepare(ssi_private->coreclk);
+
+	return 0;
+}
+
+static int fsl_ssi_resume(struct device *dev)
+{
+	struct fsl_ssi_private *ssi_private = dev_get_drvdata(dev);
+	struct ccsr_ssi __iomem *ssi = ssi_private->ssi;
+	int i;
+
+	clk_prepare_enable(ssi_private->coreclk);
+
+	for (i = 0; i < NUM_OF_SSI_REG; i++) {
+		if (&ssi->stx0 + i == NULL || fsl_ssi_volatile_reg(i * 0x4))
+			continue;
+		write_ssi(ssi_private->regcache[i], &ssi->stx0 + i);
+	}
+
+	clk_disable_unprepare(ssi_private->coreclk);
+
+	return 0;
+}
+#endif /* CONFIG_PM_SLEEP */
+
 static const struct dev_pm_ops fsl_ssi_pm = {
 	SET_RUNTIME_PM_OPS(fsl_ssi_runtime_suspend,
 			fsl_ssi_runtime_resume,
 			NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(fsl_ssi_suspend, fsl_ssi_resume)
 };
 
 static const struct of_device_id fsl_ssi_ids[] = {
