@@ -34,10 +34,9 @@
 #define SUPPORT_RATE_NUM    10
 
 struct imx_priv {
-	int fe_p2p_rate;
-	int fe_p2p_width;
 	unsigned int mclk_freq;
 	struct platform_device *pdev;
+	struct platform_device *asrc_pdev;
 };
 
 static struct imx_priv card_priv;
@@ -141,11 +140,17 @@ static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 				struct snd_pcm_hw_params *params) {
 
 	struct imx_priv *priv = &card_priv;
+	struct fsl_asrc_p2p *asrc_p2p;
 
-	hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE)->min = priv->fe_p2p_rate;
-	hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE)->max = priv->fe_p2p_rate;
+	if (!priv->asrc_pdev)
+		return -EINVAL;
+
+	asrc_p2p = platform_get_drvdata(priv->asrc_pdev);
+
+	hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE)->min = asrc_p2p->p2p_rate;
+	hw_param_interval(params, SNDRV_PCM_HW_PARAM_RATE)->max = asrc_p2p->p2p_rate;
 	snd_mask_none(hw_param_mask(params, SNDRV_PCM_HW_PARAM_FORMAT));
-	if (priv->fe_p2p_width == 16)
+	if (asrc_p2p->p2p_width == 16)
 		snd_mask_set(hw_param_mask(params, SNDRV_PCM_HW_PARAM_FORMAT),
 							SNDRV_PCM_FORMAT_S16_LE);
 	else
@@ -203,6 +208,7 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 	int ret;
 
 	priv->pdev = pdev;
+	priv->asrc_pdev = NULL;
 
 	esai_np = of_parse_phandle(pdev->dev.of_node, "esai-controller", 0);
 	codec_np = of_parse_phandle(pdev->dev.of_node, "audio-codec", 0);
@@ -217,6 +223,7 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 		asrc_pdev = of_find_device_by_node(asrc_np);
 		if (asrc_pdev) {
 			struct fsl_asrc_p2p *asrc_p2p;
+			priv->asrc_pdev = asrc_pdev;
 			asrc_p2p = platform_get_drvdata(asrc_pdev);
 			if (!asrc_p2p) {
 				dev_err(&pdev->dev, "failed to get p2p params\n");
@@ -224,8 +231,6 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 				goto fail;
 			}
 			asrc_p2p->per_dev = ESAI;
-			priv->fe_p2p_rate = asrc_p2p->p2p_rate;
-			priv->fe_p2p_width = asrc_p2p->p2p_width;
 		}
 	}
 
