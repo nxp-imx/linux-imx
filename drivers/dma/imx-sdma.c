@@ -661,8 +661,6 @@ static void sdma_update_channel_loop(struct sdma_channel *sdmac)
 
 		if (bd->mode.status & BD_RROR)
 			sdmac->status = DMA_ERROR;
-		else
-			sdmac->status = DMA_IN_PROGRESS;
 
 		bd->mode.status |= BD_DONE;
 		sdmac->buf_tail++;
