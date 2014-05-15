@@ -709,7 +709,6 @@ static int pxp_set_scaling(struct pxps *pxp)
 		BF_PXP_PS_SCALE_XSCALE(xscale);
 	__raw_writel(s0scale, pxp->base + HW_PXP_PS_SCALE);
 
-out:
 	pxp_set_ctrl(pxp);
 
 	return ret;
