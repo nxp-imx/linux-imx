@@ -39,6 +39,104 @@ static bool filter(struct dma_chan *chan, void *param)
 	return true;
 }
 
+static const char *p2p_width_sel[] = {"16 bit", "24 bit"};
+static const unsigned int p2p_width_val[] = { 0, 1 };
+static const struct soc_enum p2p_width_enum =
+	SOC_VALUE_ENUM_SINGLE(-1, 0, 1,
+			      ARRAY_SIZE(p2p_width_sel),
+			      p2p_width_sel,
+			      p2p_width_val);
+
+static int fsl_asrc_p2p_width_get(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *uvalue)
+{
+	struct snd_soc_dai *cpu_dai = snd_kcontrol_chip(kcontrol);
+	struct fsl_asrc_p2p *asrc_p2p = snd_soc_dai_get_drvdata(cpu_dai);
+
+	uvalue->value.integer.value[0] = asrc_p2p->p2p_width == 16 ? 0 : 1;
+	return 0;
+}
+
+static int fsl_asrc_p2p_width_put(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *uvalue)
+{
+	struct snd_soc_dai *cpu_dai = snd_kcontrol_chip(kcontrol);
+	struct fsl_asrc_p2p *asrc_p2p = snd_soc_dai_get_drvdata(cpu_dai);
+
+	asrc_p2p->p2p_width = uvalue->value.integer.value[0] ? 24 : 16;
+	return 0;
+}
+
+/* p2p_support_rate is a intersection of input and output */
+static const int p2p_support_rate[] = { 32000, 44100, 48000, 64000, 88200, 96000, 176400, 192000 };
+static const char *p2p_rate_sel[] = { "32000", "44100", "48000", "64000", "88200", "96000", "176400", "192000" };
+static const unsigned int p2p_rate_val[] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+static const struct soc_enum p2p_rate_enum =
+	SOC_VALUE_ENUM_SINGLE(-1, 0, 7,
+			      ARRAY_SIZE(p2p_rate_sel),
+			      p2p_rate_sel,
+			      p2p_rate_val);
+
+static int fsl_asrc_p2p_rate_get(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *uvalue)
+{
+	struct snd_soc_dai *cpu_dai = snd_kcontrol_chip(kcontrol);
+	struct fsl_asrc_p2p *asrc_p2p = snd_soc_dai_get_drvdata(cpu_dai);
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(p2p_support_rate); i++) {
+		if (p2p_support_rate[i] == asrc_p2p->p2p_rate)
+			break;
+	}
+
+	if (i == ARRAY_SIZE(p2p_support_rate))
+		return 0;
+
+	uvalue->value.integer.value[0] = i;
+
+	return 0;
+}
+
+static int fsl_asrc_p2p_rate_put(struct snd_kcontrol *kcontrol,
+			    struct snd_ctl_elem_value *uvalue)
+{
+	struct snd_soc_dai *cpu_dai = snd_kcontrol_chip(kcontrol);
+	struct fsl_asrc_p2p *asrc_p2p = snd_soc_dai_get_drvdata(cpu_dai);
+
+	if (uvalue->value.integer.value[0] < 0 ||
+		uvalue->value.integer.value[0] >= ARRAY_SIZE(p2p_support_rate))
+		return 0;
+
+	asrc_p2p->p2p_rate = p2p_support_rate[uvalue->value.integer.value[0]];
+
+	return 0;
+}
+
+static struct snd_kcontrol_new fsl_asrc_p2p_ctrls[] = {
+	{
+		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+		.name = "ASRC P2P width",
+		.access = SNDRV_CTL_ELEM_ACCESS_READ |
+			SNDRV_CTL_ELEM_ACCESS_WRITE |
+			SNDRV_CTL_ELEM_ACCESS_VOLATILE,
+		.info = snd_soc_info_enum_double,
+		.get = fsl_asrc_p2p_width_get,
+		.put = fsl_asrc_p2p_width_put,
+		.private_value = (unsigned long)&p2p_width_enum,
+	},
+	{
+		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+		.name = "ASRC P2P Rate",
+		.access = SNDRV_CTL_ELEM_ACCESS_READ |
+			SNDRV_CTL_ELEM_ACCESS_WRITE |
+			SNDRV_CTL_ELEM_ACCESS_VOLATILE,
+		.info = snd_soc_info_enum_double,
+		.get = fsl_asrc_p2p_rate_get,
+		.put = fsl_asrc_p2p_rate_put,
+		.private_value = (unsigned long)&p2p_rate_enum,
+	},
+};
+
 static int asrc_p2p_request_channel(struct snd_pcm_substream *substream)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
@@ -375,9 +473,15 @@ static struct snd_soc_dai_ops fsl_asrc_p2p_dai_ops = {
 static int fsl_asrc_p2p_dai_probe(struct snd_soc_dai *dai)
 {
 	struct fsl_asrc_p2p *asrc_p2p = snd_soc_dai_get_drvdata(dai);
+	int ret;
 
 	dai->playback_dma_data = &asrc_p2p->dma_params_tx;
 	dai->capture_dma_data = &asrc_p2p->dma_params_rx;
+
+	ret = snd_soc_add_dai_controls(dai, fsl_asrc_p2p_ctrls,
+			ARRAY_SIZE(fsl_asrc_p2p_ctrls));
+	if (ret)
+		dev_warn(dai->dev, "failed to add dai controls\n");
 
 	return 0;
 }
