@@ -2188,6 +2188,23 @@ static int fec_enet_alloc_buffers(struct net_device *ndev)
 	return 0;
 }
 
+static inline bool fec_enet_irq_workaround(struct fec_enet_private *fep)
+{
+	struct device_node *np = fep->pdev->dev.of_node;
+	struct device_node *intr_node;
+
+	intr_node = of_parse_phandle(np, "interrupts-extended", 0);
+	if (intr_node && !strcmp(intr_node->name, "gpio")) {
+		/*
+		 * If the interrupt controller is a GPIO node, it must have
+		 * applied the workaround for WAIT mode bug.
+		 */
+		return true;
+	}
+
+	return false;
+}
+
 static int
 fec_enet_close(struct net_device *ndev);
 
@@ -2229,7 +2246,8 @@ fec_enet_open(struct net_device *ndev)
 	fec_reset_phy(fep->pdev);
 
 	pm_runtime_get_sync(ndev->dev.parent);
-	if (id_entry->driver_data & FEC_QUIRK_BUG_WAITMODE)
+	if ((id_entry->driver_data & FEC_QUIRK_BUG_WAITMODE) &&
+	    !fec_enet_irq_workaround(fep))
 		pm_qos_add_request(&ndev->pm_qos_req,
 				   PM_QOS_CPU_DMA_LATENCY,
 				   0);
