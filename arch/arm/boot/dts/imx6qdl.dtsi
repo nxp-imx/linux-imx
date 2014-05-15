@@ -1167,6 +1167,12 @@
 				MX6QDL_PAD_ENET_TX_EN__ENET_TX_EN     0x1b0b0
 			>;
 		};
+
+		pinctrl_enet_irq: enetirqgrp {
+			fsl,pins = <
+				MX6QDL_PAD_GPIO_6__ENET_IRQ	      0x000b1
+			>;
+		};
 	};
 
 	esai {
