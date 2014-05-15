@@ -1134,8 +1134,8 @@ made_compressed_probe:
 		struct acm_rb *rb = &(acm->read_buffers[i]);
 		struct urb *urb;
 
-		rb->base = usb_alloc_coherent(acm->dev, readsize, GFP_KERNEL,
-								&rb->dma);
+		rb->base = usb_alloc_nonbufferable(acm->dev, readsize,
+							GFP_KERNEL, &rb->dma);
 		if (!rb->base) {
 			dev_err(&intf->dev, "out of memory "
 					"(read bufs usb_alloc_coherent)\n");

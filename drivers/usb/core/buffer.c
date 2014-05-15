@@ -122,6 +122,31 @@ void *hcd_buffer_alloc(
 	return dma_alloc_coherent(hcd->self.controller, size, dma, mem_flags);
 }
 
+void *hcd_buffer_alloc_nonbufferable(
+	struct usb_bus		*bus,
+	size_t			size,
+	gfp_t			mem_flags,
+	dma_addr_t		*dma
+)
+{
+	struct usb_hcd		*hcd = bus_to_hcd(bus);
+	int			i;
+
+	/* some USB hosts just use PIO */
+	if (!bus->controller->dma_mask &&
+	    !(hcd->driver->flags & HCD_LOCAL_MEM)) {
+		*dma = ~(dma_addr_t) 0;
+		return kmalloc(size, mem_flags);
+	}
+
+	for (i = 0; i < HCD_BUFFER_POOLS; i++) {
+		if (size <= pool_max[i])
+			return dma_pool_alloc_nonbufferable(hcd->pool[i],
+								mem_flags, dma);
+	}
+	return NULL;
+}
+
 void hcd_buffer_free(
 	struct usb_bus		*bus,
 	size_t			size,

@@ -682,6 +682,15 @@ void *usb_alloc_coherent(struct usb_device *dev, size_t size, gfp_t mem_flags,
 }
 EXPORT_SYMBOL_GPL(usb_alloc_coherent);
 
+void *usb_alloc_nonbufferable(struct usb_device *dev, size_t size,
+					gfp_t mem_flags, dma_addr_t *dma)
+{
+	if (!dev || !dev->bus)
+		return NULL;
+	return hcd_buffer_alloc_nonbufferable(dev->bus, size, mem_flags, dma);
+}
+EXPORT_SYMBOL_GPL(usb_alloc_nonbufferable);
+
 /**
  * usb_free_coherent - free memory allocated with usb_alloc_coherent()
  * @dev: device the buffer was used with
