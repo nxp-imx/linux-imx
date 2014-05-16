@@ -169,6 +169,7 @@ int otg_set_state(struct otg_fsm *fsm, enum usb_otg_state new_state)
 		otg_set_protocol(fsm, PROTO_HOST);
 		usb_bus_start_enum(fsm->otg->host,
 				fsm->otg->host->otg_port);
+		otg_add_timer(fsm, HNP_POLLING);
 		break;
 	case OTG_STATE_A_IDLE:
 		otg_drv_vbus(fsm, 0);
@@ -203,6 +204,7 @@ int otg_set_state(struct otg_fsm *fsm, enum usb_otg_state new_state)
 		 */
 		if (!fsm->a_bus_req || fsm->a_suspend_req_inf)
 			otg_add_timer(fsm, A_WAIT_ENUM);
+		otg_add_timer(fsm, HNP_POLLING);
 		break;
 	case OTG_STATE_A_SUSPEND:
 		otg_drv_vbus(fsm, 1);
