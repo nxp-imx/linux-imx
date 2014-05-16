@@ -295,11 +295,11 @@ static void vdec_init(struct vadc_data *vadc)
 
 	/* setup the luma agc for automatic gain. */
 	reg32_write(VDEC_LMAGC2, 0x5e);
-	reg32_write(VDEC_BASE + (0x40*4), 0x81);
+	reg32_write(VDEC_LMAGC1, 0x81);
 
 	/* setup chroma agc */
-	reg32_write(VDEC_CHAGC2, 0x09);
-	reg32_write(VDEC_BASE + (0x43*4), 0xa0);
+	reg32_write(VDEC_CHAGC2, 0xa0);
+	reg32_write(VDEC_CHAGC1, 0x01);
 
 	/* setup the MV thresh lower nibble
 	 * setup the sync top cap, upper nibble */

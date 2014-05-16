@@ -163,7 +163,9 @@
 #define VDEC_BLSCRY_OFFSET              0x000000F4
 #define VDEC_BLSCRCR_OFFSET             0x000000F8
 #define VDEC_BLSCRCB_OFFSET             0x000000FC
+#define VDEC_LMAGC1_OFFSET              0x00000100
 #define VDEC_LMAGC2_OFFSET              0x00000104
+#define VDEC_CHAGC1_OFFSET              0x00000108
 #define VDEC_CHAGC2_OFFSET              0x0000010C
 #define VDEC_MINTH_OFFSET               0x00000114
 #define VDEC_VFRQOH_OFFSET              0x0000011C
@@ -212,7 +214,9 @@
 #define VDEC_BLSCRY                      (VDEC_BASE + VDEC_BLSCRY_OFFSET)
 #define VDEC_BLSCRCR                     (VDEC_BASE + VDEC_BLSCRCR_OFFSET)
 #define VDEC_BLSCRCB                     (VDEC_BASE + VDEC_BLSCRCB_OFFSET)
+#define VDEC_LMAGC1                      (VDEC_BASE + VDEC_LMAGC1_OFFSET)
 #define VDEC_LMAGC2                      (VDEC_BASE + VDEC_LMAGC2_OFFSET)
+#define VDEC_CHAGC1                      (VDEC_BASE + VDEC_CHAGC1_OFFSET)
 #define VDEC_CHAGC2                      (VDEC_BASE + VDEC_CHAGC2_OFFSET)
 #define VDEC_MINTH                       (VDEC_BASE + VDEC_MINTH_OFFSET)
 #define VDEC_VFRQOH                      (VDEC_BASE + VDEC_VFRQOH_OFFSET)
