@@ -8,12 +8,6 @@
 
 #include "imx6sx-19x19-arm2.dts"
 
-/ {
-	csi1_v4l2_cap {
-		status = "disabled";
-	};
-};
-
 &i2c2 {
 	ov564x: ov564x@3c {
 		status = "disabled";
