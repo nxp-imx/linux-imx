@@ -111,7 +111,7 @@ static struct usb_gadget_strings *dev_strings[] = {
 
 /****************************** Configurations ******************************/
 
-static int __init do_config(struct usb_configuration *c)
+static int do_config(struct usb_configuration *c)
 {
 	struct hidg_func_node *e;
 	int func = 0, status = 0;
@@ -139,7 +139,7 @@ static struct usb_configuration config_driver = {
 
 /****************************** Gadget Bind ******************************/
 
-static int __init hid_bind(struct usb_composite_dev *cdev)
+static int hid_bind(struct usb_composite_dev *cdev)
 {
 	struct usb_gadget *gadget = cdev->gadget;
 	struct list_head *tmp;
@@ -183,7 +183,7 @@ static int __exit hid_unbind(struct usb_composite_dev *cdev)
 	return 0;
 }
 
-static int __init hidg_plat_driver_probe(struct platform_device *pdev)
+static int hidg_plat_driver_probe(struct platform_device *pdev)
 {
 	struct hidg_func_descriptor *func = pdev->dev.platform_data;
 	struct hidg_func_node *entry;

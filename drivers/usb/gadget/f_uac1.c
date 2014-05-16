@@ -46,7 +46,7 @@ static int generic_get_cmd(struct usb_audio_control *con, u8 cmd);
 #define F_AUDIO_NUM_INTERFACES	2
 
 /* B.3.1  Standard AC Interface Descriptor */
-static struct usb_interface_descriptor ac_interface_desc __initdata = {
+static struct usb_interface_descriptor ac_interface_desc = {
 	.bLength =		USB_DT_INTERFACE_SIZE,
 	.bDescriptorType =	USB_DT_INTERFACE,
 	.bNumEndpoints =	0,
@@ -188,7 +188,7 @@ static struct usb_endpoint_descriptor as_out_ep_desc  = {
 };
 
 /* Class-specific AS ISO OUT Endpoint Descriptor */
-static struct uac_iso_endpoint_descriptor as_iso_out_desc __initdata = {
+static struct uac_iso_endpoint_descriptor as_iso_out_desc = {
 	.bLength =		UAC_ISO_ENDPOINT_DESC_SIZE,
 	.bDescriptorType =	USB_DT_CS_ENDPOINT,
 	.bDescriptorSubtype =	UAC_EP_GENERAL,
@@ -197,7 +197,7 @@ static struct uac_iso_endpoint_descriptor as_iso_out_desc __initdata = {
 	.wLockDelay =		__constant_cpu_to_le16(1),
 };
 
-static struct usb_descriptor_header *f_audio_desc[] __initdata = {
+static struct usb_descriptor_header *f_audio_desc[] = {
 	(struct usb_descriptor_header *)&ac_interface_desc,
 	(struct usb_descriptor_header *)&ac_header_desc,
 
@@ -625,7 +625,7 @@ static void f_audio_build_desc(struct f_audio *audio)
 }
 
 /* audio function driver setup/binding */
-static int __init
+static int
 f_audio_bind(struct usb_configuration *c, struct usb_function *f)
 {
 	struct usb_composite_dev *cdev = c->cdev;
@@ -695,7 +695,7 @@ static int generic_get_cmd(struct usb_audio_control *con, u8 cmd)
 }
 
 /* Todo: add more control selecotor dynamically */
-int __init control_selector_init(struct f_audio *audio)
+int  control_selector_init(struct f_audio *audio)
 {
 	INIT_LIST_HEAD(&audio->cs);
 	list_add(&feature_unit.list, &audio->cs);
@@ -719,7 +719,7 @@ int __init control_selector_init(struct f_audio *audio)
  *
  * Returns zero on success, else negative errno.
  */
-int __init audio_bind_config(struct usb_configuration *c)
+int audio_bind_config(struct usb_configuration *c)
 {
 	struct f_audio *audio;
 	int status;

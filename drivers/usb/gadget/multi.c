@@ -143,7 +143,7 @@ static struct eth_dev *the_dev;
 #ifdef USB_ETH_RNDIS
 static struct usb_function *f_acm_rndis;
 
-static __init int rndis_do_config(struct usb_configuration *c)
+static int rndis_do_config(struct usb_configuration *c)
 {
 	int ret;
 
@@ -207,7 +207,7 @@ static int rndis_config_register(struct usb_composite_dev *cdev)
 #ifdef CONFIG_USB_G_MULTI_CDC
 static struct usb_function *f_acm_multi;
 
-static __init int cdc_do_config(struct usb_configuration *c)
+static int cdc_do_config(struct usb_configuration *c)
 {
 	int ret;
 

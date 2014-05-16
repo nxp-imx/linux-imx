@@ -978,7 +978,7 @@ unknown:
 	return value;
 }
 
-static int __init printer_func_bind(struct usb_configuration *c,
+static int printer_func_bind(struct usb_configuration *c,
 		struct usb_function *f)
 {
 	struct printer_dev *dev = container_of(f, struct printer_dev, function);
@@ -1104,7 +1104,7 @@ static struct usb_configuration printer_cfg_driver = {
 	.bmAttributes		= USB_CONFIG_ATT_ONE | USB_CONFIG_ATT_SELFPOWER,
 };
 
-static int __init printer_bind_config(struct usb_configuration *c)
+static int printer_bind_config(struct usb_configuration *c)
 {
 	struct usb_gadget	*gadget = c->cdev->gadget;
 	struct printer_dev	*dev;
@@ -1225,7 +1225,7 @@ static int printer_unbind(struct usb_composite_dev *cdev)
 	return 0;
 }
 
-static int __init printer_bind(struct usb_composite_dev *cdev)
+static int printer_bind(struct usb_composite_dev *cdev)
 {
 	int ret;
 

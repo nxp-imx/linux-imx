@@ -114,7 +114,7 @@ static struct usb_function_instance *f_acm_inst;
 /*
  * We _always_ have both ACM and mass storage functions.
  */
-static int __init acm_ms_do_config(struct usb_configuration *c)
+static int acm_ms_do_config(struct usb_configuration *c)
 {
 	int	status;
 
@@ -160,7 +160,7 @@ static struct usb_configuration acm_ms_config_driver = {
 
 /*-------------------------------------------------------------------------*/
 
-static int __init acm_ms_bind(struct usb_composite_dev *cdev)
+static int acm_ms_bind(struct usb_composite_dev *cdev)
 {
 	struct usb_gadget	*gadget = cdev->gadget;
 	int			status;

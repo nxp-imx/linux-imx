@@ -301,7 +301,7 @@ static struct gaudio *the_card;
  *
  * Returns negative errno, or zero on success
  */
-int __init gaudio_setup(struct gaudio *card)
+int gaudio_setup(struct gaudio *card)
 {
 	int	ret;
 
