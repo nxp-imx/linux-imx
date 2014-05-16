@@ -54,6 +54,7 @@ enum otg_fsm_timer {
 	B_SRP_FAIL,
 	A_WAIT_ENUM,
 	A_DP_END,
+	HNP_POLLING,
 
 	NUM_OTG_FSM_TIMERS,
 };
