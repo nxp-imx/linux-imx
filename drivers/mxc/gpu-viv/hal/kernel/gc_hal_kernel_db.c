@@ -1229,6 +1229,9 @@ gckKERNEL_DestroyProcessDB(
         /* Next next record. */
         next = record->next;
 
+        gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+        acquired = gcvFALSE;
+
         /* Dispatch on record type. */
         switch (record->type)
         {
@@ -1435,6 +1438,10 @@ gckKERNEL_DestroyProcessDB(
                            record, record->type);
             break;
         }
+
+        gcmkONERROR(
+            gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
+        acquired = gcvTRUE;
 
         /* Delete the record. */
         gcmkONERROR(gckKERNEL_DeleteRecord(Kernel,
