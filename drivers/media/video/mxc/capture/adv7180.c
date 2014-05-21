@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -228,28 +228,26 @@ static int adv7180_write_reg(u8 reg, u8 val)
  */
 static void adv7180_get_std(v4l2_std_id *std)
 {
-	int tmp;
-	int idx;
+	int status_1, standard, idx;
+	bool locked;
 
 	dev_dbg(&adv7180_data.sen.i2c_client->dev, "In adv7180_get_std\n");
 
-	/* Read the AD_RESULT to get the detect output video standard */
-	tmp = adv7180_read(ADV7180_STATUS_1) & 0x70;
+	status_1 = adv7180_read(ADV7180_STATUS_1);
+	locked = status_1 & 0x1;
+	standard = status_1 & 0x70;
 
 	mutex_lock(&mutex);
-	if (tmp == 0x40) {
-		/* PAL */
-		*std = V4L2_STD_PAL;
-		idx = ADV7180_PAL;
-	} else if (tmp == 0) {
-		/*NTSC*/
-		*std = V4L2_STD_NTSC;
-		idx = ADV7180_NTSC;
-	} else {
-		*std = V4L2_STD_ALL;
-		idx = ADV7180_NOT_LOCKED;
-		dev_dbg(&adv7180_data.sen.i2c_client->dev,
-			"Got invalid video standard!\n");
+	*std = V4L2_STD_ALL;
+	idx = ADV7180_NOT_LOCKED;
+	if (locked) {
+		if (standard == 0x40) {
+			*std = V4L2_STD_PAL;
+			idx = ADV7180_PAL;
+		} else if (standard == 0) {
+			*std = V4L2_STD_NTSC;
+			idx = ADV7180_NTSC;
+		}
 	}
 	mutex_unlock(&mutex);
 
