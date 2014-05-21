@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Freescale Semiconductor, Inc.
+ * Copyright 2011-2014 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -21,6 +21,12 @@
 #define BP_MMDC_MAPSR_PSD	0
 #define BP_MMDC_MAPSR_PSS	4
 
+#define MMDC_MDMISC		0x18
+#define	BM_MMDC_MDMISC_DDR_TYPE	0x18
+#define	BP_MMDC_MDMISC_DDR_TYPE	0x3
+
+static int ddr_type;
+
 static int imx_mmdc_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -30,6 +36,13 @@ static int imx_mmdc_probe(struct platform_device *pdev)
 
 	mmdc_base = of_iomap(np, 0);
 	WARN_ON(!mmdc_base);
+
+	reg = mmdc_base + MMDC_MDMISC;
+	/* Get ddr type */
+	val = readl_relaxed(reg);
+	val &= BM_MMDC_MDMISC_DDR_TYPE;
+	val >>= BP_MMDC_MDMISC_DDR_TYPE;
+	ddr_type = val;
 
 	reg = mmdc_base + MMDC_MAPSR;
 
@@ -49,6 +62,11 @@ static int imx_mmdc_probe(struct platform_device *pdev)
 	}
 
 	return 0;
+}
+
+int imx_mmdc_get_ddr_type(void)
+{
+	return ddr_type;
 }
 
 static struct of_device_id imx_mmdc_dt_ids[] = {

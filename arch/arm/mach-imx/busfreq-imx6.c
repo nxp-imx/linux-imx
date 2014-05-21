@@ -46,11 +46,16 @@
 #include <linux/sched.h>
 #include <linux/suspend.h>
 #include "hardware.h"
+#include "common.h"
 
 #define LPAPM_CLK		24000000
 #define DDR3_AUDIO_CLK		50000000
 #define LPDDR2_AUDIO_CLK	100000000
 
+#define	MMDC_MDMISC_DDR_TYPE_DDR3	0
+#define	MMDC_MDMISC_DDR_TYPE_LPDDR2	1
+
+static int ddr_type;
 int high_bus_freq_mode;
 int med_bus_freq_mode;
 int audio_bus_freq_mode;
@@ -75,7 +80,6 @@ extern int update_ddr_freq_imx6sx(int ddr_rate);
 extern int update_lpddr2_freq(int ddr_rate);
 
 DEFINE_MUTEX(bus_freq_mutex);
-static DEFINE_SPINLOCK(freq_lock);
 
 static struct clk *mmdc_clk;
 static struct clk *pll2_400;
@@ -116,7 +120,10 @@ static void enter_lpm_imx6sx(void)
 	if (audio_bus_count) {
 		/* Need to ensure that PLL2_PFD_400M is kept ON. */
 		clk_prepare_enable(pll2_400);
-		update_ddr_freq_imx6sx(DDR3_AUDIO_CLK);
+		if (ddr_type == MMDC_MDMISC_DDR_TYPE_DDR3)
+			update_ddr_freq_imx6sx(DDR3_AUDIO_CLK);
+		else if (ddr_type == MMDC_MDMISC_DDR_TYPE_LPDDR2)
+			update_lpddr2_freq(LPDDR2_AUDIO_CLK);
 		clk_set_parent(periph2_clk2_sel, pll3);
 		clk_set_parent(periph2_pre_clk, pll2_400);
 		clk_set_parent(periph2_clk, periph2_pre_clk);
@@ -129,13 +136,19 @@ static void enter_lpm_imx6sx(void)
 		 * tree is right, although it will not do any
 		 * change to hardware.
 		 */
-		if (high_bus_freq_mode)
-			clk_set_rate(mmdc_clk, DDR3_AUDIO_CLK);
-
+		if (high_bus_freq_mode) {
+			if (ddr_type == MMDC_MDMISC_DDR_TYPE_DDR3)
+				clk_set_rate(mmdc_clk, DDR3_AUDIO_CLK);
+			else if (ddr_type == MMDC_MDMISC_DDR_TYPE_LPDDR2)
+				clk_set_rate(mmdc_clk, LPDDR2_AUDIO_CLK);
+		}
 		audio_bus_freq_mode = 1;
 		low_bus_freq_mode = 0;
 	} else {
-		update_ddr_freq_imx6sx(LPAPM_CLK);
+		if (ddr_type == MMDC_MDMISC_DDR_TYPE_DDR3)
+			update_ddr_freq_imx6sx(LPAPM_CLK);
+		else if (ddr_type == MMDC_MDMISC_DDR_TYPE_LPDDR2)
+			update_lpddr2_freq(LPAPM_CLK);
 		clk_set_parent(periph2_clk2_sel, osc_clk);
 		clk_set_parent(periph2_clk, periph2_clk2);
 
@@ -162,7 +175,10 @@ static void exit_lpm_imx6sx(void)
 	clk_set_parent(periph_pre_clk, pll2_400);
 	clk_set_parent(periph_clk, periph_pre_clk);
 
-	update_ddr_freq_imx6sx(ddr_normal_rate);
+	if (ddr_type == MMDC_MDMISC_DDR_TYPE_DDR3)
+		update_ddr_freq_imx6sx(ddr_normal_rate);
+	else if (ddr_type == MMDC_MDMISC_DDR_TYPE_LPDDR2)
+		update_lpddr2_freq(ddr_normal_rate);
 	/* correct parent info after ddr freq change in asm code */
 	clk_set_parent(periph2_clk2_sel, pll3);
 	clk_set_parent(periph2_pre_clk, pll2_400);
@@ -186,8 +202,6 @@ static void exit_lpm_imx6sx(void)
 
 static void enter_lpm_imx6sl(void)
 {
-	unsigned long flags;
-
 	if (high_bus_freq_mode) {
 		pll2_org_rate = clk_get_rate(pll2);
 		/* Set periph_clk to be sourced from OSC_CLK */
@@ -202,9 +216,7 @@ static void enter_lpm_imx6sl(void)
 		clk_set_rate(ahb_clk, LPAPM_CLK / 3);
 
 		/* Set up DDR to 100MHz. */
-		spin_lock_irqsave(&freq_lock, flags);
 		update_lpddr2_freq(LPDDR2_AUDIO_CLK);
-		spin_unlock_irqrestore(&freq_lock, flags);
 
 		/* Fix the clock tree in kernel */
 		clk_set_rate(pll2, pll2_org_rate);
@@ -271,9 +283,7 @@ static void enter_lpm_imx6sl(void)
 				 */
 				clk_set_parent(step_clk, osc_clk);
 				/* Now set DDR to 24MHz. */
-				spin_lock_irqsave(&freq_lock, flags);
 				update_lpddr2_freq(LPAPM_CLK);
-				spin_unlock_irqrestore(&freq_lock, flags);
 
 				/*
 				 * Fix the clock tree in kernel.
@@ -299,12 +309,8 @@ static void enter_lpm_imx6sl(void)
 
 static void exit_lpm_imx6sl(void)
 {
-	unsigned long flags;
-
-	spin_lock_irqsave(&freq_lock, flags);
 	/* Change DDR freq in IRAM. */
 	update_lpddr2_freq(ddr_normal_rate);
-	spin_unlock_irqrestore(&freq_lock, flags);
 
 	/*
 	 * Fix the clock tree in kernel.
@@ -978,12 +984,19 @@ static int busfreq_probe(struct platform_device *pdev)
 	register_pm_notifier(&imx_bus_freq_pm_notifier);
 	register_reboot_notifier(&imx_busfreq_reboot_notifier);
 
-	if (cpu_is_imx6sl())
+	if (cpu_is_imx6sl()) {
 		err = init_mmdc_lpddr2_settings(pdev);
-	else if (cpu_is_imx6sx())
-		err = init_mmdc_ddr3_settings_imx6sx(pdev);
-	else
+	} else if (cpu_is_imx6sx()) {
+		ddr_type = imx_mmdc_get_ddr_type();
+		/* check whether it is a DDR3 or LPDDR2 board */
+		if (ddr_type == MMDC_MDMISC_DDR_TYPE_DDR3)
+			err = init_mmdc_ddr3_settings_imx6sx(pdev);
+		else if (ddr_type == MMDC_MDMISC_DDR_TYPE_LPDDR2)
+			err = init_mmdc_lpddr2_settings(pdev);
+	} else {
 		err = init_mmdc_ddr3_settings_imx6q(pdev);
+	}
+
 	if (err) {
 		dev_err(busfreq_dev, "Busfreq init of MMDC failed\n");
 		return err;

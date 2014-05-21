@@ -153,6 +153,7 @@ extern int imx6_set_lpm(enum mxc_cpu_pwr_mode mode);
 extern void imx6_set_cache_lpm_in_wait(bool enable);
 extern void imx6sl_set_wait_clk(bool enter);
 extern void imx6_enet_mac_init(const char *compatible);
+extern int imx_mmdc_get_ddr_type(void);
 
 extern void imx_cpu_die(unsigned int cpu);
 extern int imx_cpu_kill(unsigned int cpu);

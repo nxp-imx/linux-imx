@@ -111,7 +111,7 @@ ifeq ($(CONFIG_ARM_IMX6_CPUFREQ),y)
 obj-y += busfreq-imx6.o
 obj-$(CONFIG_SOC_IMX6Q) += ddr3_freq_imx6.o busfreq_ddr3.o
 obj-$(CONFIG_SOC_IMX6SL) += lpddr2_freq_imx6.o busfreq_lpddr2.o imx6sl_wfi.o
-obj-$(CONFIG_SOC_IMX6SX) += ddr3_freq_imx6sx.o
+obj-$(CONFIG_SOC_IMX6SX) += ddr3_freq_imx6sx.o lpddr2_freq_imx6sx.o
 
 endif
 
