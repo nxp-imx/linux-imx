@@ -339,6 +339,11 @@ static int imx6_pm_enter(suspend_state_t state)
 	 * "PCIe PCIe does not support L2 Power Down"
 	 */
 	if (IS_ENABLED(CONFIG_PCI_IMX6) && !cpu_is_imx6sx()) {
+		g = syscon_regmap_lookup_by_compatible("fsl,imx6q-iomuxc-gpr");
+		if (IS_ERR(g)) {
+			pr_err("failed to find fsl,imx6q-iomux-gpr regmap\n");
+			return PTR_ERR(g);
+		}
 		regmap_update_bits(g, IOMUXC_GPR1, IMX6Q_GPR1_PCIE_TEST_PD,
 				!IMX6Q_GPR1_PCIE_TEST_PD);
 	}
