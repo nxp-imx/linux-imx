@@ -20,6 +20,10 @@ config PCI_IMX6
 	select PCIEPORTBUS
 	select PCIE_DW
 
+config PCI_IMX6SX_EXTREMELY_PWR_SAVE
+	bool "Freescale i.MX6SX PCIe controller extremely power save mode"
+	depends on PCI_IMX6
+
 config EP_MODE_IN_EP_RC_SYS
 	bool "PCI Express EP mode in the IMX6 RC/EP interconnection system"
 	depends on PCI_IMX6
