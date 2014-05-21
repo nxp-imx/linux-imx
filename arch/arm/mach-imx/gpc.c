@@ -46,7 +46,10 @@
 #define GPC_PGC_CPU_SW2ISO_SHIFT	8
 #define GPC_PGC_CPU_SW2ISO_MASK		0x3f
 #define GPC_CNTR		0x0
-#define GPC_CNTR_IPS_SHIFT	0x7
+#define GPC_CNTR_PCIE_PHY_PDU_SHIFT	0x7
+#define GPC_CNTR_PCIE_PHY_PDN_SHIFT	0x6
+#define PGC_PCIE_PHY_CTRL		0x200
+#define PGC_PCIE_PHY_PDN_EN		0x1
 #define GPC_CNTR_PU_UP_REQ_SHIFT	0x1
 #define GPC_CNTR_PU_DOWN_REQ_SHIFT	0x0
 
@@ -340,8 +343,14 @@ static int imx_pcie_regulator_notify(struct notifier_block *nb,
 	switch (event) {
 	case REGULATOR_EVENT_VOLTAGE_CHANGE:
 	case REGULATOR_EVENT_ENABLE:
-		writel_relaxed(1 << GPC_CNTR_IPS_SHIFT,
+		writel_relaxed(1 << GPC_CNTR_PCIE_PHY_PDU_SHIFT,
 			gpc_base + GPC_CNTR);
+		break;
+	case REGULATOR_EVENT_PRE_DISABLE:
+		writel_relaxed(1 << GPC_CNTR_PCIE_PHY_PDN_SHIFT,
+				gpc_base + GPC_CNTR);
+		writel_relaxed(PGC_PCIE_PHY_PDN_EN,
+				gpc_base + PGC_PCIE_PHY_CTRL);
 		break;
 	default:
 		break;
