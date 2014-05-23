@@ -1,7 +1,7 @@
 /*
  * MXC SPDIF ALSA Soc Codec Driver
  *
- * Copyright (C) 2007-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2007-2014 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -1034,7 +1034,7 @@ static int mxc_spdif_rxrate_get(struct snd_kcontrol *kcontrol,
 	if (atomic_read(&spdif_priv->dpll_locked)) {
 		clk_enable(plat_data->spdif_clk);
 		ucontrol->value.integer.value[0] =
-		    spdif_get_rxclk_rate(plat_data->spdif_clk,
+		    spdif_get_rxclk_rate(plat_data->spdif_sysclk,
 					 SPDIF_DEFAULT_GAINSEL);
 		clk_disable(plat_data->spdif_clk);
 	} else {
@@ -1324,6 +1324,13 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 		goto failed_clk;
 	}
 
+	plat_data->spdif_sysclk = clk_get(NULL, "ipg_clk");
+	if (IS_ERR(plat_data->spdif_sysclk)) {
+		ret = PTR_ERR(plat_data->spdif_sysclk);
+		dev_err(&pdev->dev, "can't get sys clock: %d\n", ret);
+		goto failed_sysclk;
+	}
+
 	atomic_set(&spdif_priv->dpll_locked, 0);
 
 	/* spdif interrupt register and disable */
@@ -1347,6 +1354,8 @@ static int __devinit mxc_spdif_probe(struct platform_device *pdev)
 	return 0;
 
 card_err:
+	clk_put(plat_data->spdif_sysclk);
+failed_sysclk:
 	clk_put(plat_data->spdif_clk);
 failed_clk:
 	platform_set_drvdata(pdev, NULL);
@@ -1357,6 +1366,8 @@ failed_clk:
 
 static int __devexit mxc_spdif_remove(struct platform_device *pdev)
 {
+	struct mxc_spdif_platform_data *plat_data =
+	    (struct mxc_spdif_platform_data *)pdev->dev.platform_data;
 	struct mxc_spdif_priv *spdif_priv = platform_get_drvdata(pdev);
 
 	snd_soc_unregister_codec(&pdev->dev);
@@ -1364,6 +1375,8 @@ static int __devexit mxc_spdif_remove(struct platform_device *pdev)
 	platform_set_drvdata(pdev, NULL);
 	kfree(spdif_priv);
 
+	clk_put(plat_data->spdif_sysclk);
+	clk_put(plat_data->spdif_clk);
 	return 0;
 }
 

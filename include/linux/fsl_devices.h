@@ -6,7 +6,7 @@
  *
  * Maintainer: Kumar Gala <galak@kernel.crashing.org>
  *
- * Copyright 2004-2013 Freescale Semiconductor, Inc.
+ * Copyright 2004-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -420,6 +420,7 @@ struct mxc_spdif_platform_data {
 	struct clk *spdif_clk;
 	struct clk *spdif_core_clk;
 	struct clk *spdif_audio_clk;
+	struct clk *spdif_sysclk;
 };
 
 struct p1003_ts_platform_data {
