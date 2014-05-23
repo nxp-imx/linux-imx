@@ -448,8 +448,7 @@ static irqreturn_t ci_irq(int irq, void *data)
 	if (ci->is_otg && (otgsc & OTGSC_IDIE) && (otgsc & OTGSC_IDIS)) {
 		ci->id_event = true;
 		hw_write_otgsc(ci, OTGSC_IDIS, OTGSC_IDIS);
-		disable_irq_nosync(ci->irq);
-		queue_work(ci->wq, &ci->work);
+		ci_otg_queue_work(ci);
 		return IRQ_HANDLED;
 	}
 
@@ -460,8 +459,7 @@ static irqreturn_t ci_irq(int irq, void *data)
 	if (ci->is_otg && (otgsc & OTGSC_BSVIE) && (otgsc & OTGSC_BSVIS)) {
 		ci->b_sess_valid_event = true;
 		hw_write_otgsc(ci, OTGSC_BSVIS, OTGSC_BSVIS);
-		disable_irq_nosync(ci->irq);
-		queue_work(ci->wq, &ci->work);
+		ci_otg_queue_work(ci);
 		return IRQ_HANDLED;
 	}
 
@@ -824,8 +822,7 @@ static void ci_otg_fsm_wakeup_by_srp(struct ci_hdrc *ci)
 		if (!hw_read_otgsc(ci, OTGSC_ID)) {
 			ci->fsm.a_srp_det = 1;
 			ci->fsm.a_bus_drop = 0;
-			disable_irq_nosync(ci->irq);
-			queue_work(ci->wq, &ci->work);
+			ci_otg_queue_work(ci);
 		} else {
 			ci->fsm.id = 1;
 		}
