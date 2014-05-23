@@ -92,7 +92,8 @@ static void imx_disp_clk(bool enable)
 
 static void imx_gpc_dispmix_on(void)
 {
-	if (cpu_is_imx6sl()) {
+	if (cpu_is_imx6sl() &&
+		imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) {
 		imx_disp_clk(true);
 
 		writel_relaxed(0x0, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
@@ -107,7 +108,8 @@ static void imx_gpc_dispmix_on(void)
 
 static void imx_gpc_dispmix_off(void)
 {
-	if (cpu_is_imx6sl()) {
+	if (cpu_is_imx6sl() &&
+		imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) {
 		imx_disp_clk(true);
 
 		writel_relaxed(0xFFFFFFFF,
