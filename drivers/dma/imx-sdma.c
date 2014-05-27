@@ -833,6 +833,9 @@ static int sdma_config_channel(struct sdma_channel *sdmac)
 			(sdmac->peripheral_type != IMX_DMATYPE_DSP)) {
 		/* Handle multiple event channels differently */
 		if (sdmac->event_id1) {
+			int lwml = sdmac->watermark_level & 0xff;
+			int hwml = (sdmac->watermark_level >> 16) & 0xff;
+
 			if (sdmac->event_id0 > 31) {
 				sdmac->event_mask[0] |= 0;
 				__set_bit(28, &sdmac->watermark_level);
@@ -852,6 +855,18 @@ static int sdma_config_channel(struct sdma_channel *sdmac)
 				sdmac->event_mask[1] |= 0;
 				sdmac->event_mask[0] |=
 						BIT(sdmac->event_id1 % 32);
+			}
+
+			/*
+			 * If LWML(src_maxburst) > HWML(dst_maxburst), we need
+			 * swap LWML and HWML of INFO(A.3.2.5.1), also need swap
+			 * r0(event_mask[1]) and r1(event_mask[0]).
+			 */
+			if (lwml > hwml) {
+				sdmac->watermark_level &= ~0xff00ff;
+				sdmac->watermark_level |= hwml;
+				sdmac->watermark_level |= lwml << 16;
+				swap(sdmac->event_mask[0], sdmac->event_mask[1]);
 			}
 			/* BIT 11:
 			 * 1 : Source on SPBA
