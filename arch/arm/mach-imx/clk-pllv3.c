@@ -439,7 +439,7 @@ struct clk *imx_clk_pllv3(enum imx_pllv3_type type, const char *name,
 
 	init.name = name;
 	init.ops = ops;
-	init.flags = 0;
+	init.flags = CLK_SET_RATE_GATE;
 	init.parent_names = &parent_name;
 	init.num_parents = 1;
 
