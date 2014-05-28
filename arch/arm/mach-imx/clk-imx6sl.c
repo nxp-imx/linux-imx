@@ -42,7 +42,7 @@ static bool uart_from_osc;
 static const char const *step_sels[]		= { "osc", "pll2_pfd2", };
 static const char const *pll1_sw_sels[]		= { "pll1_sys", "step", };
 static const char const *ocram_alt_sels[]	= { "pll2_pfd2", "pll3_pfd1", };
-static const char const *ocram_sels[]		= { "periph", "ocram_alt_sels", };
+static const char const *ocram_sels[]		= { "periph", "ocram_alt_sel", };
 static const char const *pre_periph_sels[]	= { "pll2_bus", "pll2_pfd2", "pll2_pfd0", "pll2_198m", };
 static const char const *periph_clk2_sels[]	= { "pll3_usb_otg", "osc", "osc", "dummy", };
 static const char const *periph2_clk2_sels[]	= { "pll3_usb_otg", "pll2_bus", };
