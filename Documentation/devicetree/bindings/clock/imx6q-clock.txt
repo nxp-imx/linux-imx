@@ -240,6 +240,7 @@ clocks and IDs.
 	asrc_mem                227
 	esai_ipg		228
 	esai_mem		229
+	axi_alt_sel		230
 
 Examples:
 

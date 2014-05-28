@@ -108,6 +108,7 @@ static struct clk *periph2_pre_clk;
 static struct clk *periph2_clk2_sel;
 static struct clk *periph2_clk2;
 static struct clk *step_clk;
+static struct clk *axi_alt_sel_clk;
 static struct clk *axi_sel_clk;
 static struct clk *pll3_pfd1_540m;
 
@@ -356,8 +357,7 @@ int reduce_bus_freq(void)
 	else if (cpu_is_imx6sx())
 		enter_lpm_imx6sx();
 	else {
-		if (cpu_is_imx6dl() && (clk_get_parent(axi_sel_clk)
-			!= periph_clk))
+		if (cpu_is_imx6dl())
 			/* Set axi to periph_clk */
 			clk_set_parent(axi_sel_clk, periph_clk);
 
@@ -515,10 +515,11 @@ int set_high_bus_freq(int high_bus_freq)
 				dev_warn(busfreq_dev,
 					"%s: %d: clk set parent fail!\n",
 					__func__, __LINE__);
-			if (cpu_is_imx6dl() && (clk_get_parent(axi_sel_clk)
-				!= pll3_pfd1_540m))
+			if (cpu_is_imx6dl()) {
 				/* Set axi to pll3_pfd1_540m */
-				clk_set_parent(axi_sel_clk, pll3_pfd1_540m);
+				clk_set_parent(axi_alt_sel_clk, pll3_pfd1_540m);
+				clk_set_parent(axi_sel_clk, axi_alt_sel_clk);
+			}
 			clk_disable_unprepare(pll2_400);
 		} else {
 			update_ddr_freq_imx6q(ddr_med_rate);
@@ -921,6 +922,13 @@ static int busfreq_probe(struct platform_device *pdev)
 	}
 
 	if (cpu_is_imx6dl()) {
+		axi_alt_sel_clk = devm_clk_get(&pdev->dev, "axi_alt_sel");
+		if (IS_ERR(axi_alt_sel_clk)) {
+			dev_err(busfreq_dev, "%s: failed to get axi_alt_sel_clk\n",
+				__func__);
+			return PTR_ERR(axi_alt_sel_clk);
+		}
+
 		axi_sel_clk = devm_clk_get(&pdev->dev, "axi_sel");
 		if (IS_ERR(axi_sel_clk)) {
 			dev_err(busfreq_dev, "%s: failed to get axi_sel_clk\n",
