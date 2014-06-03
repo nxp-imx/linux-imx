@@ -306,14 +306,6 @@ static void vdec_init(struct vadc_data *vadc)
 	reg32_write(VDEC_BASE + (0x3a*4), 0x80);
 	reg32_write(VDEC_SHPIMP, 0x00);
 
-	/* enable div by 4 on out for 10 bit output
-	 * enable vga progressive output. */
-	reg32_write(VDEC_BASE + (0xf3*4), 0x0c);
-
-	/* set for 11 bit intput
-	 * also enable dc offset integrator to go on every clock. */
-	reg32_write(VDEC_BASE + (0xf4*4), 0x10);
-
 	/* setup the vsync block */
 	reg32_write(VDEC_VSCON1, 0x87);
 
@@ -323,9 +315,6 @@ static void vdec_init(struct vadc_data *vadc)
 
 	/* set length for min hphase filter (or saturate limit if saturate is chosen) */
 	reg32_write(VDEC_BASE + (0x45*4), 0x40);
-
-	/* choose the internal 66Mhz clock */
-	reg32_write(VDEC_BASE + (0xf8*4), 0x01);
 
 	/* enable the internal resampler,
 	 * select min filter not saturate for hphase noise filter for vcr detect.
