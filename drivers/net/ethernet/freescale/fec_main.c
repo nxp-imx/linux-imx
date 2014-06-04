@@ -272,6 +272,28 @@ struct bufdesc *fec_enet_get_prevdesc(struct bufdesc *bdp,
 		return (new_bd < base) ? (new_bd + ring_size) : new_bd;
 }
 
+static inline
+int fec_enet_get_bd_index(struct bufdesc *bdp,
+	struct fec_enet_private *fep, int queue_id)
+{
+	struct fec_enet_priv_tx_q *tx_queue = fep->tx_queue[queue_id];
+	struct fec_enet_priv_rx_q *rx_queue = fep->rx_queue[queue_id];
+	struct bufdesc *base;
+	int index;
+
+	if (bdp >= tx_queue->tx_bd_base)
+		base = tx_queue->tx_bd_base;
+	else
+		base = rx_queue->rx_bd_base;
+
+	if (fep->bufdesc_ex)
+		index = (struct bufdesc_ex *)bdp - (struct bufdesc_ex *)base;
+	else
+		index = bdp - base;
+
+	return index;
+}
+
 static void *swap_buffer(void *bufaddr, int len)
 {
 	int i;
@@ -298,15 +320,13 @@ fec_enet_clear_csum(struct sk_buff *skb, struct net_device *ndev)
 	return 0;
 }
 
-static netdev_tx_t
-fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
+static int fec_enet_txq_submit_skb(struct fec_enet_priv_tx_q *txq,
+			struct sk_buff *skb, struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	const struct platform_device_id *id_entry =
 				platform_get_device_id(fep->pdev);
 	struct bufdesc *bdp, *bdp_pre;
-	struct fec_enet_priv_tx_q *txq;
-	struct netdev_queue *nq;
 	unsigned short queue;
 	void *bufaddr;
 	unsigned short	status;
@@ -316,21 +336,11 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	unsigned int index;
 
 	queue = skb_get_queue_mapping(skb);
-	txq = fep->tx_queue[queue];
-	nq = netdev_get_tx_queue(ndev, queue);
 
 	/* Fill in a Tx ring entry */
 	bdp = txq->cur_tx;
 
 	status = bdp->cbd_sc;
-
-	if (status & BD_ENET_TX_READY) {
-		/* Ooops.  All transmit buffers are full.  Bail out.
-		 * This should not happen, since ndev->tbusy should be set.
-		 */
-		netdev_err(ndev, "tx queue full!\n");
-		return NETDEV_TX_BUSY;
-	}
 
 	/* Protocol checksum off-load for TCP and UDP. */
 	if (fec_enet_clear_csum(skb, ndev)) {
@@ -345,16 +355,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	bufaddr = skb->data;
 	bdbuf_len = skb->len;
 
-	/*
-	 * On some FEC implementations data must be aligned on
-	 * 4-byte boundaries. Use bounce buffers to copy data
-	 * and get it aligned. Ugh.
-	 */
-	if (fep->bufdesc_ex)
-		index = (struct bufdesc_ex *)bdp -
-			(struct bufdesc_ex *)txq->tx_bd_base;
-	else
-		index = bdp - txq->tx_bd_base;
+	index = fec_enet_get_bd_index(bdp, fep, queue);
 
 	if (!(id_entry->driver_data & FEC_QUIRK_HAS_AVB) &&
 		((unsigned long) bufaddr) & FEC_ALIGNMENT) {
@@ -437,9 +438,6 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	txq->cur_tx = bdp;
 
-	if (txq->cur_tx == txq->dirty_tx)
-		netif_tx_stop_queue(nq);
-
 	/* Trigger transmission start */
 	if (!(id_entry->driver_data & FEC_QUIRK_TKT210582) ||
 		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
@@ -449,6 +447,44 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		dmb();
 		__raw_writel(0, fep->hwp + FEC_X_DES_ACTIVE(queue));
 	}
+
+	return 0;
+}
+
+static netdev_tx_t
+fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+	struct fec_enet_priv_tx_q *txq;
+	struct netdev_queue *nq;
+	unsigned short queue;
+	struct bufdesc *bdp;
+	unsigned short  status;
+	int ret;
+
+	queue = skb_get_queue_mapping(skb);
+	txq = fep->tx_queue[queue];
+	nq = netdev_get_tx_queue(ndev, queue);
+
+	/* Fill in a Tx ring entry */
+	bdp = txq->cur_tx;
+
+	status = bdp->cbd_sc;
+
+	if (status & BD_ENET_TX_READY) {
+		/* Ooops.  All transmit buffers are full.  Bail out.
+		 * This should not happen, since ndev->tbusy should be set.
+		 */
+		netdev_err(ndev, "tx queue full!\n");
+		return NETDEV_TX_BUSY;
+	}
+
+	ret = fec_enet_txq_submit_skb(txq, skb, ndev);
+	if (ret == -EBUSY)
+		return NETDEV_TX_BUSY;
+
+	if (txq->cur_tx == txq->dirty_tx)
+		netif_tx_stop_queue(nq);
 
 	return NETDEV_TX_OK;
 }
@@ -889,11 +925,7 @@ fec_enet_tx(struct net_device *ndev)
 			if (bdp == txq->cur_tx)
 				break;
 
-			if (fep->bufdesc_ex)
-				index = (struct bufdesc_ex *)bdp -
-					(struct bufdesc_ex *)txq->tx_bd_base;
-			else
-				index = bdp - txq->tx_bd_base;
+			index = fec_enet_get_bd_index(bdp, fep, queue_id);
 
 			skb = txq->tx_skbuff[index];
 			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
@@ -1030,11 +1062,7 @@ fec_enet_rx(struct net_device *ndev, int budget)
 				break;
 			pkt_received++;
 
-			if (fep->bufdesc_ex)
-				index = (struct bufdesc_ex *)bdp -
-						(struct bufdesc_ex *)rxq->rx_bd_base;
-			else
-				index = bdp - rxq->rx_bd_base;
+			index = fec_enet_get_bd_index(bdp, fep, queue_id);
 
 			/* Since we have allocated space to hold a complete frame,
 			 * the last indicator should be set.
