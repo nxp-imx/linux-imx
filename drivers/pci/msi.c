@@ -425,6 +425,22 @@ static void free_msi_irqs(struct pci_dev *dev)
 		list_del(&entry->list);
 		kfree(entry);
 	}
+
+	if (dev->msi_irq_groups) {
+		sysfs_remove_groups(&dev->dev.kobj, dev->msi_irq_groups);
+		msi_attrs = dev->msi_irq_groups[0]->attrs;
+		while (msi_attrs[count]) {
+			dev_attr = container_of(msi_attrs[count],
+						struct device_attribute, attr);
+			kfree(dev_attr->attr.name);
+			kfree(dev_attr);
+			++count;
+		}
+		kfree(msi_attrs);
+		kfree(dev->msi_irq_groups[0]);
+		kfree(dev->msi_irq_groups);
+		dev->msi_irq_groups = NULL;
+	}
 }
 
 static struct msi_desc *alloc_msi_entry(struct pci_dev *dev)
