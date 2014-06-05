@@ -1567,6 +1567,7 @@ void __clk_reparent(struct clk *clk, struct clk *new_parent)
  */
 int clk_set_parent(struct clk *clk, struct clk *parent)
 {
+	struct clk *child;
 	int ret = 0;
 	u8 p_index = 0;
 	unsigned long p_rate = 0;
@@ -1591,6 +1592,18 @@ int clk_set_parent(struct clk *clk, struct clk *parent)
 	if ((clk->flags & CLK_SET_PARENT_GATE) && clk->prepare_count) {
 		ret = -EBUSY;
 		goto out;
+	}
+
+	/* check two consecutive basic mux clocks */
+	if (clk->flags & CLK_IS_BASIC_MUX) {
+		hlist_for_each_entry(child, &clk->children, child_node) {
+			if (child->flags & CLK_IS_BASIC_MUX) {
+				pr_err("%s: failed to switch parent of %s due to child mux %s\n",
+					__func__, clk->name, child->name);
+				ret = -EBUSY;
+				goto out;
+			}
+		}
 	}
 
 	/* try finding the new parent index */
