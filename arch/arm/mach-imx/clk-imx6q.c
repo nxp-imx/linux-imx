@@ -150,7 +150,36 @@ static struct clk_div_table video_div_table[] = {
 	{ }
 };
 
-static void init_ldb_clks(enum mx6q_clks new_parent)
+/*
+ * Kernel parameter 'ldb_di_clk_sel' is used to select parent of ldb_di_clk,
+ * among the following clocks.
+ *   'pll5_video_div'
+ *   'pll2_pfd0_352m'
+ *   'pll2_pfd2_396m'
+ *   'mmdc_ch1_axi'
+ *   'pll3_usb_otg'
+ * Example format: ldb_di_clk_sel=pll5_video_div
+ * If the kernel parameter is absent or invalid, pll2_pfd0_352m will be
+ * selected by default.
+ */
+static int ldb_di_sel = 1;
+
+static int __init get_ldb_di_parent(char *p)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(ldb_di_sels); i++) {
+		if (strcmp(p, ldb_di_sels[i]) == 0) {
+			ldb_di_sel = i;
+			break;
+		}
+	}
+
+	return 0;
+}
+early_param("ldb_di_clk_sel", get_ldb_di_parent);
+
+static void init_ldb_clks(void)
 {
 	u32 reg;
 
@@ -224,8 +253,10 @@ static void init_ldb_clks(enum mx6q_clks new_parent)
 	/*
 	 * Perform the LDB parent clock switch.
 	 */
-	clk_set_parent(clk[ldb_di0_sel], clk[new_parent]);
-	clk_set_parent(clk[ldb_di1_sel], clk[new_parent]);
+	reg = readl_relaxed(ccm_base + 0x2c);
+	reg &= ~((7 << 9) | (7 << 12));
+	reg |= ((ldb_di_sel << 9) | (ldb_di_sel << 12));
+	writel_relaxed(reg, ccm_base + 0x2c);
 
 	/*
 	 * Unbypass pll3_sw_clk.
@@ -377,8 +408,6 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk[gpu3d_shader_sel] = imx_clk_mux("gpu3d_shader_sel", base + 0x18, 8,  2, gpu3d_shader_sels, ARRAY_SIZE(gpu3d_shader_sels));
 	clk[ipu1_sel]         = imx_clk_mux("ipu1_sel",         base + 0x3c, 9,  2, ipu_sels,          ARRAY_SIZE(ipu_sels));
 	clk[ipu2_sel]         = imx_clk_mux("ipu2_sel",         base + 0x3c, 14, 2, ipu_sels,          ARRAY_SIZE(ipu_sels));
-	clk[ldb_di0_sel]      = imx_clk_mux_flags("ldb_di0_sel", base + 0x2c, 9,  3, ldb_di_sels,      ARRAY_SIZE(ldb_di_sels), CLK_SET_RATE_PARENT);
-	clk[ldb_di1_sel]      = imx_clk_mux_flags("ldb_di1_sel", base + 0x2c, 12, 3, ldb_di_sels,      ARRAY_SIZE(ldb_di_sels), CLK_SET_RATE_PARENT);
 	clk[ldb_di0_div_sel]  = imx_clk_mux_flags("ldb_di0_div_sel", base + 0x20, 10, 1, ldb_di0_div_sels, ARRAY_SIZE(ldb_di0_div_sels), CLK_SET_RATE_PARENT);
 	clk[ldb_di1_div_sel]  = imx_clk_mux_flags("ldb_di1_div_sel", base + 0x20, 11, 1, ldb_di1_div_sels, ARRAY_SIZE(ldb_di1_div_sels), CLK_SET_RATE_PARENT);
 	clk[ipu1_di0_pre_sel] = imx_clk_mux_flags("ipu1_di0_pre_sel", base + 0x34, 6,  3, ipu_di_pre_sels,   ARRAY_SIZE(ipu_di_pre_sels), CLK_SET_RATE_PARENT);
@@ -429,10 +458,10 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk[gpu3d_shader]     = imx_clk_divider("gpu3d_shader",     "gpu3d_shader_sel",  base + 0x18, 29, 3);
 	clk[ipu1_podf]        = imx_clk_divider("ipu1_podf",        "ipu1_sel",          base + 0x3c, 11, 3);
 	clk[ipu2_podf]        = imx_clk_divider("ipu2_podf",        "ipu2_sel",          base + 0x3c, 16, 3);
-	clk[ldb_di0_div_3_5]  = imx_clk_fixed_factor("ldb_di0_div_3_5", "ldb_di0_sel", 2, 7);
-	clk[ldb_di0_div_7]    = imx_clk_fixed_factor("ldb_di0_div_7",   "ldb_di0_sel", 1, 7);
-	clk[ldb_di1_div_3_5]  = imx_clk_fixed_factor("ldb_di1_div_3_5", "ldb_di1_sel", 2, 7);
-	clk[ldb_di1_div_7]    = imx_clk_fixed_factor("ldb_di1_div_7",   "ldb_di1_sel", 1, 7);
+	clk[ldb_di0_div_3_5]  = imx_clk_fixed_factor("ldb_di0_div_3_5", ldb_di_sels[ldb_di_sel], 2, 7);
+	clk[ldb_di0_div_7]    = imx_clk_fixed_factor("ldb_di0_div_7",   ldb_di_sels[ldb_di_sel], 1, 7);
+	clk[ldb_di1_div_3_5]  = imx_clk_fixed_factor("ldb_di1_div_3_5", ldb_di_sels[ldb_di_sel], 2, 7);
+	clk[ldb_di1_div_7]    = imx_clk_fixed_factor("ldb_di1_div_7",   ldb_di_sels[ldb_di_sel], 1, 7);
 	clk[ipu1_di0_pre]     = imx_clk_divider("ipu1_di0_pre",     "ipu1_di0_pre_sel",  base + 0x34, 3,  3);
 	clk[ipu1_di1_pre]     = imx_clk_divider("ipu1_di1_pre",     "ipu1_di1_pre_sel",  base + 0x34, 12, 3);
 	clk[ipu2_di0_pre]     = imx_clk_divider("ipu2_di0_pre",     "ipu2_di0_pre_sel",  base + 0x38, 3,  3);
@@ -666,7 +695,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	}
 
 	/* ipu clock initialization */
-	init_ldb_clks(pll2_pfd0_352m);
+	init_ldb_clks();
 	clk_set_parent(clk[ipu1_di0_pre_sel], clk[pll5_video_div]);
 	clk_set_parent(clk[ipu1_di1_pre_sel], clk[pll5_video_div]);
 	clk_set_parent(clk[ipu2_di0_pre_sel], clk[pll5_video_div]);

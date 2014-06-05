@@ -45,8 +45,6 @@ clocks and IDs.
 	gpu3d_shader_sel	30
 	ipu1_sel		31
 	ipu2_sel		32
-	ldb_di0_sel		33
-	ldb_di1_sel		34
 	ipu1_di0_pre_sel	35
 	ipu1_di1_pre_sel	36
 	ipu2_di0_pre_sel	37
