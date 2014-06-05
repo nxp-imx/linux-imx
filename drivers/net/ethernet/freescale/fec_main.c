@@ -315,6 +315,7 @@ fec_enet_clear_csum(struct sk_buff *skb, struct net_device *ndev)
 	if (unlikely(skb_cow_head(skb, 0)))
 		return -1;
 
+	ip_hdr(skb)->check = 0;
 	*(__sum16 *)(skb->head + skb->csum_start + skb->csum_offset) = 0;
 
 	return 0;
@@ -402,7 +403,7 @@ static int fec_enet_txq_submit_skb(struct fec_enet_priv_tx_q *txq,
 			 * are done by the kernel
 			 */
 			if (skb->ip_summed == CHECKSUM_PARTIAL)
-				status_esc |= BD_ENET_TX_PINS;
+				status_esc |= BD_ENET_TX_PINS | BD_ENET_TX_IINS;
 		}
 
 		if (id_entry->driver_data & FEC_QUIRK_HAS_AVB)
