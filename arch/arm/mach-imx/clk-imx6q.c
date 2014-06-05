@@ -528,8 +528,6 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 		clk[mlb] = imx_clk_gate2("mlb",            "gpu2d_core_podf",   base + 0x74, 18);
 	else
 		clk[mlb] = imx_clk_gate2("mlb",            "axi",               base + 0x74, 18);
-	clk[mmdc_ch0_axi] = imx_clk_gate2("mmdc_ch0_axi",  "mmdc_ch0_axi_podf", base + 0x74, 20);
-	clk[mmdc_ch1_axi] = imx_clk_gate2("mmdc_ch1_axi",  "mmdc_ch1_axi_podf", base + 0x74, 22);
 	clk[ocram]        = imx_clk_gate2("ocram",         "ahb",               base + 0x74, 28);
 	clk[openvg_axi]   = imx_clk_gate2("openvg_axi",    "axi",               base + 0x74, 30);
 	clk[pcie_axi]     = imx_clk_gate2("pcie_axi",      "pcie_axi_sel",      base + 0x78, 0);
@@ -565,6 +563,14 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk[vpu_axi]      = imx_clk_gate2("vpu_axi",       "vpu_axi_podf",      base + 0x80, 14);
 	clk[cko1]         = imx_clk_gate("cko1",           "cko1_podf",         base + 0x60, 7);
 	clk[cko2]         = imx_clk_gate("cko2",           "cko2_podf",         base + 0x60, 24);
+
+	/*
+	 * These two clocks (mmdc_ch0_axi and mmdc_ch1_axi) were incorrectly
+	 * implemented as gate at the beginning.  To fix them with the minimized
+	 * impact, let's point them to their dividers.
+	 */
+	clk[mmdc_ch0_axi] = clk[mmdc_ch0_axi_podf];
+	clk[mmdc_ch1_axi] = clk[mmdc_ch1_axi_podf];
 
 	for (i = 0; i < ARRAY_SIZE(clk); i++)
 		if (IS_ERR(clk[i]))
