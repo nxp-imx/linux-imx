@@ -294,6 +294,24 @@ int fec_enet_get_bd_index(struct bufdesc *bdp,
 	return index;
 }
 
+static inline
+int fec_enet_get_free_txdesc_num(struct fec_enet_private *fep,
+				struct fec_enet_priv_tx_q *txq)
+{
+	int entries;
+
+	if (fep->bufdesc_ex)
+		entries = (struct bufdesc_ex *)txq->dirty_tx -
+				(struct bufdesc_ex *)txq->cur_tx;
+	else
+		entries = txq->dirty_tx - txq->cur_tx;
+
+	if (txq->cur_tx >= txq->dirty_tx)
+		entries += txq->tx_ring_size;
+
+	return entries;
+}
+
 static void *swap_buffer(void *bufaddr, int len)
 {
 	int i;
@@ -321,108 +339,12 @@ fec_enet_clear_csum(struct sk_buff *skb, struct net_device *ndev)
 	return 0;
 }
 
-static int fec_enet_txq_submit_skb(struct fec_enet_priv_tx_q *txq,
-			struct sk_buff *skb, struct net_device *ndev)
+static void fec_enet_submit_work(struct bufdesc *bdp,
+	struct fec_enet_private *fep, int queue)
 {
-	struct fec_enet_private *fep = netdev_priv(ndev);
 	const struct platform_device_id *id_entry =
 				platform_get_device_id(fep->pdev);
-	struct bufdesc *bdp, *bdp_pre;
-	unsigned short queue;
-	void *bufaddr;
-	unsigned short	status;
-	unsigned int status_esc;
-	unsigned int bdbuf_len;
-	unsigned int bdbuf_addr;
-	unsigned int index;
-
-	queue = skb_get_queue_mapping(skb);
-
-	/* Fill in a Tx ring entry */
-	bdp = txq->cur_tx;
-
-	status = bdp->cbd_sc;
-
-	/* Protocol checksum off-load for TCP and UDP. */
-	if (fec_enet_clear_csum(skb, ndev)) {
-		kfree_skb(skb);
-		return NETDEV_TX_OK;
-	}
-
-	/* Clear all of the status flags */
-	status &= ~BD_ENET_TX_STATS;
-
-	/* Set buffer length and buffer pointer */
-	bufaddr = skb->data;
-	bdbuf_len = skb->len;
-
-	index = fec_enet_get_bd_index(bdp, fep, queue);
-
-	if (!(id_entry->driver_data & FEC_QUIRK_HAS_AVB) &&
-		((unsigned long) bufaddr) & FEC_ALIGNMENT) {
-		memcpy(txq->tx_bounce[index], skb->data, skb->len);
-		bufaddr = txq->tx_bounce[index];
-	}
-
-	/*
-	 * Some design made an incorrect assumption on endian mode of
-	 * the system that it's running on. As the result, driver has to
-	 * swap every frame going to and coming from the controller.
-	 */
-	if (id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)
-		swap_buffer(bufaddr, skb->len);
-
-	/* Save skb pointer */
-	txq->tx_skbuff[index] = skb;
-
-	/* Push the data cache so the CPM does not get stale memory
-	 * data.
-	 */
-	bdbuf_addr = dma_map_single(&fep->pdev->dev, bufaddr,
-			skb->len, DMA_TO_DEVICE);
-	if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
-		bdp->cbd_bufaddr = 0;
-		netdev_err(ndev, "Tx DMA memory map failed\n");
-		return NETDEV_TX_OK;
-	}
-
-	if (fep->bufdesc_ex) {
-
-		struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
-
-		if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP &&
-			fep->hwts_tx_en) || unlikely(fep->hwts_tx_en_ioctl &&
-						fec_ptp_do_txstamp(skb))) {
-			status_esc = (BD_ENET_TX_TS | BD_ENET_TX_INT);
-			skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
-		} else {
-			status_esc = BD_ENET_TX_INT;
-
-			/* Enable protocol checksum flags
-			 * We do not bother with the IP Checksum bits as they
-			 * are done by the kernel
-			 */
-			if (skb->ip_summed == CHECKSUM_PARTIAL)
-				status_esc |= BD_ENET_TX_PINS | BD_ENET_TX_IINS;
-		}
-
-		if (id_entry->driver_data & FEC_QUIRK_HAS_AVB)
-			status_esc |= FEC_TX_BD_FTYPE(queue);
-
-		ebdp->cbd_bdu = 0;
-		ebdp->cbd_esc = status_esc;
-	}
-
-	bdp->cbd_bufaddr = bdbuf_addr;
-	bdp->cbd_datlen = bdbuf_len;
-	dmb();
-
-	/* Send it on its way.  Tell FEC it's ready, interrupt when done,
-	 * it's the last BD of the frame, and to put the CRC on the end.
-	 */
-	status |= (BD_ENET_TX_READY | BD_ENET_TX_INTR
-			| BD_ENET_TX_LAST | BD_ENET_TX_TC);
-	bdp->cbd_sc = status;
+	struct bufdesc *bdp_pre;
 
 	bdp_pre = fec_enet_get_prevdesc(bdp, fep, queue);
 	if ((id_entry->driver_data & FEC_QUIRK_ERR006358) &&
@@ -431,9 +353,200 @@ static int fec_enet_txq_submit_skb(struct fec_enet_priv_tx_q *txq,
 		schedule_delayed_work(&(fep->delay_work.delay_work),
 					msecs_to_jiffies(1));
 	}
+}
+
+static int fec_enet_txq_submit_frag_skb(struct fec_enet_priv_tx_q *txq,
+			struct sk_buff *skb, struct net_device *ndev)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+	const struct platform_device_id *id_entry =
+				platform_get_device_id(fep->pdev);
+	int nr_frags = skb_shinfo(skb)->nr_frags;
+	unsigned short queue = skb_get_queue_mapping(skb);
+	struct bufdesc *bdp = txq->cur_tx;
+	struct bufdesc_ex *ebdp;
+	int frag, frag_len;
+	unsigned short status;
+	unsigned int estatus = 0;
+	skb_frag_t *this_frag;
+	unsigned int index;
+	void *bufaddr;
+	int i;
+
+	for (frag = 0; frag < nr_frags; frag++) {
+		this_frag = &skb_shinfo(skb)->frags[frag];
+		bdp = fec_enet_get_nextdesc(bdp, fep, queue);
+		ebdp = (struct bufdesc_ex *)bdp;
+
+		status = bdp->cbd_sc;
+		status &= ~BD_ENET_TX_STATS;
+		status |= (BD_ENET_TX_TC | BD_ENET_TX_READY);
+		frag_len = skb_shinfo(skb)->frags[frag].size;
+
+		/* Handle the last BD specially */
+		if (frag == nr_frags - 1) {
+			status |= (BD_ENET_TX_INTR | BD_ENET_TX_LAST);
+			if (fep->bufdesc_ex) {
+				estatus |= BD_ENET_TX_INT;
+				if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP &&
+					fep->hwts_tx_en) || unlikely(fep->hwts_tx_en_ioctl &&
+						fec_ptp_do_txstamp(skb)))
+					estatus |= BD_ENET_TX_TS;
+			}
+		}
+
+		if (fep->bufdesc_ex) {
+			if (skb->ip_summed == CHECKSUM_PARTIAL)
+				estatus |= BD_ENET_TX_PINS | BD_ENET_TX_IINS;
+			ebdp->cbd_bdu = 0;
+			ebdp->cbd_esc = estatus;
+		}
+
+		bufaddr = page_address(this_frag->page.p) + this_frag->page_offset;
+
+		index = fec_enet_get_bd_index(bdp, fep, queue);
+		if (!(id_entry->driver_data & FEC_QUIRK_HAS_AVB) &&
+			(((unsigned long) bufaddr) & FEC_ALIGNMENT ||
+			id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)) {
+			memcpy(txq->tx_bounce[index], bufaddr, frag_len);
+			bufaddr = txq->tx_bounce[index];
+
+			if (id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)
+				swap_buffer(bufaddr, frag_len);
+		}
+
+		bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, bufaddr,
+						frag_len, DMA_TO_DEVICE);
+		if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
+			dev_kfree_skb_any(skb);
+			if (net_ratelimit())
+				netdev_err(ndev, "Tx DMA memory map failed\n");
+			goto dma_mapping_error;
+		}
+
+		bdp->cbd_datlen = frag_len;
+		bdp->cbd_sc = status;
+	}
+
+	txq->cur_tx = bdp;
+
+	return 0;
+
+dma_mapping_error:
+	bdp = txq->cur_tx;
+	for (i = 0; i < frag; i++) {
+		bdp = fec_enet_get_nextdesc(bdp, fep, queue);
+		dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
+				bdp->cbd_datlen, DMA_TO_DEVICE);
+	}
+	return NETDEV_TX_OK;
+}
+
+static int fec_enet_txq_submit_skb(struct fec_enet_priv_tx_q *txq,
+			struct sk_buff *skb, struct net_device *ndev)
+{
+	struct fec_enet_private *fep = netdev_priv(ndev);
+	const struct platform_device_id *id_entry =
+				platform_get_device_id(fep->pdev);
+	int nr_frags = skb_shinfo(skb)->nr_frags;
+	struct bufdesc *bdp, *last_bdp;
+	void *bufaddr;
+	unsigned short status;
+	unsigned short buflen;
+	unsigned short queue;
+	unsigned int estatus = 0;
+	unsigned int index;
+	int ret;
+
+	/* Protocol checksum off-load for TCP and UDP. */
+	if (fec_enet_clear_csum(skb, ndev)) {
+		dev_kfree_skb_any(skb);
+		return NETDEV_TX_OK;
+	}
+
+	/* Fill in a Tx ring entry */
+	bdp = txq->cur_tx;
+	status = bdp->cbd_sc;
+	status &= ~BD_ENET_TX_STATS;
+
+	/* Set buffer length and buffer pointer */
+	bufaddr = skb->data;
+	buflen = skb_headlen(skb);
+
+	queue = skb_get_queue_mapping(skb);
+	index = fec_enet_get_bd_index(bdp, fep, queue);
+
+	if (!(id_entry->driver_data & FEC_QUIRK_HAS_AVB) &&
+		(((unsigned long) bufaddr) & FEC_ALIGNMENT ||
+		id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)) {
+		memcpy(txq->tx_bounce[index], skb->data, buflen);
+		bufaddr = txq->tx_bounce[index];
+
+		if (id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)
+			swap_buffer(bufaddr, buflen);
+	}
+
+	/* Push the data cache so the CPM does not get stale memory
+	 * data.
+	 */
+	bdp->cbd_bufaddr = dma_map_single(&fep->pdev->dev, bufaddr,
+					buflen, DMA_TO_DEVICE);
+	if (dma_mapping_error(&fep->pdev->dev, bdp->cbd_bufaddr)) {
+		dev_kfree_skb_any(skb);
+		if (net_ratelimit())
+			netdev_err(ndev, "Tx DMA memory map failed\n");
+		return NETDEV_TX_OK;
+	}
+
+	if (nr_frags) {
+		ret = fec_enet_txq_submit_frag_skb(txq, skb, ndev);
+		if (ret)
+			return ret;
+	} else {
+		status |= (BD_ENET_TX_INTR | BD_ENET_TX_LAST);
+		if (fep->bufdesc_ex) {
+			estatus = BD_ENET_TX_INT;
+			if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP &&
+				fep->hwts_tx_en) || unlikely(fep->hwts_tx_en_ioctl &&
+						fec_ptp_do_txstamp(skb)))
+				estatus |= BD_ENET_TX_TS;
+		}
+	}
+
+	if (fep->bufdesc_ex) {
+
+		struct bufdesc_ex *ebdp = (struct bufdesc_ex *)bdp;
+
+		if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP &&
+			fep->hwts_tx_en) || unlikely(fep->hwts_tx_en_ioctl &&
+						fec_ptp_do_txstamp(skb)))
+			skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
+
+		if (skb->ip_summed == CHECKSUM_PARTIAL)
+			estatus |= BD_ENET_TX_PINS | BD_ENET_TX_IINS;
+
+		ebdp->cbd_bdu = 0;
+		ebdp->cbd_esc = estatus;
+	}
+
+	last_bdp = txq->cur_tx;
+	index = fec_enet_get_bd_index(last_bdp, fep, queue);
+	/* Save skb pointer */
+	txq->tx_skbuff[index] = skb;
+
+	bdp->cbd_datlen = buflen;
+	dmb();
+
+	/* Send it on its way.  Tell FEC it's ready, interrupt when done,
+	 * it's the last BD of the frame, and to put the CRC on the end.
+	 */
+	status |= (BD_ENET_TX_READY | BD_ENET_TX_TC);
+	bdp->cbd_sc = status;
+
+	fec_enet_submit_work(bdp, fep, queue);
 
 	/* If this was the last BD in the ring, start at the beginning again. */
-	bdp = fec_enet_get_nextdesc(bdp, fep, queue);
+	bdp = fec_enet_get_nextdesc(last_bdp, fep, queue);
 
 	skb_tx_timestamp(skb);
 
@@ -462,6 +575,7 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	struct bufdesc *bdp;
 	unsigned short  status;
 	int ret;
+	int entries_free;
 
 	queue = skb_get_queue_mapping(skb);
 	txq = fep->tx_queue[queue];
@@ -476,15 +590,17 @@ fec_enet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		/* Ooops.  All transmit buffers are full.  Bail out.
 		 * This should not happen, since ndev->tbusy should be set.
 		 */
-		netdev_err(ndev, "tx queue full!\n");
+		if (net_ratelimit())
+			netdev_err(ndev, "tx queue full!\n");
 		return NETDEV_TX_BUSY;
 	}
 
 	ret = fec_enet_txq_submit_skb(txq, skb, ndev);
-	if (ret == -EBUSY)
-		return NETDEV_TX_BUSY;
+	if (ret)
+		return ret;
 
-	if (txq->cur_tx == txq->dirty_tx)
+	entries_free = fec_enet_get_free_txdesc_num(fep, txq);
+	if (entries_free < MAX_SKB_FRAGS + 1)
 		netif_tx_stop_queue(nq);
 
 	return NETDEV_TX_OK;
@@ -905,6 +1021,7 @@ fec_enet_tx(struct net_device *ndev)
 	struct netdev_queue *nq;
 	int	queue_id;
 	int	index = 0;
+	int	entries;
 
 	fep = netdev_priv(ndev);
 
@@ -929,9 +1046,13 @@ fec_enet_tx(struct net_device *ndev)
 			index = fec_enet_get_bd_index(bdp, fep, queue_id);
 
 			skb = txq->tx_skbuff[index];
-			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
-					skb->len, DMA_TO_DEVICE);
-			bdp->cbd_bufaddr = 0;
+		dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr, bdp->cbd_datlen,
+				DMA_TO_DEVICE);
+		bdp->cbd_bufaddr = 0;
+		if (!skb) {
+			bdp = fec_enet_get_nextdesc(bdp, fep, queue_id);
+			continue;
+		}
 
 			/* Check for errors. */
 			if (status & (BD_ENET_TX_HB | BD_ENET_TX_LC |
@@ -950,7 +1071,7 @@ fec_enet_tx(struct net_device *ndev)
 					ndev->stats.tx_carrier_errors++;
 			} else {
 				ndev->stats.tx_packets++;
-				ndev->stats.tx_bytes += bdp->cbd_datlen;
+			ndev->stats.tx_bytes += skb->len;
 			}
 
 			if (unlikely((skb_shinfo(skb)->tx_flags & SKBTX_IN_PROGRESS) &&
@@ -988,11 +1109,10 @@ fec_enet_tx(struct net_device *ndev)
 
 			/* Since we have freed up a buffer, the ring is no longer full
 			 */
-			if (txq->dirty_tx != txq->cur_tx) {
-				if (netif_tx_queue_stopped(nq))
+			entries = fec_enet_get_free_txdesc_num(fep, txq);
+			if (entries >= MAX_SKB_FRAGS + 1 && netif_tx_queue_stopped(nq))
 					netif_tx_wake_queue(nq);
 			}
-		}
 	}
 
 	return;
@@ -2614,7 +2734,7 @@ static int fec_enet_init(struct net_device *ndev)
 	if (id_entry->driver_data & FEC_QUIRK_HAS_CSUM) {
 		/* enable hw accelerator */
 		ndev->features |= (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM
-				| NETIF_F_RXCSUM);
+				| NETIF_F_RXCSUM | NETIF_F_SG);
 		fep->csum_flags |= FLAG_RX_CSUM_ENABLED;
 	}
 
