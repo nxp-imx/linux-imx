@@ -794,9 +794,6 @@ gckVGINTERRUPT_Enque(
             Interrupt->kernel->hardware, &triggered
             ));
 
-        /* Mask out TS overflow interrupt */
-        triggered &= 0xfffffffe;
-
         /* No interrupts to process? */
         if (triggered == 0)
         {

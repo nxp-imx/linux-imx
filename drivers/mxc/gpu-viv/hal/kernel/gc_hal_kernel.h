@@ -140,9 +140,8 @@ typedef enum _gceDATABASE_TYPE
     gcvDB_CONTEXT,                      /* Context */
     gcvDB_IDLE,                         /* GPU idle. */
     gcvDB_MAP_MEMORY,                   /* Map memory */
-    gcvDB_SHARED_INFO,                  /* Private data */
-    gcvDB_MAP_USER_MEMORY,              /* Map user memory */
-    gcvDB_SYNC_POINT,                   /* Sync point. */
+    gcvDB_SHARED_INFO,                 /* Private data */
+    gcvDB_MAP_USER_MEMORY               /* Map user memory */
 }
 gceDATABASE_TYPE;
 
@@ -407,6 +406,9 @@ struct _gckKERNEL
     /* Enable profiling */
     gctBOOL                     profileEnable;
 
+    /* The profile file name */
+    gctCHAR                     profileFileName[gcdMAX_PROFILE_FILE_NAME];
+
     /* Clear profile register or not*/
     gctBOOL                     profileCleanRegister;
 
@@ -442,10 +444,6 @@ struct _gckKERNEL
 
 #if gcdDVFS
     gckDVFS                     dvfs;
-#endif
-
-#if gcdANDROID_NATIVE_FENCE_SYNC
-    gctHANDLE                   timeline;
 #endif
 };
 
@@ -497,11 +495,6 @@ struct _gckCOMMAND
 
     /* Context switching mutex. */
     gctPOINTER                  mutexContext;
-
-#if VIVANTE_PROFILER_CONTEXT
-    /* Context sequence mutex. */
-    gctPOINTER                  mutexContextSeq;
-#endif
 
     /* Command queue power semaphore. */
     gctPOINTER                  powerSemaphore;
@@ -656,8 +649,6 @@ struct _gckEVENT
     gctPOINTER                  eventListMutex;
 
     gctPOINTER                  submitTimer;
-
-    volatile gctBOOL            inNotify;
 };
 
 /* Free all events belonging to a process. */
@@ -675,11 +666,6 @@ gckEVENT_Stop(
     IN gctPOINTER Logical,
     IN gctSIGNAL Signal,
 	IN OUT gctSIZE_T * waitSize
-    );
-
-gceSTATUS
-gckEVENT_WaitEmpty(
-    IN gckEVENT Event
     );
 
 /* gcuVIDMEM_NODE structure. */

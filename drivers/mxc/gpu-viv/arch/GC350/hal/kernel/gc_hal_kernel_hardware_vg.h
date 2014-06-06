@@ -53,6 +53,7 @@ struct _gckVGHARDWARE
     gctBOOL                     clockState;
     gctBOOL                     powerState;
     gctPOINTER                  powerMutex;
+    gctSIGNAL                   idleSignal;
     gctUINT32                   powerProcess;
     gctUINT32                   powerThread;
     gceCHIPPOWERSTATE           chipPowerState;
@@ -60,13 +61,11 @@ struct _gckVGHARDWARE
     gctISRMANAGERFUNC           startIsr;
     gctISRMANAGERFUNC           stopIsr;
     gctPOINTER                  isrContext;
-    gctPOINTER                  pageTableDirty;
-
-#if gcdPOWEROFF_TIMEOUT
     gctUINT32                   powerOffTime;
     gctUINT32                   powerOffTimeout;
-    gctPOINTER                  powerOffTimer;
-#endif
+    gctTHREAD                   timeIdleThread;
+    gctBOOL                     killThread;
+    gctPOINTER                  pageTableDirty;
 
     gctBOOL                     powerManagement;
 };

@@ -26,15 +26,6 @@
 ******************************* gckGALDEVICE Structure *******************************
 \******************************************************************************/
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-struct contiguous_mem_pool {
-	struct dma_attrs attrs;
-	dma_addr_t phys;
-	void *virt;
-	size_t size;
-};
-#endif
-
 typedef struct _gckGALDEVICE
 {
     /* Objects. */
@@ -100,16 +91,12 @@ typedef struct _gckGALDEVICE
     struct clk         *clk_2d_axi;
     struct clk         *clk_vg_axi;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
     /*Power management.*/
     struct regulator      *gpu_regulator;
 #endif
 	/*Run time pm*/
 	struct device		*pmdev;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-	struct contiguous_mem_pool *pool;
-	struct reset_control *rstc[gcdMAX_GPU_COUNT];
-#endif
 }
 * gckGALDEVICE;
 
@@ -184,7 +171,6 @@ gceSTATUS gckGALDEVICE_Construct(
     IN gctUINT LogFileSize,
     IN struct device *pdev,
     IN gctINT PowerManagement,
-    IN gctINT GpuProfiler,
     OUT gckGALDEVICE *Device
     );
 

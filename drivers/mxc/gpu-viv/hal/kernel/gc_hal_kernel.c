@@ -128,6 +128,19 @@ _ResetFinishFunction(
 **          Pointer to a variable that will hold the pointer to the gckKERNEL
 **          object.
 */
+#ifdef ANDROID
+#if gcdNEW_PROFILER_FILE
+#define DEFAULT_PROFILE_FILE_NAME   "/sdcard/vprofiler.vpd"
+#else
+#define DEFAULT_PROFILE_FILE_NAME   "/sdcard/vprofiler.xml"
+#endif
+#else
+#if gcdNEW_PROFILER_FILE
+#define DEFAULT_PROFILE_FILE_NAME   "vprofiler.vpd"
+#else
+#define DEFAULT_PROFILE_FILE_NAME   "vprofiler.xml"
+#endif
+#endif
 
 gceSTATUS
 gckKERNEL_Construct(
@@ -289,12 +302,17 @@ gckKERNEL_Construct(
 
 #if VIVANTE_PROFILER
     /* Initialize profile setting */
+#if defined ANDROID
     kernel->profileEnable = gcvFALSE;
-    kernel->profileCleanRegister = gcvTRUE;
+#else
+    kernel->profileEnable = gcvTRUE;
 #endif
+    kernel->profileCleanRegister = gcvTRUE;
 
-#if gcdANDROID_NATIVE_FENCE_SYNC
-    gcmkONERROR(gckOS_CreateSyncTimeline(Os, &kernel->timeline));
+    gcmkVERIFY_OK(
+        gckOS_MemCopy(kernel->profileFileName,
+                      DEFAULT_PROFILE_FILE_NAME,
+                      gcmSIZEOF(DEFAULT_PROFILE_FILE_NAME) + 1));
 #endif
 
     /* Return pointer to the gckKERNEL object. */
@@ -374,13 +392,6 @@ OnError:
         {
             gcmkVERIFY_OK(gckDVFS_Stop(kernel->dvfs));
             gcmkVERIFY_OK(gckDVFS_Destroy(kernel->dvfs));
-        }
-#endif
-
-#if gcdANDROID_NATIVE_FENCE_SYNC
-        if (kernel->timeline)
-        {
-            gcmkVERIFY_OK(gckOS_DestroySyncTimeline(Os, kernel->timeline));
         }
 #endif
 
@@ -512,10 +523,6 @@ gckKERNEL_Destroy(
         gcmkVERIFY_OK(gckDVFS_Stop(Kernel->dvfs));
         gcmkVERIFY_OK(gckDVFS_Destroy(Kernel->dvfs));
     }
-#endif
-
-#if gcdANDROID_NATIVE_FENCE_SYNC
-    gcmkVERIFY_OK(gckOS_DestroySyncTimeline(Kernel->os, Kernel->timeline));
 #endif
 
     /* Mark the gckKERNEL object as unknown. */
@@ -1303,8 +1310,7 @@ gckKERNEL_Dispatch(
         /* Commit a command and context buffer. */
         gcmkONERROR(
             gckCOMMAND_Commit(Kernel->command,
-                              Interface->u.Commit.context ?
-                                  gcmNAME_TO_PTR(Interface->u.Commit.context) : gcvNULL,
+                              gcmNAME_TO_PTR(Interface->u.Commit.context),
                               gcmUINT64_TO_PTR(Interface->u.Commit.commandBuffer),
                               gcmUINT64_TO_PTR(Interface->u.Commit.delta),
                               gcmUINT64_TO_PTR(Interface->u.Commit.queue),
@@ -1594,15 +1600,7 @@ gckKERNEL_Dispatch(
         break;
 
     case gcvHAL_READ_ALL_PROFILE_REGISTERS:
-#if VIVANTE_PROFILER && VIVANTE_PROFILER_CONTEXT
-        /* Read profile data according to the context. */
-        gcmkONERROR(
-            gckHARDWARE_QueryContextProfile(
-                Kernel->hardware,
-                Kernel->profileCleanRegister,
-                gcmNAME_TO_PTR(Interface->u.RegisterProfileData.context),
-                &Interface->u.RegisterProfileData.counters));
-#elif VIVANTE_PROFILER
+#if VIVANTE_PROFILER
         /* Read all 3D profile registers. */
         gcmkONERROR(
             gckHARDWARE_QueryProfileRegisters(
@@ -1630,6 +1628,11 @@ gckKERNEL_Dispatch(
 #if VIVANTE_PROFILER
         /* Get profile setting */
         Interface->u.GetProfileSetting.enable = Kernel->profileEnable;
+
+        gcmkVERIFY_OK(
+            gckOS_MemCopy(Interface->u.GetProfileSetting.fileName,
+                          Kernel->profileFileName,
+                          gcdMAX_PROFILE_FILE_NAME));
 #endif
 
         status = gcvSTATUS_OK;
@@ -1637,13 +1640,12 @@ gckKERNEL_Dispatch(
     case gcvHAL_SET_PROFILE_SETTING:
 #if VIVANTE_PROFILER
         /* Set profile setting */
-        if(Kernel->hardware->gpuProfiler)
-            Kernel->profileEnable = Interface->u.SetProfileSetting.enable;
-        else
-        {
-            status = gcvSTATUS_NOT_SUPPORTED;
-            break;
-        }
+        Kernel->profileEnable = Interface->u.SetProfileSetting.enable;
+
+        gcmkVERIFY_OK(
+            gckOS_MemCopy(Kernel->profileFileName,
+                          Interface->u.SetProfileSetting.fileName,
+                          gcdMAX_PROFILE_FILE_NAME));
 #endif
 
         status = gcvSTATUS_OK;
@@ -2090,61 +2092,6 @@ gckKERNEL_Dispatch(
         Interface->u.QueryResetTimeStamp.timeStamp = 0;
 #endif
         break;
-
-#if gcdANDROID_NATIVE_FENCE_SYNC
-    case gcvHAL_SYNC_POINT:
-        {
-            gctSYNC_POINT syncPoint;
-
-            switch (Interface->u.SyncPoint.command)
-            {
-            case gcvSYNC_POINT_CREATE:
-                gcmkONERROR(gckOS_CreateSyncPoint(Kernel->os, &syncPoint));
-
-                Interface->u.SyncPoint.syncPoint = gcmPTR_TO_UINT64(syncPoint);
-
-                gcmkVERIFY_OK(
-                    gckKERNEL_AddProcessDB(Kernel,
-                                           processID, gcvDB_SYNC_POINT,
-                                           syncPoint,
-                                           gcvNULL,
-                                           0));
-                break;
-
-            case gcvSYNC_POINT_DESTROY:
-                syncPoint = gcmUINT64_TO_PTR(Interface->u.SyncPoint.syncPoint);
-
-                gcmkONERROR(gckOS_DestroySyncPoint(Kernel->os, syncPoint));
-
-                gcmkVERIFY_OK(
-                    gckKERNEL_RemoveProcessDB(Kernel,
-                                              processID, gcvDB_SYNC_POINT,
-                                              syncPoint));
-                break;
-
-            default:
-                gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-                break;
-            }
-        }
-        break;
-
-    case gcvHAL_CREATE_NATIVE_FENCE:
-        {
-            gctINT fenceFD;
-            gctSYNC_POINT syncPoint =
-                gcmUINT64_TO_PTR(Interface->u.CreateNativeFence.syncPoint);
-
-            gcmkONERROR(
-                gckOS_CreateNativeFence(Kernel->os,
-                                        Kernel->timeline,
-                                        syncPoint,
-                                        &fenceFD));
-
-            Interface->u.CreateNativeFence.fenceFD = fenceFD;
-        }
-        break;
-#endif
 
     default:
         /* Invalid command. */
@@ -2909,8 +2856,6 @@ gckKERNEL_Recovery(
         return gcvSTATUS_OK;
     }
 
-    gcmkPRINT("[galcore]: GPU[%d] hang, automatic recovery.", Kernel->core);
-
     /* Start a timer to clear reset flag, before timer is expired,
     ** other recovery request is ignored. */
     gcmkVERIFY_OK(
@@ -3437,7 +3382,7 @@ gckLINKQUEUE_Dequeue(
     IN gckLINKQUEUE LinkQueue
     )
 {
-    gcmkASSERT(LinkQueue->count == gcdLINK_QUEUE_SIZE);
+    gcmASSERT(LinkQueue->count == gcdLINK_QUEUE_SIZE);
 
     LinkQueue->count--;
     LinkQueue->front = (LinkQueue->front + 1) % gcdLINK_QUEUE_SIZE;
