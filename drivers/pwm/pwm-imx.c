@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.
  * simple driver for PWM (Pulse Width Modulator) controller
  *
  * This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,6 @@
 #include <linux/slab.h>
 #include <linux/err.h>
 #include <linux/clk.h>
-#include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/pwm.h>
 #include <linux/of_device.h>
@@ -39,10 +38,7 @@
 #define MX3_PWMCR_DBGEN			(1 << 22)
 #define MX3_PWMCR_CLKSRC_IPG_HIGH (2 << 16)
 #define MX3_PWMCR_CLKSRC_IPG      (1 << 16)
-#define MX3_PWMCR_SWR		  (1 << 3)
 #define MX3_PWMCR_EN              (1 << 0)
-
-#define MX3_PWM_SWR_LOOP	  5
 
 struct imx_chip {
 	struct clk	*clk_per;
@@ -107,22 +103,9 @@ static int imx_pwm_config_v2(struct pwm_chip *chip,
 		struct pwm_device *pwm, int duty_ns, int period_ns)
 {
 	struct imx_chip *imx = to_imx_chip(chip);
-	struct device *dev = chip->dev;
 	unsigned long long c;
 	unsigned long period_cycles, duty_cycles, prescale;
-	int wait_count = 0;
 	u32 cr;
-
-	/* do software reset in case fifo overflows */
-	writel(MX3_PWMCR_SWR, imx->mmio_base + MX3_PWMCR);
-	do {
-		usleep_range(200, 1000);
-		cr = readl(imx->mmio_base + MX3_PWMCR);
-	} while ((cr & MX3_PWMCR_SWR) &&
-		 (wait_count++ < MX3_PWM_SWR_LOOP));
-
-	if (cr & MX3_PWMCR_SWR)
-		dev_warn(dev, "software reset timeout\n");
 
 	c = clk_get_rate(imx->clk_per);
 	c = c * period_ns;
