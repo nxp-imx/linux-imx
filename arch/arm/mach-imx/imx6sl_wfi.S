@@ -20,6 +20,8 @@
 #include "hardware.h"
 
 .extern iram_tlb_phys_addr
+.globl mx6sl_lpm_wfi_start
+.globl mx6sl_lpm_wfi_end
 
 	.macro	sl_ddr_io_save
 
@@ -161,9 +163,10 @@ fifo_reset2_wait:
 	.align 3
 ENTRY(imx6sl_low_power_wfi)
 
+mx6sl_lpm_wfi_start:
+
 	push {r4-r12}
 
-mx6sl_lpm_wfi:
 	/* Can LDO2p5 be disabled */
 	mov	r12, r1
 	/* Store audio_bus_freq_mode */
@@ -172,7 +175,8 @@ mx6sl_lpm_wfi:
 	/* Get the IRAM data storage address. */
 	mov	r10, r0
 	mov	r9, r0		/* get wfi_iram_base */
-	add	r9, r9, #MX6SL_WFI_IRAM_CODE_SIZE
+	adrl	r4, mx6sl_lpm_wfi_end
+	add	r9, r4, #MX6SL_WFI_IRAM_DATA_SIZE
 
 	/*
 	 * To ensure no page table walks occur in DDR, we
@@ -190,14 +194,14 @@ mx6sl_lpm_wfi:
 	ldr	r6, =iram_tlb_phys_addr
 	ldr	r7, [r6]
 
-	/* Flush the BTAC. */
-	ldr	r6, =0x0
-	mcr	p15, 0, r6, c7, c1, 6
-
 	/* Disable Branch Prediction, Z bit in SCTLR. */
 	mrc	p15, 0, r6, c1, c0, 0
 	bic	r6, r6, #0x800
 	mcr	p15, 0, r6, c1, c0, 0
+
+	/* Flush the BTAC. */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
 
 	dsb
 	isb
@@ -231,6 +235,13 @@ mx6sl_lpm_wfi:
 	 * Performing a sync operation does this.
 	 */
 	ldr	r7, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
+
+	/* Wait for background operations to complete. */
+wait_for_l2_to_idle:
+	ldr	r6, [r7, #0x730]
+	cmp	r6, #0x0
+	bne	wait_for_l2_to_idle
+
 	mov	r6, #0x0
 	str	r6, [r7, #0x730]
 
@@ -609,8 +620,8 @@ audio_arm_clk_restore:
 
 wfi_restore:
 	/* get wfi_iram_base */
-	mov	r9, r10
-	add	r9, r9, #MX6SL_WFI_IRAM_CODE_SIZE
+	adrl	r9, mx6sl_lpm_wfi_end
+	add	r9, r9, #MX6SL_WFI_IRAM_DATA_SIZE
 
 	/* Restore the DDR IO before exiting self-refresh. */
 	sl_ddr_io_restore
@@ -732,3 +743,10 @@ poll_dvfs_clear_1:
 
 	/* Restore registers */
 	mov	pc, lr
+	/*
+	 * Add ltorg here to ensure that all
+	 * literals are stored here and are
+	 * within the text space.
+	 */
+	.ltorg
+mx6sl_lpm_wfi_end:

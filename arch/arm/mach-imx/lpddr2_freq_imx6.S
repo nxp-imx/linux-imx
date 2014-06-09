@@ -19,6 +19,9 @@
 #include <linux/linkage.h>
 #include "hardware.h"
 
+.globl imx6_lpddr2_freq_change_start
+.globl imx6_lpddr2_freq_change_end
+
 	.macro    mx6sl_switch_to_24MHz
 
 	/*
@@ -343,7 +346,7 @@ force_measure1:
  */
 	.align 3
 ENTRY(mx6_lpddr2_freq_change)
-
+imx6_lpddr2_freq_change_start:
 	push {r4-r10}
 
 	/*
@@ -362,15 +365,14 @@ ENTRY(mx6_lpddr2_freq_change)
 	ldr	r6, =iram_tlb_phys_addr
 	ldr	r7, [r6]
 
-
-	/* Flush the Branch Target Address Cache (BTAC) */
-	ldr	r6, =0x0
-	mcr	p15, 0, r6, c7, c1, 6
-
 	/* Disable Branch Prediction, Z bit in SCTLR. */
 	mrc	p15, 0, r6, c1, c0, 0
 	bic	r6, r6, #0x800
 	mcr	p15, 0, r6, c1, c0, 0
+
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
 
 	dsb
 	isb
@@ -404,6 +406,13 @@ ENTRY(mx6_lpddr2_freq_change)
 	 * Performing a sync operation does this.
 	 */
 	ldr	r7, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
+
+	/* Wait for background operations to complete. */
+wait_for_l2_to_idle:
+	ldr	r6, [r7, #0x730]
+	cmp	r6, #0x0
+	bne	wait_for_l2_to_idle
+
 	mov	r6, #0x0
 	str	r6, [r7, #0x730]
 
@@ -589,7 +598,10 @@ skip_power_down:
 	/* Restore registers */
 	mov	pc, lr
 
-	.type	mx6_lpddr2_do_iram, #object
-ENTRY(mx6_lpddr2_do_iram)
-	.word	mx6_lpddr2_freq_change
-	.size		mx6_lpddr2_freq_change, . - mx6_lpddr2_freq_change
+	/*
+	 * Add ltorg here to ensure that all
+	 * literals are stored here and are
+	 * within the text space.
+	 */
+	.ltorg
+imx6_lpddr2_freq_change_end:

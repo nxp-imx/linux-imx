@@ -44,7 +44,6 @@
 
 
 static struct device *busfreq_dev;
-static void *ddr_freq_change_iram_base;
 static int curr_ddr_rate;
 static DEFINE_SPINLOCK(freq_lock);
 
@@ -55,10 +54,11 @@ extern int low_bus_freq_mode;
 extern int ultra_low_bus_freq_mode;
 extern void mx6_lpddr2_freq_change(u32 freq, int bus_freq_mode);
 extern void imx6sx_lpddr2_freq_change(u32 freq, int bus_freq_mode);
-
 extern unsigned long save_ttbr1(void);
 extern void restore_ttbr1(unsigned long ttbr1);
-extern unsigned long iram_tlb_phys_addr;
+extern unsigned long ddr_freq_change_iram_base;
+extern unsigned long imx6_lpddr2_freq_change_start asm("imx6_lpddr2_freq_change_start");
+extern unsigned long imx6_lpddr2_freq_change_end asm("imx6_lpddr2_freq_change_end");
 
 /* change the DDR frequency. */
 int update_lpddr2_freq(int ddr_rate)
@@ -93,20 +93,18 @@ int update_lpddr2_freq(int ddr_rate)
 int init_mmdc_lpddr2_settings(struct platform_device *busfreq_pdev)
 {
 	busfreq_dev = &busfreq_pdev->dev;
+	unsigned long ddr_code_size;
 
-	/* Calculate the virtual address of the code */
-	ddr_freq_change_iram_base =
-			(void *)IMX_IO_P2V(iram_tlb_phys_addr) +
-			MX6SL_LPDDR2_FREQ_ADDR_OFFSET;
+	ddr_code_size = (&imx6_lpddr2_freq_change_end -&imx6_lpddr2_freq_change_start) *4;
 
 	if (cpu_is_imx6sl())
 		mx6_change_lpddr2_freq = (void *)fncpy(
 			ddr_freq_change_iram_base,
-			&mx6_lpddr2_freq_change, LPDDR2_FREQ_CODE_SIZE);
+			&mx6_lpddr2_freq_change, ddr_code_size);
 	else if (cpu_is_imx6sx())
 		mx6_change_lpddr2_freq = (void *)fncpy(
 			ddr_freq_change_iram_base,
-			&imx6sx_lpddr2_freq_change, LPDDR2_FREQ_CODE_SIZE);
+			&imx6sx_lpddr2_freq_change, ddr_code_size);
 
 	curr_ddr_rate = ddr_normal_rate;
 

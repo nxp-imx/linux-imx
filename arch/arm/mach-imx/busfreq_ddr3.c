@@ -70,7 +70,6 @@ static void __iomem *iomux_base;
 static void __iomem *gic_dist_base;
 static u32 *irqs_used;
 
-static void *ddr_freq_change_iram_base;
 static int ddr_settings_size;
 static int iomux_settings_size;
 static volatile unsigned int cpus_in_wfe;
@@ -91,7 +90,12 @@ extern void mx6_ddr3_freq_change(u32 freq, void *ddr_settings,
 	bool dll_mode, void *iomux_offsets);
 extern unsigned long save_ttbr1(void);
 extern void restore_ttbr1(unsigned long ttbr1);
-extern unsigned long iram_tlb_phys_addr;
+extern unsigned long ddr_freq_change_iram_base;
+extern unsigned long ddr_freq_change_total_size;
+extern unsigned long mx6_ddr3_freq_change_start asm("mx6_ddr3_freq_change_start");
+extern unsigned long mx6_ddr3_freq_change_end asm("mx6_ddr3_freq_change_end");
+extern unsigned long imx6sx_ddr3_freq_change_start asm("imx6sx_ddr3_freq_change_start");
+extern unsigned long imx6sx_ddr3_freq_change_end asm("imx6sx_ddr3_freq_change_end");
 
 #define MIN_DLL_ON_FREQ		333000000
 #define MAX_DLL_OFF_FREQ		125000000
@@ -343,6 +347,7 @@ int init_mmdc_ddr3_settings_imx6sx(struct platform_device *busfreq_pdev)
 {
 	int i;
 	struct device_node *node;
+	unsigned long ddr_code_size;
 
 	node = of_find_compatible_node(NULL, NULL, "fsl,imx6q-mmdc");
 	if (!node) {
@@ -384,10 +389,27 @@ int init_mmdc_ddr3_settings_imx6sx(struct platform_device *busfreq_pdev)
 
 	iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6sx);
 
-	iram_iomux_settings = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
-			DDR3_IOMUX_SETTINGS_ADDR_OFFSET;
+	ddr_code_size = (&imx6sx_ddr3_freq_change_end -&imx6sx_ddr3_freq_change_start) *4 +
+			sizeof(*imx6sx_busfreq_info);
 
+	imx6sx_busfreq_info = (struct imx6_busfreq_info *)ddr_freq_change_iram_base;
+
+	imx6sx_change_ddr_freq = (void *)fncpy((void *)ddr_freq_change_iram_base + sizeof(*imx6sx_busfreq_info),
+		&imx6sx_ddr3_freq_change, ddr_code_size - sizeof(*imx6sx_busfreq_info));
+
+	/*
+	 * Store the size of the array in iRAM also,
+	 * increase the size by 8 bytes.
+	 */
+	iram_iomux_settings = ddr_freq_change_iram_base + ddr_code_size;
 	iram_ddr_settings = iram_iomux_settings + (iomux_settings_size * 8) + 8;
+
+	if ((ddr_code_size + (iomux_settings_size + ddr_settings_size) * 8 + 16)
+		> ddr_freq_change_total_size) {
+		printk(KERN_ERR "Not enough memory allocated for DDR Frequency change code.\n");
+		return EINVAL;
+	}
+
 	for (i = 0; i < iomux_settings_size; i++) {
 		iomux_offsets_mx6sx[i][1] =
 			readl_relaxed(iomux_base +
@@ -397,18 +419,6 @@ int init_mmdc_ddr3_settings_imx6sx(struct platform_device *busfreq_pdev)
 			iram_iomux_settings[i + 1][1] =
 				iomux_offsets_mx6sx[i][1];
 	}
-
-	/* Calculate the virtual address of the code */
-	ddr_freq_change_iram_base =
-			(void *)IMX_IO_P2V(iram_tlb_phys_addr) +
-			DDR3_FREQ_CODE_ADDR_OFFSET;
-
-	imx6sx_busfreq_info = (struct imx6_busfreq_info *)ddr_freq_change_iram_base;
-
-	imx6sx_change_ddr_freq = (void *)fncpy(ddr_freq_change_iram_base +
-		sizeof(*imx6sx_busfreq_info),
-		&imx6sx_ddr3_freq_change,
-		DDR3_FREQ_CODE_SIZE - sizeof(*imx6sx_busfreq_info));
 
 	curr_ddr_rate = ddr_normal_rate;
 
@@ -421,6 +431,7 @@ int init_mmdc_ddr3_settings_imx6q(struct platform_device *busfreq_pdev)
 	int i, err;
 	u32 cpu;
 	struct device_node *node;
+	unsigned long ddr_code_size;
 
 	node = of_find_compatible_node(NULL, NULL, "fsl,imx6q-mmdc-combine");
 	if (!node) {
@@ -516,11 +527,23 @@ int init_mmdc_ddr3_settings_imx6q(struct platform_device *busfreq_pdev)
 	}
 	iomux_settings_size = ARRAY_SIZE(iomux_offsets_mx6q);
 
+	ddr_code_size = (&mx6_ddr3_freq_change_end -&mx6_ddr3_freq_change_start) *4;
 
-	iram_iomux_settings = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
-			DDR3_IOMUX_SETTINGS_ADDR_OFFSET;
+	mx6_change_ddr_freq = (void *)fncpy((void *)ddr_freq_change_iram_base,
+		&mx6_ddr3_freq_change, ddr_code_size);
 
+	/*
+	 * Store the size of the array in iRAM also,
+	 * increase the size by 8 bytes.
+	 */
+	iram_iomux_settings = ddr_freq_change_iram_base + ddr_code_size;
 	iram_ddr_settings = iram_iomux_settings + (iomux_settings_size * 8) + 8;
+
+	if ((ddr_code_size + (iomux_settings_size + ddr_settings_size) * 8 + 16)
+		> ddr_freq_change_total_size) {
+		printk(KERN_ERR "Not enough memory allocated for DDR Frequency change code.\n");
+		return EINVAL;
+	}
 
 	if (cpu_is_imx6q()) {
 		/* store the IOMUX settings at boot. */
@@ -542,14 +565,6 @@ int init_mmdc_ddr3_settings_imx6q(struct platform_device *busfreq_pdev)
 			iram_iomux_settings[i+1][1] = iomux_offsets_mx6dl[i][1];
 		}
 	}
-
-	/* Calculate the virtual address of the code */
-	ddr_freq_change_iram_base =
-			(void *)IMX_IO_P2V(iram_tlb_phys_addr) +
-			DDR3_FREQ_CODE_ADDR_OFFSET;
-
-	mx6_change_ddr_freq = (void *)fncpy(ddr_freq_change_iram_base,
-		&mx6_ddr3_freq_change, DDR3_FREQ_CODE_SIZE);
 
 	curr_ddr_rate = ddr_normal_rate;
 

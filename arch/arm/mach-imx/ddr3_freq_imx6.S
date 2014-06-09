@@ -43,6 +43,8 @@
 #define L2_CACHE_SYNC		0x730
 
 .extern iram_tlb_phys_addr
+.globl mx6_ddr3_freq_change_start
+.globl mx6_ddr3_freq_change_end
 
 	.align 3
 
@@ -331,6 +333,7 @@ wait_div_update:
  */
 ENTRY(mx6_ddr3_freq_change)
 
+mx6_ddr3_freq_change_start:
 	stmfd	sp!, {r4-r12}
 
 	/*
@@ -344,7 +347,6 @@ ENTRY(mx6_ddr3_freq_change)
 	mov	r9, r2
 	mov	r11, r3
 
-ddr_freq_change:
 	/*
 	 * To ensure no page table walks occur in DDR, we
 	 * have a another page table stored in IRAM that only
@@ -361,14 +363,14 @@ ddr_freq_change:
 	ldr	r6, =iram_tlb_phys_addr
 	ldr	r7, [r6]
 
-	/* Flush the Branch Target Address Cache (BTAC) */
-	ldr	r6, =0x0
-	mcr	p15, 0, r6, c7, c1, 6
-
 	/* Disable Branch Prediction, Z bit in SCTLR. */
 	mrc	p15, 0, r6, c1, c0, 0
 	bic	r6, r6, #0x800
 	mcr	p15, 0, r6, c1, c0, 0
+
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
 
 	dsb
 	isb
@@ -402,6 +404,13 @@ ddr_freq_change:
 	 * Sync operation on L2 drains the buffers.
 	 */
 	ldr	r12, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
+
+	/* Wait for background operations to complete. */
+wait_for_l2_to_idle:
+	ldr	r1, [r12, #L2_CACHE_SYNC]
+	cmp	r1, #0x0
+	bne	wait_for_l2_to_idle
+
 	mov	r1, #0x0
 	str	r1, [r12, #L2_CACHE_SYNC]
 
@@ -955,7 +964,10 @@ done:
 	ldmfd	sp!, {r4-r12}
 	mov	pc, lr
 
-	.type	mx6_do_ddr3_freq_change, #object
-ENTRY(mx6_do_ddr_freq_change)
-	.word	mx6_ddr3_freq_change
-	.size	mx6_ddr3_freq_change, . - mx6_ddr3_freq_change
+	/*
+	 * Add ltorg here to ensure that all
+	 * literals are stored here and are
+	 * within the text space.
+	 */
+	.ltorg
+mx6_ddr3_freq_change_end:

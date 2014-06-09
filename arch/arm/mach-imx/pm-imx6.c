@@ -85,6 +85,10 @@ static unsigned int cpu_type;
 static void __iomem *ccm_base;
 struct regmap *romcp;
 
+unsigned long total_suspend_size;
+extern unsigned long imx6_suspend_start asm("imx6_suspend_start");
+extern unsigned long imx6_suspend_end asm("imx6_suspend_end");
+
 unsigned long save_ttbr1(void)
 {
 	unsigned long lttbr1;
@@ -415,7 +419,7 @@ void __init imx6_pm_map_io(void)
 		return;
 
 	/* Set all entries to 0. */
-	memset((void *)iram_tlb_base_addr, 0, SZ_16K);
+	memset((void *)iram_tlb_base_addr, 0, MX6Q_IRAM_TLB_SIZE);
 
 	/*
 	 * Make sure the IRAM virtual address has a mapping
@@ -470,6 +474,8 @@ void imx6_pm_set_ccm_base(void __iomem *base)
 
 void __init imx6_pm_init(void)
 {
+	unsigned long suspend_code_size;
+
 	if (!iram_tlb_base_addr) {
 		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume code. \
 Please ensure device tree has an entry fsl,lpm-sram\n");
@@ -481,8 +487,11 @@ Please ensure device tree has an entry fsl,lpm-sram\n");
 	suspend_iram_base = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
 			MX6_SUSPEND_IRAM_ADDR_OFFSET;
 
+	suspend_code_size = (&imx6_suspend_end -&imx6_suspend_start) *4;
 	suspend_in_iram_fn = (void *)fncpy(suspend_iram_base,
-		&imx6_suspend, MX6_SUSPEND_IRAM_SIZE);
+		&imx6_suspend, suspend_code_size);
+	/* Now add the space used for storing various registers and IO in suspend. */
+	total_suspend_size = suspend_code_size + MX6_SUSPEND_IRAM_DATA_SIZE;
 
 	suspend_set_ops(&imx6_pm_ops);
 

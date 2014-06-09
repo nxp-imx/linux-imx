@@ -39,6 +39,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
+#include <linux/of_fdt.h>
 #include <linux/platform_device.h>
 #include <linux/proc_fs.h>
 #include <linux/reboot.h>
@@ -63,6 +64,9 @@ int low_bus_freq_mode;
 int ultra_low_bus_freq_mode;
 unsigned int ddr_med_rate;
 unsigned int ddr_normal_rate;
+unsigned long ddr_freq_change_total_size;
+unsigned long ddr_freq_change_iram_base;
+unsigned long ddr_freq_change_iram_phys;
 
 static int bus_freq_scaling_initialized;
 static struct device *busfreq_dev;
@@ -71,6 +75,9 @@ static u32 org_arm_rate;
 static int bus_freq_scaling_is_active;
 static int high_bus_count, med_bus_count, audio_bus_count, low_bus_count;
 static unsigned int ddr_low_rate;
+
+extern unsigned long iram_tlb_phys_addr;
+extern int unsigned long iram_tlb_base_addr;
 
 extern int init_mmdc_lpddr2_settings(struct platform_device *dev);
 extern int init_mmdc_ddr3_settings_imx6q(struct platform_device *dev);
@@ -684,6 +691,63 @@ void release_bus_freq(enum bus_freq_mode mode)
 }
 EXPORT_SYMBOL(release_bus_freq);
 
+static struct map_desc ddr_iram_io_desc __initdata = {
+	/* .virtual and .pfn are run-time assigned */
+	.length		= SZ_1M,
+	.type		= MT_MEMORY_NONCACHED,
+};
+
+const static char *ddr_freq_iram_match[] __initconst = {
+	"fsl,ddr-lpm-sram",
+	NULL
+};
+
+static int __init imx6_dt_find_ddr_sram(unsigned long node,
+		const char *uname, int depth, void *data)
+{
+	unsigned long ddr_iram_addr;
+	__be32 *prop;
+
+	if (of_flat_dt_match(node, ddr_freq_iram_match)) {
+		unsigned long len;
+		prop = of_get_flat_dt_prop(node, "reg", &len);
+		if (prop == NULL || len != (sizeof(unsigned long) * 2))
+			return EINVAL;
+		ddr_iram_addr = be32_to_cpu(prop[0]);
+		ddr_freq_change_total_size = be32_to_cpu(prop[1]);
+
+		if ((iram_tlb_phys_addr & 0xFFF00000) != (ddr_iram_addr & 0xFFF00000)) {
+			unsigned long i;
+
+			/* We need to create a 1M page table entry. */
+			ddr_iram_io_desc.virtual = IMX_IO_P2V(ddr_iram_addr & 0xFFF00000);
+			ddr_iram_io_desc.pfn = __phys_to_pfn(ddr_iram_addr & 0xFFF00000);
+			iotable_init(&ddr_iram_io_desc, 1);
+
+			/*
+			 * Make sure the ddr_iram virtual address has a mapping
+			 * in the IRAM page table.
+			 */
+			i = ((IMX_IO_P2V(ddr_iram_addr) >> 20) << 2) / 4;
+			*((unsigned long *)iram_tlb_base_addr + i) =
+				(ddr_iram_addr  & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
+
+		}
+		ddr_freq_change_iram_phys = (void *)ddr_iram_addr;
+		ddr_freq_change_iram_base = IMX_IO_P2V(ddr_iram_addr);
+	}
+	return 0;
+}
+
+void __init imx6_busfreq_map_io(void)
+{
+	/*
+	 * Get the address of IRAM to be used by the ddr frequency
+	 * change code from the device tree.
+	 */
+	WARN_ON(of_scan_flat_dt(imx6_dt_find_ddr_sram, NULL));
+}
+
 static void bus_freq_daemon_handler(struct work_struct *work)
 {
 	mutex_lock(&bus_freq_mutex);
@@ -781,6 +845,10 @@ static int busfreq_probe(struct platform_device *pdev)
 	u32 err;
 
 	busfreq_dev = &pdev->dev;
+
+	/* Return if no IRAM space is allocated for ddr freq change code. */
+	if (!ddr_freq_change_iram_base)
+		return ENOMEM;
 
 	pll2_400 = devm_clk_get(&pdev->dev, "pll2_pfd2_396m");
 	if (IS_ERR(pll2_400)) {

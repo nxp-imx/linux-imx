@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -117,6 +117,7 @@ static void __init imx6sl_map_io(void)
 {
 	debug_ll_io_init();
 	imx6_pm_map_io();
+	imx6_busfreq_map_io();
 }
 
 static void __init imx6sl_init_irq(void)

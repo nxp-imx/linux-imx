@@ -19,6 +19,9 @@
 #include <linux/linkage.h>
 #include "hardware.h"
 
+.globl imx6sx_ddr3_freq_change_start
+.globl imx6sx_ddr3_freq_change_end
+
 #define MMDC0_MDPDC		0x4
 #define MMDC0_MDCF0		0xc
 #define MMDC0_MDCF1		0x10
@@ -204,13 +207,13 @@ skip_periph2_clk2_switch_50m:
  */
 ENTRY(imx6sx_ddr3_freq_change)
 
+imx6sx_ddr3_freq_change_start:
 	stmfd	sp!, {r4 - r11}
 
 	ldr	r1, [r0, #BUSFREQ_INFO_DDR_SETTINGS_OFFSET]
 	ldr	r2, [r0, #BUSFREQ_INFO_DLL_OFF_OFFSET]
 	ldr	r3, [r0, #BUSFREQ_INFO_IOMUX_OFFSETS_OFFSET]
 
-ddr_freq_change:
 	/*
 	 * To ensure no page table walks occur in DDR, we
 	 * have a another page table stored in IRAM that only
@@ -224,16 +227,16 @@ ddr_freq_change:
 	 *    and 2-4G is translated by TTBR1.
 	 */
 
+	/* Disable Branch Prediction, Z bit in SCTLR. */
+	mrc	p15, 0, r7, c1, c0, 0
+	bic	r7, r7, #0x800
+	mcr	p15, 0, r7, c1, c0, 0
+
 	/* Flush the Branch Target Address Cache (BTAC) */
 	ldr	r6, =0x0
 	mcr	p15, 0, r6, c7, c1, 6
 	ldr	r6, =iram_tlb_phys_addr
 	ldr	r6, [r6]
-
-	/* Disable Branch Prediction, Z bit in SCTLR. */
-	mrc	p15, 0, r7, c1, c0, 0
-	bic	r7, r7, #0x800
-	mcr	p15, 0, r7, c1, c0, 0
 
 	dsb
 	isb
@@ -270,12 +273,15 @@ ddr_freq_change:
 	 * sync operation on L2 drains the buffers.
 	 */
 	ldr	r8, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
+
+	/* Wait for background operations to complete. */
+wait_for_l2_to_idle:
+	ldr	r7, [r8, #0x730]
+	cmp	r7, #0x0
+	bne	wait_for_l2_to_idle
+
 	mov	r7, #0x0
 	str	r7, [r8, #L2_CACHE_SYNC]
-l2:
-	ldr	r7, [r8, #L2_CACHE_SYNC]
-	ands	r7, r7, #0x1
-	bne	l2
 
 	/* Disable L2. */
 	mov	r7, #0x0
@@ -719,4 +725,11 @@ done:
 	ldmfd	sp!, {r4 - r11}
 	mov	pc, lr
 
+	/*
+	 * Add ltorg here to ensure that all
+	 * literals are stored here and are
+	 * within the text space.
+	 */
+	.ltorg
+imx6sx_ddr3_freq_change_end:
 ENDPROC(imx6sx_ddr3_freq_change)

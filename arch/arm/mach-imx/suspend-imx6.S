@@ -31,6 +31,9 @@
 #define MX6Q_CCM_CCR	0x0
 #define MX6Q_ANATOP_CORE	0x140
 
+.globl imx6_suspend_start
+.globl imx6_suspend_end
+
 	.align 3
 
 	.macro	imx6sx_ddr_io_save
@@ -557,7 +560,7 @@
 	.endm
 
 ENTRY(imx6_suspend)
-
+imx6_suspend_start:
 	push {r4-r12}
 
 	/*
@@ -590,15 +593,19 @@ ENTRY(imx6_suspend)
 	 * is for the jump when we finish DDR IO
 	 * restore.
 	 */
+	ldr r7,=total_suspend_size
+	ldr r7, [r7]
+	add r10, r0, r7
+
 	ldr	r5, [r8, #MX6Q_SRC_GPR1]
-	add	r10, r0, #MX6_SUSPEND_IRAM_SIZE
 	stmfd	r10!, {r5}
 
 	/* save cpu type */
 	stmfd	r10!, {r2}
 
 	str	r9, [r8, #MX6Q_SRC_GPR1]
-	add	r3, r1, #MX6_SUSPEND_IRAM_SIZE
+	add	r3, r1, r7
+
 	str	r3, [r8, #MX6Q_SRC_GPR2]
 
 	ldr	r8, =IMX_IO_P2V(MX6Q_IOMUXC_BASE_ADDR)
@@ -636,14 +643,15 @@ ddr_io_save_dsm_done:
 	 * 4. Set TTBR0.N=1, implying 0-2G is translated by TTBR0
 	 *     and 2-4G is translated by TTBR1.
 	 */
-	/* Flush the BTAC. */
-	ldr r6, =0x0
-	mcr p15, 0, r6, c7, c1, 6
-
 	/* Disable Branch Prediction, Z bit in SCTLR. */
 	mrc	p15, 0, r6, c1, c0, 0
 	bic	r6, r6, #0x800
 	mcr	p15, 0, r6, c1, c0, 0
+
+	/* Flush the BTAC. */
+	ldr r6, =0x0
+	mcr p15, 0, r6, c7, c1, 6
+
 
 	ldr r6, =iram_tlb_phys_addr
 	ldr r6, [r6]
@@ -820,8 +828,9 @@ ldo_bypass_restore:
 	orr	r7, r7, #0x1f
 	str	r7, [r8, #MX6Q_ANATOP_CORE]
 ldo_check_done2:
+	adrl	r7, imx6_suspend_end
+	add	r10, r7, #MX6_SUSPEND_IRAM_DATA_SIZE
 
-	add	r10, r0, #MX6_SUSPEND_IRAM_SIZE
 	/* skip the lr saved in iram */
 	sub	r10, r10, #0x4
 	/* skip the cpu type saved in iram */
@@ -1014,3 +1023,11 @@ poll_dvfs_clear_1:
 	bic	r7, r7, #0x1
 	str	r7, [r8, #MX6Q_MMDC_MAPSR]
 	mov	pc, lr
+
+	/*
+	 * Add ltorg here to ensure that all
+	 * literals are stored here and are
+	 * within the text space.
+	 */
+	.ltorg
+imx6_suspend_end:
