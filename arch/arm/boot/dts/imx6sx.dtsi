@@ -136,9 +136,15 @@
 			clocks = <&clks IMX6SX_CLK_OCRAM_S>;
 		};
 
-		ocram: sram@00900000 {
+		ocrams_ddr: sram@00900000 {
+			compatible = "fsl,ddr-lpm-sram";
+			reg = <0x00900000 0x1000>;
+			clocks = <&clks IMX6SX_CLK_OCRAM>;
+		};
+
+		ocram: sram@00901000 {
 			compatible = "mmio-sram";
-			reg = <0x00900000 0x20000>;
+			reg = <0x00901000 0x1F000>;
 			clocks = <&clks IMX6SX_CLK_OCRAM>;
 		};
 
