@@ -58,6 +58,7 @@ struct fsl_esai {
 	struct clk *dmaclk;
 	u32 fifo_depth;
 	u32 slot_width;
+	u32 slots;
 	u32 hck_rate[2];
 	bool sck_div[2];
 	bool slave_mode;
@@ -343,6 +344,7 @@ static int fsl_esai_set_dai_tdm_slot(struct snd_soc_dai *dai, u32 tx_mask,
 			   ESAI_xSMB_xS_MASK, ESAI_xSMB_xS(rx_mask));
 
 	esai_priv->slot_width = slot_width;
+	esai_priv->slots      = slots;
 
 	return 0;
 }
@@ -476,9 +478,10 @@ static int fsl_esai_hw_params(struct snd_pcm_substream *substream,
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	u32 width = snd_pcm_format_width(params_format(params));
 	u32 channels = params_channels(params);
+	u32 pin = DIV_ROUND_UP(channels, esai_priv->slots);
 	u32 bclk, mask, val, ret;
 
-	bclk = params_rate(params) * esai_priv->slot_width * 2;
+	bclk = params_rate(params) * esai_priv->slot_width * esai_priv->slots;
 
 	ret = fsl_esai_set_bclk(dai, tx, bclk);
 	if (ret)
@@ -495,7 +498,7 @@ static int fsl_esai_hw_params(struct snd_pcm_substream *substream,
 	mask = ESAI_xFCR_xFR_MASK | ESAI_xFCR_xWA_MASK | ESAI_xFCR_xFWM_MASK |
 	      (tx ? ESAI_xFCR_TE_MASK | ESAI_xFCR_TIEN : ESAI_xFCR_RE_MASK);
 	val = ESAI_xFCR_xWA(width) | ESAI_xFCR_xFWM(esai_priv->fifo_depth) |
-	     (tx ? ESAI_xFCR_TE(channels) | ESAI_xFCR_TIEN : ESAI_xFCR_RE(channels));
+	     (tx ? ESAI_xFCR_TE(pin) | ESAI_xFCR_TIEN : ESAI_xFCR_RE(pin));
 
 	regmap_update_bits(esai_priv->regmap, REG_ESAI_xFCR(tx), mask, val);
 
@@ -541,6 +544,7 @@ static int fsl_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 	struct fsl_esai *esai_priv = snd_soc_dai_get_drvdata(dai);
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	u8 i, channels = substream->runtime->channels;
+	u32 pin = DIV_ROUND_UP(channels, esai_priv->slots);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -555,7 +559,7 @@ static int fsl_esai_trigger(struct snd_pcm_substream *substream, int cmd,
 
 		regmap_update_bits(esai_priv->regmap, REG_ESAI_xCR(tx),
 				   tx ? ESAI_xCR_TE_MASK : ESAI_xCR_RE_MASK,
-				   tx ? ESAI_xCR_TE(channels) : ESAI_xCR_RE(channels));
+				   tx ? ESAI_xCR_TE(pin) : ESAI_xCR_RE(pin));
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_STOP:
@@ -732,9 +736,9 @@ static int restore_reg(struct snd_soc_dai *cpu_dai)
 	regmap_write(esai_priv->regmap, REG_ESAI_TFCR,  esai_priv->reg_cache[2] & ~ESAI_xFCR_xFEN);
 	regmap_write(esai_priv->regmap, REG_ESAI_RFCR,  esai_priv->reg_cache[4] & ~ESAI_xFCR_xFEN);
 	regmap_write(esai_priv->regmap, REG_ESAI_SAICR, esai_priv->reg_cache[8]);
-	regmap_write(esai_priv->regmap, REG_ESAI_TCR,   esai_priv->reg_cache[9] & ~ESAI_xCR_TE(12));
+	regmap_write(esai_priv->regmap, REG_ESAI_TCR,   esai_priv->reg_cache[9] & ~ESAI_xCR_TE(6));
 	regmap_write(esai_priv->regmap, REG_ESAI_TCCR,  esai_priv->reg_cache[10]);
-	regmap_write(esai_priv->regmap, REG_ESAI_RCR,   esai_priv->reg_cache[11] & ~ESAI_xCR_RE(8));
+	regmap_write(esai_priv->regmap, REG_ESAI_RCR,   esai_priv->reg_cache[11] & ~ESAI_xCR_RE(4));
 	regmap_write(esai_priv->regmap, REG_ESAI_RCCR,  esai_priv->reg_cache[12]);
 	regmap_write(esai_priv->regmap, REG_ESAI_TSMA,  esai_priv->reg_cache[13]);
 	regmap_write(esai_priv->regmap, REG_ESAI_TSMB,  esai_priv->reg_cache[14]);
