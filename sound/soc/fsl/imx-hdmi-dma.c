@@ -286,6 +286,17 @@ static void init_table(int channels)
 	}
 }
 
+/*
+ * FIXME: Disable NEON Optimization in hdmi, or it will cause crash of
+ * pulseaudio in the userspace. There is no issue for the Optimization
+ * implemenation, if only use "VPUSH, VPOP" in the function, the pulseaudio
+ * will crash also. So for my assumption, we can't use the NEON in the
+ * interrupt.(tasklet is implemented by softirq.)
+ * Disable SMP, preempt, change the dma buffer to nocached, add protection of
+ * Dn register and fpscr, all these operation have no effect to the result.
+ */
+#define HDMI_DMA_NO_NEON
+
 #ifdef HDMI_DMA_NO_NEON
 /* Optimization for IEC head */
 static void hdmi_dma_copy_16_c_lut(u16 *src, u32 *dst, int samples,
