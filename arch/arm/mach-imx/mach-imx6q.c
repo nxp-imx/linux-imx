@@ -391,6 +391,12 @@ static void __init imx6q_opp_check_speed_grading(struct device *cpu_dev)
 				pr_warn("failed to disable 850 MHz OPP\n");
 	}
 
+	if (IS_ENABLED(CONFIG_MX6_VPU_352M)) {
+		if (opp_disable(cpu_dev, 396000000))
+			pr_warn("failed to disable 396MHz OPP\n");
+		pr_info("remove 396MHz OPP for VPU running at 352MHz!\n");
+	}
+
 put_node:
 	of_node_put(np);
 }
@@ -466,8 +472,7 @@ static void __init imx6q_init_late(void)
 		IMX_CHIP_REVISION_1_0))
 		imx6q_cpuidle_init();
 
-	if (IS_ENABLED(CONFIG_ARM_IMX6_CPUFREQ) &&
-			!IS_ENABLED(CONFIG_MX6_VPU_352M)) {
+	if (IS_ENABLED(CONFIG_ARM_IMX6_CPUFREQ)) {
 		imx6q_opp_init(&imx6q_cpufreq_pdev.dev);
 		platform_device_register(&imx6q_cpufreq_pdev);
 	}
