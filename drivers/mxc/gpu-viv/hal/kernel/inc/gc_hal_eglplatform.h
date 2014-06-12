@@ -111,7 +111,7 @@ typedef struct _gcsWL_EGL_WINDOW_INFO
 
 struct wl_egl_window
 {
-   gcsWL_EGL_DISPLAY *display;
+   gcsWL_EGL_DISPLAY* display;
    gcsWL_EGL_BUFFER backbuffers[WL_EGL_NUM_BACKBUFFERS];
    gcsWL_EGL_WINDOW_INFO info;
    gctUINT current;
@@ -661,3 +661,4 @@ gcoOS_DrawSurface(
 #endif
 
 #endif /* __gc_hal_eglplatform_h_ */
+

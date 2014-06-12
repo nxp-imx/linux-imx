@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_linux.h"
 #include <linux/slab.h>
 
@@ -27,7 +26,8 @@
 
 #define _GC_OBJ_ZONE gcvZONE_OS
 
-#define GPU3D_UUID     { 0x111111, 0x1111, 0x1111, { 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11 } }
+#define GPU3D_UUID   { 0xcc9f80ea, 0xa836, 0x11e3, { 0x9b, 0x07, 0x78, 0x2b, 0xcb, 0x5c, 0xf3, 0xe3 } }
+
 static const TEEC_UUID gpu3d_uuid = GPU3D_UUID;
 TEEC_Context teecContext;
 
@@ -88,9 +88,10 @@ gpu3d_allocate_secure_mem(
     result = TEEC_RegisterSharedMemory(
             context,
             shm);
+
     if (result != TEEC_SUCCESS)
     {
-        gpu_free_memory(handle);
+        gckOS_FreeIonMemory(Os, (gctPHYS_ADDR)handle);
         kfree(shm);
         return NULL;
     }

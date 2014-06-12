@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_engine_h_
 #define __gc_hal_engine_h_
 
@@ -1273,6 +1272,13 @@ gco3D_DrawIndexedPrimitivesOffset(
     IN gctINT32 BaseOffset,
     IN gctINT32 StartOffset,
     IN gctSIZE_T PrimitiveCount
+    );
+
+/* Draw a element from pattern */
+gceSTATUS
+gco3D_DrawPattern(
+    IN gco3D Engine,
+    IN gcsFAST_FLUSH_PTR FastFlushInfo
     );
 
 /* Enable or disable anti-aliasing. */

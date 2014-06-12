@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 /**
 **  @file
 **  gckHEAP object for kernel HAL layer.  The heap implemented here is an arena-

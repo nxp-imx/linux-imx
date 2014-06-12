@@ -478,7 +478,6 @@
 #   define gcdPOWER_SUSPEND_WHEN_IDLE          1
 #endif
 
-
 #ifndef gcdFPGA_BUILD
 #   define gcdFPGA_BUILD                       0
 #endif
@@ -550,7 +549,7 @@
     gcdENABLE_BANK_ALIGNMENT
 
     When enabled, video memory is allocated bank aligned. The vendor can modify
-    _GetSurfaceBankAlignment() and gcoSURF_GetBankOffsetBytes() to define how
+    _GetSurfaceBankAlignment() and _GetBankOffsetBytes() to define how
     different types of allocations are bank and channel aligned.
     When disabled (default), no bank alignment is done.
 */
@@ -652,22 +651,11 @@
 #endif
 
 /*
-    gcdDYNAMIC_MAP_RESERVED_MEMORY
-
-        When gcvPOOL_SYSTEM is constructed from RESERVED memory,
-        driver can map the whole reserved memory to kernel space
-        at the beginning, or just map a piece of memory when need
-        to access.
-
-        Notice:
-        -  It's only for the 2D openVG. For other cores, there is
-           _NO_ need to map reserved memory to kernel.
-        -  It's meaningless when memory is allocated by
-           gckOS_AllocateContiguous, in that case, memory is always
-           mapped by system when allocated.
+    gcdDISABLE_CORES_2D3D
+            disable the 2D3D cores for 2D openVG
 */
-#ifndef gcdDYNAMIC_MAP_RESERVED_MEMORY
-#   define gcdDYNAMIC_MAP_RESERVED_MEMORY      1
+#ifndef gcdDISABLE_CORES_2D3D
+#   define gcdDISABLE_CORES_2D3D                0
 #endif
 
 /*
@@ -971,6 +959,16 @@
 #endif
 
 /*
+    gcdENABLE_RENDER_INTO_WINDOW_WITH_FC
+
+        Enable Direct-rendering (ie, No-Resolve) with tile status.
+        This is expremental and in development stage.
+*/
+#ifndef gcdENABLE_RENDER_INTO_WINDOW_WITH_FC
+#   define gcdENABLE_RENDER_INTO_WINDOW_WITH_FC 0
+#endif
+
+/*
     gcdENABLE_BLIT_BUFFER_PRESERVE
 
         Render-Into-Window (ie, No-Resolve) does not include preserved swap
@@ -979,7 +977,7 @@
         to current buffer.
 */
 #ifndef gcdENABLE_BLIT_BUFFER_PRESERVE
-#   define gcdENABLE_BLIT_BUFFER_PRESERVE       0
+#   define gcdENABLE_BLIT_BUFFER_PRESERVE       1
 #endif
 
 /*
@@ -1003,20 +1001,25 @@
 #   define gcdANDROID_NATIVE_FENCE_SYNC         0
 #endif
 
-
 /*
-    gcdPRE_ROTATION
+    gcdANDROID_IMPLICIT_NATIVE_BUFFER_SYNC
 
-        Enable pre-rotation for client side to avoid rotation when composition.
-        Android only for now.
+        Enable implicit android native buffer sync.
 
-        0: disabled.
-        1: pre-rotation by Vertex Shader.
-        2: pre-rotation by Pixel Engine (need hardware support).
-        3: pre-rotation by 3DBlit hardware (need hardware support).
+        For non-HW_RENDER buffer, CPU (or other hardware) and GPU can access
+        the buffer at the same time. This is to add implicit synchronization
+        between CPU (or the hardware) and GPU.
+
+        Eventually, please do not use implicit native buffer sync, but use
+        "fence sync" or "android native fence sync" instead in libgui, which
+        can be enabled in frameworks/native/libs/gui/Android.mk. This kind
+        of synchronization should be done by app but not driver itself.
+
+        Please disable this option when either "fence sync" or
+        "android native fence sync" is enabled.
  */
-#ifndef gcdPRE_ROTATION
-#   define gcdPRE_ROTATION                      0
+#ifndef gcdANDROID_IMPLICIT_NATIVE_BUFFER_SYNC
+#   define gcdANDROID_IMPLICIT_NATIVE_BUFFER_SYNC   1
 #endif
 
 /*
@@ -1108,6 +1111,11 @@
 #       undef  gcdENABLE_TS_DOUBLE_BUFFER
 #       define gcdENABLE_TS_DOUBLE_BUFFER       0
 #   endif
+#else
+#if gcdMOVG
+#       undef  gcdENABLE_TS_DOUBLE_BUFFER
+#       define gcdENABLE_TS_DOUBLE_BUFFER       0
+#endif
 #endif
 
 /*  gcdINTERRUPT_STATISTIC
@@ -1116,7 +1124,11 @@
  */
 
 #ifndef gcdINTERRUPT_STATISTIC
+#if defined(LINUX)
+#   define gcdINTERRUPT_STATISTIC               1
+#else
 #   define gcdINTERRUPT_STATISTIC               0
+#endif
 #endif
 
 /*
@@ -1160,13 +1172,7 @@
         Expremental, under test.
 */
 #ifndef gcdPARTIAL_FAST_CLEAR
-#   define gcdPARTIAL_FAST_CLEAR                0
-#endif
-
-/* Force disable bank alignment when partial fast clear enabled. */
-#if gcdPARTIAL_FAST_CLEAR
-#   undef gcdENABLE_BANK_ALIGNMENT
-#   define gcdENABLE_BANK_ALIGNMENT             0
+#   define gcdPARTIAL_FAST_CLEAR                1
 #endif
 
 /*
@@ -1178,7 +1184,21 @@
 #   define gcdREMOVE_SURF_ORIENTATION 0
 #endif
 
+/*
+    gcdPATTERN_FAST_PATH
+         For pattern match
+*/
+#ifndef gcdPATTERN_FAST_PATH
+#   define gcdPATTERN_FAST_PATH       1
+#endif
 
+/*
+    gcdUSE_INPUT_DEVICE
+         disable input devices usage under fb mode to support fb+vdk multi-process
+*/
+#ifndef gcdUSE_INPUT_DEVICE
+#   define gcdUSE_INPUT_DEVICE        1
+#endif
 #define LINUX_CMA_FSL 1
 #define DYNAMIC_MEMORY_RECORD 1
 

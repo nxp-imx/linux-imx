@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_linux.h"
 #include "gc_hal_kernel_allocator.h"
 #include <linux/pagemap.h>
@@ -30,6 +29,7 @@
 #include <linux/slab.h>
 
 #include "gc_hal_kernel_allocator_array.h"
+#include "gc_hal_kernel_platform.h"
 
 #define _GC_OBJ_ZONE    gcvZONE_OS
 
@@ -394,6 +394,8 @@ _DefaultMapUser(
     unsigned long   start;
     unsigned long   pfn;
     gctINT i;
+    gckOS           os = Allocator->os;
+    gcsPLATFORM *   platform = os->device->platform;
 
     PLINUX_MDL      mdl = Mdl;
     PLINUX_MDL_MAP  mdlMap = MdlMap;
@@ -464,6 +466,11 @@ _DefaultMapUser(
 
 
 
+
+    if (platform && platform->ops->adjustProt)
+    {
+        platform->ops->adjustProt(mdlMap->vma);
+    }
 
     addr = mdl->addr;
 
@@ -557,14 +564,7 @@ _DefaultMapKernel(
     OUT gctPOINTER *Logical
     )
 {
-    if (Mdl->contiguous && Mdl->addr)
-	{
-		/*for the memory allocated from DMA, there is no contiguousPages, 
-		but the kernel virtual address is already got*/
-		*Logical = Mdl->addr;
-	}
-	else
-		*Logical = _CreateKernelVirtualMapping(Mdl);
+    *Logical = _CreateKernelVirtualMapping(Mdl);
     return gcvSTATUS_OK;
 }
 
@@ -575,8 +575,7 @@ _DefaultUnmapKernel(
     IN gctPOINTER Logical
     )
 {
-    if (!Mdl->addr)
-		_DestoryKernelVirtualMapping(Logical);
+    _DestoryKernelVirtualMapping(Logical);
     return gcvSTATUS_OK;
 }
 

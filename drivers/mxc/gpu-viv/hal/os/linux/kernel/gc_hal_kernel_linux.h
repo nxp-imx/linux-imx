@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_kernel_linux_h_
 #define __gc_hal_kernel_linux_h_
 
@@ -47,7 +46,6 @@
 #include <asm/uaccess.h>
 
 #if ENABLE_GPU_CLOCK_BY_DRIVER && LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28)
-#include <linux/regulator/consumer.h>
 #include <linux/clk.h>
 #endif
 
@@ -55,9 +53,11 @@
 #include "gc_hal.h"
 #include "gc_hal_driver.h"
 #include "gc_hal_kernel.h"
+#include "gc_hal_kernel_platform.h"
 #include "gc_hal_kernel_device.h"
 #include "gc_hal_kernel_os.h"
 #include "gc_hal_kernel_debugfs.h"
+
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
 #define FIND_TASK_BY_PID(x) pid_task(find_vpid(x), PIDTYPE_PID)
@@ -105,7 +105,7 @@
 #define gcdNOWARN 0
 #endif
 
-#define gcdUSE_NON_PAGED_MEMORY_CACHE 10
+#define gcdUSE_NON_PAGED_MEMORY_CACHE 0
 
 /******************************************************************************\
 ********************************** Structures **********************************
@@ -213,6 +213,15 @@ struct _gckOS
     atomic_t                    allocateCount;
 
     struct list_head            allocatorList;
+
+    /* Lock for register access check. */
+    struct mutex                registerAccessLocks[gcdMAX_GPU_COUNT];
+
+    /* External power states. */
+    gctBOOL                     powerStates[gcdMAX_GPU_COUNT];
+
+    /* External clock states. */
+    gctBOOL                     clockStates[gcdMAX_GPU_COUNT];
 };
 
 typedef struct _gcsSIGNAL * gcsSIGNAL_PTR;

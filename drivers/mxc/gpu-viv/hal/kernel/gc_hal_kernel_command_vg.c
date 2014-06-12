@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_precomp.h"
 
 #if gcdENABLE_VG
@@ -647,7 +646,7 @@ _RemoveRecordFromProcesDB(
             freeVideoMemory->node = gcmALL_TO_UINT32(nodeObject);
 
             type = gcvDB_VIDEO_MEMORY
-                | ((nodeObject->type & 0xFF) << gcdDB_VIDEO_MEMORY_TYPE_SHIFT)
+                | (nodeObject->type << gcdDB_VIDEO_MEMORY_TYPE_SHIFT)
                 | (nodeObject->pool << gcdDB_VIDEO_MEMORY_POOL_SHIFT);
 
             /* Remove record from process db. */
@@ -958,78 +957,41 @@ _HardwareToKernel(
     gceSTATUS status;
     gckVIDMEM memory;
     gctUINT32 offset;
-#if gcdDYNAMIC_MAP_RESERVED_MEMORY
     gctUINT32 nodePhysical;
-#endif
+    gctPOINTER *logical;
+    gctSIZE_T bytes;
     status = gcvSTATUS_OK;
-    /**************************** Video Memory ********************************/
 
-    if (Node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
+    memory = Node->VidMem.memory;
+
+    if (memory->object.type == gcvOBJ_VIDMEM)
     {
-        /* Assume a non-virtual node and get the pool manager object. */
-        memory = Node->VidMem.memory;
-    
-#if gcdDYNAMIC_MAP_RESERVED_MEMORY
         nodePhysical = memory->baseAddress
-                     + Node->VidMem.offset
+                     + (gctUINT32)Node->VidMem.offset
                      + Node->VidMem.alignment;
-    
-        if (Node->VidMem.kernelVirtual == gcvNULL)
-        {
-            status = gckOS_MapPhysical(Os,
-                            nodePhysical,
-                            Node->VidMem.bytes,
-                            (gctPOINTER *)&Node->VidMem.kernelVirtual);
-    
-            if (gcmkIS_ERROR(status))
-            {
-                return status;
-            }
-        }
-    
-        offset = Address - nodePhysical;
-        *KernelPointer = (gctPOINTER)((gctUINT8_PTR)Node->VidMem.kernelVirtual + offset);
-#else
-        /* Determine the header offset within the pool it is allocated in. */
-        offset = Address - memory->baseAddress;
-    
-        /* Translate the offset into the kernel side pointer. */
-        status = gckOS_GetKernelLogicalEx(
-            Os,
-            gcvCORE_VG,
-            offset,
-            KernelPointer
-            );
-#endif
+        bytes = Node->VidMem.bytes;
+        logical = &Node->VidMem.kernelVirtual;
     }
-    /*************************** Virtual Memory *******************************/
     else
     {
-        status = gckOS_GetPhysicalAddress(Os,
-                            Node->Virtual.logical,
-                            &nodePhysical);
-        
+        nodePhysical = Node->Virtual.physicalAddress;
+        bytes = Node->Virtual.bytes;
+        logical = &Node->Virtual.kernelVirtual;
+    }
+
+    if (*logical == gcvNULL)
+    {
+        status = gckOS_MapPhysical(Os, nodePhysical, bytes, logical);
+
         if (gcmkIS_ERROR(status))
         {
             return status;
         }
-
-        if (Node->Virtual.kernelVirtual== gcvNULL)
-        {
-            status = gckOS_MapPhysical(Os,
-                            nodePhysical,
-                            Node->Virtual.bytes,
-                            (gctPOINTER *)&Node->Virtual.kernelVirtual);
-
-            if (gcmkIS_ERROR(status))
-            {
-                return status;
-            }
-        }
-
-        offset = Address - nodePhysical;
-        *KernelPointer = (gctPOINTER)((gctUINT8_PTR)Node->Virtual.kernelVirtual + offset);    
     }
+
+    offset = Address - nodePhysical;
+    *KernelPointer = (gctPOINTER)((gctUINT8_PTR)(*logical) + offset);
+
     /* Return status. */
     return status;
 }
@@ -1113,7 +1075,7 @@ _AllocateLinear(
 
     do
     {
-       	gctINT32 i;
+        gctINT32 i;
         gctPOINTER pointer = gcvNULL;
         gcuVIDMEM_NODE_PTR node = gcvNULL;
 
@@ -1152,7 +1114,7 @@ _AllocateLinear(
         * Node    = node;
         * Address = address;
         * Logical = node->Virtual.logical;
-
+        gcmkPRINT("Allocate success\n");
         /* Success. */
         return gcvSTATUS_OK;
     }
@@ -3587,10 +3549,10 @@ gckVGCOMMAND_Commit(
             break;
         }
 
-        gcmkERR_BREAK(_FlushMMU(Command));
-
         do
         {
+            gcmkERR_BREAK(_FlushMMU(Command));
+
             /* Assign a context ID if not yet assigned. */
             if (Context->id == 0)
             {

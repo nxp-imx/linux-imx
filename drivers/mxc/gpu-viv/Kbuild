@@ -39,13 +39,18 @@ CUSTOMER_ALLOCATOR_OBJS :=
 EXTRA_CFLAGS += -Werror
 
 OBJS := $(OS_KERNEL_DIR)/gc_hal_kernel_device.o \
-        $(OS_KERNEL_DIR)/gc_hal_kernel_driver.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_linux.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_math.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_os.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_debugfs.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_allocator.o \
 
+ifneq ($(PLATFORM),)
+OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_probe.o
+OBJS += $(OS_KERNEL_DIR)/platform/$(PLATFORM).o
+else
+OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_driver.o
+endif
 
 OBJS += $(HAL_KERNEL_DIR)/gc_hal_kernel.o \
         $(HAL_KERNEL_DIR)/gc_hal_kernel_command.o \
@@ -71,9 +76,15 @@ OBJS +=\
 endif
 
 ifneq ($(CONFIG_SYNC),)
+EXTRA_CFLAGS += -Idrivers/staging/android
+
 OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_sync.o
 endif
 
+ifeq ($(SECURITY), 1)
+OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_security_channel.o \
+        $(HAL_KERNEL_DIR)/gc_hal_kernel_security.o
+endif
 
 ifneq ($(CUSTOMER_ALLOCATOR_OBJS),)
 OBJS += $(CUSTOMER_ALLOCATOR_OBJS)
@@ -124,14 +135,8 @@ else
 EXTRA_CFLAGS += -DUSE_PLATFORM_DRIVER=0
 endif
 
-
 EXTRA_CFLAGS += -DVIVANTE_PROFILER=1
 EXTRA_CFLAGS += -DVIVANTE_PROFILER_CONTEXT=1
-
-
-ifeq ($(ANDROID), 1)
-EXTRA_CFLAGS += -DANDROID=1
-endif
 
 ifeq ($(ENABLE_GPU_CLOCK_BY_DRIVER), 1)
 EXTRA_CFLAGS += -DENABLE_GPU_CLOCK_BY_DRIVER=1
@@ -211,6 +216,9 @@ else
 EXTRA_CFLAGS += -DgcdFPGA_BUILD=0
 endif
 
+ifeq ($(SECURITY), 1)
+EXTRA_CFLAGS += -DgcdSECURITY=1
+endif
 
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/inc
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel

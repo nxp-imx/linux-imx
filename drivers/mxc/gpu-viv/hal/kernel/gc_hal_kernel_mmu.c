@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_precomp.h"
 
 #define _GC_OBJ_ZONE    gcvZONE_MMU
@@ -47,7 +46,6 @@ gceMMU_TYPE;
 #   define gcdMMU_CLEAR_VALUE                   0x00000ABC
 #endif
 
-/*VIV: Start GPU address for gcvSURF_VERTEX.  */
 #define gcdVERTEX_START      (128 << 10)
 
 typedef struct _gcsMMU_STLB *gcsMMU_STLB_PTR;

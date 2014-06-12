@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_engine_vg_h_
 #define __gc_hal_engine_vg_h_
 
@@ -796,6 +795,8 @@ gcoVG_DrawPath(
     IN gctFLOAT Scale,
     IN gctFLOAT Bias,
 #if gcdMOVG
+    IN gctUINT32 Width,
+    IN gctUINT32 Height,
     IN gctFLOAT *Bounds,
 #endif
     IN gctBOOL SoftwareTesselation

@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_precomp.h"
 #include <gc_hal_kernel_debug.h>
 

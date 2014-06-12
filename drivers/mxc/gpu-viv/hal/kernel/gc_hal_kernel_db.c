@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_precomp.h"
 
 #define _GC_OBJ_ZONE    gcvZONE_DATABASE
@@ -1432,6 +1431,16 @@ gckKERNEL_DestroyProcessDB(
             break;
 #endif
 
+        case gcvDB_SHBUF:
+            /* Free shared buffer. */
+            status = gckKERNEL_DestroyShBuffer(Kernel,
+                                               (gctSHBUF) record->data);
+
+            gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
+                           "DB: SHBUF %u (status=%d)",
+                           (gctUINT32)(gctUINTPTR_T) record->data, status);
+            break;
+
         default:
             gcmkTRACE_ZONE(gcvLEVEL_ERROR, gcvZONE_DATABASE,
                            "DB: Correcupted record=0x%08x type=%d",
@@ -1779,10 +1788,10 @@ gckKERNEL_DumpVidMemUsage(
     IN gctINT32 ProcessID
     )
 {
-    gctUINT32 i = 0;
     gceSTATUS status;
     gcsDATABASE_PTR database;
     gcsDATABASE_COUNTERS * counter;
+    gctUINT32 i = 0;
 
     static gctCONST_STRING surfaceTypes[] = {
         "UNKNOWN",

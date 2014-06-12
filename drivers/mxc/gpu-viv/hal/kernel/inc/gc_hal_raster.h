@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_raster_h_
 #define __gc_hal_raster_h_
 
@@ -222,6 +221,19 @@ gcoSURF_SetDither(
     IN gcoSURF Surface,
     IN gctBOOL Dither
     );
+
+gceSTATUS
+gcoSURF_Set2DSource(
+    gcoSURF Surface,
+    gceSURF_ROTATION Rotation
+    );
+
+gceSTATUS
+gcoSURF_Set2DTarget(
+    gcoSURF Surface,
+    gceSURF_ROTATION Rotation
+    );
+
 /******************************************************************************\
 ********************************** gco2D Object *********************************
 \******************************************************************************/

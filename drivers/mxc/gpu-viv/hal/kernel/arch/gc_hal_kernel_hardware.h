@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_kernel_hardware_h_
 #define __gc_hal_kernel_hardware_h_
 
@@ -62,6 +61,7 @@ struct _gckHARDWARE
     gctUINT32                   powerThread;
     gceCHIPPOWERSTATE           chipPowerState;
     gctUINT32                   lastWaitLink;
+    gctUINT32                   lastEnd;
     gctBOOL                     clockState;
     gctBOOL                     powerState;
     gctPOINTER                  globalSemaphore;
@@ -94,6 +94,8 @@ struct _gckHARDWARE
     gctBOOL                     gpuProfiler;
 
     gctBOOL                     endAfterFlushMmuCache;
+
+    gctUINT32                   minFscaleValue;
 };
 
 gceSTATUS
@@ -115,18 +117,6 @@ gckHARDWARE_GetFrameInfo(
     OUT gcsHAL_FRAME_INFO * FrameInfo
     );
 
-gceSTATUS
-gckHARDWARE_SetFscaleValue(
-    IN gckHARDWARE Hardware,
-    IN gctUINT32   FscaleValue
-    );
-gceSTATUS
-gckHARDWARE_GetFscaleValue(
-    IN gckHARDWARE Hardware,
-    IN gctUINT * FscaleValue,
-    IN gctUINT * MinFscaleValue,
-    IN gctUINT * MaxFscaleValue
-    );
 #ifdef __cplusplus
 }
 #endif

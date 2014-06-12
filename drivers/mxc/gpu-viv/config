@@ -33,5 +33,5 @@ USE_BANK_ALIGNMENT                ?= 1
 BANK_BIT_START                    ?= 13
 BANK_BIT_END                      ?= 15
 BANK_CHANNEL_BIT                  ?= 12
-ENABLE_GPU_CLOCK_BY_DRIVER        ?= 1
+PLATFORM                          ?= freescale/gc_hal_kernel_platform_imx6q14
 

@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal.h"
 #include "gc_hal_kernel.h"
 #if VIVANTE_PROFILER_CONTEXT
@@ -64,9 +63,6 @@ typedef struct _gcsiDEBUG_REGISTERS
 }
 gcsiDEBUG_REGISTERS;
 
-#ifdef LINUX
-extern int gpu3DMinClock;
-#endif
 /******************************************************************************\
 ********************************* Support Code *********************************
 \******************************************************************************/
@@ -140,7 +136,6 @@ _IdentifyHardware(
             gckOS_ReadRegisterEx(Os, Core,
                                  0x00020,
                                  (gctUINT32_PTR) &Identity->chipModel));
-
 
         if (((Identity->chipModel & 0xFF00) == 0x0400)
           && (Identity->chipModel != 0x0420)
@@ -920,7 +915,6 @@ gckHARDWARE_Construct(
     gceSTATUS status;
     gckHARDWARE hardware = gcvNULL;
     gctUINT16 data = 0xff00;
-    gctUINT32 axi_ot;
     gctPOINTER pointer = gcvNULL;
 #if gcdMULTI_GPU_AFFINITY
     gctUINT32 control;
@@ -969,10 +963,6 @@ gckHARDWARE_Construct(
     case gcv420:
     case gcv428:
         hardware->type = gcvHARDWARE_2D;
-        /*set outstanding limit*/
-        gcmkONERROR(gckOS_ReadRegisterEx(Os, Core, 0x00414, &axi_ot));
-        axi_ot = (axi_ot & (~0xFF)) | 0x10;
-        gcmkONERROR(gckOS_WriteRegisterEx(Os, Core, 0x00414, axi_ot));
         break;
 
     default:
@@ -1061,6 +1051,7 @@ gckHARDWARE_Construct(
     hardware->clockState      = gcvTRUE;
     hardware->powerState      = gcvTRUE;
     hardware->lastWaitLink    = ~0U;
+    hardware->lastEnd         = ~0U;
     hardware->globalSemaphore = gcvNULL;
 #if gcdENABLE_FSCALE_VAL_ADJUST
     hardware->powerOnFscaleVal = 64;
@@ -1104,6 +1095,8 @@ gckHARDWARE_Construct(
     {
         hardware->endAfterFlushMmuCache = gcvFALSE;
     }
+
+    hardware->minFscaleValue = 1;
 
     /* Return pointer to the gckHARDWARE object. */
     *Hardware = hardware;
@@ -1391,7 +1384,6 @@ gckHARDWARE_InitializeHardware(
 #endif
     }
 
-
     if (Hardware->identity.chipModel == gcv4000 &&
         ((Hardware->identity.chipRevision == 0x5208) || (Hardware->identity.chipRevision == 0x5222)))
     {
@@ -1400,6 +1392,20 @@ gckHARDWARE_InitializeHardware(
                                   Hardware->core,
                                   0x0010C,
                                   ((((gctUINT32) (0x01590880)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:23) - (0 ? 23:23) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:23) - (0 ? 23:23) + 1))))))) << (0 ? 23:23))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 23:23) - (0 ? 23:23) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 23:23) - (0 ? 23:23) + 1))))))) << (0 ? 23:23)))));
+    }
+
+    if (Hardware->identity.chipModel == gcv1000 &&
+        Hardware->identity.chipRevision == 0x5039)
+    {
+        gctUINT32 pulseEater;
+
+        pulseEater = ((((gctUINT32) (0x01590880)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))) << (0 ? 16:16))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 16:16) - (0 ? 16:16) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 16:16) - (0 ? 16:16) + 1))))))) << (0 ? 16:16)));
+
+        gcmkONERROR(
+            gckOS_WriteRegisterEx(Hardware->os,
+                                  Hardware->core,
+                                  0x0010C,
+                                  ((((gctUINT32) (pulseEater)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 17:17) - (0 ? 17:17) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 17:17) - (0 ? 17:17) + 1))))))) << (0 ? 17:17))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 17:17) - (0 ? 17:17) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 17:17) - (0 ? 17:17) + 1))))))) << (0 ? 17:17)))));
     }
 
     if ((gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_HALTI2) == gcvSTATUS_FALSE)
@@ -1418,7 +1424,6 @@ gckHARDWARE_InitializeHardware(
 
         regPMC = ((((gctUINT32) (regPMC)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 15:15) - (0 ? 15:15) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 15:15) - (0 ? 15:15) + 1))))))) << (0 ? 15:15))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 15:15) - (0 ? 15:15) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 15:15) - (0 ? 15:15) + 1))))))) << (0 ? 15:15)));
     }
-
 
     if (_IsHardwareMatch(Hardware, gcv2000, 0x5108))
     {
@@ -1537,14 +1542,6 @@ gckHARDWARE_InitializeHardware(
         Hardware->kernel->timeOut = 140 * 1000;
     }
 
-    /* Update GPU AXI cache atttribute. */
-    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
-                                      Hardware->core,
-                                      0x00008,
-                                      0x00002200));
-
-
-    /*VIV: Disable RA HZ/EZ clock gating until the bug is resolved */
     if (regPMC == 0)
     {
         gcmkONERROR(
@@ -1569,6 +1566,19 @@ gckHARDWARE_InitializeHardware(
                                   Hardware->powerBaseAddress
                                   + 0x00104,
                                   regPMC));
+    }
+
+    if (_IsHardwareMatch(Hardware, gcv2000, 0x5108)
+     || _IsHardwareMatch(Hardware, gcv320, 0x5007)
+     || _IsHardwareMatch(Hardware, gcv880, 0x5106)
+     || _IsHardwareMatch(Hardware, gcv400, 0x4645)
+    )
+    {
+        /* Update GPU AXI cache atttribute. */
+        gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                          Hardware->core,
+                                          0x00008,
+                                          0x00002200));
     }
 
 #if gcdDEBUG_MODULE_CLOCK_GATING
@@ -2151,6 +2161,7 @@ gckHARDWARE_End(
     )
 {
     gctUINT32_PTR logical = (gctUINT32_PTR) Logical;
+    gctUINT32 address;
     gceSTATUS status;
 
     gcmkHEADER_ARG("Hardware=0x%x Logical=0x%x *Bytes=%lu",
@@ -2177,6 +2188,10 @@ gckHARDWARE_End(
         /* Make sure the CPU writes out the data to memory. */
         gcmkONERROR(
             gckOS_MemoryBarrier(Hardware->os, Logical));
+
+        gcmkONERROR(gckHARDWARE_ConvertLogical(Hardware, logical, gcvFALSE, &address));
+
+        Hardware->lastEnd = address;
     }
 
     if (Bytes != gcvNULL)
@@ -2372,7 +2387,6 @@ gckHARDWARE_Event(
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
     gcmkVERIFY_ARGUMENT((Logical == gcvNULL) || (Bytes != gcvNULL));
     gcmkVERIFY_ARGUMENT(Event < 32);
-
 
 #if gcdMULTI_GPU
     if (FromWhere == gcvKERNEL_COMMAND) FromWhere = gcvKERNEL_PIXEL;
@@ -3991,6 +4005,7 @@ gckHARDWARE_GetIdle(
     gceSTATUS status;
     gctUINT32 idle = 0;
     gctINT retry, poll, pollCount;
+    gctUINT32 address;
 
     gcmkHEADER_ARG("Hardware=0x%x Wait=%d", Hardware, Wait);
 
@@ -4012,8 +4027,17 @@ gckHARDWARE_GetIdle(
             gcmkONERROR(
                 gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00004, &idle));
 
+            /* Read the current FE address. */
+            gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                             Hardware->core,
+                                             0x00664,
+                                             &address));
+
+
             /* See if we have to wait for FE idle. */
-            if ((((((gctUINT32) (idle)) >> (0 ? 0:0)) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1)))))) ))
+            if ((((((gctUINT32) (idle)) >> (0 ? 0:0)) & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 0:0) - (0 ? 0:0) + 1)))))) )
+             && (address == Hardware->lastEnd + 8)
+             )
             {
                 /* FE is idle. */
                 break;
@@ -5062,6 +5086,7 @@ gckHARDWARE_SetPowerManagementState(
             isrStarted = gcvTRUE;
         }
 
+#if !gcdSECURITY
         /* Set NEW MMU. */
         if (Hardware->mmuVersion != 0 && configMmu)
         {
@@ -5075,6 +5100,7 @@ gckHARDWARE_SetPowerManagementState(
                         gcvTRUE
                         ));
         }
+#endif
     }
 
     /* Get time until started. */
@@ -5421,19 +5447,25 @@ gckHARDWARE_GetFscaleValue(
     )
 {
     *FscaleValue = Hardware->powerOnFscaleVal;
-#ifdef LINUX
-    if ((gpu3DMinClock > 0) && (gpu3DMinClock <= 64) && (Hardware->core == gcvCORE_MAJOR))
-        *MinFscaleValue = gpu3DMinClock;
-    else
-        *MinFscaleValue = 1;
-#else
-    *MinFscaleValue = 1;
-#endif
+    *MinFscaleValue = Hardware->minFscaleValue;
     *MaxFscaleValue = 64;
 
     return gcvSTATUS_OK;
 }
 
+gceSTATUS
+gckHARDWARE_SetMinFscaleValue(
+    IN gckHARDWARE Hardware,
+    IN gctUINT MinFscaleValue
+    )
+{
+    if (MinFscaleValue >= 1 && MinFscaleValue <= 64)
+    {
+        Hardware->minFscaleValue = MinFscaleValue;
+    }
+
+    return gcvSTATUS_OK;
+}
 #endif
 
 #if gcdPOWEROFF_TIMEOUT
@@ -5480,6 +5512,10 @@ gckHARDWARE_QueryIdle(
     gctUINT32 idle3D1 = 0;
     gctUINT32 address3D1;
     gctBOOL   isIdle3D1 = gcvFALSE;
+#endif
+
+#if gcdINTERRUPT_STATISTIC
+    gctINT32 pendingInterrupt;
 #endif
 
     gcmkHEADER_ARG("Hardware=0x%x", Hardware);
@@ -5531,6 +5567,10 @@ gckHARDWARE_QueryIdle(
 
         else
         {
+#if gcdSECURITY
+            isIdle = gcvTRUE;
+            address = 0;
+#else
             /* Read the current FE address. */
             gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
                                              Hardware->core,
@@ -5554,6 +5594,7 @@ gckHARDWARE_QueryIdle(
                 /* FE is not in WAIT/LINK yet. */
                 isIdle = gcvFALSE;
             }
+#endif
         }
 
 #if gcdMULTI_GPU > 1
@@ -5600,6 +5641,19 @@ gckHARDWARE_QueryIdle(
 #endif
 
     }
+
+#if gcdINTERRUPT_STATISTIC
+    gcmkONERROR(gckOS_AtomGet(
+        Hardware->os,
+        Hardware->kernel->eventObj->interruptCount,
+        &pendingInterrupt
+        ));
+
+    if (pendingInterrupt)
+    {
+        isIdle = gcvFALSE;
+    }
+#endif
 
 #if gcdMULTI_GPU > 1
     if (Hardware->core == gcvCORE_MAJOR)
@@ -6913,6 +6967,12 @@ gckHARDWARE_IsFeatureAvailable(
         /* This feature doesn't apply for 2D cores. */
         available = ((((gctUINT32) (Hardware->identity.chipMinorFeatures2)) >> (0 ? 14:14) & ((gctUINT32) ((((1 ? 14:14) - (0 ? 14:14) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 14:14) - (0 ? 14:14) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 14:14) - (0 ? 14:14) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 14:14) - (0 ? 14:14) + 1)))))))
             &&      ((((gctUINT32) (Hardware->identity.chipFeatures)) >> (0 ? 2:2) & ((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1)))))) == (0x1 & ((gctUINT32) ((((1 ? 2:2) - (0 ? 2:2) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 2:2) - (0 ? 2:2) + 1)))))));
+
+        if (Hardware->identity.chipModel == gcv1000 &&
+            Hardware->identity.chipRevision == 0x5039)
+        {
+            available = gcvFALSE;
+        }
         break;
 
     case gcvFEATURE_ACE:

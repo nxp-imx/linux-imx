@@ -19,16 +19,11 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_linux.h"
 #include <linux/pagemap.h>
 #include <linux/seq_file.h>
 #include <linux/mman.h>
 #include <linux/slab.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
-#include <mach/hardware.h>
-#endif
-#include <linux/pm_runtime.h>
 
 #define _GC_OBJ_ZONE    gcvZONE_DEVICE
 
@@ -565,7 +560,6 @@ gckGALDEVICE_Construct(
     IN gctUINT32 PhysSize,
     IN gctINT Signal,
     IN gctUINT LogFileSize,
-    IN struct device *pdev,
     IN gctINT PowerManagement,
     IN gctINT GpuProfiler,
     IN gcsDEVICE_CONSTRUCT_ARGS * Args,
@@ -612,6 +606,11 @@ gckGALDEVICE_Construct(
                    PhysBaseAddr, PhysSize, Signal);
 #endif
 
+#if gcdDISABLE_CORES_2D3D
+    IrqLine = -1;
+    IrqLine2D = -1;
+#endif
+
     /* Allocate device structure. */
     device = kmalloc(sizeof(struct _gckGALDEVICE), GFP_KERNEL | __GFP_NOWARN);
 
@@ -623,6 +622,8 @@ gckGALDEVICE_Construct(
     memset(device, 0, sizeof(struct _gckGALDEVICE));
 
     device->dbgNode = gcvNULL;
+
+    device->platform = Args->platform;
 
     if (gckDEBUGFS_CreateNode(
             device, LogFileSize, PARENT_FILE,DEBUG_FILE, &(device->dbgNode)))
@@ -638,87 +639,6 @@ gckGALDEVICE_Construct(
     {
         gckDEBUGFS_SetCurrentNode(device->dbgNode);
     }
-
-#ifdef CONFIG_PM
-    /*Init runtime pm for gpu*/
-    pm_runtime_enable(pdev);
-    device->pmdev = pdev;
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
-    /*get gpu regulator*/
-    device->gpu_regulator = regulator_get(pdev, "cpu_vddgpu");
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-    device->gpu_regulator = devm_regulator_get(pdev, "pu");
-#endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-    if (IS_ERR(device->gpu_regulator)) {
-       gcmkTRACE_ZONE(gcvLEVEL_ERROR, gcvZONE_DRIVER,
-               "%s(%d): Failed to get gpu regulator  %s/%s \n",
-               __FUNCTION__, __LINE__,
-               PARENT_FILE, DEBUG_FILE);
-       gcmkONERROR(gcvSTATUS_NOT_FOUND);
-    }
-#endif
-    /*Initialize the clock structure*/
-    if (IrqLine != -1) {
-        device->clk_3d_core = clk_get(pdev, "gpu3d_clk");
-        if (!IS_ERR(device->clk_3d_core)) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
-            if (cpu_is_mx6q()) {
-                   device->clk_3d_shader = clk_get(pdev, "gpu3d_shader_clk");
-                   if (IS_ERR(device->clk_3d_shader)) {
-                       IrqLine = -1;
-                       clk_put(device->clk_3d_core);
-                       device->clk_3d_core = NULL;
-                       device->clk_3d_shader = NULL;
-                       gckOS_Print("galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
-                   }
-                 }
-#else
-                   device->clk_3d_axi = clk_get(pdev, "gpu3d_axi_clk");
-                   device->clk_3d_shader = clk_get(pdev, "gpu3d_shader_clk");
-                   if (IS_ERR(device->clk_3d_shader)) {
-                       IrqLine = -1;
-                       clk_put(device->clk_3d_core);
-                       device->clk_3d_core = NULL;
-                       device->clk_3d_shader = NULL;
-                       gckOS_Print("galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
-                   }
-#endif
-        } else {
-            IrqLine = -1;
-            device->clk_3d_core = NULL;
-            gckOS_Print("galcore: clk_get gpu3d_clk failed, disable 3d!\n");
-        }
-    }
-    if ((IrqLine2D != -1) || (IrqLineVG != -1)) {
-        device->clk_2d_core = clk_get(pdev, "gpu2d_clk");
-        if (IS_ERR(device->clk_2d_core)) {
-            IrqLine2D = -1;
-            IrqLineVG = -1;
-            device->clk_2d_core = NULL;
-            gckOS_Print("galcore: clk_get 2d core clock failed, disable 2d/vg!\n");
-        } else {
-           if (IrqLine2D != -1) {
-                device->clk_2d_axi = clk_get(pdev, "gpu2d_axi_clk");
-                if (IS_ERR(device->clk_2d_axi)) {
-                    device->clk_2d_axi = NULL;
-                    IrqLine2D = -1;
-                    gckOS_Print("galcore: clk_get 2d axi clock failed, disable 2d\n");
-                }
-            }
-            if (IrqLineVG != -1) {
-                device->clk_vg_axi = clk_get(pdev, "openvg_axi_clk");
-                if (IS_ERR(device->clk_vg_axi)) {
-                    IrqLineVG = -1;
-                       device->clk_vg_axi = NULL;
-                       gckOS_Print("galcore: clk_get vg clock failed, disable vg!\n");
-                }
-            }
-        }
-    }
-
 
 #if gcdMULTI_GPU
     if (IrqLine3D0 != -1)
@@ -903,6 +823,12 @@ gckGALDEVICE_Construct(
             device->kernels[gcvCORE_MAJOR]->hardware, PowerManagement
             ));
 
+#if gcdENABLE_FSCALE_VAL_ADJUST
+        gcmkONERROR(gckHARDWARE_SetMinFscaleValue(
+            device->kernels[gcvCORE_MAJOR]->hardware, Args->gpu3DMinClock
+            ));
+#endif
+
         gcmkONERROR(gckHARDWARE_SetGpuProfiler(
             device->kernels[gcvCORE_MAJOR]->hardware, GpuProfiler
             ));
@@ -955,6 +881,12 @@ gckGALDEVICE_Construct(
         gcmkONERROR(gckHARDWARE_SetFastClear(
             device->kernels[gcvCORE_OCL]->hardware, FastClear, Compression
             ));
+
+#if gcdENABLE_FSCALE_VAL_ADJUST
+        gcmkONERROR(gckHARDWARE_SetMinFscaleValue(
+            device->kernels[gcvCORE_OCL]->hardware, Args->gpu3DMinClock
+            ));
+#endif
 
         gcmkONERROR(gckHARDWARE_SetPowerManagement(
             device->kernels[gcvCORE_OCL]->hardware, PowerManagement
@@ -1022,6 +954,12 @@ gckGALDEVICE_Construct(
         gcmkONERROR(gckHARDWARE_SetPowerManagement(
             device->kernels[gcvCORE_2D]->hardware, PowerManagement
             ));
+
+#if gcdENABLE_FSCALE_VAL_ADJUST
+        gcmkONERROR(gckHARDWARE_SetMinFscaleValue(
+            device->kernels[gcvCORE_2D]->hardware, 1
+            ));
+#endif
 
         gcmkVERIFY_OK(gckKERNEL_SetRecovery(
             device->kernels[gcvCORE_2D], Args->recovery, Args->stuckDump
@@ -1318,45 +1256,27 @@ gckGALDEVICE_Construct(
             }
             else
             {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
-                mem_region = request_mem_region(
-                    ContiguousBase, ContiguousSize, "galcore managed memory"
-                    );
-
-                if (mem_region == gcvNULL)
+                if (Args->contiguousRequested == gcvFALSE)
                 {
-                    gcmkTRACE_ZONE(
-                        gcvLEVEL_ERROR, gcvZONE_DRIVER,
-                        "%s(%d): Failed to claim %ld bytes @ 0x%08X\n",
-                        __FUNCTION__, __LINE__,
-                        ContiguousSize, ContiguousBase
+                    mem_region = request_mem_region(
+                        ContiguousBase, ContiguousSize, "galcore managed memory"
                         );
 
-                    gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
-                }
-#endif
-
-                device->requestedContiguousBase  = ContiguousBase;
-                device->requestedContiguousSize  = ContiguousSize;
-
-#if !gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
-                if (gcmIS_CORE_PRESENT(device, gcvCORE_VG))
-                {
-                    device->contiguousBase
-#if gcdPAGED_MEMORY_CACHEABLE
-                        = (gctPOINTER) ioremap_cached(ContiguousBase, ContiguousSize);
-#else
-                        = (gctPOINTER) ioremap_nocache(ContiguousBase, ContiguousSize);
-#endif
-                    if (device->contiguousBase == gcvNULL)
+                    if (mem_region == gcvNULL)
                     {
-                        device->contiguousVidMem = gcvNULL;
-                        device->contiguousSize = 0;
+                        gcmkTRACE_ZONE(
+                            gcvLEVEL_ERROR, gcvZONE_DRIVER,
+                            "%s(%d): Failed to claim %ld bytes @ 0x%08X\n",
+                            __FUNCTION__, __LINE__,
+                            ContiguousSize, ContiguousBase
+                            );
 
                         gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
                     }
                 }
-#endif
+
+                device->requestedContiguousBase  = ContiguousBase;
+                device->requestedContiguousSize  = ContiguousSize;
 
                 device->contiguousPhysical = gcvNULL;
                 device->contiguousPhysicalName = 0;
@@ -1496,17 +1416,7 @@ gckGALDEVICE_Destroy(
 
         if (Device->contiguousBase != gcvNULL)
         {
-            if (Device->contiguousMapped)
-            {
-#if !gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
-                if (Device->contiguousBase)
-                {
-                    /* Unmap the contiguous memory. */
-                    iounmap(Device->contiguousBase);
-                }
-#endif
-            }
-            else
+            if (Device->contiguousMapped == gcvFALSE)
             {
                 gcmkONERROR(_FreeMemory(
                     Device,
@@ -1519,7 +1429,7 @@ gckGALDEVICE_Destroy(
             Device->contiguousPhysical = gcvNULL;
         }
 
-        if (Device->requestedContiguousBase != 0)
+        if ((Device->contiguousRequested == gcvFALSE) &&  (Device->requestedContiguousBase != 0))
         {
             release_mem_region(Device->requestedContiguousBase, Device->requestedContiguousSize);
             Device->requestedContiguousBase = 0;
@@ -1585,46 +1495,6 @@ gckGALDEVICE_Destroy(
                 }
             }
         }
-
-        /*Disable clock*/
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
-        if (Device->clk_3d_axi) {
-           clk_put(Device->clk_3d_axi);
-           Device->clk_3d_axi = NULL;
-        }
-#endif
-        if (Device->clk_3d_core) {
-           clk_put(Device->clk_3d_core);
-           Device->clk_3d_core = NULL;
-        }
-        if (Device->clk_3d_shader) {
-           clk_put(Device->clk_3d_shader);
-           Device->clk_3d_shader = NULL;
-        }
-        if (Device->clk_2d_core) {
-           clk_put(Device->clk_2d_core);
-           Device->clk_2d_core = NULL;
-        }
-        if (Device->clk_2d_axi) {
-           clk_put(Device->clk_2d_axi);
-           Device->clk_2d_axi = NULL;
-        }
-        if (Device->clk_vg_axi) {
-           clk_put(Device->clk_vg_axi);
-           Device->clk_vg_axi = NULL;
-        }
-
-#ifdef CONFIG_PM
-        if(Device->pmdev)
-            pm_runtime_disable(Device->pmdev);
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
-        if (Device->gpu_regulator) {
-           regulator_put(Device->gpu_regulator);
-           Device->gpu_regulator = NULL;
-        }
-#endif
 
         /* Destroy the gckOS object. */
         if (Device->os != gcvNULL)

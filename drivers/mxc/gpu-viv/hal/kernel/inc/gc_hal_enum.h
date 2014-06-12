@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_enum_h_
 #define __gc_hal_enum_h_
 
@@ -340,6 +339,8 @@ typedef enum _gceSURF_TYPE
 
     gcvSURF_CREATE_AS_TEXTURE  = 0x4000,  /* create it as a texture */
 
+    gcvSURF_PROTECTED_CONTENT  = 0x8000,  /* create it as content protected */
+
     gcvSURF_TEXTURE_LINEAR               = gcvSURF_TEXTURE
                                          | gcvSURF_LINEAR,
 
@@ -427,6 +428,8 @@ typedef enum _gceSURF_FLAG
     gcvSURF_FLAG_CONTENT_UPDATED     = 0x2,
     /* content is y inverted */
     gcvSURF_FLAG_CONTENT_YINVERTED   = 0x4,
+    /* content is protected */
+    gcvSURF_FLAG_CONTENT_PROTECTED   = 0x8,
 }
 gceSURF_FLAG;
 
@@ -1197,6 +1200,17 @@ typedef enum _gceSYNC_POINT_COMMAND_CODES
 }
 gceSYNC_POINT_COMMAND_CODES;
 
+/* Shared buffer command codes. */
+typedef enum _gceSHBUF_COMMAND_CODES
+{
+    gcvSHBUF_CREATE,
+    gcvSHBUF_DESTROY,
+    gcvSHBUF_MAP,
+    gcvSHBUF_WRITE,
+    gcvSHBUF_READ,
+}
+gceSHBUF_COMMAND_CODES;
+
 /* Event locations. */
 typedef enum _gceKERNEL_WHERE
 {
@@ -1471,10 +1485,19 @@ typedef enum _gceHAL_ARG_VERSION
 gceHAL_ARG_VERSION;
 
 
+#define gcvALLOC_FLAG_NONE       (0)
+#define gcvALLOC_FLAG_CONTIGUOUS (1 << 0)
+#define gcvALLOC_FLAG_CACHEABLE  (1 << 1)
+#define gcvALLOC_FLAG_SECURITY   (1 << 2)
+
 /* GL_VIV internal usage */
 #ifndef GL_MAP_BUFFER_OBJ_VIV
 #define GL_MAP_BUFFER_OBJ_VIV       0x10000
 #endif
+
+/* Command buffer usage. */
+#define gcvCOMMAND_2D   (1 << 0)
+#define gcvCOMMAND_3D   (1 << 1)
 
 /******************************************************************************\
 ****************************** Object Declarations *****************************

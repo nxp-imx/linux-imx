@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_precomp.h"
 
 #define _GC_OBJ_ZONE    gcvZONE_VIDMEM
@@ -242,10 +241,10 @@ gckVIDMEM_ConstructVirtual(
     node->Virtual.contiguous    = Contiguous;
     node->Virtual.logical       = gcvNULL;
     node->Virtual.cacheable      = cacheable;
-
 #if gcdENABLE_VG
-    node->Virtual.kernelVirtual = 0;
+    node->Virtual.kernelVirtual = gcvNULL;
 #endif
+
     for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
         node->Virtual.lockeds[i]        = 0;
@@ -484,7 +483,7 @@ gckVIDMEM_Construct(
         node->VidMem.logical   = gcvNULL;
 #endif
 
-#if gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
+#if gcdENABLE_VG
         node->VidMem.kernelVirtual = gcvNULL;
 #endif
 
@@ -997,7 +996,7 @@ gckVIDMEM_AllocateLinear(
     /* Adjust the number of free bytes. */
     Memory->freeBytes -= node->VidMem.bytes;
 
-#if gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
+#if gcdENABLE_VG
     node->VidMem.kernelVirtual = gcvNULL;
 #endif
 
@@ -1101,7 +1100,7 @@ gckVIDMEM_Free(
         )
 #endif
         {
-#if gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
+#if gcdENABLE_VG
             if (Node->VidMem.kernelVirtual)
             {
                 gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
@@ -1443,13 +1442,18 @@ _DestroyGPUMap(
 **
 **      gctUINT32 * Address
 **          Pointer to a variable that will hold the hardware specific address.
+**
+**      gctUINT32 * PhysicalAddress
+**          Pointer to a variable that will hold the bus address of a contiguous
+**          video node.
 */
 gceSTATUS
 gckVIDMEM_Lock(
     IN gckKERNEL Kernel,
     IN gcuVIDMEM_NODE_PTR Node,
     IN gctBOOL Cacheable,
-    OUT gctUINT32 * Address
+    OUT gctUINT32 * Address,
+    OUT gctUINT64 * PhysicalAddress
     )
 {
     gceSTATUS status;
@@ -1460,6 +1464,7 @@ gckVIDMEM_Lock(
     gctBOOL needMapping = gcvFALSE;
 #endif
     gctUINT32 baseAddress;
+    gctUINT32 physicalAddress;
 
     gcmkHEADER_ARG("Node=0x%x", Node);
 
@@ -1499,6 +1504,8 @@ gckVIDMEM_Lock(
                  + offset
                  + Node->VidMem.alignment;
 
+        physicalAddress = *Address;
+
         /* Get hardware specific address. */
 #if gcdENABLE_VG
         if (Kernel->vg == gcvNULL)
@@ -1512,6 +1519,12 @@ gckVIDMEM_Lock(
                 *Address -= baseAddress;
             }
         }
+
+        gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(
+            Kernel->os,
+            *Address,
+            Address
+            ));
 
         gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
                       "Locked node 0x%x (%d) @ 0x%08X",
@@ -1543,6 +1556,16 @@ gckVIDMEM_Lock(
                             Cacheable,
                             &Node->Virtual.logical,
                             &Node->Virtual.pageCount));
+
+        gcmkONERROR(gckOS_GetPhysicalAddress(
+            os,
+            Node->Virtual.logical,
+            &physicalAddress
+            ));
+
+#if gcdENABLE_VG
+        Node->Virtual.physicalAddress = physicalAddress;
+#endif
 
 #if !gcdPROCESS_ADDRESS_SPACE
         /* Increment the lock count. */
@@ -1576,6 +1599,32 @@ gckVIDMEM_Lock(
             }
             else
             {
+#if gcdSECURITY
+                gctPHYS_ADDR physicalArrayPhysical;
+                gctPOINTER physicalArrayLogical;
+
+                gcmkONERROR(gckOS_AllocatePageArray(
+                    os,
+                    Node->Virtual.physical,
+                    Node->Virtual.pageCount,
+                    &physicalArrayLogical,
+                    &physicalArrayPhysical
+                    ));
+
+                gcmkONERROR(gckKERNEL_SecurityMapMemory(
+                    Kernel,
+                    physicalArrayLogical,
+                    Node->Virtual.pageCount,
+                    &Node->Virtual.addresses[Kernel->core]
+                    ));
+
+                gcmkONERROR(gckOS_FreeNonPagedMemory(
+                    os,
+                    1,
+                    physicalArrayPhysical,
+                    physicalArrayLogical
+                    ));
+#else
 #if gcdENABLE_VG
                 if (Kernel->vg != gcvNULL)
                 {
@@ -1618,6 +1667,7 @@ gckVIDMEM_Lock(
                 {
                     gcmkONERROR(gckMMU_Flush(Kernel->mmu, Node->Virtual.type));
                 }
+#endif
             }
             gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
                            "Mapped virtual node 0x%x to 0x%08X",
@@ -1630,6 +1680,8 @@ gckVIDMEM_Lock(
 #endif
 
     }
+
+    *PhysicalAddress = (gctUINT64)physicalAddress;
 
     /* Release the mutex. */
     gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
@@ -1794,6 +1846,16 @@ gckVIDMEM_Unlock(
             /* See if we can unlock the resources. */
             if (Node->Virtual.lockeds[Kernel->core] == 0)
             {
+#if gcdSECURITY
+                if (Node->Virtual.addresses[Kernel->core] > 0x80000000)
+                {
+                    gcmkONERROR(gckKERNEL_SecurityUnmapMemory(
+                        Kernel,
+                        Node->Virtual.addresses[Kernel->core],
+                        Node->Virtual.pageCount
+                        ));
+                }
+#else
                 /* Free the page table. */
                 if (Node->Virtual.pageTables[Kernel->core] != gcvNULL)
                 {
@@ -1817,6 +1879,7 @@ gckVIDMEM_Unlock(
                     Node->Virtual.pageTables[Kernel->core] = gcvNULL;
                     Node->Virtual.lockKernels[Kernel->core] = gcvNULL;
                 }
+#endif
             }
 
             gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,

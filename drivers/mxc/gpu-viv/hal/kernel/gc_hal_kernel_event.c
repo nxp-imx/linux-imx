@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_precomp.h"
 #include "gc_hal_kernel_buffer.h"
 
@@ -619,7 +618,7 @@ OnError:
 #if gcdINTERRUPT_STATISTIC
         if (eventObj->interruptCount)
         {
-            gcmkVERIFY_OK(gckOS_AtomDestroy(os, &eventObj->interruptCount));
+            gcmkVERIFY_OK(gckOS_AtomDestroy(os, eventObj->interruptCount));
         }
 #endif
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(os, eventObj));
@@ -738,7 +737,7 @@ gckEVENT_Destroy(
 #endif
 
 #if gcdINTERRUPT_STATISTIC
-    gcmkVERIFY_OK(gckOS_AtomDestroy(Event->os, &Event->interruptCount));
+    gcmkVERIFY_OK(gckOS_AtomDestroy(Event->os, Event->interruptCount));
 #endif
 
     /* Mark the gckEVENT object as unknown. */
@@ -1236,7 +1235,6 @@ gckEVENT_AddList(
         break;
     }
 
-
     /* Release the mutex. */
     gcmkONERROR(gckOS_ReleaseMutex(Event->os, Event->eventListMutex));
 
@@ -1694,9 +1692,12 @@ gckEVENT_Submit(
 #endif
 
 #if gcdINTERRUPT_STATISTIC
-    gctUINT32 oldValue;
+    gctINT32 oldValue;
 #endif
 
+#if gcdSECURITY
+    gctPOINTER reservedBuffer;
+#endif
 
     gctUINT32 flushBytes;
     gctUINT32 executeBytes;
@@ -1811,6 +1812,9 @@ gckEVENT_Submit(
 
             /* Reserve space in the command queue. */
             gcmkONERROR(gckCOMMAND_Reserve(command, bytes, &buffer, &bytes));
+#if gcdSECURITY
+            reservedBuffer = buffer;
+#endif
 
 #if gcdMULTI_GPU
             gcmkONERROR(gckHARDWARE_ChipEnable(
@@ -1855,8 +1859,16 @@ gckEVENT_Submit(
                 ));
 #endif
 
+#if gcdSECURITY
+            gckKERNEL_SecurityExecute(
+                Event->kernel,
+                reservedBuffer,
+                executeBytes
+                );
+#else
             /* Execute the hardware event. */
             gcmkONERROR(gckCOMMAND_Execute(command, executeBytes));
+#endif
 #endif
         }
 
@@ -2274,7 +2286,7 @@ gckEVENT_Interrupt(
 #if gcdINTERRUPT_STATISTIC
     {
         gctINT j = 0;
-        gctUINT32 oldValue;
+        gctINT32 oldValue;
 
         for (j = 0; j < gcmCOUNTOF(Event->queues); j++)
         {
@@ -3413,7 +3425,8 @@ gckEVENT_Dump(
     gcsEVENT_PTR record = gcvNULL;
     gctINT i;
 #if gcdINTERRUPT_STATISTIC
-    gctUINT32 pendingInterrupt;
+    gctINT32 pendingInterrupt;
+    gctUINT32 intrAcknowledge;
 #endif
 
     gcmkHEADER_ARG("Event=0x%x", Event);
@@ -3421,7 +3434,6 @@ gckEVENT_Dump(
     gcmkPRINT("**************************\n");
     gcmkPRINT("***  EVENT STATE DUMP  ***\n");
     gcmkPRINT("**************************\n");
-
 
     gcmkPRINT("  Unsumbitted Event:");
     while(queueHead)
@@ -3463,6 +3475,18 @@ gckEVENT_Dump(
 #if gcdINTERRUPT_STATISTIC
     gckOS_AtomGet(Event->os, Event->interruptCount, &pendingInterrupt);
     gcmkPRINT("  Number of Pending Interrupt: %d", pendingInterrupt);
+
+    if (Event->kernel->recovery == 0)
+    {
+        gckOS_ReadRegisterEx(
+            Event->os,
+            Event->kernel->core,
+            0x10,
+            &intrAcknowledge
+            );
+
+        gcmkPRINT("  INTR_ACKNOWLEDGE=0x%x", intrAcknowledge);
+    }
 #endif
 
     gcmkFOOTER_NO();

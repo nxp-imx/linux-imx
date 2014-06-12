@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_h_
 #define __gc_hal_h_
 
@@ -33,6 +32,9 @@
 #include "gc_hal_statistics.h"
 #endif
 
+#if gcdSECURITY
+#include "gc_hal_security_interface.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -1066,6 +1068,39 @@ gckOS_GetThreadID(
     OUT gctUINT32_PTR ThreadID
     );
 
+#if gcdSECURITY
+gceSTATUS
+gckOS_OpenSecurityChannel(
+    IN gckOS Os,
+    IN gceCORE Core,
+    OUT gctUINT32 *Channel
+    );
+
+gceSTATUS
+gckOS_CloseSecurityChannel(
+    IN gctUINT32 Channel
+    );
+
+gceSTATUS
+gckOS_CallSecurityService(
+    IN gctUINT32 Channel,
+    IN gcsTA_INTERFACE * Interface
+    );
+
+gceSTATUS
+gckOS_InitSecurityChannel(
+    OUT gctUINT32 Channel
+    );
+
+gceSTATUS
+gckOS_AllocatePageArray(
+    IN gckOS Os,
+    IN gctPHYS_ADDR Physical,
+    IN gctSIZE_T PageCount,
+    OUT gctPOINTER * PageArrayLogical,
+    OUT gctPHYS_ADDR * PageArrayPhysical
+    );
+#endif
 
 /******************************************************************************\
 ********************************** Signal Object *********************************
@@ -1280,6 +1315,20 @@ gckOS_CacheInvalidate(
     gctSIZE_T Bytes
     );
 
+gceSTATUS
+gckOS_CPUPhysicalToGPUPhysical(
+    IN gckOS Os,
+    IN gctUINT32 CPUPhysical,
+    IN gctUINT32_PTR GPUPhysical
+    );
+
+gceSTATUS
+gckOS_GPUPhysicalToCPUPhysical(
+    IN gckOS Os,
+    IN gctUINT32 GPUPhysical,
+    IN gctUINT32_PTR CPUPhysical
+    );
+
 /******************************************************************************\
 ** Debug Support
 */
@@ -1334,6 +1383,9 @@ typedef enum _gceBROADCAST
 
     /* AXI bus error. */
     gcvBROADCAST_AXI_BUS_ERROR,
+
+    /* Out of memory. */
+    gcvBROADCAST_OUT_OF_MEMORY,
 }
 gceBROADCAST;
 
@@ -1607,7 +1659,8 @@ gckVIDMEM_Lock(
     IN gckKERNEL Kernel,
     IN gcuVIDMEM_NODE_PTR Node,
     IN gctBOOL Cacheable,
-    OUT gctUINT32 * Address
+    OUT gctUINT32 * Address,
+    OUT gctUINT64 * PhysicalAddress
     );
 
 /* Unlock memory. */
@@ -1695,6 +1748,14 @@ gckKERNEL_Dispatch(
     IN OUT struct _gcsHAL_INTERFACE * Interface
     );
 
+/* Query Database requirements. */
+gceSTATUS
+    gckKERNEL_QueryDatabase(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 ProcessID,
+    IN OUT gcsHAL_INTERFACE * Interface
+    );
+
 /* Query the video memory. */
 gceSTATUS
 gckKERNEL_QueryVideoMemory(
@@ -1718,6 +1779,7 @@ gckKERNEL_AllocateLinearMemory(
     IN gctSIZE_T Bytes,
     IN gctUINT32 Alignment,
     IN gceSURF_TYPE Type,
+    IN gctUINT32 Flag,
     OUT gctUINT32 * Node
     );
 
@@ -2185,6 +2247,12 @@ gckHARDWARE_GetFscaleValue(
     IN gctUINT * FscaleValue,
     IN gctUINT * MinFscaleValue,
     IN gctUINT * MaxFscaleValue
+    );
+
+gceSTATUS
+gckHARDWARE_SetMinFscaleValue(
+    IN gckHARDWARE Hardware,
+    IN gctUINT MinFscaleValue
     );
 #endif
 

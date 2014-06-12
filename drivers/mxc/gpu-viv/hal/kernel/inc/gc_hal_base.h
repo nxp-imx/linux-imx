@@ -43,6 +43,7 @@ typedef struct gcsATOM *                gcsATOM_PTR;
 #ifndef VIVANTE_NO_3D
 typedef struct _gco3D *                 gco3D;
 typedef struct _gcoCL *                 gcoCL;
+typedef struct _gcsFAST_FLUSH *         gcsFAST_FLUSH_PTR;
 #endif
 
 typedef struct _gcoSURF *               gcoSURF;
@@ -149,6 +150,7 @@ typedef enum _gcePATCH_ID
     gcePATCH_GLOFTKRHM,
     gcvPATCH_OCLCTS,
     gcvPATCH_A8HP,
+    gcvPATCH_A8CN,
     gcvPATCH_WISTONESG,
     gcvPATCH_SPEEDRACE,
     gcvPATCH_FSBHAWAIIF,
@@ -160,6 +162,11 @@ typedef enum _gcePATCH_ID
     gcvPATCH_RIPTIDEGP2,
     gcvPATCH_OESCTS,
     gcvPATCH_GANGSTAR,
+    gcvPATCH_WHRKYZIXOVAN,
+    gcvPATCH_NAMESGAS,
+    gcvPATCH_AFTERBURNER,
+    gcvPATCH_UIMARK,
+    gcvPATCH_FM_OES_PLAYER,
 
     gcvPATCH_COUNT
 } gcePATCH_ID;
@@ -619,7 +626,6 @@ gcoHAL_IsFeatureAvailable(
     IN gceFEATURE Feature
     );
 
-
 gceSTATUS
 gcoHAL_IsSwwaNeeded(
     IN gcoHAL Hal,
@@ -686,6 +692,25 @@ gcoHAL_ScheduleUnmapMemory(
     IN gctPHYS_ADDR Physical,
     IN gctSIZE_T NumberOfBytes,
     IN gctPOINTER Logical
+    );
+
+/* Allocate video memory. */
+gceSTATUS
+gcoOS_AllocateVideoMemory(
+    IN gcoOS Os,
+    IN gctBOOL InUserSpace,
+    IN gctBOOL InCacheable,
+    IN OUT gctSIZE_T * Bytes,
+    OUT gctUINT32 * Physical,
+    OUT gctPOINTER * Logical,
+    OUT gctPOINTER * Handle
+    );
+
+/* Free video memory. */
+gceSTATUS
+gcoOS_FreeVideoMemory(
+    IN gcoOS Os,
+    IN gctPOINTER Handle
     );
 
 /* Map user memory. */
@@ -905,6 +930,47 @@ gcoHAL_QueryChipFeature(
     IN gceFEATURE   Feature);
 
 #endif
+
+/*----------------------------------------------------------------------------*/
+/*----- Shared Buffer --------------------------------------------------------*/
+
+/* Create shared buffer. */
+gceSTATUS
+gcoHAL_CreateShBuffer(
+    IN gctUINT32 Size,
+    OUT gctSHBUF * ShBuf
+    );
+
+/* Destroy shared buffer. */
+gceSTATUS
+gcoHAL_DestroyShBuffer(
+    IN gctSHBUF ShBuf
+    );
+
+/* Map shared buffer to current process. */
+gceSTATUS
+gcoHAL_MapShBuffer(
+    IN gctSHBUF ShBuf
+    );
+
+/* Write user data to shared buffer. */
+gceSTATUS
+gcoHAL_WriteShBuffer(
+    IN gctSHBUF ShBuf,
+    IN gctCONST_POINTER Data,
+    IN gctUINT32 ByteCount
+    );
+
+/* Read user data from shared buffer. */
+gceSTATUS
+gcoHAL_ReadShBuffer(
+    IN gctSHBUF ShBuf,
+    IN gctPOINTER Data,
+    IN gctUINT32 BytesCount,
+    OUT gctUINT32 * BytesRead
+    );
+
+
 /******************************************************************************\
 ********************************** gcoOS Object *********************************
 \******************************************************************************/
@@ -1039,36 +1105,6 @@ gcoOS_FreeContiguous(
     IN gctPOINTER Logical,
     IN gctSIZE_T Bytes
     );
-
-/* Allocate video memory. */
-gceSTATUS
-gcoOS_AllocateVideoMemory(
-    IN gcoOS Os,
-    IN gctBOOL InUserSpace,
-    IN gctBOOL InCacheable,
-    IN OUT gctSIZE_T * Bytes,
-    OUT gctUINT32 * Physical,
-    OUT gctPOINTER * Logical,
-    OUT gctPOINTER * Handle
-    );
-
-/* Free video memory. */
-gceSTATUS
-gcoOS_FreeVideoMemory(
-    IN gcoOS Os,
-    IN gctPOINTER Handle
-    );
-
-
-#if gcdENABLE_BUFFER_ALIGNMENT
-gceSTATUS
-gcoSURF_GetBankOffsetBytes(
-    IN gcoSURF Surfce,
-    IN gceSURF_TYPE Type,
-    IN gctUINT32 Stride,
-    IN gctUINT32_PTR Bytes
-    );
-#endif
 
 /* Map user memory. */
 gceSTATUS
@@ -1787,6 +1823,11 @@ gcoOS_MemoryBarrier(
     IN gctPOINTER Logical
     );
 
+gceSTATUS
+gcoOS_CPUPhysicalToGPUPhysical(
+    IN gctUINT32 CPUPhysical,
+    OUT gctUINT32_PTR GPUPhysical
+    );
 
 /*----------------------------------------------------------------------------*/
 /*----- Profile --------------------------------------------------------------*/
@@ -2262,20 +2303,6 @@ gcoSURF_SetRotation(
     IN gceSURF_ROTATION Rotation
     );
 
-/* Set surface pre-rotation angle. */
-gceSTATUS
-gcoSURF_SetPreRotation(
-    IN gcoSURF Surface,
-    IN gceSURF_ROTATION Rotation
-    );
-
-/* Get pre-rotation angle. */
-gceSTATUS
-gcoSURF_GetPreRotation(
-    IN gcoSURF Surface,
-    IN gceSURF_ROTATION *Rotation
-    );
-
 gceSTATUS
 gcoSURF_IsValid(
     IN gcoSURF Surface
@@ -2304,6 +2331,13 @@ gcoSURF_EnableTileStatusEx(
 /* Disable tile status for the specified surface. */
 gceSTATUS
 gcoSURF_DisableTileStatus(
+    IN gcoSURF Surface,
+    IN gctBOOL Decompress
+    );
+
+/* Flush tile status cache for the specified surface. */
+gceSTATUS
+gcoSURF_FlushTileStatus(
     IN gcoSURF Surface,
     IN gctBOOL Decompress
     );
@@ -2606,6 +2640,47 @@ gcoSURF_ResetSurWH(
     IN gceSURF_FORMAT fmt
 );
 
+/* Update surface timestamp. */
+gceSTATUS
+gcoSURF_UpdateTimeStamp(
+    IN gcoSURF Surface
+    );
+
+/* Query surface current timestamp. */
+gceSTATUS
+gcoSURF_QueryTimeStamp(
+    IN gcoSURF Surface,
+    OUT gctUINT64 * TimeStamp
+    );
+
+/*
+ * Allocate shared buffer for this surface, so that
+ * surface states can be shared across processes.
+ */
+gceSTATUS
+gcoSURF_AllocShBuffer(
+    IN gcoSURF Surface,
+    OUT gctSHBUF * ShBuf
+    );
+
+/* Bind shared buffer to this surface */
+gceSTATUS
+gcoSURF_BindShBuffer(
+    IN gcoSURF Surface,
+    IN gctSHBUF ShBuf
+    );
+
+/* Push surface shared states to shared buffer. */
+gceSTATUS
+gcoSURF_PushSharedInfo(
+    IN gcoSURF Surface
+    );
+
+/* Pop shared states from shared buffer. */
+gceSTATUS
+gcoSURF_PopSharedInfo(
+    IN gcoSURF Surface
+    );
 
 /******************************************************************************\
 ********************************* gcoDUMP Object ********************************
@@ -4703,7 +4778,7 @@ struct _gcoOS_SymbolsList
 #define gcmBEGINSTATEBUFFER(Hardware, CommandBuffer, StateDelta, Memory, ReserveSize) \
 { \
     gcmONERROR(gcoBUFFER_Reserve( \
-        Hardware->buffer, ReserveSize, gcvTRUE, &CommandBuffer \
+        Hardware->buffer, ReserveSize, gcvTRUE, gcvCOMMAND_3D, &CommandBuffer \
         )); \
     \
     Memory = (gctUINT32_PTR) gcmUINT64_TO_PTR(CommandBuffer->lastReserve); \
@@ -4765,7 +4840,7 @@ struct _gcoOS_SymbolsList
     *Memory++ = __temp_data32__; \
     \
     gcoHARDWARE_UpdateDelta( \
-        StateDelta, FixedPoint, Address, 0, __temp_data32__ \
+        StateDelta, Address, 0, __temp_data32__ \
         ); \
     \
     gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
@@ -4785,7 +4860,7 @@ struct _gcoOS_SymbolsList
     *Memory++ = __temp_data32__; \
     \
     gcoHARDWARE_UpdateDelta( \
-        StateDelta, FixedPoint, Address, Mask, __temp_data32__ \
+        StateDelta, Address, Mask, __temp_data32__ \
         ); \
     \
     gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
@@ -4967,7 +5042,7 @@ struct _gcoOS_SymbolsList
     *Memory++ = __temp_data32__; \
     \
     gcoHARDWARE_UpdateDelta( \
-        StateDelta, FixedPoint, Address, 0, __temp_data32__ \
+        StateDelta, Address, 0, __temp_data32__ \
         ); \
     \
     gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
@@ -4985,7 +5060,7 @@ struct _gcoOS_SymbolsList
     *Memory++ = __temp_data32__; \
     \
     gcoHARDWARE_UpdateDelta( \
-        StateDelta, FixedPoint, Address, Mask, __temp_data32__ \
+        StateDelta, Address, Mask, __temp_data32__ \
         ); \
     \
     gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
@@ -5071,6 +5146,144 @@ struct _gcoOS_SymbolsList
     \
 }
 
+#define gcmSETSTATEDATA_NEW_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                        Address, Data) \
+{ \
+    gctUINT32 __temp_data32__; \
+    \
+    __temp_data32__ = Data; \
+    \
+    *Memory++ = __temp_data32__; \
+    \
+    gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
+    \
+    gcmUPDATESECUREUSER(); \
+}
+
+#define gcmSETSTATEDATAWITHMASK_NEW_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                Address, Mask, Data) \
+{ \
+    gctUINT32 __temp_data32__; \
+    \
+    __temp_data32__ = Data; \
+    \
+    *Memory++ = __temp_data32__; \
+    \
+    gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
+    \
+    gcmUPDATESECUREUSER(); \
+}
+
+#define gcmSETSINGLESTATE_NEW_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                              Address, Data) \
+{ \
+    gcmBEGINSTATEBATCH_NEW(CommandBuffer, Memory, FixedPoint, Address, 1); \
+    gcmSETSTATEDATA_NEW_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                    Address, Data); \
+    gcmENDSTATEBATCH_NEW(CommandBuffer, Memory); \
+}
+
+#define gcmSETSINGLESTATEWITHMASK_NEW_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                                      Address, Mask, Data) \
+{ \
+    gcmBEGINSTATEBATCH_NEW(CommandBuffer, Memory, FixedPoint, Address, 1); \
+    gcmSETSTATEDATAWITHMASK_NEW_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                    Address, Mask, Data); \
+    gcmENDSTATEBATCH_NEW(CommandBuffer, Memory); \
+}
+
+#define gcmSETSTATEDATA_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                        Address, Data) \
+{ \
+    gctUINT32 __temp_data32__; \
+    \
+    gcmVERIFYLOADSTATE(CommandBuffer, Memory, Address); \
+    \
+    gcmSAFECASTSIZET(__temp_data32__, Data); \
+    \
+    *Memory++ = __temp_data32__; \
+    \
+    gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
+    \
+    gcmUPDATESECUREUSER(); \
+}
+
+#define gcmSETSTATEDATAWITHMASK_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                        Address, Mask, Data) \
+{ \
+    gctUINT32 __temp_data32__; \
+    \
+    gcmVERIFYLOADSTATE(CommandBuffer, Memory, Address); \
+    \
+    __temp_data32__ = Data; \
+    \
+    *Memory++ = __temp_data32__; \
+    \
+    gcmDUMPSTATEDATA(StateDelta, FixedPoint, Address, __temp_data32__); \
+    \
+    gcmUPDATESECUREUSER(); \
+}
+
+#define gcmSETSINGLESTATE_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                          Address, Data) \
+{ \
+    gcmBEGINSTATEBATCH(CommandBuffer, Memory, FixedPoint, Address, 1); \
+    gcmSETSTATEDATA_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                    Address, Data); \
+    gcmENDSTATEBATCH(CommandBuffer, Memory); \
+}
+
+#define gcmSETSINGLESTATEWITHMASK_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                          Address, Mask, Data) \
+{ \
+    gcmBEGINSTATEBATCH(CommandBuffer, Memory, FixedPoint, Address, 1); \
+    gcmSETSTATEDATAWITHMASK_FAST(StateDelta, CommandBuffer, Memory, FixedPoint, \
+                    Address, Mask, Data); \
+    gcmENDSTATEBATCH(CommandBuffer, Memory); \
+}
+
+#define gcmDEFINESTATEBUFFER_NEW_FAST(CommandBuffer, Memory) \
+    gcmDEFINESECUREUSER() \
+    gcmDEFINELOADSTATEBASE() \
+    gcsTEMPCMDBUF CommandBuffer = gcvNULL; \
+    gctUINT32_PTR Memory;
+
+#define gcmDEFINESTATEBUFFER_FAST(CommandBuffer, Memory, ReserveSize) \
+    gcmDEFINESECUREUSER() \
+    gctSIZE_T ReserveSize; \
+    gcoCMDBUF CommandBuffer; \
+    gctUINT32_PTR Memory;
+
+#define gcmBEGINSTATEBUFFER_FAST(Hardware, CommandBuffer, Memory, ReserveSize) \
+{ \
+    gcmONERROR(gcoBUFFER_Reserve( \
+        Hardware->buffer, ReserveSize, gcvTRUE, &CommandBuffer \
+        )); \
+    \
+    Memory = (gctUINT32_PTR) gcmUINT64_TO_PTR(CommandBuffer->lastReserve); \
+    \
+    gcmBEGINSECUREUSER(); \
+}
+
+#define gcmBEGINSTATEBUFFER_NEW_FAST(Hardware, CommandBuffer, Memory, OutSide) \
+{ \
+    if (OutSide) \
+    {\
+        Memory = (gctUINT32_PTR)*OutSide; \
+    }\
+    else \
+    {\
+        gcmONERROR(gcoBUFFER_StartTEMPCMDBUF( \
+            Hardware->buffer, &CommandBuffer \
+            ));\
+        \
+        Memory = (gctUINT32_PTR)(CommandBuffer->buffer); \
+        \
+    }\
+    \
+    gcmBEGINSECUREUSER(); \
+    gcmSETLOADSTATEBASE(CommandBuffer,OutSide);\
+}
 /*******************************************************************************
 **
 **  gcmCONFIGUREUNIFORMS

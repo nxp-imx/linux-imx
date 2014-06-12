@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_kernel_hardware_command_vg_h_
 #define __gc_hal_kernel_hardware_command_vg_h_
 

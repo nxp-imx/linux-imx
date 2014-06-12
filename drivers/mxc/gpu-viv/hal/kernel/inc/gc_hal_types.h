@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_types_h_
 #define __gc_hal_types_h_
 
@@ -216,6 +215,7 @@ typedef void *                  gctSIGNAL;
 typedef void *                  gctWINDOW;
 typedef void *                  gctIMAGE;
 typedef void *                  gctSYNC_POINT;
+typedef void *                  gctSHBUF;
 
 typedef void *                  gctSEMAPHORE;
 

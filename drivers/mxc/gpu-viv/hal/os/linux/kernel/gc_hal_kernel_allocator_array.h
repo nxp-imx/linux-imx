@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 extern gceSTATUS
 _DefaultAlloctorInit(
     IN gckOS Os,

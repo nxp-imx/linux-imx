@@ -19,13 +19,13 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_kernel_sync_h_
 #define __gc_hal_kernel_sync_h_
 
 #include <linux/types.h>
 
-#include <linux/sync.h>
+/* sync.h is in drivers/staging/android/ for now. */
+#include <sync.h>
 
 #include <gc_hal.h>
 #include <gc_hal_base.h>

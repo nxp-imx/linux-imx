@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_precomp.h"
 #include "gc_hal_kernel_context.h"
 
@@ -323,6 +322,9 @@ _FlushMMU(
     IN gckCOMMAND Command
     )
 {
+#if gcdSECURITY
+    return gcvSTATUS_OK;
+#else
     gceSTATUS status;
     gctUINT32 oldValue;
     gckHARDWARE hardware = Command->kernel->hardware;
@@ -405,6 +407,7 @@ _FlushMMU(
     return gcvSTATUS_OK;
 OnError:
     return status;
+#endif
 }
 
 static void
@@ -999,12 +1002,19 @@ gckCOMMAND_Start(
     Command->offset   = waitLinkBytes;
     Command->newQueue = gcvFALSE;
 
+#if gcdSECURITY
+    /* Start FE by calling security service. */
+    gckKERNEL_SecurityStartCommand(
+        Command->kernel
+        );
+#else
     /* Enable command processor. */
     gcmkONERROR(gckHARDWARE_Execute(
         hardware,
         Command->address,
         waitLinkBytes
         ));
+#endif
 
     /* Command queue is running. */
     Command->running = gcvTRUE;
@@ -1086,6 +1096,11 @@ gckCOMMAND_Stop(
             hardware, Command->waitLogical, &Command->waitSize
             ));
 
+#if gcdSECURITY
+        gcmkONERROR(gckKERNEL_SecurityExecute(
+            Command->kernel, Command->waitLogical, 8
+            ));
+#endif
 
         /* Update queue tail pointer. */
         gcmkONERROR(gckHARDWARE_UpdateQueueTail(Command->kernel->hardware,
@@ -1681,10 +1696,6 @@ gckCOMMAND_Commit(
         /* Not using 2D. */
         else
         {
-#if !gcdCMD_NO_2D_CONTEXT
-            /* Mark 2D as dirty. */
-            Context->dirty2D = gcvTRUE;
-#endif
 
             /* Store the current context buffer. */
             Context->dirtyBuffer = contextBuffer;
@@ -1850,6 +1861,14 @@ gckCOMMAND_Commit(
         contextDumpBytes   = entryBytes;
 #endif
 
+#if gcdSECURITY
+        /* Commit context buffer to trust zone. */
+        gckKERNEL_SecurityExecute(
+            Command->kernel,
+            entryLogical,
+            entryBytes - 8
+            );
+#endif
     }
 
     /* Same context. */
@@ -2172,6 +2191,7 @@ gckCOMMAND_Commit(
 
     /* Generate a LINK from the end of the command buffer being scheduled
        back to the kernel command queue. */
+#if !gcdSECURITY
     gcmkONERROR(gckHARDWARE_Link(
         hardware,
         commandBufferLink,
@@ -2179,6 +2199,7 @@ gckCOMMAND_Commit(
         exitBytes,
         &linkBytes
         ));
+#endif
 
 #ifdef __QNXNTO__
     gcmkONERROR(gckOS_UnmapUserPointer(
@@ -2202,6 +2223,14 @@ gckCOMMAND_Commit(
         ));
 #endif
 
+#if gcdSECURITY
+    /* Submit command buffer to trust zone. */
+    gckKERNEL_SecurityExecute(
+        Command->kernel,
+        commandBufferLogical + offset,
+        commandBufferSize    - offset - 8
+        );
+#else
     /* Generate a LINK from the previous WAIT/LINK command sequence to the
        entry determined above (either the context or the command buffer).
        This LINK replaces the WAIT instruction from the previous WAIT/LINK
@@ -2214,6 +2243,7 @@ gckCOMMAND_Commit(
         entryBytes,
         &Command->waitSize
         ));
+#endif
 
 #if gcdNONPAGED_MEMORY_CACHEABLE
     /* Flush the cache for the link. */

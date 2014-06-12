@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_kernel_device_h_
 #define __gc_hal_kernel_device_h_
 
@@ -27,20 +26,13 @@
 ******************************* gckGALDEVICE Structure *******************************
 \******************************************************************************/
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-struct contiguous_mem_pool {
-	struct dma_attrs attrs;
-	dma_addr_t phys;
-	void *virt;
-	size_t size;
-};
-#endif
-
 typedef struct _gckGALDEVICE
 {
     /* Objects. */
     gckOS               os;
     gckKERNEL           kernels[gcdMAX_GPU_COUNT];
+
+    gcsPLATFORM*        platform;
 
     /* Attributes. */
     gctSIZE_T           internalSize;
@@ -77,6 +69,7 @@ typedef struct _gckGALDEVICE
     gctSIZE_T           requestedRegisterMemSizes[gcdMAX_GPU_COUNT];
     gctUINT32           requestedContiguousBase;
     gctSIZE_T           requestedContiguousSize;
+    gctUINT32           contiguousRequested;
 
     /* IRQ management. */
 #if gcdMULTI_GPU
@@ -111,25 +104,6 @@ typedef struct _gckGALDEVICE
     /* Device Debug File System Entry in kernel. */
     struct _gcsDEBUGFS_Node * dbgNode;
 
-    /* Clock management.*/
-    struct clk         *clk_3d_core;
-    struct clk         *clk_3d_shader;
-    struct clk            *clk_3d_axi;
-    struct clk         *clk_2d_core;
-    struct clk         *clk_2d_axi;
-    struct clk         *clk_vg_axi;
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-    /*Power management.*/
-    struct regulator      *gpu_regulator;
-#endif
-       /*Run time pm*/
-       struct device           *pmdev;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-	struct contiguous_mem_pool *pool;
-    struct reset_control *rstc[gcdMAX_GPU_COUNT];
-#endif
-
 #if DYNAMIC_MEMORY_RECORD
     gctSIZE_T cachedsize;
     gctSIZE_T nonpagedmemorysize;
@@ -158,6 +132,10 @@ typedef struct _gcsDEVICE_CONSTRUCT_ARGS
 {
     gctBOOL             recovery;
     gctUINT             stuckDump;
+    gctUINT             gpu3DMinClock;
+
+    gctBOOL             contiguousRequested;
+    gcsPLATFORM*        platform;
 }
 gcsDEVICE_CONSTRUCT_ARGS;
 
@@ -229,7 +207,6 @@ gceSTATUS gckGALDEVICE_Construct(
     IN gctUINT32 PhysSize,
     IN gctINT Signal,
     IN gctUINT LogFileSize,
-    IN struct device *pdev,
     IN gctINT PowerManagement,
     IN gctINT GpuProfiler,
     IN gcsDEVICE_CONSTRUCT_ARGS * Args,

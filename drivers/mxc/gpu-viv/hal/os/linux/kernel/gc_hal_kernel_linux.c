@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_linux.h"
 
 #define _GC_OBJ_ZONE    gcvZONE_KERNEL
@@ -265,6 +264,7 @@ gckKERNEL_MapVideoMemoryEx(
     gctUINT32 base        = 0;
     gceSTATUS status;
     gctPOINTER logical    = gcvNULL;
+    gctUINT32 baseAddress;
 
     gcmkHEADER_ARG("Kernel=%p InUserSpace=%d Address=%08x",
                    Kernel, InUserSpace, Address);
@@ -334,16 +334,23 @@ gckKERNEL_MapVideoMemoryEx(
         else
 #endif
         {
-            gctUINT32 baseAddress = 0;
+            gctUINT32 systemBaseAddress = 0;
 
             if (Kernel->hardware->mmuVersion == 0)
             {
-                gcmkONERROR(gckOS_GetBaseAddress(Kernel->os, &baseAddress));
+                gcmkONERROR(gckOS_GetBaseAddress(Kernel->os, &systemBaseAddress));
             }
 
             gcmkVERIFY_OK(
+                gckOS_CPUPhysicalToGPUPhysical(
+                    Kernel->os,
+                    device->contiguousVidMem->baseAddress - systemBaseAddress,
+                    &baseAddress
+                    ));
+
+            gcmkVERIFY_OK(
                 gckHARDWARE_SplitMemory(Kernel->hardware,
-                                        device->contiguousVidMem->baseAddress - baseAddress,
+                                        baseAddress,
                                         &pool,
                                         &base));
         }

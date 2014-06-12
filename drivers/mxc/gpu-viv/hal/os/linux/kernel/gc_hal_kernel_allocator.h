@@ -19,18 +19,10 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_kernel_allocator_h_
 #define __gc_hal_kernel_allocator_h_
 
 #include <linux/list.h>
-
-#define gcvALLOC_FLAG_CONTIGUOUS (1 << 0)
-#define gcvALLOC_FLAG_CACHEABLE  (1 << 1)
-
-/*
-* Defines
-*/
 
 typedef struct _gcsALLOCATOR * gckALLOCATOR;
 

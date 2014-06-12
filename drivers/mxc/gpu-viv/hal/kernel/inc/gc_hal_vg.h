@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #ifndef __gc_hal_vg_h_
 #define __gc_hal_vg_h_
 
@@ -367,21 +366,6 @@ gckKERNEL_QueryCommandBuffer(
     IN gckKERNEL Kernel,
     OUT gcsCOMMAND_BUFFER_INFO_PTR Information
     );
-
-#if gcdDYNAMIC_MAP_RESERVED_MEMORY
-gceSTATUS
-gckOS_MapReservedMemoryToKernel(
-    IN gckOS Os,
-    IN gctUINT32 Physical,
-    IN gctINT Bytes,
-    IN OUT gctPOINTER *Virtual
-    );
-
-gceSTATUS
-gckOS_UnmapReservedMemoryFromKernel(
-    IN gctPOINTER Virtual
-    );
-#endif
 
 /******************************************************************************\
 ******************************* gckVGHARDWARE Object ******************************

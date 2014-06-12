@@ -19,7 +19,6 @@
 *****************************************************************************/
 
 
-
 #include "gc_hal_kernel_precomp.h"
 
 #if gcdENABLE_VG
@@ -377,6 +376,7 @@ gceSTATUS gckVGKERNEL_Dispatch(
             kernelInterface->u.AllocateLinearVideoMemory.bytes,
             kernelInterface->u.AllocateLinearVideoMemory.alignment,
             kernelInterface->u.AllocateLinearVideoMemory.type,
+            kernelInterface->u.AllocateLinearVideoMemory.flag,
             &kernelInterface->u.AllocateLinearVideoMemory.node
             ));
 
@@ -544,6 +544,96 @@ gceSTATUS gckVGKERNEL_Dispatch(
         gcmkONERROR(gckVIDMEM_NODE_Name(Kernel,
                                          Interface->u.NameVideoMemory.handle,
                                          &Interface->u.NameVideoMemory.name));
+        break;
+
+    case gcvHAL_DATABASE:
+        gcmkONERROR(gckKERNEL_QueryDatabase(Kernel, processID, Interface));
+        break;
+    case gcvHAL_SHBUF:
+        {
+            gctSHBUF shBuf;
+            gctPOINTER uData;
+            gctUINT32 bytes;
+
+            switch (Interface->u.ShBuf.command)
+            {
+            case gcvSHBUF_CREATE:
+                bytes = Interface->u.ShBuf.bytes;
+
+                /* Create. */
+                gcmkONERROR(gckKERNEL_CreateShBuffer(Kernel, bytes, &shBuf));
+
+                Interface->u.ShBuf.id = gcmPTR_TO_UINT64(shBuf);
+
+                gcmkVERIFY_OK(
+                    gckKERNEL_AddProcessDB(Kernel,
+                                           processID,
+                                           gcvDB_SHBUF,
+                                           shBuf,
+                                           gcvNULL,
+                                           0));
+                break;
+
+            case gcvSHBUF_DESTROY:
+                shBuf = gcmUINT64_TO_PTR(Interface->u.ShBuf.id);
+
+                /* Check db first to avoid illegal destroy in the process. */
+                gcmkONERROR(
+                    gckKERNEL_RemoveProcessDB(Kernel,
+                                              processID,
+                                              gcvDB_SHBUF,
+                                              shBuf));
+
+                gcmkONERROR(gckKERNEL_DestroyShBuffer(Kernel, shBuf));
+                break;
+
+            case gcvSHBUF_MAP:
+                shBuf = gcmUINT64_TO_PTR(Interface->u.ShBuf.id);
+
+                /* Map for current process access. */
+                gcmkONERROR(gckKERNEL_MapShBuffer(Kernel, shBuf));
+
+                gcmkVERIFY_OK(
+                    gckKERNEL_AddProcessDB(Kernel,
+                                           processID,
+                                           gcvDB_SHBUF,
+                                           shBuf,
+                                           gcvNULL,
+                                           0));
+                break;
+
+            case gcvSHBUF_WRITE:
+                shBuf = gcmUINT64_TO_PTR(Interface->u.ShBuf.id);
+                uData = gcmUINT64_TO_PTR(Interface->u.ShBuf.data);
+                bytes = Interface->u.ShBuf.bytes;
+
+                /* Write. */
+                gcmkONERROR(
+                    gckKERNEL_WriteShBuffer(Kernel, shBuf, uData, bytes));
+                break;
+
+            case gcvSHBUF_READ:
+                shBuf = gcmUINT64_TO_PTR(Interface->u.ShBuf.id);
+                uData = gcmUINT64_TO_PTR(Interface->u.ShBuf.data);
+                bytes = Interface->u.ShBuf.bytes;
+
+                /* Read. */
+                gcmkONERROR(
+                    gckKERNEL_ReadShBuffer(Kernel,
+                                           shBuf,
+                                           uData,
+                                           bytes,
+                                           &bytes));
+
+                /* Return copied size. */
+                Interface->u.ShBuf.bytes = bytes;
+                break;
+
+            default:
+                gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+                break;
+            }
+        }
         break;
     default:
         /* Invalid command. */
