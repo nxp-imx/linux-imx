@@ -92,18 +92,18 @@ int update_lpddr2_freq(int ddr_rate)
 
 int init_mmdc_lpddr2_settings(struct platform_device *busfreq_pdev)
 {
-	busfreq_dev = &busfreq_pdev->dev;
 	unsigned long ddr_code_size;
+	busfreq_dev = &busfreq_pdev->dev;
 
 	ddr_code_size = (&imx6_lpddr2_freq_change_end -&imx6_lpddr2_freq_change_start) *4;
 
 	if (cpu_is_imx6sl())
 		mx6_change_lpddr2_freq = (void *)fncpy(
-			ddr_freq_change_iram_base,
+			(void *)ddr_freq_change_iram_base,
 			&mx6_lpddr2_freq_change, ddr_code_size);
 	else if (cpu_is_imx6sx())
 		mx6_change_lpddr2_freq = (void *)fncpy(
-			ddr_freq_change_iram_base,
+			(void *)ddr_freq_change_iram_base,
 			&imx6sx_lpddr2_freq_change, ddr_code_size);
 
 	curr_ddr_rate = ddr_normal_rate;

@@ -733,7 +733,7 @@ static int __init imx6_dt_find_ddr_sram(unsigned long node,
 				(ddr_iram_addr  & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
 
 		}
-		ddr_freq_change_iram_phys = (void *)ddr_iram_addr;
+		ddr_freq_change_iram_phys = ddr_iram_addr;
 		ddr_freq_change_iram_base = IMX_IO_P2V(ddr_iram_addr);
 	}
 	return 0;

@@ -401,7 +401,7 @@ int init_mmdc_ddr3_settings_imx6sx(struct platform_device *busfreq_pdev)
 	 * Store the size of the array in iRAM also,
 	 * increase the size by 8 bytes.
 	 */
-	iram_iomux_settings = ddr_freq_change_iram_base + ddr_code_size;
+	iram_iomux_settings = (void *)(ddr_freq_change_iram_base + ddr_code_size);
 	iram_ddr_settings = iram_iomux_settings + (iomux_settings_size * 8) + 8;
 
 	if ((ddr_code_size + (iomux_settings_size + ddr_settings_size) * 8 + 16)
@@ -536,7 +536,7 @@ int init_mmdc_ddr3_settings_imx6q(struct platform_device *busfreq_pdev)
 	 * Store the size of the array in iRAM also,
 	 * increase the size by 8 bytes.
 	 */
-	iram_iomux_settings = ddr_freq_change_iram_base + ddr_code_size;
+	iram_iomux_settings = (void *)ddr_freq_change_iram_base + ddr_code_size;
 	iram_ddr_settings = iram_iomux_settings + (iomux_settings_size * 8) + 8;
 
 	if ((ddr_code_size + (iomux_settings_size + ddr_settings_size) * 8 + 16)
