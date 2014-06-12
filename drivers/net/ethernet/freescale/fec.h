@@ -519,6 +519,12 @@ struct fec_enet_priv_tx_q {
 
 	struct bufdesc	*cur_tx;
 	struct bufdesc	*dirty_tx;
+
+	/* Software TSO */
+	unsigned short tx_stop_threshold;
+	unsigned short tx_wake_threshold;
+	char *tso_hdrs;
+	dma_addr_t tso_hdrs_dma;
 };
 
 struct fec_enet_priv_rx_q {
@@ -559,6 +565,7 @@ struct fec_enet_private {
 	struct fec_enet_priv_tx_q *tx_queue[FEC_ENET_MAX_TX_QS];
 	struct fec_enet_priv_rx_q *rx_queue[FEC_ENET_MAX_RX_QS];
 
+	unsigned short bufdesc_size;
 	unsigned int total_tx_ring_size;
 	unsigned int total_rx_ring_size;
 
