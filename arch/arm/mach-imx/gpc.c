@@ -27,6 +27,7 @@
 #include "hardware.h"
 
 #define GPC_IMR1		0x008
+#define GPC_PGC_MF_PDN		0x220
 #define GPC_PGC_CPU_PDN		0x2a0
 #define GPC_PGC_GPU_PDN		0x260
 #define GPC_PGC_GPU_PUPSCR	0x264
@@ -56,6 +57,7 @@
 #define IMR_NUM			4
 
 static void __iomem *gpc_base;
+static u32 gpc_mf_irqs[IMR_NUM];
 static u32 gpc_wake_irqs[IMR_NUM];
 static u32 gpc_saved_imrs[IMR_NUM];
 static struct clk *gpu3d_clk, *gpu3d_shader_clk, *gpu2d_clk, *gpu2d_axi_clk;
@@ -128,12 +130,28 @@ static void imx_gpc_dispmix_off(void)
 	}
 }
 
+static void imx_gpc_mf_mix_off(void)
+{
+	int i;
+
+	for (i = 0; i < IMR_NUM; i++)
+		if ((gpc_wake_irqs[i] & gpc_mf_irqs[i]) != 0)
+			return;
+
+	pr_info("Turn off M/F mix!\n");
+	/* turn off mega/fast mix */
+	writel_relaxed(0x1, gpc_base + GPC_PGC_MF_PDN);
+}
+
 void imx_gpc_pre_suspend(bool arm_power_off)
 {
 	void __iomem *reg_imr1 = gpc_base + GPC_IMR1;
 	int i;
 
 	imx_gpc_dispmix_off();
+
+	if (cpu_is_imx6sx() && arm_power_off)
+		imx_gpc_mf_mix_off();
 
 	if (arm_power_off)
 		/* Tell GPC to power off ARM core when suspend */
@@ -152,6 +170,10 @@ void imx_gpc_post_resume(void)
 
 	/* Keep ARM core powered on for other low-power modes */
 	writel_relaxed(0x0, gpc_base + GPC_PGC_CPU_PDN);
+
+	/* Keep M/F mix powered on for other low-power modes */
+	if (cpu_is_imx6sx())
+		writel_relaxed(0x0, gpc_base + GPC_PGC_MF_PDN);
 
 	for (i = 0; i < IMR_NUM; i++)
 		writel_relaxed(gpc_saved_imrs[i], reg_imr1 + i * 4);
@@ -393,6 +415,21 @@ void __init imx_gpc_init(void)
 	of_property_read_u32(np, "fsl,cpu_pupscr_sw", &cpu_pupscr_sw);
 	of_property_read_u32(np, "fsl,cpu_pdnscr_iso2sw", &cpu_pdnscr_iso2sw);
 	of_property_read_u32(np, "fsl,cpu_pdnscr_iso", &cpu_pdnscr_iso);
+
+	/* Read supported wakeup source in M/F domain */
+	if (cpu_is_imx6sx()) {
+		of_property_read_u32_index(np, "fsl,mf-mix-wakeup-irq", 0,
+			&gpc_mf_irqs[0]);
+		of_property_read_u32_index(np, "fsl,mf-mix-wakeup-irq", 1,
+			&gpc_mf_irqs[1]);
+		of_property_read_u32_index(np, "fsl,mf-mix-wakeup-irq", 2,
+			&gpc_mf_irqs[2]);
+		of_property_read_u32_index(np, "fsl,mf-mix-wakeup-irq", 3,
+			&gpc_mf_irqs[3]);
+		if (!(gpc_mf_irqs[0] | gpc_mf_irqs[1] |
+			gpc_mf_irqs[2] | gpc_mf_irqs[3]))
+			pr_info("No wakeup source in Mega/Fast domain found!\n");
+	}
 
 	/* Update CPU PUPSCR timing if it is defined in dts */
 	val = readl_relaxed(gpc_base + GPC_PGC_CPU_PUPSCR);

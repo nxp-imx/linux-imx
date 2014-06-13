@@ -9,8 +9,14 @@ Optional properties:
 These properties are for adjusting the GPC PGC CPU power up/down setting, if there is no such property in dts, then default
 value in GPC PGC registers will be used.
 
+- fsl,mf-mix-wakeup-irq: for recording those wakeup sources' irq number in fast/mega mix domain, same as GPC_IMRx register layout.
+If the bitmap in this properties is 1, then fast/mega mix's power can NOT be gated if it is set as wakeup source in kernel.
 
 Example:
+
+	gpc: gpc@020dc000 {
+		fsl,mf-mix-wakeup-irq = <0x4000000 0x3d00 0x0 0x0>;
+	};
 
 	&gpc {
 		fsl,cpu_pupscr_sw2iso = <0xf>;
