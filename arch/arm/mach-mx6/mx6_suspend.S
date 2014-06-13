@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1076,6 +1076,14 @@ ddr_io_save_done:
 	mrs	r7, cpsr		@ Store CPSR
 	stmfd	r0!, {r4-r7}
 
+	/* Save diagnostic control register */
+	mrc	p15, 0, r4, c15, c0, 1	@ Diagnostic control reg
+	stmfd	r0!, {r4}
+
+	/* Save Power control register */
+	mrc	p15, 0, r4, c15, c0, 0	@ Diagnostic control reg
+	stmfd	r0!, {r4}
+
 	/* c1 control register */
 	mrc	p15, 0, r4, c1, c0, 0	@ SCTLR
 	stmfd	r0!, {r4}
@@ -1543,6 +1551,14 @@ poll_dvfs_clear_2:
 	mcr	p15, 0, r5, c13, c0, 2	@ User r/w thread ID
 	mrc	p15, 0, r6, c12, c0, 0	@ Secure or NS VBAR
 	msr	cpsr, r7		@ store cpsr
+
+	/* Restore diagnostic control register */
+	ldmea	r0!,{r4}
+	mcr	p15, 0, r4, c15, c0, 1	@ Diagnostic control reg
+
+	/* Restore Power control register */
+	ldmea	r0!,{r4}
+	mcr	p15, 0, r4, c15, c0, 0	@ Diagnostic control reg
 
 	/*
 	 * Enabling MMU here. Page entry needs to be altered
