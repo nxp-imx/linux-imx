@@ -1430,7 +1430,7 @@ static struct ion_platform_data imx_ion_data = {
 		.type = ION_HEAP_TYPE_CARVEOUT,
 		.name = "vpu_ion",
 		.size = SZ_16M,
-		.cacheable = 1,
+		.cacheable = 0,
 		},
 	},
 };
