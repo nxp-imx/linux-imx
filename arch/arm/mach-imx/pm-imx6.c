@@ -73,6 +73,8 @@ static int (*suspend_in_iram_fn)(void *iram_vbase,
 	unsigned long iram_pbase, unsigned int cpu_type);
 static unsigned int cpu_type;
 static void __iomem *ccm_base;
+static unsigned long dcr;
+static unsigned long pcr;
 
 unsigned long save_ttbr1(void)
 {
@@ -109,6 +111,34 @@ void imx6_set_cache_lpm_in_wait(bool enable)
 			val &= ~BM_CGPR_INT_MEM_CLK_LPM;
 		writel_relaxed(val, ccm_base + CGPR);
 	}
+}
+
+static void imx6_save_cpu_arch_regs(void)
+{
+	/* Save the Diagnostic Control Register. */
+	asm volatile(
+		"mrc p15, 0, %0, c15, c0, 1\n"
+	: "=r" (dcr)
+	);
+	/* Save the Power Control Register. */
+	asm volatile(
+		"mrc p15, 0, %0, c15, c0, 0\n"
+	: "=r" (pcr)
+	);
+}
+
+static void imx6_restore_cpu_arch_regs(void)
+{
+	/* Restore the diagnostic Control Register. */
+	asm volatile(
+		"mcr p15, 0, %0, c15, c0, 1\n"
+	: : "r" (dcr)
+	);
+	/* Restore the Power Control Register. */
+	asm volatile(
+		"mcr p15, 0, %0, c15, c0, 0\n"
+	: : "r" (pcr)
+	);
 }
 
 static void imx6_enable_rbc(bool enable)
@@ -290,8 +320,14 @@ static int imx6_pm_enter(suspend_state_t state)
 		imx_gpc_pre_suspend(true);
 		imx_anatop_pre_suspend();
 		imx_set_cpu_jump(0, v7_cpu_resume);
+
+		imx6_save_cpu_arch_regs();
+
 		/* Zzz ... */
 		cpu_suspend(0, imx6_suspend_finish);
+
+		imx6_restore_cpu_arch_regs();
+
 		if (!cpu_is_imx6sl())
 			imx_smp_prepare();
 		imx_anatop_post_resume();

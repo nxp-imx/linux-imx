@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -65,9 +65,6 @@ static struct cpuidle_driver imx6q_cpuidle_driver = {
 
 int __init imx6q_cpuidle_init(void)
 {
-	/* Need to enable SCU standby for entering WAIT modes */
-	imx_scu_standby_enable();
-
 	/* Set cache lpm bit for reliable WAIT mode support */
 	imx6_set_cache_lpm_in_wait(true);
 
