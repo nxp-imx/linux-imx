@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Freescale Semiconductor, Inc.
+ * Copyright 2011-2014 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -77,6 +77,8 @@ static void __init imx_smp_init_cpus(void)
 void imx_smp_prepare(void)
 {
 	scu_enable(scu_base);
+	/* Need to enable SCU standby for entering WAIT mode */
+	imx_scu_standby_enable();
 }
 
 static void __init imx_smp_prepare_cpus(unsigned int max_cpus)

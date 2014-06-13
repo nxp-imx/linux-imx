@@ -86,6 +86,9 @@ static void __iomem *ccm_base;
 struct regmap *romcp;
 
 unsigned long total_suspend_size;
+static unsigned long dcr;
+static unsigned long pcr;
+
 extern unsigned long imx6_suspend_start asm("imx6_suspend_start");
 extern unsigned long imx6_suspend_end asm("imx6_suspend_end");
 
@@ -124,6 +127,34 @@ void imx6_set_cache_lpm_in_wait(bool enable)
 			val &= ~BM_CGPR_INT_MEM_CLK_LPM;
 		writel_relaxed(val, ccm_base + CGPR);
 	}
+}
+
+static void imx6_save_cpu_arch_regs(void)
+{
+	/* Save the Diagnostic Control Register. */
+	asm volatile(
+		"mrc p15, 0, %0, c15, c0, 1\n"
+	: "=r" (dcr)
+	);
+	/* Save the Power Control Register. */
+	asm volatile(
+		"mrc p15, 0, %0, c15, c0, 0\n"
+	: "=r" (pcr)
+	);
+}
+
+static void imx6_restore_cpu_arch_regs(void)
+{
+	/* Restore the diagnostic Control Register. */
+	asm volatile(
+		"mcr p15, 0, %0, c15, c0, 1\n"
+	: : "r" (dcr)
+	);
+	/* Restore the Power Control Register. */
+	asm volatile(
+		"mcr p15, 0, %0, c15, c0, 0\n"
+	: : "r" (pcr)
+	);
 }
 
 static void imx6_enable_rbc(bool enable)
@@ -317,8 +348,14 @@ static int imx6_pm_enter(suspend_state_t state)
 		if (cpu_is_imx6sx())
 			regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
 				BM_ROMPATCHCNTL_DIS, ~BM_ROMPATCHCNTL_DIS);
+
+		imx6_save_cpu_arch_regs();
+
 		/* Zzz ... */
 		cpu_suspend(0, imx6_suspend_finish);
+
+		imx6_restore_cpu_arch_regs();
+
 		/* Disable ROM patch for i.MX6SX */
 		if (cpu_is_imx6sx())
 			regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
