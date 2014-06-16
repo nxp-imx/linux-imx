@@ -881,10 +881,9 @@ static int ci_controller_resume(struct device *dev)
 		ci->wakeup_int = false;
 		enable_irq(ci->irq);
 		mod_timer(&ci->timer, jiffies + msecs_to_jiffies(2000));
+		if (ci_otg_is_fsm_mode(ci))
+			ci_otg_fsm_wakeup_by_srp(ci);
 	}
-
-	if (ci_otg_is_fsm_mode(ci))
-		ci_otg_fsm_wakeup_by_srp(ci);
 
 	return 0;
 }
