@@ -178,9 +178,9 @@
 					       <&sdma 15 18 0>;
 					dma-names = "rx", "tx";
 					clocks = <&clks 197>, <&clks 3>,
-					       <&clks 197>, <&clks 107>,
-					       <&clks 0>, <&clks 118>,
-					       <&clks 62>, <&clks 139>,
+					       <&clks 197>, <&clks 0>,
+					       <&clks 0>, <&clks 0>,
+					       <&clks 62>, <&clks 0>,
 					       <&clks 0>, <&clks 156>;
 					clock-names = "core", "rxtx0",
 						"rxtx1", "rxtx2",
