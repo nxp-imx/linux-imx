@@ -70,6 +70,7 @@ static void imx6sx_arm2_flexcan1_switch(int enable)
 static int __init imx6sx_arm2_flexcan_fixup(void)
 {
 	struct device_node *np;
+	bool canfd_en = false;
 
 	np = of_find_node_by_path("/soc/aips-bus@02000000/can@02090000");
 	if (!np)
@@ -84,6 +85,21 @@ static int __init imx6sx_arm2_flexcan_fixup(void)
 		flexcan_pdata[0].transceiver_switch = imx6sx_arm2_flexcan0_switch;
 		flexcan_pdata[1].transceiver_switch = imx6sx_arm2_flexcan1_switch;
 	}
+
+	/*
+	 * Switch on the transceiver by default for board with canfd enabled
+	 * since canfd driver does not handle it.
+	 * Two CAN instances share the same switch.
+	 */
+	for_each_node_by_name(np, "canfd") {
+		if (of_device_is_available(np)) {
+			canfd_en = true;
+			break;
+		}
+	}
+
+	if (of_machine_is_compatible("fsl,imx6sx-sdb") && canfd_en)
+		imx6sx_arm2_flexcan0_switch(1);
 
 	return 0;
 }
