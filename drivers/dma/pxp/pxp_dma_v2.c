@@ -377,11 +377,8 @@ static void pxp_set_ctrl(struct pxps *pxp)
 		ctrl |= BM_PXP_CTRL_VFLIP;
 	if (proc_data->hflip)
 		ctrl |= BM_PXP_CTRL_HFLIP;
-	if (proc_data->rotate) {
+	if (proc_data->rotate)
 		ctrl |= BF_PXP_CTRL_ROTATE(proc_data->rotate / 90);
-		if (proc_data->rot_pos)
-			ctrl |= BM_PXP_CTRL_ROT_POS;
-	}
 
 	/* In default, the block size is set to 8x8
 	 * But block size can be set to 16x16 due to
@@ -502,22 +499,9 @@ static void pxp_set_oln(int layer_no, struct pxps *pxp)
 		__raw_writel(0x0, pxp->base + HW_PXP_OUT_AS_LRC);
 	} else {
 		__raw_writel(0x0, pxp->base + HW_PXP_OUT_AS_ULC);
-		if (pxp_conf->proc_data.rotate == 90 ||
-		    pxp_conf->proc_data.rotate == 270) {
-			if (pxp_conf->proc_data.rot_pos == 1) {
-				__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->height - 1) |
-					BF_PXP_OUT_AS_LRC_Y(olparams_data->width - 1),
-					pxp->base + HW_PXP_OUT_AS_LRC);
-			} else {
-				__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->width - 1) |
-					BF_PXP_OUT_AS_LRC_Y(olparams_data->height - 1),
-					pxp->base + HW_PXP_OUT_AS_LRC);
-			}
-		} else {
-			__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->width - 1) |
+		__raw_writel(BF_PXP_OUT_AS_LRC_X(olparams_data->width - 1) |
 				BF_PXP_OUT_AS_LRC_Y(olparams_data->height - 1),
 				pxp->base + HW_PXP_OUT_AS_LRC);
-		}
 	}
 
 	if ((olparams_data->pixel_fmt == PXP_PIX_FMT_BGRA32) |
@@ -602,21 +586,10 @@ static void pxp_set_s0param(struct pxps *pxp)
 		s0param = BF_PXP_OUT_PS_ULC_X(proc_data->drect.left);
 		s0param |= BF_PXP_OUT_PS_ULC_Y(proc_data->drect.top);
 		__raw_writel(s0param, pxp->base + HW_PXP_OUT_PS_ULC);
-		/* In PXP, the two different rotation
-		 * position requires different settings
-		 * on OUT_PS_LRC register
-		 */
-		if (proc_data->rot_pos == 1) {
-			s0param = BF_PXP_OUT_PS_LRC_X(proc_data->drect.left +
-					proc_data->drect.height - 1);
-			s0param |= BF_PXP_OUT_PS_LRC_Y(proc_data->drect.top +
-					proc_data->drect.width - 1);
-		} else {
-			s0param = BF_PXP_OUT_PS_LRC_X(proc_data->drect.left +
-					proc_data->drect.width - 1);
-			s0param |= BF_PXP_OUT_PS_LRC_Y(proc_data->drect.top +
-					proc_data->drect.height - 1);
-		}
+		s0param = BF_PXP_OUT_PS_LRC_X(proc_data->drect.left +
+				proc_data->drect.width - 1);
+		s0param |= BF_PXP_OUT_PS_LRC_Y(proc_data->drect.top +
+				proc_data->drect.height - 1);
 		__raw_writel(s0param, pxp->base + HW_PXP_OUT_PS_LRC);
 	}
 }
