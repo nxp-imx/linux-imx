@@ -1,0 +1,29 @@
+Bosch MCAN controller Device Tree Bindings
+-------------------------------------------------
+
+Required properties:
+- compatible		: Should be "bosch,m_can" for M_CAN controllers
+- reg			: physical base address and size of the M_CAN
+			  registers map and message ram
+- interrupts		: property with a value describing the interrupt
+			  number
+- clocks		: clocks used by controller
+- mram-cfg		: message ram configuration data, the format is
+  <offset sidf_elems xidf_elems rxf1_elems rxb_elems txe_elems txb_elems>
+  The 'offset' is the address offset inside the message ram. This is usually set
+  if you're using the shared message ram while the other part is used by another
+  m_can controller.
+  The left cell are all the number of each elements inside the message ram.
+  Please refer to 2.4.1 Message RAM Con.guration in Bosch M_CAN user mannual
+  for each elements definition.
+
+Example:
+canfd1: canfd@020e8000 {
+	compatible = "bosch,m_can";
+	reg = <0x020e8000 0x4000>, <0x02298000 0x4000>;
+	reg-names = "canfd", "message_ram";
+	interrupts = <0 114 0x04>;
+	clocks = <&clks IMX6SX_CLK_CANFD>;
+	mram-cfg = <0x0 0 0 32 32 32 0 1>;
+	status = "disabled";
+};
