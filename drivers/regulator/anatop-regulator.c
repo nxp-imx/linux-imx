@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011, 2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011, 2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -161,9 +161,15 @@ static int anatop_regmap_is_enabled(struct regulator_dev *reg)
 		return -ENOTSUPP;
 
 	regmap_read(anatop_reg->anatop, anatop_reg->control_reg, &val);
+	val = (val >> anatop_reg->vol_bit_shift) &
+		((1 << anatop_reg->vol_bit_width) - 1);
+	/* look internal pu regulator as disabled in ldo-bypass mode(0x1f) */
+	if ((!strcmp(reg->desc->name, "vddpu")) && (val == 0x1f))
+		val = 0;
+	else
+		val = val ? 1 : 0;
 
-	return (val >> anatop_reg->vol_bit_shift) &
-		((1 << anatop_reg->vol_bit_width) - 1) ? 1 : 0;
+	return val;
 }
 
 static int anatop_regmap_enable_time(struct regulator_dev *reg)
