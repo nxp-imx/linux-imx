@@ -3305,6 +3305,7 @@ fec_suspend(struct device *dev)
 		if (!(fep->wol_flag & FEC_WOL_FLAG_ENABLE))
 			fec_enet_clk_enable(ndev, false);
 		pinctrl_pm_select_sleep_state(&fep->pdev->dev);
+		phy_stop(fep->phy_dev);
 	}
 
 	if (fep->reg_phy)
@@ -3347,8 +3348,9 @@ fec_resume(struct device *dev)
 		} else {
 			fec_enet_clk_enable(ndev, true);
 		}
-		if (!fep->clk_enet_out && !fep->reg_phy)
-			fec_restart(ndev, fep->full_duplex);
+
+		fec_restart(ndev, fep->full_duplex);
+		phy_start(fep->phy_dev);
 		netif_device_attach(ndev);
 	}
 
