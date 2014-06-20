@@ -183,6 +183,7 @@ struct ci_hdrc {
 	struct dentry			*debugfs;
 	bool				id_event;
 	bool				b_sess_valid_event;
+	bool				vbus_glitch_check_event;
 	/* imx28 needs swp instruction for writing */
 	bool				imx28_write_fix;
 	bool				supports_runtime_pm;
