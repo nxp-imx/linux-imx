@@ -557,7 +557,7 @@
 				clock-names = "gpu3d_core", "ipg";
 				pu-supply = <&pu_dummy>;
 				pcie-supply = <&reg_pcie>;
-				fsl,mf-mix-wakeup-irq = <0x4000000 0x3d00 0x0 0x0>;
+				fsl,mf-mix-wakeup-irq = <0x4000000 0x3d00 0x0 0x400200>;
 			};
 
 			gpio1: gpio@0209c000 {
