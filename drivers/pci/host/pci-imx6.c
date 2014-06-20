@@ -261,8 +261,6 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 		/* Those bits are not used anymore on imx6sx */
 		regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR1,
 				IMX6Q_GPR1_PCIE_TEST_PD, 0 << 18);
-		regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR1,
-				IMX6Q_GPR1_PCIE_REF_CLK_EN, 1 << 16);
 
 		/* sata_ref is not used by pcie on imx6sx */
 		ret = clk_prepare_enable(imx6_pcie->sata_ref_100m);
@@ -291,6 +289,17 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 	if (ret) {
 		dev_err(pp->dev, "unable to enable pcie_axi\n");
 		goto err_pcie_axi;
+	}
+
+	if (!is_imx6sx_pcie(imx6_pcie)) {
+		/*
+		 * This bit is not used anymore on imx6sx.
+		 * wailt for the pcie clks are stable.
+		 * ~4us is requried, let it to be 10us here.
+		 */
+		udelay(10);
+		regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR1,
+				IMX6Q_GPR1_PCIE_REF_CLK_EN, 1 << 16);
 	}
 
 	if (gpio_is_valid(imx6_pcie->reset_gpio)) {
