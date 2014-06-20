@@ -333,6 +333,8 @@ int mmc_of_parse(struct mmc_host *host)
 
 EXPORT_SYMBOL(mmc_of_parse);
 
+int mmc_max_reserved_idx(void);
+
 /**
  *	mmc_alloc_host - initialise the per-host structure.
  *	@extra: sizeof private data structure
@@ -344,6 +346,7 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 {
 	int err;
 	struct mmc_host *host;
+	int alias_id, min_idx, max_idx;
 
 	host = kzalloc(sizeof(struct mmc_host) + extra, GFP_KERNEL);
 	if (!host)
@@ -351,6 +354,7 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 
 	/* scanning will be enabled when we're ready */
 	host->rescan_disable = 1;
+	host->parent = dev;
 
 again:
 	if (!ida_pre_get(&mmc_host_ida, GFP_KERNEL)) {
@@ -359,7 +363,24 @@ again:
 	}
 
 	spin_lock(&mmc_host_lock);
-	err = ida_get_new(&mmc_host_ida, &host->index);
+
+	alias_id = mmc_get_reserved_index(host);
+	if (alias_id >= 0) {
+		min_idx = alias_id;
+		max_idx = alias_id + 1;
+	} else {
+		min_idx = mmc_first_nonreserved_index();
+		max_idx = 0;
+	}
+
+	err = ida_get_new_above(&mmc_host_ida, min_idx, &host->index);
+	if (!err) {
+		if (host->index > max_idx) {
+			ida_remove(&mmc_host_ida, host->index);
+			err = -ENOSPC;
+		}
+	}
+
 	spin_unlock(&mmc_host_lock);
 
 	if (err == -EAGAIN) {
@@ -371,7 +392,6 @@ again:
 
 	dev_set_name(&host->class_dev, "mmc%d", host->index);
 
-	host->parent = dev;
 	host->class_dev.parent = dev;
 	host->class_dev.class = &mmc_host_class;
 	device_initialize(&host->class_dev);

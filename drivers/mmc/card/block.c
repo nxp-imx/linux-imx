@@ -2228,7 +2228,13 @@ again:
 		return ERR_PTR(-ENOMEM);
 
 	spin_lock(&mmc_blk_lock);
-	ret = ida_get_new(&mmc_blk_ida, &devidx);
+	devidx = mmc_get_reserved_index(card->host);
+	if (devidx >= 0)
+		devidx = ida_simple_get(&mmc_blk_ida, devidx, devidx,
+					GFP_NOWAIT);
+	if (devidx < 0)
+		ret = ida_get_new_above(&mmc_blk_ida,
+					mmc_first_nonreserved_index(), &devidx);
 	spin_unlock(&mmc_blk_lock);
 
 	if (ret == -EAGAIN)
