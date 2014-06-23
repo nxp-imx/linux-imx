@@ -24,7 +24,6 @@
 				SNDRV_PCM_FMTBIT_S16_LE | \
 				SNDRV_PCM_FMTBIT_S20_3LE | \
 				SNDRV_PCM_FMTBIT_S24_LE)
-#define REG_CACHE_NUM 20
 
 /**
  * fsl_esai: ESAI private data
@@ -64,7 +63,6 @@ struct fsl_esai {
 	bool slave_mode;
 	bool synchronous;
 	char name[32];
-	u32 reg_cache[REG_CACHE_NUM];
 };
 
 static irqreturn_t esai_isr(int irq, void *devid)
@@ -736,46 +734,6 @@ static bool fsl_esai_check_xrun(struct snd_pcm_substream *substream)
 	return saisr & (ESAI_SAISR_TUE | ESAI_SAISR_ROE) ;
 }
 
-static int store_reg(struct snd_soc_dai *cpu_dai)
-{
-	struct fsl_esai *esai_priv = snd_soc_dai_get_drvdata(cpu_dai);
-
-	regmap_read(esai_priv->regmap, REG_ESAI_ECR,   &esai_priv->reg_cache[0]);
-	regmap_read(esai_priv->regmap, REG_ESAI_TFCR,  &esai_priv->reg_cache[2]);
-	regmap_read(esai_priv->regmap, REG_ESAI_RFCR,  &esai_priv->reg_cache[4]);
-	regmap_read(esai_priv->regmap, REG_ESAI_SAICR, &esai_priv->reg_cache[8]);
-	regmap_read(esai_priv->regmap, REG_ESAI_TCR,   &esai_priv->reg_cache[9]);
-	regmap_read(esai_priv->regmap, REG_ESAI_TCCR,  &esai_priv->reg_cache[10]);
-	regmap_read(esai_priv->regmap, REG_ESAI_RCR,   &esai_priv->reg_cache[11]);
-	regmap_read(esai_priv->regmap, REG_ESAI_RCCR,  &esai_priv->reg_cache[12]);
-	regmap_read(esai_priv->regmap, REG_ESAI_TSMA,  &esai_priv->reg_cache[13]);
-	regmap_read(esai_priv->regmap, REG_ESAI_TSMB,  &esai_priv->reg_cache[14]);
-	regmap_read(esai_priv->regmap, REG_ESAI_RSMA,  &esai_priv->reg_cache[15]);
-	regmap_read(esai_priv->regmap, REG_ESAI_RSMB,  &esai_priv->reg_cache[16]);
-
-	return 0;
-}
-
-static int restore_reg(struct snd_soc_dai *cpu_dai)
-{
-	struct fsl_esai *esai_priv = snd_soc_dai_get_drvdata(cpu_dai);
-
-	regmap_write(esai_priv->regmap, REG_ESAI_ECR,   esai_priv->reg_cache[0]);
-	regmap_write(esai_priv->regmap, REG_ESAI_TFCR,  esai_priv->reg_cache[2] & ~ESAI_xFCR_xFEN);
-	regmap_write(esai_priv->regmap, REG_ESAI_RFCR,  esai_priv->reg_cache[4] & ~ESAI_xFCR_xFEN);
-	regmap_write(esai_priv->regmap, REG_ESAI_SAICR, esai_priv->reg_cache[8]);
-	regmap_write(esai_priv->regmap, REG_ESAI_TCR,   esai_priv->reg_cache[9] & ~ESAI_xCR_TE(6));
-	regmap_write(esai_priv->regmap, REG_ESAI_TCCR,  esai_priv->reg_cache[10]);
-	regmap_write(esai_priv->regmap, REG_ESAI_RCR,   esai_priv->reg_cache[11] & ~ESAI_xCR_RE(4));
-	regmap_write(esai_priv->regmap, REG_ESAI_RCCR,  esai_priv->reg_cache[12]);
-	regmap_write(esai_priv->regmap, REG_ESAI_TSMA,  esai_priv->reg_cache[13]);
-	regmap_write(esai_priv->regmap, REG_ESAI_TSMB,  esai_priv->reg_cache[14]);
-	regmap_write(esai_priv->regmap, REG_ESAI_RSMA,  esai_priv->reg_cache[15]);
-	regmap_write(esai_priv->regmap, REG_ESAI_RSMB,  esai_priv->reg_cache[16]);
-
-	return 0;
-}
-
 static int stop_lock_stream(struct snd_pcm_substream *substream)
 {
 	if (substream) {
@@ -822,15 +780,32 @@ static void fsl_esai_reset(struct snd_pcm_substream *substream, bool stop)
 		stop_lock_stream(esai_priv->substream[1]);
 	}
 
-	store_reg(cpu_dai);
 
-	regmap_write(esai_priv->regmap, REG_ESAI_ECR, ESAI_ECR_ESAIEN | ESAI_ECR_ERST);
-	regmap_write(esai_priv->regmap, REG_ESAI_ECR, ESAI_ECR_ESAIEN);
+	regmap_update_bits(esai_priv->regmap, REG_ESAI_ECR,
+				ESAI_ECR_ESAIEN_MASK | ESAI_ECR_ERST_MASK,
+				ESAI_ECR_ESAIEN | ESAI_ECR_ERST);
+	regmap_update_bits(esai_priv->regmap, REG_ESAI_ECR,
+				ESAI_ECR_ESAIEN_MASK | ESAI_ECR_ERST_MASK,
+				ESAI_ECR_ESAIEN);
 
 	regmap_update_bits(esai_priv->regmap, REG_ESAI_TCR, ESAI_xCR_xPR_MASK, ESAI_xCR_xPR);
 	regmap_update_bits(esai_priv->regmap, REG_ESAI_RCR, ESAI_xCR_xPR_MASK, ESAI_xCR_xPR);
 
-	restore_reg(cpu_dai);
+	regmap_update_bits(esai_priv->regmap, REG_ESAI_PRRC, ESAI_PRRC_PDC_MASK, 0);
+	regmap_update_bits(esai_priv->regmap, REG_ESAI_PCRC, ESAI_PCRC_PC_MASK, 0);
+
+	/*
+	 * Add fifo reset here, because the regcache_sync will write one more data to ETDR.
+	 * Which will cause channel shift.
+	 */
+	regmap_update_bits(esai_priv->regmap, REG_ESAI_TFCR, ESAI_xFCR_xFR_MASK, ESAI_xFCR_xFR);
+	regmap_update_bits(esai_priv->regmap, REG_ESAI_RFCR, ESAI_xFCR_xFR_MASK, ESAI_xFCR_xFR);
+
+	regcache_mark_dirty(esai_priv->regmap);
+	regcache_sync(esai_priv->regmap);
+
+	regmap_update_bits(esai_priv->regmap, REG_ESAI_TFCR, ESAI_xFCR_xFR_MASK, 0);
+	regmap_update_bits(esai_priv->regmap, REG_ESAI_RFCR, ESAI_xFCR_xFR_MASK, 0);
 
 	regmap_update_bits(esai_priv->regmap, REG_ESAI_TCR, ESAI_xCR_xPR_MASK, 0);
 	regmap_update_bits(esai_priv->regmap, REG_ESAI_RCR, ESAI_xCR_xPR_MASK, 0);
