@@ -64,6 +64,8 @@
 
 #define TB_SESS_VLD          (1000)
 
+#define T_HOST_REQ_POLL      (1500)	/* HNP polling interval 1s~2s */
+
 enum ci_otg_fsm_timer_index {
 	/*
 	 * CI specific timers, start from the end
