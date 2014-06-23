@@ -130,7 +130,7 @@ extern void imx6_pm_map_io(void);
 
 void imx_src_init(void);
 void imx_gpc_init(void);
-void imx_gpc_pre_suspend(void);
+void imx_gpc_pre_suspend(bool arm_power_off);
 void imx_gpc_post_resume(void);
 void imx_gpc_mask_all(void);
 void imx_gpc_restore_all(void);
