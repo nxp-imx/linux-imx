@@ -383,6 +383,14 @@ static void a_wait_dp_end_tmout_func(void *ptr, unsigned long indicator)
 	ci_otg_queue_work(ci);
 }
 
+static void hnp_polling_timer_work(unsigned long arg)
+{
+	struct ci_hdrc *ci = (struct ci_hdrc *)arg;
+
+	ci->hnp_polling_req = true;
+	ci_otg_queue_work(ci);
+}
+
 /* Initialize timers */
 static int ci_otg_init_timers(struct ci_hdrc *ci)
 {
@@ -458,7 +466,15 @@ static int ci_otg_init_timers(struct ci_hdrc *ci)
 	if (ci->fsm_timer->timer_list[A_DP_END] == NULL)
 		return -ENOMEM;
 
+	setup_timer(&ci->hnp_polling_timer, hnp_polling_timer_work,
+							(unsigned long)ci);
 	return 0;
+}
+
+static void ci_otg_add_hnp_polling_timer(struct ci_hdrc *ci)
+{
+	mod_timer(&ci->hnp_polling_timer,
+			jiffies + msecs_to_jiffies(T_HOST_REQ_POLL));
 }
 
 /* -------------------------------------------------------------*/
@@ -468,8 +484,12 @@ static void ci_otg_fsm_add_timer(struct otg_fsm *fsm, enum otg_fsm_timer t)
 {
 	struct ci_hdrc	*ci = container_of(fsm, struct ci_hdrc, fsm);
 
-	if (t < NUM_OTG_FSM_TIMERS)
-		ci_otg_add_timer(ci, t);
+	if (t < NUM_OTG_FSM_TIMERS) {
+		if (t == HNP_POLLING)
+			ci_otg_add_hnp_polling_timer(ci);
+		else
+			ci_otg_add_timer(ci, t);
+	}
 	return;
 }
 
@@ -634,6 +654,14 @@ int ci_otg_fsm_work(struct ci_hdrc *ci)
 	}
 
 	pm_runtime_get_sync(ci->dev);
+	if (ci->hnp_polling_req) {
+		ci->hnp_polling_req = false;
+		if (otg_hnp_polling(&ci->fsm) != HOST_REQUEST_FLAG) {
+			pm_runtime_put_sync(ci->dev);
+			return 0;
+		}
+	}
+
 	if (otg_statemachine(&ci->fsm)) {
 		if (ci->fsm.otg->state == OTG_STATE_A_IDLE) {
 			/*
@@ -880,6 +908,7 @@ int ci_hdrc_otg_fsm_init(struct ci_hdrc *ci)
 void ci_hdrc_otg_fsm_remove(struct ci_hdrc *ci)
 {
 	sysfs_remove_group(&ci->dev->kobj, &inputs_attr_group);
+	del_timer_sync(&ci->hnp_polling_timer);
 }
 
 /* Restart OTG fsm if resume from power lost */

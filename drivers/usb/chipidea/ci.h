@@ -210,6 +210,8 @@ struct ci_hdrc {
 	struct usb_otg			otg;
 	struct otg_fsm			fsm;
 	struct ci_otg_fsm_timer_list	*fsm_timer;
+	struct timer_list		hnp_polling_timer;
+	bool				hnp_polling_req;
 	struct work_struct		work;
 	struct workqueue_struct		*wq;
 
