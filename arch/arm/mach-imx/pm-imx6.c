@@ -387,6 +387,7 @@ static int imx6q_pm_enter(suspend_state_t state)
 	switch (state) {
 	case PM_SUSPEND_MEM:
 		imx6q_set_lpm(STOP_POWER_OFF);
+		imx6q_set_int_mem_clk_lpm(false);
 		imx6q_enable_wb(true);
 		/*
 		 * For suspend into ocram, asm code already take care of
@@ -405,6 +406,7 @@ static int imx6q_pm_enter(suspend_state_t state)
 		imx_gpc_post_resume();
 		imx6q_enable_rbc(false);
 		imx6q_enable_wb(false);
+		imx6q_set_int_mem_clk_lpm(true);
 		imx6q_set_lpm(WAIT_CLOCKED);
 		break;
 	default:
