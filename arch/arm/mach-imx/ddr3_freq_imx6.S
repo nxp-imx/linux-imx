@@ -623,11 +623,6 @@ update_iomux:
 	orr	r0, r0, #(0x1 << 29)
 	str	r0, [r5, r2]
 
-	/* MMDC0_MAPSR adopt power down enable. */
-	ldr	r0, [r5, #MMDC0_MAPSR]
-	bic	r0, r0, #0x01
-	str	r0, [r5, #MMDC0_MAPSR]
-
 	/* frc_msr + mu bypass */
 	ldr	r0, =0x00000060
 	str	r0, [r5, #MMDC0_MPMUR0]
@@ -867,11 +862,6 @@ cont15:
 	cmp	r1, #0
 	bgt	delay15
 
-	/* MMDC0_MAPSR adopt power down enable. */
-	ldr	r0, [r5, #MMDC0_MAPSR]
-	bic	r0, r0, #0x01
-	str	r0, [r5, #MMDC0_MAPSR]
-
 	/* enable MMDC power down timer. */
 	ldr	r0, [r5, #MMDC0_MDPDC]
 	orr	r0, r0, #(0x55 << 8)
@@ -919,6 +909,11 @@ poll_conreq_clear_2:
 	beq	poll_conreq_clear_2
 
 done:
+
+	/* MMDC0_MAPSR adopt power down enable. */
+	ldr	r0, [r5, #MMDC0_MAPSR]
+	bic	r0, r0, #0x01
+	str	r0, [r5, #MMDC0_MAPSR]
 
 #ifdef CONFIG_CACHE_L2X0
 	/* Enable L2. */
