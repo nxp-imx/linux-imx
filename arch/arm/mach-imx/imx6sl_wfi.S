@@ -449,6 +449,17 @@ podf_loop:
 	bic	r6, r6, #0x1
 	str	r6, [r3, #0x130]
 
+	/*
+	 * Cannot disable regular bandgap
+	 * in LDO-enabled mode. The bandgap
+	 * is required for ARM-LDO to regulate
+	 * the voltage.
+	 */
+	ldr	r6, [r3, #0x140]
+	and	r6, r6, #0x1f
+	cmp	r6, #0x1f
+	bne	leave_bandgap_enabled
+
 	/* Enable low power bandgap */
 	ldr	r6, [r3, #0x260]
 	orr	r6, r6, #0x20
@@ -477,6 +488,7 @@ podf_loop:
 	orr	r6, r6, #0x1
 	str	r6, [r3, #0x150]
 
+leave_bandgap_enabled:
 leave_2p5_on:
 	b	do_wfi
 
@@ -530,6 +542,16 @@ podf_loop1:
 	cmp	r12, #1
 	beq	ldo2p5_not_disabled
 
+	/*
+	 * Regular bandgap will not be disabled
+	 * in LDO-enabled mode as it is required
+	 * for ARM-LDO to regulate the voltage.
+	 */
+	ldr	r6, [r3, #0x140]
+	and	r6, r6, #0x1f
+	cmp	r6, #0x1f
+	bne	skip_bandgap_restore
+
 	/* Power up the regular bandgap. */
 	ldr	r6, [r3, #0x150]
 	bic	r6, r6, #0x1
@@ -548,6 +570,7 @@ podf_loop1:
 	bic	r6, r6, #0x20
 	str	r6, [r3, #0x260]
 
+skip_bandgap_restore:
 	/* Enable main 2p5. */
 	ldr	r6, [r3, #0x130]
 	orr	r6, r6, #0x1
