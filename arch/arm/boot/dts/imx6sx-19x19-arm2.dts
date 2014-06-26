@@ -23,6 +23,13 @@
 
 	csi1_v4l2_cap {
 		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
+		csi_id = <0>;
+		status = "okay";
+	};
+
+	csi2_v4l2_cap {
+		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
+		csi_id = <1>;
 		status = "okay";
 	};
 
@@ -96,6 +103,10 @@
 };
 
 &csi1 {
+	status = "okay";
+};
+
+&csi2 {
 	status = "okay";
 };
 
@@ -492,6 +503,6 @@
 
 &vadc {
 	vadc_in = <0>;
-	csi_id = <0>;
+	csi_id = <1>;
 	status = "okay";
 };
