@@ -885,6 +885,8 @@ static int vadc_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	vadc->sen.csi = csi_id;
+
 	/* remap GPR register */
 	vadc->gpr = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
 			"gpr");
