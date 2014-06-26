@@ -94,8 +94,12 @@ enum m_can_lec_type {
 	LEC_CRC_ERROR,
 	LEC_UNUSED,
 };
+/* Test Register (TEST) */
+#define TEST_LBCK	BIT(4)
 
 /* CC Control Register(CCCR) */
+#define CCCR_TEST	BIT(7)
+#define CCCR_MON	BIT(5)
 #define CCCR_CCE	BIT(1)
 #define CCCR_INIT	BIT(0)
 
@@ -661,13 +665,13 @@ static int m_can_set_bittiming(struct net_device *dev)
  * - configure rx fifo
  * - accept non-matching frame into fifo 0
  * - configure tx buffer
+ * - configure mode
  * - setup bittiming
- * - TODO:
- *   1) other working modes support like monitor, loopback...
  */
 static void m_can_chip_config(struct net_device *dev)
 {
 	struct m_can_priv *priv = netdev_priv(dev);
+	u32 cccr, test;
 
 	m_can_config_endisable(priv, true);
 
@@ -693,6 +697,22 @@ static void m_can_chip_config(struct net_device *dev)
 
 	m_can_write(priv, M_CAN_RXF1C, (priv->rxf1_elems << RXFC_FS_OFF) |
 		RXFC_FWM_1 | (priv->mram_off + priv->rxf1_off));
+
+	cccr = m_can_read(priv, M_CAN_CCCR);
+	cccr &= ~(CCCR_TEST | CCCR_MON);
+	test = m_can_read(priv, M_CAN_TEST);
+	test &= ~TEST_LBCK;
+
+	if (priv->can.ctrlmode & CAN_CTRLMODE_LISTENONLY)
+		cccr |= CCCR_MON;
+
+	if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK) {
+		cccr |= CCCR_TEST;
+		test |= TEST_LBCK;
+	}
+
+	m_can_write(priv, M_CAN_CCCR, cccr);
+	m_can_write(priv, M_CAN_TEST, test);
 
 	/* enable all interrupts */
 	m_can_write(priv, M_CAN_IR, IR_ALL_INT);
