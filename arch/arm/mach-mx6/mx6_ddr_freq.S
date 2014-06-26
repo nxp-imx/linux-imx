@@ -583,7 +583,7 @@ poll_dvfs_clear_1:
 	cmp     r0, #0x2000000
 	beq     poll_dvfs_clear_1
 
-	/* if DLL was previously on, continue DLL off routine
+	/* if DLL was previously on, continue DLL off routine */
 	cmp    	r9, #1
 	beq 	continue_dll_off_3
 
@@ -691,12 +691,6 @@ update_iomux:
 	ldr    r0, [r5, r2]
 	orr     r0, r0, #0x20000000
 	str    r0, [r5, r2]
-
-	/* MMDC0_MAPSR adopt power down enable */
-	/* setmem /32 0x021b0404 = 0x00011006 */
-	ldr    r0, [r5, #0x404]
-	bic    r0, r0, #0x01
-	str    r0, [r5, #0x404]
 
 	/* frc_msr + mu bypass*/
 	ldr       r0, =0x00000060
@@ -976,12 +970,6 @@ cont15:
 	cmp    r1, #0
 	bgt     delay15
 
-	/* MMDC0_MAPSR adopt power down enable */
-	/* setmem /32 0x021b0404 = 0x00011006 */
-	ldr    r0, [r5, #0x404]
-	bic    r0, r0, #0x01
-	str    r0, [r5, #0x404]
-
 	/* Enable MMDC power down timer. */
 	ldr    r0, [r5, #0x4]
 	orr    r0, r0, #0x5500
@@ -1029,6 +1017,11 @@ poll_conreq_clear_2:
 	beq     poll_conreq_clear_2
 
 done:
+	/* MMDC0_MAPSR adopt power down enable */
+	ldr    r0, [r5, #0x404]
+	bic    r0, r0, #0x01
+	str    r0, [r5, #0x404]
+
 #ifdef CONFIG_CACHE_L2X0
 	/* Enable L2. */
 	ldr   r1, =L2_BASE_ADDR
@@ -1068,8 +1061,8 @@ done:
 	/* Flush the Branch Target Address Cache (BTAC) */
 	ldr    r6, =0x0
 	mcr    p15, 0, r6, c7, c1, 6
-	/* Restore registers */
 
+	/* Restore registers */
 	ldmfd sp!, {r4 - r11}
 
 	mov     pc, lr
