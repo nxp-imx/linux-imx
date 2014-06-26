@@ -26,6 +26,8 @@
 		gpio6 = &gpio7;
 		lcdif0 = &lcdif1;
 		lcdif1 = &lcdif2;
+		csi0 = &csi1;
+		csi1 = &csi2;
 		serial0 = &uart1;
 		serial1 = &uart2;
 		serial2 = &uart3;
