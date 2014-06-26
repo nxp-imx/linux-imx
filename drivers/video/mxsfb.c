@@ -415,6 +415,9 @@ static int mxsfb_check_var(struct fb_var_screeninfo *var,
 	if (var->yres_virtual < var->yres)
 		var->yres_virtual = var->yres;
 
+	if ((var->bits_per_pixel != 32) && (var->bits_per_pixel != 16))
+		var->bits_per_pixel = 32;
+
 	switch (var->bits_per_pixel) {
 	case 16:
 		/* always expect RGB 565 */
@@ -430,11 +433,11 @@ static int mxsfb_check_var(struct fb_var_screeninfo *var,
 			rgb = def_rgb666;
 			break;
 		case STMLCDIF_18BIT:
-			if (pixfmt_is_equal(var, def_rgb888))
-				rgb = def_rgb888;
-			else
+			if (pixfmt_is_equal(var, def_rgb666))
 				/* 24 bit to 18 bit mapping */
 				rgb = def_rgb666;
+			else
+				rgb = def_rgb888;
 			break;
 		case STMLCDIF_24BIT:
 			/* real 24 bit */
@@ -633,9 +636,7 @@ static int mxsfb_set_par(struct fb_info *fb_info)
 					    */
 			break;
 		case STMLCDIF_18BIT:
-			if (pixfmt_is_equal(&fb_info->var, def_rgb888))
-				break;
-			else
+			if (pixfmt_is_equal(&fb_info->var, def_rgb666))
 				/* 24 bit to 18 bit mapping */
 				ctrl |= CTRL_DF24; /* ignore the upper 2 bits in
 						    *  each colour component
