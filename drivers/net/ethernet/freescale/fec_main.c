@@ -1601,7 +1601,7 @@ fec_enet_interrupt(int irq, void *dev_id)
 			fep->work_ts = 0;
 		}
 
-		if (fep->work_tx || fep->work_rx) {
+		if ((fep->work_tx || fep->work_rx) && fep->link) {
 			ret = IRQ_HANDLED;
 
 			/* Disable the RX interrupt */
