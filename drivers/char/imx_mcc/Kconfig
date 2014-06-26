@@ -13,3 +13,11 @@ config IMX_MCC_DEMO
 	depends on SOC_IMX6SX && IMX_SEMA4
 	help
 	  Support for IMX MCC DEMO, most people should say N here.
+
+config IMX_MCC_TTY
+	bool "imx pty for mcc interface"
+	depends on SOC_IMX6SX && IMX_SEMA4
+	help
+	  This enables a pty node for imx6sx mcc interface.
+
+#end imx mcc
