@@ -402,30 +402,6 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	/* Ensure the AHB clk is at 132MHz. */
 	imx_clk_set_rate(clks[IMX6SL_CLK_AHB], 132000000);
 
-	/*
-	 * To prevent the bus clock from being disabled accidently when
-	 * clk_disable() gets called on child clock, let's increment the use
-	 * count of IPG clock by initially calling clk_prepare_enable() on it.
-	 */
-	imx_clk_prepare_enable(clks[IMX6SL_CLK_IPG]);
-
-	/*
-	 * Make sure the ARM clk is enabled to maintain the correct usecount
-	 * and enabling/disabling of parent PLLs.
-	 */
-	imx_clk_prepare_enable(clks[IMX6SL_CLK_ARM]);
-
-	/*
-	 * Make sure the MMDC clk is enabled to maintain the correct usecount
-	 * and enabling/disabling of parent PLLs.
-	 */
-	imx_clk_prepare_enable(clks[IMX6SL_CLK_MMDC_ROOT]);
-
-	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
-		imx_clk_prepare_enable(clks[IMX6SL_CLK_USBPHY1_GATE]);
-		imx_clk_prepare_enable(clks[IMX6SL_CLK_USBPHY2_GATE]);
-	}
-
 	imx_clk_set_parent(clks[IMX6SL_CLK_GPU2D_OVG_SEL],
 		clks[IMX6SL_CLK_PLL2_BUS]);
 	imx_clk_set_parent(clks[IMX6SL_CLK_GPU2D_SEL], clks[IMX6SL_CLK_PLL2_BUS]);
@@ -473,6 +449,35 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	/* Set the UART parent if needed. */
 	if (uart_from_osc)
 		imx_clk_set_parent(clks[IMX6SL_CLK_UART_SEL], clks[IMX6SL_CLK_UART_OSC_4M]);
+
+	/*
+	 * Enable clocks only after both parent and rate are all initialized
+	 * as needed
+	 */
+
+	/*
+	 * To prevent the bus clock from being disabled accidently when
+	 * clk_disable() gets called on child clock, let's increment the use
+	 * count of IPG clock by initially calling clk_prepare_enable() on it.
+	 */
+	imx_clk_prepare_enable(clks[IMX6SL_CLK_IPG]);
+
+	/*
+	 * Make sure the ARM clk is enabled to maintain the correct usecount
+	 * and enabling/disabling of parent PLLs.
+	 */
+	imx_clk_prepare_enable(clks[IMX6SL_CLK_ARM]);
+
+	/*
+	 * Make sure the MMDC clk is enabled to maintain the correct usecount
+	 * and enabling/disabling of parent PLLs.
+	 */
+	imx_clk_prepare_enable(clks[IMX6SL_CLK_MMDC_ROOT]);
+
+	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
+		imx_clk_prepare_enable(clks[IMX6SL_CLK_USBPHY1_GATE]);
+		imx_clk_prepare_enable(clks[IMX6SL_CLK_USBPHY2_GATE]);
+	}
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx6sl-gpt");
 	base = of_iomap(np, 0);

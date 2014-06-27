@@ -460,14 +460,6 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clk_register_clkdev(clks[IMX6SX_CLK_CKO1], "cko1", NULL);
 	clk_register_clkdev(clks[IMX6SX_CLK_ARM], NULL, "cpu0");
 
-	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
-		imx_clk_prepare_enable(clks[clks_init_on[i]]);
-
-	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
-		imx_clk_prepare_enable(clks[IMX6SX_CLK_USBPHY1_GATE]);
-		imx_clk_prepare_enable(clks[IMX6SX_CLK_USBPHY2_GATE]);
-	}
-
 	/* Set the default 132MHz for EIM module */
 	imx_clk_set_parent(clks[IMX6SX_CLK_EIM_SLOW_SEL], clks[IMX6SX_CLK_PLL2_PFD2]);
 	imx_clk_set_rate(clks[IMX6SX_CLK_EIM_SLOW], 132000000);
@@ -519,6 +511,17 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	imx_clk_set_parent(clks[IMX6SX_CLK_GPU_CORE_SEL], clks[IMX6SX_CLK_PLL3_PFD0]);
 	imx_clk_set_parent(clks[IMX6SX_CLK_GPU_AXI_SEL], clks[IMX6SX_CLK_PLL3_PFD0]);
 
+	/*
+	 * Enable clocks only after both parent and rate are all initialized
+	 * as needed
+	 */
+	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
+		imx_clk_prepare_enable(clks[clks_init_on[i]]);
+
+	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
+		imx_clk_prepare_enable(clks[IMX6SX_CLK_USBPHY1_GATE]);
+		imx_clk_prepare_enable(clks[IMX6SX_CLK_USBPHY2_GATE]);
+	}
 
 	/* Set initial power mode */
 	imx6_set_lpm(WAIT_CLOCKED);

@@ -683,14 +683,6 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	imx_clk_set_rate(clk[gpu3d_core], 528000000);
 	imx_clk_set_parent(clk[gpu2d_core_sel], clk[pll3_usb_otg]);
 
-	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
-		imx_clk_prepare_enable(clk[clks_init_on[i]]);
-
-	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
-		imx_clk_prepare_enable(clk[usbphy1_gate]);
-		imx_clk_prepare_enable(clk[usbphy2_gate]);
-	}
-
 	/* ipu clock initialization */
 	init_ldb_clks();
 	imx_clk_set_parent(clk[ipu1_di0_pre_sel], clk[pll5_video_div]);
@@ -748,6 +740,18 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	imx_clk_set_parent(clk[vpu_axi_sel], clk[pll2_pfd2_396m]);
 	pr_info("VPU 352M is enabled!\n");
 #endif
+
+	/*
+	 * Enable clocks only after both parent and rate are all initialized
+	 * as needed
+	 */
+	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
+		imx_clk_prepare_enable(clk[clks_init_on[i]]);
+
+	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
+		imx_clk_prepare_enable(clk[usbphy1_gate]);
+		imx_clk_prepare_enable(clk[usbphy2_gate]);
+	}
 
 	/* Set initial power mode */
 	imx6_set_lpm(WAIT_CLOCKED);
