@@ -374,6 +374,9 @@
 		compatible = "fsl,mma8451";
 		reg = <0x1c>;
 		position = <1>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <2 8>;
+		interrupt-route = <2>;
 	};
 };
 

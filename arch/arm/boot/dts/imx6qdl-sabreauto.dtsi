@@ -494,7 +494,10 @@
 	mma8451@1c {
 		compatible = "fsl,mma8451";
 		reg = <0x1c>;
-		position = <3>;
+		position = <7>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <31 8>;
+		interrupt-route = <1>;
 	};
 
 	mag3110@0e {
@@ -555,6 +558,7 @@
 				MX6QDL_PAD_CSI0_DATA_EN__GPIO5_IO20 0x17059
 				MX6QDL_PAD_GPIO_1__GPIO1_IO01 0x17059
 				MX6QDL_PAD_SD3_RST__GPIO7_IO08 0x80000000
+				MX6QDL_PAD_EIM_BCLK__GPIO6_IO31 0x80000000
 			>;
 		};
 	};
