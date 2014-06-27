@@ -1579,4 +1579,10 @@ config MXC_MMA8451
 	depends on I2C
 	default y
 
+config MXC_MMA8x5x
+	tristate "MMA8x5x device driver"
+	depends on I2C && SYSFS
+	default n
+	help
+	  This configure is used by android sensor driver.
 endif # HWMON
