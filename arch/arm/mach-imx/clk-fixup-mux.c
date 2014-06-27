@@ -88,6 +88,7 @@ struct clk *imx_clk_fixup_mux(const char *name, void __iomem *reg,
 
 	init.name = name;
 	init.ops = &clk_fixup_mux_ops;
+	init.flags = CLK_SET_RATE_NO_REPARENT | CLK_SET_PARENT_GATE;
 	init.parent_names = parents;
 	init.num_parents = num_parents;
 

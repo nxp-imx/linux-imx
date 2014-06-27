@@ -137,8 +137,8 @@ static inline struct clk *imx_clk_mux_flags(const char *name,
 		int num_parents, unsigned long flags)
 {
 	return clk_register_mux(NULL, name, parents, num_parents,
-			flags | CLK_SET_PARENT_GATE, reg, shift, width, 0,
-			&imx_ccm_lock);
+			flags | CLK_SET_RATE_NO_REPARENT | CLK_SET_PARENT_GATE,
+			reg, shift, width, 0, &imx_ccm_lock);
 }
 
 static inline struct clk *imx_clk_mux_glitchless(const char *name,
@@ -146,7 +146,7 @@ static inline struct clk *imx_clk_mux_glitchless(const char *name,
 		int num_parents)
 {
 	return clk_register_mux(NULL, name, parents, num_parents,
-			0, reg, shift,
+			CLK_SET_RATE_NO_REPARENT, reg, shift,
 			width, 0, &imx_ccm_lock);
 }
 
