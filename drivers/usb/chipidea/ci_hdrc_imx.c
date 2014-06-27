@@ -512,6 +512,16 @@ static int imx_controller_resume(struct device *dev)
 	data->in_lpm = false;
 
 	if (data->usbmisc_data) {
+		ret = imx_usbmisc_power_lost_check(data->usbmisc_data);
+		/* re-init if resume from power lost */
+		if (ret > 0) {
+			ret = imx_usbmisc_init(data->usbmisc_data);
+			if (ret) {
+				dev_err(dev, "usbmisc init failed, ret=%d\n",
+						ret);
+				goto clk_disable;
+			}
+		}
 		ret = imx_usbmisc_set_wakeup(data->usbmisc_data, false);
 		if (ret) {
 			dev_err(dev,

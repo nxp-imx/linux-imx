@@ -34,5 +34,6 @@ int imx_usbmisc_set_wakeup(struct imx_usbmisc_data *, bool);
 /* Call it before setting portsc.suspendM */
 int imx_usbmisc_hsic_set_connect(struct imx_usbmisc_data *);
 int imx_usbmisc_hsic_set_clk(struct imx_usbmisc_data *, bool);
+int imx_usbmisc_power_lost_check(struct imx_usbmisc_data *);
 
 #endif /* __DRIVER_USB_CHIPIDEA_CI_HDRC_IMX_H */
