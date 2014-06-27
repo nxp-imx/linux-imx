@@ -119,9 +119,9 @@ void imx6sl_set_wait_clk(bool enter)
 			 * to run from the 24MHz OSC, as there is no way to
 			 * get 28.8MHz when ARM is sourced from PLL1.
 			 */
-			clk_set_parent(clks[IMX6SL_CLK_STEP],
+			imx_clk_set_parent(clks[IMX6SL_CLK_STEP],
 							clks[IMX6SL_CLK_OSC]);
-			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
+			imx_clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
 							clks[IMX6SL_CLK_STEP]);
 		} else if (audio_bus_freq_mode) {
 			/*
@@ -132,26 +132,26 @@ void imx6sl_set_wait_clk(bool enter)
 			 */
 			pll1_org_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SYS]);
 			/* Ensure PLL1 is at 24MHz. */
-			clk_set_rate(clks[IMX6SL_CLK_PLL1_SYS], OSC_RATE);
-			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW], clks[IMX6SL_CLK_PLL1_SYS]);
+			imx_clk_set_rate(clks[IMX6SL_CLK_PLL1_SYS], OSC_RATE);
+			imx_clk_set_parent(clks[IMX6SL_CLK_PLL1_SW], clks[IMX6SL_CLK_PLL1_SYS]);
 		} else
 			new_parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
 		wait_podf = (new_parent_rate + max_arm_wait_clk - 1) /
 						max_arm_wait_clk;
 
-		clk_set_rate(clks[IMX6SL_CLK_ARM], new_parent_rate / wait_podf);
+		imx_clk_set_rate(clks[IMX6SL_CLK_ARM], new_parent_rate / wait_podf);
 	} else {
 		if (low_bus_freq_mode)
 			/* Move ARM back to PLL1. */
-			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
+			imx_clk_set_parent(clks[IMX6SL_CLK_PLL1_SW],
 				clks[IMX6SL_CLK_PLL1_SYS]);
 		else if (audio_bus_freq_mode) {
 			/* Move ARM back to PLL2_PFD2 via STEP_CLK. */
-			clk_set_parent(clks[IMX6SL_CLK_PLL1_SW], clks[IMX6SL_CLK_STEP]);
-			clk_set_rate(clks[IMX6SL_CLK_PLL1_SYS], pll1_org_rate);
+			imx_clk_set_parent(clks[IMX6SL_CLK_PLL1_SW], clks[IMX6SL_CLK_STEP]);
+			imx_clk_set_rate(clks[IMX6SL_CLK_PLL1_SYS], pll1_org_rate);
 		}
 		parent_rate = clk_get_rate(clks[IMX6SL_CLK_PLL1_SW]);
-		clk_set_rate(clks[IMX6SL_CLK_ARM], parent_rate / cur_arm_podf);
+		imx_clk_set_rate(clks[IMX6SL_CLK_ARM], parent_rate / cur_arm_podf);
 	}
 }
 
@@ -168,7 +168,6 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	struct device_node *np;
 	void __iomem *base;
 	int irq;
-	int ret;
 	int i;
 	u32 reg;
 
@@ -401,77 +400,67 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	clk_register_clkdev(clks[IMX6SL_CLK_GPT_SERIAL], "per", "imx-gpt.0");
 
 	/* Ensure the AHB clk is at 132MHz. */
-	ret = clk_set_rate(clks[IMX6SL_CLK_AHB], 132000000);
-	if (ret)
-		pr_warn("%s: failed to set AHB clock rate %d\n", __func__, ret);
+	imx_clk_set_rate(clks[IMX6SL_CLK_AHB], 132000000);
 
 	/*
 	 * To prevent the bus clock from being disabled accidently when
 	 * clk_disable() gets called on child clock, let's increment the use
 	 * count of IPG clock by initially calling clk_prepare_enable() on it.
 	 */
-	ret = clk_prepare_enable(clks[IMX6SL_CLK_IPG]);
-	if (ret)
-		pr_warn("%s: failed to enable IPG clock %d\n", __func__, ret);
+	imx_clk_prepare_enable(clks[IMX6SL_CLK_IPG]);
 
 	/*
 	 * Make sure the ARM clk is enabled to maintain the correct usecount
 	 * and enabling/disabling of parent PLLs.
 	 */
-	ret = clk_prepare_enable(clks[IMX6SL_CLK_ARM]);
-	if (ret)
-		pr_warn("%s: failed to enable ARM core clock %d\n",
-			__func__, ret);
+	imx_clk_prepare_enable(clks[IMX6SL_CLK_ARM]);
 
 	/*
 	 * Make sure the MMDC clk is enabled to maintain the correct usecount
 	 * and enabling/disabling of parent PLLs.
 	 */
-	ret = clk_prepare_enable(clks[IMX6SL_CLK_MMDC_ROOT]);
-	if (ret)
-		pr_warn("%s: failed to enable MMDC clock %d\n",
-			__func__, ret);
+	imx_clk_prepare_enable(clks[IMX6SL_CLK_MMDC_ROOT]);
 
 	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
-		clk_prepare_enable(clks[IMX6SL_CLK_USBPHY1_GATE]);
-		clk_prepare_enable(clks[IMX6SL_CLK_USBPHY2_GATE]);
+		imx_clk_prepare_enable(clks[IMX6SL_CLK_USBPHY1_GATE]);
+		imx_clk_prepare_enable(clks[IMX6SL_CLK_USBPHY2_GATE]);
 	}
 
-	clk_set_parent(clks[IMX6SL_CLK_GPU2D_OVG_SEL],
+	imx_clk_set_parent(clks[IMX6SL_CLK_GPU2D_OVG_SEL],
 		clks[IMX6SL_CLK_PLL2_BUS]);
-	clk_set_parent(clks[IMX6SL_CLK_GPU2D_SEL], clks[IMX6SL_CLK_PLL2_BUS]);
+	imx_clk_set_parent(clks[IMX6SL_CLK_GPU2D_SEL], clks[IMX6SL_CLK_PLL2_BUS]);
 
 	/* Initialize Video PLLs to valid frequency (650MHz). */
-	clk_set_rate(clks[IMX6SL_CLK_PLL5_VIDEO], 650000000);
+	imx_clk_set_rate(clks[IMX6SL_CLK_PLL5_VIDEO], 650000000);
 	/* set PLL5 video as lcdif pix parent clock */
-	clk_set_parent(clks[IMX6SL_CLK_LCDIF_PIX_SEL],
+	imx_clk_set_parent(clks[IMX6SL_CLK_LCDIF_PIX_SEL],
 			clks[IMX6SL_CLK_PLL5_VIDEO_DIV]);
-	clk_set_parent(clks[IMX6SL_CLK_EPDC_PIX_SEL],
+	imx_clk_set_parent(clks[IMX6SL_CLK_EPDC_PIX_SEL],
 			clks[IMX6SL_CLK_PLL5_VIDEO_DIV]);
 
-	clk_set_parent(clks[IMX6SL_CLK_EPDC_AXI_SEL], clks[IMX6SL_CLK_PLL2_PFD2]);
-	clk_set_rate(clks[IMX6SL_CLK_EPDC_AXI], 200000000);
-	clk_set_parent(clks[IMX6SL_CLK_PXP_AXI_SEL], clks[IMX6SL_CLK_PLL2_PFD2]);
-	clk_set_rate(clks[IMX6SL_CLK_PXP_AXI], 200000000);
-	clk_set_parent(clks[IMX6SL_CLK_LCDIF_AXI_SEL], clks[IMX6SL_CLK_PLL2_PFD2]);
-	clk_set_rate(clks[IMX6SL_CLK_LCDIF_AXI], 200000000);
+	imx_clk_set_parent(clks[IMX6SL_CLK_EPDC_AXI_SEL], clks[IMX6SL_CLK_PLL2_PFD2]);
+	imx_clk_set_rate(clks[IMX6SL_CLK_EPDC_AXI], 200000000);
+	imx_clk_set_parent(clks[IMX6SL_CLK_PXP_AXI_SEL], clks[IMX6SL_CLK_PLL2_PFD2]);
+	imx_clk_set_rate(clks[IMX6SL_CLK_PXP_AXI], 200000000);
+	imx_clk_set_parent(clks[IMX6SL_CLK_LCDIF_AXI_SEL], clks[IMX6SL_CLK_PLL2_PFD2]);
+	imx_clk_set_rate(clks[IMX6SL_CLK_LCDIF_AXI], 200000000);
 
 	/* Audio clocks */
-	clk_set_parent(clks[IMX6SL_CLK_SPDIF0_SEL], clks[IMX6SL_CLK_PLL3_PFD3]);
-	clk_set_rate(clks[IMX6SL_CLK_SPDIF0_PODF], 227368421);
+	imx_clk_set_parent(clks[IMX6SL_CLK_SPDIF0_SEL], clks[IMX6SL_CLK_PLL3_PFD3]);
+	imx_clk_set_rate(clks[IMX6SL_CLK_SPDIF0_PODF], 227368421);
 
 	/* set extern_audio to be sourced from PLL4/audio PLL */
-	clk_set_parent(clks[IMX6SL_CLK_EXTERN_AUDIO_SEL], clks[IMX6SL_CLK_PLL4_AUDIO_DIV]);
+	imx_clk_set_parent(clks[IMX6SL_CLK_EXTERN_AUDIO_SEL], clks[IMX6SL_CLK_PLL4_AUDIO_DIV]);
 	/* set extern_audio to 24MHz */
-	clk_set_rate(clks[IMX6SL_CLK_PLL4_AUDIO], 24000000);
-	clk_set_rate(clks[IMX6SL_CLK_EXTERN_AUDIO], 24000000);
+	imx_clk_set_rate(clks[IMX6SL_CLK_PLL4_AUDIO], 24000000);
+	imx_clk_set_rate(clks[IMX6SL_CLK_EXTERN_AUDIO], 24000000);
 
 	/* set SSI2 parent to PLL4 */
-	clk_set_parent(clks[IMX6SL_CLK_SSI2_SEL], clks[IMX6SL_CLK_PLL4_AUDIO_DIV]);
-	clk_set_rate(clks[IMX6SL_CLK_SSI2], 24000000);
+	imx_clk_set_parent(clks[IMX6SL_CLK_SSI2_SEL], clks[IMX6SL_CLK_PLL4_AUDIO_DIV]);
+	imx_clk_set_rate(clks[IMX6SL_CLK_SSI2], 24000000);
 
 	/* set perclk to source from OSC 24MHz */
-	clk_set_parent(clks[IMX6SL_CLK_PERCLK_SEL], clks[IMX6SL_CLK_OSC]);
+	imx_clk_set_parent(clks[IMX6SL_CLK_PERCLK_SEL], clks[IMX6SL_CLK_OSC]);
 
 	/* Set initial power mode */
 	imx6_set_lpm(WAIT_CLOCKED);
@@ -483,7 +472,7 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 
 	/* Set the UART parent if needed. */
 	if (uart_from_osc)
-		ret = clk_set_parent(clks[IMX6SL_CLK_UART_SEL], clks[IMX6SL_CLK_UART_OSC_4M]);
+		imx_clk_set_parent(clks[IMX6SL_CLK_UART_SEL], clks[IMX6SL_CLK_UART_OSC_4M]);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx6sl-gpt");
 	base = of_iomap(np, 0);

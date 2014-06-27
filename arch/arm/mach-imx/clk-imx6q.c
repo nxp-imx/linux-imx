@@ -293,7 +293,6 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	struct device_node *np;
 	void __iomem *base;
 	int i, irq;
-	int ret;
 	u32 reg;
 
 	clk[dummy] = imx_clk_fixed("dummy", 0);
@@ -671,74 +670,69 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	 * We can not get the 100MHz from the pll2_pfd0_352m.
 	 * So choose pll2_pfd2_396m as enfc_sel's parent.
 	 */
-	clk_set_parent(clk[enfc_sel], clk[pll2_pfd2_396m]);
+	imx_clk_set_parent(clk[enfc_sel], clk[pll2_pfd2_396m]);
 
 	/* Set the parent clks of PCIe lvds1 and pcie_axi to be sata ref, axi */
-	if (clk_set_parent(clk[lvds1_sel], clk[sata_ref]))
-		pr_err("Failed to set PCIe bus parent clk.\n");
-	if (clk_set_parent(clk[pcie_axi_sel], clk[axi]))
-		pr_err("Failed to set PCIe parent clk.\n");
+	imx_clk_set_parent(clk[lvds1_sel], clk[sata_ref]);
+	imx_clk_set_parent(clk[pcie_axi_sel], clk[axi]);
 
 	/* gpu clock initilazation */
-	clk_set_parent(clk[gpu3d_shader_sel], clk[pll2_pfd1_594m]);
-	clk_set_rate(clk[gpu3d_shader], 594000000);
-	clk_set_parent(clk[gpu3d_core_sel], clk[mmdc_ch0_axi]);
-	clk_set_rate(clk[gpu3d_core], 528000000);
-	clk_set_parent(clk[gpu2d_core_sel], clk[pll3_usb_otg]);
+	imx_clk_set_parent(clk[gpu3d_shader_sel], clk[pll2_pfd1_594m]);
+	imx_clk_set_rate(clk[gpu3d_shader], 594000000);
+	imx_clk_set_parent(clk[gpu3d_core_sel], clk[mmdc_ch0_axi]);
+	imx_clk_set_rate(clk[gpu3d_core], 528000000);
+	imx_clk_set_parent(clk[gpu2d_core_sel], clk[pll3_usb_otg]);
 
 	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
-		clk_prepare_enable(clk[clks_init_on[i]]);
+		imx_clk_prepare_enable(clk[clks_init_on[i]]);
 
 	if (IS_ENABLED(CONFIG_USB_MXS_PHY)) {
-		clk_prepare_enable(clk[usbphy1_gate]);
-		clk_prepare_enable(clk[usbphy2_gate]);
+		imx_clk_prepare_enable(clk[usbphy1_gate]);
+		imx_clk_prepare_enable(clk[usbphy2_gate]);
 	}
 
 	/* ipu clock initialization */
 	init_ldb_clks();
-	clk_set_parent(clk[ipu1_di0_pre_sel], clk[pll5_video_div]);
-	clk_set_parent(clk[ipu1_di1_pre_sel], clk[pll5_video_div]);
-	clk_set_parent(clk[ipu2_di0_pre_sel], clk[pll5_video_div]);
-	clk_set_parent(clk[ipu2_di1_pre_sel], clk[pll5_video_div]);
-	clk_set_parent(clk[ipu1_di0_sel], clk[ipu1_di0_pre]);
-	clk_set_parent(clk[ipu1_di1_sel], clk[ipu1_di1_pre]);
-	clk_set_parent(clk[ipu2_di0_sel], clk[ipu2_di0_pre]);
-	clk_set_parent(clk[ipu2_di1_sel], clk[ipu2_di1_pre]);
+	imx_clk_set_parent(clk[ipu1_di0_pre_sel], clk[pll5_video_div]);
+	imx_clk_set_parent(clk[ipu1_di1_pre_sel], clk[pll5_video_div]);
+	imx_clk_set_parent(clk[ipu2_di0_pre_sel], clk[pll5_video_div]);
+	imx_clk_set_parent(clk[ipu2_di1_pre_sel], clk[pll5_video_div]);
+	imx_clk_set_parent(clk[ipu1_di0_sel], clk[ipu1_di0_pre]);
+	imx_clk_set_parent(clk[ipu1_di1_sel], clk[ipu1_di1_pre]);
+	imx_clk_set_parent(clk[ipu2_di0_sel], clk[ipu2_di0_pre]);
+	imx_clk_set_parent(clk[ipu2_di1_sel], clk[ipu2_di1_pre]);
 	if (cpu_is_imx6dl()) {
-		clk_set_rate(clk[pll3_pfd1_540m], 540000000);
-		clk_set_parent(clk[ipu1_sel], clk[pll3_pfd1_540m]);
-		clk_set_parent(clk[axi_alt_sel], clk[pll3_pfd1_540m]);
-		clk_set_parent(clk[axi_sel], clk[axi_alt_sel]);
+		imx_clk_set_rate(clk[pll3_pfd1_540m], 540000000);
+		imx_clk_set_parent(clk[ipu1_sel], clk[pll3_pfd1_540m]);
+		imx_clk_set_parent(clk[axi_alt_sel], clk[pll3_pfd1_540m]);
+		imx_clk_set_parent(clk[axi_sel], clk[axi_alt_sel]);
 		/* set epdc/pxp axi clock to 200Mhz */
-		clk_set_parent(clk[ipu2_sel], clk[pll2_pfd2_396m]);
-		clk_set_rate(clk[ipu2], 200000000);
+		imx_clk_set_parent(clk[ipu2_sel], clk[pll2_pfd2_396m]);
+		imx_clk_set_rate(clk[ipu2], 200000000);
 	} else if (cpu_is_imx6q()) {
-		clk_set_parent(clk[ipu1_sel], clk[mmdc_ch0_axi]);
-		clk_set_parent(clk[ipu2_sel], clk[mmdc_ch0_axi]);
+		imx_clk_set_parent(clk[ipu1_sel], clk[mmdc_ch0_axi]);
+		imx_clk_set_parent(clk[ipu2_sel], clk[mmdc_ch0_axi]);
 	}
 
 	/*
 	 * Let's initially set up CLKO with OSC24M, since this configuration
 	 * is widely used by imx6q board designs to clock audio codec.
 	 */
-	ret = clk_set_parent(clk[cko2_sel], clk[osc]);
-	if (!ret)
-		ret = clk_set_parent(clk[cko], clk[cko2]);
-	if (ret)
-		pr_warn("failed to set up CLKO: %d\n", ret);
+	imx_clk_set_parent(clk[cko2_sel], clk[osc]);
+	imx_clk_set_parent(clk[cko], clk[cko2]);
 
 	/* Audio clocks */
-	clk_set_parent(clk[ssi1_sel], clk[pll4_audio_div]);
-	clk_set_parent(clk[ssi2_sel], clk[pll4_audio_div]);
-	clk_set_parent(clk[ssi3_sel], clk[pll4_audio_div]);
-	clk_set_parent(clk[esai_sel], clk[pll4_audio_div]);
-	clk_set_parent(clk[spdif_sel], clk[pll3_pfd3_454m]);
-	clk_set_rate(clk[spdif_podf], 227368421);
-	clk_set_parent(clk[spdif1_sel], clk[pll3_usb_otg]);
-	clk_set_rate(clk[spdif1_sel], 7500000);
+	imx_clk_set_parent(clk[ssi1_sel], clk[pll4_audio_div]);
+	imx_clk_set_parent(clk[ssi2_sel], clk[pll4_audio_div]);
+	imx_clk_set_parent(clk[ssi3_sel], clk[pll4_audio_div]);
+	imx_clk_set_parent(clk[esai_sel], clk[pll4_audio_div]);
+	imx_clk_set_parent(clk[spdif_sel], clk[pll3_pfd3_454m]);
+	imx_clk_set_rate(clk[spdif_podf], 227368421);
+	imx_clk_set_parent(clk[spdif1_sel], clk[pll3_usb_otg]);
+	imx_clk_set_rate(clk[spdif1_sel], 7500000);
 
 	/* Set pll4_audio to a value that can derive 5K-88.2KHz and 8K-96KHz */
-	clk_set_rate(clk[pll4_audio_div], 541900800);
+	imx_clk_set_rate(clk[pll4_audio_div], 541900800);
 
 #ifdef CONFIG_MX6_VPU_352M
 	/*
@@ -750,8 +744,8 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	 * all modules that sourceing clk from PLL2_PFD2 will
 	 * be impacted.
 	 */
-	clk_set_rate(clk[pll2_pfd2_396m], 352000000);
-	clk_set_parent(clk[vpu_axi_sel], clk[pll2_pfd2_396m]);
+	imx_clk_set_rate(clk[pll2_pfd2_396m], 352000000);
+	imx_clk_set_parent(clk[vpu_axi_sel], clk[pll2_pfd2_396m]);
 	pr_info("VPU 352M is enabled!\n");
 #endif
 

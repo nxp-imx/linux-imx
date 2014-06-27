@@ -51,6 +51,33 @@ static inline struct clk *imx_clk_gate2_shared(const char *name,
 			shift, 0, &imx_ccm_lock, share_count);
 }
 
+static inline void imx_clk_prepare_enable(struct clk *clk)
+{
+	int ret = clk_prepare_enable(clk);
+
+	if (ret)
+		pr_err("failed to prepare and enable clk %s: %d\n",
+			__clk_get_name(clk), ret);
+}
+
+static inline void imx_clk_set_parent(struct clk *clk, struct clk *parent)
+{
+	int ret = clk_set_parent(clk, parent);
+
+	if (ret)
+		pr_err("failed to set parent of clk %s to %s: %d\n",
+			__clk_get_name(clk), __clk_get_name(parent), ret);
+}
+
+static inline void imx_clk_set_rate(struct clk *clk, unsigned long rate)
+{
+	int ret = clk_set_rate(clk, rate);
+
+	if (ret)
+		pr_err("failed to set rate of clk %s to %ld: %d\n",
+			__clk_get_name(clk), rate, ret);
+}
+
 struct clk *imx_clk_pfd(const char *name, const char *parent_name,
 		void __iomem *reg, u8 idx);
 
