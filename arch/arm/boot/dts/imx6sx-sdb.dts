@@ -137,6 +137,14 @@
 		hp-det-gpios = <&gpio1 17 1>;
 	};
 
+	sound-spdif {
+		compatible = "fsl,imx-audio-spdif",
+			   "fsl,imx6sx-sdb-spdif";
+		model = "imx-spdif";
+		spdif-controller = <&spdif>;
+		spdif-out;
+	};
+
 	csi1_v4l2_cap {
 		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
 		status = "okay";
@@ -446,6 +454,12 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_sai1_2>;
 	status = "disabled";
+};
+
+&spdif {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spdif_2>;
+	status = "okay";
 };
 
 &ssi2 {

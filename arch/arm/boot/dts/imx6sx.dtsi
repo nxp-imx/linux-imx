@@ -1602,6 +1602,12 @@
 				MX6SX_PAD_ENET2_COL__SPDIF_IN		0x1b0b0
 			>;
 		};
+
+		pinctrl_spdif_2: spdifgrp-2 {
+			fsl,pins = <
+				MX6SX_PAD_SD4_DATA4__SPDIF_OUT		0x1b0b0
+			>;
+		};
 	};
 
 	uart1 {
