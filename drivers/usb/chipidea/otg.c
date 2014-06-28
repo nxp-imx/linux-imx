@@ -24,6 +24,7 @@
 #include "bits.h"
 #include "otg.h"
 #include "otg_fsm.h"
+#include "host.h"
 
 /**
  * hw_read_otgsc returns otgsc register bits value.
@@ -111,22 +112,15 @@ void ci_handle_vbus_change(struct ci_hdrc *ci)
 static void ci_handle_id_switch(struct ci_hdrc *ci)
 {
 	enum ci_role role = ci_otg_role(ci);
-	struct usb_device *roothub;
-	int i;
 
 	if (role != ci->role) {
 		dev_dbg(ci->dev, "switching from %s to %s\n",
 			ci_role(ci)->name, ci->roles[role]->name);
 
-		if ((ci->role == CI_ROLE_HOST) && ci->hcd) {
-			roothub = ci->hcd->self.root_hub;
-			for (i = 0; i < roothub->maxchild; ++i) {
-				while (usb_hub_find_child(roothub, (i + 1))) {
-					enable_irq(ci->irq);
-					usleep_range(10000, 15000);
-					disable_irq_nosync(ci->irq);
-				}
-			}
+		while (ci_hdrc_host_has_device(ci)) {
+			enable_irq(ci->irq);
+			usleep_range(10000, 15000);
+			disable_irq_nosync(ci->irq);
 		}
 
 		ci_role_stop(ci);

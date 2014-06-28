@@ -324,6 +324,20 @@ static void host_stop(struct ci_hdrc *ci)
 	ci->hcd = NULL;
 }
 
+bool ci_hdrc_host_has_device(struct ci_hdrc *ci)
+{
+	struct usb_device *roothub;
+	int i;
+
+	if ((ci->role == CI_ROLE_HOST) && ci->hcd) {
+		roothub = ci->hcd->self.root_hub;
+		for (i = 0; i < roothub->maxchild; ++i) {
+			if (usb_hub_find_child(roothub, (i + 1)))
+				return true;
+		}
+	}
+	return false;
+}
 
 void ci_hdrc_host_destroy(struct ci_hdrc *ci)
 {
