@@ -149,6 +149,7 @@ static void host_stop(struct ci_hdrc *ci)
 		usb_remove_hcd(hcd);
 		usb_put_hcd(hcd);
 	}
+	ci->hcd = NULL;
 }
 
 bool ci_hdrc_host_has_device(struct ci_hdrc *ci)
