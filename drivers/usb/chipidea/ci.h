@@ -79,6 +79,10 @@ struct ci_role_driver {
 	int		(*start)(struct ci_hdrc *);
 	void		(*stop)(struct ci_hdrc *);
 	irqreturn_t	(*irq)(struct ci_hdrc *);
+			/* Save before suspend */
+	void		(*save)(struct ci_hdrc *);
+			/* Restore after power lost */
+	void		(*restore)(struct ci_hdrc *);
 	const char	*name;
 };
 
@@ -190,6 +194,16 @@ struct ci_hdrc {
 	bool				in_lpm;
 	bool				wakeup_int;
 	struct timer_list		timer;
+	/* register save area for suspend&resume */
+	u32				pm_command;
+	u32				pm_status;
+	u32				pm_intr_enable;
+	u32				pm_frame_index;
+	u32				pm_segment;
+	u32				pm_frame_list;
+	u32				pm_async_next;
+	u32				pm_configured_flag;
+	u32				pm_portsc;
 };
 
 static inline struct ci_role_driver *ci_role(struct ci_hdrc *ci)
