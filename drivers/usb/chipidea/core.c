@@ -649,7 +649,10 @@ static void ci_power_lost_work(struct work_struct *work)
 						power_lost_work);
 
 	pm_runtime_get_sync(ci->dev);
-	ci_start_new_role(ci);
+	if (ci_otg_is_fsm_mode(ci))
+		ci_hdrc_otg_fsm_restart(ci);
+	else
+		ci_start_new_role(ci);
 	pm_runtime_put_sync(ci->dev);
 	enable_irq(ci->irq);
 }
