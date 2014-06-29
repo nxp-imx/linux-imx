@@ -1937,6 +1937,29 @@ static void udc_id_switch_for_host(struct ci_hdrc *ci)
 		hw_write_otgsc(ci, OTGSC_BSVIE | OTGSC_BSVIS, OTGSC_BSVIS);
 }
 
+static void udc_suspend_for_power_lost(struct ci_hdrc *ci)
+{
+	/*
+	 * Set OP_ENDPTLISTADDR to be non-zero for
+	 * checking if controller resume from power lost
+	 * in non-host mode.
+	 */
+	if (hw_read(ci, OP_ENDPTLISTADDR, ~0) == 0)
+		hw_write(ci, OP_ENDPTLISTADDR, ~0, ~0);
+}
+
+/* Power lost with device mode */
+static void udc_resume_from_power_lost(struct ci_hdrc *ci)
+{
+	/* Force disconnect if power lost with vbus on */
+	if (ci->vbus_active)
+		usb_gadget_vbus_disconnect(&ci->gadget);
+
+	if (ci->is_otg)
+		hw_write_otgsc(ci, OTGSC_BSVIS | OTGSC_BSVIE,
+					OTGSC_BSVIS | OTGSC_BSVIE);
+}
+
 /**
  * ci_hdrc_gadget_init - initialize device related bits
  * ci: the controller
@@ -1957,6 +1980,8 @@ int ci_hdrc_gadget_init(struct ci_hdrc *ci)
 	rdrv->start	= udc_id_switch_for_device;
 	rdrv->stop	= udc_id_switch_for_host;
 	rdrv->irq	= udc_irq;
+	rdrv->save = udc_suspend_for_power_lost;
+	rdrv->restore = udc_resume_from_power_lost;
 	rdrv->name	= "gadget";
 	ci->roles[CI_ROLE_GADGET] = rdrv;
 
