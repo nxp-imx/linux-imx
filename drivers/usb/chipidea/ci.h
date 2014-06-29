@@ -204,6 +204,7 @@ struct ci_hdrc {
 	u32				pm_async_next;
 	u32				pm_configured_flag;
 	u32				pm_portsc;
+	struct work_struct		power_lost_work;
 };
 
 static inline struct ci_role_driver *ci_role(struct ci_hdrc *ci)
