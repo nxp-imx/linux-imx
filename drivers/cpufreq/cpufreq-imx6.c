@@ -405,6 +405,12 @@ static int imx6_cpufreq_probe(struct platform_device *pdev)
 		}
 		imx6_soc_opp[i].arm_freq = freq;
 		imx6_soc_opp[i].soc_volt = volt;
+#ifdef CONFIG_MX6_VPU_352M
+		if (imx6_soc_opp[i].arm_freq == 792000) {
+			pr_info("increase SOC/PU voltage for VPU352MHz\n");
+			imx6_soc_opp[i].soc_volt = 1250000;
+		}
+#endif
 		soc_opp_count++;
 	}
 	rcu_read_unlock();
