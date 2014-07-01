@@ -13,6 +13,7 @@
 
 / {
 	aliases {
+		csi0 = &csi1;
 		mmc0 = &usdhc1;
 		mmc1 = &usdhc2;
 		mmc2 = &usdhc3;
@@ -655,7 +656,7 @@
 				reg = <0x020e0000 0x4000>;
 			};
 
-			csi: csi@020e4000 {
+			csi1: csi@020e4000 {
 				compatible = "fsl,imx6sl-csi";
 				reg = <0x020e4000 0x4000>;
 				interrupts = <0 7 0x04>;
@@ -924,7 +925,7 @@
 		};
 	};
 
-	csi {
+	csi1 {
 		pinctrl_csi_0: csigrp-0 {
 			fsl,pins = <
 				MX6SL_PAD_EPDC_GDRL__CSI_MCLK	0x110b0

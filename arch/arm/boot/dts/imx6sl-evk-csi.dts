@@ -14,7 +14,7 @@
 	};
 };
 
-&csi {
+&csi1 {
 	status = "okay";
 };
 

@@ -128,7 +128,7 @@
 	status = "okay";
 };
 
-&csi {
+&csi1 {
 	status = "disabled";
 };
 
