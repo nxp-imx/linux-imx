@@ -118,7 +118,7 @@ enum mx6q_clks {
 	pll4_audio_div, lvds1_sel, lvds1_in, lvds1_out, caam_mem, caam_aclk,
 	caam_ipg, epit1, epit2, tzasc2, pll4_sel, lvds2_sel, lvds2_in, lvds2_out,
 	anaclk1, anaclk2, spdif1, asrc_ipg, asrc_mem, esai_ipg, esai_mem,
-	axi_alt_sel, clk_max
+	axi_alt_sel, dcic1, dcic2, clk_max
 };
 
 static struct clk *clk[clk_max];
@@ -504,6 +504,8 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk[can1_serial]  = imx_clk_gate2("can1_serial",   "can_root",          base + 0x68, 16);
 	clk[can2_ipg]     = imx_clk_gate2("can2_ipg",      "ipg",               base + 0x68, 18);
 	clk[can2_serial]  = imx_clk_gate2("can2_serial",   "can_root",          base + 0x68, 20);
+	clk[dcic1]        = imx_clk_gate2("dcic1",		   "ipu1_podf",         base + 0x68, 24);
+	clk[dcic2]        = imx_clk_gate2("dcic2",		   "ipu2_podf",         base + 0x68, 26);
 	clk[ecspi1]       = imx_clk_gate2("ecspi1",        "ecspi_root",        base + 0x6c, 0);
 	clk[ecspi2]       = imx_clk_gate2("ecspi2",        "ecspi_root",        base + 0x6c, 2);
 	clk[ecspi3]       = imx_clk_gate2("ecspi3",        "ecspi_root",        base + 0x6c, 4);

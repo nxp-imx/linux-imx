@@ -239,6 +239,8 @@ clocks and IDs.
 	esai_ipg		228
 	esai_mem		229
 	axi_alt_sel		230
+	dcic1			231
+	dcic2			232
 
 Examples:
 
