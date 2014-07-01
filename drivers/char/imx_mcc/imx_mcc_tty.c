@@ -198,7 +198,6 @@ static int __init imxmcctty_init(void)
 	tty_port_init(&cport->port);
 	cport->port.ops = &mcctty_port_ops;
 	spin_lock_init(&cport->rx_lock);
-	spin_lock_init(&cport->tx_lock);
 
 	ret = tty_register_driver(mcctty_driver);
 	if (ret < 0) {
