@@ -78,6 +78,7 @@
 
 	csi_v4l2_cap {
 		compatible = "fsl,imx6sl-csi-v4l2";
+		csi_id = <0>;
 		status = "disabled";
 	};
 
