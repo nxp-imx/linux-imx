@@ -711,13 +711,23 @@
 			};
 
 			dcic1: dcic@020e4000 {
+				compatible = "fsl,imx6q-dcic";
 				reg = <0x020e4000 0x4000>;
 				interrupts = <0 124 0x04>;
+				clocks = <&clks 231>, <&clks 231>;
+				clock-names = "dcic", "disp-axi";
+				gpr = <&gpr>;
+				status = "disabled";
 			};
 
 			dcic2: dcic@020e8000 {
+				compatible = "fsl,imx6q-dcic";
 				reg = <0x020e8000 0x4000>;
 				interrupts = <0 125 0x04>;
+				clocks = <&clks 232>, <&clks 232>;
+				clock-names = "dcic", "disp-axi";
+				gpr = <&gpr>;
+				status = "disabled";
 			};
 
 			sdma: sdma@020ec000 {

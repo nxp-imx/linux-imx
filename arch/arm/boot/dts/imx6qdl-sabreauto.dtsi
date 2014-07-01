@@ -628,6 +628,18 @@
 	};
 };
 
+&dcic1 {
+	dcic_id = <0>;
+	dcic_mux = "dcic-hdmi";
+	status = "okay";
+};
+
+&dcic2 {
+	dcic_id = <1>;
+	dcic_mux = "dcic-lvds0";
+	status = "okay";
+};
+
 &mlb {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_mlb_2>;
