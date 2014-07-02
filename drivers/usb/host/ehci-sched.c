@@ -1272,8 +1272,8 @@ itd_urb_transaction (
 			itd_dma = itd->itd_dma;
 		} else {
 			spin_unlock_irqrestore (&ehci->lock, flags);
-			itd = dma_pool_alloc (ehci->itd_pool, mem_flags,
-					&itd_dma);
+			itd = dma_pool_alloc_nonbufferable(ehci->itd_pool,
+							mem_flags, &itd_dma);
 			spin_lock_irqsave (&ehci->lock, flags);
 			if (!itd) {
 				iso_sched_free(stream, sched);
@@ -1971,8 +1971,8 @@ sitd_urb_transaction (
 			sitd_dma = sitd->sitd_dma;
 		} else {
 			spin_unlock_irqrestore (&ehci->lock, flags);
-			sitd = dma_pool_alloc (ehci->sitd_pool, mem_flags,
-					&sitd_dma);
+			sitd = dma_pool_alloc_nonbufferable(ehci->sitd_pool,
+							mem_flags, &sitd_dma);
 			spin_lock_irqsave (&ehci->lock, flags);
 			if (!sitd) {
 				iso_sched_free(stream, iso_sched);

@@ -275,10 +275,11 @@ static struct ehci_qtd *ehci_qtd_alloc(struct ehci_hcd *ehci, gfp_t flags)
 		if (dma != 0)
 			qtd = (struct ehci_qtd *)(g_iram_addr + (dma - g_iram_base));
 		else
-			qtd = dma_pool_alloc(ehci->qtd_pool, flags, &dma);
+			qtd = dma_pool_alloc_nonbufferable(ehci->qtd_pool,
+								flags, &dma);
 	}
 	else
-		qtd = dma_pool_alloc(ehci->qtd_pool, flags, &dma);
+		qtd = dma_pool_alloc_nonbufferable(ehci->qtd_pool, flags, &dma);
 
 	if (qtd != NULL) {
 		ehci_qtd_init(ehci, qtd, dma);
@@ -337,7 +338,7 @@ static struct ehci_qh *ehci_qh_alloc(struct ehci_hcd *ehci, gfp_t flags)
 		qh = (struct ehci_qh *)(g_iram_addr + (dma - g_iram_base));
 	else
 		qh = (struct ehci_qh *)
-		    dma_pool_alloc(ehci->qh_pool, flags, &dma);
+		    dma_pool_alloc_nonbufferable(ehci->qh_pool, flags, &dma);
 	++g_debug_qH_allocated;
 	if (qh == NULL) {
 		panic("run out of i-ram for qH allocation\n");
@@ -492,7 +493,7 @@ static int ehci_mem_init(struct ehci_hcd *ehci, gfp_t flags)
 		goto fail;
 
 	ehci->periodic = (__le32 *)
-	    dma_alloc_coherent(ehci_to_hcd(ehci)->self.controller,
+	    dma_alloc_noncached(ehci_to_hcd(ehci)->self.controller,
 			       ehci->periodic_size * sizeof(__le32),
 			       &ehci->periodic_dma, 0);
 

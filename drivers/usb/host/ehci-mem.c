@@ -51,7 +51,7 @@ static struct ehci_qtd *ehci_qtd_alloc (struct ehci_hcd *ehci, gfp_t flags)
 	struct ehci_qtd		*qtd;
 	dma_addr_t		dma;
 
-	qtd = dma_pool_alloc (ehci->qtd_pool, flags, &dma);
+	qtd = dma_pool_alloc_nonbufferable(ehci->qtd_pool, flags, &dma);
 	if (qtd != NULL) {
 		ehci_qtd_init(ehci, qtd, dma);
 	}
@@ -88,7 +88,7 @@ static struct ehci_qh *ehci_qh_alloc (struct ehci_hcd *ehci, gfp_t flags)
 	if (!qh)
 		goto done;
 	qh->hw = (struct ehci_qh_hw *)
-		dma_pool_alloc(ehci->qh_pool, flags, &dma);
+		dma_pool_alloc_nonbufferable(ehci->qh_pool, flags, &dma);
 	if (!qh->hw)
 		goto fail;
 	memset(qh->hw, 0, sizeof *qh->hw);
@@ -225,7 +225,7 @@ static int ehci_mem_init (struct ehci_hcd *ehci, gfp_t flags)
 
 	/* Hardware periodic table */
 	ehci->periodic = (__le32 *)
-		dma_alloc_coherent (ehci_to_hcd(ehci)->self.controller,
+		dma_alloc_noncached(ehci_to_hcd(ehci)->self.controller,
 			ehci->periodic_size * sizeof(__le32),
 			&ehci->periodic_dma, 0);
 	if (ehci->periodic == NULL) {
