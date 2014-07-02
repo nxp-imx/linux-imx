@@ -257,10 +257,13 @@ static int imx_cs42888_probe(struct platform_device *pdev)
 		imx_cs42888_dai[0].codec_of_node   = codec_np;
 		imx_cs42888_dai[0].cpu_dai_name    = dev_name(&esai_pdev->dev);
 		imx_cs42888_dai[0].platform_of_node = esai_np;
+		imx_cs42888_dai[0].ignore_pmdown_time = 1;
 		imx_cs42888_dai[1].cpu_dai_name    = dev_name(&asrc_pdev->dev);
 		imx_cs42888_dai[1].platform_name   = "imx-pcm-asrc";
+		imx_cs42888_dai[1].ignore_pmdown_time = 1;
 		imx_cs42888_dai[2].codec_of_node   = codec_np;
 		imx_cs42888_dai[2].cpu_dai_name    = dev_name(&esai_pdev->dev);
+		imx_cs42888_dai[2].ignore_pmdown_time = 1;
 		snd_soc_card_imx_cs42888.num_links = 3;
 	}
 
