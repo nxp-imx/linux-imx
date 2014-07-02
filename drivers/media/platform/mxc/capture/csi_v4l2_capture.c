@@ -42,7 +42,6 @@
 #include "fsl_csi.h"
 
 static int video_nr = -1;
-static cam_data *g_cam;
 static int req_buf_number;
 
 static int csi_v4l2_master_attach(struct v4l2_int_device *slave);
@@ -2184,6 +2183,7 @@ MODULE_DEVICE_TABLE(of, imx_csi_v4l2_dt_ids);
 
 static int csi_v4l2_probe(struct platform_device *pdev)
 {
+	static cam_data *g_cam;
 	struct scatterlist *sg;
 	u8 err = 0;
 
@@ -2225,6 +2225,11 @@ out:
 
 static int csi_v4l2_remove(struct platform_device *pdev)
 {
+	cam_data *g_cam = platform_get_drvdata(pdev);
+
+	if (g_cam == NULL)
+		return -EINVAL;
+
 	if (g_cam->open_count) {
 		pr_err("ERROR: v4l2 capture:camera open "
 		       "-- setting ops to NULL\n");
