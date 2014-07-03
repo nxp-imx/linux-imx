@@ -1163,6 +1163,7 @@
 					clocks = <&clks IMX6SX_CLK_VADC>,
 							<&clks IMX6SX_CLK_CSI>;
 					clock-names = "vadc", "csi";
+					gpr = <&gpr>;
 					csi_id = <0>;
 					status = "disabled";
 				};
