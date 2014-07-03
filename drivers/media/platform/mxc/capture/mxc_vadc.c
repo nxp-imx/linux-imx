@@ -84,6 +84,7 @@ typedef struct {
 	u16 raw_height;		/* Raw height. */
 	u16 active_width;	/* Active width. */
 	u16 active_height;	/* Active height. */
+	u16 framerates;
 } video_fmt_t;
 
 /* Description of video formats supported.
@@ -100,6 +101,7 @@ static video_fmt_t video_fmts[] = {
 	 .raw_height = 525,
 	 .active_width = 720,
 	 .active_height = 480,
+	 .framerates = 30,
 	 },
 	/* (B, G, H, I, N) PAL */
 	{
@@ -109,6 +111,7 @@ static video_fmt_t video_fmts[] = {
 	 .raw_height = 625,
 	 .active_width = 720,
 	 .active_height = 576,
+	 .framerates = 25,
 	 },
 };
 
@@ -688,6 +691,28 @@ static int ioctl_enum_framesizes(struct v4l2_int_device *s,
 }
 
 /*!
+ * ioctl_enum_frameintervals - V4L2 sensor interface handler for
+ *			       VIDIOC_ENUM_FRAMEINTERVALS ioctl
+ * @s: pointer to standard V4L2 device structure
+ * @fival: standard V4L2 VIDIOC_ENUM_FRAMEINTERVALS ioctl structure
+ *
+ * Return 0 if successful, otherwise -EINVAL.
+ */
+static int ioctl_enum_frameintervals(struct v4l2_int_device *s,
+					 struct v4l2_frmivalenum *fival)
+{
+	if (fival->index < 0 || fival->index >= 1)
+		return -EINVAL;
+
+	fival->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+	fival->discrete.numerator = 1;
+
+	fival->discrete.denominator = video_fmts[video_idx].framerates;
+
+	return 0;
+}
+
+/*!
  * ioctl_g_chip_ident - V4L2 sensor interface handler for
  *			VIDIOC_DBG_G_CHIP_IDENT ioctl
  * @s: pointer to standard V4L2 device structure
@@ -788,6 +813,8 @@ static struct v4l2_int_ioctl_desc vadc_ioctl_desc[] = {
 	  (v4l2_int_ioctl_func *)ioctl_s_ctrl },
 	{ vidioc_int_enum_framesizes_num,
 	  (v4l2_int_ioctl_func *)ioctl_enum_framesizes },
+	{ vidioc_int_enum_frameintervals_num,
+	  (v4l2_int_ioctl_func *)ioctl_enum_frameintervals },
 	{ vidioc_int_g_chip_ident_num,
 	  (v4l2_int_ioctl_func *)ioctl_g_chip_ident },
 };
