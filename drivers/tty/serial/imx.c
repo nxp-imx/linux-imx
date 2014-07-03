@@ -1227,9 +1227,25 @@ static void imx_shutdown(struct uart_port *port)
 	if (sport->dma_is_enabled) {
 		int ret;
 
+		/*
+		 * Before DMA finish, we have to disable flow control, otherwise
+		 * there have one corner issue like:
+		 * Flow control enable, RTS always is high while there have no uart
+		 * terminal connect to imx uart, and then user transmit data by the
+		 * uart, after some time, TX FIFO is _FULL_, SDMA still don't complete
+		 * the current transcation, so hold on. There no SDMA interrupt generate,
+		 * the "dma_wait" event cannot be waked up.
+		 */
+		 if (sport->have_rtscts) {
+			temp = readl(sport->port.membase + UCR2) & ~UCR2_CTSC;
+			temp |= UCR2_CTS;
+			writel(temp, sport->port.membase + UCR2);
+		}
+
 		/* We have to wait for the DMA to finish. */
-		ret = wait_event_interruptible(sport->dma_wait,
-			!sport->dma_is_rxing && !sport->dma_is_txing);
+		ret = wait_event_interruptible_timeout(sport->dma_wait,
+			!sport->dma_is_rxing && !sport->dma_is_txing,
+			msecs_to_jiffies(1));
 		if (ret != 0) {
 			sport->dma_is_rxing = 0;
 			sport->dma_is_txing = 0;
