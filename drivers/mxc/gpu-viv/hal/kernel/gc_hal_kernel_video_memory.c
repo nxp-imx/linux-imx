@@ -219,6 +219,7 @@ gckVIDMEM_ConstructVirtual(
     gcuVIDMEM_NODE_PTR node = gcvNULL;
     gctPOINTER pointer = gcvNULL;
     gctINT i;
+    gctBOOL tempContiguous = Contiguous;
 
     gcmkHEADER_ARG("Kernel=0x%x Contiguous=%d Bytes=%lu", Kernel, Contiguous, Bytes);
 
@@ -236,9 +237,15 @@ gckVIDMEM_ConstructVirtual(
 
     node = pointer;
 
+    if ( Contiguous == (gcvFALSE + gcvALLOC_FLAG_MEMLIMIT)
+    || Contiguous == (gcvTRUE + gcvALLOC_FLAG_MEMLIMIT))
+    {
+        tempContiguous = Contiguous - gcvALLOC_FLAG_MEMLIMIT;
+    }
+
     /* Initialize gcuVIDMEM_NODE union for virtual memory. */
     node->Virtual.kernel        = Kernel;
-    node->Virtual.contiguous    = Contiguous;
+    node->Virtual.contiguous    = tempContiguous;
     node->Virtual.logical       = gcvNULL;
     node->Virtual.cacheable      = cacheable;
 #if gcdENABLE_VG
@@ -280,7 +287,7 @@ gckVIDMEM_ConstructVirtual(
     {
         gcmkONERROR(
             gckOS_AllocatePagedMemoryEx(os,
-                                        node->Virtual.contiguous,
+                                        Contiguous,
                                         node->Virtual.bytes = Bytes,
                                         &node->Virtual.physical));
     }

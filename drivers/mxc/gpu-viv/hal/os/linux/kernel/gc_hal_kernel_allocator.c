@@ -226,6 +226,7 @@ _UnmapUserLogical(
 /***************************************************************************\
 ************************ Default Allocator **********************************
 \***************************************************************************/
+#define C_MAX_PAGENUM  (50*1024)
 
 static gceSTATUS
 _DefaultAlloc(
@@ -245,12 +246,22 @@ _DefaultAlloc(
     gctUINT i = 0;
     gctBOOL contiguous = Flags & gcvALLOC_FLAG_CONTIGUOUS;
 
+    struct sysinfo temsysinfo;
+
     gcmkHEADER_ARG("Mdl=%p NumPages=%d", Mdl, NumPages);
 
     numPages = NumPages;
     bytes = NumPages * PAGE_SIZE;
     order = get_order(bytes);
-
+    si_meminfo(&temsysinfo);
+    if ((Flags & gcvALLOC_FLAG_MEMLIMIT))
+    {
+        if ( (temsysinfo.freeram < NumPages) || ((temsysinfo.freeram-NumPages) < C_MAX_PAGENUM) )
+        {
+            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+        }
+    }
+     
     if (contiguous)
     {
         if (order >= MAX_ORDER)
@@ -284,7 +295,7 @@ _DefaultAlloc(
     }
     else
     {
-        Mdl->u.nonContiguousPages = _NonContiguousAlloc(numPages);
+       Mdl->u.nonContiguousPages = _NonContiguousAlloc(numPages);
     }
 
     if (Mdl->u.contiguousPages == gcvNULL && Mdl->u.nonContiguousPages == gcvNULL)

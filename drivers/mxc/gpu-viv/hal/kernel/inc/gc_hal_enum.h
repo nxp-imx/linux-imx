@@ -1489,7 +1489,7 @@ gceHAL_ARG_VERSION;
 #define gcvALLOC_FLAG_CONTIGUOUS (1 << 0)
 #define gcvALLOC_FLAG_CACHEABLE  (1 << 1)
 #define gcvALLOC_FLAG_SECURITY   (1 << 2)
-
+#define gcvALLOC_FLAG_MEMLIMIT (1<<3)
 /* GL_VIV internal usage */
 #ifndef GL_MAP_BUFFER_OBJ_VIV
 #define GL_MAP_BUFFER_OBJ_VIV       0x10000

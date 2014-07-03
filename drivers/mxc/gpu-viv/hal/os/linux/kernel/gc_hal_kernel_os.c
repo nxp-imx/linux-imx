@@ -4113,6 +4113,7 @@ gckOS_AllocatePagedMemoryEx(
     gceSTATUS status = gcvSTATUS_OUT_OF_MEMORY;
     gckALLOCATOR allocator;
     gctUINT32 flag = 0;
+    gctBOOL tempContiguous = Contiguous;
 
     gcmkHEADER_ARG("Os=0x%X Contiguous=%d Bytes=%lu", Os, Contiguous, Bytes);
 
@@ -4131,8 +4132,15 @@ gckOS_AllocatePagedMemoryEx(
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
 
-    if (Contiguous)
+    if ( (Contiguous == gcvFALSE + gcvALLOC_FLAG_MEMLIMIT)
+    || (Contiguous == gcvTRUE + gcvALLOC_FLAG_MEMLIMIT))
     {
+        tempContiguous = Contiguous - gcvALLOC_FLAG_MEMLIMIT;
+        flag |= gcvALLOC_FLAG_MEMLIMIT;
+    }
+
+    if (tempContiguous)
+	{
         flag |= gcvALLOC_FLAG_CONTIGUOUS;
     }
 
@@ -4158,7 +4166,7 @@ gckOS_AllocatePagedMemoryEx(
     mdl->addr       = 0;
     mdl->numPages   = numPages;
     mdl->pagedMem   = 1;
-    mdl->contiguous = Contiguous;
+    mdl->contiguous = tempContiguous;
     mdl->cacheable=gcvTRUE;
 
 #if DYNAMIC_MEMORY_RECORD
