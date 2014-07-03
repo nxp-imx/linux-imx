@@ -933,6 +933,15 @@ static int ci_suspend(struct device *dev)
 	struct ci_hdrc *ci = dev_get_drvdata(dev);
 	int ret;
 
+	/*
+	 * Controller needs to be active during suspend, otherwise the core
+	 * may run resume when the parent is at suspend if other driver's
+	 * suspend fails, it occurs before parent's suspend has not started,
+	 * but the core suspend has finished.
+	 */
+	if (ci->in_lpm)
+		pm_runtime_resume(dev);
+
 	ret = ci_controller_suspend(dev);
 	if (ret)
 		return ret;
