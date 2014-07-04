@@ -689,7 +689,7 @@
 				reg-names = "canfd", "message_ram";
 				interrupts = <0 114 0x04>;
 				clocks = <&clks IMX6SX_CLK_CANFD>;
-				mram-cfg = <0x0 0 0 32 32 32 0 1>;
+				mram-cfg = <0x0 0 0 32 0 0 0 1>;
 				status = "disabled";
 			};
 
@@ -699,7 +699,7 @@
 				reg-names = "canfd", "message_ram";
 				interrupts = <0 115 0x04>;
 				clocks = <&clks IMX6SX_CLK_CANFD>;
-				mram-cfg = <0x2000 0 0 32 32 32 0 1>;
+				mram-cfg = <0x400 0 0 32 0 0 0 1>;
 				status = "disabled";
 			};
 
