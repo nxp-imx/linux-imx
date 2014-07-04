@@ -328,16 +328,42 @@ static void imx_gpc_pu_enable(bool enable)
 
 		imx_pu_clk(true);
 		writel_relaxed(1, gpc_base + GPC_PGC_GPU_PDN);
-		writel_relaxed(1 << GPC_CNTR_PU_UP_REQ_SHIFT,
-			gpc_base + GPC_CNTR);
+		/*
+		 * bit17 and bit18 as VADC power state control are different
+		 * as the other bits in GPC_CNTR  whose request is set by
+		 * 1 and nothing involved if set by 0. On imx6sx, zero of bit
+		 * 17 and bit18 will power off VADC directly, so read GPC_CNTR
+		 * firstly before write to avoid touching other bits.
+		 */
+		if (cpu_is_imx6sx()) {
+			u32 value = readl_relaxed(gpc_base + GPC_CNTR);
+
+			value |= 1 << GPC_CNTR_PU_UP_REQ_SHIFT;
+			writel_relaxed(value, gpc_base + GPC_CNTR);
+		} else
+			writel_relaxed(1 << GPC_CNTR_PU_UP_REQ_SHIFT,
+				gpc_base + GPC_CNTR);
 		while (readl_relaxed(gpc_base + GPC_CNTR) &
 			(1 << GPC_CNTR_PU_UP_REQ_SHIFT))
 			;
 		imx_pu_clk(false);
 	} else {
 		writel_relaxed(1, gpc_base + GPC_PGC_GPU_PDN);
-		writel_relaxed(1 << GPC_CNTR_PU_DOWN_REQ_SHIFT,
-			gpc_base + GPC_CNTR);
+		/*
+		 * bit17 and bit18 as VADC power state control are different
+		 * as the other bits in GPC_CNTR  whose request is set by
+		 * 1 and nothing involved if set by 0. On imx6sx, zero of bit
+		 * 17 and bit18 will power off VADC directly, so read GPC_CNTR
+		 * firstly before write to avoid touching other bits.
+		 */
+		if (cpu_is_imx6sx()) {
+			u32 value = readl_relaxed(gpc_base + GPC_CNTR);
+
+			value |= 1 << GPC_CNTR_PU_DOWN_REQ_SHIFT;
+			writel_relaxed(value, gpc_base + GPC_CNTR);
+		} else
+			writel_relaxed(1 << GPC_CNTR_PU_DOWN_REQ_SHIFT,
+					gpc_base + GPC_CNTR);
 		while (readl_relaxed(gpc_base + GPC_CNTR) &
 			(1 << GPC_CNTR_PU_DOWN_REQ_SHIFT))
 			;
@@ -381,15 +407,17 @@ static int imx_pcie_regulator_notify(struct notifier_block *nb,
 					unsigned long event,
 					void *ignored)
 {
+	u32 value = readl_relaxed(gpc_base + GPC_CNTR);
+
 	switch (event) {
 	case REGULATOR_EVENT_VOLTAGE_CHANGE:
 	case REGULATOR_EVENT_ENABLE:
-		writel_relaxed(1 << GPC_CNTR_PCIE_PHY_PDU_SHIFT,
-			gpc_base + GPC_CNTR);
+		value |= 1 << GPC_CNTR_PCIE_PHY_PDU_SHIFT;
+		writel_relaxed(value, gpc_base + GPC_CNTR);
 		break;
 	case REGULATOR_EVENT_PRE_DISABLE:
-		writel_relaxed(1 << GPC_CNTR_PCIE_PHY_PDN_SHIFT,
-				gpc_base + GPC_CNTR);
+		value |= 1 << GPC_CNTR_PCIE_PHY_PDN_SHIFT;
+		writel_relaxed(value, gpc_base + GPC_CNTR);
 		writel_relaxed(PGC_PCIE_PHY_PDN_EN,
 				gpc_base + PGC_PCIE_PHY_CTRL);
 		break;
