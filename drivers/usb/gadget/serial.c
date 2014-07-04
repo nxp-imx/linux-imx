@@ -174,7 +174,7 @@ out:
 	return ret;
 }
 
-static int gs_bind(struct usb_composite_dev *cdev)
+static int __init gs_bind(struct usb_composite_dev *cdev)
 {
 	int			status;
 

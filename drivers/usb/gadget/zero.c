@@ -272,7 +272,7 @@ static struct usb_function_instance *func_inst_lb;
 module_param_named(qlen, gzero_options.qlen, uint, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(qlen, "depth of loopback queue");
 
-static int zero_bind(struct usb_composite_dev *cdev)
+static int __init zero_bind(struct usb_composite_dev *cdev)
 {
 	struct f_ss_opts	*ss_opts;
 	struct f_lb_opts	*lb_opts;

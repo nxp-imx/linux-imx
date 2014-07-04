@@ -128,14 +128,14 @@ static struct usb_configuration midi_config = {
 	.MaxPower	= CONFIG_USB_GADGET_VBUS_DRAW,
 };
 
-static int midi_bind_config(struct usb_configuration *c)
+static int __init midi_bind_config(struct usb_configuration *c)
 {
 	return f_midi_bind_config(c, index, id,
 				  in_ports, out_ports,
 				  buflen, qlen);
 }
 
-static int midi_bind(struct usb_composite_dev *cdev)
+static int __init midi_bind(struct usb_composite_dev *cdev)
 {
 	int status;
 

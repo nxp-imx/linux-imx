@@ -107,7 +107,7 @@ static const struct usb_descriptor_header *otg_desc[] = {
 
 /*-------------------------------------------------------------------------*/
 
-static int audio_do_config(struct usb_configuration *c)
+static int __init audio_do_config(struct usb_configuration *c)
 {
 	/* FIXME alloc iConfiguration string, set it in c->strings */
 
@@ -133,7 +133,7 @@ static struct usb_configuration audio_config_driver = {
 
 /*-------------------------------------------------------------------------*/
 
-static int audio_bind(struct usb_composite_dev *cdev)
+static int __init audio_bind(struct usb_composite_dev *cdev)
 {
 	int			status;
 

@@ -111,7 +111,7 @@ static struct usb_function_instance *fi_serial;
 /*
  * We _always_ have both CDC ECM and CDC ACM functions.
  */
-static int cdc_do_config(struct usb_configuration *c)
+static int __init cdc_do_config(struct usb_configuration *c)
 {
 	int	status;
 
@@ -154,7 +154,7 @@ static struct usb_configuration cdc_config_driver = {
 
 /*-------------------------------------------------------------------------*/
 
-static int cdc_bind(struct usb_composite_dev *cdev)
+static int __init cdc_bind(struct usb_composite_dev *cdev)
 {
 	struct usb_gadget	*gadget = cdev->gadget;
 	int			status;
