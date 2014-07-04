@@ -682,21 +682,19 @@ static void m_can_chip_config(struct net_device *dev)
 	m_can_write(priv, M_CAN_GFC, 0x0);
 
 	/* only support one Tx Buffer currently */
-	m_can_write(priv, M_CAN_TXBC, (1 << TXBC_NDTB_OFF) |
-		(priv->mram_off + priv->txb_off));
+	m_can_write(priv, M_CAN_TXBC, (1 << TXBC_NDTB_OFF) | priv->txb_off);
 
 	/* only support 8 bytes firstly */
 	m_can_write(priv, M_CAN_TXESC, TXESC_TBDS_8BYTES);
 
-	m_can_write(priv, M_CAN_TXEFC, 0x00010000 |
-		(priv->mram_off + priv->txe_off));
+	m_can_write(priv, M_CAN_TXEFC, 0x00010000 | priv->txe_off);
 
 	/* rx fifo configuration, blocking mode, fifo size 1 */
 	m_can_write(priv, M_CAN_RXF0C, (priv->rxf0_elems << RXFC_FS_OFF) |
-		RXFC_FWM_1 | (priv->mram_off + priv->rxf0_off));
+		RXFC_FWM_1 | priv->rxf0_off);
 
 	m_can_write(priv, M_CAN_RXF1C, (priv->rxf1_elems << RXFC_FS_OFF) |
-		RXFC_FWM_1 | (priv->mram_off + priv->rxf1_off));
+		RXFC_FWM_1 | priv->rxf1_off);
 
 	cccr = m_can_read(priv, M_CAN_CCCR);
 	cccr &= ~(CCCR_TEST | CCCR_MON);
@@ -868,14 +866,12 @@ static netdev_tx_t m_can_start_xmit(struct sk_buff *skb,
 	}
 
 	/* message ram configuration */
-	writel(id | flags,
-		priv->mram_base + priv->mram_off + priv->txb_off);
-	writel(frame->can_dlc << 16,
-		priv->mram_base + priv->mram_off + priv->txb_off + 0x4);
+	writel(id | flags, priv->mram_base + priv->txb_off);
+	writel(frame->can_dlc << 16, priv->mram_base + priv->txb_off + 0x4);
 	writel(*(u32 *)(frame->data + 0),
-		priv->mram_base + priv->mram_off + priv->txb_off + 0x8);
+		priv->mram_base + priv->txb_off + 0x8);
 	writel(*(u32 *)(frame->data + 4),
-		priv->mram_base + priv->mram_off + priv->txb_off + 0xc);
+		priv->mram_base + priv->txb_off + 0xc);
 
 	can_put_echo_skb(skb, dev, 0);
 
