@@ -448,6 +448,14 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 		if (IS_ERR(clks[i]))
 			pr_err("i.MX6sx clk %d: register failed with %ld\n", i, PTR_ERR(clks[i]));
 
+	/*
+	 * As some of the modules need to access ocotp in MSL,
+	 * need to make sure ocotp clk is enabled during MSL,
+	 * then it will be disabled by clk late init and managed
+	 * by ocotp driver.
+	 */
+	writel_relaxed(readl_relaxed(base + 0x70) | 1 << CCM_CCGR_OFFSET(6), base + 0x70);
+
 	clk_data.clks = clks;
 	clk_data.clk_num = ARRAY_SIZE(clks);
 	of_clk_add_provider(np, of_clk_src_onecell_get, &clk_data);
