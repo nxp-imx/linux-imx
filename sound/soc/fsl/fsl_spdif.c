@@ -88,6 +88,8 @@ struct fsl_spdif_priv {
 	struct clk *dmaclk;
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
 	struct snd_dmaengine_dai_dma_data dma_params_rx;
+	/* regcache for SRPC */
+	u32 regcache_srpc;
 
 	/* The name space will be allocated dynamically */
 	char name[0];
@@ -986,6 +988,7 @@ static bool fsl_spdif_readable_reg(struct device *dev, unsigned int reg)
 static bool fsl_spdif_volatile_reg(struct device *dev, unsigned int reg)
 {
 	switch (reg) {
+	case REG_SPDIF_SRPC:
 	case REG_SPDIF_SIS:
 	case REG_SPDIF_SRL:
 	case REG_SPDIF_SRR:
@@ -1304,6 +1307,9 @@ static int fsl_spdif_suspend(struct device *dev)
 {
 	struct fsl_spdif_priv *spdif_priv = dev_get_drvdata(dev);
 
+	regmap_read(spdif_priv->regmap, REG_SPDIF_SRPC,
+			&spdif_priv->regcache_srpc);
+
 	regcache_cache_only(spdif_priv->regmap, true);
 	regcache_mark_dirty(spdif_priv->regmap);
 
@@ -1315,6 +1321,11 @@ static int fsl_spdif_resume(struct device *dev)
 	struct fsl_spdif_priv *spdif_priv = dev_get_drvdata(dev);
 
 	regcache_cache_only(spdif_priv->regmap, false);
+
+	regmap_update_bits(spdif_priv->regmap, REG_SPDIF_SRPC,
+			SRPC_CLKSRC_SEL_MASK | SRPC_GAINSEL_MASK,
+			spdif_priv->regcache_srpc);
+
 	return regcache_sync(spdif_priv->regmap);
 }
 #endif /* CONFIG_PM_SLEEP */
