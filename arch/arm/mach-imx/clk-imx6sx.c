@@ -28,6 +28,7 @@
 #define CCDR    0x4
 #define BM_CCM_CCDR_MMDC_CH0_MASK       (0x2 << 16)
 
+static bool uart_from_osc;
 static const char *step_sels[]		= { "osc", "pll2_pfd2_396m", };
 static const char *pll1_sw_sels[]	= { "pll1_sys", "step", };
 static const char *periph_pre_sels[]	= { "pll2_bus", "pll2_pfd2_396m", "pll2_pfd0_352m", "pll2_198m", };
@@ -141,6 +142,13 @@ static inline const char *ldb_di_parent(void  __iomem *base, int ldb_di_idx)
 
 	return (ldb_di_idx == 0) ? ldb_di0_sels[index] : ldb_di1_sels[index];
 }
+
+static int __init setup_uart_clk(char *uart_rate)
+{
+	uart_from_osc = true;
+	return 1;
+}
+__setup("uart_from_osc", setup_uart_clk);
 
 static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 {
@@ -481,6 +489,9 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clk_register_clkdev(clks[IMX6SX_CLK_CKO1], "cko1", NULL);
 	clk_register_clkdev(clks[IMX6SX_CLK_ARM], NULL, "cpu0");
 
+	/* set perclk to from OSC */
+	imx_clk_set_parent(clks[IMX6SX_CLK_PERCLK_SEL], clks[IMX6SX_CLK_OSC]);
+
 	/* Set the default 132MHz for EIM module */
 	imx_clk_set_parent(clks[IMX6SX_CLK_EIM_SLOW_SEL], clks[IMX6SX_CLK_PLL2_PFD2]);
 	imx_clk_set_rate(clks[IMX6SX_CLK_EIM_SLOW], 132000000);
@@ -547,6 +558,10 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 		imx_clk_prepare_enable(clks[IMX6SX_CLK_USBPHY1_GATE]);
 		imx_clk_prepare_enable(clks[IMX6SX_CLK_USBPHY2_GATE]);
 	}
+
+	/* Set the UART parent if needed. */
+	if (uart_from_osc)
+		imx_clk_set_parent(clks[IMX6SX_CLK_UART_SEL], clks[IMX6SX_CLK_OSC]);
 
 	/* Set initial power mode */
 	imx6_set_lpm(WAIT_CLOCKED);
