@@ -310,7 +310,7 @@ static void __init imx6sx_init_late(void)
 			IMX6Q_GPR1_GINT_MASK,
 			IMX6Q_GPR1_GINT_ASSERT);
 
-	imx6q_cpuidle_init();
+	imx6sx_cpuidle_init();
 
 	if (of_machine_is_compatible("fsl,imx6sx-17x17-arm2") ||
 		of_machine_is_compatible("fsl,imx6sx-sdb"))

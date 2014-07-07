@@ -157,7 +157,7 @@ static void imx6_restore_cpu_arch_regs(void)
 	);
 }
 
-static void imx6_enable_rbc(bool enable)
+void imx6_enable_rbc(bool enable)
 {
 	u32 val;
 
@@ -344,10 +344,6 @@ static int imx6_pm_enter(suspend_state_t state)
 		imx_gpc_pre_suspend(true);
 		imx_anatop_pre_suspend();
 		imx_set_cpu_jump(0, v7_cpu_resume);
-		/* Enable ROM patch for i.MX6SX */
-		if (cpu_is_imx6sx())
-			regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
-				BM_ROMPATCHCNTL_DIS, ~BM_ROMPATCHCNTL_DIS);
 
 		imx6_save_cpu_arch_regs();
 
@@ -356,10 +352,6 @@ static int imx6_pm_enter(suspend_state_t state)
 
 		imx6_restore_cpu_arch_regs();
 
-		/* Disable ROM patch for i.MX6SX */
-		if (cpu_is_imx6sx())
-			regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
-				BM_ROMPATCHCNTL_DIS, BM_ROMPATCHCNTL_DIS);
 		if (!cpu_is_imx6sl() && !cpu_is_imx6sx())
 			imx_smp_prepare();
 		imx_anatop_post_resume();
@@ -556,12 +548,12 @@ Please ensure device tree has an entry fsl,lpm-sram\n");
 		}
 		regmap_write(romcp, ROMC_ROMPATCH0D, iram_paddr);
 		regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
-			BM_ROMPATCHCNTL_DIS, BM_ROMPATCHCNTL_DIS);
-		regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
 			BM_ROMPATCHCNTL_0D, BM_ROMPATCHCNTL_0D);
 		regmap_update_bits(romcp, ROMC_ROMPATCHENL,
 			BM_ROMPATCHENL_0D, BM_ROMPATCHENL_0D);
 		regmap_write(romcp, ROMC_ROMPATCH0A,
 			ROM_ADDR_FOR_INTERNAL_RAM_BASE);
+		regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
+			BM_ROMPATCHCNTL_DIS, ~BM_ROMPATCHCNTL_DIS);
 	}
 }

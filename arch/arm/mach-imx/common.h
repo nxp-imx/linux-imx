@@ -83,6 +83,8 @@ extern void imx_set_soc_revision(unsigned int rev);
 extern unsigned int imx_get_soc_revision(void);
 extern void imx_init_revision_from_anatop(void);
 extern struct device *imx_soc_device_init(void);
+extern void imx6sx_low_power_idle(void);
+extern void imx6_enable_rbc(bool enable);
 
 enum mxc_cpu_pwr_mode {
 	WAIT_CLOCKED,		/* wfi only */

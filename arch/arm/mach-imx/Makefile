@@ -32,6 +32,7 @@ ifeq ($(CONFIG_CPU_IDLE),y)
 obj-$(CONFIG_SOC_IMX5) += cpuidle-imx5.o
 obj-$(CONFIG_SOC_IMX6Q) += cpuidle-imx6q.o
 obj-$(CONFIG_SOC_IMX6SL) += cpuidle-imx6sl.o
+obj-$(CONFIG_SOC_IMX6SX) += cpuidle-imx6sx.o
 endif
 
 ifdef CONFIG_SND_IMX_SOC
@@ -111,7 +112,7 @@ ifeq ($(CONFIG_ARM_IMX6_CPUFREQ),y)
 obj-y += busfreq-imx6.o
 obj-$(CONFIG_SOC_IMX6Q) += ddr3_freq_imx6.o busfreq_ddr3.o
 obj-$(CONFIG_SOC_IMX6SL) += lpddr2_freq_imx6.o busfreq_lpddr2.o imx6sl_wfi.o
-obj-$(CONFIG_SOC_IMX6SX) += ddr3_freq_imx6sx.o lpddr2_freq_imx6sx.o
+obj-$(CONFIG_SOC_IMX6SX) += ddr3_freq_imx6sx.o lpddr2_freq_imx6sx.o imx6sx_low_power_idle.o
 
 endif
 
