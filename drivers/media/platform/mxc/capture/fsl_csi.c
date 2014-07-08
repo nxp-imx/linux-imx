@@ -419,6 +419,8 @@ static int csi_probe(struct platform_device *pdev)
 		return PTR_ERR(dcic_clk);
 	}
 
+	platform_set_drvdata(pdev, csi);
+
 	csi_clk_enable();
 	csihw_reset(csi);
 	csi_init_interface(csi);
@@ -431,13 +433,52 @@ err:
 
 static int csi_remove(struct platform_device *pdev)
 {
+	struct csi_soc *csi = platform_get_drvdata(pdev);
+
+	csi->online = false;
+	platform_set_drvdata(pdev, NULL);
+
 	return 0;
 }
+
+#ifdef CONFIG_PM_SLEEP
+static int csi_suspend(struct device *dev)
+{
+	struct csi_soc *csi = dev_get_drvdata(dev);
+
+	csi->online = false;
+
+	return 0;
+}
+
+static int csi_resume(struct device *dev)
+{
+	struct csi_soc *csi = dev_get_drvdata(dev);
+
+	csi_clk_enable();
+	csihw_reset(csi);
+	csi_init_interface(csi);
+	csi_dmareq_rff_disable(csi);
+	csi_clk_disable();
+
+	csi->online = true;
+
+	return 0;
+}
+#else
+#define	csi_suspend	NULL
+#define	csi_resume	NULL
+#endif
+
+static const struct dev_pm_ops csi_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(csi_suspend, csi_resume)
+};
 
 static struct platform_driver csi_driver = {
 	.driver = {
 		   .name = "fsl_csi",
 		   .of_match_table = of_match_ptr(fsl_csi_dt_ids),
+		   .pm = &csi_pm_ops,
 		   },
 	.probe = csi_probe,
 	.remove = csi_remove,
