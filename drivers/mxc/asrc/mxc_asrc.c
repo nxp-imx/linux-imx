@@ -659,18 +659,12 @@ static void asrc_input_dma_callback(void *data)
 {
 	struct asrc_pair_params *params = (struct asrc_pair_params *)data;
 
-	dma_unmap_sg(NULL, params->input_sg, params->input_sg_nodes,
-			DMA_MEM_TO_DEV);
-
 	complete(&params->input_complete);
 }
 
 static void asrc_output_dma_callback(void *data)
 {
 	struct asrc_pair_params *params = (struct asrc_pair_params *)data;
-
-	dma_unmap_sg(NULL, params->output_sg, params->output_sg_nodes,
-			DMA_DEV_TO_MEM);
 
 	complete(&params->output_complete);
 }
@@ -1010,6 +1004,14 @@ int mxc_asrc_process_buffer_pre(struct completion *complete,
 	return 0;
 }
 
+#define mxc_asrc_dma_umap(params) \
+	do { \
+		dma_unmap_sg(NULL, params->input_sg, params->input_sg_nodes, \
+				DMA_MEM_TO_DEV); \
+		dma_unmap_sg(NULL, params->output_sg, params->output_sg_nodes, \
+				DMA_DEV_TO_MEM); \
+	} while (0)
+
 int mxc_asrc_process_buffer(struct asrc_pair_params *params,
 			struct asrc_convert_buffer *pbuf)
 {
@@ -1017,15 +1019,21 @@ int mxc_asrc_process_buffer(struct asrc_pair_params *params,
 	unsigned long lock_flags;
 	int ret;
 
-	/* Ouput task should be finished earilier */
-	ret = mxc_asrc_process_buffer_pre(&params->output_complete, index, false);
-	if (ret)
+	/* Check input task first */
+	ret = mxc_asrc_process_buffer_pre(&params->input_complete, index, false);
+	if (ret) {
+		mxc_asrc_dma_umap(params);
 		return ret;
+	}
 
-	/* ...then input task*/
-	ret = mxc_asrc_process_buffer_pre(&params->input_complete, index, true);
-	if (ret)
+	/* ...then output task*/
+	ret = mxc_asrc_process_buffer_pre(&params->output_complete, index, true);
+	if (ret) {
+		mxc_asrc_dma_umap(params);
 		return ret;
+	}
+
+	mxc_asrc_dma_umap(params);
 
 	pbuf->input_buffer_length = params->input_dma_total.length;
 	pbuf->output_buffer_length = params->output_dma_total.length;
@@ -1108,11 +1116,6 @@ static void asrc_polling_debug(struct asrc_pair_params *params)
 
 	params->output_dma_total.length = t_size * params->channel_nums * 4;
 	params->output_last_period.length = 0;
-
-	dma_unmap_sg(NULL, params->input_sg, params->input_sg_nodes,
-			DMA_MEM_TO_DEV);
-	dma_unmap_sg(NULL, params->output_sg, params->output_sg_nodes,
-			DMA_DEV_TO_MEM);
 
 	complete(&params->input_complete);
 }
