@@ -104,6 +104,35 @@ static inline bool is_imx6sx_pcie(struct imx6_pcie *imx6_pcie)
 	return imx6_pcie->data == &imx6sx_pcie_data;
 }
 
+#ifdef DEBUG
+static int pcie_reg_dump(struct imx6_pcie *imx6_pcie)
+{
+	u32 val;
+	struct regmap *anatop_g;
+
+	/* GPRs registers */
+	regmap_read(imx6_pcie->iomuxc_gpr, IOMUXC_GPR1, &val);
+	pr_info("<F> %s <L> %d gpr1 0x%08x.\n", __func__, __LINE__, val);
+	regmap_read(imx6_pcie->iomuxc_gpr, IOMUXC_GPR5, &val);
+	pr_info("<F> %s <L> %d gpr5 0x%08x.\n", __func__, __LINE__, val);
+	regmap_read(imx6_pcie->iomuxc_gpr, IOMUXC_GPR8, &val);
+	pr_info("<F> %s <L> %d gpr8 0x%08x.\n", __func__, __LINE__, val);
+	regmap_read(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12, &val);
+	pr_info("<F> %s <L> %d gpr12 0x%08x.\n", __func__, __LINE__, val);
+	regmap_read(imx6_pcie->iomuxc_gpr, IOMUXC_GPR13, &val);
+	pr_info("<F> %s <L> %d gpr13 0x%08x.\n", __func__, __LINE__, val);
+
+	/* anatop registers: pll6_enet, misc1 */
+	anatop_g = syscon_regmap_lookup_by_compatible("fsl,imx6q-anatop");
+	if (IS_ERR(anatop_g))
+		pr_err("failed to find fsl,imx6sx-anatop regmap\n");
+	regmap_read(anatop_g, 0xe0, &val);
+	pr_info("<F> %s <L> %d pll6_enet 0x%08x.\n", __func__, __LINE__, val);
+	regmap_read(anatop_g, 0x160, &val);
+	pr_info("<F> %s <L> %d misc1 0x%08x.\n", __func__,  __LINE__, val);
+}
+#endif
+
 static int pcie_phy_poll_ack(void __iomem *dbi_base, int exp_val)
 {
 	u32 val;
@@ -408,6 +437,9 @@ static void imx6_pcie_host_init(struct pcie_port *pp)
 
 	dw_pcie_setup_rc(pp);
 
+#ifdef DEBUG
+	pcie_reg_dump(imx6_pcie);
+#endif
 	regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
 			IMX6Q_GPR12_PCIE_CTL_2, 1 << 10);
 
