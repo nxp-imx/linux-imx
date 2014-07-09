@@ -564,10 +564,8 @@ static int fec_enet_txq_submit_skb(struct fec_enet_priv_tx_q *txq,
 		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
 		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
 		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
-		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue))) {
-		dmb();
-		__raw_writel(0, fep->hwp + FEC_X_DES_ACTIVE(queue));
-	}
+		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)))
+		writel(0, fep->hwp + FEC_X_DES_ACTIVE(queue));
 
 	return 0;
 }
@@ -764,15 +762,12 @@ static int fec_enet_txq_submit_tso(struct fec_enet_priv_tx_q *txq,
 	txq->cur_tx = bdp;
 
 	/* Trigger transmission start */
-	/* Trigger transmission start */
 	if (!(id_entry->driver_data & FEC_QUIRK_TKT210582) ||
 		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
 		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
 		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)) ||
-		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue))) {
-		dmb();
-		__raw_writel(0, fep->hwp + FEC_X_DES_ACTIVE(queue));
-	}
+		!__raw_readl(fep->hwp + FEC_X_DES_ACTIVE(queue)))
+		writel(0, fep->hwp + FEC_X_DES_ACTIVE(queue));
 
 	return 0;
 
