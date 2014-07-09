@@ -252,6 +252,9 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 	request_bus_freq(BUS_FREQ_HIGH);
 
 	if (is_imx6sx_pcie(imx6_pcie)) {
+		regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
+				IMX6Q_GPR12_PCIE_TEST_PD, 0 << 30);
+
 		ret = clk_prepare_enable(imx6_pcie->dis_axi);
 		if (ret) {
 			dev_err(pp->dev, "unable to enable dis_axi\n");
