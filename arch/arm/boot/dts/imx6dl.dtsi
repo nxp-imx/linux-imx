@@ -144,6 +144,11 @@
 				compatible = "fsl,imx6dl-iomuxc";
 			};
 
+			dcic2: dcic@020e8000 {
+				clocks = <&clks 232>, <&clks 231>; /* DCIC2 depend on DCIC1 clock in imx6dl*/
+				clock-names = "dcic", "disp-axi";
+			};
+
 			pxp: pxp@020f0000 {
 				compatible = "fsl,imx6dl-pxp-dma";
 				reg = <0x020f0000 0x4000>;
