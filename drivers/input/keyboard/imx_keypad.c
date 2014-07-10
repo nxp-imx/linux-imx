@@ -23,7 +23,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/timer.h>
-
+#include <linux/wakelock.h>
 /*
  * Keypad Controller registers (halfword)
  */
@@ -78,6 +78,7 @@ struct imx_keypad {
 	 */
 	unsigned short		matrix_stable_state[MAX_MATRIX_KEY_COLS];
 	unsigned short		matrix_unstable_state[MAX_MATRIX_KEY_COLS];
+	struct wake_lock	wake_lock;
 };
 
 /* Scan the matrix and return the new state in *matrix_volatile_state. */
@@ -269,6 +270,7 @@ static void imx_keypad_check_for_events(unsigned long data)
 		reg_val |= KBD_STAT_KDIE;
 		reg_val &= ~KBD_STAT_KRIE;
 		writew(reg_val, keypad->mmio_base + KPSR);
+		wake_unlock(&keypad->wake_lock);
 	} else {
 		/*
 		 * Some keys are still pressed. Schedule a rescan in
@@ -281,11 +283,6 @@ static void imx_keypad_check_for_events(unsigned long data)
 
 		reg_val = readw(keypad->mmio_base + KPSR);
 		reg_val |= KBD_STAT_KPKR | KBD_STAT_KRSS;
-		writew(reg_val, keypad->mmio_base + KPSR);
-
-		reg_val = readw(keypad->mmio_base + KPSR);
-		reg_val |= KBD_STAT_KRIE;
-		reg_val &= ~KBD_STAT_KDIE;
 		writew(reg_val, keypad->mmio_base + KPSR);
 	}
 }
@@ -304,6 +301,7 @@ static irqreturn_t imx_keypad_irq_handler(int irq, void *dev_id)
 	writew(reg_val, keypad->mmio_base + KPSR);
 
 	if (keypad->enabled) {
+		wake_lock(&keypad->wake_lock);
 		/* The matrix is supposed to be changed */
 		keypad->stable_count = 0;
 
@@ -524,6 +522,7 @@ static int __devinit imx_keypad_probe(struct platform_device *pdev)
 		goto failed_free_irq;
 	}
 
+	wake_lock_init(&keypad->wake_lock, WAKE_LOCK_SUSPEND, "kpp_input");
 	platform_set_drvdata(pdev, keypad);
 	device_init_wakeup(&pdev->dev, 1);
 
@@ -562,6 +561,7 @@ static int __devexit imx_keypad_remove(struct platform_device *pdev)
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	release_mem_region(res->start, resource_size(res));
 
+	wake_lock_destroy(&keypad->wake_lock);
 	kfree(keypad);
 
 	return 0;
@@ -572,6 +572,10 @@ static int imx_keypad_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct imx_keypad *keypad = platform_get_drvdata(pdev);
+	unsigned short reg_val = readw(keypad->mmio_base + KPSR);
+	reg_val |= KBD_STAT_KDIE;
+	reg_val &= ~KBD_STAT_KRIE;
+	writew(reg_val, keypad->mmio_base + KPSR);
 
 	if (device_may_wakeup(&pdev->dev))
 		enable_irq_wake(keypad->irq);
