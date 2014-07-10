@@ -389,11 +389,10 @@ static int ldb_setup(struct mxc_dispdrv_handle *mddh,
 	struct ldb_data *ldb = mxc_dispdrv_getdata(mddh);
 	struct ldb_chan chan;
 	struct device *dev = ldb->dev;
-	struct clk *ldb_di_parent, *ldb_di_sel, *ldb_di_sel_parent;
+	struct clk *ldb_di_parent, *ldb_di_sel_parent;
 	struct clk *other_ldb_di_sel = NULL;
 	struct bus_mux bus_mux;
 	int ret = 0, id = 0, chno, other_chno;
-	unsigned long serial_clk;
 	u32 mux_val;
 
 	ret = find_ldb_chno(ldb, fbi, &chno);
@@ -421,7 +420,7 @@ static int ldb_setup(struct mxc_dispdrv_handle *mddh,
 	}
 
 	/*
-	 * ldb_di_sel_parent(plls) -> ldb_di_sel ->
+	 * ldb_di_sel_parent(plls) ->
 	 *
 	 *     -> div_3_5[chno] ->
 	 * -> |                   |-> div_sel[chno] ->
@@ -433,11 +432,8 @@ static int ldb_setup(struct mxc_dispdrv_handle *mddh,
 	ldb_di_parent = ldb->spl_mode ? ldb->div_3_5_clk[chno] :
 			ldb->div_7_clk[chno];
 	clk_set_parent(ldb->div_sel_clk[chno], ldb_di_parent);
-	ldb_di_sel = clk_get_parent(ldb_di_parent);
-	ldb_di_sel_parent = clk_get_parent(ldb_di_sel);
-	serial_clk = ldb->spl_mode ? chan.vm.pixelclock * 7 / 2 :
-			chan.vm.pixelclock * 7;
-	clk_set_rate(ldb_di_sel_parent, serial_clk);
+	ldb_di_sel_parent = clk_get_parent(ldb_di_parent);
+	clk_set_rate(ldb->div_sel_clk[chno], chan.vm.pixelclock);
 
 	/*
 	 * split mode or dual mode:
