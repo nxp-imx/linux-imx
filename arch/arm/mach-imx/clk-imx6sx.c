@@ -43,8 +43,8 @@ static const char *gpu_axi_sels[]	= { "pll2_pfd2_396m", "pll3_pfd0_720m", "pll3_
 static const char *gpu_core_sels[]	= { "pll3_pfd1_540m", "pll3_pfd0_720m", "pll2_bus", "pll2_pfd2_396m", };
 static const char *ldb_di0_div_sels[]	= { "ldb_di0_div_3_5", "ldb_di0_div_7", };
 static const char *ldb_di1_div_sels[]	= { "ldb_di1_div_3_5", "ldb_di1_div_7", };
-static const char *ldb_di0_sels[]	= { "pll5_video_div", "pll2_pfd0_352m", "pll2_pfd2_396m", "pll2_pfd3_594m", "pll2_pfd1_594m", "pll3_pfd3_454m", };
-static const char *ldb_di1_sels[]	= { "pll3_usb_otg", "pll2_pfd0_352m", "pll2_pfd2_396m", "pll2_bus", "pll3_pfd3_454m", "pll3_pfd2_508m", };
+static const char *ldb_di0_sels[]	= { "pll5_video_div", "pll2_pfd0_352m", "pll2_pfd2_396m", "pll2_pfd3_594m", "pll2_pfd1_594m", "pll3_pfd3_454m", "dummy", "dummy"};
+static const char *ldb_di1_sels[]	= { "pll3_usb_otg", "pll2_pfd0_352m", "pll2_pfd2_396m", "pll2_bus", "pll3_pfd3_454m", "pll3_pfd2_508m", "dummy", "dummy"};
 static const char *pcie_axi_sels[]	= { "axi", "ahb", };
 static const char *ssi_sels[]		= { "pll3_pfd2_508m", "pll5_video_div", "pll4_audio_div", };
 static const char *qspi1_sels[]		= { "pll3_usb_otg", "pll2_pfd0_352m", "pll2_pfd2_396m", "pll2_bus", "pll3_pfd3_454m", "pll3_pfd2_508m", };
@@ -126,6 +126,21 @@ static struct clk_div_table video_div_table[] = {
 static u32 share_count_asrc;
 static u32 share_count_audio;
 static u32 share_count_esai;
+
+/*
+ * The ldb_di_sel is buggy and could generate a glitch during clock switch.
+ * Find out the parent set up by bootloader and register it statically to
+ * clock framework, so that we hide this buggy mux clock completely from the
+ * clock tree.
+ */
+static inline const char *ldb_di_parent(void  __iomem *base, int ldb_di_idx)
+{
+	u32 val = readl_relaxed(base + 0x2c);
+	unsigned int shift = (ldb_di_idx == 0) ? 9 : 12;
+	unsigned int index = (val >> shift) & 0x7;
+
+	return (ldb_di_idx == 0) ? ldb_di0_sels[index] : ldb_di1_sels[index];
+}
 
 static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 {
@@ -266,8 +281,6 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 
 	clks[IMX6SX_CLK_LDB_DI1_DIV_SEL]    = imx_clk_mux_flags("ldb_di1_div_sel", base + 0x20, 11, 1, ldb_di1_div_sels, ARRAY_SIZE(ldb_di1_div_sels), CLK_SET_RATE_PARENT);
 	clks[IMX6SX_CLK_LDB_DI0_DIV_SEL]    = imx_clk_mux_flags("ldb_di0_div_sel", base + 0x20, 10, 1, ldb_di0_div_sels, ARRAY_SIZE(ldb_di0_div_sels), CLK_SET_RATE_PARENT);
-	clks[IMX6SX_CLK_LDB_DI1_SEL]        = imx_clk_mux_flags("ldb_di1_sel",     base + 0x2c, 12, 3, ldb_di1_sels,      ARRAY_SIZE(ldb_di1_sels),    CLK_SET_RATE_PARENT);
-	clks[IMX6SX_CLK_LDB_DI0_SEL]        = imx_clk_mux_flags("ldb_di0_sel",     base + 0x2c, 9,  3, ldb_di0_sels,      ARRAY_SIZE(ldb_di0_sels),    CLK_SET_RATE_PARENT);
 	clks[IMX6SX_CLK_LCDIF1_PRE_SEL]     = imx_clk_mux_flags("lcdif1_pre_sel",  base + 0x38, 15, 3, lcdif1_pre_sels,   ARRAY_SIZE(lcdif1_pre_sels), CLK_SET_RATE_PARENT);
 	clks[IMX6SX_CLK_LCDIF1_SEL]         = imx_clk_mux_flags("lcdif1_sel",      base + 0x38, 9,  3, lcdif1_sels,       ARRAY_SIZE(lcdif1_sels),     CLK_SET_RATE_PARENT);
 
@@ -313,10 +326,10 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_CKO1_PODF]          = imx_clk_divider("cko1_podf",      "cko1_sel",          base + 0x60, 4,    3);
 	clks[IMX6SX_CLK_CKO2_PODF]          = imx_clk_divider("cko2_podf",      "cko2_sel",          base + 0x60, 21,   3);
 
-	clks[IMX6SX_CLK_LDB_DI0_DIV_3_5]    = imx_clk_fixed_factor("ldb_di0_div_3_5", "ldb_di0_sel", 2, 7);
-	clks[IMX6SX_CLK_LDB_DI0_DIV_7]      = imx_clk_fixed_factor("ldb_di0_div_7",   "ldb_di0_sel", 1, 7);
-	clks[IMX6SX_CLK_LDB_DI1_DIV_3_5]    = imx_clk_fixed_factor("ldb_di1_div_3_5", "ldb_di1_sel", 2, 7);
-	clks[IMX6SX_CLK_LDB_DI1_DIV_7]      = imx_clk_fixed_factor("ldb_di1_div_7",   "ldb_di1_sel", 1, 7);
+	clks[IMX6SX_CLK_LDB_DI0_DIV_3_5]    = imx_clk_fixed_factor("ldb_di0_div_3_5", ldb_di_parent(base, 0), 2, 7);
+	clks[IMX6SX_CLK_LDB_DI0_DIV_7]      = imx_clk_fixed_factor("ldb_di0_div_7",   ldb_di_parent(base, 0), 1, 7);
+	clks[IMX6SX_CLK_LDB_DI1_DIV_3_5]    = imx_clk_fixed_factor("ldb_di1_div_3_5", ldb_di_parent(base, 1), 2, 7);
+	clks[IMX6SX_CLK_LDB_DI1_DIV_7]      = imx_clk_fixed_factor("ldb_di1_div_7",   ldb_di_parent(base, 1), 1, 7);
 
 	/*                                               name        reg          shift width busy: reg,   shift parent_names       num_parents */
 	clks[IMX6SX_CLK_PERIPH]       = imx_clk_busy_mux("periph",   base + 0x14, 25,   1,    base + 0x48, 5,    periph_sels,       ARRAY_SIZE(periph_sels));
