@@ -10,6 +10,8 @@ Optional properties:
 - fsl,irda-mode : Indicate the uart supports irda mode
 - fsl,dte-mode : Indicate the uart works in DTE mode. The uart works
                   is DCE mode by default.
+- fsl,dma-mode : Indicate the uart works in dma mode. The uart works
+                  is cpu mode by default.
 
 Example:
 
