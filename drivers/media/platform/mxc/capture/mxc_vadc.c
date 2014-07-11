@@ -271,7 +271,7 @@ static void vdec_init(struct vadc_data *vadc)
 
 	/* filter the standard detection
 	 * enable the comb for the ntsc443 */
-	reg32_write(VDEC_STDDBG, 0x23);
+	reg32_write(VDEC_STDDBG, 0x20);
 
 	/* setup chroma kill thresh for no chroma */
 	reg32_write(VDEC_CHBTH, 0x0);
