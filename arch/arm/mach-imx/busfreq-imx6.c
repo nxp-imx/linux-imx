@@ -268,11 +268,16 @@ static void enter_lpm_imx6sl(void)
 				 * we need to move ARM clk off PLL2_PFD2
 				 * to PLL1. Make sure the PLL1 is running
 				 * at the lowest possible freq.
+				 * To work well with CPUFREQ we want to ensure that
+				 * the CPU freq does not change, so attempt to
+				 * get a freq as close to 396MHz as possible.
 				 */
 				clk_set_rate(pll1_sys,
-					clk_round_rate(pll1_sys, org_arm_rate));
+					clk_round_rate(pll1_sys, (org_arm_rate * 2)));
 				pll1_rate = clk_get_rate(pll1_sys);
-				arm_div = pll1_rate / org_arm_rate + 1;
+				arm_div = pll1_rate / org_arm_rate;
+				if (pll1_rate / arm_div > org_arm_rate)
+					arm_div++;
 				/*
 				 * Ensure ARM CLK is lower before
 				 * changing the parent.
