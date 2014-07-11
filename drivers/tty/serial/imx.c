@@ -226,6 +226,7 @@ struct imx_port {
 	void			*rx_buf;
 	unsigned int		tx_bytes;
 	unsigned int		dma_tx_nents;
+	struct work_struct	tsk_dma_tx;
 	wait_queue_head_t	dma_wait;
 	unsigned int            saved_reg[11];
 };
@@ -506,6 +507,8 @@ static void dma_tx_callback(void *data)
 
 	uart_write_wakeup(&sport->port);
 
+	schedule_work(&sport->tsk_dma_tx);
+
 	if (waitqueue_active(&sport->dma_wait)) {
 		wake_up(&sport->dma_wait);
 		dev_dbg(sport->port.dev, "exit in %s.\n", __func__);
@@ -513,8 +516,9 @@ static void dma_tx_callback(void *data)
 	}
 }
 
-static void imx_dma_tx(struct imx_port *sport)
+static void dma_tx_work(struct work_struct *w)
 {
+	struct imx_port *sport = container_of(w, struct imx_port, tsk_dma_tx);
 	struct circ_buf *xmit = &sport->port.state->xmit;
 	struct scatterlist *sgl = sport->tx_sgl;
 	struct dma_async_tx_descriptor *desc;
@@ -605,7 +609,7 @@ static void imx_start_tx(struct uart_port *port)
 	}
 
 	if (sport->dma_is_enabled) {
-		imx_dma_tx(sport);
+		schedule_work(&sport->tsk_dma_tx);
 		return;
 	}
 
@@ -1146,6 +1150,8 @@ static int imx_startup(struct uart_port *port)
 			goto error_out1;
 		}
 	}
+
+	INIT_WORK(&sport->tsk_dma_tx, dma_tx_work);
 
 	spin_lock_irqsave(&sport->port.lock, flags);
 	/*
