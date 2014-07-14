@@ -139,6 +139,7 @@ dtb-$(CONFIG_ARCH_MXC) += \
 	imx6sl-evk-ldo.dtb \
 	imx6sl-evk-pf200.dtb \
 	imx6sx-17x17-arm2.dtb \
+	imx6sx-17x17-arm2-gpmi-weim.dtb \
 	imx6sx-17x17-arm2-sai.dtb \
 	imx6sx-17x17-arm2-ssi.dtb \
 	imx6sx-17x17-arm2-spdif.dtb \
