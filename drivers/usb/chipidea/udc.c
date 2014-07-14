@@ -1952,7 +1952,7 @@ static void udc_suspend_for_power_lost(struct ci_hdrc *ci)
 static void udc_resume_from_power_lost(struct ci_hdrc *ci)
 {
 	/* Force disconnect if power lost with vbus on */
-	if (ci->vbus_active)
+	if (!ci_otg_is_fsm_mode(ci) && ci->vbus_active)
 		usb_gadget_vbus_disconnect(&ci->gadget);
 
 	if (ci->is_otg)
