@@ -872,7 +872,15 @@ _AllocateMemory_Retry:
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
         if(forceContiguous == gcvTRUE)
         {
-            if(force_contiguous_lowmem_shrink(Kernel) == 0)
+            int ret;
+             /* Acquire the mutex. */
+            gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, Kernel->vidmemMutex, gcvINFINITE));
+
+            ret = force_contiguous_lowmem_shrink(Kernel);
+
+            gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
+
+            if(ret == 0)
             {
                  /* Sleep 1 millisecond. */
                  gckOS_Delay(gcvNULL, 1);
