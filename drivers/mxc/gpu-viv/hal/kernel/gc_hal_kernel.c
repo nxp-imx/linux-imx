@@ -1260,14 +1260,6 @@ gckKERNEL_Dispatch(
             node->VidMem.logical = gcvNULL;
         }
 #endif
-        /* Free video memory. */
-        gcmkONERROR(
-            gckVIDMEM_Free(Kernel, node));
-
-        gcmkONERROR(
-            gckKERNEL_RemoveProcessDB(Kernel,
-                                      processID, gcvDB_VIDEO_MEMORY,
-                                      node));
 
         if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
         {
@@ -1290,6 +1282,15 @@ gckKERNEL_Dispatch(
                                       processID, gcvDB_VIDEO_MEMORY_VIRTUAL,
                                       node));
         }
+
+        /* Free video memory. */
+        gcmkONERROR(
+            gckVIDMEM_Free(Kernel, node));
+
+        gcmkONERROR(
+            gckKERNEL_RemoveProcessDB(Kernel,
+                                      processID, gcvDB_VIDEO_MEMORY,
+                                      node));
 
         break;
 
