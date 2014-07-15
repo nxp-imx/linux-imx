@@ -1014,6 +1014,7 @@ typedef enum _gcePATCH_ID
     gcePATCH_RTESTVA,
     gcePATCH_BMX,
     gcePATCH_BMGUI,
+    gcePATCH_ANDROID_CTS_MEDIA_PRESENTATIONTIME,
 
     /* Game list */
     gcePATCH_NBA2013,
