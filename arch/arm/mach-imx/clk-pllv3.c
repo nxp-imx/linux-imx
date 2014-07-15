@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2013 Freescale Semiconductor, Inc.
+ * Copyright 2012-2014 Freescale Semiconductor, Inc.
  * Copyright 2012 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -439,7 +439,7 @@ struct clk *imx_clk_pllv3(enum imx_pllv3_type type, const char *name,
 
 	init.name = name;
 	init.ops = ops;
-	init.flags = CLK_SET_RATE_GATE;
+	init.flags = 0;
 	init.parent_names = &parent_name;
 	init.num_parents = 1;
 
