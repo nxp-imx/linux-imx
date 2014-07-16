@@ -594,6 +594,14 @@ static void sdma_tasklet(unsigned long data)
 {
 	struct sdma_channel *sdmac = (struct sdma_channel *) data;
 	struct sdma_engine *sdma = sdmac->sdma;
+	unsigned long flags;
+
+	spin_lock_irqsave(&sdmac->lock, flags);
+	if (sdmac->status != DMA_IN_PROGRESS) {
+		spin_unlock_irqrestore(&sdmac->lock, flags);
+		return;
+	}
+	spin_unlock_irqrestore(&sdmac->lock, flags);
 
 	complete(&sdmac->done);
 
@@ -616,7 +624,7 @@ static void sdma_tasklet(unsigned long data)
 static irqreturn_t sdma_int_handler(int irq, void *dev_id)
 {
 	struct sdma_engine *sdma = dev_id;
-	unsigned long stat;
+	unsigned long stat, flags;
 
 	stat = readl_relaxed(sdma->regs + SDMA_H_INTR);
 	/* not interested in channel 0 interrupts */
@@ -627,7 +635,10 @@ static irqreturn_t sdma_int_handler(int irq, void *dev_id)
 		int channel = fls(stat) - 1;
 		struct sdma_channel *sdmac = &sdma->channel[channel];
 
-		tasklet_schedule(&sdmac->tasklet);
+		spin_lock_irqsave(&sdmac->lock, flags);
+		if (sdmac->status == DMA_IN_PROGRESS)
+			tasklet_schedule(&sdmac->tasklet);
+		spin_unlock_irqrestore(&sdmac->lock, flags);
 
 		__clear_bit(channel, &stat);
 	}
@@ -798,9 +809,13 @@ static void sdma_disable_channel(struct sdma_channel *sdmac)
 {
 	struct sdma_engine *sdma = sdmac->sdma;
 	int channel = sdmac->channel;
+	unsigned long flags;
+
+	spin_lock_irqsave(&sdmac->lock, flags);
+	sdmac->status = DMA_ERROR;
+	spin_unlock_irqrestore(&sdmac->lock, flags);
 
 	writel_relaxed(BIT(channel), sdma->regs + SDMA_H_STATSTOP);
-	sdmac->status = DMA_ERROR;
 }
 
 static int sdma_config_channel(struct sdma_channel *sdmac)
