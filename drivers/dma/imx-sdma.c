@@ -704,6 +704,14 @@ static void mxc_sdma_handle_channel_normal(struct sdma_channel *sdmac)
 static void sdma_tasklet(unsigned long data)
 {
 	struct sdma_channel *sdmac = (struct sdma_channel *) data;
+	unsigned long flags;
+
+	spin_lock_irqsave(&sdmac->lock, flags);
+	if (sdmac->status != DMA_IN_PROGRESS) {
+		spin_unlock_irqrestore(&sdmac->lock, flags);
+		return;
+	}
+	spin_unlock_irqrestore(&sdmac->lock, flags);
 
 	if (sdmac->flags & IMX_DMA_SG_LOOP)
 		sdma_handle_channel_loop(sdmac);
@@ -714,7 +722,7 @@ static void sdma_tasklet(unsigned long data)
 static irqreturn_t sdma_int_handler(int irq, void *dev_id)
 {
 	struct sdma_engine *sdma = dev_id;
-	unsigned long stat;
+	unsigned long stat, flags;
 
 	stat = readl_relaxed(sdma->regs + SDMA_H_INTR);
 	/* not interested in channel 0 interrupts */
@@ -729,7 +737,10 @@ static irqreturn_t sdma_int_handler(int irq, void *dev_id)
 			(sdmac->peripheral_type != IMX_DMATYPE_HDMI))
 			sdma_update_channel_loop(sdmac);
 
-		tasklet_schedule(&sdmac->tasklet);
+		spin_lock_irqsave(&sdmac->lock, flags);
+		if (sdmac->status == DMA_IN_PROGRESS)
+			tasklet_schedule(&sdmac->tasklet);
+		spin_unlock_irqrestore(&sdmac->lock, flags);
 
 		__clear_bit(channel, &stat);
 	}
@@ -901,9 +912,13 @@ static void sdma_disable_channel(struct sdma_channel *sdmac)
 {
 	struct sdma_engine *sdma = sdmac->sdma;
 	int channel = sdmac->channel;
+	unsigned long flags;
+
+	spin_lock_irqsave(&sdmac->lock, flags);
+	sdmac->status = DMA_ERROR;
+	spin_unlock_irqrestore(&sdmac->lock, flags);
 
 	writel_relaxed(BIT(channel), sdma->regs + SDMA_H_STATSTOP);
-	sdmac->status = DMA_ERROR;
 }
 
 static void sdma_set_watermarklevel_for_p2p(struct sdma_channel *sdmac)
