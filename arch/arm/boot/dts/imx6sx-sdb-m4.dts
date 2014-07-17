@@ -35,3 +35,7 @@
 &adc2 {
         status = "disabled";
 };
+
+&qspi2 {
+	status = "disabled";
+};
