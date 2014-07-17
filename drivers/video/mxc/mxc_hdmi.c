@@ -1815,6 +1815,8 @@ static void mxc_hdmi_edid_rebuild_modelist(struct mxc_hdmi *hdmi)
 		}
 	}
 
+	fb_new_modelist(hdmi->fbi);
+
 	console_unlock();
 }
 
@@ -1845,6 +1847,8 @@ static void  mxc_hdmi_default_modelist(struct mxc_hdmi *hdmi)
 		if (!(mode->vmode & FB_VMODE_INTERLACED) && (mode->xres != 0))
 			fb_add_videomode(mode, &hdmi->fbi->modelist);
 	}
+
+	fb_new_modelist(hdmi->fbi);
 
 	console_unlock();
 }
