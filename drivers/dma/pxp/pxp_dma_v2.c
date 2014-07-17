@@ -659,12 +659,23 @@ static int pxp_set_scaling(struct pxps *pxp)
 		if (!is_yuv(s0_params->pixel_fmt) ||
 		    (s0_params->pixel_fmt == PXP_PIX_FMT_GREY) ||
 		    (s0_params->pixel_fmt == PXP_PIX_FMT_GY04) ||
-		    (s0_params->pixel_fmt == PXP_PIX_FMT_YUV444))
-			xscale = (proc_data->srect.width - 1) * 0x1000 /
-				 (proc_data->drect.width - 1);
-		else
-			xscale = (proc_data->srect.width - 2) * 0x1000 /
-				 (proc_data->drect.width - 1);
+		    (s0_params->pixel_fmt == PXP_PIX_FMT_YUV444)) {
+			if ((proc_data->srect.width > 1) &&
+			    (proc_data->drect.width > 1))
+				xscale = (proc_data->srect.width - 1) * 0x1000 /
+					 (proc_data->drect.width - 1);
+			else
+				xscale = proc_data->srect.width * 0x1000 /
+					 proc_data->drect.width;
+		} else {
+			if ((proc_data->srect.width > 2) &&
+			    (proc_data->drect.width > 1))
+				xscale = (proc_data->srect.width - 2) * 0x1000 /
+					 (proc_data->drect.width - 1);
+			else
+				xscale = proc_data->srect.width * 0x1000 /
+					 proc_data->drect.width;
+		}
 	}
 	if (decy > 1) {
 		if (decy >= 2 && decy < 4) {
@@ -679,9 +690,15 @@ static int pxp_set_scaling(struct pxps *pxp)
 		}
 		yscale = proc_data->srect.height * 0x1000 /
 			 (proc_data->drect.height * decy);
-	} else
-		yscale = (proc_data->srect.height - 1) * 0x1000 /
-			 (proc_data->drect.height - 1);
+	} else {
+		if ((proc_data->srect.height > 1) &&
+		    (proc_data->drect.height > 1))
+			yscale = (proc_data->srect.height - 1) * 0x1000 /
+				 (proc_data->drect.height - 1);
+		else
+			yscale = proc_data->srect.height * 0x1000 /
+				 proc_data->drect.height;
+	}
 
 	__raw_writel((xdec << 10) | (ydec << 8), pxp->base + HW_PXP_PS_CTRL);
 
