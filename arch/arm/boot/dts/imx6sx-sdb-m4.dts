@@ -27,3 +27,11 @@
 &uart2 {
 	status = "disabled";
 };
+
+&adc1 {
+        status = "disabled";
+};
+
+&adc2 {
+        status = "disabled";
+};
