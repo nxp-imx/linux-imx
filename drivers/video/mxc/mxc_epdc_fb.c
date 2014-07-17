@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -5330,21 +5330,26 @@ static int pxp_process_update(struct mxc_epdc_fb_data *fb_data,
 	 */
 	proc_data->drect.top = 0;
 	proc_data->drect.left = 0;
-	proc_data->drect.width = proc_data->srect.width;
-	proc_data->drect.height = proc_data->srect.height;
 
 	/* PXP expects rotation in terms of degrees */
 	proc_data->rotate = fb_data->epdc_fb_var.rotate * 90;
 	if (proc_data->rotate > 270)
 		proc_data->rotate = 0;
 
-	pxp_conf->out_param.width = update_region->width;
-	pxp_conf->out_param.height = update_region->height;
-
-	if ((proc_data->rotate == 90) || (proc_data->rotate == 270))
+	/* Just as V4L2 PXP, we should pass the rotated values to PXP */
+	if ((proc_data->rotate == 90) || (proc_data->rotate == 270)) {
+		proc_data->drect.width = proc_data->srect.height;
+		proc_data->drect.height = proc_data->srect.width;
+		pxp_conf->out_param.width = update_region->height;
+		pxp_conf->out_param.height = update_region->width;
 		pxp_conf->out_param.stride = update_region->height;
-	else
+	} else {
+		proc_data->drect.width = proc_data->srect.width;
+		proc_data->drect.height = proc_data->srect.height;
+		pxp_conf->out_param.width = update_region->width;
+		pxp_conf->out_param.height = update_region->height;
 		pxp_conf->out_param.stride = update_region->width;
+	}
 
 	/* For EPDC v2.0, we need output to be 64-bit
 	 * aligned since EPDC stride does not work. */
