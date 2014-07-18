@@ -37,6 +37,7 @@
 		serial2 = &uart3;
 		serial3 = &uart4;
 		serial4 = &uart5;
+		serial5 = &uart6;
 		usbphy0 = &usbphy1;
 		usbphy1 = &usbphy2;
 	};
@@ -1208,6 +1209,17 @@
 				compatible = "fsl,imx6sx-mu", "syscon";
 				reg = <0x02294000 0x4000>;
 				interrupts = <0 99 0x04>;
+			};
+
+			uart6: serial@022a0000 {
+				compatible = "fsl,imx6q-uart", "fsl,imx21-uart";
+				reg = <0x022a0000 0x4000>;
+				interrupts = <0 17 0x04>;
+				clocks = <&clks IMX6SX_CLK_UART_IPG>, <&clks IMX6SX_CLK_UART_SERIAL>;
+				clock-names = "ipg", "per";
+				dmas = <&sdma 0 4 0>, <&sdma 47 4 0>;
+				dma-names = "rx", "tx";
+				status = "disabled";
 			};
 
 			mccdemo: mccdemo{
