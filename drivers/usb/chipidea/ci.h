@@ -382,4 +382,13 @@ u8 hw_port_test_get(struct ci_hdrc *ci);
 int hw_wait_reg(struct ci_hdrc *ci, enum ci_hw_regs reg, u32 mask,
 				u32 value, unsigned int timeout_ms);
 
+#ifdef CONFIG_PM
+void ci_hdrc_delay_suspend(struct ci_hdrc *ci, int ms);
+#else
+static inline void ci_hdrc_delay_suspend(struct ci_hdrc *ci, int ms)
+{
+
+}
+#endif
+
 #endif	/* __DRIVERS_USB_CHIPIDEA_CI_H */

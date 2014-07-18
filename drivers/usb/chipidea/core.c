@@ -861,6 +861,14 @@ static void ci_otg_fsm_wakeup_by_srp(struct ci_hdrc *ci)
 	}
 }
 
+void ci_hdrc_delay_suspend(struct ci_hdrc *ci, int ms)
+{
+	if (!timer_pending(&ci->timer) && !ci->wakeup_int)
+		pm_runtime_get(ci->dev);
+
+	mod_timer(&ci->timer, jiffies + msecs_to_jiffies(ms));
+}
+
 static void ci_controller_suspend(struct ci_hdrc *ci)
 {
 	disable_irq(ci->irq);
@@ -892,9 +900,9 @@ static int ci_controller_resume(struct device *dev)
 	ci->in_lpm = false;
 
 	if (ci->wakeup_int) {
+		ci_hdrc_delay_suspend(ci, 2000);
 		ci->wakeup_int = false;
 		enable_irq(ci->irq);
-		mod_timer(&ci->timer, jiffies + msecs_to_jiffies(2000));
 		if (ci_otg_is_fsm_mode(ci))
 			ci_otg_fsm_wakeup_by_srp(ci);
 	}

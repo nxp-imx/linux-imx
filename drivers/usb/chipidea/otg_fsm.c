@@ -669,6 +669,8 @@ int ci_otg_fsm_work(struct ci_hdrc *ci)
 				 */
 				ci_otg_queue_work(ci);
 			}
+		} else if (ci->transceiver->state == OTG_STATE_A_HOST) {
+			ci_hdrc_delay_suspend(ci, 2000);
 		}
 	}
 	pm_runtime_put_sync(ci->dev);
