@@ -317,7 +317,6 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 	}
 
 	card->ext_csd.boot_info = ext_csd[EXT_CSD_BOOT_INFO];
-	card->ext_csd.boot_config = ext_csd[EXT_CSD_PART_CONFIG];
 	card->ext_csd.boot_size = ext_csd[EXT_CSD_BOOT_MULT];
 	card->ext_csd.boot_bus_width = ext_csd[EXT_CSD_BOOT_BUS_WIDTH];
 
@@ -667,7 +666,7 @@ static ssize_t mmc_boot_info_show(struct device *dev,
 	mmc_read_ext_csd(card, ext_csd);
 	mmc_free_ext_csd(ext_csd);
 
-	partition = (card->ext_csd.boot_config >> 3) & 0x7;
+	partition = (card->ext_csd.part_config >> 3) & 0x7;
 	width =  card->ext_csd.boot_bus_width & 0x3;
 	mode = (card->ext_csd.boot_bus_width >> 3) & 0x3;
 
@@ -701,9 +700,9 @@ static ssize_t mmc_boot_info_show(struct device *dev,
 
 		card->ext_csd.boot_size * 128,
 
-		card->ext_csd.boot_config,
-		!!(card->ext_csd.boot_config & 0x40),
-		(card->ext_csd.boot_config & 0x40) ?
+		card->ext_csd.part_config,
+		!!(card->ext_csd.part_config & 0x40),
+		(card->ext_csd.part_config & 0x40) ?
 			"Boot acknowledge sent during boot operation" :
 			"No boot acknowledge sent",
 		partition,
@@ -862,7 +861,7 @@ setup_boot_partitions(struct device *dev, struct device_attribute *attr,
 		goto err_rtn;
 	}
 
-	card->ext_csd.boot_config = ext_csd[EXT_CSD_PART_CONFIG];
+	card->ext_csd.part_config = ext_csd[EXT_CSD_PART_CONFIG];
 
 err_rtn:
 	mmc_release_host(card->host);
