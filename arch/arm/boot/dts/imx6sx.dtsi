@@ -856,6 +856,7 @@
 				reg = <0x021b8000 0x4000>;
 				interrupts = <0 14 0x04>;
 				clocks = <&clks IMX6SX_CLK_EIM_SLOW>;
+				status = "disabled";
 			};
 
 			i2c1: i2c@021a0000 {
