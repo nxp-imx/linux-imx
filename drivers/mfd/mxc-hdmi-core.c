@@ -51,6 +51,7 @@ struct mxc_hdmi_data {
 static void __iomem *hdmi_base;
 static struct clk *isfr_clk;
 static struct clk *iahb_clk;
+static struct clk *mipi_core_clk;
 static spinlock_t irq_spinlock;
 static spinlock_t edid_spinlock;
 static unsigned int sample_rate;
@@ -666,18 +667,32 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 	hdmi_abort_state = 0;
 	spin_unlock_irqrestore(&hdmi_audio_lock, flags);
 
+	mipi_core_clk = clk_get(&hdmi_data->pdev->dev, "mipi_core");
+	if (IS_ERR(mipi_core_clk)) {
+		ret = PTR_ERR(mipi_core_clk);
+		dev_err(&hdmi_data->pdev->dev,
+			"Unable to get mipi core clk: %d\n", ret);
+		goto eclkg;
+	}
+
+	ret = clk_prepare_enable(mipi_core_clk);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Cannot enable mipi core clock: %d\n", ret);
+		goto eclke;
+	}
+
 	isfr_clk = clk_get(&hdmi_data->pdev->dev, "hdmi_isfr");
 	if (IS_ERR(isfr_clk)) {
 		ret = PTR_ERR(isfr_clk);
 		dev_err(&hdmi_data->pdev->dev,
 			"Unable to get HDMI isfr clk: %d\n", ret);
-		goto eclkg;
+		goto eclkg1;
 	}
 
 	ret = clk_prepare_enable(isfr_clk);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Cannot enable HDMI clock: %d\n", ret);
-		goto eclke;
+		goto eclke1;
 	}
 
 	pr_debug("%s isfr_clk:%d\n", __func__,
@@ -720,6 +735,7 @@ static int mxc_hdmi_core_probe(struct platform_device *pdev)
 	/* Disable HDMI clocks until video/audio sub-drivers are initialized */
 	clk_disable_unprepare(isfr_clk);
 	clk_disable_unprepare(iahb_clk);
+	clk_disable_unprepare(mipi_core_clk);
 
 	/* Replace platform data coming in with a local struct */
 	platform_set_drvdata(pdev, hdmi_data);
@@ -734,8 +750,12 @@ eclke2:
 	clk_put(iahb_clk);
 eclkg2:
 	clk_disable_unprepare(isfr_clk);
-eclke:
+eclke1:
 	clk_put(isfr_clk);
+eclkg1:
+	clk_disable_unprepare(mipi_core_clk);
+eclke:
+	clk_put(mipi_core_clk);
 eclkg:
 	return ret;
 }

@@ -154,6 +154,7 @@ struct mxc_hdmi {
 	struct fb_info *fbi;
 	struct clk *hdmi_isfr_clk;
 	struct clk *hdmi_iahb_clk;
+	struct clk *mipi_core_clk;
 	struct delayed_work hotplug_work;
 	struct delayed_work hdcp_hdp_work;
 
@@ -2340,6 +2341,7 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 			mxc_hdmi_phy_disable(hdmi);
 			clk_disable(hdmi->hdmi_iahb_clk);
 			clk_disable(hdmi->hdmi_isfr_clk);
+			clk_disable(hdmi->mipi_core_clk);
 		}
 		break;
 
@@ -2348,6 +2350,7 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 			"event=FB_EVENT_RESUME\n");
 
 		if (hdmi->blank == FB_BLANK_UNBLANK) {
+			clk_enable(hdmi->mipi_core_clk);
 			clk_enable(hdmi->hdmi_iahb_clk);
 			clk_enable(hdmi->hdmi_isfr_clk);
 			mxc_hdmi_phy_init(hdmi);
@@ -2481,6 +2484,21 @@ static int mxc_hdmi_disp_init(struct mxc_dispdrv_handle *disp,
 	hdmi->fbi = setting->fbi;
 
 	hdmi_init_route(hdmi);
+
+	hdmi->mipi_core_clk = clk_get(&hdmi->pdev->dev, "mipi_core");
+	if (IS_ERR(hdmi->mipi_core_clk)) {
+		ret = PTR_ERR(hdmi->mipi_core_clk);
+		dev_err(&hdmi->pdev->dev,
+			"Unable to get mipi core clk: %d\n", ret);
+		goto egetclk;
+	}
+
+	ret = clk_prepare_enable(hdmi->mipi_core_clk);
+	if (ret < 0) {
+		dev_err(&hdmi->pdev->dev,
+				"Cannot enable mipi core clock: %d\n", ret);
+		goto erate;
+	}
 
 	hdmi->hdmi_isfr_clk = clk_get(&hdmi->pdev->dev, "hdmi_isfr");
 	if (IS_ERR(hdmi->hdmi_isfr_clk)) {
@@ -2647,6 +2665,10 @@ egetclk2:
 erate1:
 	clk_put(hdmi->hdmi_isfr_clk);
 egetclk1:
+	clk_disable_unprepare(hdmi->mipi_core_clk);
+erate:
+	clk_put(hdmi->mipi_core_clk);
+egetclk:
 	dev_dbg(&hdmi->pdev->dev, "%s error exit\n", __func__);
 
 	return ret;
@@ -2664,6 +2686,8 @@ static void mxc_hdmi_disp_deinit(struct mxc_dispdrv_handle *disp)
 	clk_put(hdmi->hdmi_isfr_clk);
 	clk_disable_unprepare(hdmi->hdmi_iahb_clk);
 	clk_put(hdmi->hdmi_iahb_clk);
+	clk_disable_unprepare(hdmi->mipi_core_clk);
+	clk_put(hdmi->mipi_core_clk);
 
 	platform_device_unregister(hdmi->pdev);
 
