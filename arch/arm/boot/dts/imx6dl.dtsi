@@ -104,8 +104,8 @@
 		hdmi_core: hdmi_core@00120000 {
 			compatible = "fsl,imx6dl-hdmi-core";
 			reg = <0x00120000 0x9000>;
-			clocks = <&clks 124>, <&clks 123>;
-			clock-names = "hdmi_isfr", "hdmi_iahb";
+			clocks = <&clks 124>, <&clks 123>, <&clks 138>;
+			clock-names = "hdmi_isfr", "hdmi_iahb", "mipi_core";
 			status = "disabled";
 		};
 
@@ -114,15 +114,15 @@
 			reg =  <0x020e0000 0x1000>;
 			reg-names = "hdmi_gpr";
 			interrupts = <0 115 0x04>;
-			clocks = <&clks 124>, <&clks 123>;
-			clock-names = "hdmi_isfr", "hdmi_iahb";
+			clocks = <&clks 124>, <&clks 123>, <&clks 138>;
+			clock-names = "hdmi_isfr", "hdmi_iahb", "mipi_core";
 			status = "disabled";
 		};
 
 		hdmi_audio: hdmi_audio@00120000 {
 			compatible = "fsl,imx6dl-hdmi-audio";
-			clocks = <&clks 124>, <&clks 123>;
-			clock-names = "hdmi_isfr", "hdmi_iahb";
+			clocks = <&clks 124>, <&clks 123>, <&clks 138>;
+			clock-names = "hdmi_isfr", "hdmi_iahb", "mipi_core";
 			dmas = <&sdma 2 22 0>;
 			dma-names = "tx";
 			status = "disabled";
