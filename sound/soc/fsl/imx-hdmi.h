@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@ struct imx_hdmi {
 	struct platform_device *pdev;
 	struct clk *isfr_clk;
 	struct clk *iahb_clk;
+	struct clk *mipi_core_clk;
 };
 
 #define HDMI_MAX_RATES 7
