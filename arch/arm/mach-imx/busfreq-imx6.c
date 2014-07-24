@@ -679,6 +679,7 @@ static int __init imx6_dt_find_ddr_sram(unsigned long node,
 			ddr_freq_change_iram_phys += FNCPY_ALIGN - ((uintptr_t)ddr_freq_change_iram_phys % (FNCPY_ALIGN));
 
 		ddr_freq_change_iram_base = IMX_IO_P2V(ddr_freq_change_iram_phys);
+		memset((void *)ddr_freq_change_iram_base, 0, ddr_freq_change_total_size);
 	}
 	return 0;
 }

@@ -17,6 +17,7 @@
  */
 
 #include <linux/linkage.h>
+#include <asm/smp_scu.h>
 #include "hardware.h"
 
 #define MMDC0_MDPDC		0x4
@@ -43,8 +44,12 @@
 #define L2_CACHE_SYNC		0x730
 
 .extern iram_tlb_phys_addr
+.extern imx_scu_base
+
 .globl mx6_ddr3_freq_change_start
 .globl mx6_ddr3_freq_change_end
+.globl wfe_ddr3_freq_change_start
+.globl wfe_ddr3_freq_change_end
 
 	.align 3
 
@@ -324,6 +329,35 @@ wait_div_update:
 
 	.endm
 
+	.macro	disable_l1_dcache
+
+	/*
+	 * Flush all data from the L1 data cache before disabling
+	 * SCTLR.C bit.
+	 */
+	push	{r0 - r11, lr}
+
+	ldr	r7, =v7_flush_kern_cache_all
+	mov	lr, pc
+	mov	pc, r7
+	pop	{r0 - r11, lr}
+
+	/* disable d-cache */
+	mrc	p15, 0, r6, c1, c0, 0
+	bic	r6, r6, #0x4
+	mcr	p15, 0, r6, c1, c0, 0
+	dsb
+	isb
+
+	push	{r0 - r11, lr}
+
+	ldr	r7, =v7_flush_kern_cache_all
+	mov	lr, pc
+	mov	pc, r7
+	pop	{r0 - r11, lr}
+
+	.endm
+
 /*
  *  mx6_ddr3_freq_change
  *
@@ -347,6 +381,44 @@ mx6_ddr3_freq_change_start:
 	mov	r9, r2
 	mov	r11, r3
 
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	ldr	r6, =iram_tlb_phys_addr
+	ldr	r7, [r6]
+
+	/*
+	  * Need to flush and disable L1 before disabling L2, we need data to
+	  * coherent. Flushing L1 pushes everyhting to L2. We sync L2 later, but
+	  * it can still have dirty lines. While exiting, we need to enable L2 first
+	  * and then L1.
+	 . */
+	disable_l1_dcache
+
+#ifdef CONFIG_CACHE_L2X0
+	/*
+	 * Make sure the L2 buffers are drained.
+	 * Sync operation on L2 drains the buffers.
+	 */
+	ldr	r12, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
+
+	/* Wait for background operations to complete. */
+wait_for_l2_to_idle:
+	ldr	r1, [r12, #L2_CACHE_SYNC]
+	cmp	r1, #0x0
+	bne	wait_for_l2_to_idle
+
+	mov	r1, #0x0
+	str	r1, [r12, #L2_CACHE_SYNC]
+
+	/* Disable L2. */
+	str	r1, [r12, #0x100]
+
+	dsb
+	isb
+#endif
+
 	/*
 	 * To ensure no page table walks occur in DDR, we
 	 * have a another page table stored in IRAM that only
@@ -360,9 +432,8 @@ mx6_ddr3_freq_change_start:
 	 *     and 2-4G is translated by TTBR1.
 	 */
 
-	ldr	r6, =iram_tlb_phys_addr
-	ldr	r7, [r6]
 
+	/* Now switch the TTBR. */
 	/* Disable Branch Prediction, Z bit in SCTLR. */
 	mrc	p15, 0, r6, c1, c0, 0
 	bic	r6, r6, #0x800
@@ -393,37 +464,7 @@ mx6_ddr3_freq_change_start:
 	dsb
 	isb
 
-	/* Disable L1 data cache. */
-	mrc	p15, 0, r6, c1, c0, 0
-	bic	r6, r6, #0x4
-	mcr	p15, 0, r6, c1, c0, 0
 
-#ifdef CONFIG_CACHE_L2X0
-	/*
-	 * Make sure the L2 buffers are drained.
-	 * Sync operation on L2 drains the buffers.
-	 */
-	ldr	r12, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
-
-	/* Wait for background operations to complete. */
-wait_for_l2_to_idle:
-	ldr	r1, [r12, #L2_CACHE_SYNC]
-	cmp	r1, #0x0
-	bne	wait_for_l2_to_idle
-
-	mov	r1, #0x0
-	str	r1, [r12, #L2_CACHE_SYNC]
-
-	/* Disable L2. */
-	str	r1, [r12, #0x100]
-
-	/*
-	 * The second dsb might be needed to keep cache sync (device write)
-	 * ordering with the memory accesses before it.
-	 */
-	dsb
-	isb
-#endif
 	ldr	r5, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
 	ldr	r6, =IMX_IO_P2V(MX6Q_CCM_BASE_ADDR)
 	ldr	r7, =IMX_IO_P2V(MX6Q_IOMUXC_BASE_ADDR)
@@ -723,7 +764,7 @@ poll_dvfs_clear_2:
 	cmp	r9, #0
 	beq	update_calibration_only
 
-	ldr	r0, =0xa5390003
+	ldr	r0, =0xa1390003
 	str	r0, [r5, #MMDC0_MPZQHWCTRL]
 	ldr	r2, =MMDC1_MPZQHWCTRL
 	str	r0, [r5, r2]
@@ -936,7 +977,6 @@ poll_conreq_clear_2:
 	beq	poll_conreq_clear_2
 
 done:
-
 	/* MMDC0_MAPSR adopt power down enable. */
 	ldr	r0, [r5, #MMDC0_MAPSR]
 	bic	r0, r0, #0x01
@@ -947,6 +987,8 @@ done:
 	ldr	r7, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
 	ldr	r6, =0x1
 	str	r6, [r7, #0x100]
+	isb
+	dsb
 #endif
 
 	/* Enable L1 data cache. */
@@ -977,12 +1019,15 @@ done:
 	orr	r6, r6, #0x800
 	mcr	p15, 0, r6, c1, c0, 0
 
+	isb
+
 	/* Flush the Branch Target Address Cache (BTAC) */
 	ldr	r6, =0x0
 	mcr	p15, 0, r6, c7, c1, 6
+	isb
+	dsb
 
 	/* restore registers */
-
 	ldmfd	sp!, {r4-r12}
 	mov	pc, lr
 
@@ -993,3 +1038,75 @@ done:
 	 */
 	.ltorg
 mx6_ddr3_freq_change_end:
+
+	.align 3
+
+ENTRY(wfe_ddr3_freq_change)
+wfe_ddr3_freq_change_start:
+	push	{r4 - r11, lr}
+
+	mov	r6, r0
+	mov	r7, r1
+
+	dsb
+	isb
+
+	disable_l1_dcache
+
+	isb
+
+	/* Turn off SMP bit. */
+	mrc	p15, 0, r8, c1, c0, 1
+	bic	r8, r8, #0x40
+	mcr	p15, 0, r8, c1, c0, 1
+
+	isb
+
+	/* Inform the SCU we are going to enter WFE. */
+	push	{r0 - r11, lr}
+
+	ldr	r0,=imx_scu_base
+	ldr	r0, [r0]
+	mov	r1, #SCU_PM_DORMANT
+	ldr	r3, =scu_power_mode
+	mov	lr, pc
+	mov	pc, r3
+
+	pop	{r0 - r11, lr}
+
+go_back_wfe:
+	wfe
+
+	ldr	r3, [r7]
+	cmp	r3, #1
+	beq	go_back_wfe
+
+	/* Turn ON SMP bit. */
+	mrc	p15, 0, r8, c1, c0, 1
+	orr	r8, r8, #0x40
+	mcr	p15, 0, r8, c1, c0, 1
+
+	isb
+	/* Enable L1 data cache. */
+	mrc	p15, 0, r8, c1, c0, 0
+	orr	r8, r8, #0x4
+	mcr	p15, 0, r8, c1, c0, 0
+	isb
+
+	/* Inform the SCU we have exited WFE. */
+	push	{r0 - r11, lr}
+
+	ldr	r0,=imx_scu_base
+	ldr	r0, [r0]
+	mov	r1, #SCU_PM_NORMAL
+	ldr	r3, =scu_power_mode
+	mov	lr, pc
+	mov	pc, r3
+
+	pop	{r0 - r11, lr}
+
+	/* Pop all saved registers. */
+	pop	{r4 - r11, lr}
+	mov	pc, lr
+	.ltorg
+wfe_ddr3_freq_change_end:
