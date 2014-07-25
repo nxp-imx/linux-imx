@@ -215,6 +215,9 @@ typedef struct _gcsDATABASE
     /* Counter for each video memory pool. */
     gcsDATABASE_COUNTERS                vidMemPool[gcvPOOL_NUMBER_OF_POOLS];
 
+    /* Virtual command buffer */
+    gcsDATABASE_COUNTERS                virtCMDBuf;
+
     /* Idle time management. */
     gctUINT64                           lastIdle;
     gctUINT64                           idle;

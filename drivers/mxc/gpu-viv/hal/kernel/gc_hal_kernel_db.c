@@ -631,6 +631,9 @@ gckKERNEL_CreateProcessDB(
     database->mapUserMemory.bytes      = 0;
     database->mapUserMemory.maxBytes   = 0;
     database->mapUserMemory.totalBytes = 0;
+    database->virtCMDBuf.bytes = 0;
+    database->virtCMDBuf.maxBytes = 0;
+    database->virtCMDBuf.totalBytes = 0;
 
     for (i = 0; i < gcmCOUNTOF(database->list); i++)
     {
@@ -891,6 +894,10 @@ gckKERNEL_AddProcessDB(
         count = &database->mapUserMemory;
         break;
 
+    case gcvDB_COMMAND_BUFFER:
+        count = &database->virtCMDBuf;
+        break;
+
     default:
         count = gcvNULL;
         break;
@@ -1038,6 +1045,10 @@ gckKERNEL_RemoveProcessDB(
 
     case gcvDB_MAP_USER_MEMORY:
         database->mapUserMemory.bytes -= bytes;
+        break;
+
+    case gcvDB_COMMAND_BUFFER:
+        database->virtCMDBuf.bytes -= bytes;
         break;
 
     default:
@@ -1591,6 +1602,12 @@ gckKERNEL_QueryProcessDB(
         gckOS_MemCopy(&Info->counters,
                                   &database->mapUserMemory,
                                   gcmSIZEOF(database->mapUserMemory));
+        break;
+
+    case gcvDB_COMMAND_BUFFER:
+        gckOS_MemCopy(&Info->counters,
+                                  &database->virtCMDBuf,
+                                  gcmSIZEOF(database->virtCMDBuf));
         break;
 
     default:
