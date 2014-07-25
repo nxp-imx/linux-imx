@@ -1297,6 +1297,14 @@ gckKERNEL_QueryDatabase(
                                      &Interface->u.Database.vidMemPool[i]));
     }
 
+    /* Query virtual command buffer pool. */
+    gcmkONERROR(
+        gckKERNEL_QueryProcessDB(Kernel,
+                                 Interface->u.Database.processID,
+                                 !Interface->u.Database.validProcessID,
+                                 gcvDB_COMMAND_BUFFER,
+                                 &Interface->u.Database.vidMemPool[2]));
+
 #if gcmIS_DEBUG(gcdDEBUG_TRACE)
     gckKERNEL_DumpVidMemUsage(Kernel, Interface->u.Database.processID);
 #endif
