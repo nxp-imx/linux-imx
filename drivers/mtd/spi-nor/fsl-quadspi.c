@@ -26,6 +26,7 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/spi-nor.h>
+#include <linux/mutex.h>
 
 /* The registers */
 #define QUADSPI_MCR			0x00
@@ -239,6 +240,7 @@ struct fsl_qspi {
 	u32 clk_rate;
 	unsigned int chip_base_addr; /* We may support two chips. */
 	bool ddr_io_mode;
+	struct mutex lock;
 };
 
 static inline int is_vybrid_qspi(struct fsl_qspi *q)
@@ -860,6 +862,8 @@ static int fsl_qspi_prep(struct spi_nor *nor, enum spi_nor_ops ops)
 	struct fsl_qspi *q = nor->priv;
 	int ret;
 
+	mutex_lock(&q->lock);
+
 	ret = clk_enable(q->clk_en);
 	if (ret)
 		return ret;
@@ -880,6 +884,7 @@ static void fsl_qspi_unprep(struct spi_nor *nor, enum spi_nor_ops ops)
 
 	clk_disable(q->clk);
 	clk_disable(q->clk_en);
+	mutex_unlock(&q->lock);
 }
 
 static int fsl_qspi_probe(struct platform_device *pdev)
@@ -972,6 +977,8 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 
 	if (of_get_property(np, "fsl,qspi-has-second-chip", NULL))
 		has_second_chip = true;
+
+	mutex_init(&q->lock);
 
 	/* iterate the subnodes. */
 	for_each_available_child_of_node(dev->of_node, np) {
