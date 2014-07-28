@@ -830,6 +830,7 @@ int ci_hdrc_otg_fsm_init(struct ci_hdrc *ci)
 
 	otg->phy = ci->transceiver;
 	otg->gadget = &ci->gadget;
+	otg->fsm = &ci->fsm;
 	if (ci->hcd)
 		otg->host = &ci->hcd->self;
 	ci->fsm.otg = otg;
