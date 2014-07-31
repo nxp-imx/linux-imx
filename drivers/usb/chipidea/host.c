@@ -341,7 +341,12 @@ bool ci_hdrc_host_has_device(struct ci_hdrc *ci)
 
 void ci_hdrc_host_save_for_power_lost(struct ci_hdrc *ci)
 {
-	struct ehci_hcd *ehci = hcd_to_ehci(ci->hcd);
+	struct ehci_hcd *ehci;
+
+	if (!ci->hcd)
+		return;
+
+	ehci = hcd_to_ehci(ci->hcd);
 
 	/* save EHCI registers */
 	ci->pm_command = ehci_readl(ehci, &ehci->regs->command);
@@ -359,12 +364,16 @@ void ci_hdrc_host_save_for_power_lost(struct ci_hdrc *ci)
 
 void ci_hdrc_host_restore_from_power_lost(struct ci_hdrc *ci)
 {
-	struct ehci_hcd *ehci = hcd_to_ehci(ci->hcd);
+	struct ehci_hcd *ehci;
 	unsigned long   flags;
 	u32 tmp;
 
+	if (!ci->hcd)
+		return;
+
 	hw_device_reset(ci, USBMODE_CM_HC);
 
+	ehci = hcd_to_ehci(ci->hcd);
 	spin_lock_irqsave(&ehci->lock, flags);
 	/* restore EHCI registers */
 	ehci_writel(ehci, ci->pm_portsc, &ehci->regs->port_status[0]);
