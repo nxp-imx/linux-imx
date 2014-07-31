@@ -46,6 +46,7 @@ struct clk_pllv3 {
 	bool		always_on;
 	u32		div_mask;
 	u32		rate_req;
+	bool		powered;
 };
 
 #define to_clk_pllv3(_hw) container_of(_hw, struct clk_pllv3, hw)
@@ -97,6 +98,9 @@ static int clk_pllv3_power_up_down(struct clk_hw *hw, bool enable)
 			val |= BM_PLL_POWER;
 		writel_relaxed(val, pll->base);
 	}
+
+	pll->powered = enable;
+
 	return ret;
 }
 
@@ -188,6 +192,12 @@ static int clk_pllv3_set_rate(struct clk_hw *hw, unsigned long rate,
 	else
 		return -EINVAL;
 
+	if (pll->powered) {
+		pr_err("%s: cannot configure divider when PLL is powered on\n",
+			__func__);
+		return -EBUSY;
+	}
+
 	val = readl_relaxed(pll->base);
 	val &= ~pll->div_mask;
 	val |= div;
@@ -265,6 +275,13 @@ static int clk_pllv3_sys_set_rate(struct clk_hw *hw, unsigned long rate,
 		writel_relaxed(val, pll->base);
 		return 0;
 	}
+
+	if (pll->powered) {
+		pr_err("%s: cannot configure divider when PLL is powered on\n",
+			__func__);
+		return -EBUSY;
+	}
+
 	div = rate * 2 / parent_rate;
 	val = readl_relaxed(pll->base);
 	val &= ~pll->div_mask;
@@ -358,6 +375,12 @@ static int clk_pllv3_av_set_rate(struct clk_hw *hw, unsigned long rate,
 	/* Else clear the bypass bit. */
 	val &= ~BM_PLL_BYPASS;
 	writel_relaxed(val, pll->base);
+
+	if (pll->powered) {
+		pr_err("%s: cannot configure divider when PLL is powered on\n",
+			__func__);
+		return -EBUSY;
+	}
 
 	div = rate / parent_rate;
 	temp64 = (u64) (rate - div * parent_rate);
