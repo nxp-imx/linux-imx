@@ -222,6 +222,8 @@ struct _gckOS
 
     /* External clock states. */
     gctBOOL                     clockStates[gcdMAX_GPU_COUNT];
+
+    gctPOINTER                  vidmemMutex;
 };
 
 typedef struct _gcsSIGNAL * gcsSIGNAL_PTR;

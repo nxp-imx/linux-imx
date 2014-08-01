@@ -1560,6 +1560,13 @@ gckOS_StopTimer(
     IN gctPOINTER Timer
     );
 
+/* Get the global video memory mutex. */
+gceSTATUS
+gckOS_GetVideoMemoryMutex(
+    IN gckOS Os,
+    OUT gctPOINTER *Mutex
+    );
+
 /******************************************************************************\
 ********************************* gckHEAP Object ********************************
 \******************************************************************************/
