@@ -334,6 +334,9 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 				IMX6Q_GPR1_PCIE_REF_CLK_EN, 1 << 16);
 	}
 
+	/* allow the clocks to stabilize */
+	usleep_range(200, 500);
+
 	if (gpio_is_valid(imx6_pcie->reset_gpio)) {
 		gpio_set_value(imx6_pcie->reset_gpio, 0);
 		mdelay(1);
