@@ -217,7 +217,8 @@ static inline int csi_read(struct csi_soc *csi, unsigned int offset)
 {
 	return __raw_readl(csi->regbase + offset);
 }
-void csi_write(struct csi_soc *csi, unsigned int value, unsigned int offset)
+static inline void csi_write(struct csi_soc *csi, unsigned int value,
+			     unsigned int offset)
 {
 	__raw_writel(value, csi->regbase + offset);
 }
