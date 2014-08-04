@@ -1176,7 +1176,13 @@ static int imx_startup(struct uart_port *port)
 		}
 	}
 
-	INIT_WORK(&sport->tsk_dma_tx, dma_tx_work);
+	/* Can we enable the DMA support? */
+	if (is_imx6q_uart(sport) && !uart_console(port)
+		&& !sport->dma_is_inited)
+		imx_uart_dma_init(sport);
+
+	if (sport->dma_is_inited)
+		INIT_WORK(&sport->tsk_dma_tx, dma_tx_work);
 
 	spin_lock_irqsave(&sport->port.lock, flags);
 	/*
@@ -1386,11 +1392,6 @@ imx_set_termios(struct uart_port *port, struct ktermios *termios,
 		if (sport->have_rtscts) {
 			ucr2 &= ~UCR2_IRTS;
 			ucr2 |= UCR2_CTSC;
-
-			/* Can we enable the DMA support? */
-			if (is_imx6q_uart(sport) && !uart_console(port)
-				&& !sport->dma_is_inited)
-				imx_uart_dma_init(sport);
 		} else {
 			termios->c_cflag &= ~CRTSCTS;
 		}
