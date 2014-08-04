@@ -147,6 +147,7 @@
 #define USR1_ESCF	(1<<11) /* Escape seq interrupt flag */
 #define USR1_FRAMERR	(1<<10) /* Frame error interrupt flag */
 #define USR1_RRDY	(1<<9)	 /* Receiver ready interrupt/dma flag */
+#define USR1_AGTIM	(1<<8)   /* Ageing timer interrfupt flag */
 #define USR1_TIMEOUT	(1<<7)	 /* Receive timeout interrupt status */
 #define USR1_RXDS	 (1<<6)	 /* Receiver idle interrupt flag */
 #define USR1_AIRINT	 (1<<5)	 /* Async IR wake interrupt flag */
@@ -186,6 +187,7 @@
 #define DRIVER_NAME "IMX-uart"
 
 #define UART_NR 8
+#define IMX_RXBD_NUM 20
 
 /* i.mx21 type uart runs on all i.mx except i.mx1 */
 enum imx_uart_type {
@@ -198,6 +200,23 @@ enum imx_uart_type {
 struct imx_uart_data {
 	unsigned uts_reg;
 	enum imx_uart_type devtype;
+};
+
+struct imx_dma_bufinfo {
+	bool filled;
+	unsigned int rx_bytes;
+};
+
+struct imx_dma_rxbuf {
+	unsigned int		periods;
+	unsigned int		period_len;
+	unsigned int		buf_len;
+
+	void			*buf;
+	dma_addr_t		dmaaddr;
+	unsigned int		cur_idx;
+	unsigned int		last_completed_idx;
+	struct imx_dma_bufinfo	buf_info[IMX_RXBD_NUM];
 };
 
 struct imx_port {
@@ -221,11 +240,12 @@ struct imx_port {
 	unsigned int		dma_is_rxing:1;
 	unsigned int		dma_is_txing:1;
 	struct dma_chan		*dma_chan_rx, *dma_chan_tx;
-	struct scatterlist	rx_sgl, tx_sgl[2];
-	void			*rx_buf;
+	struct scatterlist	tx_sgl[2];
+	struct imx_dma_rxbuf	rx_buf;
 	unsigned int		tx_bytes;
 	unsigned int		dma_tx_nents;
 	struct work_struct	tsk_dma_tx;
+	struct delayed_work	tsk_dma_rx;
 	wait_queue_head_t	dma_wait;
 	unsigned int            saved_reg[11];
 #define DMA_TX_IS_WORKING 1
@@ -738,29 +758,6 @@ out:
 	return IRQ_HANDLED;
 }
 
-static int start_rx_dma(struct imx_port *sport);
-/*
- * If the RXFIFO is filled with some data, and then we
- * arise a DMA operation to receive them.
- */
-static void imx_dma_rxint(struct imx_port *sport)
-{
-	unsigned long temp;
-
-	temp = readl(sport->port.membase + USR2);
-	if ((temp & USR2_RDR) && !sport->dma_is_rxing) {
-		sport->dma_is_rxing = 1;
-
-		/* disable the `Recerver Ready Interrrupt` */
-		temp = readl(sport->port.membase + UCR1);
-		temp &= ~(UCR1_RRDYEN);
-		writel(temp, sport->port.membase + UCR1);
-
-		/* tell the DMA to receive the data. */
-		start_rx_dma(sport);
-	}
-}
-
 static irqreturn_t imx_int(int irq, void *dev_id)
 {
 	struct imx_port *sport = dev_id;
@@ -769,11 +766,11 @@ static irqreturn_t imx_int(int irq, void *dev_id)
 
 	sts = readl(sport->port.membase + USR1);
 
-	if (sts & USR1_RRDY) {
-		if (sport->dma_is_enabled)
-			imx_dma_rxint(sport);
-		else
-			imx_rxint(irq, dev_id);
+	if ((sts & USR1_RRDY || sts & USR1_AGTIM) &&
+		!sport->dma_is_enabled) {
+		if (sts & USR1_AGTIM)
+			writel(USR1_AGTIM, sport->port.membase + USR1);
+		imx_rxint(irq, dev_id);
 	}
 
 	if (sts & USR1_TRDY &&
@@ -874,29 +871,70 @@ static void imx_break_ctl(struct uart_port *port, int break_state)
 }
 
 #define TXTL 2 /* reset default */
-#define RXTL 1 /* reset default */
+#define RXTL 1 /* For console port */
+#define RXTL_UART 16 /* For uart */
 
 static int imx_setup_ufcr(struct imx_port *sport, unsigned int mode)
 {
 	unsigned int val;
+	unsigned int rx_fifo_trig;
+
+	if (uart_console(&sport->port))
+		rx_fifo_trig = RXTL;
+	else
+		rx_fifo_trig = RXTL_UART;
 
 	/* set receiver / transmitter trigger level */
 	val = readl(sport->port.membase + UFCR) & (UFCR_RFDIV | UFCR_DCEDTE);
-	val |= TXTL << UFCR_TXTL_SHF | RXTL;
+	val |= TXTL << UFCR_TXTL_SHF | rx_fifo_trig;
 	writel(val, sport->port.membase + UFCR);
 	return 0;
 }
 
 #define RX_BUF_SIZE	(PAGE_SIZE)
+static int start_rx_dma(struct imx_port *sport);
+
+static void dma_rx_push_data(struct imx_port *sport, struct tty_struct *tty,
+				unsigned int start, unsigned int end)
+{
+	unsigned int i;
+	struct tty_port *port = &sport->port.state->port;
+
+	for (i = start; i < end; i++) {
+		if (sport->rx_buf.buf_info[i].filled) {
+			tty_insert_flip_string(port, sport->rx_buf.buf + (i
+					* RX_BUF_SIZE), sport->rx_buf.buf_info[i].rx_bytes);
+			tty_flip_buffer_push(port);
+			sport->rx_buf.buf_info[i].filled = false;
+			sport->rx_buf.last_completed_idx++;
+			sport->rx_buf.last_completed_idx %= IMX_RXBD_NUM;
+		}
+	}
+}
+
+static void dma_rx_work(struct work_struct *w)
+{
+	struct delayed_work *delay_work = to_delayed_work(w);
+	struct imx_port *sport = container_of(delay_work, struct imx_port, tsk_dma_rx);
+	struct tty_struct *tty = sport->port.state->port.tty;
+
+	if (sport->rx_buf.last_completed_idx < sport->rx_buf.cur_idx) {
+		dma_rx_push_data(sport, tty, sport->rx_buf.last_completed_idx + 1,
+					sport->rx_buf.cur_idx + 1);
+	} else if (sport->rx_buf.last_completed_idx == (IMX_RXBD_NUM - 1)) {
+		dma_rx_push_data(sport, tty, 0, sport->rx_buf.cur_idx + 1);
+	} else {
+		dma_rx_push_data(sport, tty, sport->rx_buf.last_completed_idx + 1,
+					IMX_RXBD_NUM);
+		dma_rx_push_data(sport, tty, 0, sport->rx_buf.cur_idx + 1);
+	}
+
+	if (!sport->dma_is_rxing)
+		start_rx_dma(sport);
+}
+
 static void imx_rx_dma_done(struct imx_port *sport)
 {
-	unsigned long temp;
-
-	/* Enable this interrupt when the RXFIFO is empty. */
-	temp = readl(sport->port.membase + UCR1);
-	temp |= UCR1_RRDYEN;
-	writel(temp, sport->port.membase + UCR1);
-
 	sport->dma_is_rxing = 0;
 
 	/* Is the shutdown waiting for us? */
@@ -918,67 +956,60 @@ static void dma_rx_callback(void *data)
 {
 	struct imx_port *sport = data;
 	struct dma_chan	*chan = sport->dma_chan_rx;
-	struct scatterlist *sgl = &sport->rx_sgl;
-	struct tty_port *port = &sport->port.state->port;
+	struct tty_struct *tty = sport->port.state->port.tty;
 	struct dma_tx_state state;
 	enum dma_status status;
 	unsigned int count;
 
-	/* unmap it first */
-	dma_unmap_sg(sport->port.dev, sgl, 1, DMA_FROM_DEVICE);
+	/* If we have finish the reading. we will not accept any more data. */
+	if (tty->closing) {
+		imx_rx_dma_done(sport);
+		return;
+	}
 
 	status = dmaengine_tx_status(chan, (dma_cookie_t)0, &state);
 	count = RX_BUF_SIZE - state.residue;
+	sport->rx_buf.buf_info[sport->rx_buf.cur_idx].filled = true;
+	sport->rx_buf.buf_info[sport->rx_buf.cur_idx].rx_bytes = count;
+	sport->rx_buf.cur_idx++;
+	sport->rx_buf.cur_idx %= IMX_RXBD_NUM;
 	dev_dbg(sport->port.dev, "We get %d bytes.\n", count);
 
-	if (count) {
-		tty_insert_flip_string(port, sport->rx_buf, count);
-		tty_flip_buffer_push(port);
+	if (sport->rx_buf.cur_idx == sport->rx_buf.last_completed_idx)
+		dev_err(sport->port.dev, "overwrite!\n");
 
-		start_rx_dma(sport);
-	} else if (readl(sport->port.membase + USR2) & USR2_RDR) {
-		/*
-		 * start rx_dma directly once data in RXFIFO, more efficient
-		 * than before:
-		 * 	1. call imx_rx_dma_done to stop dma if no data received
-		 *	2. wait next  RDR interrupt to start dma transfer.
-		 */
-		start_rx_dma(sport);
-	} else {
-		/*
-		 * stop dma to prevent too many IDLE event trigged if no data
-		 * in RXFIFO
-		 */
-		imx_rx_dma_done(sport);
-	}
+	if (count)
+		schedule_delayed_work(&sport->tsk_dma_rx, 0);
+	else
+		sport->rx_buf.last_completed_idx++;
 }
 
 static int start_rx_dma(struct imx_port *sport)
 {
-	struct scatterlist *sgl = &sport->rx_sgl;
 	struct dma_chan	*chan = sport->dma_chan_rx;
-	struct device *dev = sport->port.dev;
 	struct dma_async_tx_descriptor *desc;
-	int ret;
 
-	sg_init_one(sgl, sport->rx_buf, RX_BUF_SIZE);
-	ret = dma_map_sg(dev, sgl, 1, DMA_FROM_DEVICE);
-	if (ret == 0) {
-		dev_err(dev, "DMA mapping error for RX.\n");
-		return -EINVAL;
-	}
-	desc = dmaengine_prep_slave_sg(chan, sgl, 1, DMA_DEV_TO_MEM,
-					DMA_PREP_INTERRUPT);
+	sport->rx_buf.periods = IMX_RXBD_NUM;
+	sport->rx_buf.period_len = RX_BUF_SIZE;
+	sport->rx_buf.buf_len = IMX_RXBD_NUM * RX_BUF_SIZE;
+	sport->rx_buf.cur_idx = 0;
+	sport->rx_buf.last_completed_idx = -1;
+	desc = dmaengine_prep_dma_cyclic(chan, sport->rx_buf.dmaaddr,
+		sport->rx_buf.buf_len, sport->rx_buf.period_len,
+		DMA_DEV_TO_MEM, DMA_PREP_INTERRUPT);
 	if (!desc) {
-		dev_err(dev, "We cannot prepare for the RX slave dma!\n");
+		dev_err(sport->port.dev, "Prepare for the RX slave dma failed!\n");
 		return -EINVAL;
 	}
+
 	desc->callback = dma_rx_callback;
 	desc->callback_param = sport;
 
-	dev_dbg(dev, "RX: prepare for the DMA.\n");
+	dev_dbg(sport->port.dev, "RX: prepare for the DMA.\n");
 	dmaengine_submit(desc);
 	dma_async_issue_pending(chan);
+
+	sport->dma_is_rxing = 1;
 	return 0;
 }
 
@@ -988,8 +1019,10 @@ static void imx_uart_dma_exit(struct imx_port *sport)
 		dma_release_channel(sport->dma_chan_rx);
 		sport->dma_chan_rx = NULL;
 
-		kfree(sport->rx_buf);
-		sport->rx_buf = NULL;
+		dma_free_coherent(NULL, IMX_RXBD_NUM * RX_BUF_SIZE,
+					(void *)sport->rx_buf.buf,
+					sport->rx_buf.dmaaddr);
+		sport->rx_buf.buf = NULL;
 	}
 
 	if (sport->dma_chan_tx) {
@@ -1004,7 +1037,7 @@ static int imx_uart_dma_init(struct imx_port *sport)
 {
 	struct dma_slave_config slave_config = {};
 	struct device *dev = sport->port.dev;
-	int ret;
+	int ret, i;
 
 	/* Prepare for RX : */
 	sport->dma_chan_rx = dma_request_slave_channel(dev, "rx");
@@ -1017,18 +1050,24 @@ static int imx_uart_dma_init(struct imx_port *sport)
 	slave_config.direction = DMA_DEV_TO_MEM;
 	slave_config.src_addr = sport->port.mapbase + URXD0;
 	slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
-	slave_config.src_maxburst = RXTL;
+	slave_config.src_maxburst = RXTL_UART;
 	ret = dmaengine_slave_config(sport->dma_chan_rx, &slave_config);
 	if (ret) {
 		dev_err(dev, "error in RX dma configuration.\n");
 		goto err;
 	}
 
-	sport->rx_buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
-	if (!sport->rx_buf) {
+	sport->rx_buf.buf = dma_alloc_coherent(NULL, IMX_RXBD_NUM * RX_BUF_SIZE,
+					&sport->rx_buf.dmaaddr, GFP_KERNEL);
+	if (!sport->rx_buf.buf) {
 		dev_err(dev, "cannot alloc DMA buffer.\n");
 		ret = -ENOMEM;
 		goto err;
+	}
+
+	for (i = 0; i < IMX_RXBD_NUM; i++) {
+		sport->rx_buf.buf_info[i].rx_bytes = 0;
+		sport->rx_buf.buf_info[i].filled = false;
 	}
 
 	/* Prepare for TX : */
@@ -1181,8 +1220,10 @@ static int imx_startup(struct uart_port *port)
 		&& !sport->dma_is_inited)
 		imx_uart_dma_init(sport);
 
-	if (sport->dma_is_inited)
+	if (sport->dma_is_inited) {
 		INIT_WORK(&sport->tsk_dma_tx, dma_tx_work);
+		INIT_DELAYED_WORK(&sport->tsk_dma_rx, dma_rx_work);
+	}
 
 	spin_lock_irqsave(&sport->port.lock, flags);
 	/*
@@ -1191,7 +1232,9 @@ static int imx_startup(struct uart_port *port)
 	writel(USR1_RTSD, sport->port.membase + USR1);
 
 	temp = readl(sport->port.membase + UCR1);
-	temp |= UCR1_RRDYEN | UCR1_RTSDEN | UCR1_UARTEN;
+	if (!sport->dma_is_inited)
+		temp |= UCR1_RRDYEN;
+	temp |= UCR1_RTSDEN | UCR1_UARTEN;
 
 	if (USE_IRDA(sport)) {
 		temp |= UCR1_IREN;
@@ -1284,7 +1327,7 @@ static void imx_shutdown(struct uart_port *port)
 		ret = wait_event_interruptible_timeout(sport->dma_wait,
 			!sport->dma_is_rxing && !sport->dma_is_txing,
 			msecs_to_jiffies(1));
-		if (ret != 0) {
+		if (ret <= 0) {
 			sport->dma_is_rxing = 0;
 			sport->dma_is_txing = 0;
 			dmaengine_terminate_all(sport->dma_chan_tx);
@@ -1510,8 +1553,16 @@ imx_set_termios(struct uart_port *port, struct ktermios *termios,
 	if (UART_ENABLE_MS(&sport->port, termios->c_cflag))
 		imx_enable_ms(&sport->port);
 
-	if (sport->dma_is_inited && !sport->dma_is_enabled)
+	if (sport->dma_is_inited && !sport->dma_is_enabled) {
 		imx_enable_dma(sport);
+		schedule_delayed_work(&sport->tsk_dma_rx, msecs_to_jiffies(1));
+	}
+
+	if (!sport->dma_is_enabled) {
+		ucr2 = readl(sport->port.membase + UCR2);
+		writel(ucr2 | UCR2_ATEN, sport->port.membase + UCR2);
+	}
+
 	spin_unlock_irqrestore(&sport->port.lock, flags);
 }
 
