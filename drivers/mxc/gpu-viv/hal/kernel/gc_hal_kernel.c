@@ -300,7 +300,7 @@ gckKERNEL_Construct(
 #endif
 
     /* Construct a video memory mutex. */
-    gcmkONERROR(gckOS_CreateMutex(Os, &kernel->vidmemMutex));
+    gcmkONERROR(gckOS_GetVideoMemoryMutex(Os, &kernel->vidmemMutex));
 
     /* Return pointer to the gckKERNEL object. */
     *Kernel = kernel;
@@ -522,8 +522,6 @@ gckKERNEL_Destroy(
 #if gcdANDROID_NATIVE_FENCE_SYNC
     gcmkVERIFY_OK(gckOS_DestroySyncTimeline(Kernel->os, Kernel->timeline));
 #endif
-
-    gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->vidmemMutex));
 
     /* Mark the gckKERNEL object as unknown. */
     Kernel->object.type = gcvOBJ_UNKNOWN;
