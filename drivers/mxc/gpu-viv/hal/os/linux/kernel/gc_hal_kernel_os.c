@@ -214,6 +214,8 @@ struct _gckOS
 
     int                         gpu_clk_on[3];
     struct mutex                gpu_clk_mutex;
+
+    gctPOINTER                  vidmemMutex;
 };
 
 typedef struct _gcsSIGNAL * gcsSIGNAL_PTR;
@@ -1116,6 +1118,8 @@ gckOS_Construct(
 
     mutex_init(&os->gpu_clk_mutex);
 
+    gcmkONERROR(gckOS_CreateMutex(os, &os->vidmemMutex));
+
     /* Return pointer to the gckOS object. */
     *Os = os;
 
@@ -1238,6 +1242,9 @@ gckOS_Destroy(
 
     /* Destroy debug lock mutex. */
     gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Os->debugLock));
+
+    /* Destroy video memory mutex. */
+    gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Os->vidmemMutex));
 
     /* Wait for all works done. */
     flush_workqueue(Os->workqueue);
@@ -8730,6 +8737,20 @@ gckOS_GetProcessNameByPid(
 
     rcu_read_unlock();
 
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+gckOS_GetVideoMemoryMutex(
+    IN gckOS Os,
+    OUT gctPOINTER *Mutex
+    )
+{
+    gcmkHEADER_ARG("Mutex=x%X", Mutex);
+
+    *Mutex = Os->vidmemMutex;
+
+    gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 }
 
