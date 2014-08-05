@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1061,11 +1061,13 @@ again:
 	ret = ipu_check_task(task);
 	if (ret != IPU_CHECK_OK) {
 		if (ret > IPU_CHECK_ERR_MIN) {
-			if (ret == IPU_CHECK_ERR_SPLIT_INPUTW_OVER) {
+			if (ret == IPU_CHECK_ERR_SPLIT_INPUTW_OVER ||
+			    ret == IPU_CHECK_ERR_W_DOWNSIZE_OVER) {
 				task->input.crop.w -= 8;
 				goto again;
 			}
-			if (ret == IPU_CHECK_ERR_SPLIT_INPUTH_OVER) {
+			if (ret == IPU_CHECK_ERR_SPLIT_INPUTH_OVER ||
+			    ret == IPU_CHECK_ERR_H_DOWNSIZE_OVER) {
 				task->input.crop.h -= 8;
 				goto again;
 			}
