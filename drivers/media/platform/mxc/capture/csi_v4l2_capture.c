@@ -650,6 +650,7 @@ static inline int valid_mode(u32 palette)
 {
 	return (palette == V4L2_PIX_FMT_RGB565) ||
 	    (palette == V4L2_PIX_FMT_YUYV) ||
+	    (palette == V4L2_PIX_FMT_RGB32) ||
 	    (palette == V4L2_PIX_FMT_UYVY) ||
 	    (palette == V4L2_PIX_FMT_YUV444) ||
 		(palette == V4L2_PIX_FMT_YUV420);
@@ -946,6 +947,10 @@ static int csi_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 		cam->bswapenable = false;
 
 		switch (f->fmt.pix.pixelformat) {
+		case V4L2_PIX_FMT_RGB32:
+			size = f->fmt.pix.width * f->fmt.pix.height * 4;
+			bytesperline = f->fmt.pix.width * 4;
+			break;
 		case V4L2_PIX_FMT_RGB565:
 			size = f->fmt.pix.width * f->fmt.pix.height * 2;
 			bytesperline = f->fmt.pix.width * 2;
@@ -978,7 +983,6 @@ static int csi_v4l2_s_fmt(cam_data *cam, struct v4l2_format *f)
 		case V4L2_PIX_FMT_RGB24:
 		case V4L2_PIX_FMT_BGR24:
 		case V4L2_PIX_FMT_BGR32:
-		case V4L2_PIX_FMT_RGB32:
 		case V4L2_PIX_FMT_NV12:
 		default:
 			pr_debug("   case not supported\n");
