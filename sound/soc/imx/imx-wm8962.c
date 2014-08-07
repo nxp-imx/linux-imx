@@ -35,6 +35,7 @@
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
 #include <sound/jack.h>
+#include <sound/wm8962.h>
 #include <mach/dma.h>
 #include <mach/clock.h>
 #include <mach/audmux.h>
@@ -386,6 +387,20 @@ static const struct snd_soc_dapm_route audio_map[] = {
 
 };
 
+static const struct snd_soc_dapm_route mono_spk_audio_map[] = {
+	{ "Headphone Jack", NULL, "HPOUTL" },
+	{ "Headphone Jack", NULL, "HPOUTR" },
+
+	{ "Ext Spk", NULL, "SPKOUT" },
+
+	{ "MICBIAS", NULL, "AMIC" },
+	{ "IN3R", NULL, "MICBIAS" },
+
+	{ "DMIC", NULL, "MICBIAS" },
+	{ "DMICDAT", NULL, "DMIC" },
+
+};
+
 static ssize_t show_headphone(struct device_driver *dev, char *buf)
 {
 	struct imx_priv *priv = &card_priv;
@@ -447,6 +462,7 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 	struct imx_priv *priv = &card_priv;
 	struct platform_device *pdev = priv->pdev;
 	struct mxc_audio_platform_data *plat = pdev->dev.platform_data;
+	struct wm8962_pdata *pdata = dev_get_platdata(codec->dev);
 	int ret = 0;
 
 	gcodec = rtd->codec;
@@ -456,7 +472,12 @@ static int imx_wm8962_init(struct snd_soc_pcm_runtime *rtd)
 				  ARRAY_SIZE(imx_dapm_widgets));
 
 	/* Set up imx specific audio path audio_map */
-	snd_soc_dapm_add_routes(&codec->dapm, audio_map, ARRAY_SIZE(audio_map));
+	if (pdata != NULL && pdata->spk_mono)
+		snd_soc_dapm_add_routes(&codec->dapm, mono_spk_audio_map,
+			ARRAY_SIZE(mono_spk_audio_map));
+	else
+		snd_soc_dapm_add_routes(&codec->dapm, audio_map,
+			ARRAY_SIZE(audio_map));
 
 	snd_soc_dapm_enable_pin(&codec->dapm, "Headphone Jack");
 	snd_soc_dapm_enable_pin(&codec->dapm, "AMIC");
