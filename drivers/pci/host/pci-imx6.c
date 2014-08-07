@@ -1055,30 +1055,27 @@ static int __init imx6_pcie_probe(struct platform_device *pdev)
 	}
 
 	if (IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)) {
-		if (is_imx6sx_pcie(imx6_pcie)) {
-			struct device_node *np = pp->dev->of_node;
-			struct of_pci_range range;
-			struct of_pci_range_parser parser;
-			unsigned long restype;
+		struct device_node *np = pp->dev->of_node;
+		struct of_pci_range range;
+		struct of_pci_range_parser parser;
+		unsigned long restype;
 
-			if (of_pci_range_parser_init(&parser, np)) {
-				dev_err(pp->dev, "missing ranges property\n");
-				return -EINVAL;
-			}
-
-			/* Get the memory ranges from DT */
-			for_each_of_pci_range(&parser, &range) {
-				restype = range.flags & IORESOURCE_TYPE_BITS;
-				if (restype == IORESOURCE_MEM) {
-					of_pci_range_to_resource(&range,
-							np, &pp->mem);
-					pp->mem.name = "MEM";
-				}
-			}
-
-			pp->mem_base = pp->mem.start;
+		if (of_pci_range_parser_init(&parser, np)) {
+			dev_err(pp->dev, "missing ranges property\n");
+			return -EINVAL;
 		}
 
+		/* Get the memory ranges from DT */
+		for_each_of_pci_range(&parser, &range) {
+			restype = range.flags & IORESOURCE_TYPE_BITS;
+			if (restype == IORESOURCE_MEM) {
+				of_pci_range_to_resource(&range,
+						np, &pp->mem);
+				pp->mem.name = "MEM";
+			}
+		}
+
+		pp->mem_base = pp->mem.start;
 		if (IS_ENABLED(CONFIG_EP_SELF_IO_TEST)) {
 			/* Prepare the test regions and data */
 			test_reg1 = devm_kzalloc(&pdev->dev,
