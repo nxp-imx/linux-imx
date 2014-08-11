@@ -77,8 +77,12 @@
 #define BIT_ECC_AUTO_EN		(0x1 << 0)
 
 #define SHIFT_FRMCNT		16
+#define SHIFT_RXFIFO_LEVEL	4
 
 /* csi status reg */
+#define BIT_ADDR_CH_ERR_INT (0x1 << 28)
+#define BIT_FIELD0_INT      (0x1 << 27)
+#define BIT_FIELD1_INT      (0x1 << 26)
 #define BIT_SFF_OR_INT		(0x1 << 25)
 #define BIT_RFF_OR_INT		(0x1 << 24)
 #define BIT_DMA_TSF_DONE_SFF	(0x1 << 22)
@@ -97,6 +101,7 @@
 
 /* csi control reg 18 */
 #define BIT_CSI_ENABLE			(0x1 << 31)
+#define BIT_BASEADDR_CHG_ERR_EN	(0x1 << 9)
 #define BIT_BASEADDR_SWITCH_SEL	(0x1 << 5)
 #define BIT_BASEADDR_SWITCH_EN	(0x1 << 4)
 #define BIT_PARALLEL24_EN		(0x1 << 3)

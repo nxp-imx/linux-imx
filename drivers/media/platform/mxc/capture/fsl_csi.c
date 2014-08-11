@@ -63,13 +63,42 @@ static irqreturn_t csi_irq_handler(int irq, void *data)
 	cam_data *cam = (cam_data *) data;
 	struct csi_soc *csi = &csi_array[cam->csi];
 	unsigned long status = __raw_readl(csi->regbase + CSI_CSISR);
+	u32 cr3, cr18;
 
 	__raw_writel(status, csi->regbase + CSI_CSISR);
 
 	if (status & BIT_HRESP_ERR_INT)
 		pr_warning("Hresponse error is detected.\n");
 
-	if (status & BIT_DMA_TSF_DONE_FB1) {
+	if (status & BIT_ADDR_CH_ERR_INT) {
+		/* Disable csi  */
+		cr18 = __raw_readl(csi->regbase + CSI_CSICR18);
+		cr18 &= ~BIT_CSI_ENABLE;
+		__raw_writel(cr18, csi->regbase + CSI_CSICR18);
+
+		/* DMA reflash */
+		cr3 = __raw_readl(csi->regbase + CSI_CSICR3);
+		cr3 |= BIT_DMA_REFLASH_RFF;
+		__raw_writel(cr3, csi->regbase + CSI_CSICR3);
+
+		/* Ensable csi  */
+		cr18 |= BIT_CSI_ENABLE;
+		__raw_writel(cr18, csi->regbase + CSI_CSICR18);
+
+		pr_debug("base address switching Change Err.\n");
+	}
+
+	if ((status & BIT_DMA_TSF_DONE_FB1) &&
+		(status & BIT_DMA_TSF_DONE_FB2)) {
+		/* For both FB1 and FB2 interrupter bits set case,
+		 * CSI DMA is work in one of FB1 and FB2 buffer,
+		 * but software can not know the state.
+		 * Skip it to avoid base address updated
+		 * when csi work in field0 and field1 will write to
+		 * new base address.
+		 * PDM TKT230775 */
+		pr_debug("Skip two frames\n");
+	} else if (status & BIT_DMA_TSF_DONE_FB1) {
 		if (cam->capture_on) {
 			spin_lock(&cam->queue_int_lock);
 			cam->ping_pong_csi = 1;
@@ -79,9 +108,7 @@ static irqreturn_t csi_irq_handler(int irq, void *data)
 			cam->still_counter++;
 			wake_up_interruptible(&cam->still_queue);
 		}
-	}
-
-	if (status & BIT_DMA_TSF_DONE_FB2) {
+	} else if (status & BIT_DMA_TSF_DONE_FB2) {
 		if (cam->capture_on) {
 			spin_lock(&cam->queue_int_lock);
 			cam->ping_pong_csi = 2;
@@ -272,12 +299,18 @@ void csi_tvdec_enable(cam_data *cam, bool enable)
 	unsigned long cr1 = __raw_readl(csi->regbase + CSI_CSICR1);
 
 	if (enable == true) {
-		cr18 |= (BIT_TVDECODER_IN_EN | BIT_BASEADDR_SWITCH_EN);
-		cr1 |= BIT_CCIR_MODE | BIT_EXT_VSYNC;
+		cr18 |= (BIT_TVDECODER_IN_EN |
+				BIT_BASEADDR_SWITCH_EN |
+				BIT_BASEADDR_SWITCH_SEL |
+				BIT_BASEADDR_CHG_ERR_EN);
+		cr1 |= BIT_CCIR_MODE;
 		cr1 &= ~(BIT_SOF_POL | BIT_REDGE);
 	} else {
-		cr18 &= ~(BIT_TVDECODER_IN_EN | BIT_BASEADDR_SWITCH_EN);
-		cr1 &= ~(BIT_CCIR_MODE | BIT_EXT_VSYNC);
+		cr18 &= ~(BIT_TVDECODER_IN_EN |
+				BIT_BASEADDR_SWITCH_EN |
+				BIT_BASEADDR_SWITCH_SEL |
+				BIT_BASEADDR_CHG_ERR_EN);
+		cr1 &= ~BIT_CCIR_MODE;
 		cr1 |= BIT_SOF_POL | BIT_REDGE;
 	}
 
@@ -332,10 +365,18 @@ EXPORT_SYMBOL(csi_set_12bit_imagpara);
 void csi_dmareq_rff_enable(struct csi_soc *csi)
 {
 	unsigned long cr3 = __raw_readl(csi->regbase + CSI_CSICR3);
+	unsigned long cr2 = __raw_readl(csi->regbase + CSI_CSICR2);
+
+	/* Burst Type of DMA Transfer from RxFIFO. INCR16 */
+	cr2 |= 0xC0000000;
 
 	cr3 |= BIT_DMA_REQ_EN_RFF;
 	cr3 |= BIT_HRESP_ERR_EN;
+	cr3 &= ~BIT_RXFF_LEVEL;
+	cr3 |= 0x2 << 4;
+
 	__raw_writel(cr3, csi->regbase + CSI_CSICR3);
+	__raw_writel(cr2, csi->regbase + CSI_CSICR2);
 }
 EXPORT_SYMBOL(csi_dmareq_rff_enable);
 
