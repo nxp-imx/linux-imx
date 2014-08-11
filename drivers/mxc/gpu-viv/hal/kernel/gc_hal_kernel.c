@@ -1246,6 +1246,7 @@ gckKERNEL_QueryDatabase(
 {
     gceSTATUS status;
     gctINT i;
+    gcuDATABASE_INFO tmp;
 
     gceDATABASE_TYPE type[3] = {
         gcvDB_VIDEO_MEMORY | (gcvPOOL_SYSTEM << gcdDB_VIDEO_MEMORY_POOL_SHIFT),
@@ -1303,7 +1304,15 @@ gckKERNEL_QueryDatabase(
                                  Interface->u.Database.processID,
                                  !Interface->u.Database.validProcessID,
                                  gcvDB_COMMAND_BUFFER,
-                                 &Interface->u.Database.vidMemPool[2]));
+                                 &tmp));
+
+    Interface->u.Database.vidMemPool[2].counters.bytes += tmp.counters.bytes;
+    Interface->u.Database.vidMemPool[2].counters.maxBytes += tmp.counters.maxBytes;
+    Interface->u.Database.vidMemPool[2].counters.totalBytes += tmp.counters.totalBytes;
+
+    Interface->u.Database.vidMem.counters.bytes += tmp.counters.bytes;
+    Interface->u.Database.vidMem.counters.maxBytes += tmp.counters.maxBytes;
+    Interface->u.Database.vidMem.counters.totalBytes += tmp.counters.totalBytes;
 
 #if gcmIS_DEBUG(gcdDEBUG_TRACE)
     gckKERNEL_DumpVidMemUsage(Kernel, Interface->u.Database.processID);
