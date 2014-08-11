@@ -11,6 +11,7 @@
 #define SUPPORT_SYSRQ
 #endif
 
+#include <linux/clk.h>
 #include <linux/console.h>
 #include <linux/io.h>
 #include <linux/irq.h>
@@ -127,6 +128,7 @@
 
 struct linflex_port {
 	struct uart_port	port;
+	struct clk		*clk;
 };
 
 static const struct of_device_id linflex_dt_ids[] = {
@@ -878,14 +880,28 @@ static int linflex_probe(struct platform_device *pdev)
 	sport->port.irq = platform_get_irq(pdev, 0);
 	sport->port.ops = &linflex_pops;
 	sport->port.flags = UPF_BOOT_AUTOCONF;
+	sport->clk = devm_clk_get(&pdev->dev, "lin");
+	if (IS_ERR(sport->clk)) {
+		ret = PTR_ERR(sport->clk);
+		dev_err(&pdev->dev, "failed to get uart clk: %d\n", ret);
+		return ret;
+	}
+
+	ret = clk_prepare_enable(sport->clk);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to enable uart clk: %d\n", ret);
+		return ret;
+	}
 
 	linflex_ports[sport->port.line] = sport;
 
 	platform_set_drvdata(pdev, &sport->port);
 
 	ret = uart_add_one_port(&linflex_reg, &sport->port);
-	if (ret)
+	if (ret) {
+		clk_disable_unprepare(sport->clk);
 		return ret;
+	}
 
 	return 0;
 }
@@ -895,6 +911,8 @@ static int linflex_remove(struct platform_device *pdev)
 	struct linflex_port *sport = platform_get_drvdata(pdev);
 
 	uart_remove_one_port(&linflex_reg, &sport->port);
+
+	clk_disable_unprepare(sport->clk);
 
 	return 0;
 }
