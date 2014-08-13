@@ -49,6 +49,7 @@ static int imx_pcie_ep_probe(struct pci_dev *pdev,
 		const struct pci_device_id *id)
 {
 	int ret = 0;
+	unsigned int msi_addr = 0;
 	struct device *dev = &pdev->dev;
 	struct imx_pcie_ep_priv *priv;
 
@@ -85,11 +86,18 @@ static int imx_pcie_ep_probe(struct pci_dev *pdev,
 	}
 
 	/*
-	 * Force to use 0x01FF8000 as the MSI address,
-	 * to do the MSI demo
+	 * Force to use 0x01FF8000 on iMX6q SD board and 0x08FF8000
+	 * on iMX6sx SDB board as the MSI address, to do the MSI demo
 	 */
-	pci_bus_write_config_dword(pdev->bus, 0, 0x54, 0x01FF8000);
-	pci_bus_write_config_dword(pdev->bus->parent, 0, 0x820, 0x01FF8000);
+	if (*(unsigned int *)priv->hw_base > 0x4FFFFFFF)
+		/* iMX6sx SDB board, DDR layout [0x8000_0000 ~ 0xBFFF_FFFF] */
+		msi_addr = 0x08FF8000;
+	else
+		/* iMX6q SD board, DDR layout [0x1000_0000 ~ 0x4FFF_FFFF] */
+		msi_addr = 0x01FF8000;
+	pr_info("pci_msi_addr = 0x%08x\n", msi_addr);
+	pci_bus_write_config_dword(pdev->bus, 0, 0x54, msi_addr);
+	pci_bus_write_config_dword(pdev->bus->parent, 0, 0x820, msi_addr);
 
 	/* configure rc's msi cap */
 	pci_bus_read_config_dword(pdev->bus->parent, 0, 0x50, &ret);
