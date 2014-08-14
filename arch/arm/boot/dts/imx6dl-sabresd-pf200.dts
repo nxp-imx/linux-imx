@@ -37,6 +37,14 @@
 	pu-supply = <&reg_pu>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
 };
 
+&wdog1 {
+	status = "okay";
+};
+
+&wdog2 {
+	status = "disabled";
+};
+
 &i2c2 {
 	pmic: pfuze200@08 {
 		compatible = "fsl,pfuze200";
