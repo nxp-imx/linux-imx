@@ -30,6 +30,7 @@
 #define MX6Q_GPC_IMR4	0x14
 #define MX6Q_CCM_CCR	0x0
 #define MX6Q_ANATOP_CORE	0x140
+#define MX6Q_ANATOP_MISC0	0x150
 
 .globl imx6_suspend_start
 .globl imx6_suspend_end
@@ -993,6 +994,14 @@ ldo_analog_bypass:
 	str	r7, [r8, #MX6Q_ANATOP_CORE]
 ldo_check_done1:
 
+	/*
+	 * Enable the bandgap selfbias circuit required
+	 * for bandgap to startup.
+	 */
+	ldr	r7, [r8, #MX6Q_ANATOP_MISC0]
+	bic	r7, r7, #0x8
+	str	r7, [r8, #MX6Q_ANATOP_MISC0]
+
 	/* Zzz, enter stop mode */
 	wfi
 	nop
@@ -1001,13 +1010,21 @@ ldo_check_done1:
 	nop
 
 	/*
+	 * We did not power down, disable bandgap
+	 * self-bias circuit.
+	 */
+	ldr	r8, =IMX_IO_P2V(MX6Q_ANATOP_BASE_ADDR)
+	ldr	r7, [r8, #MX6Q_ANATOP_MISC0]
+	orr	r7, r7, #0x8
+	str	r7, [r8, #MX6Q_ANATOP_MISC0]
+
+	/*
 	 * run to here means there is pending
 	 * wakeup source, system should auto
 	 * resume, we need to restore DDR IO first
 	 */
 
 	/* restore it with 0x1f if use ldo bypass mode.*/
-	ldr	r8, =IMX_IO_P2V(MX6Q_ANATOP_BASE_ADDR)
 	ldr	r7, [r8, #MX6Q_ANATOP_CORE]
 	and	r7, r7, #0x1f
 	cmp	r7, #0x1e
@@ -1115,8 +1132,22 @@ resume:
 	mcr     p15, 0, r1, c1, c0, 0
 	isb
 
-	/* restore it with 0x1f if use ldo bypass mode.*/
+	/*
+	 * We did power down. Ensure bandgap is stable.
+	 */
 	ldr	r8, =MX6Q_ANATOP_BASE_ADDR
+bg_not_stable:
+	ldr	r7, [r8, #MX6Q_ANATOP_MISC0]
+	and	r7, r7, #0x80
+	cmp	r7, #0x80
+	bne	bg_not_stable
+
+	/* Now disable bandgap self-bias circuit. */
+	ldr	r7, [r8, #MX6Q_ANATOP_MISC0]
+	orr	r7, r7, #0x8
+	str	r7, [r8, #MX6Q_ANATOP_MISC0]
+
+	/* restore it with 0x1f if use ldo bypass mode.*/
 	ldr	r7, [r8, #MX6Q_ANATOP_CORE]
 	and	r7, r7, #0x1f
 	cmp	r7, #0x1e
