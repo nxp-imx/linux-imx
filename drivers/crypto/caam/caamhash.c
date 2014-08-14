@@ -1076,8 +1076,9 @@ static int ahash_update_ctx(struct ahash_request *req)
 					   edesc->sec4_sg + sec4_sg_src_index,
 					   chained);
 			if (*next_buflen) {
-				sg_copy_part(next_buf, req->src, to_hash -
-					     *buflen, req->nbytes);
+				scatterwalk_map_and_copy(next_buf, req->src,
+							 to_hash - *buflen,
+							 *next_buflen, 0);
 				state->current_buf = !state->current_buf;
 			}
 		} else {
@@ -1113,7 +1114,8 @@ static int ahash_update_ctx(struct ahash_request *req)
 			kfree(edesc);
 		}
 	} else if (*next_buflen) {
-		sg_copy(buf + *buflen, req->src, req->nbytes);
+		scatterwalk_map_and_copy(buf + *buflen, req->src, 0,
+					 req->nbytes, 0);
 		*buflen = *next_buflen;
 		*next_buflen = last_buflen;
 	}
@@ -1472,8 +1474,9 @@ static int ahash_update_no_ctx(struct ahash_request *req)
 		src_map_to_sec4_sg(jrdev, req->src, src_nents,
 				   edesc->sec4_sg + 1, chained);
 		if (*next_buflen) {
-			sg_copy_part(next_buf, req->src, to_hash - *buflen,
-				    req->nbytes);
+			scatterwalk_map_and_copy(next_buf, req->src,
+						 to_hash - *buflen,
+						 *next_buflen, 0);
 			state->current_buf = !state->current_buf;
 		}
 
@@ -1506,7 +1509,8 @@ static int ahash_update_no_ctx(struct ahash_request *req)
 			kfree(edesc);
 		}
 	} else if (*next_buflen) {
-		sg_copy(buf + *buflen, req->src, req->nbytes);
+		scatterwalk_map_and_copy(buf + *buflen, req->src, 0,
+					 req->nbytes, 0);
 		*buflen = *next_buflen;
 		*next_buflen = 0;
 	}
@@ -1666,7 +1670,8 @@ static int ahash_update_first(struct ahash_request *req)
 		}
 
 		if (*next_buflen)
-			sg_copy_part(next_buf, req->src, to_hash, req->nbytes);
+			scatterwalk_map_and_copy(next_buf, req->src, to_hash,
+						 *next_buflen, 0);
 
 		sh_len = desc_len(sh_desc);
 		desc = edesc->hw_desc;
@@ -1701,7 +1706,8 @@ static int ahash_update_first(struct ahash_request *req)
 		state->update = ahash_update_no_ctx;
 		state->finup = ahash_finup_no_ctx;
 		state->final = ahash_final_no_ctx;
-		sg_copy(next_buf, req->src, req->nbytes);
+		scatterwalk_map_and_copy(next_buf, req->src, 0,
+					 req->nbytes, 0);
 	}
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "next buf@"__stringify(__LINE__)": ",
