@@ -142,8 +142,8 @@ MODULE_PARM_DESC(stuckDump, "Level of stuck dump content (1: Minimal, 2: Middle,
 static int showArgs = 0;
 module_param(showArgs, int, 0644);
 
-static int gpu3DMinClock = 1;
-module_param(gpu3DMinClock, int, 0644);
+static int initgpu3DMinClock = 1;
+module_param(initgpu3DMinClock, int, 0644);
 
 static int contiguousRequested = 0;
 
@@ -312,6 +312,38 @@ static ssize_t show_idletime(struct device_driver *dev, char *buf)
 
 static DRIVER_ATTR(idletime, S_IRUGO | S_IWUSR, show_idletime, gcvNULL);
 
+#if gcdENABLE_FSCALE_VAL_ADJUST
+static ssize_t show_gpu3DMinClock(struct device_driver *dev, char *buf)
+{
+    gctUINT currentf,minf,maxf;
+    if(galDevice->kernels[gcvCORE_MAJOR])
+    {
+         gckHARDWARE_GetFscaleValue(galDevice->kernels[gcvCORE_MAJOR]->hardware,
+            &currentf, &minf, &maxf);
+    }
+    snprintf(buf, PAGE_SIZE, "%d\n", minf);
+    return strlen(buf);
+}
+
+static ssize_t update_gpu3DMinClock(struct device_driver *dev, const char *buf, size_t count)
+{
+
+    gctINT fields;
+    gctUINT MinFscaleValue;
+   if(galDevice->kernels[gcvCORE_MAJOR])
+   {
+        fields = sscanf(buf, "%d", &MinFscaleValue);
+        if (fields < 1)
+            return -EINVAL;
+
+        gckHARDWARE_SetMinFscaleValue(galDevice->kernels[gcvCORE_MAJOR]->hardware,MinFscaleValue);
+   }
+
+    return count;
+}
+
+static DRIVER_ATTR(gpu3DMinClock, S_IRUGO | S_IWUSR, show_gpu3DMinClock, update_gpu3DMinClock);
+#endif
 void
 _UpdateModuleParam(
     gcsMODULE_PARAMETERS *Param
@@ -937,7 +969,7 @@ static int drv_init(void)
     gcsDEVICE_CONSTRUCT_ARGS args = {
         .recovery           = recovery,
         .stuckDump          = stuckDump,
-        .gpu3DMinClock      = gpu3DMinClock,
+        .gpu3DMinClock      = initgpu3DMinClock,
         .contiguousRequested = contiguousRequested,
         .platform           = &platform,
     };
@@ -1217,6 +1249,11 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         if(ret)
             dev_err(&pdev->dev, "create idletime attr failed (%d)\n", ret);
 
+#if gcdENABLE_FSCALE_VAL_ADJUST
+        ret = driver_create_file(pdev->dev.driver, &driver_attr_gpu3DMinClock);
+        if(ret)
+            dev_err(&pdev->dev, "create gpu3DMinClock attr failed (%d)\n", ret);
+#endif
         gcmkFOOTER_NO();
         return ret;
     }
@@ -1236,6 +1273,9 @@ static int __devexit gpu_remove(struct platform_device *pdev)
     driver_remove_file(pdev->dev.driver, &driver_attr_meminfo);
     driver_remove_file(pdev->dev.driver, &driver_attr_pid);
     driver_remove_file(pdev->dev.driver, &driver_attr_idletime);
+#if gcdENABLE_FSCALE_VAL_ADJUST
+    driver_remove_file(pdev->dev.driver, &driver_attr_gpu3DMinClock);
+#endif
 
     drv_exit();
 
