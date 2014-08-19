@@ -31,6 +31,7 @@ at imx6 SoC series
   and release the clock to the digital logic inside the analog block,
   0 <= osc-clkgate-delay <= 7.
 - maximum-speed: limit the maximum connection speed to "full-speed".
+- tpl-support: TPL (Targeted Peripheral List) feature for targeted hosts
 
 Examples:
 usb@02184000 { /* USB OTG */
@@ -48,4 +49,5 @@ usb@02184000 { /* USB OTG */
 	pinctrl-1 = <&pinctrl_usbh2_2>;
 	osc-clkgate-delay = <0x3>;
 	maximum-speed = "full-speed";
+	tpl-support;
 };
