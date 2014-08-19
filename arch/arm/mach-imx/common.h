@@ -82,6 +82,7 @@ void imx_set_soc_revision(unsigned int rev);
 unsigned int imx_get_soc_revision(void);
 void imx_init_revision_from_anatop(void);
 struct device *imx_soc_device_init(void);
+unsigned int imx_gpc_is_mf_mix_off(void);
 
 enum mxc_cpu_pwr_mode {
 	WAIT_CLOCKED,		/* wfi only */

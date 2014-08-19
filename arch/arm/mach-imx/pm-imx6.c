@@ -14,6 +14,12 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/irq.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/of_device.h>
+#include <linux/of_fdt.h>
+#include <linux/of_irq.h>
+#include <linux/suspend.h>
 #include <linux/genalloc.h>
 #include <linux/mfd/syscon.h>
 #include <linux/mfd/syscon/imx6q-iomuxc-gpr.h>
@@ -79,6 +85,9 @@
 unsigned long iram_tlb_base_addr;
 unsigned long iram_tlb_phys_addr;
 
+static unsigned int *ocram_saved_in_ddr;
+static void __iomem *ocram_base;
+static unsigned int ocram_size;
 static void __iomem *ccm_base;
 static void __iomem *suspend_ocram_base;
 static void (*imx6_suspend_in_ocram_fn)(void __iomem *ocram_vbase);
@@ -438,8 +447,14 @@ static int imx6q_pm_enter(suspend_state_t state)
 		imx_gpc_pre_suspend(true);
 		imx_anatop_pre_suspend();
 		imx_set_cpu_jump(0, v7_cpu_resume);
+		if (cpu_is_imx6sx() && imx_gpc_is_mf_mix_off())
+			memcpy(ocram_saved_in_ddr, ocram_base, ocram_size);
+
 		/* Zzz ... */
 		cpu_suspend(0, imx6q_suspend_finish);
+
+		if (cpu_is_imx6sx() && imx_gpc_is_mf_mix_off())
+			memcpy(ocram_base, ocram_saved_in_ddr, ocram_size);
 		if (cpu_is_imx6q() || cpu_is_imx6dl())
 			imx_smp_prepare();
 		imx_anatop_post_resume();
@@ -747,6 +762,9 @@ void __init imx6sl_pm_init(void)
 
 void __init imx6sx_pm_init(void)
 {
+	struct device_node *np;
+	struct resource res;
+
 	imx6_pm_common_init(&imx6sx_pm_data);
 	if (imx_get_soc_revision() < IMX_CHIP_REVISION_1_2) {
 	/*
@@ -774,4 +792,12 @@ void __init imx6sx_pm_init(void)
 		regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
 			BM_ROMPATCHCNTL_DIS, ~BM_ROMPATCHCNTL_DIS);
 	}
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,mega-fast-sram");
+	ocram_base = of_iomap(np, 0);
+	WARN_ON(!ocram_base);
+	WARN_ON(of_address_to_resource(np, 0, &res));
+	ocram_size = resource_size(&res);
+	ocram_saved_in_ddr = kzalloc(ocram_size, GFP_KERNEL);
+	WARN_ON(!ocram_saved_in_ddr);
 }

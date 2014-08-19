@@ -52,6 +52,11 @@ static u32 gpc_wake_irqs[IMR_NUM];
 static u32 gpc_saved_imrs[IMR_NUM];
 static u32 bypass;
 
+unsigned int imx_gpc_is_mf_mix_off(void)
+{
+	return readl_relaxed(gpc_base + GPC_PGC_MF_PDN);
+}
+
 static void imx_gpc_mf_mix_off(void)
 {
 	int i;
