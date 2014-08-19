@@ -1,7 +1,7 @@
 /*
  * System Control Driver
  *
- * Copyright (C) 2012 Freescale Semiconductor, Inc.
+ * Copyright (C) 2012-2014 Freescale Semiconductor, Inc.
  * Copyright (C) 2012 Linaro Ltd.
  *
  * Author: Dong Aisheng <dong.aisheng@linaro.org>
@@ -20,6 +20,7 @@
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+#include <linux/signal.h>
 #include <linux/mfd/syscon.h>
 
 static struct platform_driver syscon_driver;
@@ -124,6 +125,12 @@ static struct regmap_config syscon_regmap_config = {
 	.reg_stride = 4,
 };
 
+static int syscon_regmap_abort_handler(unsigned long addr,
+		unsigned int fsr, struct pt_regs *regs)
+{
+	return 0;
+}
+
 static int syscon_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -149,6 +156,10 @@ static int syscon_probe(struct platform_device *pdev)
 		dev_err(dev, "regmap init failed\n");
 		return PTR_ERR(syscon->regmap);
 	}
+
+	/* Added for imprecise external abort handling */
+	hook_fault_code(16 + 6, syscon_regmap_abort_handler, SIGBUS, 0,
+		"imprecise external abort");
 
 	platform_set_drvdata(pdev, syscon);
 
