@@ -32,6 +32,7 @@
 #include <asm/byteorder.h>
 
 #include "hub.h"
+#include "otg_whitelist.h"
 
 /* if we are in debug mode, always announce new devices */
 #ifdef DEBUG
@@ -2151,9 +2152,6 @@ static void announce_device(struct usb_device *udev)
 static inline void announce_device(struct usb_device *udev) { }
 #endif
 
-#ifdef	CONFIG_USB_OTG
-#include "otg_whitelist.h"
-#endif
 
 /**
  * usb_enumerate_device_otg - FIXME (usbcore-internal)
@@ -2211,21 +2209,6 @@ static int usb_enumerate_device_otg(struct usb_device *udev)
 			}
 		}
 	}
-
-	if (!is_targeted(udev)) {
-
-		/* Maybe it can talk to us, though we can't talk to it.
-		 * (Includes HNP test device.)
-		 */
-		if (udev->bus->b_hnp_enable || udev->bus->is_b_host) {
-			err = usb_port_suspend(udev, PMSG_SUSPEND);
-			if (err < 0)
-				dev_dbg(&udev->dev, "HNP fail, %d\n", err);
-		}
-		err = -ENOTSUPP;
-		goto fail;
-	}
-fail:
 #endif
 	return err;
 }
@@ -2246,6 +2229,7 @@ fail:
 static int usb_enumerate_device(struct usb_device *udev)
 {
 	int err;
+	struct usb_hcd *hcd = bus_to_hcd(udev->bus);
 
 	if (udev->config == NULL) {
 		err = usb_get_configuration(udev);
@@ -2266,6 +2250,19 @@ static int usb_enumerate_device(struct usb_device *udev)
 	err = usb_enumerate_device_otg(udev);
 	if (err < 0)
 		return err;
+
+	if (IS_ENABLED(CONFIG_USB_OTG_WHITELIST) && hcd->tpl_support &&
+		!is_targeted(udev) && IS_ENABLED(CONFIG_USB_OTG)) {
+		/* Maybe it can talk to us, though we can't talk to it.
+		 * (Includes HNP test device.)
+		 */
+		if (udev->bus->b_hnp_enable || udev->bus->is_b_host) {
+			err = usb_port_suspend(udev, PMSG_AUTO_SUSPEND);
+			if (err < 0)
+				dev_dbg(&udev->dev, "HNP fail, %d\n", err);
+		}
+		return -ENOTSUPP;
+	}
 
 	usb_detect_interface_quirks(udev);
 
