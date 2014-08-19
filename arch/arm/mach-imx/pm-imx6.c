@@ -14,6 +14,7 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of_fdt.h>
 #include <linux/of_irq.h>
@@ -77,12 +78,15 @@
 unsigned long iram_tlb_base_addr;
 unsigned long iram_tlb_phys_addr;
 
+static unsigned int *ocram_saved_in_ddr;
 static void *suspend_iram_base;
 static unsigned long iram_paddr;
 static int (*suspend_in_iram_fn)(void *iram_vbase,
 	unsigned long iram_pbase, unsigned int cpu_type);
 static unsigned int cpu_type;
 static void __iomem *ccm_base;
+static void __iomem *ocram_base;
+static unsigned int ocram_size;
 struct regmap *romcp;
 
 unsigned long total_suspend_size;
@@ -346,10 +350,12 @@ static int imx6_pm_enter(suspend_state_t state)
 		imx_set_cpu_jump(0, v7_cpu_resume);
 
 		imx6_save_cpu_arch_regs();
-
+		if (cpu_is_imx6sx() && imx_gpc_is_mf_mix_off())
+			memcpy(ocram_saved_in_ddr, ocram_base, ocram_size);
 		/* Zzz ... */
 		cpu_suspend(0, imx6_suspend_finish);
-
+		if (cpu_is_imx6sx() && imx_gpc_is_mf_mix_off())
+			memcpy(ocram_base, ocram_saved_in_ddr, ocram_size);
 		imx6_restore_cpu_arch_regs();
 
 		if (!cpu_is_imx6sl() && !cpu_is_imx6sx())
@@ -504,6 +510,8 @@ void imx6_pm_set_ccm_base(void __iomem *base)
 void __init imx6_pm_init(void)
 {
 	unsigned long suspend_code_size;
+	struct device_node *np;
+	struct resource res;
 
 	if (!iram_tlb_base_addr) {
 		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume code. \
@@ -555,5 +563,13 @@ Please ensure device tree has an entry fsl,lpm-sram\n");
 			ROM_ADDR_FOR_INTERNAL_RAM_BASE);
 		regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
 			BM_ROMPATCHCNTL_DIS, ~BM_ROMPATCHCNTL_DIS);
+
+		np = of_find_compatible_node(NULL, NULL, "fsl,mega-fast-sram");
+		ocram_base = of_iomap(np, 0);
+		WARN_ON(!ocram_base);
+		WARN_ON(of_address_to_resource(np, 0, &res));
+		ocram_size = resource_size(&res);
+		ocram_saved_in_ddr = kzalloc(ocram_size, GFP_KERNEL);
+		WARN_ON(!ocram_saved_in_ddr);
 	}
 }

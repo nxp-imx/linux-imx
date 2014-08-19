@@ -149,6 +149,11 @@ static void imx_gpc_dispmix_off(void)
 	}
 }
 
+unsigned int imx_gpc_is_mf_mix_off(void)
+{
+	return readl_relaxed(gpc_base + GPC_PGC_MF_PDN);
+}
+
 static void imx_gpc_mf_mix_off(void)
 {
 	int i;
