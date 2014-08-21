@@ -244,7 +244,7 @@ struct imx_port {
 	struct imx_dma_rxbuf	rx_buf;
 	unsigned int		tx_bytes;
 	unsigned int		dma_tx_nents;
-	struct work_struct	tsk_dma_tx;
+	struct delayed_work	tsk_dma_tx;
 	struct delayed_work	tsk_dma_rx;
 	wait_queue_head_t	dma_wait;
 	unsigned int            saved_reg[11];
@@ -530,7 +530,7 @@ static void dma_tx_callback(void *data)
 	smp_mb__after_clear_bit();
 	uart_write_wakeup(&sport->port);
 
-	schedule_work(&sport->tsk_dma_tx);
+	schedule_delayed_work(&sport->tsk_dma_tx, msecs_to_jiffies(1));
 
 	if (waitqueue_active(&sport->dma_wait)) {
 		wake_up(&sport->dma_wait);
@@ -541,7 +541,8 @@ static void dma_tx_callback(void *data)
 
 static void dma_tx_work(struct work_struct *w)
 {
-	struct imx_port *sport = container_of(w, struct imx_port, tsk_dma_tx);
+	struct delayed_work *delay_work = to_delayed_work(w);
+	struct imx_port *sport = container_of(delay_work, struct imx_port, tsk_dma_tx);
 	struct circ_buf *xmit = &sport->port.state->xmit;
 	struct scatterlist *sgl = sport->tx_sgl;
 	struct dma_async_tx_descriptor *desc;
@@ -639,7 +640,7 @@ static void imx_start_tx(struct uart_port *port)
 	}
 
 	if (sport->dma_is_enabled) {
-		schedule_work(&sport->tsk_dma_tx);
+		schedule_delayed_work(&sport->tsk_dma_tx, 0);
 		return;
 	}
 
@@ -1221,7 +1222,7 @@ static int imx_startup(struct uart_port *port)
 		imx_uart_dma_init(sport);
 
 	if (sport->dma_is_inited) {
-		INIT_WORK(&sport->tsk_dma_tx, dma_tx_work);
+		INIT_DELAYED_WORK(&sport->tsk_dma_tx, dma_tx_work);
 		INIT_DELAYED_WORK(&sport->tsk_dma_rx, dma_rx_work);
 	}
 
