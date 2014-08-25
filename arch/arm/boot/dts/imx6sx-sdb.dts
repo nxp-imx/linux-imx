@@ -495,6 +495,9 @@
 	pinctrl-0 = <&pinctrl_uart5_1>;
 	fsl,uart-has-rtscts;
 	status = "okay";
+	/* for DTE mode, add below change */
+	/* fsl,dte-mode;*/
+	/* pinctrl-0 = <&pinctrl_uart5dte_1>; */
 };
 
 &usbotg1 {
