@@ -55,18 +55,21 @@ typedef struct _DFBPixmap *  HALNativePixmapType;
 #include "wayland-server.h"
 #include <wayland-egl.h>
 
-#define WL_EGL_NUM_BACKBUFFERS 2
+#define WL_EGL_NUM_BACKBUFFERS 3
 
 typedef struct _gcsWL_VIV_BUFFER
 {
-   struct wl_buffer wl_buffer;
+   struct wl_resource *wl_buffer;
    gcoSURF surface;
+   gctINT32 width, height;
 } gcsWL_VIV_BUFFER;
 
 typedef struct _gcsWL_EGL_DISPLAY
 {
    struct wl_display* wl_display;
    struct wl_viv* wl_viv;
+   struct wl_registry *registry;
+   struct wl_event_queue    *wl_queue;
 } gcsWL_EGL_DISPLAY;
 
 typedef struct _gcsWL_EGL_BUFFER_INFO
@@ -79,6 +82,9 @@ typedef struct _gcsWL_EGL_BUFFER_INFO
    gcePOOL pool;
    gctUINT bytes;
    gcoSURF surface;
+   gcoSURF attached_surface;
+   gctINT32 invalidate;
+   gctBOOL locked;
 } gcsWL_EGL_BUFFER_INFO;
 
 typedef struct _gcsWL_EGL_BUFFER
@@ -89,19 +95,24 @@ typedef struct _gcsWL_EGL_BUFFER
 
 typedef struct _gcsWL_EGL_WINDOW_INFO
 {
+   gctINT32 dx;
+   gctINT32 dy;
    gctUINT width;
    gctUINT height;
+   gctINT32 attached_width;
+   gctINT32 attached_height;
    gceSURF_FORMAT format;
    gctUINT bpp;
 } gcsWL_EGL_WINDOW_INFO;
 
 struct wl_egl_window
 {
+   gcsWL_EGL_DISPLAY* display;
    gcsWL_EGL_BUFFER backbuffers[WL_EGL_NUM_BACKBUFFERS];
    gcsWL_EGL_WINDOW_INFO info;
    gctUINT current;
    struct wl_surface* surface;
-   struct wl_callback* pending;
+   struct wl_callback* frame_callback;
 };
 
 typedef void*   HALNativeDisplayType;

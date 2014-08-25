@@ -455,6 +455,7 @@ typedef struct _gcsKERNEL_FUNCTION *	gcKERNEL_FUNCTION;
 typedef struct _gcsHINT *               gcsHINT_PTR;
 typedef struct _gcSHADER_PROFILER *     gcSHADER_PROFILER;
 typedef struct _gcVARIABLE *			gcVARIABLE;
+typedef struct _gcSHADER_LIST *         gcSHADER_LIST;
 
 struct _gcsHINT
 {
@@ -522,6 +523,11 @@ struct _gcsHINT
 
 #if TEMP_SHADER_PATCH
 	gctUINT32	pachedShaderIdentifier;
+#endif
+
+#if gcdUSE_WCLIP_PATCH
+    /* Strict WClip match. */
+    gctBOOL     strictWClipMatch;
 #endif
 };
 
@@ -3230,6 +3236,12 @@ gcATTRIBUTE_IsEnabled(
 	OUT gctBOOL * Enabled
 	);
 
+gceSTATUS
+gcATTRIBUTE_GetIndex(
+    IN gcATTRIBUTE Attribute,
+    OUT gctUINT16 * Index
+    );
+
 /*******************************************************************************
 **                              gcUNIFORM_GetType
 ********************************************************************************
@@ -3391,6 +3403,12 @@ gcUNIFORM_GetSampler(
 	IN gcUNIFORM Uniform,
 	OUT gctUINT32 * Sampler
 	);
+
+gceSTATUS
+gcUNIFORM_GetIndex(
+    IN gcUNIFORM Uniform,
+    OUT gctUINT16 * Index
+    );
 
 /*******************************************************************************
 **  gcUNIFORM_GetFormat
@@ -4288,6 +4306,46 @@ gcSHADER_PatchZBiasForMachineCodeVS(
     OUT    gctPOINTER*             ppCmdBuffer,
     OUT    gctUINT32*              pByteSizeOfCmdBuffer,
     IN OUT gcsHINT_PTR             pHints /* User needs copy original hints to this one, then passed this one in */
+    );
+
+gceSTATUS
+gcSHADER_InsertList(
+    IN gcSHADER                    Shader,
+    IN gcSHADER_LIST *             Root,
+    IN gctINT                      Index,
+    IN gctINT                      Data0,
+    IN gctINT                      Data1
+    );
+
+gceSTATUS
+gcSHADER_UpdateList(
+    IN gcSHADER                    Shader,
+    IN gcSHADER_LIST               Root,
+    IN gctINT                      Index,
+    IN gctINT                      NewIndex
+    );
+
+gceSTATUS
+gcSHADER_DeleteList(
+    IN gcSHADER                    Shader,
+    IN gcSHADER_LIST *             Root,
+    IN gctINT                      Index
+    );
+
+gceSTATUS
+gcSHADER_FindList(
+    IN gcSHADER                    Shader,
+    IN gcSHADER_LIST               Root,
+    IN gctINT                      Index,
+    IN gcSHADER_LIST *             List
+    );
+
+gceSTATUS
+gcSHADER_InsertWClipList(
+    IN gcSHADER                    Shader,
+    IN gctINT                      Index,
+    IN gctINT                      Data0,
+    IN gctINT                      Data1
     );
 
 #ifdef __cplusplus

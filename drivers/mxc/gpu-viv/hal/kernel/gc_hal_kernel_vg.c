@@ -305,6 +305,8 @@ gckKERNEL_AllocateLinearMemory(
 
             if (status == gcvSTATUS_OK)
             {
+                if(*Pool == gcvPOOL_SYSTEM)
+                    Type |= gcvSURF_VG;
                 /* Allocate memory. */
                 status = gckVIDMEM_AllocateLinear(Kernel,
                                                   videoMemory,

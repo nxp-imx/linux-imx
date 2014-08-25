@@ -18,7 +18,6 @@
 *
 *****************************************************************************/
 
-
 #ifndef __gc_hal_types_h_
 #define __gc_hal_types_h_
 
@@ -1015,6 +1014,7 @@ typedef enum _gcePATCH_ID
     gcePATCH_RTESTVA,
     gcePATCH_BMX,
     gcePATCH_BMGUI,
+    gcePATCH_ANDROID_CTS_MEDIA_PRESENTATIONTIME,
 
     /* Game list */
     gcePATCH_NBA2013,
@@ -1048,7 +1048,16 @@ typedef enum _gcePATCH_ID
     gcePATCH_DUOKANTV,
     gcePATCH_TESTAPP,
     gcePATCH_GOOGLEEARTH,
-
+    gcePATCH_SF4,
+    gcePATCH_SPEEDRACE,
+    gcePATCH_AIRNAVY,
+    gcePATCH_F18NEW,
+    gcePATCH_F18,
+    gcePATCH_WISTONESG,
+    gcvPATCH_VECUNIT_RED,
+    gcvPATCH_NAMESGAS,
+    gcvPATCH_AFTERBURNER,
+    gcvPATCH_UIMARK,
     /* Count enum*/
     gcePATCH_COUNT,
 }

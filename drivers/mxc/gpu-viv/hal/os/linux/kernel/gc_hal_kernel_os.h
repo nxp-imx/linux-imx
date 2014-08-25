@@ -55,6 +55,9 @@ typedef struct _LINUX_MDL
     gctINT                  numPages;
     gctINT                  pagedMem;
     gctBOOL                 contiguous;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+    gctBOOL                 exact;
+#endif
     dma_addr_t              dmaHandle;
     PLINUX_MDL_MAP          maps;
     struct _LINUX_MDL *     prev;

@@ -300,7 +300,7 @@ gckKERNEL_Construct(
 #endif
 
     /* Construct a video memory mutex. */
-    gcmkONERROR(gckOS_CreateMutex(Os, &kernel->vidmemMutex));
+    gcmkONERROR(gckOS_GetVideoMemoryMutex(Os, &kernel->vidmemMutex));
 
     /* Return pointer to the gckKERNEL object. */
     *Kernel = kernel;
@@ -522,8 +522,6 @@ gckKERNEL_Destroy(
 #if gcdANDROID_NATIVE_FENCE_SYNC
     gcmkVERIFY_OK(gckOS_DestroySyncTimeline(Kernel->os, Kernel->timeline));
 #endif
-
-    gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->vidmemMutex));
 
     /* Mark the gckKERNEL object as unknown. */
     Kernel->object.type = gcvOBJ_UNKNOWN;
@@ -775,7 +773,7 @@ _AllocateMemory_Retry:
 
                     if((physAddr & 0x80000000) || ((physAddr + Bytes) & 0x80000000))
                     {
-                        gckOS_Print("gpu virtual memory 0x%x cannot be allocated for external use !\n", physAddr);
+                        gckOS_Print("gpu virtual memory 0x%x cannot be allocated in force contiguous request!\n", physAddr);
 
                         gcmkONERROR(gckVIDMEM_Free(Kernel, node));
 
@@ -872,7 +870,15 @@ _AllocateMemory_Retry:
 #ifdef CONFIG_GPU_LOW_MEMORY_KILLER
         if(forceContiguous == gcvTRUE)
         {
-            if(force_contiguous_lowmem_shrink(Kernel) == 0)
+            int ret;
+             /* Acquire the mutex. */
+            gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, Kernel->vidmemMutex, gcvINFINITE));
+
+            ret = force_contiguous_lowmem_shrink(Kernel);
+
+            gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vidmemMutex));
+
+            if(ret == 0)
             {
                  /* Sleep 1 millisecond. */
                  gckOS_Delay(gcvNULL, 1);
@@ -1186,7 +1192,7 @@ gckKERNEL_Dispatch(
         break;
 
     case gcvHAL_ALLOCATE_LINEAR_VIDEO_MEMORY:
-        type = Interface->u.AllocateLinearVideoMemory.type;
+        type = Interface->u.AllocateLinearVideoMemory.type & 0xFF;
 
         /* Allocate memory. */
         gcmkONERROR(
@@ -1194,7 +1200,7 @@ gckKERNEL_Dispatch(
                             &Interface->u.AllocateLinearVideoMemory.pool,
                             Interface->u.AllocateLinearVideoMemory.bytes,
                             Interface->u.AllocateLinearVideoMemory.alignment,
-                            Interface->u.AllocateLinearVideoMemory.type,
+                            type,
                             &node));
 
         if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
@@ -1260,14 +1266,6 @@ gckKERNEL_Dispatch(
             node->VidMem.logical = gcvNULL;
         }
 #endif
-        /* Free video memory. */
-        gcmkONERROR(
-            gckVIDMEM_Free(Kernel, node));
-
-        gcmkONERROR(
-            gckKERNEL_RemoveProcessDB(Kernel,
-                                      processID, gcvDB_VIDEO_MEMORY,
-                                      node));
 
         if (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
         {
@@ -1290,6 +1288,15 @@ gckKERNEL_Dispatch(
                                       processID, gcvDB_VIDEO_MEMORY_VIRTUAL,
                                       node));
         }
+
+        /* Free video memory. */
+        gcmkONERROR(
+            gckVIDMEM_Free(Kernel, node));
+
+        gcmkONERROR(
+            gckKERNEL_RemoveProcessDB(Kernel,
+                                      processID, gcvDB_VIDEO_MEMORY,
+                                      node));
 
         break;
 

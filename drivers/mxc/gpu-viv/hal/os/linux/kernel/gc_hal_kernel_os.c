@@ -214,6 +214,8 @@ struct _gckOS
 
     int                         gpu_clk_on[3];
     struct mutex                gpu_clk_mutex;
+
+    gctPOINTER                  vidmemMutex;
 };
 
 typedef struct _gcsSIGNAL * gcsSIGNAL_PTR;
@@ -1116,6 +1118,8 @@ gckOS_Construct(
 
     mutex_init(&os->gpu_clk_mutex);
 
+    gcmkONERROR(gckOS_CreateMutex(os, &os->vidmemMutex));
+
     /* Return pointer to the gckOS object. */
     *Os = os;
 
@@ -1238,6 +1242,9 @@ gckOS_Destroy(
 
     /* Destroy debug lock mutex. */
     gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Os->debugLock));
+
+    /* Destroy video memory mutex. */
+    gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Os->vidmemMutex));
 
     /* Wait for all works done. */
     flush_workqueue(Os->workqueue);
@@ -2024,6 +2031,21 @@ gckOS_AllocateNonPagedMemory(
                 &mdl->dmaHandle,
                 GFP_KERNEL | gcdNOWARN);
     }
+#if gcdUSE_NON_PAGED_MEMORY_CACHE
+    if(addr == gcvNULL)
+    {
+            MEMORY_UNLOCK(Os);
+            locked = gcvFALSE;
+            /*Free all cache and try again*/
+            _FreeAllNonPagedMemoryCache(Os);
+            MEMORY_LOCK(Os);
+            locked = gcvTRUE;
+            addr = dma_alloc_coherent(gcvNULL,
+                mdl->numPages * PAGE_SIZE,
+                &mdl->dmaHandle,
+                GFP_KERNEL | gcdNOWARN);
+    }
+#endif
 #else
     size    = mdl->numPages * PAGE_SIZE;
     order   = get_order(size);
@@ -3992,6 +4014,9 @@ gckOS_AllocatePagedMemoryEx(
     gctSIZE_T bytes;
     gctBOOL locked = gcvFALSE;
     gceSTATUS status;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+    gctPOINTER addr = gcvNULL;
+#endif
 
     gcmkHEADER_ARG("Os=0x%X Contiguous=%d Bytes=%lu", Os, Contiguous, Bytes);
 
@@ -4022,14 +4047,27 @@ gckOS_AllocatePagedMemoryEx(
             gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
         }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+        addr =
+            alloc_pages_exact(numPages * PAGE_SIZE, GFP_KERNEL | gcdNOWARN | __GFP_NORETRY);
+
+        mdl->u.contiguousPages = addr
+                               ? virt_to_page(addr)
+                               : gcvNULL;
+
+        mdl->exact = gcvTRUE;
+#else
         mdl->u.contiguousPages =
             alloc_pages(GFP_KERNEL | gcdNOWARN | __GFP_NORETRY, order);
-
+#endif
         if (mdl->u.contiguousPages == gcvNULL)
         {
             mdl->u.contiguousPages =
                 alloc_pages(GFP_KERNEL | __GFP_HIGHMEM | gcdNOWARN, order);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+            mdl->exact = gcvFALSE;
+#endif
         }
     }
     else
@@ -4174,7 +4212,16 @@ gckOS_FreePagedMemory(
 
     if (mdl->contiguous)
     {
-        __free_pages(mdl->u.contiguousPages, GetOrder(mdl->numPages));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+        if (mdl->exact == gcvTRUE)
+        {
+            free_pages_exact(page_address(mdl->u.contiguousPages), mdl->numPages * PAGE_SIZE);
+        }
+        else
+#endif
+        {
+            __free_pages(mdl->u.contiguousPages, GetOrder(mdl->numPages));
+        }
     }
     else
     {
@@ -6987,14 +7034,12 @@ gckOS_SetGPUPower(
 	if((Power == gcvTRUE) && (oldPowerState == gcvFALSE))
 	{
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-            mutex_lock(&set_cpufreq_lock);
         if(!IS_ERR(Os->device->gpu_regulator)) {
             ret = regulator_enable(Os->device->gpu_regulator);
             if (ret != 0)
                 gckOS_Print("%s(%d): fail to enable pu regulator %d!\n",
                     __FUNCTION__, __LINE__, ret);
         }
-	    mutex_unlock(&set_cpufreq_lock);
 #else
         imx_gpc_power_up_pu(true);
 #endif
@@ -7122,7 +7167,6 @@ gckOS_SetGPUPower(
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-	    mutex_lock(&set_cpufreq_lock);
         if(!IS_ERR(Os->device->gpu_regulator))
             regulator_disable(Os->device->gpu_regulator);
 #else
@@ -8693,6 +8737,20 @@ gckOS_GetProcessNameByPid(
 
     rcu_read_unlock();
 
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+gckOS_GetVideoMemoryMutex(
+    IN gckOS Os,
+    OUT gctPOINTER *Mutex
+    )
+{
+    gcmkHEADER_ARG("Mutex=x%X", Mutex);
+
+    *Mutex = Os->vidmemMutex;
+
+    gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 }
 

@@ -6559,6 +6559,17 @@ gckHARDWARE_DumpGPUState(
     dmaAddress1 = dmaAddress2 =
     dmaLow      = dmaHigh     = 0;
 
+    gckOS_Delay(gcvNULL, gcdPOWEROFF_TIMEOUT);
+
+    if (Hardware->chipPowerState != gcvPOWER_ON
+     && Hardware->chipPowerState != gcvPOWER_IDLE
+    )
+    {
+        gcmkPRINT("[galcore]: Can't dump when GPU is power off or clock off.");
+        gcmkFOOTER_NO();
+        return gcvSTATUS_OK;
+    }
+
     /* Verify whether DMA is running. */
     gcmkONERROR(_VerifyDMA(
         os, core, &dmaAddress1, &dmaAddress2, &dmaState1, &dmaState2

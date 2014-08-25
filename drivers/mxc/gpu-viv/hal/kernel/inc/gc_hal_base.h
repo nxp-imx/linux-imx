@@ -2127,6 +2127,15 @@ gcoSURF_SetAlignment(
     IN gctUINT Height
     );
 
+/* Set width/height alignment and stride of the surface directly. This is only for dri backend now. Please be careful before use. */
+gceSTATUS
+gcoSURF_SetAlignmentEx(
+    IN gcoSURF Surface,
+    IN gctUINT Width,
+    IN gctUINT Height,
+    IN gctUINT Stride
+    );
+
 /* Increase reference count of the surface. */
 gceSTATUS
 gcoSURF_ReferenceSurface(

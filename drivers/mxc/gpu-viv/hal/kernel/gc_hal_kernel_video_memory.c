@@ -509,6 +509,10 @@ gckVIDMEM_Construct(
 
         node->VidMem.locked    = 0;
 
+#if gcdDYNAMIC_MAP_RESERVED_MEMORY && gcdENABLE_VG
+        node->VidMem.kernelVirtual = gcvNULL;
+#endif
+
         gcmkONERROR(gckOS_ZeroMemory(&node->VidMem.sharedInfo, gcmSIZEOF(gcsVIDMEM_NODE_SHARED_INFO)));
 
 #ifdef __QNXNTO__
@@ -971,10 +975,14 @@ gckVIDMEM_AllocateLinear(
     gctUINT32 alignment;
     gctINT bank, i;
     gctBOOL acquired = gcvFALSE;
+#if gcdSMALL_BLOCK_SIZE
+    gctBOOL force_allocate = (Type == gcvSURF_TILE_STATUS) || (Type & gcvSURF_VG);
+#endif
 
-    gcmkHEADER_ARG("Memory=0x%x Bytes=%lu Alignment=%u Type=%d",
+     gcmkHEADER_ARG("Memory=0x%x Bytes=%lu Alignment=%u Type=%d",
                    Memory, Bytes, Alignment, Type);
 
+    Type &= ~gcvSURF_VG;
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Memory, gcvOBJ_VIDMEM);
     gcmkVERIFY_ARGUMENT(Bytes > 0);
@@ -996,7 +1004,7 @@ gckVIDMEM_AllocateLinear(
 #endif
 
 #if gcdSMALL_BLOCK_SIZE
-    if ((Memory->freeBytes < (Memory->bytes/gcdRATIO_FOR_SMALL_MEMORY))
+    if ((!force_allocate) && (Memory->freeBytes < (Memory->bytes/gcdRATIO_FOR_SMALL_MEMORY))
     &&  (Bytes >= gcdSMALL_BLOCK_SIZE)
     )
     {
@@ -2145,34 +2153,40 @@ gckVIDMEM_Unlock(
                     /* No flush required. */
                     flush = (gceKERNEL_FLUSH) 0;
                 }
-
-                gcmkONERROR(
-                    gckHARDWARE_Flush(hardware, flush, gcvNULL, &requested));
-
-                if (requested != 0)
+                if(hardware)
                 {
-                    /* Acquire the command queue. */
-                    gcmkONERROR(gckCOMMAND_EnterCommit(command, gcvFALSE));
-                    commitEntered = gcvTRUE;
+                    gcmkONERROR(
+                        gckHARDWARE_Flush(hardware, flush, gcvNULL, &requested));
 
-                    gcmkONERROR(gckCOMMAND_Reserve(
-                        command, requested, &buffer, &bufferSize
-                        ));
+                    if (requested != 0)
+                    {
+                        /* Acquire the command queue. */
+                        gcmkONERROR(gckCOMMAND_EnterCommit(command, gcvFALSE));
+                        commitEntered = gcvTRUE;
 
-                    gcmkONERROR(gckHARDWARE_Flush(
-                        hardware, flush, buffer, &bufferSize
-                        ));
+                        gcmkONERROR(gckCOMMAND_Reserve(
+                            command, requested, &buffer, &bufferSize
+                            ));
 
-                    /* Mark node as pending. */
+                        gcmkONERROR(gckHARDWARE_Flush(
+                            hardware, flush, buffer, &bufferSize
+                            ));
+
+                        /* Mark node as pending. */
 #ifdef __QNXNTO__
-                    Node->Virtual.unlockPendings[Kernel->core] = gcvTRUE;
+                        Node->Virtual.unlockPendings[Kernel->core] = gcvTRUE;
 #endif
 
-                    gcmkONERROR(gckCOMMAND_Execute(command, requested));
+                        gcmkONERROR(gckCOMMAND_Execute(command, requested));
 
-                    /* Release the command queue. */
-                    gcmkONERROR(gckCOMMAND_ExitCommit(command, gcvFALSE));
-                    commitEntered = gcvFALSE;
+                        /* Release the command queue. */
+                        gcmkONERROR(gckCOMMAND_ExitCommit(command, gcvFALSE));
+                        commitEntered = gcvFALSE;
+                    }
+                }
+                else
+                {
+                    gckOS_Print("Hardware already is freed.\n");
                 }
             }
 
