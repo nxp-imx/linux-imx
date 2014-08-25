@@ -134,7 +134,6 @@ struct fsl_sai {
 	struct clk *bus_clk;
 	struct clk *mclk_clk[FSL_SAI_MCLK_MAX];
 
-	bool big_endian_regs;
 	bool big_endian_data;
 	bool is_slave_mode;
 	bool is_dsp_mode;
