@@ -6942,7 +6942,6 @@ gckOS_GetThreadID(
 **
 **      Nothing.
 */
-extern struct mutex set_cpufreq_lock;
 gceSTATUS
 gckOS_SetGPUPower(
     IN gckOS Os,
@@ -7126,7 +7125,6 @@ gckOS_SetGPUPower(
 	    mutex_lock(&set_cpufreq_lock);
         if(!IS_ERR(Os->device->gpu_regulator))
             regulator_disable(Os->device->gpu_regulator);
-	    mutex_unlock(&set_cpufreq_lock);
 #else
         imx_gpc_power_up_pu(false);
 #endif
