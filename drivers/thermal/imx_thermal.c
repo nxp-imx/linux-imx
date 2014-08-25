@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -462,7 +462,13 @@ static struct platform_driver imx_thermal = {
 	.probe		= imx_thermal_probe,
 	.remove		= imx_thermal_remove,
 };
-module_platform_driver(imx_thermal);
+
+static int __init imx_thermal_init(void)
+{
+	return platform_driver_register(&imx_thermal);
+}
+
+late_initcall(imx_thermal_init);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_DESCRIPTION("Thermal driver for Freescale i.MX SoCs");
