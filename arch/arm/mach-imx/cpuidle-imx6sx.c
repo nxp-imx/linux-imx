@@ -29,6 +29,7 @@
 #define MX6_MAX_MMDC_IO_NUM	19
 
 static void __iomem *wfi_iram_base;
+static void __iomem *wfi_iram_base_phys;
 extern unsigned long iram_tlb_phys_addr;
 extern unsigned long total_suspend_size;
 extern unsigned long mx6sx_lpm_wfi_start asm("mx6sx_lpm_wfi_start");
@@ -139,14 +140,16 @@ int __init imx6sx_cpuidle_init(void)
 	const u32 *mmdc_offset_array;
 	u32 wfi_code_size;
 
-	wfi_iram_base = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
-		 total_suspend_size;
+	wfi_iram_base_phys = (void *)(iram_tlb_phys_addr + total_suspend_size);
 
-	if (!wfi_iram_base)
-		pr_err("wfi_ram_base NOT remapped\n");
+	/* Make sure wfi_iram_base is 8 byte aligned. */
+	if ((uintptr_t)(wfi_iram_base_phys) & (FNCPY_ALIGN - 1))
+		wfi_iram_base_phys += FNCPY_ALIGN - ((uintptr_t)wfi_iram_base_phys % (FNCPY_ALIGN));
+
+	wfi_iram_base = (void *)IMX_IO_P2V((unsigned long) wfi_iram_base_phys);
 
 	cpuidle_pm_info = wfi_iram_base;
-	cpuidle_pm_info->pbase = MX6SX_IRAM_TLB_BASE_ADDR + total_suspend_size;
+	cpuidle_pm_info->pbase = (phys_addr_t) wfi_iram_base_phys;
 	cpuidle_pm_info->pm_info_size = sizeof(*cpuidle_pm_info);
 	cpuidle_pm_info->resume_addr = virt_to_phys(v7_cpu_resume);
 	cpuidle_pm_info->mmdc_io_num = ARRAY_SIZE(imx6sx_mmdc_io_offset);

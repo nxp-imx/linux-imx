@@ -28,6 +28,7 @@
  */
 
 #include <asm/cacheflush.h>
+#include <asm/fncpy.h>
 #include <asm/io.h>
 #include <asm/mach/map.h>
 #include <asm/mach-types.h>
@@ -693,7 +694,12 @@ static int __init imx6_dt_find_ddr_sram(unsigned long node,
 
 		}
 		ddr_freq_change_iram_phys = ddr_iram_addr;
-		ddr_freq_change_iram_base = IMX_IO_P2V(ddr_iram_addr);
+
+		/* Make sure ddr_freq_change_iram_phys is 8 byte aligned. */
+		if ((uintptr_t)(ddr_freq_change_iram_phys) & (FNCPY_ALIGN - 1))
+			ddr_freq_change_iram_phys += FNCPY_ALIGN - ((uintptr_t)ddr_freq_change_iram_phys % (FNCPY_ALIGN));
+
+		ddr_freq_change_iram_base = IMX_IO_P2V(ddr_freq_change_iram_phys);
 	}
 	return 0;
 }

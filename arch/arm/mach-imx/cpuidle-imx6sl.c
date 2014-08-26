@@ -122,6 +122,10 @@ int __init imx6sl_cpuidle_init(void)
 	wfi_iram_base = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
 			total_suspend_size;
 
+	/* Make sure wfi_iram_base is 8 byte aligned. */
+	if ((uintptr_t)(wfi_iram_base) & (FNCPY_ALIGN - 1))
+		wfi_iram_base += FNCPY_ALIGN - ((uintptr_t)wfi_iram_base % (FNCPY_ALIGN));
+
 	imx6sl_wfi_in_iram_fn = (void *)fncpy(wfi_iram_base,
 		&imx6sl_low_power_wfi, wfi_code_size);
 

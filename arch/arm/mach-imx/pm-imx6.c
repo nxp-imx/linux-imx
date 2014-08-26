@@ -520,9 +520,13 @@ Please ensure device tree has an entry fsl,lpm-sram\n");
 	}
 
 	iram_paddr = iram_tlb_phys_addr + MX6_SUSPEND_IRAM_ADDR_OFFSET;
+
+	/* Make sure iram_paddr is 8 byte aligned. */
+	if ((uintptr_t)(iram_paddr) & (FNCPY_ALIGN - 1))
+		iram_paddr += FNCPY_ALIGN - iram_paddr % (FNCPY_ALIGN);
+
 	/* Get the virtual address of the suspend code. */
-	suspend_iram_base = (void *)IMX_IO_P2V(iram_tlb_phys_addr) +
-			MX6_SUSPEND_IRAM_ADDR_OFFSET;
+	suspend_iram_base = (void *)IMX_IO_P2V(iram_paddr);
 
 	suspend_code_size = (&imx6_suspend_end -&imx6_suspend_start) *4;
 	suspend_in_iram_fn = (void *)fncpy(suspend_iram_base,
