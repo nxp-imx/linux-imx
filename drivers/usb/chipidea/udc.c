@@ -1525,7 +1525,7 @@ static int ci_udc_vbus_session(struct usb_gadget *_gadget, int is_active)
 		}
 
 		ret = ci->platdata->notify_event
-			(ci, CI_HDRC_CONTROLLER_CHARGER_EVENT);
+			(ci, CI_HDRC_CONTROLLER_VBUS_EVENT);
 		if (ret == CI_HDRC_NOTIFY_RET_DEFER_EVENT) {
 			hw_device_reset(ci, USBMODE_CM_DC);
 			/* Pull up dp */
