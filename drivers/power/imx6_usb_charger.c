@@ -14,11 +14,6 @@
 #include <linux/power/imx6_usb_charger.h>
 #include <linux/regmap.h>
 
-#define HW_ANADIG_REG_3P0_SET	(0x00000124)
-#define HW_ANADIG_REG_3P0_CLR	(0x00000128)
-#define BM_ANADIG_REG_3P0_ENABLE_ILIMIT 0x00000004
-#define BM_ANADIG_REG_3P0_ENABLE_LINREG 0x00000001
-
 #define HW_ANADIG_USB1_CHRG_DETECT_SET	(0x000001b4)
 #define HW_ANADIG_USB1_CHRG_DETECT_CLR	(0x000001b8)
 
@@ -76,13 +71,6 @@ static void disable_charger_detector(struct regmap *regmap)
 		BM_ANADIG_USB1_CHRG_DETECT_CHK_CHRG_B);
 }
 
-static void disable_current_limiter(struct regmap *regmap)
-{
-	/* Disable the vdd3p0 current limiter */
-	regmap_write(regmap, HW_ANADIG_REG_3P0_CLR,
-			BM_ANADIG_REG_3P0_ENABLE_ILIMIT);
-}
-
 /* Return value if the charger is present */
 static int imx6_usb_charger_detect(struct usb_charger *charger)
 {
@@ -90,16 +78,10 @@ static int imx6_usb_charger_detect(struct usb_charger *charger)
 	u32 val;
 	int i, data_pin_contact_count = 0;
 
-	/* Enable the vdd3p0 curret limiter */
-	regmap_write(regmap, HW_ANADIG_REG_3P0_SET,
-			BM_ANADIG_REG_3P0_ENABLE_LINREG |
-			BM_ANADIG_REG_3P0_ENABLE_ILIMIT);
-
 	/* check if vbus is valid */
 	regmap_read(regmap, HW_ANADIG_USB1_VBUS_DET_STAT, &val);
 	if (!(val & BM_ANADIG_USB1_VBUS_DET_STAT_VBUS_VALID)) {
 		dev_err(charger->dev, "vbus is error\n");
-		disable_current_limiter(regmap);
 		return -EINVAL;
 	}
 
@@ -132,7 +114,6 @@ static int imx6_usb_charger_detect(struct usb_charger *charger)
 	if (i == 100) {
 		dev_err(charger->dev,
 			"VBUS is coming from a dedicated power supply.\n");
-		disable_current_limiter(regmap);
 		disable_charger_detector(regmap);
 		return -ENXIO;
 	}
@@ -159,8 +140,6 @@ static int imx6_usb_charger_detect(struct usb_charger *charger)
 		disable_charger_detector(regmap);
 		msleep(45);
 	}
-
-	disable_current_limiter(regmap);
 
 	return 0;
 }
