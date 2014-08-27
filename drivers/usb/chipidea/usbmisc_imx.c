@@ -64,6 +64,11 @@
 #define ANADIG_ANA_MISC0_SET		0x154
 #define ANADIG_ANA_MISC0_CLK_DELAY(x)	((x >> 26) & 0x7)
 
+#define ANADIG_REG_3P0_SET		0x124
+#define ANADIG_REG_3P0_CLR		0x128
+#define ANADIG_REG_3P0_ENABLE_ILIMIT	BIT(2)
+#define ANADIG_REG_3P0_ENABLE_LINREG	BIT(0)
+
 struct usbmisc_ops {
 	/* It's called once when probe a usb device */
 	int (*init)(struct imx_usbmisc_data *data);
@@ -77,6 +82,8 @@ struct usbmisc_ops {
 	int (*hsic_set_clk)(struct imx_usbmisc_data *data, bool enabled);
 	/* It's called when system resume from usb power lost */
 	int (*power_lost_check)(struct imx_usbmisc_data *data);
+	/* It's called when the vbus event happenes */
+	int (*vbus_handler)(struct imx_usbmisc_data *data, bool active);
 };
 
 struct imx_usbmisc {
@@ -358,6 +365,27 @@ static int usbmisc_imx6q_set_wakeup
 	return ret;
 }
 
+static int usbmisc_imx6q_vbus_handler
+	(struct imx_usbmisc_data *data, bool active)
+{
+	if (!data->anatop)
+		return 0;
+
+	if (active) {
+		regmap_write(data->anatop, ANADIG_REG_3P0_SET,
+			ANADIG_REG_3P0_ENABLE_LINREG);
+		regmap_write(data->anatop, ANADIG_REG_3P0_CLR,
+			ANADIG_REG_3P0_ENABLE_ILIMIT);
+	} else {
+		regmap_write(data->anatop, ANADIG_REG_3P0_CLR,
+			ANADIG_REG_3P0_ENABLE_LINREG);
+		regmap_write(data->anatop, ANADIG_REG_3P0_SET,
+			ANADIG_REG_3P0_ENABLE_ILIMIT);
+	}
+
+	return 0;
+}
+
 static const struct usbmisc_ops imx25_usbmisc_ops = {
 	.post = usbmisc_imx25_post,
 };
@@ -371,6 +399,7 @@ static const struct usbmisc_ops imx6q_usbmisc_ops = {
 	.set_wakeup = usbmisc_imx6q_set_wakeup,
 	.hsic_set_connect = usbmisc_imx6q_hsic_set_connect,
 	.hsic_set_clk	= usbmisc_imx6q_hsic_set_clk,
+	.vbus_handler	= usbmisc_imx6q_vbus_handler,
 };
 
 static const struct usbmisc_ops imx6sx_usbmisc_ops = {
@@ -379,6 +408,7 @@ static const struct usbmisc_ops imx6sx_usbmisc_ops = {
 	.hsic_set_connect = usbmisc_imx6q_hsic_set_connect,
 	.hsic_set_clk	= usbmisc_imx6q_hsic_set_clk,
 	.power_lost_check = usbmisc_imx6sx_power_lost_check,
+	.vbus_handler	= usbmisc_imx6q_vbus_handler,
 };
 
 int imx_usbmisc_init(struct imx_usbmisc_data *data)
@@ -440,6 +470,16 @@ int imx_usbmisc_power_lost_check(struct imx_usbmisc_data *data)
 	return usbmisc->ops->power_lost_check(data);
 }
 EXPORT_SYMBOL_GPL(imx_usbmisc_power_lost_check);
+
+int imx_usbmisc_vbus_handler(struct imx_usbmisc_data *data, bool active)
+{
+	if (!usbmisc)
+		return -ENODEV;
+	if (!usbmisc->ops->vbus_handler)
+		return 0;
+	return usbmisc->ops->vbus_handler(data, active);
+}
+EXPORT_SYMBOL_GPL(imx_usbmisc_vbus_handler);
 
 static const struct of_device_id usbmisc_imx_dt_ids[] = {
 	{
