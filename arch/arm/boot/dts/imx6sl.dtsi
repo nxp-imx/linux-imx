@@ -876,6 +876,7 @@
 			ocotp: ocotp-ctrl@021bc000 {
 				compatible = "syscon";
 				reg = <0x021bc000 0x4000>;
+				clocks = <&clks IMX6SL_CLK_OCOTP>;
 			};
 
 			ocotp-fuse@021bc000 {
