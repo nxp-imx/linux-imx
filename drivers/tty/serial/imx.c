@@ -1860,9 +1860,6 @@ static int serial_imx_suspend(struct platform_device *dev, pm_message_t state)
 	struct imx_port *sport = platform_get_drvdata(dev);
 	unsigned int val;
 
-	if (!console_suspend_enabled)
-		enable_irq_wake(sport->port.irq);
-
 	/* enable wakeup from i.MX UART */
 	val = readl(sport->port.membase + UCR3);
 	val |= UCR3_AWAKEN;
@@ -1907,9 +1904,6 @@ static int serial_imx_resume(struct platform_device *dev)
 	val = readl(sport->port.membase + UCR3);
 	val &= ~UCR3_AWAKEN;
 	writel(val, sport->port.membase + UCR3);
-
-	if (!console_suspend_enabled)
-		disable_irq_wake(sport->port.irq);
 
 	uart_resume_port(&imx_reg, &sport->port);
 
