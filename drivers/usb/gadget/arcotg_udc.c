@@ -398,6 +398,7 @@ static int dr_controller_setup(struct fsl_udc *udc)
 	tmp |= USB_MODE_SETUP_LOCK_OFF;
 	if (pdata->es)
 		tmp |= USB_MODE_ES;
+	tmp |= USB_MODE_STREAM_DISABLE;
 	fsl_writel(tmp, &dr_regs->usbmode);
 	/* wait dp to 0v */
 	dr_discharge_line(pdata, true);
