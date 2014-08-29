@@ -1726,13 +1726,13 @@ static int pxp_probe(struct platform_device *pdev)
 	pxp->clk_timer.function = pxp_clkoff_timer;
 	pxp->clk_timer.data = (unsigned long)pxp;
 
+	init_waitqueue_head(&pxp->thread_waitq);
 	/* allocate a kernel thread to dispatch pxp conf */
 	pxp->dispatch = kthread_run(pxp_dispatch_thread, pxp, "pxp_dispatch");
 	if (IS_ERR(pxp->dispatch)) {
 		err = PTR_ERR(pxp->dispatch);
 		goto exit;
 	}
-	init_waitqueue_head(&pxp->thread_waitq);
 	tx_desc_cache = kmem_cache_create("tx_desc", sizeof(struct pxp_tx_desc),
 					  0, SLAB_HWCACHE_ALIGN, NULL);
 	if (!tx_desc_cache) {
