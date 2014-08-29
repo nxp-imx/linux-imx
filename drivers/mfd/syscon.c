@@ -157,10 +157,6 @@ static int syscon_probe(struct platform_device *pdev)
 		return PTR_ERR(syscon->regmap);
 	}
 
-	/* Added for imprecise external abort handling */
-	hook_fault_code(16 + 6, syscon_regmap_abort_handler, SIGBUS, 0,
-		"imprecise external abort");
-
 	platform_set_drvdata(pdev, syscon);
 
 	dev_info(dev, "regmap %pR registered\n", res);
@@ -185,7 +181,15 @@ static struct platform_driver syscon_driver = {
 
 static int __init syscon_init(void)
 {
-	return platform_driver_register(&syscon_driver);
+	int ret;
+
+	ret = platform_driver_register(&syscon_driver);
+	if (ret == 0)
+		/* Added for imprecise external abort handling */
+		hook_fault_code(16 + 6, syscon_regmap_abort_handler, SIGBUS, 0,
+			"imprecise external abort");
+
+	return ret;
 }
 postcore_initcall(syscon_init);
 
