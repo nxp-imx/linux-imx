@@ -175,7 +175,8 @@ static int ci_hdrc_imx_notify_event(struct ci_hdrc *ci, unsigned event)
 				ret = CI_HDRC_NOTIFY_RET_DEFER_EVENT;
 		} else if (data->usbmisc_data && !ci->vbus_active) {
 			imx_usbmisc_vbus_handler(data->usbmisc_data, false);
-			ret = imx6_usb_vbus_disconnect(&data->charger);
+			if (data->imx6_usb_charger_detection)
+				ret = imx6_usb_vbus_disconnect(&data->charger);
 		}
 		break;
 	case CI_HDRC_CONTROLLER_CHARGER_POST_EVENT:
