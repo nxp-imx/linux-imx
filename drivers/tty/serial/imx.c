@@ -784,6 +784,9 @@ static irqreturn_t imx_int(int irq, void *dev_id)
 	if (sts & USR1_AWAKE)
 		writel(USR1_AWAKE, sport->port.membase + USR1);
 
+	if (sts & USR1_AIRINT)
+		writel(USR1_AIRINT, sport->port.membase + USR1);
+
 	sts2 = readl(sport->port.membase + USR2);
 	if (sts2 & USR2_ORE) {
 		dev_err(sport->port.dev, "Rx FIFO overrun\n");
@@ -1861,7 +1864,10 @@ static int serial_imx_suspend(struct platform_device *dev, pm_message_t state)
 
 	/* enable wakeup from i.MX UART */
 	val = readl(sport->port.membase + UCR3);
-	val |= UCR3_AWAKEN;
+	if (USE_IRDA(sport))
+		val |= UCR3_AIRINTEN;
+	else
+		val |= UCR3_AWAKEN;
 	writel(val, sport->port.membase + UCR3);
 
 	uart_suspend_port(&imx_reg, &sport->port);
@@ -1901,7 +1907,7 @@ static int serial_imx_resume(struct platform_device *dev)
 
 	/* disable wakeup from i.MX UART */
 	val = readl(sport->port.membase + UCR3);
-	val &= ~UCR3_AWAKEN;
+	val &= ~(UCR3_AWAKEN | UCR3_AIRINTEN);
 	writel(val, sport->port.membase + UCR3);
 
 	uart_resume_port(&imx_reg, &sport->port);
