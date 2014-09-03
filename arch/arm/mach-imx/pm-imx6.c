@@ -82,11 +82,24 @@
 #define BM_ROMPATCHENL_0D		(0x1 << 0)
 #define ROM_ADDR_FOR_INTERNAL_RAM_BASE	0x10d7c
 
+#define UART_UCR1	0x80
+#define UART_UCR2	0x84
+#define UART_UCR3	0x88
+#define UART_UCR4	0x8c
+#define UART_UFCR	0x90
+#define UART_UESC	0x9c
+#define UART_UTIM	0xa0
+#define UART_UBIR	0xa4
+#define UART_UBMR	0xa8
+#define UART_UBRC	0xac
+#define UART_UTS	0xb4
+
 unsigned long iram_tlb_base_addr;
 unsigned long iram_tlb_phys_addr;
 
 static unsigned int *ocram_saved_in_ddr;
 static void __iomem *ocram_base;
+static void __iomem *console_base;
 static unsigned int ocram_size;
 static void __iomem *ccm_base;
 static void __iomem *suspend_ocram_base;
@@ -411,8 +424,46 @@ static int imx6q_suspend_finish(unsigned long val)
 	return 0;
 }
 
+static void imx6_console_save(unsigned int *regs)
+{
+	if (!console_base)
+		return;
+
+	regs[0] = readl_relaxed(console_base + UART_UCR1);
+	regs[1] = readl_relaxed(console_base + UART_UCR2);
+	regs[2] = readl_relaxed(console_base + UART_UCR3);
+	regs[3] = readl_relaxed(console_base + UART_UCR4);
+	regs[4] = readl_relaxed(console_base + UART_UFCR);
+	regs[5] = readl_relaxed(console_base + UART_UESC);
+	regs[6] = readl_relaxed(console_base + UART_UTIM);
+	regs[7] = readl_relaxed(console_base + UART_UBIR);
+	regs[8] = readl_relaxed(console_base + UART_UBMR);
+	regs[9] = readl_relaxed(console_base + UART_UBRC);
+	regs[10] = readl_relaxed(console_base + UART_UTS);
+}
+
+static void imx6_console_restore(unsigned int *regs)
+{
+	if (!console_base)
+		return;
+
+	writel_relaxed(regs[4], console_base + UART_UFCR);
+	writel_relaxed(regs[5], console_base + UART_UESC);
+	writel_relaxed(regs[6], console_base + UART_UTIM);
+	writel_relaxed(regs[7], console_base + UART_UBIR);
+	writel_relaxed(regs[8], console_base + UART_UBMR);
+	writel_relaxed(regs[9], console_base + UART_UBRC);
+	writel_relaxed(regs[10], console_base + UART_UTS);
+	writel_relaxed(regs[0], console_base + UART_UCR1);
+	writel_relaxed(regs[1] | 0x1, console_base + UART_UCR2);
+	writel_relaxed(regs[2], console_base + UART_UCR3);
+	writel_relaxed(regs[3], console_base + UART_UCR4);
+}
+
 static int imx6q_pm_enter(suspend_state_t state)
 {
+	unsigned int console_saved_reg[11] = {0};
+
 	if (!iram_tlb_base_addr) {
 		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume \
 			 code. Please ensure device tree has an entry for \
@@ -447,14 +498,18 @@ static int imx6q_pm_enter(suspend_state_t state)
 		imx_gpc_pre_suspend(true);
 		imx_anatop_pre_suspend();
 		imx_set_cpu_jump(0, v7_cpu_resume);
-		if (cpu_is_imx6sx() && imx_gpc_is_mf_mix_off())
+		if (cpu_is_imx6sx() && imx_gpc_is_mf_mix_off()) {
 			memcpy(ocram_saved_in_ddr, ocram_base, ocram_size);
+			imx6_console_save(console_saved_reg);
+		}
 
 		/* Zzz ... */
 		cpu_suspend(0, imx6q_suspend_finish);
 
-		if (cpu_is_imx6sx() && imx_gpc_is_mf_mix_off())
+		if (cpu_is_imx6sx() && imx_gpc_is_mf_mix_off()) {
 			memcpy(ocram_base, ocram_saved_in_ddr, ocram_size);
+			imx6_console_restore(console_saved_reg);
+		}
 		if (cpu_is_imx6q() || cpu_is_imx6dl())
 			imx_smp_prepare();
 		imx_anatop_post_resume();
@@ -800,4 +855,8 @@ void __init imx6sx_pm_init(void)
 	ocram_size = resource_size(&res);
 	ocram_saved_in_ddr = kzalloc(ocram_size, GFP_KERNEL);
 	WARN_ON(!ocram_saved_in_ddr);
+
+	np = of_find_node_by_path("/soc/aips-bus@02000000/spba-bus@02000000/serial@02020000");
+	if (np)
+		console_base = of_iomap(np, 0);
 }
