@@ -245,7 +245,7 @@ struct imx_port {
 	unsigned int		tx_bytes;
 	unsigned int		dma_tx_nents;
 	struct delayed_work	tsk_dma_tx;
-	struct delayed_work	tsk_dma_rx;
+	struct work_struct	tsk_dma_rx;
 	wait_queue_head_t	dma_wait;
 	unsigned int            saved_reg[11];
 #define DMA_TX_IS_WORKING 1
@@ -915,8 +915,7 @@ static void dma_rx_push_data(struct imx_port *sport, struct tty_struct *tty,
 
 static void dma_rx_work(struct work_struct *w)
 {
-	struct delayed_work *delay_work = to_delayed_work(w);
-	struct imx_port *sport = container_of(delay_work, struct imx_port, tsk_dma_rx);
+	struct imx_port *sport = container_of(w, struct imx_port, tsk_dma_rx);
 	struct tty_struct *tty = sport->port.state->port.tty;
 
 	if (sport->rx_buf.last_completed_idx < sport->rx_buf.cur_idx) {
@@ -929,9 +928,6 @@ static void dma_rx_work(struct work_struct *w)
 					IMX_RXBD_NUM);
 		dma_rx_push_data(sport, tty, 0, sport->rx_buf.cur_idx + 1);
 	}
-
-	if (!sport->dma_is_rxing)
-		start_rx_dma(sport);
 }
 
 static void imx_rx_dma_done(struct imx_port *sport)
@@ -980,7 +976,7 @@ static void dma_rx_callback(void *data)
 		dev_err(sport->port.dev, "overwrite!\n");
 
 	if (count)
-		schedule_delayed_work(&sport->tsk_dma_rx, 0);
+		schedule_work(&sport->tsk_dma_rx);
 	else
 		sport->rx_buf.last_completed_idx++;
 }
@@ -1223,7 +1219,7 @@ static int imx_startup(struct uart_port *port)
 
 	if (sport->dma_is_inited) {
 		INIT_DELAYED_WORK(&sport->tsk_dma_tx, dma_tx_work);
-		INIT_DELAYED_WORK(&sport->tsk_dma_rx, dma_rx_work);
+		INIT_WORK(&sport->tsk_dma_rx, dma_rx_work);
 	}
 
 	spin_lock_irqsave(&sport->port.lock, flags);
@@ -1556,7 +1552,7 @@ imx_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	if (sport->dma_is_inited && !sport->dma_is_enabled) {
 		imx_enable_dma(sport);
-		schedule_delayed_work(&sport->tsk_dma_rx, msecs_to_jiffies(1));
+		start_rx_dma(sport);
 	}
 
 	if (!sport->dma_is_enabled) {
