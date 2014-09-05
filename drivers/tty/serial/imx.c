@@ -909,6 +909,7 @@ static void dma_rx_push_data(struct imx_port *sport, struct tty_struct *tty,
 			sport->rx_buf.buf_info[i].filled = false;
 			sport->rx_buf.last_completed_idx++;
 			sport->rx_buf.last_completed_idx %= IMX_RXBD_NUM;
+			sport->port.icount.rx += sport->rx_buf.buf_info[i].rx_bytes;
 		}
 	}
 }
