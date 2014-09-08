@@ -56,6 +56,7 @@ struct imx6_busfreq_info {
 	void *ddr_settings;
 	u32 dll_off;
 	void *iomux_offsets;
+	u32 mu_delay_val;
 } __aligned(8);
 
 static struct imx6_busfreq_info *imx6sx_busfreq_info;
@@ -99,6 +100,9 @@ extern unsigned long imx6sx_ddr3_freq_change_end asm("imx6sx_ddr3_freq_change_en
 
 #define MIN_DLL_ON_FREQ		333000000
 #define MAX_DLL_OFF_FREQ		125000000
+#define MMDC0_MPMUR0			0x8b8
+#define MMDC0_MPMUR0_OFFSET	16
+#define MMDC0_MPMUR0_MASK		0x3ff
 
 unsigned long ddr3_dll_mx6sx[][2] = {
 	{0x0c, 0x0},
@@ -243,6 +247,9 @@ int update_ddr_freq_imx6sx(int ddr_rate)
 	imx6sx_busfreq_info->freq = ddr_rate;
 	imx6sx_busfreq_info->ddr_settings = iram_ddr_settings;
 	imx6sx_busfreq_info->iomux_offsets = iram_iomux_settings;
+	imx6sx_busfreq_info->mu_delay_val  = ((readl_relaxed(mmdc_base + MMDC0_MPMUR0)
+		>> MMDC0_MPMUR0_OFFSET) & MMDC0_MPMUR0_MASK);
+
 	imx6sx_change_ddr_freq(imx6sx_busfreq_info);
 	restore_ttbr1(ttbr1);
 	curr_ddr_rate = ddr_rate;

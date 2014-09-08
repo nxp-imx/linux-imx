@@ -428,6 +428,12 @@ wait_for_l2_to_idle:
 	ldr	r6, =IMX_IO_P2V(MX6Q_CCM_BASE_ADDR)
 	ldr	r7, =IMX_IO_P2V(MX6Q_IOMUXC_BASE_ADDR)
 
+	/* Read the Original MU delay value */
+	ldr	r1, [r5, #MMDC0_MPMUR0]
+	mov	r10, r1, lsr #16
+	ldr	r1, =0x3ff
+	and	r10, r10, r1
+
 	/* disable automatic power saving. */
 	ldr	r0, [r5, #MMDC0_MAPSR]
 	orr	r0, r0, #0x01
@@ -623,19 +629,33 @@ update_iomux:
 	orr	r0, r0, #(0x1 << 29)
 	str	r0, [r5, r2]
 
-	/* frc_msr + mu bypass */
-	ldr	r0, =0x00000060
+	/* Add workaround for ERR005778.*/
+	/* double the original MU_UNIT_DEL_NUM. */
+	lsl	r10, r10, #1
+
+	/* Bypass the automatic MU by setting the mu_byp_en */
+	ldr	r2, [r5, #MMDC0_MPMUR0]
+	orr	r2, r2, #0x400
+	orr	r2, r2, r10
+	str	r2, [r5, #MMDC0_MPMUR0]
+	ldr	r0, =MMDC1_MPMUR0
+	str	r2, [r5, r0]
+
+	/* Now perform a force measure */
+	ldr	r0, [r5, #MMDC0_MPMUR0]
+	orr	r0, r0, #0x800
 	str	r0, [r5, #MMDC0_MPMUR0]
 	ldr	r2, =MMDC1_MPMUR0
 	str	r0, [r5, r2]
-	ldr	r0, =0x00000460
-	str	r0, [r5, #MMDC0_MPMUR0]
-	ldr	r2, =MMDC1_MPMUR0
-	str	r0, [r5, r2]
-	ldr	r0, =0x00000c60
-	str	r0, [r5, #MMDC0_MPMUR0]
-	ldr	r2, =MMDC1_MPMUR0
-	str	r0, [r5, r2]
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r0, [r5, #MMDC0_MPMUR0]
+	and	r0, r0, #0x800
+	ldr	r1, [r5, r2]
+	and	r1, r1, #0x800
+	orr	r0, r0, r1
+	cmp	r0, #0x0
+	bne	1b
 
 continue_dll_off_3:
 	/* clear SBS - unblock accesses to DDR. */
@@ -725,18 +745,15 @@ poll_dvfs_clear_2:
 	ldr	r2, =MMDC1_MPMUR0
 	str	r0, [r5, r2]
 
-	/* delay for while. */
-	ldr	r1, =4
-delay5:
-	ldr	r2, =0
-cont5:
-	ldr	r0, [r5, r2]
-	add	r2, r2, #4
-	cmp	r2, #16
-	bne	cont5
-	sub	r1, r1, #1
-	cmp	r1, #0
-	bgt	delay5
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r0, [r5, #MMDC0_MPMUR0]
+	and	r0, r0, #0x800
+	ldr	r1, [r5, r2]
+	and	r1, r1, #0x800
+	orr	r0, r0, r1
+	cmp	r0, #0x0
+	bne	1b
 
 	/* disable dqs pull down in the IOMUX. */
 	ldr	r1, [r11]
@@ -894,6 +911,16 @@ update_calib:
 	str	r0, [r5, #MMDC0_MPMUR0]
 	ldr	r2, =MMDC1_MPMUR0
 	str	r0, [r5, r2]
+
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r0, [r5, #MMDC0_MPMUR0]
+	and	r0, r0, #0x800
+	ldr	r1, [r5, r2]
+	and	r1, r1, #0x800
+	orr	r0, r0, r1
+	cmp	r0, #0x0
+	bne	1b
 
 	/* clear SBS - unblock DDR accesses. */
 	ldr	r0, [r5, #MMDC0_MADPCR0]

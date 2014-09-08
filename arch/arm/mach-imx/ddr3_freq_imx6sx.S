@@ -45,6 +45,7 @@
 #define BUSFREQ_INFO_DDR_SETTINGS_OFFSET	0x4
 #define BUSFREQ_INFO_DLL_OFF_OFFSET		0x8
 #define BUSFREQ_INFO_IOMUX_OFFSETS_OFFSET	0xc
+#define BUSFREQ_INFO_MU_DELAY_OFFSET		0x10
 
 .extern iram_tlb_phys_addr
 
@@ -415,15 +416,28 @@ update_iomux:
 	orr	r8, r8, #(1 << 29)
 	str	r8, [r4, #MMDC0_MPDGCTRL0]
 
-	/* frc_msr + mu bypass */
-	ldr	r8, =0x00000060
-	str	r8, [r4, #MMDC0_MPMUR0]
+	/* Add workaround for ERR005778.*/
+	/* double the original MU_UNIT_DEL_NUM. */
+	ldr	r8, [r0, #BUSFREQ_INFO_MU_DELAY_OFFSET]
+	lsl	r8, r8, #1
 
-	ldr	r8, =0x00000460
-	str	r8, [r4, #MMDC0_MPMUR0]
+	/* Bypass the automatic MU by setting the mu_byp_en */
+	ldr	r10, [r4, #MMDC0_MPMUR0]
+	orr	r10, r10, #0x400
+	/* Set the MU_BYP_VAL */
+	orr	r10, r10, r8
+	str	r10, [r4, #MMDC0_MPMUR0]
 
-	ldr	r8, =0x00000c60
+	/* Now perform a force measure */
+	ldr	r8, [r4, #MMDC0_MPMUR0]
+	orr	r8, r8, #0x800
 	str	r8, [r4, #MMDC0_MPMUR0]
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r8, [r4, #MMDC0_MPMUR0]
+	and	r8, r8, #0x800
+	cmp	r8, #0x0
+	bne	1b
 
 continue_dll_off_3:
 	/* clear SBS - unblock accesses to DDR. */
@@ -488,12 +502,15 @@ poll_dvfs_clear_2:
 	bic	r8, r8, #(1 << 29)
 	str	r8, [r4, r10]
 
-	/* force measure. */
+	/* Now perform a force measure */
 	ldr	r8, =0x00000800
 	str	r8, [r4, #MMDC0_MPMUR0]
-	/* delay for while. */
-	ldr	r8, =4
-	do_delay
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r8, [r4, #MMDC0_MPMUR0]
+	and	r8, r8, #0x800
+	cmp	r8, #0x0
+	bne	1b
 
 	/* disable dqs pull down in the IOMUX. */
 	ldr	r8, [r3]
@@ -620,6 +637,12 @@ update_calib:
 	/* perform a force measurement. */
 	ldr	r8, =0x800
 	str	r8, [r4, #MMDC0_MPMUR0]
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r8, [r4, #MMDC0_MPMUR0]
+	and	r8, r8, #0x800
+	cmp	r8, #0x0
+	bne	1b
 
 	/* clear SBS - unblock DDR accesses. */
 	ldr	r8, [r4, #MMDC0_MADPCR0]
