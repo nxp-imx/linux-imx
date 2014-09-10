@@ -24,6 +24,7 @@
 #include <linux/can/dev.h>
 #include <linux/can/error.h>
 #include <linux/can/led.h>
+#include <linux/can/platform/flexcan.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
@@ -317,6 +318,11 @@ static inline void flexcan_write(u32 val, void __iomem *addr)
 
 static inline int flexcan_transceiver_enable(const struct flexcan_priv *priv)
 {
+	if (priv->pdata && priv->pdata->transceiver_switch) {
+		priv->pdata->transceiver_switch(1);
+		return 0;
+	}
+
 	if (!priv->reg_xceiver)
 		return 0;
 
@@ -325,6 +331,11 @@ static inline int flexcan_transceiver_enable(const struct flexcan_priv *priv)
 
 static inline int flexcan_transceiver_disable(const struct flexcan_priv *priv)
 {
+	if (priv->pdata && priv->pdata->transceiver_switch) {
+		priv->pdata->transceiver_switch(0);
+		return 0;
+	}
+
 	if (!priv->reg_xceiver)
 		return 0;
 
