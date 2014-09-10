@@ -1149,11 +1149,11 @@ static int imx_startup(struct uart_port *port)
 
 	retval = clk_prepare_enable(sport->clk_per);
 	if (retval)
-		return retval;
+		goto error_out1;
 	retval = clk_prepare_enable(sport->clk_ipg);
 	if (retval) {
 		clk_disable_unprepare(sport->clk_per);
-		return retval;
+		goto error_out1;
 	}
 
 	imx_setup_ufcr(sport, 0);
@@ -1181,6 +1181,37 @@ static int imx_startup(struct uart_port *port)
 
 	while (!(readl(sport->port.membase + UCR2) & UCR2_SRST) && (--i > 0))
 		udelay(1);
+
+	/*
+	 * Allocate the IRQ(s) i.MX1 has three interrupts whereas later
+	 * chips only have one interrupt.
+	 */
+	if (sport->txirq > 0) {
+		retval = request_irq(sport->rxirq, imx_rxint, 0,
+				     dev_name(port->dev), sport);
+		if (retval)
+			goto error_out1;
+
+		retval = request_irq(sport->txirq, imx_txint, 0,
+				     dev_name(port->dev), sport);
+		if (retval)
+			goto error_out2;
+
+		/* do not use RTS IRQ on IrDA */
+		if (!USE_IRDA(sport)) {
+			retval = request_irq(sport->rtsirq, imx_rtsint, 0,
+					     dev_name(port->dev), sport);
+			if (retval)
+				goto error_out3;
+		}
+	} else {
+		retval = request_irq(sport->port.irq, imx_int, 0,
+				     dev_name(port->dev), sport);
+		if (retval) {
+			free_irq(sport->port.irq, sport);
+			goto error_out1;
+		}
+	}
 
 	/* Can we enable the DMA support? */
 	if (is_imx6q_uart(sport) && !uart_console(port)
@@ -1255,6 +1286,15 @@ static int imx_startup(struct uart_port *port)
 	}
 
 	return 0;
+
+error_out3:
+	if (sport->txirq)
+		free_irq(sport->txirq, sport);
+error_out2:
+	if (sport->rxirq)
+		free_irq(sport->rxirq, sport);
+error_out1:
+	return retval;
 }
 
 static void imx_shutdown(struct uart_port *port)
@@ -1314,6 +1354,17 @@ static void imx_shutdown(struct uart_port *port)
 	 * Stop our timer.
 	 */
 	del_timer_sync(&sport->timer);
+
+	/*
+	 * Free the interrupts
+	 */
+	if (sport->txirq > 0) {
+		if (!USE_IRDA(sport))
+			free_irq(sport->rtsirq, sport);
+		free_irq(sport->txirq, sport);
+		free_irq(sport->rxirq, sport);
+	} else
+		free_irq(sport->port.irq, sport);
 
 	/*
 	 * Disable all interrupts, port and break condition.
@@ -2030,37 +2081,6 @@ static int serial_imx_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	/*
-	 * Allocate the IRQ(s) i.MX1 has three interrupts whereas later
-	 * chips only have one interrupt.
-	 */
-	if (sport->txirq > 0) {
-		ret = request_irq(sport->rxirq, imx_rxint, 0,
-				dev_name(sport->port.dev), sport);
-		if (ret)
-			goto error_out1;
-
-		ret = request_irq(sport->txirq, imx_txint, 0,
-				dev_name(sport->port.dev), sport);
-		if (ret)
-			goto error_out2;
-
-		/* do not use RTS IRQ on IrDA */
-		if (!USE_IRDA(sport)) {
-			ret = request_irq(sport->rtsirq, imx_rtsint, 0,
-					dev_name(sport->port.dev), sport);
-			if (ret)
-				goto error_out3;
-		}
-	} else {
-		ret = request_irq(sport->port.irq, imx_int, 0,
-				dev_name(sport->port.dev), sport);
-		if (ret) {
-			free_irq(sport->port.irq, sport);
-			goto error_out1;
-		}
-	}
-
 	sport->port.uartclk = clk_get_rate(sport->clk_per);
 
 	imx_ports[sport->port.line] = sport;
@@ -2068,32 +2088,11 @@ static int serial_imx_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, sport);
 
 	return uart_add_one_port(&imx_reg, &sport->port);
-
-error_out3:
-	if (sport->txirq)
-		free_irq(sport->txirq, sport);
-error_out2:
-	if (sport->rxirq)
-		free_irq(sport->rxirq, sport);
-error_out1:
-	return ret;
 }
 
 static int serial_imx_remove(struct platform_device *pdev)
 {
 	struct imx_port *sport = platform_get_drvdata(pdev);
-
-	/*
-	 * Free the interrupts
-	 */
-	if (sport->txirq > 0) {
-		if (!USE_IRDA(sport))
-			free_irq(sport->rtsirq, sport);
-			free_irq(sport->txirq, sport);
-			free_irq(sport->rxirq, sport);
-	} else {
-		free_irq(sport->port.irq, sport);
-	}
 
 	return uart_remove_one_port(&imx_reg, &sport->port);
 }
