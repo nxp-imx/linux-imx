@@ -493,8 +493,8 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 	clk_enable_axi(host);
 	clk_enable_disp_axi(host);
 
-	clk_prepare_enable(host->clk_pix);
 	clk_set_rate(host->clk_pix, PICOS2KHZ(fb_info->var.pixclock) * 1000U);
+	clk_prepare_enable(host->clk_pix);
 
 	/* Clean soft reset and clock gate bit if it was enabled  */
 	writel(CTRL_SFTRST | CTRL_CLKGATE, host->base + LCDC_CTRL + REG_CLR);
