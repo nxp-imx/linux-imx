@@ -462,23 +462,13 @@ static int imx_controller_suspend(struct device *dev)
 
 	dev_dbg(dev, "at %s\n", __func__);
 
-	if (data->in_lpm)
-		return 0;
-
 	if (data->usbmisc_data) {
-		ret = imx_usbmisc_set_wakeup(data->usbmisc_data, true);
-		if (ret) {
-			dev_err(dev,
-				"usbmisc set_wakeup failed, ret=%d\n",
-				ret);
-			return ret;
-		}
 		ret = imx_usbmisc_hsic_set_clk(data->usbmisc_data, false);
 		if (ret) {
 			dev_err(dev,
 				"usbmisc hsic_set_clk failed, ret=%d\n",
 				ret);
-			goto hsic_set_clk_fail;
+			return ret;
 		}
 	}
 
@@ -487,11 +477,6 @@ static int imx_controller_suspend(struct device *dev)
 	data->in_lpm = true;
 
 	return 0;
-
-hsic_set_clk_fail:
-	imx_usbmisc_set_wakeup(data->usbmisc_data, false);
-
-	return ret;
 }
 
 static int imx_controller_resume(struct device *dev)
@@ -501,8 +486,7 @@ static int imx_controller_resume(struct device *dev)
 
 	dev_dbg(dev, "at %s\n", __func__);
 
-	if (!data->in_lpm)
-		return 0;
+	WARN_ON(!data->in_lpm);
 
 	request_bus_freq(BUS_FREQ_HIGH);
 	ret = clk_prepare_enable(data->clk);
@@ -554,6 +538,20 @@ clk_disable:
 #ifdef CONFIG_PM_SLEEP
 static int ci_hdrc_imx_suspend(struct device *dev)
 {
+	struct ci_hdrc_imx_data *data = dev_get_drvdata(dev);
+	int ret;
+	/* The core should make sure the controller is active now */
+	WARN_ON(data->in_lpm);
+
+	if (device_may_wakeup(dev) && data->usbmisc_data) {
+		ret = imx_usbmisc_set_wakeup(data->usbmisc_data, true);
+		if (ret) {
+			dev_err(dev,
+				"usbmisc set_wakeup failed, ret=%d\n",
+				ret);
+			return ret;
+		}
+	}
 	return imx_controller_suspend(dev);
 }
 
@@ -576,6 +574,21 @@ static int ci_hdrc_imx_resume(struct device *dev)
 #ifdef CONFIG_PM_RUNTIME
 static int ci_hdrc_imx_runtime_suspend(struct device *dev)
 {
+	struct ci_hdrc_imx_data *data = dev_get_drvdata(dev);
+	int ret;
+
+	WARN_ON(data->in_lpm);
+
+	if (data->usbmisc_data) {
+		ret = imx_usbmisc_set_wakeup(data->usbmisc_data, true);
+		if (ret) {
+			dev_err(dev,
+				"usbmisc set_wakeup failed, ret=%d\n",
+				ret);
+			return ret;
+		}
+	}
+
 	return imx_controller_suspend(dev);
 }
 
