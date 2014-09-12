@@ -1076,7 +1076,7 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 	return 0;
 
 last_init_failed:
-	for (i = 0; i < q->nor_num; i++)
+	for (i = 0; i < FSL_QSPI_MAX_CHIP; i++)
 		mtd_device_unregister(&q->mtd[i]);
 
 irq_failed:
@@ -1092,7 +1092,7 @@ static int fsl_qspi_remove(struct platform_device *pdev)
 	struct fsl_qspi *q = platform_get_drvdata(pdev);
 	int i;
 
-	for (i = 0; i < q->nor_num; i++)
+	for (i = 0; i < FSL_QSPI_MAX_CHIP; i++)
 		mtd_device_unregister(&q->mtd[i]);
 
 	/* disable the hardware */

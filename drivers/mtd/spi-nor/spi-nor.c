@@ -1086,6 +1086,7 @@ int spi_nor_scan(struct spi_nor *nor, const struct spi_device_id *id,
 				mtd->eraseregions[i].numblocks);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(spi_nor_scan);
 
 const struct spi_device_id *spi_nor_match_id(char *name)
 {
@@ -1098,6 +1099,7 @@ const struct spi_device_id *spi_nor_match_id(char *name)
 	}
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(spi_nor_match_id);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Huang Shijie <shijie8@gmail.com>");
