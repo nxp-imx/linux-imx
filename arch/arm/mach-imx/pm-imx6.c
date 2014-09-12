@@ -452,6 +452,7 @@ static struct map_desc imx6_pm_io_desc[] __initdata = {
 	imx_map_entry(MX6Q, ANATOP, MT_DEVICE),
 	imx_map_entry(MX6Q, GPC, MT_DEVICE),
 	imx_map_entry(MX6Q, L2, MT_DEVICE),
+	imx_map_entry(MX6Q, SEMA4, MT_DEVICE),
 };
 
 static struct map_desc iram_tlb_io_desc __initdata = {
@@ -555,12 +556,20 @@ Please ensure device tree has an entry fsl,lpm-sram\n");
 	*((unsigned long *)iram_tlb_base_addr + i) =
 		(MX6Q_AIPS1_BASE_ADDR  & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
 	/*
-	* Make sure the AIPS2 virtual address has a mapping
-	* in the IRAM page table.
-	*/
+	 * Make sure the AIPS2 virtual address has a mapping
+	 * in the IRAM page table.
+	 */
 	i = ((IMX_IO_P2V(MX6Q_AIPS2_BASE_ADDR) >> 20) << 2) / 4;
 	*((unsigned long *)iram_tlb_base_addr + i) =
 		(MX6Q_AIPS2_BASE_ADDR  & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
+	/*
+	 * Make sure the AIPS3 virtual address has a mapping
+	 * in the IRAM page table.
+	 */
+	i = ((IMX_IO_P2V(MX6Q_AIPS3_BASE_ADDR) >> 20) << 2) / 4;
+	*((unsigned long *)iram_tlb_base_addr + i) =
+		(MX6Q_AIPS3_BASE_ADDR & 0xFFF00000) |
+		TT_ATTRIB_NON_CACHEABLE_1M;
 	/*
 	 * Make sure the AIPS2 virtual address has a mapping
 	 * in the IRAM page table.

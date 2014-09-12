@@ -12,11 +12,13 @@
 
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
+#include <linux/imx_sema4.h>
 #include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/jiffies.h>
 #include <linux/err.h>
 #include "clk.h"
+#include "common.h"
 
 #define PLL_NUM_OFFSET		0x10
 #define PLL_DENOM_OFFSET	0x20
@@ -48,7 +50,6 @@ struct clk_pllv3 {
 	u32		rate_req;
 	bool		powered;
 };
-
 #define to_clk_pllv3(_hw) container_of(_hw, struct clk_pllv3, hw)
 
 static int clk_pllv3_wait_for_lock(struct clk_pllv3 *pll, u32 timeout_ms)
@@ -104,34 +105,65 @@ static int clk_pllv3_power_up_down(struct clk_hw *hw, bool enable)
 	return ret;
 }
 
-
-static int clk_pllv3_enable(struct clk_hw *hw)
+static int clk_pllv3_do_hardware(struct clk_hw *hw, bool enable)
 {
 	struct clk_pllv3 *pll = to_clk_pllv3(hw);
 	u32 val;
 
-	if (pll->rate_req != BYPASS_RATE)
-		clk_pllv3_power_up_down(hw, true);
+	if (enable) {
+		if (pll->rate_req != BYPASS_RATE)
+			clk_pllv3_power_up_down(hw, true);
+		val = readl_relaxed(pll->base);
+		val |= BM_PLL_ENABLE;
+		writel_relaxed(val, pll->base);
+	} else {
+		val = readl_relaxed(pll->base);
+		if (!pll->always_on)
+			val &= ~BM_PLL_ENABLE;
+		writel_relaxed(val, pll->base);
 
-	val = readl_relaxed(pll->base);
-	val |= BM_PLL_ENABLE;
-	writel_relaxed(val, pll->base);
+		if (pll->rate_req != BYPASS_RATE)
+			clk_pllv3_power_up_down(hw, false);
+	}
+
+	return 0;
+}
+
+static void clk_pllv3_do_shared_clks(struct clk_hw *hw, bool enable)
+{
+	if (imx_src_is_m4_enabled()) {
+		if (!amp_power_mutex || !shared_mem)
+			return;
+
+		imx_sema4_mutex_lock(amp_power_mutex);
+		if (shared_mem->ca9_valid != SHARED_MEM_MAGIC_NUMBER ||
+			shared_mem->cm4_valid != SHARED_MEM_MAGIC_NUMBER) {
+			imx_sema4_mutex_unlock(amp_power_mutex);
+			return;
+		}
+
+		if (!imx_update_shared_mem(hw, enable)) {
+			imx_sema4_mutex_unlock(amp_power_mutex);
+			return;
+		}
+		clk_pllv3_do_hardware(hw, enable);
+
+		imx_sema4_mutex_unlock(amp_power_mutex);
+	} else {
+		clk_pllv3_do_hardware(hw, enable);
+	}
+}
+
+static int clk_pllv3_enable(struct clk_hw *hw)
+{
+	clk_pllv3_do_shared_clks(hw, true);
 
 	return 0;
 }
 
 static void clk_pllv3_disable(struct clk_hw *hw)
 {
-	struct clk_pllv3 *pll = to_clk_pllv3(hw);
-	u32 val;
-
-	val = readl_relaxed(pll->base);
-	if (!pll->always_on)
-		val &= ~BM_PLL_ENABLE;
-	writel_relaxed(val, pll->base);
-
-	if (pll->rate_req != BYPASS_RATE)
-		clk_pllv3_power_up_down(hw, false);
+	clk_pllv3_do_shared_clks(hw, false);
 }
 
 static unsigned long clk_pllv3_recalc_rate(struct clk_hw *hw,

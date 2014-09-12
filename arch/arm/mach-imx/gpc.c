@@ -53,6 +53,9 @@
 #define PGC_PCIE_PHY_PDN_EN		0x1
 #define GPC_CNTR_PU_UP_REQ_SHIFT	0x1
 #define GPC_CNTR_PU_DOWN_REQ_SHIFT	0x0
+#define GPC_M4_LPSR			0x2c
+#define GPC_M4_LPSR_M4_SLEEPING_SHIFT	4
+#define GPC_M4_LPSR_M4_SLEEPING_MASK	0x1
 
 #define IMR_NUM			4
 
@@ -147,6 +150,16 @@ static void imx_gpc_dispmix_off(void)
 
 		imx_disp_clk(false);
 	}
+}
+
+unsigned int imx_gpc_is_m4_sleeping(void)
+{
+	if (readl_relaxed(gpc_base + GPC_M4_LPSR) &
+		(GPC_M4_LPSR_M4_SLEEPING_MASK <<
+		GPC_M4_LPSR_M4_SLEEPING_SHIFT))
+		return 1;
+
+	return 0;
 }
 
 unsigned int imx_gpc_is_mf_mix_off(void)

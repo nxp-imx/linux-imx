@@ -16,6 +16,7 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/busfreq-imx6.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/mfd/syscon.h>
@@ -28,12 +29,17 @@
 #include <linux/mcc_api.h>
 #include <linux/mcc_imx6sx.h>
 #include <linux/mcc_linux.h>
+#include "common.h"
 
 /* Global variables */
 struct regmap *imx_mu_reg;
 unsigned long mcc_shm_offset;
 static struct imx_sema4_mutex *shm_ptr;
 static unsigned int cpu_to_cpu_isr_vector = MCC_VECTOR_NUMBER_INVALID;
+static struct delayed_work mu_work;
+unsigned int m4_message;
+
+DECLARE_COMPLETION(wait_m4_done);
 
 unsigned int imx_mcc_buffer_freed = 0, imx_mcc_buffer_queued = 0;
 DECLARE_WAIT_QUEUE_HEAD(buffer_freed_wait_queue); /* Used for blocking send */
@@ -61,45 +67,64 @@ DECLARE_WAIT_QUEUE_HEAD(buffer_queued_wait_queue); /* Used for blocking recv */
 static irqreturn_t mcc_cpu_to_cpu_isr(int irq, void *param)
 {
 	MCC_SIGNAL serviced_signal;
+	unsigned int irqs = mcc_get_mu_irq();
 
-	/*
-	 * Try to lock the core mutex. If successfully locked, perform
-	 * mcc_dequeue_signal(), release the gate and finally clear the
-	 * interrupt flag. If trylock fails (HW semaphore already locked
-	 * by another core), do not clear the interrupt flag  this
-	 * way the CPU-to-CPU isr is re-issued again until the HW semaphore
-	 * is locked. Higher priority ISRs will be serviced while issued at
-	 * the time we are waiting for the unlocked gate. To prevent trylog
-	 * failure due to core mutex currently locked by our own core(a task),
-	 * the cpu-to-cpu isr is temporarily disabled when mcc_get_semaphore()
-	 * is called and re-enabled again when mcc_release_semaphore()
-	 * is issued.
-	 */
-	if (SEMA4_A9_LOCK == imx_sema4_mutex_trylock(shm_ptr)) {
-		while (MCC_SUCCESS == mcc_dequeue_signal(MCC_CORE_NUMBER,
-					&serviced_signal)) {
-			if ((serviced_signal.type == BUFFER_QUEUED) &&
-			(serviced_signal.destination.core == MCC_CORE_NUMBER)) {
-				/*
-				 * Unblock receiver, in case of asynchronous
-				 * communication
-				 */
-				imx_mcc_buffer_queued = 1;
-				wake_up(&buffer_queued_wait_queue);
-			} else if (serviced_signal.type == BUFFER_FREED) {
-				/* Unblock sender, in case of asynchronous
-				 * communication
-				 */
-				imx_mcc_buffer_freed = 1;
-				wake_up(&buffer_freed_wait_queue);
+	if (irqs & (1 << 31)) {
+		/*
+		 * Try to lock the core mutex. If successfully locked, perform
+		 * mcc_dequeue_signal(), release the gate and finally clear the
+		 * interrupt flag. If trylock fails (HW semaphore already locked
+		 * by another core), do not clear the interrupt flag  this
+		 * way the CPU-to-CPU isr is re-issued again until the HW
+		 * semaphore is locked. Higher priority ISRs will be serviced
+		 * while issued at the time we are waiting for the unlocked
+		 * gate. To prevent trylog failure due to core mutex currently
+		 * locked by our own core(a task), the cpu-to-cpu isr is
+		 * temporarily disabled when mcc_get_semaphore() is called and
+		 * re-enabled again when mcc_release_semaphore() is issued.
+		 */
+		if (SEMA4_A9_LOCK == imx_sema4_mutex_trylock(shm_ptr)) {
+			while (MCC_SUCCESS == mcc_dequeue_signal(
+				MCC_CORE_NUMBER, &serviced_signal)) {
+				if ((serviced_signal.type == BUFFER_QUEUED) &&
+					(serviced_signal.destination.core ==
+					MCC_CORE_NUMBER)) {
+					/*
+					 * Unblock receiver, in case of
+					 * asynchronous communication
+					 */
+					imx_mcc_buffer_queued = 1;
+					wake_up(&buffer_queued_wait_queue);
+				} else if (serviced_signal.type ==
+					BUFFER_FREED) {
+					/*
+					 * Unblock sender, in case of
+					 * asynchronous communication
+					 */
+					imx_mcc_buffer_freed = 1;
+					wake_up(&buffer_freed_wait_queue);
+				}
 			}
+
+			/* Clear the interrupt flag */
+			mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
+
+			/* Unlocks the core mutex */
+			imx_sema4_mutex_unlock(shm_ptr);
 		}
+	}
 
-		/* Clear the interrupt flag */
-		mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
-
-		/* Unlocks the core mutex */
-		imx_sema4_mutex_unlock(shm_ptr);
+	if (irqs & (1 << 27)) {
+		m4_message = mcc_handle_mu_receive_irq();
+		schedule_delayed_work(&mu_work, 0);
+		/*
+		 * MU delay work may sleep to wait for completion, so
+		 * we need to set completion here if the message is what
+		 * we expected, can NOT do it in delay work.
+		 */
+		if (m4_message == (~MU_LPM_HANDSHAKE_ENTER) ||
+			m4_message == (~MU_LPM_HANDSHAKE_EXIT))
+			complete(&wait_m4_done);
 	}
 
 	return IRQ_HANDLED;
@@ -185,6 +210,26 @@ int mcc_release_semaphore(void)
 	return MCC_ERR_SEMAPHORE;
 }
 
+static void mu_work_handler(struct work_struct *work)
+{
+	pr_debug("receive M4 message 0x%x\n", m4_message);
+
+	switch (m4_message) {
+	case MU_LPM_M4_REQUEST_HIGH_BUS:
+	case MU_LPM_M4_IN_HIGHFREQ:
+		request_bus_freq(BUS_FREQ_HIGH);
+		mcc_send_via_mu_buffer(MU_LPM_HANDSHAKE_INDEX,
+			MU_LPM_A9_READY_FOR_M4);
+		break;
+	case MU_LPM_M4_RELEASE_HIGH_BUS:
+		release_bus_freq(BUS_FREQ_HIGH);
+		break;
+	default:
+		break;
+	}
+	m4_message = 0;
+}
+
 /*!
  * \brief This function registers the CPU-to-CPU interrupt.
  *
@@ -212,6 +257,8 @@ int mcc_register_cpu_to_cpu_isr(void)
 					__func__, vector_number, ret);
 			return MCC_ERR_INT;
 		}
+
+		INIT_DELAYED_WORK(&mu_work, mu_work_handler);
 		/* Make sure the INT is cleared */
 		mcc_clear_cpu_to_cpu_interrupt(MCC_CORE_NUMBER);
 

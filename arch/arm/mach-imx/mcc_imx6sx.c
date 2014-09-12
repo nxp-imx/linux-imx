@@ -63,6 +63,34 @@ unsigned int mcc_get_cpu_to_cpu_vector(unsigned int core)
 	return MCC_VECTOR_NUMBER_INVALID;
 }
 
+unsigned int mcc_get_mu_irq(void)
+{
+	u32 val;
+
+	regmap_read(imx_mu_reg, MU_ASR, &val);
+
+	return val;
+}
+
+void mcc_send_via_mu_buffer(unsigned int index, unsigned int data)
+{
+	regmap_write(imx_mu_reg, index * 0x4 + MU_ATR0_OFFSET, data);
+}
+
+void mcc_receive_from_mu_buffer(unsigned int index, unsigned int *data)
+{
+	regmap_read(imx_mu_reg, index * 0x4 + MU_ARR0_OFFSET, data);
+}
+
+unsigned int mcc_handle_mu_receive_irq(void)
+{
+	u32 val;
+
+	regmap_read(imx_mu_reg, MU_ARR0_OFFSET, &val);
+
+	return val;
+}
+
 /*!
  * \brief This function clears the CPU-to-CPU int flag for the particular core.
  *
@@ -117,7 +145,7 @@ int imx_mcc_bsp_int_disable(unsigned int vector_number)
 
 	if (vector_number == INT_CPU_TO_CPU_MU_A2M) {
 		/* Disable the bit31(GIE3) of MU_ACR */
-		regmap_update_bits(imx_mu_reg, MU_ACR, BIT(31), 0);
+		regmap_update_bits(imx_mu_reg, MU_ACR, BIT(31) | BIT(27), 0);
 		/* flush */
 		regmap_read(imx_mu_reg, MU_ACR, &val);
 	} else
@@ -137,7 +165,8 @@ int imx_mcc_bsp_int_enable(unsigned int vector_number)
 
 	if (vector_number == INT_CPU_TO_CPU_MU_A2M) {
 		/* Enable the bit31(GIE3) of MU_ACR */
-		regmap_update_bits(imx_mu_reg, MU_ACR, BIT(31), BIT(31));
+		regmap_update_bits(imx_mu_reg, MU_ACR,
+			BIT(31) | BIT(27), BIT(31) | BIT(27));
 		/* flush */
 		regmap_read(imx_mu_reg, MU_ACR, &val);
 		return 0;

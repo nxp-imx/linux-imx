@@ -22,6 +22,19 @@
  */
 #define MCC_VECTOR_NUMBER_INVALID     (0)
 
+#define MU_ATR0_OFFSET 0x0
+#define MU_ARR0_OFFSET 0x10
+
+#define MU_LPM_HANDSHAKE_INDEX		0
+#define MU_LPM_HANDSHAKE_ENTER		0xAAAA1111
+#define MU_LPM_HANDSHAKE_EXIT		0xBBBB2222
+#define MU_LPM_M4_REQUEST_HIGH_BUS	0x1111AAAA
+#define MU_LPM_A9_READY_FOR_M4		0xFFFF6666
+#define MU_LPM_M4_RELEASE_HIGH_BUS	0x2222BBBB
+#define MU_LPM_GET_M4_FREQ		0xCCCC3333
+#define MU_LPM_M4_IN_HIGHFREQ		0x33330000
+#define MU_LPM_M4_IN_LOWFREQ		0x33330001
+
 enum {
 	/* FIXME */
 	INT_CPU_TO_CPU_MU_A2M = 122,
@@ -39,5 +52,8 @@ unsigned int _psp_core_num(void);
 unsigned int mcc_get_cpu_to_cpu_vector(unsigned int);
 void mcc_clear_cpu_to_cpu_interrupt(unsigned int);
 void mcc_triger_cpu_to_cpu_interrupt(void);
+unsigned int mcc_get_mu_irq(void);
+unsigned int mcc_handle_mu_receive_irq(void);
+void mcc_handle_mu_send_irq(void);
 int imx_mcc_bsp_int_disable(unsigned int vector_number);
 int imx_mcc_bsp_int_enable(unsigned int vector_number);

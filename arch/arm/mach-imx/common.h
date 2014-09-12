@@ -14,6 +14,7 @@
 struct platform_device;
 struct pt_regs;
 struct clk;
+struct clk_hw;
 struct irq_data;
 enum mxc_cpu_pwr_mode;
 
@@ -86,6 +87,10 @@ extern struct device *imx_soc_device_init(void);
 extern void imx6sx_low_power_idle(void);
 extern void imx6_enable_rbc(bool enable);
 extern unsigned int imx_gpc_is_mf_mix_off(void);
+extern int imx_update_shared_mem(struct clk_hw *hw, bool enable);
+extern bool imx_src_is_m4_enabled(void);
+extern void mcc_receive_from_mu_buffer(unsigned int index, unsigned int *data);
+extern void mcc_send_via_mu_buffer(unsigned int index, unsigned int data);
 
 enum mxc_cpu_pwr_mode {
 	WAIT_CLOCKED,		/* wfi only */
@@ -158,6 +163,7 @@ extern void imx6_set_cache_lpm_in_wait(bool enable);
 extern void imx6sl_set_wait_clk(bool enter);
 extern void imx6_enet_mac_init(const char *compatible);
 extern int imx_mmdc_get_ddr_type(void);
+extern unsigned int imx_gpc_is_m4_sleeping(void);
 
 extern void imx_cpu_die(unsigned int cpu);
 extern int imx_cpu_kill(unsigned int cpu);
