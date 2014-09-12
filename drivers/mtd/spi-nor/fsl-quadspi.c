@@ -1,7 +1,7 @@
 /*
  * Freescale QuadSPI driver.
  *
- * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1037,7 +1037,7 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 	return 0;
 
 last_init_failed:
-	for (i = 0; i < q->nor_num; i++)
+	for (i = 0; i < FSL_QSPI_MAX_CHIP; i++)
 		mtd_device_unregister(&q->mtd[i]);
 
 irq_failed:
@@ -1053,7 +1053,7 @@ static int fsl_qspi_remove(struct platform_device *pdev)
 	struct fsl_qspi *q = platform_get_drvdata(pdev);
 	int i;
 
-	for (i = 0; i < q->nor_num; i++)
+	for (i = 0; i < FSL_QSPI_MAX_CHIP; i++)
 		mtd_device_unregister(&q->mtd[i]);
 
 	/* disable the hardware */
