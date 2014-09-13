@@ -339,7 +339,7 @@ bool ci_hdrc_host_has_device(struct ci_hdrc *ci)
 	return false;
 }
 
-void ci_hdrc_host_save_for_power_lost(struct ci_hdrc *ci)
+static void ci_hdrc_host_save_for_power_lost(struct ci_hdrc *ci)
 {
 	struct ehci_hcd *ehci;
 
@@ -362,7 +362,7 @@ void ci_hdrc_host_save_for_power_lost(struct ci_hdrc *ci)
 	ci->pm_portsc = ehci_readl(ehci, &ehci->regs->port_status[0]);
 }
 
-void ci_hdrc_host_restore_from_power_lost(struct ci_hdrc *ci)
+static void ci_hdrc_host_restore_from_power_lost(struct ci_hdrc *ci)
 {
 	struct ehci_hcd *ehci;
 	unsigned long   flags;
@@ -392,6 +392,17 @@ void ci_hdrc_host_restore_from_power_lost(struct ci_hdrc *ci)
 	spin_unlock_irqrestore(&ehci->lock, flags);
 }
 
+static void ci_hdrc_host_suspend(struct ci_hdrc *ci)
+{
+	ci_hdrc_host_save_for_power_lost(ci);
+}
+
+static void ci_hdrc_host_resume(struct ci_hdrc *ci, bool power_lost)
+{
+	if (power_lost)
+		ci_hdrc_host_restore_from_power_lost(ci);
+}
+
 void ci_hdrc_host_destroy(struct ci_hdrc *ci)
 {
 	if (ci->role == CI_ROLE_HOST && ci->hcd)
@@ -412,8 +423,8 @@ int ci_hdrc_host_init(struct ci_hdrc *ci)
 	rdrv->start	= host_start;
 	rdrv->stop	= host_stop;
 	rdrv->irq	= host_irq;
-	rdrv->save = ci_hdrc_host_save_for_power_lost;
-	rdrv->restore = ci_hdrc_host_restore_from_power_lost;
+	rdrv->suspend	= ci_hdrc_host_suspend;
+	rdrv->resume	= ci_hdrc_host_resume;
 	rdrv->name	= "host";
 	ci->roles[CI_ROLE_HOST] = rdrv;
 

@@ -920,8 +920,8 @@ static int ci_suspend(struct device *dev)
 	 * The registers for suspended host will not be updated
 	 * during system suspend.
 	 */
-	if (ci->roles[ci->role]->save)
-		ci->roles[ci->role]->save(ci);
+	if (ci->roles[ci->role] && ci->roles[ci->role]->suspend)
+		ci->roles[ci->role]->suspend(ci);
 
 	if (device_may_wakeup(dev)) {
 		enable_irq_wake(ci->irq);
@@ -962,8 +962,11 @@ static int ci_resume(struct device *dev)
 		/* re-init for phy */
 		usb_phy_shutdown(ci->transceiver);
 		ci_usb_phy_init(ci);
-		if (ci->roles[ci->role]->restore)
-			ci->roles[ci->role]->restore(ci);
+	}
+	if (ci->roles[ci->role] && ci->roles[ci->role]->resume)
+		ci->roles[ci->role]->resume(ci, power_lost);
+
+	if (power_lost) {
 		disable_irq_nosync(ci->irq);
 		schedule_work(&ci->power_lost_work);
 	}

@@ -1960,6 +1960,17 @@ static void udc_resume_from_power_lost(struct ci_hdrc *ci)
 					OTGSC_BSVIS | OTGSC_BSVIE);
 }
 
+static void udc_suspend(struct ci_hdrc *ci)
+{
+	udc_suspend_for_power_lost(ci);
+}
+
+static void udc_resume(struct ci_hdrc *ci, bool power_lost)
+{
+	if (power_lost)
+		udc_resume_from_power_lost(ci);
+}
+
 /**
  * ci_hdrc_gadget_init - initialize device related bits
  * ci: the controller
@@ -1980,8 +1991,8 @@ int ci_hdrc_gadget_init(struct ci_hdrc *ci)
 	rdrv->start	= udc_id_switch_for_device;
 	rdrv->stop	= udc_id_switch_for_host;
 	rdrv->irq	= udc_irq;
-	rdrv->save = udc_suspend_for_power_lost;
-	rdrv->restore = udc_resume_from_power_lost;
+	rdrv->suspend	= udc_suspend;
+	rdrv->resume	= udc_resume;
 	rdrv->name	= "gadget";
 	ci->roles[CI_ROLE_GADGET] = rdrv;
 
