@@ -142,7 +142,7 @@ static unsigned long clk_pllv3_recalc_rate(struct clk_hw *hw,
 	u32 bypass = readl_relaxed(pll->base) & BYPASS_MASK;
 	u32 rate;
 
-	if (pll->rate_req == BYPASS_RATE && bypass)
+	if (bypass)
 		rate = BYPASS_RATE;
 	else
 		rate = (div == 1) ? parent_rate * 22 : parent_rate * 20;
@@ -462,7 +462,7 @@ struct clk *imx_clk_pllv3(enum imx_pllv3_type type, const char *name,
 
 	init.name = name;
 	init.ops = ops;
-	init.flags = 0;
+	init.flags = CLK_GET_RATE_NOCACHE;
 	init.parent_names = &parent_name;
 	init.num_parents = 1;
 

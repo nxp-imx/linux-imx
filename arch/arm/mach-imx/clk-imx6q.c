@@ -125,7 +125,7 @@ static struct clk *clk[clk_max];
 static struct clk_onecell_data clk_data;
 
 static enum mx6q_clks const clks_init_on[] __initconst = {
-	mmdc_ch0_axi, rom, arm,
+	mmdc_ch0_axi, rom, arm, ocram,
 };
 
 static struct clk_div_table clk_enet_ref_table[] = {
@@ -564,7 +564,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 		clk[mlb] = imx_clk_gate2("mlb",            "gpu2d_core_podf",   base + 0x74, 18);
 	else
 		clk[mlb] = imx_clk_gate2("mlb",            "axi",               base + 0x74, 18);
-	clk[ocram]        = imx_clk_gate2("ocram",         "ahb",               base + 0x74, 28);
+	clk[ocram]        = imx_clk_busy_gate("ocram",         "ahb",               base + 0x74, 28);
 	clk[openvg_axi]   = imx_clk_gate2("openvg_axi",    "axi",               base + 0x74, 30);
 	clk[pcie_axi]     = imx_clk_gate2("pcie_axi",      "pcie_axi_sel",      base + 0x78, 0);
 	clk[per1_bch]     = imx_clk_gate2("per1_bch",      "usdhc3",            base + 0x78, 12);
@@ -627,8 +627,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 		3 << CCM_CCGR_OFFSET(10) |
 		3 << CCM_CCGR_OFFSET(9) |
 		3 << CCM_CCGR_OFFSET(8), base + 0x70);
-	writel_relaxed(3 << CCM_CCGR_OFFSET(14) |
-		1 << CCM_CCGR_OFFSET(13) |
+	writel_relaxed(1 << CCM_CCGR_OFFSET(13) |
 		3 << CCM_CCGR_OFFSET(12) |
 		1 << CCM_CCGR_OFFSET(11) |
 		3 << CCM_CCGR_OFFSET(10), base + 0x74);
