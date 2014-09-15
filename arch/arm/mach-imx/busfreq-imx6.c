@@ -229,7 +229,6 @@ static void enter_lpm_imx6sl(void)
 		update_lpddr2_freq(LPDDR2_AUDIO_CLK);
 
 		/* Fix the clock tree in kernel */
-		imx_clk_set_rate(pll2, pll2_org_rate);
 		imx_clk_set_parent(periph2_pre_clk, pll2_200);
 		imx_clk_set_parent(periph2_clk, periph2_pre_clk);
 
@@ -305,7 +304,6 @@ static void enter_lpm_imx6sl(void)
 				 * Make sure PLL2 rate is updated as it gets
 				 * bypassed in the DDR freq change code.
 				 */
-				imx_clk_set_rate(pll2, LPAPM_CLK);
 				imx_clk_set_parent(periph2_clk2_sel, pll2);
 				imx_clk_set_parent(periph2_clk, periph2_clk2);
 
@@ -332,7 +330,6 @@ static void exit_lpm_imx6sl(void)
 	 * Make sure PLL2 rate is updated as it gets
 	 * un-bypassed in the DDR freq change code.
 	 */
-	imx_clk_set_rate(pll2, pll2_org_rate);
 	imx_clk_set_parent(periph2_pre_clk, pll2_400);
 	imx_clk_set_parent(periph2_clk, periph2_pre_clk);
 
@@ -675,24 +672,6 @@ static int __init imx6_dt_find_ddr_sram(unsigned long node,
 			return EINVAL;
 		ddr_iram_addr = be32_to_cpu(prop[0]);
 		ddr_freq_change_total_size = be32_to_cpu(prop[1]);
-
-		if ((iram_tlb_phys_addr & 0xFFF00000) != (ddr_iram_addr & 0xFFF00000)) {
-			unsigned long i;
-
-			/* We need to create a 1M page table entry. */
-			ddr_iram_io_desc.virtual = IMX_IO_P2V(ddr_iram_addr & 0xFFF00000);
-			ddr_iram_io_desc.pfn = __phys_to_pfn(ddr_iram_addr & 0xFFF00000);
-			iotable_init(&ddr_iram_io_desc, 1);
-
-			/*
-			 * Make sure the ddr_iram virtual address has a mapping
-			 * in the IRAM page table.
-			 */
-			i = ((IMX_IO_P2V(ddr_iram_addr) >> 20) << 2) / 4;
-			*((unsigned long *)iram_tlb_base_addr + i) =
-				(ddr_iram_addr  & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
-
-		}
 		ddr_freq_change_iram_phys = ddr_iram_addr;
 
 		/* Make sure ddr_freq_change_iram_phys is 8 byte aligned. */
@@ -711,6 +690,12 @@ void __init imx6_busfreq_map_io(void)
 	 * change code from the device tree.
 	 */
 	WARN_ON(of_scan_flat_dt(imx6_dt_find_ddr_sram, NULL));
+	if ((iram_tlb_phys_addr & 0xFFF00000) != (ddr_freq_change_iram_phys & 0xFFF00000)) {
+		/* We need to create a 1M page table entry. */
+		ddr_iram_io_desc.virtual = IMX_IO_P2V(ddr_freq_change_iram_phys & 0xFFF00000);
+		ddr_iram_io_desc.pfn = __phys_to_pfn(ddr_freq_change_iram_phys & 0xFFF00000);
+		iotable_init(&ddr_iram_io_desc, 1);
+	}
 }
 
 static void bus_freq_daemon_handler(struct work_struct *work)
@@ -1023,6 +1008,22 @@ static int busfreq_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&bus_freq_daemon, bus_freq_daemon_handler);
 	register_pm_notifier(&imx_bus_freq_pm_notifier);
 	register_reboot_notifier(&imx_busfreq_reboot_notifier);
+
+	/*
+	 * Need to make sure to an entry for the ddr freq change code address in the IRAM page table.
+	 * This is only required if the DDR freq code and suspend/idle code are in different OCRAM spaces.
+	 */
+	if ((iram_tlb_phys_addr & 0xFFF00000) != (ddr_freq_change_iram_phys & 0xFFF00000)) {
+		unsigned long i;
+
+		/*
+		 * Make sure the ddr_iram virtual address has a mapping
+		 * in the IRAM page table.
+		 */
+		i = ((IMX_IO_P2V(ddr_freq_change_iram_phys) >> 20) << 2) / 4;
+		*((unsigned long *)iram_tlb_base_addr + i) =
+			(ddr_freq_change_iram_phys  & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
+	}
 
 	if (cpu_is_imx6sl()) {
 		err = init_mmdc_lpddr2_settings(pdev);

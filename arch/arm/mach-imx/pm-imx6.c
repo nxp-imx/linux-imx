@@ -105,7 +105,6 @@ struct regmap *romcp;
 unsigned long total_suspend_size;
 static unsigned long dcr;
 static unsigned long pcr;
-
 extern unsigned long imx6_suspend_start asm("imx6_suspend_start");
 extern unsigned long imx6_suspend_end asm("imx6_suspend_end");
 
@@ -493,8 +492,6 @@ static int __init imx6_dt_find_lpsram(unsigned long node,
 
 void __init imx6_pm_map_io(void)
 {
-	unsigned long i;
-
 	iotable_init(imx6_pm_io_desc, ARRAY_SIZE(imx6_pm_io_desc));
 
 	/*
@@ -506,10 +503,40 @@ void __init imx6_pm_map_io(void)
 	/* Return if no IRAM space is allocated for suspend/resume code. */
 	if (!iram_tlb_base_addr)
 		return;
+}
 
-	/* Set all entries to 0. */
+static int imx6_pm_valid(suspend_state_t state)
+{
+	return (state == PM_SUSPEND_STANDBY || state == PM_SUSPEND_MEM);
+}
+
+static const struct platform_suspend_ops imx6_pm_ops = {
+	.enter = imx6_pm_enter,
+	.valid = imx6_pm_valid,
+};
+
+void imx6_pm_set_ccm_base(void __iomem *base)
+{
+	if (!base)
+		pr_warn("ccm base is NULL!\n");
+	ccm_base = base;
+}
+
+void __init imx6_pm_init(void)
+{
+	unsigned long suspend_code_size;
+	struct device_node *np;
+	struct resource res;
+	unsigned long i;
+
+	if (!iram_tlb_base_addr) {
+		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume code. \
+Please ensure device tree has an entry fsl,lpm-sram\n");
+			return;
+	}
+
+	/* Set all IRAM page table entries to 0. */
 	memset((void *)iram_tlb_base_addr, 0, MX6Q_IRAM_TLB_SIZE);
-
 	/*
 	 * Make sure the IRAM virtual address has a mapping
 	 * in the IRAM page table.
@@ -542,37 +569,6 @@ void __init imx6_pm_map_io(void)
 	*((unsigned long *)iram_tlb_base_addr + i) =
 		(MX6Q_L2_BASE_ADDR  & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
 
-}
-
-static int imx6_pm_valid(suspend_state_t state)
-{
-	return (state == PM_SUSPEND_STANDBY || state == PM_SUSPEND_MEM);
-}
-
-static const struct platform_suspend_ops imx6_pm_ops = {
-	.enter = imx6_pm_enter,
-	.valid = imx6_pm_valid,
-};
-
-void imx6_pm_set_ccm_base(void __iomem *base)
-{
-	if (!base)
-		pr_warn("ccm base is NULL!\n");
-	ccm_base = base;
-}
-
-void __init imx6_pm_init(void)
-{
-	unsigned long suspend_code_size;
-	struct device_node *np;
-	struct resource res;
-
-	if (!iram_tlb_base_addr) {
-		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume code. \
-Please ensure device tree has an entry fsl,lpm-sram\n");
-			return;
-	}
-
 	iram_paddr = iram_tlb_phys_addr + MX6_SUSPEND_IRAM_ADDR_OFFSET;
 
 	/* Make sure iram_paddr is 8 byte aligned. */
@@ -585,6 +581,7 @@ Please ensure device tree has an entry fsl,lpm-sram\n");
 	suspend_code_size = (&imx6_suspend_end -&imx6_suspend_start) *4;
 	suspend_in_iram_fn = (void *)fncpy(suspend_iram_base,
 		&imx6_suspend, suspend_code_size);
+
 	/* Now add the space used for storing various registers and IO in suspend. */
 	total_suspend_size = suspend_code_size + MX6_SUSPEND_IRAM_DATA_SIZE;
 
