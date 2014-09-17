@@ -78,16 +78,15 @@
 	orr	r7, r7, #0x1c00
 	str	r7, [r10, #0x14]
 
-	ccm_do_wait
-
 	/* set perclk to 6MHz */
 	ldr	r7, [r10, #0x1c]
 	bic	r7, r7, #0x3f
 	orr	r7, r7, #0x3
 	str	r7, [r10, #0x1c]
 
-	/* set mmdc to 3MHz */
+	/* set mmdc to 1MHz, periph2_clk2 need to be @8MHz */
 	ldr	r7, [r10, #0x14]
+	orr     r7, r7, #0x2
 	orr	r7, r7, #(0x7 << 3)
 	str	r7, [r10, #0x14]
 
@@ -169,6 +168,24 @@
 	ldreq	r10, [r0, #PM_INFO_MX6Q_CCM_V_OFFSET]
 	ldrne	r10, [r0, #PM_INFO_MX6Q_CCM_P_OFFSET]
 
+	/* set perclk back to 24MHz */
+	ldr	r7, [r10, #0x1c]
+	bic	r7, r7, #0x3f
+	str	r7, [r10, #0x1c]
+
+	/* set mmdc back to 24MHz */
+	ldr	r7, [r10, #0x14]
+	bic	r7, r7, #0x7
+	bic	r7, r7, #(0x7 << 3)
+	str	r7, [r10, #0x14]
+
+	/* set ahb div back to 24MHz */
+	ldr	r7, [r10, #0x14]
+	bic	r7, r7, #0x1c00
+	str	r7, [r10, #0x14]
+
+	ccm_do_wait
+
 	/* set pll1_sw to from pll1 main */
 	ldr	r7, [r10, #0xc]
 	bic	r7, r7, #0x4
@@ -192,29 +209,6 @@
 	ldr	r7, [r10]
 	bic	r7, r7, #0x12000
 	str	r7, [r10]
-
-	cmp	r5, #0x0
-	ldreq	r10, [r0, #PM_INFO_MX6Q_CCM_V_OFFSET]
-	ldrne	r10, [r0, #PM_INFO_MX6Q_CCM_P_OFFSET]
-
-	/* set perclk back to 24MHz */
-	ldr	r7, [r10, #0x1c]
-	bic	r7, r7, #0x3f
-	str	r7, [r10, #0x1c]
-
-	/* set mmdc back to 24MHz */
-	ldr	r7, [r10, #0x14]
-	bic	r7, r7, #(0x7 << 3)
-	str	r7, [r10, #0x14]
-
-	ccm_do_wait
-
-	/* set ahb div back to 24MHz */
-	ldr	r7, [r10, #0x14]
-	bic	r7, r7, #0x1c00
-	str	r7, [r10, #0x14]
-
-	ccm_do_wait
 
 	.endm
 
@@ -276,6 +270,37 @@
 	str	r7, [r10, #0x110]
 	bic	r7, r7, #0x1
 	str	r7, [r10, #0x110]
+
+	/* check whether ARM LDO is bypassed */
+	ldr	r7, [r10, #0x140]
+	and	r7, r7, #0x1f
+	cmp	r7, #0x1f
+	bne	10f
+
+	/* low power band gap enable */
+	ldr	r7, [r10, #0x270]
+	orr	r7, r7, #0x20
+	str	r7, [r10, #0x270]
+
+	/* turn off the bias current from the regular bandgap */
+	ldr	r7, [r10, #0x270]
+	orr	r7, r7, #0x80
+	str	r7, [r10, #0x270]
+
+	/*
+	 * clear the REFTOP_SELFBIASOFF,
+	 * self-bias circuit of the band gap.
+	 * Per RM, should be cleared when
+	 * band gap is powered down.
+	 */
+	ldr	r7, [r10, #0x150]
+	bic	r7, r7, #0x8
+	str	r7, [r10, #0x150]
+
+	/* turn off regular bandgap */
+	ldr	r7, [r10, #0x150]
+	orr	r7, r7, #0x1
+	str	r7, [r10, #0x150]
 10:
 	/* lower OSC current by 37.5% */
 	ldr	r7, [r10, #0x150]
@@ -300,6 +325,39 @@
 	ands	r7, r7, #0x40000
 	beq	11f
 
+	/* check whether ARM LDO is bypassed */
+	ldr	r7, [r10, #0x140]
+	and	r7, r7, #0x1f
+	cmp	r7, #0x1f
+	bne	12f
+
+	/* turn on regular bandgap and wait for stable */
+	ldr	r7, [r10, #0x150]
+	bic	r7, r7, #0x1
+	str	r7, [r10, #0x150]
+13:
+	ldr	r7, [r10, #0x150]
+	ands	r7, #0x80
+	beq	13b
+
+	/*
+	 * set the REFTOP_SELFBIASOFF,
+	 * self-bias circuit of the band gap.
+	 */
+	ldr     r7, [r10, #0x150]
+	orr     r7, r7, #0x8
+	str     r7, [r10, #0x150]
+
+	/* turn on the bias current from the regular bandgap */
+	ldr	r7, [r10, #0x270]
+	bic	r7, r7, #0x80
+	str	r7, [r10, #0x270]
+
+	/* low power band gap disable */
+	ldr	r7, [r10, #0x270]
+	bic	r7, r7, #0x20
+	str	r7, [r10, #0x270]
+12:
 	/* enable regular 2P5 and turn off weak 2P5 */
 	ldr	r7, [r10, #0x130]
 	orr	r7, r7, #0x1
