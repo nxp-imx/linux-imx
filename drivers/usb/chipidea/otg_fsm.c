@@ -30,6 +30,7 @@
 #include "otg.h"
 #include "otg_fsm.h"
 #include "host.h"
+#include "udc.h"
 
 static struct ci_otg_fsm_timer *otg_timer_initializer
 (struct ci_hdrc *ci, void (*function)(void *, unsigned long),
@@ -621,19 +622,22 @@ static struct otg_fsm_ops ci_otg_ops = {
 int ci_otg_fsm_work(struct ci_hdrc *ci)
 {
 	/*
-	 * Don't do fsm transition for B device
-	 * when there is no gadget class driver
-	 * only handle charger notify
+	 * Handle charger notify in OTG fsm mode
 	 */
-	if (ci->fsm.id && !(ci->driver) &&
-		ci->transceiver->state < OTG_STATE_A_IDLE) {
+	if (ci->fsm.id && ci->transceiver->state < OTG_STATE_A_IDLE) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&ci->lock, flags);
 		if (ci->b_sess_valid_event) {
-			if (ci->fsm.b_sess_vld)
-				usb_gadget_vbus_connect(&ci->gadget);
-			else
-				usb_gadget_vbus_disconnect(&ci->gadget);
+			ci->b_sess_valid_event = false;
+			ci->vbus_active = ci->fsm.b_sess_vld;
+			spin_unlock_irqrestore(&ci->lock, flags);
+			ci_usb_charger_connect(ci, ci->fsm.b_sess_vld);
+			spin_lock_irqsave(&ci->lock, flags);
 		}
-		return 0;
+		spin_unlock_irqrestore(&ci->lock, flags);
+		if (!ci->driver)
+			return 0;
 	}
 
 	pm_runtime_get_sync(ci->dev);

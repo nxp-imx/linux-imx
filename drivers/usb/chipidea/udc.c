@@ -1486,23 +1486,11 @@ static const struct usb_ep_ops usb_ep_ops = {
 /******************************************************************************
  * GADGET block
  *****************************************************************************/
-static bool ci_otg_fsm_charger_conn(struct ci_hdrc *ci)
-{
-	/*
-	 * OTG port is in fsm mode
-	 * only do charger notify for b sess valid event, or
-	 * when power up.
-	 */
-	return !ci_otg_is_fsm_mode(ci) || ci->fsm.power_up ||
-					ci->b_sess_valid_event;
-}
-
 static int ci_udc_vbus_session(struct usb_gadget *_gadget, int is_active)
 {
 	struct ci_hdrc *ci = container_of(_gadget, struct ci_hdrc, gadget);
 	unsigned long flags;
 	int gadget_ready = 0;
-	int ret;
 
 	spin_lock_irqsave(&ci->lock, flags);
 	ci->vbus_active = is_active;
@@ -1511,34 +1499,7 @@ static int ci_udc_vbus_session(struct usb_gadget *_gadget, int is_active)
 	spin_unlock_irqrestore(&ci->lock, flags);
 
 	/* Charger Detection */
-	if (ci->platdata->notify_event && ci_otg_fsm_charger_conn(ci)) {
-		/*
-		 * Keep controller active when the cable is connected,
-		 * It can make disconnect interrupt (BSV 1->0) occur when
-		 * the cable is disconnected.
-		 */
-		if (is_active) {
-			pm_runtime_get_sync(&_gadget->dev);
-			hw_write(ci, OP_USBCMD, USBCMD_RS, 0);
-		} else {
-			pm_runtime_put_sync(&_gadget->dev);
-		}
-
-		ret = ci->platdata->notify_event
-			(ci, CI_HDRC_CONTROLLER_VBUS_EVENT);
-		if (ret == CI_HDRC_NOTIFY_RET_DEFER_EVENT) {
-			hw_device_reset(ci, USBMODE_CM_DC);
-			/* Pull up dp */
-			hw_write(ci, OP_USBCMD, USBCMD_RS, USBCMD_RS);
-			ci->platdata->notify_event
-				(ci, CI_HDRC_CONTROLLER_CHARGER_POST_EVENT);
-			/* Pull down dp */
-			hw_write(ci, OP_USBCMD, USBCMD_RS, 0);
-		}
-	}
-
-	if (ci_otg_is_fsm_mode(ci) && ci->b_sess_valid_event)
-		ci->b_sess_valid_event = false;
+	ci_usb_charger_connect(ci, is_active);
 
 	if (gadget_ready) {
 		if (is_active) {
@@ -1977,6 +1938,38 @@ static void udc_resume(struct ci_hdrc *ci, bool power_lost)
 		if (ci->driver && ci->vbus_active)
 			usb_gadget_connect(&ci->gadget);
 	}
+}
+
+int ci_usb_charger_connect(struct ci_hdrc *ci, int is_active)
+{
+	int ret = 0;
+
+	if (ci->platdata->notify_event) {
+		/*
+		 * Keep controller active when the cable is connected,
+		 * It can make disconnect interrupt (BSV 1->0) occur when
+		 * the cable is disconnected.
+		 */
+		if (is_active) {
+			pm_runtime_get_sync(&ci->gadget.dev);
+			hw_write(ci, OP_USBCMD, USBCMD_RS, 0);
+		} else {
+			pm_runtime_put_sync(&ci->gadget.dev);
+		}
+
+		ret = ci->platdata->notify_event
+			(ci, CI_HDRC_CONTROLLER_VBUS_EVENT);
+		if (ret == CI_HDRC_NOTIFY_RET_DEFER_EVENT) {
+			hw_device_reset(ci, USBMODE_CM_DC);
+			/* Pull up dp */
+			hw_write(ci, OP_USBCMD, USBCMD_RS, USBCMD_RS);
+			ci->platdata->notify_event
+				(ci, CI_HDRC_CONTROLLER_CHARGER_POST_EVENT);
+			/* Pull down dp */
+			hw_write(ci, OP_USBCMD, USBCMD_RS, 0);
+		}
+	}
+	return ret;
 }
 
 /**
