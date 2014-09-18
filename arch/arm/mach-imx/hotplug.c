@@ -1,5 +1,5 @@
 /*
- * Copyright 2011, 2013 Freescale Semiconductor, Inc.
+ * Copyright 2011-2014 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -14,8 +14,11 @@
 #include <linux/jiffies.h>
 #include <asm/cp15.h>
 #include <asm/proc-fns.h>
+#include <asm/smp_scu.h>
 
 #include "common.h"
+
+extern void __iomem *imx_scu_base;
 
 static inline void cpu_enter_lowpower(void)
 {
@@ -36,6 +39,8 @@ static inline void cpu_enter_lowpower(void)
 	  : "=&r" (v)
 	  : "r" (0), "Ir" (CR_C), "Ir" (0x40)
 	  : "cc");
+
+	scu_power_mode(imx_scu_base, SCU_PM_DORMANT);
 }
 
 /*
