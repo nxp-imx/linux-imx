@@ -494,6 +494,22 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 	clk_enable_disp_axi(host);
 
 	clk_set_rate(host->clk_pix, PICOS2KHZ(fb_info->var.pixclock) * 1000U);
+	ret =
+	    clk_set_rate(host->clk_pix,
+			 PICOS2KHZ(fb_info->var.pixclock) * 1000U);
+	if (ret) {
+		dev_err(&host->pdev->dev,
+			"lcd pixel rate set failed: %d\n", ret);
+
+		if (host->reg_lcd) {
+			ret = regulator_disable(host->reg_lcd);
+			if (ret)
+				dev_err(&host->pdev->dev,
+					"lcd regulator disable failed: %d\n",
+					ret);
+		}
+		return;
+	}
 	clk_prepare_enable(host->clk_pix);
 
 	/* Clean soft reset and clock gate bit if it was enabled  */
