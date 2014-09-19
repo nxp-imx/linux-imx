@@ -21,6 +21,7 @@
 #include <linux/tty.h>
 #include <linux/tty_driver.h>
 #include <linux/tty_flip.h>
+#include <linux/mcc_config_linux.h>
 #include <linux/mcc_common.h>
 #include <linux/mcc_api.h>
 
@@ -81,7 +82,8 @@ static void mcctty_delay_work(struct work_struct *work)
 		pr_err("failed to create a9 mcc ep.\n");
 
 	while (1) {
-		ret = mcc_recv_copy(&mcc_endpoint_a9_pingpong, &pp_msg,
+		ret = mcc_recv(&mcc_endpoint_m4_pingpong,
+				&mcc_endpoint_a9_pingpong, &pp_msg,
 				sizeof(struct mcc_pp_msg),
 				&num_of_received_bytes, 0xffffffff);
 
@@ -138,13 +140,15 @@ static int mcctty_write(struct tty_struct *tty, const unsigned char *buf,
 		 * wait until the remote endpoint is created by
 		 * the other core
 		 */
-		ret = mcc_send(&mcc_endpoint_m4_pingpong, &pp_msg,
+		ret = mcc_send(&mcc_endpoint_a9_pingpong,
+				&mcc_endpoint_m4_pingpong, &pp_msg,
 				sizeof(struct mcc_pp_msg),
 				0xffffffff);
 
 		while (MCC_ERR_ENDPOINT == ret) {
 			pr_err("\n send err ret %d, re-send\n", ret);
-			ret = mcc_send(&mcc_endpoint_m4_pingpong, &pp_msg,
+			ret = mcc_send(&mcc_endpoint_a9_pingpong,
+					&mcc_endpoint_m4_pingpong, &pp_msg,
 					sizeof(struct mcc_pp_msg),
 					0xffffffff);
 			msleep(5000);

@@ -16,9 +16,13 @@ config IMX_MCC_TEST
 	  should say N here.
 
 config IMX_MCC_TTY
-	bool "imx pty for mcc interface"
-	depends on SOC_IMX6SX && IMX_SEMA4
+	bool "IMX PTY for MCC interface"
+	depends on SOC_IMX6SX && IMX_SEMA4 && !IMX_MCC_TEST
+	default y
 	help
-	  This enables a pty node for imx6sx mcc interface.
+	  This enables a PTY node for IMX6SX MCC, used as interface
+	  between kernel space and user space, and flush the message
+	  received from M4 side to user space, most people
+	  should say N here.
 
 #end imx mcc
