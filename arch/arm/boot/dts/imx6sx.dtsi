@@ -1308,8 +1308,8 @@
 				status = "disabled";
 			};
 
-			mccdemo: mccdemo{
-				compatible = "fsl,imx6sx-mcc-demo";
+			mcctest: mcctest{
+				compatible = "fsl,imx6sx-mcc-test";
 				status = "okay";
 			};
 		};

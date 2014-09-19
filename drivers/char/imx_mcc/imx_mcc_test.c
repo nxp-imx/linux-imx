@@ -19,6 +19,7 @@
 #include <linux/suspend.h>
 
 #include <linux/imx_sema4.h>
+#include <linux/mcc_config_linux.h>
 #include <linux/mcc_common.h>
 #include <linux/mcc_api.h>
 #include <linux/mcc_linux.h>
@@ -32,11 +33,12 @@ enum {
 	MCC_M4_PORT = 2,
 };
 
-/* mcc pingpong demo */
+/* mcc pingpong test */
 MCC_ENDPOINT mcc_endpoint_a9_pingpong = {0, MCC_NODE_A9, MCC_A9_PORT};
 MCC_ENDPOINT mcc_endpoint_m4_pingpong = {1, MCC_NODE_M4, MCC_M4_PORT};
-/* mcc can demo */
+/* mcc can test */
 MCC_ENDPOINT mcc_endpoint_a9_can = {0, MCC_NODE_A9, MCC_A9_PORT};
+MCC_ENDPOINT mcc_endpoint_m4_can = {1, MCC_NODE_A9, MCC_A9_PORT};
 
 struct mcc_pp_msg {
 	unsigned int data;
@@ -47,20 +49,20 @@ struct mcc_can_msg {
 	char data[MCC_ATTR_BUFFER_SIZE_IN_BYTES - 24];
 };
 
-static ssize_t imx_mcc_can_demo_en(struct device *dev,
+static ssize_t imx_mcc_can_test_en(struct device *dev,
 		struct device_attribute *attr,
 		const char *buf, size_t count)
 {
-	u32 can_demo_en;
+	u32 can_test_en;
 	int i = 0, ret = 0;
 	struct mcc_can_msg msg;
 	MCC_MEM_SIZE num_of_received_bytes;
 	MCC_INFO_STRUCT mcc_info;
 
-	sscanf(buf, "%d\n", &can_demo_en);
+	sscanf(buf, "%d\n", &can_test_en);
 
-	if (can_demo_en) {
-		pr_info("imx mcc can communication demo begin.\n");
+	if (can_test_en) {
+		pr_info("imx mcc can communication test begin.\n");
 		ret = mcc_get_info(MCC_NODE_A9, &mcc_info);
 		if (ret) {
 			pr_err("failed to get mcc info.\n");
@@ -81,7 +83,8 @@ static ssize_t imx_mcc_can_demo_en(struct device *dev,
 			/*
 			 * wait for the "sleep" msg from the remote ep.
 			 */
-			ret = mcc_recv_copy(&mcc_endpoint_a9_can, &msg,
+			ret = mcc_recv(&mcc_endpoint_m4_can,
+					&mcc_endpoint_a9_can, &msg,
 					sizeof(struct mcc_can_msg),
 					&num_of_received_bytes, 0xffffffff);
 			pr_info("%s", msg.data);
@@ -96,7 +99,7 @@ static ssize_t imx_mcc_can_demo_en(struct device *dev,
 		}
 	}
 
-	pr_info("imx mcc demo end after %08d times recv tests.\n", i);
+	pr_info("imx mcc test end after %08d times recv tests.\n", i);
 	return count;
 }
 
@@ -113,7 +116,7 @@ static ssize_t imx_mcc_pingpong_en(struct device *dev,
 
 	sscanf(buf, "%d\n", &pingpong_en);
 	if (pingpong_en) {
-		pr_info("imx mcc pingpong demo begin.\n");
+		pr_info("imx mcc pingpong test begin.\n");
 		ret = mcc_get_info(MCC_NODE_A9, &mcc_info);
 		if (ret) {
 			pr_err("failed to get mcc info.\n");
@@ -140,7 +143,8 @@ static ssize_t imx_mcc_pingpong_en(struct device *dev,
 			if (pingpong_en > 1)
 				do_gettimeofday(&tv1);
 
-			ret = mcc_send(&mcc_endpoint_m4_pingpong, &msg,
+			ret = mcc_send(&mcc_endpoint_a9_pingpong,
+					&mcc_endpoint_m4_pingpong, &msg,
 					sizeof(struct mcc_pp_msg),
 					0xffffffff);
 
@@ -152,7 +156,8 @@ static ssize_t imx_mcc_pingpong_en(struct device *dev,
 			}
 			while (MCC_ERR_ENDPOINT == ret) {
 				pr_err("\n send err ret %d, re-send\n", ret);
-				ret = mcc_send(&mcc_endpoint_m4_pingpong, &msg,
+				ret = mcc_send(&mcc_endpoint_a9_pingpong,
+						&mcc_endpoint_m4_pingpong, &msg,
 						sizeof(struct mcc_pp_msg),
 						0xffffffff);
 				msleep(5000);
@@ -161,7 +166,8 @@ static ssize_t imx_mcc_pingpong_en(struct device *dev,
 			if (pingpong_en > 1)
 				do_gettimeofday(&tv2);
 
-			ret = mcc_recv_copy(&mcc_endpoint_a9_pingpong, &msg,
+			ret = mcc_recv(&mcc_endpoint_m4_pingpong,
+					&mcc_endpoint_a9_pingpong, &msg,
 					sizeof(struct mcc_pp_msg),
 					&num_of_received_bytes, 0xffffffff);
 
@@ -179,7 +185,11 @@ static ssize_t imx_mcc_pingpong_en(struct device *dev,
 			if (MCC_SUCCESS != ret) {
 				pr_err("A9 Main task receive error: %d\n", ret);
 			} else {
-				pr_info("%08x Main task received a msg\n", i);
+				pr_info("%08x Main task received a msg"
+					" from [%d, %d, %d] endpoint\n", i,
+					mcc_endpoint_m4_pingpong.core,
+					mcc_endpoint_m4_pingpong.node,
+					mcc_endpoint_m4_pingpong.port);
 				pr_info("Message: Size=0x%08x, data = 0x%08x\n",
 					num_of_received_bytes, msg.data);
 				msg.data++;
@@ -192,7 +202,7 @@ static ssize_t imx_mcc_pingpong_en(struct device *dev,
 		} else {
 			pr_info("destory a9 mcc ep.\n");
 		}
-		pr_info("imx mcc demo end after %08d times tests.\n", i/2);
+		pr_info("imx mcc test end after %08d times tests.\n", i/2);
 	}
 
 	if (ret)
@@ -202,11 +212,11 @@ static ssize_t imx_mcc_pingpong_en(struct device *dev,
 }
 
 static DEVICE_ATTR(pingpong_en, S_IWUGO, NULL, imx_mcc_pingpong_en);
-static DEVICE_ATTR(can_demo_en, S_IWUGO, NULL, imx_mcc_can_demo_en);
+static DEVICE_ATTR(can_test_en, S_IWUGO, NULL, imx_mcc_can_test_en);
 
 static struct attribute *imx_mcc_attrs[] = {
 	&dev_attr_pingpong_en.attr,
-	&dev_attr_can_demo_en.attr,
+	&dev_attr_can_test_en.attr,
 	NULL
 };
 
@@ -214,7 +224,7 @@ static struct attribute_group imx_mcc_attrgroup = {
 	.attrs	= imx_mcc_attrs,
 };
 
-static int imx_mcc_demo_probe(struct platform_device *pdev)
+static int imx_mcc_test_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	MCC_INFO_STRUCT mcc_info;
@@ -256,40 +266,40 @@ out_node:
 	return ret;
 }
 
-static int imx_mcc_demo_remove(struct platform_device *pdev)
+static int imx_mcc_test_remove(struct platform_device *pdev)
 {
 	return 0;
 }
 
-static const struct of_device_id imx_mcc_demo_dt_ids[] = {
-	{ .compatible = "fsl,imx6sx-mcc-demo", },
+static const struct of_device_id imx_mcc_test_dt_ids[] = {
+	{ .compatible = "fsl,imx6sx-mcc-test", },
 	{ /* sentinel */ }
 };
-MODULE_DEVICE_TABLE(of, imx_mcc_demo_dt_ids);
+MODULE_DEVICE_TABLE(of, imx_mcc_test_dt_ids);
 
-static struct platform_driver imx_mcc_demo_driver = {
+static struct platform_driver imx_mcc_test_driver = {
 	.driver = {
 		   .owner = THIS_MODULE,
-		   .name = "imx6sx-mcc-demo",
-		   .of_match_table = imx_mcc_demo_dt_ids,
+		   .name = "imx6sx-mcc-test",
+		   .of_match_table = imx_mcc_test_dt_ids,
 		   },
-	.probe = imx_mcc_demo_probe,
-	.remove = imx_mcc_demo_remove,
+	.probe = imx_mcc_test_probe,
+	.remove = imx_mcc_test_remove,
 };
 
-static int __init imx_mcc_demo_init(void)
+static int __init imx_mcc_test_init(void)
 {
 	int ret;
 
-	ret = platform_driver_register(&imx_mcc_demo_driver);
+	ret = platform_driver_register(&imx_mcc_test_driver);
 	if (ret)
-		pr_err("failed to register imx mcc demo driver.\n");
+		pr_err("failed to register imx mcc test driver.\n");
 	else
-		pr_info("imx mcc demo is registered.\n");
+		pr_info("imx mcc test is registered.\n");
 	return ret;
 }
-late_initcall(imx_mcc_demo_init);
+late_initcall(imx_mcc_test_init);
 
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
-MODULE_DESCRIPTION("IMX MCC demo driver");
+MODULE_DESCRIPTION("IMX MCC test driver");
 MODULE_LICENSE("GPL");
