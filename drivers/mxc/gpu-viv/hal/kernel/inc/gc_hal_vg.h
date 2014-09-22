@@ -343,6 +343,18 @@ gceSTATUS
 gckVGKERNEL_Destroy(
     IN gckVGKERNEL Kernel
     );
+
+/* Allocate linear video memory. */
+gceSTATUS
+gckVGKERNEL_AllocateLinearMemory(
+    IN gckKERNEL Kernel,
+    IN OUT gcePOOL * Pool,
+    IN gctSIZE_T Bytes,
+    IN gctUINT32 Alignment,
+    IN gceSURF_TYPE Type,
+    OUT gcuVIDMEM_NODE_PTR * Node
+    );
+
 /* Unmap memory. */
 gceSTATUS
 gckKERNEL_UnmapMemory(

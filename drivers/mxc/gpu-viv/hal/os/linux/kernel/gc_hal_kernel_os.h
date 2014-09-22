@@ -57,7 +57,6 @@ typedef struct _LINUX_MDL
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
     gctBOOL                 exact;
 #endif
-    gctBOOL                 cacheable;
     dma_addr_t              dmaHandle;
     PLINUX_MDL_MAP          maps;
     struct _LINUX_MDL *     prev;
@@ -68,6 +67,8 @@ typedef struct _LINUX_MDL
 
     /* Private data used by allocator. */
     void *                  priv;
+
+    uint                    gid;
 }
 LINUX_MDL, *PLINUX_MDL;
 

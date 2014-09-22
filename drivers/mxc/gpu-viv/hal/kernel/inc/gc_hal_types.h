@@ -444,20 +444,37 @@ typedef enum _gceSTATUS
     gcvSTATUS_NOT_MULTI_PIPE_ALIGNED =   -28,
 
     /* Linker errors. */
-    gcvSTATUS_GLOBAL_TYPE_MISMATCH  =   -1000,
-    gcvSTATUS_TOO_MANY_ATTRIBUTES   =   -1001,
-    gcvSTATUS_TOO_MANY_UNIFORMS     =   -1002,
-    gcvSTATUS_TOO_MANY_VARYINGS     =   -1003,
-    gcvSTATUS_UNDECLARED_VARYING    =   -1004,
-    gcvSTATUS_VARYING_TYPE_MISMATCH =   -1005,
-    gcvSTATUS_MISSING_MAIN          =   -1006,
-    gcvSTATUS_NAME_MISMATCH         =   -1007,
-    gcvSTATUS_INVALID_INDEX         =   -1008,
-    gcvSTATUS_UNIFORM_TYPE_MISMATCH =   -1009,
+    gcvSTATUS_GLOBAL_TYPE_MISMATCH              =   -1000,
+    gcvSTATUS_TOO_MANY_ATTRIBUTES               =   -1001,
+    gcvSTATUS_TOO_MANY_UNIFORMS                 =   -1002,
+    gcvSTATUS_TOO_MANY_VARYINGS                 =   -1003,
+    gcvSTATUS_UNDECLARED_VARYING                =   -1004,
+    gcvSTATUS_VARYING_TYPE_MISMATCH             =   -1005,
+    gcvSTATUS_MISSING_MAIN                      =   -1006,
+    gcvSTATUS_NAME_MISMATCH                     =   -1007,
+    gcvSTATUS_INVALID_INDEX                     =   -1008,
+    gcvSTATUS_UNIFORM_MISMATCH                  =   -1009,
+    gcvSTATUS_UNSAT_LIB_SYMBOL                  =   -1010,
+    gcvSTATUS_TOO_MANY_SHADERS                  =   -1011,
+    gcvSTATUS_LINK_INVALID_SHADERS              =   -1012,
+    gcvSTATUS_CS_NO_WORKGROUP_SIZE              =   -1013,
+    gcvSTATUS_LINK_LIB_ERROR                    =   -1014,
+
+    gcvSTATUS_SHADER_VERSION_MISMATCH           =   -1015,
+    gcvSTATUS_TOO_MANY_INSTRUCTION              =   -1016,
+    gcvSTATUS_SSBO_MISMATCH                     =   -1017,
+    gcvSTATUS_TOO_MANY_OUTPUT                   =   -1018,
+    gcvSTATUS_TOO_MANY_INPUT                    =   -1019,
+    gcvSTATUS_NOT_SUPPORT_CL                    =   -1020,
+    gcvSTATUS_NOT_SUPPORT_INTEGER               =   -1021,
+    gcvSTATUS_UNIFORM_TYPE_MISMATCH             =   -1022,
 
     /* Compiler errors. */
-    gcvSTATUS_COMPILER_FE_PREPROCESSOR_ERROR = -2000,
-    gcvSTATUS_COMPILER_FE_PARSER_ERROR = -2001,
+    gcvSTATUS_COMPILER_FE_PREPROCESSOR_ERROR    =   -2000,
+    gcvSTATUS_COMPILER_FE_PARSER_ERROR          =   -2001,
+
+    /* Recompilation Errors */
+    gcvSTATUS_RECOMPILER_CONVERT_UNIMPLEMENTED  =   -3000,
 }
 gceSTATUS;
 

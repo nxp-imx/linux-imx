@@ -358,7 +358,7 @@ _FlushMMU(
     if (pause)
     {
         /* Query size. */
-        gcmkONERROR(gckHARDWARE_Event(hardware, gcvNULL, 0, 0, &eventBytes));
+        gcmkONERROR(gckHARDWARE_Event(hardware, gcvNULL, 0, gcvKERNEL_PIXEL, &eventBytes));
         gcmkONERROR(gckHARDWARE_End(hardware, gcvNULL, &endBytes));
 
         executeBytes = eventBytes + endBytes;
@@ -1713,7 +1713,7 @@ gckCOMMAND_Commit(
                 offset = (Command->pipeSelect == gcvPIPE_3D)
 
                     /* Skip pipe switching sequence. */
-                    ? Context->entryOffset3D + pipeBytes
+                    ? Context->entryOffset3D + Context->pipeSelectBytes
 
                     /* Do not skip pipe switching sequence. */
                     : Context->entryOffset3D;
@@ -2902,11 +2902,7 @@ gckCOMMAND_Stall(
         }
 
     }
-    while (gcmIS_ERROR(status)
-#if gcdGPU_TIMEOUT
-           && (timer < Command->kernel->timeOut)
-#endif
-           );
+    while (gcmIS_ERROR(status));
 
     /* Bail out on timeout. */
     if (gcmIS_ERROR(status))
@@ -2961,6 +2957,7 @@ OnError:
 **          Pointer to a variable that will receive the number of states
 **          in the context buffer.
 */
+#if (gcdENABLE_3D || gcdENABLE_2D)
 gceSTATUS
 gckCOMMAND_Attach(
     IN gckCOMMAND Command,
@@ -3015,6 +3012,7 @@ OnError:
     gcmkFOOTER();
     return status;
 }
+#endif
 
 /*******************************************************************************
 **

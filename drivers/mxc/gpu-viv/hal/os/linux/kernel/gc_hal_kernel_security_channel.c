@@ -63,11 +63,23 @@ gpu3d_allocate_secure_mem(
 
     memset(shm, 0, sizeof(TEEC_SharedMemory));
 
-    status = gckOS_AllocateIonMemory(Os,
-                            gcvTRUE,
-                            &bytes,
-                            (gctPHYS_ADDR *)&handle,
-                            &phyAddr);
+    status = gckOS_AllocatePagedMemoryEx(
+                Os,
+                gcvALLOC_FLAG_SECURITY,
+                bytes,
+                gcvNULL,
+                (gctPHYS_ADDR *)&handle);
+
+    if (gcmIS_ERROR(status))
+    {
+         kfree(shm);
+         return NULL;
+    }
+
+    status = gckOS_PhysicalToPhysicalAddress(
+                Os,
+                handle,
+                &phyAddr);
 
     if (gcmIS_ERROR(status))
     {
@@ -91,7 +103,7 @@ gpu3d_allocate_secure_mem(
 
     if (result != TEEC_SUCCESS)
     {
-        gckOS_FreeIonMemory(Os, (gctPHYS_ADDR)handle);
+        gckOS_FreePagedMemory(Os, (gctPHYS_ADDR)handle, shm->size);
         kfree(shm);
         return NULL;
     }
@@ -115,8 +127,7 @@ void gpu3d_release_secure_mem(
     handle = shm->userdata;
 
     TEEC_ReleaseSharedMemory(shm);
-
-    gckOS_FreeIonMemory(Os, (gctPHYS_ADDR)handle);
+    gckOS_FreePagedMemory(Os, (gctPHYS_ADDR)handle, shm->size);
 
     kfree(shm);
 

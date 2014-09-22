@@ -803,10 +803,6 @@ gckEVENT_GetEvent(
     gctINT j;
 #endif
 
-#if gcdGPU_TIMEOUT
-    gctUINT32 timer = 0;
-#endif
-
     gcmkHEADER_ARG("Event=0x%x Source=%d", Event, Source);
 
     while (gcvTRUE)
@@ -911,42 +907,6 @@ gckEVENT_GetEvent(
 
         /* Delay a while. */
         gcmkONERROR(gckOS_Delay(Event->os, 1));
-
-#if gcdGPU_TIMEOUT
-        /* Increment the wait timer. */
-        timer += 1;
-
-        if (timer == Event->kernel->timeOut)
-        {
-            /* Try to call any outstanding events. */
-#if gcdMULTI_GPU
-            gcmkONERROR(gckHARDWARE_Interrupt(Event->kernel->hardware,
-                                              gcvCORE_3D_0_ID,
-                                              gcvTRUE));
-#if gcdMULTI_GPU > 1
-            gcmkONERROR(gckHARDWARE_Interrupt(Event->kernel->hardware,
-                                              gcvCORE_3D_1_ID,
-                                              gcvTRUE));
-
-#endif
-#else
-            gcmkONERROR(gckHARDWARE_Interrupt(Event->kernel->hardware,
-                                              gcvTRUE));
-#endif
-        }
-        else if (timer > Event->kernel->timeOut)
-        {
-            gcmkTRACE_N(
-                gcvLEVEL_ERROR,
-                gcmSIZEOF(gctCONST_STRING) + gcmSIZEOF(gctINT),
-                "%s(%d): no available events\n",
-                __FUNCTION__, __LINE__
-                );
-
-            /* Bail out. */
-            gcmkONERROR(gcvSTATUS_GPU_NOT_RESPONDING);
-        }
-#endif
     }
 
 OnError:
@@ -1713,6 +1673,8 @@ gckEVENT_Submit(
 
     gcmkVERIFY_OBJECT(hardware, gcvOBJ_HARDWARE);
 
+    gckOS_GetTicks(&Event->lastCommitStamp);
+
     /* Are there event queues? */
     if (Event->queueHead != gcvNULL)
     {
@@ -1885,16 +1847,16 @@ gckEVENT_Submit(
     return gcvSTATUS_OK;
 
 OnError:
-    if (commitEntered)
-    {
-        /* Release the command queue mutex. */
-        gcmkVERIFY_OK(gckCOMMAND_ExitCommit(command, FromPower));
-    }
-
     if (acquired)
     {
         /* Need to unroll the mutex acquire. */
         gcmkVERIFY_OK(gckOS_ReleaseMutex(Event->os, Event->eventListMutex));
+    }
+
+    if (commitEntered)
+    {
+        /* Release the command queue mutex. */
+        gcmkVERIFY_OK(gckCOMMAND_ExitCommit(command, FromPower));
     }
 
     if (id != 0xFF)
@@ -2487,7 +2449,6 @@ gckEVENT_Notify(
         if (pending & 0x80000000)
         {
             gcmkPRINT("AXI BUS ERROR");
-            gckHARDWARE_DumpMMUException(Event->kernel->hardware);
             pending &= 0x7FFFFFFF;
         }
 
@@ -2879,7 +2840,7 @@ gckEVENT_Notify(
                 /* Unlock. */
                 status = gckVIDMEM_Unlock(
                     Event->kernel,
-                    node,
+                    nodeObject,
                     record->info.u.UnlockVideoMemory.type,
                     gcvNULL);
 
@@ -3026,7 +2987,7 @@ gckEVENT_Notify(
                  gcmRELEASE_NAME(record->info.u.FreeVirtualCommandBuffer.physical);
                  break;
 
-#if gcdANDROID_NATIVE_FENCE_SYNC
+#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
             case gcvHAL_SYNC_POINT:
                 {
                     gctSYNC_POINT syncPoint;

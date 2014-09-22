@@ -1070,62 +1070,39 @@ _AllocateLinear(
     )
 {
     gceSTATUS status, last;
-    gcuVIDMEM_NODE_PTR node = gcvNULL;
-    gctUINT32 address = (gctUINT32)~0;
+    gctPOINTER logical;
+    gctPHYS_ADDR physical;
+    gctUINT32 address;
+    gctSIZE_T size = Size;
 
     do
     {
-        gctINT32 i;
-        gctPOINTER pointer = gcvNULL;
-        gcuVIDMEM_NODE_PTR node = gcvNULL;
+        gcmkERR_BREAK(gckOS_AllocateContiguous(
+            Command->os,
+            gcvFALSE,
+            &size,
+            &physical,
+            &logical
+            ));
 
-        gcmkERR_BREAK(gckOS_Allocate(Command->os, gcmSIZEOF(gcuVIDMEM_NODE), &pointer));
-
-        node = pointer;
-
-        /* Initialize gcuVIDMEM_NODE union for virtual memory. */
-        node->Virtual.kernel        = Command->kernel->kernel;
-        node->Virtual.contiguous    = gcvTRUE;
-        node->Virtual.logical       = gcvNULL;
-
-        for (i = 0; i < gcdMAX_GPU_COUNT; i++)
-        {
-            node->Virtual.lockeds[i]        = 0;
-            node->Virtual.pageTables[i]     = gcvNULL;
-            node->Virtual.lockKernels[i]    = gcvNULL;
-        }
-
-        node->Virtual.processID = 0;
-
-        node->Virtual.bytes    = ((Size + Alignment -1)/ Alignment)*Alignment;;
-
-            gcmkERR_BREAK(gckOS_AllocateNonPagedMemory(
-                Command->os,
-                gcvFALSE,
-                &node->Virtual.bytes,
-                &node->Virtual.physical,
-                &node->Virtual.logical
-                ));
-
-        gcmkERR_BREAK(gckOS_GetPhysicalAddress(Command->os,
-                    node->Virtual.logical,&address));
+        gcmkERR_BREAK(gckOS_GetPhysicalAddress(Command->os, logical, &address));
 
         /* Set return values. */
-        * Node    = node;
+        * Node    = physical;
         * Address = address;
-        * Logical = node->Virtual.logical;
-        gcmkPRINT("Allocate success\n");
+        * Logical = logical;
+
         /* Success. */
         return gcvSTATUS_OK;
     }
     while (gcvFALSE);
-    /* Roll back. */
-    if (node != gcvNULL)
-    {
-        /* Free the structure. */
-        gcmkCHECK_STATUS(gcmkOS_SAFE_FREE(Command->os, node));
-    }
 
+    /* Roll back. */
+    if (physical != gcvNULL)
+    {
+        /* Free the command buffer. */
+        gcmkCHECK_STATUS(gckOS_FreeContiguous(Command->os, physical, logical, size));
+    }
 
     /* Return status. */
     return status;
@@ -1134,23 +1111,15 @@ _AllocateLinear(
 static gceSTATUS
 _FreeLinear(
     IN gckVGKERNEL Kernel,
-    IN gcuVIDMEM_NODE_PTR Node
+    IN gcuVIDMEM_NODE_PTR Node,
+    IN gctPOINTER Logical
     )
 {
-    gceSTATUS status;
+    gceSTATUS status = gcvSTATUS_OK;
 
     do
     {
-
-    /* Free the virtual memory. */
-    gcmkERR_BREAK(gckOS_FreeNonPagedMemory(
-                                    Kernel->kernel->os,
-                                    Node->Virtual.bytes,
-                                    Node->Virtual.physical,
-                                    Node->Virtual.logical));
-
-    /* Destroy the gcuVIDMEM_NODE union. */
-    gcmkERR_BREAK(gckVIDMEM_DestroyVirtual(Node));
+        gcmkERR_BREAK(gckOS_FreeContiguous(Kernel->os, Node, Logical, 1));
     }
     while (gcvFALSE);
 
@@ -1167,6 +1136,7 @@ _AllocateCommandBuffer(
 {
     gceSTATUS status, last;
     gcuVIDMEM_NODE_PTR node = gcvNULL;
+    gcsCMDBUFFER_PTR commandBuffer = gcvNULL;
 
     do
     {
@@ -1174,7 +1144,6 @@ _AllocateCommandBuffer(
         gctUINT requestedSize;
         gctUINT allocationSize;
         gctUINT32 address = 0;
-        gcsCMDBUFFER_PTR commandBuffer = gcvNULL;
         gctUINT8_PTR endCommand;
 
         /* Determine the aligned header size. */
@@ -1242,7 +1211,7 @@ _AllocateCommandBuffer(
     if (node != gcvNULL)
     {
         /* Free the command buffer. */
-        gcmkCHECK_STATUS(_FreeLinear(Command->kernel, node));
+        gcmkCHECK_STATUS(_FreeLinear(Command->kernel, node, commandBuffer));
     }
 
     /* Return status. */
@@ -1258,7 +1227,7 @@ _FreeCommandBuffer(
     gceSTATUS status;
 
     /* Free the buffer. */
-    status = _FreeLinear(Kernel, CommandBuffer->node);
+    status = _FreeLinear(Kernel, CommandBuffer->node, CommandBuffer);
 
     /* Return status. */
     return status;
@@ -1713,7 +1682,7 @@ _TaskUnlockVideoMemory(
         /* Unlock video memory. */
         gcmkERR_BREAK(gckVIDMEM_Unlock(
             Command->kernel->kernel,
-            ((gckVIDMEM_NODE)gcmUINT64_TO_PTR(task->node))->node,
+            (gckVIDMEM_NODE)gcmUINT64_TO_PTR(task->node),
             gcvSURF_TYPE_UNKNOWN,
             gcvNULL));
 

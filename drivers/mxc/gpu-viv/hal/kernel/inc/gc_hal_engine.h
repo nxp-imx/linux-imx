@@ -22,10 +22,10 @@
 #ifndef __gc_hal_engine_h_
 #define __gc_hal_engine_h_
 
-#ifndef VIVANTE_NO_3D
 #include "gc_hal_types.h"
 #include "gc_hal_enum.h"
 
+#if gcdENABLE_3D
 #if gcdENABLE_VG
 #include "gc_hal_engine_vg.h"
 #endif
@@ -48,19 +48,35 @@ typedef struct _gcoBUFOBJ *             gcoBUFOBJ;
 
 #define gcdATTRIBUTE_COUNT              16
 
+typedef enum _gcePROGRAM_STAGE
+{
+    gcvPROGRAM_STAGE_VERTEX   = 0x0,
+    gcvPROGRAM_STAGE_TES      = 0x1,
+    gcvPROGRAM_STAGE_TCS      = 0x2,
+    gcvPROGRAM_STAGE_GEOMETRY = 0x3,
+    gcvPROGRAM_STAGE_FRAGMENT = 0x4,
+    gcvPROGRAM_STAGE_COMPUTE  = 0x5,
+    gcvPROGRAM_STAGE_OPENCL   = 0x6,
+    gcvPROGRAM_STAGE_LAST
+}
+gcePROGRAM_STAGE;
+
+typedef enum _gcePROGRAM_STAGE_BIT
+{
+    gcvPROGRAM_STAGE_VERTEX_BIT   = 1 << gcvPROGRAM_STAGE_VERTEX,
+    gcvPROGRAM_STAGE_TES_BIT      = 1 << gcvPROGRAM_STAGE_TES,
+    gcvPROGRAM_STAGE_TCS_BIT      = 1 << gcvPROGRAM_STAGE_TCS,
+    gcvPROGRAM_STAGE_GEOMETRY_BIT = 1 << gcvPROGRAM_STAGE_GEOMETRY,
+    gcvPROGRAM_STAGE_FRAGMENT_BIT = 1 << gcvPROGRAM_STAGE_FRAGMENT,
+    gcvPROGRAM_STAGE_COMPUTE_BIT  = 1 << gcvPROGRAM_STAGE_COMPUTE,
+    gcvPROGRAM_STAGE_OPENCL_BIT   = 1 << gcvPROGRAM_STAGE_OPENCL,
+}
+gcePROGRAM_STAGE_BIT;
+
+
 /******************************************************************************\
 ********************************* gcoHAL Object *********************************
 \******************************************************************************/
-
-/* Query the target capabilities. */
-gceSTATUS
-gcoHAL_QueryTargetCaps(
-    IN gcoHAL Hal,
-    OUT gctUINT * MaxWidth,
-    OUT gctUINT * MaxHeight,
-    OUT gctUINT * MultiTargetCount,
-    OUT gctUINT * MaxSamples
-    );
 
 gceSTATUS
 gcoHAL_QueryShaderCaps(
@@ -299,15 +315,11 @@ gceSTATUS
 gcoSURF_BlitDraw(
     IN gcsSURF_BLITDRAW_ARGS *args
     );
+#endif  /* gcdENABLE_3D */
 
 
-/* Copy surface. */
-gceSTATUS
-gcoSURF_Copy(
-    IN gcoSURF Surface,
-    IN gcoSURF Source
-    );
 
+#if gcdENABLE_3D
 /* Clear surface function. */
 gceSTATUS
 gcoSURF_Clear(
@@ -323,19 +335,6 @@ gcoSURF_Preserve(
     IN gcsRECT_PTR MaskRect
     );
 
-/* Set number of samples for a gcoSURF object. */
-gceSTATUS
-gcoSURF_SetSamples(
-    IN gcoSURF Surface,
-    IN gctUINT Samples
-    );
-
-/* Get the number of samples per pixel. */
-gceSTATUS
-gcoSURF_GetSamples(
-    IN gcoSURF Surface,
-    OUT gctUINT_PTR Samples
-    );
 
 /* TO BE REMOVED */
     gceSTATUS
@@ -1305,6 +1304,12 @@ gco3D_Semaphore(
     IN gceWHERE To,
     IN gceHOW How);
 
+/* Explicitly flush shader L1 cache */
+gceSTATUS
+gco3D_FlushSHL1Cache(
+    IN gco3D Engine
+    );
+
 /* Set the subpixels center. */
 gceSTATUS
 gco3D_SetCentroids(
@@ -1322,8 +1327,21 @@ gco3D_SetLogicOp(
 gceSTATUS
 gco3D_SetOQ(
     IN gco3D Engine,
-    IN gctUINT32 ResultAddress,
+    INOUT gctPOINTER * Result,
     IN gctBOOL Enable
+    );
+
+gceSTATUS
+gco3D_GetOQ(
+    IN gco3D Engine,
+    IN gctPOINTER Result,
+    OUT gctINT64 * Logical
+    );
+
+gceSTATUS
+gco3D_DeleteOQ(
+    IN gco3D Engine,
+    INOUT gctPOINTER Result
     );
 
 gceSTATUS
@@ -1798,6 +1816,21 @@ gcoTEXTURE_AddMipMap(
     IN gctSIZE_T Depth,
     IN gctUINT Faces,
     IN gcePOOL Pool,
+    OUT gcoSURF * Surface
+    );
+
+gceSTATUS
+gcoTEXTURE_AddMipMapWithFlag(
+    IN gcoTEXTURE Texture,
+    IN gctINT Level,
+    IN gctINT InternalFormat,
+    IN gceSURF_FORMAT Format,
+    IN gctSIZE_T Width,
+    IN gctSIZE_T Height,
+    IN gctSIZE_T Depth,
+    IN gctUINT Faces,
+    IN gcePOOL Pool,
+    IN gctBOOL Protected,
     OUT gcoSURF * Surface
     );
 
@@ -2536,5 +2569,5 @@ gcoBUFOBJ_Dump(
 }
 #endif
 
-#endif /* VIVANTE_NO_3D */
+#endif /* gcdENABLE_3D */
 #endif /* __gc_hal_engine_h_ */

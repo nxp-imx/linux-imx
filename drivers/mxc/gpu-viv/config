@@ -21,17 +21,16 @@
 
 ARCH_TYPE                         ?= arm
 SDK_DIR                           ?= $(AQROOT)/build/sdk
-USE_3D_VG                         ?= 1
+VIVANTE_ENABLE_3D                 ?= 1
+VIVANTE_ENABLE_2D                 ?= 1
+VIVANTE_ENABLE_VG              ?= 1
 FORCE_ALL_VIDEO_MEMORY_CACHED     ?= 0
 NONPAGED_MEMORY_CACHEABLE         ?= 0
 NONPAGED_MEMORY_BUFFERABLE        ?= 1
 CACHE_FUNCTION_UNIMPLEMENTED      ?= 0
-VIVANTE_ENABLE_VG                 ?= 1
-VIVANTE_NO_3D                     ?= 0
 ENABLE_OUTER_CACHE_PATCH          ?= 1
 USE_BANK_ALIGNMENT                ?= 1
 BANK_BIT_START                    ?= 13
 BANK_BIT_END                      ?= 15
 BANK_CHANNEL_BIT                  ?= 12
 PLATFORM                          ?= freescale/gc_hal_kernel_platform_imx6q14
-

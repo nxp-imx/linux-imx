@@ -18,7 +18,6 @@
 *
 *****************************************************************************/
 
-
 #ifndef __gc_hal_options_h_
 #define __gc_hal_options_h_
 
@@ -72,6 +71,10 @@
 
 #ifndef VIVANTE_PROFILER_NEW
 #   define VIVANTE_PROFILER_NEW                 0
+#endif
+
+#ifndef VIVANTE_PROFILER_PM
+#   define VIVANTE_PROFILER_PM                  1
 #endif
 /*
     gcdUSE_VG
@@ -494,8 +497,10 @@
 #ifndef gcdGPU_TIMEOUT
 #if gcdFPGA_BUILD
 #       define gcdGPU_TIMEOUT                   0
+#       define gcdGPU_2D_TIMEOUT                0
 #   else
 #       define gcdGPU_TIMEOUT                   20000
+#       define gcdGPU_2D_TIMEOUT                4000
 #   endif
 #endif
 
@@ -643,14 +648,6 @@
 #endif
 
 /*
-    gcdENABLE_VG
-            enable the 2D openVG
-*/
-#ifndef gcdENABLE_VG
-#   define gcdENABLE_VG                         0
-#endif
-
-/*
     gcdDISABLE_CORES_2D3D
             disable the 2D3D cores for 2D openVG
 */
@@ -700,14 +697,6 @@
 */
 #ifndef gcdENABLE_INFINITE_SPEED_HW
 #   define gcdENABLE_INFINITE_SPEED_HW          0
-#endif
-
-/*
-    gcdENABLE_TS_DOUBLE_BUFFER
-            enable the TS double buffer, this is for 2D openVG
-*/
-#ifndef gcdENABLE_TS_DOUBLE_BUFFER
-#   define gcdENABLE_TS_DOUBLE_BUFFER           1
 #endif
 
 /*
@@ -963,9 +952,10 @@
 
         Enable Direct-rendering (ie, No-Resolve) with tile status.
         This is expremental and in development stage.
+        This will dynamically check if color compression is available.
 */
 #ifndef gcdENABLE_RENDER_INTO_WINDOW_WITH_FC
-#   define gcdENABLE_RENDER_INTO_WINDOW_WITH_FC 0
+#   define gcdENABLE_RENDER_INTO_WINDOW_WITH_FC 1
 #endif
 
 /*
@@ -998,7 +988,7 @@
              'acquireFenceFd' for framebuffer target for DC
  */
 #ifndef gcdANDROID_NATIVE_FENCE_SYNC
-#   define gcdANDROID_NATIVE_FENCE_SYNC         0
+#   define gcdANDROID_NATIVE_FENCE_SYNC         3
 #endif
 
 /*
@@ -1108,13 +1098,15 @@
 #ifndef gcdMOVG
 #   define gcdMOVG                              0
 #if gcdMOVG
-#       undef  gcdENABLE_TS_DOUBLE_BUFFER
-#       define gcdENABLE_TS_DOUBLE_BUFFER       0
+#       define GC355_PROFILER                   1
 #   endif
+#       define gcdENABLE_TS_DOUBLE_BUFFER       1
 #else
 #if gcdMOVG
-#       undef  gcdENABLE_TS_DOUBLE_BUFFER
+#       define GC355_PROFILER                   1
 #       define gcdENABLE_TS_DOUBLE_BUFFER       0
+#else
+#       define gcdENABLE_TS_DOUBLE_BUFFER       1
 #endif
 #endif
 
@@ -1199,7 +1191,52 @@
 #ifndef gcdUSE_INPUT_DEVICE
 #   define gcdUSE_INPUT_DEVICE        1
 #endif
-#define LINUX_CMA_FSL 1
-#define DYNAMIC_MEMORY_RECORD 1
+
+
+/*
+    gcdFRAMEINFO_STATISTIC
+        When enable, collect frame information.
+*/
+#ifndef gcdFRAMEINFO_STATISTIC
+
+#if (defined(DBG) && DBG) || defined(DEBUG) || defined(_DEBUG) || gcdDUMP
+#   define gcdFRAMEINFO_STATISTIC      1
+#else
+#   define gcdFRAMEINFO_STATISTIC      0
+#endif
+
+#endif
+
+/*
+    gcdPACKED_OUTPUT_ADDRESS
+        When it's not zero, ps output is already packed after linked
+*/
+#ifndef gcdPACKED_OUTPUT_ADDRESS
+#   define gcdPACKED_OUTPUT_ADDRESS             1
+#endif
+
+/*
+    gcdENABLE_THIRD_PARTY_OPERATION
+        Enable third party operation like tpc or not.
+*/
+#ifndef gcdENABLE_THIRD_PARTY_OPERATION
+#   define gcdENABLE_THIRD_PARTY_OPERATION      1
+#endif
+
+
+/*
+    Core configurations. By default enable all cores.
+*/
+#ifndef gcdENABLE_3D
+#   define gcdENABLE_3D                         1
+#endif
+
+#ifndef gcdENABLE_2D
+#   define gcdENABLE_2D                         1
+#endif
+
+#ifndef gcdENABLE_VG
+#   define gcdENABLE_VG                         0
+#endif
 
 #endif /* __gc_hal_options_h_ */

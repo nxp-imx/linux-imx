@@ -113,7 +113,7 @@ static int force_contiguous_lowmem_shrink(IN gckKERNEL Kernel)
 		return 0;
 	selected_oom_adj = min_adj;
 
-	read_lock(&tasklist_lock);
+       rcu_read_lock();
 	for_each_process(p) {
 		struct mm_struct *mm;
 		struct signal_struct *sig;
@@ -135,7 +135,7 @@ static int force_contiguous_lowmem_shrink(IN gckKERNEL Kernel)
 
 		tasksize = 0;
 		task_unlock(p);
-		read_unlock(&tasklist_lock);
+               rcu_read_unlock();
 
 		if (gckKERNEL_QueryProcessDB(Kernel, p->pid, gcvFALSE, gcvDB_VIDEO_MEMORY, &info) == gcvSTATUS_OK){
 			tasksize += info.counters.bytes / PAGE_SIZE;
@@ -144,7 +144,7 @@ static int force_contiguous_lowmem_shrink(IN gckKERNEL Kernel)
 			tasksize += info.counters.bytes / PAGE_SIZE;
 		}
 
-                read_lock(&tasklist_lock);
+               rcu_read_lock();
 
 		if (tasksize <= 0)
 			continue;
@@ -171,7 +171,7 @@ static int force_contiguous_lowmem_shrink(IN gckKERNEL Kernel)
 		force_sig(SIGKILL, selected);
 		ret = 0;
 	}
-	read_unlock(&tasklist_lock);
+       rcu_read_unlock();
 	return ret;
 }
 
@@ -253,7 +253,47 @@ static int thermal_hot_pm_notify(struct notifier_block *nb, unsigned long event,
 static struct notifier_block thermal_hot_pm_notifier = {
     .notifier_call = thermal_hot_pm_notify,
     };
+
+static ssize_t show_gpu3DMinClock(struct device_driver *dev, char *buf)
+{
+    gctUINT currentf,minf,maxf;
+    gckGALDEVICE galDevice;
+
+    galDevice = platform_get_drvdata(pdevice);
+    if(galDevice->kernels[gcvCORE_MAJOR])
+    {
+         gckHARDWARE_GetFscaleValue(galDevice->kernels[gcvCORE_MAJOR]->hardware,
+            &currentf, &minf, &maxf);
+    }
+    snprintf(buf, PAGE_SIZE, "%d\n", minf);
+    return strlen(buf);
+}
+
+static ssize_t update_gpu3DMinClock(struct device_driver *dev, const char *buf, size_t count)
+{
+
+    gctINT fields;
+    gctUINT MinFscaleValue;
+    gckGALDEVICE galDevice;
+
+    galDevice = platform_get_drvdata(pdevice);
+    if(galDevice->kernels[gcvCORE_MAJOR])
+    {
+         fields = sscanf(buf, "%d", &MinFscaleValue);
+         if (fields < 1)
+             return -EINVAL;
+
+         gckHARDWARE_SetMinFscaleValue(galDevice->kernels[gcvCORE_MAJOR]->hardware,MinFscaleValue);
+    }
+
+    return count;
+}
+
+static DRIVER_ATTR(gpu3DMinClock, S_IRUGO | S_IWUSR, show_gpu3DMinClock, update_gpu3DMinClock);
 #endif
+
+
+
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
 static const struct of_device_id mxs_gpu_dt_ids[] = {
@@ -305,9 +345,6 @@ gckPLATFORM_AdjustParam(
      struct resource* res;
      struct platform_device* pdev = Platform->device;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-     struct imx_priv *priv = Platform->priv;
-
-       struct contiguous_mem_pool *pool;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
        struct device_node *dn =pdev->dev.of_node;
        const u32 *prop;
@@ -353,34 +390,7 @@ gckPLATFORM_AdjustParam(
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-       pool = devm_kzalloc(&pdev->dev, sizeof(*pool), GFP_KERNEL);
-       if (!pool)
-               return gcvSTATUS_OUT_OF_MEMORY;
-       if(Args->contiguousSize)
-       {
-            if(Args->contiguousSize == 4 << 20)
-                /*Update the default setting*/
-               Args->contiguousSize = pool->size = 128 * 1024 * 1024;
-            else
-               pool->size = Args->contiguousSize;
-
-           init_dma_attrs(&pool->attrs);
-           dma_set_attr(DMA_ATTR_WRITE_COMBINE, &pool->attrs);
-           pool->virt = dma_alloc_attrs(&pdev->dev, pool->size, &pool->phys,
-                                        GFP_KERNEL, &pool->attrs);
-           if (!pool->virt) {
-                   dev_err(&pdev->dev, "Failed to allocate contiguous memory\n");
-
-                   devm_kfree(&pdev->dev, pool);
-
-                   return gcvSTATUS_OUT_OF_MEMORY;
-           }
-           Args->contiguousBase = pool->phys;
-       }
-       Args->contiguousRequested = gcvTRUE;
-
-       priv->pool = pool;
-
+       Args->contiguousBase = 0;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
        prop = of_get_property(dn, "contiguousbase", NULL);
        if(prop)
@@ -419,24 +429,6 @@ _FreePriv(
     IN gckPLATFORM Platform
     )
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-    struct imx_priv *priv = Platform->priv;
-    struct platform_device *pdev = Platform->device;
-
-   struct contiguous_mem_pool *pool = priv->pool;
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-    if (pool && pool->size)
-    {
-        dma_free_attrs(&pdev->dev, pool->size, pool->virt, pool->phys,
-                   &pool->attrs);
-
-        devm_kfree(&pdev->dev, pool);
-        priv->pool = NULL;
-    }
-#endif
-
 #ifdef CONFIG_GPU_LOW_MEMORY_KILLER
     task_free_unregister(&task_nb);
 #endif
@@ -538,6 +530,12 @@ _GetPower(
 #if gcdENABLE_FSCALE_VAL_ADJUST
     pdevice = Platform->device;
     REG_THERMAL_NOTIFIER(&thermal_hot_pm_notifier);
+    {
+        int ret = 0;
+        ret = driver_create_file(pdevice->dev.driver, &driver_attr_gpu3DMinClock);
+        if(ret)
+            dev_err(&pdevice->dev, "create gpu3DMinClock attr failed (%d)\n", ret);
+    }
 #endif
 
     return gcvSTATUS_OK;
@@ -592,6 +590,8 @@ _PutPower(
 
 #if gcdENABLE_FSCALE_VAL_ADJUST
     UNREG_THERMAL_NOTIFIER(&thermal_hot_pm_notifier);
+
+    driver_remove_file(pdevice->dev.driver, &driver_attr_gpu3DMinClock);
 #endif
 
     return gcvSTATUS_OK;

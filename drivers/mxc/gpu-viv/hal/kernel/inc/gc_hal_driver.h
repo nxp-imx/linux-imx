@@ -18,7 +18,6 @@
 *
 *****************************************************************************/
 
-
 #ifndef __gc_hal_driver_h_
 #define __gc_hal_driver_h_
 
@@ -184,6 +183,8 @@ typedef enum _gceHAL_COMMAND_CODES
     /* Shared buffer. */
     gcvHAL_SHBUF,
 
+    /* Config power management. */
+    gcvHAL_CONFIG_POWER_MANAGEMENT,
 }
 gceHAL_COMMAND_CODES;
 
@@ -277,6 +278,9 @@ typedef struct _gcsHAL_QUERY_CHIP_IDENTITY
 
     /* Special control bits for 2D chip. */
     gctUINT32                   chip2DControl;
+
+    /* Product ID */
+    gctUINT32                   productID;
 }
 gcsHAL_QUERY_CHIP_IDENTITY;
 
@@ -474,6 +478,9 @@ typedef struct _gcsHAL_INTERFACE
 
             /* Mapped logical address. */
             OUT gctUINT64               memory;
+
+            /* Customer priviate handle*/
+            OUT gctUINT32               gid;
 
             /* Bus address of a contiguous video node. */
             OUT gctUINT64               physicalAddress;
@@ -1101,6 +1108,11 @@ typedef struct _gcsHAL_INTERFACE
         }
         ShBuf;
 
+        struct _gcsHAL_CONFIG_POWER_MANAGEMENT
+        {
+            IN gctBOOL                  enable;
+        }
+        ConfigPowerManagement;
     }
     u;
 }

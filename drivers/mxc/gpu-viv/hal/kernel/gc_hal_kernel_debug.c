@@ -2559,6 +2559,39 @@ gckOS_DebugStatus2Name(
         return "gcvSTATUS_NAME_MISMATCH";
     case gcvSTATUS_INVALID_INDEX:
         return "gcvSTATUS_INVALID_INDEX";
+    case gcvSTATUS_UNIFORM_MISMATCH:
+        return "gcvSTATUS_UNIFORM_MISMATCH";
+    case gcvSTATUS_UNSAT_LIB_SYMBOL:
+        return "gcvSTATUS_UNSAT_LIB_SYMBOL";
+    case gcvSTATUS_TOO_MANY_SHADERS:
+        return "gcvSTATUS_TOO_MANY_SHADERS";
+    case gcvSTATUS_LINK_INVALID_SHADERS:
+        return "gcvSTATUS_LINK_INVALID_SHADERS";
+    case gcvSTATUS_CS_NO_WORKGROUP_SIZE:
+        return "gcvSTATUS_CS_NO_WORKGROUP_SIZE";
+    case gcvSTATUS_LINK_LIB_ERROR:
+        return "gcvSTATUS_LINK_LIB_ERROR";
+    case gcvSTATUS_SHADER_VERSION_MISMATCH:
+        return "gcvSTATUS_SHADER_VERSION_MISMATCH";
+    case gcvSTATUS_TOO_MANY_INSTRUCTION:
+        return "gcvSTATUS_TOO_MANY_INSTRUCTION";
+    case gcvSTATUS_SSBO_MISMATCH:
+        return "gcvSTATUS_SSBO_MISMATCH";
+    case gcvSTATUS_TOO_MANY_OUTPUT:
+        return "gcvSTATUS_TOO_MANY_OUTPUT";
+    case gcvSTATUS_TOO_MANY_INPUT:
+        return "gcvSTATUS_TOO_MANY_INPUT";
+    case gcvSTATUS_NOT_SUPPORT_CL:
+        return "gcvSTATUS_NOT_SUPPORT_CL";
+    case gcvSTATUS_NOT_SUPPORT_INTEGER:
+        return "gcvSTATUS_NOT_SUPPORT_INTEGER";
+
+    /* Compiler errors. */
+    case gcvSTATUS_COMPILER_FE_PREPROCESSOR_ERROR:
+        return "gcvSTATUS_COMPILER_FE_PREPROCESSOR_ERROR";
+    case gcvSTATUS_COMPILER_FE_PARSER_ERROR:
+        return "gcvSTATUS_COMPILER_FE_PARSER_ERROR";
+
     default:
         return "nil";
     }

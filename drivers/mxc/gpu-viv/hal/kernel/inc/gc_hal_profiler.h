@@ -433,6 +433,7 @@ typedef struct _gcsPROFILER
     gctBOOL         enableHW;
     gctBOOL         enableSH;
     gctBOOL         isSyncMode;
+    gctBOOL         disableOutputCounter;
 
     gctBOOL         useSocket;
     gctINT          sockFd;
@@ -518,7 +519,8 @@ struct _gcsSHADER_PROFILER
 /* Initialize the gcsProfiler. */
 gceSTATUS
 gcoPROFILER_Initialize(
-    IN gcoHAL Hal
+    IN gcoHAL Hal,
+    IN gctBOOL Enable
     );
 
 /* Destroy the gcProfiler. */

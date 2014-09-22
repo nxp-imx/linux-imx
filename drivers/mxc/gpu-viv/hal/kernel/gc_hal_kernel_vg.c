@@ -218,6 +218,147 @@ gceSTATUS gckVGKERNEL_Destroy(
 
 /*******************************************************************************
 **
+**  gckKERNEL_AllocateLinearMemory
+**
+**  Function walks all required memory pools and allocates the requested
+**  amount of video memory.
+**
+**  INPUT:
+**
+**      gckKERNEL Kernel
+**          Pointer to an gckKERNEL object.
+**
+**      gcePOOL * Pool
+**          Pointer the desired memory pool.
+**
+**      gctSIZE_T Bytes
+**          Number of bytes to allocate.
+**
+**      gctSIZE_T Alignment
+**          Required buffer alignment.
+**
+**      gceSURF_TYPE Type
+**          Surface type.
+**
+**  OUTPUT:
+**
+**      gcePOOL * Pool
+**          Pointer to the actual pool where the memory was allocated.
+**
+**      gcuVIDMEM_NODE_PTR * Node
+**          Allocated node.
+*/
+gceSTATUS
+gckVGKERNEL_AllocateLinearMemory(
+    IN gckKERNEL Kernel,
+    IN OUT gcePOOL * Pool,
+    IN gctSIZE_T Bytes,
+    IN gctUINT32 Alignment,
+    IN gceSURF_TYPE Type,
+    OUT gcuVIDMEM_NODE_PTR * Node
+    )
+{
+    gcePOOL pool;
+    gceSTATUS status;
+    gckVIDMEM videoMemory;
+
+    /* Get initial pool. */
+    switch (pool = *Pool)
+    {
+    case gcvPOOL_DEFAULT:
+    case gcvPOOL_LOCAL:
+        pool = gcvPOOL_LOCAL_INTERNAL;
+        break;
+
+    case gcvPOOL_UNIFIED:
+        pool = gcvPOOL_SYSTEM;
+        break;
+
+    default:
+        break;
+    }
+
+    do
+    {
+        /* Verify the number of bytes to allocate. */
+        if (Bytes == 0)
+        {
+            status = gcvSTATUS_INVALID_ARGUMENT;
+            break;
+        }
+
+        if (pool == gcvPOOL_VIRTUAL)
+        {
+            /* Create a gcuVIDMEM_NODE for virtual memory. */
+            gcmkERR_BREAK(gckVIDMEM_ConstructVirtual(Kernel, gcvFALSE, Bytes, Node));
+
+            /* Success. */
+            break;
+        }
+
+        else
+        {
+            /* Get pointer to gckVIDMEM object for pool. */
+            status = gckKERNEL_GetVideoMemoryPool(Kernel, pool, &videoMemory);
+
+            if (status == gcvSTATUS_OK)
+            {
+                /* Allocate memory. */
+                status = gckVIDMEM_AllocateLinear(Kernel,
+                                                  videoMemory,
+                                                  Bytes,
+                                                  Alignment,
+                                                  Type,
+                                                  (*Pool == gcvPOOL_SYSTEM),
+                                                  Node);
+
+                if (status == gcvSTATUS_OK)
+                {
+                    /* Memory allocated. */
+                    break;
+                }
+            }
+        }
+
+        if (pool == gcvPOOL_LOCAL_INTERNAL)
+        {
+            /* Advance to external memory. */
+            pool = gcvPOOL_LOCAL_EXTERNAL;
+        }
+        else if (pool == gcvPOOL_LOCAL_EXTERNAL)
+        {
+            /* Advance to contiguous system memory. */
+            pool = gcvPOOL_SYSTEM;
+        }
+        else if (pool == gcvPOOL_SYSTEM)
+        {
+            /* Advance to virtual memory. */
+            pool = gcvPOOL_VIRTUAL;
+        }
+        else
+        {
+            /* Out of pools. */
+            break;
+        }
+    }
+    /* Loop only for multiple selection pools. */
+    while ((*Pool == gcvPOOL_DEFAULT)
+    ||     (*Pool == gcvPOOL_LOCAL)
+    ||     (*Pool == gcvPOOL_UNIFIED)
+    );
+
+    if (gcmIS_SUCCESS(status))
+    {
+        /* Return pool used for allocation. */
+        *Pool = pool;
+    }
+
+    /* Return status. */
+    return status;
+}
+
+/*******************************************************************************
+**
 **  gckKERNEL_Dispatch
 **
 **  Dispatch a command received from the user HAL layer.
@@ -443,6 +584,7 @@ gceSTATUS gckVGKERNEL_Dispatch(
 
         gcmRELEASE_NAME(kernelInterface->u.UnmapUserMemory.info);
         break;
+
     case gcvHAL_LOCK_VIDEO_MEMORY:
         gcmkONERROR(gckKERNEL_LockVideoMemory(Kernel, gcvCORE_VG, processID, FromUser, Interface));
         break;
@@ -450,6 +592,7 @@ gceSTATUS gckVGKERNEL_Dispatch(
     case gcvHAL_UNLOCK_VIDEO_MEMORY:
         gcmkONERROR(gckKERNEL_UnlockVideoMemory(Kernel, processID, Interface));
         break;
+
     case gcvHAL_USER_SIGNAL:
 #if !USE_NEW_LINUX_SIGNAL
         /* Dispatch depends on the user signal subcommands. */

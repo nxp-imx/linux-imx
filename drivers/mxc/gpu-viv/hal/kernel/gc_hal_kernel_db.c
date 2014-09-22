@@ -631,9 +631,9 @@ gckKERNEL_CreateProcessDB(
     database->mapUserMemory.bytes      = 0;
     database->mapUserMemory.maxBytes   = 0;
     database->mapUserMemory.totalBytes = 0;
-    database->virtCMDBuf.bytes = 0;
-    database->virtCMDBuf.maxBytes = 0;
-    database->virtCMDBuf.totalBytes = 0;
+    database->virtualCommandBuffer.bytes = 0;
+    database->virtualCommandBuffer.maxBytes = 0;
+    database->virtualCommandBuffer.totalBytes = 0;
 
     for (i = 0; i < gcmCOUNTOF(database->list); i++)
     {
@@ -895,7 +895,7 @@ gckKERNEL_AddProcessDB(
         break;
 
     case gcvDB_COMMAND_BUFFER:
-        count = &database->virtCMDBuf;
+        count = &database->virtualCommandBuffer;
         break;
 
     default:
@@ -1048,7 +1048,7 @@ gckKERNEL_RemoveProcessDB(
         break;
 
     case gcvDB_COMMAND_BUFFER:
-        database->virtCMDBuf.bytes -= bytes;
+        database->virtualCommandBuffer.bytes -= bytes;
         break;
 
     default:
@@ -1344,7 +1344,7 @@ gckKERNEL_DestroyProcessDB(
 
             /* Unlock what we still locked */
             status = gckVIDMEM_Unlock(record->kernel,
-                                      nodeObject->node,
+                                      nodeObject,
                                       nodeObject->type,
                                       &asynchronous);
 
@@ -1355,7 +1355,7 @@ gckKERNEL_DestroyProcessDB(
                 {
                     /* TODO: we maybe need to schedule a event here */
                     status = gckVIDMEM_Unlock(record->kernel,
-                                              nodeObject->node,
+                                              nodeObject,
                                               nodeObject->type,
                                               gcvNULL);
                 }
@@ -1430,7 +1430,7 @@ gckKERNEL_DestroyProcessDB(
                            gcmPTR2INT32(record->data), status);
             break;
 
-#if gcdANDROID_NATIVE_FENCE_SYNC
+#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
         case gcvDB_SYNC_POINT:
             /* Free the user signal. */
             status = gckOS_DestroySyncPoint(Kernel->os,
@@ -1553,9 +1553,8 @@ gckKERNEL_QueryProcessDB(
     acquired = gcvTRUE;
 
     /* Find the database. */
-    if(Type != gcvDB_IDLE)
-        gcmkONERROR(
-            gckKERNEL_FindDatabase(Kernel, ProcessID, LastProcessID, &database));
+    gcmkONERROR(
+        gckKERNEL_FindDatabase(Kernel, ProcessID, LastProcessID, &database));
 
     /* Get pointer to counters. */
     switch (Type)
@@ -1606,8 +1605,8 @@ gckKERNEL_QueryProcessDB(
 
     case gcvDB_COMMAND_BUFFER:
         gckOS_MemCopy(&Info->counters,
-                                  &database->virtCMDBuf,
-                                  gcmSIZEOF(database->virtCMDBuf));
+                                  &database->virtualCommandBuffer,
+                                  gcmSIZEOF(database->virtualCommandBuffer));
         break;
 
     default:

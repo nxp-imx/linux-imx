@@ -24,6 +24,9 @@
 
 #include "gc_hal_kernel_buffer.h"
 
+/* Exprimental optimization. */
+#define REMOVE_DUPLICATED_COPY_FROM_USER 1
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -79,6 +82,20 @@ typedef struct _gcsCONTEXT
 }
 gcsCONTEXT;
 
+typedef struct _gcsRECORD_ARRAY_MAP * gcsRECORD_ARRAY_MAP_PTR;
+struct  _gcsRECORD_ARRAY_MAP
+{
+    /* User pointer key. */
+    gctUINT64                   key;
+
+    /* Kernel memory buffer. */
+    gcsSTATE_DELTA_RECORD_PTR   kData;
+
+    /* Next map. */
+    gcsRECORD_ARRAY_MAP_PTR     next;
+
+};
+
 /* gckCONTEXT structure that hold the current context. */
 struct _gckCONTEXT
 {
@@ -121,7 +138,11 @@ struct _gckCONTEXT
 
     /* A copy of the user record array. */
     gctUINT                     recordArraySize;
+#if REMOVE_DUPLICATED_COPY_FROM_USER
+    gcsRECORD_ARRAY_MAP_PTR     recordArrayMap;
+#else
     gcsSTATE_DELTA_RECORD_PTR   recordArray;
+#endif
 
     /* Requested pipe select for context. */
     gcePIPE_SELECT              entryPipe;
@@ -132,6 +153,8 @@ struct _gckCONTEXT
     gctSIZE_T                   lastSize;
     gctUINT32                   lastIndex;
     gctBOOL                     lastFixed;
+
+    gctUINT32                   pipeSelectBytes;
 
     /* Hint array. */
 #if gcdSECURE_USER

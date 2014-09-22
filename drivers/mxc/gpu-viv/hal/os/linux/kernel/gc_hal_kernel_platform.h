@@ -169,7 +169,7 @@ typedef struct _gcsPLATFORM_OPERATIONS
 
     /*******************************************************************************
     **
-    **  setPower
+    **  setClock
     **
     **  Set clock state of specified GPU.
     **
@@ -223,13 +223,12 @@ typedef struct _gcsPLATFORM_OPERATIONS
     **
     **  adjustProt
     **
-    **  Adjust Prot, it's for Cache on gc5000(0x5434) and gc3000(0x5435).
+    **  Override Prot flag when mapping paged memory to userspace.
     */
     gceSTATUS
     (*adjustProt)(
         IN struct vm_area_struct * vma
         );
-
 
     /*******************************************************************************
     **
@@ -240,6 +239,23 @@ typedef struct _gcsPLATFORM_OPERATIONS
     gceSTATUS
     (*shrinkMemory)(
         IN gckPLATFORM Platform
+        );
+
+    /*******************************************************************************
+    **
+    **  cache
+    **
+    **  Cache operation.
+    */
+    gceSTATUS
+    (*cache)(
+        IN gckPLATFORM Platform,
+        IN gctUINT32 ProcessID,
+        IN gctPHYS_ADDR Handle,
+        IN gctUINT32 Physical,
+        IN gctPOINTER Logical,
+        IN gctSIZE_T Bytes,
+        IN gceCACHEOPERATION Operation
         );
 }
 gcsPLATFORM_OPERATIONS;

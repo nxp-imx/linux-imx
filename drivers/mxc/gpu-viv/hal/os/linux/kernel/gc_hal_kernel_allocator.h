@@ -22,7 +22,7 @@
 #ifndef __gc_hal_kernel_allocator_h_
 #define __gc_hal_kernel_allocator_h_
 
-#include <linux/list.h>
+#include "gc_hal_kernel_linux.h"
 
 typedef struct _gcsALLOCATOR * gckALLOCATOR;
 
@@ -309,10 +309,25 @@ typedef struct _gcsALLOCATOR
     /* Pointer to gckOS Object. */
     gckOS                     os;
 
+    /* Name. */
+    gctSTRING                 name;
+
     /* Operations. */
     gcsALLOCATOR_OPERATIONS*  ops;
 
+    /* Capability of this allocator. */
+    gctUINT32                 capability;
+
     struct list_head          head;
+
+    /* Debugfs entry of this allocator. */
+    gcsDEBUGFS_DIR            debugfsDir;
+
+    /* Init allocator debugfs. */
+    void                      (*debugfsInit)(gckALLOCATOR, gckDEBUGFS_DIR);
+
+    /* Cleanup allocator debugfs. */
+    void                      (*debugfsCleanup)(gckALLOCATOR);
 
     /* Private data used by customer allocator. */
     void *                    privateData;
