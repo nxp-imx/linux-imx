@@ -907,6 +907,8 @@ static int ci_suspend(struct device *dev)
 {
 	struct ci_hdrc *ci = dev_get_drvdata(dev);
 
+	if (ci->wq)
+		flush_workqueue(ci->wq);
 	/*
 	 * Controller needs to be active during suspend, otherwise the core
 	 * may run resume when the parent is at suspend if other driver's
@@ -989,6 +991,9 @@ static int ci_runtime_suspend(struct device *dev)
 	dev_dbg(dev, "at %s\n", __func__);
 
 	WARN_ON(ci->in_lpm);
+
+	if (ci->wq)
+		flush_workqueue(ci->wq);
 
 	if (ci_otg_is_fsm_mode(ci))
 		ci_otg_fsm_suspend_for_srp(ci);
