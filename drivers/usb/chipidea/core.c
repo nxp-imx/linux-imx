@@ -378,6 +378,12 @@ int hw_device_reset(struct ci_hdrc *ci, u32 mode)
 	/* HW >= 2.3 */
 	hw_write(ci, OP_USBMODE, USBMODE_SLOM, USBMODE_SLOM);
 
+	/*
+	 * Set interrupt interval for device mode as 0 (immediately),
+	 * ehci core will set it to 1 (1 Micro-frame) by default for host mode.
+	 */
+	hw_write(ci, OP_USBCMD, 0xff0000, 0);
+
 	if (hw_read(ci, OP_USBMODE, USBMODE_CM) != mode) {
 		pr_err("cannot enter in %s mode", ci_role(ci)->name);
 		pr_err("lpm = %i", ci->hw_bank.lpm);
