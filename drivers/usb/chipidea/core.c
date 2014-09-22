@@ -762,8 +762,7 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto deinit_phy;
 	}
-
-	if (ci->is_otg) {
+	if (ci->is_otg && ci->roles[CI_ROLE_GADGET]) {
 		ret = ci_hdrc_otg_init(ci);
 		if (ret) {
 			dev_err(dev, "init otg fails, ret = %d\n", ret);
