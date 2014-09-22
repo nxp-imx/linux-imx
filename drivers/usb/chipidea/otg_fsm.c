@@ -583,12 +583,17 @@ static int ci_otg_start_host(struct otg_fsm *fsm, int on)
 
 	mutex_unlock(&fsm->lock);
 	if (on) {
-		ci_role_stop(ci);
+		/* Disable BSV irq only for A-device */
+		if (!ci->fsm.id || ci->transceiver->state > OTG_STATE_B_HOST)
+			hw_write_otgsc(ci, OTGSC_BSVIE, 0);
 		ci_role_start(ci, CI_ROLE_HOST);
 	} else {
 		ci_role_stop(ci);
 		hw_device_reset(ci, USBMODE_CM_DC);
-		ci_role_start(ci, CI_ROLE_GADGET);
+		ci->role = CI_ROLE_GADGET;
+		/* Enable BSV irq only for B-device */
+		if (ci->fsm.id)
+			hw_write_otgsc(ci, OTGSC_BSVIE, OTGSC_BSVIE);
 	}
 	mutex_lock(&fsm->lock);
 	return 0;
