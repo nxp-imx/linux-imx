@@ -70,12 +70,12 @@ enum ci_role {
 
 /**
  * struct ci_role_driver - host/gadget role driver
- * start: start this role
- * stop: stop this role
- * irq: irq handler for this role
- * suspend: system suspend handler for this role
- * resume: system resume handler for this role
- * name: role name string (host/gadget)
+ * @start: start this role
+ * @stop: stop this role
+ * @irq: irq handler for this role
+ * @suspend: system suspend handler for this role
+ * @resume: system resume handler for this role
+ * @name: role name string (host/gadget)
  */
 struct ci_role_driver {
 	int		(*start)(struct ci_hdrc *);
@@ -276,6 +276,7 @@ enum ci_hw_regs {
 
 /**
  * hw_read: reads from a hw register
+ * @ci: the controller
  * @reg:  register index
  * @mask: bitfield mask
  *
@@ -308,6 +309,7 @@ static inline void __hw_write(struct ci_hdrc *ci, u32 val,
 
 /**
  * hw_write: writes to a hw register
+ * @ci: the controller
  * @reg:  register index
  * @mask: bitfield mask
  * @data: new value
@@ -324,6 +326,7 @@ static inline void hw_write(struct ci_hdrc *ci, enum ci_hw_regs reg,
 
 /**
  * hw_test_and_clear: tests & clears a hw register
+ * @ci: the controller
  * @reg:  register index
  * @mask: bitfield mask
  *
@@ -340,6 +343,7 @@ static inline u32 hw_test_and_clear(struct ci_hdrc *ci, enum ci_hw_regs reg,
 
 /**
  * hw_test_and_write: tests & writes a hw register
+ * @ci: the controller
  * @reg:  register index
  * @mask: bitfield mask
  * @data: new value
@@ -358,6 +362,8 @@ static inline u32 hw_test_and_write(struct ci_hdrc *ci, enum ci_hw_regs reg,
 /**
  * ci_otg_is_fsm_mode: runtime check if otg controller
  * is in otg fsm mode.
+ *
+ * @ci: chipidea device
  */
 static inline bool ci_otg_is_fsm_mode(struct ci_hdrc *ci)
 {
