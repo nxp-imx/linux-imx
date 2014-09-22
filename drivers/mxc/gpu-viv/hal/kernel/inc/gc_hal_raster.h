@@ -1016,6 +1016,21 @@ gco2D_SetTargetRect(
     IN gcsRECT_PTR Rect
     );
 
+gceSTATUS
+gco2D_Set2DEngine(
+    IN gco2D Engine
+    );
+
+gceSTATUS
+gco2D_UnSet2DEngine(
+    IN gco2D Engine
+    );
+
+gceSTATUS
+gco2D_Get2DEngine(
+    OUT gco2D * Engine
+    );
+
 #ifdef __cplusplus
 }
 #endif

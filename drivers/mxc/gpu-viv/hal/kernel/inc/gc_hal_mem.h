@@ -25,7 +25,7 @@
 
 #ifndef __gc_hal_mem_h_
 #define __gc_hal_mem_h_
-#ifndef VIVANTE_NO_3D
+#if (gcdENABLE_3D || gcdENABLE_VG)
 
 #ifdef __cplusplus
 extern "C" {
@@ -526,5 +526,5 @@ gcfMEM_AFSMemPoolFreeANode(
 }
 #endif
 
-#endif /* VIVANTE_NO_3D */
+#endif /* (gcdENABLE_3D || gcdENABLE_VG) */
 #endif /* __gc_hal_mem_h_ */

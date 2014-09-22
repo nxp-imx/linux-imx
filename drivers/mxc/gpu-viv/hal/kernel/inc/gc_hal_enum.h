@@ -41,6 +41,7 @@ typedef enum _gceCHIPMODEL
     gcv428  = 0x0428,
     gcv450  = 0x0450,
     gcv500  = 0x0500,
+    gcv520  = 0x0520,
     gcv530  = 0x0530,
     gcv600  = 0x0600,
     gcv700  = 0x0700,
@@ -48,6 +49,7 @@ typedef enum _gceCHIPMODEL
     gcv860  = 0x0860,
     gcv880  = 0x0880,
     gcv1000 = 0x1000,
+    gcv1500 = 0x1500,
     gcv2000 = 0x2000,
     gcv2100 = 0x2100,
     gcv2200 = 0x2200,
@@ -113,6 +115,7 @@ typedef enum _gceFEATURE
     gcvFEATURE_2D_FILTERBLIT_PLUS_ALPHABLEND,
     gcvFEATURE_2D_DITHER,
     gcvFEATURE_2D_A8_TARGET,
+    gcvFEATURE_2D_A8_NO_ALPHA,
     gcvFEATURE_2D_FILTERBLIT_FULLROTATION,
     gcvFEATURE_2D_BITBLIT_FULLROTATION,
     gcvFEATURE_WIDE_LINE,
@@ -151,6 +154,7 @@ typedef enum _gceFEATURE
     gcvFEATURE_2D_NO_COLORBRUSH_INDEX8,
     gcvFEATURE_RS_YUV_TARGET,
     gcvFEATURE_2D_FC_SOURCE,
+    gcvFEATURE_2D_CC_NOAA_SOURCE,
     gcvFEATURE_PE_DITHER_FIX,
     gcvFEATURE_2D_YUV_SEPARATE_STRIDE,
     gcvFEATURE_FRUSTUM_CLIP_FIX,
@@ -189,6 +193,7 @@ typedef enum _gceFEATURE
     gcvFEATURE_DUAL_16,
     gcvFEATURE_BRANCH_ON_IMMEDIATE_REG,
     gcvFEATURE_2D_COMPRESSION,
+    gcvFEATURE_TPC_COMPRESSION,
     gcvFEATURE_2D_OPF_YUV_OUTPUT,
     gcvFEATURE_2D_MULTI_SRC_BLT_TO_UNIFIED_DST_RECT,
     gcvFEATURE_V2_COMPRESSION_Z16_FIX,
@@ -246,6 +251,23 @@ typedef enum _gceFEATURE
     gcvFEATURE_BUG_FIXES8,
     gcvFEATURE_2D_ALL_QUAD,
 
+    gcvFEATURE_SINGLE_PIPE_HALTI1,
+
+    gcvFEATURE_BLOCK_SIZE_16x16,
+
+    gcvFEATURE_NO_USER_CSC,
+    gcvFEATURE_ANDROID_ONLY,
+    gcvFEATURE_HAS_PRODUCTID,
+
+    gcvFEATURE_V2_MSAA_COMP_FIX,
+
+    gcvFEATURE_S8_ONLY_RENDERING,
+
+    gcvFEATURE_SEPARATE_SRC_DST,
+
+    gcvFEATURE_FE_START_VERTEX_SUPPORT,
+    gcvFEATURE_RS_DEPTHSTENCIL_NATIVE_SUPPORT,
+
     /* Insert features above this comment only. */
     gcvFEATURE_COUNT                /* Not a feature. */
 }
@@ -279,6 +301,31 @@ typedef enum _gceOPITON
     gcvOPTION_COUNT                     /* Not a OPTION*/
 }
 gceOPTION;
+
+typedef enum _gceFRAMEINFO
+{
+    gcvFRAMEINFO_FRAME_NUM       = 0,
+    gcvFRAMEINFO_DRAW_NUM        = 1,
+    gcvFRAMEINFO_DRAW_DUAL16_NUM = 2,
+    gcvFRAMEINFO_DRAW_FL32_NUM   = 3,
+
+
+    gcvFRAMEINFO_COUNT,
+}
+gceFRAMEINFO;
+
+typedef enum _gceFRAMEINFO_OP
+{
+    gcvFRAMEINFO_OP_INC       = 0,
+    gcvFRAMEINFO_OP_DEC       = 1,
+    gcvFRAMEINFO_OP_ZERO      = 2,
+    gcvFRAMEINFO_OP_GET       = 3,
+
+
+    gcvFRAMEINFO_OP_COUNT,
+}
+gceFRAMEINFO_OP;
+
 
 /* Chip Power Status. */
 typedef enum _gceCHIPPOWERSTATE
@@ -340,6 +387,11 @@ typedef enum _gceSURF_TYPE
     gcvSURF_CREATE_AS_TEXTURE  = 0x4000,  /* create it as a texture */
 
     gcvSURF_PROTECTED_CONTENT  = 0x8000,  /* create it as content protected */
+
+    /* Create it as no compression, valid on when it has tile status. */
+    gcvSURF_NO_COMPRESSION     = 0x40000,
+
+    gcvSURF_CONTIGUOUS         = 0x20000,      /*create it as contiguous */
 
     gcvSURF_TEXTURE_LINEAR               = gcvSURF_TEXTURE
                                          | gcvSURF_LINEAR,
@@ -430,6 +482,8 @@ typedef enum _gceSURF_FLAG
     gcvSURF_FLAG_CONTENT_YINVERTED   = 0x4,
     /* content is protected */
     gcvSURF_FLAG_CONTENT_PROTECTED   = 0x8,
+    /* surface is contiguous. */
+    gcvSURF_FLAG_CONTIGUOUS          = (1 << 4),
 }
 gceSURF_FLAG;
 
@@ -551,6 +605,7 @@ typedef enum _gceSURF_FORMAT
     gcvSURF_S8D32F_1_G32R32F,
     gcvSURF_S8D32F_2_A8R8G8B8,
     gcvSURF_D24S8_1_A8R8G8B8,
+    gcvSURF_S8,
 
     /* Alpha formats. */
     gcvSURF_A4                  = 700,
@@ -984,6 +1039,7 @@ typedef enum _gce2D_TILE_STATUS_CONFIG
     gcv2D_TSC_COMPRESSED    = 0x00000002,
     gcv2D_TSC_DOWN_SAMPLER  = 0x00000004,
     gcv2D_TSC_2D_COMPRESSED = 0x00000008,
+    gcv2D_TSC_TPC_COMPRESSED = 0x00000010,
 }
 gce2D_TILE_STATUS_CONFIG;
 
@@ -1044,7 +1100,7 @@ typedef enum _gceTEXTURE_TYPE
 }
 gceTEXTURE_TYPE;
 
-#ifndef VIVANTE_NO_3D
+#if gcdENABLE_3D
 /* Texture functions. */
 typedef enum _gceTEXTURE_FUNCTION
 {
@@ -1078,7 +1134,7 @@ typedef enum _gceTEXTURE_CHANNEL
     gcvFROM_ONE_MINUS_ALPHA
 }
 gceTEXTURE_CHANNEL;
-#endif /* VIVANTE_NO_3D */
+#endif /* gcdENABLE_3D */
 
 /* Filter types. */
 typedef enum _gceFILTER_TYPE
@@ -1485,11 +1541,28 @@ typedef enum _gceHAL_ARG_VERSION
 gceHAL_ARG_VERSION;
 
 
-#define gcvALLOC_FLAG_NONE       (0)
-#define gcvALLOC_FLAG_CONTIGUOUS (1 << 0)
-#define gcvALLOC_FLAG_CACHEABLE  (1 << 1)
-#define gcvALLOC_FLAG_SECURITY   (1 << 2)
-#define gcvALLOC_FLAG_MEMLIMIT (1<<3)
+/*
+* Bit of a requirment is 1 means requirement is a must, 0 means requirement can
+* be ignored.
+*/
+#define gcvALLOC_FLAG_CONTIGUOUS_BIT        0
+#define gcvALLOC_FLAG_CACHEABLE_BIT         1
+#define gcvALLOC_FLAG_SECURITY_BIT          2
+#define gcvALLOC_FLAG_NON_CONTIGUOUS_BIT    3
+#define gcvALLOC_FLAG_MEMLIMIT_BIT    4
+
+/* No special needs. */
+#define gcvALLOC_FLAG_NONE              (0)
+/* Physical contiguous. */
+#define gcvALLOC_FLAG_CONTIGUOUS        (1 << gcvALLOC_FLAG_CONTIGUOUS_BIT)
+/* Can be remapped as cacheable. */
+#define gcvALLOC_FLAG_CACHEABLE         (1 << gcvALLOC_FLAG_CACHEABLE_BIT)
+/* Secure buffer. */
+#define gcvALLOC_FLAG_SECURITY          (1 << gcvALLOC_FLAG_SECURITY_BIT)
+/* Physical non contiguous. */
+#define gcvALLOC_FLAG_NON_CONTIGUOUS    (1 << gcvALLOC_FLAG_NON_CONTIGUOUS_BIT)
+#define gcvALLOC_FLAG_MEMLIMIT    (1 << gcvALLOC_FLAG_MEMLIMIT_BIT)
+
 /* GL_VIV internal usage */
 #ifndef GL_MAP_BUFFER_OBJ_VIV
 #define GL_MAP_BUFFER_OBJ_VIV       0x10000

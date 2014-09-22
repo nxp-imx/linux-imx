@@ -22,6 +22,8 @@
 #ifndef __gc_hal_kernel_device_h_
 #define __gc_hal_kernel_device_h_
 
+#include "gc_hal_kernel_debugfs.h"
+
 /******************************************************************************\
 ******************************* gckGALDEVICE Structure *******************************
 \******************************************************************************/
@@ -52,6 +54,7 @@ typedef struct _gckGALDEVICE
     gctSIZE_T           contiguousSize;
     gctBOOL             contiguousMapped;
     gctPOINTER          contiguousMappedUser;
+    gctBOOL             contiguousRequested;
     gctSIZE_T           systemMemorySize;
     gctUINT32           systemMemoryBaseAddress;
 #if gcdMULTI_GPU
@@ -69,7 +72,6 @@ typedef struct _gckGALDEVICE
     gctSIZE_T           requestedRegisterMemSizes[gcdMAX_GPU_COUNT];
     gctUINT32           requestedContiguousBase;
     gctSIZE_T           requestedContiguousSize;
-    gctUINT32           contiguousRequested;
 
     /* IRQ management. */
 #if gcdMULTI_GPU
@@ -79,7 +81,6 @@ typedef struct _gckGALDEVICE
 #endif
     gctINT              irqLines[gcdMAX_GPU_COUNT];
     gctBOOL             isrInitializeds[gcdMAX_GPU_COUNT];
-    gctBOOL             dataReadys[gcdMAX_GPU_COUNT];
 
     /* Thread management. */
 #if gcdMULTI_GPU
@@ -104,17 +105,7 @@ typedef struct _gckGALDEVICE
     /* Device Debug File System Entry in kernel. */
     struct _gcsDEBUGFS_Node * dbgNode;
 
-#if DYNAMIC_MEMORY_RECORD
-    gctSIZE_T cachedsize;
-    gctSIZE_T nonpagedmemorysize;
-#if LINUX_CMA_FSL
-    gctSIZE_T cmasize;
-#endif
-    gctSIZE_T contiguouslowmemsize;
-    gctSIZE_T contiguoushighmemsize;
-    gctSIZE_T noncontiguouslowmemsize;
-    gctSIZE_T noncontiguoushighmemsize;
-#endif
+    gcsDEBUGFS_DIR      debugfsDir;
 }
 * gckGALDEVICE;
 

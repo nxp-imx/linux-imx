@@ -30,6 +30,25 @@
 extern "C" {
 #endif
 
+typedef enum {
+    gcvHARDWARE_FUNCTION_MMU,
+    gcvHARDWARE_FUNCTION_FLUSH,
+
+    gcvHARDWARE_FUNCTION_NUM,
+}
+gceHARDWARE_FUNCTION;
+
+
+typedef struct _gcsHARWARE_FUNCTION
+{
+    /* Entry of the function. */
+    gctUINT32                   address;
+
+    /* Bytes of the function. */
+    gctUINT32                   bytes;
+}
+gcsHARDWARE_FUNCTION;
+
 /* gckHARDWARE object. */
 struct _gckHARDWARE
 {
@@ -96,6 +115,16 @@ struct _gckHARDWARE
     gctBOOL                     endAfterFlushMmuCache;
 
     gctUINT32                   minFscaleValue;
+
+    gctPOINTER                  pendingEvent;
+
+    /* Function used by gckHARDWARE. */
+    gctPHYS_ADDR                functionPhysical;
+    gctPOINTER                  functionLogical;
+    gctUINT32                   functionAddress;
+    gctSIZE_T                   functionBytes;
+
+    gcsHARDWARE_FUNCTION        functions[gcvHARDWARE_FUNCTION_NUM];
 };
 
 gceSTATUS

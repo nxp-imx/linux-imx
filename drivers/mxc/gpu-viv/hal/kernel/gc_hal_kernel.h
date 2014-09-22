@@ -210,13 +210,11 @@ typedef struct _gcsDATABASE
     gcsDATABASE_COUNTERS                contiguous;
     gcsDATABASE_COUNTERS                mapUserMemory;
     gcsDATABASE_COUNTERS                mapMemory;
+    gcsDATABASE_COUNTERS                virtualCommandBuffer;
 
     gcsDATABASE_COUNTERS                vidMemType[gcvSURF_NUM_TYPES];
     /* Counter for each video memory pool. */
     gcsDATABASE_COUNTERS                vidMemPool[gcvPOOL_NUMBER_OF_POOLS];
-
-    /* Virtual command buffer */
-    gcsDATABASE_COUNTERS                virtCMDBuf;
 
     /* Idle time management. */
     gctUINT64                           lastIdle;
@@ -518,8 +516,6 @@ struct _gckKERNEL
     gckDB                       db;
     gctBOOL                     dbCreated;
 
-    gctPOINTER                  resetFlagClearTimer;
-    gctPOINTER                  resetAtom;
     gctUINT64                   resetTimeStamp;
 
     /* Pointer to gckEVENT object. */
@@ -542,7 +538,7 @@ struct _gckKERNEL
     gckDVFS                     dvfs;
 #endif
 
-#if gcdANDROID_NATIVE_FENCE_SYNC
+#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
     gctHANDLE                   timeline;
 #endif
 
@@ -555,6 +551,19 @@ struct _gckKERNEL
 #if gcdSECURITY
     gctUINT32                   securityChannel;
 #endif
+
+    /* Timer to monitor GPU stuck. */
+    gctPOINTER                  monitorTimer;
+
+    /* Flag to quit monitor timer. */
+    gctBOOL                     monitorTimerStop;
+
+    /* Monitor states. */
+    gctBOOL                     monitoring;
+    gctUINT32                   lastCommitStamp;
+    gctUINT32                   timer;
+    gctUINT32                   restoreAddress;
+    gctUINT32                   restoreMask;
 
     gctPOINTER                  vidmemMutex;
 };
@@ -748,7 +757,7 @@ struct _gckEVENT
 
     /* Time stamp. */
     gctUINT64                   stamp;
-    gctUINT64                   lastCommitStamp;
+    gctUINT32                   lastCommitStamp;
 
     /* Queue mutex. */
     gctPOINTER                  eventQueueMutex;
@@ -887,8 +896,6 @@ typedef union _gcuVIDMEM_NODE
         /* Information for this node. */
         /* Contiguously allocated? */
         gctBOOL                 contiguous;
-        /* cacheable vidmem ? */
-        gctBOOL                 cacheable;
         /* mdl record pointer... a kmalloc address. Process agnostic. */
         gctPHYS_ADDR            physical;
         gctSIZE_T               bytes;
@@ -902,6 +909,9 @@ typedef union _gcuVIDMEM_NODE
         /* Kernel logical of this node. */
         gctPOINTER              kernelVirtual;
 #endif
+
+        /* Customer private handle */
+        gctUINT32               gid;
 
         /* Page table information. */
         /* Used only when node is not contiguous */
@@ -951,7 +961,6 @@ struct _gckVIDMEM
     gctSIZE_T                   threshold;
 };
 
-typedef struct _gcsVIDMEM_NODE * gckVIDMEM_NODE;
 typedef struct _gcsVIDMEM_NODE
 {
     /* Pointer to gcuVIDMEM_NODE. */
