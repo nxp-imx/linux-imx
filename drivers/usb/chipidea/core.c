@@ -1000,9 +1000,6 @@ static int ci_runtime_suspend(struct device *dev)
 
 	WARN_ON(ci->in_lpm);
 
-	if (ci->wq)
-		flush_workqueue(ci->wq);
-
 	if (ci_otg_is_fsm_mode(ci))
 		ci_otg_fsm_suspend_for_srp(ci);
 
