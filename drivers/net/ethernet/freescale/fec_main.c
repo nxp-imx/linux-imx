@@ -1410,7 +1410,8 @@ fec_enet_rx_queue(struct net_device *ndev, int budget, u16 queue_id)
 		index = fec_enet_get_bd_index(rxq->rx_bd_base, bdp, fep);
 		data = rxq->rx_skbuff[index]->data;
 		dma_sync_single_for_cpu(&fep->pdev->dev, bdp->cbd_bufaddr,
-					FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
+					FEC_ENET_RX_FRSIZE - fep->rx_align,
+					DMA_FROM_DEVICE);
 
 		if (id_entry->driver_data & FEC_QUIRK_SWAP_FRAME)
 			swap_buffer(data, pkt_len);
@@ -1482,7 +1483,8 @@ fec_enet_rx_queue(struct net_device *ndev, int budget, u16 queue_id)
 		}
 
 		dma_sync_single_for_device(&fep->pdev->dev, bdp->cbd_bufaddr,
-					FEC_ENET_RX_FRSIZE, DMA_FROM_DEVICE);
+					   FEC_ENET_RX_FRSIZE - fep->rx_align,
+					   DMA_FROM_DEVICE);
 rx_processing_done:
 		/* Clear the status flags for this buffer */
 		status &= ~BD_ENET_RX_STATS;
@@ -2455,7 +2457,7 @@ static void fec_enet_free_buffers(struct net_device *ndev)
 			if (skb) {
 				dma_unmap_single(&fep->pdev->dev,
 						 bdp->cbd_bufaddr,
-						 FEC_ENET_RX_FRSIZE,
+						 FEC_ENET_RX_FRSIZE - fep->rx_align,
 						 DMA_FROM_DEVICE);
 				dev_kfree_skb(skb);
 			}
