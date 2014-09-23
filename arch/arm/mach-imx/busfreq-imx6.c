@@ -718,9 +718,6 @@ static int __init imx6_dt_find_ddr_sram(unsigned long node,
 		/* Make sure ddr_freq_change_iram_phys is 8 byte aligned. */
 		if ((uintptr_t)(ddr_freq_change_iram_phys) & (FNCPY_ALIGN - 1))
 			ddr_freq_change_iram_phys += FNCPY_ALIGN - ((uintptr_t)ddr_freq_change_iram_phys % (FNCPY_ALIGN));
-
-		ddr_freq_change_iram_base = IMX_IO_P2V(ddr_freq_change_iram_phys);
-		memset((void *)ddr_freq_change_iram_base, 0, ddr_freq_change_total_size);
 	}
 	return 0;
 }
@@ -732,11 +729,16 @@ void __init imx6_busfreq_map_io(void)
 	 * change code from the device tree.
 	 */
 	WARN_ON(of_scan_flat_dt(imx6_dt_find_ddr_sram, NULL));
-	if ((iram_tlb_phys_addr & 0xFFF00000) != (ddr_freq_change_iram_phys & 0xFFF00000)) {
-		/* We need to create a 1M page table entry. */
-		ddr_iram_io_desc.virtual = IMX_IO_P2V(ddr_freq_change_iram_phys & 0xFFF00000);
-		ddr_iram_io_desc.pfn = __phys_to_pfn(ddr_freq_change_iram_phys & 0xFFF00000);
-		iotable_init(&ddr_iram_io_desc, 1);
+
+	if (ddr_freq_change_iram_phys) {
+		ddr_freq_change_iram_base = IMX_IO_P2V(ddr_freq_change_iram_phys);
+		if ((iram_tlb_phys_addr & 0xFFF00000) != (ddr_freq_change_iram_phys & 0xFFF00000)) {
+			/* We need to create a 1M page table entry. */
+			ddr_iram_io_desc.virtual = IMX_IO_P2V(ddr_freq_change_iram_phys & 0xFFF00000);
+			ddr_iram_io_desc.pfn = __phys_to_pfn(ddr_freq_change_iram_phys & 0xFFF00000);
+			iotable_init(&ddr_iram_io_desc, 1);
+		}
+		memset((void *)ddr_freq_change_iram_base, 0, ddr_freq_change_total_size);
 	}
 }
 
