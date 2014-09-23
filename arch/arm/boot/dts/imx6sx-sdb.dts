@@ -276,7 +276,19 @@
 &fec1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_enet1>;
+	pinctrl-assert-gpios = <&gpio4 16 GPIO_ACTIVE_HIGH>, <&gpio2 6 GPIO_ACTIVE_LOW>;
 	phy-mode = "rgmii";
+	fsl,num_tx_queues=<3>;
+	fsl,num_rx_queues=<3>;
+	status = "okay";
+};
+
+&fec2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_enet2>;
+	phy-mode = "rgmii";
+	fsl,num_tx_queues=<3>;
+	fsl,num_rx_queues=<3>;
 	status = "okay";
 };
 
@@ -641,6 +653,26 @@
 				MX6SX_PAD_RGMII1_RD2__ENET1_RX_DATA_2	0x3081
 				MX6SX_PAD_RGMII1_RD3__ENET1_RX_DATA_3	0x3081
 				MX6SX_PAD_RGMII1_RX_CTL__ENET1_RX_EN	0x3081
+				MX6SX_PAD_QSPI1A_DATA0__GPIO4_IO_16	0x80000000
+				MX6SX_PAD_QSPI1A_DATA3__GPIO4_IO_19	0x80000000
+				MX6SX_PAD_ENET2_RX_CLK__ENET2_REF_CLK_25M	0x91
+			>;
+		};
+
+		pinctrl_enet2: enet2grp {
+			fsl,pins = <
+				MX6SX_PAD_RGMII2_TXC__ENET2_RGMII_TXC	0xa0b9
+				MX6SX_PAD_RGMII2_TD0__ENET2_TX_DATA_0	0xa0b1
+				MX6SX_PAD_RGMII2_TD1__ENET2_TX_DATA_1	0xa0b1
+				MX6SX_PAD_RGMII2_TD2__ENET2_TX_DATA_2	0xa0b1
+				MX6SX_PAD_RGMII2_TD3__ENET2_TX_DATA_3	0xa0b1
+				MX6SX_PAD_RGMII2_TX_CTL__ENET2_TX_EN	0xa0b1
+				MX6SX_PAD_RGMII2_RXC__ENET2_RX_CLK	0x3081
+				MX6SX_PAD_RGMII2_RD0__ENET2_RX_DATA_0	0x3081
+				MX6SX_PAD_RGMII2_RD1__ENET2_RX_DATA_1	0x3081
+				MX6SX_PAD_RGMII2_RD2__ENET2_RX_DATA_2	0x3081
+				MX6SX_PAD_RGMII2_RD3__ENET2_RX_DATA_3	0x3081
+				MX6SX_PAD_RGMII2_RX_CTL__ENET2_RX_EN	0x3081
 			>;
 		};
 
