@@ -384,7 +384,7 @@ skip_gpt_workaround4:
 ENTRY(mx6_ddr_freq_change)
 mx6_ddr3_iram_start:
 
-	stmfd   sp!, {r4 - r11}      @ Save registers
+	stmfd   sp!, {r4 - r12}      @ Save registers
 
 	mov     r4, r0				@save new freq requested
 	mov     r8, r1				@save the ddr settings for the new rate
@@ -466,6 +466,12 @@ wait_for_l2_to_idle:
 	add     r5, r5, #PERIPBASE_VIRT
 	ldr     r7, =MX6Q_IOMUXC_BASE_ADDR
 	add     r7, r7, #PERIPBASE_VIRT
+
+	/* Read the original MU delay value */
+	ldr	r0, [r5, #0x8b8]
+	mov	r12, r0, lsr #16
+	ldr	r0, =0x3ff
+	and	r12, r12, r0
 
 	/* Disable automatic power saving. */
 	ldr    r0, [r5, #0x404]
@@ -692,19 +698,33 @@ update_iomux:
 	orr     r0, r0, #0x20000000
 	str    r0, [r5, r2]
 
-	/* frc_msr + mu bypass*/
-	ldr       r0, =0x00000060
-	str       r0, [r5, #0x8b8]
-	ldr       r2, =0x48b8
-	str       r0, [r5, r2]
-	ldr       r0, =0x00000460
-	str       r0, [r5, #0x8b8]
-	ldr       r2, =0x48b8
-	str       r0, [r5, r2]
-	ldr       r0, =0x00000c60
-	str       r0, [r5, #0x8b8]
-	ldr       r2, =0x48b8
-	str       r0, [r5, r2]
+	/* Add workaround for ERR005778 */
+	/* double the original MU_UNIT_DEL_NUM */
+	lsl	r12, r12, #1
+
+	/* Bypass the automatic MU by setting mu_byp_en. */
+	ldr	r2, [r5, #0x8b8]
+	orr	r2, r2, #0x400
+	orr	r2, r2, r12
+	str	r2, [r5, #0x8b8]
+	ldr	r0, =0x48b8
+	str	r2, [r5, r0]
+
+	/* Now perform a force measure */
+	ldr	r0, [r5, #0x8b8]
+	orr	r0, r0, #0x800
+	str	r0, [r5, #0x8b8]
+	ldr	r2, =0x48b8
+	str	r0, [r5, r2]
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r0, [r5, #0x8b8]
+	and	r0, r0, #0x800
+	ldr	r1, [r5, r2]
+	and	r1, r1, #0x800
+	orr	r0, r0, r1
+	cmp	r0, #0x0
+	bne	1b
 
 continue_dll_off_3:
 
@@ -795,18 +815,16 @@ poll_dvfs_clear_2:
 	ldr       r2, =0x48b8
 	str       r0, [r5, r2]
 
-	/* delay for while */
-	ldr      r1, =4
-delay5:
-	ldr      r2, =0
-cont5:
-	ldr      r0, [r5, r2]
-	add     r2, r2, #4
-	cmp    r2, #16
-	bne     cont5
-	sub     r1, r1, #1
-	cmp    r1, #0
-	bgt     delay5
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r0, [r5, #0x8b8]
+	and	r0, r0, #0x800
+	ldr	r1, [r5, r2]
+	and	r1, r1, #0x800
+	orr	r0, r0, r1
+	cmp	r0, #0x0
+	bne	1b
+
 	/* Disable dqs pull down in the IOMUX. */
 	/*
 	setmem /32 0x020e05a8 = 0x00000030 // IOMUXC_SW_PAD_CTL_PAD_DRAM_SDQS0 - DSE=110
@@ -1003,6 +1021,16 @@ update_calib:
 	ldr      r2, =0x48B8
 	str     r0, [r5, r2]
 
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r0, [r5, #0x8b8]
+	and	r0, r0, #0x800
+	ldr	r1, [r5, r2]
+	and	r1, r1, #0x800
+	orr	r0, r0, r1
+	cmp	r0, #0x0
+	bne	1b
+
 	/* clear SBS - unblock DDR accesses */
 	ldr     r0, [r5, #0x410]
 	bic     r0, r0, #0x100
@@ -1063,7 +1091,7 @@ done:
 	mcr    p15, 0, r6, c7, c1, 6
 
 	/* Restore registers */
-	ldmfd sp!, {r4 - r11}
+	ldmfd sp!, {r4 - r12}
 
 	mov     pc, lr
 	/*
