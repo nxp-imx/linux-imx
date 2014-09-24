@@ -157,6 +157,7 @@ dtb-$(CONFIG_ARCH_MXC) += \
 	imx6dl-hummingboard.dtb \
 	imx6dl-sabreauto.dtb \
 	imx6dl-sabreauto-flexcan1.dtb \
+	imx6dl-sabreauto-ecspi.dtb \
 	imx6dl-sabreauto-gpmi-weim.dtb \
 	imx6dl-sabresd.dtb \
 	imx6dl-sabresd-enetirq.dtb \
