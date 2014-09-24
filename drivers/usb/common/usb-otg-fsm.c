@@ -407,10 +407,15 @@ int otg_hnp_polling(struct otg_fsm *fsm)
 				USB_CTRL_GET_TIMEOUT);
 	if (retval == 1) {
 		if (host_req_flag == HOST_REQUEST_FLAG) {
-			if (state == OTG_STATE_A_HOST)
+			if (state == OTG_STATE_A_HOST) {
 				fsm->a_bus_req = 0;
-			else if (state == OTG_STATE_B_HOST)
+				if (fsm->tst_maint) {
+					fsm->tst_maint = 0;
+					otg_del_timer(fsm, A_TST_MAINT);
+				}
+			} else if (state == OTG_STATE_B_HOST) {
 				fsm->b_bus_req = 0;
+			}
 			retval = HOST_REQUEST_FLAG;
 		} else if (host_req_flag == 0) {
 			/* Continue polling */
