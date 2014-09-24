@@ -134,6 +134,19 @@
 			gpio = <&gpio1 12 GPIO_ACTIVE_HIGH>;
 			enable-active-high;
 		};
+
+		reg_pcie: regulator@5 {
+			compatible = "regulator-fixed";
+			reg = <3>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_pcie_reg>;
+			regulator-name = "MPCIE_3V3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			gpio = <&gpio2 1 0>;
+			regulator-always-on;
+			enable-active-high;
+		};
 	};
 
 	sound {
@@ -324,6 +337,13 @@
 	pinctrl-0 = <&pinctrl_flexcan2>;
 	trx-en-gpio = <&gpio4 25 GPIO_ACTIVE_HIGH>;
 	trx-stby-gpio = <&gpio4 27 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&pcie {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pcie>;
+	reset-gpio = <&gpio2 0 0>;
 	status = "okay";
 };
 
@@ -878,6 +898,18 @@
 		pinctrl_spdif: spdifgrp {
 			fsl,pins = <
 				MX6SX_PAD_SD4_DATA4__SPDIF_OUT          0x1b0b0
+			>;
+		};
+
+		pinctrl_pcie: pciegrp {
+			fsl,pins = <
+				MX6SX_PAD_ENET1_COL__GPIO2_IO_0 0x10b0
+			>;
+		};
+
+		pinctrl_pcie_reg: pciereggrp {
+			fsl,pins = <
+				MX6SX_PAD_ENET1_CRS__GPIO2_IO_1	0x10b0
 			>;
 		};
 
