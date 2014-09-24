@@ -61,6 +61,7 @@ enum otg_fsm_timer {
 	B_SE0_SRP,
 	B_SRP_FAIL,
 	A_WAIT_ENUM,
+	A_TST_MAINT,
 	HNP_POLLING,
 
 	NUM_OTG_FSM_TIMERS,
@@ -103,6 +104,10 @@ struct otg_fsm {
 	int b_srp_done;
 	int b_hnp_enable;
 	int a_clr_err;
+
+	/* OTG test device */
+	int tst_maint;
+	int otg_vbus_off;
 
 	/* Informative variables */
 	int a_bus_drop_inf;
