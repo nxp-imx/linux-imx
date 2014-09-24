@@ -367,6 +367,23 @@ static void hnp_polling_timer_work(unsigned long arg)
 	ci_otg_queue_work(ci);
 }
 
+static void a_tst_maint_tmout_func(void *ptr, unsigned long indicator)
+{
+	struct ci_hdrc *ci = (struct ci_hdrc *)ptr;
+
+	ci->fsm.tst_maint = 0;
+	if (ci->fsm.otg_vbus_off) {
+		ci->fsm.otg_vbus_off = 0;
+		dev_dbg(ci->dev,
+			"test device does not disconnect, end the session!\n");
+	}
+
+	/* End the session */
+	ci->fsm.a_bus_req = 0;
+	ci->fsm.a_bus_drop = 1;
+	ci_otg_queue_work(ci);
+}
+
 /* Initialize timers */
 static int ci_otg_init_timers(struct ci_hdrc *ci)
 {
@@ -434,6 +451,12 @@ static int ci_otg_init_timers(struct ci_hdrc *ci)
 
 	setup_timer(&ci->hnp_polling_timer, hnp_polling_timer_work,
 							(unsigned long)ci);
+
+	ci->fsm_timer->timer_list[A_TST_MAINT] = otg_timer_initializer(ci,
+				&a_tst_maint_tmout_func, TA_TST_MAINT, 0);
+	if (ci->fsm_timer->timer_list[A_TST_MAINT] == NULL)
+		return -ENOMEM;
+
 	return 0;
 }
 
