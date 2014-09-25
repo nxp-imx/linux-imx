@@ -648,26 +648,30 @@ void __init imx6sl_pm_init(void)
 void __init imx6sx_pm_init(void)
 {
 	imx6_pm_common_init(&imx6sx_pm_data);
+	if (imx_get_soc_revision() < IMX_CHIP_REVISION_1_2) {
 	/*
 	 * As there is a 16K OCRAM(start from 0x8f8000)
 	 * dedicated for low power function on i.MX6SX,
 	 * but ROM did NOT do the ocram address change
 	 * accordingly, so we need to add a data patch
 	 * to workaround this issue, otherwise, system
-	 * will fail to resume from DSM mode.
+	 * will fail to resume from DSM mode. TO1.2 fixes
+	 * this issue.
 	 */
-	romcp = syscon_regmap_lookup_by_compatible("fsl,imx6sx-romcp");
-	if (IS_ERR(romcp)) {
-		pr_err("failed to find fsl,imx6sx-romcp regmap\n");
-		return;
+		romcp = syscon_regmap_lookup_by_compatible(
+			"fsl,imx6sx-romcp");
+		if (IS_ERR(romcp)) {
+			pr_err("failed to find fsl,imx6sx-romcp regmap\n");
+			return;
+		}
+		regmap_write(romcp, ROMC_ROMPATCH0D, iram_tlb_phys_addr);
+		regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
+			BM_ROMPATCHCNTL_0D, BM_ROMPATCHCNTL_0D);
+		regmap_update_bits(romcp, ROMC_ROMPATCHENL,
+			BM_ROMPATCHENL_0D, BM_ROMPATCHENL_0D);
+		regmap_write(romcp, ROMC_ROMPATCH0A,
+			ROM_ADDR_FOR_INTERNAL_RAM_BASE);
+		regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
+			BM_ROMPATCHCNTL_DIS, ~BM_ROMPATCHCNTL_DIS);
 	}
-	regmap_write(romcp, ROMC_ROMPATCH0D, iram_tlb_phys_addr);
-	regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
-		BM_ROMPATCHCNTL_0D, BM_ROMPATCHCNTL_0D);
-	regmap_update_bits(romcp, ROMC_ROMPATCHENL,
-		BM_ROMPATCHENL_0D, BM_ROMPATCHENL_0D);
-	regmap_write(romcp, ROMC_ROMPATCH0A,
-		ROM_ADDR_FOR_INTERNAL_RAM_BASE);
-	regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
-		BM_ROMPATCHCNTL_DIS, ~BM_ROMPATCHCNTL_DIS);
 }
