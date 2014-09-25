@@ -67,7 +67,6 @@ struct caam_drv_private {
 
 	struct device *dev;
 	struct device *smdev;
-	struct device *secviodev;
 	struct platform_device **jrpdev; /* Alloc'ed array per sub-device */
 	struct platform_device *pdev;
 
@@ -76,7 +75,6 @@ struct caam_drv_private {
 	struct caam_deco **deco; /* DECO/CCB views */
 	struct caam_assurance *ac;
 	struct caam_queue_if *qi; /* QI control region */
-	struct snvs_full __iomem *snvs;	/* SNVS HP+LP register space */
 	dma_addr_t __iomem *sm_base;	/* Secure memory storage base */
 	u32 sm_size;
 
@@ -86,7 +84,6 @@ struct caam_drv_private {
 	 */
 	u8 total_jobrs;		/* Total Job Rings in device */
 	u8 qi_present;		/* Nonzero if QI present in device */
-	int secvio_irq;		/* Security violation interrupt number */
 
 #define	RNG4_MAX_HANDLES 2
 	/* RNG4 block */
