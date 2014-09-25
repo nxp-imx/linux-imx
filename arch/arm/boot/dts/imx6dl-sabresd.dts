@@ -39,3 +39,7 @@
 &mxcfb2 {
 	status = "okay";
 };
+
+&pxp {
+	status = "okay";
+};
