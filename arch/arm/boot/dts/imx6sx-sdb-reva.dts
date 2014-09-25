@@ -1,0 +1,24 @@
+/*
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "imx6sx-sdb.dts"
+
+/*
+ * The CAN transceiver is changed on RevB board.
+ * This dts is used for support the old CAN transceiver on RevA board
+ */
+
+&flexcan1 {
+	trx-en-gpio = <&gpio4 25 GPIO_ACTIVE_HIGH>;
+	trx-stby-gpio = <&gpio4 27 GPIO_ACTIVE_HIGH>;
+};
+
+&flexcan2 {
+	trx-en-gpio = <&gpio4 25 GPIO_ACTIVE_LOW>;
+	trx-stby-gpio = <&gpio4 27 GPIO_ACTIVE_LOW>;
+};
