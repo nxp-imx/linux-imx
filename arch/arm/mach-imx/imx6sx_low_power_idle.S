@@ -303,6 +303,22 @@
 	ldr	r7, [r10, #0x150]
 	orr	r7, r7, #0x1
 	str	r7, [r10, #0x150]
+
+	/* only switch to RC-OSC clk after TO1.2 */
+	ldr	r7, [r10, #0x260]
+	and	r7, r7, #0x3
+	cmp	r7, #0x2
+	blt	10f
+
+	/* switch to RC-OSC */
+	ldr	r7, [r10, #0x270]
+	orr	r7, r7, #0x10
+	str	r7, [r10, #0x270]
+
+	/* turn off XTAL-OSC */
+	ldr	r7, [r10, #0x150]
+	orr	r7, r7, #0x40000000
+	str	r7, [r10, #0x150]
 10:
 	/* lower OSC current by 37.5% */
 	ldr	r7, [r10, #0x150]
@@ -322,6 +338,34 @@
 	bic	r7, r7, #0x6000
 	str	r7, [r10, #0x150]
 
+	/* only switch to RC-OSC after TO1.2 */
+	ldr	r7, [r10, #0x260]
+	and	r7, r7, #0x3
+	cmp	r7, #0x2
+	blt	15f
+
+	/* turn on XTAL-OSC and detector */
+	ldr	r7, [r10, #0x150]
+	bic	r7, r7, #0x40000000
+	orr	r7, r7, #0x10000
+	str	r7, [r10, #0x150]
+
+	/* wait for XTAL stable */
+14:
+	ldr	r7, [r10, #0x150]
+	ands	r7, r7, #0x8000
+	beq	14b
+
+	/* switch to XTAL-OSC */
+	ldr	r7, [r10, #0x270]
+	bic	r7, r7, #0x10
+	str	r7, [r10, #0x270]
+
+	/* turn off XTAL-OSC detector */
+	ldr	r7, [r10, #0x150]
+	bic	r7, r7, #0x10000
+	str	r7, [r10, #0x150]
+15:
 	/* check whether we need to enable 2P5/1P1 */
 	ldr	r7, [r10, #0x110]
 	ands	r7, r7, #0x40000

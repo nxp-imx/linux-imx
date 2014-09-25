@@ -28,6 +28,23 @@
 
 #define MX6_MAX_MMDC_IO_NUM	19
 
+#define PMU_LOW_PWR_CTRL	0x270
+#define XTALOSC24M_OSC_CONFIG0	0x2a0
+#define XTALOSC24M_OSC_CONFIG1	0x2b0
+#define XTALOSC24M_OSC_CONFIG2	0x2c0
+#define XTALOSC24M_OSC_CONFIG0_RC_OSC_PROG_CUR_SHIFT	24
+#define XTALOSC24M_OSC_CONFIG0_HYST_MINUS_MASK		0xf
+#define XTALOSC24M_OSC_CONFIG0_HYST_MINUS_SHIFT		16
+#define XTALOSC24M_OSC_CONFIG0_HYST_PLUS_MASK		0xf
+#define XTALOSC24M_OSC_CONFIG0_HYST_PLUS_SHIFT		12
+#define XTALOSC24M_OSC_CONFIG0_RC_OSC_PROG_SHIFT	4
+#define XTALOSC24M_OSC_CONFIG0_ENABLE_SHIFT		1
+#define XTALOSC24M_OSC_CONFIG0_START_SHIFT		0
+#define XTALOSC24M_OSC_CONFIG1_COUNT_RC_CUR_SHIFT	20
+#define XTALOSC24M_OSC_CONFIG1_COUNT_RC_TRG_SHIFT	0
+#define XTALOSC24M_OSC_CONFIG2_COUNT_1M_TRG_MASK	0xfff
+#define XTALOSC24M_OSC_CONFIG2_COUNT_1M_TRG_SHIFT	0
+
 static void __iomem *wfi_iram_base;
 static void __iomem *wfi_iram_base_phys;
 extern unsigned long iram_tlb_phys_addr;
@@ -139,7 +156,7 @@ int __init imx6sx_cpuidle_init(void)
 	struct imx6_cpuidle_pm_info *cpuidle_pm_info;
 	int i;
 	const u32 *mmdc_offset_array;
-	u32 wfi_code_size;
+	u32 wfi_code_size, val;
 
 	wfi_iram_base_phys = (void *)(iram_tlb_phys_addr + total_suspend_size);
 
@@ -191,6 +208,70 @@ int __init imx6sx_cpuidle_init(void)
 		&imx6sx_low_power_idle, wfi_code_size);
 
 	imx6_set_cache_lpm_in_wait(true);
+
+	if (imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) {
+		/*
+		 * enable RC-OSC here, as it needs at least 4ms for RC-OSC to
+		 * be stable, low power idle flow can NOT endure this big
+		 * latency, so we make RC-OSC self-tuning enabled here.
+		 */
+		val = readl_relaxed(cpuidle_pm_info->anatop_base.vbase +
+			PMU_LOW_PWR_CTRL);
+		val |= 0x1;
+		writel_relaxed(val, cpuidle_pm_info->anatop_base.vbase +
+			PMU_LOW_PWR_CTRL);
+		/*
+		 * config RC-OSC freq
+		 * tune_enable = 1;tune_start = 1;hyst_plus = 0;hyst_minus = 0;
+		 * osc_prog = 0xa7;
+		 */
+		writel_relaxed(
+			0x4 << XTALOSC24M_OSC_CONFIG0_RC_OSC_PROG_CUR_SHIFT |
+			0xa7 << XTALOSC24M_OSC_CONFIG0_RC_OSC_PROG_SHIFT |
+			0x1 << XTALOSC24M_OSC_CONFIG0_ENABLE_SHIFT |
+			0x1 << XTALOSC24M_OSC_CONFIG0_START_SHIFT,
+			cpuidle_pm_info->anatop_base.vbase +
+			XTALOSC24M_OSC_CONFIG0);
+		/* set count_trg = 0x2dc */
+		writel_relaxed(
+			0x40 << XTALOSC24M_OSC_CONFIG1_COUNT_RC_CUR_SHIFT |
+			0x2dc << XTALOSC24M_OSC_CONFIG1_COUNT_RC_TRG_SHIFT,
+			cpuidle_pm_info->anatop_base.vbase +
+			XTALOSC24M_OSC_CONFIG1);
+		/* wait 4ms according to hardware design */
+		msleep(4);
+		/*
+		 * now add some hysteresis, hyst_plus=3, hyst_minus=3
+		 * (the minimum hysteresis that looks good is 2)
+		 */
+		val = readl_relaxed(cpuidle_pm_info->anatop_base.vbase +
+			XTALOSC24M_OSC_CONFIG0);
+		val &= ~((XTALOSC24M_OSC_CONFIG0_HYST_MINUS_MASK <<
+			XTALOSC24M_OSC_CONFIG0_HYST_MINUS_SHIFT) |
+			(XTALOSC24M_OSC_CONFIG0_HYST_PLUS_MASK <<
+			XTALOSC24M_OSC_CONFIG0_HYST_PLUS_SHIFT));
+		val |= (0x3 << XTALOSC24M_OSC_CONFIG0_HYST_MINUS_SHIFT) |
+			(0x3 << XTALOSC24M_OSC_CONFIG0_HYST_PLUS_SHIFT);
+		writel_relaxed(val, cpuidle_pm_info->anatop_base.vbase +
+			XTALOSC24M_OSC_CONFIG0);
+		/* set the count_1m_trg = 0x2d7 */
+		val = readl_relaxed(cpuidle_pm_info->anatop_base.vbase +
+			XTALOSC24M_OSC_CONFIG2);
+		val &= ~(XTALOSC24M_OSC_CONFIG2_COUNT_1M_TRG_MASK <<
+			XTALOSC24M_OSC_CONFIG2_COUNT_1M_TRG_SHIFT);
+		val |= 0x2d7 << XTALOSC24M_OSC_CONFIG2_COUNT_1M_TRG_SHIFT;
+		writel_relaxed(val, cpuidle_pm_info->anatop_base.vbase +
+			XTALOSC24M_OSC_CONFIG2);
+		/*
+		 * hardware design require to write XTALOSC24M_OSC_CONFIG0 or
+		 * XTALOSC24M_OSC_CONFIG1 to
+		 * make XTALOSC24M_OSC_CONFIG2 write work
+		 */
+		val = readl_relaxed(cpuidle_pm_info->anatop_base.vbase +
+			XTALOSC24M_OSC_CONFIG1);
+		writel_relaxed(val, cpuidle_pm_info->anatop_base.vbase +
+			XTALOSC24M_OSC_CONFIG1);
+	}
 
 	return cpuidle_register(&imx6sx_cpuidle_driver, NULL);
 }
