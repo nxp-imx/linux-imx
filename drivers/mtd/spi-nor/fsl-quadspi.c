@@ -672,7 +672,7 @@ static int fsl_qspi_clk_disable_unprep(struct fsl_qspi *q)
 {
 	clk_disable_unprepare(q->clk);
 	clk_disable_unprepare(q->clk_en);
-
+	return 0;
 }
 
 /* We use this function to do some basic init for spi_nor_scan(). */
