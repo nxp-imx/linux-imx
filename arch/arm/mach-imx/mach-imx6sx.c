@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -27,7 +27,9 @@
 static struct fec_platform_data fec_pdata[2];
 static struct flexcan_platform_data flexcan_pdata[2];
 static int flexcan_en_gpio;
+static int flexcan_en_active_high;
 static int flexcan_stby_gpio;
+static int flexcan_stby_active_high;
 static int flexcan0_en;
 static int flexcan1_en;
 
@@ -80,18 +82,24 @@ static void __init imx6sx_enet_plt_init(void)
 static void mx6sx_flexcan_switch(void)
 {
 	if (flexcan0_en || flexcan1_en) {
-		gpio_set_value_cansleep(flexcan_en_gpio, 0);
-		gpio_set_value_cansleep(flexcan_stby_gpio, 0);
-		gpio_set_value_cansleep(flexcan_en_gpio, 1);
-		gpio_set_value_cansleep(flexcan_stby_gpio, 1);
+		gpio_set_value_cansleep(flexcan_en_gpio,
+					!flexcan_en_active_high);
+		gpio_set_value_cansleep(flexcan_stby_gpio,
+					!flexcan_stby_active_high);
+		gpio_set_value_cansleep(flexcan_en_gpio,
+					flexcan_en_active_high);
+		gpio_set_value_cansleep(flexcan_stby_gpio,
+					flexcan_stby_active_high);
 	} else {
 		/*
 		* avoid to disable CAN xcvr if any of the CAN interfaces
 		* are down. XCRV will be disabled only if both CAN2
 		* interfaces are DOWN.
 		*/
-		gpio_set_value_cansleep(flexcan_en_gpio, 0);
-		gpio_set_value_cansleep(flexcan_stby_gpio, 0);
+		gpio_set_value_cansleep(flexcan_en_gpio,
+					!flexcan_en_active_high);
+		gpio_set_value_cansleep(flexcan_stby_gpio,
+					!flexcan_stby_active_high);
 	}
 }
 
@@ -110,20 +118,26 @@ static void imx6sx_arm2_flexcan1_switch(int enable)
 static int __init imx6sx_arm2_flexcan_fixup(void)
 {
 	struct device_node *np;
+	enum of_gpio_flags en_flags, stby_flags;
 	bool canfd_en = false;
 
 	np = of_find_node_by_path("/soc/aips-bus@02000000/can@02090000");
 	if (!np)
 		return -ENODEV;
 
-	flexcan_en_gpio = of_get_named_gpio(np, "trx-en-gpio", 0);
-	flexcan_stby_gpio = of_get_named_gpio(np, "trx-stby-gpio", 0);
+	flexcan_en_gpio = of_get_named_gpio_flags(np, "trx-en-gpio", 0, &en_flags);
+	flexcan_stby_gpio = of_get_named_gpio_flags(np, "trx-stby-gpio", 0, &stby_flags);
 	if (gpio_is_valid(flexcan_en_gpio) && gpio_is_valid(flexcan_stby_gpio) &&
 		!gpio_request_one(flexcan_en_gpio, GPIOF_DIR_OUT, "flexcan-trx-en") &&
 		!gpio_request_one(flexcan_stby_gpio, GPIOF_DIR_OUT, "flexcan-trx-stby")) {
 		/* flexcan 0 & 1 are using the same GPIOs for transceiver */
 		flexcan_pdata[0].transceiver_switch = imx6sx_arm2_flexcan0_switch;
 		flexcan_pdata[1].transceiver_switch = imx6sx_arm2_flexcan1_switch;
+		if (!(en_flags & OF_GPIO_ACTIVE_LOW))
+			flexcan_en_active_high = 1;
+
+		if (!(stby_flags & OF_GPIO_ACTIVE_LOW))
+			flexcan_stby_active_high = 1;
 	}
 
 	/*
