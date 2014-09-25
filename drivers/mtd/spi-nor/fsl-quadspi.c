@@ -606,7 +606,7 @@ static void fsl_qspi_init_abh_read(struct fsl_qspi *q)
 	u32 reg, reg2;
 	int seqid;
 
-	/* AHB configuration for access buffer 0/1/2 .*/
+	/* AHB configuration for access buffer 0/1/2 . */
 	writel(QUADSPI_BUFXCR_INVALID_MSTRID, base + QUADSPI_BUF0CR);
 	writel(QUADSPI_BUFXCR_INVALID_MSTRID, base + QUADSPI_BUF1CR);
 	writel(QUADSPI_BUFXCR_INVALID_MSTRID, base + QUADSPI_BUF2CR);
@@ -649,6 +649,32 @@ static void fsl_qspi_init_abh_read(struct fsl_qspi *q)
 	}
 }
 
+/* This function was used to prepare and enable QSPI clock */
+static int fsl_qspi_clk_prep_enable(struct fsl_qspi *q)
+{
+	int ret;
+
+	ret = clk_prepare_enable(q->clk_en);
+	if (ret)
+		return ret;
+
+	ret = clk_prepare_enable(q->clk);
+	if (ret) {
+		clk_disable_unprepare(q->clk_en);
+		return ret;
+	}
+
+	return 0;
+}
+
+/* This function was used to disable and unprepare QSPI clock */
+static int fsl_qspi_clk_disable_unprep(struct fsl_qspi *q)
+{
+	clk_disable_unprepare(q->clk);
+	clk_disable_unprepare(q->clk_en);
+
+}
+
 /* We use this function to do some basic init for spi_nor_scan(). */
 static int fsl_qspi_nor_setup(struct fsl_qspi *q)
 {
@@ -656,8 +682,16 @@ static int fsl_qspi_nor_setup(struct fsl_qspi *q)
 	u32 reg;
 	int ret;
 
-	/* the default frequency, we will change it in the future.*/
+	/* disable and unprepare clock first */
+	fsl_qspi_clk_disable_unprep(q);
+
+	/* the default frequency, we will change it in the future. */
 	ret = clk_set_rate(q->clk, 66000000);
+	if (ret)
+		return ret;
+
+	/* prepare and enable the clock */
+	ret = fsl_qspi_clk_prep_enable(q);
 	if (ret)
 		return ret;
 
@@ -698,7 +732,15 @@ static int fsl_qspi_nor_setup_last(struct fsl_qspi *q)
 	if (is_imx6sx_qspi(q))
 		rate *= 4;
 
+	/* disable and unprepare clock first */
+	fsl_qspi_clk_disable_unprep(q);
+
 	ret = clk_set_rate(q->clk, rate);
+	if (ret)
+		return ret;
+
+	/* prepare and enable the clock */
+	ret = fsl_qspi_clk_prep_enable(q);
 	if (ret)
 		return ret;
 
@@ -828,15 +870,9 @@ static int fsl_qspi_prep(struct spi_nor *nor, enum spi_nor_ops ops)
 
 	mutex_lock(&q->lock);
 
-	ret = clk_enable(q->clk_en);
+	ret = fsl_qspi_clk_prep_enable(q);
 	if (ret)
 		return ret;
-
-	ret = clk_enable(q->clk);
-	if (ret) {
-		clk_disable(q->clk_en);
-		return ret;
-	}
 
 	fsl_qspi_set_base_addr(q, nor);
 	return 0;
@@ -846,8 +882,7 @@ static void fsl_qspi_unprep(struct spi_nor *nor, enum spi_nor_ops ops)
 {
 	struct fsl_qspi *q = nor->priv;
 
-	clk_disable(q->clk);
-	clk_disable(q->clk_en);
+	fsl_qspi_clk_disable_unprep(q);
 	mutex_unlock(&q->lock);
 }
 
@@ -903,16 +938,9 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 		goto map_failed;
 	}
 
-	ret = clk_prepare_enable(q->clk_en);
+	ret = fsl_qspi_clk_prep_enable(q);
 	if (ret) {
-		dev_err(dev, "can not enable the qspi_en clock\n");
-		goto map_failed;
-	}
-
-	ret = clk_prepare_enable(q->clk);
-	if (ret) {
-		clk_disable_unprepare(q->clk_en);
-		dev_err(dev, "can not enable the qspi clock\n");
+		dev_err(dev, "can not enable the clock\n");
 		goto map_failed;
 	}
 
@@ -1031,8 +1059,7 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 	if (ret)
 		goto last_init_failed;
 
-	clk_disable(q->clk);
-	clk_disable(q->clk_en);
+	fsl_qspi_clk_disable_unprep(q);
 	dev_info(dev, "QuadSPI SPI NOR flash driver\n");
 	return 0;
 
@@ -1041,8 +1068,7 @@ last_init_failed:
 		mtd_device_unregister(&q->mtd[i]);
 
 irq_failed:
-	clk_disable_unprepare(q->clk);
-	clk_disable_unprepare(q->clk_en);
+	fsl_qspi_clk_disable_unprep(q);
 map_failed:
 	dev_err(dev, "Freescale QuadSPI probe failed\n");
 	return ret;
@@ -1060,8 +1086,6 @@ static int fsl_qspi_remove(struct platform_device *pdev)
 	writel(QUADSPI_MCR_MDIS_MASK, q->iobase + QUADSPI_MCR);
 	writel(0x0, q->iobase + QUADSPI_RSER);
 
-	clk_unprepare(q->clk);
-	clk_unprepare(q->clk_en);
 	return 0;
 }
 
@@ -1072,11 +1096,18 @@ static int fsl_qspi_suspend(struct platform_device *pdev, pm_message_t state)
 
 static int fsl_qspi_resume(struct platform_device *pdev)
 {
+	int ret;
 	struct fsl_qspi *q = platform_get_drvdata(pdev);
+
+	ret = fsl_qspi_clk_prep_enable(q);
+	if (ret)
+		return ret;
 
 	fsl_qspi_nor_setup(q);
 	fsl_qspi_set_map_addr(q);
 	fsl_qspi_nor_setup_last(q);
+
+	fsl_qspi_clk_disable_unprep(q);
 
 	return 0;
 }
