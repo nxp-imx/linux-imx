@@ -194,6 +194,19 @@ void dw_pcie_msi_init(struct pcie_port *pp)
 	dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_HI, 4, 0);
 }
 
+void dw_pcie_msi_cfg_store(struct pcie_port *pp)
+{
+	dw_pcie_rd_own_conf(pp, PCIE_MSI_INTR0_ENABLE, 4, &pp->msi_enable);
+}
+
+void dw_pcie_msi_cfg_restore(struct pcie_port *pp)
+{
+	dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_LO, 4,
+			virt_to_phys((void *)pp->msi_data));
+	dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_HI, 4, 0);
+	dw_pcie_wr_own_conf(pp, PCIE_MSI_INTR0_ENABLE, 4, pp->msi_enable);
+}
+
 static int find_valid_pos0(struct pcie_port *pp, int msgvec, int pos, int *pos0)
 {
 	int flag = 1;
@@ -570,9 +583,6 @@ int __init dw_pcie_host_init(struct pcie_port *pp)
 
 	dw_pcie_wr_own_conf(pp, PCI_BASE_ADDRESS_0, 4, 0);
 
-	/* program correct class for RC */
-	dw_pcie_wr_own_conf(pp, PCI_CLASS_DEVICE, 2, PCI_CLASS_BRIDGE_PCI);
-
 	dw_pcie_rd_own_conf(pp, PCIE_LINK_WIDTH_SPEED_CONTROL, 4, &val);
 	val |= PORT_LOGIC_SPEED_CHANGE;
 	dw_pcie_wr_own_conf(pp, PCIE_LINK_WIDTH_SPEED_CONTROL, 4, val);
@@ -916,6 +926,11 @@ void dw_pcie_setup_rc(struct pcie_port *pp)
 	memlimit = (config->mem_size + (u32)pp->mem_base) & 0xfff00000;
 	val = memlimit | membase;
 	dw_pcie_writel_rc(pp, val, PCI_MEMORY_BASE);
+
+	/* program correct class for RC */
+	dw_pcie_readl_rc(pp, PCI_CLASS_REVISION, &val);
+	val |= PCI_CLASS_BRIDGE_PCI << 16;
+	dw_pcie_writel_rc(pp, val, PCI_CLASS_REVISION);
 
 	/* setup command register */
 	dw_pcie_readl_rc(pp, PCI_COMMAND, &val);
