@@ -257,3 +257,27 @@
 	vmmc-supply = <&reg_sd3_vmmc>;
 	status = "okay";
 };
+
+&qspi1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_qspi1_1>;
+	/* only map 128MB */
+	reg = <0x021e0000 0x4000>, <0x60000000 0x8000000>;
+	status = "okay";
+
+	flash0: n25q256a@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "micron,n25q256a";
+		spi-max-frequency = <53000000>;
+		reg = <0>;
+	};
+
+	flash1: n25q256a@1 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "micron,n25q256a";
+		spi-max-frequency = <53000000>;
+		reg = <1>;
+	};
+};

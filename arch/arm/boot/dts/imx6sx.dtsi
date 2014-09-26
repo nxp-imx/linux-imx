@@ -1003,6 +1003,19 @@
 				clocks = <&clks IMX6SX_CLK_OCOTP>;
 			};
 
+			qspi1: qspi@021e0000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,imx6sx-qspi";
+				reg = <0x021e0000 0x4000>, <0x60000000 0x10000000>;
+				reg-names = "QuadSPI", "QuadSPI-memory";
+				interrupts = <0 107 0x04>;
+				clocks = <&clks IMX6SX_CLK_QSPI1>,
+					<&clks IMX6SX_CLK_QSPI1>;
+				clock-names = "qspi_en", "qspi";
+				status = "disabled";
+			};
+
 			qspi2: qspi@021e4000 {
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -1586,6 +1599,25 @@
 		pinctrl_pwm4_0: pwm4grp-0 {
 			fsl,pins = <
 				MX6SX_PAD_SD1_DATA1__PWM4_OUT 0x110b0
+			>;
+		};
+	};
+
+	qspi1 {
+		pinctrl_qspi1_1: qspi1grp_1 {
+			fsl,pins = <
+				MX6SX_PAD_QSPI1A_DATA0__QSPI1_A_DATA_0  0x70a1
+				MX6SX_PAD_QSPI1A_DATA1__QSPI1_A_DATA_1  0x70a1
+				MX6SX_PAD_QSPI1A_DATA2__QSPI1_A_DATA_2  0x70a1
+				MX6SX_PAD_QSPI1A_DATA3__QSPI1_A_DATA_3  0x70a1
+				MX6SX_PAD_QSPI1A_SCLK__QSPI1_A_SCLK     0x70a1
+				MX6SX_PAD_QSPI1A_SS0_B__QSPI1_A_SS0_B   0x70a1
+				MX6SX_PAD_QSPI1B_DATA0__QSPI1_B_DATA_0  0x70a1
+				MX6SX_PAD_QSPI1B_DATA1__QSPI1_B_DATA_1  0x70a1
+				MX6SX_PAD_QSPI1B_DATA2__QSPI1_B_DATA_2  0x70a1
+				MX6SX_PAD_QSPI1B_DATA3__QSPI1_B_DATA_3  0x70a1
+				MX6SX_PAD_QSPI1B_SCLK__QSPI1_B_SCLK     0x70a1
+				MX6SX_PAD_QSPI1B_SS0_B__QSPI1_B_SS0_B   0x70a1
 			>;
 		};
 	};
