@@ -50,6 +50,7 @@ struct pcie_port {
 	struct irq_domain	*irq_domain;
 	unsigned long		msi_data;
 	u8			iatu_unroll_enabled;
+	unsigned int		msi_enable[MAX_MSI_CTRLS];
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_IRQS);
 };
 
@@ -79,6 +80,8 @@ int dw_pcie_cfg_write(void __iomem *addr, int size, u32 val);
 irqreturn_t dw_handle_msi_irq(struct pcie_port *pp);
 void dw_pcie_msi_init(struct pcie_port *pp);
 int dw_pcie_wait_for_link(struct pcie_port *pp);
+void dw_pcie_msi_cfg_store(struct pcie_port *pp);
+void dw_pcie_msi_cfg_restore(struct pcie_port *pp);
 int dw_pcie_link_up(struct pcie_port *pp);
 void dw_pcie_setup_rc(struct pcie_port *pp);
 int dw_pcie_host_init(struct pcie_port *pp);
