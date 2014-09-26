@@ -76,9 +76,15 @@
 			power-domains = <&gpc 1>;
 		};
 
-		ocram: sram@00900000 {
+		ocrams: sram@00900000 {
+			compatible = "fsl,lpm-sram";
+			reg = <0x00900000 0x4000>;
+			clocks = <&clks IMX6QDL_CLK_OCRAM>;
+		};
+
+		ocram: sram@00904000 {
 			compatible = "mmio-sram";
-			reg = <0x00900000 0x20000>;
+			reg = <0x00904000 0x1C000>;
 			clocks = <&clks IMX6QDL_CLK_OCRAM>;
 		};
 
