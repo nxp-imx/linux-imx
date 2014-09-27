@@ -400,6 +400,21 @@ static void b_srp_reqd_tmout_func(void *ptr, unsigned long indicator)
 	}
 }
 
+/*
+ * otg_hnp_reqd feature
+ * After B(UUT) switch to host, B should hand host role back
+ * to A(PET) within TB_TST_SUSP after setting configuration.
+ */
+static void b_tst_susp_tmout_func(void *ptr, unsigned long indicator)
+{
+	struct ci_hdrc *ci = (struct ci_hdrc *)ptr;
+
+	if (ci->transceiver->state == OTG_STATE_B_HOST) {
+		ci->fsm.b_bus_req = 0;
+		ci_otg_queue_work(ci);
+	}
+}
+
 /* Initialize timers */
 static int ci_otg_init_timers(struct ci_hdrc *ci)
 {
@@ -476,6 +491,11 @@ static int ci_otg_init_timers(struct ci_hdrc *ci)
 	ci->fsm_timer->timer_list[B_SRP_REQD] = otg_timer_initializer(ci,
 					&b_srp_reqd_tmout_func, TB_SRP_REQD, 0);
 	if (ci->fsm_timer->timer_list[B_SRP_REQD] == NULL)
+		return -ENOMEM;
+
+	ci->fsm_timer->timer_list[B_TST_SUSP] = otg_timer_initializer(ci,
+					&b_tst_susp_tmout_func, TB_TST_SUSP, 0);
+	if (ci->fsm_timer->timer_list[B_TST_SUSP] == NULL)
 		return -ENOMEM;
 
 	return 0;
