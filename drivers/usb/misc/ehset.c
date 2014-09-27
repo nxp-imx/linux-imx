@@ -126,10 +126,14 @@ static int ehset_probe(struct usb_interface *intf,
 		if (!hcd->phy->otg || !hcd->phy->otg->fsm)
 			return ret;
 
-		if (hcd->self.is_b_host)
-			return 0;
-
 		fsm = hcd->phy->otg->fsm;
+		/* B host enumerate test device */
+		if (hcd->self.is_b_host) {
+			otg_add_timer(fsm, B_TST_SUSP);
+			ret = 0;
+			break;
+		}
+
 		fsm->tst_maint = 1;
 		otg_add_timer(fsm, A_TST_MAINT);
 		if (le16_to_cpu(dev->descriptor.bcdDevice) & 0x1)
