@@ -86,6 +86,10 @@ void otg_leave_state(struct otg_fsm *fsm, enum usb_otg_state old_state)
 	case OTG_STATE_B_HOST:
 		if (fsm->otg->gadget)
 			fsm->otg->gadget->host_request_flag = 0;
+		if (fsm->otg_hnp_reqd) {
+			fsm->otg_hnp_reqd = 0;
+			fsm->b_bus_req = 0;
+		}
 		break;
 	case OTG_STATE_A_IDLE:
 		fsm->adp_prb = 0;
@@ -145,6 +149,11 @@ int otg_set_state(struct otg_fsm *fsm, enum usb_otg_state new_state)
 		otg_start_adp_sns(fsm);
 		otg_set_protocol(fsm, PROTO_UNDEF);
 		otg_add_timer(fsm, B_SE0_SRP);
+		if (fsm->otg_hnp_reqd) {
+			fsm->otg_hnp_reqd = 0;
+			fsm->b_bus_req = 0;
+			fsm->otg->gadget->host_request_flag = 0;
+		}
 		break;
 	case OTG_STATE_B_SRP_INIT:
 		otg_start_pulse(fsm);
