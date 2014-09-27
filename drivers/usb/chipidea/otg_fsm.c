@@ -384,6 +384,22 @@ static void a_tst_maint_tmout_func(void *ptr, unsigned long indicator)
 	ci_otg_queue_work(ci);
 }
 
+/*
+ * otg_srp_reqd feature
+ * After A(PET) turn off vbus, B(UUT) should start this timer to do SRP
+ * when the timer expires.
+ */
+static void b_srp_reqd_tmout_func(void *ptr, unsigned long indicator)
+{
+	struct ci_hdrc *ci = (struct ci_hdrc *)ptr;
+
+	ci->fsm.otg_srp_reqd = 0;
+	if (ci->transceiver->state == OTG_STATE_B_IDLE) {
+		ci->fsm.b_bus_req = 1;
+		ci_otg_queue_work(ci);
+	}
+}
+
 /* Initialize timers */
 static int ci_otg_init_timers(struct ci_hdrc *ci)
 {
@@ -455,6 +471,11 @@ static int ci_otg_init_timers(struct ci_hdrc *ci)
 	ci->fsm_timer->timer_list[A_TST_MAINT] = otg_timer_initializer(ci,
 				&a_tst_maint_tmout_func, TA_TST_MAINT, 0);
 	if (ci->fsm_timer->timer_list[A_TST_MAINT] == NULL)
+		return -ENOMEM;
+
+	ci->fsm_timer->timer_list[B_SRP_REQD] = otg_timer_initializer(ci,
+					&b_srp_reqd_tmout_func, TB_SRP_REQD, 0);
+	if (ci->fsm_timer->timer_list[B_SRP_REQD] == NULL)
 		return -ENOMEM;
 
 	return 0;
@@ -821,6 +842,8 @@ irqreturn_t ci_otg_fsm_irq(struct ci_hdrc *ci)
 					ci_otg_add_timer(ci, B_SSEND_SRP);
 				if (fsm->b_bus_req)
 					fsm->b_bus_req = 0;
+				if (fsm->otg_srp_reqd)
+					ci_otg_add_timer(ci, B_SRP_REQD);
 			} else {
 				ci->vbus_glitch_check_event = true;
 			}
