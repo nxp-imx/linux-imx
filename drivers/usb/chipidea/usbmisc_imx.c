@@ -349,6 +349,7 @@ static int usbmisc_imx6q_set_wakeup
 	if (enabled) {
 		val |= imx6q_finalize_wakeup_setting(data);
 		writel(reg | val, usbmisc->base + data->index * 4);
+		spin_unlock_irqrestore(&usbmisc->lock, flags);
 		if (vbus_wakeup_reg)
 			ret = regulator_enable(vbus_wakeup_reg);
 	} else {
@@ -357,10 +358,10 @@ static int usbmisc_imx6q_set_wakeup
 		val = MX6_BM_WAKEUP_ENABLE | MX6_BM_VBUS_WAKEUP
 			| MX6_BM_ID_WAKEUP;
 		writel(reg & ~val, usbmisc->base + data->index * 4);
+		spin_unlock_irqrestore(&usbmisc->lock, flags);
 		if (vbus_wakeup_reg && regulator_is_enabled(vbus_wakeup_reg))
 			regulator_disable(vbus_wakeup_reg);
 	}
-	spin_unlock_irqrestore(&usbmisc->lock, flags);
 
 	return ret;
 }
