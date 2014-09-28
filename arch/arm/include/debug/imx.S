@@ -19,12 +19,11 @@
  * globally for multi-platform build to use a fixed virtual address
  * for low-level debug uart port across platforms.
  */
-#define IMX_IO_P2V(x)	(						\
-			(((x) & 0x80000000) >> 7) |			\
-			(0xf4000000 +					\
-			(((x) & 0x50000000) >> 6) +			\
-			(((x) & 0x0b000000) >> 4) +			\
-			(((x) & 0x000fffff))))
+#define IMX_IO_P2V(x)   (			\
+		(0xf4000000 +			\
+		(((x) & 0x50000000) >> 4) +	\
+		(((x) & 0x0a000000) >> 4) +	\
+		(((x) & 0x00ffffff))))
 
 #define UART_VADDR	IMX_IO_P2V(UART_PADDR)
 

@@ -19,11 +19,13 @@
 #include <linux/mfd/syscon/imx6q-iomuxc-gpr.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/of_fdt.h>
 #include <linux/of_platform.h>
 #include <linux/regmap.h>
 #include <linux/suspend.h>
 #include <asm/cacheflush.h>
 #include <asm/fncpy.h>
+#include <asm/mach/map.h>
 #include <asm/proc-fns.h>
 #include <asm/suspend.h>
 #include <asm/tlb.h>
@@ -63,6 +65,9 @@
 
 #define MX6Q_SUSPEND_OCRAM_SIZE		0x1000
 #define MX6_MAX_MMDC_IO_NUM		33
+
+unsigned long iram_tlb_base_addr;
+unsigned long iram_tlb_phys_addr;
 
 static void __iomem *ccm_base;
 static void __iomem *suspend_ocram_base;
@@ -195,6 +200,7 @@ struct imx6_cpu_pm_info {
 	struct imx6_pm_base ccm_base;
 	struct imx6_pm_base gpc_base;
 	struct imx6_pm_base l2_base;
+	u32 ttbr1; /* Store TTBR1 */
 	u32 mmdc_io_num; /* Number of MMDC IOs which need saved/restored. */
 	u32 mmdc_io_val[MX6_MAX_MMDC_IO_NUM][2]; /* To save offset and value */
 } __aligned(8);
@@ -332,6 +338,13 @@ static int imx6q_suspend_finish(unsigned long val)
 
 static int imx6q_pm_enter(suspend_state_t state)
 {
+	if (!iram_tlb_base_addr) {
+		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume \
+			 code. Please ensure device tree has an entry for \
+			 fsl,lpm-sram.\n");
+		return -EINVAL;
+	}
+
 	switch (state) {
 	case PM_SUSPEND_MEM:
 		imx6q_set_lpm(STOP_POWER_OFF);
@@ -372,44 +385,131 @@ void __init imx6q_pm_set_ccm_base(void __iomem *base)
 	ccm_base = base;
 }
 
-static int __init imx6_pm_get_base(struct imx6_pm_base *base,
-				const char *compat)
-{
-	struct device_node *node;
-	struct resource res;
-	int ret = 0;
+static struct map_desc iram_tlb_io_desc __initdata = {
+	/* .virtual and .pfn are run-time assigned */
+	.length     = SZ_1M,
+	.type       = MT_MEMORY_RWX_NONCACHED,
+};
 
-	node = of_find_compatible_node(NULL, NULL, compat);
-	if (!node) {
-		ret = -ENODEV;
-		goto out;
+static const char * const low_power_ocram_match[] __initconst = {
+	"fsl,lpm-sram",
+	NULL
+};
+
+static int __init imx6_dt_find_lpsram(unsigned long node, const char *uname,
+				      int depth, void *data)
+{
+	unsigned long lpram_addr;
+	__be32 *prop;
+
+	if (of_flat_dt_match(node, low_power_ocram_match)) {
+		prop = of_get_flat_dt_prop(node, "reg", NULL);
+		if (!prop)
+			return -EINVAL;
+
+		lpram_addr = be32_to_cpup(prop);
+
+		/* We need to create a 1M page table entry. */
+		iram_tlb_io_desc.virtual = IMX_IO_P2V(lpram_addr & 0xFFF00000);
+		iram_tlb_io_desc.pfn = __phys_to_pfn(lpram_addr & 0xFFF00000);
+		iram_tlb_phys_addr = lpram_addr;
+		iram_tlb_base_addr = IMX_IO_P2V(lpram_addr);
+
+		iotable_init(&iram_tlb_io_desc, 1);
 	}
 
-	ret = of_address_to_resource(node, 0, &res);
-	if (ret)
-		goto put_node;
+	return 0;
+}
 
-	base->pbase = res.start;
-	base->vbase = ioremap(res.start, resource_size(&res));
-	if (!base->vbase)
-		ret = -ENOMEM;
+/*
+ * AIPS1 and AIPS2 is not used, because it will trigger a BUG_ON if
+ * lowlevel debug and earlyprintk are configured.
+ *
+ * it is because there is a vm conflict because UART1 is mapped early if
+ * AIPS1 is mapped using 1M size.
+ *
+ * Thus no use AIPS1 and AIPS2 to avoid kernel BUG_ON.
+ */
+static struct map_desc imx6_pm_io_desc[] __initdata = {
+	imx_map_entry(MX6Q, MMDC_P0, MT_DEVICE),
+	imx_map_entry(MX6Q, MMDC_P1, MT_DEVICE),
+	imx_map_entry(MX6Q, SRC, MT_DEVICE),
+	imx_map_entry(MX6Q, IOMUXC, MT_DEVICE),
+	imx_map_entry(MX6Q, CCM, MT_DEVICE),
+	imx_map_entry(MX6Q, ANATOP, MT_DEVICE),
+	imx_map_entry(MX6Q, GPC, MT_DEVICE),
+	imx_map_entry(MX6Q, L2, MT_DEVICE),
+};
 
-put_node:
-	of_node_put(node);
-out:
-	return ret;
+void __init imx6_pm_map_io(void)
+{
+	unsigned long i;
+
+	iotable_init(imx6_pm_io_desc, ARRAY_SIZE(imx6_pm_io_desc));
+
+	/*
+	 * Get the address of IRAM or OCRAM to be used by the low
+	 * power code from the device tree.
+	 */
+	WARN_ON(of_scan_flat_dt(imx6_dt_find_lpsram, NULL));
+
+	/* Return if no IRAM space is allocated for suspend/resume code. */
+	if (!iram_tlb_base_addr) {
+		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume \
+			 code. Please ensure device tree has an entry for \
+			 fsl,lpm-sram.\n");
+		return;
+	}
+
+	/* Set all entries to 0. */
+	memset((void *)iram_tlb_base_addr, 0, MX6Q_IRAM_TLB_SIZE);
+
+	/*
+	 * Make sure the IRAM virtual address has a mapping in the IRAM
+	 * page table.
+	 *
+	 * Only use the top 11 bits [31-20] when storing the physical
+	 * address in the page table as only these bits are required
+	 * for 1M mapping.
+	 */
+	i = ((iram_tlb_base_addr >> 20) << 2) / 4;
+	*((unsigned long *)iram_tlb_base_addr + i) =
+		(iram_tlb_phys_addr & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
+
+	/*
+	 * Make sure the AIPS1 virtual address has a mapping in the
+	 * IRAM page table.
+	 */
+	i = ((IMX_IO_P2V(MX6Q_AIPS1_BASE_ADDR) >> 20) << 2) / 4;
+	*((unsigned long *)iram_tlb_base_addr + i) =
+		(MX6Q_AIPS1_BASE_ADDR & 0xFFF00000) |
+		TT_ATTRIB_NON_CACHEABLE_1M;
+
+	/*
+	 * Make sure the AIPS2 virtual address has a mapping in the
+	 * IRAM page table.
+	 */
+	i = ((IMX_IO_P2V(MX6Q_AIPS2_BASE_ADDR) >> 20) << 2) / 4;
+	*((unsigned long *)iram_tlb_base_addr + i) =
+		(MX6Q_AIPS2_BASE_ADDR & 0xFFF00000) |
+		TT_ATTRIB_NON_CACHEABLE_1M;
+
+	/*
+	 * Make sure the L2 controller virtual address has a mapping
+	 * in the IRAM page table.
+	 */
+	i = ((IMX_IO_P2V(MX6Q_L2_BASE_ADDR) >> 20) << 2) / 4;
+	*((unsigned long *)iram_tlb_base_addr + i) =
+		(MX6Q_L2_BASE_ADDR & 0xFFF00000) | TT_ATTRIB_NON_CACHEABLE_1M;
 }
 
 static int __init imx6q_suspend_init(const struct imx6_pm_socdata *socdata)
 {
-	phys_addr_t ocram_pbase;
 	struct device_node *node;
-	struct platform_device *pdev;
 	struct imx6_cpu_pm_info *pm_info;
-	struct gen_pool *ocram_pool;
-	unsigned long ocram_base;
 	int i, ret = 0;
 	const u32 *mmdc_offset_array;
+	unsigned long iram_paddr;
 
 	suspend_set_ops(&imx6q_pm_ops);
 
@@ -418,40 +518,24 @@ static int __init imx6q_suspend_init(const struct imx6_pm_socdata *socdata)
 		return -EINVAL;
 	}
 
-	node = of_find_compatible_node(NULL, NULL, "mmio-sram");
-	if (!node) {
-		pr_warn("%s: failed to find ocram node!\n", __func__);
-		return -ENODEV;
-	}
+	/*
+	 * 16KB is allocated for IRAM TLB, but only up 8k is for kernel TLB,
+	 * The lower 8K is not used, so use the lower 8K for IRAM code and
+	 * pm_info.
+	 *
+	 */
+	iram_paddr = iram_tlb_phys_addr + MX6_SUSPEND_IRAM_ADDR_OFFSET;
 
-	pdev = of_find_device_by_node(node);
-	if (!pdev) {
-		pr_warn("%s: failed to find ocram device!\n", __func__);
-		ret = -ENODEV;
-		goto put_node;
-	}
+	/* Make sure iram_paddr is 8 byte aligned. */
+	if ((uintptr_t)(iram_paddr) & (FNCPY_ALIGN - 1))
+		iram_paddr += FNCPY_ALIGN - iram_paddr % (FNCPY_ALIGN);
 
-	ocram_pool = dev_get_gen_pool(&pdev->dev);
-	if (!ocram_pool) {
-		pr_warn("%s: ocram pool unavailable!\n", __func__);
-		ret = -ENODEV;
-		goto put_node;
-	}
-
-	ocram_base = gen_pool_alloc(ocram_pool, MX6Q_SUSPEND_OCRAM_SIZE);
-	if (!ocram_base) {
-		pr_warn("%s: unable to alloc ocram!\n", __func__);
-		ret = -ENOMEM;
-		goto put_node;
-	}
-
-	ocram_pbase = gen_pool_virt_to_phys(ocram_pool, ocram_base);
-
-	suspend_ocram_base = __arm_ioremap_exec(ocram_pbase,
-		MX6Q_SUSPEND_OCRAM_SIZE, false);
+	/* Get the virtual address of the suspend code. */
+	suspend_ocram_base = (void *)IMX_IO_P2V(iram_paddr);
 
 	pm_info = suspend_ocram_base;
-	pm_info->pbase = ocram_pbase;
+	/* pbase points to iram_paddr. */
+	pm_info->pbase = iram_paddr;
 	pm_info->resume_addr = virt_to_phys(v7_cpu_resume);
 	pm_info->pm_info_size = sizeof(*pm_info);
 
@@ -460,38 +544,29 @@ static int __init imx6q_suspend_init(const struct imx6_pm_socdata *socdata)
 	 * so get ccm virtual address directly, as we already have
 	 * it from ccm driver.
 	 */
-	pm_info->ccm_base.vbase = ccm_base;
+	pm_info->ccm_base.pbase = MX6Q_CCM_BASE_ADDR;
+	pm_info->ccm_base.vbase = (void __iomem *)
+				   IMX_IO_P2V(MX6Q_CCM_BASE_ADDR);
 
-	ret = imx6_pm_get_base(&pm_info->mmdc_base, socdata->mmdc_compat);
-	if (ret) {
-		pr_warn("%s: failed to get mmdc base %d!\n", __func__, ret);
-		goto put_node;
-	}
+	pm_info->mmdc_base.pbase = MX6Q_MMDC_P0_BASE_ADDR;
+	pm_info->mmdc_base.vbase = (void __iomem *)
+				    IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR);
 
-	ret = imx6_pm_get_base(&pm_info->src_base, socdata->src_compat);
-	if (ret) {
-		pr_warn("%s: failed to get src base %d!\n", __func__, ret);
-		goto src_map_failed;
-	}
+	pm_info->src_base.pbase = MX6Q_SRC_BASE_ADDR;
+	pm_info->src_base.vbase = (void __iomem *)
+				   IMX_IO_P2V(MX6Q_SRC_BASE_ADDR);
 
-	ret = imx6_pm_get_base(&pm_info->iomuxc_base, socdata->iomuxc_compat);
-	if (ret) {
-		pr_warn("%s: failed to get iomuxc base %d!\n", __func__, ret);
-		goto iomuxc_map_failed;
-	}
+	pm_info->iomuxc_base.pbase = MX6Q_IOMUXC_BASE_ADDR;
+	pm_info->iomuxc_base.vbase = (void __iomem *)
+				      IMX_IO_P2V(MX6Q_IOMUXC_BASE_ADDR);
 
-	ret = imx6_pm_get_base(&pm_info->gpc_base, socdata->gpc_compat);
-	if (ret) {
-		pr_warn("%s: failed to get gpc base %d!\n", __func__, ret);
-		goto gpc_map_failed;
-	}
+	pm_info->gpc_base.pbase = MX6Q_GPC_BASE_ADDR;
+	pm_info->gpc_base.vbase = (void __iomem *)
+				   IMX_IO_P2V(MX6Q_GPC_BASE_ADDR);
 
-	ret = imx6_pm_get_base(&pm_info->l2_base, "arm,pl310-cache");
-	if (ret) {
-		pr_warn("%s: failed to get pl310-cache base %d!\n",
-			__func__, ret);
-		goto pl310_cache_map_failed;
-	}
+	pm_info->l2_base.pbase = MX6Q_L2_BASE_ADDR;
+	pm_info->l2_base.vbase = (void __iomem *)
+				  IMX_IO_P2V(MX6Q_L2_BASE_ADDR);
 
 	pm_info->cpu_type = socdata->cpu_type;
 	pm_info->mmdc_io_num = socdata->mmdc_io_num;
@@ -512,14 +587,6 @@ static int __init imx6q_suspend_init(const struct imx6_pm_socdata *socdata)
 
 	goto put_node;
 
-pl310_cache_map_failed:
-	iounmap(&pm_info->gpc_base.vbase);
-gpc_map_failed:
-	iounmap(&pm_info->iomuxc_base.vbase);
-iomuxc_map_failed:
-	iounmap(&pm_info->src_base.vbase);
-src_map_failed:
-	iounmap(&pm_info->mmdc_base.vbase);
 put_node:
 	of_node_put(node);
 

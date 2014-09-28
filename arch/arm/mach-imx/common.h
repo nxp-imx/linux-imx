@@ -126,6 +126,8 @@ void imx_smp_prepare(void);
 static inline void imx_scu_map_io(void) {}
 static inline void imx_smp_prepare(void) {}
 #endif
+extern void imx6_pm_map_io(void);
+
 void imx_src_init(void);
 void imx_gpc_init(void);
 void imx_gpc_pre_suspend(void);

@@ -159,8 +159,14 @@ static void __init imx6sx_init_late(void)
 		imx6sx_arm2_flexcan_fixup();
 }
 
+static void __init imx6sx_map_io(void)
+{
+	debug_ll_io_init();
+	imx6_pm_map_io();
+}
+
 DT_MACHINE_START(IMX6SX, "Freescale i.MX6 SoloX (Device Tree)")
-	.map_io		= debug_ll_io_init,
+	.map_io		= imx6sx_map_io,
 	.init_irq	= imx6sx_init_irq,
 	.init_machine	= imx6sx_init_machine,
 	.init_late	= imx6sx_init_late,

@@ -89,17 +89,16 @@
  *	AIPS1	0x53f00000+0x100000	->	0xf5700000+0x100000
  *	AIPS2	0x63f00000+0x100000	->	0xf5300000+0x100000
  * mx6q:
- *	SCU	0x00a00000+0x004000	->	0xf4000000+0x004000
+ *	SCU	0x00a00000+0x004000	->	0xf4a00000+0x004000
  *	CCM	0x020c4000+0x004000	->	0xf42c4000+0x004000
  *	ANATOP	0x020c8000+0x004000	->	0xf42c8000+0x004000
- *	UART4	0x021f0000+0x004000	->	0xf42f0000+0x004000
+ *	UART4	0x021f0000+0x004000	->	0xf43f0000+0x004000
  */
-#define IMX_IO_P2V(x)	(						\
-			(((x) & 0x80000000) >> 7) |			\
-			(0xf4000000 +					\
-			(((x) & 0x50000000) >> 6) +			\
-			(((x) & 0x0b000000) >> 4) +			\
-			(((x) & 0x000fffff))))
+#define IMX_IO_P2V(x)   (			\
+		(0xf4000000 +			\
+		(((x) & 0x50000000) >> 4) +	\
+		(((x) & 0x0a000000) >> 4) +	\
+		(((x) & 0x00ffffff))))
 
 #define IMX_IO_ADDRESS(x)	IOMEM(IMX_IO_P2V(x))
 
@@ -115,6 +114,7 @@
 #include "mx27.h"
 #include "mx1.h"
 #include "mx25.h"
+#include "mx6.h"
 
 #define imx_map_entry(soc, name, _type)	{				\
 	.virtual = soc ## _IO_P2V(soc ## _ ## name ## _BASE_ADDR),	\

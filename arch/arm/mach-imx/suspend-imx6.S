@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -58,8 +58,9 @@
 #define PM_INFO_MX6Q_GPC_V_OFFSET		0x34
 #define PM_INFO_MX6Q_L2_P_OFFSET		0x38
 #define PM_INFO_MX6Q_L2_V_OFFSET		0x3C
-#define PM_INFO_MMDC_IO_NUM_OFFSET		0x40
-#define PM_INFO_MMDC_IO_VAL_OFFSET		0x44
+#define PM_INFO_MX6Q_TTBR1_V_OFFSET		0x40
+#define PM_INFO_MMDC_IO_NUM_OFFSET		0x44
+#define PM_INFO_MMDC_IO_VAL_OFFSET		0x48
 
 #define MX6Q_SRC_GPR1	0x20
 #define MX6Q_SRC_GPR2	0x24
@@ -106,6 +107,7 @@
 	bne	1b
 
 	cmp	r5, #0x0
+	/* Here only MMDC0 is set */
 	ldreq	r11, [r0, #PM_INFO_MX6Q_MMDC_V_OFFSET]
 	ldrne	r11, [r0, #PM_INFO_MX6Q_MMDC_P_OFFSET]
 
@@ -147,7 +149,109 @@
 
 	.endm
 
+	.macro store_ttbr1
+
+	/* Store TTBR1 to pm_info->ttbr1 */
+	mrc	p15, 0, r7, c2, c0, 1
+	str	r7, [r0, #PM_INFO_MX6Q_TTBR1_V_OFFSET]
+
+	/* Disable Branch Prediction, Z bit in SCTLR. */
+	mrc	p15, 0, r6, c1, c0, 0
+	bic	r6, r6, #0x800
+	mcr	p15, 0, r6, c1, c0, 0
+
+	/* Flush the BTAC. */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
+
+	ldr	r6, =iram_tlb_phys_addr
+	ldr	r6, [r6]
+	dsb
+	isb
+
+	/* Store the IRAM table in TTBR1 */
+	mcr	p15, 0, r6, c2, c0, 1
+	/* Read TTBCR and set PD0=1, N = 1 */
+	mrc	p15, 0, r6, c2, c0, 2
+	orr	r6, r6, #0x11
+	mcr	p15, 0, r6, c2, c0, 2
+
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	/* Disable L1 data cache. */
+	mrc	p15, 0, r6, c1, c0, 0
+	bic	r6, r6, #0x4
+	mcr	p15, 0, r6, c1, c0, 0
+
+	dsb
+	isb
+
+#ifdef CONFIG_CACHE_L2X0
+	ldr	r8, [r0, #PM_INFO_MX6Q_L2_V_OFFSET]
+	mov	r6, #0x0
+	str	r6, [r8, #0x100]
+
+	dsb
+	isb
+#endif
+
+	.endm
+
+	.macro restore_ttbr1
+
+#ifdef CONFIG_CACHE_L2X0
+	/* Enable L2. */
+	ldr	r8, [r0, #PM_INFO_MX6Q_L2_V_OFFSET]
+	ldr	r7, =0x1
+	str	r7, [r8, #0x100]
+#endif
+
+	/* Enable L1 data cache. */
+	mrc	p15, 0, r6, c1, c0, 0
+	orr	r6, r6, #0x4
+	mcr	p15, 0, r6, c1, c0, 0
+
+	dsb
+	isb
+
+	/* Restore TTBCR */
+	/* Read TTBCR and set PD0=0, N = 0 */
+	mrc	p15, 0, r6, c2, c0, 2
+	bic	r6, r6, #0x11
+	mcr	p15, 0, r6, c2, c0, 2
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	/* Enable Branch Prediction, Z bit in SCTLR. */
+	mrc	p15, 0, r6, c1, c0, 0
+	orr	r6, r6, #0x800
+	mcr	p15, 0, r6, c1, c0, 0
+
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
+
+	/* Restore TTBR1, get the origin ttbr1 from pm info */
+	ldr	r7, [r0, #PM_INFO_MX6Q_TTBR1_V_OFFSET]
+	mcr	p15, 0, r7, c2, c0, 1
+
+	.endm
+
 ENTRY(imx6_suspend)
+	push	{r4-r12}
+	/*
+	 * The value of r0 is mapped the same in origin table and IRAM table,
+	 * thus no need to care r0 here.
+	 */
 	ldr	r1, [r0, #PM_INFO_PBASE_OFFSET]
 	ldr	r2, [r0, #PM_INFO_RESUME_ADDR_OFFSET]
 	ldr	r3, [r0, #PM_INFO_CPU_TYPE_OFFSET]
@@ -181,6 +285,8 @@ ENTRY(imx6_suspend)
 
 	/* need to sync L2 cache before DSM. */
 	sync_l2_cache
+
+	store_ttbr1
 
 	ldr	r11, [r0, #PM_INFO_MX6Q_MMDC_V_OFFSET]
 	/*
@@ -300,6 +406,9 @@ rbc_loop:
 	mov	r5, #0x0
 	resume_mmdc
 
+	restore_ttbr1
+
+	pop	{r4-r12}
 	/* return to suspend finish */
 	mov	pc, lr
 
