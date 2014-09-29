@@ -712,8 +712,8 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, ci);
-	ret = request_irq(ci->irq, ci_irq, IRQF_SHARED, ci->platdata->name,
-			  ci);
+	ret = devm_request_irq(dev, ci->irq, ci_irq, IRQF_SHARED,
+			ci->platdata->name, ci);
 	if (ret)
 		goto stop;
 
@@ -724,7 +724,6 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 	if (!ret)
 		return 0;
 
-	free_irq(ci->irq, ci);
 stop:
 	ci_role_destroy(ci);
 deinit_phy:
@@ -738,7 +737,6 @@ static int ci_hdrc_remove(struct platform_device *pdev)
 	struct ci_hdrc *ci = platform_get_drvdata(pdev);
 
 	dbg_remove_files(ci);
-	free_irq(ci->irq, ci);
 	ci_role_destroy(ci);
 	ci_hdrc_enter_lpm(ci, true);
 	usb_phy_shutdown(ci->transceiver);
