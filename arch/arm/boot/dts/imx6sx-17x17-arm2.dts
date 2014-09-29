@@ -120,6 +120,12 @@
        status = "okay";
 };
 
+&cpu0 {
+	arm-supply = <&sw1a_reg>;
+	soc-supply = <&sw1c_reg>;
+	pu-supply = <&pu_dummy>;
+};
+
 &ecspi4 {
 	fsl,spi-num-chipselects = <1>;
 	cs-gpios = <&gpio7 4 0>;
@@ -184,6 +190,7 @@
 	fsl,cpu_pdnscr_iso2sw = <0x1>;
 	fsl,cpu_pdnscr_iso = <0x1>;
 	fsl,wdog-reset = <1>; /* watchdog select of reset source */
+	fsl,ldo-bypass = <1>; /* use ldo-bypass, u-boot will check it and configure */
 };
 
 &gpmi {
