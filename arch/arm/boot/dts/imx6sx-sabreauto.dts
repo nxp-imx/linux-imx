@@ -1,0 +1,259 @@
+/*
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+/dts-v1/;
+
+#include "imx6sx.dtsi"
+
+/ {
+	model = "Freescale i.MX6 SoloX Sabre Auto Board";
+	compatible = "fsl,imx6sx-sabreauto", "fsl,imx6sx";
+
+	clocks {
+	        codec_osc: codec_osc {
+		        #clock-cells = <0>;
+		        compatible = "fixed-clock";
+		        clock-frequency = <12000000>;
+		};
+	};
+
+	memory {
+		reg = <0x80000000 0x80000000>;
+	};
+
+	regulators {
+		compatible = "simple-bus";
+
+		reg_lcd_3v3: lcd-3v3 {
+			compatible = "regulator-fixed";
+			regulator-name = "lcd-3v3";
+			gpio = <&gpio3 27 0>;
+			enable-active-high;
+			status = "disabled";
+		};
+
+		reg_sd3_vmmc: sd3_vmmc{
+			compatible = "regulator-fixed";
+			regulator-name = "VCC_SD3";
+			regulator-min-microvolt = <3000000>;
+			regulator-max-microvolt = <3000000>;
+			gpio = <&gpio2 11 GPIO_ACTIVE_HIGH>;
+			enable-active-high;
+		};
+
+		reg_vref_3v3: regulator@0 {
+			compatible = "regulator-fixed";
+			regulator-name = "vref-3v3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+		};
+
+		reg_psu_5v: psu_5v0 {
+			compatible = "regulator-fixed";
+			regulator-name = "PSU-5V0";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			regulator-boot-on;
+		};
+
+		reg_usb_otg1_vbus: usb_otg1_vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "usb_otg1_vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			gpio = <&gpio1 9 0>;
+			enable-active-high;
+		};
+
+		reg_usb_otg2_vbus: usb_otg2_vbus {
+			compatible = "regulator-fixed";
+			regulator-name = "usb_otg2_vbus";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			gpio = <&gpio1 12 0>;
+			enable-active-high;
+		};
+	};
+};
+
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog>;
+
+	hog {
+		pinctrl_hog: hoggrp {
+			fsl,pins = <
+				MX6SX_PAD_USB_H_DATA__GPIO7_IO_10	0x17059
+				MX6SX_PAD_LCD1_DATA18__GPIO3_IO_19	0x17059
+			>;
+		};
+	};
+};
+
+&fec1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_enet1_1>;
+	phy-mode = "rgmii";
+	phy-id = <1>;
+	fsl,num_tx_queues=<3>;
+	fsl,num_rx_queues=<3>;
+	fsl,magic-packet;
+	status = "disabled";
+};
+
+&fec2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_enet2_1>;
+	phy-mode = "rgmii";
+	phy-id = <0>;
+	fsl,num_tx_queues=<3>;
+	fsl,num_rx_queues=<3>;
+	fsl,magic-packet;
+	status = "okay";
+};
+
+&gpc {
+	fsl,cpu_pupscr_sw2iso = <0x2>;
+	fsl,cpu_pupscr_sw = <0x1>;
+	fsl,cpu_pdnscr_iso2sw = <0x1>;
+	fsl,cpu_pdnscr_iso = <0x1>;
+	fsl,wdog-reset = <1>; /* watchdog select of reset source */
+};
+
+&i2c1 {
+        clock-frequency = <100000>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_i2c1_1>;
+        status = "okay";
+
+	pmic: pfuze100@08 {
+		compatible = "fsl,pfuze100";
+		reg = <0x08>;
+
+		regulators {
+			sw1a_reg: sw1ab {
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1875000>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <6250>;
+			};
+
+			sw1c_reg: sw1c {
+				regulator-min-microvolt = <300000>;
+				regulator-max-microvolt = <1875000>;
+				regulator-boot-on;
+				regulator-always-on;
+				regulator-ramp-delay = <6250>;
+			};
+
+			sw2_reg: sw2 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw3a_reg: sw3a {
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1975000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw3b_reg: sw3b {
+				regulator-min-microvolt = <400000>;
+				regulator-max-microvolt = <1975000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			sw4_reg: sw4 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <3300000>;
+			};
+
+			swbst_reg: swbst {
+				regulator-min-microvolt = <5000000>;
+				regulator-max-microvolt = <5150000>;
+			};
+
+			snvs_reg: vsnvs {
+				regulator-min-microvolt = <1000000>;
+				regulator-max-microvolt = <3000000>;
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			vref_reg: vrefddr {
+				regulator-boot-on;
+				regulator-always-on;
+			};
+
+			vgen1_reg: vgen1 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1550000>;
+			};
+
+			vgen2_reg: vgen2 {
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1550000>;
+			};
+
+			vgen3_reg: vgen3 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+
+			vgen4_reg: vgen4 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+
+			vgen5_reg: vgen5 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+
+			vgen6_reg: vgen6 {
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+			};
+		};
+	};
+};
+
+&uart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart1_1>;
+	status = "okay";
+};
+
+&uart2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart2_1>;
+	status = "okay";
+};
+
+&usdhc3 {
+	pinctrl-names = "default", "state_100mhz", "state_200mhz";
+	pinctrl-0 = <&pinctrl_usdhc3_1>;
+	pinctrl-1 = <&pinctrl_usdhc3_1_100mhz>;
+	pinctrl-2 = <&pinctrl_usdhc3_1_200mhz>;
+	bus-width = <8>;
+	cd-gpios = <&gpio7 10 0>;
+	wp-gpios = <&gpio3 19 0>;
+	keep-power-in-suspend;
+	enable-sdio-wakeup;
+	vmmc-supply = <&reg_sd3_vmmc>;
+	status = "okay";
+};
