@@ -279,6 +279,9 @@ config SND_SOC_DFBMCS320
 config SND_SOC_DMIC
 	tristate
 
+config SND_SOC_FSL_MQS
+	tristate
+
 config SND_SOC_ISABELLE
         tristate
 
