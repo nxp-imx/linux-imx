@@ -450,6 +450,7 @@ int __init dw_pcie_host_init(struct pcie_port *pp)
 	if (cfg_res) {
 		pp->config.cfg0_size = resource_size(cfg_res)/2;
 		pp->config.cfg1_size = resource_size(cfg_res)/2;
+		pp->cfg.start = cfg_res->start;
 		pp->cfg0_base = cfg_res->start;
 		pp->cfg1_base = cfg_res->start + pp->config.cfg0_size;
 
