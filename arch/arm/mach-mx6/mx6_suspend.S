@@ -1153,14 +1153,14 @@ ddr_io_save_done:
 	 * 4. Set TTBR0.N=1, implying 0-2G is translated by TTBR0
 	 *     and 2-4G is translated by TTBR1.
 	 */
+	/* Flush the BTAC. */
+	ldr r6, =0x0
+	mcr p15, 0, r6, c7, c1, 6
+
 	/* Disable Branch Prediction, Z bit in SCTLR. */
 	mrc    p15, 0, r6, c1, c0, 0
 	bic    r6, r6, #0x800
 	mcr    p15, 0, r6, c1, c0, 0
-
-	/* Flush the BTAC. */
-	ldr r6, =0x0
-	mcr p15, 0, r6, c7, c1, 6
 
 	ldr r6, =iram_tlb_phys_addr
 	ldr r6, [r6]
@@ -1186,7 +1186,7 @@ ddr_io_save_done:
 	bic r6, r6, #0x4
 	mcr p15, 0, r6, c1, c0, 0
 
-    dsb
+	dsb
 
 	/* Disable L2 cache */
 #ifdef CONFIG_CACHE_L2X0
@@ -1540,10 +1540,6 @@ poll_dvfs_clear_1:
 	nop
 	nop
 
-	mrc	p15, 0, r1, c1, c0, 0
-	orr	r1, r1, #(1 << 2)	@ Enable the C bit
-	mcr	p15, 0, r1, c1, c0, 0
-
 	/* Enable L2 cache here */
 #ifdef CONFIG_CACHE_L2X0
 	ldr r2, =L2_BASE_ADDR
@@ -1552,9 +1548,14 @@ poll_dvfs_clear_1:
 	str r4, [r2, #L2X0_CTRL]
 #endif
 
+	mrc	p15, 0, r1, c1, c0, 0
+	orr	r1, r1, #(1 << 2)	@ Enable the C bit
+	mcr	p15, 0, r1, c1, c0, 0
+
 	/* Restore TTBCR */
 	dsb
 	isb
+
 	/* Read TTBCR and set PD0=0, N = 0 */
 	mrc    p15, 0, r6, c2, c0, 2
 	bic    r6, r6, #0x11

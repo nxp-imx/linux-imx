@@ -17,11 +17,18 @@
  */
 
 #include <linux/linkage.h>
+#include <asm/smp_scu.h>
 #include <mach/hardware.h>
 
+#define L2_CACHE_SYNC	0x730
+
 .extern iram_tlb_phys_addr
+.extern imx_scu_base
+
 .globl mx6_ddr3_iram_start
 .globl mx6_ddr3_iram_end
+.globl wfe_ddr3_freq_change_start
+.globl wfe_ddr3_freq_change_end
 
 	.macro   switch_to_528MHz
 
@@ -374,6 +381,36 @@ skip_gpt_workaround4:
 
 	.endm
 
+	.macro	disable_l1_dcache
+
+	/*
+	 * Flush all data from the L1 data cache before disabling
+	 * SCTLR.C bit.
+	 */
+	push	{r0 - r11, lr}
+
+	ldr	r7, =v7_flush_kern_cache_all
+	mov	lr, pc
+	mov	pc, r7
+	pop	{r0 - r11, lr}
+
+	/* disable d-cache */
+	mrc	p15, 0, r6, c1, c0, 0
+	bic	r6, r6, #0x4
+	mcr	p15, 0, r6, c1, c0, 0
+	dsb
+	isb
+
+	push	{r0 - r11, lr}
+
+	ldr	r7, =v7_flush_kern_cache_all
+	mov	lr, pc
+	mov	pc, r7
+	pop	{r0 - r11, lr}
+
+	.endm
+
+
 /*
  *  mx6_ddr_freq_change
  *
@@ -404,8 +441,44 @@ ddr_freq_change:
 	 * 4. Set TTBR0.N=1, implying 0-2G is translated by TTBR0
 	 *     and 2-4G is translated by TTBR1.
 	 */
-	ldr    r6, =iram_tlb_phys_addr
-	ldr    r7, [r6]
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	ldr	r6, =iram_tlb_phys_addr
+	ldr	r7, [r6]
+
+	/*
+	  * Need to flush and disable L1 before disabling L2, we need data to
+	  * coherent. Flushing L1 pushes everyhting to L2. We sync L2 later, but
+	  * it can still have dirty lines. While exiting, we need to enable L2 first
+	  * and then L1.
+	 . */
+	disable_l1_dcache
+
+#ifdef CONFIG_CACHE_L2X0
+	/*
+	 * Make sure the L2 buffers are drained.
+	 * Sync operation on L2 drains the buffers.
+	 */
+	ldr   r6, =L2_BASE_ADDR
+	add   r6, r6, #PERIPBASE_VIRT
+
+	/* Wait for background operations to complete. */
+wait_for_l2_to_idle:
+	ldr	r1, [r6, #L2_CACHE_SYNC]
+	cmp	r1, #0x0
+	bne	wait_for_l2_to_idle
+
+	mov	r1, #0x0
+	str	r1, [r6, #L2_CACHE_SYNC]
+
+	/* Disable L2. */
+	str	r1, [r6, #0x100]
+
+	dsb
+	isb
+#endif
 
 	/* Disable Branch Prediction, Z bit in SCTLR. */
 	mrc    p15, 0, r6, c1, c0, 0
@@ -433,6 +506,7 @@ ddr_freq_change:
 	ldr    r6, =0x0
 	mcr    p15, 0, r6, c8, c3, 0
 
+#if RANJANI
 	/* Disable L1 data cache. */
 	mrc    p15, 0, r6, c1, c0, 0
 	bic    r6, r6, #0x4
@@ -455,10 +529,11 @@ wait_for_l2_to_idle:
 	str   r6, [r7, #0x730]
 	/* Disable L2. */
 	str   r6, [r7, #0x100]
+#endif
+#endif
 
 	dsb
 	isb
-#endif
 
 	ldr     r6, =CCM_BASE_ADDR
 	add     r6, r6, #PERIPBASE_VIRT
@@ -793,7 +868,7 @@ poll_dvfs_clear_2:
 	cmp    	r9, #0
 	beq 	       update_calibration_only
 
-	ldr     r0, =0xa5390003
+	ldr     r0, =0xa1390003
 	str     r0, [r5, #0x800]
 	ldr     r2, =0x4800
 	str     r0, [r5, r2]
@@ -1056,6 +1131,8 @@ done:
 	add   r1, r1, #PERIPBASE_VIRT
 	ldr   r6, =0x1
 	str   r6, [r1, #0x100]
+	dsb
+	isb
 #endif
 
 	/* Enable L1 data cache. */
@@ -1086,9 +1163,14 @@ done:
 	orr    r6, r6, #0x800
 	mcr    p15, 0, r6, c1, c0, 0
 
+	isb
+
 	/* Flush the Branch Target Address Cache (BTAC) */
 	ldr    r6, =0x0
 	mcr    p15, 0, r6, c7, c1, 6
+
+	isb
+	dsb
 
 	/* Restore registers */
 	ldmfd sp!, {r4 - r12}
@@ -1101,3 +1183,75 @@ done:
 	 */
 	.ltorg
 mx6_ddr3_iram_end:
+
+	.align 3
+
+ENTRY(wfe_ddr3_freq_change)
+wfe_ddr3_freq_change_start:
+	push	{r4 - r11, lr}
+
+	mov	r6, r0
+	mov	r7, r1
+
+	dsb
+	isb
+
+	disable_l1_dcache
+
+	isb
+
+	/* Turn off SMP bit. */
+	mrc	p15, 0, r8, c1, c0, 1
+	bic	r8, r8, #0x40
+	mcr	p15, 0, r8, c1, c0, 1
+
+	isb
+
+	/* Inform the SCU we are going to enter WFE. */
+	push	{r0 - r11, lr}
+
+	ldr	r0,=imx_scu_base
+	ldr	r0, [r0]
+	mov	r1, #SCU_PM_DORMANT
+	ldr	r3, =scu_power_mode
+	mov	lr, pc
+	mov	pc, r3
+
+	pop	{r0 - r11, lr}
+
+go_back_wfe:
+	wfe
+
+	ldr	r3, [r7]
+	cmp	r3, #1
+	beq	go_back_wfe
+
+	/* Turn ON SMP bit. */
+	mrc	p15, 0, r8, c1, c0, 1
+	orr	r8, r8, #0x40
+	mcr	p15, 0, r8, c1, c0, 1
+
+	isb
+	/* Enable L1 data cache. */
+	mrc	p15, 0, r8, c1, c0, 0
+	orr	r8, r8, #0x4
+	mcr	p15, 0, r8, c1, c0, 0
+	isb
+
+	/* Inform the SCU we have exited WFE. */
+	push	{r0 - r11, lr}
+
+	ldr	r0,=imx_scu_base
+	ldr	r0, [r0]
+	mov	r1, #SCU_PM_NORMAL
+	ldr	r3, =scu_power_mode
+	mov	lr, pc
+	mov	pc, r3
+
+	pop	{r0 - r11, lr}
+
+	/* Pop all saved registers. */
+	pop	{r4 - r11, lr}
+	mov	pc, lr
+	.ltorg
+wfe_ddr3_freq_change_end:
