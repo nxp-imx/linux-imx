@@ -514,6 +514,18 @@ podf_loop1:
      bic      r6, r6, #0x1
      str     r6, [r3, #0x150]
 
+    /* Wait for the bandgap to stabilize. */
+bg_not_stable:
+     ldr    r6, [r3, #0x150]
+     and   r6, r6, #0x80
+     cmp  r6, #0x80
+     bne  bg_not_stable
+
+     /* Now disable bandgap self-bias circuit. */
+     ldr    r6, [r3, #0x150]
+     orr   r6, r6, #0x8
+     str    r6, [r3, #0x150]
+
     /* turn on the bias current
      * from the regular bandgap.
      */

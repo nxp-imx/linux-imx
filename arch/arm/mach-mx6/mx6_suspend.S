@@ -1372,6 +1372,16 @@ ldo_analog_bypass:
 	orr	r4, r4, #0x1e
 	str	r4, [r1, #0x140]
 ldo_check_done1:
+
+	/*
+	 * Enable the bandgap selfbias circuit required
+	 * for bandgap to startup.
+	 */
+	ldr	r4, [r1, #0x150]
+	bic	r4, r4, #0x8
+	str	r4, [r1, #0x150]
+
+
 /****************************************************************
 execute a wfi instruction to let SOC go into stop mode.
 ****************************************************************/
@@ -1386,9 +1396,17 @@ execute a wfi instruction to let SOC go into stop mode.
 if go here, means there is a wakeup irq pending, we should resume
 system immediately.
 ****************************************************************/
-	/*restore it with 0x1f if use ldo bypass mode.*/
+	/*
+	 * We did not power down, disable bandgap
+	 * self-bias circuit.
+	 */
 	ldr	r1, =ANATOP_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
+	ldr	r3, [r1, #150]
+	orr	r3, r3, #0x8
+	str	r3, [r1, #150]
+
+	/*restore it with 0x1f if use ldo bypass mode.*/
 	ldr	r3, [r1, #0x140]
 	and	r3, r3, #0x1f
 	cmp	r3, #0x1e
@@ -1565,17 +1583,6 @@ when SOC exit stop mode, arm core restart from here, currently
 are running with MMU off.
 ****************************************************************/
 resume:
-
-	/*restore it with 0x1f if use ldo bypass mode.*/
-	ldr	r1, =ANATOP_BASE_ADDR
-	ldr	r3, [r1, #0x140]
-	and	r3, r3, #0x1f
-	cmp	r3, #0x1e
-	bne	ldo_check_done3
-	ldr	r3, [r1, #0x140]
-	orr	r3, r3, #0x1f
-	str	r3, [r1, #0x140]
-ldo_check_done3:
 	/* Invalidate L1 I-cache first */
 	mov	r1,	#0x0
 	mcr	p15, 0, r1, c7, c5, 0	@ Invalidate I-Cache
@@ -1588,6 +1595,30 @@ ldo_check_done3:
 	/* Need to invalidate L1 dcache */
 	invalidate_l1_dcache
 
+	/*
+	 * We did power down. Ensure bandgap is stable.
+	 */
+	ldr	r1, =ANATOP_BASE_ADDR
+bg_not_stable:
+	ldr	r3, [r1, #0x150]
+	and	r3, r3, #0x80
+	cmp	r3, #0x80
+	bne	bg_not_stable
+
+	/* Now disable bandgap self-bias circuit. */
+	ldr	r3, [r1, #0x150]
+	orr	r3, r3, #0x8
+	str	r3, [r1, #0x150]
+
+	/*restore it with 0x1f if use ldo bypass mode.*/
+	ldr	r3, [r1, #0x140]
+	and	r3, r3, #0x1f
+	cmp	r3, #0x1e
+	bne	ldo_check_done3
+	ldr	r3, [r1, #0x140]
+	orr	r3, r3, #0x1f
+	str	r3, [r1, #0x140]
+ldo_check_done3:
 	ldr	r0, =SRC_BASE_ADDR
 	str	r1, [r0, #SRC_GPR1_OFFSET] /* clear SRC_GPR1 */
 	ldr	r0, [r0, #SRC_GPR2_OFFSET]
