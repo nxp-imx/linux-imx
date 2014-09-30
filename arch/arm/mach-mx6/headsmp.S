@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,9 @@
 
 #include <linux/linkage.h>
 #include <linux/init.h>
+#include <asm/smp_scu.h>
+
+#define SCU_CPU_STATUS		0x08
 
 ENTRY(v7_invalidate_l1)
         mov     r0, #0
@@ -60,6 +63,16 @@ ENTRY(mx6_secondary_startup)
 	mcr p15, 0, r1, c7, c5, 0 @ Invalidate I-Cache
 	/* Invalidate L1 D-cache */
 	bl      v7_invalidate_l1
+
+	/* Set the CPU status in SCU CPU status register. */
+	mrc	p15, 0, r0, c0, c0, 5
+	and	r0, r0, #3
+	mrc	p15, 4, r1, c15, c0, 0
+	ldr	r2, =SCU_CPU_STATUS
+	orr	r2, r2, r0
+	ldr	r0, =SCU_PM_NORMAL
+	strb	r0, [r1, r2]
+
 	/* Set ARM working mode */
 	msr     cpsr_fsxc, #0xd3
 

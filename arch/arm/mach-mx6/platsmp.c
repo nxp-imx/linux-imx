@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -106,6 +106,7 @@ void __init smp_init_cpus(void)
 {
 	void __iomem *scu_base = scu_base_addr();
 	unsigned int i, ncores;
+	u32 me = smp_processor_id();
 
 	ncores = scu_base ? scu_get_core_count(scu_base) : 1;
 
@@ -121,8 +122,19 @@ void __init smp_init_cpus(void)
 		ncores = NR_CPUS;
 	}
 
-	for (i = 0; i < ncores; i++)
+	if (setup_max_cpus >= ncores)
+		setup_max_cpus = ncores;
+
+	for (i = 0; i < setup_max_cpus; i++)
 		set_cpu_possible(i, true);
+
+	for (i = setup_max_cpus; i < ncores; i++)
+		set_cpu_possible(i, false);
+	/* Set the SCU CPU Power status for each inactive core. */
+	for (i = 0; i < NR_CPUS;  i++) {
+		if (i != me)
+			__raw_writeb(SCU_PM_POWEROFF, scu_base + 0x08 + i);
+	}
 
 	set_smp_cross_call(gic_raise_softirq);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include <linux/delay.h>
 #include <mach/hardware.h>
 #include <asm/mach-types.h>
+#include <asm/smp_scu.h>
 #include <linux/io.h>
 #include "src-reg.h"
 #include <linux/sched.h>
@@ -92,6 +93,9 @@ void platform_cpu_die(unsigned int cpu)
 	:	"=&r" (v)
 	:	"r" (0), "Ir" (CR_C), "Ir" (0x40)
 	:	"cc");
+
+	scu_power_mode(IO_ADDRESS(SCU_BASE_ADDR), SCU_PM_DORMANT);
+
 	/* Tell cpu0 to kill this core, as this core's cache is
 	already disabled, and we want to set a flag to tell cpu0
 	to kill this core, so I write the flag to this core's SRC
