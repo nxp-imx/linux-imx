@@ -357,6 +357,15 @@
 					fsl,asrc-width = <16>;
 					status = "okay";
 				};
+
+				asrc_p2p: asrc_p2p {
+					compatible = "fsl,imx6q-asrc-p2p";
+					fsl,p2p-rate  = <48000>;
+					fsl,p2p-width = <16>;
+					fsl,asrc-dma-rx-events = <17 18 19>;
+					fsl,asrc-dma-tx-events = <20 21 22>;
+					status = "okay";
+				};
 			};
 
 			pwm1: pwm@02080000 {
