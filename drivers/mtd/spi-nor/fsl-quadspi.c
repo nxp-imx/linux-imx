@@ -404,16 +404,16 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 		if (q->nor_size <= SZ_16M) {
 			cmd = OPCODE_DDR_QUAD_IO_READ;
 			addrlen = ADDR24BIT;
-			dummy = 3;
+			dummy = 6;
 		} else {
 			cmd = OPCODE_DDR_QUAD_IO_READ;
 			addrlen = ADDR32BIT;
-			dummy = 7;
+			dummy = 6;
 		}
 
 		writel(LUT0(CMD, PAD1, cmd) | LUT1(ADDR_DDR, PAD4, addrlen),
 			base + QUADSPI_LUT(lut_base));
-		writel(LUT0(MODE_DDR, PAD1, 4) | LUT1(DUMMY, PAD1, dummy),
+		writel(LUT0(MODE_DDR, PAD4, 0xff) | LUT1(DUMMY, PAD1, dummy),
 			base + QUADSPI_LUT(lut_base + 1));
 		writel(LUT0(READ_DDR, PAD4, rxfifo) | LUT1(JMP_ON_CS, PAD1, 0),
 			base + QUADSPI_LUT(lut_base + 2));
