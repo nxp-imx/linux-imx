@@ -1202,41 +1202,11 @@ set ddr iomux to low power mode
 	ldr	r1, =MMDC_P0_BASE_ADDR
 	add	r1, r1, #PERIPBASE_VIRT
 
-	/* set SBS_EN to block DDR access */
-	ldr     r0, [r1, #0x410]
-	orr     r0, r0, #0x100
-	str     r0, [r1, #0x410]
-
 	/* Put DDR explicitly into self-refresh. */
 	 /* Disable Automatic power savings. */
 	 ldr    r0, [r1, #0x404]
 	 orr    r0, r0, #0x01
 	 str    r0, [r1, #0x404]
-
-	/* set CON_REG */
-	ldr     r0, =0x8000
-	str     r0, [r1, #0x1C]
-poll_conreq_set_1:
-	ldr     r0, [r1, #0x1C]
-	and     r0, r0, #0x4000
-	cmp     r0, #0x4000
-	bne     poll_conreq_set_1
-
-	/*setmem /32 0x021b001c = 0x00008010 //Precharge all on cs0  */
-	/*setmem /32 0x021b001c = 0x00008018 //Precharge all on cs1 */
-	ldr     r0, =0x00008010
-	str     r0, [r1, #0x1C]
-	ldr     r0, =0x00008018
-	str     r0, [r1, #0x1C]
-
-	/* de-assert con_req */
-	mov    r0, #0x0
-	str    r0, [r1, #0x1C]
-poll_conreq_clr_1:
-	ldr     r0, [r1, #0x1C]
-	and     r0, r0, #0x4000
-	cmp     r0, #0x4000
-	beq     poll_conreq_clr_1
 
 	 /* Make the DDR explicitly enter self-refresh. */
 	 ldr     r0, [r1, #0x404]
@@ -1697,11 +1667,6 @@ poll_dvfs_clear_2:
 	and	r6, r6, #0x2000000
 	cmp	r6, #0x2000000
 	beq	poll_dvfs_clear_2
-
-	/* clear SBS - unblock DDR accesses */
-	ldr     r6, [r1, #0x410]
-	bic     r6, r6, #0x100
-	str     r6, [r1, #0x410]
 
 	/* Enable Automatic power savings. */
 	ldr	r6, [r1, #0x404]
