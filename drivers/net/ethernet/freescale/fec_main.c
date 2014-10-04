@@ -2773,16 +2773,12 @@ fec_enet_open(struct net_device *ndev)
 
 	ret = fec_enet_alloc_buffers(ndev);
 	if (ret)
-		return ret;
+		goto err_enet_alloc;
 
 	/* Probe and connect to PHY when open the interface */
 	ret = fec_enet_mii_probe(ndev);
-	if (ret) {
-		fec_enet_free_buffers(ndev);
-		fec_enet_clk_enable(ndev, false);
-		pinctrl_pm_select_sleep_state(&fep->pdev->dev);
-		return ret;
-	}
+	if (ret)
+		goto err_enet_mii_probe;
 
 	fec_restart(ndev);
 	napi_enable(&fep->napi);
@@ -2800,6 +2796,13 @@ fec_enet_open(struct net_device *ndev)
 				   PM_QOS_DEFAULT_VALUE);
 
 	return 0;
+
+err_enet_mii_probe:
+	fec_enet_free_buffers(ndev);
+err_enet_alloc:
+	fec_enet_clk_enable(ndev, false);
+	pinctrl_pm_select_sleep_state(&fep->pdev->dev);
+	return ret;
 }
 
 static int
