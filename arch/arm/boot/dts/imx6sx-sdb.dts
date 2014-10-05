@@ -375,19 +375,19 @@
 	pinctrl-0 = <&pinctrl_qspi2_1>;
 	status = "okay";
 
-	flash0: s25fl128s@0 {
+	flash0: n25q256a@0 {
 		#address-cells = <1>;
 		#size-cells = <1>;
-		compatible = "spansion,s25fl128s";
+		compatible = "micron,n25q256a";
 		spi-max-frequency = <29000000>;
 		spi-nor,ddr-quad-read-dummy = <6>;
 		reg = <0>;
 	};
 
-	flash1: s25fl128s@1 {
+	flash1: n25q256a@1 {
 		#address-cells = <1>;
 		#size-cells = <1>;
-		compatible = "spansion,s25fl128s";
+		compatible = "micron,n25q256a";
 		spi-max-frequency = <29000000>;
 		spi-nor,ddr-quad-read-dummy = <6>;
 		reg = <1>;
