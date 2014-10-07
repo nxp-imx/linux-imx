@@ -82,13 +82,9 @@ static void build_instantiation_desc(u32 *desc)
 	 */
 	append_load_imm_u32(desc, 1, LDST_SRCDST_WORD_CLRW);
 
-}
-
-static void generate_secure_keys_desc(u32 *desc)
-{
 	/* generate secure keys (non-test) */
 	append_operation(desc, OP_TYPE_CLASS1_ALG | OP_ALG_ALGSEL_RNG |
-					 OP_ALG_RNG4_SK);
+			 OP_ALG_RNG4_SK);
 }
 
 struct instantiate_result {
@@ -111,7 +107,7 @@ static void rng4_init_done(struct device *dev, u32 *desc, u32 err,
 	complete(&instantiation->completion);
 }
 
-static int instantiate_rng(struct device *jrdev, u32 keys_generated)
+static int instantiate_rng(struct device *jrdev)
 {
 	struct instantiate_result instantiation;
 
@@ -126,11 +122,6 @@ static int instantiate_rng(struct device *jrdev, u32 keys_generated)
 	}
 
 	build_instantiation_desc(desc);
-
-	/* If keys have not been generated, add op code to generate key. */
-	if (!keys_generated)
-		generate_secure_keys_desc(desc);
-
 	desc_dma = dma_map_single(jrdev, desc, desc_bytes(desc), DMA_TO_DEVICE);
 	dma_sync_single_for_device(jrdev, desc_dma, desc_bytes(desc),
 				   DMA_TO_DEVICE);
@@ -253,6 +244,7 @@ static int caam_probe(struct platform_device *pdev)
 #ifdef CONFIG_DEBUG_FS
 	struct caam_perfmon *perfmon;
 #endif
+	u64 cha_vid;
 
 	ctrlpriv = kzalloc(sizeof(struct caam_drv_private), GFP_KERNEL);
 	if (!ctrlpriv)
@@ -476,6 +468,8 @@ static int caam_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	cha_vid = rd_reg64(&topregs->ctrl.perfmon.cha_id);
+
 	/*
 	 * RNG4 based SECs (v5+ | >= i.MX6) need special initialization prior
 	 * to executing any descriptors. If there's a problem with init,
@@ -483,33 +477,13 @@ static int caam_probe(struct platform_device *pdev)
 	 * cannot run without an RNG. This procedure assumes a single RNG4
 	 * instance.
 	 */
-	if ((rd_reg64(&topregs->ctrl.perfmon.cha_id) & CHA_ID_RNG_MASK)
-	    == CHA_ID_RNG_4) {
-		struct rng4tst __iomem *r4tst;
-		u32 rdsta, rng_if, rng_skvn;
-
-		/*
-		 * Check to see if the RNG has already been instantiated.
-		 * If either the state 0 or 1 instantiated flags are set,
-		 * then don't continue on and try to instantiate the RNG
-		 * again.
-		 */
-		r4tst = &topregs->ctrl.r4tst[0];
-		rdsta = rd_reg32(&r4tst->rdsta); /* Read RDSTA register */
-
-		/* Check IF bit for non-deterministic instantiation */
-		rng_if = rdsta & RDSTA_IF;
-
-		/* Check SKVN bit for non-deterministic key generation */
-		rng_skvn = rdsta & RDSTA_SKVN;
-		if (!rng_if) {
-			kick_trng(pdev);
-			ret = instantiate_rng(ctrlpriv->jrdev[0], rng_skvn);
-			if (ret) {
-				caam_remove(pdev);
-				return -ENODEV;
-			}
-			ctrlpriv->rng_inst++;
+	if ((cha_vid & CHA_ID_RNG_MASK) >> CHA_ID_RNG_SHIFT >= 4 &&
+	    !(rd_reg32(&topregs->ctrl.r4tst[0].rdsta) & RDSTA_IF0)) {
+		kick_trng(pdev);
+		ret = instantiate_rng(ctrlpriv->jrdev[0]);
+		if (ret) {
+			caam_remove(pdev);
+			return ret;
 		}
 	}
 
