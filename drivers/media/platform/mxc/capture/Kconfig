@@ -1,13 +1,17 @@
 if VIDEO_MXC_CAPTURE
+config VIDEO_V4L2_MXC_INT_DEVICE
+       tristate
 
 menu "MXC Camera/V4L2 PRP Features support"
 config VIDEO_MXC_IPU_CAMERA
 	bool
+	select VIDEO_V4L2_MXC_INT_DEVICE
 	depends on VIDEO_MXC_CAPTURE && MXC_IPU
 	default y
 
 config VIDEO_MXC_CSI_CAMERA
 	tristate "CSI camera support"
+	select VIDEO_V4L2_MXC_INT_DEVICE
 	depends on VIDEO_MXC_CAPTURE && VIDEO_V4L2
 	---help---
 	  This is the video4linux2 capture driver based on CSI module.

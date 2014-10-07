@@ -125,7 +125,6 @@ config VIDEO_MXC_OUTPUT
 config VIDEO_MXC_CAPTURE
 	tristate "MXC Video For Linux Video Capture"
 	depends on VIDEO_V4L2
-	select VIDEO_V4L2_INT_DEVICE
 	---help---
 	  This is the video4linux2 capture driver based on i.MX video-in module.
 

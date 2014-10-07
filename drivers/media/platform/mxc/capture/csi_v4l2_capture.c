@@ -36,7 +36,7 @@
 #include <linux/mxcfb.h>
 #include <linux/dma-mapping.h>
 #include <media/v4l2-ioctl.h>
-#include <media/v4l2-int-device.h>
+#include "v4l2-int-device.h"
 #include <media/v4l2-chip-ident.h>
 #include "mxc_v4l2_capture.h"
 #include "fsl_csi.h"

@@ -38,7 +38,7 @@
 #include <linux/of_device.h>
 #include <media/v4l2-chip-ident.h>
 #include <media/v4l2-ioctl.h>
-#include <media/v4l2-int-device.h>
+#include "v4l2-int-device.h"
 #include <linux/fsl_devices.h>
 #include "mxc_v4l2_capture.h"
 #include "ipu_prp_sw.h"

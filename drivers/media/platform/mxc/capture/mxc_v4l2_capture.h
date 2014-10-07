@@ -37,7 +37,7 @@
 #include <linux/platform_data/dma-imx.h>
 
 #include <media/v4l2-dev.h>
-#include <media/v4l2-int-device.h>
+#include "v4l2-int-device.h"
 
 
 #define FRAME_NUM 10

@@ -29,7 +29,7 @@
 #include <linux/of_device.h>
 #include <linux/regmap.h>
 #include <media/v4l2-chip-ident.h>
-#include <media/v4l2-int-device.h>
+#include "v4l2-int-device.h"
 #include "mxc_vadc.h"
 #include "mxc_v4l2_capture.h"
 

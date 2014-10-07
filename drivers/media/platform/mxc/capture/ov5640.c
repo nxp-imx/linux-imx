@@ -29,7 +29,7 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/regulator/consumer.h>
 #include <media/v4l2-chip-ident.h>
-#include <media/v4l2-int-device.h>
+#include "v4l2-int-device.h"
 #include "mxc_v4l2_capture.h"
 
 #define OV5640_VOLTAGE_ANALOG               2800000
