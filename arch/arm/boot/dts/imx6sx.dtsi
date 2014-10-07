@@ -187,6 +187,11 @@
 			pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy if VDDSOC share with VDDPU */
 		};
 
+		caam_sm: caam-sm@00100000 {
+			compatible = "fsl,imx6q-caam-sm";
+			reg = <0x00100000 0x3fff>;
+		};
+
 		dma_apbh: dma-apbh@01804000 {
 			compatible = "fsl,imx6q-dma-apbh", "fsl,imx28-dma-apbh";
 			reg = <0x01804000 0x2000>;
@@ -195,6 +200,12 @@
 			#dma-cells = <1>;
 			dma-channels = <4>;
 			clocks = <&clks IMX6SX_CLK_APBH_DMA>;
+		};
+
+		irq_sec_vio: caam_secvio {
+			compatible = "fsl,imx6q-caam-secvio";
+			interrupts = <0 20 0x04>;
+			secvio_src = <0x8000001d>;
 		};
 
 		gpmi: gpmi-nand@01806000{
@@ -547,6 +558,11 @@
 				status = "disabled";
 			};
 
+			caam_snvs: caam-snvs@020cc000 {
+				compatible = "fsl,imx6q-caam-snvs";
+				reg = <0x020cc000 0x4000>;
+			};
+
 			snvs@020cc000 {
 				compatible = "fsl,sec-v4.0-mon", "simple-bus";
 				#address-cells = <1>;
@@ -799,6 +815,31 @@
 			#size-cells = <1>;
 			reg = <0x02100000 0x100000>;
 			ranges;
+
+			crypto: caam@2100000 {
+				compatible = "fsl,sec-v4.0";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0x2100000 0x40000>;
+				ranges = <0 0x2100000 0x40000>;
+				interrupt-parent = <&intc>; /* interrupts = <0 92 0x4>; */
+				clocks = <&clks 134>, <&clks 135>, <&clks 136> ,<&clks 213>;
+				clock-names = "caam_mem", "caam_aclk", "caam_ipg", "caam_emi_slow";
+
+				sec_jr0: jr0@1000 {
+					compatible = "fsl,sec-v4.0-job-ring";
+					reg = <0x1000 0x1000>;
+					interrupt-parent = <&intc>;
+					interrupts = <0 105 0x4>;
+				};
+
+				sec_jr1: jr1@2000 {
+					compatible = "fsl,sec-v4.0-job-ring";
+					reg = <0x2000 0x1000>;
+					interrupt-parent = <&intc>;
+					interrupts = <0 106 0x4>;
+				};
+			};
 
 			aipstz@0217c000 { /* AIPSTZ2 */
 				reg = <0x0217c000 0x4000>;
