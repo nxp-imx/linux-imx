@@ -506,32 +506,6 @@ wait_for_l2_to_idle:
 	ldr    r6, =0x0
 	mcr    p15, 0, r6, c8, c3, 0
 
-#if RANJANI
-	/* Disable L1 data cache. */
-	mrc    p15, 0, r6, c1, c0, 0
-	bic    r6, r6, #0x4
-	mcr    p15, 0, r6, c1, c0, 0
-
-	dsb
-
-#ifdef CONFIG_CACHE_L2X0
-	/*
-	 * Sync L2 and then disable it.
-	 */
-	ldr   r7, =L2_BASE_ADDR
-	add   r7, r7, #PERIPBASE_VIRT
-	/* Wait for background operations to complete. */
-wait_for_l2_to_idle:
-	ldr   r6, [r7, #0x730]
-	cmp   r6, #0x0
-	bne   wait_for_l2_to_idle
-	ldr   r6, =0x0
-	str   r6, [r7, #0x730]
-	/* Disable L2. */
-	str   r6, [r7, #0x100]
-#endif
-#endif
-
 	dsb
 	isb
 
