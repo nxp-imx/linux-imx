@@ -176,7 +176,7 @@ static void kick_trng(struct platform_device *pdev)
 	/* min. freq. count */
 	wr_reg32(&r4tst->rtfrqmin, RNG4_ENT_CLOCKS_SAMPLE / 4);
 	/* max. freq. count */
-	wr_reg32(&r4tst->rtfrqmax, RNG4_ENT_CLOCKS_SAMPLE * 8);
+	wr_reg32(&r4tst->rtfrqmax, RNG4_ENT_CLOCKS_SAMPLE * 16);
 	/* put RNG4 into run mode */
 	clrbits32(&r4tst->rtmctl, RTMCTL_PRGM);
 }
