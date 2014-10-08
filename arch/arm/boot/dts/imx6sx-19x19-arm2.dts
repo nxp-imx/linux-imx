@@ -91,7 +91,7 @@
 				"fsl,imx-audio-cs42888";
 		model = "imx-cs42888";
 		esai-controller = <&esai>;
-		asrc-controller = <&asrc_p2p>;
+		asrc-controller = <&asrc>;
 		audio-codec = <&cs42888>;
 	};
 };
