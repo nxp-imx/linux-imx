@@ -235,15 +235,6 @@ config TOUCHSCREEN_EGALAX
 	  To compile this driver as a module, choose M here: the
 	  module will be called egalax_ts.
 
-config TOUCHSCREEN_EGALAX_SINGLE_TOUCH
-	bool "EETI eGalax touchscreen as single-touch"
-	default N
-	depends on TOUCHSCREEN_EGALAX
-	help
-	  If you say yes here you get single-touch touchscreen support
-	  on the eGalax I2C controller.
-	  If you say "no", you'll get the normal multi-touch
-
 config TOUCHSCREEN_ELAN
 	tristate "ELAN touchscreen input driver"
 	depends on I2C
