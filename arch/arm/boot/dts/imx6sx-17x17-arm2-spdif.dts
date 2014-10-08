@@ -1,0 +1,29 @@
+/*
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "imx6sx-17x17-arm2.dts"
+
+/ {
+	sound-spdif {
+		compatible = "fsl,imx-audio-spdif",
+			   "fsl,imx-sabreauto-spdif";
+		model = "imx-spdif";
+		spdif-controller = <&spdif>;
+		spdif-in;
+		spdif-out;
+	};
+};
+
+&audmux {
+	/* pin conflict with spdif */
+	status = "disabled";
+};
+
+&spdif {
+	status = "okay";
+};

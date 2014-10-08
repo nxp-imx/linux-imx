@@ -1,0 +1,65 @@
+/*
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "imx6sx-17x17-arm2.dts"
+
+/ {
+	sound {
+		cpu-dai = <&sai2>;
+	};
+};
+
+&audmux {
+	/* Pin conflict with SAI */
+	status = "disabled";
+};
+
+&pinctrl_hog_1 {
+	/* Pin conflict with SAI */
+	fsl,pins = <
+		MX6SX_PAD_QSPI1A_SS0_B__GPIO4_IO_22     0x80000000
+		/* CAN1_2_EN */
+		MX6SX_PAD_QSPI1B_DATA1__GPIO4_IO_25     0x17059
+		/* CAN1_2_STBY_B */
+		MX6SX_PAD_QSPI1B_DATA3__GPIO4_IO_27     0x17059
+		/* CAN1_ERR_B */
+		MX6SX_PAD_QSPI1B_DATA0__GPIO4_IO_24	0x17059
+		/* CAN2_ERR_B */
+		MX6SX_PAD_QSPI1B_SS0_B__GPIO4_IO_30     0x17059
+	>;
+};
+
+&reg_sdb_vmmc{
+	/* Pin conflict with SAI */
+	gpio = <0 0 0>;
+};
+
+&sai2 {
+	status = "okay";
+};
+
+&sdma {
+	gpr = <&gpr>;
+	/* SDMA event remap for SAI2 */
+	fsl,sdma-event-remap = <0 17 1>, <0 18 1>;
+};
+
+&usdhc2 {
+	/* Pin conflict with SAI */
+	status = "disabled";
+};
+
+&usdhc3 {
+	/* Pin conflict with SAI */
+	status = "disabled";
+};
+
+&usdhc4 {
+	/* Pin conflict with SAI */
+	status = "disabled";
+};
