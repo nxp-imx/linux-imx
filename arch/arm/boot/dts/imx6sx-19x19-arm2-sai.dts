@@ -1,0 +1,37 @@
+/*
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "imx6sx-19x19-arm2.dts"
+
+/ {
+	sound-sgtl5000 {
+		compatible = "fsl,imx6sx-arm2-sgtl5000",
+			   "fsl,imx-audio-sgtl5000";
+		model = "imx6sx-arm2-sgtl5000";
+		cpu-dai = <&sai1>;
+		audio-codec = <&sgtl5000>;
+		audio-routing =
+			"LINE_IN", "Line In Jack",
+			"Headphone Jack", "HP_OUT";
+	};
+};
+
+&esai {
+	/* pin conflict with sai */
+	status = "disabled";
+};
+
+&sai1 {
+	status = "okay";
+};
+
+&sdma {
+	gpr = <&gpr>;
+	/* SDMA event remap for SAI1 */
+	fsl,sdma-event-remap = <0 15 1>, <0 16 1>;
+};
