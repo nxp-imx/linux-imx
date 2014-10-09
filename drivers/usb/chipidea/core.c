@@ -904,6 +904,9 @@ static int ci_controller_resume(struct device *dev)
 
 	WARN_ON(!ci->in_lpm);
 
+	if (!ci->in_lpm)
+		return 0;
+
 	ci_hdrc_enter_lpm(ci, false);
 
 	if (ci->transceiver) {
@@ -941,6 +944,8 @@ static int ci_suspend(struct device *dev)
 	if (ci->in_lpm)
 		pm_runtime_resume(dev);
 
+	WARN_ON(ci->in_lpm);
+
 	/*
 	 * The registers for suspended host will not be updated
 	 * during system suspend.
@@ -955,6 +960,9 @@ static int ci_suspend(struct device *dev)
 		if (ci->transceiver)
 			usb_phy_set_wakeup(ci->transceiver, true);
 	}
+
+	if (ci->in_lpm)
+		return 0;
 
 	ci_controller_suspend(ci);
 
@@ -1014,6 +1022,9 @@ static int ci_runtime_suspend(struct device *dev)
 	dev_dbg(dev, "at %s\n", __func__);
 
 	WARN_ON(ci->in_lpm);
+
+	if (ci->in_lpm)
+		return 0;
 
 	if (ci_otg_is_fsm_mode(ci))
 		ci_otg_fsm_suspend_for_srp(ci);
