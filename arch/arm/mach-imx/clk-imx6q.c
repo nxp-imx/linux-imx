@@ -92,6 +92,7 @@ static unsigned int const clks_init_on[] __initconst = {
 	IMX6QDL_CLK_MMDC_CH0_AXI,
 	IMX6QDL_CLK_ROM,
 	IMX6QDL_CLK_ARM,
+	IMX6QDL_CLK_OCRAM,
 };
 
 static struct clk_div_table clk_enet_ref_table[] = {
@@ -432,7 +433,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 		clk[IMX6QDL_CLK_MLB] = imx_clk_gate2("mlb",            "gpu2d_core_podf",   base + 0x74, 18);
 	else
 		clk[IMX6QDL_CLK_MLB] = imx_clk_gate2("mlb",            "axi",               base + 0x74, 18);
-	clk[IMX6QDL_CLK_OCRAM]        = imx_clk_gate2("ocram",         "ahb",               base + 0x74, 28);
+	clk[IMX6QDL_CLK_OCRAM]        = imx_clk_busy_gate("ocram",         "ahb",               base + 0x74, 28);
 	clk[IMX6QDL_CLK_OPENVG_AXI]   = imx_clk_gate2("openvg_axi",    "axi",               base + 0x74, 30);
 	clk[IMX6QDL_CLK_PCIE_AXI]     = imx_clk_gate2("pcie_axi",      "pcie_axi_sel",      base + 0x78, 0);
 	clk[IMX6QDL_CLK_PER1_BCH]     = imx_clk_gate2("per1_bch",      "usdhc3",            base + 0x78, 12);
