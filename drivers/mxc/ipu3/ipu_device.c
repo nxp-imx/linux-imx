@@ -455,6 +455,7 @@ cs_t colorspaceofpixel(int fmt)
 {
 	switch (fmt) {
 	case IPU_PIX_FMT_RGB565:
+	case IPU_PIX_FMT_RGB666:
 	case IPU_PIX_FMT_BGR24:
 	case IPU_PIX_FMT_RGB24:
 	case IPU_PIX_FMT_BGRA32:
