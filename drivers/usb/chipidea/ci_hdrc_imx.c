@@ -488,6 +488,9 @@ static int imx_controller_resume(struct device *dev)
 
 	WARN_ON(!data->in_lpm);
 
+	if (!data->in_lpm)
+		return 0;
+
 	request_bus_freq(BUS_FREQ_HIGH);
 	ret = clk_prepare_enable(data->clk);
 	if (ret) {
@@ -582,6 +585,9 @@ static int ci_hdrc_imx_runtime_suspend(struct device *dev)
 	int ret;
 
 	WARN_ON(data->in_lpm);
+
+	if (data->in_lpm)
+		return 0;
 
 	if (data->usbmisc_data) {
 		ret = imx_usbmisc_set_wakeup(data->usbmisc_data, true);
