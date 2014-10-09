@@ -268,9 +268,9 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	/*                                              name                reg       shift width parent_names     num_parents */
 	clk[IMX6QDL_CLK_STEP]             = imx_clk_mux("step",	            base + 0xc,  8,  1, step_sels,	   ARRAY_SIZE(step_sels));
 	clk[IMX6QDL_CLK_PLL1_SW]          = imx_clk_mux_glitchless("pll1_sw", base + 0xc, 2, 1, pll1_sw_sels,      ARRAY_SIZE(pll1_sw_sels));
-	clk[IMX6QDL_CLK_PERIPH_PRE]       = imx_clk_mux("periph_pre",       base + 0x18, 18, 2, periph_pre_sels,   ARRAY_SIZE(periph_pre_sels));
+	clk[IMX6QDL_CLK_PERIPH_PRE]       = imx_clk_mux_bus("periph_pre",       base + 0x18, 18, 2, periph_pre_sels,   ARRAY_SIZE(periph_pre_sels));
 	clk[IMX6QDL_CLK_PERIPH2_PRE]      = imx_clk_mux("periph2_pre",      base + 0x18, 21, 2, periph_pre_sels,   ARRAY_SIZE(periph_pre_sels));
-	clk[IMX6QDL_CLK_PERIPH_CLK2_SEL]  = imx_clk_mux("periph_clk2_sel",  base + 0x18, 12, 2, periph_clk2_sels,  ARRAY_SIZE(periph_clk2_sels));
+	clk[IMX6QDL_CLK_PERIPH_CLK2_SEL]  = imx_clk_mux_bus("periph_clk2_sel",  base + 0x18, 12, 2, periph_clk2_sels,  ARRAY_SIZE(periph_clk2_sels));
 	clk[IMX6QDL_CLK_PERIPH2_CLK2_SEL] = imx_clk_mux("periph2_clk2_sel", base + 0x18, 20, 1, periph2_clk2_sels, ARRAY_SIZE(periph2_clk2_sels));
 	clk[IMX6QDL_CLK_AXI_ALT_SEL]      = imx_clk_mux("axi_alt_sel",      base + 0x14, 7,  1, axi_alt_sels,      ARRAY_SIZE(axi_alt_sels));
 	clk[IMX6QDL_CLK_AXI_SEL]          = imx_clk_mux_glitchless("axi_sel", base + 0x14, 6, 1, axi_sels,         ARRAY_SIZE(axi_sels));
