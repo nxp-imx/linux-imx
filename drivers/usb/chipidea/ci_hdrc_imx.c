@@ -542,6 +542,9 @@ static int ci_hdrc_imx_suspend(struct device *dev)
 	int ret;
 	/* The core should make sure the controller is active now */
 	WARN_ON(data->in_lpm);
+	if (data->in_lpm)
+		/* The core's suspend doesn't run */
+		return 0;
 
 	if (device_may_wakeup(dev) && data->usbmisc_data) {
 		ret = imx_usbmisc_set_wakeup(data->usbmisc_data, true);
@@ -552,6 +555,7 @@ static int ci_hdrc_imx_suspend(struct device *dev)
 			return ret;
 		}
 	}
+
 	return imx_controller_suspend(dev);
 }
 
