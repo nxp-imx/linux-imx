@@ -538,6 +538,9 @@ struct fec_enet_private {
 	unsigned int itr_clk_rate;
 
 	u32 rx_copybreak;
+
+	/* ptp clock period in ns*/
+	unsigned int ptp_inc;
 };
 
 void fec_ptp_init(struct platform_device *pdev);
