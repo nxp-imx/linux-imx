@@ -56,6 +56,10 @@
 #define GPC_M4_LPSR			0x2c
 #define GPC_M4_LPSR_M4_SLEEPING_SHIFT	4
 #define GPC_M4_LPSR_M4_SLEEPING_MASK	0x1
+#define GPC_M4_LPSR_M4_SLEEP_HOLD_REQ_MASK	0x1
+#define GPC_M4_LPSR_M4_SLEEP_HOLD_REQ_SHIFT	0
+#define GPC_M4_LPSR_M4_SLEEP_HOLD_ACK_MASK	0x1
+#define GPC_M4_LPSR_M4_SLEEP_HOLD_ACK_SHIFT	1
 
 #define IMR_NUM			4
 
@@ -207,6 +211,31 @@ void imx_gpc_pre_suspend(bool arm_power_off)
 		gpc_saved_imrs[i] = readl_relaxed(reg_imr1 + i * 4);
 		writel_relaxed(~gpc_wake_irqs[i], reg_imr1 + i * 4);
 	}
+}
+
+void imx_gpc_hold_m4_in_sleep()
+{
+	int val;
+
+	val = readl_relaxed(gpc_base + GPC_M4_LPSR);
+	val &= ~(GPC_M4_LPSR_M4_SLEEP_HOLD_REQ_MASK <<
+		GPC_M4_LPSR_M4_SLEEP_HOLD_REQ_SHIFT);
+	writel_relaxed(val, gpc_base + GPC_M4_LPSR);
+
+	while (readl_relaxed(gpc_base + GPC_M4_LPSR)
+		& (GPC_M4_LPSR_M4_SLEEP_HOLD_ACK_MASK <<
+		GPC_M4_LPSR_M4_SLEEP_HOLD_ACK_SHIFT))
+		;
+}
+
+void imx_gpc_release_m4_in_sleep()
+{
+	int val;
+
+	val = readl_relaxed(gpc_base + GPC_M4_LPSR);
+	val |= GPC_M4_LPSR_M4_SLEEP_HOLD_REQ_MASK <<
+		GPC_M4_LPSR_M4_SLEEP_HOLD_REQ_SHIFT;
+	writel_relaxed(val, gpc_base + GPC_M4_LPSR);
 }
 
 void imx_gpc_post_resume(void)

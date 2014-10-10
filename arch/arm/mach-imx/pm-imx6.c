@@ -13,6 +13,7 @@
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/mcc_imx6sx.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
@@ -354,6 +355,15 @@ static int imx6_pm_enter(suspend_state_t state)
 	struct regmap *g;
 	unsigned int console_saved_reg[11] = {0};
 
+	if (imx_src_is_m4_enabled()) {
+		if (imx_gpc_is_m4_sleeping()) {
+			imx_gpc_hold_m4_in_sleep();
+		} else {
+			pr_info("M4 is busy, can NOT suspend!\n");
+			return 0;
+		}
+	}
+
 	if (!iram_tlb_base_addr) {
 		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume code. \
 			Please ensure device tree has an entry for fsl,lpm-sram.\n");
@@ -439,6 +449,9 @@ static int imx6_pm_enter(suspend_state_t state)
 		regmap_update_bits(g, IOMUXC_GPR1, IMX6Q_GPR1_PCIE_TEST_PD,
 				!IMX6Q_GPR1_PCIE_TEST_PD);
 	}
+
+	if (imx_src_is_m4_enabled())
+		imx_gpc_release_m4_in_sleep();
 
 	return 0;
 }

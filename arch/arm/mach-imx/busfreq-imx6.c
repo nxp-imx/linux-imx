@@ -82,8 +82,6 @@ static unsigned int ddr_low_rate;
 extern unsigned long iram_tlb_phys_addr;
 extern int unsigned long iram_tlb_base_addr;
 
-extern struct completion wait_m4_done;
-
 extern int init_mmdc_lpddr2_settings(struct platform_device *dev);
 extern int init_mmdc_ddr3_settings_imx6q(struct platform_device *dev);
 extern int init_mmdc_ddr3_settings_imx6sx(struct platform_device *dev);
@@ -122,34 +120,21 @@ static u32 pll2_org_rate;
 static struct delayed_work low_bus_freq_handler;
 static struct delayed_work bus_freq_daemon;
 
-static int imx_lpm_handshake(u32 data)
+static bool check_m4_sleep(void)
 {
-	unsigned long timeout;
+	unsigned long timeout = jiffies + msecs_to_jiffies(500);
 
-	init_completion(&wait_m4_done);
-
-	mcc_send_via_mu_buffer(MU_LPM_HANDSHAKE_INDEX, data);
-
-	if (!wait_for_completion_timeout(&wait_m4_done,
-		msecs_to_jiffies(3000))) {
-		pr_err("lpm handshake(0x%x) with M4 timeout!!!\n",
-			data);
-		/* M4 need to make sure in wfi for busfreq change */
-		dump_stack();
-	}
-
-	timeout = jiffies + msecs_to_jiffies(500);
 	while (imx_gpc_is_m4_sleeping() == 0)
 		if (time_after(jiffies, timeout))
-			pr_err("M4 is NOT sleeping!!!\n");
-
-	return 0;
+			return false;
+	return	true;
 }
 
 static void enter_lpm_imx6sx(void)
 {
 	if (imx_src_is_m4_enabled())
-		imx_lpm_handshake(MU_LPM_HANDSHAKE_ENTER);
+		if (!check_m4_sleep())
+			pr_err("M4 is NOT in sleep!!!\n");
 
 	/* set periph_clk2 to source from OSC for periph */
 	imx_clk_set_parent(periph_clk2_sel, osc_clk);
@@ -202,9 +187,6 @@ static void enter_lpm_imx6sx(void)
 
 static void exit_lpm_imx6sx(void)
 {
-	if (imx_src_is_m4_enabled())
-		imx_lpm_handshake(MU_LPM_HANDSHAKE_ENTER);
-
 	clk_prepare_enable(pll2_400);
 
 	/*
@@ -425,10 +407,6 @@ static void reduce_bus_freq(void)
 	med_bus_freq_mode = 0;
 	high_bus_freq_mode = 0;
 
-	/* wake up M4 */
-	if (cpu_is_imx6sx() && imx_src_is_m4_enabled())
-		imx_lpm_handshake(MU_LPM_HANDSHAKE_EXIT);
-
 	if (audio_bus_freq_mode)
 		dev_dbg(busfreq_dev, "Bus freq set to audio mode. Count:\
 			high %d, med %d, audio %d\n",
@@ -544,9 +522,6 @@ static int set_high_bus_freq(int high_bus_freq)
 	audio_bus_freq_mode = 0;
 
 	clk_disable_unprepare(pll3);
-	/* wake up M4 */
-	if (cpu_is_imx6sx() && imx_src_is_m4_enabled())
-		imx_lpm_handshake(MU_LPM_HANDSHAKE_EXIT);
 
 	if (high_bus_freq_mode)
 		dev_dbg(busfreq_dev, "Bus freq set to high mode. Count:\

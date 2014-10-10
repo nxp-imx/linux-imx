@@ -39,8 +39,6 @@ static unsigned int cpu_to_cpu_isr_vector = MCC_VECTOR_NUMBER_INVALID;
 static struct delayed_work mu_work;
 unsigned int m4_message;
 
-DECLARE_COMPLETION(wait_m4_done);
-
 unsigned int imx_mcc_buffer_freed = 0, imx_mcc_buffer_queued = 0;
 DECLARE_WAIT_QUEUE_HEAD(buffer_freed_wait_queue); /* Used for blocking send */
 DECLARE_WAIT_QUEUE_HEAD(buffer_queued_wait_queue); /* Used for blocking recv */
@@ -117,14 +115,6 @@ static irqreturn_t mcc_cpu_to_cpu_isr(int irq, void *param)
 	if (irqs & (1 << 27)) {
 		m4_message = mcc_handle_mu_receive_irq();
 		schedule_delayed_work(&mu_work, 0);
-		/*
-		 * MU delay work may sleep to wait for completion, so
-		 * we need to set completion here if the message is what
-		 * we expected, can NOT do it in delay work.
-		 */
-		if (m4_message == (~MU_LPM_HANDSHAKE_ENTER) ||
-			m4_message == (~MU_LPM_HANDSHAKE_EXIT))
-			complete(&wait_m4_done);
 	}
 
 	return IRQ_HANDLED;
@@ -216,10 +206,9 @@ static void mu_work_handler(struct work_struct *work)
 
 	switch (m4_message) {
 	case MU_LPM_M4_REQUEST_HIGH_BUS:
-	case MU_LPM_M4_IN_HIGHFREQ:
 		request_bus_freq(BUS_FREQ_HIGH);
 		mcc_send_via_mu_buffer(MU_LPM_HANDSHAKE_INDEX,
-			MU_LPM_A9_READY_FOR_M4);
+			MU_LPM_BUS_HIGH_READY_FOR_M4);
 		break;
 	case MU_LPM_M4_RELEASE_HIGH_BUS:
 		release_bus_freq(BUS_FREQ_HIGH);

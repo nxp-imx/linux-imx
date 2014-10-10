@@ -164,6 +164,8 @@ extern void imx6sl_set_wait_clk(bool enter);
 extern void imx6_enet_mac_init(const char *compatible);
 extern int imx_mmdc_get_ddr_type(void);
 extern unsigned int imx_gpc_is_m4_sleeping(void);
+extern void imx_gpc_hold_m4_in_sleep(void);
+extern void imx_gpc_release_m4_in_sleep(void);
 
 extern void imx_cpu_die(unsigned int cpu);
 extern int imx_cpu_kill(unsigned int cpu);
