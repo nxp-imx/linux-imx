@@ -56,8 +56,11 @@ static void clk_pfd_do_shared_clks(struct clk_hw *hw, bool enable)
 	struct clk_pfd *pfd = to_clk_pfd(hw);
 
 	if (imx_src_is_m4_enabled()) {
-		if (!amp_power_mutex || !shared_mem)
+		if (!amp_power_mutex || !shared_mem) {
+			if (enable)
+				clk_pfd_do_hardware(pfd, enable);
 			return;
+		}
 
 		imx_sema4_mutex_lock(amp_power_mutex);
 		if (shared_mem->ca9_valid != SHARED_MEM_MAGIC_NUMBER ||
