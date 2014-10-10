@@ -1583,6 +1583,8 @@ fec_enet_interrupt(int irq, void *dev_id)
 		complete(&fep->mdio_done);
 	}
 
+	fec_ptp_check_pps_event(fep);
+
 	return ret;
 }
 
