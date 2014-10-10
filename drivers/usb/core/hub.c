@@ -21,6 +21,7 @@
 #include <linux/usbdevice_fs.h>
 #include <linux/usb/hcd.h>
 #include <linux/usb/otg.h>
+#include <linux/usb/otg-fsm.h>
 #include <linux/usb/quirks.h>
 #include <linux/kthread.h>
 #include <linux/mutex.h>
@@ -2181,6 +2182,7 @@ static int usb_enumerate_device_otg(struct usb_device *udev)
 					USB_DT_OTG, (void **) &desc) == 0) {
 			if (desc->bmAttributes & USB_OTG_HNP) {
 				unsigned		port1 = udev->portnum;
+				struct usb_hcd *hcd = bus_to_hcd(bus);
 
 				dev_info(&udev->dev,
 					"Dual-Role OTG device on %sHNP port\n",
@@ -2205,6 +2207,16 @@ static int usb_enumerate_device_otg(struct usb_device *udev)
 						"can't set HNP mode: %d\n",
 						err);
 					bus->b_hnp_enable = 0;
+				}
+
+				if (hcd->phy->otg && hcd->phy->otg->fsm) {
+					struct otg_fsm *fsm;
+
+					fsm = hcd->phy->otg->fsm;
+					if (port1 == bus->otg_port)
+						fsm->b_hnp_enable = 1;
+					if (bus->b_hnp_enable)
+						fsm->a_set_b_hnp_en = 1;
 				}
 
 				/* For OTG supplement version 1.3 or earlier */
@@ -2276,8 +2288,12 @@ static int usb_enumerate_device(struct usb_device *udev)
 			err = usb_port_suspend(udev, PMSG_AUTO_SUSPEND);
 			if (err < 0)
 				dev_dbg(&udev->dev, "HNP fail, %d\n", err);
+			return -ENOTSUPP;
+		} else if (!hcd->phy->otg || !hcd->phy->otg->fsm ||
+				!hcd->phy->otg->fsm->b_hnp_enable ||
+					!hcd->phy->otg->fsm->hnp_polling) {
+			return -ENOTSUPP;
 		}
-		return -ENOTSUPP;
 	}
 
 	usb_detect_interface_quirks(udev);
