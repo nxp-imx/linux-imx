@@ -161,6 +161,21 @@
 			arm,data-latency = <4 2 3>;
 		};
 
+		gpu: gpu@01800000 {
+			compatible = "fsl,imx6sx-gpu", "fsl,imx6q-gpu";
+			reg = <0x01800000 0x4000>, <0x80000000 0x0>;
+			reg-names = "iobase_3d", "phys_baseaddr";
+			interrupts = <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "irq_3d";
+			clocks = <&clks IMX6SX_CLK_GPU_AXI_PODF>, <&clks IMX6SX_CLK_GPU>,
+				<&clks 0>;
+			clock-names = "gpu3d_axi_clk", "gpu3d_clk",
+				"gpu3d_shader_clk";
+			resets = <&src 0>;
+			reset-names = "gpu3d";
+			power-domains = <&gpc 1>;
+		};
+
 		dma_apbh: dma-apbh@01804000 {
 			compatible = "fsl,imx6sx-dma-apbh", "fsl,imx28-dma-apbh";
 			reg = <0x01804000 0x2000>;
@@ -720,6 +735,7 @@
 				reg = <0x020dc000 0x4000>;
 				interrupts = <GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>;
 				fsl,mf-mix-wakeup-irq = <0x7c00000 0x3d00 0x0 0x400200>;
+				#power-domain-cells = <1>;
 			};
 
 			iomuxc: iomuxc@020e0000 {
