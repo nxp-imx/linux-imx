@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
  */
 
 #include <linux/linkage.h>
+#include <asm/smp_scu.h>
+#include "hardware.h"
 
 #define MMDC0_MDPDC		0x4
 #define MMDC0_MDCF0			0x0c
@@ -41,6 +43,14 @@
 
 #define L2_CACHE_SYNC		0x730
 
+.extern iram_tlb_phys_addr
+.extern imx_scu_base
+
+.globl mx6_ddr3_freq_change_start
+.globl mx6_ddr3_freq_change_end
+.globl wfe_ddr3_freq_change_start
+.globl wfe_ddr3_freq_change_end
+
 	.align 3
 
 	.macro	switch_to_528MHz
@@ -64,7 +74,6 @@
 	 * set the AHB dividers before the switch,
 	 * don't change AXI clock divider,
 	 * set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=4,
-	 * (need to maintain GPT divider).
 	 */
 	ldr	r0, [r6, #CCM_CBCDR]
 	ldr	r2, =0x3f1f00
@@ -93,7 +102,6 @@ periph_clk_switch3:
 set_ahb_podf_before_switch:
 	/*
 	 * set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=4,
-	 * (need to maintain GPT divider).
 	 */
 	ldr	r0, [r6, #CCM_CBCDR]
 	ldr	r2, =0x3f1f00
@@ -124,11 +132,6 @@ periph_clk_switch4:
 	cmp	r0, #0
 	bne	periph_clk_switch4
 
-	/* change the perclk divider so that its at 6MHz. */
-	ldr	r0, [r6, #CCM_CSCMR1]
-	bic	r0, r0, #0x3F
-	orr	r0, r0, #0xA
-	str	r0, [r6, #CCM_CSCMR1]
 	.endm
 
 	.macro	switch_to_400MHz
@@ -163,7 +166,6 @@ periph_clk_switch5:
 set_ahb_podf_before_switch1:
 	/*
 	 * set the MMDC_DIV=1, AXI_DIV = 2, AHB_DIV=4,
-	 * (need to maintain GPT divider).
 	 */
 	ldr	r0, [r6, #CCM_CBCDR]
 	ldr	r2, =0x3f1f00
@@ -199,7 +201,6 @@ periph_clk_switch6:
 	 * change AHB divider so that we are at 400/3=133MHz.
 	 * don't change AXI clock divider.
 	 * set the MMDC_DIV=1, AXI_DIV=2, AHB_DIV=3,
-	 * (need to maintain GPT divider).
 	 */
 	ldr	r0, [r6, #CCM_CBCDR]
 	ldr	r2, =0x3f1f00
@@ -212,12 +213,6 @@ wait_div_update400_2:
 	ldr	r0, [r6, #CCM_CDHIPR]
 	cmp	r0, #0
 	bne	wait_div_update400_2
-
-	/* change the perclk divider so that its at 6MHz. */
-	ldr	r0, [r6, #CCM_CSCMR1]
-	bic	r0, r0, #0x3F
-	orr	r0, r0, #0xA
-	str	r0, [r6, #CCM_CSCMR1]
 
 	.endm
 
@@ -261,7 +256,6 @@ switch_pre_periph_clk_50:
 
 	/*
 	 * set the MMDC_DIV=4, AXI_DIV = 4, AHB_DIV=8,
-	 * (need to maintain GPT divider).
 	 */
 	ldr	r0, [r6, #CCM_CBCDR]
 	ldr	r2, =0x3f1f00
@@ -290,12 +284,6 @@ periph_clk_switch2:
 	ldr	r0, [r6, #CCM_CDHIPR]
 	cmp	r0, #0
 	bne	periph_clk_switch2
-
-	/* change the perclk divider so that its at 6MHz. */
-	ldr	r0, [r6, #CCM_CSCMR1]
-	bic	r0, r0, #0x3F
-	orr	r0, r0, #0x1
-	str	r0, [r6, #CCM_CSCMR1]
 
 	.endm
 
@@ -339,11 +327,34 @@ wait_div_update:
 	cmp	r0, #0
 	bne	wait_div_update
 
-	/* change the perclk divider so that its at 6MHz. */
-	ldr	r0, [r6, #CCM_CSCMR1]
-	bic	r0, r0, #0x3F
-	orr	r0, r0, #0x1
-	str	r0, [r6, #CCM_CSCMR1]
+	.endm
+
+	.macro	disable_l1_dcache
+
+	/*
+	 * Flush all data from the L1 data cache before disabling
+	 * SCTLR.C bit.
+	 */
+	push	{r0 - r11, lr}
+
+	ldr	r7, =v7_flush_kern_cache_all
+	mov	lr, pc
+	mov	pc, r7
+	pop	{r0 - r11, lr}
+
+	/* disable d-cache */
+	mrc	p15, 0, r6, c1, c0, 0
+	bic	r6, r6, #0x4
+	mcr	p15, 0, r6, c1, c0, 0
+	dsb
+	isb
+
+	push	{r0 - r11, lr}
+
+	ldr	r7, =v7_flush_kern_cache_all
+	mov	lr, pc
+	mov	pc, r7
+	pop	{r0 - r11, lr}
 
 	.endm
 
@@ -356,68 +367,113 @@ wait_div_update:
  */
 ENTRY(mx6_ddr3_freq_change)
 
+mx6_ddr3_freq_change_start:
 	stmfd	sp!, {r4-r12}
 
 	/*
-	  * r5 -> mmdc_base
-	  * r6 -> ccm_base
-	  * r7 -> iomux_base
-	  * r12 -> l2_base
-	  */
+	 * r5 -> mmdc_base
+	 * r6 -> ccm_base
+	 * r7 -> iomux_base
+	 * r12 -> l2_base
+	 */
 	mov	r4, r0
 	mov	r8, r1
 	mov	r9, r2
 	mov	r11, r3
 
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	ldr	r6, =iram_tlb_phys_addr
+	ldr	r7, [r6]
+
 	/*
-	  * Get the addresses of the registers.
-	  * They are last few entries in the
-	  * ddr_settings parameter.
-	  * The first entry contains the count,
-	  * and each entry is 2 words.
-	  */
-	ldr	r0, [r1]
-	add	r0, r0, #1
-	lsl	r0, r0, #3
-	add	r1, r0, r1
-	/* mmdc_base. */
-	ldr	r5, [r1]
-	add	r1, #8
-	/* ccm_base */
-	ldr	r6, [r1]
-	add	r1, #8
-	/*iomux_base */
-	ldr	r7, [r1]
-	add	r1, #8
-	/*l2_base */
-	ldr	r12, [r1]
-
-ddr_freq_change:
-	/*
-	 * make sure no TLB miss will occur when
-	 * the DDR is in self refresh. invalidate
-	 * TLB single entry to ensure that the
-	 * address is not already in the TLB.
-	 */
-
-	adr	r10, ddr_freq_change
-
-	ldr	r2, [r6]
-	ldr	r2, [r5]
-	ldr	r2, [r7]
-	ldr	r2, [r8]
-	ldr	r2, [r10]
-	ldr	r2, [r11]
-	ldr	r2, [r12]
+	  * Need to flush and disable L1 before disabling L2, we need data to
+	  * coherent. Flushing L1 pushes everyhting to L2. We sync L2 later, but
+	  * it can still have dirty lines. While exiting, we need to enable L2 first
+	  * and then L1.
+	 . */
+	disable_l1_dcache
 
 #ifdef CONFIG_CACHE_L2X0
 	/*
-	  * Make sure the L2 buffers are drained.
-	  * Sync operation on L2 drains the buffers.
-	  */
-	mov    r1, #0x0
-	str      r1, [r12, #L2_CACHE_SYNC]
+	 * Make sure the L2 buffers are drained.
+	 * Sync operation on L2 drains the buffers.
+	 */
+	ldr	r12, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
+
+	/* Wait for background operations to complete. */
+wait_for_l2_to_idle:
+	ldr	r1, [r12, #L2_CACHE_SYNC]
+	cmp	r1, #0x0
+	bne	wait_for_l2_to_idle
+
+	mov	r1, #0x0
+	str	r1, [r12, #L2_CACHE_SYNC]
+
+	/* Disable L2. */
+	str	r1, [r12, #0x100]
+
+	dsb
+	isb
 #endif
+
+	/*
+	 * To ensure no page table walks occur in DDR, we
+	 * have a another page table stored in IRAM that only
+	 * contains entries pointing to IRAM, AIPS1 and AIPS2.
+	 * We need to set the TTBR1 to the new IRAM TLB.
+	 * Do the following steps:
+	 * 1. Flush the Branch Target Address Cache (BTAC)
+	 * 2. Set TTBR1 to point to IRAM page table.
+	 * 3. Disable page table walks in TTBR0 (PD0 = 1)
+	 * 4. Set TTBR0.N=1, implying 0-2G is translated by TTBR0
+	 *     and 2-4G is translated by TTBR1.
+	 */
+
+
+	/* Now switch the TTBR. */
+	/* Disable Branch Prediction, Z bit in SCTLR. */
+	mrc	p15, 0, r6, c1, c0, 0
+	bic	r6, r6, #0x800
+	mcr	p15, 0, r6, c1, c0, 0
+
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
+
+	dsb
+	isb
+
+	/* Store the IRAM table in TTBR1 */
+	mcr	p15, 0, r7, c2, c0, 1
+
+	/* Read TTBCR and set PD0=1, N = 1 */
+	mrc	p15, 0, r6, c2, c0, 2
+	orr	r6, r6, #0x11
+	mcr	p15, 0, r6, c2, c0, 2
+
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	dsb
+	isb
+
+
+	ldr	r5, =IMX_IO_P2V(MX6Q_MMDC_P0_BASE_ADDR)
+	ldr	r6, =IMX_IO_P2V(MX6Q_CCM_BASE_ADDR)
+	ldr	r7, =IMX_IO_P2V(MX6Q_IOMUXC_BASE_ADDR)
+
+	/* Read the Original MU delay value */
+	ldr	r1, [r5, #MMDC0_MPMUR0]
+	mov	r10, r1, lsr #16
+	ldr	r1, =0x3ff
+	and	r10, r10, r1
 
 	/* disable automatic power saving. */
 	ldr	r0, [r5, #MMDC0_MAPSR]
@@ -614,24 +670,33 @@ update_iomux:
 	orr	r0, r0, #(0x1 << 29)
 	str	r0, [r5, r2]
 
-	/* MMDC0_MAPSR adopt power down enable. */
-	ldr	r0, [r5, #MMDC0_MAPSR]
-	bic	r0, r0, #0x01
-	str	r0, [r5, #MMDC0_MAPSR]
+	/* Add workaround for ERR005778.*/
+	/* double the original MU_UNIT_DEL_NUM. */
+	lsl	r10, r10, #1
 
-	/* frc_msr + mu bypass */
-	ldr	r0, =0x00000060
+	/* Bypass the automatic MU by setting the mu_byp_en */
+	ldr	r2, [r5, #MMDC0_MPMUR0]
+	orr	r2, r2, #0x400
+	orr	r2, r2, r10
+	str	r2, [r5, #MMDC0_MPMUR0]
+	ldr	r0, =MMDC1_MPMUR0
+	str	r2, [r5, r0]
+
+	/* Now perform a force measure */
+	ldr	r0, [r5, #MMDC0_MPMUR0]
+	orr	r0, r0, #0x800
 	str	r0, [r5, #MMDC0_MPMUR0]
 	ldr	r2, =MMDC1_MPMUR0
 	str	r0, [r5, r2]
-	ldr	r0, =0x00000460
-	str	r0, [r5, #MMDC0_MPMUR0]
-	ldr	r2, =MMDC1_MPMUR0
-	str	r0, [r5, r2]
-	ldr	r0, =0x00000c60
-	str	r0, [r5, #MMDC0_MPMUR0]
-	ldr	r2, =MMDC1_MPMUR0
-	str	r0, [r5, r2]
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r0, [r5, #MMDC0_MPMUR0]
+	and	r0, r0, #0x800
+	ldr	r1, [r5, r2]
+	and	r1, r1, #0x800
+	orr	r0, r0, r1
+	cmp	r0, #0x0
+	bne	1b
 
 continue_dll_off_3:
 	/* clear SBS - unblock accesses to DDR. */
@@ -699,7 +764,7 @@ poll_dvfs_clear_2:
 	cmp	r9, #0
 	beq	update_calibration_only
 
-	ldr	r0, =0xa5390003
+	ldr	r0, =0xa1390003
 	str	r0, [r5, #MMDC0_MPZQHWCTRL]
 	ldr	r2, =MMDC1_MPZQHWCTRL
 	str	r0, [r5, r2]
@@ -721,18 +786,15 @@ poll_dvfs_clear_2:
 	ldr	r2, =MMDC1_MPMUR0
 	str	r0, [r5, r2]
 
-	/* delay for while. */
-	ldr	r1, =4
-delay5:
-	ldr	r2, =0
-cont5:
-	ldr	r0, [r5, r2]
-	add	r2, r2, #4
-	cmp	r2, #16
-	bne	cont5
-	sub	r1, r1, #1
-	cmp	r1, #0
-	bgt	delay5
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r0, [r5, #MMDC0_MPMUR0]
+	and	r0, r0, #0x800
+	ldr	r1, [r5, r2]
+	and	r1, r1, #0x800
+	orr	r0, r0, r1
+	cmp	r0, #0x0
+	bne	1b
 
 	/* disable dqs pull down in the IOMUX. */
 	ldr	r1, [r11]
@@ -858,11 +920,6 @@ cont15:
 	cmp	r1, #0
 	bgt	delay15
 
-	/* MMDC0_MAPSR adopt power down enable. */
-	ldr	r0, [r5, #MMDC0_MAPSR]
-	bic	r0, r0, #0x01
-	str	r0, [r5, #MMDC0_MAPSR]
-
 	/* enable MMDC power down timer. */
 	ldr	r0, [r5, #MMDC0_MDPDC]
 	orr	r0, r0, #(0x55 << 8)
@@ -896,6 +953,16 @@ update_calib:
 	ldr	r2, =MMDC1_MPMUR0
 	str	r0, [r5, r2]
 
+	/* Wait for FRC_MSR to clear. */
+1:
+	ldr	r0, [r5, #MMDC0_MPMUR0]
+	and	r0, r0, #0x800
+	ldr	r1, [r5, r2]
+	and	r1, r1, #0x800
+	orr	r0, r0, r1
+	cmp	r0, #0x0
+	bne	1b
+
 	/* clear SBS - unblock DDR accesses. */
 	ldr	r0, [r5, #MMDC0_MADPCR0]
 	bic	r0, r0, #(1 << 8)
@@ -910,12 +977,136 @@ poll_conreq_clear_2:
 	beq	poll_conreq_clear_2
 
 done:
-	/* restore registers */
+	/* MMDC0_MAPSR adopt power down enable. */
+	ldr	r0, [r5, #MMDC0_MAPSR]
+	bic	r0, r0, #0x01
+	str	r0, [r5, #MMDC0_MAPSR]
 
+#ifdef CONFIG_CACHE_L2X0
+	/* Enable L2. */
+	ldr	r7, =IMX_IO_P2V(MX6Q_L2_BASE_ADDR)
+	ldr	r6, =0x1
+	str	r6, [r7, #0x100]
+	isb
+	dsb
+#endif
+
+	/* Enable L1 data cache. */
+	mrc	p15, 0, r6, c1, c0, 0
+	orr	r6, r6, #0x4
+	mcr	p15, 0, r6, c1, c0, 0
+
+	/* Restore the TTBCR */
+	dsb
+	isb
+
+	/* Read TTBCR and set PD0=0, N = 0 */
+	mrc	p15, 0, r6, c2, c0, 2
+	bic	r6, r6, #0x11
+	mcr	p15, 0, r6, c2, c0, 2
+	dsb
+	isb
+
+	/* flush the TLB */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c8, c3, 0
+
+	dsb
+	isb
+
+	/* Enable Branch Prediction, Z bit in SCTLR. */
+	mrc	p15, 0, r6, c1, c0, 0
+	orr	r6, r6, #0x800
+	mcr	p15, 0, r6, c1, c0, 0
+
+	isb
+
+	/* Flush the Branch Target Address Cache (BTAC) */
+	ldr	r6, =0x0
+	mcr	p15, 0, r6, c7, c1, 6
+	isb
+	dsb
+
+	/* restore registers */
 	ldmfd	sp!, {r4-r12}
 	mov	pc, lr
 
-	.type	mx6_do_ddr3_freq_change, #object
-ENTRY(mx6_do_ddr_freq_change)
-	.word	mx6_ddr3_freq_change
-	.size	mx6_ddr3_freq_change, . - mx6_ddr3_freq_change
+	/*
+	 * Add ltorg here to ensure that all
+	 * literals are stored here and are
+	 * within the text space.
+	 */
+	.ltorg
+mx6_ddr3_freq_change_end:
+
+	.align 3
+
+ENTRY(wfe_ddr3_freq_change)
+wfe_ddr3_freq_change_start:
+	push	{r4 - r11, lr}
+
+	mov	r6, r0
+	mov	r7, r1
+
+	dsb
+	isb
+
+	disable_l1_dcache
+
+	isb
+
+	/* Turn off SMP bit. */
+	mrc	p15, 0, r8, c1, c0, 1
+	bic	r8, r8, #0x40
+	mcr	p15, 0, r8, c1, c0, 1
+
+	isb
+
+	/* Inform the SCU we are going to enter WFE. */
+	push	{r0 - r11, lr}
+
+	ldr	r0,=imx_scu_base
+	ldr	r0, [r0]
+	mov	r1, #SCU_PM_DORMANT
+	ldr	r3, =scu_power_mode
+	mov	lr, pc
+	mov	pc, r3
+
+	pop	{r0 - r11, lr}
+
+go_back_wfe:
+	wfe
+
+	ldr	r3, [r7]
+	cmp	r3, #1
+	beq	go_back_wfe
+
+	/* Turn ON SMP bit. */
+	mrc	p15, 0, r8, c1, c0, 1
+	orr	r8, r8, #0x40
+	mcr	p15, 0, r8, c1, c0, 1
+
+	isb
+	/* Enable L1 data cache. */
+	mrc	p15, 0, r8, c1, c0, 0
+	orr	r8, r8, #0x4
+	mcr	p15, 0, r8, c1, c0, 0
+	isb
+
+	/* Inform the SCU we have exited WFE. */
+	push	{r0 - r11, lr}
+
+	ldr	r0,=imx_scu_base
+	ldr	r0, [r0]
+	mov	r1, #SCU_PM_NORMAL
+	ldr	r3, =scu_power_mode
+	mov	lr, pc
+	mov	pc, r3
+
+	pop	{r0 - r11, lr}
+
+	/* Pop all saved registers. */
+	pop	{r4 - r11, lr}
+	mov	pc, lr
+	.ltorg
+wfe_ddr3_freq_change_end:

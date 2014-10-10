@@ -429,6 +429,7 @@ static void __init imx6q_map_io(void)
 	debug_ll_io_init();
 	imx_scu_map_io();
 	imx6_pm_map_io();
+	imx6_busfreq_map_io();
 }
 
 static void __init imx6q_init_irq(void)
