@@ -66,13 +66,22 @@
 #define MX6Q_SUSPEND_OCRAM_SIZE		0x1000
 #define MX6_MAX_MMDC_IO_NUM		33
 
+#define ROMC_ROMPATCH0D		0xf0
+#define ROMC_ROMPATCHCNTL		0xf4
+#define ROMC_ROMPATCHENL		0xfc
+#define ROMC_ROMPATCH0A		0x100
+#define BM_ROMPATCHCNTL_0D		(0x1 << 0)
+#define BM_ROMPATCHCNTL_DIS		(0x1 << 29)
+#define BM_ROMPATCHENL_0D		(0x1 << 0)
+#define ROM_ADDR_FOR_INTERNAL_RAM_BASE	0x10d7c
+
 unsigned long iram_tlb_base_addr;
 unsigned long iram_tlb_phys_addr;
 
 static void __iomem *ccm_base;
 static void __iomem *suspend_ocram_base;
 static void (*imx6_suspend_in_ocram_fn)(void __iomem *ocram_vbase);
-
+struct regmap *romcp;
 /*
  * suspend ocram space layout:
  * ======================== high address ======================
@@ -639,4 +648,26 @@ void __init imx6sl_pm_init(void)
 void __init imx6sx_pm_init(void)
 {
 	imx6_pm_common_init(&imx6sx_pm_data);
+	/*
+	 * As there is a 16K OCRAM(start from 0x8f8000)
+	 * dedicated for low power function on i.MX6SX,
+	 * but ROM did NOT do the ocram address change
+	 * accordingly, so we need to add a data patch
+	 * to workaround this issue, otherwise, system
+	 * will fail to resume from DSM mode.
+	 */
+	romcp = syscon_regmap_lookup_by_compatible("fsl,imx6sx-romcp");
+	if (IS_ERR(romcp)) {
+		pr_err("failed to find fsl,imx6sx-romcp regmap\n");
+		return;
+	}
+	regmap_write(romcp, ROMC_ROMPATCH0D, iram_tlb_phys_addr);
+	regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
+		BM_ROMPATCHCNTL_0D, BM_ROMPATCHCNTL_0D);
+	regmap_update_bits(romcp, ROMC_ROMPATCHENL,
+		BM_ROMPATCHENL_0D, BM_ROMPATCHENL_0D);
+	regmap_write(romcp, ROMC_ROMPATCH0A,
+		ROM_ADDR_FOR_INTERNAL_RAM_BASE);
+	regmap_update_bits(romcp, ROMC_ROMPATCHCNTL,
+		BM_ROMPATCHCNTL_DIS, ~BM_ROMPATCHCNTL_DIS);
 }
