@@ -494,10 +494,12 @@ static int exynos_pcie_link_up(struct pcie_port *pp)
 	return 0;
 }
 
-static void exynos_pcie_host_init(struct pcie_port *pp)
+static int exynos_pcie_host_init(struct pcie_port *pp)
 {
 	exynos_pcie_establish_link(pp);
 	exynos_pcie_enable_interrupts(pp);
+
+	return 0;
 }
 
 static struct pcie_host_ops exynos_pcie_host_ops = {
