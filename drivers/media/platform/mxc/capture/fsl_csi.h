@@ -196,6 +196,7 @@ struct csi_soc {
 	bool online;
 	int irq_nr;
 	void __iomem *regbase;
+	struct regulator *disp_reg;
 };
 
 typedef void (*csi_irq_callback_t) (void *data, unsigned long status);

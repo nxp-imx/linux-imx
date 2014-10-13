@@ -18,9 +18,11 @@
  *
  * @ingroup CSI
  */
+#include <linux/busfreq-imx6.h>
 #include <linux/types.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/interrupt.h>
@@ -28,6 +30,7 @@
 #include <linux/module.h>
 #include <linux/clk.h>
 #include <linux/of.h>
+#include <linux/regulator/consumer.h>
 #include <linux/sched.h>
 
 #include "mxc_v4l2_capture.h"
@@ -41,9 +44,12 @@ static void *g_callback_data;
 static struct clk *disp_axi_clk;
 static struct clk *dcic_clk;
 static struct clk *csi_clk;
+struct platform_device *csi_pdev;
 
 void csi_clk_enable(void)
 {
+	pm_runtime_get_sync(&csi_pdev->dev);
+
 	clk_prepare_enable(disp_axi_clk);
 	clk_prepare_enable(dcic_clk);
 	clk_prepare_enable(csi_clk);
@@ -55,6 +61,8 @@ void csi_clk_disable(void)
 	clk_disable_unprepare(csi_clk);
 	clk_disable_unprepare(dcic_clk);
 	clk_disable_unprepare(disp_axi_clk);
+
+	pm_runtime_put_sync_suspend(&csi_pdev->dev);
 }
 EXPORT_SYMBOL(csi_clk_disable);
 
@@ -413,6 +421,8 @@ static int csi_probe(struct platform_device *pdev)
 	struct resource *res;
 	int id;
 
+	csi_pdev = pdev;
+
 	id = of_alias_get_id(pdev->dev.of_node, "csi");
 	if (id < 0) {
 		dev_dbg(&pdev->dev, "can not get alias id\n");
@@ -460,7 +470,15 @@ static int csi_probe(struct platform_device *pdev)
 		return PTR_ERR(dcic_clk);
 	}
 
+	csi->disp_reg = devm_regulator_get(&pdev->dev, "disp");
+	if (IS_ERR(csi->disp_reg)) {
+		dev_dbg(&pdev->dev, "display regulator is not ready\n");
+		csi->disp_reg = NULL;
+	}
+
 	platform_set_drvdata(pdev, csi);
+
+	pm_runtime_enable(&pdev->dev);
 
 	csi_clk_enable();
 	csihw_reset(csi);
@@ -481,6 +499,41 @@ static int csi_remove(struct platform_device *pdev)
 
 	return 0;
 }
+
+#ifdef CONFIG_PM_RUNTIME
+static int csi_runtime_suspend(struct device *dev)
+{
+	int ret = 0;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct csi_soc *csi = platform_get_drvdata(pdev);
+
+	release_bus_freq(BUS_FREQ_HIGH);
+	dev_info(dev, "csi busfreq high release.\n");
+
+	if (csi->disp_reg)
+		ret = regulator_disable(csi->disp_reg);
+
+	return ret;
+}
+
+static int csi_runtime_resume(struct device *dev)
+{
+	int ret = 0;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct csi_soc *csi = platform_get_drvdata(pdev);
+
+	request_bus_freq(BUS_FREQ_HIGH);
+	dev_info(dev, "csi busfreq high request.\n");
+
+	if (csi->disp_reg)
+		ret = regulator_enable(csi->disp_reg);
+
+	return ret;
+}
+#else
+#define	mxsfb_runtime_suspend	NULL
+#define	mxsfb_runtime_resume	NULL
+#endif
 
 #ifdef CONFIG_PM_SLEEP
 static int csi_suspend(struct device *dev)
@@ -512,6 +565,7 @@ static int csi_resume(struct device *dev)
 #endif
 
 static const struct dev_pm_ops csi_pm_ops = {
+	SET_RUNTIME_PM_OPS(csi_runtime_suspend, csi_runtime_resume, NULL)
 	SET_SYSTEM_SLEEP_PM_OPS(csi_suspend, csi_resume)
 };
 
