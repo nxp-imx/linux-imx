@@ -86,6 +86,7 @@ static const char *lvds_sels[]	= {
 	"arm", "pll1_sys", "dummy", "dummy", "dummy", "dummy", "dummy", "pll5_video_div",
 	"dummy", "dummy", "pcie_ref_125m", "dummy", "usbphy1", "usbphy2",
 };
+static const char *pll_av_sels[] = { "osc", "lvds1_in", "lvds2_in", "dummy", };
 
 static struct clk *clks[IMX6SX_CLK_CLK_END];
 static struct clk_onecell_data clk_data;
@@ -166,6 +167,9 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	/* ipp_di clock is external input */
 	clks[IMX6SX_CLK_IPP_DI0]    = imx_obtain_fixed_clock("ipp_di0", 0);
 	clks[IMX6SX_CLK_IPP_DI1]    = imx_obtain_fixed_clock("ipp_di1", 0);
+	/* Clock source from external clock via ANACLK1/2 PADs */
+	clks[IMX6SX_CLK_ANACLK1]     = imx_obtain_fixed_clock("anaclk1", 0);
+	clks[IMX6SX_CLK_ANACLK2]     = imx_obtain_fixed_clock("anaclk2", 0);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx6sx-anatop");
 	base = of_iomap(np, 0);
@@ -175,7 +179,7 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_PLL1_SYS]       = imx_clk_pllv3(IMX_PLLV3_SYS,     "pll1_sys",      "osc",        base,        0x7f,    false);
 	clks[IMX6SX_CLK_PLL2_BUS]       = imx_clk_pllv3(IMX_PLLV3_GENERIC, "pll2_bus",      "osc",        base + 0x30, 0x1,     false);
 	clks[IMX6SX_CLK_PLL3_USB_OTG]   = imx_clk_pllv3(IMX_PLLV3_USB,     "pll3_usb_otg",  "osc",        base + 0x10, 0x3,     false);
-	clks[IMX6SX_CLK_PLL4_AUDIO]     = imx_clk_pllv3(IMX_PLLV3_AV,      "pll4_audio",    "osc",        base + 0x70, 0x7f,    false);
+	clks[IMX6SX_CLK_PLL4_AUDIO]     = imx_clk_pllv3(IMX_PLLV3_AV,      "pll4_audio",    "pll4_sel",   base + 0x70, 0x7f,    false);
 	clks[IMX6SX_CLK_PLL5_VIDEO]     = imx_clk_pllv3(IMX_PLLV3_AV,      "pll5_video",    "osc",        base + 0xa0, 0x7f,    false);
 	clks[IMX6SX_CLK_PLL6_ENET]      = imx_clk_pllv3(IMX_PLLV3_ENET,    "pll6_enet",     "osc",        base + 0xe0, 0x3,     false);
 	clks[IMX6SX_CLK_PLL7_USB_HOST]  = imx_clk_pllv3(IMX_PLLV3_USB,     "pll7_usb_host", "osc",        base + 0x20, 0x3,     false);
@@ -199,6 +203,10 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	/* FIXME 100Mhz is used for pcie ref for all imx6 pcie, excepted imx6q*/
 	clks[IMX6SX_CLK_PCIE_REF] = imx_clk_fixed_factor("pcie_ref", "pll6_enet", 1, 5);
 	clks[IMX6SX_CLK_PCIE_REF_125M] = imx_clk_gate("pcie_ref_125m", "pcie_ref", base + 0xe0, 19);
+
+	/* NOTICE: The gate of the lvds1/2 in/out is used to select the clk direction */
+	clks[IMX6SX_CLK_LVDS1_IN] = imx_clk_gate("lvds1_in", "anaclk1", base + 0x160, 12);
+	clks[IMX6SX_CLK_LVDS2_IN] = imx_clk_gate("lvds2_in", "anaclk2", base + 0x160, 13);
 
 	clks[IMX6SX_CLK_LVDS1_OUT] = imx_clk_gate("lvds1_out", "lvds1_sel", base + 0x160, 10);
 
@@ -242,6 +250,8 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 
 	/*                                                name                reg           shift   width   parent_names       num_parents */
 	clks[IMX6SX_CLK_LVDS1_SEL]          = imx_clk_mux("lvds1_sel",        base + 0x160, 0,      5,      lvds_sels,         ARRAY_SIZE(lvds_sels));
+
+	clks[IMX6SX_CLK_PLL4_SEL]     = imx_clk_mux("pll4_sel",  base + 0x70, 14,  2,  pll_av_sels,     ARRAY_SIZE(pll_av_sels));
 
 	np = ccm_node;
 	base = of_iomap(np, 0);
