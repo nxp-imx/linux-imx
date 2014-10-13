@@ -227,7 +227,7 @@
 		model = "imx-radio-si4763";
 
 		ssi-controller = <&ssi2>;
-		fm-controller = <&si4763>;
+		fm-controller = <&si476x_codec>;
 		mux-int-port = <2>;
 		mux-ext-port = <5>;
 	};
@@ -460,6 +460,10 @@
 		vd-supply = <&si4763_vd>;
 		vio1-supply = <&si4763_vio1>;
 		vio2-supply = <&si4763_vio2>;
+
+		si476x_codec: si476x-codec {
+			compatible = "si476x-codec";
+		};
 	};
 };
 
