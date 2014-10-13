@@ -507,19 +507,34 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_enet1_1>;
 	phy-mode = "rgmii";
-	phy-id = <1>;
+	phy-handle = <&ethphy1>;
 	fsl,num_tx_queues=<3>;
 	fsl,num_rx_queues=<3>;
 	pinctrl-assert-gpios = <&max7322 0 GPIO_ACTIVE_HIGH>;
 	fsl,magic-packet;
 	status = "okay";
+
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ethphy0: ethernet-phy@0 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <0>;
+		};
+
+		ethphy1: ethernet-phy@1 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <1>;
+		};
+	};
 };
 
 &fec2 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_enet2_1>;
 	phy-mode = "rgmii";
-	phy-id = <0>;
+	phy-handle = <&ethphy0>;
 	fsl,num_tx_queues=<3>;
 	fsl,num_rx_queues=<3>;
 	fsl,magic-packet;
