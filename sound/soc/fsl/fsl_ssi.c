@@ -147,6 +147,7 @@ struct fsl_ssi_private {
 	struct clk *coreclk;
 	struct clk *clk;
 	unsigned int bitclk_freq;
+	unsigned int baudclk_streams;
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
 	struct snd_dmaengine_dai_dma_data dma_params_rx;
 
@@ -358,7 +359,6 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 		pm_runtime_get_sync(dai->dev);
 
 		clk_prepare_enable(ssi_private->coreclk);
-		clk_prepare_enable(ssi_private->clk);
 
 		/* When using dual fifo mode, it would be safer if we ensure
 		 * its period size to be an even number. If appearing to an
@@ -502,6 +502,15 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 		ret = fsl_ssi_set_bclk(substream, cpu_dai, hw_params);
 		if (ret)
 			return ret;
+
+		/* Do not enable the clock if it is already enabled */
+		if (!(ssi_private->baudclk_streams & BIT(substream->stream))) {
+			ret = clk_prepare_enable(ssi_private->clk);
+			if (ret)
+				return ret;
+
+			ssi_private->baudclk_streams |= BIT(substream->stream);
+		}
 	}
 	/*
 	 * FIXME: The documentation says that SxCCR[WL] should not be
@@ -522,6 +531,22 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 
 	write_ssi_mask(&ssi->scr, CCSR_SSI_SCR_NET | CCSR_SSI_SCR_I2S_MODE_MASK,
 			channels == 1 ? 0 : ssi_private->i2s_mode);
+
+	return 0;
+}
+
+static int fsl_ssi_hw_free(struct snd_pcm_substream *substream,
+		struct snd_soc_dai *cpu_dai)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct fsl_ssi_private *ssi_private =
+	snd_soc_dai_get_drvdata(rtd->cpu_dai);
+
+	if (ssi_private->i2s_mode == CCSR_SSI_SCR_I2S_MODE_MASTER &&
+			ssi_private->baudclk_streams & BIT(substream->stream)) {
+		clk_disable_unprepare(ssi_private->clk);
+		ssi_private->baudclk_streams &= ~BIT(substream->stream);
+	}
 
 	return 0;
 }
@@ -852,7 +877,6 @@ static void fsl_ssi_shutdown(struct snd_pcm_substream *substream,
 	}
 
 	if (ssi_private->ssi_on_imx) {
-		clk_disable_unprepare(ssi_private->clk);
 		clk_disable_unprepare(ssi_private->coreclk);
 
 		pm_runtime_put_sync(dai->dev);
@@ -874,6 +898,7 @@ static int fsl_ssi_dai_probe(struct snd_soc_dai *dai)
 static const struct snd_soc_dai_ops fsl_ssi_dai_ops = {
 	.startup	= fsl_ssi_startup,
 	.hw_params	= fsl_ssi_hw_params,
+	.hw_free	= fsl_ssi_hw_free,
 	.set_fmt	= fsl_ssi_set_dai_fmt,
 	.set_sysclk	= fsl_ssi_set_dai_sysclk,
 	.set_tdm_slot	= fsl_ssi_set_dai_tdm_slot,
