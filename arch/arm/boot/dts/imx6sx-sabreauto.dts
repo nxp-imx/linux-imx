@@ -60,6 +60,38 @@
 			regulator-always-on;
 		};
 
+		si4763_vio1: vio1_tnr {
+			compatible = "regulator-fixed";
+			regulator-name = "vio1";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		si4763_vio2: vio2_tnr {
+			compatible = "regulator-fixed";
+			regulator-name = "vio2";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		si4763_vd: f3v3_tnr {
+			compatible = "regulator-fixed";
+			regulator-name = "vd";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		si4763_va: f5v_tnr {
+			compatible = "regulator-fixed";
+			regulator-name = "va";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			regulator-always-on;
+		};
+
 		reg_lcd_3v3: lcd-3v3 {
 			compatible = "regulator-fixed";
 			regulator-name = "lcd-3v3";
@@ -119,6 +151,17 @@
 		asrc-controller = <&asrc_p2p>;
 		audio-codec = <&codec>;
 	};
+
+	sound-fm {
+		compatible = "fsl,imx-audio-si476x",
+			   "fsl,imx-tuner-si476x";
+		model = "imx-radio-si4763";
+
+		ssi-controller = <&ssi2>;
+		fm-controller = <&si476x_codec>;
+		mux-int-port = <2>;
+		mux-ext-port = <5>;
+	};
 };
 
 &iomuxc {
@@ -134,6 +177,12 @@
 			>;
 		};
 	};
+};
+
+&audmux {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_audmux_3>;
+	status = "okay";
 };
 
 &esai {
@@ -302,6 +351,24 @@
 		VLS-supply = <&reg_audio>;
 		VLC-supply = <&reg_audio>;
 	};
+
+	si4763: si4763@63 {
+		compatible = "si4761";
+		reg = <0x63>;
+		va-supply = <&si4763_va>;
+		vd-supply = <&si4763_vd>;
+		vio1-supply = <&si4763_vio1>;
+		vio2-supply = <&si4763_vio2>;
+
+		si476x_codec: si476x-codec {
+			compatible = "si476x-codec";
+		};
+	};
+};
+
+&ssi2 {
+	fsl,mode = "i2s-master";
+	status = "okay";
 };
 
 &i2c3 {
