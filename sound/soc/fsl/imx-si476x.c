@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2008-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -81,7 +81,6 @@ static struct snd_soc_dai_link imx_dai = {
 	.name = "imx-si476x",
 	.stream_name = "imx-si476x",
 	.codec_dai_name = "si476x-codec",
-	.codec_name = "si476x-codec.99",
 	.ops = &imx_si476x_ops,
 };
 
@@ -134,7 +133,7 @@ static int imx_si476x_probe(struct platform_device *pdev)
 		goto end;
 	}
 
-	fm_dev = of_find_i2c_device_by_node(fm_np);
+	fm_dev = of_find_i2c_device_by_node(fm_np->parent);
 	if (!fm_dev || !fm_dev->driver) {
 		dev_err(&pdev->dev, "failed to find FM platform device\n");
 		ret = -EINVAL;
@@ -144,6 +143,7 @@ static int imx_si476x_probe(struct platform_device *pdev)
 	card->dev = &pdev->dev;
 	card->dai_link->cpu_dai_name = dev_name(&ssi_pdev->dev);
 	card->dai_link->platform_of_node = ssi_np;
+	card->dai_link->codec_of_node = fm_np;
 
 	platform_set_drvdata(pdev, card);
 
