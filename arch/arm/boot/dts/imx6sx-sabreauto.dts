@@ -162,6 +162,13 @@
 		mux-int-port = <2>;
 		mux-ext-port = <5>;
 	};
+
+	sound-spdif {
+		compatible = "fsl,imx-audio-spdif";
+		model = "imx-spdif";
+		spdif-controller = <&spdif>;
+		spdif-in;
+	};
 };
 
 &iomuxc {
@@ -364,6 +371,12 @@
 			compatible = "si476x-codec";
 		};
 	};
+};
+
+&spdif {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spdif_3>;
+	status = "okay";
 };
 
 &ssi2 {
