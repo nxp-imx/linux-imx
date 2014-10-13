@@ -97,7 +97,6 @@ _CMAFSLAlloc(
     )
 {
     gceSTATUS status;
-    gctPOINTER addr = gcvNULL;
     gcsCMA_PRIV_PTR priv = (gcsCMA_PRIV_PTR)Allocator->privateData;
 
     struct mdl_cma_priv *mdl_priv=gcvNULL;
@@ -106,13 +105,14 @@ _CMAFSLAlloc(
     gcmkHEADER_ARG("Mdl=%p NumPages=%d", Mdl, NumPages);
 
     gcmkONERROR(gckOS_Allocate(os, sizeof(struct mdl_cma_priv), (gctPOINTER *)&mdl_priv));
+    mdl_priv->kvaddr = gcvNULL;
 
     mdl_priv->kvaddr = dma_alloc_writecombine(gcvNULL,
             NumPages * PAGE_SIZE,
             &mdl_priv->physical,
             GFP_KERNEL | gcdNOWARN);
 
-    if (addr == gcvNULL)
+    if (mdl_priv->kvaddr == gcvNULL)
     {
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
