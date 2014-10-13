@@ -236,7 +236,7 @@
 			   "fsl,imx-tuner-si476x";
 		model = "imx-radio-si4763";
 		ssi-controller = <&ssi2>;
-		fm-controller = <&si4763>;
+		fm-controller = <&si476x_codec>;
 		mux-int-port = <2>;
 		mux-ext-port = <5>;
 	};
@@ -447,6 +447,10 @@
 		vd-supply = <&reg_si4763_vd>;
 		vio1-supply = <&reg_si4763_vio1>;
 		vio2-supply = <&reg_si4763_vio2>;
+
+		si476x_codec: si476x-codec {
+			compatible = "si476x-codec";
+		};
 	};
 };
 
