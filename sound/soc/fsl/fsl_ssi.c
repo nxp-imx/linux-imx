@@ -53,6 +53,10 @@ static inline void write_ssi_mask(u32 __iomem *addr, u32 clear, u32 set)
 }
 #endif
 
+static int fsl_ssi_set_bclk(struct snd_pcm_substream *substream,
+		struct snd_soc_dai *cpu_dai,
+		struct snd_pcm_hw_params *hw_params);
+
 #define NUM_OF_SSI_REG (sizeof(struct ccsr_ssi) / sizeof(__be32))
 
 #ifdef DEBUG
@@ -142,6 +146,7 @@ struct fsl_ssi_private {
 	spinlock_t baudclk_lock;
 	struct clk *coreclk;
 	struct clk *clk;
+	unsigned int bitclk_freq;
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
 	struct snd_dmaengine_dai_dma_data dma_params_rx;
 
@@ -484,6 +489,7 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 	u32 wl = CCSR_SSI_SxCCR_WL(sample_size);
 	int enabled = read_ssi(&ssi->scr) & CCSR_SSI_SCR_SSIEN;
 	unsigned int channels = params_channels(hw_params);
+	int ret;
 
 	/*
 	 * If we're in synchronous mode, and the SSI is already enabled,
@@ -492,6 +498,11 @@ static int fsl_ssi_hw_params(struct snd_pcm_substream *substream,
 	if (enabled && ssi_private->cpu_dai_drv.symmetric_rates)
 		return 0;
 
+	if (ssi_private->i2s_mode == CCSR_SSI_SCR_I2S_MODE_MASTER) {
+		ret = fsl_ssi_set_bclk(substream, cpu_dai, hw_params);
+		if (ret)
+			return ret;
+	}
 	/*
 	 * FIXME: The documentation says that SxCCR[WL] should not be
 	 * modified while the SSI is enabled.  The only time this can
@@ -688,8 +699,9 @@ static int fsl_ssi_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	return 0;
 }
 
-static int fsl_ssi_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
-				  int clk_id, unsigned int freq, int dir)
+static int fsl_ssi_set_bclk(struct snd_pcm_substream *substream,
+		struct snd_soc_dai *cpu_dai,
+		struct snd_pcm_hw_params *hw_params)
 {
 	struct fsl_ssi_private *ssi_private = snd_soc_dai_get_drvdata(cpu_dai);
 	struct ccsr_ssi __iomem *ssi = ssi_private->ssi;
@@ -697,6 +709,13 @@ static int fsl_ssi_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 	u32 pm = 999, div2, psr, stccr, mask, afreq, factor, i;
 	unsigned long clkrate, sysrate = 0, baudrate, flags;
 	u64 sub, savesub = 100000;
+	unsigned int freq;
+
+	/* Prefer the explicitly set bitclock frequency */
+	if (ssi_private->bitclk_freq)
+		freq = ssi_private->bitclk_freq;
+	else
+		freq = params_channels(hw_params) * 32 * params_rate(hw_params);
 
 	/*
 	 * It should be already enough to divide clock by setting pm.
@@ -753,7 +772,7 @@ static int fsl_ssi_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 	mask = CCSR_SSI_SxCCR_PM_MASK | CCSR_SSI_SxCCR_DIV2_MASK
 		| CCSR_SSI_SxCCR_PSR_MASK;
 
-	if (dir == SND_SOC_CLOCK_OUT || synchronous)
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK || synchronous)
 		write_ssi_mask(&ssi->stccr, mask, stccr);
 	else
 		write_ssi_mask(&ssi->srccr, mask, stccr);
@@ -769,6 +788,16 @@ static int fsl_ssi_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 		ssi_private->baudclk_locked = true;
 	}
 	spin_unlock_irqrestore(&ssi_private->baudclk_lock, flags);
+
+	return 0;
+}
+
+static int fsl_ssi_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
+		int clk_id, unsigned int freq, int dir)
+{
+	struct fsl_ssi_private *ssi_private = snd_soc_dai_get_drvdata(cpu_dai);
+
+	ssi_private->bitclk_freq = freq;
 
 	return 0;
 }
