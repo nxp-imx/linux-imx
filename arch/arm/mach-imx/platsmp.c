@@ -66,11 +66,15 @@ static int __cpuinit imx_boot_secondary(unsigned int cpu, struct task_struct *id
  */
 static void __init imx_smp_init_cpus(void)
 {
-	int i;
+	int i, ncores = scu_get_core_count(imx_scu_base);
 	u32 me = smp_processor_id();
 
-	for (i = setup_max_cpus; i < NR_CPUS; i++)
+	if (setup_max_cpus < ncores)
+		ncores = (setup_max_cpus) ? setup_max_cpus : 1;
+
+	for (i = ncores; i < NR_CPUS; i++)
 		set_cpu_possible(i, false);
+
 	/* Set the SCU CPU Power status for each inactive core. */
 	for (i = 0; i < NR_CPUS;  i++) {
 		if (i != me)
