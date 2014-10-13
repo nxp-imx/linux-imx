@@ -1290,6 +1290,14 @@
 				MX6SX_PAD_ENET1_TX_CLK__AUDMUX_AUD4_RXD  0x130b0
 			>;
 		};
+
+		pinctrl_audmux_3: audmux-3 {
+			fsl,pins = <
+				MX6SX_PAD_SD1_CMD__AUDMUX_AUD5_RXC    0x130b0
+				MX6SX_PAD_SD1_CLK__AUDMUX_AUD5_RXFS   0x130b0
+				MX6SX_PAD_SD1_DATA3__AUDMUX_AUD5_RXD  0x130b0
+			>;
+		};
 	};
 
 	ecspi4 {
@@ -1419,6 +1427,21 @@
 		pinctrl_esai_1: esaigrp-1 {
 			fsl,pins = <
 				MX6SX_PAD_CSI_MCLK__ESAI_TX_HF_CLK  0x1b030
+				MX6SX_PAD_CSI_DATA00__ESAI_TX_CLK   0x1b030
+				MX6SX_PAD_CSI_DATA01__ESAI_TX_FS    0x1b030
+				MX6SX_PAD_CSI_HSYNC__ESAI_TX0       0x1b030
+				MX6SX_PAD_CSI_DATA04__ESAI_TX1      0x1b030
+				MX6SX_PAD_CSI_DATA06__ESAI_TX2_RX3  0x1b030
+				MX6SX_PAD_CSI_DATA07__ESAI_TX3_RX2  0x1b030
+				MX6SX_PAD_CSI_DATA02__ESAI_RX_CLK   0x1b030
+				MX6SX_PAD_CSI_DATA03__ESAI_RX_FS    0x1b030
+				MX6SX_PAD_CSI_VSYNC__ESAI_TX5_RX0   0x1b030
+				MX6SX_PAD_CSI_DATA05__ESAI_TX4_RX1  0x1b030
+			>;
+		};
+
+		pinctrl_esai_2: esaigrp-2 {
+			fsl,pins = <
 				MX6SX_PAD_CSI_DATA00__ESAI_TX_CLK   0x1b030
 				MX6SX_PAD_CSI_DATA01__ESAI_TX_FS    0x1b030
 				MX6SX_PAD_CSI_HSYNC__ESAI_TX0       0x1b030
@@ -1687,6 +1710,12 @@
 		pinctrl_spdif_2: spdifgrp-2 {
 			fsl,pins = <
 				MX6SX_PAD_SD4_DATA4__SPDIF_OUT		0x1b0b0
+			>;
+		};
+
+		pinctrl_spdif_3: spdifgrp-3 {
+			fsl,pins = <
+				MX6SX_PAD_ENET2_COL__SPDIF_IN		0x1b0b0
 			>;
 		};
 	};
