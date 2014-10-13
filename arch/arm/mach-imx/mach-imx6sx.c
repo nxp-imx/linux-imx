@@ -256,6 +256,29 @@ static inline void imx6sx_qos_init(void)
 	return;
 }
 
+#define ESAI_AUDIO_MCLK 24576000
+
+static void __init imx6sx_audio_lvds2_init(void)
+{
+	struct clk *pll4_sel, *lvds2_in, *pll4_audio_div, *esai_extal;
+	int ret;
+
+	pll4_audio_div = clk_get_sys(NULL, "pll4_audio_div");
+	pll4_sel = clk_get_sys(NULL, "pll4_sel");
+	lvds2_in = clk_get_sys(NULL, "lvds2_in");
+	esai_extal = clk_get_sys(NULL, "esai_extal");
+	if (IS_ERR(pll4_audio_div) || IS_ERR(pll4_sel) ||
+	    IS_ERR(lvds2_in) || IS_ERR(esai_extal))
+		return;
+
+	if (clk_get_rate(lvds2_in) != ESAI_AUDIO_MCLK)
+		return;
+
+	ret = clk_set_parent(pll4_sel, lvds2_in);
+	clk_set_rate(pll4_audio_div, 786432000);
+	clk_set_rate(esai_extal, ESAI_AUDIO_MCLK);
+}
+
 static void __init imx6sx_init_machine(void)
 {
 	struct device *parent;
@@ -273,6 +296,10 @@ static void __init imx6sx_init_machine(void)
 	imx_anatop_init();
 	imx6_pm_init();
 	imx6sx_qos_init();
+
+	if (of_machine_is_compatible("fsl,imx6sx-sabreauto")) {
+		imx6sx_audio_lvds2_init();
+	}
 }
 
 static void __init imx6sx_opp_init(struct device *cpu_dev)

@@ -517,6 +517,10 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clk_register_clkdev(clks[IMX6SX_CLK_AHB], "ahb", NULL);
 	clk_register_clkdev(clks[IMX6SX_CLK_CKO1], "cko1", NULL);
 	clk_register_clkdev(clks[IMX6SX_CLK_ARM], NULL, "cpu0");
+	clk_register_clkdev(clks[IMX6SX_CLK_PLL4_AUDIO_DIV], "pll4_audio_div", NULL);
+	clk_register_clkdev(clks[IMX6SX_CLK_PLL4_SEL], "pll4_sel", NULL);
+	clk_register_clkdev(clks[IMX6SX_CLK_LVDS2_IN], "lvds2_in", NULL);
+	clk_register_clkdev(clks[IMX6SX_CLK_ESAI_EXTAL], "esai_extal", NULL);
 
 	/* set perclk to from OSC */
 	imx_clk_set_parent(clks[IMX6SX_CLK_PERCLK_SEL], clks[IMX6SX_CLK_OSC]);
