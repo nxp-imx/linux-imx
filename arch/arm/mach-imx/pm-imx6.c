@@ -209,6 +209,7 @@ struct imx6_cpu_pm_info {
 	struct imx6_pm_base ccm_base;
 	struct imx6_pm_base gpc_base;
 	struct imx6_pm_base l2_base;
+	struct imx6_pm_base anatop_base;
 	u32 ttbr1; /* Store TTBR1 */
 	u32 mmdc_io_num; /* Number of MMDC IOs which need saved/restored. */
 	u32 mmdc_io_val[MX6_MAX_MMDC_IO_NUM][2]; /* To save offset and value */
@@ -596,6 +597,10 @@ static int __init imx6q_suspend_init(const struct imx6_pm_socdata *socdata)
 	pm_info->l2_base.pbase = MX6Q_L2_BASE_ADDR;
 	pm_info->l2_base.vbase = (void __iomem *)
 				  IMX_IO_P2V(MX6Q_L2_BASE_ADDR);
+
+	pm_info->anatop_base.pbase = MX6Q_ANATOP_BASE_ADDR;
+	pm_info->anatop_base.vbase = (void __iomem *)
+				  IMX_IO_P2V(MX6Q_ANATOP_BASE_ADDR);
 
 	pm_info->cpu_type = socdata->cpu_type;
 	pm_info->mmdc_io_num = socdata->mmdc_io_num;
