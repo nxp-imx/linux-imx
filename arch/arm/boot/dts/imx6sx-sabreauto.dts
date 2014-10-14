@@ -14,12 +14,35 @@
 	model = "Freescale i.MX6 SoloX Sabre Auto Board";
 	compatible = "fsl,imx6sx-sabreauto", "fsl,imx6sx";
 
+	backlight2 {
+		compatible = "pwm-backlight";
+		pwms = <&pwm4 0 5000000>;
+		brightness-levels = <0 4 8 16 32 64 128 255>;
+		default-brightness-level = <6>;
+		fb-names = "mxs-lcdif1";
+	};
+
 	clocks {
 	        codec_osc: codec_osc {
 		        #clock-cells = <0>;
 		        compatible = "fixed-clock";
 		        clock-frequency = <12000000>;
 		};
+	};
+
+	hannstar_cabc {
+		compatible = "hannstar,cabc";
+
+		lvds0 {
+			gpios = <&max7310_a 0 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	max7310_reset: max7310-reset {
+		compatible = "gpio-reset";
+		reset-gpios = <&gpio1 15 GPIO_ACTIVE_LOW>;
+		reset-delay-us = <1>;
+		#reset-cells = <0>;
 	};
 
 	memory {
@@ -232,6 +255,58 @@
 	};
 };
 
+&i2c3 {
+        clock-frequency = <100000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c3_2>;
+	status = "okay";
+
+	max7310_a: gpio@30 {
+		compatible = "maxim,max7310";
+		reg = <0x30>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		resets = <&max7310_reset>;
+	};
+};
+
+&lcdif2 {
+	display = <&display1>;
+	disp-dev = "ldb";
+	status = "okay";
+
+	display1: display {
+		bits-per-pixel = <16>;
+		bus-width = <18>;
+	};
+};
+
+&ldb {
+	status = "okay";
+
+	lvds-channel@0 {
+		fsl,data-mapping = "spwg";
+		fsl,data-width = <18>;
+		crtc = "lcdif2";
+		status = "okay";
+
+		display-timings {
+			native-mode = <&timing1>;
+			timing1: hsd100pxn1 {
+				clock-frequency = <65000000>;
+				hactive = <1024>;
+				vactive = <768>;
+				hback-porch = <220>;
+				hfront-porch = <40>;
+				vback-porch = <21>;
+				vfront-porch = <7>;
+				hsync-len = <60>;
+				vsync-len = <10>;
+			};
+		};
+	};
+};
+
 &uart1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart1_1>;
@@ -255,6 +330,12 @@
 	keep-power-in-suspend;
 	enable-sdio-wakeup;
 	vmmc-supply = <&reg_sd3_vmmc>;
+	status = "okay";
+};
+
+&pwm4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm4_0>;
 	status = "okay";
 };
 
