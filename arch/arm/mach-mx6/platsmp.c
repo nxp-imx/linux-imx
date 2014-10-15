@@ -125,10 +125,13 @@ void __init smp_init_cpus(void)
 	if (setup_max_cpus >= ncores)
 		setup_max_cpus = ncores;
 
-	for (i = 0; i < setup_max_cpus; i++)
+	if (setup_max_cpus < ncores)
+		ncores = (setup_max_cpus) ? setup_max_cpus : 1;
+
+	for (i = 0; i < ncores; i++)
 		set_cpu_possible(i, true);
 
-	for (i = setup_max_cpus; i < ncores; i++)
+	for (i = ncores; i < NR_CPUS; i++)
 		set_cpu_possible(i, false);
 	/* Set the SCU CPU Power status for each inactive core. */
 	for (i = 0; i < NR_CPUS;  i++) {
