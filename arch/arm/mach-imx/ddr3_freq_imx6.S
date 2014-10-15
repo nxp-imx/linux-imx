@@ -44,7 +44,9 @@
 #define L2_CACHE_SYNC		0x730
 
 .extern iram_tlb_phys_addr
+#ifdef CONFIG_SMP
 .extern imx_scu_base
+#endif
 
 .globl mx6_ddr3_freq_change_start
 .globl mx6_ddr3_freq_change_end
@@ -1039,6 +1041,7 @@ done:
 	.ltorg
 mx6_ddr3_freq_change_end:
 
+#ifdef CONFIG_SMP
 	.align 3
 
 ENTRY(wfe_ddr3_freq_change)
@@ -1110,3 +1113,4 @@ go_back_wfe:
 	mov	pc, lr
 	.ltorg
 wfe_ddr3_freq_change_end:
+#endif
