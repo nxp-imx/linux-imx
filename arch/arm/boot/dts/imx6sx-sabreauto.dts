@@ -113,6 +113,7 @@
 			fsl,pins = <
 				MX6SX_PAD_USB_H_DATA__GPIO7_IO_10	0x17059
 				MX6SX_PAD_LCD1_DATA18__GPIO3_IO_19	0x17059
+				MX6SX_PAD_SD4_RESET_B__GPIO6_IO_22	0x80000000
 			>;
 		};
 	};
@@ -252,6 +253,21 @@
 				regulator-always-on;
 			};
 		};
+	};
+};
+
+&i2c2 {
+        clock-frequency = <100000>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_i2c2_1>;
+        status = "okay";
+
+	egalax_ts@04 {
+		compatible = "eeti,egalax_ts";
+		reg = <0x04>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <22 2>;
+		wakeup-gpios = <&gpio6 22 0>;
 	};
 };
 
