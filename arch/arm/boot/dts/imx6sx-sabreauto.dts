@@ -232,10 +232,10 @@
 	fsl,wdog-reset = <1>; /* watchdog select of reset source */
 };
 
-&i2c1 {
+&i2c2 {
         clock-frequency = <100000>;
         pinctrl-names = "default";
-        pinctrl-0 = <&pinctrl_i2c1_1>;
+        pinctrl-0 = <&pinctrl_i2c2_1>;
         status = "okay";
 
 	pmic: pfuze100@08 {
