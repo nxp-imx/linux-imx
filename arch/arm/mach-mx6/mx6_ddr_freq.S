@@ -23,12 +23,14 @@
 #define L2_CACHE_SYNC	0x730
 
 .extern iram_tlb_phys_addr
-.extern imx_scu_base
 
 .globl mx6_ddr3_iram_start
 .globl mx6_ddr3_iram_end
+#ifdef CONFIG_SMP
 .globl wfe_ddr3_freq_change_start
 .globl wfe_ddr3_freq_change_end
+.extern imx_scu_base
+#endif
 
 	.macro   switch_to_528MHz
 
@@ -1158,6 +1160,7 @@ done:
 	.ltorg
 mx6_ddr3_iram_end:
 
+#ifdef CONFIG_SMP
 	.align 3
 
 ENTRY(wfe_ddr3_freq_change)
@@ -1229,3 +1232,4 @@ go_back_wfe:
 	mov	pc, lr
 	.ltorg
 wfe_ddr3_freq_change_end:
+#endif
