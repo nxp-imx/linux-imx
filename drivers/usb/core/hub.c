@@ -2267,11 +2267,8 @@ static int usb_enumerate_device(struct usb_device *udev)
 		return err;
 
 	if (IS_ENABLED(CONFIG_USB_OTG_WHITELIST) && hcd->tpl_support &&
-		!is_targeted(udev)) {
-		/*
-		 * Only OTG device will set below two flags, so it is safe
-		 * to remove CONFIG_USB_OTG check.
-		 * Maybe B device can talk to us, though we can't talk to it.
+		!is_targeted(udev) && IS_ENABLED(CONFIG_USB_OTG)) {
+		/* Maybe it can talk to us, though we can't talk to it.
 		 * (Includes HNP test device.)
 		 */
 		if (udev->bus->b_hnp_enable || udev->bus->is_b_host) {
