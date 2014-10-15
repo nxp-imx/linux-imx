@@ -396,8 +396,6 @@ void *dma_pool_alloc_nonbufferable(struct dma_pool *pool, gfp_t mem_flags,
 		return NULL;
 
 	spin_lock_irqsave(&pool->lock, flags);
-
-	list_add(&page->page_list, &pool->page_list);
  ready:
 	page->in_use++;
 	offset = page->offset;
