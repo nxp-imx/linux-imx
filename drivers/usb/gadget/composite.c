@@ -1286,6 +1286,19 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 			if (value >= 0)
 				value = min(w_length, (u16) value);
 			break;
+		case USB_DT_OTG:
+			if (gadget_is_otg(gadget)) {
+				struct usb_configuration *config;
+
+				config = list_first_entry(&cdev->configs,
+						struct usb_configuration, list);
+				if (!config)
+					goto done;
+
+				value = sizeof(struct usb_otg_descriptor);
+				memcpy(req->buf, config->descriptors[0], value);
+			}
+			break;
 		case USB_DT_BOS:
 			if (gadget_is_superspeed(gadget)) {
 				value = bos_desc(cdev);
