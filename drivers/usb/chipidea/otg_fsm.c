@@ -342,6 +342,13 @@ static void set_tmout_and_show_msg(void *ptr, unsigned long indicator)
 	set_tmout_and_fsm(ptr, indicator);
 }
 
+static void b_srp_fail_tmout_func(void *ptr, unsigned long indicator)
+{
+	struct ci_hdrc *ci = (struct ci_hdrc *)ptr;
+
+	dev_warn(ci->dev, "Device No Response\n");
+}
+
 static void b_ssend_srp_tmout_func(void *ptr, unsigned long indicator)
 {
 	struct ci_hdrc *ci = (struct ci_hdrc *)ptr;
@@ -478,8 +485,8 @@ static int ci_otg_init_timers(struct ci_hdrc *ci)
 		return -ENOMEM;
 
 	ci->fsm_timer->timer_list[B_SRP_FAIL] =
-		otg_timer_initializer(ci, &set_tmout, TB_SRP_FAIL,
-				(unsigned long)&fsm->b_srp_done);
+		otg_timer_initializer(ci, &b_srp_fail_tmout_func,
+							TB_SRP_FAIL, 0);
 	if (ci->fsm_timer->timer_list[B_SRP_FAIL] == NULL)
 		return -ENOMEM;
 
