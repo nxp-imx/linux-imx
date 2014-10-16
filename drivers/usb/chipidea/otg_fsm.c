@@ -513,6 +513,12 @@ static int ci_otg_init_timers(struct ci_hdrc *ci)
 	if (ci->fsm_timer->timer_list[A_DP_END] == NULL)
 		return -ENOMEM;
 
+	ci->fsm_timer->timer_list[B_AIDL_BDIS] = otg_timer_initializer(ci,
+					&set_tmout_and_fsm, TB_AIDL_BDIS,
+					(unsigned long)&fsm->a_bus_suspend);
+	if (ci->fsm_timer->timer_list[B_AIDL_BDIS] == NULL)
+		return -ENOMEM;
+
 	setup_timer(&ci->hnp_polling_timer, hnp_polling_timer_work,
 							(unsigned long)ci);
 
@@ -781,9 +787,9 @@ static void ci_otg_fsm_event(struct ci_hdrc *ci)
 		break;
 	case OTG_STATE_B_PERIPHERAL:
 		if ((intr_sts & USBi_SLI) && port_conn && otg_bsess_vld) {
-			fsm->a_bus_suspend = 1;
-			ci_otg_queue_work(ci);
+			ci_otg_add_timer(ci, B_AIDL_BDIS);
 		} else if (intr_sts & USBi_PCI) {
+			ci_otg_del_timer(ci, B_AIDL_BDIS);
 			if (fsm->a_bus_suspend == 1)
 				fsm->a_bus_suspend = 0;
 		}
