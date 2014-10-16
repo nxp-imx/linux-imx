@@ -194,6 +194,7 @@ struct mxsfb_info {
 	struct clk *clk_disp_axi;
 	bool clk_axi_enabled;
 	bool clk_disp_axi_enabled;
+	struct regulator *disp_reg;
 	void __iomem *base;	/* registers */
 	unsigned allocated_size;
 	int enabled;
@@ -239,6 +240,7 @@ static const struct mxsfb_devdata mxsfb_devdata[] = {
 
 static int mxsfb_map_videomem(struct fb_info *info);
 static int mxsfb_unmap_videomem(struct fb_info *info);
+static int mxsfb_set_par(struct fb_info *fb_info);
 
 /* enable lcdif axi clock */
 static inline void clk_enable_axi(struct mxsfb_info *host)
@@ -498,6 +500,12 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 
 	/* Clean soft reset and clock gate bit if it was enabled  */
 	writel(CTRL_SFTRST | CTRL_CLKGATE, host->base + LCDC_CTRL + REG_CLR);
+
+	/* need to reconfigure the lcdif after
+	 * the disp regulator powerup again
+	 */
+	if (host->disp_reg)
+		mxsfb_set_par(&host->fb_info);
 
 	writel(CTRL2_OUTSTANDING_REQS__REQ_16,
 		host->base + LCDC_V4_CTRL2 + REG_SET);
@@ -1330,6 +1338,12 @@ static int mxsfb_probe(struct platform_device *pdev)
 	if (IS_ERR(host->reg_lcd))
 		host->reg_lcd = NULL;
 
+	host->disp_reg = devm_regulator_get(&pdev->dev, "disp");
+	if (IS_ERR(host->disp_reg)) {
+		dev_dbg(&pdev->dev, "display regulator is not ready\n");
+		host->disp_reg = NULL;
+	}
+
 	fb_info->pseudo_palette = devm_kzalloc(&pdev->dev, sizeof(u32) * 16,
 					       GFP_KERNEL);
 	if (!fb_info->pseudo_palette) {
@@ -1434,18 +1448,32 @@ static void mxsfb_shutdown(struct platform_device *pdev)
 #ifdef CONFIG_PM_RUNTIME
 static int mxsfb_runtime_suspend(struct device *dev)
 {
+	int ret = 0;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct mxsfb_info *host = platform_get_drvdata(pdev);
+
 	release_bus_freq(BUS_FREQ_HIGH);
 	dev_dbg(dev, "mxsfb busfreq high release.\n");
 
-	return 0;
+	if (host->disp_reg)
+		ret = regulator_disable(host->disp_reg);
+
+	return ret;
 }
 
 static int mxsfb_runtime_resume(struct device *dev)
 {
+	int ret = 0;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct mxsfb_info *host = platform_get_drvdata(pdev);
+
 	request_bus_freq(BUS_FREQ_HIGH);
 	dev_dbg(dev, "mxsfb busfreq high request.\n");
 
-	return 0;
+	if (host->disp_reg)
+		ret = regulator_enable(host->disp_reg);
+
+	return ret;
 }
 #else
 #define	mxsfb_runtime_suspend	NULL
