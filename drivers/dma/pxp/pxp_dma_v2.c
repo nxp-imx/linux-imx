@@ -37,6 +37,7 @@
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/pxp_dma.h>
+#include <linux/regulator/consumer.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
 #include <linux/timer.h>
@@ -62,6 +63,7 @@ struct pxps {
 	struct clk *clk_disp_axi;	/* may exist on some SoC for gating */
 	void __iomem *base;
 	int irq;		/* PXP IRQ to the CPU */
+	struct regulator *disp_reg;
 
 	spinlock_t lock;
 	struct mutex clk_mutex;
@@ -1696,6 +1698,12 @@ static int pxp_probe(struct platform_device *pdev)
 
 	pxp->pdev = pdev;
 
+	pxp->disp_reg = devm_regulator_get(&pdev->dev, "disp");
+	if (IS_ERR(pxp->disp_reg))  {
+		dev_dbg(&pdev->dev, "the display regulator not ready\n");
+		pxp->disp_reg = NULL;
+	}
+
 	pxp->clk_disp_axi = devm_clk_get(&pdev->dev, "disp-axi");
 	if (IS_ERR(pxp->clk_disp_axi))
 		pxp->clk_disp_axi = NULL;
@@ -1717,6 +1725,9 @@ static int pxp_probe(struct platform_device *pdev)
 	}
 
 	device_create_file(&pdev->dev, &dev_attr_block_size);
+
+	pm_runtime_enable(pxp->dev);
+
 	pxp_clk_enable(pxp);
 	dump_pxp_reg(pxp);
 	pxp_clk_disable(pxp);
@@ -1742,7 +1753,6 @@ static int pxp_probe(struct platform_device *pdev)
 
 	register_pxp_device();
 
-	pm_runtime_enable(pxp->dev);
 
 exit:
 	if (err)
@@ -1762,6 +1772,7 @@ static int pxp_remove(struct platform_device *pdev)
 	clk_disable_unprepare(pxp->clk);
 	if (pxp->clk_disp_axi)
 		clk_disable_unprepare(pxp->clk_disp_axi);
+	pm_runtime_disable(&pdev->dev);
 	device_remove_file(&pdev->dev, &dev_attr_clk_off_timeout);
 	device_remove_file(&pdev->dev, &dev_attr_block_size);
 	dma_async_device_unregister(&(pxp->pxp_dma.dma));
@@ -1803,18 +1814,32 @@ static int pxp_resume(struct device *dev)
 #ifdef CONFIG_PM_RUNTIME
 static int pxp_runtime_suspend(struct device *dev)
 {
+	int ret = 0;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct pxps *pxp = platform_get_drvdata(pdev);
+
 	release_bus_freq(BUS_FREQ_HIGH);
 	dev_dbg(dev, "pxp busfreq high release.\n");
+
+	if (pxp->disp_reg)
+		ret = regulator_disable(pxp->disp_reg);
 
 	return 0;
 }
 
 static int pxp_runtime_resume(struct device *dev)
 {
+	int ret = 0;
+	struct platform_device *pdev = to_platform_device(dev);
+	struct pxps *pxp = platform_get_drvdata(pdev);
+
 	request_bus_freq(BUS_FREQ_HIGH);
 	dev_dbg(dev, "pxp busfreq high request.\n");
 
-	return 0;
+	if (pxp->disp_reg)
+		ret = regulator_enable(pxp->disp_reg);
+
+	return ret;
 }
 #else
 #define	pxp_runtime_suspend	NULL
