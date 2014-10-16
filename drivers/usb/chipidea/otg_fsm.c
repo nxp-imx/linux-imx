@@ -334,6 +334,14 @@ static void a_wait_vfall_tmout_func(void *ptr, unsigned long indicator)
 	ci_otg_queue_work(ci);
 }
 
+static void set_tmout_and_show_msg(void *ptr, unsigned long indicator)
+{
+	struct ci_hdrc *ci = (struct ci_hdrc *)ptr;
+
+	dev_warn(ci->dev, "Device No Response\n");
+	set_tmout_and_fsm(ptr, indicator);
+}
+
 static void b_ssend_srp_tmout_func(void *ptr, unsigned long indicator)
 {
 	struct ci_hdrc *ci = (struct ci_hdrc *)ptr;
@@ -434,7 +442,7 @@ static int ci_otg_init_timers(struct ci_hdrc *ci)
 		return -ENOMEM;
 
 	ci->fsm_timer->timer_list[A_WAIT_BCON] =
-		otg_timer_initializer(ci, &set_tmout_and_fsm, TA_WAIT_BCON,
+		otg_timer_initializer(ci, &set_tmout_and_show_msg, TA_WAIT_BCON,
 				(unsigned long)&fsm->a_wait_bcon_tmout);
 	if (ci->fsm_timer->timer_list[A_WAIT_BCON] == NULL)
 		return -ENOMEM;
