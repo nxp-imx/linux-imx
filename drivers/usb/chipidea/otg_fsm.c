@@ -374,6 +374,19 @@ static void b_data_pulse_end(void *ptr, unsigned long indicator)
 	ci_otg_queue_work(ci);
 }
 
+/*
+ * Timer for A-device to turn on Vbus
+ * after detecting data pulse from B-device
+ */
+static void a_wait_dp_end_tmout_func(void *ptr, unsigned long indicator)
+{
+	struct ci_hdrc *ci = (struct ci_hdrc *)ptr;
+
+	ci->fsm.a_bus_drop = 0;
+	ci->fsm.a_srp_det = 1;
+	ci_otg_queue_work(ci);
+}
+
 static void hnp_polling_timer_work(unsigned long arg)
 {
 	struct ci_hdrc *ci = (struct ci_hdrc *)arg;
@@ -493,6 +506,11 @@ static int ci_otg_init_timers(struct ci_hdrc *ci)
 	ci->fsm_timer->timer_list[B_DATA_PLS] =
 		otg_timer_initializer(ci, &b_data_pulse_end, TB_DATA_PLS, 0);
 	if (ci->fsm_timer->timer_list[B_DATA_PLS] == NULL)
+		return -ENOMEM;
+
+	ci->fsm_timer->timer_list[A_DP_END] = otg_timer_initializer(ci,
+				&a_wait_dp_end_tmout_func, TA_DP_END, 0);
+	if (ci->fsm_timer->timer_list[A_DP_END] == NULL)
 		return -ENOMEM;
 
 	setup_timer(&ci->hnp_polling_timer, hnp_polling_timer_work,
@@ -859,8 +877,7 @@ irqreturn_t ci_otg_fsm_irq(struct ci_hdrc *ci)
 			return IRQ_HANDLED;
 		} else if (otg_int_src & OTGSC_DPIS) {
 			hw_write_otgsc(ci, OTGSC_DPIS, OTGSC_DPIS);
-			fsm->a_srp_det = 1;
-			fsm->a_bus_drop = 0;
+			ci_otg_add_timer(ci, A_DP_END);
 		} else if (otg_int_src & OTGSC_IDIS) {
 			hw_write_otgsc(ci, OTGSC_IDIS, OTGSC_IDIS);
 			if (fsm->id == 0) {
