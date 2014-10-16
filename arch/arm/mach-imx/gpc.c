@@ -72,7 +72,7 @@ static struct device *gpc_dev;
 static struct regulator *pu_reg;
 static struct notifier_block nb;
 static struct notifier_block nb_pcie;
-static struct regulator_dev *pu_dummy_regulator_rdev;
+static struct regulator_dev *pu_dummy_regulator_rdev, *disp_regulator_rdev;
 static struct regulator_init_data pu_dummy_initdata = {
 	.constraints = {
 		.max_uV = 1450000,	/* allign with real max of anatop */
@@ -80,7 +80,16 @@ static struct regulator_init_data pu_dummy_initdata = {
 				REGULATOR_CHANGE_VOLTAGE,
 	},
 };
+static struct regulator_init_data dispreg_initdata = {
+	.constraints = {
+		.max_uV = 0, /* anyvalue */
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS |
+				REGULATOR_CHANGE_VOLTAGE,
+	},
+};
+
 static int pu_dummy_enable;
+static int dispreg_enable;
 
 static void imx_disp_clk(bool enable)
 {
@@ -597,6 +606,74 @@ static struct platform_driver pu_dummy_driver = {
 	},
 };
 
+static int imx_dispreg_enable(struct regulator_dev *rdev)
+{
+	imx_gpc_dispmix_on();
+	dispreg_enable = 1;
+
+	return 0;
+}
+
+static int imx_dispreg_disable(struct regulator_dev *rdev)
+{
+	imx_gpc_dispmix_off();
+	dispreg_enable = 0;
+
+	return 0;
+}
+
+static int imx_dispreg_is_enable(struct regulator_dev *rdev)
+{
+	return dispreg_enable;
+}
+
+static struct regulator_ops dispreg_ops = {
+	.enable = imx_dispreg_enable,
+	.disable = imx_dispreg_disable,
+	.is_enabled = imx_dispreg_is_enable,
+};
+
+static struct regulator_desc dispreg_desc = {
+	.name = "disp-regulator",
+	.id = -1,
+	.type = REGULATOR_VOLTAGE,
+	.owner = THIS_MODULE,
+	.ops = &dispreg_ops,
+};
+
+static int dispreg_probe(struct platform_device *pdev)
+{
+	struct regulator_config config = {};
+	int ret = 0;
+
+	config.dev = &pdev->dev;
+	config.init_data = &dispreg_initdata;
+	config.of_node = pdev->dev.of_node;
+
+	disp_regulator_rdev = regulator_register(&dispreg_desc, &config);
+	if (IS_ERR(disp_regulator_rdev)) {
+		ret = PTR_ERR(disp_regulator_rdev);
+		dev_err(&pdev->dev, "Failed to register regulator: %d\n", ret);
+	}
+
+	return ret;
+}
+
+static const struct of_device_id imx_dispreg_ids[] = {
+	{ .compatible = "fsl,imx6-display-regulator" },
+	{}
+};
+MODULE_DEVICE_TABLE(of, imx_dispreg_ids);
+
+static struct platform_driver dispreg_driver = {
+	.probe  = dispreg_probe,
+	.driver = {
+		.name   = "disp-regulator",
+		.owner  = THIS_MODULE,
+		.of_match_table = imx_dispreg_ids,
+	},
+};
+
 static int imx_gpc_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -713,6 +790,12 @@ static int __init imx6_pudummy_init(void)
 	return platform_driver_probe(&pu_dummy_driver, pu_dummy_probe);
 }
 fs_initcall(imx6_pudummy_init);
+
+static int __init imx6_dispreg_init(void)
+{
+	return platform_driver_probe(&dispreg_driver, dispreg_probe);
+}
+fs_initcall(imx6_dispreg_init);
 
 MODULE_AUTHOR("Anson Huang <b20788@freescale.com>");
 MODULE_DESCRIPTION("Freescale i.MX GPC driver");

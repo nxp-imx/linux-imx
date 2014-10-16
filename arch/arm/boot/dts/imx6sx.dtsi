@@ -215,6 +215,10 @@
 			status = "disabled";
 		};
 
+		disp_dummy: disp-regulator {
+			compatible = "fsl,imx6-display-regulator"; /* for display power domain */
+		};
+
 		aips-bus@02000000 { /* AIPS1 */
 			compatible = "fsl,aips-bus", "simple-bus";
 			#address-cells = <1>;
@@ -1176,6 +1180,7 @@
 					clocks = <&clks IMX6SX_CLK_PXP_AXI>,
 						<&clks IMX6SX_CLK_DISPLAY_AXI>;
 					clock-names = "pxp-axi", "disp-axi";
+					disp-supply = <&disp_dummy>;
 					status = "disabled";
 				};
 
