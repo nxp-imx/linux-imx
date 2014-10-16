@@ -467,7 +467,7 @@ static int ci_otg_init_timers(struct ci_hdrc *ci)
 		return -ENOMEM;
 
 	ci->fsm_timer->timer_list[B_ASE0_BRST] =
-		otg_timer_initializer(ci, &set_tmout_and_fsm, TB_ASE0_BRST,
+		otg_timer_initializer(ci, &set_tmout_and_show_msg, TB_ASE0_BRST,
 					(unsigned long)&fsm->b_ase0_brst_tmout);
 	if (ci->fsm_timer->timer_list[B_ASE0_BRST] == NULL)
 		return -ENOMEM;
