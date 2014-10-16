@@ -1,7 +1,7 @@
 /*
  * caam - Freescale FSL CAAM support for crypto API
  *
- * Copyright 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2015 Freescale Semiconductor, Inc.
  *
  * Based on talitos crypto API driver.
  *
@@ -287,6 +287,8 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 		       desc_bytes(desc), 1);
 #endif
 
+	dma_sync_single_for_cpu(jrdev, ctx->sh_desc_enc_dma, desc_bytes(desc),
+				DMA_TO_DEVICE);
 	/*
 	 * Job Descriptor and Shared Descriptors
 	 * must all fit into the 64-word Descriptor h/w Buffer
@@ -354,6 +356,8 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 		       DUMP_PREFIX_ADDRESS, 16, 4, desc,
 		       desc_bytes(desc), 1);
 #endif
+	dma_sync_single_for_cpu(jrdev, ctx->sh_desc_dec_dma, desc_bytes(desc),
+				DMA_TO_DEVICE);
 
 	/*
 	 * Job Descriptor and Shared Descriptors
@@ -437,6 +441,8 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 		       DUMP_PREFIX_ADDRESS, 16, 4, desc,
 		       desc_bytes(desc), 1);
 #endif
+	dma_sync_single_for_cpu(jrdev, ctx->sh_desc_givenc_dma,
+				desc_bytes(desc), DMA_TO_DEVICE);
 
 	return 0;
 }
@@ -505,11 +511,15 @@ static int aead_setkey(struct crypto_aead *aead,
 		dev_err(jrdev, "unable to map key i/o memory\n");
 		return -ENOMEM;
 	}
+
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "ctx.key@"__stringify(__LINE__)": ",
 		       DUMP_PREFIX_ADDRESS, 16, 4, ctx->key,
 		       ctx->split_key_pad_len + keys.enckeylen, 1);
 #endif
+	dma_sync_single_for_device(jrdev, ctx->key_dma,
+				   ctx->split_key_pad_len + keys.enckeylen,
+				   DMA_TO_DEVICE);
 
 	ctx->enckeylen = keys.enckeylen;
 
@@ -548,6 +558,7 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 		return -ENOMEM;
 	}
 	ctx->enckeylen = keylen;
+	dma_sync_single_for_device(jrdev, ctx->key_dma, keylen, DMA_TO_DEVICE);
 
 	/* ablkcipher_encrypt shared descriptor */
 	desc = ctx->sh_desc_enc;
@@ -590,6 +601,9 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 		       DUMP_PREFIX_ADDRESS, 16, 4, desc,
 		       desc_bytes(desc), 1);
 #endif
+	dma_sync_single_for_device(jrdev, ctx->sh_desc_enc_dma,
+				   desc_bytes(desc), DMA_TO_DEVICE);
+
 	/* ablkcipher_decrypt shared descriptor */
 	desc = ctx->sh_desc_dec;
 
@@ -636,6 +650,8 @@ static int ablkcipher_setkey(struct crypto_ablkcipher *ablkcipher,
 		       DUMP_PREFIX_ADDRESS, 16, 4, desc,
 		       desc_bytes(desc), 1);
 #endif
+	dma_sync_single_for_device(jrdev, ctx->sh_desc_dec_dma,
+				   desc_bytes(desc), DMA_TO_DEVICE);
 
 	return ret;
 }
@@ -1153,7 +1169,7 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 	}
 
 	sgc = dma_map_sg_chained(jrdev, req->assoc, assoc_nents ? : 1,
-				 DMA_TO_DEVICE, assoc_chained);
+				 DMA_BIDIRECTIONAL, assoc_chained);
 	if (likely(req->src == req->dst)) {
 		sgc = dma_map_sg_chained(jrdev, req->src, src_nents ? : 1,
 					 DMA_BIDIRECTIONAL, src_chained);
@@ -1177,9 +1193,10 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 	sec4_sg_len += dst_nents;
 
 	sec4_sg_bytes = sec4_sg_len * sizeof(struct sec4_sg_entry);
+	dma_sync_single_for_device(jrdev, iv_dma, ivsize, DMA_TO_DEVICE);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
-	edesc = kmalloc(sizeof(struct aead_edesc) + desc_bytes +
+	edesc = kzalloc(sizeof(struct aead_edesc) + desc_bytes +
 			sec4_sg_bytes, GFP_DMA | flags);
 	if (!edesc) {
 		dev_err(jrdev, "could not allocate extended descriptor\n");
@@ -1220,6 +1237,8 @@ static struct aead_edesc *aead_edesc_alloc(struct aead_request *req,
 		sg_to_sec4_sg_last(req->dst, dst_nents,
 				   edesc->sec4_sg + sec4_sg_index, 0);
 	}
+	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
+				   DMA_TO_DEVICE);
 
 	return edesc;
 }
@@ -1334,7 +1353,7 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 				     &dst_chained);
 
 	sgc = dma_map_sg_chained(jrdev, req->assoc, assoc_nents ? : 1,
-				 DMA_TO_DEVICE, assoc_chained);
+				 DMA_BIDIRECTIONAL, assoc_chained);
 	if (likely(req->src == req->dst)) {
 		sgc = dma_map_sg_chained(jrdev, req->src, src_nents ? : 1,
 					 DMA_BIDIRECTIONAL, src_chained);
@@ -1367,8 +1386,10 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 
 	sec4_sg_bytes = sec4_sg_len * sizeof(struct sec4_sg_entry);
 
+	dma_sync_single_for_device(jrdev, iv_dma, ivsize, DMA_TO_DEVICE);
+
 	/* allocate space for base edesc and hw desc commands, link tables */
-	edesc = kmalloc(sizeof(struct aead_edesc) + desc_bytes +
+	edesc = kzalloc(sizeof(struct aead_edesc) + desc_bytes +
 			sec4_sg_bytes, GFP_DMA | flags);
 	if (!edesc) {
 		dev_err(jrdev, "could not allocate extended descriptor\n");
@@ -1410,6 +1431,8 @@ static struct aead_edesc *aead_giv_edesc_alloc(struct aead_givcrypt_request
 		sg_to_sec4_sg_last(req->dst, dst_nents,
 				   edesc->sec4_sg + sec4_sg_index, 0);
 	}
+	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
+				   DMA_TO_DEVICE);
 
 	return edesc;
 }
@@ -1501,6 +1524,7 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 	 * If so, include it. If not, create scatterlist.
 	 */
 	iv_dma = dma_map_single(jrdev, req->info, ivsize, DMA_TO_DEVICE);
+	dma_sync_single_for_device(jrdev, iv_dma, ivsize, DMA_TO_DEVICE);
 	if (!src_nents && iv_dma + ivsize == sg_dma_address(req->src))
 		iv_contig = true;
 	else
@@ -1509,7 +1533,7 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 			sizeof(struct sec4_sg_entry);
 
 	/* allocate space for base edesc and hw desc commands, link tables */
-	edesc = kmalloc(sizeof(struct ablkcipher_edesc) + desc_bytes +
+	edesc = kzalloc(sizeof(struct ablkcipher_edesc) + desc_bytes +
 			sec4_sg_bytes, GFP_DMA | flags);
 	if (!edesc) {
 		dev_err(jrdev, "could not allocate extended descriptor\n");
@@ -1539,7 +1563,11 @@ static struct ablkcipher_edesc *ablkcipher_edesc_alloc(struct ablkcipher_request
 
 	edesc->sec4_sg_dma = dma_map_single(jrdev, edesc->sec4_sg,
 					    sec4_sg_bytes, DMA_TO_DEVICE);
+
 	edesc->iv_dma = iv_dma;
+
+	dma_sync_single_for_device(jrdev, edesc->sec4_sg_dma, sec4_sg_bytes,
+				   DMA_TO_DEVICE);
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "ablkcipher sec4_sg@"__stringify(__LINE__)": ",
@@ -2189,6 +2217,7 @@ static int __init caam_algapi_init(void)
 		} else
 			list_add_tail(&t_alg->entry, &alg_list);
 	}
+
 	if (!list_empty(&alg_list))
 		pr_info("caam algorithms registered in /proc/crypto\n");
 

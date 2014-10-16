@@ -1,7 +1,7 @@
 /*
  * caam - Freescale FSL CAAM support for hw_random
  *
- * Copyright 2011 Freescale Semiconductor, Inc.
+ * Copyright 2011-2015 Freescale Semiconductor, Inc.
  *
  * Based on caamalg.c crypto API driver.
  *
@@ -80,9 +80,12 @@ static struct caam_rng_ctx rng_ctx;
 
 static inline void rng_unmap_buf(struct device *jrdev, struct buf_data *bd)
 {
-	if (bd->addr)
+	if (bd->addr) {
+		dma_sync_single_for_cpu(jrdev, bd->addr, RN_BUF_SIZE,
+					DMA_FROM_DEVICE);
 		dma_unmap_single(jrdev, bd->addr, RN_BUF_SIZE,
 				 DMA_FROM_DEVICE);
+	}
 }
 
 static inline void rng_unmap_ctx(struct caam_rng_ctx *ctx)
@@ -206,6 +209,9 @@ static inline void rng_create_sh_desc(struct caam_rng_ctx *ctx)
 
 	ctx->sh_desc_dma = dma_map_single(jrdev, desc, desc_bytes(desc),
 					  DMA_TO_DEVICE);
+	dma_sync_single_for_device(jrdev, ctx->sh_desc_dma, desc_bytes(desc),
+			       DMA_TO_DEVICE);
+
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "rng shdesc@: ", DUMP_PREFIX_ADDRESS, 16, 4,
 		       desc, desc_bytes(desc), 1);
