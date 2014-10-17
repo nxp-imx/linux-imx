@@ -4227,9 +4227,6 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 	if (retval)
 		goto fail;
 
-	if (hcd->phy && !hdev->parent)
-		usb_phy_notify_connect(hcd->phy, udev->speed);
-
 	/*
 	 * Some superspeed devices have finished the link training process
 	 * and attached to a superspeed hub port, but the device descriptor
@@ -4581,6 +4578,10 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 				spin_lock_irq(&device_state_lock);
 				hub->ports[port1 - 1]->child = NULL;
 				spin_unlock_irq(&device_state_lock);
+			} else {
+				if (hcd->phy && !hdev->parent)
+					usb_phy_notify_connect(hcd->phy,
+							udev->speed);
 			}
 		}
 
