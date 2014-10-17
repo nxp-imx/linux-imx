@@ -794,6 +794,25 @@ imx6_suspend_start:
 
 	str	r3, [r8, #MX6Q_SRC_GPR2]
 
+	/*
+	 * i.MX6SX RDC needs PCIe and eim clk to be enabled
+	 * if Mega/Fast off, it is better to check cpu type
+	 * and whether Mega/Fast is off in this suspend flow,
+	 * but we need to add cpu type check for 3 places which
+	 * will increase code size, so here we just do it
+	 * for all cases, as when STOP mode is entered, CCM
+	 * hardware will gate all clocks, so it will NOT impact
+	 * any function or power.
+	 */
+	ldr	r8, =IMX_IO_P2V(MX6Q_CCM_BASE_ADDR)
+	ldr	r4, [r8, #0x78]
+	ldr	r5, [r8, #0x80]
+	stmfd   r10!, {r4-r5}
+	orr	r4, r4, #0x3
+	str	r4, [r8, #0x78]
+	orr	r5, r5, #0xc00
+	str	r5, [r8, #0x80]
+
 	ldr	r8, =IMX_IO_P2V(MX6Q_IOMUXC_BASE_ADDR)
 
 	cmp	r2, #MXC_CPU_IMX6Q
@@ -1163,6 +1182,12 @@ ldo_check_done3:
 
 	/* get cpu tpye */
 	ldmea	r10!, {r2}
+
+	/* restore CCM CCGR clk for RDC  */
+	ldmea	r10!, {r4-r5}
+	ldr	r8, =MX6Q_CCM_BASE_ADDR
+	str	r4, [r8, #0x78]
+	str	r5, [r8, #0x80]
 
 	/* clear core0's entry and parameter */
 	ldr	r8, =MX6Q_SRC_BASE_ADDR
