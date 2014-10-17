@@ -76,7 +76,7 @@ struct caam_rng_ctx {
 	struct buf_data bufs[2];
 };
 
-static struct caam_rng_ctx rng_ctx;
+static struct caam_rng_ctx *rng_ctx;
 
 static inline void rng_unmap_buf(struct device *jrdev, struct buf_data *bd)
 {
@@ -140,7 +140,7 @@ static inline int submit_job(struct caam_rng_ctx *ctx, int to_current)
 
 static int caam_read(struct hwrng *rng, void *data, size_t max, bool wait)
 {
-	struct caam_rng_ctx *ctx = &rng_ctx;
+	struct caam_rng_ctx *ctx = rng_ctx;
 	struct buf_data *bd = &ctx->bufs[ctx->current_buf];
 	int next_buf_idx, copied_idx;
 	int err;
@@ -243,12 +243,12 @@ static void caam_cleanup(struct hwrng *rng)
 	struct buf_data *bd;
 
 	for (i = 0; i < 2; i++) {
-		bd = &rng_ctx.bufs[i];
+		bd = &rng_ctx->bufs[i];
 		if (atomic_read(&bd->empty) == BUF_PENDING)
 			wait_for_completion(&bd->filled);
 	}
 
-	rng_unmap_ctx(&rng_ctx);
+	rng_unmap_ctx(rng_ctx);
 }
 
 static void caam_init_buf(struct caam_rng_ctx *ctx, int buf_id)
@@ -279,13 +279,14 @@ static struct hwrng caam_rng = {
 
 static void __exit caam_rng_exit(void)
 {
-	caam_jr_free(rng_ctx.jrdev);
+	caam_jr_free(rng_ctx->jrdev);
 	hwrng_unregister(&caam_rng);
 }
 
 static int __init caam_rng_init(void)
 {
 	struct device *dev;
+	rng_ctx = kmalloc(sizeof(struct caam_rng_ctx), GFP_KERNEL | GFP_DMA);
 
 	dev = caam_jr_alloc();
 	if (IS_ERR(dev)) {
@@ -293,7 +294,7 @@ static int __init caam_rng_init(void)
 		return PTR_ERR(dev);
 	}
 
-	caam_init_rng(&rng_ctx, dev);
+	caam_init_rng(rng_ctx, dev);
 
 	dev_info(dev, "registering rng-caam\n");
 	return hwrng_register(&caam_rng);
