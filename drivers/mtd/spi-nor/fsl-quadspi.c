@@ -1016,7 +1016,8 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 		nor->prepare = fsl_qspi_prep;
 		nor->unprepare = fsl_qspi_unprep;
 
-		if (of_modalias_node(np, modalias, sizeof(modalias)) < 0)
+		ret = of_modalias_node(np, modalias, sizeof(modalias));
+		if (ret < 0)
 			goto map_failed;
 
 		id = spi_nor_match_id(modalias);
