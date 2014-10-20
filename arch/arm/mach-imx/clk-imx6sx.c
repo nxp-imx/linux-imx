@@ -16,6 +16,8 @@
 #include <linux/imx_sema4.h>
 #include <linux/init.h>
 #include <linux/io.h>
+#include <linux/mcc_config_linux.h>
+#include <linux/mcc_common.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
