@@ -1,7 +1,6 @@
 /*
  * Copyright (C) 2014 Freescale Semiconductor, Inc.
  * Freescale IMX Linux-specific MCC implementation.
- * MCC library API functions implementation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -16,13 +15,18 @@
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mcc_config.h"
+#if (MCC_OS_USED == MCC_MQX)
 #include <string.h>
 #include "mcc_config.h"
 #include "mcc_common.h"
 #include "mcc_api.h"
-
-#if (MCC_OS_USED == MCC_MQX)
 #include "mcc_mqx.h"
+#elif (MCC_OS_USED == MCC_LINUX)
+#include <linux/mcc_api.h>
+#include <linux/mcc_imx6sx.h>
+#include <linux/mcc_linux.h>
+#include <linux/imx_sema4.h>
 #endif
 
 const char * const init_string    = MCC_INIT_STRING;
@@ -59,7 +63,7 @@ int mcc_initialize(MCC_NODE node)
 {
     int i,j = 0;
     int return_value = MCC_SUCCESS;
-    MCC_SIGNAL tmp_signals_received = {(MCC_SIGNAL_TYPE)0, (MCC_CORE)0, (MCC_NODE)0, (MCC_PORT)0};
+    MCC_SIGNAL tmp_signals_received = {(MCC_SIGNAL_TYPE)0, {(MCC_CORE)0, (MCC_NODE)0, (MCC_PORT)0}};
 
     /* Initialize synchronization module for shared data protection */
     return_value = mcc_init_semaphore(MCC_SHMEM_SEMAPHORE_NUMBER);
@@ -79,12 +83,12 @@ int mcc_initialize(MCC_NODE node)
         return return_value;
 
     /* Initialize the bookeeping structure */
-    bookeeping_data = (MCC_BOOKEEPING_STRUCT *)MCC_BASE_ADDRESS;
+    bookeeping_data = (MCC_BOOKEEPING_STRUCT *)mcc_get_bookeeping_data();
     MCC_DCACHE_INVALIDATE_MLINES(bookeeping_data, sizeof(MCC_BOOKEEPING_STRUCT));
     if(strcmp(bookeeping_data->init_string, init_string) != 0) {
         /* MCC not initialized yet, do it now */
         /* Zero it all - no guarantee Linux or uboot didnt touch it before it was reserved */
-        _mem_zero((void*) bookeeping_data, (_mem_size) sizeof(struct mcc_bookeeping_struct));
+        memset((void*) bookeeping_data, 0, sizeof(struct mcc_bookeeping_struct));
 
         /* Set init_string in case it has not been set yet by another core */
         mcc_memcpy((void*)init_string, bookeeping_data->init_string, (unsigned int)sizeof(bookeeping_data->init_string));
@@ -93,12 +97,12 @@ int mcc_initialize(MCC_NODE node)
         mcc_memcpy((void*)version_string, bookeeping_data->version_string, (unsigned int)sizeof(bookeeping_data->version_string));
 
         /* Initialize the free list */
-        bookeeping_data->free_list.head = &bookeeping_data->r_buffers[0];
-        bookeeping_data->free_list.tail = &bookeeping_data->r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS-1];
+        bookeeping_data->free_list.head = (MCC_RECEIVE_BUFFER*)MCC_MEM_VIRT_TO_PHYS(&bookeeping_data->r_buffers[0]);
+        bookeeping_data->free_list.tail = (MCC_RECEIVE_BUFFER*)MCC_MEM_VIRT_TO_PHYS(&bookeeping_data->r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS-1]);
 
         /* Initialize receive buffers */
         for(i=0; i<MCC_ATTR_NUM_RECEIVE_BUFFERS-1; i++) {
-            bookeeping_data->r_buffers[i].next = &bookeeping_data->r_buffers[i+1];
+            bookeeping_data->r_buffers[i].next = (MCC_RECEIVE_BUFFER*)MCC_MEM_VIRT_TO_PHYS(&bookeeping_data->r_buffers[i+1]);
         }
         bookeeping_data->r_buffers[MCC_ATTR_NUM_RECEIVE_BUFFERS-1].next = null;
 
@@ -199,7 +203,7 @@ int mcc_create_endpoint(MCC_ENDPOINT *endpoint, MCC_PORT port)
 
     /* Fill the endpoint structure */
     endpoint->core = (MCC_CORE)MCC_CORE_NUMBER;
-    endpoint->node = (MCC_NODE)MCC_MQX_NODE_NUMBER;
+    endpoint->node = (MCC_NODE)MCC_NODE_NUMBER;
     endpoint->port = (MCC_PORT)port;
 
     /* Semaphore-protected section start */
@@ -299,10 +303,6 @@ int mcc_send(MCC_ENDPOINT *src_endpoint, MCC_ENDPOINT *dest_endpoint, void *msg,
     if(return_value != MCC_SUCCESS)
         return return_value;
 
-    /* As the mcc_get_buffer_internal() returns the pointer to the data field, it
-       is necessary to adjust the pointer to point at the MCC buffer structure beginning. */
-    buf = (MCC_RECEIVE_BUFFER *)((unsigned int)buf - (unsigned int)(&(((MCC_RECEIVE_BUFFER*)0)->data)));
-    
     /* Check if the size of the message to be sent does not exceed the size of the mcc buffer */
     if(msg_size > buffer_size) {
         while(MCC_SUCCESS != mcc_free_buffer_internal(buf)) {};
@@ -313,6 +313,10 @@ int mcc_send(MCC_ENDPOINT *src_endpoint, MCC_ENDPOINT *dest_endpoint, void *msg,
     return_value = mcc_get_semaphore();
     if(return_value != MCC_SUCCESS)
         return return_value;
+
+    /* As the mcc_get_buffer_internal() returns the pointer to the data field, it
+       is necessary to adjust the pointer to point at the MCC buffer structure beginning. */
+    buf = (MCC_RECEIVE_BUFFER *)((unsigned int)buf - (unsigned int)(&(((MCC_RECEIVE_BUFFER*)0)->data)));
 
     /* Copy the message into the MCC receive buffer */
     MCC_DCACHE_INVALIDATE_MLINES((void*)buf, sizeof(MCC_RECEIVE_BUFFER));
@@ -632,6 +636,7 @@ int mcc_recv(MCC_ENDPOINT *src_endpoint, MCC_ENDPOINT *dest_endpoint, void *buff
     mcc_memcpy((void*)list->head->data, buffer, list->head->data_len);
 
     /* Dequeue the buffer from the endpoint list */
+    list->head = (MCC_RECEIVE_BUFFER*)MCC_MEM_VIRT_TO_PHYS(list->head);
     buf = mcc_dequeue_buffer(list);
 
     /* Enqueue the buffer into the free list */
@@ -775,13 +780,15 @@ static int mcc_recv_common_part(MCC_ENDPOINT *endpoint, unsigned int timeout_ms,
         /* Blocking call */
         else {
             /* Wait for the buffer queued event */
-            mcc_wait_for_buffer_queued(endpoint, timeout_ms);
+            return_value = mcc_wait_for_buffer_queued(endpoint, timeout_ms);
             if(MCC_SUCCESS != return_value) {
                 return return_value;
             }
         }
     }
-    
+    else {
+        tmp_list->head = (MCC_RECEIVE_BUFFER*)MCC_MEM_PHYS_TO_VIRT(tmp_list->head);
+    }
     /* Clear event bit specified for the particular endpoint */
     mcc_clear_os_sync_for_ep(endpoint);
 

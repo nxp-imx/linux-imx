@@ -1,7 +1,6 @@
 /*
  * Copyright (C) 2014 Freescale Semiconductor, Inc.
  * Freescale IMX Linux-specific MCC implementation.
- * MCC library API functions implementation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,

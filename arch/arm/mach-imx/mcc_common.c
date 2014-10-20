@@ -1,7 +1,6 @@
 /*
  * Copyright (C) 2014 Freescale Semiconductor, Inc.
  * Freescale IMX Linux-specific MCC implementation.
- * MCC library common functions
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -17,15 +16,12 @@
  */
 
 #include "mcc_config.h"
+#if (MCC_OS_USED == MCC_MQX)
 #include "mcc_common.h"
-
-#if (MCC_OS_USED == MCC_LINUX)
-#include "linux/mcc_linux.h"
-#include "linux/mcc_shm_linux.h"
-#include <mach/hardware.h>
-#include <linux/kernel.h>
-#elif (MCC_OS_USED == MCC_MQX)
 #include "mcc_mqx.h"
+#elif (MCC_OS_USED == MCC_LINUX)
+#include <linux/mcc_api.h>
+#include <linux/mcc_linux.h>
 #endif
 
 
@@ -88,10 +84,10 @@ int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
 
         if(MCC_ENDPOINTS_EQUAL(bookeeping_data->endpoint_table[i].endpoint, endpoint)) {
             /* clear the queue */
-            MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)MCC_MEM_PHYS_TO_VIRT(&bookeeping_data->endpoint_table[i].list));
+            MCC_RECEIVE_BUFFER * buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list);
             while(buffer) {
-                mcc_queue_buffer((MCC_RECEIVE_LIST *)MCC_MEM_PHYS_TO_VIRT(&bookeeping_data->free_list), buffer);
-                buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)MCC_MEM_PHYS_TO_VIRT(&bookeeping_data->endpoint_table[i].list));
+                mcc_queue_buffer(&bookeeping_data->free_list, buffer);
+                buffer = mcc_dequeue_buffer((MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list);
             }
             /* indicate free */
             bookeeping_data->endpoint_table[i].endpoint.port = MCC_RESERVED_PORT_NUMBER;
@@ -113,10 +109,12 @@ int mcc_remove_endpoint(MCC_ENDPOINT endpoint)
  */
 MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list)
 {
+    MCC_RECEIVE_BUFFER * next_buf, * next_buf_virt;
     MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST));
-    MCC_RECEIVE_BUFFER * next_buf = list->head;
 
-    MCC_RECEIVE_BUFFER * next_buf_virt = (MCC_RECEIVE_BUFFER *)MCC_MEM_PHYS_TO_VIRT(next_buf);
+    next_buf = list->head;
+
+    next_buf_virt = (MCC_RECEIVE_BUFFER *)MCC_MEM_PHYS_TO_VIRT(next_buf);
     if(next_buf) {
         MCC_DCACHE_INVALIDATE_MLINES((void*)&next_buf_virt->next, sizeof(MCC_RECEIVE_BUFFER*));
         list->head = next_buf_virt->next;
@@ -139,10 +137,13 @@ MCC_RECEIVE_BUFFER * mcc_dequeue_buffer(MCC_RECEIVE_LIST *list)
  */
 void mcc_queue_buffer(MCC_RECEIVE_LIST *list, MCC_RECEIVE_BUFFER * r_buffer)
 {
+    MCC_RECEIVE_BUFFER * last_buf;
+    MCC_RECEIVE_BUFFER * r_buffer_phys;
+
     MCC_DCACHE_INVALIDATE_MLINES((void*)list, sizeof(MCC_RECEIVE_LIST));
 
-    MCC_RECEIVE_BUFFER * last_buf = (MCC_RECEIVE_BUFFER *)MCC_MEM_PHYS_TO_VIRT(list->tail);
-    MCC_RECEIVE_BUFFER * r_buffer_phys = (MCC_RECEIVE_BUFFER *)MCC_MEM_VIRT_TO_PHYS(r_buffer);
+    last_buf = (MCC_RECEIVE_BUFFER *)MCC_MEM_PHYS_TO_VIRT(list->tail);
+    r_buffer_phys = (MCC_RECEIVE_BUFFER *)MCC_MEM_VIRT_TO_PHYS(r_buffer);
     if(last_buf) {
         last_buf->next = r_buffer_phys;
         MCC_DCACHE_FLUSH_MLINES((void*)&last_buf->next, sizeof(MCC_RECEIVE_BUFFER*));
@@ -178,7 +179,7 @@ MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
     for(i = 0; i<MCC_ATTR_MAX_RECEIVE_ENDPOINTS; i++) {
 
         if(MCC_ENDPOINTS_EQUAL(bookeeping_data->endpoint_table[i].endpoint, endpoint)) {
-            return (MCC_RECEIVE_LIST *)MCC_MEM_PHYS_TO_VIRT(&bookeeping_data->endpoint_table[i].list);
+            return (MCC_RECEIVE_LIST *)&bookeeping_data->endpoint_table[i].list;
         }
     }
     return null;
@@ -204,10 +205,12 @@ MCC_RECEIVE_LIST * mcc_get_endpoint_list(MCC_ENDPOINT endpoint)
  */
 int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
 {
+    int tail, new_tail;
+
     MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_head[core], sizeof(unsigned int));
     MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_tail[core], sizeof(unsigned int));
-    int tail = bookeeping_data->signal_queue_tail[core];
-    int new_tail = tail == (MCC_MAX_OUTSTANDING_SIGNALS-1) ? 0 : tail+1;
+    tail = bookeeping_data->signal_queue_tail[core];
+    new_tail = tail == (MCC_MAX_OUTSTANDING_SIGNALS-1) ? 0 : tail+1;
 
     if(MCC_SIGNAL_QUEUE_FULL(core))
         return MCC_ERR_SQ_FULL;
@@ -238,9 +241,11 @@ int mcc_queue_signal(MCC_CORE core, MCC_SIGNAL signal)
  */
 int mcc_dequeue_signal(MCC_CORE core, MCC_SIGNAL *signal)
 {
+    int head;
+
     MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_head[core], sizeof(unsigned int));
     MCC_DCACHE_INVALIDATE_MLINES((void*)&bookeeping_data->signal_queue_tail[core], sizeof(unsigned int));
-    int head = bookeeping_data->signal_queue_head[core];
+    head = bookeeping_data->signal_queue_head[core];
 
     if(MCC_SIGNAL_QUEUE_EMPTY(core))
         return MCC_ERR_SQ_EMPTY;
