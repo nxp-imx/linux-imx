@@ -20,6 +20,7 @@
 #include <asm/mach/map.h>
 
 #include "common.h"
+#include "cpuidle.h"
 
 static struct flexcan_platform_data flexcan_pdata[2];
 static int flexcan_en_gpio;
@@ -208,6 +209,8 @@ static void __init imx6sx_init_late(void)
 
 	if (of_machine_is_compatible("fsl,imx6sx-sdb"))
 		imx6sx_arm2_flexcan_fixup();
+
+	imx6sx_cpuidle_init();
 }
 
 static void __init imx6sx_map_io(void)

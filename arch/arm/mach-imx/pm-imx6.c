@@ -235,15 +235,24 @@ void restore_ttbr1(unsigned long ttbr1)
 	);
 }
 
-void imx6q_set_int_mem_clk_lpm(void)
+void imx6q_set_int_mem_clk_lpm(bool enable)
 {
-	u32 val = readl_relaxed(ccm_base + CGPR);
+	if ((cpu_is_imx6q() && imx_get_soc_revision() >
+		IMX_CHIP_REVISION_1_1) ||
+		(cpu_is_imx6dl() && imx_get_soc_revision() >
+		IMX_CHIP_REVISION_1_0) || cpu_is_imx6sx()) {
+		u32 val;
 
-	val |= BM_CGPR_INT_MEM_CLK_LPM;
-	writel_relaxed(val, ccm_base + CGPR);
+		val = readl_relaxed(ccm_base + CGPR);
+		if (enable)
+			val |= BM_CGPR_INT_MEM_CLK_LPM;
+		else
+			val &= ~BM_CGPR_INT_MEM_CLK_LPM;
+		writel_relaxed(val, ccm_base + CGPR);
+	}
 }
 
-static void imx6q_enable_rbc(bool enable)
+void imx6q_enable_rbc(bool enable)
 {
 	u32 val;
 

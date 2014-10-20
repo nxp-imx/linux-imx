@@ -43,4 +43,5 @@
 #define MX6SL_WFI_IRAM_DATA_SIZE    100
 
 #define MX6_SUSPEND_IRAM_ADDR_OFFSET        0
+#define MX6_CPUIDLE_IRAM_ADDR_OFFSET        0x1000
 #endif
