@@ -1105,6 +1105,13 @@ static int check_task(struct ipu_task_entry *t)
 			need_csc(t->input.format, t->output.format))
 		t->set.mode |= IC_MODE;
 
+	/*need cropping?*/
+	if ((t->input.crop.w != t->input.width)       ||
+		(t->input.crop.h != t->input.height)  ||
+		(t->output.crop.w != t->output.width) ||
+		(t->output.crop.h != t->output.height))
+		t->set.mode |= IC_MODE;
+
 	/*need flip?*/
 	if ((t->set.mode == NULL_MODE) && (t->output.rotate > IPU_ROTATE_NONE))
 		t->set.mode |= IC_MODE;
