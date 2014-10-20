@@ -15,6 +15,8 @@
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/err.h>
+#include <linux/mcc_config_linux.h>
+#include <linux/mcc_common.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/wait.h>
@@ -261,7 +263,7 @@ int imx_sema4_mutex_unlock(struct imx_sema4_mutex *mutex_ptr)
 	mutex_ptr->gate_val = readb(imx6_sema4->ioaddr + i);
 	mutex_ptr->gate_val &= SEMA4_GATE_MASK;
 	/* make sure it is locked by this core */
-	if (mutex_ptr->gate_val != SEMA4_UNLOCK)
+	if (mutex_ptr->gate_val == SEMA4_A9_LOCK)
 		pr_err("%d ERROR, failed to unlock the mutex.\n", __LINE__);
 
 out:
@@ -313,8 +315,9 @@ static irqreturn_t imx_sema4_isr(int irq, void *dev_id)
 						imx6_sema4->ioaddr + i);
 				wake_up(&mutex_ptr->wait_q);
 			} else {
-				pr_err("can't lock gate%d re-do it! %s->%s\n",
-						i, __FILE__, __func__);
+				pr_debug("can't lock gate%d %s retry!\n", i,
+						mutex_ptr->gate_val ?
+						"locked by m4" : "");
 			}
 		}
 	}
