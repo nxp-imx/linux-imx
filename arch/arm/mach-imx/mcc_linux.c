@@ -1,7 +1,6 @@
 /*
  * Copyright (C) 2014 Freescale Semiconductor, Inc.
  * Freescale IMX Linux-specific MCC implementation.
- * Linux-specific MCC library functions
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -19,12 +18,14 @@
 #include <linux/busfreq-imx6.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/io.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/imx_sema4.h>
 #include "mcc_config.h"
+#include <linux/mcc_config_linux.h>
 #include <linux/mcc_common.h>
 #include <linux/mcc_api.h>
 #include <linux/mcc_imx6sx.h>
@@ -43,6 +44,8 @@ bool m4_freq_low;
 unsigned int imx_mcc_buffer_freed = 0, imx_mcc_buffer_queued = 0;
 DECLARE_WAIT_QUEUE_HEAD(buffer_freed_wait_queue); /* Used for blocking send */
 DECLARE_WAIT_QUEUE_HEAD(buffer_queued_wait_queue); /* Used for blocking recv */
+
+MCC_BOOKEEPING_STRUCT *bookeeping_data;
 
 /*!
  * \brief This function is the CPU-to-CPU interrupt handler.
@@ -305,12 +308,7 @@ void mcc_memcpy(void *src, void *dest, unsigned int size)
 	memcpy(dest, src, size);
 }
 
-void _mem_zero(void *ptr, unsigned int size)
-{
-	memset(ptr, 0, size);
-}
-
-void *virt_to_mqx(void *x)
+void *mcc_virt_to_phys(void *x)
 {
 	if (null == x)
 		return NULL;
@@ -318,10 +316,136 @@ void *virt_to_mqx(void *x)
 		return (void *)((unsigned long) (x) - mcc_shm_offset);
 }
 
-void *mqx_to_virt(void *x)
+void *mcc_phys_to_virt(void *x)
 {
 	if (null == x)
 		return NULL;
 	else
 		return (void *)((unsigned long) (x) + mcc_shm_offset);
+}
+
+int mcc_init_os_sync(void)
+{
+	/* No used in linux */
+	return MCC_SUCCESS;
+}
+
+int mcc_deinit_os_sync(void)
+{
+	/* No used in linux */
+	return MCC_SUCCESS;
+}
+
+void mcc_clear_os_sync_for_ep(MCC_ENDPOINT *endpoint)
+{
+	/* No used in linux */
+}
+
+int mcc_wait_for_buffer_freed(MCC_RECEIVE_BUFFER **buffer, unsigned int timeout)
+{
+    int return_value;
+    unsigned long timeout_j; /* jiffies */
+    MCC_RECEIVE_BUFFER *buf = null;
+
+	/*
+	 * Blocking calls: CPU-to-CPU ISR sets the event and thus
+	 * resumes tasks waiting for a free MCC buffer.
+	 * As the interrupt request is send to all cores when a buffer
+	 * is freed it could happen that several tasks from different
+	 * cores/nodes are waiting for a free buffer and all of them
+	 * are notified that the buffer has been freed. This function
+	 * has to check (after the wake up) that a buffer is really
+	 * available and has not been already grabbed by another
+	 * "competitor task" that has been faster. If so, it has to
+	 * wait again for the next notification.
+	 */
+	while (buf == null) {
+		if (timeout == 0xffffffff) {
+			/*
+			 * In order to level up the robust, do not always
+			 * wait event here. Wake up itself after every 1~s.
+			 */
+			timeout_j = usecs_to_jiffies(1000);
+			wait_event_timeout(buffer_freed_wait_queue,
+					imx_mcc_buffer_freed == 1, timeout_j);
+		} else {
+			timeout_j = msecs_to_jiffies(timeout);
+			wait_event_timeout(buffer_freed_wait_queue,
+					imx_mcc_buffer_freed == 1, timeout_j);
+		}
+
+		return_value = mcc_get_semaphore();
+		if (return_value != MCC_SUCCESS)
+			return return_value;
+
+		MCC_DCACHE_INVALIDATE_MLINES((void *)
+				&bookeeping_data->free_list,
+				sizeof(MCC_RECEIVE_LIST *));
+
+		buf = mcc_dequeue_buffer(&bookeeping_data->free_list);
+		mcc_release_semaphore();
+		if (imx_mcc_buffer_freed)
+			imx_mcc_buffer_freed = 0;
+	}
+
+	*buffer = buf;
+	return MCC_SUCCESS;
+}
+
+int mcc_wait_for_buffer_queued(MCC_ENDPOINT *endpoint, unsigned int timeout)
+{
+	unsigned long timeout_j; /* jiffies */
+	MCC_RECEIVE_LIST *tmp_list;
+
+	/* Get list of buffers kept by the particular endpoint */
+	tmp_list = mcc_get_endpoint_list(*endpoint);
+
+	if (timeout == 0xffffffff) {
+		wait_event(buffer_queued_wait_queue,
+				imx_mcc_buffer_queued == 1);
+		mcc_get_semaphore();
+		/*
+		* double check if the tmp_list head is still null
+		* or not, if yes, wait again.
+		*/
+		while (tmp_list->head == null) {
+			imx_mcc_buffer_queued = 0;
+			mcc_release_semaphore();
+			wait_event(buffer_queued_wait_queue,
+					imx_mcc_buffer_queued == 1);
+			mcc_get_semaphore();
+		}
+	} else {
+		timeout_j = msecs_to_jiffies(timeout);
+		wait_event_timeout(buffer_queued_wait_queue,
+				imx_mcc_buffer_queued == 1, timeout_j);
+		mcc_get_semaphore();
+	}
+
+	if (imx_mcc_buffer_queued)
+		imx_mcc_buffer_queued = 0;
+
+	if (tmp_list->head == null) {
+		pr_err("%s can't get queued buffer.\n", __func__);
+		mcc_release_semaphore();
+		return MCC_ERR_TIMEOUT;
+	}
+
+	tmp_list->head = (MCC_RECEIVE_BUFFER *)
+		MCC_MEM_PHYS_TO_VIRT(tmp_list->head);
+	mcc_release_semaphore();
+
+	return MCC_SUCCESS;
+}
+
+MCC_BOOKEEPING_STRUCT *mcc_get_bookeeping_data(void)
+{
+	MCC_BOOKEEPING_STRUCT *bookeeping_data;
+
+	bookeeping_data = (MCC_BOOKEEPING_STRUCT *)ioremap_nocache
+		(MCC_BASE_ADDRESS, sizeof(struct mcc_bookeeping_struct));
+	mcc_shm_offset = (unsigned long)bookeeping_data
+		- (unsigned long)MCC_BASE_ADDRESS;
+
+	return bookeeping_data;
 }

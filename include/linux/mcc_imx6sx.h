@@ -1,7 +1,6 @@
 /*
  * Copyright (C) 2014 Freescale Semiconductor, Inc.
  * Freescale IMX Linux-specific MCC implementation.
- * Prototypes for iMX6sx-specific MCC library functions.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -49,6 +48,7 @@ extern struct regmap *imx_mu_reg;
 
 /* Return core num. A9 0, M4 1 */
 unsigned int _psp_core_num(void);
+unsigned int _psp_node_num(void);
 
 unsigned int mcc_get_cpu_to_cpu_vector(unsigned int);
 void mcc_clear_cpu_to_cpu_interrupt(unsigned int);
