@@ -1,7 +1,6 @@
 /*
  * Copyright (C) 2014 Freescale Semiconductor, Inc.
  * Freescale IMX Linux-specific MCC implementation.
- * MCC library header file
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -15,7 +14,6 @@
  * You should have received a copy of the GNU General Public License along with
  * this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 
 #ifndef __MCC_COMMON__
 #define __MCC_COMMON__
