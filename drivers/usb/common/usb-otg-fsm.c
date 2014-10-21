@@ -406,6 +406,11 @@ int otg_hnp_polling(struct otg_fsm *fsm)
 		return -ENODEV;
 	}
 
+	if (!fsm->b_hnp_enable) {
+		dev_dbg(&udev->dev, "HNP is not supported\n");
+		return -ENOTSUPP;
+	}
+
 	/*
 	 * Legacy otg test device does not support HNP polling,
 	 * start HNP directly for legacy otg test device.
@@ -454,7 +459,8 @@ int otg_hnp_polling(struct otg_fsm *fsm)
 			retval = -EINVAL;
 		}
 	} else {
-		dev_err(&udev->dev, "Get one byte OTG status failed\n");
+		dev_warn(&udev->dev, "Get one byte OTG status failed\n");
+		otg_add_timer(fsm, HNP_POLLING);
 		retval = -EIO;
 	}
 	return retval;
