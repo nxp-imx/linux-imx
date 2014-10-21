@@ -839,6 +839,15 @@
 		};
 	};
 
+	mqs {
+		pinctrl_mqs_1: mqsgrp-1 {
+			fsl,pins = <
+				MX6SX_PAD_SD2_CLK__MQS_RIGHT 0x80000000
+				MX6SX_PAD_SD2_CMD__MQS_LEFT 0x80000000
+			>;
+		};
+	};
+
 	pwm3 {
 		pinctrl_pwm3_0: pwm3grp-0 {
 			fsl,pins = <

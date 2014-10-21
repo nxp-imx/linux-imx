@@ -1,0 +1,42 @@
+/*
+ * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "imx6sx-19x19-arm2.dts"
+
+/ {
+	sound-mqs {
+		compatible = "fsl,imx6sx-sdb-mqs",
+				"fsl,imx-audio-mqs";
+		model = "mqs-audio";
+		cpu-dai = <&sai1>;
+		audio-codec = <&mqs>;
+	};
+};
+
+&esai {
+	/* pin conflict with sai */
+	status = "disabled";
+};
+
+&mqs {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_mqs_1>;
+	clocks = <&clks IMX6SX_CLK_SAI1>;
+	clock-names = "mclk";
+	status = "okay";
+};
+
+&sai1 {
+	status = "okay";
+};
+
+&sdma {
+	gpr = <&gpr>;
+	/* SDMA event remap for SAI1 */
+	fsl,sdma-event-remap = <0 15 1>, <0 16 1>;
+};
