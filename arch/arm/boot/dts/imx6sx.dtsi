@@ -563,6 +563,12 @@
 				reg = <0x020cc000 0x4000>;
 			};
 
+			mqs: mqs {
+				compatible = "fsl,imx6sx-mqs";
+				gpr = <&gpr>;
+				status = "disabled";
+			};
+
 			snvs@020cc000 {
 				compatible = "fsl,sec-v4.0-mon", "simple-bus";
 				#address-cells = <1>;
@@ -1666,6 +1672,15 @@
 				MX6SX_PAD_ENET2_RX_CLK__MLB_DATA	0x31
 				MX6SX_PAD_ENET2_CRS__MLB_SIG		0x31
 				MX6SX_PAD_ENET2_TX_CLK__MLB_CLK		0x31
+			>;
+		};
+	};
+
+	mqs {
+		pinctrl_mqs_1: mqsgrp-1 {
+			fsl,pins = <
+				MX6SX_PAD_SD2_CLK__MQS_RIGHT 0x80000000
+				MX6SX_PAD_SD2_CMD__MQS_LEFT 0x80000000
 			>;
 		};
 	};
