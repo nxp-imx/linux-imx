@@ -1169,6 +1169,7 @@
 						<&clks IMX6SX_CLK_LCDIF_APB>,
 						<&clks IMX6SX_CLK_DISPLAY_AXI>;
 					clock-names = "pix", "axi", "disp_axi";
+					disp-supply = <&disp_dummy>;
 					status = "disabled";
 				};
 
@@ -1180,6 +1181,7 @@
 						<&clks IMX6SX_CLK_LCDIF_APB>,
 						<&clks IMX6SX_CLK_DISPLAY_AXI>;
 					clock-names = "pix", "axi", "disp_axi";
+					disp-supply = <&disp_dummy>;
 					status = "disabled";
 				};
 
