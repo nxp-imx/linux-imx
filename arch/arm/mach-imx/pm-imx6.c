@@ -276,6 +276,7 @@ static unsigned long dcr;
 static unsigned long pcr;
 extern unsigned long imx6_suspend_start asm("imx6_suspend_start");
 extern unsigned long imx6_suspend_end asm("imx6_suspend_end");
+extern bool m4_freq_low;
 
 unsigned long save_ttbr1(void)
 {
@@ -548,10 +549,17 @@ static int imx6_pm_enter(suspend_state_t state)
 	unsigned int console_saved_reg[11] = {0};
 
 	if (imx_src_is_m4_enabled()) {
-		if (imx_gpc_is_m4_sleeping()) {
+		if (imx_gpc_is_m4_sleeping() && m4_freq_low) {
 			imx_gpc_hold_m4_in_sleep();
 		} else {
-			pr_info("M4 is busy, can NOT suspend!\n");
+			pr_info("M4 is busy, enter WAIT mode instead of STOP!\n");
+			imx6_set_lpm(WAIT_UNCLOCKED);
+			imx6_set_cache_lpm_in_wait(true);
+			imx_gpc_pre_suspend(false);
+			/* Zzz ... */
+			cpu_do_idle();
+			imx_gpc_post_resume();
+			imx6_set_lpm(WAIT_CLOCKED);
 			return 0;
 		}
 	}

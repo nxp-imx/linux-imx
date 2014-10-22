@@ -38,6 +38,7 @@ static struct imx_sema4_mutex *shm_ptr;
 static unsigned int cpu_to_cpu_isr_vector = MCC_VECTOR_NUMBER_INVALID;
 static struct delayed_work mu_work;
 unsigned int m4_message;
+bool m4_freq_low;
 
 unsigned int imx_mcc_buffer_freed = 0, imx_mcc_buffer_queued = 0;
 DECLARE_WAIT_QUEUE_HEAD(buffer_freed_wait_queue); /* Used for blocking send */
@@ -209,9 +210,11 @@ static void mu_work_handler(struct work_struct *work)
 		request_bus_freq(BUS_FREQ_HIGH);
 		mcc_send_via_mu_buffer(MU_LPM_HANDSHAKE_INDEX,
 			MU_LPM_BUS_HIGH_READY_FOR_M4);
+		m4_freq_low = false;
 		break;
 	case MU_LPM_M4_RELEASE_HIGH_BUS:
 		release_bus_freq(BUS_FREQ_HIGH);
+		m4_freq_low = true;
 		break;
 	default:
 		break;
