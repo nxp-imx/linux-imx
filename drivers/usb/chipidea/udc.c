@@ -1713,7 +1713,7 @@ static int ci_udc_start(struct usb_gadget *gadget,
 	pm_runtime_get_sync(&ci->gadget.dev);
 	if (ci->vbus_active) {
 		spin_lock_irqsave(&ci->lock, flags);
-		hw_device_reset(ci, USBMODE_CM_DC);
+		hw_device_reset(ci);
 	} else {
 		pm_runtime_put_sync(&ci->gadget.dev);
 		return retval;
@@ -1976,7 +1976,7 @@ int ci_usb_charger_connect(struct ci_hdrc *ci, int is_active)
 		ret = ci->platdata->notify_event
 			(ci, CI_HDRC_CONTROLLER_VBUS_EVENT);
 		if (ret == CI_HDRC_NOTIFY_RET_DEFER_EVENT) {
-			hw_device_reset(ci, USBMODE_CM_DC);
+			hw_device_reset(ci);
 			/* Pull up dp */
 			hw_write(ci, OP_USBCMD, USBCMD_RS, USBCMD_RS);
 			ci->platdata->notify_event
@@ -1994,7 +1994,7 @@ void ci_gadget_connect(struct usb_gadget *_gadget, int is_active)
 
 	if (is_active) {
 		pm_runtime_get_sync(&_gadget->dev);
-		hw_device_reset(ci, USBMODE_CM_DC);
+		hw_device_reset(ci);
 		hw_device_state(ci, ci->ep0out->qh.dma);
 		usb_gadget_set_state(_gadget, USB_STATE_POWERED);
 	} else {

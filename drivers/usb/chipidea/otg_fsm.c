@@ -664,7 +664,7 @@ static int ci_otg_start_host(struct otg_fsm *fsm, int on)
 		ci_role_start(ci, CI_ROLE_HOST);
 	} else {
 		ci_role_stop(ci);
-		hw_device_reset(ci, USBMODE_CM_DC);
+		hw_device_reset(ci);
 		ci->role = CI_ROLE_GADGET;
 		/* Enable BSV irq only for B-device */
 		if (ci->fsm.id)
