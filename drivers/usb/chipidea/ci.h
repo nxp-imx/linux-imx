@@ -205,6 +205,7 @@ struct ci_hdrc {
 	u32				pm_async_next;
 	u32				pm_configured_flag;
 	u32				pm_portsc;
+	u32				pm_usbmode;
 	struct work_struct		power_lost_work;
 };
 

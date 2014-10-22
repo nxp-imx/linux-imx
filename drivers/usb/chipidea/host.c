@@ -391,6 +391,7 @@ static void ci_hdrc_host_save_for_power_lost(struct ci_hdrc *ci)
 	ehci = hcd_to_ehci(ci->hcd);
 
 	/* save EHCI registers */
+	ci->pm_usbmode = ehci_readl(ehci, &ehci->regs->usbmode);
 	ci->pm_command = ehci_readl(ehci, &ehci->regs->command);
 	ci->pm_command &= ~CMD_RUN;
 	ci->pm_status  = ehci_readl(ehci, &ehci->regs->status);
@@ -413,11 +414,12 @@ static void ci_hdrc_host_restore_from_power_lost(struct ci_hdrc *ci)
 	if (!ci->hcd)
 		return;
 
-	hw_device_reset(ci, USBMODE_CM_HC);
+	hw_controller_reset(ci);
 
 	ehci = hcd_to_ehci(ci->hcd);
 	spin_lock_irqsave(&ehci->lock, flags);
 	/* restore EHCI registers */
+	ehci_writel(ehci, ci->pm_usbmode, &ehci->regs->usbmode);
 	ehci_writel(ehci, ci->pm_portsc, &ehci->regs->port_status[0]);
 	ehci_writel(ehci, ci->pm_command, &ehci->regs->command);
 	ehci_writel(ehci, ci->pm_intr_enable, &ehci->regs->intr_enable);
