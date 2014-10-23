@@ -38,6 +38,7 @@
 #include <linux/of_device.h>
 #include <media/v4l2-chip-ident.h>
 #include <media/v4l2-ioctl.h>
+#include <media/v4l2-device.h>
 #include "v4l2-int-device.h"
 #include <linux/fsl_devices.h>
 #include "mxc_v4l2_capture.h"
@@ -2626,6 +2627,7 @@ static int init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	int ipu_id, csi_id, mclk_source;
 	int ret = 0;
+	struct v4l2_device *v4l2_dev;
 
 	pr_debug("In MVC: init_camera_struct\n");
 
@@ -2679,6 +2681,21 @@ static int init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	video_set_drvdata(cam->video_dev, cam);
 	dev_set_drvdata(&pdev->dev, (void *)cam);
 	cam->video_dev->minor = -1;
+
+	v4l2_dev = kzalloc(sizeof(*v4l2_dev), GFP_KERNEL);
+	if (!v4l2_dev) {
+		dev_err(&pdev->dev, "failed to allocate v4l2_dev structure\n");
+		video_device_release(cam->video_dev);
+		return -ENOMEM;
+	}
+
+	if (v4l2_device_register(&pdev->dev, v4l2_dev) < 0) {
+		dev_err(&pdev->dev, "register v4l2 device failed\n");
+		video_device_release(cam->video_dev);
+		kfree(v4l2_dev);
+		return -ENODEV;
+	}
+	cam->video_dev->v4l2_dev = v4l2_dev;
 
 	init_waitqueue_head(&cam->enc_queue);
 	init_waitqueue_head(&cam->still_queue);
@@ -2802,7 +2819,7 @@ static int mxc_v4l2_probe(struct platform_device *pdev)
 
 	/* register v4l video device */
 	if (video_register_device(cam->video_dev, VFL_TYPE_GRABBER, video_nr)
-	    == -1) {
+		< 0) {
 		kfree(cam);
 		cam = NULL;
 		pr_err("ERROR: v4l2 capture: video_register_device failed\n");
@@ -2845,6 +2862,7 @@ static int mxc_v4l2_remove(struct platform_device *pdev)
 			"-- setting ops to NULL\n");
 		return -EBUSY;
 	} else {
+		struct v4l2_device *v4l2_dev = cam->video_dev->v4l2_dev;
 		device_remove_file(&cam->video_dev->dev,
 			&dev_attr_fsl_v4l2_capture_property);
 		device_remove_file(&cam->video_dev->dev,
@@ -2858,6 +2876,9 @@ static int mxc_v4l2_remove(struct platform_device *pdev)
 
 		mxc_free_frame_buf(cam);
 		kfree(cam);
+
+		v4l2_device_unregister(v4l2_dev);
+		kfree(v4l2_dev);
 	}
 
 	pr_info("V4L2 unregistering video\n");
