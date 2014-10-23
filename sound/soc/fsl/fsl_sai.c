@@ -244,6 +244,8 @@ static int fsl_sai_set_dai_fmt_tr(struct snd_soc_dai *cpu_dai,
 		return -EINVAL;
 	}
 
+	sai->is_slave_mode = false;
+
 	/* DAI clock master masks */
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
 	case SND_SOC_DAIFMT_CBS_CFS:
@@ -251,12 +253,14 @@ static int fsl_sai_set_dai_fmt_tr(struct snd_soc_dai *cpu_dai,
 		val_cr4 |= FSL_SAI_CR4_FSD_MSTR;
 		break;
 	case SND_SOC_DAIFMT_CBM_CFM:
+		sai->is_slave_mode = true;
 		break;
 	case SND_SOC_DAIFMT_CBS_CFM:
 		val_cr2 |= FSL_SAI_CR2_BCD_MSTR;
 		break;
 	case SND_SOC_DAIFMT_CBM_CFS:
 		val_cr4 |= FSL_SAI_CR4_FSD_MSTR;
+		sai->is_slave_mode = true;
 		break;
 	default:
 		return -EINVAL;
@@ -288,6 +292,63 @@ static int fsl_sai_set_dai_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 	return ret;
 }
 
+static int fsl_sai_set_bclk(struct snd_soc_dai *dai, bool tx, u32 freq)
+{
+	struct fsl_sai *sai = snd_soc_dai_get_drvdata(dai);
+	unsigned long clk_rate;
+	u32 savediv = 0, ratio, savesub = freq;
+	u32 id;
+	int ret = 0;
+
+	/* Don't apply to slave mode */
+	if (sai->is_slave_mode)
+		return 0;
+
+	for (id = 0; id < FSL_SAI_MCLK_MAX; id++) {
+
+		clk_rate = clk_get_rate(sai->mclk_clk[id]);
+		if (!clk_rate)
+			continue;
+
+		ratio = clk_rate / freq;
+
+		ret = clk_rate - ratio * freq;
+
+		/* Drop the source that can not be divided into the required rate */
+		if (ret != 0 && clk_rate / ret < 1000)
+			continue;
+
+		dev_dbg(dai->dev, "ratio %d for freq %dHz based on clock %ldHz\n",
+				ratio, freq, clk_rate);
+
+		ratio /= 2;
+		if (ratio == 0 && ratio > 256)
+			continue;
+
+		if (ret < savesub) {
+			savediv = ratio;
+			sai->mclk_id = id;
+			savesub = ret;
+		}
+	}
+
+	if (savediv == 0) {
+		dev_err(dai->dev, "failed to derive required %cx rate: %d\n",
+				tx ? 'T' : 'R', ret);
+		return -EINVAL;
+	}
+
+	regmap_update_bits(sai->regmap, FSL_SAI_xCR2(tx), FSL_SAI_CR2_MSEL_MASK,
+			   FSL_SAI_CR2_MSEL(sai->mclk_id));
+	regmap_update_bits(sai->regmap, FSL_SAI_xCR2(tx),
+			   FSL_SAI_CR2_DIV_MASK, savediv - 1);
+
+	dev_dbg(dai->dev, "best fit: clock id=%d, div=%d, deviation =%d\n",
+			sai->mclk_id, savediv, savesub);
+
+	return 0;
+}
+
 static int fsl_sai_hw_params(struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *params,
 		struct snd_soc_dai *cpu_dai)
@@ -297,6 +358,23 @@ static int fsl_sai_hw_params(struct snd_pcm_substream *substream,
 	unsigned int channels = params_channels(params);
 	u32 word_width = snd_pcm_format_width(params_format(params));
 	u32 val_cr4 = 0, val_cr5 = 0;
+	int ret;
+
+	if (!sai->is_slave_mode) {
+		ret = fsl_sai_set_bclk(cpu_dai, tx, 2 * word_width * params_rate(params));
+		if (ret)
+			return ret;
+
+		/* Do not enable the clock if it is already enabled */
+		if (!(sai->mclk_streams & BIT(substream->stream))) {
+			ret = clk_prepare_enable(sai->mclk_clk[sai->mclk_id]);
+			if (ret)
+				return ret;
+
+			sai->mclk_streams |= BIT(substream->stream);
+		}
+
+	}
 
 	if (!sai->is_dsp_mode)
 		val_cr4 |= FSL_SAI_CR4_SYWD(word_width);
@@ -321,6 +399,21 @@ static int fsl_sai_hw_params(struct snd_pcm_substream *substream,
 
 	return 0;
 }
+
+static int fsl_sai_hw_free(struct snd_pcm_substream *substream,
+		struct snd_soc_dai *cpu_dai)
+{
+	struct fsl_sai *sai = snd_soc_dai_get_drvdata(cpu_dai);
+
+	if (!sai->is_slave_mode &&
+			sai->mclk_streams & BIT(substream->stream)) {
+		clk_disable_unprepare(sai->mclk_clk[sai->mclk_id]);
+		sai->mclk_streams &= ~BIT(substream->stream);
+	}
+
+	return 0;
+}
+
 
 static int fsl_sai_trigger(struct snd_pcm_substream *substream, int cmd,
 		struct snd_soc_dai *cpu_dai)
@@ -428,6 +521,7 @@ static const struct snd_soc_dai_ops fsl_sai_pcm_dai_ops = {
 	.set_sysclk	= fsl_sai_set_dai_sysclk,
 	.set_fmt	= fsl_sai_set_dai_fmt,
 	.hw_params	= fsl_sai_hw_params,
+	.hw_free	= fsl_sai_hw_free,
 	.trigger	= fsl_sai_trigger,
 	.startup	= fsl_sai_startup,
 	.shutdown	= fsl_sai_shutdown,
@@ -607,8 +701,9 @@ static int fsl_sai_probe(struct platform_device *pdev)
 		sai->bus_clk = NULL;
 	}
 
-	for (i = 0; i < FSL_SAI_MCLK_MAX; i++) {
-		sprintf(tmp, "mclk%d", i + 1);
+	sai->mclk_clk[0] = sai->bus_clk;
+	for (i = 1; i < FSL_SAI_MCLK_MAX; i++) {
+		sprintf(tmp, "mclk%d", i);
 		sai->mclk_clk[i] = devm_clk_get(&pdev->dev, tmp);
 		if (IS_ERR(sai->mclk_clk[i])) {
 			dev_err(&pdev->dev, "failed to get mclk%d clock: %ld\n",
