@@ -787,7 +787,19 @@
 				MX6QDL_PAD_EIM_A25__HDMI_TX_CEC_LINE 0x1f8b0
 			>;
 		};
+
+		pinctrl_pwm3_1: pwm3grp-1 {
+			fsl,pins = <
+				MX6QDL_PAD_SD4_DAT1__PWM3_OUT 0x1b0b1
+			>;
+		};
 	};
+};
+
+&pwm3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm3_1>;
+	status = "okay";
 };
 
 &spdif {
