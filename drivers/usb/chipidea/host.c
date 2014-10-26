@@ -429,6 +429,9 @@ static void ci_hdrc_host_restore_from_power_lost(struct ci_hdrc *ci)
 	ehci_writel(ehci, ci->pm_async_next, &ehci->regs->async_next);
 	ehci_writel(ehci, ci->pm_configured_flag,
 					&ehci->regs->configured_flag);
+	/* Restore the PHY's connect notifier setting */
+	if (ci->pm_portsc & PORTSC_HSP)
+		usb_phy_notify_connect(ci->transceiver, USB_SPEED_HIGH);
 
 	tmp = ehci_readl(ehci, &ehci->regs->command);
 	tmp |= CMD_RUN;
