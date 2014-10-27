@@ -217,6 +217,13 @@ static void mu_work_handler(struct work_struct *work)
 		m4_freq_low = true;
 		break;
 	default:
+		if ((m4_message & MU_LPM_M4_WAKEUP_SRC_MASK) ==
+			MU_LPM_M4_WAKEUP_SRC_VAL)
+			imx_gpc_add_m4_wake_up_irq(
+				(m4_message & MU_LPM_M4_WAKEUP_IRQ_MASK) >>
+				MU_LPM_M4_WAKEUP_IRQ_SHIFT,
+				(m4_message & MU_LPM_M4_WAKEUP_ENABLE_MASK) >>
+				MU_LPM_M4_WAKEUP_ENABLE_SHIFT);
 		break;
 	}
 	m4_message = 0;

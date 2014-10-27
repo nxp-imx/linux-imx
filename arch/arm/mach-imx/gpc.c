@@ -165,6 +165,20 @@ static void imx_gpc_dispmix_off(void)
 	}
 }
 
+void imx_gpc_add_m4_wake_up_irq(u32 irq, bool enable)
+{
+	unsigned int idx = irq / 32 - 1;
+	u32 mask;
+
+	/* Sanity check for SPI irq */
+	if (irq < 32)
+		return;
+
+	mask = 1 << irq % 32;
+	gpc_wake_irqs[idx] = enable ? gpc_wake_irqs[idx] | mask :
+				  gpc_wake_irqs[idx] & ~mask;
+}
+
 unsigned int imx_gpc_is_m4_sleeping(void)
 {
 	if (readl_relaxed(gpc_base + GPC_M4_LPSR) &
