@@ -84,6 +84,7 @@ static void __init imx6sl_map_io(void)
 {
 	debug_ll_io_init();
 	imx6_pm_map_io();
+	imx6_busfreq_map_io();
 }
 
 DT_MACHINE_START(IMX6SL, "Freescale i.MX6 SoloLite (Device Tree)")

@@ -100,6 +100,9 @@ static struct clk *osc_clk;
 static struct clk *cpu_clk;
 static struct clk *pll3;
 static struct clk *pll2;
+static struct clk *pll2_bus;
+static struct clk *pll2_bypass_src;
+static struct clk *pll2_bypass;
 static struct clk *pll2_200;
 static struct clk *pll1_sys;
 static struct clk *periph2_clk;
@@ -214,7 +217,7 @@ static void exit_lpm_imx6sx(void)
 static void enter_lpm_imx6sl(void)
 {
 	if (high_bus_freq_mode) {
-		pll2_org_rate = clk_get_rate(pll2);
+		pll2_org_rate = clk_get_rate(pll2_bus);
 		/* Set periph_clk to be sourced from OSC_CLK */
 		imx_clk_set_parent(periph_clk2_sel, osc_clk);
 		imx_clk_set_parent(periph_clk, periph_clk2);
@@ -234,6 +237,12 @@ static void enter_lpm_imx6sl(void)
 		imx_clk_set_parent(periph2_clk, periph2_pre_clk);
 
 		if (low_bus_freq_mode || ultra_low_bus_freq_mode) {
+			/*
+			 * Fix the clock tree in kernel, make sure
+			 * pll2_bypass is updated as it is
+			 * sourced from PLL2.
+			 */
+			imx_clk_set_parent(pll2_bypass, pll2);
 			/*
 			 * Swtich ARM to run off PLL2_PFD2_400MHz
 			 * since DDR is anyway at 100MHz.
@@ -305,7 +314,8 @@ static void enter_lpm_imx6sl(void)
 				 * Make sure PLL2 rate is updated as it gets
 				 * bypassed in the DDR freq change code.
 				 */
-				imx_clk_set_parent(periph2_clk2_sel, pll2);
+				imx_clk_set_parent(pll2_bypass, pll2_bypass_src);
+				imx_clk_set_parent(periph2_clk2_sel, pll2_bus);
 				imx_clk_set_parent(periph2_clk, periph2_clk2);
 
 			}
@@ -331,6 +341,7 @@ static void exit_lpm_imx6sl(void)
 	 * Make sure PLL2 rate is updated as it gets
 	 * un-bypassed in the DDR freq change code.
 	 */
+	imx_clk_set_parent(pll2_bypass, pll2);
 	imx_clk_set_parent(periph2_pre_clk, pll2_400);
 	imx_clk_set_parent(periph2_clk, periph2_pre_clk);
 
@@ -457,7 +468,7 @@ static int set_high_bus_freq(int high_bus_freq)
 		return 0;
 
 	if (cpu_is_imx6q())
-		periph_clk_parent = pll2;
+		periph_clk_parent = pll2_bus;
 	else
 		periph_clk_parent = pll2_400;
 
@@ -817,11 +828,11 @@ static int busfreq_probe(struct platform_device *pdev)
 		return PTR_ERR(pll2_200);
 	}
 
-	pll2 = devm_clk_get(&pdev->dev, "pll2_bus");
-	if (IS_ERR(pll2)) {
+	pll2_bus = devm_clk_get(&pdev->dev, "pll2_bus");
+	if (IS_ERR(pll2_bus)) {
 		dev_err(busfreq_dev, "%s: failed to get pll2_bus\n",
 			__func__);
-		return PTR_ERR(pll2);
+		return PTR_ERR(pll2_bus);
 	}
 
 	cpu_clk = devm_clk_get(&pdev->dev, "arm");
@@ -964,7 +975,28 @@ static int busfreq_probe(struct platform_device *pdev)
 			return PTR_ERR(step_clk);
 		}
 	}
+	if (cpu_is_imx6sl()) {
+		pll2_bypass_src = devm_clk_get(&pdev->dev, "pll2_bypass_src");
+		if (IS_ERR(pll2_bypass_src)) {
+			dev_err(busfreq_dev, "%s: failed to get pll2_bypass_src\n",
+				__func__);
+			return PTR_ERR(pll2_bypass_src);
+		}
 
+		pll2 = devm_clk_get(&pdev->dev, "pll2");
+		if (IS_ERR(pll2)) {
+			dev_err(busfreq_dev, "%s: failed to get pll2\n",
+				__func__);
+			return PTR_ERR(pll2);
+		}
+
+		pll2_bypass = devm_clk_get(&pdev->dev, "pll2_bypass");
+		if (IS_ERR(pll2_bypass)) {
+			dev_err(busfreq_dev, "%s: failed to get pll2_bypass\n",
+				__func__);
+			return PTR_ERR(pll2_bypass);
+		}
+	}
 	if (cpu_is_imx6sx()) {
 		mmdc_clk = devm_clk_get(&pdev->dev, "mmdc");
 		if (IS_ERR(mmdc_clk)) {

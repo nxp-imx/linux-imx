@@ -156,6 +156,15 @@ static inline struct clk *imx_clk_mux_flags(const char *name,
 			reg, shift, width, 0, &imx_ccm_lock);
 }
 
+static inline struct clk *imx_clk_mux_flags_bus(const char *name,
+		void __iomem *reg, u8 shift, u8 width, const char **paretns,
+		int num_parents, unsigned long flags)
+{
+	return clk_register_mux(NULL, name, paretns, num_parents,
+			flags | CLK_SET_RATE_NO_REPARENT, reg, shift,
+			width, 0, &imx_ccm_lock);
+}
+
 static inline struct clk *imx_clk_mux_glitchless(const char *name,
 		void __iomem *reg, u8 shift, u8 width, const char **parents,
 		int num_parents)
