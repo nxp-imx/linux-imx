@@ -187,6 +187,7 @@
 				MX6SX_PAD_LCD1_DATA18__GPIO3_IO_19	0x17059
 				MX6SX_PAD_SD4_RESET_B__GPIO6_IO_22	0x80000000
 				MX6SX_PAD_LCD1_DATA23__GPIO3_IO_24	0x80000000
+				MX6SX_PAD_SD2_CLK__GPIO6_IO_6		0x80000000
 			>;
 		};
 	};
@@ -411,6 +412,14 @@
 		interrupt-parent = <&gpio3>;
 		interrupts = <24 8>;
 		interrupt-route = <1>;
+	};
+
+	mag3110@0e {
+		compatible = "fsl,mag3110";
+		reg = <0x0e>;
+		position = <2>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <6 1>;
 	};
 };
 
