@@ -441,6 +441,14 @@
 		resets = <&max7310_reset>;
 	};
 
+	max7310_b: gpio@32 {
+		compatible = "maxim,max7310";
+		reg = <0x32>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		resets = <&max7310_reset>;
+	};
+
 	mma8451@1c {
 		compatible = "fsl,mma8451";
 		reg = <0x1c>;
@@ -507,6 +515,11 @@
 &mlb {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_mlb_2>;
+	status = "okay";
+};
+
+&pcie {
+	reset-gpio = <&max7310_b 3 0>;
 	status = "okay";
 };
 

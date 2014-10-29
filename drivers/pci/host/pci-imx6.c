@@ -276,7 +276,7 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 	int ret;
 
 	if (gpio_is_valid(imx6_pcie->power_on_gpio))
-		gpio_set_value(imx6_pcie->power_on_gpio, 1);
+		gpio_set_value_cansleep(imx6_pcie->power_on_gpio, 1);
 
 	request_bus_freq(BUS_FREQ_HIGH);
 
@@ -338,9 +338,9 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 	udelay(200);
 
 	if (gpio_is_valid(imx6_pcie->reset_gpio)) {
-		gpio_set_value(imx6_pcie->reset_gpio, 0);
+		gpio_set_value_cansleep(imx6_pcie->reset_gpio, 0);
 		mdelay(1);
-		gpio_set_value(imx6_pcie->reset_gpio, 1);
+		gpio_set_value_cansleep(imx6_pcie->reset_gpio, 1);
 	}
 
 	return 0;
@@ -809,7 +809,7 @@ static int pci_imx_suspend_noirq(struct device *dev)
 			clk_disable_unprepare(imx6_pcie->dis_axi);
 
 			/* Assert per-reset to ep */
-			gpio_set_value(imx6_pcie->reset_gpio, 0);
+			gpio_set_value_cansleep(imx6_pcie->reset_gpio, 0);
 		}
 	}
 
@@ -888,7 +888,7 @@ static int pci_imx_resume_noirq(struct device *dev)
 				dw_pcie_msi_cfg_restore(pp);
 
 			/* De-assert per-reset to ep */
-			gpio_set_value(imx6_pcie->reset_gpio, 1);
+			gpio_set_value_cansleep(imx6_pcie->reset_gpio, 1);
 		}
 	}
 
