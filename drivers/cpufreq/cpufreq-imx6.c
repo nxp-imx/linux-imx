@@ -298,7 +298,7 @@ static int imx6_cpufreq_probe(struct platform_device *pdev)
 	int num, ret;
 	const struct property *prop;
 	const __be32 *val;
-	u32 nr, i;
+	u32 nr, i = 0;
 
 	cpu_dev = &pdev->dev;
 
@@ -337,7 +337,8 @@ static int imx6_cpufreq_probe(struct platform_device *pdev)
 	 * still keep in old one. For example, imx6sx-sdb with pfuze200 in
 	 * ldo-bypass mode.
 	 */
-	if (of_get_property(np, "fsl,arm-soc-shared", NULL))
+	of_property_read_u32(np, "fsl,arm-soc-shared", &i);
+	if (i == 1)
 		soc_reg = arm_reg;
 
 	/* We expect an OPP table supplied by platform */
