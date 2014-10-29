@@ -72,7 +72,8 @@ struct imx6_pcie {
 	struct clk		*dis_axi;
 	struct pcie_port	pp;
 	struct regmap		*iomuxc_gpr;
-	struct regulator	*pcie_regulator;
+	struct regulator	*pcie_reg;
+	struct regulator	*pcie_phy_reg;
 	void __iomem		*mem_base;
 };
 static struct imx6_pcie *imx6_pcie;
@@ -375,11 +376,15 @@ static void imx6_pcie_init_phy(struct pcie_port *pp)
 		regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR5,
 				BIT(19), 1 << 19);
 
-		/* Power up PCIe PHY, ANATOP_REG_CORE offset 0x140, bit13-9 */
-		regulator_set_voltage(imx6_pcie->pcie_regulator, 1100000, 1100000);
-		ret = regulator_enable(imx6_pcie->pcie_regulator);
+		ret = regulator_enable(imx6_pcie->pcie_reg);
 		if (ret)
-			dev_info(pp->dev, "failed to enable pcie regulator.\n");
+			dev_info(pp->dev, "failed to enable pcie reg.\n");
+		/* Power up PCIe PHY, ANATOP_REG_CORE offset 0x140, bit13-9 */
+		regulator_set_voltage(imx6_pcie->pcie_phy_reg,
+				1100000, 1100000);
+		ret = regulator_enable(imx6_pcie->pcie_phy_reg);
+		if (ret)
+			dev_info(pp->dev, "failed to enable pcie phy reg.\n");
 
 	}
 	regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
@@ -786,7 +791,7 @@ static int pci_imx_suspend(void)
 			/*
 			 * Power down PCIe PHY.
 			 */
-			regulator_disable(imx6_pcie->pcie_regulator);
+			regulator_disable(imx6_pcie->pcie_phy_reg);
 		} else {
 			/* PM_TURN_OFF */
 			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
@@ -1028,7 +1033,16 @@ static int __init imx6_pcie_probe(struct platform_device *pdev)
 		}
 
 		/* Get pcie regulator */
-		imx6_pcie->pcie_regulator = devm_regulator_get(pp->dev, "pcie");
+		imx6_pcie->pcie_reg = devm_regulator_get(pp->dev, "disp");
+		if (IS_ERR(imx6_pcie->pcie_reg))  {
+			dev_err(&pdev->dev, "pcie regulator not ready\n");
+			imx6_pcie->pcie_reg = NULL;
+		}
+		imx6_pcie->pcie_phy_reg = devm_regulator_get(pp->dev, "pcie");
+		if (IS_ERR(imx6_pcie->pcie_phy_reg))  {
+			dev_err(&pdev->dev, "pcie phy regulator not ready\n");
+			imx6_pcie->pcie_phy_reg = NULL;
+		}
 
 		/* Grab GPR config register range */
 		imx6_pcie->iomuxc_gpr =
