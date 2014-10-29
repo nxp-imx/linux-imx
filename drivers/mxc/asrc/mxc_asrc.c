@@ -1636,7 +1636,8 @@ static int asrc_write_proc_attr(struct file *file, const char __user *buffer,
 	if (na + nb + nc > total) {
 		dev_err(asrc->dev, "don't surpass %d for total\n", total);
 		return -EINVAL;
-	} else if (na % 2 != 0 || nb % 2 != 0 || nc % 2 != 0) {
+	} else if (asrc->channel_bits < 4 &&
+		   (na % 2 != 0 || nb % 2 != 0 || nc % 2 != 0)) {
 		dev_err(asrc->dev, "please set an even number for each pair\n");
 		return -EINVAL;
 	} else if (na < 0 || nb < 0 || nc < 0) {
