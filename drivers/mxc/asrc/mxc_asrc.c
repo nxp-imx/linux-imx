@@ -996,7 +996,7 @@ int mxc_asrc_process_buffer_pre(struct completion *complete,
 		return -ETIME;
 	} else if (signal_pending(current)) {
 		pair_err("%sput task forcibly aborted\n", in ? "in" : "out");
-		return -ERESTARTSYS;
+		return -EBUSY;
 	}
 
 	init_completion(complete);
