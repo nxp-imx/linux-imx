@@ -6,7 +6,7 @@
  * published by the Free Software Foundation.
  */
 
-#include "imx6sx-sdb.dts"
+#include "imx6sx-17x17-arm2.dts"
 
 &cpu0 {
 	arm-supply = <&reg_arm>;
