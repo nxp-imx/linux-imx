@@ -1043,8 +1043,9 @@ int mxc_asrc_process_buffer(struct asrc_pair_params *params,
 		spin_unlock_irqrestore(&pair_lock, lock_flags);
 		return -EFAULT;
 	}
-	asrc_read_output_FIFO(params);
 	spin_unlock_irqrestore(&pair_lock, lock_flags);
+
+	asrc_read_output_FIFO(params);
 
 	if (copy_to_user((void __user *)pbuf->output_buffer_vaddr,
 			 params->output_dma_total.dma_vaddr,
@@ -1160,6 +1161,7 @@ static void mxc_asrc_submit_dma(struct asrc_pair_params *params)
 static long asrc_ioctl_req_pair(struct asrc_pair_params *params,
 				void __user *user)
 {
+	unsigned long lock_flags;
 	struct asrc_req req;
 	long ret;
 
@@ -1175,7 +1177,9 @@ static long asrc_ioctl_req_pair(struct asrc_pair_params *params,
 		return ret;
 	}
 
+	spin_lock_irqsave(&pair_lock, lock_flags);
 	params->pair_hold = 1;
+	spin_unlock_irqrestore(&pair_lock, lock_flags);
 	params->index = req.index;
 	params->channel_nums = req.chn_num;
 
@@ -1252,9 +1256,6 @@ static long asrc_ioctl_config_pair(struct asrc_pair_params *params,
 		pair_err("failed to request output task dma channel\n");
 		return  -EBUSY;
 	}
-
-	init_completion(&params->input_complete);
-	init_completion(&params->output_complete);
 
 	ret = copy_to_user(user, &config, sizeof(config));
 	if (ret) {
@@ -1471,6 +1472,7 @@ static long asrc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 static int mxc_asrc_open(struct inode *inode, struct file *file)
 {
 	struct asrc_pair_params *params;
+	unsigned long lock_flags;
 	int i = 0, ret = 0;
 
 	ret = signal_pending(current);
@@ -1495,7 +1497,12 @@ static int mxc_asrc_open(struct inode *inode, struct file *file)
 		return -EBUSY;
 	}
 
+	init_completion(&params->input_complete);
+	init_completion(&params->output_complete);
+
+	spin_lock_irqsave(&pair_lock, lock_flags);
 	asrc->params[i] = params;
+	spin_unlock_irqrestore(&pair_lock, lock_flags);
 
 	return ret;
 }
@@ -1508,9 +1515,11 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 
 	params = file->private_data;
 
+	spin_lock_irqsave(&pair_lock, lock_flags);
 	for (i = 0; i < ASRC_PAIR_MAX_NUM; i++)
 		if (asrc->params[i] == params)
 			asrc->params[i] = NULL;
+	spin_unlock_irqrestore(&pair_lock, lock_flags);
 
 	if (!params)
 		return 0;
@@ -1527,8 +1536,8 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 		complete(&params->output_complete);
 	}
 
+	spin_lock_irqsave(&pair_lock, lock_flags);
 	if (params->pair_hold) {
-		spin_lock_irqsave(&pair_lock, lock_flags);
 		params->pair_hold = 0;
 		spin_unlock_irqrestore(&pair_lock, lock_flags);
 
@@ -1541,9 +1550,13 @@ static int mxc_asrc_close(struct inode *inode, struct file *file)
 
 		asrc_release_pair(params->index);
 		asrc_finish_conv(params->index);
+	} else {
+		spin_unlock_irqrestore(&pair_lock, lock_flags);
 	}
 
+	spin_lock_irqsave(&pair_lock, lock_flags);
 	kfree(params);
+	spin_unlock_irqrestore(&pair_lock, lock_flags);
 	file->private_data = NULL;
 
 	return 0;
@@ -1955,21 +1968,30 @@ static int mxc_asrc_remove(struct platform_device *pdev)
 static int mxc_asrc_suspend(struct device *dev)
 {
 	struct asrc_pair_params *params;
+	unsigned long lock_flags;
 	int i;
 
 	for (i = 0; i < ASRC_PAIR_MAX_NUM; i++) {
+		spin_lock_irqsave(&pair_lock, lock_flags);
+
 		params = asrc->params[i];
-		if (!params)
+		if (!params || !params->pair_hold) {
+			spin_unlock_irqrestore(&pair_lock, lock_flags);
 			continue;
+		}
 
 		if (!completion_done(&params->input_complete)) {
-			dmaengine_terminate_all(params->input_dma_channel);
+			if (params->input_dma_channel)
+				dmaengine_terminate_all(params->input_dma_channel);
 			asrc_input_dma_callback((void *)params);
 		}
 		if (!completion_done(&params->output_complete)) {
-			dmaengine_terminate_all(params->output_dma_channel);
+			if (params->output_dma_channel)
+				dmaengine_terminate_all(params->output_dma_channel);
 			asrc_output_dma_callback((void *)params);
 		}
+
+		spin_unlock_irqrestore(&pair_lock, lock_flags);
 	}
 
 	regcache_cache_only(asrc->regmap, true);
