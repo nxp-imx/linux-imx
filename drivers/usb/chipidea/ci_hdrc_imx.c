@@ -543,8 +543,7 @@ static int ci_hdrc_imx_suspend(struct device *dev)
 {
 	struct ci_hdrc_imx_data *data = dev_get_drvdata(dev);
 	int ret;
-	/* The core should make sure the controller is active now */
-	WARN_ON(data->in_lpm);
+
 	if (data->in_lpm)
 		/* The core's suspend doesn't run */
 		return 0;
