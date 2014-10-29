@@ -1328,6 +1328,7 @@
 			clocks = <&clks IMX6SX_CLK_PCIE_REF_125M>, <&clks IMX6SX_CLK_PCIE_AXI>,
 				<&clks IMX6SX_CLK_LVDS1_OUT>, <&clks IMX6SX_CLK_DISPLAY_AXI>;
 			clock-names = "pcie_ref_125m", "pcie_axi", "lvds_gate", "display_axi";
+			disp-supply = <&disp_dummy>;
 			pcie-supply = <&reg_pcie>;
 			status = "disabled";
 		};
