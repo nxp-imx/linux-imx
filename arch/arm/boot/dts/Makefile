@@ -156,6 +156,7 @@ dtb-$(CONFIG_ARCH_MXC) += \
 	imx6sx-sdb.dtb \
 	imx6sx-sdb-ldo.dtb \
 	imx6sx-sdb-reva.dtb \
+	imx6sx-sdb-reva-ldo.dtb \
 	imx6sx-sdb-lcdif1.dtb \
 	imx6sx-sdb-sai.dtb \
 	imx6sx-sdb-emmc.dtb \

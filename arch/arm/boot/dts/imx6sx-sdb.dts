@@ -159,9 +159,22 @@
 };
 
 &cpu0 {
+	operating-points = <
+		/* kHz    uV */
+		996000  1250000
+		792000  1175000
+		396000  1175000
+		>;
+	fsl,soc-operating-points = <
+		/* ARM kHz      SOC uV */
+		996000	1250000
+		792000	1175000
+		396000	1175000
+	>;
 	arm-supply = <&sw1a_reg>;
-	soc-supply = <&sw1c_reg>;
+	soc-supply = <&sw1a_reg>;
 	pu-supply = <&pu_dummy>;
+	fsl,arm-soc-shared = <1>;
 };
 
 &csi1 {
