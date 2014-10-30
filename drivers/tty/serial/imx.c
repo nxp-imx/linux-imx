@@ -967,19 +967,19 @@ static void dma_rx_callback(void *data)
 
 	status = dmaengine_tx_status(chan, (dma_cookie_t)0, &state);
 	count = RX_BUF_SIZE - state.residue;
-	sport->rx_buf.buf_info[sport->rx_buf.cur_idx].filled = true;
-	sport->rx_buf.buf_info[sport->rx_buf.cur_idx].rx_bytes = count;
-	sport->rx_buf.cur_idx++;
-	sport->rx_buf.cur_idx %= IMX_RXBD_NUM;
-	dev_dbg(sport->port.dev, "We get %d bytes.\n", count);
 
-	if (sport->rx_buf.cur_idx == sport->rx_buf.last_completed_idx)
-		dev_err(sport->port.dev, "overwrite!\n");
+	if (count > 0) {
+		sport->rx_buf.buf_info[sport->rx_buf.cur_idx].filled = true;
+		sport->rx_buf.buf_info[sport->rx_buf.cur_idx].rx_bytes = count;
+		sport->rx_buf.cur_idx++;
+		sport->rx_buf.cur_idx %= IMX_RXBD_NUM;
+		dev_dbg(sport->port.dev, "We get %d bytes.\n", count);
 
-	if (count)
+		if (sport->rx_buf.cur_idx == sport->rx_buf.last_completed_idx)
+			dev_err(sport->port.dev, "overwrite!\n");
+
 		schedule_work(&sport->tsk_dma_rx);
-	else
-		sport->rx_buf.last_completed_idx++;
+	}
 }
 
 static int start_rx_dma(struct imx_port *sport)
@@ -991,7 +991,7 @@ static int start_rx_dma(struct imx_port *sport)
 	sport->rx_buf.period_len = RX_BUF_SIZE;
 	sport->rx_buf.buf_len = IMX_RXBD_NUM * RX_BUF_SIZE;
 	sport->rx_buf.cur_idx = 0;
-	sport->rx_buf.last_completed_idx = -1;
+	sport->rx_buf.last_completed_idx = 0;
 	desc = dmaengine_prep_dma_cyclic(chan, sport->rx_buf.dmaaddr,
 		sport->rx_buf.buf_len, sport->rx_buf.period_len,
 		DMA_DEV_TO_MEM, DMA_PREP_INTERRUPT);
