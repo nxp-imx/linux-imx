@@ -31,11 +31,6 @@
 #include "otg.h"
 #include "bits.h"
 
-#define CI_HDRC_IMX_IMX28_WRITE_FIX		BIT(0)
-#define CI_HDRC_IMX_SUPPORT_RUNTIME_PM		BIT(1)
-#define CI_HDRC_IMX_HOST_QUIRK			BIT(2)
-#define CI_HDRC_IMX_HAS_HSIC			BIT(3)
-
 struct ci_hdrc_imx_platform_flag {
 	unsigned int flags;
 };
@@ -44,30 +39,27 @@ static const struct ci_hdrc_imx_platform_flag imx27_usb_data = {
 };
 
 static const struct ci_hdrc_imx_platform_flag imx23_usb_data = {
-	.flags = CI_HDRC_IMX_HOST_QUIRK,
+	.flags = CI_HDRC_IMX_EHCI_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx28_usb_data = {
-	.flags = CI_HDRC_IMX_IMX28_WRITE_FIX |
-		CI_HDRC_IMX_HOST_QUIRK,
+	.flags = CI_HDRC_IMX28_WRITE_FIX |
+		CI_HDRC_IMX_EHCI_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6q_usb_data = {
-	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM |
-		CI_HDRC_IMX_HOST_QUIRK |
-		CI_HDRC_IMX_HAS_HSIC,
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
+		CI_HDRC_IMX_EHCI_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sl_usb_data = {
-	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM |
-		CI_HDRC_IMX_HOST_QUIRK |
-		CI_HDRC_IMX_HAS_HSIC,
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
+		CI_HDRC_IMX_EHCI_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sx_usb_data = {
-	.flags = CI_HDRC_IMX_SUPPORT_RUNTIME_PM |
-		CI_HDRC_IMX_HOST_QUIRK |
-		CI_HDRC_IMX_HAS_HSIC,
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
+		CI_HDRC_IMX_EHCI_QUIRK,
 };
 
 static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
@@ -94,8 +86,29 @@ struct ci_hdrc_imx_data {
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pinctrl_hsic_active;
 	struct regulator *hsic_pad_regulator;
+	const struct ci_hdrc_imx_platform_flag *data;
 };
 
+static inline bool is_imx6q_con(struct ci_hdrc_imx_data *imx_data)
+{
+	return imx_data->data == &imx6q_usb_data;
+}
+
+static inline bool is_imx6sl_con(struct ci_hdrc_imx_data *imx_data)
+{
+	return imx_data->data == &imx6sl_usb_data;
+}
+
+static inline bool is_imx6sx_con(struct ci_hdrc_imx_data *imx_data)
+{
+	return imx_data->data == &imx6sx_usb_data;
+}
+
+static inline bool imx_has_hsic_con(struct ci_hdrc_imx_data *imx_data)
+{
+	return is_imx6q_con(imx_data) ||  is_imx6sl_con(imx_data)
+		|| is_imx6sx_con(imx_data);
+}
 /* Common functions shared by usbmisc drivers */
 
 static struct imx_usbmisc_data *usbmisc_get_init_data(struct device *dev)
@@ -238,6 +251,7 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, data);
 
+	data->data = imx_platform_flag;
 	data->usbmisc_data = usbmisc_get_init_data(&pdev->dev);
 	if (IS_ERR(data->usbmisc_data))
 		return PTR_ERR(data->usbmisc_data);
@@ -294,27 +308,20 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	}
 
 	pdata.phy = data->phy;
+	pdata.flags |= imx_platform_flag->flags;
 
 	if (!pdev->dev.dma_mask)
 		pdev->dev.dma_mask = &pdev->dev.coherent_dma_mask;
 	if (!pdev->dev.coherent_dma_mask)
 		pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
 
-	if (imx_platform_flag->flags & CI_HDRC_IMX_IMX28_WRITE_FIX)
-		pdata.flags |= CI_HDRC_IMX28_WRITE_FIX;
-
-	if (imx_platform_flag->flags & CI_HDRC_IMX_SUPPORT_RUNTIME_PM) {
-		pdata.flags |= CI_HDRC_SUPPORTS_RUNTIME_PM;
+	if (imx_platform_flag->flags & CI_HDRC_SUPPORTS_RUNTIME_PM)
 		data->supports_runtime_pm = true;
-	}
-
-	if (imx_platform_flag->flags & CI_HDRC_IMX_HOST_QUIRK)
-		pdata.flags |= CI_HDRC_IMX_EHCI_QUIRK;
 
 	if (data->usbmisc_data && data->usbmisc_data->index > 1 &&
-		(imx_platform_flag->flags & CI_HDRC_IMX_HAS_HSIC)) {
-		pdata.flags |= CI_HDRC_IMX_IS_HSIC;
+		(imx_has_hsic_con(data))) {
 
+		pdata.flags |= CI_HDRC_IMX_IS_HSIC;
 		data->hsic_pad_regulator =
 			devm_regulator_get(&pdev->dev, "pad");
 		if (PTR_ERR(data->hsic_pad_regulator) == -EPROBE_DEFER) {
