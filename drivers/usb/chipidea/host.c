@@ -277,6 +277,9 @@ static int host_start(struct ci_hdrc *ci)
 		ci->platdata->notify_event
 			(ci, CI_HDRC_IMX_HSIC_ACTIVE_EVENT);
 
+	if (ci->platdata->flags & CI_HDRC_DISABLE_HOST_STREAMING)
+		hw_write(ci, OP_USBMODE, USBMODE_CI_SDIS, USBMODE_CI_SDIS);
+
 	return ret;
 
 put_hcd:
