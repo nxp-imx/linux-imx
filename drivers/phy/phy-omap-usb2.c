@@ -57,7 +57,7 @@ EXPORT_SYMBOL_GPL(omap_usb2_set_comparator);
 
 static int omap_usb_set_vbus(struct usb_otg *otg, bool enabled)
 {
-	struct omap_usb *phy = phy_to_omapusb(otg->phy);
+	struct omap_usb *phy = phy_to_omapusb(otg->usb_phy);
 
 	if (!phy->comparator)
 		return -ENODEV;
@@ -67,7 +67,7 @@ static int omap_usb_set_vbus(struct usb_otg *otg, bool enabled)
 
 static int omap_usb_start_srp(struct usb_otg *otg)
 {
-	struct omap_usb *phy = phy_to_omapusb(otg->phy);
+	struct omap_usb *phy = phy_to_omapusb(otg->usb_phy);
 
 	if (!phy->comparator)
 		return -ENODEV;
@@ -194,7 +194,7 @@ static int omap_usb2_probe(struct platform_device *pdev)
 	otg->set_peripheral	= omap_usb_set_peripheral;
 	otg->set_vbus		= omap_usb_set_vbus;
 	otg->start_srp		= omap_usb_start_srp;
-	otg->phy		= &phy->phy;
+	otg->usb_phy		= &phy->phy;
 
 	platform_set_drvdata(pdev, phy);
 	pm_runtime_enable(phy->dev);
