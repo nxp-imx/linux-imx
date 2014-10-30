@@ -388,7 +388,7 @@ int hw_device_reset(struct ci_hdrc *ci)
 		ci->platdata->notify_event(ci,
 			CI_HDRC_CONTROLLER_RESET_EVENT);
 
-	if (ci->platdata->flags & CI_HDRC_DISABLE_STREAMING)
+	if (ci->platdata->flags & CI_HDRC_DISABLE_DEVICE_STREAMING)
 		hw_write(ci, OP_USBMODE, USBMODE_CI_SDIS, USBMODE_CI_SDIS);
 
 	if (ci->platdata->flags & CI_HDRC_FORCE_FULLSPEED) {
