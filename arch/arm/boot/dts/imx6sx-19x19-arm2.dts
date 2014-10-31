@@ -356,6 +356,7 @@
 			fsl,pins = <
 				MX6SX_PAD_SD4_DATA4__GPIO6_IO_18     0x1b0b0
 				MX6SX_PAD_KEY_ROW1__GPIO2_IO_16      0x1b0b0
+				MX6SX_PAD_GPIO1_IO13__WDOG1_WDOG_ANY 0x10b0
 			 >;
 		};
 	};
