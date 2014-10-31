@@ -30,6 +30,18 @@
 		};
 	};
 
+	csi1_v4l2_cap {
+		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
+		csi_id = <0>;
+		status = "okay";
+	};
+
+	csi2_v4l2_cap {
+		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
+		csi_id = <1>;
+		status = "okay";
+	};
+
 	hannstar_cabc {
 		compatible = "hannstar,cabc";
 
@@ -199,6 +211,14 @@
 &audmux {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_audmux_3>;
+	status = "okay";
+};
+
+&csi1 {
+	status = "okay";
+};
+
+&csi2 {
 	status = "okay";
 };
 
@@ -560,5 +580,11 @@
 &gpmi {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_gpmi_nand_1>;
+	status = "okay";
+};
+
+&vadc {
+	vadc_in = <0>;
+	csi_id = <1>;
 	status = "okay";
 };
