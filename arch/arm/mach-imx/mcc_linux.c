@@ -24,6 +24,7 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/imx_sema4.h>
+#include <linux/irq.h>
 #include "mcc_config.h"
 #include <linux/mcc_config_linux.h>
 #include <linux/mcc_common.h>
@@ -204,8 +205,16 @@ int mcc_release_semaphore(void)
 	return MCC_ERR_SEMAPHORE;
 }
 
+static irqreturn_t mcc_m4_dummy_isr(int irq, void *param)
+{
+	return IRQ_HANDLED;
+}
+
 static void mu_work_handler(struct work_struct *work)
 {
+	int ret;
+	u32 irq, enable;
+
 	pr_debug("receive M4 message 0x%x\n", m4_message);
 
 	switch (m4_message) {
@@ -221,15 +230,28 @@ static void mu_work_handler(struct work_struct *work)
 		break;
 	default:
 		if ((m4_message & MU_LPM_M4_WAKEUP_SRC_MASK) ==
-			MU_LPM_M4_WAKEUP_SRC_VAL)
-			imx_gpc_add_m4_wake_up_irq(
-				(m4_message & MU_LPM_M4_WAKEUP_IRQ_MASK) >>
-				MU_LPM_M4_WAKEUP_IRQ_SHIFT,
-				(m4_message & MU_LPM_M4_WAKEUP_ENABLE_MASK) >>
-				MU_LPM_M4_WAKEUP_ENABLE_SHIFT);
+			MU_LPM_M4_WAKEUP_SRC_VAL) {
+			irq = (m4_message & MU_LPM_M4_WAKEUP_IRQ_MASK) >>
+				MU_LPM_M4_WAKEUP_IRQ_SHIFT;
+
+			enable = (m4_message & MU_LPM_M4_WAKEUP_ENABLE_MASK) >>
+				MU_LPM_M4_WAKEUP_ENABLE_SHIFT;
+
+			if (enable && can_request_irq(irq, 0)) {
+				ret = request_irq(irq, mcc_m4_dummy_isr, 0,
+					"imx-m4-dummy", NULL);
+				if (ret) {
+					pr_err("%s: register interrupt %d failed, rc %d\n",
+						__func__, irq, ret);
+					break;
+				}
+			}
+			imx_gpc_add_m4_wake_up_irq(irq, enable);
+		}
 		break;
 	}
 	m4_message = 0;
+	mcc_enable_receive_irq(1);
 }
 
 /*!
@@ -253,7 +275,7 @@ int mcc_register_cpu_to_cpu_isr(void)
 			pr_err("ERR:unable to find imx mu registers\n");
 
 		ret = request_irq(vector_number, mcc_cpu_to_cpu_isr,
-				0, "imx-linux-mcc", NULL);
+				IRQF_EARLY_RESUME, "imx-linux-mcc", NULL);
 		if (ret) {
 			pr_err("%s: register interrupt %d failed, rc %d\n",
 					__func__, vector_number, ret);
@@ -270,6 +292,8 @@ int mcc_register_cpu_to_cpu_isr(void)
 			pr_err("ERR:failed to enable mcc int.\n");
 			return MCC_ERR_INT;
 		}
+		/* MU always as a wakeup source for low power mode */
+		imx_gpc_add_m4_wake_up_irq(vector_number, true);
 
 		cpu_to_cpu_isr_vector = vector_number;
 		return MCC_SUCCESS;

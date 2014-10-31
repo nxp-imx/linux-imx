@@ -93,6 +93,13 @@ unsigned int mcc_get_mu_irq(void)
 	return val;
 }
 
+void mcc_enable_receive_irq(unsigned int enable)
+{
+	u32 val = enable ? BIT(27) : 0;
+
+	regmap_update_bits(imx_mu_reg, MU_ACR, BIT(27), val);
+}
+
 void mcc_send_via_mu_buffer(unsigned int index, unsigned int data)
 {
 	regmap_write(imx_mu_reg, index * 0x4 + MU_ATR0_OFFSET, data);
@@ -107,6 +114,8 @@ unsigned int mcc_handle_mu_receive_irq(void)
 {
 	u32 val;
 
+	/* disable receive irq until last message is handled */
+	mcc_enable_receive_irq(0);
 	regmap_read(imx_mu_reg, MU_ARR0_OFFSET, &val);
 
 	return val;

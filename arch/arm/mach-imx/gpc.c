@@ -63,6 +63,7 @@
 
 #define IMR_NUM			4
 
+static DEFINE_SPINLOCK(gpc_lock);
 static void __iomem *gpc_base;
 static u32 gpc_mf_irqs[IMR_NUM];
 static u32 gpc_wake_irqs[IMR_NUM];
@@ -168,6 +169,7 @@ static void imx_gpc_dispmix_off(void)
 void imx_gpc_add_m4_wake_up_irq(u32 irq, bool enable)
 {
 	unsigned int idx = irq / 32 - 1;
+	unsigned long flags;
 	u32 mask;
 
 	/* Sanity check for SPI irq */
@@ -175,8 +177,10 @@ void imx_gpc_add_m4_wake_up_irq(u32 irq, bool enable)
 		return;
 
 	mask = 1 << irq % 32;
+	spin_lock_irqsave(&gpc_lock, flags);
 	gpc_wake_irqs[idx] = enable ? gpc_wake_irqs[idx] | mask :
 				  gpc_wake_irqs[idx] & ~mask;
+	spin_unlock_irqrestore(&gpc_lock, flags);
 }
 
 unsigned int imx_gpc_is_m4_sleeping(void)
@@ -273,6 +277,7 @@ void imx_gpc_post_resume(void)
 static int imx_gpc_irq_set_wake(struct irq_data *d, unsigned int on)
 {
 	unsigned int idx = d->irq / 32 - 1;
+	unsigned long flags;
 	u32 mask;
 
 	/* Sanity check for SPI irq */
@@ -280,8 +285,10 @@ static int imx_gpc_irq_set_wake(struct irq_data *d, unsigned int on)
 		return -EINVAL;
 
 	mask = 1 << d->irq % 32;
+	spin_lock_irqsave(&gpc_lock, flags);
 	gpc_wake_irqs[idx] = on ? gpc_wake_irqs[idx] | mask :
 				  gpc_wake_irqs[idx] & ~mask;
+	spin_unlock_irqrestore(&gpc_lock, flags);
 
 	return 0;
 }

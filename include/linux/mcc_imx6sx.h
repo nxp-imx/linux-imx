@@ -56,5 +56,6 @@ void mcc_triger_cpu_to_cpu_interrupt(void);
 unsigned int mcc_get_mu_irq(void);
 unsigned int mcc_handle_mu_receive_irq(void);
 void mcc_handle_mu_send_irq(void);
+void mcc_enable_receive_irq(unsigned int enable);
 int imx_mcc_bsp_int_disable(unsigned int vector_number);
 int imx_mcc_bsp_int_enable(unsigned int vector_number);
