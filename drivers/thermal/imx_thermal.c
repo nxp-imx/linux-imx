@@ -634,6 +634,8 @@ static int imx_thermal_suspend(struct device *dev)
 	regmap_write(map, TEMPSENSE0 + REG_CLR, TEMPSENSE0_MEASURE_TEMP);
 	regmap_write(map, TEMPSENSE0 + REG_SET, TEMPSENSE0_POWER_DOWN);
 	data->mode = THERMAL_DEVICE_DISABLED;
+	disable_irq(data->irq);
+	clk_disable_unprepare(data->thermal_clk);
 
 	return 0;
 }
@@ -647,6 +649,8 @@ static int imx_thermal_resume(struct device *dev)
 	regmap_write(map, TEMPSENSE0 + REG_CLR, TEMPSENSE0_POWER_DOWN);
 	regmap_write(map, TEMPSENSE0 + REG_SET, TEMPSENSE0_MEASURE_TEMP);
 	data->mode = THERMAL_DEVICE_ENABLED;
+	clk_prepare_enable(data->thermal_clk);
+	enable_irq(data->irq);
 
 	return 0;
 }
