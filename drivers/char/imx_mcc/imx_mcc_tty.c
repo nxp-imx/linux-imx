@@ -52,8 +52,8 @@ enum {
 /* mcc tty/pingpong demo */
 static MCC_ENDPOINT mcc_endpoint_a9_pingpong = {0, MCC_NODE_A9, MCC_A9_PORT};
 static MCC_ENDPOINT mcc_endpoint_m4_pingpong = {1, MCC_NODE_M4, MCC_M4_PORT};
-struct mcc_pp_msg {
-	unsigned int data;
+struct mcc_tty_msg {
+	char data[MCC_ATTR_BUFFER_SIZE_IN_BYTES - 24];
 };
 
 static void mcctty_delay_work(struct work_struct *work)
@@ -61,7 +61,7 @@ static void mcctty_delay_work(struct work_struct *work)
 	struct mcctty_port *cport = &mcc_tty_port;
 	int ret, space;
 	unsigned char *cbuf;
-	struct mcc_pp_msg pp_msg;
+	struct mcc_tty_msg tty_msg;
 	MCC_MEM_SIZE num_of_received_bytes;
 	MCC_INFO_STRUCT mcc_info;
 
@@ -84,25 +84,26 @@ static void mcctty_delay_work(struct work_struct *work)
 
 	while (1) {
 		ret = mcc_recv(&mcc_endpoint_m4_pingpong,
-				&mcc_endpoint_a9_pingpong, &pp_msg,
-				sizeof(struct mcc_pp_msg),
+				&mcc_endpoint_a9_pingpong, &tty_msg,
+				sizeof(struct mcc_tty_msg),
 				&num_of_received_bytes, 0xffffffff);
 
 		if (MCC_SUCCESS != ret) {
 			pr_err("A9 Main task receive error: %d\n", ret);
 		} else {
+			pr_info("imx mcc tty receive %s.\n", tty_msg.data);
 			/* flush the recv-ed data to tty node */
 			spin_lock_bh(&cport->rx_lock);
 			space = tty_prepare_flip_string(&cport->port, &cbuf,
-							num_of_received_bytes);
+							strlen(tty_msg.data));
 			if ((space <= 0) || (cport->rx_buf == NULL))
-				goto pp_unlock;
+				goto tty_unlock;
 
-			memcpy(cport->rx_buf, &pp_msg.data,
-					num_of_received_bytes);
+			memcpy(cport->rx_buf, &tty_msg.data,
+					strlen(tty_msg.data));
 			memcpy(cbuf, cport->rx_buf, space);
 			tty_flip_buffer_push(&cport->port);
-pp_unlock:
+tty_unlock:
 			spin_unlock_bh(&cport->rx_lock);
 		}
 	}
@@ -128,32 +129,33 @@ static void mcctty_close(struct tty_struct *tty, struct file *filp)
 static int mcctty_write(struct tty_struct *tty, const unsigned char *buf,
 			 int total)
 {
-	int i, ret = 0;
-	struct mcc_pp_msg pp_msg;
+	int ret = 0;
+	struct mcc_tty_msg tty_msg;
 
-	if (NULL == buf)
-		return 0;
+	if ((NULL == buf) || (total > 1000)) {
+		pr_err("shouldn't be null and the length should"
+				" be less than 1000 bytes.\n");
+		return -ENOMEM;
+	}
 
-	for (i = 0; i < total; i++) {
-		pp_msg.data = (unsigned int)buf[i];
+	strlcpy(tty_msg.data, buf, total + 1);
 
-		/*
-		 * wait until the remote endpoint is created by
-		 * the other core
-		 */
+	/*
+	 * wait until the remote endpoint is created by
+	 * the other core
+	 */
+	ret = mcc_send(&mcc_endpoint_a9_pingpong,
+			&mcc_endpoint_m4_pingpong, &tty_msg,
+			sizeof(struct mcc_tty_msg),
+			0xffffffff);
+
+	while (MCC_ERR_ENDPOINT == ret) {
+		pr_err("\n send err ret %d, re-send\n", ret);
 		ret = mcc_send(&mcc_endpoint_a9_pingpong,
-				&mcc_endpoint_m4_pingpong, &pp_msg,
-				sizeof(struct mcc_pp_msg),
+				&mcc_endpoint_m4_pingpong, &tty_msg,
+				sizeof(struct mcc_tty_msg),
 				0xffffffff);
-
-		while (MCC_ERR_ENDPOINT == ret) {
-			pr_err("\n send err ret %d, re-send\n", ret);
-			ret = mcc_send(&mcc_endpoint_a9_pingpong,
-					&mcc_endpoint_m4_pingpong, &pp_msg,
-					sizeof(struct mcc_pp_msg),
-					0xffffffff);
-			msleep(5000);
-		}
+		msleep(5000);
 	}
 
 	return total;
