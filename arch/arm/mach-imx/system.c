@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 1999 ARM Limited
  * Copyright (C) 2000 Deep Blue Solutions Ltd
- * Copyright (C) 2006-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2006-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Juergen Beisert, kernel@pengutronix.de
  * Copyright 2009 Ilya Yanok, Emcraft Systems Ltd, yanok@emcraft.com
  *
@@ -53,9 +53,11 @@ void mxc_restart(char mode, const char *cmd)
 	 * so do WDOG2 reset here. Do not set SRS, since we will
 	 * trigger external POR later. Use WDOG1 to reset in ldo-enable
 	 * mode. You can set it by "fsl,wdog-reset" in dts.
+	 * For i.MX6SX we have to trigger wdog-reset to reset QSPI-NOR flash to
+	 * workaround qspi-nor reboot issue whatever ldo-bypass or not.
 	 */
-	else if (wdog_source == 2 && (cpu_is_imx6q() || cpu_is_imx6dl() ||
-			cpu_is_imx6sl()))
+	else if ((wdog_source == 2 && (cpu_is_imx6q() || cpu_is_imx6dl() ||
+			cpu_is_imx6sl())) || cpu_is_imx6sx())
 		wcr_enable = 0x14;
 	else
 		wcr_enable = (1 << 2);
