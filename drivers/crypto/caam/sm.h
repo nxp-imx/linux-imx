@@ -1,7 +1,7 @@
 
 /*
  * CAAM Secure Memory/Keywrap API Definitions
- * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2014 Freescale Semiconductor, Inc.
  */
 
 #ifndef SM_H
@@ -61,6 +61,7 @@ struct sm_page_descriptor {
 struct caam_drv_private_sm {
 	struct device *parentdev;	/* this ends up as the controller */
 	struct device *smringdev;	/* ring that owns this instance */
+	struct platform_device *sm_pdev;  /* Secure Memory platform device */
 	spinlock_t kslock ____cacheline_aligned;
 
 	/* Default parameters for geometry */

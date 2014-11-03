@@ -1,7 +1,7 @@
 
 /*
  * CAAM Secure Memory Storage Interface
- * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2014 Freescale Semiconductor, Inc.
  *
  * Loosely based on the SHW Keystore API for SCC/SCC2
  * Experimental implementation and NOT intended for upstream use. Expect
@@ -721,6 +721,9 @@ int caam_sm_startup(struct platform_device *pdev)
 		kfree(smpriv);
 		return -EINVAL;
 	}
+
+	/* Save a pointer to the platform device for Secure Memory */
+	smpriv->sm_pdev = sm_pdev;
 	smdev = &sm_pdev->dev;
 	dev_set_drvdata(smdev, smpriv);
 	ctrlpriv->smdev = smdev;
@@ -834,7 +837,15 @@ void caam_sm_shutdown(struct platform_device *pdev)
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
 	smdev = priv->smdev;
+
+	/* Return if resource not initialized by startup */
+	if (smdev == NULL)
+		return;
+
 	smpriv = dev_get_drvdata(smdev);
+
+	/* Remove Secure Memory Platform Device */
+	of_device_unregister(smpriv->sm_pdev);
 
 	kfree(smpriv->pagedesc);
 	kfree(smpriv);
