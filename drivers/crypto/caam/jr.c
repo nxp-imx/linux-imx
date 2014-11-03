@@ -2,8 +2,10 @@
  * CAAM/SEC 4.x transport/backend driver
  * JobR backend functionality
  *
- * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2014 Freescale Semiconductor, Inc.
  */
+
+#include <linux/of_irq.h>
 
 #include "compat.h"
 #include "regs.h"
