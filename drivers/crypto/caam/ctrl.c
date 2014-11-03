@@ -461,7 +461,7 @@ static int caam_probe(struct platform_device *pdev)
 	topregs = (struct caam_full __iomem *)ctrl;
 
 	/* Get the IRQ of the controller (for security violations only) */
-	ctrlpriv->secvio_irq = of_irq_to_resource(nprop, 0, NULL);
+	ctrlpriv->secvio_irq = irq_of_parse_and_map(nprop, 0);
 
 	/* Get SNVS register Page */
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-caam-snvs");
