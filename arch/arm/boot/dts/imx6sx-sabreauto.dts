@@ -222,6 +222,18 @@
 	status = "okay";
 };
 
+&dcic1 {
+	dcic_id = <0>;
+	dcic_mux = "dcic-lcdif1";
+	status = "okay";
+};
+
+&dcic2 {
+	dcic_id = <1>;
+	dcic_mux = "dcic-lvds";
+	status = "okay";
+};
+
 &esai {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_esai_2>;
