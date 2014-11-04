@@ -4507,8 +4507,7 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 
 	/* Disconnect any existing devices under this port */
 	if (udev) {
-		if (hcd->usb_phy && !hdev->parent &&
-				!(portstatus & USB_PORT_STAT_CONNECTION))
+		if (hcd->usb_phy && !hdev->parent)
 			usb_phy_notify_disconnect(hcd->usb_phy, udev->speed);
 		usb_disconnect(&hub->ports[port1 - 1]->child);
 	}
