@@ -679,7 +679,8 @@ static int ci_otg_start_gadget(struct otg_fsm *fsm, int on)
 	struct ci_hdrc	*ci = container_of(fsm, struct ci_hdrc, fsm);
 
 	mutex_unlock(&fsm->lock);
-	ci_gadget_connect(&ci->gadget, on);
+	if (ci->driver)
+		ci_gadget_connect(&ci->gadget, on);
 	mutex_lock(&fsm->lock);
 
 	return 0;
