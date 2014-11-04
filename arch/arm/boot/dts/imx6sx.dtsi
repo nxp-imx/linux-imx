@@ -1310,7 +1310,12 @@
 
 			mcctest: mcctest{
 				compatible = "fsl,imx6sx-mcc-test";
-				status = "okay";
+				status = "disabled";
+			};
+
+			mcctty: mcctty{
+				compatible = "fsl,imx6sx-mcc-tty";
+				status = "disabled";
 			};
 		};
 

@@ -31,6 +31,14 @@
         status = "disabled";
 };
 
+&mcctest{
+	status = "okay";
+};
+
+&mcctty{
+	status = "okay";
+};
+
 &uart2 {
 	status = "disabled";
 };
