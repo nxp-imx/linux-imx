@@ -396,7 +396,8 @@ int otg_hnp_polling(struct otg_fsm *fsm)
 	enum usb_otg_state state = fsm->otg->phy->state;
 	struct usb_otg_descriptor *desc = NULL;
 
-	if (state != OTG_STATE_A_HOST && state != OTG_STATE_B_HOST)
+	if ((state != OTG_STATE_A_HOST || !fsm->b_hnp_enable) &&
+					state != OTG_STATE_B_HOST)
 		return -EINVAL;
 
 	udev = usb_hub_find_child(fsm->otg->host->root_hub, 1);
@@ -404,11 +405,6 @@ int otg_hnp_polling(struct otg_fsm *fsm)
 		dev_err(fsm->otg->host->controller,
 			"no usb dev connected, can't start HNP polling\n");
 		return -ENODEV;
-	}
-
-	if (!fsm->b_hnp_enable) {
-		dev_dbg(&udev->dev, "HNP is not supported\n");
-		return -ENOTSUPP;
 	}
 
 	/*
