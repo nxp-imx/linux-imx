@@ -2251,7 +2251,7 @@ static int fec_enet_us_to_itr_clock(struct net_device *ndev, int us)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
 
-	return us * (clk_get_rate(fep->clk_ahb) / 64000) / 1000;
+	return us * (fep->itr_clk_rate / 64000) / 1000;
 }
 
 /* Set threshold for interrupt coalescing */
@@ -3157,6 +3157,8 @@ fec_probe(struct platform_device *pdev)
 		ret = PTR_ERR(fep->clk_ahb);
 		goto failed_clk;
 	}
+
+	fep->itr_clk_rate = clk_get_rate(fep->clk_ahb);
 
 	/* enet_out is optional, depends on board */
 	fep->clk_enet_out = devm_clk_get(&pdev->dev, "enet_out");

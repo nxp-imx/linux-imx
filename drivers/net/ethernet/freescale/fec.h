@@ -627,6 +627,7 @@ struct fec_enet_private {
 	uint rx_time_itr;
 	uint tx_pkts_itr;
 	uint tx_time_itr;
+	unsigned int itr_clk_rate;
 };
 
 void fec_ptp_init(struct platform_device *pdev);
