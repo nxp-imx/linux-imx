@@ -51,6 +51,7 @@ enum ci_hw_regs {
 	OP_DEVICEADDR,
 	OP_ENDPTLISTADDR,
 	OP_PORTSC,
+	OP_BURSTSIZE,
 	OP_DEVLC,
 	OP_OTGSC,
 	OP_USBMODE,
@@ -440,4 +441,6 @@ int hw_wait_reg(struct ci_hdrc *ci, enum ci_hw_regs reg, u32 mask,
 				u32 value, unsigned int timeout_ms);
 
 int hw_controller_reset(struct ci_hdrc *ci);
+void ci_hdrc_ahb_config(struct ci_hdrc *ci);
+
 #endif	/* __DRIVERS_USB_CHIPIDEA_CI_H */
