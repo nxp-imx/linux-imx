@@ -917,7 +917,8 @@ static void test_ahash_speed(const char *algo, unsigned int sec,
 	struct tcrypt_result tresult;
 	struct ahash_request *req;
 	struct crypto_ahash *tfm;
-	static char output[1024];
+	const int output_size = 1024;
+	char *output = kmalloc(output_size, GFP_KERNEL);
 	int i, ret;
 
 	printk(KERN_INFO "\ntesting speed of async %s\n", algo);
@@ -929,9 +930,9 @@ static void test_ahash_speed(const char *algo, unsigned int sec,
 		return;
 	}
 
-	if (crypto_ahash_digestsize(tfm) > sizeof(output)) {
+	if (crypto_ahash_digestsize(tfm) > output_size) {
 		pr_err("digestsize(%u) > outputbuffer(%zu)\n",
-		       crypto_ahash_digestsize(tfm), sizeof(output));
+		       crypto_ahash_digestsize(tfm), output_size);
 		goto out;
 	}
 
