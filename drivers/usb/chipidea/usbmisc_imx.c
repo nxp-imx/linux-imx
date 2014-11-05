@@ -161,13 +161,10 @@ static int usbmisc_imx53_init(struct imx_usbmisc_data *data)
 	return 0;
 }
 
-static int usbmisc_imx6q_init(struct imx_usbmisc_data *data)
+static void usbmisc_imx6_init(struct imx_usbmisc_data *data)
 {
 	unsigned long flags;
 	u32 val;
-
-	if (data->index > 3)
-		return -EINVAL;
 
 	if (data->disable_oc) {
 		spin_lock_irqsave(&usbmisc->lock, flags);
@@ -176,6 +173,17 @@ static int usbmisc_imx6q_init(struct imx_usbmisc_data *data)
 			usbmisc->base + data->index * 4);
 		spin_unlock_irqrestore(&usbmisc->lock, flags);
 	}
+}
+
+static int usbmisc_imx6q_init(struct imx_usbmisc_data *data)
+{
+	unsigned long flags;
+	u32 val;
+
+	if (data->index > 3)
+		return -EINVAL;
+
+	usbmisc_imx6_init(data);
 
 	/* For HSIC controller */
 	if (data->index == 2 || data->index == 3) {
@@ -212,13 +220,7 @@ static int usbmisc_imx6sx_init(struct imx_usbmisc_data *data)
 	if (data->index > 2)
 		return -EINVAL;
 
-	if (data->disable_oc) {
-		spin_lock_irqsave(&usbmisc->lock, flags);
-		val = readl(usbmisc->base + data->index * 4);
-		writel(val | MX6_BM_OVER_CUR_DIS,
-			usbmisc->base + data->index * 4);
-		spin_unlock_irqrestore(&usbmisc->lock, flags);
-	}
+	usbmisc_imx6_init(data);
 
 	/* For HSIC controller */
 	if (data->index == 2) {
