@@ -32,6 +32,8 @@
 struct ci_hdrc_imx_platform_flag {
 	unsigned int flags;
 	bool runtime_pm;
+	u32 ahbburst_config;
+	u32 burst_length;
 };
 
 static const struct ci_hdrc_imx_platform_flag imx27_usb_data = {
@@ -46,19 +48,31 @@ static const struct ci_hdrc_imx_platform_flag imx28_usb_data = {
 static const struct ci_hdrc_imx_platform_flag imx6q_usb_data = {
 	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
 		CI_HDRC_IMX_EHCI_QUIRK |
-		CI_HDRC_DISABLE_STREAMING,
+		CI_HDRC_DISABLE_STREAMING |
+		CI_HDRC_OVERRIDE_AHB_BURST |
+		CI_HDRC_OVERRIDE_BURST_LENGTH,
+	.ahbburst_config = 0, /*bit0 - bit2 at $BASE + 0x90 */
+	.burst_length = 0x1010, /*bit0 - bit15 at $BASE + 0x160 */
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sl_usb_data = {
 	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
 		CI_HDRC_IMX_EHCI_QUIRK |
-		CI_HDRC_DISABLE_HOST_STREAMING,
+		CI_HDRC_DISABLE_HOST_STREAMING |
+		CI_HDRC_OVERRIDE_AHB_BURST |
+		CI_HDRC_OVERRIDE_BURST_LENGTH,
+	.ahbburst_config = 0,
+	.burst_length = 0x1010,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sx_usb_data = {
 	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
 		CI_HDRC_IMX_EHCI_QUIRK |
-		CI_HDRC_DISABLE_HOST_STREAMING,
+		CI_HDRC_DISABLE_HOST_STREAMING |
+		CI_HDRC_OVERRIDE_AHB_BURST |
+		CI_HDRC_OVERRIDE_BURST_LENGTH,
+	.ahbburst_config = 0,
+	.burst_length = 0x1010,
 };
 
 static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
@@ -380,6 +394,12 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "usbmisc init failed, ret=%d\n", ret);
 		goto remove_charger;
 	}
+
+	if (imx_platform_flag->flags & CI_HDRC_OVERRIDE_AHB_BURST)
+		pdata.ahbburst_config = imx_platform_flag->ahbburst_config;
+
+	if (imx_platform_flag->flags & CI_HDRC_OVERRIDE_BURST_LENGTH)
+		pdata.burst_length = imx_platform_flag->burst_length;
 
 	data->ci_pdev = ci_hdrc_add_device(&pdev->dev,
 				pdev->resource, pdev->num_resources,
