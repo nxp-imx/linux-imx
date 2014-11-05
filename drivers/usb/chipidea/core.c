@@ -83,6 +83,7 @@ static uintptr_t ci_regs_nolpm[] = {
 	[OP_USBINTR]		= 0x008UL,
 	[OP_DEVICEADDR]		= 0x014UL,
 	[OP_ENDPTLISTADDR]	= 0x018UL,
+	[OP_BURSTSIZE]		= 0x020UL,
 	[OP_PORTSC]		= 0x044UL,
 	[OP_DEVLC]		= 0x084UL,
 	[OP_OTGSC]		= 0x064UL,
@@ -105,6 +106,7 @@ static uintptr_t ci_regs_lpm[] = {
 	[OP_USBINTR]		= 0x008UL,
 	[OP_DEVICEADDR]		= 0x014UL,
 	[OP_ENDPTLISTADDR]	= 0x018UL,
+	[OP_BURSTSIZE]		= 0x020UL,
 	[OP_PORTSC]		= 0x044UL,
 	[OP_DEVLC]		= 0x084UL,
 	[OP_OTGSC]		= 0x0C4UL,
@@ -371,6 +373,32 @@ int hw_controller_reset(struct ci_hdrc *ci)
 }
 
 /**
+ * ci_hrdc_ahb_config: override default AHB configuration
+ * @ci: the controller
+ */
+void ci_hdrc_ahb_config(struct ci_hdrc *ci)
+{
+	u32 value;
+	u8 ahb_burst;
+
+	/* AHB configuration */
+	if (ci->platdata->flags & CI_HDRC_OVERRIDE_AHB_BURST) {
+		value = ioread32(ci->hw_bank.abs + SBUSCFG);
+		value &= ~SBUSCFG_AHBBRST;
+		value |= ci->platdata->ahbburst_config & SBUSCFG_AHBBRST;
+		iowrite32(value, ci->hw_bank.abs + SBUSCFG);
+	}
+
+	ahb_burst = ioread32(ci->hw_bank.abs + SBUSCFG) & SBUSCFG_AHBBRST;
+
+	/* Change RX/TX burst size */
+	if (ahb_burst == 0 &&
+			ci->platdata->flags & CI_HDRC_OVERRIDE_BURST_LENGTH)
+		hw_write(ci, OP_BURSTSIZE, BURST_BITS,
+				ci->platdata->burst_length & BURST_BITS);
+}
+
+/**
  * hw_device_reset: resets chip (execute without interruption)
  * @ci: the controller
   *
@@ -404,6 +432,7 @@ int hw_device_reset(struct ci_hdrc *ci)
 	/* HW >= 2.3 */
 	hw_write(ci, OP_USBMODE, USBMODE_SLOM, USBMODE_SLOM);
 
+	ci_hdrc_ahb_config(ci);
 	/*
 	 * Set interrupt interval for device mode as 0 (immediately),
 	 * ehci core will set it to 1 (1 Micro-frame) by default for host mode.

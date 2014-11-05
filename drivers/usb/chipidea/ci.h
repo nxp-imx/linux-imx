@@ -262,6 +262,7 @@ enum ci_hw_regs {
 	OP_DEVICEADDR,
 	OP_ENDPTLISTADDR,
 	OP_PORTSC,
+	OP_BURSTSIZE,
 	OP_DEVLC,
 	OP_OTGSC,
 	OP_USBMODE,
@@ -274,6 +275,8 @@ enum ci_hw_regs {
 	/* endptctrl1..15 follow */
 	OP_LAST = OP_ENDPTCTRL + ENDPT_MAX / 2,
 };
+
+#define SBUSCFG	0x90
 
 /**
  * hw_read: reads from a hw register
@@ -390,6 +393,7 @@ int hw_wait_reg(struct ci_hdrc *ci, enum ci_hw_regs reg, u32 mask,
 				u32 value, unsigned int timeout_ms);
 
 int hw_controller_reset(struct ci_hdrc *ci);
+void ci_hdrc_ahb_config(struct ci_hdrc *ci);
 #ifdef CONFIG_PM
 void ci_hdrc_delay_suspend(struct ci_hdrc *ci, int ms);
 #else

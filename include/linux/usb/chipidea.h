@@ -32,6 +32,8 @@ struct ci_hdrc_platform_data {
 #define CI_HDRC_DISABLE_HOST_STREAMING		BIT(10)
 #define CI_HDRC_DISABLE_STREAMING (CI_HDRC_DISABLE_DEVICE_STREAMING |	\
 		CI_HDRC_DISABLE_HOST_STREAMING)
+#define CI_HDRC_OVERRIDE_AHB_BURST		BIT(11)
+#define CI_HDRC_OVERRIDE_BURST_LENGTH		BIT(12)
 	enum usb_dr_mode	dr_mode;
 #define CI_HDRC_CONTROLLER_RESET_EVENT		0
 #define CI_HDRC_CONTROLLER_STOPPED_EVENT	1
@@ -43,6 +45,8 @@ struct ci_hdrc_platform_data {
 #define CI_HDRC_NOTIFY_RET_DEFER_EVENT		1
 	struct regulator	*reg_vbus;
 	bool			tpl_support;
+	u32			ahbburst_config;
+	u32			burst_length;
 };
 
 /* Default offset of capability registers */

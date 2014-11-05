@@ -339,6 +339,8 @@ static int host_start(struct ci_hdrc *ci)
 	if (ci->platdata->flags & CI_HDRC_DISABLE_HOST_STREAMING)
 		hw_write(ci, OP_USBMODE, USBMODE_CI_SDIS, USBMODE_CI_SDIS);
 
+	ci_hdrc_ahb_config(ci);
+
 	return ret;
 
 disable_reg:
@@ -432,6 +434,8 @@ static void ci_hdrc_host_restore_from_power_lost(struct ci_hdrc *ci)
 	/* Restore the PHY's connect notifier setting */
 	if (ci->pm_portsc & PORTSC_HSP)
 		usb_phy_notify_connect(ci->transceiver, USB_SPEED_HIGH);
+
+	ci_hdrc_ahb_config(ci);
 
 	tmp = ehci_readl(ehci, &ehci->regs->command);
 	tmp |= CMD_RUN;
