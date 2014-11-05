@@ -28,7 +28,6 @@
 #include <linux/regmap.h>
 #include <linux/resource.h>
 #include <linux/signal.h>
-#include <linux/syscore_ops.h>
 #include <linux/types.h>
 #include <linux/busfreq-imx6.h>
 #include <linux/regulator/consumer.h>
@@ -769,12 +768,16 @@ static void imx6_pcie_setup_ep(struct pcie_port *pp)
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int pci_imx_suspend(void)
+static int pci_imx_suspend_noirq(struct device *dev)
 {
-	int rc = 0;
+	struct imx6_pcie *imx6_pcie = dev_get_drvdata(dev);
+	struct pcie_port *pp = &imx6_pcie->pp;
 
 	if (is_imx6sx_pcie(imx6_pcie)) {
 		if (IS_ENABLED(CONFIG_PCI_IMX6SX_EXTREMELY_PWR_SAVE)) {
+			if (IS_ENABLED(CONFIG_PCI_MSI))
+				dw_pcie_msi_cfg_save(pp);
+
 			/* Disable clks and power down PCIe PHY */
 			clk_disable_unprepare(imx6_pcie->pcie_axi);
 			if (!IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)
@@ -792,7 +795,11 @@ static int pci_imx_suspend(void)
 			 * Power down PCIe PHY.
 			 */
 			regulator_disable(imx6_pcie->pcie_phy_reg);
+			regulator_disable(imx6_pcie->pcie_reg);
 		} else {
+			if (IS_ENABLED(CONFIG_PCI_MSI))
+				dw_pcie_msi_cfg_save(pp);
+
 			/* PM_TURN_OFF */
 			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
 					BIT(16), 1 << 16);
@@ -800,20 +807,21 @@ static int pci_imx_suspend(void)
 			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
 					BIT(16), 0 << 16);
 			clk_disable_unprepare(imx6_pcie->pcie_axi);
-			if (!IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)
-				&& !IS_ENABLED(CONFIG_RC_MODE_IN_EP_RC_SYS))
-				clk_disable_unprepare(imx6_pcie->lvds_gate);
+			clk_disable_unprepare(imx6_pcie->lvds_gate);
 			clk_disable_unprepare(imx6_pcie->pcie_ref_125m);
 			clk_disable_unprepare(imx6_pcie->dis_axi);
-			release_bus_freq(BUS_FREQ_HIGH);
+
+			/* Assert per-reset to ep */
+			gpio_set_value(imx6_pcie->reset_gpio, 0);
 		}
 	}
 
-	return rc;
+	return 0;
 }
 
-static void pci_imx_resume(void)
+static int pci_imx_resume_noirq(struct device *dev)
 {
+	struct imx6_pcie *imx6_pcie = dev_get_drvdata(dev);
 	struct pcie_port *pp = &imx6_pcie->pp;
 
 	if (is_imx6sx_pcie(imx6_pcie)) {
@@ -853,57 +861,53 @@ static void pci_imx_resume(void)
 					pp->dbi_base + PCI_CLASS_REVISION);
 			}
 
+			if (IS_ENABLED(CONFIG_PCI_MSI))
+				dw_pcie_msi_cfg_restore(pp);
+
 			/* assert LTSSM enable */
 			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
 					IMX6Q_GPR12_PCIE_CTL_2, 1 << 10);
 		} else {
-			/* Wake up re-enable clks */
-			request_bus_freq(BUS_FREQ_HIGH);
 			clk_prepare_enable(imx6_pcie->dis_axi);
-			if (!IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)
-				&& !IS_ENABLED(CONFIG_RC_MODE_IN_EP_RC_SYS))
-				clk_prepare_enable(imx6_pcie->lvds_gate);
+			clk_prepare_enable(imx6_pcie->lvds_gate);
 			clk_prepare_enable(imx6_pcie->pcie_ref_125m);
 			clk_prepare_enable(imx6_pcie->pcie_axi);
 
-			/* reset iMX6SX PCIe */
+			/* Reset iMX6SX PCIe */
 			regmap_update_bits(imx6_pcie->iomuxc_gpr,
 					IOMUXC_GPR5, BIT(18), 1 << 18);
 
 			regmap_update_bits(imx6_pcie->iomuxc_gpr,
 					IOMUXC_GPR5, BIT(18), 0 << 18);
-
 			/*
 			 * controller maybe turn off, re-configure again
-			 * Set the CLASS_REV of RC CFG header to
-			 * PCI_CLASS_BRIDGE_PCI
 			 */
 			writel(readl(pp->dbi_base + PCI_CLASS_REVISION)
 				| (PCI_CLASS_BRIDGE_PCI << 16),
 				pp->dbi_base + PCI_CLASS_REVISION);
-
 			dw_pcie_setup_rc(pp);
 
-			/* reset iMX6SX PCIe */
-			regmap_update_bits(imx6_pcie->iomuxc_gpr,
-					IOMUXC_GPR5, BIT(18), 1 << 18);
+			if (IS_ENABLED(CONFIG_PCI_MSI))
+				dw_pcie_msi_cfg_restore(pp);
 
-			regmap_update_bits(imx6_pcie->iomuxc_gpr,
-					IOMUXC_GPR5, BIT(18), 0 << 18);
-
-			/* RESET EP */
-			gpio_set_value(imx6_pcie->reset_gpio, 0);
-			udelay(10);
+			/* De-assert per-reset to ep */
 			gpio_set_value(imx6_pcie->reset_gpio, 1);
 		}
 	}
-}
-#endif
 
-static struct syscore_ops pci_imx_syscore_ops = {
-	.suspend = pci_imx_suspend,
-	.resume = pci_imx_resume,
-};
+	return 0;
+}
+
+static const struct dev_pm_ops pci_imx_pm_ops = {
+	.suspend_noirq = pci_imx_suspend_noirq,
+	.resume_noirq = pci_imx_resume_noirq,
+	.freeze_noirq = pci_imx_suspend_noirq,
+	.thaw_noirq = pci_imx_resume_noirq,
+	.poweroff_noirq = pci_imx_suspend_noirq,
+	.restore_noirq = pci_imx_resume_noirq, };
+#else
+static const struct dev_pm_ops pci_imx_pm_ops = { };
+#endif
 
 static int __init imx6_pcie_probe(struct platform_device *pdev)
 {
@@ -1207,7 +1211,6 @@ static int __init imx6_pcie_probe(struct platform_device *pdev)
 		imx_pcie_regions_setup(&pdev->dev);
 	}
 
-	register_syscore_ops(&pci_imx_syscore_ops);
 	return 0;
 
 err:
@@ -1219,6 +1222,7 @@ static struct platform_driver imx6_pcie_driver = {
 		.name	= "imx6q-pcie",
 		.owner	= THIS_MODULE,
 		.of_match_table = imx6_pcie_of_match,
+		.pm = &pci_imx_pm_ops,
 	},
 };
 
