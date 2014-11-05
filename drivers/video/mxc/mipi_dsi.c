@@ -700,12 +700,38 @@ static void mipi_dsi_disp_deinit(struct mxc_dispdrv_handle *disp)
 		backlight_device_unregister(mipi_dsi->bl);
 }
 
+static int mipi_dsi_setup(struct mxc_dispdrv_handle *disp,
+			  struct fb_info *fbi)
+{
+	struct mipi_dsi_info *mipi_dsi = mxc_dispdrv_getdata(disp);
+	int xres_virtual = fbi->var.xres_virtual;
+	int yres_virtual = fbi->var.yres_virtual;
+	int xoffset = fbi->var.xoffset;
+	int yoffset = fbi->var.yoffset;
+	int pixclock = fbi->var.pixclock;
+
+	if (!mipi_dsi->mode)
+		return 0;
+
+	/* set the mode back to var in case userspace changes it */
+	fb_videomode_to_var(&fbi->var, mipi_dsi->mode);
+
+	/* restore some var entries cached */
+	fbi->var.xres_virtual = xres_virtual;
+	fbi->var.yres_virtual = yres_virtual;
+	fbi->var.xoffset = xoffset;
+	fbi->var.yoffset = yoffset;
+	fbi->var.pixclock = pixclock;
+	return 0;
+}
+
 static struct mxc_dispdrv_driver mipi_dsi_drv = {
 	.name	= DISPDRV_MIPI,
 	.init	= mipi_dsi_disp_init,
 	.deinit	= mipi_dsi_disp_deinit,
 	.enable	= mipi_dsi_enable,
 	.disable = mipi_dsi_disable,
+	.setup	= mipi_dsi_setup,
 };
 
 static int imx6q_mipi_dsi_get_mux(int dev_id, int disp_id)
