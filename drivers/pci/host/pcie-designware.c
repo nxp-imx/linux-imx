@@ -151,6 +151,33 @@ void dw_pcie_msi_init(struct pcie_port *pp)
 	dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_HI, 4, 0);
 }
 
+void dw_pcie_msi_cfg_save(struct pcie_port *pp)
+{
+	int i;
+
+	for (i = 0; i < MAX_MSI_CTRLS; i++)
+		dw_pcie_rd_own_conf(pp, PCIE_MSI_INTR0_ENABLE + i * 12, 4,
+				    &pp->msi_inten_save[i]);
+}
+
+void dw_pcie_msi_cfg_restore(struct pcie_port *pp)
+{
+	int i;
+	u32 address_lo;
+
+	if (pp->ops->get_msi_addr)
+		address_lo = pp->ops->get_msi_addr(pp);
+	else
+		address_lo = virt_to_phys((void *)pp->msi_data);
+
+	dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_LO, 4, address_lo);
+	dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_HI, 4, 0);
+
+	for (i = 0; i < MAX_MSI_CTRLS; i++)
+		dw_pcie_wr_own_conf(pp, PCIE_MSI_INTR0_ENABLE + i * 12, 4,
+				    pp->msi_inten_save[i]);
+}
+
 static int find_valid_pos0(struct pcie_port *pp, int msgvec, int pos, int *pos0)
 {
 	int flag = 1;
@@ -337,8 +364,8 @@ static int dw_msi_setup_irq(struct msi_chip *chip, struct pci_dev *pdev,
 		desc->msi_attrib.multiple = msgvec;
 	}
 
-	if (pp->ops->get_msi_data)
-		msg.address_lo = pp->ops->get_msi_data(pp);
+	if (pp->ops->get_msi_addr)
+		msg.address_lo = pp->ops->get_msi_addr(pp);
 	else
 		msg.address_lo = virt_to_phys((void *)pp->msi_data);
 	msg.address_hi = 0x0;
