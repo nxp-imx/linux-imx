@@ -463,11 +463,8 @@ static void imx6_pcie_host_init(struct pcie_port *pp)
 		}
 	}
 
-	if (IS_ENABLED(CONFIG_PCI_MSI)) {
-		pp->quirks |= DW_PCIE_QUIRK_NO_MSI_VEC;
-		pp->quirks |= DW_PCIE_QUIRK_MSI_SELF_EN;
+	if (IS_ENABLED(CONFIG_PCI_MSI))
 		dw_pcie_msi_init(pp);
-	}
 
 	return;
 }
