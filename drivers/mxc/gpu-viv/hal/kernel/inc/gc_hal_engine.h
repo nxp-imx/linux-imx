@@ -1932,6 +1932,7 @@ gcoTEXTURE_IsRenderable(
 gceSTATUS
 gcoTEXTURE_IsComplete(
     IN gcoTEXTURE Texture,
+    IN gcsTEXTURE_PTR Info,
     IN gctINT BaseLevel,
     IN gctINT MaxLevel
     );
@@ -1991,6 +1992,17 @@ typedef enum _gceVERTEX_FORMAT
     gcvVERTEX_INT32,
 }
 gceVERTEX_FORMAT;
+
+/* What the SW converting scheme to create temp attrib */
+typedef enum _gceATTRIB_SCHEME
+{
+    gcvATTRIB_SCHEME_KEEP = 0,
+    gcvATTRIB_SCHEME_2_10_10_10_REV_TO_FLOAT,
+    gcvATTRIB_SCHEME_BYTE_TO_INT,
+    gcvATTRIB_SCHEME_SHORT_TO_INT,
+    gcvATTRIB_SCHEME_UBYTE_TO_UINT,
+    gcvATTRIB_SCHEME_USHORT_TO_UINT,
+} gceATTRIB_SCHEME;
 
 gceSTATUS
 gcoSTREAM_Construct(
@@ -2196,6 +2208,8 @@ typedef struct _gcsATTRIBUTE
 
     /* Index to vertex array */
     gctINT              arrayIdx;
+
+    gceATTRIB_SCHEME    convertScheme;
 
     /* Pointer to the temporary buffer to be freed */
     gcoBUFOBJ           tempStream;

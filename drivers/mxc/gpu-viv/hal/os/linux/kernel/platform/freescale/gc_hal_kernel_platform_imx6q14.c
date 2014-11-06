@@ -61,6 +61,9 @@ extern int unregister_thermal_notifier(struct notifier_block *nb);
 #define UNREG_THERMAL_NOTIFIER(a) unregister_thermal_notifier(a);
 #endif
 
+static int initgpu3DMinClock = 1;
+module_param(initgpu3DMinClock, int, 0644);
+
 struct platform_device *pdevice;
 
 #ifdef CONFIG_GPU_LOW_MEMORY_KILLER
@@ -193,12 +196,7 @@ _ShrinkMemory(
 
     if (kernel != gcvNULL)
     {
-        /* Acquire the mutex. */
-        gcmkVERIFY_OK(gckOS_AcquireMutex(kernel->os, kernel->vidmemMutex, gcvINFINITE));
-
         force_contiguous_lowmem_shrink(kernel);
-
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(kernel->os, kernel->vidmemMutex));
     }
     else
     {
@@ -322,9 +320,11 @@ struct imx_priv {
     struct clk         *clk_2d_axi;
     struct clk         *clk_vg_axi;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,14,0)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) || LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
     /*Power management.*/
     struct regulator      *gpu_regulator;
+#endif
 #endif
        /*Run time pm*/
        struct device           *pmdev;
@@ -406,6 +406,7 @@ gckPLATFORM_AdjustParam(
     if (Args->contiguousSize == 0)
        gckOS_Print("Warning: No contiguous memory is reserverd for gpu.!\n ");
 
+    Args->gpu3DMinClock = initgpu3DMinClock;
 
     return gcvSTATUS_OK;
 }

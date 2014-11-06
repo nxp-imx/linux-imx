@@ -857,7 +857,11 @@ _Construct(
     gctPOINTER pointer = gcvNULL;
 #if gcdPROCESS_ADDRESS_SPACE
     gctUINT32 i;
+    gctUINT32 physical;
 #endif
+    gctUINT32 physBase;
+    gctUINT32 physSize;
+    gctUINT32 gpuAddress;
 
     gcmkHEADER_ARG("Kernel=0x%x MmuSize=%lu", Kernel, MmuSize);
 
@@ -926,10 +930,6 @@ _Construct(
         _WritePageEntry(map + 1, ~0U);
         mmu->heapList  = 0;
         mmu->freeNodes = gcvFALSE;
-
-        /* Set page table address. */
-        gcmkONERROR(
-            gckHARDWARE_SetMMU(hardware, (gctPOINTER) mmu->pageTableLogical));
     }
     else
     {
@@ -959,10 +959,40 @@ _Construct(
         }
 
         _SetupProcessAddressSpace(mmu);
+
+        /* Map kernel command buffer in MMU. */
+        for (i = 0; i < gcdCOMMAND_QUEUES; i++)
+        {
+            gcmkONERROR(gckOS_GetPhysicalAddress(
+                mmu->os,
+                Kernel->command->queues[i].logical,
+                &physical
+                ));
+
+            gcmkONERROR(gckMMU_FlatMapping(mmu, physical));
+        }
 #else
         /* Invalid all the entries. */
         gcmkONERROR(
             gckOS_ZeroMemory(pointer, mmu->mtlbSize));
+
+        gcmkONERROR(
+            gckOS_QueryOption(mmu->os, "physBase", &physBase));
+
+        gcmkONERROR(
+            gckOS_QueryOption(mmu->os, "physSize", &physSize));
+
+        gcmkONERROR(
+            gckOS_CPUPhysicalToGPUPhysical(mmu->os, physBase, &gpuAddress));
+
+        /* Setup [physBase - physSize) flat mapping. */
+        gcmkONERROR(_FillFlatMapping(
+            mmu,
+            gpuAddress,
+            physSize
+            ));
+
+        gcmkONERROR(_SetupDynamicSpace(mmu));
 #endif
     }
 
@@ -1242,12 +1272,6 @@ gckMMU_Construct(
                     sizeof(struct _gcsSharedPageTable)));
 
         gcmkONERROR(_Construct(Kernel, MmuSize, &sharedPageTable->mmu));
-    }
-    else if (Kernel->hardware->mmuVersion == 0)
-    {
-        /* Set page table address. */
-        gcmkONERROR(
-            gckHARDWARE_SetMMU(Kernel->hardware, (gctPOINTER) sharedPageTable->mmu->pageTableLogical));
     }
 
     *Mmu = sharedPageTable->mmu;
@@ -1780,111 +1804,6 @@ gckMMU_FreePages(
 #else
     return _FreePages(Mmu, PageTable, PageCount);
 #endif
-}
-
-gceSTATUS
-gckMMU_Enable(
-    IN gckMMU Mmu,
-    IN gctUINT32 PhysBaseAddr,
-    IN gctUINT32 PhysSize
-    )
-{
-    gceSTATUS status;
-#if gcdSHARED_PAGETABLE
-    gckHARDWARE hardware;
-    gctINT i;
-#endif
-
-    gcmkHEADER_ARG("Mmu=0x%x", Mmu);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Mmu, gcvOBJ_MMU);
-
-#if gcdSHARED_PAGETABLE
-    if (Mmu->enabled)
-    {
-        gcmkFOOTER_ARG("Status=%d", gcvSTATUS_SKIP);
-        return gcvSTATUS_SKIP;
-    }
-#endif
-
-    if (Mmu->hardware->mmuVersion == 0)
-    {
-        /* Success. */
-        gcmkFOOTER_ARG("Status=%d", gcvSTATUS_SKIP);
-        return gcvSTATUS_SKIP;
-    }
-    else
-    {
-#if gcdPROCESS_ADDRESS_SPACE
-        gctUINT32 i;
-        gctUINT32 physical;
-        gckKERNEL kernel = Mmu->hardware->kernel;
-
-        /* Map kernel command buffer in MMU. */
-        for (i = 0; i < gcdCOMMAND_QUEUES; i++)
-        {
-            gcmkONERROR(gckOS_GetPhysicalAddress(
-                Mmu->os,
-                kernel->command->queues[i].logical,
-                &physical
-                ));
-
-            gcmkONERROR(gckMMU_FlatMapping(Mmu, physical));
-        }
-#else
-        if (PhysSize != 0)
-        {
-            gcmkONERROR(_FillFlatMapping(
-                Mmu,
-                PhysBaseAddr,
-                PhysSize
-                ));
-        }
-
-        gcmkONERROR(_SetupDynamicSpace(Mmu));
-#endif
-
-#if gcdSHARED_PAGETABLE
-        for(i = 0; i < gcdMAX_GPU_COUNT; i++)
-        {
-            hardware = sharedPageTable->hardwares[i];
-            if (hardware != gcvNULL)
-            {
-                gcmkONERROR(
-                    gckHARDWARE_SetMMUv2(
-                        hardware,
-                        gcvTRUE,
-                        Mmu->mtlbLogical,
-                        gcvMMU_MODE_4K,
-                        (gctUINT8_PTR)Mmu->mtlbLogical + gcdMMU_MTLB_SIZE,
-                        gcvFALSE
-                        ));
-            }
-        }
-#else
-        gcmkONERROR(
-            gckHARDWARE_SetMMUv2(
-                Mmu->hardware,
-                gcvTRUE,
-                Mmu->mtlbLogical,
-                gcvMMU_MODE_4K,
-                (gctUINT8_PTR)Mmu->mtlbLogical + gcdMMU_MTLB_SIZE,
-                gcvFALSE
-                ));
-#endif
-
-        Mmu->enabled = gcvTRUE;
-
-        /* Success. */
-        gcmkFOOTER_NO();
-        return gcvSTATUS_OK;
-    }
-
-OnError:
-    /* Return the status. */
-    gcmkFOOTER();
-    return status;
 }
 
 gceSTATUS

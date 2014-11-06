@@ -988,7 +988,7 @@
              'acquireFenceFd' for framebuffer target for DC
  */
 #ifndef gcdANDROID_NATIVE_FENCE_SYNC
-#   define gcdANDROID_NATIVE_FENCE_SYNC         3
+#   define gcdANDROID_NATIVE_FENCE_SYNC         0
 #endif
 
 /*
@@ -1010,6 +1010,15 @@
  */
 #ifndef gcdANDROID_IMPLICIT_NATIVE_BUFFER_SYNC
 #   define gcdANDROID_IMPLICIT_NATIVE_BUFFER_SYNC   1
+#endif
+
+/*
+ * Implicit native buffer sync is not needed when ANDROID_native_fence_sync
+ * is available.
+ */
+#if gcdANDROID_NATIVE_FENCE_SYNC
+#   undef  gcdANDROID_IMPLICIT_NATIVE_BUFFER_SYNC
+#   define gcdANDROID_IMPLICIT_NATIVE_BUFFER_SYNC   0
 #endif
 
 /*
@@ -1237,6 +1246,26 @@
 
 #ifndef gcdENABLE_VG
 #   define gcdENABLE_VG                         0
+#endif
+
+#ifndef gcdGC355_MEM_PRINT
+#   define gcdGC355_MEM_PRINT                      0
+#else
+#if (!((gcdENABLE_3D == 0) && (gcdENABLE_2D == 0) && (gcdENABLE_VG == 1)))
+#      undef gcdGC355_MEM_PRINT
+#      define gcdGC355_MEM_PRINT                   0
+#   endif
+#endif
+
+#ifndef gcdENABLE_UNIFIED_CONSTANT
+#   define gcdENABLE_UNIFIED_CONSTANT           1
+#endif
+
+/*
+    gcdRECORD_COMMAND
+*/
+#ifndef gcdRECORD_COMMAND
+#   define gcdRECORD_COMMAND                    0
 #endif
 
 #endif /* __gc_hal_options_h_ */

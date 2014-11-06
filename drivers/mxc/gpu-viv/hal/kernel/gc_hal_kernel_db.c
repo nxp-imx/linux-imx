@@ -100,6 +100,8 @@ gckKERNEL_NewDatabase(
         gckOS_ZeroMemory(pointer, gcmSIZEOF(gcsDATABASE));
 
         database = pointer;
+
+        gcmkONERROR(gckOS_CreateMutex(Kernel->os, &database->counterMutex));
     }
 
     /* Insert the database into the hash. */
@@ -167,12 +169,18 @@ gckKERNEL_FindDatabase(
     gceSTATUS status;
     gcsDATABASE_PTR database, previous;
     gctSIZE_T slot;
+    gctBOOL acquired = gcvFALSE;
 
     gcmkHEADER_ARG("Kernel=0x%x ProcessID=%d LastProcessID=%d",
                    Kernel, ProcessID, LastProcessID);
 
     /* Compute the hash for the database. */
     slot = ProcessID % gcmCOUNTOF(Kernel->db->db);
+
+    /* Acquire the database mutex. */
+    gcmkONERROR(
+        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
+    acquired = gcvTRUE;
 
     /* Check whether we are getting the last known database. */
     if (LastProcessID)
@@ -217,6 +225,9 @@ gckKERNEL_FindDatabase(
         }
     }
 
+    /* Release the database mutex. */
+    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+
     /* Return the database. */
     *Database = database;
 
@@ -225,6 +236,11 @@ gckKERNEL_FindDatabase(
     return gcvSTATUS_OK;
 
 OnError:
+    if (acquired)
+    {
+        /* Release the database mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    }
 
     /* Return the status. */
     gcmkFOOTER();
@@ -255,9 +271,15 @@ gckKERNEL_DeleteDatabase(
     )
 {
     gceSTATUS status;
+    gctBOOL acquired = gcvFALSE;
     gcsDATABASE_PTR database;
 
     gcmkHEADER_ARG("Kernel=0x%x Database=0x%x", Kernel, Database);
+
+    /* Acquire the database mutex. */
+    gcmkONERROR(
+        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
+    acquired = gcvTRUE;
 
     /* Check slot value. */
     gcmkVERIFY_ARGUMENT(Database->slot < gcmCOUNTOF(Kernel->db->db));
@@ -317,11 +339,19 @@ gckKERNEL_DeleteDatabase(
     Database->mmu = gcvNULL;
 #endif
 
+    /* Release the database mutex. */
+    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
+    if (acquired)
+    {
+        /* Release the database mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    }
 
     /* Return the status. */
     gcmkFOOTER();
@@ -357,9 +387,15 @@ gckKERNEL_NewRecord(
     )
 {
     gceSTATUS status;
+    gctBOOL acquired = gcvFALSE;
     gcsDATABASE_RECORD_PTR record = gcvNULL;
 
     gcmkHEADER_ARG("Kernel=0x%x Database=0x%x", Kernel, Database);
+
+    /* Acquire the database mutex. */
+    gcmkONERROR(
+        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
+    acquired = gcvTRUE;
 
     if (Kernel->db->freeRecord != gcvNULL)
     {
@@ -383,6 +419,9 @@ gckKERNEL_NewRecord(
     record->next         = Database->list[Slot];
     Database->list[Slot] = record;
 
+    /* Release the database mutex. */
+    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+
     /* Return the record. */
     *Record = record;
 
@@ -391,6 +430,11 @@ gckKERNEL_NewRecord(
     return gcvSTATUS_OK;
 
 OnError:
+    if (acquired)
+    {
+        /* Release the database mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    }
     if (record != gcvNULL)
     {
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Kernel->os, record));
@@ -436,11 +480,17 @@ gckKERNEL_DeleteRecord(
     )
 {
     gceSTATUS status;
+    gctBOOL acquired = gcvFALSE;
     gcsDATABASE_RECORD_PTR record, previous;
     gctUINT32 slot = _GetSlot(Database, Data);
 
     gcmkHEADER_ARG("Kernel=0x%x Database=0x%x Type=%d Data=0x%x",
                    Kernel, Database, Type, Data);
+
+    /* Acquire the database mutex. */
+    gcmkONERROR(
+        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
+    acquired = gcvTRUE;
 
     /* Scan the database for this record. */
     for (record = Database->list[slot], previous = gcvNULL;
@@ -485,11 +535,19 @@ gckKERNEL_DeleteRecord(
     record->next       = Kernel->db->freeRecord;
     Kernel->db->freeRecord = record;
 
+    /* Release the database mutex. */
+    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+
     /* Success. */
     gcmkFOOTER_ARG("*Bytes=%lu", gcmOPT_VALUE(Bytes));
     return gcvSTATUS_OK;
 
 OnError:
+    if (acquired)
+    {
+        /* Release the database mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    }
 
     /* Return the status. */
     gcmkFOOTER();
@@ -531,11 +589,17 @@ gckKERNEL_FindRecord(
     )
 {
     gceSTATUS status;
+    gctBOOL acquired = gcvFALSE;
     gcsDATABASE_RECORD_PTR record;
     gctUINT32 slot = _GetSlot(Database, Data);
 
     gcmkHEADER_ARG("Kernel=0x%x Database=0x%x Type=%d Data=0x%x",
                    Kernel, Database, Type, Data);
+
+    /* Acquire the database mutex. */
+    gcmkONERROR(
+        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
+    acquired = gcvTRUE;
 
     /* Scan the database for this record. */
     for (record = Database->list[slot];
@@ -565,11 +629,19 @@ gckKERNEL_FindRecord(
             gckOS_MemCopy(Record, record, sizeof(gcsDATABASE_RECORD)));
     }
 
+    /* Release the database mutex. */
+    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+
     /* Success. */
     gcmkFOOTER_ARG("Record=0x%x", Record);
     return gcvSTATUS_OK;
 
 OnError:
+    if (acquired)
+    {
+        /* Release the database mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    }
 
     /* Return the status. */
     gcmkFOOTER();
@@ -773,7 +845,6 @@ gckKERNEL_AddProcessDB(
     gcsDATABASE_COUNTERS * count;
     gctUINT32 vidMemType;
     gcePOOL vidMemPool;
-    gctBOOL acquired = gcvFALSE;
 
     gcmkHEADER_ARG("Kernel=0x%x ProcessID=%d Type=%d Pointer=0x%x "
                    "Physical=0x%x Size=%lu",
@@ -787,11 +858,6 @@ gckKERNEL_AddProcessDB(
     vidMemPool = (Type & gcdDB_VIDEO_MEMORY_POOL_MASK) >> gcdDB_VIDEO_MEMORY_POOL_SHIFT;
 
     Type &= gcdDATABASE_TYPE_MASK;
-
-    /* Acquire the database mutex. */
-    gcmkONERROR(
-        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
-    acquired = gcvTRUE;
 
     /* Special case the idle record. */
     if (Type == gcvDB_IDLE)
@@ -847,8 +913,6 @@ gckKERNEL_AddProcessDB(
             }
         }
 #endif
-        /* Release the database mutex. */
-        gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
 
         /* Success. */
         gcmkFOOTER_NO();
@@ -903,6 +967,8 @@ gckKERNEL_AddProcessDB(
         break;
     }
 
+    gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, database->counterMutex, gcvINFINITE));
+
     if (count != gcvNULL)
     {
         /* Adjust counters. */
@@ -940,20 +1006,13 @@ gckKERNEL_AddProcessDB(
         }
     }
 
-    /* Release the database mutex. */
-    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, database->counterMutex));
 
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
-    if (acquired)
-    {
-        /* Release the database mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
-    }
-
     /* Return the status. */
     gcmkFOOTER();
     return status;
@@ -995,7 +1054,6 @@ gckKERNEL_RemoveProcessDB(
     gctSIZE_T bytes = 0;
     gctUINT32 vidMemType;
     gcePOOL vidMempool;
-    gctBOOL acquired = gcvFALSE;
 
     gcmkHEADER_ARG("Kernel=0x%x ProcessID=%d Type=%d Pointer=0x%x",
                    Kernel, ProcessID, Type, Pointer);
@@ -1010,17 +1068,14 @@ gckKERNEL_RemoveProcessDB(
 
     Type &= gcdDATABASE_TYPE_MASK;
 
-    /* Acquire the database mutex. */
-    gcmkONERROR(
-        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
-    acquired = gcvTRUE;
-
     /* Find the database. */
     gcmkONERROR(gckKERNEL_FindDatabase(Kernel, ProcessID, gcvFALSE, &database));
 
     /* Delete the record. */
     gcmkONERROR(
         gckKERNEL_DeleteRecord(Kernel, database, Type, Pointer, &bytes));
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, database->counterMutex, gcvINFINITE));
 
     /* Update counters. */
     switch (Type)
@@ -1055,20 +1110,13 @@ gckKERNEL_RemoveProcessDB(
         break;
     }
 
-    /* Release the database mutex. */
-    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, database->counterMutex));
 
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
-    if (acquired)
-    {
-        /* Release the database mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
-    }
-
     /* Return the status. */
     gcmkFOOTER();
     return status;
@@ -1110,7 +1158,6 @@ gckKERNEL_FindProcessDB(
 {
     gceSTATUS status;
     gcsDATABASE_PTR database;
-    gctBOOL acquired = gcvFALSE;
 
     gcmkHEADER_ARG("Kernel=0x%x ProcessID=%d Type=%d Pointer=0x%x",
                    Kernel, ProcessID, ThreadID, Type, Pointer);
@@ -1119,11 +1166,6 @@ gckKERNEL_FindProcessDB(
     gcmkVERIFY_OBJECT(Kernel, gcvOBJ_KERNEL);
     gcmkVERIFY_ARGUMENT(Pointer != gcvNULL);
 
-    /* Acquire the database mutex. */
-    gcmkONERROR(
-        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
-    acquired = gcvTRUE;
-
     /* Find the database. */
     gcmkONERROR(gckKERNEL_FindDatabase(Kernel, ProcessID, gcvFALSE, &database));
 
@@ -1131,20 +1173,11 @@ gckKERNEL_FindProcessDB(
     gcmkONERROR(
         gckKERNEL_FindRecord(Kernel, database, Type, Pointer, Record));
 
-    /* Release the database mutex. */
-    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
-
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
-    if (acquired)
-    {
-        /* Release the database mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
-    }
-
     /* Return the status. */
     gcmkFOOTER();
     return status;
@@ -1184,17 +1217,11 @@ gckKERNEL_DestroyProcessDB(
     gckKERNEL kernel = Kernel;
     gctUINT32 handle;
     gctUINT32 i;
-    gctBOOL acquired = gcvFALSE;
 
     gcmkHEADER_ARG("Kernel=0x%x ProcessID=%d", Kernel, ProcessID);
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Kernel, gcvOBJ_KERNEL);
-
-    /* Acquire the database mutex. */
-    gcmkONERROR(
-        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
-    acquired = gcvTRUE;
 
     /* Find the database. */
     gcmkONERROR(gckKERNEL_FindDatabase(Kernel, ProcessID, gcvFALSE, &database));
@@ -1238,9 +1265,6 @@ gckKERNEL_DestroyProcessDB(
     {
         /* Next next record. */
         next = record->next;
-
-        gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
-        acquired = gcvFALSE;
 
         /* Dispatch on record type. */
         switch (record->type)
@@ -1430,7 +1454,7 @@ gckKERNEL_DestroyProcessDB(
                            gcmPTR2INT32(record->data), status);
             break;
 
-#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
+#if gcdANDROID_NATIVE_FENCE_SYNC
         case gcvDB_SYNC_POINT:
             /* Free the user signal. */
             status = gckOS_DestroySyncPoint(Kernel->os,
@@ -1459,10 +1483,6 @@ gckKERNEL_DestroyProcessDB(
             break;
         }
 
-        gcmkONERROR(
-            gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
-        acquired = gcvTRUE;
-
         /* Delete the record. */
         gcmkONERROR(gckKERNEL_DeleteRecord(Kernel,
                                            database,
@@ -1476,20 +1496,11 @@ gckKERNEL_DestroyProcessDB(
     /* Delete the database. */
     gcmkONERROR(gckKERNEL_DeleteDatabase(Kernel, database));
 
-    /* Release the database mutex. */
-    gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
-
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
-    if (acquired)
-    {
-        /* Release the database mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
-    }
-
     /* Return the status. */
     gcmkFOOTER();
     return status;
@@ -1533,7 +1544,6 @@ gckKERNEL_QueryProcessDB(
     gceSTATUS status;
     gcsDATABASE_PTR database;
     gcePOOL vidMemPool;
-    gctBOOL acquired = gcvFALSE;
 
     gcmkHEADER_ARG("Kernel=0x%x ProcessID=%d Type=%d Info=0x%x",
                    Kernel, ProcessID, Type, Info);
@@ -1547,14 +1557,12 @@ gckKERNEL_QueryProcessDB(
 
     Type &= gcdDATABASE_TYPE_MASK;
 
-    /* Acquire the database mutex. */
-    gcmkONERROR(
-        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
-    acquired = gcvTRUE;
-
     /* Find the database. */
     gcmkONERROR(
         gckKERNEL_FindDatabase(Kernel, ProcessID, LastProcessID, &database));
+
+
+    gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, database->counterMutex, gcvINFINITE));
 
     /* Get pointer to counters. */
     switch (Type)
@@ -1613,20 +1621,13 @@ gckKERNEL_QueryProcessDB(
         break;
     }
 
-    /* Release the database mutex. */
-    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, database->counterMutex));
 
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
-    if(acquired)
-    {
-        /* Release the database mutex. */
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
-    }
-
     /* Return the status. */
     gcmkFOOTER();
     return status;

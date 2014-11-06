@@ -115,7 +115,7 @@ module_param(fastClear, int, 0644);
 static int compression = -1;
 module_param(compression, int, 0644);
 
-static int powerManagement = 1;
+static int powerManagement = -1;
 module_param(powerManagement, int, 0644);
 
 static int gpuProfiler = 0;
@@ -145,8 +145,10 @@ MODULE_PARM_DESC(stuckDump, "Level of stuck dump content (1: Minimal, 2: Middle,
 static int showArgs = 0;
 module_param(showArgs, int, 0644);
 
-static int initgpu3DMinClock = 1;
-module_param(initgpu3DMinClock, int, 0644);
+static int mmu = 1;
+module_param(mmu, int, 0644);
+
+static int gpu3DMinClock = 1;
 
 static int contiguousRequested = 0;
 
@@ -215,6 +217,7 @@ _UpdateModuleParam(
     stuckDump         = Param->stuckDump;
     showArgs          = Param->showArgs;
     contiguousRequested = Param->contiguousRequested;
+    gpu3DMinClock     = Param->gpu3DMinClock;
 }
 
 void
@@ -808,9 +811,10 @@ static int drv_init(void)
     gcsDEVICE_CONSTRUCT_ARGS args = {
         .recovery           = recovery,
         .stuckDump          = stuckDump,
-        .gpu3DMinClock      = initgpu3DMinClock,
+        .gpu3DMinClock      = gpu3DMinClock,
         .contiguousRequested = contiguousRequested,
         .platform           = &platform,
+        .mmu                = mmu,
     };
 
     gcmkHEADER();
@@ -876,29 +880,6 @@ static int drv_init(void)
        && (device->kernels[gcvCORE_MAJOR] != gcvNULL)
        && (device->kernels[gcvCORE_MAJOR]->hardware->mmuVersion != 0))
     {
-#if !gcdSECURITY
-        gctUINT32 gpuPhysical;
-        gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(device->os, baseAddress, &gpuPhysical));
-
-        status = gckMMU_Enable(device->kernels[gcvCORE_MAJOR]->mmu, gpuPhysical, physSize);
-        gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_DRIVER,
-            "Enable new MMU: status=%d\n", status);
-
-#if gcdMULTI_GPU_AFFINITY
-        status = gckMMU_Enable(device->kernels[gcvCORE_OCL]->mmu, gpuPhysical, physSize);
-        gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_DRIVER,
-            "Enable new MMU: status=%d\n", status);
-#endif
-
-        if ((device->kernels[gcvCORE_2D] != gcvNULL)
-            && (device->kernels[gcvCORE_2D]->hardware->mmuVersion != 0))
-        {
-            status = gckMMU_Enable(device->kernels[gcvCORE_2D]->mmu, gpuPhysical, physSize);
-            gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_DRIVER,
-                "Enable new MMU for 2D: status=%d\n", status);
-        }
-#endif
-
         /* Reset the base address */
         device->baseAddress = 0;
     }
@@ -1047,6 +1028,7 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         .recovery           = recovery,
         .stuckDump          = stuckDump,
         .showArgs           = showArgs,
+        .gpu3DMinClock      = gpu3DMinClock,
     };
 
     gcmkHEADER();

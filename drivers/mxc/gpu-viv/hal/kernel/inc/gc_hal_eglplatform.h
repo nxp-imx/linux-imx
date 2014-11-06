@@ -74,7 +74,7 @@ typedef struct _gcsWL_EGL_DISPLAY
    struct wl_display* wl_display;
    struct wl_viv* wl_viv;
    struct wl_registry *registry;
-   struct wl_event_queue *wl_queue;
+   struct wl_event_queue    *wl_queue;
    gctINT swapInterval;
 } gcsWL_EGL_DISPLAY;
 
@@ -299,8 +299,7 @@ gceSTATUS
 gcoOS_SetSwapIntervalEx(
     IN HALNativeDisplayType Display,
     IN gctINT Interval,
-    IN gctPOINTER localDisplay
-);
+    IN gctPOINTER localDisplay);
 
 gceSTATUS
 gcoOS_GetSwapInterval(

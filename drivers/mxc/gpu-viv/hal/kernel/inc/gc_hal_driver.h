@@ -185,6 +185,9 @@ typedef enum _gceHAL_COMMAND_CODES
 
     /* Config power management. */
     gcvHAL_CONFIG_POWER_MANAGEMENT,
+
+    /* Connect a video node to an OS native fd. */
+    gcvHAL_GET_VIDEO_MEMORY_FD,
 }
 gceHAL_COMMAND_CODES;
 
@@ -1113,6 +1116,13 @@ typedef struct _gcsHAL_INTERFACE
             IN gctBOOL                  enable;
         }
         ConfigPowerManagement;
+
+        struct _gcsHAL_GET_VIDEO_MEMORY_FD
+        {
+            IN gctUINT32            handle;
+            OUT gctINT              fd;
+        }
+        GetVideoMemoryFd;
     }
     u;
 }

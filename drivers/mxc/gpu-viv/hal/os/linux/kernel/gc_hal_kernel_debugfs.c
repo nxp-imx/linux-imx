@@ -655,15 +655,47 @@ _DebugFSWrite (
 
 int dumpProcess = 0;
 
-static int vidmem_show(struct seq_file *file, void *unused)
+void
+_PrintCounter(
+    struct seq_file *file,
+    gcsDATABASE_COUNTERS * counter,
+    gctCONST_STRING Name
+    )
 {
-    gctUINT32 i = 0;
-    gceSTATUS status;
-    gcsDATABASE_PTR database;
-    gcsDATABASE_COUNTERS * counter;
-    gckGALDEVICE device = file->private;
+    seq_printf(file,"Counter: %s\n", Name);
 
-    gckKERNEL kernel = device->kernels[gcvCORE_MAJOR];
+    seq_printf(file,"%-9s%10s","", "All");
+
+    seq_printf(file, "\n");
+
+    seq_printf(file,"%-9s","Current");
+
+    seq_printf(file,"%10lld", counter->bytes);
+
+    seq_printf(file, "\n");
+
+    seq_printf(file,"%-9s","Maximum");
+
+    seq_printf(file,"%10lld", counter->maxBytes);
+
+    seq_printf(file, "\n");
+
+    seq_printf(file,"%-9s","Total");
+
+    seq_printf(file,"%10lld", counter->totalBytes);
+
+    seq_printf(file, "\n");
+}
+
+void
+_ShowCounters(
+    struct seq_file *file,
+    gcsDATABASE_PTR database
+    )
+{
+    gctUINT i = 0;
+    gcsDATABASE_COUNTERS * counter;
+    gcsDATABASE_COUNTERS * nonPaged;
 
     static gctCONST_STRING surfaceTypes[] = {
         "UNKNOWN",
@@ -680,14 +712,12 @@ static int vidmem_show(struct seq_file *file, void *unused)
         "HZDepth",
     };
 
-    /* Find the database. */
-    gcmkONERROR(
-        gckKERNEL_FindDatabase(kernel, dumpProcess, gcvFALSE, &database));
-
-    seq_printf(file, "VidMem Usage (Process %d):\n", dumpProcess);
-
     /* Get pointer to counters. */
     counter = &database->vidMem;
+
+    nonPaged = &database->nonPaged;
+
+    seq_printf(file,"Counter: vidMem (for each surface type)\n");
 
     seq_printf(file,"%-9s%10s","", "All");
 
@@ -738,6 +768,79 @@ static int vidmem_show(struct seq_file *file, void *unused)
     }
 
     seq_printf(file, "\n");
+
+    seq_printf(file,"Counter: vidMem (for each pool)\n");
+
+    seq_printf(file,"%-9s%10s","", "All");
+
+    for (i = 1; i < gcvPOOL_NUMBER_OF_POOLS; i++)
+    {
+        seq_printf(file, "%10d", i);
+    }
+
+    seq_printf(file, "\n");
+
+    seq_printf(file,"%-9s","Current");
+
+    seq_printf(file,"%10lld", database->vidMem.bytes);
+
+    for (i = 1; i < gcvPOOL_NUMBER_OF_POOLS; i++)
+    {
+        counter = &database->vidMemPool[i];
+
+        seq_printf(file,"%10lld", counter->bytes);
+    }
+
+    seq_printf(file, "\n");
+
+    seq_printf(file,"%-9s","Maximum");
+
+    seq_printf(file,"%10lld", database->vidMem.maxBytes);
+
+    for (i = 1; i < gcvPOOL_NUMBER_OF_POOLS; i++)
+    {
+        counter = &database->vidMemPool[i];
+
+        seq_printf(file,"%10lld", counter->maxBytes);
+    }
+
+    seq_printf(file, "\n");
+
+    seq_printf(file,"%-9s","Total");
+
+    seq_printf(file,"%10lld", database->vidMem.totalBytes);
+
+    for (i = 1; i < gcvPOOL_NUMBER_OF_POOLS; i++)
+    {
+        counter = &database->vidMemPool[i];
+
+        seq_printf(file,"%10lld", counter->totalBytes);
+    }
+
+    seq_printf(file, "\n");
+
+    /* Print nonPaged. */
+    _PrintCounter(file, &database->nonPaged, "nonPaged");
+    _PrintCounter(file, &database->contiguous, "contiguous");
+    _PrintCounter(file, &database->mapUserMemory, "mapUserMemory");
+    _PrintCounter(file, &database->mapMemory, "mapMemory");
+}
+
+static int vidmem_show(struct seq_file *file, void *unused)
+{
+    gceSTATUS status;
+    gcsDATABASE_PTR database;
+    gckGALDEVICE device = file->private;
+
+    gckKERNEL kernel = device->kernels[gcvCORE_MAJOR];
+
+    /* Find the database. */
+    gcmkONERROR(
+        gckKERNEL_FindDatabase(kernel, dumpProcess, gcvFALSE, &database));
+
+    seq_printf(file, "VidMem Usage (Process %d):\n", dumpProcess);
+
+    _ShowCounters(file, database);
 
     return 0;
 
