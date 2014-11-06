@@ -2547,6 +2547,8 @@ gckOS_DebugStatus2Name(
         return "gcvSTATUS_TOO_MANY_ATTRIBUTES";
     case gcvSTATUS_TOO_MANY_UNIFORMS:
         return "gcvSTATUS_TOO_MANY_UNIFORMS";
+    case gcvSTATUS_TOO_MANY_SAMPLER:
+        return "gcvSTATUS_TOO_MANY_SAMPLER";
     case gcvSTATUS_TOO_MANY_VARYINGS:
         return "gcvSTATUS_TOO_MANY_VARYINGS";
     case gcvSTATUS_UNDECLARED_VARYING:

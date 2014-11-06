@@ -64,6 +64,9 @@ typedef struct _gckGALDEVICE
     gctPOINTER          registerBases[gcdMAX_GPU_COUNT];
     gctSIZE_T           registerSizes[gcdMAX_GPU_COUNT];
     gctUINT32           baseAddress;
+    gctUINT32           physBase;
+    gctUINT32           physSize;
+    gctBOOL             mmu;
 #if gcdMULTI_GPU
     gctUINT32           requestedRegisterMemBase3D[gcdMULTI_GPU];
     gctSIZE_T           requestedRegisterMemSize3D[gcdMULTI_GPU];
@@ -127,6 +130,7 @@ typedef struct _gcsDEVICE_CONSTRUCT_ARGS
 
     gctBOOL             contiguousRequested;
     gcsPLATFORM*        platform;
+    gctBOOL             mmu;
 }
 gcsDEVICE_CONSTRUCT_ARGS;
 

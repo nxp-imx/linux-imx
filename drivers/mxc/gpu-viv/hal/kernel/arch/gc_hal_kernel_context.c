@@ -589,7 +589,7 @@ _InitializeContextBuffer(
 #if gcdENABLE_3D
     gctBOOL halti0, halti1, halti2, halti3;
     gctUINT i;
-    gctUINT vertexUniforms, fragmentUniforms, unifiedConst, vsConstBase, psConstBase, constMax;
+    gctUINT vertexUniforms, fragmentUniforms, vsConstBase, psConstBase, constMax;
     gctBOOL unifiedUniform;
     gctUINT fe2vsCount;
 #endif
@@ -620,8 +620,9 @@ _InitializeContextBuffer(
     halti3 = (((((gctUINT32) (Context->hardware->identity.chipMinorFeatures5)) >> (0 ? 9:9)) & ((gctUINT32) ((((1 ? 9:9) - (0 ? 9:9) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 9:9) - (0 ? 9:9) + 1)))))) );
 
     /* Query how many uniforms can support for non-unified uniform mode. */
-    {    if (Context->hardware->identity.chipModel == gcv2000 && Context->hardware->identity.chipRevision == 0x5118)    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 64;        constMax     = 320;    }    else if (Context->hardware->identity.numConstants == 320)    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 64;        constMax     = 320;    }    else if (Context->hardware->identity.numConstants > 256 && Context->hardware->identity.chipModel == gcv1000)    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 64;        constMax     = 320;    }    else if (Context->hardware->identity.numConstants > 256)    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 256;        constMax     = 512;    }    else if (Context->hardware->identity.numConstants == 256)    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 256;        constMax     = 512;    }    else    {        unifiedConst = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 168;        fragmentUniforms   = 64;        constMax     = 232;    }};
+    {if (Context->hardware->identity.numConstants > 256){    unifiedUniform = gcvTRUE;    vsConstBase  = 0xC000;    psConstBase  = 0xC000;    constMax     = Context->hardware->identity.numConstants;    vertexUniforms   = 256;    fragmentUniforms   = constMax - vertexUniforms;}else if (Context->hardware->identity.numConstants == 256){    if (Context->hardware->identity.chipModel == gcv2000 && Context->hardware->identity.chipRevision == 0x5118)    {        unifiedUniform = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 64;        constMax     = 320;    }    else    {        unifiedUniform = gcvFALSE;        vsConstBase  = 0x1400;        psConstBase  = 0x1C00;        vertexUniforms   = 256;        fragmentUniforms   = 256;        constMax     = 512;    }}else{    unifiedUniform = gcvFALSE;    vsConstBase  = 0x1400;    psConstBase  = 0x1C00;    vertexUniforms   = 168;    fragmentUniforms   = 64;    constMax     = 232;}};
 
+#if !gcdENABLE_UNIFIED_CONSTANT
     if (Context->hardware->identity.numConstants > 256)
     {
         unifiedUniform = gcvTRUE;
@@ -630,6 +631,7 @@ _InitializeContextBuffer(
     {
         unifiedUniform = gcvFALSE;
     }
+#endif
 
     /* Store the 3D entry index. */
     Context->entryOffset3D = (gctUINT)index * gcmSIZEOF(gctUINT32);
@@ -1001,9 +1003,13 @@ _InitializeContextBuffer(
             index += _CLOSE_RANGE();
         }
     }
-
-    index += _State(Context, index, 0x05000 >> 2, 0x00000000, vertexUniforms * 4, gcvFALSE, gcvFALSE);
-    index += _State(Context, index, 0x07000 >> 2, 0x00000000, fragmentUniforms * 4, gcvFALSE, gcvFALSE);
+#if gcdENABLE_UNIFIED_CONSTANT
+    else
+#endif
+    {
+        index += _State(Context, index, 0x05000 >> 2, 0x00000000, vertexUniforms * 4, gcvFALSE, gcvFALSE);
+        index += _State(Context, index, 0x07000 >> 2, 0x00000000, fragmentUniforms * 4, gcvFALSE, gcvFALSE);
+    }
 
     /* Store the index of the "XD" entry. */
     Context->entryOffsetXDFrom3D = (gctUINT)index * gcmSIZEOF(gctUINT32);

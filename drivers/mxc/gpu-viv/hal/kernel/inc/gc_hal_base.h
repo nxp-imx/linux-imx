@@ -173,12 +173,12 @@ typedef enum _gcePATCH_ID
     gcvPATCH_TITANPACKING,
     gcvPATCH_BASEMARKOSIICN,
     gcvPATCH_FRUITNINJA,
-    gcvPATCH_QUICINC_VELLAMO,
 #if defined(ANDROID)
     gcePATCH_ANDROID_CTS_MEDIA_PRESENTATIONTIME,
 #endif
     gcvPATCH_ANDROID_COMPOSITOR,
     gcvPATCH_CTS_TEXTUREVIEW,
+    gcvPATCH_WATER2_CHUKONG,
 
     gcvPATCH_COUNT
 } gcePATCH_ID;
@@ -337,6 +337,9 @@ typedef struct _gcsTLS
 
     /* libGAL.so handle */
     gctHANDLE                   handle;
+
+    /* If true, do not releas 2d engine and hardware in hal layer */
+    gctBOOL                     release2DUpper;
 }
 gcsTLS;
 
@@ -646,6 +649,12 @@ gcoHAL_ImportVideoMemory(
     OUT gctUINT32 * Handle
     );
 
+gceSTATUS
+gcoHAL_GetVideoMemoryFd(
+    IN gctUINT32 Handle,
+    OUT gctINT * Fd
+    );
+
 /* Verify whether the specified feature is available in hardware. */
 gceSTATUS
 gcoHAL_IsFeatureAvailable(
@@ -745,6 +754,17 @@ gceSTATUS
 gcoOS_FreeVideoMemory(
     IN gcoOS Os,
     IN gctPOINTER Handle
+    );
+
+/* Lock video memory. */
+gceSTATUS
+gcoOS_LockVideoMemory(
+    IN gcoOS Os,
+    IN gctPOINTER Handle,
+    IN gctBOOL InUserSpace,
+    IN gctBOOL InCacheable,
+    OUT gctUINT32 * Physical,
+    OUT gctPOINTER * Logical
     );
 
 /* Map user memory. */
@@ -954,12 +974,14 @@ gceSTATUS
 gcoHAL_QueryChipLimits(
     IN gcoHAL           Hal,
     IN gctINT32         Chip,
+    IN gctINT32         Mask,
     OUT gcsHAL_LIMITS   *Limits);
 
 gceSTATUS
 gcoHAL_QueryChipFeature(
     IN gcoHAL       Hal,
     IN gctINT32     Chip,
+    IN gctINT32     Mask,
     IN gceFEATURE   Feature);
 
 /*----------------------------------------------------------------------------*/
@@ -4491,28 +4513,24 @@ gckOS_DebugStatus2Name(
 #define gcmkSAFECASTSIZET(x, y) \
     do \
     { \
+        gctUINT32 tmp = (gctUINT32)(y); \
         if (gcmSIZEOF(gctSIZE_T) > gcmSIZEOF(gctUINT32)) \
         { \
-            if (y) \
-            { \
-                gcmkASSERT((y) <= gcvMAXUINT32); \
+            gcmkASSERT(tmp <= gcvMAXUINT32); \
             } \
-        } \
-        (x) = (gctUINT32)(y); \
+        (x) = tmp; \
     } \
     while (gcvFALSE)
 
 #define gcmSAFECASTSIZET(x, y) \
     do \
     { \
+        gctUINT32 tmp = (gctUINT32)(y); \
         if (gcmSIZEOF(gctSIZE_T) > gcmSIZEOF(gctUINT32)) \
         { \
-            if (y) \
-            { \
-                gcmASSERT((y) <= gcvMAXUINT32); \
+            gcmASSERT(tmp <= gcvMAXUINT32); \
             } \
-        } \
-        (x) = (gctUINT32)(y); \
+        (x) = tmp; \
     } \
     while (gcvFALSE)
 
@@ -5389,6 +5407,7 @@ struct _gcoOS_SymbolsList
 **
 **      Configure uniforms according to chip and numConstants.
 */
+#if !gcdENABLE_UNIFIED_CONSTANT
 #define gcmCONFIGUREUNIFORMS(ChipModel, ChipRevision, NumConstants, \
              UnifiedConst, VsConstBase, PsConstBase, VsConstMax, PsConstMax, ConstMax) \
 { \
@@ -5448,61 +5467,39 @@ struct _gcoOS_SymbolsList
         ConstMax     = 232; \
     } \
 }
-
-/*******************************************************************************
-**
-**  gcmGET_UNIFORM_INFO_FOR_NONUNIFIEDMODE
-**
-**      Configure uniforms according to chip and numConstants.
-*/
-#define gcmGET_UNIFORM_INFO_FOR_NONUNIFIEDMODE(ChipModel, ChipRevision, NumConstants, \
+#else
+#define gcmCONFIGUREUNIFORMS(ChipModel, ChipRevision, NumConstants, \
              UnifiedConst, VsConstBase, PsConstBase, VsConstMax, PsConstMax, ConstMax) \
 { \
-    if (ChipModel == gcv2000 && ChipRevision == 0x5118) \
+    if (NumConstants > 256) \
     { \
-        UnifiedConst = gcvFALSE; \
-        VsConstBase  = AQVertexShaderConstRegAddrs; \
-        PsConstBase  = AQPixelShaderConstRegAddrs; \
+        UnifiedConst = gcvTRUE; \
+        VsConstBase  = gcregSHUniformsRegAddrs; \
+        PsConstBase  = gcregSHUniformsRegAddrs; \
+        ConstMax     = NumConstants; \
         VsConstMax   = 256; \
-        PsConstMax   = 64; \
-        ConstMax     = 320; \
-    } \
-    else if (NumConstants == 320) \
-    { \
-        UnifiedConst = gcvFALSE; \
-        VsConstBase  = AQVertexShaderConstRegAddrs; \
-        PsConstBase  = AQPixelShaderConstRegAddrs; \
-        VsConstMax   = 256; \
-        PsConstMax   = 64; \
-        ConstMax     = 320; \
-    } \
-    /* All GC1000 series chips can only support 64 uniforms for ps on non-unified const mode. */ \
-    else if (NumConstants > 256 && ChipModel == gcv1000) \
-    { \
-        UnifiedConst = gcvFALSE; \
-        VsConstBase  = AQVertexShaderConstRegAddrs; \
-        PsConstBase  = AQPixelShaderConstRegAddrs; \
-        VsConstMax   = 256; \
-        PsConstMax   = 64; \
-        ConstMax     = 320; \
-    } \
-    else if (NumConstants > 256) \
-    { \
-        UnifiedConst = gcvFALSE; \
-        VsConstBase  = AQVertexShaderConstRegAddrs; \
-        PsConstBase  = AQPixelShaderConstRegAddrs; \
-        VsConstMax   = 256; \
-        PsConstMax   = 256; \
-        ConstMax     = 512; \
+        PsConstMax   = ConstMax - VsConstMax; \
     } \
     else if (NumConstants == 256) \
     { \
-        UnifiedConst = gcvFALSE; \
-        VsConstBase  = AQVertexShaderConstRegAddrs; \
-        PsConstBase  = AQPixelShaderConstRegAddrs; \
-        VsConstMax   = 256; \
-        PsConstMax   = 256; \
-        ConstMax     = 512; \
+        if (ChipModel == gcv2000 && ChipRevision == 0x5118) \
+        { \
+            UnifiedConst = gcvFALSE; \
+            VsConstBase  = AQVertexShaderConstRegAddrs; \
+            PsConstBase  = AQPixelShaderConstRegAddrs; \
+            VsConstMax   = 256; \
+            PsConstMax   = 64; \
+            ConstMax     = 320; \
+        } \
+        else \
+        { \
+            UnifiedConst = gcvFALSE; \
+            VsConstBase  = AQVertexShaderConstRegAddrs; \
+            PsConstBase  = AQPixelShaderConstRegAddrs; \
+            VsConstMax   = 256; \
+            PsConstMax   = 256; \
+            ConstMax     = 512; \
+        } \
     } \
     else \
     { \
@@ -5514,6 +5511,7 @@ struct _gcoOS_SymbolsList
         ConstMax     = 232; \
     } \
 }
+#endif
 
 #ifdef __cplusplus
 }

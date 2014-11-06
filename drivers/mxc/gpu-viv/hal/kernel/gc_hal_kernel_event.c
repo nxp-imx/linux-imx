@@ -2987,7 +2987,7 @@ gckEVENT_Notify(
                  gcmRELEASE_NAME(record->info.u.FreeVirtualCommandBuffer.physical);
                  break;
 
-#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
+#if gcdANDROID_NATIVE_FENCE_SYNC
             case gcvHAL_SYNC_POINT:
                 {
                     gctSYNC_POINT syncPoint;

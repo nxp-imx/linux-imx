@@ -58,7 +58,7 @@ typedef struct _gcsMODULE_PARAMETERS
     gctUINT recovery;
     gctUINT stuckDump;
     gctUINT showArgs;
-
+    gctUINT gpu3DMinClock;
 }
 gcsMODULE_PARAMETERS;
 

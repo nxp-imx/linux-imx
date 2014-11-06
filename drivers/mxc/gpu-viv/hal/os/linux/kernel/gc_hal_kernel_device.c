@@ -188,13 +188,13 @@ int gc_meminfo_show(struct seq_file* m, void* data)
     if (gcmIS_SUCCESS(status))
     {
         gcmkVERIFY_OK(
-            gckOS_AcquireMutex(kernel->os, kernel->vidmemMutex, gcvINFINITE));
+            gckOS_AcquireMutex(memory->os, memory->mutex, gcvINFINITE));
 
         free  = memory->freeBytes;
         used  = memory->bytes - memory->freeBytes;
         total = memory->bytes;
 
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(kernel->os, kernel->vidmemMutex));
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(memory->os, memory->mutex));
     }
 
     seq_printf(m, "VIDEO MEMORY:\n");
@@ -240,18 +240,129 @@ int gc_meminfo_show(struct seq_file* m, void* data)
     return 0;
 }
 
-int gc_idle_show(struct seq_file* m, void* data)
+static int
+_ShowRecord(
+    IN struct seq_file *file,
+    IN gcsDATABASE_RECORD_PTR record
+    )
+{
+    seq_printf(file, "%4d%8d%16p%16p%16zu\n",
+        record->type,
+        record->kernel->core,
+        record->data,
+        record->physical,
+        record->bytes
+        );
+
+    return 0;
+}
+
+static int
+_ShowRecords(
+    IN struct seq_file *File,
+    IN gcsDATABASE_PTR Database
+    )
+{
+    gctUINT i;
+
+    seq_printf(File, "Records:\n");
+
+    seq_printf(File, "%s%8s%16s%16s%16s\n",
+               "Type", "GPU", "Data", "Physical", "Bytes");
+
+    for (i = 0; i < gcmCOUNTOF(Database->list); i++)
+    {
+        gcsDATABASE_RECORD_PTR record = Database->list[i];
+
+        while (record != NULL)
+        {
+            _ShowRecord(File, record);
+            record = record->next;
+        }
+    }
+
+    return 0;
+}
+
+void
+_ShowCounters(
+    struct seq_file *File,
+    gcsDATABASE_PTR Database
+    );
+
+static void
+_ShowProcess(
+    IN struct seq_file *File,
+    IN gcsDATABASE_PTR Database
+    )
+{
+    gctINT pid;
+    gctUINT8 name[24];
+
+    /* Process ID and name */
+    pid = Database->processID;
+    gcmkVERIFY_OK(gckOS_ZeroMemory(name, gcmSIZEOF(name)));
+    gcmkVERIFY_OK(gckOS_GetProcessNameByPid(pid, gcmSIZEOF(name), name));
+
+    seq_printf(File, "--------------------------------------------------------------------------------\n");
+    seq_printf(File, "Process: %-8d %s\n", pid, name);
+
+    /* Detailed records */
+    _ShowRecords(File, Database);
+
+    seq_printf(File, "Counters:\n");
+
+    _ShowCounters(File, Database);
+}
+
+static void
+_ShowProcesses(
+    IN struct seq_file * file,
+    IN gckKERNEL Kernel
+    )
+{
+    gcsDATABASE_PTR database;
+    gctINT i;
+
+    /* Acquire the database mutex. */
+    gcmkVERIFY_OK(
+        gckOS_AcquireMutex(Kernel->os, Kernel->db->dbMutex, gcvINFINITE));
+
+    /* Idle time since last call */
+    seq_printf(file, "GPU Idle: %llu ns\n",  Kernel->db->idleTime);
+    Kernel->db->idleTime = 0;
+
+    /* Walk the databases. */
+    for (i = 0; i < gcmCOUNTOF(Kernel->db->db); ++i)
+    {
+        for (database = Kernel->db->db[i];
+             database != gcvNULL;
+             database = database->next)
+        {
+            _ShowProcess(file, database);
+        }
+    }
+
+    /* Release the database mutex. */
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->db->dbMutex));
+}
+
+static int
+gc_db_show(struct seq_file *m, void *data)
 {
     gcsINFO_NODE *node = m->private;
     gckGALDEVICE device = node->device;
     gckKERNEL kernel = _GetValidKernel(device);
-    gcuDATABASE_INFO info;
+    _ShowProcesses(m, kernel);
+    return 0 ;
+}
 
-    gckKERNEL_QueryProcessDB(kernel, 0, gcvFALSE, gcvDB_IDLE, &info);
+static int
+gc_version_show(struct seq_file *m, void *data)
+{
+    seq_printf(m, "%s\n",  gcvVERSION_STRING);
 
-    seq_printf(m, "%llu ns\n", info.time);
-
-    return 0;
+    return 0 ;
 }
 
 static gcsINFO InfoList[] =
@@ -259,7 +370,8 @@ static gcsINFO InfoList[] =
     {"info", gc_info_show},
     {"clients", gc_clients_show},
     {"meminfo", gc_meminfo_show},
-    {"idle", gc_idle_show},
+    {"database", gc_db_show},
+    {"version", gc_version_show},
 };
 
 static gceSTATUS
@@ -1025,7 +1137,9 @@ gckGALDEVICE_Construct(
     }
 
     /* Set the base address */
-    device->baseAddress = PhysBaseAddr;
+    device->baseAddress = device->physBase = PhysBaseAddr;
+    device->physSize = PhysSize;
+    device->mmu      = Args->mmu;
 
     /* Construct the gckOS object. */
     gcmkONERROR(gckOS_Construct(device, &device->os));
@@ -1061,9 +1175,27 @@ gckGALDEVICE_Construct(
             device->kernels[gcvCORE_MAJOR]->hardware, FastClear, Compression
             ));
 
-        gcmkONERROR(gckHARDWARE_SetPowerManagement(
-            device->kernels[gcvCORE_MAJOR]->hardware, PowerManagement
-            ));
+        if(PowerManagement != -1)
+        {
+            gcmkONERROR(gckHARDWARE_SetPowerManagementLock(
+                device->kernels[gcvCORE_MAJOR]->hardware, gcvFALSE
+                ));
+            gcmkONERROR(gckHARDWARE_SetPowerManagement(
+                device->kernels[gcvCORE_MAJOR]->hardware, PowerManagement
+                ));
+            gcmkONERROR(gckHARDWARE_SetPowerManagementLock(
+                device->kernels[gcvCORE_MAJOR]->hardware, gcvTRUE
+                ));
+        }
+        else
+        {
+            gcmkONERROR(gckHARDWARE_SetPowerManagementLock(
+                device->kernels[gcvCORE_MAJOR]->hardware, gcvFALSE
+                ));
+            gcmkONERROR(gckHARDWARE_SetPowerManagement(
+                device->kernels[gcvCORE_MAJOR]->hardware, gcvTRUE
+                ));
+        }
 
 #if gcdENABLE_FSCALE_VAL_ADJUST
         gcmkONERROR(gckHARDWARE_SetMinFscaleValue(
@@ -1129,10 +1261,27 @@ gckGALDEVICE_Construct(
             device->kernels[gcvCORE_OCL]->hardware, Args->gpu3DMinClock
             ));
 #endif
-
-        gcmkONERROR(gckHARDWARE_SetPowerManagement(
-            device->kernels[gcvCORE_OCL]->hardware, PowerManagement
-            ));
+        if(PowerManagement != -1)
+        {
+            gcmkONERROR(gckHARDWARE_SetPowerManagementLock(
+                device->kernels[gcvCORE_OCL]->hardware, gcvFALSE
+                ));
+            gcmkONERROR(gckHARDWARE_SetPowerManagement(
+                device->kernels[gcvCORE_OCL]->hardware, PowerManagement
+                ));
+            gcmkONERROR(gckHARDWARE_SetPowerManagementLock(
+                device->kernels[gcvCORE_OCL]->hardware, gcvTRUE
+                ));
+        }
+        else
+        {
+            gcmkONERROR(gckHARDWARE_SetPowerManagementLock(
+                device->kernels[gcvCORE_OCL]->hardware, gcvFALSE
+                ));
+            gcmkONERROR(gckHARDWARE_SetPowerManagement(
+                device->kernels[gcvCORE_OCL]->hardware, gcvTRUE
+                ));
+        }
 
 #if COMMAND_PROCESSOR_VERSION == 1
         /* Start the command queue. */
@@ -1193,9 +1342,27 @@ gckGALDEVICE_Construct(
             device
             ));
 
-        gcmkONERROR(gckHARDWARE_SetPowerManagement(
-            device->kernels[gcvCORE_2D]->hardware, PowerManagement
-            ));
+        if(PowerManagement != -1)
+        {
+            gcmkONERROR(gckHARDWARE_SetPowerManagementLock(
+                device->kernels[gcvCORE_2D]->hardware, gcvFALSE
+                ));
+            gcmkONERROR(gckHARDWARE_SetPowerManagement(
+                device->kernels[gcvCORE_2D]->hardware, PowerManagement
+                ));
+            gcmkONERROR(gckHARDWARE_SetPowerManagementLock(
+                device->kernels[gcvCORE_2D]->hardware, gcvTRUE
+                ));
+        }
+        else
+        {
+            gcmkONERROR(gckHARDWARE_SetPowerManagementLock(
+                device->kernels[gcvCORE_2D]->hardware, gcvFALSE
+                ));
+            gcmkONERROR(gckHARDWARE_SetPowerManagement(
+                device->kernels[gcvCORE_2D]->hardware, gcvTRUE
+                ));
+        }
 
 #if gcdENABLE_FSCALE_VAL_ADJUST
         gcmkONERROR(gckHARDWARE_SetMinFscaleValue(
@@ -1241,11 +1408,22 @@ gckGALDEVICE_Construct(
             device->coreMapping[gcvHARDWARE_VG] = gcvCORE_VG;
         }
 
+        if(PowerManagement != -1)
+        {
+            gcmkONERROR(gckVGHARDWARE_SetPowerManagement(
+                device->kernels[gcvCORE_VG]->vg->hardware,
+                PowerManagement
+                ));
+        }
+        else
+        {
+            gcmkONERROR(gckVGHARDWARE_SetPowerManagement(
+                device->kernels[gcvCORE_VG]->vg->hardware,
+                gcvTRUE
+                ));
+        }
 
-        gcmkONERROR(gckVGHARDWARE_SetPowerManagement(
-            device->kernels[gcvCORE_VG]->vg->hardware,
-            PowerManagement
-            ));
+
 #endif
     }
     else

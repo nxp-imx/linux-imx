@@ -87,7 +87,9 @@ extern "C" {
 /******************************************************************************\
 ************************************ Keyword ***********************************
 \******************************************************************************/
-#if ((defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || defined(__APPLE__))
+#if defined(ANDROID) && defined(__BIONIC_FORTIFY)
+#   define gcmINLINE            __inline__ __attribute__ ((always_inline)) __attribute__ ((gnu_inline)) __attribute__ ((artificial))
+#elif ((defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) || defined(__APPLE__))
 #   define gcmINLINE            inline      /* C99 keyword. */
 #elif defined(__GNUC__)
 #   define gcmINLINE            __inline__  /* GNU keyword. */
@@ -459,7 +461,6 @@ typedef enum _gceSTATUS
     gcvSTATUS_LINK_INVALID_SHADERS              =   -1012,
     gcvSTATUS_CS_NO_WORKGROUP_SIZE              =   -1013,
     gcvSTATUS_LINK_LIB_ERROR                    =   -1014,
-
     gcvSTATUS_SHADER_VERSION_MISMATCH           =   -1015,
     gcvSTATUS_TOO_MANY_INSTRUCTION              =   -1016,
     gcvSTATUS_SSBO_MISMATCH                     =   -1017,
@@ -468,6 +469,7 @@ typedef enum _gceSTATUS
     gcvSTATUS_NOT_SUPPORT_CL                    =   -1020,
     gcvSTATUS_NOT_SUPPORT_INTEGER               =   -1021,
     gcvSTATUS_UNIFORM_TYPE_MISMATCH             =   -1022,
+    gcvSTATUS_TOO_MANY_SAMPLER                  =   -1023,
 
     /* Compiler errors. */
     gcvSTATUS_COMPILER_FE_PREPROCESSOR_ERROR    =   -2000,

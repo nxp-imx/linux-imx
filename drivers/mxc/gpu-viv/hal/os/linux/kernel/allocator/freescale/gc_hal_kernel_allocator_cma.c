@@ -30,6 +30,8 @@
 #include <linux/slab.h>
 #include <linux/dma-mapping.h>
 
+#define _GC_OBJ_ZONE    gcvZONE_OS
+
 typedef struct _gcsCMA_PRIV * gcsCMA_PRIV_PTR;
 typedef struct _gcsCMA_PRIV {
     gctUINT32 cmasize;

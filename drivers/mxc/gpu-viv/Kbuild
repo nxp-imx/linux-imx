@@ -63,6 +63,10 @@ OBJS := $(OS_KERNEL_DIR)/gc_hal_kernel_device.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_debugfs.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_allocator.o \
 
+ifneq ($(CONFIG_IOMMU_SUPPORT),)
+OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_iommu.o
+endif
+
 ifneq ($(PLATFORM),)
 OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_probe.o
 OBJS += $(OS_KERNEL_DIR)/platform/$(PLATFORM).o
@@ -83,6 +87,10 @@ OBJS += $(HAL_KERNEL_DIR)/gc_hal_kernel.o \
 OBJS += $(ARCH_KERNEL_DIR)/gc_hal_kernel_context.o \
         $(ARCH_KERNEL_DIR)/gc_hal_kernel_hardware.o
 
+ifeq ($(VIVANTE_ENABLE_3D), 1)
+OBJS += $(ARCH_KERNEL_DIR)/gc_hal_kernel_recorder.o
+endif
+
 ifeq ($(VIVANTE_ENABLE_VG), 1)
 OBJS +=\
           $(HAL_KERNEL_DIR)/gc_hal_kernel_vg.o\
@@ -97,10 +105,6 @@ ifneq ($(CONFIG_SYNC),)
 EXTRA_CFLAGS += -Idrivers/staging/android
 
 OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_sync.o
-endif
-
-ifneq ($(CONFIG_ANDROID),)
-EXTRA_CFLAGS += -DANDROID
 endif
 
 ifeq ($(SECURITY), 1)

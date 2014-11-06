@@ -22,7 +22,7 @@
 #include <gc_hal.h>
 #include <gc_hal_base.h>
 
-#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
+#if gcdANDROID_NATIVE_FENCE_SYNC
 
 #include <linux/kernel.h>
 #include <linux/file.h>

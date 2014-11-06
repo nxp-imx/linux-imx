@@ -34,7 +34,11 @@
 #endif
 #include <linux/delay.h>
 
-#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
+#include <linux/anon_inodes.h>
+#endif
+
+#if gcdANDROID_NATIVE_FENCE_SYNC
 #include <linux/file.h>
 #include "gc_hal_kernel_sync.h"
 #endif
@@ -651,7 +655,7 @@ gckOS_Construct(
     /* Initialize signal id database. */
     idr_init(&os->signalDB.idr);
 
-#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
+#if gcdANDROID_NATIVE_FENCE_SYNC
     /*
      * Initialize the sync point manager.
      */
@@ -693,8 +697,22 @@ gckOS_Construct(
 
     gckOS_ImportAllocators(os);
 
-    /* Construct a video memory mutex. */
-    gcmkONERROR(gckOS_CreateMutex(os, &os->vidmemMutex));
+#ifdef CONFIG_IOMMU_SUPPORT
+    if (((gckGALDEVICE)(os->device))->mmu == gcvFALSE)
+    {
+        /* Only use IOMMU when internal MMU is not enabled. */
+        status = gckIOMMU_Construct(os, &os->iommu);
+
+        if (gcmIS_ERROR(status))
+        {
+            gcmkTRACE_ZONE(
+                gcvLEVEL_INFO, gcvZONE_OS,
+                "%s(%d): Fail to setup IOMMU",
+                __FUNCTION__, __LINE__
+                );
+        }
+    }
+#endif
 
     /* Return pointer to the gckOS object. */
     *Os = os;
@@ -705,7 +723,7 @@ gckOS_Construct(
 
 OnError:
 
-#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
+#if gcdANDROID_NATIVE_FENCE_SYNC
     if (os->syncPointMutex != gcvNULL)
     {
         gcmkVERIFY_OK(
@@ -781,7 +799,7 @@ gckOS_Destroy(
         Os->paddingPage = gcvNULL;
     }
 
-#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
+#if gcdANDROID_NATIVE_FENCE_SYNC
     /*
      * Destroy the sync point manager.
      */
@@ -804,9 +822,6 @@ gckOS_Destroy(
     /* Destroy debug lock mutex. */
     gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Os->debugLock));
 
-    /* Destroy video memory mutex. */
-    gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Os->vidmemMutex));
-
     /* Wait for all works done. */
     flush_workqueue(Os->workqueue);
 
@@ -814,6 +829,13 @@ gckOS_Destroy(
     destroy_workqueue(Os->workqueue);
 
     gckOS_FreeAllocators(Os);
+
+#ifdef CONFIG_IOMMU_SUPPORT
+    if (Os->iommu)
+    {
+        gckIOMMU_Destory(Os, Os->iommu);
+    }
+#endif
 
     /* Flush the debug cache. */
     gcmkDEBUGFLUSH(~0U);
@@ -3927,9 +3949,7 @@ gckOS_MapPages(
                             gcvCORE_MAJOR,
                             Physical,
                             PageCount,
-#if gcdPROCESS_ADDRESS_SPACE
                             0,
-#endif
                             PageTable);
 }
 
@@ -3939,9 +3959,7 @@ gckOS_MapPagesEx(
     IN gceCORE Core,
     IN gctPHYS_ADDR Physical,
     IN gctSIZE_T PageCount,
-#if gcdPROCESS_ADDRESS_SPACE
     IN gctUINT32 Address,
-#endif
     IN gctPOINTER PageTable
     )
 {
@@ -4027,35 +4045,54 @@ gckOS_MapPagesEx(
 
         gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(Os, phys, &phys));
 
-#if gcdENABLE_VG
-        if (Core == gcvCORE_VG)
+#ifdef CONFIG_IOMMU_SUPPORT
+        if (Os->iommu)
         {
-            for (i = 0; i < (PAGE_SIZE / 4096); i++)
-            {
-                gcmkONERROR(
-                    gckVGMMU_SetPage(Os->device->kernels[Core]->vg->mmu,
-                        phys + (i * 4096),
-                        table++));
-            }
+            gcmkTRACE_ZONE(
+                gcvLEVEL_INFO, gcvZONE_OS,
+                "%s(%d): Setup mapping in IOMMU %x => %x",
+                __FUNCTION__, __LINE__,
+                Address + (offset * PAGE_SIZE), phys
+                );
+
+            /* When use IOMMU, GPU use system PAGE_SIZE. */
+            gcmkONERROR(gckIOMMU_Map(
+                Os->iommu, Address + (offset * PAGE_SIZE), phys, PAGE_SIZE));
         }
         else
 #endif
         {
-            for (i = 0; i < (PAGE_SIZE / 4096); i++)
+
+#if gcdENABLE_VG
+            if (Core == gcvCORE_VG)
             {
-#if gcdPROCESS_ADDRESS_SPACE
-                gctUINT32_PTR pageTableEntry;
-                gckMMU_GetPageEntry(mmu, Address + (offset * 4096), &pageTableEntry);
-                gcmkONERROR(
-                    gckMMU_SetPage(mmu,
-                        phys + (i * 4096),
-                        pageTableEntry));
-#else
-                gcmkONERROR(
-                    gckMMU_SetPage(Os->device->kernels[Core]->mmu,
-                        phys + (i * 4096),
-                        table++));
+                for (i = 0; i < (PAGE_SIZE / 4096); i++)
+                {
+                    gcmkONERROR(
+                        gckVGMMU_SetPage(Os->device->kernels[Core]->vg->mmu,
+                            phys + (i * 4096),
+                            table++));
+                }
+            }
+            else
 #endif
+            {
+                for (i = 0; i < (PAGE_SIZE / 4096); i++)
+                {
+#if gcdPROCESS_ADDRESS_SPACE
+                    gctUINT32_PTR pageTableEntry;
+                    gckMMU_GetPageEntry(mmu, Address + (offset * 4096), &pageTableEntry);
+                    gcmkONERROR(
+                        gckMMU_SetPage(mmu,
+                            phys + (i * 4096),
+                            pageTableEntry));
+#else
+                    gcmkONERROR(
+                        gckMMU_SetPage(Os->device->kernels[Core]->mmu,
+                            phys + (i * 4096),
+                            table++));
+#endif
+                }
             }
         }
 
@@ -4083,6 +4120,24 @@ OnError:
     /* Return the status. */
     gcmkFOOTER();
     return status;
+}
+
+gceSTATUS
+gckOS_UnmapPages(
+    IN gckOS Os,
+    IN gctSIZE_T PageCount,
+    IN gctUINT32 Address
+    )
+{
+#ifdef CONFIG_IOMMU_SUPPORT
+    if (Os->iommu)
+    {
+        gcmkVERIFY_OK(gckIOMMU_Unmap(
+            Os->iommu, Address, PageCount * PAGE_SIZE));
+    }
+#endif
+
+    return gcvSTATUS_OK;
 }
 
 /*******************************************************************************
@@ -5127,31 +5182,49 @@ OnError:
 #endif
             phys = page_to_phys(pages[i]);
 
-#if gcdENABLE_VG
-            if (Core == gcvCORE_VG)
+#ifdef CONFIG_IOMMU_SUPPORT
+            if (Os->iommu)
             {
-                gcmkVERIFY_OK(
-                    gckOS_CPUPhysicalToGPUPhysical(Os, phys, &phys));
+                gcmkTRACE_ZONE(
+                    gcvLEVEL_INFO, gcvZONE_OS,
+                    "%s(%d): Setup mapping in IOMMU %x => %x",
+                    __FUNCTION__, __LINE__,
+                    Address + (i * PAGE_SIZE), phys
+                    );
 
-                /* Get the physical address from page struct. */
-                gcmkONERROR(
-                    gckVGMMU_SetPage(Os->device->kernels[Core]->vg->mmu,
-                                   phys,
-                                   tab));
+                gcmkONERROR(gckIOMMU_Map(
+                    Os->iommu, address + i * PAGE_SIZE, phys, PAGE_SIZE));
             }
             else
 #endif
             {
-                /* Get the physical address from page struct. */
-                gcmkONERROR(
-                    gckMMU_SetPage(Os->device->kernels[Core]->mmu,
-                                   phys,
-                                   tab));
-            }
 
-            for (j = 1; j < (PAGE_SIZE/4096); j++)
-            {
-                pageTable[i * (PAGE_SIZE/4096) + j] = pageTable[i * (PAGE_SIZE/4096)] + 4096 * j;
+#if gcdENABLE_VG
+                if (Core == gcvCORE_VG)
+                {
+                    gcmkVERIFY_OK(
+                        gckOS_CPUPhysicalToGPUPhysical(Os, phys, &phys));
+
+                    /* Get the physical address from page struct. */
+                    gcmkONERROR(
+                        gckVGMMU_SetPage(Os->device->kernels[Core]->vg->mmu,
+                                       phys,
+                                       tab));
+                }
+                else
+#endif
+                {
+                    /* Get the physical address from page struct. */
+                    gcmkONERROR(
+                        gckMMU_SetPage(Os->device->kernels[Core]->mmu,
+                                       phys,
+                                       tab));
+                }
+
+                for (j = 1; j < (PAGE_SIZE/4096); j++)
+                {
+                    pageTable[i * (PAGE_SIZE/4096) + j] = pageTable[i * (PAGE_SIZE/4096)] + 4096 * j;
+                }
             }
 
 #if !gcdPROCESS_ADDRESS_SPACE
@@ -5443,6 +5516,12 @@ OnError:
                                           pageCount * (PAGE_SIZE/4096)
                                           ));
 #endif
+
+            gcmkERR_BREAK(gckOS_UnmapPages(
+                Os,
+                pageCount * (PAGE_SIZE/4096),
+                info->address
+                ));
         }
 #endif
 
@@ -8097,7 +8176,7 @@ gckOS_DetectProcessByName(
                               : gcvSTATUS_FALSE;
 }
 
-#if gcdANDROID_NATIVE_FENCE_SYNC && defined(ANDROID)
+#if gcdANDROID_NATIVE_FENCE_SYNC
 
 gceSTATUS
 gckOS_CreateSyncPoint(
@@ -8254,8 +8333,8 @@ gckOS_SignalSyncPoint(
 
     gcmkASSERT(syncPoint->id == (gctUINT32)(gctUINTPTR_T)SyncPoint);
 
-    /* Get state. */
-    atomic_set(&syncPoint->state, gcvTRUE);
+    /* Set signaled state. */
+    atomic_set(&syncPoint->state, 1);
 
     /* Get parent timeline. */
     timeline = syncPoint->timeline;
@@ -8584,15 +8663,75 @@ gckOS_PhysicalToPhysicalAddress(
 }
 
 gceSTATUS
-gckOS_GetVideoMemoryMutex(
+gckOS_QueryOption(
     IN gckOS Os,
-    OUT gctPOINTER *Mutex
+    IN gctCONST_STRING Option,
+    OUT gctUINT32 * Value
     )
 {
-    gcmkHEADER_ARG("Mutex=x%X", Mutex);
+    gckGALDEVICE device = Os->device;
 
-    *Mutex = Os->vidmemMutex;
+    if (!strcmp(Option, "physBase"))
+    {
+        *Value = device->physBase;
+        return gcvSTATUS_OK;
+    }
+    else if (!strcmp(Option, "physSize"))
+    {
+        *Value = device->physSize;
+        return gcvSTATUS_OK;
+    }
+    else if (!strcmp(Option, "mmu"))
+    {
+#if gcdSECURITY
+        *Value = 0;
+#else
+        *Value = device->mmu;
+#endif
+        return gcvSTATUS_OK;
+    }
 
-    gcmkFOOTER_NO();
-    return gcvSTATUS_OK;
+    return gcvSTATUS_NOT_SUPPORTED;
 }
+
+static int
+fd_release(
+    struct inode *inode,
+    struct file *file
+    )
+{
+    gcsFDPRIVATE_PTR private = (gcsFDPRIVATE_PTR)file->private_data;
+
+    if (private && private->release)
+    {
+        return private->release(private);
+    }
+
+    return 0;
+}
+
+static const struct file_operations fd_fops = {
+    .release = fd_release,
+};
+
+gceSTATUS
+gckOS_GetFd(
+    IN gctSTRING Name,
+    IN gcsFDPRIVATE_PTR Private,
+    OUT gctINT *Fd
+    )
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
+    *Fd = anon_inode_getfd(Name, &fd_fops, Private, O_RDWR);
+
+    if (*Fd < 0)
+    {
+        return gcvSTATUS_OUT_OF_RESOURCES;
+    }
+
+    return gcvSTATUS_OK;
+#else
+    return gcvSTATUS_NOT_SUPPORTED;
+#endif
+}
+
