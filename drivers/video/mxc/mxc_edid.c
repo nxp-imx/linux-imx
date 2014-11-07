@@ -1,5 +1,5 @@
 /*
- * Copyright 2009-2013 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2009-2014 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -277,7 +277,7 @@ int mxc_edid_parse_ext_blk(unsigned char *edid,
 	int i, num = 0, revision;
 
 	if (edid[index++] != 0x2) /* only support cea ext block now */
-		return -1;
+		return 0;
 	revision = edid[index++];
 	DPRINTK("cea extent revision %d\n", revision);
 	mode = kzalloc(50 * sizeof(struct fb_videomode), GFP_KERNEL);
@@ -741,6 +741,10 @@ int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
 
 	if (extblknum) {
 		int i;
+
+		/* FIXME: mxc_edid_readsegblk() won't read more than 2 blocks
+		 * and the for-loop will read past the end of the buffer! :-( */
+		BUG_ON(extblknum > 3);
 
 		/* need read segment block? */
 		if (extblknum > 1) {
