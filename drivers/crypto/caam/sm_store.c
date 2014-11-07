@@ -1017,7 +1017,7 @@ int caam_sm_startup(struct platform_device *pdev)
 	 * provisioning application, so we have to assume that we "inherit"
 	 * a configuration and work within the constraints of what it might be.
 	 */
-	smpriv->smringdev = caam_jr_alloc();
+	smpriv->smringdev = &ctrlpriv->jrpdev[0]->dev;
 	jrpriv = dev_get_drvdata(smpriv->smringdev);
 	lpagect = 0;
 	lpagedesc = kzalloc(sizeof(struct sm_page_descriptor)
