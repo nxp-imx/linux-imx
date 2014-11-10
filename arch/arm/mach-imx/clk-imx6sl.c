@@ -10,6 +10,7 @@
 #include <linux/clk.h>
 #include <linux/clkdev.h>
 #include <linux/err.h>
+#include <linux/init.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
@@ -36,6 +37,7 @@
 #define BM_PLL_ARM_LOCK		(1 << 31)
 #define PLL_ARM_DIV_792M	66
 
+static bool uart_from_osc;
 static const char *step_sels[]		= { "osc", "pll2_pfd2", };
 static const char *pll1_sw_sels[]	= { "pll1_sys", "step", };
 static const char *ocram_alt_sels[]	= { "pll2_pfd2", "pll3_pfd1", };
@@ -58,7 +60,7 @@ static const char *lcdif_pix_sels[]	= { "pll2_bus", "pll3_usb_otg", "pll5_video_
 static const char *epdc_pix_sels[]	= { "pll2_bus", "pll3_usb_otg", "pll5_video_div", "pll2_pfd0", "pll2_pfd1", "pll3_pfd1", };
 static const char *audio_sels[]		= { "pll4_audio_div", "pll3_pfd2", "pll3_pfd3", "pll3_usb_otg", };
 static const char *ecspi_sels[]		= { "pll3_60m", "osc", };
-static const char *uart_sels[]		= { "pll3_80m", "osc", };
+static const char *uart_sels[]		= { "pll3_80m", "uart_osc_4m", };
 static const char *lvds_sels[]		= {
 	"pll1_sys", "pll2_bus", "pll2_pfd0", "pll2_pfd1", "pll2_pfd2", "dummy", "pll4_audio", "pll5_video",
 	"dummy", "enet_ref", "dummy", "dummy", "pll3_usb_otg", "pll7_usb_host", "pll3_pfd0", "pll3_pfd1",
@@ -187,6 +189,13 @@ void imx6sl_set_wait_clk(bool enter)
 		imx6sl_enable_pll_arm(false);
 }
 
+static int __init setup_uart_clk(char *uart_rate)
+{
+	uart_from_osc = true;
+	return 1;
+}
+__setup("uart_at_4M", setup_uart_clk);
+
 static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 {
 	struct device_node *np;
@@ -283,6 +292,7 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SL_CLK_PLL3_120M] = imx_clk_fixed_factor("pll3_120m", "pll3_usb_otg",   1, 4);
 	clks[IMX6SL_CLK_PLL3_80M]  = imx_clk_fixed_factor("pll3_80m",  "pll3_usb_otg",   1, 6);
 	clks[IMX6SL_CLK_PLL3_60M]  = imx_clk_fixed_factor("pll3_60m",  "pll3_usb_otg",   1, 8);
+	clks[IMX6SL_CLK_UART_OSC_4M]  = imx_clk_fixed_factor("uart_osc_4m",  "osc",   1, 6);
 
 	np = ccm_node;
 	base = of_iomap(np, 0);
@@ -446,6 +456,9 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	imx_clk_set_parent(clks[IMX6SL_CLK_LCDIF_PIX_SEL],
 			clks[IMX6SL_CLK_PLL5_VIDEO_DIV]);
 
+	/* Set the UART parent if needed */
+	if (uart_from_osc)
+		imx_clk_set_parent(clks[IMX6SL_CLK_UART_SEL], clks[IMX6SL_CLK_UART_OSC_4M]);
 	/*
 	 * Enable clocks only after both parent and rate are all initialized
 	 * as needed
