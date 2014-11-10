@@ -26,6 +26,7 @@
 
 #define GPC_CNTR		0x000
 #define GPC_IMR1		0x008
+#define GPC_PGC_MF_PDN		0x220
 #define GPC_PGC_GPU_PDN		0x260
 #define GPC_PGC_GPU_PUPSCR	0x264
 #define GPC_PGC_GPU_PDNSCR	0x268
@@ -46,9 +47,23 @@ struct pu_domain {
 };
 
 static void __iomem *gpc_base;
+static u32 gpc_mf_irqs[IMR_NUM];
 static u32 gpc_wake_irqs[IMR_NUM];
 static u32 gpc_saved_imrs[IMR_NUM];
 static u32 bypass;
+
+static void imx_gpc_mf_mix_off(void)
+{
+	int i;
+
+	for (i = 0; i < IMR_NUM; i++)
+		if ((gpc_wake_irqs[i] & gpc_mf_irqs[i]) != 0)
+			return;
+
+	pr_info("Turn off M/F mix!\n");
+	/* turn off mega/fast mix */
+	writel_relaxed(0x1, gpc_base + GPC_PGC_MF_PDN);
+}
 
 void imx_gpc_pre_suspend(bool arm_power_off)
 {
@@ -56,6 +71,9 @@ void imx_gpc_pre_suspend(bool arm_power_off)
 	int i;
 
 	/* Tell GPC to power off ARM core when suspend */
+	if (cpu_is_imx6sx() && arm_power_off)
+		imx_gpc_mf_mix_off();
+
 	if (arm_power_off)
 		writel_relaxed(0x1, gpc_base + GPC_PGC_CPU_PDN);
 
@@ -72,6 +90,9 @@ void imx_gpc_post_resume(void)
 
 	/* Keep ARM core powered on for other low-power modes */
 	writel_relaxed(0x0, gpc_base + GPC_PGC_CPU_PDN);
+	/* Keep M/F mix powered on for other low-power modes */
+	if (cpu_is_imx6sx())
+		writel_relaxed(0x0, gpc_base + GPC_PGC_MF_PDN);
 
 	for (i = 0; i < IMR_NUM; i++)
 		writel_relaxed(gpc_saved_imrs[i], reg_imr1 + i * 4);
@@ -156,6 +177,21 @@ void __init imx_gpc_init(void)
 	/* Initially mask all interrupts */
 	for (i = 0; i < IMR_NUM; i++)
 		writel_relaxed(~0, gpc_base + GPC_IMR1 + i * 4);
+
+	/* Read supported wakeup source in M/F domain */
+	if (cpu_is_imx6sx()) {
+		of_property_read_u32_index(np, "fsl,mf-mix-wakeup-irq", 0,
+			&gpc_mf_irqs[0]);
+		of_property_read_u32_index(np, "fsl,mf-mix-wakeup-irq", 1,
+			&gpc_mf_irqs[1]);
+		of_property_read_u32_index(np, "fsl,mf-mix-wakeup-irq", 2,
+			&gpc_mf_irqs[2]);
+		of_property_read_u32_index(np, "fsl,mf-mix-wakeup-irq", 3,
+			&gpc_mf_irqs[3]);
+		if (!(gpc_mf_irqs[0] | gpc_mf_irqs[1] |
+			gpc_mf_irqs[2] | gpc_mf_irqs[3]))
+			pr_info("No wakeup source in Mega/Fast domain found!\n");
+	}
 
 	/* Register GPC as the secondary interrupt controller behind GIC */
 	gic_arch_extn.irq_mask = imx_gpc_irq_mask;

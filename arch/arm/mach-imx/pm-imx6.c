@@ -65,6 +65,7 @@
 
 #define MX6Q_SUSPEND_OCRAM_SIZE		0x1000
 #define MX6_MAX_MMDC_IO_NUM		33
+#define MX6_MAX_MMDC_NUM		34
 
 #define ROMC_ROMPATCH0D		0xf0
 #define ROMC_ROMPATCHCNTL		0xf4
@@ -109,6 +110,8 @@ struct imx6_pm_socdata {
 	const char *gpc_compat;
 	const u32 mmdc_io_num;
 	const u32 *mmdc_io_offset;
+	const u32 mmdc_num;
+	const u32 *mmdc_offset;
 };
 
 static const u32 imx6q_mmdc_io_offset[] __initconst = {
@@ -151,6 +154,16 @@ static const u32 imx6sx_mmdc_io_offset[] __initconst = {
 	0x330, 0x334, 0x338, 0x33c, /* SDQS0 ~ SDQS3 */
 };
 
+static const u32 imx6sx_mmdc_offset[] __initconst = {
+	0x800, 0x80c, 0x810, 0x83c,
+	0x840, 0x848, 0x850, 0x81c,
+	0x820, 0x824, 0x828, 0x8b8,
+	0x004, 0x008, 0x00c, 0x010,
+	0x014, 0x018, 0x01c, 0x02c,
+	0x030, 0x040, 0x000, 0x01c,
+	0x020, 0x818, 0x01c,
+};
+
 static const struct imx6_pm_socdata imx6q_pm_data __initconst = {
 	.mmdc_compat = "fsl,imx6q-mmdc",
 	.src_compat = "fsl,imx6q-src",
@@ -158,6 +171,8 @@ static const struct imx6_pm_socdata imx6q_pm_data __initconst = {
 	.gpc_compat = "fsl,imx6q-gpc",
 	.mmdc_io_num = ARRAY_SIZE(imx6q_mmdc_io_offset),
 	.mmdc_io_offset = imx6q_mmdc_io_offset,
+	.mmdc_num = 0,
+	.mmdc_offset = NULL,
 };
 
 static const struct imx6_pm_socdata imx6dl_pm_data __initconst = {
@@ -167,6 +182,8 @@ static const struct imx6_pm_socdata imx6dl_pm_data __initconst = {
 	.gpc_compat = "fsl,imx6q-gpc",
 	.mmdc_io_num = ARRAY_SIZE(imx6dl_mmdc_io_offset),
 	.mmdc_io_offset = imx6dl_mmdc_io_offset,
+	.mmdc_num = 0,
+	.mmdc_offset = NULL,
 };
 
 static const struct imx6_pm_socdata imx6sl_pm_data __initconst = {
@@ -176,6 +193,8 @@ static const struct imx6_pm_socdata imx6sl_pm_data __initconst = {
 	.gpc_compat = "fsl,imx6sl-gpc",
 	.mmdc_io_num = ARRAY_SIZE(imx6sl_mmdc_io_offset),
 	.mmdc_io_offset = imx6sl_mmdc_io_offset,
+	.mmdc_num = 0,
+	.mmdc_offset = NULL,
 };
 
 static const struct imx6_pm_socdata imx6sx_pm_data __initconst = {
@@ -185,6 +204,8 @@ static const struct imx6_pm_socdata imx6sx_pm_data __initconst = {
 	.gpc_compat = "fsl,imx6sx-gpc",
 	.mmdc_io_num = ARRAY_SIZE(imx6sx_mmdc_io_offset),
 	.mmdc_io_offset = imx6sx_mmdc_io_offset,
+	.mmdc_num = ARRAY_SIZE(imx6sx_mmdc_offset),
+	.mmdc_offset = imx6sx_mmdc_offset,
 };
 
 /*
@@ -209,6 +230,8 @@ struct imx6_cpu_pm_info {
 	u32 ttbr1; /* Store TTBR1 */
 	u32 mmdc_io_num; /* Number of MMDC IOs which need saved/restored. */
 	u32 mmdc_io_val[MX6_MAX_MMDC_IO_NUM][2]; /* To save offset and value */
+	u32 mmdc_num; /* Number of MMDC registers which need saved/restored. */
+	u32 mmdc_val[MX6_MAX_MMDC_NUM][2]; /* To save offset and value */
 } __aligned(8);
 
 unsigned long save_ttbr1(void)
@@ -571,6 +594,7 @@ static int __init imx6q_suspend_init(const struct imx6_pm_socdata *socdata)
 	struct device_node *node;
 	struct imx6_cpu_pm_info *pm_info;
 	int i, ret = 0;
+	const u32 *mmdc_io_offset_array;
 	const u32 *mmdc_offset_array;
 	unsigned long iram_paddr;
 
@@ -637,14 +661,32 @@ static int __init imx6q_suspend_init(const struct imx6_pm_socdata *socdata)
 
 	pm_info->ddr_type = imx_mmdc_get_ddr_type();
 	pm_info->mmdc_io_num = socdata->mmdc_io_num;
-	mmdc_offset_array = socdata->mmdc_io_offset;
+	mmdc_io_offset_array = socdata->mmdc_io_offset;
+	pm_info->mmdc_num = socdata->mmdc_num;
+	mmdc_offset_array = socdata->mmdc_offset;
 
+	/* initialize MMDC IO settings */
 	for (i = 0; i < pm_info->mmdc_io_num; i++) {
 		pm_info->mmdc_io_val[i][0] =
-			mmdc_offset_array[i];
+			mmdc_io_offset_array[i];
 		pm_info->mmdc_io_val[i][1] =
 			readl_relaxed(pm_info->iomuxc_base.vbase +
+			mmdc_io_offset_array[i]);
+	}
+	/* initialize MMDC settings */
+	for (i = 0; i < pm_info->mmdc_num; i++) {
+		pm_info->mmdc_val[i][0] =
+			mmdc_offset_array[i];
+		pm_info->mmdc_val[i][1] =
+			readl_relaxed(pm_info->mmdc_base.vbase +
 			mmdc_offset_array[i]);
+	}
+
+	/* need to overwrite the value for some mmdc registers */
+	if (cpu_is_imx6sx()) {
+		pm_info->mmdc_val[20][1] = (pm_info->mmdc_val[20][1]
+			& 0xffff0000) | 0x0202;
+		pm_info->mmdc_val[23][1] = 0x8033;
 	}
 
 	imx6_suspend_in_ocram_fn = fncpy(
