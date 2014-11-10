@@ -21,18 +21,6 @@
 		default-brightness-level = <6>;
 	};
 
-	csi1_v4l2_cap {
-		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
-		csi_id = <0>;
-		status = "okay";
-	};
-
-	csi2_v4l2_cap {
-		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
-		csi_id = <1>;
-		status = "okay";
-	};
-
 	hannstar_cabc {
 		compatible = "hannstar,cabc";
 
@@ -104,10 +92,21 @@
 
 &csi1 {
 	status = "okay";
+
+	port {
+		csi1_ep: endpoint {
+			remote-endpoint = <&ov564x_ep>;
+		};
+	};
 };
 
 &csi2 {
 	status = "okay";
+	port {
+		csi2_ep: endpoint {
+			remote-endpoint = <&vadc_ep>;
+		};
+	};
 };
 
 &fec1 {
@@ -286,6 +285,11 @@
 		mclk = <24000000>;
 		mclk_source = <0>;
 		status = "disabled";
+		port {
+			ov564x_ep: endpoint {
+				remote-endpoint = <&csi1_ep>;
+			};
+		};
 	};
 };
 
@@ -517,6 +521,11 @@
 	vadc_in = <0>;
 	csi_id = <1>;
 	status = "okay";
+	port {
+		vadc_ep: endpoint {
+			remote-endpoint = <&csi2_ep>;
+		};
+	};
 };
 
 &iomuxc {
