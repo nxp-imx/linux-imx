@@ -1558,71 +1558,72 @@ gckKERNEL_QueryProcessDB(
     Type &= gcdDATABASE_TYPE_MASK;
 
     /* Find the database. */
-    gcmkONERROR(
-        gckKERNEL_FindDatabase(Kernel, ProcessID, LastProcessID, &database));
-
-
-    gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, database->counterMutex, gcvINFINITE));
-
-    /* Get pointer to counters. */
-    switch (Type)
+    if(Type != gcvDB_IDLE)
     {
-    case gcvDB_VIDEO_MEMORY:
-        if (vidMemPool != gcvPOOL_UNKNOWN)
+        gcmkONERROR(
+            gckKERNEL_FindDatabase(Kernel, ProcessID, LastProcessID, &database));
+
+        gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, database->counterMutex, gcvINFINITE));
+
+        /* Get pointer to counters. */
+        switch (Type)
         {
+        case gcvDB_VIDEO_MEMORY:
+            if (vidMemPool != gcvPOOL_UNKNOWN)
+            {
+                gckOS_MemCopy(&Info->counters,
+                              &database->vidMemPool[vidMemPool],
+                              gcmSIZEOF(database->vidMemPool[vidMemPool]));
+            }
+            else
+            {
+                gckOS_MemCopy(&Info->counters,
+                              &database->vidMem,
+                              gcmSIZEOF(database->vidMem));
+            }
+            break;
+
+        case gcvDB_NON_PAGED:
             gckOS_MemCopy(&Info->counters,
-                          &database->vidMemPool[vidMemPool],
-                          gcmSIZEOF(database->vidMemPool[vidMemPool]));
-        }
-        else
-        {
+                                      &database->nonPaged,
+                                      gcmSIZEOF(database->vidMem));
+            break;
+
+        case gcvDB_CONTIGUOUS:
             gckOS_MemCopy(&Info->counters,
-                          &database->vidMem,
-                          gcmSIZEOF(database->vidMem));
+                                      &database->contiguous,
+                                      gcmSIZEOF(database->vidMem));
+            break;
+
+        case gcvDB_MAP_MEMORY:
+            gckOS_MemCopy(&Info->counters,
+                                      &database->mapMemory,
+                                      gcmSIZEOF(database->mapMemory));
+            break;
+
+        case gcvDB_MAP_USER_MEMORY:
+            gckOS_MemCopy(&Info->counters,
+                                      &database->mapUserMemory,
+                                      gcmSIZEOF(database->mapUserMemory));
+            break;
+
+        case gcvDB_COMMAND_BUFFER:
+            gckOS_MemCopy(&Info->counters,
+                                      &database->virtualCommandBuffer,
+                                      gcmSIZEOF(database->virtualCommandBuffer));
+            break;
+
+        default:
+            break;
         }
-        break;
 
-    case gcvDB_NON_PAGED:
-        gckOS_MemCopy(&Info->counters,
-                                  &database->nonPaged,
-                                  gcmSIZEOF(database->vidMem));
-        break;
-
-    case gcvDB_CONTIGUOUS:
-        gckOS_MemCopy(&Info->counters,
-                                  &database->contiguous,
-                                  gcmSIZEOF(database->vidMem));
-        break;
-
-    case gcvDB_IDLE:
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, database->counterMutex));
+    }
+    else
+    {
         Info->time           = Kernel->db->idleTime;
         Kernel->db->idleTime = 0;
-        break;
-
-    case gcvDB_MAP_MEMORY:
-        gckOS_MemCopy(&Info->counters,
-                                  &database->mapMemory,
-                                  gcmSIZEOF(database->mapMemory));
-        break;
-
-    case gcvDB_MAP_USER_MEMORY:
-        gckOS_MemCopy(&Info->counters,
-                                  &database->mapUserMemory,
-                                  gcmSIZEOF(database->mapUserMemory));
-        break;
-
-    case gcvDB_COMMAND_BUFFER:
-        gckOS_MemCopy(&Info->counters,
-                                  &database->virtualCommandBuffer,
-                                  gcmSIZEOF(database->virtualCommandBuffer));
-        break;
-
-    default:
-        break;
     }
-
-    gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, database->counterMutex));
-
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;

@@ -365,11 +365,26 @@ gc_version_show(struct seq_file *m, void *data)
     return 0 ;
 }
 
+int gc_idle_show(struct seq_file* m, void* data)
+{
+    gcsINFO_NODE *node = m->private;
+    gckGALDEVICE device = node->device;
+    gckKERNEL kernel = _GetValidKernel(device);
+    gcuDATABASE_INFO info;
+
+    gckKERNEL_QueryProcessDB(kernel, 0, gcvFALSE, gcvDB_IDLE, &info);
+
+    seq_printf(m, "GPU idle time since last query: %llu ns\n", info.time);
+
+    return 0;
+}
+
 static gcsINFO InfoList[] =
 {
     {"info", gc_info_show},
     {"clients", gc_clients_show},
     {"meminfo", gc_meminfo_show},
+    {"idle", gc_idle_show},
     {"database", gc_db_show},
     {"version", gc_version_show},
 };
