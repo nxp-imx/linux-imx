@@ -228,6 +228,11 @@ static void ci_otg_add_timer(struct ci_hdrc *ci, enum ci_otg_fsm_timer_index t)
 	if (t >= NUM_CI_OTG_FSM_TIMERS)
 		return;
 
+	if (!timer) {
+		dev_warn(ci->dev, "Unused otg timer, index:%d\n", t);
+		return;
+	}
+
 	/*
 	 * Check if the timer is already in the active list,
 	 * if so update timer count
