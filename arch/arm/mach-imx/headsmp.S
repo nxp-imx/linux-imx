@@ -65,6 +65,10 @@ ENDPROC(v7_secondary_startup)
 	ldr	r0, [r2, #L2X0_R_PHY_BASE]	@ get physical base of l2x0
 	ldr	r1, [r2, #L2X0_R_AUX_CTRL]	@ get aux_ctrl value
 	str	r1, [r0, #L2X0_AUX_CTRL]	@ restore aux_ctrl
+	ldr	r1, [r2, #L2X0_R_TAG_LATENCY]		@ get tag latency value
+	str	r1, [r0, #L2X0_TAG_LATENCY_CTRL]	@ restore tag latency
+	ldr	r1, [r2, #L2X0_R_DATA_LATENCY]		@ get data latency value
+	str	r1, [r0, #L2X0_DATA_LATENCY_CTRL]	@ restore data latency
 	mov	r1, #0x1
 	str	r1, [r0, #L2X0_CTRL]		@ re-enable L2
 	.endm
