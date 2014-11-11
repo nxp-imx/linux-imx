@@ -15,6 +15,11 @@
 	};
 };
 
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog>;
+};
+
 /*
  * The flollowing modules are conflicting with M4, disable them when m4
  * is running.
