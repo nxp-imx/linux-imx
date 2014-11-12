@@ -87,6 +87,10 @@ static ssize_t imx_mcc_can_test_en(struct device *dev,
 					&mcc_endpoint_a9_can, &msg,
 					sizeof(struct mcc_can_msg),
 					&num_of_received_bytes, 0xffffffff);
+			if (ret < 0) {
+				pr_err("A9 Main task recv error: %d\n", ret);
+				break;
+			}
 			pr_info("%s", msg.data);
 		}
 
@@ -147,6 +151,10 @@ static ssize_t imx_mcc_pingpong_en(struct device *dev,
 					&mcc_endpoint_m4_pingpong, &msg,
 					sizeof(struct mcc_pp_msg),
 					0xffffffff);
+			if (ret < 0) {
+				pr_err("A9 Main task send error: %d\n", ret);
+				break;
+			}
 
 			if (pingpong_en > 1) {
 				do_gettimeofday(&tv2);
@@ -184,6 +192,7 @@ static ssize_t imx_mcc_pingpong_en(struct device *dev,
 
 			if (MCC_SUCCESS != ret) {
 				pr_err("A9 Main task receive error: %d\n", ret);
+				break;
 			} else {
 				pr_info("%08x Main task received a msg"
 					" from [%d, %d, %d] endpoint\n", i,
