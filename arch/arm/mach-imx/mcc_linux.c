@@ -308,13 +308,18 @@ int mcc_register_cpu_to_cpu_isr(void)
  */
 int mcc_generate_cpu_to_cpu_interrupt(void)
 {
+	int ret;
+
 	/*
 	 * Assert directed CPU interrupts for all processors except
 	 * the requesting core
 	 */
-	mcc_triger_cpu_to_cpu_interrupt();
+	ret = mcc_triger_cpu_to_cpu_interrupt();
 
-	return MCC_SUCCESS;
+	if (ret == 0)
+		return MCC_SUCCESS;
+	else
+		return ret;
 }
 
 /*!

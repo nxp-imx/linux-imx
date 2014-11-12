@@ -143,7 +143,7 @@ void mcc_clear_cpu_to_cpu_interrupt(unsigned int core)
  *
  * Platform-specific software triggering the inter-CPU interrupts.
  */
-void mcc_triger_cpu_to_cpu_interrupt(void)
+int mcc_triger_cpu_to_cpu_interrupt(void)
 {
 	int i = 0;
 	u32 val;
@@ -157,11 +157,14 @@ void mcc_triger_cpu_to_cpu_interrupt(void)
 		} while (((val & BIT(19)) > 0) && (i++ < 100));
 	}
 
-	if ((val & BIT(19)) == 0)
+	if ((val & BIT(19)) == 0) {
 		/* Enable the bit19(GIR3) of MU_ACR */
 		regmap_update_bits(imx_mu_reg, MU_ACR, BIT(19), BIT(19));
-	else
+		return 0;
+	} else {
 		pr_info("mcc int still be triggered after %d ms polling!\n", i);
+		return -EIO;
+	}
 }
 
 /*!

@@ -52,7 +52,7 @@ unsigned int _psp_node_num(void);
 
 unsigned int mcc_get_cpu_to_cpu_vector(unsigned int);
 void mcc_clear_cpu_to_cpu_interrupt(unsigned int);
-void mcc_triger_cpu_to_cpu_interrupt(void);
+int mcc_triger_cpu_to_cpu_interrupt(void);
 unsigned int mcc_get_mu_irq(void);
 unsigned int mcc_handle_mu_receive_irq(void);
 void mcc_handle_mu_send_irq(void);
