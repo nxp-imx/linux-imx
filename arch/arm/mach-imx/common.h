@@ -1,5 +1,5 @@
 /*
- * Copyright 2004-2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2004-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -197,5 +197,5 @@ static inline void imx_init_l2cache(void) {}
 #endif
 
 extern struct smp_operations imx_smp_ops;
-
+extern void imx6sl_low_power_wfi(void __iomem *base);
 #endif
