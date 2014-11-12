@@ -597,6 +597,8 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	/* Set the UART parent if needed. */
 	if (uart_from_osc)
 		imx_clk_set_parent(clks[IMX6SX_CLK_UART_SEL], clks[IMX6SX_CLK_OSC]);
+	else
+		imx_clk_set_parent(clks[IMX6SX_CLK_UART_SEL], clks[IMX6SX_CLK_PLL3_80M]);
 
 	/* Set initial power mode */
 	imx6_set_lpm(WAIT_CLOCKED);
