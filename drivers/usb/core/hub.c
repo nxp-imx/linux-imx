@@ -2183,6 +2183,15 @@ static int usb_enumerate_device_otg(struct usb_device *udev)
 			&& udev->parent == udev->bus->root_hub) {
 		struct usb_otg_descriptor	*desc = NULL;
 		struct usb_bus			*bus = udev->bus;
+		struct usb_hcd			*hcd = bus_to_hcd(bus);
+		struct otg_fsm			*fsm = NULL;
+
+		/* Clear otg fsm hnp flags firstly */
+		if (hcd->phy->otg && hcd->phy->otg->fsm) {
+			fsm = hcd->phy->otg->fsm;
+			fsm->b_hnp_enable = 0;
+			fsm->a_set_b_hnp_en = 0;
+		}
 
 		/* descriptor may appear anywhere in config */
 		if (__usb_get_extra_descriptor (udev->rawdescriptors[0],
@@ -2190,7 +2199,6 @@ static int usb_enumerate_device_otg(struct usb_device *udev)
 					USB_DT_OTG, (void **) &desc) == 0) {
 			if (desc->bmAttributes & USB_OTG_HNP) {
 				unsigned		port1 = udev->portnum;
-				struct usb_hcd *hcd = bus_to_hcd(bus);
 
 				dev_info(&udev->dev,
 					"Dual-Role OTG device on %sHNP port\n",
@@ -2217,10 +2225,7 @@ static int usb_enumerate_device_otg(struct usb_device *udev)
 					bus->b_hnp_enable = 0;
 				}
 
-				if (hcd->phy->otg && hcd->phy->otg->fsm) {
-					struct otg_fsm *fsm;
-
-					fsm = hcd->phy->otg->fsm;
+				if (fsm) {
 					if (port1 == bus->otg_port)
 						fsm->b_hnp_enable = 1;
 					if (bus->b_hnp_enable)
