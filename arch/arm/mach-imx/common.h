@@ -167,6 +167,7 @@ extern unsigned int imx_gpc_is_m4_sleeping(void);
 extern void imx_gpc_hold_m4_in_sleep(void);
 extern void imx_gpc_release_m4_in_sleep(void);
 extern void imx_gpc_add_m4_wake_up_irq(u32 irq, bool enable);
+extern void mcc_enable_m4_irqs_in_gic(bool enable);
 
 extern void imx_cpu_die(unsigned int cpu);
 extern int imx_cpu_kill(unsigned int cpu);

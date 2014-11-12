@@ -39,6 +39,7 @@ unsigned long mcc_shm_offset;
 static struct imx_sema4_mutex *shm_ptr;
 static unsigned int cpu_to_cpu_isr_vector = MCC_VECTOR_NUMBER_INVALID;
 static struct delayed_work mu_work;
+static u32 m4_wake_irqs[4];
 unsigned int m4_message;
 bool m4_freq_low;
 
@@ -205,6 +206,24 @@ int mcc_release_semaphore(void)
 	return MCC_ERR_SEMAPHORE;
 }
 
+void mcc_enable_m4_irqs_in_gic(bool enable)
+{
+	int i, j;
+
+	for (i = 0; i < 4; i++) {
+		if (m4_wake_irqs[i] == 0)
+			continue;
+		for (j = 0; j < 32; j++) {
+			if (m4_wake_irqs[i] & (1 << j)) {
+				if (enable)
+					enable_irq((i + 1) * 32 + j);
+				else
+					disable_irq((i + 1) * 32 + j);
+			}
+		}
+	}
+}
+
 static irqreturn_t mcc_m4_dummy_isr(int irq, void *param)
 {
 	return IRQ_HANDLED;
@@ -213,7 +232,7 @@ static irqreturn_t mcc_m4_dummy_isr(int irq, void *param)
 static void mu_work_handler(struct work_struct *work)
 {
 	int ret;
-	u32 irq, enable;
+	u32 irq, enable, idx, mask;
 
 	pr_debug("receive M4 message 0x%x\n", m4_message);
 
@@ -237,14 +256,20 @@ static void mu_work_handler(struct work_struct *work)
 			enable = (m4_message & MU_LPM_M4_WAKEUP_ENABLE_MASK) >>
 				MU_LPM_M4_WAKEUP_ENABLE_SHIFT;
 
+			idx = irq / 32 - 1;
+			mask = 1 << irq % 32;
+
 			if (enable && can_request_irq(irq, 0)) {
-				ret = request_irq(irq, mcc_m4_dummy_isr, 0,
-					"imx-m4-dummy", NULL);
+
+				ret = request_irq(irq, mcc_m4_dummy_isr,
+					IRQF_NO_SUSPEND, "imx-m4-dummy", NULL);
 				if (ret) {
 					pr_err("%s: register interrupt %d failed, rc %d\n",
 						__func__, irq, ret);
 					break;
 				}
+				disable_irq(irq);
+				m4_wake_irqs[idx] = m4_wake_irqs[idx] | mask;
 			}
 			imx_gpc_add_m4_wake_up_irq(irq, enable);
 		}

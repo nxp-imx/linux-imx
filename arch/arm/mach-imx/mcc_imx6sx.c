@@ -102,6 +102,18 @@ void mcc_enable_receive_irq(unsigned int enable)
 
 void mcc_send_via_mu_buffer(unsigned int index, unsigned int data)
 {
+	u32 val;
+	unsigned long timeout = jiffies + msecs_to_jiffies(500);
+
+	/* wait for transfer buffer empty */
+	do {
+		regmap_read(imx_mu_reg, MU_ASR, &val);
+		if (time_after(jiffies, timeout)) {
+			pr_err("Waiting MU transmit buffer empty timeout!\n");
+			break;
+		}
+	} while ((val & (1 << (20 + index))) == 0);
+
 	regmap_write(imx_mu_reg, index * 0x4 + MU_ATR0_OFFSET, data);
 }
 
