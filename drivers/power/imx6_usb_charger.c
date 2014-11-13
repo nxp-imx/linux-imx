@@ -152,6 +152,7 @@ static void usb_charger_is_present(struct usb_charger *charger, bool present)
 		charger->present = 0;
 
 	power_supply_changed(&charger->psy);
+	sysfs_notify(&charger->psy.dev->kobj, NULL, "present");
 }
 
 /*
