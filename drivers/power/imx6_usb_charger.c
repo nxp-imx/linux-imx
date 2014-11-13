@@ -144,6 +144,16 @@ static int imx6_usb_charger_detect(struct usb_charger *charger)
 	return 0;
 }
 
+static void usb_charger_is_present(struct usb_charger *charger, bool present)
+{
+	if (present)
+		charger->present = 1;
+	else
+		charger->present = 0;
+
+	power_supply_changed(&charger->psy);
+}
+
 /*
  * imx6_usb_vbus_connect - inform about VBUS connection
  * @charger: the usb charger
@@ -162,12 +172,14 @@ int imx6_usb_vbus_connect(struct usb_charger *charger)
 
 	/* Start the 1st period charger detection. */
 	ret = imx6_usb_charger_detect(charger);
-	if (ret)
+	if (ret) {
 		dev_err(charger->dev,
 				"Error occurs during detection: %d\n",
 				ret);
-	else
-		charger->present = 1;
+	} else {
+		if (charger->psy.type == POWER_SUPPLY_TYPE_USB)
+			usb_charger_is_present(charger, true);
+	}
 
 	mutex_unlock(&charger->lock);
 
@@ -199,8 +211,7 @@ int imx6_usb_charger_detect_post(struct usb_charger *charger)
 		charger->max_current = 900;
 	}
 
-	power_supply_changed(&charger->psy);
-
+	usb_charger_is_present(charger, true);
 	mutex_unlock(&charger->lock);
 
 	return 0;
@@ -217,11 +228,10 @@ EXPORT_SYMBOL(imx6_usb_charger_detect_post);
 int imx6_usb_vbus_disconnect(struct usb_charger *charger)
 {
 	charger->online = 0;
-	charger->present = 0;
 	charger->max_current = 0;
 	charger->psy.type = POWER_SUPPLY_TYPE_MAINS;
 
-	power_supply_changed(&charger->psy);
+	usb_charger_is_present(charger, false);
 
 	return 0;
 }
