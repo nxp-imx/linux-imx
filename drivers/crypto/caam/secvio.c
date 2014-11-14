@@ -4,6 +4,8 @@
  * Copyright (C) 2012-2015 Freescale Semiconductor, Inc., All Rights Reserved
  */
 
+#include <linux/of_address.h>
+#include <linux/of_irq.h>
 #include "compat.h"
 #include "intern.h"
 #include "secvio.h"
