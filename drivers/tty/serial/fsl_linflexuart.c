@@ -125,6 +125,10 @@
 
 #define PREINIT_DELAY			2000 /* us */
 
+struct linflex_port {
+	struct uart_port	port;
+};
+
 static const struct of_device_id linflex_dt_ids[] = {
 	{
 		.compatible = "fsl,s32v234-linflexuart",
@@ -162,100 +166,102 @@ static void linflex_stop_rx(struct uart_port *port)
 	writel(ier & ~LINFLEXD_LINIER_DRIE, port->membase + LINIER);
 }
 
-static inline void linflex_transmit_buffer(struct uart_port *sport)
+static inline void linflex_transmit_buffer(struct linflex_port *sport)
 {
-	struct circ_buf *xmit = &sport->state->xmit;
+	struct circ_buf *xmit = &sport->port.state->xmit;
 	unsigned char c;
 	unsigned long status;
 
 	while (!uart_circ_empty(xmit)) {
 		c = xmit->buf[xmit->tail];
-		writeb(c, sport->membase + BDRL);
+		writeb(c, sport->port.membase + BDRL);
 
 		/* Waiting for data transmission completed. */
-		while (((status = readl(sport->membase + UARTSR)) &
+		while (((status = readl(sport->port.membase + UARTSR)) &
 					LINFLEXD_UARTSR_DTFTFF) !=
 					LINFLEXD_UARTSR_DTFTFF)
 			;
 
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
-		sport->icount.tx++;
+		sport->port.icount.tx++;
 
 		writel(status | LINFLEXD_UARTSR_DTFTFF,
-		       sport->membase + UARTSR);
+		       sport->port.membase + UARTSR);
 	}
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-		uart_write_wakeup(sport);
+		uart_write_wakeup(&sport->port);
 
 	if (uart_circ_empty(xmit))
-		linflex_stop_tx(sport);
+		linflex_stop_tx(&sport->port);
 }
 
 static void linflex_start_tx(struct uart_port *port)
 {
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
 	unsigned long ier;
 
-	linflex_transmit_buffer(port);
+	linflex_transmit_buffer(sport);
 	ier = readl(port->membase + LINIER);
 	writel(ier | LINFLEXD_LINIER_DTIE, port->membase + LINIER);
 }
 
 static irqreturn_t linflex_txint(int irq, void *dev_id)
 {
-	struct uart_port *sport = dev_id;
-	struct circ_buf *xmit = &sport->state->xmit;
+	struct linflex_port *sport = dev_id;
+	struct circ_buf *xmit = &sport->port.state->xmit;
 	unsigned long flags;
 	unsigned long status;
 
-	spin_lock_irqsave(&sport->lock, flags);
+	spin_lock_irqsave(&sport->port.lock, flags);
 
-	if (sport->x_char) {
-		writeb(sport->x_char, sport->membase + BDRL);
+	if (sport->port.x_char) {
+		writeb(sport->port.x_char, sport->port.membase + BDRL);
 
 		/* waiting for data transmission completed */
-		while (((status = readl(sport->membase + UARTSR)) &
+		while (((status = readl(sport->port.membase + UARTSR)) &
 			LINFLEXD_UARTSR_DTFTFF) != LINFLEXD_UARTSR_DTFTFF)
 			;
 
 		writel(status | LINFLEXD_UARTSR_DTFTFF,
-		       sport->membase + UARTSR);
+		       sport->port.membase + UARTSR);
 
 		goto out;
 	}
 
-	if (uart_circ_empty(xmit) || uart_tx_stopped(sport)) {
-		linflex_stop_tx(sport);
+	if (uart_circ_empty(xmit) || uart_tx_stopped(&sport->port)) {
+		linflex_stop_tx(&sport->port);
 		goto out;
 	}
 
 	linflex_transmit_buffer(sport);
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-		uart_write_wakeup(sport);
+		uart_write_wakeup(&sport->port);
 
 out:
-	spin_unlock_irqrestore(&sport->lock, flags);
+	spin_unlock_irqrestore(&sport->port.lock, flags);
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t linflex_rxint(int irq, void *dev_id)
 {
-	struct uart_port *sport = dev_id;
+	struct linflex_port *sport = dev_id;
 	unsigned int flg;
-	struct tty_port *port = &sport->state->port;
+	struct tty_port *port = &sport->port.state->port;
 	unsigned long flags, status;
 	unsigned char rx;
 	bool brk;
 
-	spin_lock_irqsave(&sport->lock, flags);
+	spin_lock_irqsave(&sport->port.lock, flags);
 
-	status = readl(sport->membase + UARTSR);
+	status = readl(sport->port.membase + UARTSR);
 	while (status & LINFLEXD_UARTSR_RMB) {
-		rx = readb(sport->membase + BDRM);
+		rx = readb(sport->port.membase + BDRM);
 		brk = false;
 		flg = TTY_NORMAL;
-		sport->icount.rx++;
+		sport->port.icount.rx++;
 
 		if (status & (LINFLEXD_UARTSR_BOF | LINFLEXD_UARTSR_SZF |
 			      LINFLEXD_UARTSR_FEF | LINFLEXD_UARTSR_PE)) {
@@ -273,21 +279,22 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 		}
 
 		writel(status | LINFLEXD_UARTSR_RMB | LINFLEXD_UARTSR_DRFRFE,
-		       sport->membase + UARTSR);
-		status = readl(sport->membase + UARTSR);
+		       sport->port.membase + UARTSR);
+		status = readl(sport->port.membase + UARTSR);
 
 		if (brk) {
-			uart_handle_break(sport);
+			uart_handle_break(&sport->port);
 		} else {
 #ifdef SUPPORT_SYSRQ
-			if (uart_handle_sysrq_char(sport, (unsigned char)rx))
+			if (uart_handle_sysrq_char(&sport->port,
+						   (unsigned char)rx))
 				continue;
 #endif
 			tty_insert_flip_char(port, rx, flg);
 		}
 	}
 
-	spin_unlock_irqrestore(&sport->lock, flags);
+	spin_unlock_irqrestore(&sport->port.lock, flags);
 
 	tty_flip_buffer_push(port);
 
@@ -296,10 +303,10 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 
 static irqreturn_t linflex_int(int irq, void *dev_id)
 {
-	struct uart_port *sport = dev_id;
+	struct linflex_port *sport = dev_id;
 	unsigned long status;
 
-	status = readl(sport->membase + UARTSR);
+	status = readl(sport->port.membase + UARTSR);
 
 	if (status & LINFLEXD_UARTSR_DRFRFE)
 		linflex_rxint(irq, dev_id);
@@ -313,8 +320,10 @@ static irqreturn_t linflex_int(int irq, void *dev_id)
 static unsigned int linflex_tx_empty(struct uart_port *port)
 {
 	unsigned long status;
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
 
-	status = readl(port->membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF;
+	status = readl(sport->port.membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF;
 
 	return status ? TIOCSER_TEMT : 0;
 }
@@ -332,28 +341,28 @@ static void linflex_break_ctl(struct uart_port *port, int break_state)
 {
 }
 
-static void linflex_setup_watermark(struct uart_port *sport)
+static void linflex_setup_watermark(struct linflex_port *sport)
 {
 	unsigned long cr, ier, cr1;
 
 	/* Disable transmission/reception */
-	ier = readl(sport->membase + LINIER);
+	ier = readl(sport->port.membase + LINIER);
 	ier &= ~(LINFLEXD_LINIER_DRIE | LINFLEXD_LINIER_DTIE);
-	writel(ier, sport->membase + LINIER);
+	writel(ier, sport->port.membase + LINIER);
 
-	cr = readl(sport->membase + UARTCR);
+	cr = readl(sport->port.membase + UARTCR);
 	cr &= ~(LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN);
-	writel(cr, sport->membase + UARTCR);
+	writel(cr, sport->port.membase + UARTCR);
 
 	/* Enter initialization mode by setting INIT bit */
 
 	/* set the Linflex in master mode and activate by-pass filter */
 	cr1 = LINFLEXD_LINCR1_BF | LINFLEXD_LINCR1_MME
 	      | LINFLEXD_LINCR1_INIT;
-	writel(cr1, sport->membase + LINCR1);
+	writel(cr1, sport->port.membase + LINCR1);
 
 	/* wait for init mode entry */
-	while ((readl(sport->membase + LINSR)
+	while ((readl(sport->port.membase + LINSR)
 		& LINFLEXD_LINSR_LINS_MASK)
 		!= LINFLEXD_LINSR_LINS_INITMODE)
 		;
@@ -367,43 +376,47 @@ static void linflex_setup_watermark(struct uart_port *sport)
 	 */
 
 	/* set UART bit to allow writing other bits */
-	writel(LINFLEXD_UARTCR_UART, sport->membase + UARTCR);
+	writel(LINFLEXD_UARTCR_UART, sport->port.membase + UARTCR);
 
 	cr = (LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN |
 	      LINFLEXD_UARTCR_WL0 | LINFLEXD_UARTCR_UART);
 
-	writel(cr, sport->membase + UARTCR);
+	writel(cr, sport->port.membase + UARTCR);
 
 	cr1 &= ~(LINFLEXD_LINCR1_INIT);
 
-	writel(cr1, sport->membase + LINCR1);
+	writel(cr1, sport->port.membase + LINCR1);
 
-	ier = readl(sport->membase + LINIER);
+	ier = readl(sport->port.membase + LINIER);
 	ier |= LINFLEXD_LINIER_DRIE;
 	ier |= LINFLEXD_LINIER_DTIE;
 
-	writel(ier, sport->membase + LINIER);
+	writel(ier, sport->port.membase + LINIER);
 }
 
 static int linflex_startup(struct uart_port *port)
 {
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
 	int ret = 0;
 	unsigned long flags;
 
-	spin_lock_irqsave(&port->lock, flags);
+	spin_lock_irqsave(&sport->port.lock, flags);
 
-	linflex_setup_watermark(port);
+	linflex_setup_watermark(sport);
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	spin_unlock_irqrestore(&sport->port.lock, flags);
 
 	ret = devm_request_irq(port->dev, port->irq, linflex_int, 0,
-			       DRIVER_NAME, port);
+			       DRIVER_NAME, sport);
 
 	return ret;
 }
 
 static void linflex_shutdown(struct uart_port *port)
 {
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
 	unsigned long ier;
 	unsigned long flags;
 
@@ -416,27 +429,29 @@ static void linflex_shutdown(struct uart_port *port)
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
-	devm_free_irq(port->dev, port->irq, port);
+	devm_free_irq(port->dev, port->irq, sport);
 }
 
 static void
 linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 		    struct ktermios *old)
 {
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
 	unsigned long flags;
 	unsigned long cr, old_cr, cr1;
 	unsigned int old_csize = old ? old->c_cflag & CSIZE : CS8;
 
-	cr = readl(port->membase + UARTCR);
+	cr = readl(sport->port.membase + UARTCR);
 	old_cr = cr;
 
 	/* Enter initialization mode by setting INIT bit */
-	cr1 = readl(port->membase + LINCR1);
+	cr1 = readl(sport->port.membase + LINCR1);
 	cr1 |= LINFLEXD_LINCR1_INIT;
-	writel(cr1, port->membase + LINCR1);
+	writel(cr1, sport->port.membase + LINCR1);
 
 	/* wait for init mode entry */
-	while ((readl(port->membase + LINSR)
+	while ((readl(sport->port.membase + LINSR)
 		& LINFLEXD_LINSR_LINS_MASK)
 		!= LINFLEXD_LINSR_LINS_INITMODE)
 		;
@@ -495,40 +510,40 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 		cr &= ~LINFLEXD_UARTCR_PCE;
 	}
 
-	spin_lock_irqsave(&port->lock, flags);
+	spin_lock_irqsave(&sport->port.lock, flags);
 
-	port->read_status_mask = 0;
+	sport->port.read_status_mask = 0;
 
 	if (termios->c_iflag & INPCK)
-		port->read_status_mask |=	(LINFLEXD_UARTSR_FEF |
+		sport->port.read_status_mask |=	(LINFLEXD_UARTSR_FEF |
 						 LINFLEXD_UARTSR_PE0 |
 						 LINFLEXD_UARTSR_PE1 |
 						 LINFLEXD_UARTSR_PE2 |
 						 LINFLEXD_UARTSR_PE3);
 	if (termios->c_iflag & (IGNBRK | BRKINT | PARMRK))
-		port->read_status_mask |= LINFLEXD_UARTSR_FEF;
+		sport->port.read_status_mask |= LINFLEXD_UARTSR_FEF;
 
 	/* characters to ignore */
-	port->ignore_status_mask = 0;
+	sport->port.ignore_status_mask = 0;
 	if (termios->c_iflag & IGNPAR)
-		port->ignore_status_mask |= LINFLEXD_UARTSR_PE;
+		sport->port.ignore_status_mask |= LINFLEXD_UARTSR_PE;
 	if (termios->c_iflag & IGNBRK) {
-		port->ignore_status_mask |= LINFLEXD_UARTSR_PE;
+		sport->port.ignore_status_mask |= LINFLEXD_UARTSR_PE;
 		/*
 		 * if we're ignoring parity and break indicators,
 		 * ignore overruns too (for real raw support).
 		 */
 		if (termios->c_iflag & IGNPAR)
-			port->ignore_status_mask |= LINFLEXD_UARTSR_BOF;
+			sport->port.ignore_status_mask |= LINFLEXD_UARTSR_BOF;
 	}
 
-	writel(cr, port->membase + UARTCR);
+	writel(cr, sport->port.membase + UARTCR);
 
 	cr1 &= ~(LINFLEXD_LINCR1_INIT);
 
-	writel(cr1, port->membase + LINCR1);
+	writel(cr1, sport->port.membase + LINCR1);
 
-	spin_unlock_irqrestore(&port->lock, flags);
+	spin_unlock_irqrestore(&sport->port.lock, flags);
 }
 
 static const char *linflex_type(struct uart_port *port)
@@ -570,7 +585,7 @@ static const struct uart_ops linflex_pops = {
 	.config_port	= linflex_config_port,
 };
 
-static struct uart_port *linflex_ports[UART_NR];
+static struct linflex_port *linflex_ports[UART_NR];
 
 #ifdef CONFIG_SERIAL_FSL_LINFLEXUART_CONSOLE
 static void linflex_console_putchar(struct uart_port *port, int ch)
@@ -640,41 +655,41 @@ init_release:
 	spin_unlock_irqrestore(&init_lock, flags);
 }
 
-static void linflex_string_write(struct uart_port *sport, const char *s,
+static void linflex_string_write(struct linflex_port *sport, const char *s,
 				 unsigned int count)
 {
 	unsigned long cr, ier = 0;
 
-	ier = readl(sport->membase + LINIER);
-	linflex_stop_tx(sport);
+	ier = readl(sport->port.membase + LINIER);
+	linflex_stop_tx(&sport->port);
 
-	cr = readl(sport->membase + UARTCR);
+	cr = readl(sport->port.membase + UARTCR);
 	cr |= (LINFLEXD_UARTCR_TXEN);
-	writel(cr, sport->membase + UARTCR);
+	writel(cr, sport->port.membase + UARTCR);
 
-	uart_console_write(sport, s, count, linflex_console_putchar);
+	uart_console_write(&sport->port, s, count, linflex_console_putchar);
 
-	writel(ier, sport->membase + LINIER);
+	writel(ier, sport->port.membase + LINIER);
 }
 
 static void
 linflex_console_write(struct console *co, const char *s, unsigned int count)
 {
-	struct uart_port *sport = linflex_ports[co->index];
+	struct linflex_port *sport = linflex_ports[co->index];
 	unsigned long flags;
 	int locked = 1;
 
-	if (sport->sysrq)
+	if (sport->port.sysrq)
 		locked = 0;
 	else if (oops_in_progress)
-		locked = spin_trylock_irqsave(&sport->lock, flags);
+		locked = spin_trylock_irqsave(&sport->port.lock, flags);
 	else
-		spin_lock_irqsave(&sport->lock, flags);
+		spin_lock_irqsave(&sport->port.lock, flags);
 
 	linflex_string_write(sport, s, count);
 
 	if (locked)
-		spin_unlock_irqrestore(&sport->lock, flags);
+		spin_unlock_irqrestore(&sport->port.lock, flags);
 }
 
 /*
@@ -682,11 +697,11 @@ linflex_console_write(struct console *co, const char *s, unsigned int count)
  * try to determine the current setup.
  */
 static void __init
-linflex_console_get_options(struct uart_port *sport, int *parity, int *bits)
+linflex_console_get_options(struct linflex_port *sport, int *parity, int *bits)
 {
 	unsigned long cr;
 
-	cr = readl(sport->membase + UARTCR);
+	cr = readl(sport->port.membase + UARTCR);
 	cr &= LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN;
 
 	if (!cr)
@@ -712,7 +727,7 @@ linflex_console_get_options(struct uart_port *sport, int *parity, int *bits)
 
 static int __init linflex_console_setup(struct console *co, char *options)
 {
-	struct uart_port *sport;
+	struct linflex_port *sport;
 	int baud = 115200;
 	int bits = 8;
 	int parity = 'n';
@@ -737,7 +752,7 @@ static int __init linflex_console_setup(struct console *co, char *options)
 	else
 		linflex_console_get_options(sport, &parity, &bits);
 
-	if (earlycon_port && sport->mapbase == earlycon_port->mapbase) {
+	if (earlycon_port && sport->port.mapbase == earlycon_port->mapbase) {
 		linflex_earlycon_same_instance = true;
 
 		spin_lock_irqsave(&init_lock, flags);
@@ -753,7 +768,7 @@ static int __init linflex_console_setup(struct console *co, char *options)
 
 	linflex_setup_watermark(sport);
 
-	ret = uart_set_options(sport, co, baud, parity, bits, flow);
+	ret = uart_set_options(&sport->port, co, baud, parity, bits, flow);
 
 	if (!linflex_earlycon_same_instance)
 		goto done;
@@ -827,7 +842,7 @@ static struct uart_driver linflex_reg = {
 static int linflex_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
-	struct uart_port *sport;
+	struct linflex_port *sport;
 	struct resource *res;
 	int ret;
 
@@ -846,29 +861,29 @@ static int linflex_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	sport->line = ret;
+	sport->port.line = ret;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res)
 		return -ENODEV;
 
-	sport->mapbase = res->start;
-	sport->membase = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(sport->membase))
-		return PTR_ERR(sport->membase);
+	sport->port.mapbase = res->start;
+	sport->port.membase = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(sport->port.membase))
+		return PTR_ERR(sport->port.membase);
 
-	sport->dev = &pdev->dev;
-	sport->type = PORT_LINFLEXUART;
-	sport->iotype = UPIO_MEM;
-	sport->irq = platform_get_irq(pdev, 0);
-	sport->ops = &linflex_pops;
-	sport->flags = UPF_BOOT_AUTOCONF;
+	sport->port.dev = &pdev->dev;
+	sport->port.type = PORT_LINFLEXUART;
+	sport->port.iotype = UPIO_MEM;
+	sport->port.irq = platform_get_irq(pdev, 0);
+	sport->port.ops = &linflex_pops;
+	sport->port.flags = UPF_BOOT_AUTOCONF;
 
-	linflex_ports[sport->line] = sport;
+	linflex_ports[sport->port.line] = sport;
 
-	platform_set_drvdata(pdev, sport);
+	platform_set_drvdata(pdev, &sport->port);
 
-	ret = uart_add_one_port(&linflex_reg, sport);
+	ret = uart_add_one_port(&linflex_reg, &sport->port);
 	if (ret)
 		return ret;
 
@@ -877,9 +892,9 @@ static int linflex_probe(struct platform_device *pdev)
 
 static int linflex_remove(struct platform_device *pdev)
 {
-	struct uart_port *sport = platform_get_drvdata(pdev);
+	struct linflex_port *sport = platform_get_drvdata(pdev);
 
-	uart_remove_one_port(&linflex_reg, sport);
+	uart_remove_one_port(&linflex_reg, &sport->port);
 
 	return 0;
 }
@@ -887,18 +902,18 @@ static int linflex_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int linflex_suspend(struct device *dev)
 {
-	struct uart_port *sport = dev_get_drvdata(dev);
+	struct linflex_port *sport = dev_get_drvdata(dev);
 
-	uart_suspend_port(&linflex_reg, sport);
+	uart_suspend_port(&linflex_reg, &sport->port);
 
 	return 0;
 }
 
 static int linflex_resume(struct device *dev)
 {
-	struct uart_port *sport = dev_get_drvdata(dev);
+	struct linflex_port *sport = dev_get_drvdata(dev);
 
-	uart_resume_port(&linflex_reg, sport);
+	uart_resume_port(&linflex_reg, &sport->port);
 
 	return 0;
 }
