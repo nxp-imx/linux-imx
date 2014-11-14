@@ -270,6 +270,22 @@
 	status = "okay";
 };
 
+&flexcan1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexcan1_1>;
+	trx-en-gpio = <&max7310_b 5 GPIO_ACTIVE_HIGH>;
+	trx-stby-gpio = <&max7310_b 3 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&flexcan2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexcan2_1>;
+	trx-en-gpio = <&max7310_b 5 GPIO_ACTIVE_HIGH>;
+	trx-stby-gpio = <&max7310_b 3 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
 &gpc {
 	fsl,cpu_pupscr_sw2iso = <0x2>;
 	fsl,cpu_pupscr_sw = <0x1>;
