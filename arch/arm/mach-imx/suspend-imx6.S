@@ -794,6 +794,8 @@ imx6_suspend_start:
 
 	str	r3, [r8, #MX6Q_SRC_GPR2]
 
+	cmp	r2, #MXC_CPU_IMX6SX
+	bne	rdc_save_done
 	/*
 	 * i.MX6SX RDC needs PCIe and eim clk to be enabled
 	 * if Mega/Fast off, it is better to check cpu type
@@ -812,6 +814,7 @@ imx6_suspend_start:
 	str	r4, [r8, #0x78]
 	orr	r5, r5, #0xc00
 	str	r5, [r8, #0x80]
+rdc_save_done:
 
 	ldr	r8, =IMX_IO_P2V(MX6Q_IOMUXC_BASE_ADDR)
 
@@ -1061,6 +1064,15 @@ ldo_check_done2:
 	/* skip the cpu type saved in iram */
 	sub	r10, r10, #0x4
 
+	cmp	r2, #MXC_CPU_IMX6SX
+	bne	rdc_restore_done
+	/* restore CCM CCGR clk for RDC  */
+	ldmea	r10!, {r4-r5}
+	ldr	r8, =IMX_IO_P2V(MX6Q_CCM_BASE_ADDR)
+	str	r4, [r8, #0x78]
+	str	r5, [r8, #0x80]
+rdc_restore_done:
+
 	ldr	r8, =IMX_IO_P2V(MX6Q_IOMUXC_BASE_ADDR)
 
 	cmp	r2, #MXC_CPU_IMX6Q
@@ -1183,11 +1195,14 @@ ldo_check_done3:
 	/* get cpu tpye */
 	ldmea	r10!, {r2}
 
+	cmp	r2, #MXC_CPU_IMX6SX
+	bne	rdc_dsm_restore_done
 	/* restore CCM CCGR clk for RDC  */
 	ldmea	r10!, {r4-r5}
 	ldr	r8, =MX6Q_CCM_BASE_ADDR
 	str	r4, [r8, #0x78]
 	str	r5, [r8, #0x80]
+rdc_dsm_restore_done:
 
 	/* clear core0's entry and parameter */
 	ldr	r8, =MX6Q_SRC_BASE_ADDR
