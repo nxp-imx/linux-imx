@@ -2047,6 +2047,22 @@ static struct caam_alg_template driver_algs[] = {
 	},
 	/* ablkcipher descriptor */
 	{
+		.name = "ecb(des)",
+		.driver_name = "ecb-des-caam",
+		.blocksize = DES_BLOCK_SIZE,
+		.type = CRYPTO_ALG_TYPE_ABLKCIPHER,
+		.template_ablkcipher = {
+			.setkey = ablkcipher_setkey,
+			.encrypt = ablkcipher_encrypt,
+			.decrypt = ablkcipher_decrypt,
+			.geniv = "eseqiv",
+			.min_keysize = DES_KEY_SIZE,
+			.max_keysize = DES_KEY_SIZE,
+			.ivsize = DES_BLOCK_SIZE,
+			},
+		.class1_alg_type = OP_ALG_ALGSEL_DES | OP_ALG_AAI_ECB,
+	},
+	{
 		.name = "ctr(aes)",
 		.driver_name = "ctr-aes-caam",
 		.blocksize = AES_BLOCK_SIZE,
