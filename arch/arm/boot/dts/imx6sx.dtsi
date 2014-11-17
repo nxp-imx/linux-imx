@@ -1529,8 +1529,8 @@
 	flexcan1 {
 		pinctrl_flexcan1_1: flexcan1grp-1 {
 			fsl,pins = <
-				MX6SX_PAD_QSPI1B_DQS__CAN1_TX	0x1b0b0
-				MX6SX_PAD_QSPI1A_SS1_B__CAN1_RX	0x1b0b0
+				MX6SX_PAD_QSPI1B_DQS__CAN1_TX	0x1b020
+				MX6SX_PAD_QSPI1A_SS1_B__CAN1_RX	0x1b020
 			>;
 		};
 	};
@@ -1538,8 +1538,8 @@
 	flexcan2 {
 		pinctrl_flexcan2_1: flexcan2grp-1 {
 			fsl,pins = <
-				MX6SX_PAD_QSPI1B_SS1_B__CAN2_RX 0x1b0b0
-				MX6SX_PAD_QSPI1A_DQS__CAN2_TX	0x1b0b0
+				MX6SX_PAD_QSPI1B_SS1_B__CAN2_RX 0x1b020
+				MX6SX_PAD_QSPI1A_DQS__CAN2_TX	0x1b020
 			>;
 		};
 	};
