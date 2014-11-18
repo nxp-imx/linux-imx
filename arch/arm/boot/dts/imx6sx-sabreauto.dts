@@ -30,6 +30,13 @@
 		};
 	};
 
+	max7322_reset: max7322-reset {
+		compatible = "gpio-reset";
+		reset-gpios = <&gpio4 22 GPIO_ACTIVE_LOW>;
+		reset-delay-us = <1>;
+		#reset-cells = <0>;
+	};
+
 	csi1_v4l2_cap {
 		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
 		csi_id = <0>;
@@ -250,13 +257,15 @@
 };
 
 &fec1 {
+	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_enet1_1>;
 	phy-mode = "rgmii";
 	phy-id = <1>;
 	fsl,num_tx_queues=<3>;
 	fsl,num_rx_queues=<3>;
+	pinctrl-assert-gpios = <&max7322 0 GPIO_ACTIVE_HIGH>;
 	fsl,magic-packet;
-	status = "disabled";
+	status = "okay";
 };
 
 &fec2 {
@@ -438,6 +447,14 @@
 		si476x_codec: si476x-codec {
 			compatible = "si476x-codec";
 		};
+	};
+
+	max7322: gpio@68 {
+		compatible = "maxim,max7322";
+		reg = <0x68>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		resets = <&max7322_reset>;
 	};
 };
 
