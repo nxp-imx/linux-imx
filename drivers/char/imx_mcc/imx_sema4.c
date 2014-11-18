@@ -342,6 +342,7 @@ static int imx_sema4_probe(struct platform_device *pdev)
 
 	imx6_sema4->dev = &pdev->dev;
 	imx6_sema4->cpine_val = 0;
+	spin_lock_init(&imx6_sema4->lock);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (IS_ERR(res)) {
