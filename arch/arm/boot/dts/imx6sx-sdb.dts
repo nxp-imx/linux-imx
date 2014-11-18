@@ -432,6 +432,23 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_hog &pinctrl_can_gpios>;
 
+	usdhc3 {
+		pinctrl_usdhc3_1_sdb: usdhc3grp-1-sdb {
+			fsl,pins = <
+				MX6SX_PAD_SD3_CMD__USDHC3_CMD	  0x17069
+				MX6SX_PAD_SD3_CLK__USDHC3_CLK	  0x10071
+				MX6SX_PAD_SD3_DATA0__USDHC3_DATA0 0x17069
+				MX6SX_PAD_SD3_DATA1__USDHC3_DATA1 0x17069
+				MX6SX_PAD_SD3_DATA2__USDHC3_DATA2 0x17069
+				MX6SX_PAD_SD3_DATA3__USDHC3_DATA3 0x17069
+				MX6SX_PAD_SD3_DATA4__USDHC3_DATA4 0x17069
+				MX6SX_PAD_SD3_DATA5__USDHC3_DATA5 0x17069
+				MX6SX_PAD_SD3_DATA6__USDHC3_DATA6 0x17069
+				MX6SX_PAD_SD3_DATA7__USDHC3_DATA7 0x17069
+			>;
+		};
+	};
+
 	usdhc4 {
 		pinctrl_usdhc4_gpios: usdhc4-gpios {
 			fsl,pins = <
@@ -539,7 +556,7 @@
 
 &usdhc3 {
 	pinctrl-names = "default", "state_100mhz", "state_200mhz";
-	pinctrl-0 = <&pinctrl_usdhc3_1>;
+	pinctrl-0 = <&pinctrl_usdhc3_1_sdb>;
 	pinctrl-1 = <&pinctrl_usdhc3_1_100mhz>;
 	pinctrl-2 = <&pinctrl_usdhc3_1_200mhz>;
 	bus-width = <8>;
