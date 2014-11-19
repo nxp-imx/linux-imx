@@ -17,9 +17,6 @@
 #include "ctrl.h"
 #include "sm.h"
 
-/* Used to capture the array of job rings */
-struct device **caam_jr_dev;
-
 /*
  * Descriptor to instantiate RNG State Handle 0 in normal mode and
  * load the JDKEK, TDKEK and TDSK registers
@@ -408,18 +405,6 @@ int caam_get_era(u64 caam_id)
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(caam_get_era);
-
-/*
- * Return a job ring device.  This is available so outside
- * entities can gain direct access to the job ring.  For now,
- * this function returns the first job ring (at index 0).
- */
-struct device *caam_get_jrdev(void)
-{
-	return caam_jr_dev[0];
-}
-EXPORT_SYMBOL(caam_get_jrdev);
-
 
 /* Probe routine for CAAM top (controller) level */
 static int caam_probe(struct platform_device *pdev)
