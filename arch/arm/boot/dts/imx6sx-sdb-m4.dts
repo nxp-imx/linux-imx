@@ -60,6 +60,10 @@
 	status = "disabled";
 };
 
+&qspi_m4 {
+	status = "okay";
+};
+
 &ocram {
 	reg = <0x00901000 0x1E000>;
 };
