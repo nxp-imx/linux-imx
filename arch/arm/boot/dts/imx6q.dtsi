@@ -1,6 +1,6 @@
 
 /*
- * Copyright 2013 Freescale Semiconductor, Inc.
+ * Copyright 2013-2014 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -31,7 +31,7 @@
 				1200000 1275000
 				996000  1250000
 				852000  1250000
-				792000  1150000
+				792000  1175000
 				396000  975000
 			>;
 			fsl,soc-operating-points = <
