@@ -3352,12 +3352,14 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 	tasklet_kill(&host->finish_tasklet);
 
 	if (host->vmmc) {
-		regulator_disable(host->vmmc);
+		if (regulator_is_enabled(host->vmmc))
+			regulator_disable(host->vmmc);
 		regulator_put(host->vmmc);
 	}
 
 	if (host->vqmmc) {
-		regulator_disable(host->vqmmc);
+		if (regulator_is_enabled(host->vqmmc))
+			regulator_disable(host->vqmmc);
 		regulator_put(host->vqmmc);
 	}
 
