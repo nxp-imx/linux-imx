@@ -918,16 +918,16 @@ static void dma_rx_work(struct work_struct *w)
 {
 	struct imx_port *sport = container_of(w, struct imx_port, tsk_dma_rx);
 	struct tty_struct *tty = sport->port.state->port.tty;
+	unsigned int cur_idx = sport->rx_buf.cur_idx;
 
-	if (sport->rx_buf.last_completed_idx < sport->rx_buf.cur_idx) {
-		dma_rx_push_data(sport, tty, sport->rx_buf.last_completed_idx + 1,
-					sport->rx_buf.cur_idx);
+	if (sport->rx_buf.last_completed_idx < cur_idx) {
+		dma_rx_push_data(sport, tty, sport->rx_buf.last_completed_idx + 1, cur_idx);
 	} else if (sport->rx_buf.last_completed_idx == (IMX_RXBD_NUM - 1)) {
-		dma_rx_push_data(sport, tty, 0, sport->rx_buf.cur_idx);
+		dma_rx_push_data(sport, tty, 0, cur_idx);
 	} else {
 		dma_rx_push_data(sport, tty, sport->rx_buf.last_completed_idx + 1,
 					IMX_RXBD_NUM);
-		dma_rx_push_data(sport, tty, 0, sport->rx_buf.cur_idx);
+		dma_rx_push_data(sport, tty, 0, cur_idx);
 	}
 }
 
@@ -976,12 +976,8 @@ static void dma_rx_callback(void *data)
 	if (sport->rx_buf.cur_idx == sport->rx_buf.last_completed_idx)
 		dev_err(sport->port.dev, "overwrite!\n");
 
-	if (count) {
+	if (count)
 		schedule_work(&sport->tsk_dma_rx);
-	} else {
-		sport->rx_buf.last_completed_idx++;
-		sport->rx_buf.last_completed_idx %= IMX_RXBD_NUM;
-	}
 }
 
 static int start_rx_dma(struct imx_port *sport)
