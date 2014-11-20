@@ -8,12 +8,6 @@
 
 #include "imx6sl-evk.dts"
 
-/ {
-	csi_v4l2_cap {
-		status = "okay";
-	};
-};
-
 &csi {
 	status = "okay";
 };
