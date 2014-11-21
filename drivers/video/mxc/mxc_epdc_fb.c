@@ -4304,8 +4304,6 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	clk_prepare_enable(fb_data->epdc_clk_axi);
 
 	target_pix_clk = fb_data->cur_mode->vmode->pixclock;
-	/* Enable pix clk for EPDC */
-	clk_prepare_enable(fb_data->epdc_clk_pix);
 	rounded_pix_clk = clk_round_rate(fb_data->epdc_clk_pix, target_pix_clk);
 
 	if (((rounded_pix_clk >= target_pix_clk + target_pix_clk/100) ||
@@ -4329,6 +4327,8 @@ static void mxc_epdc_fb_fw_handler(const struct firmware *fw,
 	}
 
 	clk_set_rate(fb_data->epdc_clk_pix, rounded_pix_clk);
+	/* Enable pix clk for EPDC */
+	clk_prepare_enable(fb_data->epdc_clk_pix);
 
 	epdc_init_sequence(fb_data);
 
