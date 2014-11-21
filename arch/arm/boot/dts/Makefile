@@ -193,6 +193,7 @@ dtb-$(CONFIG_ARCH_MXC) += \
 	imx6sx-19x19-arm2.dtb \
 	imx6sx-19x19-arm2-csi.dtb \
 	imx6sx-sdb.dtb \
+	imx6sx-sabreauto.dtb \
 	imx6sx-sdb-lcdif1.dtb \
 	vf610-cosmic.dtb \
 	imx6sx-sdb-canfd.dtb \
