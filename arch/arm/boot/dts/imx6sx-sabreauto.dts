@@ -309,6 +309,46 @@
         pinctrl-0 = <&pinctrl_i2c2_1>;
         status = "okay";
 
+	egalax_ts@04 {
+		compatible = "eeti,egalax_ts";
+		reg = <0x04>;
+		interrupt-parent = <&gpio6>;
+		interrupts = <22 2>;
+		wakeup-gpios = <&gpio6 22 0>;
+	};
+
+	codec: cs42888@048 {
+		compatible = "cirrus,cs42888";
+		reg = <0x048>;
+		clocks = <&codec_osc 0>;
+		clock-names = "mclk";
+		VA-supply = <&reg_audio>;
+		VD-supply = <&reg_audio>;
+		VLS-supply = <&reg_audio>;
+		VLC-supply = <&reg_audio>;
+	};
+
+	si4763: si4763@63 {
+		compatible = "si4761";
+		reg = <0x63>;
+		va-supply = <&si4763_va>;
+		vd-supply = <&si4763_vd>;
+		vio1-supply = <&si4763_vio1>;
+		vio2-supply = <&si4763_vio2>;
+
+		si476x_codec: si476x-codec {
+			compatible = "si476x-codec";
+		};
+	};
+
+	max7322: gpio@68 {
+		compatible = "maxim,max7322";
+		reg = <0x68>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		resets = <&max7322_reset>;
+	};
+
 	pmic: pfuze100@08 {
 		compatible = "fsl,pfuze100";
 		reg = <0x08>;
@@ -408,53 +448,6 @@
 				regulator-always-on;
 			};
 		};
-	};
-};
-
-&i2c2 {
-        clock-frequency = <100000>;
-        pinctrl-names = "default";
-        pinctrl-0 = <&pinctrl_i2c2_1>;
-        status = "okay";
-
-	egalax_ts@04 {
-		compatible = "eeti,egalax_ts";
-		reg = <0x04>;
-		interrupt-parent = <&gpio6>;
-		interrupts = <22 2>;
-		wakeup-gpios = <&gpio6 22 0>;
-	};
-
-	codec: cs42888@048 {
-		compatible = "cirrus,cs42888";
-		reg = <0x048>;
-		clocks = <&codec_osc 0>;
-		clock-names = "mclk";
-		VA-supply = <&reg_audio>;
-		VD-supply = <&reg_audio>;
-		VLS-supply = <&reg_audio>;
-		VLC-supply = <&reg_audio>;
-	};
-
-	si4763: si4763@63 {
-		compatible = "si4761";
-		reg = <0x63>;
-		va-supply = <&si4763_va>;
-		vd-supply = <&si4763_vd>;
-		vio1-supply = <&si4763_vio1>;
-		vio2-supply = <&si4763_vio2>;
-
-		si476x_codec: si476x-codec {
-			compatible = "si476x-codec";
-		};
-	};
-
-	max7322: gpio@68 {
-		compatible = "maxim,max7322";
-		reg = <0x68>;
-		gpio-controller;
-		#gpio-cells = <2>;
-		resets = <&max7322_reset>;
 	};
 };
 
