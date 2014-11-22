@@ -375,6 +375,7 @@
 	pinctrl-0 = <&pinctrl_qspi2_1>;
 	status = "okay";
 
+#ifndef SPANSIONFLASH
 	flash0: n25q256a@0 {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -392,6 +393,7 @@
 		spi-nor,ddr-quad-read-dummy = <6>;
 		reg = <1>;
 	};
+#endif
 };
 
 &pxp {
