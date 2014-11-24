@@ -411,7 +411,7 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	imx_clk_set_parent(clks[IMX6SL_CLK_LCDIF_PIX_SEL],
 			clks[IMX6SL_CLK_PLL5_VIDEO_DIV]);
 	imx_clk_set_parent(clks[IMX6SL_CLK_EPDC_PIX_SEL],
-			clks[IMX6SL_CLK_PLL5_VIDEO_DIV]);
+			clks[IMX6SL_CLK_PLL2_PFD1]);
 
 	imx_clk_set_parent(clks[IMX6SL_CLK_EPDC_AXI_SEL], clks[IMX6SL_CLK_PLL2_PFD2]);
 	imx_clk_set_rate(clks[IMX6SL_CLK_EPDC_AXI], 200000000);
