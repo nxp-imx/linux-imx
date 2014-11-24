@@ -398,8 +398,18 @@ static void hnp_polling_timer_work(unsigned long arg)
 {
 	struct ci_hdrc *ci = (struct ci_hdrc *)arg;
 
-	ci->hnp_polling_req = true;
-	ci_otg_queue_work(ci);
+	schedule_work(&ci->hnp_polling_work);
+}
+
+static void ci_hnp_polling_work(struct work_struct *work)
+{
+	struct ci_hdrc *ci = container_of(work, struct ci_hdrc,
+						hnp_polling_work);
+
+	pm_runtime_get_sync(ci->dev);
+	if (otg_hnp_polling(&ci->fsm) == HOST_REQUEST_FLAG)
+		ci_otg_queue_work(ci);
+	pm_runtime_put_sync(ci->dev);
 }
 
 /* Initialize timers */
@@ -665,14 +675,6 @@ int ci_otg_fsm_work(struct ci_hdrc *ci)
 	}
 
 	pm_runtime_get_sync(ci->dev);
-	if (ci->hnp_polling_req) {
-		ci->hnp_polling_req = false;
-		if (otg_hnp_polling(&ci->fsm) != HOST_REQUEST_FLAG) {
-			pm_runtime_put_sync(ci->dev);
-			return 0;
-		}
-	}
-
 	if (otg_statemachine(&ci->fsm)) {
 		if (ci->fsm.otg->state == OTG_STATE_A_IDLE) {
 			/*
@@ -900,6 +902,8 @@ int ci_hdrc_otg_fsm_init(struct ci_hdrc *ci)
 			"Can't register sysfs attr group: %d\n", retval);
 		return retval;
 	}
+
+	INIT_WORK(&ci->hnp_polling_work, ci_hnp_polling_work);
 
 	/* Enable A vbus valid irq */
 	hw_write_otgsc(ci, OTGSC_AVVIE, OTGSC_AVVIE);

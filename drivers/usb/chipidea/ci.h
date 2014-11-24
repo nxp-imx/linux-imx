@@ -167,6 +167,7 @@ struct hw_bank {
  * @is_otg: if the device is otg-capable
  * @fsm: otg finite state machine
  * @fsm_timer: pointer to timer list of otg fsm
+ * @hnp_polling_work: work for hnp polling
  * @work: work for role changing
  * @wq: workqueue thread
  * @qh_pool: allocation pool for queue heads
@@ -211,7 +212,7 @@ struct ci_hdrc {
 	struct otg_fsm			fsm;
 	struct ci_otg_fsm_timer_list	*fsm_timer;
 	struct timer_list		hnp_polling_timer;
-	bool				hnp_polling_req;
+	struct work_struct		hnp_polling_work;
 	struct work_struct		work;
 	struct workqueue_struct		*wq;
 
