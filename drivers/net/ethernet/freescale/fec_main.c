@@ -882,9 +882,11 @@ static void fec_enet_enable_ring(struct net_device *ndev)
 		writel(rx_queue->bd_dma, fep->hwp + FEC_R_DES_START(i));
 
 		/* enable DMA1/2 */
-		if (i)
+		if (i) {
 			writel(RCMR_MATCHEN | RCMR_CMP(i),
 				fep->hwp + FEC_RCMR(i));
+			writel(PKT_MAXBLR_SIZE, fep->hwp + FEC_MRBR(i));
+		}
 	}
 
 	for (i = 0; i < fep->num_tx_queues; i++) {

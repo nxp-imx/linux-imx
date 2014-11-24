@@ -56,8 +56,10 @@
 #define FEC_R_FSTART		0x150 /* FIFO receive start reg */
 #define FEC_R_DES_START_1	0x160 /* Receive descriptor ring 1 */
 #define FEC_X_DES_START_1	0x164 /* Transmit descriptor ring 1 */
+#define FEC_R_BUFF_SIZE_1	0x168 /* Maximum receive buff ring1 size */
 #define FEC_R_DES_START_2	0x16c /* Receive descriptor ring 2 */
 #define FEC_X_DES_START_2	0x170 /* Transmit descriptor ring 2 */
+#define FEC_R_BUFF_SIZE_2	0x174 /* Maximum receive buff ring2 size */
 #define FEC_R_DES_START_0	0x180 /* Receive descriptor ring */
 #define FEC_X_DES_START_0	0x184 /* Transmit descriptor ring */
 #define FEC_R_BUFF_SIZE		0x188 /* Maximum receive buff size */
@@ -327,6 +329,7 @@ struct bufdesc_ex {
 				((X == 2) ? FEC_X_DES_ACTIVE_2 : FEC_X_DES_ACTIVE_0))
 #define FEC_DMA_CFG(X)		((X == 2) ? FEC_DMA_CFG_2 : FEC_DMA_CFG_1)
 #define FEC_RCMR(X)		((X == 2) ? FEC_RCMR_2 : FEC_RCMR_1)
+#define FEC_MRBR(X)		((X == 2) ? FEC_R_BUFF_SIZE_2 : FEC_R_BUFF_SIZE_1)
 #define DMA_CLASS_EN		(1 << 16)
 #define IDLE_SLOPE_MASK		0xFFFF
 #define IDLE_SLOPE_1		0x200 /* BW fraction: 0.5 */
