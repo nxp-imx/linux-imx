@@ -56,59 +56,6 @@ struct mcc_tty_msg {
 	char data[MCC_ATTR_BUFFER_SIZE_IN_BYTES - 24];
 };
 
-static void mcctty_delay_work(struct work_struct *work)
-{
-	struct mcctty_port *cport = &mcc_tty_port;
-	int ret, space;
-	unsigned char *cbuf;
-	struct mcc_tty_msg tty_msg;
-	MCC_MEM_SIZE num_of_received_bytes;
-	MCC_INFO_STRUCT mcc_info;
-
-	/* start mcc tty recv here */
-	ret = mcc_initialize(MCC_NODE_A9);
-	if (ret)
-		pr_err("failed to initialize mcc.\n");
-
-	ret = mcc_get_info(MCC_NODE_A9, &mcc_info);
-	if (ret)
-		pr_err("failed to get mcc info.\n");
-	pr_info("\nA9 mcc prepares run, MCC version is %s\n",
-			mcc_info.version_string);
-
-	pr_info("imx mcc tty/pingpong demo begin.\n");
-	ret = mcc_create_endpoint(&mcc_endpoint_a9_pingpong,
-			MCC_A9_PORT);
-	if (ret)
-		pr_err("failed to create a9 mcc ep.\n");
-
-	while (1) {
-		ret = mcc_recv(&mcc_endpoint_m4_pingpong,
-				&mcc_endpoint_a9_pingpong, &tty_msg,
-				sizeof(struct mcc_tty_msg),
-				&num_of_received_bytes, 0xffffffff);
-
-		if (MCC_SUCCESS != ret) {
-			pr_err("A9 Main task receive error: %d\n", ret);
-		} else {
-			pr_info("imx mcc tty receive %s.\n", tty_msg.data);
-			/* flush the recv-ed data to tty node */
-			spin_lock_bh(&cport->rx_lock);
-			space = tty_prepare_flip_string(&cport->port, &cbuf,
-							strlen(tty_msg.data));
-			if ((space <= 0) || (cport->rx_buf == NULL))
-				goto tty_unlock;
-
-			memcpy(cport->rx_buf, &tty_msg.data,
-					strlen(tty_msg.data));
-			memcpy(cbuf, cport->rx_buf, space);
-			tty_flip_buffer_push(&cport->port);
-tty_unlock:
-			spin_unlock_bh(&cport->rx_lock);
-		}
-	}
-}
-
 static struct tty_port_operations  mcctty_port_ops = { };
 
 static int mcctty_install(struct tty_driver *driver, struct tty_struct *tty)
@@ -129,35 +76,65 @@ static void mcctty_close(struct tty_struct *tty, struct file *filp)
 static int mcctty_write(struct tty_struct *tty, const unsigned char *buf,
 			 int total)
 {
-	int ret = 0;
+	int i, count, ret = 0, space;
+	unsigned char *cbuf, *tmp;
+	MCC_MEM_SIZE num_of_received_bytes;
 	struct mcc_tty_msg tty_msg;
+	struct mcctty_port *cport = &mcc_tty_port;
 
-	if ((NULL == buf) || (total > 1000)) {
-		pr_err("shouldn't be null and the length should"
-				" be less than 1000 bytes.\n");
+	if (NULL == buf) {
+		pr_err("buf shouldn't be null.\n");
 		return -ENOMEM;
 	}
 
-	strlcpy(tty_msg.data, buf, total + 1);
+	count = total;
+	tmp = (unsigned char *)buf;
+	for (i = 0; i <= count / 999; i++) {
+		strlcpy(tty_msg.data, tmp, count >= 1000 ? 1000 : count + 1);
+		if (count >= 1000)
+			count -= 999;
 
-	/*
-	 * wait until the remote endpoint is created by
-	 * the other core
-	 */
-	ret = mcc_send(&mcc_endpoint_a9_pingpong,
-			&mcc_endpoint_m4_pingpong, &tty_msg,
-			sizeof(struct mcc_tty_msg),
-			0xffffffff);
-
-	while (MCC_ERR_ENDPOINT == ret) {
-		pr_err("\n send err ret %d, re-send\n", ret);
+		/*
+		 * wait until the remote endpoint is created by
+		 * the other core
+		 */
 		ret = mcc_send(&mcc_endpoint_a9_pingpong,
 				&mcc_endpoint_m4_pingpong, &tty_msg,
 				sizeof(struct mcc_tty_msg),
 				0xffffffff);
-		msleep(5000);
-	}
 
+		while (MCC_ERR_ENDPOINT == ret) {
+			pr_err("\n send err ret %d, re-send\n", ret);
+			ret = mcc_send(&mcc_endpoint_a9_pingpong,
+					&mcc_endpoint_m4_pingpong, &tty_msg,
+					sizeof(struct mcc_tty_msg),
+					0xffffffff);
+			msleep(5000);
+		}
+
+		ret = mcc_recv(&mcc_endpoint_m4_pingpong,
+				&mcc_endpoint_a9_pingpong, &tty_msg,
+				sizeof(struct mcc_tty_msg),
+				&num_of_received_bytes, 0xffffffff);
+
+		if (MCC_SUCCESS != ret) {
+			pr_err("A9 Main task receive error: %d\n", ret);
+		} else {
+			/* flush the recv-ed data to tty node */
+			spin_lock_bh(&cport->rx_lock);
+			space = tty_prepare_flip_string(&cport->port, &cbuf,
+							strlen(tty_msg.data));
+			if ((space <= 0) || (cport->rx_buf == NULL))
+				goto tty_unlock;
+
+			memcpy(cport->rx_buf, &tty_msg.data,
+					strlen(tty_msg.data));
+			memcpy(cbuf, cport->rx_buf, space);
+			tty_flip_buffer_push(&cport->port);
+tty_unlock:
+			spin_unlock_bh(&cport->rx_lock);
+		}
+	}
 	return total;
 }
 
@@ -185,6 +162,7 @@ static int imx_mcc_tty_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct mcctty_port *cport = &mcc_tty_port;
+	MCC_INFO_STRUCT mcc_info;
 
 	mcctty_driver = tty_alloc_driver(1,
 			TTY_DRIVER_RESET_TERMIOS |
@@ -221,8 +199,32 @@ static int imx_mcc_tty_probe(struct platform_device *pdev)
 		goto error;
 	}
 
-	INIT_DELAYED_WORK(&cport->read, mcctty_delay_work);
-	schedule_delayed_work(&cport->read, HZ/100);
+	ret = mcc_initialize(MCC_NODE_A9);
+	if (ret) {
+		pr_err("failed to initialize mcc.\n");
+		ret = -ENODEV;
+		goto error;
+	}
+
+	ret = mcc_get_info(MCC_NODE_A9, &mcc_info);
+	if (ret) {
+		pr_err("failed to get mcc info.\n");
+		ret = -ENODEV;
+		goto error;
+	} else {
+		pr_info("\nA9 mcc prepares run, MCC version is %s\n",
+				mcc_info.version_string);
+		pr_info("imx mcc tty/pingpong test begin.\n");
+	}
+
+	ret = mcc_create_endpoint(&mcc_endpoint_a9_pingpong,
+			MCC_A9_PORT);
+	if (ret) {
+		pr_err("failed to create a9 mcc ep.\n");
+		ret = -ENODEV;
+		goto error;
+	}
+
 	return 0;
 
 error:
