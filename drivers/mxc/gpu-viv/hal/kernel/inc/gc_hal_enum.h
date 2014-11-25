@@ -298,6 +298,8 @@ typedef enum _gceOPITON
     gcvOPTION_HW_NULL = 50,
     gcvOPTION_PRINT_OPTION = 51,
 
+    gcvOPTION_FBO_PREFER_MEM = 80,
+
     /* Insert option above this comment only */
     gcvOPTION_COUNT                     /* Not a OPTION*/
 }
