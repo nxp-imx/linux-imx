@@ -3229,9 +3229,6 @@ fec_probe(struct platform_device *pdev)
 
 	/* Carrier starts down, phylib will bring it up */
 	netif_carrier_off(ndev);
-	device_init_wakeup(&ndev->dev,
-		fep->wol_flag & FEC_WOL_HAS_MAGIC_PACKET);
-
 	fec_enet_clk_enable(ndev, false);
 
 	/* Select sleep pin state */
@@ -3240,6 +3237,9 @@ fec_probe(struct platform_device *pdev)
 	ret = register_netdev(ndev);
 	if (ret)
 		goto failed_register;
+
+	device_init_wakeup(&ndev->dev,
+		fep->wol_flag & FEC_WOL_HAS_MAGIC_PACKET);
 
 	if (fep->bufdesc_ex && fep->ptp_clock)
 		netdev_info(ndev, "registered PHC device %d\n", fep->dev_id);
