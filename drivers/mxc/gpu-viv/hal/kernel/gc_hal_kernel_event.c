@@ -2448,7 +2448,10 @@ gckEVENT_Notify(
 
         if (pending & 0x80000000)
         {
-            gcmkPRINT("AXI BUS ERROR");
+            gctUINT32 AQAxiStatus = 0;
+            gckOS_ReadRegisterEx(Event->os, Event->kernel->hardware->core, 0xC, &AQAxiStatus);
+
+            gcmkPRINT("GPU[%d]: AXI BUS ERROR, AQAxiStatus=0x%x\n", Event->kernel->hardware->core, AQAxiStatus);
             pending &= 0x7FFFFFFF;
         }
 
