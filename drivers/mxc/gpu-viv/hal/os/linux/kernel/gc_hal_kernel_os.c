@@ -1787,6 +1787,8 @@ OnError:
         /* Free LINUX_MDL. */
         gcmkVERIFY_OK(_DestroyMdl(mdl));
     }
+    *Physical = gcvNULL;
+    *Bytes = 0;
 
     if (locked)
     {
@@ -3720,6 +3722,7 @@ OnError:
         /* Free the memory. */
         _DestroyMdl(mdl);
     }
+    *Physical = gcvNULL;
 
     /* Return the status. */
     gcmkFOOTER_ARG("Os=0x%X Flag=%x Bytes=%lu", Os, Flag, Bytes);
