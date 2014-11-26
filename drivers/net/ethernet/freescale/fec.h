@@ -293,6 +293,7 @@ struct bufdesc_ex {
 
 #define FALSE                  0
 #define TRUE                   1
+#define FEC0_MII_BUS_SHARE_TRUE        1
 
 /* Interrupt events/masks. */
 #define FEC_ENET_HBERR  ((uint)0x80000000)      /* Heartbeat error */
@@ -317,6 +318,8 @@ struct bufdesc_ex {
 
 #define FEC_DEFAULT_IMASK (FEC_ENET_TXF | FEC_ENET_RXF | FEC_ENET_MII | FEC_ENET_TS_TIMER)
 #define FEC_RX_DISABLED_IMASK (FEC_DEFAULT_IMASK & (~(FEC_ENET_RXF | FEC_ENET_TXF)))
+
+#define FEC_ENET_ETHEREN	((uint)0x00000002)
 
 /* ENET AVB related macros define */
 #define FEC_R_DES_START(X)	((X == 1) ? FEC_R_DES_START_1 : \
@@ -586,6 +589,7 @@ struct fec_enet_private {
 	struct	mii_bus *mii_bus;
 	struct	phy_device *phy_dev;
 	int	mii_timeout;
+	int	mii_bus_share;
 	uint	phy_speed;
 	uint	phy_id;
 	phy_interface_t	phy_interface;
