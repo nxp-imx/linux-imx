@@ -661,6 +661,9 @@ wfi_restore:
 	/* Restore the DDR IO before exiting self-refresh. */
 	sl_ddr_io_restore
 
+	/* Restore the MMDC PODF back */
+	cmp	r11, #0x1
+	beq	audio_mmdc_restore
 	/*
 	 * Set MMDC back to 24MHz.
 	 * Set periph2_clk2_podf to divide by 1
@@ -668,6 +671,19 @@ wfi_restore:
 	 */
 	ldr	r6, [r2, #0x14]
 	bic	r6, r6, #0x3f
+	str	r6, [r2, #0x14]
+	b	mmdc_podf1
+
+	/*
+	 * In audio busfreq mode, when entering the low
+	 * power code the original MMDC podf is setted to 0x1,
+	 * means the DIV is 2. So before exiting lower power idle,
+	 * need to restore this value back.
+	 */
+audio_mmdc_restore:
+	ldr	r6, [r2, #0x14]
+	bic	r6, r6, #0x3f
+	orr	r6, #0x8
 	str	r6, [r2, #0x14]
 
 mmdc_podf1:
