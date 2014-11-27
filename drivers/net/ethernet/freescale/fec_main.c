@@ -1444,13 +1444,13 @@ fec_enet_rx(struct net_device *ndev, int budget)
 
 			/* If this is a VLAN packet remove the VLAN Tag */
 			vlan_packet_rcvd = false;
-			if (fep->bufdesc_ex && (ebdp->cbd_esc & BD_ENET_RX_VLAN)) {
+			if ((ndev->features & NETIF_F_HW_VLAN_CTAG_RX) &&
+				fep->bufdesc_ex && (ebdp->cbd_esc & BD_ENET_RX_VLAN)) {
 				/* Push and remove the vlan tag */
 				struct vlan_hdr *vlan_header =
 					(struct vlan_hdr *) (data + ETH_HLEN);
 				vlan_tag = ntohs(vlan_header->h_vlan_TCI);
-				if (ndev->features & NETIF_F_HW_VLAN_CTAG_RX)
-					pkt_len -= VLAN_HLEN;
+				pkt_len -= VLAN_HLEN;
 
 				vlan_packet_rcvd = true;
 			}
