@@ -1444,15 +1444,19 @@ fec_enet_rx(struct net_device *ndev, int budget)
 
 			/* If this is a VLAN packet remove the VLAN Tag */
 			vlan_packet_rcvd = false;
-			if ((ndev->features & NETIF_F_HW_VLAN_CTAG_RX) &&
-				fep->bufdesc_ex && (ebdp->cbd_esc & BD_ENET_RX_VLAN)) {
+			if (fep->bufdesc_ex && (ebdp->cbd_esc & BD_ENET_RX_VLAN)) {
 				/* Push and remove the vlan tag */
 				struct vlan_hdr *vlan_header =
 					(struct vlan_hdr *) (data + ETH_HLEN);
 				vlan_tag = ntohs(vlan_header->h_vlan_TCI);
-				pkt_len -= VLAN_HLEN;
 
-				vlan_packet_rcvd = true;
+				if (ndev->features & NETIF_F_HW_VLAN_CTAG_RX)
+					pkt_len -= VLAN_HLEN;
+
+				if (vlan_header->h_vlan_encapsulated_proto ==
+					htons(ETH_P_1722) ||
+					ndev->features & NETIF_F_HW_VLAN_CTAG_RX)
+					vlan_packet_rcvd = true;
 			}
 
 			/* This does 16 byte alignment, exactly what we need.

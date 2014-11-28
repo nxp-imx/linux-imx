@@ -384,8 +384,9 @@ struct bufdesc_ex {
 #define PTP_HEADER_SZE         34
 #define PTP_EVENT_PORT         0x013F
 
-#define FEC_VLAN_TAG_LEN       0x04
-#define FEC_ETHTYPE_LEN                0x02
+#define FEC_VLAN_TAG_LEN	0x04
+#define FEC_ETHTYPE_LEN		0x02
+#define ETH_P_1722		0x22f0
 
 /* 1588-2008 network protocol enumeration values */
 #define FEC_PTP_PROT_IPV4              1
