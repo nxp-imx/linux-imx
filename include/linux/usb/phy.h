@@ -127,6 +127,7 @@ struct usb_phy {
 			enum usb_device_speed speed);
 	int	(*notify_resume)(struct usb_phy *x,
 			enum usb_device_speed speed);
+	int	(*pulldown_line)(struct usb_phy *x, bool pull_down);
 
 };
 
@@ -317,6 +318,15 @@ static inline int usb_phy_notify_resume
 {
 	if (x && x->notify_resume)
 		return x->notify_resume(x, speed);
+	else
+		return 0;
+}
+
+static inline int usb_phy_pulldown_line
+	(struct usb_phy *x, bool pull_down)
+{
+	if (x && x->pulldown_line)
+		return x->pulldown_line(x, pull_down);
 	else
 		return 0;
 }
