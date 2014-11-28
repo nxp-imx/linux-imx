@@ -55,6 +55,8 @@
 
 #define BM_USBPHY_IP_FIX                       (BIT(17) | BIT(18))
 
+#define BM_USBPHY_DEBUG_ENHSTPULLDOWN		(BIT(4) | BIT(5))
+#define BM_USBPHY_DEBUG_HSTPULLDOWN		(BIT(2) | BIT(3))
 #define BM_USBPHY_DEBUG_CLKGATE			BIT(30)
 
 /* Anatop Registers */
@@ -110,6 +112,13 @@
 /* The SoCs who have anatop module */
 #define MXS_PHY_HAS_ANATOP			BIT(3)
 
+/*
+ * For SoCs, which the controller may be powered off, we
+ * need to pulldown dp/dm when the controller is powered off,
+ * in that case, the dp/dm state are stable.
+ */
+#define MXS_PHY_PULLDOWN_LINE			BIT(4)
+
 struct mxs_phy_data {
 	unsigned int flags;
 };
@@ -131,7 +140,8 @@ static const struct mxs_phy_data imx6sl_phy_data = {
 
 static const struct mxs_phy_data imx6sx_phy_data = {
 	.flags = MXS_PHY_HAS_ANATOP |
-		MXS_PHY_DISCONNECT_LINE_WITHOUT_VBUS,
+		MXS_PHY_DISCONNECT_LINE_WITHOUT_VBUS |
+		MXS_PHY_PULLDOWN_LINE,
 };
 
 static const struct of_device_id mxs_phy_dt_ids[] = {
@@ -483,6 +493,18 @@ static int mxs_phy_on_resume(struct usb_phy *phy,
 	return 0;
 }
 
+static int mxs_phy_pulldown_line(struct usb_phy *x, bool pull_down)
+{
+	u32 bits = BM_USBPHY_DEBUG_HSTPULLDOWN | BM_USBPHY_DEBUG_ENHSTPULLDOWN;
+
+	if (pull_down)
+		writel_relaxed(bits, x->io_priv + HW_USBPHY_DEBUG_SET);
+	else
+		writel_relaxed(bits, x->io_priv + HW_USBPHY_DEBUG_CLR);
+
+	return 0;
+}
+
 static int mxs_phy_probe(struct platform_device *pdev)
 {
 	struct resource *res;
@@ -539,6 +561,9 @@ static int mxs_phy_probe(struct platform_device *pdev)
 		mxs_phy->phy.notify_suspend = mxs_phy_on_suspend;
 		mxs_phy->phy.notify_resume = mxs_phy_on_resume;
 	}
+
+	if (mxs_phy->data->flags & MXS_PHY_PULLDOWN_LINE)
+		mxs_phy->phy.pulldown_line = mxs_phy_pulldown_line;
 
 	platform_set_drvdata(pdev, mxs_phy);
 
