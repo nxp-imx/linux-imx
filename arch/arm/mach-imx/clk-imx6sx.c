@@ -134,6 +134,39 @@ static u32 share_count_asrc;
 static u32 share_count_audio;
 static u32 share_count_esai;
 
+
+/*
+ * As IMX6SX_CLK_M4_PRE_SEL is NOT a glitchless MUX, so when
+ * M4 is trying to change its clk parent, need to ask A9 to
+ * help do it, and M4 must be hold in wfi. To avoid glitch
+ * occur, need to gate M4 clk first before switching its parent.
+ */
+void imx6sx_set_m4_highfreq(bool high_freq)
+{
+	static struct clk *m4_high_freq_sel;
+
+	imx_gpc_hold_m4_in_sleep();
+
+	clk_disable_unprepare(clks[IMX6SX_CLK_M4]);
+	imx_clk_set_parent(clks[IMX6SX_CLK_M4_SEL],
+		clks[IMX6SX_CLK_LDB_DI0]);
+
+	if (high_freq) {
+		imx_clk_set_parent(clks[IMX6SX_CLK_M4_PRE_SEL],
+			m4_high_freq_sel);
+	} else {
+		m4_high_freq_sel = clk_get_parent(clks[IMX6SX_CLK_M4_PRE_SEL]);
+		imx_clk_set_parent(clks[IMX6SX_CLK_M4_PRE_SEL],
+			clks[IMX6SX_CLK_OSC]);
+	}
+
+	imx_clk_set_parent(clks[IMX6SX_CLK_M4_SEL],
+		clks[IMX6SX_CLK_M4_PRE_SEL]);
+	clk_prepare_enable(clks[IMX6SX_CLK_M4]);
+
+	imx_gpc_release_m4_in_sleep();
+}
+
 /*
  * The ldb_di_sel is buggy and could generate a glitch during clock switch.
  * Find out the parent set up by bootloader and register it statically to
@@ -523,6 +556,10 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clk_register_clkdev(clks[IMX6SX_CLK_PLL4_SEL], "pll4_sel", NULL);
 	clk_register_clkdev(clks[IMX6SX_CLK_LVDS2_IN], "lvds2_in", NULL);
 	clk_register_clkdev(clks[IMX6SX_CLK_ESAI_EXTAL], "esai_extal", NULL);
+
+	/* maintain M4 usecount */
+	if (imx_src_is_m4_enabled())
+		imx_clk_prepare_enable(clks[IMX6SX_CLK_M4]);
 
 	/* set perclk to from OSC */
 	imx_clk_set_parent(clks[IMX6SX_CLK_PERCLK_SEL], clks[IMX6SX_CLK_OSC]);

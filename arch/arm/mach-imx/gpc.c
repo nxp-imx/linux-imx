@@ -234,16 +234,24 @@ void imx_gpc_pre_suspend(bool arm_power_off)
 void imx_gpc_hold_m4_in_sleep()
 {
 	int val;
+	unsigned long timeout = jiffies + msecs_to_jiffies(500);
+
+	/* wait M4 in wfi before asserting hold request */
+	while (!imx_gpc_is_m4_sleeping())
+		if (time_after(jiffies, timeout))
+			pr_err("M4 is NOT in expected sleep!\n");
 
 	val = readl_relaxed(gpc_base + GPC_M4_LPSR);
 	val &= ~(GPC_M4_LPSR_M4_SLEEP_HOLD_REQ_MASK <<
 		GPC_M4_LPSR_M4_SLEEP_HOLD_REQ_SHIFT);
 	writel_relaxed(val, gpc_base + GPC_M4_LPSR);
 
+	timeout = jiffies + msecs_to_jiffies(500);
 	while (readl_relaxed(gpc_base + GPC_M4_LPSR)
 		& (GPC_M4_LPSR_M4_SLEEP_HOLD_ACK_MASK <<
 		GPC_M4_LPSR_M4_SLEEP_HOLD_ACK_SHIFT))
-		;
+		if (time_after(jiffies, timeout))
+			pr_err("Wait M4 hold ack timeout!\n");
 }
 
 void imx_gpc_release_m4_in_sleep()

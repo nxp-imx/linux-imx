@@ -237,12 +237,16 @@ static void mu_work_handler(struct work_struct *work)
 	switch (m4_message) {
 	case MU_LPM_M4_REQUEST_HIGH_BUS:
 		request_bus_freq(BUS_FREQ_HIGH);
+		imx6sx_set_m4_highfreq(true);
 		mcc_send_via_mu_buffer(MU_LPM_HANDSHAKE_INDEX,
 			MU_LPM_BUS_HIGH_READY_FOR_M4);
 		m4_freq_low = false;
 		break;
 	case MU_LPM_M4_RELEASE_HIGH_BUS:
 		release_bus_freq(BUS_FREQ_HIGH);
+		imx6sx_set_m4_highfreq(false);
+		mcc_send_via_mu_buffer(MU_LPM_HANDSHAKE_INDEX,
+			MU_LPM_M4_FREQ_CHANGE_READY);
 		m4_freq_low = true;
 		break;
 	default:
