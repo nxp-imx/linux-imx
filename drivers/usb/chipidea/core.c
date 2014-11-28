@@ -978,6 +978,8 @@ static int ci_controller_resume(struct device *dev)
 static int ci_suspend(struct device *dev)
 {
 	struct ci_hdrc *ci = dev_get_drvdata(dev);
+	bool host_mode;
+	bool connect;
 
 	if (ci->wq)
 		flush_workqueue(ci->wq);
@@ -1010,6 +1012,12 @@ static int ci_suspend(struct device *dev)
 	if (ci->in_lpm)
 		return 0;
 
+	host_mode = (hw_read(ci, OP_USBMODE, USBMODE_CM) == USBMODE_CM_HC);
+	connect = !!(hw_read(ci, OP_PORTSC, PORTSC_CCS));
+	if (host_mode && connect)
+		/* pull down dp and dm if needed */
+	       usb_phy_pulldown_line(ci->transceiver, true);
+
 	ci_controller_suspend(ci);
 
 	return 0;
@@ -1036,6 +1044,12 @@ static int ci_resume(struct device *dev)
 	ret = ci_controller_resume(dev);
 	if (ret)
 		return ret;
+
+	/*
+	 * Disable pulldown dp and dm, and let the controller control it.
+	 * It is the default value from reset.
+	 */
+	usb_phy_pulldown_line(ci->transceiver, false);
 
 	if (power_lost) {
 		/* re-init for phy */
