@@ -9,6 +9,10 @@
 #include "imx6sx-sdb.dts"
 
 / {
+	backlight1 {
+		status = "enabled";
+	};
+
 	csi1_v4l2_cap {
 		status = "disabled";
 	};
