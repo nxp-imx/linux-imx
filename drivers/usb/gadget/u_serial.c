@@ -608,7 +608,8 @@ static void gs_write_complete(struct usb_ep *ep, struct usb_request *req)
 		/* FALL THROUGH */
 	case 0:
 		/* normal completion */
-		gs_start_tx(port);
+		if (port->port_usb)
+			gs_start_tx(port);
 		break;
 
 	case -ESHUTDOWN:
