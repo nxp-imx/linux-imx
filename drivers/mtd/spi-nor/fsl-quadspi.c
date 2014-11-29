@@ -27,6 +27,7 @@
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/spi-nor.h>
 #include <linux/mutex.h>
+#include <linux/pm_qos.h>
 
 /* The registers */
 #define QUADSPI_MCR			0x00
@@ -237,6 +238,7 @@ struct fsl_qspi {
 	u32 clk_rate;
 	unsigned int chip_base_addr; /* We may support two chips. */
 	struct mutex lock;
+	struct pm_qos_request	pm_qos_req;
 };
 
 static inline int is_vybrid_qspi(struct fsl_qspi *q)
@@ -664,12 +666,17 @@ static int fsl_qspi_clk_prep_enable(struct fsl_qspi *q)
 		return ret;
 	}
 
+	pm_qos_add_request(&q->pm_qos_req,
+			PM_QOS_CPU_DMA_LATENCY,
+			0);
+
 	return 0;
 }
 
 /* This function was used to disable and unprepare QSPI clock */
 static int fsl_qspi_clk_disable_unprep(struct fsl_qspi *q)
 {
+	pm_qos_remove_request(&q->pm_qos_req);
 	clk_disable_unprepare(q->clk);
 	clk_disable_unprepare(q->clk_en);
 	return 0;
