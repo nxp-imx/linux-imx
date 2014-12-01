@@ -889,6 +889,7 @@
 	/* only map 128MB */
 	reg = <0x021e0000 0x4000>, <0x60000000 0x8000000>;
 	status = "okay";
+	ddrsmp=<2>;
 
 	flash0: n25q256a@0 {
 		#address-cells = <1>;
