@@ -288,6 +288,7 @@ struct fsl_qspi {
 	unsigned int chip_base_addr; /* We may support two chips. */
 	bool has_second_chip;
 	bool big_endian;
+	u32 ddr_smp;
 	struct mutex lock;
 	struct pm_qos_request pm_qos_req;
 };
@@ -742,7 +743,8 @@ static void fsl_qspi_init_abh_read(struct fsl_qspi *q)
 		/* Set the Sampling Register for DDR */
 		reg2 = readl(q->iobase + QUADSPI_SMPR);
 		reg2 &= ~QUADSPI_SMPR_DDRSMP_MASK;
-		reg2 |= (2 << QUADSPI_SMPR_DDRSMP_SHIFT);
+		reg2 |= ((q->ddr_smp << QUADSPI_SMPR_DDRSMP_SHIFT) &
+			 QUADSPI_SMPR_DDRSMP_MASK);
 		qspi_writel(q, reg2, q->iobase + QUADSPI_SMPR);
 
 		/* Enable the module again (enable the DDR too) */
@@ -1068,6 +1070,12 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 	q->clk = devm_clk_get(dev, "qspi");
 	if (IS_ERR(q->clk))
 		return PTR_ERR(q->clk);
+
+	/* find ddrsmp value */
+	ret = of_property_read_u32(dev->of_node, "ddrsmp",
+				&q->ddr_smp);
+	if (ret)
+		q->ddr_smp = 0;
 
 	ret = fsl_qspi_clk_prep_enable(q);
 	if (ret) {
