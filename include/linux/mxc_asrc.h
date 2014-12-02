@@ -28,7 +28,8 @@
 #define ASRC_FIFO_THRESHOLD_MAX		63
 #define ASRC_DMA_BUFFER_SIZE		(1024 * 48 * 4)
 #define ASRC_MAX_BUFFER_SIZE		(1024 * 48)
-#define ASRC_OUTPUT_LAST_SAMPLE_DEFAULT	8
+#define ASRC_OUTPUT_LAST_SAMPLE_DEFAULT_MAX 32
+#define ASRC_OUTPUT_LAST_SAMPLE_DEFAULT 16
 
 
 /* Ideal Ratio mode doesn't care the outclk frequency, so be fixed */

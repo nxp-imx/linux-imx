@@ -837,13 +837,13 @@ static int imx_asrc_dma_config(struct asrc_pair_params *params,
 		slave_config.dst_addr = dma_addr;
 		slave_config.dst_addr_width = buswidth;
 		slave_config.dst_maxburst =
-			params->input_wm * params->channel_nums / buswidth;
+			params->input_wm * params->channel_nums;
 	} else {
 		slave_config.direction = DMA_DEV_TO_MEM;
 		slave_config.src_addr = dma_addr;
 		slave_config.src_addr_width = buswidth;
 		slave_config.src_maxburst =
-			params->output_wm * params->channel_nums / buswidth;
+			params->output_wm * params->channel_nums;
 	}
 	ret = dmaengine_slave_config(chan, &slave_config);
 	if (ret) {
@@ -1236,7 +1236,11 @@ static long asrc_ioctl_config_pair(struct asrc_pair_params *params,
 	params->input_sample_rate = config.input_sample_rate;
 	params->output_sample_rate = config.output_sample_rate;
 
-	params->last_period_sample = ASRC_OUTPUT_LAST_SAMPLE_DEFAULT;
+	if (params->output_sample_rate > params->input_sample_rate)
+		params->last_period_sample = ASRC_OUTPUT_LAST_SAMPLE_DEFAULT_MAX;
+	else
+		params->last_period_sample = ASRC_OUTPUT_LAST_SAMPLE_DEFAULT;
+
 
 	ret = mxc_allocate_dma_buf(params);
 	if (ret) {
