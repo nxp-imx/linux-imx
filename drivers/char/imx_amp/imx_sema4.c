@@ -16,7 +16,6 @@
 #include <linux/io.h>
 #include <linux/err.h>
 #include <linux/mcc_config_linux.h>
-#include <linux/mcc_common.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/wait.h>
