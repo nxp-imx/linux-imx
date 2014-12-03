@@ -475,12 +475,13 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_qspi2_1>;
 	status = "okay";
+	ddrsmp=<2>;
 
 	flash0: n25q256a@0 {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "micron,n25q256a";
-		spi-max-frequency = <53000000>;
+		spi-max-frequency = <29000000>;
 		reg = <0>;
 	};
 
@@ -488,7 +489,7 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "micron,n25q256a";
-		spi-max-frequency = <53000000>;
+		spi-max-frequency = <29000000>;
 		reg = <1>;
 	};
 };
