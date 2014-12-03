@@ -1018,16 +1018,18 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 
 		ret = of_modalias_node(np, modalias, sizeof(modalias));
 		if (ret < 0)
-			goto map_failed;
+			goto irq_failed;
 
 		id = spi_nor_match_id(modalias);
-		if (!id)
-			goto map_failed;
+		if (!id) {
+			ret = -EINVAL;
+			goto irq_failed;
+		}
 
 		ret = of_property_read_u32(np, "spi-max-frequency",
 				&q->clk_rate);
 		if (ret < 0)
-			goto map_failed;
+			goto irq_failed;
 
 		/* Can we enable the DDR Quad Read? */
 		ret = of_property_read_u32(np, "spi-nor,ddr-quad-read-dummy",
@@ -1040,12 +1042,12 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 
 		ret = spi_nor_scan(nor, id, mode);
 		if (ret)
-			goto map_failed;
+			goto irq_failed;
 
 		ppdata.of_node = np;
 		ret = mtd_device_parse_register(mtd, NULL, &ppdata, NULL, 0);
 		if (ret)
-			goto map_failed;
+			goto irq_failed;
 
 		/* Set the correct NOR size now. */
 		if (q->nor_size == 0) {
