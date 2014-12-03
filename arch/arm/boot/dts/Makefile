@@ -193,6 +193,7 @@ dtb-$(CONFIG_ARCH_MXC) += \
 	imx6sx-17x17-arm2-mlb.dtb \
 	imx6sx-19x19-arm2.dtb \
 	imx6sx-19x19-arm2-csi.dtb \
+	imx6sx-19x19-arm2-lcdif1.dtb \
 	imx6sx-19x19-arm2-gpmi-weim.dtb \
 	imx6sx-sdb.dtb \
 	imx6sx-sabreauto.dtb \
