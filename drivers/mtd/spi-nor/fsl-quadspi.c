@@ -1052,11 +1052,13 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 
 		ret = of_modalias_node(np, modalias, sizeof(modalias));
 		if (ret < 0)
-			goto map_failed;
+			goto irq_failed;
 
 		id = spi_nor_match_id(modalias);
-		if (!id)
-			goto map_failed;
+		if (!id) {
+			ret = -EINVAL;
+			goto irq_failed;
+		}
 
 		/* get the NOR chip manufacture id */
 		jedec_mfr_id = (*(u32 *)(id->driver_data)) >> 16;
@@ -1066,19 +1068,19 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 		ret = of_property_read_u32(np, "spi-max-frequency",
 				&q->clk_rate);
 		if (ret < 0)
-			goto map_failed;
+			goto irq_failed;
 
 		/* set the chip address for READID */
 		fsl_qspi_set_base_addr(q, nor);
 
 		ret = spi_nor_scan(nor, id, SPI_NOR_QUAD);
 		if (ret)
-			goto map_failed;
+			goto irq_failed;
 
 		ppdata.of_node = np;
 		ret = mtd_device_parse_register(mtd, NULL, &ppdata, NULL, 0);
 		if (ret)
-			goto map_failed;
+			goto irq_failed;
 
 		/* Set the correct NOR size now. */
 		if (q->nor_size == 0) {
