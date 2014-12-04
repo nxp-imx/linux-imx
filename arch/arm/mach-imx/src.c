@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Freescale Semiconductor, Inc.
+ * Copyright 2011-2014 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -18,6 +18,7 @@
 #include <linux/smp.h>
 #include <asm/smp_plat.h>
 #include "common.h"
+#include "hardware.h"
 
 #define SRC_SCR				0x000
 #define SRC_GPR1			0x020
@@ -32,6 +33,7 @@
 
 static void __iomem *src_base;
 static DEFINE_SPINLOCK(scr_lock);
+static bool m4_is_enabled;
 
 static const int sw_reset_bits[5] = {
 	BP_SRC_SCR_SW_GPU_RST,
@@ -40,6 +42,11 @@ static const int sw_reset_bits[5] = {
 	BP_SRC_SCR_SW_OPEN_VG_RST,
 	BP_SRC_SCR_SW_IPU2_RST
 };
+
+bool imx_src_is_m4_enabled(void)
+{
+	return m4_is_enabled;
+}
 
 static int imx_src_reset_module(struct reset_controller_dev *rcdev,
 		unsigned long sw_reset_idx)
@@ -136,6 +143,14 @@ void __init imx_src_init(void)
 	 */
 	spin_lock(&scr_lock);
 	val = readl_relaxed(src_base + SRC_SCR);
+
+	/* bit 4 is m4c_non_sclr_rst on i.MX6SX */
+	if (cpu_is_imx6sx() && ((val &
+		(1 << BP_SRC_SCR_SW_OPEN_VG_RST)) == 0))
+		m4_is_enabled = true;
+	else
+		m4_is_enabled = false;
+
 	val &= ~(1 << BP_SRC_SCR_WARM_RESET_ENABLE);
 	writel_relaxed(val, src_base + SRC_SCR);
 	spin_unlock(&scr_lock);

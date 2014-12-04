@@ -17,6 +17,7 @@ struct irq_data;
 struct platform_device;
 struct pt_regs;
 struct clk;
+struct clk_hw;
 struct device_node;
 enum mxc_cpu_pwr_mode;
 
@@ -83,6 +84,16 @@ unsigned int imx_get_soc_revision(void);
 void imx_init_revision_from_anatop(void);
 struct device *imx_soc_device_init(void);
 unsigned int imx_gpc_is_mf_mix_off(void);
+void imx6sx_set_m4_highfreq(bool high_freq);
+void imx_mu_enable_m4_irqs_in_gic(bool enable);
+void imx_gpc_add_m4_wake_up_irq(u32 irq, bool enable);
+void imx_gpc_hold_m4_in_sleep(void);
+void imx_gpc_release_m4_in_sleep(void);
+int imx_update_shared_mem(struct clk_hw *hw, bool enable);
+bool imx_src_is_m4_enabled(void);
+void mcc_receive_from_mu_buffer(unsigned int index, unsigned int *data);
+void mcc_send_via_mu_buffer(unsigned int index, unsigned int data);
+unsigned int imx_gpc_is_m4_sleeping(void);
 
 enum mxc_cpu_pwr_mode {
 	WAIT_CLOCKED,		/* wfi only */

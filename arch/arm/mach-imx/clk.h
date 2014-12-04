@@ -7,6 +7,8 @@
 extern spinlock_t imx_ccm_lock;
 
 extern void imx_cscmr1_fixup(u32 *val);
+extern struct imx_sema4_mutex *amp_power_mutex;
+extern struct imx_shared_mem *shared_mem;
 
 struct clk *imx_clk_pllv1(const char *name, const char *parent,
 		void __iomem *base);
@@ -20,6 +22,25 @@ enum imx_pllv3_type {
 	IMX_PLLV3_USB,
 	IMX_PLLV3_AV,
 	IMX_PLLV3_ENET,
+};
+
+#define MAX_SHARED_CLK_NUMBER		100
+#define SHARED_MEM_MAGIC_NUMBER		0x12345678
+#define MCC_POWER_SHMEM_NUMBER		(6)
+
+struct imx_shared_clk {
+	struct clk *self;
+	struct clk *parent;
+	void *m4_clk;
+	void *m4_clk_parent;
+	u8 ca9_enabled;
+	u8 cm4_enabled;
+};
+
+struct imx_shared_mem {
+	u32 ca9_valid;
+	u32 cm4_valid;
+	struct imx_shared_clk imx_clk[MAX_SHARED_CLK_NUMBER];
 };
 
 struct clk *imx_clk_pllv3(enum imx_pllv3_type type, const char *name,
