@@ -6,7 +6,7 @@
  * published by the Free Software Foundation.
  */
 
-#include "imx6sx-sdb.dts"
+#include "imx6sx-sabreauto.dts"
 
 /*
  * The flollowing modules are conflicting with M4, disable them when m4
@@ -36,11 +36,12 @@
         status = "disabled";
 };
 
-&qspi2 {
+&qspi1 {
 	status = "disabled";
 };
 
 &qspi_m4 {
+	reg = <0x021e0000 0x4000>;
 	status = "okay";
 };
 
@@ -71,3 +72,4 @@
 	fsl,shared-mem-addr = <0x91F000>;
 	fsl,shared-mem-size = <0x1000>;
 };
+
