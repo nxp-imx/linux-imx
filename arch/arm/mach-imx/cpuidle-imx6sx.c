@@ -77,6 +77,7 @@ struct imx6_cpuidle_pm_info {
 	struct imx6_pm_base l2_base;
 	struct imx6_pm_base anatop_base;
 	struct imx6_pm_base src_base;
+	struct imx6_pm_base sema4_base;
 	u32 saved_diagnostic; /* To save disagnostic register */
 	u32 mmdc_io_num; /* Number of MMDC IOs which need saved/restored. */
 	u32 mmdc_io_val[MX6_MAX_MMDC_IO_NUM][2]; /* To save offset and value */
@@ -191,6 +192,10 @@ int __init imx6sx_cpuidle_init(void)
 
 	cpuidle_pm_info->src_base.pbase = MX6Q_SRC_BASE_ADDR;
 	cpuidle_pm_info->src_base.vbase = (void __iomem *)IMX_IO_P2V(MX6Q_SRC_BASE_ADDR);
+
+	cpuidle_pm_info->sema4_base.pbase = MX6Q_SEMA4_BASE_ADDR;
+	cpuidle_pm_info->sema4_base.vbase =
+		(void __iomem *)IMX_IO_P2V(MX6Q_SEMA4_BASE_ADDR);
 
 	/* only save mmdc io offset, settings will be saved in asm code */
 	for (i = 0; i < cpuidle_pm_info->mmdc_io_num; i++)

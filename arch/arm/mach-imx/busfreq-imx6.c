@@ -122,8 +122,22 @@ static u32 pll2_org_rate;
 static struct delayed_work low_bus_freq_handler;
 static struct delayed_work bus_freq_daemon;
 
+static bool check_m4_sleep(void)
+{
+	unsigned long timeout = jiffies + msecs_to_jiffies(500);
+
+	while (imx_gpc_is_m4_sleeping() == 0)
+		if (time_after(jiffies, timeout))
+			return false;
+	return  true;
+}
+
 static void enter_lpm_imx6sx(void)
 {
+	if (imx_src_is_m4_enabled())
+		if (!check_m4_sleep())
+			pr_err("M4 is NOT in sleep!!!\n");
+
 	/* set periph_clk2 to source from OSC for periph */
 	imx_clk_set_parent(periph_clk2_sel, osc_clk);
 	imx_clk_set_parent(periph_clk, periph_clk2);
@@ -1076,6 +1090,10 @@ static int busfreq_probe(struct platform_device *pdev)
 			err = init_mmdc_ddr3_settings_imx6sx(pdev);
 		else if (ddr_type == MMDC_MDMISC_DDR_TYPE_LPDDR2)
 			err = init_mmdc_lpddr2_settings(pdev);
+		/* if M4 is enabled and rate > 24MHz, add high bus count */
+		if (imx_src_is_m4_enabled() &&
+			(clk_get_rate(m4_clk) > LPAPM_CLK))
+			high_bus_count++;
 	} else {
 		err = init_mmdc_ddr3_settings_imx6q(pdev);
 	}

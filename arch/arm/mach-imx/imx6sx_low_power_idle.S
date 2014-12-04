@@ -32,9 +32,11 @@
 #define PM_INFO_MX6Q_ANATOP_V_OFFSET		0x3c
 #define PM_INFO_MX6Q_SRC_P_OFFSET		0x40
 #define PM_INFO_MX6Q_SRC_V_OFFSET		0x44
-#define PM_INFO_MX6Q_SAVED_DIAGNOSTIC_OFFSET	0x48
-#define PM_INFO_MMDC_IO_NUM_OFFSET		0x4c
-#define PM_INFO_MMDC_IO_VAL_OFFSET		0x50
+#define PM_INFO_MX6Q_SEMA4_P_OFFSET		0x48
+#define PM_INFO_MX6Q_SEMA4_V_OFFSET		0x4c
+#define PM_INFO_MX6Q_SAVED_DIAGNOSTIC_OFFSET	0x50
+#define PM_INFO_MMDC_IO_NUM_OFFSET		0x54
+#define PM_INFO_MMDC_IO_VAL_OFFSET		0x58
 
 #define	MX6Q_MMDC_MAPSR		0x404
 #define MX6Q_MMDC_MPDGCTRL0	0x83c
@@ -537,6 +539,32 @@
 
 	.endm
 
+	.macro  sema4_lock
+
+	/* lock share memory sema4 */
+	cmp	r5, #0x0
+	ldreq	r10, [r0, #PM_INFO_MX6Q_SEMA4_V_OFFSET]
+	ldrne	r10, [r0, #PM_INFO_MX6Q_SEMA4_P_OFFSET]
+	ldrb	r6, =0x1
+16:
+	ldrb	r7, [r10, #0x6]
+	cmp	r7, #0x0
+	bne	16b
+	strb	r6, [r10, #0x6]
+
+	.endm
+
+	.macro  sema4_unlock
+
+	/* unlock share memory sema4 */
+	cmp	r5, #0x0
+	ldreq	r10, [r0, #PM_INFO_MX6Q_SEMA4_V_OFFSET]
+	ldrne	r10, [r0, #PM_INFO_MX6Q_SEMA4_P_OFFSET]
+	ldrb	r6, =0x0
+	strb	r6, [r10, #0x6]
+
+	.endm
+
 	.macro	tlb_set_to_ocram
 
 	/* save ttbr */
@@ -704,8 +732,10 @@ save_and_set_mmdc_io_lpm:
 	bne	save_and_set_mmdc_io_lpm
 
 	mov	r5, #0x0
+	sema4_lock
 	ccm_enter_idle
 	anatop_enter_idle
+	sema4_unlock
 
 	/*
 	 * mask all GPC interrupts before
@@ -799,8 +829,10 @@ rbc_loop:
 	nop
 
 	mov	r5, #0x0
+	sema4_lock
 	anatop_exit_idle
 	ccm_exit_idle
+	sema4_unlock
 	resume_mmdc
 
 	/* clear ARM power gate setting */
@@ -855,8 +887,10 @@ wakeup:
 	str	r7, [r10, #0x2a0]
 
 	mov	r5, #0x1
+	sema4_lock
 	anatop_exit_idle
 	ccm_exit_idle
+	sema4_unlock
 	resume_mmdc
 
 	/* Restore registers */

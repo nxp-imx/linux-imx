@@ -68,6 +68,8 @@
 
 #define CGPR				0x64
 #define BM_CGPR_INT_MEM_CLK_LPM		(0x1 << 17)
+#define CCGR4				0x78
+#define CCGR6				0x80
 
 #define MX6Q_SUSPEND_OCRAM_SIZE		0x1000
 #define MX6_MAX_MMDC_IO_NUM		33
@@ -656,6 +658,25 @@ static void imx6_qspi_restore(struct qspi_regs *pregs, int reg_num)
 static int imx6q_pm_enter(suspend_state_t state)
 {
 	unsigned int console_saved_reg[11] = {0};
+	static unsigned int ccm_ccgr4, ccm_ccgr6;
+
+	if (imx_src_is_m4_enabled()) {
+		if (imx_gpc_is_m4_sleeping() && imx_mu_is_m4_in_low_freq()) {
+			imx_gpc_hold_m4_in_sleep();
+			imx_mu_enable_m4_irqs_in_gic(true);
+		} else {
+			pr_info("M4 is busy, enter WAIT mode instead of STOP!\n");
+			imx6q_set_lpm(WAIT_UNCLOCKED);
+			imx6q_set_int_mem_clk_lpm(true);
+			imx_gpc_pre_suspend(false);
+			/* Zzz ... */
+			cpu_do_idle();
+			imx_gpc_post_resume();
+			imx6q_set_lpm(WAIT_CLOCKED);
+
+			return 0;
+		}
+	}
 
 	if (!iram_tlb_base_addr) {
 		pr_warn("No IRAM/OCRAM memory allocated for suspend/resume \
@@ -692,6 +713,22 @@ static int imx6q_pm_enter(suspend_state_t state)
 		imx_anatop_pre_suspend();
 		imx_set_cpu_jump(0, v7_cpu_resume);
 		if (cpu_is_imx6sx() && imx_gpc_is_mf_mix_off()) {
+			ccm_ccgr4 = readl_relaxed(ccm_base + CCGR4);
+			ccm_ccgr6 = readl_relaxed(ccm_base + CCGR6);
+			/*
+			 * i.MX6SX RDC needs PCIe and eim clk to be enabled
+			 * if Mega/Fast off, it is better to check cpu type
+			 * and whether Mega/Fast is off in this suspend flow,
+			 * but we need to add cpu type check for 3 places which
+			 * will increase code size, so here we just do it
+			 * for all cases, as when STOP mode is entered, CCM
+			 * hardware will gate all clocks, so it will NOT impact
+			 * any function or power.
+			 */
+			writel_relaxed(ccm_ccgr4 | (0x3 << 0), ccm_base +
+				CCGR4);
+			writel_relaxed(ccm_ccgr6 | (0x3 << 10), ccm_base +
+				CCGR6);
 			memcpy(ocram_saved_in_ddr, ocram_base, ocram_size);
 			imx6_console_save(console_saved_reg);
 			if (imx_src_is_m4_enabled())
@@ -704,6 +741,8 @@ static int imx6q_pm_enter(suspend_state_t state)
 		cpu_suspend(0, imx6q_suspend_finish);
 
 		if (cpu_is_imx6sx() && imx_gpc_is_mf_mix_off()) {
+			writel_relaxed(ccm_ccgr4, ccm_base + CCGR4);
+			writel_relaxed(ccm_ccgr6, ccm_base + CCGR6);
 			memcpy(ocram_base, ocram_saved_in_ddr, ocram_size);
 			imx6_console_restore(console_saved_reg);
 			if (imx_src_is_m4_enabled())
@@ -722,6 +761,11 @@ static int imx6q_pm_enter(suspend_state_t state)
 		break;
 	default:
 		return -EINVAL;
+	}
+
+	if (imx_src_is_m4_enabled()) {
+		imx_mu_enable_m4_irqs_in_gic(false);
+		imx_gpc_release_m4_in_sleep();
 	}
 
 	return 0;
@@ -796,6 +840,7 @@ static struct map_desc imx6_pm_io_desc[] __initdata = {
 	imx_map_entry(MX6Q, ANATOP, MT_DEVICE),
 	imx_map_entry(MX6Q, GPC, MT_DEVICE),
 	imx_map_entry(MX6Q, L2, MT_DEVICE),
+	imx_map_entry(MX6Q, SEMA4, MT_DEVICE),
 };
 
 void __init imx6_pm_map_io(void)
@@ -849,6 +894,15 @@ void __init imx6_pm_map_io(void)
 	i = ((IMX_IO_P2V(MX6Q_AIPS2_BASE_ADDR) >> 20) << 2) / 4;
 	*((unsigned long *)iram_tlb_base_addr + i) =
 		(MX6Q_AIPS2_BASE_ADDR & 0xFFF00000) |
+		TT_ATTRIB_NON_CACHEABLE_1M;
+
+	/*
+	 * Make sure the AIPS3 virtual address has a mapping
+	 * in the IRAM page table.
+	 */
+	i = ((IMX_IO_P2V(MX6Q_AIPS3_BASE_ADDR) >> 20) << 2) / 4;
+		*((unsigned long *)iram_tlb_base_addr + i) =
+		(MX6Q_AIPS3_BASE_ADDR & 0xFFF00000) |
 		TT_ATTRIB_NON_CACHEABLE_1M;
 
 	/*
