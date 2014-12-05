@@ -464,6 +464,15 @@
 	status = "okay";
 };
 
+&clks {
+	assigned-clocks = <&clks IMX6SX_PLL4_BYPASS_SRC>,
+			  <&clks IMX6SX_PLL4_BYPASS>,
+			  <&clks IMX6SX_CLK_PLL4_POST_DIV>;
+	assigned-clock-parents = <&clks IMX6SX_CLK_LVDS2_IN>,
+				<&clks IMX6SX_PLL4_BYPASS_SRC>;
+	assigned-clock-rates = <0>, <0>, <24576000>;
+};
+
 &csi1 {
 	status = "okay";
 };
@@ -487,6 +496,10 @@
 &esai {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_esai_2>;
+	assigned-clocks = <&clks IMX6SX_CLK_ESAI_SEL>,
+			  <&clks IMX6SX_CLK_ESAI_EXTAL>;
+	assigned-clock-parents = <&clks IMX6SX_CLK_PLL4_AUDIO_DIV>;
+	assigned-clock-rates = <0>, <24576000>;
 	status = "okay";
 };
 
