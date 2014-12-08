@@ -37,18 +37,6 @@
 		#reset-cells = <0>;
 	};
 
-	csi1_v4l2_cap {
-		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
-		csi_id = <0>;
-		status = "okay";
-	};
-
-	csi2_v4l2_cap {
-		compatible = "fsl,imx6sx-csi-v4l2", "fsl,imx6sl-csi-v4l2";
-		csi_id = <1>;
-		status = "okay";
-	};
-
 	hannstar_cabc {
 		compatible = "hannstar,cabc";
 
@@ -473,12 +461,13 @@
 	assigned-clock-rates = <0>, <0>, <24576000>;
 };
 
-&csi1 {
-	status = "okay";
-};
-
 &csi2 {
 	status = "okay";
+	port {
+		csi2_ep: endpoint {
+			remote-endpoint = <&vadc_ep>;
+		};
+	};
 };
 
 &dcic1 {
@@ -917,4 +906,10 @@
 	vadc_in = <0>;
 	csi_id = <1>;
 	status = "okay";
+	port {
+		vadc_ep: endpoint {
+			remote-endpoint = <&csi2_ep>;
+		};
+	};
 };
+
