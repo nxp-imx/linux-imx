@@ -503,7 +503,7 @@ static int caam_jr_probe(struct platform_device *pdev)
 		dma_set_mask(jrdev, DMA_BIT_MASK(32));
 
 	/* Identify the interrupt */
-	jrpriv->irq = of_irq_to_resource(nprop, 0, NULL);
+	jrpriv->irq = irq_of_parse_and_map(nprop, 0);
 	if (jrpriv->irq <= 0) {
 		kfree(jrpriv);
 		return -EINVAL;
