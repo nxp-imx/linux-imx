@@ -196,7 +196,6 @@ struct csi_soc {
 	bool online;
 	int irq_nr;
 	void __iomem *regbase;
-	struct regulator *disp_reg;
 };
 
 typedef void (*csi_irq_callback_t) (void *data, unsigned long status);
@@ -215,6 +214,8 @@ void csi_deinterlace_enable(cam_data *cam, bool enable);
 void csi_tvdec_enable(cam_data *cam, bool enable);
 void csi_enable(cam_data *cam, int arg);
 void csi_disable_int(cam_data *cam);
+int csi_regulator_enable(void);
+void csi_regulator_disable(void);
 void csi_clk_enable(void);
 void csi_clk_disable(void);
 void csi_dmareq_rff_enable(struct csi_soc *csi);

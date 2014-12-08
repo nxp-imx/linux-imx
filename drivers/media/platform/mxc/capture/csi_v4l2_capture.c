@@ -19,6 +19,7 @@
  *
  * @ingroup MXC_V4L2_CAPTURE
  */
+#include <linux/busfreq-imx6.h>
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/init.h>
@@ -30,6 +31,7 @@
 #include <linux/io.h>
 #include <linux/semaphore.h>
 #include <linux/pagemap.h>
+#include <linux/pm_runtime.h>
 #include <linux/vmalloc.h>
 #include <linux/types.h>
 #include <linux/fb.h>
@@ -1401,6 +1403,8 @@ static int csi_v4l_open(struct file *file)
 		goto oops;
 
 	if (cam->open_count++ == 0) {
+		pm_runtime_get_sync(&cam->pdev->dev);
+
 		wait_event_interruptible(cam->power_queue,
 					 cam->low_power == false);
 
@@ -1470,6 +1474,8 @@ static int csi_v4l_close(struct file *file)
 		file->private_data = NULL;
 		vidioc_int_s_power(cam->sensor, 0);
 		clk_disable_unprepare(sensor->sensor_clk);
+
+		pm_runtime_put_sync_suspend(&cam->pdev->dev);
 	}
 
 	return err;
@@ -2156,6 +2162,8 @@ static void init_camera_struct(cam_data *cam, struct platform_device *pdev)
 	sprintf(cam->self->name, "csi_v4l2_cap%d", cam->csi);
 	cam->self->type = v4l2_int_type_master;
 	cam->self->u.master = &csi_v4l2_master;
+
+	cam->pdev = pdev;
 }
 
 /*!
@@ -2223,6 +2231,7 @@ static int csi_v4l2_probe(struct platform_device *pdev)
 	sg = g_cam->sg;
 	sg_init_table(sg, 2);
 
+	pm_runtime_enable(&g_cam->pdev->dev);
 out:
 	return err;
 }
@@ -2243,6 +2252,7 @@ static int csi_v4l2_remove(struct platform_device *pdev)
 		csi_stop_callback(g_cam);
 		video_unregister_device(g_cam->video_dev);
 		platform_set_drvdata(pdev, NULL);
+		pm_runtime_disable(&g_cam->pdev->dev);
 
 		kfree(g_cam);
 		g_cam = NULL;
@@ -2251,6 +2261,36 @@ static int csi_v4l2_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_RUNTIME
+static int csi_v4l2_runtime_suspend(struct device *dev)
+{
+	int ret = 0;
+
+	release_bus_freq(BUS_FREQ_HIGH);
+	dev_dbg(dev, "csi v4l2 busfreq high release.\n");
+
+	csi_regulator_disable();
+
+	return ret;
+}
+
+static int csi_v4l2_runtime_resume(struct device *dev)
+{
+	int ret = 0;
+
+	request_bus_freq(BUS_FREQ_HIGH);
+	dev_dbg(dev, "csi v4l2 busfreq high request.\n");
+
+	csi_regulator_enable();
+
+	return ret;
+}
+#else
+#define	mxsfb_runtime_suspend	NULL
+#define	mxsfb_runtime_resume	NULL
+#endif
+
+#ifdef CONFIG_PM_SLEEP
 /*!
  * This function is called to put the sensor in a low power state.
  * Refer to the document driver-model/driver.txt in the kernel source tree
@@ -2262,9 +2302,9 @@ static int csi_v4l2_remove(struct platform_device *pdev)
  *
  * @return  The function returns 0 on success and -1 on failure.
  */
-static int csi_v4l2_suspend(struct platform_device *pdev, pm_message_t state)
+static int csi_v4l2_suspend(struct device *dev)
 {
-	cam_data *cam = platform_get_drvdata(pdev);
+	cam_data *cam = dev_get_drvdata(dev);
 
 	pr_debug("In MVC: %s\n", __func__);
 
@@ -2291,9 +2331,9 @@ static int csi_v4l2_suspend(struct platform_device *pdev, pm_message_t state)
  *
  * @return  The function returns 0 on success and -1 on failure
  */
-static int csi_v4l2_resume(struct platform_device *pdev)
+static int csi_v4l2_resume(struct device *dev)
 {
-	cam_data *cam = platform_get_drvdata(pdev);
+	cam_data *cam = dev_get_drvdata(dev);
 
 	pr_debug("In MVC: %s\n", __func__);
 
@@ -2310,6 +2350,15 @@ static int csi_v4l2_resume(struct platform_device *pdev)
 
 	return 0;
 }
+#else
+#define csi_v4l2_suspend	NULL
+#define csi_v4l2_resume		NULL
+#endif
+
+static const struct dev_pm_ops csi_v4l2_pm_ops = {
+	SET_RUNTIME_PM_OPS(csi_v4l2_runtime_suspend, csi_v4l2_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(csi_v4l2_suspend, csi_v4l2_resume)
+};
 
 /*!
  * This structure contains pointers to the power management callback functions.
@@ -2318,13 +2367,10 @@ static struct platform_driver csi_v4l2_driver = {
 	.driver = {
 		   .name = "csi_v4l2",
 		   .of_match_table = of_match_ptr(imx_csi_v4l2_dt_ids),
+		   .pm = &csi_v4l2_pm_ops,
 		   },
 	.probe = csi_v4l2_probe,
 	.remove = csi_v4l2_remove,
-#ifdef CONFIG_PM
-	.suspend = csi_v4l2_suspend,
-	.resume = csi_v4l2_resume,
-#endif
 	.shutdown = NULL,
 };
 

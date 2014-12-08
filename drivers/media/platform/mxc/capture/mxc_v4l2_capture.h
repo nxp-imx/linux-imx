@@ -231,6 +231,9 @@ typedef struct _cam_data {
 	struct dma_async_tx_descriptor *txd;
 	dma_cookie_t cookie;
 	struct scatterlist sg[2];
+
+	/* pdev from runtime pm */
+	struct platform_device *pdev;
 } cam_data;
 
 struct sensor_data {

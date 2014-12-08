@@ -18,11 +18,10 @@
  *
  * @ingroup CSI
  */
-#include <linux/busfreq-imx6.h>
 #include <linux/types.h>
 #include <linux/init.h>
 #include <linux/platform_device.h>
-#include <linux/pm_runtime.h>
+#include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/interrupt.h>
@@ -44,12 +43,28 @@ static void *g_callback_data;
 static struct clk *disp_axi_clk;
 static struct clk *dcic_clk;
 static struct clk *csi_clk;
-struct platform_device *csi_pdev;
+static struct regulator *disp_reg;
+
+int csi_regulator_enable(void)
+{
+	int ret = 0;
+
+	if (disp_reg)
+		ret = regulator_enable(disp_reg);
+
+	return ret;
+}
+EXPORT_SYMBOL(csi_regulator_enable);
+
+void csi_regulator_disable(void)
+{
+	if (disp_reg)
+		regulator_disable(disp_reg);
+}
+EXPORT_SYMBOL(csi_regulator_disable);
 
 void csi_clk_enable(void)
 {
-	pm_runtime_get_sync(&csi_pdev->dev);
-
 	clk_prepare_enable(disp_axi_clk);
 	clk_prepare_enable(dcic_clk);
 	clk_prepare_enable(csi_clk);
@@ -61,8 +76,6 @@ void csi_clk_disable(void)
 	clk_disable_unprepare(csi_clk);
 	clk_disable_unprepare(dcic_clk);
 	clk_disable_unprepare(disp_axi_clk);
-
-	pm_runtime_put_sync_suspend(&csi_pdev->dev);
 }
 EXPORT_SYMBOL(csi_clk_disable);
 
@@ -148,6 +161,39 @@ static void csihw_reset(struct csi_soc *csi)
 	__raw_writel(CSICR1_RESET_VAL, csi->regbase + CSI_CSICR1);
 	__raw_writel(CSICR2_RESET_VAL, csi->regbase + CSI_CSICR2);
 	__raw_writel(CSICR3_RESET_VAL, csi->regbase + CSI_CSICR3);
+}
+
+static void csisw_reset(struct csi_soc *csi)
+{
+	int cr1, cr3, cr18, isr;
+
+	/* Disable csi */
+	cr18 = __raw_readl(csi->regbase + CSI_CSICR18);
+	cr18 &= ~BIT_CSI_ENABLE;
+	__raw_writel(cr18, csi->regbase + CSI_CSICR18);
+
+	/* Clear RX FIFO */
+	cr1 = __raw_readl(csi->regbase + CSI_CSICR1);
+	__raw_writel(cr1 & ~BIT_FCC, csi->regbase + CSI_CSICR1);
+	cr1 = __raw_readl(csi->regbase + CSI_CSICR1);
+	__raw_writel(cr1 | BIT_CLR_RXFIFO, csi->regbase + CSI_CSICR1);
+
+	/* DMA reflash */
+	cr3 = __raw_readl(csi->regbase + CSI_CSICR3);
+	cr3 |= BIT_DMA_REFLASH_RFF | BIT_FRMCNT_RST;
+	__raw_writel(cr3, csi->regbase + CSI_CSICR3);
+
+	msleep(2);
+
+	cr1 = __raw_readl(csi->regbase + CSI_CSICR1);
+	__raw_writel(cr1 | BIT_FCC, csi->regbase + CSI_CSICR1);
+
+	isr = __raw_readl(csi->regbase + CSI_CSISR);
+	__raw_writel(isr, csi->regbase + CSI_CSISR);
+
+	/* Ensable csi  */
+	cr18 |= BIT_CSI_ENABLE;
+	__raw_writel(cr18, csi->regbase + CSI_CSICR18);
 }
 
 /*!
@@ -256,9 +302,10 @@ void csi_enable(cam_data *cam, int arg)
 	struct csi_soc *csi = &csi_array[cam->csi];
 	unsigned long cr = __raw_readl(csi->regbase + CSI_CSICR18);
 
-	if (arg == 1)
+	if (arg == 1) {
+		csisw_reset(csi);
 		cr |= BIT_CSI_ENABLE;
-	else
+	} else
 		cr &= ~BIT_CSI_ENABLE;
 	__raw_writel(cr, csi->regbase + CSI_CSICR18);
 }
@@ -421,8 +468,6 @@ static int csi_probe(struct platform_device *pdev)
 	struct resource *res;
 	int id;
 
-	csi_pdev = pdev;
-
 	id = of_alias_get_id(pdev->dev.of_node, "csi");
 	if (id < 0) {
 		dev_dbg(&pdev->dev, "can not get alias id\n");
@@ -470,15 +515,17 @@ static int csi_probe(struct platform_device *pdev)
 		return PTR_ERR(dcic_clk);
 	}
 
-	csi->disp_reg = devm_regulator_get(&pdev->dev, "disp");
-	if (IS_ERR(csi->disp_reg)) {
-		dev_dbg(&pdev->dev, "display regulator is not ready\n");
-		csi->disp_reg = NULL;
+	if (disp_reg == NULL) {
+		disp_reg = devm_regulator_get(&pdev->dev, "disp");
+		if (IS_ERR(disp_reg)) {
+			dev_dbg(&pdev->dev, "display regulator is not ready\n");
+			disp_reg = NULL;
+		}
 	}
 
 	platform_set_drvdata(pdev, csi);
 
-	pm_runtime_enable(&pdev->dev);
+	csi_regulator_enable();
 
 	csi_clk_enable();
 	csihw_reset(csi);
@@ -500,41 +547,6 @@ static int csi_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM_RUNTIME
-static int csi_runtime_suspend(struct device *dev)
-{
-	int ret = 0;
-	struct platform_device *pdev = to_platform_device(dev);
-	struct csi_soc *csi = platform_get_drvdata(pdev);
-
-	release_bus_freq(BUS_FREQ_HIGH);
-	dev_info(dev, "csi busfreq high release.\n");
-
-	if (csi->disp_reg)
-		ret = regulator_disable(csi->disp_reg);
-
-	return ret;
-}
-
-static int csi_runtime_resume(struct device *dev)
-{
-	int ret = 0;
-	struct platform_device *pdev = to_platform_device(dev);
-	struct csi_soc *csi = platform_get_drvdata(pdev);
-
-	request_bus_freq(BUS_FREQ_HIGH);
-	dev_info(dev, "csi busfreq high request.\n");
-
-	if (csi->disp_reg)
-		ret = regulator_enable(csi->disp_reg);
-
-	return ret;
-}
-#else
-#define	mxsfb_runtime_suspend	NULL
-#define	mxsfb_runtime_resume	NULL
-#endif
-
 #ifdef CONFIG_PM_SLEEP
 static int csi_suspend(struct device *dev)
 {
@@ -549,11 +561,13 @@ static int csi_resume(struct device *dev)
 {
 	struct csi_soc *csi = dev_get_drvdata(dev);
 
+	csi_regulator_enable();
 	csi_clk_enable();
 	csihw_reset(csi);
 	csi_init_interface(csi);
 	csi_dmareq_rff_disable(csi);
 	csi_clk_disable();
+	csi_regulator_disable();
 
 	csi->online = true;
 
@@ -565,7 +579,6 @@ static int csi_resume(struct device *dev)
 #endif
 
 static const struct dev_pm_ops csi_pm_ops = {
-	SET_RUNTIME_PM_OPS(csi_runtime_suspend, csi_runtime_resume, NULL)
 	SET_SYSTEM_SLEEP_PM_OPS(csi_suspend, csi_resume)
 };
 
