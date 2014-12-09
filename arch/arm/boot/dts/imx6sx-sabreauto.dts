@@ -544,7 +544,8 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_flexcan1_1>;
 	trx-en-gpio = <&max7310_b 5 GPIO_ACTIVE_HIGH>;
-	trx-stby-gpio = <&max7310_b 3 GPIO_ACTIVE_HIGH>;
+	trx-stby-gpio = <&max7310_b 4 GPIO_ACTIVE_HIGH>;
+	trx-wakeup-gpio = <&max7310_b 7 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 };
 
@@ -552,7 +553,8 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_flexcan2_1>;
 	trx-en-gpio = <&max7310_b 5 GPIO_ACTIVE_HIGH>;
-	trx-stby-gpio = <&max7310_b 3 GPIO_ACTIVE_HIGH>;
+	trx-stby-gpio = <&max7310_b 4 GPIO_ACTIVE_HIGH>;
+	trx-wakeup-gpio = <&max7310_b 7 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 };
 
