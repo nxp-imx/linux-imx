@@ -80,13 +80,24 @@ static int __init imx6sx_arm2_flexcan_fixup(void)
 	struct device_node *np;
 	enum of_gpio_flags en_flags, stby_flags;
 	bool canfd_en = false;
+	int wakeup_gpio;
 
 	np = of_find_node_by_path("/soc/aips-bus@02000000/can@02090000");
 	if (!np)
 		return -ENODEV;
 
+
+	/* Wakeup transceiver first in case it's in sleep mode by default */
+	wakeup_gpio = of_get_named_gpio(np, "trx-wakeup-gpio", 0);
+	if (gpio_is_valid(wakeup_gpio) &&
+		!gpio_request_one(wakeup_gpio, GPIOF_OUT_INIT_HIGH, "flexcan-trx-wakeup")) {
+		gpio_set_value_cansleep(wakeup_gpio, 0);
+		gpio_set_value_cansleep(wakeup_gpio, 1);
+	}
+
 	flexcan_en_gpio = of_get_named_gpio_flags(np, "trx-en-gpio", 0, &en_flags);
 	flexcan_stby_gpio = of_get_named_gpio_flags(np, "trx-stby-gpio", 0, &stby_flags);
+
 	if (gpio_is_valid(flexcan_en_gpio) && gpio_is_valid(flexcan_stby_gpio) &&
 		!gpio_request_one(flexcan_en_gpio, GPIOF_DIR_OUT, "flexcan-trx-en") &&
 		!gpio_request_one(flexcan_stby_gpio, GPIOF_DIR_OUT, "flexcan-trx-stby")) {
@@ -354,7 +365,8 @@ static void __init imx6sx_init_late(void)
 	imx6sx_cpuidle_init();
 
 	if (of_machine_is_compatible("fsl,imx6sx-17x17-arm2") ||
-		of_machine_is_compatible("fsl,imx6sx-sdb"))
+		of_machine_is_compatible("fsl,imx6sx-sdb") ||
+		of_machine_is_compatible("fsl,imx6sx-sabreauto"))
 		imx6sx_arm2_flexcan_fixup();
 
 	if (IS_ENABLED(CONFIG_ARM_IMX6_CPUFREQ)) {
