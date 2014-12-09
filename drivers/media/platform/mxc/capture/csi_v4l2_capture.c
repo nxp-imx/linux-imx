@@ -782,12 +782,6 @@ static int csi_streamoff(cam_data *cam)
 	csi_write(cam->csi_soc, 0, CSI_CSIDMASA_FB1);
 	csi_write(cam->csi_soc, 0, CSI_CSIDMASA_FB2);
 
-	if (strcmp(csi_capture_inputs[cam->current_input].name,
-		   "Vadc") == 0) {
-		csi_buf_stride_set(cam, 0);
-		csi_deinterlace_enable(cam, false);
-		csi_tvdec_enable(cam, false);
-	}
 	csi_enable(cam, 0);
 
 	csi_free_frames(cam);
@@ -1466,6 +1460,14 @@ static int csi_v4l_close(struct file *file)
 	if (cam->overlay_pid == current->pid) {
 		err = stop_preview(cam);
 		cam->overlay_on = false;
+	}
+
+	/* restore vadc specific register to default value */
+	if (strcmp(csi_capture_inputs[cam->current_input].name,
+		   "Vadc") == 0) {
+		csi_buf_stride_set(cam, 0);
+		csi_deinterlace_enable(cam, false);
+		csi_tvdec_enable(cam, false);
 	}
 
 	if (--cam->open_count == 0) {
