@@ -26,6 +26,7 @@ Optional properties:
 - trx_en_gpio : enable gpio
 - trx_stby_gpio : standby gpio
 - trx_nerr_gpio : NERR gpio
+- trx_wakeup_gpio : local wakeup gpio
 
 Example:
 
