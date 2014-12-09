@@ -73,6 +73,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_gpmi_nand_1>;
 	status = "disabled"; /* gpmi nand conflicts with SD */
+	nand-on-flash-bbt;
 };
 
 &iomuxc {

@@ -456,6 +456,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_gpmi_nand_1>;
 	status = "okay"; /* pin conflict with qspi*/
+	nand-on-flash-bbt;
 };
 
 &qspi2 {

@@ -687,6 +687,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_gpmi_nand_1>;
 	status = "disabled"; /* pin conflict with uart3 */
+	nand-on-flash-bbt;
 };
 
 &uart4 {
