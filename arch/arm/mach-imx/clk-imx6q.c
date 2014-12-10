@@ -568,6 +568,9 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 		imx_clk_prepare_enable(clk[IMX6QDL_CLK_USBPHY2_GATE]);
 	}
 
+	/*Set enet_ref clock to 125M to supply for RGMII tx_clk */
+	clk_set_rate(clk[IMX6QDL_CLK_ENET_REF], 125000000);
+
 #ifdef CONFIG_MX6_VPU_352M
 	/*
 	 * If VPU 352M is enabled, then PLL2_PDF2 need to be
