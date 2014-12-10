@@ -10,7 +10,7 @@
 
 / {
 	backlight1 {
-		status = "enabled";
+		status = "okay";
 	};
 
 	csi1_v4l2_cap {
