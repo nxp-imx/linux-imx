@@ -1,7 +1,7 @@
 /*
  * ASoC HDMI Transmitter driver for IMX development boards
  *
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc.
  *
  * based on stmp3780_devb_hdmi.c
  *
@@ -29,6 +29,7 @@ static struct snd_soc_dai_link imx_hdmi_dai_link = {
 	.codec_dai_name = "hdmi-hifi",
 	.codec_name = "hdmi-audio-codec",
 	.platform_name = "imx-hdmi-audio",
+	.ignore_pmdown_time = 1,
 };
 
 static struct snd_soc_card snd_soc_card_imx_hdmi = {
