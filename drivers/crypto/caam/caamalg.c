@@ -1,7 +1,7 @@
 /*
  * caam - Freescale FSL CAAM support for crypto API
  *
- * Copyright (C) 2008-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2008-2014 Freescale Semiconductor, Inc.
  *
  * Based on talitos crypto API driver.
  *
@@ -2381,8 +2381,10 @@ authencesn:
 			kfree(t_alg);
 		} else {
 			list_add_tail(&t_alg->entry, &alg_list);
+#ifdef DEBUG
 			dev_info(ctrldev, "%s\n",
 				 t_alg->crypto_alg.cra_driver_name);
+#endif
 
 			if (driver_algs[i].type == CRYPTO_ALG_TYPE_AEAD &&
 			    !memcmp(driver_algs[i].name, "authenc", 7) &&
