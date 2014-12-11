@@ -551,9 +551,10 @@ static int imx_kbd_suspend(struct device *dev)
 	mutex_unlock(&input_dev->mutex);
 
 	if (device_may_wakeup(&pdev->dev)) {
-		/* make sure KDI interrupt enabled */
-		reg_val |= KBD_STAT_KDIE;
-		reg_val &= ~KBD_STAT_KRIE;
+		if (reg_val & KBD_STAT_KPKD)
+			reg_val |= KBD_STAT_KRIE;
+		if (reg_val & KBD_STAT_KPKR)
+			reg_val |= KBD_STAT_KDIE;
 		writew(reg_val, kbd->mmio_base + KPSR);
 
 		enable_irq_wake(kbd->irq);
