@@ -88,6 +88,11 @@ static struct pxp_data_format pxp_s0_formats[] = {
 		.fourcc = V4L2_PIX_FMT_UYVY,
 		.colorspace = V4L2_COLORSPACE_JPEG,
 	}, {
+		.name = "YUYV",
+		.bpp = 2,
+		.fourcc = V4L2_PIX_FMT_YUYV,
+		.colorspace = V4L2_COLORSPACE_JPEG,
+	}, {
 		.name = "Y444",
 		.bpp = 4,
 		.fourcc = V4L2_PIX_FMT_YUV444,
@@ -115,6 +120,8 @@ static unsigned int v4l2_fmt_to_pxp_fmt(u32 v4l2_pix_fmt)
 		pxp_fmt = PXP_PIX_FMT_UYVY;
 	else if (v4l2_pix_fmt == V4L2_PIX_FMT_YUV444)
 		pxp_fmt = PXP_PIX_FMT_YUV444;
+	else if (v4l2_pix_fmt == V4L2_PIX_FMT_YUYV)
+		pxp_fmt = PXP_PIX_FMT_YUYV;
 
 	return pxp_fmt;
 }
