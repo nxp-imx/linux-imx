@@ -340,7 +340,20 @@ struct mx6s_fmt *format_by_fourcc(int fourcc)
 			return formats + i;
 	}
 
-	printk(KERN_INFO"unknown pixelformat:'%4.4s'\n", (char *)&fourcc);
+	pr_err("unknown pixelformat:'%4.4s'\n", (char *)&fourcc);
+	return NULL;
+}
+
+struct mx6s_fmt *format_by_mbus(enum v4l2_mbus_pixelcode code)
+{
+	int i;
+
+	for (i = 0; i < NUM_FORMATS; i++) {
+		if (formats[i].mbus_code == code)
+			return formats + i;
+	}
+
+	pr_err("unknown pixelformat:'%4.4s'\n", (char *)&code);
 	return NULL;
 }
 
@@ -1154,8 +1167,7 @@ static int mx6s_vidioc_querystd(struct file *file, void *priv, v4l2_std_id *a)
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
 
-	v4l2_subdev_call(sd, video, querystd, a);
-	return 0;
+	return v4l2_subdev_call(sd, video, querystd, a);
 }
 
 static int mx6s_vidioc_s_std(struct file *file, void *priv, v4l2_std_id a)
@@ -1163,9 +1175,7 @@ static int mx6s_vidioc_s_std(struct file *file, void *priv, v4l2_std_id a)
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
 
-	v4l2_subdev_call(sd, core, s_std, a);
-
-	return 0;
+	return v4l2_subdev_call(sd, core, s_std, a);
 }
 
 static int mx6s_vidioc_g_std(struct file *file, void *priv, v4l2_std_id *a)
@@ -1173,9 +1183,7 @@ static int mx6s_vidioc_g_std(struct file *file, void *priv, v4l2_std_id *a)
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
 
-	v4l2_subdev_call(sd, core, g_std, a);
-
-	return 0;
+	return v4l2_subdev_call(sd, core, g_std, a);
 }
 
 static int mx6s_vidioc_reqbufs(struct file *file, void *priv,
@@ -1221,17 +1229,32 @@ static int mx6s_vidioc_dqbuf(struct file *file, void *priv,
 static int mx6s_vidioc_enum_fmt_vid_cap(struct file *file, void  *priv,
 				       struct v4l2_fmtdesc *f)
 {
+	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
+	struct v4l2_subdev *sd = csi_dev->sd;
+	enum v4l2_mbus_pixelcode code;
+	struct mx6s_fmt *fmt;
+	int ret;
+
 	int index = f->index;
 
 	WARN_ON(priv != file->private_data);
 
-	if (f->index > NUM_FORMATS)
+	ret = v4l2_subdev_call(sd, video, enum_mbus_fmt, index, &code);
+	if (ret < 0)
+		/* no more formats */
 		return -EINVAL;
 
-	strlcpy(f->description, formats[index].name, sizeof(f->description));
-	f->pixelformat = formats[index].fourcc;
-	return 0;
 
+	fmt = format_by_mbus(code);
+	if (!fmt) {
+		dev_err(csi_dev->dev, "mbus (0x%08x) invalid.", code);
+		return -EINVAL;
+	}
+
+	strlcpy(f->description, fmt->name, sizeof(f->description));
+	f->pixelformat = fmt->pixelformat;
+
+	return 0;
 }
 
 static int mx6s_vidioc_try_fmt_vid_cap(struct file *file, void *priv,
@@ -1313,7 +1336,7 @@ static int mx6s_vidioc_querycap(struct file *file, void  *priv,
 	WARN_ON(priv != file->private_data);
 
 	/* cap->name is set by the friendly caller:-> */
-	strlcpy(cap->driver, MX6S_CAM_DRIVER_DESCRIPTION, sizeof(cap->driver));
+	strlcpy(cap->driver, MX6S_CAM_DRV_NAME, sizeof(cap->driver));
 	strlcpy(cap->card, MX6S_CAM_DRIVER_DESCRIPTION, sizeof(cap->card));
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s",
 		 dev_name(csi_dev->dev));
@@ -1411,19 +1434,16 @@ static int mx6s_vidioc_g_parm(struct file *file, void *priv,
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
 
-	v4l2_subdev_call(sd, video, g_parm, a);
-	return 0;
+	return v4l2_subdev_call(sd, video, g_parm, a);
 }
 
 static int mx6s_vidioc_s_parm(struct file *file, void *priv,
-			     struct v4l2_streamparm *a)
+				struct v4l2_streamparm *a)
 {
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
 
-	v4l2_subdev_call(sd, video, s_parm, a);
-
-	return 0;
+	return v4l2_subdev_call(sd, video, s_parm, a);
 }
 
 static int mx6s_vidioc_enum_framesizes(struct file *file, void *priv,
@@ -1432,8 +1452,7 @@ static int mx6s_vidioc_enum_framesizes(struct file *file, void *priv,
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
 
-	v4l2_subdev_call(sd, video, enum_framesizes, fsize);
-	return 0;
+	return v4l2_subdev_call(sd, video, enum_framesizes, fsize);
 }
 
 static int mx6s_vidioc_enum_frameintervals(struct file *file, void *priv,
@@ -1442,8 +1461,7 @@ static int mx6s_vidioc_enum_frameintervals(struct file *file, void *priv,
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 	struct v4l2_subdev *sd = csi_dev->sd;
 
-	v4l2_subdev_call(sd, video, enum_frameintervals, interval);
-	return 0;
+	return v4l2_subdev_call(sd, video, enum_frameintervals, interval);
 }
 
 static const struct v4l2_ioctl_ops mx6s_csi_ioctl_ops = {
