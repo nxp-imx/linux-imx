@@ -288,6 +288,12 @@ static void enter_lpm_imx6sl(void)
 		} else {
 			if (!ultra_low_bus_freq_mode && !low_bus_freq_mode) {
 				/*
+				 * Anyway, make sure the AHB is running at 24MHz
+				 * in low_bus_freq_mode.
+				 */
+				if (audio_bus_freq_mode)
+					imx_clk_set_rate(ahb_clk, LPAPM_CLK);
+				/*
 				 * Set DDR to 24MHz.
 				 * Since we are going to bypass PLL2,
 				 * we need to move ARM clk off PLL2_PFD2
