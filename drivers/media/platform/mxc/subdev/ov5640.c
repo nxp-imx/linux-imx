@@ -1637,7 +1637,7 @@ static int ov5640_enum_framesizes(struct v4l2_subdev *sd,
 	if (fsize->index > ov5640_mode_MAX)
 		return -EINVAL;
 
-	fsize->pixel_format = ov5640_data.pix.pixelformat;
+	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
 	fsize->discrete.width =
 			max(ov5640_mode_info_data[0][fsize->index].width,
 			    ov5640_mode_info_data[1][fsize->index].width);
@@ -1840,7 +1840,7 @@ static int ov5640_probe(struct i2c_client *client,
 
 	ov5640_data.io_init = ov5640_reset;
 	ov5640_data.i2c_client = client;
-	ov5640_data.pix.pixelformat = V4L2_MBUS_FMT_YUYV8_2X8;
+	ov5640_data.pix.pixelformat = V4L2_PIX_FMT_YUYV;
 	ov5640_data.pix.width = 640;
 	ov5640_data.pix.height = 480;
 	ov5640_data.streamcap.capability = V4L2_MODE_HIGHQUALITY |
