@@ -518,6 +518,7 @@ static int vadc_enum_framesizes(struct v4l2_subdev *sd,
 	if (fsize->index >= 1)
 		return -EINVAL;
 
+	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
 	fsize->discrete.width = state->fmt->active_width;
 	fsize->discrete.height  = state->fmt->active_height;
 
@@ -539,6 +540,21 @@ static int vadc_enum_frameintervals(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int vadc_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *parms)
+{
+	struct vadc_state *state = to_state(sd);
+
+	if (parms->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	if (parms->parm.capture.timeperframe.denominator
+				!= state->fmt->framerates)
+		parms->parm.capture.timeperframe.denominator
+				= state->fmt->framerates;
+
+	return 0;
+}
+
 static const struct v4l2_subdev_video_ops vadc_video_ops = {
 	.querystd              = vadc_querystd,
 	.enum_mbus_fmt         = vadc_enum_mbus_fmt,
@@ -546,6 +562,7 @@ static const struct v4l2_subdev_video_ops vadc_video_ops = {
 	.g_mbus_fmt            = vadc_mbus_fmt,
 	.enum_framesizes       = vadc_enum_framesizes,
 	.enum_frameintervals   = vadc_enum_frameintervals,
+	.s_parm                = vadc_s_parm,
 };
 
 static const struct v4l2_subdev_core_ops vadc_core_ops = {
