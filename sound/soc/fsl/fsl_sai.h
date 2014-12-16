@@ -143,6 +143,8 @@ struct fsl_sai {
 
 	unsigned int mclk_id;
 	unsigned int mclk_streams;
+	unsigned int slots;
+	unsigned int slot_width;
 
 	struct snd_dmaengine_dai_dma_data dma_params_rx;
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
