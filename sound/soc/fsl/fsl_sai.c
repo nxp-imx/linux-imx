@@ -349,10 +349,17 @@ static int fsl_sai_set_bclk(struct snd_soc_dai *dai, bool tx, u32 freq)
 		return -EINVAL;
 	}
 
-	regmap_update_bits(sai->regmap, FSL_SAI_xCR2(tx), FSL_SAI_CR2_MSEL_MASK,
-			   FSL_SAI_CR2_MSEL(sai->mclk_id));
-	regmap_update_bits(sai->regmap, FSL_SAI_xCR2(tx),
-			   FSL_SAI_CR2_DIV_MASK, savediv - 1);
+	if ((tx && sai->synchronous[TX]) || (!tx && !sai->synchronous[RX])) {
+		regmap_update_bits(sai->regmap, FSL_SAI_RCR2, FSL_SAI_CR2_MSEL_MASK,
+				FSL_SAI_CR2_MSEL(sai->mclk_id));
+		regmap_update_bits(sai->regmap, FSL_SAI_RCR2,
+				FSL_SAI_CR2_DIV_MASK, savediv - 1);
+	} else {
+		regmap_update_bits(sai->regmap, FSL_SAI_TCR2, FSL_SAI_CR2_MSEL_MASK,
+				FSL_SAI_CR2_MSEL(sai->mclk_id));
+		regmap_update_bits(sai->regmap, FSL_SAI_TCR2,
+				FSL_SAI_CR2_DIV_MASK, savediv - 1);
+	}
 
 	dev_dbg(dai->dev, "best fit: clock id=%d, div=%d, deviation =%d\n",
 			sai->mclk_id, savediv, savesub);
