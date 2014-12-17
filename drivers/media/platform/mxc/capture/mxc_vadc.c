@@ -436,6 +436,9 @@ static void vadc_get_std(struct vadc_data *vadc, v4l2_std_id *std)
 	pr_debug("In vadc_get_std\n");
 
 	/* Read PAL mode detected result */
+	pr_debug("wait vadc auto detect video mode....");
+	msleep(500);
+
 	tmp = reg32_read(VDEC_VIDMOD);
 	tmp &= (VDEC_VIDMOD_PAL_MASK | VDEC_VIDMOD_M625_MASK);
 
@@ -454,6 +457,8 @@ static void vadc_get_std(struct vadc_data *vadc, v4l2_std_id *std)
 		vadc->sen.pix.width = video_fmts[video_idx].active_width;
 		vadc->sen.pix.height = video_fmts[video_idx].active_height;
 	}
+
+	pr_debug("Mode %s\n", video_fmts[video_idx].name);
 }
 
 /* --------------- IOCTL functions from v4l2_int_ioctl_desc --------------- */
