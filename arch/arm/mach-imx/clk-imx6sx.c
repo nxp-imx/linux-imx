@@ -133,6 +133,8 @@ static struct clk_div_table video_div_table[] = {
 static u32 share_count_asrc;
 static u32 share_count_audio;
 static u32 share_count_esai;
+static u32 share_count_sai1;
+static u32 share_count_sai2;
 
 
 /*
@@ -487,10 +489,10 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	clks[IMX6SX_CLK_SSI3]         = imx_clk_gate2("ssi3",          "ssi3_podf",         base + 0x7c, 22);
 	clks[IMX6SX_CLK_UART_IPG]     = imx_clk_gate2("uart_ipg",      "ipg",               base + 0x7c, 24);
 	clks[IMX6SX_CLK_UART_SERIAL]  = imx_clk_gate2("uart_serial",   "uart_podf",         base + 0x7c, 26);
-	clks[IMX6SX_CLK_SAI1_IPG]     = imx_clk_gate2("sai1_ipg",      "ipg",               base + 0x7c, 28);
-	clks[IMX6SX_CLK_SAI2_IPG]     = imx_clk_gate2("sai2_ipg",      "ipg",               base + 0x7c, 30);
-	clks[IMX6SX_CLK_SAI1]         = imx_clk_gate2("sai1",          "ssi1_podf",         base + 0x7c, 28);
-	clks[IMX6SX_CLK_SAI2]         = imx_clk_gate2("sai2",          "ssi2_podf",         base + 0x7c, 30);
+	clks[IMX6SX_CLK_SAI1_IPG]     = imx_clk_gate2_shared("sai1_ipg",   "ipg",           base + 0x7c, 28, &share_count_sai1);
+	clks[IMX6SX_CLK_SAI2_IPG]     = imx_clk_gate2_shared("sai2_ipg",   "ipg",           base + 0x7c, 30, &share_count_sai2);
+	clks[IMX6SX_CLK_SAI1]         = imx_clk_gate2_shared("sai1",       "ssi1_podf",     base + 0x7c, 28, &share_count_sai1);
+	clks[IMX6SX_CLK_SAI2]         = imx_clk_gate2_shared("sai2",       "ssi2_podf",     base + 0x7c, 30, &share_count_sai2);
 
 	/* CCGR6 */
 	clks[IMX6SX_CLK_USBOH3]       = imx_clk_gate2("usboh3",        "ipg",               base + 0x80, 0);
