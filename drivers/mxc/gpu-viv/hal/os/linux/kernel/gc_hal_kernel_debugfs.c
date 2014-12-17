@@ -826,13 +826,21 @@ _ShowCounters(
     _PrintCounter(file, &database->mapMemory, "mapMemory");
 }
 
+gckKERNEL
+_GetValidKernel(
+    gckGALDEVICE Device
+);
 static int vidmem_show(struct seq_file *file, void *unused)
 {
     gceSTATUS status;
     gcsDATABASE_PTR database;
     gckGALDEVICE device = file->private;
 
-    gckKERNEL kernel = device->kernels[gcvCORE_MAJOR];
+    gckKERNEL kernel = _GetValidKernel(device);
+    if(kernel == gcvNULL)
+    {
+        return 0;
+    }
 
     /* Find the database. */
     gcmkONERROR(
