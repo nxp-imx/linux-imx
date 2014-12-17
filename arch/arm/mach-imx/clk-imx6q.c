@@ -79,6 +79,9 @@ static void __iomem *anatop_base;
 static void __iomem *ccm_base;
 
 static u32 share_count_esai;
+static u32 share_count_ssi1;
+static u32 share_count_ssi2;
+static u32 share_count_ssi3;
 
 enum mx6q_clks {
 	dummy, ckil, ckih, osc, pll2_pfd0_352m, pll2_pfd1_594m, pll2_pfd2_396m,
@@ -581,12 +584,12 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk[sdma]         = imx_clk_gate2("sdma",          "ahb",               base + 0x7c, 6);
 	clk[spba]         = imx_clk_gate2("spba",          "ipg",               base + 0x7c, 12);
 	clk[spdif]        = imx_clk_gate2("spdif",         "spdif_podf",    	base + 0x7c, 14);
-	clk[ssi1_ipg]     = imx_clk_gate2("ssi1_ipg",      "ipg",               base + 0x7c, 18);
-	clk[ssi2_ipg]     = imx_clk_gate2("ssi2_ipg",      "ipg",               base + 0x7c, 20);
-	clk[ssi3_ipg]     = imx_clk_gate2("ssi3_ipg",      "ipg",               base + 0x7c, 22);
-	clk[ssi1]         = imx_clk_gate2("ssi1",          "ssi1_podf",         base + 0x7c, 18);
-	clk[ssi2]         = imx_clk_gate2("ssi2",          "ssi2_podf",         base + 0x7c, 20);
-	clk[ssi3]         = imx_clk_gate2("ssi3",          "ssi3_podf",         base + 0x7c, 22);
+	clk[ssi1_ipg]     = imx_clk_gate2_shared("ssi1_ipg",   "ipg",           base + 0x7c, 18, &share_count_ssi1);
+	clk[ssi2_ipg]     = imx_clk_gate2_shared("ssi2_ipg",   "ipg",           base + 0x7c, 20, &share_count_ssi2);
+	clk[ssi3_ipg]     = imx_clk_gate2_shared("ssi3_ipg",   "ipg",           base + 0x7c, 22, &share_count_ssi3);
+	clk[ssi1]         = imx_clk_gate2_shared("ssi1",       "ssi1_podf",     base + 0x7c, 18, &share_count_ssi1);
+	clk[ssi2]         = imx_clk_gate2_shared("ssi2",       "ssi2_podf",     base + 0x7c, 20, &share_count_ssi2);
+	clk[ssi3]         = imx_clk_gate2_shared("ssi3",       "ssi3_podf",     base + 0x7c, 22, &share_count_ssi3);
 	clk[uart_ipg]     = imx_clk_gate2("uart_ipg",      "ipg",               base + 0x7c, 24);
 	clk[uart_serial]  = imx_clk_gate2("uart_serial",   "uart_serial_podf",  base + 0x7c, 26);
 	clk[usboh3]       = imx_clk_gate2("usboh3",        "ipg",               base + 0x80, 0);
