@@ -517,8 +517,38 @@ static int caam_jr_probe(struct platform_device *pdev)
 
 	atomic_set(&jrpriv->tfm_count, 0);
 
+	device_init_wakeup(&pdev->dev, 1);
+	device_set_wakeup_enable(&pdev->dev, false);
+
 	return 0;
 }
+
+#ifdef CONFIG_PM
+static int caam_jr_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct caam_drv_private_jr *jrpriv = platform_get_drvdata(pdev);
+
+	if (device_may_wakeup(&pdev->dev))
+		enable_irq_wake(jrpriv->irq);
+
+	return 0;
+}
+
+static int caam_jr_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct caam_drv_private_jr *jrpriv = platform_get_drvdata(pdev);
+
+	if (device_may_wakeup(&pdev->dev))
+		disable_irq_wake(jrpriv->irq);
+
+	return 0;
+}
+
+static SIMPLE_DEV_PM_OPS(caam_jr_pm_ops, caam_jr_suspend,
+			 caam_jr_resume);
+#endif
 
 static struct of_device_id caam_jr_match[] = {
 	{
@@ -536,6 +566,9 @@ static struct platform_driver caam_jr_driver = {
 		.name = "caam_jr",
 		.owner = THIS_MODULE,
 		.of_match_table = caam_jr_match,
+#ifdef CONFIG_PM
+		.pm = &caam_jr_pm_ops,
+#endif
 	},
 	.probe       = caam_jr_probe,
 	.remove      = caam_jr_remove,
