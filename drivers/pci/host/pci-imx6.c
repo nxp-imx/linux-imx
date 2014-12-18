@@ -422,7 +422,7 @@ static irqreturn_t imx_pcie_msi_irq_handler(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
-static void imx6_pcie_host_init(struct pcie_port *pp)
+static int imx6_pcie_host_init(struct pcie_port *pp)
 {
 	int count = 0;
 	struct imx6_pcie *imx6_pcie = to_imx6_pcie(pp);
@@ -459,14 +459,37 @@ static void imx6_pcie_host_init(struct pcie_port *pp)
 				"DEBUG_R0: 0x%08x, DEBUG_R1: 0x%08x\n",
 				readl(pp->dbi_base + PCIE_PHY_DEBUG_R0),
 				readl(pp->dbi_base + PCIE_PHY_DEBUG_R1));
-			return;
+			clk_disable_unprepare(imx6_pcie->pcie_axi);
+			if (!IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)
+				&& !IS_ENABLED(CONFIG_RC_MODE_IN_EP_RC_SYS))
+				clk_disable_unprepare(imx6_pcie->lvds_gate);
+			clk_disable_unprepare(imx6_pcie->pcie_ref_125m);
+			if (is_imx6sx_pcie(imx6_pcie)) {
+				/* Disable clks and power down PCIe PHY */
+				clk_disable_unprepare(imx6_pcie->dis_axi);
+				release_bus_freq(BUS_FREQ_HIGH);
+
+				/* Put PCIe PHY to be isolation */
+				regmap_update_bits(imx6_pcie->iomuxc_gpr,
+						IOMUXC_GPR0, BIT(6), 1 << 6);
+
+				/*
+				 * Power down PCIe PHY.
+				 */
+				regulator_disable(imx6_pcie->pcie_phy_reg);
+				regulator_disable(imx6_pcie->pcie_reg);
+			} else {
+				clk_disable_unprepare(imx6_pcie->sata_ref_100m);
+				release_bus_freq(BUS_FREQ_HIGH);
+			}
+			return -ENODEV;
 		}
 	}
 
 	if (IS_ENABLED(CONFIG_PCI_MSI))
 		dw_pcie_msi_init(pp);
 
-	return;
+	return 0;
 }
 
 static int imx6_pcie_link_up(struct pcie_port *pp)
