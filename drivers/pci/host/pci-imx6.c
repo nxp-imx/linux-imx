@@ -830,9 +830,7 @@ static int pci_imx_suspend_noirq(struct device *dev)
 			clk_disable_unprepare(imx6_pcie->lvds_gate);
 			clk_disable_unprepare(imx6_pcie->pcie_ref_125m);
 			clk_disable_unprepare(imx6_pcie->dis_axi);
-
-			/* Assert per-reset to ep */
-			gpio_set_value_cansleep(imx6_pcie->reset_gpio, 0);
+			release_bus_freq(BUS_FREQ_HIGH);
 		}
 	}
 
@@ -888,6 +886,7 @@ static int pci_imx_resume_noirq(struct device *dev)
 			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
 					IMX6Q_GPR12_PCIE_CTL_2, 1 << 10);
 		} else {
+			request_bus_freq(BUS_FREQ_HIGH);
 			clk_prepare_enable(imx6_pcie->dis_axi);
 			clk_prepare_enable(imx6_pcie->lvds_gate);
 			clk_prepare_enable(imx6_pcie->pcie_ref_125m);
@@ -909,9 +908,6 @@ static int pci_imx_resume_noirq(struct device *dev)
 
 			if (IS_ENABLED(CONFIG_PCI_MSI))
 				dw_pcie_msi_cfg_restore(pp);
-
-			/* De-assert per-reset to ep */
-			gpio_set_value_cansleep(imx6_pcie->reset_gpio, 1);
 		}
 	}
 
