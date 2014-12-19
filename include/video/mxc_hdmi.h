@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2014 Freescale Semiconductor, Inc.
  */
 
 /*
@@ -557,6 +557,8 @@ enum {
 	HDMI_IH_PHY_STAT0_RX_SENSE0 = 0x4,
 	HDMI_IH_PHY_STAT0_TX_PHY_LOCK = 0x2,
 	HDMI_IH_PHY_STAT0_HPD = 0x1,
+/* IH convenience macro RX_SENSEx | HPD*/
+	HDMI_IH_PHY_STAT0_RXSENSE_HPD = 0x3D,
 
 /* IH_CEC_STAT0 field values */
 	HDMI_IH_CEC_STAT0_WAKEUP = 0x40,
@@ -566,7 +568,6 @@ enum {
 	HDMI_IH_CEC_STAT0_NACK = 0x4,
 	HDMI_IH_CEC_STAT0_EOM = 0x2,
 	HDMI_IH_CEC_STAT0_DONE = 0x1,
-
 
 /* IH_MUTE_I2CMPHY_STAT0 field values */
 	HDMI_IH_MUTE_I2CMPHY_STAT0_I2CMPHYDONE = 0x2,
@@ -579,6 +580,8 @@ enum {
 	HDMI_IH_MUTE_PHY_STAT0_RX_SENSE0 = 0x4,
 	HDMI_IH_MUTE_PHY_STAT0_TX_PHY_LOCK = 0x2,
 	HDMI_IH_MUTE_PHY_STAT0_HPD = 0x1,
+/* IH_MUTE convenience macro RX_SENSEx | HPD*/
+	HDMI_IH_MUTE_PHY_STAT0_RXSENSE_HPD = 0x3D,
 
 /* IH_AHBDMAAUD_STAT0 field values */
 	HDMI_IH_AHBDMAAUD_STAT0_ERROR = 0x20,
@@ -874,6 +877,8 @@ enum {
 	HDMI_PHY_RX_SENSE0 = 0x10,
 	HDMI_PHY_HPD = 0x02,
 	HDMI_PHY_TX_PHY_LOCK = 0x01,
+/* HDMI STAT convenience RX_SENSEx | HPD */
+	HDMI_PHY_RXSENSE_HPD = 0xF2,
 
 /* PHY_I2CM_SLAVE_ADDR field values */
 	HDMI_PHY_I2CM_SLAVE_ADDR_PHY_GEN2 = 0x69,
