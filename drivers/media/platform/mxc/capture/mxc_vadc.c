@@ -397,6 +397,15 @@ static void vadc_power_up(struct vadc_data *vadc)
 	reg32setbit(gpc_regbase + GPC_CNTR, 18);
 }
 
+static void vadc_power_down(struct vadc_data *vadc)
+{
+     /* Power down vadc analog */
+     reg32setbit(gpc_regbase + GPC_CNTR, 17);
+
+     /* Power down vadc ext power */
+     reg32clrbit(gpc_regbase + GPC_CNTR, 18);
+}
+
 static void vadc_init(struct vadc_data *vadc)
 {
 	pr_debug("%s\n", __func__);
@@ -977,6 +986,7 @@ static int vadc_remove(struct platform_device *pdev)
 	clk_disable_unprepare(vadc->sen.sensor_clk);
 	clk_disable_unprepare(vadc->vadc_clk);
 
+	vadc_power_down(vadc);
 	return true;
 }
 
