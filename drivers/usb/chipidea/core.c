@@ -1002,7 +1002,7 @@ static int ci_suspend(struct device *dev)
 		ci_role(ci)->suspend(ci);
 
 	if (device_may_wakeup(dev)) {
-		enable_irq_wake(ci->irq);
+		ci->wakeup_source = true;
 		if (ci_otg_is_fsm_mode(ci))
 			ci_otg_fsm_suspend_for_srp(ci);
 		if (ci->transceiver)
@@ -1014,9 +1014,24 @@ static int ci_suspend(struct device *dev)
 
 	host_mode = (hw_read(ci, OP_USBMODE, USBMODE_CM) == USBMODE_CM_HC);
 	connect = !!(hw_read(ci, OP_PORTSC, PORTSC_CCS));
-	if (host_mode && connect)
+	if (host_mode && connect) {
 		/* pull down dp and dm if needed */
-	       usb_phy_pulldown_line(ci->transceiver, true);
+		usb_phy_pulldown_line(ci->transceiver, true);
+		/*
+		 * Enable USB as wakeup source if it is imx6sx and
+		 * the usb device is connected.
+		 * We do this tricky thing for disable megafix off,
+		 * since megafix control code depends on wakeup source.
+		 *
+		 * If the usb device is connected, we want the connection is
+		 * not broken, and to support HSIC device since HSIC controller
+		 * does not support hot plug.
+		 */
+		if (ci->platdata->flags & CI_HDRC_IS_FSL_IMX6SX)
+			ci->wakeup_source = true;
+	}
+	if (ci->wakeup_source)
+		enable_irq_wake(ci->irq);
 
 	ci_controller_suspend(ci);
 
@@ -1038,8 +1053,10 @@ static int ci_resume(struct device *dev)
 		/* Restore value 0 if it was set for power lost check */
 		hw_write(ci, OP_ENDPTLISTADDR, ~0, 0);
 
-	if (device_may_wakeup(dev))
+	if (ci->wakeup_source) {
 		disable_irq_wake(ci->irq);
+		ci->wakeup_source = false;
+	}
 
 	ret = ci_controller_resume(dev);
 	if (ret)

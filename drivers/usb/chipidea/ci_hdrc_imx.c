@@ -76,6 +76,7 @@ static const struct ci_hdrc_imx_platform_flag imx6sx_usb_data = {
 		CI_HDRC_IMX_EHCI_QUIRK |
 		CI_HDRC_DISABLE_HOST_STREAMING |
 		CI_HDRC_OVERRIDE_AHB_BURST |
+		CI_HDRC_IS_FSL_IMX6SX |
 		CI_HDRC_OVERRIDE_BURST_LENGTH,
 	.ahbburst_config = 0,
 	.burst_length = 0x1010,
