@@ -578,6 +578,7 @@
 		vd-supply = <&si4763_vd>;
 		vio1-supply = <&si4763_vio1>;
 		vio2-supply = <&si4763_vio2>;
+		revision-a10; /* set to default A10 compatible command set */
 
 		si476x_codec: si476x-codec {
 			compatible = "si476x-codec";
