@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -245,6 +245,7 @@ static void enter_lpm_imx6sl(void)
 		update_lpddr2_freq(LPDDR2_AUDIO_CLK);
 
 		/* Fix the clock tree in kernel */
+		imx_clk_set_rate(pll2, pll2_org_rate);
 		imx_clk_set_parent(periph2_pre_clk, pll2_200);
 		imx_clk_set_parent(periph2_clk, periph2_pre_clk);
 
@@ -326,6 +327,7 @@ static void enter_lpm_imx6sl(void)
 				 * Make sure PLL2 rate is updated as it gets
 				 * bypassed in the DDR freq change code.
 				 */
+				imx_clk_set_rate(pll2, LPAPM_CLK);
 				imx_clk_set_parent(periph2_clk2_sel, pll2);
 				imx_clk_set_parent(periph2_clk, periph2_clk2);
 
@@ -352,6 +354,7 @@ static void exit_lpm_imx6sl(void)
 	 * Make sure PLL2 rate is updated as it gets
 	 * un-bypassed in the DDR freq change code.
 	 */
+	imx_clk_set_rate(pll2, pll2_org_rate);
 	imx_clk_set_parent(periph2_pre_clk, pll2_400);
 	imx_clk_set_parent(periph2_clk, periph2_pre_clk);
 
