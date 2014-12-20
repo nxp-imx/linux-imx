@@ -133,12 +133,14 @@ static void imx_disp_clk(bool enable)
 
 static void imx_gpc_dispmix_on(void)
 {
+	u32 val = readl_relaxed(gpc_base + GPC_CNTR);
+
 	if ((cpu_is_imx6sl() &&
 		imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) || cpu_is_imx6sx()) {
 		imx_disp_clk(true);
 
 		writel_relaxed(0x0, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
-		writel_relaxed(0x20, gpc_base + GPC_CNTR);
+		writel_relaxed(0x20 | val, gpc_base + GPC_CNTR);
 		while (readl_relaxed(gpc_base + GPC_CNTR) & 0x20)
 			;
 		writel_relaxed(0x1, gpc_base + GPC_PGC_DISP_SR_OFFSET);
@@ -149,6 +151,8 @@ static void imx_gpc_dispmix_on(void)
 
 static void imx_gpc_dispmix_off(void)
 {
+	u32 val = readl_relaxed(gpc_base + GPC_CNTR);
+
 	if ((cpu_is_imx6sl() &&
 		imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) || cpu_is_imx6sx()) {
 		imx_disp_clk(true);
@@ -158,7 +162,7 @@ static void imx_gpc_dispmix_off(void)
 		writel_relaxed(0xFFFFFFFF,
 				gpc_base + GPC_PGC_DISP_PDNSCR_OFFSET);
 		writel_relaxed(0x1, gpc_base + GPC_PGC_DISP_PGCR_OFFSET);
-		writel_relaxed(0x10, gpc_base + GPC_CNTR);
+		writel_relaxed(0x10 | val, gpc_base + GPC_CNTR);
 		while (readl_relaxed(gpc_base + GPC_CNTR) & 0x10)
 			;
 
