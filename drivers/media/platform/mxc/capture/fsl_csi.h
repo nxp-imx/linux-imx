@@ -195,6 +195,10 @@ struct csi_config_t {
 struct csi_soc {
 	bool online;
 	int irq_nr;
+	struct clk *disp_axi_clk;
+	struct clk *dcic_clk;
+	struct clk *csi_clk;
+	struct regulator *disp_reg;
 	void __iomem *regbase;
 };
 
@@ -214,10 +218,6 @@ void csi_deinterlace_enable(cam_data *cam, bool enable);
 void csi_tvdec_enable(cam_data *cam, bool enable);
 void csi_enable(cam_data *cam, int arg);
 void csi_disable_int(cam_data *cam);
-int csi_regulator_enable(void);
-void csi_regulator_disable(void);
-void csi_clk_enable(void);
-void csi_clk_disable(void);
 void csi_dmareq_rff_enable(struct csi_soc *csi);
 void csi_dmareq_rff_disable(struct csi_soc *csi);
 static inline int csi_read(struct csi_soc *csi, unsigned int offset)

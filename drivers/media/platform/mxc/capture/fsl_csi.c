@@ -40,44 +40,6 @@ struct csi_soc csi_array[CSI_MAX_NUM], *csi;
 
 static csi_irq_callback_t g_callback;
 static void *g_callback_data;
-static struct clk *disp_axi_clk;
-static struct clk *dcic_clk;
-static struct clk *csi_clk;
-static struct regulator *disp_reg;
-
-int csi_regulator_enable(void)
-{
-	int ret = 0;
-
-	if (disp_reg)
-		ret = regulator_enable(disp_reg);
-
-	return ret;
-}
-EXPORT_SYMBOL(csi_regulator_enable);
-
-void csi_regulator_disable(void)
-{
-	if (disp_reg)
-		regulator_disable(disp_reg);
-}
-EXPORT_SYMBOL(csi_regulator_disable);
-
-void csi_clk_enable(void)
-{
-	clk_prepare_enable(disp_axi_clk);
-	clk_prepare_enable(dcic_clk);
-	clk_prepare_enable(csi_clk);
-}
-EXPORT_SYMBOL(csi_clk_enable);
-
-void csi_clk_disable(void)
-{
-	clk_disable_unprepare(csi_clk);
-	clk_disable_unprepare(dcic_clk);
-	clk_disable_unprepare(disp_axi_clk);
-}
-EXPORT_SYMBOL(csi_clk_disable);
 
 static irqreturn_t csi_irq_handler(int irq, void *data)
 {
@@ -498,36 +460,38 @@ static int csi_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	disp_axi_clk = devm_clk_get(&pdev->dev, "disp-axi");
-	if (IS_ERR(disp_axi_clk)) {
+	csi->disp_axi_clk = devm_clk_get(&pdev->dev, "disp-axi");
+	if (IS_ERR(csi->disp_axi_clk)) {
 		dev_err(&pdev->dev, "get csi clock failed\n");
-		return PTR_ERR(disp_axi_clk);
+		return PTR_ERR(csi->disp_axi_clk);
 	}
-	csi_clk = devm_clk_get(&pdev->dev, "csi_mclk");
-	if (IS_ERR(csi_clk)) {
+	csi->csi_clk = devm_clk_get(&pdev->dev, "csi_mclk");
+	if (IS_ERR(csi->csi_clk)) {
 		dev_err(&pdev->dev, "get csi mclk failed\n");
-		return PTR_ERR(csi_clk);
+		return PTR_ERR(csi->csi_clk);
 	}
 
-	dcic_clk = devm_clk_get(&pdev->dev, "dcic");
-	if (IS_ERR(dcic_clk)) {
+	csi->dcic_clk = devm_clk_get(&pdev->dev, "dcic");
+	if (IS_ERR(csi->dcic_clk)) {
 		dev_err(&pdev->dev, "get dcic clk failed\n");
-		return PTR_ERR(dcic_clk);
+		return PTR_ERR(csi->dcic_clk);
 	}
 
-	if (disp_reg == NULL) {
-		disp_reg = devm_regulator_get(&pdev->dev, "disp");
-		if (IS_ERR(disp_reg)) {
-			dev_dbg(&pdev->dev, "display regulator is not ready\n");
-			disp_reg = NULL;
-		}
+	csi->disp_reg = devm_regulator_get(&pdev->dev, "disp");
+	if (IS_ERR(csi->disp_reg)) {
+		dev_dbg(&pdev->dev, "display regulator is not ready\n");
+		csi->disp_reg = NULL;
 	}
 
 	platform_set_drvdata(pdev, csi);
 
-	csi_regulator_enable();
+	if (csi->disp_reg)
+		ret = regulator_enable(csi->disp_reg);
 
-	csi_clk_enable();
+	clk_prepare_enable(csi->disp_axi_clk);
+	clk_prepare_enable(csi->dcic_clk);
+	clk_prepare_enable(csi->csi_clk);
+
 	csihw_reset(csi);
 	csi_init_interface(csi);
 	csi_dmareq_rff_disable(csi);
@@ -542,6 +506,13 @@ static int csi_remove(struct platform_device *pdev)
 	struct csi_soc *csi = platform_get_drvdata(pdev);
 
 	csi->online = false;
+
+	clk_disable_unprepare(csi->csi_clk);
+	clk_disable_unprepare(csi->dcic_clk);
+	clk_disable_unprepare(csi->disp_axi_clk);
+
+	if (csi->disp_reg)
+		regulator_disable(csi->disp_reg);
 	platform_set_drvdata(pdev, NULL);
 
 	return 0;
@@ -561,13 +532,9 @@ static int csi_resume(struct device *dev)
 {
 	struct csi_soc *csi = dev_get_drvdata(dev);
 
-	csi_regulator_enable();
-	csi_clk_enable();
 	csihw_reset(csi);
 	csi_init_interface(csi);
 	csi_dmareq_rff_disable(csi);
-	csi_clk_disable();
-	csi_regulator_disable();
 
 	csi->online = true;
 

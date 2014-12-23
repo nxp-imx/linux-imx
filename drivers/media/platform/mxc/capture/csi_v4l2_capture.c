@@ -1410,7 +1410,6 @@ static int csi_v4l_open(struct file *file)
 		vidioc_int_g_ifparm(cam->sensor, &ifparm);
 
 		cam_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		csi_clk_enable();
 		clk_prepare_enable(sensor->sensor_clk);
 		vidioc_int_s_power(cam->sensor, 1);
 		vidioc_int_init(cam->sensor);
@@ -2271,8 +2270,6 @@ static int csi_v4l2_runtime_suspend(struct device *dev)
 	release_bus_freq(BUS_FREQ_HIGH);
 	dev_dbg(dev, "csi v4l2 busfreq high release.\n");
 
-	csi_regulator_disable();
-
 	return ret;
 }
 
@@ -2282,8 +2279,6 @@ static int csi_v4l2_runtime_resume(struct device *dev)
 
 	request_bus_freq(BUS_FREQ_HIGH);
 	dev_dbg(dev, "csi v4l2 busfreq high request.\n");
-
-	csi_regulator_enable();
 
 	return ret;
 }
