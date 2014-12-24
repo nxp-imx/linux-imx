@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2014 Freescale Semiconductor, Inc.
+ * Copyright 2012-2015 Freescale Semiconductor, Inc.
  * Copyright (C) 2012 Marek Vasut <marex@denx.de>
  * on behalf of DENX Software Engineering GmbH
  *
@@ -293,6 +293,17 @@ static int mxs_phy_init(struct usb_phy *phy)
 static void mxs_phy_shutdown(struct usb_phy *phy)
 {
 	struct mxs_phy *mxs_phy = to_mxs_phy(phy);
+	u32 value = BM_USBPHY_CTRL_ENVBUSCHG_WKUP |
+			BM_USBPHY_CTRL_ENDPDMCHG_WKUP |
+			BM_USBPHY_CTRL_ENIDCHG_WKUP |
+			BM_USBPHY_CTRL_ENAUTOSET_USBCLKS |
+			BM_USBPHY_CTRL_ENAUTOCLR_USBCLKGATE |
+			BM_USBPHY_CTRL_ENAUTOCLR_PHY_PWD |
+			BM_USBPHY_CTRL_ENAUTOCLR_CLKGATE |
+			BM_USBPHY_CTRL_ENAUTO_PWRON_PLL;
+
+	writel(value, phy->io_priv + HW_USBPHY_CTRL_CLR);
+	writel(0xffffffff, phy->io_priv + HW_USBPHY_PWD);
 
 	writel(BM_USBPHY_CTRL_CLKGATE,
 	       phy->io_priv + HW_USBPHY_CTRL_SET);
