@@ -53,6 +53,7 @@ struct pxps {
 	struct video_device *vdev;
 
 	struct videobuf_queue s0_vbq;
+	bool streaming;
 	struct pxp_buffer *active;
 	struct list_head outq;
 	struct pxp_channel	*pxp_channel[1];	/* We need 1 channel */
