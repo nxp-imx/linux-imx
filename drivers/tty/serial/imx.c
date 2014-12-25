@@ -115,7 +115,7 @@
 #define  UCR3_DSR        (1<<10) /* Data set ready */
 #define  UCR3_DCD        (1<<9)  /* Data carrier detect */
 #define  UCR3_RI         (1<<8)  /* Ring indicator */
-#define  UCR3_TIMEOUTEN  (1<<7)  /* Timeout interrupt enable */
+#define  UCR3_ADNIMP	 (1<<7)	 /* Autobaud Detection Not Improved */
 #define  UCR3_RXDSEN	 (1<<6)  /* Receive status interrupt enable */
 #define  UCR3_AIRINTEN   (1<<5)  /* Async IR wake interrupt enable */
 #define  UCR3_AWAKEN	 (1<<4)  /* Async wake interrupt enable */
@@ -1137,7 +1137,7 @@ static int imx_startup(struct uart_port *port)
 
 	if (!cpu_is_mx1()) {
 		temp = readl(sport->port.membase + UCR3);
-		temp |= MX2_UCR3_RXDMUXSEL;
+		temp |= MX2_UCR3_RXDMUXSEL | UCR3_ADNIMP;
 		writel(temp, sport->port.membase + UCR3);
 	}
 
