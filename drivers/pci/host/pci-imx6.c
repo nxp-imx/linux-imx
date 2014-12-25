@@ -1,7 +1,7 @@
 /*
  * PCIe host controller driver for Freescale i.MX6 SoCs
  *
- * Copyright (C) 2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2013 Kosagi
  *		http://www.kosagi.com
  *
@@ -26,6 +26,7 @@
 #include <linux/pci_regs.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+#include <linux/busfreq-imx6.h>
 #include <linux/regulator/consumer.h>
 
 #include "pcie-designware.h"
@@ -50,7 +51,6 @@ struct imx6_pcie {
 	struct clk		*pcie;
 	struct pcie_port	pp;
 	struct regmap		*iomuxc_gpr;
-	struct regmap		*gpc_ips_reg;
 	struct regulator	*pcie_phy_regulator;
 	void __iomem		*mem_base;
 };
@@ -90,10 +90,6 @@ struct imx6_pcie {
 #define PHY_RX_OVRD_IN_LO 0x1005
 #define PHY_RX_OVRD_IN_LO_RX_DATA_EN (1 << 5)
 #define PHY_RX_OVRD_IN_LO_RX_PLL_EN (1 << 3)
-
-/* GPC PCIE PHY bit definitions */
-#define GPC_CNTR			0
-#define GPC_CNTR_PCIE_PHY_PUP_REQ	BIT(7)
 
 static inline bool is_imx6sx_pcie(struct imx6_pcie *imx6_pcie)
 {
@@ -296,6 +292,7 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 	struct imx6_pcie *imx6_pcie = to_imx6_pcie(pp);
 	int ret;
 
+	request_bus_freq(BUS_FREQ_HIGH);
 	ret = clk_prepare_enable(imx6_pcie->pcie_phy);
 	if (ret) {
 		dev_err(pp->dev, "unable to enable pcie_phy clock\n");
@@ -343,12 +340,12 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 	}
 
 	/* allow the clocks to stabilize */
-	usleep_range(200, 500);
+	udelay(200);
 
 	/* Some boards don't have PCIe reset GPIO. */
 	if (gpio_is_valid(imx6_pcie->reset_gpio)) {
 		gpio_set_value(imx6_pcie->reset_gpio, 0);
-		msleep(100);
+		mdelay(100);
 		gpio_set_value(imx6_pcie->reset_gpio, 1);
 	}
 
@@ -387,9 +384,6 @@ static int imx6_pcie_init_phy(struct pcie_port *pp)
 				IMX6SX_GPR5_PCIE_BTNRST,
 				IMX6SX_GPR5_PCIE_BTNRST);
 
-		regmap_update_bits(imx6_pcie->gpc_ips_reg, GPC_CNTR,
-				GPC_CNTR_PCIE_PHY_PUP_REQ,
-				GPC_CNTR_PCIE_PHY_PUP_REQ);
 		regulator_set_voltage(imx6_pcie->pcie_phy_regulator,
 				1100000, 1100000);
 		ret = regulator_enable(imx6_pcie->pcie_phy_regulator);
@@ -435,7 +429,7 @@ static int imx6_pcie_wait_for_link(struct pcie_port *pp)
 	int count = 200;
 
 	while (!dw_pcie_link_up(pp)) {
-		usleep_range(100, 1000);
+		udelay(100);
 		if (--count)
 			continue;
 
@@ -479,7 +473,7 @@ static int imx6_pcie_start_link(struct pcie_port *pp)
 
 	ret = imx6_pcie_wait_for_link(pp);
 	if (ret)
-		return ret;
+		goto out;
 
 	/* Allow Gen2 mode after the link is up. */
 	tmp = readl(pp->dbi_base + PCIE_RC_LCR);
@@ -501,7 +495,7 @@ static int imx6_pcie_start_link(struct pcie_port *pp)
 		/* Test if the speed change finished. */
 		if (!(tmp & PORT_LOGIC_SPEED_CHANGE))
 			break;
-		usleep_range(100, 1000);
+		udelay(100);
 	}
 
 	/* Make sure link training is finished as well! */
@@ -510,8 +504,28 @@ static int imx6_pcie_start_link(struct pcie_port *pp)
 	else
 		ret = -EINVAL;
 
+out:
 	if (ret) {
 		dev_err(pp->dev, "Failed to bring link up!\n");
+		clk_disable_unprepare(imx6_pcie->pcie);
+		if (!IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)
+			&& !IS_ENABLED(CONFIG_RC_MODE_IN_EP_RC_SYS))
+			clk_disable_unprepare(imx6_pcie->pcie_bus);
+		clk_disable_unprepare(imx6_pcie->pcie_phy);
+		if (is_imx6sx_pcie(imx6_pcie)) {
+			/* Disable clks and power down PCIe PHY */
+			clk_disable_unprepare(imx6_pcie->pcie_inbound_axi);
+			release_bus_freq(BUS_FREQ_HIGH);
+
+			/* Put PCIe PHY to be isolation */
+			regmap_update_bits(imx6_pcie->iomuxc_gpr,
+					IOMUXC_GPR0, BIT(6), 1 << 6);
+
+			/*
+			 * Power down PCIe PHY.
+			 */
+			regulator_disable(imx6_pcie->pcie_phy_regulator);
+		}
 	} else {
 		tmp = readl(pp->dbi_base + 0x80);
 		dev_dbg(pp->dev, "Link up, Gen=%i\n", (tmp >> 16) & 0xf);
@@ -536,7 +550,9 @@ static int imx6_pcie_host_init(struct pcie_port *pp)
 
 	dw_pcie_setup_rc(pp);
 
-	imx6_pcie_start_link(pp);
+	ret = imx6_pcie_start_link(pp);
+	if (ret < 0)
+		return ret;
 
 	if (IS_ENABLED(CONFIG_PCI_MSI))
 		dw_pcie_msi_init(pp);
@@ -553,7 +569,7 @@ static void imx6_pcie_reset_phy(struct pcie_port *pp)
 		 PHY_RX_OVRD_IN_LO_RX_PLL_EN);
 	pcie_phy_write(pp->dbi_base, PHY_RX_OVRD_IN_LO, temp);
 
-	usleep_range(2000, 3000);
+	udelay(2000);
 
 	pcie_phy_read(pp->dbi_base, PHY_RX_OVRD_IN_LO, &temp);
 	temp &= ~(PHY_RX_OVRD_IN_LO_RX_DATA_EN |
@@ -564,7 +580,7 @@ static void imx6_pcie_reset_phy(struct pcie_port *pp)
 static int imx6_pcie_link_up(struct pcie_port *pp)
 {
 	u32 rc, debug_r0, rx_valid;
-	int count = 5;
+	int count = 500;
 
 	/*
 	 * Test if the PHY reports that the link is up and also that the LTSSM
@@ -595,7 +611,7 @@ static int imx6_pcie_link_up(struct pcie_port *pp)
 		 * Wait a little bit, then re-check if the link finished
 		 * the training.
 		 */
-		usleep_range(1000, 2000);
+		udelay(10);
 	}
 	/*
 	 * From L0, initiate MAC entry to gen2 if EP/RC supports gen2.
@@ -853,21 +869,38 @@ static int pci_imx_suspend_noirq(struct device *dev)
 		if (IS_ENABLED(CONFIG_PCI_MSI))
 			dw_pcie_msi_cfg_store(pp);
 
-		/* PM_TURN_OFF */
-		regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
-				IMX6SX_GPR12_PCIE_PM_TURN_OFF,
-				IMX6SX_GPR12_PCIE_PM_TURN_OFF);
-		udelay(10);
-		regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
-				IMX6SX_GPR12_PCIE_PM_TURN_OFF, 0);
-		clk_disable_unprepare(imx6_pcie->pcie);
-		clk_disable_unprepare(imx6_pcie->pcie_bus);
-		clk_disable_unprepare(imx6_pcie->pcie_phy);
-		clk_disable_unprepare(imx6_pcie->pcie_inbound_axi);
+		if (IS_ENABLED(CONFIG_PCI_IMX6SX_EXTREMELY_PWR_SAVE)) {
+			/* Disable clks and power down PCIe PHY */
+			clk_disable_unprepare(imx6_pcie->pcie);
+			if (!IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)
+				&& !IS_ENABLED(CONFIG_RC_MODE_IN_EP_RC_SYS))
+				clk_disable_unprepare(imx6_pcie->pcie_bus);
+			clk_disable_unprepare(imx6_pcie->pcie_phy);
+			clk_disable_unprepare(imx6_pcie->pcie_inbound_axi);
+			release_bus_freq(BUS_FREQ_HIGH);
 
-		/* Assert per-reset to ep */
-		if (gpio_is_valid(imx6_pcie->reset_gpio))
-			gpio_set_value(imx6_pcie->reset_gpio, 0);
+			/* Put PCIe PHY to be isolation */
+			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR0,
+					BIT(6), 1 << 6);
+
+			/*
+			 * Power down PCIe PHY.
+			 */
+			regulator_disable(imx6_pcie->pcie_phy_regulator);
+		} else {
+			/* PM_TURN_OFF */
+			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
+					IMX6SX_GPR12_PCIE_PM_TURN_OFF,
+					IMX6SX_GPR12_PCIE_PM_TURN_OFF);
+			udelay(10);
+			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
+					IMX6SX_GPR12_PCIE_PM_TURN_OFF, 0);
+			clk_disable_unprepare(imx6_pcie->pcie);
+			clk_disable_unprepare(imx6_pcie->pcie_bus);
+			clk_disable_unprepare(imx6_pcie->pcie_phy);
+			clk_disable_unprepare(imx6_pcie->pcie_inbound_axi);
+			release_bus_freq(BUS_FREQ_HIGH);
+		}
 	}
 
 	return 0;
@@ -875,31 +908,54 @@ static int pci_imx_suspend_noirq(struct device *dev)
 
 static int pci_imx_resume_noirq(struct device *dev)
 {
+	int ret = 0;
 	struct imx6_pcie *imx6_pcie = dev_get_drvdata(dev);
 	struct pcie_port *pp = &imx6_pcie->pp;
 
 	if (is_imx6sx_pcie(imx6_pcie)) {
-		clk_prepare_enable(imx6_pcie->pcie_inbound_axi);
-		clk_prepare_enable(imx6_pcie->pcie_bus);
-		clk_prepare_enable(imx6_pcie->pcie_phy);
-		clk_prepare_enable(imx6_pcie->pcie);
+		if (IS_ENABLED(CONFIG_PCI_IMX6SX_EXTREMELY_PWR_SAVE)) {
+			imx6_pcie_assert_core_reset(pp);
 
-		/* Reset iMX6SX PCIe */
-		regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR5,
-				IMX6SX_GPR5_PCIE_PERST, IMX6SX_GPR5_PCIE_PERST);
-		regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR5,
-				IMX6SX_GPR5_PCIE_PERST, 0);
-		/*
-		 * controller maybe turn off, re-configure again
-		 */
-		dw_pcie_setup_rc(pp);
+			ret = imx6_pcie_init_phy(pp);
+			if (ret < 0)
+				return ret;
 
-		if (IS_ENABLED(CONFIG_PCI_MSI))
-			dw_pcie_msi_cfg_restore(pp);
+			ret = imx6_pcie_deassert_core_reset(pp);
+			if (ret < 0)
+				return ret;
 
-		/* De-assert per-reset to ep */
-		if (gpio_is_valid(imx6_pcie->reset_gpio))
-			gpio_set_value(imx6_pcie->reset_gpio, 1);
+			if (IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS))
+				imx6_pcie_setup_ep(pp);
+			else
+				dw_pcie_setup_rc(pp);
+
+			if (IS_ENABLED(CONFIG_PCI_MSI))
+				dw_pcie_msi_cfg_restore(pp);
+
+			ret = imx6_pcie_start_link(pp);
+			if (ret < 0)
+				return ret;
+		} else {
+			request_bus_freq(BUS_FREQ_HIGH);
+			clk_prepare_enable(imx6_pcie->pcie_inbound_axi);
+			clk_prepare_enable(imx6_pcie->pcie_bus);
+			clk_prepare_enable(imx6_pcie->pcie_phy);
+			clk_prepare_enable(imx6_pcie->pcie);
+
+			/* Reset iMX6SX PCIe */
+			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR5,
+					IMX6SX_GPR5_PCIE_PERST,
+					IMX6SX_GPR5_PCIE_PERST);
+			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR5,
+					IMX6SX_GPR5_PCIE_PERST, 0);
+			/*
+			 * controller maybe turn off, re-configure again
+			 */
+			dw_pcie_setup_rc(pp);
+
+			if (IS_ENABLED(CONFIG_PCI_MSI))
+				dw_pcie_msi_cfg_restore(pp);
+		}
 	}
 
 	return 0;
@@ -994,8 +1050,6 @@ static int __init imx6_pcie_probe(struct platform_device *pdev)
 		imx6_pcie->iomuxc_gpr =
 			 syscon_regmap_lookup_by_compatible
 			 ("fsl,imx6sx-iomuxc-gpr");
-		imx6_pcie->gpc_ips_reg =
-			 syscon_regmap_lookup_by_compatible("fsl,imx6sx-gpc");
 	} else {
 		imx6_pcie->iomuxc_gpr =
 			syscon_regmap_lookup_by_compatible

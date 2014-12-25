@@ -30,6 +30,16 @@ config PCI_IMX6
 	select PCIEPORTBUS
 	select PCIE_DW
 
+config PCI_IMX6SX_EXTREMELY_PWR_SAVE
+	bool "Freescale i.MX6SX PCIe controller extremely power save mode"
+	depends on PCI_IMX6
+	help
+	  If you want extremely power save on iMX6SX PCIe, you can enable
+	  the ultra low power mode during suspend/resume here. Note: iMX6SX
+	  PCIe maybe powered off compeltely during suspend, and would be
+	  re-initialized again during resume. Some behaviors of the PCIe EP
+	  device would be impacted.
+
 config EP_MODE_IN_EP_RC_SYS
 	bool "PCI Express EP mode in the IMX6 RC/EP interconnection system"
 	depends on PCI_IMX6
