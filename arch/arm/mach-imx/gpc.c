@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2014 Freescale Semiconductor, Inc.
+ * Copyright 2011-2015 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -25,6 +25,10 @@
 #include "hardware.h"
 
 #define GPC_CNTR		0x000
+#define GPC_CNTR_PCIE_PHY_PDU_SHIFT	0x7
+#define GPC_CNTR_PCIE_PHY_PDN_SHIFT	0x6
+#define PGC_PCIE_PHY_CTRL		0x200
+#define PGC_PCIE_PHY_PDN_EN		0x1
 #define GPC_IMR1		0x008
 #define GPC_PGC_MF_PDN		0x220
 #define GPC_PGC_GPU_PDN		0x260
@@ -59,6 +63,7 @@ static u32 gpc_wake_irqs[IMR_NUM];
 static u32 gpc_saved_imrs[IMR_NUM];
 static u32 bypass;
 static DEFINE_SPINLOCK(gpc_lock);
+static struct notifier_block nb_pcie;
 
 void imx_gpc_add_m4_wake_up_irq(u32 irq, bool enable)
 {
@@ -239,6 +244,30 @@ void imx_gpc_irq_mask(struct irq_data *d)
 	val = readl_relaxed(reg);
 	val |= 1 << (d->irq % 32);
 	writel_relaxed(val, reg);
+}
+
+static int imx_pcie_regulator_notify(struct notifier_block *nb,
+					unsigned long event,
+					void *ignored)
+{
+	u32 value = readl_relaxed(gpc_base + GPC_CNTR);
+
+	switch (event) {
+	case REGULATOR_EVENT_PRE_ENABLE:
+		value |= 1 << GPC_CNTR_PCIE_PHY_PDU_SHIFT;
+		writel_relaxed(value, gpc_base + GPC_CNTR);
+		break;
+	case REGULATOR_EVENT_PRE_DISABLE:
+		value |= 1 << GPC_CNTR_PCIE_PHY_PDN_SHIFT;
+		writel_relaxed(value, gpc_base + GPC_CNTR);
+		writel_relaxed(PGC_PCIE_PHY_PDN_EN,
+				gpc_base + PGC_PCIE_PHY_CTRL);
+		break;
+	default:
+		break;
+	}
+
+	return NOTIFY_OK;
 }
 
 void __init imx_gpc_init(void)
@@ -435,6 +464,25 @@ static int imx_gpc_probe(struct platform_device *pdev)
 			regulator_allow_bypass(pu_reg, true);
 	} else {
 		pu_reg = NULL;
+	}
+
+	if (cpu_is_imx6sx()) {
+		struct regulator *pcie_reg;
+
+		pcie_reg = devm_regulator_get(&pdev->dev, "pcie-phy");
+		if (IS_ERR(pcie_reg)) {
+			ret = PTR_ERR(pcie_reg);
+			dev_info(&pdev->dev, "pcie regulator not ready.\n");
+			return ret;
+		}
+		nb_pcie.notifier_call = &imx_pcie_regulator_notify;
+
+		ret = regulator_register_notifier(pcie_reg, &nb_pcie);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"pcie regulator notifier request failed\n");
+			return ret;
+		}
 	}
 
 	return imx_gpc_genpd_init(&pdev->dev, pu_reg);
