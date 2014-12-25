@@ -1750,6 +1750,7 @@ static int _regulator_do_enable(struct regulator_dev *rdev)
 {
 	int ret, delay;
 
+	_notifier_call_chain(rdev, REGULATOR_EVENT_PRE_ENABLE, NULL);
 	/* Query before enabling in case configuration dependent.  */
 	ret = _regulator_get_enable_time(rdev);
 	if (ret >= 0) {
@@ -1892,6 +1893,7 @@ static int _regulator_do_disable(struct regulator_dev *rdev)
 {
 	int ret;
 
+	_notifier_call_chain(rdev, REGULATOR_EVENT_PRE_DISABLE, NULL);
 	trace_regulator_disable(rdev_get_name(rdev));
 
 	if (rdev->ena_pin) {
