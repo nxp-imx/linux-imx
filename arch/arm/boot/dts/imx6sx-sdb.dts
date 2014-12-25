@@ -137,7 +137,7 @@
 
 		reg_pcie: regulator@5 {
 			compatible = "regulator-fixed";
-			reg = <3>;
+			reg = <5>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_pcie_reg>;
 			regulator-name = "MPCIE_3V3";
