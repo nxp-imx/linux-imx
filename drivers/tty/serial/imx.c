@@ -387,12 +387,14 @@ static void imx_stop_rx(struct uart_port *port)
 	struct imx_port *sport = (struct imx_port *)port;
 	unsigned long temp;
 
-	/*
-	 * We are in SMP now, so if the DMA RX thread is running,
-	 * we have to wait for it to finish.
-	 */
-	if (sport->enable_dma && sport->dma_is_rxing)
-		return;
+	if (sport->enable_dma && sport->dma_is_rxing) {
+		if (sport->port.suspended) {
+			dmaengine_terminate_all(sport->dma_chan_rx);
+			sport->dma_is_rxing = 0;
+		} else {
+			return;
+		}
+	}
 
 	temp = readl(sport->port.membase + UCR2);
 	writel(temp &~ UCR2_RXEN, sport->port.membase + UCR2);
