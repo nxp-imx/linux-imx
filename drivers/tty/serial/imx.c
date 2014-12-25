@@ -469,7 +469,7 @@ static void dma_tx_work(struct work_struct *w)
 	spin_lock_irqsave(&sport->port.lock, flags);
 	sport->tx_bytes = uart_circ_chars_pending(xmit);
 	if (sport->tx_bytes > 0) {
-		if (xmit->tail > xmit->head) {
+		if (xmit->tail > xmit->head && xmit->head > 0) {
 			sport->dma_tx_nents = 2;
 			sg_init_table(sgl, 2);
 			sg_set_buf(sgl, xmit->buf + xmit->tail,
