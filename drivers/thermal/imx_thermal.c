@@ -1,12 +1,12 @@
 /*
- * Copyright 2013-2014 Freescale Semiconductor, Inc.
+ * Copyright 2013-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  *
  */
-
+#include <linux/busfreq-imx6.h>
 #include <linux/clk.h>
 #include <linux/cpu_cooling.h>
 #include <linux/cpufreq.h>
@@ -109,6 +109,8 @@ struct imx_thermal_data {
 	const struct thermal_soc_data *socdata;
 };
 
+static struct imx_thermal_data *imx_thermal_data;
+
 static void imx_set_panic_temp(struct imx_thermal_data *data,
 			       signed long panic_temp)
 {
@@ -152,6 +154,7 @@ static int imx_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
 		 * temperature sensor, enable measurements, take a reading,
 		 * disable measurements, power off the temperature sensor.
 		 */
+		clk_prepare_enable(data->thermal_clk);
 		regmap_write(map, TEMPSENSE0 + REG_CLR, TEMPSENSE0_POWER_DOWN);
 		regmap_write(map, TEMPSENSE0 + REG_SET, TEMPSENSE0_MEASURE_TEMP);
 
@@ -170,6 +173,7 @@ static int imx_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
 	if (data->mode != THERMAL_DEVICE_ENABLED) {
 		regmap_write(map, TEMPSENSE0 + REG_CLR, TEMPSENSE0_MEASURE_TEMP);
 		regmap_write(map, TEMPSENSE0 + REG_SET, TEMPSENSE0_POWER_DOWN);
+		clk_disable_unprepare(data->thermal_clk);
 	}
 
 	if ((val & TEMPSENSE0_FINISHED) == 0) {
@@ -472,6 +476,43 @@ static const struct of_device_id of_imx_thermal_match[] = {
 };
 MODULE_DEVICE_TABLE(of, of_imx_thermal_match);
 
+static int thermal_notifier_event(struct notifier_block *this,
+					unsigned long event, void *ptr)
+{
+	struct regmap *map = imx_thermal_data->tempmon;
+
+	switch (event) {
+	/*
+	 * In low_bus_freq_mode, the thermal sensor auto measurement
+	 * can be disabled to low the power consumption.
+	 */
+	case LOW_BUSFREQ_ENTER:
+		regmap_write(map, TEMPSENSE0 + REG_CLR, TEMPSENSE0_MEASURE_TEMP);
+		regmap_write(map, TEMPSENSE0 + REG_SET, TEMPSENSE0_POWER_DOWN);
+		imx_thermal_data->mode = THERMAL_DEVICE_DISABLED;
+		disable_irq(imx_thermal_data->irq);
+		clk_disable_unprepare(imx_thermal_data->thermal_clk);
+		break;
+
+	/* Enabled thermal auto measurement when exiting low_bus_freq_mode */
+	case LOW_BUSFREQ_EXIT:
+		clk_prepare_enable(imx_thermal_data->thermal_clk);
+		regmap_write(map, TEMPSENSE0 + REG_CLR, TEMPSENSE0_POWER_DOWN);
+		regmap_write(map, TEMPSENSE0 + REG_SET, TEMPSENSE0_MEASURE_TEMP);
+		imx_thermal_data->mode = THERMAL_DEVICE_ENABLED;
+		enable_irq(imx_thermal_data->irq);
+		break;
+
+	default:
+		break;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block thermal_notifier = {
+	.notifier_call = thermal_notifier_event,
+};
+
 static int imx_thermal_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *of_id =
@@ -485,6 +526,7 @@ static int imx_thermal_probe(struct platform_device *pdev)
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
+	imx_thermal_data = data;
 
 	map = syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "fsl,tempmon");
 	if (IS_ERR(map)) {
@@ -598,6 +640,8 @@ static int imx_thermal_probe(struct platform_device *pdev)
 
 	data->irq_enabled = true;
 	data->mode = THERMAL_DEVICE_ENABLED;
+	/* register the busfreq notifier called in low bus freq */
+	register_busfreq_notifier(&thermal_notifier);
 
 	return 0;
 }
@@ -607,6 +651,7 @@ static int imx_thermal_remove(struct platform_device *pdev)
 	struct imx_thermal_data *data = platform_get_drvdata(pdev);
 	struct regmap *map = data->tempmon;
 
+	unregister_busfreq_notifier(&thermal_notifier);
 	/* Disable measurements */
 	regmap_write(map, TEMPSENSE0 + REG_SET, TEMPSENSE0_POWER_DOWN);
 	if (!IS_ERR(data->thermal_clk))
@@ -646,10 +691,10 @@ static int imx_thermal_resume(struct device *dev)
 	struct regmap *map = data->tempmon;
 
 	/* Enabled thermal sensor after resume */
+	clk_prepare_enable(data->thermal_clk);
 	regmap_write(map, TEMPSENSE0 + REG_CLR, TEMPSENSE0_POWER_DOWN);
 	regmap_write(map, TEMPSENSE0 + REG_SET, TEMPSENSE0_MEASURE_TEMP);
 	data->mode = THERMAL_DEVICE_ENABLED;
-	clk_prepare_enable(data->thermal_clk);
 	enable_irq(data->irq);
 
 	return 0;
