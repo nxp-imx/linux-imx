@@ -23,6 +23,7 @@
 #define CCDR			0x04
 #define CCDR_CH0_HS_BYP		17
 #define BM_CCSR_PLL1_SW_CLK_SEL	(1 << 2)
+#define BM_CCSR_STEP_CLK_SEL	(1 << 8)
 #define CACRR			0x10
 #define CDHIPR			0x48
 #define BM_CDHIPR_ARM_PODF_BUSY	(1 << 16)
@@ -113,6 +114,7 @@ static const u32 clks_init_on[] __initconst = {
 	IMX6SL_CLK_IPG, IMX6SL_CLK_ARM, IMX6SL_CLK_MMDC_ROOT,
 };
 
+extern int low_bus_freq_mode;
 /*
  * ERR005311 CCM: After exit from WAIT mode, unwanted interrupt(s) taken
  *           during WAIT mode entry process could cause cache memory
@@ -166,6 +168,7 @@ void imx6sl_enable_pll_arm(bool enable)
 void imx6sl_set_wait_clk(bool enter)
 {
 	static unsigned long saved_arm_div;
+	u32 val;
 	int arm_div_for_wait = imx6sl_get_arm_divider_for_wait();
 
 	/*
@@ -176,10 +179,28 @@ void imx6sl_set_wait_clk(bool enter)
 		imx6sl_enable_pll_arm(true);
 
 	if (enter) {
-		saved_arm_div = readl_relaxed(ccm_base + CACRR);
-		writel_relaxed(arm_div_for_wait, ccm_base + CACRR);
+		/*
+		 * If in this mode, the IPG clock is at 12MHz, we can
+		 * only run ARM at a max 28.8MHz, so we need to run
+		 * from the 24MHz OSC, as there is no way to get
+		 * 28.8MHz, when ARM is sourced from PLl1.
+		 */
+		if (low_bus_freq_mode) {
+			val = readl_relaxed(ccm_base + CCSR);
+			val |= BM_CCSR_PLL1_SW_CLK_SEL;
+			writel_relaxed(val, ccm_base + CCSR);
+		} else {
+			saved_arm_div = readl_relaxed(ccm_base + CACRR);
+			writel_relaxed(arm_div_for_wait, ccm_base + CACRR);
+		}
 	} else {
-		writel_relaxed(saved_arm_div, ccm_base + CACRR);
+		if (low_bus_freq_mode) {
+			val = readl_relaxed(ccm_base + CCSR);
+			val &= ~BM_CCSR_PLL1_SW_CLK_SEL;
+			writel_relaxed(val, ccm_base + CCSR);
+		} else {
+			writel_relaxed(saved_arm_div, ccm_base + CACRR);
+		}
 	}
 	while (__raw_readl(ccm_base + CDHIPR) & BM_CDHIPR_ARM_PODF_BUSY)
 		;
