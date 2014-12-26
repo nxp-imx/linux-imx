@@ -250,9 +250,9 @@ static struct mx6s_fmt formats[] = {
 		.mbus_code	= V4L2_MBUS_FMT_YUYV8_2X8,
 		.bpp		= 2,
 	}, {
-		.name		= "YUV-444 (X-Y-U-V)",
-		.fourcc		= V4L2_PIX_FMT_YUV444,
-		.pixelformat	= V4L2_PIX_FMT_YUV444,
+		.name		= "YUV32 (X-Y-U-V)",
+		.fourcc		= V4L2_PIX_FMT_YUV32,
+		.pixelformat	= V4L2_PIX_FMT_YUV32,
 		.mbus_code	= V4L2_MBUS_FMT_AYUV8_1X32,
 		.bpp		= 4,
 	}
@@ -738,7 +738,7 @@ static int mx6s_configure_csi(struct mx6s_csi_dev *csi_dev)
 	}
 
 	switch (csi_dev->fmt->pixelformat) {
-	case V4L2_PIX_FMT_YUV444:
+	case V4L2_PIX_FMT_YUV32:
 		csi_set_32bit_imagpara(csi_dev, pix->width, pix->height);
 		break;
 	case V4L2_PIX_FMT_UYVY:

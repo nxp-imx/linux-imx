@@ -93,9 +93,9 @@ static struct pxp_data_format pxp_s0_formats[] = {
 		.fourcc = V4L2_PIX_FMT_YUYV,
 		.colorspace = V4L2_COLORSPACE_JPEG,
 	}, {
-		.name = "Y444",
+		.name = "YUV32",
 		.bpp = 4,
-		.fourcc = V4L2_PIX_FMT_YUV444,
+		.fourcc = V4L2_PIX_FMT_YUV32,
 		.colorspace = V4L2_COLORSPACE_JPEG,
 	},
 };
@@ -118,7 +118,7 @@ static unsigned int v4l2_fmt_to_pxp_fmt(u32 v4l2_pix_fmt)
 		pxp_fmt = PXP_PIX_FMT_YUV422P;
 	else if (v4l2_pix_fmt == V4L2_PIX_FMT_UYVY)
 		pxp_fmt = PXP_PIX_FMT_UYVY;
-	else if (v4l2_pix_fmt == V4L2_PIX_FMT_YUV444)
+	else if (v4l2_pix_fmt == V4L2_PIX_FMT_YUV32)
 		pxp_fmt = PXP_PIX_FMT_YUV444;
 	else if (v4l2_pix_fmt == V4L2_PIX_FMT_YUYV)
 		pxp_fmt = PXP_PIX_FMT_YUYV;
@@ -452,7 +452,7 @@ static int pxp_s_output(struct file *file, void *fh,
 
 	/* Output buffer is same format as fbdev */
 	if (fmt->pixelformat == V4L2_PIX_FMT_RGB24  ||
-		fmt->pixelformat == V4L2_PIX_FMT_YUV444)
+		fmt->pixelformat == V4L2_PIX_FMT_YUV32)
 		bpp = 4;
 	else
 		bpp = 2;
