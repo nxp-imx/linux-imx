@@ -154,6 +154,7 @@ void imx_anatop_pre_suspend(void);
 void imx_anatop_post_resume(void);
 int imx6q_set_lpm(enum mxc_cpu_pwr_mode mode);
 void imx6q_set_int_mem_clk_lpm(bool enable);
+void imx6sl_enable_pll_arm(bool enable);
 void imx6sl_set_wait_clk(bool enter);
 void imx6_enet_mac_init(const char *compatible);
 int imx_mmdc_get_ddr_type(void);

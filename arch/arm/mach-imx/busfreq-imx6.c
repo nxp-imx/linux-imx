@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -265,9 +265,13 @@ static void enter_lpm_imx6sl(void)
 			imx_clk_set_parent(pll1_sw_clk, step_clk);
 			/*
 			 * Ensure that the clock will be
-			 * at original speed.
+			 * at original speed. the arm_podf can only be
+			 * changed when the pll1 output is enabled. So
+			 * enable pll1 output before change cpu_clk.
 			 */
+			imx6sl_enable_pll_arm(true);
 			imx_clk_set_rate(cpu_clk, org_arm_rate);
+			imx6sl_enable_pll_arm(false);
 		}
 		low_bus_freq_mode = 0;
 		ultra_low_bus_freq_mode = 0;
@@ -379,7 +383,14 @@ static void exit_lpm_imx6sl(void)
 		/* Move ARM from PLL1_SW_CLK to PLL2_400. */
 		imx_clk_set_parent(step_clk, pll2_400);
 		imx_clk_set_parent(pll1_sw_clk, step_clk);
+		/*
+		 * arm_podf can only be changed when pll1 output
+		 * is enabled. Enable pll1 output before changing
+		 * cpu_clk rate.
+		 */
+		imx6sl_enable_pll_arm(true);
 		imx_clk_set_rate(cpu_clk, org_arm_rate);
+		imx6sl_enable_pll_arm(false);
 		ultra_low_bus_freq_mode = 0;
 	}
 }
