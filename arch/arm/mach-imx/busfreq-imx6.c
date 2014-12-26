@@ -122,6 +122,29 @@ static u32 pll2_org_rate;
 static struct delayed_work low_bus_freq_handler;
 static struct delayed_work bus_freq_daemon;
 
+static RAW_NOTIFIER_HEAD(busfreq_notifier_chain);
+
+static int busfreq_notify(enum busfreq_event event)
+{
+	int ret;
+
+	ret = raw_notifier_call_chain(&busfreq_notifier_chain, event, NULL);
+
+	return notifier_to_errno(ret);
+}
+
+int register_busfreq_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_register(&busfreq_notifier_chain, nb);
+}
+EXPORT_SYMBOL(register_busfreq_notifier);
+
+int unregister_busfreq_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_unregister(&busfreq_notifier_chain, nb);
+}
+EXPORT_SYMBOL(unregister_busfreq_notifier);
+
 static bool check_m4_sleep(void)
 {
 	unsigned long timeout = jiffies + msecs_to_jiffies(500);
@@ -398,6 +421,10 @@ static void exit_lpm_imx6sl(void)
 static void reduce_bus_freq(void)
 {
 	clk_prepare_enable(pll3);
+	if (audio_bus_count && (low_bus_freq_mode || ultra_low_bus_freq_mode))
+		busfreq_notify(LOW_BUSFREQ_EXIT);
+	else if (!audio_bus_count)
+		busfreq_notify(LOW_BUSFREQ_ENTER);
 	if (cpu_is_imx6sl())
 		enter_lpm_imx6sl();
 	else if (cpu_is_imx6sx())
@@ -512,6 +539,9 @@ static int set_high_bus_freq(int high_bus_freq)
 	/* medium bus freq is only supported for MX6DQ */
 	if (med_bus_freq_mode && !high_bus_freq)
 		return 0;
+
+	if (low_bus_freq_mode || ultra_low_bus_freq_mode)
+		busfreq_notify(LOW_BUSFREQ_EXIT);
 
 	clk_prepare_enable(pll3);
 	if (cpu_is_imx6sl())
