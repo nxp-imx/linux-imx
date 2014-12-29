@@ -776,8 +776,7 @@
 			};
 
 			gpc: gpc@020dc000 {
-				compatible = "fsl,imx6sx-gpc",
-					     "fsl,imx6q-gpc", "syscon";
+				compatible = "fsl,imx6sx-gpc", "fsl,imx6q-gpc";
 				reg = <0x020dc000 0x4000>;
 				interrupts = <GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>;
 				fsl,mf-mix-wakeup-irq = <0x7c00000 0x3d00 0x0 0x400200>;
