@@ -2045,7 +2045,7 @@ gckKERNEL_Dispatch(
             gctUINT32 coreId = 0;
             gctUINT32 coreSelect = Interface->u.ReadRegisterDataEx.coreSelect;
 
-            gckOS_AcquireMutex(Kernel->os, Kernel->hardware->powerMutex, gcvINFINITE);
+            gcmkONERROR(gckOS_AcquireMutex(Kernel->os, Kernel->hardware->powerMutex, gcvINFINITE));
             powerMutexAcquired = gcvTRUE;
             gcmkONERROR(gckHARDWARE_QueryPowerManagementState(Kernel->hardware,
                     &power));
@@ -2142,7 +2142,8 @@ gckKERNEL_Dispatch(
         {
             gceCHIPPOWERSTATE power;
 
-            gckOS_AcquireMutex(Kernel->os, Kernel->hardware->powerMutex, gcvINFINITE);
+            gcmkONERROR(gckOS_AcquireMutex(Kernel->os, Kernel->hardware->powerMutex, gcvINFINITE));
+            powerMutexAcquired = gcvTRUE;
             gcmkONERROR(gckHARDWARE_QueryPowerManagementState(Kernel->hardware,
                                                                   &power));
             if (power == gcvPOWER_ON)
@@ -2161,6 +2162,7 @@ gckKERNEL_Dispatch(
                 status = gcvSTATUS_CHIP_NOT_READY;
             }
             gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->hardware->powerMutex));
+            powerMutexAcquired = gcvFALSE;
         }
 #else
         /* No access from user land to write registers. */
