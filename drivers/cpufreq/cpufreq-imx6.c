@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/opp.h>
+#include <linux/reboot.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
@@ -32,7 +33,7 @@ static struct clk *pll2_pfd2_396m_clk;
 static struct device *cpu_dev;
 static struct cpufreq_frequency_table *freq_table;
 static unsigned int transition_latency;
-static struct mutex set_cpufreq_lock;
+DEFINE_MUTEX(set_cpufreq_lock);
 
 struct soc_opp {
 	u32 arm_freq;
@@ -41,6 +42,7 @@ struct soc_opp {
 
 static struct soc_opp *imx6_soc_opp;
 static u32 soc_opp_count;
+static int num;
 
 static int imx6_verify_speed(struct cpufreq_policy *policy)
 {
@@ -290,12 +292,33 @@ static struct notifier_block imx6_cpufreq_pm_notifier = {
 	.notifier_call = imx6_cpufreq_pm_notify,
 };
 
+static int imx6_cpufreq_reboot_notify(struct notifier_block *this,
+			    unsigned long event, void *dummy)
+{
+	struct cpufreq_policy *data = cpufreq_cpu_get(0);
+
+	/* raise up cpu clock to the highest setpoint before reboot */
+	if (event == SYS_RESTART || event == SYS_HALT ||
+		event == SYS_POWER_OFF) {
+		data->user_policy.min = data->user_policy.max =
+					freq_table[num - 1].frequency;
+		cpufreq_update_policy(0);
+		disable_cpufreq();
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block imx6_cpufreq_reboot_notifier = {
+	.notifier_call = imx6_cpufreq_reboot_notify,
+};
+
 static int imx6_cpufreq_probe(struct platform_device *pdev)
 {
 	struct device_node *np;
 	struct opp *opp;
 	unsigned long min_volt = 0, max_volt = 0;
-	int num, ret;
+	int ret;
 	const struct property *prop;
 	const __be32 *val;
 	u32 nr, i = 0;
@@ -459,8 +482,8 @@ static int imx6_cpufreq_probe(struct platform_device *pdev)
 	if (ret > 0)
 		transition_latency += ret * 1000;
 
-	mutex_init(&set_cpufreq_lock);
 	register_pm_notifier(&imx6_cpufreq_pm_notifier);
+	register_reboot_notifier(&imx6_cpufreq_reboot_notifier);
 
 	ret = cpufreq_register_driver(&imx6_cpufreq_driver);
 	if (ret) {
