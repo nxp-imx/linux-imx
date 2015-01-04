@@ -6,24 +6,11 @@
  * published by the Free Software Foundation.
  */
 
-#include "imx6sx-sdb.dts"
+#include "imx6sx-sdb-reva.dts"
 
 &cpu0 {
-	operating-points = <
-		/* kHz    uV */
-		996000  1250000
-		792000  1175000
-		396000  1075000
-		>;
-	fsl,soc-operating-points = <
-		/* ARM kHz      SOC uV */
-		996000	1175000
-		792000	1175000
-		396000	1175000
-	>;
 	arm-supply = <&reg_arm>;
 	soc-supply = <&reg_soc>;
-	fsl,arm-soc-shared = <0>;
 };
 
 &gpc {
