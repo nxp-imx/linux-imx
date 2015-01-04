@@ -35,6 +35,8 @@
 #include <linux/mfd/syscon.h>
 #include <linux/mfd/syscon/imx6q-iomuxc-gpr.h>
 #include <linux/of_net.h>
+#include <linux/fec.h>
+#include <linux/netdevice.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
 #include <asm/system_misc.h>
@@ -43,11 +45,39 @@
 #include "cpuidle.h"
 #include "hardware.h"
 
+static struct fec_platform_data fec_pdata;
 static struct flexcan_platform_data flexcan_pdata[2];
 static int flexcan_en_gpio;
 static int flexcan_stby_gpio;
 static int flexcan0_en;
 static int flexcan1_en;
+
+static void imx6q_fec_sleep_enable(int enabled)
+{
+	struct regmap *gpr;
+
+	gpr = syscon_regmap_lookup_by_compatible("fsl,imx6q-iomuxc-gpr");
+	if (!IS_ERR(gpr)) {
+		if (enabled)
+			regmap_update_bits(gpr, IOMUXC_GPR13,
+					   IMX6Q_GPR13_ENET_STOP_REQ,
+					   IMX6Q_GPR13_ENET_STOP_REQ);
+		else
+			regmap_update_bits(gpr, IOMUXC_GPR13,
+					   IMX6Q_GPR13_ENET_STOP_REQ, 0);
+	} else
+		pr_err("failed to find fsl,imx6q-iomux-gpr regmap\n");
+}
+
+static void __init imx6q_enet_plt_init(void)
+{
+	struct device_node *np;
+
+	np = of_find_node_by_path("/soc/aips-bus@02100000/ethernet@02188000");
+	if (np && of_get_property(np, "fsl,magic-packet", NULL))
+		fec_pdata.sleep_mode_enable = imx6q_fec_sleep_enable;
+}
+
 static void mx6q_flexcan_switch(void)
 {
 	if (flexcan0_en || flexcan1_en) {
@@ -414,12 +444,14 @@ static inline void imx6q_enet_init(void)
 	imx6_enet_mac_init("fsl,imx6q-fec");
 	imx6q_enet_phy_init();
 	imx6q_1588_init();
+	imx6q_enet_plt_init();
 }
 
 /* Add auxdata to pass platform data */
 static const struct of_dev_auxdata imx6q_auxdata_lookup[] __initconst = {
 	OF_DEV_AUXDATA("fsl,imx6q-flexcan", 0x02090000, NULL, &flexcan_pdata[0]),
 	OF_DEV_AUXDATA("fsl,imx6q-flexcan", 0x02094000, NULL, &flexcan_pdata[1]),
+	OF_DEV_AUXDATA("fsl,imx6q-fec", 0x02188000, NULL, &fec_pdata),
 	{ /* sentinel */ }
 };
 
