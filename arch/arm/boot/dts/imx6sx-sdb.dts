@@ -211,6 +211,29 @@
 	};
 };
 
+&cpu0 {
+	operating-points = <
+		/* kHz    uV */
+		996000  1250000
+		792000  1175000
+		396000  1175000
+		>;
+	fsl,soc-operating-points = <
+		/* ARM kHz      SOC uV */
+		996000	1250000
+		792000	1175000
+		396000	1175000
+	>;
+	arm-supply = <&sw1a_reg>;
+	soc-supply = <&sw1a_reg>;
+	fsl,arm-soc-shared = <1>;
+};
+
+&gpc {
+	/* use ldo-bypass, u-boot will check it and configure */
+	fsl,ldo-bypass = <1>;
+};
+
 &lcdif1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lcdif_dat
