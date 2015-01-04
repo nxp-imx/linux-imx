@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -269,6 +269,16 @@ static int imx6q_cpufreq_probe(struct platform_device *pdev)
 		goto put_node;
 	}
 
+	/*
+	 * soc_reg sync  with arm_reg if arm shares the same regulator
+	 * with soc. Otherwise, regulator common framework will refuse to update
+	 * this consumer's voltage right now while another consumer voltage
+	 * still keep in old one. For example, imx6sx-sdb with pfuze200 in
+	 * ldo-bypass mode.
+	 */
+	of_property_read_u32(np, "fsl,arm-soc-shared", &i);
+	if (i == 1)
+		soc_reg = arm_reg;
 	/*
 	 * We expect an OPP table supplied by platform.
 	 * Just, incase the platform did not supply the OPP
