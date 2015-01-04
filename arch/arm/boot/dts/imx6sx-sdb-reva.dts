@@ -1,0 +1,32 @@
+/*
+ * Copyright (C) 2015 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "imx6sx-sdb.dts"
+
+/*
+ * The CAN transceiver is changed on RevB board.
+ * This dts is used for support the old CAN transceiver on RevA board
+ */
+
+&pmic {
+	compatible = "fsl,pfuze100";
+
+	regulators {
+		sw1c_reg: sw1c {
+			regulator-min-microvolt = <300000>;
+			regulator-max-microvolt = <1875000>;
+			regulator-boot-on;
+			regulator-always-on;
+			regulator-ramp-delay = <6250>;
+		};
+		sw4_reg: sw4 {
+			regulator-min-microvolt = <800000>;
+			regulator-max-microvolt = <3300000>;
+		};
+	};
+};

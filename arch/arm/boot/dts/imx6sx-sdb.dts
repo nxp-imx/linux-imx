@@ -459,19 +459,11 @@
 	status = "okay";
 
 	pmic: pfuze100@08 {
-		compatible = "fsl,pfuze100";
+		compatible = "fsl,pfuze200";
 		reg = <0x08>;
 
 		regulators {
 			sw1a_reg: sw1ab {
-				regulator-min-microvolt = <300000>;
-				regulator-max-microvolt = <1875000>;
-				regulator-boot-on;
-				regulator-always-on;
-				regulator-ramp-delay = <6250>;
-			};
-
-			sw1c_reg: sw1c {
 				regulator-min-microvolt = <300000>;
 				regulator-max-microvolt = <1875000>;
 				regulator-boot-on;
@@ -498,11 +490,6 @@
 				regulator-max-microvolt = <1975000>;
 				regulator-boot-on;
 				regulator-always-on;
-			};
-
-			sw4_reg: sw4 {
-				regulator-min-microvolt = <800000>;
-				regulator-max-microvolt = <3300000>;
 			};
 
 			swbst_reg: swbst {
