@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -220,7 +220,7 @@ static bool is_yuv(u32 pix_fmt)
 	    (pix_fmt == PXP_PIX_FMT_YVYU) |
 	    (pix_fmt == PXP_PIX_FMT_VYUY) |
 	    (pix_fmt == PXP_PIX_FMT_Y41P) |
-	    (pix_fmt == PXP_PIX_FMT_YUV444) |
+	    (pix_fmt == PXP_PIX_FMT_VUY444) |
 	    (pix_fmt == PXP_PIX_FMT_NV12) |
 	    (pix_fmt == PXP_PIX_FMT_NV16) |
 	    (pix_fmt == PXP_PIX_FMT_NV61) |
@@ -283,7 +283,7 @@ static void pxp_set_ctrl(struct pxps *pxp)
 	case PXP_PIX_FMT_GY04:
 		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__Y4;
 		break;
-	case PXP_PIX_FMT_YUV444:
+	case PXP_PIX_FMT_VUY444:
 		fmt_ctrl = BV_PXP_PS_CTRL_FORMAT__YUV1P444;
 		break;
 	case PXP_PIX_FMT_YUV422P:
@@ -659,7 +659,7 @@ static int pxp_set_scaling(struct pxps *pxp)
 		if (!is_yuv(s0_params->pixel_fmt) ||
 		    (s0_params->pixel_fmt == PXP_PIX_FMT_GREY) ||
 		    (s0_params->pixel_fmt == PXP_PIX_FMT_GY04) ||
-		    (s0_params->pixel_fmt == PXP_PIX_FMT_YUV444)) {
+		    (s0_params->pixel_fmt == PXP_PIX_FMT_VUY444)) {
 			if ((proc_data->srect.width > 1) &&
 			    (proc_data->drect.width > 1))
 				xscale = (proc_data->srect.width - 1) * 0x1000 /
@@ -1012,7 +1012,7 @@ static void pxp_set_s0buf(struct pxps *pxp)
 		__raw_writel(pitch >> 1,
 				pxp->base + HW_PXP_PS_PITCH);
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_RGB32 ||
-			 s0_params->pixel_fmt == PXP_PIX_FMT_YUV444)
+			 s0_params->pixel_fmt == PXP_PIX_FMT_VUY444)
 		__raw_writel(pitch << 2,
 				pxp->base + HW_PXP_PS_PITCH);
 	else if (s0_params->pixel_fmt == PXP_PIX_FMT_UYVY ||

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2013-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -62,7 +62,7 @@ typedef unsigned char bool;
 #define PXP_PIX_FMT_VYUY    fourcc('V', 'Y', 'U', 'Y')  /*!< 16 YVU 4:2:2 */
 #define PXP_PIX_FMT_YVYU    fourcc('Y', 'V', 'Y', 'U')  /*!< 16 YVU 4:2:2 */
 #define PXP_PIX_FMT_Y41P    fourcc('Y', '4', '1', 'P')	/*!< 12 YUV 4:1:1 */
-#define PXP_PIX_FMT_YUV444  fourcc('Y', '4', '4', '4')	/*!< 24 YUV 4:4:4 */
+#define PXP_PIX_FMT_VUY444  fourcc('V', 'U', 'Y', 'A')	/*!< 32 VUYA 8:8:8 */
 /* two planes -- one Y, one Cb + Cr interleaved  */
 #define PXP_PIX_FMT_NV12    fourcc('N', 'V', '1', '2')	/* 12  Y/CbCr 4:2:0  */
 #define PXP_PIX_FMT_NV21    fourcc('N', 'V', '2', '1')	/* 12  Y/CbCr 4:2:0  */

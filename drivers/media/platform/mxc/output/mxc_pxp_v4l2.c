@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -119,7 +119,7 @@ static unsigned int v4l2_fmt_to_pxp_fmt(u32 v4l2_pix_fmt)
 	else if (v4l2_pix_fmt == V4L2_PIX_FMT_UYVY)
 		pxp_fmt = PXP_PIX_FMT_UYVY;
 	else if (v4l2_pix_fmt == V4L2_PIX_FMT_YUV32)
-		pxp_fmt = PXP_PIX_FMT_YUV444;
+		pxp_fmt = PXP_PIX_FMT_VUY444;
 	else if (v4l2_pix_fmt == V4L2_PIX_FMT_YUYV)
 		pxp_fmt = PXP_PIX_FMT_YUYV;
 
