@@ -795,11 +795,8 @@ int ci_hdrc_otg_fsm_init(struct ci_hdrc *ci)
 
 	ci->fsm_timer = devm_kzalloc(ci->dev,
 			sizeof(struct ci_otg_fsm_timer_list), GFP_KERNEL);
-	if (!ci->fsm_timer) {
-		dev_err(ci->dev,
-		"Failed to allocate timer structure for ci hdrc otg!\n");
+	if (!ci->fsm_timer)
 		return -ENOMEM;
-	}
 
 	INIT_LIST_HEAD(&ci->fsm_timer->active_timers);
 	retval = ci_otg_init_timers(ci);
