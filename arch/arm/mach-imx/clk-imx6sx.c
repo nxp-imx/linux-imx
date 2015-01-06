@@ -24,6 +24,7 @@
 #include "clk.h"
 #include "common.h"
 
+#define CCM_CCGR_OFFSET(index)  (index * 2)
 #define CCDR    0x4
 #define BM_CCM_CCDR_MMDC_CH0_MASK       (0x2 << 16)
 
@@ -560,6 +561,14 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	for (i = 0; i < ARRAY_SIZE(clks); i++)
 		if (IS_ERR(clks[i]))
 			pr_err("i.MX6sx clk %d: register failed with %ld\n", i, PTR_ERR(clks[i]));
+
+	/*
+	 * QSPI2/GPMI_IO share the same clock source but with the
+	 * different gate, need explicitely gate the QSPI2 & GPMI_IO
+	 * during the clock init phase according to the SOC design.
+	 */
+	writel_relaxed(readl_relaxed(base + 0x78) & ~(3 << CCM_CCGR_OFFSET(5)), base + 0x78);
+	writel_relaxed(readl_relaxed(base + 0x78) & ~(3 << CCM_CCGR_OFFSET(14)), base + 0x78);
 
 	clk_data.clks = clks;
 	clk_data.clk_num = ARRAY_SIZE(clks);
