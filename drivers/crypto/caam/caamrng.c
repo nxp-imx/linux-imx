@@ -1,7 +1,7 @@
 /*
  * caam - Freescale FSL CAAM support for hw_random
  *
- * Copyright (C) 2011-2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2015 Freescale Semiconductor, Inc.
  *
  * Based on caamalg.c crypto API driver.
  *
@@ -56,7 +56,7 @@
 
 /* Buffer, its dma address and lock */
 struct buf_data {
-	u8 buf[RN_BUF_SIZE];
+	u8 buf[RN_BUF_SIZE] ____cacheline_aligned;
 	dma_addr_t addr;
 	struct completion filled;
 	u32 hw_desc[DESC_JOB_O_LEN];
