@@ -7,3 +7,24 @@ config IMX_SEMA4
 	depends on SOC_IMX6SX
 	help
 	  Support for IMX SEMA4 driver, most people should say N here.
+
+config IMX_MCC_TEST
+	bool "IMX MCC test driver"
+	depends on SOC_IMX6SX && IMX_SEMA4
+	default y
+	help
+	  If you say Y here, you will get support for IMX MCC ping pong
+	  test and CAN test. Say N here, if the IMX_MCC_TTY interface is
+	  mandatory required.
+
+	  If unsure, it is safe to say Y.
+
+config IMX_MCC_TTY
+	bool "IMX PTY for MCC interface"
+	depends on SOC_IMX6SX && IMX_SEMA4 && !IMX_MCC_TEST
+	help
+	  This enables a PTY node for IMX6SX MCC, used as interface
+	  between kernel space and user space. Say N here, if the
+	  interface is not required.
+
+#end imx mcc
