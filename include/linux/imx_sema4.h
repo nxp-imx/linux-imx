@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -37,23 +37,25 @@ static const unsigned int idx_sema4[16] = {
 };
 
 struct imx_sema4_mutex {
-	u32			valid;
-	u32			gate_num;
+	unsigned int		valid;
+	unsigned int		gate_num;
 	unsigned char		gate_val;
 	wait_queue_head_t       wait_q;
 };
 
 struct imx_sema4_mutex_device {
 	struct device		*dev;
-	u16			cpntf_val;
-	u16			cpine_val;
+	unsigned short		cpntf_val;
+	unsigned short		cpine_val;
 	void __iomem		*ioaddr;	/* Mapped address */
 	spinlock_t		lock;		/* Mutex */
 	int			irq;
 
-	u16			alloced;
+	unsigned short		alloced;
 	struct imx_sema4_mutex	*mutex_ptr[16];
 };
+
+extern struct imx_sema4_mutex *mcc_shm_ptr;
 
 struct imx_sema4_mutex *
 	imx_sema4_mutex_create(u32 dev_num, u32 mutex_num);
