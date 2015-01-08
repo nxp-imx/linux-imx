@@ -1335,6 +1335,16 @@
 				status = "okay";
 			};
 
+			mcctest: mcctest{
+				compatible = "fsl,imx6sx-mcc-test";
+				status = "disabled";
+			};
+
+			mcctty: mcctty{
+				compatible = "fsl,imx6sx-mcc-tty";
+				status = "disabled";
+			};
+
 			uart6: serial@022a0000 {
 				compatible = "fsl,imx6sx-uart", "fsl,imx21-uart";
 				reg = <0x022a0000 0x4000>;

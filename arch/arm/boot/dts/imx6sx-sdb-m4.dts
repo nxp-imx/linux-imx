@@ -8,6 +8,13 @@
 
 #include "imx6sx-sdb.dts"
 
+/{
+	memory {
+		linux,usable-memory = <0x80000000 0x3ff00000>;
+		reg = <0x80000000 0x40000000>;
+	};
+};
+
 /*
  * The flollowing modules are conflicting with M4, disable them when m4
  * is running.
@@ -22,6 +29,14 @@
 
 &i2c3 {
         status = "disabled";
+};
+
+&mcctest{
+	status = "okay";
+};
+
+&mcctty{
+	status = "okay";
 };
 
 &uart2 {
