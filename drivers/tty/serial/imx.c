@@ -1372,12 +1372,38 @@ static void imx_shutdown(struct uart_port *port)
 
 static void imx_flush_buffer(struct uart_port *port)
 {
+	int i, temp;
 	struct imx_port *sport = (struct imx_port *)port;
 
 	if (sport->dma_is_enabled) {
 		sport->tx_bytes = 0;
 		dmaengine_terminate_all(sport->dma_chan_tx);
 	}
+
+	/*
+	 * UCR2_SRST will reset the transmit and receive state machines,
+	 * all FIFOs and register UBIR, UBMR, UBRC,
+	 * and UTS[6-3], so save the required registers
+	 */
+	sport->saved_reg[0] = readl(sport->port.membase + UBIR);
+	sport->saved_reg[1] = readl(sport->port.membase + UBMR);
+	sport->saved_reg[2] = readl(sport->port.membase + UBRC);
+	sport->saved_reg[3] = readl(sport->port.membase + IMX21_UTS);
+
+	i = 100;
+
+	temp = readl(sport->port.membase + UCR2);
+	temp &= ~UCR2_SRST;
+	writel(temp, sport->port.membase + UCR2);
+
+	while (!(readl(sport->port.membase + UCR2) & UCR2_SRST) && (--i > 0))
+		udelay(1);
+
+	/* Restore the registers */
+	writel(sport->saved_reg[0], sport->port.membase + UBIR);
+	writel(sport->saved_reg[1], sport->port.membase + UBMR);
+	writel(sport->saved_reg[2], sport->port.membase + UBRC);
+	writel(sport->saved_reg[3], sport->port.membase + IMX21_UTS);
 }
 
 static void
