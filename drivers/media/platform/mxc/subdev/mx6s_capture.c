@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -19,6 +19,7 @@
  * @ingroup CSI
  */
 #include <asm/dma.h>
+#include <linux/busfreq-imx6.h>
 #include <linux/clk.h>
 #include <linux/dma-mapping.h>
 #include <linux/delay.h>
@@ -37,6 +38,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/slab.h>
 #include <linux/time.h>
 #include <linux/v4l2-mediabus.h>
@@ -1059,6 +1061,8 @@ static int mx6s_csi_open(struct file *file)
 	if (ret < 0)
 		goto eallocctx;
 
+	pm_runtime_get_sync(csi_dev->dev);
+
 	mx6s_csi_init(csi_dev);
 
 	mutex_unlock(&csi_dev->lock);
@@ -1085,6 +1089,8 @@ static int mx6s_csi_close(struct file *file)
 	mutex_unlock(&csi_dev->lock);
 
 	file->private_data = NULL;
+
+	pm_runtime_put_sync_suspend(csi_dev->dev);
 	return 0;
 }
 
@@ -1667,6 +1673,7 @@ static int mx6s_csi_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err_irq;
 
+	pm_runtime_enable(csi_dev->dev);
 	return 0;
 
 err_irq:
@@ -1686,8 +1693,39 @@ static int mx6s_csi_remove(struct platform_device *pdev)
 
 	video_unregister_device(csi_dev->vdev);
 	v4l2_device_unregister(&csi_dev->v4l2_dev);
+
+	pm_runtime_disable(csi_dev->dev);
 	return 0;
 }
+
+#ifdef CONFIG_PM_RUNTIME
+static int mx6s_csi_runtime_suspend(struct device *dev)
+{
+	int ret = 0;
+
+	release_bus_freq(BUS_FREQ_HIGH);
+	dev_dbg(dev, "csi v4l2 busfreq high release.\n");
+
+	return ret;
+}
+
+static int mx6s_csi_runtime_resume(struct device *dev)
+{
+	int ret = 0;
+
+	request_bus_freq(BUS_FREQ_HIGH);
+	dev_dbg(dev, "csi v4l2 busfreq high request.\n");
+
+	return ret;
+}
+#else
+#define	mx6s_csi_runtime_suspend	NULL
+#define	mx6s_csi_runtime_resume		NULL
+#endif
+
+static const struct dev_pm_ops mx6s_csi_pm_ops = {
+	SET_RUNTIME_PM_OPS(mx6s_csi_runtime_suspend, mx6s_csi_runtime_resume, NULL)
+};
 
 static const struct of_device_id mx6s_csi_dt_ids[] = {
 	{ .compatible = "fsl,imx6s-csi", },
@@ -1699,6 +1737,7 @@ static struct platform_driver mx6s_csi_driver = {
 	.driver		= {
 		.name	= MX6S_CAM_DRV_NAME,
 		.of_match_table = of_match_ptr(mx6s_csi_dt_ids),
+		.pm = &mx6s_csi_pm_ops,
 	},
 	.probe	= mx6s_csi_probe,
 	.remove	= mx6s_csi_remove,
