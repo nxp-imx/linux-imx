@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -753,11 +753,41 @@ static int vadc_remove(struct platform_device *pdev)
 	return true;
 }
 
+static int vadc_suspend(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct vadc_state *state = platform_get_drvdata(pdev);
+
+	clk_disable(state->csi_clk);
+	clk_disable(state->vadc_clk);
+
+	vadc_power_down(state);
+
+	return 0;
+}
+
+static int vadc_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct vadc_state *state = platform_get_drvdata(pdev);
+
+	clk_enable(state->csi_clk);
+	clk_enable(state->vadc_clk);
+
+	vadc_init(state);
+	return 0;
+}
+
+static const struct dev_pm_ops vadc_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(vadc_suspend, vadc_resume)
+};
+
 static struct platform_driver vadc_driver = {
 	.driver = {
-		   .name = "fsl_vadc",
-		   .of_match_table = of_match_ptr(fsl_vadc_dt_ids),
-		   },
+		.name = "fsl_vadc",
+		.of_match_table = of_match_ptr(fsl_vadc_dt_ids),
+		.pm	= &vadc_pm_ops,
+	},
 	.probe = vadc_probe,
 	.remove = vadc_remove,
 };
