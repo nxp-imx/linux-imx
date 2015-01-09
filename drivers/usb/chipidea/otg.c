@@ -56,6 +56,20 @@ enum ci_role ci_otg_role(struct ci_hdrc *ci)
 	return role;
 }
 
+void ci_handle_vbus_connected(struct ci_hdrc *ci)
+{
+	/*
+	 * TODO: if the platform does not supply 5v to udc, or use other way
+	 * to supply 5v, it needs to use other conditions to call
+	 * usb_gadget_vbus_connect.
+	 */
+	if (!ci->is_otg)
+		return;
+
+	if (hw_read_otgsc(ci, OTGSC_BSV))
+		usb_gadget_vbus_connect(&ci->gadget);
+}
+
 void ci_handle_vbus_change(struct ci_hdrc *ci)
 {
 	if (!ci->is_otg)
