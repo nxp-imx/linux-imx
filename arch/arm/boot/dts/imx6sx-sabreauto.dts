@@ -838,7 +838,6 @@
 	vbus-supply = <&reg_usb_otg1_vbus>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usbotg1_1>;
-	imx6-usb-charger-detection;
 	status = "okay";
 };
 
