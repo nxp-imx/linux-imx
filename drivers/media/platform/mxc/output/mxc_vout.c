@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -1925,7 +1925,7 @@ static int config_disp_output(struct mxc_vout_output *vout)
 				display_buf_size - size);
 	} else {
 		pixel = (u32 *)fbi->screen_base;
-		for (i = 0; i < (display_buf_size >> 2); i++)
+		for (i = 0; i < ((display_buf_size * fb_num) >> 2); i++)
 			*pixel++ = color;
 	}
 	console_lock();
