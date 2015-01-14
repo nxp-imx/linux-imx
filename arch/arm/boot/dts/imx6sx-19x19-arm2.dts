@@ -95,7 +95,7 @@
 
 	port {
 		csi1_ep: endpoint {
-			remote-endpoint = <&ov564x_ep>;
+			remote-endpoint = <&ov5640_ep>;
 		};
 	};
 };
@@ -291,8 +291,8 @@
 		resets = <&max7322_reset>;
 	};
 
-	ov564x: ov564x@3c {
-		compatible = "ovti,ov564x";
+	ov5640: ov5640@3c {
+		compatible = "ovti,ov5640";
 		reg = <0x3c>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_csi_1>;
@@ -307,7 +307,7 @@
 		mclk_source = <0>;
 		status = "disabled";
 		port {
-			ov564x_ep: endpoint {
+			ov5640_ep: endpoint {
 				remote-endpoint = <&csi1_ep>;
 			};
 		};

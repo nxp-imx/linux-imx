@@ -18,7 +18,7 @@
 };
 
 &i2c2 {
-	ov564x: ov564x@3c {
+	ov5640: ov5640@3c {
 		status = "okay";
 	};
 };
