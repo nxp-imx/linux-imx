@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2012-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -598,7 +598,6 @@ static s32 ov5640_write_reg(u16 reg, u8 val);
 
 static const struct i2c_device_id ov5640_id[] = {
 	{"ov5640", 0},
-	{"ov564x", 0},
 	{},
 };
 
