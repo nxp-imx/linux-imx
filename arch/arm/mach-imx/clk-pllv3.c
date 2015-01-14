@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2014 Freescale Semiconductor, Inc.
+ * Copyright 2012-2015 Freescale Semiconductor, Inc.
  * Copyright 2012 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -26,7 +26,10 @@
 
 #define BM_PLL_POWER		(0x1 << 12)
 #define BM_PLL_LOCK		(0x1 << 31)
+#define BM_PLL_ENABLE		(0x1 << 13)
+#define BM_PLL_BYPASS		(0x1 << 16)
 
+static void __iomem *pll_sys_base;
 /**
  * struct clk_pllv3 - IMX PLL clock version 3
  * @clk_hw:	 clock source
@@ -335,6 +338,7 @@ struct clk *imx_clk_pllv3(enum imx_pllv3_type type, const char *name,
 	switch (type) {
 	case IMX_PLLV3_SYS:
 		ops = &clk_pllv3_sys_ops;
+		pll_sys_base = base;
 		break;
 	case IMX_PLLV3_USB:
 		ops = &clk_pllv3_ops;
@@ -365,4 +369,19 @@ struct clk *imx_clk_pllv3(enum imx_pllv3_type type, const char *name,
 		kfree(pll);
 
 	return clk;
+}
+
+void imx_enable_pll_arm(bool enable)
+{
+	static u32 saved_pll_arm;
+	u32 val;
+
+	if (enable) {
+		saved_pll_arm = val = readl_relaxed(pll_sys_base);
+		val |= BM_PLL_ENABLE;
+		val |= BM_PLL_BYPASS;
+		writel_relaxed(val, pll_sys_base);
+	} else {
+		writel_relaxed(saved_pll_arm, pll_sys_base);
+	}
 }

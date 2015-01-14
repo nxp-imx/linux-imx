@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2014 Freescale Semiconductor, Inc.
+ * Copyright 2012-2015 Freescale Semiconductor, Inc.
  * Copyright 2012 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -18,14 +18,22 @@
 #include <linux/err.h>
 #include "clk.h"
 
+#define ARM_PODF_BUSY	(0x1 << 16)
+
 static int clk_busy_wait(void __iomem *reg, u8 shift)
 {
 	unsigned long timeout = jiffies + msecs_to_jiffies(10);
+
+	u32 val = readl_relaxed(reg);
+	if (val & ARM_PODF_BUSY)
+		imx_enable_pll_arm(true);
 
 	while (readl_relaxed(reg) & (1 << shift))
 		if (time_after(jiffies, timeout))
 			return -ETIMEDOUT;
 
+	if (val & ARM_PODF_BUSY)
+		imx_enable_pll_arm(false);
 	return 0;
 }
 

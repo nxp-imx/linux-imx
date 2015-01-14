@@ -7,6 +7,7 @@
 extern spinlock_t imx_ccm_lock;
 
 extern void imx_cscmr1_fixup(u32 *val);
+extern void imx_enable_pll_arm(bool);
 extern struct imx_sema4_mutex *amp_power_mutex;
 extern struct imx_shared_mem *shared_mem;
 
