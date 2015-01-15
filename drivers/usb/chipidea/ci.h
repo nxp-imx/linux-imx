@@ -433,6 +433,7 @@ int hw_port_test_set(struct ci_hdrc *ci, u8 mode);
 u8 hw_port_test_get(struct ci_hdrc *ci);
 
 void ci_platform_configure(struct ci_hdrc *ci);
+int hw_controller_reset(struct ci_hdrc *ci);
 
 int dbg_create_files(struct ci_hdrc *ci);
 
