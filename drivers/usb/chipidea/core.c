@@ -409,7 +409,7 @@ static int ci_usb_phy_init(struct ci_hdrc *ci)
   *
  * This function returns an error code
  */
-static int hw_controller_reset(struct ci_hdrc *ci)
+int hw_controller_reset(struct ci_hdrc *ci)
 {
 	int count = 0;
 
