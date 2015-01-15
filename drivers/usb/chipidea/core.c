@@ -920,6 +920,10 @@ static int ci_suspend(struct device *dev)
 		return 0;
 	}
 
+	/* Extra routine per role before system suspend */
+	if (ci->role != CI_ROLE_END && ci_role(ci)->suspend)
+		ci_role(ci)->suspend(ci);
+
 	if (device_may_wakeup(dev)) {
 		usb_phy_set_wakeup(ci->usb_phy, true);
 		enable_irq_wake(ci->irq);
@@ -933,7 +937,17 @@ static int ci_suspend(struct device *dev)
 static int ci_resume(struct device *dev)
 {
 	struct ci_hdrc *ci = dev_get_drvdata(dev);
+	bool power_lost = false;
+	u32 sample_reg_val;
 	int ret;
+
+	/* Check if controller resume from power lost */
+	sample_reg_val = hw_read(ci, OP_ENDPTLISTADDR, ~0);
+	if (sample_reg_val == 0)
+		power_lost = true;
+	else if (sample_reg_val == 0xFFFFFFFF)
+		/* Restore value 0 if it was set for power lost check */
+		hw_write(ci, OP_ENDPTLISTADDR, ~0, 0);
 
 	if (device_may_wakeup(dev))
 		disable_irq_wake(ci->irq);
@@ -941,6 +955,10 @@ static int ci_resume(struct device *dev)
 	ret = ci_controller_resume(dev);
 	if (ret)
 		return ret;
+
+	/* Extra routine per role after system resume */
+	if (ci->role != CI_ROLE_END && ci_role(ci)->resume)
+		ci_role(ci)->resume(ci, power_lost);
 
 	if (ci->supports_runtime_pm) {
 		pm_runtime_disable(dev);
