@@ -1,4 +1,4 @@
-/* Copyright (C) 2007,2008 Freescale Semiconductor, Inc.
+/* Copyright (C) 2007-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -53,6 +53,7 @@ enum otg_fsm_timer {
 	B_SE0_SRP,
 	B_SRP_FAIL,
 	A_WAIT_ENUM,
+	A_DP_END,
 
 	NUM_OTG_FSM_TIMERS,
 };

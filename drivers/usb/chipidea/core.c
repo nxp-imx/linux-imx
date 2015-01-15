@@ -716,6 +716,8 @@ static void ci_power_lost_work(struct work_struct *work)
 	pm_runtime_get_sync(ci->dev);
 	if (!ci_otg_is_fsm_mode(ci))
 		ci_start_new_role(ci);
+	else
+		ci_hdrc_otg_fsm_restart(ci);
 	pm_runtime_put_sync(ci->dev);
 	enable_irq(ci->irq);
 }
@@ -890,6 +892,34 @@ static int ci_hdrc_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
+/* Prepare wakeup by SRP before suspend */
+static void ci_otg_fsm_suspend_for_srp(struct ci_hdrc *ci)
+{
+	if ((ci->fsm.otg->state == OTG_STATE_A_IDLE) &&
+				!hw_read_otgsc(ci, OTGSC_ID)) {
+		hw_write(ci, OP_PORTSC, PORTSC_W1C_BITS | PORTSC_PP,
+								PORTSC_PP);
+		hw_write(ci, OP_PORTSC, PORTSC_W1C_BITS | PORTSC_WKCN,
+								PORTSC_WKCN);
+	}
+}
+
+/* Handle SRP when wakeup by data pulse */
+static void ci_otg_fsm_wakeup_by_srp(struct ci_hdrc *ci)
+{
+	/*
+	 * if a_idle wakeup by data pulse,
+	 * handle it like normal SRP
+	 */
+	if ((ci->fsm.otg->state == OTG_STATE_A_IDLE) &&
+		(ci->fsm.a_bus_drop == 1) && (ci->fsm.a_bus_req == 0)) {
+		if (!hw_read_otgsc(ci, OTGSC_ID))
+			otg_add_timer(&ci->fsm, A_DP_END);
+		else
+			ci->fsm.id = 1;
+	}
+}
+
 static void ci_controller_suspend(struct ci_hdrc *ci)
 {
 	disable_irq(ci->irq);
@@ -923,6 +953,8 @@ static int ci_controller_resume(struct device *dev)
 		pm_runtime_mark_last_busy(ci->dev);
 		pm_runtime_put_autosuspend(ci->dev);
 		enable_irq(ci->irq);
+		if (ci_otg_is_fsm_mode(ci))
+			ci_otg_fsm_wakeup_by_srp(ci);
 	}
 
 	return 0;
@@ -954,6 +986,8 @@ static int ci_suspend(struct device *dev)
 		ci_role(ci)->suspend(ci);
 
 	if (device_may_wakeup(dev)) {
+		if (ci_otg_is_fsm_mode(ci))
+			ci_otg_fsm_suspend_for_srp(ci);
 		usb_phy_set_wakeup(ci->usb_phy, true);
 		enable_irq_wake(ci->irq);
 	}
@@ -1020,6 +1054,9 @@ static int ci_runtime_suspend(struct device *dev)
 		WARN_ON(1);
 		return 0;
 	}
+
+	if (ci_otg_is_fsm_mode(ci))
+		ci_otg_fsm_suspend_for_srp(ci);
 
 	usb_phy_set_wakeup(ci->usb_phy, true);
 	ci_controller_suspend(ci);
