@@ -227,8 +227,10 @@ struct fsl_qspi {
 	struct mtd_info mtd[FSL_QSPI_MAX_CHIP];
 	struct spi_nor nor[FSL_QSPI_MAX_CHIP];
 	void __iomem *iobase;
-	void __iomem *ahb_base; /* Used when read from AHB bus */
+	void __iomem *ahb_addr;
 	u32 memmap_phy;
+	u32 memmap_offs;
+	u32 memmap_len;
 	struct clk *clk, *clk_en;
 	struct device *dev;
 	struct completion c;
@@ -831,18 +833,49 @@ static int fsl_qspi_read(struct spi_nor *nor, loff_t from,
 	u8 cmd = nor->read_opcode;
 	int ret;
 
-	dev_dbg(q->dev, "cmd [%x],read from (0x%p, 0x%.8x, 0x%.8x),len:%d\n",
-		cmd, q->ahb_base, q->chip_base_addr, (unsigned int)from, len);
-
 	/* Wait until the previous command is finished. */
 	ret = nor->wait_till_ready(nor);
 	if (ret)
 		return ret;
 
+	/* if necessary,ioremap buffer before AHB read, */
+	/* generally 4MB should be large enough */
+	if (!q->ahb_addr) {
+		q->ahb_addr = ioremap_nocache(
+				q->memmap_phy + q->chip_base_addr + from,
+				len > SZ_4M ? len : SZ_4M);
+		if (!q->ahb_addr) {
+			dev_err(q->dev, "ioremap failed\n");
+			return -ENOMEM;
+		}
+		q->memmap_offs = q->chip_base_addr + from;
+		q->memmap_len = len > SZ_4M ? len : SZ_4M;
+	/* ioremap if the data requested is out of range */
+	} else if (q->chip_base_addr + from < q->memmap_offs
+			|| q->chip_base_addr + from + len >
+			q->memmap_offs + q->memmap_len) {
+		iounmap(q->ahb_addr);
+		q->ahb_addr = ioremap_nocache(
+				q->memmap_phy + q->chip_base_addr + from,
+				len > SZ_4M ? len : SZ_4M);
+		if (!q->ahb_addr) {
+			dev_err(q->dev, "ioremap failed\n");
+			return -ENOMEM;
+		}
+		q->memmap_offs = q->chip_base_addr + from;
+		q->memmap_len = len > SZ_4M ? len : SZ_4M;
+	}
+
+	dev_dbg(q->dev, "cmd [%x],read from 0x%p, len:%d\n",
+		cmd, q->ahb_addr + q->chip_base_addr + from - q->memmap_offs,
+		len);
+
 	/* Read out the data directly from the AHB buffer.*/
-	memcpy(buf, q->ahb_base + q->chip_base_addr + from, len);
+	memcpy(buf, q->ahb_addr + q->chip_base_addr + from - q->memmap_offs,
+		len);
 
 	*retlen += len;
+
 	return 0;
 }
 
@@ -927,11 +960,6 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 					"QuadSPI-memory");
-	q->ahb_base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(q->ahb_base)) {
-		ret = PTR_ERR(q->ahb_base);
-		goto map_failed;
-	}
 	q->memmap_phy = res->start;
 
 	/* find the clocks */
@@ -1103,6 +1131,9 @@ static int fsl_qspi_remove(struct platform_device *pdev)
 	/* disable the hardware */
 	writel(QUADSPI_MCR_MDIS_MASK, q->iobase + QUADSPI_MCR);
 	writel(0x0, q->iobase + QUADSPI_RSER);
+
+	if (q->ahb_addr)
+		iounmap(q->ahb_addr);
 
 	return 0;
 }
