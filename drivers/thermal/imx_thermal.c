@@ -538,30 +538,38 @@ static int imx_thermal_probe(struct platform_device *pdev)
 
 	data->socdata = of_id->data;
 
+	data->thermal_clk = devm_clk_get(&pdev->dev, NULL);
+	if (IS_ERR(data->thermal_clk)) {
+		dev_warn(&pdev->dev, "failed to get thermal clk!\n");
+	} else {
+		/*
+		 * Thermal sensor needs clk on to get correct value, normally
+		 * we should enable its clk before taking measurement and disable
+		 * clk after measurement is done, but if alarm function is enabled,
+		 * hardware will auto measure the temperature periodically, so we
+		 * need to keep the clk always on for alarm function.
+		 */
+		ret = clk_prepare_enable(data->thermal_clk);
+		if (ret)
+			dev_warn(&pdev->dev, "failed to enable thermal clk: %d\n", ret);
+	}
+
 	/* make sure the IRQ flag is clear before enable irq */
 	regmap_write(map, MISC1 + REG_CLR, MISC1_IRQ_TEMPHIGH);
 	if (data->socdata->version == TEMPMON_V2) {
-		regmap_write(map, MISC1 + REG_CLR, MISC1_IRQ_TEMPLOW |
-			MISC1_IRQ_TEMPPANIC);
 		/*
 		 * reset value of LOW ALARM is incorrect, set it to lowest
 		 * value to avoid false trigger of low alarm.
 		 */
 		regmap_write(map, TEMPSENSE2 + REG_SET,
 			TEMPSENSE2_LOW_VALUE_MASK);
+		regmap_write(map, MISC1 + REG_CLR, MISC1_IRQ_TEMPLOW |
+			MISC1_IRQ_TEMPPANIC);
 	}
 
 	data->irq = platform_get_irq(pdev, 0);
 	if (data->irq < 0)
 		return data->irq;
-
-	ret = devm_request_threaded_irq(&pdev->dev, data->irq,
-			imx_thermal_alarm_irq, imx_thermal_alarm_irq_thread,
-			0, "imx_thermal", data);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "failed to request alarm irq: %d\n", ret);
-		return ret;
-	}
 
 	platform_set_drvdata(pdev, data);
 
@@ -610,22 +618,6 @@ static int imx_thermal_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	data->thermal_clk = devm_clk_get(&pdev->dev, NULL);
-	if (IS_ERR(data->thermal_clk)) {
-		dev_warn(&pdev->dev, "failed to get thermal clk!\n");
-	} else {
-		/*
-		 * Thermal sensor needs clk on to get correct value, normally
-		 * we should enable its clk before taking measurement and disable
-		 * clk after measurement is done, but if alarm function is enabled,
-		 * hardware will auto measure the temperature periodically, so we
-		 * need to keep the clk always on for alarm function.
-		 */
-		ret = clk_prepare_enable(data->thermal_clk);
-		if (ret)
-			dev_warn(&pdev->dev, "failed to enable thermal clk: %d\n", ret);
-	}
-
 	/* Enable measurements at ~ 10 Hz */
 	regmap_write(map, TEMPSENSE1 + REG_CLR, TEMPSENSE1_MEASURE_FREQ);
 	measure_freq = DIV_ROUND_UP(32768, 10); /* 10 Hz */
@@ -638,6 +630,13 @@ static int imx_thermal_probe(struct platform_device *pdev)
 	regmap_write(map, TEMPSENSE0 + REG_CLR, TEMPSENSE0_POWER_DOWN);
 	regmap_write(map, TEMPSENSE0 + REG_SET, TEMPSENSE0_MEASURE_TEMP);
 
+	ret = devm_request_threaded_irq(&pdev->dev, data->irq,
+			imx_thermal_alarm_irq, imx_thermal_alarm_irq_thread,
+			0, "imx_thermal", data);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to request alarm irq: %d\n", ret);
+		return ret;
+	}
 	data->irq_enabled = true;
 	data->mode = THERMAL_DEVICE_ENABLED;
 	/* register the busfreq notifier called in low bus freq */
