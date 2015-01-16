@@ -1,7 +1,7 @@
 
 /*
  * SNVS Security Violation Handler
- * Copyright (C) 2012-2014 Freescale Semiconductor, Inc., All Rights Reserved
+ * Copyright (C) 2012-2015 Freescale Semiconductor, Inc., All Rights Reserved
  */
 
 #include "compat.h"
@@ -213,6 +213,10 @@ static int snvs_secvio_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	svpriv->irq = irq_of_parse_and_map(npirq, 0);
+	if (svpriv->irq <= 0) {
+		kfree(svpriv);
+		return -EINVAL;
+	}
 
 	snvsregs = of_iomap(np, 0);
 	if (!snvsregs) {
