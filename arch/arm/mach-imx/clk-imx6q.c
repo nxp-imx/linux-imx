@@ -545,6 +545,21 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 		imx_clk_prepare_enable(clk[IMX6QDL_CLK_USBPHY2_GATE]);
 	}
 
+#ifdef CONFIG_MX6_VPU_352M
+	/*
+	 * If VPU 352M is enabled, then PLL2_PDF2 need to be
+	 * set to 352M, cpufreq will be disabled as VDDSOC/PU
+	 * need to be at highest voltage, scaling cpu freq is
+	 * not saving any power, and busfreq will be also disabled
+	 * as the PLL2_PFD2 is not at default freq, in a word,
+	 * all modules that sourceing clk from PLL2_PFD2 will
+	 * be impacted.
+	 */
+	imx_clk_set_rate(clk[IMX6QDL_CLK_PLL2_PFD2_396M], 352000000);
+	imx_clk_set_parent(clk[IMX6QDL_CLK_VPU_AXI_SEL], clk[IMX6QDL_CLK_PLL2_PFD2_396M]);
+	pr_info("VPU 352M is enabled!\n");
+#endif
+
 	/* Set initial power mode */
 	imx6q_set_lpm(WAIT_CLOCKED);
 
