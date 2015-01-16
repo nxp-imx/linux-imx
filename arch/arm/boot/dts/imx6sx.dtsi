@@ -808,6 +808,7 @@
 				interrupts = <GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>;
 				fsl,mf-mix-wakeup-irq = <0x7c00000 0x3d00 0x0 0x400240>;
 				clocks = <&clks IMX6SX_CLK_GPU>;
+				pcie-phy-supply = <&reg_pcie_phy>;
 				#power-domain-cells = <1>;
 			};
 
