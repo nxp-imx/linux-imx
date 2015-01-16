@@ -399,6 +399,7 @@ static int ci_hdrc_imx_resume(struct device *dev)
 }
 #endif /* CONFIG_PM_SLEEP */
 
+#ifdef CONFIG_PM_RUNTIME
 static int ci_hdrc_imx_runtime_suspend(struct device *dev)
 {
 	struct ci_hdrc_imx_data *data = dev_get_drvdata(dev);
@@ -422,6 +423,7 @@ static int ci_hdrc_imx_runtime_resume(struct device *dev)
 {
 	return imx_controller_resume(dev);
 }
+#endif /* CONFIG_PM_RUNTIME */
 
 #endif /* CONFIG_PM */
 

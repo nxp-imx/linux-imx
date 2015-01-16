@@ -1044,6 +1044,7 @@ static int ci_resume(struct device *dev)
 }
 #endif /* CONFIG_PM_SLEEP */
 
+#ifdef CONFIG_PM_RUNTIME
 static int ci_runtime_suspend(struct device *dev)
 {
 	struct ci_hdrc *ci = dev_get_drvdata(dev);
@@ -1068,6 +1069,7 @@ static int ci_runtime_resume(struct device *dev)
 {
 	return ci_controller_resume(dev);
 }
+#endif /* CONFIG_PM_RUNTIME */
 
 #endif /* CONFIG_PM */
 static const struct dev_pm_ops ci_pm_ops = {
