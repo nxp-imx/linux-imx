@@ -1076,7 +1076,7 @@ static int ov5640_set_night_mode(int enable)
 
 /* enable = 0 to turn off AEC/AGC
    enable = 1 to turn on AEC/AGC */
-void ov5640_turn_on_AE_AG(int enable)
+static void ov5640_turn_on_AE_AG(int enable)
 {
 	u8 ae_ag_ctrl;
 
