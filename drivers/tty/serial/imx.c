@@ -1391,6 +1391,10 @@ static void imx_flush_buffer(struct uart_port *port)
 		dmaengine_terminate_all(sport->dma_chan_tx);
 	}
 
+	/* For console port, it is not necessary flush buffer and reset FIFO */
+	if (uart_console(port))
+		return;
+
 	/*
 	 * UCR2_SRST will reset the transmit and receive state machines,
 	 * all FIFOs and register UBIR, UBMR, UBRC,
