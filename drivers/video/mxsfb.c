@@ -4,7 +4,7 @@
  * This code is based on:
  * Author: Vitaly Wool <vital@embeddedalley.com>
  *
- * Copyright 2008-2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2008-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright 2008 Embedded Alley Solutions, Inc All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -239,6 +239,7 @@ static const struct mxsfb_devdata mxsfb_devdata[] = {
 
 static int mxsfb_map_videomem(struct fb_info *info);
 static int mxsfb_unmap_videomem(struct fb_info *info);
+static int mxsfb_set_par(struct fb_info *fb_info);
 
 /* enable lcdif axi clock */
 static inline void clk_enable_axi(struct mxsfb_info *host)
@@ -514,6 +515,9 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 
 	/* Clean soft reset and clock gate bit if it was enabled  */
 	writel(CTRL_SFTRST | CTRL_CLKGATE, host->base + LCDC_CTRL + REG_CLR);
+
+	/* reconfigure the lcdif after */
+	mxsfb_set_par(&host->fb_info);
 
 	writel(CTRL2_OUTSTANDING_REQS__REQ_16,
 		host->base + LCDC_V4_CTRL2 + REG_SET);
