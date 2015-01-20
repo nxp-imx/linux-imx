@@ -752,6 +752,12 @@
 				fsl,anatop = <&anatop>;
 			};
 
+			usbphy_nop1: usbphy_nop1 {
+				compatible = "usb-nop-xceiv";
+				clocks = <&clks IMX6SX_CLK_USBPHY1>;
+				clock-names = "main_clk";
+			};
+
 			mqs: mqs {
 				compatible = "fsl,imx6sx-mqs";
 				gpr = <&gpr>;
@@ -925,6 +931,7 @@
 				clocks = <&clks IMX6SX_CLK_USBOH3>;
 				fsl,usbmisc = <&usbmisc 2>;
 				phy_type = "hsic";
+				fsl,usbphy = <&usbphy_nop1>;
 				fsl,anatop = <&anatop>;
 				status = "disabled";
 			};
