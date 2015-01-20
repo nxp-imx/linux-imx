@@ -29,12 +29,15 @@ struct ci_hdrc_platform_data {
 #define CI_HDRC_IMX28_WRITE_FIX		BIT(5)
 #define CI_HDRC_FORCE_FULLSPEED		BIT(6)
 #define CI_HDRC_IMX_EHCI_QUIRK		BIT(7)
+#define CI_HDRC_IMX_IS_HSIC		BIT(8)
 	enum usb_dr_mode	dr_mode;
 #define CI_HDRC_CONTROLLER_RESET_EVENT		0
 #define CI_HDRC_CONTROLLER_STOPPED_EVENT	1
 #define CI_HDRC_CONTROLLER_VBUS_EVENT		2
 #define CI_HDRC_NOTIFY_RET_DEFER_EVENT		3
 #define CI_HDRC_CONTROLLER_CHARGER_POST_EVENT	4
+#define CI_HDRC_IMX_HSIC_ACTIVE_EVENT		5
+#define CI_HDRC_IMX_HSIC_SUSPEND_EVENT		6
 	int	(*notify_event)(struct ci_hdrc *ci, unsigned event);
 	struct regulator	*reg_vbus;
 	bool			tpl_support;
