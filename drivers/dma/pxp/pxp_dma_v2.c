@@ -1074,6 +1074,8 @@ static void pxp_clk_enable(struct pxps *pxp)
 		return;
 	}
 
+	request_bus_freq(BUS_FREQ_HIGH);
+
 	pm_runtime_get_sync(pxp->dev);
 
 	if (pxp->clk_disp_axi)
@@ -1108,6 +1110,8 @@ static void pxp_clk_disable(struct pxps *pxp)
 	pm_runtime_put_sync_suspend(pxp->dev);
 
 	mutex_unlock(&pxp->clk_mutex);
+
+	release_bus_freq(BUS_FREQ_HIGH);
 }
 
 static inline void clkoff_callback(struct work_struct *w)
@@ -1803,17 +1807,13 @@ static int pxp_resume(struct device *dev)
 #ifdef CONFIG_PM_RUNTIME
 static int pxp_runtime_suspend(struct device *dev)
 {
-	release_bus_freq(BUS_FREQ_HIGH);
 	dev_dbg(dev, "pxp busfreq high release.\n");
-
 	return 0;
 }
 
 static int pxp_runtime_resume(struct device *dev)
 {
-	request_bus_freq(BUS_FREQ_HIGH);
 	dev_dbg(dev, "pxp busfreq high request.\n");
-
 	return 0;
 }
 #else
