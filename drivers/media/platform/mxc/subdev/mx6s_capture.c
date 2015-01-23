@@ -1210,10 +1210,19 @@ static int mx6s_vidioc_querybuf(struct file *file, void *priv,
 			       struct v4l2_buffer *p)
 {
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
+	int ret;
 
 	WARN_ON(priv != file->private_data);
 
-	return vb2_querybuf(&csi_dev->vb2_vidq, p);
+	ret = vb2_querybuf(&csi_dev->vb2_vidq, p);
+
+	if (!ret) {
+		/* return physical address */
+		struct vb2_buffer *vb = csi_dev->vb2_vidq.bufs[p->index];
+		if (p->flags & V4L2_BUF_FLAG_MAPPED)
+			p->m.offset = vb2_dma_contig_plane_dma_addr(vb, 0);
+	}
+	return ret;
 }
 
 static int mx6s_vidioc_qbuf(struct file *file, void *priv,
