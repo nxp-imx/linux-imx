@@ -420,6 +420,7 @@ int imx_usbmisc_power_lost_check(struct imx_usbmisc_data *data)
 		return 0;
 	return usbmisc->ops->power_lost_check(data);
 }
+EXPORT_SYMBOL_GPL(imx_usbmisc_power_lost_check);
 
 static const struct of_device_id usbmisc_imx_dt_ids[] = {
 	{
