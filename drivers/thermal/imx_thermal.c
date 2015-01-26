@@ -165,10 +165,10 @@ static int imx_get_temp(struct thermal_zone_device *tz, unsigned long *temp)
 	 * According to the temp sensor designers, it may require up to ~17us
 	 * to complete a measurement.
 	 */
-	if (wait)
+	if (wait) {
 		usleep_range(20, 50);
-
-	regmap_read(map, TEMPSENSE0, &val);
+		regmap_read(map, TEMPSENSE0, &val);
+	}
 
 	if (data->mode != THERMAL_DEVICE_ENABLED) {
 		regmap_write(map, TEMPSENSE0 + REG_CLR, TEMPSENSE0_MEASURE_TEMP);
@@ -287,9 +287,6 @@ static int imx_set_trip_temp(struct thermal_zone_device *tz, int trip,
 {
 	struct imx_thermal_data *data = tz->devdata;
 
-	if (temp > IMX_TEMP_PASSIVE)
-		return -EINVAL;
-
 	if (trip == IMX_TRIP_CRITICAL) {
 		data->temp_critical = temp;
 		if (data->socdata->version == TEMPMON_V2)
@@ -297,6 +294,8 @@ static int imx_set_trip_temp(struct thermal_zone_device *tz, int trip,
 	}
 
 	if (trip == IMX_TRIP_PASSIVE) {
+		if (temp > IMX_TEMP_PASSIVE)
+			return -EINVAL;
 		data->temp_passive = temp;
 		imx_set_alarm_temp(data, temp);
 	}
