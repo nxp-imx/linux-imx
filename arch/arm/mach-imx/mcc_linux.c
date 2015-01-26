@@ -14,6 +14,7 @@
  */
 
 #include <linux/io.h>
+#include <linux/string.h>
 #include <linux/wait.h>
 #include <linux/imx_sema4.h>
 #include "mcc_config.h"
