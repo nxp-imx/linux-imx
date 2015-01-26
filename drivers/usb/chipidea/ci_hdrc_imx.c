@@ -38,19 +38,23 @@ static const struct ci_hdrc_imx_platform_flag imx27_usb_data = {
 };
 
 static const struct ci_hdrc_imx_platform_flag imx28_usb_data = {
-	.flags = CI_HDRC_IMX28_WRITE_FIX,
+	.flags = CI_HDRC_IMX28_WRITE_FIX |
+		CI_HDRC_IMX_EHCI_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6q_usb_data = {
-	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM,
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
+		CI_HDRC_IMX_EHCI_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sl_usb_data = {
-	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM,
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
+		CI_HDRC_IMX_EHCI_QUIRK,
 };
 
 static const struct ci_hdrc_imx_platform_flag imx6sx_usb_data = {
-	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM,
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
+		CI_HDRC_IMX_EHCI_QUIRK,
 };
 
 static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
