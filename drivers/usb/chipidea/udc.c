@@ -850,8 +850,8 @@ __acquires(hwep->lock)
 			else
 				*(u8 *)req->buf = 0;
 		} else {
-			/* Assume that device is bus powered for now. */
-			*(u16 *)req->buf = ci->remote_wakeup << 1;
+			*(u16 *)req->buf = (ci->remote_wakeup << 1) |
+				ci->gadget.is_selfpowered;
 		}
 	} else if ((setup->bRequestType & USB_RECIP_MASK) \
 		   == USB_RECIP_ENDPOINT) {
@@ -1583,6 +1583,19 @@ static int ci_udc_vbus_draw(struct usb_gadget *_gadget, unsigned ma)
 	return -ENOTSUPP;
 }
 
+static int ci_udc_selfpowered(struct usb_gadget *_gadget, int is_on)
+{
+	struct ci_hdrc *ci = container_of(_gadget, struct ci_hdrc, gadget);
+	struct ci_hw_ep *hwep = ci->ep0in;
+	unsigned long flags;
+
+	spin_lock_irqsave(hwep->lock, flags);
+	_gadget->is_selfpowered = (is_on != 0);
+	spin_unlock_irqrestore(hwep->lock, flags);
+
+	return 0;
+}
+
 /* Change Data+ pullup status
  * this func is used by usb_gadget_connect/disconnet
  */
@@ -1613,6 +1626,7 @@ static int ci_udc_stop(struct usb_gadget *gadget,
 static const struct usb_gadget_ops usb_gadget_ops = {
 	.vbus_session	= ci_udc_vbus_session,
 	.wakeup		= ci_udc_wakeup,
+	.set_selfpowered	= ci_udc_selfpowered,
 	.pullup		= ci_udc_pullup,
 	.vbus_draw	= ci_udc_vbus_draw,
 	.udc_start	= ci_udc_start,
