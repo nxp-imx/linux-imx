@@ -239,6 +239,10 @@ static inline void imx6sx_qos_init(void)
 	struct device_node *np;
 	void   __iomem *src_base;
 
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx6sx-gpu");
+	if (!np || !of_device_is_available(np))
+		return;
+
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx6sx-qosc");
 	if (!np)
 		return;
