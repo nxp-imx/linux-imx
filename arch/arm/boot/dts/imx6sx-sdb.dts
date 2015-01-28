@@ -174,6 +174,13 @@
 		spdif-controller = <&spdif>;
 		spdif-out;
 	};
+
+	sii902x_reset: sii902x-reset {
+		compatible = "gpio-reset";
+		reset-gpios = <&gpio3 27 1>;
+		reset-delay-us = <100000>;
+		#reset-cells = <0>;
+	};
 };
 
 &adc1 {
@@ -595,6 +602,16 @@
 			};
 		};
 	};
+
+	sii902x@39 {
+		compatible = "SiI,sii902x";
+		interrupt-parent = <&gpio4>;
+		interrupts = <21 2>;
+		mode_str ="1280x720M@60";
+		bits-per-pixel = <32>;
+		resets = <&sii902x_reset>;
+		reg = <0x39>;
+	};
 };
 
 &i2c2 {
@@ -692,6 +709,7 @@
 				MX6SX_PAD_SD1_DATA3__GPIO6_IO_5 0xb000
 				MX6SX_PAD_CSI_DATA03__GPIO1_IO_17 0x17059
 				MX6SX_PAD_GPIO1_IO13__WDOG1_WDOG_ANY 0x30b0
+				MX6SX_PAD_QSPI1A_SCLK__GPIO4_IO_21  0x17059
 			>;
 		};
 
