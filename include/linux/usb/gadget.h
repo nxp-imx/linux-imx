@@ -502,6 +502,7 @@ struct usb_gadget_ops {
  * @dev: Driver model state for this abstract device.
  * @out_epnum: last used out ep number
  * @in_epnum: last used in ep number
+ * @is_selfpowered: if the gadget is self-powered.
  *
  * Gadgets have a mostly-portable "gadget driver" implementing device
  * functions, handling all usb configurations and interfaces.  Gadget
@@ -541,6 +542,7 @@ struct usb_gadget {
 	struct device			dev;
 	unsigned			out_epnum;
 	unsigned			in_epnum;
+	unsigned			is_selfpowered:1;
 };
 #define work_to_gadget(w)	(container_of((w), struct usb_gadget, work))
 
