@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -551,9 +551,10 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	 * different gate, need explicitely gate the QSPI2 & GPMI_IO
 	 * during the clock init phase according to the SOC design.
 	 */
-	writel_relaxed(readl_relaxed(base + 0x78) & ~(3 << CCM_CCGR_OFFSET(5)), base + 0x78);
-	writel_relaxed(readl_relaxed(base + 0x78) & ~(3 << CCM_CCGR_OFFSET(14)), base + 0x78);
-
+	if (!imx_src_is_m4_enabled()) {
+		writel_relaxed(readl_relaxed(base + 0x78) & ~(3 << CCM_CCGR_OFFSET(5)), base + 0x78);
+		writel_relaxed(readl_relaxed(base + 0x78) & ~(3 << CCM_CCGR_OFFSET(14)), base + 0x78);
+	}
 	clk_data.clks = clks;
 	clk_data.clk_num = ARRAY_SIZE(clks);
 	of_clk_add_provider(np, of_clk_src_onecell_get, &clk_data);
