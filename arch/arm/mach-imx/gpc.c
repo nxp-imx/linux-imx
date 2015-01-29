@@ -71,6 +71,7 @@ static void __iomem *gpc_base;
 static u32 gpc_mf_irqs[IMR_NUM];
 static u32 gpc_wake_irqs[IMR_NUM];
 static u32 gpc_saved_imrs[IMR_NUM];
+static u32 gpc_mf_request_on[IMR_NUM];
 static u32 bypass;
 static DEFINE_SPINLOCK(gpc_lock);
 static struct notifier_block nb_pcie;
@@ -145,7 +146,8 @@ static void imx_gpc_mf_mix_off(void)
 	int i;
 
 	for (i = 0; i < IMR_NUM; i++)
-		if ((gpc_wake_irqs[i] & gpc_mf_irqs[i]) != 0)
+		if (((gpc_wake_irqs[i] | gpc_mf_request_on[i]) &
+						gpc_mf_irqs[i]) != 0)
 			return;
 
 	pr_info("Turn off M/F mix!\n");
@@ -279,6 +281,22 @@ static int imx_pcie_regulator_notify(struct notifier_block *nb,
 
 	return NOTIFY_OK;
 }
+
+int imx_gpc_mf_request_on(unsigned int irq, unsigned int on)
+{
+	unsigned int idx = irq / 32 - 1;
+	unsigned long flags;
+	u32 mask;
+
+	mask = 1 << (irq % 32);
+	spin_lock_irqsave(&gpc_lock, flags);
+	gpc_mf_request_on[idx] = on ? gpc_mf_request_on[idx] | mask :
+				  gpc_mf_request_on[idx] & ~mask;
+	spin_unlock_irqrestore(&gpc_lock, flags);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(imx_gpc_mf_request_on);
 
 void __init imx_gpc_init(void)
 {
