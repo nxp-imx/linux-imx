@@ -342,8 +342,6 @@
 	pinctrl-0 = <&pinctrl_enet1>;
 	pinctrl-assert-gpios = <&gpio4 16 GPIO_ACTIVE_HIGH>, <&gpio2 6 GPIO_ACTIVE_LOW>;
 	phy-mode = "rgmii";
-	fsl,num_tx_queues=<3>;
-	fsl,num_rx_queues=<3>;
 	status = "okay";
 };
 
@@ -351,8 +349,6 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_enet2>;
 	phy-mode = "rgmii";
-	fsl,num_tx_queues=<3>;
-	fsl,num_rx_queues=<3>;
 	status = "okay";
 };
 
