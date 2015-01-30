@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -89,13 +89,6 @@
 	str	r7, [r10, #0x14]
 
 	ccm_do_wait
-
-	ldr	r10, [r0, #PM_INFO_MX6Q_ANATOP_V_OFFSET]
-
-	/* enable PLL1 bypass output */
-	ldr	r7, [r10]
-	orr	r7, r7, #0x12000
-	str	r7, [r10]
 
 	ldr	r10, [r0, #PM_INFO_MX6Q_CCM_V_OFFSET]
 
@@ -202,11 +195,6 @@
 	cmp	r5, #0x0
 	ldreq	r10, [r0, #PM_INFO_MX6Q_ANATOP_V_OFFSET]
 	ldrne	r10, [r0, #PM_INFO_MX6Q_ANATOP_P_OFFSET]
-
-	/* disable PLL1 bypass output */
-	ldr	r7, [r10]
-	bic	r7, r7, #0x12000
-	str	r7, [r10]
 
 	.endm
 

@@ -150,35 +150,11 @@ static int imx6sl_get_arm_divider_for_wait(void)
 	}
 }
 
-static void imx6sl_enable_pll_arm(bool enable)
-{
-	static u32 saved_pll_arm;
-	u32 val;
-
-	if (enable) {
-		saved_pll_arm = val = readl_relaxed(anatop_base + PLL_ARM);
-		val |= BM_PLL_ARM_ENABLE;
-		val &= ~BM_PLL_ARM_POWERDOWN;
-		writel_relaxed(val, anatop_base + PLL_ARM);
-		while (!(__raw_readl(anatop_base + PLL_ARM) & BM_PLL_ARM_LOCK))
-			;
-	} else {
-		 writel_relaxed(saved_pll_arm, anatop_base + PLL_ARM);
-	}
-}
-
 void imx6sl_set_wait_clk(bool enter)
 {
 	static unsigned long saved_arm_div;
 	u32 val;
 	int arm_div_for_wait = imx6sl_get_arm_divider_for_wait();
-
-	/*
-	 * According to hardware design, arm podf change need
-	 * PLL1 clock enabled.
-	 */
-	if (arm_div_for_wait == ARM_WAIT_DIV_396M)
-		imx6sl_enable_pll_arm(true);
 
 	if (enter) {
 		/*
@@ -206,9 +182,6 @@ void imx6sl_set_wait_clk(bool enter)
 	}
 	while (__raw_readl(ccm_base + CDHIPR) & BM_CDHIPR_ARM_PODF_BUSY)
 		;
-
-	if (arm_div_for_wait == ARM_WAIT_DIV_396M)
-		imx6sl_enable_pll_arm(false);
 }
 
 static int __init setup_uart_clk(char *uart_rate)
@@ -269,7 +242,7 @@ static void __init imx6sl_clocks_init(struct device_node *ccm_node)
 	imx_clk_set_parent(clks[IMX6SL_PLL6_BYPASS], clks[IMX6SL_CLK_PLL6]);
 	imx_clk_set_parent(clks[IMX6SL_PLL7_BYPASS], clks[IMX6SL_CLK_PLL7]);
 
-	clks[IMX6SL_CLK_PLL1_SYS]      = imx_clk_gate("pll1_sys",      "pll1_bypass", base + 0x00, 13);
+	clks[IMX6SL_CLK_PLL1_SYS]      = imx_clk_fixed_factor("pll1_sys",      "pll1_bypass", 1, 1);
 	clks[IMX6SL_CLK_PLL2_BUS]      = imx_clk_gate("pll2_bus",      "pll2_bypass", base + 0x30, 13);
 	clks[IMX6SL_CLK_PLL3_USB_OTG]  = imx_clk_gate("pll3_usb_otg",  "pll3_bypass", base + 0x10, 13);
 	clks[IMX6SL_CLK_PLL4_AUDIO]    = imx_clk_gate("pll4_audio",    "pll4_bypass", base + 0x70, 13);

@@ -117,6 +117,9 @@ static struct clk *axi_alt_sel_clk;
 static struct clk *axi_sel_clk;
 static struct clk *pll3_pfd1_540m;
 static struct clk *m4_clk;
+static struct clk *pll1;
+static struct clk *pll1_bypass;
+static struct clk *pll1_bypass_src;
 
 static u32 pll2_org_rate;
 static struct delayed_work low_bus_freq_handler;
@@ -231,9 +234,10 @@ static void exit_lpm_imx6sx(void)
 	else if (ddr_type == MMDC_MDMISC_DDR_TYPE_LPDDR2)
 		update_lpddr2_freq(ddr_normal_rate);
 	/* correct parent info after ddr freq change in asm code */
-	imx_clk_set_parent(periph2_clk2_sel, pll3);
 	imx_clk_set_parent(periph2_pre_clk, pll2_400);
 	imx_clk_set_parent(periph2_clk, periph2_pre_clk);
+	imx_clk_set_parent(periph2_clk2_sel, pll3);
+
 	/*
 	 * As periph2_clk's parent is not changed from
 	 * audio mode to high mode, so clk framework
@@ -247,6 +251,7 @@ static void exit_lpm_imx6sx(void)
 		imx_clk_set_rate(mmdc_clk, ddr_normal_rate);
 
 	clk_disable_unprepare(pll2_400);
+
 	if (audio_bus_freq_mode)
 		clk_disable_unprepare(pll2_400);
 }
@@ -287,6 +292,12 @@ static void enter_lpm_imx6sl(void)
 			imx_clk_set_parent(step_clk, pll2_400);
 			imx_clk_set_parent(pll1_sw_clk, step_clk);
 			/*
+			  * Need to ensure that PLL1 is bypassed and enabled
+			  * before ARM-PODF is set.
+			  */
+			clk_set_parent(pll1_bypass, pll1_bypass_src);
+
+			/*
 			 * Ensure that the clock will be
 			 * at original speed.
 			 */
@@ -326,12 +337,17 @@ static void enter_lpm_imx6sl(void)
 				 * the CPU freq does not change, so attempt to
 				 * get a freq as close to 396MHz as possible.
 				 */
-				imx_clk_set_rate(pll1_sys,
-					clk_round_rate(pll1_sys, (org_arm_rate * 2)));
-				pll1_rate = clk_get_rate(pll1_sys);
+				imx_clk_set_rate(pll1,
+					clk_round_rate(pll1, (org_arm_rate * 2)));
+				pll1_rate = clk_get_rate(pll1);
 				arm_div = pll1_rate / org_arm_rate;
 				if (pll1_rate / arm_div > org_arm_rate)
 					arm_div++;
+				/*
+				  * Need to ensure that PLL1 is bypassed and enabled
+				  * before ARM-PODF is set.
+				  */
+				clk_set_parent(pll1_bypass, pll1);
 				/*
 				 * Ensure ARM CLK is lower before
 				 * changing the parent.
@@ -402,6 +418,11 @@ static void exit_lpm_imx6sl(void)
 		/* Move ARM from PLL1_SW_CLK to PLL2_400. */
 		imx_clk_set_parent(step_clk, pll2_400);
 		imx_clk_set_parent(pll1_sw_clk, step_clk);
+		/*
+		  * Need to ensure that PLL1 is bypassed and enabled
+		  * before ARM-PODF is set.
+		  */
+		clk_set_parent(pll1_bypass, pll1_bypass_src);
 		imx_clk_set_rate(cpu_clk, org_arm_rate);
 		ultra_low_bus_freq_mode = 0;
 	}
@@ -958,13 +979,6 @@ static int busfreq_probe(struct platform_device *pdev)
 	}
 
 	if (cpu_is_imx6sl() || cpu_is_imx6sx()) {
-		pll1_sys = devm_clk_get(&pdev->dev, "pll1_sys");
-		if (IS_ERR(pll1_sys)) {
-			dev_err(busfreq_dev, "%s: failed to get pll1_sys\n",
-				__func__);
-			return PTR_ERR(pll1_sys);
-		}
-
 		ahb_clk = devm_clk_get(&pdev->dev, "ahb");
 		if (IS_ERR(ahb_clk)) {
 			dev_err(busfreq_dev, "%s: failed to get ahb_clk\n",
@@ -977,13 +991,6 @@ static int busfreq_probe(struct platform_device *pdev)
 			dev_err(busfreq_dev, "%s: failed to get ocram_clk\n",
 				__func__);
 			return PTR_ERR(ocram_clk);
-		}
-
-		pll1_sw_clk = devm_clk_get(&pdev->dev, "pll1_sw");
-		if (IS_ERR(pll1_sw_clk)) {
-			dev_err(busfreq_dev, "%s: failed to get pll1_sw_clk\n",
-				__func__);
-			return PTR_ERR(pll1_sw_clk);
 		}
 
 		periph2_clk = devm_clk_get(&pdev->dev, "periph2");
@@ -1026,6 +1033,41 @@ static int busfreq_probe(struct platform_device *pdev)
 		}
 	}
 	if (cpu_is_imx6sl()) {
+		pll1 = devm_clk_get(&pdev->dev, "pll1");
+		if (IS_ERR(pll1)) {
+			dev_err(busfreq_dev, "%s: failed to get pll1\n",
+				__func__);
+			return PTR_ERR(pll1);
+		}
+
+		pll1_bypass = devm_clk_get(&pdev->dev, "pll1_bypass");
+		if (IS_ERR(pll1_bypass)) {
+			dev_err(busfreq_dev, "%s: failed to get pll1_bypass\n",
+				__func__);
+			return PTR_ERR(pll1_bypass);
+		}
+
+		pll1_bypass_src = devm_clk_get(&pdev->dev, "pll1_bypass_src");
+		if (IS_ERR(pll1_bypass_src)) {
+			dev_err(busfreq_dev, "%s: failed to get pll1_bypass_src\n",
+				__func__);
+			return PTR_ERR(pll1_bypass_src);
+		}
+
+		pll1_sys = devm_clk_get(&pdev->dev, "pll1_sys");
+		if (IS_ERR(pll1_sys)) {
+			dev_err(busfreq_dev, "%s: failed to get pll1_sys\n",
+				__func__);
+			return PTR_ERR(pll1_sys);
+		}
+
+		pll1_sw_clk = devm_clk_get(&pdev->dev, "pll1_sw");
+		if (IS_ERR(pll1_sw_clk)) {
+			dev_err(busfreq_dev, "%s: failed to get pll1_sw_clk\n",
+				__func__);
+			return PTR_ERR(pll1_sw_clk);
+		}
+
 		pll2_bypass_src = devm_clk_get(&pdev->dev, "pll2_bypass_src");
 		if (IS_ERR(pll2_bypass_src)) {
 			dev_err(busfreq_dev, "%s: failed to get pll2_bypass_src\n",

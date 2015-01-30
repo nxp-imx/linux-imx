@@ -125,14 +125,6 @@ audio_mode:
 	str	r6, [r10, #0x14]
 
 	ccm_do_wait
-	/*
-	 * Bypass PLL1. the PLL1 output is disabled,
-	 * need to enable its output.
-	 */
-	ldr	r10, [r0, #PM_INFO_ANATOP_V_OFFSET]
-	ldr	r6, =(1 << 16)
-	orr	r6, r6, #0x2000
-	str	r6, [r10, #0x04]
 
 	/*
 	 * ARM is sourced from pll2_pfd2_400M here.
@@ -204,13 +196,6 @@ audio_ccm_restore:
 	ldr	r6, [r10, #0xc]
 	orr	r6, r6, #0x4
 	str	r6, [r10, #0xc]
-
-	ldr	r10, [r0, #PM_INFO_ANATOP_V_OFFSET]
-
-	ldr	r6, =(1 << 16)
-	str	r6, [r10, #0x08]
-	ldr	r6, =(1 << 13)
-	str	r6, [r10, #0x8]
 
 	/* restore mmdc podf */
 	ldr	r10, [r0, #PM_INFO_CCM_V_OFFSET]
