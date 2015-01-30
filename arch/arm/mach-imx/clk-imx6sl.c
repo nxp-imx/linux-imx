@@ -35,7 +35,6 @@
 #define BM_PLL_ARM_DIV_SELECT	(0x7f << 0)
 #define BM_PLL_ARM_POWERDOWN	(1 << 12)
 #define BM_PLL_ARM_ENABLE	(1 << 13)
-#define BM_PLL_ARM_BYPASS	(1 << 16)
 #define BM_PLL_ARM_LOCK		(1 << 31)
 #define PLL_ARM_DIV_792M	66
 
@@ -151,7 +150,7 @@ static int imx6sl_get_arm_divider_for_wait(void)
 	}
 }
 
-void imx6sl_enable_pll_arm(bool enable)
+static void imx6sl_enable_pll_arm(bool enable)
 {
 	static u32 saved_pll_arm;
 	u32 val;
@@ -159,8 +158,10 @@ void imx6sl_enable_pll_arm(bool enable)
 	if (enable) {
 		saved_pll_arm = val = readl_relaxed(anatop_base + PLL_ARM);
 		val |= BM_PLL_ARM_ENABLE;
-		val |= BM_PLL_ARM_BYPASS;
+		val &= ~BM_PLL_ARM_POWERDOWN;
 		writel_relaxed(val, anatop_base + PLL_ARM);
+		while (!(__raw_readl(anatop_base + PLL_ARM) & BM_PLL_ARM_LOCK))
+			;
 	} else {
 		 writel_relaxed(saved_pll_arm, anatop_base + PLL_ARM);
 	}
