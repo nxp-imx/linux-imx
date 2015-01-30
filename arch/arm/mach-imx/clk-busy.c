@@ -18,22 +18,14 @@
 #include <linux/err.h>
 #include "clk.h"
 
-#define ARM_PODF_BUSY	(0x1 << 16)
-
 static int clk_busy_wait(void __iomem *reg, u8 shift)
 {
 	unsigned long timeout = jiffies + msecs_to_jiffies(10);
-
-	u32 val = readl_relaxed(reg);
-	if (val & ARM_PODF_BUSY)
-		imx_enable_pll_arm(true);
 
 	while (readl_relaxed(reg) & (1 << shift))
 		if (time_after(jiffies, timeout))
 			return -ETIMEDOUT;
 
-	if (val & ARM_PODF_BUSY)
-		imx_enable_pll_arm(false);
 	return 0;
 }
 
