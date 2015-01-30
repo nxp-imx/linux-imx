@@ -1828,13 +1828,6 @@ static int ov5640_probe(struct i2c_client *client,
 		return retval;
 	}
 
-	v4l2_i2c_subdev_init(&ov5640_data.subdev, client, &ov5640_subdev_ops);
-
-	retval = v4l2_async_register_subdev(&ov5640_data.subdev);
-	if (retval < 0)
-		dev_err(&client->dev,
-					"%s--Async register faialed, ret=%d\n", __func__, retval);
-
 	clk_prepare_enable(ov5640_data.sensor_clk);
 
 	ov5640_data.io_init = ov5640_reset;
@@ -1878,6 +1871,13 @@ static int ov5640_probe(struct i2c_client *client,
 	ov5640_power_down(1);
 
 	clk_disable(ov5640_data.sensor_clk);
+
+	v4l2_i2c_subdev_init(&ov5640_data.subdev, client, &ov5640_subdev_ops);
+
+	retval = v4l2_async_register_subdev(&ov5640_data.subdev);
+	if (retval < 0)
+		dev_err(&client->dev,
+					"%s--Async register failed, ret=%d\n", __func__, retval);
 
 	pr_info("camera ov5640, is found\n");
 	return retval;
