@@ -32,6 +32,9 @@ static struct clk *pll1_sys_clk;
 static struct clk *pll1_sw_clk;
 static struct clk *step_clk;
 static struct clk *pll2_pfd2_396m_clk;
+static struct clk *pll1_bypass;
+static struct clk *pll1_bypass_src;
+static struct clk *pll1;
 
 static struct device *cpu_dev;
 static struct cpufreq_frequency_table *freq_table;
@@ -115,9 +118,19 @@ static int imx6q_set_target(struct cpufreq_policy *policy, unsigned int index)
 	clk_set_parent(step_clk, pll2_pfd2_396m_clk);
 	clk_set_parent(pll1_sw_clk, step_clk);
 	if (freq_hz > clk_get_rate(pll2_pfd2_396m_clk)) {
-		clk_set_rate(pll1_sys_clk, new_freq * 1000);
+		clk_set_rate(pll1, new_freq * 1000);
+		/*
+		  * Ensure pll1_bypass is set back to pll1.
+		  */
+		clk_set_parent(pll1_bypass, pll1);
 		clk_set_parent(pll1_sw_clk, pll1_sys_clk);
-	}
+	} else
+		/*
+		  * Need to ensure that PLL1 is bypassed and enabled
+		  * before ARM-PODF is set.
+		  */
+		clk_set_parent(pll1_bypass, pll1_bypass_src);
+
 
 	/* Ensure the arm clock divider is what we expect */
 	ret = clk_set_rate(arm_clk, new_freq * 1000);
@@ -253,8 +266,14 @@ static int imx6q_cpufreq_probe(struct platform_device *pdev)
 	pll1_sw_clk = devm_clk_get(cpu_dev, "pll1_sw");
 	step_clk = devm_clk_get(cpu_dev, "step");
 	pll2_pfd2_396m_clk = devm_clk_get(cpu_dev, "pll2_pfd2_396m");
+	pll1_bypass = devm_clk_get(cpu_dev, "pll1_bypass");
+	pll1 = devm_clk_get(cpu_dev, "pll1");
+	pll1_bypass_src = devm_clk_get(cpu_dev, "pll1_bypass_src");
+
 	if (IS_ERR(arm_clk) || IS_ERR(pll1_sys_clk) || IS_ERR(pll1_sw_clk) ||
-	    IS_ERR(step_clk) || IS_ERR(pll2_pfd2_396m_clk)) {
+	    IS_ERR(step_clk) || IS_ERR(pll2_pfd2_396m_clk) ||
+	    IS_ERR(pll1_bypass) || IS_ERR(pll1) ||
+	    IS_ERR(pll1_bypass_src)) {
 		dev_err(cpu_dev, "failed to get clocks\n");
 		ret = -ENOENT;
 		goto put_node;
