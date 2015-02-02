@@ -9,10 +9,6 @@
 #include "imx6sx-sdb.dts"
 
 / {
-	csi1_v4l2_cap {
-		status = "disabled";
-	};
-
 	regulators {
 		reg_lcd_3v3: lcd-3v3 {
 			status = "okay";
