@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -18,6 +18,10 @@
 			status = "okay";
 		};
 	};
+
+	sii902x_reset: sii902x-reset {
+		status = "okay";
+	};
 };
 
 &csi1 {
@@ -26,4 +30,10 @@
 
 &lcdif1 {
 	status = "okay";
+};
+
+&i2c1 {
+	sii902x@39 {
+		status = "okay";
+	};
 };
