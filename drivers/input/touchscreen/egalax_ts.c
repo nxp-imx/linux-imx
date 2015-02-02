@@ -309,8 +309,9 @@ static int egalax_ts_probe(struct i2c_client *client,
 	input_set_drvdata(input_dev, ts);
 
 	error = egalax_irq_request(ts);
-	if (error)
-		return error;
+	if (error < 0) {
+		goto err_free_dev;
+	}
 
 	error = input_register_device(ts->input_dev);
 	if (error)
@@ -357,6 +358,13 @@ static int __maybe_unused egalax_ts_suspend(struct device *dev)
 	int ret;
 
 	egalax_free_irq(ts);
+
+	/* If can not wake up, not suspend. */
+	if (ts->touch_no_wake) {
+		dev_info(&client->dev,
+				"not suspend because unable to wake up device\n");
+		return 0;
+	}
 	ret = i2c_master_send(client, suspend_cmd, MAX_I2C_DATA_LEN);
 	return ret > 0 ? 0 : ret;
 }
@@ -366,6 +374,9 @@ static int __maybe_unused egalax_ts_resume(struct device *dev)
 	struct i2c_client *client = to_i2c_client(dev);
 	struct egalax_ts *ts = i2c_get_clientdata(client);
 	int ret;
+	/* If not wake up, don't needs resume. */
+	if (ts->touch_no_wake)
+		return 0;
 
 	ret = egalax_wake_up_device(client);
 	if (!ret)
