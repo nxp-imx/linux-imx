@@ -50,7 +50,8 @@ static const struct ci_hdrc_imx_platform_flag imx6q_usb_data = {
 		CI_HDRC_IMX_EHCI_QUIRK |
 		CI_HDRC_DISABLE_STREAMING |
 		CI_HDRC_OVERRIDE_AHB_BURST |
-		CI_HDRC_OVERRIDE_BURST_LENGTH,
+		CI_HDRC_OVERRIDE_BURST_LENGTH |
+		CI_HDRC_IMX_VBUS_EARLY_ON,
 	.ahbburst_config = 0, /*bit0 - bit2 at $BASE + 0x90 */
 	.burst_length = 0x1010, /*bit0 - bit15 at $BASE + 0x160 */
 };
@@ -60,7 +61,8 @@ static const struct ci_hdrc_imx_platform_flag imx6sl_usb_data = {
 		CI_HDRC_IMX_EHCI_QUIRK |
 		CI_HDRC_DISABLE_HOST_STREAMING |
 		CI_HDRC_OVERRIDE_AHB_BURST |
-		CI_HDRC_OVERRIDE_BURST_LENGTH,
+		CI_HDRC_OVERRIDE_BURST_LENGTH |
+		CI_HDRC_IMX_VBUS_EARLY_ON,
 	.ahbburst_config = 0,
 	.burst_length = 0x1010,
 };
@@ -70,7 +72,8 @@ static const struct ci_hdrc_imx_platform_flag imx6sx_usb_data = {
 		CI_HDRC_IMX_EHCI_QUIRK |
 		CI_HDRC_DISABLE_HOST_STREAMING |
 		CI_HDRC_OVERRIDE_AHB_BURST |
-		CI_HDRC_OVERRIDE_BURST_LENGTH,
+		CI_HDRC_OVERRIDE_BURST_LENGTH |
+		CI_HDRC_IMX_VBUS_EARLY_ON,
 	.ahbburst_config = 0,
 	.burst_length = 0x1010,
 };
