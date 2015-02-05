@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2013-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -107,7 +107,7 @@ static int imx6_usb_charger_detect(struct usb_charger *charger)
 				usleep_range(5000, 10000);
 		} else {
 			data_pin_contact_count = 0;
-			msleep(20);
+			usleep_range(5000, 6000);
 		}
 	}
 
