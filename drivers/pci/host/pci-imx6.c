@@ -25,6 +25,7 @@
 #include <linux/pci.h>
 #include <linux/pci_regs.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <linux/busfreq-imx6.h>
 #include <linux/regulator/consumer.h>
@@ -356,9 +357,9 @@ static int imx6_pcie_deassert_core_reset(struct pcie_port *pp)
 
 	/* Some boards don't have PCIe reset GPIO. */
 	if (gpio_is_valid(imx6_pcie->reset_gpio)) {
-		gpio_set_value(imx6_pcie->reset_gpio, 0);
+		gpio_set_value_cansleep(imx6_pcie->reset_gpio, 0);
 		mdelay(100);
-		gpio_set_value(imx6_pcie->reset_gpio, 1);
+		gpio_set_value_cansleep(imx6_pcie->reset_gpio, 1);
 	}
 
 	/*
@@ -529,10 +530,6 @@ out:
 			clk_disable_unprepare(imx6_pcie->pcie_inbound_axi);
 			release_bus_freq(BUS_FREQ_HIGH);
 
-			/* Put PCIe PHY to be isolation */
-			regmap_update_bits(imx6_pcie->iomuxc_gpr,
-					IOMUXC_GPR0, BIT(6), 1 << 6);
-
 			/*
 			 * Power down PCIe PHY.
 			 */
@@ -552,6 +549,9 @@ out:
 static int imx6_pcie_host_init(struct pcie_port *pp)
 {
 	int ret;
+
+	/* enable disp_mix power domain */
+	pm_runtime_get_sync(pp->dev);
 
 	imx6_pcie_assert_core_reset(pp);
 
@@ -885,6 +885,13 @@ static int pci_imx_suspend_noirq(struct device *dev)
 			dw_pcie_msi_cfg_store(pp);
 
 		if (IS_ENABLED(CONFIG_PCI_IMX6SX_EXTREMELY_PWR_SAVE)) {
+			/* PM_TURN_OFF */
+			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
+					IMX6SX_GPR12_PCIE_PM_TURN_OFF,
+					IMX6SX_GPR12_PCIE_PM_TURN_OFF);
+			udelay(10);
+			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
+					IMX6SX_GPR12_PCIE_PM_TURN_OFF, 0);
 			/* Disable clks and power down PCIe PHY */
 			clk_disable_unprepare(imx6_pcie->pcie);
 			if (!IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)
@@ -893,10 +900,6 @@ static int pci_imx_suspend_noirq(struct device *dev)
 			clk_disable_unprepare(imx6_pcie->pcie_phy);
 			clk_disable_unprepare(imx6_pcie->pcie_inbound_axi);
 			release_bus_freq(BUS_FREQ_HIGH);
-
-			/* Put PCIe PHY to be isolation */
-			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR0,
-					BIT(6), 1 << 6);
 
 			/*
 			 * Power down PCIe PHY.
@@ -957,9 +960,10 @@ static int pci_imx_resume_noirq(struct device *dev)
 			if (IS_ENABLED(CONFIG_PCI_MSI))
 				dw_pcie_msi_cfg_restore(pp);
 
-			ret = imx6_pcie_start_link(pp);
-			if (ret < 0)
-				return ret;
+			/* Start LTSSM. */
+			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
+					IMX6Q_GPR12_PCIE_CTL_2,
+					IMX6Q_GPR12_PCIE_CTL_2);
 		} else {
 			request_bus_freq(BUS_FREQ_HIGH);
 			clk_prepare_enable(imx6_pcie->pcie_inbound_axi);
