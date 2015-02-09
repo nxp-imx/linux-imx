@@ -3,7 +3,7 @@
  *
  * Author: Timur Tabi <timur@freescale.com>
  *
- * Copyright 2007-2014 Freescale Semiconductor, Inc.
+ * Copyright 2007-2015 Freescale Semiconductor, Inc.
  *
  * This file is licensed under the terms of the GNU General Public License
  * version 2.  This program is licensed "as is" without any warranty of any
@@ -265,6 +265,9 @@ struct fsl_ssi_private {
 	struct clk *baudclk;
 	unsigned int baudclk_streams;
 	unsigned int bitclk_freq;
+
+	/*regcache for SFCSR*/
+	u32 regcache_sfcsr;
 
 	/* DMA params */
 	struct snd_dmaengine_dai_dma_data dma_params_tx;
@@ -1578,6 +1581,9 @@ static int fsl_ssi_suspend(struct device *dev)
 	struct fsl_ssi_private *ssi_private = dev_get_drvdata(dev);
 	struct regmap *regs = ssi_private->regs;
 
+	regmap_read(regs, CCSR_SSI_SFCSR,
+			&ssi_private->regcache_sfcsr);
+
 	regcache_cache_only(regs, true);
 	regcache_mark_dirty(regs);
 
@@ -1590,6 +1596,12 @@ static int fsl_ssi_resume(struct device *dev)
 	struct regmap *regs = ssi_private->regs;
 
 	regcache_cache_only(regs, false);
+
+	regmap_update_bits(regs, CCSR_SSI_SFCSR,
+			CCSR_SSI_SFCSR_RFWM1_MASK | CCSR_SSI_SFCSR_TFWM1_MASK |
+			CCSR_SSI_SFCSR_RFWM0_MASK | CCSR_SSI_SFCSR_TFWM0_MASK,
+			ssi_private->regcache_sfcsr);
+
 	return regcache_sync(regs);
 }
 #endif /* CONFIG_PM_SLEEP */
