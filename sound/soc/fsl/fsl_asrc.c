@@ -1,7 +1,7 @@
 /*
  * Freescale ASRC ALSA SoC Digital Audio Interface (DAI) driver
  *
- * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
  *
  * Author: Nicolin Chen <nicoleotsuka@gmail.com>
  *
@@ -1076,6 +1076,9 @@ static int fsl_asrc_suspend(struct device *dev)
 
 	fsl_asrc_m2m_suspend(asrc_priv);
 
+	regmap_read(asrc_priv->regmap, REG_ASRCFG,
+				&asrc_priv->regcache_cfg);
+
 	regcache_cache_only(asrc_priv->regmap, true);
 	regcache_mark_dirty(asrc_priv->regmap);
 
@@ -1095,6 +1098,9 @@ static int fsl_asrc_resume(struct device *dev)
 	/* Restore all registers */
 	regcache_cache_only(asrc_priv->regmap, false);
 	regcache_sync(asrc_priv->regmap);
+
+	regmap_update_bits(asrc_priv->regmap, REG_ASRCFG,
+			0x1FFFC0, asrc_priv->regcache_cfg);
 
 	/* Restart enabled pairs */
 	regmap_update_bits(asrc_priv->regmap, REG_ASRCTR,
