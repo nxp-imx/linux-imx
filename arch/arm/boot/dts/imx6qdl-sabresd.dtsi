@@ -300,6 +300,9 @@
 		bt-power-gpios = <&gpio1 2 0>;
 		status ="okay";
 	};
+	caam_keyblob {
+		compatible = "fsl,sec-v4.0-keyblob";
+	};
 };
 
 &audmux {
