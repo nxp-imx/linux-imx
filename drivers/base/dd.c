@@ -23,7 +23,6 @@
 #include <linux/kthread.h>
 #include <linux/wait.h>
 #include <linux/async.h>
-#include <linux/pm_domain.h>
 #include <linux/pm_runtime.h>
 #include <linux/pinctrl/devinfo.h>
 
@@ -288,11 +287,6 @@ static int really_probe(struct device *dev, struct device_driver *drv)
 
 	dev->driver = drv;
 
-	/* If using genpd, bind power domain now before probing */
-	ret = genpd_bind_domain(dev);
-	if (ret)
-		goto probe_failed;
-
 	/* If using pinctrl, bind pins now before probing */
 	ret = pinctrl_bind_pins(dev);
 	if (ret)
@@ -323,7 +317,6 @@ static int really_probe(struct device *dev, struct device_driver *drv)
 probe_failed:
 	devres_release_all(dev);
 	driver_sysfs_remove(dev);
-	genpd_unbind_domain(dev);
 	dev->driver = NULL;
 	dev_set_drvdata(dev, NULL);
 
@@ -537,7 +530,7 @@ static void __device_release_driver(struct device *dev)
 			blocking_notifier_call_chain(&dev->bus->p->bus_notifier,
 						     BUS_NOTIFY_UNBOUND_DRIVER,
 						     dev);
-		genpd_unbind_domain(dev);
+
 	}
 }
 
