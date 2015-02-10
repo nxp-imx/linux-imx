@@ -772,6 +772,8 @@ static int pm_genpd_suspend_noirq(struct device *dev)
 	if (dev->power.wakeup_path && genpd_dev_active_wakeup(genpd, dev))
 		return 0;
 
+	pm_generic_suspend_noirq(dev);
+
 	if (genpd->dev_ops.stop && genpd->dev_ops.start) {
 		ret = pm_runtime_force_suspend(dev);
 		if (ret)
@@ -819,6 +821,8 @@ static int pm_genpd_resume_noirq(struct device *dev)
 
 	if (genpd->dev_ops.stop && genpd->dev_ops.start)
 		ret = pm_runtime_force_resume(dev);
+
+	pm_generic_resume_noirq(dev);
 
 	return ret;
 }
