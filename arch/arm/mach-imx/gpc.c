@@ -488,7 +488,7 @@ static struct generic_pm_domain *imx_gpc_domains[] = {
 
 static struct genpd_onecell_data imx_gpc_onecell_data = {
 	.domains = imx_gpc_domains,
-	.domain_num = ARRAY_SIZE(imx_gpc_domains),
+	.num_domains = ARRAY_SIZE(imx_gpc_domains),
 };
 
 static int imx_gpc_genpd_init(struct device *dev, struct regulator *pu_reg)
@@ -540,7 +540,7 @@ static int imx_gpc_genpd_init(struct device *dev, struct regulator *pu_reg)
 	pm_genpd_init(&imx6q_pu_domain.base, NULL, is_off);
 	pm_genpd_init(&imx6s_display_domain.base, NULL, is_off);
 
-	return of_genpd_add_provider(dev->of_node, of_genpd_xlate_onecell,
+	return __of_genpd_add_provider(dev->of_node, __of_genpd_xlate_onecell,
 				     &imx_gpc_onecell_data);
 
 }
