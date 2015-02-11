@@ -28,6 +28,7 @@
 #include <linux/mfd/syscon/imx6q-iomuxc-gpr.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/regmap.h>
 #include <media/v4l2-ioctl.h>
 #include <linux/videodev2.h>
@@ -726,6 +727,9 @@ static int vadc_probe(struct platform_device *pdev)
 
 	vadc_v4l2_subdev_init(sd, pdev, &vadc_ops);
 
+	pm_runtime_enable(&pdev->dev);
+
+	pm_runtime_get_sync(&pdev->dev);
 	/* Init VADC */
 	ret = vadc_of_init(pdev);
 	if (ret < 0)
@@ -736,6 +740,9 @@ static int vadc_probe(struct platform_device *pdev)
 
 	return 0;
 err:
+	pm_runtime_put_sync(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
+	v4l2_async_unregister_subdev(&state->sd);
 	clk_disable_unprepare(state->csi_clk);
 	clk_disable_unprepare(state->vadc_clk);
 	return ret;
@@ -745,6 +752,8 @@ static int vadc_remove(struct platform_device *pdev)
 {
 	struct vadc_state *state = platform_get_drvdata(pdev);
 
+	pm_runtime_put_sync(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
 	v4l2_async_unregister_subdev(&state->sd);
 	clk_disable_unprepare(state->csi_clk);
 	clk_disable_unprepare(state->vadc_clk);
