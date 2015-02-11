@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -225,6 +225,9 @@
 #define VDEC_THSH2                       (VDEC_BASE + VDEC_THSH2_OFFSET)
 #define VDEC_NCHTH                       (VDEC_BASE + VDEC_NCHTH_OFFSET)
 #define VDEC_TH1F                        (VDEC_BASE + VDEC_TH1F_OFFSET)
+
+#define VDEC_VIDMOD_SIGNAL_MASK           0x0F
+#define VDEC_VIDMOD_SIGNAL_DETECT         0x0F
 
 #define VDEC_VIDMOD_M625_SHIFT            4
 #define VDEC_VIDMOD_M625_MASK             (1 << VDEC_VIDMOD_M625_SHIFT)

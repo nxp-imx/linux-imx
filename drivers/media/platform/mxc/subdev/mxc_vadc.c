@@ -463,19 +463,24 @@ static int vadc_g_std(struct v4l2_subdev *sd, v4l2_std_id *std)
 static int vadc_querystd(struct v4l2_subdev *sd, v4l2_std_id *std)
 {
 	struct vadc_state *state = to_state(sd);
-	int tmp;
+	int mod;
 	int idx;
+	int i;
 
 	/* Read auto mode detected result */
-	printk(KERN_INFO"wait vadc auto detect video mode....");
-	msleep(500);
-	do {
-		tmp = reg32_read(VDEC_VIDMOD);
-	} while (tmp == 0);
+	printk(KERN_INFO"wait vadc auto detect video mode....\n");
+	for (i = 0; i < 10; i++) {
+		msleep(200);
+		mod = reg32_read(VDEC_VIDMOD);
+		/* Check video signal states */
+		if ((mod & VDEC_VIDMOD_SIGNAL_MASK)
+				== VDEC_VIDMOD_SIGNAL_DETECT)
+			break;
+	}
+	if (i == 10)
+		printk(KERN_INFO"Timeout detect video signal mod=0x%x\n", mod);
 
-	tmp &= (VDEC_VIDMOD_PAL_MASK | VDEC_VIDMOD_M625_MASK);
-
-	if (tmp)
+	if ((mod & VDEC_VIDMOD_PAL_MASK) || (mod & VDEC_VIDMOD_M625_MASK))
 		idx = VADC_PAL;
 	else
 		idx = VADC_NTSC;
@@ -483,7 +488,7 @@ static int vadc_querystd(struct v4l2_subdev *sd, v4l2_std_id *std)
 	*std = video_fmts[idx].v4l2_std;
 	state->fmt = &video_fmts[idx];
 
-	pr_debug("std=%s\n", video_fmts[idx].name);
+	printk(KERN_INFO"video mode %s\n", video_fmts[idx].name);
 	return 0;
 }
 
