@@ -1998,7 +1998,7 @@ int ci_usb_charger_connect(struct ci_hdrc *ci, int is_active)
 		}
 
 		ret = ci->platdata->notify_event
-			(ci, CI_HDRC_CONTROLLER_VBUS_EVENT);
+			(ci, CI_HDRC_CONTROLLER_CHARGER_EVENT);
 		if (ret == CI_HDRC_NOTIFY_RET_DEFER_EVENT) {
 			hw_device_reset(ci);
 			/* Pull up dp */
