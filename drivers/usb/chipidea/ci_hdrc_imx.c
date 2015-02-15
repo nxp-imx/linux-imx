@@ -204,11 +204,12 @@ static int ci_hdrc_imx_notify_event(struct ci_hdrc *ci, unsigned event)
 	switch (event) {
 	case CI_HDRC_CONTROLLER_VBUS_EVENT:
 		if (data->usbmisc_data && ci->vbus_active) {
-			if (data->imx6_usb_charger_detection)
+			if (data->imx6_usb_charger_detection) {
 				ret = imx6_usb_vbus_connect(&data->charger);
-			if (!ret && data->charger.psy.type !=
-						POWER_SUPPLY_TYPE_USB)
-				ret = CI_HDRC_NOTIFY_RET_DEFER_EVENT;
+				if (!ret && data->charger.psy.type !=
+							POWER_SUPPLY_TYPE_USB)
+					ret = CI_HDRC_NOTIFY_RET_DEFER_EVENT;
+			}
 		} else if (data->usbmisc_data && !ci->vbus_active) {
 			if (data->imx6_usb_charger_detection)
 				ret = imx6_usb_vbus_disconnect(&data->charger);
