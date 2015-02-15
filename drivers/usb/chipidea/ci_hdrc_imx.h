@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2014 Freescale Semiconductor, Inc.
+ * Copyright 2012-2015 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -35,6 +35,5 @@ int imx_usbmisc_set_wakeup(struct imx_usbmisc_data *, bool);
 int imx_usbmisc_hsic_set_connect(struct imx_usbmisc_data *);
 int imx_usbmisc_hsic_set_clk(struct imx_usbmisc_data *, bool);
 int imx_usbmisc_power_lost_check(struct imx_usbmisc_data *);
-int imx_usbmisc_vbus_handler(struct imx_usbmisc_data *, bool);
 
 #endif /* __DRIVER_USB_CHIPIDEA_CI_HDRC_IMX_H */
