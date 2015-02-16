@@ -845,6 +845,7 @@ static int ath6kl_cfg80211_disconnect(struct wiphy *wiphy,
 	up(&ar->sem);
 
 	vif->sme_state = SME_DISCONNECTED;
+	cfg80211_disconnected(vif->ndev, 0, NULL, 0, GFP_KERNEL);
 
 	return 0;
 }
