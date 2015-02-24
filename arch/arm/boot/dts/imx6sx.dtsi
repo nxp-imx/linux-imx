@@ -1274,6 +1274,28 @@
 				status = "disabled";
                         };
 
+			wdog3: wdog@02288000 {
+				compatible = "fsl,imx6sx-wdt", "fsl,imx21-wdt";
+				reg = <0x02288000 0x4000>;
+				interrupts = <0 11 0x04>;
+				clocks = <&clks IMX6SX_CLK_DUMMY>;
+				status = "disabled";
+			};
+
+			ecspi5: ecspi@0228c000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,imx6sx-ecspi", "fsl,imx51-ecspi";
+				reg = <0x0228c000 0x4000>;
+				interrupts = <0 18 0x04>;
+				clocks = <&clks IMX6SX_CLK_ECSPI5>,
+					 <&clks IMX6SX_CLK_ECSPI5>;
+				clock-names = "ipg", "per";
+				dmas = <&sdma 11 7 1>, <&sdma 12 7 2>;
+				dma-names = "rx", "tx";
+				status = "disabled";
+			};
+
 			sema4: sema4@02290000 { /* sema4 */
 				compatible = "fsl,imx6sx-sema4";
 				reg = <0x02290000 0x4000>;
