@@ -3,7 +3,7 @@
  *
  * Author: Timur Tabi <timur@freescale.com>
  *
- * Copyright (C) 2007-2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2007-2015 Freescale Semiconductor, Inc.
  *
  * This file is licensed under the terms of the GNU General Public License
  * version 2.  This program is licensed "as is" without any warranty of any
@@ -356,8 +356,6 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 	unsigned long flags;
 
 	if (ssi_private->ssi_on_imx) {
-		pm_runtime_get_sync(dai->dev);
-
 		clk_prepare_enable(ssi_private->coreclk);
 
 		/* When using dual fifo mode, it would be safer if we ensure
@@ -572,6 +570,7 @@ static int fsl_ssi_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		pm_runtime_get_sync(dai->dev);
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 			write_ssi_mask(&ssi->scr, 0,
 				CCSR_SSI_SCR_SSIEN | CCSR_SSI_SCR_TE);
@@ -600,6 +599,7 @@ static int fsl_ssi_trigger(struct snd_pcm_substream *substream, int cmd,
 			ssi_private->baudclk_locked = false;
 			spin_unlock_irqrestore(&ssi_private->baudclk_lock, flags);
 		}
+		pm_runtime_put_sync(dai->dev);
 		break;
 
 	default:
@@ -876,11 +876,8 @@ static void fsl_ssi_shutdown(struct snd_pcm_substream *substream,
 		write_ssi_mask(&ssi->sier, SIER_FLAGS, 0);
 	}
 
-	if (ssi_private->ssi_on_imx) {
+	if (ssi_private->ssi_on_imx)
 		clk_disable_unprepare(ssi_private->coreclk);
-
-		pm_runtime_put_sync(dai->dev);
-	}
 }
 
 static int fsl_ssi_dai_probe(struct snd_soc_dai *dai)
