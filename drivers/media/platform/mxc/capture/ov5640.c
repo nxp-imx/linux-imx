@@ -575,7 +575,7 @@ MODULE_DEVICE_TABLE(i2c, ov5640_id);
 static struct i2c_driver ov5640_i2c_driver = {
 	.driver = {
 		  .owner = THIS_MODULE,
-		  .name  = "ov5640",
+		  .name  = "ov564x",
 		  },
 	.probe  = ov5640_probe,
 	.remove = ov5640_remove,
@@ -1797,7 +1797,7 @@ static struct v4l2_int_slave ov5640_slave = {
 
 static struct v4l2_int_device ov5640_int_device = {
 	.module = THIS_MODULE,
-	.name = "ov5640",
+	.name = "ov564x",
 	.type = v4l2_int_type_slave,
 	.u = {
 		.slave = &ov5640_slave,
