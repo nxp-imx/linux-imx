@@ -419,7 +419,7 @@
 		interrupt-parent = <&gpio2>;
 		interrupts = <10 2>;
 		mode_str ="1280x720M@60";
-		bits-per-pixel = <32>;
+		bits-per-pixel = <16>;
 		resets = <&sii902x_reset>;
 		reg = <0x39>;
 	};
