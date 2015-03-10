@@ -322,6 +322,13 @@
 	};
 };
 
+&flexcan2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexcan2>;
+	xceiver-supply = <&reg_can2_3v3>;
+	status = "okay";
+};
+
 &i2c1 {
 	clock-frequency = <100000>;
 	pinctrl-names = "default";
@@ -848,6 +855,13 @@
                         >;
                 };
 
+		pinctrl_flexcan2: flexcan2grp {
+			fsl,pins = <
+				MX7D_PAD_GPIO1_IO14__FLEXCAN2_RX	0x59
+				MX7D_PAD_GPIO1_IO15__FLEXCAN2_TX	0x59
+			>;
+		};
+
 		pinctrl_gpmi_nand_1: gpmi-nand-1 {
 			fsl,pins = <
 				MX7D_PAD_SD3_CLK__NAND_CLE			0x71
@@ -866,7 +880,6 @@
 				MX7D_PAD_SD3_DATA5__NAND_DATA05		0x71
 				MX7D_PAD_SD3_DATA6__NAND_DATA06		0x71
 				MX7D_PAD_SD3_DATA7__NAND_DATA07		0x71
-
 			>;
 		};
 
