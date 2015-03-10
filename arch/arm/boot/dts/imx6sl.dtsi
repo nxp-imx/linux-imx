@@ -1040,5 +1040,10 @@
 				power-domains = <&gpc 1>;
 			};
 		};
+
+		imx_ion {
+			compatible = "fsl,mxc-ion";
+			fsl,heap-id = <0>;
+		};
 	};
 };
