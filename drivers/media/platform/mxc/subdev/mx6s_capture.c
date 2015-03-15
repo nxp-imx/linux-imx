@@ -816,6 +816,8 @@ static int mx6s_start_streaming(struct vb2_queue *vq, unsigned int count)
 
 	spin_unlock_irqrestore(&csi_dev->slock, flags);
 
+	mx6s_csi_enable(csi_dev);
+
 	return 0;
 }
 
@@ -825,6 +827,8 @@ static int mx6s_stop_streaming(struct vb2_queue *vq)
 	unsigned long flags;
 	struct mx6s_buffer *buf, *tmp;
 	void *b;
+
+	mx6s_csi_disable(csi_dev);
 
 	spin_lock_irqsave(&csi_dev->slock, flags);
 
@@ -1378,8 +1382,6 @@ static int mx6s_vidioc_streamon(struct file *file, void *priv,
 
 	ret = vb2_streamon(&csi_dev->vb2_vidq, i);
 
-	mx6s_csi_enable(csi_dev);
-
 	if (!ret)
 		v4l2_subdev_call(sd, video, s_stream, 1);
 
@@ -1404,8 +1406,6 @@ static int mx6s_vidioc_streamoff(struct file *file, void *priv,
 	vb2_streamoff(&csi_dev->vb2_vidq, i);
 
 	v4l2_subdev_call(sd, video, s_stream, 0);
-
-	mx6s_csi_disable(csi_dev);
 
 	return 0;
 }
