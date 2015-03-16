@@ -76,11 +76,12 @@
 			linux,code = <KEY_BACK>;
 		};
 
-		program {
-			label = "Program";
-			gpios = <&gpio2 12 GPIO_ACTIVE_LOW>;
+		/* Reconfig to power key in Android*/
+		power {
+			label = "Power Button";
+			gpios = <&gpio2 12 1>;
+			linux,code = <116>; /* KEY_POWER */
 			gpio-key,wakeup;
-			linux,code = <KEY_PROGRAM>;
 		};
 
 		volume-up {
