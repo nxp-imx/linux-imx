@@ -678,7 +678,9 @@ static int dw_pcie_rd_other_conf(struct pcie_port *pp, struct pci_bus *bus,
 		dw_pcie_prog_viewport_cfg0(pp, busdev);
 		ret = dw_pcie_cfg_read(pp->va_cfg0_base + address, where, size,
 				val);
-		dw_pcie_prog_viewport_mem_outbound(pp);
+		if (!IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)
+			&& !IS_ENABLED(CONFIG_RC_MODE_IN_EP_RC_SYS))
+			dw_pcie_prog_viewport_mem_outbound(pp);
 	} else {
 		dw_pcie_prog_viewport_cfg1(pp, busdev);
 		ret = dw_pcie_cfg_read(pp->va_cfg1_base + address, where, size,
@@ -703,7 +705,9 @@ static int dw_pcie_wr_other_conf(struct pcie_port *pp, struct pci_bus *bus,
 		dw_pcie_prog_viewport_cfg0(pp, busdev);
 		ret = dw_pcie_cfg_write(pp->va_cfg0_base + address, where, size,
 				val);
-		dw_pcie_prog_viewport_mem_outbound(pp);
+		if (!IS_ENABLED(CONFIG_EP_MODE_IN_EP_RC_SYS)
+			&& !IS_ENABLED(CONFIG_RC_MODE_IN_EP_RC_SYS))
+			dw_pcie_prog_viewport_mem_outbound(pp);
 	} else {
 		dw_pcie_prog_viewport_cfg1(pp, busdev);
 		ret = dw_pcie_cfg_write(pp->va_cfg1_base + address, where, size,
