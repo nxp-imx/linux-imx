@@ -786,7 +786,7 @@ void __init imx6_busfreq_map_io(void)
 static void bus_freq_daemon_handler(struct work_struct *work)
 {
 	mutex_lock(&bus_freq_mutex);
-	if ((!low_bus_freq_mode) && (high_bus_count == 0) &&
+	if ((!low_bus_freq_mode) && (!ultra_low_bus_freq_mode) && (high_bus_count == 0) &&
 		(med_bus_count == 0) && (audio_bus_count == 0))
 		set_low_bus_freq();
 	mutex_unlock(&bus_freq_mutex);
