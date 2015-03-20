@@ -888,14 +888,15 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_kpp>;
 	linux,keymap = <
-			MATRIX_KEY(0x0, 0x0, KEY_UP)         /* ROW0, COL0 */
-			MATRIX_KEY(0x0, 0x1, KEY_DOWN)       /* ROW0, COL1 */
-			MATRIX_KEY(0x0, 0x2, KEY_ENTER)      /* ROW0, COL2 */
-			MATRIX_KEY(0x1, 0x0, KEY_HOME)       /* ROW1, COL0 */
-			MATRIX_KEY(0x1, 0x1, KEY_RIGHT)      /* ROW1, COL1 */
-			MATRIX_KEY(0x1, 0x2, KEY_LEFT)       /* ROW1, COL2 */
-			MATRIX_KEY(0x2, 0x0, KEY_VOLUMEDOWN) /* ROW2, COL0 */
-			MATRIX_KEY(0x2, 0x1, KEY_VOLUMEUP)   /* ROW2, COL1 */
+			MATRIX_KEY(0x1, 0x1, KEY_UP)
+			MATRIX_KEY(0x2, 0x1, KEY_DOWN)
+			MATRIX_KEY(0x2, 0x0, KEY_BACK)
+			MATRIX_KEY(0x1, 0x2, KEY_POWER)
+			MATRIX_KEY(0x0, 0x2, KEY_RIGHT)
+			MATRIX_KEY(0x1, 0x0, KEY_LEFT)
+			MATRIX_KEY(0x0, 0x1, KEY_VOLUMEDOWN)
+			MATRIX_KEY(0x0, 0x0, KEY_VOLUMEUP)
+
 	>;
 	status = "okay";
 };
