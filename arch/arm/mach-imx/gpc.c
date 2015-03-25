@@ -75,6 +75,9 @@ static u32 gpc_mf_request_on[IMR_NUM];
 static u32 bypass;
 static DEFINE_SPINLOCK(gpc_lock);
 static struct notifier_block nb_pcie;
+static struct pu_domain imx6q_pu_domain;
+static bool pu_on;	/* keep always on i.mx6qp */
+static void imx6q_pu_pgc_power_off(struct pu_domain *pu, bool off);
 
 void imx_gpc_add_m4_wake_up_irq(u32 irq, bool enable)
 {
@@ -160,6 +163,9 @@ void imx_gpc_pre_suspend(bool arm_power_off)
 	void __iomem *reg_imr1 = gpc_base + GPC_IMR1;
 	int i;
 
+	if (cpu_is_imx6q() && imx_get_soc_revision() == IMX_CHIP_REVISION_2_0)
+		imx6q_pu_pgc_power_off(&imx6q_pu_domain, true);
+
 	/* Tell GPC to power off ARM core when suspend */
 	if (cpu_is_imx6sx() && arm_power_off)
 		imx_gpc_mf_mix_off();
@@ -177,6 +183,9 @@ void imx_gpc_post_resume(void)
 {
 	void __iomem *reg_imr1 = gpc_base + GPC_IMR1;
 	int i;
+
+	if (cpu_is_imx6q() && imx_get_soc_revision() == IMX_CHIP_REVISION_2_0)
+		imx6q_pu_pgc_power_off(&imx6q_pu_domain, false);
 
 	/* Keep ARM core powered on for other low-power modes */
 	writel_relaxed(0x0, gpc_base + GPC_PGC_CPU_PDN);
@@ -333,28 +342,66 @@ void __init imx_gpc_init(void)
 }
 
 #ifdef CONFIG_PM
+static void imx6q_pu_pgc_power_off(struct pu_domain *pu, bool off)
+{
+	if (off) {
+		int iso, iso2sw;
+		u32 val;
+
+		/* Read ISO and ISO2SW power down delays */
+		val = readl_relaxed(gpc_base + GPC_PGC_GPU_PDNSCR);
+		iso = val & 0x3f;
+		iso2sw = (val >> 8) & 0x3f;
+
+		/* Gate off PU domain when GPU/VPU when powered down */
+		writel_relaxed(0x1, gpc_base + GPC_PGC_GPU_PDN);
+
+		/* Request GPC to power down GPU/VPU */
+		val = readl_relaxed(gpc_base + GPC_CNTR);
+		val |= GPU_VPU_PDN_REQ;
+		writel_relaxed(val, gpc_base + GPC_CNTR);
+
+		/* Wait ISO + ISO2SW IPG clock cycles */
+		ndelay((iso + iso2sw) * 1000 / 66);
+	} else {
+		int i, sw, sw2iso;
+		u32 val;
+
+		/* Enable reset clocks for all devices in the PU domain */
+		for (i = 0; i < pu->num_clks; i++)
+			clk_prepare_enable(pu->clk[i]);
+
+		/* Gate off PU domain when GPU/VPU when powered down */
+		writel_relaxed(0x1, gpc_base + GPC_PGC_GPU_PDN);
+
+		/* Read ISO and ISO2SW power down delays */
+		val = readl_relaxed(gpc_base + GPC_PGC_GPU_PUPSCR);
+		sw = val & 0x3f;
+		sw2iso = (val >> 8) & 0x3f;
+
+		/* Request GPC to power up GPU/VPU */
+		val = readl_relaxed(gpc_base + GPC_CNTR);
+		val |= GPU_VPU_PUP_REQ;
+		writel_relaxed(val, gpc_base + GPC_CNTR);
+
+		/* Wait ISO + ISO2SW IPG clock cycles */
+		ndelay((sw + sw2iso) * 1000 / 66);
+
+		/* Disable reset clocks for all devices in the PU domain */
+		for (i = 0; i < pu->num_clks; i++)
+			clk_disable_unprepare(pu->clk[i]);
+	}
+}
 
 static int imx6q_pm_pu_power_off(struct generic_pm_domain *genpd)
 {
 	struct pu_domain *pu = container_of(genpd, struct pu_domain, base);
-	int iso, iso2sw;
-	u32 val;
 
-	/* Read ISO and ISO2SW power down delays */
-	val = readl_relaxed(gpc_base + GPC_PGC_GPU_PDNSCR);
-	iso = val & 0x3f;
-	iso2sw = (val >> 8) & 0x3f;
+	if (&imx6q_pu_domain == pu && pu_on && cpu_is_imx6q()
+	    && imx_get_soc_revision() == IMX_CHIP_REVISION_2_0)
+		return 0;
 
-	/* Gate off PU domain when GPU/VPU when powered down */
-	writel_relaxed(0x1, gpc_base + GPC_PGC_GPU_PDN);
-
-	/* Request GPC to power down GPU/VPU */
-	val = readl_relaxed(gpc_base + GPC_CNTR);
-	val |= GPU_VPU_PDN_REQ;
-	writel_relaxed(val, gpc_base + GPC_CNTR);
-
-	/* Wait ISO + ISO2SW IPG clock cycles */
-	ndelay((iso + iso2sw) * 1000 / 66);
+	imx6q_pu_pgc_power_off(pu, true);
 
 	if (pu->reg)
 		regulator_disable(pu->reg);
@@ -365,8 +412,15 @@ static int imx6q_pm_pu_power_off(struct generic_pm_domain *genpd)
 static int imx6q_pm_pu_power_on(struct generic_pm_domain *genpd)
 {
 	struct pu_domain *pu = container_of(genpd, struct pu_domain, base);
-	int i, ret, sw, sw2iso;
-	u32 val;
+	int ret;
+
+	if (cpu_is_imx6q() && imx_get_soc_revision() == IMX_CHIP_REVISION_2_0
+		&& &imx6q_pu_domain == pu) {
+		if (!pu_on)
+			pu_on = true;
+		else
+			return 0;
+	}
 
 	if (pu->reg) {
 		ret = regulator_enable(pu->reg);
@@ -375,29 +429,8 @@ static int imx6q_pm_pu_power_on(struct generic_pm_domain *genpd)
 			return ret;
 		}
 	}
-	/* Enable reset clocks for all devices in the PU domain */
-	for (i = 0; i < pu->num_clks; i++)
-		clk_prepare_enable(pu->clk[i]);
 
-	/* Gate off PU domain when GPU/VPU when powered down */
-	writel_relaxed(0x1, gpc_base + GPC_PGC_GPU_PDN);
-
-	/* Read ISO and ISO2SW power down delays */
-	val = readl_relaxed(gpc_base + GPC_PGC_GPU_PUPSCR);
-	sw = val & 0x3f;
-	sw2iso = (val >> 8) & 0x3f;
-
-	/* Request GPC to power up GPU/VPU */
-	val = readl_relaxed(gpc_base + GPC_CNTR);
-	val |= GPU_VPU_PUP_REQ;
-	writel_relaxed(val, gpc_base + GPC_CNTR);
-
-	/* Wait ISO + ISO2SW IPG clock cycles */
-	ndelay((sw + sw2iso) * 1000 / 66);
-
-	/* Disable reset clocks for all devices in the PU domain */
-	for (i = 0; i < pu->num_clks; i++)
-		clk_disable_unprepare(pu->clk[i]);
+	imx6q_pu_pgc_power_off(pu, false);
 
 	return 0;
 }

@@ -32,6 +32,8 @@
 #define BM_ANADIG_REG_2P5_ENABLE_WEAK_LINREG	0x40000
 #define BM_ANADIG_REG_2P5_ENABLE_PULLDOWN	0x8
 #define BM_ANADIG_REG_CORE_FET_ODRIVE		0x20000000
+#define BM_ANADIG_REG_CORE_REG1			(0x1f << 9)
+#define BM_ANADIG_REG_CORE_REG2			(0x1f << 18)
 #define BM_ANADIG_ANA_MISC0_STOP_MODE_CONFIG	0x1000
 /* Below MISC0_DISCON_HIGH_SNVS is only for i.MX6SL */
 #define BM_ANADIG_ANA_MISC0_DISCON_HIGH_SNVS	0x2000
@@ -71,8 +73,28 @@ static inline void imx_anatop_disconnect_high_snvs(bool enable)
 		BM_ANADIG_ANA_MISC0_DISCON_HIGH_SNVS);
 }
 
+static void imx_anatop_disable_pu(bool off)
+{
+	u32  val, soc;
+	if (off) {
+		regmap_read(anatop, ANADIG_REG_CORE, &val);
+		val &= ~BM_ANADIG_REG_CORE_REG1;
+		regmap_write(anatop, ANADIG_REG_CORE, val);
+	} else {
+		/* track vddpu with vddsoc */
+		regmap_read(anatop, ANADIG_REG_CORE, &val);
+		soc = val & BM_ANADIG_REG_CORE_REG2;
+		val &= ~BM_ANADIG_REG_CORE_REG1;
+		val |= soc >> 9;
+		regmap_write(anatop, ANADIG_REG_CORE, val);
+	}
+}
+
 void imx_anatop_pre_suspend(void)
 {
+	if (cpu_is_imx6q() && imx_get_soc_revision() == IMX_CHIP_REVISION_2_0)
+		imx_anatop_disable_pu(true);
+
 	if (imx_mmdc_get_ddr_type() == IMX_DDR_TYPE_LPDDR2)
 		imx_anatop_enable_2p5_pulldown(true);
 	else
@@ -86,6 +108,9 @@ void imx_anatop_pre_suspend(void)
 
 void imx_anatop_post_resume(void)
 {
+	if (cpu_is_imx6q() && imx_get_soc_revision() == IMX_CHIP_REVISION_2_0)
+		imx_anatop_disable_pu(false);
+
 	if (imx_mmdc_get_ddr_type() == IMX_DDR_TYPE_LPDDR2)
 		imx_anatop_enable_2p5_pulldown(false);
 	else
