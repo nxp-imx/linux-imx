@@ -350,6 +350,13 @@
 		compatible = "fsl,mxc_v4l2_output";
 		status = "okay";
 	};
+
+
+	bt_rfkill {
+		compatible = "fsl,mxc_bt_rfkill";
+		bt-power-gpios = <&gpio1 2 0>;
+		status ="okay";
+	};
 };
 
 &ipu1_csi0_from_ipu1_csi0_mux {
@@ -715,6 +722,7 @@
 				MX6QDL_PAD_NANDF_CS1__GPIO6_IO14 0x80000000
 				MX6QDL_PAD_NANDF_CS2__GPIO6_IO15 0x80000000
 				MX6QDL_PAD_NANDF_CS3__GPIO6_IO16 0x80000000
+				MX6QDL_PAD_GPIO_2__GPIO1_IO02 0x1b0b0
 			>;
 		};
 
@@ -1122,6 +1130,12 @@
 &uart1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart1>;
+	status = "okay";
+};
+&uart5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart5_1>;
+	fsl,uart-has-rtscts;
 	status = "okay";
 };
 
