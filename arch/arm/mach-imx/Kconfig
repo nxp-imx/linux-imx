@@ -657,6 +657,13 @@ endchoice
 
 endif
 
+config MACH_IMX_BLUETOOTH_RFKILL
+    tristate "i.MX Bluetooth rfkill interface support"
+    depends on RFKILL
+
+  help
+     Say Y to get the standard rfkill interface of Bluetooth
+
 source "arch/arm/mach-imx/devices/Kconfig"
 
 endif
