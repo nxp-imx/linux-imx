@@ -1234,6 +1234,17 @@ config ARM_ERRATA_761320
 	  worked around by setting bit[21] of the undocumented
 	  Diagnostic Control Register to 1.
 
+config ARM_ERRATA_845369
+	bool "Under very rare timing circumstances, transitioning into streaming mode might create a data corruption"
+	depends on CPU_V7 && SMP
+	help
+	  This option enables the workaround for the 845369 Cortex-A9 (all rev)
+	  erratum. Under very rare timing circumstances, a data corruption might
+	  occur on a dirty cache line that is evicted from the L1 Data Cache due
+	  to another cache line being fully written. This erratum can be
+          worked around by setting bit[22] of the undocumented
+          Diagnostic Control Register to 1.
+
 config ARM_ERRATA_753970
 	bool "ARM errata: cache sync operation may be faulty"
 	depends on CACHE_PL310

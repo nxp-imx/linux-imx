@@ -22,6 +22,7 @@ config ARCH_MX6Q
 	select ARM_ERRATA_764369 if SMP
 	select ARM_ERRATA_794072 if SMP
 	select ARM_ERRATA_761320 if SMP
+	select ARM_ERRATA_845369 if SMP
 
 config FORCE_MAX_ZONEORDER
     int "MAX_ORDER"
