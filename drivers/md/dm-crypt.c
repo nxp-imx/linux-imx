@@ -932,6 +932,7 @@ static int crypt_convert(struct crypt_config *cc,
 		r = crypt_convert_block(cc, ctx, ctx->req);
 
 		switch (r) {
+		case -EINPROGRESS:
 		/*
 		 * The request was queued by a crypto driver
 		 * but the driver request queue is full, let's wait.
@@ -944,7 +945,6 @@ static int crypt_convert(struct crypt_config *cc,
 		 * The request is queued and processed asynchronously,
 		 * completion function kcryptd_async_done() will be called.
 		 */
-		case -EINPROGRESS:
 			ctx->req = NULL;
 			ctx->cc_sector++;
 			continue;
@@ -1368,10 +1368,8 @@ static void kcryptd_async_done(struct crypto_async_request *async_req,
 	 * finish the completion and continue in crypt_convert().
 	 * (Callback will be called for the second time for this request.)
 	 */
-	if (error == -EINPROGRESS) {
-		complete(&ctx->restart);
+	if (error == -EINPROGRESS)
 		return;
-	}
 
 	if (!error && cc->iv_gen_ops && cc->iv_gen_ops->post)
 		error = cc->iv_gen_ops->post(cc, iv_of_dmreq(cc, dmreq), dmreq);
@@ -1382,12 +1380,15 @@ static void kcryptd_async_done(struct crypto_async_request *async_req,
 	crypt_free_req(cc, req_of_dmreq(cc, dmreq), io->base_bio);
 
 	if (!atomic_dec_and_test(&ctx->cc_pending))
-		return;
+		goto done;
 
 	if (bio_data_dir(io->base_bio) == READ)
 		kcryptd_crypt_read_done(io);
 	else
 		kcryptd_crypt_write_io_submit(io, 1);
+done:
+	if (!completion_done(&ctx->restart))
+		complete(&ctx->restart);
 }
 
 static void kcryptd_crypt(struct work_struct *work)
