@@ -53,6 +53,8 @@
 #define GPU_VPU_PDN_REQ		BIT(0)
 
 #define GPC_CLK_MAX		10
+#define DEFAULT_IPG_RATE		66000000
+#define GPC_PU_UP_DELAY_MARGIN		2
 
 struct pu_domain {
 	struct generic_pm_domain base;
@@ -78,6 +80,7 @@ static struct notifier_block nb_pcie;
 static struct pu_domain imx6q_pu_domain;
 static bool pu_on;	/* keep always on i.mx6qp */
 static void imx6q_pu_pgc_power_off(struct pu_domain *pu, bool off);
+static struct clk *ipg;
 
 void imx_gpc_add_m4_wake_up_irq(u32 irq, bool enable)
 {
@@ -353,6 +356,9 @@ static void imx6q_pu_pgc_power_off(struct pu_domain *pu, bool off)
 		iso = val & 0x3f;
 		iso2sw = (val >> 8) & 0x3f;
 
+		/* Wait ISO + ISO2SW IPG clock cycles */
+		ndelay((iso + iso2sw) * 1000 / 66);
+
 		/* Gate off PU domain when GPU/VPU when powered down */
 		writel_relaxed(0x1, gpc_base + GPC_PGC_GPU_PDN);
 
@@ -361,11 +367,11 @@ static void imx6q_pu_pgc_power_off(struct pu_domain *pu, bool off)
 		val |= GPU_VPU_PDN_REQ;
 		writel_relaxed(val, gpc_base + GPC_CNTR);
 
-		/* Wait ISO + ISO2SW IPG clock cycles */
-		ndelay((iso + iso2sw) * 1000 / 66);
+		while (readl_relaxed(gpc_base + GPC_CNTR) & GPU_VPU_PDN_REQ)
+			;
 	} else {
 		int i, sw, sw2iso;
-		u32 val;
+		u32 val, ipg_rate = clk_get_rate(ipg);
 
 		/* Enable reset clocks for all devices in the PU domain */
 		for (i = 0; i < pu->num_clks; i++)
@@ -379,13 +385,20 @@ static void imx6q_pu_pgc_power_off(struct pu_domain *pu, bool off)
 		sw = val & 0x3f;
 		sw2iso = (val >> 8) & 0x3f;
 
+		/* Wait ISO + ISO2SW IPG clock cycles */
+		ndelay((sw + sw2iso) * 1000 / 66);
+
 		/* Request GPC to power up GPU/VPU */
 		val = readl_relaxed(gpc_base + GPC_CNTR);
 		val |= GPU_VPU_PUP_REQ;
 		writel_relaxed(val, gpc_base + GPC_CNTR);
 
-		/* Wait ISO + ISO2SW IPG clock cycles */
-		ndelay((sw + sw2iso) * 1000 / 66);
+		while (readl_relaxed(gpc_base + GPC_CNTR) & GPU_VPU_PUP_REQ)
+			;
+
+		/* Wait power switch done */
+		udelay(2 * DEFAULT_IPG_RATE / ipg_rate +
+			GPC_PU_UP_DELAY_MARGIN);
 
 		/* Disable reset clocks for all devices in the PU domain */
 		for (i = 0; i < pu->num_clks; i++)
@@ -440,6 +453,7 @@ static int imx_pm_dispmix_on(struct generic_pm_domain *genpd)
 	struct disp_domain *disp = container_of(genpd, struct disp_domain, base);
 	u32 val = readl_relaxed(gpc_base + GPC_CNTR);
 	int i;
+	u32 ipg_rate = clk_get_rate(ipg);
 
 	if ((cpu_is_imx6sl() &&
 		imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) || cpu_is_imx6sx()) {
@@ -454,6 +468,10 @@ static int imx_pm_dispmix_on(struct generic_pm_domain *genpd)
 			;
 
 		writel_relaxed(0x1, gpc_base + GPC_PGC_DISP_SR_OFFSET);
+
+		/* Wait power switch done */
+		udelay(2 * DEFAULT_IPG_RATE / ipg_rate +
+			GPC_PU_UP_DELAY_MARGIN);
 
 		/* Disable reset clocks for all devices in the disp domain */
 		for (i = 0; i < disp->num_clks; i++)
@@ -528,7 +546,7 @@ static int imx_gpc_genpd_init(struct device *dev, struct regulator *pu_reg)
 {
 	struct clk *clk;
 	bool is_off;
-	int pu_clks, disp_clks;
+	int pu_clks, disp_clks, ipg_clks = 1;
 	int i = 0, k = 0;
 
 	imx6q_pu_domain.base.of_node = dev->of_node;
@@ -539,12 +557,12 @@ static int imx_gpc_genpd_init(struct device *dev, struct regulator *pu_reg)
 	if ((cpu_is_imx6sl() &&
 			imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2)) {
 		pu_clks = 2 ;
-		disp_clks = 6;
+		disp_clks = 5;
 	} else if (cpu_is_imx6sx()) {
 		pu_clks = 1;
-		disp_clks = 8;
+		disp_clks = 7;
 	} else {
-		pu_clks = GPC_CLK_MAX;
+		pu_clks = 6;
 		disp_clks = 0;
 	}
 
@@ -557,8 +575,11 @@ static int imx_gpc_genpd_init(struct device *dev, struct regulator *pu_reg)
 	}
 	imx6q_pu_domain.num_clks = i;
 
+	ipg = of_clk_get(dev->of_node, pu_clks);
+
 	/* Get disp domain clks */
-	for (k = 0, i = pu_clks; i < pu_clks + disp_clks ; i++, k++) {
+	for (k = 0, i = pu_clks + ipg_clks; i < pu_clks + ipg_clks + disp_clks;
+		i++, k++) {
 		clk = of_clk_get(dev->of_node, i);
 		if (IS_ERR(clk))
 			break;
