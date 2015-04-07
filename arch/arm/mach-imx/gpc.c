@@ -62,6 +62,8 @@
 #define GPC_M4_LPSR_M4_SLEEP_HOLD_ACK_SHIFT	1
 
 #define IMR_NUM			4
+#define DEFAULT_IPG_RATE		66000000
+#define GPC_PU_UP_DELAY_MARGIN		2
 
 static DEFINE_SPINLOCK(gpc_lock);
 static void __iomem *gpc_base;
@@ -133,7 +135,11 @@ static void imx_disp_clk(bool enable)
 
 static void imx_gpc_dispmix_on(void)
 {
+	u32 rate, delay_us;
 	u32 val = readl_relaxed(gpc_base + GPC_CNTR);
+
+	/* get ipg clk rate for PGC delay */
+	rate = clk_get_rate(ipg_clk);
 
 	if ((cpu_is_imx6sl() &&
 		imx_get_soc_revision() >= IMX_CHIP_REVISION_1_2) || cpu_is_imx6sx()) {
@@ -144,6 +150,8 @@ static void imx_gpc_dispmix_on(void)
 		while (readl_relaxed(gpc_base + GPC_CNTR) & 0x20)
 			;
 		writel_relaxed(0x1, gpc_base + GPC_PGC_DISP_SR_OFFSET);
+		delay_us = 2 * DEFAULT_IPG_RATE / rate + GPC_PU_UP_DELAY_MARGIN;
+		udelay(delay_us);
 
 		imx_disp_clk(false);
 	}
@@ -435,6 +443,8 @@ static void imx_gpc_pu_enable(bool enable)
 		while (readl_relaxed(gpc_base + GPC_CNTR) &
 			(1 << GPC_CNTR_PU_UP_REQ_SHIFT))
 			;
+		delay_us = 2 * DEFAULT_IPG_RATE / rate + GPC_PU_UP_DELAY_MARGIN;
+		udelay(delay_us);
 		imx_pu_clk(false);
 	} else {
 		writel_relaxed(1, gpc_base + GPC_PGC_GPU_PDN);
