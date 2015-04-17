@@ -24,9 +24,11 @@
 #include "gc_hal_kernel_device.h"
 #include "gc_hal_driver.h"
 #include <linux/slab.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
 #include <linux/of_address.h>
+#endif
 
 #if USE_PLATFORM_DRIVER
 #   include <linux/platform_device.h>
@@ -447,6 +449,7 @@ _SetClock(
     IN gctBOOL Enable
     );
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 static void imx6sx_optimize_qosc_for_GPU(IN gckPLATFORM Platform)
 {
 	struct device_node *np;
@@ -467,6 +470,7 @@ static void imx6sx_optimize_qosc_for_GPU(IN gckPLATFORM Platform)
     	_SetClock(Platform, gcvCORE_MAJOR, gcvFALSE); 
 	return;
 }
+#endif
 
 gceSTATUS
 _GetPower(
@@ -570,7 +574,9 @@ _GetPower(
     }
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
     imx6sx_optimize_qosc_for_GPU(Platform);
+#endif
     return gcvSTATUS_OK;
 }
 
