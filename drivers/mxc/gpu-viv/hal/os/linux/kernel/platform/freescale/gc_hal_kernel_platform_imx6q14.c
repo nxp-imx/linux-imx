@@ -24,6 +24,9 @@
 #include "gc_hal_kernel_device.h"
 #include "gc_hal_driver.h"
 #include <linux/slab.h>
+#include <linux/of_platform.h>
+#include <linux/of_gpio.h>
+#include <linux/of_address.h>
 
 #if USE_PLATFORM_DRIVER
 #   include <linux/platform_device.h>
@@ -438,6 +441,34 @@ _FreePriv(
 }
 
 gceSTATUS
+_SetClock(
+    IN gckPLATFORM Platform,
+    IN gceCORE GPU,
+    IN gctBOOL Enable
+    );
+
+static void imx6sx_optimize_qosc_for_GPU(IN gckPLATFORM Platform)
+{
+	struct device_node *np;
+	void __iomem *src_base;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx6sx-qosc");
+	if (!np)
+		return;
+
+	src_base = of_iomap(np, 0);
+	WARN_ON(!src_base);
+    	_SetClock(Platform, gcvCORE_MAJOR, gcvTRUE); 
+	writel_relaxed(0, src_base); /* Disable clkgate & soft_rst */
+	writel_relaxed(0, src_base+0x60); /* Enable all masters */
+	writel_relaxed(0, src_base+0x1400); /* Disable clkgate & soft_rst for gpu */
+	writel_relaxed(0x0f000222, src_base+0x1400+0xd0); /* Set Write QoS 2 for gpu */
+	writel_relaxed(0x0f000822, src_base+0x1400+0xe0); /* Set Read QoS 8 for gpu */
+    	_SetClock(Platform, gcvCORE_MAJOR, gcvFALSE); 
+	return;
+}
+
+gceSTATUS
 _GetPower(
     IN gckPLATFORM Platform
     )
@@ -539,6 +570,7 @@ _GetPower(
     }
 #endif
 
+    imx6sx_optimize_qosc_for_GPU(Platform);
     return gcvSTATUS_OK;
 }
 
