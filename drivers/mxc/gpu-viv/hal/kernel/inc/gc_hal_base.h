@@ -194,8 +194,10 @@ typedef enum _gcePATCH_ID
     gcvPATCH_TITANPACKING,
     gcvPATCH_BASEMARKOSIICN,
     gcvPATCH_FRUITNINJA,
+    gcvPATCH_ANDROID_WEBGL,
 #if defined(ANDROID)
     gcePATCH_ANDROID_CTS_MEDIA_PRESENTATIONTIME,
+    gcePATCH_ANDROID_CTS_GRAPHICS_GLVERSION,
 #endif
     gcvPATCH_ANDROID_COMPOSITOR,
     gcvPATCH_CTS_TEXTUREVIEW,
@@ -203,6 +205,10 @@ typedef enum _gcePATCH_ID
 
     gcvPATCH_COUNT
 } gcePATCH_ID;
+#endif /* gcdENABLE_3D */
+
+#if gcdENABLE_3D
+#define gcdPROC_IS_WEBGL(patchId) ((patchId) == gcvPATCH_CHROME || (patchId) == gcvPATCH_FIREFOX || (patchId) == gcvPATCH_ANDROID_WEBGL)
 #endif /* gcdENABLE_3D */
 
 typedef void (* gctPLS_DESTRUCTOR) (
