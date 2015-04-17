@@ -269,6 +269,8 @@ typedef enum _gceFEATURE
     gcvFEATURE_FE_START_VERTEX_SUPPORT,
     gcvFEATURE_RS_DEPTHSTENCIL_NATIVE_SUPPORT,
 
+    gcvFEATURE_ZERO_ATTRIB_SUPPORT,
+
     /* Insert features above this comment only. */
     gcvFEATURE_COUNT                /* Not a feature. */
 }
