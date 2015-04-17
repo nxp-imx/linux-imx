@@ -904,7 +904,7 @@ static int drv_init(void)
     }
 
     /* Create the device class. */
-    device_class = class_create(THIS_MODULE, "graphics_class");
+    device_class = class_create(THIS_MODULE, CLASS_NAME);
 
     if (IS_ERR(device_class))
     {

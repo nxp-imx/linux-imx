@@ -1,6 +1,6 @@
 /****************************************************************************
 *
-*    Copyright (C) 2005 - 2014 by Vivante Corp.
+*    Copyright (C) 2005 - 2015 by Vivante Corp.
 *
 *    This program is free software; you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -78,6 +78,10 @@
 #else
 #   define DEVICE_NAME              "galcore"
 #endif
+#endif
+
+#ifndef CLASS_NAME
+#   define CLASS_NAME               "graphics_class"
 #endif
 
 #define GetPageCount(size, offset)     ((((size) + ((offset) & ~PAGE_CACHE_MASK)) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT)
