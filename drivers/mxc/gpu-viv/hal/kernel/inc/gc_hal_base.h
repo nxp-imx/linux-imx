@@ -71,6 +71,27 @@ typedef struct _gcoFENCE *              gcoFENCE;
 typedef struct _gcsSYNC_CONTEXT *       gcsSYNC_CONTEXT_PTR;
 #endif
 
+/******************************************************************************\
+********************* Share obj lock/unlock macros. ****************************
+\******************************************************************************/
+#define gcmLOCK_SHARE_OBJ(Obj) \
+{ \
+    if(Obj->sharedLock != gcvNULL)\
+    {\
+        (gcoOS_AcquireMutex( \
+                     gcvNULL, Obj->sharedLock, gcvINFINITE));\
+    }\
+}
+
+
+#define gcmUNLOCK_SHARE_OBJ(Obj)\
+{\
+    if(Obj->sharedLock != gcvNULL)\
+    {\
+        (gcoOS_ReleaseMutex(gcvNULL, Obj->sharedLock));\
+    }\
+}
+
 #if defined(ANDROID)
 typedef struct _gcoOS_SymbolsList gcoOS_SymbolsList;
 #endif

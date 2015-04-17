@@ -446,6 +446,12 @@ gcoSURF_IsFormatRenderableAsRT(
     );
 
 gceSTATUS
+gcoSURF_SetSharedLock(
+    IN gcoSURF Surface,
+    IN gctPOINTER sharedLock
+    );
+
+gceSTATUS
 gcoSURF_GetFence(
     IN gcoSURF Surface
     );
@@ -517,6 +523,11 @@ gcoSURF_3DBlitCopy(
 /******************************************************************************\
 ******************************** gcoINDEX Object *******************************
 \******************************************************************************/
+gceSTATUS
+gcoINDEX_SetSharedLock(
+    IN gcoINDEX Index,
+    IN gctPOINTER sharedLock
+    );
 
 /* Construct a new gcoINDEX object. */
 gceSTATUS
@@ -2003,6 +2014,12 @@ typedef enum _gceATTRIB_SCHEME
     gcvATTRIB_SCHEME_UBYTE_TO_UINT,
     gcvATTRIB_SCHEME_USHORT_TO_UINT,
 } gceATTRIB_SCHEME;
+
+gceSTATUS
+gcoSTREAM_SetSharedLock(
+    IN gcoSTREAM Stream,
+    IN gctPOINTER sharedLock
+    );
 
 gceSTATUS
 gcoSTREAM_Construct(
