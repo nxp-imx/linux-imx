@@ -60,6 +60,12 @@ typedef struct _DFBPixmap *  HALNativePixmapType;
 /* Wayland platform. */
 #include <wayland-egl.h>
 
+#if defined (WAYLAND_VERSION_MAJOR) &&		\
+	WAYLAND_VERSION_MAJOR == 1 &&		\
+	WAYLAND_VERSION_MINOR < 6
+#define WAYLAND_LEGACY_SUPPORT
+#endif
+
 #define WL_EGL_NUM_BACKBUFFERS 2
 
 typedef struct _gcsWL_VIV_BUFFER
@@ -99,6 +105,7 @@ typedef struct _gcsWL_EGL_BUFFER
 {
    struct wl_buffer* wl_buffer;
    gcsWL_EGL_BUFFER_INFO info;
+   struct wl_callback* frame_callback;
 } gcsWL_EGL_BUFFER;
 
 typedef struct _gcsWL_EGL_WINDOW_INFO
@@ -120,7 +127,6 @@ struct wl_egl_window
    gcsWL_EGL_WINDOW_INFO info;
    gctUINT current;
    struct wl_surface* surface;
-   struct wl_callback* frame_callback;
 };
 
 typedef void*   HALNativeDisplayType;
