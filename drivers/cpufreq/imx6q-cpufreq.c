@@ -303,7 +303,9 @@ static int imx6q_cpufreq_probe(struct platform_device *pdev)
 	 * Just, incase the platform did not supply the OPP
 	 * table, it will try to get it.
 	 */
+	rcu_read_lock();
 	num = dev_pm_opp_get_opp_count(cpu_dev);
+	rcu_read_unlock();
 	if (num < 0) {
 		ret = of_init_opp_table(cpu_dev);
 		if (ret < 0) {
@@ -311,7 +313,9 @@ static int imx6q_cpufreq_probe(struct platform_device *pdev)
 			goto put_node;
 		}
 
+		rcu_read_lock();
 		num = dev_pm_opp_get_opp_count(cpu_dev);
+		rcu_read_unlock();
 		if (num < 0) {
 			ret = num;
 			dev_err(cpu_dev, "no OPP table is found: %d\n", ret);
@@ -406,13 +410,14 @@ soc_opp_out:
 	if (ret > 0)
 		transition_latency += ret * 1000;
 
+	mutex_init(&set_cpufreq_lock);
+
 	ret = cpufreq_register_driver(&imx6q_cpufreq_driver);
 	if (ret) {
 		dev_err(cpu_dev, "failed register driver: %d\n", ret);
 		goto free_freq_table;
 	}
 
-	mutex_init(&set_cpufreq_lock);
 	register_pm_notifier(&imx6_cpufreq_pm_notifier);
 
 	of_node_put(np);
