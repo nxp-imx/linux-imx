@@ -161,6 +161,11 @@
 					<&ocrams 0x00900000 0x4000>;
 			overw_clock = <&ocrams &clks IMX7D_OCRAM_CLK>;
 		};
+
+		imx_ion {
+			compatible = "fsl,mxc-ion";
+			fsl,heap-id = <0>;
+		};
 	};
 };
 
