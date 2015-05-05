@@ -217,6 +217,11 @@
 			fsl,max-link-speed = <2>;
 			status = "disabled";
 		};
+
+		imx_ion {
+			compatible = "fsl,mxc-ion";
+			fsl,heap-id = <0>;
+		};
 	};
 };
 
