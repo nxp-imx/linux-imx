@@ -72,6 +72,7 @@ typedef struct _gcsWL_EGL_DISPLAY
    struct wl_event_queue *wl_queue;
    struct wl_event_queue *wl_swap_queue;
    gctINT swapInterval;
+   gctINT file;
 } gcsWL_EGL_DISPLAY;
 
 typedef struct _gcsWL_EGL_BUFFER_INFO
