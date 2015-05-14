@@ -55,7 +55,7 @@ typedef struct _DFBPixmap *  HALNativePixmapType;
 #include "wayland-server.h"
 #include <wayland-egl.h>
 
-#define WL_EGL_NUM_BACKBUFFERS 3
+#define WL_EGL_NUM_BACKBUFFERS 2
 
 typedef struct _gcsWL_VIV_BUFFER
 {
@@ -70,6 +70,7 @@ typedef struct _gcsWL_EGL_DISPLAY
    struct wl_viv* wl_viv;
    struct wl_registry *registry;
    struct wl_event_queue *wl_queue;
+   struct wl_event_queue *wl_swap_queue;
    gctINT swapInterval;
 } gcsWL_EGL_DISPLAY;
 
