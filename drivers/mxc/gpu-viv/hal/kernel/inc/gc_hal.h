@@ -2528,12 +2528,10 @@ gckCOMMAND_Detach(
     IN gckCONTEXT Context
     );
 
-#if gcdVIRTUAL_COMMAND_BUFFER
 gceSTATUS
 gckCOMMAND_DumpExecutingBuffer(
     IN gckCOMMAND Command
     );
-#endif
 
 /******************************************************************************\
 ********************************* gckMMU Object ********************************

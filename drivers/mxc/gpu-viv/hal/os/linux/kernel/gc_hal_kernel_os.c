@@ -6577,7 +6577,12 @@ gckOS_Broadcast(
     case gcvBROADCAST_GPU_STUCK:
         gcmkTRACE_N(gcvLEVEL_ERROR, 0, "gcvBROADCAST_GPU_STUCK\n");
 #if !gcdENABLE_RECOVERY
+	gcmkVERIFY_OK(gckOS_AcquireMutex(Hardware->kernel->os, Hardware->kernel->dumpMutex, gcvINFINITE));
         gcmkONERROR(gckHARDWARE_DumpGPUState(Hardware));
+        gcmkONERROR(gckCOMMAND_DumpExecutingBuffer(Hardware->kernel->command));
+        gcmkONERROR(gckEVENT_Dump(Hardware->kernel->eventObj));
+        gcmkONERROR(gckKERNEL_DumpProcessDB(Hardware->kernel));
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Hardware->kernel->os, Hardware->kernel->dumpMutex));
 #endif
         gcmkONERROR(gckKERNEL_Recovery(Hardware->kernel));
         break;

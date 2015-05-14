@@ -455,6 +455,9 @@ struct _gckKERNEL
 #endif
 
     gctPOINTER                  vidmemMutex;
+    
+    /* GPU Status Dump mutex. */
+    gctPOINTER                  dumpMutex;
 };
 
 struct _FrequencyHistory

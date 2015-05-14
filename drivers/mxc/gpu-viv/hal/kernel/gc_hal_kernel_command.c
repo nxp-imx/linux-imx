@@ -346,7 +346,6 @@ OnError:
     return status;
 }
 
-#if gcdVIRTUAL_COMMAND_BUFFER
 static void
 _DumpBuffer(
     IN gctPOINTER Buffer,
@@ -424,7 +423,6 @@ _DumpKernelCommandBuffer(
         _DumpBuffer(entry, physical, Command->pageSize);
     }
 }
-#endif
 
 /******************************************************************************\
 ****************************** gckCOMMAND API Code ******************************
@@ -3048,5 +3046,45 @@ OnError:
 
     return gcvSTATUS_OK;
 #endif
+}
+#else
+gceSTATUS
+gckCOMMAND_DumpExecutingBuffer(
+		    IN gckCOMMAND Command
+		        )
+{
+	gctUINT32 gpuAddress;
+	gctSIZE_T bytes;
+	gctPOINTER entry;
+	gckOS os = Command->os;
+	gckKERNEL kernel = Command->kernel;
+	gctPOINTER entryDump;
+	
+	gcmkPRINT("**************************\n");
+	gcmkPRINT("**** KERNEL COMMAND BUF DUMP ****\n");
+	gcmkPRINT("**************************\n");
+
+ 	_DumpKernelCommandBuffer(Command);
+
+	gcmkPRINT("**************************\n");
+	gcmkPRINT("**** COMMAND BUF DUMP(Current DMA Address) ****\n");
+	gcmkPRINT("**************************\n");
+
+	gcmkVERIFY_OK(gckOS_ReadRegisterEx(os, kernel->core, 0x664, &gpuAddress));
+	gcmkPRINT("DMA Address 0x%08X", gpuAddress);
+
+	/* Without link queue information, we don't know the entry of last command
+	*     ** buffer, just dump the page where GPU stuck. */
+
+	gcmkVERIFY_OK(gckOS_MapPhysical(os, gpuAddress, 4096, &entry));
+	/* Align to page start. */
+	entryDump  = (gctPOINTER)((gctUINTPTR_T)entry & ~0xFFF);
+	gpuAddress = gpuAddress & ~0xFFF;
+	bytes      = 4096;
+	gcmkPRINT("User Command Buffer:\n");
+	_DumpBuffer(entryDump, gpuAddress, bytes);
+	gcmkVERIFY_OK(gckOS_UnmapPhysical(os, entry, 4096));
+
+	return gcvSTATUS_OK;
 }
 #endif

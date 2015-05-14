@@ -228,6 +228,10 @@ gckKERNEL_Construct(
         gckOS_CreateMutex(Os, (gctPOINTER)&kernel->virtualBufferLock));
 #endif
 
+    /* Contrust GPU status Dump mutex */
+    gcmkONERROR(
+        gckOS_CreateMutex(Os, (gctPOINTER)&kernel->dumpMutex));
+
     /* Construct atom holding number of clients. */
     kernel->atomClients = gcvNULL;
     gcmkONERROR(gckOS_AtomConstruct(Os, &kernel->atomClients));
@@ -374,6 +378,12 @@ OnError:
         }
 #endif
 
+        if (kernel->dumpMutex != gcvNULL)
+        {
+            /* Destroy the GPU Status Dump mutex. */
+            gcmkVERIFY_OK(gckOS_DeleteMutex(Os, kernel->dumpMutex));
+        }
+
 #if gcdDVFS
         if (kernel->dvfs)
         {
@@ -510,6 +520,8 @@ gckKERNEL_Destroy(
 #if gcdVIRTUAL_COMMAND_BUFFER
     gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->virtualBufferLock));
 #endif
+
+    gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->dumpMutex));
 
 #if gcdDVFS
     if (Kernel->dvfs)
