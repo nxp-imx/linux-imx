@@ -4103,12 +4103,6 @@ gckHARDWARE_SetPowerManagementState(
     command = Hardware->kernel->command;
     gcmkVERIFY_OBJECT(command, gcvOBJ_COMMAND);
 
-    if (Hardware->powerManagement == gcvFALSE)
-    {
-        gcmkFOOTER_NO();
-        return gcvSTATUS_OK;
-    }
-
     /* Start profiler. */
     gcmkPROFILE_INIT(freq, time);
 
@@ -4177,6 +4171,14 @@ gckHARDWARE_SetPowerManagementState(
 
     default:
         break;
+    }
+
+    if (Hardware->powerManagement == gcvFALSE
+     && State != gcvPOWER_ON
+    )
+    {
+        gcmkFOOTER_NO();
+        return gcvSTATUS_OK;
     }
 
     /* Get current process and thread IDs. */
