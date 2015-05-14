@@ -1701,6 +1701,10 @@ gckEVENT_Commit(
         gcmkONERROR(
             gckEVENT_AddList(Event, &record->iface, gcvKERNEL_PIXEL, gcvTRUE, gcvFALSE));
 
+	/* Clear the record iface */
+	gcmkONERROR(
+	    gckOS_ZeroMemory(&record->iface,gcmSIZEOF(gcsHAL_INTERFACE)));
+
         /* Next record in the queue. */
         next = gcmUINT64_TO_PTR(record->next);
 
@@ -1713,7 +1717,15 @@ gckEVENT_Commit(
                                        gcmSIZEOF(gcsQUEUE),
                                        (gctPOINTER *) record));
             record = gcvNULL;
-        }
+        }else
+	{
+	    /* Copy the record back to User space */
+	    gcmkONERROR(gckOS_CopyToUserData(Event->os,
+	    			    	     record,
+	    			    	     Queue,
+	    			    	     gcmSIZEOF(gcsQUEUE)));
+	    record = gcvNULL;
+	}
 
         Queue = next;
     }
