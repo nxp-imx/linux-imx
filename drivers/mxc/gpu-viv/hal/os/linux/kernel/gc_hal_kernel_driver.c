@@ -746,6 +746,30 @@ OnError:
     return -ENOTTY;
 }
 
+gckKERNEL
+_GetValidKernel(
+    gckGALDEVICE Device
+    )
+{
+    if (Device->kernels[gcvCORE_MAJOR])
+    {
+        return Device->kernels[gcvCORE_MAJOR];
+    }
+    else
+    if (Device->kernels[gcvCORE_2D])
+    {
+        return Device->kernels[gcvCORE_2D];
+    }
+    else
+    if (Device->kernels[gcvCORE_VG])
+    {
+        return Device->kernels[gcvCORE_VG];
+    }
+    else
+    {
+        return gcvNULL;
+    }
+}
 
 #if !USE_PLATFORM_DRIVER
 static int __init drv_init(void)
@@ -901,7 +925,7 @@ static int drv_init(struct device *pdev)
 #endif
 
 #ifdef CONFIG_ANDROID_RESERVED_MEMORY_ACCOUNT
-    viv_gpu_resmem_handler.data = device->kernels[gcvCORE_MAJOR];
+    viv_gpu_resmem_handler.data = _GetValidKernel(device);
     register_reserved_memory_account(&viv_gpu_resmem_handler);
 #endif
 
