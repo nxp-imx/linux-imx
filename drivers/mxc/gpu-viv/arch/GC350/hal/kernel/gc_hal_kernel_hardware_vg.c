@@ -338,7 +338,6 @@ gckVGHARDWARE_Construct(
         gcmkVERIFY_OK(gckVGHARDWARE_SetFastClear(hardware, -1));
 
         gcmkERR_BREAK(gckOS_CreateMutex(Os, &hardware->powerMutex));
-
         /* Enable power management by default. */
         hardware->powerManagement = gcvTRUE;
 
@@ -1447,6 +1446,64 @@ static gceSTATUS _CommandStall(
     return status;
 }
 
+static gceSTATUS
+_IsGPUPresent(
+    IN gckVGHARDWARE Hardware
+    )
+{
+    gceSTATUS status;
+    gceCHIPMODEL chipModel;
+    gctUINT32 chipRev, chipFeatures, chipMinorFeatures, chipMinorFeatures2;
+    /*gcsHAL_QUERY_CHIP_IDENTITY identity;*/
+    gctUINT32 control;
+
+    gcmkHEADER_ARG("Hardware=0x%x", Hardware);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+
+    gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                     gcvCORE_VG,
+                                     0x00000,
+                                     &control));
+
+    control = ((((gctUINT32) (control)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 1:1) - (0 ? 1:1) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:1) - (0 ? 1:1) + 1))))))) << (0 ? 1:1))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ? 1:1) - (0 ? 1:1) + 1) == 32) ? ~0 : (~(~0 << ((1 ? 1:1) - (0 ? 1:1) + 1))))))) << (0 ? 1:1)));
+
+    gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
+                                      gcvCORE_VG,
+                                      0x00000,
+                                      control));
+
+    /* Identify the hardware. */
+    gcmkONERROR(_IdentifyHardware(Hardware->os,
+                                  &chipModel, &chipRev,
+                                  &chipFeatures,
+                                  &chipMinorFeatures,
+                                  &chipMinorFeatures2
+                                  ));
+    /* Check if these are the same values as saved before. */
+    if ((Hardware->chipModel          != chipModel)
+    ||  (Hardware->chipRevision       != chipRev)
+    ||  (Hardware->chipFeatures       != chipFeatures)
+    ||  (Hardware->chipMinorFeatures  != chipMinorFeatures)
+    ||  (Hardware->chipMinorFeatures2 != chipMinorFeatures2)
+    )
+    {
+        gcmkPRINT("[galcore]: VG is not present.");
+        gcmkONERROR(gcvSTATUS_GPU_NOT_RESPONDING);
+    }
+
+    /* Success. */
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    /* Return the error. */
+    gcmkFOOTER();
+    return status;
+}
+
+
 /*******************************************************************************
 **
 **  gckHARDWARE_SetPowerManagementState
@@ -1570,7 +1627,6 @@ gckVGHARDWARE_SetPowerManagementState(
     gcmkVERIFY_OBJECT(Hardware->kernel, gcvOBJ_KERNEL);
     command = Hardware->kernel->command;
     gcmkVERIFY_OBJECT(command, gcvOBJ_COMMAND);
-
     if (Hardware->powerManagement == gcvFALSE)
     {
         gcmkFOOTER_NO();
@@ -1770,6 +1826,44 @@ gckVGHARDWARE_SetPowerManagementState(
         /* Mark clock and power as enabled. */
         Hardware->clockState = gcvTRUE;
         Hardware->powerState = gcvTRUE;
+
+        for (;;)
+        {
+            /* Check if GPU is present and awake. */
+            status = _IsGPUPresent(Hardware);
+
+            /* Check if the GPU is not responding. */
+            if (status == gcvSTATUS_GPU_NOT_RESPONDING)
+            {
+                /* Turn off the power and clock. */
+                gcmkONERROR(gckOS_SetGPUPower(os, gcvCORE_VG, gcvFALSE, gcvFALSE));
+
+                Hardware->clockState = gcvFALSE;
+                Hardware->powerState = gcvFALSE;
+
+                /* Wait a little. */
+                gckOS_Delay(os, 1);
+
+                /* Turn on the power and clock. */
+                gcmkONERROR(gckOS_SetGPUPower(os, gcvCORE_VG, gcvTRUE, gcvTRUE));
+
+                Hardware->clockState = gcvTRUE;
+                Hardware->powerState = gcvTRUE;
+
+                /* We need to initialize the hardware and start the command
+                 * processor. */
+                flag |= gcvPOWER_FLAG_INITIALIZE | gcvPOWER_FLAG_START;
+            }
+            else
+            {
+                /* Test for error. */
+                gcmkONERROR(status);
+
+                /* Break out of loop. */
+                break;
+            }
+        }
+
     }
 
     /* Get time until powered on. */
