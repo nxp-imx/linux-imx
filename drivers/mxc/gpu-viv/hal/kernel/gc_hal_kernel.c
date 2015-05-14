@@ -950,7 +950,7 @@ gckKERNEL_Dispatch(
 {
     gceSTATUS status = gcvSTATUS_OK;
     gctSIZE_T bytes;
-    gcuVIDMEM_NODE_PTR node;
+    gcuVIDMEM_NODE_PTR node = gcvNULL;
     gctBOOL locked = gcvFALSE;
     gctPHYS_ADDR physical = gcvNULL;
     gctPOINTER logical = gcvNULL;

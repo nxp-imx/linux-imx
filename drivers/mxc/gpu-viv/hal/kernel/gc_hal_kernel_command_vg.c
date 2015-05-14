@@ -1107,7 +1107,7 @@ _AllocateCommandBuffer(
         gctUINT requestedSize;
         gctUINT allocationSize;
         gctUINT32 address = 0;
-        gcsCMDBUFFER_PTR commandBuffer;
+        gcsCMDBUFFER_PTR commandBuffer = gcvNULL;
         gctUINT8_PTR endCommand;
 
         /* Determine the aligned header size. */
