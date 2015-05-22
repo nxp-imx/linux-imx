@@ -757,12 +757,18 @@
 	pinctrl-0 = <&pinctrl_hog>;
 
 	imx7d-sdb {
+
+		pinctrl_ecspi3_cs: ecspi3_cs_grp {
+			fsl,pins = <
+				MX7D_PAD_SD2_CD_B__GPIO5_IO9    0x80000000
+			>;
+		};
+
 		pinctrl_ecspi3: ecspi3grp {
 			fsl,pins = <
 				MX7D_PAD_SAI2_TX_SYNC__ECSPI3_MISO	0x2
 				MX7D_PAD_SAI2_TX_BCLK__ECSPI3_MOSI	0x2
 				MX7D_PAD_SAI2_RX_DATA__ECSPI3_SCLK	0x2
-				MX7D_PAD_SD2_CD_B__GPIO5_IO9		0x59
 			>;
 		};
 
