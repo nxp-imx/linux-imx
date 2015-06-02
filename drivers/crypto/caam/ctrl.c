@@ -513,7 +513,22 @@ static int caam_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	/* imx7d only has one caam clock */
+	clk = caam_drv_identify_clk(&pdev->dev, "aclk");
+	if (IS_ERR(clk)) {
+		ret = PTR_ERR(clk);
+		dev_err(&pdev->dev,
+			"can't identify CAAM aclk clk: %d\n", ret);
+		goto disable_clocks;
+	}
+	ctrlpriv->caam_aclk = clk;
+
+	ret = clk_prepare_enable(ctrlpriv->caam_aclk);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "can't enable CAAM aclk clock: %d\n",
+			ret);
+		goto disable_clocks;
+	}
+
 	if (!(of_find_compatible_node(NULL, NULL, "fsl,imx7d-caam"))) {
 
 		clk = caam_drv_identify_clk(&pdev->dev, "mem");
@@ -521,7 +536,7 @@ static int caam_probe(struct platform_device *pdev)
 			ret = PTR_ERR(clk);
 			dev_err(&pdev->dev,
 				"can't identify CAAM mem clk: %d\n", ret);
-			goto disable_caam_ipg;
+			goto disable_clocks;
 		}
 		ctrlpriv->caam_mem = clk;
 
@@ -529,23 +544,7 @@ static int caam_probe(struct platform_device *pdev)
 		if (ret < 0) {
 			dev_err(&pdev->dev, "can't enable CAAM secure mem clock: %d\n",
 				ret);
-			goto disable_caam_ipg;
-		}
-
-		clk = caam_drv_identify_clk(&pdev->dev, "aclk");
-		if (IS_ERR(clk)) {
-			ret = PTR_ERR(clk);
-			dev_err(&pdev->dev,
-				"can't identify CAAM aclk clk: %d\n", ret);
-			goto disable_caam_mem;
-		}
-		ctrlpriv->caam_aclk = clk;
-
-		ret = clk_prepare_enable(ctrlpriv->caam_aclk);
-		if (ret < 0) {
-			dev_err(&pdev->dev, "can't enable CAAM aclk clock: %d\n",
-				ret);
-			goto disable_caam_mem;
+			goto disable_clocks;
 		}
 
 		if (!(of_find_compatible_node(NULL, NULL, "fsl,imx6ul-caam"))) {
@@ -554,7 +553,7 @@ static int caam_probe(struct platform_device *pdev)
 				ret = PTR_ERR(clk);
 				dev_err(&pdev->dev,
 					"can't identify CAAM emi_slow clk: %d\n", ret);
-				goto disable_caam_aclk;
+				goto disable_clocks;
 			}
 			ctrlpriv->caam_emi_slow = clk;
 
@@ -562,7 +561,7 @@ static int caam_probe(struct platform_device *pdev)
 			if (ret < 0) {
 				dev_err(&pdev->dev, "can't enable CAAM emi slow clock: %d\n",
 					ret);
-				goto disable_caam_aclk;
+				goto disable_clocks;
 			}
 		}
 	}
@@ -573,7 +572,7 @@ static int caam_probe(struct platform_device *pdev)
 	if (ctrl == NULL) {
 		dev_err(dev, "caam: of_iomap() failed\n");
 		ret = -ENOMEM;
-		goto disable_caam_emi_slow;
+		goto disable_clocks;
 	}
 
 	caam_little_end = !(bool)(rd_reg32(&ctrl->perfmon.status) &
@@ -904,13 +903,10 @@ caam_remove:
 
 iounmap_ctrl:
 	iounmap(ctrl);
-disable_caam_emi_slow:
+disable_clocks:
 	clk_disable_unprepare(ctrlpriv->caam_emi_slow);
-disable_caam_aclk:
 	clk_disable_unprepare(ctrlpriv->caam_aclk);
-disable_caam_mem:
 	clk_disable_unprepare(ctrlpriv->caam_mem);
-disable_caam_ipg:
 	clk_disable_unprepare(ctrlpriv->caam_ipg);
 	return ret;
 }
