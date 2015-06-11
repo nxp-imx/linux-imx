@@ -148,7 +148,7 @@ void __init imx_init_l2cache(void)
 	/* Configure the L2 PREFETCH and POWER registers */
 	/* Set prefetch offset with any value except 23 as per errata 765569 */
 	val = readl_relaxed(l2x0_base + L2X0_PREFETCH_CTRL);
-	val |= 0x7000000f;
+	val |= 0x70000000;
 	/*
 	 * The L2 cache controller(PL310) version on the i.MX6D/Q is r3p1-50rel0
 	 * The L2 cache controller(PL310) version on the i.MX6DL/SOLO/SL/SX/DQP
