@@ -99,4 +99,6 @@ struct imx_pinctrl_soc_info {
 
 int imx_pinctrl_probe(struct platform_device *pdev,
 			struct imx_pinctrl_soc_info *info);
+int imx_pinctrl_suspend(struct device *dev);
+int imx_pinctrl_resume(struct device *dev);
 #endif /* __DRIVERS_PINCTRL_IMX_H */
