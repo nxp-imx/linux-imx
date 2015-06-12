@@ -378,6 +378,69 @@ _SubmitTimerFunction(
     gcmkVERIFY_OK(gckEVENT_Submit(event, gcvTRUE, gcvFALSE));
 }
 
+/*******************************************************************************
+**
+**  _QueryFlush
+**
+**  Check the type of surfaces which will be released by current event and
+**  determine the cache needed to flush.
+**
+*/
+static gceSTATUS
+_QueryFlush(
+    IN gckEVENT Event,
+    IN gcsEVENT_PTR Record,
+    OUT gceKERNEL_FLUSH *Flush
+    )
+{
+    gceKERNEL_FLUSH flush = 0;
+    gcmkHEADER_ARG("Event=0x%x Record=0x%x", Event, Record);
+    gcmkVERIFY_ARGUMENT(Record != gcvNULL);
+
+    while (Record != gcvNULL)
+    {
+        switch (Record->info.command)
+        {
+        case gcvHAL_UNLOCK_VIDEO_MEMORY:
+            switch(Record->info.u.UnlockVideoMemory.type)
+            {
+            case gcvSURF_TILE_STATUS:
+                flush |= gcvFLUSH_TILE_STATUS;
+                break;
+            case gcvSURF_RENDER_TARGET:
+                flush |= gcvFLUSH_COLOR;
+                break;
+            case gcvSURF_DEPTH:
+                flush |= gcvFLUSH_DEPTH;
+                break;
+            case gcvSURF_TEXTURE:
+                flush |= gcvFLUSH_TEXTURE;
+                break;
+            case gcvSURF_TYPE_UNKNOWN:
+                gcmkASSERT(0);
+                break;
+            default:
+                break;
+            }
+            break;
+        case gcvHAL_UNMAP_USER_MEMORY:
+            *Flush = gcvFLUSH_ALL;
+            return gcvSTATUS_OK;
+            break;
+
+        default:
+            break;
+        }
+
+        Record = Record->next;
+    }
+
+    *Flush = flush;
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+
 /******************************************************************************\
 ******************************* gckEVENT API Code *******************************
 \******************************************************************************/
@@ -1504,10 +1567,19 @@ gckEVENT_Submit(
     gctPOINTER buffer;
 #endif
 
+    gctSIZE_T flushBytes;
+    gctUINT32 executeBytes;
+    gckHARDWARE hardware;
+
+    gceKERNEL_FLUSH flush = gcvFALSE;
+
     gcmkHEADER_ARG("Event=0x%x Wait=%d", Event, Wait);
 
     /* Get gckCOMMAND object. */
     command = Event->kernel->command;
+    hardware = Event->kernel->hardware;
+
+    gcmkVERIFY_OBJECT(hardware, gcvOBJ_HARDWARE);
 
     /* Are there event queues? */
     if (Event->queueHead != gcvNULL)
@@ -1552,6 +1624,9 @@ gckEVENT_Submit(
             gcmkONERROR(gckOS_ReleaseMutex(Event->os, Event->eventListMutex));
             acquired = gcvFALSE;
 
+            /* Determine cache needed to flush. */
+            gcmkVERIFY_OK(_QueryFlush(Event, Event->queues[id].head, &flush));
+
 #if gcdNULL_DRIVER
             /* Notify immediately on infinite hardware. */
             gcmkONERROR(gckEVENT_Interrupt(Event, 1 << id));
@@ -1559,27 +1634,55 @@ gckEVENT_Submit(
             gcmkONERROR(gckEVENT_Notify(Event, 0));
 #else
             /* Get the size of the hardware event. */
-            gcmkONERROR(gckHARDWARE_Event(Event->kernel->hardware,
-                                          gcvNULL,
-                                          id,
-                                          Event->queues[id].source,
-                                          &bytes));
+            gcmkONERROR(gckHARDWARE_Event(
+                hardware,
+                gcvNULL,
+                id,
+                Event->queues[id].source,
+                &bytes
+                ));
+
+            /* Get the size of flush command. */
+            gcmkONERROR(gckHARDWARE_Flush(
+                hardware,
+                flush,
+                gcvNULL,
+                &flushBytes
+                ));
+
+            bytes += flushBytes;
+
+            /* Total bytes need to execute. */
+            executeBytes = bytes;
 
             /* Reserve space in the command queue. */
-            gcmkONERROR(gckCOMMAND_Reserve(command,
-                                           bytes,
-                                           &buffer,
-                                           &bytes));
+            gcmkONERROR(gckCOMMAND_Reserve(command, bytes, &buffer, &bytes));
+
+            /* Set the flush in the command queue. */
+            gcmkONERROR(gckHARDWARE_Flush(
+                hardware,
+                flush,
+                buffer,
+                &flushBytes
+                ));
+
+            /* Advance to next command. */
+            buffer = (gctUINT8_PTR)buffer + flushBytes;
 
             /* Set the hardware event in the command queue. */
-            gcmkONERROR(gckHARDWARE_Event(Event->kernel->hardware,
-                                          buffer,
-                                          id,
-                                          Event->queues[id].source,
-                                          &bytes));
+            gcmkONERROR(gckHARDWARE_Event(
+                hardware,
+                buffer,
+                id,
+                Event->queues[id].source,
+                &bytes
+                ));
+
+            /* Advance to next command. */
+            buffer = (gctUINT8_PTR)buffer + bytes;
 
             /* Execute the hardware event. */
-            gcmkONERROR(gckCOMMAND_Execute(command, bytes));
+            gcmkONERROR(gckCOMMAND_Execute(command, executeBytes));
 #endif
         }
 

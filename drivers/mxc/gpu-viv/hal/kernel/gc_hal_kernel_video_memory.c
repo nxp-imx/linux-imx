@@ -1924,10 +1924,7 @@ gckVIDMEM_Unlock(
 {
     gceSTATUS status;
     gckHARDWARE hardware;
-    gctPOINTER buffer;
-    gctSIZE_T requested, bufferSize;
     gckCOMMAND command = gcvNULL;
-    gceKERNEL_FLUSH flush;
     gckOS os = gcvNULL;
     gctBOOL acquired = gcvFALSE;
     gctBOOL commitEntered = gcvFALSE;
@@ -2125,70 +2122,7 @@ gckVIDMEM_Unlock(
                               Node->Virtual.physical,
                               Node->Virtual.bytes,
                               Node->Virtual.logical));
-
-            if (!Node->Virtual.contiguous
-            &&  (Node->Virtual.lockeds[Kernel->core] == 1)
-#if gcdENABLE_VG
-            && (Kernel->vg == gcvNULL)
-#endif
-            )
-            {
-                if (Type == gcvSURF_BITMAP)
-                {
-                    /* Flush 2D cache. */
-                    flush = gcvFLUSH_2D;
-                }
-                else if (Type == gcvSURF_RENDER_TARGET)
-                {
-                    /* Flush color cache. */
-                    flush = gcvFLUSH_COLOR;
-                }
-                else if (Type == gcvSURF_DEPTH)
-                {
-                    /* Flush depth cache. */
-                    flush = gcvFLUSH_DEPTH;
-                }
-                else
-                {
-                    /* No flush required. */
-                    flush = (gceKERNEL_FLUSH) 0;
-                }
-                if(hardware)
-                {
-                    gcmkONERROR(
-                        gckHARDWARE_Flush(hardware, flush, gcvNULL, &requested));
-
-                    if (requested != 0)
-                    {
-                        /* Acquire the command queue. */
-                        gcmkONERROR(gckCOMMAND_EnterCommit(command, gcvFALSE));
-                        commitEntered = gcvTRUE;
-
-                        gcmkONERROR(gckCOMMAND_Reserve(
-                            command, requested, &buffer, &bufferSize
-                            ));
-
-                        gcmkONERROR(gckHARDWARE_Flush(
-                            hardware, flush, buffer, &bufferSize
-                            ));
-
-                        /* Mark node as pending. */
-#ifdef __QNXNTO__
-                        Node->Virtual.unlockPendings[Kernel->core] = gcvTRUE;
-#endif
-
-                        gcmkONERROR(gckCOMMAND_Execute(command, requested));
-
-                        /* Release the command queue. */
-                        gcmkONERROR(gckCOMMAND_ExitCommit(command, gcvFALSE));
-                        commitEntered = gcvFALSE;
-                    }
-                }
-                else
-                {
-                    gckOS_Print("Hardware already is freed.\n");
-                }
-            }
+            
 
             gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_VIDMEM,
                            "Scheduled unlock for virtual node 0x%x",

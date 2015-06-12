@@ -1664,10 +1664,12 @@ typedef enum _gceKERNEL_FLUSH
     gcvFLUSH_DEPTH              = 0x02,
     gcvFLUSH_TEXTURE            = 0x04,
     gcvFLUSH_2D                 = 0x08,
+    gcvFLUSH_TILE_STATUS        = 0x20,
     gcvFLUSH_ALL                = gcvFLUSH_COLOR
                                 | gcvFLUSH_DEPTH
                                 | gcvFLUSH_TEXTURE
-                                | gcvFLUSH_2D,
+                                | gcvFLUSH_2D
+                                | gcvFLUSH_TILE_STATUS
 }
 gceKERNEL_FLUSH;
 
