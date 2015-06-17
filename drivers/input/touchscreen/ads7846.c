@@ -199,6 +199,7 @@ struct ads7846 {
 #define	REF_ON	(READ_12BIT_DFR(x, 1, 1))
 #define	REF_OFF	(READ_12BIT_DFR(y, 0, 0))
 
+static bool  rotation_180;
 /* Must be called with ts->lock held */
 static void ads7846_stop(struct ads7846 *ts)
 {
@@ -824,6 +825,10 @@ static void ads7846_report_state(struct ads7846 *ts)
 	 * timer by reading the pen signal state (it's a GPIO _and_ IRQ).
 	 */
 	if (Rt) {
+		if (rotation_180) {
+			x = MAX_12BIT - x;
+			y = MAX_12BIT - y;
+		}
 		struct input_dev *input = ts->input;
 
 		if (ts->swap_xy)
@@ -1242,6 +1247,7 @@ static const struct ads7846_platform_data *ads7846_probe_dt(struct device *dev)
 
 	pdata->wakeup = of_property_read_bool(node, "wakeup-source") ||
 			of_property_read_bool(node, "linux,wakeup");
+	rotation_180 = of_property_read_bool(node, "ti,yx_swap_en");
 
 	pdata->gpio_pendown = of_get_named_gpio(dev->of_node, "pendown-gpio", 0);
 
