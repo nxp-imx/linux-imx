@@ -322,6 +322,7 @@
 		ti,y-max = /bits/ 16 <0>;
 		ti,pressure-max = /bits/ 16 <0>;
 		ti,x-plate-ohms = /bits/ 16 <400>;
+		ti,yx_swap_en;
 		wakeup-source;
 	};
 };
