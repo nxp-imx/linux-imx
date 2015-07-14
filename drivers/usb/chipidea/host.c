@@ -37,14 +37,12 @@ static int (*orig_bus_suspend)(struct usb_hcd *hcd);
 
 struct ehci_ci_priv {
 	struct regulator *reg_vbus;
-	struct ci_hdrc *ci;
 };
 
 static int ehci_ci_portpower(struct usb_hcd *hcd, int portnum, bool enable)
 {
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
 	struct ehci_ci_priv *priv = (struct ehci_ci_priv *)ehci->priv;
-	struct ci_hdrc *ci = priv->ci;
 	struct device *dev = hcd->self.controller;
 	struct ci_hdrc *ci = dev_get_drvdata(dev);
 	int ret = 0;
@@ -143,7 +141,6 @@ static int host_start(struct ci_hdrc *ci)
 
 	priv = (struct ehci_ci_priv *)ehci->priv;
 	priv->reg_vbus = NULL;
-	priv->ci = ci;
 
 	if (ci->platdata->reg_vbus && !ci_otg_is_fsm_mode(ci)) {
 		if (ci->platdata->flags & CI_HDRC_TURN_VBUS_EARLY_ON) {
