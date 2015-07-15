@@ -1,7 +1,7 @@
 /*
  * otg_fsm.c - ChipIdea USB IP core OTG FSM driver
  *
- * Copyright (C) 2014 Freescale Semiconductor, Inc.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
  *
  * Author: Jun Li
  *
