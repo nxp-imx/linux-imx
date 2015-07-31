@@ -73,6 +73,7 @@ static void __init imx6ul_init_machine(void)
 
 static void __init imx6ul_init_irq(void)
 {
+	imx_gpc_check_dt();
 	imx_init_revision_from_anatop();
 	imx_src_init();
 	irqchip_init();
@@ -87,12 +88,19 @@ static void __init imx6ul_init_late(void)
 		platform_device_register_simple("imx6q-cpufreq", -1, NULL, 0);
 }
 
+static void __init imx6ul_map_io(void)
+{
+	debug_ll_io_init();
+	imx6_pm_map_io();
+}
+
 static const char * const imx6ul_dt_compat[] __initconst = {
 	"fsl,imx6ul",
 	NULL,
 };
 
 DT_MACHINE_START(IMX6UL, "Freescale i.MX6 Ultralite (Device Tree)")
+	.map_io		= imx6ul_map_io,
 	.init_irq	= imx6ul_init_irq,
 	.init_machine	= imx6ul_init_machine,
 	.init_late	= imx6ul_init_late,
