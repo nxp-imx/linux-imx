@@ -153,6 +153,7 @@
 			clocks = <&clks IMX7D_NAND_USDHC_BUS_ROOT_CLK>,
 				<&clks IMX7D_NAND_ROOT_CLK>;
 			clock-names = "dma_apbh_bch", "dma_apbh_io";
+			status = "disabled";
 		};
 
 		pcie: pcie@0x33800000 {
