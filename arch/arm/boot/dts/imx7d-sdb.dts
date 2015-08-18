@@ -405,7 +405,15 @@
 	imx7d-sdb {
 		pinctrl_hog_2: hoggrp-2 {
 			fsl,pins = <
-				MX7D_PAD_GPIO1_IO05__GPIO1_IO5	0x14
+				MX7D_PAD_GPIO1_IO05__GPIO1_IO5	  0x14
+				MX7D_PAD_GPIO1_IO07__GPIO1_IO7    0x59
+				MX7D_PAD_GPIO1_IO00__WDOD1_WDOG_B 0x74
+			>;
+		};
+
+		pinctrl_pwm1: pwm1grp {
+			fsl,pins = <
+				MX7D_PAD_GPIO1_IO01__PWM1_OUT	  0x110b0
 			>;
 		};
 	};
@@ -608,12 +616,6 @@
 				MX7D_PAD_LCD_VSYNC__LCD_VSYNC		0x79
 				MX7D_PAD_LCD_HSYNC__LCD_HSYNC		0x79
 				MX7D_PAD_LCD_RESET__LCD_RESET		0x79
-			>;
-		};
-
-		pinctrl_pwm1: pwm1grp {
-			fsl,pins = <
-				MX7D_PAD_GPIO1_IO01__PWM1_OUT		0x110b0
 			>;
 		};
 
