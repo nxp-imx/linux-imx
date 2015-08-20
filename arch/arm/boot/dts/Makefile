@@ -417,7 +417,8 @@ dtb-$(CONFIG_SOC_IMX6SX) += \
 	imx6sx-sabreauto.dtb \
 	imx6sx-sdb-reva.dtb \
 	imx6sx-sdb-sai.dtb \
-	imx6sx-sdb.dtb
+	imx6sx-sdb.dtb	\
+	imx6sx-19x19-arm2.dtb
 dtb-$(CONFIG_SOC_IMX6UL) += \
 	imx6ul-14x14-evk.dtb \
 	imx6ul-geam-kit.dtb \
