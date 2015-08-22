@@ -84,6 +84,20 @@ else
   endif
 endif
 
+ifeq ($(UIMAGE_LOADADDR),)
+  UIMAGE_LOADADDR=$(shell /bin/bash -c 'printf "0x%08x" \
+					$$[$(CONFIG_DRAM_BASE) + 0x008000]')
+endif
+
+ifeq ($(UIMAGE_ENTRYADDR),)
+  ifeq ($(CONFIG_THUMB2_KERNEL),y)
+    # Set bit 0 to 1 so that "mov pc, rx" switches to Thumb-2 mode
+    UIMAGE_ENTRYADDR?=$(shell echo $(UIMAGE_LOADADDR) | sed -e "s/.$$/1/")
+  else
+    UIMAGE_ENTRYADDR?=$(UIMAGE_LOADADDR)
+  endif
+endif
+
 check_for_multiple_loadaddr = \
 if [ $(words $(UIMAGE_LOADADDR)) -ne 1 ]; then \
 	echo 'multiple (or no) load addresses: $(UIMAGE_LOADADDR)'; \
