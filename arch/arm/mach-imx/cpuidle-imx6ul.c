@@ -199,7 +199,7 @@ int __init imx6ul_cpuidle_init(void)
 		&imx6ul_low_power_idle, wfi_code_size);
 #endif
 
-	imx6q_set_int_mem_clk_lpm(true);
+	imx6_set_int_mem_clk_lpm(true);
 
 	/*
 	 * enable RC-OSC here, as it needs at least 4ms for RC-OSC to
