@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Freescale Semiconductor, Inc.
+ * Copyright 2011-2015 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
  *
  * This file is dual-licensed: you can use it either under the terms
@@ -274,11 +274,6 @@
 	interrupts-extended = <&gpio1 6 IRQ_TYPE_LEVEL_HIGH>,
 			      <&intc 0 119 IRQ_TYPE_LEVEL_HIGH>;
 	fsl,err006687-workaround-present;
-	status = "okay";
-};
-
-&hdmi {
-	ddc-i2c-bus = <&i2c2>;
 	status = "okay";
 };
 
