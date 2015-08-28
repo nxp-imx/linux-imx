@@ -34,7 +34,7 @@ struct ata_port_operations ahci_platform_ops = {
 };
 EXPORT_SYMBOL_GPL(ahci_platform_ops);
 
-static struct scsi_host_template ahci_platform_sht = {
+struct scsi_host_template ahci_platform_sht = {
 	AHCI_SHT("ahci_platform"),
 };
 

@@ -68,6 +68,9 @@ struct imx_ahci_priv {
 	u32 phy_params;
 };
 
+extern struct scsi_host_template ahci_platform_sht;
+void *sg_io_buffer_hack;
+
 static int ahci_imx_hotplug;
 module_param_named(hotplug, ahci_imx_hotplug, int, 0644);
 MODULE_PARM_DESC(hotplug, "AHCI IMX hot-plug support (0=Don't support, 1=support)");
