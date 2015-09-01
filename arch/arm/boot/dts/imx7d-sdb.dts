@@ -94,6 +94,16 @@
 			regulator-max-microvolt = <1800000>;
 		};
 
+		reg_pcie: regulator@4 {
+			compatible = "regulator-fixed";
+			reg = <4>;
+			regulator-name = "MPCIE_3V3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			gpio = <&gpio_spi 6 GPIO_ACTIVE_HIGH>;
+			regulator-always-on;
+			enable-active-high;
+		};
 	};
 
 	backlight {
@@ -413,6 +423,13 @@
 			};
 		};
 	};
+};
+
+&pcie {
+	pinctrl-names = "default";
+	reset-gpio = <&gpio_spi 1 GPIO_ACTIVE_LOW>;
+	disable-gpio = <&gpio_spi 0 GPIO_ACTIVE_LOW>;
+	status = "okay";
 };
 
 &sai1 {
