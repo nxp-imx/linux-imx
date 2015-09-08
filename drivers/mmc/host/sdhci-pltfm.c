@@ -2,7 +2,7 @@
  * sdhci-pltfm.c Support for SDHCI platform devices
  * Copyright (c) 2009 Intel Corporation
  *
- * Copyright (c) 2007, 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2007, 2011, 2015 Freescale Semiconductor, Inc.
  * Copyright (c) 2009 MontaVista Software, Inc.
  *
  * Authors: Xiaobo Xie <X.Xie@freescale.com>
@@ -212,13 +212,19 @@ EXPORT_SYMBOL_GPL(sdhci_pltfm_unregister);
 static int sdhci_pltfm_suspend(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
+	int ret;
 
-	return sdhci_suspend_host(host);
+	ret = sdhci_suspend_host(host);
+	pinctrl_pm_select_sleep_state(dev);
+
+	return ret;
 }
 
 static int sdhci_pltfm_resume(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
+
+	pinctrl_pm_select_default_state(dev);
 
 	return sdhci_resume_host(host);
 }
