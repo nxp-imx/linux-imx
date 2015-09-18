@@ -16,7 +16,7 @@ config PCI_EXYNOS
 
 config PCI_IMX6
 	bool "Freescale i.MX6 PCIe controller"
-	depends on SOC_IMX6Q
+	depends on (SOC_IMX6Q || SOC_IMX6SX)
 	select PCIEPORTBUS
 	select PCIE_DW
 
