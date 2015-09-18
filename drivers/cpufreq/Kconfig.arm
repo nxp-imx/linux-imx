@@ -69,7 +69,7 @@ config ARM_HIGHBANK_CPUFREQ
 
 config ARM_IMX6_CPUFREQ
 	tristate "Freescale i.MX6 cpufreq support"
-	depends on SOC_IMX6Q || SOC_IMX6SL
+	depends on SOC_IMX6
 	depends on REGULATOR_ANATOP
 	help
 	  This adds cpufreq driver support for Freescale i.MX6 series SOC.
