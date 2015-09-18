@@ -372,7 +372,6 @@ config BATTERY_GOLDFISH
 
 config IMX6_USB_CHARGER
 	bool "Freescale imx6 USB Charger"
-	depends on SOC_IMX6Q || SOC_IMX6SL
 	help
 	  Say Y to enable Freescale imx6 USB Charger Detect.
 
