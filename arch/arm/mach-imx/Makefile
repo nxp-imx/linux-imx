@@ -1,4 +1,4 @@
-obj-y := time.o cpu.o system.o irq-common.o
+obj-y := time.o cpu.o system.o irq-common.o common.o
 
 obj-$(CONFIG_SOC_IMX1) += clk-imx1.o mm-imx1.o
 obj-$(CONFIG_SOC_IMX21) += clk-imx21.o mm-imx21.o
@@ -109,9 +109,9 @@ AFLAGS_suspend-imx6.o :=-Wa,-march=armv7-a
 obj-$(CONFIG_PM) += pm-imx6.o headsmp.o suspend-imx6.o
 
 ifeq ($(CONFIG_ARM_IMX6_CPUFREQ),y)
-obj-y += busfreq-imx6.o
-obj-$(CONFIG_SOC_IMX6Q) += ddr3_freq_imx6.o busfreq_ddr3.o
-obj-$(CONFIG_SOC_IMX6SL) += lpddr2_freq_imx6.o busfreq_lpddr2.o imx6sl_wfi.o
+obj-y += busfreq-imx6.o busfreq_ddr3.o busfreq_lpddr2.o
+obj-$(CONFIG_SOC_IMX6Q) += ddr3_freq_imx6.o
+obj-$(CONFIG_SOC_IMX6SL) += lpddr2_freq_imx6.o imx6sl_wfi.o
 obj-$(CONFIG_SOC_IMX6SX) += ddr3_freq_imx6sx.o lpddr2_freq_imx6sx.o imx6sx_low_power_idle.o
 
 endif

@@ -796,11 +796,8 @@ config	SOC_IMX53
 	help
 	  This enables support for Freescale i.MX53 processor.
 
-config SOC_IMX6Q
-	bool "i.MX6 Quad/DualLite support"
-	select ARCH_HAS_CPUFREQ
-	select ARCH_HAS_OPP
-	select ARM_CPU_SUSPEND if PM
+config SOC_IMX6
+	bool "i.MX6 SOC support"
 	select ARM_ERRATA_754322
 	select ARM_ERRATA_764369 if SMP
 	select ARM_ERRATA_775420
@@ -811,31 +808,42 @@ config SOC_IMX6Q
 	select CPU_V7
 	select HAVE_ARM_SCU if SMP
 	select HAVE_ARM_TWD if LOCAL_TIMERS
+	select HAVE_SMP
+	select PL310_ERRATA_769419 if CACHE_PL310
+
+	help
+	  This enables support for all Freescale i.MX6 processor.
+
+config SOC_IMX6Q
+	bool "i.MX6 Quad/DualLite support"
+	select SOC_IMX6
+	select ARCH_HAS_CPUFREQ
+	select ARCH_HAS_OPP
+	select ARM_CPU_SUSPEND if PM
 	select HAVE_CAN_FLEXCAN if CAN
 	select HAVE_IMX_ANATOP
 	select HAVE_IMX_GPC
 	select HAVE_IMX_MMDC
 	select HAVE_IMX_SRC
-	select HAVE_SMP
 	select MFD_SYSCON
 	select MIGHT_HAVE_PCI
 	select PCI_DOMAINS if PCI
 	select ARCH_SUPPORTS_MSI
 	select PINCTRL
 	select PINCTRL_IMX6Q
-	select PL310_ERRATA_769419 if CACHE_PL310
 	select PM_OPP if PM
 	select ZONE_DMA
+	select MXC_MLB150
 
 	help
 	  This enables support for Freescale i.MX6 Quad processor.
 
 config SOC_IMX6SL
 	bool "i.MX6 SoloLite support"
-	select ARM_ERRATA_754322
-	select ARM_ERRATA_775420
-	select ARM_GIC
-	select CPU_V7
+	select SOC_IMX6
+	select ARCH_HAS_CPUFREQ
+	select ARM_CPU_SUSPEND if PM
+	select ARCH_HAS_OPP
 	select HAVE_IMX_ANATOP
 	select HAVE_IMX_GPC
 	select HAVE_IMX_MMDC
@@ -843,17 +851,16 @@ config SOC_IMX6SL
 	select HAVE_IMX_RNG
 	select PINCTRL
 	select PINCTRL_IMX6SL
-	select PL310_ERRATA_769419 if CACHE_PL310
 
 	help
 	  This enables support for Freescale i.MX6 SoloLite processor.
 
 config SOC_IMX6SX
 	bool "i.MX6 SoloX support"
-	select ARM_ERRATA_754322
-	select ARM_ERRATA_775420
-	select ARM_GIC
-	select CPU_V7
+	select SOC_IMX6
+	select ARCH_HAS_CPUFREQ
+	select ARCH_HAS_OPP
+	select ARM_CPU_SUSPEND if PM
 	select HAVE_IMX_ANATOP
 	select HAVE_IMX_GPC
 	select HAVE_IMX_MMDC
@@ -863,7 +870,8 @@ config SOC_IMX6SX
 	select HAVE_IMX_MCC
 	select PINCTRL
 	select PINCTRL_IMX6SX
-	select PL310_ERRATA_769419 if CACHE_PL310
+	select MXC_MLB150
+	select KEYBOARD_SNVS_PWRKEY
 
 	help
 	  This enables support for Freescale i.MX6 SoloX processor.

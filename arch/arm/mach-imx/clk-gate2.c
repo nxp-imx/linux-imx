@@ -59,6 +59,7 @@ static void clk_gate2_do_shared_clks(struct clk_hw *hw, bool enable)
 	struct clk_gate2 *gate = to_clk_gate2(hw);
 
 	if (imx_src_is_m4_enabled()) {
+#ifdef CONFIG_SOC_IMX6SX
 		if (!amp_power_mutex || !shared_mem) {
 			if (enable)
 				clk_gate2_do_hardware(gate, enable);
@@ -80,6 +81,7 @@ static void clk_gate2_do_shared_clks(struct clk_hw *hw, bool enable)
 		clk_gate2_do_hardware(gate, enable);
 
 		imx_sema4_mutex_unlock(amp_power_mutex);
+#endif
 	} else {
 		clk_gate2_do_hardware(gate, enable);
 	}
