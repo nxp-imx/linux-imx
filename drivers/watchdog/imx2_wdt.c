@@ -2,7 +2,7 @@
  * Watchdog driver for IMX2 and later processors
  *
  *  Copyright (C) 2010 Wolfram Sang, Pengutronix e.K. <w.sang@pengutronix.de>
- *  Copyright (C) 2014 Freescale Semiconductor, Inc.
+ *  Copyright (C) 2015 Freescale Semiconductor, Inc.
  *
  * some parts adapted by similar drivers from Darius Augulis and Vladimir
  * Zapolskiy, additional improvements by Wim Van Sebroeck.
@@ -68,6 +68,7 @@ struct imx2_wdt_device {
 	struct regmap *regmap;
 	struct watchdog_device wdog;
 	bool ext_reset;
+	bool wdog_b;
 };
 
 static bool nowayout = WATCHDOG_NOWAYOUT;
@@ -106,6 +107,11 @@ static int imx2_wdt_restart(struct watchdog_device *wdog, unsigned long action,
 
 	/* Assert SRS signal */
 	regmap_write(wdev->regmap, IMX2_WDT_WCR, wcr_enable);
+
+	/* Assert WDOG_B signal */
+	if (wdev->wdog_b)
+		wcr_enable = 0x14;
+
 	/*
 	 * Due to imx6q errata ERR004346 (WDOG: WDOG SRS bit requires to be
 	 * written twice), we add another two writes to ensure there must be at
@@ -254,6 +260,7 @@ static int __init imx2_wdt_probe(struct platform_device *pdev)
 	void __iomem *base;
 	int ret;
 	u32 val;
+	struct device_node *of_node = pdev->dev.of_node;
 
 	wdev = devm_kzalloc(&pdev->dev, sizeof(*wdev), GFP_KERNEL);
 	if (!wdev)
@@ -275,6 +282,11 @@ static int __init imx2_wdt_probe(struct platform_device *pdev)
 	if (IS_ERR(wdev->clk)) {
 		dev_err(&pdev->dev, "can't get Watchdog clock\n");
 		return PTR_ERR(wdev->clk);
+	}
+
+	if (of_get_property(of_node, "fsl,wdog_b", NULL)) {
+		wdev->wdog_b = true;
+		dev_info(&pdev->dev, "use WDOG_B to reboot.\n");
 	}
 
 	wdog			= &wdev->wdog;
