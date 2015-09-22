@@ -6,7 +6,7 @@
  * published by the Free Software Foundation.
  *
  */
-
+#include <linux/busfreq-imx.h>
 #include <linux/clk.h>
 #include <linux/cpu_cooling.h>
 #include <linux/delay.h>
@@ -229,9 +229,12 @@ struct imx_thermal_data {
 	bool irq_enabled;
 	int irq;
 	struct clk *thermal_clk;
+	struct mutex mutex;
 	const struct thermal_soc_data *socdata;
 	const char *temp_grade;
 };
+
+static struct imx_thermal_data *imx_thermal_data;
 
 static void imx_set_panic_temp(struct imx_thermal_data *data,
 			       int panic_temp)
@@ -280,6 +283,7 @@ static int imx_get_temp(struct thermal_zone_device *tz, int *temp)
 	bool wait;
 	u32 val;
 
+	mutex_lock(&data->mutex);
 	if (data->mode == THERMAL_DEVICE_ENABLED) {
 		/* Check if a measurement is currently in progress */
 		regmap_read(map, soc_data->temp_data, &val);
@@ -290,6 +294,7 @@ static int imx_get_temp(struct thermal_zone_device *tz, int *temp)
 		 * temperature sensor, enable measurements, take a reading,
 		 * disable measurements, power off the temperature sensor.
 		 */
+		clk_prepare_enable(data->thermal_clk);
 		regmap_write(map, soc_data->sensor_ctrl + REG_CLR,
 			    soc_data->power_down_mask);
 		regmap_write(map, soc_data->sensor_ctrl + REG_SET,
@@ -321,11 +326,13 @@ static int imx_get_temp(struct thermal_zone_device *tz, int *temp)
 			     soc_data->measure_temp_mask);
 		regmap_write(map, soc_data->sensor_ctrl + REG_SET,
 			     soc_data->power_down_mask);
+		clk_disable_unprepare(data->thermal_clk);
 	}
 
 	if (data->socdata->version != TEMPMON_IMX7 &&
 	   ((val & soc_data->temp_valid_mask) == 0)) {
 		dev_dbg(&tz->device, "temp measurement never finished\n");
+		mutex_unlock(&data->mutex);
 		return -EAGAIN;
 	}
 
@@ -360,6 +367,7 @@ static int imx_get_temp(struct thermal_zone_device *tz, int *temp)
 		data->irq_enabled = true;
 		enable_irq(data->irq);
 	}
+	mutex_unlock(&data->mutex);
 
 	return 0;
 }
@@ -679,6 +687,52 @@ static const struct of_device_id of_imx_thermal_match[] = {
 };
 MODULE_DEVICE_TABLE(of, of_imx_thermal_match);
 
+static int thermal_notifier_event(struct notifier_block *this,
+					unsigned long event, void *ptr)
+{
+	const struct thermal_soc_data *soc_data = imx_thermal_data->socdata;
+	struct regmap *map = imx_thermal_data->tempmon;
+
+	mutex_lock(&imx_thermal_data->mutex);
+
+	switch (event) {
+	/*
+	 * In low_bus_freq_mode, the thermal sensor auto measurement
+	 * can be disabled to low the power consumption.
+	 */
+	case LOW_BUSFREQ_ENTER:
+		regmap_write(map, soc_data->sensor_ctrl + REG_CLR,
+			     soc_data->measure_temp_mask);
+		regmap_write(map, soc_data->sensor_ctrl + REG_SET,
+			     soc_data->power_down_mask);
+		imx_thermal_data->mode = THERMAL_DEVICE_DISABLED;
+		disable_irq(imx_thermal_data->irq);
+		clk_disable_unprepare(imx_thermal_data->thermal_clk);
+		break;
+
+	/* Enabled thermal auto measurement when exiting low_bus_freq_mode */
+	case LOW_BUSFREQ_EXIT:
+		clk_prepare_enable(imx_thermal_data->thermal_clk);
+		regmap_write(map, soc_data->sensor_ctrl + REG_CLR,
+			     soc_data->power_down_mask);
+		regmap_write(map, soc_data->sensor_ctrl + REG_SET,
+			     soc_data->measure_temp_mask);
+		imx_thermal_data->mode = THERMAL_DEVICE_ENABLED;
+		enable_irq(imx_thermal_data->irq);
+		break;
+
+	default:
+		break;
+	}
+	mutex_unlock(&imx_thermal_data->mutex);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block thermal_notifier = {
+	.notifier_call = thermal_notifier_event,
+};
+
 static int imx_thermal_probe(struct platform_device *pdev)
 {
 	struct imx_thermal_data *data;
@@ -689,6 +743,7 @@ static int imx_thermal_probe(struct platform_device *pdev)
 	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
+	imx_thermal_data = data;
 
 	map = syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "fsl,tempmon");
 	if (IS_ERR(map)) {
@@ -783,6 +838,7 @@ static int imx_thermal_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	mutex_init(&data->mutex);
 	data->tz = thermal_zone_device_register("imx_thermal_zone",
 						IMX_TRIP_NUM,
 						BIT(IMX_TRIP_PASSIVE), data,
@@ -834,6 +890,10 @@ static int imx_thermal_probe(struct platform_device *pdev)
 		devfreq_cooling_unregister(data->cdev[1]);
 		return ret;
 	}
+
+	/* register the busfreq notifier called in low bus freq */
+	if (data->socdata->version != TEMPMON_IMX7)
+		register_busfreq_notifier(&thermal_notifier);
 
 	return 0;
 }
