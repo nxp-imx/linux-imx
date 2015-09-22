@@ -235,7 +235,6 @@
 	fsl,cpu_pupscr_sw = <0x0>;
 	fsl,cpu_pdnscr_iso2sw = <0x1>;
 	fsl,cpu_pdnscr_iso = <0x1>;
-	fsl,wdog-reset = <1>; /* watchdog select of reset source */
 	fsl,ldo-bypass = <0>; /* DCDC, ldo-enable */
 };
 
@@ -257,6 +256,41 @@
 		position = <0>;
 		interrupt-parent = <&gpio5>;
 		interrupts = <0 8>;
+	};
+};
+
+&i2c2 {
+	clock_frequency = <100000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c2>;
+	status = "okay";
+
+	codec: wm8960@1a {
+		compatible = "wlf,wm8960";
+		reg = <0x1a>;
+		clocks = <&clks IMX6UL_CLK_SAI2>;
+		clock-names = "mclk";
+		wlf,shared-lrclk;
+	};
+
+	ov5640: ov5640@3c {
+		compatible = "ovti,ov5640";
+		reg = <0x3c>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_csi1>;
+		clocks = <&clks IMX6UL_CLK_CSI>;
+		clock-names = "csi_mclk";
+		pwn-gpios = <&gpio_spi 6 1>;
+		rst-gpios = <&gpio_spi 5 0>;
+		csi_id = <0>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+		status = "disabled";
+		port {
+			ov5640_ep: endpoint {
+				remote-endpoint = <&csi1_ep>;
+			};
+		};
 	};
 };
 
@@ -403,6 +437,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_wdog>;
 	fsl,ext-reset-output;
+	fsl,wdog_b;
 };
 
 &iomuxc {
@@ -672,6 +707,17 @@
 	pinctrl_wdog: wdoggrp {
 		fsl,pins = <
 			MX6UL_PAD_LCD_RESET__WDOG1_WDOG_ANY    0x30b0
+		>;
+	};
+
+	pinctrl_sim2_1: sim2grp-1 {
+		fsl,pins = <
+			MX6UL_PAD_CSI_DATA03__SIM2_PORT1_PD		0xb808
+			MX6UL_PAD_CSI_DATA04__SIM2_PORT1_CLK		0x31
+			MX6UL_PAD_CSI_DATA05__SIM2_PORT1_RST_B		0xb808
+			MX6UL_PAD_CSI_DATA06__SIM2_PORT1_SVEN		0xb808
+			MX6UL_PAD_CSI_DATA07__SIM2_PORT1_TRXD		0xb809
+			MX6UL_PAD_CSI_DATA02__GPIO4_IO23		0x3008
 		>;
 	};
 };
