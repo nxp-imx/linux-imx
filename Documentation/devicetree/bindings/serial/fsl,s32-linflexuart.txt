@@ -11,12 +11,16 @@ Required properties:
     is compatible with the one integrated on S32V234 SoC
 - reg : Address and length of the register set for the device
 - interrupts : Should contain uart interrupt
+- clocks : phandle + clock specifier pairs, one for each entry in clock-names
+- clock-names : should contain: "lin" - the uart clock
 
 Example:
 uart0: serial@40053000 {
 	compatible = "fsl,s32v234-linflexuart";
 	reg = <0x0 0x40053000 0x0 0x1000>;
 	interrupts = <0 59 4>;
+	clocks = <&clks S32V234_CLK_LIN>;
+	clock-names = "lin";
 };
 
 [1] https://www.nxp.com/webapp/Download?colCode=S32V234RM
