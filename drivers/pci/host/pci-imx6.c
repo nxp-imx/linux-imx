@@ -1,7 +1,7 @@
 /*
  * PCIe host controller driver for Freescale i.MX6 SoCs
  *
- * Copyright (C) 2014 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2013 Kosagi
  *		http://www.kosagi.com
  *
@@ -826,6 +826,10 @@ static int pci_imx_suspend_noirq(struct device *dev)
 			udelay(10);
 			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
 					BIT(16), 0 << 16);
+			udelay(1000);
+			if (gpio_is_valid(imx6_pcie->reset_gpio))
+				gpio_set_value_cansleep(imx6_pcie->reset_gpio,
+						0);
 			clk_disable_unprepare(imx6_pcie->pcie_axi);
 			clk_disable_unprepare(imx6_pcie->lvds_gate);
 			clk_disable_unprepare(imx6_pcie->pcie_ref_125m);
@@ -886,18 +890,23 @@ static int pci_imx_resume_noirq(struct device *dev)
 			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
 					IMX6Q_GPR12_PCIE_CTL_2, 1 << 10);
 		} else {
+			/* Reset iMX6SX PCIe */
+			regmap_update_bits(imx6_pcie->iomuxc_gpr,
+					IOMUXC_GPR5, BIT(19), 1 << 19);
+
 			request_bus_freq(BUS_FREQ_HIGH);
 			clk_prepare_enable(imx6_pcie->dis_axi);
 			clk_prepare_enable(imx6_pcie->lvds_gate);
 			clk_prepare_enable(imx6_pcie->pcie_ref_125m);
 			clk_prepare_enable(imx6_pcie->pcie_axi);
 
-			/* Reset iMX6SX PCIe */
-			regmap_update_bits(imx6_pcie->iomuxc_gpr,
-					IOMUXC_GPR5, BIT(18), 1 << 18);
+			if (gpio_is_valid(imx6_pcie->reset_gpio))
+				gpio_set_value_cansleep(imx6_pcie->reset_gpio,
+						1);
+			mdelay(20);
 
 			regmap_update_bits(imx6_pcie->iomuxc_gpr,
-					IOMUXC_GPR5, BIT(18), 0 << 18);
+					IOMUXC_GPR5, BIT(19), 0 << 19);
 			/*
 			 * controller maybe turn off, re-configure again
 			 */
@@ -908,6 +917,10 @@ static int pci_imx_resume_noirq(struct device *dev)
 
 			if (IS_ENABLED(CONFIG_PCI_MSI))
 				dw_pcie_msi_cfg_restore(pp);
+
+			/* assert LTSSM enable */
+			regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR12,
+					IMX6Q_GPR12_PCIE_CTL_2, 1 << 10);
 		}
 	}
 
