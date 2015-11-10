@@ -78,9 +78,6 @@
 #define MX6Q_CCM_CCR	0x0
 #define MX6Q_ANATOP_CORE	0x140
 
-#define MX6_MAX_MMDC_IO_NUM             33
-#define MX6_MAX_MMDC_NUM                34
-
 	.align 3
 
 	/* Check if the cpu is cortex-a7 */
