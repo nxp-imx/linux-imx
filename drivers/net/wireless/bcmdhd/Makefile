@@ -107,7 +107,7 @@ endif
 # m: module type driver
 # y: built-in type driver
 ##########################
-#DRIVER_TYPE ?= y
+DRIVER_TYPE ?= y
 
 ifeq ($(CONFIG_BCMDHD_SDIO), y)
   DHDCFLAGS += -DENABLE_INSMOD_NO_FW_LOAD
