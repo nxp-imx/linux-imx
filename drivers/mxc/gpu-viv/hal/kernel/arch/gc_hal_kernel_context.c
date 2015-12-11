@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 Vivante Corporation
+*    Copyright (c) 2014 - 2015 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014  Vivante Corporation
+*    Copyright (C) 2014 - 2015 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -1143,17 +1143,14 @@ _InitializeContextBuffer(
     /* Composition states. */
     index += _State(Context, index, 0x03008 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
 
+	index += _State(Context, index, (0x01460 >> 2) + (0 << 3), 0x00000000, Context->hardware->identity.pixelPipes, gcvFALSE, gcvTRUE);
+
     if (Context->hardware->identity.pixelPipes == 1)
     {
-        index += _State(Context, index, 0x01460 >> 2, 0x00000000, 8, gcvFALSE, gcvTRUE);
-
         index += _State(Context, index, 0x01430 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
         index += _State(Context, index, 0x01410 >> 2, 0x00000000, 1, gcvFALSE, gcvTRUE);
     }
-    else
-    {
-        index += _State(Context, index, (0x01460 >> 2) + (0 << 3), 0x00000000, Context->hardware->identity.pixelPipes, gcvFALSE, gcvTRUE);
-    }
+
 
     if (Context->hardware->identity.pixelPipes > 1 || halti0)
     {
@@ -1437,15 +1434,18 @@ _DestroyContext(
 #if REMOVE_DUPLICATED_COPY_FROM_USER
         if (Context->recordArrayMap != gcvNULL)
         {
-            gcsRECORD_ARRAY_MAP_PTR map = Context->recordArrayMap;
+            gctUINT i;
 
-            do
+            for (i = 0; i < gcdCONTEXT_BUFFER_COUNT; i++)
             {
-                /* Free record array. */
-                gcmkONERROR(gcmkOS_SAFE_FREE(Context->os, map->kData));
-                map = map->next;
+                gcsRECORD_ARRAY_MAP_PTR map = &Context->recordArrayMap[i];
+
+                if (map->kData != gcvNULL)
+                {
+                    /* Free record array. */
+                    gcmkONERROR(gcmkOS_SAFE_FREE(Context->os, map->kData));
+                }
             }
-            while (map != Context->recordArrayMap);
 
             gcmkONERROR(gcmkOS_SAFE_FREE(Context->os, Context->recordArrayMap));
         }
@@ -1583,6 +1583,16 @@ gckCONTEXT_Construct(
         = gcmSIZEOF(gcsSTATE_DELTA_RECORD) * (gctUINT)context->numStates;
 #endif
 
+#ifdef CONFIG_ANDROID
+    if (!((context->hardware->identity.chipModel == gcv3000)
+     && (context->hardware->identity.chipRevision == 0x5450)
+     && (context->hardware->identity.chipFlags & gcvCHIP_FLAG_GC2000_R2))
+    )
+    {
+        context->recordArraySize
+            = gcmSIZEOF(gcsSTATE_DELTA_RECORD) * (gctUINT)context->numStates;
+    }
+#endif
 
     if (context->maxState > 0)
     {
@@ -1930,12 +1940,17 @@ gckCONTEXT_Update(
 #if REMOVE_DUPLICATED_COPY_FROM_USER
     if (needCopy && (Context->recordArrayMap == gcvNULL))
     {
+        gctSIZE_T size = gcmSIZEOF(struct _gcsRECORD_ARRAY_MAP)
+                       * gcdCONTEXT_BUFFER_COUNT;
+
         /* Allocate enough maps. */
         gcmkONERROR(gckOS_Allocate(
             Context->os,
-            gcmSIZEOF(gcsRECORD_ARRAY_MAP_PTR) * gcdCONTEXT_BUFFER_COUNT,
+            size,
             (gctPOINTER *) &Context->recordArrayMap
             ));
+
+        gcmkONERROR(gckOS_ZeroMemory(Context->recordArrayMap, size));
 
         for (i = 0; i < gcdCONTEXT_BUFFER_COUNT; i++)
         {
@@ -1945,15 +1960,42 @@ gckCONTEXT_Update(
             recordArrayMap = &Context->recordArrayMap[i];
 
             /* Allocate the buffer. */
-            gcmkONERROR(gckOS_Allocate(
+            status = gckOS_Allocate(
                 Context->os,
                 Context->recordArraySize,
                 (gctPOINTER *) &recordArrayMap->kData
-                ));
+                );
+
+            if (gcmIS_ERROR(status))
+            {
+                break;
+            }
 
             /* Initialize fields. */
             recordArrayMap->key  = 0;
             recordArrayMap->next = &Context->recordArrayMap[n];
+        }
+
+        if (gcmIS_ERROR(status))
+        {
+            /* Error roll back. */
+            for (i = 0; i < gcdCONTEXT_BUFFER_COUNT; i++)
+            {
+                recordArrayMap = &Context->recordArrayMap[i];
+
+                if (recordArrayMap->kData)
+                {
+                    /* Free allocated recordArray. */
+                    gcmkOS_SAFE_FREE(Context->os, recordArrayMap->kData);
+                    recordArrayMap->kData = gcvNULL;
+                }
+            }
+
+            /* Free recordArray map. */
+            gcmkOS_SAFE_FREE(Context->os, Context->recordArrayMap);
+            Context->recordArrayMap = gcvNULL;
+
+            gcmkONERROR(status);
         }
     }
 #else
