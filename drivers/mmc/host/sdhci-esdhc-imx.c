@@ -1209,6 +1209,8 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		 * TO1.1, it's harmless for MX6SL
 		 */
 		writel(readl(host->ioaddr + 0x6c) | BIT(7), host->ioaddr + 0x6c);
+		/* disable DLL_CTRL delay line settings */
+		writel(0x0, host->ioaddr + ESDHC_DLL_CTRL);
 	}
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_MAN_TUNING)
