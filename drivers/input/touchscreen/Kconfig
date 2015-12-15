@@ -1411,6 +1411,13 @@ config TOUCHSCREEN_FTS
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called fts_ts.
+
+config TOUCHSCREEN_FT5X46
+	tristate "FocalTech FT5X46 touch driver"
+	depends on I2C
+	help
+	  Say Y here if you have a FocalTech FT5X46
+	  touchscreen connected via I2C.
 endif
 
 source "drivers/input/touchscreen/synaptics_dsx/Kconfig"
