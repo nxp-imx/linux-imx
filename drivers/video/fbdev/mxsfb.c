@@ -254,6 +254,7 @@ struct mxsfb_info {
 	struct regulator *reg_lcd;
 	bool wait4vsync;
 	struct completion vsync_complete;
+	ktime_t vsync_nf_timestamp;
 	struct completion flip_complete;
 	int cur_blank;
 	int restore_blank;
@@ -572,6 +573,7 @@ static irqreturn_t mxsfb_irq_handler(int irq, void *dev_id)
 		writel(CTRL1_VSYNC_EDGE_IRQ_EN,
 			     host->base + LCDC_CTRL1 + REG_CLR);
 		host->wait4vsync = 0;
+		host->vsync_nf_timestamp = ktime_get();
 		complete(&host->vsync_complete);
 	}
 
@@ -1056,7 +1058,16 @@ static int mxsfb_ioctl(struct fb_info *fb_info, unsigned int cmd,
 
 	switch (cmd) {
 	case MXCFB_WAIT_FOR_VSYNC:
-		ret = mxsfb_wait_for_vsync(fb_info);
+		{
+			long long timestamp;
+			struct mxsfb_info *host = fb_info->par;
+			ret = mxsfb_wait_for_vsync(fb_info);
+			timestamp = ktime_to_ns(host->vsync_nf_timestamp);
+			if ((ret == 0) && copy_to_user((void *)arg,
+				&timestamp, sizeof(timestamp))) {
+				ret = -EFAULT;
+			}
+		}
 		break;
 	default:
 		break;
