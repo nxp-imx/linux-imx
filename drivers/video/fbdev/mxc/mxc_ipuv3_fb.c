@@ -119,6 +119,7 @@ struct mxcfb_info {
 	bool cur_prefetch;
 	spinlock_t spin_lock;	/* for PRE small yres cases */
 	struct ipu_pre_context *pre_config;
+	ktime_t vsync_nf_timestamp;
 };
 
 struct mxcfb_pfmt {
@@ -2080,6 +2081,7 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 		}
 	case MXCFB_WAIT_FOR_VSYNC:
 		{
+			unsigned long long timestamp;
 			if (mxc_fbi->ipu_ch == MEM_FG_SYNC) {
 				/* BG should poweron */
 				struct mxcfb_info *bg_mxcfbi = NULL;
@@ -2108,6 +2110,12 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 			ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_nf_irq);
 			retval = wait_for_completion_interruptible_timeout(
 				&mxc_fbi->vsync_complete, 1 * HZ);
+			timestamp = ktime_to_ns(mxc_fbi->vsync_nf_timestamp);
+			dev_vdbg(fbi->device, "ts = %llu", timestamp);
+			if (copy_to_user((void *)arg, &timestamp, sizeof(timestamp))) {
+				retval = -EFAULT;
+				break;
+			}
 			if (retval == 0) {
 				dev_err(fbi->device,
 					"MXCFB_WAIT_FOR_VSYNC: timeout %d\n",
@@ -2721,6 +2729,7 @@ static irqreturn_t mxcfb_nf_irq_handler(int irq, void *dev_id)
 	struct fb_info *fbi = dev_id;
 	struct mxcfb_info *mxc_fbi = fbi->par;
 
+	mxc_fbi->vsync_nf_timestamp = ktime_get();
 	complete(&mxc_fbi->vsync_complete);
 	return IRQ_HANDLED;
 }
