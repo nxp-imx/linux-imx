@@ -347,6 +347,7 @@ dtb-$(CONFIG_SOC_IMX6Q) += \
 	imx6dl-riotboard.dtb \
 	imx6dl-sabreauto.dtb \
 	imx6dl-sabreauto-ecspi.dtb \
+	imx6dl-sabreauto-enetirq.dtb \
 	imx6dl-sabreauto-flexcan1.dtb \
 	imx6dl-sabreauto-gpmi-weim.dtb \
 	imx6dl-sabrelite.dtb \
@@ -397,6 +398,7 @@ dtb-$(CONFIG_SOC_IMX6Q) += \
 	imx6q-rex-pro.dtb \
 	imx6q-sabreauto.dtb \
 	imx6q-sabreauto-ecspi.dtb \
+	imx6q-sabreauto-enetirq.dtb \
 	imx6q-sabreauto-flexcan1.dtb \
 	imx6q-sabreauto-gpmi-weim.dtb \
 	imx6q-sabrelite.dtb \
