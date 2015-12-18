@@ -482,14 +482,6 @@ dtb-$(CONFIG_SOC_IMX7D) += \
 	imx7d-colibri-eval-v3.dtb \
 	imx7d-nitrogen7.dtb \
 	imx7d-sbc-imx7.dtb \
-	imx7d-sdb.dtb \
-	imx7d-sdb-wm8960.dtb \
-	imx7d-sdb-hdmi-audio.dtb \
-	imx7d-sdb-epdc.dtb \
-	imx7d-sdb-gpmi-weim.dtb \
-	imx7d-sdb-qspi.dtb \
-	imx7d-sdb-touch.dtb \
-	imx7d-sdb-m4.dtb \
 	imx7s-colibri-eval-v3.dtb \
 	imx7s-warp.dtb \
 	imx7d-12x12-lpddr3-arm2.dtb \
@@ -501,7 +493,21 @@ dtb-$(CONFIG_SOC_IMX7D) += \
 	imx7d-12x12-lpddr3-arm2-qspi.dtb \
 	imx7d-12x12-lpddr3-arm2-sai.dtb \
 	imx7d-12x12-lpddr3-arm2-mqs.dtb \
-	imx7d-19x19-lpddr2-arm2.dtb
+	imx7d-19x19-lpddr2-arm2.dtb \
+	imx7d-sdb.dtb \
+	imx7d-sdb-epdc.dtb \
+	imx7d-sdb-gpmi-weim.dtb \
+	imx7d-sdb-m4.dtb \
+	imx7d-sdb-qspi.dtb \
+	imx7d-sdb-reva.dtb \
+	imx7d-sdb-reva-epdc.dtb \
+	imx7d-sdb-reva-gpmi-weim.dtb \
+	imx7d-sdb-reva-hdmi-audio.dtb \
+	imx7d-sdb-reva-m4.dtb \
+	imx7d-sdb-reva-qspi.dtb \
+	imx7d-sdb-reva-touch.dtb \
+	imx7d-sdb-reva-wm8960.dtb \
+	imx7d-sdb-touch.dtb
 dtb-$(CONFIG_SOC_LS1021A) += \
 	ls1021a-qds.dtb \
 	ls1021a-twr.dtb
