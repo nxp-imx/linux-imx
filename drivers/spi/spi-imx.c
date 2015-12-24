@@ -68,6 +68,7 @@ enum spi_imx_devtype {
 	IMX31_CSPI,
 	IMX35_CSPI,	/* CSPI on all i.mx except above */
 	IMX51_ECSPI,	/* ECSPI on i.mx51 and later */
+	IMX6UL_ECSPI,
 };
 
 struct spi_imx_data;
@@ -124,7 +125,8 @@ static inline int is_imx35_cspi(struct spi_imx_data *d)
 
 static inline int is_imx51_ecspi(struct spi_imx_data *d)
 {
-	return d->devtype_data->devtype == IMX51_ECSPI;
+	return d->devtype_data->devtype == IMX51_ECSPI ||
+	       d->devtype_data->devtype == IMX6UL_ECSPI;
 }
 
 static inline unsigned spi_imx_get_fifosize(struct spi_imx_data *d)
@@ -328,11 +330,13 @@ static void mx51_ecspi_trigger(struct spi_imx_data *spi_imx)
 {
 	u32 reg = readl(spi_imx->base + MX51_ECSPI_CTRL);
 	/*
-	 * To workaround TKT238285, SDMA script need use XCH instead of SMC
-	 * just like PIO mode.
+	 * To workaround ERR008517, SDMA script need use XCH instead of SMC
+	 * just like PIO mode and it fix on i.mx6ul
 	 */
 	if (!spi_imx->usedma)
 		reg |= MX51_ECSPI_CTRL_XCH;
+	else if (spi_imx->devtype_data->devtype == IMX6UL_ECSPI)
+		reg |= MX51_ECSPI_CTRL_SMC;
 	else
 		reg &= ~MX51_ECSPI_CTRL_SMC;
 	writel(reg, spi_imx->base + MX51_ECSPI_CTRL);
@@ -345,6 +349,7 @@ static int mx51_ecspi_config(struct spi_device *spi,
 	u32 ctrl = MX51_ECSPI_CTRL_ENABLE;
 	u32 clk = config->speed_hz, delay, reg;
 	u32 cfg = readl(spi_imx->base + MX51_ECSPI_CONFIG);
+	int tx_wml = 0;
 
 	/*
 	 * The hardware seems to have a race condition when changing modes. The
@@ -419,8 +424,11 @@ static int mx51_ecspi_config(struct spi_device *spi,
 	 * Configure the DMA register: setup the watermark
 	 * and enable DMA request.
 	 */
+	if (spi_imx->devtype_data->devtype == IMX6UL_ECSPI)
+		tx_wml = spi_imx->wml / 2;
 
 	writel(MX51_ECSPI_DMA_RX_WML(spi_imx->wml) |
+		MX51_ECSPI_DMA_TX_WML(tx_wml) |
 		MX51_ECSPI_DMA_RXT_WML(spi_imx->wml) |
 		MX51_ECSPI_DMA_TEDEN | MX51_ECSPI_DMA_RXDEN |
 		MX51_ECSPI_DMA_RXTDEN, spi_imx->base + MX51_ECSPI_DMA);
@@ -727,7 +735,16 @@ static struct spi_imx_devtype_data imx51_ecspi_devtype_data = {
 	.devtype = IMX51_ECSPI,
 };
 
-static const struct platform_device_id spi_imx_devtype[] = {
+static struct spi_imx_devtype_data imx6ul_ecspi_devtype_data = {
+	.intctrl = mx51_ecspi_intctrl,
+	.config = mx51_ecspi_config,
+	.trigger = mx51_ecspi_trigger,
+	.rx_available = mx51_ecspi_rx_available,
+	.reset = mx51_ecspi_reset,
+	.devtype = IMX6UL_ECSPI,
+};
+
+static struct platform_device_id spi_imx_devtype[] = {
 	{
 		.name = "imx1-cspi",
 		.driver_data = (kernel_ulong_t) &imx1_cspi_devtype_data,
@@ -747,6 +764,9 @@ static const struct platform_device_id spi_imx_devtype[] = {
 		.name = "imx51-ecspi",
 		.driver_data = (kernel_ulong_t) &imx51_ecspi_devtype_data,
 	}, {
+		.name = "imx6ul-ecspi",
+		.driver_data = (kernel_ulong_t) &imx6ul_ecspi_devtype_data,
+	}, {
 		/* sentinel */
 	}
 };
@@ -758,6 +778,7 @@ static const struct of_device_id spi_imx_dt_ids[] = {
 	{ .compatible = "fsl,imx31-cspi", .data = &imx31_cspi_devtype_data, },
 	{ .compatible = "fsl,imx35-cspi", .data = &imx35_cspi_devtype_data, },
 	{ .compatible = "fsl,imx51-ecspi", .data = &imx51_ecspi_devtype_data, },
+	{ .compatible = "fsl,imx6ul-ecspi", .data = &imx6ul_ecspi_devtype_data, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, spi_imx_dt_ids);
