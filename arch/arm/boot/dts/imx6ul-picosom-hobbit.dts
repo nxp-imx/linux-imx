@@ -141,9 +141,10 @@
 
 	leds {
 		compatible = "gpio-leds";
-		hobbitled {
-			label = "hobbitled";
-			gpios = <&gpio1 29 GPIO_ACTIVE_LOW>;
+		led0 {
+			label = "led0";
+			gpios = <&gpio1 29 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "timer";
 		};
 	};
 };
