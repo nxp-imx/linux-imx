@@ -19,6 +19,8 @@ Optional properties:
   chapter, DLL (Delay Line) section in RM for details.
 - tuning-step : The delay cell steps in tuning procedure.
   Some boards need to set the tuning-step to make sure it can pass tuning procedure.
+- fsl,tuning-start-tap: Specify the start dealy cell point when send first CMD19
+  in tuning procedure.
 - wifi-host : assigned as a wifi host.
   This is required for some WiFi cards to do card detect
 
