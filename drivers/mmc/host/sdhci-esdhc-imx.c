@@ -1077,7 +1077,7 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 
 	of_property_read_u32(np, "max-frequency", &boarddata->f_max);
 
-	of_property_read_u32(np, "tuning-step", &boarddata->tuning_step);
+	of_property_read_u32(np, "fsl,tuning-step", &boarddata->tuning_step);
 	of_property_read_u32(np, "fsl,tuning-start-tap",
 			     &boarddata->tuning_start_tap);
 
