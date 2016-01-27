@@ -54,13 +54,34 @@ void (*mx6_change_lpddr2_freq)(u32 ddr_freq, int bus_freq_mode) = NULL;
 extern unsigned int ddr_normal_rate;
 extern void mx6_lpddr2_freq_change(u32 freq, int bus_freq_mode);
 extern void imx6_up_lpddr2_freq_change(u32 freq, int bus_freq_mode);
-extern void mx6q_lpddr2_freq_change(u32 freq, int bus_freq_mode);
+extern void mx6q_lpddr2_freq_change(u32 freq, void *ddr_settings);
 extern unsigned long ddr_freq_change_iram_base;
 extern unsigned long imx6_lpddr2_freq_change_start asm("imx6_lpddr2_freq_change_start");
 extern unsigned long imx6_lpddr2_freq_change_end asm("imx6_lpddr2_freq_change_end");
 extern unsigned long mx6q_lpddr2_freq_change_start asm("mx6q_lpddr2_freq_change_start");
 extern unsigned long mx6q_lpddr2_freq_change_end asm("mx6q_lpddr2_freq_change_end");
 extern unsigned long iram_tlb_phys_addr;
+
+struct mmdc_settings_info {
+	u32 size;
+	void *settings;
+} __aligned(8);
+static struct mmdc_settings_info *mmdc_settings_info;
+void (*mx6_change_lpddr2_freq_smp)(u32 ddr_freq, struct mmdc_settings_info
+		*mmdc_settings_info) = NULL;
+
+static int mmdc_settings_size;
+static unsigned long (*mmdc_settings)[2];
+static unsigned long (*iram_mmdc_settings)[2];
+static unsigned long *iram_settings_size;
+static unsigned long *iram_ddr_freq_chage;
+unsigned long mmdc_timing_settings[][2] = {
+	{0x0C, 0x0},	/* mmdc_mdcfg0 */
+	{0x10, 0x0},	/* mmdc_mdcfg1 */
+	{0x14, 0x0},	/* mmdc_mdcfg2 */
+	{0x18, 0x0},	/* mmdc_mdmisc */
+	{0x38, 0x0},	/* mmdc_mdcfg3lp */
+};
 
 #ifdef CONFIG_SMP
 volatile u32 *wait_for_lpddr2_freq_update;
@@ -73,8 +94,6 @@ extern unsigned long wfe_smp_freq_change_end asm("wfe_smp_freq_change_end");
 extern void __iomem *imx_scu_base;
 static void __iomem *gic_dist_base;
 #endif
-
-#define SMP_WFE_CODE_SIZE 0x400
 
 #ifdef CONFIG_SMP
 static irqreturn_t wait_in_wfe_irq(int irq, void *dev_id)
@@ -149,8 +168,7 @@ int init_mmdc_lpddr2_settings(struct platform_device *busfreq_pdev)
 int update_lpddr2_freq_smp(int ddr_rate)
 {
 	unsigned long ttbr1;
-	int me = 0;
-	int mode = get_bus_freq_mode();
+	int i, me = 0;
 #ifdef CONFIG_SMP
 	int cpu = 0;
 	u32 reg;
@@ -158,6 +176,16 @@ int update_lpddr2_freq_smp(int ddr_rate)
 
 	if (ddr_rate == curr_ddr_rate)
 		return 0;
+
+	printk(KERN_DEBUG "Bus freq set to %d start...\n", ddr_rate);
+
+	for (i=0; i < mmdc_settings_size; i++) {
+		iram_mmdc_settings[i][0] = mmdc_settings[i][0];
+		iram_mmdc_settings[i][1] = mmdc_settings[i][1];
+	}
+
+	mmdc_settings_info->size = mmdc_settings_size;
+	mmdc_settings_info->settings = iram_mmdc_settings;
 
 	/* ensure that all Cores are in WFE. */
 	local_irq_disable();
@@ -211,8 +239,7 @@ int update_lpddr2_freq_smp(int ddr_rate)
 	ttbr1 = save_ttbr1();
 
 	/* Now change DDR frequency. */
-	mx6_change_lpddr2_freq(ddr_rate,
-		(mode == BUS_FREQ_LOW || mode == BUS_FREQ_ULTRA_LOW) ? 1 : 0);
+	mx6_change_lpddr2_freq_smp(ddr_rate, mmdc_settings_info);
 
 	restore_ttbr1(ttbr1);
 
@@ -229,18 +256,42 @@ int update_lpddr2_freq_smp(int ddr_rate)
 
 	local_irq_enable();
 
+	printk(KERN_DEBUG "Bus freq set to %d done! cpu=%d\n", ddr_rate, me);
+
 	return 0;
 }
 
 int init_mmdc_lpddr2_settings_mx6q(struct platform_device *busfreq_pdev)
 {
-	unsigned long ddr_code_size;
-#ifdef CONFIG_SMP
 	struct device *dev = &busfreq_pdev->dev;
+	unsigned long ddr_code_size = 0;
+	unsigned long wfe_code_size = 0;
 	struct device_node *node;
+	void __iomem *mmdc_base;
+	int i;
+#ifdef CONFIG_SMP
 	u32 cpu;
 	int err;
+#endif
 
+	node = of_find_compatible_node(NULL, NULL, "fsl,imx6q-mmdc");
+	if (!node) {
+		printk(KERN_ERR "failed to find mmdc device tree data!\n");
+		return -EINVAL;
+	}
+
+	mmdc_base = of_iomap(node, 0);
+	if (!mmdc_base) {
+		dev_err(dev, "unable to map mmdc registers\n");
+		return -EINVAL;
+	}
+
+	mmdc_settings_size = ARRAY_SIZE(mmdc_timing_settings);
+	mmdc_settings = kmalloc((mmdc_settings_size * 8), GFP_KERNEL);
+	memcpy(mmdc_settings, mmdc_timing_settings,
+			sizeof(mmdc_timing_settings));
+
+#ifdef CONFIG_SMP
 	node = of_find_compatible_node(NULL, NULL, "arm,cortex-a9-gic");
 	if (!node) {
 		printk(KERN_ERR "failed to find imx6q-a9-gic device tree data!\n");
@@ -276,14 +327,25 @@ int init_mmdc_lpddr2_settings_mx6q(struct platform_device *busfreq_pdev)
 	/* Stoange_iram_basee the variable used to communicate between cores in
 	 * a non-cacheable IRAM area */
 	wait_for_lpddr2_freq_update = (u32 *)ddr_freq_change_iram_base;
+	wfe_code_size = (&wfe_smp_freq_change_end - &wfe_smp_freq_change_start) *4;
+
 	wfe_change_lpddr2_freq = (void *)fncpy((void *)ddr_freq_change_iram_base + 0x8,
-			&wfe_smp_freq_change, SMP_WFE_CODE_SIZE - 0x8);
+			&wfe_smp_freq_change, wfe_code_size);
 #endif
+	iram_settings_size = (void *)ddr_freq_change_iram_base + wfe_code_size + 0x8;
+	iram_mmdc_settings = (void *)iram_settings_size + 0x8;
+	iram_ddr_freq_chage = (void *)iram_mmdc_settings + (mmdc_settings_size * 8) + 0x8;
+	mmdc_settings_info = (struct mmdc_settings_info *)iram_settings_size;
+
 	ddr_code_size = (&mx6q_lpddr2_freq_change_end -&mx6q_lpddr2_freq_change_start) *4;
 
-	mx6_change_lpddr2_freq = (void *)fncpy(
-			(void *)ddr_freq_change_iram_base + SMP_WFE_CODE_SIZE,
+	mx6_change_lpddr2_freq_smp = (void *)fncpy(iram_ddr_freq_chage,
 			&mx6q_lpddr2_freq_change, ddr_code_size);
+
+	/* save initial mmdc boot timing settings */
+	for (i=0; i < mmdc_settings_size; i++)
+		mmdc_settings[i][1] = readl_relaxed(mmdc_base +
+				mmdc_settings[i][0]);
 
 	curr_ddr_rate = ddr_normal_rate;
 
