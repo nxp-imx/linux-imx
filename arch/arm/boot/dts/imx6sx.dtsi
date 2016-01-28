@@ -230,6 +230,17 @@
 			clocks = <&clks IMX6SX_CLK_APBH_DMA>;
 		};
 
+		caam_sm: caam-sm@00100000 {
+			compatible = "fsl,imx6q-caam-sm";
+			reg = <0x00100000 0x3fff>;
+		};
+
+		irq_sec_vio: caam_secvio {
+			compatible = "fsl,imx6q-caam-secvio";
+			interrupts = <0 20 0x04>;
+			secvio_src = <0x8000001d>;
+		};
+
 		gpu: gpu@01800000 {
 			compatible = "fsl,imx6sx-gpu", "fsl,imx6q-gpu";
 			reg = <0x01800000 0x4000>, <0x80000000 0x0>,
@@ -785,6 +796,11 @@
 				clock-names = "main_clk";
 			};
 
+			caam_snvs: caam-snvs@020cc000 {
+				compatible = "fsl,imx6q-caam-snvs";
+				reg = <0x020cc000 0x4000>;
+			};
+
 			snvs: snvs@020cc000 {
 				compatible = "fsl,sec-v4.0-mon", "syscon", "simple-mfd";
 				reg = <0x020cc000 0x4000>;
@@ -910,8 +926,8 @@
 				fsl,sec-era = <4>;
 				#address-cells = <1>;
 				#size-cells = <1>;
-				reg = <0x2100000 0x10000>;
-				ranges = <0 0x2100000 0x10000>;
+				reg = <0x2100000 0x40000>;
+				ranges = <0 0x2100000 0x40000>;
 				interrupt-parent = <&intc>;
 				clocks = <&clks IMX6SX_CLK_CAAM_MEM>,
 					 <&clks IMX6SX_CLK_CAAM_ACLK>,
@@ -922,13 +938,15 @@
 				sec_jr0: jr0@1000 {
 					compatible = "fsl,sec-v4.0-job-ring";
 					reg = <0x1000 0x1000>;
-					interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
+					interrupt-parent = <&intc>;
+					interrupts = <0 105 0x4>;
 				};
 
 				sec_jr1: jr1@2000 {
 					compatible = "fsl,sec-v4.0-job-ring";
 					reg = <0x2000 0x1000>;
-					interrupts = <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>;
+					interrupt-parent = <&intc>;
+					interrupts = <0 106 0x4>;
 				};
 			};
 
