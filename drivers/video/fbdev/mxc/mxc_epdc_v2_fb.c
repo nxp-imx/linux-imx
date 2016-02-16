@@ -74,7 +74,7 @@
 /*#define DEFAULT_PANEL_HW_INIT*/
 
 #define SG_NUM				14 /* 2+4+4+4  */
-#define NUM_SCREENS_MIN	2
+#define NUM_SCREENS_MIN	3
 
 #define EPDC_V1_NUM_LUTS	16
 #define EPDC_V1_MAX_NUM_UPDATES 20
