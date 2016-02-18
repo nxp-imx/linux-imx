@@ -93,6 +93,21 @@
 		default-brightness-level = <255>;
 	};
 
+	wlreg_on: fixedregulator@100 {
+		compatible = "regulator-fixed";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-name = "wlreg_on";
+		gpio = <&gpio5 16 0>;
+		startup-delay-us = <100>;
+		enable-active-high;
+	};
+
+	bcmdhd_wlan_1: bcmdhd_wlan@0 {
+		compatible = "android,bcmdhd_wlan";
+		wlreg_on-supply = <&wlreg_on>;
+	};
+
 	leds {
 		compatible = "gpio-leds";
 		pinctrl-names = "default";
@@ -760,10 +775,7 @@
 				MX6SL_PAD_SD1_DAT1__SD1_DATA1		0x17059
 				MX6SL_PAD_SD1_DAT2__SD1_DATA2		0x17059
 				MX6SL_PAD_SD1_DAT3__SD1_DATA3		0x17059
-				MX6SL_PAD_SD1_DAT4__SD1_DATA4		0x17059
-				MX6SL_PAD_SD1_DAT5__SD1_DATA5		0x17059
-				MX6SL_PAD_SD1_DAT6__SD1_DATA6		0x17059
-				MX6SL_PAD_SD1_DAT7__SD1_DATA7		0x17059
+				MX6SL_PAD_SD3_DAT2__GPIO5_IO16          0x13069 /* WL_REG_ON */
 			>;
 		};
 
@@ -835,9 +847,6 @@
 				MX6SL_PAD_SD3_CMD__SD3_CMD		0x17059
 				MX6SL_PAD_SD3_CLK__SD3_CLK		0x10059
 				MX6SL_PAD_SD3_DAT0__SD3_DATA0		0x17059
-				MX6SL_PAD_SD3_DAT1__SD3_DATA1		0x17059
-				MX6SL_PAD_SD3_DAT2__SD3_DATA2		0x17059
-				MX6SL_PAD_SD3_DAT3__SD3_DATA3		0x17059
 			>;
 		};
 
@@ -846,9 +855,6 @@
 				MX6SL_PAD_SD3_CMD__SD3_CMD		0x170b9
 				MX6SL_PAD_SD3_CLK__SD3_CLK		0x100b9
 				MX6SL_PAD_SD3_DAT0__SD3_DATA0		0x170b9
-				MX6SL_PAD_SD3_DAT1__SD3_DATA1		0x170b9
-				MX6SL_PAD_SD3_DAT2__SD3_DATA2		0x170b9
-				MX6SL_PAD_SD3_DAT3__SD3_DATA3		0x170b9
 			>;
 		};
 
@@ -857,9 +863,6 @@
 				MX6SL_PAD_SD3_CMD__SD3_CMD		0x170f9
 				MX6SL_PAD_SD3_CLK__SD3_CLK		0x100f9
 				MX6SL_PAD_SD3_DAT0__SD3_DATA0		0x170f9
-				MX6SL_PAD_SD3_DAT1__SD3_DATA1		0x170f9
-				MX6SL_PAD_SD3_DAT2__SD3_DATA2		0x170f9
-				MX6SL_PAD_SD3_DAT3__SD3_DATA3		0x170f9
 			>;
 		};
 
@@ -1001,15 +1004,17 @@
 };
 
 &usdhc1 {
-	pinctrl-names = "default", "state_100mhz", "state_200mhz";
+	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc1>;
 	pinctrl-1 = <&pinctrl_usdhc1_100mhz>;
 	pinctrl-2 = <&pinctrl_usdhc1_200mhz>;
-	bus-width = <8>;
+	bus-width = <4>;
 	cd-gpios = <&gpio4 7 GPIO_ACTIVE_LOW>;
 	wp-gpios = <&gpio4 6 GPIO_ACTIVE_HIGH>;
 	keep-power-in-suspend;
 	enable-sdio-wakeup;
+	wifi-host;
+	pm-ignore-notify;
 	status = "okay";
 };
 
@@ -1026,12 +1031,8 @@
 };
 
 &usdhc3 {
-	pinctrl-names = "default", "state_100mhz", "state_200mhz";
+	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc3>;
-	pinctrl-1 = <&pinctrl_usdhc3_100mhz>;
-	pinctrl-2 = <&pinctrl_usdhc3_200mhz>;
-	cd-gpios = <&gpio3 22 GPIO_ACTIVE_LOW>;
-	keep-power-in-suspend;
-	enable-sdio-wakeup;
+	bus-width = <1>;
 	status = "okay";
 };
