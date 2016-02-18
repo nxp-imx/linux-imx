@@ -447,7 +447,6 @@ dtb-$(CONFIG_SOC_IMX6Q) += \
 	imx6qp-sabresd.dtb
 dtb-$(CONFIG_SOC_IMX6SL) += \
 	imx6sl-evk.dtb \
-	imx6sl-evk-btwifi.dtb \
 	imx6sl-evk-ldo.dtb \
 	imx6sl-evk-csi.dtb \
 	imx6sl-evk-uart.dtb \
