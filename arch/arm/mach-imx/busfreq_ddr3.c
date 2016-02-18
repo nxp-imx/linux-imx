@@ -133,6 +133,7 @@ unsigned long ddr3_dll_mx6sx[][2] = {
 	{0x1C, 0x05208030},
 	{0x1C, 0x04008040},
 	{0x818, 0x0},
+	{0x18, 0x0},
 };
 
 unsigned long ddr3_calibration_mx6sx[][2] = {
@@ -162,6 +163,7 @@ unsigned long ddr3_dll_mx6q[][2] = {
 	{0x1C, 0x08408030},
 	{0x1C, 0x08408038},
 	{0x818, 0x0},
+	{0x18, 0x0},
 };
 
 unsigned long ddr3_calibration[][2] = {
@@ -183,6 +185,7 @@ unsigned long ddr3_dll_mx6dl[][2] = {
 	{0x1C, 0x07208030},
 	{0x1C, 0x07208038},
 	{0x818, 0x0},
+	{0x18, 0x0},
 };
 
 unsigned long iomux_offsets_mx6q[][2] = {
