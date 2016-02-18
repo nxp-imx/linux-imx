@@ -106,7 +106,7 @@
 			#gpio-cells = <2>;
 			reg = <0>;
 			registers-number = <1>;
-			registers-default = /bits/ 8 <0x74>; /* Enable PERI_3V3, SENSOR_RST_B and HDMI_RST*/
+			registers-default = /bits/ 8 <0x54>; /* Enable PERI_3V3, SENSOR_RST_B and HDMI_RST*/
 			spi-max-frequency = <100000>;
 		};
 	};
@@ -226,6 +226,33 @@
 		compatible = "fsl,mxc_bt_rfkill";
 		bt-power-gpios = <&gpio4 23 0>;
 		status ="okay";
+	};
+
+	fxos8700@0e {
+		compatible = "fsl,fxos8700";
+		reg = <0x1e>;
+		position = <3>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <5 1>;
+		shared-interrupt;
+	};
+
+	fxas2100x@0e {
+		compatible = "fsl,fxas2100x";
+		reg = <0x20>;
+		position = <3>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <5 1>;
+		shared-interrupt;
+	};
+
+	mpl3115@0e {
+		compatible = "fsl,mpl3115";
+		reg = <0x60>;
+		position = <3>;
+		interrupt-parent = <&gpio1>;
+		interrupts = <5 1>;
+		shared-interrupt;
 	};
 };
 
