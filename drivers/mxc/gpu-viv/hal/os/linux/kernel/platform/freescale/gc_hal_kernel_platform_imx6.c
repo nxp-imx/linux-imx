@@ -1417,7 +1417,6 @@ int set_clock(int gpu, int enable)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
 #ifdef CONFIG_PM
-#ifdef CONFIG_PM_RUNTIME
 static int gpu_runtime_suspend(struct device *dev)
 {
     release_bus_freq(BUS_FREQ_HIGH);
@@ -1429,7 +1428,6 @@ static int gpu_runtime_resume(struct device *dev)
     request_bus_freq(BUS_FREQ_HIGH);
     return 0;
 }
-#endif
 
 static struct dev_pm_ops gpu_pm_ops;
 #endif
@@ -1449,7 +1447,7 @@ static int adjust_platform_driver(struct platform_driver *driver)
     memcpy(&gpu_pm_ops, driver->driver.pm, sizeof(struct dev_pm_ops));
 
     /* Add runtime PM callback. */
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
     gpu_pm_ops.runtime_suspend = gpu_runtime_suspend;
     gpu_pm_ops.runtime_resume = gpu_runtime_resume;
     gpu_pm_ops.runtime_idle = NULL;
