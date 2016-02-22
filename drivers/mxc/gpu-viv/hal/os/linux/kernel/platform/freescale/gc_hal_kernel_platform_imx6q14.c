@@ -904,7 +904,7 @@ _AdjustDriver(
     memcpy(&gpu_pm_ops, driver->driver.pm, sizeof(struct dev_pm_ops));
 
     /* Add runtime PM callback. */
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
     gpu_pm_ops.runtime_suspend = gpu_runtime_suspend;
     gpu_pm_ops.runtime_resume = gpu_runtime_resume;
     gpu_pm_ops.runtime_idle = NULL;
