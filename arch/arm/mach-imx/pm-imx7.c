@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Freescale Semiconductor, Inc.
+ * Copyright (C) 2015-2016 Freescale Semiconductor, Inc.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -21,6 +21,7 @@
 #include <linux/of_irq.h>
 #include <linux/slab.h>
 #include <linux/suspend.h>
+#include <linux/wakeup_reason.h>
 #include <linux/genalloc.h>
 #include <linux/mfd/syscon.h>
 #include <linux/mfd/syscon/imx7-iomuxc-gpr.h>
@@ -59,6 +60,9 @@
 #define UART_UBMR	0xa8
 #define UART_UBRC	0xac
 #define UART_UTS	0xb4
+
+#define IMX7_GPC_IMR1_CORE0_A7_OFFSET  0x30
+#define IMX7_GPC_ISR1_A7_OFFSET  0x70
 
 #define MAX_IOMUXC_GPR			23
 #define MAX_UART_IO			4
@@ -149,6 +153,7 @@ static void __iomem *gpt1_base;
 static void __iomem *system_counter_ctrl_base;
 static void __iomem *system_counter_cmp_base;
 static void __iomem *gpio1_base;
+static void __iomem *gpc_mem_base;
 static void (*imx7_suspend_in_ocram_fn)(void __iomem *ocram_vbase);
 struct imx7_cpu_pm_info *pm_info;
 static bool lpsr_enabled;
@@ -694,6 +699,10 @@ static int imx7_pm_is_resume_from_lpsr(void)
 
 static int imx7_pm_enter(suspend_state_t state)
 {
+#ifdef CONFIG_SUSPEND
+	u32 imr[4], isr[4], i, irq_num, gpc_isr;
+#endif
+
 	unsigned int console_saved_reg[10] = {0};
 	u32 val;
 
@@ -815,6 +824,24 @@ static int imx7_pm_enter(suspend_state_t state)
 	default:
 		return -EINVAL;
 	}
+#ifdef CONFIG_SUSPEND
+	for (i = 0; i < 4; i++) {
+		imr[i] = readl_relaxed(gpc_mem_base +
+					IMX7_GPC_IMR1_CORE0_A7_OFFSET + i * 4);
+		isr[i] = readl_relaxed(gpc_mem_base +
+				IMX7_GPC_ISR1_A7_OFFSET + i * 4);
+		irq_num = (i + 1)*32;
+		if ((~imr[i]) & isr[i]) {
+			gpc_isr =  (~imr[i]) & isr[i];
+			while (gpc_isr)  {
+				if (gpc_isr & 0x1)
+					log_wakeup_reason(irq_num);
+			irq_num++;
+			gpc_isr /= 2;
+			}
+		}
+	}
+#endif
 
 	/* restore system counter's clock to base clock */
 	val = readl_relaxed(system_counter_ctrl_base);
@@ -1030,6 +1057,7 @@ static int __init imx7_suspend_init(const struct imx7_pm_socdata *socdata)
 	pm_info->ddrc_phy_num = socdata->ddrc_phy_num;
 	ddrc_phy_offset_array = socdata->ddrc_phy_offset;
 
+	gpc_mem_base = pm_info->gpc_base.vbase;
 	/* initialize DDRC settings */
 	for (i = 0; i < pm_info->ddrc_num; i++) {
 		pm_info->ddrc_val[i][0] = ddrc_offset_array[i][0];
