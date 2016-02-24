@@ -17,6 +17,11 @@
 			gpio = <&gpio4 27 GPIO_ACTIVE_LOW>;
 		};
 	};
+	bt_rfkill {
+		compatible = "fsl,mxc_bt_rfkill";
+		bt-power-gpios = <&gpio6 11 0>;
+		status = "okay";
+	};
 };
 
 &cpu0 {
