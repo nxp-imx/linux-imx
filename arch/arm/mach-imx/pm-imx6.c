@@ -24,6 +24,7 @@
 #include <linux/regmap.h>
 #include <linux/slab.h>
 #include <linux/suspend.h>
+#include <linux/wakeup_reason.h>
 #include <asm/cacheflush.h>
 #include <asm/fncpy.h>
 #include <asm/mach/map.h>
@@ -128,6 +129,9 @@ extern unsigned long iram_tlb_phys_addr;
 #define QSPI_LUTKEY_VALUE	0x5AF05AF0
 #define QSPI_LCKER_LOCK		0x1
 #define QSPI_LCKER_UNLOCK	0x2
+
+#define IMX6_GPC_IMR1_OFFSET  0x8
+#define IMX6_GPC_ISR1_OFFSET  0x18
 
 enum qspi_regs_valuetype {
 	QSPI_PREDEFINED,
@@ -270,6 +274,7 @@ static void __iomem *qspi_base;
 static unsigned int ocram_size;
 static void __iomem *ccm_base;
 static void __iomem *suspend_ocram_base;
+static void __iomem *gpc_mem_base;
 static void (*imx6_suspend_in_ocram_fn)(void __iomem *ocram_vbase);
 struct regmap *romcp;
 
@@ -830,6 +835,10 @@ static int imx6q_pm_enter(suspend_state_t state)
 {
 	unsigned int console_saved_reg[10] = {0};
 	static unsigned int ccm_ccgr4, ccm_ccgr6;
+#ifdef CONFIG_SUSPEND
+	u32 imr[4], isr[4], i, irq_num, gpc_isr;
+#endif
+
 
 #ifdef CONFIG_SOC_IMX6SX
 	if (imx_src_is_m4_enabled()) {
@@ -936,6 +945,25 @@ static int imx6q_pm_enter(suspend_state_t state)
 	default:
 		return -EINVAL;
 	}
+
+#ifdef CONFIG_SUSPEND
+	for (i = 0; i < 4; i++) {
+		imr[i] = readl_relaxed(gpc_mem_base +
+					IMX6_GPC_IMR1_OFFSET + i * 4);
+		isr[i] = readl_relaxed(gpc_mem_base +
+				IMX6_GPC_ISR1_OFFSET + i * 4);
+		irq_num = (i + 1)*32;
+		if ((~imr[i]) & isr[i]) {
+			gpc_isr = (~imr[i]) & isr[i];
+			while (gpc_isr) {
+			if (gpc_isr & 0x1)
+				log_wakeup_reason(irq_num);
+				irq_num++;
+				gpc_isr /= 2;
+			}
+		}
+	}
+#endif
 
 #ifdef CONFIG_SOC_IMX6SX
 	if (imx_src_is_m4_enabled()) {
@@ -1131,6 +1159,7 @@ static int __init imx6q_suspend_init(const struct imx6_pm_socdata *socdata)
 	pm_info->mmdc_num = socdata->mmdc_num;
 	mmdc_offset_array = socdata->mmdc_offset;
 
+	gpc_mem_base = pm_info->gpc_base.vbase;
 	for (i = 0; i < pm_info->mmdc_io_num; i++) {
 		pm_info->mmdc_io_val[i][0] =
 			mmdc_io_offset_array[i];
