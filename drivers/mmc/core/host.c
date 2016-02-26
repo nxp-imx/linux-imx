@@ -301,6 +301,8 @@ int mmc_of_parse(struct mmc_host *host)
 	if (device_property_read_bool(dev, "wakeup-source") ||
 	    device_property_read_bool(dev, "enable-sdio-wakeup")) /* legacy */
 		host->pm_caps |= MMC_PM_WAKE_SDIO_IRQ;
+	if (device_property_read_bool(dev, "pm-ignore-notify"))
+		host->pm_caps |= MMC_PM_IGNORE_PM_NOTIFY;
 	if (device_property_read_bool(dev, "mmc-ddr-1_8v"))
 		host->caps |= MMC_CAP_1_8V_DDR;
 	if (device_property_read_bool(dev, "mmc-ddr-1_2v"))
@@ -451,7 +453,8 @@ int mmc_add_host(struct mmc_host *host)
 #endif
 
 	mmc_start_host(host);
-	mmc_register_pm_notifier(host);
+	if (!(host->pm_caps& MMC_PM_IGNORE_PM_NOTIFY))
+		mmc_register_pm_notifier(host);
 
 	return 0;
 }
@@ -468,7 +471,8 @@ EXPORT_SYMBOL(mmc_add_host);
  */
 void mmc_remove_host(struct mmc_host *host)
 {
-	mmc_unregister_pm_notifier(host);
+	if (!(host->pm_caps& MMC_PM_IGNORE_PM_NOTIFY))
+		mmc_unregister_pm_notifier(host);
 	mmc_stop_host(host);
 
 #ifdef CONFIG_DEBUG_FS
