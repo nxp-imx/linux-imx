@@ -561,6 +561,18 @@ static int imx6_pcie_wait_for_link(struct imx6_pcie *imx6_pcie)
 	dev_dbg(dev, "DEBUG_R0: 0x%08x, DEBUG_R1: 0x%08x\n",
 		dw_pcie_readl_rc(pp, PCIE_PHY_DEBUG_R0),
 		dw_pcie_readl_rc(pp, PCIE_PHY_DEBUG_R1));
+
+	if (!IS_ENABLED(CONFIG_PCI_IMX6_COMPLIANCE_TEST)) {
+		clk_disable_unprepare(imx6_pcie->pcie);
+		clk_disable_unprepare(imx6_pcie->pcie_bus);
+		clk_disable_unprepare(imx6_pcie->pcie_phy);
+		if (imx6_pcie->variant == IMX6SX)
+			clk_disable_unprepare(imx6_pcie->pcie_inbound_axi);
+		release_bus_freq(BUS_FREQ_HIGH);
+		if (imx6_pcie->pcie_phy_regulator != NULL)
+			regulator_disable(imx6_pcie->pcie_phy_regulator);
+	}
+
 	return -ETIMEDOUT;
 }
 
@@ -651,16 +663,6 @@ static int imx6_pcie_establish_link(struct imx6_pcie *imx6_pcie)
 	ret = imx6_pcie_wait_for_link(imx6_pcie);
 	if (ret) {
 		dev_err(dev, "Failed to bring link up!\n");
-		if (!IS_ENABLED(CONFIG_PCI_IMX6_COMPLIANCE_TEST)) {
-			clk_disable_unprepare(imx6_pcie->pcie);
-			clk_disable_unprepare(imx6_pcie->pcie_bus);
-			clk_disable_unprepare(imx6_pcie->pcie_phy);
-			if (is_imx6sx_pcie(imx6_pcie))
-				clk_disable_unprepare(imx6_pcie->pcie_inbound_axi);
-			release_bus_freq(BUS_FREQ_HIGH);
-			if (imx6_pcie->pcie_phy_regulator != NULL)
-				regulator_disable(imx6_pcie->pcie_phy_regulator);
-		}
 		goto err_reset_phy;
 	}
 
@@ -676,8 +678,9 @@ err_reset_phy:
 	return ret;
 }
 
-static void imx6_pcie_host_init(struct pcie_port *pp)
+static int imx6_pcie_host_init(struct pcie_port *pp)
 {
+	int ret;
 	struct imx6_pcie *imx6_pcie = to_imx6_pcie(pp);
 
 	/* enable disp_mix power domain */
@@ -688,10 +691,14 @@ static void imx6_pcie_host_init(struct pcie_port *pp)
 	imx6_pcie_init_phy(imx6_pcie);
 	imx6_pcie_deassert_core_reset(imx6_pcie);
 	dw_pcie_setup_rc(pp);
-	imx6_pcie_establish_link(imx6_pcie);
+	ret = imx6_pcie_establish_link(imx6_pcie);
+	if (ret < 0)
+		return ret;
 
 	if (IS_ENABLED(CONFIG_PCI_MSI))
 		dw_pcie_msi_init(pp);
+
+	return 0;
 }
 
 static int imx6_pcie_link_up(struct pcie_port *pp)
