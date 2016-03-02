@@ -1160,6 +1160,8 @@
 	pm-ignore-notify;
 	keep-power-in-suspend;
 	enable-sdio-wakeup;
+	non-removable;
+	cd-post;
 	status = "okay";
 };
 
