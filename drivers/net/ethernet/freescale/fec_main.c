@@ -2650,6 +2650,7 @@ fec_enet_close(struct net_device *ndev)
 		phy_disconnect(fep->phy_dev);
 	}
 
+	fep->phy_dev = NULL;
 	fec_enet_clk_enable(ndev, false);
 
 	pinctrl_pm_select_sleep_state(&fep->pdev->dev);
