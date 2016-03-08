@@ -2604,6 +2604,7 @@ fec_enet_open(struct net_device *ndev)
 		fec_enet_free_buffers(ndev);
 		if (!fep->mii_bus_share)
 			pinctrl_pm_select_sleep_state(&fep->pdev->dev);
+		fep->miibus_up_failed = true;
 		return ret;
 	}
 
@@ -2628,6 +2629,7 @@ fec_enet_open(struct net_device *ndev)
 
 	device_set_wakeup_enable(&ndev->dev,
 		fep->wol_flag & FEC_WOL_FLAG_ENABLE);
+	fep->miibus_up_failed = false;
 
 	return 0;
 }
@@ -3334,7 +3336,7 @@ fec_suspend(struct device *dev)
 			fec_enet_clk_enable(ndev, false);
 		pinctrl_pm_select_sleep_state(&fep->pdev->dev);
 		phy_stop(fep->phy_dev);
-	} else if (fep->mii_bus_share && !fep->phy_dev) {
+	} else if (fep->mii_bus_share && fep->miibus_up_failed && !fep->phy_dev) {
 		fec_enet_clk_enable(ndev, false);
 		pinctrl_pm_select_sleep_state(&fep->pdev->dev);
 	}
@@ -3386,6 +3388,7 @@ fec_resume(struct device *dev)
 		netif_device_attach(ndev);
 	} else if (fep->mii_bus_share && !fep->phy_dev) {
 		pinctrl_pm_select_default_state(&fep->pdev->dev);
+		fep->miibus_up_failed = true;
 		fec_restore_mii_bus(ndev);
 	}
 
