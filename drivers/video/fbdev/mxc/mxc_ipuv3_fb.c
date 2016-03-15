@@ -3459,6 +3459,7 @@ static int mxcfb_probe(struct platform_device *pdev)
 	struct ipuv3_fb_platform_data *plat_data;
 	struct fb_info *fbi;
 	struct mxcfb_info *mxcfbi;
+	struct device *disp_dev;
 	struct resource *res;
 	int ret = 0;
 
@@ -3593,6 +3594,15 @@ static int mxcfb_probe(struct platform_device *pdev)
 	if (ret)
 		dev_err(&pdev->dev, "Error %d on creating file for disp "
 				    " device propety\n", ret);
+
+	disp_dev = mxc_dispdrv_getdev(mxcfbi->dispdrv);
+	if (disp_dev) {
+		ret = sysfs_create_link(&fbi->dev->kobj,
+					&disp_dev->kobj, "disp_dev");
+		if (ret)
+			dev_err(&pdev->dev,
+					"Error %d on creating file\n", ret);
+	}
 
 	return 0;
 
