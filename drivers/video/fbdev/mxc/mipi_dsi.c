@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2015 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright (C) 2011-2016 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -966,6 +966,7 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 
 	mxc_dispdrv_setdata(mipi_dsi->disp_mipi, mipi_dsi);
 	dev_set_drvdata(&pdev->dev, mipi_dsi);
+	mxc_dispdrv_setdev(mipi_dsi->disp_mipi, &pdev->dev);
 
 	dev_info(&pdev->dev, "i.MX MIPI DSI driver probed\n");
 	return ret;
