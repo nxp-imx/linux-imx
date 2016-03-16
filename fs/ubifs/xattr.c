@@ -562,8 +562,11 @@ int ubifs_init_security(struct inode *dentry, struct inode *inode,
 {
 	int err;
 
+	inode_lock(inode);
 	err = security_inode_init_security(inode, dentry, qstr,
 					   &init_xattrs, 0);
+	inode_unlock(inode);
+
 	if (err) {
 		struct ubifs_info *c = dentry->i_sb->s_fs_info;
 		ubifs_err(c, "cannot initialize security for inode %lu, error %d",
