@@ -401,6 +401,12 @@ config MFD_MXC_HDMI
 	  This is the core driver for the Freescale i.MX6 on-chip HDMI.
 	  This MFD driver connects with the video and audio drivers for HDMI.
 
+config MFD_MXC_HDMI_ANDROID
+	tristate "Freescale HDMI Core on Android"
+	depends on MFD_MXC_HDMI
+	help
+	  Select this if build on android system.
+
 config MFD_PF1550
 	tristate "Freescale Semiconductor PF1550 PMIC Support"
 	depends on I2C=y
