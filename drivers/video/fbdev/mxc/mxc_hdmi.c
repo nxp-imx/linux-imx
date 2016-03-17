@@ -178,6 +178,7 @@ struct mxc_hdmi {
 	struct hdmi_phy_reg_config phy_config;
 
 	struct pinctrl *pinctrl;
+	u32 yres_virtual;
 };
 
 static int hdmi_major;
@@ -1908,6 +1909,8 @@ static void mxc_hdmi_set_mode(struct mxc_hdmi *hdmi)
 		/* update fbi mode in case modelist is updated */
 		hdmi->fbi->mode = (struct fb_videomode *)mode;
 		fb_videomode_to_var(&hdmi->fbi->var, mode);
+		if (hdmi->yres_virtual > 0)
+			hdmi->fbi->var.yres_virtual = hdmi->yres_virtual;
 		/* update hdmi setting in case EDID data updated  */
 		mxc_hdmi_setup(hdmi, 0);
 	} else {
@@ -2328,6 +2331,8 @@ static int mxc_hdmi_fb_event(struct notifier_block *nb,
 	case FB_EVENT_MODE_CHANGE:
 		dev_dbg(&hdmi->pdev->dev, "event=FB_EVENT_MODE_CHANGE\n");
 		mode = (struct fb_videomode *)event->data;
+		if (hdmi->fbi != NULL)
+			hdmi->yres_virtual = hdmi->fbi->var.yres_virtual;
 		if ((hdmi->fb_reg) && (mode != NULL) &&
 			!fb_mode_is_equal(&hdmi->previous_non_vga_mode, mode))
 			mxc_hdmi_setup(hdmi, val);
