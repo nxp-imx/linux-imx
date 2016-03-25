@@ -379,6 +379,13 @@ config SPI_FSL_ESPI
 	  From MPC8536, 85xx platform uses the controller, and all P10xx,
 	  P20xx, P30xx,P40xx, P50xx uses this controller.
 
+config SPI_FSL_LPSPI
+	tristate "Freescale i.MX LPSPI controller"
+	depends on ARCH_MXC || COMPILE_TEST
+	select SPI_BITBANG
+	help
+	  This enables Freescale i.MX LPSPI controllers in master mode.
+
 config SPI_MESON_SPIFC
 	tristate "Amlogic Meson SPIFC controller"
 	depends on ARCH_MESON || COMPILE_TEST
