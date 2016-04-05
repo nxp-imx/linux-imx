@@ -3045,6 +3045,7 @@ int mmc_first_nonreserved_index(void)
 {
 	return __mmc_max_reserved_idx + 1;
 }
+EXPORT_SYMBOL(mmc_first_nonreserved_index);
 
 /**
  * mmc_get_reserved_index() - get the index reserved for this host
@@ -3056,6 +3057,7 @@ int mmc_get_reserved_index(struct mmc_host *host)
 {
 	return of_alias_get_id(host->parent->of_node, "mmc");
 }
+EXPORT_SYMBOL(mmc_get_reserved_index);
 
 static void mmc_of_reserve_idx(void)
 {
