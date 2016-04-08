@@ -1,5 +1,5 @@
 /*
- * Copyright 2005-2015 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2005-2016 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 
 /*
@@ -467,7 +467,7 @@ static inline void _ipu_ch_param_init(struct ipu_soc *ipu, int ch,
 		v_offset = (v == 0) ? u_offset * 2 : v;
 		break;
 	case IPU_PIX_FMT_NV16:
-		ipu_ch_param_set_field(&params, 1, 85, 4, 1);	/* pix format */
+		ipu_ch_param_set_field(&params, 1, 85, 4, 3);	/* pix format */
 		ipu_ch_param_set_field(&params, 1, 78, 7, 31);	/* burst size */
 		uv_stride = stride;
 		u_offset = (u == 0) ? stride * height : u;
