@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Freescale Semiconductor, Inc.
+ * Copyright (C) 2015-2016 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -235,7 +235,19 @@
 #define IMX6UL_CLK_CSI_PODF		222
 #define IMX6UL_CLK_PLL3_120M		223
 #define IMX6UL_CLK_KPP			224
-
-#define IMX6UL_CLK_END			225
+/* For i.MX6ULL */
+#define IMX6UL_CLK_ESAI_SEL		225
+#define IMX6UL_CLK_ESAI_PRED		226
+#define IMX6UL_CLK_ESAI_PODF		227
+#define IMX6UL_CLK_ESAI_EXTAL		228
+#define IMX6UL_CLK_ESAI_MEM		229
+#define IMX6UL_CLK_ESAI_IPG		230
+#define IMX6UL_CLK_DCP_CLK		231
+#define IMX6UL_CLK_EPDC_PRE_SEL		232
+#define IMX6UL_CLK_EPDC_SEL		233
+#define IMX6UL_CLK_EPDC_PODF		234
+#define IMX6UL_CLK_EPDC_ACLK		235
+#define IMX6UL_CLK_EPDC_PIX		236
+#define IMX6UL_CLK_END			237
 
 #endif /* __DT_BINDINGS_CLOCK_IMX6UL_H */
