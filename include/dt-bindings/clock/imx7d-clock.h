@@ -451,5 +451,8 @@
 #define IMX7D_CKIL			438
 #define IMX7D_OCOTP_CLK 		439
 #define IMX7D_CAAM_CLK 			440
-#define IMX7D_CLK_END			441
+#define IMX7D_PXP_IPG_CLK		441
+#define IMX7D_PXP_AXI_CLK		442
+#define IMX7D_CLK_END			443
+
 #endif /* __DT_BINDINGS_CLOCK_IMX7D_H */
