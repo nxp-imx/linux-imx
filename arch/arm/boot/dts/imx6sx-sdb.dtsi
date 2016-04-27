@@ -474,7 +474,7 @@
 		interrupt-parent = <&gpio4>;
 		interrupts = <21 2>;
 		mode_str ="1280x720M@60";
-		bits-per-pixel = <16>;
+		bits-per-pixel = <32>;
 		resets = <&sii902x_reset>;
 		reg = <0x39>;
 		status = "disabled";
