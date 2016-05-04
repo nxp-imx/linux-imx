@@ -447,6 +447,7 @@ pktq_pflush(osl_t *osh, struct pktq *pq, int prec, bool dir, ifpkt_cb_t fn, int 
 
 	q = &pq->q[prec];
 	p = q->head;
+	prev = p;
 	while (p) {
 		if (fn == NULL || (*fn)(p, arg)) {
 			bool head = (p == q->head);
