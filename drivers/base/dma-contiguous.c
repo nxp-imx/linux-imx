@@ -55,8 +55,14 @@ static int __init early_cma(char *p)
 {
 	pr_debug("%s(%s)\n", __func__, p);
 	size_cmdline = memparse(p, &p);
-	if (*p != '@')
+	if (*p != '@') {
+		/*
+		if base and limit are not assigned,
+		set limit to high memory bondary to use low memory.
+		*/
+		limit_cmdline = __pa(high_memory);
 		return 0;
+	}
 	base_cmdline = memparse(p + 1, &p);
 	if (*p != '-') {
 		limit_cmdline = base_cmdline + size_cmdline;
