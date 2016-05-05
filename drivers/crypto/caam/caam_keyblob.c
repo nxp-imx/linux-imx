@@ -1,7 +1,7 @@
 /*
  * Key blob driver based on CAAM hardware
  *
- * Copyright (C) 2015 Freescale Semiconductor, Inc.
+ * Copyright (C) 2015-2016 Freescale Semiconductor, Inc.
  */
 
 #include <linux/of_irq.h>
@@ -389,7 +389,7 @@ static int gen_mem_encap(struct device *jr_dev, void __user *secretbuf,
 				    DMA_TO_DEVICE);
 
 	loutbuf = kmalloc(keylen + BLOB_OVERHEAD, GFP_KERNEL | GFP_DMA);
-    if (!lkeymod) {
+	if (!loutbuf) {
 		dev_err(jr_dev, "%s: can't alloc for output\n", __func__);
 		retval = -ENOMEM;
 		goto out;
