@@ -83,6 +83,7 @@ struct imx_pinctrl_soc_info {
 	unsigned int nfunctions;
 	unsigned int flags;
 	const char *gpr_compatible;
+	unsigned int mux_mask;
 };
 
 #define SHARE_MUX_CONF_REG	0x1
