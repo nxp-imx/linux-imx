@@ -529,7 +529,21 @@ gceSTATUS gckVGKERNEL_Dispatch(
             Kernel, processID,
             (gctUINT32)kernelInterface->u.ReleaseVideoMemory.node
             ));
+        {
+            gckVIDMEM_NODE nodeObject;
 
+            /* Remove record from process db. */
+            gcmkERR_BREAK(
+                gckKERNEL_RemoveProcessDB(Kernel, processID,
+                                      gcvDB_VIDEO_MEMORY_LOCKED,
+                                      (gctPOINTER)kernelInterface->u.ReleaseVideoMemory.node));
+
+            gcmkERR_BREAK(
+            gckVIDMEM_HANDLE_Lookup(Kernel, processID,
+                                    (gctUINT32)kernelInterface->u.ReleaseVideoMemory.node, &nodeObject));
+
+            gckVIDMEM_NODE_Dereference(Kernel, nodeObject);
+        }
         break;
 
     case gcvHAL_MAP_MEMORY:
