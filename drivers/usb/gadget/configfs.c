@@ -23,7 +23,6 @@ void acc_disconnect(void);
 static struct class *android_class;
 static struct device *android_device;
 static int index;
-static struct wake_lock wakelock;
 
 struct device *create_function_device(char *name)
 {
@@ -36,6 +35,7 @@ struct device *create_function_device(char *name)
 EXPORT_SYMBOL_GPL(create_function_device);
 #endif
 
+static struct wake_lock wakelock;
 int check_user_usb_string(const char *name,
 		struct usb_gadget_strings *stringtab_dev)
 {

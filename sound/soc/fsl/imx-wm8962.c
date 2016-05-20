@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2015 Freescale Semiconductor, Inc.
+ * Copyright (C) 2013-2016 Freescale Semiconductor, Inc.
  *
  * Based on imx-sgtl5000.c
  * Copyright (C) 2012 Freescale Semiconductor, Inc.
@@ -57,7 +57,9 @@ struct imx_priv {
 	struct platform_device *asrc_pdev;
 	u32 asrc_rate;
 	u32 asrc_format;
+#ifdef CONFIG_SWITCH
 	struct switch_dev sdev;
+#endif
 };
 static struct imx_priv card_priv;
 
@@ -114,13 +116,17 @@ static int hpjack_status_check(void *data)
 
 	if (hp_status != priv->hp_active_low) {
 		snprintf(buf, 32, "STATE=%d", 2);
+#ifdef CONFIG_SWITCH
 		switch_set_state(&priv->sdev, 2);
+#endif
 		snd_soc_dapm_disable_pin(&priv->codec->dapm, "Ext Spk");
 		ret = imx_hp_jack_gpio.report;
 		snd_kctl_jack_report(priv->snd_card, priv->headphone_kctl, 1);
 	} else {
 		snprintf(buf, 32, "STATE=%d", 0);
+#ifdef CONFIG_SWITCH
 		switch_set_state(&priv->sdev, 0);
+#endif
 		snd_soc_dapm_enable_pin(&priv->codec->dapm, "Ext Spk");
 		ret = 0;
 		snd_kctl_jack_report(priv->snd_card, priv->headphone_kctl, 0);
@@ -715,12 +721,14 @@ audmux_bypass:
 	platform_set_drvdata(pdev, &data->card);
 	snd_soc_card_set_drvdata(&data->card, data);
 
+#ifdef CONFIG_SWITCH
 	priv->sdev.name = "h2w";
 	ret = switch_dev_register(&priv->sdev);
 	if (ret < 0) {
 		ret = -EINVAL;
 		goto fail;
 	}
+#endif
 
 	ret = devm_snd_soc_register_card(&pdev->dev, &data->card);
 	if (ret) {
@@ -772,7 +780,9 @@ static int imx_wm8962_remove(struct platform_device *pdev)
 	driver_remove_file(pdev->dev.driver, &driver_attr_microphone);
 	driver_remove_file(pdev->dev.driver, &driver_attr_headphone);
 
+#ifdef CONFIG_SWITCH
 	switch_dev_unregister(&priv->sdev);
+#endif
 	return 0;
 }
 
