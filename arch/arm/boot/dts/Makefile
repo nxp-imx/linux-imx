@@ -506,6 +506,7 @@ dtb-$(CONFIG_SOC_IMX7D) += \
 	imx7s-warp.dtb \
 	imx7d-12x12-lpddr3-arm2.dtb \
 	imx7d-12x12-lpddr3-arm2-m4.dtb \
+	imx7d-12x12-ddr3-arm2.dtb \
 	imx7d-12x12-lpddr3-arm2-ecspi.dtb \
 	imx7d-12x12-lpddr3-arm2-enet2.dtb \
 	imx7d-12x12-lpddr3-arm2-flexcan.dtb \
