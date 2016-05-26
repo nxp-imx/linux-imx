@@ -576,6 +576,8 @@ gceSTATUS gckVGKERNEL_Dispatch(
             gckVIDMEM_HANDLE_Lookup(Kernel, processID,
                                     (gctUINT32)kernelInterface->u.ReleaseVideoMemory.node, &nodeObject));
 
+        gckVIDMEM_HANDLE_Dereference(Kernel, processID,(gctUINT32)Interface->u.ReleaseVideoMemory.node);
+
         gckVIDMEM_NODE_Dereference(Kernel, nodeObject);
     }
 
