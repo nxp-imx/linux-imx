@@ -20,6 +20,8 @@ DHDCFLAGS += -DWL_CFG80211
 # Print out kernel panic point of file and line info when assertion happened
 DHDCFLAGS += -DBCMASSERT_LOG
 
+DHDCFLAGS += -DENABLE_INSMOD_NO_FW_LOAD
+
 # keepalive
 DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=28000
 
