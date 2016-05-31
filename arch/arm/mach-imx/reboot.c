@@ -28,64 +28,44 @@
 #define ANDROID_RECOVERY_BOOT  (1 << 7)
 #define ANDROID_FASTBOOT_BOOT  (1 << 8)
 
-void do_switch_recovery(void)
+void do_switch_mode(bool mode)
 {
 	u32 reg;
 	void *addr;
-	struct clk *snvs_root;
+	phys_addr_t snvs_base_addr;
+	phys_addr_t snvs_lpgpr;
+	size_t snvs_size;
 	if (cpu_is_imx6()) {
-		addr = ioremap(MX6_SNVS_BASE_ADDR, MX6_SNVS_SIZE);
-		if (!addr) {
-			pr_warn("SNVS ioremap failed!\n");
-			return;
-		}
-		reg = __raw_readl(addr + MX6_SNVS_LPGPR);
-		reg |= ANDROID_RECOVERY_BOOT;
-		__raw_writel(reg, (addr + MX6_SNVS_LPGPR));
+		snvs_base_addr = MX6_SNVS_BASE_ADDR;
+		snvs_size = MX6_SNVS_SIZE;
+		snvs_lpgpr = MX6_SNVS_LPGPR;
 	} else {
-		snvs_root = clk_get_sys("imx-snvs.0", "snvs");
-		addr = ioremap(MX7_SNVS_BASE_ADDR, MX7_SNVS_SIZE);
-		if (!addr) {
-			pr_warn("SNVS ioremap failed!\n");
-			return;
-		}
-		clk_enable(snvs_root);
-		reg = __raw_readl(addr + MX7_SNVS_LPGPR);
-		reg |= ANDROID_RECOVERY_BOOT;
-		__raw_writel(reg, (addr + MX7_SNVS_LPGPR));
-		clk_disable(snvs_root);
+		snvs_base_addr = MX7_SNVS_BASE_ADDR;
+		snvs_size = MX7_SNVS_SIZE;
+		snvs_lpgpr = MX7_SNVS_LPGPR;
 	}
+	addr = ioremap(snvs_base_addr, snvs_size);
+	if (!addr) {
+		pr_warn("SNVS ioremap failed!\n");
+		return;
+	}
+	reg = __raw_readl(addr + snvs_lpgpr);
+	if (mode)
+		reg |= ANDROID_RECOVERY_BOOT;
+	else
+		reg |= ANDROID_FASTBOOT_BOOT;
+	__raw_writel(reg, (addr + snvs_lpgpr));
 	iounmap(addr);
+}
+
+void do_switch_recovery(void)
+{
+	do_switch_mode(1);
 }
 
 void do_switch_fastboot(void)
 {
-	u32 reg;
-	void *addr;
-	struct clk *snvs_root;
-	if (cpu_is_imx6()) {
-		addr = ioremap(MX6_SNVS_BASE_ADDR, MX6_SNVS_SIZE);
-		if (!addr) {
-			pr_warn("SNVS ioremap failed!\n");
-			return;
-		}
-		reg = __raw_readl(addr + MX6_SNVS_LPGPR);
-		reg |= ANDROID_FASTBOOT_BOOT;
-		__raw_writel(reg, addr + MX6_SNVS_LPGPR);
-	} else {
-		snvs_root = clk_get_sys("imx-snvs.0", "snvs");
-		addr = ioremap(MX7_SNVS_BASE_ADDR, MX7_SNVS_SIZE);
-		if (!addr) {
-			pr_warn("SNVS ioremap failed!\n");
-			return;
-		}
-		clk_enable(snvs_root);
-		reg = __raw_readl(addr + MX7_SNVS_LPGPR);
-		reg |= ANDROID_FASTBOOT_BOOT;
-		__raw_writel(reg, addr + MX7_SNVS_LPGPR);
-		clk_disable(snvs_root);
-	}
-	iounmap(addr);
+	do_switch_mode(0);
 }
 
 static void restart_special_mode(const char *cmd)
