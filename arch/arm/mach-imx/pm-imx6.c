@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2015 Freescale Semiconductor, Inc.
+ * Copyright 2011-2016 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
  *
  * The code contained herein is licensed under the GNU General Public
@@ -665,9 +665,11 @@ int imx6q_set_lpm(enum mxc_cpu_pwr_mode mode)
 	 *    is set (set bits 0-1 of CCM_CLPCR).
 	 */
 	iomuxc_irq_desc = irq_to_desc(32);
-	imx_gpc_irq_unmask(&iomuxc_irq_desc->irq_data);
+	if (mode != WAIT_CLOCKED)
+		imx_gpc_irq_unmask(&iomuxc_irq_desc->irq_data);
 	writel_relaxed(val, ccm_base + CLPCR);
-	imx_gpc_irq_mask(&iomuxc_irq_desc->irq_data);
+	if (mode != WAIT_CLOCKED)
+		imx_gpc_irq_mask(&iomuxc_irq_desc->irq_data);
 
 	return 0;
 }
