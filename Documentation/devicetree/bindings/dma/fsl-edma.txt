@@ -11,13 +11,14 @@ Required properties:
 	- "fsl,vf610-edma" for eDMA used similar to that on Vybrid vf610 SoC
 	- "fsl,imx7ulp-edma" for eDMA2 used similar to that on i.mx7ulp
 	- "fsl,fsl,ls1028a-edma" for eDMA used similar to that on Vybrid vf610 SoC
+	- "fsl,s32v234-edma" for eDMA used similar to that on S32V234 SoC
 - reg : Specifies base physical address(s) and size of the eDMA registers.
 	The 1st region is eDMA control register's address and size.
 	The 2nd and the 3rd regions are programmable channel multiplexing
 	control register's address and size.
 - interrupts : A list of interrupt-specifiers, one for each entry in
-	interrupt-names on vf610 similar SoC. But for i.mx7ulp per channel
-	per transmission interrupt, total 16 channel interrupt and 1
+	interrupt-names on SoCs similar to vf610 or S32V234. But for i.mx7ulp
+	per channel per transmission interrupt, total 16 channel interrupt and 1
 	error interrupt(located in the last), no interrupt-names list on
 	i.mx7ulp for clean on dts.
 - #dma-cells : Must be <2>.
@@ -38,10 +39,15 @@ Optional properties:
 - big-endian: If present registers and hardware scatter/gather descriptors
 	of the eDMA are implemented in big endian mode, otherwise in little
 	mode.
-- interrupt-names : Should contain the below on vf610 similar SoC but not used
-	on i.mx7ulp similar SoC:
-	"edma-tx" - the transmission interrupt
-	"edma-err" - the error interrupt
+- interrupt-names : Should contain the entries below:
+	- on vf610 similar SoC:
+		"edma-tx" - the transmission interrupt
+		"edma-err" - the error interrupt
+	- on S32V234 similar SoC:
+		"edma-tx_0-15" - the transmission interrupt for CH0-15
+		"edma-tx_16-31" - the transmission interrupt for CH16-31
+		"edma-err" - the error interrupt for CH0-31
+	- not used on i.mx7ulp similar SoC.
 
 
 Examples:
@@ -89,6 +95,24 @@ edma1: dma-controller@40080000 {
 	clocks = <&pcc2 IMX7ULP_CLK_DMA1>,
 		 <&pcc2 IMX7ULP_CLK_DMA_MUX1>;
 }; /* i.mx7ulp */
+
+edma: dma-controller@40002000 {
+	#dma-cells = <2>;
+	compatible = "fsl,s32v234-edma";
+	reg = <0x0 0x40002000 0x0 0x2000>,
+	      <0x0 0x40031000 0x0 0x1000>,
+	      <0x0 0x400A1000 0x0 0x1000>;
+	dma-channels = <32>;
+	interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>,
+		     <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "edma-tx_0-15",
+			  "edma-tx_16-31",
+			  "edma-err";
+	clock-names = "dmamux0", "dmamux1";
+	clocks = <&clks S32V234_CLK_SYS6>,
+		 <&clks S32V234_CLK_SYS6>;
+}; /* S32V234 */
 
 * DMA clients
 DMA client drivers that uses the DMA function must use the format described
