@@ -1302,14 +1302,15 @@ static chanspec_t wl_cfg80211_get_shared_freq(struct wiphy *wiphy)
 	struct wl_bss_info *bss = NULL;
 
 	if ((err = wldev_ioctl(dev, WLC_GET_BSSID, &bssid, sizeof(bssid), false))) {
-		struct channel_info ci;
+		int chspc;
 		/* STA interface is not associated. So start the new interface on a temp
 		 * channel . Later proper channel will be applied by the above framework
 		 * via set_channel (cfg80211 API).
 		 */
 		WL_DBG(("Not associated. Return first channel from supported channel list. \n"));
-		if (!wldev_ioctl(dev, WLC_GET_CHANNEL, &ci, sizeof(ci), false)) {
-			return wl_ch_host_to_driver(ci.hw_channel);
+		err = wldev_iovar_getint(dev, "chanspec", &chspc);
+		if (!err) {
+			return chspc;
 		} else {
 
 			return wl_ch_host_to_driver(WL_P2P_TEMP_CHAN);
