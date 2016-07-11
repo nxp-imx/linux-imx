@@ -512,6 +512,7 @@ static int ft5x0x_ts_suspend(struct device *dev)
 
 	dev_dbg(&ts->client->dev, "[FTS]ft5x0x suspend\n");
 	disable_irq(ts->client->irq);
+	pinctrl_pm_select_sleep_state(dev);
 
 	return 0;
 }
@@ -521,6 +522,7 @@ static int ft5x0x_ts_resume(struct device *dev)
 	struct ft5x0x_ts_data *ts = dev_get_drvdata(dev);
 
 	dev_dbg(&ts->client->dev, "[FTS]ft5x0x resume.\n");
+	pinctrl_pm_select_default_state(dev);
 	ft5x0x_reset_tp(ts->client, 0);
 	msleep(20);
 	ft5x0x_reset_tp(ts->client, 1);
