@@ -1039,7 +1039,7 @@ static int mxsfb_wait_for_vsync(struct fb_info *fb_info)
 	writel(CTRL1_VSYNC_EDGE_IRQ_EN,
 		host->base + LCDC_CTRL1 + REG_SET);
 	ret = wait_for_completion_interruptible_timeout(
-				&host->vsync_complete, 1 * HZ);
+				&host->vsync_complete, HZ/10);
 	if (ret == 0) {
 		dev_err(fb_info->device,
 			"mxs wait for vsync timeout\n");
@@ -1515,6 +1515,26 @@ static int mxsfb_dispdrv_init(struct platform_device *pdev,
 
 	return 0;
 }
+
+static ssize_t mxsfb_get_vsync(struct device *dev,
+                 struct device_attribute *attr, char *buf)
+{
+	long long timestamp = 0;
+	struct fb_info *fb_info = dev_get_drvdata(dev);
+	struct mxsfb_info *host = fb_info->par;
+	int ret = -EINVAL;
+
+	ret = mxsfb_wait_for_vsync(fb_info);
+	timestamp = ktime_to_ns(host->vsync_nf_timestamp);
+	if (ret != 0) {
+		dev_err(dev, "MXCFB_WAIT_FOR_VSYNC: timeout %d\n", ret);
+		return -EFAULT;
+	}
+
+	return snprintf(buf, PAGE_SIZE, "VSYNC=%llu", timestamp);
+}
+
+static DEVICE_ATTR(vsync, S_IRUGO, mxsfb_get_vsync, NULL);
 
 static void mxsfb_free_videomem(struct mxsfb_info *host)
 {
@@ -2347,6 +2367,10 @@ static int mxsfb_probe(struct platform_device *pdev)
 	}
 #endif
 
+	ret = device_create_file(fb_info->dev, &dev_attr_vsync);
+	if (ret)
+		dev_err(&pdev->dev, "Failed to create vsync file\n");
+
 	dev_info(&pdev->dev, "initialized\n");
 
 	return 0;
@@ -2378,6 +2402,7 @@ static int mxsfb_remove(struct platform_device *pdev)
 	struct mxsfb_info *host = platform_get_drvdata(pdev);
 	struct fb_info *fb_info = host->fb_info;
 
+	device_remove_file(fb_info->dev, &dev_attr_vsync);
 	if (host->enabled)
 		mxsfb_disable_controller(fb_info);
 
