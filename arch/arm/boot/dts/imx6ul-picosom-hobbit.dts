@@ -104,27 +104,24 @@
 	};
 
 	sound {
-		compatible = "fsl,imx6ul-sgtl5000",
-			"fsl,imx-audio-sgtl5000";
+		compatible = "fsl,imx-audio-sgtl5000";
 		model = "imx6ul-sgtl5000";
-		cpu-dai = <&sai1>;
+		audio-cpu = <&sai1>;
 		audio-codec = <&codec>;
 		audio-routing =
 			"LINE_IN", "Line In Jack",
 			"MIC_IN", "Mic Jack",
 			"Mic Jack", "Mic Bias",
 			"Headphone Jack", "HP_OUT";
-		mux-int-port = <1>;
-		mux-ext-port = <1>;
 	};
 
 	clocks {
 		sys_mclk: clock {
-                        compatible = "fixed-clock";
+			compatible = "fixed-clock";
 			#clock-cells = <0>;
-                        clock-frequency = <24576000>;
-                };
-        };
+			clock-frequency = <24576000>;
+		};
+	};
 
 	external_gpio {
 		pinctrl-names = "default";
@@ -297,7 +294,7 @@
 		};
 	};
 
-	adc: adc081c {
+	adc: adc081c@50 {
 		compatible = "ti,adc081c";
 		reg = <0x50>;
 	};
@@ -309,14 +306,6 @@
 	pinctrl-0 = <&pinctrl_i2c2>;
 	status = "okay";
 
-};
-
-&i2c3 {
-	clock_frequency = <100000>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_i2c3>;
-	status = "okay";
-
 	codec: sgtl5000@0a {
 		compatible = "fsl,sgtl5000";
 		reg = <0x0a>;
@@ -324,6 +313,13 @@
 		VDDA-supply = <&reg_2p5v>;
 		VDDIO-supply = <&reg_3p3v>;
 	};
+};
+
+&i2c3 {
+	clock_frequency = <100000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c3>;
+	status = "okay";
 };
 
 &iomuxc {
