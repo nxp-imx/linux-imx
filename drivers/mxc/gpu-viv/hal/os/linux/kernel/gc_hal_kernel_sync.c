@@ -67,6 +67,7 @@
 #include <linux/uaccess.h>
 
 #include "gc_hal_kernel_sync.h"
+#include "gc_hal_kernel_linux.h"
 
 static struct sync_pt *
 viv_sync_pt_dup(
@@ -89,11 +90,13 @@ viv_sync_pt_dup(
     pt = (struct viv_sync_pt *)
         sync_pt_create(&obj->obj, sizeof(struct viv_sync_pt));
 
-    pt->stamp = src->stamp;
-    pt->sync = src->sync;
+    pt->stamp  = src->stamp;
 
-    /* Reference sync point. */
-    status = gckOS_ReferenceSyncPoint(obj->os, pt->sync);
+    /* Reference signal. */
+    status = gckOS_MapSignal(obj->os,
+                             src->signal,
+                             gcvNULL /* (gctHANDLE) _GetProcessID() */,
+                             &pt->signal);
 
     if (gcmIS_ERROR(status))
     {
@@ -110,7 +113,6 @@ viv_sync_pt_has_signaled(
     )
 {
     gceSTATUS status;
-    gctBOOL state;
     struct viv_sync_pt * pt;
     struct viv_sync_timeline * obj;
 
@@ -121,7 +123,7 @@ viv_sync_pt_has_signaled(
     obj = (struct viv_sync_timeline *)sync_pt->parent;
 #endif
 
-    status = gckOS_QuerySyncPoint(obj->os, pt->sync, &state);
+    status = _QuerySignal(obj->os, pt->signal);
 
     if (gcmIS_ERROR(status))
     {
@@ -129,7 +131,7 @@ viv_sync_pt_has_signaled(
         return -1;
     }
 
-    return state;
+    return (int) status;
 }
 
 static int
@@ -164,7 +166,7 @@ viv_sync_pt_free(
     obj = (struct viv_sync_timeline *) sync_pt->parent;
 #endif
 
-    gckOS_DestroySyncPoint(obj->os, pt->sync);
+    gckOS_DestroySignal(obj->os, pt->signal);
 }
 
 static void
@@ -177,7 +179,7 @@ viv_timeline_value_str(
     struct viv_sync_timeline * obj;
 
     obj = (struct viv_sync_timeline *) timeline;
-    snprintf(str, size, "%u", obj->stamp);
+    snprintf(str, size, "stamp_%llu", obj->stamp);
 }
 
 static void
@@ -190,12 +192,12 @@ viv_pt_value_str(
     struct viv_sync_pt * pt;
 
     pt = (struct viv_sync_pt *) sync_pt;
-    snprintf(str, size, "%u", pt->stamp);
+    snprintf(str, size, "signal_%lu@stamp_%llu", (unsigned long) pt->signal, pt->stamp);
 }
 
 static struct sync_timeline_ops viv_timeline_ops =
 {
-    .driver_name = "viv_hw_sync",
+    .driver_name = "viv_gpu_sync",
     .dup = viv_sync_pt_dup,
     .has_signaled = viv_sync_pt_has_signaled,
     .compare = viv_sync_pt_compare,
@@ -224,7 +226,7 @@ viv_sync_timeline_create(
 struct sync_pt *
 viv_sync_pt_create(
     struct viv_sync_timeline * obj,
-    gctSYNC_POINT SyncPoint
+    gctSIGNAL Signal
     )
 {
     gceSTATUS status;
@@ -233,11 +235,13 @@ viv_sync_pt_create(
     pt = (struct viv_sync_pt *)
         sync_pt_create(&obj->obj, sizeof(struct viv_sync_pt));
 
-    pt->stamp = obj->stamp++;
-    pt->sync  = SyncPoint;
+    pt->stamp  = obj->stamp++;
 
     /* Dup signal. */
-    status = gckOS_ReferenceSyncPoint(obj->os, SyncPoint);
+    status = gckOS_MapSignal(obj->os,
+                             Signal,
+                             gcvNULL /* (gctHANDLE) _GetProcessID() */,
+                             &pt->signal);
 
     if (gcmIS_ERROR(status))
     {

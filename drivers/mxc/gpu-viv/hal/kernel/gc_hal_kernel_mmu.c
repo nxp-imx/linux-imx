@@ -2625,6 +2625,45 @@ gckMMU_AttachHardware(
     return gcvSTATUS_OK;
 }
 
+
+#if !gcdPROCESS_ADDRESS_SPACE
+gceSTATUS
+gckMMU_GetPageEntry(
+    IN gckMMU Mmu,
+    IN gctUINT32 Address,
+    IN gctUINT32_PTR *PageTable
+    )
+{
+    gctUINT32_PTR pageTable;
+    gctUINT32 index;
+    gctUINT32 mtlb, stlb;
+    gcsADDRESS_AREA_PTR area = &Mmu->area[0];
+
+    gcmkHEADER_ARG("Mmu=0x%08X Address=0x%08X", Mmu, Address);
+    gcmkVERIFY_OBJECT(Mmu, gcvOBJ_MMU);
+
+    gcmkASSERT(Mmu->hardware->mmuVersion > 0);
+
+    mtlb   = (Address & gcdMMU_MTLB_MASK) >> gcdMMU_MTLB_SHIFT;
+
+    if (mtlb >= area->dynamicMappingStart)
+    {
+        stlb   = (Address & gcdMMU_STLB_4K_MASK) >> gcdMMU_STLB_4K_SHIFT;
+
+        pageTable = area->pageTableLogical;
+
+        index = (mtlb - area->dynamicMappingStart)
+            * gcdMMU_STLB_4K_ENTRY_NUM
+            + stlb;
+
+        *PageTable = pageTable + index;
+    }
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+}
+#endif
+
 /******************************************************************************
 ****************************** T E S T   C O D E ******************************
 ******************************************************************************/

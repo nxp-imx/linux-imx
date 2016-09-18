@@ -256,7 +256,6 @@ typedef void *                  gctFILE;
 typedef void *                  gctSIGNAL;
 typedef void *                  gctWINDOW;
 typedef void *                  gctIMAGE;
-typedef void *                  gctSYNC_POINT;
 typedef void *                  gctSHBUF;
 
 typedef void *                  gctSEMAPHORE;
@@ -556,8 +555,8 @@ gceSTATUS;
 
 #define __gcmMASK(reg_field) \
     ((gctUINT32) ((__gcmGETSIZE(reg_field) == 32) \
-        ?  ~0 \
-        : (~(~0 << __gcmGETSIZE(reg_field)))))
+        ?  ~0U \
+        : (~(~0U << __gcmGETSIZE(reg_field)))))
 
 /*******************************************************************************
 **
@@ -649,8 +648,8 @@ gceSTATUS;
 */
 #define gcmGETMASKEDFIELDMASK(reg, field) \
 ( \
-    gcmSETFIELD(0, reg,          field, ~0) | \
-    gcmSETFIELD(0, reg, MASK_ ## field, ~0)   \
+    gcmSETFIELD(0, reg,          field, ~0U) | \
+    gcmSETFIELD(0, reg, MASK_ ## field, ~0U)   \
 )
 
 /*******************************************************************************
@@ -667,8 +666,8 @@ gceSTATUS;
 */
 #define gcmSETMASKEDFIELD(reg, field, value) \
 ( \
-    gcmSETFIELD     (~0, reg,          field, value) & \
-    gcmSETFIELDVALUE(~0, reg, MASK_ ## field, ENABLED) \
+    gcmSETFIELD     (~0U, reg,          field, value) & \
+    gcmSETFIELDVALUE(~0U, reg, MASK_ ## field, ENABLED) \
 )
 
 /*******************************************************************************
@@ -685,8 +684,8 @@ gceSTATUS;
 */
 #define gcmSETMASKEDFIELDVALUE(reg, field, value) \
 ( \
-    gcmSETFIELDVALUE(~0, reg,          field, value) & \
-    gcmSETFIELDVALUE(~0, reg, MASK_ ## field, ENABLED) \
+    gcmSETFIELDVALUE(~0U, reg,          field, value) & \
+    gcmSETFIELDVALUE(~0U, reg, MASK_ ## field, ENABLED) \
 )
 
 /*******************************************************************************
@@ -765,7 +764,7 @@ gceSTATUS;
 /******************************************************************************\
 ******************************** Ceiling Macro ********************************
 \******************************************************************************/
-#define gcmCEIL(x) ((x - (gctUINT32)x) == 0 ? (gctUINT32)x : (gctUINT32)x + 1)
+#define gcmCEIL(x) (((x) - (gctUINT32)(x)) == 0 ? (gctUINT32)(x) : (gctUINT32)(x) + 1)
 
 /******************************************************************************\
 ******************************** Min/Max Macros ********************************

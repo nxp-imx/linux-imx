@@ -70,6 +70,8 @@ typedef enum kernel_packet_command {
     KERNEL_FREE_SECURE_MEMORY,
     KERNEL_EXECUTE,                       /* Execute a command buffer. */
     KERNEL_DUMP_MMU_EXCEPTION,
+    KERNEL_HANDLE_MMU_EXCEPTION,
+    KERNEL_READ_MMU_EXCEPTION,
 } kernel_packet_command_t;
 
 struct kernel_start_command {
@@ -145,6 +147,17 @@ struct kernel_unmap_memory {
     gctUINT32       pageCount;
 };
 
+struct kernel_read_mmu_exception {
+    gctUINT32       mmuStatus;
+    gctUINT32       mmuException;
+};
+
+struct kernel_handle_mmu_exception {
+    gctUINT32       mmuStatus;
+    gctPHYS_ADDR_T  physical;
+    gctUINT32       gpuAddress;
+};
+
 typedef struct _gcsTA_INTERFACE {
     kernel_packet_command_t command;
     union {
@@ -154,6 +167,8 @@ typedef struct _gcsTA_INTERFACE {
         struct kernel_execute                  Execute;
         struct kernel_map_memory               MapMemory;
         struct kernel_unmap_memory             UnmapMemory;
+        struct kernel_read_mmu_exception       ReadMMUException;
+        struct kernel_handle_mmu_exception     HandleMMUException;
     } u;
     gceSTATUS result;
 } gcsTA_INTERFACE;

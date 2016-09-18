@@ -563,13 +563,14 @@ gcoHAL_WaitCompletion(
 /* Flush the pixel cache. */
 gceSTATUS
 gcoHAL_Flush(
-    IN gcoHAL Hal
 #if gcdGC355_PROFILER
-    ,
+    IN gcoHAL Hal,
     IN gcoVG Vg,
     IN gctUINT TreeDepth,
     IN gctUINT saveLayerTreeDepth,
     IN gctUINT varTreeDepth
+#else
+    IN gcoHAL Hal
 #endif
     );
 

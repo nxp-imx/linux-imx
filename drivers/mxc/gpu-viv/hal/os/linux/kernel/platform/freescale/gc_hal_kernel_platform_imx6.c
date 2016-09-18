@@ -511,6 +511,10 @@ gckPLATFORM_AdjustParam(
 
     Args->gpu3DMinClock = initgpu3DMinClock;
 
+#if IMX8_PHYS_BASE
+    Args->baseAddress = IMX8_PHYS_BASE;
+#endif
+
     if(Args->physSize == 0)
     {
 #if IMX8_PHYS_SIZE

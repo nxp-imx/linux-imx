@@ -1995,7 +1995,7 @@ gcmDECLARE_INTERRUPT_HANDLER(COMMAND, 0)
         entryCount = queueTail->pending;
 
         /* Process all entries. */
-        while (gcvTRUE)
+        while (entryCount > 0)
         {
             /* Call post-execution function. */
             status = entry->handler(Kernel, entry);
@@ -2954,7 +2954,7 @@ gckVGCOMMAND_Construct(
             ));
 
         /* Mask out the interrupt. */
-        Kernel->hardware->eventMask &= ~(1 << command->info.tsOverflowInt);
+        /* Kernel->hardware->eventMask &= ~(1 << command->info.tsOverflowInt); */
 
 
         /***********************************************************************

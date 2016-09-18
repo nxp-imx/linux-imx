@@ -204,7 +204,7 @@ _AllocateStlb(
 {
     gceSTATUS status;
     gcsMMU_STLB_PTR stlb;
-    gctPOINTER pointer;
+    gctPOINTER pointer = gcvNULL;
 
     /* Allocate slave TLB record. */
     gcmkONERROR(gctaOS_Allocate(gcmSIZEOF(gcsMMU_STLB), &pointer));
@@ -233,6 +233,8 @@ _AllocateStlb(
     return gcvSTATUS_OK;
 
 OnError:
+    if(pointer != gcvNULL)
+        gcmkVERIFY_OK(gctaOS_Free(pointer));
     return status;
 }
 
@@ -245,7 +247,7 @@ gctaMMU_Construct(
     gceSTATUS status;
     gctSIZE_T bytes = 4096;
 
-    gcTA_MMU mmu;
+    gcTA_MMU mmu = gcvNULL;
 
     gcmkONERROR(gctaOS_Allocate(
         gcmSIZEOF(gcsTA_MMU),
@@ -264,6 +266,12 @@ gctaMMU_Construct(
         &mmu->mtlbLogical,
         &mmu->mtlbPhysical
         ));
+
+#if gcdUSE_MMU_EXCEPTION
+    _FillPageTable(mmu->mtlbLogical, mmu->mtlbBytes / 4, gcdMMU_STLB_EXCEPTION);
+#else
+    gctaOS_ZeroMemory(mmu->mtlbLogical, mmu->mtlbBytes);
+#endif
 
     /* Allocate a array to store stlbs. */
     gcmkONERROR(gctaOS_Allocate(mmu->mtlbBytes, &mmu->stlbs));
@@ -297,6 +305,8 @@ gctaMMU_Construct(
     return gcvSTATUS_OK;
 
 OnError:
+    if(mmu != gcvNULL)
+        gcmkVERIFY_OK(gctaOS_Free((gctPOINTER)mmu));
     return status;
 }
 
@@ -346,6 +356,7 @@ gceSTATUS
 gctaMMU_GetPageEntry(
     IN gcTA_MMU Mmu,
     IN gctUINT32 Address,
+    OUT gctUINT32_PTR MtlbEntry,
     OUT gctUINT32_PTR *PageTable,
     OUT gctBOOL * Secure
     )
@@ -384,6 +395,12 @@ gctaMMU_GetPageEntry(
 
         /* Record stlb. */
         stlbs[offset] = stlb;
+
+        if (MtlbEntry)
+        {
+            /* Return entry value of new mtlb entry. */
+            *MtlbEntry = mtlbEntry;
+        }
     }
 
     *PageTable = &stlb->logical[_StlbOffset(Address)];
@@ -439,7 +456,7 @@ gctaMMU_FreePages(
     /* Fill in page table. */
     for (i = 0; i < PageCount; i++)
     {
-        gcmkONERROR(gctaMMU_GetPageEntry(Mmu, Address, &entry, gcvNULL));
+        gcmkONERROR(gctaMMU_GetPageEntry(Mmu, Address, gcvNULL, &entry, gcvNULL));
 
 #if gcdUSE_MMU_EXCEPTION
         *entry = gcdMMU_STLB_EXCEPTION;

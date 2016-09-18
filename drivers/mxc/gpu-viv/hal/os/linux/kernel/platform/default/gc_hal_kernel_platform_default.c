@@ -53,56 +53,29 @@
 *****************************************************************************/
 
 
-#ifndef __gc_hal_kernel_os_h_
-#define __gc_hal_kernel_os_h_
+#include "gc_hal_kernel_linux.h"
+#include "gc_hal_kernel_platform.h"
 
-typedef struct _LINUX_MDL     LINUX_MDL,     *PLINUX_MDL;
-typedef struct _LINUX_MDL_MAP LINUX_MDL_MAP, *PLINUX_MDL_MAP;
-
-struct _LINUX_MDL_MAP
+gctBOOL
+_NeedAddDevice(
+    IN gckPLATFORM Platform
+    )
 {
-    gctINT                  pid;
-    gctPOINTER              vmaAddr;
-    gctUINT32               count;
-
-    struct list_head        link;
-};
-
-struct _LINUX_MDL
-{
-    char *                  addr;
-
-    gctINT                  numPages;
-    gctBOOL                 contiguous;
-    dma_addr_t              dmaHandle;
-
-    struct mutex            mapsMutex;
-    struct list_head        mapsHead;
-
-    /* Pointer to allocator which allocates memory for this mdl. */
-    void *                  allocator;
-
-    /* Private data used by allocator. */
-    void *                  priv;
-
-    uint                    gid;
-
-    struct list_head        link;
-};
-
-extern PLINUX_MDL_MAP
-FindMdlMap(
-    IN PLINUX_MDL Mdl,
-    IN gctINT PID
-    );
-
-typedef struct _DRIVER_ARGS
-{
-    gctUINT64               InputBuffer;
-    gctUINT64               InputBufferSize;
-    gctUINT64               OutputBuffer;
-    gctUINT64               OutputBufferSize;
+    return gcvTRUE;
 }
-DRIVER_ARGS;
 
-#endif /* __gc_hal_kernel_os_h_ */
+gcmkPLATFROM_Name
+
+gcsPLATFORM_OPERATIONS platformOperations =
+{
+    .needAddDevice = _NeedAddDevice,
+    .name          = _Name,
+};
+
+void
+gckPLATFORM_QueryOperations(
+    IN gcsPLATFORM_OPERATIONS ** Operations
+    )
+{
+     *Operations = &platformOperations;
+}

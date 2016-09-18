@@ -53,56 +53,15 @@
 *****************************************************************************/
 
 
-#ifndef __gc_hal_kernel_os_h_
-#define __gc_hal_kernel_os_h_
+#ifndef __gc_hal_resource_h_
+#define __gc_hal_resource_h_
 
-typedef struct _LINUX_MDL     LINUX_MDL,     *PLINUX_MDL;
-typedef struct _LINUX_MDL_MAP LINUX_MDL_MAP, *PLINUX_MDL_MAP;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-struct _LINUX_MDL_MAP
-{
-    gctINT                  pid;
-    gctPOINTER              vmaAddr;
-    gctUINT32               count;
-
-    struct list_head        link;
-};
-
-struct _LINUX_MDL
-{
-    char *                  addr;
-
-    gctINT                  numPages;
-    gctBOOL                 contiguous;
-    dma_addr_t              dmaHandle;
-
-    struct mutex            mapsMutex;
-    struct list_head        mapsHead;
-
-    /* Pointer to allocator which allocates memory for this mdl. */
-    void *                  allocator;
-
-    /* Private data used by allocator. */
-    void *                  priv;
-
-    uint                    gid;
-
-    struct list_head        link;
-};
-
-extern PLINUX_MDL_MAP
-FindMdlMap(
-    IN PLINUX_MDL Mdl,
-    IN gctINT PID
-    );
-
-typedef struct _DRIVER_ARGS
-{
-    gctUINT64               InputBuffer;
-    gctUINT64               InputBufferSize;
-    gctUINT64               OutputBuffer;
-    gctUINT64               OutputBufferSize;
+#ifdef __cplusplus
 }
-DRIVER_ARGS;
+#endif
 
-#endif /* __gc_hal_kernel_os_h_ */
+#endif /* __gc_hal_resource_h_ */

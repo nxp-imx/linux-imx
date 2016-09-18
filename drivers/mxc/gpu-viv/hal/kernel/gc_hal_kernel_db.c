@@ -1083,7 +1083,7 @@ gckKERNEL_RemoveProcessDB(
     gcsDATABASE_PTR database;
     gctSIZE_T bytes = 0;
     gctUINT32 vidMemType;
-    gcePOOL vidMempool;
+    gcePOOL vidMemPool;
 
     gcmkHEADER_ARG("Kernel=0x%x ProcessID=%d Type=%d Pointer=0x%x",
                    Kernel, ProcessID, Type, Pointer);
@@ -1094,7 +1094,7 @@ gckKERNEL_RemoveProcessDB(
 
     /* Decode type. */
     vidMemType = (Type & gcdDB_VIDEO_MEMORY_TYPE_MASK) >> gcdDB_VIDEO_MEMORY_TYPE_SHIFT;
-    vidMempool = (Type & gcdDB_VIDEO_MEMORY_POOL_MASK) >> gcdDB_VIDEO_MEMORY_POOL_SHIFT;
+    vidMemPool = (Type & gcdDB_VIDEO_MEMORY_POOL_MASK) >> gcdDB_VIDEO_MEMORY_POOL_SHIFT;
 
     Type &= gcdDATABASE_TYPE_MASK;
 
@@ -1115,8 +1115,8 @@ gckKERNEL_RemoveProcessDB(
         database->vidMem.freeCount++;
         database->vidMemType[vidMemType].bytes -= bytes;
         database->vidMemType[vidMemType].freeCount++;
-        database->vidMemPool[vidMempool].bytes -= bytes;
-        database->vidMemPool[vidMempool].freeCount++;
+        database->vidMemPool[vidMemPool].bytes -= bytes;
+        database->vidMemPool[vidMemPool].freeCount++;
         break;
 
     case gcvDB_NON_PAGED:
@@ -1486,18 +1486,6 @@ gckKERNEL_DestroyProcessDB(
                            "DB: MAP USER MEMORY %d (status=%d)",
                            gcmPTR2INT32(record->data), status);
             break;
-
-#if gcdANDROID_NATIVE_FENCE_SYNC
-        case gcvDB_SYNC_POINT:
-            /* Free the user signal. */
-            status = gckOS_DestroySyncPoint(Kernel->os,
-                                            (gctSYNC_POINT) record->data);
-
-            gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
-                           "DB: SYNC POINT %d (status=%d)",
-                           (gctINT)(gctUINTPTR_T)record->data, status);
-            break;
-#endif
 
         case gcvDB_SHBUF:
             /* Free shared buffer. */

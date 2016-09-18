@@ -291,8 +291,6 @@ gckKERNEL_MapVideoMemoryEx(
     )
 {
     gckGALDEVICE device   = gcvNULL;
-    PLINUX_MDL mdl        = gcvNULL;
-    PLINUX_MDL_MAP mdlMap = gcvNULL;
     gcePOOL pool          = gcvPOOL_UNKNOWN;
     gctUINT32 offset      = 0;
     gctUINT32 base        = 0;
@@ -347,19 +345,16 @@ gckKERNEL_MapVideoMemoryEx(
         }
         else
         {
-            gctINT processID;
-            gckOS_GetProcessID(&processID);
-
-            gcmkVERIFY_OK(gckOS_AcquireMutex(Kernel->os, Kernel->os->memoryLock, gcvINFINITE));
+            PLINUX_MDL mdl;
+            PLINUX_MDL_MAP mdlMap;
 
             mdl = (PLINUX_MDL) device->contiguousPhysical;
 
-            mdlMap = FindMdlMap(mdl, processID);
-            gcmkASSERT(mdlMap);
+            mutex_lock(&mdl->mapsMutex);
+            mdlMap = FindMdlMap(mdl, _GetProcessID());
+            mutex_unlock(&mdl->mapsMutex);
 
             logical = (gctPOINTER) mdlMap->vmaAddr;
-
-            gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->os->memoryLock));
         }
 #if gcdENABLE_VG
         if (Core == gcvCORE_VG)

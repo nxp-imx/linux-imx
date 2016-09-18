@@ -70,6 +70,7 @@ typedef enum {
 
     /* BLT engine command sequence. */
     gcvHARDWARE_FUNCTION_BLT_EVENT,
+    gcvHARDWARE_FUNCTION_DUMMY_DRAW,
     gcvHARDWARE_FUNCTION_NUM,
 }
 gceHARDWARE_FUNCTION;
@@ -320,12 +321,21 @@ gckHARDWARE_GetFrameInfo(
     OUT gcsHAL_FRAME_INFO * FrameInfo
     );
 
-#define gcmkWRITE_MEMORY(logical, data) \
-    do { \
-    gcmkVERIFY_OK(gckOS_WriteMemory(os, logical, data)); \
-    logical++; \
-    }\
-    while (0) ; \
+gceSTATUS
+gckHARDWARE_DumpGpuProfile(
+    IN gckHARDWARE Hardware
+    );
+
+gceSTATUS
+gckHARDWARE_HandleFault(
+    IN gckHARDWARE Hardware
+    );
+
+gceSTATUS
+gckHARDWARE_ExecuteFunctions(
+    IN gckHARDWARE Hardware,
+    IN gceHARDWARE_FUNCTION Function
+    );
 
 gceSTATUS
 gckHARDWARE_DummyDraw(
@@ -335,6 +345,13 @@ gckHARDWARE_DummyDraw(
     IN gceDUMMY_DRAW_TYPE DummyDrawType,
     IN OUT gctUINT32 * Bytes
     );
+
+#define gcmkWRITE_MEMORY(logical, data) \
+    do { \
+    gcmkVERIFY_OK(gckOS_WriteMemory(os, logical, data)); \
+    logical++; \
+    }\
+    while (0) ; \
 
 #ifdef __cplusplus
 }

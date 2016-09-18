@@ -270,6 +270,7 @@ gckVIDMEM_ConstructVirtual(
     node->Virtual.kernelVirtual = gcvNULL;
 #endif
     node->Virtual.secure        = (Flag & gcvALLOC_FLAG_SECURITY) != 0;
+    node->Virtual.onFault       = (Flag & gcvALLOC_FLAG_ALLOC_ON_FAULT) != 0;
 
     for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
@@ -284,6 +285,12 @@ gckVIDMEM_ConstructVirtual(
                                     node->Virtual.bytes = Bytes,
                                     &node->Virtual.gid,
                                     &node->Virtual.physical));
+
+    if (node->Virtual.onFault == gcvTRUE)
+    {
+        /* TODO Lock. */
+        gcsLIST_Add(&node->Virtual.head, &Kernel->db->onFaultVidmemList);
+    }
 
     /* Return pointer to the gcuVIDMEM_NODE union. */
     *Node = node;
@@ -339,6 +346,12 @@ gckVIDMEM_DestroyVirtual(
     /* Extact the gckOS object pointer. */
     os = Node->Virtual.kernel->os;
     gcmkVERIFY_OBJECT(os, gcvOBJ_OS);
+
+    if (Node->Virtual.onFault == gcvTRUE)
+    {
+        /* TODO Lock. */
+        gcsLIST_Del(&Node->Virtual.head);
+    }
 
     /* Delete the gcuVIDMEM_NODE union. */
     gcmkVERIFY_OK(gcmkOS_SAFE_FREE(os, Node));
@@ -1331,38 +1344,40 @@ _NeedVirtualMapping(
                 Kernel->os, Node->Virtual.logical, &phys
                 ));
 
-            gcmkSAFECASTPHYSADDRT(address, phys);
-
-            if (!gckHARDWARE_IsFeatureAvailable(Kernel->hardware, gcvFEATURE_MMU))
-            {
-                gcmkASSERT(address >= Kernel->hardware->baseAddress);
-
-                /* Subtract baseAddress to get a GPU address used for programming. */
-                address -= Kernel->hardware->baseAddress;
-
-                /* If part of region is belong to gcvPOOL_VIRTUAL,
-                ** whole region has to be mapped. */
-                gcmkSAFECASTSIZET(bytes, Node->Virtual.bytes);
-                end = address + bytes - 1;
-
-                gcmkONERROR(gckHARDWARE_SplitMemory(
-                            Kernel->hardware, end, &pool, &offset
-                            ));
-
-                *NeedMapping = (pool == gcvPOOL_VIRTUAL);
-            }
-            /* no flat mapping for 4G above address */
-            else if (phys >> 32)
+            if (phys > gcvMAXUINT32)
             {
                 *NeedMapping = gcvTRUE;
             }
             else
             {
-                gctBOOL flatMapped;
+                gcmkSAFECASTPHYSADDRT(address, phys);
 
-                gcmkONERROR(gckMMU_IsFlatMapped(Kernel->mmu, address, &flatMapped));
+                if (!gckHARDWARE_IsFeatureAvailable(Kernel->hardware, gcvFEATURE_MMU))
+                {
+                    gcmkASSERT(address >= Kernel->hardware->baseAddress);
 
-                *NeedMapping = !flatMapped;
+                    /* Subtract baseAddress to get a GPU address used for programming. */
+                    address -= Kernel->hardware->baseAddress;
+
+                    /* If part of region is belong to gcvPOOL_VIRTUAL,
+                    ** whole region has to be mapped. */
+                    gcmkSAFECASTSIZET(bytes, Node->Virtual.bytes);
+                    end = address + bytes - 1;
+
+                    gcmkONERROR(gckHARDWARE_SplitMemory(
+                                Kernel->hardware, end, &pool, &offset
+                                ));
+
+                    *NeedMapping = (pool == gcvPOOL_VIRTUAL);
+                }
+                else
+                {
+                    gctBOOL flatMapped;
+
+                    gcmkONERROR(gckMMU_IsFlatMapped(Kernel->mmu, address, &flatMapped));
+
+                    *NeedMapping = !flatMapped;
+                }
             }
         }
     }
@@ -1703,34 +1718,36 @@ gckVIDMEM_Lock(
                                              &node->Virtual.addresses[Kernel->core]));
                 }
 
+                if (node->Virtual.onFault != gcvTRUE)
+                {
 #if gcdENABLE_TRUST_APPLICATION
 #if gcdENABLE_VG
-                if (Kernel->core != gcvCORE_VG && Kernel->hardware->secureMode == gcvSECURE_IN_TA)
+                    if (Kernel->core != gcvCORE_VG && Kernel->hardware->secureMode == gcvSECURE_IN_TA)
 #else
-                if (Kernel->hardware->secureMode == gcvSECURE_IN_TA)
+                    if (Kernel->hardware->secureMode == gcvSECURE_IN_TA)
 #endif
-                {
-                    gcmkONERROR(gckKERNEL_MapInTrustApplicaiton(
-                        Kernel,
-                        node->Virtual.logical,
-                        node->Virtual.physical,
-                        node->Virtual.addresses[Kernel->core],
-                        node->Virtual.pageCount
-                        ));
-                }
-                else
+                    {
+                        gcmkONERROR(gckKERNEL_MapInTrustApplicaiton(
+                            Kernel,
+                            node->Virtual.logical,
+                            node->Virtual.physical,
+                            node->Virtual.addresses[Kernel->core],
+                            node->Virtual.pageCount
+                            ));
+                    }
+                    else
 #endif
-                {
-                /* Map the pages. */
-                gcmkONERROR(
-                    gckOS_MapPagesEx(os,
-                                     Kernel->core,
-                                     node->Virtual.physical,
-                                     node->Virtual.pageCount,
-                                     node->Virtual.addresses[Kernel->core],
-                                     node->Virtual.pageTables[Kernel->core],
-                                     gcvTRUE,
-                                     node->Virtual.type));
+                    {
+                        /* Map the pages. */
+                        gcmkONERROR(gckOS_MapPagesEx(os,
+                            Kernel->core,
+                            node->Virtual.physical,
+                            node->Virtual.pageCount,
+                            node->Virtual.addresses[Kernel->core],
+                            node->Virtual.pageTables[Kernel->core],
+                            gcvTRUE,
+                            node->Virtual.type));
+                    }
                 }
 
 #if gcdENABLE_VG
@@ -3065,6 +3082,49 @@ gckVIDMEM_GetCommitStamp(
     return gcvSTATUS_OK;
 
 OnError:
+    return status;
+}
+
+gceSTATUS
+gckVIDMEM_FindVIDMEM(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 HardwareAddress,
+    OUT gcuVIDMEM_NODE_PTR * Node,
+    OUT gctUINT32_PTR PageTableEntryValue
+    )
+{
+    gceSTATUS status = gcvSTATUS_NOT_FOUND;
+    gcuVIDMEM_NODE_PTR node = gcvNULL;
+
+    gcsLISTHEAD_PTR pos;
+
+    gcmkLIST_FOR_EACH(pos, &Kernel->db->onFaultVidmemList)
+    {
+        node = (gcuVIDMEM_NODE_PTR)gcmCONTAINEROF(pos, _gcsVIDMEM_NODE_VIRTUAL, head);
+
+        if (HardwareAddress >= node->Virtual.addresses[Kernel->core]
+         && (HardwareAddress <= node->Virtual.addresses[Kernel->core] - 1 + node->Virtual.bytes)
+            )
+        {
+            *Node = node;
+            status = gcvSTATUS_OK;
+            break;
+        }
+    }
+
+    if (gcmIS_SUCCESS(status))
+    {
+        /* Setup map for fault address. */
+        gctUINT32 offset = HardwareAddress - node->Virtual.addresses[Kernel->core];
+        gctPHYS_ADDR_T physicalAddress;
+
+        offset &= ~gcdMMU_PAGE_4K_MASK;
+
+        gckOS_PhysicalToPhysicalAddress(Kernel->os, node->Virtual.physical, offset, &physicalAddress);
+
+        gcmkSAFECASTPHYSADDRT(*PageTableEntryValue, physicalAddress);
+    }
+
     return status;
 }
 

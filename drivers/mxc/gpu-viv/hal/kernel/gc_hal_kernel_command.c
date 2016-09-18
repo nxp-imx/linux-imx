@@ -371,6 +371,7 @@ _FlushMMU(
     gctBOOL pause = gcvFALSE;
 
     gctUINT8_PTR pointer;
+    gctUINT32 address;
     gctUINT32 eventBytes;
     gctUINT32 endBytes;
     gctUINT32 bufferSize;
@@ -399,7 +400,7 @@ _FlushMMU(
     {
         /* Query size. */
         gcmkONERROR(gckHARDWARE_Event(hardware, gcvNULL, 0, gcvKERNEL_PIXEL, &eventBytes));
-        gcmkONERROR(gckHARDWARE_End(hardware, gcvNULL, &endBytes));
+        gcmkONERROR(gckHARDWARE_End(hardware, gcvNULL, ~0U, &endBytes));
 
         executeBytes = eventBytes + endBytes;
 
@@ -421,6 +422,9 @@ _FlushMMU(
             &bufferSize
             ));
 
+        /* Pointer to reserved address. */
+        address = Command->address  + Command->offset;
+
         /* Append EVENT(29). */
         gcmkONERROR(gckHARDWARE_Event(
             hardware,
@@ -432,7 +436,9 @@ _FlushMMU(
 
         /* Append END. */
         pointer += eventBytes;
-        gcmkONERROR(gckHARDWARE_End(hardware, pointer, &endBytes));
+        address += eventBytes;
+
+        gcmkONERROR(gckHARDWARE_End(hardware, pointer, address, &endBytes));
 
 #if USE_KERNEL_VIRTUAL_BUFFERS
         if (hardware->kernel->virtualCommandBuffer)
@@ -455,7 +461,6 @@ OnError:
     return status;
 #endif
 }
-#endif
 
 static gceSTATUS
 _DummyDraw(
@@ -507,6 +512,8 @@ OnError:
     return status;
 #endif
 }
+
+#endif
 
 static void
 _DumpBuffer(
@@ -730,6 +737,264 @@ _WaitForAsyncCommandStamp(
 
 OnError:
     gcmkFOOTER();
+    return status;
+}
+
+/******************************************************************************\
+**************** Helper functions for parsing gcoCMDBUF ************************
+\******************************************************************************/
+static void
+_GetCMDBUFSize(
+    IN gcoCMDBUF CommandBuffer,
+    OUT gctUINT_PTR CommandBufferSize
+    )
+{
+    *CommandBufferSize
+        = CommandBuffer->offset
+        + CommandBuffer->reservedTail
+        - CommandBuffer->startOffset;
+}
+
+static void
+_GetCMDBUFTail(
+    IN gcoCMDBUF CommandBuffer,
+    OUT gctUINT8_PTR * Tail
+    )
+{
+    gctUINT8_PTR commandBufferLogical;
+    gctUINT commandBufferSize;
+
+    commandBufferLogical
+        = (gctUINT8_PTR) gcmUINT64_TO_PTR(CommandBuffer->logical)
+        +                CommandBuffer->startOffset;
+
+    _GetCMDBUFSize(CommandBuffer, &commandBufferSize);
+
+    *Tail
+        = commandBufferLogical
+        + commandBufferSize
+        - CommandBuffer->reservedTail;
+}
+
+static void
+_ParseCMDBUFTail(
+    IN gckHARDWARE Hardware,
+    IN gcoCMDBUF CommandBuffer,
+    OUT gctUINT8_PTR * Fence,
+    OUT gctUINT8_PTR * Link
+    )
+{
+    gctUINT8_PTR tail;
+
+    _GetCMDBUFTail(CommandBuffer, &tail);
+
+    if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_FENCE))
+    {
+        *Fence = tail;
+        *Link  = tail + gcdRENDER_FENCE_LENGTH;
+    }
+    else
+    {
+        *Fence = gcvNULL;
+        *Link  = tail;
+    }
+}
+
+static gceSTATUS
+_GetCMDBUFEntry(
+    IN gckCOMMAND Command,
+    IN gcoCMDBUF CommandBuffer,
+    OUT gctUINT32_PTR EntryAddress,
+    OUT gctUINT32_PTR EntryBytes
+    )
+{
+    gceSTATUS status;
+    gctUINT8_PTR commandBufferLogical;
+    gctUINT commandBufferSize;
+    gckVIRTUAL_COMMAND_BUFFER_PTR virtualCommandBuffer;
+    gctUINT32 commandBufferAddress;
+    gctUINT offset;
+
+    commandBufferLogical
+        = (gctUINT8_PTR) gcmUINT64_TO_PTR(CommandBuffer->logical)
+        +                CommandBuffer->startOffset;
+
+    /* Get the hardware address. */
+    if (Command->kernel->virtualCommandBuffer)
+    {
+        gckKERNEL kernel = Command->kernel;
+
+        virtualCommandBuffer = gcmNAME_TO_PTR(CommandBuffer->physical);
+
+        if (virtualCommandBuffer == gcvNULL)
+        {
+            gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+        }
+
+        gcmkONERROR(gckKERNEL_GetGPUAddress(
+            Command->kernel,
+            commandBufferLogical,
+            gcvTRUE,
+            virtualCommandBuffer,
+            &commandBufferAddress
+            ));
+    }
+    else
+    {
+        gcmkONERROR(gckHARDWARE_ConvertLogical(
+            Command->kernel->hardware,
+            commandBufferLogical,
+            gcvTRUE,
+            &commandBufferAddress
+            ));
+    }
+
+    /* Get offset. */
+    gcmkONERROR(gckHARDWARE_PipeSelect(
+        Command->kernel->hardware, gcvNULL, gcvPIPE_3D, &offset
+        ));
+
+    _GetCMDBUFSize(CommandBuffer, &commandBufferSize);
+
+    *EntryAddress = commandBufferAddress + offset;
+    *EntryBytes   = commandBufferSize    - offset;
+
+    return gcvSTATUS_OK;
+
+OnError:
+    return status;
+}
+
+/*******************************************************************************
+**
+**  Link a list of command buffer together to make them atomic.
+**  Fence will be added in the last command buffer.
+*/
+static gceSTATUS
+_ProcessUserCommandBufferList(
+    IN gckCOMMAND Command,
+    IN gcoCMDBUF CommandBufferListHead,
+    OUT gcoCMDBUF * CommandBufferListTail
+    )
+{
+    gceSTATUS           status;
+    gctBOOL             needCopy;
+
+    struct _gcoCMDBUF   _commandBufferObject;
+    gcoCMDBUF           currentCMDBUF;
+    gcoCMDBUF           currentCMDBUFUser = CommandBufferListHead;
+
+    gckOS_QueryNeedCopy(Command->os, 0, &needCopy);
+
+    /* Open first gcoCMDBUF object as currentCMDBUF. */
+    gcmkONERROR(gckKERNEL_OpenUserData(
+        Command->kernel,
+        needCopy,
+        &_commandBufferObject,
+        currentCMDBUFUser,
+        gcmSIZEOF(struct _gcoCMDBUF),
+        (gctPOINTER *)&currentCMDBUF
+        ));
+
+    /* Iterate the list. */
+    while (currentCMDBUF->nextCMDBUF != 0)
+    {
+        gcoCMDBUF           nextCMDBUFUser;
+        gcoCMDBUF           nextCMDBUF;
+        struct _gcoCMDBUF   _nextCMDBUF;
+        gctUINT8_PTR        fenceLogical = gcvNULL;
+        gctUINT8_PTR        linkLogical;
+        gctUINT32           linkBytes;
+        gctUINT32           linkLow;
+        gctUINT32           linkHigh;
+
+        gctUINT32           entryAddress = 0;
+        gctUINT32           entryBytes = 0;
+
+        nextCMDBUFUser
+            = gcmUINT64_TO_PTR(currentCMDBUF->nextCMDBUF);
+
+        /* Open next gcoCMDBUF object as nextCMDBUF. */
+        gcmkONERROR(gckKERNEL_OpenUserData(
+            Command->kernel,
+            needCopy,
+            &_nextCMDBUF,
+            nextCMDBUFUser,
+            gcmSIZEOF(struct _gcoCMDBUF),
+            (gctPOINTER *)&nextCMDBUF
+            ));
+
+        /* Get the start hardware address of nextCMDBUF. */
+        gcmkONERROR(_GetCMDBUFEntry(Command,
+            nextCMDBUF,
+            &entryAddress,
+            &entryBytes
+            ));
+
+        /* Process current gcoCMDBUF object. */
+        _ParseCMDBUFTail(
+            Command->kernel->hardware,
+            currentCMDBUF,
+            &fenceLogical,
+            &linkLogical
+            );
+
+        /* Don't send fence in the middle of gcoCMDBUF list. */
+        if (fenceLogical != gcvNULL)
+        {
+            gctUINT i = gcdRENDER_FENCE_LENGTH / gcmSIZEOF(gctUINT32) / 2;
+
+            /* Fill NOPs in space reserved for fence. */
+            while (i--)
+            {
+                gctSIZE_T nopBytes;
+                gcmkONERROR(gckHARDWARE_Nop(Command->kernel->hardware, fenceLogical, &nopBytes));
+                fenceLogical += nopBytes;
+            }
+        }
+
+        /* Generate a LINK from the end of current command buffer
+        ** to the start of next command buffer. */
+        gcmkONERROR(gckHARDWARE_Link(
+            Command->kernel->hardware,
+            linkLogical,
+            entryAddress,
+            entryBytes,
+            &linkBytes,
+            &linkLow,
+            &linkHigh
+            ));
+
+        /* Close current gcoCMDBUF object which is processed. */
+        gcmkVERIFY_OK(gckKERNEL_CloseUserData(
+            Command->kernel,
+            needCopy,
+            gcvFALSE,
+            currentCMDBUFUser,
+            gcmSIZEOF(struct _gcoCMDBUF),
+            (gctPOINTER *)&currentCMDBUF
+            ));
+
+        /* Advance to next gcoCMDBUF object. */
+        currentCMDBUFUser = nextCMDBUFUser;
+        currentCMDBUF     = nextCMDBUF;
+    }
+
+    gcmkVERIFY_OK(gckKERNEL_CloseUserData(
+        Command->kernel,
+        needCopy,
+        gcvFALSE,
+        currentCMDBUFUser,
+        gcmSIZEOF(struct _gcoCMDBUF),
+        (gctPOINTER *)&currentCMDBUF
+        ));
+
+    /* Return the tail of the list. */
+    *CommandBufferListTail = currentCMDBUFUser;
+
+    return gcvSTATUS_OK;
+
+OnError:
     return status;
 }
 #endif
@@ -1285,6 +1550,7 @@ gckCOMMAND_Start(
 
     Command->waitLogical  = (gctUINT8_PTR) logical  + waitOffset;
     Command->waitPhysical =                physical + waitOffset;
+    Command->waitAddress  =                address  + waitOffset;
 
 #if gcdNONPAGED_MEMORY_CACHEABLE
     /* Flush the cache for the wait/link. */
@@ -1385,6 +1651,7 @@ gckCOMMAND_Stop(
                                   Command->kernelProcessID,
                                   Command->waitPhysical,
                                   Command->waitLogical,
+                                  Command->waitAddress,
                                   Command->endEventSignal,
                                   &Command->waitSize));
     }
@@ -1392,7 +1659,10 @@ gckCOMMAND_Stop(
     {
         /* Replace last WAIT with END. */
         gcmkONERROR(gckHARDWARE_End(
-            hardware, Command->waitLogical, &Command->waitSize
+            hardware,
+            Command->waitLogical,
+            Command->waitAddress,
+            &Command->waitSize
             ));
 
 #if USE_KERNEL_VIRTUAL_BUFFERS
@@ -1484,7 +1754,9 @@ gckCOMMAND_Commit(
     IN gcsQUEUE_PTR EventQueue,
     IN gctUINT32 ProcessID,
     IN gctBOOL Shared,
-    IN gctUINT32 Index
+    IN gctUINT32 Index,
+    OUT gctUINT64_PTR CommitStamp,
+    OUT gctBOOL_PTR ContextSwitched
     )
 {
     gceSTATUS status;
@@ -1498,6 +1770,7 @@ gckCOMMAND_Commit(
     gctBOOL commandBufferMapped = gcvFALSE;
     gcoCMDBUF commandBufferObject = gcvNULL;
     gctBOOL stall = gcvFALSE;
+    gctBOOL contextSwitched = gcvFALSE;
 
 #if !gcdNULL_DRIVER
     gcsCONTEXT_PTR contextBuffer;
@@ -1532,6 +1805,7 @@ gckCOMMAND_Commit(
     gctUINT32 waitLinkBytes;
     gctUINT32 waitPhysical;
     gctPOINTER waitLogical;
+    gctUINT32 waitAddress;
     gctUINT32 waitOffset;
     gctUINT32 waitSize;
 
@@ -1557,6 +1831,7 @@ gckCOMMAND_Commit(
 
     gckVIRTUAL_COMMAND_BUFFER_PTR virtualCommandBuffer = gcvNULL;
     gctUINT64 asyncCommandStamp = 0;
+    gcoCMDBUF lastCommandBuffer = gcvNULL;
 #endif
 
     gctPOINTER pointer = gcvNULL;
@@ -1568,6 +1843,14 @@ gckCOMMAND_Commit(
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Command, gcvOBJ_COMMAND);
+
+#if !gcdNULL_DRIVER
+    gcmkONERROR(_ProcessUserCommandBufferList(
+        Command,
+        CommandBuffer,
+        &lastCommandBuffer
+        ));
+#endif
 
 #if gcdPROCESS_ADDRESS_SPACE
     gcmkONERROR(gckKERNEL_GetProcessMMU(Command->kernel, &mmu));
@@ -1604,6 +1887,8 @@ gckCOMMAND_Commit(
 
         /* Update the current context. */
         Command->currContext = Context;
+
+        contextSwitched = gcvTRUE;
     }
 #else
     if (needCopy)
@@ -1714,16 +1999,16 @@ gckCOMMAND_Commit(
 
     gcmkONERROR(_FlushMMU(Command));
 
-    if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_FENCE) && asyncCommandStamp != 0)
-    {
-        gcmkONERROR(_WaitForAsyncCommandStamp(Command, asyncCommandStamp));
-    }
-
     if (Command->dummyDraw == gcvTRUE &&
         Context != gcvNULL)
     {
         Command->dummyDraw = gcvFALSE;
         gcmkONERROR(_DummyDraw(Command));
+    }
+
+    if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_FENCE) && asyncCommandStamp != 0)
+    {
+        gcmkONERROR(_WaitForAsyncCommandStamp(Command, asyncCommandStamp));
     }
 
     /* Get the current offset. */
@@ -1807,6 +2092,8 @@ gckCOMMAND_Commit(
 
         /* Yes, merge in the deltas. */
         gcmkONERROR(gckCONTEXT_Update(Context, ProcessID, StateDelta));
+
+        contextSwitched = gcvTRUE;
 
         /***************************************************************
         ** SWITCHING CONTEXT.
@@ -1986,6 +2273,7 @@ gckCOMMAND_Commit(
     /* Compute the location if WAIT command. */
     waitPhysical =                waitLinkPhysical + waitOffset;
     waitLogical  = (gctUINT8_PTR) waitLinkLogical  + waitOffset;
+    waitAddress  =                waitLinkAddress  + waitOffset;
 
 #if gcdNONPAGED_MEMORY_CACHEABLE
     /* Flush the command queue cache. */
@@ -2216,6 +2504,7 @@ gckCOMMAND_Commit(
     /* Update address of last WAIT. */
     Command->waitPhysical = waitPhysical;
     Command->waitLogical  = waitLogical;
+    Command->waitAddress  = waitAddress;
     Command->waitSize     = waitSize;
 
     /* Update queue tail pointer. */
@@ -2231,6 +2520,9 @@ gckCOMMAND_Commit(
     /* Release the context switching mutex. */
     gcmkONERROR(gckOS_ReleaseMutex(Command->os, Command->mutexContext));
     contextAcquired = gcvFALSE;
+
+    *CommitStamp = Command->commitStamp;
+    *ContextSwitched = contextSwitched;
 
     Command->commitStamp++;
 
@@ -2542,6 +2834,7 @@ gckCOMMAND_Execute(
 
     gctUINT32 waitPhysical;
     gctPOINTER waitLogical;
+    gctUINT32 waitAddress;
     gctUINT32 waitOffset;
     gctUINT32 waitBytes;
 
@@ -2584,6 +2877,7 @@ gckCOMMAND_Execute(
     /* Compute the location if WAIT command. */
     waitPhysical = waitLinkPhysical + waitOffset;
     waitLogical  = waitLinkLogical  + waitOffset;
+    waitAddress  = waitLinkAddress  + waitOffset;
 
     /* Determine the location to jump to for the command buffer being
     ** scheduled. */
@@ -2679,6 +2973,7 @@ gckCOMMAND_Execute(
     /* Update the pointer to the last WAIT. */
     Command->waitPhysical = waitPhysical;
     Command->waitLogical  = waitLogical;
+    Command->waitAddress  = waitAddress;
     Command->waitSize     = waitBytes;
 
     /* Update the command queue. */
@@ -3017,7 +3312,7 @@ gckCOMMAND_DumpExecutingBuffer(
     gckVIRTUAL_COMMAND_BUFFER_PTR buffer = gcvNULL;
     gctUINT32 gpuAddress;
     gctSIZE_T pageCount;
-    gctPOINTER entry;
+    gctPOINTER entry = gcvNULL;
     gckOS os = Command->os;
     gckKERNEL kernel = Command->kernel;
     gctUINT32 i;

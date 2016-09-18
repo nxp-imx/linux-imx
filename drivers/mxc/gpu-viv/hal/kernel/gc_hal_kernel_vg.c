@@ -252,67 +252,6 @@ gceSTATUS gckVGKERNEL_Destroy(
 
 /*******************************************************************************
 **
-**  gckVGKERNEL_BottomHalfUnlockVideoMemory
-**
-**  Unlock video memory from gpu.
-**
-**  INPUT:
-**
-**      gckKERNEL Kernel
-**          Pointer to an gckKERNEL object.
-**
-**      gctUINT32 ProcessID
-**          Process ID owning this memory.
-**
-**      gctPOINTER Pointer
-**          Video memory to be unlock.
-*/
-gceSTATUS
-gckVGKERNEL_BottomHalfUnlockVideoMemory(
-    IN gckKERNEL Kernel,
-    IN gctUINT32 ProcessID,
-    IN gctUINT32 Node
-    )
-{
-    gceSTATUS status;
-    gckVIDMEM_NODE BottomHalfUnlockVideoMemory = gcvNULL;
-
-    do
-    {
-        /* Remove record from process db. */
-        gcmkVERIFY_OK(gckKERNEL_RemoveProcessDB(
-            Kernel,
-            ProcessID,
-            gcvDB_VIDEO_MEMORY_LOCKED,
-            gcmINT2PTR(Node)));
-
-        gcmkERR_BREAK(gckVIDMEM_HANDLE_Lookup(
-            Kernel,
-            ProcessID,
-            Node,
-            &BottomHalfUnlockVideoMemory));
-
-
-        gckVIDMEM_HANDLE_Dereference(Kernel, ProcessID, Node);
-
-        /* Unlock video memory. */
-        gcmkERR_BREAK(gckVIDMEM_Unlock(
-            Kernel,
-            BottomHalfUnlockVideoMemory,
-            gcvSURF_TYPE_UNKNOWN,
-            gcvNULL));
-
-        gcmkERR_BREAK(gckVIDMEM_NODE_Dereference(
-            Kernel,
-            BottomHalfUnlockVideoMemory));
-    }
-    while (gcvFALSE);
-
-    return gcvSTATUS_OK;
-}
-
-/*******************************************************************************
-**
 **  gckKERNEL_Dispatch
 **
 **  Dispatch a command received from the user HAL layer.
@@ -396,29 +335,29 @@ gceSTATUS gckVGKERNEL_Dispatch(
         break;
 
     case gcvHAL_FREE_NON_PAGED_MEMORY:
-        physical = gcmNAME_TO_PTR(kernelInterface->u.AllocateNonPagedMemory.physical);
+        physical = gcmNAME_TO_PTR(kernelInterface->u.FreeNonPagedMemory.physical);
 
         /* Unmap user logical out of physical memory first. */
         gcmkERR_BREAK(gckOS_UnmapUserLogical(
             Kernel->os,
             physical,
-            (gctSIZE_T) kernelInterface->u.AllocateNonPagedMemory.bytes,
-            gcmUINT64_TO_PTR(kernelInterface->u.AllocateNonPagedMemory.logical)
-            ));
+            (gctSIZE_T) kernelInterface->u.FreeNonPagedMemory.bytes,
+            gcmUINT64_TO_PTR(kernelInterface->u.FreeNonPagedMemory.logical)));
+
 
         /* Free non-paged memory. */
         gcmkERR_BREAK(gckOS_FreeNonPagedMemory(
             Kernel->os,
-            (gctSIZE_T) kernelInterface->u.AllocateNonPagedMemory.bytes,
+            (gctSIZE_T) kernelInterface->u.FreeNonPagedMemory.bytes,
             physical,
-            gcmUINT64_TO_PTR(kernelInterface->u.AllocateNonPagedMemory.logical)
+            gcmUINT64_TO_PTR(kernelInterface->u.FreeNonPagedMemory.logical)
             ));
 
-        gcmRELEASE_NAME(kernelInterface->u.AllocateNonPagedMemory.physical);
+        gcmRELEASE_NAME(kernelInterface->u.FreeNonPagedMemory.physical);
         break;
 
     case gcvHAL_ALLOCATE_CONTIGUOUS_MEMORY:
-        bytes = (gctSIZE_T) kernelInterface->u.AllocateNonPagedMemory.bytes;
+        bytes = (gctSIZE_T) kernelInterface->u.AllocateContiguousMemory.bytes;
         /* Allocate contiguous memory. */
         gcmkERR_BREAK(gckOS_AllocateContiguous(
             Kernel->os,
@@ -428,40 +367,35 @@ gceSTATUS gckVGKERNEL_Dispatch(
             &logical
             ));
 
-        kernelInterface->u.AllocateNonPagedMemory.bytes    = bytes;
-        kernelInterface->u.AllocateNonPagedMemory.logical  = gcmPTR_TO_UINT64(logical);
-        kernelInterface->u.AllocateNonPagedMemory.physical = gcmPTR_TO_NAME(physical);
-        break;
+         kernelInterface->u.AllocateContiguousMemory.bytes    = bytes;
+         kernelInterface->u.AllocateContiguousMemory.logical  = gcmPTR_TO_UINT64(logical);
+         kernelInterface->u.AllocateContiguousMemory.physical = gcmPTR_TO_NAME(physical);
+         break;
 
     case gcvHAL_FREE_CONTIGUOUS_MEMORY:
-        physical = gcmNAME_TO_PTR(kernelInterface->u.AllocateNonPagedMemory.physical);
+        physical = gcmNAME_TO_PTR(kernelInterface->u.FreeContiguousMemory.physical);
         /* Unmap user logical out of physical memory first. */
         gcmkERR_BREAK(gckOS_UnmapUserLogical(
             Kernel->os,
             physical,
-            (gctSIZE_T) kernelInterface->u.AllocateNonPagedMemory.bytes,
-            gcmUINT64_TO_PTR(kernelInterface->u.AllocateNonPagedMemory.logical)
+            (gctSIZE_T) kernelInterface->u.FreeContiguousMemory.bytes,
+            gcmUINT64_TO_PTR(kernelInterface->u.FreeContiguousMemory.logical)
             ));
 
         /* Free contiguous memory. */
         gcmkERR_BREAK(gckOS_FreeContiguous(
             Kernel->os,
             physical,
-            gcmUINT64_TO_PTR(kernelInterface->u.AllocateNonPagedMemory.logical),
-            (gctSIZE_T) kernelInterface->u.AllocateNonPagedMemory.bytes
+            gcmUINT64_TO_PTR(kernelInterface->u.FreeContiguousMemory.logical),
+            (gctSIZE_T) kernelInterface->u.FreeContiguousMemory.bytes
             ));
 
-        gcmRELEASE_NAME(kernelInterface->u.AllocateNonPagedMemory.physical);
+        gcmRELEASE_NAME(kernelInterface->u.FreeContiguousMemory.physical);
         break;
 
     case gcvHAL_ALLOCATE_VIDEO_MEMORY:
         gcmkERR_BREAK(gcvSTATUS_NOT_SUPPORTED);
         break;
-
-    case gcvHAL_BOTTOM_HALF_UNLOCK_VIDEO_MEMORY:
-        gcmkERR_BREAK(gckVGKERNEL_BottomHalfUnlockVideoMemory(Kernel, processID,
-                                              kernelInterface->u.BottomHalfUnlockVideoMemory.node));
-    break;
 
     case gcvHAL_MAP_MEMORY:
         /* Map memory. */
@@ -498,6 +432,11 @@ gceSTATUS gckVGKERNEL_Dispatch(
 
     case gcvHAL_LOCK_VIDEO_MEMORY:
         gcmkONERROR(gckKERNEL_LockVideoMemory(Kernel, gcvCORE_VG, processID, FromUser, Interface));
+        break;
+
+    case gcvHAL_BOTTOM_HALF_UNLOCK_VIDEO_MEMORY:
+        gcmkERR_BREAK(gckKERNEL_BottomHalfUnlockVideoMemory(Kernel, processID,
+                                                            kernelInterface->u.BottomHalfUnlockVideoMemory.node));
         break;
 
     case gcvHAL_USER_SIGNAL:

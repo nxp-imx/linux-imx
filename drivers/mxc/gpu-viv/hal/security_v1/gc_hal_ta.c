@@ -181,7 +181,7 @@ gcTA_MapMemory(
             physical = (gctUINT32)Physical + 4096 * i;
         }
 
-        gcmkONERROR(gctaMMU_GetPageEntry(mmu, gpuAddress, &entry, &mtlbSecure));
+        gcmkONERROR(gctaMMU_GetPageEntry(mmu, gpuAddress, gcvNULL, &entry, &mtlbSecure));
 
         status = gctaOS_IsPhysicalSecure(TA->os, physical, &physicalSecure);
 
@@ -275,6 +275,23 @@ gcTA_Dispatch(
 
     case KERNEL_DUMP_MMU_EXCEPTION:
         status = gctaHARDWARE_DumpMMUException(TA->hardware);
+        break;
+
+    case KERNEL_HANDLE_MMU_EXCEPTION:
+        status = gctaHARDWARE_HandleMMUException(
+            TA->hardware,
+            Interface->u.HandleMMUException.mmuStatus,
+            Interface->u.HandleMMUException.physical,
+            Interface->u.HandleMMUException.gpuAddress
+            );
+        break;
+
+    case KERNEL_READ_MMU_EXCEPTION:
+        status = gctaHARDWARE_ReadMMUException(
+            TA->hardware,
+            &Interface->u.ReadMMUException.mmuStatus,
+            &Interface->u.ReadMMUException.mmuException
+            );
         break;
 
     default:

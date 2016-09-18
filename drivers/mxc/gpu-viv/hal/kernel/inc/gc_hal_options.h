@@ -152,15 +152,6 @@ This define enables the use of VM for gckCommand and fence buffers.
 #endif
 
 /*
-    USE_SW_FB
-
-        Set to 1 if the frame buffer memory cannot be accessed by the GPU.
-*/
-#ifndef USE_SW_FB
-#   define USE_SW_FB                            0
-#endif
-
-/*
     PROFILE_HAL_COUNTERS
 
         This define enables HAL counter profiling support.  HW and SHADER
@@ -225,6 +216,9 @@ This define enables the use of VM for gckCommand and fence buffers.
         When set to 1, a dump of all states and memory uploads, as well as other
         hardware related execution will be printed to the debug console.  This
         data can be used for playing back applications.
+
+        When set to 2, for vxc, all output memory will be dump.
+
 */
 #ifndef gcdDUMP
 #   define gcdDUMP                              0
@@ -605,7 +599,7 @@ This define enables the use of VM for gckCommand and fence buffers.
 */
 #ifndef gcdGPU_2D_TIMEOUT
 #if gcdFPGA_BUILD
-#       define gcdGPU_2D_TIMEOUT                0
+#       define gcdGPU_2D_TIMEOUT                (gcdGPU_TIMEOUT / 5)
 #   else
 #       define gcdGPU_2D_TIMEOUT                4000
 #   endif
@@ -815,16 +809,6 @@ This define enables the use of VM for gckCommand and fence buffers.
 */
 #ifndef QNX_SINGLE_THREADED_DEBUGGING
 #   define QNX_SINGLE_THREADED_DEBUGGING        0
-#endif
-
-/*
-    gcdRENDER_THREADS
-
-        Number of render threads. Make it zero, and there will be no render
-        threads.
-*/
-#ifndef gcdRENDER_THREADS
-#   define gcdRENDER_THREADS                    0
 #endif
 
 /*
@@ -1402,6 +1386,14 @@ VIV:gcdUSE_MMU_EXCEPTION
 #   define gcdVX_OPTIMIZER                      0
 #endif
 
+#ifndef gcdOCL_READ_IMAGE_OPTIMIZATION
+#   define gcdOCL_READ_IMAGE_OPTIMIZATION       0
+#endif
+
+#ifndef gcdALLOC_ON_FAULT
+#   define gcdALLOC_ON_FAULT                    0
+#endif
+
 /*
     gcdDISABLE_GPU_VIRTUAL_ADDRESS
 
@@ -1410,4 +1402,20 @@ VIV:gcdUSE_MMU_EXCEPTION
 #ifndef gcdDISABLE_GPU_VIRTUAL_ADDRESS
 #   define gcdDISABLE_GPU_VIRTUAL_ADDRESS       0
 #endif
+
+#ifndef gcdCOMPILER_DEBUGOUTPUT
+#   define gcdCOMPILER_DEBUGOUTPUT              0
+#endif
+
+/*
+    gcd2D_COMPRESSION_DEC400_ALIGN_MODE
+
+        Only for DEC400 compression.
+        Set 0 as 16bytes aligned. 1 as 32bytes aligned. 2 as 64bytes aligned.
+        Default is 0 which means 32bytes aligned.
+*/
+#ifndef gcd2D_COMPRESSION_DEC400_ALIGN_MODE
+#   define gcd2D_COMPRESSION_DEC400_ALIGN_MODE       1
+#endif
+
 #endif /* __gc_hal_options_h_ */

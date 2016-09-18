@@ -434,14 +434,16 @@ _QueryFlush(
                 flush |= gcvFLUSH_TFBHEADER;
                 break;
             case gcvSURF_TYPE_UNKNOWN:
-                gcmkASSERT(0);
-                break;
+                *Flush = gcvFLUSH_ALL;
+                gcmkFOOTER_NO();
+                return gcvSTATUS_OK;
             default:
                 break;
             }
             break;
         case gcvHAL_UNMAP_USER_MEMORY:
             *Flush = gcvFLUSH_ALL;
+            gcmkFOOTER_NO();
             return gcvSTATUS_OK;
 
         default:
@@ -561,6 +563,8 @@ gckEVENT_Construct(
     gcmkONERROR(gckOS_AtomConstruct(os, &eventObj->interruptCount));
     gcmkONERROR(gckOS_AtomSet(os,eventObj->interruptCount, 0));
 #endif
+
+    eventObj->notifyState = -1;
 
     /* Return pointer to the gckEVENT object. */
     *Event = eventObj;
@@ -1008,7 +1012,6 @@ gckEVENT_AddList(
         || (Interface->command == gcvHAL_TIMESTAMP)
         || (Interface->command == gcvHAL_COMMIT_DONE)
         || (Interface->command == gcvHAL_FREE_VIRTUAL_COMMAND_BUFFER)
-        || (Interface->command == gcvHAL_SYNC_POINT)
         || (Interface->command == gcvHAL_DESTROY_MMU)
         );
 
@@ -2330,6 +2333,8 @@ gckEVENT_Notify(
         }
     );
 
+    /* Begin of event handling. */
+    Event->notifyState = 0;
 
     for (;;)
     {
@@ -2363,9 +2368,17 @@ gckEVENT_Notify(
         if ((pending & 0x40000000) && Event->kernel->hardware->mmuVersion)
         {
 #if gcdUSE_MMU_EXCEPTION
-            gckHARDWARE_DumpMMUException(Event->kernel->hardware);
+#if gcdALLOC_ON_FAULT
+            status = gckHARDWARE_HandleFault(Event->kernel->hardware);
 
-            gckHARDWARE_DumpGPUState(Event->kernel->hardware);
+            if (gcmIS_ERROR(status))
+#endif
+            {
+                /* Dump error is fault can't be handle. */
+                gckHARDWARE_DumpMMUException(Event->kernel->hardware);
+
+                gckHARDWARE_DumpGPUState(Event->kernel->hardware);
+            }
 #endif
 
             pending &= 0xBFFFFFFF;
@@ -2758,17 +2771,6 @@ gckEVENT_Notify(
                  gcmRELEASE_NAME(record->info.u.FreeVirtualCommandBuffer.physical);
                  break;
 
-#if gcdANDROID_NATIVE_FENCE_SYNC
-            case gcvHAL_SYNC_POINT:
-                {
-                    gctSYNC_POINT syncPoint;
-
-                    syncPoint = gcmUINT64_TO_PTR(record->info.u.SyncPoint.syncPoint);
-                    status = gckOS_SignalSyncPoint(Event->os, syncPoint);
-                }
-                break;
-#endif
-
 #if gcdPROCESS_ADDRESS_SPACE
             case gcvHAL_DESTROY_MMU:
                 status = gckMMU_Destroy(gcmUINT64_TO_PTR(record->info.u.DestroyMmu.mmu));
@@ -2778,9 +2780,14 @@ gckEVENT_Notify(
             case gcvHAL_COMMIT_DONE:
                 if (kernel->hardware->gpuProfiler == gcvTRUE
                   && kernel->profileEnable == gcvTRUE
+                  && kernel->profileSyncMode == gcvTRUE
                 )
                 {
-                    gckHARDWARE_UpdateContextProfile(
+                    /*gckHARDWARE_UpdateContextProfile(
+                        kernel->hardware,
+                        gcmUINT64_TO_PTR(record->info.u.CommitDone.context)
+                        );*/
+                    gckHARDWARE_UpdateContextNewProfile(
                         kernel->hardware,
                         gcmUINT64_TO_PTR(record->info.u.CommitDone.context)
                         );
@@ -2826,6 +2833,9 @@ gckEVENT_Notify(
         gcmkONERROR(_TryToIdleGPU(Event));
     }
 
+    /* End of event handling. */
+    Event->notifyState = -1;
+
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
@@ -2836,6 +2846,9 @@ OnError:
         /* Release mutex. */
         gcmkVERIFY_OK(gckOS_ReleaseMutex(Event->os, Event->eventQueueMutex));
     }
+
+    /* End of event handling. */
+    Event->notifyState = -1;
 
     /* Return the status. */
     gcmkFOOTER();
@@ -2994,6 +3007,7 @@ gckEVENT_Stop(
     IN gctUINT32 ProcessID,
     IN gctUINT32 Handle,
     IN gctPOINTER Logical,
+    IN gctUINT32 Address,
     IN gctSIGNAL Signal,
     IN OUT gctUINT32 * waitSize
     )
@@ -3004,8 +3018,8 @@ gckEVENT_Stop(
     gctUINT8 id = 0xFF;
 
     gcmkHEADER_ARG("Event=0x%x ProcessID=%u Handle=0x%x Logical=0x%x "
-                   "Signal=0x%x",
-                   Event, ProcessID, Handle, Logical, Signal);
+                   "Address=0x%x Signal=0x%x",
+                   Event, ProcessID, Handle, Logical, Address, Signal);
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Event, gcvOBJ_EVENT);
@@ -3034,7 +3048,7 @@ gckEVENT_Stop(
 
     /* Replace last WAIT with END. */
     gcmkONERROR(gckHARDWARE_End(
-        Event->kernel->hardware, Logical, waitSize
+        Event->kernel->hardware, Logical, Address, waitSize
         ));
 
 #if USE_KERNEL_VIRTUAL_BUFFERS
@@ -3122,12 +3136,6 @@ _PrintRecord(
                   record->info.u.FreeVirtualCommandBuffer.logical);
         break;
 
-    case gcvHAL_SYNC_POINT:
-        gcmkPRINT("      gcvHAL_SYNC_POINT syncPoint=0x%08x",
-                  gcmUINT64_TO_PTR(record->info.u.SyncPoint.syncPoint));
-
-        break;
-
     case gcvHAL_DESTROY_MMU:
         gcmkPRINT("      gcvHAL_DESTORY_MMU mmu=0x%08x",
                   gcmUINT64_TO_PTR(record->info.u.DestroyMmu.mmu));
@@ -3158,6 +3166,7 @@ gckEVENT_Dump(
     gctINT32 pendingInterrupt;
     gctUINT32 intrAcknowledge;
 #endif
+    gctINT32 pending;
 
     gcmkHEADER_ARG("Event=0x%x", Event);
 
@@ -3218,6 +3227,12 @@ gckEVENT_Dump(
         gcmkPRINT("  INTR_ACKNOWLEDGE=0x%x", intrAcknowledge);
     }
 #endif
+
+    gcmkPRINT("  Notify State=%d", Event->notifyState);
+
+    gckOS_AtomGet(Event->os, Event->pending, &pending);
+
+    gcmkPRINT("  Pending=0x%x", pending);
 
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;

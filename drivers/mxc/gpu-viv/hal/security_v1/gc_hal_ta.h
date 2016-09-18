@@ -300,6 +300,21 @@ gctaHARDWARE_DumpMMUException(
     );
 
 gceSTATUS
+gctaHARDWARE_HandleMMUException(
+    IN gcTA_HARDWARE Hardware,
+    IN gctUINT32 MMUStatus,
+    IN gctPHYS_ADDR_T Physical,
+    IN gctUINT32 GPUAddress
+    );
+
+gceSTATUS
+gctaHARDWARE_ReadMMUException(
+    IN gcTA_HARDWARE Hardware,
+    OUT gctUINT32_PTR MMUStatus,
+    OUT gctUINT32_PTR MMUException
+    );
+
+gceSTATUS
 gctaMMU_Construct(
     IN gcTA TA,
     OUT gcTA_MMU *Mmu
@@ -321,6 +336,7 @@ gceSTATUS
 gctaMMU_GetPageEntry(
     IN gcTA_MMU Mmu,
     IN gctUINT32 Address,
+    OUT gctUINT32_PTR MtlbEntry,
     OUT gctUINT32_PTR *PageTable,
     OUT gctBOOL * Secure
     );

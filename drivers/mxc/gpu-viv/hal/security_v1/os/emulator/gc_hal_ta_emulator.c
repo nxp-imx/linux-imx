@@ -90,7 +90,7 @@ gctaOS_ConstructOS(
     )
 {
     gctaOS os;
-    gctPOINTER pointer;
+    gctPOINTER pointer = gcvNULL;
     gceSTATUS status;
 
     gcmkONERROR(gckOS_AllocateMemory(Os, gcmSIZEOF(struct _gctaOS), &pointer));
@@ -107,6 +107,8 @@ gctaOS_ConstructOS(
     return gcvSTATUS_OK;
 
 OnError:
+    if(pointer != gcvNULL)
+        gcmkVERIFY_OK(gckOS_FreeMemory(pointer, Os));
     return status;
 }
 

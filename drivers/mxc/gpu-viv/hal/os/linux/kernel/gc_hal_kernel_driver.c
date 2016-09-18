@@ -55,6 +55,7 @@
 
 #include <linux/device.h>
 #include <linux/slab.h>
+#include <linux/miscdevice.h>
 
 #include "gc_hal_kernel_linux.h"
 #include "gc_hal_driver.h"
@@ -193,6 +194,10 @@ static uint chipIDs[gcvCORE_COUNT] = {[0 ... gcvCORE_COUNT - 1] = gcvCHIP_ID_DEF
 module_param_array(chipIDs, uint, NULL, 0644);
 MODULE_PARM_DESC(chipIDs, "Array of chipIDs of multi-GPU");
 
+static uint type = 0;
+module_param(type, uint, 0664);
+MODULE_PARM_DESC(type, "0 - Char Driver (Default), 1 - Misc Driver");
+
 static int gpu3DMinClock = 1;
 
 static int contiguousRequested = 0;
@@ -201,39 +206,6 @@ static gctBOOL registerMemMapped = gcvFALSE;
 static gctPOINTER registerMemAddress = gcvNULL;
 static ulong bankSize = 0;
 static int signal = 48;
-
-static int drv_open(
-    struct inode* inode,
-    struct file* filp
-    );
-
-static int drv_release(
-    struct inode* inode,
-    struct file* filp
-    );
-
-static long drv_ioctl(
-    struct file* filp,
-    unsigned int ioctlCode,
-    unsigned long arg
-    );
-
-static int drv_mmap(
-    struct file* filp,
-    struct vm_area_struct* vma
-    );
-
-static struct file_operations driver_fops =
-{
-    .owner      = THIS_MODULE,
-    .open       = drv_open,
-    .release    = drv_release,
-    .unlocked_ioctl = drv_ioctl,
-#ifdef HAVE_COMPAT_IOCTL
-    .compat_ioctl = drv_ioctl,
-#endif
-    .mmap       = drv_mmap,
-};
 
 void
 _UpdateModuleParam(
@@ -355,9 +327,10 @@ gckOS_DumpParam(
     printk("Build options:\n");
     printk("  gcdGPU_TIMEOUT    = %d\n", gcdGPU_TIMEOUT);
     printk("  gcdGPU_2D_TIMEOUT = %d\n", gcdGPU_2D_TIMEOUT);
+    printk("  gcdINTERRUPT_STATISTIC = %d\n", gcdINTERRUPT_STATISTIC);
 }
 
-int drv_open(
+static int drv_open(
     struct inode* inode,
     struct file* filp
     )
@@ -396,7 +369,7 @@ int drv_open(
     data->device             = galDevice;
     data->mappedMemory       = gcvNULL;
     data->contiguousLogical  = gcvNULL;
-    gcmkONERROR(gckOS_GetProcessID(&data->pidOpen));
+    data->pidOpen            = _GetProcessID();
 
     /* Attached the process. */
     for (i = 0; i < gcdMAX_GPU_COUNT; i++)
@@ -458,7 +431,7 @@ OnError:
     return -ENOTTY;
 }
 
-int drv_release(
+static int drv_release(
     struct inode* inode,
     struct file* filp
     )
@@ -544,7 +517,7 @@ OnError:
     return -ENOTTY;
 }
 
-long drv_ioctl(
+static long drv_ioctl(
     struct file* filp,
     unsigned int ioctlCode,
     unsigned long arg
@@ -672,7 +645,6 @@ long drv_ioctl(
     if (gcmIS_SUCCESS(status) && (iface.command == gcvHAL_LOCK_VIDEO_MEMORY))
     {
         gcuVIDMEM_NODE_PTR node;
-        gctUINT32 processID;
 
         for (i = 0; i < gcvCORE_COUNT; i++)
         {
@@ -685,10 +657,8 @@ long drv_ioctl(
         if(i == gcvCORE_COUNT)
             goto OnError;
 
-        gckOS_GetProcessID(&processID);
-
         gcmkONERROR(gckVIDMEM_HANDLE_Lookup(device->kernels[i],
-                                processID,
+                                _GetProcessID(),
                                 (gctUINT32)iface.u.LockVideoMemory.node,
                                 &nodeObject));
         node = nodeObject->node;
@@ -838,6 +808,24 @@ OnError:
     return -ENOTTY;
 }
 
+static struct file_operations driver_fops =
+{
+    .owner      = THIS_MODULE,
+    .open       = drv_open,
+    .release    = drv_release,
+    .unlocked_ioctl = drv_ioctl,
+#ifdef HAVE_COMPAT_IOCTL
+    .compat_ioctl = drv_ioctl,
+#endif
+    .mmap       = drv_mmap,
+};
+
+static struct miscdevice gal_device = {
+    .minor = MISC_DYNAMIC_MINOR,
+    .name  = DEVICE_NAME,
+    .fops  = &driver_fops,
+};
+
 static int drv_init(void)
 {
     int ret;
@@ -871,13 +859,11 @@ static int drv_init(void)
     printk(KERN_INFO "Galcore version %d.%d.%d.%d\n",
         gcvVERSION_MAJOR, gcvVERSION_MINOR, gcvVERSION_PATCH, gcvVERSION_BUILD);
 
-#if !VIVANTE_PROFILER_PM
     /* when enable gpu profiler, we need to turn off gpu powerMangement */
     if (gpuProfiler)
     {
         powerManagement = 0;
     }
-#endif
 
     args.powerManagement = powerManagement;
     args.gpuProfiler = gpuProfiler;
@@ -932,46 +918,65 @@ static int drv_init(void)
     /* Set global galDevice pointer. */
     galDevice = device;
 
-    /* Register the character device. */
-    ret = register_chrdev(major, DEVICE_NAME, &driver_fops);
-
-    if (ret < 0)
+    if (type == 1)
     {
-        gcmkTRACE_ZONE(
-            gcvLEVEL_ERROR, gcvZONE_DRIVER,
-            "%s(%d): Could not allocate major number for mmap.\n",
-            __FUNCTION__, __LINE__
-            );
+        /* Register as misc driver. */
+        ret = misc_register(&gal_device);
 
-        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+        if (ret < 0)
+        {
+            gcmkTRACE_ZONE(
+                gcvLEVEL_ERROR, gcvZONE_DRIVER,
+                "%s(%d): misc_register fails.\n",
+                __FUNCTION__, __LINE__
+                );
+
+            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+        }
     }
-
-    if (major == 0)
+    else
     {
-        major = ret;
-    }
+        /* Register the character device. */
+        ret = register_chrdev(major, DEVICE_NAME, &driver_fops);
 
-    /* Create the device class. */
-    device_class = class_create(THIS_MODULE, CLASS_NAME);
+        if (ret < 0)
+        {
+            gcmkTRACE_ZONE(
+                gcvLEVEL_ERROR, gcvZONE_DRIVER,
+                "%s(%d): Could not allocate major number for mmap.\n",
+                __FUNCTION__, __LINE__
+                );
 
-    if (IS_ERR(device_class))
-    {
-        gcmkTRACE_ZONE(
-            gcvLEVEL_ERROR, gcvZONE_DRIVER,
-            "%s(%d): Failed to create the class.\n",
-            __FUNCTION__, __LINE__
-            );
+            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+        }
 
-        gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
-    }
+        if (major == 0)
+        {
+            major = ret;
+        }
+
+        /* Create the device class. */
+        device_class = class_create(THIS_MODULE, CLASS_NAME);
+
+        if (IS_ERR(device_class))
+        {
+            gcmkTRACE_ZONE(
+                gcvLEVEL_ERROR, gcvZONE_DRIVER,
+                "%s(%d): Failed to create the class.\n",
+                __FUNCTION__, __LINE__
+                );
+
+            gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+        }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,27)
-    device_create(device_class, NULL, MKDEV(major, 0), NULL, DEVICE_NAME);
+        device_create(device_class, NULL, MKDEV(major, 0), NULL, DEVICE_NAME);
 #else
-    device_create(device_class, NULL, MKDEV(major, 0), DEVICE_NAME);
+        device_create(device_class, NULL, MKDEV(major, 0), DEVICE_NAME);
 #endif
 
-    gpuClass  = device_class;
+        gpuClass  = device_class;
+    }
 
     gcmkTRACE_ZONE(
         gcvLEVEL_INFO, gcvZONE_DRIVER,
@@ -1006,11 +1011,18 @@ static void drv_exit(void)
 {
     gcmkHEADER();
 
-    gcmkASSERT(gpuClass != gcvNULL);
-    device_destroy(gpuClass, MKDEV(major, 0));
-    class_destroy(gpuClass);
+    if (type == 1)
+    {
+        misc_deregister(&gal_device);
+    }
+    else
+    {
+        gcmkASSERT(gpuClass != gcvNULL);
+        device_destroy(gpuClass, MKDEV(major, 0));
+        class_destroy(gpuClass);
 
-    unregister_chrdev(major, DEVICE_NAME);
+        unregister_chrdev(major, DEVICE_NAME);
+    }
 
     gcmkVERIFY_OK(gckGALDEVICE_Stop(galDevice));
     gcmkVERIFY_OK(gckGALDEVICE_Destroy(galDevice));

@@ -258,4 +258,63 @@ OnError:
     return status;
 }
 
+gceSTATUS
+gckKERNEL_ReadMMUException(
+    IN gckKERNEL Kernel,
+    IN gctUINT32_PTR MMUStatus,
+    IN gctUINT32_PTR MMUException
+    )
+{
+    gceSTATUS status;
+    gcsTA_INTERFACE iface;
+
+    gcmkHEADER();
+
+    iface.command = KERNEL_READ_MMU_EXCEPTION;
+
+    gcmkONERROR(gckKERNEL_SecurityCallService(Kernel->securityChannel, &iface));
+
+    *MMUStatus = iface.u.ReadMMUException.mmuStatus;
+    *MMUException = iface.u.ReadMMUException.mmuException;
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    gcmkFOOTER();
+    return status;
+}
+
+gceSTATUS
+gckKERNEL_HandleMMUException(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 MMUStatus,
+    IN gctPHYS_ADDR_T Physical,
+    IN gctUINT32 GPUAddress
+    )
+{
+    gceSTATUS status;
+    gcsTA_INTERFACE iface;
+
+    gcmkHEADER();
+
+    iface.command = KERNEL_HANDLE_MMU_EXCEPTION;
+
+    iface.u.HandleMMUException.mmuStatus = MMUStatus;
+    iface.u.HandleMMUException.physical = Physical;
+    iface.u.HandleMMUException.gpuAddress = GPUAddress;
+
+    gcmkONERROR(gckKERNEL_SecurityCallService(Kernel->securityChannel, &iface));
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    gcmkFOOTER();
+    return status;
+}
+
+
+
+
 #endif

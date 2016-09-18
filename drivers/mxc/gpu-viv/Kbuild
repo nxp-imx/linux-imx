@@ -60,7 +60,8 @@ AQROOT := $(srctree)/drivers/mxc/gpu-viv
 
 include $(AQROOT)/config
 
-PLATFORM ?= default/gc_hal_kernel_platform_default
+soc_vendor    := $(firstword $(subst -, ,$(SOC_PLATFORM)))
+soc_board     := $(lastword  $(subst -, ,$(SOC_PLATFORM)))
 
 KERNEL_DIR ?= $(TOOL_DIR)/kernel
 
@@ -71,16 +72,8 @@ HAL_KERNEL_DIR  := hal/kernel
 TA_DIR          := hal/security_v1
 HOST := $(shell hostname)
 
-# Get platform config path.
-PLATFORM_CONFIG ?= $(AQROOT)/$(OS_KERNEL_DIR)/platform/$(PLATFORM).config
-
-# Check whether it exists.
-PLATFORM_CONFIG := $(wildcard $(PLATFORM_CONFIG))
-
-# Include it if exists.
-ifneq ($(PLATFORM_CONFIG),)
-include $(PLATFORM_CONFIG)
-endif
+# Include platform config if exists.
+-include $(AQROOT)/$(OS_KERNEL_DIR)/platform/$(soc_vendor)/gc_hal_kernel_platform_$(soc_board).config
 
 MODULE_NAME ?= galcore
 CUSTOMER_ALLOCATOR_OBJS    ?=
@@ -97,7 +90,7 @@ OBJS := $(OS_KERNEL_DIR)/gc_hal_kernel_device.o \
         $(OS_KERNEL_DIR)/allocator/default/gc_hal_kernel_allocator_user_memory.o \
         $(OS_KERNEL_DIR)/allocator/default/gc_hal_kernel_allocator_dma.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_driver.o \
-        $(OS_KERNEL_DIR)/platform/$(PLATFORM).o
+        $(OS_KERNEL_DIR)/platform/$(soc_vendor)/gc_hal_kernel_platform_$(soc_board).o
 
 ifneq ($(CONFIG_DMA_SHARED_BUFFER),)
 OBJS += $(OS_KERNEL_DIR)/allocator/default/gc_hal_kernel_allocator_dmabuf.o

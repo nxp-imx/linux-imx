@@ -183,6 +183,12 @@ struct _gckCONTEXT
     gcsPROFILER_COUNTERS        histroyProfiler;
     gcsPROFILER_COUNTERS        preProfiler;
 #endif
+    gcsPROFILER_NEW_COUNTERS_PART1    latestNewProfiler_part1;
+    gcsPROFILER_NEW_COUNTERS_PART1    histroyNewProfiler_part1;
+    gcsPROFILER_NEW_COUNTERS_PART1    preNewProfiler_part1;
+    gcsPROFILER_NEW_COUNTERS_PART2    latestNewProfiler_part2;
+    gcsPROFILER_NEW_COUNTERS_PART2    histroyNewProfiler_part2;
+    gcsPROFILER_NEW_COUNTERS_PART2    preNewProfiler_part2;
 };
 
 #ifdef __cplusplus

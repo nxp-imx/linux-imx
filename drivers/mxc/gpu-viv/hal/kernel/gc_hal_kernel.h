@@ -213,8 +213,9 @@ typedef enum _gceDATABASE_TYPE
     gcvDB_IDLE,                         /* GPU idle. */
     gcvDB_MAP_MEMORY,                   /* Map memory */
     gcvDB_MAP_USER_MEMORY,              /* Map user memory */
-    gcvDB_SYNC_POINT,                   /* Sync point. */
     gcvDB_SHBUF,                        /* Shared buffer. */
+
+    gcvDB_NUM_TYPES,
 }
 gceDATABASE_TYPE;
 
@@ -514,6 +515,9 @@ struct _gckDB
 
     gctPOINTER                  pointerDatabase;
     gctPOINTER                  pointerDatabaseMutex;
+
+    gcsLISTHEAD                 onFaultVidmemList;
+    gctPOINTER                  onFaultVidmemListMutex;
 };
 
 typedef struct _gckVIRTUAL_BUFFER * gckVIRTUAL_BUFFER_PTR;
@@ -647,6 +651,8 @@ struct _gckKERNEL
     gckDEVICE                   device;
 
     gctUINT                     chipID;
+
+    gctPOINTER                  commitMutex;
 };
 
 struct _FrequencyHistory
@@ -768,6 +774,7 @@ struct _gckCOMMAND
     /* Pointer to last WAIT command. */
     gctUINT32                   waitPhysical;
     gctPOINTER                  waitLogical;
+    gctUINT32                   waitAddress;
     gctUINT32                   waitSize;
 
     /* Command buffer alignment. */
@@ -914,6 +921,8 @@ struct _gckEVENT
 #if gcdINTERRUPT_STATISTIC
     gctPOINTER                  interruptCount;
 #endif
+
+    gctINT                      notifyState;
 };
 
 /* Free all events belonging to a process. */
@@ -929,6 +938,7 @@ gckEVENT_Stop(
     IN gctUINT32 ProcessID,
     IN gctUINT32 Handle,
     IN gctPOINTER Logical,
+    IN gctUINT32 Address,
     IN gctSIGNAL Signal,
     IN OUT gctUINT32 * waitSize
     );
@@ -1040,6 +1050,10 @@ typedef union _gcuVIDMEM_NODE
 
         /* Secure GPU virtual address. */
         gctBOOL                 secure;
+
+        gctBOOL                 onFault;
+
+        gcsLISTHEAD             head;
     }
     Virtual;
 }
@@ -1258,6 +1272,15 @@ gckVIDMEM_ConstructVirtualFromUserMemory(
     IN gcsUSER_MEMORY_DESC_PTR Desc,
     OUT gcuVIDMEM_NODE_PTR * Node
     );
+
+gceSTATUS
+gckVIDMEM_FindVIDMEM(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 HardwareAddress,
+    OUT gcuVIDMEM_NODE_PTR * Node,
+    OUT gctUINT32_PTR PageTableEntryValue
+    );
+
 
 #if gcdPROCESS_ADDRESS_SPACE
 gceSTATUS
@@ -1642,6 +1665,20 @@ gckKERNEL_SecurityDumpMMUException(
     IN gckKERNEL Kernel
     );
 
+gceSTATUS
+gckKERNEL_ReadMMUException(
+    IN gckKERNEL Kernel,
+    IN gctUINT32_PTR MMUStatus,
+    IN gctUINT32_PTR MMUException
+    );
+
+gceSTATUS
+gckKERNEL_HandleMMUException(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 MMUStatus,
+    IN gctPHYS_ADDR_T Physical,
+    IN gctUINT32 GPUAddres
+    );
 #endif
 
 gceSTATUS

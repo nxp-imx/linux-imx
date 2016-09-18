@@ -130,6 +130,9 @@ typedef enum _gceHAL_COMMAND_CODES
 #if VIVANTE_PROFILER_PERDRAW
     gcvHAL_READ_PROFILER_REGISTER_SETTING,
 #endif
+    gcvHAL_READ_ALL_PROFILE_NEW_REGISTERS_PART1,
+    gcvHAL_READ_ALL_PROFILE_NEW_REGISTERS_PART2,
+    gcvHAL_READ_PROFILER_NEW_REGISTER_SETTING,
 
     /* Power management. */
     gcvHAL_SET_POWER_MANAGEMENT_STATE,
@@ -179,6 +182,9 @@ typedef enum _gceHAL_COMMAND_CODES
     /* Frame database. */
     gcvHAL_GET_FRAME_INFO,
 
+    /* GPU profile dump */
+    gcvHAL_DUMP_GPU_PROFILE,
+
     gcvHAL_QUERY_COMMAND_BUFFER,
 
     gcvHAL_COMMIT_DONE,
@@ -204,9 +210,6 @@ typedef enum _gceHAL_COMMAND_CODES
     /* Multi-GPU read/write. */
     gcvHAL_READ_REGISTER_EX,
     gcvHAL_WRITE_REGISTER_EX,
-
-    /* Sync point operations. */
-    gcvHAL_SYNC_POINT,
 
     /* Create native fence and return its fd. */
     gcvHAL_CREATE_NATIVE_FENCE,
@@ -240,9 +243,11 @@ typedef enum _gceHAL_COMMAND_CODES
     gcvHAL_DEC300_FLUSH_WAIT,
 #endif
 
-#if gcdENABLE_VG
-    gcvHAL_BOTTOM_HALF_UNLOCK_VIDEO_MEMORY
+#ifdef VSIMULATOR_DEBUG
+    gcvHAL_SET_DEBUG_CALLBACK,
 #endif
+    gcvHAL_BOTTOM_HALF_UNLOCK_VIDEO_MEMORY
+
 }
 gceHAL_COMMAND_CODES;
 
@@ -405,6 +410,9 @@ typedef struct _gcsHAL_INTERFACE
 
     /* Engine */
     gceENGINE                   engine;
+
+    /* Ignore information from TSL when doing IO control */
+    gctBOOL                     ignoreTLS;
 
     /* Union of command structures. */
     union _u
@@ -652,13 +660,20 @@ typedef struct _gcsHAL_INTERFACE
         struct _gcsHAL_COMMIT
         {
             /* Context buffer object gckCONTEXT. */
-            IN gctUINT64            contexts;
+            IN gctUINT64            context;
 
             /* Command buffer gcoCMDBUF. */
-            IN gctUINT64            commandBuffers;
+            IN gctUINT64            commandBuffer;
 
             /* State delta buffer in gcsSTATE_DELTA. */
-            gctUINT64               deltas;
+            gctUINT64               delta;
+
+            gctUINT64               deltas[gcvCORE_COUNT];
+
+            gctUINT64               contexts[gcvCORE_COUNT];
+
+            gctUINT64               commandBuffers[gcvCORE_COUNT];
+
 
             /* Event queue in gcsQUEUE. */
             IN gctUINT64            queue;
@@ -674,6 +689,12 @@ typedef struct _gcsHAL_INTERFACE
 
             /* Count of gpu core. */
             IN gctUINT32            count;
+
+            /* Commit stamp of this commit. */
+            OUT gctUINT64           commitStamp;
+
+            /* If context switch for this commit */
+            OUT gctBOOL             contextSwitched;
         }
         Commit;
 
@@ -878,19 +899,50 @@ typedef struct _gcsHAL_INTERFACE
          }
         SetProfilerRegisterClear;
 #endif
+        /* gcvHAL_READ_PROFILER_REGISTER_SETTING */
+        struct _gcsHAL_READ_PROFILER_REGISTER_SETTING
+        {
+            /*Should Clear Register*/
+            IN gctBOOL               bclear;
+        }
+        SetProfilerRegisterClear;
 
         /* gcvHAL_READ_ALL_PROFILE_REGISTERS */
         struct _gcsHAL_READ_ALL_PROFILE_REGISTERS
         {
 #if VIVANTE_PROFILER_CONTEXT
             /* Context buffer object gckCONTEXT. Just a name. */
-            IN gctUINT32                context;
+            IN gctUINT32                    context;
 #endif
 
             /* Data read. */
-            OUT gcsPROFILER_COUNTERS    counters;
+            OUT gcsPROFILER_COUNTERS        counters;
         }
         RegisterProfileData;
+
+        struct _gcsHAL_READ_ALL_PROFILE_NEW_REGISTERS_PART1
+        {
+#if VIVANTE_PROFILER_CONTEXT
+            /* Context buffer object gckCONTEXT. Just a name. */
+            IN gctUINT32                    context;
+#endif
+
+            /* Data read. */
+            OUT gcsPROFILER_NEW_COUNTERS_PART1    newCounters;
+        }
+        RegisterProfileNewData_part1;
+
+        struct _gcsHAL_READ_ALL_PROFILE_NEW_REGISTERS_PART2
+        {
+#if VIVANTE_PROFILER_CONTEXT
+            /* Context buffer object gckCONTEXT. Just a name. */
+            IN gctUINT32                    context;
+#endif
+
+            /* Data read. */
+            OUT gcsPROFILER_NEW_COUNTERS_PART2    newCounters;
+        }
+        RegisterProfileNewData_part2;
 
         /* gcvHAL_PROFILE_REGISTERS_2D */
         struct _gcsHAL_PROFILE_REGISTERS_2D
@@ -954,6 +1006,10 @@ typedef struct _gcsHAL_INTERFACE
 
             /* Message to print if not empty. */
             IN gctCHAR                  message[80];
+
+#ifdef VSIMULATOR_DEBUG
+            IN VSIMULATOR_CALLBACK      Callback;
+#endif
         }
         Debug;
 
@@ -1149,26 +1205,10 @@ typedef struct _gcsHAL_INTERFACE
         }
         QueryResetTimeStamp;
 
-        struct _gcsHAL_SYNC_POINT
-        {
-            /* Command. */
-            gceSYNC_POINT_COMMAND_CODES command;
-
-            /* Sync point. */
-            IN OUT gctUINT64            syncPoint;
-
-            /* From where. */
-            IN gceKERNEL_WHERE          fromWhere;
-
-            /* Signaled state. */
-            OUT gctBOOL                 state;
-        }
-        SyncPoint;
-
         struct _gcsHAL_CREATE_NATIVE_FENCE
         {
-            /* Signal id to dup. */
-            IN gctUINT64                syncPoint;
+            /* Signal id. */
+            IN gctUINT64                signal;
 
             /* Native fence file descriptor. */
             OUT gctINT                  fenceFD;
@@ -1224,17 +1264,12 @@ typedef struct _gcsHAL_INTERFACE
 
         struct _gcsHAL_WRAP_USER_MEMORY
         {
-            /* Handle from other allocators. */
-            IN gctUINT32                handle;
-
-            /* Allocation flag to wrap user memory*/
-            IN gctUINT32                flag;
-
-            /* Video mmory node. */
-            OUT gctUINT32               node;
-
             /* Description of user memory. */
             IN gcsUSER_MEMORY_DESC      desc;
+
+            /* Output video mmory node. */
+            OUT gctUINT32               node;
+
         }
         WrapUserMemory;
 
@@ -1291,8 +1326,6 @@ typedef struct _gcsHAL_INTERFACE
         }
         DEC300FlushWait;
 #endif
-
-#if gcdENABLE_VG
         /* gcvHAL_BOTTOM_HALF_UNLOCK_VIDEO_MEMORY: */
         struct _gcsHAL_BOTTOM_HALF_UNLOCK_VIDEO_MEMORY
         {
@@ -1303,7 +1336,6 @@ typedef struct _gcsHAL_INTERFACE
             IN gceSURF_TYPE             type;
         }
         BottomHalfUnlockVideoMemory;
-#endif
     }
     u;
 }

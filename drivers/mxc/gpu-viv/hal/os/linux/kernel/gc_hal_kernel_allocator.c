@@ -74,14 +74,16 @@
 #define gcdDISCRETE_PAGES 0
 
 typedef struct _gcsDEFAULT_PRIV * gcsDEFAULT_PRIV_PTR;
-typedef struct _gcsDEFAULT_PRIV {
+typedef struct _gcsDEFAULT_PRIV
+{
     gctUINT32 low;
     gctUINT32 high;
 }
 gcsDEFAULT_PRIV;
 
 typedef struct _gcsDEFAULT_MDL_PRIV *gcsDEFAULT_MDL_PRIV_PTR;
-typedef struct _gcsDEFAULT_MDL_PRIV {
+typedef struct _gcsDEFAULT_MDL_PRIV
+{
     union _pages
     {
         /* Pointer to a array of pages. */
@@ -115,8 +117,8 @@ int gc_usage_show(struct seq_file* m, void* data)
     gckALLOCATOR Allocator = node->device;
     gcsDEFAULT_PRIV_PTR priv = Allocator->privateData;
 
-    seq_printf(m, "low:  %u bytes\n", priv->low);
-    seq_printf(m, "high: %u bytes\n", priv->high);
+    seq_printf(m, "lowMem:  %u bytes\n", priv->low);
+    seq_printf(m, "highMem: %u bytes\n", priv->high);
 
     return 0;
 }
@@ -510,23 +512,18 @@ _DefaultAlloc(
     )
 {
     gceSTATUS status;
-    gctUINT32 order;
-    gctSIZE_T bytes;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-    gctPOINTER addr = gcvNULL;
-#endif
-    gctUINT32 numPages;
-    gctUINT i = 0;
+    gctUINT i;
     gctBOOL contiguous = Flags & gcvALLOC_FLAG_CONTIGUOUS;
+#ifdef CONFIG_GPU_LOW_MEMORY_KILLER
     struct sysinfo temsysinfo;
+#endif
+
     gcsDEFAULT_PRIV_PTR priv = (gcsDEFAULT_PRIV_PTR)Allocator->privateData;
     gcsDEFAULT_MDL_PRIV_PTR mdlPriv = gcvNULL;
 
-    gcmkHEADER_ARG("Mdl=%p NumPages=%d", Mdl, NumPages);
+    gcmkHEADER_ARG("Mdl=%p NumPages=%zu Flags=0x%x", Mdl, NumPages, Flags);
 
-    numPages = NumPages;
-    bytes = NumPages * PAGE_SIZE;
-    order = get_order(bytes);
+#ifdef CONFIG_GPU_LOW_MEMORY_KILLER
     si_meminfo(&temsysinfo);
 
     if (Flags & gcvALLOC_FLAG_MEMLIMIT)
@@ -536,6 +533,7 @@ _DefaultAlloc(
             gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
         }
     }
+#endif
 
     gcmkONERROR(gckOS_Allocate(Allocator->os, gcmSIZEOF(gcsDEFAULT_MDL_PRIV), (gctPOINTER *)&mdlPriv));
 
@@ -543,27 +541,28 @@ _DefaultAlloc(
 
     if (contiguous)
     {
-        if (order >= MAX_ORDER)
-        {
-            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
-        }
+        size_t bytes = NumPages << PAGE_SHIFT;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
-        addr =
-            alloc_pages_exact(bytes, GFP_KERNEL | gcdNOWARN | __GFP_NORETRY);
+        void *addr = NULL;
 
-        mdlPriv->u.contiguousPages = addr
-                               ? virt_to_page(addr)
-                               : gcvNULL;
+        addr = alloc_pages_exact(bytes, GFP_KERNEL | gcdNOWARN | __GFP_NORETRY);
+
+        mdlPriv->u.contiguousPages = addr ? virt_to_page(addr) : gcvNULL;
 
         mdlPriv->exact = gcvTRUE;
-#else
-        mdlPriv->u.contiguousPages =
-            alloc_pages(GFP_KERNEL | gcdNOWARN | __GFP_NORETRY, order);
 #endif
 
         if (mdlPriv->u.contiguousPages == gcvNULL)
         {
+            int order = get_order(bytes);
+
+            if (order >= MAX_ORDER)
+            {
+                status = gcvSTATUS_OUT_OF_MEMORY;
+                goto OnError;
+            }
+
             mdlPriv->u.contiguousPages =
                 alloc_pages(GFP_KERNEL | __GFP_HIGHMEM | gcdNOWARN, order);
 
@@ -571,18 +570,23 @@ _DefaultAlloc(
             mdlPriv->exact = gcvFALSE;
 #endif
         }
+
+        if (mdlPriv->u.contiguousPages == gcvNULL)
+        {
+            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+        }
     }
     else
     {
-        mdlPriv->u.nonContiguousPages = _NonContiguousAlloc(numPages);
+        mdlPriv->u.nonContiguousPages = _NonContiguousAlloc(NumPages);
+
+        if (mdlPriv->u.nonContiguousPages == gcvNULL)
+        {
+            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+        }
     }
 
-    if (mdlPriv->u.contiguousPages == gcvNULL && mdlPriv->u.nonContiguousPages == gcvNULL)
-    {
-        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
-    }
-
-    for (i = 0; i < numPages; i++)
+    for (i = 0; i < NumPages; i++)
     {
         struct page *page;
         gctPHYS_ADDR_T phys = 0U;
@@ -650,7 +654,6 @@ _DefaultAlloc(
     return gcvSTATUS_OK;
 
 OnError:
-
     if (mdlPriv)
     {
         gcmkOS_SAFE_FREE(Allocator->os, mdlPriv);
@@ -952,6 +955,7 @@ _DefaultAlloctorInit(
                           | gcvALLOC_FLAG_NON_CONTIGUOUS
                           | gcvALLOC_FLAG_CACHEABLE
                           | gcvALLOC_FLAG_MEMLIMIT
+                          | gcvALLOC_FLAG_ALLOC_ON_FAULT
                           ;
 
 #if defined(gcdEMULATE_SECURE_ALLOCATOR)

@@ -85,96 +85,6 @@ BITFIELDINFO;
 
 #elif defined(WL_EGL_PLATFORM) || defined(EGL_API_WL) /* Wayland */
 
-#if defined(__GNUC__)
-#   define inline            __inline__  /* GNU keyword. */
-#endif
-
-/* Wayland platform. */
-#include <wayland-egl.h>
-#include <pthread.h>
-
-#define WL_COMPOSITOR_SIGNATURE (0x31415926)
-#define WL_CLIENT_SIGNATURE             (0x27182818)
-#define WL_LOCAL_DISPLAY_SIGNATURE      (0x27182991)
-
-typedef struct _gcsWL_VIV_BUFFER
-{
-   struct wl_resource *wl_buffer;
-   gcoSURF surface;
-   gctINT32 width, height;
-} gcsWL_VIV_BUFFER;
-
-typedef struct _gcsWL_EGL_DISPLAY
-{
-   struct wl_display* wl_display;
-   struct wl_viv* wl_viv;
-   struct wl_registry *registry;
-   struct wl_event_queue    *wl_queue;
-   struct wl_event_queue    *wl_swap_queue;
-   gctINT swapInterval;
-   gctINT file;
-} gcsWL_EGL_DISPLAY;
-
-typedef struct _gcsWL_LOCAL_DISPLAY {
-    gctUINT wl_signature;
-    gctPOINTER localInfo;
-} gcsWL_LOCAL_DISPLAY;
-
-typedef struct _gcsWL_EGL_BUFFER_INFO
-{
-   gctINT32 width;
-   gctINT32 height;
-   gctINT32 stride;
-   gceSURF_FORMAT format;
-   gceSURF_TYPE   type;
-   gcuVIDMEM_NODE_PTR node;
-   gcePOOL pool;
-   gctSIZE_T bytes;
-   gcoSURF surface;
-   gctINT32 invalidate;
-   gctBOOL locked;
-} gcsWL_EGL_BUFFER_INFO;
-
-typedef struct _gcsWL_EGL_BUFFER
-{
-   gctUINT wl_signature;
-   gcsWL_EGL_BUFFER_INFO info;
-   struct wl_buffer* wl_buffer;
-   struct wl_callback* frame_callback;
-   struct wl_list link;
-} gcsWL_EGL_BUFFER;
-
-typedef struct _gcsWL_EGL_WINDOW_INFO
-{
-   gctINT32 dx;
-   gctINT32 dy;
-   gctUINT width;
-   gctUINT height;
-   gceSURF_FORMAT format;
-   gctUINT bpp;
-   gctINT  bufferCount;
-   gctUINT current;
-} gcsWL_EGL_WINDOW_INFO;
-
-struct wl_egl_window
-{
-   gctUINT wl_signature;
-   gcsWL_EGL_DISPLAY* display;
-   gcsWL_EGL_BUFFER **backbuffers;
-   gcsWL_EGL_WINDOW_INFO* info;
-   gctINT  noResolve;
-   gctINT32 attached_width;
-   gctINT32 attached_height;
-   gcsATOM_PTR reference;
-   pthread_mutex_t window_mutex;
-   struct wl_surface* surface;
-   struct wl_list link;
-};
-
-typedef void *                          HALNativeDisplayType;
-typedef void *                          HALNativeWindowType;
-typedef void *                          HALNativePixmapType;
-
 #elif defined(__GBM__) /* GBM */
 
 #elif defined(__ANDROID__) || defined(ANDROID)
@@ -199,17 +109,6 @@ typedef void *                          HALNativePixmapType;
 
 #else
 #error "Platform not recognized"
-#endif
-
-/* define DUMMY according to the system */
-#if defined(EGL_API_WL)
-#   define WL_DUMMY (31415926)
-#   define EGL_DUMMY WL_DUMMY
-#elif defined(__ANDROID__) || defined(ANDROID)
-#   define ANDROID_DUMMY (31415926)
-#   define EGL_DUMMY ANDROID_DUMMY
-#else
-#   define EGL_DUMMY (31415926)
 #endif
 
 #if defined(_WIN32) || defined(__VC32__) && !defined(__CYGWIN__) && !defined(__SCITECH_SNAP__)

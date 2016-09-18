@@ -56,6 +56,8 @@
 #ifndef __gc_hal_kernel_linux_h_
 #define __gc_hal_kernel_linux_h_
 
+/* VIV: Latest kernel version supported: 4.1.0. */
+
 #include <linux/version.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -198,10 +200,8 @@ struct _gckOS
     gckGALDEVICE                device;
 
     /* Memory management */
-    gctPOINTER                  memoryLock;
-
-    struct _LINUX_MDL           *mdlHead;
-    struct _LINUX_MDL           *mdlTail;
+    struct mutex                mdlMutex;
+    struct list_head            mdlHead;
 
     /* Kernel process ID. */
     gctUINT32                   kernelProcessID;
@@ -209,7 +209,7 @@ struct _gckOS
     /* Signal management. */
 
     /* Lock. */
-    gctPOINTER                  signalMutex;
+    struct mutex                signalMutex;
 
     /* signal id database. */
     gcsINTEGER_DB               signalDB;
@@ -223,7 +223,6 @@ struct _gckOS
 #endif
 
     gcsUSER_MAPPING_PTR         userMap;
-    gctPOINTER                  debugLock;
 
     /* workqueue for os timer. */
     struct workqueue_struct *   workqueue;
@@ -268,27 +267,13 @@ typedef struct _gcsSIGNAL
 
     /* ID. */
     gctUINT32 id;
-}
-gcsSIGNAL;
 
 #if gcdANDROID_NATIVE_FENCE_SYNC
-typedef struct _gcsSYNC_POINT * gcsSYNC_POINT_PTR;
-typedef struct _gcsSYNC_POINT
-{
-    /* The reference counter. */
-    atomic_t ref;
-
-    /* State. */
-    atomic_t state;
-
-    /* timeline. */
+    /* Parent timeline. */
     struct sync_timeline * timeline;
-
-    /* ID. */
-    gctUINT32 id;
-}
-gcsSYNC_POINT;
 #endif
+}
+gcsSIGNAL;
 
 typedef struct _gcsOSTIMER * gcsOSTIMER_PTR;
 typedef struct _gcsOSTIMER
@@ -321,6 +306,12 @@ void
 _UnmapUserLogical(
     IN gctPOINTER Logical,
     IN gctUINT32  Size
+    );
+
+gctBOOL
+_QuerySignal(
+    IN gckOS Os,
+    IN gctSIGNAL Signal
     );
 
 static inline gctINT

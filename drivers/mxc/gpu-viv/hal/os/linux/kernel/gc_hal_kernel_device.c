@@ -132,7 +132,7 @@ int gc_clients_show(struct seq_file* m, void* data)
 
     gcsDATABASE_PTR database;
     gctINT i, pid;
-    gctUINT8 name[24];
+    char name[24];
 
     seq_printf(m, "%-8s%s\n", "PID", "NAME");
     seq_printf(m, "------------------------\n");
@@ -149,8 +149,6 @@ int gc_clients_show(struct seq_file* m, void* data)
              database = database->next)
         {
             pid = database->processID;
-
-            gcmkVERIFY_OK(gckOS_ZeroMemory(name, gcmSIZEOF(name)));
 
             gcmkVERIFY_OK(gckOS_GetProcessNameByPid(pid, gcmSIZEOF(name), name));
 
@@ -262,16 +260,31 @@ int gc_meminfo_show(struct seq_file* m, void* data)
 
 static int
 _ShowRecord(
-    IN struct seq_file *file,
-    IN gcsDATABASE_RECORD_PTR record
+    IN struct seq_file *File,
+    IN gcsDATABASE_RECORD_PTR Record
     )
 {
-    seq_printf(file, "%4d%8d%16p%16p%16zu\n",
-        record->type,
-        record->kernel->core,
-        record->data,
-        record->physical,
-        record->bytes
+    static const char * recordTypes[gcvDB_NUM_TYPES] = {
+        "Unknown",
+        "VideoMemory",
+        "CommandBuffer",
+        "NonPaged",
+        "Contiguous",
+        "Signal",
+        "VidMemLock",
+        "Context",
+        "Idel",
+        "MapMemory",
+        "MapUserMemory",
+        "ShBuf",
+    };
+
+    seq_printf(File, "%-14s %3d %16p %16zu %16zu\n",
+        recordTypes[Record->type],
+        Record->kernel->core,
+        Record->data,
+        (size_t) Record->physical,
+        Record->bytes
         );
 
     return 0;
@@ -287,8 +300,8 @@ _ShowRecords(
 
     seq_printf(File, "Records:\n");
 
-    seq_printf(File, "%s%8s%16s%16s%16s\n",
-               "Type", "GPU", "Data", "Physical", "Bytes");
+    seq_printf(File, "%14s %3s %16s %16s %16s\n",
+               "Type", "GPU", "Data/Node", "Physical/Node", "Bytes");
 
     for (i = 0; i < gcmCOUNTOF(Database->list); i++)
     {
@@ -304,11 +317,107 @@ _ShowRecords(
     return 0;
 }
 
-void
+static void
 _ShowCounters(
     struct seq_file *File,
     gcsDATABASE_PTR Database
-    );
+    )
+{
+    gctUINT i = 0;
+
+    static const char * surfaceTypes[gcvSURF_NUM_TYPES] = {
+        "Unknown",
+        "Index",
+        "Vertex",
+        "Texture",
+        "RenderTarget",
+        "Depth",
+        "Bitmap",
+        "TileStatus",
+        "Image",
+        "Mask",
+        "Scissor",
+        "HZ",
+        "ICache",
+        "TxDesc",
+        "Fence",
+        "TFBHeader",
+    };
+
+    static const char * poolTypes[gcvPOOL_NUMBER_OF_POOLS] = {
+        "Unknown",
+        "Default",
+        "Local",
+        "Internal",
+        "External",
+        "Unified",
+        "System",
+        "Virtual",
+        "User",
+        "Contiguous",
+    };
+
+    static const char * otherCounterNames[] = {
+        "AllocNonPaged",
+        "AllocContiguous",
+        "MapUserMemory",
+        "MapMemory",
+    };
+
+    gcsDATABASE_COUNTERS * otherCounters[] = {
+        &Database->nonPaged,
+        &Database->contiguous,
+        &Database->mapUserMemory,
+        &Database->mapMemory,
+    };
+
+    seq_printf(File, "%-16s %16s %16s %16s\n", "", "Current", "Maximum", "Total");
+
+    /* Print surface type counters. */
+    seq_printf(File, "%-16s %16lld %16lld %16lld\n",
+               "All-Types",
+               Database->vidMem.bytes,
+               Database->vidMem.maxBytes,
+               Database->vidMem.totalBytes);
+
+    for (i = 1; i < gcvSURF_NUM_TYPES; i++)
+    {
+        seq_printf(File, "%-16s %16lld %16lld %16lld\n",
+                   surfaceTypes[i],
+                   Database->vidMemType[i].bytes,
+                   Database->vidMemType[i].maxBytes,
+                   Database->vidMemType[i].totalBytes);
+    }
+    seq_puts(File, "\n");
+
+    /* Print surface pool counters. */
+    seq_printf(File, "%-16s %16lld %16lld %16lld\n",
+               "All-Pools",
+               Database->vidMem.bytes,
+               Database->vidMem.maxBytes,
+               Database->vidMem.totalBytes);
+
+    for (i = 1; i < gcvPOOL_NUMBER_OF_POOLS; i++)
+    {
+        seq_printf(File, "%-16s %16lld %16lld %16lld\n",
+                   poolTypes[i],
+                   Database->vidMemPool[i].bytes,
+                   Database->vidMemPool[i].maxBytes,
+                   Database->vidMemPool[i].totalBytes);
+    }
+    seq_puts(File, "\n");
+
+    /* Print other counters. */
+    for (i = 0; i < gcmCOUNTOF(otherCounterNames); i++)
+    {
+        seq_printf(File, "%-16s %16lld %16lld %16lld\n",
+                   otherCounterNames[i],
+                   otherCounters[i]->bytes,
+                   otherCounters[i]->maxBytes,
+                   otherCounters[i]->totalBytes);
+    }
+    seq_puts(File, "\n");
+}
 
 static void
 _ShowProcess(
@@ -317,11 +426,10 @@ _ShowProcess(
     )
 {
     gctINT pid;
-    gctUINT8 name[24];
+    char name[24];
 
     /* Process ID and name */
     pid = Database->processID;
-    gcmkVERIFY_OK(gckOS_ZeroMemory(name, gcmSIZEOF(name)));
     gcmkVERIFY_OK(gckOS_GetProcessNameByPid(pid, gcmSIZEOF(name), name));
 
     seq_printf(File, "--------------------------------------------------------------------------------\n");
@@ -337,7 +445,7 @@ _ShowProcess(
 
 static void
 _ShowProcesses(
-    IN struct seq_file * file,
+    IN struct seq_file * File,
     IN gckKERNEL Kernel
     )
 {
@@ -357,7 +465,7 @@ _ShowProcesses(
     }
 
     /* Idle time since last call */
-    seq_printf(file, "GPU Idle: %llu ns\n",  idleTime);
+    seq_printf(File, "GPU Idle: %llu ns\n",  idleTime);
 
     /* Walk the databases. */
     for (i = 0; i < gcmCOUNTOF(Kernel->db->db); ++i)
@@ -366,7 +474,7 @@ _ShowProcesses(
              database != gcvNULL;
              database = database->next)
         {
-            _ShowProcess(file, database);
+            _ShowProcess(File, database);
         }
     }
 
@@ -500,176 +608,6 @@ gc_dump_trigger_show(struct seq_file *m, void *data)
 
 static int dumpProcess = 0;
 
-void
-_PrintCounter(
-    struct seq_file *file,
-    gcsDATABASE_COUNTERS * counter,
-    gctCONST_STRING Name
-    )
-{
-    seq_printf(file,"Counter: %s\n", Name);
-
-    seq_printf(file,"%-9s%10s","", "All");
-
-    seq_printf(file, "\n");
-
-    seq_printf(file,"%-9s","Current");
-
-    seq_printf(file,"%10lld", counter->bytes);
-
-    seq_printf(file, "\n");
-
-    seq_printf(file,"%-9s","Maximum");
-
-    seq_printf(file,"%10lld", counter->maxBytes);
-
-    seq_printf(file, "\n");
-
-    seq_printf(file,"%-9s","Total");
-
-    seq_printf(file,"%10lld", counter->totalBytes);
-
-    seq_printf(file, "\n");
-}
-
-void
-_ShowCounters(
-    struct seq_file *file,
-    gcsDATABASE_PTR database
-    )
-{
-    gctUINT i = 0;
-    gcsDATABASE_COUNTERS * counter;
-    gcsDATABASE_COUNTERS * nonPaged;
-
-    static gctCONST_STRING surfaceTypes[gcvSURF_NUM_TYPES] = {
-        "UNKNOWN",
-        "Index",
-        "Vertex",
-        "Texture",
-        "RT",
-        "Depth",
-        "Bitmap",
-        "TS",
-        "Image",
-        "Mask",
-        "Scissor",
-        "HZDepth",
-    };
-
-    /* Get pointer to counters. */
-    counter = &database->vidMem;
-
-    nonPaged = &database->nonPaged;
-
-    seq_printf(file,"Counter: vidMem (for each surface type)\n");
-
-    seq_printf(file,"%-9s%10s","", "All");
-
-    for (i = 1; i < gcvSURF_NUM_TYPES; i++)
-    {
-        counter = &database->vidMemType[i];
-
-        seq_printf(file, "%10s",surfaceTypes[i]);
-    }
-
-    seq_printf(file, "\n");
-
-    seq_printf(file,"%-9s","Current");
-
-    seq_printf(file,"%10lld", database->vidMem.bytes);
-
-    for (i = 1; i < gcvSURF_NUM_TYPES; i++)
-    {
-        counter = &database->vidMemType[i];
-
-        seq_printf(file,"%10lld", counter->bytes);
-    }
-
-    seq_printf(file, "\n");
-
-    seq_printf(file,"%-9s","Maximum");
-
-    seq_printf(file,"%10lld", database->vidMem.maxBytes);
-
-    for (i = 1; i < gcvSURF_NUM_TYPES; i++)
-    {
-        counter = &database->vidMemType[i];
-
-        seq_printf(file,"%10lld", counter->maxBytes);
-    }
-
-    seq_printf(file, "\n");
-
-    seq_printf(file,"%-9s","Total");
-
-    seq_printf(file,"%10lld", database->vidMem.totalBytes);
-
-    for (i = 1; i < gcvSURF_NUM_TYPES; i++)
-    {
-        counter = &database->vidMemType[i];
-
-        seq_printf(file,"%10lld", counter->totalBytes);
-    }
-
-    seq_printf(file, "\n");
-
-    seq_printf(file,"Counter: vidMem (for each pool)\n");
-
-    seq_printf(file,"%-9s%10s","", "All");
-
-    for (i = 1; i < gcvPOOL_NUMBER_OF_POOLS; i++)
-    {
-        seq_printf(file, "%10d", i);
-    }
-
-    seq_printf(file, "\n");
-
-    seq_printf(file,"%-9s","Current");
-
-    seq_printf(file,"%10lld", database->vidMem.bytes);
-
-    for (i = 1; i < gcvPOOL_NUMBER_OF_POOLS; i++)
-    {
-        counter = &database->vidMemPool[i];
-
-        seq_printf(file,"%10lld", counter->bytes);
-    }
-
-    seq_printf(file, "\n");
-
-    seq_printf(file,"%-9s","Maximum");
-
-    seq_printf(file,"%10lld", database->vidMem.maxBytes);
-
-    for (i = 1; i < gcvPOOL_NUMBER_OF_POOLS; i++)
-    {
-        counter = &database->vidMemPool[i];
-
-        seq_printf(file,"%10lld", counter->maxBytes);
-    }
-
-    seq_printf(file, "\n");
-
-    seq_printf(file,"%-9s","Total");
-
-    seq_printf(file,"%10lld", database->vidMem.totalBytes);
-
-    for (i = 1; i < gcvPOOL_NUMBER_OF_POOLS; i++)
-    {
-        counter = &database->vidMemPool[i];
-
-        seq_printf(file,"%10lld", counter->totalBytes);
-    }
-
-    seq_printf(file, "\n");
-
-    /* Print nonPaged. */
-    _PrintCounter(file, &database->nonPaged, "nonPaged");
-    _PrintCounter(file, &database->contiguous, "contiguous");
-    _PrintCounter(file, &database->mapUserMemory, "mapUserMemory");
-    _PrintCounter(file, &database->mapMemory, "mapMemory");
-}
 
 static int gc_vidmem_show(struct seq_file *m, void *unused)
 {
@@ -677,20 +615,49 @@ static int gc_vidmem_show(struct seq_file *m, void *unused)
     gcsDATABASE_PTR database;
     gcsINFO_NODE *node = m->private;
     gckGALDEVICE device = node->device;
+    char name[64];
+    int i;
 
     gckKERNEL kernel = _GetValidKernel(device);
 
-    /* Find the database. */
-    gcmkONERROR(
-        gckKERNEL_FindDatabase(kernel, dumpProcess, gcvFALSE, &database));
+    if (dumpProcess == 0)
+    {
+        /* Acquire the database mutex. */
+        gcmkVERIFY_OK(
+        gckOS_AcquireMutex(kernel->os, kernel->db->dbMutex, gcvINFINITE));
 
-    seq_printf(m, "VidMem Usage (Process %d):\n", dumpProcess);
+        for (i = 0; i < gcmCOUNTOF(kernel->db->db); i++)
+        {
+            for (database = kernel->db->db[i];
+                 database != gcvNULL;
+                 database = database->next)
+            {
+                gckOS_GetProcessNameByPid(database->processID, gcmSIZEOF(name), name);
+                seq_printf(m, "VidMem Usage (Process %d: %s):\n", database->processID, name);
+                _ShowCounters(m, database);
+                seq_puts(m, "\n");
+            }
+        }
 
-    _ShowCounters(m, database);
+        /* Release the database mutex. */
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(kernel->os, kernel->db->dbMutex));
+    }
+    else
+    {
+        /* Find the database. */
+        status = gckKERNEL_FindDatabase(kernel, dumpProcess, gcvFALSE, &database);
 
-    return 0;
+        if (gcmIS_ERROR(status))
+        {
+            seq_printf(m, "ERROR: process %d not found\n", dumpProcess);
+            return 0;
+        }
 
-OnError:
+        gckOS_GetProcessNameByPid(dumpProcess, gcmSIZEOF(name), name);
+        seq_printf(m, "VidMem Usage (Process %d: %s):\n", dumpProcess, name);
+        _ShowCounters(m, database);
+    }
+
     return 0;
 }
 
@@ -1005,12 +972,15 @@ static int threadRoutine(void *ctxt)
                    "Starting isr Thread with extension=%p",
                    device);
 
-    /* Make kernel update page table of this thread to include entry related to command buffer.*/
-    for (i = 0; i < gcdCOMMAND_QUEUES; i++)
+    if (core != gcvCORE_VG)
     {
-        gctUINT32 data = *(gctUINT32_PTR)device->kernels[core]->command->queues[i].logical;
+        /* Make kernel update page table of this thread to include entry related to command buffer.*/
+        for (i = 0; i < gcdCOMMAND_QUEUES; i++)
+        {
+            gctUINT32 data = *(gctUINT32_PTR)device->kernels[core]->command->queues[i].logical;
 
-        data = 0;
+            data = 0;
+        }
     }
 
     for (;;)
@@ -1057,40 +1027,49 @@ static irqreturn_t isrRoutineVG(int irq, void *ctxt)
 #endif
 }
 
-static int threadRoutineVG(void *ctxt)
-{
-    gckGALDEVICE device = (gckGALDEVICE) ctxt;
-
-    gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_DRIVER,
-                   "Starting isr Thread with extension=%p",
-                   device);
-
-    for (;;)
-    {
-        static int down;
-
-        down = down_interruptible(&device->semas[gcvCORE_VG]);
-        if (down); /*To make gcc 4.6 happye*/
-
-        if (device->killThread == gcvTRUE)
-        {
-            /* The daemon exits. */
-            while (!kthread_should_stop())
-            {
-                gckOS_Delay(device->os, 1);
-            }
-
-            return 0;
-        }
-        gckKERNEL_Notify(device->kernels[gcvCORE_VG],
-                         gcvNOTIFY_INTERRUPT,
-                         gcvFALSE);
-    }
-}
-
 /******************************************************************************\
 ******************************* gckGALDEVICE Code ******************************
 \******************************************************************************/
+
+static gceSTATUS
+_StartThread(
+    IN int (*ThreadRoutine)(void *data),
+    IN gceCORE Core
+    )
+{
+    gceSTATUS status;
+    gckGALDEVICE device = galDevice;
+    struct task_struct * task;
+
+    if (device->kernels[Core] != gcvNULL)
+    {
+        /* Start the kernel thread. */
+        task = kthread_run(ThreadRoutine, (void *)Core, "galcore deamon thread for core[%d]", Core);
+
+        if (IS_ERR(task))
+        {
+            gcmkTRACE_ZONE(
+                gcvLEVEL_ERROR, gcvZONE_DRIVER,
+                "%s(%d): Could not start the kernel thread.\n",
+                __FUNCTION__, __LINE__
+                );
+
+            gcmkONERROR(gcvSTATUS_GENERIC_IO);
+        }
+
+        device->threadCtxts[Core]         = task;
+        device->threadInitializeds[Core]  = gcvTRUE;
+    }
+    else
+    {
+        device->threadInitializeds[Core]  = gcvFALSE;
+    }
+
+    return gcvSTATUS_OK;
+
+OnError:
+    return status;
+}
 
 /*******************************************************************************
 **
@@ -2002,109 +1981,22 @@ gckGALDEVICE_Start_Threads(
     )
 {
     gceSTATUS status;
-    struct task_struct * task;
 
     gcmkHEADER_ARG("Device=0x%x", Device);
 
     gcmkVERIFY_ARGUMENT(Device != NULL);
 
-    if (Device->kernels[gcvCORE_MAJOR] != gcvNULL)
-    {
-        /* Start the kernel thread. */
-        task = kthread_run(threadRoutine, gcvCORE_MAJOR, "galcore daemon thread");
+    gcmkONERROR(_StartThread(threadRoutine, gcvCORE_MAJOR));
+    gcmkONERROR(_StartThread(threadRoutine, gcvCORE_2D));
 
-        if (IS_ERR(task))
-        {
-            gcmkTRACE_ZONE(
-                gcvLEVEL_ERROR, gcvZONE_DRIVER,
-                "%s(%d): Could not start the kernel thread.\n",
-                __FUNCTION__, __LINE__
-                );
-
-            gcmkONERROR(gcvSTATUS_GENERIC_IO);
-        }
-
-        Device->threadCtxts[gcvCORE_MAJOR]          = task;
-        Device->threadInitializeds[gcvCORE_MAJOR]   = gcvTRUE;
-    }
-
-    if (Device->kernels[gcvCORE_2D] != gcvNULL)
-    {
-        /* Start the kernel thread. */
-        task = kthread_run(threadRoutine, (void *)gcvCORE_2D, "galcore daemon thread for 2D");
-
-        if (IS_ERR(task))
-        {
-            gcmkTRACE_ZONE(
-                gcvLEVEL_ERROR, gcvZONE_DRIVER,
-                "%s(%d): Could not start the kernel thread.\n",
-                __FUNCTION__, __LINE__
-                );
-
-            gcmkONERROR(gcvSTATUS_GENERIC_IO);
-        }
-
-        Device->threadCtxts[gcvCORE_2D]         = task;
-        Device->threadInitializeds[gcvCORE_2D]  = gcvTRUE;
-    }
-    else
-    {
-        Device->threadInitializeds[gcvCORE_2D]  = gcvFALSE;
-    }
-
-    if (Device->kernels[gcvCORE_VG] != gcvNULL)
-    {
-        /* Start the kernel thread. */
-        task = kthread_run(threadRoutineVG, Device, "galcore daemon thread for VG");
-
-        if (IS_ERR(task))
-        {
-            gcmkTRACE_ZONE(
-                gcvLEVEL_ERROR, gcvZONE_DRIVER,
-                "%s(%d): Could not start the kernel thread.\n",
-                __FUNCTION__, __LINE__
-                );
-
-            gcmkONERROR(gcvSTATUS_GENERIC_IO);
-        }
-
-        Device->threadCtxts[gcvCORE_VG]         = task;
-        Device->threadInitializeds[gcvCORE_VG]  = gcvTRUE;
-    }
-    else
-    {
-        Device->threadInitializeds[gcvCORE_VG]  = gcvFALSE;
-    }
+    gcmkONERROR(_StartThread(threadRoutine, gcvCORE_VG));
 
     {
         gctUINTPTR_T i = gcvCORE_3D1;
 
         for (; i <= gcvCORE_3D3; i++)
         {
-            if (Device->kernels[i])
-            {
-                /* Start the kernel thread. */
-                task = kthread_run(threadRoutine, (void *)i, "galcore daemon thread");
-
-                if (IS_ERR(task))
-                {
-                    gcmkTRACE_ZONE(
-                        gcvLEVEL_ERROR, gcvZONE_DRIVER,
-                        "%s(%d): Could not start the kernel thread.\n",
-                        __FUNCTION__, __LINE__
-                        );
-
-                    gcmkONERROR(gcvSTATUS_GENERIC_IO);
-                }
-
-                Device->threadCtxts[i]         = task;
-                Device->threadInitializeds[i]  = gcvTRUE;
-
-            }
-            else
-            {
-                Device->threadInitializeds[i]  = gcvFALSE;
-            }
+            gcmkONERROR(_StartThread(threadRoutine, i));
         }
     }
 
@@ -2313,3 +2205,81 @@ OnError:
     gcmkFOOTER();
     return status;
 }
+
+/*******************************************************************************
+**
+**  gckGALDEVICE_AddCore
+**
+**  Add a core after gckGALDevice is constructed.
+**
+**  INPUT:
+**
+**  OUTPUT:
+**
+*/
+gceSTATUS
+gckGALDEVICE_AddCore(
+    IN gckGALDEVICE Device,
+    IN gcsDEVICE_CONSTRUCT_ARGS * Args
+    )
+{
+    gceSTATUS status;
+    gceCORE core = gcvCORE_COUNT;
+    gctUINT i = 0;
+
+    gcmkHEADER();
+    gcmkVERIFY_ARGUMENT(Device != gcvNULL);
+
+    /* Find which core is added. */
+    for (i = 0; i < gcvCORE_COUNT; i++)
+    {
+        if (Args->irqs[i] != -1)
+        {
+            core = i;
+            break;
+        }
+    }
+
+    if (i == gcvCORE_COUNT)
+    {
+        gcmkPRINT("[galcore]: No valid core information found");
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+    }
+
+
+    gcmkPRINT("[galcore]: add core[%d]", core);
+
+    /* Record irq, registerBase, registerSize. */
+    Device->irqLines[core] = Args->irqs[core];
+    _SetupRegisterPhysical(Device, Args);
+
+    /* Map register memory.*/
+
+    /* Add a platform indepedent framework. */
+    gcmkONERROR(gckDEVICE_AddCore(
+        Device->device,
+        core,
+        Args->chipIDs[core],
+        Device,
+        &Device->kernels[core]
+        ));
+
+    /* Start thread routine. */
+    _StartThread(threadRoutine, core);
+
+    /* Register ISR. */
+    gckGALDEVICE_Setup_ISR(core);
+
+    /* Set default power management state. */
+    gcmkONERROR(gckHARDWARE_SetPowerManagementState(
+        Device->kernels[core]->hardware, gcvPOWER_OFF_BROADCAST
+        ));
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
+
+OnError:
+    gcmkFOOTER();
+    return gcvSTATUS_OK;
+}
+

@@ -70,7 +70,7 @@ struct viv_sync_timeline
     struct sync_timeline obj;
 
     /* Timestamp when sync_pt is created. */
-    gctUINT stamp;
+    gctUINT64 stamp;
 
     /* Pointer to os struct. */
     gckOS os;
@@ -82,11 +82,11 @@ struct viv_sync_pt
     /* Parent object. */
     struct sync_pt pt;
 
-    /* Reference sync point*/
-    gctSYNC_POINT sync;
+    /* Reference signal. */
+    gctSIGNAL signal;
 
     /* Timestamp when sync_pt is created. */
-    gctUINT stamp;
+    gctUINT64 stamp;
 };
 
 /* Create viv_sync_timeline object. */
@@ -100,7 +100,7 @@ viv_sync_timeline_create(
 struct sync_pt *
 viv_sync_pt_create(
     struct viv_sync_timeline * Obj,
-    gctSYNC_POINT SyncPoint
+    gctSIGNAL Signal
     );
 
 #endif /* __gc_hal_kernel_sync_h_ */

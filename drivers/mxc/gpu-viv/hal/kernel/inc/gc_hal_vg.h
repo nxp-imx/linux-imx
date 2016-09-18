@@ -211,8 +211,8 @@ typedef gctTHREADFUNCRESULT (gctTHREADFUNCTYPE * gctTHREADFUNC) (
     (gctUINT32) \
         ( \
         (__gcmGETSIZE(reg##_##field) == 32) \
-                ?  ~0 \
-                : (~(~0 << __gcmGETSIZE(reg##_##field))) \
+                ?  ~0U \
+                : (~(~0U << __gcmGETSIZE(reg##_##field))) \
         ) \
 )
 
@@ -376,14 +376,6 @@ gckVGKERNEL_Construct(
 gceSTATUS
 gckVGKERNEL_Destroy(
     IN gckVGKERNEL Kernel
-    );
-
-/* Unlock video memory from gpu. */
-gceSTATUS
-gckVGKERNEL_BottomHalfUnlockVideoMemory(
-    IN gckKERNEL Kernel,
-    IN gctUINT32 ProcessID,
-    IN gctUINT32 Node
     );
 
 /* Unmap memory. */

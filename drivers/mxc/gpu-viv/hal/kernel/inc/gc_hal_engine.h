@@ -99,12 +99,15 @@ typedef struct _gcsSURF_RESOLVE_ARGS
 }
 gcsSURF_RESOLVE_ARGS;
 
-typedef struct _gcsSURF_VIEW
+typedef struct _gscBUFFER_VIEW
 {
-    gcoSURF surf;
-    gctUINT firstSlice;
-    gctUINT numSlices;
-}gcsSURF_VIEW;
+    gctUINT32 cmd;
+}gcsBUFFER_VIEW, *gcsBUFFER_VIEW_PTR;
+
+typedef struct _gcsIMAGE_VIEW
+{
+    gctUINT32 cmd;
+}gcsIMAGE_VIEW, *gcsIMAGE_VIEW_PTR;
 
 #if gcdENABLE_3D
 /******************************************************************************\
@@ -238,6 +241,7 @@ typedef struct _gcsSURF_BLIT_ARGS
     gctBOOL     scissorTest;
     gcsRECT     scissor;
     gctUINT     flags;
+    gctUINT     srcNumSlice, dstNumSlice;
 }
 gcsSURF_BLIT_ARGS;
 
@@ -310,6 +314,54 @@ typedef enum _gceBLITDRAW_TYPE
  }
 gceBLITDRAW_TYPE;
 
+typedef enum _gceSPLIT_DRAW_TYPE
+{
+    gcvSPLIT_DRAW_UNKNOWN      = 0x0,
+    gcvSPLIT_DRAW_1,
+    gcvSPLIT_DRAW_2,
+    gcvSPLIT_DRAW_3,
+    gcvSPLIT_DRAW_XFB,
+    gcvSPLIT_DRAW_INDEX_FETCH,
+    gcvSPLIT_DRAW_TCS,
+    gcvSPLIT_DRAW_LAST
+}
+gceSPLIT_DRAW_TYPE;
+
+typedef gceSTATUS (* gctSPLIT_DRAW_FUNC_PTR)(
+    IN gctPOINTER gc,
+    IN gctPOINTER instantDraw,
+    IN gctPOINTER splitDrawInfo
+    );
+
+typedef struct _gcsSPLIT_DRAW_INFO
+{
+    gceSPLIT_DRAW_TYPE     splitDrawType;
+    gctSPLIT_DRAW_FUNC_PTR splitDrawFunc;
+
+    union _gcsSPLIT_DRAW_UNION
+    {
+        /* This path will split many draw.*/
+        struct __gcsSPLIT_DRAW_INFO_TCS
+        {
+            gctPOINTER      indexPtr;
+            gctUINT         baseOffset;
+            gctUINT         indexPerPatch;
+        }info_tcs;
+
+        /* This path split into two draw at most.
+        ** es11 path follow the old code, es30 path
+        ** add more info parameter to record
+        */
+        struct __gcsSPLIT_DRAW_INFO_INDEX_FETCH
+        {
+            gctSIZE_T       instanceCount;
+            gctSIZE_T       splitCount;
+            gcePRIMITIVE    splitPrimMode;
+            gctSIZE_T       splitPrimCount;
+        }info_index_fetch;
+    }u;
+} gcsSPLIT_DRAW_INFO,
+*gcsSPLIT_DRAW_INFO_PTR;
 
 typedef struct _gscSURF_BLITDRAW_ARGS
 {
@@ -529,14 +581,6 @@ gcoSURF_DrawBlit(
     gscSURF_BLITDRAW_BLIT *Args
     );
 
-gceSTATUS
-gcoSURF_3DBlitCopy(
-    IN gceENGINE Engine,
-    IN gctUINT32 SrcAddress,
-    IN gctUINT32 DestAddress,
-    IN gctUINT32 Bytes
-    );
-
 
 /******************************************************************************\
 ******************************** gcoINDEX Object *******************************
@@ -706,8 +750,7 @@ gceSTATUS
 gco3D_SetTarget(
     IN gco3D Engine,
     IN gctUINT32 TargetIndex,
-    IN gcoSURF Surface,
-    IN gctUINT32 SliceIndex,
+    IN gcsSURF_VIEW *SurfView,
     IN gctUINT32 LayerIndex
     );
 
@@ -746,8 +789,7 @@ gco3D_IsProgramSwitched(
 gceSTATUS
 gco3D_SetDepth(
     IN gco3D Engine,
-    IN gcoSURF Surface,
-    IN gctUINT32 SliceIndex
+    IN gcsSURF_VIEW *SurfView
     );
 
 /* Unset depth buffer. */
@@ -1328,9 +1370,6 @@ gco3D_DrawInstancedPrimitives(
     IN gctSIZE_T StartIndex,
     IN gctSIZE_T PrimitiveCount,
     IN gctSIZE_T VertexCount,
-    IN gctBOOL SpilitDraw,
-    IN gctSIZE_T SpilitCount,
-    IN gcePRIMITIVE SpilitType,
     IN gctSIZE_T InstanceCount
     );
 
@@ -1365,10 +1404,7 @@ gco3D_DrawIndexedPrimitives(
     IN gcePRIMITIVE Type,
     IN gctSIZE_T BaseVertex,
     IN gctSIZE_T StartIndex,
-    IN gctSIZE_T PrimitiveCount,
-    IN gctBOOL SpilitDraw,
-    IN gctSIZE_T SpilitCount,
-    IN gcePRIMITIVE SpilitType
+    IN gctSIZE_T PrimitiveCount
     );
 
 /* Draw a number of indexed primitives using offsets. */
@@ -1607,6 +1643,7 @@ typedef struct _gcsTHREAD_WALKER_INFO
     gctUINT32   workGroupCountZ;
 
     gctUINT32   threadAllocation;
+    gctBOOL     barrierUsed;
 
     gctBOOL     indirect;
     gctUINT32   groupNumberUniformIdx;
@@ -2590,7 +2627,6 @@ typedef struct _gcsATTRIBUTE
 gcsATTRIBUTE,
 * gcsATTRIBUTE_PTR;
 
-
 typedef struct _gcsVERTEXARRAY
 {
     /* Enabled. */
@@ -2642,12 +2678,93 @@ gcoVERTEXARRAY_Destroy(
     IN gcoVERTEXARRAY Vertex
     );
 
+/* If don't consider isolation, STREAM_INFO / INDEX_INFO could be
+** include in the struct of instantDraw in chip level.*/
+typedef struct _gcsVERTEXARRAY_STREAM_INFO
+{
+    gctUINT          attribMask;
+    gctSIZE_T        first;
+    gctSIZE_T        count;
+    gcePRIMITIVE     primMode;
+    gctSIZE_T        primCount;
+    gctINT           vertexInstIndex;
+    gctBOOL          instanced;
+    gctSIZE_T        instanceCount;
+
+    union _gcsVERTEXARRAY_STREAM_INFO_UNION
+    {
+        struct _gcsVERTEXARRAY_STREAM_ES11_INFO
+        {
+            gcsVERTEXARRAY_PTR    attributes;
+        }es11;
+
+        struct _gcsVERTEXARRAY_STREAM_ES30_INFO
+        {
+            gcsATTRIBUTE_PTR      attributes;
+        }es30;
+    }u;
+}gcsVERTEXARRAY_STREAM_INFO,
+*gcsVERTEXARRAY_STREAM_INFO_PTR;
+
+typedef const struct _gcsVERTEXARRAY_STREAM_INFO* gcsVERTEXARRAY_STREAM_INFO_CONST_PTR;
+
+typedef struct _gcsVERTEXARRAY_INDEX_INFO
+{
+    gctSIZE_T        count;
+    gceINDEX_TYPE    indexType;
+    gctPOINTER       indexMemory;
+
+    union _gcsVERTEXARRAY_INDEX_INFO_UNION
+    {
+        struct _gcsVERTEXARRAY_INDEX_ES11_INFO
+        {
+            gcoINDEX         indexBuffer;
+        }es11;
+
+        struct _gcsVERTEXARRAY_INDEX_ES30_INFO
+        {
+            gcoBUFOBJ        indexBuffer;
+        }es30;
+    }u;
+}gcsVERTEXARRAY_INDEX_INFO,
+*gcsVERTEXARRAY_INDEX_INFO_PTR;
+
+typedef const struct _gcsVERTEXARRAY_INDEX_INFO* gcsVERTEXARRAY_INDEX_INFO_CONST_PTR;
+
 gceSTATUS
-gcoVERTEXARRAY_IndexUpdate(
-    IN gctSIZE_T * Count,
-    IN gceINDEX_TYPE IndexType,
-    IN gcoBUFOBJ IndexObject,
-    IN gctPOINTER IndexMemory
+gcoVERTEXARRAY_IndexBind(
+    IN gcoVERTEXARRAY Vertex,
+    IN gcsVERTEXARRAY_INDEX_INFO_PTR IndexInfo
+    );
+
+gceSTATUS
+gcoVERTEXARRAY_StreamBind(
+    IN gcoVERTEXARRAY Vertex,
+#if gcdUSE_WCLIP_PATCH
+    IN OUT gctFLOAT * WLimitRms,
+    IN OUT gctBOOL * WLimitRmsDirty,
+#endif
+    IN gcsVERTEXARRAY_STREAM_INFO_CONST_PTR StreamInfo,
+    IN gcsVERTEXARRAY_INDEX_INFO_CONST_PTR IndexInfo
+    );
+
+/* TODO: will be merge with indexbind in es30 driver later.*/
+gceSTATUS
+gcoVERTEXARRAY_IndexBind_Ex(
+    IN gcoVERTEXARRAY Vertex,
+    IN OUT gcsVERTEXARRAY_STREAM_INFO_PTR StreamInfo,
+    IN gcsVERTEXARRAY_INDEX_INFO_PTR IndexInfo
+    );
+
+gceSTATUS
+gcoVERTEXARRAY_StreamBind_Ex(
+    IN gcoVERTEXARRAY Vertex,
+#if gcdUSE_WCLIP_PATCH
+    IN OUT gctFLOAT * WLimitRms,
+    IN OUT gctBOOL * WLimitRmsDirty,
+#endif
+    IN OUT gcsVERTEXARRAY_STREAM_INFO_PTR StreamInfo,
+    IN gcsVERTEXARRAY_INDEX_INFO_PTR IndexInfo
     );
 
 gceSTATUS
@@ -2713,9 +2830,6 @@ gcoVERTEXARRAY_Bind(
     IN gcoINDEX IndexObject,
     IN gctPOINTER IndexMemory,
     IN OUT gcePRIMITIVE * PrimitiveType,
-    IN OUT gctBOOL * SpilitDraw,
-    IN OUT gctSIZE_T * SpilitCount,
-    IN OUT gcePRIMITIVE * SpilitPrimitiveType,
 #if gcdUSE_WCLIP_PATCH
     IN OUT gctUINT * PrimitiveCount,
     IN OUT gctFLOAT * wLimitRms,
@@ -2812,6 +2926,16 @@ gcoHAL_AddFrameDB(
 gceSTATUS
 gcoHAL_DumpFrameDB(
     gctCONST_STRING Filename OPTIONAL
+    );
+
+gceSTATUS
+gcoHAL_InitGPUProfile(
+    void
+    );
+
+gceSTATUS
+gcoHAL_DumpGPUProfile(
+    void
     );
 
 /******************************************************************************
