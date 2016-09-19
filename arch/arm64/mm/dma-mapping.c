@@ -28,6 +28,7 @@
 #include <linux/dma-contiguous.h>
 #include <linux/vmalloc.h>
 #include <linux/swiotlb.h>
+#include <linux/of.h>
 
 #include <asm/cacheflush.h>
 
@@ -361,6 +362,22 @@ static int __swiotlb_dma_mapping_error(struct device *hwdev, dma_addr_t addr)
 	if (swiotlb)
 		return swiotlb_dma_mapping_error(hwdev, addr);
 	return 0;
+}
+
+/*
+ * Some 64bit SoCs only support up to 32bit dma capability.
+ * Do quirk set here.
+ */
+static int __swiotlb_dma_supported_quirk(struct device *hwdev, u64 mask)
+{
+	if (mask > DMA_BIT_MASK(32)) {
+		pr_err("Can't support > 32 bit dma.\n");
+		return 0;
+	}
+
+	if (swiotlb)
+		return swiotlb_dma_supported(hwdev, mask);
+	return 1;
 }
 
 static struct dma_map_ops swiotlb_dma_ops = {
@@ -965,6 +982,15 @@ void arch_teardown_dma_ops(struct device *dev)
 	dev->archdata.dma_ops = NULL;
 }
 
+static int iommu_dma_supported_quirk(struct device *dev, u64 mask)
+{
+	if (mask > DMA_BIT_MASK(32)) {
+		pr_err("Can't support > 32 bit dma.\n");
+		return 0;
+	}
+
+	return iommu_dma_supported(dev, mask);
+}
 #else
 
 static void __iommu_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
@@ -976,9 +1002,24 @@ static void __iommu_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
 void arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
 			const struct iommu_ops *iommu, bool coherent)
 {
+	u32 mask32;
+	struct device_node *np;
+
 	if (!dev->archdata.dma_ops)
 		dev->archdata.dma_ops = &swiotlb_dma_ops;
 
 	dev->archdata.dma_coherent = coherent;
 	__iommu_setup_dma_ops(dev, dma_base, size, iommu);
+
+	np = of_find_compatible_node(NULL, NULL, "dma-capability");
+	if (np == NULL)
+		return;
+	if (of_property_read_u32(np, "only-dma-mask32", &mask32))
+		mask32 = 0;
+	if (mask32) {
+		swiotlb_dma_ops.dma_supported = __swiotlb_dma_supported_quirk;
+#ifdef CONFIG_IOMMU_DMA
+		iommu_dma_ops.dma_supported = iommu_dma_supported_quirk;
+#endif
+	}
 }
