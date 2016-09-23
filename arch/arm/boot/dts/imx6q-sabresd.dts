@@ -20,11 +20,6 @@
 	compatible = "fsl,imx6q-sabresd", "fsl,imx6q";
 };
 
-&battery {
-	offset-charger = <1900>;
-	offset-discharger = <1694>;
-	offset-usb-charger = <1685>;
-};
 
 &ldb {
 	lvds-channel@0 {
