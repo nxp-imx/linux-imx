@@ -859,11 +859,13 @@ static int drv_init(void)
     printk(KERN_INFO "Galcore version %d.%d.%d.%d\n",
         gcvVERSION_MAJOR, gcvVERSION_MINOR, gcvVERSION_PATCH, gcvVERSION_BUILD);
 
+#if !VIVANTE_PROFILER_PM
     /* when enable gpu profiler, we need to turn off gpu powerMangement */
     if (gpuProfiler)
     {
         powerManagement = 0;
     }
+#endif
 
     args.powerManagement = powerManagement;
     args.gpuProfiler = gpuProfiler;

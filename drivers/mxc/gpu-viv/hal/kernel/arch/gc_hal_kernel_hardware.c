@@ -1259,6 +1259,14 @@ _QueryFeatureDatabase(
         available = database->RA_CG_FIX;
         break;
 
+    case gcvFEATURE_SH_CLOCK_GATE_FIX:
+        available = database->SH_CLOCK_GATE_FIX;
+        break;
+
+    case gcvFEATURE_ZERO_ATTRIB_SUPPORT:
+        available = database->REG_Halti4;
+        break;
+
     default:
         gcmkFATAL("Invalid feature has been requested.");
         available = gcvFALSE;
@@ -2260,12 +2268,35 @@ gckHARDWARE_InitializeHardware(
                                  &regPMC));
         }
 
-        /* Disable TX clock gating. */
+        /* Disable RA clock gating. */
         regPMC = ((((gctUINT32) (regPMC)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  6:6) - (0 ? 6:6) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 6:6) - (0 ? 6:6) + 1))))))) << (0 ?
  6:6))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 6:6) - (0 ?
  6:6) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 6:6) - (0 ? 6:6) + 1))))))) << (0 ?
  6:6)));
+    }
+
+    if ((gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_HALTI5)
+       && !gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_SH_CLOCK_GATE_FIX)
+        )
+       )
+    {
+        if (regPMC == 0)
+        {
+        gcmkONERROR(
+            gckOS_ReadRegisterEx(Hardware->os,
+                                 Hardware->core,
+                                 Hardware->powerBaseAddress
+                                 + 0x00104,
+                                 &regPMC));
+        }
+
+        /* Disable SH clock gating. */
+        regPMC = ((((gctUINT32) (regPMC)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+ 3:3) - (0 ? 3:3) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 3:3) - (0 ? 3:3) + 1))))))) << (0 ?
+ 3:3))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 3:3) - (0 ?
+ 3:3) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 3:3) - (0 ? 3:3) + 1))))))) << (0 ?
+ 3:3)));
     }
 
     if (regPMC != 0)

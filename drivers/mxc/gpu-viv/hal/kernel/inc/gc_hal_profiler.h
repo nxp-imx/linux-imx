@@ -1057,6 +1057,7 @@ struct _gcoPROFILER
     gctBOOL                     isSyncMode;
 
     gctFILE                     file;
+    gctCHAR*                    fileName;
 
     gcsCounterBuffer            counterBuf[NumOfDrawBuf];
     gctINT32                    curBufId;
@@ -1187,6 +1188,11 @@ gceSTATUS
 gcoPROFILER_NEW_Enable(
     IN gcoPROFILER Profiler
     );
+
+gceSTATUS
+gcoPROFILER_NEW_Disable(
+    void
+);
 
 gceSTATUS
 gcoPROFILER_NEW_Begin(

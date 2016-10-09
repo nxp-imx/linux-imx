@@ -243,9 +243,6 @@ typedef enum _gceHAL_COMMAND_CODES
     gcvHAL_DEC300_FLUSH_WAIT,
 #endif
 
-#ifdef VSIMULATOR_DEBUG
-    gcvHAL_SET_DEBUG_CALLBACK,
-#endif
     gcvHAL_BOTTOM_HALF_UNLOCK_VIDEO_MEMORY
 
 }
@@ -1007,9 +1004,6 @@ typedef struct _gcsHAL_INTERFACE
             /* Message to print if not empty. */
             IN gctCHAR                  message[80];
 
-#ifdef VSIMULATOR_DEBUG
-            IN VSIMULATOR_CALLBACK      Callback;
-#endif
         }
         Debug;
 

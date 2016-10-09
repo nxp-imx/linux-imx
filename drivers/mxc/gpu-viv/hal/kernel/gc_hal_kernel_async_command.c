@@ -216,6 +216,11 @@ gckASYNC_COMMAND_Destroy(
             gcmkOS_SAFE_FREE(Command->os, Command->kList);
         }
 
+        if (Command->fe.freeDscriptors)
+        {
+            gcmkOS_SAFE_FREE(Command->os, Command->fe.freeDscriptors);
+        }
+
         gcmkOS_SAFE_FREE(Command->os, Command);
     }
 

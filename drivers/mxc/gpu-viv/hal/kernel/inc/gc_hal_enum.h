@@ -494,6 +494,7 @@ typedef enum _gceFEATURE
     gcvFEATURE_FE_PATCHLIST_FETCH_FIX,
     gcvFEATURE_RA_CG_FIX,
     gcvFEATURE_SH_HALF_DEPENDENCY_FIX,
+    gcvFEATURE_SH_CLOCK_GATE_FIX,
     /* Insert features above this comment only. */
     gcvFEATURE_COUNT                /* Not a feature. */
 }
@@ -650,6 +651,8 @@ typedef enum _gceSURF_TYPE
     gcvSURF_DEC                = 0x80000,  /* Surface is DEC compressed */
 
     gcvSURF_NO_HZ              = 0x100000,
+
+    gcvSURF_CMA_LIMIT           = 0x200000,
 
     gcvSURF_TEXTURE_LINEAR               = gcvSURF_TEXTURE
                                          | gcvSURF_LINEAR,
@@ -2052,6 +2055,7 @@ gceSECURE_MODE;
 #define gcvALLOC_FLAG_USERMEMORY_BIT        6
 #define gcvALLOC_FLAG_EXTERNAL_MEMORY_BIT   7
 #define gcvALLOC_FLAG_ALLOC_ON_FAULT_BIT    8
+#define gcvALLOC_FLAG_CMA_LIMIT_BIT          9
 
 /* No special needs. */
 #define gcvALLOC_FLAG_NONE              (0)
@@ -2074,6 +2078,9 @@ gceSECURE_MODE;
 
 /* Real allocation happens when GPU page fault. */
 #define gcvALLOC_FLAG_ALLOC_ON_FAULT    (1 << gcvALLOC_FLAG_ALLOC_ON_FAULT_BIT)
+
+/* CMA allocator only */
+#define gcvALLOC_FLAG_CMA_LIMIT          (1 << gcvALLOC_FLAG_CMA_LIMIT_BIT)
 
 /* GL_VIV internal usage */
 #ifndef GL_MAP_BUFFER_OBJ_VIV

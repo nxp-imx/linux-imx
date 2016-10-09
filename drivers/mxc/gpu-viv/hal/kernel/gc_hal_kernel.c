@@ -3078,10 +3078,6 @@ gckKERNEL_Dispatch(
         break;
 #endif
 
-#ifdef VSIMULATOR_DEBUG
-    case gcvHAL_SET_DEBUG_CALLBACK:
-        break;
-#endif
 
     default:
         /* Invalid command. */

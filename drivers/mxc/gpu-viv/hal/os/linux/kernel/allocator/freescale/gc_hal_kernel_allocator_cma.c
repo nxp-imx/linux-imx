@@ -141,6 +141,13 @@ _CMAFSLAlloc(
 
     gcmkHEADER_ARG("Mdl=%p NumPages=%d", Mdl, NumPages);
 
+#if IMX8_CMA_LIMIT
+    if (!(Flags & gcvALLOC_FLAG_CMA_LIMIT))
+    {
+        gcmkONERROR(gcvSTATUS_NOT_SUPPORTED);
+    }
+#endif
+
     gcmkONERROR(gckOS_Allocate(os, sizeof(struct mdl_cma_priv), (gctPOINTER *)&mdl_priv));
     mdl_priv->kvaddr = gcvNULL;
 
@@ -432,6 +439,10 @@ _CMAFSLAlloctorInit(
     allocator->debugfsCleanup = _DefaultAllocatorDebugfsCleanup;
 
     allocator->capability = gcvALLOC_FLAG_CONTIGUOUS;
+
+#if IMX8_CMA_LIMIT
+    allocator->capability |= gcvALLOC_FLAG_CMA_LIMIT;
+#endif
 
     *Allocator = allocator;
 

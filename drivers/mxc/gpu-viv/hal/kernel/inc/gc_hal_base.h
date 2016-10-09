@@ -110,81 +110,6 @@ gceFENCE_TYPE;
 
 typedef struct _gcsUSER_MEMORY_DESC *   gcsUSER_MEMORY_DESC_PTR;
 
-#ifdef VSIMULATOR_DEBUG
-
-typedef struct _vsimulator_workitem
-{
-    gctINT32 xgid;
-    gctINT32 ygid;
-    gctINT32 zgid;
-}
-vsimulator_workitem;
-
-typedef struct _vsimulator_breakpoint
-{
-    gctINT32 pos;
-    gctBOOL enable;
-}
-vsimulator_breakpoint;
-
-typedef struct _vsimulator_instruction
-{
-    gctUINT32*  inst;
-    gctUINT32   inst_count;
-    gctCHAR*    inst_string[2048];
-}
-vsimulator_instruction;
-
-typedef struct _vsimulator_debug_point
-{
-    gctINT32   breakWorkItem;
-    void*      kernel_ptr;
-    vsimulator_instruction inst;
-    vsimulator_workitem   workitem[10];
-    vsimulator_breakpoint breakPoint[10];
-}
-vsimulator_debug_point;
-
-typedef struct _VSIMULATOR_SHADER
-{
-    gctPOINTER       graph;
-    gcsSURF_NODE_PTR memnode;
-    gctPOINTER       node;
-    gctPOINTER       program;
-    gctCHAR*         name;
-    gctPOINTER       parent;
-    gctCHAR*         source;
-    gctPOINTER       debugInfo;
-    gctUINT32        border;
-    gctINT32         type;
-    gctUINT32        breakflag;
-    gctUINT32        executed;
-    gctINT32         index;
-    gctINT32         position;
-
-    vsimulator_debug_point   debug;
-
-}VSIMULATOR_SHADER;
-
-typedef void (*DISASSEMBLE)(gctUINT32 * Instruction, gctCHAR** Buffer);
-typedef void (*QUERYSHADER)(gctUINT32 Physical, gctINT32 Index, gctPOINTER Shader);
-typedef void (*QUERYSHADERLIST)(gctUINT32 Physical, VSIMULATOR_SHADER** Lists, gctUINT32* Count);
-typedef int (*GETSRCLINEBYPC)(void * ptr,unsigned int pc, unsigned int * line);
-typedef void (*GETPCBYSRCLINE)(void * ptr, unsigned int src, unsigned int * start, unsigned int * end);
-typedef void (* GETNEARPCBYSRCLINE)(void * ptr, unsigned int src,unsigned int * newSrc, unsigned int * start, unsigned int * end);
-
-typedef struct _VSIMULATOR_CALLBACK
-{
-    DISASSEMBLE       disassemble;
-    QUERYSHADER       queryshader;
-    QUERYSHADERLIST   queryshaderlists;
-    GETSRCLINEBYPC    getSrcLineByPC;
-    GETPCBYSRCLINE    getPCBySrcLine;
-    GETNEARPCBYSRCLINE getNearPcBySrcLine;
-    gctUINT32         enable;
-}VSIMULATOR_CALLBACK;
-
-#endif
 
 
 /******************************************************************************\
@@ -2026,12 +1951,6 @@ gcoOS_QuerySystemInfo(
     OUT gcsSystemInfo *Info
     );
 
-#ifdef VSIMULATOR_DEBUG
-gceSTATUS
-gcoOS_SetSimulatorCallback(
-    IN VSIMULATOR_CALLBACK Callback
-    );
-#endif
 
 /*----------------------------------------------------------------------------*/
 /*----- Profile --------------------------------------------------------------*/

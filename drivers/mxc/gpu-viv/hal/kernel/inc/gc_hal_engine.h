@@ -344,7 +344,6 @@ typedef struct _gcsSPLIT_DRAW_INFO
         struct __gcsSPLIT_DRAW_INFO_TCS
         {
             gctPOINTER      indexPtr;
-            gctUINT         baseOffset;
             gctUINT         indexPerPatch;
         }info_tcs;
 
