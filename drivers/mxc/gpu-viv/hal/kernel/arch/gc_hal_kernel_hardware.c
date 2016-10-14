@@ -1502,8 +1502,11 @@ gckHARDWARE_Construct(
     /* Identify the hardware. */
     gcmkONERROR(_IdentifyHardwareByDatabase(hardware, Os, Core, &hardware->identity));
 
-    /* Get the system's physical base address. */
-    gcmkONERROR(gckOS_GetBaseAddress(Os, &hardware->baseAddress));
+    /* Get the system's physical base address for old MMU */
+    if (hardware->mmuVersion == 0)
+    {
+        gcmkONERROR(gckOS_GetBaseAddress(Os, &hardware->baseAddress));
+    }
 
     /* Determine the hardware type */
     if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_PIPE_3D)

@@ -1930,10 +1930,10 @@ gckKERNEL_Dispatch(
     {
     case gcvHAL_GET_BASE_ADDRESS:
         /* Get base address. */
-        Interface->u.GetBaseAddress.baseAddress = Kernel->hardware->baseAddress;
+        gcmkONERROR(
+            gckHARDWARE_GetBaseAddress(kernel->hardware, &Interface->u.GetBaseAddress.baseAddress));
 
         Interface->u.GetBaseAddress.flatMappingStart = Kernel->mmu->flatMappingStart;
-
         Interface->u.GetBaseAddress.flatMappingEnd = Kernel->mmu->flatMappingEnd;
         break;
 
