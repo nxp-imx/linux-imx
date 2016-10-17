@@ -3222,11 +3222,11 @@ gckKERNEL_AttachProcessEx(
     }
     else
     {
+        /* Clean up the process database. */
+        gckKERNEL_DestroyProcessDB(Kernel, PID);
+
         if (Kernel->dbCreated)
         {
-            /* Clean up the process database. */
-            gcmkONERROR(gckKERNEL_DestroyProcessDB(Kernel, PID));
-
             /* Save the last know process ID. */
             Kernel->db->lastProcessID = PID;
         }

@@ -1250,6 +1250,7 @@ gckKERNEL_DestroyProcessDB(
     gckKERNEL kernel = Kernel;
     gctUINT32 handle;
     gctUINT32 i;
+    gctBOOL deleteDB = gcvTRUE;
 
     gcmkHEADER_ARG("Kernel=0x%x ProcessID=%d", Kernel, ProcessID);
 
@@ -1298,6 +1299,12 @@ gckKERNEL_DestroyProcessDB(
     {
         /* Next next record. */
         next = record->next;
+
+        if (record->kernel != Kernel)
+        {
+            deleteDB = gcvFALSE;
+            continue;
+        }
 
         /* Dispatch on record type. */
         switch (record->type)
@@ -1514,8 +1521,11 @@ gckKERNEL_DestroyProcessDB(
 
     }
 
-    /* Delete the database. */
-    gcmkONERROR(gckKERNEL_DeleteDatabase(Kernel, database));
+    if (deleteDB == gcvTRUE)
+    {
+        /* Delete the database. */
+        gcmkONERROR(gckKERNEL_DeleteDatabase(Kernel, database));
+    }
 
     /* Success. */
     gcmkFOOTER_NO();
