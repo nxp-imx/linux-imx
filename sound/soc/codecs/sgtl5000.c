@@ -1,7 +1,8 @@
 /*
  * sgtl5000.c  --  SGTL5000 ALSA SoC Audio driver
  *
- * Copyright 2010-2011 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2010-2016 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2017 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -29,6 +30,7 @@
 #include <sound/soc.h>
 #include <sound/soc-dapm.h>
 #include <sound/initval.h>
+#include <linux/mfd/syscon.h>
 
 #include "sgtl5000.h"
 
@@ -1207,6 +1209,8 @@ static void sgtl5000_fill_defaults(struct i2c_client *client)
 static int sgtl5000_i2c_probe(struct i2c_client *client,
 			      const struct i2c_device_id *id)
 {
+	struct device_node *gpr_np;
+	struct regmap *gpr;
 	struct sgtl5000_priv *sgtl5000;
 	int ret, reg, rev;
 	struct device_node *np = client->dev.of_node;
@@ -1228,6 +1232,26 @@ static int sgtl5000_i2c_probe(struct i2c_client *client,
 		ret = PTR_ERR(sgtl5000->regmap);
 		dev_err(&client->dev, "Failed to allocate regmap: %d\n", ret);
 		goto disable_regs;
+	}
+
+	gpr_np = of_parse_phandle(np, "gpr", 0);
+	if (gpr_np) {
+		u32 para[4];
+
+		gpr = syscon_node_to_regmap(gpr_np);
+		if (IS_ERR(gpr)) {
+			ret = PTR_ERR(gpr);
+			dev_err(&client->dev, "Failed to get gpr regmap\n");
+			return ret;
+		}
+
+		ret = of_property_read_u32_array(np, "gpr", para, 4);
+		if(ret) {
+			dev_err(&client->dev, "Failed to get of_property_read_u32_array, ret %d\n", ret);
+			return ret;
+		}
+
+		regmap_update_bits(gpr, para[1], para[2], para[3]);
 	}
 
 	sgtl5000->mclk = devm_clk_get(&client->dev, NULL);
