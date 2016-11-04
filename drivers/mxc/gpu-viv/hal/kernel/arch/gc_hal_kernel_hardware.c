@@ -468,6 +468,11 @@ OnError:
 #define gcdDISABLE_RA_EZ_CLOCK_GATING         0
 #define gcdDISABLE_RA_HZ_CLOCK_GATING         0
 #define gcdDISABLE_TX_CLOCK_GATING            0
+#define gcdDISABLE_TFB_CLOCK_GATING           0
+#define gcdDISABLE_GPIPE_CLOCK_GATING         0
+#define gcdDISABLE_BLT_CLOCK_GATING           0
+#define gcdDISABLE_TPG_CLOCK_GATING           0
+#define gcdDISABLE_VX_CLOCK_GATING            0
 
 #if gcdDEBUG_MODULE_CLOCK_GATING
 gceSTATUS
@@ -554,6 +559,46 @@ _ConfigureModuleLevelClockGating(
  17:17) + 1))))))) << (0 ? 17:17))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ?
  17:17) - (0 ? 17:17) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 17:17) - (0 ?
  17:17) + 1))))))) << (0 ? 17:17)));
+#endif
+
+#if gcdDISABLE_TFB_CLOCK_GATING
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+ 19:19) - (0 ? 19:19) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 19:19) - (0 ?
+ 19:19) + 1))))))) << (0 ? 19:19))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ?
+ 19:19) - (0 ? 19:19) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 19:19) - (0 ?
+ 19:19) + 1))))))) << (0 ? 19:19)));
+#endif
+
+#if gcdDISABLE_GPIPE_CLOCK_GATING
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+ 22:22) - (0 ? 22:22) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 22:22) - (0 ?
+ 22:22) + 1))))))) << (0 ? 22:22))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ?
+ 22:22) - (0 ? 22:22) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 22:22) - (0 ?
+ 22:22) + 1))))))) << (0 ? 22:22)));
+#endif
+
+#if gcdDISABLE_BLT_CLOCK_GATING
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+ 20:20) - (0 ? 20:20) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 20:20) - (0 ?
+ 20:20) + 1))))))) << (0 ? 20:20))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ?
+ 20:20) - (0 ? 20:20) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 20:20) - (0 ?
+ 20:20) + 1))))))) << (0 ? 20:20)));
+#endif
+
+#if gcdDISABLE_TPG_CLOCK_GATING
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+ 18:18) - (0 ? 18:18) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 18:18) - (0 ?
+ 18:18) + 1))))))) << (0 ? 18:18))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ?
+ 18:18) - (0 ? 18:18) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 18:18) - (0 ?
+ 18:18) + 1))))))) << (0 ? 18:18)));
+#endif
+
+#if gcdDISABLE_VX_CLOCK_GATING
+    data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+ 21:21) - (0 ? 21:21) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 21:21) - (0 ?
+ 21:21) + 1))))))) << (0 ? 21:21))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ?
+ 21:21) - (0 ? 21:21) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 21:21) - (0 ?
+ 21:21) + 1))))))) << (0 ? 21:21)));
 #endif
 
     gcmkVERIFY_OK(
