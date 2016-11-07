@@ -532,6 +532,11 @@ config CLKSRC_IMX_GPT
 	depends on ARM && CLKDEV_LOOKUP
 	select CLKSRC_MMIO
 
+config CLKSRC_IMX_TPM
+	bool "Clocksource using i.MX TPM" if COMPILE_TEST
+	depends on ARM && CLKDEV_LOOKUP && GENERIC_CLOCKEVENTS
+	select CLKSRC_MMIO
+
 config CLKSRC_ST_LPC
 	bool "Low power clocksource found in the LPC" if COMPILE_TEST
 	select CLKSRC_OF if OF
