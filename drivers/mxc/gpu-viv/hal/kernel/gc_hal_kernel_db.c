@@ -1250,7 +1250,6 @@ gckKERNEL_DestroyProcessDB(
     gckKERNEL kernel = Kernel;
     gctUINT32 handle;
     gctUINT32 i;
-    gctBOOL deleteDB = gcvTRUE;
 
     gcmkHEADER_ARG("Kernel=0x%x ProcessID=%d", Kernel, ProcessID);
 
@@ -1300,12 +1299,6 @@ gckKERNEL_DestroyProcessDB(
         /* Next next record. */
         next = record->next;
 
-        if (record->kernel != Kernel)
-        {
-            deleteDB = gcvFALSE;
-            continue;
-        }
-
         /* Dispatch on record type. */
         switch (record->type)
         {
@@ -1337,7 +1330,7 @@ gckKERNEL_DestroyProcessDB(
                                             record->data);
 
             /* Free the non paged memory. */
-            status = gckEVENT_FreeNonPagedMemory(Kernel->eventObj,
+            status = gckEVENT_FreeNonPagedMemory(record->kernel->eventObj,
                                                  record->bytes,
                                                  physical,
                                                  record->data,
@@ -1372,7 +1365,7 @@ gckKERNEL_DestroyProcessDB(
                                             record->data);
 
             /* Free the contiguous memory. */
-            status = gckEVENT_FreeContiguousMemory(Kernel->eventObj,
+            status = gckEVENT_FreeContiguousMemory(record->kernel->eventObj,
                                                    record->bytes,
                                                    physical,
                                                    record->data,
@@ -1459,7 +1452,7 @@ gckKERNEL_DestroyProcessDB(
 
         case gcvDB_CONTEXT:
             /* TODO: Free the context */
-            status = gckCOMMAND_Detach(Kernel->command, gcmNAME_TO_PTR(record->data));
+            status = gckCOMMAND_Detach(record->kernel->command, gcmNAME_TO_PTR(record->data));
             gcmRELEASE_NAME(record->data);
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
@@ -1469,7 +1462,7 @@ gckKERNEL_DestroyProcessDB(
 
         case gcvDB_MAP_MEMORY:
             /* Unmap memory. */
-            status = gckKERNEL_UnmapMemory(Kernel,
+            status = gckKERNEL_UnmapMemory(record->kernel,
                                            record->physical,
                                            record->bytes,
                                            record->data);
@@ -1496,7 +1489,7 @@ gckKERNEL_DestroyProcessDB(
 
         case gcvDB_SHBUF:
             /* Free shared buffer. */
-            status = gckKERNEL_DestroyShBuffer(Kernel,
+            status = gckKERNEL_DestroyShBuffer(record->kernel,
                                                (gctSHBUF) record->data);
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
@@ -1521,11 +1514,8 @@ gckKERNEL_DestroyProcessDB(
 
     }
 
-    if (deleteDB == gcvTRUE)
-    {
-        /* Delete the database. */
-        gcmkONERROR(gckKERNEL_DeleteDatabase(Kernel, database));
-    }
+    /* Delete the database. */
+    gcmkONERROR(gckKERNEL_DeleteDatabase(Kernel, database));
 
     /* Success. */
     gcmkFOOTER_NO();
