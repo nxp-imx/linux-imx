@@ -19,6 +19,7 @@ extern int imx6sx_cpuidle_init(void);
 extern int imx6ul_cpuidle_init(void);
 extern int imx7d_cpuidle_init(void);
 extern int imx7d_enable_rcosc(void);
+extern int imx7ulp_cpuidle_init(void);
 #else
 static inline int imx5_cpuidle_init(void)
 {
@@ -49,6 +50,10 @@ static inline int imx7d_cpuidle_init(void)
 	return 0;
 }
 static inline int imx7d_enable_rcosc(void)
+{
+	return 0;
+}
+static inline int imx7ulp_cpuidle_init(void)
 {
 	return 0;
 }
