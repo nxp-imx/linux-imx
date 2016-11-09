@@ -366,13 +366,13 @@ static const struct pinctrl_pin_desc imx7ulp_pinctrl_pads_1[] = {
 static struct imx_pinctrl_soc_info imx7ulp_pinctrl_info_0 = {
 	.pins = imx7ulp_pinctrl_pads_0,
 	.npins = ARRAY_SIZE(imx7ulp_pinctrl_pads_0),
-	.flags = ZERO_OFFSET_VALID | SHARE_MUX_CONF_REG,
+	.flags = ZERO_OFFSET_VALID | SHARE_MUX_CONF_REG | CONFIG_IBE_OBE,
 };
 
 static struct imx_pinctrl_soc_info imx7ulp_pinctrl_info_1 = {
 	.pins = imx7ulp_pinctrl_pads_1,
 	.npins = ARRAY_SIZE(imx7ulp_pinctrl_pads_1),
-	.flags = ZERO_OFFSET_VALID | SHARE_MUX_CONF_REG,
+	.flags = ZERO_OFFSET_VALID | SHARE_MUX_CONF_REG | CONFIG_IBE_OBE,
 };
 
 static struct of_device_id imx7ulp_pinctrl_of_match[] = {

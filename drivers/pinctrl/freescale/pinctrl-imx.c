@@ -33,6 +33,8 @@
 #define IMX_NO_PAD_CTL	0x80000000	/* no pin config need */
 #define IMX_PAD_SION 0x40000000		/* set SION */
 
+#define IOMUXC_IBE	(1 << 16)
+#define IOMUXC_OBE	(1 << 17)
 /**
  * @dev: a pointer back to containing device
  * @base: the offset to the controller in virtual memory
@@ -312,7 +314,7 @@ static int imx_pmx_gpio_request_enable(struct pinctrl_dev *pctldev,
 	struct imx_pin_group *grp;
 	struct imx_pin *imx_pin;
 	unsigned int pin, group;
-	u32 reg;
+	u32 reg, mux_shift;
 
 	/* Currently implementation only for shared mux/conf register */
 	if (!(info->flags & SHARE_MUX_CONF_REG))
@@ -327,7 +329,7 @@ static int imx_pmx_gpio_request_enable(struct pinctrl_dev *pctldev,
 		grp = &info->groups[group];
 		for (pin = 0; pin < grp->npins; pin++) {
 			imx_pin = &grp->pins[pin];
-			if (imx_pin->pin == offset && !imx_pin->mux_mode)
+			if (imx_pin->pin == offset)
 				goto mux_pin;
 		}
 	}
@@ -337,6 +339,9 @@ static int imx_pmx_gpio_request_enable(struct pinctrl_dev *pctldev,
 mux_pin:
 	reg = readl(ipctl->base + pin_reg->mux_reg);
 	reg &= ~info->mux_mask;
+	mux_shift = info->mux_mask ? ffs(info->mux_mask) - 1 : 0;
+	reg |= (imx_pin->mux_mode << mux_shift);
+	imx_pin->config &= ~info->mux_mask;
 	reg |= imx_pin->config;
 	writel(reg, ipctl->base + pin_reg->mux_reg);
 
@@ -377,8 +382,8 @@ static int imx_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 	u32 reg;
 
 	/*
-	 * Only Vybrid has the input/output buffer enable flags (IBE/OBE)
-	 * They are part of the shared mux/conf register.
+	 * Only Vybrid and i.MX7ULP have the input/output buffer enable
+	 * flags (IBE/OBE) They are part of the shared mux/conf register.
 	 */
 	if (!(info->flags & SHARE_MUX_CONF_REG))
 		return 0;
@@ -389,10 +394,21 @@ static int imx_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 
 	/* IBE always enabled allows us to read the value "on the wire" */
 	reg = readl(ipctl->base + pin_reg->mux_reg);
-	if (input)
-		reg &= ~0x2;
-	else
-		reg |= 0x2;
+	if (input) {
+		if (info->flags & CONFIG_IBE_OBE) {
+			reg &= ~IOMUXC_OBE;
+			reg |= IOMUXC_IBE;
+		} else {
+			reg &= ~0x2;
+		}
+	} else {
+		if (info->flags & CONFIG_IBE_OBE) {
+			reg &= ~IOMUXC_IBE;
+			reg |= IOMUXC_OBE;
+		} else {
+			reg |= 0x2;
+		}
+	}
 	writel(reg, ipctl->base + pin_reg->mux_reg);
 
 	return 0;
