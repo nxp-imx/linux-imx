@@ -168,14 +168,14 @@ static int __init tpm_timer_init(struct device_node *np)
 	__raw_writel(0, timer_base + TPM_CNT);
 	__raw_writel(0, timer_base + TPM_C0SC);
 
-	/* set the prescale div, div by 16 */
-	__raw_writel(0xc, timer_base + TPM_SC);
+	/* set the prescale div, div by 8 = 3MHz */
+	__raw_writel(0xb, timer_base + TPM_SC);
 
 	/* set the MOD register to 0xffffffff for free running counter */
 	__raw_writel(0xffffffff, timer_base + TPM_MOD);
 
-	tpm_clocksource_init(clk_get_rate(clk) / 16);
-	tpm_clockevent_init(clk_get_rate(clk) / 16, irq);
+	tpm_clocksource_init(clk_get_rate(clk) / 8);
+	tpm_clockevent_init(clk_get_rate(clk) / 8, irq);
 
 	val = __raw_readl(timer_base);
 
