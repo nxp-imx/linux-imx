@@ -177,8 +177,6 @@
 			reg = <0x40260000 0x1000>;
 			interrupts = <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clks IMX7ULP_CLK_LPTPM5>;
-			assigned-clocks = <&clks IMX7ULP_CLK_LPTPM5>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
 		};
 
 		lpit: 1@40270000 {
@@ -331,6 +329,8 @@
 			clock-names = "ckil", "osc", "sirc",
 				"firc", "upll", "mpll";
 			#clock-cells = <1>;
+			assigned-clocks = <&clks IMX7ULP_CLK_LPTPM5>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_OSC>;
 		};
 
 		pcc2: pcc2@403F0000 {
