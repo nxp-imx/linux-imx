@@ -376,6 +376,9 @@ dtb-$(CONFIG_SOC_IMX6Q) += \
 	imx6dqscm-1gb-evb-btwifi-fix-ldo.dtb \
 	imx6dqscm-1gb-evb-enetirq-fix-ldo.dtb \
 	imx6dqscm-1gb-evb-hdcp-fix-ldo.dtb \
+	imx6dqscm-1gb-qwks-rev3-fix-ldo.dtb \
+	imx6dqscm-1gb-qwks-rev3-hdcp-fix-ldo.dtb \
+	imx6dqscm-1gb-qwks-rev3-btwifi-fix-ldo.dtb \
 	imx6q-apalis-ixora.dtb \
 	imx6q-apf6dev.dtb \
 	imx6q-arm2.dtb \
