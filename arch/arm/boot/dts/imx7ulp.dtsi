@@ -170,6 +170,15 @@
 		snvs: snvs@40230000 {
 			compatible = "fsl,sec-v4.0-mon","syscon", "simple-mfd";
 			reg = <0x40230000 0x10000>;
+
+			snvs_rtc: snvs-rtc-lp{
+				compatible = "fsl,sec-v4.0-mon-rtc-lp";
+				regmap =<&snvs>;
+				offset = <0x34>;
+				interrupts = <GIC_SPI 69 IRQ_TYPE_LEVEL_HIGH>;
+				clock-names = "snvs-rtc";
+				clocks = <&clks IMX7ULP_CLK_SNVS>;
+			};
 		};
 
 		tpm5: tpm@40260000 {
