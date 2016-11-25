@@ -1113,7 +1113,7 @@ _ConvertUserCommandBufferPointer(
             mappedUserCommandBuffer = &_CommandBufferObject;
         }
         else
-        {  
+        {
             /* Map the command buffer structure into the kernel space. */
             gcmkERR_BREAK(gckOS_MapUserPointer(
                         Command->os,
@@ -3728,7 +3728,7 @@ gckVGCOMMAND_Commit(
                             ));
             }
             else
-            {      
+            {
                 /* Map the command queue into the kernel space. */
                 gcmkERR_BREAK(gckOS_MapUserPointer(
                             Command->os,
@@ -3902,7 +3902,7 @@ gckVGCOMMAND_Commit(
             else
             {
                 gcmkERR_BREAK(gckOS_Free(Command->os, mappedQueue));
-            } 
+            }
         }
         while (gcvFALSE);
 

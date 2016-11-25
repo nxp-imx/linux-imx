@@ -161,7 +161,7 @@ static uint logFileSize = 0;
 module_param(logFileSize,uint, 0644);
 MODULE_PARM_DESC(logFileSize, "Size of buffer to store GC driver output messsage, if it is not 0, message is read from /sys/kernel/debug/gc/galcore_trace, default value is 0");
 
-static uint recovery = 1;
+static uint recovery = 0;
 module_param(recovery, uint, 0644);
 MODULE_PARM_DESC(recovery, "Recover GPU from stuck (1: Enable, 0: Disable)");
 

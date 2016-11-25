@@ -1304,12 +1304,20 @@ _QueryFeatureDatabase(
         available = database->RA_CG_FIX;
         break;
 
+    case gcvFEATURE_ZERO_ATTRIB_SUPPORT:
+        available = database->REG_Halti4;
+        break;
+
     case gcvFEATURE_SH_CLOCK_GATE_FIX:
         available = database->SH_CLOCK_GATE_FIX;
         break;
 
-    case gcvFEATURE_ZERO_ATTRIB_SUPPORT:
-        available = database->REG_Halti4;
+    case gcvFEATURE_GPIPE_CLOCK_GATE_FIX:
+        available = gcvFALSE;
+        break;
+
+    case gcvFEATURE_NEW_GPIPE:
+        available = database->NEW_GPIPE;
         break;
 
     default:
@@ -2270,6 +2278,27 @@ gckHARDWARE_InitializeHardware(
  7:7))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 7:7) - (0 ?
  7:7) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:7) - (0 ? 7:7) + 1))))))) << (0 ?
  7:7)));
+    }
+
+    if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_NEW_GPIPE) &&
+        !gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_GPIPE_CLOCK_GATE_FIX))
+    {
+        if (regPMC == 0)
+        {
+        gcmkONERROR(
+            gckOS_ReadRegisterEx(Hardware->os,
+                                 Hardware->core,
+                                 Hardware->powerBaseAddress
+                                 + 0x00104,
+                                 &regPMC));
+        }
+
+        /* Disable GPIPE clock gating. */
+        regPMC = ((((gctUINT32) (regPMC)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+ 22:22) - (0 ? 22:22) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 22:22) - (0 ?
+ 22:22) + 1))))))) << (0 ? 22:22))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ?
+ 22:22) - (0 ? 22:22) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 22:22) - (0 ?
+ 22:22) + 1))))))) << (0 ? 22:22)));
     }
 
     if (_IsHardwareMatch(Hardware, gcv880, 0x5106))

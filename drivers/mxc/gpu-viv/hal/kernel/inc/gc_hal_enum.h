@@ -52,7 +52,6 @@
 *
 *****************************************************************************/
 
-
 #ifndef __gc_hal_enum_h_
 #define __gc_hal_enum_h_
 
@@ -495,6 +494,7 @@ typedef enum _gceFEATURE
     gcvFEATURE_RA_CG_FIX,
     gcvFEATURE_SH_HALF_DEPENDENCY_FIX,
     gcvFEATURE_SH_CLOCK_GATE_FIX,
+    gcvFEATURE_GPIPE_CLOCK_GATE_FIX,
     /* Insert features above this comment only. */
     gcvFEATURE_COUNT                /* Not a feature. */
 }
@@ -2055,8 +2055,7 @@ gceSECURE_MODE;
 #define gcvALLOC_FLAG_USERMEMORY_BIT        6
 #define gcvALLOC_FLAG_EXTERNAL_MEMORY_BIT   7
 #define gcvALLOC_FLAG_ALLOC_ON_FAULT_BIT    8
-#define gcvALLOC_FLAG_CMA_LIMIT_BIT          9
-
+#define gcvALLOC_FLAG_CMA_LIMIT_BIT         9
 /* No special needs. */
 #define gcvALLOC_FLAG_NONE              (0)
 /* Physical contiguous. */
