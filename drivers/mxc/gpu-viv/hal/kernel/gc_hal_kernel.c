@@ -558,9 +558,6 @@ gckKERNEL_Construct(
     else
 #endif
     {
-        gcmkONERROR(
-            gckOS_CreateMutex(Os, (gctPOINTER)&kernel->commitMutex));
-
         /* Construct the gckHARDWARE object. */
         gcmkONERROR(
             gckHARDWARE_Construct(Os, kernel->core, &kernel->hardware));
@@ -884,11 +881,6 @@ gckKERNEL_Destroy(
         {
             /* Destroy the gckHARDWARE object. */
             gcmkVERIFY_OK(gckHARDWARE_Destroy(Kernel->hardware));
-        }
-
-        if (Kernel->commitMutex)
-        {
-            gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Kernel->commitMutex));
         }
     }
 
@@ -2189,7 +2181,7 @@ gckKERNEL_Dispatch(
 
     case gcvHAL_COMMIT:
         gcmkONERROR(gckOS_AcquireMutex(Kernel->os,
-            Kernel->commitMutex,
+            Kernel->device->commitMutex,
             gcvINFINITE
             ));
         commitMutexAcquired = gcvTRUE;
@@ -2268,7 +2260,7 @@ gckKERNEL_Dispatch(
                 }
             }
         }
-        gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->commitMutex));
+        gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->device->commitMutex));
         commitMutexAcquired = gcvFALSE;
 
         break;
@@ -3099,7 +3091,7 @@ OnError:
 
     if (commitMutexAcquired == gcvTRUE)
     {
-        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->commitMutex));
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->device->commitMutex));
     }
 
     /* Return the status. */
@@ -5724,6 +5716,7 @@ gckDEVICE_Construct(
     gckOS_ZeroMemory(device, gcmSIZEOF(gcsDEVICE));
 
     gcmkONERROR(gckOS_CreateMutex(Os, &device->stuckDumpMutex));
+    gcmkONERROR(gckOS_CreateMutex(Os, &device->commitMutex));
 
     device->os = Os;
 
@@ -5888,6 +5881,10 @@ gckDEVICE_Destroy(
         }
     }
 
+    if (Device->commitMutex)
+    {
+        gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Device->commitMutex));
+    }
     if (Device->stuckDumpMutex)
     {
         gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Device->stuckDumpMutex));

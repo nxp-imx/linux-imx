@@ -651,8 +651,6 @@ struct _gckKERNEL
     gckDEVICE                   device;
 
     gctUINT                     chipID;
-
-    gctPOINTER                  commitMutex;
 };
 
 struct _FrequencyHistory
@@ -1184,6 +1182,9 @@ typedef struct _gcsDEVICE
 
     /* Mutex to make sure stuck dump for multiple cores doesn't interleave. */
     gctPOINTER                  stuckDumpMutex;
+
+    /* Mutex for multi-core combine mode command submission */
+    gctPOINTER                  commitMutex;
 }
 gcsDEVICE;
 
