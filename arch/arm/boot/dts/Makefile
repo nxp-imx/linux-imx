@@ -567,6 +567,7 @@ dtb-$(CONFIG_SOC_IMX7D) += \
 	imx7d-sdb-reva-touch.dtb \
 	imx7d-sdb-reva-wm8960.dtb
 dtb-$(CONFIG_SOC_IMX7ULP) += \
+	imx7ulp-14x14-arm2.dtb \
 	imx7ulp-evk.dtb \
 	imx7ulp-evk-emmc.dtb
 dtb-$(CONFIG_SOC_LS1021A) += \
