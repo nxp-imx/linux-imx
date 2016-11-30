@@ -4334,15 +4334,11 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 	}
 
 	/* check if we need to initialize the path */
-	if (dhdinfo->fw_path[0] == '\0') {
-		if (adapter && adapter->fw_path && adapter->fw_path[0] != '\0')
-			fw = adapter->fw_path;
+	if (adapter && adapter->fw_path && adapter->fw_path[0] != '\0')
+		fw = adapter->fw_path;
 
-	}
-	if (dhdinfo->nv_path[0] == '\0') {
-		if (adapter && adapter->nv_path && adapter->nv_path[0] != '\0')
-			nv = adapter->nv_path;
-	}
+	if (adapter && adapter->nv_path && adapter->nv_path[0] != '\0')
+		nv = adapter->nv_path;
 
 	/* Use module parameter if it is valid, EVEN IF the path has not been initialized
 	 *

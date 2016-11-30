@@ -300,6 +300,7 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 #if defined(OOB_INTR_ONLY) && defined(HW_OOB)
 	int irq, gpio;
 #endif /* defined(OOB_INTR_ONLY) && defined (HW_OOB) */
+	int ret = 0;
 #endif /* CONFIG_DTS */
 
 	/* Android style wifi platform data device ("bcmdhd_wlan" or "bcm4329_wlan")
@@ -319,6 +320,14 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_DTS
+	/* get firmware from dts */
+	ret = of_property_read_string(pdev->dev.of_node, "bcmdhd_fw", &adapter->fw_path);
+	if (!ret)
+		DHD_INFO(("fw path:%s\n", adapter->fw_path));
+	ret = of_property_read_string(pdev->dev.of_node, "bcmdhd_nv", &adapter->nv_path);
+	if (!ret)
+		DHD_INFO(("nv path:%s\n", adapter->nv_path));
+
 	wifi_regulator = regulator_get(&pdev->dev, "wlreg_on");
 	if (wifi_regulator == NULL) {
 		DHD_ERROR(("%s regulator is null\n", __FUNCTION__));
