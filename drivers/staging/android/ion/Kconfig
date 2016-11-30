@@ -42,6 +42,13 @@ config ION_HISI
 
 source "drivers/staging/android/ion/hisilicon/Kconfig"
 
+config ION_MXC
+	tristate "Ion for imx platform"
+	depends on ION
+	select VIDEOBUF2_DMA_CONTIG
+	help
+	  Choose this option if you wish to use ion on imx platform.
+
 config ION_OF
 	bool "Devicetree support for Ion"
 	depends on ION && OF_ADDRESS
@@ -52,3 +59,4 @@ config ION_OF
 	  extensions
 
 	  If using Ion and devicetree, you should say Y here
+

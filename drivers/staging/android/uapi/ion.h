@@ -2,6 +2,7 @@
  * drivers/staging/android/uapi/ion.h
  *
  * Copyright (C) 2011 Google, Inc.
+ * Copyright (C) 2016 Freescale Semiconductor, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -46,6 +47,7 @@ enum ion_heap_type {
 			       */
 };
 
+#define ION_CMA_HEAP_ID     0
 #define ION_NUM_HEAP_IDS		(sizeof(unsigned int) * 8)
 
 /**
@@ -158,6 +160,23 @@ struct ion_heap_query {
 	__u32 reserved2;
 };
 
+struct ion_phys_data {
+	ion_user_handle_t handle;
+	unsigned long phys;
+};
+
+struct ion_phys_dma_data {
+	unsigned long phys;
+	size_t size;
+	int dmafd;
+};
+
+struct ion_phys_virt_data {
+	unsigned long virt;
+	unsigned long phys;
+	size_t size;
+};
+
 #define ION_IOC_MAGIC		'I'
 
 /**
@@ -232,5 +251,11 @@ struct ion_heap_query {
  */
 #define ION_IOC_HEAP_QUERY     _IOWR(ION_IOC_MAGIC, 8, \
 					struct ion_heap_query)
+
+#define ION_IOC_PHYS   _IOWR(ION_IOC_MAGIC, 8, struct ion_phys_data)
+
+#define ION_IOC_PHYS_DMA   _IOWR(ION_IOC_MAGIC, 9, struct ion_phys_dma_data)
+
+#define ION_IOC_PHYS_VIRT   _IOWR(ION_IOC_MAGIC, 10, struct ion_phys_virt_data)
 
 #endif /* _UAPI_LINUX_ION_H */
