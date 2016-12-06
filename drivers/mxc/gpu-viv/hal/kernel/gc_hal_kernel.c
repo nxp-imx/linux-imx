@@ -2160,6 +2160,12 @@ gckKERNEL_Dispatch(
         break;
 
     case gcvHAL_EVENT_COMMIT:
+        gcmkONERROR(gckOS_AcquireMutex(Kernel->os,
+            Kernel->device->commitMutex,
+            gcvINFINITE
+            ));
+
+        commitMutexAcquired = gcvTRUE;
         /* Commit an event queue. */
         if (Interface->u.Event.engine == gcvENGINE_BLT)
         {
@@ -2177,6 +2183,8 @@ gckKERNEL_Dispatch(
                 Kernel->eventObj, gcmUINT64_TO_PTR(Interface->u.Event.queue)));
         }
 
+        gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->device->commitMutex));
+        commitMutexAcquired = gcvFALSE;
         break;
 
     case gcvHAL_COMMIT:
