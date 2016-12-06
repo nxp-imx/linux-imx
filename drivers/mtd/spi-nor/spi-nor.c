@@ -1192,9 +1192,6 @@ static int spi_nor_write(struct mtd_info *mtd, loff_t to, size_t len,
 		ssize_t written;
 
 		page_offset = (to + i) & (nor->page_size - 1);
-		WARN_ONCE(page_offset,
-			  "Writing at offset %zu into a NOR page. Writing partial pages may decrease reliability and increase wear of NOR flash.",
-			  page_offset);
 		/* the size of data remaining on the first page */
 		page_remain = min_t(size_t,
 				    nor->page_size - page_offset, len - i);
