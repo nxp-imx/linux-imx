@@ -11642,85 +11642,85 @@ gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00474,   ((((g
  7:0))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_read_req_8B_from_colorpipe));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_read_req_8B_from_colorpipe));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (2) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_read_req_8B_sentout_from_colorpipe));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_read_req_8B_sentout_from_colorpipe));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (3) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_write_req_8B_from_colorpipe));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_write_req_8B_from_colorpipe));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (4) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_read_req_sentout_from_colorpipe));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_read_req_sentout_from_colorpipe));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (5) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_write_req_from_colorpipe));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_write_req_from_colorpipe));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (7) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_read_req_8B_from_depthpipe));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_read_req_8B_from_depthpipe));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (8) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_read_req_8B_sentout_from_depthpipe));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_read_req_8B_sentout_from_depthpipe));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (9) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_write_req_8B_from_depthpipe));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_write_req_8B_from_depthpipe));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (10) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_read_req_sentout_from_depthpipe));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_read_req_sentout_from_depthpipe));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (11) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_write_req_from_depthpipe));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_write_req_from_depthpipe));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (12) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_read_req_8B_from_others));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_read_req_8B_from_others));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (13) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_write_req_8B_from_others));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_write_req_8B_from_others));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (14) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_read_req_from_others));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_read_req_from_others));
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) | (((gctUINT32) ((gctUINT32) (15) & ((gctUINT32) ((((1 ? 7:0) - (0 ?
  7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
  7:0))) ));
-gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mc_total_write_req_from_others));
+gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00468, &profiler_part2->mcc_total_write_req_from_others));
 
     gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  7:0) - (0 ? 7:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 7:0) - (0 ? 7:0) + 1))))))) << (0 ?
@@ -11734,20 +11734,20 @@ gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((g
  7:0)))
 ));
 
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_read_req_8B_from_colorpipe);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_read_req_8B_sentout_from_colorpipe);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_write_req_8B_from_colorpipe);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_read_req_sentout_from_colorpipe);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_write_req_from_colorpipe);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_read_req_8B_from_depthpipe);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_read_req_8B_sentout_from_depthpipe);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_write_req_8B_from_depthpipe);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_read_req_sentout_from_depthpipe);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_write_req_from_depthpipe);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_read_req_8B_from_others);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_write_req_8B_from_others);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_read_req_from_others);
-    gcmkUPDATE_PROFILE_DATA_PART2(mc_total_write_req_from_others);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_read_req_8B_from_colorpipe);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_read_req_8B_sentout_from_colorpipe);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_write_req_8B_from_colorpipe);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_read_req_sentout_from_colorpipe);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_write_req_from_colorpipe);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_read_req_8B_from_depthpipe);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_read_req_8B_sentout_from_depthpipe);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_write_req_8B_from_depthpipe);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_read_req_sentout_from_depthpipe);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_write_req_from_depthpipe);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_read_req_8B_from_others);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_write_req_8B_from_others);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_read_req_from_others);
+    gcmkUPDATE_PROFILE_DATA_PART2(mcc_total_write_req_from_others);
 
     /* read latency counters */
     if (hasNewCounters)
@@ -11761,12 +11761,12 @@ gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((g
         gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
             Hardware->core,
             0x00570,
-            &profiler_part2->mc_axi_total_latency));
+            &profiler_part2->mcc_axi_total_latency));
 
         gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
             Hardware->core,
             0x00574,
-            &profiler_part2->mc_axi_sample_count));
+            &profiler_part2->mcc_axi_sample_count));
 
         /* Reset Latency counters */
         gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
@@ -11778,15 +11778,15 @@ gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((g
             0x00568,
             0xa));
 
-        profiler_part2->mc_axi_min_latency = (mc_axi_max_min_latency & 0xffff0000) >> 16;
-        profiler_part2->mc_axi_max_latency = (mc_axi_max_min_latency & 0x0000ffff);
-        if (profiler_part2->mc_axi_min_latency == 4095)
-            profiler_part2->mc_axi_min_latency = 0;
+        profiler_part2->mcc_axi_min_latency = (mc_axi_max_min_latency & 0xffff0000) >> 16;
+        profiler_part2->mcc_axi_max_latency = (mc_axi_max_min_latency & 0x0000ffff);
+        if (profiler_part2->mcc_axi_min_latency == 4095)
+            profiler_part2->mcc_axi_min_latency = 0;
 
-        gcmkUPDATE_PROFILE_DATA_PART2(mc_axi_min_latency);
-        gcmkUPDATE_PROFILE_DATA_PART2(mc_axi_max_latency);
-        gcmkUPDATE_PROFILE_DATA_PART2(mc_axi_total_latency);
-        gcmkUPDATE_PROFILE_DATA_PART2(mc_axi_sample_count);
+        gcmkUPDATE_PROFILE_DATA_PART2(mcc_axi_min_latency);
+        gcmkUPDATE_PROFILE_DATA_PART2(mcc_axi_max_latency);
+        gcmkUPDATE_PROFILE_DATA_PART2(mcc_axi_total_latency);
+        gcmkUPDATE_PROFILE_DATA_PART2(mcc_axi_sample_count);
     }
 
     /* HI */

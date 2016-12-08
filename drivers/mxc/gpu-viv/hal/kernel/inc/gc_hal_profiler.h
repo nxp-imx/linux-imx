@@ -272,9 +272,10 @@ extern "C" {
 #define VPNG_RA         0x2a0000
 #define VPNG_TX         0x2b0000
 #define VPNG_PE         0x2c0000
-#define VPNG_MC         0x2d0000
-#define VPNG_HI         0x2e0000
-#define VPNG_L2         0x2f0000
+#define VPNG_MCC        0x2d0000
+#define VPNG_MCZ        0x2e0000
+#define VPNG_HI         0x2f0000
+#define VPNG_L2         0x300000
 #define VPG_END         0xff0000
 
 /* Info. */
@@ -529,26 +530,45 @@ extern "C" {
 #define VPNC_PE1DRAWNBYCOLOR              (VPNG_PE + 7)
 #define VPNC_PE1DRAWNBYDEPTH              (VPNG_PE + 8)
 
-/* HW: MC Counters. */
-#define VPNC_MCREADREQ8BCOLORPIPE        (VPNG_MC + 1)
-#define VPNC_MCREADREQ8BSOCOLORPIPE      (VPNG_MC + 2)
-#define VPNC_MCWRITEREQ8BCOLORPIPE       (VPNG_MC + 3)
-#define VPNC_MCREADREQSOCOLORPIPE        (VPNG_MC + 4)
-#define VPNC_MCWRITEREQCOLORPIPE         (VPNG_MC + 5)
-#define VPNC_MCREADREQ8BDEPTHPIPE        (VPNG_MC + 6)
-#define VPNC_MCREADREQ8BSFDEPTHPIPE      (VPNG_MC + 7)
-#define VPNC_MCWRITEREQ8BDEPTHPIPE       (VPNG_MC + 8)
-#define VPNC_MCREADREQSFDEPTHPIPE        (VPNG_MC + 9)
-#define VPNC_MCWRITEREQDEPTHPIPE         (VPNG_MC + 10)
-#define VPNC_MCREADREQ8BOTHERPIPE        (VPNG_MC + 11)
-#define VPNC_MCREADREQ8BSFOTHERPIPE      (VPNG_MC + 12)
-#define VPNC_MCWRITEREQ8BOTHERPIPE       (VPNG_MC + 13)
-#define VPNC_MCREADREQSFOTHERPIPE        (VPNG_MC + 14)
-#define VPNC_MCWRITEREQOTHERPIPE         (VPNG_MC + 15)
-#define VPNC_MCAXIMINLATENCY             (VPNG_MC + 16)
-#define VPNC_MCAXIMAXLATENCY             (VPNG_MC + 17)
-#define VPNC_MCAXITOTALLATENCY           (VPNG_MC + 18)
-#define VPNC_MCAXISAMPLECOUNT            (VPNG_MC + 19)
+/* HW: MCC Counters. */
+#define VPNC_MCCREADREQ8BCOLORPIPE        (VPNG_MCC + 1)
+#define VPNC_MCCREADREQ8BSOCOLORPIPE      (VPNG_MCC + 2)
+#define VPNC_MCCWRITEREQ8BCOLORPIPE       (VPNG_MCC + 3)
+#define VPNC_MCCREADREQSOCOLORPIPE        (VPNG_MCC + 4)
+#define VPNC_MCCWRITEREQCOLORPIPE         (VPNG_MCC + 5)
+#define VPNC_MCCREADREQ8BDEPTHPIPE        (VPNG_MCC + 6)
+#define VPNC_MCCREADREQ8BSFDEPTHPIPE      (VPNG_MCC + 7)
+#define VPNC_MCCWRITEREQ8BDEPTHPIPE       (VPNG_MCC + 8)
+#define VPNC_MCCREADREQSFDEPTHPIPE        (VPNG_MCC + 9)
+#define VPNC_MCCWRITEREQDEPTHPIPE         (VPNG_MCC + 10)
+#define VPNC_MCCREADREQ8BOTHERPIPE        (VPNG_MCC + 11)
+#define VPNC_MCCWRITEREQ8BOTHERPIPE       (VPNG_MCC + 12)
+#define VPNC_MCCREADREQOTHERPIPE          (VPNG_MCC + 13)
+#define VPNC_MCCWRITEREQOTHERPIPE         (VPNG_MCC + 14)
+#define VPNC_MCCAXIMINLATENCY             (VPNG_MCC + 15)
+#define VPNC_MCCAXIMAXLATENCY             (VPNG_MCC + 16)
+#define VPNC_MCCAXITOTALLATENCY           (VPNG_MCC + 17)
+#define VPNC_MCCAXISAMPLECOUNT            (VPNG_MCC + 18)
+
+/* HW: MCZ Counters. */
+#define VPNC_MCZREADREQ8BCOLORPIPE        (VPNG_MCZ + 1)
+#define VPNC_MCZREADREQ8BSOCOLORPIPE      (VPNG_MCZ + 2)
+#define VPNC_MCZWRITEREQ8BCOLORPIPE       (VPNG_MCZ + 3)
+#define VPNC_MCZREADREQSOCOLORPIPE        (VPNG_MCZ + 4)
+#define VPNC_MCZWRITEREQCOLORPIPE         (VPNG_MCZ + 5)
+#define VPNC_MCZREADREQ8BDEPTHPIPE        (VPNG_MCZ + 6)
+#define VPNC_MCZREADREQ8BSFDEPTHPIPE      (VPNG_MCZ + 7)
+#define VPNC_MCZWRITEREQ8BDEPTHPIPE       (VPNG_MCZ + 8)
+#define VPNC_MCZREADREQSFDEPTHPIPE        (VPNG_MCZ + 9)
+#define VPNC_MCZWRITEREQDEPTHPIPE         (VPNG_MCZ + 10)
+#define VPNC_MCZREADREQ8BOTHERPIPE        (VPNG_MCZ + 11)
+#define VPNC_MCZWRITEREQ8BOTHERPIPE       (VPNG_MCZ + 12)
+#define VPNC_MCZREADREQOTHERPIPE          (VPNG_MCZ + 13)
+#define VPNC_MCZWRITEREQOTHERPIPE         (VPNG_MCZ + 14)
+#define VPNC_MCZAXIMINLATENCY             (VPNG_MCZ + 15)
+#define VPNC_MCZAXIMAXLATENCY             (VPNG_MCZ + 16)
+#define VPNC_MCZAXITOTALLATENCY           (VPNG_MCZ + 17)
+#define VPNC_MCZAXISAMPLECOUNT            (VPNG_MCZ + 18)
 
 /* HW: HI Counters. */
 #define VPNC_HI0READ8BYTE                (VPNG_HI + 1)
@@ -820,25 +840,45 @@ gcsPROFILER_NEW_COUNTERS_PART1;
 
 typedef struct _gcsPROFILER_NEW_COUNTERS_PART2
 {
-    /* MC */
-    gctUINT32       mc_total_read_req_8B_from_colorpipe;
-    gctUINT32       mc_total_read_req_8B_sentout_from_colorpipe;
-    gctUINT32       mc_total_write_req_8B_from_colorpipe;
-    gctUINT32       mc_total_read_req_sentout_from_colorpipe;
-    gctUINT32       mc_total_write_req_from_colorpipe;
-    gctUINT32       mc_total_read_req_8B_from_depthpipe;
-    gctUINT32       mc_total_read_req_8B_sentout_from_depthpipe;
-    gctUINT32       mc_total_write_req_8B_from_depthpipe;
-    gctUINT32       mc_total_read_req_sentout_from_depthpipe;
-    gctUINT32       mc_total_write_req_from_depthpipe;
-    gctUINT32       mc_total_read_req_8B_from_others;
-    gctUINT32       mc_total_write_req_8B_from_others;
-    gctUINT32       mc_total_read_req_from_others;
-    gctUINT32       mc_total_write_req_from_others;
-    gctUINT32       mc_axi_total_latency;
-    gctUINT32       mc_axi_sample_count;
-    gctUINT32       mc_axi_max_latency;
-    gctUINT32       mc_axi_min_latency;
+    /* MCC */
+    gctUINT32       mcc_total_read_req_8B_from_colorpipe;
+    gctUINT32       mcc_total_read_req_8B_sentout_from_colorpipe;
+    gctUINT32       mcc_total_write_req_8B_from_colorpipe;
+    gctUINT32       mcc_total_read_req_sentout_from_colorpipe;
+    gctUINT32       mcc_total_write_req_from_colorpipe;
+    gctUINT32       mcc_total_read_req_8B_from_depthpipe;
+    gctUINT32       mcc_total_read_req_8B_sentout_from_depthpipe;
+    gctUINT32       mcc_total_write_req_8B_from_depthpipe;
+    gctUINT32       mcc_total_read_req_sentout_from_depthpipe;
+    gctUINT32       mcc_total_write_req_from_depthpipe;
+    gctUINT32       mcc_total_read_req_8B_from_others;
+    gctUINT32       mcc_total_write_req_8B_from_others;
+    gctUINT32       mcc_total_read_req_from_others;
+    gctUINT32       mcc_total_write_req_from_others;
+    gctUINT32       mcc_axi_total_latency;
+    gctUINT32       mcc_axi_sample_count;
+    gctUINT32       mcc_axi_max_latency;
+    gctUINT32       mcc_axi_min_latency;
+
+    /* MCZ */
+    gctUINT32       mcz_total_read_req_8B_from_colorpipe;
+    gctUINT32       mcz_total_read_req_8B_sentout_from_colorpipe;
+    gctUINT32       mcz_total_write_req_8B_from_colorpipe;
+    gctUINT32       mcz_total_read_req_sentout_from_colorpipe;
+    gctUINT32       mcz_total_write_req_from_colorpipe;
+    gctUINT32       mcz_total_read_req_8B_from_depthpipe;
+    gctUINT32       mcz_total_read_req_8B_sentout_from_depthpipe;
+    gctUINT32       mcz_total_write_req_8B_from_depthpipe;
+    gctUINT32       mcz_total_read_req_sentout_from_depthpipe;
+    gctUINT32       mcz_total_write_req_from_depthpipe;
+    gctUINT32       mcz_total_read_req_8B_from_others;
+    gctUINT32       mcz_total_write_req_8B_from_others;
+    gctUINT32       mcz_total_read_req_from_others;
+    gctUINT32       mcz_total_write_req_from_others;
+    gctUINT32       mcz_axi_total_latency;
+    gctUINT32       mcz_axi_sample_count;
+    gctUINT32       mcz_axi_max_latency;
+    gctUINT32       mcz_axi_min_latency;
 
     /* HI */
     gctUINT32       hi0_total_read_8B_count;
