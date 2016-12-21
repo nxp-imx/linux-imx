@@ -12191,7 +12191,7 @@ gckHARDWARE_GetBaseAddress(
     gcmkVERIFY_ARGUMENT(BaseAddress != gcvNULL);
 
     /* Test if we have a new Memory Controller. */
-    if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_MC20))
+    if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_MMU))
     {
         /* No base address required. */
         *BaseAddress = 0;
