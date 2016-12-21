@@ -427,7 +427,10 @@ gckPLATFORM_AdjustParam(
 
     res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phys_baseaddr");
     if (res)
+    {
         Args->baseAddress = res->start;
+        Args->physSize = res->end - res->start + 1;
+    }
 
     res = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "irq_3d");
     if (res)
@@ -511,12 +514,12 @@ gckPLATFORM_AdjustParam(
 
     Args->gpu3DMinClock = initgpu3DMinClock;
 
-#if IMX8_PHYS_BASE
-    Args->baseAddress = IMX8_PHYS_BASE;
-#endif
-
     if(Args->physSize == 0)
     {
+#if IMX8_PHYS_BASE
+        Args->baseAddress = IMX8_PHYS_BASE;
+#endif
+
 #if IMX8_PHYS_SIZE
         Args->physSize = IMX8_PHYS_SIZE;
 #else
