@@ -62,6 +62,7 @@
 
 #define to_mmdc_pmu(p) container_of(p, struct mmdc_pmu, pmu)
 
+static enum cpuhp_state cpuhp_mmdc_state;
 static int ddr_type;
 static int lpddr2_2ch_mode;
 
@@ -455,8 +456,8 @@ static int imx_mmdc_remove(struct platform_device *pdev)
 {
 	struct mmdc_pmu *pmu_mmdc = platform_get_drvdata(pdev);
 
+	cpuhp_state_remove_instance_nocalls(cpuhp_mmdc_state, &pmu_mmdc->node);
 	perf_pmu_unregister(&pmu_mmdc->pmu);
-	cpuhp_remove_state_nocalls(CPUHP_ONLINE);
 	kfree(pmu_mmdc);
 	return 0;
 }
@@ -476,6 +477,18 @@ static int imx_mmdc_perf_init(struct platform_device *pdev, void __iomem *mmdc_b
 		return -ENOMEM;
 	}
 
+	/* The first instance registers the hotplug state */
+	if (!cpuhp_mmdc_state) {
+		ret = cpuhp_setup_state_multi(CPUHP_AP_ONLINE_DYN,
+					      "perf/arm/mmdc:online", NULL,
+					      mmdc_pmu_offline_cpu);
+		if (ret < 0) {
+			pr_err("cpuhp_setup_state_multi failed\n");
+			goto pmu_free;
+		}
+		cpuhp_mmdc_state = ret;
+	}
+
 	mmdc_num = mmdc_pmu_init(pmu_mmdc, mmdc_base, &pdev->dev);
 	if (mmdc_num == 0)
 		name = "mmdc";
@@ -489,26 +502,23 @@ static int imx_mmdc_perf_init(struct platform_device *pdev, void __iomem *mmdc_b
 			HRTIMER_MODE_REL);
 	pmu_mmdc->hrtimer.function = mmdc_pmu_timer_handler;
 
-	cpuhp_state_add_instance_nocalls(CPUHP_ONLINE,
-					 &pmu_mmdc->node);
-	cpumask_set_cpu(smp_processor_id(), &pmu_mmdc->cpu);
-	ret = cpuhp_setup_state_multi(CPUHP_AP_NOTIFY_ONLINE,
-				      "MMDC_ONLINE", NULL,
-				      mmdc_pmu_offline_cpu);
-	if (ret) {
-		pr_err("cpuhp_setup_state_multi failure\n");
-		goto pmu_register_err;
-	}
+	cpumask_set_cpu(raw_smp_processor_id(), &pmu_mmdc->cpu);
+
+	/* Register the pmu instance for cpu hotplug */
+	cpuhp_state_add_instance_nocalls(cpuhp_mmdc_state, &pmu_mmdc->node);
 
 	ret = perf_pmu_register(&(pmu_mmdc->pmu), name, -1);
-	platform_set_drvdata(pdev, pmu_mmdc);
 	if (ret)
 		goto pmu_register_err;
+
+	platform_set_drvdata(pdev, pmu_mmdc);
 	return 0;
 
 pmu_register_err:
 	pr_warn("MMDC Perf PMU failed (%d), disabled\n", ret);
+	cpuhp_state_remove_instance_nocalls(cpuhp_mmdc_state, &pmu_mmdc->node);
 	hrtimer_cancel(&pmu_mmdc->hrtimer);
+pmu_free:
 	kfree(pmu_mmdc);
 	return ret;
 }
