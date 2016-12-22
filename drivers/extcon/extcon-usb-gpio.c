@@ -23,6 +23,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/of_gpio.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/pm_wakeirq.h>
 #include <linux/slab.h>
@@ -176,6 +177,7 @@ static int usb_extcon_suspend(struct device *dev)
 	 * accessible until resume completes. So disable IRQ.
 	 */
 	disable_irq(info->id_irq);
+	pinctrl_pm_select_sleep_state(dev);
 
 	return ret;
 }
@@ -185,6 +187,7 @@ static int usb_extcon_resume(struct device *dev)
 	struct usb_extcon_info *info = dev_get_drvdata(dev);
 	int ret = 0;
 
+	pinctrl_pm_select_default_state(dev);
 	enable_irq(info->id_irq);
 	if (!device_may_wakeup(dev))
 		queue_delayed_work(system_power_efficient_wq,
