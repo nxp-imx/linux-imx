@@ -527,10 +527,6 @@ gckPLATFORM_AdjustParam(
 #endif
     }
 
-#if IMX8_DISABLE_PM
- Args->powerManagement = 0;
-#endif
-
     return gcvSTATUS_OK;
 }
 
