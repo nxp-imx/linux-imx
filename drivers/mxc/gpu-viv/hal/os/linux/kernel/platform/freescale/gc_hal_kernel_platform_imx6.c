@@ -426,7 +426,7 @@ gckPLATFORM_AdjustParam(
     const char *iobase_3d_res[2] = {"iobase_3d_0", "iobase_3d_1"};
 
     res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phys_baseaddr");
-    if (res)
+    if (res && !Args->baseAddress && !Args->physSize)
     {
         Args->baseAddress = res->start;
         Args->physSize = res->end - res->start + 1;
