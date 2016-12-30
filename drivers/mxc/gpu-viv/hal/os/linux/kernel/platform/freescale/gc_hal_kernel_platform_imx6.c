@@ -1100,14 +1100,6 @@ _GetPower_imx8x(
                 }
                 priv->sc_gpu_pid[j] = sc_gpu_pid[i];
 #endif
-                clk_prepare(priv->clk_core_3d[j]);
-                clk_set_rate(priv->clk_core_3d[j], 800000000);
-                clk_unprepare(priv->clk_core_3d[j]);
-
-                clk_prepare(priv->clk_shader_3d[j]);
-                clk_set_rate(priv->clk_shader_3d[j], 800000000);
-                clk_unprepare(priv->clk_shader_3d[j]);
-
                 j++;
             }
         } else {
