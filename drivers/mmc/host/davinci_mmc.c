@@ -35,6 +35,7 @@
 #include <linux/mmc/mmc.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/interrupt.h>
 
 #include <linux/platform_data/mmc-davinci.h>
 
