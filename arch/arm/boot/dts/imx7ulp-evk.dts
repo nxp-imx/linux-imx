@@ -263,13 +263,13 @@
 
 		pinctrl_usb_otg1: usbotg1grp {
 			fsl,pins = <
-				ULP1_PAD_PTC0__PTC0		0x30100
+				ULP1_PAD_PTC0__PTC0		0x20100
 			>;
 		};
 
 		pinctrl_extcon_usb1: extcon1grp {
 			fsl,pins = <
-				ULP1_PAD_PTC8__PTC8		0x30103
+				ULP1_PAD_PTC8__PTC8		0x10103
 			>;
 		};
 
