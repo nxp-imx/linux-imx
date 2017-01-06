@@ -1227,7 +1227,7 @@ static int gpu_resume(struct platform_device *dev)
             switch(device->statesStored[i])
             {
             case gcvPOWER_OFF:
-                statesStored = gcvPOWER_OFF_BROADCAST;
+                statesStored = gcvPOWER_OFF;
                 break;
             case gcvPOWER_IDLE:
                 statesStored = gcvPOWER_IDLE_BROADCAST;
