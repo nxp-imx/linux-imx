@@ -166,12 +166,7 @@
 	imx7ulp-evk {
 		pinctrl_hog_1: hoggrp-1 {
 			fsl,pins = <
-				ULP1_PAD_PTC10__PTC10		0x30100		/* USDHC0 CD */
 				ULP1_PAD_PTC1__PTC1		0x20100
-				ULP1_PAD_PTD0__PTD0		0x30100		/* USDHC0 RST */
-				ULP1_PAD_PTE13__PTE13		0x30103		/* USDHC1 CD */
-				ULP1_PAD_PTE12__PTE12		0x30103		/* USDHC1 WP */
-				ULP1_PAD_PTE14__SDHC1_VS	0x843		/* USDHC1 VSEL */
 			>;
 		};
 
@@ -228,6 +223,8 @@
 				ULP1_PAD_PTD8__SDHC0_D2		0x843
 				ULP1_PAD_PTD9__SDHC0_D1		0x843
 				ULP1_PAD_PTD10__SDHC0_D0	0x843
+				ULP1_PAD_PTC10__PTC10		0x10100		/* USDHC0 CD */
+				ULP1_PAD_PTD0__PTD0		0x20100		/* USDHC0 RST */
 			>;
 		};
 
@@ -287,7 +284,10 @@
 
 		pinctrl_usdhc1_rst: usdhc1grp_rst {
 			fsl,pins = <
-				ULP1_PAD_PTE11__PTE11			0x30100	/* USDHC1 RST */
+				ULP1_PAD_PTE11__PTE11		0x20100		/* USDHC1 RST */
+				ULP1_PAD_PTE13__PTE13		0x10103		/* USDHC1 CD */
+				ULP1_PAD_PTE12__PTE12		0x10103		/* USDHC1 WP */
+				ULP1_PAD_PTE14__SDHC1_VS	0x843		/* USDHC1 VSEL */
 			>;
 		};
 
