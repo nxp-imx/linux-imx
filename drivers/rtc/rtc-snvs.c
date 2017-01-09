@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2011-2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -18,6 +19,7 @@
 #include <linux/platform_device.h>
 #include <linux/rtc.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 
@@ -145,6 +147,8 @@ static int snvs_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	ret = snvs_rtc_enable(data, false);
 	if (ret)
 		return ret;
+
+	udelay(50);
 
 	/* Write 32-bit time to 47-bit timer, leaving 15 LSBs blank */
 	regmap_write(data->regmap, data->offset + SNVS_LPSRTCLR, time << CNTR_TO_SECS_SH);
