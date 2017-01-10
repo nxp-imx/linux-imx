@@ -62,7 +62,6 @@
 
 #define to_mmdc_pmu(p) container_of(p, struct mmdc_pmu, pmu)
 
-static enum cpuhp_state cpuhp_mmdc_state;
 static int ddr_type;
 static int lpddr2_2ch_mode;
 
@@ -86,6 +85,7 @@ static const struct of_device_id imx_mmdc_dt_ids[] = {
 
 #ifdef CONFIG_PERF_EVENTS
 
+static enum cpuhp_state cpuhp_mmdc_state;
 static DEFINE_IDA(mmdc_ida);
 
 PMU_EVENT_ATTR_STRING(total-cycles, mmdc_pmu_total_cycles, "event=0x00")
