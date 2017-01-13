@@ -5983,25 +5983,13 @@ gckOS_UserSignal(
     )
 {
     gceSTATUS status;
-    gctSIGNAL signal;
 
     gcmkHEADER_ARG("Os=0x%X Signal=0x%X Process=%d",
                    Os, Signal, (gctINT32)(gctUINTPTR_T)Process);
 
-    /* Map the signal into kernel space. */
-    gcmkONERROR(gckOS_MapSignal(Os, Signal, Process, &signal));
-
     /* Signal. */
-    status = gckOS_Signal(Os, signal, gcvTRUE);
+    status = gckOS_Signal(Os, Signal, gcvTRUE);
 
-    /* Unmap the signal */
-    gcmkVERIFY_OK(gckOS_UnmapSignal(Os, Signal));
-
-    gcmkFOOTER();
-    return status;
-
-OnError:
-    /* Return the status. */
     gcmkFOOTER();
     return status;
 }
@@ -6193,6 +6181,8 @@ gckOS_MapSignal(
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
     gcmkVERIFY_ARGUMENT(MappedSignal != gcvNULL);
 
+    mutex_lock(&Os->signalMutex);
+
     gcmkONERROR(_QueryIntegerId(&Os->signalDB, (gctUINT32)(gctUINTPTR_T)Signal, (gctPOINTER)&signal));
 
     if (atomic_inc_return(&signal->ref) <= 1)
@@ -6203,11 +6193,15 @@ gckOS_MapSignal(
 
     *MappedSignal = (gctSIGNAL) Signal;
 
+    mutex_unlock(&Os->signalMutex);
+
     /* Success. */
     gcmkFOOTER_ARG("*MappedSignal=0x%X", *MappedSignal);
     return gcvSTATUS_OK;
 
 OnError:
+    mutex_unlock(&Os->signalMutex);
+
     gcmkFOOTER_NO();
     return status;
 }
