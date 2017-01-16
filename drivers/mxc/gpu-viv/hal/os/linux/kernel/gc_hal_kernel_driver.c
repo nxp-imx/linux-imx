@@ -1170,6 +1170,17 @@ static int gpu_suspend(struct platform_device *dev, pm_message_t state)
 #if gcdENABLE_VG
             if (i == gcvCORE_VG)
             {
+                status = gckVGHARDWARE_SetPowerManagementState(device->kernels[i]->vg->hardware, gcvPOWER_ON);
+            }
+            else
+#endif
+            {
+                status = gckHARDWARE_SetPowerManagementState(device->kernels[i]->hardware, gcvPOWER_ON);
+            }
+
+#if gcdENABLE_VG
+            if (i == gcvCORE_VG)
+            {
                 status = gckVGHARDWARE_SetPowerManagementState(device->kernels[i]->vg->hardware, gcvPOWER_OFF);
             }
             else
@@ -1227,7 +1238,7 @@ static int gpu_resume(struct platform_device *dev)
             switch(device->statesStored[i])
             {
             case gcvPOWER_OFF:
-                statesStored = gcvPOWER_OFF;
+                statesStored = gcvPOWER_OFF_BROADCAST;
                 break;
             case gcvPOWER_IDLE:
                 statesStored = gcvPOWER_IDLE_BROADCAST;
