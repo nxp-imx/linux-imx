@@ -41,6 +41,8 @@
 #include <linux/kref.h>
 #include <linux/mutex.h>
 
+#define VIRTIO_RPMSG_F_NS       0
+
 #define RPMSG_ADDR_ANY		0xFFFFFFFF
 
 struct rpmsg_device;
