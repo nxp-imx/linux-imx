@@ -2,6 +2,7 @@
  *  Freescale lpuart serial port driver
  *
  *  Copyright 2012-2014 Freescale Semiconductor, Inc.
+ *  Copyright 2017 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +28,7 @@
 #include <linux/serial_core.h>
 #include <linux/slab.h>
 #include <linux/tty_flip.h>
+#include <linux/of_irq.h>
 
 /* All registers are 8-bit width */
 #define UARTBDH			0x00
@@ -118,14 +120,14 @@
 #define UARTSFIFO_RXUF		0x01
 
 /* 32-bit register defination */
-#define UARTBAUD		0x00
-#define UARTSTAT		0x04
-#define UARTCTRL		0x08
-#define UARTDATA		0x0C
-#define UARTMATCH		0x10
-#define UARTMODIR		0x14
-#define UARTFIFO		0x18
-#define UARTWATER		0x1c
+#define UARTBAUD		0x10
+#define UARTSTAT		0x14
+#define UARTCTRL		0x18
+#define UARTDATA		0x1C
+#define UARTMATCH		0x20
+#define UARTMODIR		0x24
+#define UARTFIFO		0x28
+#define UARTWATER		0x2c
 
 #define UARTBAUD_MAEN1		0x80000000
 #define UARTBAUD_MAEN2		0x40000000
@@ -140,6 +142,8 @@
 #define UARTBAUD_SBNS		0x00002000
 #define UARTBAUD_SBR		0x00000000
 #define UARTBAUD_SBR_MASK	0x1fff
+#define UARTBAUD_OSR_MASK	0x1f
+#define UARTBAUD_OSR_SHIFT	24
 
 #define UARTSTAT_LBKDIF		0x80000000
 #define UARTSTAT_RXEDGIF	0x40000000
@@ -265,6 +269,9 @@ static const struct of_device_id lpuart_dt_ids[] = {
 	{
 		.compatible = "fsl,ls1021a-lpuart",
 	},
+	{
+		.compatible = "fsl,imx8qm-lpuart",
+	},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, lpuart_dt_ids);
@@ -274,12 +281,12 @@ static void lpuart_dma_tx_complete(void *arg);
 
 static u32 lpuart32_read(void __iomem *addr)
 {
-	return ioread32be(addr);
+	return readl(addr);
 }
 
 static void lpuart32_write(u32 val, void __iomem *addr)
 {
-	iowrite32be(val, addr);
+	writel(val, addr);
 }
 
 static void lpuart_stop_tx(struct uart_port *port)
@@ -1025,8 +1032,6 @@ static void lpuart32_set_mctrl(struct uart_port *port, unsigned int mctrl)
 
 	if (mctrl & TIOCM_CTS)
 		temp |= UARTMODIR_TXCTSE;
-
-	lpuart32_write(temp, port->membase + UARTMODIR);
 }
 
 static void lpuart_break_ctl(struct uart_port *port, int break_state)
@@ -1197,9 +1202,6 @@ static int lpuart32_startup(struct uart_port *port)
 		return ret;
 
 	spin_lock_irqsave(&sport->port.lock, flags);
-
-	lpuart32_setup_watermark(sport);
-
 	temp = lpuart32_read(sport->port.membase + UARTCTRL);
 	temp |= (UARTCTRL_RIE | UARTCTRL_TIE | UARTCTRL_RE | UARTCTRL_TE);
 	temp |= UARTCTRL_ILIE;
@@ -1427,7 +1429,7 @@ lpuart32_set_termios(struct uart_port *port, struct ktermios *termios,
 	unsigned long ctrl, old_ctrl, bd, modem;
 	unsigned int  baud;
 	unsigned int old_csize = old ? old->c_cflag & CSIZE : CS8;
-	unsigned int sbr;
+	unsigned int sbr, osr;
 
 	ctrl = old_ctrl = lpuart32_read(sport->port.membase + UARTCTRL);
 	bd = lpuart32_read(sport->port.membase + UARTBAUD);
@@ -1524,7 +1526,10 @@ lpuart32_set_termios(struct uart_port *port, struct ktermios *termios,
 	lpuart32_write(old_ctrl & ~(UARTCTRL_TE | UARTCTRL_RE),
 			sport->port.membase + UARTCTRL);
 
-	sbr = sport->port.uartclk / (16 * baud);
+	/* For i.MX8QM LPUART */
+	osr = (bd >> UARTBAUD_OSR_SHIFT) & UARTBAUD_OSR_MASK;
+	sbr = sport->port.uartclk / (baud * (osr + 1));
+
 	bd &= ~UARTBAUD_SBR_MASK;
 	bd |= sbr & UARTBAUD_SBR_MASK;
 	bd |= UARTBAUD_BOTHEDGE;
@@ -1636,6 +1641,28 @@ static void lpuart32_console_putchar(struct uart_port *port, int ch)
 }
 
 static void
+lpuart32_early_write(struct console *con, const char *s, unsigned int n)
+{
+	struct earlycon_device *dev = con->data;
+
+	while (n--)
+		lpuart32_console_putchar(&dev->port, (int)*(s++));
+}
+
+static int __init
+lpuart32_early_console_setup(struct earlycon_device *device, const char *opt)
+{
+	if (!device->port.membase)
+		return -ENODEV;
+
+	device->con->write = lpuart32_early_write;
+	return 0;
+}
+EARLYCON_DECLARE(lpuart32, lpuart32_early_console_setup);
+OF_EARLYCON_DECLARE(lpuart32, "fsl,lpuart",
+		    lpuart32_early_console_setup);
+
+static void
 lpuart_console_write(struct console *co, const char *s, unsigned int count)
 {
 	struct lpuart_port *sport = lpuart_ports[co->index];
@@ -1667,7 +1694,6 @@ lpuart32_console_write(struct console *co, const char *s, unsigned int count)
 	cr |= (UARTCTRL_TE |  UARTCTRL_RE);
 	cr &= ~(UARTCTRL_TIE | UARTCTRL_TCIE | UARTCTRL_RIE);
 	lpuart32_write(cr, sport->port.membase + UARTCTRL);
-
 	uart_console_write(&sport->port, s, count, lpuart32_console_putchar);
 
 	/* wait for transmitter finish complete and restore CR2 */
@@ -1806,7 +1832,8 @@ static int __init lpuart_console_setup(struct console *co, char *options)
 	else
 		lpuart_setup_watermark(sport);
 
-	return uart_set_options(&sport->port, co, baud, parity, bits, flow);
+	uart_set_options(&sport->port, co, baud, parity, bits, flow);
+	return 0;
 }
 
 static struct uart_driver lpuart_reg;
@@ -1829,45 +1856,6 @@ static struct console lpuart32_console = {
 	.index		= -1,
 	.data		= &lpuart_reg,
 };
-
-static void lpuart_early_write(struct console *con, const char *s, unsigned n)
-{
-	struct earlycon_device *dev = con->data;
-
-	uart_console_write(&dev->port, s, n, lpuart_console_putchar);
-}
-
-static void lpuart32_early_write(struct console *con, const char *s, unsigned n)
-{
-	struct earlycon_device *dev = con->data;
-
-	uart_console_write(&dev->port, s, n, lpuart32_console_putchar);
-}
-
-static int __init lpuart_early_console_setup(struct earlycon_device *device,
-					  const char *opt)
-{
-	if (!device->port.membase)
-		return -ENODEV;
-
-	device->con->write = lpuart_early_write;
-	return 0;
-}
-
-static int __init lpuart32_early_console_setup(struct earlycon_device *device,
-					  const char *opt)
-{
-	if (!device->port.membase)
-		return -ENODEV;
-
-	device->con->write = lpuart32_early_write;
-	return 0;
-}
-
-OF_EARLYCON_DECLARE(lpuart, "fsl,vf610-lpuart", lpuart_early_console_setup);
-OF_EARLYCON_DECLARE(lpuart32, "fsl,ls1021a-lpuart", lpuart32_early_console_setup);
-EARLYCON_DECLARE(lpuart, lpuart_early_console_setup);
-EARLYCON_DECLARE(lpuart32, lpuart32_early_console_setup);
 
 #define LPUART_CONSOLE	(&lpuart_console)
 #define LPUART32_CONSOLE	(&lpuart32_console)
@@ -1907,7 +1895,7 @@ static int lpuart_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	sport->port.line = ret;
-	sport->lpuart32 = of_device_is_compatible(np, "fsl,ls1021a-lpuart");
+	sport->lpuart32 = 1; /* of_device_is_compatible(np, "fsl,imx8dv-lpuart"); */
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	sport->port.membase = devm_ioremap_resource(&pdev->dev, res);
@@ -1947,6 +1935,7 @@ static int lpuart_probe(struct platform_device *pdev)
 	}
 
 	sport->port.uartclk = clk_get_rate(sport->clk);
+	pr_info("uartclk = %ld\n", clk_get_rate(sport->clk));
 
 	lpuart_ports[sport->port.line] = sport;
 
@@ -1962,16 +1951,6 @@ static int lpuart_probe(struct platform_device *pdev)
 		clk_disable_unprepare(sport->clk);
 		return ret;
 	}
-
-	sport->dma_tx_chan = dma_request_slave_channel(sport->port.dev, "tx");
-	if (!sport->dma_tx_chan)
-		dev_info(sport->port.dev, "DMA tx channel request failed, "
-				"operating without tx DMA\n");
-
-	sport->dma_rx_chan = dma_request_slave_channel(sport->port.dev, "rx");
-	if (!sport->dma_rx_chan)
-		dev_info(sport->port.dev, "DMA rx channel request failed, "
-				"operating without rx DMA\n");
 
 	if (of_property_read_bool(np, "linux,rs485-enabled-at-boot-time")) {
 		sport->port.rs485.flags |= SER_RS485_ENABLED;
