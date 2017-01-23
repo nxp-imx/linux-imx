@@ -617,9 +617,9 @@ _GetPower(
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
     rstc = devm_reset_control_get(pdev, "gpu3d");
     priv->rstc[gcvCORE_MAJOR] = IS_ERR(rstc) ? NULL : rstc;
-    rstc = devm_reset_control_get(pdev, "gpu2d");
+    rstc = devm_reset_control_get_shared(pdev, "gpu2d");
     priv->rstc[gcvCORE_2D] = IS_ERR(rstc) ? NULL : rstc;
-    rstc = devm_reset_control_get(pdev, "gpuvg");
+    rstc = devm_reset_control_get_shared(pdev, "gpuvg");
     priv->rstc[gcvCORE_VG] = IS_ERR(rstc) ? NULL : rstc;
 #endif
 #endif
