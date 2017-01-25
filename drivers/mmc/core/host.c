@@ -303,6 +303,8 @@ int mmc_of_parse(struct mmc_host *host)
 		host->pm_caps |= MMC_PM_WAKE_SDIO_IRQ;
 	if (device_property_read_bool(dev, "pm-ignore-notify"))
 		host->pm_caps |= MMC_PM_IGNORE_PM_NOTIFY;
+	if (device_property_read_bool(dev, "mmc-ddr-3_3v"))
+		host->caps |= MMC_CAP_3_3V_DDR;
 	if (device_property_read_bool(dev, "mmc-ddr-1_8v"))
 		host->caps |= MMC_CAP_1_8V_DDR;
 	if (device_property_read_bool(dev, "mmc-ddr-1_2v"))
