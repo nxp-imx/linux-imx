@@ -262,6 +262,8 @@ typedef void (softirq_done_fn)(struct request *);
 typedef int (dma_drain_needed_fn)(struct request *);
 typedef int (lld_busy_fn) (struct request_queue *q);
 typedef int (bsg_job_fn) (struct bsg_job *);
+typedef int (init_rq_fn)(struct request_queue *, struct request *, gfp_t);
+typedef void (exit_rq_fn)(struct request_queue *, struct request *);
 
 enum blk_eh_timer_return {
 	BLK_EH_NOT_HANDLED,
@@ -349,6 +351,8 @@ struct request_queue {
 	rq_timed_out_fn		*rq_timed_out_fn;
 	dma_drain_needed_fn	*dma_drain_needed;
 	lld_busy_fn		*lld_busy_fn;
+	init_rq_fn		*init_rq_fn;
+	exit_rq_fn		*exit_rq_fn;
 
 	struct blk_mq_ops	*mq_ops;
 
@@ -507,6 +511,9 @@ struct request_queue {
 	struct bio_set		*bio_split;
 
 	bool			mq_sysfs_init_done;
+
+	size_t			cmd_size;
+	void			*rq_alloc_data;
 };
 
 #define QUEUE_FLAG_QUEUED	1	/* uses generic tag queueing */
