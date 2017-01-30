@@ -168,7 +168,16 @@ static int imx6q_set_target(struct cpufreq_policy *policy, unsigned int index)
 		clk_set_parent(pll1_sw_clk, step_clk);
 		if (freq_hz > clk_get_rate(pll2_pfd2_396m_clk)) {
 			clk_set_rate(pll1_sys_clk, new_freq * 1000);
+
+			/* Ensure pll1_bypass is set back to pll1. */
+			clk_set_parent(pll1_bypass, pll1);
 			clk_set_parent(pll1_sw_clk, pll1_sys_clk);
+		} else {
+			/*
+			 * Need to ensure that PLL1 is bypassed and enabled
+			 * before ARM-PODF is set.
+			 */
+			clk_set_parent(pll1_bypass, pll1_bypass_src);
 		}
 	}
 
