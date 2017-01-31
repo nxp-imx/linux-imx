@@ -302,11 +302,6 @@
 				 <&clks IMX6QDL_CLK_PLL2_PFD0_352M>;
 };
 
-&cpu0 {
-	arm-supply = <&sw1a_reg>;
-	soc-supply = <&sw1c_reg>;
-};
-
 &clks {
 };
 
