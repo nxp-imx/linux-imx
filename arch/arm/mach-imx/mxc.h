@@ -65,7 +65,8 @@
 #define IMX_DDR_TYPE_LPDDR3		2
 #define IMX_MMDC_DDR_TYPE_LPDDR3	3
 
-
+#define IMX_LPDDR2_1CH_MODE		0
+#define IMX_LPDDR2_2CH_MODE		1
 
 #ifndef __ASSEMBLY__
 extern unsigned int __mxc_cpu_type;
