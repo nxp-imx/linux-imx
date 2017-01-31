@@ -342,14 +342,35 @@ dtb-$(CONFIG_SOC_IMX6Q) += \
 	imx6dqscm-1gb-evb-btwifi-fix-ldo.dtb \
 	imx6dqscm-1gb-evb-enetirq-fix-ldo.dtb \
 	imx6dqscm-1gb-evb-hdcp-fix-ldo.dtb \
+	imx6dqscm-2gb-evb-fix-ldo.dtb \
+	imx6dqscm-2gb-evb-btwifi-fix-ldo.dtb \
+	imx6dqscm-2gb-evb-enetirq-fix-ldo.dtb \
+	imx6dqscm-2gb-evb-hdcp-fix-ldo.dtb \
+	imx6dqscm-512mb-qwks-rev2-ldo.dtb \
+	imx6dqscm-512mb-qwks-rev2-wifi-ldo.dtb \
+	imx6dqscm-512mb-qwks-rev2-hdcp-ldo.dtb \
+	imx6dqscm-512mb-evb-ldo.dtb \
+	imx6dqscm-512mb-evb-btwifi-ldo.dtb \
+	imx6dqscm-512mb-evb-enetirq-ldo.dtb \
+	imx6dqscm-512mb-evb-hdcp-ldo.dtb \
 	imx6sxscm-1gb-evb-ldo.dtb \
 	imx6sxscm-1gb-evb-lcdif1-ldo.dtb \
 	imx6sxscm-1gb-evb-m4-ldo.dtb \
 	imx6sxscm-1gb-evb-mqs-ldo.dtb \
 	imx6sxscm-1gb-evb-sai-ldo.dtb \
 	imx6sxscm-1gb-evb-btwifi-ldo.dtb \
+	imx6sxscm-512mb-evb-ldo.dtb \
+	imx6sxscm-512mb-evb-lcdif1-ldo.dtb \
+	imx6sxscm-512mb-evb-m4-ldo.dtb \
+	imx6sxscm-512mb-evb-mqs-ldo.dtb \
+	imx6sxscm-512mb-evb-sai-ldo.dtb \
+	imx6sxscm-512mb-evb-btwifi-ldo.dtb \
 	imx6sxscm-epop-evb-ldo.dtb \
+	imx6sxscm-epop-evb-lcdif1-ldo.dtb \
 	imx6sxscm-epop-evb-m4-ldo.dtb \
+	imx6sxscm-epop-evb-mqs-ldo.dtb \
+	imx6sxscm-epop-evb-sai-ldo.dtb \
+	imx6sxscm-epop-evb-btwifi-ldo.dtb \
 	imx6dqscm-1gb-qwks-rev3-fix-ldo.dtb \
 	imx6dqscm-1gb-qwks-rev3-hdcp-fix-ldo.dtb \
 	imx6dqscm-1gb-qwks-rev3-btwifi-fix-ldo.dtb
