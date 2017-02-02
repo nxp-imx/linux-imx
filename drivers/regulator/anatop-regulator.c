@@ -96,7 +96,7 @@ static int anatop_core_regmap_enable(struct regulator_dev *reg)
 	 * whenever it's about to be enabled.
 	 */
 	if (anatop_reg == vddpu && vddsoc)
-		anatop_reg->sel = vddsoc->sel;
+		anatop_reg->sel = vddsoc->bypass ? LDO_FET_FULL_ON : vddsoc->sel;
 
 	sel = anatop_reg->bypass ? LDO_FET_FULL_ON : anatop_reg->sel;
 	return regulator_set_voltage_sel_regmap(reg, sel);
