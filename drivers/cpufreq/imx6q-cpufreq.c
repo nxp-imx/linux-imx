@@ -359,8 +359,11 @@ static int imx6q_cpufreq_probe(struct platform_device *pdev)
 	pu_reg = devm_regulator_get_optional(cpu_dev, "pu");
 	soc_reg = devm_regulator_get(cpu_dev, "soc");
 	if (IS_ERR(arm_reg) || IS_ERR(soc_reg)) {
-		dev_err(cpu_dev, "failed to get regulators\n");
-		ret = -ENOENT;
+		ret = IS_ERR(arm_reg)?PTR_ERR(arm_reg):PTR_ERR(soc_reg);
+		if (ret == -EPROBE_DEFER)
+			dev_warn(cpu_dev, "regulators not ready, retry\n");
+		else
+			dev_err(cpu_dev, "failed to get regulators: %d\n", ret);
 		goto put_node;
 	}
 
@@ -517,6 +520,7 @@ soc_opp_out:
 	register_pm_notifier(&imx6_cpufreq_pm_notifier);
 
 	of_node_put(np);
+	dev_info(cpu_dev, "Registered imx6q-cpufreq\n");
 	return 0;
 
 free_freq_table:
