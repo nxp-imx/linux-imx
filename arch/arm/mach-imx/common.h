@@ -215,6 +215,7 @@ static inline void imx7_suspend(void __iomem *ocram_vbase) {}
 static inline void imx7ulp_suspend(void __iomem *ocram_vbase) {}
 void pm_vlls_notify_m4(bool enter) {}
 #endif
+void pm_shutdown_notify_m4(void);
 
 void imx6_pm_ccm_init(const char *ccm_compat);
 void imx6q_pm_init(void);
