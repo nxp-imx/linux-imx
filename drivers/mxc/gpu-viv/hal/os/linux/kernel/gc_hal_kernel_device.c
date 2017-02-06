@@ -1407,6 +1407,19 @@ gckGALDEVICE_Construct(
         if (Args->irqs[i] != -1)
         {
             gckDEVICE_AddCore(device->device, i, Args->chipIDs[i], device, &device->kernels[i]);
+
+            gcmkONERROR(
+            gckHARDWARE_SetFastClear(device->kernels[i]->hardware,
+                FastClear,
+                Compression));
+
+            gcmkONERROR(gckHARDWARE_SetPowerManagement(
+                device->kernels[i]->hardware, PowerManagement
+                ));
+
+            gcmkONERROR(gckHARDWARE_SetGpuProfiler(
+                device->kernels[i]->hardware, GpuProfiler
+                ));
         }
     }
 
