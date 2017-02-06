@@ -896,7 +896,11 @@ static int imx_gpc_probe(struct platform_device *pdev)
 		pu_reg = NULL;
 	if (IS_ERR(pu_reg)) {
 		ret = PTR_ERR(pu_reg);
-		dev_err(&pdev->dev, "failed to get pu regulator: %d\n", ret);
+		if (ret == -EPROBE_DEFER)
+			dev_warn(&pdev->dev, "pu regulator not ready, retry\n");
+		else
+			dev_err(&pdev->dev, "failed to get pu regulator: %d\n",
+				ret);
 		return ret;
 	}
 
@@ -926,7 +930,12 @@ static int imx_gpc_probe(struct platform_device *pdev)
 		}
 	}
 
-	return imx_gpc_genpd_init(&pdev->dev, pu_reg);
+	ret = imx_gpc_genpd_init(&pdev->dev, pu_reg);
+	if (ret)
+		return ret;
+	dev_info(&pdev->dev, "Registered imx-gpc\n");
+
+	return 0;
 }
 
 static const struct of_device_id imx_gpc_dt_ids[] = {
