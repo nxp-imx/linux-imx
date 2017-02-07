@@ -495,6 +495,27 @@ static void rpmsg_downref_sleepers(struct virtproc_info *vrp)
 	mutex_unlock(&vrp->tx_lock);
 }
 
+static int sg_init_one_full(struct scatterlist *sg, const void *buf,
+				unsigned int buflen)
+{
+	const bool vmalloced_buf = is_vmalloc_addr(buf);
+	struct page *vm_page;
+
+	/* get page for high memory */
+	if (vmalloced_buf) {
+		vm_page = vmalloc_to_page(buf);
+		if (!vm_page)
+			return -ENOMEM;
+
+		sg_init_table(sg, 1);
+		sg_set_page(sg, vm_page, RPMSG_BUF_SIZE,
+				offset_in_page(buf));
+	} else
+		sg_init_one(sg, buf, buflen);
+
+	return 0;
+}
+
 /**
  * rpmsg_send_offchannel_raw() - send a message across to the remote processor
  * @rpdev: the rpmsg channel
@@ -604,7 +625,11 @@ static int rpmsg_send_offchannel_raw(struct rpmsg_device *rpdev,
 			 msg, sizeof(*msg) + msg->len, true);
 #endif
 
-	sg_init_one(&sg, msg, sizeof(*msg) + len);
+	err = sg_init_one_full(&sg, msg, sizeof(*msg) + len);
+	if (err) {
+		dev_err(dev, "virtqueue_add_outbuf sg_init failed: %d\n", err);
+		return err;
+	}
 
 	mutex_lock(&vrp->tx_lock);
 
@@ -729,7 +754,11 @@ static int rpmsg_recv_single(struct virtproc_info *vrp, struct device *dev,
 		dev_warn(dev, "msg received with no recipient\n");
 
 	/* publish the real size of the buffer */
-	sg_init_one(&sg, msg, RPMSG_BUF_SIZE);
+	err = sg_init_one_full(&sg, msg, RPMSG_BUF_SIZE);
+	if (err) {
+		dev_err(dev, "rpmsg_recv_done sg_init failed: %d\n", err);
+		return err;
+	}
 
 	/* add the buffer back to the remote processor's virtqueue */
 	err = virtqueue_add_inbuf(vrp->rvq, &sg, 1, msg, GFP_KERNEL);
@@ -911,7 +940,11 @@ static int rpmsg_probe(struct virtio_device *vdev)
 		struct scatterlist sg;
 		void *cpu_addr = vrp->rbufs + i * RPMSG_BUF_SIZE;
 
-		sg_init_one(&sg, cpu_addr, RPMSG_BUF_SIZE);
+		err = sg_init_one_full(&sg, cpu_addr, RPMSG_BUF_SIZE);
+		if (err) {
+			dev_err(&vdev->dev, "rpmsg_probe sg_init failed.\n");
+			return err;
+		}
 
 		err = virtqueue_add_inbuf(vrp->rvq, &sg, 1, cpu_addr,
 					  GFP_KERNEL);
