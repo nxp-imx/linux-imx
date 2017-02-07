@@ -61,7 +61,30 @@ static int bcm54220_phy_fixup(struct phy_device *dev)
 }
 
 #define PHY_ID_AR8031	0x004dd074
+static int ar8035_phy_fixup(struct phy_device *dev)
+{
+	u16 val;
+
+	phy_write(dev, 0xd, 0x3);
+	phy_write(dev, 0xe, 0x805d);
+	phy_write(dev, 0xd, 0x4003);
+
+	val = phy_read(dev, 0xe);
+	phy_write(dev, 0xe, val & ~(1 << 8));
+
+	ar8031_phy_fixup(dev);
+
+	val = phy_read(dev, 0x0);
+	if (val & BMCR_PDOWN)
+	    phy_write(dev, 0x0, val & ~BMCR_PDOWN);
+
+	return 0;
+}
+
+#define PHY_ID_AR8035 0x004dd072
+#define PHY_ID_AR8031   0x004dd074
 #define PHY_ID_BCM54220	0x600d8589
+#define PHY_ID_BCM5422x 0x600d8599
 
 static void __init imx7d_enet_phy_init(void)
 {
@@ -70,6 +93,10 @@ static void __init imx7d_enet_phy_init(void)
 					   ar8031_phy_fixup);
 		phy_register_fixup_for_uid(PHY_ID_BCM54220, 0xffffffff,
 					   bcm54220_phy_fixup);
+		phy_register_fixup_for_uid(PHY_ID_BCM5422x, 0xffffffff,
+					   bcm54220_phy_fixup);
+		phy_register_fixup_for_uid(PHY_ID_AR8035, 0xffffffef,
+					   ar8035_phy_fixup);
 	}
 }
 
