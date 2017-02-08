@@ -437,8 +437,8 @@
 		interrupts = <GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clks IMX7D_CAAM_CLK>,
 			<&clks IMX7D_AHB_CHANNEL_ROOT_CLK>;
-		clock-names = "caam_ipg", "caam_aclk";
-			sec_jr0: jr0@1000 {
+		clock-names = "ipg", "aclk";
+		sec_jr0: jr0@1000 {
 			 compatible = "fsl,sec-v4.0-job-ring";
 			 reg = <0x1000 0x1000>;
 			 interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
