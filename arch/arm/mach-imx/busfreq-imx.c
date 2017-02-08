@@ -1153,11 +1153,12 @@ static int busfreq_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (cpu_is_imx6q())
+	if (cpu_is_imx6q()) {
 		mmdc_clk = devm_clk_get(&pdev->dev, "mmdc");
 		if (IS_ERR(mmdc_clk)) {
 			mmdc_clk = NULL;
 		}
+	}
 
 	if (cpu_is_imx6sx()) {
 		m4_clk = devm_clk_get(&pdev->dev, "m4");
