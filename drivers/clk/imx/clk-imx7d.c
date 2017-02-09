@@ -726,6 +726,8 @@ static void __init imx7d_clocks_init(struct device_node *ccm_node)
 	clks[IMX7D_MAIN_AXI_ROOT_DIV] = imx_clk_divider_flags("axi_post_div", "axi_pre_div", base + 0x8800, 0, 6, CLK_OPS_PARENT_ENABLE);
 	clks[IMX7D_DISP_AXI_ROOT_DIV] = imx_clk_divider2("disp_axi_post_div", "disp_axi_pre_div", base + 0x8880, 0, 6);
 	clks[IMX7D_ENET_AXI_ROOT_DIV] = imx_clk_divider2("enet_axi_post_div", "enet_axi_pre_div", base + 0x8900, 0, 6);
+	clks[IMX7D_NAND_USDHC_BUS_ROOT_CLK] = imx_clk_divider2("nand_usdhc_root_clk", "nand_usdhc_pre_div", base + 0x8980, 0, 6);
+	clks[IMX7D_AHB_CHANNEL_ROOT_CLK] = imx_clk_divider_flags("ahb_root_clk", "ahb_pre_div", base + 0x9000, 0, 6, CLK_OPS_PARENT_ENABLE);
 	clks[IMX7D_DRAM_ROOT_DIV] = imx_clk_divider2("dram_post_div", "dram_cg", base + 0x9880, 0, 3);
 	clks[IMX7D_DRAM_PHYM_ALT_ROOT_DIV] = imx_clk_divider2("dram_phym_alt_post_div", "dram_phym_alt_pre_div", base + 0xa000, 0, 3);
 	clks[IMX7D_DRAM_ALT_ROOT_DIV] = imx_clk_divider2("dram_alt_post_div", "dram_alt_pre_div", base + 0xa080, 0, 3);
@@ -798,8 +800,6 @@ static void __init imx7d_clocks_init(struct device_node *ccm_node)
 	clks[IMX7D_ENET_AXI_ROOT_CLK] = imx_clk_gate4("enet_axi_root_clk", "enet_axi_post_div", base + 0x4060, 0);
 	clks[IMX7D_OCRAM_CLK] = imx_clk_gate4("ocram_clk", "axi_post_div", base + 0x4110, 0);
 	clks[IMX7D_OCRAM_S_CLK] = imx_clk_gate4("ocram_s_clk", "ahb_root_clk", base + 0x4120, 0);
-	clks[IMX7D_NAND_USDHC_BUS_ROOT_CLK] = imx_clk_divider2("nand_usdhc_root_clk", "nand_usdhc_pre_div", base + 0x8980, 0, 6);
-	clks[IMX7D_AHB_CHANNEL_ROOT_CLK] = imx_clk_divider_flags("ahb_root_clk", "ahb_pre_div", base + 0x9000, 0, 6, CLK_OPS_PARENT_ENABLE);
 	clks[IMX7D_CAAM_CLK] = imx_clk_gate4("caam_clk", "ipg_root_clk", base + 0x4240, 0);
 	clks[IMX7D_DRAM_ROOT_CLK] = imx_clk_gate4("dram_root_clk", "dram_post_div", base + 0x4130, 0);
 	clks[IMX7D_DRAM_PHYM_ROOT_CLK] = imx_clk_gate4("dram_phym_root_clk", "dram_phym_cg", base + 0x4130, 0);
