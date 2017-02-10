@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -453,6 +454,8 @@
 #define IMX7D_CAAM_CLK 			440
 #define IMX7D_PXP_IPG_CLK		441
 #define IMX7D_PXP_AXI_CLK		442
-#define IMX7D_CLK_END			443
+#define IMX7D_ENET1_IPG_ROOT_CLK        443
+#define IMX7D_ENET2_IPG_ROOT_CLK        444
+#define IMX7D_CLK_END			445
 
 #endif /* __DT_BINDINGS_CLOCK_IMX7D_H */
