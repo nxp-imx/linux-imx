@@ -4794,7 +4794,11 @@ gckOS_CacheFlush(
     /* Inner cache. */
     dmac_flush_range(Logical, Logical + Bytes);
 #elif defined (CONFIG_ARM64)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+    __dma_flush_area(Logical, Bytes);
+#else
     __dma_flush_range(Logical, Logical + Bytes);
+#endif
 #endif
 
 #if defined(CONFIG_OUTER_CACHE)
