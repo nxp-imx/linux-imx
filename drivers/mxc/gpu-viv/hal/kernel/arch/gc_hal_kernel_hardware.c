@@ -1555,6 +1555,8 @@ gckHARDWARE_Construct(
     /* Identify the hardware. */
     gcmkONERROR(_IdentifyHardwareByDatabase(hardware, Os, Core, &hardware->identity));
 
+    hardware->mmuVersion = gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_MMU);
+
     /* Get the system's physical base address for old MMU */
     if (hardware->mmuVersion == 0)
     {
@@ -1611,9 +1613,6 @@ gckHARDWARE_Construct(
     }
 
     hardware->powerMutex = gcvNULL;
-
-    hardware->mmuVersion = gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_MMU);
-
 
     /* Determine whether bug fixes #1 are present. */
     hardware->extraEventStates = (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_BUG_FIXES1) == gcvFALSE);
@@ -12192,7 +12191,7 @@ gckHARDWARE_GetBaseAddress(
     gcmkVERIFY_ARGUMENT(BaseAddress != gcvNULL);
 
     /* Test if we have a new Memory Controller. */
-    if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_MMU))
+    if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_MC20))
     {
         /* No base address required. */
         *BaseAddress = 0;
