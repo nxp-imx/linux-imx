@@ -111,6 +111,28 @@ typedef struct _gcsPLATFORM_OPERATIONS
 
     /*******************************************************************************
     **
+    **  registerDevice
+    **
+    **  Determine whether platform device need to be registered
+    */
+    gceSTATUS
+    (*registerDevice)(
+        IN gckPLATFORM Platform
+        );
+
+    /*******************************************************************************
+    **
+    **  runRegisterDevice
+    **
+    **  Determine whether platform device need to be registered
+    */
+    gceSTATUS
+    (*unRegisterDevice)(
+        IN gckPLATFORM Platform
+        );
+
+    /*******************************************************************************
+    **
     **  adjustParam
     **
     **  Override content of arguments, if a argument is not changed here, it will

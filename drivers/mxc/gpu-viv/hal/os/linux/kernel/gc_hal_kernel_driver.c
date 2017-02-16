@@ -1358,6 +1358,12 @@ static int __init gpu_init(void)
         platform.ops->adjustDriver(&platform);
     }
 
+    if (platform.ops->registerDevice)
+    {
+        ret = platform.ops->registerDevice(&platform);
+        /*TODO: handle Error*/
+    }
+
     ret = platform_driver_register(&gpu_driver);
     if (!ret)
     {
@@ -1374,6 +1380,10 @@ out:
 
 static void __exit gpu_exit(void)
 {
+    if (platform.ops->unRegisterDevice)
+    {
+        platform.ops->unRegisterDevice(&platform);
+    }
     platform_driver_unregister(&gpu_driver);
 
     if (platform.ops->needAddDevice
