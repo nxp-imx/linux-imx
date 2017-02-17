@@ -677,7 +677,6 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 				"dispdrv:%s\n", host->dispdrv->drv->name);
 			return;
 		}
-		host->sync = fb_info->var.sync;
 	}
 
 	if (host->reg_lcd) {
@@ -1323,11 +1322,8 @@ static int mxsfb_init_fbinfo_dt(struct mxsfb_info *host)
 	}
 
 	ret = of_property_read_string(np, "disp-dev", &disp_dev);
-	if (!ret) {
+	if (!ret)
 		memcpy(host->disp_dev, disp_dev, strlen(disp_dev));
-		/* Timing is from encoder driver */
-		goto put_display_node;
-	}
 
 	timings = of_get_display_timings(display_np);
 	if (!timings) {
