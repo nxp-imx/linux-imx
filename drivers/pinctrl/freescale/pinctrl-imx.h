@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2012 Freescale Semiconductor, Inc.
  * Copyright (C) 2012 Linaro Ltd.
+ * Copyright 2017 NXP
  *
  * Author: Dong Aisheng <dong.aisheng@linaro.org>
  *
@@ -26,12 +27,23 @@ struct platform_device;
  * @input_val: the select input value for this pin.
  * @configs: the config for this pin.
  */
-struct imx_pin {
-	unsigned int pin;
+struct imx_pin_memmap {
 	unsigned int mux_mode;
 	u16 input_reg;
 	unsigned int input_val;
 	unsigned long config;
+};
+
+struct imx_pin_scu {
+	unsigned int all;
+};
+
+struct imx_pin {
+	unsigned int pin;
+	union {
+		struct imx_pin_memmap pin_memmap;
+		struct imx_pin_scu pin_scu;
+	} pin_conf;
 };
 
 /**
@@ -86,9 +98,27 @@ struct imx_pinctrl_soc_info {
 	unsigned int mux_mask;
 };
 
+/**
+ * @dev: a pointer back to containing device
+ * @base: the offset to the controller in virtual memory
+ */
+struct imx_pinctrl {
+	struct device *dev;
+	struct pinctrl_dev *pctl;
+	void __iomem *base;
+	void __iomem *input_sel_base;
+	const struct imx_pinctrl_soc_info *info;
+};
+
 #define SHARE_MUX_CONF_REG	0x1
 #define ZERO_OFFSET_VALID	0x2
 #define CONFIG_IBE_OBE		0x4
+#define IMX8_ENABLE_MUX_CONFIG	(1 << 29)
+#define IMX8_ENABLE_PAD_CONFIG	(1 << 30)
+#define IMX8_USE_SCU		(1 << 31)
+
+#define BM_IMX8_GP_ENABLE	(1 << 30)
+#define BM_IMX8_IFMUX_ENABLE	(1 << 31)
 
 #define NO_MUX		0x0
 #define NO_PAD		0x0
@@ -103,4 +133,19 @@ int imx_pinctrl_probe(struct platform_device *pdev,
 			struct imx_pinctrl_soc_info *info);
 int imx_pinctrl_suspend(struct device *dev);
 int imx_pinctrl_resume(struct device *dev);
+int imx_pmx_set_one_pin(struct imx_pinctrl *ipctl, struct imx_pin *pin);
+int imx_pmx_backend_gpio_request_enable(struct pinctrl_dev *pctldev,
+			struct pinctrl_gpio_range *range, unsigned offset);
+void imx_pmx_backend_gpio_disable_free(struct pinctrl_dev *pctldev,
+				       struct pinctrl_gpio_range *range,
+				       unsigned offset);
+int imx_pmx_backend_gpio_set_direction(struct pinctrl_dev *pctldev,
+	   struct pinctrl_gpio_range *range, unsigned offset, bool input);
+int imx_pinconf_backend_get(struct pinctrl_dev *pctldev, unsigned pin_id,
+			    unsigned long *config);
+int imx_pinconf_backend_set(struct pinctrl_dev *pctldev, unsigned pin_id,
+			    unsigned long *configs, unsigned num_configs);
+int imx_pinctrl_parse_pin(struct imx_pinctrl_soc_info *info,
+			  unsigned int *pin_id, struct imx_pin *pin,
+			  const __be32 **list_p);
 #endif /* __DRIVERS_PINCTRL_IMX_H */
