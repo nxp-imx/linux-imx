@@ -2229,6 +2229,7 @@ again:
 	if (devidx >= 0)
 		devidx = ida_simple_get(&mmc_blk_ida, devidx, devidx,
 					GFP_NOWAIT);
+	ret = 0;
 	if (devidx < 0)
 		ret = ida_get_new_above(&mmc_blk_ida,
 					mmc_first_nonreserved_index(), &devidx);
