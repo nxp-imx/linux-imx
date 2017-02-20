@@ -17,9 +17,6 @@
 #include <linux/regulator/consumer.h>
 #include <linux/suspend.h>
 static struct clk *arm_clk;
-static struct clk *pll_arm;
-static struct clk *arm_src;
-static struct clk *pll_sys_main;
 
 static struct regulator *arm_reg;
 
@@ -67,13 +64,6 @@ static int imx7d_set_target(struct cpufreq_policy *policy, unsigned int index)
 			return ret;
 		}
 	}
-
-	/* before changing pll_arm rate, change the arm_src's soure
-	 * to pll_sys_main clk first.
-	 */
-	clk_set_parent(arm_src, pll_sys_main);
-	clk_set_rate(pll_arm, new_freq * 1000);
-	clk_set_parent(arm_src, pll_arm);
 
 	/* change the cpu frequency */
 	ret = clk_set_rate(arm_clk, new_freq * 1000);
@@ -180,14 +170,9 @@ static int imx7d_cpufreq_probe(struct platform_device *pdev)
 	}
 
 	arm_clk = devm_clk_get(cpu_dev, "arm");
-	arm_src	= devm_clk_get(cpu_dev, "arm_root_src");
-	pll_arm = devm_clk_get(cpu_dev, "pll_arm");
-	pll_sys_main = devm_clk_get(cpu_dev, "pll_sys_main");
-
-	if (IS_ERR(arm_clk) || IS_ERR(arm_src) || IS_ERR(pll_arm) ||
-	    IS_ERR(pll_sys_main)) {
-		dev_err(cpu_dev, "failed to get clocks\n");
-		ret = -ENOENT;
+	if (IS_ERR(arm_clk)) {
+		dev_err(cpu_dev, "failed to get arm clock\n");
+		ret = PTR_ERR(arm_clk);
 		goto put_node;
 	}
 
