@@ -46,7 +46,7 @@ int imx_pmx_set_one_pin(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 	if (pin_reg->mux_reg == -1) {
 		dev_err(ipctl->dev, "Pin(%s) does not support mux function\n",
 			info->pins[pin_id].name);
-		return -EINVAL;
+		return 0;
 	}
 
 	if (info->flags & SHARE_MUX_CONF_REG) {
@@ -277,8 +277,7 @@ int imx_pinctrl_parse_pin(struct imx_pinctrl_soc_info *info,
 			  const __be32 **list_p)
 {
 	struct imx_pin_memmap *pin_memmap = &pin->pin_conf.pin_memmap;
-	const __be32 *list = *list_p;
-	u32 mux_reg = be32_to_cpu(*list++);
+	u32 mux_reg = be32_to_cpu(*((*list_p)++));
 	u32 conf_reg;
 	u32 config;
 	unsigned int pin_id;
@@ -287,23 +286,23 @@ int imx_pinctrl_parse_pin(struct imx_pinctrl_soc_info *info,
 	if (info->flags & SHARE_MUX_CONF_REG) {
 		conf_reg = mux_reg;
 	} else {
-		conf_reg = be32_to_cpu(*list++);
+		conf_reg = be32_to_cpu(*((*list_p)++));
 		if (!conf_reg)
 			conf_reg = -1;
 	}
 
-	pin_id = mux_reg ? mux_reg / 4 : conf_reg / 4;
+	pin_id = (mux_reg != -1) ? mux_reg / 4 : conf_reg / 4;
 	pin_reg = &info->pin_regs[pin_id];
 	pin->pin = pin_id;
 	*grp_pin_id = pin_id;
 	pin_reg->mux_reg = mux_reg;
 	pin_reg->conf_reg = conf_reg;
-	pin_memmap->input_reg = be32_to_cpu(*list++);
-	pin_memmap->mux_mode = be32_to_cpu(*list++);
-	pin_memmap->input_val = be32_to_cpu(*list++);
+	pin_memmap->input_reg = be32_to_cpu(*((*list_p)++));
+	pin_memmap->mux_mode = be32_to_cpu(*((*list_p)++));
+	pin_memmap->input_val = be32_to_cpu((*(*list_p)++));
 
 	/* SION bit is in mux register */
-	config = be32_to_cpu(*list++);
+	config = be32_to_cpu(*((*list_p)++));
 	if (config & IMX_PAD_SION)
 		pin_memmap->mux_mode |= IOMUXC_CONFIG_SION;
 	pin_memmap->config = config & ~IMX_PAD_SION;
