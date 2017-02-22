@@ -18,6 +18,10 @@
  */
 
 /*
+ * Copyright 2017 NXP
+ */
+
+/*
  * This is a driver for the EDT "Polytouch" family of touch controllers
  * based on the FocalTech FT5x06 line of chips.
  *
@@ -68,6 +72,8 @@
 #define EDT_SWITCH_MODE_DELAY		5 /* msec */
 #define EDT_RAW_DATA_RETRIES		100
 #define EDT_RAW_DATA_DELAY		1 /* msec */
+
+static const char EDT_TS_NAME[] = "edt-ft5x06-touch";
 
 enum edt_ver {
 	M06,
@@ -964,7 +970,7 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 		"Model \"%s\", Rev. \"%s\", %dx%d sensors\n",
 		tsdata->name, fw_version, tsdata->num_x, tsdata->num_y);
 
-	input->name = tsdata->name;
+	input->name = EDT_TS_NAME;
 	input->id.bustype = BUS_I2C;
 	input->dev.parent = &client->dev;
 
