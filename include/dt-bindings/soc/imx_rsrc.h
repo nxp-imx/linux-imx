@@ -2,16 +2,7 @@
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
  * Copyright 2017 NXP
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+ * SPDX-License-Identifier:     GPL-2.0+
  */
 
 #ifndef __DT_BINDINGS_RSCRC_IMX_H
@@ -529,6 +520,16 @@
 #define SC_R_SECO_MU_3                  504
 #define SC_R_SECO_MU_4                  505
 #define SC_R_HDMI_RX_PWM_0              506
-#define SC_R_LAST                       507
+#define SC_R_A35                        507
+#define SC_R_A35_0                      508
+#define SC_R_A35_1                      509
+#define SC_R_A35_2                      510
+#define SC_R_A35_3                      511
+#define SC_R_HIFI                       512
+#define SC_R_HIFI_RAM                   513
+#define SC_R_CAAM_JR1_OUT               514
+#define SC_R_CAAM_JR2_OUT               515
+#define SC_R_CAAM_JR3_OUT               516
+#define SC_R_LAST                       517
 
-#endif /* __DT_BINDINGS_RSCRC_IMX_H */
+#endif				/* __DT_BINDINGS_RSCRC_IMX_H */
