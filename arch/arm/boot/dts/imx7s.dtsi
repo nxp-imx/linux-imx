@@ -110,7 +110,7 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		compatible = "simple-bus";
-		interrupt-parent = <&intc>;
+		interrupt-parent = <&gpc>;
 		ranges;
 
 		funnel@30041000 {
@@ -296,14 +296,18 @@
 			      <0x31002000 0x2000>,
 			      <0x31004000 0x2000>,
 			      <0x31006000 0x2000>;
+			interrupt-parent = <&intc>;
 		};
 
 		timer {
 			compatible = "arm,armv7-timer";
+			arm,cpu-registers-not-fw-configured;
 			interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
 				     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
 				     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
 				     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
+			interrupt-parent = <&intc>;
+			clock-frequency = <8000000>;
 		};
 
 		aips1: aips-bus@30000000 {
@@ -312,6 +316,19 @@
 			#size-cells = <1>;
 			reg = <0x30000000 0x400000>;
 			ranges;
+
+			gpc: gpc@303a0000 {
+				compatible = "fsl,imx7d-gpc";
+				reg = <0x303a0000 0x10000>;
+				interrupt-controller;
+				interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>;
+				#interrupt-cells = <3>;
+				interrupt-parent = <&intc>;
+				fsl,mf-mix-wakeup-irq = <0x54010000 0xc00 0x0 0x1040640>;
+				mipi-phy-supply = <&reg_1p0d>;
+				pcie-phy-supply = <&reg_1p0d>;
+				vcc-supply = <&reg_1p2>;
+			};
 
 			gpio1: gpio@30200000 {
 				compatible = "fsl,imx7d-gpio", "fsl,imx35-gpio";
@@ -510,6 +527,21 @@
 					anatop-max-voltage = <1200000>;
 					anatop-enable-bit = <0>;
 				};
+
+				reg_1p2: regulator-vdd1p2@220 {
+					 compatible = "fsl,anatop-regulator";
+					 regulator-name = "vdd1p2";
+					 regulator-min-microvolt = <1100000>;
+					 regulator-max-microvolt = <1300000>;
+					 anatop-reg-offset = <0x220>;
+					 anatop-vol-bit-shift = <8>;
+					 anatop-vol-bit-width = <5>;
+					 anatop-min-bit-val = <8>;
+					 anatop-min-voltage = <1100000>;
+					 anatop-max-voltage = <1300000>;
+					 anatop-enable-bit = <31>;
+				};
+
 			};
 
 			snvs: snvs@30370000 {
