@@ -61,6 +61,7 @@
 #include "gc_hal_driver.h"
 
 #include <linux/platform_device.h>
+#include <linux/component.h>
 
 /* Zone used for header/footer. */
 #define _GC_OBJ_ZONE    gcvZONE_DRIVER
@@ -1036,7 +1037,35 @@ static void drv_exit(void)
 
     gcmkFOOTER_NO();
 }
+static int gpu_platform_bind(struct device *dev)
+{
+	int ret;
 
+	ret = component_bind_all(dev, 0);
+	if (ret < 0) {
+		return ret;
+    }
+
+    ret = drv_init();
+    if (!ret)  {
+        platform_set_drvdata(to_platform_device(dev), galDevice);
+
+        return ret;
+    }
+	component_unbind_all(dev, 0);
+	return ret;
+}
+
+static void gpu_platform_unbind(struct device *dev)
+{
+	component_unbind_all(dev, 0);
+}
+
+extern struct component_match *match;
+static const struct component_master_ops gpu_platform_master_ops = {
+	.bind = gpu_platform_bind,
+	.unbind = gpu_platform_unbind,
+};
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 static int gpu_probe(struct platform_device *pdev)
 #else
@@ -1099,15 +1128,22 @@ static int __devinit gpu_probe(struct platform_device *pdev)
         /* Update module param because drv_init() uses them directly. */
         _UpdateModuleParam(&moduleParam);
     }
-
-    ret = drv_init();
-
-    if (!ret)
-    {
-        platform_set_drvdata(pdev, galDevice);
-
-        gcmkFOOTER_NO();
-        return ret;
+    if (platform.ops->registerDevice) {
+        /*drv_init() will be called during binding*/
+        ret = component_master_add_with_match(&pdev->dev, &gpu_platform_master_ops, match);
+        if(ret !=0)
+        {
+            gcmkFOOTER_NO();
+            return ret;
+        }
+    }
+    else {
+        ret = drv_init();
+        if (!ret) {
+            platform_set_drvdata(pdev, galDevice);
+            gcmkFOOTER_NO();
+            return ret;
+        }
     }
 
     gcmkFOOTER_ARG(KERN_INFO "Failed to register gpu driver: %d\n", ret);
@@ -1128,7 +1164,9 @@ static int __devexit gpu_remove(struct platform_device *pdev)
     {
         platform.ops->putPower(&platform);
     }
-
+    if (platform.ops->registerDevice) {
+        component_master_del(&pdev->dev, &gpu_platform_master_ops);
+    }
     gcmkFOOTER_NO();
     return 0;
 }
@@ -1361,7 +1399,9 @@ static int __init gpu_init(void)
     if (platform.ops->registerDevice)
     {
         ret = platform.ops->registerDevice(&platform);
-        /*TODO: handle Error*/
+        if (ret != 0) {
+            goto out;
+        }
     }
 
     ret = platform_driver_register(&gpu_driver);

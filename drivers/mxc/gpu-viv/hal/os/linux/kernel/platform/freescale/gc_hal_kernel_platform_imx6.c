@@ -67,6 +67,7 @@
 #if USE_PLATFORM_DRIVER
 #   include <linux/platform_device.h>
 #endif
+#include <linux/component.h>
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,0)) || (IMX8_SCU_CONTROL)
 #define IMX_GPU_SUBSYSTEM   1
@@ -404,6 +405,23 @@ struct imx_priv {
 static struct imx_priv imxPriv;
 
 #if IMX_GPU_SUBSYSTEM
+static int gpu_device_bind(struct device *dev, struct device *master,
+	void *data)
+{
+    return 0;
+}
+
+static void gpu_device_unbind(struct device *dev, struct device *master,
+	void *data)
+{
+
+}
+
+static const struct component_ops gpu_ops = {
+	.bind = gpu_device_bind,
+	.unbind = gpu_device_unbind,
+};
+
 static const struct of_device_id gpu_match[] = {
 	{
 		.compatible = "vivante,gc"
@@ -411,14 +429,15 @@ static const struct of_device_id gpu_match[] = {
 	{ /* sentinel */ }
 };
 
-static int mxc_gpu_platform_probe(struct platform_device *pdev)
+static int gpu_device_probe(struct platform_device *pdev)
 {
-	return 0;
+    return component_add(&pdev->dev, &gpu_ops);
 }
 
-static int mxc_gpu_platform_remove(struct platform_device *pdev)
+static int gpu_device_remove(struct platform_device *pdev)
 {
-	return 0;
+    component_del(&pdev->dev, &gpu_ops);
+    return 0;
 }
 struct platform_driver mxc_gpu_driver = {
 	.driver = {
@@ -426,20 +445,15 @@ struct platform_driver mxc_gpu_driver = {
 		.owner = THIS_MODULE,
 		.of_match_table = gpu_match,
 	},
-	.probe = mxc_gpu_platform_probe,
-	.remove = mxc_gpu_platform_remove,
+	.probe = gpu_device_probe,
+	.remove = gpu_device_remove,
 };
 gceSTATUS
 gckPLATFORM_RegisterDevice(
     IN gckPLATFORM Platform
     )
 {
-    int ret = 0;
-    ret = platform_driver_register(&mxc_gpu_driver);
-	if (ret != 0)
-		return ret;
-
-     return gcvSTATUS_OK;
+    return platform_driver_register(&mxc_gpu_driver);
 }
 
 gceSTATUS
@@ -450,7 +464,17 @@ gckPLATFORM_UnRegisterDevice(
     platform_driver_unregister(&mxc_gpu_driver);
     return gcvSTATUS_OK;
 }
+
+static int compare_of(struct device *dev, void *data)
+{
+    struct device_node *np = data;
+
+    return dev->of_node == np;
+}
 #endif
+/*TODO: Fix */
+struct component_match *match = NULL;
+
 gceSTATUS
 gckPLATFORM_AdjustParam(
     IN gckPLATFORM Platform,
@@ -469,8 +493,8 @@ gckPLATFORM_AdjustParam(
 #if IMX_GPU_SUBSYSTEM
     struct device_node *node =pdev->dev.of_node;
     if (node) {
-		struct device_node *core_node;
-		int i=0;
+        struct device_node *core_node;
+        int i=0;
         gctINT  coreMajor = gcvCORE_MAJOR;
         const char *cur = NULL;
         struct property *p = of_find_property(node, "core-names", NULL);
@@ -486,6 +510,8 @@ gckPLATFORM_AdjustParam(
             if(!of_device_is_available(core_node)){
                 continue;
             }
+            component_match_add(&pdev->dev, &match, compare_of,
+					    core_node);
             pdev_gpu = of_find_device_by_node(core_node);
             if (!pdev_gpu) {
 				break;

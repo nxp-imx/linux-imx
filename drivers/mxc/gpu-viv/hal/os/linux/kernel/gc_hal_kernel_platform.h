@@ -124,7 +124,7 @@ typedef struct _gcsPLATFORM_OPERATIONS
     **
     **  runRegisterDevice
     **
-    **  Determine whether platform device need to be registered
+    **  Unregister platform device
     */
     gceSTATUS
     (*unRegisterDevice)(
