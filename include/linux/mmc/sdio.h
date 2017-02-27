@@ -12,6 +12,8 @@
 #ifndef LINUX_MMC_SDIO_H
 #define LINUX_MMC_SDIO_H
 
+#include <linux/mmc/host.h>
+
 /* SDIO commands                         type  argument     response */
 #define SD_IO_SEND_OP_COND          5 /* bcr  [23:0] OCR         R4  */
 #define SD_IO_RW_DIRECT            52 /* ac   [31:0] See below   R5  */
