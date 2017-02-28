@@ -461,7 +461,7 @@ static int imx_set_trip_temp(struct thermal_zone_device *tz, int trip,
 	}
 
 	if (trip == IMX_TRIP_PASSIVE) {
-		if (temp > IMX_TRIP_PASSIVE)
+		if (temp > (data->temp_max - (1000 * 10)))
 			return -EINVAL;
 		data->temp_passive = temp;
 		imx_set_alarm_temp(data, temp);
