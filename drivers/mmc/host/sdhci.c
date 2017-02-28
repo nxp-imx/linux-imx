@@ -120,7 +120,7 @@ static void sdhci_set_card_detection(struct sdhci_host *host, bool enable)
 	int gpio_cd = mmc_gpio_get_cd(host->mmc);
 
 	if ((host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) ||
-	    !mmc_card_is_removable(host->mmc) || !IS_ERR_VALUE(gpio_cd))
+	    !mmc_card_is_removable(host->mmc) || (gpio_cd >= 0))
 		return;
 
 	if (enable) {
@@ -2835,7 +2835,7 @@ void sdhci_enable_irq_wakeups(struct sdhci_host *host)
 	val |= mask ;
 	/* Avoid fake wake up */
 	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION ||
-	    !IS_ERR_VALUE(gpio_cd)) {
+	    (gpio_cd >= 0)) {
 		val &= ~(SDHCI_WAKE_ON_INSERT | SDHCI_WAKE_ON_REMOVE);
 		irq_val &= ~(SDHCI_INT_CARD_INSERT | SDHCI_INT_CARD_REMOVE);
 	}
