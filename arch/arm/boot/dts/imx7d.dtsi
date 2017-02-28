@@ -214,6 +214,7 @@
 				<&clks IMX7D_PCIE_PHY_ROOT_CLK>;
 			clock-names = "pcie", "pcie_bus", "pcie_phy";
 			pcie-phy-supply = <&reg_1p0d>;
+			fsl,max-link-speed = <2>;
 			status = "disabled";
 		};
 	};
