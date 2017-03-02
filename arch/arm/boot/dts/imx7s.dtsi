@@ -320,12 +320,16 @@
 
 			gpc: gpc@303a0000 {
 				compatible = "fsl,imx7d-gpc";
-				reg = <0x303a0000 0x10000>;
+				reg = <0x303a0000 0x1000>;
 				interrupt-controller;
 				interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>;
 				#interrupt-cells = <3>;
 				interrupt-parent = <&intc>;
 				fsl,mf-mix-wakeup-irq = <0x54010000 0xc00 0x0 0x1040640>;
+			};
+
+			pgc {
+				compatible = "fsl,imx7d-pgc";
 				mipi-phy-supply = <&reg_1p0d>;
 				pcie-phy-supply = <&reg_1p0d>;
 				vcc-supply = <&reg_1p2>;

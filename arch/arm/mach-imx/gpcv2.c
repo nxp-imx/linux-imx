@@ -1032,7 +1032,7 @@ static int imx_gpcv2_probe(struct platform_device *pdev)
 }
 
 static struct of_device_id imx_gpcv2_dt_ids[] = {
-	{ .compatible = "fsl,imx7d-gpc" },
+	{ .compatible = "fsl,imx7d-pgc" },
 	{ }
 };
 

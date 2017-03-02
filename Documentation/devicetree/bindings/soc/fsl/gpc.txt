@@ -1,0 +1,56 @@
+* General Power Controller (GPC)
+-------------------------------------------
+The General Power Controller (GPC) module controls the following functions:
+  - Provide low power mode control for A7 and M4 platform
+  - Provide Power domain management all ARM and SOC power domain
+  - Provide domain control mechanism based on A7 and M4 CPU domain
+  - Provide handshake with CCM for clock management in low power mode
+  - Provide handshake with SRC for power down and power up sequence
+  - Provide handshake with Analog for Deep Sleep Mode control
+
+Required properties:
+  - reg : Offset and length of the register set of the GPC block.
+  - compatible : Must contain a chip-specific GPC block compatible string
+	and (if applicable) may contain a chassis-version GPC compatible
+	string. Chip-specific strings are of the form "fsl,<chip>-gpc",
+	such as:
+	* "fsl,imx7d-gpc"
+	* "fsl,imx7s-gpc"
+  - interrupt-controller : Specifies that this is an interrupt controller
+
+Example:
+The GPC node for imx7d:
+	gpc: gpc@303a0000 {
+		compatible = "fsl,imx7d-gpc";
+		reg = <0x303a0000 0x1000>;
+		interrupt-controller;
+		interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>;
+		#interrupt-cells = <3>;
+		interrupt-parent = <&intc>;
+		fsl,mf-mix-wakeup-irq = <0x54010000 0xc00 0x0 0x1040640>;
+	};
+
+* Power Gating Controller (PGC)
+-------------------------------------------
+The Power Gating Controller (PGC) is a power management component that controls the
+power-down and power-up sequencing of individual subsystems.
+The PGC block is found inside GPC, and share the same register.
+
+Required properties:
+  - compatible : Must contain a chip-specific PGC block compatible string
+	and (if applicable) may contain a chassis-version PGC compatible
+	string. Chip-specific strings are of the form "fsl,<chip>-pgc",
+	such as:
+	* "fsl,imx7d-pgc"
+	* "fsl,imx7s-pgc"
+  - *-supply : Specifies the regulators that can be managed by this PGC. For exampe:
+	* "mipi-phy-supply = <&reg_1p0d>;"
+
+Example:
+The PGC node for imx7d:
+	pgc {
+		compatible = "fsl,imx7d-pgc";
+		mipi-phy-supply = <&reg_1p0d>;
+		pcie-phy-supply = <&reg_1p0d>;
+		vcc-supply = <&reg_1p2>;
+	};
