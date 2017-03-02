@@ -21,6 +21,10 @@
 	disp-dev = "mipi_dsi_samsung";
 };
 
+&timing0 {
+	de-active = <0>;
+};
+
 &mipi_dsi {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_mipi_dsi_reset>;
