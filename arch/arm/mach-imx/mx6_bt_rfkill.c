@@ -156,6 +156,10 @@ static int mxc_bt_rfkill_probe(struct platform_device *pdev)
 	}
 
 	data->bt_power_gpio = of_get_named_gpio(np, "bt-power-gpios", 0);
+	if (data->bt_power_gpio == -EPROBE_DEFER) {
+		printk(KERN_INFO "mxc_bt_rfkill: gpio not ready, need defer\n");
+		return -EPROBE_DEFER;
+	}
 	if (gpio_is_valid(data->bt_power_gpio)) {
 		printk(KERN_INFO "bt power gpio is:%d\n", data->bt_power_gpio);
 		rc = devm_gpio_request_one(&pdev->dev,
@@ -166,6 +170,8 @@ static int mxc_bt_rfkill_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "unable to get bt-power-gpios\n");
 			goto error_request_gpio;
 		}
+	} else {
+		printk("bt power gpio not valid (%d)!\n", data->bt_power_gpio);
 	}
 
 	rc = register_pm_notifier(&mxc_bt_power_notifier);
