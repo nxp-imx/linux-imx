@@ -737,6 +737,7 @@ _GetPower(
 #if IMX8_SCU_CONTROL
     sc_err_t sciErr;
     uint32_t mu_id;
+    sc_rsrc_t  sc_gpu_pid[gcdMAX_GPU_COUNT];
 
     sciErr = sc_ipc_getMuID(&mu_id);
     if (sciErr != SC_ERR_NONE) {
@@ -837,6 +838,20 @@ _GetPower(
 
                 core = coreMajor;
                 ++coreMajor;
+
+#if IMX8_SCU_CONTROL
+                if(!of_property_read_u32_index(core_node, "fsl,sc_gpu_pid", 0, &sc_gpu_pid[core]))
+                {
+                    sciErr = sc_misc_set_control(gpu_ipcHandle, sc_gpu_pid[core], SC_C_ID, core);
+                    if (sciErr != SC_ERR_NONE)
+                        gckOS_Print("galcore: failed to set gpu id for 3d_%d\n", core);
+
+                    /* set single mode by default to avoid the potential impact by inter-signals */
+                    sciErr = sc_misc_set_control(gpu_ipcHandle, sc_gpu_pid[core], SC_C_SINGLE_MODE, 1);
+                    if (sciErr != SC_ERR_NONE)
+                        gckOS_Print("galcore: failed to set gpu single mode for 3d_%d\n", core);
+                }
+#endif
             }
             else if(strstr(cur , "2d")) {
                 core = gcvCORE_2D;
@@ -853,20 +868,22 @@ _GetPower(
             pm_runtime_enable(&pdev_gpu->dev);
             priv->pmdev[core] = &pdev_gpu->dev;
 #endif
-
         }
         priv->gpu3dCount = coreMajor;
     }
 
 #if IMX8_SCU_CONTROL
     if(priv->gpu3dCount > 1) {
-        sciErr = sc_misc_set_control(gpu_ipcHandle, SC_R_GPU_0_PID0, SC_C_ID, 0);
-        if (sciErr != SC_ERR_NONE)
-            gckOS_Print("galcore: failed to set gpu id for 3d_0\n");
-
-        sciErr = sc_misc_set_control(gpu_ipcHandle, SC_R_GPU_1_PID0, SC_C_ID, 1);
-        if (sciErr != SC_ERR_NONE)
-            gckOS_Print("galcore: failed to set gpu id for 3d_1\n");
+        int core = 0;
+        for (core=gcvCORE_MAJOR; core <priv->gpu3dCount; core++)
+        {
+            if (sc_gpu_pid[core])
+            {
+                sciErr = sc_misc_set_control(gpu_ipcHandle, sc_gpu_pid[core], SC_C_SINGLE_MODE, 0);
+                if (sciErr != SC_ERR_NONE)
+                    gckOS_Print("galcore: failed to set gpu dual mode for 3d_%d\n", core);
+            }
+        }
     }
 #endif
 #else
