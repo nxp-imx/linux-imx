@@ -151,9 +151,14 @@
 	status = "okay";
 };
 
-&cpu0 {
-	arm-supply = <&sw1a_reg>;
-	soc-supply = <&sw1c_reg>;
+&reg_arm {
+	vin-supply = <&sw1a_reg>;
+	regulator-allow-bypass;
+};
+
+&reg_soc {
+	vin-supply = <&sw1c_reg>;
+	regulator-allow-bypass;
 };
 
 &csi {
