@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2013-2015 Freescale Semiconductor, Inc.
+ * Copyright (C) 2017 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -12,6 +13,7 @@
 #include <linux/cpufreq.h>
 #include <linux/err.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/pm_opp.h>
 #include <linux/platform_device.h>
@@ -325,20 +327,20 @@ static int imx6q_cpufreq_probe(struct platform_device *pdev)
 		return -ENOENT;
 	}
 
-	arm_clk = devm_clk_get(cpu_dev, "arm");
-	pll1_sys_clk = devm_clk_get(cpu_dev, "pll1_sys");
-	pll1_sw_clk = devm_clk_get(cpu_dev, "pll1_sw");
-	step_clk = devm_clk_get(cpu_dev, "step");
-	pll2_pfd2_396m_clk = devm_clk_get(cpu_dev, "pll2_pfd2_396m");
-	pll1 = devm_clk_get(cpu_dev, "pll1");
-	pll1_bypass = devm_clk_get(cpu_dev, "pll1_bypass");
-	pll1_bypass_src = devm_clk_get(cpu_dev, "pll1_bypass_src");
+	arm_clk = clk_get(cpu_dev, "arm");
+	pll1_sys_clk = clk_get(cpu_dev, "pll1_sys");
+	pll1_sw_clk = clk_get(cpu_dev, "pll1_sw");
+	step_clk = clk_get(cpu_dev, "step");
+	pll2_pfd2_396m_clk = clk_get(cpu_dev, "pll2_pfd2_396m");
+	pll1 = clk_get(cpu_dev, "pll1");
+	pll1_bypass = clk_get(cpu_dev, "pll1_bypass");
+	pll1_bypass_src = clk_get(cpu_dev, "pll1_bypass_src");
 	if (IS_ERR(arm_clk) || IS_ERR(pll1_sys_clk) || IS_ERR(pll1_sw_clk) ||
 	    IS_ERR(step_clk) || IS_ERR(pll2_pfd2_396m_clk) || IS_ERR(pll1) ||
 	    IS_ERR(pll1_bypass) || IS_ERR(pll1_bypass_src)) {
 		dev_err(cpu_dev, "failed to get clocks\n");
 		ret = -ENOENT;
-		goto put_node;
+		goto put_clk;
 	}
 
 	if (of_machine_is_compatible("fsl,imx6ul")) {
@@ -347,27 +349,29 @@ static int imx6q_cpufreq_probe(struct platform_device *pdev)
 		if (IS_ERR(pll2_bus_clk) || IS_ERR(secondary_sel_clk)) {
 			dev_err(cpu_dev, "failed to get clocks specific to imx6ul\n");
 			ret = -ENOENT;
-			goto put_node;
+			goto put_clk;
 		}
 	}
 
-	vpu_axi_podf = devm_clk_get(cpu_dev, "vpu_axi_podf");
-	if (!IS_ERR(vpu_axi_podf))
+	vpu_axi_podf = clk_get(cpu_dev, "vpu_axi_podf");
+	if (!IS_ERR(vpu_axi_podf)) {
 		vpu_axi_rate = clk_get_rate(vpu_axi_podf);
+		clk_put(vpu_axi_podf);
+	}
 
-	arm_reg = devm_regulator_get(cpu_dev, "arm");
-	pu_reg = devm_regulator_get_optional(cpu_dev, "pu");
-	soc_reg = devm_regulator_get(cpu_dev, "soc");
+	arm_reg = regulator_get(cpu_dev, "arm");
+	pu_reg = regulator_get_optional(cpu_dev, "pu");
+	soc_reg = regulator_get(cpu_dev, "soc");
 	if (IS_ERR(arm_reg) || IS_ERR(soc_reg)) {
 		ret = IS_ERR(arm_reg)?PTR_ERR(arm_reg):PTR_ERR(soc_reg);
 		if (ret == -EPROBE_DEFER)
 			dev_warn(cpu_dev, "regulators not ready, retry\n");
 		else
 			dev_err(cpu_dev, "failed to get regulators: %d\n", ret);
-		goto put_node;
+		goto put_reg;
 	}
 
-	dc_reg = devm_regulator_get_optional(cpu_dev, "dc");
+	dc_reg = regulator_get_optional(cpu_dev, "dc");
 
 	/*
 	 * soc_reg sync  with arm_reg if arm shares the same regulator
@@ -393,7 +397,7 @@ static int imx6q_cpufreq_probe(struct platform_device *pdev)
 		ret = dev_pm_opp_of_add_table(cpu_dev);
 		if (ret < 0) {
 			dev_err(cpu_dev, "failed to init OPP table: %d\n", ret);
-			goto put_node;
+			goto put_reg;
 		}
 
 		/* Because we have added the OPPs here, we must free them */
@@ -410,7 +414,7 @@ static int imx6q_cpufreq_probe(struct platform_device *pdev)
 	ret = dev_pm_opp_init_cpufreq_table(cpu_dev, &freq_table);
 	if (ret) {
 		dev_err(cpu_dev, "failed to init cpufreq table: %d\n", ret);
-		goto out_free_opp;
+		goto put_reg;
 	}
 
 	/*
@@ -423,7 +427,7 @@ static int imx6q_cpufreq_probe(struct platform_device *pdev)
 		regulator_set_voltage_tol(dc_reg, DC_VOLTAGE_MIN, 0);
 
 	/* Make imx6_soc_volt array's size same as arm opp number */
-	imx6_soc_volt = devm_kzalloc(cpu_dev, sizeof(*imx6_soc_volt) * num, GFP_KERNEL);
+	imx6_soc_volt = kzalloc(sizeof(*imx6_soc_volt) * num, GFP_KERNEL);
 	if (imx6_soc_volt == NULL) {
 		ret = -ENOMEM;
 		goto free_freq_table;
@@ -524,11 +528,41 @@ soc_opp_out:
 	return 0;
 
 free_freq_table:
+	kfree(imx6_soc_volt);
 	dev_pm_opp_free_cpufreq_table(cpu_dev, &freq_table);
 out_free_opp:
 	if (free_opp)
 		dev_pm_opp_of_remove_table(cpu_dev);
-put_node:
+put_reg:
+	if (!IS_ERR(arm_reg))
+		regulator_put(arm_reg);
+	if (!IS_ERR(pu_reg))
+		regulator_put(pu_reg);
+	if (!IS_ERR(soc_reg))
+		regulator_put(soc_reg);
+	if (!IS_ERR(dc_reg))
+		regulator_put(dc_reg);
+put_clk:
+	if (!IS_ERR(arm_clk))
+		clk_put(arm_clk);
+	if (!IS_ERR(pll1_sys_clk))
+		clk_put(pll1_sys_clk);
+	if (!IS_ERR(pll1_sw_clk))
+		clk_put(pll1_sw_clk);
+	if (!IS_ERR(step_clk))
+		clk_put(step_clk);
+	if (!IS_ERR(pll2_pfd2_396m_clk))
+		clk_put(pll2_pfd2_396m_clk);
+	if (!IS_ERR(pll1))
+		clk_put(pll1);
+	if (!IS_ERR(pll1_bypass))
+		clk_put(pll1_bypass);
+	if (!IS_ERR(pll1_bypass_src))
+		clk_put(pll1_bypass_src);
+	if (!IS_ERR(pll2_bus_clk))
+		clk_put(pll2_bus_clk);
+	if (!IS_ERR(secondary_sel_clk))
+		clk_put(secondary_sel_clk);
 	of_node_put(np);
 	return ret;
 }
@@ -536,9 +570,26 @@ put_node:
 static int imx6q_cpufreq_remove(struct platform_device *pdev)
 {
 	cpufreq_unregister_driver(&imx6q_cpufreq_driver);
+	kfree(imx6_soc_volt);
 	dev_pm_opp_free_cpufreq_table(cpu_dev, &freq_table);
 	if (free_opp)
 		dev_pm_opp_of_remove_table(cpu_dev);
+	regulator_put(arm_reg);
+	if (!IS_ERR(pu_reg))
+		regulator_put(pu_reg);
+	regulator_put(soc_reg);
+	if (!IS_ERR(dc_reg))
+		regulator_put(dc_reg);
+	clk_put(arm_clk);
+	clk_put(pll1_sys_clk);
+	clk_put(pll1_sw_clk);
+	clk_put(step_clk);
+	clk_put(pll1);
+	clk_put(pll1_bypass);
+	clk_put(pll1_bypass_src);
+	clk_put(pll2_pfd2_396m_clk);
+	clk_put(pll2_bus_clk);
+	clk_put(secondary_sel_clk);
 
 	return 0;
 }
