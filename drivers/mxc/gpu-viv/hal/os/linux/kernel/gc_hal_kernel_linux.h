@@ -237,6 +237,8 @@ struct _gckOS
 
     gcsDEBUGFS_DIR              allocatorDebugfsDir;
 
+    gctBOOL                     allocatorLimitMarker;
+
     /* Lock for register access check. */
     struct mutex                registerAccessLocks[gcdMAX_GPU_COUNT];
 
