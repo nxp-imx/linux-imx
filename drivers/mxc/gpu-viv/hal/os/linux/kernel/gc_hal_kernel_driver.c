@@ -1420,11 +1420,12 @@ out:
 
 static void __exit gpu_exit(void)
 {
+    platform_driver_unregister(&gpu_driver);
+
     if (platform.ops->unRegisterDevice)
     {
         platform.ops->unRegisterDevice(&platform);
     }
-    platform_driver_unregister(&gpu_driver);
 
     if (platform.ops->needAddDevice
      && platform.ops->needAddDevice(&platform))
