@@ -3565,7 +3565,7 @@ gckVGCOMMAND_Commit(
     do
     {
         gctBOOL haveFETasks;
-        gctUINT queueSize;
+        gctUINT queueSize = 0;
         gcsVGCMDQUEUE_PTR mappedQueue=gcvNULL;
         gcsVGCMDQUEUE_PTR userEntry=gcvNULL;
         gcsKERNEL_CMDQUEUE_PTR kernelEntry;
@@ -3887,8 +3887,11 @@ gckVGCOMMAND_Commit(
                             Command, currentLength
                             ));
             }
+        }
+        while (gcvFALSE);
 
-
+        if (mappedQueue)
+        {
             if(!needCopy)
             {
                 /* Unmap the user command buffer. */
@@ -3904,7 +3907,6 @@ gckVGCOMMAND_Commit(
                 gcmkERR_BREAK(gckOS_Free(Command->os, mappedQueue));
             }
         }
-        while (gcvFALSE);
 
         /* Release the mutex. */
         gcmkCHECK_STATUS(gckOS_ReleaseMutex(

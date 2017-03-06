@@ -880,6 +880,7 @@ _ProcessUserCommandBufferList(
     gceSTATUS           status;
     gctBOOL             needCopy;
 
+    struct _gcoCMDBUF   _nextCMDBUF;
     struct _gcoCMDBUF   _commandBufferObject;
     gcoCMDBUF           currentCMDBUF;
     gcoCMDBUF           currentCMDBUFUser = CommandBufferListHead;
@@ -901,10 +902,9 @@ _ProcessUserCommandBufferList(
     {
         gcoCMDBUF           nextCMDBUFUser;
         gcoCMDBUF           nextCMDBUF;
-        struct _gcoCMDBUF   _nextCMDBUF;
         gctUINT8_PTR        fenceLogical = gcvNULL;
         gctUINT8_PTR        linkLogical;
-        gctUINT32           linkBytes;
+        gctUINT32           linkBytes = 8;
         gctUINT32           linkLow;
         gctUINT32           linkHigh;
 
@@ -947,7 +947,7 @@ _ProcessUserCommandBufferList(
             /* Fill NOPs in space reserved for fence. */
             while (i--)
             {
-                gctSIZE_T nopBytes;
+                gctSIZE_T nopBytes = 8;
                 gcmkONERROR(gckHARDWARE_Nop(Command->kernel->hardware, fenceLogical, &nopBytes));
                 fenceLogical += nopBytes;
             }
