@@ -106,7 +106,7 @@ static int __init imx8_init_pm_domains(void)
 
 	pr_info("***** imx8_init_pm_domains *****\n");
 
-	for_each_compatible_node(np, NULL, "fsl,imx8-pd") {
+	for_each_compatible_node(np, NULL, "nxp,imx8-pd") {
 		struct imx8_pm_domain *imx8_pd;
 
 		imx8_pd = kzalloc(sizeof(struct imx8_pm_domain), GFP_KERNEL);
