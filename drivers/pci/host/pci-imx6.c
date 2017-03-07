@@ -463,9 +463,10 @@ static void imx6_pcie_deassert_core_reset(struct imx6_pcie *imx6_pcie)
 	if (gpio_is_valid(imx6_pcie->reset_gpio)) {
 		gpio_set_value_cansleep(imx6_pcie->reset_gpio,
 					imx6_pcie->gpio_active_high);
-		msleep(100);
+		mdelay(20);
 		gpio_set_value_cansleep(imx6_pcie->reset_gpio,
 					!imx6_pcie->gpio_active_high);
+		mdelay(20);
 	}
 
 	switch (imx6_pcie->variant) {
@@ -477,28 +478,28 @@ static void imx6_pcie_deassert_core_reset(struct imx6_pcie *imx6_pcie)
 		regmap_update_bits(imx6_pcie->iomuxc_gpr, IOMUXC_GPR1,
 				   IMX6Q_GPR1_PCIE_SW_RST, 0);
 
-		usleep_range(200, 500);
+		udelay(200);
 
 		/* Configure the PHY when 100Mhz external OSC is used as input clock */
 		if (!imx6_pcie->ext_osc)
 			break;
 
 		mdelay(4);
-		pcie_phy_read(pp->dbi_base, SSP_CR_SUP_DIG_MPLL_OVRD_IN_LO, &val);
+		pcie_phy_read(imx6_pcie, SSP_CR_SUP_DIG_MPLL_OVRD_IN_LO, &val);
 		/* MPLL_MULTIPLIER [8:2] */
 		val &= ~(0x7F << 2);
 		val |= (0x19 << 2);
 		/* MPLL_MULTIPLIER_OVRD [9:9] */
 		val |= (0x1 << 9);
-		pcie_phy_write(pp->dbi_base, SSP_CR_SUP_DIG_MPLL_OVRD_IN_LO, val);
+		pcie_phy_write(imx6_pcie, SSP_CR_SUP_DIG_MPLL_OVRD_IN_LO, val);
 		mdelay(4);
 
-		pcie_phy_read(pp->dbi_base, SSP_CR_SUP_DIG_ATEOVRD, &val);
+		pcie_phy_read(imx6_pcie, SSP_CR_SUP_DIG_ATEOVRD, &val);
 		/* ref_clkdiv2 [0:0] */
 		val &= ~0x1;
 		/* ateovrd_en [2:2] */
 		val |=  0x4;
-		pcie_phy_write(pp->dbi_base, SSP_CR_SUP_DIG_ATEOVRD, val);
+		pcie_phy_write(imx6_pcie, SSP_CR_SUP_DIG_ATEOVRD, val);
 		mdelay(4);
 
 		break;
@@ -642,21 +643,6 @@ static int imx6_pcie_wait_for_link(struct imx6_pcie *imx6_pcie)
 	dev_dbg(dev, "DEBUG_R0: 0x%08x, DEBUG_R1: 0x%08x\n",
 		dw_pcie_readl_rc(pp, PCIE_PHY_DEBUG_R0),
 		dw_pcie_readl_rc(pp, PCIE_PHY_DEBUG_R1));
-
-	if (!IS_ENABLED(CONFIG_PCI_IMX6_COMPLIANCE_TEST)) {
-		clk_disable_unprepare(imx6_pcie->pcie);
-		if (!imx6_pcie->ext_osc)
-			clk_disable_unprepare(imx6_pcie->pcie_bus);
-		clk_disable_unprepare(imx6_pcie->pcie_phy);
-		if (imx6_pcie->variant == IMX6SX)
-			clk_disable_unprepare(imx6_pcie->pcie_inbound_axi);
-		release_bus_freq(BUS_FREQ_HIGH);
-		if (imx6_pcie->pcie_phy_regulator != NULL)
-			regulator_disable(imx6_pcie->pcie_phy_regulator);
-		if (imx6_pcie->pcie_bus_regulator != NULL)
-			regulator_disable(imx6_pcie->pcie_bus_regulator);
-	}
-
 	return -ETIMEDOUT;
 }
 
@@ -672,7 +658,7 @@ static int imx6_pcie_wait_for_speed_change(struct imx6_pcie *imx6_pcie)
 		/* Test if the speed change finished. */
 		if (!(tmp & PORT_LOGIC_SPEED_CHANGE))
 			return 0;
-		usleep_range(100, 1000);
+		udelay(100);
 	}
 
 	dev_err(dev, "Speed change timeout\n");
@@ -727,6 +713,7 @@ static int imx6_pcie_establish_link(struct imx6_pcie *imx6_pcie)
 		dw_pcie_writel_rc(pp, PCIE_RC_LCR, tmp);
 	} else {
 		dev_info(dev, "Link: Gen2 disabled\n");
+		goto out;
 	}
 
 	/*
@@ -739,8 +726,7 @@ static int imx6_pcie_establish_link(struct imx6_pcie *imx6_pcie)
 
 	ret = imx6_pcie_wait_for_speed_change(imx6_pcie);
 	if (ret) {
-		dev_err(dev, "Failed to bring link up!\n");
-		goto err_reset_phy;
+		dev_info(dev, "Roll back to GEN1 link!\n");
 	}
 
 	/* Make sure link training is finished as well! */
@@ -750,6 +736,7 @@ static int imx6_pcie_establish_link(struct imx6_pcie *imx6_pcie)
 		goto err_reset_phy;
 	}
 
+out:
 	tmp = dw_pcie_readl_rc(pp, PCIE_RC_LCSR);
 	dev_info(dev, "Link up, Gen%i\n", (tmp >> 16) & 0xf);
 	return 0;
@@ -759,6 +746,21 @@ err_reset_phy:
 		dw_pcie_readl_rc(pp, PCIE_PHY_DEBUG_R0),
 		dw_pcie_readl_rc(pp, PCIE_PHY_DEBUG_R1));
 	imx6_pcie_reset_phy(imx6_pcie);
+
+	if (!IS_ENABLED(CONFIG_PCI_IMX6_COMPLIANCE_TEST)) {
+		clk_disable_unprepare(imx6_pcie->pcie);
+		if (!imx6_pcie->ext_osc)
+			clk_disable_unprepare(imx6_pcie->pcie_bus);
+		clk_disable_unprepare(imx6_pcie->pcie_phy);
+		if (imx6_pcie->variant == IMX6SX)
+			clk_disable_unprepare(imx6_pcie->pcie_inbound_axi);
+		release_bus_freq(BUS_FREQ_HIGH);
+		if (imx6_pcie->pcie_phy_regulator != NULL)
+			regulator_disable(imx6_pcie->pcie_phy_regulator);
+		if (imx6_pcie->pcie_bus_regulator != NULL)
+			regulator_disable(imx6_pcie->pcie_bus_regulator);
+	}
+
 	return ret;
 }
 
