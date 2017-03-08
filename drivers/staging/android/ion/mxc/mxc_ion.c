@@ -28,6 +28,7 @@
 #include <linux/dma-buf.h>
 
 #include "../ion_priv.h"
+#include "../../uapi/mxc_ion.h"
 
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
