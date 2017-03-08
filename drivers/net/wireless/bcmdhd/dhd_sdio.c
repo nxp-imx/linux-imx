@@ -66,6 +66,9 @@
 #include <dhdioctl.h>
 #include <sdiovar.h>
 
+/* Murata Work-around code for HT Avail failure (due to no external slow clk) */
+#define MURATA_WORKAROUND_FOR_HTAVAIL 1
+
 #ifdef PROP_TXSTATUS
 #include <dhd_wlfc.h>
 #endif
@@ -381,8 +384,9 @@ typedef struct dhd_bus {
 	bool		txglom_enable;	/* Flag to indicate whether tx glom is enabled/disabled */
 	uint32		txglomsize;	/* Glom size limitation */
 	void		*pad_pkt;
-#ifdef HW_OOB
-	int		bus_wake_on_resume; /* addition to fix suspend/resume powersave issue */
+#if defined(OOB_INTR_ONLY)
+	/* Murata -- fix for suspend/resume powersave issue on i.MX arch */
+	int		bus_wake_on_resume;
 #endif
 } dhd_bus_t;
 
@@ -1137,6 +1141,10 @@ dhdsdio_htclk(dhd_bus_t *bus, bool on, bool pendok)
 	bcmsdh_info_t *sdh;
 	uint32 delay = PMU_MAX_TRANSITION_DLY;
 
+#ifdef MURATA_WORKAROUND_FOR_HTAVAIL
+	int try_count, try_err;
+#endif /* MURATA_WORKAROUND_FOR_HTAVAIL */
+
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
 
 	clkctl = 0;
@@ -1218,6 +1226,11 @@ dhdsdio_htclk(dhd_bus_t *bus, bool on, bool pendok)
 			delay += PMU_TRANSITION_DLY_EXTRA;
 		}
 
+#ifdef MURATA_WORKAROUND_FOR_HTAVAIL
+	/* loop 20 times to test condition */
+	for (try_count = 0; try_count < 20; try_count++) {
+		try_err = 0;
+#endif /* MURATA_WORKAROUND_FOR_HTAVAIL */
 		/* Otherwise, wait here (polling) for HT Avail */
 		if (!SBSDIO_CLKAV(clkctl, bus->alp_only)) {
 			SPINWAIT_SLEEP(sdioh_spinwait_sleep,
@@ -1228,13 +1241,33 @@ dhdsdio_htclk(dhd_bus_t *bus, bool on, bool pendok)
 		}
 		if (err) {
 			DHD_ERROR(("%s: HT Avail request error: %d\n", __FUNCTION__, err));
+#ifdef MURATA_WORKAROUND_FOR_HTAVAIL
+			try_err = 1;
+#else
 			return BCME_ERROR;
+#endif /* MURATA_WORKAROUND_FOR_HTAVAIL */
 		}
 		if (!SBSDIO_CLKAV(clkctl, bus->alp_only)) {
 			DHD_ERROR(("%s: HT Avail timeout (%d): clkctl 0x%02x\n",
 			           __FUNCTION__, PMU_MAX_TRANSITION_DLY, clkctl));
+#ifdef MURATA_WORKAROUND_FOR_HTAVAIL
+			try_err = 1;
+#else
+			return BCME_ERROR;
+#endif /* MURATA_WORKAROUND_FOR_HTAVAIL */
+		}
+
+#ifdef MURATA_WORKAROUND_FOR_HTAVAIL
+		if (try_err == 0)
+			break;
+	} /* for (try_count = 0; try_count < 20; try_count++) */
+		if (try_err == 1) {
+			DHD_ERROR(("%s: HT Avail request error: retried %d times. UNRECOVERABLE!\n", __FUNCTION__, try_count));
 			return BCME_ERROR;
 		}
+		if (try_count > 0)
+			DHD_ERROR(("%s: HT Avail request NO ERROR: retried %d times.\n", __FUNCTION__, try_count));
+#endif /* MURATA_WORKAROUND_FOR_HTAVAIL */
 
 		/* Mark clock available */
 		bus->clkstate = CLK_AVAIL;
@@ -1888,6 +1921,10 @@ static int dhdsdio_txpkt_preprocess(dhd_bus_t *bus, void *pkt, int chan, int txs
 		PKTALIGN(osh, tmp_pkt, PKTLEN(osh, pkt), DHD_SDALIGN);
 		bcopy(PKTDATA(osh, pkt), PKTDATA(osh, tmp_pkt), PKTLEN(osh, pkt));
 		*new_pkt = tmp_pkt;
+		/* pull back sdpcm_hdrlen length from old skb as new skb here
+		 * is passed to postprocessing
+		 */
+		PKTPULL(osh, pkt, sdpcm_hdrlen);
 		pkt = tmp_pkt;
 	}
 
@@ -6539,13 +6576,15 @@ dhd_bus_watchdog(dhd_pub_t *dhdp)
 	DHD_TIMER(("%s: Enter\n", __FUNCTION__));
 
 	bus = dhdp->bus;
-#ifdef HW_OOB
-	/* this code segment added to fix suspend/resume powersave issue */
+
+/* Murata -- fix for suspend/resume powersave issue on i.MX architecture */
+#if defined(OOB_INTR_ONLY)
 	if (bus->bus_wake_on_resume) {
 		BUS_WAKE(bus);
 		bus->bus_wake_on_resume = 0;
 	}
 #endif
+
 	if (bus->dhd->dongle_reset)
 		return FALSE;
 
@@ -7516,9 +7555,9 @@ dhdsdio_resume(void *context)
 		if (dhd_os_check_if_up(bus->dhd))
 			bcmsdh_oob_intr_set(bus->sdh, TRUE);
 	}
-#endif 
-#ifdef HW_OOB
-	/* this code segment added to fix suspend/resume powersave issue */
+	/* Murata -- fix for suspend/resume powersave issue on i.MX arch:
+	 * add next two lines of code.
+	 */
 	bus->bus_wake_on_resume = 1;
 	dhd_os_wd_timer(bus->dhd, 1000);
 #endif
