@@ -19,6 +19,10 @@ config BCM4339
 	tristate "BCM4339 support"
 	depends on BCMDHD
 
+config BCM43340
+	tristate "BCM43340 support"
+	depends on BCMDHD
+
 config BCM4354
 	tristate "BCM4354 support"
 	depends on BCMDHD

@@ -152,8 +152,14 @@ ifneq ($(CONFIG_BCM4339),)
   DHDCFLAGS += -DCUSTOM_PSPRETEND_THR=30
 endif
 
+# Murata: need the following define to handle BCM43340 edge interrupt (vs level interrupt on other chipsets).
+# Define is in imx_v7_defconfig.
+ifeq ($(CONFIG_BCM43340),)
+  DHDCFLAGS += -DHW_OOB
+endif
+
 ifneq ($(CONFIG_BCMDHD_SDIO),)
-  DHDCFLAGS += -DBDC -DOOB_INTR_ONLY -DDHD_BCMEVENTS -DMMC_SDIO_ABORT -DOOB_PARAM -DHW_OOB
+  DHDCFLAGS += -DBDC -DOOB_INTR_ONLY -DDHD_BCMEVENTS -DMMC_SDIO_ABORT -DOOB_PARAM
   DHDCFLAGS += -DBCMSDIO -DBCMLXSDMMC -DUSE_SDIOFIFO_IOVAR -DDHD_VERSION_NO_DATE_TIME
 endif
 
@@ -161,8 +167,10 @@ ifneq ($(CONFIG_BCMDHD_PCIE),)
   DHDCFLAGS += -DPCIE_FULL_DONGLE -DBCMPCIE -DCUSTOM_DPC_PRIO_SETTING=-1
 endif
 
+# Murata: Un-comment next line for Optimization
 #EXTRA_LDFLAGS += --strip-debug
 
+# Murata: swap these lines depending on optimization -- comment debug flag to make code execution faster.
 EXTRA_CFLAGS += $(DHDCFLAGS) -DDHD_DEBUG
 EXTRA_CFLAGS += -DSRCBASE=\"$(src)\"
 EXTRA_CFLAGS += -I$(src)/include/ -I$(src)/

@@ -297,9 +297,9 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	struct resource *resource;
 	wifi_adapter_info_t *adapter;
 #ifdef CONFIG_DTS
-#if defined(OOB_INTR_ONLY) && defined(HW_OOB)
+#if defined(OOB_INTR_ONLY)
 	int irq, gpio;
-#endif /* defined(OOB_INTR_ONLY) && defined (HW_OOB) */
+#endif /* defined(OOB_INTR_ONLY) */
 	int ret = 0;
 #endif /* CONFIG_DTS */
 
@@ -333,7 +333,7 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 		DHD_ERROR(("%s regulator is null\n", __FUNCTION__));
 		return -1;
 	}
-#if defined(OOB_INTR_ONLY) && defined(HW_OOB)
+#if defined(OOB_INTR_ONLY)
 	OOB_PARAM_IF(!dhd_oob_disable) {
 		/* This is to get the irq for the OOB */
 		gpio = of_get_gpio(pdev->dev.of_node, 0);
@@ -354,17 +354,27 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 			DHD_ERROR(("%s irq information is incorrect\n", __FUNCTION__));
 			return -1;
 		}
-		adapter->irq_num = irq;
 
-		/* need to change the flags according to our requirement */
-		adapter->intr_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL |
-			IORESOURCE_IRQ_SHAREABLE;
+	adapter->irq_num = irq;
+
+	/* Murata -- HW_OOB define depends on chipset.
+	 * HW_OOB makes host interrupt level-sensitive versus edge-sensitive.
+	 * ZP (BCM4339), 1DX (BCM4343W), 1FX (BCM43364), ZX/SN8000 (BCM43362)
+	 * are level-sensitive (HW_OOB defined).
+	 * Type 1BW (BCM43340) is edge-sensitive (HW_OOB NOT defined).
+	 */
+#ifdef HW_OOB /* HW_OOB defined means level sensitive interrupts */
+	adapter->intr_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHLEVEL |
+			      IORESOURCE_IRQ_SHAREABLE;
+#else
+	adapter->intr_flags = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE |
+			      IORESOURCE_IRQ_SHAREABLE;
+#endif /* HW_OOB */
 	}
-
 #if defined(OOB_PARAM)
 out:
 #endif /* defined(OOB_PARAM) */
-#endif /* defined(OOB_INTR_ONLY) && defined (HW_OOB) */
+#endif /* defined(OOB_INTR_ONLY) */
 #endif /* CONFIG_DTS */
 
 	wifi_plat_dev_probe_ret = dhd_wifi_platform_load();
