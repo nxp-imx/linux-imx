@@ -497,11 +497,10 @@ gckPLATFORM_AdjustParam(
             struct platform_device *pdev_gpu;
             gctINT  irqLine = -1;
 
-            core_node = of_parse_phandle(node, "cores", i);
+            core_node = of_parse_phandle(node, "cores", i++);
             if (!core_node) {
                 break;
             }
-            i++;
             if(!of_device_is_available(core_node)){
                 continue;
             }
@@ -539,10 +538,6 @@ gckPLATFORM_AdjustParam(
         }
     }
 #else
-    int i, j = 0;
-    const char *irq_3d_res[2] = {"irq_3d_0", "irq_3d_1"};
-    const char *iobase_3d_res[2] = {"iobase_3d_0", "iobase_3d_1"};
-
     res = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "irq_3d");
     if (res)
         Args->irqLine = res->start;
@@ -574,23 +569,6 @@ gckPLATFORM_AdjustParam(
     {
         Args->registerMemBaseVG = res->start;
         Args->registerMemSizeVG = res->end - res->start + 1;
-    }
-
-    for (i = 0; i < sizeof(irq_3d_res)/sizeof(irq_3d_res[0]); i++)
-    {
-        res = platform_get_resource_byname(pdev, IORESOURCE_IRQ, irq_3d_res[i]);
-        if (res)
-            Args->irqs[gcvCORE_MAJOR + j] = res->start;
-        else
-            continue;
-
-        res = platform_get_resource_byname(pdev, IORESOURCE_MEM, iobase_3d_res[i]);
-        if (res)
-        {
-            Args->registerBases[gcvCORE_MAJOR + j] = res->start;
-            Args->registerSizes[gcvCORE_MAJOR + j] = res->end - res->start + 1;
-            j++;
-        }
     }
 #endif
 
@@ -798,27 +776,21 @@ _GetPower(
         p = of_find_property(node, "core-names", NULL);
         while ((cur = of_prop_next_string(p, cur)) != NULL) {
             struct platform_device *pdev_gpu = NULL;
-
             clk_shader = NULL;
             clk_core = NULL;
             clk_axi = NULL;
 
-            core_node = of_parse_phandle(node, "cores", i);
+            core_node = of_parse_phandle(node, "cores", i++);
             if (!core_node) {
                 break;
             }
-
-            i++;
-
             if(!of_device_is_available(core_node)){
                 continue;
             }
-
             pdev_gpu = of_find_device_by_node(core_node);
             if (!pdev_gpu) {
                 break;
             }
-
             clk_core = clk_get(&pdev_gpu->dev, "core");
             if (IS_ERR(clk_core)) {
                 gckOS_Print("galcore: clk_get clk_core failed\n");
