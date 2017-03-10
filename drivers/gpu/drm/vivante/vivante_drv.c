@@ -59,6 +59,24 @@
 static char platformdevicename[] = "Vivante GCCore";
 static struct platform_device *pplatformdev;
 
+
+int viv_set_busid(struct drm_device *dev, struct drm_master *master)
+{
+	int id;
+
+        id = dev->platformdev->id;
+        if (id < 0)
+                id = 0;
+
+        master->unique = kasprintf(GFP_KERNEL, "platform:%s:%02d",
+                                                dev->platformdev->name, id);
+        if (!master->unique)
+                return -ENOMEM;
+
+        master->unique_len = strlen(master->unique);
+        return 0;
+}
+
 static const struct file_operations viv_driver_fops = {
 	.owner = THIS_MODULE,
 	.open = drm_open,
@@ -71,12 +89,14 @@ static const struct file_operations viv_driver_fops = {
 
 static struct drm_driver driver = {
 	.fops = &viv_driver_fops,
+	.set_busid = viv_set_busid,
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
 	.date = DRIVER_DATE,
 	.major = DRIVER_MAJOR,
 	.minor = DRIVER_MINOR,
 	.patchlevel = DRIVER_PATCHLEVEL,
+	.driver_features = DRIVER_LEGACY,
 };
 
 static int __init vivante_init(void)
