@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -88,7 +88,7 @@ _IdentifyHardwareByDatabase(
     */
 
     /* Read chip identity register. */
-    gcmkONERROR(gctaOS_ReadRegister(os, 0x00018, &chipIdentity));
+    gcmkONERROR(gctaOS_ReadRegister(os, Hardware->ta->core, 0x00018, &chipIdentity));
 
     /* Special case for older graphic cores. */
     if (((((gctUINT32) (chipIdentity)) >> (0 ? 31:24) & ((gctUINT32) ((((1 ?
@@ -104,7 +104,7 @@ _IdentifyHardwareByDatabase(
     {
         /* Read chip identity register. */
         gcmkONERROR(
-            gctaOS_ReadRegister(os,
+            gctaOS_ReadRegister(os, Hardware->ta->core,
                                  0x00020,
                                  (gctUINT32_PTR) &Hardware->chipModel));
 
@@ -117,7 +117,7 @@ _IdentifyHardwareByDatabase(
 
         /* Read CHIP_REV register. */
         gcmkONERROR(
-            gctaOS_ReadRegister(os,
+            gctaOS_ReadRegister(os, Hardware->ta->core,
                                  0x00024,
                                  &Hardware->chipRevision));
 
@@ -130,12 +130,12 @@ _IdentifyHardwareByDatabase(
 
             /* Read date and time registers. */
             gcmkONERROR(
-                gctaOS_ReadRegister(os,
+                gctaOS_ReadRegister(os, Hardware->ta->core,
                                      0x00028,
                                      &chipDate));
 
             gcmkONERROR(
-                gctaOS_ReadRegister(os,
+                gctaOS_ReadRegister(os, Hardware->ta->core,
                                      0x0002C,
                                      &chipTime));
 
@@ -147,20 +147,22 @@ _IdentifyHardwareByDatabase(
         }
 
         gcmkONERROR(
-            gctaOS_ReadRegister(os,
+            gctaOS_ReadRegister(os, Hardware->ta->core,
                                  0x000A8,
                                  &Hardware->productID));
     }
 
     gcmkVERIFY_OK(gctaOS_ReadRegister(
-        os,
-        0x000E8,
+        os, Hardware->ta->core,
+        0x000E8
+,
         &Hardware->ecoID
         ));
 
     gcmkVERIFY_OK(gctaOS_ReadRegister(
-        os,
-        0x00030,
+        os, Hardware->ta->core,
+        0x00030
+,
         &Hardware->customerID
         ));
 
@@ -405,9 +407,17 @@ gctaHARDWARE_Construct(
 
     hardware->functionBytes = 4096;
 
+    /* Power on GPU. */
+    gctaOS_SetGPUPower(os, TA->core, gcvTRUE, gcvTRUE);
+
     /*************************************/
     /********  Get chip information ******/
     /*************************************/
+    gctaOS_WriteRegister(
+        hardware->ta->os, hardware->ta->core,
+        0x00000,
+        0x00000900
+        );
 
     _IdentifyHardwareByDatabase(hardware);
 
@@ -463,11 +473,11 @@ gctaHARDWARE_Execute(
 
     /* Enable all events. */
     gcmkONERROR(
-        gctaOS_WriteRegister(TA->os, 0x00014, ~0U));
+        gctaOS_WriteRegister(TA->os, TA->core, 0x00014, ~0U));
 
     /* Write address register. */
     gcmkONERROR(
-        gctaOS_WriteRegister(TA->os, 0x00654, address));
+        gctaOS_WriteRegister(TA->os, TA->core, 0x00654, address));
 
     /* Build control register. */
     control = ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
@@ -483,7 +493,7 @@ gctaHARDWARE_Execute(
 
     /* Write control register. */
     gcmkONERROR(
-        gctaOS_WriteRegister(TA->os, 0x003A4, control));
+        gctaOS_WriteRegister(TA->os, TA->core, 0x003A4, control));
 
     gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
         "Started command buffer @ 0x%08x",
@@ -505,7 +515,7 @@ gctaHARDWARE_MmuEnable(
     )
 {
     gctaOS_WriteRegister(
-        Hardware->ta->os,
+        Hardware->ta->os, Hardware->ta->core,
         0x0018C,
         ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 0:0) - (0 ?
  0:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ?
@@ -556,38 +566,44 @@ gctaHARDWARE_SetMMU(
 
     /* Set page table base. */
     gctaOS_WriteRegister(
-        Hardware->ta->os,
-        0x0038C,
+        Hardware->ta->os, Hardware->ta->core,
+        0x0038C
+,
         (gctUINT32)(Hardware->pagetableArray.address & 0xFFFFFFFF)
         );
 
     gctaOS_WriteRegister(
-        Hardware->ta->os,
-        0x00390,
+        Hardware->ta->os, Hardware->ta->core,
+        0x00390
+,
         (gctUINT32)((Hardware->pagetableArray.address >> 32) & 0xFFFFFFFF)
         );
 
     gctaOS_WriteRegister(
-        Hardware->ta->os,
-        0x00394,
+        Hardware->ta->os, Hardware->ta->core,
+        0x00394
+,
         1
         );
 
     gctaOS_WriteRegister(
-        Hardware->ta->os,
-        0x0039C,
+        Hardware->ta->os, Hardware->ta->core,
+        0x0039C
+,
         (gctUINT32)(secureSafeAddress & 0xFFFFFFFF)
         );
 
     gctaOS_WriteRegister(
-        Hardware->ta->os,
-        0x00398,
+        Hardware->ta->os, Hardware->ta->core,
+        0x00398
+,
         (gctUINT32)(nonSecureSafeAddress & 0xFFFFFFFF)
         );
 
     gctaOS_WriteRegister(
-        Hardware->ta->os,
-        0x003A0,
+        Hardware->ta->os, Hardware->ta->core,
+        0x003A0
+,
         (((((gctUINT32) (~0U)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 23:16) - (0 ?
  23:16) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 23:16) - (0 ? 23:16) + 1))))))) << (0 ?
  23:16))) | (((gctUINT32) ((gctUINT32) ((gctUINT32)((secureSafeAddress >> 32) & 0xFFFFFFFF)) & ((gctUINT32) ((((1 ?
@@ -620,7 +636,7 @@ gctaHARDWARE_SetMMU(
         gctaOS_Delay(Hardware->os, delay);
 
         gctaOS_ReadRegister(
-            Hardware->ta->os,
+            Hardware->ta->os, Hardware->ta->core,
             0x00004,
             &idle);
 
@@ -631,8 +647,9 @@ gctaHARDWARE_SetMMU(
 
     /* Enable MMU. */
     gctaOS_WriteRegister(
-        Hardware->os,
-        0x00388,
+        Hardware->os, Hardware->ta->core,
+        0x00388
+,
         ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 0:0) - (0 ?
  0:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ?
  0:0))) | (((gctUINT32) (0x1 & ((gctUINT32) ((((1 ? 0:0) - (0 ? 0:0) + 1) == 32) ?
@@ -770,8 +787,9 @@ gctaHARDWARE_DumpMMUException(
     gcmkPRINT("**************************\n");
 
     gcmkVERIFY_OK(gctaOS_ReadRegister(
-        Hardware->os,
-        mmuStatusRegAddress,
+        Hardware->os, Hardware->ta->core,
+        mmuStatusRegAddress
+,
         &mmuStatus
         ));
 
@@ -818,8 +836,9 @@ gctaHARDWARE_DumpMMUException(
         }
 
         gcmkVERIFY_OK(gctaOS_ReadRegister(
-            Hardware->os,
-            mmuExceptionAddress + i * 4,
+            Hardware->os, Hardware->ta->core,
+            mmuExceptionAddress + i * 4
+,
             &address
             ));
 
@@ -848,14 +867,16 @@ gctaHARDWARE_ReadMMUException(
     mmuExceptionAddress = 0x00380;
 
     gcmkVERIFY_OK(gctaOS_ReadRegister(
-        Hardware->os,
-        mmuStatusRegAddress,
+        Hardware->os, Hardware->ta->core,
+        mmuStatusRegAddress
+,
         MMUStatus
         ));
 
     gcmkVERIFY_OK(gctaOS_ReadRegister(
-        Hardware->os,
-        mmuExceptionAddress,
+        Hardware->os, Hardware->ta->core,
+        mmuExceptionAddress
+,
         MMUException
         ));
 
@@ -886,8 +907,9 @@ gctaHARDWARE_HandleMMUException(
     mmuExceptionAddress = 0x00380;
 
     gcmkVERIFY_OK(gctaOS_ReadRegister(
-        Hardware->os,
-        mmuStatusRegAddress,
+        Hardware->os, Hardware->ta->core,
+        mmuStatusRegAddress
+,
         &mmuStatus
         ));
 
@@ -909,15 +931,14 @@ gctaHARDWARE_HandleMMUException(
         stlbEntry
         );
 
-    /* TODO: Check security. */
-
     switch (mmu)
     {
     case 1:
         gcmkASSERT(mtlbEntry != 0);
         gctaOS_WriteRegister(
-            Hardware->os,
-            mmuExceptionAddress,
+            Hardware->os, Hardware->ta->core,
+            mmuExceptionAddress
+,
             mtlbEntry
             );
 
@@ -925,8 +946,9 @@ gctaHARDWARE_HandleMMUException(
 
     case 2:
          gctaOS_WriteRegister(
-            Hardware->os,
-            mmuExceptionAddress,
+            Hardware->os, Hardware->ta->core,
+            mmuExceptionAddress
+,
             *stlbEntry
             );
         break;

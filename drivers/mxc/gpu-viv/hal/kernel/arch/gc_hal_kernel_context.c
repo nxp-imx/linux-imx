@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -1079,6 +1079,7 @@ _InitializeContextBuffer(
     gctBOOL hasTXdesc;
     gctBOOL hasSecurity;
     gctBOOL hasRobustness;
+    gctBOOL multiCoreBlockSetCfg2;
 #endif
 
     gckHARDWARE hardware;
@@ -1123,6 +1124,7 @@ _InitializeContextBuffer(
     hasSecurity = gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_SECURITY);
     hasRobustness = gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_ROBUSTNESS);
     hasICachePrefetch = gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_SH_INSTRUCTION_PREFETCH);
+    multiCoreBlockSetCfg2 = gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_MULTI_CORE_BLOCK_SET_CONFIG2);
 
     /* Multi render target. */
     if (halti2 ||
@@ -1227,7 +1229,7 @@ if (halti5){    vsConstBase  = 0xD000;
  20:16) + 1))))))) << (0 ? 20:16))) | (((gctUINT32) ((gctUINT32) (2) & ((gctUINT32) ((((1 ?
  20:16) - (0 ? 20:16) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 20:16) - (0 ?
  20:16) + 1))))))) << (0 ? 20:16))), 1, gcvFALSE, gcvFALSE);
-    }
+        }
     else
     {
         index += _State(Context, index, 0x03820 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -1251,10 +1253,10 @@ if (halti5){    vsConstBase  = 0xD000;
         index += _State(Context, index, 0x17800 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
         index += _CLOSE_RANGE();
         index += _State(Context, index, 0x007C4 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
-        index += _State(Context, index, 0x17880 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
-        index += _State(Context, index, 0x17900 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
-        index += _State(Context, index, 0x17980 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
-        index += _State(Context, index, 0x17A00 >> 2, 0x3F800000, 32, gcvFALSE, gcvFALSE);
+            index += _State(Context, index, 0x17880 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
+            index += _State(Context, index, 0x17900 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
+            index += _State(Context, index, 0x17980 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
+            index += _State(Context, index, 0x17A00 >> 2, 0x3F800000, 32, gcvFALSE, gcvFALSE);
         index += _State(Context, index, 0x007D0 >> 2, 0x00000000, 2, gcvFALSE, gcvFALSE);
         index += _State(Context, index, 0x007D8 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
         index += _State(Context, index, 0x17A80 >> 2, 0x00000000, 32, gcvFALSE, gcvFALSE);
@@ -1475,6 +1477,12 @@ if (halti5){    vsConstBase  = 0xD000;
     index += _State(Context, index, 0x03A00 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x03A04 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     index += _State(Context, index, 0x03A08 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+
+    if (multiCoreBlockSetCfg2)
+    {
+        index += _State(Context, index, 0x03A0C >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+        index += _State(Context, index, 0x03A10 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+    }
 
     /* Setup states. */
     index += _State(Context, index, 0x00C00 >> 2, 0x00000000, 1, gcvTRUE, gcvFALSE);
@@ -1863,7 +1871,6 @@ if (halti5){    vsConstBase  = 0xD000;
 
     if (halti5)
     {
-        /* (todo) should remove out from state map later*/
         index += _State(Context, index, 0x008B0 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
     }
 

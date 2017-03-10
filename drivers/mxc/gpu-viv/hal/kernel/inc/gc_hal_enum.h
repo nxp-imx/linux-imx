@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -51,6 +51,7 @@
 *    version of this file.
 *
 *****************************************************************************/
+
 
 #ifndef __gc_hal_enum_h_
 #define __gc_hal_enum_h_
@@ -492,11 +493,18 @@ typedef enum _gceFEATURE
     gcvFEATURE_SH_MULTI_WG_PACK_FIX,
     gcvFEATURE_FE_PATCHLIST_FETCH_FIX,
     gcvFEATURE_RA_CG_FIX,
+    gcvFEATURE_EVIS_VX2,
     gcvFEATURE_SH_HALF_DEPENDENCY_FIX,
     gcvFEATURE_SH_CLOCK_GATE_FIX,
     gcvFEATURE_GPIPE_CLOCK_GATE_FIX,
+    gcvFEATURE_TP_ENGINE,
     gcvFEATURE_TX_BORDER_CLAMP_FIX,
     gcvFEATURE_SH_IMAGE_LD_LAST_PIXEL_FIX,
+    gcvFEATURE_MULTI_CORE_BLOCK_SET_CONFIG2,
+    gcvFEATURE_MULTIGPU_SYNC_V3,
+    gcvFEATURE_PE_VMSAA_COVERAGE_CACHE_FIX,
+    gcvFEATURE_SECURITY_AHB,
+    gcvFEATURE_TX_LERP_LESS_BIT,
     /* Insert features above this comment only. */
     gcvFEATURE_COUNT                /* Not a feature. */
 }
@@ -2015,6 +2023,11 @@ typedef enum _gceCORE
     gcvCORE_3D1,
     gcvCORE_3D2,
     gcvCORE_3D3,
+    gcvCORE_3D4,
+    gcvCORE_3D5,
+    gcvCORE_3D6,
+    gcvCORE_3D7,
+    gcvCORE_3D_MAX = gcvCORE_3D7,
     gcvCORE_2D,
     gcvCORE_VG,
 #if gcdDEC_ENABLE_AHB
@@ -2064,6 +2077,7 @@ gceSECURE_MODE;
 #define gcvALLOC_FLAG_EXTERNAL_MEMORY_BIT   7
 #define gcvALLOC_FLAG_ALLOC_ON_FAULT_BIT    8
 #define gcvALLOC_FLAG_CMA_LIMIT_BIT         9
+
 /* No special needs. */
 #define gcvALLOC_FLAG_NONE              (0)
 /* Physical contiguous. */

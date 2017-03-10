@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -223,8 +223,10 @@ _DmaFree(
     gckOS os = Allocator->os;
     struct mdl_dma_priv *mdlPriv=(struct mdl_dma_priv *)Mdl->priv;
     gcsDMA_PRIV_PTR allocatorPriv = (gcsDMA_PRIV_PTR)Allocator->privateData;
-#if defined CONFIG_ARM64 || defined CONFIG_MIPS
+#if defined CONFIG_ARM64
     dma_free_coherent(_GetDevice(os), Mdl->numPages * PAGE_SIZE, mdlPriv->kvaddr, mdlPriv->dmaHandle);
+#elif defined CONFIG_MIPS
+    dma_free_coherent(gcvNULL, Mdl->numPages * PAGE_SIZE, mdlPriv->kvaddr, mdlPriv->dmaHandle);
 #else
     dma_free_writecombine(gcvNULL, Mdl->numPages * PAGE_SIZE, mdlPriv->kvaddr, mdlPriv->dmaHandle);
 #endif

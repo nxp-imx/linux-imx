@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -688,7 +688,7 @@ _RemoveRecordFromProcesDB(
             }
 
             gckVIDMEM_HANDLE_Dereference(kernel, pid, handle);
-            freeVideoMemory->node = gcmALL_TO_UINT32(nodeObject);
+            gcmkVERIFY_OK(gckOS_WriteMemory(Command->os, &freeVideoMemory->node, gcmALL_TO_UINT32(nodeObject)));
 
             type = gcvDB_VIDEO_MEMORY
                 | (nodeObject->type << gcdDB_VIDEO_MEMORY_TYPE_SHIFT)
@@ -730,7 +730,7 @@ _RemoveRecordFromProcesDB(
             }
 
             gckVIDMEM_HANDLE_Dereference(kernel, pid, handle);
-            unlockVideoMemory->node = gcmPTR_TO_UINT64(unlockNode);
+            gcmkVERIFY_OK(gckOS_WriteMemory(Command->os, &unlockVideoMemory->node, gcmALL_TO_UINT32(unlockNode)));
 
             /* Advance to next task. */
             size -= sizeof(gcsTASK_UNLOCK_VIDEO_MEMORY);

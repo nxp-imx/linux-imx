@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -77,9 +77,13 @@ typedef struct _gcTA {
     /* gctaOS object */
     gctaOS          os;
 
+    gceCORE         core;
+
     gcTA_MMU        mmu;
 
     gcTA_HARDWARE   hardware;
+
+    gctBOOL         destoryMmu;
 } gcsTA;
 
 typedef struct _gcTA_MMU
@@ -104,12 +108,14 @@ gcsTA_MMU;
 
 gceSTATUS HALDECL
 TAEmulator(
+    gceCORE Core,
     void * Interface
     );
 
 int
 gcTA_Construct(
     IN gctaOS Os,
+    IN gceCORE Core,
     OUT gcTA *TA
 );
 
@@ -191,16 +197,14 @@ gctaOS_GetPhysicalAddress(
     OUT gctPHYS_ADDR_T * Physical
     );
 
-gceSTATUS
-gctaOS_WriteRegister(
-    IN gctaOS Os,
+gceSTATUS gctaOS_WriteRegister(
+    IN gctaOS Os, IN gceCORE Core,
     IN gctUINT32 Address,
     IN gctUINT32 Data
     );
 
-gceSTATUS
-gctaOS_ReadRegister(
-    IN gctaOS Os,
+gceSTATUS gctaOS_ReadRegister(
+    IN gctaOS Os, IN gceCORE Core,
     IN gctUINT32 Address,
     IN gctUINT32 *Data
     );
@@ -247,6 +251,14 @@ gceSTATUS
 gctaOS_Delay(
     IN gctaOS Os,
     IN gctUINT32 Delay
+    );
+
+gceSTATUS
+gctaOS_SetGPUPower(
+    IN gctaOS Os,
+    IN gctUINT32 Core,
+    IN gctBOOL Clock,
+    IN gctBOOL Power
     );
 
 /*

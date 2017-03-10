@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -59,6 +59,8 @@
 #include "gc_hal_ta.h"
 #include "gc_hal.h"
 
+#define _GC_OBJ_ZONE gcvZONE_KERNEL
+
 /*
 * Responsibility of TA (trust application).
 * 1) Start FE.
@@ -73,6 +75,8 @@
 *
 */
 
+gcTA_MMU SharedMmu = gcvNULL;
+
 /*******************************************************************************
 **
 **  gcTA_Construct
@@ -82,12 +86,16 @@
 int
 gcTA_Construct(
     IN gctaOS Os,
+    IN gceCORE Core,
     OUT gcTA *TA
     )
 {
     gceSTATUS status;
     gctPOINTER pointer;
     gcTA ta;
+
+    gcmkHEADER();
+    gcmkVERIFY_ARGUMENT(TA != gcvNULL);
 
     /* Construct a gcTA object. */
     gcmkONERROR(gctaOS_Allocate(sizeof(struct _gcTA), &pointer));
@@ -97,21 +105,36 @@ gcTA_Construct(
     ta = (gcTA)pointer;
 
     ta->os = Os;
+    ta->core = Core;
 
     gcmkONERROR(gctaHARDWARE_Construct(ta, &ta->hardware));
 
     if (gctaHARDWARE_IsFeatureAvailable(ta->hardware, gcvFEATURE_SECURITY))
     {
-        gcmkONERROR(gctaMMU_Construct(ta, &ta->mmu));
+        if (SharedMmu == gcvNULL)
+        {
+            gcmkONERROR(gctaMMU_Construct(ta, &ta->mmu));
+
+            /* Record shared MMU. */
+            SharedMmu = ta->mmu;
+            ta->destoryMmu = gcvTRUE;
+        }
+        else
+        {
+            ta->mmu = SharedMmu;
+            ta->destoryMmu = gcvFALSE;
+        }
 
         gcmkONERROR(gctaHARDWARE_PrepareFunctions(ta->hardware));
     }
 
     *TA = ta;
 
+    gcmkFOOTER_NO();
     return 0;
 
 OnError:
+    gcmkFOOTER();
     return status;
 }
 
@@ -126,7 +149,7 @@ gcTA_Destroy(
     IN gcTA TA
     )
 {
-    if (TA->mmu)
+    if (TA->mmu && TA->destoryMmu)
     {
         gcmkVERIFY_OK(gctaMMU_Destory(TA->mmu));
     }

@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -951,7 +951,6 @@ _SetupDynamicSpace(
     /* Find all the dynamic address space. */
     gcmkONERROR(_FindDynamicSpace(Mmu, &nodeArray, &nodeArraySize));
 
-    /* TODO: We only use the largest one for now. */
     for (i = 0; i < nodeArraySize; i++)
     {
         if (nodeArray[i].entries > numEntries)
@@ -1975,6 +1974,11 @@ _FreePages(
     /* Get the node by index. */
     node = area->mapLogical + ((gctUINT32_PTR)PageTable - area->pageTableLogical);
 
+    if (pageCount != _GetPageCountOfUsedNode(node))
+    {
+        gcmkONERROR(gcvSTATUS_INVALID_REQUEST);
+    }
+
 #if gcdBOUNDARY_CHECK
     node -= gcdBOUNDARY_CHECK;
 #endif
@@ -1987,12 +1991,7 @@ _FreePages(
         _FillPageTable(PageTable, pageCount, Mmu->safeAddress);
     }
 
-    if (PageCount != _GetPageCountOfUsedNode(node))
-    {
-        gcmkONERROR(gcvSTATUS_INVALID_REQUEST);
-    }
-
-    if (PageCount == 1)
+    if (pageCount == 1)
     {
        /* Single page node. */
         node[0] = (~((1U<<8)-1)) | gcvMMU_SINGLE;
@@ -2005,7 +2004,7 @@ _FreePages(
 #else
         _WritePageEntry(PageTable, 0);
 #endif
-    }
+        }
     }
     else
     {
@@ -2016,12 +2015,12 @@ _FreePages(
         if (PageTable != gcvNULL)
         {
 #if gcdUSE_MMU_EXCEPTION
-        /* Enable exception */
-        gcmkVERIFY_OK(_FillPageTable(PageTable, pageCount, 1 << 1));
+            /* Enable exception */
+            gcmkVERIFY_OK(_FillPageTable(PageTable, (gctUINT32)PageCount, 1 << 1));
 #else
-        gcmkVERIFY_OK(_FillPageTable(PageTable, pageCount, 0));
+            gcmkVERIFY_OK(_FillPageTable(PageTable, (gctUINT32)PageCount, 0));
 #endif
-    }
+        }
     }
 
     /* We have free nodes. */

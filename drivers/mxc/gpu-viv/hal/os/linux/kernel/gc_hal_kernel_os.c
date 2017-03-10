@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -1880,7 +1880,7 @@ _GetPhysicalAddressProcess(
     gcmkONERROR(status);
 
     /* Success. */
-    gcmkFOOTER_ARG("*Address=0x%08x", *Address);
+    gcmkFOOTER_ARG("*Address=%p", *Address);
     return gcvSTATUS_OK;
 
 OnError:
@@ -1942,7 +1942,7 @@ gckOS_GetPhysicalAddress(
     gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(Os, *Address, Address));
 
     /* Success. */
-    gcmkFOOTER_ARG("*Address=0x%08x", *Address);
+    gcmkFOOTER_ARG("*Address=%p", *Address);
     return gcvSTATUS_OK;
 
 OnError:
@@ -3459,7 +3459,7 @@ gckOS_MapPagesEx(
     gceSTATUS status = gcvSTATUS_OK;
     PLINUX_MDL  mdl;
     gctUINT32*  table;
-    gctUINT32   offset;
+    gctUINT32   offset = 0;
 #if gcdNONPAGED_MEMORY_CACHEABLE
     gckMMU      mmu;
     PLINUX_MDL  mmuMdl;
@@ -3525,7 +3525,6 @@ gckOS_MapPagesEx(
 
      /* Get all the physical addresses and store them in the page table. */
 
-    offset = 0;
     PageCount = PageCount / (PAGE_SIZE / 4096);
 
     /* Try to get the user pages so DMA can happen. */
@@ -3534,7 +3533,7 @@ gckOS_MapPagesEx(
         gctUINT i;
         gctPHYS_ADDR_T phys = ~0U;
 
-        allocator->ops->Physical(allocator, mdl, offset * PAGE_SIZE, &phys);
+        allocator->ops->Physical(allocator, mdl, offset, &phys);
 
         gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(Os, phys, &phys));
 
@@ -3554,12 +3553,12 @@ gckOS_MapPagesEx(
                 gcvLEVEL_INFO, gcvZONE_OS,
                 "%s(%d): Setup mapping in IOMMU %x => %x",
                 __FUNCTION__, __LINE__,
-                Address + (offset * PAGE_SIZE), phys
+                Address + offset, phys
                 );
 
             /* When use IOMMU, GPU use system PAGE_SIZE. */
             gcmkONERROR(gckIOMMU_Map(
-                Os->iommu, Address + (offset * PAGE_SIZE), phys, PAGE_SIZE));
+                Os->iommu, Address + offset, phys, PAGE_SIZE));
         }
         else
 #endif
@@ -3583,7 +3582,7 @@ gckOS_MapPagesEx(
                 {
 #if gcdPROCESS_ADDRESS_SPACE
                     gctUINT32_PTR pageTableEntry;
-                    gckMMU_GetPageEntry(mmu, Address + (offset * 4096), &pageTableEntry);
+                    gckMMU_GetPageEntry(mmu, Address + offset + (i * 4096), &pageTableEntry);
                     gcmkONERROR(
                         gckMMU_SetPage(mmu,
                             phys + (i * 4096),
@@ -3600,7 +3599,7 @@ gckOS_MapPagesEx(
             }
         }
 
-        offset += 1;
+        offset += PAGE_SIZE;
     }
 
 #if gcdNONPAGED_MEMORY_CACHEABLE
@@ -4556,7 +4555,7 @@ gckOS_CacheClean(
 {
     gcsPLATFORM * platform;
 
-    gcmkHEADER_ARG("Os=0x%X ProcessID=%d Handle=0x%X Logical=0x%X Bytes=%lu",
+    gcmkHEADER_ARG("Os=0x%X ProcessID=%d Handle=0x%X Logical=%p Bytes=%lu",
                    Os, ProcessID, Handle, Logical, Bytes);
 
     /* Verify the arguments. */
@@ -4589,7 +4588,7 @@ gckOS_CacheClean(
 #if defined (CONFIG_ARM)
     /* Inner cache. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35)
-    dmac_flush_range(Logical, Logical + Bytes);
+    dmac_map_area(Logical, Bytes, DMA_TO_DEVICE);
 #      else
     dmac_clean_range(Logical, Logical + Bytes);
 #      endif
@@ -4608,8 +4607,6 @@ gckOS_CacheClean(
     dma_cache_wback((unsigned long) Logical, Bytes);
 
 #elif defined(CONFIG_PPC)
-
-    /* TODO */
 
 #else
     dma_sync_single_for_device(
@@ -4661,7 +4658,7 @@ gckOS_CacheInvalidate(
 {
     gcsPLATFORM * platform;
 
-    gcmkHEADER_ARG("Os=0x%X ProcessID=%d Handle=0x%X Logical=0x%X Bytes=%lu",
+    gcmkHEADER_ARG("Os=0x%X ProcessID=%d Handle=0x%X Logical=%p Bytes=%lu",
                    Os, ProcessID, Handle, Logical, Bytes);
 
     /* Verify the arguments. */
@@ -4694,7 +4691,7 @@ gckOS_CacheInvalidate(
 #if defined (CONFIG_ARM)
     /* Inner cache. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35)
-    dmac_flush_range(Logical, Logical + Bytes);
+    dmac_map_area(Logical, Bytes, DMA_FROM_DEVICE);
 #      else
     dmac_inv_range(Logical, Logical + Bytes);
 #      endif
@@ -4710,7 +4707,6 @@ gckOS_CacheInvalidate(
 #elif defined(CONFIG_MIPS)
     dma_cache_inv((unsigned long) Logical, Bytes);
 #elif defined(CONFIG_PPC)
-    /* TODO */
 #else
     dma_sync_single_for_device(
               gcvNULL,
@@ -4761,7 +4757,7 @@ gckOS_CacheFlush(
 {
     gcsPLATFORM * platform;
 
-    gcmkHEADER_ARG("Os=0x%X ProcessID=%d Handle=0x%X Logical=0x%X Bytes=%lu",
+    gcmkHEADER_ARG("Os=0x%X ProcessID=%d Handle=0x%X Logical=%p Bytes=%lu",
                    Os, ProcessID, Handle, Logical, Bytes);
 
     /* Verify the arguments. */
@@ -4809,7 +4805,6 @@ gckOS_CacheFlush(
 #elif defined(CONFIG_MIPS)
     dma_cache_wback_inv((unsigned long) Logical, Bytes);
 #elif defined(CONFIG_PPC)
-    /* TODO */
 #else
     dma_sync_single_for_device(
               gcvNULL,
@@ -6043,8 +6038,11 @@ gckOS_WaitSignal(
 
     might_sleep();
 
+#ifdef gcdRT_KERNEL
+    raw_spin_lock_irq(&signal->obj.wait.lock);
+#else
     spin_lock_irq(&signal->obj.wait.lock);
-
+#endif
     if (signal->obj.done)
     {
         if (!signal->manualReset)
@@ -6065,10 +6063,22 @@ gckOS_WaitSignal(
             ? MAX_SCHEDULE_TIMEOUT
             : msecs_to_jiffies(Wait);
 
+#ifdef gcdRT_KERNEL
+        DEFINE_SWAITER(wait);
+#else
         DECLARE_WAITQUEUE(wait, current);
         wait.flags |= WQ_FLAG_EXCLUSIVE;
-        __add_wait_queue_tail(&signal->obj.wait, &wait);
+#endif
 
+#ifdef gcdRT_KERNEL
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
+        __prepare_to_swait(&signal->obj.wait, &wait);
+#else
+        swait_prepare_locked(&signal->obj.wait, &wait);
+#endif
+#else
+        __add_wait_queue_tail(&signal->obj.wait, &wait);
+#endif
         while (gcvTRUE)
         {
             if (Interruptable && signal_pending(current))
@@ -6079,10 +6089,17 @@ gckOS_WaitSignal(
             }
 
             __set_current_state(TASK_INTERRUPTIBLE);
+#ifdef gcdRT_KERNEL
+            raw_spin_unlock_irq(&signal->obj.wait.lock);
+#else
             spin_unlock_irq(&signal->obj.wait.lock);
+#endif
             timeout = schedule_timeout(timeout);
+#ifdef gcdRT_KERNEL
+            raw_spin_lock_irq(&signal->obj.wait.lock);
+#else
             spin_lock_irq(&signal->obj.wait.lock);
-
+#endif
             if (signal->obj.done)
             {
                 if (!signal->manualReset)
@@ -6102,11 +6119,22 @@ gckOS_WaitSignal(
             }
         }
 
+#ifdef gcdRT_KERNEL
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4,4,0)
+        __finish_swait(&signal->obj.wait, &wait);
+#else
+        swait_finish_locked(&signal->obj.wait, &wait);
+#endif
+#else
         __remove_wait_queue(&signal->obj.wait, &wait);
+#endif
     }
 
+#ifdef gcdRT_KERNEL
+    raw_spin_unlock_irq(&signal->obj.wait.lock);
+#else
     spin_unlock_irq(&signal->obj.wait.lock);
-
+#endif
 OnError:
     /* Return status. */
     gcmkFOOTER_ARG("Signal=0x%X status=%d", Signal, status);
@@ -7267,7 +7295,7 @@ gckOS_CPUPhysicalToGPUPhysical(
     )
 {
     gcsPLATFORM * platform;
-    gcmkHEADER_ARG("CPUPhysical=0x%X", CPUPhysical);
+    gcmkHEADER_ARG("CPUPhysical=%p", CPUPhysical);
 
     platform = Os->device->platform;
 

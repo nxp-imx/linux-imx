@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -175,23 +175,22 @@ _Import(
         /* Get the user pages. */
         down_read(&current->mm->mmap_sem);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
-        result = get_user_pages(memory & PAGE_MASK,
-                pageCount,
-                FOLL_WRITE,
-                pages,
-                gcvNULL
-                );
-#else
-        result = get_user_pages(current,
+        result = get_user_pages(
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+                current,
                 current->mm,
+#endif
                 memory & PAGE_MASK,
                 pageCount,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
                 FOLL_WRITE,
+#else
+                1,
+                0,
+#endif
                 pages,
                 gcvNULL
                 );
-#endif
 
         up_read(&current->mm->mmap_sem);
 

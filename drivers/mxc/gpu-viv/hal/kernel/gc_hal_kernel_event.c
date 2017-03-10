@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -2620,8 +2620,7 @@ gckEVENT_Notify(
                 /* Write data. */
                 gcmkERR_BREAK(
                     gckOS_WriteMemory(Event->os,
-                                      (gctPOINTER)
-                                          record->info.u.WriteData.address,
+                                      gcmUINT64_TO_PTR(record->info.u.WriteData.address),
                                       record->info.u.WriteData.data));
 #endif
                 break;

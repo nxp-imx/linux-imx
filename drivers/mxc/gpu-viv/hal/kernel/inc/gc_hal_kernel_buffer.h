@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -75,13 +75,13 @@ extern "C" {
 #define gcdRESERVED_PAUSE_PRIMGEN_QUERY_LENGTH      (4 * gcmSIZEOF(gctUINT32))
 #define gcdRESERVED_PAUSE_XFB_LENGTH                (2 * gcmSIZEOF(gctUINT32))
 #define gcdRESERVED_HW_FENCE                        (4 * gcmSIZEOF(gctUINT32))
-#define gcdRESERVED_PAUSE_PROBE_LENGTH              (TOTAL_PROBE_NUMBER *4 * gcmSIZEOF(gctUINT32))
+#define gcdRESERVED_PAUSE_PROBE_LENGTH              (TOTAL_PROBE_NUMBER * 2 * gcmSIZEOF(gctUINT32))
 
 #define gcdRESUME_OQ_LENGTH                         (2 * gcmSIZEOF(gctUINT32))
 #define gcdRESUME_XFBWRITTEN_QUERY_LENGTH           (4 * gcmSIZEOF(gctUINT32))
 #define gcdRESUME_PRIMGEN_QUERY_LENGTH              (4 * gcmSIZEOF(gctUINT32))
 #define gcdRESUME_XFB_LENGH                         (2 * gcmSIZEOF(gctUINT32))
-#define gcdRESUME_PROBE_LENGH                       (TOTAL_PROBE_NUMBER *4 * gcmSIZEOF(gctUINT32))
+#define gcdRESUME_PROBE_LENGH                       (TOTAL_PROBE_NUMBER * 2 * gcmSIZEOF(gctUINT32))
 
 
 /* State delta record. */

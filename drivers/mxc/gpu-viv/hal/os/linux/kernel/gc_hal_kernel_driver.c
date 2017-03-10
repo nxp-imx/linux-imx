@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -282,7 +282,7 @@ gckOS_DumpParam(
     printk("  registerMemSizeDEC300 = 0x%08lX\n", registerMemSizeDEC300);
 #endif
 
-    printk("  contiguousSize    = %ld\n",     contiguousSize);
+    printk("  contiguousSize    = 0x%08lX\n", contiguousSize);
     printk("  contiguousBase    = 0x%08lX\n", contiguousBase);
     printk("  bankSize          = 0x%08lX\n", bankSize);
     printk("  fastClear         = %d\n",      fastClear);
@@ -1165,17 +1165,6 @@ static int gpu_suspend(struct platform_device *dev, pm_message_t state)
             if (gcmIS_ERROR(status))
             {
                 return -1;
-            }
-
-#if gcdENABLE_VG
-            if (i == gcvCORE_VG)
-            {
-                status = gckVGHARDWARE_SetPowerManagementState(device->kernels[i]->vg->hardware, gcvPOWER_ON);
-            }
-            else
-#endif
-            {
-                status = gckHARDWARE_SetPowerManagementState(device->kernels[i]->hardware, gcvPOWER_ON);
             }
 
 #if gcdENABLE_VG

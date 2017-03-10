@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2016 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2016 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -488,11 +488,6 @@ gckRECORDER_Construct(
     gctUINT i;
     gctBOOL virtualCommandBuffer = Hardware->kernel->virtualCommandBuffer;
 
-    /* TODO: We only need context buffer and state map, it should be able to get without construct a
-    ** new context.
-    ** Now it is leaked, since we can't free it when command buffer is gone.
-    */
-
     /* MMU is not ready now. */
     Hardware->kernel->virtualCommandBuffer = gcvFALSE;
 
@@ -525,7 +520,6 @@ gckRECORDER_Construct(
 
     for (i = 0; i < gcdNUM_RECORDS; i++)
     {
-        /* TODO : Optimize size. */
         gcmkONERROR(gckOS_Allocate(Os, gcdCMD_BUFFER_SIZE, (gctPOINTER *)&recorder->deltas[i].command));
         gcmkONERROR(gckOS_Allocate(Os, context->totalSize, (gctPOINTER *)&recorder->deltas[i].context));
     }
