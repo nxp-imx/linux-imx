@@ -70,6 +70,7 @@
 typedef struct _gcsCMA_PRIV * gcsCMA_PRIV_PTR;
 typedef struct _gcsCMA_PRIV {
     gctUINT32 cmasize;
+    gctBOOL cmaLimitRequest;
 }
 gcsCMA_PRIV;
 
@@ -141,9 +142,16 @@ _CMAFSLAlloc(
 
     gcmkHEADER_ARG("Mdl=%p NumPages=%d", Mdl, NumPages);
 
-    if (os->allocatorLimitMarker && !(Flags & gcvALLOC_FLAG_CMA_LIMIT))
+    if (os->allocatorLimitMarker)
     {
-        gcmkONERROR(gcvSTATUS_NOT_SUPPORTED);
+        if (Flags & gcvALLOC_FLAG_CMA_LIMIT)
+        {
+            priv->cmaLimitRequest = gcvTRUE;
+        }
+        else if (priv->cmaLimitRequest == gcvTRUE)
+        {
+            gcmkONERROR(gcvSTATUS_NOT_SUPPORTED);
+        }
     }
 
     gcmkONERROR(gckOS_Allocate(os, sizeof(struct mdl_cma_priv), (gctPOINTER *)&mdl_priv));
@@ -160,6 +168,7 @@ _CMAFSLAlloc(
     }
 
     Mdl->priv = mdl_priv;
+    Mdl->dmaHandle = mdl_priv->physical;
     priv->cmasize += NumPages * PAGE_SIZE;
 
     gcmkFOOTER_NO();
@@ -443,6 +452,7 @@ _CMAFSLAlloctorInit(
 #else
     Os->allocatorLimitMarker = gcvFALSE;
 #endif
+    priv->cmaLimitRequest = gcvFALSE;
 
     if (Os->allocatorLimitMarker)
     {
