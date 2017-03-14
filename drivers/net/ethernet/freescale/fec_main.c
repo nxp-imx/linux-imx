@@ -19,12 +19,13 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
  * Copyright (C) 2010-2014 Freescale Semiconductor, Inc.
+ *
+ * Copyright 2017 NXP
  */
 
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
-#include <linux/pm_runtime.h>
 #include <linux/ptrace.h>
 #include <linux/errno.h>
 #include <linux/ioport.h>
@@ -47,6 +48,7 @@
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/clk.h>
+#include <linux/clk/clk-conf.h>
 #include <linux/platform_device.h>
 #include <linux/mdio.h>
 #include <linux/phy.h>
@@ -62,11 +64,11 @@
 #include <linux/pm_runtime.h>
 #include <linux/busfreq-imx.h>
 #include <linux/prefetch.h>
-#include <soc/imx/cpuidle.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 
 #include <asm/cacheflush.h>
+#include <soc/imx/cpuidle.h>
 
 #include "fec.h"
 
@@ -125,10 +127,12 @@ static struct platform_device_id fec_devtype[] = {
 				FEC_QUIRK_HAS_VLAN | FEC_QUIRK_BUG_CAPTURE |
 				FEC_QUIRK_HAS_RACC | FEC_QUIRK_HAS_COALESCE,
 	}, {
-		.name = "imx6ul-fec",
+		.name = "imx8qm-fec",
 		.driver_data = FEC_QUIRK_ENET_MAC | FEC_QUIRK_HAS_GBIT |
 				FEC_QUIRK_HAS_BUFDESC_EX | FEC_QUIRK_HAS_CSUM |
-				FEC_QUIRK_HAS_VLAN,
+				FEC_QUIRK_HAS_VLAN | FEC_QUIRK_HAS_AVB |
+				FEC_QUIRK_ERR007885 | FEC_QUIRK_BUG_CAPTURE |
+				FEC_QUIRK_HAS_RACC | FEC_QUIRK_HAS_COALESCE,
 	}, {
 		/* sentinel */
 	}
@@ -143,6 +147,7 @@ enum imx_fec_type {
 	MVF600_FEC,
 	IMX6SX_FEC,
 	IMX6UL_FEC,
+	IMX8QM_FEC,
 };
 
 static const struct of_device_id fec_dt_ids[] = {
@@ -153,6 +158,7 @@ static const struct of_device_id fec_dt_ids[] = {
 	{ .compatible = "fsl,mvf600-fec", .data = &fec_devtype[MVF600_FEC], },
 	{ .compatible = "fsl,imx6sx-fec", .data = &fec_devtype[IMX6SX_FEC], },
 	{ .compatible = "fsl,imx6ul-fec", .data = &fec_devtype[IMX6UL_FEC], },
+	{ .compatible = "fsl,imx8qm-fec", .data = &fec_devtype[IMX8QM_FEC], },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fec_dt_ids);
@@ -201,7 +207,8 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
  * account when setting it.
  */
 #if defined(CONFIG_M523x) || defined(CONFIG_M527x) || defined(CONFIG_M528x) || \
-    defined(CONFIG_M520x) || defined(CONFIG_M532x) || defined(CONFIG_ARM)
+    defined(CONFIG_M520x) || defined(CONFIG_M532x) || defined(CONFIG_ARM) || \
+    defined(CONFIG_ARM64)
 #define	OPT_FRAME_SIZE	(PKT_MAXBUF_SIZE << 16)
 #else
 #define	OPT_FRAME_SIZE	0
@@ -247,14 +254,14 @@ static struct bufdesc *fec_enet_get_nextdesc(struct bufdesc *bdp,
 					     struct bufdesc_prop *bd)
 {
 	return (bdp >= bd->last) ? bd->base
-			: (struct bufdesc *)(((unsigned)bdp) + bd->dsize);
+			: (struct bufdesc *)(((void *)bdp) + bd->dsize);
 }
 
 static struct bufdesc *fec_enet_get_prevdesc(struct bufdesc *bdp,
 					     struct bufdesc_prop *bd)
 {
 	return (bdp <= bd->base) ? bd->last
-			: (struct bufdesc *)(((unsigned)bdp) - bd->dsize);
+			: (struct bufdesc *)(((void *)bdp) - bd->dsize);
 }
 
 static int fec_enet_get_bd_index(struct bufdesc *bdp,
@@ -2162,7 +2169,8 @@ static int fec_enet_get_regs_len(struct net_device *ndev)
 
 /* List of registers that can be safety be read to dump them with ethtool */
 #if defined(CONFIG_M523x) || defined(CONFIG_M527x) || defined(CONFIG_M528x) || \
-	defined(CONFIG_M520x) || defined(CONFIG_M532x) || defined(CONFIG_ARM)
+	defined(CONFIG_M520x) || defined(CONFIG_M532x) || defined(CONFIG_ARM) || \
+	defined(CONFIG_ARM64)
 static u32 fec_enet_register_offset[] = {
 	FEC_IEVENT, FEC_IMASK, FEC_R_DES_ACTIVE_0, FEC_X_DES_ACTIVE_0,
 	FEC_ECNTRL, FEC_MII_DATA, FEC_MII_SPEED, FEC_MIB_CTRLSTAT, FEC_R_CNTRL,
@@ -2724,7 +2732,7 @@ static void fec_enet_free_queue(struct net_device *ndev)
 	for (i = 0; i < fep->num_tx_queues; i++)
 		if (fep->tx_queue[i] && fep->tx_queue[i]->tso_hdrs) {
 			txq = fep->tx_queue[i];
-			dma_free_coherent(NULL,
+			dma_free_coherent(&fep->pdev->dev,
 					  txq->bd.ring_size * TSO_HEADER_SIZE,
 					  txq->tso_hdrs,
 					  txq->tso_hdrs_dma);
@@ -2758,7 +2766,7 @@ static int fec_enet_alloc_queue(struct net_device *ndev)
 		txq->tx_wake_threshold =
 			(txq->bd.ring_size - txq->tx_stop_threshold) / 2;
 
-		txq->tso_hdrs = dma_alloc_coherent(NULL,
+		txq->tso_hdrs = dma_alloc_coherent(&fep->pdev->dev,
 					txq->bd.ring_size * TSO_HEADER_SIZE,
 					&txq->tso_hdrs_dma,
 					GFP_KERNEL);
@@ -3232,7 +3240,7 @@ static int fec_enet_init(struct net_device *ndev)
 	unsigned dsize_log2 = __fls(dsize);
 
 	WARN_ON(dsize != (1 << dsize_log2));
-#if defined(CONFIG_ARM)
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 	fep->rx_align = 0xf;
 	fep->tx_align = 0xf;
 #else
@@ -3459,6 +3467,8 @@ fec_probe(struct platform_device *pdev)
 	int num_tx_qs;
 	int num_rx_qs;
 
+	of_dma_configure(&pdev->dev, np);
+
 	fec_enet_get_queue_num(pdev, &num_tx_qs, &num_rx_qs);
 
 	/* Init network device */
@@ -3535,7 +3545,9 @@ fec_probe(struct platform_device *pdev)
 		fep->phy_interface = ret;
 	}
 
+#if !defined(CONFIG_ARM64)
 	request_bus_freq(BUS_FREQ_HIGH);
+#endif
 
 	fep->clk_ipg = devm_clk_get(&pdev->dev, "ipg");
 	if (IS_ERR(fep->clk_ipg)) {
@@ -3810,7 +3822,9 @@ static int __maybe_unused fec_runtime_suspend(struct device *dev)
 	struct fec_enet_private *fep = netdev_priv(ndev);
 
 	clk_disable_unprepare(fep->clk_ipg);
+#if !defined(CONFIG_ARM64)
 	release_bus_freq(BUS_FREQ_HIGH);
+#endif
 
 	return 0;
 }
@@ -3820,7 +3834,9 @@ static int __maybe_unused fec_runtime_resume(struct device *dev)
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct fec_enet_private *fep = netdev_priv(ndev);
 
+#if !defined(CONFIG_ARM64)
 	request_bus_freq(BUS_FREQ_HIGH);
+#endif
 	return clk_prepare_enable(fep->clk_ipg);
 }
 
