@@ -4,6 +4,7 @@
  *
  * Copyright (C) 2005, Intec Automation Inc.
  * Copyright (C) 2014-2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * This code is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -158,7 +159,7 @@ static inline int spi_nor_read_dummy_cycles(struct spi_nor *nor)
 		* controller driver can set it in its child DT node.
 		* We parse it out here.
 		*/
-		if (of_property_read_u32(np,"spi-nor,ddr-quad-read-dummy",
+		if (!of_property_read_u32(np, "spi-nor,ddr-quad-read-dummy",
 					 &dummy))
 			return dummy;
 	}
