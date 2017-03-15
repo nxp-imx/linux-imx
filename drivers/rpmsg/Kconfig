@@ -20,6 +20,11 @@ config RPMSG_VIRTIO
 	select VIRTIO
 	select VIRTUALIZATION
 
+config HAVE_IMX_RPMSG
+	bool "IMX RPMSG driver on the AMP SOCs"
+	select RPMSG
+	select RPMSG_VIRTIO
+
 config IMX_RPMSG_PINGPONG
 	tristate "IMX RPMSG pingpong driver -- loadable modules only"
 	default m
