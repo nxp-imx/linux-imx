@@ -1594,13 +1594,17 @@ gckHARDWARE_Construct(
             ? 0x0100
             : 0x0000;
 
-    /* _ResetGPU need powerBaseAddress. */
-    status = _ResetGPU(hardware, Os, Core);
-
-    if (status != gcvSTATUS_OK)
+    /* VIV: Don't do sftware reset here for 0x2000, 0xfff5450 to workaround #12789. */
+    if(!(_IsHardwareMatch(hardware, gcv2000, 0xffff5450)))
     {
-        gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
-            "_ResetGPU failed: status=%d\n", status);
+        /* _ResetGPU need powerBaseAddress. */
+        status = _ResetGPU(hardware, Os, Core);
+
+        if (status != gcvSTATUS_OK)
+        {
+            gcmkTRACE_ZONE(gcvLEVEL_INFO, gcvZONE_HARDWARE,
+                "_ResetGPU failed: status=%d\n", status);
+        }
     }
 
 #if gcdDEC_ENABLE_AHB
