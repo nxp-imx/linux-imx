@@ -499,7 +499,6 @@ gckPLATFORM_AdjustParam(
                 continue;
             }
             component_match_add(&pdev->dev, &match, compare_of, core_node);
-            of_node_put(core_node);
 
             pdev_gpu = of_find_device_by_node(core_node);
             if (!pdev_gpu) {
