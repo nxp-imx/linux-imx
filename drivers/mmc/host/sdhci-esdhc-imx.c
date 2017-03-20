@@ -1488,6 +1488,9 @@ static int sdhci_esdhc_suspend(struct device *dev)
 		mmc_retune_needed(host->mmc);
 	}
 
+	if (host->tuning_mode != SDHCI_TUNING_MODE_3)
+		mmc_retune_needed(host->mmc);
+
 	ret = sdhci_suspend_host(host);
 
 	pinctrl_pm_select_sleep_state(dev);
@@ -1525,6 +1528,9 @@ static int sdhci_esdhc_runtime_suspend(struct device *dev)
 	int ret;
 
 	ret = sdhci_runtime_suspend_host(host);
+
+	if (host->tuning_mode != SDHCI_TUNING_MODE_3)
+		mmc_retune_needed(host->mmc);
 
 	if (!sdhci_sdio_irq_enabled(host)) {
 		clk_disable_unprepare(imx_data->clk_per);

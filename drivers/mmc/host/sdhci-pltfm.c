@@ -214,6 +214,9 @@ static int sdhci_pltfm_suspend(struct device *dev)
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	int ret;
 
+	if (host->tuning_mode != SDHCI_TUNING_MODE_3)
+		mmc_retune_needed(host->mmc);
+
 	ret = sdhci_suspend_host(host);
 	pinctrl_pm_select_sleep_state(dev);
 
