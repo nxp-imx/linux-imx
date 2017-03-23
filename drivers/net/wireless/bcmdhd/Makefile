@@ -10,8 +10,7 @@ DHDCFLAGS += -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER            \
 	-DKEEP_ALIVE -DCSCAN -DPKT_FILTER_SUPPORT                             \
 	-DEMBEDDED_PLATFORM -DPNO_SUPPORT                                     \
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT                           \
-	-DCUSTOMER_HW2 -DGET_CUSTOM_MAC_ENABLE                                \
-	-DENABLE_INSMOD_NO_FW_LOAD
+	-DCUSTOMER_HW2 -DGET_CUSTOM_MAC_ENABLE
 
 #################
 # Common feature
@@ -215,7 +214,7 @@ ifneq ($(CONFIG_BCMDHD_PCIE),)
 endif
 
 bcmdhd-objs := $(DHDOFILES)
-obj-$(CONFIG_BCMDHD_SDIO)   += bcmdhd.o
+obj-$(DRIVER_TYPE)   += bcmdhd.o
 
 all:
 	@echo "$(MAKE) --no-print-directory -C $(KDIR) SUBDIRS=$(CURDIR) modules"
