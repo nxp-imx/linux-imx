@@ -24,7 +24,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd.h 634247 2016-04-27 05:53:55Z $
+ * $Id: dhd.h 662786 2016-11-11 09:06:37Z $
  */
 
 /****************
@@ -348,6 +348,9 @@ typedef struct dhd_pub {
 	struct task_struct * current_rxf;
 	int chan_isvht80;
 #endif /* CUSTOM_SET_CPUCORE */
+#ifdef OOB_PARAM
+	uint	oob_disable;
+#endif /* OOB_PARAM */
 } dhd_pub_t;
 
 
@@ -637,6 +640,7 @@ extern int net_os_send_hang_message(struct net_device *dev);
 extern int wl_host_event(dhd_pub_t *dhd_pub, int *idx, void *pktdata, uint16 pktlen,
 		wl_event_msg_t *, void **data_ptr, void *raw_event);
 extern void wl_event_to_host_order(wl_event_msg_t * evt);
+extern int wl_host_event_get_data(void *pktdata, uint pktlen, wl_event_msg_t *evt);
 
 extern int dhd_wl_ioctl(dhd_pub_t *dhd_pub, int ifindex, wl_ioctl_t *ioc, void *buf, int len);
 extern int dhd_wl_ioctl_cmd(dhd_pub_t *dhd_pub, int cmd, void *arg, int len, uint8 set,
@@ -649,11 +653,11 @@ extern int dhd_event_ifadd(struct dhd_info *dhd, struct wl_event_data_if *ifeven
 extern int dhd_event_ifdel(struct dhd_info *dhd, struct wl_event_data_if *ifevent,
 	char *name, uint8 *mac);
 extern struct net_device* dhd_allocate_if(dhd_pub_t *dhdpub, int ifidx, char *name,
-	uint8 *mac, uint8 bssidx, bool need_rtnl_lock);
+	uint8 *mac, uint8 bssidx, bool need_rtnl_lock, char *dngl_name);
 extern int dhd_remove_if(dhd_pub_t *dhdpub, int ifidx, bool need_rtnl_lock);
 extern void dhd_vif_add(struct dhd_info *dhd, int ifidx, char * name);
 extern void dhd_vif_del(struct dhd_info *dhd, int ifidx);
-extern void dhd_event(struct dhd_info *dhd, char *evpkt, int evlen, int ifidx);
+extern void dhd_event(struct dhd_info *dhd, char *evpkt, uint evlen, int ifidx);
 extern void dhd_vif_sendup(struct dhd_info *dhd, int ifidx, uchar *cp, int len);
 
 /* Send packet to dongle via data channel */
@@ -673,12 +677,10 @@ extern int dhd_bus_suspend(dhd_pub_t *dhdpub);
 extern int dhd_bus_resume(dhd_pub_t *dhdpub, int stage);
 extern int dhd_bus_membytes(dhd_pub_t *dhdp, bool set, uint32 address, uint8 *data, uint size);
 extern void dhd_print_buf(void *pbuf, int len, int bytes_per_line);
-extern bool dhd_is_associated(dhd_pub_t *dhd, void *bss_buf, int *retval);
-#if defined(BCMSDIO)
+extern bool dhd_is_associated(dhd_pub_t *dhd, uint8 ifidx, int *retval);
 extern uint dhd_bus_chip_id(dhd_pub_t *dhdp);
 extern uint dhd_bus_chiprev_id(dhd_pub_t *dhdp);
 extern uint dhd_bus_chippkg_id(dhd_pub_t *dhdp);
-#endif /* defined(BCMSDIO) */
 
 #if defined(KEEP_ALIVE)
 extern int dhd_keep_alive_onoff(dhd_pub_t *dhd);
@@ -921,5 +923,9 @@ void dhd_os_prefree(dhd_pub_t *dhdpub, int section, void *addr, uint size);
 #define DHD_OS_PREFREE(dhdpub, section, addr, size) MFREE(dhdpub->osh, addr, size)
 #endif /* defined(CONFIG_DHD_USE_STATIC_BUF) */
 
+
+#ifdef OOB_PARAM
+extern uint dhd_get_oob_disable(struct dhd_bus* bus);
+#endif /* OOB_PARAM */
 
 #endif /* _dhd_h_ */

@@ -24,7 +24,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wlioctl.h 575651 2015-07-30 13:49:47Z $
+ * $Id: wlioctl.h 662961 2016-11-24 01:22:35Z $
  */
 
 #ifndef _wlioctl_h_
@@ -2682,7 +2682,10 @@ typedef struct pm_wake_packet {
 typedef enum wl_pkt_filter_type {
 	WL_PKT_FILTER_TYPE_PATTERN_MATCH=0,	/* Pattern matching filter */
 	WL_PKT_FILTER_TYPE_MAGIC_PATTERN_MATCH=1, /* Magic packet match */
-	WL_PKT_FILTER_TYPE_PATTERN_LIST_MATCH=2	/* A pattern list (match all to match filter) */
+	WL_PKT_FILTER_TYPE_PATTERN_LIST_MATCH=2,	/* A pattern list (match all to match filter) */
+	WL_PKT_FILTER_TYPE_ENCRYPTED_PATTERN_MATCH=3, /* SECURE WOWL magic / net pattern match */
+	WL_PKT_FILTER_TYPE_APF_MATCH=4, /* Android packet filter match */
+	WL_PKT_FILTER_TYPE_PATTERN_MATCH_TIMEOUT=5, /* Pattern matching filter with timeout event */
 } wl_pkt_filter_type_t;
 
 #define WL_PKT_FILTER_TYPE wl_pkt_filter_type_t
@@ -2691,7 +2694,10 @@ typedef enum wl_pkt_filter_type {
 #define WL_PKT_FILTER_TYPE_NAMES \
 	{ "PATTERN", WL_PKT_FILTER_TYPE_PATTERN_MATCH },       \
 	{ "MAGIC",   WL_PKT_FILTER_TYPE_MAGIC_PATTERN_MATCH }, \
-	{ "PATLIST", WL_PKT_FILTER_TYPE_PATTERN_LIST_MATCH }
+	{ "PATLIST", WL_PKT_FILTER_TYPE_PATTERN_LIST_MATCH }, \
+	{ "SECURE WOWL", WL_PKT_FILTER_TYPE_ENCRYPTED_PATTERN_MATCH }, \
+	{ "APF", WL_PKT_FILTER_TYPE_APF_MATCH }, \
+	{ "PATTERN TIMEOUT", WL_PKT_FILTER_TYPE_PATTERN_MATCH_TIMEOUT }
 
 /* Pattern matching filter. Specifies an offset within received packets to
  * start matching, the pattern to match, the size of the pattern, and a bitmask
@@ -2723,6 +2729,19 @@ typedef struct wl_pkt_filter_pattern_list {
 	wl_pkt_filter_pattern_listel_t patterns[1]; /* Variable number of list elements */
 } wl_pkt_filter_pattern_list_t;
 
+
+typedef struct wl_pkt_filter_pattern_timeout {
+	uint32	offset;	/* Offset within received packet to start pattern matching.
+					 * Offset '0' is the first byte of the ethernet header.
+					 */
+	uint32	size_bytes;	/* Size of the pattern. Bitmask must be the same size. */
+	uint32	timeout;	/* Timeout(seconds) */
+	uint8	mask_and_pattern[1]; /* Variable length mask and pattern data.
+								 * mask starts at offset 0. Pattern
+								 * immediately follows mask.
+								*/
+} wl_pkt_filter_pattern_timeout_t;
+
 /* IOVAR "pkt_filter_add" parameter. Used to install packet filters. */
 typedef struct wl_pkt_filter {
 	uint32	id;		/* Unique filter id, specified by app. */
@@ -2731,6 +2750,7 @@ typedef struct wl_pkt_filter {
 	union {			/* Filter definitions */
 		wl_pkt_filter_pattern_t pattern;	/* Pattern matching filter */
 		wl_pkt_filter_pattern_list_t patlist; /* List of patterns to match */
+		wl_pkt_filter_pattern_timeout_t pattern_timeout; /* Pattern timeout event filter */
 	} u;
 } wl_pkt_filter_t;
 
@@ -2745,6 +2765,8 @@ typedef struct wl_tcp_keep_set {
 #define WL_PKT_FILTER_PATTERN_LIST_FIXED_LEN OFFSETOF(wl_pkt_filter_pattern_list_t, patterns)
 #define WL_PKT_FILTER_PATTERN_LISTEL_FIXED_LEN	\
 			OFFSETOF(wl_pkt_filter_pattern_listel_t, mask_and_data)
+#define WL_PKT_FILTER_PATTERN_TIMEOUT_FIXED_LEN	\
+			OFFSETOF(wl_pkt_filter_pattern_timeout_t, mask_and_pattern)
 
 /* IOVAR "pkt_filter_enable" parameter. */
 typedef struct wl_pkt_filter_enable {
@@ -4957,5 +4979,30 @@ typedef struct wl_bssload_static {
 	uint16 aac;
 } wl_bssload_static_t;
 
+
+
+typedef enum event_msgs_ext_command {
+	EVENTMSGS_NONE          =       0,
+	EVENTMSGS_SET_BIT       =       1,
+	EVENTMSGS_RESET_BIT     =       2,
+	EVENTMSGS_SET_MASK      =       3
+} event_msgs_ext_command_t;
+
+#define EVENTMSGS_VER 1
+#define EVENTMSGS_EXT_STRUCT_SIZE      OFFSETOF(eventmsgs_ext_t, mask[0])
+
+/* len - for SET it would be mask size from the application to the firmware
+ * for GET it would be actual firmware mask size
+ * maxgetsize - is only used for GET. indicate max mask size that the
+ * application can read from the firmware
+ */
+typedef struct eventmsgs_ext
+{
+	uint8   ver;
+	uint8   command;
+	uint8   len;
+	uint8   maxgetsize;
+	uint8   mask[1];
+} eventmsgs_ext_t;
 
 #endif /* _wlioctl_h_ */

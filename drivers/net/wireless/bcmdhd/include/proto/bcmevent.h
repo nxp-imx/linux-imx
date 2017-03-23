@@ -23,7 +23,7 @@
  *
  * Dependencies: proto/bcmeth.h
  *
- * $Id: bcmevent.h 589976 2015-10-01 07:01:27Z $
+ * $Id: bcmevent.h 662961 2016-11-24 01:22:35Z $
  *
  */
 
@@ -223,9 +223,10 @@ typedef BWL_PRE_PACKED_STRUCT struct bcm_event {
 #define WLC_E_TX_STAT_ERROR		126	/* tx error indication */
 #define WLC_E_BCMC_CREDIT_SUPPORT	127	/* credit check for BCMC supported */
 #define WLC_E_RMC_EVENT			139	/* RMC event */
-#define WLC_E_LAST			140	/* highest val + 1 for range checking */
+#define WLC_E_PKT_FILTER			164 /* Packet filter event */
+#define WLC_E_LAST			165	/* highest val + 1 for range checking */
 
-#if (WLC_E_LAST > 140)
+#if (WLC_E_LAST > 165)
 #error "WLC_E_LAST: Invalid value for last event; must be <= 140."
 #endif /* WLC_E_LAST */
 
@@ -238,6 +239,10 @@ typedef struct {
 
 extern const bcmevent_name_t	bcmevent_names[];
 extern const int		bcmevent_names_size;
+
+/* validate if the event is proper and if valid copy event header to event */
+extern int is_wlc_event_frame(void *pktdata, uint pktlen, uint16 exp_usr_subtype,
+	wl_event_msg_t *out_event);
 
 /* Event status codes */
 #define WLC_E_STATUS_SUCCESS		0	/* operation was successful */
@@ -385,11 +390,15 @@ typedef struct wl_event_data_rssi {
 #define WLAN_TDLS_SET_SETUP_WFD_IE		 12
 #endif
 
+
 /* reason codes for WLC_E_RMC_EVENT event */
 #define WLC_E_REASON_RMC_NONE		0
 #define WLC_E_REASON_RMC_AR_LOST		1
 #define WLC_E_REASON_RMC_AR_NO_ACK		2
 
+
+/* WLC_E_PKT_FILTER event codes */
+#define WLC_E_PKT_FILTER_TIMEOUT	1 /* Matching packet not received in last timeout seconds */
 
 /* GAS event data */
 typedef BWL_PRE_PACKED_STRUCT struct wl_event_gas {

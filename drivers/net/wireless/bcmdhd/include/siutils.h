@@ -268,9 +268,7 @@ extern uint si_pcie_readreg(void *sih, uint addrtype, uint offset);
 extern uint si_pcie_writereg(void *sih, uint addrtype, uint offset, uint val);
 
 
-#ifdef BCMSDIO
 extern void si_sdio_init(si_t *sih);
-#endif
 
 extern uint16 si_d11_devid(si_t *sih);
 extern int si_corepciid(si_t *sih, uint func, uint16 *pcivendor, uint16 *pcidevice,

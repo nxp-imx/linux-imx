@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_android.c 555968 2015-05-12 01:56:23Z $
+ * $Id: wl_android.c 662786 2016-11-11 09:06:37Z $
  */
 
 #include <linux/module.h>
@@ -43,9 +43,7 @@
 #ifdef PNO_SUPPORT
 #include <dhd_pno.h>
 #endif
-#ifdef BCMSDIO
 #include <bcmsdbus.h>
-#endif
 #ifdef WL_CFG80211
 #include <wl_cfg80211.h>
 #endif
@@ -87,6 +85,8 @@
 #define CMD_SET_AP_WPS_P2P_IE 		"SET_AP_WPS_P2P_IE"
 #define CMD_SETROAMMODE 	"SETROAMMODE"
 #define CMD_SETIBSSBEACONOUIDATA	"SETIBSSBEACONOUIDATA"
+#define CMD_ADDIE	"add_ie"
+#define CMD_DELIE	"del_ie"
 #define CMD_MIRACAST		"MIRACAST"
 #define CMD_NAN				"NAN_"
 #if defined(WL_SUPPORT_AUTO_CHANNEL)
@@ -121,6 +121,13 @@
 
 
 #define CMD_ROAM_OFFLOAD			"SETROAMOFFLOAD"
+
+#ifdef WLTDLS
+#define CMD_TDLS_RESET "TDLS_RESET"
+#endif /* WLTDLS */
+
+#define CMD_INTERFACE_CREATE			"INTERFACE_CREATE"
+#define CMD_INTERFACE_DELETE			"INTERFACE_DELETE"
 
 /* miracast related definition */
 #define MIRACAST_MODE_OFF	0
@@ -626,8 +633,8 @@ wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 					" <> params\n", __FUNCTION__));
 					goto exit;
 				}
-					while ((token2 = strsep(&pos2,
-					PNO_PARAM_CHANNEL_DELIMETER)) != NULL) {
+				while ((token2 = strsep(&pos2,
+						PNO_PARAM_CHANNEL_DELIMETER)) != NULL) {
 					if (token2 == NULL || !*token2)
 						break;
 					if (*token2 == '\0')
@@ -638,11 +645,18 @@ wls_parse_batching_cmd(struct net_device *dev, char *command, int total_len)
 						DHD_PNO(("band : %s\n",
 							(*token2 == 'A')? "A" : "B"));
 					} else {
+						if ((batch_params.nchan >= WL_NUMCHANNELS) ||
+							(i >= WL_NUMCHANNELS)) {
+							DHD_ERROR(("Too many nchan %d\n",
+								batch_params.nchan));
+							err = BCME_BUFTOOSHORT;
+							goto exit;
+						}
 						batch_params.chan_list[i++] =
-						simple_strtol(token2, NULL, 0);
+							simple_strtol(token2, NULL, 0);
 						batch_params.nchan++;
 						DHD_PNO(("channel :%d\n",
-						batch_params.chan_list[i-1]));
+							batch_params.chan_list[i-1]));
 					}
 				 }
 			} else if (!strncmp(param, PNO_PARAM_RTT, strlen(PNO_PARAM_RTT))) {
@@ -800,6 +814,24 @@ static int wl_android_get_p2p_dev_addr(struct net_device *ndev, char *command, i
 }
 
 
+#ifdef WLTDLS
+int wl_android_tdls_reset(struct net_device *dev)
+{
+	int ret = 0;
+	ret = dhd_tdls_enable(dev, false, false, NULL);
+	if (ret < 0) {
+		DHD_ERROR(("Disable tdls failed. %d\n", ret));
+		return ret;
+	}
+	ret = dhd_tdls_enable(dev, true, true, NULL);
+	if (ret < 0) {
+		DHD_ERROR(("enable tdls failed. %d\n", ret));
+		return ret;
+	}
+	return 0;
+}
+#endif /* WLTDLS */
+
 int
 wl_android_set_ap_mac_list(struct net_device *dev, int macmode, struct maclist *maclist)
 {
@@ -953,9 +985,7 @@ int wl_android_wifi_on(struct net_device *dev)
 	if (!g_wifi_on) {
 		do {
 			dhd_net_wifi_platform_set_power(dev, TRUE, WIFI_TURNON_DELAY);
-#ifdef BCMSDIO
 			ret = dhd_net_bus_resume(dev, 0);
-#endif
 			if (ret == 0)
 				break;
 			DHD_ERROR(("\nfailed to power up wifi chip, retry again (%d left) **\n\n",
@@ -966,10 +996,8 @@ int wl_android_wifi_on(struct net_device *dev)
 			DHD_ERROR(("\nfailed to power up wifi chip, max retry reached **\n\n"));
 			goto exit;
 		}
-#ifdef BCMSDIO
 		ret = dhd_net_bus_devreset(dev, FALSE);
 		dhd_net_bus_resume(dev, 1);
-#endif
 		if (!ret) {
 			if (dhd_dev_init_ioctl(dev) < 0)
 				ret = -EFAULT;
@@ -995,10 +1023,8 @@ int wl_android_wifi_off(struct net_device *dev)
 
 	dhd_net_if_lock(dev);
 	if (g_wifi_on) {
-#ifdef BCMSDIO
 		ret = dhd_net_bus_devreset(dev, TRUE);
 		dhd_net_bus_suspend(dev);
-#endif
 		dhd_net_wifi_platform_set_power(dev, FALSE, WIFI_TURNOFF_DELAY);
 		g_wifi_on = FALSE;
 	}
@@ -1220,6 +1246,185 @@ int wl_android_set_roam_mode(struct net_device *dev, char *command, int total_le
 		DHD_ERROR(("%s: succeeded to set roaming Mode %d, error = %d\n",
 		__FUNCTION__, mode, error));
 	return 0;
+}
+
+int wl_android_add_vendor_ie(struct net_device *dev, char *command, int total_len)
+{
+	char ie_buf[VNDR_IE_MAX_LEN];
+	char *ioctl_buf = NULL;
+	char hex[] = "XX";
+	char *pcmd = NULL;
+	int ielen = 0, datalen = 0, idx = 0, tot_len = 0;
+	vndr_ie_setbuf_t *vndr_ie = NULL;
+	s32 iecount;
+	uint32 pktflag;
+	u16 kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
+	s32 err = BCME_OK;
+
+	pcmd = command + strlen(CMD_ADDIE) + 1;
+
+	pktflag = simple_strtoul(pcmd, &pcmd, 16);
+
+	pcmd = pcmd + 1;
+
+	for (idx = 0; idx < DOT11_OUI_LEN; idx++) {
+		hex[0] = *pcmd++;
+		hex[1] = *pcmd++;
+		ie_buf[idx] =  (uint8)simple_strtoul(hex, NULL, 16);
+	}
+	pcmd++;
+	while ((*pcmd != '\0') && (idx < VNDR_IE_MAX_LEN)) {
+		hex[0] = *pcmd++;
+		hex[1] = *pcmd++;
+		ie_buf[idx++] =  (uint8)simple_strtoul(hex, NULL, 16);
+		datalen++;
+	}
+
+	tot_len = sizeof(vndr_ie_setbuf_t) + (datalen - 1);
+	vndr_ie = (vndr_ie_setbuf_t *) kzalloc(tot_len, kflags);
+	if (!vndr_ie) {
+		WL_ERR(("IE memory alloc failed\n"));
+		return -ENOMEM;
+	}
+
+	/* Copy the vndr_ie SET command ("add"/"del") to the buffer */
+	strncpy(vndr_ie->cmd, "add", VNDR_IE_CMD_LEN - 1);
+	vndr_ie->cmd[VNDR_IE_CMD_LEN - 1] = '\0';
+
+	/* Set the IE count - the buffer contains only 1 IE */
+	iecount = htod32(1);
+	memcpy((void *)&vndr_ie->vndr_ie_buffer.iecount, &iecount, sizeof(s32));
+
+	/* Set packet flag to indicate the appropriate frame will contain this IE */
+	pktflag = htod32(1<<pktflag);
+	memcpy((void *)&vndr_ie->vndr_ie_buffer.vndr_ie_list[0].pktflag, &pktflag,
+		sizeof(u32));
+
+	/* Set the IE ID */
+	vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.id = (uchar) DOT11_MNG_PROPR_ID;
+
+	/* Set the OUI */
+	memcpy(&vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.oui, &ie_buf,
+		DOT11_OUI_LEN);
+	/* Set the Data */
+	memcpy(&vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.data,
+		&ie_buf[DOT11_OUI_LEN], datalen);
+
+	ielen = DOT11_OUI_LEN + datalen;
+	vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.len = (uchar) ielen;
+
+	ioctl_buf = kmalloc(WLC_IOCTL_MEDLEN, GFP_KERNEL);
+	if (!ioctl_buf) {
+		WL_ERR(("ioctl memory alloc failed\n"));
+		if (vndr_ie)
+			kfree(vndr_ie);
+		return -ENOMEM;
+	}
+	memset(ioctl_buf, 0, WLC_IOCTL_MEDLEN);	/* init the buffer */
+	err = wldev_iovar_setbuf(dev, "ie", vndr_ie, tot_len, ioctl_buf, WLC_IOCTL_MEDLEN, NULL);
+
+	if (err != BCME_OK) {
+		err = -EINVAL;
+		if (vndr_ie)
+			kfree(vndr_ie);
+	}
+	else {
+		/* do NOT free 'vndr_ie' for the next process */
+		wl_cfg80211_ibss_vsie_set_buffer(vndr_ie, tot_len);
+	}
+
+	if (ioctl_buf)
+		kfree(ioctl_buf);
+
+	return err;
+}
+
+int wl_android_del_vendor_ie(struct net_device *dev, char *command, int total_len)
+{
+	char ie_buf[VNDR_IE_MAX_LEN];
+	char *ioctl_buf = NULL;
+	char hex[] = "XX";
+	char *pcmd = NULL;
+	int ielen = 0, datalen = 0, idx = 0, tot_len = 0;
+	vndr_ie_setbuf_t *vndr_ie = NULL;
+	s32 iecount;
+	uint32 pktflag;
+	u16 kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
+	s32 err = BCME_OK;
+
+	pcmd = command + strlen(CMD_ADDIE) + 1;
+
+	pktflag = simple_strtoul(pcmd, &pcmd, 16);
+
+	pcmd = pcmd + 1;
+	for (idx = 0; idx < DOT11_OUI_LEN; idx++) {
+		hex[0] = *pcmd++;
+		hex[1] = *pcmd++;
+		ie_buf[idx] =  (uint8)simple_strtoul(hex, NULL, 16);
+	}
+	pcmd++;
+	while ((*pcmd != '\0') && (idx < VNDR_IE_MAX_LEN)) {
+		hex[0] = *pcmd++;
+		hex[1] = *pcmd++;
+		ie_buf[idx++] =  (uint8)simple_strtoul(hex, NULL, 16);
+		datalen++;
+	}
+
+	tot_len = sizeof(vndr_ie_setbuf_t) + (datalen - 1);
+	vndr_ie = (vndr_ie_setbuf_t *) kzalloc(tot_len, kflags);
+	if (!vndr_ie) {
+		WL_ERR(("IE memory alloc failed\n"));
+		return -ENOMEM;
+	}
+	/* Copy the vndr_ie SET command ("add"/"del") to the buffer */
+	strncpy(vndr_ie->cmd, "del", VNDR_IE_CMD_LEN - 1);
+	vndr_ie->cmd[VNDR_IE_CMD_LEN - 1] = '\0';
+
+	/* Set the IE count - the buffer contains only 1 IE */
+	iecount = htod32(1);
+	memcpy((void *)&vndr_ie->vndr_ie_buffer.iecount, &iecount, sizeof(s32));
+
+	/* Set packet flag to indicate the appropriate frame will contain this IE */
+	pktflag = htod32(1<<pktflag);
+	memcpy((void *)&vndr_ie->vndr_ie_buffer.vndr_ie_list[0].pktflag, &pktflag,
+			sizeof(u32));
+
+	/* Set the IE ID */
+	vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.id = (uchar) DOT11_MNG_PROPR_ID;
+
+	/* Set the OUI */
+	memcpy(&vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.oui, &ie_buf,
+			DOT11_OUI_LEN);
+	/* Set the Data */
+	memcpy(&vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.data,
+			&ie_buf[DOT11_OUI_LEN], datalen);
+
+	ielen = DOT11_OUI_LEN + datalen;
+	vndr_ie->vndr_ie_buffer.vndr_ie_list[0].vndr_ie_data.len = (uchar) ielen;
+
+	ioctl_buf = kmalloc(WLC_IOCTL_MEDLEN, GFP_KERNEL);
+	if (!ioctl_buf) {
+		WL_ERR(("ioctl memory alloc failed\n"));
+		if (vndr_ie)
+			kfree(vndr_ie);
+		return -ENOMEM;
+	}
+	memset(ioctl_buf, 0, WLC_IOCTL_MEDLEN); /* init the buffer */
+	err = wldev_iovar_setbuf(dev, "ie", vndr_ie, tot_len, ioctl_buf, WLC_IOCTL_MEDLEN, NULL);
+
+	if (err != BCME_OK) {
+		err = -EINVAL;
+		if (vndr_ie)
+			kfree(vndr_ie);
+	}
+	else {
+		/* do NOT free 'vndr_ie' for the next process */
+		wl_cfg80211_ibss_vsie_set_buffer(vndr_ie, tot_len);
+	}
+
+	if (ioctl_buf)
+		kfree(ioctl_buf);
+	return err;
 }
 
 int wl_android_set_ibss_beacon_ouidata(struct net_device *dev, char *command, int total_len)
@@ -1783,6 +1988,11 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 
 	net_os_wake_lock(net);
 
+	if (!capable(CAP_NET_ADMIN)) {
+		ret = -EPERM;
+		goto exit;
+	}
+
 	if (!ifr->ifr_data) {
 		ret = -EINVAL;
 		goto exit;
@@ -2004,6 +2214,10 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 	else if (strnicmp(command, CMD_SETIBSSBEACONOUIDATA, strlen(CMD_SETIBSSBEACONOUIDATA)) == 0)
 		bytes_written = wl_android_set_ibss_beacon_ouidata(net,
 		command, priv_cmd.total_len);
+	else if (strnicmp(command, CMD_ADDIE, strlen(CMD_ADDIE)) == 0)
+		bytes_written = wl_android_add_vendor_ie(net, command, priv_cmd.total_len);
+	else if (strnicmp(command, CMD_DELIE, strlen(CMD_DELIE)) == 0)
+		bytes_written = wl_android_del_vendor_ie(net, command, priv_cmd.total_len);
 	else if (strnicmp(command, CMD_KEEP_ALIVE, strlen(CMD_KEEP_ALIVE)) == 0) {
 		int skip = strlen(CMD_KEEP_ALIVE) + 1;
 		bytes_written = wl_keep_alive_set(net, command + skip, priv_cmd.total_len - skip);
@@ -2012,6 +2226,18 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		int enable = *(command + strlen(CMD_ROAM_OFFLOAD) + 1) - '0';
 		bytes_written = wl_cfg80211_enable_roam_offload(net, enable);
 	}
+#if defined(WL_VIRTUAL_APSTA)
+	else if (strnicmp(command, CMD_INTERFACE_CREATE, strlen(CMD_INTERFACE_CREATE)) == 0) {
+		char *name = (command + strlen(CMD_INTERFACE_CREATE) +1);
+		WL_INFO(("Creating %s interface\n", name));
+		bytes_written = wl_cfg80211_interface_create(net, name);
+	}
+	else if (strnicmp(command, CMD_INTERFACE_DELETE, strlen(CMD_INTERFACE_DELETE)) == 0) {
+		char *name = (command + strlen(CMD_INTERFACE_DELETE) +1);
+		WL_INFO(("Deleteing %s interface\n", name));
+		bytes_written = wl_cfg80211_interface_delete(net, name);
+	}
+#endif /* defined (WL_VIRTUAL_APSTA) */
 #ifdef CONNECTION_STATISTICS
 	else if (strnicmp(command, CMD_GET_CONNECTION_STATS,
 		strlen(CMD_GET_CONNECTION_STATS)) == 0) {
@@ -2019,6 +2245,11 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 			priv_cmd.total_len);
 	}
 #endif
+#ifdef WLTDLS
+	else if (strnicmp(command, CMD_TDLS_RESET, strlen(CMD_TDLS_RESET)) == 0) {
+		bytes_written = wl_android_tdls_reset(net);
+	}
+#endif /* WLTDLS */
 	else {
 		DHD_ERROR(("Unknown PRIVATE command %s - ignored\n", command));
 		snprintf(command, 3, "OK");

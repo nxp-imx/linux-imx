@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_cfgp2p.h 518957 2014-12-04 08:52:50Z $
+ * $Id: wl_cfgp2p.h 662786 2016-11-11 09:06:37Z $
  */
 #ifndef _wl_cfgp2p_h_
 #define _wl_cfgp2p_h_
@@ -84,7 +84,6 @@ struct p2p_info {
 	bool on;    /* p2p on/off switch */
 	bool scan;
 	int16 search_state;
-	bool vif_created;
 	s8 vir_ifname[IFNAMSIZ];
 	unsigned long status;
 	struct ether_addr dev_addr;
@@ -96,7 +95,7 @@ struct p2p_info {
 	wlc_ssid_t ssid;
 };
 
-#define MAX_VNDR_IE_NUMBER	5
+#define MAX_VNDR_IE_NUMBER	10
 
 struct parsed_vndr_ie_info {
 	char *ie_ptr;
@@ -282,14 +281,7 @@ wl_cfgp2p_find_p2pie(u8 *parse, u32 len);
 
 extern wifi_wfd_ie_t *
 wl_cfgp2p_find_wfdie(u8 *parse, u32 len);
-extern s32
-wl_cfgp2p_set_management_ie(struct bcm_cfg80211 *cfg, struct net_device *ndev, s32 bssidx,
-            s32 pktflag, const u8 *vndr_ie, u32 vndr_ie_len);
-extern s32
-wl_cfgp2p_clear_management_ie(struct bcm_cfg80211 *cfg, s32 bssidx);
 
-extern s32
-wl_cfgp2p_find_idx(struct bcm_cfg80211 *cfg, struct net_device *ndev, s32 *index);
 extern struct net_device *
 wl_cfgp2p_find_ndev(struct bcm_cfg80211 *cfg, s32 bssidx);
 extern s32
@@ -358,6 +350,13 @@ wl_cfgp2p_unregister_ndev(struct bcm_cfg80211 *cfg);
 
 extern bool
 wl_cfgp2p_is_ifops(const struct net_device_ops *if_ops);
+
+extern u32
+wl_cfgp2p_vndr_ie(struct bcm_cfg80211 *cfg, u8 *iebuf, s32 pktflag,
+	s8 *oui, s32 ie_id, s8 *data, s32 datalen, const s8* add_del_cmd);
+
+extern
+int wl_cfgp2p_vif_created(struct bcm_cfg80211 *cfg);
 
 #if defined(WL_CFG80211_P2P_DEV_IF)
 extern struct wireless_dev *

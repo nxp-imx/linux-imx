@@ -23,7 +23,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmsdh.h 455573 2014-02-14 17:49:31Z $
+ * $Id: bcmsdh.h 662739 2016-11-08 09:20:31Z $
  */
 
 /**
@@ -40,8 +40,7 @@ extern const uint bcmsdh_msglevel;
 #define BCMSDH_ERROR(x)
 #define BCMSDH_INFO(x)
 
-#if defined(BCMSDIO) && (defined(BCMSDIOH_STD) || defined(BCMSDIOH_BCM) || \
-	defined(BCMSDIOH_SPI))
+#if (defined(BCMSDIOH_STD) || defined(BCMSDIOH_BCM) || defined(BCMSDIOH_SPI))
 #define BCMSDH_ADAPTER
 #endif /* BCMSDIO && (BCMSDIOH_STD || BCMSDIOH_BCM || BCMSDIOH_SPI) */
 

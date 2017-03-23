@@ -152,12 +152,10 @@ ai_scan(si_t *sih, void *regs, uint devid)
 		eromptr = regs;
 		break;
 
-#ifdef BCMSDIO
 	case SPI_BUS:
 	case SDIO_BUS:
 		eromptr = (uint32 *)(uintptr)erombase;
 		break;
-#endif	/* BCMSDIO */
 
 	case PCMCIA_BUS:
 	default:
@@ -396,13 +394,11 @@ ai_setcoreidx(si_t *sih, uint coreidx)
 			OSL_PCI_WRITE_CONFIG(sii->osh, PCI_BAR0_WIN2, 4, wrap);
 		break;
 
-#ifdef BCMSDIO
 	case SPI_BUS:
 	case SDIO_BUS:
 		sii->curmap = regs = (void *)((uintptr)addr);
 		sii->curwrap = (void *)((uintptr)wrap);
 		break;
-#endif	/* BCMSDIO */
 
 	case PCMCIA_BUS:
 	default:

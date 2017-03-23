@@ -20,14 +20,20 @@
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
- * $Id: bcmevent.c 487870 2014-06-27 07:37:35Z $
+ * $Id: bcmevent.c 662961 2016-11-24 01:22:35Z $
  */
 
 #include <typedefs.h>
 #include <bcmutils.h>
+#include <bcmendian.h>
 #include <proto/ethernet.h>
 #include <proto/bcmeth.h>
 #include <proto/bcmevent.h>
+#include <proto/802.11.h>
+
+#if WLC_E_LAST != 165
+#error "You need to add an entry to bcmevent_names[] for the new event"
+#endif
 
 /* Use the actual name for event tracing */
 #define BCMEVENT_NAME(_event) {(_event), #_event}
@@ -146,6 +152,91 @@ const bcmevent_name_t bcmevent_names[] = {
 #endif
 	BCMEVENT_NAME(WLC_E_TXFAIL_THRESH),
 	BCMEVENT_NAME(WLC_E_RMC_EVENT),
+	BCMEVENT_NAME(WLC_E_PKT_FILTER),
 };
 
 const int bcmevent_names_size = ARRAYSIZE(bcmevent_names);
+
+/*
+ * Validate if the event is proper and if valid copy event header to event.
+ * If proper event pointer is passed, to just validate, pass NULL to event.
+ *
+ * Return values are
+ *	BCME_OK - It is a BRCM event or BRCM dongle event
+ *	BCME_NOTFOUND - Not BRCM, not an event, may be okay
+ *	BCME_BADLEN - Bad length, should not process, just drop
+ */
+int
+is_wlc_event_frame(void *pktdata, uint pktlen, uint16 exp_usr_subtype,
+		wl_event_msg_t *out_event)
+{
+	uint16 len;
+	uint16 subtype;
+	uint16 usr_subtype;
+	bcm_event_t *bcm_event;
+	uint8 *pktend;
+	int err = BCME_OK;
+
+	pktend = (uint8 *)pktdata + pktlen;
+	bcm_event = (bcm_event_t *)pktdata;
+
+	/* only care about 16-bit subtype / length versions */
+	if ((uint8 *)&bcm_event->bcm_hdr < pktend) {
+		uint8 short_subtype = *(uint8 *)&bcm_event->bcm_hdr;
+		if (!(short_subtype & 0x80)) {
+			err = BCME_NOTFOUND;
+			goto done;
+		}
+	}
+
+	/* must have both ether_header and bcmeth_hdr */
+	if (pktlen < OFFSETOF(bcm_event_t, event)) {
+		err = BCME_BADLEN;
+		goto done;
+	}
+
+	/* check length in bcmeth_hdr */
+	len = ntoh16_ua((void *)&bcm_event->bcm_hdr.length);
+
+	/* match on subtype, oui and usr subtype for BRCM events */
+	subtype = ntoh16_ua((void *)&bcm_event->bcm_hdr.subtype);
+	if (subtype != BCMILCP_SUBTYPE_VENDOR_LONG) {
+		err = BCME_NOTFOUND;
+		goto done;
+	}
+
+	if (bcmp(BRCM_OUI, &bcm_event->bcm_hdr.oui[0], DOT11_OUI_LEN)) {
+		err = BCME_NOTFOUND;
+		goto done;
+	}
+
+	/* if it is a bcm_event or bcm_dngl_event_t, validate it */
+	usr_subtype = ntoh16_ua((void *)&bcm_event->bcm_hdr.usr_subtype);
+	if (usr_subtype == BCMILCP_BCM_SUBTYPE_EVENT) {
+		if (pktlen < sizeof(bcm_event_t)) {
+			err = BCME_BADLEN;
+			goto done;
+		}
+		len = (uint16)sizeof(bcm_event_t) +
+			(uint16)ntoh32_ua((void *)&bcm_event->event.datalen);
+		if ((uint8 *)pktdata + len > pktend) {
+			err = BCME_BADLEN;
+			goto done;
+		}
+		if (exp_usr_subtype && (exp_usr_subtype != usr_subtype)) {
+			err = BCME_NOTFOUND;
+			goto done;
+		}
+		if (out_event) {
+			/* ensure BRCM event pkt aligned */
+			memcpy(out_event, &bcm_event->event, sizeof(wl_event_msg_t));
+		}
+	}
+	else {
+		err = BCME_NOTFOUND;
+		goto done;
+	}
+
+done:
+	return err;
+}

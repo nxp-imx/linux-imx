@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: bcmsdh_linux.c 634247 2016-04-27 05:53:55Z $
+ * $Id: bcmsdh_linux.c 662739 2016-11-08 09:20:31Z $
  */
 
 /**
@@ -84,10 +84,6 @@ typedef struct bcmsdh_os_info {
 /* debugging macros */
 #define SDLX_MSG(x)
 
-#if defined(OOB_PARAM)
-extern uint dhd_oob_disable;
-#endif /* OOB_PARAM */
-
 /**
  * Checks to see if vendor and device IDs match a supported SDIO Host Controller.
  */
@@ -145,6 +141,9 @@ void* bcmsdh_probe(osl_t *osh, void *dev, void *sdioh, void *adapter_info, uint 
 	bcmsdh_info_t *bcmsdh;
 	uint32 vendevid;
 	bcmsdh_os_info_t *bcmsdh_osinfo = NULL;
+#ifdef OOB_PARAM
+	wifi_adapter_info_t *adapter = (wifi_adapter_info_t *)adapter_info;
+#endif /* OOB_PARAM */
 
 	bcmsdh = bcmsdh_attach(osh, sdioh, &regs);
 	if (bcmsdh == NULL) {
@@ -168,7 +167,7 @@ void* bcmsdh_probe(osl_t *osh, void *dev, void *sdioh, void *adapter_info, uint 
 #endif /* !defined(CONFIG_HAS_WAKELOCK) && (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36)) */
 
 #if defined(OOB_INTR_ONLY)
-	OOB_PARAM_IF(!dhd_oob_disable) {
+	OOB_PARAM_IF(!(adapter->oob_disable)) {
 		spin_lock_init(&bcmsdh_osinfo->oob_irq_spinlock);
 		/* Get customer specific OOB IRQ parametres: IRQ number as IRQ type */
 		bcmsdh_osinfo->oob_irq_num = wifi_platform_get_irq_number(adapter_info,

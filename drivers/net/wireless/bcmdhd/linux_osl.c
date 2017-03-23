@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: linux_osl.c 542523 2015-03-20 03:21:32Z $
+ * $Id: linux_osl.c 658506 2016-09-08 06:44:19Z $
  */
 
 #define LINUX_PORT
@@ -667,30 +667,42 @@ void * BCMFASTPATH
 osl_pkt_frmnative(osl_t *osh, void *pkt)
 #endif /* BCMDBG_CTRACE */
 {
+	struct sk_buff *cskb;
 	struct sk_buff *nskb;
-#ifdef BCMDBG_CTRACE
-	struct sk_buff *nskb1, *nskb2;
-#endif
+	unsigned long pktalloced = 0;
 
 	if (osh->pub.pkttag)
 		OSL_PKTTAG_CLEAR(pkt);
 
-	/* Increment the packet counter */
-	for (nskb = (struct sk_buff *)pkt; nskb; nskb = nskb->next) {
-		atomic_add(PKTISCHAINED(nskb) ? PKTCCNT(nskb) : 1, &osh->cmn->pktalloced);
+	/* walk the PKTCLINK() list */
+	for (cskb = (struct sk_buff *)pkt;
+	     cskb != NULL;
+	     cskb = PKTISCHAINED(cskb) ? PKTCLINK(cskb) : NULL) {
+
+		/* walk the pkt buffer list */
+		for (nskb = cskb; nskb; nskb = nskb->next) {
+
+			/* Increment the packet counter */
+			pktalloced++;
+
+			/* clean the 'prev' pointer
+			 * Kernel 3.18 is leaving skb->prev pointer set to skb
+			 * to indicate a non-fragmented skb
+			 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0))
+			nskb->prev = NULL;
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) */
+
 
 #ifdef BCMDBG_CTRACE
-		for (nskb1 = nskb; nskb1 != NULL; nskb1 = nskb2) {
-			if (PKTISCHAINED(nskb1)) {
-				nskb2 = PKTCLINK(nskb1);
-			}
-			else
-				nskb2 = NULL;
-
-			ADD_CTRACE(osh, nskb1, file, line);
-		}
+			ADD_CTRACE(osh, nskb, file, line);
 #endif /* BCMDBG_CTRACE */
+		}
 	}
+
+	/* Increment the packet counter */
+	atomic_add(pktalloced, &osh->cmn->pktalloced);
+
 	return (void *)pkt;
 }
 

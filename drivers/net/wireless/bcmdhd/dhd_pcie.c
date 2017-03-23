@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_pcie.c 475815 2014-05-07 00:27:31Z $
+ * $Id: dhd_pcie.c 662459 2016-10-24 04:35:43Z $
  */
 
 
@@ -407,7 +407,9 @@ dhdpcie_dongle_attach(dhd_bus_t *bus)
 			bus->dongle_ram_base = CR4_4360_RAM_BASE;
 			break;
 		case BCM4345_CHIP_ID:
-			bus->dongle_ram_base = CR4_4345_RAM_BASE;
+			/* RAM base changed from 4345c0 (chiprev=6) onwards */
+			bus->dongle_ram_base = (bus->sih->chiprev < 6)
+				? CR4_4345_LT_C0_RAM_BASE : CR4_4345_GE_C0_RAM_BASE;
 			break;
 		case BCM43602_CHIP_ID:
 			bus->dongle_ram_base = CR4_43602_RAM_BASE;

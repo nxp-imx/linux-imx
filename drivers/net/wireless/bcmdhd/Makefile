@@ -10,8 +10,7 @@ DHDCFLAGS += -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER            \
 	-DKEEP_ALIVE -DCSCAN -DPKT_FILTER_SUPPORT                             \
 	-DEMBEDDED_PLATFORM -DPNO_SUPPORT                                     \
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT                           \
-	-DCUSTOMER_HW2 -DGET_CUSTOM_MAC_ENABLE	\
-	-DCONFIG_DTS -DCUSTOMER_IMX
+	-DCUSTOMER_HW2 -DGET_CUSTOM_MAC_ENABLE
 
 #################
 # Common feature
@@ -19,8 +18,6 @@ DHDCFLAGS += -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER            \
 DHDCFLAGS += -DWL_CFG80211
 # Print out kernel panic point of file and line info when assertion happened
 DHDCFLAGS += -DBCMASSERT_LOG
-
-DHDCFLAGS += -DENABLE_INSMOD_NO_FW_LOAD
 
 # keepalive
 DHDCFLAGS += -DCUSTOM_KEEP_ALIVE_SETTING=28000
@@ -82,21 +79,40 @@ DHDCFLAGS += -DCONFIG_CONTROL_PM
 # idle count
 DHDCFLAGS += -DDHD_USE_IDLECOUNT
 
-# SKB TAILPAD to avoid out of boundary memory access
-DHDCFLAGS += -DDHDENABLE_TAILPAD
-
 # Wi-Fi Direct
 DHDCFLAGS += -DWL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST
 DHDCFLAGS += -DWL_CFG80211_STA_EVENT
 DHDCFLAGS += -DWL_IFACE_COMB_NUM_CHANNELS
 # DHDCFLAGS += -DWL_ENABLE_P2P_IF
 
+# For APSTA virtual interface
+DHDCFLAGS += -DWL_VIRTUAL_APSTA
+
+##########################
+# platform type
+# imx: NXP iMX platform
+##########################
+DHDPLATFORM ?= imx
+ifeq ($(DHDPLATFORM), imx)
+  DHDCFLAGS += -DCONFIG_DTS -DCUSTOMER_IMX
+else
+  # XXX Disable for NXP-iMX platforms 
+  # SKB TAILPAD to avoid out of boundary memory access
+  DHDCFLAGS += -DDHDENABLE_TAILPAD
+endif
+
 ##########################
 # driver type
 # m: module type driver
 # y: built-in type driver
 ##########################
-#DRIVER_TYPE ?= y
+DRIVER_TYPE ?= y
+
+ifeq ($(DRIVER_TYPE), y)
+  DHDCFLAGS += -DENABLE_INSMOD_NO_FW_LOAD
+else
+  DHDCFLAGS += -DNO_SDIO_RESET
+endif
 
 #########################
 # Chip dependent feature
@@ -105,9 +121,9 @@ ifneq ($(CONFIG_BCM4354),)
   DHDCFLAGS += -DBCM4354_CHIP -DHW_OOB
 
 # tput enhancement
-  DHDCFLAGS += -DCUSTOM_GLOM_SETTING=8 -DCUSTOM_RXCHAIN=1
+  DHDTXGLOM ?= y
+  MAX_TXGLOM ?= 40
   DHDCFLAGS += -DUSE_DYNAMIC_F2_BLKSIZE -DDYNAMIC_F2_BLKSIZE_FOR_NONLEGACY=128
-  DHDCFLAGS += -DBCMSDIOH_TXGLOM -DCUSTOM_TXGLOM=1 -DBCMSDIOH_TXGLOM_HIGHSPEED
   DHDCFLAGS += -DDHDTCPACK_SUPPRESS
   DHDCFLAGS += -DUSE_WL_TXBF
   DHDCFLAGS += -DUSE_WL_FRAMEBURST
@@ -115,8 +131,7 @@ ifneq ($(CONFIG_BCM4354),)
   DHDCFLAGS += -DREPEAT_READFRAME
   DHDCFLAGS += -DCUSTOM_AMPDU_BA_WSIZE=64
   DHDCFLAGS += -DCUSTOM_DPC_CPUCORE=0
-  DHDCFLAGS += -DPROP_TXSTATUS_VSDB
-  DHDCFLAGS += -DCUSTOM_MAX_TXGLOM_SIZE=40
+#  DHDCFLAGS += -DPROP_TXSTATUS_VSDB
   DHDCFLAGS += -DMAX_HDR_READ=128
   DHDCFLAGS += -DDHD_FIRSTREAD=128
   DHDCFLAGS += -DCUSTOM_AMPDU_MPDU=16
@@ -132,11 +147,8 @@ ifneq ($(CONFIG_BCM4339),)
   DHDCFLAGS += -DBCM4339_CHIP -DHW_OOB
 
   # tput enhancement
-  DHDCFLAGS += -DCUSTOM_GLOM_SETTING=8 -DCUSTOM_RXCHAIN=1
-  DHDCFLAGS += -DCUSTOM_RXCHAIN=1
-
+  DHDTXGLOM ?= y
   DHDCFLAGS += -DUSE_DYNAMIC_F2_BLKSIZE -DDYNAMIC_F2_BLKSIZE_FOR_NONLEGACY=128
-  DHDCFLAGS += -DBCMSDIOH_TXGLOM -DCUSTOM_TXGLOM=1 -DBCMSDIOH_TXGLOM_HIGHSPEED
   DHDCFLAGS += -DDHDTCPACK_SUPPRESS
   DHDCFLAGS += -DUSE_WL_TXBF
   DHDCFLAGS += -DUSE_WL_FRAMEBURST
@@ -144,12 +156,24 @@ ifneq ($(CONFIG_BCM4339),)
   DHDCFLAGS += -DCUSTOM_AMPDU_BA_WSIZE=64
   DHDCFLAGS += -DCUSTOM_DPC_CPUCORE=0
 #  DHDCFLAGS += -DPROP_TXSTATUS_VSDB
-   DHDCFLAGS += -DCUSTOM_MAX_TXGLOM_SIZE=32
 
   # New Features
   DHDCFLAGS += -DWL11U
   DHDCFLAGS += -DDHD_ENABLE_LPC
   DHDCFLAGS += -DCUSTOM_PSPRETEND_THR=30
+endif
+
+##########################
+# SDIO TX glomming
+# y: enable
+# n: disable
+##########################
+DHDTXGLOM ?= n
+ifeq ($(DHDTXGLOM), y)
+  MAX_TXGLOM ?= 32
+  DHDCFLAGS += -DCUSTOM_GLOM_SETTING=8 -DCUSTOM_RXCHAIN=1
+  DHDCFLAGS += -DBCMSDIOH_TXGLOM -DCUSTOM_TXGLOM=1 -DBCMSDIOH_TXGLOM_HIGHSPEED
+  DHDCFLAGS += -DCUSTOM_MAX_TXGLOM_SIZE=$(MAX_TXGLOM)
 endif
 
 # Murata: need the following define to handle BCM43340 edge interrupt (vs level interrupt on other chipsets).
@@ -167,10 +191,8 @@ ifneq ($(CONFIG_BCMDHD_PCIE),)
   DHDCFLAGS += -DPCIE_FULL_DONGLE -DBCMPCIE -DCUSTOM_DPC_PRIO_SETTING=-1
 endif
 
-# Murata: Un-comment next line for Optimization
 #EXTRA_LDFLAGS += --strip-debug
 
-# Murata: swap these lines depending on optimization -- comment debug flag to make code execution faster.
 EXTRA_CFLAGS += $(DHDCFLAGS) -DDHD_DEBUG
 EXTRA_CFLAGS += -DSRCBASE=\"$(src)\"
 EXTRA_CFLAGS += -I$(src)/include/ -I$(src)/
@@ -192,7 +214,7 @@ ifneq ($(CONFIG_BCMDHD_PCIE),)
 endif
 
 bcmdhd-objs := $(DHDOFILES)
-obj-$(CONFIG_BCMDHD_SDIO)   += bcmdhd.o
+obj-$(DRIVER_TYPE)   += bcmdhd.o
 
 all:
 	@echo "$(MAKE) --no-print-directory -C $(KDIR) SUBDIRS=$(CURDIR) modules"

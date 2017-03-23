@@ -22,7 +22,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: linuxver.h 431983 2013-10-25 06:53:27Z $
+ * $Id: linuxver.h 656961 2016-08-30 13:20:42Z $
  */
 
 #ifndef _linuxver_h_
@@ -604,10 +604,16 @@ static inline bool binary_sema_up(tsk_ctl_t *tsk)
 	(tsk_ctl)->proc_name = name;  \
 	(tsk_ctl)->terminated = FALSE; \
 	(tsk_ctl)->p_task  = kthread_run(thread_func, tsk_ctl, (char*)name); \
-	(tsk_ctl)->thr_pid = (tsk_ctl)->p_task->pid; \
-	spin_lock_init(&((tsk_ctl)->spinlock)); \
-	DBG_THR(("%s(): thread:%s:%lx started\n", __FUNCTION__, \
-		(tsk_ctl)->proc_name, (tsk_ctl)->thr_pid)); \
+	if (IS_ERR((tsk_ctl)->p_task)) { \
+		(tsk_ctl)->thr_pid = DHD_PID_KT_INVALID; \
+		DBG_THR(("%s(): thread:%s:%lx failed\n", __FUNCTION__, \
+			(tsk_ctl)->proc_name, (tsk_ctl)->thr_pid)); \
+	} else { \
+		(tsk_ctl)->thr_pid = (tsk_ctl)->p_task->pid; \
+		spin_lock_init(&((tsk_ctl)->spinlock)); \
+		DBG_THR(("%s(): thread:%s:%lx started\n", __FUNCTION__, \
+			(tsk_ctl)->proc_name, (tsk_ctl)->thr_pid)); \
+	} \
 }
 
 #define PROC_STOP(tsk_ctl) \

@@ -20,7 +20,7 @@
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
- * $Id: bcmutils.c 599648 2015-11-16 09:33:00Z $
+ * $Id: bcmutils.c 658506 2016-09-08 06:44:19Z $
  */
 
 #include <bcm_cfg.h>
@@ -266,12 +266,11 @@ pktq_penq(struct pktq *pq, int prec, void *p)
 	struct pktq_prec *q;
 
 	ASSERT(prec >= 0 && prec < pq->num_prec);
-	/* queueing chains not allowed and no segmented SKB (Kernel-3.18.y) */
-	ASSERT(!((PKTLINK(p) != NULL) && (PKTLINK(p) != p)));
+	ASSERT(PKTLINK(p) == NULL);		/* queueing chains not allowed */
+
 
 	ASSERT(!pktq_full(pq));
 	ASSERT(!pktq_pfull(pq, prec));
-
 	q = &pq->q[prec];
 
 	if (q->head)
@@ -296,12 +295,11 @@ pktq_penq_head(struct pktq *pq, int prec, void *p)
 	struct pktq_prec *q;
 
 	ASSERT(prec >= 0 && prec < pq->num_prec);
-	/* queueing chains not allowed and no segmented SKB (Kernel-3.18.y) */
-	ASSERT(!((PKTLINK(p) != NULL) && (PKTLINK(p) != p)));
+	ASSERT(PKTLINK(p) == NULL);		/* queueing chains not allowed */
+
 
 	ASSERT(!pktq_full(pq));
 	ASSERT(!pktq_pfull(pq, prec));
-
 	q = &pq->q[prec];
 
 	if (q->head == NULL)

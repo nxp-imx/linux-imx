@@ -162,7 +162,7 @@ _dhd_pno_enable(dhd_pub_t *dhd, int enable)
 	}
 	if (enable) {
 		if ((_pno_state->pno_mode & DHD_PNO_LEGACY_MODE) &&
-			dhd_is_associated(dhd, NULL, NULL)) {
+			dhd_is_associated(dhd, 0, NULL)) {
 			DHD_ERROR(("%s Legacy PNO mode cannot be enabled "
 				"in assoc mode , ignore it\n", __FUNCTION__));
 			err = BCME_BADOPTION;
