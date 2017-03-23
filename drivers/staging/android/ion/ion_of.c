@@ -60,6 +60,7 @@ static int ion_setup_heap_common(struct platform_device *parent,
 	switch (heap->type) {
 	case ION_HEAP_TYPE_CARVEOUT:
 	case ION_HEAP_TYPE_CHUNK:
+	case ION_HEAP_TYPE_UNMAPPED:
 		if (heap->base && heap->size)
 			return 0;
 
