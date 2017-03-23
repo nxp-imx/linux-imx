@@ -56,6 +56,16 @@ static struct ion_platform_heap dummy_heaps[] = {
 			.align	= SZ_16K,
 			.priv	= (void *)(SZ_16K),
 		},
+#ifdef CONFIG_ION_DUMMY_UNMAPPED_HEAP
+		{
+			.id	= ION_HEAP_TYPE_UNMAPPED,
+			.type	= ION_HEAP_TYPE_UNMAPPED,
+			.name	= "unmapped",
+			.base   = CONFIG_ION_DUMMY_UNMAPPED_BASE,
+			.size   = CONFIG_ION_DUMMY_UNMAPPED_SIZE,
+			.align	= SZ_4K,
+		},
+#endif
 };
 
 static struct ion_platform_data dummy_ion_pdata = {
