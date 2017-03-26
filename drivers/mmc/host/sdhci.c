@@ -503,8 +503,7 @@ static int sdhci_pre_dma_transfer(struct sdhci_host *host,
 		return data->sg_count;
 
 	sg_count = dma_map_sg(mmc_dev(host->mmc), data->sg, data->sg_len,
-				data->flags & MMC_DATA_WRITE ?
-				DMA_TO_DEVICE : DMA_FROM_DEVICE);
+			      mmc_get_dma_dir(data));
 
 	if (sg_count == 0)
 		return -ENOSPC;
@@ -2231,8 +2230,7 @@ static void sdhci_post_req(struct mmc_host *mmc, struct mmc_request *mrq,
 
 	if (data->host_cookie != COOKIE_UNMAPPED)
 		dma_unmap_sg(mmc_dev(host->mmc), data->sg, data->sg_len,
-			     data->flags & MMC_DATA_WRITE ?
-			       DMA_TO_DEVICE : DMA_FROM_DEVICE);
+			     mmc_get_dma_dir(data));
 
 	data->host_cookie = COOKIE_UNMAPPED;
 }
@@ -2348,8 +2346,7 @@ static bool sdhci_request_done(struct sdhci_host *host)
 
 		if (data && data->host_cookie == COOKIE_MAPPED) {
 			dma_unmap_sg(mmc_dev(host->mmc), data->sg, data->sg_len,
-				     (data->flags & MMC_DATA_READ) ?
-				     DMA_FROM_DEVICE : DMA_TO_DEVICE);
+				     mmc_get_dma_dir(data));
 			data->host_cookie = COOKIE_UNMAPPED;
 		}
 	}
