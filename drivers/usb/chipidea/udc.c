@@ -2096,6 +2096,8 @@ static void udc_id_switch_for_host(struct ci_hdrc *ci)
 			ci->fsm.otg->state == OTG_STATE_B_IDLE ||
 			ci->fsm.otg->state == OTG_STATE_UNDEFINED)
 		hw_write_otgsc(ci, OTGSC_BSVIE | OTGSC_BSVIS, OTGSC_BSVIS);
+
+	ci->vbus_active = 0;
 }
 
 static void udc_suspend_for_power_lost(struct ci_hdrc *ci)
