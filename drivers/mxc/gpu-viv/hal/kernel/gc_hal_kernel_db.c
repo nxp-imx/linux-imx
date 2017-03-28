@@ -91,6 +91,7 @@ gckKERNEL_NewDatabase(
 {
     gceSTATUS status;
     gcsDATABASE_PTR database;
+    gctPOINTER pointer = gcvNULL;
     gctBOOL acquired = gcvFALSE;
     gctSIZE_T slot;
     gcsDATABASE_PTR existingDatabase;
@@ -124,8 +125,6 @@ gckKERNEL_NewDatabase(
     }
     else
     {
-        gctPOINTER pointer = gcvNULL;
-
         /* Allocate a new database from the heap. */
         gcmkONERROR(gckOS_Allocate(Kernel->os,
                                    gcmSIZEOF(gcsDATABASE),
@@ -156,6 +155,11 @@ gckKERNEL_NewDatabase(
     return gcvSTATUS_OK;
 
 OnError:
+    if (pointer)
+    {
+        gcmkOS_SAFE_FREE(Kernel->os, pointer);
+    }
+
     if (acquired)
     {
         /* Release the database mutex. */

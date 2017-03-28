@@ -487,8 +487,10 @@ _DmaAlloctorInit(
     return gcvSTATUS_OK;
 
 OnError:
-    if(allocator != gcvNULL)
-        gckOS_Free(Os, (gctPOINTER)allocator);
+    if (allocator)
+    {
+        gcmkOS_SAFE_FREE(Os, allocator);
+    }
     return status;
 }
 

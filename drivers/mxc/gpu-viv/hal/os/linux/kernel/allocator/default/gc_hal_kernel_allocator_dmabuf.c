@@ -290,6 +290,10 @@ _DmabufAttach(
     return gcvSTATUS_OK;
 
 OnError:
+    if (pagearray)
+    {
+        gcmkOS_SAFE_FREE(os, pagearray);
+    }
     gcmkFOOTER();
     return status;
 }

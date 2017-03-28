@@ -143,8 +143,8 @@ typedef va_list gctARGUMENTS;
 #define gcmkVSPRINTF(Destination, Size, Message, Arguments) \
     vsnprintf(Destination, Size, Message, *((va_list*)Arguments))
 
-#define gcmkSTRCAT(Destination, Size, String) \
-    strncat(Destination, String, Size)
+#define gcmkSTRCATSAFE(Destination, Size, String) \
+    strncat(Destination, String, (Size) - 1)
 
 #define gcmkMEMCPY(Destination, Source, Size) \
     memcpy(Destination, Source, Size)

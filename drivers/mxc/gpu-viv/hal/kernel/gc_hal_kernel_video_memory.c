@@ -2786,13 +2786,17 @@ gckVIDMEM_NODE_Name(
         gcmkONERROR(gckKERNEL_AllocateIntegerId(database, node, &name));
         node->name = name;
     }
+    else
+    {
+        name = node->name;
+    }
 
     gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, mutex));
     acquired = gcvFALSE;
 
     gcmkVERIFY_OK(gckVIDMEM_NODE_Dereference(Kernel, node));
 
-    *Name = node->name;
+    *Name = name;
 
     gcmkFOOTER_ARG("*Name=%d", *Name);
     return gcvSTATUS_OK;

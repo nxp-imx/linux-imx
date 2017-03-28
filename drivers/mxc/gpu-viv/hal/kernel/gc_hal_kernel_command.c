@@ -880,9 +880,9 @@ _ProcessUserCommandBufferList(
     gceSTATUS           status;
     gctBOOL             needCopy;
 
-    struct _gcoCMDBUF   _nextCMDBUF;
     struct _gcoCMDBUF   _commandBufferObject;
     gcoCMDBUF           currentCMDBUF;
+    struct _gcoCMDBUF   _nextCMDBUF;
     gcoCMDBUF           currentCMDBUFUser = CommandBufferListHead;
 
     gckOS_QueryNeedCopy(Command->os, 0, &needCopy);
@@ -1971,13 +1971,6 @@ gckCOMMAND_Commit(
             ));
     }
 
-    /* Get the physical address. */
-    gcmkONERROR(gckOS_UserLogicalToPhysical(
-        Command->os,
-        commandBufferLogical,
-        &commandBufferPhysical
-        ));
-
 #ifdef __QNXNTO__
     userCommandBufferLogical = (gctPOINTER) commandBufferLogical;
 
@@ -1990,6 +1983,19 @@ gckCOMMAND_Commit(
     commandBufferLogical = pointer;
 
     userCommandBufferLogicalMapped = gcvTRUE;
+
+    gcmkONERROR(gckOS_GetPhysicalAddress(
+        Command->os,
+        commandBufferLogical,
+        &commandBufferPhysical
+        ));
+#else
+    /* Get the physical address. */
+    gcmkONERROR(gckOS_UserLogicalToPhysical(
+        Command->os,
+        commandBufferLogical,
+        &commandBufferPhysical
+        ));
 #endif
 
     commandBufferSize

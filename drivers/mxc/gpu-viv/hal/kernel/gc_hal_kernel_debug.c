@@ -762,7 +762,7 @@ _PrintBuffer(
         if ((column % COLUMN_COUNT) == 0)
         {
             /* Append EOL. */
-            gcmkSTRCAT(buffer + len, gcmSIZEOF(buffer) - len, "\n");
+            gcmkSTRCATSAFE(buffer, gcmSIZEOF(buffer), "\n");
 
             /* Print the string. */
             gcmkOUTPUT_STRING(buffer);
@@ -777,7 +777,7 @@ _PrintBuffer(
     if (column != 0)
     {
         /* Append EOL. */
-        gcmkSTRCAT(buffer + len, gcmSIZEOF(buffer) - len, "\n");
+        gcmkSTRCATSAFE(buffer, gcmSIZEOF(buffer), "\n");
 
         /* Print the string. */
         gcmkOUTPUT_STRING(buffer);
@@ -787,7 +787,7 @@ _PrintBuffer(
     if (command)
     {
         buffer[indent] = '\0';
-        gcmkSTRCAT(buffer, gcmSIZEOF(buffer), "] -- command\n");
+        gcmkSTRCATSAFE(buffer, gcmSIZEOF(buffer), "] -- command\n");
         gcmkOUTPUT_STRING(buffer);
     }
 }

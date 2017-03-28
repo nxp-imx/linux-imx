@@ -425,7 +425,7 @@ _CMAFSLAlloctorInit(
     )
 {
     gceSTATUS status;
-    gckALLOCATOR allocator;
+    gckALLOCATOR allocator = gcvNULL;
     gcsCMA_PRIV_PTR priv = gcvNULL;
 
     gcmkONERROR(
@@ -464,6 +464,10 @@ _CMAFSLAlloctorInit(
     return gcvSTATUS_OK;
 
 OnError:
+    if (allocator)
+    {
+        gcmkOS_SAFE_FREE(Os, allocator);
+    }
     return status;
 }
 

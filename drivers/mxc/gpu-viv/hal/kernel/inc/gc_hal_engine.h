@@ -1650,7 +1650,7 @@ typedef struct _gcsTHREAD_WALKER_INFO
 }
 gcsTHREAD_WALKER_INFO;
 
-#if gcdUSE_VX
+#if gcdENABLE_3D && gcdUSE_VX
 /* VX thread walker parameters. */
 typedef struct _gcsVX_THREAD_WALKER_PARAMETERS * gcsVX_THREAD_WALKER_PARAMETERS_PTR;
 

@@ -931,7 +931,7 @@ _DefaultAlloctorInit(
     )
 {
     gceSTATUS status;
-    gckALLOCATOR allocator;
+    gckALLOCATOR allocator = gcvNULL;
     gcsDEFAULT_PRIV_PTR priv = gcvNULL;
 
     gcmkONERROR(
@@ -967,6 +967,10 @@ _DefaultAlloctorInit(
     return gcvSTATUS_OK;
 
 OnError:
+    if (allocator)
+    {
+        gcmkOS_SAFE_FREE(Os, allocator);
+    }
     return status;
 }
 

@@ -67,7 +67,7 @@
 #define _GC_OBJ_ZONE    gcvZONE_DRIVER
 
 MODULE_DESCRIPTION("Vivante Graphics Driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("Dual MIT/GPL");
 
 static struct class* gpuClass;
 
