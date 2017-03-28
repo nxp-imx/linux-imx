@@ -7528,22 +7528,14 @@ gckHARDWARE_SetPowerManagementState(
             }
         }
 
-        if(_IsHardwareMatch(Hardware, gcv400, 0x4645))
-        {
-            gcmkONERROR(gckCOMMAND_Start(command));
+        gcmkONERROR(gckCOMMAND_Start(command));
 
-            gcmkONERROR(_FlushCache(Hardware, command));
+        gcmkONERROR(_FlushCache(Hardware, command));
 
-            gckOS_Delay(gcvNULL, 1);
+        gckOS_Delay(gcvNULL, 1);
 
-            /* Stop the command parser. */
-            gcmkONERROR(gckCOMMAND_Stop(command));
-        }
-        else
-        {
-            gckHARDWARE_ExecuteFunctions(Hardware, gcvHARDWARE_FUNCTION_FLUSH);
-            gckOS_Delay(gcvNULL, 1);
-        }
+        /* Stop the command parser. */
+        gcmkONERROR(gckCOMMAND_Stop(command));
 
         flag |= gcvPOWER_FLAG_CLOCK_OFF;
     }
