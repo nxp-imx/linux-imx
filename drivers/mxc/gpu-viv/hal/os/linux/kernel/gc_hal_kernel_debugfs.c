@@ -215,7 +215,11 @@ gc_debugfs_write(
 
     if (info->write)
     {
-        info->write(buf, count, node);
+        char tmpbuf[256] = {0};
+        if (count >= sizeof(tmpbuf) || copy_from_user(tmpbuf, buf, count) > 0)
+            return 0;
+
+        info->write(tmpbuf, count, node);
     }
 
     return count;
