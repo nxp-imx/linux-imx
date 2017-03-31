@@ -530,6 +530,11 @@
 #define SC_R_CAAM_JR1_OUT               514
 #define SC_R_CAAM_JR2_OUT               515
 #define SC_R_CAAM_JR3_OUT               516
-#define SC_R_LAST                       517
+#define SC_R_VPU_DEC                    517
+#define SC_R_VPU_ENC                    518
+#define SC_R_CAAM_JR0                   519
+#define SC_R_CAAM_JR0_OUT               520
+#define SC_R_PMIC_2                     521
+#define SC_R_LAST                       522
 
 #endif				/* __DT_BINDINGS_RSCRC_IMX_H */

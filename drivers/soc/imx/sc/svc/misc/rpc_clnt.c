@@ -44,7 +44,7 @@ sc_err_t sc_misc_set_control(sc_ipc_t ipc, sc_rsrc_t resource,
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_misc_get_control(sc_ipc_t ipc, sc_rsrc_t resource,
@@ -65,28 +65,7 @@ sc_err_t sc_misc_get_control(sc_ipc_t ipc, sc_rsrc_t resource,
 	if (val != NULL)
 		*val = RPC_D32(&msg, 0);
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
-}
-
-sc_err_t sc_misc_set_ari(sc_ipc_t ipc, sc_rsrc_t resource,
-			 sc_rsrc_t resource_mst, uint16_t ari, bool enable)
-{
-	sc_rpc_msg_t msg;
-	uint8_t result;
-
-	RPC_VER(&msg) = SC_RPC_VERSION;
-	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
-	RPC_FUNC(&msg) = MISC_FUNC_SET_ARI;
-	RPC_D16(&msg, 0) = resource;
-	RPC_D16(&msg, 2) = resource_mst;
-	RPC_D16(&msg, 4) = ari;
-	RPC_D8(&msg, 6) = enable;
-	RPC_SIZE(&msg) = 3;
-
-	sc_call_rpc(ipc, &msg, false);
-
-	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_misc_set_max_dma_group(sc_ipc_t ipc, sc_rm_pt_t pt,
@@ -105,7 +84,7 @@ sc_err_t sc_misc_set_max_dma_group(sc_ipc_t ipc, sc_rm_pt_t pt,
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_misc_set_dma_group(sc_ipc_t ipc, sc_rsrc_t resource,
@@ -124,37 +103,7 @@ sc_err_t sc_misc_set_dma_group(sc_ipc_t ipc, sc_rsrc_t resource,
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
-}
-
-sc_err_t sc_misc_waveform_capture(sc_ipc_t ipc, bool enable)
-{
-	sc_rpc_msg_t msg;
-	uint8_t result;
-
-	RPC_VER(&msg) = SC_RPC_VERSION;
-	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
-	RPC_FUNC(&msg) = MISC_FUNC_WAVEFORM_CAPTURE;
-	RPC_D8(&msg, 0) = enable;
-	RPC_SIZE(&msg) = 2;
-
-	sc_call_rpc(ipc, &msg, false);
-
-	result = RPC_R8(&msg);
-	return (sc_err_t) result;
-}
-
-void sc_misc_boot_status(sc_ipc_t ipc, sc_misc_boot_status_t status)
-{
-	sc_rpc_msg_t msg;
-
-	RPC_VER(&msg) = SC_RPC_VERSION;
-	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
-	RPC_FUNC(&msg) = MISC_FUNC_BOOT_STATUS;
-	RPC_D8(&msg, 0) = status;
-	RPC_SIZE(&msg) = 2;
-
-	sc_call_rpc(ipc, &msg, true);
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_misc_seco_image_load(sc_ipc_t ipc, uint32_t addr_src,
@@ -175,7 +124,7 @@ sc_err_t sc_misc_seco_image_load(sc_ipc_t ipc, uint32_t addr_src,
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_misc_seco_authenticate(sc_ipc_t ipc,
@@ -195,7 +144,75 @@ sc_err_t sc_misc_seco_authenticate(sc_ipc_t ipc,
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
+}
+
+void sc_misc_debug_out(sc_ipc_t ipc, uint8_t ch)
+{
+	sc_rpc_msg_t msg;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
+	RPC_FUNC(&msg) = MISC_FUNC_DEBUG_OUT;
+	RPC_D8(&msg, 0) = ch;
+	RPC_SIZE(&msg) = 2;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	return;
+}
+
+sc_err_t sc_misc_waveform_capture(sc_ipc_t ipc, bool enable)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
+	RPC_FUNC(&msg) = MISC_FUNC_WAVEFORM_CAPTURE;
+	RPC_D8(&msg, 0) = enable;
+	RPC_SIZE(&msg) = 2;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
+
+sc_err_t sc_misc_set_ari(sc_ipc_t ipc, sc_rsrc_t resource,
+			 sc_rsrc_t resource_mst, uint16_t ari, bool enable)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
+	RPC_FUNC(&msg) = MISC_FUNC_SET_ARI;
+	RPC_D16(&msg, 0) = resource;
+	RPC_D16(&msg, 2) = resource_mst;
+	RPC_D16(&msg, 4) = ari;
+	RPC_D8(&msg, 6) = enable;
+	RPC_SIZE(&msg) = 3;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
+
+void sc_misc_boot_status(sc_ipc_t ipc, sc_misc_boot_status_t status)
+{
+	sc_rpc_msg_t msg;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
+	RPC_FUNC(&msg) = MISC_FUNC_BOOT_STATUS;
+	RPC_D8(&msg, 0) = status;
+	RPC_SIZE(&msg) = 2;
+
+	sc_call_rpc(ipc, &msg, true);
+
+	return;
 }
 
 /**@}*/

@@ -659,6 +659,11 @@ typedef enum sc_rsrc_e {
 	SC_R_CAAM_JR1_OUT = 514,
 	SC_R_CAAM_JR2_OUT = 515,
 	SC_R_CAAM_JR3_OUT = 516,
+	SC_R_VPU_DEC = 517,
+	SC_R_VPU_ENC = 518,
+	SC_R_CAAM_JR0 = 519,
+	SC_R_CAAM_JR0_OUT = 520,
+	SC_R_PMIC_2 = 521,
 	SC_R_LAST
 } sc_rsrc_t;
 
@@ -703,6 +708,7 @@ typedef enum sc_ctrl_e {
 	SC_C_SYNC_CTRL1 = 33,
 	SC_C_DPI_RESET = 34,
 	SC_C_MIPI_RESET = 35,
+	SC_C_DUAL_MODE = 36,
 	SC_C_LAST
 } sc_ctrl_t;
 

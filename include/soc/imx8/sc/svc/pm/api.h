@@ -87,11 +87,12 @@ typedef enum sc_pm_clk_e {
  * This type is used to declare a clock mode.
  */
 typedef enum sc_pm_clk_mode_e {
-	SC_PM_CLK_MODE_OFF = 0,	/* Clock is disabled */
-	SC_PM_CLK_MODE_ON = 1,	/* Clock is enabled. */
-	SC_PM_CLK_MODE_AUTOGATE_SW = 2,	/* Clock is in SW autogate mode */
-	SC_PM_CLK_MODE_AUTOGATE_HW = 3,	/* Clock is in HW autogate mode */
-	SC_PM_CLK_MODE_AUTOGATE_SW_HW = 4,	/* Clock is in SW-HW autogate mode */
+	SC_PM_CLK_MODE_ROM_INIT = 0,
+	SC_PM_CLK_MODE_OFF = 1,	/* Clock is disabled */
+	SC_PM_CLK_MODE_ON = 2,	/* Clock is enabled. */
+	SC_PM_CLK_MODE_AUTOGATE_SW = 3,	/* Clock is in SW autogate mode */
+	SC_PM_CLK_MODE_AUTOGATE_HW = 4,	/* Clock is in HW autogate mode */
+	SC_PM_CLK_MODE_AUTOGATE_SW_HW = 5,	/* Clock is in SW-HW autogate mode */
 } sc_pm_clk_mode_t;
 
 /*!
@@ -283,6 +284,31 @@ sc_err_t sc_pm_clock_enable(sc_ipc_t ipc, sc_rsrc_t resource,
  */
 
 /*!
+ * This function is used to reset the system. Only the owner of the
+ * SC_R_SYSTEM resource can do this.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     type        reset type
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_PARM if invalid type
+ *
+ * If this function returns, then the reset did not occur due to an
+ * invalid parameter.
+ */
+sc_err_t sc_pm_reset(sc_ipc_t ipc, sc_pm_reset_type_t type);
+
+/*!
+ * This function gets a caller's reset reason.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[out]    reason      pointer to return reset reason
+ */
+sc_err_t sc_pm_reset_reason(sc_ipc_t ipc, sc_pm_reset_reason_t *reason);
+
+/*!
  * This function is used to boot a partition.
  *
  * @param[in]     ipc          IPC handle
@@ -325,32 +351,6 @@ sc_err_t sc_pm_boot(sc_ipc_t ipc, sc_rm_pt_t pt,
 void sc_pm_reboot(sc_ipc_t ipc, sc_pm_reset_type_t type);
 
 /*!
- * This function gets a caller's reset reason.
- *
- * @param[in]     ipc         IPC handle
- * @param[out]    reason      pointer to return reset reason
- */
-sc_err_t sc_pm_reset_reason(sc_ipc_t ipc, sc_pm_reset_reason_t *reason);
-
-/*!
- * This function is used to start/stop a CPU.
- *
- * @param[in]     ipc         IPC handle
- * @param[in]     resource    ID of the CPU resource
- * @param[in]     enable      start if true; otherwise stop
- * @param[in]     address     64-bit boot address
- *
- * @return Returns an error code (SC_ERR_NONE = success).
- *
- * Return errors:
- * - SC_ERR_PARM if invalid resource or address,
- * - SC_ERR_NOACCESS if caller's partition is not the parent of the
- *   resource (CPU) owner
- */
-sc_err_t sc_pm_cpu_start(sc_ipc_t ipc, sc_rsrc_t resource, bool enable,
-			 sc_faddr_t address);
-
-/*!
  * This function is used to reboot a partition.
  *
  * @param[in]     ipc         IPC handle
@@ -382,21 +382,22 @@ sc_err_t sc_pm_reboot_partition(sc_ipc_t ipc, sc_rm_pt_t pt,
 				sc_pm_reset_type_t type);
 
 /*!
- * This function is used to reset the system. Only the owner of the
- * SC_R_SYSTEM resource can do this.
+ * This function is used to start/stop a CPU.
  *
  * @param[in]     ipc         IPC handle
- * @param[in]     type        reset type
+ * @param[in]     resource    ID of the CPU resource
+ * @param[in]     enable      start if true; otherwise stop
+ * @param[in]     address     64-bit boot address
  *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors:
- * - SC_ERR_PARM if invalid type
- *
- * If this function returns, then the reset did not occur due to an
- * invalid parameter.
+ * - SC_ERR_PARM if invalid resource or address,
+ * - SC_ERR_NOACCESS if caller's partition is not the parent of the
+ *   resource (CPU) owner
  */
-sc_err_t sc_pm_reset(sc_ipc_t ipc, sc_pm_reset_type_t type);
+sc_err_t sc_pm_cpu_start(sc_ipc_t ipc, sc_rsrc_t resource, bool enable,
+			 sc_faddr_t address);
 
 /* @} */
 

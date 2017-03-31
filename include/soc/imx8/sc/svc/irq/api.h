@@ -62,6 +62,8 @@ typedef enum sc_irq_temp_e {
 	SC_IRQ_TEMP_VPU_LOW = (1 << 17),	/* DRC1 temp alarm interrupt */
 	SC_IRQ_TEMP_PMIC0_LOW = (1 << 18),	/* PMIC0 temp alarm interrupt */
 	SC_IRQ_TEMP_PMIC1_LOW = (1 << 19),	/* PMIC1 temp alarm interrupt */
+	SC_IRQ_TEMP_PMIC2_HIGH = (1 << 20),	/* PMIC2 temp alarm interrupt */
+	SC_IRQ_TEMP_PMIC2_LOW = (1 << 21)	/* PMIC2 temp alarm interrupt */
 } sc_irq_temp_t;
 
 /*!

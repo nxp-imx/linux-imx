@@ -152,6 +152,16 @@ sc_err_t sc_timer_get_rtc_time(sc_ipc_t ipc, uint16_t *year, uint8_t *mon,
 			       uint8_t *sec);
 
 /*!
+ * This function gets the RTC time in seconds since 1/1/1970.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[out]    sec         pointer to return second
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ */
+sc_err_t sc_timer_get_rtc_sec1970(sc_ipc_t ipc, uint32_t *sec);
+
+/*!
  * This function sets the RTC alarm. Only the owner of the SC_R_SYSTEM
  * resource can set the alarm.
  *
@@ -172,16 +182,6 @@ sc_err_t sc_timer_get_rtc_time(sc_ipc_t ipc, uint16_t *year, uint8_t *mon,
 sc_err_t sc_timer_set_rtc_alarm(sc_ipc_t ipc, uint16_t year, uint8_t mon,
 				uint8_t day, uint8_t hour, uint8_t min,
 				uint8_t sec);
-
-/*!
- * This function gets the RTC time in seconds since 1/1/1970.
- *
- * @param[in]     ipc         IPC handle
- * @param[out]    sec         pointer to return second
- *
- * @return Returns an error code (SC_ERR_NONE = success).
- */
-sc_err_t sc_timer_get_rtc_sec1970(sc_ipc_t ipc, uint32_t *sec);
 
 /* @} */
 

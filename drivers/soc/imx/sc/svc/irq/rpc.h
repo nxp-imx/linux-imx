@@ -25,9 +25,9 @@
  * This type is used to indicate RPC IRQ function calls.
  */
 typedef enum irq_func_e {
-	IRQ_FUNC_UNKNOWN,	/* Unknown function */
-	IRQ_FUNC_ENABLE,	/* Index for irq_enable() RPC call */
-	IRQ_FUNC_STATUS,	/* Index for irq_status() RPC call */
+	IRQ_FUNC_UNKNOWN = 0,	/* Unknown function */
+	IRQ_FUNC_ENABLE = 1,	/* Index for irq_enable() RPC call */
+	IRQ_FUNC_STATUS = 2,	/* Index for irq_status() RPC call */
 } irq_func_t;
 
 /* Functions */

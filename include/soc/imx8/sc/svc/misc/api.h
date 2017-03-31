@@ -63,6 +63,11 @@ typedef enum sc_misc_seco_auth_cmd_e {
 /* Functions */
 
 /*!
+ * @name Control Functions
+ * @{
+ */
+
+/*!
  * This function sets a miscellaneous control value.
  *
  * @param[in]     ipc         IPC handle
@@ -102,28 +107,12 @@ sc_err_t sc_misc_set_control(sc_ipc_t ipc, sc_rsrc_t resource,
 sc_err_t sc_misc_get_control(sc_ipc_t ipc, sc_rsrc_t resource,
 			     sc_ctrl_t ctrl, uint32_t *val);
 
+/* @} */
+
 /*!
- * This function configures the ARI match value for PCIe/SATA resources.
- *
- * @param[in]     ipc          IPC handle
- * @param[in]     resource     match resource
- * @param[in]     resource_mst PCIe/SATA master to match
- * @param[in]     ari          ARI to match
- * @param[in]     enable       enable match or not
- *
- * @return Returns an error code (SC_ERR_NONE = success).
- *
- * Return errors:
- * - SC_PARM if arguments out of range or invalid,
- * - SC_ERR_NOACCESS if caller's partition is not the owner or parent
- *   of the owner of the resource and translation
- *
- * For PCIe, the ARI is the 16-bit value that includes the bus number,
- * device number, and function number. For SATA, this value includes the
- * FISType and PM_Port.
+ * @name DMA Functions
+ * @{
  */
-sc_err_t sc_misc_set_ari(sc_ipc_t ipc, sc_rsrc_t resource,
-			 sc_rsrc_t resource_mst, uint16_t ari, bool enable);
 
 /*!
  * This function configures the max DMA channel priority group for a
@@ -167,29 +156,12 @@ sc_err_t sc_misc_set_max_dma_group(sc_ipc_t ipc, sc_rm_pt_t pt,
 sc_err_t sc_misc_set_dma_group(sc_ipc_t ipc, sc_rsrc_t resource,
 			       sc_misc_dma_group_t group);
 
-/*!
- * This function starts/stops emulation waveform capture.
- *
- * @param[in]     ipc         IPC handle
- * @param[in]     enable      flag to enable/disable capture
- *
- * @return Returns an error code (SC_ERR_NONE = success).
- *
- * Return errors:
- * - SC_ERR_UNAVAILABLE if not running on emulation
- */
-sc_err_t sc_misc_waveform_capture(sc_ipc_t ipc, bool enable);
+/* @} */
 
 /*!
- * This function reports boot status.
- *
- * @param[in]     ipc         IPC handle
- * @param[in]     status      boot status
- *
- * This is used by SW partitions to report status of boot. This is
- * normally used to report a boot failure.
+ * @name Security Functions
+ * @{
  */
-void sc_misc_boot_status(sc_ipc_t ipc, sc_misc_boot_status_t status);
 
 /*!
  * This function loads a SECO image.
@@ -220,6 +192,77 @@ sc_err_t sc_misc_seco_image_load(sc_ipc_t ipc, uint32_t addr_src,
 sc_err_t sc_misc_seco_authenticate(sc_ipc_t ipc,
 				   sc_misc_seco_auth_cmd_t cmd,
 				   uint32_t addr_meta);
+
+/* @} */
+
+/*!
+ * @name Debug Functions
+ * @{
+ */
+
+/*!
+ * This function is used output a debug character from the SCU UART.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     ch          character to output
+ */
+void sc_misc_debug_out(sc_ipc_t ipc, uint8_t ch);
+
+/*!
+ * This function starts/stops waveform capture.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     enable      flag to enable/disable capture
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_UNAVAILABLE if not running
+ */
+sc_err_t sc_misc_waveform_capture(sc_ipc_t ipc, bool enable);
+
+/* @} */
+
+/*!
+ * @name Other Functions
+ * @{
+ */
+
+/*!
+ * This function configures the ARI match value for PCIe/SATA resources.
+ *
+ * @param[in]     ipc          IPC handle
+ * @param[in]     resource     match resource
+ * @param[in]     resource_mst PCIe/SATA master to match
+ * @param[in]     ari          ARI to match
+ * @param[in]     enable       enable match or not
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_PARM if arguments out of range or invalid,
+ * - SC_ERR_NOACCESS if caller's partition is not the owner or parent
+ *   of the owner of the resource and translation
+ *
+ * For PCIe, the ARI is the 16-bit value that includes the bus number,
+ * device number, and function number. For SATA, this value includes the
+ * FISType and PM_Port.
+ */
+sc_err_t sc_misc_set_ari(sc_ipc_t ipc, sc_rsrc_t resource,
+			 sc_rsrc_t resource_mst, uint16_t ari, bool enable);
+
+/*!
+ * This function reports boot status.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     status      boot status
+ *
+ * This is used by SW partitions to report status of boot. This is
+ * normally used to report a boot failure.
+ */
+void sc_misc_boot_status(sc_ipc_t ipc, sc_misc_boot_status_t status);
+
+/* @} */
 
 #endif				/* _SC_MISC_API_H */
 

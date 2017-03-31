@@ -41,7 +41,7 @@ sc_err_t sc_timer_set_wdog_timeout(sc_ipc_t ipc, sc_timer_wdog_time_t timeout)
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_timer_start_wdog(sc_ipc_t ipc, bool lock)
@@ -58,7 +58,7 @@ sc_err_t sc_timer_start_wdog(sc_ipc_t ipc, bool lock)
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_timer_stop_wdog(sc_ipc_t ipc)
@@ -74,7 +74,7 @@ sc_err_t sc_timer_stop_wdog(sc_ipc_t ipc)
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_timer_ping_wdog(sc_ipc_t ipc)
@@ -90,7 +90,7 @@ sc_err_t sc_timer_ping_wdog(sc_ipc_t ipc)
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_timer_get_wdog_status(sc_ipc_t ipc,
@@ -115,7 +115,7 @@ sc_err_t sc_timer_get_wdog_status(sc_ipc_t ipc,
 	if (remaining_time != NULL)
 		*remaining_time = RPC_D32(&msg, 8);
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_timer_set_rtc_time(sc_ipc_t ipc, uint16_t year, uint8_t mon,
@@ -139,7 +139,7 @@ sc_err_t sc_timer_set_rtc_time(sc_ipc_t ipc, uint16_t year, uint8_t mon,
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_timer_get_rtc_time(sc_ipc_t ipc, uint16_t *year, uint8_t *mon,
@@ -169,7 +169,25 @@ sc_err_t sc_timer_get_rtc_time(sc_ipc_t ipc, uint16_t *year, uint8_t *mon,
 		*min = RPC_D8(&msg, 5);
 	if (sec != NULL)
 		*sec = RPC_D8(&msg, 6);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
+}
+
+sc_err_t sc_timer_get_rtc_sec1970(sc_ipc_t ipc, uint32_t *sec)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_TIMER;
+	RPC_FUNC(&msg) = TIMER_FUNC_GET_RTC_SEC1970;
+	RPC_SIZE(&msg) = 1;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	if (sec != NULL)
+		*sec = RPC_D32(&msg, 0);
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_timer_set_rtc_alarm(sc_ipc_t ipc, uint16_t year, uint8_t mon,
@@ -193,25 +211,7 @@ sc_err_t sc_timer_set_rtc_alarm(sc_ipc_t ipc, uint16_t year, uint8_t mon,
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
-}
-
-sc_err_t sc_timer_get_rtc_sec1970(sc_ipc_t ipc, uint32_t *sec)
-{
-	sc_rpc_msg_t msg;
-	uint8_t result;
-
-	RPC_VER(&msg) = SC_RPC_VERSION;
-	RPC_SVC(&msg) = SC_RPC_SVC_TIMER;
-	RPC_FUNC(&msg) = TIMER_FUNC_GET_RTC_SEC1970;
-	RPC_SIZE(&msg) = 1;
-
-	sc_call_rpc(ipc, &msg, false);
-
-	if (sec != NULL)
-		*sec = RPC_D32(&msg, 0);
-	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 /**@}*/

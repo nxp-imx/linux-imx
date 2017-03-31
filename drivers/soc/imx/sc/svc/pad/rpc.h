@@ -25,23 +25,23 @@
  * This type is used to indicate RPC PAD function calls.
  */
 typedef enum pad_func_e {
-	PAD_FUNC_UNKNOWN,	/* Unknown function */
-	PAD_FUNC_SET_MUX,	/* Index for pad_set_mux() RPC call */
-	PAD_FUNC_SET_GP,	/* Index for pad_set_gp() RPC call */
-	PAD_FUNC_SET_GP_28LPP,	/* Index for pad_set_gp_28lpp() RPC call */
-	PAD_FUNC_SET_WAKEUP,	/* Index for pad_set_wakeup() RPC call */
-	PAD_FUNC_SET_ALL,	/* Index for pad_set_all() RPC call */
-	PAD_FUNC_GET_MUX,	/* Index for pad_get_mux() RPC call */
-	PAD_FUNC_GET_GP,	/* Index for pad_get_gp() RPC call */
-	PAD_FUNC_GET_GP_28LPP,	/* Index for pad_get_gp_28lpp() RPC call */
-	PAD_FUNC_GET_WAKEUP,	/* Index for pad_get_wakeup() RPC call */
-	PAD_FUNC_GET_ALL,	/* Index for pad_get_all() RPC call */
-	PAD_FUNC_SET_GP_28FDSOI,	/* Index for pad_set_gp_28fdsoi() RPC call */
-	PAD_FUNC_GET_GP_28FDSOI,	/* Index for pad_get_gp_28fdsoi() RPC call */
-	PAD_FUNC_SET_GP_28FDSOI_COMP,	/* Index for pad_set_gp_28fdsoi_comp() RPC call */
-	PAD_FUNC_GET_GP_28FDSOI_COMP,	/* Index for pad_get_gp_28fdsoi_comp() RPC call */
-	PAD_FUNC_SET,		/* Index for pad_set() RPC call */
-	PAD_FUNC_GET,		/* Index for pad_get() RPC call */
+	PAD_FUNC_UNKNOWN = 0,	/* Unknown function */
+	PAD_FUNC_SET_MUX = 1,	/* Index for pad_set_mux() RPC call */
+	PAD_FUNC_GET_MUX = 6,	/* Index for pad_get_mux() RPC call */
+	PAD_FUNC_SET_GP = 2,	/* Index for pad_set_gp() RPC call */
+	PAD_FUNC_GET_GP = 7,	/* Index for pad_get_gp() RPC call */
+	PAD_FUNC_SET_WAKEUP = 4,	/* Index for pad_set_wakeup() RPC call */
+	PAD_FUNC_GET_WAKEUP = 9,	/* Index for pad_get_wakeup() RPC call */
+	PAD_FUNC_SET_ALL = 5,	/* Index for pad_set_all() RPC call */
+	PAD_FUNC_GET_ALL = 10,	/* Index for pad_get_all() RPC call */
+	PAD_FUNC_SET = 15,	/* Index for pad_set() RPC call */
+	PAD_FUNC_GET = 16,	/* Index for pad_get() RPC call */
+	PAD_FUNC_SET_GP_28LPP = 3,	/* Index for pad_set_gp_28lpp() RPC call */
+	PAD_FUNC_GET_GP_28LPP = 8,	/* Index for pad_get_gp_28lpp() RPC call */
+	PAD_FUNC_SET_GP_28FDSOI = 11,	/* Index for pad_set_gp_28fdsoi() RPC call */
+	PAD_FUNC_GET_GP_28FDSOI = 12,	/* Index for pad_get_gp_28fdsoi() RPC call */
+	PAD_FUNC_SET_GP_28FDSOI_COMP = 13,	/* Index for pad_set_gp_28fdsoi_comp() RPC call */
+	PAD_FUNC_GET_GP_28FDSOI_COMP = 14,	/* Index for pad_get_gp_28fdsoi_comp() RPC call */
 } pad_func_t;
 
 /* Functions */
