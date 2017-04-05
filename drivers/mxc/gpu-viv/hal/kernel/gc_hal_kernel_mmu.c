@@ -1278,6 +1278,11 @@ _Construct(
         mmu->flatMappingStart = gpuAddress;
         mmu->flatMappingEnd   = gpuAddress + physSize;
 
+        if ( mmu->flatMappingEnd <  mmu->flatMappingStart)
+        {
+            mmu->flatMappingEnd = gcvMAXUINT32;
+        }
+
         if (physSize)
         {
             /* Setup user specified flat mapping. */
@@ -1292,7 +1297,7 @@ _Construct(
 
             if (gcmIS_SUCCESS(status))
             {
-                if (contiguousSize)
+                if (contiguousSize && (contiguousBase < mmu->flatMappingStart || contiguousBase + contiguousSize > mmu->flatMappingEnd))
                 {
                     /* Setup flat mapping for reserved memory (VIDMEM). */
                     gcmkONERROR(_FillFlatMapping(mmu, contiguousBase, contiguousSize));

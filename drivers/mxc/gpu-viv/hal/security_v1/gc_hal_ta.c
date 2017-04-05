@@ -92,7 +92,7 @@ gcTA_Construct(
 {
     gceSTATUS status;
     gctPOINTER pointer;
-    gcTA ta;
+    gcTA ta = gcvNULL;
 
     gcmkHEADER();
     gcmkVERIFY_ARGUMENT(TA != gcvNULL);
@@ -134,6 +134,20 @@ gcTA_Construct(
     return 0;
 
 OnError:
+    if (ta)
+    {
+        if (ta->mmu && ta->destoryMmu)
+        {
+            gcmkVERIFY_OK(gctaMMU_Destory(ta->mmu));
+        }
+
+        if (ta->hardware)
+        {
+            gcmkVERIFY_OK(gctaHARDWARE_Destroy(ta->hardware));
+        }
+
+        gcmkVERIFY_OK(gctaOS_Free(ta));
+    }
     gcmkFOOTER();
     return status;
 }

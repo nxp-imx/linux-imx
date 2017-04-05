@@ -62,8 +62,8 @@
 
 #define gcvVERSION_PATCH        2
 
-#define gcvVERSION_BUILD     92148
+#define gcvVERSION_BUILD     93313
 
-#define gcvVERSION_STRING    "6.2.2.pre4.92148"
+#define gcvVERSION_STRING    "6.2.2.93313"
 
 #endif /* __gc_hal_version_h_ */

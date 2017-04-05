@@ -10682,6 +10682,18 @@ gckHARDWARE_QueryContextNewProfile(
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
 
+    /*
+     * User-space can attach to whatever context it desires, leading first to a
+     * memory NULL pointer dereference when copying the counters, and later
+     * invocation of this function will dead-lock trying to acquire a lock that
+     * was already acquired. The context is converted to a pointer so even if
+     * user-space supplies another context would be transformed to a NULL value.
+     */
+    if ((Context == NULL) || (&Context->histroyNewProfiler_part1 == NULL) ||
+	(&Context->histroyNewProfiler_part2 == NULL)) {
+    	gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+    }
+
     /* Acquire the context sequnence mutex. */
     gcmkONERROR(gckOS_AcquireMutex(
         command->os, command->mutexContextSeq, gcvINFINITE

@@ -254,6 +254,11 @@ gctaMMU_Construct(
         (gctPOINTER *)&mmu
         ));
 
+    mmu->mtlbLogical              = gcvNULL;
+    mmu->stlbs                    = gcvNULL;
+    mmu->safePageLogical          = gcvNULL;
+    mmu->nonSecureSafePageLogical = gcvNULL;
+
     mmu->os = TA->os;
 
     /* MTLB bytes. */
@@ -305,8 +310,45 @@ gctaMMU_Construct(
     return gcvSTATUS_OK;
 
 OnError:
-    if(mmu != gcvNULL)
+    if (mmu)
+    {
+        if (mmu->safePageLogical)
+        {
+            gcmkVERIFY_OK(gctaOS_FreeSecurityMemory(
+                TA->os,
+                4096,
+                mmu->safePageLogical,
+                mmu->safePagePhysical
+                ));
+        }
+
+        if (mmu->nonSecureSafePageLogical)
+        {
+            gcmkVERIFY_OK(gctaOS_FreeSecurityMemory(
+                TA->os,
+                4096,
+                mmu->nonSecureSafePageLogical,
+                mmu->nonSecureSafePagePhysical
+                ));
+        }
+
+        if (mmu->mtlbLogical)
+        {
+            gcmkVERIFY_OK(gctaOS_FreeSecurityMemory(
+                TA->os,
+                4096,
+                mmu->mtlbLogical,
+                mmu->mtlbPhysical
+                ));
+        }
+
+        if (mmu->stlbs)
+        {
+            gcmkVERIFY_OK(gctaOS_Free((gctPOINTER)mmu->stlbs));
+        }
+
         gcmkVERIFY_OK(gctaOS_Free((gctPOINTER)mmu));
+    }
     return status;
 }
 
@@ -345,6 +387,11 @@ gctaMMU_Destory(
             Mmu->mtlbLogical,
             Mmu->mtlbPhysical
             ));
+    }
+
+    if (Mmu->stlbs)
+    {
+        gcmkVERIFY_OK(gctaOS_Free((gctPOINTER)Mmu->stlbs));
     }
 
     gcmkVERIFY_OK(gctaOS_Free(Mmu));

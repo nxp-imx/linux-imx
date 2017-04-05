@@ -5266,7 +5266,7 @@ gckKERNEL_WriteShBuffer(
     )
 {
     gceSTATUS status;
-    gcsSHBUF_PTR shBuf;
+    gcsSHBUF_PTR shBuf = gcvNULL;
     gctBOOL acquired = gcvFALSE;
 
     gcmkHEADER_ARG("Kernel=0x%X ShBuf=%u UserData=0x%X ByteCount=%u",
@@ -5321,6 +5321,12 @@ gckKERNEL_WriteShBuffer(
     return gcvSTATUS_OK;
 
 OnError:
+    if (shBuf && shBuf->data)
+    {
+        gcmkOS_SAFE_FREE(Kernel->os, shBuf->data);
+        shBuf->data = gcvNULL;
+    }
+
     if (acquired)
     {
         /* Release the mutex. */

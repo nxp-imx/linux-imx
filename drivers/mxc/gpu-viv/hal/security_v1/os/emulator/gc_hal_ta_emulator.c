@@ -106,8 +106,10 @@ gctaOS_ConstructOS(
     return gcvSTATUS_OK;
 
 OnError:
-    if(pointer != gcvNULL)
-        gcmkVERIFY_OK(gckOS_FreeMemory(pointer, Os));
+    if (pointer != gcvNULL)
+    {
+        gcmkVERIFY_OK(gckOS_FreeMemory(Os, pointer));
+    }
     return status;
 }
 

@@ -538,9 +538,15 @@ gckRECORDER_Construct(
 
     *Recorder = recorder;
 
+    gckCONTEXT_Destroy(context);
     return gcvSTATUS_OK;
 
 OnError:
+    if (context)
+    {
+        gckCONTEXT_Destroy(context);
+    }
+
     if (recorder)
     {
         gckRECORDER_Destory(Os, recorder);
