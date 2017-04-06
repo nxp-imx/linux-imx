@@ -183,9 +183,10 @@
 	rpmsg_keys: rpmsg-keys {
 		compatible = "fsl,rpmsg-keys";
 
-		volume-up {
-			label = "Volume Up";
-			linux,code = <KEY_VOLUMEUP>;
+		power {
+			label = "Power";
+			rpmsg-key,wakeup;
+			linux,code = <KEY_POWER>;
 		};
 
 		volume-down {
