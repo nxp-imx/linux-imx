@@ -170,10 +170,13 @@ static int imx6q_set_target(struct cpufreq_policy *policy, unsigned int index)
 		clk_set_parent(step_clk, pll2_pfd2_396m_clk);
 		clk_set_parent(pll1_sw_clk, step_clk);
 		if (freq_hz > clk_get_rate(pll2_pfd2_396m_clk)) {
-			clk_set_rate(pll1_sys_clk, new_freq * 1000);
-
-			/* Ensure pll1_bypass is set back to pll1. */
+			/* Ensure that pll1_bypass is set back to
+			 * pll1. We have to do this first so that the
+			 * change rate done to pll1_sys_clk done below
+			 * can propagate up to pll1.
+			 */
 			clk_set_parent(pll1_bypass, pll1);
+			clk_set_rate(pll1_sys_clk, new_freq * 1000);
 			clk_set_parent(pll1_sw_clk, pll1_sys_clk);
 		} else {
 			/*
