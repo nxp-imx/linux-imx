@@ -136,6 +136,8 @@
 #define CTRL1_IRQ_STATUS_SHIFT			8
 
 #define CTRL2_OUTSTANDING_REQS__REQ_16		(4 << 21)
+#define CTRL2_ODD_LINE_PATTERN_BGR		(5 << 16)
+#define CTRL2_EVEN_LINE_PATTERN_BGR		(5 << 12)
 
 #define TRANSFER_COUNT_SET_VCOUNT(x)	(((x) & 0xffff) << 16)
 #define TRANSFER_COUNT_GET_VCOUNT(x)	(((x) >> 16) & 0xffff)
@@ -263,6 +265,7 @@ struct mxsfb_info {
 	int id;
 	struct fb_var_screeninfo var;
 	struct pm_qos_request pm_qos_req;
+	u32 pix_fmt;
 
 	char disp_videomode[NAME_LEN];
 
@@ -537,6 +540,25 @@ static const struct fb_bitfield def_argb32[] = {
 	}
 };
 
+static const struct fb_bitfield def_abgr32[] = {
+	[RED] = {
+		.offset = 0,
+		.length = 8,
+	},
+	[GREEN] = {
+		.offset = 8,
+		.length = 8,
+	},
+	[BLUE] = {
+		.offset = 16,
+		.length = 8,
+	},
+	[TRANSP] = {
+		.offset = 24,
+		.length = 8,
+	}
+};
+
 #define bitfield_is_equal(f1, f2)  (!memcmp(&(f1), &(f2), sizeof(f1)))
 
 static inline bool pixfmt_is_equal(struct fb_var_screeninfo *var,
@@ -545,6 +567,32 @@ static inline bool pixfmt_is_equal(struct fb_var_screeninfo *var,
 	if (bitfield_is_equal(var->red, f[RED]) &&
 	    bitfield_is_equal(var->green, f[GREEN]) &&
 	    bitfield_is_equal(var->blue, f[BLUE]))
+		return true;
+
+	return false;
+}
+
+static const struct fb_bitfield* pixfmt_to_bf(u32 pix_fmt)
+{
+	if (pix_fmt == V4L2_PIX_FMT_RGB565)
+		return def_rgb565;
+	else if (pix_fmt == V4L2_PIX_FMT_RGB666)
+		return def_rgb666;
+	else if (pix_fmt == V4L2_PIX_FMT_RGB24)
+		return def_rgb888;
+	else if (pix_fmt == V4L2_PIX_FMT_ARGB32)
+		return def_argb32;
+	else if (pix_fmt == V4L2_PIX_FMT_ABGR32)
+		return def_abgr32;
+	else {
+		pr_err("unsupported pix format\n");
+		return NULL;
+	}
+}
+
+static inline bool need_swizzle_rgb(struct fb_var_screeninfo *var)
+{
+	if (pixfmt_is_equal(var, def_abgr32))
 		return true;
 
 	return false;
@@ -641,7 +689,10 @@ static int mxsfb_check_var(struct fb_var_screeninfo *var,
 			break;
 		case STMLCDIF_24BIT:
 			/* real 24 bit */
-			rgb = def_rgb888;
+			if (host->pix_fmt && pixfmt_to_bf(host->pix_fmt))
+				rgb = pixfmt_to_bf(host->pix_fmt);
+			else
+				rgb = def_rgb888;
 			break;
 		default:
 			/*
@@ -737,8 +788,10 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 	}
 #endif
 
-	writel(CTRL2_OUTSTANDING_REQS__REQ_16,
-		host->base + LCDC_V4_CTRL2 + REG_SET);
+	reg = CTRL2_OUTSTANDING_REQS__REQ_16;
+	if (need_swizzle_rgb(&(fb_info->var)))
+		reg |= CTRL2_ODD_LINE_PATTERN_BGR | CTRL2_EVEN_LINE_PATTERN_BGR;
+	writel(reg, host->base + LCDC_V4_CTRL2 + REG_SET);
 
 	/* if it was disabled, re-enable the mode again */
 	writel(CTRL_DOTCLK_MODE, host->base + LCDC_CTRL + REG_SET);
@@ -858,9 +911,12 @@ static int mxsfb_set_par(struct fb_info *fb_info)
 	fb_info->fix.line_length = line_size;
 	fb_size = fb_info->var.yres_virtual * line_size;
 
-	if (fb_size > fb_info->fix.smem_len) {
-		dev_err(&host->pdev->dev, "exceeds the fb buffer size limit!\n");
-		return -ENOMEM;
+	if (!fb_info->fix.smem_start || fb_size > fb_info->fix.smem_len) {
+		if (fb_info->fix.smem_start)
+			mxsfb_unmap_videomem(fb_info);
+
+		if (mxsfb_map_videomem(fb_info) < 0)
+			return -ENOMEM;
 	}
 
 	/*
@@ -1386,6 +1442,7 @@ static int mxsfb_init_fbinfo_dt(struct mxsfb_info *host)
 	struct device_node *timings_np;
 	struct display_timings *timings = NULL;
 	const char *disp_dev, *disp_videomode;
+	const char *pixfmt;
 	u32 width;
 	int i;
 	int ret = 0;
@@ -1428,6 +1485,27 @@ static int mxsfb_init_fbinfo_dt(struct mxsfb_info *host)
 	if (ret < 0) {
 		dev_err(dev, "failed to get property bits-per-pixel\n");
 		goto put_display_node;
+	}
+
+	ret = of_property_read_string(display_np, "fbpix", &pixfmt);
+	if (ret) {
+		host->pix_fmt = 0;
+		dev_warn(dev, "not find property pix fmt\n");
+	} else {
+		if (!strncmp(pixfmt, "RGB565", 6))
+			host->pix_fmt = V4L2_PIX_FMT_RGB565;
+		else if (!strncmp(pixfmt, "RGB666", 6))
+			host->pix_fmt = V4L2_PIX_FMT_RGB666;
+		else if (!strncmp(pixfmt, "RGB888", 6))
+			host->pix_fmt = V4L2_PIX_FMT_RGB24;
+		else if (!strncmp(pixfmt, "ARGB32", 6))
+			host->pix_fmt = V4L2_PIX_FMT_ARGB32;
+		else if (!strncmp(pixfmt, "ABGR32", 6))
+			host->pix_fmt = V4L2_PIX_FMT_ABGR32;
+		else {
+			dev_warn(dev, "no pix fmt assigned, use default\n");
+			host->pix_fmt = 0;
+		}
 	}
 
 	ret = of_property_read_string(np, "disp-dev", &disp_dev);
