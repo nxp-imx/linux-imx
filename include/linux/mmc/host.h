@@ -313,6 +313,7 @@ struct mmc_host {
 #define MMC_CAP2_NO_SD		(1 << 21)	/* Do not send SD commands during initialization */
 #define MMC_CAP2_NO_MMC		(1 << 22)	/* Do not send (e)MMC commands during initialization */
 #define MMC_CAP2_CD_POST	(1 << 23)	/* post card rescan, let client driver to start */
+#define MMC_CAP2_DDR52_3_3V	(1 << 24)	/* Only supprot eMMC DDR52 at 3.3v */
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
