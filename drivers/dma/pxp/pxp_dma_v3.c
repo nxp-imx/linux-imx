@@ -210,7 +210,7 @@ static void pxp_collision_detection_enable(struct pxps *pxp,
 					   unsigned int height);
 static void pxp_luts_activate(struct pxps *pxp, u64 lut_status);
 static bool pxp_collision_status_report(struct pxps *pxp, struct pxp_collision_info *info);
-static void pxp_histogram_status_report(struct pxps *pxp, u32 *hist_status);
+static void pxp_histogram_status_report(struct pxps *pxp, u32 *hist_status, u32 *pixel_nums);
 static void pxp_histogram_enable(struct pxps *pxp,
 				 unsigned int width,
 				 unsigned int height);
@@ -1605,6 +1605,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 	void *callback_param;
 	unsigned long flags;
 	u32 hist_status;
+	u32 pixel_nums;
 	int pxp_irq_status = 0;
 
 	dump_pxp_reg(pxp);
@@ -1648,7 +1649,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 		__raw_writel(irq_clr, pxp->base + HW_PXP_IRQ_CLR);
 	}
 	pxp_collision_status_report(pxp, &col_info);
-	pxp_histogram_status_report(pxp, &hist_status);
+	pxp_histogram_status_report(pxp, &hist_status, &pixel_nums);
 	/*XXX before a new update operation, we should
 	 * always clear all the collision information
 	 */
@@ -1678,6 +1679,7 @@ static irqreturn_t pxp_irq(int irq, void *dev_id)
 
 	/* Send histogram status back to caller */
 	desc->hist_status = hist_status;
+	desc->pixel_nums = pixel_nums;
 
 	if ((desc->txd.flags & DMA_PREP_INTERRUPT) && callback)
 		callback(callback_param);
@@ -4110,14 +4112,15 @@ static void pxp_histogram_enable(struct pxps *pxp,
 			pxp->base + HW_PXP_HIST_B_CTRL);
 }
 
-static void pxp_histogram_status_report(struct pxps *pxp, u32 *hist_status)
+static void pxp_histogram_status_report(struct pxps *pxp, u32 *hist_status, u32 *pixel_nums)
 {
 	BUG_ON(!hist_status);
 
 	*hist_status = (__raw_readl(pxp->base + HW_PXP_HIST_B_CTRL) & BM_PXP_HIST_B_CTRL_STATUS)
 			>> BP_PXP_HIST_B_CTRL_STATUS;
+	*pixel_nums = __raw_readl(pxp->base + HW_PXP_HIST_B_TOTAL_PIXEL);
 	dev_dbg(pxp->dev, "%d pixels are used to calculate histogram status %d\n",
-			__raw_readl(pxp->base + HW_PXP_HIST_B_TOTAL_PIXEL), *hist_status);
+			*pixel_nums, *hist_status);
 }
 
 static void pxp_histogram_disable(struct pxps *pxp)

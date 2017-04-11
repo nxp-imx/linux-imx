@@ -35,6 +35,7 @@ struct pxp_tx_desc {
 	struct pxp_proc_data proc_data;
 
 	u32 hist_status;	/* Histogram output status */
+	u32 pixel_nums;		/* total pixel numbers to be updated */
 
 	struct pxp_tx_desc *next;
 };
