@@ -2,6 +2,7 @@
  * Freescale ASRC ALSA SoC Digital Audio Interface (DAI) driver
  *
  * Copyright (C) 2014-2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * Author: Nicolin Chen <nicoleotsuka@gmail.com>
  *
@@ -26,6 +27,9 @@
 
 #define pair_err(fmt, ...) \
 	dev_err(&asrc_priv->pdev->dev, "Pair %c: " fmt, 'A' + index, ##__VA_ARGS__)
+
+#define pair_warn(fmt, ...) \
+	dev_warn(&asrc_priv->pdev->dev, "Pair %c: " fmt, 'A' + index, ##__VA_ARGS__)
 
 #define pair_dbg(fmt, ...) \
 	dev_dbg(&asrc_priv->pdev->dev, "Pair %c: " fmt, 'A' + index, ##__VA_ARGS__)
@@ -352,6 +356,11 @@ static int fsl_asrc_config_pair(struct fsl_asrc_pair *pair, bool p2p_in, bool p2
 		pair_err("failed to support output sample rate %dHz by asrck_%x\n",
 				outrate, clk_index[OUT]);
 		return -EINVAL;
+	}
+
+	if (div[IN] > 1024 && div[OUT] > 1024) {
+		pair_warn("both divider (%d, %d) are larger than threshold\n",
+							div[IN], div[OUT]);
 	}
 
 	if (div[IN] > 1024)
