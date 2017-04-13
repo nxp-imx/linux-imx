@@ -99,15 +99,6 @@
 		#size-cells = <1>;
 		ranges;
 
-		/* global autoconfigured region for contiguous allocations */
-		linux,cma {
-			compatible = "shared-dma-pool";
-			reusable;
-			size = <0xC000000>;
-			alignment = <0x2000>;
-			linux,cma-default;
-		};
-
 		rpmsg_reserved: rpmsg@9FFF0000 {
 			no-map;
 			reg = <0x9FF00000 0x100000>;
