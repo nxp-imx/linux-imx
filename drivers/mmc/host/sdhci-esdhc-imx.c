@@ -1329,6 +1329,10 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 		dev_info(mmc_dev(host->mmc), "assigned as wifi host\n");
 	}
 
+	if (of_get_property(np, "pm-ignore-notify", NULL)) {
+		host->mmc->pm_caps |= MMC_PM_IGNORE_PM_NOTIFY;
+	}
+
 	return 0;
 }
 #else
