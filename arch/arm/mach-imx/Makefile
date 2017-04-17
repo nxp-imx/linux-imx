@@ -123,6 +123,7 @@ AFLAGS_lpddr3_freq_imx.o :=-Wa,-march=armv7-a
 obj-$(CONFIG_SOC_IMX7D) += pm-imx7.o ddr3_freq_imx7d.o smp_wfe.o \
 			   lpddr3_freq_imx.o
 
+obj-$(CONFIG_MXC_REBOOT_ANDROID_CMD) += reboot.o
 obj-$(CONFIG_SOC_IMX1) += mach-imx1.o
 obj-$(CONFIG_SOC_IMX50) += mach-imx50.o
 obj-$(CONFIG_SOC_IMX51) += mach-imx51.o
