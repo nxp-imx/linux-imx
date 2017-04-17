@@ -48,4 +48,5 @@
 
 #define MX6_SUSPEND_IRAM_ADDR_OFFSET        0
 #define MX6_CPUIDLE_IRAM_ADDR_OFFSET        0x1000
+#define MX6_SNVS_BASE_ADDR                  0x20cc000
 #endif

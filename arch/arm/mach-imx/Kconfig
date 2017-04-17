@@ -655,6 +655,9 @@ choice
 
 endchoice
 
+config MXC_REBOOT_ANDROID_CMD
+	bool "Android reboot setting"
+
 endif
 
 config MACH_IMX_BLUETOOTH_RFKILL
