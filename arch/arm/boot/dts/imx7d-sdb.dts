@@ -157,6 +157,25 @@
 		enable-active-high;
 	};
 
+	gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_keys>;
+
+
+                /* map vol up and vol down key in Android*/
+		volume-up {
+			label = "Volume Up";
+			gpios = <&gpio5 11 1>;
+			linux,code = <KEY_VOLUMEUP>;
+		};
+		volume-down {
+			label = "Volume Down";
+			gpios = <&gpio5 10 1>;
+			linux,code = <KEY_VOLUMEDOWN>;
+		};
+	};
+
 	backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm1 0 5000000>;
@@ -913,6 +932,12 @@
 				MX7D_PAD_SAI2_RX_DATA__ECSPI3_SCLK	0x2
 			>;
 		};
+		pinctrl_gpio_keys: gpio_keysgrp {
+			fsl,pins = <
+				MX7D_PAD_SD2_RESET_B__GPIO5_IO11	0x59
+				MX7D_PAD_SD2_WP__GPIO5_IO10  		0x59
+                        >;
+                };
 
 		pinctrl_ecspi3_cs: ecspi3_cs_grp {
 			fsl,pins = <
