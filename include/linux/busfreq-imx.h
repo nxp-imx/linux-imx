@@ -42,7 +42,7 @@ enum bus_freq_mode {
 	BUS_FREQ_ULTRA_LOW,
 };
 
-#ifdef CONFIG_CPU_FREQ
+#if defined(CONFIG_CPU_FREQ) && !defined(CONFIG_ARM64)
 extern struct regulator *arm_reg;
 extern struct regulator *soc_reg;
 void request_bus_freq(enum bus_freq_mode mode);
