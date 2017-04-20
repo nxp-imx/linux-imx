@@ -58,6 +58,8 @@
 
 #include <linux/types.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
+
 /* sync.h is in drivers/staging/android/ for now. */
 #include <sync.h>
 
@@ -90,17 +92,55 @@ struct viv_sync_pt
 };
 
 /* Create viv_sync_timeline object. */
-struct viv_sync_timeline *
-viv_sync_timeline_create(
-    const char * Name,
-    gckOS Os
-    );
+struct viv_sync_timeline * viv_sync_timeline_create(const char *name, gckOS Os);
 
 /* Create viv_sync_pt object. */
-struct sync_pt *
-viv_sync_pt_create(
-    struct viv_sync_timeline * Obj,
-    gctSIGNAL Signal
-    );
+struct sync_pt * viv_sync_pt_create(struct viv_sync_timeline *obj,
+                        gctSIGNAL signal);
+
+#else /* v4.9.0 */
+
+#include <linux/sync_file.h>
+#include <linux/fence.h>
+#include <linux/fence-array.h>
+
+#include <gc_hal.h>
+#include <gc_hal_base.h>
+#include "gc_hal_kernel_linux.h"
+
+struct viv_sync_timeline
+{
+    char name[64];
+
+    /* Parent object. */
+    u64 context;
+
+    /* Timestamp when sync_pt is created. */
+    atomic64_t seqno;
+
+    /* Pointer to os struct. */
+    gckOS os;
+};
+
+struct viv_fence
+{
+    /* must be the first. */
+    struct fence base;
+    spinlock_t lock;
+
+    struct viv_sync_timeline *parent;
+
+    /* link with signal. */
+    gctSIGNAL signal;
+};
+
+struct viv_sync_timeline * viv_sync_timeline_create(const char *name, gckOS Os);
+
+void viv_sync_timeline_destroy(struct viv_sync_timeline *timeline);
+
+struct fence * viv_fence_create(struct viv_sync_timeline *timeline,
+                    gcsSIGNAL *signal);
+
+#endif /* v4.9.0 */
 
 #endif /* __gc_hal_kernel_sync_h_ */

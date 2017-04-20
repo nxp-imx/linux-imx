@@ -214,14 +214,6 @@ struct _gckOS
     /* signal id database. */
     gcsINTEGER_DB               signalDB;
 
-#if gcdANDROID_NATIVE_FENCE_SYNC
-    /* Lock. */
-    gctPOINTER                  syncPointMutex;
-
-    /* sync point id database. */
-    gcsINTEGER_DB               syncPointDB;
-#endif
-
     gcsUSER_MAPPING_PTR         userMap;
 
     /* workqueue for os timer. */
@@ -271,8 +263,12 @@ typedef struct _gcsSIGNAL
     gctUINT32 id;
 
 #if gcdANDROID_NATIVE_FENCE_SYNC
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
     /* Parent timeline. */
     struct sync_timeline * timeline;
+#else
+    struct fence *fence;
+#endif
 #endif
 }
 gcsSIGNAL;

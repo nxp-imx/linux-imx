@@ -677,21 +677,6 @@ gckOS_Construct(
     /* Initialize signal id database. */
     idr_init(&os->signalDB.idr);
 
-#if gcdANDROID_NATIVE_FENCE_SYNC
-    /*
-     * Initialize the sync point manager.
-     */
-
-    /* Initialize mutex. */
-    gcmkONERROR(gckOS_CreateMutex(os, &os->syncPointMutex));
-
-    /* Initialize sync point id database lock. */
-    spin_lock_init(&os->syncPointDB.lock);
-
-    /* Initialize sync point id database. */
-    idr_init(&os->syncPointDB.idr);
-#endif
-
     /* Create a workqueue for os timer. */
     os->workqueue = create_singlethread_workqueue("galcore workqueue");
 
@@ -744,15 +729,6 @@ gckOS_Construct(
     return gcvSTATUS_OK;
 
 OnError:
-
-#if gcdANDROID_NATIVE_FENCE_SYNC
-    if (os->syncPointMutex != gcvNULL)
-    {
-        gcmkVERIFY_OK(
-            gckOS_DeleteMutex(os, os->syncPointMutex));
-    }
-#endif
-
     if (os->workqueue != gcvNULL)
     {
         destroy_workqueue(os->workqueue);
@@ -796,15 +772,6 @@ gckOS_Destroy(
         __free_page(Os->paddingPage);
         Os->paddingPage = gcvNULL;
     }
-
-#if gcdANDROID_NATIVE_FENCE_SYNC
-    /*
-     * Destroy the sync point manager.
-     */
-
-    /* Destroy the mutex. */
-    gcmkVERIFY_OK(gckOS_DeleteMutex(Os, Os->syncPointMutex));
-#endif
 
     /*
      * Destroy the signal manager.
@@ -5713,7 +5680,11 @@ gckOS_CreateSignal(
     atomic_set(&signal->ref, 1);
 
 #if gcdANDROID_NATIVE_FENCE_SYNC
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
     signal->timeline = gcvNULL;
+#else
+    signal->fence = gcvNULL;
+#endif
 #endif
 
     gcmkONERROR(_AllocateIntegerId(&Os->signalDB, signal, &signal->id));
@@ -5833,7 +5804,11 @@ gckOS_Signal(
     gcsSIGNAL_PTR signal;
     gctBOOL acquired = gcvFALSE;
 #if gcdANDROID_NATIVE_FENCE_SYNC
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
     struct sync_timeline * timeline = gcvNULL;
+#else
+    struct fence * fence = gcvNULL;
+#endif
 #endif
 
     gcmkHEADER_ARG("Os=0x%X Signal=0x%X State=%d", Os, Signal, State);
@@ -5855,7 +5830,12 @@ gckOS_Signal(
         complete(&signal->obj);
 
 #if gcdANDROID_NATIVE_FENCE_SYNC
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
         timeline = signal->timeline;
+#else
+        fence = signal->fence;
+        signal->fence = NULL;
+#endif
 #endif
     }
     else
@@ -5872,11 +5852,19 @@ gckOS_Signal(
     acquired = gcvFALSE;
 
 #if gcdANDROID_NATIVE_FENCE_SYNC
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
     /* Signal timeline. */
     if (timeline)
     {
         sync_timeline_signal(timeline);
     }
+#else
+    if (fence)
+    {
+        fence_signal(fence);
+        fence_put(fence);
+    }
+#endif
 #endif
 
     /* Success. */
@@ -6949,6 +6937,7 @@ gckOS_DetectProcessByName(
 }
 
 #if gcdANDROID_NATIVE_FENCE_SYNC
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
 gceSTATUS
 gckOS_CreateSyncTimeline(
     IN gckOS Os,
@@ -7183,6 +7172,11 @@ gckOS_WaitNativeFence(
         waiter = (struct sync_fence_waiter *)kmalloc(
                 sizeof (struct sync_fence_waiter), gcdNOWARN | GFP_KERNEL);
 
+        /*
+         * schedule a callback to put the sync_fence. Otherwise after this function
+         * is returned, the caller may free it since it's signaled. Then there's
+         * be a real signal on a free'ed sync fence.
+         */
         if (!waiter)
         {
             sync_fence_put(fence);
@@ -7216,6 +7210,195 @@ OnError:
     gcmkFOOTER();
     return status;
 }
+
+#else /* v4.9.0 */
+
+gceSTATUS
+gckOS_CreateSyncTimeline(
+    IN gckOS Os,
+    IN gceCORE Core,
+    OUT gctHANDLE * Timeline
+    )
+{
+    struct viv_sync_timeline *timeline;
+
+    char name[32];
+
+    snprintf(name, 32, "gccore-%u", (unsigned int) Core);
+    timeline = viv_sync_timeline_create(name, Os);
+
+    if (timeline == gcvNULL)
+    {
+        /* Out of memory. */
+        return gcvSTATUS_OUT_OF_MEMORY;
+    }
+
+    *Timeline = (gctHANDLE) timeline;
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+gckOS_DestroySyncTimeline(
+    IN gckOS Os,
+    IN gctHANDLE Timeline
+    )
+{
+    struct viv_sync_timeline * timeline;
+
+    /* Destroy timeline. */
+    timeline = (struct viv_sync_timeline *) Timeline;
+    viv_sync_timeline_destroy(timeline);
+
+    return gcvSTATUS_OK;
+}
+
+gceSTATUS
+gckOS_CreateNativeFence(
+    IN gckOS Os,
+    IN gctHANDLE Timeline,
+    IN gctSIGNAL Signal,
+    OUT gctINT * FenceFD
+    )
+{
+    struct fence *fence = NULL;
+    struct sync_file *sync = NULL;
+    int fd;
+    struct viv_sync_timeline *timeline;
+    gcsSIGNAL_PTR signal;
+    gceSTATUS status = gcvSTATUS_OK;
+
+    /* Create fence. */
+    timeline = (struct viv_sync_timeline *) Timeline;
+
+    gcmkONERROR(
+        _QueryIntegerId(&Os->signalDB,
+                        (gctUINT32)(gctUINTPTR_T)Signal,
+                        (gctPOINTER)&signal));
+
+    fence = viv_fence_create(timeline, signal);
+
+    if (!fence)
+    {
+        gcmONERROR(gcvSTATUS_OUT_OF_MEMORY);
+    }
+
+    /* Create sync_file. */
+    sync = sync_file_create(fence);
+
+    if (!sync)
+    {
+        gcmONERROR(gcvSTATUS_OUT_OF_MEMORY);
+    }
+
+    /* Get a unused fd. */
+    fd = get_unused_fd_flags(O_CLOEXEC);
+
+    if (fd < 0)
+    {
+        gcmONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+    }
+
+    fd_install(fd, sync->file);
+
+    *FenceFD = fd;
+    return gcvSTATUS_OK;
+
+OnError:
+    if (sync)
+    {
+        fput(sync->file);
+    }
+
+    if (fence)
+    {
+        fence_put(fence);
+    }
+
+    if (fd > 0)
+    {
+        put_unused_fd(fd);
+    }
+
+    *FenceFD = -1;
+    return status;
+}
+
+gceSTATUS
+gckOS_WaitNativeFence(
+    IN gckOS Os,
+    IN gctHANDLE Timeline,
+    IN gctINT FenceFD,
+    IN gctUINT32 Timeout
+    )
+{
+    struct fence *fence;
+    struct viv_sync_timeline *timeline;
+    gceSTATUS status = gcvSTATUS_OK;
+    unsigned int i;
+    unsigned int numFences;
+    struct fence **fences;
+    unsigned long timeout;
+
+    timeline = (struct viv_sync_timeline *) Timeline;
+
+    fence = sync_file_get_fence(FenceFD);
+
+    if (!fence)
+    {
+        gcmONERROR(gcvSTATUS_GENERIC_IO);
+    }
+
+    if (fence_is_array(fence))
+    {
+        struct fence_array *array = to_fence_array(fence);
+        fences = array->fences;
+        numFences = array->num_fences;
+    }
+    else
+    {
+        fences = &fence;
+        numFences = 1;
+    }
+
+    timeout = msecs_to_jiffies(Timeout);
+
+    for (i = 0; i < numFences; i++)
+    {
+        struct fence *f = fences[i];
+
+        if (f->context != timeline->context &&
+            !fence_is_signaled(f))
+        {
+            signed long ret;
+            ret = fence_wait_timeout(fence, 1, timeout);
+
+            if (ret == -ERESTARTSYS)
+            {
+                status = gcvSTATUS_INTERRUPTED;
+                break;
+            }
+            else if (ret <= 0)
+            {
+                status = gcvSTATUS_TIMEOUT;
+                break;
+            }
+            else
+            {
+                /* wait success. */
+                timeout -= ret;
+            }
+        }
+    }
+
+    fence_put(fence);
+
+    return gcvSTATUS_OK;
+
+OnError:
+    return status;
+}
+
+#endif /* v4.9.0 */
 #endif
 
 #if gcdSECURITY

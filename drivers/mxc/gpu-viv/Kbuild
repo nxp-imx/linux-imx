@@ -133,6 +133,10 @@ ifneq ($(CONFIG_SYNC),)
 EXTRA_CFLAGS += -Idrivers/staging/android
 
 OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_sync.o
+else
+    ifneq ($(CONFIG_SYNC_FILE),)
+    OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_sync.o
+    endif
 endif
 
 ifeq ($(SECURITY), 1)
