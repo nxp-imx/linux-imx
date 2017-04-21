@@ -2952,6 +2952,30 @@ static inline struct f_fs_opts *ffs_do_functionfs_bind(struct usb_function *f,
 	return ffs_opts;
 }
 
+static int __must_check ffs_do_single_desc_len(char *data, unsigned len)
+{
+	struct usb_descriptor_header *_ds = (void *)data;
+	u8 length;
+	int ret;
+
+	ENTER();
+
+	/* At least two bytes are required: length and type */
+	if (len < 2) {
+		pr_vdebug("descriptor too short\n");
+		return -EINVAL;
+	}
+
+	/* If we have at least as many bytes as the descriptor takes? */
+	length = _ds->bLength;
+	if (len < length) {
+		pr_vdebug("descriptor longer then available data\n");
+		return -EINVAL;
+	}
+
+	return length;
+}
+
 static int _ffs_func_bind(struct usb_configuration *c,
 			  struct usb_function *f)
 {
@@ -3064,6 +3088,15 @@ static int _ffs_func_bind(struct usb_configuration *c,
 		if (unlikely(ss_len < 0)) {
 			ret = ss_len;
 			goto error;
+		}
+	} else if(!super&&func->ffs->ss_descs_count) {
+		int i=0,ret=0,len=0;
+		ss_len=0;
+		for(i;i< ffs->ss_descs_count;i++ )
+		{
+			ret = ffs_do_single_desc_len( vla_ptr(vlabuf,d,raw_descs)+fs_len+hs_len+ss_len,d_raw_descs__sz-fs_len-hs_len-ss_len);
+			len=ret;
+			ss_len +=len;
 		}
 	} else {
 		ss_len = 0;
