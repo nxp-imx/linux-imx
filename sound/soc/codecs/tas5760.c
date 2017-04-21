@@ -28,9 +28,9 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/tlv.h>
-
+#include <linux/mfd/syscon.h>
+#include "../../../drivers/gpio/gpiolib.h"
 #include "tas5760.h"
-
 
 struct tas5760_hw_params {
 	bool pbtl_mode;
@@ -46,7 +46,7 @@ struct tas5760_private {
 	struct regmap			*regmap;
 	unsigned int			format;
 	struct tas5760_hw_params hw_params;
-	struct gpio_desc		*spk_sd_gpio;
+	int				gpio_spk_sd;
 };
 
 static bool tas5760_accessible_reg(struct device *dev, unsigned int reg)
@@ -70,6 +70,7 @@ static bool tas5760_volatile_reg(struct device *dev, unsigned int reg)
 
 	return false;
 }
+
 static bool tas5760_writeable_reg(struct device *dev, unsigned int reg)
 {
 	return tas5760_accessible_reg(dev, reg) &&
@@ -82,7 +83,8 @@ static int tas5760_set_sysclk(struct snd_soc_dai *dai,
 {
 	struct device *dev = dai->codec->dev;
 
-	dev_dbg(dev, "clkid:%d, freq:%d, dir:%d", clk_id, freq, dir);
+    dev_info(dev, "clkid:%d, freq:%d, dir:%d\n", clk_id, freq, dir);
+
 	return 0;
 }
 
@@ -101,6 +103,8 @@ static int tas5760_hw_params(struct snd_pcm_substream *substream,
 			     struct snd_pcm_hw_params *params,
 			     struct snd_soc_dai *dai)
 {
+	struct device *dev = dai->codec->dev;
+
 	return 0;
 }
 
@@ -264,15 +268,11 @@ static int tas5760_init(struct device *dev, struct tas5760_private *priv)
 			return ret;
 	}
 
-	if (!IS_ERR(priv->spk_sd_gpio))
-		/* Enable the speaker amplifier */
-		gpiod_set_value(priv->spk_sd_gpio, 1);
-	else {
-		ret = regmap_update_bits(priv->regmap, TAS5760_POWER_CTRL,
-							TAS5760_SPK_SD_MASK,
-							TAS5760_SPK_SD_MASK);
-		if (ret < 0)
-			return ret;
+	if (gpio_is_valid(priv->gpio_spk_sd)) {
+	dev_info(dev, "set gpio %d to 1\n", priv->gpio_spk_sd);
+		gpio_set_value(priv->gpio_spk_sd, 1);
+		/* Give the codec time to wake up */
+		mdelay(1);
 	}
 
 	return 0;
@@ -317,15 +317,9 @@ static int tas5760_remove(struct snd_soc_codec *codec)
 		return ret;
 
 	/* Put the device in shutdown */
-	if (!IS_ERR(priv->spk_sd_gpio))
-		gpiod_set_value(priv->spk_sd_gpio, 0);
-	else {
-		ret = regmap_update_bits(priv->regmap,
-					TAS5760_POWER_CTRL,
-					TAS5760_SPK_SD_MASK,
-					0);
-		if (ret < 0)
-			return ret;
+	if (gpio_is_valid(priv->gpio_spk_sd)) {
+        dev_info("set gpio %d to 0\n", priv->gpio_spk_sd);
+		gpio_set_value(priv->gpio_spk_sd, 0);
 	}
 
 	return 0;
@@ -389,7 +383,9 @@ static int tas5760_i2c_probe(struct i2c_client *client,
 	struct tas5760_private *priv;
 	struct device *dev = &client->dev;
 	int i = -1, ret;
-
+	struct device_node *np = client->dev.of_node;
+	struct device_node *gpr_np;
+	struct regmap *gpr;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -405,6 +401,26 @@ static int tas5760_i2c_probe(struct i2c_client *client,
 		return ret;
 	}
 
+    gpr_np = of_parse_phandle(np, "gpr", 0);
+	if (gpr_np) {
+		u32 para[4];
+
+		gpr = syscon_node_to_regmap(gpr_np);
+		if (IS_ERR(gpr)) {
+			ret = PTR_ERR(gpr);
+			dev_err(&client->dev, "Failed to get gpr regmap\n");
+			return ret;
+		}
+
+		ret = of_property_read_u32_array(np, "gpr", para, 4);
+		if(ret) {
+			dev_err(&client->dev, "Failed to get of_property_read_u32_array, ret %d\n", ret);
+			return ret;
+		}
+
+		regmap_update_bits(gpr, para[1], para[2], para[3]);
+	}
+
 	/* Identify the device */
 	ret = regmap_read(priv->regmap, TAS5760_DEVICE_ID, &i);
 	if (ret < 0)
@@ -413,28 +429,32 @@ static int tas5760_i2c_probe(struct i2c_client *client,
 	if (i == 0x00)
 		dev_dbg(dev, "Identified TAS5760 codec chip\n");
 	else {
-		dev_err(dev, "TAS5760 codec could not be identified");
+		dev_err(dev, "TAS5760 codec could not be identified\n");
 		return -ENODEV;
 	}
 
-	/* Get the spk_sd gpio */
-	priv->spk_sd_gpio = devm_gpiod_get(dev, "spk-sd");
-	if (!IS_ERR(priv->spk_sd_gpio)) {
-		/* Set the direction as output */
-		gpiod_direction_output(priv->spk_sd_gpio, 1);
-		/* Keep the speaker amplifier in shutdown */
-		gpiod_set_value(priv->spk_sd_gpio, 0);
-	} else {
+	priv->gpio_spk_sd = of_get_named_gpio(dev->of_node, "spk-sd", 0);
+	dev_info(dev, "gpio_spk_sd is %d\n", priv->gpio_spk_sd);
 
-		dev_warn(dev, "error requesting spk_sd_gpio: %ld\n",
-			 PTR_ERR(priv->spk_sd_gpio));
-		/* Use the SPK_SD bit to shutdown */
-		ret = regmap_update_bits(priv->regmap, TAS5760_POWER_CTRL,
-							TAS5760_SPK_SD_MASK,
-							0);
-		if (ret < 0)
+	if (gpio_is_valid(priv->gpio_spk_sd)) {
+		int ret;
+		ret = devm_gpio_request(dev, priv->gpio_spk_sd,
+					"tas5760 sd");
+		if (ret < 0) {
+			dev_err(dev, "TAS5760 codec could not request gpio %d\n", priv->gpio_spk_sd);
 			return ret;
+		}
+		dev_info(dev, "set gpio_spk_sd to 0\n");
+
+		/* Set the direction as output */
+		gpio_direction_output(priv->gpio_spk_sd, 1);
+		mdelay(1);
+
+		/* Keep the speaker amplifier in shutdown */
+		gpio_set_value(priv->gpio_spk_sd, 0);
+		mdelay(1);
 	}
+
 	return snd_soc_register_codec(&client->dev, &soc_codec_dev_tas5760,
 				      &tas5760_dai, 1);
 }
