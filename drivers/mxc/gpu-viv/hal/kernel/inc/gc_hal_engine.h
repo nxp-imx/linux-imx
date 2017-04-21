@@ -1310,6 +1310,15 @@ gco3D_SetAlphaReferenceF(
     IN gctFLOAT Reference
     );
 
+#if gcdALPHA_KILL_IN_SHADER
+gceSTATUS
+gco3D_SetAlphaKill(
+    IN gco3D Engine,
+    IN gctBOOL AlphaKill,
+    IN gctBOOL ColorKill
+    );
+#endif
+
 /* Enable/Disable anti-alias line. */
 gceSTATUS
 gco3D_SetAntiAliasLine(
