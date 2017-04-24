@@ -166,6 +166,13 @@ struct mxcfb_csc_matrix {
 	int param[5][3];
 };
 
+struct mxcfb_buffer {
+	unsigned long  phys; // represents dma buf.
+	int xoffset; // x offset
+	int yoffset; // y offset
+	int stride; // in bytes.
+};
+
 #define MXCFB_WAIT_FOR_VSYNC	_IOW('F', 0x20, u_int32_t)
 #define MXCFB_SET_GBL_ALPHA     _IOW('F', 0x21, struct mxcfb_gbl_alpha)
 #define MXCFB_SET_CLR_KEY       _IOW('F', 0x22, struct mxcfb_color_key)
@@ -195,4 +202,7 @@ struct mxcfb_csc_matrix {
 #define MXCFB_GET_WORK_BUFFER		_IOWR('F', 0x34, unsigned long)
 #define MXCFB_DISABLE_EPDC_ACCESS	_IO('F', 0x35)
 #define MXCFB_ENABLE_EPDC_ACCESS	_IO('F', 0x36)
+
+// update screen interface.
+#define MXCFB_UPDATE_SCREEN	_IOW('F', 0x100, struct mxcfb_buffer)
 #endif
