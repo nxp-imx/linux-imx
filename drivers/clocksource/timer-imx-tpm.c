@@ -1,5 +1,6 @@
 /*
  * Copyright 2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -81,12 +82,15 @@ static int __init tpm_clocksource_init(unsigned long rate)
 static int tpm_set_next_event(unsigned long delta,
 				struct clock_event_device *evt)
 {
-	unsigned long tmp;
+	unsigned long next, now, ret;
 
-	tmp = __raw_readl(timer_base + TPM_CNT) + delta;
-	__raw_writel(tmp, timer_base + TPM_C0V);
+	now = __raw_readl(timer_base + TPM_CNT);
+	next = now + delta;
+	__raw_writel(next, timer_base + TPM_C0V);
+	now = __raw_readl(timer_base + TPM_CNT);
 
-	return 0;
+	ret = next - now;
+	return (ret > delta) ? -ETIME : 0;
 }
 
 static int tpm_set_state_oneshot(struct clock_event_device *evt)
@@ -140,7 +144,7 @@ static int __init tpm_clockevent_init(unsigned long rate, int irq)
 	clockevent_tpm.cpumask = cpumask_of(0);
 	clockevent_tpm.irq = irq;
 	clockevents_config_and_register(&clockevent_tpm,
-		rate, 2, 0xfffffffe);
+		rate, 300, 0xfffffffe);
 
 	return 0;
 }
