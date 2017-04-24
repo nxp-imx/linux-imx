@@ -1237,7 +1237,7 @@ This define enables the use of VM for gckCommand and fence buffers.
 #endif
 
 #ifndef gcdENABLE_VG
-#   define gcdENABLE_VG                         0
+#   define gcdENABLE_VG                         1
 #endif
 
 #ifndef gcdVG_ONLY
