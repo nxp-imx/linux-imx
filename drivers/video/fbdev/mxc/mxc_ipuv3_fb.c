@@ -1800,6 +1800,87 @@ static int mxcfb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
 	return ret;
 }
 
+#ifdef CONFIG_ANDROID
+static int mxcfb_update_screen(struct fb_info *fb_info, struct mxcfb_buffer *buffer)
+{
+	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fb_info->par;
+	unsigned offset;
+
+	if (buffer->xoffset < 0 || buffer->yoffset < 0 || buffer->stride < 0) {
+		dev_err(fb_info->device, "get invalid buffer\n");
+		return -EINVAL;
+	}
+
+	// refer to pan_display: xoffset is not supported.
+	if (buffer->xoffset > 0) {
+		dev_err(fb_info->device, "x panning not supported\n");
+		return -EINVAL;
+	}
+
+	if (buffer->stride != fb_info->fix.line_length) {
+		dev_err(fb_info->device, "stride is not aligned to line_length\n");
+		return -EINVAL;
+	}
+
+	if (mxc_fbi->cur_blank != FB_BLANK_UNBLANK) {
+		dev_err(fb_info->device, "can't update screen when fb "
+			"is blank\n");
+		return -EINVAL;
+	}
+
+	// refer to pan_display.
+	offset = buffer->stride * buffer->yoffset;
+
+	++mxc_fbi->cur_ipu_buf;
+	mxc_fbi->cur_ipu_buf %= 3;
+	dev_dbg(fb_info->device, "Updating SDC %s buf %d address=0x%08lX\n",
+			fb_info->fix.id, mxc_fbi->cur_ipu_buf, buffer->phys + offset);
+	mxc_fbi->cur_ipu_alpha_buf = !mxc_fbi->cur_ipu_alpha_buf;
+
+	if (ipu_update_channel_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch, IPU_INPUT_BUFFER,
+				      mxc_fbi->cur_ipu_buf, buffer->phys + offset) == 0) {
+		/* update u/v offset */
+		ipu_update_channel_offset(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+					IPU_INPUT_BUFFER,
+					fbi_to_pixfmt(fb_info, true),
+					fb_info->var.xres,
+					fb_info->var.yres,
+					fb_info->var.xres,
+					0, 0,
+					buffer->yoffset,
+					buffer->xoffset);
+
+		ipu_select_buffer(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+					  IPU_INPUT_BUFFER, mxc_fbi->cur_ipu_buf);
+		ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+		ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+	} else {
+		dev_err(fb_info->device,
+			"Error updating SDC buf %d to address=0x%08lX, "
+			"current buf %d, buf0 ready %d, buf1 ready %d, "
+			"buf2 ready %d\n", mxc_fbi->cur_ipu_buf, buffer->phys + offset,
+			ipu_get_cur_buffer_idx(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+					       IPU_INPUT_BUFFER),
+			ipu_check_buffer_ready(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+					       IPU_INPUT_BUFFER, 0),
+			ipu_check_buffer_ready(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+					       IPU_INPUT_BUFFER, 1),
+			ipu_check_buffer_ready(mxc_fbi->ipu, mxc_fbi->ipu_ch,
+					       IPU_INPUT_BUFFER, 2));
+		++mxc_fbi->cur_ipu_buf;
+		mxc_fbi->cur_ipu_buf %= 3;
+		++mxc_fbi->cur_ipu_buf;
+		mxc_fbi->cur_ipu_buf %= 3;
+		mxc_fbi->cur_ipu_alpha_buf = !mxc_fbi->cur_ipu_alpha_buf;
+		ipu_clear_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+		ipu_enable_irq(mxc_fbi->ipu, mxc_fbi->ipu_ch_irq);
+		return -EBUSY;
+	}
+
+	return 0;
+}
+#endif
+
 /*
  * Function to handle custom ioctls for MXC framebuffer.
  *
@@ -1820,6 +1901,18 @@ static int mxcfb_ioctl(struct fb_info *fbi, unsigned int cmd, unsigned long arg)
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fbi->par;
 
 	switch (cmd) {
+#ifdef CONFIG_ANDROID
+	case MXCFB_UPDATE_SCREEN:
+		{
+			struct mxcfb_buffer buffer;
+			if (copy_from_user(&buffer, (void *)arg, sizeof(buffer))) {
+				retval = -EFAULT;
+				break;
+			}
+			retval = mxcfb_update_screen(fbi, &buffer);
+		}
+		break;
+#endif
 	case MXCFB_SET_GBL_ALPHA:
 		{
 			struct mxcfb_gbl_alpha ga;
