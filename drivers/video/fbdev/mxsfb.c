@@ -1022,6 +1022,47 @@ static int mxsfb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
 	return ret;
 }
 
+#ifdef CONFIG_ANDROID
+static int mxsfb_update_screen(struct mxsfb_info *host, struct mxcfb_buffer *buffer)
+{
+	struct fb_info *fb_info = host->fb_info;
+	unsigned offset;
+
+	if (buffer->xoffset < 0 || buffer->yoffset < 0 || buffer->stride < 0) {
+		dev_err(fb_info->device, "get invalid buffer\n");
+		return -EINVAL;
+	}
+
+	// refer to pan_display: xoffset is not supported.
+	if (buffer->xoffset > 0) {
+		dev_err(fb_info->device, "x panning not supported\n");
+		return -EINVAL;
+	}
+
+	if (buffer->stride != fb_info->fix.line_length) {
+		dev_err(fb_info->device, "stride is not aligned to line_length\n");
+		return -EINVAL;
+	}
+
+	if (host->cur_blank != FB_BLANK_UNBLANK) {
+		dev_err(fb_info->device, "can't update screen when fb "
+			"is blank\n");
+		return -EINVAL;
+	}
+
+	// refer to pan_display.
+	offset = buffer->stride * buffer->yoffset;
+
+	/* update on next VSYNC */
+	writel(buffer->phys + offset, host->base + host->devdata->next_buf);
+
+	writel(CTRL1_CUR_FRAME_DONE_IRQ_EN,
+		host->base + LCDC_CTRL1 + REG_SET);
+
+	return 0;
+}
+#endif
+
 static int mxsfb_wait_for_vsync(struct fb_info *fb_info)
 {
 	struct mxsfb_info *host = fb_info->par;
@@ -1057,6 +1098,19 @@ static int mxsfb_ioctl(struct fb_info *fb_info, unsigned int cmd,
 	int ret = -EINVAL;
 
 	switch (cmd) {
+#ifdef CONFIG_ANDROID
+	case MXCFB_UPDATE_SCREEN:
+		{
+			struct mxcfb_buffer buffer;
+			struct mxsfb_info *host = fb_info->par;
+			if (copy_from_user(&buffer, (void *)arg, sizeof(buffer))) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = mxsfb_update_screen(host, &buffer);
+		}
+		break;
+#endif
 	case MXCFB_WAIT_FOR_VSYNC:
 		{
 			long long timestamp;
