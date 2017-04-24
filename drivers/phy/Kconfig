@@ -490,4 +490,11 @@ config PHY_NS2_PCIE
 	help
 	  Enable this to support the Broadcom Northstar2 PCIe PHY.
 	  If unsure, say N.
+
+config PHY_MIXEL_LVDS
+	bool
+	depends on OF
+	select GENERIC_PHY
+	default ARCH_FSL_IMX8QM
+
 endmenu
