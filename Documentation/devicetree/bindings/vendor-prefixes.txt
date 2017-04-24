@@ -172,6 +172,7 @@ microcrystal	Micro Crystal AG
 micron	Micron Technology Inc.
 minix	MINIX Technology Ltd.
 mitsubishi	Mitsubishi Electric Corporation
+mixel	Mixel, Inc.
 mosaixtech	Mosaix Technologies, Inc.
 moxa	Moxa
 mpl	MPL AG
