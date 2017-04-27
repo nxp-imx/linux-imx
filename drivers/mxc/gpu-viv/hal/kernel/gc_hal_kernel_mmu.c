@@ -87,6 +87,16 @@ typedef struct _gcsMMU_STLB
     gcsMMU_STLB_PTR next;
 } gcsMMU_STLB;
 
+typedef struct _gcsMMU_STLB_ALLOC *gcsMMU_STLB_ALLOC_PTR;
+
+typedef struct _gcsMMU_STLB_ALLOC
+{
+    gctPHYS_ADDR    physical;
+    gctUINT32_PTR   logical;
+    gctSIZE_T       size;
+    gcsMMU_STLB_ALLOC_PTR next;
+} gcsMMU_STLB_ALLOC;
+
 #if gcdSHARED_PAGETABLE
 typedef struct _gcsSharedPageTable * gcsSharedPageTable_PTR;
 typedef struct _gcsSharedPageTable
@@ -591,6 +601,14 @@ _FillFlatMapping(
     gctUINT32 sEnd = (end & gcdMMU_STLB_64K_MASK) >> gcdMMU_STLB_64K_SHIFT;
     gctPHYS_ADDR_T physical;
     gctUINT32 size;
+    gctUINT32 mtlbEntries = 0;
+    gctUINT32 mtlbCountStart = mStart;
+    gctUINT32 stlbCount = 0;
+    gctSIZE_T stlbTotalSize = 0;
+    gctPHYS_ADDR stlbPhysical = gcvNULL;
+    gctUINT32_PTR stlbLogical = gcvNULL;
+    gcsMMU_STLB_ALLOC_PTR stlbAlloc = gcvNULL;
+
 
     gctUINT32 mtlb = _MtlbOffset(PhysBase);
     gcsADDRESS_AREA_PTR area = &Mmu->area[0];
@@ -623,10 +641,48 @@ _FillFlatMapping(
     }
 
     /************************ Setup flat mapping in non dynamic range. **************/
-
     /* Grab the mutex. */
     gcmkONERROR(gckOS_AcquireMutex(Mmu->os, Mmu->pageTableMutex, gcvINFINITE));
     mutex = gcvTRUE;
+
+    /* Calculate How many STLB should we allocate: depending on
+    * number of non-valid mtlb entries for the requested
+    * adress range */
+    while (mtlbCountStart <= mEnd) {
+        gcmkASSERT(mtlbCountStart < gcdMMU_MTLB_ENTRY_NUM);
+
+        /*If the mtlb exists , the stlb already exists and it
+        * will be overwritten anyway: Allocate only when non-valid
+        * mtlb entry */
+        if (*(Mmu->mtlbLogical + mtlbCountStart) == 0)
+        {
+            mtlbEntries++;
+        }
+         ++mtlbCountStart;
+    }
+
+    if(mtlbEntries)
+    {
+        /*First Allocate the staticStlbAlloc stuct to track this allocation*/
+        gctPOINTER stlbAllocPtr = gcvNULL;
+        gcmkONERROR(gckOS_Allocate(Mmu->os, sizeof(struct _gcsMMU_STLB_ALLOC), &stlbAllocPtr));
+        stlbAlloc = stlbAllocPtr;
+        stlbTotalSize = gcdMMU_STLB_64K_SIZE * mtlbEntries;
+
+        /*Allocate all STLBs in one contiguous chunk*/
+        gcmkONERROR(
+                gckOS_AllocateContiguous(Mmu->os,
+                                             gcvFALSE,
+                                             &stlbTotalSize,
+                                             &stlbPhysical,
+                                             (gctPOINTER)&stlbLogical));
+
+        /*Save the allocation*/
+        stlbAlloc->physical = stlbPhysical;
+        stlbAlloc->logical = stlbLogical;
+        stlbAlloc->size = stlbTotalSize;
+        stlbAlloc->next = gcvNULL;
+    }
 
     while (mStart <= mEnd)
     {
@@ -650,6 +706,11 @@ _FillFlatMapping(
             stlb->size = gcdMMU_STLB_64K_SIZE;
             stlb->pageCount = 0;
 
+            gcmkASSERT(stlbLogical);
+
+            stlb->logical = stlbLogical + stlb->size * stlbCount;
+            stlb->physical = stlbPhysical + stlb->size * stlbCount;
+
             if (pre == gcvNULL)
             {
                 pre = head = stlb;
@@ -660,15 +721,6 @@ _FillFlatMapping(
                 pre->next = stlb;
                 pre = stlb;
             }
-
-            gcmkONERROR(
-                    gckOS_AllocateContiguous(Mmu->os,
-                                             gcvFALSE,
-                                             &stlb->size,
-                                             &stlb->physical,
-                                             (gctPOINTER)&stlb->logical));
-
-            gcmkONERROR(gckOS_ZeroMemory(stlb->logical, stlb->size));
 
             gcmkONERROR(gckOS_GetPhysicalAddress(
                 Mmu->os,
@@ -710,7 +762,8 @@ _FillFlatMapping(
                     stlb->physBase);
 #endif
 
-
+            /*Increment STLB allocs count*/
+            ++stlbCount;
         }
         else
         {
@@ -767,6 +820,21 @@ _FillFlatMapping(
         }
     }
 
+    if(stlbAlloc)
+    {
+        /*Insert the stlb Allocation*/
+        if (Mmu->staticStlbAllocs == gcvNULL)
+        {
+            Mmu->staticStlbAllocs = stlbAlloc;
+        }
+        else
+        {
+            gcmkASSERT(stlbAlloc->next == gcvNULL);
+            stlbAlloc->next = Mmu->staticStlbAllocs;
+            Mmu->staticStlbAllocs = stlbAlloc;
+        }
+    }
+
     /* Release the mutex. */
     gcmkVERIFY_OK(gckOS_ReleaseMutex(Mmu->os, Mmu->pageTableMutex));
 
@@ -787,15 +855,6 @@ OnError:
         pre = head;
         head = head->next;
 
-        if (pre->physical != gcvNULL)
-        {
-            gcmkVERIFY_OK(
-                gckOS_FreeContiguous(Mmu->os,
-                    pre->physical,
-                    pre->logical,
-                    pre->size));
-        }
-
         if (pre->mtlbEntryNum != 0)
         {
             gcmkASSERT(pre->mtlbEntryNum == 1);
@@ -803,6 +862,21 @@ OnError:
         }
 
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, pre));
+    }
+
+    /*Free the STLBs in one shot*/
+    if(stlbAlloc)
+    {
+        if(stlbLogical)
+        {
+            gcmkVERIFY_OK(
+                gckOS_FreeContiguous(Mmu->os,
+                    stlbPhysical,
+                    stlbLogical,
+                    stlbTotalSize));
+        }
+
+        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, stlbAlloc));
     }
 
     if (mutex)
@@ -1171,6 +1245,7 @@ _Construct(
     mmu->pageTableMutex   = gcvNULL;
     mmu->mtlbLogical      = gcvNULL;
     mmu->staticSTLB       = gcvNULL;
+    mmu->staticStlbAllocs = gcvNULL;
     mmu->enabled          = gcvFALSE;
     gcsLIST_Init(&mmu->hardwareList);
 
@@ -1415,15 +1490,6 @@ _Destroy(
         gcsMMU_STLB_PTR pre = Mmu->staticSTLB;
         Mmu->staticSTLB = pre->next;
 
-        if (pre->physical != gcvNULL)
-        {
-            gcmkVERIFY_OK(
-                gckOS_FreeContiguous(Mmu->os,
-                    pre->physical,
-                    pre->logical,
-                    pre->size));
-        }
-
         if (pre->mtlbEntryNum != 0)
         {
             gcmkASSERT(pre->mtlbEntryNum == 1);
@@ -1436,6 +1502,22 @@ _Destroy(
         }
 
         gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, pre));
+    }
+    /*Walk through all the static STLB allocations and free them*/
+    while (Mmu->staticStlbAllocs != gcvNULL)
+    {
+        gcsMMU_STLB_ALLOC_PTR stlbAlloc = Mmu->staticStlbAllocs;
+        Mmu->staticStlbAllocs = stlbAlloc->next;
+
+        if(stlbAlloc->logical != gcvNULL)
+        {
+            gcmkVERIFY_OK(
+                gckOS_FreeContiguous(Mmu->os,
+                    stlbAlloc->physical,
+                    stlbAlloc->logical,
+                    stlbAlloc->size));
+        }
+        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Mmu->os, stlbAlloc));
     }
 
     if (Mmu->hardware->mmuVersion != 0)

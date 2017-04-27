@@ -1334,6 +1334,8 @@ struct _gckMMU
     gctUINT32                   mtlbEntries;
 
     gctPOINTER                  staticSTLB;
+    /*Track all static STLB allocations */
+    gctPOINTER			staticStlbAllocs;
     gctBOOL                     enabled;
 
 #if gcdPROCESS_ADDRESS_SPACE
