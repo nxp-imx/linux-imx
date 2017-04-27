@@ -502,7 +502,6 @@ static const struct file_operations default_fops = {
 /***************************************************************************\
 ************************ Default Allocator **********************************
 \***************************************************************************/
-#define C_MAX_PAGENUM  (50*1024)
 static gceSTATUS
 _DefaultAlloc(
     IN gckALLOCATOR Allocator,
@@ -514,7 +513,7 @@ _DefaultAlloc(
     gceSTATUS status;
     gctUINT i;
     gctBOOL contiguous = Flags & gcvALLOC_FLAG_CONTIGUOUS;
-#ifdef CONFIG_GPU_LOW_MEMORY_KILLER
+#ifdef gcdSYS_FREE_MEMORY_LIMIT
     struct sysinfo temsysinfo;
 #endif
 
@@ -523,12 +522,12 @@ _DefaultAlloc(
 
     gcmkHEADER_ARG("Mdl=%p NumPages=%zu Flags=0x%x", Mdl, NumPages, Flags);
 
-#ifdef CONFIG_GPU_LOW_MEMORY_KILLER
+#ifdef gcdSYS_FREE_MEMORY_LIMIT
     si_meminfo(&temsysinfo);
 
     if (Flags & gcvALLOC_FLAG_MEMLIMIT)
     {
-        if ( (temsysinfo.freeram < NumPages) || ((temsysinfo.freeram-NumPages) < C_MAX_PAGENUM) )
+        if ( (temsysinfo.freeram < NumPages) || ((temsysinfo.freeram-NumPages) < gcdSYS_FREE_MEMORY_LIMIT) )
         {
             gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
         }

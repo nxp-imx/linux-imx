@@ -10765,12 +10765,18 @@ gckHARDWARE_UpdateContextNewProfile(
     gctUINT32 totalRead, totalWrite;
     gctUINT32 mc_axi_max_min_latency;
     gctUINT32 temp;
+    gckCOMMAND command = Hardware->kernel->command;
 
     gcmkHEADER_ARG("Hardware=0x%x Context=0x%x", Hardware, Context);
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
     gcmkVERIFY_OBJECT(Context, gcvOBJ_CONTEXT);
+
+    /* Acquire the context sequnence mutex. */
+    gcmkONERROR(gckOS_AcquireMutex(
+        command->os, command->mutexContextSeq, gcvINFINITE
+        ));
 
     chipModel = Hardware->identity.chipModel;
     chipRevision = Hardware->identity.chipRevision;
@@ -11932,11 +11938,20 @@ gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os, Hardware->core, 0x00478,   ((((g
     gcmkUPDATE_PROFILE_DATA_PART2(l2_axi1_total_latency);
     gcmkUPDATE_PROFILE_DATA_PART2(l2_axi1_total_request_count);
 
+    gcmkVERIFY_OK(gckOS_ReleaseMutex(
+        command->os, command->mutexContextSeq
+        ));
+
     /* Success. */
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
+
+    gckOS_ReleaseMutex(
+        command->os, command->mutexContextSeq
+        );
+
     /* Return the status. */
     gcmkFOOTER();
     return status;

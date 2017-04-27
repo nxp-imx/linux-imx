@@ -266,9 +266,9 @@ typedef struct _gcsSIGNAL
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
     /* Parent timeline. */
     struct sync_timeline * timeline;
-#else
+#  else
     struct fence *fence;
-#endif
+#  endif
 #endif
 }
 gcsSIGNAL;

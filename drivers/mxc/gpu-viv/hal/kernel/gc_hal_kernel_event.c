@@ -2777,20 +2777,6 @@ gckEVENT_Notify(
 #endif
 
             case gcvHAL_COMMIT_DONE:
-                if (kernel->hardware->gpuProfiler == gcvTRUE
-                  && kernel->profileEnable == gcvTRUE
-                  && kernel->profileSyncMode == gcvTRUE
-                )
-                {
-                    /*gckHARDWARE_UpdateContextProfile(
-                        kernel->hardware,
-                        gcmUINT64_TO_PTR(record->info.u.CommitDone.context)
-                        );*/
-                    gckHARDWARE_UpdateContextNewProfile(
-                        kernel->hardware,
-                        gcmUINT64_TO_PTR(record->info.u.CommitDone.context)
-                        );
-                }
                 break;
 
             default:

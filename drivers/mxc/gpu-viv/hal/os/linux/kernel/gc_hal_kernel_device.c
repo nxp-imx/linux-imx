@@ -907,8 +907,6 @@ _SetupVidMem(
         }
     }
 
-    printk("  requested contiguousBase = 0x%08X\n", device->requestedContiguousBase);
-
     return gcvSTATUS_OK;
 OnError:
     return status;

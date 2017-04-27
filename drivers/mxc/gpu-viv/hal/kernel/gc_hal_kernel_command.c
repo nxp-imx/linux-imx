@@ -2553,6 +2553,19 @@ gckCOMMAND_Commit(
     gcmkONERROR(gckCOMMAND_ExitCommit(Command, gcvFALSE));
     commitEntered = gcvFALSE;
 
+    if  ((Command->kernel->hardware->gpuProfiler == gcvTRUE) &&
+         (Command->kernel->profileEnable == gcvTRUE) &&
+         (Command->kernel->profileSyncMode == gcvTRUE))
+    {
+        gcmkONERROR(gckCOMMAND_Stall(Command, gcvTRUE));
+
+        if (Command->currContext)
+        {
+            gcmkONERROR(gckHARDWARE_UpdateContextNewProfile(
+                        hardware,
+                        Command->currContext));
+        }
+    }
 
     /* Loop while there are records in the queue. */
     while (EventQueue != gcvNULL)
@@ -2599,11 +2612,8 @@ gckCOMMAND_Commit(
         EventQueue = nextEventRecord;
     }
 
-    if ((Command->kernel->eventObj->queueHead == gcvNULL
+    if (Command->kernel->eventObj->queueHead == gcvNULL
       && Command->kernel->hardware->powerManagement == gcvTRUE)
-    || (Command->kernel->hardware->gpuProfiler == gcvTRUE
-      && Command->kernel->profileEnable == gcvTRUE)
-    )
     {
         /* Commit done event by which work thread knows all jobs done. */
         gcmkVERIFY_OK(
