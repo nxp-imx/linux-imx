@@ -550,7 +550,6 @@ struct fec_enet_private {
 	struct device_node *phy_node;
 	int	link;
 	bool	fixed_link;
-	bool	require_init;
 	int	full_duplex;
 	int	speed;
 	struct	completion mdio_done;

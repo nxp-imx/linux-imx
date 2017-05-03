@@ -1774,13 +1774,11 @@ static void fec_enet_adjust_link(struct net_device *ndev)
 
 		if (fep->full_duplex != phy_dev->duplex) {
 			fep->full_duplex = phy_dev->duplex;
-			fep->require_init = true;
 			status_change = 1;
 		}
 
 		if (phy_dev->speed != fep->speed) {
 			fep->speed = phy_dev->speed;
-			fep->require_init = true;
 			status_change = 1;
 		}
 
@@ -1788,9 +1786,7 @@ static void fec_enet_adjust_link(struct net_device *ndev)
 		if (status_change) {
 			napi_disable(&fep->napi);
 			netif_tx_lock_bh(ndev);
-			/* avoid to re-init MAC after resume back */
-			if (fep->require_init)
-				fec_restart(ndev);
+			fec_restart(ndev);
 			netif_wake_queue(ndev);
 			netif_tx_unlock_bh(ndev);
 			napi_enable(&fep->napi);
@@ -3809,7 +3805,6 @@ static int __maybe_unused fec_resume(struct device *dev)
 			pinctrl_pm_select_default_state(&fep->pdev->dev);
 		}
 		fec_restart(ndev);
-		fep->require_init = false;
 		netif_tx_lock_bh(ndev);
 		netif_device_attach(ndev);
 		netif_tx_unlock_bh(ndev);
