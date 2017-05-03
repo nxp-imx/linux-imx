@@ -708,8 +708,8 @@ _FillFlatMapping(
 
             gcmkASSERT(stlbLogical);
 
-            stlb->logical = stlbLogical + stlb->size * stlbCount;
-            stlb->physical = stlbPhysical + stlb->size * stlbCount;
+            stlb->logical = (gctUINT32_PTR)(((gctPOINTER)stlbLogical) + stlb->size * stlbCount);
+            stlb->physical = (gctPHYS_ADDR)(((gctPOINTER)stlbPhysical) + stlb->size * stlbCount);
 
             if (pre == gcvNULL)
             {
