@@ -106,9 +106,9 @@ endif
 # m: module type driver
 # y: built-in type driver
 ##########################
-DRIVER_TYPE ?= y
+#DRIVER_TYPE ?= y
 
-ifeq ($(DRIVER_TYPE), y)
+ifeq ($(CONFIG_BCMDHD_SDIO), y)
   DHDCFLAGS += -DENABLE_INSMOD_NO_FW_LOAD
 else
   DHDCFLAGS += -DNO_SDIO_RESET
@@ -214,7 +214,7 @@ ifneq ($(CONFIG_BCMDHD_PCIE),)
 endif
 
 bcmdhd-objs := $(DHDOFILES)
-obj-$(DRIVER_TYPE)   += bcmdhd.o
+obj-$(CONFIG_BCMDHD_SDIO)   += bcmdhd.o
 
 all:
 	@echo "$(MAKE) --no-print-directory -C $(KDIR) SUBDIRS=$(CURDIR) modules"
