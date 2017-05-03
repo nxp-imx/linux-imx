@@ -2918,9 +2918,12 @@ fec_enet_open(struct net_device *ndev)
 		return ret;
 
 	pinctrl_pm_select_default_state(&fep->pdev->dev);
-	ret = fec_enet_clk_enable(ndev, true);
-	if (ret)
-		goto clk_enable;
+	if (!(fep->mii_bus_share && fep->mii_bus_active)) {
+		fep->mii_bus_active = true;;
+		ret = fec_enet_clk_enable(ndev, true);
+		if (ret)
+			goto clk_enable;
+	}
 
 	/* I should reset the ring buffers here, but I don't yet know
 	 * a simple way to do that.
@@ -2968,10 +2971,11 @@ err_enet_alloc:
 	if (!fep->mii_bus_share)
 		fec_enet_clk_enable(ndev, false);
 clk_enable:
-	pm_runtime_mark_last_busy(&fep->pdev->dev);
-	pm_runtime_put_autosuspend(&fep->pdev->dev);
-	if (!fep->mii_bus_share)
+	if (!fep->mii_bus_share) {
+		pm_runtime_mark_last_busy(&fep->pdev->dev);
+		pm_runtime_put_autosuspend(&fep->pdev->dev);
 		pinctrl_pm_select_sleep_state(&fep->pdev->dev);
+	}
 	return ret;
 }
 
@@ -2996,7 +3000,10 @@ fec_enet_close(struct net_device *ndev)
 
 	fec_enet_update_ethtool_stats(ndev);
 
-	fec_enet_clk_enable(ndev, false);
+	if (!fep->mii_bus_share) {
+		fec_enet_clk_enable(ndev, false);
+		fep->mii_bus_active = false;
+	}
 	pm_qos_remove_request(&fep->pm_qos_req);
 	pinctrl_pm_select_sleep_state(&fep->pdev->dev);
 	pm_runtime_mark_last_busy(&fep->pdev->dev);
