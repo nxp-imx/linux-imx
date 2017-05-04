@@ -634,17 +634,25 @@ static void imx6_pcie_init_phy(struct imx6_pcie *imx6_pcie)
 
 static int imx6_pcie_wait_for_link(struct imx6_pcie *imx6_pcie)
 {
+	int count = 20000;
 	struct pcie_port *pp = &imx6_pcie->pp;
 	struct device *dev = pp->dev;
 
 	/* check if the link is up or not */
-	if (!dw_pcie_wait_for_link(pp))
-		return 0;
 
-	dev_dbg(dev, "DEBUG_R0: 0x%08x, DEBUG_R1: 0x%08x\n",
-		dw_pcie_readl_rc(pp, PCIE_PHY_DEBUG_R0),
-		dw_pcie_readl_rc(pp, PCIE_PHY_DEBUG_R1));
-	return -ETIMEDOUT;
+	while (!dw_pcie_link_up(pp)) {
+		udelay(10);
+		if (--count)
+			continue;
+
+		dev_err(pp->dev, "phy link never came up\n");
+		dev_dbg(dev, "DEBUG_R0: 0x%08x, DEBUG_R1: 0x%08x\n",
+			dw_pcie_readl_rc(pp, PCIE_PHY_DEBUG_R0),
+			dw_pcie_readl_rc(pp, PCIE_PHY_DEBUG_R1));
+		return -ETIMEDOUT;
+	}
+
+	return 0;
 }
 
 static int imx6_pcie_wait_for_speed_change(struct imx6_pcie *imx6_pcie)
@@ -1410,6 +1418,7 @@ static int __init imx6_pcie_probe(struct platform_device *pdev)
 		}
 
 		pp->mem_base = pp->mem->start;
+		pp->ops = &imx6_pcie_host_ops;
 
 		/* enable disp_mix power domain */
 		if (imx6_pcie->variant == IMX7D)
