@@ -78,7 +78,7 @@
 };
 
 / {
-	model = "Freescale i.MX7 SabreSD Board";
+	model = "Freescale i.MX7D SabreSD Board";
 	compatible = "fsl,imx7d-sdb", "fsl,imx7d";
 
 	chosen {
