@@ -545,7 +545,6 @@ struct fec_enet_private {
 	int	mii_timeout;
 	int	mii_bus_share;
 	bool	miibus_up_failed;
-	bool	mii_bus_active;
 	uint	phy_speed;
 	phy_interface_t	phy_interface;
 	struct device_node *phy_node;
