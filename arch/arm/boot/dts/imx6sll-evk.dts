@@ -93,7 +93,7 @@
 			compatible = "regulator-fixed";
 			reg = <4>;
 			regulator-name = "lcd-pwr";
-			gpio = <&gpio4 8 0>;
+			gpio = <&gpio4 3 0>;
 			enable-active-high;
 		};
 
@@ -486,7 +486,7 @@
 				MX6SLL_PAD_LCD_HSYNC__LCD_HSYNC		0x79
 				MX6SLL_PAD_LCD_VSYNC__LCD_VSYNC		0x79
 				MX6SLL_PAD_LCD_RESET__LCD_RESET		0x79
-				MX6SLL_PAD_ECSPI1_SCLK__GPIO4_IO08	0x79
+				MX6SLL_PAD_KEY_ROW5__GPIO4_IO03		0x80000000
 			>;
 		};
 
