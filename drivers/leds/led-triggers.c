@@ -108,13 +108,10 @@ void led_trigger_set(struct led_classdev *led_cdev, struct led_trigger *trig)
 	unsigned long flags;
 	char *event = NULL;
 	char *envp[2];
-	const char *name;
 
 	if (!led_cdev->trigger && !trig)
 		return;
 
-	name = trig ? trig->name : "none";
-	event = kasprintf(GFP_KERNEL, "TRIGGER=%s", name);
 
 	/* Remove any existing trigger */
 	if (led_cdev->trigger) {
@@ -138,6 +135,10 @@ void led_trigger_set(struct led_classdev *led_cdev, struct led_trigger *trig)
 			trig->activate(led_cdev);
 	}
 
+	if (NULL != trig)
+		event = kasprintf(GFP_KERNEL, "TRIGGER=%s", trig->name);
+	else
+		return;
 	if (event) {
 		envp[0] = event;
 		envp[1] = NULL;
