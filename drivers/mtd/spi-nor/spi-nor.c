@@ -163,7 +163,6 @@ static inline int spi_nor_read_dummy_cycles(struct spi_nor *nor)
 		*/
 		if (!of_property_read_u32(np, "spi-nor,ddr-quad-read-dummy",
 					 &dummy))
-			pr_err("DUMMY CYCLE : %d !!!\n", dummy);
 			return dummy;
 	}
 	case SPI_NOR_FAST:
@@ -219,6 +218,7 @@ static inline int set_4byte(struct spi_nor *nor, const struct flash_info *info,
 
 	switch (JEDEC_MFR(info)) {
 	case SNOR_MFR_MICRON:
+	case SNOR_MFR_MICRONO:
 		/* Some Micron need WREN command; all will accept it */
 		need_wren = true;
 	case SNOR_MFR_MACRONIX:
@@ -1316,6 +1316,7 @@ static int set_ddr_quad_mode(struct spi_nor *nor, const struct flash_info *info)
 		}
 		return status;
 	case CFI_MFR_ST: /* Micron, actually */
+	case CFI_MFR_MICRON: /* Original Micron */
 		/* DTR quad read works with the Extended SPI protocol. */
 		return 0;
 	default:
@@ -1336,6 +1337,7 @@ static int set_quad_mode(struct spi_nor *nor, const struct flash_info *info)
 		}
 		return status;
 	case SNOR_MFR_MICRON:
+	case SNOR_MFR_MICRONO:
 		return 0;
 	default:
 		status = spansion_quad_enable(nor);
@@ -1430,7 +1432,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	mtd->_read = spi_nor_read;
 
 	/* NOR protection support for STmicro/Micron chips and similar */
-	if (JEDEC_MFR(info) == SNOR_MFR_MICRON ||
+	if (JEDEC_MFR(info) == SNOR_MFR_MICRON || SNOR_MFR_MICRONO ||
 			info->flags & SPI_NOR_HAS_LOCK) {
 		nor->flash_lock = stm_lock;
 		nor->flash_unlock = stm_unlock;
@@ -1522,6 +1524,8 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 		if (JEDEC_MFR(info) == CFI_MFR_AMD) { /* Spansion */
 			nor->read_opcode = SPINOR_OP_READ_1_4_4_D;
 		} else if (JEDEC_MFR(info) == CFI_MFR_ST) {
+			nor->read_opcode = SPINOR_OP_READ_1_1_4_D;
+		} else if (JEDEC_MFR(info) == CFI_MFR_MICRON) {
 			nor->read_opcode = SPINOR_OP_READ_1_1_4_D;
 		} else if (JEDEC_MFR(info) == CFI_MFR_MACRONIX) {
 			nor->read_opcode = SPINOR_OP_READ_1_4_4_D;
