@@ -9,12 +9,19 @@
 
 #include "imx6sl-evk.dts"
 
-&cpu0 {
-	arm-supply = <&reg_arm>;
-	soc-supply = <&reg_soc>;
-};
-
 &gpc {
 	/* use ldo-enable, u-boot will check it and configure */
 	fsl,ldo-bypass = <0>;
+};
+
+&reg_arm {
+	/delete-property/ vin-supply;
+};
+
+&reg_pu {
+	/delete-property/ vin-supply;
+};
+
+&reg_soc {
+	/delete-property/ vin-supply;
 };
