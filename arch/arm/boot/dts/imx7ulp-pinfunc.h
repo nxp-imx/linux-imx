@@ -1,5 +1,6 @@
 /*
- * Copyright 2014 - 2015 Freescale Semiconductor, Inc.
+ * Copyright 2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -12,15 +13,7 @@
 
 /*
  * The pin function ID is a tuple of
- * <mux_conf_reg mux2_reg mux_mode mux2_val>
- *
- * !!! IMPORTANT NOTE !!!
- *
- * There's common mux_reg & conf_reg register for each pad on ULP1 device, so the first
- * two values are defined as same value. Extra non-zero mux2_reg value within the tuple
- * means that there's additional mux2 control register that must be configured to
- * mux2_val accordingly to fetch desired pin functionality on ULP1 device.
- *
+ * <mux_conf_reg input_reg mux_mode input_val>
  */
 
 #define ULP1_PAD_PTA0_LLWU0_P0__CMP0_IN2A                         0x0000 0x0000 0x0 0x0

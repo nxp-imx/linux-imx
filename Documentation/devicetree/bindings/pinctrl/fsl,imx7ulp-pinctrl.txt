@@ -1,0 +1,33 @@
+* Freescale i.MX7ULP IOMUX Controller
+
+Please refer to fsl,imx-pinctrl.txt in this directory for common binding part
+and usage.
+
+Required properties:
+- compatible: "fsl,imx7ulp-iomuxc-0" or "fsl,imx7ulp-iomuxc-1"
+- fsl,pins: two integers array, represents a group of pins mux and config
+  setting. The format is fsl,pins = <PIN_FUNC_ID CONFIG>, PIN_FUNC_ID is a
+  pin working on a specific function, CONFIG is the pad setting value like
+  pull-up for this pin. Please refer to imx7ulp datasheet for the valid pad
+  config settings.
+
+NOTE: i.MX7ULP PIN_FUNC_ID consists of 4 integers as it shares one mux and
+config register as follows:
+<mux_conf_reg input_reg mux_mode input_val>
+
+CONFIG bits definition:
+PAD_CTL_OBE			(1 << 17)
+PAD_CTL_IBE			(1 << 16)
+PAD_CTL_LK			(1 << 15)
+PAD_CTL_DSE_HIGH		(1 << 6)
+PAD_CTL_DSE_STD			(0 << 6)
+PAD_CTL_ODE_OPEN_DRAIN		(1 << 5)
+PAD_CTL_ODE_PUSH_PULL		(0 << 5)
+PAD_CTL_SRE_SLOW		(1 << 2)
+PAD_CTL_SRE_STD			(0 << 2)
+PAD_CTL_PE_PULL			(1 << 1)
+PAD_CTL_PS_UP			(1 << 0)
+PAD_CTL_PS_DOWN			(0 << 0)
+
+Refer to imx7ulp-pinfunc.h in device tree source folder for all available
+imx7ulp PIN_FUNC_ID.
