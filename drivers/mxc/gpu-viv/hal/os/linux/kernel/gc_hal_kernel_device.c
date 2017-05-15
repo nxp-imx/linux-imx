@@ -833,6 +833,7 @@ _SetupVidMem(
 
                     if (gcmIS_SUCCESS(status))
                     {
+                        device->contiguousRequested = gcvTRUE;
                         device->requestedContiguousBase = physAddr;
                         break;
                     }
