@@ -4669,12 +4669,12 @@ gckOS_CacheInvalidate(
 #if defined (CONFIG_ARM)
     /* Inner cache. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35)
-    dmac_map_area(Logical, Bytes, DMA_FROM_DEVICE);
+    dmac_unmap_area(Logical, Bytes, DMA_FROM_DEVICE);
 #      else
     dmac_inv_range(Logical, Logical + Bytes);
 #      endif
 #elif defined(CONFIG_ARM64)
-    __dma_map_area(Logical, Bytes, DMA_FROM_DEVICE);
+    __dma_unmap_area(Logical, Bytes, DMA_FROM_DEVICE);
 #endif
 
 #if defined(CONFIG_OUTER_CACHE)
