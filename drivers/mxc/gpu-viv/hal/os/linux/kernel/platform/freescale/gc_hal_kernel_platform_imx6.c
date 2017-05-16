@@ -523,6 +523,9 @@ gckPLATFORM_AdjustParam(
         if(core_node) {
             of_node_put(core_node);
         }
+#if defined(IMX8_SCU_CONTROL)
+        Args->powerManagement = 0;
+#endif
     }
     else
 #endif
