@@ -25,7 +25,6 @@
 
 #ifndef __KERNEL__
 typedef unsigned long dma_addr_t;
-typedef unsigned char bool;
 #endif
 
 /*  PXP Pixel format definitions */
@@ -223,15 +222,15 @@ struct pxp_layer_param {
 	 * (these are ignored for S0 and output
 	 * layers, and only apply for OL layer)
 	 */
-	bool combine_enable;
+	unsigned char combine_enable;
 	unsigned int color_key_enable;
 	unsigned int color_key;
-	bool global_alpha_enable;
+	unsigned char global_alpha_enable;
 	/* global alpha is either override or multiply */
-	bool global_override;
+	unsigned char global_override;
 	unsigned char global_alpha;
-	bool alpha_invert;
-	bool local_alpha_enable;
+	unsigned char alpha_invert;
+	unsigned char local_alpha_enable;
 	int comp_mask;
 
 	struct pxp_alpha alpha;
@@ -279,8 +278,8 @@ struct pxp_proc_data {
 	/* LUT transformation on Y data */
 	int lut_transform;
 	unsigned char *lut_map; /* 256 entries */
-	bool lut_map_updated; /* Map recently changed */
-	bool combine_enable;
+	unsigned char lut_map_updated; /* Map recently changed */
+	unsigned char combine_enable;
 
 	enum pxp_op_type op_type;
 
@@ -309,15 +308,15 @@ struct pxp_proc_data {
  *         valid value 0-63
  *         set to the lut used for next update
  */
-	bool partial_update;
-	bool alpha_en;
-	bool lut_update;
-	bool reagl_en;		/* enable reagl/-d */
-	bool reagl_d_en;	/* enable reagl or reagl-d */
-	bool detection_only;
-	bool pxp_legacy;
+	unsigned char partial_update;
+	unsigned char alpha_en;
+	unsigned char lut_update;
+	unsigned char reagl_en;		/* enable reagl/-d */
+	unsigned char reagl_d_en;	/* enable reagl or reagl-d */
+	unsigned char detection_only;
+	unsigned char pxp_legacy;
 	int lut;
-	bool lut_cleanup;
+	unsigned char lut_cleanup;
 	unsigned int lut_status_1;
 	unsigned int lut_status_2;
 
