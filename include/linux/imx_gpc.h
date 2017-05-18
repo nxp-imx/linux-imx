@@ -21,5 +21,13 @@
 #ifndef __LINUX_IMX_GPC_H__
 #define __LINUX_IMX_GPC_H__
 
+#ifdef CONFIG_HAVE_IMX_GPC
 int imx_gpc_mf_request_on(unsigned int irq, unsigned int on);
+#else
+static int imx_gpc_mf_request_on(unsigned int irq, unsigned int on)
+{
+	return 0;
+}
+#endif
+
 #endif /* __LINUX_IMX_GPC_H__ */
