@@ -33,6 +33,7 @@
 		serial1 = &lpuart1;
 		mmc0 = &usdhc1;
 		mmc1 = &usdhc2;
+		mmc2 = &usdhc3;
 		ethernet1 = &fec1;
 		ethernet2 = &fec2;
 		usbphy0 = &usbphy1;
