@@ -179,10 +179,16 @@ static int micjack_status_check(void *data)
 	if (mic_status != priv->mic_active_low) {
 		snprintf(buf, 32, "STATE=%d", 2);
 		snd_soc_dapm_disable_pin(snd_soc_codec_get_dapm(priv->codec), "DMIC");
+#ifdef CONFIG_EXTCON
+		extcon_set_state_sync(edev, EXTCON_JACK_MICROPHONE, 1);
+#endif
 		ret = imx_mic_jack_gpio.report;
 	} else {
 		snprintf(buf, 32, "STATE=%d", 0);
 		snd_soc_dapm_enable_pin(snd_soc_codec_get_dapm(priv->codec), "DMIC");
+#ifdef CONFIG_EXTCON
+		extcon_set_state_sync(edev, EXTCON_JACK_MICROPHONE, 0);
+#endif
 		ret = 0;
 	}
 
