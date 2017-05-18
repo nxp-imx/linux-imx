@@ -147,8 +147,8 @@ static int imx_dt_node_to_map(struct pinctrl_dev *pctldev,
 			new_map[j].data.configs.group_or_pin =
 					pin_get_name(pctldev, grp->pins[i].pin);
 			new_map[j].data.configs.configs =
-				(unsigned long *)&grp->pins[i].pin_conf.pin_scu.all;
-			new_map[j].data.configs.num_configs = 1;
+				(unsigned long *)&grp->pins[i].pin_conf.pin_scu.mux;
+			new_map[j].data.configs.num_configs = 2;
 			j++;
 		} else if (!(grp->pins[i].pin_conf.pin_memmap.config & IMX_NO_PAD_CTL)) {
 			new_map[j].type = PIN_MAP_TYPE_CONFIGS_PIN;
@@ -334,7 +334,7 @@ static const struct pinconf_ops imx_pinconf_ops = {
  * Each pin represented in fsl,pins consists of 5 u32 PIN_FUNC_ID and
  * 1 u32 CONFIG, so 24 types in total for each pin.
  */
-#define FSL_IMX8_PIN_SIZE 8
+#define FSL_IMX8_PIN_SIZE 12
 #define FSL_PIN_SIZE 24
 #define SHARE_FSL_PIN_SIZE 20
 
