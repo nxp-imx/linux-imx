@@ -55,11 +55,13 @@ int imx_pmx_set_one_pin_mem(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 		reg &= ~info->mux_mask;
 		reg |= (pin_memmap->mux_mode << mux_shift);
 		writel(reg, ipctl->base + pin_reg->mux_reg);
+		dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%x\n",
+			pin_reg->mux_reg, reg);
 	} else {
 		writel(pin_memmap->mux_mode, ipctl->base + pin_reg->mux_reg);
+		dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%x\n",
+			pin_reg->mux_reg, pin_memmap->mux_mode);
 	}
-	dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%x\n",
-		pin_reg->mux_reg, pin_memmap->mux_mode);
 
 	/*
 	 * If the select input value begins with 0xff, it's a quirky
@@ -262,11 +264,13 @@ int imx_pinconf_backend_set_mem(struct pinctrl_dev *pctldev,
 			reg &= info->mux_mask;
 			reg |= configs[i];
 			writel(reg, ipctl->base + pin_reg->conf_reg);
+			dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%x\n",
+				pin_reg->conf_reg, reg);
 		} else {
 			writel(configs[i], ipctl->base + pin_reg->conf_reg);
+			dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%lx\n",
+				pin_reg->conf_reg, configs[i]);
 		}
-		dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%lx\n",
-			pin_reg->conf_reg, configs[i]);
 	} /* for each config */
 
 	return 0;
