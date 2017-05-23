@@ -61,3 +61,4 @@ obj-$(CONFIG_PHY_CYGNUS_PCIE)		+= phy-bcm-cygnus-pcie.o
 obj-$(CONFIG_ARCH_TEGRA) += tegra/
 obj-$(CONFIG_PHY_NS2_PCIE)		+= phy-bcm-ns2-pcie.o
 obj-$(CONFIG_PHY_MIXEL_LVDS)	+= phy-mixel-lvds.o
+obj-$(CONFIG_PHY_MIXEL_LVDS_COMBO)	+= phy-mixel-lvds-combo.o
