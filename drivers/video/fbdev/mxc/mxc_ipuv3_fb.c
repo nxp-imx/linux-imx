@@ -1805,6 +1805,7 @@ static int mxcfb_update_screen(struct fb_info *fb_info, struct mxcfb_buffer *buf
 {
 	struct mxcfb_info *mxc_fbi = (struct mxcfb_info *)fb_info->par;
 	unsigned offset;
+	int ret = 0;
 
 	if (buffer->xoffset < 0 || buffer->yoffset < 0 || buffer->stride < 0) {
 		dev_err(fb_info->device, "get invalid buffer\n");
@@ -1830,6 +1831,12 @@ static int mxcfb_update_screen(struct fb_info *fb_info, struct mxcfb_buffer *buf
 
 	// refer to pan_display.
 	offset = buffer->stride * buffer->yoffset;
+
+	ret = wait_for_completion_timeout(&mxc_fbi->flip_complete, HZ/2);
+	if (ret == 0) {
+		dev_err(fb_info->device, "timeout when waiting for flip irq\n");
+		return -ETIMEDOUT;
+	}
 
 	++mxc_fbi->cur_ipu_buf;
 	mxc_fbi->cur_ipu_buf %= 3;

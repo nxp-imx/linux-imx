@@ -1027,6 +1027,7 @@ static int mxsfb_update_screen(struct mxsfb_info *host, struct mxcfb_buffer *buf
 {
 	struct fb_info *fb_info = host->fb_info;
 	unsigned offset;
+	int ret = 0;
 
 	if (buffer->xoffset < 0 || buffer->yoffset < 0 || buffer->stride < 0) {
 		dev_err(fb_info->device, "get invalid buffer\n");
@@ -1050,6 +1051,8 @@ static int mxsfb_update_screen(struct mxsfb_info *host, struct mxcfb_buffer *buf
 		return -EINVAL;
 	}
 
+	init_completion(&host->flip_complete);
+
 	// refer to pan_display.
 	offset = buffer->stride * buffer->yoffset;
 
@@ -1058,6 +1061,13 @@ static int mxsfb_update_screen(struct mxsfb_info *host, struct mxcfb_buffer *buf
 
 	writel(CTRL1_CUR_FRAME_DONE_IRQ_EN,
 		host->base + LCDC_CTRL1 + REG_SET);
+
+	ret = wait_for_completion_timeout(&host->flip_complete, HZ / 2);
+	if (!ret) {
+		dev_err(fb_info->device,
+			"mxs wait for pan flip timeout\n");
+		return -ETIMEDOUT;
+	}
 
 	return 0;
 }
