@@ -51,8 +51,6 @@
 &gpc {
 	/* use ldo-enable, u-boot will check it and configure */
 	fsl,ldo-bypass = <0>;
-	/* watchdog select of reset source */
-	fsl,wdog-reset = <1>;
 };
 
 &wdog1 {
