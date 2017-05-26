@@ -20,7 +20,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/pinctrl/pinctrl.h>
-#include <dt-bindings/pinctrl/pins-imx8qm.h>
+#include <dt-bindings/pinctrl/pads-imx8qm.h>
 #include <soc/imx8/sc/sci.h>
 
 #include "pinctrl-imx.h"

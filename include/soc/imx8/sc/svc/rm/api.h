@@ -8,7 +8,7 @@
 /*!
  * Header file containing the public API for the System Controller (SC)
  * Resource Management (RM) function. This includes functions for
- * partitioning resources, pins, and memory regions.
+ * partitioning resources, pads, and memory regions.
  *
  * @addtogroup RM_SVC (SVC) Resource Management Service
  *
@@ -151,7 +151,7 @@ sc_err_t sc_rm_partition_alloc(sc_ipc_t ipc, sc_rm_pt_t *pt, bool secure,
  * - SC_ERR_NOACCESS if caller's partition is not the parent of \a pt,
  * - SC_ERR_LOCKED if \a pt or caller's partition is locked
  *
- * All resources, memory regions, and pins are assigned to the caller/parent.
+ * All resources, memory regions, and pads are assigned to the caller/parent.
  * The partition watchdog is disabled (even if locked). DID is freed.
  */
 sc_err_t sc_rm_partition_free(sc_ipc_t ipc, sc_rm_pt_t pt);
@@ -201,7 +201,7 @@ sc_err_t sc_rm_partition_static(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rm_did_t did);
  * - SC_PARM if \a pt out of range,
  * - SC_ERR_NOACCESS if caller's partition is not the parent of \a pt
  *
- * If a partition is locked it cannot be freed, have resources/pins assigned
+ * If a partition is locked it cannot be freed, have resources/pads assigned
  * to/from it, memory regions created/assigned, DID changed, or parent changed.
  */
 sc_err_t sc_rm_partition_lock(sc_ipc_t ipc, sc_rm_pt_t pt);
@@ -235,7 +235,7 @@ sc_err_t sc_rm_get_partition(sc_ipc_t ipc, sc_rm_pt_t *pt);
 sc_err_t sc_rm_set_parent(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rm_pt_t pt_parent);
 
 /*!
- * This function moves all movable resources/pins owned by a source partition
+ * This function moves all movable resources/pads owned by a source partition
  * to a destination partition. It can be used to more quickly set up a new
  * partition if a majority of the caller's resources are to be moved to a
  * new partition.
@@ -246,7 +246,7 @@ sc_err_t sc_rm_set_parent(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rm_pt_t pt_parent);
  * @param[in]     pt_dst      handle of partition to which resources should be
  *                            moved to
  * @param[in]     move_rsrc   boolean to indicate if resources should be moved
- * @param[in]     move_pins   boolean to indicate if pins should be moved
+ * @param[in]     move_pads   boolean to indicate if pads should be moved
  *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
@@ -262,7 +262,7 @@ sc_err_t sc_rm_set_parent(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rm_pt_t pt_parent);
  * - SC_ERR_LOCKED if either partition is locked
  */
 sc_err_t sc_rm_move_all(sc_ipc_t ipc, sc_rm_pt_t pt_src, sc_rm_pt_t pt_dst,
-			bool move_rsrc, bool move_pins);
+			bool move_rsrc, bool move_pads);
 
 /* @} */
 
@@ -563,63 +563,63 @@ sc_err_t sc_rm_get_memreg_info(sc_ipc_t ipc, sc_rm_mr_t mr,
 /* @} */
 
 /*!
- * @name Pin Functions
+ * @name Pad Functions
  * @{
  */
 
 /*!
- * This function assigns ownership of a pin to a partition.
+ * This function assigns ownership of a pad to a partition.
  *
  * @param[in]     ipc         IPC handle
- * @param[in]     pt          handle of partition to which pin should
+ * @param[in]     pt          handle of partition to which pad should
  *                            be assigned
- * @param[in]     pin         pin to assign
+ * @param[in]     pad         pad to assign
  *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors:
  * - SC_ERR_NOACCESS if caller's partition is restricted,
  * - SC_PARM if arguments out of range or invalid,
- * - SC_ERR_NOACCESS if caller's partition is not the pin owner or parent
+ * - SC_ERR_NOACCESS if caller's partition is not the pad owner or parent
  *   of the owner,
  * - SC_ERR_LOCKED if the owning partition or \a pt is locked
  */
-sc_err_t sc_rm_assign_pin(sc_ipc_t ipc, sc_rm_pt_t pt, sc_pin_t pin);
+sc_err_t sc_rm_assign_pad(sc_ipc_t ipc, sc_rm_pt_t pt, sc_pad_t pad);
 
 /*!
- * This function flags pins as movable or not.
+ * This function flags pads as movable or not.
  *
  * @param[in]     ipc         IPC handle
- * @param[in]     pin_fst     first pin for which flag should be set
- * @param[in]     pin_lst     last pin for which flag should be set
+ * @param[in]     pad_fst     first pad for which flag should be set
+ * @param[in]     pad_lst     last pad for which flag should be set
  * @param[in]     movable     movable flag (true) is movable
  *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors:
- * - SC_PARM if pins are out of range,
- * - SC_ERR_NOACCESS if caller's partition is not a parent of a pin owner,
+ * - SC_PARM if pads are out of range,
+ * - SC_ERR_NOACCESS if caller's partition is not a parent of a pad owner,
  * - SC_ERR_LOCKED if the owning partition is locked
  *
- * This function is used to determine the set of pins that will be
- * moved using the sc_rm_move_all() function. All pins are movable
+ * This function is used to determine the set of pads that will be
+ * moved using the sc_rm_move_all() function. All pads are movable
  * by default so this function is normally used to prevent a set of
- * pins from moving.
+ * pads from moving.
  */
-sc_err_t sc_rm_set_pin_movable(sc_ipc_t ipc, sc_pin_t pin_fst,
-			       sc_pin_t pin_lst, bool movable);
+sc_err_t sc_rm_set_pad_movable(sc_ipc_t ipc, sc_pad_t pad_fst,
+			       sc_pad_t pad_lst, bool movable);
 
 /*!
- * This function gets ownership status of a pin.
+ * This function gets ownership status of a pad.
  *
  * @param[in]     ipc         IPC handle
- * @param[in]     pin         pin to check
+ * @param[in]     pad         pad to check
  *
- * @return Returns a boolean (true if caller's partition owns the pin).
+ * @return Returns a boolean (true if caller's partition owns the pad).
  *
- * If \a pin is out of range then false is returned.
+ * If \a pad is out of range then false is returned.
  */
-bool sc_rm_is_pin_owned(sc_ipc_t ipc, sc_pin_t pin);
+bool sc_rm_is_pad_owned(sc_ipc_t ipc, sc_pad_t pad);
 
 /* @} */
 

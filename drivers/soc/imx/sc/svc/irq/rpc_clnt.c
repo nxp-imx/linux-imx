@@ -36,16 +36,16 @@ sc_err_t sc_irq_enable(sc_ipc_t ipc, sc_rsrc_t resource,
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_IRQ;
 	RPC_FUNC(&msg) = IRQ_FUNC_ENABLE;
-	RPC_D32(&msg, 0) = mask;
-	RPC_D16(&msg, 4) = resource;
-	RPC_D8(&msg, 6) = group;
-	RPC_D8(&msg, 7) = enable;
+	RPC_U32(&msg, 0) = mask;
+	RPC_U16(&msg, 4) = resource;
+	RPC_U8(&msg, 6) = group;
+	RPC_U8(&msg, 7) = enable;
 	RPC_SIZE(&msg) = 3;
 
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_irq_status(sc_ipc_t ipc, sc_rsrc_t resource,
@@ -57,16 +57,16 @@ sc_err_t sc_irq_status(sc_ipc_t ipc, sc_rsrc_t resource,
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_IRQ;
 	RPC_FUNC(&msg) = IRQ_FUNC_STATUS;
-	RPC_D16(&msg, 0) = resource;
-	RPC_D8(&msg, 2) = group;
+	RPC_U16(&msg, 0) = resource;
+	RPC_U8(&msg, 2) = group;
 	RPC_SIZE(&msg) = 2;
 
 	sc_call_rpc(ipc, &msg, false);
 
 	if (status != NULL)
-		*status = RPC_D32(&msg, 0);
+		*status = RPC_U32(&msg, 0);
 	result = RPC_R8(&msg);
-	return (sc_err_t) result;
+	return (sc_err_t)result;
 }
 
 /**@}*/

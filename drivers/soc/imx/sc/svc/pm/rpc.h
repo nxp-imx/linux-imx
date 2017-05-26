@@ -33,6 +33,8 @@ typedef enum pm_func_e {
 	PM_FUNC_SET_CLOCK_RATE = 5,	/* Index for pm_set_clock_rate() RPC call */
 	PM_FUNC_GET_CLOCK_RATE = 6,	/* Index for pm_get_clock_rate() RPC call */
 	PM_FUNC_CLOCK_ENABLE = 7,	/* Index for pm_clock_enable() RPC call */
+	PM_FUNC_SET_CLOCK_PARENT = 14,	/* Index for pm_set_clock_parent() RPC call */
+	PM_FUNC_GET_CLOCK_PARENT = 15,	/* Index for pm_get_clock_parent() RPC call */
 	PM_FUNC_RESET = 13,	/* Index for pm_reset() RPC call */
 	PM_FUNC_RESET_REASON = 10,	/* Index for pm_reset_reason() RPC call */
 	PM_FUNC_BOOT = 8,	/* Index for pm_boot() RPC call */

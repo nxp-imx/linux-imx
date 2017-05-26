@@ -421,9 +421,9 @@
 #define SC_R_CSI_1_PWM_0                405
 #define SC_R_CSI_1_I2C_0                406
 #define SC_R_HDMI                       407
-#define SC_R_HDMI_BYPASS                408
+#define SC_R_HDMI_I2S                   408
 #define SC_R_HDMI_I2C_0                 409
-#define SC_R_AUDIO_PLL_2                410
+#define SC_R_HDMI_PLL_0                 410
 #define SC_R_HDMI_RX                    411
 #define SC_R_HDMI_RX_BYPASS             412
 #define SC_R_HDMI_RX_I2C_0              413
@@ -535,6 +535,8 @@
 #define SC_R_CAAM_JR0                   519
 #define SC_R_CAAM_JR0_OUT               520
 #define SC_R_PMIC_2                     521
-#define SC_R_LAST                       522
+#define SC_R_DBLOGIC                    522
+#define SC_R_HDMI_PLL_1                 523
+#define SC_R_LAST                       524
 
 #endif				/* __DT_BINDINGS_RSCRC_IMX_H */

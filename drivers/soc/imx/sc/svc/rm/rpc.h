@@ -49,9 +49,9 @@ typedef enum rm_func_e {
 	RM_FUNC_SET_MEMREG_PERMISSIONS = 20,	/* Index for rm_set_memreg_permissions() RPC call */
 	RM_FUNC_IS_MEMREG_OWNED = 21,	/* Index for rm_is_memreg_owned() RPC call */
 	RM_FUNC_GET_MEMREG_INFO = 22,	/* Index for rm_get_memreg_info() RPC call */
-	RM_FUNC_ASSIGN_PIN = 23,	/* Index for rm_assign_pin() RPC call */
-	RM_FUNC_SET_PIN_MOVABLE = 24,	/* Index for rm_set_pin_movable() RPC call */
-	RM_FUNC_IS_PIN_OWNED = 25,	/* Index for rm_is_pin_owned() RPC call */
+	RM_FUNC_ASSIGN_PAD = 23,	/* Index for rm_assign_pad() RPC call */
+	RM_FUNC_SET_PAD_MOVABLE = 24,	/* Index for rm_set_pad_movable() RPC call */
+	RM_FUNC_IS_PAD_OWNED = 25,	/* Index for rm_is_pad_owned() RPC call */
 } rm_func_t;
 
 /* Functions */

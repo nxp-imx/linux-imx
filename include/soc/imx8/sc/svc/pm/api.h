@@ -87,13 +87,24 @@ typedef enum sc_pm_clk_e {
  * This type is used to declare a clock mode.
  */
 typedef enum sc_pm_clk_mode_e {
-	SC_PM_CLK_MODE_ROM_INIT = 0,
+	SC_PM_CLK_MODE_ROM_INIT = 0,	/* Clock is initialized by ROM. */
 	SC_PM_CLK_MODE_OFF = 1,	/* Clock is disabled */
 	SC_PM_CLK_MODE_ON = 2,	/* Clock is enabled. */
 	SC_PM_CLK_MODE_AUTOGATE_SW = 3,	/* Clock is in SW autogate mode */
 	SC_PM_CLK_MODE_AUTOGATE_HW = 4,	/* Clock is in HW autogate mode */
 	SC_PM_CLK_MODE_AUTOGATE_SW_HW = 5,	/* Clock is in SW-HW autogate mode */
 } sc_pm_clk_mode_t;
+
+/*!
+ * This type is used to declare the clock parent.
+ */
+typedef enum sc_pm_clk_parent_e {
+	XTAL = 0,		/*! < Parent is XTAL. */
+	PLL0 = 1,		/*! < Parent is PLL0 */
+	PLL1 = 2,		/*! < Parent is PLL1 or PLL0/2 */
+	PLL2 = 3,		/*! < Parent in PLL2 or PLL0/4 */
+	BYPS = 4		/*! < Parent is a bypass clock. */
+} sc_pm_clk_parent_t;
 
 /*!
  * This type is used to declare clock rates.
@@ -275,6 +286,50 @@ sc_err_t sc_pm_get_clock_rate(sc_ipc_t ipc, sc_rsrc_t resource,
  */
 sc_err_t sc_pm_clock_enable(sc_ipc_t ipc, sc_rsrc_t resource,
 			    sc_pm_clk_t clk, bool enable, bool autog);
+
+/*!
+ * This function sets the parent of a resource's clock.
+ * This function should only be called when the clock is disabled.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     resource    ID of the resource
+ * @param[in]     clk         clock to affect
+ * @param[in]     parent      New parent of the clock.
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_PARM if invalid resource or clock,
+ * - SC_ERR_NOACCESS if caller's partition is not the resource owner
+ *   or parent of the owner,
+ * - SC_ERR_UNAVAILABLE if clock not applicable to this resource
+ * - SC_ERR_BUSY if clock is currently enabled.
+ *
+ * Refer to the [Clock List](@ref CLOCKS) for valid clock values.
+ */
+sc_err_t sc_pm_set_clock_parent(sc_ipc_t ipc, sc_rsrc_t resource,
+				sc_pm_clk_t clk, sc_pm_clk_parent_t parent);
+
+/*!
+ * This function gets the parent of a resource's clock.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     resource    ID of the resource
+ * @param[in]     clk         clock to affect
+ * @param[out]     parent     pointer to return parent of clock.
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_PARM if invalid resource or clock,
+ * - SC_ERR_NOACCESS if caller's partition is not the resource owner
+ *   or parent of the owner,
+ * - SC_ERR_UNAVAILABLE if clock not applicable to this resource
+ *
+ * Refer to the [Clock List](@ref CLOCKS) for valid clock values.
+ */
+sc_err_t sc_pm_get_clock_parent(sc_ipc_t ipc, sc_rsrc_t resource,
+				sc_pm_clk_t clk, sc_pm_clk_parent_t * parent);
 
 /* @} */
 

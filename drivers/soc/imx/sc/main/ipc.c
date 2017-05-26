@@ -190,7 +190,7 @@ void sc_ipc_read(sc_ipc_t handle, void *data)
 	/* Read remaining words */
 	while (count < msg->size) {
 		MU_ReceiveMsg(base, count % MU_RR_COUNT,
-				  &(msg->DATA.d32[count - 1]));
+				  &(msg->DATA.u32[count - 1]));
 		count++;
 	}
 }
@@ -225,7 +225,7 @@ void sc_ipc_write(sc_ipc_t handle, void *data)
 
 	/* Write remaining words */
 	while (count < msg->size) {
-		MU_SendMessage(base, count % MU_TR_COUNT, msg->DATA.d32[count - 1]);
+		MU_SendMessage(base, count % MU_TR_COUNT, msg->DATA.u32[count - 1]);
 		count++;
 	}
 }

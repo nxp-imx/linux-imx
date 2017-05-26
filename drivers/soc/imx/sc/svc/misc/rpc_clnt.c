@@ -36,9 +36,9 @@ sc_err_t sc_misc_set_control(sc_ipc_t ipc, sc_rsrc_t resource,
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
 	RPC_FUNC(&msg) = MISC_FUNC_SET_CONTROL;
-	RPC_D32(&msg, 0) = ctrl;
-	RPC_D32(&msg, 4) = val;
-	RPC_D16(&msg, 8) = resource;
+	RPC_U32(&msg, 0) = ctrl;
+	RPC_U32(&msg, 4) = val;
+	RPC_U16(&msg, 8) = resource;
 	RPC_SIZE(&msg) = 4;
 
 	sc_call_rpc(ipc, &msg, false);
@@ -56,14 +56,14 @@ sc_err_t sc_misc_get_control(sc_ipc_t ipc, sc_rsrc_t resource,
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
 	RPC_FUNC(&msg) = MISC_FUNC_GET_CONTROL;
-	RPC_D32(&msg, 0) = ctrl;
-	RPC_D16(&msg, 4) = resource;
+	RPC_U32(&msg, 0) = ctrl;
+	RPC_U16(&msg, 4) = resource;
 	RPC_SIZE(&msg) = 3;
 
 	sc_call_rpc(ipc, &msg, false);
 
 	if (val != NULL)
-		*val = RPC_D32(&msg, 0);
+		*val = RPC_U32(&msg, 0);
 	result = RPC_R8(&msg);
 	return (sc_err_t)result;
 }
@@ -77,8 +77,8 @@ sc_err_t sc_misc_set_max_dma_group(sc_ipc_t ipc, sc_rm_pt_t pt,
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
 	RPC_FUNC(&msg) = MISC_FUNC_SET_MAX_DMA_GROUP;
-	RPC_D8(&msg, 0) = pt;
-	RPC_D8(&msg, 1) = max;
+	RPC_U8(&msg, 0) = pt;
+	RPC_U8(&msg, 1) = max;
 	RPC_SIZE(&msg) = 2;
 
 	sc_call_rpc(ipc, &msg, false);
@@ -96,8 +96,8 @@ sc_err_t sc_misc_set_dma_group(sc_ipc_t ipc, sc_rsrc_t resource,
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
 	RPC_FUNC(&msg) = MISC_FUNC_SET_DMA_GROUP;
-	RPC_D16(&msg, 0) = resource;
-	RPC_D8(&msg, 2) = group;
+	RPC_U16(&msg, 0) = resource;
+	RPC_U8(&msg, 2) = group;
 	RPC_SIZE(&msg) = 2;
 
 	sc_call_rpc(ipc, &msg, false);
@@ -115,10 +115,10 @@ sc_err_t sc_misc_seco_image_load(sc_ipc_t ipc, uint32_t addr_src,
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
 	RPC_FUNC(&msg) = MISC_FUNC_SECO_IMAGE_LOAD;
-	RPC_D32(&msg, 0) = addr_src;
-	RPC_D32(&msg, 4) = addr_dst;
-	RPC_D32(&msg, 8) = len;
-	RPC_D8(&msg, 12) = fw;
+	RPC_U32(&msg, 0) = addr_src;
+	RPC_U32(&msg, 4) = addr_dst;
+	RPC_U32(&msg, 8) = len;
+	RPC_U8(&msg, 12) = fw;
 	RPC_SIZE(&msg) = 5;
 
 	sc_call_rpc(ipc, &msg, false);
@@ -137,8 +137,8 @@ sc_err_t sc_misc_seco_authenticate(sc_ipc_t ipc,
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
 	RPC_FUNC(&msg) = MISC_FUNC_SECO_AUTHENTICATE;
-	RPC_D32(&msg, 0) = addr_meta;
-	RPC_D8(&msg, 4) = cmd;
+	RPC_U32(&msg, 0) = addr_meta;
+	RPC_U8(&msg, 4) = cmd;
 	RPC_SIZE(&msg) = 3;
 
 	sc_call_rpc(ipc, &msg, false);
@@ -154,7 +154,7 @@ void sc_misc_debug_out(sc_ipc_t ipc, uint8_t ch)
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
 	RPC_FUNC(&msg) = MISC_FUNC_DEBUG_OUT;
-	RPC_D8(&msg, 0) = ch;
+	RPC_U8(&msg, 0) = ch;
 	RPC_SIZE(&msg) = 2;
 
 	sc_call_rpc(ipc, &msg, false);
@@ -170,7 +170,7 @@ sc_err_t sc_misc_waveform_capture(sc_ipc_t ipc, bool enable)
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
 	RPC_FUNC(&msg) = MISC_FUNC_WAVEFORM_CAPTURE;
-	RPC_D8(&msg, 0) = enable;
+	RPC_U8(&msg, 0) = enable;
 	RPC_SIZE(&msg) = 2;
 
 	sc_call_rpc(ipc, &msg, false);
@@ -188,10 +188,10 @@ sc_err_t sc_misc_set_ari(sc_ipc_t ipc, sc_rsrc_t resource,
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
 	RPC_FUNC(&msg) = MISC_FUNC_SET_ARI;
-	RPC_D16(&msg, 0) = resource;
-	RPC_D16(&msg, 2) = resource_mst;
-	RPC_D16(&msg, 4) = ari;
-	RPC_D8(&msg, 6) = enable;
+	RPC_U16(&msg, 0) = resource;
+	RPC_U16(&msg, 2) = resource_mst;
+	RPC_U16(&msg, 4) = ari;
+	RPC_U8(&msg, 6) = enable;
 	RPC_SIZE(&msg) = 3;
 
 	sc_call_rpc(ipc, &msg, false);
@@ -207,12 +207,76 @@ void sc_misc_boot_status(sc_ipc_t ipc, sc_misc_boot_status_t status)
 	RPC_VER(&msg) = SC_RPC_VERSION;
 	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
 	RPC_FUNC(&msg) = MISC_FUNC_BOOT_STATUS;
-	RPC_D8(&msg, 0) = status;
+	RPC_U8(&msg, 0) = status;
 	RPC_SIZE(&msg) = 2;
 
 	sc_call_rpc(ipc, &msg, true);
 
 	return;
+}
+
+sc_err_t sc_misc_otp_fuse_read(sc_ipc_t ipc, uint32_t word, uint32_t *val)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
+	RPC_FUNC(&msg) = MISC_FUNC_OTP_FUSE_READ;
+	RPC_U32(&msg, 0) = word;
+	RPC_SIZE(&msg) = 2;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	if (val != NULL)
+		*val = RPC_U32(&msg, 0);
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
+
+sc_err_t sc_misc_set_temp(sc_ipc_t ipc, sc_rsrc_t resource,
+			  sc_misc_temp_t temp, int16_t celsius, int8_t tenths)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
+	RPC_FUNC(&msg) = MISC_FUNC_SET_TEMP;
+	RPC_U16(&msg, 0) = resource;
+	RPC_I16(&msg, 2) = celsius;
+	RPC_U8(&msg, 4) = temp;
+	RPC_I8(&msg, 5) = tenths;
+	RPC_SIZE(&msg) = 3;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
+
+sc_err_t sc_misc_get_temp(sc_ipc_t ipc, sc_rsrc_t resource,
+			  sc_misc_temp_t temp, int16_t * celsius,
+			  int8_t * tenths)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
+	RPC_FUNC(&msg) = MISC_FUNC_GET_TEMP;
+	RPC_U16(&msg, 0) = resource;
+	RPC_U8(&msg, 2) = temp;
+	RPC_SIZE(&msg) = 2;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	if (celsius != NULL)
+		*celsius = RPC_I16(&msg, 0);
+	result = RPC_R8(&msg);
+	if (tenths != NULL)
+		*tenths = RPC_I8(&msg, 2);
+	return (sc_err_t)result;
 }
 
 /**@}*/

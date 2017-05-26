@@ -140,7 +140,7 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_DC0_PLL1_DIV] = imx_clk_divider_scu("dc0_pll1_div", SC_R_DC_0_PLL_1, SC_PM_CLK_PLL);
 	clks[IMX8QM_DC1_PLL1_DIV] = imx_clk_divider_scu("dc1_pll0_div", SC_R_DC_1_PLL_0, SC_PM_CLK_PLL);
 	clks[IMX8QM_DC1_PLL1_DIV] = imx_clk_divider_scu("dc1_pll1_div", SC_R_DC_1_PLL_1, SC_PM_CLK_PLL);
-	clks[IMX8QM_HDMI_AUD_PLL_2_DIV] = imx_clk_divider_scu("hdmi_aud_pll_div", SC_R_AUDIO_PLL_2, SC_PM_CLK_PLL);
+	clks[IMX8QM_HDMI_AUD_PLL_2_DIV] = imx_clk_divider_scu("hdmi_aud_pll_div", SC_R_HDMI_PLL_1, SC_PM_CLK_PLL);
 
 	/* User Defined PLLs clocks*/
 	clks[IMX8QM_AUD_PLL0] = imx_clk_gate_scu("audio_pll0_clk", "audio_pll0_div", SC_R_AUDIO_PLL_0, SC_PM_CLK_PLL, NULL, 0, 0);
@@ -149,7 +149,7 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_DC0_PLL1_CLK] = imx_clk_gate_scu("dc0_pll1_clk", "dc0_pll1_div", SC_R_DC_0_PLL_1, SC_PM_CLK_PLL, NULL, 0, 0);
 	clks[IMX8QM_DC1_PLL0_CLK] = imx_clk_gate_scu("dc1_pll0_clk", "dc1_pll0_div", SC_R_DC_1_PLL_0, SC_PM_CLK_PLL, NULL, 0, 0);
 	clks[IMX8QM_DC1_PLL1_CLK] = imx_clk_gate_scu("dc1_pll1_clk", "dc1_pll1_div", SC_R_DC_1_PLL_1, SC_PM_CLK_PLL, NULL, 0, 0);
-	clks[IMX8QM_HDMI_AUD_PLL_2_CLK] = imx_clk_gate_scu("hdmi_aud_pll_clk", "hdmi_aud_pll_div", SC_R_AUDIO_PLL_2, SC_PM_CLK_PLL, NULL, 0, 0);
+	clks[IMX8QM_HDMI_AUD_PLL_2_CLK] = imx_clk_gate_scu("hdmi_aud_pll_clk", "hdmi_aud_pll_div", SC_R_HDMI_PLL_1, SC_PM_CLK_PLL, NULL, 0, 0);
 
 	/* DMA SS */
 	clks[IMX8QM_UART0_DIV] = imx_clk_divider_scu("uart0_div", SC_R_UART_0, SC_PM_CLK_PER);
@@ -282,7 +282,7 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_DC1_BYPASS_1_DIV] = imx_clk_divider_scu("dc1_bypass1_div", SC_R_DC_1_VIDEO1, SC_PM_CLK_BYPASS);
 
 	/* HDMI SS */
-	clks[IMX8QM_HDMI_I2S_BYPASS_CLK] = imx_clk_divider_scu("hdmi_i2s_bypass_clk", SC_R_HDMI_BYPASS, SC_PM_CLK_MISC0);
+	clks[IMX8QM_HDMI_I2S_BYPASS_CLK] = imx_clk_divider_scu("hdmi_i2s_bypass_clk", SC_R_HDMI_I2S, SC_PM_CLK_MISC0);
 	clks[IMX8QM_HDMI_I2C0_DIV] = imx_clk_divider_scu("hdmi_i2c0_div", SC_R_HDMI_I2C_0, SC_PM_CLK_MISC2);
 	clks[IMX8QM_HDMI_PXL_DIV] = imx_clk_divider_scu("hdmi_pxl_div", SC_R_HDMI, SC_PM_CLK_MISC3);
 	clks[IMX8QM_HDMI_PXL_LINK_DIV] = imx_clk_divider_scu("hdmi_pxl_link_div", SC_R_HDMI, SC_PM_CLK_MISC1);

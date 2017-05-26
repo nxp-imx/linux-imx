@@ -36,6 +36,9 @@ typedef enum misc_func_e {
 	MISC_FUNC_WAVEFORM_CAPTURE = 6,	/* Index for misc_waveform_capture() RPC call */
 	MISC_FUNC_SET_ARI = 3,	/* Index for misc_set_ari() RPC call */
 	MISC_FUNC_BOOT_STATUS = 7,	/* Index for misc_boot_status() RPC call */
+	MISC_FUNC_OTP_FUSE_READ = 11,	/* Index for misc_otp_fuse_read() RPC call */
+	MISC_FUNC_SET_TEMP = 12,	/* Index for misc_set_temp() RPC call */
+	MISC_FUNC_GET_TEMP = 13,	/* Index for misc_get_temp() RPC call */
 } misc_func_t;
 
 /* Functions */
