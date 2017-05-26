@@ -725,6 +725,7 @@ static irqreturn_t lpuart32_rxint(int irq, void *dev_id)
 #ifdef SUPPORT_SYSRQ
 			sport->port.sysrq = 0;
 #endif
+			continue;
 		}
 
 		if (rx & UARTDATA_INVALID)
