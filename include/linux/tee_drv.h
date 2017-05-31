@@ -29,6 +29,7 @@
 #define TEE_SHM_DMA_BUF		BIT(1)	/* Memory with dma-buf handle */
 #define TEE_SHM_EXT_DMA_BUF	BIT(2)	/* Memory with dma-buf handle */
 
+struct device;
 struct tee_device;
 struct tee_shm;
 struct tee_shm_pool;
