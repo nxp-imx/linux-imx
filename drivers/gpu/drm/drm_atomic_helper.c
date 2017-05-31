@@ -3258,6 +3258,10 @@ __drm_atomic_helper_connector_duplicate_state(struct drm_connector *connector,
 	memcpy(state, connector->state, sizeof(*state));
 	if (state->crtc)
 		drm_connector_reference(connector);
+	if (state->hdr_source_metadata_blob_ptr)
+		drm_property_reference_blob(state->hdr_source_metadata_blob_ptr);
+
+	state->hdr_metadata_changed = false;
 }
 EXPORT_SYMBOL(__drm_atomic_helper_connector_duplicate_state);
 
@@ -3385,6 +3389,8 @@ __drm_atomic_helper_connector_destroy_state(struct drm_connector_state *state)
 	 */
 	if (state->crtc)
 		drm_connector_unreference(state->connector);
+	if (state->hdr_source_metadata_blob_ptr)
+		drm_property_unreference_blob(state->hdr_source_metadata_blob_ptr);
 }
 EXPORT_SYMBOL(__drm_atomic_helper_connector_destroy_state);
 
