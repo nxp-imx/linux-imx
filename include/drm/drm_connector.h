@@ -213,6 +213,13 @@ struct drm_connector_state {
 	struct drm_encoder *best_encoder;
 
 	struct drm_atomic_state *state;
+
+	/**
+	 * @metadata_blob_ptr:
+	 * DRM blob property for HDR metadata
+	 */
+	struct drm_property_blob *hdr_source_metadata_blob_ptr;
+	bool hdr_metadata_changed : 1;
 };
 
 /**
@@ -696,6 +703,10 @@ struct drm_connector {
 	uint8_t num_h_tile, num_v_tile;
 	uint8_t tile_h_loc, tile_v_loc;
 	uint16_t tile_h_size, tile_v_size;
+
+	/* HDR metdata */
+	struct hdr_static_metadata *hdr_panel_metadata;
+	struct hdr_static_metadata *hdr_source_metadata;
 };
 
 #define obj_to_connector(x) container_of(x, struct drm_connector, base)
