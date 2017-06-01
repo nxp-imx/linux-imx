@@ -717,8 +717,6 @@ static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
 	 */
 	delta = next_tick - basemono;
 	if (delta <= (u64)TICK_NSEC) {
-		tick.tv64 = 0;
-
 		/*
 		 * Tell the timer code that the base is not idle, i.e. undo
 		 * the effect of get_next_timer_interrupt():
@@ -728,23 +726,8 @@ static ktime_t tick_nohz_stop_sched_tick(struct tick_sched *ts,
 		 * We've not stopped the tick yet, and there's a timer in the
 		 * next period, so no point in stopping it either, bail.
 		 */
-		if (!ts->tick_stopped)
-			goto out;
-
-		/*
-		 * If, OTOH, we did stop it, but there's a pending (expired)
-		 * timer reprogram the timer hardware to fire now.
-		 *
-		 * We will not restart the tick proper, just prod the timer
-		 * hardware into firing an interrupt to process the pending
-		 * timers. Just like tick_irq_exit() will not restart the tick
-		 * for 'normal' interrupts.
-		 *
-		 * Only once we exit the idle loop will we re-enable the tick,
-		 * see tick_nohz_idle_exit().
-		 */
-		if (delta == 0) {
-			tick_nohz_restart(ts, now);
+		if (!ts->tick_stopped) {
+			tick.tv64 = 0;
 			goto out;
 		}
 	}
