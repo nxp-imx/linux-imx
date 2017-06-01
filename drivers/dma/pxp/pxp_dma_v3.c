@@ -2442,30 +2442,30 @@ static int pxp_ps_config(struct pxp_pixmap *input,
 	case 2:		/* NV16,NV61,NV12,NV21 */
 		if ((input->format == PXP_PIX_FMT_NV16) ||
 		    (input->format == PXP_PIX_FMT_NV61)) {
-			U = input->paddr + input->width * input->height;
+			U = input->paddr + input->pitch * input->height / (input->bpp >> 3);
 			pxp_writel(U + offset, HW_PXP_PS_UBUF);
 		}
 		else {
-			U = input->paddr + input->width * input->height;
+			U = input->paddr + input->pitch * input->height / (input->bpp >> 3);
 			pxp_writel(U + (offset >> 1), HW_PXP_PS_UBUF);
 		}
 		break;
 	case 3:		/* YUV422P, YUV420P */
 		if (input->format == PXP_PIX_FMT_YUV422P) {
-			U = input->paddr + input->width * input->height;
+			U = input->paddr + input->pitch * input->height / (input->bpp >> 3);
 			pxp_writel(U + (offset >> 1), HW_PXP_PS_UBUF);
-			V = U + (input->width * input->height >> 1);
+			V = U + ((input->pitch / (input->bpp >> 3)) * input->height >> 1);
 			pxp_writel(V + (offset >> 1), HW_PXP_PS_VBUF);
-		} else if (input->format == PXP_PIX_FMT_YUV420P) {
-			U = input->paddr + input->width * input->height;
-			pxp_writel(U + (offset >> 2), HW_PXP_PS_UBUF);
-			V = U + (input->width * input->height >> 2);
-			pxp_writel(V + (offset >> 2), HW_PXP_PS_VBUF);
 		} else if (input->format == PXP_PIX_FMT_YVU420P) {
-			U = input->paddr + input->width * input->height;
-			V = U + (input->width * input->height >> 2);
-			pxp_writel(U + (offset >> 2), HW_PXP_PS_VBUF);
-			pxp_writel(V + (offset >> 2), HW_PXP_PS_UBUF);
+			U = input->paddr + input->pitch * input->height / (input->bpp >> 3);
+			pxp_writel(U + (offset >> 2), HW_PXP_PS_UBUF);
+			V = U + ((input->pitch / (input->bpp >> 3)) * input->height >> 2);
+			pxp_writel(V + (offset >> 2), HW_PXP_PS_VBUF);
+		} else if (input->format == PXP_PIX_FMT_YUV420P) {
+			V = input->paddr + input->pitch * input->height / (input->bpp >> 3);
+			pxp_writel(V + (offset >> 2), HW_PXP_PS_VBUF);
+			U = V + ((input->pitch / (input->bpp >> 3)) * input->height >> 2);
+			pxp_writel(U + (offset >> 2), HW_PXP_PS_UBUF);
 		}
 
 		break;
@@ -2604,7 +2604,7 @@ static int pxp_fetch_config(struct pxp_pixmap *input,
 	offset = input->crop.y * input->pitch +
 		 input->crop.x * (input->bpp >> 3);
 	if (is_yuv(input->format) == 2)
-		UV = input->paddr + input->width * input->height;
+		UV = input->paddr + input->pitch * input->height / (input->bpp >> 3);
 
 	switch (fetch_index) {
 	case PXP_2D_INPUT_FETCH0:
@@ -2665,8 +2665,20 @@ static int pxp_csc1_config(struct pxp_pixmap *input,
 
 	/* YCbCr -> RGB */
 	pxp_writel(0x84ab01f0, HW_PXP_CSC1_COEF0);
-	pxp_writel(0x01980204, HW_PXP_CSC1_COEF1);
-	pxp_writel(0x0730079c, HW_PXP_CSC1_COEF2);
+        if (input->format == PXP_PIX_FMT_YUV420P ||
+	    input->format == PXP_PIX_FMT_YUV422P ||
+	    input->format == PXP_PIX_FMT_NV12 ||
+	    input->format == PXP_PIX_FMT_NV16 ||
+	    input->format == PXP_PIX_FMT_YUYV ||
+	    input->format == PXP_PIX_FMT_UYVY ||
+	    input->format == PXP_PIX_FMT_YUV444) {
+		pxp_writel(0x01980204, HW_PXP_CSC1_COEF1);
+		pxp_writel(0x0730079c, HW_PXP_CSC1_COEF2);
+        }
+        else {
+		pxp_writel(0x02040198, HW_PXP_CSC1_COEF1);
+		pxp_writel(0x079c0730, HW_PXP_CSC1_COEF2);
+        }
 
 	return 0;
 }
@@ -2739,7 +2751,7 @@ static int pxp_out_config(struct pxp_pixmap *output)
 
 	pxp_writel(output->paddr, HW_PXP_OUT_BUF);
 	if (is_yuv(output->format) == 2) {
-		UV = output->paddr + output->width * output->height;
+		UV = output->paddr + output->pitch * output->height / (output->bpp >> 3);
 		if ((output->format == PXP_PIX_FMT_NV16) ||
 		    (output->format == PXP_PIX_FMT_NV61))
 			pxp_writel(UV + offset, HW_PXP_OUT_BUF2);
@@ -2836,7 +2848,7 @@ static int pxp_store_config(struct pxp_pixmap *output,
 	offset = output->crop.y * output->pitch +
 		 output->crop.x * (output->bpp >> 3);
 	if (is_yuv(output->format == 2)) {
-		UV = output->paddr + output->width * output->height;
+		UV = output->paddr + output->pitch * output->height / (output->bpp >> 3);
 		pxp_writel(UV + offset, HW_PXP_INPUT_STORE_ADDR_1_CH0);
 	}
 	pxp_writel(output->paddr + offset, HW_PXP_INPUT_STORE_ADDR_0_CH0);
