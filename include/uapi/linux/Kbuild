@@ -287,6 +287,7 @@ header-y += mxc_sim_interface.h
 header-y += mxc_v4l2.h
 header-y += mtio.h
 header-y += mxc_asrc.h
+header-y += mxc_hifi4.h
 header-y += nbd.h
 header-y += ncp_fs.h
 header-y += ncp.h
