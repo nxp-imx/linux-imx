@@ -562,8 +562,9 @@
 	status = "disabled";
 
 	display0: display@0 {
-		bits-per-pixel = <16>;
+		bits-per-pixel = <32>;
 		bus-width = <24>;
+		fbpix = "ABGR32";
 
 		display-timings {
 			native-mode = <&timing0>;
@@ -598,8 +599,9 @@
 	disp-dev = "ldb";
 	status = "okay";
 	display1: display@1 {
-		bits-per-pixel = <16>;
+		bits-per-pixel = <32>;
 		bus-width = <18>;
+		fbpix = "ABGR32";
 	};
 };
 &ldb {

@@ -524,8 +524,9 @@
 	status = "okay";
 
 	display1: display@1 {
-		bits-per-pixel = <16>;
+		bits-per-pixel = <32>;
 		bus-width = <18>;
+		fbpix = "ABGR32";
 	};
 };
 
