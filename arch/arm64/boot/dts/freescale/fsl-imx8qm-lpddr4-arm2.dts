@@ -350,14 +350,6 @@
 	status = "okay";
 };
 
-&imxdpu0 {
-	status = "okay";
-};
-
-&imxdpu1 {
-	status = "okay";
-};
-
 &lvds0 {
 	status = "okay";
 };
