@@ -202,6 +202,8 @@
 
 #define FLEXCAN_TIMEOUT_US		(50)
 
+#define FLEXCAN_FDCTRL_FDRATE		BIT(31)
+
 /* FLEXCAN hardware feature flags
  *
  * Below is some version info we got:
@@ -627,7 +629,7 @@ static int flexcan_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	const struct flexcan_priv *priv = netdev_priv(dev);
 	struct canfd_frame *cf = (struct canfd_frame *)skb->data;
 	u32 ctrl = FLEXCAN_MB_CODE_TX_DATA | (can_len2dlc(cf->len) << 16);
-	u32 can_id;
+	u32 can_id, reg_fdctrl;
 	u32 data;
 	int i;
 
@@ -654,9 +656,18 @@ static int flexcan_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	can_put_echo_skb(skb, dev, 0);
 
-	if (priv->can.ctrlmode & CAN_CTRLMODE_FD)
-		if (can_is_canfd_skb(skb))
+	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+		if (can_is_canfd_skb(skb)) {
+			reg_fdctrl = flexcan_read(priv, FLEXCAN_FDCTRL) &
+						  ~FLEXCAN_FDCTRL_FDRATE;
+			if (cf->flags & CANFD_BRS) {
+				reg_fdctrl |= FLEXCAN_FDCTRL_FDRATE;
+				ctrl |= FLEXCAN_MB_CNT_BRS;
+			}
+			flexcan_write(priv, FLEXCAN_FDCTRL, reg_fdctrl);
 			ctrl |= FLEXCAN_MB_CNT_EDL;
+		}
+	}
 
 	flexcan_mb_write(priv, FLEXCAN_TX_BUF_ID, FLEXCAN_MB_ID, can_id);
 	flexcan_mb_write(priv, FLEXCAN_TX_BUF_ID, FLEXCAN_MB_CTRL, ctrl);
@@ -812,6 +823,9 @@ static void flexcan_read_mb(const struct net_device *dev,
 	if (!(reg_ctrl & FLEXCAN_MB_CNT_EDL) && reg_ctrl & FLEXCAN_MB_CNT_RTR) {
 		cf->can_id |= CAN_RTR_FLAG;
 	} else {
+		if (reg_ctrl & FLEXCAN_MB_CNT_BRS)
+			cf->flags |= CANFD_BRS;
+
 		for (i = 0; i < cf->len; i += 4)
 			*(__be32 *)(cf->data + i) =
 				cpu_to_be32(flexcan_mb_read(priv, index,
