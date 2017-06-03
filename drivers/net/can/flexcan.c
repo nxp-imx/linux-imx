@@ -217,8 +217,22 @@
 #define FLEXCAN_MB_DATA(n)	(0x8 + ((n) << 2))
 
 #define FLEXCAN_MB_NUM		64
+#define FLEXCAN_MB_FD_NUM	14
 #define FLEXCAN_MB_SIZE		16
+#define FLEXCAN_MB_FD_SIZE	72
 
+/* CAN FD Memory Partition
+ *
+ * When CAN FD is enabled, the FlexCAN RAM can be partitioned in
+ * blocks of 512 bytes. Each block can accommodate a number of
+ * Message Buffers which depends on the configuration provided
+ * by CAN_FDCTRL[MBDSRn] bit fields where we all set to 64 bytes
+ * per Message Buffer and 7 MBs per Block by default.
+ *
+ * There're two RAM blocks: RAM block 0,1
+ */
+#define FLEXCAN_CANFD_MB_OFFSET(n)	(((n) / 7) * 512 + ((n) % 7) * \
+					 FLEXCAN_MB_FD_SIZE)
 /* registers definition
  *
  * FIFO-MODE:
@@ -294,6 +308,9 @@ struct flexcan_priv {
 	u32 iflag_default;
 	/* Rx interrupt can be either Rx fifo or Rx buffer interrupt */
 	u32 rx_int;
+
+	u32 mb_size;
+	u32 mb_num;
 };
 
 static struct flexcan_devtype_data fsl_p1010_devtype_data = {
@@ -343,16 +360,24 @@ static inline void flexcan_write(const struct flexcan_priv *priv,
 static inline u32 flexcan_mb_read(const struct flexcan_priv *priv,
 				  u32 index, unsigned int offset)
 {
-	return in_be32(priv->base + FLEXCAN_MB +
-		       FLEXCAN_MB_SIZE * index + offset);
+	if (priv->can.ctrlmode & CAN_CTRLMODE_FD)
+		return in_be32(priv->base + FLEXCAN_MB +
+			     FLEXCAN_CANFD_MB_OFFSET(index) + offset);
+	else
+		return in_be32(priv->base + FLEXCAN_MB +
+			       priv->mb_size * index + offset);
 }
 
 static inline void flexcan_mb_write(const struct flexcan_priv *priv,
 				    u32 index, unsigned int offset,
 				    u32 val)
 {
-	out_be32(val, priv->base + FLEXCAN_MB +
-		 FLEXCAN_MB_SIZE * index + offset);
+	if (priv->can.ctrlmode & CAN_CTRLMODE_FD)
+		out_be32(val, priv->base + FLEXCAN_MB +
+			 FLEXCAN_CANFD_MB_OFFSET(index) + offset);
+	else
+		out_be32(val, priv->base + FLEXCAN_MB +
+			 priv->mb_size * index + offset);
 }
 #else
 static inline u32 flexcan_read(const struct flexcan_priv *priv,
@@ -370,16 +395,24 @@ static inline void flexcan_write(const struct flexcan_priv *priv,
 static inline u32 flexcan_mb_read(const struct flexcan_priv *priv,
 				  u32 index, unsigned int offset)
 {
-	return readl(priv->base + FLEXCAN_MB +
-		     FLEXCAN_MB_SIZE * index + offset);
+	if (priv->can.ctrlmode & CAN_CTRLMODE_FD)
+		return readl(priv->base + FLEXCAN_MB +
+			     FLEXCAN_CANFD_MB_OFFSET(index) + offset);
+	else
+		return readl(priv->base + FLEXCAN_MB +
+			     priv->mb_size * index + offset);
 }
 
 static inline void flexcan_mb_write(const struct flexcan_priv *priv,
 				    u32 index, unsigned int offset,
 				    u32 val)
 {
-	writel(val, priv->base + FLEXCAN_MB +
-	       FLEXCAN_MB_SIZE * index + offset);
+	if (priv->can.ctrlmode & CAN_CTRLMODE_FD)
+		writel(val, priv->base + FLEXCAN_MB +
+		       FLEXCAN_CANFD_MB_OFFSET(index) + offset);
+	else
+		writel(val, priv->base + FLEXCAN_MB +
+		       priv->mb_size * index + offset);
 }
 #endif
 
@@ -986,9 +1019,18 @@ static int flexcan_chip_start(struct net_device *dev)
 	netdev_dbg(dev, "%s: writing ctrl=0x%08x", __func__, reg_ctrl);
 	flexcan_write(priv, FLEXCAN_CTRL, reg_ctrl);
 
+	/* Configure Message Buffer according to CAN FD mode enabled or not */
+	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+		priv->mb_size = FLEXCAN_MB_FD_SIZE;
+		priv->mb_num = FLEXCAN_MB_FD_NUM;
+	} else {
+		priv->mb_size = FLEXCAN_MB_SIZE;
+		priv->mb_num = FLEXCAN_MB_NUM;
+	}
+
 	/* clear and invalidate all mailboxes first */
 	i = priv->mb_mode ? 0 : FLEXCAN_TX_BUF_ID;
-	for (; i < FLEXCAN_MB_NUM; i++) {
+	for (; i < priv->mb_num; i++) {
 		flexcan_mb_write(priv, i, FLEXCAN_MB_CTRL,
 				 FLEXCAN_MB_CODE_RX_INACTIVE);
 	}
