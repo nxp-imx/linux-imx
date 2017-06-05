@@ -76,4 +76,10 @@ config SPI_NXP_SPIFI
 	  Flash. Enable this option if you have a device with a SPIFI
 	  controller and want to access the Flash as a mtd device.
 
+config SPI_FSL_FLEXSPI
+	tristate "Freescale Flex SPI controller"
+	help
+	  This enables support for the Flex SPI controller in master mode.
+	  We only connect the NOR to this controller now.
+
 endif # MTD_SPI_NOR
