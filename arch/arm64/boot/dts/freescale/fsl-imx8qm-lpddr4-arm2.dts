@@ -576,3 +576,11 @@
 &imx8_gpu_ss {
 	status = "okay";
 };
+
+&dpu1 {
+	status = "okay";
+};
+
+&dpu2 {
+	status = "okay";
+};
