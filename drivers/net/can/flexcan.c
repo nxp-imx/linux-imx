@@ -1134,10 +1134,16 @@ static int flexcan_chip_start(struct net_device *dev)
 	flexcan_mb_write(priv, FLEXCAN_TX_BUF_ID, FLEXCAN_MB_CTRL,
 			 FLEXCAN_MB_CODE_TX_INACTIVE);
 
-	if (priv->mb_mode)
+	if (priv->mb_mode) {
 		/* mark RX mailbox as INACTIVE */
 		flexcan_mb_write(priv, FLEXCAN_RX_BUF_ID, FLEXCAN_MB_CTRL,
 				 FLEXCAN_MB_CODE_RX_EMPTY);
+
+		/* store Remote Request Frame */
+		reg_ctrl2 = flexcan_read(priv, FLEXCAN_CTRL2);
+		reg_ctrl2 |= FLEXCAN_CTRL2_RRS;
+		flexcan_write(priv, FLEXCAN_CTRL2, reg_ctrl2);
+	}
 
 	/* acceptance mask/acceptance code (accept everything) */
 	flexcan_write(priv, FLEXCAN_RXGMASK, 0x0);
