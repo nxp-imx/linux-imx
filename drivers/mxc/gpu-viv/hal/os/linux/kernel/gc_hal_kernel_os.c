@@ -365,9 +365,6 @@ _QueryProcessPageTable(
     OUT gctPHYS_ADDR_T * Address
     )
 {
-#ifndef CONFIG_DEBUG_SPINLOCK
-    spinlock_t *lock = NULL;
-#endif
     gctUINTPTR_T logical = (gctUINTPTR_T)Logical;
     pgd_t *pgd;
     pud_t *pud;
@@ -405,45 +402,28 @@ _QueryProcessPageTable(
         return gcvSTATUS_NOT_FOUND;
     }
 
-#ifndef CONFIG_DEBUG_SPINLOCK
-    pte = pte_offset_map_lock(current->mm, pmd, logical, &lock);
-#else
     spin_lock(&current->mm->page_table_lock);
-
     pte = pte_offset_map(pmd, logical);
-#endif
 
     if (!pte)
     {
-#ifndef CONFIG_DEBUG_SPINLOCK
-        if (lock)
-        {
-            spin_unlock(lock);
-        }
-#else
         spin_unlock(&current->mm->page_table_lock);
-#endif
+
         return gcvSTATUS_NOT_FOUND;
     }
 
     if (!pte_present(*pte))
     {
-#ifndef CONFIG_DEBUG_SPINLOCK
-        pte_unmap_unlock(pte, lock);
-#else
         pte_unmap(pte);
         spin_unlock(&current->mm->page_table_lock);
-#endif
+
         return gcvSTATUS_NOT_FOUND;
     }
 
     *Address = (pte_pfn(*pte) << PAGE_SHIFT) | offset;
-#ifndef CONFIG_DEBUG_SPINLOCK
-    pte_unmap_unlock(pte, lock);
-#else
+
     pte_unmap(pte);
     spin_unlock(&current->mm->page_table_lock);
-#endif
 
     return gcvSTATUS_OK;
 }
