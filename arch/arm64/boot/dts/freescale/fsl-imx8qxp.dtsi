@@ -797,6 +797,45 @@
 		power-domains = <&pd_conn_usbotg0>;
 	};
 
+	flexcan1: can@5a8d0000 {
+		compatible = "fsl,imx8qxp-flexcan", "fsl,imx8qm-flexcan";
+		reg = <0x0 0x5a8d0000 0x0 0x10000>;
+		interrupts = <GIC_SPI 235 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8QXP_CAN0_IPG_CLK>,
+			 <&clk IMX8QXP_CAN0_CLK>;
+		clock-names = "ipg", "per";
+		assigned-clocks = <&clk IMX8QXP_CAN0_CLK>;
+		assigned-clock-rates = <24000000>;
+		power-domains = <&pd_dma_flexcan0>;
+		status = "disabled";
+	};
+
+	flexcan2: can@5a8e0000 {
+		compatible = "fsl,imx8qxp-flexcan", "fsl,imx8qm-flexcan";
+		reg = <0x0 0x5a8e0000 0x0 0x10000>;
+		interrupts = <GIC_SPI 236 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8QXP_CAN1_IPG_CLK>,
+			 <&clk IMX8QXP_CAN1_CLK>;
+		clock-names = "ipg", "per";
+		assigned-clocks = <&clk IMX8QXP_CAN1_CLK>;
+		assigned-clock-rates = <24000000>;
+		power-domains = <&pd_dma_flexcan1>;
+		status = "disabled";
+	};
+
+	flexcan3: can@5a8f0000 {
+		compatible = "fsl,imx8qxp-flexcan", "fsl,imx8qm-flexcan";
+		reg = <0x0 0x5a8f0000 0x0 0x10000>;
+		interrupts = <GIC_SPI 237 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8QXP_CAN2_IPG_CLK>,
+			 <&clk IMX8QXP_CAN2_CLK>;
+		clock-names = "ipg", "per";
+		assigned-clocks = <&clk IMX8QXP_CAN2_CLK>;
+		assigned-clock-rates = <24000000>;
+		power-domains = <&pd_dma_flexcan2>;
+		status = "disabled";
+	};
+
 	gpio0: gpio@5d080000 {
 		compatible = "fsl,imx8qm-gpio", "fsl,imx35-gpio";
 		reg = <0x0 0x5d080000 0x0 0x10000>;
