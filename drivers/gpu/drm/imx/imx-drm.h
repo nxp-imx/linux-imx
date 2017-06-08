@@ -1,6 +1,8 @@
 #ifndef _IMX_DRM_H_
 #define _IMX_DRM_H_
 
+#define MAX_CRTC	4
+
 struct device_node;
 struct drm_crtc;
 struct drm_connector;
@@ -12,6 +14,14 @@ struct drm_framebuffer;
 struct drm_plane;
 struct imx_drm_crtc;
 struct platform_device;
+
+struct imx_drm_device {
+	struct drm_device			*drm;
+	struct imx_drm_crtc			*crtc[MAX_CRTC];
+	unsigned int				pipes;
+	struct drm_fbdev_cma			*fbhelper;
+	struct drm_atomic_state			*state;
+};
 
 struct imx_crtc_state {
 	struct drm_crtc_state			base;

@@ -15,10 +15,8 @@
  */
 #include <linux/component.h>
 #include <linux/device.h>
-#include <linux/dma-buf.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-#include <linux/reservation.h>
 #include <drm/drmP.h>
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
@@ -32,19 +30,9 @@
 
 #include "imx-drm.h"
 
-#define MAX_CRTC	4
-
 struct imx_drm_component {
 	struct device_node *of_node;
 	struct list_head list;
-};
-
-struct imx_drm_device {
-	struct drm_device			*drm;
-	struct imx_drm_crtc			*crtc[MAX_CRTC];
-	unsigned int				pipes;
-	struct drm_fbdev_cma			*fbhelper;
-	struct drm_atomic_state			*state;
 };
 
 struct imx_drm_crtc {
@@ -119,94 +107,6 @@ void imx_drm_encoder_destroy(struct drm_encoder *encoder)
 	drm_encoder_cleanup(encoder);
 }
 EXPORT_SYMBOL_GPL(imx_drm_encoder_destroy);
-
-static void imx_drm_output_poll_changed(struct drm_device *drm)
-{
-	struct imx_drm_device *imxdrm = drm->dev_private;
-
-	drm_fbdev_cma_hotplug_event(imxdrm->fbhelper);
-}
-
-static int imx_drm_atomic_check(struct drm_device *dev,
-				struct drm_atomic_state *state)
-{
-	int ret;
-
-	ret = drm_atomic_helper_check_modeset(dev, state);
-	if (ret)
-		return ret;
-
-	ret = drm_atomic_helper_check_planes(dev, state);
-	if (ret)
-		return ret;
-
-	/*
-	 * Check modeset again in case crtc_state->mode_changed is
-	 * updated in plane's ->atomic_check callback.
-	 */
-	ret = drm_atomic_helper_check_modeset(dev, state);
-	if (ret)
-		return ret;
-
-	return ret;
-}
-
-static int imx_drm_atomic_commit(struct drm_device *dev,
-				 struct drm_atomic_state *state,
-				 bool nonblock)
-{
-	struct drm_plane_state *plane_state;
-	struct drm_plane *plane;
-	struct dma_buf *dma_buf;
-	int i;
-
-	/*
-	 * If the plane fb has an dma-buf attached, fish out the exclusive
-	 * fence for the atomic helper to wait on.
-	 */
-	for_each_plane_in_state(state, plane, plane_state, i) {
-		if ((plane->state->fb != plane_state->fb) && plane_state->fb) {
-			dma_buf = drm_fb_cma_get_gem_obj(plane_state->fb,
-							 0)->base.dma_buf;
-			if (!dma_buf)
-				continue;
-			plane_state->fence =
-				reservation_object_get_excl_rcu(dma_buf->resv);
-		}
-	}
-
-	return drm_atomic_helper_commit(dev, state, nonblock);
-}
-
-static const struct drm_mode_config_funcs imx_drm_mode_config_funcs = {
-	.fb_create = drm_fb_cma_create,
-	.output_poll_changed = imx_drm_output_poll_changed,
-	.atomic_check = imx_drm_atomic_check,
-	.atomic_commit = imx_drm_atomic_commit,
-};
-
-static void imx_drm_atomic_commit_tail(struct drm_atomic_state *state)
-{
-	struct drm_device *dev = state->dev;
-
-	drm_atomic_helper_commit_modeset_disables(dev, state);
-
-	drm_atomic_helper_commit_planes(dev, state,
-				DRM_PLANE_COMMIT_ACTIVE_ONLY |
-				DRM_PLANE_COMMIT_NO_DISABLE_AFTER_MODESET);
-
-	drm_atomic_helper_commit_modeset_enables(dev, state);
-
-	drm_atomic_helper_commit_hw_done(state);
-
-	drm_atomic_helper_wait_for_vblanks(dev, state);
-
-	drm_atomic_helper_cleanup_planes(dev, state);
-}
-
-static struct drm_mode_config_helper_funcs imx_drm_mode_config_helpers = {
-	.atomic_commit_tail = imx_drm_atomic_commit_tail,
-};
 
 /*
  * imx_drm_add_crtc - add a new crtc
@@ -389,8 +289,6 @@ static int imx_drm_bind(struct device *dev)
 	drm->mode_config.min_height = 64;
 	drm->mode_config.max_width = 4096;
 	drm->mode_config.max_height = 4096;
-	drm->mode_config.funcs = &imx_drm_mode_config_funcs;
-	drm->mode_config.helper_private = &imx_drm_mode_config_helpers;
 
 	drm_mode_config_init(drm);
 
