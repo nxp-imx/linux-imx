@@ -684,6 +684,8 @@ static int mxsfb_check_var(struct fb_var_screeninfo *var,
 			if (pixfmt_is_equal(var, def_rgb666))
 				/* 24 bit to 18 bit mapping */
 				rgb = def_rgb666;
+			else if (host->pix_fmt && pixfmt_to_bf(host->pix_fmt))
+				rgb = pixfmt_to_bf(host->pix_fmt);
 			else
 				rgb = def_rgb888;
 			break;
