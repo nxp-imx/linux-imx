@@ -36,8 +36,248 @@ static int mmc_prep_request(struct request_queue *q, struct request *req)
 		return BLKPREP_KILL;
 
 	req->rq_flags |= RQF_DONTPREP;
+	req_to_mmc_queue_req(req)->retries = 0;
 
 	return BLKPREP_OK;
+}
+
+static void mmc_cqe_request_fn(struct request_queue *q)
+{
+	struct mmc_queue *mq = q->queuedata;
+	struct request *req;
+
+	if (!mq) {
+		while ((req = blk_fetch_request(q)) != NULL) {
+			req->rq_flags |= RQF_QUIET;
+			__blk_end_request_all(req, -EIO);
+		}
+		return;
+	}
+
+	if (mq->asleep && !mq->cqe_busy)
+		wake_up_process(mq->thread);
+}
+
+static inline bool mmc_cqe_dcmd_busy(struct mmc_queue *mq)
+{
+	/* Allow only 1 DCMD at a time */
+	return mq->cqe_in_flight[MMC_ISSUE_DCMD];
+}
+
+void mmc_cqe_kick_queue(struct mmc_queue *mq)
+{
+	if ((mq->cqe_busy & MMC_CQE_DCMD_BUSY) && !mmc_cqe_dcmd_busy(mq))
+		mq->cqe_busy &= ~MMC_CQE_DCMD_BUSY;
+
+	mq->cqe_busy &= ~MMC_CQE_QUEUE_FULL;
+
+	if (mq->asleep && !mq->cqe_busy)
+		__blk_run_queue(mq->queue);
+}
+
+static inline bool mmc_cqe_can_dcmd(struct mmc_host *host)
+{
+	return host->caps2 & MMC_CAP2_CQE_DCMD;
+}
+
+enum mmc_issue_type mmc_cqe_issue_type(struct mmc_host *host,
+				       struct request *req)
+{
+	if (req && ((req_op(req) == REQ_OP_DISCARD) || (req_op(req) == REQ_OP_SECURE_ERASE))) {
+		return MMC_ISSUE_SYNC;
+	} else if (req && req_op(req) == REQ_OP_FLUSH) {
+		return mmc_cqe_can_dcmd(host) ? MMC_ISSUE_DCMD : MMC_ISSUE_SYNC;
+	} else {
+		return MMC_ISSUE_ASYNC;
+	}
+}
+
+static void __mmc_cqe_recovery_notifier(struct mmc_queue *mq)
+{
+	if (!mq->cqe_recovery_needed) {
+		mq->cqe_recovery_needed = true;
+		wake_up_process(mq->thread);
+	}
+}
+
+static void mmc_cqe_recovery_notifier(struct mmc_host *host,
+				      struct mmc_request *mrq)
+{
+	struct mmc_queue_req *mqrq = container_of(mrq, struct mmc_queue_req,
+						  brq.mrq);
+	struct request *req = mqrq->req;
+	struct request_queue *q = req->q;
+	struct mmc_queue *mq = q->queuedata;
+	unsigned long flags;
+
+	spin_lock_irqsave(q->queue_lock, flags);
+	__mmc_cqe_recovery_notifier(mq);
+	spin_unlock_irqrestore(q->queue_lock, flags);
+}
+
+static int mmc_cqe_thread(void *d)
+{
+	struct mmc_queue *mq = d;
+	struct request_queue *q = mq->queue;
+	struct mmc_card *card = mq->card;
+	struct mmc_host *host = card->host;
+	unsigned long flags;
+	int get_put = 0;
+
+	current->flags |= PF_MEMALLOC;
+
+	down(&mq->thread_sem);
+	spin_lock_irqsave(q->queue_lock, flags);
+	while (1) {
+		struct request *req = NULL;
+		enum mmc_issue_type issue_type;
+		bool retune_ok = false;
+
+		if (mq->cqe_recovery_needed) {
+			spin_unlock_irqrestore(q->queue_lock, flags);
+			mmc_blk_cqe_recovery(mq);
+			spin_lock_irqsave(q->queue_lock, flags);
+			mq->cqe_recovery_needed = false;
+		}
+
+		set_current_state(TASK_INTERRUPTIBLE);
+
+		if (!kthread_should_stop())
+			req = blk_peek_request(q);
+
+		if (req) {
+			issue_type = mmc_cqe_issue_type(host, req);
+			switch (issue_type) {
+			case MMC_ISSUE_DCMD:
+				if (mmc_cqe_dcmd_busy(mq)) {
+					mq->cqe_busy |= MMC_CQE_DCMD_BUSY;
+					req = NULL;
+					break;
+				}
+				/* Fall through */
+			case MMC_ISSUE_ASYNC:
+				if (blk_queue_start_tag(q, req)) {
+					mq->cqe_busy |= MMC_CQE_QUEUE_FULL;
+					req = NULL;
+				}
+				break;
+			default:
+				/*
+				 * Timeouts are handled by mmc core, so set a
+				 * large value to avoid races.
+				 */
+				req->timeout = 600 * HZ;
+				blk_start_request(req);
+				break;
+			}
+			if (req) {
+				mq->cqe_in_flight[issue_type] += 1;
+				if (mmc_cqe_tot_in_flight(mq) == 1)
+					get_put += 1;
+				if (mmc_cqe_qcnt(mq) == 1)
+					retune_ok = true;
+			}
+		}
+
+		mq->asleep = !req;
+
+		spin_unlock_irqrestore(q->queue_lock, flags);
+
+		if (req) {
+			enum mmc_issued issued;
+
+			set_current_state(TASK_RUNNING);
+
+			if (get_put) {
+				get_put = 0;
+				mmc_get_card(card);
+			}
+
+			if (host->need_retune && retune_ok &&
+			    !host->hold_retune)
+				host->retune_now = true;
+			else
+				host->retune_now = false;
+
+			issued = mmc_blk_cqe_issue_rq(mq, req);
+
+			cond_resched();
+
+			spin_lock_irqsave(q->queue_lock, flags);
+
+			switch (issued) {
+			case MMC_REQ_STARTED:
+				break;
+			case MMC_REQ_BUSY:
+				blk_requeue_request(q, req);
+				goto finished;
+			case MMC_REQ_FAILED_TO_START:
+				__blk_end_request_all(req, -EIO);
+				/* Fall through */
+			case MMC_REQ_FINISHED:
+finished:
+				mq->cqe_in_flight[issue_type] -= 1;
+				if (mmc_cqe_tot_in_flight(mq) == 0)
+					get_put = -1;
+			}
+		} else {
+			if (get_put < 0) {
+				get_put = 0;
+				mmc_put_card(card);
+			}
+			/*
+			 * Do not stop with requests in flight in case recovery
+			 * is needed.
+			 */
+			if (kthread_should_stop() &&
+			    !mmc_cqe_tot_in_flight(mq)) {
+				set_current_state(TASK_RUNNING);
+				break;
+			}
+			up(&mq->thread_sem);
+			schedule();
+			down(&mq->thread_sem);
+			spin_lock_irqsave(q->queue_lock, flags);
+		}
+	} /* loop */
+	up(&mq->thread_sem);
+
+	return 0;
+}
+
+static enum blk_eh_timer_return __mmc_cqe_timed_out(struct request *req)
+{
+	struct mmc_queue_req *mqrq = req_to_mmc_queue_req(req);
+	struct mmc_request *mrq = &mqrq->brq.mrq;
+	struct mmc_queue *mq = req->q->queuedata;
+	struct mmc_host *host = mq->card->host;
+	enum mmc_issue_type issue_type = mmc_cqe_issue_type(host, req);
+	bool recovery_needed = false;
+
+	switch (issue_type) {
+	case MMC_ISSUE_ASYNC:
+	case MMC_ISSUE_DCMD:
+		if (host->cqe_ops->cqe_timeout(host, mrq, &recovery_needed)) {
+			if (recovery_needed)
+				__mmc_cqe_recovery_notifier(mq);
+			return BLK_EH_RESET_TIMER;
+		}
+		/* No timeout */
+		return BLK_EH_HANDLED;
+	default:
+		/* Timeout is handled by mmc core */
+		return BLK_EH_RESET_TIMER;
+	}
+}
+
+static enum blk_eh_timer_return mmc_cqe_timed_out(struct request *req)
+{
+	struct mmc_queue *mq = req->q->queuedata;
+
+	if (mq->cqe_recovery_needed)
+		return BLK_EH_RESET_TIMER;
+
+	return __mmc_cqe_timed_out(req);
 }
 
 static int mmc_queue_thread(void *d)
@@ -239,11 +479,12 @@ static void mmc_exit_request(struct request_queue *q, struct request *req)
  * Initialise a MMC card request queue.
  */
 int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
-		   spinlock_t *lock, const char *subname)
+		   spinlock_t *lock, const char *subname, int area_type)
 {
 	struct mmc_host *host = card->host;
 	u64 limit = BLK_BOUNCE_HIGH;
 	int ret = -ENOMEM;
+	bool use_cqe = host->cqe_enabled && area_type != MMC_BLK_DATA_AREA_RPMB;
 
 	if (mmc_dev(host)->dma_mask && *mmc_dev(host)->dma_mask)
 		limit = (u64)dma_max_pfn(mmc_dev(host)) << PAGE_SHIFT;
@@ -253,7 +494,7 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 	if (!mq->queue)
 		return -ENOMEM;
 	mq->queue->queue_lock = lock;
-	mq->queue->request_fn = mmc_request_fn;
+	mq->queue->request_fn = use_cqe ? mmc_cqe_request_fn : mmc_request_fn;
 	mq->queue->init_rq_fn = mmc_init_request;
 	mq->queue->exit_rq_fn = mmc_exit_request;
 	mq->queue->cmd_size = sizeof(struct mmc_queue_req);
@@ -263,6 +504,24 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 	if (ret) {
 		blk_cleanup_queue(mq->queue);
 		return ret;
+	}
+
+	if (use_cqe) {
+		int q_depth = card->ext_csd.cmdq_depth;
+
+		if (q_depth > host->cqe_qdepth)
+			q_depth = host->cqe_qdepth;
+
+		ret = blk_queue_init_tags(mq->queue, q_depth, NULL,
+					  BLK_TAG_ALLOC_FIFO);
+		if (ret)
+			goto cleanup_queue;
+
+		blk_queue_softirq_done(mq->queue, mmc_blk_cqe_complete_rq);
+		blk_queue_rq_timed_out(mq->queue, mmc_cqe_timed_out);
+		blk_queue_rq_timeout(mq->queue, 60 * HZ);
+
+		host->cqe_recovery_notifier = mmc_cqe_recovery_notifier;
 	}
 
 	blk_queue_prep_rq(mq->queue, mmc_prep_request);
@@ -287,9 +546,9 @@ int mmc_init_queue(struct mmc_queue *mq, struct mmc_card *card,
 
 	sema_init(&mq->thread_sem, 1);
 
-	mq->thread = kthread_run(mmc_queue_thread, mq, "mmcqd/%d%s",
-		host->index, subname ? subname : "");
-
+	mq->thread = kthread_run(use_cqe ? mmc_cqe_thread : mmc_queue_thread,
+				 mq, "mmcqd/%d%s", host->index,
+				 subname ? subname : "");
 	if (IS_ERR(mq->thread)) {
 		ret = PTR_ERR(mq->thread);
 		goto cleanup_queue;
