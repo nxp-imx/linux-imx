@@ -2214,7 +2214,20 @@ gckKERNEL_Dispatch(
         }
         else
         {
+            if (Interface->u.Commit.count > 1 && Interface->u.Commit.engine == gcvENGINE_RENDER)
+            {
+                gctUINT32 i;
 
+                for (i = 0; i < Interface->u.Commit.count; i++)
+                {
+                    gceHARDWARE_TYPE type = Interface->hardwareType;
+                    gckKERNEL kernel = Device->map[type].kernels[i];
+
+                    gcmkONERROR(gckOS_Broadcast(kernel->os,
+                                            kernel->hardware,
+                                            gcvBROADCAST_GPU_COMMIT));
+                }
+            }
 
             status = gckCOMMAND_Commit(Kernel->command,
                 Interface->u.Commit.contexts[0] ?
