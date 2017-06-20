@@ -66,6 +66,7 @@ obj-$(CONFIG_VIDEO_MXC_OUTPUT)		+= mxc/output/
 obj-$(CONFIG_VIDEO_MXC_CAPTURE)	+= mxc/capture/
 obj-$(CONFIG_VIDEO_MXC_CAPTURE)	+= mxc/subdev/
 obj-$(CONFIG_VIDEO_MXC_OUTPUT)  += mxc/output/
+obj-$(CONFIG_VIDEO_MX8_CAPTURE)	+= imx8/
 
 ccflags-y += -I$(srctree)/drivers/media/i2c
 
