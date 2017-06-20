@@ -31,30 +31,30 @@
 
 sc_ipc_t pinctrl_ipcHandle;
 
-int imx_pmx_set_one_pin(struct imx_pinctrl *ipctl, struct imx_pin *pin)
+int imx_pmx_set_one_pin_scu(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 {
 	return 0;
 }
 
-int imx_pmx_backend_gpio_request_enable(struct pinctrl_dev *pctldev,
+int imx_pmx_backend_gpio_request_enable_scu(struct pinctrl_dev *pctldev,
 			struct pinctrl_gpio_range *range, unsigned offset)
 {
 	return -EINVAL;
 }
 
-void imx_pmx_backend_gpio_disable_free(struct pinctrl_dev *pctldev,
+void imx_pmx_backend_gpio_disable_free_scu(struct pinctrl_dev *pctldev,
 				       struct pinctrl_gpio_range *range,
 				       unsigned offset)
 {
 }
 
-int imx_pmx_backend_gpio_set_direction(struct pinctrl_dev *pctldev,
+int imx_pmx_backend_gpio_set_direction_scu(struct pinctrl_dev *pctldev,
 	   struct pinctrl_gpio_range *range, unsigned offset, bool input)
 {
 	return -EINVAL;
 }
 
-int imx_pinconf_backend_get(struct pinctrl_dev *pctldev, unsigned pin_id,
+int imx_pinconf_backend_get_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
 			    unsigned long *config)
 {
 	sc_err_t err = SC_ERR_NONE;
@@ -72,7 +72,8 @@ int imx_pinconf_backend_get(struct pinctrl_dev *pctldev, unsigned pin_id,
 
 	return 0;
 }
-int imx_pinconf_backend_set(struct pinctrl_dev *pctldev, unsigned pin_id,
+
+int imx_pinconf_backend_set_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
 			    unsigned long *configs, unsigned num_configs)
 {
 	sc_err_t err = SC_ERR_NONE;
@@ -108,7 +109,7 @@ int imx_pinconf_backend_set(struct pinctrl_dev *pctldev, unsigned pin_id,
 	return 0;
 }
 
-int imx_pinctrl_parse_pin(struct imx_pinctrl_soc_info *info,
+int imx_pinctrl_parse_pin_scu(struct imx_pinctrl_soc_info *info,
 			  unsigned int *pin_id, struct imx_pin *pin,
 			  const __be32 **list_p)
 {

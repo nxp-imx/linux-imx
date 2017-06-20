@@ -203,7 +203,10 @@ static int imx_pmx_set(struct pinctrl_dev *pctldev, unsigned selector,
 		info->functions[selector].name, grp->name);
 
 	for (i = 0; i < npins; i++) {
-		err = imx_pmx_set_one_pin(ipctl, &grp->pins[i]);
+		if (info->flags & IMX8_USE_SCU)
+			err = imx_pmx_set_one_pin_scu(ipctl, &grp->pins[i]);
+		else
+			err = imx_pmx_set_one_pin_mem(ipctl, &grp->pins[i]);
 		if (err)
 			return err;
 	}
@@ -244,20 +247,39 @@ static int imx_pmx_get_groups(struct pinctrl_dev *pctldev, unsigned selector,
 static int imx_pmx_gpio_request_enable(struct pinctrl_dev *pctldev,
 			struct pinctrl_gpio_range *range, unsigned offset)
 {
-	return imx_pmx_backend_gpio_request_enable(pctldev, range, offset);
+	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
+	const struct imx_pinctrl_soc_info *info = ipctl->info;
+
+	if (info->flags & IMX8_USE_SCU)
+		return imx_pmx_backend_gpio_request_enable_scu(pctldev, range, offset);
+	else
+		return imx_pmx_backend_gpio_request_enable_mem(pctldev, range, offset);
 }
 
 static void imx_pmx_gpio_disable_free(struct pinctrl_dev *pctldev,
 			struct pinctrl_gpio_range *range, unsigned offset)
 {
-	imx_pmx_backend_gpio_disable_free(pctldev, range, offset);
+	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
+	const struct imx_pinctrl_soc_info *info = ipctl->info;
+
+	if (info->flags & IMX8_USE_SCU)
+		imx_pmx_backend_gpio_disable_free_scu(pctldev, range, offset);
+	else
+		imx_pmx_backend_gpio_disable_free_mem(pctldev, range, offset);
 }
 
 static int imx_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 	   struct pinctrl_gpio_range *range, unsigned offset, bool input)
 {
-	return imx_pmx_backend_gpio_set_direction(pctldev, range, offset,
-						  input);
+	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
+	const struct imx_pinctrl_soc_info *info = ipctl->info;
+
+	if (info->flags & IMX8_USE_SCU)
+		return imx_pmx_backend_gpio_set_direction_scu(pctldev,
+				range, offset, input);
+	else
+		return imx_pmx_backend_gpio_set_direction_mem(pctldev,
+				range, offset, input);
 }
 
 static const struct pinmux_ops imx_pmx_ops = {
@@ -273,23 +295,41 @@ static const struct pinmux_ops imx_pmx_ops = {
 static int imx_pinconf_get(struct pinctrl_dev *pctldev,
 			     unsigned pin_id, unsigned long *config)
 {
-	return imx_pinconf_backend_get(pctldev, pin_id, config);
+	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
+	const struct imx_pinctrl_soc_info *info = ipctl->info;
+
+	if (info->flags & IMX8_USE_SCU)
+		return imx_pinconf_backend_get_scu(pctldev, pin_id, config);
+	else
+		return imx_pinconf_backend_get_mem(pctldev, pin_id, config);
 }
 
 static int imx_pinconf_set(struct pinctrl_dev *pctldev,
 			     unsigned pin_id, unsigned long *configs,
 			     unsigned num_configs)
 {
-	return imx_pinconf_backend_set(pctldev, pin_id, configs, num_configs);
+	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
+	const struct imx_pinctrl_soc_info *info = ipctl->info;
+
+	if (info->flags & IMX8_USE_SCU)
+		return imx_pinconf_backend_set_scu(pctldev, pin_id, configs, num_configs);
+	else
+		return imx_pinconf_backend_set_mem(pctldev, pin_id, configs, num_configs);
 }
 
 static void imx_pinconf_dbg_show(struct pinctrl_dev *pctldev,
 				   struct seq_file *s, unsigned pin_id)
 {
+	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
+	const struct imx_pinctrl_soc_info *info = ipctl->info;
 	unsigned long config;
 	int ret;
 
-	ret = imx_pinconf_backend_get(pctldev, pin_id, &config);
+	if (info->flags & IMX8_USE_SCU)
+		ret = imx_pinconf_backend_get_scu(pctldev, pin_id, &config);
+	else
+		ret = imx_pinconf_backend_get_mem(pctldev, pin_id, &config);
+
 	if (ret) {
 		seq_printf(s, "N/A");
 		return;
@@ -385,8 +425,12 @@ static int imx_pinctrl_parse_groups(struct device_node *np,
 		return -ENOMEM;
 
 	for (i = 0; i < grp->npins; i++) {
-		imx_pinctrl_parse_pin(info, &grp->pin_ids[i], &grp->pins[i],
-				      list_p);
+		if (info->flags & IMX8_USE_SCU)
+			imx_pinctrl_parse_pin_scu(info, &grp->pin_ids[i],
+				&grp->pins[i], list_p);
+		else
+			imx_pinctrl_parse_pin_mem(info, &grp->pin_ids[i],
+				&grp->pins[i], list_p);
 	}
 
 	return 0;
