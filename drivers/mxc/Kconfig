@@ -6,6 +6,7 @@ menu "MXC support drivers"
 
 #drivers common to MXC and MX8 goes here
 source "drivers/mxc/gpu-viv/Kconfig"
+source "drivers/mxc/hantro/Kconfig"
 
 
 if ARCH_MXC
