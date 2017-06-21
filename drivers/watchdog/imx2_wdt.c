@@ -93,6 +93,26 @@ static const struct watchdog_info imx2_wdt_pretimeout_info = {
 		   WDIOF_PRETIMEOUT,
 };
 
+static int imx2_wdt_ping(struct watchdog_device *wdog)
+{
+	struct imx2_wdt_device *wdev = watchdog_get_drvdata(wdog);
+
+	regmap_write(wdev->regmap, IMX2_WDT_WSR, IMX2_WDT_SEQ1);
+	regmap_write(wdev->regmap, IMX2_WDT_WSR, IMX2_WDT_SEQ2);
+	return 0;
+}
+
+
+static inline bool imx2_wdt_is_running(struct imx2_wdt_device *wdev)
+{
+	u32 val;
+
+	regmap_read(wdev->regmap, IMX2_WDT_WCR, &val);
+
+	return val & IMX2_WDT_WCR_WDE;
+}
+
+
 static int imx2_wdt_restart(struct watchdog_device *wdog, unsigned long action,
 			    void *data)
 {
@@ -108,6 +128,9 @@ static int imx2_wdt_restart(struct watchdog_device *wdog, unsigned long action,
 	/* Assert SRS signal */
 	regmap_write(wdev->regmap, IMX2_WDT_WCR, wcr_enable);
 
+	if (imx2_wdt_is_running(wdev))
+		imx2_wdt_ping(wdog);
+
 	/*
 	 * Due to imx6q errata ERR004346 (WDOG: WDOG SRS bit requires to be
 	 * written twice), we add another two writes to ensure there must be at
@@ -119,7 +142,9 @@ static int imx2_wdt_restart(struct watchdog_device *wdog, unsigned long action,
 	regmap_write(wdev->regmap, IMX2_WDT_WCR, wcr_enable);
 
 	/* wait for reset to assert... */
-	mdelay(500);
+	mdelay(100);
+	dev_err(wdog->parent, "failed to assert %s reset, trying with timeout\n",
+		wdev->ext_reset ? "external" : "internal");
 
 	return 0;
 }
@@ -151,24 +176,6 @@ static inline void imx2_wdt_setup(struct watchdog_device *wdog)
 	/* enable the watchdog */
 	val |= IMX2_WDT_WCR_WDE;
 	regmap_write(wdev->regmap, IMX2_WDT_WCR, val);
-}
-
-static inline bool imx2_wdt_is_running(struct imx2_wdt_device *wdev)
-{
-	u32 val;
-
-	regmap_read(wdev->regmap, IMX2_WDT_WCR, &val);
-
-	return val & IMX2_WDT_WCR_WDE;
-}
-
-static int imx2_wdt_ping(struct watchdog_device *wdog)
-{
-	struct imx2_wdt_device *wdev = watchdog_get_drvdata(wdog);
-
-	regmap_write(wdev->regmap, IMX2_WDT_WSR, IMX2_WDT_SEQ1);
-	regmap_write(wdev->regmap, IMX2_WDT_WSR, IMX2_WDT_SEQ2);
-	return 0;
 }
 
 static void __imx2_wdt_set_timeout(struct watchdog_device *wdog,
