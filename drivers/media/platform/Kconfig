@@ -136,7 +136,6 @@ config VIDEO_MX8_CAPTURE
 source "drivers/media/platform/imx8/Kconfig"
 source "drivers/media/platform/mxc/capture/Kconfig"
 source "drivers/media/platform/mxc/output/Kconfig"
-source "drivers/media/platform/mxc/subdev/Kconfig"
 source "drivers/media/platform/soc_camera/Kconfig"
 source "drivers/media/platform/exynos4-is/Kconfig"
 source "drivers/media/platform/am437x/Kconfig"
