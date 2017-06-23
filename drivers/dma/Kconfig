@@ -367,13 +367,13 @@ config MV_XOR_V2
 
 config MXS_DMA
 	bool "MXS DMA support"
-	depends on SOC_IMX23 || SOC_IMX28 || SOC_IMX6
+	depends on ARCH_MXS || ARCH_MXC || ARCH_MXC_ARM64 || COMPILE_TEST
 	select STMP_DEVICE
 	select DMA_ENGINE
 	help
 	  Support the MXS DMA engine. This engine including APBH-DMA
 	  and APBX-DMA is integrated into Freescale
-	  i.MX23/28/MX6Q/MX6DL/MX6UL chips.
+	  i.MX23/28/MX6Q/MX6DL/MX6UL/MX7D/MX8 chips.
 
 source "drivers/dma/pxp/Kconfig"
 
