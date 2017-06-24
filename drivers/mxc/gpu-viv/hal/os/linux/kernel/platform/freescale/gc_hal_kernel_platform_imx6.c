@@ -700,6 +700,7 @@ _GetPower(
     struct clk *clk_core = NULL;
     struct clk *clk_shader = NULL;
     struct clk *clk_axi = NULL;
+    struct clk *clk_ahb = NULL;
 
     /*Initialize the clock structure*/
 #if IMX_GPU_SUBSYSTEM
@@ -824,6 +825,10 @@ _GetPower(
                 clk_shader = NULL;
                 gckOS_Print("galcore: clk_get gpu3d_shader_clk failed, disable 3d!\n");
             }
+            clk_ahb = clk_get(pdev, "gpu3d_ahb_clk");
+            if (IS_ERR(clk_ahb)) {
+                clk_ahb = NULL;
+            }
         } else {
             clk_core = NULL;
             gckOS_Print("galcore: clk_get gpu3d_clk failed, disable 3d!\n");
@@ -832,6 +837,7 @@ _GetPower(
         priv->imx_gpu_clks[gcvCORE_MAJOR].clk_core = clk_core;
         priv->imx_gpu_clks[gcvCORE_MAJOR].clk_shader = clk_shader;
         priv->imx_gpu_clks[gcvCORE_MAJOR].clk_axi = clk_axi;
+        priv->imx_gpu_clks[gcvCORE_MAJOR].clk_ahb = clk_ahb;
 
         clk_core = clk_get(pdev, "gpu2d_clk");
         if (IS_ERR(clk_core)) {
@@ -912,6 +918,11 @@ _PutPower(
         if(imx_clk->clk_axi) {
              clk_put(imx_clk->clk_axi);
              imx_clk->clk_axi = NULL;
+        }
+
+        if(imx_clk->clk_ahb) {
+             clk_put(imx_clk->clk_ahb);
+             imx_clk->clk_ahb = NULL;
         }
 
 #ifdef CONFIG_PM
@@ -1029,24 +1040,29 @@ _SetClock(
     struct clk *clk_core = priv->imx_gpu_clks[GPU].clk_core;
     struct clk *clk_shader = priv->imx_gpu_clks[GPU].clk_shader;
     struct clk *clk_axi = priv->imx_gpu_clks[GPU].clk_axi;
+    struct clk *clk_ahb = priv->imx_gpu_clks[GPU].clk_ahb;
 
     if (Enable) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
         if(clk_core) clk_prepare(clk_core);
         if(clk_shader) clk_prepare(clk_shader);
         if(clk_axi) clk_prepare(clk_axi);
+        if(clk_ahb) clk_prepare(clk_ahb);
 #endif
         if(clk_core) clk_enable(clk_core);
         if(clk_shader) clk_enable(clk_shader);
         if(clk_axi) clk_enable(clk_axi);
+        if(clk_ahb) clk_enable(clk_ahb);
     } else {
         if(clk_core) clk_disable(clk_core);
         if(clk_shader) clk_disable(clk_shader);
         if(clk_axi) clk_disable(clk_axi);
+        if(clk_ahb) clk_disable(clk_ahb);
  #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
         if(clk_core) clk_unprepare(clk_core);
         if(clk_shader) clk_unprepare(clk_shader);
         if(clk_axi) clk_unprepare(clk_axi);
+        if(clk_ahb) clk_unprepare(clk_ahb);
 #endif
     }
 
