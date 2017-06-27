@@ -197,3 +197,7 @@
 &gpu {
 	status = "okay";
 };
+
+&vpu {
+	status = "okay";
+};
