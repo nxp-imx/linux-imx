@@ -357,7 +357,7 @@ static int imx_hifi_hw_params(struct snd_pcm_substream *substream,
 
 	if (sample_format == SNDRV_PCM_FORMAT_S24_LE
 		|| sample_format == SNDRV_PCM_FORMAT_S20_3LE)
-		pll_out = sample_rate * 384;
+		pll_out = sample_rate * 192;
 	else
 		pll_out = sample_rate * 256;
 
