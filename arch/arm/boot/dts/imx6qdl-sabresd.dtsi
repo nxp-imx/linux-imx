@@ -1182,3 +1182,7 @@
 	fsl,ext-reset-output;
 	status = "okay";
 };
+
+&crypto {
+	status = "disabled";
+};
