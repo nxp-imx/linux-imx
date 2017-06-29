@@ -256,7 +256,7 @@ static void optee_release(struct tee_context *ctx)
 		optee_supp_release(&optee->supp);
 }
 
-static struct tee_driver_ops optee_ops = {
+static const struct tee_driver_ops optee_ops = {
 	.get_version = optee_get_version,
 	.open = optee_open,
 	.release = optee_release,
@@ -266,13 +266,13 @@ static struct tee_driver_ops optee_ops = {
 	.cancel_req = optee_cancel_req,
 };
 
-static struct tee_desc optee_desc = {
+static const struct tee_desc optee_desc = {
 	.name = DRIVER_NAME "-clnt",
 	.ops = &optee_ops,
 	.owner = THIS_MODULE,
 };
 
-static struct tee_driver_ops optee_supp_ops = {
+static const struct tee_driver_ops optee_supp_ops = {
 	.get_version = optee_get_version,
 	.open = optee_open,
 	.release = optee_release,
@@ -280,7 +280,7 @@ static struct tee_driver_ops optee_supp_ops = {
 	.supp_send = optee_supp_send,
 };
 
-static struct tee_desc optee_supp_desc = {
+static const struct tee_desc optee_supp_desc = {
 	.name = DRIVER_NAME "-supp",
 	.ops = &optee_supp_ops,
 	.owner = THIS_MODULE,
