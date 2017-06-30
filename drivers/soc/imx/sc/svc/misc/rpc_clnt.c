@@ -7,7 +7,7 @@
 
 /*!
  * File containing client-side RPC functions for the MISC service. These
- * function are ported to clients that communicate to the SC.
+ * functions are ported to clients that communicate to the SC.
  *
  * @addtogroup MISC_SVC
  * @{
@@ -213,6 +213,23 @@ void sc_misc_boot_status(sc_ipc_t ipc, sc_misc_boot_status_t status)
 	sc_call_rpc(ipc, &msg, true);
 
 	return;
+}
+
+sc_err_t sc_misc_boot_done(sc_ipc_t ipc, sc_rsrc_t cpu)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
+	RPC_FUNC(&msg) = MISC_FUNC_BOOT_DONE;
+	RPC_U16(&msg, 0) = cpu;
+	RPC_SIZE(&msg) = 2;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
 }
 
 sc_err_t sc_misc_otp_fuse_read(sc_ipc_t ipc, uint32_t word, uint32_t *val)

@@ -7,6 +7,7 @@
 
 /*!
  * Header file used to configure SoC pad list.
+ *
  */
 
 #ifndef _SC_PADS_H

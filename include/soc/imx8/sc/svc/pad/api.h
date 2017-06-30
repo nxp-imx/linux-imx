@@ -61,7 +61,89 @@
  * @name Defines for type widths
  */
 /*@{*/
-#define SC_PAD_MUX_W        3	/* Width of mux parameter */
+#define SC_PAD_MUX_W            3	/* Width of mux parameter */
+/*@}*/
+
+/*!
+ * @name Defines for sc_pad_config_t
+ */
+/*@{*/
+#define SC_PAD_CONFIG_NORMAL    0	/* Normal */
+#define SC_PAD_CONFIG_OD        1	/* Open Drain */
+#define SC_PAD_CONFIG_OD_IN     2	/* Open Drain and input */
+#define SC_PAD_CONFIG_OUT_IN    3	/* Output and input */
+/*@}*/
+
+/*!
+ * @name Defines for sc_pad_iso_t
+ */
+/*@{*/
+#define SC_PAD_ISO_OFF          0	/* ISO latch is transparent */
+#define SC_PAD_ISO_EARLY        1	/* Follow EARLY_ISO */
+#define SC_PAD_ISO_LATE         2	/* Follow LATE_ISO */
+#define SC_PAD_ISO_ON           3	/* ISO latched data is held */
+/*@}*/
+
+/*!
+ * @name Defines for sc_pad_28lpp_dse_t
+ */
+/*@{*/
+#define SC_PAD_28LPP_DSE_x1     0	/* Drive strength x1 */
+#define SC_PAD_28LPP_DSE_x4     1	/* Drive strength x4 */
+#define SC_PAD_28LPP_DSE_x2     2	/* Drive strength x2 */
+#define SC_PAD_28LPP_DSE_x6     3	/* Drive strength x6 */
+/*@}*/
+
+/*!
+ * @name Defines for sc_pad_28fdsoi_dse_t
+ */
+/*@{*/
+#define SC_PAD_28FDSOI_DSE_18V_1MA   0	/* Drive strength of 1mA for 1.8v */
+#define SC_PAD_28FDSOI_DSE_18V_2MA   1	/* Drive strength of 2mA for 1.8v */
+#define SC_PAD_28FDSOI_DSE_18V_4MA   2	/* Drive strength of 4mA for 1.8v */
+#define SC_PAD_28FDSOI_DSE_18V_6MA   3	/* Drive strength of 6mA for 1.8v */
+#define SC_PAD_28FDSOI_DSE_18V_8MA   4	/* Drive strength of 8mA for 1.8v */
+#define SC_PAD_28FDSOI_DSE_18V_10MA  5	/* Drive strength of 10mA for 1.8v */
+#define SC_PAD_28FDSOI_DSE_18V_12MA  6	/* Drive strength of 12mA for 1.8v */
+#define SC_PAD_28FDSOI_DSE_33V_2MA   0	/* Drive strength of 2mA for 3.3v */
+#define SC_PAD_28FDSOI_DSE_33V_4MA   1	/* Drive strength of 4mA for 3.3v */
+#define SC_PAD_28FDSOI_DSE_33V_8MA   2	/* Drive strength of 8mA for 3.3v */
+#define SC_PAD_28FDSOI_DSE_33V_12MA  3	/* Drive strength of 12mA for 3.3v */
+#define SC_PAD_28FDSOI_DSE_33V_HS    7	/* High-speed drive strength for 1.8v */
+#define SC_PAD_28FDSOI_DSE_DV_LOW    0	/* Low drive strength for dual volt */
+#define SC_PAD_28FDSOI_DSE_DV_HIGH   1	/* High drive strength for dual volt */
+/*@}*/
+
+/*!
+ * @name Defines for sc_pad_28lpp_ps_t
+ */
+/*@{*/
+#define SC_PAD_28LPP_PS_PD      0	/* Pull down */
+#define SC_PAD_28LPP_PS_PU_5K   1	/* 5K pull up */
+#define SC_PAD_28LPP_PS_PU_47K  2	/* 47K pull up */
+#define SC_PAD_28LPP_PS_PU_100K 3	/* 100K pull up */
+/*@}*/
+
+/*!
+ * @name Defines for sc_pad_28fdsoi_ps_t
+ */
+/*@{*/
+#define SC_PAD_28FDSOI_PS_KEEPER 0	/* Bus-keeper (only valid for 1.8v) */
+#define SC_PAD_28FDSOI_PS_PU     1	/* Pull-up */
+#define SC_PAD_28FDSOI_PS_PD     2	/* Pull-down */
+#define SC_PAD_28FDSOI_PS_NONE   3	/* No pull (disabled) */
+/*@}*/
+
+/*!
+ * @name Defines for sc_pad_wakeup_t
+ */
+/*@{*/
+#define SC_PAD_WAKEUP_OFF       0	/* Off */
+#define SC_PAD_WAKEUP_CLEAR     1	/* Clears pending flag */
+#define SC_PAD_WAKEUP_LOW_LVL   4	/* Low level */
+#define SC_PAD_WAKEUP_FALL_EDGE 5	/* Falling edge */
+#define SC_PAD_WAKEUP_RISE_EDGE 6	/* Rising edge */
+#define SC_PAD_WAKEUP_HIGH_LVL  7	/* High-level */
 /*@}*/
 
 /* Types */
@@ -73,12 +155,7 @@
  * when the output is not driven.  The IN options are less common and
  * force an input connection even when driving the output.
  */
-typedef enum sc_pad_config_e {
-	SC_PAD_CONFIG_NORMAL = 0,	/* Normal */
-	SC_PAD_CONFIG_OD = 1,	/* Open Drain */
-	SC_PAD_CONFIG_OD_IN = 2,	/* Open Drain and input */
-	SC_PAD_CONFIG_OUT_IN = 3	/* Output and input */
-} sc_pad_config_t;
+typedef uint8_t sc_pad_config_t;
 
 /*!
  * This type is used to declare a pad low-power isolation config.
@@ -86,78 +163,36 @@ typedef enum sc_pad_config_e {
  * an output pad is directly determined by another input pad. The
  * other two are only used when SW wants to directly contol isolation.
  */
-typedef enum sc_pad_iso_e {
-	SC_PAD_ISO_OFF = 0,	/* ISO latch is transparent */
-	SC_PAD_ISO_EARLY = 1,	/* Follow EARLY_ISO */
-	SC_PAD_ISO_LATE = 2,	/* Follow LATE_ISO */
-	SC_PAD_ISO_ON = 3	/* ISO latched data is held */
-} sc_pad_iso_t;
+typedef uint8_t sc_pad_iso_t;
 
 /*!
  * This type is used to declare a drive strength. Note it is specific
  * to 28LPP.
  */
-typedef enum sc_pad_28lpp_dse_e {
-	SC_PAD_28LPP_DSE_x1 = 0,	/* Drive strength x1 */
-	SC_PAD_28LPP_DSE_x4 = 1,	/* Drive strength x4 */
-	SC_PAD_28LPP_DSE_x2 = 2,	/* Drive strength x2 */
-	SC_PAD_28LPP_DSE_x6 = 3	/* Drive strength x6 */
-} sc_pad_28lpp_dse_t;
+typedef uint8_t sc_pad_28lpp_dse_t;
 
 /*!
  * This type is used to declare a drive strength. Note it is specific
  * to 28FDSOI. Also note that valid values depend on the pad type.
  */
-typedef enum sc_pad_28fdsio_dse_e {
-	SC_PAD_28FDSOI_DSE_18V_1MA = 0,	/* Drive strength of 1mA for 1.8v */
-	SC_PAD_28FDSOI_DSE_18V_2MA = 1,	/* Drive strength of 2mA for 1.8v */
-	SC_PAD_28FDSOI_DSE_18V_4MA = 2,	/* Drive strength of 4mA for 1.8v */
-	SC_PAD_28FDSOI_DSE_18V_6MA = 3,	/* Drive strength of 6mA for 1.8v */
-	SC_PAD_28FDSOI_DSE_18V_8MA = 4,	/* Drive strength of 8mA for 1.8v */
-	SC_PAD_28FDSOI_DSE_18V_10MA = 5,	/* Drive strength of 10mA for 1.8v */
-	SC_PAD_28FDSOI_DSE_18V_12MA = 6,	/* Drive strength of 12mA for 1.8v */
-	SC_PAD_28FDSOI_DSE_33V_2MA = 0,	/* Drive strength of 2mA for 3.3v */
-	SC_PAD_28FDSOI_DSE_33V_4MA = 1,	/* Drive strength of 4mA for 3.3v */
-	SC_PAD_28FDSOI_DSE_33V_8MA = 2,	/* Drive strength of 8mA for 3.3v */
-	SC_PAD_28FDSOI_DSE_33V_12MA = 3,	/* Drive strength of 12mA for 3.3v */
-	SC_PAD_28FDSOI_DSE_33V_HS = 7,	/* High-speed drive strength for 1.8v */
-	SC_PAD_28FDSOI_DSE_DV_LOW = 0,	/* Low drive strength for dual volt */
-	SC_PAD_28FDSOI_DSE_DV_HIGH = 1	/* High drive strength for dual volt */
-} sc_pad_28fdsoi_dse_t;
+typedef uint8_t sc_pad_28fdsoi_dse_t;
 
 /*!
  * This type is used to declare a pull select. Note it is specific
  * to 28LPP.
  */
-typedef enum sc_pad_28lpp_ps_e {
-	SC_PAD_28LPP_PS_PD = 0,	/* Pull down */
-	SC_PAD_28LPP_PS_PU_5K = 1,	/* 5K pull up */
-	SC_PAD_28LPP_PS_PU_47K = 2,	/* 47K pull up */
-	SC_PAD_28LPP_PS_PU_100K = 3	/* 100K pull up */
-} sc_pad_28lpp_ps_t;
+typedef uint8_t sc_pad_28lpp_ps_t;
 
 /*!
  * This type is used to declare a pull select. Note it is specific
  * to 28FDSOI.
  */
-typedef enum sc_pad_28fdsoi_ps_e {
-	SC_PAD_28FDSOI_PS_KEEPER = 0,	/* Bus-keeper (only valid for 1.8v) */
-	SC_PAD_28FDSOI_PS_PU = 1,	/* Pull-up */
-	SC_PAD_28FDSOI_PS_PD = 2,	/* Pull-down */
-	SC_PAD_28FDSOI_PS_NONE = 3	/* No pull (disabled) */
-} sc_pad_28fdsoi_ps_t;
+typedef uint8_t sc_pad_28fdsoi_ps_t;
 
 /*!
  * This type is used to declare a wakeup mode of a pad.
  */
-typedef enum sc_pad_wakeup_e {
-	SC_PAD_WAKEUP_OFF = 0,	/* Off */
-	SC_PAD_WAKEUP_CLEAR = 1,	/* Clears pending flag */
-	SC_PAD_WAKEUP_LOW_LVL = 4,	/* Low level */
-	SC_PAD_WAKEUP_FALL_EDGE = 5,	/* Falling edge */
-	SC_PAD_WAKEUP_RISE_EDGE = 6,	/* Rising edge */
-	SC_PAD_WAKEUP_HIGH_LVL = 7	/* High-level */
-} sc_pad_wakeup_t;
+typedef uint8_t sc_pad_wakeup_t;
 
 /* Functions */
 

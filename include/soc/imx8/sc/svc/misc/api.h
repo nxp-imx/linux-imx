@@ -36,6 +36,32 @@
 /*! Max DMA channel priority group */
 #define SC_MISC_DMA_GRP_MAX     31
 
+/*!
+ * @name Defines for sc_misc_boot_status_t
+ */
+/*@{*/
+#define SC_MISC_BOOT_STATUS_SUCCESS     0	/* Success */
+#define SC_MISC_BOOT_STATUS_SECURITY    1	/* Security violation */
+/*@}*/
+
+/*!
+ * @name Defines for sc_misc_seco_auth_cmd_t
+ */
+/*@{*/
+#define SC_MISC_SECO_AUTH_SECO_FW       0	/* SECO Firmware */
+#define SC_MISC_SECO_AUTH_HDMI_TX_FW    1	/* HDMI TX Firmware */
+#define SC_MISC_SECO_AUTH_HDMI_RX_FW    2	/* HDMI RX Firmware */
+/*@}*/
+
+/*!
+ * @name Defines for sc_misc_temp_t
+ */
+/*@{*/
+#define SC_MISC_TEMP                    0	/* Temp sensor */
+#define SC_MISC_TEMP_HIGH               1	/* Temp high alarm */
+#define SC_MISC_TEMP_LOW                2	/* Temp low alarm */
+/*@}*/
+
 /* Types */
 
 /*!
@@ -46,28 +72,17 @@ typedef uint8_t sc_misc_dma_group_t;
 /*!
  * This type is used report boot status.
  */
-typedef enum sc_misc_boot_status_e {
-	SC_MISC_BOOT_STATUS_SUCCESS = 0,	/* Success */
-	SC_MISC_BOOT_STATUS_SECURITY = 1	/* Security violation */
-} sc_misc_boot_status_t;
+typedef uint8_t sc_misc_boot_status_t;
 
 /*!
  * This type is used to issue SECO authenticate commands.
  */
-typedef enum sc_misc_seco_auth_cmd_e {
-	SC_MISC_SECO_AUTH_SECO_FW = 0,	/* SECO Firmware */
-	SC_MISC_SECO_AUTH_HDMI_TX_FW = 1,	/* HDMI TX Firmware */
-	SC_MISC_SECO_AUTH_HDMI_RX_FW = 2	/* HDMI RX Firmware */
-} sc_misc_seco_auth_cmd_t;
+typedef uint8_t sc_misc_seco_auth_cmd_t;
 
 /*!
  * This type is used report boot status.
  */
-typedef enum sc_misc_temp_e {
-	SC_MISC_TEMP = 0,	/* Temp sensor */
-	SC_MISC_TEMP_HIGH = 1,	/* Temp high alarm */
-	SC_MISC_TEMP_LOW = 2	/* Temp low alarm */
-} sc_misc_temp_t;
+typedef uint8_t sc_misc_temp_t;
 
 /* Functions */
 
@@ -181,6 +196,8 @@ sc_err_t sc_misc_set_dma_group(sc_ipc_t ipc, sc_rsrc_t resource,
  * @param[in]     len         lenth of image to load
  * @param[in]     fw          true = firmware load
  *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
  * This is used to load images via the SECO. Examples include SECO
  * Firmware and IVT/CSF data used for authentication. These are usually
  * loaded into SECO TCM. \a addr_src is in secure memory.
@@ -194,6 +211,8 @@ sc_err_t sc_misc_seco_image_load(sc_ipc_t ipc, uint32_t addr_src,
  * @param[in]     ipc         IPC handle
  * @param[in]     cmd         authenticate command
  * @param[in]     addr_meta   address of metadata
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
  *
  * This is used to authenticate a SECO image or issue a security
  * command. \a addr_meta often points to an IVT in SECO TCM.
@@ -272,10 +291,30 @@ sc_err_t sc_misc_set_ari(sc_ipc_t ipc, sc_rsrc_t resource,
 void sc_misc_boot_status(sc_ipc_t ipc, sc_misc_boot_status_t status);
 
 /*!
+ * This function tells the SCFW that a CPU is done booting.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     cpu         CPU that is done booting
+ *
+ * This is called by early booting CPUs to report they are done with
+ * initialization. After starting early CPUs, the SCFW halts the
+ * booting process until they are done. During this time, early
+ * CPUs can call the SCFW with lower latency as the SCFW is idle.
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_PARM if arguments out of range or invalid,
+ * - SC_ERR_NOACCESS if caller's partition is not the CPU owner
+ */
+sc_err_t sc_misc_boot_done(sc_ipc_t ipc, sc_rsrc_t cpu);
+
+/*!
  * This function reads a given fuse word index.
  *
+ * @param[in]     ipc         IPC handle
  * @param[in]     word        fuse word index
- * @param[out]    value       fuse read value
+ * @param[out]    val         fuse read value
  *
  * @return Returns and error code (SC_ERR_NONE = success).
  *
@@ -289,6 +328,7 @@ sc_err_t sc_misc_otp_fuse_read(sc_ipc_t ipc, uint32_t word, uint32_t *val);
 /*!
  * This function sets a temp sensor alarm.
  *
+ * @param[in]     ipc         IPC handle
  * @param[in]     resource    resource with sensor
  * @param[in]     temp        alarm to set
  * @param[in]     celsius     whole part of temp to set
@@ -305,6 +345,7 @@ sc_err_t sc_misc_set_temp(sc_ipc_t ipc, sc_rsrc_t resource,
 /*!
  * This function gets a temp sensor value.
  *
+ * @param[in]     ipc         IPC handle
  * @param[in]     resource    resource with sensor
  * @param[in]     temp        value to get (sensor or alarm)
  * @param[out]    celsius     whole part of temp to get

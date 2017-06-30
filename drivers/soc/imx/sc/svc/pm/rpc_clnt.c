@@ -7,7 +7,7 @@
 
 /*!
  * File containing client-side RPC functions for the PM service. These
- * function are ported to clients that communicate to the SC.
+ * functions are ported to clients that communicate to the SC.
  *
  * @addtogroup PM_SVC
  * @{

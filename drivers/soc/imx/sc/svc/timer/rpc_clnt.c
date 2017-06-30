@@ -7,7 +7,7 @@
 
 /*!
  * File containing client-side RPC functions for the TIMER service. These
- * function are ported to clients that communicate to the SC.
+ * functions are ported to clients that communicate to the SC.
  *
  * @addtogroup TIMER_SVC
  * @{
@@ -114,6 +114,25 @@ sc_err_t sc_timer_get_wdog_status(sc_ipc_t ipc,
 		*max_timeout = RPC_U32(&msg, 4);
 	if (remaining_time != NULL)
 		*remaining_time = RPC_U32(&msg, 8);
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
+
+sc_err_t sc_timer_set_wdog_action(sc_ipc_t ipc,
+				  sc_rm_pt_t pt, sc_timer_wdog_action_t action)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_TIMER;
+	RPC_FUNC(&msg) = TIMER_FUNC_SET_WDOG_ACTION;
+	RPC_U8(&msg, 0) = pt;
+	RPC_U8(&msg, 1) = action;
+	RPC_SIZE(&msg) = 2;
+
+	sc_call_rpc(ipc, &msg, false);
+
 	result = RPC_R8(&msg);
 	return (sc_err_t)result;
 }

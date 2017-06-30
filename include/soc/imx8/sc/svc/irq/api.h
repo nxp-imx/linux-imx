@@ -25,60 +25,93 @@
 
 /* Defines */
 
-#define SC_IRQ_NUM_GROUP    3	/* Number of groups */
+#define SC_IRQ_NUM_GROUP    4	/* Number of groups */
+
+/*!
+ * @name Defines for sc_irq_group_t
+ */
+/*@{*/
+#define SC_IRQ_GROUP_TEMP   0	/* Temp interrupts */
+#define SC_IRQ_GROUP_WDOG   1	/* Watchdog interrupts */
+#define SC_IRQ_GROUP_RTC    2	/* RTC interrupts */
+#define SC_IRQ_GROUP_WAKE   3	/* Wakeup interrupts */
+/*@}*/
+
+/*!
+ * @name Defines for sc_irq_temp_t
+ */
+/*@{*/
+#define SC_IRQ_TEMP_HIGH         (1 << 0)	/* Temp alarm interrupt */
+#define SC_IRQ_TEMP_CPU0_HIGH    (1 << 1)	/* CPU0 temp alarm interrupt */
+#define SC_IRQ_TEMP_CPU1_HIGH    (1 << 2)	/* CPU1 temp alarm interrupt */
+#define SC_IRQ_TEMP_GPU0_HIGH    (1 << 3)	/* GPU0 temp alarm interrupt */
+#define SC_IRQ_TEMP_GPU1_HIGH    (1 << 4)	/* GPU1 temp alarm interrupt */
+#define SC_IRQ_TEMP_DRC0_HIGH    (1 << 5)	/* DRC0 temp alarm interrupt */
+#define SC_IRQ_TEMP_DRC1_HIGH    (1 << 6)	/* DRC1 temp alarm interrupt */
+#define SC_IRQ_TEMP_VPU_HIGH     (1 << 7)	/* DRC1 temp alarm interrupt */
+#define SC_IRQ_TEMP_PMIC0_HIGH   (1 << 8)	/* PMIC0 temp alarm interrupt */
+#define SC_IRQ_TEMP_PMIC1_HIGH   (1 << 9)	/* PMIC1 temp alarm interrupt */
+#define SC_IRQ_TEMP_LOW          (1 << 10)	/* Temp alarm interrupt */
+#define SC_IRQ_TEMP_CPU0_LOW     (1 << 11)	/* CPU0 temp alarm interrupt */
+#define SC_IRQ_TEMP_CPU1_LOW     (1 << 12)	/* CPU1 temp alarm interrupt */
+#define SC_IRQ_TEMP_GPU0_LOW     (1 << 13)	/* GPU0 temp alarm interrupt */
+#define SC_IRQ_TEMP_GPU1_LOW     (1 << 14)	/* GPU1 temp alarm interrupt */
+#define SC_IRQ_TEMP_DRC0_LOW     (1 << 15)	/* DRC0 temp alarm interrupt */
+#define SC_IRQ_TEMP_DRC1_LOW     (1 << 16)	/* DRC1 temp alarm interrupt */
+#define SC_IRQ_TEMP_VPU_LOW      (1 << 17)	/* DRC1 temp alarm interrupt */
+#define SC_IRQ_TEMP_PMIC0_LOW    (1 << 18)	/* PMIC0 temp alarm interrupt */
+#define SC_IRQ_TEMP_PMIC1_LOW    (1 << 19)	/* PMIC1 temp alarm interrupt */
+#define SC_IRQ_TEMP_PMIC2_HIGH   (1 << 20)	/* PMIC2 temp alarm interrupt */
+#define SC_IRQ_TEMP_PMIC2_LOW    (1 << 21)	/* PMIC2 temp alarm interrupt */
+/*@}*/
+
+/*!
+ * @name Defines for sc_irq_wdog_t
+ */
+/*@{*/
+#define SC_IRQ_WDOG              (1 << 0)	/* Watchdog interrupt */
+/*@}*/
+
+/*!
+ * @name Defines for sc_irq_rtc_t
+ */
+/*@{*/
+#define SC_IRQ_RTC               (1 << 0)	/* RTC interrupt */
+/*@}*/
+
+/*!
+ * @name Defines for sc_irq_wake_t
+ */
+/*@{*/
+#define SC_IRQ_BUTTON            (1 << 0)	/* Button interrupt */
+/*@}*/
 
 /* Types */
 
 /*!
  * This type is used to declare an interrupt group.
  */
-typedef enum sc_irq_group_e {
-	SC_IRQ_GROUP_TEMP = 0,	/* Temp interrupts */
-	SC_IRQ_GROUP_WDOG = 1,	/* Watchdog interrupts */
-	SC_IRQ_GROUP_RTC = 2	/* RTC interrupts */
-} sc_irq_group_t;
+typedef uint8_t sc_irq_group_t;
 
 /*!
- * This type is used to declare a bit mask of alarm interrupts.
+ * This type is used to declare a bit mask of temp interrupts.
  */
-typedef enum sc_irq_temp_e {
-	SC_IRQ_TEMP_HIGH = (1 << 0),	/* Temp alarm interrupt */
-	SC_IRQ_TEMP_CPU0_HIGH = (1 << 1),	/* CPU0 temp alarm interrupt */
-	SC_IRQ_TEMP_CPU1_HIGH = (1 << 2),	/* CPU1 temp alarm interrupt */
-	SC_IRQ_TEMP_GPU0_HIGH = (1 << 3),	/* GPU0 temp alarm interrupt */
-	SC_IRQ_TEMP_GPU1_HIGH = (1 << 4),	/* GPU1 temp alarm interrupt */
-	SC_IRQ_TEMP_DRC0_HIGH = (1 << 5),	/* DRC0 temp alarm interrupt */
-	SC_IRQ_TEMP_DRC1_HIGH = (1 << 6),	/* DRC1 temp alarm interrupt */
-	SC_IRQ_TEMP_VPU_HIGH = (1 << 7),	/* DRC1 temp alarm interrupt */
-	SC_IRQ_TEMP_PMIC0_HIGH = (1 << 8),	/* PMIC0 temp alarm interrupt */
-	SC_IRQ_TEMP_PMIC1_HIGH = (1 << 9),	/* PMIC1 temp alarm interrupt */
-	SC_IRQ_TEMP_LOW = (1 << 10),	/* Temp alarm interrupt */
-	SC_IRQ_TEMP_CPU0_LOW = (1 << 11),	/* CPU0 temp alarm interrupt */
-	SC_IRQ_TEMP_CPU1_LOW = (1 << 12),	/* CPU1 temp alarm interrupt */
-	SC_IRQ_TEMP_GPU0_LOW = (1 << 13),	/* GPU0 temp alarm interrupt */
-	SC_IRQ_TEMP_GPU1_LOW = (1 << 14),	/* GPU1 temp alarm interrupt */
-	SC_IRQ_TEMP_DRC0_LOW = (1 << 15),	/* DRC0 temp alarm interrupt */
-	SC_IRQ_TEMP_DRC1_LOW = (1 << 16),	/* DRC1 temp alarm interrupt */
-	SC_IRQ_TEMP_VPU_LOW = (1 << 17),	/* DRC1 temp alarm interrupt */
-	SC_IRQ_TEMP_PMIC0_LOW = (1 << 18),	/* PMIC0 temp alarm interrupt */
-	SC_IRQ_TEMP_PMIC1_LOW = (1 << 19),	/* PMIC1 temp alarm interrupt */
-	SC_IRQ_TEMP_PMIC2_HIGH = (1 << 20),	/* PMIC2 temp alarm interrupt */
-	SC_IRQ_TEMP_PMIC2_LOW = (1 << 21)	/* PMIC2 temp alarm interrupt */
-} sc_irq_temp_t;
+typedef uint8_t sc_irq_temp_t;
 
 /*!
- * This type is used to declare a bit mask of alarm interrupts.
+ * This type is used to declare a bit mask of watchdog interrupts.
  */
-typedef enum sc_irq_wdog_e {
-	SC_IRQ_WDOG = (1 << 0),	/* Watchdog interrupt */
-} sc_irq_wdog_t;
+typedef uint8_t sc_irq_wdog_t;
 
 /*!
- * This type is used to declare a bit mask of alarm interrupts.
+ * This type is used to declare a bit mask of RTC interrupts.
  */
-typedef enum sc_irq_rtc_e {
-	SC_IRQ_RTC = (1 << 0)	/* RTC interrupt */
-} sc_irq_rtc_t;
+typedef uint8_t sc_irq_rtc_t;
+
+/*!
+ * This type is used to declare a bit mask of wakeup interrupts.
+ */
+typedef uint8_t sc_irq_wake_t;
 
 /* Functions */
 

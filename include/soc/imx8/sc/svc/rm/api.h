@@ -46,6 +46,30 @@
 #define SC_RM_MR_ALL        UINT8_MAX	/* All memory regions */
 /*@}*/
 
+/*!
+ * @name Defines for sc_rm_spa_t
+ */
+/*@{*/
+#define SC_RM_SPA_PASSTHRU  0	/* Pass through (attribute driven by master) */
+#define SC_RM_SPA_PASSSID   1	/* Pass through and output on SID */
+#define SC_RM_SPA_ASSERT    2	/* Assert (force to be secure/privileged) */
+#define SC_RM_SPA_NEGATE    3	/* Negate (force to be non-secure/user) */
+/*@}*/
+
+/*!
+ * @name Defines for sc_rm_perm_t
+ */
+/*@{*/
+#define SC_RM_PERM_NONE         0	/* No access */
+#define SC_RM_PERM_SEC_R        1	/* Secure RO */
+#define SC_RM_PERM_SECPRIV_RW   2	/* Secure privilege R/W */
+#define SC_RM_PERM_SEC_RW       3	/* Secure R/W */
+#define SC_RM_PERM_NSPRIV_R     4	/* Secure R/W, non-secure privilege RO */
+#define SC_RM_PERM_NS_R         5	/* Secure R/W, non-secure RO */
+#define SC_RM_PERM_NSPRIV_RW    6	/* Secure R/W, non-secure privilege R/W */
+#define SC_RM_PERM_FULL         7	/* Full access */
+/*@}*/
+
 /* Types */
 
 /*!
@@ -72,27 +96,13 @@ typedef uint16_t sc_rm_sid_t;
 /*!
  * This type is a used to declare master transaction attributes.
  */
-typedef enum sc_rm_spa_e {
-	SC_RM_SPA_PASSTHRU = 0,	/* Pass through (attribute driven by master) */
-	SC_RM_SPA_PASSSID = 1,	/* Pass through and output on SID */
-	SC_RM_SPA_ASSERT = 2,	/* Assert (force to be secure/privileged) */
-	SC_RM_SPA_NEGATE = 3	/* Negate (force to be non-secure/user) */
-} sc_rm_spa_t;
+typedef uint8_t sc_rm_spa_t;
 
 /*!
  * This type is used to declare a resource/memory region access permission.
  * Refer to the XRDC2 Block Guide for more information.
  */
-typedef enum sc_rm_perm_e {
-	SC_RM_PERM_NONE = 0,	/* No access */
-	SC_RM_PERM_SEC_R = 1,	/* Secure RO */
-	SC_RM_PERM_SECPRIV_RW = 2,	/* Secure privilege R/W */
-	SC_RM_PERM_SEC_RW = 3,	/* Secure R/W */
-	SC_RM_PERM_NSPRIV_R = 4,	/* Secure R/W, non-secure privilege RO */
-	SC_RM_PERM_NS_R = 5,	/* Secure R/W, non-secure RO */
-	SC_RM_PERM_NSPRIV_RW = 6,	/* Secure R/W, non-secure privilege R/W */
-	SC_RM_PERM_FULL = 7	/* Full access */
-} sc_rm_perm_t;
+typedef uint8_t sc_rm_perm_t;
 
 /* Functions */
 
@@ -281,7 +291,12 @@ sc_err_t sc_rm_move_all(sc_ipc_t ipc, sc_rm_pt_t pt_src, sc_rm_pt_t pt_dst,
  *
  * @return Returns an error code (SC_ERR_NONE = success).
  *
- * Note a master will defaulted to SMMU bypass.
+ * This action resets the resource's master and peripheral attributes.
+ * Privilege attribute will be PASSTHRU, security attribute will be
+ * ASSERT if the partition si secure and NEGATE if it is not, and
+ * masters will defaulted to SMMU bypass. Access permissions will reset
+ * to SEC_RW for the owning partition only for secure partitions, FULL for
+ * non-secure. DEfault is no access by other partitions.
  *
  * Return errors:
  * - SC_ERR_NOACCESS if caller's partition is restricted,

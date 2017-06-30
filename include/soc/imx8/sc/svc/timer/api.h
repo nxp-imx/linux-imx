@@ -28,7 +28,29 @@
 
 /* Defines */
 
+/*!
+ * @name Defines for type widths
+ */
+/*@{*/
+#define SC_TIMER_ACTION_W   2	/* Width of sc_timer_wdog_action_t */
+/*@}*/
+
+/*!
+ * @name Defines for sc_timer_wdog_action_t
+ */
+/*@{*/
+#define SC_TIMER_WDOG_ACTION_PARTITION      0	/* Reset partition */
+#define SC_TIMER_WDOG_ACTION_WARM           1	/* Warm reset system */
+#define SC_TIMER_WDOG_ACTION_COLD           2	/* Cold reset system */
+#define SC_TIMER_WDOG_ACTION_BOARD          3	/* Reset board */
+/*@}*/
+
 /* Types */
+
+/*!
+ * This type is used to configure the watchdog action.
+ */
+typedef uint8_t sc_timer_wdog_action_t;
 
 /*!
  * This type is used to declare a watchdog time value in milliseconds.
@@ -105,6 +127,25 @@ sc_err_t sc_timer_get_wdog_status(sc_ipc_t ipc,
 				  sc_timer_wdog_time_t *max_timeout,
 				  sc_timer_wdog_time_t *remaining_time);
 
+/*!
+ * This function configures the action to be taken when a watchdog
+ * expires.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     pt          partition to affect
+ * @param[in]     action      action to take
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_PARM if invalid parameters,
+ * - SC_ERR_NOACCESS if caller's partition is not the SYSTEM owner,
+ * - SC_ERR_NOACCESS if caller's partition is not the parent of \a pt,
+ * - SC_ERR_LOCKED if the watchdog is locked
+ */
+sc_err_t sc_timer_set_wdog_action(sc_ipc_t ipc,
+				  sc_rm_pt_t pt, sc_timer_wdog_action_t action);
+
 /* @} */
 
 /*!
@@ -128,7 +169,7 @@ sc_err_t sc_timer_get_wdog_status(sc_ipc_t ipc,
  *
  * Return errors:
  * - SC_ERR_PARM if invalid time/date parameters,
- * - SC_ERR_NOACCESS if caller's partition is not the RTC owner
+ * - SC_ERR_NOACCESS if caller's partition is not the SYSTEM owner
  */
 sc_err_t sc_timer_set_rtc_time(sc_ipc_t ipc, uint16_t year, uint8_t mon,
 			       uint8_t day, uint8_t hour, uint8_t min,
@@ -176,8 +217,7 @@ sc_err_t sc_timer_get_rtc_sec1970(sc_ipc_t ipc, uint32_t *sec);
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors:
- * - SC_ERR_PARM if invalid time/date parameters,
- * - SC_ERR_NOACCESS if caller's partition is not the RTC owner
+ * - SC_ERR_PARM if invalid time/date parameters
  */
 sc_err_t sc_timer_set_rtc_alarm(sc_ipc_t ipc, uint16_t year, uint8_t mon,
 				uint8_t day, uint8_t hour, uint8_t min,

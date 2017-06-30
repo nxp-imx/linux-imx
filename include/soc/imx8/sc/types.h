@@ -63,6 +63,7 @@
 #define SC_720MHZ       720000000	/* 720MHz */
 #define SC_750MHZ       750000000	/* 750MHz */
 #define SC_800MHZ       800000000	/* 800MHz */
+#define SC_850MHZ       850000000	/* 850MHz */
 #define SC_900MHZ       900000000	/* 900MHz */
 #define SC_1000MHZ     1000000000	/* 1GHz */
 #define SC_1056MHZ     1056000000	/* 1.056GHz */
@@ -81,6 +82,7 @@
  * @name Defines for 24M related frequencies
  */
 /*@{*/
+#define SC_8MHZ           8000000	/* 8MHz */
 #define SC_12MHZ         12000000	/* 12MHz */
 #define SC_19MHZ         19800000	/* 19.8MHz */
 #define SC_24MHZ         24000000	/* 24MHz */
@@ -679,6 +681,14 @@ typedef enum sc_rsrc_e {
 	SC_R_PMIC_2 = 521,
 	SC_R_DBLOGIC = 522,
 	SC_R_HDMI_PLL_1 = 523,
+	SC_R_BOARD_R0 = 524,
+	SC_R_BOARD_R1 = 525,
+	SC_R_BOARD_R2 = 526,
+	SC_R_BOARD_R3 = 527,
+	SC_R_BOARD_R4 = 528,
+	SC_R_BOARD_R5 = 529,
+	SC_R_BOARD_R6 = 530,
+	SC_R_BOARD_R7 = 531,
 	SC_R_LAST
 } sc_rsrc_t;
 
@@ -726,6 +736,10 @@ typedef enum sc_ctrl_e {
 	SC_C_DUAL_MODE = 36,
 	SC_C_VOLTAGE = 37,
 	SC_C_PXL_LINK_SEL = 38,
+	SC_C_OFS_SEL = 39,
+	SC_C_OFS_AUDIO = 40,
+	SC_C_OFS_PERIPH = 41,
+	SC_C_OFS_IRQ = 42,
 	SC_C_LAST
 } sc_ctrl_t;
 

@@ -537,6 +537,14 @@
 #define SC_R_PMIC_2                     521
 #define SC_R_DBLOGIC                    522
 #define SC_R_HDMI_PLL_1                 523
-#define SC_R_LAST                       524
+#define SC_R_BOARD_R0                   524
+#define SC_R_BOARD_R1                   525
+#define SC_R_BOARD_R2                   526
+#define SC_R_BOARD_R3                   527
+#define SC_R_BOARD_R4                   528
+#define SC_R_BOARD_R5                   529
+#define SC_R_BOARD_R6                   530
+#define SC_R_BOARD_R7                   531
+#define SC_R_LAST                       532
 
 #endif				/* __DT_BINDINGS_RSCRC_IMX_H */
