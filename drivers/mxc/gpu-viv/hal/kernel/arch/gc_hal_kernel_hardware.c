@@ -1245,7 +1245,7 @@ _QueryFeatureDatabase(
         break;
 
     case gcvFEATURE_SECURITY:
-        available = gcvFALSE;
+        available = database->SECURITY;
         break;
 
     case gcvFEATURE_TX_DESCRIPTOR:
