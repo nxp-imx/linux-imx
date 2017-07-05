@@ -1,0 +1,188 @@
+/*
+ * Copyright 2016 Technexion Ltd.
+ * Copyright 2017 NXP
+ *
+ * Author: Wig Cheng <wig.cheng@technexion.com>
+ *	   Richard Hu <richard.hu@technexion.com>
+ *	   Tapani Utriainen <tapani@technexion.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ */
+
+#include <tnmacro.h>
+
+/ {
+	gpio-edm {
+		compatible = "gpio-edm";
+/* custom GPIO may be from GPIO expander on CPU module */
+#ifdef PICO_EXT_GPIO_IOMUX_HOBBIT
+		pinctrl-names = "default";
+		pinctrl-0 = <PICO_EXT_GPIO_IOMUX_HOBBIT>;
+#else
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio>;
+#endif
+
+		gpio_p24 {
+			label = "GPIO_P24";
+			gpios = <&PICO_EXT_GPIO_P24 1>;
+			dir   = "out";
+		};
+
+		/* LED */
+		gpio_p25 {
+			label = "GPIO_P25";
+			gpios = <&PICO_EXT_GPIO_P25 1>;
+			dir   = "out";
+		};
+
+		/* Mikrobus */
+		gpio_p26 {
+			label = "GPIO_P26";
+			gpios = <&PICO_EXT_GPIO_P26 1>;
+			dir   = "out";
+		};
+		gpio_p28 {
+			label = "GPIO_P28";
+			gpios = <&PICO_EXT_GPIO_P28 GPIO_ACTIVE_HIGH>;
+			dir   = "out";
+		};
+		gpio_p30 {
+			label = "GPIO_P30";
+			gpios = <&PICO_EXT_GPIO_P30 GPIO_ACTIVE_HIGH>;
+			dir   = "in";
+		};
+		gpio_p34 {
+			label = "GPIO_P34";
+			gpios = <&PICO_EXT_GPIO_P34 GPIO_ACTIVE_HIGH>;
+			dir   = "in";
+		};
+		gpio_p42 {
+			label = "GPIO_P42";
+			gpios = <&PICO_EXT_GPIO_P42 GPIO_ACTIVE_HIGH>;
+			dir   = "out";
+		};
+		gpio_p48 {
+			label = "GPIO_P48";
+			gpios = <&PICO_EXT_GPIO_P48 GPIO_ACTIVE_HIGH>;
+			dir   = "out";
+		};
+	};
+
+	sound {
+		compatible = "fsl,imx-sgtl5000",
+			     "fsl,imx-audio-sgtl5000";
+		model = "audio-sgtl5000";
+		ssi-controller = <&PICO_AUD_I2S_CHANNEL>;
+		audio-codec = <&codec>;
+		audio-routing =
+			"MIC_IN", "Mic Jack",
+			"Mic Jack", "Mic Bias",
+			"Headphone Jack", "HP_OUT";
+		mux-int-port = <PICO_AUD_MUX_INT>;
+		mux-ext-port = <PICO_AUD_MUX_EXT>;
+	};
+};
+
+&csi1 {
+        csi-mux-mipi = <&gpr 0x14 4>;
+        status = "okay";
+
+        port {
+                csi_ep: endpoint {
+                remote-endpoint = <&csi_mipi_ep>;
+                };
+        };
+};
+
+&mipi_csi {
+        clock-frequency = <240000000>;
+        status = "okay";
+        port {
+        mipi_sensor_ep: endpoint1 {
+        remote-endpoint = <&ov5645_mipi_ep>;
+                        data-lanes = <2>;
+                        csis-hs-settle = <13>;
+                        csis-clk-settle = <2>;
+                        csis-wclk;
+                };
+
+                csi_mipi_ep: endpoint2 {
+                        remote-endpoint = <&csi_ep>;
+                };
+        };
+};
+
+&i2c1 {
+	status = "okay";
+
+	codec: sgtl5000@0a {
+		compatible = "fsl,sgtl5000";
+		reg = <0x0a>;
+		clocks = <&PICO_AUD_CLK_SRC>;
+		VDDA-supply = <&reg_2p5v>;
+		VDDIO-supply = <&reg_3p3v>;
+	};
+};
+
+&i2c4 {
+	status = "okay";
+
+#ifdef PICO_EXT_MIPI_CSI_OV5645_IOMUX
+        ov5645_mipi: ov5645_mipi@3c {
+		compatible = "ovti,ov5645_mipisubdev";
+		pinctrl-names = "default";
+		pinctrl-0 = <PICO_EXT_MIPI_CSI_OV5645_IOMUX>; /* GPIO_P69:mipi clock, GPIO_P67:power on, GPIO_P65:reset */
+		reg = <0x3c>;
+		clocks = <&clks IMX7D_CLKO1_ROOT_DIV>;
+		clock-names = "csi_mclk";
+		DOVDD-supply = <&reg_1p8v>;
+		AVDD-supply = <&reg_2p5v>;
+		DVDD-supply = <&reg_1p8v>;
+		pwn-gpios = <&PICO_EXT_GPIO_P67 1>; /* GPIO_P67 */
+		rst-gpios = <&PICO_EXT_GPIO_P65 0>; /* GPIO_P65 */
+		csi_id = <0>;
+		mclk = <24000000>;
+		mclk_source = <0>;
+		port {
+			ov5645_mipi_ep: endpoint {
+				remote-endpoint = <&mipi_sensor_ep>;
+			};
+		};
+
+	};
+#endif
+};
+
+&i2c4 {
+	polytouch: edt-ft5x06@38 {
+		compatible = "edt,edt-ft5x06";
+		reg = <0x38>;
+		interrupt-parent = <&GPIO_BANK(PICO_EXT_GPIO_P44)>;
+		interrupts = <GPIO_NO(PICO_EXT_GPIO_P44) 0>;
+		reset-gpios = <&PICO_EXT_GPIO_P32 GPIO_ACTIVE_LOW>;
+		touchscreen-size-x = <800>;
+		touchscreen-size-y = <480>;
+	};
+};
+
+&can1 {
+	status = "okay";
+};
+
+&can2 {
+	status = "okay";
+};
+
+&ecspi2 {
+	status = "okay";
+
+	spidev@0 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <60000000>;
+		reg = <0>;
+	};
+};
