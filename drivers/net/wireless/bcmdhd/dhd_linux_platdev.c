@@ -333,6 +333,14 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 		DHD_ERROR(("%s regulator is null\n", __FUNCTION__));
 		return -1;
 	}
+	
+	struct clk *clk32k;
+	clk32k = devm_clk_get(&pdev->dev, NULL);
+	/* pico-7d board use CCM generated 32K clk */
+	if (!IS_ERR(clk32k)) {
+		clk_prepare_enable(clk32k);
+	}
+
 #if defined(OOB_INTR_ONLY)
 	OOB_PARAM_IF(!(adapter->oob_disable)) {
 		/* This is to get the irq for the OOB */
