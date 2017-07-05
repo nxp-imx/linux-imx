@@ -1,0 +1,39 @@
+/*
+ * Copyright 2016 Technexion Ltd.
+ *
+ * Author: Wig Cheng <wig.cheng@technexion.com>
+ *	   Richard Hu <richard.hu@technexion.com>
+ *	   Tapani Utriainen <tapani@technexion.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ */
+/dts-v1/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "imx6dl.dtsi"
+#include "imx6dl-pico.dtsi"
+/*#include "baseboard_pico_hobbit.dtsi"*/
+
+/ {
+	model = "Technexion PICO-IMX6 DualLite/Solo with hobbit board";
+	compatible = "fsl,pico-cf-imx6dl", "fsl,imx6dl";
+};
+
+
+&ldb {
+	lvds-channel@0 {
+		crtc = "ipu1-di0";
+	};
+};
+
+
+&mxcfb1 {
+	status = "okay";
+};
+
+&epdc {
+	status = "disabled";
+};
