@@ -25,6 +25,12 @@
 	model = "Freescale i.MX8QM ARM2";
 	compatible = "fsl,imx8qm-arm2", "fsl,imx8qm";
 
+	bcmdhd_wlan_0: bcmdhd_wlan@0 {
+		compatible = "android,bcmdhd_wlan";
+		bcmdhd_fw = "/lib/firmware/bcm/1FD_BCM89359/fw_bcmdhd.bin";
+		bcmdhd_nv = "/lib/firmware/bcm/1FD_BCM89359/bcmdhd.cal";
+	};
+
 	chosen {
 		bootargs = "console=ttyLP0,115200 earlycon=lpuart32,0x5a060000,115200";
 		stdout-path = &lpuart0;
@@ -92,6 +98,14 @@
 			enable-active-high;
 		};
 
+		epdev_on: fixedregulator@100 {
+			compatible = "regulator-fixed";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-name = "epdev_on";
+			gpio = <&pca9557_b 3 0>;
+			enable-active-high;
+		};
 	};
 
 	sound-cs42888 {
@@ -842,5 +856,6 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_pcieb>;
 	reset-gpio = <&gpio5 0 GPIO_ACTIVE_LOW>;
+	epdev_on-supply = <&epdev_on>;
 	status = "okay";
 };
