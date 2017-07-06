@@ -88,6 +88,7 @@ struct imx6_pcie {
 	void __iomem		*phy_base;
 	struct regulator	*pcie_phy_regulator;
 	struct regulator	*pcie_bus_regulator;
+	struct regulator	*epdev_on;
 };
 
 /* PCIe Root Complex registers (memory-mapped) */
@@ -1886,6 +1887,16 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 				"pcie clock source missing or invalid\n");
 			return PTR_ERR(imx6_pcie->pcie_inbound_axi);
 		}
+
+		imx6_pcie->epdev_on = devm_regulator_get(&pdev->dev,
+							 "epdev_on");
+		if (IS_ERR(imx6_pcie->epdev_on))
+			return -EPROBE_DEFER;
+
+		ret = regulator_enable(imx6_pcie->epdev_on);
+		if (ret)
+			dev_err(imx6_pcie->pp.dev,
+				"failed to enable the epdev_on regulator\n");
 	} else {
 		imx6_pcie->iomuxc_gpr =
 		 syscon_regmap_lookup_by_compatible("fsl,imx6q-iomuxc-gpr");
