@@ -1,0 +1,140 @@
+/*
+ * Copyright 2016 Technexion Ltd.
+ * Copyright 2017 NXP
+ *
+ * Author: Wig Cheng <wig.cheng@technexion.com>
+ *	   Richard Hu <richard.hu@technexion.com>
+ *	   Tapani Utriainen <tapani@technexion.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ */
+
+#include <tnmacro.h>
+
+/ {
+	gpio-edm {
+		compatible = "gpio-edm";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio>;
+
+		gpio_p24 {
+			label = "GPIO_P24";
+			gpios = <&PICO_EXT_GPIO_P24 1>;
+			dir   = "in";
+		};
+
+		/* LED2 for GPIO */
+		gpio_p25 {
+			label = "GPIO_P25";
+			gpios = <&PICO_EXT_GPIO_P25 1>;
+			dir   = "out";
+		};
+
+		/* Not used */
+		gpio_p26 {
+			label = "GPIO_P26";
+			gpios = <&PICO_EXT_GPIO_P26 1>;
+			dir   = "out";
+		};
+
+		/* Audio fault in */
+		gpio_p28 {
+			label = "GPIO_P28";
+			gpios = <&PICO_EXT_GPIO_P28 GPIO_ACTIVE_HIGH>;
+			dir   = "in";
+		};
+
+		/* Speaker shutdown in */
+		gpio_p30 {
+			label = "GPIO_P30";
+			gpios = <&PICO_EXT_GPIO_P30 GPIO_ACTIVE_HIGH>;
+			dir   = "in";
+		};
+
+
+		gpio-keys {
+		    compatible = "gpio-keys";
+		    pinctrl-names = "default";
+
+		    volume-up {
+			label = "Volume Up";
+			gpios = <&PICO_EXT_GPIO_P32 GPIO_ACTIVE_LOW>;
+			gpio-key;
+			linux,code = <KEY_VOLUMEUP>;
+		    };
+
+		    volume-down {
+			label = "Volume Down";
+			gpios = <&PICO_EXT_GPIO_P34 GPIO_ACTIVE_HIGH>;
+			gpio-key;
+			linux,code = <KEY_VOLUMEDOWN>;
+		    };
+
+		    volume-mute {
+			label = "Volume Mute";
+			gpios = <&PICO_EXT_GPIO_P42 GPIO_ACTIVE_HIGH>;
+			gpio-key;
+			linux,code = <KEY_MUTE>;
+		    };
+		};
+
+		gpio_p48 {
+			label = "GPIO_P48";
+			gpios = <&PICO_EXT_GPIO_P48 GPIO_ACTIVE_HIGH>;
+			dir   = "in";
+		};
+	};
+
+	sound {
+		compatible = "fsl,imx-tas5760",
+			     "fsl,imx-audio-tas5760";
+		model = "audio-tas5760";
+		cpu-dai = <&sai1>;
+		audio-codec = <&codec>;
+		assigned-clocks = <&clks IMX7D_AUDIO_MCLK_ROOT_SRC>,
+			          <&clks IMX7D_AUDIO_MCLK_ROOT_CLK>;
+		assigned-clock-parents = <&clks IMX7D_PLL_AUDIO_POST_DIV>;
+		assigned-clock-rates = <0>, <12288000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_sai1_mclk>;
+	};
+};
+
+
+&i2c1 {
+	status = "okay";
+
+	codec: tas5760@6d {
+		compatible = "ti,tas5760";
+		reg = <0x6d>;
+		spk-sd = <&gpio2 3 GPIO_ACTIVE_LOW>;
+		clocks = <&clks IMX7D_AUDIO_MCLK_ROOT_CLK>;
+		clock-names = "mclk";
+		#sound-dai-cells = <0>;
+	};
+};
+
+&i2c4 {
+	status = "okay";
+};
+
+&can1 {
+	status = "okay";
+};
+
+&can2 {
+	status = "okay";
+};
+
+&ecspi2 {
+	status = "okay";
+
+	spidev@0 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <60000000>;
+		reg = <0>;
+	};
+};
