@@ -2192,6 +2192,10 @@ gckGALDEVICE_Stop(
 
         if (Device->kernels[i] != gcvNULL)
         {
+            gcmkONERROR(gckHARDWARE_SetPowerManagement(
+                Device->kernels[i]->hardware, gcvTRUE
+            ));
+
             /* Switch to OFF power state. */
             gcmkONERROR(gckHARDWARE_SetPowerManagementState(
                 Device->kernels[i]->hardware, gcvPOWER_OFF
