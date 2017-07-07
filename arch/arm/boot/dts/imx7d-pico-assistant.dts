@@ -1,0 +1,31 @@
+/*
+ * Copyright 2016 Technexion Ltd.
+ * Copyright 2017 NXP
+ *
+ * Author: Tapani Utriainen <tapani@technexion.com>
+ *	   Richard Hu <richard.hu@technexion.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ */
+/dts-v1/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "imx7d.dtsi"
+#include "imx7d-pico.dtsi"
+#include "baseboard_google_assistant.dtsi"
+
+/ {
+	model = "Google/NXP PICO-IMX7 Dual/Solo with assistant baseboard";
+	compatible = "fsl,pico-cf-imx7d", "fsl,imx7d";
+};
+
+&epdc {
+	status = "disabled";
+};
+
+&usdhc1 {
+	status = "disabled";
+};
