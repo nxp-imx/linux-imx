@@ -50,6 +50,7 @@ struct imx_xtor_data {
 	struct platform_device *asrc_pdev;
 	u32 asrc_rate;
 	u32 asrc_format;
+	u32 cpu_master;
 };
 
 static int imx_xtor_startup(struct snd_pcm_substream *substream)
@@ -85,6 +86,11 @@ static int imx_xtor_hw_params(struct snd_pcm_substream *substream,
 	/* For playback the XTOR is slave, and for record is master */
 	fmt |= tx ? SND_SOC_DAIFMT_CBS_CFS : SND_SOC_DAIFMT_CBM_CFM;
 	dir = tx ? SND_SOC_CLOCK_OUT : SND_SOC_CLOCK_IN;
+
+	/* In iot board, cpu works as master */
+	if(data->cpu_master) {
+		fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS;
+	}
 
 	/* set cpu DAI configuration */
 	ret = snd_soc_dai_set_fmt(rtd->cpu_dai, fmt);
@@ -178,6 +184,8 @@ static int imx_xtor_probe(struct platform_device *pdev)
 	struct imx_xtor_data *data;
 	int ret;
 	u32 width;
+        int err;
+        u32 cpu_master = 0;
 
 	cpu_np = of_parse_phandle(pdev->dev.of_node, "cpu-dai", 0);
 	if (!cpu_np) {
@@ -191,6 +199,14 @@ static int imx_xtor_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto fail;
 	}
+
+	err = of_property_read_u32(pdev->dev.of_node, "cpu-master", &cpu_master);
+	if(0 == err) {
+		dev_info(&pdev->dev, "cpu-master %d\n", cpu_master);
+	} else {
+		cpu_master = 0;
+	}
+	data->cpu_master = cpu_master;
 
 	asrc_np = of_parse_phandle(pdev->dev.of_node, "asrc-controller", 0);
 	if (asrc_np) {
