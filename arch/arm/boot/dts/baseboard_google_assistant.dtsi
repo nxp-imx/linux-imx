@@ -101,6 +101,10 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_sai1_mclk>;
 	};
+
+	sound-xtor {
+		model = "sph0645";
+	};
 };
 
 
