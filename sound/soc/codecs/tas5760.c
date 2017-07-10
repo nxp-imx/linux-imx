@@ -337,8 +337,6 @@ static const struct snd_kcontrol_new tas5760_controls[] = {
 static struct snd_soc_codec_driver soc_codec_dev_tas5760 = {
 	.probe			= tas5760_probe,
 	.remove			= tas5760_remove,
-	.controls		= tas5760_controls,
-	.num_controls	= ARRAY_SIZE(tas5760_controls),
 };
 
 
