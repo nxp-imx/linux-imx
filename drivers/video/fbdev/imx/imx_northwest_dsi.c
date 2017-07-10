@@ -564,9 +564,9 @@ static int mipi_dsi_dpi_init(struct mipi_dsi_info *mipi_dsi)
 	switch (mipi_dsi->traffic_mode) {
 	case DSI_NON_BURST_WITH_SYNC_PULSE:
 		pixel_fifo_level = 8;
-		hfp_period = mode->right_margin - DSI_HFP_PKT_OVERHEAD;
-		hbp_period = mode->left_margin  - DSI_HBP_PKT_OVERHEAD;
-		hsa_period = mode->hsync_len - DSI_HSA_PKT_OVERHEAD;
+		hfp_period = mode->right_margin * 3 - DSI_HFP_PKT_OVERHEAD;
+		hbp_period = mode->left_margin * 3 - DSI_HBP_PKT_OVERHEAD;
+		hsa_period = mode->hsync_len * 3 - DSI_HSA_PKT_OVERHEAD;
 		break;
 	case DSI_BURST_MODE:
 		pixel_fifo_level = mode->xres;
