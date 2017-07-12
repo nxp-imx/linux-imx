@@ -1685,7 +1685,7 @@ static void fec_get_mac(struct net_device *ndev)
 {
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	struct fec_platform_data *pdata = dev_get_platdata(&fep->pdev->dev);
-	unsigned char *iap, tmpaddr[ETH_ALEN];
+	unsigned char *iap, tmpaddr[ETH_ALEN] = {0};
 
 	/*
 	 * try to get mac address in following order:
@@ -1715,8 +1715,14 @@ static void fec_get_mac(struct net_device *ndev)
 		if (FEC_FLASHMAC)
 			iap = (unsigned char *)FEC_FLASHMAC;
 #else
-		if (pdata)
+		if (pdata) {
 			iap = (unsigned char *)&pdata->mac;
+		} else {
+			struct device_node *np = fep->pdev->dev.of_node;
+
+			fec_enet_get_mac_from_fuse(np, tmpaddr);
+			iap = &tmpaddr[0];
+		}
 #endif
 	}
 
