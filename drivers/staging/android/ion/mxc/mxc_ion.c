@@ -29,13 +29,15 @@
 
 #include "../ion_priv.h"
 
+#ifdef CONFIG_COMPAT
+#include <linux/compat.h>
+#endif
 static struct ion_device *idev;
 static int num_heaps = 1;
 static struct ion_heap **heaps;
 static int cacheable;
 
-struct ion_platform_data *
-mxc_ion_parse_of(struct platform_device *pdev)
+struct ion_platform_data *mxc_ion_parse_of(struct platform_device *pdev)
 {
 	struct ion_platform_data *pdata = 0;
 	const struct device_node *node = pdev->dev.of_node;
@@ -43,11 +45,11 @@ mxc_ion_parse_of(struct platform_device *pdev)
 	unsigned int val = 0;
 	struct ion_platform_heap *heap = NULL;
 
-	pdata = kzalloc(sizeof(struct ion_platform_data), GFP_KERNEL);
+	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
 		return ERR_PTR(-ENOMEM);
 
-	heap = kzalloc(sizeof(struct ion_platform_heap), GFP_KERNEL);
+	heap = kzalloc(sizeof(*heap), GFP_KERNEL);
 	if (!heap) {
 		kfree(pdata);
 		return ERR_PTR(-ENOMEM);
@@ -82,7 +84,8 @@ mxc_custom_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg)
 		{
 #ifdef CONFIG_ARCH_MXC_ARM64
 			/* Don't use ION_IOC_PHYS on ARM64,
-			 * use ION_IOC_PHYS_DMA */
+			 * use ION_IOC_PHYS_DMA
+			 */
 			return -EFAULT;
 #else
 			struct ion_handle *handle;
@@ -90,7 +93,7 @@ mxc_custom_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg)
 			struct device *dev;
 			void *vaddr;
 
-			if (copy_from_user(&data, (void __user *) arg,
+			if (copy_from_user(&data, (void __user *)arg,
 					   sizeof(struct ion_phys_data)))
 				return -EFAULT;
 			handle = ion_handle_get_by_id_wrap(client, data.handle);
@@ -106,7 +109,7 @@ mxc_custom_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg)
 			dev = ion_device_get_by_client(client);
 			data.phys = virt_to_dma(dev, vaddr);
 
-			if (copy_to_user((void __user *) arg, &data,
+			if (copy_to_user((void __user *)arg, &data,
 					 sizeof(struct ion_phys_data)))
 				return -EFAULT;
 			return 0;
@@ -125,7 +128,7 @@ mxc_custom_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg)
 			dma_addr_t *addr;
 			void *mem_priv;
 
-			if (copy_from_user(&data, (void __user *) arg,
+			if (copy_from_user(&data, (void __user *)arg,
 					   sizeof(struct ion_phys_dma_data)))
 				return -EFAULT;
 
@@ -151,7 +154,7 @@ mxc_custom_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg)
 
 			data.phys = phys;
 			data.size = len;
-			if (copy_to_user((void __user *) arg, &data,
+			if (copy_to_user((void __user *)arg, &data,
 					 sizeof(struct ion_phys_dma_data))) {
 				ret = -EFAULT;
 			}
@@ -176,7 +179,7 @@ err1:
 			dma_addr_t *addr;
 			void *mem_priv;
 
-			if (copy_from_user(&data, (void __user *) arg,
+			if (copy_from_user(&data, (void __user *)arg,
 					   sizeof(struct ion_phys_virt_data)))
 				return -EFAULT;
 
@@ -196,7 +199,7 @@ err1:
 			mem_ops->put_userptr(mem_priv);
 
 			data.phys = *addr;
-			if (copy_to_user((void __user *) arg, &data,
+			if (copy_to_user((void __user *)arg, &data,
 					 sizeof(struct ion_phys_virt_data)))
 				return -EFAULT;
 			return 0;
@@ -208,8 +211,167 @@ err1:
 	return 0;
 }
 
-int
-mxc_ion_probe(struct platform_device *pdev)
+#ifdef CONFIG_COMPAT
+struct ion_phys_data32 {
+	__s32 handle;		//ion_user_handle_t
+	compat_long_t phys;
+};
+
+struct ion_phys_dma_data32 {
+	compat_long_t phys;
+	__u32 size;
+	__u32 dmafd;
+};
+
+struct ion_phys_virt_data32 {
+	compat_long_t virt;
+	compat_long_t phys;
+	__u32 size;
+};
+
+#define ION_IOC_PHYS32             _IOWR(ION_IOC_MAGIC, _IOC_NR(ION_IOC_PHYS), struct ion_phys_data32)
+#define ION_IOC_PHYS_DMA32         _IOWR(ION_IOC_MAGIC, _IOC_NR(ION_IOC_PHYS_DMA), struct ion_phys_dma_data32)
+#define ION_IOC_PHYS_VIRT32        _IOWR(ION_IOC_MAGIC, _IOC_NR(ION_IOC_PHYS_VIRT), struct ion_phys_virt_data32)
+
+static int get_ion_phys_data32(struct ion_phys_data *kp,
+			       struct ion_phys_data32 __user *up)
+{
+	void __user *up_pln;
+	compat_long_t p;
+
+	if (!access_ok(VERIFY_READ, up, sizeof(struct ion_phys_data32)) ||
+	    get_user(kp->handle, &up->handle) || get_user(p, &up->phys))
+		return -EFAULT;
+	up_pln = compat_ptr(p);
+	put_user((unsigned long)up_pln, &kp->phys);
+	return 0;
+}
+
+static int put_ion_phys_data32(struct ion_phys_data *kp,
+			       struct ion_phys_data32 __user *up)
+{
+	u32 tmp = (u32)((unsigned long)kp->phys);
+
+	if (!access_ok(VERIFY_WRITE, up, sizeof(struct ion_phys_data32)) ||
+	    put_user((s32)kp->handle, &up->handle) || put_user(tmp, &up->phys))
+		return -EFAULT;
+	return 0;
+}
+
+static int get_ion_phys_dma_data32(struct ion_phys_dma_data *kp,
+				   struct ion_phys_dma_data32 __user *up)
+{
+	void __user *up_pln;
+	compat_long_t p;
+
+	if (!access_ok(VERIFY_READ, up, sizeof(struct ion_phys_dma_data32)) ||
+	    get_user(kp->size, &up->size) ||
+	    get_user(kp->dmafd, &up->dmafd) || get_user(p, &up->phys))
+		return -EFAULT;
+	up_pln = compat_ptr(p);
+	put_user((unsigned long)up_pln, &kp->phys);
+	return 0;
+}
+
+static int put_ion_phys_dma_data32(struct ion_phys_dma_data *kp,
+				   struct ion_phys_dma_data32 __user *up)
+{
+	u32 tmp = (u32)((unsigned long)kp->phys);
+
+	if (!access_ok(VERIFY_WRITE, up, sizeof(struct ion_phys_dma_data32)) ||
+	    put_user((s32)kp->size, &up->size) ||
+	    put_user((s32)kp->dmafd, &up->dmafd) || put_user(tmp, &up->phys))
+		return -EFAULT;
+	return 0;
+}
+
+static int get_ion_phys_virt_data32(struct ion_phys_virt_data *kp,
+				    struct ion_phys_virt_data32 __user *up)
+{
+	void __user *up_pln;
+	void __user *up_pln2;
+	compat_long_t p;
+	compat_long_t p2;
+
+	if (!access_ok(VERIFY_READ, up, sizeof(struct ion_phys_virt_data32)) ||
+	    get_user(kp->size, &up->size) ||
+	    get_user(p, &up->phys) || get_user(p2, &up->virt))
+		return -EFAULT;
+	up_pln = compat_ptr(p);
+	up_pln2 = compat_ptr(p2);
+	put_user((unsigned long)up_pln, &kp->phys);
+	put_user((unsigned long)up_pln2, &kp->virt);
+	return 0;
+}
+
+static int put_ion_phys_virt_data32(struct ion_phys_virt_data *kp,
+				    struct ion_phys_virt_data32 __user *up)
+{
+	u32 tmp = (u32)((unsigned long)kp->phys);
+	u32 tmp2 = (u32)((unsigned long)kp->virt);
+
+	if (!access_ok(VERIFY_WRITE, up, sizeof(struct ion_phys_virt_data32)) ||
+	    put_user((u32)kp->size, &up->size) ||
+	    put_user(tmp, &up->phys) || put_user(tmp2, &up->virt))
+		return -EFAULT;
+	return 0;
+}
+
+static long
+mxc_custom_compat_ioctl(struct ion_client *client, unsigned int cmd,
+			unsigned long arg)
+{
+#define MXC_CUSTOM_IOCTL32(r, cli, c, arg) {\
+		mm_segment_t old_fs = get_fs();\
+		set_fs(KERNEL_DS);\
+		r = mxc_custom_ioctl(cli, c, arg);\
+		set_fs(old_fs);\
+}
+
+	union {
+		struct ion_phys_data kdata;
+		struct ion_phys_dma_data kdmadata;
+		struct ion_phys_virt_data kvirtdata;
+	} karg;
+
+	void __user *up = compat_ptr(arg);
+	long err = 0;
+
+	switch (cmd) {
+	case ION_IOC_PHYS32:
+		err = get_ion_phys_data32(&karg.kdata, up);
+		if (err)
+			return err;
+		MXC_CUSTOM_IOCTL32(err, client, ION_IOC_PHYS,
+				   (unsigned long)&karg);
+		err = put_ion_phys_data32(&karg.kdata, up);
+		break;
+	case ION_IOC_PHYS_DMA32:
+		err = get_ion_phys_dma_data32(&karg.kdmadata, up);
+		if (err)
+			return err;
+		MXC_CUSTOM_IOCTL32(err, client, ION_IOC_PHYS_DMA,
+				   (unsigned long)&karg);
+		err = put_ion_phys_dma_data32(&karg.kdmadata, up);
+		break;
+	case ION_IOC_PHYS_VIRT32:
+		err = get_ion_phys_virt_data32(&karg.kvirtdata, up);
+		if (err)
+			return err;
+		MXC_CUSTOM_IOCTL32(err, client, ION_IOC_PHYS_VIRT,
+				   (unsigned long)&karg);
+		err = put_ion_phys_virt_data32(&karg.kvirtdata, up);
+		break;
+	default:
+		err = mxc_custom_ioctl(client, cmd, (unsigned long)arg);
+		break;
+	}
+
+	return err;
+}
+#endif //CONFIG_COMPAT
+
+int mxc_ion_probe(struct platform_device *pdev)
 {
 	struct ion_platform_data *pdata = NULL;
 	int pdata_is_created = 0;
@@ -230,7 +392,11 @@ mxc_ion_probe(struct platform_device *pdev)
 
 	heaps = kzalloc(sizeof(struct ion_heap *) * pdata->nr, GFP_KERNEL);
 
+#ifdef CONFIG_COMPAT
+	idev = ion_device_create(mxc_custom_compat_ioctl);
+#else
 	idev = ion_device_create(mxc_custom_ioctl);
+#endif
 	if (IS_ERR_OR_NULL(idev)) {
 		err = PTR_ERR(idev);
 		goto err;
@@ -265,8 +431,7 @@ err:
 	return err;
 }
 
-int
-mxc_ion_remove(struct platform_device *pdev)
+int mxc_ion_remove(struct platform_device *pdev)
 {
 	struct ion_device *idev = platform_get_drvdata(pdev);
 	int i;
@@ -292,14 +457,12 @@ static struct platform_driver ion_driver = {
 		   },
 };
 
-static int __init
-ion_init(void)
+static int __init ion_init(void)
 {
 	return platform_driver_register(&ion_driver);
 }
 
-static void __exit
-ion_exit(void)
+static void __exit ion_exit(void)
 {
 	platform_driver_unregister(&ion_driver);
 }
