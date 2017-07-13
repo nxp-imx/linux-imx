@@ -1344,7 +1344,7 @@
 			 <&clk IMX8QXP_CAN0_CLK>;
 		clock-names = "ipg", "per";
 		assigned-clocks = <&clk IMX8QXP_CAN0_CLK>;
-		assigned-clock-rates = <24000000>;
+		assigned-clock-rates = <40000000>;
 		power-domains = <&pd_dma_flexcan0>;
 		status = "disabled";
 	};
@@ -1358,7 +1358,7 @@
 			 <&clk IMX8QXP_CAN0_CLK>;
 		clock-names = "ipg", "per";
 		assigned-clocks = <&clk IMX8QXP_CAN0_CLK>;
-		assigned-clock-rates = <24000000>;
+		assigned-clock-rates = <40000000>;
 		power-domains = <&pd_dma_flexcan0>;
 		status = "disabled";
 	};
@@ -1372,7 +1372,7 @@
 			 <&clk IMX8QXP_CAN0_CLK>;
 		clock-names = "ipg", "per";
 		assigned-clocks = <&clk IMX8QXP_CAN0_CLK>;
-		assigned-clock-rates = <24000000>;
+		assigned-clock-rates = <40000000>;
 		power-domains = <&pd_dma_flexcan0>;
 		status = "disabled";
 	};
