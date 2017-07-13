@@ -137,6 +137,14 @@ struct drm_hdmi_info {
 	u32 colorimetry;
 	/* Panel HDR capabilities */
 	struct hdr_static_metadata hdr_panel_metadata;
+
+	/**
+	 * @y420_vdb_modes: bitmap of modes which can support ycbcr420
+	 * output only (not normal RGB/YCBCR444/422 outputs). There are total
+	 * 107 VICs defined by CEA-861-F spec, so the size is 128 bits to map
+	 * upto 128 VICs;
+	 */
+	unsigned long y420_vdb_modes[BITS_TO_LONGS(128)];
 };
 
 /**
@@ -662,6 +670,15 @@ struct drm_connector {
 	bool interlace_allowed;
 	bool doublescan_allowed;
 	bool stereo_allowed;
+
+	/**
+	 * @ycbcr_420_allowed : This bool indicates if this connector is
+	 * capable of handling YCBCR 420 output. While parsing the EDID
+	 * blocks, its very helpful to know, if the source is capable of
+	 * handling YCBCR 420 outputs.
+	 */
+	bool ycbcr_420_allowed;
+
 	/**
 	 * @registered: Is this connector exposed (registered) with userspace?
 	 * Protected by @mutex.
