@@ -1765,7 +1765,6 @@ gckCOMMAND_Commit(
     gckHARDWARE hardware;
     gctBOOL needCopy = gcvFALSE;
     gcsQUEUE_PTR eventRecord = gcvNULL;
-    gcsQUEUE _eventRecord;
     gcsQUEUE_PTR nextEventRecord;
     gctBOOL commandBufferMapped = gcvFALSE;
     gcoCMDBUF commandBufferObject = gcvNULL;
@@ -1774,7 +1773,6 @@ gckCOMMAND_Commit(
 
 #if !gcdNULL_DRIVER
     gcsCONTEXT_PTR contextBuffer;
-    struct _gcoCMDBUF _commandBufferObject;
     gctPHYS_ADDR_T commandBufferPhysical;
     gctUINT8_PTR commandBufferLogical = gcvNULL;
     gctUINT32 commandBufferAddress = 0;
@@ -1893,7 +1891,8 @@ gckCOMMAND_Commit(
 #else
     if (needCopy)
     {
-        commandBufferObject = &_commandBufferObject;
+        gcmkONERROR(gckOS_Allocate(Command->os, gcmSIZEOF(struct _gcoCMDBUF), &pointer));
+        commandBufferObject = pointer;
 
         gcmkONERROR(gckOS_CopyFromUserData(
             Command->os,
@@ -2572,8 +2571,10 @@ gckCOMMAND_Commit(
     {
         if (needCopy)
         {
+            gcmkONERROR(gckOS_Allocate(Command->os, gcmSIZEOF(gcsQUEUE), &pointer));
+
             /* Point to stack record. */
-            eventRecord = &_eventRecord;
+            eventRecord = pointer;
 
             /* Copy the data from the client. */
             gcmkONERROR(gckOS_CopyFromUserData(
@@ -2606,6 +2607,11 @@ gckCOMMAND_Commit(
                 Command->os, EventQueue, gcmSIZEOF(gcsQUEUE), (gctPOINTER *) eventRecord
                 ));
 
+            eventRecord = gcvNULL;
+        }
+        else
+        {
+            gcmkONERROR(gckOS_Free(Command->os,eventRecord));
             eventRecord = gcvNULL;
         }
 
@@ -2661,6 +2667,10 @@ gckCOMMAND_Commit(
 
         commandBufferMapped = gcvFALSE;
     }
+    else if (needCopy)
+    {
+        gcmkONERROR(gckOS_Free(Command->os, commandBufferObject));
+    }
 
     /* Return status. */
     gcmkFOOTER();
@@ -2676,6 +2686,10 @@ OnError:
             gcmSIZEOF(gcsQUEUE),
             (gctPOINTER *) eventRecord
             ));
+    }
+    else if ((eventRecord != gcvNULL) && needCopy)
+    {
+        gcmkVERIFY_OK(gckOS_Free(Command->os, eventRecord));
     }
 
     if (contextAcquired)
@@ -2710,6 +2724,10 @@ OnError:
             gcmSIZEOF(struct _gcoCMDBUF),
             commandBufferObject
             ));
+    }
+    else if (needCopy)
+    {
+        gcmkVERIFY_OK(gckOS_Free(Command->os, commandBufferObject));
     }
 
     /* Return status. */
