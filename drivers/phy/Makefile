@@ -62,3 +62,4 @@ obj-$(CONFIG_ARCH_TEGRA) += tegra/
 obj-$(CONFIG_PHY_NS2_PCIE)		+= phy-bcm-ns2-pcie.o
 obj-$(CONFIG_PHY_MIXEL_LVDS)	+= phy-mixel-lvds.o
 obj-$(CONFIG_PHY_MIXEL_LVDS_COMBO)	+= phy-mixel-lvds-combo.o
+obj-$(CONFIG_PHY_FSL_IMX8MQ_USB)	+= phy-fsl-imx8mq-usb.o
