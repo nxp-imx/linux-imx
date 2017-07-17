@@ -2410,25 +2410,6 @@ config FB_MXS
 	help
 	  Framebuffer support for the MXS SoC.
 
-config FB_IMX64
-	tristate "IMX integrated framebuffers support"
-	depends on FB && (ARCH_FSL_IMX8QM  || \
-			  ARCH_FSL_IMX8QXP || \
-			  ARCH_FSL_IMX8MQ)
-	select FB_CFB_FILLRECT
-	select FB_CFB_COPYAREA
-	select FB_CFB_IMAGEBLIT
-	select FB_MODE_HELPERS
-	select VIDEOMODE_HELPERS
-	default y
-	help
-	  All the IMX64 series(imx8) integrated
-	  display controllers and encoders support. The
-	  display controllers include LCDIF, DPU, DCSS
-	  and etc, and the encoders include mipi dsi,
-	  hdmi, dsi-to-hdmi converters and etc.
-source "drivers/video/fbdev/imx/Kconfig"
-
 config FB_PUV3_UNIGFX
 	tristate "PKUnity v3 Unigfx framebuffer support"
 	depends on FB && UNICORE32 && ARCH_PUV3
