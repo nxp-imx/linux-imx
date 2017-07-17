@@ -12,11 +12,3 @@ config FB_IMX_DISPDRV_ENC
 	help
 	  IMX encoders driver framework which wo-work with IMX
 	  framebuffer drivers.
-
-config FB_IMX_NORTHWEST_DSI
-	tristate "IMX MIPI DSI NORTHWEST"
-	depends on FB_IMX64 && ARCH_FSL_IMX8MQ && FB_IMX_DISPDRV_ENC
-	default y
-	help
-	  MIPI DSI of Northwest driver which includes
-	  core and PHY management.
