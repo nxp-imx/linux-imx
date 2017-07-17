@@ -20,10 +20,3 @@ config FB_IMX_NORTHWEST_DSI
 	help
 	  MIPI DSI of Northwest driver which includes
 	  core and PHY management.
-
-config FB_IMX_ADV7535
-	tristate "IMX ADV7535"
-	depends on FB_IMX64 && ARCH_FSL_IMX8MQ && FB_IMX_NORTHWEST_DSI
-	default y
-	help
-	  ADV7535 driver.
