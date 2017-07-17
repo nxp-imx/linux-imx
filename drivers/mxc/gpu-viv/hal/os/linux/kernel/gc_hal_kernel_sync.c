@@ -313,7 +313,7 @@ struct fence * viv_fence_create(struct viv_sync_timeline *timeline,
     struct fence *old_fence = NULL;
     unsigned seqno;
 
-    fence = kmalloc(sizeof(struct viv_fence), gcdNOWARN | GFP_KERNEL);
+    fence = kzalloc(sizeof(struct viv_fence), gcdNOWARN | GFP_KERNEL);
 
     if (!fence)
         return NULL;
