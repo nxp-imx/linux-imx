@@ -288,6 +288,7 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 	struct resource *resource;
 	wifi_adapter_info_t *adapter;
 #ifdef CONFIG_DTS
+	int ret = 0;
 #if defined(OOB_INTR_ONLY)
 	int irq, gpio;
 #endif /* defined(OOB_INTR_ONLY) */
@@ -314,6 +315,16 @@ static int wifi_plat_dev_drv_probe(struct platform_device *pdev)
 #endif /* OOB_PARAM */
 
 #ifdef CONFIG_DTS
+	/* get firmware from dts */
+	ret = of_property_read_string(pdev->dev.of_node, "bcmdhd_fw",
+				      &adapter->fw_path);
+	if (!ret)
+		DHD_INFO(("fw path:%s\n", adapter->fw_path));
+	ret = of_property_read_string(pdev->dev.of_node, "bcmdhd_nv",
+				      &adapter->nv_path);
+	if (!ret)
+		DHD_INFO(("nv path:%s\n", adapter->nv_path));
+
 	wifi_regulator = regulator_get(&pdev->dev, "wlreg_on");
 	if (wifi_regulator == NULL) {
 		DHD_ERROR(("%s regulator is null\n", __FUNCTION__));
