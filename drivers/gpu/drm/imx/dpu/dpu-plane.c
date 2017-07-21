@@ -22,7 +22,10 @@
 #include "dpu-plane.h"
 #include "imx-drm.h"
 
-/* RGB formats are widely supported by all fetch units */
+/*
+ * RGB and packed/2planar YUV formats
+ * are widely supported by many fetch units.
+ */
 static const uint32_t dpu_common_formats[] = {
 	/* DRM_FORMAT_ARGB8888, */
 	DRM_FORMAT_XRGB8888,
@@ -35,6 +38,15 @@ static const uint32_t dpu_common_formats[] = {
 	DRM_FORMAT_RGB888,
 	DRM_FORMAT_BGR888,
 	DRM_FORMAT_RGB565,
+
+	DRM_FORMAT_YUYV,
+	DRM_FORMAT_UYVY,
+	DRM_FORMAT_NV12,
+	DRM_FORMAT_NV21,
+	DRM_FORMAT_NV16,
+	DRM_FORMAT_NV61,
+	DRM_FORMAT_NV24,
+	DRM_FORMAT_NV42,
 };
 
 static void dpu_plane_destroy(struct drm_plane *plane)
@@ -126,6 +138,24 @@ drm_plane_state_to_baseaddr(struct drm_plane_state *state)
 	       drm_format_plane_cpp(fb->pixel_format, 0) * x;
 }
 
+static inline dma_addr_t
+drm_plane_state_to_uvbaseaddr(struct drm_plane_state *state)
+{
+	struct drm_framebuffer *fb = state->fb;
+	struct drm_gem_cma_object *cma_obj;
+	int x = state->src_x >> 16;
+	int y = state->src_y >> 16;
+
+	cma_obj = drm_fb_cma_get_gem_obj(fb, 1);
+	BUG_ON(!cma_obj);
+
+	x /= drm_format_horz_chroma_subsampling(fb->pixel_format);
+	y /= drm_format_vert_chroma_subsampling(fb->pixel_format);
+
+	return cma_obj->paddr + fb->offsets[1] + fb->pitches[1] * y +
+	       drm_format_plane_cpp(fb->pixel_format, 1) * x;
+}
+
 static int dpu_plane_atomic_check(struct drm_plane *plane,
 				  struct drm_plane_state *state)
 {
@@ -189,9 +219,33 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	    crtc_state->adjusted_mode.vdisplay)
 		return -EINVAL;
 
+	/* pixel/line count and position parameters check */
+	if (drm_format_horz_chroma_subsampling(fb->pixel_format) == 2 &&
+	    (((state->src_w >> 16) % 2) || ((state->src_x >> 16) % 2)))
+		return -EINVAL;
+	if (drm_format_vert_chroma_subsampling(fb->pixel_format) == 2 &&
+	    (((state->src_h >> 16) % 2) || ((state->src_y >> 16) % 2)))
+		return -EINVAL;
+
 	/* base address alignment check */
 	baseaddr = drm_plane_state_to_baseaddr(state);
-	drm_fb_get_bpp_depth(fb->pixel_format, &depth, &bpp);
+	switch (fb->pixel_format) {
+	case DRM_FORMAT_YUYV:
+	case DRM_FORMAT_UYVY:
+		bpp = 16;
+		break;
+	case DRM_FORMAT_NV12:
+	case DRM_FORMAT_NV21:
+	case DRM_FORMAT_NV16:
+	case DRM_FORMAT_NV61:
+	case DRM_FORMAT_NV24:
+	case DRM_FORMAT_NV42:
+		bpp = 8;
+		break;
+	default:
+		drm_fb_get_bpp_depth(fb->pixel_format, &depth, &bpp);
+		break;
+	}
 	switch (bpp) {
 	case 32:
 		if (baseaddr & 0x3)
@@ -206,6 +260,16 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	if (fb->pitches[0] > 0x10000)
 		return -EINVAL;
 
+	/* UV base address alignment check, assuming 16bpp */
+	if (drm_format_num_planes(fb->pixel_format) > 1) {
+		baseaddr = drm_plane_state_to_uvbaseaddr(state);
+		if (baseaddr & 0x1)
+			return -EINVAL;
+
+		if (fb->pitches[1] > 0x10000)
+			return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -218,17 +282,18 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	struct drm_framebuffer *fb = state->fb;
 	struct dpu_plane_res *res = &dplane->grp->res;
 	struct dpu_fetchdecode *fd;
+	struct dpu_fetcheco *fe;
 	struct dpu_hscaler *hs;
 	struct dpu_vscaler *vs;
 	struct dpu_layerblend *lb;
 	struct dpu_constframe *cf;
 	struct dpu_extdst *ed;
 	struct device *dev = plane->dev->dev;
-	dpu_block_id_t vs_id = ID_NONE, hs_id;
+	dpu_block_id_t fe_id, vs_id = ID_NONE, hs_id;
 	lb_sec_sel_t lb_src = dpstate->source;
 	unsigned int depth, src_w, src_h;
 	int bpp, fd_id, lb_id;
-	bool need_hscaler = false, need_vscaler = false;
+	bool need_fetcheco = false, need_hscaler = false, need_vscaler = false;
 
 	/*
 	 * Do nothing since the plane is disabled by
@@ -251,6 +316,13 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	src_w = state->src_w >> 16;
 	src_h = state->src_h >> 16;
 
+	if (fetchdecode_need_fetcheco(fd, fb->pixel_format)) {
+		need_fetcheco = true;
+		fe = fetchdecode_get_fetcheco(fd);
+		if (IS_ERR(fe))
+			return;
+	}
+
 	if (src_w != state->crtc_w) {
 		need_hscaler = true;
 		hs = fetchdecode_get_hscaler(fd);
@@ -265,7 +337,23 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 			return;
 	}
 
-	drm_fb_get_bpp_depth(fb->pixel_format, &depth, &bpp);
+	switch (fb->pixel_format) {
+	case DRM_FORMAT_YUYV:
+	case DRM_FORMAT_UYVY:
+		bpp = 16;
+		break;
+	case DRM_FORMAT_NV12:
+	case DRM_FORMAT_NV21:
+	case DRM_FORMAT_NV16:
+	case DRM_FORMAT_NV61:
+	case DRM_FORMAT_NV24:
+	case DRM_FORMAT_NV42:
+		bpp = 8;
+		break;
+	default:
+		drm_fb_get_bpp_depth(fb->pixel_format, &depth, &bpp);
+		break;
+	}
 
 	fetchdecode_source_bpp(fd, bpp);
 	fetchdecode_source_stride(fd, fb->pitches[0]);
@@ -277,6 +365,28 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	fetchdecode_set_stream_id(fd, dplane->stream_id ?
 					DPU_PLANE_SRC_TO_DISP_STREAM1 :
 					DPU_PLANE_SRC_TO_DISP_STREAM0);
+
+	if (need_fetcheco) {
+		fe_id = fetcheco_get_block_id(fe);
+		if (fe_id == ID_NONE)
+			return;
+
+		fetchdecode_pixengcfg_dynamic_src_sel(fd,
+						(fd_dynamic_src_sel_t)fe_id);
+		fetcheco_source_bpp(fe, 16);
+		fetcheco_source_stride(fe, fb->pitches[1]);
+		fetcheco_set_fmt(fe, fb->pixel_format);
+		fetcheco_src_buf_dimensions(fe, src_w, src_h, fb->pixel_format);
+		fetcheco_framedimensions(fe, src_w, src_h);
+		fetcheco_baseaddress(fe, drm_plane_state_to_uvbaseaddr(state));
+		fetcheco_source_buffer_enable(fe);
+		fetcheco_set_stream_id(fe, dplane->stream_id ?
+					DPU_PLANE_SRC_TO_DISP_STREAM1 :
+					DPU_PLANE_SRC_TO_DISP_STREAM0);
+
+		dev_dbg(dev, "[PLANE:%d:%s] fetcheco-0x%02x\n",
+					plane->base.id, plane->name, fe_id);
+	}
 
 	/* vscaler comes first */
 	if (need_vscaler) {
