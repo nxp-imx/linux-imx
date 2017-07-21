@@ -128,11 +128,6 @@ struct mxc_isi_fmt mxc_isi_m2m_in_formats[] = {
 	},
 };
 
-static void printk_pixelformat(char *prefix, int val)
-{
-	printk("%s %c%c%c%c\n", prefix ? prefix : "pixelformat",
-			val & 0xff, (val >> 8) & 0xff, (val >> 16) & 0xff, (val >> 24) & 0xff);
-}
 struct mxc_isi_fmt *mxc_isi_get_format(unsigned int index)
 {
 	return &mxc_isi_out_formats[index];
