@@ -295,8 +295,8 @@ struct dcss_plane *dcss_plane_init(struct drm_device *drm,
 
 	ret = drm_universal_plane_init(drm, &dcss_plane->base, possible_crtcs,
 				       &dcss_plane_funcs, dcss_common_formats,
-				       ARRAY_SIZE(dcss_common_formats), type,
-				       NULL);
+				       ARRAY_SIZE(dcss_common_formats),
+				       NULL, type, NULL);
 	if (ret) {
 		DRM_ERROR("failed to initialize plane\n");
 		kfree(dcss_plane);

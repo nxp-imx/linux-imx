@@ -652,8 +652,8 @@ struct dpu_plane *dpu_plane_init(struct drm_device *drm,
 
 	ret = drm_universal_plane_init(drm, plane, possible_crtcs,
 				       &dpu_plane_funcs, dpu_common_formats,
-				       ARRAY_SIZE(dpu_common_formats), type,
-				       NULL);
+				       ARRAY_SIZE(dpu_common_formats),
+				       NULL, type, NULL);
 	if (ret) {
 		kfree(dpu_plane);
 		return ERR_PTR(ret);
