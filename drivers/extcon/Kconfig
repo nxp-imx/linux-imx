@@ -132,4 +132,13 @@ config EXTCON_USB_GPIO
 	  Say Y here to enable GPIO based USB cable detection extcon support.
 	  Used typically if GPIO is used for USB ID pin detection.
 
+config EXTCON_PTN5150
+	tristate "NXP PTN5150 CC Logic For Type-C Applications"
+	depends on I2C && GPIOLIB
+	select REGMAP_I2C
+	help
+	  Say Y here to enable NXP PTN5150 CC logic for Type-C applications,
+	  this chip can supply the CC flip, attach and detach detection.
+
+
 endif
