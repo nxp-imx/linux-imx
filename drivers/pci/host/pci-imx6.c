@@ -543,12 +543,18 @@ static int pci_imx_phy_pll_locked(struct imx6_pcie *imx6_pcie)
 				regmap_read(imx6_pcie->iomuxc_gpr,
 					    IMX8QM_CSR_PHYX2_OFFSET + 0x4,
 					    &tmp);
-				tmp &= IMX8QM_STTS0_LANE0_TX_PLL_LOCK;
-				if (tmp == IMX8QM_STTS0_LANE0_TX_PLL_LOCK) {
+				if (imx6_pcie->ctrl_id == 0) /* pciea 1 lanes */
+					orig = IMX8QM_STTS0_LANE0_TX_PLL_LOCK;
+				else /* pcieb 1 lanes */
+					orig = IMX8QM_STTS0_LANE1_TX_PLL_LOCK;
+				tmp &= orig;
+				if (tmp == orig) {
 					regmap_update_bits(imx6_pcie->iomuxc_gpr,
 						IMX8QM_LPCG_PHYX2_OFFSET,
-						IMX8QM_LPCG_PHY_PCG0,
-						IMX8QM_LPCG_PHY_PCG0);
+						IMX8QM_LPCG_PHY_PCG0
+						| IMX8QM_LPCG_PHY_PCG1,
+						IMX8QM_LPCG_PHY_PCG0
+						| IMX8QM_LPCG_PHY_PCG1);
 					break;
 				}
 			}
@@ -588,8 +594,8 @@ static int imx6_pcie_deassert_core_reset(struct imx6_pcie *imx6_pcie)
 {
 	struct pcie_port *pp = &imx6_pcie->pp;
 	struct device *dev = pp->dev;
-	int ret;
-	u32 val;
+	int ret, i;
+	u32 val, tmp;
 
 	if (gpio_is_valid(imx6_pcie->power_on_gpio))
 		gpio_set_value_cansleep(imx6_pcie->power_on_gpio, 1);
@@ -702,6 +708,21 @@ static int imx6_pcie_deassert_core_reset(struct imx6_pcie *imx6_pcie)
 			ret = -ENODEV;
 		break;
 	case IMX8QM:
+		/* bit19 PM_REQ_CORE_RST of pciex#_stts0 should be cleared. */
+		for (i = 0; i < 100; i++) {
+			val = IMX8QM_CSR_PCIEA_OFFSET
+				+ imx6_pcie->ctrl_id * SZ_64K;
+			regmap_read(imx6_pcie->iomuxc_gpr,
+					val + IMX8QM_CSR_PCIE_STTS0_OFFSET,
+					&tmp);
+			if ((tmp & IMX8QM_CTRL_STTS0_PM_REQ_CORE_RST) == 0)
+				break;
+			udelay(10);
+		}
+
+		if ((tmp & IMX8QM_CTRL_STTS0_PM_REQ_CORE_RST) != 0)
+			pr_err("ERROR PM_REQ_CORE_RST is still set.\n");
+
 		/* wait for phy pll lock firstly. */
 		if (pci_imx_phy_pll_locked(imx6_pcie))
 			ret = -ENODEV;
@@ -843,7 +864,7 @@ static void imx6_pcie_phy_pwr_dn(struct imx6_pcie *imx6_pcie)
 static void imx6_pcie_init_phy(struct imx6_pcie *imx6_pcie)
 {
 	u32 tmp, val;
-	int i, ret;
+	int ret;
 
 	if (imx6_pcie->variant == IMX8QM) {
 		switch (imx6_pcie->hsio_cfg) {
@@ -870,10 +891,8 @@ static void imx6_pcie_init_phy(struct imx6_pcie *imx6_pcie)
 			break;
 
 		case PCIEAX1PCIEBX1SATA:
-			if (imx6_pcie->ctrl_id)
-				tmp = IMX8QM_PHY_APB_RSTN_1;
-			else
-				tmp = IMX8QM_PHY_APB_RSTN_0;
+			tmp = IMX8QM_PHY_APB_RSTN_1;
+			tmp |= IMX8QM_PHY_APB_RSTN_0;
 			regmap_update_bits(imx6_pcie->iomuxc_gpr,
 				IMX8QM_CSR_PHYX2_OFFSET,
 				IMX8QM_PHYX2_CTRL0_APB_MASK, tmp);
@@ -943,21 +962,6 @@ static void imx6_pcie_init_phy(struct imx6_pcie *imx6_pcie)
 				IMX8QM_CSR_MISC_IOB_A_0_TXOE
 				| IMX8QM_CSR_MISC_IOB_A_0_M1M0_2);
 		}
-
-		/* bit19 PM_REQ_CORE_RST of pciex2_stts0 should be cleared. */
-		for (i = 0; i < 100; i++) {
-			val = IMX8QM_CSR_PCIEA_OFFSET
-				+ imx6_pcie->ctrl_id * SZ_64K;
-			regmap_read(imx6_pcie->iomuxc_gpr,
-					val + IMX8QM_CSR_PCIE_STTS0_OFFSET,
-					&tmp);
-			if ((tmp & IMX8QM_CTRL_STTS0_PM_REQ_CORE_RST) == 0)
-				break;
-			udelay(10);
-		}
-
-		if ((tmp & IMX8QM_CTRL_STTS0_PM_REQ_CORE_RST) != 0)
-			pr_err("ERROR PM_REQ_CORE_RST is still set.\n");
 	} else if (imx6_pcie->variant == IMX8MQ) {
 		imx6_pcie_phy_pwr_up(imx6_pcie);
 
