@@ -1318,6 +1318,12 @@ struct drm_mode_config {
 	 */
 	bool allow_fb_modifiers;
 
+	/**
+	 * @modifiers: Plane property to list support modifier/format
+	 * combination.
+	 */
+	struct drm_property *modifiers_property;
+
 	/* cursor size */
 	uint32_t cursor_width, cursor_height;
 
