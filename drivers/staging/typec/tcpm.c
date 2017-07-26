@@ -1814,13 +1814,25 @@ static int tcpm_set_charge(struct tcpm_port *port, bool charge)
 
 static bool tcpm_start_drp_toggling(struct tcpm_port *port)
 {
-	int ret;
+	int ret = 0;
 
+	tcpm_log(port, "Start DRP toggling");
+
+	/* First toggle Rp if current state is SNK_UNATTACHED */
 	if (port->tcpc->start_drp_toggling &&
-	    port->typec_caps.type == TYPEC_PORT_DRP) {
-		tcpm_log_force(port, "Start DRP toggling");
-		ret = port->tcpc->start_drp_toggling(port->tcpc,
-						     tcpm_rp_cc(port));
+		port->typec_caps.type == TYPEC_PORT_DRP) {
+		if (port->state == SRC_UNATTACHED)
+			ret = port->tcpc->start_drp_toggling(port->tcpc,
+						tcpm_rp_cc(port), 0);
+		else if (port->state == SNK_UNATTACHED)
+			ret = port->tcpc->start_drp_toggling(port->tcpc,
+						TYPEC_CC_RD, 0);
+		else if (port->state == SRC_ATTACHED)
+			ret = port->tcpc->start_drp_toggling(port->tcpc,
+				tcpm_rp_cc(port), 0x1 << port->polarity);
+		else if (port->state == SNK_ATTACHED)
+			ret = port->tcpc->start_drp_toggling(port->tcpc,
+				TYPEC_CC_RD, 0x1 << port->polarity);
 		if (!ret)
 			return true;
 	}
@@ -1885,6 +1897,8 @@ static int tcpm_src_attach(struct tcpm_port *port)
 	ret = tcpm_set_polarity(port, polarity);
 	if (ret < 0)
 		return ret;
+
+	tcpm_start_drp_toggling(port);
 
 	ret = tcpm_set_roles(port, true, TYPEC_SOURCE, TYPEC_HOST);
 	if (ret < 0)
@@ -1994,6 +2008,8 @@ static int tcpm_snk_attach(struct tcpm_port *port)
 				TYPEC_POLARITY_CC2 : TYPEC_POLARITY_CC1);
 	if (ret < 0)
 		return ret;
+
+	tcpm_start_drp_toggling(port);
 
 	ret = tcpm_set_roles(port, true, TYPEC_SINK, TYPEC_DEVICE);
 	if (ret < 0)
