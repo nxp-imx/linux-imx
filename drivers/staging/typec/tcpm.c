@@ -18,6 +18,7 @@
 #include <linux/debugfs.h>
 #include <linux/device.h>
 #include <linux/kernel.h>
+#include <linux/ktime.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/proc_fs.h>
@@ -278,6 +279,9 @@ struct tcpm_port {
 	struct pd_mode_data mode_data;
 	struct typec_altmode *partner_altmode[SVID_DISCOVERY_MAX];
 	struct typec_altmode *port_altmode[SVID_DISCOVERY_MAX];
+
+	/* Send response timer */
+	struct hrtimer snd_res_timer;
 
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *dentry;
@@ -1292,6 +1296,7 @@ static void tcpm_pd_data_request(struct tcpm_port *port,
 			break;
 		}
 		port->sink_request = le32_to_cpu(msg->payload[0]);
+		hrtimer_cancel(&port->snd_res_timer);
 		tcpm_set_state(port, SRC_NEGOTIATE_CAPABILITIES, 0);
 		break;
 	case PD_DATA_SINK_CAP:
@@ -1343,6 +1348,7 @@ static void tcpm_pd_ctrl_request(struct tcpm_port *port,
 			tcpm_queue_message(port, PD_MSG_DATA_SINK_CAP);
 			break;
 		default:
+			hrtimer_cancel(&port->snd_res_timer);
 			tcpm_set_state(port, SOFT_RESET_SEND, 0);
 			break;
 		}
@@ -1383,6 +1389,7 @@ static void tcpm_pd_ctrl_request(struct tcpm_port *port,
 	case PD_CTRL_WAIT:
 		switch (port->state) {
 		case SNK_NEGOTIATE_CAPABILITIES:
+			hrtimer_cancel(&port->snd_res_timer);
 			/* USB PD specification, Figure 8-43 */
 			if (port->explicit_contract)
 				next_state = SNK_READY;
@@ -1412,6 +1419,7 @@ static void tcpm_pd_ctrl_request(struct tcpm_port *port,
 	case PD_CTRL_ACCEPT:
 		switch (port->state) {
 		case SNK_NEGOTIATE_CAPABILITIES:
+			hrtimer_cancel(&port->snd_res_timer);
 			tcpm_set_state(port, SNK_TRANSITION_SINK, 0);
 			break;
 		case SOFT_RESET_SEND:
@@ -2135,6 +2143,16 @@ static void tcpm_swap_complete(struct tcpm_port *port, int result)
 	}
 }
 
+static enum hrtimer_restart tcpm_sender_res_handle(struct hrtimer *data)
+{
+	struct tcpm_port *port = container_of(data, struct tcpm_port,
+							snd_res_timer);
+
+	tcpm_log_force(port, "Sender response timeout!");
+	tcpm_set_state(port, HARD_RESET_SEND, 0);
+	return HRTIMER_NORESTART;
+}
+
 static void run_state_machine(struct tcpm_port *port)
 {
 	int ret;
@@ -2244,8 +2262,9 @@ static void run_state_machine(struct tcpm_port *port)
 			/* port->hard_reset_count = 0; */
 			port->caps_count = 0;
 			port->pd_capable = true;
-			tcpm_set_state_cond(port, hard_reset_state(port),
-					    PD_T_SEND_SOURCE_CAP);
+			hrtimer_start(&port->snd_res_timer,
+				ms_to_ktime(PD_T_SENDER_RESPONSE),
+						HRTIMER_MODE_REL);
 		}
 		break;
 	case SRC_NEGOTIATE_CAPABILITIES:
@@ -2446,8 +2465,9 @@ static void run_state_machine(struct tcpm_port *port)
 			/* Let the Source send capabilities again. */
 			tcpm_set_state(port, SNK_WAIT_CAPABILITIES, 0);
 		} else {
-			tcpm_set_state_cond(port, hard_reset_state(port),
-					    PD_T_SENDER_RESPONSE);
+			hrtimer_start(&port->snd_res_timer,
+					ms_to_ktime(PD_T_SENDER_RESPONSE),
+					HRTIMER_MODE_REL);
 		}
 		break;
 	case SNK_TRANSITION_SINK:
@@ -3514,6 +3534,9 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 			paltmode++;
 		}
 	}
+
+	hrtimer_init(&port->snd_res_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	port->snd_res_timer.function = tcpm_sender_res_handle;
 
 	tcpm_debugfs_init(port);
 	mutex_lock(&port->lock);
