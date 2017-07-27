@@ -172,6 +172,7 @@ static int imx7d_enter_low_power_idle(struct cpuidle_device *dev,
 			spin_lock(&psci_lock);
 			if (atomic_inc_return(&master_lpi) == num_online_cpus()) {
 				if (imx7d_gic_sgis_pending()) {
+					atomic_dec(&master_lpi);
 					index = -1;
 					goto psci_skip_lpi_flow;
 				}
@@ -209,6 +210,7 @@ psci_skip_lpi_flow:
 				 * any additional IPIs.
 				 */
 				if (imx7d_gic_sgis_pending()) {
+					atomic_dec(&master_lpi);
 					index = -1;
 					goto skip_lpi_flow;
 				}
