@@ -1840,6 +1840,15 @@ static bool tcpm_start_drp_toggling(struct tcpm_port *port)
 	return false;
 }
 
+static bool tcpm_vbus_is_low(struct tcpm_port *port)
+{
+	if (port->tcpc->get_vbus_vol &&
+		port->tcpc->get_vbus_vol(port->tcpc) > TCPM_VBUS_PRESENT_LEVEL)
+		return false;
+	else
+		return true;
+}
+
 static void tcpm_set_cc(struct tcpm_port *port, enum typec_cc_status cc)
 {
 	tcpm_log(port, "cc:=%d", cc);
@@ -2183,9 +2192,14 @@ static void run_state_machine(struct tcpm_port *port)
 		break;
 
 	case SRC_ATTACHED:
-		ret = tcpm_src_attach(port);
-		tcpm_set_state(port, SRC_UNATTACHED,
+		if (tcpm_vbus_is_low(port)) {
+			ret = tcpm_src_attach(port);
+			tcpm_set_state(port, SRC_UNATTACHED,
 			       ret < 0 ? 0 : PD_T_PS_SOURCE_ON);
+		} else {
+			tcpm_log(port, "Sink shouldn't provide vbus!");
+			tcpm_set_state(port, SRC_UNATTACHED, 10);
+		}
 		break;
 	case SRC_STARTUP:
 		typec_set_pwr_opmode(port->typec_port, TYPEC_PWR_MODE_USB);
