@@ -89,6 +89,7 @@
 	S(PR_SWAP_SRC_SNK_TRANSITION_OFF),	\
 	S(PR_SWAP_SRC_SNK_SOURCE_OFF),		\
 	S(PR_SWAP_SRC_SNK_SINK_ON),		\
+	S(PR_SWAP_SNK_SRC_ASSERT_RP),		\
 	S(PR_SWAP_SNK_SRC_SINK_OFF),		\
 	S(PR_SWAP_SNK_SRC_SOURCE_ON),		\
 						\
@@ -1369,7 +1370,7 @@ static void tcpm_pd_ctrl_request(struct tcpm_port *port,
 			tcpm_set_state(port, PR_SWAP_SRC_SNK_SINK_ON, 0);
 			break;
 		case PR_SWAP_SNK_SRC_SINK_OFF:
-			tcpm_set_state(port, PR_SWAP_SNK_SRC_SOURCE_ON, 0);
+			tcpm_set_state(port, PR_SWAP_SNK_SRC_ASSERT_RP, 0);
 			break;
 		case VCONN_SWAP_WAIT_FOR_VCONN:
 			tcpm_set_state(port, VCONN_SWAP_TURN_OFF_VCONN, 0);
@@ -2636,13 +2637,15 @@ static void run_state_machine(struct tcpm_port *port)
 		tcpm_set_state(port, hard_reset_state(port),
 			       PD_T_PS_SOURCE_OFF);
 		break;
-	case PR_SWAP_SNK_SRC_SOURCE_ON:
+	case PR_SWAP_SNK_SRC_ASSERT_RP:
 		tcpm_set_cc(port, tcpm_rp_cc(port));
 		tcpm_set_vbus(port, true);
-		tcpm_pd_send_control(port, PD_CTRL_PS_RDY);
+		break;
+	case PR_SWAP_SNK_SRC_SOURCE_ON:
 		tcpm_set_pwr_role(port, TYPEC_SOURCE);
+		tcpm_pd_send_control(port, PD_CTRL_PS_RDY);
 		tcpm_swap_complete(port, 0);
-		tcpm_set_state(port, SRC_STARTUP, 0);
+		tcpm_set_state(port, SRC_STARTUP, 25);
 		break;
 
 	case VCONN_SWAP_ACCEPT:
@@ -2911,6 +2914,7 @@ static void _tcpm_cc_change(struct tcpm_port *port, enum typec_cc_status cc1,
 		break;
 
 	case PR_SWAP_SNK_SRC_SINK_OFF:
+	case PR_SWAP_SNK_SRC_ASSERT_RP:
 	case PR_SWAP_SRC_SNK_TRANSITION_OFF:
 	case PR_SWAP_SRC_SNK_SOURCE_OFF:
 		/*
@@ -2979,7 +2983,10 @@ static void _tcpm_pd_vbus_on(struct tcpm_port *port)
 	case SNK_TRYWAIT:
 		tcpm_set_state(port, SNK_TRYWAIT_VBUS, 0);
 		break;
-
+	case PR_SWAP_SNK_SRC_ASSERT_RP:
+		/* If vbus is reached, start source on to send PS_RDY */
+		tcpm_set_state(port, PR_SWAP_SNK_SRC_SOURCE_ON, 0);
+		break;
 	default:
 		break;
 	}
