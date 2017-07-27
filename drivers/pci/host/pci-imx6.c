@@ -376,6 +376,7 @@ static void imx6_pcie_assert_core_reset(struct imx6_pcie *imx6_pcie)
 {
 	struct pcie_port *pp = &imx6_pcie->pp;
 	u32 val, gpr1, gpr12;
+	int i;
 
 	switch (imx6_pcie->variant) {
 	case IMX6SX:
@@ -432,19 +433,21 @@ static void imx6_pcie_assert_core_reset(struct imx6_pcie *imx6_pcie)
 		regmap_update_bits(imx6_pcie->reg_src, 0x2c, BIT(2), BIT(2));
 		break;
 	case IMX8QM:
-		val = IMX8QM_CSR_PCIEA_OFFSET + imx6_pcie->ctrl_id * SZ_64K;
-		regmap_update_bits(imx6_pcie->iomuxc_gpr,
-				val + IMX8QM_CSR_PCIE_CTRL2_OFFSET,
-				IMX8QM_CTRL_BUTTON_RST_N,
-				IMX8QM_CTRL_BUTTON_RST_N);
-		regmap_update_bits(imx6_pcie->iomuxc_gpr,
-				val + IMX8QM_CSR_PCIE_CTRL2_OFFSET,
-				IMX8QM_CTRL_PERST_N,
-				IMX8QM_CTRL_PERST_N);
-		regmap_update_bits(imx6_pcie->iomuxc_gpr,
-				val + IMX8QM_CSR_PCIE_CTRL2_OFFSET,
-				IMX8QM_CTRL_POWER_UP_RST_N,
-				IMX8QM_CTRL_POWER_UP_RST_N);
+		for (i = 0; i <= imx6_pcie->ctrl_id; i++) {
+			val = IMX8QM_CSR_PCIEA_OFFSET + i * SZ_64K;
+			regmap_update_bits(imx6_pcie->iomuxc_gpr,
+					val + IMX8QM_CSR_PCIE_CTRL2_OFFSET,
+					IMX8QM_CTRL_BUTTON_RST_N,
+					IMX8QM_CTRL_BUTTON_RST_N);
+			regmap_update_bits(imx6_pcie->iomuxc_gpr,
+					val + IMX8QM_CSR_PCIE_CTRL2_OFFSET,
+					IMX8QM_CTRL_PERST_N,
+					IMX8QM_CTRL_PERST_N);
+			regmap_update_bits(imx6_pcie->iomuxc_gpr,
+					val + IMX8QM_CSR_PCIE_CTRL2_OFFSET,
+					IMX8QM_CTRL_POWER_UP_RST_N,
+					IMX8QM_CTRL_POWER_UP_RST_N);
+		}
 		break;
 	case IMX8MQ:
 		if (imx6_pcie->ctrl_id == 0)
