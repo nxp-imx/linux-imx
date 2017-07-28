@@ -2904,11 +2904,8 @@ static void _tcpm_cc_change(struct tcpm_port *port, enum typec_cc_status cc1,
 	case SRC_TRYWAIT:
 		/* Hand over to state machine if needed */
 		if (!port->vbus_present && tcpm_port_is_source(port))
-			new_state = SRC_ATTACHED;
-		else
-			new_state = SRC_TRYWAIT_UNATTACHED;
-
-		if (new_state != port->delayed_state)
+			tcpm_set_state(port, SRC_ATTACHED, 0);
+		else if (port->delayed_state != SRC_TRYWAIT_UNATTACHED)
 			tcpm_set_state(port, SRC_TRYWAIT, 0);
 		break;
 	case SNK_TRY_WAIT:
