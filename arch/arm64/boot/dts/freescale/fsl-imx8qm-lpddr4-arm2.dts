@@ -44,12 +44,10 @@
 		};
 	};
 
-	modem_reset: modem-reset {
-		compatible = "gpio-reset";
-		reset-gpios = <&pca9557_b 7 GPIO_ACTIVE_LOW>;
-		reset-delay-us = <2000>;
-		reset-post-delay-ms = <40>;
-		#reset-cells = <0>;
+	bt_rfkill {
+		compatible = "fsl,mxc_bt_rfkill";
+		bt-power-gpios = <&pca9557_b 7 GPIO_ACTIVE_LOW>;
+		status ="okay";
 	};
 
 	regulators {
@@ -823,7 +821,6 @@
 &lpuart1 { /* BT */
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lpuart1>;
-	resets = <&modem_reset>;
 	status = "okay";
 };
 
