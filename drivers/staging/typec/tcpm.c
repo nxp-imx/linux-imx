@@ -2946,12 +2946,12 @@ static void _tcpm_cc_change(struct tcpm_port *port, enum typec_cc_status cc1,
 	case PR_SWAP_SNK_SRC_ASSERT_RP:
 	case PR_SWAP_SRC_SNK_TRANSITION_OFF:
 	case PR_SWAP_SRC_SNK_SOURCE_OFF:
+	case ERROR_RECOVERY:
 		/*
 		 * CC state change is expected here; we just turned off power.
 		 * Ignore it.
 		 */
 		break;
-
 	default:
 		if (tcpm_port_is_disconnected(port))
 			tcpm_set_state(port, unattached_state(port), 0);
