@@ -5,7 +5,7 @@ and thus inherits all the common properties defined in designware-pcie.txt.
 
 Required properties:
 - compatible: "fsl,imx6q-pcie", "fsl,imx6sx-pcie", "fsl,imx6qp-pcie",
-  "fsl,imx8qm-pcie","fsl,imx8mq-pcie"
+  "fsl,imx8qm-pcie","fsl,imx8qxp-pcie","fsl,imx8mq-pcie"
 - reg: base address and length of the PCIe controller
 - interrupts: A list of interrupt outputs of the controller. Must contain an
   entry for each entry in the interrupt-names property.
