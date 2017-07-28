@@ -2652,14 +2652,14 @@ static void run_state_machine(struct tcpm_port *port)
 		break;
 	case PR_SWAP_SRC_SNK_SOURCE_OFF:
 		tcpm_set_cc(port, TYPEC_CC_RD);
+		tcpm_set_pwr_role(port, TYPEC_SINK);
 		if (tcpm_pd_send_control(port, PD_CTRL_PS_RDY)) {
 			tcpm_set_state(port, ERROR_RECOVERY, 0);
 			break;
 		}
-		tcpm_set_state_cond(port, SNK_UNATTACHED, PD_T_PS_SOURCE_ON);
+		tcpm_set_state_cond(port, ERROR_RECOVERY, PD_T_PS_SOURCE_ON);
 		break;
 	case PR_SWAP_SRC_SNK_SINK_ON:
-		tcpm_set_pwr_role(port, TYPEC_SINK);
 		tcpm_swap_complete(port, 0);
 		tcpm_set_state(port, SNK_STARTUP, 0);
 		break;
