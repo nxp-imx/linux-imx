@@ -4,6 +4,7 @@
 
 menuconfig BT
 	tristate "Bluetooth subsystem support"
+	default y
 	depends on NET && !S390
 	depends on RFKILL || !RFKILL
 	select CRC16
