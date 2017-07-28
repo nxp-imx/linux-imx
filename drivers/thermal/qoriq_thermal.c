@@ -78,6 +78,14 @@ struct qoriq_tmu_data {
 	struct qoriq_tmu_regs __iomem *regs;
 	int sensor_id;
 	bool little_endian;
+	int temp_passive;
+	int temp_critical;
+};
+
+enum tmu_trip {
+	TMU_TRIP_PASSIVE,
+	TMU_TRIP_CRITICAL,
+	TMU_TRIP_NUM,
 };
 
 static void tmu_write(struct qoriq_tmu_data *p, u32 val, void __iomem *addr)
@@ -189,8 +197,44 @@ static void qoriq_tmu_init_device(struct qoriq_tmu_data *data)
 	tmu_write(data, TMR_DISABLE, &data->regs->tmr);
 }
 
+static int tmu_get_trend(void *p,
+	int trip, enum thermal_trend *trend)
+{
+	int trip_temp;
+	struct qoriq_tmu_data *data = p;
+
+	if (!data->tz)
+		return 0;
+
+	trip_temp = (trip == TMU_TRIP_PASSIVE) ? data->temp_passive :
+					     data->temp_critical;
+
+	if (data->tz->temperature >= trip_temp)
+		*trend = THERMAL_TREND_RAISE_FULL;
+	else
+		*trend = THERMAL_TREND_DROP_FULL;
+
+	return 0;
+}
+
+static int tmu_set_trip_temp(void *p, int trip,
+			     int temp)
+{
+	struct qoriq_tmu_data *data = p;
+
+	if (trip == TMU_TRIP_CRITICAL)
+		data->temp_critical = temp;
+
+	if (trip == TMU_TRIP_PASSIVE)
+		data->temp_passive = temp;
+
+	return 0;
+}
+
 static struct thermal_zone_of_device_ops tmu_tz_ops = {
 	.get_temp = tmu_get_temp,
+	.get_trend = tmu_get_trend,
+	.set_trip_temp = tmu_set_trip_temp,
 };
 
 static int qoriq_tmu_probe(struct platform_device *pdev)
@@ -245,6 +289,8 @@ static int qoriq_tmu_probe(struct platform_device *pdev)
 	}
 
 	trip = of_thermal_get_trip_points(data->tz);
+	data->temp_passive = trip[0].temperature;
+	data->temp_critical = trip[1].temperature;
 
 	/* Enable monitoring */
 	site |= 0x1 << (15 - data->sensor_id);
