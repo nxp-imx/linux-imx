@@ -375,7 +375,8 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 		fetchdecode_pixengcfg_dynamic_src_sel(fd,
 						(fd_dynamic_src_sel_t)fe_id);
 		fetcheco_source_bpp(fe, 16);
-		fetcheco_source_stride(fe, fb->pitches[1]);
+		fetcheco_source_stride(fe, src_w, bpp, fb->pitches[1],
+				drm_plane_state_to_uvbaseaddr(state), false);
 		fetcheco_set_fmt(fe, fb->pixel_format);
 		fetcheco_src_buf_dimensions(fe, src_w, src_h, fb->pixel_format);
 		fetcheco_framedimensions(fe, src_w, src_h);
