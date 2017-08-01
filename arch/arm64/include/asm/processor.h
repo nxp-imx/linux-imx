@@ -130,7 +130,7 @@ struct thread_struct {
 static inline void start_thread_common(struct pt_regs *regs, unsigned long pc)
 {
 	memset(regs, 0, sizeof(*regs));
-	regs->syscallno = ~0UL;
+	regs->syscallno = ~0;
 	regs->pc = pc;
 }
 
