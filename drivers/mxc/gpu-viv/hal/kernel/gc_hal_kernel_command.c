@@ -73,6 +73,9 @@
 **      gckCOMMAND Command
 **          Pointer to an gckCOMMAND object.
 **
+**      gctBOOL Stalled
+**          Indicate if hardware is stalled already.
+**
 **  OUTPUT:
 **
 **      gckCOMMAND Command
@@ -80,7 +83,8 @@
 */
 static gceSTATUS
 _NewQueue(
-    IN OUT gckCOMMAND Command
+    IN OUT gckCOMMAND Command,
+    IN gctBOOL Stalled
     )
 {
     gceSTATUS status;
@@ -151,12 +155,23 @@ _NewQueue(
 
     if (currentIndex != -1)
     {
-        /* Mark the command queue as available. */
-        gcmkONERROR(gckEVENT_Signal(
-            Command->kernel->eventObj,
-            Command->queues[currentIndex].signal,
-            gcvKERNEL_COMMAND
-            ));
+        if (Stalled)
+        {
+            gckOS_Signal(
+                Command->os,
+                Command->queues[currentIndex].signal,
+                gcvTRUE
+                );
+        }
+        else
+        {
+            /* Mark the command queue as available. */
+            gcmkONERROR(gckEVENT_Signal(
+                Command->kernel->eventObj,
+                Command->queues[currentIndex].signal,
+                gcvKERNEL_COMMAND
+                ));
+        }
     }
 
     /* Success. */
@@ -379,7 +394,7 @@ _FlushMMU(
     gctUINT32 waitLinkBytes;
 
     gcmkONERROR(gckOS_AtomicExchange(Command->os,
-                                     hardware->pageTableDirty,
+                                     hardware->pageTableDirty[gcvENGINE_RENDER],
                                      0,
                                      &oldValue));
 
@@ -788,7 +803,7 @@ _ParseCMDBUFTail(
 
     _GetCMDBUFTail(CommandBuffer, &tail);
 
-    if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_FENCE))
+    if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_FENCE_64BIT))
     {
         *Fence = tail;
         *Link  = tail + gcdRENDER_FENCE_LENGTH;
@@ -1069,10 +1084,8 @@ gckCOMMAND_Construct(
     /* Create the context switching mutex. */
     gcmkONERROR(gckOS_CreateMutex(os, &command->mutexContext));
 
-#if VIVANTE_PROFILER_CONTEXT
     /* Create the context switching mutex. */
     gcmkONERROR(gckOS_CreateMutex(os, &command->mutexContextSeq));
-#endif
 
     /* Create the power management semaphore. */
     gcmkONERROR(gckOS_CreateSemaphore(os, &command->powerSemaphore));
@@ -1271,10 +1284,8 @@ gckCOMMAND_Destroy(
         gcmkVERIFY_OK(gckOS_DeleteMutex(Command->os, Command->mutexContext));
     }
 
-#if VIVANTE_PROFILER_CONTEXT
     if (Command->mutexContextSeq != gcvNULL)
         gcmkVERIFY_OK(gckOS_DeleteMutex(Command->os, Command->mutexContextSeq));
-#endif
 
     if (Command->mutexQueue)
     {
@@ -1530,7 +1541,7 @@ gckCOMMAND_Start(
      )
     {
         /* Start at beginning of a new queue. */
-        gcmkONERROR(_NewQueue(Command));
+        gcmkONERROR(_NewQueue(Command, gcvTRUE));
     }
 
     logical  = (gctUINT8_PTR) Command->logical + Command->offset;
@@ -2011,7 +2022,7 @@ gckCOMMAND_Commit(
         gcmkONERROR(_DummyDraw(Command));
     }
 
-    if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_FENCE) && asyncCommandStamp != 0)
+    if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_FENCE_64BIT) && asyncCommandStamp != 0)
     {
         gcmkONERROR(_WaitForAsyncCommandStamp(Command, asyncCommandStamp));
     }
@@ -2037,7 +2048,7 @@ gckCOMMAND_Commit(
     if (bytes < waitLinkBytes)
     {
         /* No, create a new one. */
-        gcmkONERROR(_NewQueue(Command));
+        gcmkONERROR(_NewQueue(Command, gcvFALSE));
 
         /* Get the new current offset. */
         offset = Command->offset;
@@ -2298,7 +2309,7 @@ gckCOMMAND_Commit(
         + commandBufferSize
         - commandBufferObject->reservedTail;
 
-    if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_FENCE))
+    if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_FENCE_64BIT))
     {
         /* Determine the location of the FENCE command in the command buffer. */
         commandBufferFence = commandBufferTail;
@@ -2471,7 +2482,7 @@ gckCOMMAND_Commit(
         Command->os,
         Command->waitLogical,
         Command->waitSize,
-        gceDUMP_BUFFER_LINK,
+        gcvDUMP_BUFFER_LINK,
         gcvFALSE
         );
 
@@ -2479,7 +2490,7 @@ gckCOMMAND_Commit(
         Command->os,
         contextDumpLogical,
         contextDumpBytes,
-        gceDUMP_BUFFER_CONTEXT,
+        gcvDUMP_BUFFER_CONTEXT,
         gcvFALSE
         );
 
@@ -2487,7 +2498,7 @@ gckCOMMAND_Commit(
         Command->os,
         bufferDumpLogical,
         bufferDumpBytes,
-        gceDUMP_BUFFER_USER,
+        gcvDUMP_BUFFER_USER,
         gcvFALSE
         );
 
@@ -2495,7 +2506,7 @@ gckCOMMAND_Commit(
         Command->os,
         waitLinkLogical,
         waitLinkBytes,
-        gceDUMP_BUFFER_WAITLINK,
+        gcvDUMP_BUFFER_WAITLINK,
         gcvFALSE
         );
 
@@ -2803,7 +2814,7 @@ gckCOMMAND_Reserve(
     if (bytes < requiredBytes)
     {
         /* Create a new command queue. */
-        gcmkONERROR(_NewQueue(Command));
+        gcmkONERROR(_NewQueue(Command, gcvFALSE));
 
         /* Recompute the number of bytes in the new kernel command queue. */
         bytes = Command->pageSize - Command->offset;
@@ -2992,7 +3003,7 @@ gckCOMMAND_Execute(
         Command->os,
         Command->waitLogical,
         Command->waitSize,
-        gceDUMP_BUFFER_LINK,
+        gcvDUMP_BUFFER_LINK,
         gcvFALSE
         );
 
@@ -3000,7 +3011,7 @@ gckCOMMAND_Execute(
         Command->os,
         execLogical,
         execBytes,
-        gceDUMP_BUFFER_KERNEL,
+        gcvDUMP_BUFFER_KERNEL,
         gcvFALSE
         );
 

@@ -1467,7 +1467,8 @@ gckKERNEL_DestroyProcessDB(
             status = gckKERNEL_UnmapMemory(record->kernel,
                                            record->physical,
                                            record->bytes,
-                                           record->data);
+                                           record->data,
+                                           ProcessID);
 
             gcmkTRACE_ZONE(gcvLEVEL_WARNING, gcvZONE_DATABASE,
                            "DB: MAP MEMORY %d (status=%d)",

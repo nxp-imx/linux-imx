@@ -1624,7 +1624,7 @@ gckEVENT_SubmitAsync(
                 Event->os,
                 startLogical,
                 end - start,
-                gceDUMP_BUFFER_KERNEL,
+                gcvDUMP_BUFFER_KERNEL,
                 gcvFALSE
                 );
 
@@ -2049,125 +2049,6 @@ OnError:
 
 /*******************************************************************************
 **
-**  gckEVENT_Compose
-**
-**  Schedule a composition event and start a composition.
-**
-**  INPUT:
-**
-**      gckEVENT Event
-**          Pointer to an gckEVENT object.
-**
-**      gcsHAL_COMPOSE_PTR Info
-**          Pointer to the composition structure.
-**
-**  OUTPUT:
-**
-**      Nothing.
-*/
-gceSTATUS
-gckEVENT_Compose(
-    IN gckEVENT Event,
-    IN gcsHAL_COMPOSE_PTR Info
-    )
-{
-    gceSTATUS status;
-    gcsEVENT_PTR headRecord;
-    gcsEVENT_PTR tailRecord;
-    gcsEVENT_PTR tempRecord = gcvNULL;
-    gctUINT8 id = 0xFF;
-    gctUINT32 processID;
-
-    gcmkHEADER_ARG("Event=0x%x Info=0x%x", Event, Info);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Event, gcvOBJ_EVENT);
-    gcmkVERIFY_ARGUMENT(Info != gcvNULL);
-
-    /* Allocate an event ID. */
-    gcmkONERROR(gckEVENT_GetEvent(Event, gcvTRUE, &id, gcvKERNEL_PIXEL));
-
-    /* Get process ID. */
-    gcmkONERROR(gckOS_GetProcessID(&processID));
-
-    /* Allocate a record. */
-    gcmkONERROR(gckEVENT_AllocateRecord(Event, gcvTRUE, &tempRecord));
-    headRecord = tailRecord = tempRecord;
-
-    /* Initialize the record. */
-    tempRecord->info.command            = gcvHAL_SIGNAL;
-    tempRecord->info.u.Signal.process   = Info->process;
-#ifdef __QNXNTO__
-    tempRecord->info.u.Signal.coid      = Info->coid;
-    tempRecord->info.u.Signal.rcvid     = Info->rcvid;
-#endif
-    tempRecord->info.u.Signal.signal    = Info->signal;
-    tempRecord->info.u.Signal.auxSignal = 0;
-    tempRecord->next = gcvNULL;
-    tempRecord->processID = processID;
-
-    /* Allocate another record for user signal #1. */
-    if (gcmUINT64_TO_PTR(Info->userSignal1) != gcvNULL)
-    {
-        /* Allocate a record. */
-        gcmkONERROR(gckEVENT_AllocateRecord(Event, gcvTRUE, &tempRecord));
-        tailRecord->next = tempRecord;
-        tailRecord = tempRecord;
-
-        /* Initialize the record. */
-        tempRecord->info.command            = gcvHAL_SIGNAL;
-        tempRecord->info.u.Signal.process   = Info->userProcess;
-#ifdef __QNXNTO__
-        tempRecord->info.u.Signal.coid      = Info->coid;
-        tempRecord->info.u.Signal.rcvid     = Info->rcvid;
-#endif
-        tempRecord->info.u.Signal.signal    = Info->userSignal1;
-        tempRecord->info.u.Signal.auxSignal = 0;
-        tempRecord->next = gcvNULL;
-        tempRecord->processID = processID;
-    }
-
-    /* Allocate another record for user signal #2. */
-    if (gcmUINT64_TO_PTR(Info->userSignal2) != gcvNULL)
-    {
-        /* Allocate a record. */
-        gcmkONERROR(gckEVENT_AllocateRecord(Event, gcvTRUE, &tempRecord));
-        tailRecord->next = tempRecord;
-
-        /* Initialize the record. */
-        tempRecord->info.command            = gcvHAL_SIGNAL;
-        tempRecord->info.u.Signal.process   = Info->userProcess;
-#ifdef __QNXNTO__
-        tempRecord->info.u.Signal.coid      = Info->coid;
-        tempRecord->info.u.Signal.rcvid     = Info->rcvid;
-#endif
-        tempRecord->info.u.Signal.signal    = Info->userSignal2;
-        tempRecord->info.u.Signal.auxSignal = 0;
-        tempRecord->next = gcvNULL;
-        tempRecord->processID = processID;
-    }
-
-    /* Set the event list. */
-    Event->queues[id].head = headRecord;
-
-    /* Start composition. */
-    gcmkONERROR(gckHARDWARE_Compose(
-        Event->kernel->hardware, processID,
-        gcmUINT64_TO_PTR(Info->physical), gcmUINT64_TO_PTR(Info->logical), Info->offset, Info->size, id
-        ));
-
-    /* Success. */
-    gcmkFOOTER_NO();
-    return gcvSTATUS_OK;
-
-OnError:
-    /* Return the status. */
-    gcmkFOOTER();
-    return status;
-}
-
-/*******************************************************************************
-**
 **  gckEVENT_Interrupt
 **
 **  Called by the interrupt service routine to store the triggered interrupt
@@ -2482,7 +2363,7 @@ gckEVENT_Notify(
 
         gckOS_AtomClearMask(Event->pending, mask);
 
-        if (!gckHARDWARE_IsFeatureAvailable(Event->kernel->hardware, gcvFEATURE_FENCE))
+        if (!gckHARDWARE_IsFeatureAvailable(Event->kernel->hardware, gcvFEATURE_FENCE_64BIT))
         {
             /* Write out commit stamp.*/
             *(gctUINT64 *)(Event->kernel->command->fence->logical) = queue->commitStamp;

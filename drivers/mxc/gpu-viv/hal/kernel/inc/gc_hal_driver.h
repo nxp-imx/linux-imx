@@ -128,9 +128,6 @@ typedef enum _gceHAL_COMMAND_CODES
 
     gcvHAL_READ_ALL_PROFILE_REGISTERS,
     gcvHAL_PROFILE_REGISTERS_2D,
-#if VIVANTE_PROFILER_PERDRAW
-    gcvHAL_READ_PROFILER_REGISTER_SETTING,
-#endif
     gcvHAL_READ_ALL_PROFILE_NEW_REGISTERS_PART1,
     gcvHAL_READ_ALL_PROFILE_NEW_REGISTERS_PART2,
     gcvHAL_READ_PROFILER_NEW_REGISTER_SETTING,
@@ -173,9 +170,6 @@ typedef enum _gceHAL_COMMAND_CODES
     /* Process attaching/detaching. */
     gcvHAL_ATTACH,
     gcvHAL_DETACH,
-
-    /* Composition. */
-    gcvHAL_COMPOSE,
 
     /* Set timeOut value */
     gcvHAL_SET_TIMEOUT,
@@ -281,6 +275,16 @@ typedef struct _gcsUSER_MEMORY_DESC
 }
 gcsUSER_MEMORY_DESC;
 
+
+#define gcdMAX_FLAT_MAPPING_COUNT           16
+
+typedef struct _gcsFLAT_MAPPING_RANGE
+{
+    gctUINT64 start;
+    gctUINT64 end;
+}
+gcsFLAT_MAPPING_RANGE;
+
 /* gcvHAL_QUERY_CHIP_IDENTITY */
 typedef struct _gcsHAL_QUERY_CHIP_IDENTITY * gcsHAL_QUERY_CHIP_IDENTITY_PTR;
 typedef struct _gcsHAL_QUERY_CHIP_IDENTITY
@@ -356,36 +360,6 @@ typedef struct _gcsHAL_QUERY_CHIP_IDENTITY
 }
 gcsHAL_QUERY_CHIP_IDENTITY;
 
-/* gcvHAL_COMPOSE. */
-typedef struct _gcsHAL_COMPOSE * gcsHAL_COMPOSE_PTR;
-typedef struct _gcsHAL_COMPOSE
-{
-    /* Composition state buffer. */
-    gctUINT64                   physical;
-    gctUINT64                   logical;
-    gctUINT                     offset;
-    gctUINT                     size;
-
-    /* Composition end signal. */
-    gctUINT64                   process;
-    gctUINT64                   signal;
-
-    /* User signals. */
-    gctUINT64                   userProcess;
-    gctUINT64                   userSignal1;
-    gctUINT64                   userSignal2;
-
-#if defined(__QNXNTO__)
-    /* Client pulse side-channel connection ID. */
-    gctINT32                    coid;
-
-    /* Set by server. */
-    gctINT32                    rcvid;
-#endif
-}
-gcsHAL_COMPOSE;
-
-
 typedef struct _gcsHAL_INTERFACE
 {
     /* Command code. */
@@ -421,11 +395,9 @@ typedef struct _gcsHAL_INTERFACE
             /* Physical memory address of internal memory. */
             OUT gctUINT32               baseAddress;
 
-            /* Start of flat mapping range. */
-            OUT gctUINT32               flatMappingStart;
+            OUT gctUINT32               flatMappingRangeCount;
 
-            /* End of flat mapping range. */
-            OUT gctUINT32               flatMappingEnd;
+            OUT gcsFLAT_MAPPING_RANGE   flatMappingRanges[gcdMAX_FLAT_MAPPING_COUNT];
         }
         GetBaseAddress;
 
@@ -648,8 +620,6 @@ typedef struct _gcsHAL_INTERFACE
         {
             /* Event queue in gcsQUEUE. */
             IN gctUINT64            queue;
-
-            IN gceENGINE            engine;
         }
         Event;
 
@@ -676,7 +646,7 @@ typedef struct _gcsHAL_INTERFACE
             IN gctUINT64            queue;
 
             /* Used to distinguish different FE. */
-            IN gceENGINE            engine;
+            IN gceENGINE            engine1;
 
             /* The command buffer is linked to multiple command queue. */
             IN gctBOOL              shared;
@@ -887,15 +857,6 @@ typedef struct _gcsHAL_INTERFACE
         }
         SetProfileSetting;
 
-#if VIVANTE_PROFILER_PERDRAW
-        /* gcvHAL_READ_PROFILER_REGISTER_SETTING */
-        struct _gcsHAL_READ_PROFILER_REGISTER_SETTING
-         {
-            /*Should Clear Register*/
-            IN gctBOOL               bclear;
-         }
-        SetProfilerRegisterClear;
-#endif
         /* gcvHAL_READ_PROFILER_REGISTER_SETTING */
         struct _gcsHAL_READ_PROFILER_REGISTER_SETTING
         {
@@ -907,10 +868,8 @@ typedef struct _gcsHAL_INTERFACE
         /* gcvHAL_READ_ALL_PROFILE_REGISTERS */
         struct _gcsHAL_READ_ALL_PROFILE_REGISTERS
         {
-#if VIVANTE_PROFILER_CONTEXT
             /* Context buffer object gckCONTEXT. Just a name. */
             IN gctUINT32                    context;
-#endif
 
             /* Data read. */
             OUT gcsPROFILER_COUNTERS        counters;
@@ -919,10 +878,8 @@ typedef struct _gcsHAL_INTERFACE
 
         struct _gcsHAL_READ_ALL_PROFILE_NEW_REGISTERS_PART1
         {
-#if VIVANTE_PROFILER_CONTEXT
             /* Context buffer object gckCONTEXT. Just a name. */
             IN gctUINT32                    context;
-#endif
 
             /* Data read. */
             OUT gcsPROFILER_NEW_COUNTERS_PART1    newCounters;
@@ -931,10 +888,8 @@ typedef struct _gcsHAL_INTERFACE
 
         struct _gcsHAL_READ_ALL_PROFILE_NEW_REGISTERS_PART2
         {
-#if VIVANTE_PROFILER_CONTEXT
             /* Context buffer object gckCONTEXT. Just a name. */
             IN gctUINT32                    context;
-#endif
 
             /* Data read. */
             OUT gcsPROFILER_NEW_COUNTERS_PART2    newCounters;
@@ -1117,9 +1072,6 @@ typedef struct _gcsHAL_INTERFACE
             IN gctUINT32                context;
         }
         Detach;
-
-        /* gcvHAL_COMPOSE. */
-        gcsHAL_COMPOSE            Compose;
 
         /* gcvHAL_GET_FRAME_INFO. */
         struct _gcsHAL_GET_FRAME_INFO

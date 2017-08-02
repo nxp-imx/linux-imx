@@ -169,7 +169,6 @@ typedef enum _gceFEATURE
     gcvFEATURE_TEXTURE_ARRAY,
     gcvFEATURE_TILE_FILLER,
     gcvFEATURE_LOGIC_OP,
-    gcvFEATURE_COMPOSITION,
     gcvFEATURE_MIXED_STREAMS,
     gcvFEATURE_2D_MULTI_SOURCE_BLT,
     gcvFEATURE_END_EVENT,
@@ -367,7 +366,8 @@ typedef enum _gceFEATURE
     gcvFEATURE_TX_8BPP_TS_FIX,
     gcvFEATURE_HW_TFB,
     gcvFEATURE_COMPRESSION_V4,
-    gcvFEATURE_FENCE,
+    gcvFEATURE_FENCE_32BIT,
+    gcvFEATURE_FENCE_64BIT,
     gcvFEATURE_R8_UNORM,
     gcvFEATURE_TX_DEFAULT_VALUE_FIX,
     gcvFEATURE_TX_8bit_UVFrac,
@@ -505,6 +505,11 @@ typedef enum _gceFEATURE
     gcvFEATURE_PE_VMSAA_COVERAGE_CACHE_FIX,
     gcvFEATURE_SECURITY_AHB,
     gcvFEATURE_TX_LERP_LESS_BIT,
+    gcvFEATURE_VIP_V7,
+    gcvFEATURE_ASYNC_BLIT,
+    gcvFEATURE_ASYNC_FE_FENCE_FIX,
+    gcvFEATURE_PSCS_THROTTLE,
+    gcvFEATURE_WIDELINE_TRIANGLE_EMU,
     /* Insert features above this comment only. */
     gcvFEATURE_COUNT                /* Not a feature. */
 }
@@ -542,6 +547,7 @@ typedef enum _gceOPTION
     gcvOPTION_PREFER_TPG_TRIVIALMODEL = 3,
     gcvOPTION_PREFER_RA_DEPTH_WRITE = 4,
     gcvOPTION_PREFER_USC_RECONFIG = 5,
+    gcvOPTION_PREFER_DISALBE_HZ = 6,
 
     /* SW options */
     gcvOPTION_HW_NULL = 50,
@@ -551,6 +557,8 @@ typedef enum _gceOPTION
     gcvOPTION_FBO_PREFER_MEM = 54,
     gcvOPTION_GPU_TEX_UPLOAD = 55,
     gcvOPTION_GPU_BUFOBJ_UPLOAD = 56,
+    gcvOPTION_OCL_ASYNC_BLT = 57,
+    gcvOPTION_OCL_IN_THREAD = 58,
 
     /* Insert option above this comment only */
     gcvOPTION_COUNT                     /* Not a OPTION*/
@@ -910,6 +918,8 @@ typedef enum _gceSURF_FORMAT
     gcvSURF_A16,
     gcvSURF_A32,
     gcvSURF_A1,
+
+    gcvSURF_A8_1_A8R8G8B8,
 
     /* Luminance formats. */
     gcvSURF_L4                  = 800,
@@ -2005,14 +2015,21 @@ typedef enum _gceCHIP_FLAG
 {
     gcvCHIP_FLAG_MSAA_COHERENCEY_ECO_FIX = 1 << 0,
     gcvCHIP_FLAG_GC2000_R2               = 1 << 1,
+    gcvCHIP_AXI_BUS128_BITS              = 1 << 2,
 }
 gceCHIP_FLAG;
 
+/* If different, choose render engine */
+#define PRIORITY_ENGINE(a, b) gcmMIN(a,b)
+
 typedef enum
 {
-    gcvENGINE_RENDER   = 0,
-    gcvENGINE_BLT      = 1,
-    gcvENGINE_COUNT    = 2,
+    gcvENGINE_RENDER            = 0,
+    gcvENGINE_BLT               = 1,
+    gcvENGINE_GPU_ENGINE_COUNT  = 2,
+    gcvENGINE_CPU               = gcvENGINE_GPU_ENGINE_COUNT,
+    gcvENGINE_ALL_COUNT         = gcvENGINE_CPU + 1,
+    gcvENGINE_INVALID           = gcvENGINE_ALL_COUNT + 0x100
 }
 gceENGINE;
 
@@ -2063,45 +2080,36 @@ typedef enum _gceSECURE_MODE
 }
 gceSECURE_MODE;
 
-/*
-* Bit of a requirement is 1 means requirement is a must, 0 means requirement can
-* be ignored.
-*/
-#define gcvALLOC_FLAG_CONTIGUOUS_BIT        0
-#define gcvALLOC_FLAG_CACHEABLE_BIT         1
-#define gcvALLOC_FLAG_SECURITY_BIT          2
-#define gcvALLOC_FLAG_NON_CONTIGUOUS_BIT    3
-#define gcvALLOC_FLAG_MEMLIMIT_BIT          4
-#define gcvALLOC_FLAG_DMABUF_BIT            5
-#define gcvALLOC_FLAG_USERMEMORY_BIT        6
-#define gcvALLOC_FLAG_EXTERNAL_MEMORY_BIT   7
-#define gcvALLOC_FLAG_ALLOC_ON_FAULT_BIT    8
-#define gcvALLOC_FLAG_CMA_LIMIT_BIT         9
 
 /* No special needs. */
-#define gcvALLOC_FLAG_NONE              (0)
+#define gcvALLOC_FLAG_NONE                  0x00000000
+
 /* Physical contiguous. */
-#define gcvALLOC_FLAG_CONTIGUOUS        (1 << gcvALLOC_FLAG_CONTIGUOUS_BIT)
+#define gcvALLOC_FLAG_CONTIGUOUS            0x00000001
 /* Can be remapped as cacheable. */
-#define gcvALLOC_FLAG_CACHEABLE         (1 << gcvALLOC_FLAG_CACHEABLE_BIT)
+#define gcvALLOC_FLAG_CACHEABLE             0x00000002
 /* Secure buffer. */
-#define gcvALLOC_FLAG_SECURITY          (1 << gcvALLOC_FLAG_SECURITY_BIT)
+#define gcvALLOC_FLAG_SECURITY              0x00000004
 /* Physical non contiguous. */
-#define gcvALLOC_FLAG_NON_CONTIGUOUS    (1 << gcvALLOC_FLAG_NON_CONTIGUOUS_BIT)
-#define gcvALLOC_FLAG_MEMLIMIT          (1 << gcvALLOC_FLAG_MEMLIMIT_BIT)
+#define gcvALLOC_FLAG_NON_CONTIGUOUS        0x00000008
 
 /* Import DMABUF. */
-#define gcvALLOC_FLAG_DMABUF            (1 << gcvALLOC_FLAG_DMABUF_BIT)
+#define gcvALLOC_FLAG_DMABUF                0x00001000
 /* Import USERMEMORY. */
-#define gcvALLOC_FLAG_USERMEMORY        (1 << gcvALLOC_FLAG_USERMEMORY_BIT)
+#define gcvALLOC_FLAG_USERMEMORY            0x00002000
 /* Import an External Buffer. */
-#define gcvALLOC_FLAG_EXTERNAL_MEMORY   (1 << gcvALLOC_FLAG_EXTERNAL_MEMORY_BIT)
+#define gcvALLOC_FLAG_EXTERNAL_MEMORY       0x00004000
+/* Import linux reserved memory. */
+#define gcvALLOC_FLAG_LINUX_RESERVED_MEM    0x00008000
 
 /* Real allocation happens when GPU page fault. */
-#define gcvALLOC_FLAG_ALLOC_ON_FAULT    (1 << gcvALLOC_FLAG_ALLOC_ON_FAULT_BIT)
+#define gcvALLOC_FLAG_ALLOC_ON_FAULT        0x01000000
+/* Alloc with memory limit. */
+#define gcvALLOC_FLAG_MEMLIMIT              0x02000000
 
 /* CMA allocator only */
-#define gcvALLOC_FLAG_CMA_LIMIT          (1 << gcvALLOC_FLAG_CMA_LIMIT_BIT)
+#define gcvALLOC_FLAG_CMA_LIMIT             0x04000000
+
 
 /* GL_VIV internal usage */
 #ifndef GL_MAP_BUFFER_OBJ_VIV

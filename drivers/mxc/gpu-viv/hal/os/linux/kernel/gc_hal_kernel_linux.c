@@ -248,13 +248,14 @@ gckKERNEL_UnmapMemory(
     IN gckKERNEL Kernel,
     IN gctPHYS_ADDR Physical,
     IN gctSIZE_T Bytes,
-    IN gctPOINTER Logical
+    IN gctPOINTER Logical,
+    IN gctUINT32 ProcessID
     )
 {
     gckKERNEL kernel = Kernel;
     gctPHYS_ADDR physical = gcmNAME_TO_PTR(Physical);
 
-    return gckOS_UnmapMemory(Kernel->os, physical, Bytes, Logical);
+    return gckOS_UnmapMemoryEx(Kernel->os, physical, Bytes, Logical, ProcessID);
 }
 
 /*******************************************************************************
@@ -330,20 +331,19 @@ gckKERNEL_MapVideoMemoryEx(
     case gcvPOOL_LOCAL_INTERNAL:
         /* Internal memory. */
         logical = device->internalLogical;
+        /* Impossible to use per device logical for all user processes. */
+        BUG_ON("Incorrect path");
         break;
 
     case gcvPOOL_LOCAL_EXTERNAL:
         /* External memory. */
         logical = device->externalLogical;
+        /* Impossible to use per device logical for all user processes. */
+        BUG_ON("Incorrect path");
         break;
 
     case gcvPOOL_SYSTEM:
         /* System memory. */
-        if (device->contiguousMapped)
-        {
-            logical = device->contiguousBase;
-        }
-        else
         {
             PLINUX_MDL mdl;
             PLINUX_MDL_MAP mdlMap;
@@ -354,8 +354,15 @@ gckKERNEL_MapVideoMemoryEx(
             mdlMap = FindMdlMap(mdl, _GetProcessID());
             mutex_unlock(&mdl->mapsMutex);
 
+            if (!mdlMap)
+            {
+                gcmkPRINT("%s: SYSTEM pool is not mapped", __func__);
+                gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+            }
+
             logical = (gctPOINTER) mdlMap->vmaAddr;
         }
+
 #if gcdENABLE_VG
         if (Core == gcvCORE_VG)
         {

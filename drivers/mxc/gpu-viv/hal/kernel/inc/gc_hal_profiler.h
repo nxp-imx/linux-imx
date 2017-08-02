@@ -78,9 +78,6 @@ extern "C" {
 #define gcmPROFILE_GC(Enum, Value)  do { } while (gcvFALSE)
 #endif
 
-#ifndef gcdNEW_PROFILER_FILE
-#define gcdNEW_PROFILER_FILE    1
-#endif
 
 #define    ES11_CALLS              151
 #define    ES11_DRAWCALLS          (ES11_CALLS             + 1)
@@ -231,7 +228,6 @@ extern "C" {
 #define PPS_SOURCE           (PPS_FUNCTIONCOUNT    + 1)
 /* End of MISC Counter IDs. */
 
-#ifdef gcdNEW_PROFILER_FILE
 
 /* Category Constants. */
 #define VPHEADER        0x010000
@@ -276,6 +272,7 @@ extern "C" {
 #define VPNG_MCZ        0x2e0000
 #define VPNG_HI         0x2f0000
 #define VPNG_L2         0x300000
+#define VPG_FINISH      0x310000
 #define VPG_END         0xff0000
 
 /* Info. */
@@ -639,54 +636,6 @@ extern "C" {
 #define VPC_ES30_DRAW_NO            (VPG_ES30_DRAW + 1)
 #define VPC_ES11_DRAW_NO            (VPG_ES11_DRAW + 1)
 #define VPC_ES30_GPU_NO             (VPG_MULTI_GPU + 1)
-#endif
-
-#if VIVANTE_PROFILER_ALL_COUNTER
-#define   MODULE_FRONT_END_COUNTER_NUM                    30
-#define   MODULE_SHADER_COUNTER_NUM                       30
-#define   MODULE_PRIMITIVE_ASSEMBLY_COUNTER_NUM           30
-#define   MODULE_SETUP_COUNTER_NUM                        30
-#define   MODULE_RASTERIZER_COUNTER_NUM                   30
-#define   MODULE_TEXTURE_COUNTER_NUM                      30
-#define   MODULE_PIXEL_ENGINE_COUNTER_NUM                 30
-#define   MODULE_MEMORY_CONTROLLER_COUNTER_NUM            30
-#define   MODULE_HOST_INTERFACE_COUNTER_NUM               30
-#endif
-
-#if VIVANTE_PROFILER_PROBE
-#define   MODULE_FRONT_END_COUNTER_NUM                    0x5
-#define   MODULE_VERTEX_SHADER_COUNTER_NUM                0x9
-#define   MODULE_PRIMITIVE_ASSEMBLY_COUNTER_NUM           0xC
-#define   MODULE_SETUP_COUNTER_NUM                        0xD
-#define   MODULE_RASTERIZER_COUNTER_NUM                   0xE
-#define   MODULE_PIXEL_SHADER_COUNTER_NUM                 0x9
-#define   MODULE_TEXTURE_COUNTER_NUM                      0x8
-#define   MODULE_PIXEL_ENGINE_COUNTER_NUM                 0x8
-#define   MODULE_MEMORY_CONTROLLER_COLOR_COUNTER_NUM      0xC
-#define   MODULE_MEMORY_CONTROLLER_DEPTH_COUNTER_NUM      0xC
-#define   MODULE_HOST_INTERFACE0_COUNTER_NUM              0x9
-#define   MODULE_HOST_INTERFACE1_COUNTER_NUM              0x7
-#define   MODULE_GPUL2_CACHE_COUNTER_NUM                  0xE
-
-typedef enum _gceCOUNTER
-{
-    gcvCOUNTER_FRONT_END,
-    gcvCOUNTER_VERTEX_SHADER,
-    gcvCOUNTER_PRIMITIVE_ASSEMBLY,
-    gcvCOUNTER_SETUP,
-    gcvCOUNTER_RASTERIZER,
-    gcvCOUNTER_PIXEL_SHADER,
-    gcvCOUNTER_TEXTURE,
-    gcvCOUNTER_PIXEL_ENGINE,
-    gcvCOUNTER_MEMORY_CONTROLLER_COLOR,
-    gcvCOUNTER_MEMORY_CONTROLLER_DEPTH,
-    gcvCOUNTER_HOST_INTERFACE0,
-    gcvCOUNTER_HOST_INTERFACE1,
-    gcvCOUNTER_GPUL2_CACHE,
-    gcvCOUNTER_COUNT
-}
-gceCOUNTER;
-#endif
 
 
 #define   MODULE_FRONT_END_COUNTER_NUM                    0x5
@@ -1044,19 +993,6 @@ typedef struct _gcsPROFILER_COUNTERS
     gctUINT32       fe_out_vertex_count;
     gctUINT32       fe_stall_count;
     gctUINT32       fe_starve_count;
-
-#if VIVANTE_PROFILER_ALL_COUNTER
-    gctUINT32       feCounters[MODULE_FRONT_END_COUNTER_NUM];
-    gctUINT32       paCounters[MODULE_PRIMITIVE_ASSEMBLY_COUNTER_NUM];
-    gctUINT32       shCounters[MODULE_SHADER_COUNTER_NUM];
-    gctUINT32       seCounters[MODULE_SETUP_COUNTER_NUM];
-    gctUINT32       raCounters[MODULE_RASTERIZER_COUNTER_NUM];
-    gctUINT32       txCounters[MODULE_TEXTURE_COUNTER_NUM];
-    gctUINT32       peCounters[MODULE_PIXEL_ENGINE_COUNTER_NUM];
-    gctUINT32       mcCounters[MODULE_MEMORY_CONTROLLER_COUNTER_NUM];
-    gctUINT32       hiCounters[MODULE_HOST_INTERFACE_COUNTER_NUM];
-
-#endif
 }
 gcsPROFILER_COUNTERS;
 
@@ -1068,7 +1004,8 @@ typedef enum _gceCOUNTER_OPTYPE
     gcvCOUNTER_OP_BLT = 1,
     gcvCOUNTER_OP_COMPUTE = 2,
     gcvCOUNTER_OP_RS = 3,
-    gcvCOUNTER_OP_NONE = 4
+    gcvCOUNTER_OP_FINISH = 4,
+    gcvCOUNTER_OP_NONE = 5
 }
 gceCOUNTER_OPTYPE;
 
@@ -1183,12 +1120,6 @@ typedef struct _gcsPROFILER
     gctUINT32       drawVertexCount;
     gctUINT32       redundantStateChangeCalls;
 #endif
-
-#if VIVANTE_PROFILER_PROBE
-    gcsPROBEBUFFER  probeBuffer;
-    gctFILE         probeFile;
-#endif
-
 }
 gcsPROFILER;
 
@@ -1244,12 +1175,14 @@ gcoPROFILER_NEW_Begin(
 gceSTATUS
 gcoPROFILER_NEW_End(
     IN gcoPROFILER Profiler,
-    IN gctUINT32 DrawID
+    IN gctUINT32 DrawID,
+    IN gceCOUNTER_OPTYPE Type
     );
 
 gceSTATUS
 gcoPROFILER_NEW_EndFrame(
-    IN gcoPROFILER Profiler
+    IN gcoPROFILER Profiler,
+    IN gceCOUNTER_OPTYPE Type
     );
 
 gceSTATUS
@@ -1262,7 +1195,7 @@ gceSTATUS
 gcoPROFILER_NEW_WriteCounters(
     IN gcoPROFILER Profiler,
     IN gcsPROFILER_NEW_COUNTERS Counters,
-    IN gctBOOL IsFrameEnd
+    IN gceCOUNTER_OPTYPE opType
     );
 
 gceSTATUS
@@ -1270,6 +1203,19 @@ gcoPROFILER_NEW_Write(
     IN gcoPROFILER Profiler,
     IN gctSIZE_T ByteCount,
     IN gctCONST_POINTER Data
+    );
+
+gceSTATUS
+gcoPROFILER_NEW_GetPos(
+    IN gcoPROFILER Profiler,
+    OUT gctUINT32 * Position
+    );
+
+gceSTATUS
+gcoPROFILER_NEW_Seek(
+    IN gcoPROFILER Profiler,
+    IN gctUINT32 Offset,
+    IN gceFILE_WHENCE Whence
     );
 
 gceSTATUS

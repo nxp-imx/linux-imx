@@ -106,23 +106,29 @@ typedef struct _gckGALDEVICE
     gctUINT32           externalPhysicalName;
     gctPOINTER          externalLogical;
     gckVIDMEM           externalVidMem;
+
+    gctPHYS_ADDR_T      contiguousBase;
+    gctSIZE_T           contiguousSize;
+
     gckVIDMEM           contiguousVidMem;
-    gctPOINTER          contiguousBase;
+    gctPOINTER          contiguousLogical;
     gctPHYS_ADDR        contiguousPhysical;
     gctUINT32           contiguousPhysicalName;
-    gctSIZE_T           contiguousSize;
-    gctBOOL             contiguousMapped;
-    gctPOINTER          contiguousMappedUser;
-    gctBOOL             contiguousRequested;
+
     gctSIZE_T           systemMemorySize;
     gctUINT32           systemMemoryBaseAddress;
     gctPOINTER          registerBases[gcdMAX_GPU_COUNT];
     gctSIZE_T           registerSizes[gcdMAX_GPU_COUNT];
+
     gctUINT32           baseAddress;
     gctUINT32           physBase;
     gctUINT32           physSize;
+
+    /* By request_mem_region. */
     gctUINT32           requestedRegisterMemBases[gcdMAX_GPU_COUNT];
     gctSIZE_T           requestedRegisterMemSizes[gcdMAX_GPU_COUNT];
+
+    /* By request_mem_region. */
     gctUINT32           requestedContiguousBase;
     gctSIZE_T           requestedContiguousSize;
 
@@ -159,9 +165,11 @@ typedef struct _gckGALDEVICE
 typedef struct _gcsHAL_PRIVATE_DATA
 {
     gckGALDEVICE        device;
-    gctPOINTER          mappedMemory;
-    gctPOINTER          contiguousLogical;
-    /* The process opening the device may not be the same as the one that closes it. */
+    /*
+     * 'fput' schedules actual work in '__fput' in a different thread.
+     * So the process opens the device may not be the same as the one that
+     * closes it.
+     */
     gctUINT32           pidOpen;
 }
 gcsHAL_PRIVATE_DATA, * gcsHAL_PRIVATE_DATA_PTR;

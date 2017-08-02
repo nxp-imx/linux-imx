@@ -215,7 +215,7 @@ struct _gckHARDWARE
 #if gcdENABLE_FSCALE_VAL_ADJUST
     gctUINT32                   powerOnFscaleVal;
 #endif
-    gctPOINTER                  pageTableDirty;
+    gctPOINTER                  pageTableDirty[gcvENGINE_GPU_ENGINE_COUNT];
 
 #if gcdLINK_QUEUE_SIZE
     struct _gckQUEUE            linkQueue;

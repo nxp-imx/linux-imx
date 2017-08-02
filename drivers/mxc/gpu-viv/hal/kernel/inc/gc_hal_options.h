@@ -82,7 +82,7 @@ This define enables the use of VM for gckCommand and fence buffers.
 #if defined(UNDER_CE)
 #   define USE_KERNEL_VIRTUAL_BUFFERS           1
 #else
-#   define USE_KERNEL_VIRTUAL_BUFFERS           0
+#   define USE_KERNEL_VIRTUAL_BUFFERS           1
 #endif
 #endif
 
@@ -96,42 +96,21 @@ This define enables the use of VM for gckCommand and fence buffers.
 #endif
 
 /*
+    USE_LINUX_PCIE
+
+        This define enables galcore as a Linux PCIE driver.
+*/
+#ifndef USE_LINUX_PCIE
+#   define USE_LINUX_PCIE                       0
+#endif
+
+/*
     VIVANTE_PROFILER
 
         This define enables the profiler.
 */
 #ifndef VIVANTE_PROFILER
 #   define VIVANTE_PROFILER                     1
-#endif
-
-/*
-    VIVANTE_PROFILER_CONTEXT
-
-        This define enables the profiler according each context.
-*/
-#ifndef VIVANTE_PROFILER_CONTEXT
-#   define VIVANTE_PROFILER_CONTEXT             1
-#endif
-
-#ifndef VIVANTE_PROFILER_PERDRAW
-#   define VIVANTE_PROFILER_PERDRAW             0
-#endif
-
-#ifndef VIVANTE_PROFILER_PROBE
-#   define VIVANTE_PROFILER_PROBE_PERDRAW       0
-#   define VIVANTE_PROFILER_PROBE               0
-#endif
-
-#ifndef VIVANTE_PROFILER_MULTI_GPU
-#   define VIVANTE_PROFILER_MULTI_GPU           0
-#endif
-
-#ifndef VIVANTE_PROFILER_ALL_COUNTER
-#   define VIVANTE_PROFILER_ALL_COUNTER         0
-#endif
-
-#ifndef VIVANTE_PROFILER_PM
-#   define VIVANTE_PROFILER_PM                  1
 #endif
 
 /*
@@ -582,11 +561,7 @@ This define enables the use of VM for gckCommand and fence buffers.
         If the value is 0, no timeout will be checked for.
 */
 #ifndef gcdGPU_TIMEOUT
-#if gcdFPGA_BUILD
-#       define gcdGPU_TIMEOUT                   (3600 * 1000)
-#   else
-#       define gcdGPU_TIMEOUT                   20000
-#   endif
+#   define gcdGPU_TIMEOUT                   20000
 #endif
 
 /*
@@ -599,11 +574,7 @@ This define enables the use of VM for gckCommand and fence buffers.
         If the value is 0, no timeout will be checked for.
 */
 #ifndef gcdGPU_2D_TIMEOUT
-#if gcdFPGA_BUILD
-#       define gcdGPU_2D_TIMEOUT                (gcdGPU_TIMEOUT / 5)
-#   else
-#       define gcdGPU_2D_TIMEOUT                4000
-#   endif
+#   define gcdGPU_2D_TIMEOUT                4000
 #endif
 
 
@@ -899,6 +870,9 @@ This define enables the use of VM for gckCommand and fence buffers.
 #endif
 
 
+#ifndef gcdPRINT_SWAP_TIME
+#   define gcdPRINT_SWAP_TIME                   0
+#endif
 
 /*
     gcdDVFS
@@ -1237,7 +1211,7 @@ This define enables the use of VM for gckCommand and fence buffers.
 #endif
 
 #ifndef gcdENABLE_VG
-#   define gcdENABLE_VG                         1
+#   define gcdENABLE_VG                         0
 #endif
 
 #ifndef gcdVG_ONLY
@@ -1402,10 +1376,6 @@ VIV:gcdUSE_MMU_EXCEPTION
 */
 #ifndef gcdDISABLE_GPU_VIRTUAL_ADDRESS
 #   define gcdDISABLE_GPU_VIRTUAL_ADDRESS       0
-#endif
-
-#ifndef gcdCOMPILER_DEBUGOUTPUT
-#   define gcdCOMPILER_DEBUGOUTPUT              0
 #endif
 
 /*

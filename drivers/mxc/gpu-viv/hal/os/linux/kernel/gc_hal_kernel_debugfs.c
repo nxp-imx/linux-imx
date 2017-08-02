@@ -141,7 +141,7 @@ typedef va_list gctDBGARGS ;
   }
 
 
-gcmkDECLARE_LOCK(traceLock);
+static DEFINE_SPINLOCK(traceLock);
 
 /* Debug File System Node Struct. */
 struct _gcsDEBUGFS_Node
@@ -215,14 +215,7 @@ gc_debugfs_write(
 
     if (info->write)
     {
-        char tmpbuf[256] = {0};
-
-        if (count >= sizeof(tmpbuf) || copy_from_user(tmpbuf, buf, count) > 0)
-        {
-            return 0;
-        }
-
-        info->write(tmpbuf, count, node);
+        info->write(buf, count, node);
     }
 
     return count;
@@ -270,14 +263,19 @@ gckDEBUGFS_DIR_CreateFiles(
 
     for (i = 0; i < count; i++)
     {
+        umode_t mode = 0;
+
         /* Create a node. */
         node = (gcsINFO_NODE *)kzalloc(sizeof(gcsINFO_NODE), GFP_KERNEL);
 
         node->info   = &List[i];
         node->device = Data;
 
+        mode |= List[i].show  ? S_IRUGO : 0;
+        mode |= List[i].write ? S_IWUSR : 0;
+
         node->entry = debugfs_create_file(
-            List[i].name, S_IRUGO|S_IWUSR, Dir->root, node, &gc_debugfs_operations);
+            List[i].name, mode, Dir->root, node, &gc_debugfs_operations);
 
         if (!node->entry)
         {
@@ -481,24 +479,25 @@ _GetArgumentSize (
  *******************************************************************************/
 static ssize_t
 _AppendString (
-                IN gcsDEBUGFS_Node* Node ,
-                IN gctCONST_STRING String ,
-                IN int Length
-                )
+    IN gcsDEBUGFS_Node* Node,
+    IN gctCONST_STRING String,
+    IN int Length
+    )
 {
-    int n ;
+    int n;
+    unsigned long flags;
 
     /* if the message is longer than the buffer, just take the beginning
      * of it, in hopes that the reader (if any) will have time to read
      * before we wrap around and obliterate it */
-    n = gcmkMIN ( Length , Node->size - 1 ) ;
+    n = gcmkMIN ( Length , Node->size - 1 );
 
-    gcmkLOCKSECTION(traceLock);
+    spin_lock_irqsave(&traceLock, flags);
 
     /* now copy it into the circular buffer and free our temp copy */
     _WriteToNode ( Node , (caddr_t)String , n ) ;
 
-    gcmkUNLOCKSECTION(traceLock);
+    spin_unlock_irqrestore(&traceLock, flags);
 
     return n ;
 }
@@ -562,62 +561,64 @@ _DebugFSOpen (
  *******************************************************************************/
 static ssize_t
 _DebugFSRead (
-               struct file *file ,
-               char __user * buffer ,
-               size_t length ,
-               loff_t * offset
-               )
+    struct file *file,
+    char __user * buffer,
+    size_t length,
+    loff_t * offset
+    )
 {
-    int retval ;
-    caddr_t data_to_return ;
+    int retval;
+    caddr_t data_to_return;
+    unsigned long flags;
     gcsDEBUGFS_Node* node = file->private_data;
 
     if (node == NULL)
     {
-        printk ( "debugfs_read: record not found\n" ) ;
+        printk ( "debugfs_read: record not found\n" );
         return - EIO ;
     }
 
-    gcmkLOCKSECTION(traceLock);
+    spin_lock_irqsave(&traceLock, flags);
 
     /* wait until there's data available (unless we do nonblocking reads) */
     while (!gcmkNODE_QLEN(node))
     {
-        gcmkUNLOCKSECTION(traceLock);
+        spin_unlock_irqrestore(&traceLock, flags);
 
-        if ( file->f_flags & O_NONBLOCK )
+        if (file->f_flags & O_NONBLOCK)
         {
             return - EAGAIN ;
         }
 
-        if ( wait_event_interruptible ( ( *( gcmkNODE_READQ ( node ) ) ) , ( *offset < gcmkNODE_FIRST_EMPTY_BYTE ( node ) ) ) )
+        if (wait_event_interruptible((*(gcmkNODE_READQ(node))) , (*offset < gcmkNODE_FIRST_EMPTY_BYTE(node))))
         {
             return - ERESTARTSYS ; /* signal: tell the fs layer to handle it */
         }
 
-        gcmkLOCKSECTION(traceLock);
+        spin_lock_irqsave(&traceLock, flags);
     }
 
-    data_to_return = _ReadFromNode ( node , &length , offset ) ;
+    data_to_return = _ReadFromNode(node , &length , offset);
 
-    gcmkUNLOCKSECTION(traceLock);
+    spin_unlock_irqrestore(&traceLock, flags);
 
-    if ( data_to_return == NULL )
+    if (data_to_return == NULL)
     {
-        retval = 0 ;
-        goto unlock ;
+        retval = 0;
+        goto unlock;
     }
-    if ( copy_to_user ( buffer , data_to_return , length ) > 0 )
+
+    if (copy_to_user(buffer, data_to_return, length) > 0)
     {
-        retval = - EFAULT ;
+        retval = - EFAULT;
     }
     else
     {
-        retval = length ;
+        retval = length;
     }
 unlock:
 
-    wake_up_interruptible ( gcmkNODE_WRITEQ ( node ) ) ;
+    wake_up_interruptible(gcmkNODE_WRITEQ(node));
     return retval ;
 }
 

@@ -734,10 +734,8 @@ struct _gckCOMMAND
     /* Context switching mutex. */
     gctPOINTER                  mutexContext;
 
-#if VIVANTE_PROFILER_CONTEXT
     /* Context sequence mutex. */
     gctPOINTER                  mutexContextSeq;
-#endif
 
     /* Command queue power semaphore. */
     gctPOINTER                  powerSemaphore;
@@ -1070,6 +1068,7 @@ struct _gckVIDMEM
     gctUINT32                   baseAddress;
     gctSIZE_T                   bytes;
     gctSIZE_T                   freeBytes;
+    gctSIZE_T                   minFreeBytes;
 
     /* Mapping for each type of surface. */
     gctINT                      mapping[gcvSURF_NUM_TYPES];
@@ -1114,7 +1113,7 @@ typedef struct _gcsVIDMEM_NODE
     /* Pool from which node is allocated. */
     gcePOOL                     pool;
 
-    gcsFENCE_SYNC               sync[gcvENGINE_COUNT];
+    gcsFENCE_SYNC               sync[gcvENGINE_GPU_ENGINE_COUNT];
 }
 gcsVIDMEM_NODE;
 
@@ -1334,8 +1333,6 @@ struct _gckMMU
     gctUINT32                   mtlbEntries;
 
     gctPOINTER                  staticSTLB;
-    /*Track all static STLB allocations */
-    gctPOINTER			staticStlbAllocs;
     gctBOOL                     enabled;
 
 #if gcdPROCESS_ADDRESS_SPACE
@@ -1348,8 +1345,9 @@ struct _gckMMU
     gctUINT32                   safeAddress;
     gctSIZE_T                   safePageSize;
 
-    gctUINT32                   flatMappingStart;
-    gctUINT32                   flatMappingEnd;
+    /* physBase,physSize flat mapping area. */
+    gctUINT32                   flatMappingRangeCount;
+    gcsFLAT_MAPPING_RANGE       flatMappingRanges[gcdMAX_FLAT_MAPPING_COUNT];
 
     /* List of hardware which uses this MMU. */
     gcsLISTHEAD                 hardwareList;

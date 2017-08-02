@@ -89,6 +89,8 @@ OBJS := $(OS_KERNEL_DIR)/gc_hal_kernel_device.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_allocator.o \
         $(OS_KERNEL_DIR)/allocator/default/gc_hal_kernel_allocator_user_memory.o \
         $(OS_KERNEL_DIR)/allocator/default/gc_hal_kernel_allocator_dma.o \
+        $(OS_KERNEL_DIR)/allocator/default/gc_hal_kernel_allocator_gfp.o \
+        $(OS_KERNEL_DIR)/allocator/default/gc_hal_kernel_allocator_reserved_mem.o \
         $(OS_KERNEL_DIR)/gc_hal_kernel_driver.o \
         $(OS_KERNEL_DIR)/platform/$(soc_vendor)/gc_hal_kernel_platform_$(soc_board).o
 
@@ -134,9 +136,9 @@ EXTRA_CFLAGS += -Idrivers/staging/android
 
 OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_sync.o
 else
-    ifneq ($(CONFIG_SYNC_FILE),)
-    OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_sync.o
-    endif
+  ifneq ($(CONFIG_SYNC_FILE),)
+  OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_sync.o
+  endif
 endif
 
 ifeq ($(SECURITY), 1)
@@ -215,6 +217,12 @@ else
 EXTRA_CFLAGS += -DUSE_NEW_LINUX_SIGNAL=0
 endif
 
+ifeq ($(USE_LINUX_PCIE), 1)
+EXTRA_CFLAGS += -DUSE_LINUX_PCIE=1
+else
+EXTRA_CFLAGS += -DUSE_LINUX_PCIE=0
+endif
+
 ifeq ($(FORCE_ALL_VIDEO_MEMORY_CACHED), 1)
 EXTRA_CFLAGS += -DgcdPAGED_MEMORY_CACHEABLE=1
 else
@@ -271,7 +279,7 @@ ifeq ($(USE_BANK_ALIGNMENT), 1)
     endif
 endif
 
-ifeq ($(gcdFPGA_BUILD), 1)
+ifeq ($(FPGA_BUILD), 1)
 EXTRA_CFLAGS += -DgcdFPGA_BUILD=1
 else
 EXTRA_CFLAGS += -DgcdFPGA_BUILD=0
@@ -299,7 +307,7 @@ endif
 
 EXTRA_CFLAGS += -DHOST=\"$(HOST)\"
 
-EXTRA_CFLAGS += -DgcdENABLE_TRUST_APPLICATION=1
+EXTRA_CFLAGS += -DgcdENABLE_TRUST_APPLICATION=0
 
 obj-$(CONFIG_MXC_GPU_VIV) = $(MODULE_NAME).o
 

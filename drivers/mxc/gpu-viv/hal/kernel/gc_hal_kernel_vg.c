@@ -284,6 +284,7 @@ gceSTATUS gckVGKERNEL_Dispatch(
     gctPHYS_ADDR physical = gcvNULL;
     gctPOINTER logical = gcvNULL;
     gctSIZE_T bytes = 0;
+    gctBOOL powerMutexAcquired = gcvFALSE;
 
     gcmkHEADER_ARG("Kernel=0x%x Interface=0x%x ", Kernel, Interface);
 
@@ -414,7 +415,8 @@ gceSTATUS gckVGKERNEL_Dispatch(
             Kernel,
             gcmINT2PTR(kernelInterface->u.MapMemory.physical),
             (gctSIZE_T) kernelInterface->u.MapMemory.bytes,
-            gcmUINT64_TO_PTR(kernelInterface->u.MapMemory.logical)
+            gcmUINT64_TO_PTR(kernelInterface->u.MapMemory.logical),
+            processID
             ));
         break;
 
@@ -515,7 +517,72 @@ gceSTATUS gckVGKERNEL_Dispatch(
     case gcvHAL_EVENT_COMMIT:
         gcmkERR_BREAK(gcvSTATUS_NOT_SUPPORTED);
         break;
+    case gcvHAL_READ_REGISTER:
+#if gcdREGISTER_ACCESS_FROM_USER
+        {
+            gceCHIPPOWERSTATE power;
 
+            gcmkONERROR(gckOS_AcquireMutex(Kernel->os, Kernel->vg->hardware->powerMutex, gcvINFINITE));
+            powerMutexAcquired = gcvTRUE;
+            gcmkONERROR(gckVGHARDWARE_QueryPowerManagementState(Kernel->vg->hardware,
+                &power));
+            if (power == gcvPOWER_ON)
+            {
+                /* Read a register. */
+                gcmkONERROR(gckOS_ReadRegisterEx(
+                    Kernel->os,
+                    Kernel->core,
+                    Interface->u.ReadRegisterData.address,
+                    &Interface->u.ReadRegisterData.data));
+            }
+            else
+            {
+                /* Chip is in power-state. */
+                Interface->u.ReadRegisterData.data = 0;
+                status = gcvSTATUS_CHIP_NOT_READY;
+            }
+            gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->vg->hardware->powerMutex));
+            powerMutexAcquired = gcvFALSE;
+        }
+#else
+        /* No access from user land to read registers. */
+        Interface->u.ReadRegisterData.data = 0;
+        status = gcvSTATUS_NOT_SUPPORTED;
+#endif
+        break;
+
+    case gcvHAL_WRITE_REGISTER:
+#if gcdREGISTER_ACCESS_FROM_USER
+        {
+            gceCHIPPOWERSTATE power;
+
+            gcmkONERROR(gckOS_AcquireMutex(Kernel->os, Kernel->vg->hardware->powerMutex, gcvINFINITE));
+            powerMutexAcquired = gcvTRUE;
+            gcmkONERROR(gckVGHARDWARE_QueryPowerManagementState(Kernel->vg->hardware,
+                &power));
+            if (power == gcvPOWER_ON)
+            {
+                /* Write a register. */
+                gcmkONERROR(
+                    gckOS_WriteRegisterEx(Kernel->os,
+                    Kernel->core,
+                    Interface->u.WriteRegisterData.address,
+                    Interface->u.WriteRegisterData.data));
+            }
+            else
+            {
+                /* Chip is in power-state. */
+                Interface->u.WriteRegisterData.data = 0;
+                status = gcvSTATUS_CHIP_NOT_READY;
+            }
+            gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->vg->hardware->powerMutex));
+            powerMutexAcquired = gcvFALSE;
+        }
+#else
+        /* No access from user land to write registers. */
+        status = gcvSTATUS_NOT_SUPPORTED;
+#endif
+        break;
     default:
         /* Invalid command, try gckKERNEL_Dispatch */
         status = gckKERNEL_Dispatch(Kernel, gcvNULL, gcvTRUE, Interface);
@@ -524,6 +591,10 @@ gceSTATUS gckVGKERNEL_Dispatch(
 OnError:
     /* Save status. */
     kernelInterface->status = status;
+    if (powerMutexAcquired == gcvTRUE)
+    {
+        gcmkVERIFY_OK(gckOS_ReleaseMutex(Kernel->os, Kernel->vg->hardware->powerMutex));
+    }
 
     gcmkFOOTER();
 

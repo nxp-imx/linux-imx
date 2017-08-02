@@ -245,12 +245,13 @@ gckASYNC_COMMAND_Commit(
     gctUINT         commandBufferSize;
     gctUINT32       commandBufferAddress;
     gcsFEDescriptor descriptor;
-    gctUINT32       pipeBytes;
+    gctUINT32       skipFlushBytes;
     gctUINT32       fenceBytes;
     gctBOOL         needCopy;
-    gcmkHEADER();
+    gctUINT32       oldValue;
+    gctUINT32       flushBytes;
 
-    gckHARDWARE_PipeSelect(Command->hardware, gcvNULL, gcvPIPE_3D, &pipeBytes);
+    gcmkHEADER();
 
     gckOS_QueryNeedCopy(Command->os, 0, &needCopy);
 
@@ -268,17 +269,39 @@ gckASYNC_COMMAND_Commit(
 
     gcmkVERIFY_OBJECT(commandBufferObject, gcvOBJ_COMMANDBUFFER);
 
+    gckHARDWARE_FlushAsyncMMU(Command->hardware, gcvNULL, &flushBytes);
+
+    gcmkONERROR(gckOS_AtomicExchange(Command->os,
+                                     Command->hardware->pageTableDirty[gcvENGINE_BLT],
+                                     0,
+                                     &oldValue));
+
+    if (oldValue)
+    {
+        commandBufferLogical
+            = (gctUINT8_PTR) gcmUINT64_TO_PTR(commandBufferObject->logical)
+            +                commandBufferObject->startOffset;
+
+        gckHARDWARE_FlushAsyncMMU(Command->hardware, commandBufferLogical, &flushBytes);
+
+        skipFlushBytes = 0;
+    }
+    else
+    {
+        skipFlushBytes = flushBytes;
+    }
+
     /* Compute the command buffer entry and the size. */
     commandBufferLogical
         = (gctUINT8_PTR) gcmUINT64_TO_PTR(commandBufferObject->logical)
         +                commandBufferObject->startOffset
-        +                pipeBytes;
+        +                skipFlushBytes;
 
     commandBufferSize
         = commandBufferObject->offset
         + Command->reservedTail
         - commandBufferObject->startOffset
-        - pipeBytes;
+        - skipFlushBytes;
 
     commandBufferTail
         = commandBufferLogical
@@ -331,7 +354,7 @@ gckASYNC_COMMAND_Commit(
         Command->os,
         commandBufferLogical,
         commandBufferSize,
-        gceDUMP_BUFFER_USER,
+        gcvDUMP_BUFFER_USER,
         gcvFALSE
         );
 

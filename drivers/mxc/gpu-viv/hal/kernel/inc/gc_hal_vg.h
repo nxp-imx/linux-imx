@@ -384,7 +384,8 @@ gckKERNEL_UnmapMemory(
     IN gckKERNEL Kernel,
     IN gctPHYS_ADDR Physical,
     IN gctSIZE_T Bytes,
-    IN gctPOINTER Logical
+    IN gctPOINTER Logical,
+    IN gctUINT32 ProcessID
     );
 
 /* Dispatch a user-level command. */

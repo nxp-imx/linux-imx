@@ -80,31 +80,14 @@ typedef va_list gctARGUMENTS;
 #define gcmkARGUMENTS_ARG(Arguments, Type) \
     va_arg(Arguments, Type)
 
-#if gcdDUMP_COMMAND || gcdDUMP_IN_KERNEL
-/* VIV: gckOS_DumpBuffer holds spinlock and return to userspace which causes
-        schedule in atomic. Because there isn't dump information from interrupt,
-        mutex can be used in this situation. Need to solve this by avoid
-        return userspace while lock still being hold which is very dangerous.
-*/
-#define gcmkDECLARE_LOCK(__mutex__) \
-    static DEFINE_MUTEX(__mutex__); \
+#define gcmkDECLARE_MUTEX(__mutex__) \
+    DEFINE_MUTEX(__mutex__); \
 
-#define gcmkLOCKSECTION(__mutex__) \
+#define gcmkMUTEX_LOCK(__mutex__) \
     mutex_lock(&__mutex__);
 
-#define gcmkUNLOCKSECTION(__mutex__) \
+#define gcmkMUTEX_UNLOCK(__mutex__) \
     mutex_unlock(&__mutex__);
-#else
-#define gcmkDECLARE_LOCK(__spinLock__) \
-    static DEFINE_SPINLOCK(__spinLock__); \
-    unsigned long __spinLock__##flags = 0;
-
-#define gcmkLOCKSECTION(__spinLock__) \
-    spin_lock_irqsave(&__spinLock__, __spinLock__##flags)
-
-#define gcmkUNLOCKSECTION(__spinLock__) \
-    spin_unlock_irqrestore(&__spinLock__, __spinLock__##flags)
-#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
 #   define gcmkGETPROCESSID() \

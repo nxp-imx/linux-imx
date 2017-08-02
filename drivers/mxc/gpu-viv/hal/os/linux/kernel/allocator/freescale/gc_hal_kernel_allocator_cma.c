@@ -69,7 +69,7 @@
 
 typedef struct _gcsCMA_PRIV * gcsCMA_PRIV_PTR;
 typedef struct _gcsCMA_PRIV {
-    gctUINT32 cmasize;
+    atomic_t cmasize;
     gctBOOL cmaLimitRequest;
 }
 gcsCMA_PRIV;
@@ -79,13 +79,15 @@ struct mdl_cma_priv {
     dma_addr_t physical;
 };
 
-int gc_cma_usage_show(struct seq_file* m, void* data)
+static int gc_cma_usage_show(struct seq_file* m, void* data)
 {
     gcsINFO_NODE *node = m->private;
     gckALLOCATOR Allocator = node->device;
     gcsCMA_PRIV_PTR priv = Allocator->privateData;
+    long long size = (long long)atomic_read(&priv->cmasize);
 
-    seq_printf(m, "cma:  %u bytes\n", priv->cmasize);
+    seq_printf(m, "type        n pages        bytes\n");
+    seq_printf(m, "cma      %10llu %12llu\n", size, size * PAGE_SIZE);
 
     return 0;
 }
@@ -96,7 +98,7 @@ static gcsINFO InfoList[] =
 };
 
 static void
-_DefaultAllocatorDebugfsInit(
+_CMAAllocatorDebugfsInit(
     IN gckALLOCATOR Allocator,
     IN gckDEBUGFS_DIR Root
     )
@@ -113,7 +115,7 @@ _DefaultAllocatorDebugfsInit(
 }
 
 static void
-_DefaultAllocatorDebugfsCleanup(
+_CMAAllocatorDebugfsCleanup(
     IN gckALLOCATOR Allocator
     )
 {
@@ -140,7 +142,7 @@ _CMAFSLAlloc(
     struct mdl_cma_priv *mdl_priv=gcvNULL;
     gckOS os = Allocator->os;
 
-    gcmkHEADER_ARG("Mdl=%p NumPages=%d", Mdl, NumPages);
+    gcmkHEADER_ARG("Mdl=%p NumPages=0x%zx", Mdl, NumPages);
 
     if (os->allocatorLimitMarker)
     {
@@ -169,14 +171,16 @@ _CMAFSLAlloc(
 
     Mdl->priv = mdl_priv;
     Mdl->dmaHandle = mdl_priv->physical;
-    priv->cmasize += NumPages * PAGE_SIZE;
+    atomic_add(NumPages, &priv->cmasize);
 
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
-    if(mdl_priv)
+    if (mdl_priv)
+    {
         gckOS_Free(os, mdl_priv);
+    }
     gcmkFOOTER();
     return status;
 }
@@ -195,7 +199,7 @@ _CMAFSLFree(
             mdl_priv->kvaddr,
             mdl_priv->physical);
      gckOS_Free(os, mdl_priv);
-    priv->cmasize -= Mdl->numPages * PAGE_SIZE;
+    atomic_sub(Mdl->numPages, &priv->cmasize);
 }
 
 static gctINT
@@ -206,14 +210,13 @@ _CMAFSLMapUser(
     OUT gctPOINTER * UserLogical
     )
 {
-
     PLINUX_MDL      mdl = Mdl;
     struct mdl_cma_priv *mdl_priv=(struct mdl_cma_priv *)Mdl->priv;
     gckOS           os = Allocator->os;
     struct vm_area_struct * vma;
     gctPOINTER      userLogical = gcvNULL;
 
-    gcmkHEADER_ARG("Allocator=%p Mdl=%p gctBOOL=%d", Allocator, Mdl, Cacheable);
+    gcmkHEADER_ARG("Allocator=%p Mdl=%p Cacheable=%d", Allocator, Mdl, Cacheable);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
     userLogical = (gctSTRING)vm_mmap(gcvNULL,
@@ -237,10 +240,8 @@ _CMAFSLMapUser(
 
     gcmkTRACE_ZONE(
         gcvLEVEL_INFO, gcvZONE_OS,
-        "%s(%d): vmaAddr->0x%X for phys_addr->0x%X",
-        __FUNCTION__, __LINE__,
-        (gctUINT32)(gctUINTPTR_T)userLogical,
-        (gctUINT32)(gctUINTPTR_T)mdl
+        "%s(%d): vmaAddr->%p for phys_addr->%p",
+        __FUNCTION__, __LINE__, userLogical, mdl
         );
 
     if (IS_ERR(userLogical))
@@ -317,9 +318,10 @@ _CMAFSLMapUser(
     return gcvSTATUS_OK;
 }
 
-void
+static void
 _CMAUnmapUser(
     IN gckALLOCATOR Allocator,
+    IN PLINUX_MDL Mdl,
     IN gctPOINTER Logical,
     IN gctUINT32 Size
     )
@@ -353,7 +355,7 @@ _CMAUnmapUser(
 #endif
 }
 
-gceSTATUS
+static gceSTATUS
 _CMAMapKernel(
     IN gckALLOCATOR Allocator,
     IN PLINUX_MDL Mdl,
@@ -365,7 +367,7 @@ _CMAMapKernel(
     return gcvSTATUS_OK;
 }
 
-gceSTATUS
+static gceSTATUS
 _CMAUnmapKernel(
     IN gckALLOCATOR Allocator,
     IN PLINUX_MDL Mdl,
@@ -375,17 +377,20 @@ _CMAUnmapKernel(
     return gcvSTATUS_OK;
 }
 
-extern gceSTATUS
-_DefaultCache(
+static gceSTATUS
+_CMACache(
     IN gckALLOCATOR Allocator,
     IN PLINUX_MDL Mdl,
     IN gctPOINTER Logical,
     IN gctUINT32 Physical,
     IN gctUINT32 Bytes,
     IN gceCACHEOPERATION Operation
-    );
+    )
+{
+    return gcvSTATUS_OK;
+}
 
-gceSTATUS
+static gceSTATUS
 _CMAPhysical(
     IN gckALLOCATOR Allocator,
     IN PLINUX_MDL Mdl,
@@ -400,20 +405,31 @@ _CMAPhysical(
     return gcvSTATUS_OK;
 }
 
-extern void
-_DefaultAllocatorDestructor(
-    IN void* PrivateData
-    );
+static void
+_CMAAllocatorDestructor(
+    gcsALLOCATOR *Allocator
+    )
+{
+    _CMAAllocatorDebugfsCleanup(Allocator);
+
+    if (Allocator->privateData)
+    {
+        kfree(Allocator->privateData);
+    }
+
+    kfree(Allocator);
+}
 
 /* Default allocator operations. */
-gcsALLOCATOR_OPERATIONS CMAFSLAllocatorOperations = {
+static gcsALLOCATOR_OPERATIONS CMAFSLAllocatorOperations =
+{
     .Alloc              = _CMAFSLAlloc,
     .Free               = _CMAFSLFree,
     .MapUser            = _CMAFSLMapUser,
     .UnmapUser          = _CMAUnmapUser,
     .MapKernel          = _CMAMapKernel,
     .UnmapKernel        = _CMAUnmapKernel,
-    .Cache              = _DefaultCache,
+    .Cache              = _CMACache,
     .Physical           = _CMAPhysical,
 };
 
@@ -421,6 +437,7 @@ gcsALLOCATOR_OPERATIONS CMAFSLAllocatorOperations = {
 gceSTATUS
 _CMAFSLAlloctorInit(
     IN gckOS Os,
+    IN gcsDEBUGFS_DIR *Parent,
     OUT gckALLOCATOR * Allocator
     )
 {
@@ -438,12 +455,13 @@ _CMAFSLAlloctorInit(
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
 
+    atomic_set(&priv->cmasize, 0);
+
     /* Register private data. */
     allocator->privateData = priv;
-    allocator->privateDataDestructor = _DefaultAllocatorDestructor;
+    allocator->destructor = _CMAAllocatorDestructor;
 
-    allocator->debugfsInit = _DefaultAllocatorDebugfsInit;
-    allocator->debugfsCleanup = _DefaultAllocatorDebugfsCleanup;
+    _CMAAllocatorDebugfsInit(allocator, Parent);
 
     allocator->capability = gcvALLOC_FLAG_CONTIGUOUS;
 
@@ -466,7 +484,7 @@ _CMAFSLAlloctorInit(
 OnError:
     if (allocator)
     {
-        gcmkOS_SAFE_FREE(Os, allocator);
+        kfree(allocator);
     }
     return status;
 }

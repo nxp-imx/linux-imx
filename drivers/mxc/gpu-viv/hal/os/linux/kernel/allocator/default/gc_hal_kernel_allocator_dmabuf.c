@@ -93,7 +93,7 @@ struct allocator_priv
 /*
 * Debugfs support.
 */
-int dma_buf_info_show(struct seq_file* m, void* data)
+static int dma_buf_info_show(struct seq_file* m, void* data)
 {
     int ret;
     gcsDMABUF *buf_desc;
@@ -204,7 +204,7 @@ _DmabufAttach(
 
     gckOS os = Allocator->os;
 
-    int fd = (int) Desc->handle;
+    int fd = (int) Desc->dmaBuf.fd;
 
     struct dma_buf *dmabuf = NULL;
     struct sg_table *sgt = NULL;
@@ -367,6 +367,7 @@ OnError:
 static void
 _DmabufUnmapUser(
     IN gckALLOCATOR Allocator,
+    IN PLINUX_MDL Mdl,
     IN gctPOINTER Logical,
     IN gctUINT32 Size
     )
@@ -448,15 +449,26 @@ static gcsALLOCATOR_OPERATIONS DmabufAllocatorOperations =
     .Physical           = _DmabufPhysical,
 };
 
-extern void
-_DefaultAllocatorDestructor(
-    IN void* PrivateData
-    );
+static void
+_DmabufAllocatorDestructor(
+    gcsALLOCATOR *Allocator
+    )
+{
+    _DebugfsCleanup(Allocator);
+
+    if (Allocator->privateData)
+    {
+        kfree(Allocator->privateData);
+    }
+
+    kfree(Allocator);
+}
 
 /* Default allocator entry. */
 gceSTATUS
 _DmabufAlloctorInit(
     IN gckOS Os,
+    IN gcsDEBUGFS_DIR *Parent,
     OUT gckALLOCATOR * Allocator
     )
 {
@@ -480,12 +492,10 @@ _DmabufAlloctorInit(
     allocator->capability = gcvALLOC_FLAG_DMABUF;
 
     /* Register private data. */
-    allocator->privateData           = priv;
-    allocator->privateDataDestructor = _DefaultAllocatorDestructor;
+    allocator->privateData = priv;
+    allocator->destructor  = _DmabufAllocatorDestructor;
 
-    /* Register debugfs callbacks. */
-    allocator->debugfsInit    = _DebugfsInit;
-    allocator->debugfsCleanup = _DebugfsCleanup;
+    _DebugfsInit(allocator, Parent);
 
     *Allocator = allocator;
 

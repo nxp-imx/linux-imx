@@ -1910,9 +1910,6 @@ if (halti5){    vsConstBase  = 0xD000;
     {
         index += _State(Context, index, 0x0103C >> 2, 0x76543210, 1, gcvFALSE, gcvFALSE);
     }
-    /* Composition states. */
-    index += _State(Context, index, 0x03008 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
-
 
     index += _State(Context, index, (0x01460 >> 2) + (0 << 3), 0x00000000, Context->hardware->identity.pixelPipes, gcvFALSE, gcvTRUE);
 

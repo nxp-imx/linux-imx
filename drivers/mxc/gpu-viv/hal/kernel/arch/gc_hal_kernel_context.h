@@ -178,11 +178,9 @@ struct _gckCONTEXT
     gctBOOL_PTR                 hint;
 #endif
 
-#if VIVANTE_PROFILER_CONTEXT
     gcsPROFILER_COUNTERS        latestProfiler;
     gcsPROFILER_COUNTERS        histroyProfiler;
     gcsPROFILER_COUNTERS        preProfiler;
-#endif
     gcsPROFILER_NEW_COUNTERS_PART1    latestNewProfiler_part1;
     gcsPROFILER_NEW_COUNTERS_PART1    histroyNewProfiler_part1;
     gcsPROFILER_NEW_COUNTERS_PART1    preNewProfiler_part1;

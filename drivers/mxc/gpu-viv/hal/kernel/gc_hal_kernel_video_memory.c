@@ -430,11 +430,12 @@ gckVIDMEM_Construct(
     memory->os          = Os;
 
     /* Set video memory heap information. */
-    memory->baseAddress = BaseAddress;
-    memory->bytes       = heapBytes;
-    memory->freeBytes   = heapBytes;
-    memory->threshold   = Threshold;
-    memory->mutex       = gcvNULL;
+    memory->baseAddress  = BaseAddress;
+    memory->bytes        = heapBytes;
+    memory->freeBytes    = heapBytes;
+    memory->minFreeBytes = heapBytes;
+    memory->threshold    = Threshold;
+    memory->mutex        = gcvNULL;
 
     BaseAddress = 0;
 
@@ -1045,7 +1046,12 @@ gckVIDMEM_AllocateLinear(
 #endif
 
     /* Adjust the number of free bytes. */
-    Memory->freeBytes -= node->VidMem.bytes;
+    Memory->freeBytes   -= node->VidMem.bytes;
+
+    if (Memory->freeBytes < Memory->minFreeBytes)
+    {
+        Memory->minFreeBytes = Memory->freeBytes;
+    }
 
 #if gcdENABLE_VG
     node->VidMem.kernelVirtual = gcvNULL;
@@ -2632,7 +2638,7 @@ gckVIDMEM_NODE_Allocate(
 
     gcmkONERROR(gckOS_CreateMutex(os, &node->mutex));
 
-    for (i = 0; i < gcvENGINE_COUNT; i++)
+    for (i = 0; i < gcvENGINE_GPU_ENGINE_COUNT; i++)
     {
         gcmkONERROR(gckOS_CreateSignal(os, gcvFALSE, &node->sync[i].signal));
     }
@@ -2668,7 +2674,7 @@ OnError:
             gcmkVERIFY_OK(gckOS_AtomDestroy(os, node->reference));
         }
 
-        for (i = 0; i < gcvENGINE_COUNT; i++)
+        for (i = 0; i < gcvENGINE_GPU_ENGINE_COUNT; i++)
         {
             if (node->sync[i].signal != gcvNULL)
             {
@@ -2718,7 +2724,7 @@ gckVIDMEM_NODE_Dereference(
 #endif
         gcmkVERIFY_OK(gckOS_DeleteMutex(Kernel->os, Node->mutex));
 
-        for (i = 0; i < gcvENGINE_COUNT; i++)
+        for (i = 0; i < gcvENGINE_GPU_ENGINE_COUNT; i++)
         {
             if (Node->sync[i].signal != gcvNULL)
             {

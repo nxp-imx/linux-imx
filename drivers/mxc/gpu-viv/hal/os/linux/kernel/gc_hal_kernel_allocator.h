@@ -57,9 +57,10 @@
 #define __gc_hal_kernel_allocator_h_
 
 #include "gc_hal_kernel_linux.h"
+#include <linux/slab.h>
 
 typedef struct _gcsALLOCATOR * gckALLOCATOR;
-typedef struct _gcsATTACH_DESC * gcsATTACH_DESC_PTR;
+typedef union _gcsATTACH_DESC * gcsATTACH_DESC_PTR;
 
 typedef struct _gcsALLOCATOR_OPERATIONS
 {
@@ -178,6 +179,7 @@ typedef struct _gcsALLOCATOR_OPERATIONS
     void
     (*UnmapUser)(
         IN gckALLOCATOR Allocator,
+        IN PLINUX_MDL Mdl,
         IN gctPOINTER Logical,
         IN gctUINT32 Size
         );
@@ -335,27 +337,21 @@ typedef struct _gcsALLOCATOR
     gctSTRING                 name;
 
     /* Operations. */
-    gcsALLOCATOR_OPERATIONS*  ops;
+    gcsALLOCATOR_OPERATIONS * ops;
 
     /* Capability of this allocator. */
     gctUINT32                 capability;
 
-    struct list_head          head;
-
     /* Debugfs entry of this allocator. */
     gcsDEBUGFS_DIR            debugfsDir;
-
-    /* Init allocator debugfs. */
-    void                      (*debugfsInit)(gckALLOCATOR, gckDEBUGFS_DIR);
-
-    /* Cleanup allocator debugfs. */
-    void                      (*debugfsCleanup)(gckALLOCATOR);
 
     /* Private data used by customer allocator. */
     void *                    privateData;
 
-    /* Private data destructor. */
-    void                      (*privateDataDestructor)(void *);
+    /* Allocator destructor. */
+    void                      (*destructor)(struct _gcsALLOCATOR *);
+
+    struct list_head          link;
 }
 gcsALLOCATOR;
 
@@ -365,21 +361,44 @@ typedef struct _gcsALLOCATOR_DESC
     char *                    name;
 
     /* Entry function to construct a allocator. */
-    gceSTATUS                 (*construct)(gckOS, gckALLOCATOR *);
+    gceSTATUS                 (*construct)(gckOS, gcsDEBUGFS_DIR *, gckALLOCATOR *);
 }
 gcsALLOCATOR_DESC;
 
-typedef struct _gcsATTACH_DESC
+typedef union _gcsATTACH_DESC
 {
     /* gcvALLOC_FLAG_DMABUF */
-    gctUINT32                  handle;
+    struct
+    {
+        gctINT                  fd;
+    }
+    dmaBuf;
 
     /* gcvALLOC_FLAG_USERMEMORY */
-    gctPOINTER                 memory;
-    gctUINT32                  physical;
-    gctSIZE_T                  size;
+    struct
+    {
+        gctPOINTER              memory;
+        gctPHYS_ADDR_T          physical;
+        gctSIZE_T               size;
+    }
+    userMem;
 
-    gcsEXTERNAL_MEMORY_INFO    info;
+    /* gcvALLOC_FLAG_EXTERNAL_MEMORY */
+    struct
+    {
+        gcsEXTERNAL_MEMORY_INFO info;
+    }
+    externalMem;
+
+    /* Reserved memory. */
+    struct
+    {
+        unsigned long           start;
+        unsigned long           size;
+        const char *            name;
+        int                     requested;
+    }
+    reservedMem;
 }
 gcsATTACH_DESC;
 
@@ -395,12 +414,48 @@ gcsATTACH_DESC;
     }
 
 /* Construct a allocator. */
-gceSTATUS
+static inline gceSTATUS
 gckALLOCATOR_Construct(
     IN gckOS Os,
     IN gcsALLOCATOR_OPERATIONS * Operations,
     OUT gckALLOCATOR * Allocator
-    );
+    )
+{
+    gceSTATUS status;
+    gckALLOCATOR allocator;
+
+    gcmkASSERT(Allocator != gcvNULL);
+    gcmkASSERT
+        (  Operations
+        && (Operations->Alloc || Operations->Attach)
+        && (Operations->Free)
+        && Operations->MapUser
+        && Operations->UnmapUser
+        && Operations->MapKernel
+        && Operations->UnmapKernel
+        && Operations->Cache
+        && Operations->Physical
+        );
+
+    allocator = kzalloc(sizeof(gcsALLOCATOR), GFP_KERNEL | gcdNOWARN);
+    if (unlikely(!allocator))
+    {
+        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+    }
+
+    /* Record os. */
+    allocator->os = Os;
+
+    /* Set operations. */
+    allocator->ops = Operations;
+
+    *Allocator = allocator;
+
+    return gcvSTATUS_OK;
+
+OnError:
+    return status;
+}
 
 /*
     How to implement customer allocator

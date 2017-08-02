@@ -668,11 +668,11 @@ _PrintBuffer(
 
     switch (Type)
     {
-    case gceDUMP_BUFFER_CONTEXT:
-    case gceDUMP_BUFFER_USER:
-    case gceDUMP_BUFFER_KERNEL:
-    case gceDUMP_BUFFER_LINK:
-    case gceDUMP_BUFFER_WAITLINK:
+    case gcvDUMP_BUFFER_CONTEXT:
+    case gcvDUMP_BUFFER_USER:
+    case gcvDUMP_BUFFER_KERNEL:
+    case gcvDUMP_BUFFER_LINK:
+    case gcvDUMP_BUFFER_WAITLINK:
         /* Form and print the title string. */
         gcmkSPRINTF2(
             buffer + indent, gcmSIZEOF(buffer) - indent,
@@ -690,7 +690,7 @@ _PrintBuffer(
         command = gcvTRUE;
         break;
 
-    case gceDUMP_BUFFER_FROM_USER:
+    case gcvDUMP_BUFFER_FROM_USER:
         /* This is not a command buffer. */
         command = gcvFALSE;
 
@@ -1750,9 +1750,9 @@ _Print(
     )
 {
     gcsBUFFERED_OUTPUT_PTR outputBuffer;
-    gcmkDECLARE_LOCK(lockHandle);
+    static gcmkDECLARE_MUTEX(lockHandle);
 
-    gcmkLOCKSECTION(lockHandle);
+    gcmkMUTEX_LOCK(lockHandle);
 
     /* Initialize output buffer list. */
     _InitBuffers();
@@ -1811,7 +1811,7 @@ _Print(
         outputBuffer->indent += 2;
     }
 
-    gcmkUNLOCKSECTION(lockHandle);
+    gcmkMUTEX_UNLOCK(lockHandle);
 }
 
 
@@ -1978,32 +1978,28 @@ gckOS_DumpBuffer(
     gctPHYS_ADDR_T physical;
     gctUINT32 address                   = 0;
     gcsBUFFERED_OUTPUT_PTR outputBuffer = gcvNULL;
-    static gctBOOL userLocked;
     gctCHAR *buffer                     = (gctCHAR*)Buffer;
+    gctPOINTER pAllocated               = gcvNULL;
+    gctPOINTER pMapped                  = gcvNULL;
+    gceSTATUS status                    = gcvSTATUS_OK;
 
-    gcmkDECLARE_LOCK(lockHandle);
+    static gcmkDECLARE_MUTEX(lockHandle);
+
+    gcmkMUTEX_LOCK(lockHandle);
 
     /* Request lock when not coming from user,
        or coming from user and not yet locked
           and message is starting with @[. */
-    if (Type == gceDUMP_BUFFER_FROM_USER)
+    if (Type == gcvDUMP_BUFFER_FROM_USER)
     {
-        if ((Size > 2)
-         && (!strncmp(buffer, "@[", 2) || !strncmp(buffer, "#[", 2))
-        )
-        {
-            /* Beginning of a user dump. */
-            gcmkLOCKSECTION(lockHandle);
-            userLocked = gcvTRUE;
-        }
-        /* Else, let it pass through. */
-
         /* Some format check. */
         if ((Size > 2)
          && (buffer[0] == '@' || buffer[0] == '#')
          && (buffer[1] != '[')
         )
         {
+            gcmkMUTEX_UNLOCK(lockHandle);
+
             /* No error tolerence in parser, so we stop on error to make noise. */
             for (;;)
             {
@@ -2016,11 +2012,6 @@ gckOS_DumpBuffer(
                 gckOS_Delay(Os, 10 * 1000);
             }
         }
-    }
-    else
-    {
-        gcmkLOCKSECTION(lockHandle);
-        userLocked = gcvFALSE;
     }
 
     if (Buffer != gcvNULL)
@@ -2037,7 +2028,7 @@ gckOS_DumpBuffer(
 #endif
 
         /* Get the physical address of the buffer. */
-        if (Type != gceDUMP_BUFFER_FROM_USER)
+        if (Type != gcvDUMP_BUFFER_FROM_USER)
         {
             gcmkVERIFY_OK(gckOS_GetPhysicalAddress(Os, Buffer, &physical));
             gcmkSAFECASTPHYSADDRT(address, physical);
@@ -2045,6 +2036,42 @@ gckOS_DumpBuffer(
         else
         {
             address = 0;
+        }
+
+        if (Type == gcvDUMP_BUFFER_USER)
+        {
+            gctBOOL needCopy = gcvTRUE;
+
+            gcmkONERROR(gckOS_QueryNeedCopy(Os, 0, &needCopy));
+
+            if (needCopy)
+            {
+                gcmkONERROR(gckOS_Allocate(
+                    Os,
+                    Size,
+                    &pAllocated
+                    ));
+
+                gcmkONERROR(gckOS_CopyFromUserData(
+                    Os,
+                    pAllocated,
+                    Buffer,
+                    Size
+                    ));
+
+                Buffer = pAllocated;
+            }
+            else
+            {
+                gcmkONERROR(gckOS_MapUserPointer(
+                    Os,
+                    Buffer,
+                    Size,
+                    &pMapped
+                    ));
+
+                Buffer = pMapped;
+            }
         }
 
 #if gcdHAVEPREFIX
@@ -2067,7 +2094,7 @@ gckOS_DumpBuffer(
         }
 #else
         /* Print/schedule the buffer. */
-        if (Type == gceDUMP_BUFFER_FROM_USER)
+        if (Type == gcvDUMP_BUFFER_FROM_USER)
         {
             gckOS_CopyPrint(Buffer);
         }
@@ -2081,30 +2108,16 @@ gckOS_DumpBuffer(
 #endif
     }
 
-    /* Unlock when not coming from user,
-       or coming from user and not yet locked. */
-    if (userLocked)
+OnError:
+    gcmkMUTEX_UNLOCK(lockHandle);
+
+    if (pAllocated)
     {
-        gctUINT i = 0;
-
-        while (i < Size && buffer[i])
-        {
-            if (buffer[i] == ']')
-            {
-                /* End of a user dump. */
-                userLocked = gcvFALSE;
-                gcmkUNLOCKSECTION(lockHandle);
-
-                break;
-            }
-
-            i++;
-        }
-        /* Else, let it pass through, don't unlock. */
+        gcmkVERIFY_OK(gcmkOS_SAFE_FREE(Os, pAllocated));
     }
-    else
+    else if (pMapped)
     {
-        gcmkUNLOCKSECTION(lockHandle);
+        gckOS_UnmapUserPointer(Os, buffer, Size, pMapped);
     }
 }
 

@@ -74,7 +74,8 @@ extern "C" {
 #define gcdRESERVED_PAUSE_XFBWRITTEN_QUERY_LENGTH   (4 * gcmSIZEOF(gctUINT32))
 #define gcdRESERVED_PAUSE_PRIMGEN_QUERY_LENGTH      (4 * gcmSIZEOF(gctUINT32))
 #define gcdRESERVED_PAUSE_XFB_LENGTH                (2 * gcmSIZEOF(gctUINT32))
-#define gcdRESERVED_HW_FENCE                        (4 * gcmSIZEOF(gctUINT32))
+#define gcdRESERVED_HW_FENCE_32BIT                  (4 * gcmSIZEOF(gctUINT32))
+#define gcdRESERVED_HW_FENCE_64BIT                  (6 * gcmSIZEOF(gctUINT32))
 #define gcdRESERVED_PAUSE_PROBE_LENGTH              (TOTAL_PROBE_NUMBER * 2 * gcmSIZEOF(gctUINT32))
 
 #define gcdRESUME_OQ_LENGTH                         (2 * gcmSIZEOF(gctUINT32))
@@ -165,6 +166,33 @@ typedef struct _gcsPATCH_LIST
     struct _gcsPATCH_LIST       *next;
 }
 gcsPATCH_LIST;
+
+#define FENCE_NODE_LIST_INIT_COUNT         100
+
+typedef struct _gcsFENCE_APPEND_NODE
+{
+    gcsSURF_NODE_PTR    node;
+    gceFENCE_TYPE       type;
+
+}gcsFENCE_APPEND_NODE;
+
+typedef gcsFENCE_APPEND_NODE   *   gcsFENCE_APPEND_NODE_PTR;
+
+typedef struct _gcsFENCE_LIST    *   gcsFENCE_LIST_PTR;
+
+typedef struct _gcsFENCE_LIST
+{
+    /* Resource that need get fence, but command used this resource not generated */
+    gcsFENCE_APPEND_NODE_PTR        pendingList;
+    gctUINT                         pendingCount;
+    gctUINT                         pendingAllocCount;
+
+    /* Resoure that already generated command in this command buffer but not get fence */
+    gcsFENCE_APPEND_NODE_PTR        onIssueList;
+    gctUINT                         onIssueCount;
+    gctUINT                         onIssueAllocCount;
+}
+gcsFENCE_LIST;
 
 /* Command buffer object. */
 struct _gcoCMDBUF
