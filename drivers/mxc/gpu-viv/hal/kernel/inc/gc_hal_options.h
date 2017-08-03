@@ -82,7 +82,7 @@ This define enables the use of VM for gckCommand and fence buffers.
 #if defined(UNDER_CE)
 #   define USE_KERNEL_VIRTUAL_BUFFERS           1
 #else
-#   define USE_KERNEL_VIRTUAL_BUFFERS           1
+#   define USE_KERNEL_VIRTUAL_BUFFERS           0
 #endif
 #endif
 

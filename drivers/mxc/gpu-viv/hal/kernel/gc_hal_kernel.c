@@ -567,10 +567,18 @@ gckKERNEL_Construct(
                         ;
 
         /* Initialize virtual command buffer. */
-#if gcdALLOC_CMD_FROM_RESERVE || gcdSECURITY || gcdDISABLE_GPU_VIRTUAL_ADDRESS || !USE_KERNEL_VIRTUAL_BUFFERS
-        kernel->virtualCommandBuffer = gcvFALSE;
+#if (defined(LINUX) || defined(__QNXNTO__)) && !defined(EMULATOR) && !gcdALLOC_CMD_FROM_RESERVE
+        kernel->virtualCommandBuffer = gcvTRUE;
 #else
-        kernel->virtualCommandBuffer = kernel->hardware->enableMMU;
+        kernel->virtualCommandBuffer = gcvFALSE;
+#endif
+
+#if defined(UNDER_CE) && USE_KERNEL_VIRTUAL_BUFFERS
+        kernel->virtualCommandBuffer = gcvTRUE;
+#endif
+
+#if gcdSECURITY || gcdDISABLE_GPU_VIRTUAL_ADDRESS
+        kernel->virtualCommandBuffer = gcvFALSE;
 #endif
 
 #if gcdSHARED_PAGETABLE
