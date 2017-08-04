@@ -505,7 +505,7 @@
 };
 
 &lcdif {
-	status = "okay";
+	status = "disabled";
 	disp-dev = "mipi_dsi_northwest";
 	display = <&display0>;
 
