@@ -504,6 +504,11 @@
 	status = "okay";
 };
 
+&dcss {
+	disp-dev = "hdmi_disp";
+	status = "okay";
+};
+
 &lcdif {
 	status = "disabled";
 	disp-dev = "mipi_dsi_northwest";
