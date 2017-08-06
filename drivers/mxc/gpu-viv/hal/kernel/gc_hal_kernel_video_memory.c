@@ -1792,6 +1792,12 @@ gckVIDMEM_Lock(
             pageMask = (gctUINT32)pageSize - 1;
 
             *Address += (gctUINT32)physicalAddress & pageMask;
+
+            /* Need mark invalid address for virtual memory */
+            if (node->Virtual.contiguous == gcvFALSE)
+            {
+                physicalAddress = gcvINVALID_ADDRESS;
+            }
         }
 #endif
     }
