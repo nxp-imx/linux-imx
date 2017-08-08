@@ -517,9 +517,9 @@ si_doattach(si_info_t *sii, uint devid, osl_t *osh, void *regs,
 	}
 
 	sih->bustype = bustype;
-	if (bustype != BUSTYPE(bustype)) {
+	if (sih->bustype != BUSTYPE(bustype)) {
 		SI_ERROR(("si_doattach: bus type %d does not match configured bus type %d\n",
-			bustype, BUSTYPE(bustype)));
+			sih->bustype, BUSTYPE(bustype)));
 		return NULL;
 	}
 
