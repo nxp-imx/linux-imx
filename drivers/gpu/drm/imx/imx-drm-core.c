@@ -26,6 +26,7 @@
 #include <drm/drm_fb_cma_helper.h>
 #include <drm/drm_plane_helper.h>
 #include <drm/drm_of.h>
+#include <drm/imx_drm.h>
 #include <video/imx-ipu-v3.h>
 #include <video/dpu.h>
 
@@ -39,6 +40,14 @@ struct imx_drm_component {
 struct imx_drm_crtc {
 	struct drm_crtc				*crtc;
 	struct imx_drm_crtc_helper_funcs	imx_drm_helper_funcs;
+};
+
+struct {
+	struct mutex mutex;
+	struct list_head ioctls;
+} imx_ioctls = {
+	.mutex = __MUTEX_INITIALIZER(imx_ioctls.mutex),
+	.ioctls = LIST_HEAD_INIT(imx_ioctls.ioctls),
 };
 
 #if IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION)
@@ -85,11 +94,51 @@ static void imx_drm_disable_vblank(struct drm_device *drm, unsigned int pipe)
 	imx_drm_crtc->imx_drm_helper_funcs.disable_vblank(imx_drm_crtc->crtc);
 }
 
+static long
+imx_drm_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+       struct drm_file *file_priv = NULL;
+       struct drm_device *dev = NULL;
+
+#define MAX_DATA_STACK 128
+       char data[MAX_DATA_STACK];
+       unsigned int in_size;
+       struct imx_drm_ioctl *pos;
+
+       file_priv = filp->private_data;
+       if (!file_priv) {
+               return -EFAULT;
+       }
+
+       dev = file_priv->minor->dev;
+       if (!dev) {
+               return -EFAULT;
+       }
+
+       in_size = _IOC_SIZE(cmd);
+       if (copy_from_user(data, (void __user *) arg, in_size) != 0) {
+               return -EFAULT;
+       }
+
+       list_for_each_entry(pos, &imx_ioctls.ioctls, next) {
+               if (pos->ioctl->cmd == cmd) {
+                       long ret;
+                       mutex_lock(&imx_ioctls.mutex);
+                       ret = pos->ioctl->func(dev, data, file_priv);
+                       mutex_unlock(&imx_ioctls.mutex);
+                       return ret;
+               }
+       }
+
+
+       return drm_ioctl(filp, cmd, arg);
+}
+
 static const struct file_operations imx_drm_driver_fops = {
 	.owner = THIS_MODULE,
 	.open = drm_open,
 	.release = drm_release,
-	.unlocked_ioctl = drm_ioctl,
+	.unlocked_ioctl = imx_drm_ioctl,
 	.mmap = drm_gem_cma_mmap,
 	.poll = drm_poll,
 	.read = drm_read,
@@ -194,13 +243,56 @@ int imx_drm_encoder_parse_of(struct drm_device *drm,
 }
 EXPORT_SYMBOL_GPL(imx_drm_encoder_parse_of);
 
+int
+imx_drm_register_ioctl(struct drm_ioctl_desc *ioctl_desc)
+{
+	struct imx_drm_ioctl *__ioctl = kzalloc(sizeof(*__ioctl), GFP_KERNEL);
+
+	if (!__ioctl)
+		return -EFAULT;
+
+	__ioctl->ioctl = ioctl_desc;
+	INIT_LIST_HEAD(&__ioctl->next);
+
+	mutex_lock(&imx_ioctls.mutex);
+	list_add_tail(&__ioctl->next, &imx_ioctls.ioctls);
+	mutex_unlock(&imx_ioctls.mutex);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(imx_drm_register_ioctl);
+
+int
+imx_drm_unregister_ioctl(struct drm_ioctl_desc *ioctl_desc)
+{
+	int err = -ENOENT;
+	struct imx_drm_ioctl *pos;
+
+	mutex_lock(&imx_ioctls.mutex);
+	list_for_each_entry(pos, &imx_ioctls.ioctls, next) {
+		if (pos->ioctl->cmd == ioctl_desc->cmd) {
+			list_del(&pos->next);
+			kfree(pos);
+			err = 0;
+			break;
+		}
+	}
+	mutex_unlock(&imx_ioctls.mutex);
+
+	return err;
+}
+EXPORT_SYMBOL_GPL(imx_drm_unregister_ioctl);
+
+
 static const struct drm_ioctl_desc imx_drm_ioctls[] = {
 	/* none so far */
 };
 
+EXPORT_SYMBOL_GPL(imx_drm_ioctls);
+
 static struct drm_driver imx_drm_driver = {
 	.driver_features	= DRIVER_MODESET | DRIVER_GEM | DRIVER_PRIME |
-				  DRIVER_ATOMIC,
+				  DRIVER_ATOMIC | DRIVER_RENDER,
 	.lastclose		= imx_drm_driver_lastclose,
 	.gem_free_object_unlocked = drm_gem_cma_free_object,
 	.gem_vm_ops		= &drm_gem_cma_vm_ops,
