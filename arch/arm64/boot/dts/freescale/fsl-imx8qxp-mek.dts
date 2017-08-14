@@ -31,6 +31,14 @@
 		bcmdhd_nv = "/lib/firmware/bcm/1FD_BCM89359/bcmdhd.cal";
 	};
 
+	modem_reset: modem-reset {
+		compatible = "gpio-reset";
+		reset-gpios = <&pca9557_a 1 GPIO_ACTIVE_LOW>;
+		reset-delay-us = <2000>;
+		reset-post-delay-ms = <40>;
+		#reset-cells = <0>;
+	};
+
 	regulators {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -105,6 +113,15 @@
 			fsl,pins = <
 				SC_P_UART0_RX_ADMA_UART0_RX	0x0600004c
 				SC_P_UART0_TX_ADMA_UART0_TX	0x0600004c
+			>;
+		};
+
+		pinctrl_lpuart1: lpuart1grp {
+			fsl,pins = <
+				SC_P_UART1_TX_ADMA_UART1_TX		0x0600004c
+				SC_P_UART1_RX_ADMA_UART1_RX		0x0600004c
+				SC_P_UART1_RTS_B_ADMA_UART1_RTS_B	0x0600004c
+				SC_P_UART1_CTS_B_ADMA_UART1_CTS_B	0x0600004c
 			>;
 		};
 
@@ -269,6 +286,13 @@
 &lpuart0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lpuart0>;
+	status = "okay";
+};
+
+&lpuart1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lpuart1>;
+	resets = <&modem_reset>;
 	status = "okay";
 };
 
