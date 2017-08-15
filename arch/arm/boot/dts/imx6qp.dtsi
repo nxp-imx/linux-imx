@@ -173,10 +173,6 @@
 				      "di0_sel", "di1_sel",
 				      "ldb_di0", "ldb_di1", "prg";
 		};
-
-		pcie: pcie@0x01000000 {
-			compatible = "fsl,imx6qp-pcie", "snps,dw-pcie";
-		};
 	};
 };
 
