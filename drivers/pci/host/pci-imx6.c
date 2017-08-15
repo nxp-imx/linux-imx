@@ -1865,6 +1865,8 @@ static int imx6_pcie_probe(struct platform_device *pdev)
 	if (imx6_pcie->variant == IMX6QP) {
 		imx6_pcie->pcie_bus_regulator = devm_regulator_get(pp->dev,
 				"pcie-bus");
+		if (PTR_ERR(imx6_pcie->pcie_bus_regulator) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
 		if (IS_ERR(imx6_pcie->pcie_bus_regulator))
 			imx6_pcie->pcie_bus_regulator = NULL;
 	} else {
