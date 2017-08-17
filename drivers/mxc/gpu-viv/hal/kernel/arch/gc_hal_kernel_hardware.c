@@ -7773,7 +7773,15 @@ gckHARDWARE_SetPowerManagementState(
         if (broadcast)
         {
             /* Check for idle. */
-            gcmkONERROR(gckHARDWARE_QueryIdle(Hardware, &idle));
+            gctINT32 try = 0;
+            for(try = 0; try < 10; try++)
+            {
+                gcmkONERROR(gckHARDWARE_QueryIdle(Hardware, &idle));
+                if(idle)
+                    break;
+                else
+                    gckOS_Delay(os,1);
+            }
 
             if (!idle)
             {
