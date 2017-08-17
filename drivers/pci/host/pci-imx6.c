@@ -1204,11 +1204,11 @@ static int imx6_pcie_establish_link(struct imx6_pcie *imx6_pcie)
 		goto err_reset_phy;
 	}
 
-	if (imx6_pcie->link_gen == 2) {
+	if (imx6_pcie->link_gen >= 2) {
 		/* Allow Gen2 mode after the link is up. */
 		tmp = dw_pcie_readl_rc(pp, PCIE_RC_LCR);
 		tmp &= ~PCIE_RC_LCR_MAX_LINK_SPEEDS_MASK;
-		tmp |= PCIE_RC_LCR_MAX_LINK_SPEEDS_GEN2;
+		tmp |= imx6_pcie->link_gen;
 		dw_pcie_writel_rc(pp, PCIE_RC_LCR, tmp);
 	} else {
 		dev_info(dev, "Link: Gen2 disabled\n");
@@ -2167,7 +2167,8 @@ static void imx6_pcie_shutdown(struct platform_device *pdev)
 	struct imx6_pcie *imx6_pcie = platform_get_drvdata(pdev);
 
 	/* bring down link, so bootloader gets clean state in case of reboot */
-	imx6_pcie_assert_core_reset(imx6_pcie);
+	if (imx6_pcie->variant == IMX6Q)
+		imx6_pcie_assert_core_reset(imx6_pcie);
 }
 
 static const struct of_device_id imx6_pcie_of_match[] = {
