@@ -1417,6 +1417,7 @@
 		dmas = <&dma_apbh 0>;
 		dma-names = "rx-tx";
 		power-domains = <&pd_conn_nand>;
+		status = "disabled";
 	};
 
 	usbphynop1: usbphynop1 {
