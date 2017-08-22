@@ -2,6 +2,7 @@
 #define _IMX_DRM_H_
 
 #define MAX_CRTC	4
+#define MAX_DPU		2
 
 struct device_node;
 struct drm_crtc;
