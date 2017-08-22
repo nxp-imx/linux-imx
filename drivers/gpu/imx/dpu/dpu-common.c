@@ -818,6 +818,10 @@ struct dpu_platform_reg {
 	const char *name;
 };
 
+struct dpu_feature_reg {
+	const char *name;
+};
+
 static struct dpu_platform_reg client_reg[] = {
 	{
 		/* placeholder */
@@ -839,6 +843,16 @@ static struct dpu_platform_reg client_reg[] = {
 		.name = "imx-dpu-crtc",
 	},
 };
+
+static struct dpu_feature_reg features_reg[] = {
+	{
+		.name = "imx-drm-dpu-bliteng",
+	}
+};
+
+
+static DEFINE_MUTEX(dpu_feature_id_mutex);
+static int dpu_feature_id;
 
 static DEFINE_MUTEX(dpu_client_id_mutex);
 static int dpu_client_id;
@@ -1029,6 +1043,46 @@ err_get_plane_res:
 
 	return ret;
 }
+
+static
+int dpu_add_feature_devices(struct dpu_soc *dpu)
+{
+	struct platform_device *pdev;
+	struct device *dev = dpu->dev;
+	int i, id, ret;
+
+	mutex_lock(&dpu_feature_id_mutex);
+	id = dpu_feature_id;
+	dpu_feature_id += ARRAY_SIZE(features_reg);
+	mutex_unlock(&dpu_feature_id_mutex);
+
+	for (i = 0; i < ARRAY_SIZE(features_reg); i++, id++) {
+
+		pdev = platform_device_alloc(features_reg[i].name, id);
+		if (!pdev) {
+			return -ENOMEM;
+		}
+
+		pdev->dev.parent = dev;
+		ret = platform_device_add_data(pdev, &features_reg[i].name,
+				strlen(features_reg[i].name));
+		if (!ret)
+			ret = platform_device_add(pdev);
+		if (ret) {
+			platform_device_put(pdev);
+			goto err_register;
+		}
+
+	}
+
+	return 0;
+
+err_register:
+	platform_device_unregister_children(to_platform_device(dev));
+
+	return ret;
+}
+
 
 #define IRQSTEER_CHANnCTL	0x0
 #define IRQSTEER_CHANnCTL_CH(n)	BIT(n)
@@ -1463,6 +1517,13 @@ static int dpu_probe(struct platform_device *pdev)
 		goto failed_add_clients;
 	}
 
+	ret = dpu_add_feature_devices(dpu);
+	if (ret) {
+		dev_err(dpu->dev, "adding feature devices failed with %d\n",
+					ret);
+		goto failed_add_features;
+	}
+
 	dpu_debug_ip_identity(dpu);
 
 	if (devtype->pixel_link_quirks)
@@ -1472,6 +1533,7 @@ static int dpu_probe(struct platform_device *pdev)
 
 	return 0;
 
+failed_add_features:
 failed_add_clients:
 failed_submodules_init:
 	dpu_irq_exit(dpu);
