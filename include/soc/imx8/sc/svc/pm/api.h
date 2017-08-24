@@ -226,6 +226,11 @@ sc_err_t sc_pm_get_sys_power_mode(sc_ipc_t ipc, sc_rm_pt_t pt,
  * will return an error. Resources set to SC_PM_PW_MODE_ON will reflect the
  * power mode of the partition and will change as that changes.
  *
+ * Note some resources are still not accessible even when powered up if bus
+ * transactions go through a fabric not powered up. Examples of this are
+ * resources in display and capture subsystems which require the display
+ * controller or the imaging subsytem to be powered up first.
+ *
  *  @see sc_pm_set_sys_power_mode().
  */
 sc_err_t sc_pm_set_resource_power_mode(sc_ipc_t ipc, sc_rsrc_t resource,

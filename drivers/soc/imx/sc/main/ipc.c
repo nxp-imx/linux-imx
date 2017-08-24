@@ -48,7 +48,6 @@ EXPORT_SYMBOL(sc_pm_cpu_start);
 EXPORT_SYMBOL(sc_misc_set_control);
 EXPORT_SYMBOL(sc_pm_clock_enable);
 EXPORT_SYMBOL(sc_pm_set_clock_rate);
-EXPORT_SYMBOL(sc_pad_set_gp_28lpp);
 /*--------------------------------------------------------------------------*/
 /* RPC command/response                                                     */
 /*--------------------------------------------------------------------------*/

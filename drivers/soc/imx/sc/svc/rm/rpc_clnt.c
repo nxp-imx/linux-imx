@@ -214,6 +214,25 @@ sc_err_t sc_rm_set_resource_movable(sc_ipc_t ipc, sc_rsrc_t resource_fst,
 	return (sc_err_t)result;
 }
 
+sc_err_t sc_rm_set_subsys_rsrc_movable(sc_ipc_t ipc, sc_rsrc_t resource,
+				       bool movable)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_RM;
+	RPC_FUNC(&msg) = RM_FUNC_SET_SUBSYS_RSRC_MOVABLE;
+	RPC_U16(&msg, 0) = resource;
+	RPC_U8(&msg, 2) = movable;
+	RPC_SIZE(&msg) = 2;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
+
 sc_err_t sc_rm_set_master_attributes(sc_ipc_t ipc, sc_rsrc_t resource,
 				     sc_rm_spa_t sa, sc_rm_spa_t pa,
 				     bool smmu_bypass)
@@ -368,6 +387,31 @@ sc_err_t sc_rm_memreg_alloc(sc_ipc_t ipc, sc_rm_mr_t *mr,
 	return (sc_err_t)result;
 }
 
+sc_err_t sc_rm_memreg_split(sc_ipc_t ipc, sc_rm_mr_t mr,
+			    sc_rm_mr_t *mr_ret, sc_faddr_t addr_start,
+			    sc_faddr_t addr_end)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_RM;
+	RPC_FUNC(&msg) = RM_FUNC_MEMREG_SPLIT;
+	RPC_U32(&msg, 0) = addr_start >> 32;
+	RPC_U32(&msg, 4) = addr_start;
+	RPC_U32(&msg, 8) = addr_end >> 32;
+	RPC_U32(&msg, 12) = addr_end;
+	RPC_U8(&msg, 16) = mr;
+	RPC_SIZE(&msg) = 6;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	result = RPC_R8(&msg);
+	if (mr_ret != NULL)
+		*mr_ret = RPC_U8(&msg, 0);
+	return (sc_err_t)result;
+}
+
 sc_err_t sc_rm_memreg_free(sc_ipc_t ipc, sc_rm_mr_t mr)
 {
 	sc_rpc_msg_t msg;
@@ -382,6 +426,29 @@ sc_err_t sc_rm_memreg_free(sc_ipc_t ipc, sc_rm_mr_t mr)
 	sc_call_rpc(ipc, &msg, false);
 
 	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
+
+sc_err_t sc_rm_find_memreg(sc_ipc_t ipc, sc_rm_mr_t *mr,
+			   sc_faddr_t addr_start, sc_faddr_t addr_end)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_RM;
+	RPC_FUNC(&msg) = RM_FUNC_FIND_MEMREG;
+	RPC_U32(&msg, 0) = addr_start >> 32;
+	RPC_U32(&msg, 4) = addr_start;
+	RPC_U32(&msg, 8) = addr_end >> 32;
+	RPC_U32(&msg, 12) = addr_end;
+	RPC_SIZE(&msg) = 5;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	result = RPC_R8(&msg);
+	if (mr != NULL)
+		*mr = RPC_U8(&msg, 0);
 	return (sc_err_t)result;
 }
 
@@ -517,6 +584,18 @@ bool sc_rm_is_pad_owned(sc_ipc_t ipc, sc_pad_t pad)
 
 	result = RPC_R8(&msg);
 	return (bool)result;
+}
+
+void sc_rm_dump(sc_ipc_t ipc)
+{
+	sc_rpc_msg_t msg;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_RM;
+	RPC_FUNC(&msg) = RM_FUNC_DUMP;
+	RPC_SIZE(&msg) = 1;
+
+	sc_call_rpc(ipc, &msg, false);
 }
 
 /**@}*/

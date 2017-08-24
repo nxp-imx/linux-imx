@@ -331,6 +331,25 @@ sc_err_t sc_rm_set_resource_movable(sc_ipc_t ipc, sc_rsrc_t resource_fst,
 				    sc_rsrc_t resource_lst, bool movable);
 
 /*!
+ * This function flags all of a subsystem's resources as movable
+ * or not.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     resource    resource to use to identify subsystem
+ * @param[in]     movable     movable flag (true) is movable
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_PARM if a function argument is out of range
+ *
+ * Note \a resource is used to find the associated subsystem. Only
+ * resources owned by the caller are set.
+ */
+sc_err_t sc_rm_set_subsys_rsrc_movable(sc_ipc_t ipc, sc_rsrc_t resource,
+				       bool movable);
+
+/*!
  * This function sets attributes for a resource which is a bus master (i.e.
  * capable of DMA).
  *
@@ -490,6 +509,34 @@ sc_err_t sc_rm_memreg_alloc(sc_ipc_t ipc, sc_rm_mr_t *mr,
 			    sc_faddr_t addr_start, sc_faddr_t addr_end);
 
 /*!
+ * This function requests that the SC split a memory region.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     mr          handle of memory region to split
+ * @param[out]    mr_ret      return handle for new region; used for
+ *                            subsequent function calls
+ *                            associated with this region
+ * @param[in]     addr_start  start address of region (physical)
+ * @param[in]     addr_end    end address of region (physical)
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_PARM if the new memory region is not start/end part of mr,
+ * - SC_ERR_LOCKED if caller's partition is locked,
+ * - SC_ERR_PARM if the new memory region spans multiple existing regions,
+ * - SC_ERR_NOACCESS if caller's partition does not own the memory containing
+ *   the new region,
+ * - SC_ERR_UNAVAILABLE if memory region table is full (no more allocation
+ *   space)
+ *
+ * Note the new region must start or end on the split region.
+ */
+sc_err_t sc_rm_memreg_split(sc_ipc_t ipc, sc_rm_mr_t mr,
+			    sc_rm_mr_t *mr_ret, sc_faddr_t addr_start,
+			    sc_faddr_t addr_end);
+
+/*!
  * This function frees a memory region.
  *
  * @param[in]     ipc         IPC handle
@@ -503,6 +550,32 @@ sc_err_t sc_rm_memreg_alloc(sc_ipc_t ipc, sc_rm_mr_t *mr,
  * - SC_ERR_LOCKED if the owning partition of \a mr is locked
  */
 sc_err_t sc_rm_memreg_free(sc_ipc_t ipc, sc_rm_mr_t mr);
+
+/*!
+ * Internal SC function to find a memory region.
+ *
+ * @see sc_rm_find_memreg().
+ */
+/*!
+ * This function finds a memory region.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[out]    mr          return handle for region; used for
+ *                            subsequent function calls
+ *                            associated with this region
+ * @param[in]     addr_start  start address of region to search for
+ * @param[in]     addr_end    end address of region to search for
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_NOTFOUND if region not found,
+ *
+ * Searches only for regions owned by the caller. Finds first
+ * region containing the range specified.
+ */
+sc_err_t sc_rm_find_memreg(sc_ipc_t ipc, sc_rm_mr_t *mr,
+			   sc_faddr_t addr_start, sc_faddr_t addr_end);
 
 /*!
  * This function assigns ownership of a memory region.
@@ -635,6 +708,20 @@ sc_err_t sc_rm_set_pad_movable(sc_ipc_t ipc, sc_pad_t pad_fst,
  * If \a pad is out of range then false is returned.
  */
 bool sc_rm_is_pad_owned(sc_ipc_t ipc, sc_pad_t pad);
+
+/* @} */
+
+/*!
+ * @name Debug Functions
+ * @{
+ */
+
+/*!
+ * This function dumps the RM state for debug.
+ *
+ * @param[in]     ipc         IPC handle
+ */
+void sc_rm_dump(sc_ipc_t ipc);
 
 /* @} */
 

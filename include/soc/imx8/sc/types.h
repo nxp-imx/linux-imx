@@ -68,6 +68,7 @@
 #define SC_1000MHZ     1000000000	/* 1GHz */
 #define SC_1056MHZ     1056000000	/* 1.056GHz */
 #define SC_1188MHZ     1188000000	/* 1.188GHz */
+#define SC_1260MHZ     1260000000	/* 1.26GHz */
 #define SC_1300MHZ     1300000000	/* 1.3GHz */
 #define SC_1400MHZ     1400000000	/* 1.4GHz */
 #define SC_1500MHZ     1500000000	/* 1.5GHz */
@@ -103,6 +104,7 @@
 #define SC_960MHZ       960000000	/* 960MHz */
 #define SC_1056MHZ     1056000000	/* 1056MHz */
 #define SC_1200MHZ     1200000000	/* 1.2GHz */
+#define SC_1464MHZ     1464000000	/* 1.464GHz */
 #define SC_2400MHZ     2400000000	/* 2.4GHz */
 /*@}*/
 
@@ -148,6 +150,7 @@ typedef enum sc_err_e {
 	SC_ERR_NOPOWER = 8,	/* No power */
 	SC_ERR_IPC = 9,		/* Generic IPC error */
 	SC_ERR_BUSY = 10,	/* Resource is currently busy/active */
+	SC_ERR_FAIL = 11,	/* General I/O failure */
 	SC_ERR_LAST
 } sc_err_t;
 

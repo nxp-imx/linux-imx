@@ -237,59 +237,6 @@ sc_err_t sc_pad_get(sc_ipc_t ipc, sc_pad_t pad, uint32_t *val)
 	return (sc_err_t)result;
 }
 
-sc_err_t sc_pad_set_gp_28lpp(sc_ipc_t ipc, sc_pad_t pad,
-			     sc_pad_28lpp_dse_t dse, bool sre, bool hys,
-			     bool pe, sc_pad_28lpp_ps_t ps)
-{
-	sc_rpc_msg_t msg;
-	uint8_t result;
-
-	RPC_VER(&msg) = SC_RPC_VERSION;
-	RPC_SVC(&msg) = SC_RPC_SVC_PAD;
-	RPC_FUNC(&msg) = PAD_FUNC_SET_GP_28LPP;
-	RPC_U16(&msg, 0) = pad;
-	RPC_U8(&msg, 2) = dse;
-	RPC_U8(&msg, 3) = ps;
-	RPC_U8(&msg, 4) = sre;
-	RPC_U8(&msg, 5) = hys;
-	RPC_U8(&msg, 6) = pe;
-	RPC_SIZE(&msg) = 3;
-
-	sc_call_rpc(ipc, &msg, false);
-
-	result = RPC_R8(&msg);
-	return (sc_err_t)result;
-}
-
-sc_err_t sc_pad_get_gp_28lpp(sc_ipc_t ipc, sc_pad_t pad,
-			     sc_pad_28lpp_dse_t *dse, bool *sre, bool *hys,
-			     bool *pe, sc_pad_28lpp_ps_t *ps)
-{
-	sc_rpc_msg_t msg;
-	uint8_t result;
-
-	RPC_VER(&msg) = SC_RPC_VERSION;
-	RPC_SVC(&msg) = SC_RPC_SVC_PAD;
-	RPC_FUNC(&msg) = PAD_FUNC_GET_GP_28LPP;
-	RPC_U16(&msg, 0) = pad;
-	RPC_SIZE(&msg) = 2;
-
-	sc_call_rpc(ipc, &msg, false);
-
-	result = RPC_R8(&msg);
-	if (dse != NULL)
-		*dse = RPC_U8(&msg, 0);
-	if (ps != NULL)
-		*ps = RPC_U8(&msg, 1);
-	if (sre != NULL)
-		*sre = RPC_U8(&msg, 2);
-	if (hys != NULL)
-		*hys = RPC_U8(&msg, 3);
-	if (pe != NULL)
-		*pe = RPC_U8(&msg, 4);
-	return (sc_err_t)result;
-}
-
 sc_err_t sc_pad_set_gp_28fdsoi(sc_ipc_t ipc, sc_pad_t pad,
 			       sc_pad_28fdsoi_dse_t dse, sc_pad_28fdsoi_ps_t ps)
 {
@@ -333,10 +280,65 @@ sc_err_t sc_pad_get_gp_28fdsoi(sc_ipc_t ipc, sc_pad_t pad,
 	return (sc_err_t)result;
 }
 
+sc_err_t sc_pad_set_gp_28fdsoi_hsic(sc_ipc_t ipc, sc_pad_t pad,
+				    sc_pad_28fdsoi_dse_t dse, bool hys,
+				    sc_pad_28fdsoi_pus_t pus, bool pke,
+				    bool pue)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_PAD;
+	RPC_FUNC(&msg) = PAD_FUNC_SET_GP_28FDSOI_HSIC;
+	RPC_U16(&msg, 0) = pad;
+	RPC_U8(&msg, 2) = dse;
+	RPC_U8(&msg, 3) = pus;
+	RPC_U8(&msg, 4) = hys;
+	RPC_U8(&msg, 5) = pke;
+	RPC_U8(&msg, 6) = pue;
+	RPC_SIZE(&msg) = 3;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
+
+sc_err_t sc_pad_get_gp_28fdsoi_hsic(sc_ipc_t ipc, sc_pad_t pad,
+				    sc_pad_28fdsoi_dse_t *dse, bool *hys,
+				    sc_pad_28fdsoi_pus_t *pus, bool *pke,
+				    bool *pue)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_PAD;
+	RPC_FUNC(&msg) = PAD_FUNC_GET_GP_28FDSOI_HSIC;
+	RPC_U16(&msg, 0) = pad;
+	RPC_SIZE(&msg) = 2;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	result = RPC_R8(&msg);
+	if (dse != NULL)
+		*dse = RPC_U8(&msg, 0);
+	if (pus != NULL)
+		*pus = RPC_U8(&msg, 1);
+	if (hys != NULL)
+		*hys = RPC_U8(&msg, 2);
+	if (pke != NULL)
+		*pke = RPC_U8(&msg, 3);
+	if (pue != NULL)
+		*pue = RPC_U8(&msg, 4);
+	return (sc_err_t)result;
+}
+
 sc_err_t sc_pad_set_gp_28fdsoi_comp(sc_ipc_t ipc, sc_pad_t pad,
 				    uint8_t compen, bool fastfrz,
 				    uint8_t rasrcp, uint8_t rasrcn,
-				    bool nasrc_sel)
+				    bool nasrc_sel, bool psw_ovr)
 {
 	sc_rpc_msg_t msg;
 	uint8_t result;
@@ -350,6 +352,7 @@ sc_err_t sc_pad_set_gp_28fdsoi_comp(sc_ipc_t ipc, sc_pad_t pad,
 	RPC_U8(&msg, 4) = rasrcn;
 	RPC_U8(&msg, 5) = fastfrz;
 	RPC_U8(&msg, 6) = nasrc_sel;
+	RPC_U8(&msg, 7) = psw_ovr;
 	RPC_SIZE(&msg) = 3;
 
 	sc_call_rpc(ipc, &msg, false);
@@ -362,7 +365,7 @@ sc_err_t sc_pad_get_gp_28fdsoi_comp(sc_ipc_t ipc, sc_pad_t pad,
 				    uint8_t *compen, bool *fastfrz,
 				    uint8_t *rasrcp, uint8_t *rasrcn,
 				    bool *nasrc_sel, bool *compok,
-				    uint8_t *nasrc)
+				    uint8_t *nasrc, bool *psw_ovr)
 {
 	sc_rpc_msg_t msg;
 	uint8_t result;
@@ -390,6 +393,8 @@ sc_err_t sc_pad_get_gp_28fdsoi_comp(sc_ipc_t ipc, sc_pad_t pad,
 		*nasrc_sel = RPC_U8(&msg, 5);
 	if (compok != NULL)
 		*compok = RPC_U8(&msg, 6);
+	if (psw_ovr != NULL)
+		*psw_ovr = RPC_U8(&msg, 7);
 	return (sc_err_t)result;
 }
 
