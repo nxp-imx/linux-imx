@@ -71,6 +71,7 @@ config ION_DUMMY_UNMAPPED_HEAP
 config ION_DUMMY_UNMAPPED_BASE
 	hex "Physical base address of the ION unmapped heap"
 	depends on ION_DUMMY_UNMAPPED_HEAP
+	default 0
 	help
 	  Allows one the statically define an unmapped heap from the
 	  ION dummy driver to exercice unamped heaps buffer managment.
@@ -78,6 +79,7 @@ config ION_DUMMY_UNMAPPED_BASE
 config ION_DUMMY_UNMAPPED_SIZE
 	hex "Physical byte size of the ION unmapped heap"
 	depends on ION_DUMMY_UNMAPPED_HEAP
+	default 0
 	help
 	  Allows one the statically define an unmapped heap from the
 	  ION dummy driver to exercice unamped heaps buffer managment.

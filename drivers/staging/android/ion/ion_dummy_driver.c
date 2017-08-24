@@ -56,7 +56,7 @@ static struct ion_platform_heap dummy_heaps[] = {
 			.align	= SZ_16K,
 			.priv	= (void *)(SZ_16K),
 		},
-#ifdef CONFIG_ION_DUMMY_UNMAPPED_HEAP
+#if defined(CONFIG_ION_DUMMY_UNMAPPED_HEAP) && CONFIG_ION_DUMMY_UNMAPPED_SIZE
 		{
 			.id	= ION_HEAP_TYPE_UNMAPPED,
 			.type	= ION_HEAP_TYPE_UNMAPPED,
