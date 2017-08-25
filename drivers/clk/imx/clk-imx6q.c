@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2011-2016 Freescale Semiconductor, Inc.
  * Copyright 2011 Linaro Ltd.
+ * Copyright 2017 NXP.
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -662,7 +663,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	clk[IMX6QDL_CLK_IPU1_SEL]         = imx_clk_mux("ipu1_sel",         base + 0x3c, 9,  2, ipu_sels,          ARRAY_SIZE(ipu_sels));
 	clk[IMX6QDL_CLK_IPU2_SEL]         = imx_clk_mux("ipu2_sel",         base + 0x3c, 14, 2, ipu_sels,          ARRAY_SIZE(ipu_sels));
 
-	if (clk_on_imx6q() && imx_get_soc_revision() == IMX_CHIP_REVISION_2_0) {
+	if (clk_on_imx6q() && imx_get_soc_revision() >= IMX_CHIP_REVISION_2_0) {
 		clk[IMX6QDL_CLK_LDB_DI0_SEL]      = imx_clk_mux_flags("ldb_di0_sel", base + 0x2c, 9,  3, ldb_di_sels,      ARRAY_SIZE(ldb_di_sels), CLK_SET_RATE_PARENT);
 		clk[IMX6QDL_CLK_LDB_DI1_SEL]      = imx_clk_mux_flags("ldb_di1_sel", base + 0x2c, 12, 3, ldb_di_sels,      ARRAY_SIZE(ldb_di_sels), CLK_SET_RATE_PARENT);
 	} else {
@@ -990,7 +991,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 		clk_set_parent(clk[IMX6QDL_CLK_GPU3D_CORE_SEL], clk[IMX6QDL_CLK_PLL2_PFD1_594M]);
 		imx_clk_set_rate(clk[IMX6QDL_CLK_GPU3D_CORE], 528000000);
 	} else if (clk_on_imx6q()) {
-		if (imx_get_soc_revision() == IMX_CHIP_REVISION_2_0) {
+		if (imx_get_soc_revision() >= IMX_CHIP_REVISION_2_0) {
 			clk_set_parent(clk[IMX6QDL_CLK_GPU3D_SHADER_SEL], clk[IMX6QDL_CLK_PLL3_PFD0_720M]);
 			imx_clk_set_rate(clk[IMX6QDL_CLK_GPU3D_SHADER], 720000000);
 			clk_set_parent(clk[IMX6QDL_CLK_GPU3D_CORE_SEL], clk[IMX6QDL_CLK_PLL2_PFD1_594M]);
@@ -1087,7 +1088,7 @@ static void __init imx6q_clocks_init(struct device_node *ccm_node)
 	 * for i.MX6QP with speeding grading set to 1.2GHz,
 	 * VPU should run at 396MHz.
 	 */
-	if (clk_on_imx6q() && imx_get_soc_revision() == IMX_CHIP_REVISION_2_0) {
+	if (clk_on_imx6q() && imx_get_soc_revision() >= IMX_CHIP_REVISION_2_0) {
 		np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-ocotp");
 		WARN_ON(!np);
 
