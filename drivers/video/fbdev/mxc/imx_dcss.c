@@ -1516,9 +1516,8 @@ static int dcss_dpr_config(uint32_t dpr_ch, struct dcss_info *info)
 		return -EINVAL;
 	}
 
-	/* TODO: calculate pitch for different formats */
 	/* config pitch */
-	pitch = (var->xres * (var->bits_per_pixel >> 3)) << 16;
+	pitch = (num_pix_x * (var->bits_per_pixel >> 3)) << 16;
 	fill_sb(cb, chan_info->dpr_addr + 0x70, pitch);
 
 	fill_sb(cb, chan_info->dpr_addr + 0x200, 0x38);
