@@ -1527,6 +1527,7 @@ static int dcss_scaler_config(uint32_t scaler_ch, struct dcss_info *info)
 	struct dcss_pixmap *input;
 	struct cbuffer *cb;
 	int scale_v_luma_inc, scale_h_luma_inc;
+	uint32_t aligned_width, aligned_height;
 	const struct fb_videomode *dmode = info->dft_disp_mode;
 
 	if (scaler_ch > 2) {
@@ -1799,23 +1800,26 @@ static int dcss_scaler_config(uint32_t scaler_ch, struct dcss_info *info)
 	fill_sb(cb, chan_info->scaler_addr + 0x14, 0x2);
 
 	/* Scaler Input Luma Resolution
-	 * TODO: Alighment: WIDTH and HEIGHT divisable by 4.
+	 * Alighment: WIDTH and HEIGHT divisable by 4.
 	 */
+	aligned_width  = ALIGN(input->width, 4);
+	aligned_height = ALIGN(input->height, 4);
 	fill_sb(cb, chan_info->scaler_addr + 0x18,
-		(input->height - 1) << 16 | (input->width - 1));
+		(aligned_height - 1) << 16 | (aligned_width - 1));
 
 	/* Scaler Input Chroma Resolution */
 	switch (fmt_is_yuv(input->format)) {
 	case 0:         /* ARGB8888 */
 		fill_sb(cb, chan_info->scaler_addr + 0x1c,
-			(input->height - 1) << 16 | (input->width - 1));
+			(aligned_height - 1) << 16 |
+			(aligned_width - 1));
 		break;
 	case 1:         /* TODO: YUV422 or YUV444 */
 		break;
 	case 2:         /* YUV420 */
 		fill_sb(cb, chan_info->scaler_addr + 0x1c,
-			((input->height >> 1) - 1) << 16 |
-			((input->width >> 1) - 1));
+			((aligned_height >> 1) - 1) << 16 |
+			((aligned_width >> 1) - 1));
 		break;
 	default:
 		return -EINVAL;
@@ -1844,9 +1848,9 @@ static int dcss_scaler_config(uint32_t scaler_ch, struct dcss_info *info)
 
 	/* scale ratio: ###.#_####_####_#### */
 	/* vertical ratio */
-	scale_v_luma_inc = ((input->height << 13) + (dmode->yres >> 1)) / dmode->yres;
+	scale_v_luma_inc = ((aligned_height << 13) + (dmode->yres >> 1)) / dmode->yres;
 	/* horizontal ratio */
-	scale_h_luma_inc = ((input->width << 13) + (dmode->xres >> 1)) / dmode->xres;
+	scale_h_luma_inc = ((aligned_width << 13) + (dmode->xres >> 1)) / dmode->xres;
 
 	fill_sb(cb, chan_info->scaler_addr + 0x48, 0x0);
 	fill_sb(cb, chan_info->scaler_addr + 0x4c, scale_v_luma_inc);
