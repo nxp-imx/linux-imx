@@ -3,6 +3,7 @@
 
 #include <linux/of_graph.h>
 
+struct component_match;
 struct component_master_ops;
 struct device;
 struct drm_device;
@@ -12,6 +13,10 @@ struct device_node;
 #ifdef CONFIG_OF
 extern uint32_t drm_of_find_possible_crtcs(struct drm_device *dev,
 					   struct device_node *port);
+extern int drm_of_component_probe_with_match(struct device *dev,
+			   struct component_match *match,
+			   int (*compare_of)(struct device *, void *),
+			   const struct component_master_ops *m_ops);
 extern int drm_of_component_probe(struct device *dev,
 				  int (*compare_of)(struct device *, void *),
 				  const struct component_master_ops *m_ops);
@@ -23,6 +28,14 @@ static inline uint32_t drm_of_find_possible_crtcs(struct drm_device *dev,
 						  struct device_node *port)
 {
 	return 0;
+}
+
+static int drm_of_component_probe_with_match(struct device *dev,
+			   struct component_match *match,
+			   int (*compare_of)(struct device *, void *),
+			   const struct component_master_ops *m_ops)
+{
+	return -EINVAL;
 }
 
 static inline int

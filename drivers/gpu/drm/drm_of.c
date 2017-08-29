@@ -64,8 +64,10 @@ uint32_t drm_of_find_possible_crtcs(struct drm_device *dev,
 EXPORT_SYMBOL(drm_of_find_possible_crtcs);
 
 /**
- * drm_of_component_probe - Generic probe function for a component based master
+ * drm_of_component_probe_with_match - Generic probe function with match
+ *                                     entries for a component based master
  * @dev: master device containing the OF node
+ * @match: component match pointer provided to store matches
  * @compare_of: compare function used for matching components
  * @master_ops: component master ops to be used
  *
@@ -76,12 +78,12 @@ EXPORT_SYMBOL(drm_of_find_possible_crtcs);
  *
  * Returns zero if successful, or one of the standard error codes if it fails.
  */
-int drm_of_component_probe(struct device *dev,
+int drm_of_component_probe_with_match(struct device *dev,
+			   struct component_match *match,
 			   int (*compare_of)(struct device *, void *),
 			   const struct component_master_ops *m_ops)
 {
 	struct device_node *ep, *port, *remote;
-	struct component_match *match = NULL;
 	int i;
 
 	if (!dev->of_node)
@@ -147,6 +149,29 @@ int drm_of_component_probe(struct device *dev,
 	}
 
 	return component_master_add_with_match(dev, m_ops, match);
+}
+EXPORT_SYMBOL(drm_of_component_probe_with_match);
+
+/**
+ * drm_of_component_probe - Generic probe function for a component based master
+ * @dev: master device containing the OF node
+ * @compare_of: compare function used for matching components
+ * @master_ops: component master ops to be used
+ *
+ * Parse the platform device OF node and bind all the components associated
+ * with the master. Interface ports are added before the encoders in order to
+ * satisfy their .bind requirements
+ * See Documentation/devicetree/bindings/graph.txt for the bindings.
+ *
+ * Returns zero if successful, or one of the standard error codes if it fails.
+ */
+int drm_of_component_probe(struct device *dev,
+			   int (*compare_of)(struct device *, void *),
+			   const struct component_master_ops *m_ops)
+{
+	struct component_match *match = NULL;
+
+	return drm_of_component_probe_with_match(dev, match, compare_of, m_ops);
 }
 EXPORT_SYMBOL(drm_of_component_probe);
 
