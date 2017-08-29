@@ -347,101 +347,6 @@ static int compare_of(struct device *dev, void *data)
 	return dev->of_node == np;
 }
 
-static int compare_str(struct device *dev, void *data)
-{
-	return !strncmp(dev_name(dev), (char *) data, strlen(dev_name(dev)));
-}
-
-static int
-add_display_components(struct device *dev, struct component_match **matchptr)
-{
-	struct device_node *ep, *port, *remote;
-	int i;
-
-	if (!dev->of_node)
-		return -EINVAL;
-
-	/*
-	 * Bind the crtc's ports first, so that drm_of_find_possible_crtcs()
-	 * called from encoder's .bind callbacks works as expected
-	 */
-	for (i = 0; ; i++) {
-		port = of_parse_phandle(dev->of_node, "ports", i);
-		if (!port)
-			break;
-
-		if (!of_device_is_available(port->parent)) {
-			of_node_put(port);
-			continue;
-		}
-
-		component_match_add(dev, matchptr, compare_of, port);
-		of_node_put(port);
-	}
-
-	if (i == 0) {
-		dev_err(dev, "missing 'ports' property\n");
-		return -ENODEV;
-	}
-
-	if (!(*matchptr)) {
-		dev_err(dev, "no available port\n");
-		return -ENODEV;
-	}
-
-	/*
-	 * For bound crtcs, bind the encoders attached to their remote endpoint
-	 */
-	for (i = 0; ; i++) {
-		port = of_parse_phandle(dev->of_node, "ports", i);
-		if (!port)
-			break;
-
-		if (!of_device_is_available(port->parent)) {
-			of_node_put(port);
-			continue;
-		}
-
-		for_each_child_of_node(port, ep) {
-			remote = of_graph_get_remote_port_parent(ep);
-			if (!remote || !of_device_is_available(remote)) {
-				of_node_put(remote);
-				continue;
-			} else if (!of_device_is_available(remote->parent)) {
-				dev_warn(dev, "parent device of %s is not available\n",
-						remote->full_name);
-				of_node_put(remote);
-				continue;
-			}
-
-			component_match_add(dev, matchptr, compare_of, remote);
-			of_node_put(remote);
-		}
-		of_node_put(port);
-	}
-
-	return 0;
-}
-
-
-static void add_dpu_bliteng_components(struct device *dev,
-		struct component_match **matchptr)
-{
-	int i;
-	char blit[128];
-	void *tmp_blit;
-
-	/* we assume that the platform device id starts from 0 */
-	for (i = 0; i < MAX_DPU; i++) {
-		memset(blit, 0, sizeof(blit));
-		snprintf(blit, sizeof(blit), "%s.%d", "imx-drm-dpu-bliteng", i);
-
-		tmp_blit = kmemdup(blit, sizeof(blit), GFP_KERNEL);
-		component_match_add(dev, matchptr, compare_str, tmp_blit);
-	}
-}
-
-
 static int imx_drm_bind(struct device *dev)
 {
 	struct drm_device *drm;
@@ -569,18 +474,7 @@ static const struct component_master_ops imx_drm_ops = {
 
 static int imx_drm_platform_probe(struct platform_device *pdev)
 {
-
-	struct component_match *match = NULL;
-	int ret;
-
-	ret = add_display_components(&pdev->dev, &match);
-	if (ret)
-		return ret;
-
-	add_dpu_bliteng_components(&pdev->dev, &match);
-
-	ret = component_master_add_with_match(&pdev->dev, &imx_drm_ops, match);
-
+	int ret = drm_of_component_probe(&pdev->dev, compare_of, &imx_drm_ops);
 
 	if (!ret)
 		ret = dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(32));
