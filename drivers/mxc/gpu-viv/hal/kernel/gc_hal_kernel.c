@@ -3247,6 +3247,7 @@ gckKERNEL_AttachProcessEx(
 #endif
             {
                 /* Last client detached, switch to SUSPEND power state. */
+                Kernel->hardware->forcePowerOff = gcvTRUE;
                 gcmkONERROR(gckOS_Broadcast(Kernel->os,
                                             Kernel->hardware,
                                             gcvBROADCAST_LAST_PROCESS));

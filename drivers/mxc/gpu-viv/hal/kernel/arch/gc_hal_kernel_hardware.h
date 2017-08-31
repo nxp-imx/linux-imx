@@ -261,6 +261,8 @@ struct _gckHARDWARE
     gceSECURE_MODE              secureMode;
 
     gctUINT64                   contextID;
+
+    gctBOOL                     forcePowerOff;
 };
 
 typedef struct _gcsFEDescriptor

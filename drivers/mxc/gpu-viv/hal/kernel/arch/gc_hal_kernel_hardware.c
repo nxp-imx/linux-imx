@@ -1568,6 +1568,7 @@ gckHARDWARE_Construct(
     hardware->object.type = gcvOBJ_HARDWARE;
     hardware->os          = Os;
     hardware->core        = Core;
+    hardware->forcePowerOff = gcvTRUE;
 
     gcmkONERROR(_GetHardwareSignature(hardware, Os, Core, &hardware->signature));
 
@@ -7777,11 +7778,13 @@ gckHARDWARE_SetPowerManagementState(
             for(try = 0; try < 10; try++)
             {
                 gcmkONERROR(gckHARDWARE_QueryIdle(Hardware, &idle));
-                if(idle)
+                if(idle || !Hardware->forcePowerOff)
                     break;
                 else
                     gckOS_Delay(os,1);
             }
+
+            Hardware->forcePowerOff = gcvFALSE;
 
             if (!idle)
             {

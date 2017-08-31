@@ -1086,12 +1086,15 @@ static int gpu_resume(struct platform_device *dev)
             {
             case gcvPOWER_OFF:
                 statesStored = gcvPOWER_OFF_BROADCAST;
+                device->kernels[i]->hardware->forcePowerOff = gcvTRUE;
                 break;
             case gcvPOWER_IDLE:
                 statesStored = gcvPOWER_IDLE_BROADCAST;
+                device->kernels[i]->hardware->forcePowerOff = gcvTRUE;
                 break;
             case gcvPOWER_SUSPEND:
                 statesStored = gcvPOWER_SUSPEND_BROADCAST;
+                device->kernels[i]->hardware->forcePowerOff = gcvTRUE;
                 break;
             case gcvPOWER_ON:
                 statesStored = gcvPOWER_ON_AUTO;
