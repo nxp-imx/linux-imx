@@ -3246,6 +3246,21 @@ gckKERNEL_AttachProcessEx(
             if (Kernel->vg == gcvNULL)
 #endif
             {
+                gctBOOL empty = gcvFALSE;
+
+                while (gcvTRUE)
+                {
+                    /* Check whether the event queue is empty. */
+                    gcmkONERROR(gckEVENT_IsEmpty(Kernel->eventObj, &empty));
+
+                    if (empty == gcvTRUE)
+                    {
+                        break;
+                    }
+
+                    gcmkVERIFY_OK(gckOS_Delay(Kernel->os, 1));
+                };
+
                 /* Last client detached, switch to SUSPEND power state. */
                 Kernel->hardware->forcePowerOff = gcvTRUE;
                 gcmkONERROR(gckOS_Broadcast(Kernel->os,

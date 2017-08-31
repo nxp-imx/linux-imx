@@ -171,7 +171,7 @@ OnError:
     return gcvSTATUS_OK;
 }
 
-static gceSTATUS
+gceSTATUS
 gckEVENT_IsEmpty(
     IN gckEVENT Event,
     OUT gctBOOL_PTR IsEmpty

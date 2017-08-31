@@ -2561,6 +2561,12 @@ gceSTATUS
 gckEVENT_Dump(
     IN gckEVENT Event
     );
+
+gceSTATUS
+gckEVENT_IsEmpty(
+    IN gckEVENT Event,
+    OUT gctBOOL_PTR IsEmpty
+    );
 /******************************************************************************\
 ******************************* gckCOMMAND Object ******************************
 \******************************************************************************/
