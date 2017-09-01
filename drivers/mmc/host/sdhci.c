@@ -2053,6 +2053,7 @@ static void sdhci_send_tuning(struct sdhci_host *host, u32 opcode)
 	struct mmc_command cmd = {};
 	struct mmc_request mrq = {};
 	unsigned long flags;
+	u8 ctrl;
 
 	spin_lock_irqsave(&host->lock, flags);
 
@@ -2079,6 +2080,17 @@ static void sdhci_send_tuning(struct sdhci_host *host, u32 opcode)
 	 * Select in the same register to 0.
 	 */
 	sdhci_writew(host, SDHCI_TRNS_READ, SDHCI_TRANSFER_MODE);
+
+	/*
+	 * DMA already disabled, so clear the DMA Select here.
+	 * Otherwise, if use ADMA2, even disable DMA, some
+	 * controllers like i.MX usdhc will still prefetch the
+	 * ADMA script when send tuning command, which will cause
+	 * IOMMU report lack of TLB mapping error
+	 */
+	ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL);
+	ctrl &= ~SDHCI_CTRL_DMA_MASK;
+	sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
 
 	sdhci_send_command(host, &cmd);
 
@@ -3235,6 +3247,7 @@ EXPORT_SYMBOL_GPL(__sdhci_read_caps);
 int sdhci_setup_host(struct sdhci_host *host)
 {
 	struct mmc_host *mmc;
+	struct device *dev;
 	u32 max_current_caps;
 	unsigned int ocr_avail;
 	unsigned int override_timeout_clk;
@@ -3246,6 +3259,7 @@ int sdhci_setup_host(struct sdhci_host *host)
 		return -EINVAL;
 
 	mmc = host->mmc;
+	dev = mmc_dev(mmc);
 
 	/*
 	 * If there are external regulators, get them. Note this must be done
@@ -3681,10 +3695,20 @@ int sdhci_setup_host(struct sdhci_host *host)
 	 * be larger than 64 KiB though.
 	 */
 	if (host->flags & SDHCI_USE_ADMA) {
-		if (host->quirks & SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC)
+		if (host->quirks & SDHCI_QUIRK_BROKEN_ADMA_ZEROLEN_DESC) {
 			mmc->max_seg_size = 65535;
-		else
+
+			/*
+			 * send the ADMA limitation to IOMMU. In default,
+			 * the max segment size of IOMMU is 64KB, this exceed
+			 * the ADMA max segment limitation, which is 65535.
+			 */
+			dev->dma_parms = devm_kzalloc(dev,
+					sizeof(*dev->dma_parms), GFP_KERNEL);
+			dma_set_max_seg_size(dev, SZ_64K - 1);
+		} else {
 			mmc->max_seg_size = 65536;
+		}
 	} else {
 		mmc->max_seg_size = mmc->max_req_size;
 	}
