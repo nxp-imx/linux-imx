@@ -370,6 +370,7 @@ struct dcss_info {
 	char disp_dev[NAME_LEN];
 	struct mxc_dispdrv_handle *dispdrv;
 	struct vsync_info vinfo;
+	ktime_t vsync_nf_timestamp;
 
 	atomic_t flush;
 };
@@ -3020,6 +3021,28 @@ static int dcss_wait_for_vsync(unsigned long crtc,
 	return 0;
 }
 
+static ssize_t dcss_get_vsync(struct device *dev,
+                 struct device_attribute *attr, char *buf)
+{
+	long long timestamp = 0;
+	unsigned long crtc;
+	struct fb_info *fb_info = dev_get_drvdata(dev);
+	struct dcss_channel_info *cinfo = fb_info->par;
+	struct dcss_info *info = cinfo->dev_data;
+	int ret = -EINVAL;
+
+	ret = dcss_wait_for_vsync(crtc, info);
+	timestamp = ktime_to_ns(info->vsync_nf_timestamp);
+	if (ret < 0) {
+		dev_err(dev, "dcss_get_vsync: timeout %d\n", ret);
+		return -EFAULT;
+	}
+
+	return snprintf(buf, PAGE_SIZE, "VSYNC=%llu", timestamp);
+}
+
+static DEVICE_ATTR(vsync, S_IRUGO, dcss_get_vsync, NULL);
+
 static int dcss_ioctl(struct fb_info *fbi, unsigned int cmd,
 		      unsigned long arg)
 {
@@ -3127,6 +3150,7 @@ static irqreturn_t dcss_irq_handler(int irq, void *dev_id)
 
 		spin_unlock_irqrestore(&info->vinfo.vwait.lock, irqflags);
 
+		info->vsync_nf_timestamp = ktime_get();
 		wake_up_all(&info->vinfo.vwait);
 		break;
 	case IRQ_DEC400D_CH1:
@@ -3555,6 +3579,10 @@ static int dcss_probe(struct platform_device *pdev)
 	m_fbinfo = get_one_fbinfo(0, &info->chans);
 	dcss_blank(FB_BLANK_UNBLANK, m_fbinfo);
 
+	ret = device_create_file(m_fbinfo->dev, &dev_attr_vsync);
+	if (ret)
+		dev_err(&pdev->dev, "Failed to create vsync file\n");
+
 	/* init fb1 */
 	dcss_set_par(get_one_fbinfo(1, &info->chans));
 
@@ -3590,6 +3618,9 @@ out:
 
 static int dcss_remove(struct platform_device *pdev)
 {
+	struct dcss_info *info = platform_get_drvdata(pdev);
+	struct fb_info *fbinfo = get_one_fbinfo(0, &info->chans);
+	device_remove_file(fbinfo->dev, &dev_attr_vsync);
 	return 0;
 }
 
