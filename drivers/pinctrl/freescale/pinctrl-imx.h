@@ -96,7 +96,10 @@ struct imx_pinctrl_soc_info {
 	unsigned int nfunctions;
 	unsigned int flags;
 	const char *gpr_compatible;
+
+	/* MUX_MODE shift and mask in case SHARE_MUX_CONF_REG */
 	unsigned int mux_mask;
+	u8 mux_shift;
 };
 
 /**

@@ -39,7 +39,6 @@ int imx_pmx_set_one_pin_mem(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 	unsigned int pin_id = pin->pin;
 	struct imx_pin_reg *pin_reg;
 	struct imx_pin_memmap *pin_memmap;
-	u32 mux_shift = info->mux_mask ? ffs(info->mux_mask) - 1 : 0;
 	pin_reg = &info->pin_regs[pin_id];
 	pin_memmap = &pin->pin_conf.pin_memmap;
 
@@ -53,7 +52,7 @@ int imx_pmx_set_one_pin_mem(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 		u32 reg;
 		reg = readl(ipctl->base + pin_reg->mux_reg);
 		reg &= ~info->mux_mask;
-		reg |= (pin_memmap->mux_mode << mux_shift);
+		reg |= (pin_memmap->mux_mode << info->mux_shift);
 		writel(reg, ipctl->base + pin_reg->mux_reg);
 		dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%x\n",
 			pin_reg->mux_reg, reg);
@@ -118,7 +117,7 @@ int imx_pmx_backend_gpio_request_enable_mem(struct pinctrl_dev *pctldev,
 	struct imx_pin_group *grp;
 	struct imx_pin *imx_pin;
 	unsigned int pin, group;
-	u32 reg, mux_shift;
+	u32 reg;
 
 	/* Currently implementation only for shared mux/conf register */
 	if (!(info->flags & SHARE_MUX_CONF_REG))
@@ -143,8 +142,7 @@ int imx_pmx_backend_gpio_request_enable_mem(struct pinctrl_dev *pctldev,
 mux_pin:
 	reg = readl(ipctl->base + pin_reg->mux_reg);
 	reg &= ~info->mux_mask;
-	mux_shift = info->mux_mask ? ffs(info->mux_mask) - 1 : 0;
-	reg |= (imx_pin->pin_conf.pin_memmap.mux_mode << mux_shift);
+	reg |= (imx_pin->pin_conf.pin_memmap.mux_mode << info->mux_shift);
 	imx_pin->pin_conf.pin_memmap.config &= ~info->mux_mask;
 	reg |= imx_pin->pin_conf.pin_memmap.config;
 	writel(reg, ipctl->base + pin_reg->mux_reg);

@@ -588,9 +588,6 @@ int imx_pinctrl_probe(struct platform_device *pdev,
 		if (IS_ERR(ipctl->base))
 			return PTR_ERR(ipctl->base);
 
-		/* only for share mux and conf reg */
-		of_property_read_u32(dev_np, "fsl,mux_mask", &info->mux_mask);
-
 		if (of_property_read_bool(dev_np, "fsl,input-sel")) {
 			np = of_parse_phandle(dev_np, "fsl,input-sel", 0);
 			if (!np) {
