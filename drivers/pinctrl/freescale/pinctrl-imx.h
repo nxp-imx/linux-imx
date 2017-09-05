@@ -140,10 +140,6 @@ int imx_pinctrl_resume(struct device *dev);
 
 #ifdef CONFIG_PINCTRL_IMX_MEMMAP
 int imx_pmx_set_one_pin_mem(struct imx_pinctrl *ipctl, struct imx_pin *pin);
-int imx_pmx_backend_gpio_request_enable_mem(struct pinctrl_dev *pctldev,
-			struct pinctrl_gpio_range *range, unsigned offset);
-void imx_pmx_backend_gpio_disable_free_mem(struct pinctrl_dev *pctldev,
-		struct pinctrl_gpio_range *range, unsigned offset);
 int imx_pmx_backend_gpio_set_direction_mem(struct pinctrl_dev *pctldev,
 	   struct pinctrl_gpio_range *range, unsigned offset, bool input);
 int imx_pinconf_backend_get_mem(struct pinctrl_dev *pctldev, unsigned pin_id,
@@ -156,16 +152,6 @@ int imx_pinctrl_parse_pin_mem(struct imx_pinctrl_soc_info *info,
 static inline int imx_pmx_set_one_pin_mem(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 {
 	return 0;
-}
-static inline int imx_pmx_backend_gpio_request_enable_mem(struct pinctrl_dev *pctldev,
-			struct pinctrl_gpio_range *range, unsigned offset)
-{
-	return 0;
-}
-static inline void imx_pmx_backend_gpio_disable_free_mem(struct pinctrl_dev *pctldev,
-		struct pinctrl_gpio_range *range, unsigned offset)
-{
-	return;
 }
 static inline int imx_pmx_backend_gpio_set_direction_mem(struct pinctrl_dev *pctldev,
 	   struct pinctrl_gpio_range *range, unsigned offset, bool input)
@@ -191,10 +177,6 @@ static inline int imx_pinctrl_parse_pin_mem(struct imx_pinctrl_soc_info *info,
 
 #ifdef CONFIG_PINCTRL_IMX_SCU
 int imx_pmx_set_one_pin_scu(struct imx_pinctrl *ipctl, struct imx_pin *pin);
-int imx_pmx_backend_gpio_request_enable_scu(struct pinctrl_dev *pctldev,
-			struct pinctrl_gpio_range *range, unsigned offset);
-void imx_pmx_backend_gpio_disable_free_scu(struct pinctrl_dev *pctldev,
-		struct pinctrl_gpio_range *range, unsigned offset);
 int imx_pmx_backend_gpio_set_direction_scu(struct pinctrl_dev *pctldev,
 	   struct pinctrl_gpio_range *range, unsigned offset, bool input);
 int imx_pinconf_backend_get_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
@@ -207,16 +189,6 @@ int imx_pinctrl_parse_pin_scu(struct imx_pinctrl_soc_info *info,
 static inline int imx_pmx_set_one_pin_scu(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 {
 	return 0;
-}
-static inline int imx_pmx_backend_gpio_request_enable_scu(struct pinctrl_dev *pctldev,
-			struct pinctrl_gpio_range *range, unsigned offset)
-{
-	return 0;
-}
-static inline void imx_pmx_backend_gpio_disable_free_scu(struct pinctrl_dev *pctldev,
-		struct pinctrl_gpio_range *range, unsigned offset)
-{
-	return;
 }
 static inline int imx_pmx_backend_gpio_set_direction_scu(struct pinctrl_dev *pctldev,
 	   struct pinctrl_gpio_range *range, unsigned offset, bool input)

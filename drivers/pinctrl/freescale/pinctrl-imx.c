@@ -244,30 +244,6 @@ static int imx_pmx_get_groups(struct pinctrl_dev *pctldev, unsigned selector,
 	return 0;
 }
 
-static int imx_pmx_gpio_request_enable(struct pinctrl_dev *pctldev,
-			struct pinctrl_gpio_range *range, unsigned offset)
-{
-	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
-	const struct imx_pinctrl_soc_info *info = ipctl->info;
-
-	if (info->flags & IMX8_USE_SCU)
-		return imx_pmx_backend_gpio_request_enable_scu(pctldev, range, offset);
-	else
-		return imx_pmx_backend_gpio_request_enable_mem(pctldev, range, offset);
-}
-
-static void imx_pmx_gpio_disable_free(struct pinctrl_dev *pctldev,
-			struct pinctrl_gpio_range *range, unsigned offset)
-{
-	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
-	const struct imx_pinctrl_soc_info *info = ipctl->info;
-
-	if (info->flags & IMX8_USE_SCU)
-		imx_pmx_backend_gpio_disable_free_scu(pctldev, range, offset);
-	else
-		imx_pmx_backend_gpio_disable_free_mem(pctldev, range, offset);
-}
-
 static int imx_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 	   struct pinctrl_gpio_range *range, unsigned offset, bool input)
 {
@@ -287,8 +263,6 @@ static const struct pinmux_ops imx_pmx_ops = {
 	.get_function_name = imx_pmx_get_func_name,
 	.get_function_groups = imx_pmx_get_groups,
 	.set_mux = imx_pmx_set,
-	.gpio_request_enable = imx_pmx_gpio_request_enable,
-	.gpio_disable_free = imx_pmx_gpio_disable_free,
 	.gpio_set_direction = imx_pmx_gpio_set_direction,
 };
 
