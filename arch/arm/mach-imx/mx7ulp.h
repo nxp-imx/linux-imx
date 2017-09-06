@@ -47,7 +47,7 @@
 #define MX7ULP_MMDC_IO_SIZE		0x1000
 
 /* below is just used for static mapping of the AIPSx's memory region */
-#define MX7ULP_AIPS_VIRT_BASE(x)	(0xf4000000 + ((x) * SZ_1M))
+#define MX7ULP_AIPS_VIRT_BASE(x)	(0xf8000000 + ((x) * SZ_1M))
 
 #define mx7ulp_aips_map_entry(index, _type) {				\
 	.virtual = MX7ULP_AIPS_VIRT_BASE(index),			\
