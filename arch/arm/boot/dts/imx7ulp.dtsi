@@ -211,7 +211,9 @@
 			compatible = "fsl,imx7ulp-tpm";
 			reg = <0x40260000 0x1000>;
 			interrupts = <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clks IMX7ULP_CLK_LPTPM5>;
+			clocks = <&clks IMX7ULP_CLK_LPTPM5>,
+				 <&clks IMX7ULP_CLK_NIC1_BUS_DIV>;
+			clock-names = "per", "ipg";
 		};
 
 		lpit: 1@40270000 {
