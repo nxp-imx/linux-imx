@@ -8,27 +8,28 @@
  * of the License, or (at your option) any later version.
  */
 
-#include <linux/interrupt.h>
 #include <linux/clk.h>
 #include <linux/clockchips.h>
 #include <linux/clocksource.h>
 #include <linux/delay.h>
+#include <linux/interrupt.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/sched_clock.h>
 
-#define TPM_GLOBAL	0x8
-
-#define TPM_SC		0x10
-#define TPM_CNT		0x14
-#define TPM_MOD		0x18
-#define TPM_STATUS	0x1c
-#define TPM_C0SC	0x20
-#define TPM_C0V		0x24
-
-#define TPM_STATUS_CH0F	0x1
-
-#define TPM_C0SC_MSA	0x4
+#define TPM_SC				0x10
+#define TPM_SC_CMOD_INC_PER_CNT		(0x1 << 3)
+#define TPM_SC_CMOD_DIV_DEFAULT		0x3
+#define TPM_CNT				0x14
+#define TPM_MOD				0x18
+#define TPM_STATUS			0x1c
+#define TPM_STATUS_CH0F			BIT(0)
+#define TPM_C0SC			0x20
+#define TPM_C0SC_CHIE			BIT(6)
+#define TPM_C0SC_MODE_SHIFT		2
+#define TPM_C0SC_MODE_MASK		0x3c
+#define TPM_C0SC_MODE_SW_COMPARE	0x4
+#define TPM_C0V				0x24
 
 static void __iomem *timer_base;
 static struct clock_event_device clockevent_tpm;
@@ -37,35 +38,43 @@ static inline void tpm_timer_disable(void)
 {
 	unsigned int val;
 
-	val = __raw_readl(timer_base + TPM_C0SC);
-	val &= ~(0x5 << TPM_C0SC_MSA);
-	__raw_writel(val, timer_base + TPM_C0SC);
+	/* channel disable */
+	val = readl(timer_base + TPM_C0SC);
+	val &= ~(TPM_C0SC_MODE_MASK | TPM_C0SC_CHIE);
+	writel(val, timer_base + TPM_C0SC);
 }
 
 static inline void tpm_timer_enable(void)
 {
 	unsigned int val;
 
-	val = __raw_readl(timer_base + TPM_C0SC);
-	val |= (0x5 << TPM_C0SC_MSA);
-	__raw_writel(val, timer_base + TPM_C0SC);
+	/* channel enabled in sw compare mode */
+	val = readl(timer_base + TPM_C0SC);
+	val |= (TPM_C0SC_MODE_SW_COMPARE << TPM_C0SC_MODE_SHIFT) |
+	       TPM_C0SC_CHIE;
+	writel(val, timer_base + TPM_C0SC);
 }
 
 static inline void tpm_irq_acknowledge(void)
 {
-	__raw_writel(1, timer_base + TPM_STATUS);
+	writel(TPM_STATUS_CH0F, timer_base + TPM_STATUS);
 }
 
 static struct delay_timer tpm_delay_timer;
 
+static inline unsigned long tpm_read_counter(void)
+{
+	return readl(timer_base + TPM_CNT);
+}
+
 static unsigned long tpm_read_current_timer(void)
 {
-	return __raw_readl(timer_base + TPM_CNT);
+	return tpm_read_counter();
 }
 
 static u64 notrace tpm_read_sched_clock(void)
 {
-	return __raw_readl(timer_base + TPM_CNT);
+	return tpm_read_counter();
 }
 
 static int __init tpm_clocksource_init(unsigned long rate)
@@ -75,27 +84,32 @@ static int __init tpm_clocksource_init(unsigned long rate)
 	register_current_timer_delay(&tpm_delay_timer);
 
 	sched_clock_register(tpm_read_sched_clock, 32, rate);
+
 	return clocksource_mmio_init(timer_base + TPM_CNT, "imx-tpm",
-		 rate, 200, 32, clocksource_mmio_readl_up);
+				     rate, 200, 32, clocksource_mmio_readl_up);
 }
 
 static int tpm_set_next_event(unsigned long delta,
 				struct clock_event_device *evt)
 {
-	unsigned long next, now, ret;
+	unsigned long next, now;
 
-	now = __raw_readl(timer_base + TPM_CNT);
-	next = now + delta;
-	__raw_writel(next, timer_base + TPM_C0V);
-	now = __raw_readl(timer_base + TPM_CNT);
+	next = tpm_read_counter();
+	next += delta;
+	writel(next, timer_base + TPM_C0V);
+	now = tpm_read_counter();
 
-	ret = next - now;
-	return (ret > delta) ? -ETIME : 0;
+	/*
+	 * NOTE: We observed in a very small probability, the bus fabric
+	 * contention between GPU and A7 may results a few cycles delay
+	 * of writing CNT registers which may cause the min_delta event got
+	 * missed, so we need add a ETIME check here in case it happened.
+	 */
+	return (int)((next - now) <= 0) ? -ETIME : 0;
 }
 
 static int tpm_set_state_oneshot(struct clock_event_device *evt)
 {
-	/* enable timer */
 	tpm_timer_enable();
 
 	return 0;
@@ -103,7 +117,6 @@ static int tpm_set_state_oneshot(struct clock_event_device *evt)
 
 static int tpm_set_state_shutdown(struct clock_event_device *evt)
 {
-	/* disable timer */
 	tpm_timer_disable();
 
 	return 0;
@@ -111,7 +124,7 @@ static int tpm_set_state_shutdown(struct clock_event_device *evt)
 
 static irqreturn_t tpm_timer_interrupt(int irq, void *dev_id)
 {
-	struct clock_event_device *evt = &clockevent_tpm;
+	struct clock_event_device *evt = dev_id;
 
 	tpm_irq_acknowledge();
 
@@ -121,7 +134,7 @@ static irqreturn_t tpm_timer_interrupt(int irq, void *dev_id)
 }
 
 static struct clock_event_device clockevent_tpm = {
-	.name			= "i.MX7ULP tpm timer",
+	.name			= "i.MX7ULP TPM Timer",
 	.features		= CLOCK_EVT_FEAT_ONESHOT,
 	.set_state_oneshot	= tpm_set_state_oneshot,
 	.set_next_event		= tpm_set_next_event,
@@ -129,30 +142,24 @@ static struct clock_event_device clockevent_tpm = {
 	.rating			= 200,
 };
 
-static struct irqaction tpm_timer_irq = {
-	.name		= "i.MX7ULP tpm timer",
-	.flags		= IRQF_TIMER | IRQF_IRQPOLL,
-	.handler	= tpm_timer_interrupt,
-	.dev_id		= &clockevent_tpm,
-};
-
 static int __init tpm_clockevent_init(unsigned long rate, int irq)
 {
-	/* init the channel */
-	setup_irq(irq, &tpm_timer_irq);
+	int ret;
+
+	ret = request_irq(irq, tpm_timer_interrupt, IRQF_TIMER | IRQF_IRQPOLL,
+			  "i.MX7ULP TPM Timer", &clockevent_tpm);
 
 	clockevent_tpm.cpumask = cpumask_of(0);
 	clockevent_tpm.irq = irq;
 	clockevents_config_and_register(&clockevent_tpm,
-		rate, 300, 0xfffffffe);
+					rate, 300, 0xfffffffe);
 
-	return 0;
+	return ret;
 }
 
 static int __init tpm_timer_init(struct device_node *np)
 {
 	struct clk *ipg, *per;
-	uint32_t val;
 	int irq, ret;
 	u32 rate;
 
@@ -190,16 +197,24 @@ static int __init tpm_timer_init(struct device_node *np)
 		goto err_per_clk_enable;
 	}
 
-	/* Initialize tpm module to a known state(counter disabled). */
-	__raw_writel(0, timer_base + TPM_SC);
-	__raw_writel(0, timer_base + TPM_CNT);
-	__raw_writel(0, timer_base + TPM_C0SC);
+	/*
+	 * Initialize tpm module to a known state
+	 * 1) Counter disabled
+	 * 2) TPM counter operates in up counting mode
+	 * 3) Timer Overflow Interrupt disabled
+	 * 4) Channel0 disabled
+	 * 5) DMA transfers disabled
+	 */
+	writel(0, timer_base + TPM_SC);
+	writel(0, timer_base + TPM_CNT);
+	writel(0, timer_base + TPM_C0SC);
 
-	/* set the prescale div, div by 8 = 3MHz */
-	__raw_writel(0xb, timer_base + TPM_SC);
+	/* increase per cnt, div 8 by default */
+	writel(TPM_SC_CMOD_INC_PER_CNT | TPM_SC_CMOD_DIV_DEFAULT,
+		     timer_base + TPM_SC);
 
-	/* set the MOD register to 0xffffffff for free running counter */
-	__raw_writel(0xffffffff, timer_base + TPM_MOD);
+	/* set MOD register to maximum for free running mode */
+	writel(0xffffffff, timer_base + TPM_MOD);
 
 	rate = clk_get_rate(per) >> 3;
 	ret = tpm_clocksource_init(rate);
@@ -209,8 +224,6 @@ static int __init tpm_timer_init(struct device_node *np)
 	ret = tpm_clockevent_init(rate, irq);
 	if (ret)
 		goto err_per_clk_enable;
-
-	val = __raw_readl(timer_base);
 
 	return 0;
 
