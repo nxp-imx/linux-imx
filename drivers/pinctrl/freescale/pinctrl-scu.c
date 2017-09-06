@@ -36,12 +36,6 @@ int imx_pmx_set_one_pin_scu(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 	return 0;
 }
 
-int imx_pmx_backend_gpio_set_direction_scu(struct pinctrl_dev *pctldev,
-	   struct pinctrl_gpio_range *range, unsigned offset, bool input)
-{
-	return -EINVAL;
-}
-
 int imx_pinconf_backend_get_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
 			    unsigned long *config)
 {

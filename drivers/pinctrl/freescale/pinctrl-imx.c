@@ -250,12 +250,10 @@ static int imx_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
 	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 	const struct imx_pinctrl_soc_info *info = ipctl->info;
 
-	if (info->flags & IMX8_USE_SCU)
-		return imx_pmx_backend_gpio_set_direction_scu(pctldev,
-				range, offset, input);
-	else
+	if (!(info->flags & IMX8_USE_SCU))
 		return imx_pmx_backend_gpio_set_direction_mem(pctldev,
 				range, offset, input);
+	return 0;
 }
 
 static const struct pinmux_ops imx_pmx_ops = {

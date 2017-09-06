@@ -178,8 +178,6 @@ static inline int imx_pinctrl_parse_pin_mem(struct imx_pinctrl_soc_info *info,
 
 #ifdef CONFIG_PINCTRL_IMX_SCU
 int imx_pmx_set_one_pin_scu(struct imx_pinctrl *ipctl, struct imx_pin *pin);
-int imx_pmx_backend_gpio_set_direction_scu(struct pinctrl_dev *pctldev,
-	   struct pinctrl_gpio_range *range, unsigned offset, bool input);
 int imx_pinconf_backend_get_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
 			    unsigned long *config);
 int imx_pinconf_backend_set_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
@@ -188,11 +186,6 @@ int imx_pinctrl_parse_pin_scu(struct imx_pinctrl_soc_info *info,
 	unsigned int *pin_id, struct imx_pin *pin, const __be32 **list_p);
 #else
 static inline int imx_pmx_set_one_pin_scu(struct imx_pinctrl *ipctl, struct imx_pin *pin)
-{
-	return 0;
-}
-static inline int imx_pmx_backend_gpio_set_direction_scu(struct pinctrl_dev *pctldev,
-	   struct pinctrl_gpio_range *range, unsigned offset, bool input)
 {
 	return 0;
 }
