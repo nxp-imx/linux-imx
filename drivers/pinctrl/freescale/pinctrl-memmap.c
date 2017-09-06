@@ -30,9 +30,6 @@
 
 #define IMX_PAD_SION 0x40000000		/* set SION */
 
-#define IOMUXC_IBE	(1 << 16)
-#define IOMUXC_OBE	(1 << 17)
-
 int imx_pmx_set_one_pin_mem(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 {
 	const struct imx_pinctrl_soc_info *info = ipctl->info;
@@ -108,7 +105,6 @@ int imx_pmx_set_one_pin_mem(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 	return 0;
 }
 
-
 int imx_pmx_backend_gpio_set_direction_mem(struct pinctrl_dev *pctldev,
 	   struct pinctrl_gpio_range *range, unsigned offset, bool input)
 {
@@ -118,8 +114,8 @@ int imx_pmx_backend_gpio_set_direction_mem(struct pinctrl_dev *pctldev,
 	u32 reg;
 
 	/*
-	 * Only Vybrid has the input/output buffer enable flags (IBE/OBE)
-	 * They are part of the shared mux/conf register.
+	 * Only Vybrid and iMX ULP has the input/output buffer enable flags
+	 * (IBE/OBE) They are part of the shared mux/conf register.
 	 */
 	if (!(info->flags & SHARE_MUX_CONF_REG))
 		return 0;
@@ -128,23 +124,11 @@ int imx_pmx_backend_gpio_set_direction_mem(struct pinctrl_dev *pctldev,
 	if (pin_reg->mux_reg == -1)
 		return -EINVAL;
 
-	/* IBE always enabled allows us to read the value "on the wire" */
 	reg = readl(ipctl->base + pin_reg->mux_reg);
-	if (input) {
-		if (info->flags & CONFIG_IBE_OBE) {
-			reg &= ~IOMUXC_OBE;
-			reg |= IOMUXC_IBE;
-		} else {
-			reg &= ~0x2;
-		}
-	} else {
-		if (info->flags & CONFIG_IBE_OBE) {
-			reg &= ~IOMUXC_IBE;
-			reg |= IOMUXC_OBE;
-		} else {
-			reg |= 0x2;
-		}
-	}
+	if (input)
+		reg = (reg & ~info->obe_bit) | info->ibe_bit;
+	else
+		reg = (reg & ~info->ibe_bit) | info->obe_bit;
 	writel(reg, ipctl->base + pin_reg->mux_reg);
 
 	return 0;
