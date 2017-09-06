@@ -154,11 +154,20 @@ static int __init tpm_timer_init(struct device_node *np)
 	struct clk *ipg, *per;
 	uint32_t val;
 	int irq, ret;
+	u32 rate;
 
 	timer_base = of_iomap(np, 0);
-	BUG_ON(!timer_base);
+	if (!timer_base) {
+		pr_err("tpm: failed to get base address\n");
+		return -ENXIO;
+	}
 
 	irq = irq_of_parse_and_map(np, 0);
+	if (!irq) {
+		pr_err("tpm: failed to get irq\n");
+		ret = -ENOENT;
+		goto err_iomap;
+	}
 
 	ipg = of_clk_get_by_name(np, "ipg");
 	per = of_clk_get_by_name(np, "per");
@@ -192,8 +201,14 @@ static int __init tpm_timer_init(struct device_node *np)
 	/* set the MOD register to 0xffffffff for free running counter */
 	__raw_writel(0xffffffff, timer_base + TPM_MOD);
 
-	tpm_clocksource_init(clk_get_rate(per) / 8);
-	tpm_clockevent_init(clk_get_rate(per) / 8, irq);
+	rate = clk_get_rate(per) >> 3;
+	ret = tpm_clocksource_init(rate);
+	if (ret)
+		goto err_per_clk_enable;
+
+	ret = tpm_clockevent_init(rate, irq);
+	if (ret)
+		goto err_per_clk_enable;
 
 	val = __raw_readl(timer_base);
 
@@ -204,6 +219,8 @@ err_per_clk_enable:
 err_clk_get:
 	clk_put(per);
 	clk_put(ipg);
+err_iomap:
+	iounmap(timer_base);
 
 	return ret;
 }
