@@ -151,21 +151,35 @@ static int __init tpm_clockevent_init(unsigned long rate, int irq)
 
 static int __init tpm_timer_init(struct device_node *np)
 {
-	struct clk *clk;
+	struct clk *ipg, *per;
 	uint32_t val;
-	int irq;
+	int irq, ret;
 
 	timer_base = of_iomap(np, 0);
 	BUG_ON(!timer_base);
 
 	irq = irq_of_parse_and_map(np, 0);
 
-	clk = of_clk_get(np, 0);
-	if (IS_ERR(clk))
-		return PTR_ERR(clk);
+	ipg = of_clk_get_by_name(np, "ipg");
+	per = of_clk_get_by_name(np, "per");
+	if (IS_ERR(ipg) || IS_ERR(per)) {
+		pr_err("tpm: failed to get igp or per clk\n");
+		ret = -ENODEV;
+		goto err_clk_get;
+	}
 
-	/* clock shoube be enabled before access to the timer registers */
-	clk_prepare_enable(clk);
+	/* enable clk before accessing registers */
+	ret = clk_prepare_enable(ipg);
+	if (ret) {
+		pr_err("tpm: ipg clock enable failed (%d)\n", ret);
+		goto err_clk_get;
+	}
+
+	ret = clk_prepare_enable(per);
+	if (ret) {
+		pr_err("tpm: per clock enable failed (%d)\n", ret);
+		goto err_per_clk_enable;
+	}
 
 	/* Initialize tpm module to a known state(counter disabled). */
 	__raw_writel(0, timer_base + TPM_SC);
@@ -178,12 +192,20 @@ static int __init tpm_timer_init(struct device_node *np)
 	/* set the MOD register to 0xffffffff for free running counter */
 	__raw_writel(0xffffffff, timer_base + TPM_MOD);
 
-	tpm_clocksource_init(clk_get_rate(clk) / 8);
-	tpm_clockevent_init(clk_get_rate(clk) / 8, irq);
+	tpm_clocksource_init(clk_get_rate(per) / 8);
+	tpm_clockevent_init(clk_get_rate(per) / 8, irq);
 
 	val = __raw_readl(timer_base);
 
 	return 0;
+
+err_per_clk_enable:
+	clk_disable_unprepare(ipg);
+err_clk_get:
+	clk_put(per);
+	clk_put(ipg);
+
+	return ret;
 }
 CLOCKSOURCE_OF_DECLARE(imx7ulp, "fsl,imx7ulp-tpm", tpm_timer_init);
 
