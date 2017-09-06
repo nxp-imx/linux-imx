@@ -97,8 +97,6 @@ static void vf610_gpio_set(struct gpio_chip *gc, unsigned int gpio, int val)
 	struct vf610_gpio_port *port = gpiochip_get_data(gc);
 	unsigned long mask = BIT(gpio);
 
-	vf610_gpio_writel(mask, port->gpio_base + GPIO_PDDR);
-
 	if (val)
 		vf610_gpio_writel(mask, port->gpio_base + GPIO_PSOR);
 	else
@@ -120,6 +118,11 @@ static int vf610_gpio_direction_input(struct gpio_chip *chip, unsigned gpio)
 static int vf610_gpio_direction_output(struct gpio_chip *chip, unsigned gpio,
 				       int value)
 {
+	struct vf610_gpio_port *port = gpiochip_get_data(chip);
+	unsigned long mask = BIT(gpio);
+
+	vf610_gpio_writel(mask, port->gpio_base + GPIO_PDDR);
+
 	vf610_gpio_set(chip, gpio, value);
 
 	return pinctrl_gpio_direction_output(chip->base + gpio);
