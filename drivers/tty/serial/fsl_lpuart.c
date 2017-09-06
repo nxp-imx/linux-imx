@@ -2170,7 +2170,7 @@ OF_EARLYCON_DECLARE(lpuart, "fsl,vf610-lpuart",
 		lpuart_early_console_setup);
 OF_EARLYCON_DECLARE(lpuart32, "fsl,ls1021a-lpuart",
 		lpuart32_early_console_setup);
-OF_EARLYCON_DECLARE(lpuart32, "fsl,lpuart",
+OF_EARLYCON_DECLARE(lpuart32, "fsl,imx7ulp-lpuart",
 		lpuart32_early_console_setup);
 EARLYCON_DECLARE(lpuart, lpuart_early_console_setup);
 EARLYCON_DECLARE(lpuart32, lpuart32_early_console_setup);
