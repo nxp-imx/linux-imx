@@ -23,11 +23,13 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/uaccess.h>
 #include <media/videobuf2-dma-contig.h>
 #include <linux/dma-buf.h>
 
 #include "../ion_priv.h"
+#include "../ion_of.h"
 
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
@@ -37,30 +39,88 @@ static int num_heaps = 1;
 static struct ion_heap **heaps;
 static int cacheable;
 
+static struct ion_of_heap mxc_heaps[] = {
+	PLATFORM_HEAP("fsl,user-heap", 0, ION_HEAP_TYPE_DMA, "user"),
+	PLATFORM_HEAP("fsl,display-heap", 1, ION_HEAP_TYPE_UNMAPPED, "display"),
+	PLATFORM_HEAP("fsl,vpu-heap", 2, ION_HEAP_TYPE_UNMAPPED, "vpu"),
+	{}
+};
+
+static int rmem_imx_device_init(struct reserved_mem *rmem, struct device *dev)
+{
+	dev_set_drvdata(dev, rmem);
+	return 0;
+}
+
+static const struct reserved_mem_ops rmem_dma_ops = {
+	.device_init	= rmem_imx_device_init,
+};
+
+static int __init rmem_imx_ion_setup(struct reserved_mem *rmem)
+{
+	rmem->ops = &rmem_dma_ops;
+	pr_info("Reserved memory: created ION memory pool at %pa, size %ld MiB\n",
+		&rmem->base, (unsigned long)rmem->size / SZ_1M);
+	return 0;
+}
+
+RESERVEDMEM_OF_DECLARE(cma, "imx-ion-pool", rmem_imx_ion_setup);
+
+/* Note: original code could be adapted so we just call ion_parse_dt() */
 struct ion_platform_data *mxc_ion_parse_of(struct platform_device *pdev)
 {
 	struct ion_platform_data *pdata = 0;
 	const struct device_node *node = pdev->dev.of_node;
 	int ret = 0;
 	unsigned int val = 0;
-	struct ion_platform_heap *heap = NULL;
+	struct ion_platform_heap *heaps = NULL;
+	struct ion_platform_heap *user_heap;
 
-	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
-	if (!pdata)
-		return ERR_PTR(-ENOMEM);
+	pdata = ion_parse_dt(pdev, mxc_heaps);
+	if (IS_ERR(pdata)) {
+		if (PTR_ERR(pdata) != -EINVAL)
+			return pdata;
 
-	heap = kzalloc(sizeof(*heap), GFP_KERNEL);
-	if (!heap) {
-		kfree(pdata);
+		/* Even if DT has no heap, we still want the user one */
+		pdata = devm_kzalloc(&pdev->dev, sizeof(*pdata), GFP_KERNEL);
+		if (!pdata)
+			return ERR_PTR(-ENOMEM);
+	} else {
+		/* Get rmem info into heap */
+		int i;
+
+		for (i = 0; i < pdata->nr; i++) {
+			struct ion_platform_heap *heap = &pdata->heaps[i];
+			struct reserved_mem *rmem = dev_get_drvdata(heap->priv);
+
+			heap->base = rmem->base;
+			heap->size = rmem->size;
+		}
+	}
+
+	/* Add user heap for legacy + copy device tree ones */
+	heaps = devm_kzalloc(&pdev->dev,
+			     sizeof(struct ion_platform_heap) * (pdata->nr + 1),
+			     GFP_KERNEL);
+	if (!heaps) {
+		ion_destroy_platform_data(pdata);
 		return ERR_PTR(-ENOMEM);
 	}
 
-	heap->type = ION_HEAP_TYPE_DMA;
-	heap->priv = &pdev->dev;
-	heap->name = "mxc_ion";
+	if (pdata->heaps) {
+		memcpy(heaps, pdata->heaps,
+		       sizeof(struct ion_platform_heap) * pdata->nr);
+		devm_kfree(&pdev->dev, pdata->heaps);
+	}
 
-	pdata->heaps = heap;
-	pdata->nr = num_heaps;
+	pdata->heaps = heaps;
+
+	/* Add the VPU heap */
+	user_heap = &heaps[pdata->nr];
+	user_heap->type = ION_HEAP_TYPE_DMA;
+	user_heap->priv = &pdev->dev;
+	user_heap->name = "mxc_ion";
+	pdata->nr++;
 
 	ret = of_property_read_u32(node, "fsl,heap-cacheable", &val);
 	if (!ret)
@@ -69,9 +129,9 @@ struct ion_platform_data *mxc_ion_parse_of(struct platform_device *pdev)
 	val = 0;
 	ret = of_property_read_u32(node, "fsl,heap-id", &val);
 	if (!ret)
-		heap->id = val;
+		user_heap->id = val;
 	else
-		heap->id = 0;
+		user_heap->id = 0;
 
 	return pdata;
 }
@@ -374,23 +434,21 @@ mxc_custom_compat_ioctl(struct ion_client *client, unsigned int cmd,
 int mxc_ion_probe(struct platform_device *pdev)
 {
 	struct ion_platform_data *pdata = NULL;
-	int pdata_is_created = 0;
 	int err;
 	int i;
 
-	if (pdev->dev.of_node) {
+	if (pdev->dev.of_node)
 		pdata = mxc_ion_parse_of(pdev);
-		pdata_is_created = 1;
-	} else {
+	else
 		pdata = pdev->dev.platform_data;
-	}
 
 	if (IS_ERR_OR_NULL(pdata))
 		return PTR_ERR(pdata);
 
 	num_heaps = pdata->nr;
 
-	heaps = kzalloc(sizeof(struct ion_heap *) * pdata->nr, GFP_KERNEL);
+	heaps = devm_kzalloc(&pdev->dev, sizeof(struct ion_heap *) * pdata->nr,
+			     GFP_KERNEL);
 
 #ifdef CONFIG_COMPAT
 	idev = ion_device_create(mxc_custom_compat_ioctl);
@@ -405,10 +463,8 @@ int mxc_ion_probe(struct platform_device *pdev)
 	of_dma_configure(idev->dev.this_device, pdev->dev.of_node);
 
 	/* create the heaps as specified in the board file */
-	for (i = 0; i < num_heaps; i++) {
-		struct ion_platform_heap *heap_data = &pdata->heaps[i];
-
-		heaps[i] = ion_heap_create(heap_data);
+	for (i = 0; i < pdata->nr; i++) {
+		heaps[i] = ion_heap_create(&pdata->heaps[i]);
 		if (IS_ERR_OR_NULL(heaps[i])) {
 			err = PTR_ERR(heaps[i]);
 			heaps[i] = NULL;
@@ -419,15 +475,14 @@ int mxc_ion_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, idev);
 	return 0;
 err:
-	for (i = 0; i < num_heaps; i++) {
+	for (i = 0; i < pdata->nr; i++)
 		if (heaps[i])
 			ion_heap_destroy(heaps[i]);
-	}
-	kfree(heaps);
-	if (pdata_is_created) {
-		kfree(pdata->heaps);
-		kfree(pdata);
-	}
+
+	devm_kfree(&pdev->dev, heaps);
+	if (pdev->dev.of_node)
+		ion_destroy_platform_data(pdata);
+
 	return err;
 }
 
@@ -439,7 +494,8 @@ int mxc_ion_remove(struct platform_device *pdev)
 	ion_device_destroy(idev);
 	for (i = 0; i < num_heaps; i++)
 		ion_heap_destroy(heaps[i]);
-	kfree(heaps);
+
+	devm_kfree(&pdev->dev, heaps);
 	return 0;
 }
 

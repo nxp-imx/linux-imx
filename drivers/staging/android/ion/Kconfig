@@ -46,6 +46,7 @@ config ION_MXC
 	tristate "Ion for imx platform"
 	depends on ION
 	select VIDEOBUF2_DMA_CONTIG
+	select ION_OF
 	help
 	  Choose this option if you wish to use ion on imx platform.
 
