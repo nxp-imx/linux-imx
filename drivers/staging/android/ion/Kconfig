@@ -60,9 +60,19 @@ config ION_OF
 
 	  If using Ion and devicetree, you should say Y here
 
+config ION_UNMAPPED_HEAP
+	bool "unmapped heap support in ION"
+	depends on ION && ARM
+	default y
+	help
+	  ION unmapped heap is not available on some architectures.
+	  If unmapped heap is supported, the default configuration enables
+	  it. You should say N here only if you really do not want unmapped
+	  heap support in the ION driver.
+
 config ION_DUMMY_UNMAPPED_HEAP
 	bool "ION dummy driver define an ION unmapped heap"
-	depends on ION_DUMMY
+	depends on ION_DUMMY && ION_UNMAPPED_HEAP
 	help
 	  Dummy ION driver will create a unmapped heap from physical
 	  location provided through CONFIG_ION_DUMMY_UNMAPPED_BASE and
