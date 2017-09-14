@@ -45,7 +45,7 @@ config ION_CMA_HEAP
 
 config ION_UNMAPPED_HEAP
 	bool "ION unmapped heap support"
-	depends on ION
+	depends on ION && (ARM || ARM64)
 	help
 	  Choose this option to enable UNMAPPED heaps with Ion. This heap is
 	  backed in specific memory pools, carveout from the Linux memory.
