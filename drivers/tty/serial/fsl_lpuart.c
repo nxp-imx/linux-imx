@@ -1307,11 +1307,6 @@ static int lpuart_startup(struct uart_port *port)
 	} else
 		sport->lpuart_dma_tx_use = false;
 
-	ret = devm_request_irq(port->dev, port->irq, lpuart_int, 0,
-				DRIVER_NAME, sport);
-	if (ret)
-		return ret;
-
 	spin_lock_irqsave(&sport->port.lock, flags);
 
 	lpuart_setup_watermark(sport);
@@ -1383,11 +1378,6 @@ static int lpuart32_startup(struct uart_port *port)
 	} else
 		sport->lpuart_dma_tx_use = false;
 
-	ret = devm_request_irq(port->dev, port->irq, lpuart32_int, 0,
-				DRIVER_NAME, sport);
-	if (ret)
-		return ret;
-
 	spin_lock_irqsave(&sport->port.lock, flags);
 
 	lpuart32_setup_watermark(sport);
@@ -1418,8 +1408,6 @@ static void lpuart_shutdown(struct uart_port *port)
 	writeb(temp, port->membase + UARTCR2);
 
 	spin_unlock_irqrestore(&port->lock, flags);
-
-	devm_free_irq(port->dev, port->irq, sport);
 
 	if (sport->lpuart_dma_rx_use) {
 		ret = wait_event_interruptible_timeout(sport->dma_wait,
@@ -1471,8 +1459,6 @@ static void lpuart32_shutdown(struct uart_port *port)
 	lpuart32_write(0, sport->port.membase + UARTMODIR);
 
 	spin_unlock_irqrestore(&port->lock, flags);
-
-	devm_free_irq(port->dev, port->irq, sport);
 
 	if (sport->lpuart_dma_rx_use) {
 		ret = wait_event_interruptible_timeout(sport->dma_wait,
@@ -2279,17 +2265,22 @@ static int lpuart_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, &sport->port);
 
-	if (sport->lpuart32)
+	if (sport->lpuart32) {
 		lpuart_reg.cons = LPUART32_CONSOLE;
-	else
+		ret = devm_request_irq(&pdev->dev, sport->port.irq, lpuart32_int, 0,
+					DRIVER_NAME, sport);
+	} else {
 		lpuart_reg.cons = LPUART_CONSOLE;
+		ret = devm_request_irq(&pdev->dev, sport->port.irq, lpuart_int, 0,
+					DRIVER_NAME, sport);
+	}
+
+	if (ret)
+		goto failed_irq_request;
 
 	ret = uart_add_one_port(&lpuart_reg, &sport->port);
-	if (ret) {
-		clk_disable_unprepare(sport->per_clk);
-		clk_disable_unprepare(sport->ipg_clk);
-		return ret;
-	}
+	if (ret)
+		goto failed_attach_port;
 
 	sport->dma_tx_chan = dma_request_slave_channel(sport->port.dev, "tx");
 	if (!sport->dma_tx_chan)
@@ -2306,9 +2297,11 @@ static int lpuart_probe(struct platform_device *pdev)
 		writeb(UARTMODEM_TXRTSE, sport->port.membase + UARTMODEM);
 	}
 
+failed_attach_port:
+failed_irq_request:
 	clk_disable_unprepare(sport->per_clk);
 	clk_disable_unprepare(sport->ipg_clk);
-	return 0;
+	return ret;
 }
 
 static int lpuart_remove(struct platform_device *pdev)
