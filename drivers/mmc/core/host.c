@@ -375,9 +375,8 @@ again:
 		return NULL;
 	}
 
-	spin_lock(&mmc_host_lock);
-
 	alias_id = mmc_get_reserved_index(host);
+
 	if (alias_id >= 0) {
 		min_idx = alias_id;
 		max_idx = alias_id + 1;
@@ -385,6 +384,8 @@ again:
 		min_idx = mmc_first_nonreserved_index();
 		max_idx = 0;
 	}
+
+	spin_lock(&mmc_host_lock);
 
 	err = ida_get_new_above(&mmc_host_ida, min_idx, &host->index);
 	if (!err) {

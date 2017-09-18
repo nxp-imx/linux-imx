@@ -2108,16 +2108,17 @@ again:
 	if (!ida_pre_get(&mmc_blk_ida, GFP_KERNEL))
 		return ERR_PTR(-ENOMEM);
 
-	spin_lock(&mmc_blk_lock);
 	devidx = mmc_get_reserved_index(card->host);
 	if (devidx >= 0)
 		devidx = ida_simple_get(&mmc_blk_ida, devidx, devidx,
 					GFP_NOWAIT);
 	ret = 0;
-	if (devidx < 0)
+	if (devidx < 0) {
+		spin_lock(&mmc_blk_lock);
 		ret = ida_get_new_above(&mmc_blk_ida,
 					mmc_first_nonreserved_index(), &devidx);
-	spin_unlock(&mmc_blk_lock);
+		spin_unlock(&mmc_blk_lock);
+	}
 
 	if (ret == -EAGAIN)
 		goto again;
