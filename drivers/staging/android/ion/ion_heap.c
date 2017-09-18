@@ -335,9 +335,11 @@ struct ion_heap *ion_heap_create(struct ion_platform_heap *heap_data)
 	case ION_HEAP_TYPE_DMA:
 		heap = ion_cma_heap_create(heap_data);
 		break;
+#ifdef CONFIG_ION_UNMAPPED_HEAP
 	case ION_HEAP_TYPE_UNMAPPED:
 		heap = ion_unmapped_heap_create(heap_data);
 		break;
+#endif
 	default:
 		pr_err("%s: Invalid heap type %d\n", __func__,
 		       heap_data->type);
@@ -378,9 +380,11 @@ void ion_heap_destroy(struct ion_heap *heap)
 	case ION_HEAP_TYPE_DMA:
 		ion_cma_heap_destroy(heap);
 		break;
+#ifdef CONFIG_ION_UNMAPPED_HEAP
 	case ION_HEAP_TYPE_UNMAPPED:
 		ion_unmapped_heap_destroy(heap);
 		break;
+#endif
 	default:
 		pr_err("%s: Invalid heap type %d\n", __func__,
 		       heap->type);
