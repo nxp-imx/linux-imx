@@ -92,20 +92,12 @@ static void ptn5150_detect_cable(struct work_struct *work)
 	if (ret)
 		dev_err(info->dev, "failed to get CC status:%d\n", ret);
 
-	if (IS_UFP_ATTATCHED(val)) {
-		extcon_set_state_sync(info->edev, EXTCON_USB, false);
+	if (IS_UFP_ATTATCHED(val))
 		extcon_set_state_sync(info->edev, EXTCON_USB_HOST,
 			true);
-	} else if (IS_DFP_ATTATCHED(val)) {
+	else
 		extcon_set_state_sync(info->edev, EXTCON_USB_HOST,
 			false);
-		extcon_set_state_sync(info->edev, EXTCON_USB, true);
-	} else if (IS_NOT_CONNECTED(val)) {
-		extcon_set_state_sync(info->edev, EXTCON_USB, false);
-		extcon_set_state_sync(info->edev, EXTCON_USB_HOST, false);
-	} else {
-		dev_dbg(info->dev, "other CC status is :0x%x", val);
-	}
 }
 
 static int ptn5150_clear_interrupt(struct ptn5150_info *info)
