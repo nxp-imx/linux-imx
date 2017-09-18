@@ -62,7 +62,7 @@ config ION_OF
 
 config ION_UNMAPPED_HEAP
 	bool "unmapped heap support in ION"
-	depends on ION && ARM
+	depends on ION && (ARM || ARM64)
 	default y
 	help
 	  ION unmapped heap is not available on some architectures.
