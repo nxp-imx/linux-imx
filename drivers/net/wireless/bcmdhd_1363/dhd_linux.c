@@ -858,7 +858,7 @@ static int
 dhd_cpumasks_init(dhd_info_t *dhd)
 {
 	int id;
-	uint32 cpus;
+	uint32 cpus, cpu_num;
 	int ret = 0;
 
 	if (!alloc_cpumask_var(&dhd->cpumask_curr_avail, GFP_KERNEL) ||
@@ -875,14 +875,15 @@ dhd_cpumasks_init(dhd_info_t *dhd)
 	cpumask_clear(dhd->cpumask_primary);
 	cpumask_clear(dhd->cpumask_secondary);
 
+	cpu_num = num_possible_cpus();
 	cpus = DHD_LB_PRIMARY_CPUS;
-	for (id = 0; id < NR_CPUS; id++) {
+	for (id = 0; id < cpu_num; id++) {
 		if (isset(&cpus, id))
 			cpumask_set_cpu(id, dhd->cpumask_primary);
 	}
 
 	cpus = DHD_LB_SECONDARY_CPUS;
-	for (id = 0; id < NR_CPUS; id++) {
+	for (id = 0; id < cpu_num; id++) {
 		if (isset(&cpus, id))
 			cpumask_set_cpu(id, dhd->cpumask_secondary);
 	}
