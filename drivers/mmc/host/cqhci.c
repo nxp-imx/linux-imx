@@ -96,12 +96,8 @@ static void setup_trans_desc(struct cqhci_host *cq_host, u8 tag)
 
 static void cqhci_set_irqs(struct cqhci_host *cq_host, u32 set)
 {
-	u32 ier;
-
-	ier = cqhci_readl(cq_host, CQHCI_ISTE);
-	ier |= set;
-	cqhci_writel(cq_host, ier, CQHCI_ISTE);
-	cqhci_writel(cq_host, ier, CQHCI_ISGE);
+	cqhci_writel(cq_host, set, CQHCI_ISTE);
+	cqhci_writel(cq_host, set, CQHCI_ISGE);
 }
 
 #define DRV_NAME "cqhci"
