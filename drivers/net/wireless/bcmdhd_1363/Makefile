@@ -10,7 +10,7 @@ DHDCFLAGS += -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER            \
 	-DEMBEDDED_PLATFORM -DPNO_SUPPORT                                     \
 	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT                           \
 	-DCUSTOMER_HW2 -DGET_CUSTOM_MAC_ENABLE			              \
-	-DSHOW_LOGTRACE -DSEC_ENHANCEMENT
+	-DSEC_ENHANCEMENT
 
 # ARP offload feature
 #DHDCFLAGS += -DARP_OFFLOAD_SUPPORT
