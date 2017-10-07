@@ -385,6 +385,16 @@ static int ft5x0x_ts_probe(struct i2c_client *client,
 			 err);
 	}
 
+	if (!client->irq) {
+		struct gpio_desc *gpiod;
+
+		gpiod = devm_gpiod_get_optional(&client->dev, "irq", GPIOD_IN);
+		if (IS_ERR(gpiod))
+			dev_warn(&client->dev, "Failed get IRQ GPIO\n");
+		else
+			client->irq = gpiod_to_irq(gpiod);
+	}
+
 	if (client->irq) {
 		err =
 		    devm_request_irq(&client->dev, client->irq,
