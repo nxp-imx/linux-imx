@@ -2,6 +2,7 @@
  * Freescale i.MX7ULP LPSPI driver
  *
  * Copyright 2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,18 +20,21 @@
 #include <linux/completion.h>
 #include <linux/delay.h>
 #include <linux/err.h>
+#include <linux/gpio.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/platform_data/spi-imx.h>
 #include <linux/slab.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi_bitbang.h>
 #include <linux/types.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_gpio.h>
 
 #define DRIVER_NAME "fsl_lpspi"
 
@@ -67,6 +71,7 @@
 #define CFGR1_PCSCFG	(1 << 27)	/* PCS[3:2] disabled */
 #define CFGR1_PCSPOL	(1 << 8)	/* PCS active high */
 #define CFGR1_NOSTALL   (1 << 3)	/* NO STALL */
+#define CFGR1_SAMPLE	(1 << 1)	/* SAMPLE POINT*/
 #define CFGR1_MASTER	(1 << 0)	/* MASTER MODE */
 #define RSR_RXEMPTY	(1 << 1)
 #define TCR_CPOL	(1 << 31)
@@ -92,7 +97,8 @@ struct fsl_lpspi_data {
 
 	struct completion xfer_done;
 	void __iomem *base;
-	struct clk *clk;
+	struct clk *clk_per;
+	struct clk *clk_ipg;
 
 	void *rx_buf;
 	const void *tx_buf;
@@ -103,6 +109,8 @@ struct fsl_lpspi_data {
 	u8 txfifosize;
 	u8 rxfifosize;
 	unsigned remain;
+
+	int chipselect[0];
 };
 
 static const struct of_device_id fsl_lpspi_dt_ids[] = {
@@ -219,7 +227,7 @@ static int fsl_lpspi_set_bitrate(struct fsl_lpspi_data *fsl_lpspi)
 	unsigned int perclk_rate, scldiv;
 	struct lpspi_config config = fsl_lpspi->config;
 
-	perclk_rate = clk_get_rate(fsl_lpspi->clk);
+	perclk_rate = clk_get_rate(fsl_lpspi->clk_per);
 
 	for (prescale = 0; prescale < 8; prescale++) {
 		scldiv = perclk_rate / (clkdivs[prescale] * config.speed_hz) - 2;
@@ -255,7 +263,8 @@ static int fsl_lpspi_config(struct fsl_lpspi_data *fsl_lpspi)
 
 	fsl_lpspi_set_watermark(fsl_lpspi);
 
-	temp = CFGR1_PCSCFG | CFGR1_MASTER | CFGR1_NOSTALL;
+	temp = CFGR1_PCSCFG | CFGR1_MASTER
+		| CFGR1_SAMPLE | CFGR1_NOSTALL;
 
 	/* chip select polarity */
 	if (fsl_lpspi->config.mode & SPI_CS_HIGH)
@@ -291,6 +300,19 @@ static irqreturn_t fsl_lpspi_isr(int irq, void *dev_id)
 	}
 
 	return IRQ_NONE;
+}
+
+static void fsl_lpspi_chipselect(struct spi_device *spi, int is_active)
+{
+	struct fsl_lpspi_data *fsl_lpspi = spi_master_get_devdata(spi->master);
+	int gpio = fsl_lpspi->chipselect[spi->chip_select];
+	int active = is_active != BITBANG_CS_INACTIVE;
+	int dev_is_lowactive = !(spi->mode & SPI_CS_HIGH);
+
+	if (!gpio_is_valid(gpio))
+		return;
+
+	gpio_set_value(gpio, dev_is_lowactive ^ active);
 }
 
 static int fsl_lpspi_setupxfer(struct spi_device *spi,
@@ -343,12 +365,21 @@ static int fsl_lpspi_transfer(struct spi_device *spi,
 }
 
 /* The following funs are decided by spi framework */
-static void fsl_lpspi_chipselect(struct spi_device *spi, int is_active)
-{
-}
 
 static int fsl_lpspi_setup(struct spi_device *spi)
 {
+	struct fsl_lpspi_data *fsl_lpspi = spi_master_get_devdata(spi->master);
+	int gpio = fsl_lpspi->chipselect[spi->chip_select];
+
+	dev_dbg(&spi->dev, "%s: mode %d, %u bpw, %d hz\n", __func__,
+		 spi->mode, spi->bits_per_word, spi->max_speed_hz);
+
+	if (gpio_is_valid(gpio))
+		gpio_direction_output(gpio,
+				      spi->mode & SPI_CS_HIGH ? 0 : 1);
+
+	fsl_lpspi_chipselect(spi, BITBANG_CS_INACTIVE);
+
 	return 0;
 }
 
@@ -360,8 +391,19 @@ static int
 fsl_lpspi_prepare_message(struct spi_master *master, struct spi_message *msg)
 {
 	struct fsl_lpspi_data *fsl_lpspi = spi_master_get_devdata(master);
+	int ret;
 
-	return clk_enable(fsl_lpspi->clk);
+	ret = clk_prepare_enable(fsl_lpspi->clk_per);
+	if (ret)
+		return ret;
+
+	ret = clk_prepare_enable(fsl_lpspi->clk_ipg);
+	if (ret) {
+		clk_disable_unprepare(fsl_lpspi->clk_per);
+		return ret;
+	}
+
+	return 0;
 }
 
 static int
@@ -369,17 +411,21 @@ fsl_lpspi_unprepare_message(struct spi_master *master, struct spi_message *msg)
 {
 	struct fsl_lpspi_data *fsl_lpspi = spi_master_get_devdata(master);
 
-	clk_disable(fsl_lpspi->clk);
+	clk_disable_unprepare(fsl_lpspi->clk_per);
+	clk_disable_unprepare(fsl_lpspi->clk_ipg);
 
 	return 0;
 }
 
 static int fsl_lpspi_probe(struct platform_device *pdev)
 {
+	struct device_node *np = pdev->dev.of_node;
 	struct spi_master *master;
 	struct fsl_lpspi_data *fsl_lpspi;
+	struct spi_imx_master *lpspi_platform_info =
+			dev_get_platdata(&pdev->dev);
 	struct resource *res;
-	int ret, irq;
+	int i, ret, irq;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(struct fsl_lpspi_data));
 	if (!master)
@@ -393,6 +439,24 @@ static int fsl_lpspi_probe(struct platform_device *pdev)
 	fsl_lpspi = spi_master_get_devdata(master);
 	fsl_lpspi->bitbang.master = master;
 	fsl_lpspi->dev = &pdev->dev;
+
+	for (i = 0; i < master->num_chipselect; i++) {
+		int cs_gpio = of_get_named_gpio(np, "cs-gpios", i);
+
+		if (!gpio_is_valid(cs_gpio) && lpspi_platform_info)
+			cs_gpio = lpspi_platform_info->chipselect[i];
+
+		fsl_lpspi->chipselect[i] = cs_gpio;
+		if (!gpio_is_valid(cs_gpio))
+			continue;
+
+		ret = devm_gpio_request(&pdev->dev, fsl_lpspi->chipselect[i],
+					DRIVER_NAME);
+		if (ret) {
+			dev_err(&pdev->dev, "can't get cs gpios\n");
+			goto out_master_put;
+		}
+	}
 
 	fsl_lpspi->bitbang.chipselect = fsl_lpspi_chipselect;
 	fsl_lpspi->bitbang.master->setup = fsl_lpspi_setup;
@@ -419,32 +483,51 @@ static int fsl_lpspi_probe(struct platform_device *pdev)
 		goto out_master_put;
 	}
 
-	fsl_lpspi->clk = devm_clk_get(&pdev->dev, "ipg");
-	if (IS_ERR(fsl_lpspi->clk)) {
-		ret = PTR_ERR(fsl_lpspi->clk);
+	fsl_lpspi->clk_per = devm_clk_get(&pdev->dev, "per");
+	if (IS_ERR(fsl_lpspi->clk_per)) {
+		ret = PTR_ERR(fsl_lpspi->clk_per);
 		goto out_master_put;
+	}
+
+	fsl_lpspi->clk_ipg = devm_clk_get(&pdev->dev, "ipg");
+	if (IS_ERR(fsl_lpspi->clk_ipg)) {
+		ret = PTR_ERR(fsl_lpspi->clk_ipg);
+		goto out_master_put;
+	}
+
+	/* enable the clock */
+	ret = clk_prepare_enable(fsl_lpspi->clk_per);
+	if (ret)
+		goto out_clk_per;
+
+	ret = clk_prepare_enable(fsl_lpspi->clk_ipg);
+	if (ret)
+		goto out_clk_ipg;
+
+	ret = devm_request_irq(&pdev->dev, irq, fsl_lpspi_isr, 0,
+			       dev_name(&pdev->dev), fsl_lpspi);
+	if (ret) {
+		dev_err(&pdev->dev, "can't get irq%d: %d\n", irq, ret);
+		goto out_clk_ipg;
 	}
 
 	master->dev.of_node = pdev->dev.of_node;
 	ret = spi_bitbang_start(&fsl_lpspi->bitbang);
 	if (ret) {
 		dev_err(&pdev->dev, "bitbang start failed with %d\n", ret);
-		goto out_master_put;
+		goto out_clk_ipg;
 	}
 
-	ret = devm_request_irq(&pdev->dev, irq, fsl_lpspi_isr, 0,
-			       dev_name(&pdev->dev), fsl_lpspi);
-	if (ret) {
-		dev_err(&pdev->dev, "can't get irq%d: %d\n", irq, ret);
-		goto out_master_put;
-	}
+	dev_info(fsl_lpspi->dev, "lpspi probed\n");
 
-	ret = clk_prepare(fsl_lpspi->clk);
-	if (ret)
-		goto out_master_put;
-
+	clk_disable_unprepare(fsl_lpspi->clk_ipg);
+	clk_disable_unprepare(fsl_lpspi->clk_per);
 	return ret;
 
+out_clk_ipg:
+	clk_disable_unprepare(fsl_lpspi->clk_ipg);
+out_clk_per:
+	clk_disable_unprepare(fsl_lpspi->clk_per);
 out_master_put:
 	spi_master_put(master);
 
@@ -458,7 +541,8 @@ static int fsl_lpspi_remove(struct platform_device *pdev)
 
 	spi_bitbang_stop(&fsl_lpspi->bitbang);
 
-	clk_unprepare(fsl_lpspi->clk);
+	clk_unprepare(fsl_lpspi->clk_per);
+	clk_unprepare(fsl_lpspi->clk_ipg);
 	spi_master_put(master);
 
 	return 0;
