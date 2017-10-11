@@ -1147,6 +1147,8 @@ static int flexcan_chip_start(struct net_device *dev)
 		/* store Remote Request Frame */
 		reg_ctrl2 = flexcan_read(priv, FLEXCAN_CTRL2);
 		reg_ctrl2 |= FLEXCAN_CTRL2_RRS;
+		/* enable Entire Frame Arbitration Field Comparison */
+		reg_ctrl2 |= FLEXCAN_CTRL2_EACEN;
 		flexcan_write(priv, FLEXCAN_CTRL2, reg_ctrl2);
 	}
 
