@@ -85,7 +85,7 @@ DHDCFLAGS += -DCUSTOM_PNO_EVENT_LOCK_xTIME=10
 DHDCFLAGS += -DMIRACAST_AMPDU_SIZE=8
 
 # Gscan suppport
-#DHDCFLAGS += -DGSCAN_SUPPORT
+DHDCFLAGS += -DGSCAN_SUPPORT
 
 # Early suspend
 DHDCFLAGS += -DDHD_USE_EARLYSUSPEND
@@ -265,8 +265,8 @@ DHDOFILES := dhd_pno.o dhd_common.o dhd_ip.o dhd_custom_gpio.o \
 #DHDOFILES += dhd_rtt.o bcmxtlv.o bcm_app_utils.o
 
 # Vendor Extension support
-#DHDCFLAGS += -DWL_VENDOR_EXT_SUPPORT
-#DHDOFILES += wl_cfgvendor.o
+DHDCFLAGS += -DWL_VENDOR_EXT_SUPPORT
+DHDOFILES += wl_cfgvendor.o
 
 # Bandsteer support
 #DHDCFLAGS += -DDHD_BANDSTEER
