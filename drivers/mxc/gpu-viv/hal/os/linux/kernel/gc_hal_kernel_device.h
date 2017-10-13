@@ -101,6 +101,8 @@ typedef struct _gckGALDEVICE
     gctUINT32           internalPhysicalName;
     gctPOINTER          internalLogical;
     gckVIDMEM           internalVidMem;
+
+    gctUINT32           externalBase;
     gctSIZE_T           externalSize;
     gctPHYS_ADDR        externalPhysical;
     gctUINT32           externalPhysicalName;
@@ -159,6 +161,10 @@ typedef struct _gckGALDEVICE
 
     /* gctsOs object for trust application. */
     gctaOS              taos;
+
+#if gcdENABLE_DRM
+    void*               drm;
+#endif
 }
 * gckGALDEVICE;
 
@@ -218,6 +224,8 @@ gceSTATUS gckGALDEVICE_Construct(
     IN gctSIZE_T RegisterMemSizeVG,
     IN gctUINT32 ContiguousBase,
     IN gctSIZE_T ContiguousSize,
+    IN gctUINT32 ExternalBase,
+    IN gctSIZE_T ExternalSize,
     IN gctSIZE_T BankSize,
     IN gctINT FastClear,
     IN gctINT Compression,

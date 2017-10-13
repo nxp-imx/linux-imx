@@ -53,63 +53,80 @@
 *****************************************************************************/
 
 
-#ifndef __gc_hal_kernel_os_h_
-#define __gc_hal_kernel_os_h_
+/*
+ * Copyright (C) 2015 Etnaviv Project
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-typedef struct _LINUX_MDL     LINUX_MDL,     *PLINUX_MDL;
-typedef struct _LINUX_MDL_MAP LINUX_MDL_MAP, *PLINUX_MDL_MAP;
+#ifndef __GC_HAL_DRM_H__
+#define __GC_HAL_DRM_H__
 
-struct _LINUX_MDL_MAP
-{
-    gctINT                  pid;
-    gctPOINTER              vmaAddr;
-    gctUINT32               count;
+#if defined(__cplusplus)
+extern "C" {
+#endif
 
-    struct list_head        link;
+enum VIV_GEM_PARAM {
+    VIV_GEM_PARAM_NODE = 0,
+    VIV_GEM_PARAM_POOL,
+    VIV_GEM_PARAM_SIZE,
 };
 
-struct _LINUX_MDL
-{
-    gckOS                   os;
-
-    atomic_t                refs;
-
-    char *                  addr;
-
-    gctINT                  numPages;
-    gctBOOL                 contiguous;
-    dma_addr_t              dmaHandle;
-
-    struct mutex            mapsMutex;
-    struct list_head        mapsHead;
-
-    /* Pointer to allocator which allocates memory for this mdl. */
-    void *                  allocator;
-
-    /* Private data used by allocator. */
-    void *                  priv;
-
-    /* exported dma_buf */
-    void *                  dmabuf;
-
-    uint                    gid;
-
-    struct list_head        link;
+struct drm_viv_gem_create {
+    __u64 size;         /* in */
+    __u32 flags;        /* in */
+    __u32 handle;       /* out */
 };
 
-extern PLINUX_MDL_MAP
-FindMdlMap(
-    IN PLINUX_MDL Mdl,
-    IN gctINT PID
-    );
+struct drm_viv_gem_lock {
+    __u32 handle;
+    __u32 cacheable;
+    __u32 gpu_va;
+    __u64 cpu_va;
+};
 
-typedef struct _DRIVER_ARGS
-{
-    gctUINT64               InputBuffer;
-    gctUINT64               InputBufferSize;
-    gctUINT64               OutputBuffer;
-    gctUINT64               OutputBufferSize;
+struct drm_viv_gem_unlock {
+    __u32 handle;
+};
+
+struct drm_viv_gem_cache {
+    __u32 handle;
+    __u32 op;
+    __u64 logical;
+    __u64 bytes;
+};
+
+struct drm_viv_gem_getinfo {
+    __u32 handle;
+    __u32 param;
+    __u64 value;
+};
+
+#define DRM_VIV_GEM_CREATE          0x00
+#define DRM_VIV_GEM_LOCK            0x01
+#define DRM_VIV_GEM_UNLOCK          0x02
+#define DRM_VIV_GEM_CACHE           0x03
+#define DRM_VIV_GEM_GETINFO         0x04
+#define DRM_VIV_NUM_IOCTLS          0x05
+
+#define DRM_IOCTL_VIV_GEM_CREATE    DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_CREATE,     struct drm_viv_gem_create)
+#define DRM_IOCTL_VIV_GEM_LOCK      DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_LOCK,       struct drm_viv_gem_lock)
+#define DRM_IOCTL_VIV_GEM_UNLOCK    DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_UNLOCK,     struct drm_viv_gem_unlock)
+#define DRM_IOCTL_VIV_GEM_CACHE     DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_CACHE,      struct drm_viv_gem_cache)
+#define DRM_IOCTL_VIV_GEM_GETINFO   DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_GETINFO,    struct drm_viv_gem_getinfo)
+
+#if defined(__cplusplus)
 }
-DRIVER_ARGS;
+#endif
 
-#endif /* __gc_hal_kernel_os_h_ */
+#endif /* __ETNAVIV_DRM_H__ */

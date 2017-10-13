@@ -82,7 +82,7 @@ This define enables the use of VM for gckCommand and fence buffers.
 #if defined(UNDER_CE)
 #   define USE_KERNEL_VIRTUAL_BUFFERS           1
 #else
-#   define USE_KERNEL_VIRTUAL_BUFFERS           0
+#   define USE_KERNEL_VIRTUAL_BUFFERS           1
 #endif
 #endif
 
@@ -212,6 +212,10 @@ This define enables the use of VM for gckCommand and fence buffers.
 */
 #ifndef gcdDUMP_API
 #   define gcdDUMP_API                          0
+#endif
+
+#ifndef gcdDUMP_2DVG
+#   define gcdDUMP_2DVG                         0
 #endif
 
 /*
@@ -382,7 +386,6 @@ This define enables the use of VM for gckCommand and fence buffers.
 
     Set to 1 for infinite speed hardware.
     Set to 2 for bypassing the HAL.
-    Set to 3 for bypassing the drivers.
 */
 #ifndef gcdNULL_DRIVER
 #   define gcdNULL_DRIVER  0
@@ -1386,7 +1389,8 @@ VIV:gcdUSE_MMU_EXCEPTION
         Default is 0 which means 32bytes aligned.
 */
 #ifndef gcd2D_COMPRESSION_DEC400_ALIGN_MODE
-#   define gcd2D_COMPRESSION_DEC400_ALIGN_MODE       1
+#   define gcd2D_COMPRESSION_DEC400_ALIGN_MODE  1
 #endif
+
 
 #endif /* __gc_hal_options_h_ */
