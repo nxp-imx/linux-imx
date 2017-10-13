@@ -76,7 +76,6 @@ typedef struct _gcsDMABUF
     struct dma_buf_attachment * attachment;
     struct sg_table           * sgtable;
     unsigned long             * pagearray;
-    int                         fd;
 
     int                         npages;
     int                         pid;
@@ -132,9 +131,9 @@ static int dma_buf_info_show(struct seq_file* m, void* data)
         exp_name = "unknown";
 #endif
 
-        seq_printf(m, "%6d %6d %8d %8zu %10s",
+        seq_printf(m, "%6d %p %8d %8zu %10s",
                 buf_desc->pid,
-                buf_desc->fd,
+                buf_desc->dmabuf,
                 buf_desc->npages,
                 buf_obj->size,
                 exp_name);
@@ -204,9 +203,7 @@ _DmabufAttach(
 
     gckOS os = Allocator->os;
 
-    int fd = (int) Desc->dmaBuf.fd;
-
-    struct dma_buf *dmabuf = NULL;
+    struct dma_buf *dmabuf = Desc->dmaBuf.dmabuf;
     struct sg_table *sgt = NULL;
     struct dma_buf_attachment *attachment = NULL;
     int npages = 0;
@@ -220,14 +217,12 @@ _DmabufAttach(
 
     gcmkVERIFY_OBJECT(os, gcvOBJ_OS);
 
-    /* Import dma buf handle. */
-    dmabuf = dma_buf_get(fd);
-
     if (!dmabuf)
     {
         gcmkONERROR(gcvSTATUS_NOT_SUPPORTED);
     }
 
+    get_dma_buf(dmabuf);
     attachment = dma_buf_attach(dmabuf, &os->device->platform->device->dev);
 
     if (!attachment)
@@ -264,7 +259,6 @@ _DmabufAttach(
     /* Prepare descriptor. */
     gcmkONERROR(gckOS_Allocate(os, sizeof(gcsDMABUF), (gctPOINTER *)&buf_desc));
 
-    buf_desc->fd = fd;
     buf_desc->dmabuf = dmabuf;
     buf_desc->pagearray = pagearray;
     buf_desc->attachment = attachment;
@@ -324,46 +318,6 @@ _DmabufFree(
     gckOS_Free(os, buf_desc);
 }
 
-static gctINT
-_DmabufMapUser(
-    IN gckALLOCATOR Allocator,
-    IN PLINUX_MDL Mdl,
-    IN gctBOOL Cacheable,
-    OUT gctPOINTER * UserLogical
-    )
-{
-    gcsDMABUF *buf_desc = Mdl->priv;
-    gceSTATUS       status;
-    PLINUX_MDL      mdl = Mdl;
-    struct file *   file = buf_desc->dmabuf->file;
-
-    *UserLogical = (gctSTRING)vm_mmap(file,
-                    0L,
-                    mdl->numPages * PAGE_SIZE,
-                    PROT_READ | PROT_WRITE,
-                    MAP_SHARED,
-                    0);
-
-    if (IS_ERR(*UserLogical))
-    {
-        gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
-    }
-
-    /* To make sure the mapping is created. */
-    if (access_ok(VERIFY_READ, *UserLogical, 4))
-    {
-        uint32_t mem;
-        get_user(mem, (uint32_t *) *UserLogical);
-
-        (void) mem;
-    }
-
-    return gcvSTATUS_OK;
-
-OnError:
-    return status;
-}
-
 static void
 _DmabufUnmapUser(
     IN gckALLOCATOR Allocator,
@@ -372,13 +326,61 @@ _DmabufUnmapUser(
     IN gctUINT32 Size
     )
 {
+    gcsDMABUF *buf_desc = Mdl->priv;
+    gctINT8_PTR userLogical = Logical;
+
     if (unlikely(current->mm == gcvNULL))
     {
         /* Do nothing if process is exiting. */
         return;
     }
 
-    vm_munmap((unsigned long)Logical, Size);
+    userLogical -= buf_desc->sgtable->sgl->offset;
+    vm_munmap((unsigned long)userLogical, Mdl->numPages >> PAGE_SHIFT);
+}
+
+static gceSTATUS
+_DmabufMapUser(
+    IN gckALLOCATOR Allocator,
+    IN PLINUX_MDL Mdl,
+    IN gctBOOL Cacheable,
+    OUT gctPOINTER * UserLogical
+    )
+{
+    gcsDMABUF *buf_desc = Mdl->priv;
+    gctINT8_PTR userLogical = gcvNULL;
+    gceSTATUS status = gcvSTATUS_OK;
+
+    userLogical = (gctINT8_PTR)vm_mmap(buf_desc->dmabuf->file,
+                    0L,
+                    Mdl->numPages << PAGE_SHIFT,
+                    PROT_READ | PROT_WRITE,
+                    MAP_SHARED,
+                    0);
+
+    if (IS_ERR(userLogical))
+    {
+        gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+    }
+    userLogical += buf_desc->sgtable->sgl->offset;
+
+    /* To make sure the mapping is created. */
+    if (access_ok(VERIFY_READ, userLogical, 4))
+    {
+        uint32_t mem;
+        get_user(mem, (uint32_t *)userLogical);
+
+        (void)mem;
+    }
+
+    *UserLogical = (gctPOINTER)userLogical;
+
+OnError:
+    if (gcmIS_ERROR(status))
+    {
+        _DmabufUnmapUser(Allocator, Mdl, *UserLogical, Mdl->numPages >> PAGE_SHIFT);
+    }
+    return status;
 }
 
 static gceSTATUS

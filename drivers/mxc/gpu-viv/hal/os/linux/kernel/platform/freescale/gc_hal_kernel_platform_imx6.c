@@ -1044,6 +1044,17 @@ static inline int get_power_imx8_subsystem(struct device *pdev)
             continue;
         }
 
+#if defined(CONFIG_ANDROID) && LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
+        /* TODO: freescale BSP issue in some platform like imx8dv. */
+        clk_prepare(clk_core);
+        clk_set_rate(clk_core, 800000000);
+        clk_unprepare(clk_core);
+
+        clk_prepare(clk_shader);
+        clk_set_rate(clk_shader, 800000000);
+        clk_unprepare(clk_shader);
+#endif
+
         priv->imx_gpu_clks[core].clk_shader = clk_shader;
         priv->imx_gpu_clks[core].clk_core   = clk_core;
         priv->imx_gpu_clks[core].clk_axi    = clk_axi;

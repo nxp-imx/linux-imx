@@ -1459,56 +1459,6 @@ OnError:
     return status;
 }
 
-/*******************************************************************************
-**
-**  gckEVENT_CommitDone
-**
-**  Schedule an event to wake up work thread when commit is done by GPU.
-**
-**  INPUT:
-**
-**      gckEVENT Event
-**          Pointer to an gckEVENT object.
-**
-**      gceKERNEL_WHERE FromWhere
-**          Place in the pipe where the event needs to be generated.
-**
-**  OUTPUT:
-**
-**      Nothing.
-*/
-gceSTATUS
-gckEVENT_CommitDone(
-    IN gckEVENT Event,
-    IN gceKERNEL_WHERE FromWhere,
-    IN gckCONTEXT Context
-    )
-{
-    gceSTATUS status;
-    gcsHAL_INTERFACE iface;
-
-    gcmkHEADER_ARG("Event=0x%x FromWhere=%d", Event, FromWhere);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Event, gcvOBJ_EVENT);
-
-    iface.command = gcvHAL_COMMIT_DONE;
-
-    iface.u.CommitDone.context = gcmPTR_TO_UINT64(Context);
-
-    /* Append it to the queue. */
-    gcmkONERROR(gckEVENT_AddList(Event, &iface, FromWhere, gcvFALSE, gcvTRUE));
-
-    /* Success. */
-    gcmkFOOTER_NO();
-    return gcvSTATUS_OK;
-
-OnError:
-    /* Return the status. */
-    gcmkFOOTER();
-    return status;
-}
-
 #if gcdPROCESS_ADDRESS_SPACE
 gceSTATUS
 gckEVENT_DestroyMmu(
@@ -1949,6 +1899,10 @@ OnError:
 **      gcsQUEUE_PTR Queue
 **          User event queue.
 **
+**      gctBOOL Forced
+**          Force fire a event. There won't be interrupt if there's no events
+            queued. Force a event by append a dummy one if this parameter is on.
+**
 **  OUTPUT:
 **
 **      Nothing.
@@ -1956,7 +1910,8 @@ OnError:
 gceSTATUS
 gckEVENT_Commit(
     IN gckEVENT Event,
-    IN gcsQUEUE_PTR Queue
+    IN gcsQUEUE_PTR Queue,
+    IN gctBOOL Forced
     )
 {
     gceSTATUS status;
@@ -2023,6 +1978,14 @@ gckEVENT_Commit(
         }
 
         Queue = next;
+    }
+
+    if (Forced && Event->queueHead == gcvNULL)
+    {
+        gcsHAL_INTERFACE iface;
+        iface.command = gcvHAL_COMMIT_DONE;
+
+        gcmkONERROR(gckEVENT_AddList(Event, &iface, gcvKERNEL_PIXEL, gcvFALSE, gcvTRUE));
     }
 
     /* Submit the event list. */

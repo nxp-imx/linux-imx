@@ -105,13 +105,13 @@ gcsSharedPageTable;
 static gcsSharedPageTable_PTR sharedPageTable = gcvNULL;
 #endif
 
-typedef struct _gcsDynamicSpaceNode * gcsDynamicSpaceNode_PTR;
-typedef struct _gcsDynamicSpaceNode
+typedef struct _gcsFreeSpaceNode * gcsFreeSpaceNode_PTR;
+typedef struct _gcsFreeSpaceNode
 {
     gctUINT32       start;
     gctINT32        entries;
 }
-gcsDynamicSpaceNode;
+gcsFreeSpaceNode;
 
 #if gcdENDIAN_BIG
 
@@ -468,6 +468,140 @@ OnError:
     return status;
 }
 
+static gceSTATUS
+_CollectFreeSpace(
+    IN gckMMU Mmu,
+    OUT gcsFreeSpaceNode_PTR *Array,
+    OUT gctINT * Size
+    )
+{
+    gceSTATUS status = gcvSTATUS_OK;
+    gctPOINTER pointer = gcvNULL;
+    gcsFreeSpaceNode_PTR array = gcvNULL;
+    gcsFreeSpaceNode_PTR node = gcvNULL;
+    gctINT size = 0;
+    gctINT i = 0;
+
+    for (i = 0; i < gcdMMU_MTLB_ENTRY_NUM; i++)
+    {
+        if (!Mmu->mtlbLogical[i])
+        {
+            if (!node)
+            {
+                /* This is the first entry of the free space. */
+                node += 1;
+                size++;
+
+            }
+        }
+        else if (node)
+        {
+            /* Reset the start. */
+            node = gcvNULL;
+        }
+    }
+
+    /* Allocate memory for the array. */
+    gcmkONERROR(gckOS_Allocate(Mmu->os,
+                               gcmSIZEOF(*array) * size,
+                               &pointer));
+
+    array = (gcsFreeSpaceNode_PTR)pointer;
+    node  = gcvNULL;
+
+    for (i = 0, size = 0; i < gcdMMU_MTLB_ENTRY_NUM; i++)
+    {
+        if (!Mmu->mtlbLogical[i])
+        {
+            if (!node)
+            {
+                /* This is the first entry of the free space. */
+                node = &array[size++];
+
+                node->start   = i;
+                node->entries = 0;
+            }
+
+            node->entries++;
+        }
+        else if (node)
+        {
+            /* Reset the start. */
+            node = gcvNULL;
+        }
+    }
+
+#if gcdMMU_TABLE_DUMP
+    for (i = 0; i < size; i++)
+    {
+        gckOS_Print("%s(%d): [%d]: start=%d, entries=%d.\n",
+                __FUNCTION__, __LINE__,
+                i,
+                array[i].start,
+                array[i].entries);
+    }
+#endif
+
+    *Array = array;
+    *Size  = size;
+
+    return gcvSTATUS_OK;
+
+OnError:
+    if (pointer != gcvNULL)
+    {
+        gckOS_Free(Mmu->os, pointer);
+    }
+
+    return status;
+}
+
+gceSTATUS
+_GetMtlbFreeSpace(
+    IN gckMMU Mmu,
+    IN gctUINT32 NumEntries,
+    OUT gctUINT32 *MtlbStart,
+    OUT gctUINT32 *MtlbEnd
+    )
+{
+    gceSTATUS status = gcvSTATUS_OK;
+    gcsFreeSpaceNode_PTR nodeArray = gcvNULL;
+    gctINT i, nodeArraySize = 0;
+    gctINT numEntries = gcdMMU_MTLB_ENTRY_NUM;
+    gctINT32 mStart = -1;
+    gctINT32 mEnd = -1;
+
+    gcmkONERROR(_CollectFreeSpace(Mmu, &nodeArray, &nodeArraySize));
+
+    /* Find the smallest space for NumEntries */
+    for (i = 0; i < nodeArraySize; i++)
+    {
+        if (nodeArray[i].entries < numEntries && NumEntries <= (gctUINT32)nodeArray[i].entries)
+        {
+            numEntries = nodeArray[i].entries;
+
+            mStart = nodeArray[i].start;
+            mEnd   = nodeArray[i].start + NumEntries - 1;
+        }
+    }
+
+    if (mStart == -1 && mEnd == -1)
+    {
+        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+    }
+
+    *MtlbStart = (gctUINT32)mStart;
+    *MtlbEnd   = (gctUINT32)mEnd;
+
+OnError:
+    if (nodeArray)
+    {
+        gckOS_Free(Mmu->os, (gctPOINTER)nodeArray);
+    }
+
+    return status;
+}
+
 #if gcdPROCESS_ADDRESS_SPACE
 gctUINT32
 _StlbOffset(
@@ -557,22 +691,23 @@ OnError:
 static gceSTATUS
 _FillFlatMapping(
     IN gckMMU Mmu,
-    IN gctUINT32 PhysBase,
-    OUT gctSIZE_T Size
+    IN gctUINT64 PhysBase,
+    OUT gctSIZE_T Size,
+    OUT gctUINT32 *GpuBaseAddress
     )
 {
     gceSTATUS status;
     gctUINT32 mtlb;
+    gctUINT32 physBase;
     gcsADDRESS_AREA_PTR area = &Mmu->area[0];
 
     /************************ look up existing flat mapping ranges. ****************/
-    gctUINT64 flatBase = (gctUINT64)PhysBase;
+    gctUINT64 flatBase = PhysBase;
     gctUINT32 flatSize = (gctUINT32)Size;
     gctUINT64 base = flatBase;
     gctUINT32 size = flatSize;
     gctUINT64 end  = base + size;
     gctUINT32 i;
-    end = gcmMIN(end, 0x100000000ull);
 
     for (i = 0; i < Mmu->flatMappingRangeCount; i++)
     {
@@ -585,13 +720,8 @@ _FillFlatMapping(
         {
             base = gcmMAX(base, Mmu->flatMappingRanges[i].end);
 
-            flatBase = (gctUINT32) base;
+            flatBase = base;
             flatSize = (gctUINT32) (end - base);
-
-            if (base > 0xFFFFFFFF)
-            {
-                flatSize = 0;
-            }
         }
         else
         {
@@ -601,6 +731,11 @@ _FillFlatMapping(
 
         if (flatSize == 0)
         {
+            if (GpuBaseAddress)
+            {
+                *GpuBaseAddress = (gctUINT32) PhysBase;
+            }
+
             return gcvSTATUS_OK;
         }
     }
@@ -612,10 +747,11 @@ _FillFlatMapping(
     gcmkASSERT(Mmu->flatMappingRangeCount <= gcdMAX_FLAT_MAPPING_COUNT);
 
     /* overwrite the orignal parameters */
-    PhysBase = (gctUINT32)flatBase;
+    PhysBase = flatBase;
+    physBase = (gctUINT32)flatBase;
     Size = (gctSIZE_T)flatSize;
 
-    mtlb = _MtlbOffset(PhysBase);
+    mtlb = _MtlbOffset(physBase);
 
     /************************ Setup flat mapping in dynamic range. ****************/
 
@@ -625,7 +761,7 @@ _FillFlatMapping(
         gctUINT32_PTR stlbEntry;
         gctUINT i;
 
-        stlbEntry = _StlbEntry(area, PhysBase);
+        stlbEntry = _StlbEntry(area, physBase);
 
         /* Must be aligned to page. */
         gcmkASSERT((Size & 0xFFF) == 0);
@@ -633,13 +769,13 @@ _FillFlatMapping(
         for (i = 0; i < (Size / 4096); i++)
         {
             /* Flat mapping in page table. */
-            _WritePageEntry(stlbEntry, _SetPage(PhysBase + i * 4096, 0, gcvTRUE));
+            _WritePageEntry(stlbEntry, _SetPage(physBase + i * 4096, 0, gcvTRUE));
         }
 
         gcmkSAFECASTSIZET(size, Size);
 
         /* Flat mapping in map. */
-        _FillFlatMappingInMap(area, _AddressToIndex(area, PhysBase), size / 4096);
+        _FillFlatMappingInMap(area, _AddressToIndex(area, physBase), size / 4096);
 
         return gcvSTATUS_OK;
     }
@@ -647,8 +783,9 @@ _FillFlatMapping(
     /************************ Setup flat mapping in non dynamic range. **************/
     {
         gctBOOL mutex = gcvFALSE;
-        gctUINT32 start = PhysBase & ~gcdMMU_PAGE_64K_MASK;
-        gctUINT32 end = (gctUINT32) (PhysBase + Size - 1) & ~gcdMMU_PAGE_64K_MASK;
+        gctUINT32 physBaseExt = (gctUINT32) (PhysBase >> 32);
+        gctUINT32 start = physBase & ~gcdMMU_PAGE_64K_MASK;
+        gctUINT32 end = (gctUINT32) (physBase + Size - 1) & ~gcdMMU_PAGE_64K_MASK;
         gctUINT32 mStart = start >> gcdMMU_MTLB_SHIFT;
         gctUINT32 mEnd = end >> gcdMMU_MTLB_SHIFT;
         gctUINT32 sStart = (start & gcdMMU_STLB_64K_MASK) >> gcdMMU_STLB_64K_SHIFT;
@@ -658,13 +795,37 @@ _FillFlatMapping(
         gctUINT32 stlbIndex = 0;
         gctUINT32 totalNewStlbs = 0;
         gctINT32 firstMtlbEntry = -1;
-        gctUINT32 mtlbCurEntry = mStart;
+        gctUINT32 mtlbCurEntry;
         gcsMMU_STLB_CHUNK_PTR curStlbChunk = gcvNULL;
         gctUINT32 seqs[2] = {0, 0};
         gctUINT32 seqIdx = 0;
+
         /* Grab the mutex. */
         gcmkONERROR(gckOS_AcquireMutex(Mmu->os, Mmu->pageTableMutex, gcvINFINITE));
         mutex = gcvTRUE;
+
+        if (PhysBase + Size - 1 > 0xffffffff)
+        {
+            gctUINT32 mEntries;
+            gctUINT32 sEntries;
+
+            mEntries = (gctUINT32)(Size + (1 << gcdMMU_MTLB_SHIFT) - 1) / (1 << gcdMMU_MTLB_SHIFT);
+
+            gcmkONERROR(_GetMtlbFreeSpace(Mmu, mEntries, &mStart, &mEnd));
+
+            sStart = 0;
+            sEntries = (gctUINT32)(Size + gcdMMU_PAGE_64K_SIZE - 1) / gcdMMU_PAGE_64K_SIZE;
+            sEnd = (sEntries - 1) % gcdMMU_STLB_64K_ENTRY_NUM;
+        }
+
+        if (GpuBaseAddress)
+        {
+            *GpuBaseAddress = (mStart << gcdMMU_MTLB_SHIFT)
+                            | (sStart << gcdMMU_STLB_64K_SHIFT)
+                            | (physBase & gcdMMU_PAGE_64K_MASK);
+        }
+
+        mtlbCurEntry = mStart;
 
         /* find all new stlbs, part of new flat mapping range may already have stlbs*/
         while (mtlbCurEntry <= mEnd)
@@ -824,13 +985,13 @@ _FillFlatMapping(
                     gcmkASSERT(0);
                 }
             }
-            /* Fill STLB. */
-            sStart = (start & gcdMMU_STLB_64K_MASK) >> gcdMMU_STLB_64K_SHIFT;
 
             while (sStart <= last)
             {
                 gcmkASSERT(!(start & gcdMMU_PAGE_64K_MASK));
-                _WritePageEntry(stlbLogical + sStart, _SetPage(start, 0, gcvTRUE));
+
+                _WritePageEntry(stlbLogical + sStart, _SetPage(start, physBaseExt, gcvTRUE));
+
 #if gcdMMU_TABLE_DUMP
                 gckOS_Print("%s(%d): insert STLB[%d]: %08x\n",
                     __FUNCTION__, __LINE__,
@@ -839,10 +1000,15 @@ _FillFlatMapping(
 #endif
                 /* next page. */
                 start += gcdMMU_PAGE_64K_SIZE;
+                if (start == 0)
+                {
+                    physBaseExt++;
+                }
                 sStart++;
                 curStlbChunk->pageCount++;
             }
 
+            sStart = 0;
             ++mStart;
         }
 
@@ -868,9 +1034,9 @@ _FillFlatMapping(
         gcmkVERIFY_OK(gckOS_ReleaseMutex(Mmu->os, Mmu->pageTableMutex));
 
 #if gcdENABLE_TRUST_APPLICATION
-        if (Mmu->hardware->secureMode == gcvSECURE_IN_TA)
+        if (Mmu->hardware->options.secureMode == gcvSECURE_IN_TA)
         {
-            gckKERNEL_SecurityMapMemory(Mmu->hardware->kernel, gcvNULL, PhysBase, (gctUINT32)Size/4096, &PhysBase);
+            gckKERNEL_SecurityMapMemory(Mmu->hardware->kernel, gcvNULL, physBase, (gctUINT32)Size/4096, &physBase);
         }
 #endif
 
@@ -899,91 +1065,6 @@ OnError:
         }
         return status;
     }
-}
-
-static gceSTATUS
-_FindDynamicSpace(
-    IN gckMMU Mmu,
-    OUT gcsDynamicSpaceNode_PTR *Array,
-    OUT gctINT * Size
-    )
-{
-    gceSTATUS status = gcvSTATUS_OK;
-    gctPOINTER pointer = gcvNULL;
-    gcsDynamicSpaceNode_PTR array = gcvNULL;
-    gctINT size = 0;
-    gctINT i = 0, nodeStart = -1, nodeEntries = 0;
-
-    /* Allocate memory for the array. */
-    gcmkONERROR(gckOS_Allocate(Mmu->os,
-                               gcmSIZEOF(*array) * (gcdMMU_MTLB_ENTRY_NUM / 2),
-                               &pointer));
-
-    array = (gcsDynamicSpaceNode_PTR)pointer;
-
-    /* Loop all the entries. */
-    while (i < gcdMMU_MTLB_ENTRY_NUM)
-    {
-        if (!Mmu->mtlbLogical[i])
-        {
-            if (nodeStart < 0)
-            {
-                /* This is the first entry of the dynamic space. */
-                nodeStart   = i;
-                nodeEntries = 1;
-            }
-            else
-            {
-                /* Other entries of the dynamic space. */
-                nodeEntries++;
-            }
-        }
-        else if (nodeStart >= 0)
-        {
-            /* Save the previous node. */
-            array[size].start   = nodeStart;
-            array[size].entries = nodeEntries;
-            size++;
-
-            /* Reset the start. */
-            nodeStart   = -1;
-            nodeEntries = 0;
-        }
-
-        i++;
-    }
-
-    /* Save the previous node. */
-    if (nodeStart >= 0)
-    {
-        array[size].start   = nodeStart;
-        array[size].entries = nodeEntries;
-        size++;
-    }
-
-#if gcdMMU_TABLE_DUMP
-    for (i = 0; i < size; i++)
-    {
-        gckOS_Print("%s(%d): [%d]: start=%d, entries=%d.\n",
-                __FUNCTION__, __LINE__,
-                i,
-                array[i].start,
-                array[i].entries);
-    }
-#endif
-
-    *Array = array;
-    *Size  = size;
-
-    return gcvSTATUS_OK;
-
-OnError:
-    if (pointer != gcvNULL)
-    {
-        gckOS_Free(Mmu->os, pointer);
-    }
-
-    return status;
 }
 
 static gceSTATUS
@@ -1024,7 +1105,7 @@ _SetupDynamicSpace(
     )
 {
     gceSTATUS status;
-    gcsDynamicSpaceNode_PTR nodeArray = gcvNULL;
+    gcsFreeSpaceNode_PTR nodeArray = gcvNULL;
     gctINT i, nodeArraySize = 0;
     gctPHYS_ADDR_T physical;
     gctUINT32 address;
@@ -1035,8 +1116,8 @@ _SetupDynamicSpace(
     gcsADDRESS_AREA_PTR areaSecure = &Mmu->area[gcvADDRESS_AREA_SECURE];
     gctUINT32 secureAreaSize = 0;
 
-    /* Find all the dynamic address space. */
-    gcmkONERROR(_FindDynamicSpace(Mmu, &nodeArray, &nodeArraySize));
+    /* Find all the free address space. */
+    gcmkONERROR(_CollectFreeSpace(Mmu, &nodeArray, &nodeArraySize));
 
     for (i = 0; i < nodeArraySize; i++)
     {
@@ -1225,6 +1306,8 @@ _Construct(
     gctUINT32 physSize;
     gctUINT32 contiguousBase;
     gctUINT32 contiguousSize = 0;
+    gctUINT32 externalBase;
+    gctUINT32 externalSize = 0;
     gctUINT32 gpuAddress;
     gctPHYS_ADDR_T gpuPhysical;
     gcsADDRESS_AREA_PTR area = gcvNULL;
@@ -1301,6 +1384,19 @@ _Construct(
         map[1] = ~0U;
         area->heapList  = 0;
         area->freeNodes = gcvFALSE;
+
+        status = gckOS_QueryOption(mmu->os, "contiguousBase", &contiguousBase);
+
+        if (gcmIS_SUCCESS(status))
+        {
+            status = gckOS_QueryOption(mmu->os, "contiguousSize", &contiguousSize);
+        }
+
+        if (gcmIS_SUCCESS(status) && contiguousSize)
+        {
+            mmu->contiguousBaseAddress = contiguousBase - Kernel->hardware->baseAddress;
+        }
+
     }
     else
     {
@@ -1365,8 +1461,24 @@ _Construct(
         if (physSize)
         {
             /* Setup user specified flat mapping. */
-            gcmkONERROR(_FillFlatMapping(mmu, gpuAddress, physSize));
+            gcmkONERROR(_FillFlatMapping(mmu, gpuAddress, physSize, gcvNULL));
         }
+
+#ifndef EMULATOR
+        if (!_ReadPageEntry(mmu->mtlbLogical + 0))
+        {
+            gctUINT32 mtlbEntry;
+            /*
+             * Reserved 0~4MB space.
+             * 64KB page size, Ingore exception, Not Present.
+             */
+            mtlbEntry = (1 << 2)
+                      | (0 << 1)
+                      | (0 << 0);
+
+            _WritePageEntry(mmu->mtlbLogical + 0, mtlbEntry);
+        }
+#endif
 
         status = gckOS_QueryOption(mmu->os, "contiguousBase", &contiguousBase);
 
@@ -1377,8 +1489,35 @@ _Construct(
 
         if (gcmIS_SUCCESS(status) && contiguousSize)
         {
+            gctUINT64 gpuContiguousBase;
+            gctUINT32 contiguousBaseAddress;
+
+            gcmkONERROR(gckOS_CPUPhysicalToGPUPhysical(mmu->os, contiguousBase, &gpuContiguousBase));
+
             /* Setup flat mapping for reserved memory (VIDMEM). */
-            gcmkONERROR(_FillFlatMapping(mmu, contiguousBase, contiguousSize));
+            gcmkONERROR(_FillFlatMapping(mmu, gpuContiguousBase, contiguousSize, &contiguousBaseAddress));
+
+            mmu->contiguousBaseAddress = contiguousBaseAddress;
+        }
+
+        status = gckOS_QueryOption(mmu->os, "externalBase", &externalBase);
+
+        if (gcmIS_SUCCESS(status))
+        {
+            status = gckOS_QueryOption(mmu->os, "externalSize", &externalSize);
+        }
+
+        if (gcmIS_SUCCESS(status) && externalSize)
+        {
+            gctUINT64 gpuExternalBase;
+            gctUINT32 externalBaseAddress;
+
+            gcmkONERROR(gckOS_CPUPhysicalToGPUPhysical(mmu->os, externalBase, &gpuExternalBase));
+
+            /* Setup flat mapping for external memory. */
+            gcmkONERROR(_FillFlatMapping(mmu, gpuExternalBase, externalSize, &externalBaseAddress));
+
+            mmu->externalBaseAddress = externalBaseAddress;
         }
 
         gcmkONERROR(_SetupDynamicSpace(mmu));
@@ -2119,7 +2258,7 @@ _FreePages(
     acquired = gcvFALSE;
 
 #if gcdENABLE_TRUST_APPLICATION
-    if (Mmu->hardware->secureMode == gcvSECURE_IN_TA)
+    if (Mmu->hardware->options.secureMode == gcvSECURE_IN_TA)
     {
         gckKERNEL_SecurityUnmapMemory(Mmu->hardware->kernel, Address, (gctUINT32)PageCount);
     }
@@ -2323,7 +2462,7 @@ gckMMU_FlatMapping(
         _WritePageEntry(pageTable, _SetPage(Physical + i * 4096, 0));
     }
 
-    gcmkONERROR(_FillFlatMappingInMap(Mmu, index, NumPages));
+    gcmkONERROR(_FillFlatMapping(Mmu, PhysBase, Size, gcvNULL));
 
     return gcvSTATUS_OK;
 
@@ -2671,7 +2810,7 @@ gckMMU_FillFlatMapping(
 
     if (hardware->mmuVersion)
     {
-        gcmkONERROR(_FillFlatMapping(Mmu, PhysBase, Size));
+        gcmkONERROR(_FillFlatMapping(Mmu, PhysBase, Size, gcvNULL));
     }
 
     return gcvSTATUS_OK;

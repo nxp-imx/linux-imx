@@ -148,6 +148,7 @@ typedef enum _gceFEATURE
     gcvFEATURE_VG_FILTER,
     gcvFEATURE_VG21,
     gcvFEATURE_VG_DOUBLE_BUFFER,
+    gcvFEATURE_VG_RESOLUTION_8K,
     gcvFEATURE_MC20,
     gcvFEATURE_SUPER_TILED,
     gcvFEATURE_FAST_CLEAR_FLUSH,
@@ -510,6 +511,9 @@ typedef enum _gceFEATURE
     gcvFEATURE_ASYNC_FE_FENCE_FIX,
     gcvFEATURE_PSCS_THROTTLE,
     gcvFEATURE_WIDELINE_TRIANGLE_EMU,
+    gcvFEATURE_FENCE,
+    gcvFEATURE_PE_DEPTH_ONLY_OQFIX,
+
     /* Insert features above this comment only. */
     gcvFEATURE_COUNT                /* Not a feature. */
 }
@@ -559,6 +563,7 @@ typedef enum _gceOPTION
     gcvOPTION_GPU_BUFOBJ_UPLOAD = 56,
     gcvOPTION_OCL_ASYNC_BLT = 57,
     gcvOPTION_OCL_IN_THREAD = 58,
+    gcvOPTION_COMPRESSION_DEC400 = 59,
 
     /* Insert option above this comment only */
     gcvOPTION_COUNT                     /* Not a OPTION*/
@@ -2080,6 +2085,24 @@ typedef enum _gceSECURE_MODE
 }
 gceSECURE_MODE;
 
+/* kernel driver compression option, as it's a system global option,
+** it means kernel driver allows the options, NOT necessarily means it must be on.
+*/
+typedef enum _gceCOMPRESSION_OPTION
+{
+    gcvCOMPRESSION_OPTION_NONE       = 0x0, /* No any compression */
+    gcvCOMPRESSION_OPTION_COLOR      = 0x1, /* Compression for non-msaa color format */
+    gcvCOMPRESSION_OPTION_DEPTH      = 0x2, /* Compression for non-msaa depth format */
+    gcvCOMPRESSION_OPTION_MSAA_COLOR = 0x4, /* Compression for msaa color */
+    gcvCOMPRESSION_OPTION_MSAA_DEPTH = 0x8, /* Compression for msaa depth */
+
+    /* default compressio option */
+    gcvCOMPRESSION_OPTION_DEFAULT    = gcvCOMPRESSION_OPTION_DEPTH      |
+                                       gcvCOMPRESSION_OPTION_COLOR      |
+                                       gcvCOMPRESSION_OPTION_MSAA_COLOR |
+                                       gcvCOMPRESSION_OPTION_MSAA_DEPTH,
+}
+gceCOMPRESSION_OPTION;
 
 /* No special needs. */
 #define gcvALLOC_FLAG_NONE                  0x00000000
@@ -2092,6 +2115,9 @@ gceSECURE_MODE;
 #define gcvALLOC_FLAG_SECURITY              0x00000004
 /* Physical non contiguous. */
 #define gcvALLOC_FLAG_NON_CONTIGUOUS        0x00000008
+
+/* Do not try slow pools (gcvPOOL_VIRTUAL/gcvPOOL_CONTIGUOUS) */
+#define gcvALLOC_FLAG_FAST_POOLS            0x00000100
 
 /* Import DMABUF. */
 #define gcvALLOC_FLAG_DMABUF                0x00001000

@@ -58,6 +58,7 @@
 
 #include "gc_hal_kernel_linux.h"
 #include <linux/slab.h>
+#include <linux/mm_types.h>
 
 typedef struct _gcsALLOCATOR * gckALLOCATOR;
 typedef union _gcsATTACH_DESC * gcsATTACH_DESC_PTR;
@@ -125,6 +126,40 @@ typedef struct _gcsALLOCATOR_OPERATIONS
 
     /**************************************************************************
     **
+    ** Mmap
+    **
+    ** Map a page range of the memory to user space.
+    **
+    ** INPUT:
+    **      gckALLOCATOR Allocator
+    **          Pointer to an gckALLOCATOER object.
+    **
+    **      PLINUX_MDL Mdl
+    **          Pointer to a Mdl.
+    **
+    **      gctSIZE_T skipPages
+    **          Number of page to be skipped from beginning of this memory.
+    **
+    **      gctSIZE_T numPages
+    **          Number of pages to be mapped from skipPages.
+    **
+    ** INOUT:
+    **
+    **      struct vm_area_struct *vma
+    **          Pointer to VMM memory area.
+    **
+    */
+    gceSTATUS
+    (*Mmap)(
+        IN gckALLOCATOR Allocator,
+        IN PLINUX_MDL Mdl,
+        IN gctSIZE_T skipPages,
+        IN gctSIZE_T numPages,
+        INOUT struct vm_area_struct *vma
+        );
+
+    /**************************************************************************
+    **
     ** MapUser
     **
     ** Map memory to user space.
@@ -147,7 +182,7 @@ typedef struct _gcsALLOCATOR_OPERATIONS
     **      Nothing.
     **
     */
-    gctINT
+    gceSTATUS
     (*MapUser)(
         IN gckALLOCATOR Allocator,
         IN PLINUX_MDL Mdl,
@@ -325,6 +360,38 @@ typedef struct _gcsALLOCATOR_OPERATIONS
         IN gcsATTACH_DESC_PTR Desc,
         OUT PLINUX_MDL Mdl
         );
+
+    /**************************************************************************
+    **
+    ** GetSGT
+    **
+    ** Get scatter-gather table from a range of the memory.
+    **
+    ** INPUT:
+    **      gckALLOCATOR Allocator
+    **          Pointer to an gckALLOCATOER object.
+    **
+    **      gctUINT32 Handle
+    **          Handle of the memory.
+    **
+    **      gctSIZE_T Offset
+    **          Offset to the beginning of this mdl.
+    **
+    **      gctSIZE_T Bytes
+    **          Total bytes form Offset.
+    **
+    ** OUTPUT:
+    **      gctPOINTER *SGT
+    **          scatter-gather table
+    **
+    */
+    gceSTATUS (*GetSGT)(
+        IN gckALLOCATOR Allocator,
+        IN PLINUX_MDL Mdl,
+        IN gctSIZE_T Offset,
+        IN gctSIZE_T Bytes,
+        OUT gctPOINTER *SGT
+        );
 }
 gcsALLOCATOR_OPERATIONS;
 
@@ -370,7 +437,7 @@ typedef union _gcsATTACH_DESC
     /* gcvALLOC_FLAG_DMABUF */
     struct
     {
-        gctINT                  fd;
+        gctPOINTER              dmabuf;
     }
     dmaBuf;
 

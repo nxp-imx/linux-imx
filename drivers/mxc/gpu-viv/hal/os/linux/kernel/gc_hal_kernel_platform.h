@@ -75,9 +75,11 @@ typedef struct _gcsMODULE_PARAMETERS
     gctUINT contiguousSize;
     gctUINT contiguousBase;
     gctUINT contiguousRequested;
+    gctUINT externalSize;
+    gctUINT externalBase;
     gctUINT bankSize;
     gctINT  fastClear;
-    gctINT  compression;
+    gceCOMPRESSION_OPTION compression;
     gctINT  powerManagement;
     gctINT  gpuProfiler;
     gctINT  signal;
@@ -212,7 +214,7 @@ typedef struct soc_platform_ops
 
     /*******************************************************************************
     **
-    **  getGPUPhysical
+    **  getCPUPhysical
     **
     **  Convert GPU physical address to CPU physical address if they are
     **  different.

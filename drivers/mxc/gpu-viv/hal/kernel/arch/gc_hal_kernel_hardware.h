@@ -170,8 +170,7 @@ struct _gckHARDWARE
 
     /* Chip characteristics. */
     gcsHAL_QUERY_CHIP_IDENTITY  identity;
-    gctBOOL                     allowFastClear;
-    gctBOOL                     allowCompression;
+    gcsHAL_QUERY_CHIP_OPTIONS   options;
     gctUINT32                   powerBaseAddress;
     gctBOOL                     extraEventStates;
 
@@ -198,11 +197,6 @@ struct _gckHARDWARE
 
     gctUINT32                   mmuVersion;
 
-    /* Whether use new MMU. It is meaningless
-    ** for old MMU since old MMU is always enabled.
-    */
-    gctBOOL                     enableMMU;
-
     /* Type */
     gceHARDWARE_TYPE            type;
 
@@ -220,10 +214,6 @@ struct _gckHARDWARE
 #if gcdLINK_QUEUE_SIZE
     struct _gckQUEUE            linkQueue;
 #endif
-
-    gctBOOL                     powerManagement;
-    gctBOOL                     gpuProfiler;
-
     gctBOOL                     stallFEPrefetch;
 
     gctUINT32                   minFscaleValue;
@@ -257,8 +247,6 @@ struct _gckHARDWARE
     gctUINT32                   maxOutstandingReads;
 
     gcsHARDWARE_PAGETABLE_ARRAY pagetableArray;
-
-    gceSECURE_MODE              secureMode;
 
     gctUINT64                   contextID;
 

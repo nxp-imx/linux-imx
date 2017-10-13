@@ -305,6 +305,7 @@ gceSTATUS gckVGKERNEL_Dispatch(
             &kernelInterface->u.QueryChipIdentity.chipRevision,
             &kernelInterface->u.QueryChipIdentity.productID,
             &kernelInterface->u.QueryChipIdentity.ecoID,
+            &kernelInterface->u.QueryChipIdentity.customerID,
             &kernelInterface->u.QueryChipIdentity.chipFeatures,
             &kernelInterface->u.QueryChipIdentity.chipMinorFeatures,
             &kernelInterface->u.QueryChipIdentity.chipMinorFeatures2
