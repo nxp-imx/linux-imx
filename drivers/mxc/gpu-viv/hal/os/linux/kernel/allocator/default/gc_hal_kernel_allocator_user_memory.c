@@ -552,7 +552,7 @@ _UserMemoryFree(
     gcmkFOOTER_NO();
 }
 
-static gctINT
+static gceSTATUS
 _UserMemoryMapUser(
     IN gckALLOCATOR Allocator,
     IN PLINUX_MDL Mdl,
@@ -564,7 +564,7 @@ _UserMemoryMapUser(
 
     *UserLogical = (gctPOINTER)userMemory->user_vaddr;
 
-    return 0;
+    return gcvSTATUS_OK;
 }
 
 static void

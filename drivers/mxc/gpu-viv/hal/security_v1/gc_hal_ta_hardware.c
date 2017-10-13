@@ -383,7 +383,7 @@ gctaHARDWARE_Construct(
     )
 {
     gceSTATUS status;
-    gcTA_HARDWARE hardware;
+    gcTA_HARDWARE hardware = gcvNULL;
 
     gctaOS os = TA->os;
 
@@ -413,12 +413,18 @@ gctaHARDWARE_Construct(
         0x00000900
         );
 
-    _IdentifyHardwareByDatabase(hardware);
+    gcmkONERROR(_IdentifyHardwareByDatabase(hardware));
 
     *Hardware = hardware;
 
     return gcvSTATUS_OK;
+
 OnError:
+    if (hardware)
+    {
+        gctaOS_Free(hardware);
+    }
+
     return status;
 }
 

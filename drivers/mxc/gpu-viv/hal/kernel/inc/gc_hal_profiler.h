@@ -72,13 +72,6 @@ extern "C" {
 #define GLBUFOBJ_OBJECT 40
 #define GLBUFOBJ_OBJECT_BYTES 41
 
-#if VIVANTE_PROFILER
-#define gcmPROFILE_GC(Enum, Value)  gcoPROFILER_Count(gcvNULL, Enum, Value)
-#else
-#define gcmPROFILE_GC(Enum, Value)  do { } while (gcvFALSE)
-#endif
-
-
 #define    ES11_CALLS              151
 #define    ES11_DRAWCALLS          (ES11_CALLS             + 1)
 #define    ES11_STATECHANGECALLS   (ES11_DRAWCALLS         + 1)
@@ -546,6 +539,16 @@ extern "C" {
 #define VPNC_MCCAXIMAXLATENCY             (VPNG_MCC + 16)
 #define VPNC_MCCAXITOTALLATENCY           (VPNG_MCC + 17)
 #define VPNC_MCCAXISAMPLECOUNT            (VPNG_MCC + 18)
+#define VPNC_MCCFEREADBANDWIDTH           (VPNG_MCC + 19)
+#define VPNC_MCCMMUREADBANDWIDTH          (VPNG_MCC + 20)
+#define VPNC_MCCBLTREADBANDWIDTH          (VPNG_MCC + 21)
+#define VPNC_MCCSH0READBANDWIDTH          (VPNG_MCC + 22)
+#define VPNC_MCCSH1READBANDWIDTH          (VPNG_MCC + 23)
+#define VPNC_MCCPEWRITEBANDWIDTH          (VPNG_MCC + 24)
+#define VPNC_MCCBLTWRITEBANDWIDTH         (VPNG_MCC + 25)
+#define VPNC_MCCSH0WRITEBANDWIDTH         (VPNG_MCC + 26)
+#define VPNC_MCCSH1WRITEBANDWIDTH         (VPNG_MCC + 27)
+
 
 /* HW: MCZ Counters. */
 #define VPNC_MCZREADREQ8BCOLORPIPE        (VPNG_MCZ + 1)
@@ -658,6 +661,103 @@ extern "C" {
                               + MODULE_GPUL2_CACHE_COUNTER_NUM)
 
 
+#ifdef ANDROID
+#define DEFAULT_PROFILE_FILE_NAME   "/sdcard/vprofiler.vpd"
+#else
+#define DEFAULT_PROFILE_FILE_NAME   "vprofiler.vpd"
+#endif
+
+#if gcdENDIAN_BIG
+#define BIG_ENDIAN_TRANS_INT(x) ((gctUINT32)( \
+        (((gctUINT32)(x) & (gctUINT32)0x000000FFUL) << 24) | \
+        (((gctUINT32)(x) & (gctUINT32)0x0000FF00UL) << 8)  | \
+        (((gctUINT32)(x) & (gctUINT32)0x00FF0000UL) >> 8)  | \
+        (((gctUINT32)(x) & (gctUINT32)0xFF000000UL) >> 24)))
+#else
+#define BIG_ENDIAN_TRANS_INT(x) x
+#endif
+
+/* Write a data value. */
+#define gcmWRITE_VALUE(IntData) \
+    do \
+    { \
+        gceSTATUS status; \
+        gctINT32 value = IntData; \
+        value = BIG_ENDIAN_TRANS_INT(value); \
+        gcmERR_BREAK(gcoPROFILER_Write(Profiler, gcmSIZEOF(value), &value)); \
+    } \
+    while (gcvFALSE)
+
+#define gcmWRITE_CONST(Const) \
+    do \
+    { \
+        gceSTATUS status; \
+        gctINT32 data = Const; \
+        data = BIG_ENDIAN_TRANS_INT(data); \
+        gcmERR_BREAK(gcoPROFILER_Write(Profiler, gcmSIZEOF(data), &data)); \
+    } \
+    while (gcvFALSE)
+
+#define gcmWRITE_COUNTER(Counter, Value) \
+    gcmWRITE_CONST(Counter); \
+    gcmWRITE_VALUE(Value)
+
+/* Write a string value (char*). */
+#define gcmWRITE_STRING(String) \
+    do \
+    { \
+        gceSTATUS status; \
+        gctINT32 length; \
+        length = (gctINT32) gcoOS_StrLen((gctSTRING)String, gcvNULL); \
+        length = BIG_ENDIAN_TRANS_INT(length); \
+        gcmERR_BREAK(gcoPROFILER_Write(Profiler, gcmSIZEOF(length), &length)); \
+        gcmERR_BREAK(gcoPROFILER_Write(Profiler, length, String)); \
+    } \
+    while (gcvFALSE)
+
+#define gcmWRITE_BUFFER(Size, Buffer) \
+    do \
+    { \
+        gceSTATUS status; \
+        gcmERR_BREAK(gcoPROFILER_Write(Profiler, Size, Buffer)); \
+    } \
+    while (gcvFALSE)
+
+#define gcmGET_COUNTER(counter, counterId) \
+    do \
+    { \
+        if ((gctUINT32)*(memory + counterId + offset) == 0xdeaddead) \
+        { \
+            counter = 0xdeaddead; \
+        } \
+        else \
+        { \
+            gctUINT64_PTR Memory = memory; \
+            Memory += TOTAL_PROBE_NUMBER * CoreId; \
+            counter = (gctUINT32)*(Memory + counterId + offset); \
+        } \
+    } \
+    while (gcvFALSE)
+
+#define gcmGET_LATENCY_COUNTER(minLatency, maxLatency, counterId) \
+    do \
+    { \
+        if ((gctUINT32)*(memory + counterId + offset) == 0xdeaddead) \
+        { \
+            minLatency = maxLatency = 0xdeaddead; \
+        } \
+        else \
+        { \
+            gctUINT64_PTR Memory = memory; \
+            Memory += TOTAL_PROBE_NUMBER * CoreId; \
+            maxLatency = (((gctUINT32)*(Memory + counterId + offset) & 0xfff000) >> 12); \
+            minLatency = ((gctUINT32)*(Memory + counterId + offset) & 0x000fff); \
+            if (minLatency == 4095) \
+                minLatency = 0; \
+        } \
+    } \
+    while (gcvFALSE)
+
 typedef enum _gceCOUNTER
 {
     gcvCOUNTER_FRONT_END,
@@ -677,9 +777,20 @@ typedef enum _gceCOUNTER
 }
 gceCOUNTER;
 
+typedef enum _gceProfilerClient
+{
+    gcvCLIENT_OPENGLES11 = 1,
+    gcvCLIENT_OPENGLES,
+    gcvCLIENT_OPENGL,
+    gcvCLIENT_OPENVG,
+    gcvCLIENT_OPENCL,
+    gcvCLIENT_OPENVX,
+    gcvCLIENT_OPENVK,
+}
+gceProfilerClient;
 
 /* HW profile information. */
-typedef struct _gcsPROFILER_NEW_COUNTERS_PART1
+typedef struct _gcsPROFILER_COUNTERS_PART1
 {
     gctUINT32       gpuTotalRead64BytesPerFrame;
     gctUINT32       gpuTotalWrite64BytesPerFrame;
@@ -785,9 +896,9 @@ typedef struct _gcsPROFILER_NEW_COUNTERS_PART1
     gctUINT32       tx_stall_count;
     gctUINT32       tx_process_count;
 }
-gcsPROFILER_NEW_COUNTERS_PART1;
+gcsPROFILER_COUNTERS_PART1;
 
-typedef struct _gcsPROFILER_NEW_COUNTERS_PART2
+typedef struct _gcsPROFILER_COUNTERS_PART2
 {
     /* MCC */
     gctUINT32       mcc_total_read_req_8B_from_colorpipe;
@@ -808,6 +919,15 @@ typedef struct _gcsPROFILER_NEW_COUNTERS_PART2
     gctUINT32       mcc_axi_sample_count;
     gctUINT32       mcc_axi_max_latency;
     gctUINT32       mcc_axi_min_latency;
+    gctUINT32       mc_fe_read_bandwidth;
+    gctUINT32       mc_mmu_read_bandwidth;
+    gctUINT32       mc_blt_read_bandwidth;
+    gctUINT32       mc_sh0_read_bandwidth;
+    gctUINT32       mc_sh1_read_bandwidth;
+    gctUINT32       mc_pe_write_bandwidth;
+    gctUINT32       mc_blt_write_bandwidth;
+    gctUINT32       mc_sh0_write_bandwidth;
+    gctUINT32       mc_sh1_write_bandwidth;
 
     /* MCZ */
     gctUINT32       mcz_total_read_req_8B_from_colorpipe;
@@ -869,134 +989,16 @@ typedef struct _gcsPROFILER_NEW_COUNTERS_PART2
     gctUINT32       l2_axi1_total_latency;
     gctUINT32       l2_axi1_total_request_count;
 }
-gcsPROFILER_NEW_COUNTERS_PART2;
-
-typedef struct _gcsPROFILER_NEW_COUNTERS
-{
-    gctUINT32       drawID;
-    gcsPROFILER_NEW_COUNTERS_PART1 counters_part1;
-    gcsPROFILER_NEW_COUNTERS_PART2 counters_part2;
-}
-gcsPROFILER_NEW_COUNTERS;
+gcsPROFILER_COUNTERS_PART2;
 
 typedef struct _gcsPROFILER_COUNTERS
 {
-    /* HW static counters. */
-    gctUINT32       gpuClock;
-    gctUINT32       axiClock;
-    gctUINT32       shaderClock;
-
-    /* HW vairable counters. */
-    gctUINT32       gpuClockStart;
-    gctUINT32       gpuClockEnd;
-
-    /* HW vairable counters. */
-    gctUINT32       gpuCyclesCounter;
-    gctUINT32       gpuTotalCyclesCounter;
-    gctUINT32       gpuIdleCyclesCounter;
-    gctUINT32       gpuTotalRead64BytesPerFrame;
-    gctUINT32       gpuTotalWrite64BytesPerFrame;
-
-    /* PE */
-    gctUINT32       pe_pixel_count_killed_by_color_pipe;
-    gctUINT32       pe_pixel_count_killed_by_depth_pipe;
-    gctUINT32       pe_pixel_count_drawn_by_color_pipe;
-    gctUINT32       pe_pixel_count_drawn_by_depth_pipe;
-
-    /* SH */
-    gctUINT32       ps_inst_counter;
-    gctUINT32       rendered_pixel_counter;
-    gctUINT32       vs_inst_counter;
-    gctUINT32       rendered_vertice_counter;
-    gctUINT32       vtx_branch_inst_counter;
-    gctUINT32       vtx_texld_inst_counter;
-    gctUINT32       pxl_branch_inst_counter;
-    gctUINT32       pxl_texld_inst_counter;
-    gctUINT32       vs_non_idle_starve_count;
-    gctUINT32       vs_starve_count;
-    gctUINT32       vs_stall_count;
-    gctUINT32       vs_process_count;
-    gctUINT32       ps_non_idle_starve_count;
-    gctUINT32       ps_starve_count;
-    gctUINT32       ps_stall_count;
-    gctUINT32       ps_process_count;
-    gctUINT32       shader_cycle_count;
-
-    /* PA */
-    gctUINT32       pa_input_vtx_counter;
-    gctUINT32       pa_input_prim_counter;
-    gctUINT32       pa_output_prim_counter;
-    gctUINT32       pa_depth_clipped_counter;
-    gctUINT32       pa_trivial_rejected_counter;
-    gctUINT32       pa_culled_counter;
-    gctUINT32       pa_non_idle_starve_count;
-    gctUINT32       pa_starve_count;
-    gctUINT32       pa_stall_count;
-    gctUINT32       pa_process_count;
-
-    /* SE */
-    gctUINT32       se_culled_triangle_count;
-    gctUINT32       se_culled_lines_count;
-    gctUINT32       se_starve_count;
-    gctUINT32       se_stall_count;
-    gctUINT32       se_receive_triangle_count;
-    gctUINT32       se_send_triangle_count;
-    gctUINT32       se_receive_lines_count;
-    gctUINT32       se_send_lines_count;
-    gctUINT32       se_process_count;
-    gctUINT32       se_non_idle_starve_count;
-
-    /* RA */
-    gctUINT32       ra_valid_pixel_count;
-    gctUINT32       ra_total_quad_count;
-    gctUINT32       ra_valid_quad_count_after_early_z;
-    gctUINT32       ra_total_primitive_count;
-    gctUINT32       ra_pipe_cache_miss_counter;
-    gctUINT32       ra_prefetch_cache_miss_counter;
-    gctUINT32       ra_eez_culled_counter;
-    gctUINT32       ra_non_idle_starve_count;
-    gctUINT32       ra_starve_count;
-    gctUINT32       ra_stall_count;
-    gctUINT32       ra_process_count;
-
-    /* TX */
-    gctUINT32       tx_total_bilinear_requests;
-    gctUINT32       tx_total_trilinear_requests;
-    gctUINT32       tx_total_discarded_texture_requests;
-    gctUINT32       tx_total_texture_requests;
-    gctUINT32       tx_mem_read_count;
-    gctUINT32       tx_mem_read_in_8B_count;
-    gctUINT32       tx_cache_miss_count;
-    gctUINT32       tx_cache_hit_texel_count;
-    gctUINT32       tx_cache_miss_texel_count;
-    gctUINT32       tx_non_idle_starve_count;
-    gctUINT32       tx_starve_count;
-    gctUINT32       tx_stall_count;
-    gctUINT32       tx_process_count;
-
-    /* MC */
-    gctUINT32       mc_total_read_req_8B_from_pipeline;
-    gctUINT32       mc_total_read_req_8B_from_IP;
-    gctUINT32       mc_total_write_req_8B_from_pipeline;
-    gctUINT32       mc_axi_total_latency;
-    gctUINT32       mc_axi_sample_count;
-    gctUINT32       mc_axi_max_latency;
-    gctUINT32       mc_axi_min_latency;
-
-    /* HI */
-    gctUINT32       hi_axi_cycles_read_request_stalled;
-    gctUINT32       hi_axi_cycles_write_request_stalled;
-    gctUINT32       hi_axi_cycles_write_data_stalled;
-
-    /* FE */
-    gctUINT32       fe_draw_count;
-    gctUINT32       fe_out_vertex_count;
-    gctUINT32       fe_stall_count;
-    gctUINT32       fe_starve_count;
+    gcsPROFILER_COUNTERS_PART1 counters_part1;
+    gcsPROFILER_COUNTERS_PART2 counters_part2;
 }
 gcsPROFILER_COUNTERS;
 
-#define NumOfDrawBuf 1024
+#define NumOfDrawBuf 128
 
 typedef enum _gceCOUNTER_OPTYPE
 {
@@ -1005,24 +1007,18 @@ typedef enum _gceCOUNTER_OPTYPE
     gcvCOUNTER_OP_COMPUTE = 2,
     gcvCOUNTER_OP_RS = 3,
     gcvCOUNTER_OP_FINISH = 4,
-    gcvCOUNTER_OP_NONE = 5
+    gcvCOUNTER_OP_FRAME = 5,
+    gcvCOUNTER_OP_NONE = 6
 }
 gceCOUNTER_OPTYPE;
 
-typedef struct _gcsPROBEBUFFER
-{
-    gctHANDLE       newCounterBuf[NumOfDrawBuf];
-    gctUINT32       curBufId;
-    gceCOUNTER_OPTYPE  opType[NumOfDrawBuf];
-}
-gcsPROBEBUFFER;
-
 typedef struct _gcsCounterBuffer
 {
-    gcsPROFILER_NEW_COUNTERS    counters;
+    gcsPROFILER_COUNTERS        *counters;
     gctHANDLE                   couterBufobj;
     gctUINT32                   probeAddress;
     gceCOUNTER_OPTYPE           opType;
+    gctUINT32                   opID;
 }
 gcsCounterBuffer;
 
@@ -1031,17 +1027,23 @@ typedef struct _gcoPROFILER *        gcoPROFILER;
 struct _gcoPROFILER
 {
     gctBOOL                     enable;
-    gctBOOL                     isSyncMode;
+    gctBOOL                     enablePrint;
+    gctBOOL                     disableProbe;
+    gctBOOL                     probeMode;
 
     gctFILE                     file;
     gctCHAR*                    fileName;
 
     gcsCounterBuffer            counterBuf[NumOfDrawBuf];
+    gcsPROFILER_COUNTERS        *preCounters;
     gctINT32                    curBufId;
 
     gctBOOL                     perDrawMode;
     gctBOOL                     needDump;
     gctBOOL                     counterEnable;
+
+    gceProfilerClient           profilerClient;
+    gctUINT32                   coreCount;
 };
 
 typedef enum _gceProbeStatus
@@ -1067,231 +1069,51 @@ typedef struct _gcsPROBESTATES
     gctUINT32                   probeAddress;
 }gcsPROBESTATES;
 
-/* HAL profile information. */
-typedef struct _gcsPROFILER
-{
-    gctUINT32       enable;
-    gctBOOL         enableHal;
-    gctBOOL         enableHW;
-    gctBOOL         enableSH;
-    gctBOOL         isSyncMode;
-    gctBOOL         isCLMode;
-    gctBOOL         enablePrint;
-    gctBOOL         disableOutputCounter;
-
-    gctBOOL         useSocket;
-    gctINT          sockFd;
-
-    gctFILE         file;
-
-    /* Aggregate Information */
-
-    /* Clock Info */
-    gctUINT64       frameStart;
-    gctUINT64       frameEnd;
-
-    /* Current frame information */
-    gctUINT32       frameNumber;
-    gctUINT64       frameStartTimeusec;
-    gctUINT64       frameEndTimeusec;
-    gctUINT64       frameStartCPUTimeusec;
-    gctUINT64       frameEndCPUTimeusec;
-
-#if PROFILE_HAL_COUNTERS
-    gctUINT32       vertexBufferTotalBytesAlloc;
-    gctUINT32       vertexBufferNewBytesAlloc;
-    int             vertexBufferTotalObjectsAlloc;
-    int             vertexBufferNewObjectsAlloc;
-
-    gctUINT32       indexBufferTotalBytesAlloc;
-    gctUINT32       indexBufferNewBytesAlloc;
-    int             indexBufferTotalObjectsAlloc;
-    int             indexBufferNewObjectsAlloc;
-
-    gctUINT32       textureBufferTotalBytesAlloc;
-    gctUINT32       textureBufferNewBytesAlloc;
-    int             textureBufferTotalObjectsAlloc;
-    int             textureBufferNewObjectsAlloc;
-
-    gctUINT32       numCommits;
-    gctUINT32       drawPointCount;
-    gctUINT32       drawLineCount;
-    gctUINT32       drawTriangleCount;
-    gctUINT32       drawVertexCount;
-    gctUINT32       redundantStateChangeCalls;
-#endif
-}
-gcsPROFILER;
-
-/* Memory profile information. */
-struct _gcsMemProfile
-{
-    /* Memory Usage */
-    gctUINT32       videoMemUsed;
-    gctUINT32       systemMemUsed;
-    gctUINT32       commitBufferSize;
-    gctUINT32       contextBufferCopyBytes;
-};
-
-/* Shader profile information. */
-struct _gcsSHADER_PROFILER
-{
-    gctUINT32       shaderLength;
-    gctUINT32       shaderALUCycles;
-    gctUINT32       shaderTexLoadCycles;
-    gctUINT32       shaderTempRegCount;
-    gctUINT32       shaderSamplerRegCount;
-    gctUINT32       shaderInputRegCount;
-    gctUINT32       shaderOutputRegCount;
-};
-
 /* Construct a Profiler object per context. */
 gceSTATUS
-gcoPROFILER_NEW_Construct(
+gcoPROFILER_Construct(
     OUT gcoPROFILER * Profiler
     );
 
 gceSTATUS
-gcoPROFILER_NEW_Destroy(
-    IN gcoPROFILER Profiler
-    );
-
-gceSTATUS
-gcoPROFILER_NEW_Enable(
-    IN gcoPROFILER Profiler
-    );
-
-gceSTATUS
-gcoPROFILER_NEW_Disable(
-    void
-);
-
-gceSTATUS
-gcoPROFILER_NEW_Begin(
-    IN gcoPROFILER Profiler,
-    IN gceCOUNTER_OPTYPE operationType
-    );
-
-gceSTATUS
-gcoPROFILER_NEW_End(
-    IN gcoPROFILER Profiler,
-    IN gctUINT32 DrawID,
-    IN gceCOUNTER_OPTYPE Type
-    );
-
-gceSTATUS
-gcoPROFILER_NEW_EndFrame(
-    IN gcoPROFILER Profiler,
-    IN gceCOUNTER_OPTYPE Type
-    );
-
-gceSTATUS
-gcoPROFILER_NEW_RecordCounters(
-    IN gctPOINTER Logical,
-    OUT gcsPROFILER_NEW_COUNTERS * Counters
-    );
-
-gceSTATUS
-gcoPROFILER_NEW_WriteCounters(
-    IN gcoPROFILER Profiler,
-    IN gcsPROFILER_NEW_COUNTERS Counters,
-    IN gceCOUNTER_OPTYPE opType
-    );
-
-gceSTATUS
-gcoPROFILER_NEW_Write(
-    IN gcoPROFILER Profiler,
-    IN gctSIZE_T ByteCount,
-    IN gctCONST_POINTER Data
-    );
-
-gceSTATUS
-gcoPROFILER_NEW_GetPos(
-    IN gcoPROFILER Profiler,
-    OUT gctUINT32 * Position
-    );
-
-gceSTATUS
-gcoPROFILER_NEW_Seek(
-    IN gcoPROFILER Profiler,
-    IN gctUINT32 Offset,
-    IN gceFILE_WHENCE Whence
-    );
-
-gceSTATUS
-gcoPROFILER_NEW_Flush(
-    IN gcoPROFILER Profiler
-    );
-
-/* Initialize the gcsProfiler. */
-gceSTATUS
-gcoPROFILER_Initialize(
-    IN gcoHAL Hal,
-    IN gco3D Engine,
-    IN gctBOOL Enable
-    );
-
-/* Destroy the gcProfiler. */
-gceSTATUS
 gcoPROFILER_Destroy(
-    IN gcoHAL Hal
+    IN gcoPROFILER Profiler
     );
 
-/* Write data to profiler. */
 gceSTATUS
-gcoPROFILER_Write(
-    IN gcoHAL Hal,
-    IN gctSIZE_T ByteCount,
-    IN gctCONST_POINTER Data
+gcoPROFILER_Enable(
+    IN gcoPROFILER Profiler
     );
 
-/* Flush data out. */
 gceSTATUS
-gcoPROFILER_Flush(
-    IN gcoHAL Hal
-    );
-
-/* Call to signal end of frame. */
-gceSTATUS
-gcoPROFILER_EndFrame(
-    IN gcoHAL Hal
+gcoPROFILER_Disable(
+    void
     );
 
 gceSTATUS
 gcoPROFILER_Begin(
-    IN gcoHAL Hal,
+    IN gcoPROFILER Profiler,
     IN gceCOUNTER_OPTYPE operationType
     );
 
-/* Call to signal end of draw. */
 gceSTATUS
 gcoPROFILER_End(
-    IN gcoHAL Hal,
-    IN gctBOOL FirstDraw
+    IN gcoPROFILER Profiler,
+    IN gceCOUNTER_OPTYPE operationType,
+    IN gctUINT32 OpID
     );
 
-/* Increase profile counter Enum by Value. */
 gceSTATUS
-gcoPROFILER_Count(
-    IN gcoHAL Hal,
-    IN gctUINT32 Enum,
-    IN gctINT Value
+gcoPROFILER_Write(
+    IN gcoPROFILER Profiler,
+    IN gctSIZE_T ByteCount,
+    IN gctCONST_POINTER Data
     );
 
-/* Profile input vertex shader. */
 gceSTATUS
-gcoPROFILER_ShaderVS(
-    IN gcoHAL Hal,
-    IN gctPOINTER Vs
+gcoPROFILER_Flush(
+    IN gcoPROFILER Profiler
     );
-
-/* Profile input fragment shader. */
-gceSTATUS
-gcoPROFILER_ShaderFS(
-    IN gcoHAL Hal,
-    IN gctPOINTER Fs
-    );
-
 #ifdef __cplusplus
 }
 #endif
