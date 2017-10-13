@@ -288,17 +288,20 @@ gckKERNEL_MapVideoMemoryEx(
     IN gceCORE Core,
     IN gctBOOL InUserSpace,
     IN gctUINT32 Address,
+    IN gcePOOL Pool,
     OUT gctPOINTER * Logical
     )
 {
     gckGALDEVICE device   = gcvNULL;
-    gcePOOL pool          = gcvPOOL_UNKNOWN;
     gctUINT32 offset      = 0;
     gctUINT32 base        = 0;
+    gctSIZE_T bytes       = 0;
+    gctPHYS_ADDR physical = gcvNULL;
     gceSTATUS status;
     gctPOINTER logical    = gcvNULL;
-    gctUINT32 baseAddress;
-    gctPHYS_ADDR_T physical;
+#if gcdENABLE_VG
+    gcePOOL pool = gcvPOOL_UNKNOWN;
+#endif
 
     gcmkHEADER_ARG("Kernel=%p InUserSpace=%d Address=%08x",
                    Kernel, InUserSpace, Address);
@@ -320,13 +323,11 @@ gckKERNEL_MapVideoMemoryEx(
     else
 #endif
     {
-        /* Split the memory address into a pool type and offset. */
-        gcmkONERROR(
-            gckHARDWARE_SplitMemory(Kernel->hardware, Address, &pool, &offset));
+        offset = Address;
     }
 
     /* Dispatch on pool. */
-    switch (pool)
+    switch (Pool)
     {
     case gcvPOOL_LOCAL_INTERNAL:
         /* Internal memory. */
@@ -336,32 +337,30 @@ gckKERNEL_MapVideoMemoryEx(
         break;
 
     case gcvPOOL_LOCAL_EXTERNAL:
-        /* External memory. */
-        logical = device->externalLogical;
-        /* Impossible to use per device logical for all user processes. */
-        BUG_ON("Incorrect path");
+        physical = device->externalPhysical;
+        bytes = device->externalSize;
+
+#if gcdENABLE_VG
+        if (Core == gcvCORE_VG)
+        {
+            gcmkVERIFY_OK(
+                gckVGHARDWARE_SplitMemory(Kernel->vg->hardware,
+                                        device->externalVidMem->baseAddress,
+                                        &pool,
+                                        &base));
+        }
+        else
+#endif
+        {
+            base = Kernel->externalBaseAddress;
+        }
+
         break;
 
     case gcvPOOL_SYSTEM:
         /* System memory. */
-        {
-            PLINUX_MDL mdl;
-            PLINUX_MDL_MAP mdlMap;
-
-            mdl = (PLINUX_MDL) device->contiguousPhysical;
-
-            mutex_lock(&mdl->mapsMutex);
-            mdlMap = FindMdlMap(mdl, _GetProcessID());
-            mutex_unlock(&mdl->mapsMutex);
-
-            if (!mdlMap)
-            {
-                gcmkPRINT("%s: SYSTEM pool is not mapped", __func__);
-                gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-            }
-
-            logical = (gctPOINTER) mdlMap->vmaAddr;
-        }
+        physical = device->contiguousPhysical;
+        bytes = device->contiguousSize;
 
 #if gcdENABLE_VG
         if (Core == gcvCORE_VG)
@@ -375,35 +374,20 @@ gckKERNEL_MapVideoMemoryEx(
         else
 #endif
         {
-            gctUINT32 systemBaseAddress = 0;
-
-            if (Kernel->hardware->mmuVersion == 0)
-            {
-                gcmkONERROR(gckOS_GetBaseAddress(Kernel->os, &systemBaseAddress));
-            }
-
-            gcmkVERIFY_OK(
-                gckOS_CPUPhysicalToGPUPhysical(
-                    Kernel->os,
-                    device->contiguousVidMem->baseAddress - systemBaseAddress,
-                    &physical
-                    ));
-
-            gcmkSAFECASTPHYSADDRT(baseAddress, physical);
-
-            gcmkVERIFY_OK(
-                gckHARDWARE_SplitMemory(Kernel->hardware,
-                                        baseAddress,
-                                        &pool,
-                                        &base));
+            base = Kernel->contiguousBaseAddress;
         }
-        offset -= base;
+
         break;
 
     default:
         /* Invalid memory pool. */
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
     }
+
+    gcmkONERROR(gckOS_MapMemory(Kernel->os, physical, bytes, &logical));
+
+    /* GPU address offset */
+    offset -= base;
 
     /* Build logical address of specified address. */
     *Logical = (gctPOINTER) ((gctUINT8_PTR) logical + offset);
@@ -450,7 +434,7 @@ gckKERNEL_MapVideoMemory(
     OUT gctPOINTER * Logical
     )
 {
-    return gckKERNEL_MapVideoMemoryEx(Kernel, gcvCORE_MAJOR, InUserSpace, Address, Logical);
+    return gckKERNEL_MapVideoMemoryEx(Kernel, gcvCORE_MAJOR, InUserSpace, Address, gcvPOOL_SYSTEM, Logical);
 }
 /*******************************************************************************
 **

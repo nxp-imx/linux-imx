@@ -72,7 +72,7 @@ MODULE_LICENSE("Dual MIT/GPL");
 #if gcdFPGA_BUILD && !defined(CONFIG_PPC)
 #define USE_MSI     0
 #else
-#define USE_MIS     1
+#define USE_MSI     1
 #endif
 
 static struct class* gpuClass;
@@ -139,6 +139,14 @@ MODULE_PARM_DESC(contiguousSize, "Size of memory reserved for GC");
 static ulong contiguousBase = 0;
 module_param(contiguousBase, ulong, 0644);
 MODULE_PARM_DESC(contiguousBase, "Base address of memory reserved for GC, if it is 0, GC driver will try to allocate a buffer whose size defined by contiguousSize");
+
+static ulong externalSize = 0;
+module_param(externalSize, ulong, 0644);
+MODULE_PARM_DESC(externalSize, "Size of external memory, if it is 0, means there is no external pool");
+
+static ulong externalBase = 0;
+module_param(externalBase, ulong, 0644);
+MODULE_PARM_DESC(externalBase, "Base address of external memory");
 
 static int fastClear = -1;
 module_param(fastClear, int, 0644);
@@ -232,9 +240,11 @@ _UpdateModuleParam(
 #endif
     contiguousSize    = Param->contiguousSize;
     contiguousBase    = Param->contiguousBase;
+    externalSize      = Param->externalSize;
+    externalBase      = Param->externalBase;
     bankSize          = Param->bankSize;
     fastClear         = Param->fastClear;
-    compression       = Param->compression;
+    compression       = (gctINT)Param->compression;
     powerManagement   = Param->powerManagement;
     gpuProfiler       = Param->gpuProfiler;
     signal            = Param->signal;
@@ -291,6 +301,8 @@ gckOS_DumpParam(
 
     printk("  contiguousSize    = 0x%08lX\n", contiguousSize);
     printk("  contiguousBase    = 0x%08lX\n", contiguousBase);
+    printk("  externalSize      = 0x%08lX\n", externalSize);
+    printk("  externalBase      = 0x%08lX\n", externalBase);
     printk("  bankSize          = 0x%08lX\n", bankSize);
     printk("  fastClear         = %d\n",      fastClear);
     printk("  compression       = %d\n",      compression);
@@ -703,6 +715,7 @@ static int drv_init(void)
         irqLineVG,
         registerMemBaseVG, registerMemSizeVG,
         contiguousBase, contiguousSize,
+        externalBase, externalSize,
         bankSize, fastClear, compression, baseAddress, physSize, signal,
         logFileSize,
         powerManagement,
@@ -851,6 +864,11 @@ static void drv_exit(void)
     gcmkFOOTER_NO();
 }
 
+#if gcdENABLE_DRM
+int viv_drm_probe(struct device *dev);
+int viv_drm_remove(struct device *dev);
+#endif
+
 #if USE_LINUX_PCIE
 static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 #else /* USE_LINUX_PCIE */
@@ -874,9 +892,10 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
         .registerMemSizeVG  = registerMemSizeVG,
         .contiguousSize     = contiguousSize,
         .contiguousBase     = contiguousBase,
+        .externalSize       = externalSize,
+        .externalBase       = externalBase,
         .bankSize           = bankSize,
         .fastClear          = fastClear,
-        .compression        = compression,
         .powerManagement    = powerManagement,
         .gpuProfiler        = gpuProfiler,
         .signal             = signal,
@@ -896,7 +915,7 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
     memcpy(moduleParam.registerBases, registerBases, gcmSIZEOF(gctUINT) * gcvCORE_COUNT);
     memcpy(moduleParam.registerSizes, registerSizes, gcmSIZEOF(gctUINT) * gcvCORE_COUNT);
     memcpy(moduleParam.chipIDs, chipIDs, gcmSIZEOF(gctUINT) * gcvCORE_COUNT);
-
+    moduleParam.compression = (compression == -1) ? gcvCOMPRESSION_OPTION_DEFAULT : (gceCOMPRESSION_OPTION)compression;
     platform->device = pdev;
 #if USE_LINUX_PCIE
     if (pci_enable_device(pdev)) {
@@ -948,11 +967,19 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
         platform_set_drvdata(pdev, galDevice);
 #endif
 
-        gcmkFOOTER_NO();
-        return ret;
+#if gcdENABLE_DRM
+        ret = viv_drm_probe(&pdev->dev);
+#endif
     }
 
-    gcmkFOOTER_ARG(KERN_INFO "Failed to register gpu driver: %d\n", ret);
+    if (ret < 0)
+    {
+        gcmkFOOTER_ARG(KERN_INFO "Failed to register gpu driver: %d\n", ret);
+    }
+    else
+    {
+        gcmkFOOTER_NO();
+    }
     return ret;
 }
 
@@ -967,6 +994,10 @@ static void gpu_remove(struct pci_dev *pdev)
 #endif /* USE_LINUX_PCIE */
 {
     gcmkHEADER();
+
+#if gcdENABLE_DRM
+    viv_drm_remove(&pdev->dev);
+#endif
 
     drv_exit();
 

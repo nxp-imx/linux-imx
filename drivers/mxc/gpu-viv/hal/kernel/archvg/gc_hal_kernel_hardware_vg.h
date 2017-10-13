@@ -77,7 +77,6 @@ struct _gckVGHARDWARE
     gctUINT32                   chipFeatures;
     gctUINT32                   chipMinorFeatures;
     gctUINT32                   chipMinorFeatures2;
-    gctBOOL                     allowFastClear;
 
     /* Features. */
     gctBOOL                     fe20;
@@ -105,7 +104,7 @@ struct _gckVGHARDWARE
     gctPOINTER                  powerOffTimer;
 #endif
 
-    gctBOOL                     powerManagement;
+    gcsHAL_QUERY_CHIP_OPTIONS   options;
 
     gctPOINTER                  featureDatabase;
 };

@@ -216,6 +216,71 @@ OnError:
     return status;
 }
 
+static gceSTATUS
+_DmaGetSGT(
+    IN gckALLOCATOR Allocator,
+    IN PLINUX_MDL Mdl,
+    IN gctSIZE_T Offset,
+    IN gctSIZE_T Bytes,
+    OUT gctPOINTER *SGT
+    )
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)
+    struct page ** pages = gcvNULL;
+    struct page * page = gcvNULL;
+    struct sg_table *sgt = NULL;
+    struct mdl_dma_priv *mdlPriv = (struct mdl_dma_priv*)Mdl->priv;
+
+    gceSTATUS status = gcvSTATUS_OK;
+    gctSIZE_T offset = Offset & ~PAGE_MASK; /* Offset to the first page */
+    gctINT skipPages = Offset >> PAGE_SHIFT;     /* skipped pages */
+    gctINT numPages = (PAGE_ALIGN(Offset + Bytes) >> PAGE_SHIFT) - skipPages;
+    gctINT i;
+
+    gcmkASSERT(Offset + Bytes <= Mdl->numPages << PAGE_SHIFT);
+
+    sgt = kmalloc(sizeof(struct sg_table), GFP_KERNEL | gcdNOWARN);
+    if (!sgt)
+    {
+        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+    }
+
+    pages = kmalloc(sizeof(struct page*) * numPages, GFP_KERNEL | gcdNOWARN);
+    if (!pages)
+    {
+        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+    }
+
+    page = virt_to_page(mdlPriv->kvaddr);
+    for (i = 0; i < numPages; ++i)
+    {
+        pages[i] = nth_page(page, i + skipPages);
+    }
+
+    if (sg_alloc_table_from_pages(sgt, pages, numPages, offset, Bytes, GFP_KERNEL) < 0)
+    {
+        gcmkONERROR(gcvSTATUS_GENERIC_IO);
+    }
+
+    *SGT = (gctPOINTER)sgt;
+
+OnError:
+    if (pages)
+    {
+        kfree(pages);
+    }
+
+    if (gcmIS_ERROR(status) && sgt)
+    {
+        kfree(sgt);
+    }
+
+    return status;
+#else
+    return gcvSTATUS_NOT_SUPPORTED;
+#endif
+}
+
 static void
 _DmaFree(
     IN gckALLOCATOR Allocator,
@@ -240,113 +305,50 @@ _DmaFree(
     atomic_sub(Mdl->numPages, &allocatorPriv->usage);
 }
 
-static gctINT
-_DmaMapUser(
-    gckALLOCATOR Allocator,
-    PLINUX_MDL Mdl,
-    gctBOOL Cacheable,
-    OUT gctPOINTER * UserLogical
+static gceSTATUS
+_DmaMmap(
+    IN gckALLOCATOR Allocator,
+    IN PLINUX_MDL Mdl,
+    IN gctSIZE_T skipPages,
+    IN gctSIZE_T numPages,
+    INOUT struct vm_area_struct *vma
     )
 {
+    struct mdl_dma_priv *mdlPriv = (struct mdl_dma_priv*)Mdl->priv;
+    gceSTATUS status = gcvSTATUS_OK;
 
-    PLINUX_MDL      mdl = Mdl;
-    struct mdl_dma_priv *mdlPriv=(struct mdl_dma_priv *)Mdl->priv;
-    struct vm_area_struct * vma;
-    gctPOINTER      userLogical = gcvNULL;
+    gcmkHEADER_ARG("Allocator=%p Mdl=%p vma=%p", Allocator, Mdl, vma);
 
-    gcmkHEADER_ARG("Allocator=%p Mdl=%p Cacheable=%d", Allocator, Mdl, Cacheable);
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
-    userLogical = (gctSTRING)vm_mmap(gcvNULL,
-                    0L,
-                    mdl->numPages * PAGE_SIZE,
-                    PROT_READ | PROT_WRITE,
-                    MAP_SHARED,
-                    0);
-#else
-    down_write(&current->mm->mmap_sem);
-
-    userLogical = (gctSTRING)do_mmap_pgoff(gcvNULL,
-                    0L,
-                    mdl->numPages * PAGE_SIZE,
-                    PROT_READ | PROT_WRITE,
-                    MAP_SHARED,
-                    0);
-
-    up_write(&current->mm->mmap_sem);
-#endif
-
-    gcmkTRACE_ZONE(
-        gcvLEVEL_INFO, gcvZONE_OS,
-        "%s(%d): vmaAddr->%p for phys_addr->%p",
-        __FUNCTION__, __LINE__, userLogical, mdl
-        );
-
-    if (IS_ERR(userLogical))
-    {
-        gcmkTRACE_ZONE(
-            gcvLEVEL_INFO, gcvZONE_OS,
-            "%s(%d): do_mmap_pgoff error",
-            __FUNCTION__, __LINE__
-            );
-
-        gcmkFOOTER_ARG("*status=%d", gcvSTATUS_OUT_OF_MEMORY);
-        return gcvSTATUS_OUT_OF_MEMORY;
-    }
-
-    down_write(&current->mm->mmap_sem);
-
-    vma = find_vma(current->mm, (unsigned long)userLogical);
-
-    if (vma == gcvNULL)
-    {
-        up_write(&current->mm->mmap_sem);
-
-        gcmkTRACE_ZONE(
-            gcvLEVEL_INFO, gcvZONE_OS,
-            "%s(%d): find_vma error",
-            __FUNCTION__, __LINE__
-            );
-
-        gcmkFOOTER_ARG("*status=%d", gcvSTATUS_OUT_OF_RESOURCES);
-        return gcvSTATUS_OUT_OF_RESOURCES;
-    }
+    gcmkASSERT(skipPages + numPages <= Mdl->numPages);
 
     /* map kernel memory to user space.. */
 #if defined CONFIG_MIPS || defined CONFIG_CPU_CSKYV2 || defined CONFIG_PPC
     if (remap_pfn_range(
             vma,
             vma->vm_start,
-            mdlPriv->dmaHandle >> PAGE_SHIFT,
-            mdl->numPages * PAGE_SIZE,
+            (mdlPriv->dmaHandle >> PAGE_SHIFT) + skipPages,
+            numPages << PAGE_SHIFT,
             gcmkNONPAGED_MEMROY_PROT(vma->vm_page_prot)) < 0)
 #else
     /* map kernel memory to user space.. */
     if (dma_mmap_writecombine(gcvNULL,
             vma,
-            mdlPriv->kvaddr,
-            mdlPriv->dmaHandle,
-            mdl->numPages * PAGE_SIZE) < 0)
+            (gctINT8_PTR)mdlPriv->kvaddr + (skipPages << PAGE_SHIFT),
+            mdlPriv->dmaHandle + (skipPages << PAGE_SHIFT),
+            numPages << PAGE_SHIFT) < 0)
 #endif
     {
-        up_write(&current->mm->mmap_sem);
-
         gcmkTRACE_ZONE(
             gcvLEVEL_WARNING, gcvZONE_OS,
             "%s(%d): dma_mmap_attrs error",
             __FUNCTION__, __LINE__
             );
 
-        gcmkFOOTER_ARG("*status=%d", gcvSTATUS_OUT_OF_MEMORY);
-        return gcvSTATUS_OUT_OF_MEMORY;
+        status = gcvSTATUS_OUT_OF_MEMORY;
     }
 
-    up_write(&current->mm->mmap_sem);
-
-    *UserLogical = userLogical;
-
-    gcmkFOOTER_NO();
-    return gcvSTATUS_OK;
+    gcmkFOOTER();
+    return status;
 }
 
 static void
@@ -384,6 +386,87 @@ _DmaUnmapUser(
     }
     up_write(&current->mm->mmap_sem);
 #endif
+}
+
+static gceSTATUS
+_DmaMapUser(
+    gckALLOCATOR Allocator,
+    PLINUX_MDL Mdl,
+    gctBOOL Cacheable,
+    OUT gctPOINTER * UserLogical
+    )
+{
+    gctPOINTER userLogical = gcvNULL;
+    gceSTATUS status = gcvSTATUS_OK;
+
+    gcmkHEADER_ARG("Allocator=%p Mdl=%p Cacheable=%d", Allocator, Mdl, Cacheable);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+    userLogical = (gctPOINTER)vm_mmap(gcvNULL,
+                    0L,
+                    Mdl->numPages * PAGE_SIZE,
+                    PROT_READ | PROT_WRITE,
+                    MAP_SHARED,
+                    0);
+#else
+    down_write(&current->mm->mmap_sem);
+    userLogical = (gctPOINTER)do_mmap_pgoff(gcvNULL,
+                    0L,
+                    Mdl->numPages * PAGE_SIZE,
+                    PROT_READ | PROT_WRITE,
+                    MAP_SHARED,
+                    0);
+    up_write(&current->mm->mmap_sem);
+#endif
+
+    gcmkTRACE_ZONE(
+        gcvLEVEL_INFO, gcvZONE_OS,
+        "%s(%d): vmaAddr->%p for phys_addr->%p",
+        __FUNCTION__, __LINE__, userLogical, Mdl
+        );
+
+    if (IS_ERR(userLogical))
+    {
+        gcmkTRACE_ZONE(
+            gcvLEVEL_INFO, gcvZONE_OS,
+            "%s(%d): do_mmap_pgoff error",
+            __FUNCTION__, __LINE__
+            );
+
+        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
+    }
+
+    down_write(&current->mm->mmap_sem);
+    do
+    {
+        struct vm_area_struct *vma = find_vma(current->mm, (unsigned long)userLogical);
+        if (vma == gcvNULL)
+        {
+            up_write(&current->mm->mmap_sem);
+
+            gcmkTRACE_ZONE(
+                gcvLEVEL_INFO, gcvZONE_OS,
+                "%s(%d): find_vma error",
+                __FUNCTION__, __LINE__
+                );
+
+            gcmkERR_BREAK(gcvSTATUS_OUT_OF_RESOURCES);
+        }
+
+        gcmkERR_BREAK(_DmaMmap(Allocator, Mdl, 0, Mdl->numPages, vma));
+
+        *UserLogical = userLogical;
+    }
+    while (gcvFALSE);
+    up_write(&current->mm->mmap_sem);
+
+OnError:
+    if (gcmIS_ERROR(status))
+    {
+        _DmaUnmapUser(Allocator, Mdl, userLogical, Mdl->numPages * PAGE_SIZE);
+    }
+    gcmkFOOTER();
+    return status;
 }
 
 static gceSTATUS
@@ -455,12 +538,14 @@ _DmaAllocatorDestructor(
 gcsALLOCATOR_OPERATIONS DmaAllocatorOperations = {
     .Alloc              = _DmaAlloc,
     .Free               = _DmaFree,
+    .Mmap               = _DmaMmap,
     .MapUser            = _DmaMapUser,
     .UnmapUser          = _DmaUnmapUser,
     .MapKernel          = _DmaMapKernel,
     .UnmapKernel        = _DmaUnmapKernel,
     .Cache              = _DmaCache,
     .Physical           = _DmaPhysical,
+    .GetSGT             = _DmaGetSGT,
 };
 
 /* Default allocator entry. */

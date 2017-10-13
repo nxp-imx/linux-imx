@@ -58,6 +58,7 @@ SDK_DIR                           ?= $(AQROOT)/build/sdk
 VIVANTE_ENABLE_3D                 ?= 1
 VIVANTE_ENABLE_2D                 ?= 1
 VIVANTE_ENABLE_VG                 ?= 1
+VIVANTE_ENABLE_DRM                ?= 1
 NO_DMA_COHERENT                   ?= 0
 USE_PLATFORM_DRIVER               ?= 1
 ENABLE_GPU_CLOCK_BY_DRIVER        ?= 0

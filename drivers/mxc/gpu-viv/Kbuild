@@ -102,6 +102,10 @@ ifneq ($(CONFIG_IOMMU_SUPPORT),)
 OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_iommu.o
 endif
 
+ifneq ($(CONFIG_DRM),)
+OBJS += $(OS_KERNEL_DIR)/gc_hal_kernel_drm.o
+endif
+
 OBJS += $(HAL_KERNEL_DIR)/gc_hal_kernel.o \
         $(HAL_KERNEL_DIR)/gc_hal_kernel_command.o \
         $(HAL_KERNEL_DIR)/gc_hal_kernel_async_command.o \
@@ -289,6 +293,10 @@ ifeq ($(SECURITY), 1)
 EXTRA_CFLAGS += -DgcdSECURITY=1
 endif
 
+ifneq ($(CONFIG_DRM),)
+EXTRA_CFLAGS += -DgcdENABLE_DRM=$(VIVANTE_ENABLE_DRM)
+endif
+
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/inc
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/arch
@@ -307,7 +315,7 @@ endif
 
 EXTRA_CFLAGS += -DHOST=\"$(HOST)\"
 
-EXTRA_CFLAGS += -DgcdENABLE_TRUST_APPLICATION=0
+EXTRA_CFLAGS += -DgcdENABLE_TRUST_APPLICATION=1
 
 obj-$(CONFIG_MXC_GPU_VIV) = $(MODULE_NAME).o
 

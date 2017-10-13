@@ -467,6 +467,7 @@ gckVGHARDWARE_QueryChipIdentity(
     OUT gctUINT32* ChipRevision,
     OUT gctUINT32* ProductID,
     OUT gctUINT32* EcoID,
+    OUT gctUINT32* CustomerID,
     OUT gctUINT32* ChipFeatures,
     OUT gctUINT32* ChipMinorFeatures,
     OUT gctUINT32* ChipMinorFeatures1

@@ -191,10 +191,10 @@ FindMdlMap(
 
 static PLINUX_MDL
 _CreateMdl(
-    void
+    IN gckOS Os
     )
 {
-    PLINUX_MDL  mdl;
+    PLINUX_MDL mdl;
 
     gcmkHEADER();
 
@@ -202,6 +202,8 @@ _CreateMdl(
 
     if (mdl)
     {
+        mdl->os = Os;
+        atomic_set(&mdl->refs, 1);
         mutex_init(&mdl->mapsMutex);
         INIT_LIST_HEAD(&mdl->mapsHead);
     }
@@ -215,19 +217,42 @@ _DestroyMdl(
     IN PLINUX_MDL Mdl
     )
 {
-    PLINUX_MDL_MAP mdlMap, next;
-
     gcmkHEADER_ARG("Mdl=0x%X", Mdl);
 
     /* Verify the arguments. */
     gcmkVERIFY_ARGUMENT(Mdl != gcvNULL);
 
-    list_for_each_entry_safe(mdlMap, next, &Mdl->mapsHead, link)
+    if (atomic_dec_and_test(&Mdl->refs))
     {
-        gcmkVERIFY_OK(_DestroyMdlMap(Mdl, mdlMap));
-    }
+        gckOS os = Mdl->os;
+        gckALLOCATOR allocator = Mdl->allocator;
+        PLINUX_MDL_MAP mdlMap, next;
 
-    kfree(Mdl);
+        /* Valid private means alloc/attach successfully */
+        if (Mdl->priv)
+        {
+            if (Mdl->addr)
+            {
+                allocator->ops->UnmapKernel(allocator, Mdl, Mdl->addr);
+            }
+            allocator->ops->Free(allocator, Mdl);
+        }
+
+        list_for_each_entry_safe(mdlMap, next, &Mdl->mapsHead, link)
+        {
+            gcmkVERIFY_OK(_DestroyMdlMap(Mdl, mdlMap));
+        }
+
+        if (Mdl->link.next)
+        {
+            /* Remove the node from global list.. */
+            mutex_lock(&os->mdlMutex);
+            list_del(&Mdl->link);
+            mutex_unlock(&os->mdlMutex);
+        }
+
+        kfree(Mdl);
+    }
 
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
@@ -1117,10 +1142,7 @@ gckOS_MapMemory(
 
         if (mdlMap == gcvNULL)
         {
-            mutex_unlock(&mdl->mapsMutex);
-
-            gcmkFOOTER_ARG("status=%d", gcvSTATUS_OUT_OF_MEMORY);
-            return gcvSTATUS_OUT_OF_MEMORY;
+            gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
         }
     }
 
@@ -1142,6 +1164,8 @@ gckOS_MapMemory(
     return gcvSTATUS_OK;
 
 OnError:
+    mutex_unlock(&mdl->mapsMutex);
+
     gcmkFOOTER();
     return status;
 }
@@ -1389,7 +1413,7 @@ gckOS_AllocateNonPagedMemory(
     numPages = GetPageCount(bytes, 0);
 
     /* Allocate mdl structure */
-    mdl = _CreateMdl();
+    mdl = _CreateMdl(Os);
     if (mdl == gcvNULL)
     {
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
@@ -1411,15 +1435,6 @@ gckOS_AllocateNonPagedMemory(
         /* Point to dma coherent allocator. */
         if (strcmp(allocator->name, "dma"))
         {
-            /*!VIV:
-             * For historical issue, we force allocate all non-paged memory from
-             * dma coherent pool when it is not disabled.
-             *
-             * The code below changes the scheme a little: force allocate
-             * non-paged memory whose size is larger than 1 pages, can try other
-             * allocators otherwise. This is to save memory usage of dma
-             * coherent pool.
-             */
             if (((flag & allocator->capability) != flag) ||
                 (numPages > 1))
             {
@@ -1473,15 +1488,13 @@ gckOS_AllocateNonPagedMemory(
         *Logical = addr;
     }
 
-    mutex_lock(&Os->mdlMutex);
-
     /*
      * Add this to a global list.
      * Will be used by get physical address
      * and mapuser pointer functions.
      */
+    mutex_lock(&Os->mdlMutex);
     list_add_tail(&mdl->link, &Os->mdlHead);
-
     mutex_unlock(&Os->mdlMutex);
 
     /* Return allocated memory. */
@@ -1494,12 +1507,6 @@ gckOS_AllocateNonPagedMemory(
     return gcvSTATUS_OK;
 
 OnError:
-    if (mdlMap != gcvNULL)
-    {
-        /* Free LINUX_MDL_MAP. */
-        gcmkVERIFY_OK(_DestroyMdlMap(mdl, mdlMap));
-    }
-
     if (mdl != gcvNULL)
     {
         /* Free LINUX_MDL. */
@@ -1543,9 +1550,7 @@ gceSTATUS gckOS_FreeNonPagedMemory(
     IN gctPOINTER Logical
     )
 {
-    PLINUX_MDL mdl;
-
-    gckALLOCATOR allocator;
+    PLINUX_MDL mdl = (PLINUX_MDL)Physical;
 
     gcmkHEADER_ARG("Os=0x%X Bytes=%lu Physical=0x%X Logical=0x%X",
                    Os, Bytes, Physical, Logical);
@@ -1555,21 +1560,6 @@ gceSTATUS gckOS_FreeNonPagedMemory(
     gcmkVERIFY_ARGUMENT(Bytes > 0);
     gcmkVERIFY_ARGUMENT(Physical != 0);
     gcmkVERIFY_ARGUMENT(Logical != gcvNULL);
-
-    /* Convert physical address into a pointer to a MDL. */
-    mdl = (PLINUX_MDL) Physical;
-
-    allocator = mdl->allocator;
-
-    allocator->ops->UnmapKernel(allocator, mdl, mdl->addr);
-    allocator->ops->Free(allocator, mdl);
-
-    mutex_lock(&Os->mdlMutex);
-
-    /* Remove the node from global list.. */
-    list_del(&mdl->link);
-
-    mutex_unlock(&Os->mdlMutex);
 
     gcmkVERIFY_OK(_DestroyMdl(mdl));
 
@@ -1617,8 +1607,7 @@ gckOS_RequestReservedMemory(
     /* Round up to page size. */
     Size = (Size + ~PAGE_MASK) & PAGE_MASK;
 
-    mdl = _CreateMdl();
-
+    mdl = _CreateMdl(Os);
     if (!mdl)
     {
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
@@ -1647,15 +1636,13 @@ gckOS_RequestReservedMemory(
     mdl->dmaHandle  = Start;
     mdl->gid        = 0;
 
-    mutex_lock(&Os->mdlMutex);
-
     /*
      * Add this to a global list.
      * Will be used by get physical address
      * and mapuser pointer functions.
      */
+    mutex_lock(&Os->mdlMutex);
     list_add_tail(&mdl->link, &Os->mdlHead);
-
     mutex_unlock(&Os->mdlMutex);
 
     *MemoryHandle = (void *)mdl;
@@ -3236,7 +3223,7 @@ gckOS_AllocatePagedMemoryEx(
 
     numPages = GetPageCount(bytes, 0);
 
-    mdl = _CreateMdl();
+    mdl = _CreateMdl(Os);
     if (mdl == gcvNULL)
     {
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
@@ -3285,15 +3272,13 @@ gckOS_AllocatePagedMemoryEx(
         *Gid = mdl->gid;
     }
 
-    mutex_lock(&Os->mdlMutex);
-
     /*
      * Add this to a global list.
      * Will be used by get physical address
      * and mapuser pointer functions.
      */
+    mutex_lock(&Os->mdlMutex);
     list_add_tail(&mdl->link, &Os->mdlHead);
-
     mutex_unlock(&Os->mdlMutex);
 
     /* Return physical address. */
@@ -3343,8 +3328,7 @@ gckOS_FreePagedMemory(
     IN gctSIZE_T Bytes
     )
 {
-    PLINUX_MDL mdl = (PLINUX_MDL) Physical;
-    gckALLOCATOR allocator = (gckALLOCATOR)mdl->allocator;
+    PLINUX_MDL mdl = (PLINUX_MDL)Physical;
 
     gcmkHEADER_ARG("Os=0x%X Physical=0x%X Bytes=%lu", Os, Physical, Bytes);
 
@@ -3352,15 +3336,6 @@ gckOS_FreePagedMemory(
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
     gcmkVERIFY_ARGUMENT(Physical != gcvNULL);
     gcmkVERIFY_ARGUMENT(Bytes > 0);
-
-    mutex_lock(&Os->mdlMutex);
-
-    /* Remove the node from global list. */
-    list_del(&mdl->link);
-
-    mutex_unlock(&Os->mdlMutex);
-
-    allocator->ops->Free(allocator, mdl);
 
     /* Free the structure... */
     gcmkVERIFY_OK(_DestroyMdl(mdl));
@@ -6237,7 +6212,7 @@ _QuerySignal(
      * spinlock for 'Os->signalDB.lock' and 'signal->obj.wait.lock'.
      */
     gceSTATUS status;
-    gcsSIGNAL_PTR signal;
+    gcsSIGNAL_PTR signal = gcvNULL;
 
     status = _QueryIntegerId(&Os->signalDB,
                              (gctUINT32)(gctUINTPTR_T)Signal,
@@ -6284,7 +6259,7 @@ gckOS_MapSignal(
     )
 {
     gceSTATUS status;
-    gcsSIGNAL_PTR signal;
+    gcsSIGNAL_PTR signal = gcvNULL;
     gcmkHEADER_ARG("Os=0x%X Signal=0x%X Process=0x%X", Os, Signal, Process);
 
     gcmkVERIFY_ARGUMENT(Signal != gcvNULL);
@@ -7352,7 +7327,7 @@ gckOS_CreateNativeFence(
     struct sync_file *sync = NULL;
     int fd;
     struct viv_sync_timeline *timeline;
-    gcsSIGNAL_PTR signal;
+    gcsSIGNAL_PTR signal = gcvNULL;
     gceSTATUS status = gcvSTATUS_OK;
 
     /* Create fence. */
@@ -7706,6 +7681,16 @@ gckOS_QueryOption(
         *Value = (gctUINT32)device->contiguousBase;
         return gcvSTATUS_OK;
     }
+    else if (!strcmp(Option, "externalSize"))
+    {
+        *Value = device->externalSize;
+        return gcvSTATUS_OK;
+    }
+    else if (!strcmp(Option, "externalBase"))
+    {
+        *Value = device->externalBase;
+        return gcvSTATUS_OK;
+    }
     else if (!strcmp(Option, "recovery"))
     {
         *Value = device->args.recovery;
@@ -7723,11 +7708,7 @@ gckOS_QueryOption(
     }
     else if (!strcmp(Option, "TA"))
     {
-#if USE_LINUX_PCIE
         *Value = 0;
-#else
-        *Value = 0;
-#endif
         return gcvSTATUS_OK;
     }
     else if (!strcmp(Option, "gpuProfiler"))
@@ -7737,6 +7718,73 @@ gckOS_QueryOption(
     }
 
     return gcvSTATUS_NOT_SUPPORTED;
+}
+
+gceSTATUS
+gckOS_MemoryGetSGT(
+    IN gckOS Os,
+    IN gctPHYS_ADDR Physical,
+    IN gctSIZE_T Offset,
+    IN gctSIZE_T Bytes,
+    OUT gctPOINTER *SGT
+    )
+{
+    PLINUX_MDL mdl;
+    gckALLOCATOR allocator;
+    gceSTATUS status = gcvSTATUS_OK;
+
+    if (!Physical)
+    {
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+    }
+
+    mdl = (PLINUX_MDL)Physical;
+    allocator = mdl->allocator;
+
+    if (!allocator->ops->GetSGT)
+    {
+        gcmkONERROR(gcvSTATUS_NOT_SUPPORTED);
+    }
+
+    if (Bytes > 0)
+    {
+        gcmkONERROR(allocator->ops->GetSGT(allocator, mdl, Offset, Bytes, SGT));
+    }
+
+OnError:
+    return status;
+}
+
+gceSTATUS
+gckOS_MemoryMmap(
+    IN gckOS Os,
+    IN gctPHYS_ADDR Physical,
+    IN gctSIZE_T skipPages,
+    IN gctSIZE_T numPages,
+    INOUT gctPOINTER Vma
+    )
+{
+    PLINUX_MDL mdl;
+    gckALLOCATOR allocator;
+    gceSTATUS status = gcvSTATUS_OK;
+
+    if (!Physical)
+    {
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+    }
+
+    mdl = (PLINUX_MDL)Physical;
+    allocator = mdl->allocator;
+
+    if (!allocator->ops->Mmap)
+    {
+        gcmkONERROR(gcvSTATUS_NOT_SUPPORTED);
+    }
+
+    gcmkONERROR(allocator->ops->Mmap(allocator, mdl, skipPages, numPages, Vma));
+
+OnError:
+    return status;
 }
 
 /*******************************************************************************
@@ -7782,7 +7830,7 @@ gckOS_WrapMemory(
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
     gcmkVERIFY_ARGUMENT(Physical != gcvNULL);
 
-    mdl = _CreateMdl();
+    mdl = _CreateMdl(Os);
     if (mdl == gcvNULL)
     {
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
@@ -7790,7 +7838,7 @@ gckOS_WrapMemory(
 
     if (Desc->flag & gcvALLOC_FLAG_DMABUF)
     {
-        desc.dmaBuf.fd = (gctINT) Desc->handle;
+        desc.dmaBuf.dmabuf = gcmUINT64_TO_PTR(Desc->dmabuf);
     }
     else if (Desc->flag & gcvALLOC_FLAG_USERMEMORY)
     {
@@ -7853,15 +7901,13 @@ gckOS_WrapMemory(
 
     *Contiguous = mdl->contiguous;
 
-    mutex_lock(&Os->mdlMutex);
-
     /*
      * Add this to a global list.
      * Will be used by get physical address
      * and mapuser pointer functions.
      */
+    mutex_lock(&Os->mdlMutex);
     list_add_tail(&mdl->link, &Os->mdlHead);
-
     mutex_unlock(&Os->mdlMutex);
 
     /* Success. */
