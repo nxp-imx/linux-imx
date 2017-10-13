@@ -59,6 +59,10 @@
 #include "gc_hal_driver.h"
 #include <linux/slab.h>
 
+#if defined(CONFIG_PM_OPP)
+#include <linux/pm_opp.h>
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 #  include <linux/of_platform.h>
 #  include <linux/of_gpio.h>
@@ -120,6 +124,17 @@ extern int unregister_thermal_notifier(struct notifier_block *nb);
 
 #ifndef gcdFSL_CONTIGUOUS_SIZE
 #  define gcdFSL_CONTIGUOUS_SIZE (4 << 20)
+#endif
+
+#if defined(CONFIG_PM_OPP)
+typedef enum _gceGOVERN_MODE
+{
+    OVERDRIVE,
+    NOMINAL,
+    UNDERDRIVE,
+    GOVERN_COUNT
+}
+gceGOVERN_MODE;
 #endif
 
 static int initgpu3DMinClock = 1;
@@ -365,6 +380,17 @@ struct gpu_clk
     struct clk *clk_ahb;
 };
 
+#if defined(CONFIG_PM_OPP)
+struct gpu_govern
+{
+    unsigned long core_clk_freq[GOVERN_COUNT];
+    unsigned long shader_clk_freq[GOVERN_COUNT];
+    struct device* dev;
+    int num_modes;
+    int current_mode;
+};
+#endif
+
 struct imx_priv
 {
     struct gpu_clk imx_gpu_clks[gcdMAX_GPU_COUNT];
@@ -387,9 +413,200 @@ struct imx_priv
 #endif
 
     int gpu3dCount;
+
+#if defined(CONFIG_PM_OPP)
+    struct gpu_govern imx_gpu_govern;
+#endif
 };
 
 static struct imx_priv imxPriv;
+
+#if defined(CONFIG_PM_OPP)
+static ssize_t show_gpuMode(struct device_driver *dev, char *buf)
+{
+    struct imx_priv *priv = &imxPriv;
+    char buffer[512];
+    char mode[16];
+    int i;
+
+    unsigned long core_freq = 0;
+    unsigned long shader_freq = 0;
+
+    snprintf(buf, 512, "GPU support %d modes\n", priv->imx_gpu_govern.num_modes);
+
+    for(i = 0;i<priv->imx_gpu_govern.num_modes;i++)
+    {
+        switch(i){
+            case OVERDRIVE:
+                core_freq = priv->imx_gpu_govern.core_clk_freq[i];
+                shader_freq = priv->imx_gpu_govern.shader_clk_freq[i];
+                snprintf(buffer, 512, "overdrive:\tcore_clk frequency: %ld\tshader_clk frequency: %ld\n", core_freq,shader_freq);
+                strcat(buf,buffer);
+                if(OVERDRIVE == priv->imx_gpu_govern.current_mode)
+                    strcpy(mode,"overdrive\n");
+                break;
+            case NOMINAL:
+                core_freq = priv->imx_gpu_govern.core_clk_freq[i];
+                shader_freq = priv->imx_gpu_govern.shader_clk_freq[i];
+                snprintf(buffer, 512, "nominal:\tcore_clk frequency: %ld\tshader_clk frequency: %ld\n", core_freq,shader_freq);
+                strcat(buf,buffer);
+                if(NOMINAL == priv->imx_gpu_govern.current_mode)
+                    strcpy(mode,"nominal\n");
+                break;
+            case UNDERDRIVE:
+                core_freq = priv->imx_gpu_govern.core_clk_freq[i];
+                shader_freq = priv->imx_gpu_govern.shader_clk_freq[i];
+                snprintf(buffer, 512, "underdrive:\tcore_clk frequency: %ld\tshader_clk frequency: %ld\n", core_freq,shader_freq);
+                strcat(buf,buffer);
+                if(UNDERDRIVE == priv->imx_gpu_govern.current_mode)
+                    strcpy(mode,"underdrive\n");
+                break;
+            default:
+                strcpy(mode,"undefined\n");
+                break;
+        }
+    }
+    strcat(buf,"Currently GPU runs on mode ");
+    strcat(buf,mode);
+    return strlen(buf);
+}
+
+static ssize_t update_gpuMode(struct device_driver *dev, const char *buf, size_t count)
+{
+    unsigned long core_freq = 0;
+    unsigned long shader_freq = 0;
+    struct imx_priv *priv = &imxPriv;
+    int core = gcvCORE_MAJOR;
+
+    do{
+        if(strstr(buf,"overdrive"))
+        {
+            core_freq = priv->imx_gpu_govern.core_clk_freq[OVERDRIVE];
+            shader_freq = priv->imx_gpu_govern.shader_clk_freq[OVERDRIVE];
+            priv->imx_gpu_govern.current_mode = OVERDRIVE;
+            break;
+        }
+        if(strstr(buf,"nominal"))
+        {
+            core_freq = priv->imx_gpu_govern.core_clk_freq[NOMINAL];
+            shader_freq = priv->imx_gpu_govern.shader_clk_freq[NOMINAL];
+            priv->imx_gpu_govern.current_mode = NOMINAL;
+            break;
+        }
+        if(strstr(buf,"underdrive"))
+        {
+            core_freq = priv->imx_gpu_govern.core_clk_freq[UNDERDRIVE];
+            shader_freq = priv->imx_gpu_govern.shader_clk_freq[UNDERDRIVE];
+            priv->imx_gpu_govern.current_mode = UNDERDRIVE;
+            break;
+        }
+    }while(0);
+
+    while(core != gcvCORE_3D_MAX)
+    {
+        struct clk* clk_core = priv->imx_gpu_clks[core].clk_core;
+        struct clk* clk_shader = priv->imx_gpu_clks[core].clk_shader;
+        if(clk_core != NULL && clk_shader != NULL && core_freq != 0 && shader_freq != 0)
+        {
+            clk_set_rate(clk_core,core_freq);
+            clk_set_rate(clk_shader,shader_freq);
+        }
+        core++;
+    }
+    return count;
+}
+
+static DRIVER_ATTR(gpu_mode, S_IRUGO | S_IWUSR, show_gpuMode, update_gpuMode);
+
+int init_gpu_opp_table(struct device *dev)
+{
+    const struct property *prop;
+    const __be32 *val;
+    int nr;
+    int ret = 0;
+    int govern = 0;
+    int tuple_count = 0;
+    struct imx_priv *priv = &imxPriv;
+    priv->imx_gpu_govern.num_modes = 0;
+    priv->imx_gpu_govern.current_mode = OVERDRIVE;
+
+    prop = of_find_property(dev->of_node, "operating-points", NULL);
+    if (!prop)
+        return -ENODEV;
+    if (!prop->value)
+        return -ENODATA;
+
+    /*
+     * Each OPP is a set of tuples consisting of frequency and
+     * voltage like <freq-kHz vol-uV>.
+     */
+    nr = prop->length / sizeof(u32);
+    if (nr % 2) {
+        dev_err(dev, "%s: Invalid OPP list\n", __func__);
+        return -EINVAL;
+    }
+    tuple_count = nr;
+    val = prop->value;
+    while (nr > 0) {
+        unsigned long core_freq,core_volt,shader_freq,shader_volt;
+        core_freq = be32_to_cpup(val++) * 1000;
+        core_volt = be32_to_cpup(val++);
+        if(nr == 2)
+        {
+            shader_freq = core_freq;
+            shader_volt = core_volt;
+        }
+        else{
+            shader_freq = be32_to_cpup(val++) * 1000;
+            shader_volt = be32_to_cpup(val++);
+        }
+
+        /*We only register core_clk frequency*/
+        if (dev_pm_opp_add(dev, core_freq, core_volt))
+        {
+            dev_warn(dev, "%s: Failed to add OPP %ld\n",
+                 __func__, core_freq);
+            nr -= 4;
+            continue;
+        }
+
+        priv->imx_gpu_govern.core_clk_freq[govern] = core_freq;
+        priv->imx_gpu_govern.shader_clk_freq[govern] = shader_freq;
+        govern++;
+        priv->imx_gpu_govern.num_modes++;
+        if(govern == GOVERN_COUNT)
+            break;
+
+        nr -= 4;
+    }
+    priv->imx_gpu_govern.dev = dev;
+
+    if(priv->imx_gpu_govern.num_modes > 0)
+    {
+        ret = driver_create_file(dev->driver, &driver_attr_gpu_mode);
+        if (ret)
+            dev_err(dev, "create gpu_mode attr failed (%d)\n", ret);
+    }
+    return ret;
+}
+
+int remove_gpu_opp_table(void)
+{
+    struct imx_priv *priv = &imxPriv;
+    struct device* dev = priv->imx_gpu_govern.dev;
+    int govern = 0;
+    while(govern != GOVERN_COUNT)
+    {
+        unsigned long core_freq;
+        core_freq = priv->imx_gpu_govern.core_clk_freq[govern];
+        dev_pm_opp_remove(dev,core_freq);
+        govern++;
+    }
+    if(priv->imx_gpu_govern.num_modes > 0)
+        driver_remove_file(dev->driver, &driver_attr_gpu_mode);
+    return 0;
+}
+#endif
 
 #ifdef IMX_GPU_SUBSYSTEM
 static int use_imx_gpu_subsystem;
@@ -990,6 +1207,10 @@ static inline int get_power(struct device *pdev)
         dev_err(pdev, "create gpu3DMinClock attr failed (%d)\n", ret);
 #endif
 
+#if defined(CONFIG_PM_OPP)
+    init_gpu_opp_table(pdev);
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
     imx6sx_optimize_qosc_for_GPU();
 #endif
@@ -1048,6 +1269,10 @@ static inline void put_power(void)
     UNREG_THERMAL_NOTIFIER(&thermal_hot_pm_notifier);
 
     driver_remove_file(pdevice->dev.driver, &driver_attr_gpu3DMinClock);
+#endif
+
+#if defined(CONFIG_PM_OPP)
+    remove_gpu_opp_table();
 #endif
 
 #if defined(IMX8_SCU_CONTROL)
