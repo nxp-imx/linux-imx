@@ -194,6 +194,7 @@ nintendo	Nintendo
 nokia	Nokia
 nuvoton	Nuvoton Technology Corporation
 nvidia	NVIDIA
+nwl	Northwest Logic
 nxp	NXP Semiconductors
 okaya	Okaya Electric America, Inc.
 olimex	OLIMEX Ltd.
