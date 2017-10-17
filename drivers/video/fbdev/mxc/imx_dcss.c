@@ -1058,9 +1058,11 @@ static int dcss_init_fbinfo(struct fb_info *fbi)
 	if (cinfo->channel_id == DCSS_CHAN_MAIN)
 		/* main channel is for graphic */
 		var->grayscale = V4L2_PIX_FMT_ARGB32;
-	else
+	else {
 		/* other channels are for video */
 		var->grayscale = V4L2_PIX_FMT_NV12;
+		sprintf(fix->id, "FG");
+	}
 
 	/* Allocate memory buffer: Maybe need alignment */
 	fix->smem_len = (fix->line_length * var->yres_virtual > SZ_32M) ?
@@ -1990,7 +1992,7 @@ static int dcss_dtg_start(struct dcss_info *info)
 	writel(0x00080200, info->base + chans->dtg_addr + 0x30);
 
 	/* Trigger DTG on */
-	writel(0xff00518e, info->base + chans->dtg_addr + 0x0);
+	writel(0xff00558e, info->base + chans->dtg_addr + 0x0);
 
 	info->dcss_state = DCSS_STATE_RUNNING;
 
@@ -3026,7 +3028,7 @@ static int dcss_ioctl(struct fb_info *fbi, unsigned int cmd,
 	void __user *argp = (void __user *)arg;
 	struct dcss_channel_info *cinfo = fbi->par;
 	struct dcss_info *info = cinfo->dev_data;
-	struct platform_device *pdev = cinfo->pdev;
+	//struct platform_device *pdev = cinfo->pdev;
 
 	switch (cmd) {
 	case FBIO_WAITFORVSYNC:
@@ -3036,7 +3038,7 @@ static int dcss_ioctl(struct fb_info *fbi, unsigned int cmd,
 		ret = dcss_wait_for_vsync(crtc, info);
 		break;
 	default:
-		dev_err(&pdev->dev, "invalid ioctl command: 0x%x\n", cmd);
+		//dev_err(&pdev->dev, "invalid ioctl command: 0x%x\n", cmd);
 		ret = -EINVAL;
 		break;
 	}
