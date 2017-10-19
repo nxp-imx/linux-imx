@@ -1,3 +1,4 @@
+ccflags-$(CONFIG_FB_DCSS) += -I$(srctree)/drivers/dma-buf
 obj-$(CONFIG_FB_MXC_MIPI_DSI)			+= mipi_dsi.o
 obj-$(CONFIG_FB_MXC_MIPI_DSI_SAMSUNG)           += mipi_dsi_samsung.o
 obj-$(CONFIG_FB_MXC_MIPI_DSI_NORTHWEST)         += mipi_dsi_northwest.o
