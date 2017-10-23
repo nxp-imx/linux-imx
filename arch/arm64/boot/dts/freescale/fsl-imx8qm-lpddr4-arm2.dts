@@ -18,6 +18,25 @@
 #include "fsl-imx8qm.dtsi"
 
 / {
+	firmware {
+		android {
+		compatible = "android,firmware";
+			fstab {
+				compatible = "android,fstab";
+				vendor {
+					compatible = "android,vendor";
+					/* sd card node which used if androidboot.storage_type=sd */
+					dev_sd = "/dev/block/platform/5b020000.usdhc/by-name/vendor";
+					type = "ext4";
+					mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+					fsmgr_flags = "wait";
+				};
+			};
+		};
+	};
+};
+
+/ {
 	model = "Freescale i.MX8QM ARM2";
 	compatible = "fsl,imx8qm-arm2", "fsl,imx8qm";
 
