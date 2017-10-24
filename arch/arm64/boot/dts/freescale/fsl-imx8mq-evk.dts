@@ -47,8 +47,8 @@
 
 	bcmdhd_wlan_0: bcmdhd_wlan@0 {
 		compatible = "android,bcmdhd_wlan";
-		bcmdhd_fw = "/system/etc/firmware/bcm/1CX_BCM4356/fw_bcmdhd.bin";
-		bcmdhd_nv = "/system/etc/firmware/bcm/1CX_BCM4356/bcmdhd.1CX.cal";
+		bcmdhd_fw = "/vendor/firmware/bcm/1CX_BCM4356/fw_bcmdhd.bin";
+		bcmdhd_nv = "/vendor/firmware/bcm/1CX_BCM4356/bcmdhd.1CX.cal";
 	};
 
 	chosen {
