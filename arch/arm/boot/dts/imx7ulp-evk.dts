@@ -29,8 +29,8 @@
 	bcmdhd_wlan_0: bcmdhd_wlan@0 {
 		compatible = "android,bcmdhd_wlan";
 		wlreg_on-supply = <&wlreg_on>;
-		bcmdhd_fw = "/system/etc/firmware/bcm/1DX_BCM4343W/fw_bcmdhd.bin";
-		bcmdhd_nv = "/system/etc/firmware/bcm/1DX_BCM4343W/bcmdhd.1DX.SDIO.cal";
+		bcmdhd_fw = "/vendor/firmware/bcm/1DX_BCM4343W/fw_bcmdhd.bin";
+		bcmdhd_nv = "/vendor/firmware/bcm/1DX_BCM4343W/bcmdhd.1DX.SDIO.cal";
 	};
 
 	memory {
