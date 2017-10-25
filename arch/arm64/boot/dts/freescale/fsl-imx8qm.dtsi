@@ -3040,7 +3040,6 @@
 	operating-points = <
 		/* kHz    uV */
 		/* voltage is maintained by SCFW, so no need here */
-		1260000	   0
 		1200000	   0
 		900000	   0
 		600000	   0
