@@ -84,6 +84,13 @@
 		audio-codec = <&wm8960>;
 		asrc-controller = <&asrc0>;
 		codec-master;
+		/*
+		 * hp-det = <hp-det-pin hp-det-polarity>;
+		 * hp-det-pin: JD1 JD2  or JD3
+		 * hp-det-polarity = 0: hp detect high for headphone
+		 * hp-det-polarity = 1: hp detect high for speaker
+		 */
+		hp-det = <2 0>;
 		audio-routing =
 			"Headphone Jack", "HP_L",
 			"Headphone Jack", "HP_R",
@@ -139,6 +146,27 @@
 				SC_P_ENET1_RGMII_RXD1_CONN_ENET1_RGMII_RXD1	0x06000048
 				SC_P_ENET1_RGMII_RXD2_CONN_ENET1_RGMII_RXD2	0x06000048
 				SC_P_ENET1_RGMII_RXD3_CONN_ENET1_RGMII_RXD3	0x06000048
+			>;
+		};
+
+		pinctrl_flexspi0: flexspi0grp {
+			fsl,pins = <
+				SC_P_QSPI0A_DATA0_LSIO_QSPI0A_DATA0	0x0600004c
+				SC_P_QSPI0A_DATA1_LSIO_QSPI0A_DATA1	0x0600004c
+				SC_P_QSPI0A_DATA2_LSIO_QSPI0A_DATA2	0x0600004c
+				SC_P_QSPI0A_DATA3_LSIO_QSPI0A_DATA3	0x0600004c
+				SC_P_QSPI0A_DQS_LSIO_QSPI0A_DQS		0x0600004c
+				SC_P_QSPI0A_SS0_B_LSIO_QSPI0A_SS0_B	0x0600004c
+				SC_P_QSPI0A_SS1_B_LSIO_QSPI0A_SS1_B	0x0600004c
+				SC_P_QSPI0A_SCLK_LSIO_QSPI0A_SCLK	0x0600004c
+				SC_P_QSPI0B_SCLK_LSIO_QSPI0B_SCLK	0x0600004c
+				SC_P_QSPI0B_DATA0_LSIO_QSPI0B_DATA0	0x0600004c
+				SC_P_QSPI0B_DATA1_LSIO_QSPI0B_DATA1	0x0600004c
+				SC_P_QSPI0B_DATA2_LSIO_QSPI0B_DATA2	0x0600004c
+				SC_P_QSPI0B_DATA3_LSIO_QSPI0B_DATA3	0x0600004c
+				SC_P_QSPI0B_DQS_LSIO_QSPI0B_DQS		0x0600004c
+				SC_P_QSPI0B_SS0_B_LSIO_QSPI0B_SS0_B	0x0600004c
+				SC_P_QSPI0B_SS1_B_LSIO_QSPI0B_SS1_B	0x0600004c
 			>;
 		};
 
@@ -366,6 +394,21 @@
 	};
 };
 
+&flexspi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexspi0>;
+	status = "okay";
+
+	flash0: mt35xu512aba@0 {
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "micron,mt35xu512aba";
+		spi-max-frequency = <29000000>;
+		spi-nor,ddr-quad-read-dummy = <8>;
+	};
+};
+
 &i2c1 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -441,5 +484,89 @@
 	disable-gpio = <&gpio0 3 GPIO_ACTIVE_LOW>;
 	reset-gpio = <&gpio4 29 GPIO_ACTIVE_LOW>;
 	epdev_on-supply = <&epdev_on>;
+	status = "okay";
+};
+
+&intmux_cm40 {
+	status = "okay";
+};
+
+&rpmsg{
+	/*
+	 * 64K for one rpmsg instance:
+	 * --0xb8000000~0xb800ffff: pingpong
+	 */
+	vdev-nums = <1>;
+	reg = <0x0 0xb8000000 0x0 0x10000>;
+	status = "okay";
+};
+
+&intmux_cm41 {
+	status = "okay";
+};
+
+&rpmsg1{
+	/*
+	 * 64K for one rpmsg instance:
+	 * --0xb8100000~0xb810ffff: pingpong
+	 */
+	vdev-nums = <1>;
+	reg = <0x0 0xb8100000 0x0 0x10000>;
+	status = "okay";
+};
+
+&mipi_csi_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	virtual-channel;
+	status = "okay";
+
+	/* Camera 0  MIPI CSI-2 (CSIS0) */
+	port@0 {
+		reg = <0>;
+		mipi_csi0_ep: endpoint {
+			remote-endpoint = <&max9286_0_ep>;
+			data-lanes = <1 2 3 4>;
+		};
+	};
+};
+
+&i2c0_mipi_csi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	status = "okay";
+
+	max9286_mipi@6A	 {
+		compatible = "maxim,max9286_mipi";
+		reg = <0x6A>;
+		clocks = <&clk IMX8QM_CLK_DUMMY>;
+		clock-names = "capture_mclk";
+		mclk = <27000000>;
+		mclk_source = <0>;
+		virtual-channel;
+		port {
+			max9286_0_ep: endpoint {
+			remote-endpoint = <&mipi_csi0_ep>;
+			data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
+
+&isi_0 {
+	status = "okay";
+};
+
+&isi_1 {
+	status = "okay";
+};
+
+&isi_2 {
+	status = "okay";
+};
+
+&isi_3 {
 	status = "okay";
 };
