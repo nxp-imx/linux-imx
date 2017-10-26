@@ -87,7 +87,7 @@
 		};
 	};
 
-	reserved-memory {
+	rsvd_mem: reserved-memory {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges;

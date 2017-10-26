@@ -288,6 +288,17 @@
 	arm-supply = <&sw1a_reg>;
 };
 
+&rsvd_mem {
+	ramoops@0xbbf00000 {
+		compatible = "ramoops";
+		reg = <0xbbf00000 0x00100000>;
+		record-size	= <0x00020000>;
+		console-size	= <0x00020000>;
+		ftrace-size	= <0x00020000>;
+		pmsg-size	= <0x00020000>;
+	};
+};
+
 &ecspi3 {
 	fsl,spi-num-chipselects = <1>;
 	pinctrl-names = "default";
