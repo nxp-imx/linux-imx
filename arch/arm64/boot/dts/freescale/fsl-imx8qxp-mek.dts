@@ -46,8 +46,8 @@
 
 	bcmdhd_wlan_0: bcmdhd_wlan@0 {
 		compatible = "android,bcmdhd_wlan";
-		bcmdhd_fw = "/lib/firmware/bcm/1FD_BCM89359/fw_bcmdhd.bin";
-		bcmdhd_nv = "/lib/firmware/bcm/1FD_BCM89359/bcmdhd.cal";
+		bcmdhd_fw = "/vendor/firmware/bcm/1FD_BCM89359/fw_bcmdhd.bin";
+		bcmdhd_nv = "/vendor/firmware/bcm/1FD_BCM89359/bcmdhd.1FD.cal";
 	};
 
 	bt_rfkill {
