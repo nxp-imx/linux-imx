@@ -97,10 +97,12 @@
 #define SC_360MHZ       360000000	/* 360MHz */
 #define SC_384MHZ       384000000	/* 384MHz */
 #define SC_396MHZ       396000000	/* 396MHz */
+#define SC_432MHZ       432000000	/* 432MHz */
 #define SC_480MHZ       480000000	/* 480MHz */
 #define SC_600MHZ       600000000	/* 600MHz */
 #define SC_744MHZ       744000000	/* 744MHz */
 #define SC_792MHZ       792000000	/* 792MHz */
+#define SC_864MHZ       864000000	/* 864MHz */
 #define SC_960MHZ       960000000	/* 960MHz */
 #define SC_1056MHZ     1056000000	/* 1056MHz */
 #define SC_1200MHZ     1200000000	/* 1.2GHz */
