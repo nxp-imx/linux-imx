@@ -170,9 +170,7 @@
 			interrupt-names = "gpmi0", "gpmi1", "gpmi2", "gpmi3";
 			#dma-cells = <1>;
 			dma-channels = <4>;
-			clocks = <&clks IMX7D_NAND_USDHC_BUS_ROOT_CLK>,
-				<&clks IMX7D_NAND_ROOT_CLK>;
-			clock-names = "dma_apbh_bch", "dma_apbh_io";
+			clocks = <&clks IMX7D_NAND_USDHC_BUS_RAWNAND_CLK>;
 		};
 
 		gpmi: gpmi-nand@33002000{
@@ -183,8 +181,8 @@
 			reg-names = "gpmi-nand", "bch";
 			interrupts = <GIC_SPI 14 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "bch";
-			clocks = <&clks IMX7D_NAND_ROOT_CLK>,
-				<&clks IMX7D_NAND_USDHC_BUS_ROOT_CLK>;
+			clocks = <&clks IMX7D_NAND_RAWNAND_CLK>,
+				<&clks IMX7D_NAND_USDHC_BUS_RAWNAND_CLK>;
 			clock-names = "gpmi_io", "gpmi_bch_apb";
 			dmas = <&dma_apbh 0>;
 			dma-names = "rx-tx";
