@@ -2381,11 +2381,16 @@ static int lpuart_suspend(struct device *dev)
 	unsigned long flags;
 	int ret;
 
-	ret = clk_prepare_enable(sport->ipg_clk);
-	if (ret)
-		return ret;
-
 	uart_suspend_port(&lpuart_reg, &sport->port);
+
+	if (!uart_console(&sport->port) &&
+	    !(sport->port.irq_wake && tty_port_initialized(port))) {
+		ret = clk_prepare_enable(sport->ipg_clk);
+		if (ret)
+			return ret;
+	} else {
+		clk_disable_unprepare(sport->per_clk);
+	}
 
 	if (sport->lpuart32) {
 		temp = lpuart32_read(sport->port.membase + UARTCTRL);
@@ -2540,15 +2545,24 @@ static inline void lpuart_resume_init(struct lpuart_port *sport)
 static int lpuart_resume(struct device *dev)
 {
 	struct lpuart_port *sport = dev_get_drvdata(dev);
+	struct tty_port *port = &sport->port.state->port;
+	int ret;
 
 	if (sport->lpuart32)
 		lpuart32_resume_init(sport);
 	else
 		lpuart_resume_init(sport);
 
-	uart_resume_port(&lpuart_reg, &sport->port);
+	if (uart_console(&sport->port) ||
+	    (sport->port.irq_wake && tty_port_initialized(port))) {
+		ret = clk_prepare_enable(sport->per_clk);
+		if (ret)
+			return ret;
+	} else {
+		clk_disable_unprepare(sport->ipg_clk);
+	}
 
-	clk_disable_unprepare(sport->ipg_clk);
+	uart_resume_port(&lpuart_reg, &sport->port);
 
 	return 0;
 }
