@@ -454,6 +454,27 @@ static inline void flexcan_mb_write(const struct flexcan_priv *priv,
 }
 #endif
 
+static int flexcan_clks_enable(const struct flexcan_priv *priv)
+{
+	int err;
+
+	err = clk_prepare_enable(priv->clk_ipg);
+	if (err)
+		return err;
+
+	err = clk_prepare_enable(priv->clk_per);
+	if (err)
+		clk_disable_unprepare(priv->clk_ipg);
+
+	return err;
+}
+
+static void flexcan_clks_disable(const struct flexcan_priv *priv)
+{
+	clk_disable_unprepare(priv->clk_ipg);
+	clk_disable_unprepare(priv->clk_per);
+}
+
 static inline void flexcan_enter_stop_mode(struct flexcan_priv *priv)
 {
 	/* enable stop request */
@@ -612,19 +633,13 @@ static int flexcan_get_berr_counter(const struct net_device *dev,
 	const struct flexcan_priv *priv = netdev_priv(dev);
 	int err;
 
-	err = clk_prepare_enable(priv->clk_ipg);
+	err = flexcan_clks_enable(priv);
 	if (err)
 		return err;
 
-	err = clk_prepare_enable(priv->clk_per);
-	if (err)
-		goto out_disable_ipg;
-
 	err = __flexcan_get_berr_counter(dev, bec);
 
-	clk_disable_unprepare(priv->clk_per);
- out_disable_ipg:
-	clk_disable_unprepare(priv->clk_ipg);
+	flexcan_clks_disable(priv);
 
 	return err;
 }
@@ -1030,10 +1045,14 @@ static int flexcan_chip_start(struct net_device *dev)
 	u32 reg_mcr, reg_ctrl, reg_ctrl2, reg_mecr, reg_fdctrl;
 	int err, i;
 
+	err = flexcan_clks_enable(priv);
+	if (err)
+		return err;
+
 	/* enable module */
 	err = flexcan_chip_enable(priv);
 	if (err)
-		return err;
+		goto out_clocks_disable;
 
 	/* soft reset */
 	err = flexcan_chip_softreset(priv);
@@ -1211,6 +1230,9 @@ static int flexcan_chip_start(struct net_device *dev)
 	flexcan_transceiver_disable(priv);
  out_chip_disable:
 	flexcan_chip_disable(priv);
+ out_clocks_disable:
+	flexcan_clks_disable(priv);
+
 	return err;
 }
 
@@ -1231,6 +1253,8 @@ static void flexcan_chip_stop(struct net_device *dev)
 	flexcan_write(priv, FLEXCAN_CTRL, priv->reg_ctrl_default &
 		      ~FLEXCAN_CTRL_ERR_ALL);
 
+	flexcan_clks_disable(priv);
+
 	flexcan_transceiver_disable(priv);
 	priv->can.state = CAN_STATE_STOPPED;
 }
@@ -1240,17 +1264,13 @@ static int flexcan_open(struct net_device *dev)
 	struct flexcan_priv *priv = netdev_priv(dev);
 	int err;
 
-	err = clk_prepare_enable(priv->clk_ipg);
+	err = flexcan_clks_enable(priv);
 	if (err)
 		return err;
 
-	err = clk_prepare_enable(priv->clk_per);
-	if (err)
-		goto out_disable_ipg;
-
 	err = open_candev(dev);
 	if (err)
-		goto out_disable_per;
+		goto out_clocks_disable;
 
 	err = request_irq(dev->irq, flexcan_irq, IRQF_SHARED, dev->name, dev);
 	if (err)
@@ -1272,10 +1292,9 @@ static int flexcan_open(struct net_device *dev)
 	free_irq(dev->irq, dev);
  out_close:
 	close_candev(dev);
- out_disable_per:
-	clk_disable_unprepare(priv->clk_per);
- out_disable_ipg:
-	clk_disable_unprepare(priv->clk_ipg);
+
+ out_clocks_disable:
+	flexcan_clks_disable(priv);
 
 	return err;
 }
@@ -1289,12 +1308,12 @@ static int flexcan_close(struct net_device *dev)
 	flexcan_chip_stop(dev);
 
 	free_irq(dev->irq, dev);
-	clk_disable_unprepare(priv->clk_per);
-	clk_disable_unprepare(priv->clk_ipg);
 
 	close_candev(dev);
 
 	can_led_event(dev, CAN_LED_EVENT_STOP);
+
+	flexcan_clks_disable(priv);
 
 	return 0;
 }
@@ -1331,18 +1350,14 @@ static int register_flexcandev(struct net_device *dev)
 	struct flexcan_priv *priv = netdev_priv(dev);
 	u32 reg, err;
 
-	err = clk_prepare_enable(priv->clk_ipg);
+	err = flexcan_clks_enable(priv);
 	if (err)
 		return err;
-
-	err = clk_prepare_enable(priv->clk_per);
-	if (err)
-		goto out_disable_ipg;
 
 	/* select "bus clock", chip must be disabled */
 	err = flexcan_chip_disable(priv);
 	if (err)
-		goto out_disable_per;
+		goto out_clocks_disable;
 	reg = flexcan_read(priv, FLEXCAN_CTRL);
 	reg |= FLEXCAN_CTRL_CLK_SRC;
 	flexcan_write(priv, FLEXCAN_CTRL, reg);
@@ -1379,10 +1394,8 @@ static int register_flexcandev(struct net_device *dev)
 	/* disable core and turn off clocks */
  out_chip_disable:
 	flexcan_chip_disable(priv);
- out_disable_per:
-	clk_disable_unprepare(priv->clk_per);
- out_disable_ipg:
-	clk_disable_unprepare(priv->clk_ipg);
+ out_clocks_disable:
+	flexcan_clks_disable(priv);
 
 	return err;
 }
