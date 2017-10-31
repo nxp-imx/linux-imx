@@ -1225,6 +1225,7 @@
 				<0x0 0x56261000 0x0 0x1000>; /* HDP SubSystem CSR  */
 		interrupts = <10 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&irqsteer_hdmi>;
+		status = "disabled";
 		clocks = <&clk IMX8QM_HDMI_DIG_PLL_CLK>,
 				<&clk IMX8QM_HDMI_AV_PLL_CLK>,
 				<&clk IMX8QM_HDMI_IPG_CLK>,
