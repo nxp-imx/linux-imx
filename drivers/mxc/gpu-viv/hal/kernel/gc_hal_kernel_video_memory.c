@@ -2285,7 +2285,7 @@ OnError:
 **          Pointer to a variable receiving a handle represent this
 **          gckVIDMEM_NODE in userspace.
 */
-static gceSTATUS
+gceSTATUS
 gckVIDMEM_HANDLE_Allocate(
     IN gckKERNEL Kernel,
     IN gckVIDMEM_NODE Node,
@@ -2352,7 +2352,7 @@ OnError:
     return status;
 }
 
-static gceSTATUS
+gceSTATUS
 gckVIDMEM_NODE_Reference(
     IN gckKERNEL Kernel,
     IN gckVIDMEM_NODE Node
@@ -2724,6 +2724,13 @@ gckVIDMEM_NODE_Dereference(
             }
         }
 
+        /* Should not cause recursive call since tsNode->tsNode should be NULL */
+        if (Node->tsNode)
+        {
+            gcmkASSERT(!Node->tsNode->tsNode);
+            gckVIDMEM_NODE_Dereference(Kernel, Node->tsNode);
+        }
+
         gcmkOS_SAFE_FREE(Kernel->os, Node);
     }
 
@@ -2827,7 +2834,7 @@ static void _dmabuf_release(struct dma_buf *dmabuf)
 {
     gckVIDMEM_NODE nodeObject = dmabuf->priv;
 
-    gcmkVERIFY_OK(gckVIDMEM_NODE_Reference(nodeObject->kernel, nodeObject));
+    gcmkVERIFY_OK(gckVIDMEM_NODE_Dereference(nodeObject->kernel, nodeObject));
 }
 
 static void *_dmabuf_kmap(struct dma_buf *dmabuf, unsigned long offset)
@@ -3277,13 +3284,14 @@ gckVIDMEM_NODE_WrapUserMemory(
 
         if (dmabuf->ops == &_dmabuf_ops)
         {
-            gctBOOL referenced  = gcvFALSE;
+            gctBOOL referenced = gcvFALSE;
             gckVIDMEM_NODE nodeObject = dmabuf->priv;
 
             do
             {
                 /* Reference the node. */
                 gcmkERR_BREAK(gckVIDMEM_NODE_Reference(Kernel, nodeObject));
+                referenced = gcvTRUE;
                 /* Allocate a handle for current process. */
                 gcmkERR_BREAK(gckVIDMEM_HANDLE_Allocate(Kernel, nodeObject, Handle));
                 found = gcvTRUE;

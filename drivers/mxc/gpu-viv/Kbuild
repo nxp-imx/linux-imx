@@ -293,8 +293,10 @@ ifeq ($(SECURITY), 1)
 EXTRA_CFLAGS += -DgcdSECURITY=1
 endif
 
-ifneq ($(CONFIG_DRM),)
+ifneq ($(CONFIG_DRM), )
 EXTRA_CFLAGS += -DgcdENABLE_DRM=$(VIVANTE_ENABLE_DRM)
+else
+EXTRA_CFLAGS += -DgcdENABLE_DRM=0
 endif
 
 EXTRA_CFLAGS += -I$(AQROOT)/hal/kernel/inc
