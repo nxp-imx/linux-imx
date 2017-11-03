@@ -787,9 +787,9 @@ _GFPMapUser(
     }
 
 OnError:
-    if (gcmIS_ERROR(status))
+    if (gcmIS_ERROR(status) && userLogical)
     {
-        _GFPUnmapUser(Allocator, Mdl, *UserLogical, Mdl->numPages * PAGE_SIZE);
+        _GFPUnmapUser(Allocator, Mdl, userLogical, Mdl->numPages * PAGE_SIZE);
     }
     gcmkFOOTER();
     return status;

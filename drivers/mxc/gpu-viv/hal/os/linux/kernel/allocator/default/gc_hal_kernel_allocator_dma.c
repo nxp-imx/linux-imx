@@ -461,7 +461,7 @@ _DmaMapUser(
     up_write(&current->mm->mmap_sem);
 
 OnError:
-    if (gcmIS_ERROR(status))
+    if (gcmIS_ERROR(status) && userLogical)
     {
         _DmaUnmapUser(Allocator, Mdl, userLogical, Mdl->numPages * PAGE_SIZE);
     }
