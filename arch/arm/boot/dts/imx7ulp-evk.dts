@@ -26,13 +26,6 @@
 		stdout-path = &lpuart4;
 	};
 
-	bcmdhd_wlan_0: bcmdhd_wlan@0 {
-		compatible = "android,bcmdhd_wlan";
-		wlreg_on-supply = <&wlreg_on>;
-		bcmdhd_fw = "/lib/firmware/bcm/1DX_BCM4343W/fw_bcmdhd.bin";
-		bcmdhd_nv = "/lib/firmware/bcm/1DX_BCM4343W/bcmdhd.1DX.SDIO.cal";
-	};
-
 	memory {
 		device_type = "memory";
 		reg = <0x60000000 0x40000000>;
@@ -55,7 +48,7 @@
 
 	modem_reset: modem-reset {
 		compatible = "gpio-reset";
-		reset-gpios = <&gpio2 7 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&rpmsg_gpio0 15 GPIO_ACTIVE_LOW>;
 		reset-delay-us = <1000>;
 		#reset-cells = <0>;
 	};
@@ -64,16 +57,6 @@
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <0>;
-
-		wlreg_on: fixedregulator@100 {
-			compatible = "regulator-fixed";
-			regulator-min-microvolt = <5000000>;
-			regulator-max-microvolt = <5000000>;
-			regulator-name = "wlreg_on";
-			gpio = <&gpio2 6 GPIO_ACTIVE_HIGH>;
-			startup-delay-us = <100>;
-			enable-active-high;
-		};
 
 		reg_usb_otg1_vbus: regulator@0 {
 			compatible = "regulator-fixed";
@@ -98,6 +81,16 @@
 			enable-active-high;
 		};
 
+		reg_sd1_vmmc: sd1_regulator {
+			compatible = "regulator-fixed";
+			regulator-name = "VSD_3V3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			gpio = <&rpmsg_gpio0 14 GPIO_ACTIVE_HIGH>;
+			off-on-delay = <20000>;
+			startup-delay-us = <100>;
+			enable-active-high;
+		};
 	};
 
 	extcon_usb1: extcon_usb1 {
@@ -351,12 +344,6 @@
 			>;
 		};
 
-		pinctrl_wifi: wifigrp {
-			fsl,pins = <
-				ULP1_PAD_PTE6__PTE6		0x20043 /* WL_REG_ON */
-			>;
-		};
-
 		pinctrl_dsi_hdmi: dsi_hdmi_grp {
 			fsl,pins = <
 				ULP1_PAD_PTC18__PTC18		0x10003		/* DSI_HDMI_INT */
@@ -540,12 +527,11 @@
 
 &usdhc1 {
 	pinctrl-names = "default", "sleep";
-	pinctrl-0 = <&pinctrl_usdhc1 &pinctrl_wifi>;
-	pinctrl-1 = <&pinctrl_usdhc1 &pinctrl_wifi>;
-	non-removable;
-	keep-power-in-suspend;
-	cd-post;
+	pinctrl-0 = <&pinctrl_usdhc1>;
+	pinctrl-1 = <&pinctrl_usdhc1>;
+	bus-width = <4>;
+	vmmc-supply = <&reg_sd1_vmmc>;
 	pm-ignore-notify;
-	wifi-host;
+	keep-power-in-suspend;
 	status = "okay";
 };
