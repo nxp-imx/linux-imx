@@ -53,7 +53,7 @@
 *****************************************************************************/
 
 
-/*Auto created on 2017-09-29 05:51*/
+/*Auto created on 2017-10-12 14:21*/
 #ifndef _gc_feature_database_h_
 #define _gc_feature_database_h_
 
@@ -48807,7 +48807,7 @@ static gcsFEATURE_DATABASE gChipInfo[] = {
         0x1, /* gcFEATURE_BIT_PE_DITHER_FIX2 */
         0x0, /* gcFEATURE_BIT_G2D_DEC400 */
         0x1, /* gcFEATURE_BIT_SH_TEXLD_U_FIX */
-        0x1, /* gcFEATURE_BIT_MC_FCCACHE_BYTEMASK */
+        0x0, /* gcFEATURE_BIT_MC_FCCACHE_BYTEMASK */
         0x1, /* gcFEATURE_BIT_SH_MULTI_WG_PACK_FIX */
         0x0, /* gcFEATURE_BIT_DC_OVERLAY_SCALING */
         0x0, /* gcFEATURE_BIT_DC_SOURCE_ROTATION */

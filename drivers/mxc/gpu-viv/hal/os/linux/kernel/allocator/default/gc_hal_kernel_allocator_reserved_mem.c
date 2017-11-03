@@ -341,9 +341,9 @@ reserved_mem_map_user(
     up_write(&current->mm->mmap_sem);
 
 OnError:
-    if (gcmIS_ERROR(status))
+    if (gcmIS_ERROR(status) && userLogical)
     {
-        reserved_mem_unmap_user(Allocator, Mdl, *UserLogical, res->size);
+        reserved_mem_unmap_user(Allocator, Mdl, userLogical, res->size);
     }
     gcmkFOOTER();
     return status;

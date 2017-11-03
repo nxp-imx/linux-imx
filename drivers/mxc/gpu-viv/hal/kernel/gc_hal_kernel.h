@@ -1130,6 +1130,13 @@ typedef struct _gcsVIDMEM_NODE
     gcePOOL                     pool;
 
     gcsFENCE_SYNC               sync[gcvENGINE_GPU_ENGINE_COUNT];
+
+    /* For DRM usage */
+    gctUINT64                   timeStamp;
+    gckVIDMEM_NODE              tsNode;
+    gctUINT32                   tilingMode;
+    gctUINT32                   tsMode;
+    gctUINT64                   clearValue;
 }
 gcsVIDMEM_NODE;
 
@@ -1205,6 +1212,13 @@ typedef struct _gcsDEVICE
 gcsDEVICE;
 
 gceSTATUS
+gckVIDMEM_HANDLE_Allocate(
+    IN gckKERNEL Kernel,
+    IN gckVIDMEM_NODE Node,
+    OUT gctUINT32 * Handle
+    );
+
+gceSTATUS
 gckVIDMEM_HANDLE_Reference(
     IN gckKERNEL Kernel,
     IN gctUINT32 ProcessID,
@@ -1239,6 +1253,12 @@ gckVIDMEM_NODE_Unlock(
     IN gckKERNEL Kernel,
     IN gckVIDMEM_NODE Node,
     IN gctUINT32 ProcessID
+    );
+
+gceSTATUS
+gckVIDMEM_NODE_Reference(
+    IN gckKERNEL Kernel,
+    IN gckVIDMEM_NODE Node
     );
 
 gceSTATUS
