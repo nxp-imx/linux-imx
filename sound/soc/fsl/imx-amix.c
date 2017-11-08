@@ -33,7 +33,7 @@ struct imx_amix {
 };
 
 static const u32 imx_amix_rates[] = {
-	8000, 12000, 16000, 24000, 32000, 48000, 64000, 96000,
+	8000, 12000, 16000, 24000, 32000, 48000,
 };
 
 static const struct snd_pcm_hw_constraint_list imx_amix_rate_constraints = {
