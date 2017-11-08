@@ -108,6 +108,7 @@ void drm_mode_object_unregister(struct drm_device *dev,
 }
 
 struct drm_mode_object *__drm_mode_object_find(struct drm_device *dev,
+					       struct drm_file *file_priv,
 					       uint32_t id, uint32_t type)
 {
 	struct drm_mode_object *obj = NULL;
@@ -139,11 +140,12 @@ struct drm_mode_object *__drm_mode_object_find(struct drm_device *dev,
  * by callind drm_mode_object_unreference().
  */
 struct drm_mode_object *drm_mode_object_find(struct drm_device *dev,
-		uint32_t id, uint32_t type)
+					     struct drm_file *file_priv,
+					     uint32_t id, uint32_t type)
 {
 	struct drm_mode_object *obj = NULL;
 
-	obj = __drm_mode_object_find(dev, id, type);
+	obj = __drm_mode_object_find(dev, file_priv, id, type);
 	return obj;
 }
 EXPORT_SYMBOL(drm_mode_object_find);
@@ -350,7 +352,7 @@ int drm_mode_obj_get_properties_ioctl(struct drm_device *dev, void *data,
 
 	drm_modeset_lock_all(dev);
 
-	obj = drm_mode_object_find(dev, arg->obj_id, arg->obj_type);
+	obj = drm_mode_object_find(dev, file_priv, arg->obj_id, arg->obj_type);
 	if (!obj) {
 		ret = -ENOENT;
 		goto out;
@@ -398,7 +400,7 @@ int drm_mode_obj_set_property_ioctl(struct drm_device *dev, void *data,
 
 	drm_modeset_lock_all(dev);
 
-	arg_obj = drm_mode_object_find(dev, arg->obj_id, arg->obj_type);
+	arg_obj = drm_mode_object_find(dev, file_priv, arg->obj_id, arg->obj_type);
 	if (!arg_obj) {
 		ret = -ENOENT;
 		goto out;
