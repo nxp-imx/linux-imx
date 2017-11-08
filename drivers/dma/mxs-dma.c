@@ -729,17 +729,10 @@ static int mxs_dma_init_rpm(struct mxs_dma_engine *mxs_dma)
 static int mxs_dma_init(struct mxs_dma_engine *mxs_dma)
 {
 	int ret;
-	struct device *dev = &mxs_dma->pdev->dev;
 
 	ret = mxs_dma_init_rpm(mxs_dma);
 	if (ret)
 		return ret;
-
-	ret = pm_runtime_get_sync(dev);
-	if (ret < 0) {
-		dev_err(dev, "Failed to enable clock\n");
-		return ret;
-	}
 
 	ret = stmp_reset_block(mxs_dma->base);
 	if (ret)
@@ -758,9 +751,6 @@ static int mxs_dma_init(struct mxs_dma_engine *mxs_dma)
 		mxs_dma->base + HW_APBHX_CTRL1 + STMP_OFFSET_REG_SET);
 
 err_clk:
-	pm_runtime_mark_last_busy(dev);
-	pm_runtime_put_autosuspend(dev);
-
 	return ret;
 }
 
@@ -934,13 +924,10 @@ static int mxs_dma_pm_resume(struct device *dev)
 	struct mxs_dma_engine *mxs_dma = dev_get_drvdata(dev);
 	int ret;
 
-	ret = pm_runtime_force_resume(dev);
-	if (ret)
-		return ret;
-
 	ret = mxs_dma_init(mxs_dma);
 	if (ret)
 		return ret;
+
 	return 0;
 }
 
