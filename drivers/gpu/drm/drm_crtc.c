@@ -572,7 +572,7 @@ int drm_mode_getcrtc(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-	crtc = drm_crtc_find(dev, crtc_resp->crtc_id);
+	crtc = drm_crtc_find(dev, file_priv, crtc_resp->crtc_id);
 	if (!crtc)
 		return -ENOENT;
 
@@ -743,7 +743,7 @@ int drm_mode_setcrtc(struct drm_device *dev, void *data,
 		return -ERANGE;
 
 	drm_modeset_lock_all(dev);
-	crtc = drm_crtc_find(dev, crtc_req->crtc_id);
+	crtc = drm_crtc_find(dev, file_priv, crtc_req->crtc_id);
 	if (!crtc) {
 		DRM_DEBUG_KMS("Unknown CRTC ID %d\n", crtc_req->crtc_id);
 		ret = -ENOENT;
@@ -764,7 +764,7 @@ int drm_mode_setcrtc(struct drm_device *dev, void *data,
 			/* Make refcounting symmetric with the lookup path. */
 			drm_framebuffer_reference(fb);
 		} else {
-			fb = drm_framebuffer_lookup(dev, crtc_req->fb_id);
+			fb = drm_framebuffer_lookup(dev, file_priv, crtc_req->fb_id);
 			if (!fb) {
 				DRM_DEBUG_KMS("Unknown FB ID%d\n",
 						crtc_req->fb_id);
@@ -848,7 +848,7 @@ int drm_mode_setcrtc(struct drm_device *dev, void *data,
 				goto out;
 			}
 
-			connector = drm_connector_lookup(dev, out_id);
+			connector = drm_connector_lookup(dev, file_priv, out_id);
 			if (!connector) {
 				DRM_DEBUG_KMS("Connector id %d unknown\n",
 						out_id);
