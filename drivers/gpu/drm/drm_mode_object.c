@@ -92,9 +92,9 @@ void drm_mode_object_register(struct drm_device *dev,
  * Returns whether the provided type of drm_mode_object must
  * be owned or leased to be used by a process.
  */
-static bool drm_lease_required(uint32_t type)
+bool drm_mode_object_lease_required(uint32_t type)
 {
-	switch(type) {
+	switch (type) {
 	case DRM_MODE_OBJECT_CRTC:
 	case DRM_MODE_OBJECT_CONNECTOR:
 	case DRM_MODE_OBJECT_PLANE:
@@ -140,7 +140,8 @@ struct drm_mode_object *__drm_mode_object_find(struct drm_device *dev,
 	if (obj && obj->id != id)
 		obj = NULL;
 
-	if (obj && drm_lease_required(obj->type) && !_drm_lease_held(file_priv, obj->id))
+	if (obj && drm_mode_object_lease_required(obj->type) &&
+		!_drm_lease_held(file_priv, obj->id))
 		obj = NULL;
 
 	if (obj && obj->free_cb) {
