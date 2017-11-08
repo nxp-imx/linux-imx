@@ -425,8 +425,8 @@ static struct imx_priv imxPriv;
 static ssize_t show_gpuMode(struct device_driver *dev, char *buf)
 {
     struct imx_priv *priv = &imxPriv;
-    char buffer[512];
-    char mode[16];
+    char buffer[512] = {0};
+    char mode[16] = {0};
     int i;
 
     unsigned long core_freq = 0;
