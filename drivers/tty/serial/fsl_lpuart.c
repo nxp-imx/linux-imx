@@ -2546,6 +2546,7 @@ static int lpuart_resume(struct device *dev)
 {
 	struct lpuart_port *sport = dev_get_drvdata(dev);
 	struct tty_port *port = &sport->port.state->port;
+	bool ipgclk_on = false;
 	int ret;
 
 	if (sport->lpuart32)
@@ -2555,14 +2556,16 @@ static int lpuart_resume(struct device *dev)
 
 	if (uart_console(&sport->port) ||
 	    (sport->port.irq_wake && tty_port_initialized(port))) {
+		ipgclk_on = true;
 		ret = clk_prepare_enable(sport->per_clk);
 		if (ret)
 			return ret;
-	} else {
-		clk_disable_unprepare(sport->ipg_clk);
 	}
 
 	uart_resume_port(&lpuart_reg, &sport->port);
+
+	if (!ipgclk_on)
+		clk_disable_unprepare(sport->ipg_clk);
 
 	return 0;
 }
