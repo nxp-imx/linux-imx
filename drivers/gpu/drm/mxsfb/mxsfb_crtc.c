@@ -64,13 +64,13 @@ static int mxsfb_set_pixel_fmt(struct mxsfb_drm_private *mxsfb)
 
 	switch (format) {
 	case DRM_FORMAT_RGB565:
-		dev_dbg(drm->dev, "Setting up RGB565 mode\n");
+		DRM_DEV_DEBUG_DRIVER(drm->dev, "Setting up RGB565 mode\n");
 		ctrl |= CTRL_SET_BUS_WIDTH(STMLCDIF_16BIT);
 		ctrl |= CTRL_SET_WORD_LENGTH(0);
 		ctrl1 |= CTRL1_SET_BYTE_PACKAGING(0xf);
 		break;
 	case DRM_FORMAT_XRGB8888:
-		dev_dbg(drm->dev, "Setting up XRGB8888 mode\n");
+		DRM_DEV_DEBUG_DRIVER(drm->dev, "Setting up XRGB8888 mode\n");
 		ctrl |= CTRL_SET_BUS_WIDTH(STMLCDIF_24BIT);
 		ctrl |= CTRL_SET_WORD_LENGTH(3);
 		/* Do not use packed pixels = one pixel per word instead. */
@@ -83,6 +83,8 @@ static int mxsfb_set_pixel_fmt(struct mxsfb_drm_private *mxsfb)
 
 	writel(ctrl1, mxsfb->base + LCDC_CTRL1);
 	writel(ctrl, mxsfb->base + LCDC_CTRL);
+	ctrl = readl(mxsfb->base + LCDC_CTRL);
+	ctrl1 = readl(mxsfb->base + LCDC_CTRL1);
 
 	return 0;
 }
@@ -91,10 +93,16 @@ static void mxsfb_enable_controller(struct mxsfb_drm_private *mxsfb)
 {
 	u32 reg;
 
+	if (mxsfb->enabled)
+		return;
+
 	if (mxsfb->clk_disp_axi)
 		clk_prepare_enable(mxsfb->clk_disp_axi);
 	clk_prepare_enable(mxsfb->clk);
 	mxsfb_enable_axi_clk(mxsfb);
+
+	writel(CTRL2_OUTSTANDING_REQS__REQ_16,
+		mxsfb->base + LCDC_V4_CTRL2 + REG_SET);
 
 	/* If it was disabled, re-enable the mode again */
 	writel(CTRL_DOTCLK_MODE, mxsfb->base + LCDC_CTRL + REG_SET);
@@ -104,12 +112,22 @@ static void mxsfb_enable_controller(struct mxsfb_drm_private *mxsfb)
 	reg |= VDCTRL4_SYNC_SIGNALS_ON;
 	writel(reg, mxsfb->base + LCDC_VDCTRL4);
 
+	writel(CTRL_MASTER, mxsfb->base + LCDC_CTRL + REG_SET);
 	writel(CTRL_RUN, mxsfb->base + LCDC_CTRL + REG_SET);
+
+	writel(CTRL1_RECOVERY_ON_UNDERFLOW, mxsfb->base + LCDC_CTRL1 + REG_SET);
+
+	mxsfb->enabled = true;
 }
 
 static void mxsfb_disable_controller(struct mxsfb_drm_private *mxsfb)
 {
 	u32 reg;
+
+	if (!mxsfb->enabled)
+		return;
+
+	writel(CTRL_RUN, mxsfb->base + LCDC_CTRL + REG_CLR);
 
 	/*
 	 * Even if we disable the controller here, it will still continue
@@ -120,21 +138,27 @@ static void mxsfb_disable_controller(struct mxsfb_drm_private *mxsfb)
 	readl_poll_timeout(mxsfb->base + LCDC_CTRL, reg, !(reg & CTRL_RUN),
 			   0, 1000);
 
+	writel(CTRL_MASTER, mxsfb->base + LCDC_CTRL + REG_CLR);
+
 	reg = readl(mxsfb->base + LCDC_VDCTRL4);
 	reg &= ~VDCTRL4_SYNC_SIGNALS_ON;
 	writel(reg, mxsfb->base + LCDC_VDCTRL4);
 
 	mxsfb_disable_axi_clk(mxsfb);
 
-	clk_disable_unprepare(mxsfb->clk);
 	if (mxsfb->clk_disp_axi)
 		clk_disable_unprepare(mxsfb->clk_disp_axi);
+	clk_disable_unprepare(mxsfb->clk);
+
+	mxsfb->enabled = false;
 }
 
 static void mxsfb_crtc_mode_set_nofb(struct mxsfb_drm_private *mxsfb)
 {
 	struct drm_display_mode *m = &mxsfb->pipe.crtc.state->adjusted_mode;
 	const u32 bus_flags = mxsfb->connector.display_info.bus_flags;
+	u32 hbp = m->crtc_hblank_end - m->crtc_hsync_end;
+	u32 vbp = m->crtc_vblank_end - m->crtc_vsync_end;
 	u32 vdctrl0, vsync_pulse_len, hsync_pulse_len;
 	int err;
 
@@ -184,18 +208,25 @@ static void mxsfb_crtc_mode_set_nofb(struct mxsfb_drm_private *mxsfb)
 	       VDCTRL2_SET_HSYNC_PERIOD(m->crtc_htotal),
 	       mxsfb->base + LCDC_VDCTRL2);
 
-	writel(SET_HOR_WAIT_CNT(m->crtc_hblank_end - m->crtc_hsync_end) |
-	       SET_VERT_WAIT_CNT(m->crtc_vblank_end - m->crtc_vsync_end),
+	writel(SET_HOR_WAIT_CNT(hbp + hsync_pulse_len) |
+	       SET_VERT_WAIT_CNT(vbp + vsync_pulse_len),
 	       mxsfb->base + LCDC_VDCTRL3);
 
 	writel(SET_DOTCLK_H_VALID_DATA_CNT(m->hdisplay),
 	       mxsfb->base + LCDC_VDCTRL4);
+
+	if (mxsfb->gem != NULL) {
+		writel(mxsfb->gem->paddr,
+		       mxsfb->base + mxsfb->devdata->next_buf);
+		mxsfb->gem = NULL;
+	}
 
 	mxsfb_disable_axi_clk(mxsfb);
 }
 
 void mxsfb_crtc_enable(struct mxsfb_drm_private *mxsfb)
 {
+	writel(0, mxsfb->base + LCDC_CTRL);
 	mxsfb_crtc_mode_set_nofb(mxsfb);
 	mxsfb_enable_controller(mxsfb);
 }
@@ -213,9 +244,11 @@ void mxsfb_plane_atomic_update(struct mxsfb_drm_private *mxsfb,
 	struct drm_framebuffer *fb = pipe->plane.state->fb;
 	struct drm_pending_vblank_event *event;
 	struct drm_gem_cma_object *gem;
+	u32 val;
 
 	if (!crtc)
 		return;
+
 
 	spin_lock_irq(&crtc->dev->event_lock);
 	event = crtc->state->event;
@@ -234,8 +267,19 @@ void mxsfb_plane_atomic_update(struct mxsfb_drm_private *mxsfb,
 		return;
 
 	gem = drm_fb_cma_get_gem_obj(fb, 0);
+	pr_info("GEM paddr=0x%llx\n", gem->paddr);
+
+	if (!mxsfb->enabled) {
+		mxsfb->gem = gem;
+		return;
+	}
 
 	mxsfb_enable_axi_clk(mxsfb);
 	writel(gem->paddr, mxsfb->base + mxsfb->devdata->next_buf);
 	mxsfb_disable_axi_clk(mxsfb);
+
+	val = readl(mxsfb->base + mxsfb->devdata->cur_buf);
+	pr_info("REG[%02X]=%08x\n", mxsfb->devdata->cur_buf, val);
+	val = readl(mxsfb->base + mxsfb->devdata->next_buf);
+	pr_info("REG[%02X]=%08x\n", mxsfb->devdata->next_buf, val);
 }
