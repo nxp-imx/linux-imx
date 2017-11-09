@@ -87,25 +87,26 @@ static int mxsfb_attach_endpoint(struct drm_device *drm,
 {
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
 	struct device_node *np;
-	struct drm_panel *panel;
-	int ret = -EPROBE_DEFER;
+	int ret = 0;
 
 	np = of_graph_get_remote_port_parent(ep->local_node);
-	panel = of_drm_find_panel(np);
+	mxsfb->panel = of_drm_find_panel(np);
+	if (!mxsfb->panel)
+		mxsfb->bridge = of_drm_find_bridge(np);
 	of_node_put(np);
 
-	if (!panel)
+	if (!mxsfb->panel && !mxsfb->bridge)
 		return -EPROBE_DEFER;
 
-	mxsfb->connector.dpms = DRM_MODE_DPMS_OFF;
-	mxsfb->connector.polled = 0;
-	drm_connector_helper_add(&mxsfb->connector,
-			&mxsfb_panel_connector_helper_funcs);
-	ret = drm_connector_init(drm, &mxsfb->connector,
-				 &mxsfb_panel_connector_funcs,
-				 DRM_MODE_CONNECTOR_Unknown);
-	if (!ret)
-		mxsfb->panel = panel;
+	if (mxsfb->panel) {
+		mxsfb->connector.dpms = DRM_MODE_DPMS_OFF;
+		mxsfb->connector.polled = 0;
+		drm_connector_helper_add(&mxsfb->connector,
+				&mxsfb_panel_connector_helper_funcs);
+		ret = drm_connector_init(drm, &mxsfb->connector,
+					 &mxsfb_panel_connector_funcs,
+					 DRM_MODE_CONNECTOR_Unknown);
+	}
 
 	return ret;
 }
