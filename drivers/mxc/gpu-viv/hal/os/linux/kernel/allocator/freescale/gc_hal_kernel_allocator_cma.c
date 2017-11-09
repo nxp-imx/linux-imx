@@ -434,7 +434,7 @@ _CMAFSLMapUser(
     }
 
 OnError:
-    if (gcmIS_ERROR(status))
+    if (gcmIS_ERROR(status) && userLogical)
     {
         _CMAFSLUnmapUser(Allocator, Mdl, userLogical, Mdl->numPages * PAGE_SIZE);
     }

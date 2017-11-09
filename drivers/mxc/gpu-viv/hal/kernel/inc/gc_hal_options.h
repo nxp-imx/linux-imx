@@ -1392,5 +1392,13 @@ VIV:gcdUSE_MMU_EXCEPTION
 #   define gcd2D_COMPRESSION_DEC400_ALIGN_MODE  1
 #endif
 
+/*
+    gcdENABLE_KERNEL_FENCE
+        When enabled, use kernel fence to do resource tracking.
+*/
+#ifndef gcdENABLE_KENREL_FENCE
+#   define gcdENABLE_KERNEL_FENCE               0
+#endif
+
 
 #endif /* __gc_hal_options_h_ */

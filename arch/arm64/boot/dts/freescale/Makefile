@@ -9,8 +9,10 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QM) += fsl-imx8qm-lpddr4-arm2.dtb \
 				 fsl-imx8qm-mek.dtb \
 				 fsl-imx8qm-mek_ca53.dtb \
 				 fsl-imx8qm-mek_ca72.dtb \
+				 fsl-imx8qm-mek-it6263.dtb \
 				 fsl-imx8qm-lpddr4-arm2-it6263.dtb \
 				 fsl-imx8qm-lpddr4-arm2-it6263-dual-channel.dtb \
+				 fsl-imx8qm-lpddr4-arm2-lpspi.dtb \
 				 fsl-imx8qm-lpddr4-arm2-spdif.dtb \
 				 fsl-imx8qm-lpddr4-arm2-mqs.dtb \
 				 fsl-imx8qm-lpddr4-arm2-usb3.dtb
@@ -23,6 +25,7 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QXP) += fsl-imx8qxp-lpddr4-arm2.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-enet2.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-gpmi-nand.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-it6263.dtb \
+				  fsl-imx8qxp-lpddr4-arm2-lpspi.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-spdif.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-mlb.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-mqs.dtb \

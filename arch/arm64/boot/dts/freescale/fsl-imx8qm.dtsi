@@ -1201,6 +1201,7 @@
 				<0x0 0x56261000 0x0 0x1000>; /* HDP SubSystem CSR  */
 		interrupts = <10 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&irqsteer_hdmi>;
+		status = "disabled";
 		clocks = <&clk IMX8QM_HDMI_DIG_PLL_CLK>,
 				<&clk IMX8QM_HDMI_AV_PLL_CLK>,
 				<&clk IMX8QM_HDMI_IPG_CLK>,
@@ -2565,7 +2566,7 @@
 		interrupts = <GIC_SPI 409 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk IMX8QM_AUD_ESAI_0_IPG>,
 			<&clk IMX8QM_AUD_ESAI_0_EXTAL_IPG>,
-			<&clk IMX8QM_CLK_DUMMY>,
+			<&clk IMX8QM_AUD_ESAI_0_IPG>,
 			<&clk IMX8QM_CLK_DUMMY>;
 		clock-names = "core", "extal", "fsys", "spba";
 		dmas = <&edma2 6 0 1>, <&edma2 7 0 0>;
