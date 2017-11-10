@@ -1,7 +1,7 @@
 /*
  * CAAM hardware register-level view
  *
- * Copyright 2008-2011 Freescale Semiconductor, Inc.
+ * Copyright 2008-2017 Freescale Semiconductor, Inc.
  */
 
 #ifndef REGS_H
@@ -134,7 +134,7 @@ static inline void clrsetbits_32(void __iomem *reg, u32 clear, u32 set)
  *    base + 0x0000 : least-significant 32 bits
  *    base + 0x0004 : most-significant 32 bits
  */
-#ifdef CONFIG_64BIT
+#if defined(CONFIG_64BIT) && !(defined(CONFIG_HAVE_IMX8_SOC))
 static inline void wr_reg64(void __iomem *reg, u64 data)
 {
 	if (caam_little_end)
@@ -179,7 +179,7 @@ static inline u64 rd_reg64(void __iomem *reg)
 }
 #endif /* CONFIG_64BIT  */
 
-#ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
+#if defined(CONFIG_ARCH_DMA_ADDR_T_64BIT) && !defined(CONFIG_HAVE_IMX8_SOC)
 #ifdef CONFIG_SOC_IMX7D
 #define cpu_to_caam_dma(value) \
 		(((u64)cpu_to_caam32(lower_32_bits(value)) << 32) | \
@@ -209,7 +209,8 @@ static inline u64 rd_reg64(void __iomem *reg)
  * Represents each entry in a JobR output ring
  */
 struct jr_outentry {
-	dma_addr_t desc;/* Pointer to completed descriptor */
+	/* CAAM Pointer Size in MCFGR[PS] is 0 by default (32bits) */
+	u32 desc;/* Pointer to completed descriptor */
 	u32 jrstatus;	/* Status for completed descriptor */
 } __packed;
 
