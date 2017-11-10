@@ -1,5 +1,6 @@
 /*
  * Copyright 2011-2015 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2017 NXP
  *
  * Refer to drivers/dma/imx-sdma.c
  *
@@ -728,11 +729,18 @@ static int mxs_dma_init_rpm(struct mxs_dma_engine *mxs_dma)
 
 static int mxs_dma_init(struct mxs_dma_engine *mxs_dma)
 {
+	struct device *dev = &mxs_dma->pdev->dev;
 	int ret;
 
 	ret = mxs_dma_init_rpm(mxs_dma);
 	if (ret)
 		return ret;
+
+	ret = pm_runtime_get_sync(dev);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable clock\n");
+		return ret;
+	}
 
 	ret = stmp_reset_block(mxs_dma->base);
 	if (ret)
@@ -749,6 +757,9 @@ static int mxs_dma_init(struct mxs_dma_engine *mxs_dma)
 	/* enable irq for all the channels */
 	writel(MXS_DMA_CHANNELS_MASK << MXS_DMA_CHANNELS,
 		mxs_dma->base + HW_APBHX_CTRL1 + STMP_OFFSET_REG_SET);
+
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
 
 err_clk:
 	return ret;
