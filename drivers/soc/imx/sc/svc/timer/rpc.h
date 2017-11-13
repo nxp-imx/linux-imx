@@ -27,6 +27,7 @@
 typedef enum timer_func_e {
 	TIMER_FUNC_UNKNOWN = 0,	/* Unknown function */
 	TIMER_FUNC_SET_WDOG_TIMEOUT = 1,	/* Index for timer_set_wdog_timeout() RPC call */
+	TIMER_FUNC_SET_WDOG_PRE_TIMEOUT = 12,	/* Index for timer_set_wdog_pre_timeout() RPC call */
 	TIMER_FUNC_START_WDOG = 2,	/* Index for timer_start_wdog() RPC call */
 	TIMER_FUNC_STOP_WDOG = 3,	/* Index for timer_stop_wdog() RPC call */
 	TIMER_FUNC_PING_WDOG = 4,	/* Index for timer_ping_wdog() RPC call */
