@@ -149,6 +149,7 @@ gctCONST_STRING _DispatchText[] =
     gcmDEFINE2TEXT(gcvHAL_GET_VIDEO_MEMORY_FD),
     gcmDEFINE2TEXT(gcvHAL_CONFIG_POWER_MANAGEMENT),
     gcmDEFINE2TEXT(gcvHAL_WRAP_USER_MEMORY),
+    gcmDEFINE2TEXT(gcvHAL_RELEASE_USER_MEMORY),
     gcmDEFINE2TEXT(gcvHAL_WAIT_FENCE),
 #if gcdDEC_ENABLE_AHB
     gcmDEFINE2TEXT(gcvHAL_DEC300_READ),
@@ -3198,6 +3199,33 @@ gckKERNEL_Dispatch(
                                    gcvNULL,
                                    0));
         break;
+
+    case gcvHAL_RELEASE_USER_MEMORY:
+       {
+           gckVIDMEM_NODE nodeObject;
+           gctBOOL asynchronous = gcvFALSE;
+           gctUINT32 node = Interface->u.ReleaseUserMemory.node;
+
+           gcmkONERROR(gckKERNEL_RemoveProcessDB(Kernel,
+                                                 processID,
+                                                 gcvDB_VIDEO_MEMORY_LOCKED,
+                                                 gcmINT2PTR(node)));
+
+           gcmkONERROR(gckKERNEL_ReleaseVideoMemory( Kernel, processID, node));
+
+           gcmkONERROR(gckVIDMEM_HANDLE_Lookup(Kernel, processID, node, &nodeObject));
+
+           gcmkONERROR(gckVIDMEM_Unlock(Kernel, nodeObject, gcvSURF_BITMAP, &asynchronous));
+           if (gcvTRUE == asynchronous)
+           {
+               gcmkONERROR(gckCOMMAND_Stall(Kernel->command, gcvFALSE));
+               gcmkVERIFY_OK(gckVIDMEM_Unlock(Kernel, nodeObject, gcvSURF_BITMAP, gcvNULL));
+           }
+
+           gcmkONERROR(gckVIDMEM_NODE_Dereference(Kernel, nodeObject));
+       }
+
+       break;
 
     case gcvHAL_WAIT_FENCE:
         gcmkONERROR(gckKERNEL_WaitFence(
