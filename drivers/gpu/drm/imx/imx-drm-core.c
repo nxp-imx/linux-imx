@@ -432,6 +432,7 @@ err_unbind:
 #endif
 	component_unbind_all(drm->dev, drm);
 err_vblank:
+	dev_set_drvdata(dev, NULL);
 	drm_vblank_cleanup(drm);
 err_kms:
 	drm_mode_config_cleanup(drm);
