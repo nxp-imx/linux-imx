@@ -759,8 +759,10 @@ static int imx6_pcie_deassert_core_reset(struct imx6_pcie *imx6_pcie)
 			dev_err(dev, "ERROR PM_REQ_CORE_RST is still set.\n");
 
 		/* wait for phy pll lock firstly. */
-		if (pci_imx_phy_pll_locked(imx6_pcie))
+		if (pci_imx_phy_pll_locked(imx6_pcie)) {
 			ret = -ENODEV;
+			break;
+		}
 
 		/* set up the cpu address offset */
 		if (imx6_pcie->cpu_base)
@@ -800,7 +802,8 @@ static int imx6_pcie_deassert_core_reset(struct imx6_pcie *imx6_pcie)
 		mdelay(20);
 	}
 
-	return ret;
+	if (ret == 0)
+		return ret;
 
 err_ref_clk:
 	clk_disable_unprepare(imx6_pcie->pcie_phy);
