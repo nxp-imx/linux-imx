@@ -119,13 +119,6 @@
 		dais = <&sai6>, <&sai7>;
 		amix-controller = <&amix>;
 	};
-
-	sound-hdmi {
-		compatible = "fsl,imx-audio-cdnhdmi";
-		model = "imx-audio-dp";
-		audio-cpu = <&sai_hdmi_tx>;
-		protocol = <1>;
-	};
 };
 
 &acm {
