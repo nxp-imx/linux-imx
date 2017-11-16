@@ -186,7 +186,8 @@ struct imx_hdp {
 	struct hdp_clks clks;
 	state_struct state;
 	int vic;
-
+	/* thread */
+	struct task_struct *hpd_worker;
 };
 
 int imx_hdpaux_init(struct device *dev,	struct imx_hdp *dp);

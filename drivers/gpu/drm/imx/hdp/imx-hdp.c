@@ -26,6 +26,9 @@
 #include "../imx-drm.h"
 
 struct imx_hdp *g_hdp;
+/* HDMI FW download and running only one time after kernel bootup */
+static u8 fw_run;
+
 struct drm_display_mode *g_mode;
 
 static const struct drm_display_mode edid_cea_modes = {
@@ -411,13 +414,6 @@ static int dp_pixel_clock_enable(struct imx_hdp *hdp)
 
 }
 
-static void dp_pixel_clock_disable(struct imx_hdp *hdp)
-{
-	clk_disable_unprepare(hdp->clks.clk_pxl);
-	clk_disable_unprepare(hdp->clks.clk_pxl_link);
-	clk_disable_unprepare(hdp->clks.clk_pxl_mux);
-}
-
 static int dp_ipg_clock_enable(struct imx_hdp *hdp)
 {
 	struct device *dev = hdp->dev;
@@ -526,25 +522,6 @@ static void dp_pixel_link_config(struct imx_hdp *hdp)
 	sc_misc_set_control(ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 1);
 }
 
-static int imx_hdp_deinit(struct imx_hdp *hdp)
-{
-	u8 bresp;
-	u32 ret;
-
-	/* Stop link training */
-	CDN_API_DPTX_TrainingControl_blocking(&hdp->state, 0);
-
-	/* Disable HPD event and training */
-	CDN_API_DPTX_EnableEvent_blocking(&hdp->state, 0, 0);
-
-	/* turn off hdp controller IP activity 0-standby */
-	ret = CDN_API_MainControl_blocking(&hdp->state, 0, &bresp);
-	if (ret != CDN_OK)
-		return -1;
-
-	return ret;
-}
-
 static int imx_get_vic_index(struct drm_display_mode *mode)
 {
 	int i;
@@ -583,7 +560,6 @@ static int imx_hdp_cable_plugin(struct imx_hdp *hdp)
 
 static int imx_hdp_cable_plugout(struct imx_hdp *hdp)
 {
-	dp_pixel_clock_disable(hdp);
 	return 0;
 }
 
@@ -717,7 +693,6 @@ static int imx_hdp_imx_encoder_atomic_check(struct drm_encoder *encoder,
 {
 	struct imx_crtc_state *imx_crtc_state = to_imx_crtc_state(crtc_state);
 
-	printk("%s++\n", __func__);
 	imx_crtc_state->bus_format = MEDIA_BUS_FMT_RGB101010_1X30;
 	return 0;
 }
@@ -914,6 +889,10 @@ static int hpd_det_worker(void *_dp)
 	u32 evt;
 
 	for (;;) {
+		/* Terminal thread */
+		if (kthread_should_stop())
+			break;
+
 		CDN_API_Get_Event(&hdp->state, &evt);
 		if (evt & 0x1) {
 			/* HPD event */
@@ -941,7 +920,8 @@ static int hpd_det_worker(void *_dp)
 		} else if (evt & 0xf)
 			printk("evt=0x%x\n", evt);
 
-		schedule_timeout_idle(200);
+		if (!kthread_should_stop())
+			schedule_timeout_idle(200);
 	}
 
 	return 0;
@@ -1077,10 +1057,17 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	/* bpp (bits per subpixel) - 8 24bpp, 10 30bpp, 12 36bpp, 16 48bpp */
 	hdp_phy_reset(0);
 
-	imx_hdp_call(hdp, fw_load, &hdp->state);
-	core_rate = clk_get_rate(hdp->clks.clk_core);
+	/* Skip fw load and init if fw_run == 1 */
+	if (fw_run == 0) {
+		imx_hdp_call(hdp, fw_load, &hdp->state);
 
-	imx_hdp_call(hdp, fw_init, &hdp->state, core_rate);
+		core_rate = clk_get_rate(hdp->clks.clk_core);
+
+		imx_hdp_call(hdp, fw_init, &hdp->state, core_rate);
+	}
+
+	fw_run = 1;
+
 	if (hdp->is_hdmi == true)
 		/* default set hdmi to 1080p60 mode */
 		imx_hdp_call(hdp, phy_init, &hdp->state, 2, 1, 8);
@@ -1100,8 +1087,8 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	if (IS_ERR(hpd_worker)) {
 		printk("failed  create hpd thread\n");
 	}
-
 	wake_up_process(hpd_worker);	/* avoid contributing to loadavg */
+	hdp->hpd_worker = hpd_worker;
 #endif
 
 	return 0;
@@ -1117,7 +1104,17 @@ static void imx_hdp_imx_unbind(struct device *dev, struct device *master,
 {
 	struct imx_hdp *hdp = dev_get_drvdata(dev);
 
-	imx_hdp_deinit(hdp);
+	/* Thread exit */
+	if (hdp->hpd_worker) {
+		/* shutdown async thread */
+		kthread_stop(hdp->hpd_worker);
+		hdp->hpd_worker = NULL;
+	}
+
+	drm_bridge_detach(&hdp->bridge);
+
+	dev_set_drvdata(hdp->dev, NULL);
+
 	sc_ipc_close(hdp->mu_id);
 	return;
 }
