@@ -2266,6 +2266,7 @@
 		clocks = <&clk IMX8QXP_LSIO_FSPI0_CLK>;
 		assigned-clock-rates = <29000000>;
 		clock-names = "fspi";
+		power-domains = <&pd_lsio>;
 		status = "disabled";
 	};
 
