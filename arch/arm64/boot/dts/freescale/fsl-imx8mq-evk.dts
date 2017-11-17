@@ -79,6 +79,10 @@
 			};
 		};
 	};
+
+	sound-hdmi {
+		protocol = <1>;
+	};
 };
 
 &hdmi_cec {
