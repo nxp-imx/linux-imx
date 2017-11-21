@@ -196,9 +196,9 @@ err1:
 				return -1;
 
 			addr = mem_ops->cookie(mem_priv);
+			data.phys = *addr;
 			mem_ops->put_userptr(mem_priv);
 
-			data.phys = *addr;
 			if (copy_to_user((void __user *)arg, &data,
 					 sizeof(struct ion_phys_virt_data)))
 				return -EFAULT;
