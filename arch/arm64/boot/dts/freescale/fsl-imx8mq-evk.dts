@@ -71,7 +71,6 @@
 		reg = <0x0 0x32c00000 0x0 0x33800>,	/* HDP registers */
 				<0x0 0x32e40000 0x0 0x40000>;   /* HDP SEC register */
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
-		power-domains = <&disp_pd>;
 		port@0 {
 			reg = <0>;
 				hdmi_disp: endpoint {
