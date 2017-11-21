@@ -622,6 +622,7 @@ static void imx_hdp_mode_setup(struct imx_hdp *hdp, struct drm_display_mode *mod
 	hdp->vic = drm_match_cea_mode(mode);
 }
 
+#if 0
 static int imx_hdp_cable_plugin(struct imx_hdp *hdp)
 {
 	return 0;
@@ -632,7 +633,7 @@ static int imx_hdp_cable_plugout(struct imx_hdp *hdp)
 	imx_hdp_call(hdp, pixel_clock_disable, &hdp->clks);
 	return 0;
 }
-
+#endif
 
 static void imx_hdp_bridge_mode_set(struct drm_bridge *bridge,
 				    struct drm_display_mode *orig_mode,
@@ -963,6 +964,7 @@ static const struct of_device_id imx_hdp_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, imx_hdp_dt_ids);
 
+#if 0
 #ifdef hdp_irq
 static irqreturn_t imx_hdp_irq_handler(int irq, void *data)
 {
@@ -1034,6 +1036,7 @@ static int hpd_det_worker(void *_dp)
 	return 0;
 }
 #endif
+#endif
 
 static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 			    void *data)
@@ -1048,7 +1051,9 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	struct drm_bridge *bridge;
 	struct drm_connector *connector;
 	struct resource *res;
+#if 0
 	struct task_struct *hpd_worker;
+#endif
 	int irq;
 	int ret;
 
@@ -1175,6 +1180,7 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 		return ret;
 	}
 
+#if 0
 #ifdef hdp_irq
 	ret = devm_request_threaded_irq(dev, irq,
 					NULL, imx_hdp_irq_handler,
@@ -1190,6 +1196,7 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	}
 
 	wake_up_process(hpd_worker);	/* avoid contributing to loadavg */
+#endif
 #endif
 
 	return 0;
