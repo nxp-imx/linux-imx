@@ -3222,13 +3222,13 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges = <0 0 0x31400000 0x400000>;
-		fsl,first-jr-index = <1>;
+		fsl,first-jr-index = <2>;
 
 		sec_jr1: jr1@0x20000 {
 			compatible = "fsl,sec-v4.0-job-ring";
 			reg = <0x20000 0x1000>;
 			interrupts = <GIC_SPI 452 IRQ_TYPE_LEVEL_HIGH>;
-			status = "okay";
+			status = "disabled";
 		};
 
 		sec_jr2: jr2@30000 {

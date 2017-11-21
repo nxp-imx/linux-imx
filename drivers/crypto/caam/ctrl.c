@@ -410,7 +410,7 @@ static void check_virt(struct caam_drv_private *ctrlpriv, u32 comp_params)
 
 static int enable_jobrings(struct caam_drv_private *ctrlpriv, int block_offset)
 {
-	int ring;
+	int ring, index;
 	int rspec = 0;
 	struct device_node *nprop, *np;
 
@@ -444,9 +444,21 @@ static int enable_jobrings(struct caam_drv_private *ctrlpriv, int block_offset)
 					ring);
 				continue;
 			}
-			ctrlpriv->jr[ring] = (struct caam_job_ring __force *)
+
+			if (of_property_read_u32_index(np, "reg", 0, &index)) {
+				pr_warn("%s read reg property error %d.",
+					np->full_name, index);
+				continue;
+			}
+			/* Get actual job ring index from its offset
+			 * ex: CAAM JR2 offset 0x30000 index = 2
+			 */
+			while (index > 16)
+				index = index >> 4;
+			index -= 1;
+			ctrlpriv->jr[index] = (struct caam_job_ring __force *)
 					     ((uint8_t *)ctrlpriv->ctrl +
-					     (ring + JR_BLOCK_NUMBER) *
+					     (index + JR_BLOCK_NUMBER) *
 					      block_offset);
 			ctrlpriv->total_jobrs++;
 			ring++;
