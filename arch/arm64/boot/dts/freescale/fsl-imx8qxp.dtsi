@@ -1956,8 +1956,8 @@
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_CLK>,
 			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK1_CLK>,
-			<&clk IMX8QXP_CLK_DUMMY>,
-			<&clk IMX8QXP_CLK_DUMMY>,
+			<&clk IMX8QXP_ACM_AUD_CLK0_SEL>,
+			<&clk IMX8QXP_ACM_AUD_CLK1_SEL>,
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_CLK_DUMMY>,
@@ -1996,8 +1996,8 @@
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_CLK>,
 			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK1_CLK>,
-			<&clk IMX8QXP_CLK_DUMMY>,
-			<&clk IMX8QXP_CLK_DUMMY>,
+			<&clk IMX8QXP_ACM_AUD_CLK0_CLK>,
+			<&clk IMX8QXP_ACM_AUD_CLK1_CLK>,
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_CLK_DUMMY>,
@@ -2204,6 +2204,7 @@
 		clocks = <&clk IMX8QXP_LSIO_FSPI0_CLK>;
 		assigned-clock-rates = <29000000>;
 		clock-names = "fspi";
+		power-domains = <&pd_lsio>;
 		status = "disabled";
 	};
 
