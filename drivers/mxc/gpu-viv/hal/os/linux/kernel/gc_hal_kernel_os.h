@@ -89,9 +89,6 @@ struct _LINUX_MDL
     /* Private data used by allocator. */
     void *                  priv;
 
-    /* exported dma_buf */
-    void *                  dmabuf;
-
     uint                    gid;
 
     struct list_head        link;
