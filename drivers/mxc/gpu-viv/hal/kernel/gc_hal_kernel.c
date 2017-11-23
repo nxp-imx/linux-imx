@@ -3189,7 +3189,8 @@ gckKERNEL_Dispatch(
     case gcvHAL_WRAP_USER_MEMORY:
         gcmkONERROR(gckVIDMEM_NODE_WrapUserMemory(Kernel,
                                                   &Interface->u.WrapUserMemory.desc,
-                                                  &Interface->u.WrapUserMemory.node));
+                                                  &Interface->u.WrapUserMemory.node,
+                                                  &Interface->u.WrapUserMemory.bytes));
 
         gcmkONERROR(
             gckKERNEL_AddProcessDB(Kernel,
