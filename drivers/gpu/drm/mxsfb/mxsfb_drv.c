@@ -104,7 +104,22 @@ static const struct drm_mode_config_funcs mxsfb_mode_config_funcs = {
 static void mxsfb_pipe_enable(struct drm_simple_display_pipe *pipe,
 			      struct drm_crtc_state *crtc_state)
 {
+	struct drm_device *drm = pipe->encoder.dev;
+	struct drm_connector *connector;
 	struct mxsfb_drm_private *mxsfb = drm_pipe_to_mxsfb_drm_private(pipe);
+
+	if (!mxsfb->connector) {
+		drm_for_each_connector(connector, drm)
+			if (connector->encoder == &(mxsfb->pipe.encoder)) {
+				mxsfb->connector = connector;
+				break;
+			}
+	}
+
+	if (!mxsfb->connector) {
+		dev_warn(drm->dev, "No connector attached, using default\n");
+		mxsfb->connector = &mxsfb->panel_connector;
+	}
 
 	mxsfb_crtc_enable(mxsfb);
 	pm_runtime_get_sync(mxsfb->dev);
@@ -116,6 +131,9 @@ static void mxsfb_pipe_disable(struct drm_simple_display_pipe *pipe)
 
 	mxsfb_crtc_disable(mxsfb);
 	pm_runtime_put_sync(mxsfb->dev);
+
+	if (mxsfb->connector != &mxsfb->panel_connector)
+		mxsfb->connector = NULL;
 }
 
 static void mxsfb_pipe_update(struct drm_simple_display_pipe *pipe,
@@ -200,15 +218,22 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 
 	ret = drm_simple_display_pipe_init(drm, &mxsfb->pipe, &mxsfb_funcs,
 			mxsfb_formats, ARRAY_SIZE(mxsfb_formats),
-			&mxsfb->connector);
+			mxsfb->connector);
 	if (ret < 0) {
 		dev_err(drm->dev, "Cannot setup simple display pipe\n");
 		goto err_vblank;
 	}
 
-	/* Attach panel only if there is one */
+	/*
+	 * Attach panel only if there is one.
+	 * If there is no panel attach, it must be a bridge. In this case, we
+	 * need a reference to its connector for a proper initialization.
+	 * We will do this check in pipe->enable(), since the connector won't
+	 * be attached to an encoder until then.
+	 */
+
 	if (mxsfb->panel) {
-		ret = drm_panel_attach(mxsfb->panel, &mxsfb->connector);
+		ret = drm_panel_attach(mxsfb->panel, mxsfb->connector);
 		if (ret) {
 			dev_err(drm->dev, "Cannot connect panel\n");
 			goto err_vblank;
@@ -220,7 +245,6 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 			dev_err(drm->dev, "Cannot connect bridge\n");
 			goto err_vblank;
 		}
-
 	}
 
 	drm->mode_config.min_width	= MXSFB_MIN_XRES;
