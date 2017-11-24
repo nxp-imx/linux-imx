@@ -1070,9 +1070,6 @@ _QueryFeatureDatabase(
         {
             available = gcvFALSE;
         }
-#if !gcdDVFS
-        available = gcvFALSE;
-#endif
         break;
 
     case gcvFEATURE_ACE:
@@ -2536,19 +2533,26 @@ gckHARDWARE_InitializeHardware(
                                      0x0010C,
                                      &data));
 
-#if gcdDVFS
         /* Disable internal DFS. */
-        data = ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+        data =
+#if gcdDVFS
+            ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  18:18) - (0 ? 18:18) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 18:18) - (0 ?
  18:18) + 1))))))) << (0 ? 18:18))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ?
  18:18) - (0 ? 18:18) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 18:18) - (0 ?
- 18:18) + 1))))))) << (0 ? 18:18)));
-
-#else
-        /* Disable externl DVFS and auto-gating*/
-        data &= ~0x50000;
-        data |=  0x20000;
+ 18:18) + 1))))))) << (0 ? 18:18))) |
 #endif
+            ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+ 16:16) - (0 ? 16:16) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 16:16) - (0 ?
+ 16:16) + 1))))))) << (0 ? 16:16))) | (((gctUINT32) ((gctUINT32) (0) & ((gctUINT32) ((((1 ?
+ 16:16) - (0 ? 16:16) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 16:16) - (0 ?
+ 16:16) + 1))))))) << (0 ? 16:16))) |
+            ((((gctUINT32) (data)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+ 17:17) - (0 ? 17:17) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 17:17) - (0 ?
+ 17:17) + 1))))))) << (0 ? 17:17))) | (((gctUINT32) ((gctUINT32) (1) & ((gctUINT32) ((((1 ?
+ 17:17) - (0 ? 17:17) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 17:17) - (0 ?
+ 17:17) + 1))))))) << (0 ? 17:17)));
+
         gcmkONERROR(gckOS_WriteRegisterEx(Hardware->os,
                                       Hardware->core,
                                       0x0010C,

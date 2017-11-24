@@ -186,6 +186,10 @@ static int viv_ioctl_gem_create(struct drm_device *drm, void *data,
     {
         flags |= gcvALLOC_FLAG_SECURITY;
     }
+    if (args->flags & DRM_VIV_GEM_CMA_LIMIT)
+    {   
+        flags |= gcvALLOC_FLAG_CMA_LIMIT;
+    } 
 
     gckOS_ZeroMemory(&iface, sizeof(iface));
     iface.command = gcvHAL_ALLOCATE_LINEAR_VIDEO_MEMORY;

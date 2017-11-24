@@ -78,6 +78,10 @@
 #  include "gc_hal_kernel_sync.h"
 #endif
 
+#if defined(CONFIG_DMA_SHARED_BUFFER)
+#include <linux/dma-buf.h>
+#endif
+
 #if defined(CONFIG_ARM) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
 #include <dma.h>
 #endif
@@ -3608,7 +3612,7 @@ gckOS_MapPagesEx(
 #endif
         {
             /* remove LSB. */
-            phys &= ~(4096ul - 1);
+            phys &= ~(4096ull - 1);
 
 #if gcdENABLE_VG
             if (Core == gcvCORE_VG)
@@ -7824,6 +7828,7 @@ gckOS_WrapMemory(
     gceSTATUS status = gcvSTATUS_OUT_OF_MEMORY;
     gckALLOCATOR allocator;
     gcsATTACH_DESC desc;
+    gctSIZE_T bytes = 0;
 
     gcmkHEADER_ARG("Os=0x%X ", Os);
 
@@ -7840,12 +7845,20 @@ gckOS_WrapMemory(
     if (Desc->flag & gcvALLOC_FLAG_DMABUF)
     {
         desc.dmaBuf.dmabuf = gcmUINT64_TO_PTR(Desc->dmabuf);
+
+#if defined(CONFIG_DMA_SHARED_BUFFER)
+        {
+            struct dma_buf *dmabuf = (struct dma_buf*)desc.dmaBuf.dmabuf;
+            bytes = dmabuf->size;
+        }
+#endif
     }
     else if (Desc->flag & gcvALLOC_FLAG_USERMEMORY)
     {
         desc.userMem.memory   = gcmUINT64_TO_PTR(Desc->logical);
         desc.userMem.physical = Desc->physical;
         desc.userMem.size     = Desc->size;
+        bytes                 = Desc->size;
     }
     else if (Desc->flag & gcvALLOC_FLAG_EXTERNAL_MEMORY)
     {
@@ -7895,7 +7908,7 @@ gckOS_WrapMemory(
     mdl->dmaHandle  = 0;
     mdl->addr       = 0;
 
-    *Bytes = mdl->numPages * PAGE_SIZE;
+    *Bytes = bytes ? bytes : mdl->numPages * PAGE_SIZE;
 
     /* Return physical address. */
     *Physical = (gctPHYS_ADDR) mdl;
