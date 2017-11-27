@@ -52,22 +52,18 @@
 *
 *****************************************************************************/
 
-#ifndef __VIVNATE_DRM_H__
-#define __VIVNATE_DRM_H__
 
-#if !defined(__KERNEL__)
-#include <drm.h>
-#endif
+#ifndef __GC_HAL_DRM_H__
+#define __GC_HAL_DRM_H__
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
 /* creation flag bits. */
-#define DRM_VIV_GEM_CONTIGUOUS      (1u << 0)
-#define DRM_VIV_GEM_CACHED          (1u << 1)
-#define DRM_VIV_GEM_SECURE          (1u << 2)
-#define DRM_VIV_GEM_CMA_LIMIT       (1u << 3)
+#define DRM_VIV_GEM_CONTIGUOUS      0x01
+#define DRM_VIV_GEM_CACHED          0x02
+#define DRM_VIV_GEM_SECURE          0x04
 
 struct drm_viv_gem_create {
     __u64 size;
@@ -195,4 +191,4 @@ struct drm_viv_gem_ref_node {
 }
 #endif
 
-#endif /* __VIVNATE_DRM_H__ */
+#endif /* __GC_HAL_DRM_H__ */

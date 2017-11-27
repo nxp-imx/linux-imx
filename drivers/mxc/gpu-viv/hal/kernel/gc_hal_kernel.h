@@ -1316,8 +1316,7 @@ gceSTATUS
 gckVIDMEM_NODE_WrapUserMemory(
     IN gckKERNEL Kernel,
     IN gcsUSER_MEMORY_DESC_PTR Desc,
-    OUT gctUINT32 * Handle,
-    OUT gctUINT64 * Bytes
+    OUT gctUINT32 * Handle
     );
 
 gceSTATUS
