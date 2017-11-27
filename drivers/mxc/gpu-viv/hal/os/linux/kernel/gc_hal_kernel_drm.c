@@ -157,8 +157,8 @@ static int viv_ioctl_gem_create(struct drm_device *drm, void *data,
 {
     int ret = 0;
     struct drm_viv_gem_create *args = (struct drm_viv_gem_create*)data;
-    struct drm_gem_object *gem_obj;
-    struct viv_gem_object *viv_obj;
+    struct drm_gem_object *gem_obj = gcvNULL;
+    struct viv_gem_object *viv_obj = gcvNULL;
 
     gcsHAL_INTERFACE iface;
     gckGALDEVICE gal_dev;
@@ -225,8 +225,8 @@ static int viv_ioctl_gem_lock(struct drm_device *drm, void *data,
                               struct drm_file *file)
 {
     struct drm_viv_gem_lock *args = (struct drm_viv_gem_lock*)data;
-    struct drm_gem_object *gem_obj;
-    struct viv_gem_object *viv_obj;
+    struct drm_gem_object *gem_obj = gcvNULL;
+    struct viv_gem_object *viv_obj = gcvNULL;
 
     gcsHAL_INTERFACE iface;
     gceSTATUS status = gcvSTATUS_OK;
@@ -255,6 +255,10 @@ static int viv_ioctl_gem_lock(struct drm_device *drm, void *data,
     args->logical = iface.u.LockVideoMemory.memory;
 
 OnError:
+    if (gem_obj)
+    {
+        drm_gem_object_unreference_unlocked(gem_obj);
+    }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
 
@@ -262,8 +266,8 @@ static int viv_ioctl_gem_unlock(struct drm_device *drm, void *data,
                                 struct drm_file *file)
 {
     struct drm_viv_gem_unlock *args = (struct drm_viv_gem_unlock*)data;
-    struct drm_gem_object *gem_obj;
-    struct viv_gem_object *viv_obj;
+    struct drm_gem_object *gem_obj = gcvNULL;
+    struct viv_gem_object *viv_obj = gcvNULL;
 
     gcsHAL_INTERFACE iface;
     gceSTATUS status = gcvSTATUS_OK;
@@ -280,23 +284,20 @@ static int viv_ioctl_gem_unlock(struct drm_device *drm, void *data,
     {
         gcmkONERROR(gcvSTATUS_NOT_FOUND);
     }
-    drm_gem_object_unreference_unlocked(gem_obj);
     viv_obj = container_of(gem_obj, struct viv_gem_object, base);
 
     gckOS_ZeroMemory(&iface, sizeof(iface));
-    iface.command = gcvHAL_UNLOCK_VIDEO_MEMORY;
+    iface.command = gcvHAL_BOTTOM_HALF_UNLOCK_VIDEO_MEMORY;
     iface.hardwareType = gal_dev->device->defaultHwType;
-    iface.u.UnlockVideoMemory.node = (gctUINT64)viv_obj->node_handle;
-    iface.u.UnlockVideoMemory.type = gcvSURF_TYPE_UNKNOWN;
+    iface.u.BottomHalfUnlockVideoMemory.node = (gctUINT64)viv_obj->node_handle;
+    iface.u.BottomHalfUnlockVideoMemory.type = gcvSURF_TYPE_UNKNOWN;
     gcmkONERROR(gckDEVICE_Dispatch(gal_dev->device, &iface));
 
-    /*
-     * decrease obj->refcount one more time because we has already
-     * increased it at viv_ioctl_gem_lock().
-     */
-    drm_gem_object_unreference_unlocked(gem_obj);
-
 OnError:
+    if (gem_obj)
+    {
+        drm_gem_object_unreference_unlocked(gem_obj);
+    }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
 
@@ -304,8 +305,8 @@ static int viv_ioctl_gem_cache(struct drm_device *drm, void *data,
                                struct drm_file *file)
 {
     struct drm_viv_gem_cache *args = (struct drm_viv_gem_cache*)data;
-    struct drm_gem_object *gem_obj;
-    struct viv_gem_object *viv_obj;
+    struct drm_gem_object *gem_obj = gcvNULL;
+    struct viv_gem_object *viv_obj = gcvNULL;
 
     gcsHAL_INTERFACE iface;
     gceSTATUS status = gcvSTATUS_OK;
@@ -323,7 +324,6 @@ static int viv_ioctl_gem_cache(struct drm_device *drm, void *data,
     {
         gcmkONERROR(gcvSTATUS_NOT_FOUND);
     }
-    drm_gem_object_unreference_unlocked(gem_obj);
     viv_obj = container_of(gem_obj, struct viv_gem_object, base);
 
     switch (args->op)
@@ -354,6 +354,10 @@ static int viv_ioctl_gem_cache(struct drm_device *drm, void *data,
     gcmkONERROR(gckDEVICE_Dispatch(gal_dev->device, &iface));
 
 OnError:
+    if (gem_obj)
+    {
+        drm_gem_object_unreference_unlocked(gem_obj);
+    }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
 
@@ -361,8 +365,8 @@ static int viv_ioctl_gem_query(struct drm_device *drm, void *data,
                                struct drm_file *file)
 {
     struct drm_viv_gem_query *args = (struct drm_viv_gem_query*)data;
-    struct drm_gem_object *gem_obj;
-    struct viv_gem_object *viv_obj;
+    struct drm_gem_object *gem_obj = gcvNULL;
+    struct viv_gem_object *viv_obj = gcvNULL;
 
     gceSTATUS status = gcvSTATUS_OK;
     gckGALDEVICE gal_dev = gcvNULL;
@@ -378,7 +382,6 @@ static int viv_ioctl_gem_query(struct drm_device *drm, void *data,
     {
         gcmkONERROR(gcvSTATUS_NOT_FOUND);
     }
-    drm_gem_object_unreference_unlocked(gem_obj);
     viv_obj = container_of(gem_obj, struct viv_gem_object, base);
 
     switch (args->param)
@@ -394,6 +397,10 @@ static int viv_ioctl_gem_query(struct drm_device *drm, void *data,
     }
 
 OnError:
+    if (gem_obj)
+    {
+        drm_gem_object_unreference_unlocked(gem_obj);
+    }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
 
@@ -401,8 +408,8 @@ static int viv_ioctl_gem_timestamp(struct drm_device *drm, void *data,
                                        struct drm_file *file)
 {
     struct drm_viv_gem_timestamp *args = (struct drm_viv_gem_timestamp *)data;
-    struct drm_gem_object *gem_obj;
-    struct viv_gem_object *viv_obj;
+    struct drm_gem_object *gem_obj = gcvNULL;
+    struct viv_gem_object *viv_obj = gcvNULL;
 
     gceSTATUS status = gcvSTATUS_OK;
     gckGALDEVICE gal_dev = gcvNULL;
@@ -422,9 +429,12 @@ static int viv_ioctl_gem_timestamp(struct drm_device *drm, void *data,
 
     viv_obj->node_object->timeStamp += args->inc;
     args->timestamp = viv_obj->node_object->timeStamp;
-    drm_gem_object_unreference_unlocked(gem_obj);
 
 OnError:
+    if (gem_obj)
+    {
+        drm_gem_object_unreference_unlocked(gem_obj);
+    }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
 
@@ -432,8 +442,8 @@ static int viv_ioctl_gem_set_tiling(struct drm_device *drm, void *data,
                                     struct drm_file *file)
 {
     struct drm_viv_gem_set_tiling *args = (struct drm_viv_gem_set_tiling*)data;
-    struct drm_gem_object *gem_obj;
-    struct viv_gem_object *viv_obj;
+    struct drm_gem_object *gem_obj = gcvNULL;
+    struct viv_gem_object *viv_obj = gcvNULL;
 
     gceSTATUS status = gcvSTATUS_OK;
     gckGALDEVICE gal_dev = gcvNULL;
@@ -449,7 +459,6 @@ static int viv_ioctl_gem_set_tiling(struct drm_device *drm, void *data,
     {
         gcmkONERROR(gcvSTATUS_NOT_FOUND);
     }
-    drm_gem_object_unreference_unlocked(gem_obj);
     viv_obj = container_of(gem_obj, struct viv_gem_object, base);
 
     viv_obj->node_object->tilingMode = args->tiling_mode;
@@ -457,6 +466,10 @@ static int viv_ioctl_gem_set_tiling(struct drm_device *drm, void *data,
     viv_obj->node_object->clearValue = args->clear_value;
 
 OnError:
+    if (gem_obj)
+    {
+        drm_gem_object_unreference_unlocked(gem_obj);
+    }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
 
@@ -464,8 +477,8 @@ static int viv_ioctl_gem_get_tiling(struct drm_device *drm, void *data,
                                   struct drm_file *file)
 {
     struct drm_viv_gem_get_tiling *args = (struct drm_viv_gem_get_tiling*)data;
-    struct drm_gem_object *gem_obj;
-    struct viv_gem_object *viv_obj;
+    struct drm_gem_object *gem_obj = gcvNULL;
+    struct viv_gem_object *viv_obj = gcvNULL;
 
     gceSTATUS status = gcvSTATUS_OK;
     gckGALDEVICE gal_dev = gcvNULL;
@@ -481,7 +494,6 @@ static int viv_ioctl_gem_get_tiling(struct drm_device *drm, void *data,
     {
         gcmkONERROR(gcvSTATUS_NOT_FOUND);
     }
-    drm_gem_object_unreference_unlocked(gem_obj);
     viv_obj = container_of(gem_obj, struct viv_gem_object, base);
 
     args->tiling_mode = viv_obj->node_object->tilingMode;
@@ -489,6 +501,10 @@ static int viv_ioctl_gem_get_tiling(struct drm_device *drm, void *data,
     args->clear_value = viv_obj->node_object->clearValue;
 
 OnError:
+    if (gem_obj)
+    {
+        drm_gem_object_unreference_unlocked(gem_obj);
+    }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
 
@@ -496,8 +512,9 @@ static int viv_ioctl_gem_attach_aux(struct drm_device *drm, void *data,
                                     struct drm_file *file)
 {
     struct drm_viv_gem_attach_aux *args = (struct drm_viv_gem_attach_aux*)data;
-    struct drm_gem_object *gem_obj;
-    struct viv_gem_object *viv_obj;
+    struct drm_gem_object *gem_obj = gcvNULL;
+    struct viv_gem_object *viv_obj = gcvNULL;
+    struct drm_gem_object *gem_ts_obj = gcvNULL;
 
     gceSTATUS status = gcvSTATUS_OK;
     gckGALDEVICE gal_dev = gcvNULL;
@@ -514,7 +531,6 @@ static int viv_ioctl_gem_attach_aux(struct drm_device *drm, void *data,
     {
         gcmkONERROR(gcvSTATUS_NOT_FOUND);
     }
-    drm_gem_object_unreference_unlocked(gem_obj);
     viv_obj = container_of(gem_obj, struct viv_gem_object, base);
     nodeObj = viv_obj->node_object;
 
@@ -526,7 +542,6 @@ static int viv_ioctl_gem_attach_aux(struct drm_device *drm, void *data,
 
     if (args->ts_handle)
     {
-        struct drm_gem_object *gem_ts_obj;
         struct viv_gem_object *viv_ts_obj;
         gckKERNEL kernel = gal_dev->device->map[gal_dev->device->defaultHwType].kernels[0];
 
@@ -535,7 +550,6 @@ static int viv_ioctl_gem_attach_aux(struct drm_device *drm, void *data,
         {
             gcmkONERROR(gcvSTATUS_NOT_FOUND);
         }
-        drm_gem_object_unreference_unlocked(gem_ts_obj);
         viv_ts_obj = container_of(gem_ts_obj, struct viv_gem_object, base);
 
         gcmkONERROR(gckVIDMEM_NODE_Reference(kernel, viv_ts_obj->node_object));
@@ -543,6 +557,15 @@ static int viv_ioctl_gem_attach_aux(struct drm_device *drm, void *data,
     }
 
 OnError:
+    if (gem_obj)
+    {
+        drm_gem_object_unreference_unlocked(gem_obj);
+
+        if (gem_ts_obj)
+        {
+            drm_gem_object_unreference_unlocked(gem_ts_obj);
+        }
+    }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
 
@@ -550,8 +573,8 @@ static int viv_ioctl_gem_ref_node(struct drm_device *drm, void *data,
                                  struct drm_file *file)
 {
     struct drm_viv_gem_ref_node *args = (struct drm_viv_gem_ref_node*)data;
-    struct drm_gem_object *gem_obj;
-    struct viv_gem_object *viv_obj;
+    struct drm_gem_object *gem_obj = gcvNULL;
+    struct viv_gem_object *viv_obj = gcvNULL;
 
     gceSTATUS status = gcvSTATUS_OK;
     gckGALDEVICE gal_dev = gcvNULL;
@@ -574,7 +597,6 @@ static int viv_ioctl_gem_ref_node(struct drm_device *drm, void *data,
     {
         gcmkONERROR(gcvSTATUS_NOT_FOUND);
     }
-    drm_gem_object_unreference_unlocked(gem_obj);
     viv_obj = container_of(gem_obj, struct viv_gem_object, base);
     nodeObj = viv_obj->node_object;
 
@@ -629,6 +651,11 @@ OnError:
         args->ts_node = 0;
 
         ret = -ENOTTY;
+    }
+
+    if (gem_obj)
+    {
+        drm_gem_object_unreference_unlocked(gem_obj);
     }
 
     return ret;
