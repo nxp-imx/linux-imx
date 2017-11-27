@@ -63,7 +63,7 @@
  *	};
  */
 
-#include "fsl-imx8mq-evk-fbdev.dts"
+#include "fsl-imx8mq-evk.dts"
 
 / {
 	modem_reset: modem-reset {
