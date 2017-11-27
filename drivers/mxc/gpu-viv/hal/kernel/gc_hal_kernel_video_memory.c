@@ -3248,8 +3248,7 @@ gceSTATUS
 gckVIDMEM_NODE_WrapUserMemory(
     IN gckKERNEL Kernel,
     IN gcsUSER_MEMORY_DESC_PTR Desc,
-    OUT gctUINT32 * Handle,
-    OUT gctUINT64 * Bytes
+    OUT gctUINT32 * Handle
     )
 {
     gceSTATUS status = gcvSTATUS_OK;
@@ -3261,7 +3260,6 @@ gckVIDMEM_NODE_WrapUserMemory(
     gcmkVERIFY_OBJECT(Kernel, gcvOBJ_KERNEL);
     gcmkVERIFY_ARGUMENT(Desc);
     gcmkVERIFY_ARGUMENT(Handle);
-    gcmkVERIFY_ARGUMENT(Bytes);
 
 #if defined(CONFIG_DMA_SHARED_BUFFER)
     if (Desc->flag & gcvALLOC_FLAG_DMABUF)
@@ -3297,8 +3295,6 @@ gckVIDMEM_NODE_WrapUserMemory(
                 /* Allocate a handle for current process. */
                 gcmkERR_BREAK(gckVIDMEM_HANDLE_Allocate(Kernel, nodeObject, Handle));
                 found = gcvTRUE;
-
-                *Bytes = (gctUINT64)dmabuf->size;
             }
             while (gcvFALSE);
 
@@ -3337,8 +3333,6 @@ gckVIDMEM_NODE_WrapUserMemory(
                 gcvPOOL_VIRTUAL,
                 Handle
                 ));
-
-            *Bytes = (gctUINT64)node->Virtual.bytes;
         }
         while (gcvFALSE);
 

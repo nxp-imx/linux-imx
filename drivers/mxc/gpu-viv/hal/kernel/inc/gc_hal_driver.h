@@ -1266,8 +1266,6 @@ typedef struct _gcsHAL_INTERFACE
             /* Output video mmory node. */
             OUT gctUINT32               node;
 
-            /* size of the node in bytes */
-            OUT gctUINT64               bytes;
         }
         WrapUserMemory;
 
