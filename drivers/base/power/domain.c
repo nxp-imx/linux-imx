@@ -327,6 +327,10 @@ static int genpd_poweroff(struct generic_pm_domain *genpd, bool is_async)
 		if (atomic_read(&genpd->sd_count) > 0)
 			return -EBUSY;
 
+		if (!genpd->device_count)
+			/* Choose the deepest state if no devices using this domain */
+			genpd->state_idx = genpd->state_count - 1;
+
 		/*
 		 * If sd_count > 0 at this point, one of the subdomains hasn't
 		 * managed to call genpd_poweron() for the master yet after
