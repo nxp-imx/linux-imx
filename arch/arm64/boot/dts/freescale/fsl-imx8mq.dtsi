@@ -590,6 +590,13 @@
 				<0x0 0x32e40000 0x0 0x40000>;   /* HDP SEC register */
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 		status = "disabled";
+
+		port@0 {
+			reg = <0>;
+			hdmi_disp: endpoint {
+				remote-endpoint = <&dcss_disp0_hdmi>;
+			};
+		};
 	};
 
 	mipi_dsi_phy: dsi_phy@30A00300 {
