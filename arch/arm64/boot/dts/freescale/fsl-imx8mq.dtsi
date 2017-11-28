@@ -867,6 +867,7 @@
 			phy-names = "usb2-phy", "usb3-phy";
 			power-domains = <&usb_otg1_pd>;
 			snps,power-down-scale = <2>;
+			usb3-resume-missing-cas;
 			status = "disabled";
 		};
 	};
@@ -906,6 +907,7 @@
 			phy-names = "usb2-phy", "usb3-phy";
 			power-domains = <&usb_otg2_pd>;
 			snps,power-down-scale = <2>;
+			usb3-resume-missing-cas;
 			status = "disabled";
 		};
 	};
