@@ -593,6 +593,13 @@
 		interrupt-names = "plug_in", "plug_out";
 		interrupt-parent = <&gpc>;
 		status = "disabled";
+
+		port@0 {
+			reg = <0>;
+			hdmi_disp: endpoint {
+				remote-endpoint = <&dcss_disp0_hdmi>;
+			};
+		};
 	};
 
 	mipi_dsi_phy: dsi_phy@30A00300 {
