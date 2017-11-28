@@ -104,11 +104,6 @@
 		spdif-controller = <&spdif2>;
 		spdif-in;
 	};
-
-	display-subsystem {
-		compatible = "fsl,imx-display-subsystem";
-		ports = <&dcss_disp0>;
-	};
 };
 
 &clk {
