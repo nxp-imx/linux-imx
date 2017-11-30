@@ -602,7 +602,7 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 {
 	struct acc_dev *dev = fp->private_data;
 	struct usb_request *req;
-	ssize_t r = count;
+	ssize_t r = count, len;
 	unsigned xfer;
 	int ret = 0;
 
@@ -624,6 +624,8 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 		goto done;
 	}
 
+	len = ALIGN(count, dev->ep_out->maxpacket);
+
 	if (dev->rx_done) {
 		// last req cancelled. try to get it.
 		req = dev->rx_req[0];
@@ -633,7 +635,7 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 requeue_req:
 	/* queue a request */
 	req = dev->rx_req[0];
-	req->length = count;
+	req->length = len;
 	dev->rx_done = 0;
 	ret = usb_ep_queue(dev->ep_out, req, GFP_KERNEL);
 	if (ret < 0) {
