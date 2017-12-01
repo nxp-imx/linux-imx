@@ -2361,7 +2361,7 @@ static int lpuart_suspend_noirq(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct lpuart_port *sport = platform_get_drvdata(pdev);
 
-	serial_lpuart_enable_wakeup(sport, true);
+	serial_lpuart_enable_wakeup(sport, !!sport->port.irq_wake);
 
 	clk_disable(sport->ipg_clk);
 	pinctrl_pm_select_sleep_state(dev);
