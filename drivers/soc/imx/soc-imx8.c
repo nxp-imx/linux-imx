@@ -212,6 +212,33 @@ static int __init imx8_revision_init(void)
 }
 early_initcall(imx8_revision_init);
 
+static void __init imx8mq_noc_init(void)
+{
+	struct device_node *np;
+	const char *status;
+	int statlen;
+	struct arm_smccc_res res;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx8mq-lcdif");
+	if (!np)
+		return;
+
+	status = of_get_property(np, "status", &statlen);
+	if (status == NULL)
+		return;
+
+	if (statlen > 0) {
+		if (!strcmp(status, "disabled"))
+			return;
+	}
+
+	pr_info("Config NOC for VPU and CPU\n");
+	arm_smccc_smc(FSL_SIP_NOC, FSL_SIP_NOC_LCDIF, 0,
+			0, 0, 0, 0, 0, &res);
+	if (res.a0)
+		pr_err("Config NOC for VPU and CPU fail!\n");
+}
+
 static int __init imx8_soc_init(void)
 {
 	struct soc_device_attribute *soc_dev_attr;
@@ -239,6 +266,9 @@ static int __init imx8_soc_init(void)
 	soc_dev = soc_device_register(soc_dev_attr);
 	if (IS_ERR(soc_dev))
 		goto free_rev;
+
+	if (of_machine_is_compatible("fsl,imx8mq"))
+		imx8mq_noc_init();
 
 	return 0;
 
