@@ -64,6 +64,14 @@ static inline struct imx_hdp *enc_to_imx_hdp(struct drm_encoder *e)
 	return container_of(e, struct imx_hdp, encoder);
 }
 
+#ifdef CONFIG_EXTCON
+static const unsigned int imx_hdmi_extcon_cables[] = {
+	EXTCON_DISP_HDMI,
+	EXTCON_NONE,
+};
+struct extcon_dev *hdp_edev;
+#endif
+
 static void imx_hdp_state_init(struct imx_hdp *hdp)
 {
 	state_struct *state = &hdp->state;
