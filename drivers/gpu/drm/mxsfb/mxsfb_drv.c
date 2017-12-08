@@ -27,7 +27,6 @@
 #include <linux/pm_runtime.h>
 #include <linux/reservation.h>
 #include <linux/version.h>
-#include <linux/busfreq-imx.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_atomic.h>
@@ -520,9 +519,7 @@ static int mxsfb_runtime_suspend(struct device *dev)
 		return 0;
 
 	mxsfb_crtc_disable(mxsfb);
-
-	if (mxsfb->devdata->flags & MXSFB_FLAG_BUSFREQ)
-		release_bus_freq(BUS_FREQ_HIGH);
+	mxsfb->suspended = true;
 
 	return 0;
 }
@@ -532,11 +529,8 @@ static int mxsfb_runtime_resume(struct device *dev)
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
 
-	if (!drm->registered)
+	if (!drm->registered || !mxsfb->suspended)
 		return 0;
-
-	if (mxsfb->devdata->flags & MXSFB_FLAG_BUSFREQ)
-		request_bus_freq(BUS_FREQ_HIGH);
 
 	mxsfb_crtc_enable(mxsfb);
 
@@ -549,6 +543,7 @@ static int mxsfb_suspend(struct device *dev)
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
 
 	mxsfb_crtc_disable(mxsfb);
+	mxsfb->suspended = true;
 
 	return 0;
 }
@@ -557,6 +552,9 @@ static int mxsfb_resume(struct device *dev)
 {
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
+
+	if (!mxsfb->suspended)
+		return 0;
 
 	mxsfb_crtc_enable(mxsfb);
 
