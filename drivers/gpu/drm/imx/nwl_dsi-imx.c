@@ -880,11 +880,12 @@ static void imx_nwl_dsi_unbind(struct device *dev,
 
 	DRM_DEV_INFO(dev, "id = %s\n", (dsi->instance)?"DSI1":"DSI0");
 
+	drm_bridge_detach(dsi->next_bridge);
+
 	imx_nwl_dsi_encoder_disable(&dsi->encoder);
 
 	drm_encoder_cleanup(&dsi->encoder);
 
-	drm_bridge_detach(dsi->next_bridge);
 }
 
 static const struct component_ops imx_nwl_dsi_component_ops = {
