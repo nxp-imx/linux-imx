@@ -8690,7 +8690,7 @@ gckHARDWARE_QueryIdle(
             gckOS_ReadRegisterEx(Hardware->os, Hardware->core, 0x00004, &idle));
 
         /* Pipe must be idle. */
-        if (idle != 0x7ffffffe)
+        if ((idle | (1 << 14)) != 0x7ffffffe)
         {
             /* Something is busy. */
             isIdle = gcvFALSE;
