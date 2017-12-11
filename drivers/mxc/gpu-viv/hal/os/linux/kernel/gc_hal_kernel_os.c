@@ -3612,7 +3612,7 @@ gckOS_MapPagesEx(
 #endif
         {
             /* remove LSB. */
-            phys &= ~(4096ul - 1);
+            phys &= ~(4096ull - 1);
 
 #if gcdENABLE_VG
             if (Core == gcvCORE_VG)
