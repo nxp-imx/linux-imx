@@ -980,6 +980,7 @@
 				reg = <SC_R_M4_0_INTMUX>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_cm40>;
+				early_power_on;
 			};
 		};
 
@@ -1006,6 +1007,7 @@
 				reg = <SC_R_M4_1_INTMUX>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_cm41>;
+				early_power_on;
 			};
 		};
 	};
@@ -3029,7 +3031,6 @@
 	operating-points = <
 		/* kHz    uV */
 		/* voltage is maintained by SCFW, so no need here */
-		1260000	   0
 		1200000	   0
 		900000	   0
 		600000	   0

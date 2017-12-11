@@ -123,6 +123,13 @@
 		audio-codec = <&wm8960>;
 		asrc-controller = <&asrc0>;
 		codec-master;
+		/*
+		 * hp-det = <hp-det-pin hp-det-polarity>;
+		 * hp-det-pin: JD1 JD2  or JD3
+		 * hp-det-polarity = 0: hp detect high for headphone
+		 * hp-det-polarity = 1: hp detect high for speaker
+		 */
+		hp-det = <2 0>;
 		audio-routing =
 			"Headphone Jack", "HP_L",
 			"Headphone Jack", "HP_R",
@@ -537,6 +544,10 @@
 	status = "okay";
 };
 
+&pd_dma_lpuart0 {
+	debug_console;
+};
+
 &lpuart0 { /* console */
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lpuart0>;
@@ -609,5 +620,61 @@
 	 */
 	vdev-nums = <1>;
 	reg = <0x0 0xb8100000 0x0 0x10000>;
+	status = "okay";
+};
+
+&mipi_csi_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	virtual-channel;
+	status = "okay";
+
+	/* Camera 0  MIPI CSI-2 (CSIS0) */
+	port@0 {
+		reg = <0>;
+		mipi_csi0_ep: endpoint {
+			remote-endpoint = <&max9286_0_ep>;
+			data-lanes = <1 2 3 4>;
+		};
+	};
+};
+
+&i2c0_mipi_csi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	clock-frequency = <100000>;
+	status = "okay";
+
+	max9286_mipi@6A	 {
+		compatible = "maxim,max9286_mipi";
+		reg = <0x6A>;
+		clocks = <&clk IMX8QM_CLK_DUMMY>;
+		clock-names = "capture_mclk";
+		mclk = <27000000>;
+		mclk_source = <0>;
+		virtual-channel;
+		port {
+			max9286_0_ep: endpoint {
+			remote-endpoint = <&mipi_csi0_ep>;
+			data-lanes = <1 2 3 4>;
+			};
+		};
+	};
+};
+
+&isi_0 {
+	status = "okay";
+};
+
+&isi_1 {
+	status = "okay";
+};
+
+&isi_2 {
+	status = "okay";
+};
+
+&isi_3 {
 	status = "okay";
 };
