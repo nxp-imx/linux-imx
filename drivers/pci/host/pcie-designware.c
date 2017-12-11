@@ -190,7 +190,7 @@ static int dw_pcie_wr_own_conf(struct pcie_port *pp, int where, int size,
 	return dw_pcie_cfg_write(pp->dbi_base + where, size, val);
 }
 
-static void dw_pcie_prog_outbound_atu(struct pcie_port *pp, int index,
+void dw_pcie_prog_outbound_atu(struct pcie_port *pp, int index,
 		int type, u64 cpu_addr, u64 pci_addr, u32 size)
 {
 	u32 retries, val;
@@ -244,8 +244,7 @@ static void dw_pcie_prog_outbound_atu(struct pcie_port *pp, int index,
 		if (val == PCIE_ATU_ENABLE)
 			return;
 
-		if (!IS_ENABLED(CONFIG_PCI_IMX6))
-			usleep_range(LINK_WAIT_IATU_MIN, LINK_WAIT_IATU_MAX);
+		mdelay(LINK_WAIT_IATU_MAX/1000);
 	}
 	dev_err(pp->dev, "iATU is not being enabled\n");
 }
@@ -288,8 +287,10 @@ irqreturn_t dw_handle_msi_irq(struct pcie_port *pp)
 
 void dw_pcie_msi_init(struct pcie_port *pp)
 {
-	dma_alloc_coherent(pp->dev, 64, &pp->msi_target, GFP_KERNEL);
+	dma_addr_t msi_addr;
 
+	dma_alloc_coherent(pp->dev, 64, &msi_addr, GFP_KERNEL);
+	pp->msi_target = (u64)msi_addr;
 	/* program the msi_data */
 	dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_LO, 4,
 			    (u32)(pp->msi_target & 0xffffffff));
