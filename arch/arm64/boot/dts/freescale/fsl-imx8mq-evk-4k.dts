@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  */
 
-#include "fsl-imx8mq-evk.dts"
+#include "fsl-imx8mq-evk-fbdev.dts"
 
 &dcss {
 	disp-mode = <97>;	/* #97: 3840x2160p@60Hz 16:9 */

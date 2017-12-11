@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-#include "fsl-imx8mq-evk.dts"
+#include "fsl-imx8mq-evk-fbdev.dts"
 
 / {
 	reserved-memory {

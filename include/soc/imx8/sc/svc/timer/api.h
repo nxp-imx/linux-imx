@@ -78,6 +78,22 @@ typedef uint32_t sc_timer_wdog_time_t;
 sc_err_t sc_timer_set_wdog_timeout(sc_ipc_t ipc, sc_timer_wdog_time_t timeout);
 
 /*!
+ * This function sets the watchdog pre-timeout in milliseconds. If not
+ * set then the pre-timeout defaults to the max. Once locked this value
+ * cannot be changed.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     pre_timeout pre-timeout period for the watchdog
+ *
+ * When the pre-timout expires an IRQ will be generated. Note this timeout
+ * clears when the IRQ is triggered.
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ */
+sc_err_t sc_timer_set_wdog_pre_timeout(sc_ipc_t ipc,
+				       sc_timer_wdog_time_t pre_timeout);
+
+/*!
  * This function starts the watchdog.
  *
  * @param[in]     ipc         IPC handle

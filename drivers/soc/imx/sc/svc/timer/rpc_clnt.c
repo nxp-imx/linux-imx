@@ -44,6 +44,24 @@ sc_err_t sc_timer_set_wdog_timeout(sc_ipc_t ipc, sc_timer_wdog_time_t timeout)
 	return (sc_err_t)result;
 }
 
+sc_err_t sc_timer_set_wdog_pre_timeout(sc_ipc_t ipc,
+				       sc_timer_wdog_time_t pre_timeout)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_TIMER;
+	RPC_FUNC(&msg) = TIMER_FUNC_SET_WDOG_PRE_TIMEOUT;
+	RPC_U32(&msg, 0) = pre_timeout;
+	RPC_SIZE(&msg) = 2;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	result = RPC_R8(&msg);
+	return (sc_err_t)result;
+}
+
 sc_err_t sc_timer_start_wdog(sc_ipc_t ipc, bool lock)
 {
 	sc_rpc_msg_t msg;
