@@ -20,6 +20,7 @@
 #include <linux/usb/phy.h>
 #include <linux/slab.h>
 #include <linux/acpi.h>
+#include <linux/busfreq-imx.h>
 
 #include "xhci.h"
 #include "xhci-plat.h"
@@ -188,10 +189,16 @@ static int xhci_plat_probe(struct platform_device *pdev)
 			return ret;
 	}
 
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
+	pm_runtime_get_noresume(&pdev->dev);
+
 	hcd = __usb_create_hcd(driver, sysdev, &pdev->dev,
 			       dev_name(&pdev->dev), NULL);
-	if (!hcd)
-		return -ENOMEM;
+	if (!hcd) {
+		ret = -ENOMEM;
+		goto disable_runtime;
+	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	hcd->regs = devm_ioremap_resource(&pdev->dev, res);
@@ -257,6 +264,8 @@ static int xhci_plat_probe(struct platform_device *pdev)
 			goto put_usb3_hcd;
 	}
 
+	request_bus_freq(BUS_FREQ_HIGH);
+
 	ret = usb_add_hcd(hcd, irq, IRQF_SHARED);
 	if (ret)
 		goto disable_usb_phy;
@@ -268,6 +277,9 @@ static int xhci_plat_probe(struct platform_device *pdev)
 	if (ret)
 		goto dealloc_usb2_hcd;
 
+	device_enable_async_suspend(&pdev->dev);
+	pm_runtime_put_noidle(&pdev->dev);
+
 	return 0;
 
 
@@ -276,6 +288,7 @@ dealloc_usb2_hcd:
 
 disable_usb_phy:
 	usb_phy_shutdown(hcd->usb_phy);
+	release_bus_freq(BUS_FREQ_HIGH);
 
 put_usb3_hcd:
 	usb_put_hcd(xhci->shared_hcd);
@@ -286,6 +299,10 @@ disable_clk:
 
 put_hcd:
 	usb_put_hcd(hcd);
+
+disable_runtime:
+	pm_runtime_put_noidle(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
 
 	return ret;
 }
@@ -307,6 +324,10 @@ static int xhci_plat_remove(struct platform_device *dev)
 	if (!IS_ERR(clk))
 		clk_disable_unprepare(clk);
 	usb_put_hcd(hcd);
+
+	pm_runtime_set_suspended(&dev->dev);
+	pm_runtime_disable(&dev->dev);
+	release_bus_freq(BUS_FREQ_HIGH);
 
 	return 0;
 }
@@ -335,14 +356,29 @@ static int xhci_plat_resume(struct device *dev)
 
 	return xhci_resume(xhci, 0);
 }
+#endif /* CONFIG_PM_SLEEP */
+
+#ifdef CONFIG_PM
+static int xhci_plat_runtime_suspend(struct device *dev)
+{
+	release_bus_freq(BUS_FREQ_HIGH);
+	return 0;
+}
+
+static int xhci_plat_runtime_resume(struct device *dev)
+{
+	request_bus_freq(BUS_FREQ_HIGH);
+	return 0;
+}
+#endif /* CONFIG_PM */
 
 static const struct dev_pm_ops xhci_plat_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(xhci_plat_suspend, xhci_plat_resume)
+
+	SET_RUNTIME_PM_OPS(xhci_plat_runtime_suspend,
+			   xhci_plat_runtime_resume,
+			   NULL)
 };
-#define DEV_PM_OPS	(&xhci_plat_pm_ops)
-#else
-#define DEV_PM_OPS	NULL
-#endif /* CONFIG_PM */
 
 static const struct acpi_device_id usb_xhci_acpi_match[] = {
 	/* XHCI-compliant USB Controller */
@@ -356,7 +392,7 @@ static struct platform_driver usb_xhci_driver = {
 	.remove	= xhci_plat_remove,
 	.driver	= {
 		.name = "xhci-hcd",
-		.pm = DEV_PM_OPS,
+		.pm = &xhci_plat_pm_ops,
 		.of_match_table = of_match_ptr(usb_xhci_of_match),
 		.acpi_match_table = ACPI_PTR(usb_xhci_acpi_match),
 	},
