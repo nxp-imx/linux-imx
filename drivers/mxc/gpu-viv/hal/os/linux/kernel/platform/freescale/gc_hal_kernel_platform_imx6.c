@@ -595,7 +595,7 @@ int remove_gpu_opp_table(void)
     struct imx_priv *priv = &imxPriv;
     struct device* dev = priv->imx_gpu_govern.dev;
     int govern = 0;
-    while(govern != GOVERN_COUNT)
+    while(govern != priv->imx_gpu_govern.num_modes)
     {
         unsigned long core_freq;
         core_freq = priv->imx_gpu_govern.core_clk_freq[govern];

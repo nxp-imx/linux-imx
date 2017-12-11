@@ -578,6 +578,7 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_SAI6_RX_BCLK]          = imx_clk_fixed("sai6_rx_bclk", 0);
 	clks[IMX8QM_HDMI_TX_SAI0_TX_BCLK]  = imx_clk_fixed("hdmi_tx_sai0_tx_bclk", 0);
 	clks[IMX8QM_CM40_IPG_CLK]	= imx_clk_fixed("ipg_cm40_clk_root", SC_132MHZ);
+	clks[IMX8QM_CM41_IPG_CLK]	= imx_clk_fixed("ipg_cm41_clk_root", SC_132MHZ);
 
 	np_acm = of_find_compatible_node(NULL, NULL, "nxp,imx8qm-acm");
 	if (np_acm) {
@@ -892,6 +893,16 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_HSIO_PHY_X2_PCLK_1] = imx_clk_gate2_scu("hsio_phy_x2_pclk_1", "dummy", LPCG_ADDR(HSIO_PHY_X2_LPCG), 4, FUNCTION_NAME(PD_HSIO_PCIE_B));
 	clks[IMX8QM_HSIO_SATA_EPCS_RX_CLK] = imx_clk_gate2_scu("hsio_sata_epcs_rx_clk", "dummy", LPCG_ADDR(HSIO_PHY_X1_LPCG), 8, FUNCTION_NAME(PD_HSIO_SATA_0));
 	clks[IMX8QM_HSIO_SATA_EPCS_TX_CLK] = imx_clk_gate2_scu("hsio_sata_epcs_tx_clk", "dummy", LPCG_ADDR(HSIO_PHY_X1_LPCG), 4, FUNCTION_NAME(PD_HSIO_SATA_0));
+
+	/* CM40 */
+	clks[IMX8QM_CM40_I2C_DIV]	= imx_clk_divider_scu("cm40_i2c_div", SC_R_M4_0_I2C, SC_PM_CLK_PER);
+	clks[IMX8QM_CM40_I2C_CLK]	= imx_clk_gate_scu("cm40_i2c_clk", "cm40_i2c_div", SC_R_M4_0_I2C, SC_PM_CLK_PER, (void __iomem *)(CM40_I2C_LPCG), 0, 0);
+	clks[IMX8QM_CM40_I2C_IPG_CLK]	= imx_clk_gate2_scu("cm40_i2c_ipg_clk", "ipg_cm40_clk_root", (void __iomem *)(CM40_I2C_LPCG), 16, FUNCTION_NAME(PD_CM40_I2C));
+
+	/* CM41 */
+	clks[IMX8QM_CM41_I2C_DIV]	= imx_clk_divider_scu("cm41_i2c_div", SC_R_M4_1_I2C, SC_PM_CLK_PER);
+	clks[IMX8QM_CM41_I2C_CLK]	= imx_clk_gate_scu("cm41_i2c_clk", "cm41_i2c_div", SC_R_M4_1_I2C, SC_PM_CLK_PER, (void __iomem *)(CM41_I2C_LPCG), 0, 0);
+	clks[IMX8QM_CM41_I2C_IPG_CLK]	= imx_clk_gate2_scu("cm41_i2c_ipg_clk", "ipg_cm41_clk_root", (void __iomem *)(CM41_I2C_LPCG), 16, FUNCTION_NAME(PD_CM41_I2C));
 
 	for (i = 0; i < ARRAY_SIZE(clks); i++)
 		if (IS_ERR(clks[i]) && PTR_ERR(clks[i]) != -ENODEV)
