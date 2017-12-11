@@ -129,11 +129,6 @@
 		spdif-controller = <&spdif2>;
 		spdif-in;
 	};
-
-	display-subsystem {
-		compatible = "fsl,imx-display-subsystem";
-		ports = <&dcss_disp0>;
-	};
 };
 
 &clk {
@@ -734,29 +729,14 @@
 	dc-supply = <&reg_gpio_dvfs>;
 };
 
-&dcss_drm {
+&dcss {
 	status = "okay";
 
 	disp-dev = "hdmi_disp";
-	dcss_disp0: port@0 {
-		reg = <0>;
-
-		dcss_disp0_hdmi: hdmi-endpoint {
-			remote-endpoint = <&hdmi_disp>;
-		};
-	};
-
 };
 
-&hdmi_drm {
+&hdmi {
 	status = "okay";
-
-	port@0 {
-		reg = <0>;
-			hdmi_disp: endpoint {
-			remote-endpoint = <&dcss_disp0_hdmi>;
-		};
-	};
 };
 
 &hdmi_cec {
