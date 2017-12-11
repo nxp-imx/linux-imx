@@ -773,7 +773,9 @@ static int bpf_prog_load(union bpf_attr *attr)
 	    attr->kern_version != LINUX_VERSION_CODE)
 		return -EINVAL;
 
-	if (type != BPF_PROG_TYPE_SOCKET_FILTER && !capable(CAP_SYS_ADMIN))
+	if (type != BPF_PROG_TYPE_SOCKET_FILTER &&
+	    type != BPF_PROG_TYPE_CGROUP_SKB &&
+	    !capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
 	/* plain bpf_prog allocation */
@@ -850,6 +852,85 @@ static int bpf_obj_get(const union bpf_attr *attr)
 	return bpf_obj_get_user(u64_to_ptr(attr->pathname));
 }
 
+#ifdef CONFIG_CGROUP_BPF
+
+#define BPF_PROG_ATTACH_LAST_FIELD attach_flags
+
+static int bpf_prog_attach(const union bpf_attr *attr)
+{
+	struct bpf_prog *prog;
+	struct cgroup *cgrp;
+	int ret;
+
+	if (!capable(CAP_NET_ADMIN))
+		return -EPERM;
+
+	if (CHECK_ATTR(BPF_PROG_ATTACH))
+		return -EINVAL;
+
+	if (attr->attach_flags & ~BPF_F_ALLOW_OVERRIDE)
+		return -EINVAL;
+
+	switch (attr->attach_type) {
+	case BPF_CGROUP_INET_INGRESS:
+	case BPF_CGROUP_INET_EGRESS:
+		prog = bpf_prog_get_type(attr->attach_bpf_fd,
+					 BPF_PROG_TYPE_CGROUP_SKB);
+		if (IS_ERR(prog))
+			return PTR_ERR(prog);
+
+		cgrp = cgroup_get_from_fd(attr->target_fd);
+		if (IS_ERR(cgrp)) {
+			bpf_prog_put(prog);
+			return PTR_ERR(cgrp);
+		}
+
+		ret = cgroup_bpf_update(cgrp, prog, attr->attach_type,
+					attr->attach_flags & BPF_F_ALLOW_OVERRIDE);
+		if (ret)
+			bpf_prog_put(prog);
+		cgroup_put(cgrp);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+#define BPF_PROG_DETACH_LAST_FIELD attach_type
+
+static int bpf_prog_detach(const union bpf_attr *attr)
+{
+	struct cgroup *cgrp;
+	int ret;
+
+	if (!capable(CAP_NET_ADMIN))
+		return -EPERM;
+
+	if (CHECK_ATTR(BPF_PROG_DETACH))
+		return -EINVAL;
+
+	switch (attr->attach_type) {
+	case BPF_CGROUP_INET_INGRESS:
+	case BPF_CGROUP_INET_EGRESS:
+		cgrp = cgroup_get_from_fd(attr->target_fd);
+		if (IS_ERR(cgrp))
+			return PTR_ERR(cgrp);
+
+		ret = cgroup_bpf_update(cgrp, NULL, attr->attach_type, false);
+		cgroup_put(cgrp);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+#endif /* CONFIG_CGROUP_BPF */
+
 SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, size)
 {
 	union bpf_attr attr = {};
@@ -916,6 +997,16 @@ SYSCALL_DEFINE3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int, siz
 	case BPF_OBJ_GET:
 		err = bpf_obj_get(&attr);
 		break;
+
+#ifdef CONFIG_CGROUP_BPF
+	case BPF_PROG_ATTACH:
+		err = bpf_prog_attach(&attr);
+		break;
+	case BPF_PROG_DETACH:
+		err = bpf_prog_detach(&attr);
+		break;
+#endif
+
 	default:
 		err = -EINVAL;
 		break;

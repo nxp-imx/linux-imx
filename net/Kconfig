@@ -89,6 +89,12 @@ source "net/netlabel/Kconfig"
 
 endif # if INET
 
+config ANDROID_PARANOID_NETWORK
+	bool "Only allow certain groups to create sockets"
+	default y
+	help
+		none
+
 config NETWORK_SECMARK
 	bool "Security Marking"
 	help
@@ -257,10 +263,6 @@ config XPS
 
 config HWBM
        bool
-
-config SOCK_CGROUP_DATA
-	bool
-	default n
 
 config CGROUP_NET_PRIO
 	bool "Network priority cgroup"

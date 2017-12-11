@@ -176,9 +176,9 @@ void ci_handle_vbus_change(struct ci_hdrc *ci)
 	if (!ci->is_otg)
 		return;
 
-	if (hw_read_otgsc(ci, OTGSC_BSV))
+	if (hw_read_otgsc(ci, OTGSC_BSV) && !ci->vbus_active)
 		usb_gadget_vbus_connect(&ci->gadget);
-	else
+	else if (!hw_read_otgsc(ci, OTGSC_BSV) && ci->vbus_active)
 		usb_gadget_vbus_disconnect(&ci->gadget);
 }
 
@@ -220,10 +220,14 @@ void ci_handle_id_switch(struct ci_hdrc *ci)
 
 		ci_role_stop(ci);
 
-		if (role == CI_ROLE_GADGET)
+		if (role == CI_ROLE_GADGET &&
+				IS_ERR(ci->platdata->vbus_extcon.edev))
 			/*
-			 * wait vbus lower than OTGSC_BSV before connecting
-			 * to host
+			 * Wait vbus lower than OTGSC_BSV before connecting
+			 * to host. If connecting status is from an external
+			 * connector instead of register, we don't need to
+			 * care vbus on the board, since it will not affect
+			 * external connector status.
 			 */
 			ret = hw_wait_vbus_lower_bsv(ci);
 		else if (ci->vbus_active)
@@ -236,6 +240,9 @@ void ci_handle_id_switch(struct ci_hdrc *ci)
 		       usb_gadget_vbus_disconnect(&ci->gadget);
 
 		ci_role_start(ci, role);
+		/* vbus change may have already occurred */
+		if (role == CI_ROLE_GADGET)
+			ci_handle_vbus_change(ci);
 		/*
 		 * If the role switch happens(e.g. during system
 		 * sleep) and vbus keeps on afterwards, we connect

@@ -35,6 +35,18 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/cpufreq_interactive.h>
 
+#define gov_attr_ro(_name)						\
+static struct governor_attr _name =					\
+__ATTR(_name, 0444, show_##_name, NULL)
+
+#define gov_attr_wo(_name)						\
+static struct governor_attr _name =					\
+__ATTR(_name, 0200, NULL, store_##_name)
+
+#define gov_attr_rw(_name)						\
+static struct governor_attr _name =					\
+__ATTR(_name, 0644, show_##_name, store_##_name)
+
 /* Separate instance required for each 'interactive' directory in sysfs */
 struct interactive_tunables {
 	struct gov_attr_set attr_set;
@@ -101,6 +113,7 @@ struct interactive_cpu {
 
 	struct irq_work irq_work;
 	u64 last_sample_time;
+	unsigned long next_sample_jiffies;
 	bool work_in_progress;
 
 	struct rw_semaphore enable_sem;
@@ -330,12 +343,11 @@ static unsigned int choose_freq(struct interactive_cpu *icpu,
 static u64 update_load(struct interactive_cpu *icpu, int cpu)
 {
 	struct interactive_tunables *tunables = icpu->ipolicy->tunables;
-	unsigned int delta_idle, delta_time;
-	u64 now_idle, now, active_time;
+	u64 now_idle, now, active_time, delta_idle, delta_time;
 
 	now_idle = get_cpu_idle_time(cpu, &now, tunables->io_is_busy);
-	delta_idle = (unsigned int)(now_idle - icpu->time_in_idle);
-	delta_time = (unsigned int)(now - icpu->time_in_idle_timestamp);
+	delta_idle = (now_idle - icpu->time_in_idle);
+	delta_time = (now - icpu->time_in_idle_timestamp);
 
 	if (delta_time <= delta_idle)
 		active_time = 0;
@@ -465,6 +477,26 @@ static void cpufreq_interactive_update(struct interactive_cpu *icpu)
 	slack_timer_resched(icpu, smp_processor_id(), true);
 }
 
+static void cpufreq_interactive_idle_end(void)
+{
+	struct interactive_cpu *icpu = &per_cpu(interactive_cpu,
+						smp_processor_id());
+
+	if (!down_read_trylock(&icpu->enable_sem))
+		return;
+
+	if (icpu->ipolicy) {
+		/*
+		 * We haven't sampled load for more than sampling_rate time, do
+		 * it right now.
+		 */
+		if (time_after_eq(jiffies, icpu->next_sample_jiffies))
+			cpufreq_interactive_update(icpu);
+	}
+
+	up_read(&icpu->enable_sem);
+}
+
 static void cpufreq_interactive_get_policy_info(struct cpufreq_policy *policy,
 						unsigned int *pmax_freq,
 						u64 *phvt, u64 *pfvt)
@@ -543,13 +575,15 @@ again:
 
 	for_each_cpu(cpu, &tmp_mask) {
 		struct interactive_cpu *icpu = &per_cpu(interactive_cpu, cpu);
-		struct cpufreq_policy *policy = icpu->ipolicy->policy;
+		struct cpufreq_policy *policy;
 
 		if (unlikely(!down_read_trylock(&icpu->enable_sem)))
 			continue;
 
-		if (likely(icpu->ipolicy))
+		if (likely(icpu->ipolicy)) {
+			policy = icpu->ipolicy->policy;
 			cpufreq_interactive_adjust_cpu(cpu, policy);
+		}
 
 		up_read(&icpu->enable_sem);
 	}
@@ -983,6 +1017,19 @@ static struct kobj_type interactive_tunables_ktype = {
 	.sysfs_ops = &governor_sysfs_ops,
 };
 
+static int cpufreq_interactive_idle_notifier(struct notifier_block *nb,
+					     unsigned long val, void *data)
+{
+	if (val == IDLE_END)
+		cpufreq_interactive_idle_end();
+
+	return 0;
+}
+
+static struct notifier_block cpufreq_interactive_idle_nb = {
+	.notifier_call = cpufreq_interactive_idle_notifier,
+};
+
 /* Interactive Governor callbacks */
 struct interactive_governor {
 	struct cpufreq_governor gov;
@@ -1025,6 +1072,8 @@ static void update_util_handler(struct update_util_data *data, u64 time,
 		return;
 
 	icpu->last_sample_time = time;
+	icpu->next_sample_jiffies = usecs_to_jiffies(tunables->sampling_rate) +
+				    jiffies;
 
 	icpu->work_in_progress = true;
 	irq_work_queue(&icpu->irq_work);
@@ -1040,6 +1089,7 @@ static void gov_set_update_util(struct interactive_policy *ipolicy)
 		icpu = &per_cpu(interactive_cpu, cpu);
 
 		icpu->last_sample_time = 0;
+		icpu->next_sample_jiffies = 0;
 		cpufreq_add_update_util_hook(cpu, &icpu->update_util,
 					     update_util_handler);
 	}
@@ -1170,6 +1220,7 @@ int cpufreq_interactive_init(struct cpufreq_policy *policy)
 
 	/* One time initialization for governor */
 	if (!interactive_gov.usage_count++) {
+		idle_notifier_register(&cpufreq_interactive_idle_nb);
 		cpufreq_register_notifier(&cpufreq_notifier_block,
 					  CPUFREQ_TRANSITION_NOTIFIER);
 	}
@@ -1203,6 +1254,7 @@ void cpufreq_interactive_exit(struct cpufreq_policy *policy)
 	if (!--interactive_gov.usage_count) {
 		cpufreq_unregister_notifier(&cpufreq_notifier_block,
 					    CPUFREQ_TRANSITION_NOTIFIER);
+		idle_notifier_unregister(&cpufreq_interactive_idle_nb);
 	}
 
 	count = gov_attr_set_put(&tunables->attr_set, &ipolicy->tunables_hook);
