@@ -857,6 +857,18 @@ static int patch_param(struct platform_device *pdev,
 #endif
         patch_param_imx6(pdev, args);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
+    if(args->compression == -1)
+    {
+        const u32 *property;
+        args->compression = gcvCOMPRESSION_OPTION_DEFAULT;
+        property = of_get_property(pdev->dev.of_node, "depth-compression", NULL);
+        if (property && *property == 0)
+        {
+            args->compression &= ~gcvCOMPRESSION_OPTION_DEPTH;
+        }
+    }
+#endif
     res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "phys_baseaddr");
 
     if (res && !args->baseAddress && !args->physSize) {
