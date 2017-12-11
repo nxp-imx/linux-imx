@@ -14,29 +14,7 @@
 
 #include "fsl-imx8mq-evk.dts"
 
-/ {
-	display-subsystem {
-		status = "disabled";
-	};
-};
-
-&irqsteer_dcss {
-	status = "disabled";
-};
-
 &ov5640_mipi {
-	status = "disabled";
-};
-
-&dcss {
-	status = "disabled";
-};
-
-&hdmi {
-	status = "disabled";
-};
-
-&hdmi_cec {
 	status = "disabled";
 };
 
@@ -91,4 +69,3 @@
 		};
 	};
 };
-

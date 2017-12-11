@@ -14,21 +14,7 @@
 
 #include "fsl-imx8mq-evk.dts"
 
-/ {
-	display-subsystem {
-		status = "disabled";
-	};
-};
-
-&irqsteer_dcss {
-	status = "disabled";
-};
-
 &ov5640_mipi {
-	status = "disabled";
-};
-
-&dcss {
 	status = "disabled";
 };
 
@@ -40,11 +26,14 @@
 	status = "disabled";
 };
 
-&lcdif {
+&dcss {
 	status = "okay";
+	disp-dev = "mipi_disp";
 
-	port@0 {
-		lcdif_mipi_dsi: mipi-dsi-endpoint {
+	dcss_disp0: port@0 {
+		reg = <0>;
+
+		dcss_disp0_mipi_dsi: mipi_dsi {
 			remote-endpoint = <&mipi_dsi_in>;
 		};
 	};
@@ -71,15 +60,13 @@
 
 &mipi_dsi {
 	status = "okay";
-	as_bridge;
-	sync-pol = <1>;
-	pwr-delay = <10>;
 
 	port@1 {
 		mipi_dsi_in: endpoint {
-			remote-endpoint = <&lcdif_mipi_dsi>;
+			remote-endpoint = <&dcss_disp0_mipi_dsi>;
 		};
 	};
+
 };
 
 &mipi_dsi_bridge {
@@ -91,4 +78,3 @@
 		};
 	};
 };
-

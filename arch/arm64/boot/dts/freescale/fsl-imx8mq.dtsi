@@ -76,8 +76,8 @@
 		linux,cma {
 			compatible = "shared-dma-pool";
 			reusable;
-			size = <0 0x40000000>;
-			alloc-ranges = <0 0x40000000 0 0x70000000>;
+			size = <0 0x3c000000>;
+			alloc-ranges = <0 0x40000000 0 0x40000000>;
 			linux,cma-default;
 		};
 
@@ -455,7 +455,7 @@
 		#interrupt-cells = <2>;
 		nxp,irqsteer_chans = <2>;
 		nxp,endian = <1>;		/* MSB */
-		clocks = <&clk IMX8MQ_CLK_DUMMY>;
+		clocks = <&clk IMX8MQ_CLK_DISP_APB_ROOT>;
 		clock-names = "ipg";
 	};
 
@@ -530,6 +530,7 @@
 		assigned-clock-parents = <&clk IMX8MQ_VIDEO_PLL1_OUT>;
 		assigned-clock-rate = <594000000>;
 		interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
+		max-res = <1280>, <720>;
 		status = "disabled";
 	};
 
@@ -1320,7 +1321,6 @@
 			 compatible = "fsl,sec-v4.0-job-ring";
 			 reg = <0x1000 0x1000>;
 			 interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
-			 status = "disabled";
 		};
 
 		sec_jr1: jr1@2000 {

@@ -14,20 +14,6 @@
 
 #include "fsl-imx8mq-evk.dts"
 
-/ {
-	display-subsystem {
-		status = "disabled";
-	};
-};
-
-&irqsteer_dcss {
-	status = "disabled";
-};
-
-&dcss {
-	status = "disabled";
-};
-
 &hdmi {
 	status = "disabled";
 };
@@ -36,20 +22,35 @@
 	status = "disabled";
 };
 
-&lcdif {
+&dcss {
 	status = "okay";
+	disp-dev = "mipi_disp";
 
-	assigned-clocks = <&clk IMX8MQ_CLK_LCDIF_PIXEL_SRC>,
+	assigned-clocks = <&clk IMX8MQ_CLK_DISP_AXI_SRC>,
+			  <&clk IMX8MQ_CLK_DISP_APB_SRC>,
+			  <&clk IMX8MQ_CLK_DISP_RTRM_SRC>,
+			  <&clk IMX8MQ_CLK_DISP_RTRM_PRE_DIV>,
+			  <&clk IMX8MQ_CLK_DC_PIXEL_SRC>,
 			  <&clk IMX8MQ_VIDEO_PLL1_REF_SEL>,
 			  <&clk IMX8MQ_VIDEO_PLL1>;
-	assigned-clock-parents = <&clk IMX8MQ_VIDEO_PLL1_OUT>,
+	assigned-clock-parents = <&clk IMX8MQ_SYS1_PLL_800M>,
+				 <&clk IMX8MQ_SYS2_PLL_125M>,
+				 <&clk IMX8MQ_SYS1_PLL_800M>,
+				 <&clk IMX8MQ_CLK_DISP_RTRM_CG>,
+				 <&clk IMX8MQ_VIDEO_PLL1_OUT>,
 				 <&clk IMX8MQ_CLK_25M>;
-	assigned-clock-rate = <120000000>,
-			      <0>,
-			      <599999999>;
+	assigned-clock-rates = <800000000>,
+			       <125000000>,
+			       <400000000>,
+			       <400000000>,
+			       <120000000>,
+			       <0>,
+			       <599999999>;
 
-	port@0 {
-		lcdif_mipi_dsi: mipi-dsi-endpoint {
+	dcss_disp0: port@0 {
+		reg = <0>;
+
+		dcss_disp0_mipi_dsi: mipi_dsi {
 			remote-endpoint = <&mipi_dsi_in>;
 		};
 	};
@@ -61,8 +62,6 @@
 
 &mipi_dsi {
 	status = "okay";
-	as_bridge;
-	sync-pol = <1>;
 	assigned-clocks = <&clk IMX8MQ_CLK_DSI_PHY_REF_SRC>,
 			  <&clk IMX8MQ_CLK_DSI_CORE_SRC>,
 			  <&clk IMX8MQ_VIDEO_PLL1_REF_SEL>,
@@ -77,9 +76,10 @@
 
 	port@1 {
 		mipi_dsi_in: endpoint {
-			remote-endpoint = <&lcdif_mipi_dsi>;
+			remote-endpoint = <&dcss_disp0_mipi_dsi>;
 		};
 	};
+
 };
 
 &mipi_dsi_bridge {

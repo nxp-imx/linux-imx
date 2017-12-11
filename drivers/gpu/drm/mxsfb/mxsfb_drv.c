@@ -49,6 +49,22 @@ enum mxsfb_devtype {
 	MXSFB_V4,
 };
 
+/*
+ * When adding new formats, make sure to update the num_formats from
+ * mxsfb_devdata below.
+ */
+static const uint32_t mxsfb_formats[] = {
+	/* MXSFB_V3 */
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_RGB565,
+	/* MXSFB_V4 */
+	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_RGBX8888,
+	DRM_FORMAT_RGBA8888,
+};
+
 static const struct mxsfb_devdata mxsfb_devdata[] = {
 	[MXSFB_V3] = {
 		.transfer_count	= LCDC_V3_TRANSFER_COUNT,
@@ -59,6 +75,7 @@ static const struct mxsfb_devdata mxsfb_devdata[] = {
 		.hs_wdth_shift	= 24,
 		.ipversion	= 3,
 		.flags		= MXSFB_FLAG_NULL,
+		.num_formats	= 3,
 	},
 	[MXSFB_V4] = {
 		.transfer_count	= LCDC_V4_TRANSFER_COUNT,
@@ -69,12 +86,8 @@ static const struct mxsfb_devdata mxsfb_devdata[] = {
 		.hs_wdth_shift	= 18,
 		.ipversion	= 4,
 		.flags		= MXSFB_FLAG_BUSFREQ,
+		.num_formats	= ARRAY_SIZE(mxsfb_formats),
 	},
-};
-
-static const uint32_t mxsfb_formats[] = {
-	DRM_FORMAT_XRGB8888,
-	DRM_FORMAT_RGB565
 };
 
 static struct mxsfb_drm_private *
@@ -104,7 +117,22 @@ static const struct drm_mode_config_funcs mxsfb_mode_config_funcs = {
 static void mxsfb_pipe_enable(struct drm_simple_display_pipe *pipe,
 			      struct drm_crtc_state *crtc_state)
 {
+	struct drm_device *drm = pipe->encoder.dev;
+	struct drm_connector *connector;
 	struct mxsfb_drm_private *mxsfb = drm_pipe_to_mxsfb_drm_private(pipe);
+
+	if (!mxsfb->connector) {
+		drm_for_each_connector(connector, drm)
+			if (connector->encoder == &(mxsfb->pipe.encoder)) {
+				mxsfb->connector = connector;
+				break;
+			}
+	}
+
+	if (!mxsfb->connector) {
+		dev_warn(drm->dev, "No connector attached, using default\n");
+		mxsfb->connector = &mxsfb->panel_connector;
+	}
 
 	mxsfb_crtc_enable(mxsfb);
 	pm_runtime_get_sync(mxsfb->dev);
@@ -116,6 +144,9 @@ static void mxsfb_pipe_disable(struct drm_simple_display_pipe *pipe)
 
 	mxsfb_crtc_disable(mxsfb);
 	pm_runtime_put_sync(mxsfb->dev);
+
+	if (mxsfb->connector != &mxsfb->panel_connector)
+		mxsfb->connector = NULL;
 }
 
 static void mxsfb_pipe_update(struct drm_simple_display_pipe *pipe,
@@ -148,6 +179,7 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 	struct platform_device *pdev = to_platform_device(drm->dev);
 	struct mxsfb_drm_private *mxsfb;
 	struct resource *res;
+	u32 max_res[2] = {0, 0};
 	int ret;
 
 	mxsfb = devm_kzalloc(&pdev->dev, sizeof(*mxsfb), GFP_KERNEL);
@@ -199,16 +231,23 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 	}
 
 	ret = drm_simple_display_pipe_init(drm, &mxsfb->pipe, &mxsfb_funcs,
-			mxsfb_formats, ARRAY_SIZE(mxsfb_formats),
-			&mxsfb->connector);
+			mxsfb_formats, mxsfb->devdata->num_formats,
+			mxsfb->connector);
 	if (ret < 0) {
 		dev_err(drm->dev, "Cannot setup simple display pipe\n");
 		goto err_vblank;
 	}
 
-	/* Attach panel only if there is one */
+	/*
+	 * Attach panel only if there is one.
+	 * If there is no panel attach, it must be a bridge. In this case, we
+	 * need a reference to its connector for a proper initialization.
+	 * We will do this check in pipe->enable(), since the connector won't
+	 * be attached to an encoder until then.
+	 */
+
 	if (mxsfb->panel) {
-		ret = drm_panel_attach(mxsfb->panel, &mxsfb->connector);
+		ret = drm_panel_attach(mxsfb->panel, mxsfb->connector);
 		if (ret) {
 			dev_err(drm->dev, "Cannot connect panel\n");
 			goto err_vblank;
@@ -220,13 +259,19 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 			dev_err(drm->dev, "Cannot connect bridge\n");
 			goto err_vblank;
 		}
-
 	}
+
+	of_property_read_u32_array(drm->dev->of_node, "max-res",
+				   &max_res[0], 2);
+	if (!max_res[0])
+		max_res[0] = MXSFB_MAX_XRES;
+	if (!max_res[1])
+		max_res[1] = MXSFB_MAX_YRES;
 
 	drm->mode_config.min_width	= MXSFB_MIN_XRES;
 	drm->mode_config.min_height	= MXSFB_MIN_YRES;
-	drm->mode_config.max_width	= MXSFB_MAX_XRES;
-	drm->mode_config.max_height	= MXSFB_MAX_YRES;
+	drm->mode_config.max_width	= max_res[0];
+	drm->mode_config.max_height	= max_res[1];
 	drm->mode_config.funcs		= &mxsfb_mode_config_funcs;
 
 	drm_mode_config_reset(drm);

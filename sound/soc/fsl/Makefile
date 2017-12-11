@@ -81,6 +81,7 @@ snd-soc-imx-cdnhdmi-objs := imx-cdnhdmi.o
 snd-soc-imx-rpmsg-objs := imx-rpmsg.o
 snd-soc-imx-amix-objs := imx-amix.o
 snd-soc-imx-tas5760-objs := imx-tas5760.o
+snd-soc-imx-pdm-objs := imx-pdm.o
 
 obj-$(CONFIG_SND_SOC_EUKREA_TLV320) += snd-soc-eukrea-tlv320.o
 obj-$(CONFIG_SND_SOC_PHYCORE_AC97) += snd-soc-phycore-ac97.o
@@ -107,5 +108,6 @@ obj-$(CONFIG_SND_SOC_IMX_TAS5760) += snd-soc-imx-tas5760.o
 
 snd-soc-fsl-asoc-card-objs := fsl-asoc-card.o
 obj-$(CONFIG_SND_SOC_FSL_ASOC_CARD) += snd-soc-fsl-asoc-card.o
+obj-$(CONFIG_SND_SOC_IMX_PDM_MIC) += snd-soc-imx-pdm.o
 
 AFLAGS_hdmi_pcm.o := -march=armv7-a -mtune=cortex-a9 -mfpu=neon -mfloat-abi=softfp
