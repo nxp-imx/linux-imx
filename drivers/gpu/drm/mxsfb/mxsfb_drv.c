@@ -124,7 +124,9 @@ static void mxsfb_pipe_enable(struct drm_simple_display_pipe *pipe,
 	struct mxsfb_drm_private *mxsfb = drm_pipe_to_mxsfb_drm_private(pipe);
 
 	if (!mxsfb->connector) {
-		drm_for_each_connector(connector, drm)
+		list_for_each_entry(connector,
+				    &drm->mode_config.connector_list,
+				    head)
 			if (connector->encoder == &(mxsfb->pipe.encoder)) {
 				mxsfb->connector = connector;
 				break;
