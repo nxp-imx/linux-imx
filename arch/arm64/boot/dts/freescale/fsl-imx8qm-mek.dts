@@ -49,13 +49,12 @@
 
 		reg_can2_en: regulator-can2-gen {
 			compatible = "regulator-fixed";
-			regulator-name = "can01-en";
+			regulator-name = "can2-en";
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			gpio = <&pca6416 4 GPIO_ACTIVE_HIGH>;
 			enable-active-high;
 		};
-
 
 		reg_can01_stby: regulator-can01-stby {
 			compatible = "regulator-fixed";
@@ -69,7 +68,7 @@
 
 		reg_can2_stby: regulator-can2-stby {
 			compatible = "regulator-fixed";
-			regulator-name = "can01-stby";
+			regulator-name = "can2-stby";
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			gpio = <&pca6416 6 GPIO_ACTIVE_HIGH>;
