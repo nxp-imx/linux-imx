@@ -27,7 +27,6 @@
 #include <linux/pm_runtime.h>
 #include <linux/reservation.h>
 #include <linux/version.h>
-#include <linux/busfreq-imx.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_atomic.h>
@@ -43,6 +42,9 @@
 
 #include "mxsfb_drv.h"
 #include "mxsfb_regs.h"
+
+/* The eLCDIF max possible CRTCs */
+#define MAX_CRTCS 1
 
 enum mxsfb_devtype {
 	MXSFB_V3,
@@ -122,7 +124,9 @@ static void mxsfb_pipe_enable(struct drm_simple_display_pipe *pipe,
 	struct mxsfb_drm_private *mxsfb = drm_pipe_to_mxsfb_drm_private(pipe);
 
 	if (!mxsfb->connector) {
-		drm_for_each_connector(connector, drm)
+		list_for_each_entry(connector,
+				    &drm->mode_config.connector_list,
+				    head)
 			if (connector->encoder == &(mxsfb->pipe.encoder)) {
 				mxsfb->connector = connector;
 				break;
@@ -134,6 +138,8 @@ static void mxsfb_pipe_enable(struct drm_simple_display_pipe *pipe,
 		mxsfb->connector = &mxsfb->panel_connector;
 	}
 
+	drm_crtc_vblank_on(&mxsfb->pipe.crtc);
+
 	mxsfb_crtc_enable(mxsfb);
 	pm_runtime_get_sync(mxsfb->dev);
 }
@@ -141,6 +147,14 @@ static void mxsfb_pipe_enable(struct drm_simple_display_pipe *pipe,
 static void mxsfb_pipe_disable(struct drm_simple_display_pipe *pipe)
 {
 	struct mxsfb_drm_private *mxsfb = drm_pipe_to_mxsfb_drm_private(pipe);
+	struct drm_crtc *crtc = &pipe->crtc;
+
+	spin_lock_irq(&crtc->dev->event_lock);
+	if (crtc->state->event) {
+		drm_crtc_send_vblank_event(crtc, crtc->state->event);
+		crtc->state->event = NULL;
+	}
+	spin_unlock_irq(&crtc->dev->event_lock);
 
 	mxsfb_crtc_disable(mxsfb);
 	pm_runtime_put_sync(mxsfb->dev);
@@ -215,7 +229,7 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 
 	pm_runtime_enable(drm->dev);
 
-	ret = drm_vblank_init(drm, drm->mode_config.num_crtc);
+	ret = drm_vblank_init(drm, MAX_CRTCS);
 	if (ret < 0) {
 		dev_err(drm->dev, "Failed to initialise vblank\n");
 		goto err_vblank;
@@ -237,6 +251,8 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 		dev_err(drm->dev, "Cannot setup simple display pipe\n");
 		goto err_vblank;
 	}
+
+	drm_crtc_vblank_off(&mxsfb->pipe.crtc);
 
 	/*
 	 * Attach panel only if there is one.
@@ -505,9 +521,7 @@ static int mxsfb_runtime_suspend(struct device *dev)
 		return 0;
 
 	mxsfb_crtc_disable(mxsfb);
-
-	if (mxsfb->devdata->flags & MXSFB_FLAG_BUSFREQ)
-		release_bus_freq(BUS_FREQ_HIGH);
+	mxsfb->suspended = true;
 
 	return 0;
 }
@@ -517,11 +531,8 @@ static int mxsfb_runtime_resume(struct device *dev)
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
 
-	if (!drm->registered)
+	if (!drm->registered || !mxsfb->suspended)
 		return 0;
-
-	if (mxsfb->devdata->flags & MXSFB_FLAG_BUSFREQ)
-		request_bus_freq(BUS_FREQ_HIGH);
 
 	mxsfb_crtc_enable(mxsfb);
 
@@ -534,6 +545,7 @@ static int mxsfb_suspend(struct device *dev)
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
 
 	mxsfb_crtc_disable(mxsfb);
+	mxsfb->suspended = true;
 
 	return 0;
 }
@@ -542,6 +554,9 @@ static int mxsfb_resume(struct device *dev)
 {
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
+
+	if (!mxsfb->suspended)
+		return 0;
 
 	mxsfb_crtc_enable(mxsfb);
 
