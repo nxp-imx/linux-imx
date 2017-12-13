@@ -950,7 +950,7 @@ This define enables the use of VM for gckCommand and fence buffers.
         This will dynamically check if color compression is available.
 */
 #ifndef gcdENABLE_RENDER_INTO_WINDOW_WITH_FC
-#   define gcdENABLE_RENDER_INTO_WINDOW_WITH_FC 0
+#   define gcdENABLE_RENDER_INTO_WINDOW_WITH_FC 1
 #endif
 
 /*
