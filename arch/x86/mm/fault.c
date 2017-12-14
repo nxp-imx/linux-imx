@@ -758,7 +758,6 @@ no_context(struct pt_regs *regs, unsigned long error_code,
 	if (is_vmalloc_addr((void *)address) &&
 	    (((unsigned long)tsk->stack - 1 - address < PAGE_SIZE) ||
 	     address - ((unsigned long)tsk->stack + THREAD_SIZE) < PAGE_SIZE)) {
-		register void *__sp asm("rsp");
 		unsigned long stack = this_cpu_read(orig_ist.ist[DOUBLEFAULT_STACK]) - sizeof(void *);
 		/*
 		 * We're likely to be running with very little stack space
@@ -773,7 +772,7 @@ no_context(struct pt_regs *regs, unsigned long error_code,
 		asm volatile ("movq %[stack], %%rsp\n\t"
 			      "call handle_stack_overflow\n\t"
 			      "1: jmp 1b"
-			      : "+r" (__sp)
+			      : ASM_CALL_CONSTRAINT
 			      : "D" ("kernel stack overflow (page fault)"),
 				"S" (regs), "d" (address),
 				[stack] "rm" (stack));
@@ -1393,7 +1392,17 @@ good_area:
 	 * make sure we exit gracefully rather than endlessly redo
 	 * the fault.  Since we never set FAULT_FLAG_RETRY_NOWAIT, if
 	 * we get VM_FAULT_RETRY back, the mmap_sem has been unlocked.
+	 *
+	 * Note that handle_userfault() may also release and reacquire mmap_sem
+	 * (and not return with VM_FAULT_RETRY), when returning to userland to
+	 * repeat the page fault later with a VM_FAULT_NOPAGE retval
+	 * (potentially after handling any pending signal during the return to
+	 * userland). The return to userland is identified whenever
+	 * FAULT_FLAG_USER|FAULT_FLAG_KILLABLE are both set in flags.
+	 * Thus we have to be careful about not touching vma after handling the
+	 * fault, so we read the pkey beforehand.
 	 */
+	pkey = vma_pkey(vma);
 	fault = handle_mm_fault(vma, address, flags);
 	major |= fault & VM_FAULT_MAJOR;
 
@@ -1420,7 +1429,6 @@ good_area:
 		return;
 	}
 
-	pkey = vma_pkey(vma);
 	up_read(&mm->mmap_sem);
 	if (unlikely(fault & VM_FAULT_ERROR)) {
 		mm_fault_error(regs, error_code, address, &pkey, fault);
