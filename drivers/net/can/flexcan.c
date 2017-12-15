@@ -1518,6 +1518,7 @@ static int flexcan_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *of_id;
 	const struct flexcan_devtype_data *devtype_data;
+	struct device_node *np = pdev->dev.of_node;
 	struct net_device *dev;
 	struct flexcan_priv *priv;
 	struct regulator *reg_xceiver;
@@ -1613,13 +1614,15 @@ static int flexcan_probe(struct platform_device *pdev)
 	}
 
 	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CANFD) {
-		priv->can.ctrlmode_supported |= CAN_CTRLMODE_FD;
-		priv->can.bittiming_const = &flexcan_fd_bittiming_const;
-		if (!(priv->devtype_data->quirks &
-		      FLEXCAN_QUIRK_DISABLE_RX_FIFO)) {
-			dev_err(&pdev->dev, "canfd mode can't work on fifo mode\n");
-			err = -EINVAL;
-			goto failed_register;
+		if (!(of_find_property(np, "disable-fd-mode", NULL))) {
+			priv->can.ctrlmode_supported |= CAN_CTRLMODE_FD;
+			priv->can.bittiming_const = &flexcan_fd_bittiming_const;
+			if (!(priv->devtype_data->quirks &
+			      FLEXCAN_QUIRK_DISABLE_RX_FIFO)) {
+				dev_err(&pdev->dev, "canfd mode can't work on fifo mode\n");
+				err = -EINVAL;
+				goto failed_register;
+			}
 		}
 	}
 
