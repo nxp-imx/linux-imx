@@ -1594,39 +1594,38 @@ gckKERNEL_BottomHalfUnlockVideoMemory(
     )
 {
     gceSTATUS status;
-    gckVIDMEM_NODE BottomHalfUnlockNode = gcvNULL;
+    gckVIDMEM_NODE nodeObject = gcvNULL;
 
-    do
-    {
-        /* Remove record from process db. */
-        gcmkVERIFY_OK(gckKERNEL_RemoveProcessDB(
-            Kernel,
-            ProcessID,
-            gcvDB_VIDEO_MEMORY_LOCKED,
-            gcmINT2PTR(Node)));
+    /* Remove record from process db. */
+    gcmkVERIFY_OK(gckKERNEL_RemoveProcessDB(
+        Kernel,
+        ProcessID,
+        gcvDB_VIDEO_MEMORY_LOCKED,
+        gcmINT2PTR(Node)));
 
-        gcmkERR_BREAK(gckVIDMEM_HANDLE_Lookup(
-            Kernel,
-            ProcessID,
-            Node,
-            &BottomHalfUnlockNode));
+    gcmkONERROR(gckVIDMEM_HANDLE_Lookup(
+        Kernel,
+        ProcessID,
+        Node,
+        &nodeObject));
 
-        gckVIDMEM_HANDLE_Dereference(Kernel, ProcessID, Node);
+    gckVIDMEM_HANDLE_Dereference(Kernel, ProcessID, Node);
 
-        /* Unlock video memory. */
-        gcmkERR_BREAK(gckVIDMEM_Unlock(
-            Kernel,
-            BottomHalfUnlockNode,
-            gcvSURF_TYPE_UNKNOWN,
-            gcvNULL));
+    /* Unlock video memory. */
+    gcmkONERROR(gckVIDMEM_Unlock(
+        Kernel,
+        nodeObject,
+        gcvSURF_TYPE_UNKNOWN,
+        gcvNULL));
 
-        gcmkERR_BREAK(gckVIDMEM_NODE_Dereference(
-            Kernel,
-            BottomHalfUnlockNode));
-    }
-    while (gcvFALSE);
+    gcmkONERROR(gckVIDMEM_NODE_Dereference(
+        Kernel,
+        nodeObject));
 
     return gcvSTATUS_OK;
+
+OnError:
+    return status;
 }
 
 /*******************************************************************************
