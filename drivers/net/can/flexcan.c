@@ -98,12 +98,6 @@
 #define FLEXCAN_CTRL_ERR_ALL \
 	(FLEXCAN_CTRL_ERR_BUS | FLEXCAN_CTRL_ERR_STATE)
 
-#define FLEXCAN_FDCBT_FPRESDIV(x)	(((x) & 0x3ff) << 20)
-#define FLEXCAN_FDCBT_FRJW(x)		(((x) & 0x07) << 16)
-#define FLEXCAN_FDCBT_FPROPSEG(x)	(((x) & 0x1f) << 10)
-#define FLEXCAN_FDCBT_FPSEG1(x)		(((x) & 0x07) << 5)
-#define FLEXCAN_FDCBT_FPSEG2(x)		((x) & 0x07)
-
 /* FLEXCAN control register 2 (CTRL2) bits */
 #define FLEXCAN_CTRL2_ECRWRE		BIT(29)
 #define FLEXCAN_CTRL2_WRMFRZ		BIT(28)
@@ -157,6 +151,21 @@
 	(FLEXCAN_ESR_TWRN_INT | FLEXCAN_ESR_RWRN_INT | \
 	 FLEXCAN_ESR_BOFF_INT | FLEXCAN_ESR_ERR_INT | \
 	 FLEXCAN_ESR_WAK_INT)
+
+/* FLEXCAN Bit Timing register (CBT) bits */
+#define FLEXCAN_CBT_BTF			BIT(31)
+#define FLEXCAN_CBT_EPRESDIV(x)		(((x) & 0x3ff) << 21)
+#define FLEXCAN_CBT_ERJW(x)		(((x) & 0x1f) << 16)
+#define FLEXCAN_CBT_EPROPSEG(x)		(((x) & 0x3f) << 10)
+#define FLEXCAN_CBT_EPSEG1(x)		(((x) & 0x1f) << 5)
+#define FLEXCAN_CBT_EPSEG2(x)		((x) & 0x1f)
+
+/* FLEXCAN FD Bit Timing register (FDCBT) bits */
+#define FLEXCAN_FDCBT_FPRESDIV(x)	(((x) & 0x3ff) << 20)
+#define FLEXCAN_FDCBT_FRJW(x)		(((x) & 0x07) << 16)
+#define FLEXCAN_FDCBT_FPROPSEG(x)	(((x) & 0x1f) << 10)
+#define FLEXCAN_FDCBT_FPSEG1(x)		(((x) & 0x07) << 5)
+#define FLEXCAN_FDCBT_FPSEG2(x)		((x) & 0x07)
 
 #define FLEXCAN_RX_BUF_ID		0
 /* FLEXCAN interrupt flag register (IFLAG) bits */
@@ -252,6 +261,25 @@
 #define FLEXCAN_CANFD_MBDSR_SHIFT	16
 #define FLEXCAN_CANFD_MBDSR_DEFAULT	0x6db
 
+/*
+ * NOTE:
+ * To minimize errors when processing FD frames, use the same value
+ * for FPRESDIV and PRESDIV (in CAN_CBT or CAN_CTRL1).
+ * For more details refer to the first NOTE in section CAN FD frames.
+ *
+ * CAN FD supported rates combinations
+ *
+ * Combination 1:
+ *  Bitrate: 225000 375000 400000 425000 500000 875000
+ *  Data rate: 1000000
+ *
+ * Combination 2:
+ *  Bitrate:	550000 600000 625000 650000 675000 750000 775000
+ *		800000 850000 925000 950000 975000 1000000
+ *  Data rate:	1500000 2000000 2500000 3000000 3500000 4000000
+ *		5000000
+ */
+
 /* registers definition
  *
  * FIFO-MODE:
@@ -285,6 +313,7 @@ enum flexcan_reg {
 	FLEXCAN_CRCR		= 0x44,
 	FLEXCAN_RXFGMASK	= 0x48,
 	FLEXCAN_RXFIR		= 0x4c,
+	FLEXCAN_CBT		= 0x50,
 	FLEXCAN_MB		= 0x80,
 	FLEXCAN_MECR		= 0xae0,
 	FLEXCAN_ERRIAR		= 0xae4,
@@ -367,7 +396,19 @@ static const struct can_bittiming_const flexcan_bittiming_const = {
 	.brp_inc = 1,
 };
 
-static const struct can_bittiming_const flexcan_data_bittiming_const = {
+static const struct can_bittiming_const flexcan_fd_bittiming_const = {
+	.name = DRV_NAME,
+	.tseg1_min = 2,
+	.tseg1_max = 64,
+	.tseg2_min = 1,
+	.tseg2_max = 32,
+	.sjw_max = 32,
+	.brp_min = 1,
+	.brp_max = 1024,
+	.brp_inc = 1,
+};
+
+static const struct can_bittiming_const flexcan_fd_data_bittiming_const = {
 	.name = DRV_NAME,
 	.tseg1_min = 1,
 	.tseg1_max = 39,
@@ -994,44 +1035,71 @@ static void flexcan_set_bittiming(struct net_device *dev)
 	u32 reg;
 
 	reg = flexcan_read(priv, FLEXCAN_CTRL);
-	reg &= ~(FLEXCAN_CTRL_PRESDIV(0xff) |
-		 FLEXCAN_CTRL_RJW(0x3) |
-		 FLEXCAN_CTRL_PSEG1(0x7) |
-		 FLEXCAN_CTRL_PSEG2(0x7) |
-		 FLEXCAN_CTRL_PROPSEG(0x7) |
-		 FLEXCAN_CTRL_LPB |
-		 FLEXCAN_CTRL_SMP |
-		 FLEXCAN_CTRL_LOM);
-
-	reg |= FLEXCAN_CTRL_PRESDIV(bt->brp - 1) |
-		FLEXCAN_CTRL_PSEG1(bt->phase_seg1 - 1) |
-		FLEXCAN_CTRL_PSEG2(bt->phase_seg2 - 1) |
-		FLEXCAN_CTRL_RJW(bt->sjw - 1) |
-		FLEXCAN_CTRL_PROPSEG(bt->prop_seg - 1);
-
+	reg &= ~(FLEXCAN_CTRL_LPB | FLEXCAN_CTRL_SMP | FLEXCAN_CTRL_LOM);
 	if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK)
 		reg |= FLEXCAN_CTRL_LPB;
 	if (priv->can.ctrlmode & CAN_CTRLMODE_LISTENONLY)
 		reg |= FLEXCAN_CTRL_LOM;
 	if (priv->can.ctrlmode & CAN_CTRLMODE_3_SAMPLES)
 		reg |= FLEXCAN_CTRL_SMP;
-
-	netdev_dbg(dev, "writing ctrl=0x%08x\n", reg);
 	flexcan_write(priv, FLEXCAN_CTRL, reg);
 
 	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+		reg = FLEXCAN_CBT_EPRESDIV(bt->brp - 1) |
+			FLEXCAN_CBT_EPSEG1(bt->phase_seg1 - 1) |
+			FLEXCAN_CBT_EPSEG2(bt->phase_seg2 - 1) |
+			FLEXCAN_CBT_ERJW(bt->sjw - 1) |
+			FLEXCAN_CBT_EPROPSEG(bt->prop_seg - 1) |
+			FLEXCAN_CBT_BTF;
+		flexcan_write(priv, FLEXCAN_CBT, reg);
+
+		netdev_dbg(dev, "bt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
+				bt->brp - 1, bt->phase_seg1 - 1, bt->phase_seg2 - 1,
+				bt->sjw - 1, bt->prop_seg - 1);
+
 		reg = FLEXCAN_FDCBT_FPRESDIV(dbt->brp - 1) |
 			FLEXCAN_FDCBT_FPSEG1(dbt->phase_seg1 - 1) |
 			FLEXCAN_FDCBT_FPSEG2(dbt->phase_seg2 - 1) |
 			FLEXCAN_FDCBT_FRJW(dbt->sjw - 1) |
 			FLEXCAN_FDCBT_FPROPSEG(dbt->prop_seg);
 		flexcan_write(priv, FLEXCAN_FDCBT, reg);
-	}
 
-	/* print chip status */
-	netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x\n", __func__,
-		   flexcan_read(priv, FLEXCAN_MCR),
-		   flexcan_read(priv, FLEXCAN_CTRL));
+		if (bt->brp != dbt->brp)
+			netdev_warn(dev, "PRESDIV not the same, may risk transfer errors\n");
+
+		netdev_dbg(dev, "fdbt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
+			   dbt->brp - 1, dbt->phase_seg1 - 1, dbt->phase_seg2 - 1,
+			   dbt->sjw - 1, dbt->prop_seg);
+
+		netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x cbt=0x%08x fdcbt=0x%08x\n",
+			   __func__, flexcan_read(priv, FLEXCAN_MCR),
+			   flexcan_read(priv, FLEXCAN_CTRL),
+			   flexcan_read(priv, FLEXCAN_CBT),
+			   flexcan_read(priv, FLEXCAN_FDCBT));
+	} else {
+		reg = flexcan_read(priv, FLEXCAN_CTRL);
+		reg &= ~(FLEXCAN_CTRL_PRESDIV(0xff) |
+			 FLEXCAN_CTRL_RJW(0x3) |
+			 FLEXCAN_CTRL_PSEG1(0x7) |
+			 FLEXCAN_CTRL_PSEG2(0x7) |
+			 FLEXCAN_CTRL_PROPSEG(0x7));
+
+		reg |= FLEXCAN_CTRL_PRESDIV(bt->brp - 1) |
+			FLEXCAN_CTRL_PSEG1(bt->phase_seg1 - 1) |
+			FLEXCAN_CTRL_PSEG2(bt->phase_seg2 - 1) |
+			FLEXCAN_CTRL_RJW(bt->sjw - 1) |
+			FLEXCAN_CTRL_PROPSEG(bt->prop_seg - 1);
+		flexcan_write(priv, FLEXCAN_CTRL, reg);
+
+		netdev_dbg(dev, "bt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
+				bt->brp - 1, bt->phase_seg1 - 1, bt->phase_seg2 - 1,
+				bt->sjw - 1, bt->prop_seg - 1);
+
+		/* print chip status */
+		netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x\n", __func__,
+			   flexcan_read(priv, FLEXCAN_MCR),
+			   flexcan_read(priv, FLEXCAN_CTRL));
+	}
 }
 
 /* flexcan_chip_start
@@ -1123,6 +1191,13 @@ static int flexcan_chip_start(struct net_device *dev)
 	 * disable Transceiver Delay Compensation
 	 * Configure Message Buffer according to CAN FD mode enabled or not
 	 */
+	if ((priv->can.ctrlmode_supported & CAN_CTRLMODE_FD) &&
+	    !(priv->can.ctrlmode & CAN_CTRLMODE_FD)) {
+		netdev_err(dev, "fd mode must be enabled\n");
+		err = -EOPNOTSUPP;
+		goto out_chip_disable;
+	}
+
 	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
 		reg_fdctrl = flexcan_read(priv, FLEXCAN_FDCTRL) &
 			     ~FLEXCAN_CANFD_MBDSR_MASK;
@@ -1462,6 +1537,7 @@ static int flexcan_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *of_id;
 	const struct flexcan_devtype_data *devtype_data;
+	struct device_node *np = pdev->dev.of_node;
 	struct net_device *dev;
 	struct flexcan_priv *priv;
 	struct regulator *reg_xceiver;
@@ -1528,7 +1604,7 @@ static int flexcan_probe(struct platform_device *pdev)
 	priv->dev = &pdev->dev;
 	priv->can.clock.freq = clock_freq;
 	priv->can.bittiming_const = &flexcan_bittiming_const;
-	priv->can.data_bittiming_const = &flexcan_data_bittiming_const;
+	priv->can.data_bittiming_const = &flexcan_fd_data_bittiming_const;
 	priv->can.do_set_mode = flexcan_set_mode;
 	priv->can.do_get_berr_counter = flexcan_get_berr_counter;
 	priv->can.ctrlmode_supported = CAN_CTRLMODE_LOOPBACK |
@@ -1557,12 +1633,15 @@ static int flexcan_probe(struct platform_device *pdev)
 	}
 
 	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CANFD) {
-		priv->can.ctrlmode_supported |= CAN_CTRLMODE_FD;
-		if (!(priv->devtype_data->quirks &
-		      FLEXCAN_QUIRK_DISABLE_RX_FIFO)) {
-			dev_err(&pdev->dev, "canfd mode can't work on fifo mode\n");
-			err = -EINVAL;
-			goto failed_register;
+		if (!(of_find_property(np, "disable-fd-mode", NULL))) {
+			priv->can.ctrlmode_supported |= CAN_CTRLMODE_FD;
+			priv->can.bittiming_const = &flexcan_fd_bittiming_const;
+			if (!(priv->devtype_data->quirks &
+			      FLEXCAN_QUIRK_DISABLE_RX_FIFO)) {
+				dev_err(&pdev->dev, "canfd mode can't work on fifo mode\n");
+				err = -EINVAL;
+				goto failed_register;
+			}
 		}
 	}
 
