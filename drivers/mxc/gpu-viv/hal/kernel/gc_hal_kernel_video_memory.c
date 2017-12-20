@@ -2636,7 +2636,7 @@ gckVIDMEM_NODE_Allocate(
     }
 
     /* Reference is 1 by default . */
-    gckVIDMEM_NODE_Reference(Kernel, node);
+    gckOS_AtomSet(os, node->reference, 1);
 
     /* Create a handle to represent this node. */
     gcmkONERROR(gckVIDMEM_HANDLE_Allocate(Kernel, node, &handle));

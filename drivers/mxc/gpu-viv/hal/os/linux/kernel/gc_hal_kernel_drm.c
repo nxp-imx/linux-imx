@@ -286,7 +286,14 @@ static int viv_ioctl_gem_unlock(struct drm_device *drm, void *data,
     }
     viv_obj = container_of(gem_obj, struct viv_gem_object, base);
 
-    gckOS_ZeroMemory(&iface, sizeof(iface));
+    memset(&iface, 0, sizeof(iface));
+    iface.command = gcvHAL_UNLOCK_VIDEO_MEMORY;
+    iface.hardwareType = gal_dev->device->defaultHwType;
+    iface.u.UnlockVideoMemory.node = (gctUINT64)viv_obj->node_handle;
+    iface.u.UnlockVideoMemory.type = gcvSURF_TYPE_UNKNOWN;
+    gcmkONERROR(gckDEVICE_Dispatch(gal_dev->device, &iface));
+
+    memset(&iface, 0, sizeof(iface));
     iface.command = gcvHAL_BOTTOM_HALF_UNLOCK_VIDEO_MEMORY;
     iface.hardwareType = gal_dev->device->defaultHwType;
     iface.u.BottomHalfUnlockVideoMemory.node = (gctUINT64)viv_obj->node_handle;
