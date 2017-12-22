@@ -242,17 +242,17 @@ _DestroyMdl(
             allocator->ops->Free(allocator, Mdl);
         }
 
-        list_for_each_entry_safe(mdlMap, next, &Mdl->mapsHead, link)
-        {
-            gcmkVERIFY_OK(_DestroyMdlMap(Mdl, mdlMap));
-        }
-
         if (Mdl->link.next)
         {
             /* Remove the node from global list.. */
             mutex_lock(&os->mdlMutex);
             list_del(&Mdl->link);
             mutex_unlock(&os->mdlMutex);
+        }
+
+        list_for_each_entry_safe(mdlMap, next, &Mdl->mapsHead, link)
+        {
+            gcmkVERIFY_OK(_DestroyMdlMap(Mdl, mdlMap));
         }
 
         kfree(Mdl);
