@@ -840,10 +840,6 @@
 	status = "okay";
 };
 
-&hdmi_cec {
-	status = "okay";
-};
-
 &csi1_bridge {
 	fsl,mipi-mode;
 	fsl,two-8bit-sensor-mode;
