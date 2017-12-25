@@ -70,6 +70,7 @@ struct mxc_gpio_port {
 	struct irq_domain *domain;
 	struct gpio_chip gc;
 	u32 both_edges;
+	int saved_reg[6];
 	bool gpio_ranges;
 };
 
@@ -584,11 +585,46 @@ out_bgio:
 	return err;
 }
 
+static void mxc_gpio_save_regs(struct mxc_gpio_port *port)
+{
+	unsigned long flags;
+
+	if (mxc_gpio_hwtype == IMX21_GPIO)
+		return;
+
+	spin_lock_irqsave(&port->gc.bgpio_lock, flags);
+	port->saved_reg[0] = readl(port->base + GPIO_ICR1);
+	port->saved_reg[1] = readl(port->base + GPIO_ICR2);
+	port->saved_reg[2] = readl(port->base + GPIO_IMR);
+	port->saved_reg[3] = readl(port->base + GPIO_GDIR);
+	port->saved_reg[4] = readl(port->base + GPIO_EDGE_SEL);
+	port->saved_reg[5] = readl(port->base + GPIO_DR);
+	spin_unlock_irqrestore(&port->gc.bgpio_lock, flags);
+}
+
+static void mxc_gpio_restore_regs(struct mxc_gpio_port *port)
+{
+	unsigned long flags;
+
+	if (mxc_gpio_hwtype == IMX21_GPIO)
+		return;
+
+	spin_lock_irqsave(&port->gc.bgpio_lock, flags);
+	writel(port->saved_reg[0], port->base + GPIO_ICR1);
+	writel(port->saved_reg[1], port->base + GPIO_ICR2);
+	writel(port->saved_reg[2], port->base + GPIO_IMR);
+	writel(port->saved_reg[3], port->base + GPIO_GDIR);
+	writel(port->saved_reg[4], port->base + GPIO_EDGE_SEL);
+	writel(port->saved_reg[5], port->base + GPIO_DR);
+	spin_unlock_irqrestore(&port->gc.bgpio_lock, flags);
+}
+
 static int __maybe_unused mxc_gpio_runtime_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct mxc_gpio_port *port = platform_get_drvdata(pdev);
 
+	mxc_gpio_save_regs(port);
 	clk_disable_unprepare(port->clk);
 
 	return 0;
@@ -598,8 +634,15 @@ static int __maybe_unused mxc_gpio_runtime_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct mxc_gpio_port *port = platform_get_drvdata(pdev);
+	int ret;
 
-	return clk_prepare_enable(port->clk);
+	ret = clk_prepare_enable(port->clk);
+	if (ret)
+		return ret;
+
+	mxc_gpio_restore_regs(port);
+
+	return 0;
 }
 
 static int __maybe_unused mxc_gpio_suspend(struct device *dev)
