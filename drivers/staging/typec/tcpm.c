@@ -29,6 +29,9 @@
 #include <linux/spinlock.h>
 #include <linux/usb/typec.h>
 #include <linux/workqueue.h>
+#ifdef CONFIG_PM_WAKELOCKS
+#include <linux/wakelock.h>
+#endif
 
 #include "pd.h"
 #include "pd_vdo.h"
@@ -366,6 +369,10 @@ static enum tcpm_state tcpm_default_state(struct tcpm_port *port)
 	}
 	return SRC_UNATTACHED;
 }
+
+#ifdef CONFIG_PM_WAKELOCKS
+static struct wake_lock wakelock;
+#endif
 
 static inline
 struct tcpm_port *typec_cap_to_tcpm(const struct typec_capability *cap)
@@ -2123,7 +2130,9 @@ static int tcpm_snk_attach(struct tcpm_port *port)
 		port->tcpc->ss_mux_sel(port->tcpc, polarity);
 
 	tcpm_start_drp_toggling(port);
-
+#ifdef CONFIG_PM_WAKELOCKS
+	wake_lock(&wakelock);
+#endif
 	ret = tcpm_set_roles(port, true, TYPEC_SINK, TYPEC_DEVICE);
 	if (ret < 0)
 		return ret;
@@ -2143,6 +2152,9 @@ static void tcpm_snk_detach(struct tcpm_port *port)
 	tcpm_detach(port);
 
 	/* XXX: (Dis)connect SuperSpeed mux? */
+#ifdef CONFIG_PM_WAKELOCKS
+	wake_unlock(&wakelock);
+#endif
 }
 
 static int tcpm_acc_attach(struct tcpm_port *port)
@@ -3766,6 +3778,10 @@ struct tcpm_port *tcpm_register_port(struct device *dev, struct tcpc_dev *tcpc)
 	tcpm_init(port);
 	mutex_unlock(&port->lock);
 
+#ifdef CONFIG_PM_WAKELOCKS
+	wake_lock_init(&wakelock, WAKE_LOCK_SUSPEND, "gadget");
+#endif
+
 	tcpm_log(port, "%s: registered", dev_name(dev));
 	return port;
 
@@ -3784,6 +3800,10 @@ void tcpm_unregister_port(struct tcpm_port *port)
 	typec_unregister_port(port->typec_port);
 	tcpm_debugfs_exit(port);
 	destroy_workqueue(port->wq);
+
+#ifdef CONFIG_PM_WAKELOCKS
+	wake_lock_destroy(&wakelock);
+#endif
 }
 EXPORT_SYMBOL_GPL(tcpm_unregister_port);
 
