@@ -46,6 +46,7 @@ struct mxsfb_drm_private {
 
 	struct drm_gem_cma_object	*gem;
 	bool				enabled;
+	bool				saved_enabled;
 	bool				suspended;
 };
 
