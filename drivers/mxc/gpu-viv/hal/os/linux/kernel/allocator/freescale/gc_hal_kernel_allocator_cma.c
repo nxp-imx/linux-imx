@@ -220,7 +220,7 @@ _CMAFSLGetSGT(
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
 
-    page = virt_to_page(mdl_priv->kvaddr);
+    page = phys_to_page(dma_to_phys(&Allocator->os->device->platform->device->dev, mdl_priv->physical));
     for (i = 0; i < numPages; ++i)
     {
         pages[i] = nth_page(page, i + skipPages);
