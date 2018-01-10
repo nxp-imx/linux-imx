@@ -2475,7 +2475,7 @@ static int max9286_hardware_init(struct sensor_data *max9286_data)
 	}
 
 	if (max9286_data->sensor_is_there & (0x1 << 2)) {
-		ov10635_check_device(max9286_data, 3);
+		retval = ov10635_check_device(max9286_data, 3);
 		if (retval < 0)
 			return retval;
 		ov10635_initialize(max9286_data, 2);
