@@ -116,6 +116,7 @@
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			gpio = <&gpio4 7 GPIO_ACTIVE_HIGH>;
+			off-on-delay = <4800>;
 			enable-active-high;
 		};
 
@@ -593,6 +594,20 @@
 		pinctrl_mipi_dsi_0_1_en: mipi_dsi_0_1_en {
 			fsl,pins = <
 				SC_P_LVDS0_I2C0_SDA_LSIO_GPIO1_IO07		0x00000021
+			>;
+		};
+
+		pinctrl_mipi_csi0_gpio: mipicsi0gpiogrp{
+			fsl,pins = <
+				SC_P_MIPI_CSI0_GPIO0_00_MIPI_CSI0_GPIO0_IO00	0x00000021
+				SC_P_MIPI_CSI0_GPIO0_01_MIPI_CSI0_GPIO0_IO01	0x00000021
+			>;
+		};
+
+		pinctrl_mipi_csi1_gpio: mipicsi1gpiogrp{
+			fsl,pins = <
+				SC_P_MIPI_CSI1_GPIO0_00_MIPI_CSI1_GPIO0_IO00	0x00000021
+				SC_P_MIPI_CSI1_GPIO0_01_MIPI_CSI1_GPIO0_IO01	0x00000021
 			>;
 		};
 	};
@@ -1102,6 +1117,18 @@
 	status = "okay";
 };
 
+&gpio0_mipi_csi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_mipi_csi0_gpio>;
+	status = "okay";
+};
+
+&gpio0_mipi_csi1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_mipi_csi1_gpio>;
+	status = "okay";
+};
+
 &i2c0_mipi_csi0 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -1116,6 +1143,7 @@
 		clock-names = "capture_mclk";
 		mclk = <27000000>;
 		mclk_source = <0>;
+		pwn-gpios = <&gpio0_mipi_csi0 0 GPIO_ACTIVE_HIGH>;
 		virtual-channel;
 		port {
 			max9286_0_ep: endpoint {
@@ -1140,6 +1168,7 @@
 		clock-names = "capture_mclk";
 		mclk = <27000000>;
 		mclk_source = <0>;
+		pwn-gpios = <&gpio0_mipi_csi1 0 GPIO_ACTIVE_HIGH>;
 		virtual-channel;
 		port {
 			max9286_1_ep: endpoint {
