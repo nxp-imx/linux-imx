@@ -22,6 +22,7 @@
 #include <linux/i2c.h>
 #include <linux/i2c/max732x.h>
 #include <linux/of.h>
+#include <linux/reset.h>
 
 
 /*
@@ -642,6 +643,10 @@ static int max732x_probe(struct i2c_client *client,
 	if (chip == NULL)
 		return -ENOMEM;
 	chip->client = client;
+
+	ret = device_reset(&client->dev);
+	if (ret == -EPROBE_DEFER)
+		return ret;
 
 	nr_port = max732x_setup_gpio(chip, id, pdata->gpio_base);
 	chip->gpio_chip.parent = &client->dev;
