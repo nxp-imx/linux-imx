@@ -171,16 +171,6 @@ static const struct drm_plane_funcs dcss_plane_funcs = {
 	.format_mod_supported = dcss_plane_format_mod_supported,
 };
 
-static bool dcss_plane_mod_supported(int type, uint64_t mod)
-{
-	if (type == DRM_PLANE_TYPE_OVERLAY)
-		return mod == DRM_FORMAT_MOD_VSI_G1_TILED ||
-		       mod == DRM_FORMAT_MOD_VSI_G2_TILED ||
-		       mod == DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED;
-
-	return false;
-}
-
 static int dcss_plane_atomic_check(struct drm_plane *plane,
 				   struct drm_plane_state *state)
 {
@@ -219,8 +209,10 @@ static int dcss_plane_atomic_check(struct drm_plane *plane,
 	}
 
 	if ((fb->flags & DRM_MODE_FB_MODIFIERS) &&
-	    !dcss_plane_mod_supported(plane->type, fb->modifier[0])) {
-		DRM_DEBUG_KMS("Invalid modifier: %llx", fb->modifier[0]);
+	    !plane->funcs->format_mod_supported(plane,
+				fb->pixel_format,
+				fb->modifier[0])) {
+		DRM_INFO("Invalid modifier: %llx", fb->modifier[0]);
 		return -EINVAL;
 	}
 
