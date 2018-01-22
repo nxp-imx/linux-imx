@@ -178,6 +178,13 @@
 		audio-codec = <&cs42888>;
 		status = "okay";
 	};
+
+	sound-xtor {
+		compatible = "fsl,imx-audio-xtor";
+		model = "xtor-audio";
+		cpu-dai = <&sai0>;
+		status = "okay";
+	};
 };
 
 &acm {
@@ -405,6 +412,15 @@
 			fsl,pins = <
 				SC_P_USB_SS3_TC1_ADMA_I2C1_SCL	0x06000021
 				SC_P_USB_SS3_TC3_ADMA_I2C1_SDA	0x06000021
+			>;
+		};
+
+		pinctrl_sai0: sai0grp {
+			fsl,pins = <
+				SC_P_SAI0_RXD_ADMA_SAI0_RXD 0x0600004c
+				SC_P_SAI0_TXC_ADMA_SAI0_TXC 0x0600004c
+				SC_P_SAI0_TXFS_ADMA_SAI0_TXFS 0x0600004c
+				SC_P_SAI0_TXD_ADMA_SAI0_TXD 0x0600006c
 			>;
 		};
 
@@ -782,6 +798,17 @@
 		default-role = "source";
 		status = "okay";
 	};
+};
+
+&sai0 {
+	assigned-clocks = <&clk IMX8QXP_AUD_PLL0_DIV>,
+			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_DIV>,
+			<&clk IMX8QXP_AUD_ACM_AUD_REC_CLK0_DIV>,
+			<&clk IMX8QXP_AUD_SAI_0_MCLK>;
+	assigned-clock-rates = <786432000>, <49152000>, <12288000>, <49152000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai0>;
+	status = "okay";
 };
 
 &sai1 {
