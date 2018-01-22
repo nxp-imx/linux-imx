@@ -57,7 +57,7 @@ static int imx_xtor_startup(struct snd_pcm_substream *substream)
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	static struct snd_pcm_hw_constraint_list constraint_rates;
 	int ret;
-	static u32 support_rates[] = { 8000, 32000, 48000, 96000, 192000, };
+	static u32 support_rates[] = { 8000, 16000, 32000, 48000, 96000, 192000, };
 
 	constraint_rates.list = support_rates;
 	constraint_rates.count = ARRAY_SIZE(support_rates);
