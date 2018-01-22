@@ -133,6 +133,8 @@ struct drm_scdc {
  */
 struct drm_hdmi_info {
 	struct drm_scdc scdc;
+	/* Colorimerty info from EDID */
+	u32 colorimetry;
 };
 
 /**
