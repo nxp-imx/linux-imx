@@ -78,6 +78,15 @@
 			no-map;
 			reg = <0 0xb8000000 0 0x400000>;
 		};
+
+		ramoops@0xb7f00000 {
+			compatible = "ramoops";
+			reg = <0 0xb7f00000 0 0x00100000>;
+			record-size     = <0x00020000>;
+			console-size    = <0x00020000>;
+			ftrace-size     = <0x00020000>;
+			pmsg-size       = <0x00020000>;
+		};
 	};
 
 	gic: interrupt-controller@51a00000 {
