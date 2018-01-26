@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2017 Vivante Corporation
+*    Copyright (c) 2014 - 2018 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2017 Vivante Corporation
+*    Copyright (C) 2014 - 2018 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -149,7 +149,6 @@ gctCONST_STRING _DispatchText[] =
     gcmDEFINE2TEXT(gcvHAL_GET_VIDEO_MEMORY_FD),
     gcmDEFINE2TEXT(gcvHAL_CONFIG_POWER_MANAGEMENT),
     gcmDEFINE2TEXT(gcvHAL_WRAP_USER_MEMORY),
-    gcmDEFINE2TEXT(gcvHAL_RELEASE_USER_MEMORY),
     gcmDEFINE2TEXT(gcvHAL_WAIT_FENCE),
 #if gcdDEC_ENABLE_AHB
     gcmDEFINE2TEXT(gcvHAL_DEC300_READ),
@@ -1033,6 +1032,17 @@ gckKERNEL_AllocateLinearMemory(
         *Pool = gcvPOOL_VIRTUAL;
     }
 
+    if (Flag & gcvALLOC_FLAG_DMABUF_EXPORTABLE)
+    {
+        gctSIZE_T pageSize = 0;
+        gckOS_GetPageSize(Kernel->os, &pageSize);
+
+        /* Usually, the exported dmabuf might be later imported to DRM,
+        ** while DRM requires input size to be page aligned.
+        */
+        Bytes = gcmALIGN(Bytes, pageSize);
+    }
+
 AllocateMemory:
 
     /* Get initial pool. */
@@ -1112,14 +1122,21 @@ AllocateMemory:
             if (gcmIS_SUCCESS(status))
             {
                 /* Allocate memory. */
+                if ((Flag & videoMemory->capability) != Flag)
+                {
+                    status = gcvSTATUS_NOT_SUPPORTED;
+
+                    gcmkFATAL("%s(%d): Reject alloc because VIDMEM (pool=%d) caps=0x%x cannot meet required Flag=0x%x",
+                              __FUNCTION__, __LINE__, pool, videoMemory->capability, Flag);
+                }
 #if defined(gcdLINEAR_SIZE_LIMIT)
                 /* 512 KB */
-                if (Bytes > gcdLINEAR_SIZE_LIMIT)
+                else if (Bytes > gcdLINEAR_SIZE_LIMIT)
                 {
                     status = gcvSTATUS_OUT_OF_MEMORY;
                 }
-                else
 #endif
+                else
                 {
                     hasFastPools = gcvTRUE;
                     status = gckVIDMEM_AllocateLinear(Kernel,
@@ -3200,33 +3217,6 @@ gckKERNEL_Dispatch(
                                    0));
         break;
 
-    case gcvHAL_RELEASE_USER_MEMORY:
-       {
-           gckVIDMEM_NODE nodeObject;
-           gctBOOL asynchronous = gcvFALSE;
-           gctUINT32 node = Interface->u.ReleaseUserMemory.node;
-
-           gcmkONERROR(gckKERNEL_RemoveProcessDB(Kernel,
-                                                 processID,
-                                                 gcvDB_VIDEO_MEMORY_LOCKED,
-                                                 gcmINT2PTR(node)));
-
-           gcmkONERROR(gckKERNEL_ReleaseVideoMemory( Kernel, processID, node));
-
-           gcmkONERROR(gckVIDMEM_HANDLE_Lookup(Kernel, processID, node, &nodeObject));
-
-           gcmkONERROR(gckVIDMEM_Unlock(Kernel, nodeObject, gcvSURF_BITMAP, &asynchronous));
-           if (gcvTRUE == asynchronous)
-           {
-               gcmkONERROR(gckCOMMAND_Stall(Kernel->command, gcvFALSE));
-               gcmkVERIFY_OK(gckVIDMEM_Unlock(Kernel, nodeObject, gcvSURF_BITMAP, gcvNULL));
-           }
-
-           gcmkONERROR(gckVIDMEM_NODE_Dereference(Kernel, nodeObject));
-       }
-
-       break;
-
     case gcvHAL_WAIT_FENCE:
         gcmkONERROR(gckKERNEL_WaitFence(
             Kernel,
@@ -3461,23 +3451,7 @@ gckKERNEL_AttachProcessEx(
             if (Kernel->vg == gcvNULL)
 #endif
             {
-                gctBOOL empty = gcvFALSE;
-
-                while (gcvTRUE)
-                {
-                    /* Check whether the event queue is empty. */
-                    gcmkONERROR(gckEVENT_IsEmpty(Kernel->eventObj, &empty));
-
-                    if (empty == gcvTRUE)
-                    {
-                        break;
-                    }
-
-                    gcmkVERIFY_OK(gckOS_Delay(Kernel->os, 1));
-                };
-
                 /* Last client detached, switch to SUSPEND power state. */
-                Kernel->hardware->forcePowerOff = gcvTRUE;
                 gcmkONERROR(gckOS_Broadcast(Kernel->os,
                                             Kernel->hardware,
                                             gcvBROADCAST_LAST_PROCESS));
@@ -4298,7 +4272,7 @@ gckKERNEL_AllocateVirtualCommandBuffer(
 {
     gceSTATUS                       status;
     gckOS                           os = Kernel->os;
-    gckVIRTUAL_COMMAND_BUFFER_PTR    buffer;
+    gckVIRTUAL_COMMAND_BUFFER_PTR   buffer;
 
     gcmkHEADER_ARG("Os=0x%X InUserSpace=%d *Bytes=%lu",
         os, InUserSpace, gcmOPT_VALUE(Bytes));

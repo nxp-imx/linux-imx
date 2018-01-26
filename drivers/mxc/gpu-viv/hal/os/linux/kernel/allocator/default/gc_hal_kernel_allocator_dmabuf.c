@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2017 Vivante Corporation
+*    Copyright (c) 2014 - 2018 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2017 Vivante Corporation
+*    Copyright (C) 2014 - 2018 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -289,7 +289,7 @@ OnError:
         gcmkOS_SAFE_FREE(os, pagearray);
     }
 
-    if(sgt)
+    if (sgt)
     {
         dma_buf_unmap_attachment(attachment, sgt, DMA_BIDIRECTIONAL);
     }
@@ -497,7 +497,9 @@ _DmabufAlloctorInit(
     gcmkONERROR(
         gckALLOCATOR_Construct(Os, &DmabufAllocatorOperations, &allocator));
 
-    allocator->capability = gcvALLOC_FLAG_DMABUF;
+    allocator->capability = gcvALLOC_FLAG_DMABUF
+                          | gcvALLOC_FLAG_DMABUF_EXPORTABLE
+                          ;
 
     /* Register private data. */
     allocator->privateData = priv;

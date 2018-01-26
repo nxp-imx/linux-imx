@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2017 Vivante Corporation
+*    Copyright (c) 2014 - 2018 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2017 Vivante Corporation
+*    Copyright (C) 2014 - 2018 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -162,21 +162,13 @@ _DmaAlloc(
     struct mdl_dma_priv *mdlPriv=gcvNULL;
     gckOS os = Allocator->os;
 
-#if defined CONFIG_ARM64
-    struct device *dev = _GetDevice(os);
-#endif
-
     gcmkHEADER_ARG("Mdl=%p NumPages=0x%zx Flags=0x%x", Mdl, NumPages, Flags);
-
-#if defined CONFIG_ARM64
-    gcmkVERIFY_ARGUMENT(dev);
-#endif
 
     gcmkONERROR(gckOS_Allocate(os, sizeof(struct mdl_dma_priv), (gctPOINTER *)&mdlPriv));
 
     mdlPriv->kvaddr
 #if defined CONFIG_ARM64
-        = dma_alloc_coherent(dev, NumPages * PAGE_SIZE, &mdlPriv->dmaHandle, GFP_KERNEL | gcdNOWARN);
+        = dma_alloc_coherent(_GetDevice(os), NumPages * PAGE_SIZE, &mdlPriv->dmaHandle, GFP_KERNEL | gcdNOWARN);
 #elif defined CONFIG_MIPS || defined CONFIG_CPU_CSKYV2 || defined CONFIG_PPC
         = dma_alloc_coherent(gcvNULL, NumPages * PAGE_SIZE, &mdlPriv->dmaHandle, GFP_KERNEL | gcdNOWARN);
 #else
@@ -251,7 +243,12 @@ _DmaGetSGT(
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
 
-    page = virt_to_page(mdlPriv->kvaddr);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
+    page = phys_to_page (mdlPriv->dmaHandle);
+#else
+    page = phys_to_page(dma_to_phys(&Allocator->os->device->platform->device->dev, mdlPriv->dmaHandle));
+#endif
+
     for (i = 0; i < numPages; ++i)
     {
         pages[i] = nth_page(page, i + skipPages);
@@ -581,7 +578,7 @@ _DmaAlloctorInit(
      * DMA allocator is only used for NonPaged memory
      * when NO_DMA_COHERENT is not defined.
      */
-    allocator->capability = 0;
+    allocator->capability = gcvALLOC_FLAG_DMABUF_EXPORTABLE;
 
     *Allocator = allocator;
 

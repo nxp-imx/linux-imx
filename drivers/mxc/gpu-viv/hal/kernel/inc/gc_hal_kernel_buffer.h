@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2017 Vivante Corporation
+*    Copyright (c) 2014 - 2018 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2017 Vivante Corporation
+*    Copyright (C) 2014 - 2018 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -112,6 +112,9 @@ typedef struct _gcsSTATE_DELTA
        the overflow.*/
     gctUINT                     id;
 
+    /* The number of contexts pending modification by the delta. */
+    gctINT                      refCount;
+
     /* Vertex element count for the delta buffer. */
     gctUINT                     elementCount;
 
@@ -120,7 +123,6 @@ typedef struct _gcsSTATE_DELTA
 
     /* Record array; holds all modified states in gcsSTATE_DELTA_RECORD. */
     gctUINT64                   recordArray;
-    gctUINT                     recordSize;
 
     /* Map entry ID is used for map entry validation. If map entry ID does not
        match the main state delta ID, the entry and the corresponding state are
@@ -131,6 +133,10 @@ typedef struct _gcsSTATE_DELTA
     /* If the map entry ID matches the main state delta ID, index points to
        the state record in the record array. */
     gctUINT64                   mapEntryIndex;
+
+    /* Previous and next state deltas in gcsSTATE_DELTA. */
+    gctUINT64                   prev;
+    gctUINT64                   next;
 }
 gcsSTATE_DELTA;
 
