@@ -1135,7 +1135,7 @@
 		assigned-clock-parents = <&clk IMX8MQ_GPU_PLL_OUT>, <&clk IMX8MQ_GPU_PLL_OUT>, <&clk IMX8MQ_GPU_PLL_OUT>, <&clk IMX8MQ_GPU_PLL_OUT>;
 		assigned-clock-rates = <800000000>, <800000000>, <800000000>, <800000000>;
 		power-domains = <&gpu_pd>;
-		depth-compression = <1>;
+		depth-compression = <0>;
 		status = "disabled";
 	};
 
