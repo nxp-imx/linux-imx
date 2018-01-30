@@ -3162,3 +3162,44 @@
 	clock-latency = <61036>;
 	#cooling-cells = <2>;
 };
+
+/* Data for energy-aware-scheduling */
+/{
+	cpus {
+		energy-costs {
+			CPU_COST_A35: core-cost-a35 {
+				busy-cost-data = <
+					853  1623
+					1024 2356
+				>;
+				idle-cost-data = <
+					94
+					0
+				>;
+			};
+			CLUSTER_COST_A35: cluster-cost-a35 {
+				busy-cost-data = <
+					853  2132
+					1024 3095
+				>;
+				idle-cost-data = <
+					1037
+					1037
+				>;
+			};
+		};
+	};
+};
+
+&A35_0 {
+	sched-energy-costs = <&CPU_COST_A35 &CLUSTER_COST_A35>;
+};
+&A35_1 {
+	sched-energy-costs = <&CPU_COST_A35 &CLUSTER_COST_A35>;
+};
+&A35_2 {
+	sched-energy-costs = <&CPU_COST_A35 &CLUSTER_COST_A35>;
+};
+&A35_3 {
+	sched-energy-costs = <&CPU_COST_A35 &CLUSTER_COST_A35>;
+};

@@ -199,3 +199,89 @@
 	clock-latency = <61036>;
 	#cooling-cells = <2>;
 };
+
+/* Data for energy-aware-scheduling */
+/{
+	cpus {
+		energy-costs {
+			CPU_COST_A53: core-cost-a53 {
+				busy-cost-data = <
+					226 546
+					340 975
+					417 1914
+					453 2356
+				>;
+				idle-cost-data = <
+					94
+					94
+					94
+					0
+				>;
+			};
+			CLUSTER_COST_A53: cluster-cost-a53 {
+				busy-cost-data = <
+					226 498
+					340 816
+					417 2366
+					453 3095
+				>;
+				idle-cost-data = <
+					1037
+					1037
+					1037
+					1037
+				>;
+			};
+			CPU_COST_A72: core-cost-a72 {
+				// Hack: EnergyModel model notebook measured -178 for lowest freq
+				busy-cost-data = <
+					321 178
+					641 1520
+					834 4190
+					976 6154
+					1024 5285
+				>;
+				idle-cost-data = <
+					88
+					88
+					88
+					0
+				>;
+			};
+			CLUSTER_COST_A72: cluster-cost-a72 {
+				busy-cost-data = <
+					321 2496
+					641 3638
+					834 5454
+					976 6790
+					1024 15380
+				>;
+				idle-cost-data = <
+					1109
+					1109
+					1109
+					1109
+				>;
+			};
+		};
+	};
+};
+
+&A53_0 {
+	sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
+};
+&A53_1 {
+	sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
+};
+&A53_2 {
+	sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
+};
+&A53_3 {
+	sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
+};
+&A72_0 {
+	sched-energy-costs = <&CPU_COST_A72 &CLUSTER_COST_A72>;
+};
+&A72_1 {
+	sched-energy-costs = <&CPU_COST_A72 &CLUSTER_COST_A72>;
+};
