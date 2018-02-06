@@ -14,6 +14,8 @@
 #ifndef __LINUX_ARM_SMCCC_H
 #define __LINUX_ARM_SMCCC_H
 
+#include <uapi/linux/const.h>
+
 /*
  * This file provides common defines for ARM SMC Calling Convention as
  * specified in
@@ -21,8 +23,8 @@
  */
 
 /* This constant is shifted by 31, make sure it's of an unsigned type */
-#define ARM_SMCCC_STD_CALL		0UL
-#define ARM_SMCCC_FAST_CALL		1UL
+#define ARM_SMCCC_STD_CALL	        _AC(0,U)
+#define ARM_SMCCC_FAST_CALL	        _AC(1,U)
 #define ARM_SMCCC_TYPE_SHIFT		31
 
 #define ARM_SMCCC_SMC_32		0
