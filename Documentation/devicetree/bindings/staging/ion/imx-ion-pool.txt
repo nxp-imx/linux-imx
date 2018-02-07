@@ -1,0 +1,17 @@
+Freescale reserved memory regions
+
+iMX reserved memory pool, being merged into cma region
+
+Required properties
+- compatible: "imx-ion-pool"
+
+Required properties:
+ - reg: (standard definition) static memory range
+
+
+Example:
+  vpu_region: imx_ion@2 {
+    compatible = "imx-ion-pool";
+    reg = <0x0 0xe4000000 0 0x02000000>;
+  };
+
