@@ -1968,9 +1968,7 @@ static int process_ctrl_td(struct xhci_hcd *xhci, struct xhci_td *td,
 	switch (trb_comp_code) {
 	case COMP_SUCCESS:
 		if (event_trb == ep_ring->dequeue) {
-			xhci_warn(xhci, "WARN: Success on ctrl setup TRB "
-					"without IOC set??\n");
-			*status = -ESHUTDOWN;
+			*status = 0;
 		} else if (event_trb != td->last_trb) {
 			xhci_warn(xhci, "WARN: Success on ctrl data TRB "
 					"without IOC set??\n");
