@@ -132,7 +132,7 @@ u32 imx6_lpddr2_freq_change_start, imx6_lpddr2_freq_change_end;
 void mx6_lpddr2_freq_change(u32 freq, int bus_freq_mode) {}
 #endif
 
-#if !defined(CONFIG_SOC_IMX6SL)
+#if !defined(CONFIG_SOC_IMX6SLL)
 void imx6sll_lpddr2_freq_change(u32 freq, int bus_freq_mode) {}
 #endif
 
