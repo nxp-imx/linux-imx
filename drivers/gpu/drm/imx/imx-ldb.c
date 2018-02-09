@@ -294,6 +294,10 @@ static void imx_ldb_set_clock(struct imx_ldb *ldb, int mux, int chno,
 			chno);
 }
 
+#ifndef CONFIG_HAVE_IMX8_SOC
+static void dpu_pixel_link_validate(int dpu_id, int stream_id) {}
+static void dpu_pixel_link_invalidate(int dpu_id, int stream_id) {}
+#else
 /* FIXME: validate pixel link in a proper manner */
 static void dpu_pixel_link_validate(int dpu_id, int stream_id)
 {
@@ -382,6 +386,7 @@ static void dpu_pixel_link_invalidate(int dpu_id, int stream_id)
 
 	sc_ipc_close(mu_id);
 }
+#endif
 
 static void imx_ldb_encoder_enable(struct drm_encoder *encoder)
 {
@@ -1013,6 +1018,9 @@ static int imx_ldb_panel_ddc(struct device *dev,
 	return 0;
 }
 
+#ifndef CONFIG_HAVE_IMX8_SOC
+static void ldb_pixel_link_init(int id) {}
+#else
 static void ldb_pixel_link_init(int id)
 {
 	sc_err_t sciErr;
@@ -1055,6 +1063,7 @@ static void ldb_pixel_link_init(int id)
 
 	sc_ipc_close(mu_id);
 }
+#endif
 
 static int imx_ldb_bind(struct device *dev, struct device *master, void *data)
 {
