@@ -34,14 +34,17 @@ typedef enum misc_func_e {
 	MISC_FUNC_SECO_AUTHENTICATE = 9,	/* Index for misc_seco_authenticate() RPC call */
 	MISC_FUNC_DEBUG_OUT = 10,	/* Index for misc_debug_out() RPC call */
 	MISC_FUNC_WAVEFORM_CAPTURE = 6,	/* Index for misc_waveform_capture() RPC call */
+	MISC_FUNC_BUILD_INFO = 15,	/* Index for misc_build_info() RPC call */
+	MISC_FUNC_UNIQUE_ID = 19,	/* Index for misc_unique_id() RPC call */
 	MISC_FUNC_SET_ARI = 3,	/* Index for misc_set_ari() RPC call */
 	MISC_FUNC_BOOT_STATUS = 7,	/* Index for misc_boot_status() RPC call */
 	MISC_FUNC_BOOT_DONE = 14,	/* Index for misc_boot_done() RPC call */
 	MISC_FUNC_OTP_FUSE_READ = 11,	/* Index for misc_otp_fuse_read() RPC call */
+	MISC_FUNC_OTP_FUSE_WRITE = 17,	/* Index for misc_otp_fuse_write() RPC call */
 	MISC_FUNC_SET_TEMP = 12,	/* Index for misc_set_temp() RPC call */
 	MISC_FUNC_GET_TEMP = 13,	/* Index for misc_get_temp() RPC call */
-	MISC_FUNC_GET_BUTTON_STATUS = 18,       /* Index for misc_get_button_status() RPC call */
-
+	MISC_FUNC_GET_BOOT_DEV = 16,	/* Index for misc_get_boot_dev() RPC call */
+	MISC_FUNC_GET_BUTTON_STATUS = 18,	/* Index for misc_get_button_status() RPC call */
 } misc_func_t;
 
 /* Functions */

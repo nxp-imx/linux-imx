@@ -125,6 +125,16 @@
 #define SC_PM_RESET_REASON_LOW_VOLT    7	/* Low voltage reset */
 /*@}*/
 
+/*!
+ * @name Defines for sc_pm_sys_if_t
+ */
+/*@{*/
+#define SC_PM_SYS_IF_INTERCONNECT       0	/* System interconnect */
+#define SC_PM_SYS_IF_MU                 1	/* AP -> SCU message units */
+#define SC_PM_SYS_IF_OCMEM              2	/* On-chip memory (ROM/OCRAM) */
+#define SC_PM_SYS_IF_DDR                3	/* DDR memory */
+/*@}*/
+
 /* Types */
 
 /*!
@@ -164,12 +174,34 @@ typedef uint8_t sc_pm_reset_type_t;
  */
 typedef uint8_t sc_pm_reset_reason_t;
 
+/*!
+ * This type is used to specify a system-level interface to be power managed.
+ */
+typedef uint8_t sc_pm_sys_if_t;
+
 /* Functions */
 
 /*!
  * @name Power Functions
  * @{
  */
+
+/*!
+ * This function sets the system power mode. Only the owner of the
+ * SC_R_SYSTEM resource can do this.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     mode        power mode to apply
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_PARM if invalid mode,
+ * - SC_ERR_NOACCESS if caller not the owner of SC_R_SYSTEM
+ *
+ * @see sc_pm_set_sys_power_mode().
+ */
+sc_err_t sc_pm_set_sys_power_mode(sc_ipc_t ipc, sc_pm_power_mode_t mode);
 
 /*!
  * This function sets the power mode of a partition.
@@ -190,8 +222,8 @@ typedef uint8_t sc_pm_reset_reason_t;
  *
  * @see sc_pm_set_resource_power_mode().
  */
-sc_err_t sc_pm_set_sys_power_mode(sc_ipc_t ipc, sc_rm_pt_t pt,
-				  sc_pm_power_mode_t mode);
+sc_err_t sc_pm_set_partition_power_mode(sc_ipc_t ipc, sc_rm_pt_t pt,
+					sc_pm_power_mode_t mode);
 
 /*!
  * This function gets the power mode of a partition.
@@ -222,8 +254,7 @@ sc_err_t sc_pm_get_sys_power_mode(sc_ipc_t ipc, sc_rm_pt_t pt,
  * - SC_ERR_NOACCESS if caller's partition is not the resource owner
  *   or parent of the owner
  *
- * Note only SC_PM_PW_MODE_OFF and SC_PM_PW_MODE_ON are valid. Other modes
- * will return an error. Resources set to SC_PM_PW_MODE_ON will reflect the
+ * Resources set to SC_PM_PW_MODE_ON will reflect the
  * power mode of the partition and will change as that changes.
  *
  * Note some resources are still not accessible even when powered up if bus
@@ -231,7 +262,7 @@ sc_err_t sc_pm_get_sys_power_mode(sc_ipc_t ipc, sc_rm_pt_t pt,
  * resources in display and capture subsystems which require the display
  * controller or the imaging subsytem to be powered up first.
  *
- *  @see sc_pm_set_sys_power_mode().
+ *  @see sc_pm_set_partition_power_mode().
  */
 sc_err_t sc_pm_set_resource_power_mode(sc_ipc_t ipc, sc_rsrc_t resource,
 				       sc_pm_power_mode_t mode);
@@ -250,6 +281,66 @@ sc_err_t sc_pm_set_resource_power_mode(sc_ipc_t ipc, sc_rsrc_t resource,
  */
 sc_err_t sc_pm_get_resource_power_mode(sc_ipc_t ipc, sc_rsrc_t resource,
 				       sc_pm_power_mode_t *mode);
+
+/*!
+ * This function requests the low power mode some of the resources
+ * can enter based on their state. This API is only valid for the
+ * following resources : SC_R_A53, SC_R_A53_0, SC_R_A53_1, SC_A53_2,
+ * SC_A53_3, SC_R_A72, SC_R_A72_0, SC_R_A72_1, SC_R_CC1, SC_R_A35,
+ * SC_R_A35_0, SC_R_A35_1, SC_R_A35_2, SC_R_A35_3.
+ * For all other resources it will return SC_ERR_PARAM.
+ * This function will set the low power mode the cores, cluster
+ * and cluster associated resources will enter when all the cores
+ * in a given cluster execute WFI
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     resource    ID of the resource
+ * @param[out]    mode        pointer to return power mode
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ */
+sc_err_t sc_pm_req_low_power_mode(sc_ipc_t ipc, sc_rsrc_t resource,
+				  sc_pm_power_mode_t mode);
+
+/*!
+ * This function is used to set the resume address of a CPU.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     resource    ID of the CPU resource
+ * @param[in]     address     64-bit resume address
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_PARM if invalid resource or address,
+ * - SC_ERR_NOACCESS if caller's partition is not the parent of the
+ *   resource (CPU) owner
+ */
+sc_err_t sc_pm_set_cpu_resume_addr(sc_ipc_t ipc, sc_rsrc_t resource,
+				   sc_faddr_t address);
+
+/*!
+ * This function requests the power mode configuration for system-level
+ * interfaces including messaging units, interconnect, and memories.  This API
+ * is only valid for the following resources : SC_R_A53, SC_R_A72, and
+ * SC_R_M4_x_PID_y.  For all other resources, it will return SC_ERR_PARAM.
+ * The requested power mode will be captured and applied to system-level
+ * resources as system conditions allow.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     resource    ID of the resource
+ * @param[in]     sys_if      system-level interface to be configured
+ * @param[in]     hpm         high-power mode for the system interface
+ * @param[in]     lpm         low-power mode for the system interface
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ */
+sc_err_t sc_pm_req_sys_if_power_mode(sc_ipc_t ipc, sc_rsrc_t resource,
+				     sc_pm_sys_if_t sys_if,
+				     sc_pm_power_mode_t hpm,
+				     sc_pm_power_mode_t lpm);
 
 /* @} */
 
@@ -384,7 +475,8 @@ sc_err_t sc_pm_get_clock_parent(sc_ipc_t ipc, sc_rsrc_t resource,
  * @return Returns an error code (SC_ERR_NONE = success).
  *
  * Return errors:
- * - SC_ERR_PARM if invalid type
+ * - SC_ERR_PARM if invalid type,
+ * - SC_ERR_NOACCESS if caller not the owner of SC_R_SYSTEM
  *
  * If this function returns, then the reset did not occur due to an
  * invalid parameter.
