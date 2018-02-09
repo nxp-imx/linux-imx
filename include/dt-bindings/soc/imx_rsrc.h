@@ -153,10 +153,10 @@
 #define SC_R_DMA_1_CH29                 137
 #define SC_R_DMA_1_CH30                 138
 #define SC_R_DMA_1_CH31                 139
-#define SC_R_DRC_0_V                    140
-#define SC_R_DRC_0_H                    141
-#define SC_R_DRC_1_V                    142
-#define SC_R_DRC_1_H                    143
+#define SC_R_UNUSED1                    140
+#define SC_R_UNUSED2                    141
+#define SC_R_UNUSED3                    142
+#define SC_R_UNUSED4                    143
 #define SC_R_GPU_0_PID0                 144
 #define SC_R_GPU_0_PID1                 145
 #define SC_R_GPU_0_PID2                 146
@@ -334,10 +334,10 @@
 #define SC_R_SAI_0                      318
 #define SC_R_SAI_1                      319
 #define SC_R_SAI_2                      320
-#define SC_R_SPBA                       321
-#define SC_R_QSPI_0                     322
-#define SC_R_SDMA                       323
-#define SC_R_IRQSTR_MW                  324
+#define SC_R_IRQSTR_SCU2                321
+#define SC_R_IRQSTR_DSP                 322
+#define SC_R_UNUSED5                    323
+#define SC_R_UNUSED6                    324
 #define SC_R_AUDIO_PLL_0                325
 #define SC_R_PI_0                       326
 #define SC_R_PI_0_PWM_0                 327
@@ -525,13 +525,13 @@
 #define SC_R_A35_1                      509
 #define SC_R_A35_2                      510
 #define SC_R_A35_3                      511
-#define SC_R_HIFI                       512
-#define SC_R_HIFI_RAM                   513
+#define SC_R_DSP                        512
+#define SC_R_DSP_RAM                    513
 #define SC_R_CAAM_JR1_OUT               514
 #define SC_R_CAAM_JR2_OUT               515
 #define SC_R_CAAM_JR3_OUT               516
-#define SC_R_VPU_DEC                    517
-#define SC_R_VPU_ENC                    518
+#define SC_R_VPU_DEC_0                  517
+#define SC_R_VPU_ENC_0                  518
 #define SC_R_CAAM_JR0                   519
 #define SC_R_CAAM_JR0_OUT               520
 #define SC_R_PMIC_2                     521
@@ -545,6 +545,15 @@
 #define SC_R_BOARD_R5                   529
 #define SC_R_BOARD_R6                   530
 #define SC_R_BOARD_R7                   531
-#define SC_R_LAST                       532
+#define SC_R_MJPEG_DEC_MP               532
+#define SC_R_MJPEG_ENC_MP               533
+#define SC_R_VPU_TS_0                   534
+#define SC_R_VPU_MU_0                   535
+#define SC_R_VPU_MU_1                   536
+#define SC_R_VPU_MU_2                   537
+#define SC_R_VPU_MU_3                   538
+#define SC_R_VPU_ENC_1                  539
+#define SC_R_VPU                        540
+#define SC_R_LAST                       541
 
 #endif				/* __DT_BINDINGS_RSCRC_IMX_H */

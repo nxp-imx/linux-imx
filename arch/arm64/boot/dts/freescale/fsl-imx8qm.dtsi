@@ -866,7 +866,7 @@
 
 		pd_vpu: PD_VPU {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_VPU_PID0>;
+			reg = <SC_R_VPU>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -878,13 +878,13 @@
 			};
 
 			pd_vpu_enc: VPU_ENC {
-				reg = <SC_R_VPU_ENC>;
+				reg = <SC_R_VPU_ENC_0>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_vpu_core>;
 			};
 
 			pd_vpu_dec: VPU_DEC {
-				reg = <SC_R_VPU_DEC>;
+				reg = <SC_R_VPU_DEC_0>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_vpu_core>;
 			};
