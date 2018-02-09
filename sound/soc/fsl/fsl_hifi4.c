@@ -2102,7 +2102,7 @@ static void hifi4_load_firmware(const struct firmware *fw, void *context)
 
 	/* start the core */
 	sc_pm_cpu_start(hifi4_priv->hifi_ipcHandle,
-					SC_R_HIFI, true, hifi4_priv->iram);
+					SC_R_DSP, true, hifi4_priv->iram);
 }
 
 /* Initialization of the MU code. */
@@ -2209,28 +2209,28 @@ static int fsl_hifi4_probe(struct platform_device *pdev)
 		return sciErr;
 	};
 
-	sciErr = sc_misc_set_control(hifi4_priv->hifi_ipcHandle, SC_R_HIFI,
+	sciErr = sc_misc_set_control(hifi4_priv->hifi_ipcHandle, SC_R_DSP,
 				SC_C_OFS_SEL, 1);
 	if (sciErr != SC_ERR_NONE) {
 		dev_err(&pdev->dev, "Error system address offset source select\n");
 		return -EIO;
 	}
 
-	sciErr = sc_misc_set_control(hifi4_priv->hifi_ipcHandle, SC_R_HIFI,
+	sciErr = sc_misc_set_control(hifi4_priv->hifi_ipcHandle, SC_R_DSP,
 				SC_C_OFS_AUDIO, 0x80);
 	if (sciErr != SC_ERR_NONE) {
 		dev_err(&pdev->dev, "Error system address offset of AUDIO\n");
 		return -EIO;
 	}
 
-	sciErr = sc_misc_set_control(hifi4_priv->hifi_ipcHandle, SC_R_HIFI,
+	sciErr = sc_misc_set_control(hifi4_priv->hifi_ipcHandle, SC_R_DSP,
 				SC_C_OFS_PERIPH, 0x5A);
 	if (sciErr != SC_ERR_NONE) {
 		dev_err(&pdev->dev, "Error system address offset of PERIPH\n");
 		return -EIO;
 	}
 
-	sciErr = sc_misc_set_control(hifi4_priv->hifi_ipcHandle, SC_R_HIFI,
+	sciErr = sc_misc_set_control(hifi4_priv->hifi_ipcHandle, SC_R_DSP,
 				SC_C_OFS_IRQ, 0x51);
 	if (sciErr != SC_ERR_NONE) {
 		dev_err(&pdev->dev, "Error system address offset of IRQ\n");
@@ -2328,7 +2328,7 @@ static int fsl_hifi4_runtime_resume(struct device *dev)
 	int ret;
 
 	if (sc_pm_set_resource_power_mode(hifi4_priv->hifi_ipcHandle,
-			SC_R_HIFI_RAM, SC_PM_PW_MODE_ON) != SC_ERR_NONE) {
+			SC_R_DSP_RAM, SC_PM_PW_MODE_ON) != SC_ERR_NONE) {
 		dev_err(dev, "Error power on HIFI RAM\n");
 		return -EIO;
 	}
@@ -2367,7 +2367,7 @@ static int fsl_hifi4_runtime_suspend(struct device *dev)
 	struct fsl_hifi4 *hifi4_priv = dev_get_drvdata(dev);
 
 	if (sc_pm_set_resource_power_mode(hifi4_priv->hifi_ipcHandle,
-			SC_R_HIFI_RAM, SC_PM_PW_MODE_OFF) != SC_ERR_NONE) {
+			SC_R_DSP_RAM, SC_PM_PW_MODE_OFF) != SC_ERR_NONE) {
 		dev_err(dev, "Error power off HIFI RAM\n");
 		return -EIO;
 	}
