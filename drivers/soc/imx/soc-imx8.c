@@ -196,12 +196,6 @@ static struct imx8_soc_data imx8qm_soc_data = {
 	.soc_revision = imx8qm_soc_revision,
 };
 
-static struct imx8_soc_data imx8qp_soc_data = {
-	.name = "i.MX8QP",
-	.soc_revision = imx8qm_soc_revision,
-};
-
-
 static struct imx8_soc_data imx8qxp_soc_data = {
 	.name = "i.MX8QXP",
 	.soc_revision = imx8qxp_soc_revision,
@@ -214,7 +208,6 @@ static struct imx8_soc_data imx8mq_soc_data = {
 
 static const struct of_device_id imx8_soc_match[] = {
 	{ .compatible = "fsl,imx8qm", .data = &imx8qm_soc_data, },
-	{ .compatible = "fsl,imx8qp", .data = &imx8qp_soc_data, },
 	{ .compatible = "fsl,imx8qxp", .data = &imx8qxp_soc_data, },
 	{ .compatible = "fsl,imx8mq", .data = &imx8mq_soc_data, },
 	{ }
