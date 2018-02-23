@@ -20,6 +20,7 @@
 
 #include <linux/futex.h>
 #include <linux/uaccess.h>
+#include <linux/compiler.h>
 
 #include <asm/errno.h>
 
