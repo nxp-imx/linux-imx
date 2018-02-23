@@ -357,14 +357,14 @@ static inline unsigned long __must_check __copy_from_user(void *to, const void _
 {
 	kasan_check_write(to, n);
 	check_object_size(to, n, false);
-	return __arch_copy_from_user(to, from, n);
+	return __arch_copy_from_user(to, __uaccess_mask_ptr(from), n);
 }
 
 static inline unsigned long __must_check __copy_to_user(void __user *to, const void *from, unsigned long n)
 {
 	kasan_check_read(from, n);
 	check_object_size(from, n, true);
-	return __arch_copy_to_user(to, from, n);
+	return __arch_copy_to_user(__uaccess_mask_ptr(to), from, n);
 }
 
 static inline unsigned long __must_check copy_from_user(void *to, const void __user *from, unsigned long n)
@@ -374,7 +374,7 @@ static inline unsigned long __must_check copy_from_user(void *to, const void __u
 	check_object_size(to, n, false);
 
 	if (access_ok(VERIFY_READ, from, n)) {
-		res = __arch_copy_from_user(to, from, n);
+		res = __arch_copy_from_user(to, __uaccess_mask_ptr(from), n);
 	}
 	if (unlikely(res))
 		memset(to + (n - res), 0, res);
@@ -387,7 +387,7 @@ static inline unsigned long __must_check copy_to_user(void __user *to, const voi
 	check_object_size(from, n, true);
 
 	if (access_ok(VERIFY_WRITE, to, n)) {
-		n = __arch_copy_to_user(to, from, n);
+		n = __arch_copy_to_user(__uaccess_mask_ptr(to), from, n);
 	}
 	return n;
 }
@@ -395,7 +395,7 @@ static inline unsigned long __must_check copy_to_user(void __user *to, const voi
 static inline unsigned long __must_check copy_in_user(void __user *to, const void __user *from, unsigned long n)
 {
 	if (access_ok(VERIFY_READ, from, n) && access_ok(VERIFY_WRITE, to, n))
-		n = __copy_in_user(to, from, n);
+		n = __copy_in_user(__uaccess_mask_ptr(to), __uaccess_mask_ptr(from), n);
 	return n;
 }
 
