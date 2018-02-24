@@ -182,7 +182,4 @@ int mmc_cqe_recovery(struct mmc_host *host);
 int mmc_hw_reset(struct mmc_host *host);
 void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card);
 
-int mmc_first_nonreserved_index(void);
-int mmc_get_reserved_index(struct mmc_host *host);
-
 #endif /* LINUX_MMC_CORE_H */
