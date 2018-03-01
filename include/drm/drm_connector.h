@@ -274,6 +274,11 @@ struct drm_display_info {
 	u8 cea_rev;
 
 	/**
+	 * @non_desktop: Non desktop display (HMD)
+	 */
+	bool non_desktop;
+
+	/**
 	 * @hdmi: advance features of a HDMI sink.
 	 */
 	struct drm_hdmi_info hdmi;
