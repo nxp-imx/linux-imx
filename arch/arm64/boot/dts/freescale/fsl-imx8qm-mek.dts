@@ -158,6 +158,15 @@
 		amix-controller = <&amix>;
 	};
 
+
+	sound-xtor {
+		compatible = "fsl,imx-audio-xtor";
+		model = "xtor-audio";
+		cpu-dai = <&sai0>;
+		status = "okay";
+	};
+
+
 	lvds_backlight0: lvds_backlight@0 {
 		compatible = "pwm-backlight";
 		pwms = <&lvds0_pwm 0 100000 0>;
@@ -365,14 +374,21 @@
 			>;
 		};
 
+		pinctrl_sai0: sai0grp {
+			fsl,pins = <
+				SC_P_SPI0_CS1_AUD_SAI0_TXC		0x0600004c
+				SC_P_SPI2_CS1_AUD_SAI0_TXFS		0x0600004c
+				SC_P_SAI1_RXFS_AUD_SAI0_RXD		0x0600004c
+				SC_P_SAI1_RXC_AUD_SAI0_TXD		0x0600006c
+			>;
+		};
 
 		pinctrl_sai1: sai1grp {
 			fsl,pins = <
-				SC_P_SAI1_RXD_AUD_SAI1_RXD		0x06000040
-				SC_P_SAI1_RXC_AUD_SAI1_RXC		0x06000040
-				SC_P_SAI1_RXFS_AUD_SAI1_RXFS		0x06000040
-				SC_P_SAI1_TXD_AUD_SAI1_TXD		0x06000060
-				SC_P_SAI1_TXC_AUD_SAI1_TXC		0x06000040
+				SC_P_SAI1_RXD_AUD_SAI1_RXD		0x0600004c
+				SC_P_SAI1_TXFS_AUD_SAI1_TXFS		0x0600004c
+				SC_P_SAI1_TXD_AUD_SAI1_TXD		0x0600006c
+				SC_P_SAI1_TXC_AUD_SAI1_TXC		0x0600004c
 			>;
 		};
 
@@ -614,6 +630,18 @@
 	pinctrl-1 = <&pinctrl_sim0>;
 	status = "okay";
 };
+
+&sai0 {
+	assigned-clocks = <&clk IMX8QM_AUD_PLL0_DIV>,
+			<&clk IMX8QM_AUD_ACM_AUD_PLL_CLK0_DIV>,
+			<&clk IMX8QM_AUD_ACM_AUD_REC_CLK0_DIV>,
+			<&clk IMX8QM_AUD_SAI_0_MCLK>;
+	assigned-clock-rates = <786432000>, <49152000>, <12288000>, <49152000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai0>;
+	status = "okay";
+};
+
 &sai1 {
 	assigned-clocks = <&clk IMX8QM_AUD_PLL0_DIV>,
 			<&clk IMX8QM_AUD_ACM_AUD_PLL_CLK0_DIV>,
