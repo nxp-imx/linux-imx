@@ -209,6 +209,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM9705 if SND_SOC_AC97_BUS
 	select SND_SOC_WM9712 if SND_SOC_AC97_BUS
 	select SND_SOC_WM9713 if SND_SOC_AC97_BUS
+	select SND_SOC_RPMSG_WM8960
         help
           Normally ASoC codec drivers are only built if a machine driver which
           uses them is also built since they are only usable with a machine
@@ -1099,6 +1100,9 @@ config SND_SOC_WM9712
 config SND_SOC_WM9713
 	tristate
 	select REGMAP_AC97
+
+config SND_SOC_RPMSG_WM8960
+	tristate
 
 # Amp
 config SND_SOC_LM4857
