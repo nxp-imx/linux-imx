@@ -25,13 +25,6 @@
 		stdout-path = &lpuart4;
 	};
 
-	bcmdhd_wlan_0: bcmdhd_wlan@0 {
-		compatible = "android,bcmdhd_wlan";
-		wlreg_on-supply = <&wlreg_on>;
-		bcmdhd_fw = "/vendor/firmware/bcm/1DX_BCM4343W/fw_bcmdhd.bin";
-		bcmdhd_nv = "/vendor/firmware/bcm/1DX_BCM4343W/bcmdhd.1DX.SDIO.cal";
-	};
-
 	memory {
 		device_type = "memory";
 		reg = <0x60000000 0x40000000>;
@@ -213,7 +206,7 @@
 
 	bt_rfkill {
 		compatible = "fsl,mxc_bt_rfkill";
-		bt-power-gpios = <&gpio2 7 0>;
+		bt-power-gpios = <&rpmsg_gpio0 15 GPIO_ACTIVE_LOW>;
 		status ="okay";
 	};
 };
