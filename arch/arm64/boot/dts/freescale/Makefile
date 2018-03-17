@@ -19,6 +19,7 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QM) += fsl-imx8qm-lpddr4-arm2.dtb \
 				 fsl-imx8qm-lpddr4-arm2_ca53.dtb \
 				 fsl-imx8qm-lpddr4-arm2_ca72.dtb \
 				 fsl-imx8qm-mek.dtb \
+				 fsl-imx8qm-mek-car.dtb \
 				 fsl-imx8qm-mek-mipi-ov5640.dtb \
 				 fsl-imx8qm-mek-mipi-two-ov5640.dtb \
 				 fsl-imx8qm-mek-8cam.dtb \
@@ -44,6 +45,7 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QM) += fsl-imx8qm-lpddr4-arm2.dtb \
 dtb-$(CONFIG_ARCH_FSL_IMX8QP) += fsl-imx8qp-lpddr4-arm2.dtb
 dtb-$(CONFIG_ARCH_FSL_IMX8QXP) += fsl-imx8qxp-lpddr4-arm2.dtb \
 				  fsl-imx8qxp-mek.dtb \
+				  fsl-imx8qxp-mek-car.dtb \
 				  fsl-imx8qxp-mek-dom0.dtb \
 				  fsl-imx8qxp-mek-csi.dtb \
 				  fsl-imx8qxp-mek-mipi-ov5640.dtb \
