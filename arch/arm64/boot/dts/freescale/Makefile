@@ -8,6 +8,7 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QM) += fsl-imx8qm-lpddr4-arm2.dtb \
 				 fsl-imx8qm-lpddr4-arm2_ca53.dtb \
 				 fsl-imx8qm-lpddr4-arm2_ca72.dtb \
 				 fsl-imx8qm-mek.dtb \
+				 fsl-imx8qm-mek-car.dtb \
 				 fsl-imx8qm-mek-8cam.dtb \
 				 fsl-imx8qm-mek_ca53.dtb \
 				 fsl-imx8qm-mek_ca72.dtb \
@@ -37,6 +38,7 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QXP) += fsl-imx8qxp-lpddr4-arm2.dtb \
 				  fsl-imx8qxp-mek-dom0.dtb \
 				  fsl-imx8qxp-mek-enet2.dtb \
 				  fsl-imx8qxp-mek-lvds0-it6263.dtb \
+				  fsl-imx8qxp-mek-lvds0-it6263-car.dtb \
 				  fsl-imx8qxp-mek-lvds1-it6263.dtb \
 				  fsl-imx8qxp-mek-lvds0-lvds1-it6263.dtb \
 				  fsl-imx8qxp-mek-dsi-adv7535.dtb \
