@@ -1135,7 +1135,7 @@ drm_atomic_helper_wait_for_vblanks(struct drm_device *dev,
 		ret = wait_event_timeout(dev->vblank[i].queue,
 				old_crtc_state->last_vblank_count !=
 					drm_crtc_vblank_count(crtc),
-				msecs_to_jiffies(50));
+				msecs_to_jiffies(100));
 
 		WARN(!ret, "[CRTC:%d] vblank wait timed out\n", crtc->base.id);
 
