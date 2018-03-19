@@ -317,6 +317,8 @@ struct synaptics_rmi4_data {
 	bool enable_wakeup_gesture;
 	bool staying_awake;
 	bool ext_afe_button;
+	bool x_rotation;
+	bool y_rotation;
 	unsigned char gesture_detection[F12_GESTURE_DETECTION_LEN];
 	int (*i2c_read)(struct synaptics_rmi4_data *pdata, unsigned short addr,
 			unsigned char *data, unsigned short length);

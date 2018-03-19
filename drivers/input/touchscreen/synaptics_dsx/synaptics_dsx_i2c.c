@@ -1095,6 +1095,11 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			wx = data.wx;
 			wy = data.wy;
 
+			if (rmi4_data->x_rotation)
+				x = rmi4_data->sensor_max_x - x;
+			if (rmi4_data->y_rotation)
+				y = rmi4_data->sensor_max_y - y;
+
 			input_report_key(rmi4_data->input_dev,
 					BTN_TOUCH, 1);
 			input_report_key(rmi4_data->input_dev,
@@ -1274,6 +1279,11 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			wx = finger_data->wx;
 			wy = finger_data->wy;
 #endif
+
+			if (rmi4_data->x_rotation)
+				x = rmi4_data->sensor_max_x - x;
+			if (rmi4_data->y_rotation)
+				y = rmi4_data->sensor_max_y - y;
 
 			input_report_key(rmi4_data->input_dev,
 					BTN_TOUCH, 1);
@@ -3238,6 +3248,9 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 	rmi4_data->sleep_enable = synaptics_rmi4_sleep_enable;
 
 	rmi4_data->i2c_addr = client->addr;
+
+	rmi4_data->x_rotation = of_property_read_bool(np, "synaptics,x-rotation");
+	rmi4_data->y_rotation = of_property_read_bool(np, "synaptics,y-rotation");
 
 	mutex_init(&(rmi4_data->rmi4_io_ctrl_mutex));
 	mutex_init(&(rmi4_data->rmi4_reset_mutex));
