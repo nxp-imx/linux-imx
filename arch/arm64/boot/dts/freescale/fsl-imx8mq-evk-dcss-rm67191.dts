@@ -135,6 +135,6 @@
 		synaptics,x-rotation;
 		synaptics,y-rotation;
 	/*	rest-gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;  */
-		status = "disabled";
+		status = "okay";
 	};
 };
