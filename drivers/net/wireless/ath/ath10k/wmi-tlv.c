@@ -639,6 +639,15 @@ static int ath10k_wmi_tlv_op_pull_mgmt_rx_ev(struct ath10k *ar,
 	skb_pull(skb, frame - skb->data);
 	skb_put(skb, msdu_len);
 
+	struct ieee80211_mgmt *mgmt = (void *)skb->data;
+	if (ieee80211_is_probe_resp(mgmt->frame_control) || (ieee80211_is_beacon(mgmt->frame_control))) {
+		struct timespec ts;
+		get_monotonic_boottime(&ts);
+
+		mgmt->u.probe_resp.timestamp =
+			((u64)ts.tv_sec * 1000000) + (ts.tv_nsec / 1000);
+	}
+
 	kfree(tb);
 	return 0;
 }
