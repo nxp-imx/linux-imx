@@ -46,6 +46,8 @@ struct dpu_crtc {
 	int			content_shdld_irq;
 	int			dec_shdld_irq;
 
+	bool			has_prefetch_fixup;
+
 	struct completion	safety_shdld_done;
 	struct completion	content_shdld_done;
 	struct completion	dec_shdld_done;
@@ -674,12 +676,14 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 	struct device *dev = dpu_crtc->dev;
 	struct dpu_plane_grp *plane_grp = pdata->plane_grp;
 	unsigned int stream_id = pdata->stream_id;
+	bool has_prefetch_fixup = dpu_has_prefetch_fixup(dpu);
 	int i, ret;
 
 	init_completion(&dpu_crtc->safety_shdld_done);
 	init_completion(&dpu_crtc->content_shdld_done);
 	init_completion(&dpu_crtc->dec_shdld_done);
 
+	dpu_crtc->has_prefetch_fixup = has_prefetch_fixup;
 	dpu_crtc->stream_id = stream_id;
 	dpu_crtc->hw_plane_num = plane_grp->hw_plane_num;
 
@@ -696,7 +700,8 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 
 	plane_grp->res.fg[stream_id] = dpu_crtc->fg;
 	dpu_crtc->plane[0] = dpu_plane_init(drm, 0, stream_id, plane_grp,
-					DRM_PLANE_TYPE_PRIMARY);
+					DRM_PLANE_TYPE_PRIMARY,
+					has_prefetch_fixup);
 	if (IS_ERR(dpu_crtc->plane[0])) {
 		ret = PTR_ERR(dpu_crtc->plane[0]);
 		dev_err(dev, "initializing plane0 failed with %d.\n", ret);
@@ -715,7 +720,8 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 		dpu_crtc->plane[i] = dpu_plane_init(drm,
 					drm_crtc_mask(&dpu_crtc->base),
 					stream_id, plane_grp,
-					DRM_PLANE_TYPE_OVERLAY);
+					DRM_PLANE_TYPE_OVERLAY,
+					has_prefetch_fixup);
 		if (IS_ERR(dpu_crtc->plane[i])) {
 			ret = PTR_ERR(dpu_crtc->plane[i]);
 			dev_err(dev, "initializing plane%d failed with %d.\n",
