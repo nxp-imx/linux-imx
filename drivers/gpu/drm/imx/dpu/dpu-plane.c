@@ -166,6 +166,9 @@ drm_plane_state_to_baseaddr(struct drm_plane_state *state)
 	cma_obj = drm_fb_cma_get_gem_obj(fb, 0);
 	BUG_ON(!cma_obj);
 
+	if (fb->modifier[0])
+		return cma_obj->paddr + fb->offsets[0];
+
 	return cma_obj->paddr + fb->offsets[0] + fb->pitches[0] * y +
 	       drm_format_plane_cpp(fb->pixel_format, 0) * x;
 }
@@ -180,6 +183,9 @@ drm_plane_state_to_uvbaseaddr(struct drm_plane_state *state)
 
 	cma_obj = drm_fb_cma_get_gem_obj(fb, 1);
 	BUG_ON(!cma_obj);
+
+	if (fb->modifier[1])
+		return cma_obj->paddr + fb->offsets[1];
 
 	x /= drm_format_horz_chroma_subsampling(fb->pixel_format);
 	y /= drm_format_vert_chroma_subsampling(fb->pixel_format);
@@ -247,7 +253,8 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	if (fb->modifier[2] || fb->modifier[3])
 		return -EINVAL;
 
-	if (fb->modifier[0] && (src_x || src_y))
+	if (fb->modifier[0] && (src_x || src_y) &&
+	    !dplane->has_prefetch_fixup)
 		return -EINVAL;
 
 	if (dplane->grp->has_vproc) {
