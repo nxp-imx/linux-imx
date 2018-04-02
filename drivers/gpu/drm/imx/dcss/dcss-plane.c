@@ -21,6 +21,7 @@
 
 #include "video/imx-dcss.h"
 #include "dcss-plane.h"
+#include "dcss-crtc.h"
 
 static const u32 dcss_common_formats[] = {
 	/* RGB */
@@ -53,6 +54,7 @@ static const u32 dcss_common_formats[] = {
 	/* YUV420 */
 	DRM_FORMAT_NV12,
 	DRM_FORMAT_NV21,
+	DRM_FORMAT_P010,
 };
 
 static const u64 dcss_video_format_modifiers[] = {
@@ -146,6 +148,7 @@ static bool dcss_plane_format_mod_supported(struct drm_plane *plane,
 		switch (format) {
 		case DRM_FORMAT_NV12:
 		case DRM_FORMAT_NV21:
+		case DRM_FORMAT_P010:
 			return modifier == DRM_FORMAT_MOD_VSI_G1_TILED ||
 			       modifier == DRM_FORMAT_MOD_VSI_G2_TILED ||
 			       modifier == DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED;
@@ -298,7 +301,8 @@ static void dcss_plane_atomic_set_base(struct dcss_plane *dcss_plane)
 	case DRM_PLANE_TYPE_OVERLAY:
 		if (!modifiers_present ||
 		    (pix_format != DRM_FORMAT_NV12 &&
-		     pix_format != DRM_FORMAT_NV21)) {
+		     pix_format != DRM_FORMAT_NV21 &&
+		     pix_format != DRM_FORMAT_P010)) {
 			dcss_dtrc_bypass(dcss_plane->dcss, dcss_plane->ch_num);
 			return;
 		}
@@ -353,6 +357,19 @@ static void dcss_plane_adjust(struct drm_rect *dis_rect,
 	*src = new_src;
 }
 
+static bool dcss_plane_format_has_alpha_channel(u32 pix_format)
+{
+	return pix_format == DRM_FORMAT_ARGB8888 ||
+	       pix_format == DRM_FORMAT_ABGR8888 ||
+	       pix_format == DRM_FORMAT_RGBA8888 ||
+	       pix_format == DRM_FORMAT_BGRA8888 ||
+	       pix_format == DRM_FORMAT_BGRA8888 ||
+	       pix_format == DRM_FORMAT_ARGB2101010 ||
+	       pix_format == DRM_FORMAT_ABGR2101010 ||
+	       pix_format == DRM_FORMAT_RGBA1010102 ||
+	       pix_format == DRM_FORMAT_BGRA1010102;
+}
+
 static void dcss_plane_atomic_update(struct drm_plane *plane,
 				     struct drm_plane_state *old_state)
 {
@@ -365,6 +382,8 @@ static void dcss_plane_atomic_update(struct drm_plane *plane,
 	u32 src_w, src_h, adj_w, adj_h;
 	struct drm_rect disp, crtc, src, old_src;
 	u32 scaler_w, scaler_h;
+	struct dcss_hdr10_pipe_cfg ipipe_cfg, opipe_cfg;
+	bool enable = true;
 
 	if (!state->fb)
 		return;
@@ -379,10 +398,6 @@ static void dcss_plane_atomic_update(struct drm_plane *plane,
 			dcss_dec400d_shadow_trig(dcss_plane->dcss);
 		return;
 	}
-
-	dcss_dpr_enable(dcss_plane->dcss, dcss_plane->ch_num, false);
-	dcss_scaler_enable(dcss_plane->dcss, dcss_plane->ch_num, false);
-	dcss_dtg_ch_enable(dcss_plane->dcss, dcss_plane->ch_num, false);
 
 	disp.x1 = 0;
 	disp.y1 = 0;
@@ -412,7 +427,7 @@ static void dcss_plane_atomic_update(struct drm_plane *plane,
 
 	if (plane->type == DRM_PLANE_TYPE_OVERLAY)
 		dcss_dtrc_set_res(dcss_plane->dcss, dcss_plane->ch_num,
-				  &src, &old_src);
+				  &src, &old_src, pixel_format);
 
 	/* DTRC has probably aligned the sizes. */
 	adj_w = src.x2 - src.x1;
@@ -447,13 +462,21 @@ static void dcss_plane_atomic_update(struct drm_plane *plane,
 			  crtc.y2 - crtc.y1,
 			  drm_mode_vrefresh(&crtc_state->mode));
 
-	/*
-	 * TODO: retrieve the output colorspace format from somewhere... For
-	 * now, assume RGB.
-	 */
-	dcss_hdr10_pipe_csc_setup(dcss_plane->dcss, dcss_plane->ch_num,
-				  dcss_drm_fourcc_to_colorspace(pixel_format),
-				  DCSS_COLORSPACE_RGB);
+	ipipe_cfg.pixel_format = pixel_format;
+	ipipe_cfg.nl = NL_REC709;
+	ipipe_cfg.pr = PR_FULL;
+	ipipe_cfg.g = G_REC709;
+
+	dcss_crtc_get_opipe_cfg(state->crtc, &opipe_cfg);
+
+	/* apparently the other settins that are read from connector are not good,
+	 * so hardcode */
+	opipe_cfg.nl = NL_REC709;
+	opipe_cfg.pr = PR_FULL;
+	opipe_cfg.g = G_REC2020;
+
+	dcss_hdr10_setup(dcss_plane->dcss, dcss_plane->ch_num,
+			 &ipipe_cfg, &opipe_cfg);
 
 	dcss_dtg_plane_pos_set(dcss_plane->dcss, dcss_plane->ch_num,
 			       crtc.x1, crtc.y1,
@@ -474,9 +497,22 @@ static void dcss_plane_atomic_update(struct drm_plane *plane,
 		WARN_ON(1);
 		break;
 	}
-	dcss_dpr_enable(dcss_plane->dcss, dcss_plane->ch_num, true);
-	dcss_scaler_enable(dcss_plane->dcss, dcss_plane->ch_num, true);
-	dcss_dtg_ch_enable(dcss_plane->dcss, dcss_plane->ch_num, true);
+
+	if (!dcss_plane->ch_num &&
+	    ((dcss_plane->alpha_val == 0 &&
+	    !dcss_plane_format_has_alpha_channel(pixel_format)) ||
+	    (dcss_plane->alpha_val == 0 && dcss_plane->use_global_val &&
+	     dcss_plane_format_has_alpha_channel(pixel_format))))
+		enable = false;
+
+	dcss_dpr_enable(dcss_plane->dcss, dcss_plane->ch_num, enable);
+	dcss_scaler_enable(dcss_plane->dcss, dcss_plane->ch_num, enable);
+
+	if (!enable)
+		dcss_dtg_plane_pos_set(dcss_plane->dcss, dcss_plane->ch_num,
+				       0, 0, 0, 0);
+
+	dcss_dtg_ch_enable(dcss_plane->dcss, dcss_plane->ch_num, enable);
 }
 
 static void dcss_plane_atomic_disable(struct drm_plane *plane,
@@ -531,6 +567,9 @@ struct dcss_plane *dcss_plane_init(struct drm_device *drm,
 		kfree(dcss_plane);
 		return ERR_PTR(ret);
 	}
+
+	if (type == DRM_PLANE_TYPE_OVERLAY)
+		dcss_plane->base.hdr_supported = true;
 
 	drm_plane_helper_add(&dcss_plane->base, &dcss_plane_helper_funcs);
 

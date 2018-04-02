@@ -14,10 +14,6 @@
 
 #include "fsl-imx8mq-evk.dts"
 
-&ov5640_mipi {
-	status = "disabled";
-};
-
 &hdmi {
 	status = "disabled";
 };
@@ -25,6 +21,25 @@
 &dcss {
 	status = "okay";
 	disp-dev = "mipi_disp";
+
+	clocks = <&clk IMX8MQ_CLK_DISP_APB_ROOT>,
+		 <&clk IMX8MQ_CLK_DISP_AXI_ROOT>,
+		 <&clk IMX8MQ_CLK_DISP_RTRM_ROOT>,
+		 <&clk IMX8MQ_CLK_DC_PIXEL_DIV>,
+		 <&clk IMX8MQ_CLK_DUMMY>,
+		 <&clk IMX8MQ_CLK_DISP_DTRC_DIV>;
+	clock-names = "apb", "axi", "rtrm", "pix_div", "pix_out", "dtrc";
+	assigned-clocks = <&clk IMX8MQ_CLK_DC_PIXEL_SRC>,
+			  <&clk IMX8MQ_CLK_DISP_AXI_SRC>,
+			  <&clk IMX8MQ_CLK_DISP_RTRM_SRC>,
+			  <&clk IMX8MQ_CLK_DISP_RTRM_PRE_DIV>;
+	assigned-clock-parents = <&clk IMX8MQ_VIDEO_PLL1_OUT>,
+				 <&clk IMX8MQ_SYS1_PLL_800M>,
+				 <&clk IMX8MQ_SYS1_PLL_800M>;
+	assigned-clock-rates = <594000000>,
+			       <800000000>,
+			       <400000000>,
+			       <400000000>;
 
 	dcss_disp0: port@0 {
 		reg = <0>;
@@ -39,6 +54,7 @@
 	adv_bridge: adv7535@3d {
 		compatible = "adi,adv7533";
 		reg = <0x3d>;
+		adi,addr-cec = <0x3b>;
 		adi,dsi-lanes = <4>;
 		status = "okay";
 

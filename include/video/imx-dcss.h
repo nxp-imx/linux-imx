@@ -72,10 +72,12 @@ void dcss_dtg_plane_alpha_set(struct dcss_soc *dcss, int ch_num,
 bool dcss_dtg_global_alpha_changed(struct dcss_soc *dcss, int ch_num,
 				   u32 pix_format, int alpha,
 				   int use_global_alpha);
+void dcss_dtg_css_set(struct dcss_soc *dcss, u32 pix_format);
 
 /* SUBSAM */
 void dcss_ss_sync_set(struct dcss_soc *dcss, struct videomode *vm,
 		      bool phsync, bool pvsync);
+void dcss_ss_subsam_set(struct dcss_soc *dcss, u32 pix_format);
 void dcss_ss_enable(struct dcss_soc *dcss, bool en);
 
 /* SCALER */
@@ -91,14 +93,42 @@ bool dcss_scaler_can_scale(struct dcss_soc *dcss, int ch_num,
 int dcss_ctxld_enable(struct dcss_soc *dcss);
 
 /* HDR10 */
-void dcss_hdr10_pipe_csc_setup(struct dcss_soc *dcss, int ch_num,
-			       enum dcss_color_space in_cs,
-			       enum dcss_color_space out_cs);
+enum dcss_hdr10_nonlinearity {
+	NL_REC2084,
+	NL_REC709,
+	NL_BT1886,
+	NL_2100HLG,
+	NL_SRGB,
+};
+
+enum dcss_hdr10_pixel_range {
+	PR_LIMITED,
+	PR_FULL,
+};
+
+enum dcss_hdr10_gamut {
+	G_REC2020,
+	G_REC709,
+	G_REC601_NTSC,
+	G_REC601_PAL,
+	G_ADOBE_ARGB,
+};
+
+struct dcss_hdr10_pipe_cfg {
+	u32 pixel_format;
+	enum dcss_hdr10_nonlinearity nl;
+	enum dcss_hdr10_pixel_range pr;
+	enum dcss_hdr10_gamut g;
+};
+
+void dcss_hdr10_setup(struct dcss_soc *dcss, int ch_num,
+		      struct dcss_hdr10_pipe_cfg *ipipe_cfg,
+		      struct dcss_hdr10_pipe_cfg *opipe_cfg);
 
 /* DTRC */
 void dcss_dtrc_bypass(struct dcss_soc *dcss, int ch_num);
 void dcss_dtrc_set_res(struct dcss_soc *dcss, int ch_num, struct drm_rect *src,
-		       struct drm_rect *old_src);
+		       struct drm_rect *old_src, u32 pixel_format);
 void dcss_dtrc_addr_set(struct dcss_soc *dcss, int ch_num, u32 p1_ba, u32 p2_ba,
 			uint64_t dec_table_ofs);
 void dcss_dtrc_enable(struct dcss_soc *dcss, int ch_num, bool enable);

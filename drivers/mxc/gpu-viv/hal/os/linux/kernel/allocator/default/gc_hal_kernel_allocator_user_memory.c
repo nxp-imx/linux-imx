@@ -330,6 +330,13 @@ _Import(
         struct vm_area_struct *vma = NULL;
         unsigned long vaddr = memory;
 
+        for (i = 0; i < pageCount; i++)
+        {
+            u32 data;
+            get_user(data, (u32 *)((memory & PAGE_MASK) + PAGE_SIZE * i));
+            put_user(data, (u32 *)((memory & PAGE_MASK) + PAGE_SIZE * i));
+        }
+
         vma = find_vma(current->mm, vaddr);
 
         if (!vma)
@@ -389,18 +396,6 @@ _Import(
     {
         gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
     }
-
-
-#ifdef CONFIG_ARM
-    if (memory)
-    {
-        for (i = 0; i < pageCount; i++)
-        {
-            u32 data;
-            get_user(data, (u32 *)((memory & PAGE_MASK) + PAGE_SIZE * i));
-        }
-    }
-#endif
 
     if (UserMemory->type == UM_PAGE_MAP)
     {

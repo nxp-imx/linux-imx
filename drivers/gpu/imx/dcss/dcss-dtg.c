@@ -16,6 +16,7 @@
 #include <linux/bitops.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <drm/drm_fourcc.h>
 
 #include <video/imx-dcss.h>
@@ -195,7 +196,6 @@ int dcss_dtg_init(struct dcss_soc *dcss, unsigned long dtg_base)
 	dtg->use_global = 0;
 
 	dtg->control_status |= OVL_DATA_MODE | BLENDER_VIDEO_ALPHA_SEL |
-		((0x5 << CSS_PIX_COMP_SWAP_POS) & CSS_PIX_COMP_SWAP_MASK) |
 		((dtg->alpha << DEFAULT_FG_ALPHA_POS) & DEFAULT_FG_ALPHA_MASK);
 
 	return 0;
@@ -235,9 +235,13 @@ void dcss_dtg_sync_set(struct dcss_soc *dcss, struct videomode *vm)
 	dis_lrc_y = vm->vsync_len + vm->vfront_porch + vm->vback_porch +
 		    vm->vactive - 1;
 
-	clk_disable_unprepare(dcss->p_clk);
-	clk_set_rate(dcss->p_clk, vm->pixelclock);
-	clk_prepare_enable(dcss->p_clk);
+	clk_disable_unprepare(dcss->pout_clk);
+	clk_disable_unprepare(dcss->pdiv_clk);
+	clk_set_rate(dcss->pdiv_clk, vm->pixelclock);
+	clk_prepare_enable(dcss->pdiv_clk);
+	clk_prepare_enable(dcss->pout_clk);
+
+	msleep(500);
 
 	dcss_dtg_write(dtg, ((dtg_lrc_y << TC_Y_POS) | dtg_lrc_x),
 		       DCSS_DTG_TC_DTG);
@@ -254,7 +258,9 @@ void dcss_dtg_sync_set(struct dcss_soc *dcss, struct videomode *vm)
 	 * time to load the DB context. This happens with LCD panels which have
 	 * small vfront_porch, vback_porch and/or vsync_len.
 	 */
-	dcss_dtg_write(dtg, dis_ulc_y < 50 ? 50 : dis_ulc_y, DCSS_DTG_TC_CTXLD);
+	dcss_dtg_write(dtg, ((0 << TC_CTXLD_SB_Y_POS) & TC_CTXLD_SB_Y_MASK) |
+			(dis_ulc_y < 50 ? 50 : dis_ulc_y),
+			DCSS_DTG_TC_CTXLD);
 }
 EXPORT_SYMBOL(dcss_dtg_sync_set);
 
@@ -297,7 +303,8 @@ static bool dcss_dtg_global_alpha_needed(u32 pix_format)
 	       pix_format == DRM_FORMAT_YUYV	    ||
 	       pix_format == DRM_FORMAT_YVYU	    ||
 	       pix_format == DRM_FORMAT_NV12	    ||
-	       pix_format == DRM_FORMAT_NV21;
+	       pix_format == DRM_FORMAT_NV21	    ||
+	       pix_format == DRM_FORMAT_P010;
 }
 
 bool dcss_dtg_global_alpha_changed(struct dcss_soc *dcss, int ch_num,
@@ -340,6 +347,20 @@ void dcss_dtg_plane_alpha_set(struct dcss_soc *dcss, int ch_num,
 	dtg->use_global = use_global_alpha;
 }
 EXPORT_SYMBOL(dcss_dtg_plane_alpha_set);
+
+void dcss_dtg_css_set(struct dcss_soc *dcss, u32 pix_format)
+{
+	struct dcss_dtg_priv *dtg = dcss->dtg_priv;
+
+	if (pix_format == DRM_FORMAT_P010) {
+		dtg->control_status &= ~CSS_PIX_COMP_SWAP_MASK;
+		return;
+	}
+
+	dtg->control_status |=
+			(0x5 << CSS_PIX_COMP_SWAP_POS) & CSS_PIX_COMP_SWAP_MASK;
+}
+EXPORT_SYMBOL(dcss_dtg_css_set);
 
 static void dcss_dtg_disable_callback(void *data)
 {
@@ -387,11 +408,15 @@ void dcss_dtg_ch_enable(struct dcss_soc *dcss, int ch_num, bool en)
 {
 	struct dcss_dtg_priv *dtg = dcss->dtg_priv;
 	u32 ch_en_map[] = {CH1_EN, CH2_EN, CH3_EN};
+	u32 control_status;
 
-	dtg->control_status &= ~ch_en_map[ch_num];
-	dtg->control_status |= en ? ch_en_map[ch_num] : 0;
+	control_status = dtg->control_status & ~ch_en_map[ch_num];
+	control_status |= en ? ch_en_map[ch_num] : 0;
 
-	dcss_dtg_write(dtg, dtg->control_status, DCSS_DTG_TC_CONTROL_STATUS);
+	if (dtg->control_status != control_status)
+		dcss_dtg_write(dtg, control_status, DCSS_DTG_TC_CONTROL_STATUS);
+
+	dtg->control_status = control_status;
 }
 EXPORT_SYMBOL(dcss_dtg_ch_enable);
 

@@ -98,6 +98,7 @@ enum dcss_color_space dcss_drm_fourcc_to_colorspace(u32 drm_fourcc)
 	case DRM_FORMAT_NV21:
 	case DRM_FORMAT_NV16:
 	case DRM_FORMAT_NV61:
+	case DRM_FORMAT_P010:
 		return DCSS_COLORSPACE_YUV;
 	default:
 		return DCSS_COLORSPACE_UNKNOWN;
@@ -271,7 +272,8 @@ static int dcss_clks_init(struct dcss_soc *dcss)
 	} clks[] = {
 		{"apb",   &dcss->apb_clk},
 		{"axi",   &dcss->axi_clk},
-		{"pixel", &dcss->p_clk},
+		{"pix_div", &dcss->pdiv_clk},
+		{"pix_out", &dcss->pout_clk},
 		{"rtrm",  &dcss->apb_clk},
 		{"dtrc",  &dcss->dtrc_clk},
 	};
@@ -306,11 +308,13 @@ static void dcss_clocks_enable(struct dcss_soc *dcss, bool en)
 		clk_prepare_enable(dcss->apb_clk);
 		clk_prepare_enable(dcss->rtrm_clk);
 		clk_prepare_enable(dcss->dtrc_clk);
-		clk_prepare_enable(dcss->p_clk);
+		clk_prepare_enable(dcss->pdiv_clk);
+		clk_prepare_enable(dcss->pout_clk);
 	}
 
 	if (!en && dcss->clks_on) {
-		clk_disable_unprepare(dcss->p_clk);
+		clk_disable_unprepare(dcss->pout_clk);
+		clk_disable_unprepare(dcss->pdiv_clk);
 		clk_disable_unprepare(dcss->dtrc_clk);
 		clk_disable_unprepare(dcss->rtrm_clk);
 		clk_disable_unprepare(dcss->apb_clk);
@@ -510,7 +514,6 @@ static int dcss_resume(struct device *dev)
 	dcss_clocks_enable(dcss, true);
 
 	dcss_blkctl_cfg(dcss);
-	dcss_hdr10_cfg(dcss);
 
 	dcss_ctxld_resume(dcss);
 
@@ -550,7 +553,6 @@ static int dcss_runtime_resume(struct device *dev)
 	dcss_clocks_enable(dcss, true);
 
 	dcss_blkctl_cfg(dcss);
-	dcss_hdr10_cfg(dcss);
 
 	dcss_ctxld_resume(dcss);
 

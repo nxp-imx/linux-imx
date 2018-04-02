@@ -892,6 +892,9 @@ static int imx_thermal_probe(struct platform_device *pdev)
 	regmap_write(map, data->socdata->sensor_ctrl + REG_SET,
 		     data->socdata->measure_temp_mask);
 
+	data->irq_enabled = true;
+	data->mode = THERMAL_DEVICE_ENABLED;
+
 	ret = devm_request_threaded_irq(&pdev->dev, data->irq,
 			imx_thermal_alarm_irq, imx_thermal_alarm_irq_thread,
 			0, "imx_thermal", data);
@@ -903,9 +906,6 @@ static int imx_thermal_probe(struct platform_device *pdev)
 		devfreq_cooling_unregister(data->cdev[1]);
 		return ret;
 	}
-
-	data->irq_enabled = true;
-	data->mode = THERMAL_DEVICE_ENABLED;
 
 	/* register the busfreq notifier called in low bus freq */
 	if (data->socdata->version != TEMPMON_IMX7)

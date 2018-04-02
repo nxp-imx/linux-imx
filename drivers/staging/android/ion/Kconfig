@@ -46,6 +46,7 @@ config ION_MXC
 	tristate "Ion for imx platform"
 	depends on ION
 	select VIDEOBUF2_DMA_CONTIG
+	select ION_OF
 	help
 	  Choose this option if you wish to use ion on imx platform.
 
@@ -60,3 +61,36 @@ config ION_OF
 
 	  If using Ion and devicetree, you should say Y here
 
+config ION_UNMAPPED_HEAP
+	bool "unmapped heap support in ION"
+	depends on ION && (ARM || ARM64)
+	default y
+	help
+	  ION unmapped heap is not available on some architectures.
+	  If unmapped heap is supported, the default configuration enables
+	  it. You should say N here only if you really do not want unmapped
+	  heap support in the ION driver.
+
+config ION_DUMMY_UNMAPPED_HEAP
+	bool "ION dummy driver define an ION unmapped heap"
+	depends on ION_DUMMY && ION_UNMAPPED_HEAP
+	help
+	  Dummy ION driver will create a unmapped heap from physical
+	  location provided through CONFIG_ION_DUMMY_UNMAPPED_BASE and
+	  CONFIG_ION_DUMMY_UNMAPPED_SIZE.
+
+config ION_DUMMY_UNMAPPED_BASE
+	hex "Physical base address of the ION unmapped heap"
+	depends on ION_DUMMY_UNMAPPED_HEAP
+	default 0
+	help
+	  Allows one the statically define an unmapped heap from the
+	  ION dummy driver to exercice unamped heaps buffer managment.
+
+config ION_DUMMY_UNMAPPED_SIZE
+	hex "Physical byte size of the ION unmapped heap"
+	depends on ION_DUMMY_UNMAPPED_HEAP
+	default 0
+	help
+	  Allows one the statically define an unmapped heap from the
+	  ION dummy driver to exercice unamped heaps buffer managment.

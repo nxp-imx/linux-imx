@@ -134,6 +134,8 @@
 #define FSL_SAI_CR4_FRSZ_MASK	(0x1f << 16)
 #define FSL_SAI_CR4_SYWD(x)	(((x) - 1) << 8)
 #define FSL_SAI_CR4_SYWD_MASK	(0x1f << 8)
+#define FSL_SAI_CR4_CHMOD	(1 << 5)
+#define FSL_SAI_CR4_CHMOD_MASK	(1 << 5)
 #define FSL_SAI_CR4_MF		BIT(4)
 #define FSL_SAI_CR4_FSE		BIT(3)
 #define FSL_SAI_CR4_FSP		BIT(1)
@@ -214,7 +216,7 @@ struct fsl_sai {
 	const struct fsl_sai_soc_data *soc;
 	struct pm_qos_request pm_qos_req;
 	struct pinctrl *pinctrl;
-	struct pinctrl_state *pins_dsd;
+	struct pinctrl_state *pins_state;
 };
 
 #define TX 1

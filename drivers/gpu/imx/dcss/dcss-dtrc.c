@@ -303,24 +303,26 @@ void dcss_dtrc_addr_set(struct dcss_soc *dcss, int ch_num, u32 p1_ba, u32 p2_ba,
 	dcss_dtrc_write(dtrc, ch_num, p1_ba, DTRC_F1_OFS + DCSS_DTRC_DYDSADDR);
 	dcss_dtrc_write(dtrc, ch_num, p2_ba, DTRC_F1_OFS + DCSS_DTRC_DCDSADDR);
 
-	ch->y_dec_ofs = dec_table_ofs & 0xFFFFFFFF;
-	ch->uv_dec_ofs = dec_table_ofs >> 32;
+	if (ch->format_modifier == DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED) {
+		ch->y_dec_ofs = dec_table_ofs & 0xFFFFFFFF;
+		ch->uv_dec_ofs = dec_table_ofs >> 32;
 
-	dcss_dtrc_write(dtrc, ch_num,
-		p1_ba + ch->y_dec_ofs, DCSS_DTRC_DYTSADDR);
-	dcss_dtrc_write(dtrc, ch_num,
-		p1_ba + ch->uv_dec_ofs, DCSS_DTRC_DCTSADDR);
-	dcss_dtrc_write(dtrc, ch_num,
-		p1_ba + ch->y_dec_ofs, DTRC_F1_OFS + DCSS_DTRC_DYTSADDR);
-	dcss_dtrc_write(dtrc, ch_num,
-		p1_ba + ch->uv_dec_ofs, DTRC_F1_OFS + DCSS_DTRC_DCTSADDR);
+		dcss_dtrc_write(dtrc, ch_num, p1_ba + ch->y_dec_ofs,
+				DCSS_DTRC_DYTSADDR);
+		dcss_dtrc_write(dtrc, ch_num, p1_ba + ch->uv_dec_ofs,
+				DCSS_DTRC_DCTSADDR);
+		dcss_dtrc_write(dtrc, ch_num, p1_ba + ch->y_dec_ofs,
+				DTRC_F1_OFS + DCSS_DTRC_DYTSADDR);
+		dcss_dtrc_write(dtrc, ch_num, p1_ba + ch->uv_dec_ofs,
+				DTRC_F1_OFS + DCSS_DTRC_DCTSADDR);
+	}
 
 	dtrc->ch[ch_num].bypass = false;
 }
 EXPORT_SYMBOL(dcss_dtrc_addr_set);
 
 void dcss_dtrc_set_res(struct dcss_soc *dcss, int ch_num, struct drm_rect *src,
-		       struct drm_rect *old_src)
+		       struct drm_rect *old_src, u32 pixel_format)
 {
 	struct dcss_dtrc_priv *dtrc = dcss->dtrc_priv;
 	struct dcss_dtrc_ch *ch;
@@ -328,6 +330,8 @@ void dcss_dtrc_set_res(struct dcss_soc *dcss, int ch_num, struct drm_rect *src,
 	u32 crop_w, crop_h, crop_orig_w, crop_orig_h;
 	int bank;
 	u32 old_xres, old_yres, xres, yres;
+	u32 pix_depth;
+	u16 width_align = 0;
 
 	if (ch_num == 0)
 		return;
@@ -338,6 +342,9 @@ void dcss_dtrc_set_res(struct dcss_soc *dcss, int ch_num, struct drm_rect *src,
 
 	bank = dcss_readl(ch->base_reg + DCSS_DTRC_DTCTRL) >> 31;
 
+	ch->pix_format = pixel_format;
+
+	pix_depth = ch->pix_format == DRM_FORMAT_P010 ? 10 : 8;
 	old_xres = old_src->x2 - old_src->x1;
 	old_yres = old_src->y2 - old_src->y1;
 	xres = src->x2 - src->x1;
@@ -354,10 +361,11 @@ void dcss_dtrc_set_res(struct dcss_soc *dcss, int ch_num, struct drm_rect *src,
 
 	/*
 	 * Image original size is aligned:
-	 *   - 128 pixels for width;
+	 *   - 128 pixels for width (8-bit) or 256 (10-bit);
 	 *   - 8 lines for height;
 	 */
-	if (xres == old_xres && !(xres & 0x7f) &&
+	width_align = ch->pix_format == DRM_FORMAT_P010 ? 0xff : 0x7f;
+	if (xres == old_xres && !(xres & width_align) &&
 	    yres == old_yres && !(yres & 0xf)) {
 		ch->dctl &= ~CROPPING_EN;
 		goto exit;
@@ -365,9 +373,9 @@ void dcss_dtrc_set_res(struct dcss_soc *dcss, int ch_num, struct drm_rect *src,
 
 	/* align the image size: down align for compressed formats */
 	if (ch->format_modifier == DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED && src->x1)
-		xres = xres & ~0x7f;
+		xres = xres & ~width_align;
 	else
-		xres = (xres - 1 + 0x7f) & ~0x7f;
+		xres = (xres - 1 + width_align) & ~width_align;
 
 	if (ch->format_modifier == DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED && src->y1)
 		yres = yres & ~0xf;
@@ -396,14 +404,14 @@ void dcss_dtrc_set_res(struct dcss_soc *dcss, int ch_num, struct drm_rect *src,
 	ch->dctl |= CROPPING_EN;
 
 exit:
-	dcss_dtrc_write(dtrc, ch_num, xres * yres,
+	dcss_dtrc_write(dtrc, ch_num, xres * yres * pix_depth / 8,
 			DCSS_DTRC_SYSEA);
-	dcss_dtrc_write(dtrc, ch_num, xres * yres,
+	dcss_dtrc_write(dtrc, ch_num, xres * yres * pix_depth / 8,
 			DTRC_F1_OFS + DCSS_DTRC_SYSEA);
 
-	dcss_dtrc_write(dtrc, ch_num, 0x10000000 + xres * yres / 2,
+	dcss_dtrc_write(dtrc, ch_num, 0x10000000 + xres * yres * pix_depth / 8 / 2,
 			DCSS_DTRC_SUVSEA);
-	dcss_dtrc_write(dtrc, ch_num, 0x10000000 + xres * yres / 2,
+	dcss_dtrc_write(dtrc, ch_num, 0x10000000 + xres * yres * pix_depth / 8 / 2,
 			DTRC_F1_OFS + DCSS_DTRC_SUVSEA);
 
 	src->x2 = src->x1 + xres;
@@ -469,7 +477,7 @@ void dcss_dtrc_enable(struct dcss_soc *dcss, int ch_num, bool enable)
 
 	fdctl = ch->dctl & ~(PIX_DEPTH_8BIT_EN | COMPRESSION_DIS);
 
-	fdctl |= PIX_DEPTH_8BIT_EN;
+	fdctl |= ch->pix_format == DRM_FORMAT_P010 ? 0 : PIX_DEPTH_8BIT_EN;
 
 	if (ch->format_modifier != DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED)
 		fdctl |= COMPRESSION_DIS;
