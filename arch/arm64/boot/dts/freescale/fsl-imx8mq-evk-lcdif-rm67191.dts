@@ -20,11 +20,15 @@
 	};
 };
 
-&dcss_drm {
+&irqsteer_dcss {
 	status = "disabled";
 };
 
-&hdmi_drm {
+&dcss {
+	status = "disabled";
+};
+
+&hdmi {
 	status = "disabled";
 };
 
@@ -32,7 +36,7 @@
 	status = "disabled";
 };
 
-&lcdif_drm {
+&lcdif {
 	status = "okay";
 
 	assigned-clocks = <&clk IMX8MQ_CLK_LCDIF_PIXEL_SRC>,
@@ -51,11 +55,11 @@
 	};
 };
 
-&mipi_dsi_phy_drm {
+&mipi_dsi_phy {
 	status = "okay";
 };
 
-&mipi_dsi_drm {
+&mipi_dsi {
 	status = "okay";
 	as_bridge;
 	assigned-clocks = <&clk IMX8MQ_CLK_DSI_PHY_REF_SRC>,
@@ -77,7 +81,7 @@
 	};
 };
 
-&mipi_dsi_bridge_drm {
+&mipi_dsi_bridge {
 	status = "okay";
 
 	panel@0 {

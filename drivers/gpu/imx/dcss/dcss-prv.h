@@ -51,6 +51,9 @@ struct dcss_soc {
 	struct clk *dtrc_clk;
 
 	void (*dcss_disable_callback)(void *data);
+
+	bool bus_freq_req;
+	bool clks_on;
 };
 
 /* BLKCTL */
