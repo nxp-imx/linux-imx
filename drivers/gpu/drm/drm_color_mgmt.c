@@ -188,7 +188,7 @@ int drm_mode_gamma_set_ioctl(struct drm_device *dev,
 		return -EINVAL;
 
 	drm_modeset_lock_all(dev);
-	crtc = drm_crtc_find(dev, crtc_lut->crtc_id);
+	crtc = drm_crtc_find(dev, file_priv, crtc_lut->crtc_id);
 	if (!crtc) {
 		ret = -ENOENT;
 		goto out;
@@ -260,7 +260,7 @@ int drm_mode_gamma_get_ioctl(struct drm_device *dev,
 		return -EINVAL;
 
 	drm_modeset_lock_all(dev);
-	crtc = drm_crtc_find(dev, crtc_lut->crtc_id);
+	crtc = drm_crtc_find(dev, file_priv, crtc_lut->crtc_id);
 	if (!crtc) {
 		ret = -ENOENT;
 		goto out;

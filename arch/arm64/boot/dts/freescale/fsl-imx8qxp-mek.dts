@@ -197,28 +197,35 @@
 	assigned-clocks = <&clk IMX8QXP_ACM_ESAI0_MCLK_SEL>,
 			<&clk IMX8QXP_AUD_PLL0_DIV>,
 			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_DIV>,
+			<&clk IMX8QXP_AUD_ACM_AUD_REC_CLK0_DIV>,
 			<&clk IMX8QXP_AUD_ESAI_0_EXTAL_IPG>;
 	assigned-clock-parents = <&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_CLK>;
-	assigned-clock-rates = <0>, <786432000>, <49152000>, <49152000>;
+	assigned-clock-rates = <0>, <786432000>, <49152000>, <12288000>, <49152000>;
 	dmas = <&edma2 23 0 3>, <&edma2 21 0 2>;
 	status = "okay";
 };
 
 &sai4 {
-	assigned-clocks = <&clk IMX8QXP_AUD_PLL0_DIV>,
-			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_DIV>,
+	assigned-clocks = <&clk IMX8QXP_ACM_SAI4_MCLK_SEL>,
+			<&clk IMX8QXP_AUD_PLL1_DIV>,
+			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK1_DIV>,
+			<&clk IMX8QXP_AUD_ACM_AUD_REC_CLK1_DIV>,
 			<&clk IMX8QXP_AUD_SAI_4_MCLK>;
-	assigned-clock-rates = <786432000>, <49152000>, <49152000>;
+	assigned-clock-parents = <&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK1_CLK>;
+	assigned-clock-rates = <0>, <786432000>, <98304000>, <12288000>, <98304000>;
 	fsl,sai-asynchronous;
 	fsl,txm-rxs;
 	status = "okay";
 };
 
 &sai5 {
-	assigned-clocks = <&clk IMX8QXP_AUD_PLL0_DIV>,
-			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_DIV>,
+	assigned-clocks = <&clk IMX8QXP_ACM_SAI5_MCLK_SEL>,
+			<&clk IMX8QXP_AUD_PLL1_DIV>,
+			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK1_DIV>,
+			<&clk IMX8QXP_AUD_ACM_AUD_REC_CLK1_DIV>,
 			<&clk IMX8QXP_AUD_SAI_5_MCLK>;
-	assigned-clock-rates = <786432000>, <49152000>, <49152000>;
+	assigned-clock-parents = <&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK1_CLK>;
+	assigned-clock-rates = <0>, <786432000>, <98304000>, <12288000>, <98304000>;
 	fsl,sai-asynchronous;
 	fsl,txm-rxs;
 	status = "okay";
@@ -631,9 +638,10 @@
 		wlf,shared-lrclk;
 		power-domains = <&pd_mclk_out0>;
 		assigned-clocks = <&clk IMX8QXP_AUD_PLL0_DIV>,
+				<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_DIV>,
 				<&clk IMX8QXP_AUD_ACM_AUD_REC_CLK0_DIV>,
 				<&clk IMX8QXP_AUD_MCLKOUT0>;
-		assigned-clock-rates = <786432000>, <12288000>, <12288000>;
+		assigned-clock-rates = <786432000>, <49152000>, <12288000>, <12288000>;
 	};
 
 	pca6416: gpio@20 {
@@ -655,9 +663,10 @@
 		reset-gpio = <&pca9557_b 1 1>;
 		power-domains = <&pd_mclk_out0>;
 		assigned-clocks = <&clk IMX8QXP_AUD_PLL0_DIV>,
+				<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_DIV>,
 				<&clk IMX8QXP_AUD_ACM_AUD_REC_CLK0_DIV>,
 				<&clk IMX8QXP_AUD_MCLKOUT0>;
-		assigned-clock-rates = <786432000>, <12288000>, <12288000>;
+		assigned-clock-rates = <786432000>, <49152000>, <12288000>, <12288000>;
 		status = "okay";
 	};
 };
@@ -755,17 +764,18 @@
 		max-snk-mv = <9000>;
 		max-snk-ma = <1000>;
 		op-snk-mw = <9000>;
-		port-type = "drp";
-		default-role = "sink";
-		status = "disabled";
+		port-type = "dfp";
+		default-role = "source";
+		status = "okay";
 	};
 };
 
 &sai1 {
 	assigned-clocks = <&clk IMX8QXP_AUD_PLL0_DIV>,
 			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_DIV>,
+			<&clk IMX8QXP_AUD_ACM_AUD_REC_CLK0_DIV>,
 			<&clk IMX8QXP_AUD_SAI_1_MCLK>;
-	assigned-clock-rates = <786432000>, <49152000>, <49152000>;
+	assigned-clock-rates = <786432000>, <49152000>, <12288000>, <49152000>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_sai1>;
 	status = "okay";
@@ -785,7 +795,7 @@
 &usbotg3 {
 	dr_mode = "otg";
 	extcon = <&typec_ptn5110>;
-	status = "disabled";
+	status = "okay";
 };
 
 &usdhc1 {
@@ -899,4 +909,8 @@
 			};
 		};
 	};
+};
+
+&vpu {
+	status = "okay";
 };

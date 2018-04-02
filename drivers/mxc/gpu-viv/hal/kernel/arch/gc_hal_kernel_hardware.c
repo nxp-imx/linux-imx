@@ -2555,7 +2555,6 @@ gckHARDWARE_InitializeHardware(
                                       data));
     }
 
-
     if (_IsHardwareMatch(Hardware, gcv2500, 0x5422))
     {
         gcmkONERROR(gckOS_ReadRegisterEx(
@@ -7589,6 +7588,7 @@ gckHARDWARE_SetPowerManagementState(
     /* Start profiler. */
     gcmkPROFILE_INIT(freq, time);
 
+
     /* Convert the broadcast power state. */
     switch (State)
     {
@@ -8035,8 +8035,9 @@ gckHARDWARE_SetPowerManagementState(
                         gcvTRUE));
 
             Hardware->clockState = gcvTRUE;
-
+#if gcdDVFS
             if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_DYNAMIC_FREQUENCY_SCALING) != gcvTRUE)
+#endif
             {
                 /* Write the clock control register. */
                 gcmkONERROR(gckOS_WriteRegisterEx(os,
@@ -8081,8 +8082,10 @@ gckHARDWARE_SetPowerManagementState(
 
     /* Only process this when hardware is enabled. */
     if (Hardware->clockState && Hardware->powerState
+#if gcdDVFS
     /* Don't touch clock control if dynamic frequency scaling is available. */
     && gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_DYNAMIC_FREQUENCY_SCALING) != gcvTRUE
+#endif
     )
     {
         if (flag & (gcvPOWER_FLAG_POWER_OFF | gcvPOWER_FLAG_CLOCK_OFF))

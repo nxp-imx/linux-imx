@@ -126,7 +126,7 @@ config CRYPTO_DEV_FSL_CAAM_RNG_API
 	  will be called caamrng.
 
 config CRYPTO_DEV_FSL_CAAM_IMX
-	def_bool SOC_IMX6 || SOC_IMX7D
+	def_bool SOC_IMX6 || SOC_IMX7D || HAVE_IMX8_SOC
 	depends on CRYPTO_DEV_FSL_CAAM
 
 

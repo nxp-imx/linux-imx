@@ -17,5 +17,5 @@ obj-$(CONFIG_CRYPTO_DEV_FSL_CAAM_SECVIO) += secvio.o
 obj-$(CONFIG_CRYPTO_DEV_FSL_CAAM_KEYBLOB) += caam_keyblob.o
 
 caam-objs := ctrl.o
-caam_jr-objs := jr.o key_gen.o error.o
+caam_jr-objs := jr.o key_gen.o error.o inst_rng.o
 caam_pkc-y := caampkc.o pkc_desc.o

@@ -24,6 +24,8 @@
 #include <linux/regulator/consumer.h>
 #include <media/v4l2-subdev.h>
 
+#include "max9286.h"
+
 #define MAX9271_MAX_SENSOR_NUM	4
 #define CAMERA_USES_15HZ
 
@@ -37,78 +39,6 @@
 static unsigned int g_max9286_width = 1280;
 static unsigned int g_max9286_height = 800;
 
-#define MIPI_CSI2_SENS_VC0_PAD_SOURCE	0
-#define MIPI_CSI2_SENS_VC1_PAD_SOURCE	1
-#define MIPI_CSI2_SENS_VC2_PAD_SOURCE	2
-#define MIPI_CSI2_SENS_VC3_PAD_SOURCE	3
-#define MIPI_CSI2_SENS_VCX_PADS_NUM		4
-
-/*!
- * Maintains the information on the current state of the sesor.
- */
-struct imxdpu_videomode {
-	char name[64];		/* may not be needed */
-
-	uint32_t pixelclock;	/* Hz */
-
-	/* htotal (pixels) = hlen + hfp + hsync + hbp */
-	uint32_t hlen;
-	uint32_t hfp;
-	uint32_t hbp;
-	uint32_t hsync;
-
-	/* field0 - vtotal (lines) = vlen + vfp + vsync + vbp */
-	uint32_t vlen;
-	uint32_t vfp;
-	uint32_t vbp;
-	uint32_t vsync;
-
-	/* field1  */
-	uint32_t vlen1;
-	uint32_t vfp1;
-	uint32_t vbp1;
-	uint32_t vsync1;
-
-	uint32_t flags;
-
-	uint32_t format;
-	uint32_t dest_format; /*buffer format for capture*/
-
-	int16_t clip_top;
-	int16_t clip_left;
-	uint16_t clip_width;
-	uint16_t clip_height;
-
-};
-struct sensor_data {
-	struct v4l2_subdev	subdev;
-	struct media_pad pads[MIPI_CSI2_SENS_VCX_PADS_NUM];
-	struct i2c_client *i2c_client;
-	struct v4l2_mbus_framefmt format;
-	struct v4l2_captureparm streamcap;
-	char running;
-
-	/* control settings */
-	int brightness;
-	int hue;
-	int contrast;
-	int saturation;
-	int red;
-	int green;
-	int blue;
-	int ae_mode;
-
-	u32 mclk;
-	u8 mclk_source;
-	struct clk *sensor_clk;
-	int v_channel;
-	bool is_mipi;
-	struct imxdpu_videomode cap_mode;
-
-	unsigned int sensor_num;       /* sensor num connect max9271 */
-	unsigned char sensor_is_there; /* Bit 0~3 for 4 cameras, 0b1= is there; 0b0 = is not there */
-};
-
 #ifdef CONFIG_SENSOR_OV10635
 #define OV10635_REG_PID		0x300A
 #define OV10635_REG_VER		0x300B
@@ -117,6 +47,11 @@ struct reg_value {
 	unsigned short reg_addr;
 	unsigned char val;
 	unsigned int delay_ms;
+};
+
+enum ov10635_frame_rate {
+	OV10635_15_FPS,
+	OV10635_30_FPS,
 };
 
 static struct reg_value ov10635_init_data[] = {
@@ -2537,6 +2472,7 @@ static int max9286_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
 	switch (a->type) {
 	/* This is the only case currently handled. */
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
+	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 		memset(a, 0, sizeof(*a));
 		a->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		cparm->capability = max9286_data->streamcap.capability;
@@ -2574,11 +2510,53 @@ static int max9286_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
  */
 static int max9286_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
 {
+	struct sensor_data *max9286_data = subdev_to_sensor_data(sd);
+	struct v4l2_fract *timeperframe = &a->parm.capture.timeperframe;
+	enum ov10635_frame_rate frame_rate;
+	u32 tgt_fps;
 	int ret = 0;
 
 	switch (a->type) {
 	/* This is the only case currently handled. */
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
+	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+		/* Check that the new frame rate is allowed. */
+		if ((timeperframe->numerator == 0) ||
+		    (timeperframe->denominator == 0)) {
+			timeperframe->denominator = DEFAULT_FPS;
+			timeperframe->numerator = 1;
+		}
+
+		tgt_fps = timeperframe->denominator /
+			  timeperframe->numerator;
+
+		if (tgt_fps > MAX_FPS) {
+			timeperframe->denominator = MAX_FPS;
+			timeperframe->numerator = 1;
+		} else if (tgt_fps < MIN_FPS) {
+			timeperframe->denominator = MIN_FPS;
+			timeperframe->numerator = 1;
+		}
+
+		/* Actual frame rate we use */
+		tgt_fps = timeperframe->denominator /
+			  timeperframe->numerator;
+
+		if (tgt_fps == 15)
+			frame_rate = OV10635_15_FPS;
+		else if (tgt_fps == 30)
+			frame_rate = OV10635_30_FPS;
+		else {
+			pr_err(" The camera frame rate is not supported!\n");
+			return -EINVAL;
+		}
+
+		 /* TODO Reserved to extension */
+
+		max9286_data->streamcap.timeperframe = *timeperframe;
+		max9286_data->streamcap.capturemode = a->parm.capture.capturemode;
+
+
 		break;
 
 	/* These are all the possible cases. */
@@ -2635,6 +2613,26 @@ static int max9286_enum_framesizes(struct v4l2_subdev *sd,
 
 	fse->max_height = max9286_data->format.height;
 	fse->min_height = fse->max_height;
+	return 0;
+}
+static int max9286_enum_frame_interval(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_pad_config *cfg,
+				   struct v4l2_subdev_frame_interval_enum *fie)
+{
+	if (fie->index < 0 || fie->index > 8)
+		return -EINVAL;
+
+	if (fie->width == 0 || fie->height == 0 ||
+	    fie->code == 0) {
+		pr_warning("Please assign pixel format, width and height.\n");
+		return -EINVAL;
+	}
+
+	fie->interval.numerator = 1;
+
+	 /* TODO Reserved to extension */
+
+	fie->interval.denominator = 30;
 	return 0;
 }
 
@@ -2716,6 +2714,7 @@ static int max9286_link_setup(struct media_entity *entity,
 static const struct v4l2_subdev_pad_ops max9286_pad_ops = {
 	.enum_mbus_code		= max9286_enum_mbus_code,
 	.enum_frame_size	= max9286_enum_framesizes,
+	.enum_frame_interval	= max9286_enum_frame_interval,
 	.get_fmt		= max9286_get_fmt,
 	.set_fmt		= max9286_set_fmt,
 	.get_frame_desc		= max9286_get_frame_desc,

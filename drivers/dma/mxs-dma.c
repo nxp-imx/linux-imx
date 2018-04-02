@@ -1,5 +1,6 @@
 /*
  * Copyright 2011-2015 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2017 NXP
  *
  * Refer to drivers/dma/imx-sdma.c
  *
@@ -29,6 +30,7 @@
 #include <linux/of_dma.h>
 #include <linux/list.h>
 #include <asm/irq.h>
+#include <linux/pm_runtime.h>
 
 #include "dmaengine.h"
 
@@ -40,6 +42,8 @@
 
 #define dma_is_apbh(mxs_dma)	((mxs_dma)->type == MXS_DMA_APBH)
 #define apbh_is_old(mxs_dma)	((mxs_dma)->dev_id == IMX23_DMA)
+
+#define MXS_DMA_RPM_TIMEOUT 50 /* ms */
 
 #define HW_APBHX_CTRL0				0x000
 #define BM_APBH_CTRL0_APB_BURST8_EN		(1 << 29)
@@ -434,6 +438,7 @@ static int mxs_dma_alloc_chan_resources(struct dma_chan *chan)
 {
 	struct mxs_dma_chan *mxs_chan = to_mxs_dma_chan(chan);
 	struct mxs_dma_engine *mxs_dma = mxs_chan->mxs_dma;
+	struct device *dev = &mxs_dma->pdev->dev;
 	int ret;
 
 	mxs_chan->ccw = dma_zalloc_coherent(mxs_dma->dma_device.dev,
@@ -449,14 +454,10 @@ static int mxs_dma_alloc_chan_resources(struct dma_chan *chan)
 	if (ret)
 		goto err_irq;
 
-	ret = clk_prepare_enable(mxs_dma->clk);
-	if (ret)
+	ret = pm_runtime_get_sync(dev);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable clock\n");
 		goto err_clk;
-
-	if (mxs_dma->dev_id == IMX7D_DMA) {
-		ret = clk_prepare_enable(mxs_dma->clk_io);
-		if (ret)
-			goto err_clk_unprepare;
 	}
 
 	mxs_dma_reset_chan(chan);
@@ -469,8 +470,6 @@ static int mxs_dma_alloc_chan_resources(struct dma_chan *chan)
 
 	return 0;
 
-err_clk_unprepare:
-	clk_disable_unprepare(mxs_dma->clk);
 err_clk:
 	free_irq(mxs_chan->chan_irq, mxs_dma);
 err_irq:
@@ -484,6 +483,7 @@ static void mxs_dma_free_chan_resources(struct dma_chan *chan)
 {
 	struct mxs_dma_chan *mxs_chan = to_mxs_dma_chan(chan);
 	struct mxs_dma_engine *mxs_dma = mxs_chan->mxs_dma;
+	struct device *dev = &mxs_dma->pdev->dev;
 
 	mxs_dma_disable_chan(chan);
 
@@ -492,10 +492,9 @@ static void mxs_dma_free_chan_resources(struct dma_chan *chan)
 	dma_free_coherent(mxs_dma->dma_device.dev, CCW_BLOCK_SIZE,
 			mxs_chan->ccw, mxs_chan->ccw_phys);
 
-	if (mxs_dma->dev_id == IMX7D_DMA)
-		clk_disable_unprepare(mxs_dma->clk_io);
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
 
-	clk_disable_unprepare(mxs_dma->clk);
 }
 
 /*
@@ -717,23 +716,35 @@ static enum dma_status mxs_dma_tx_status(struct dma_chan *chan,
 	return mxs_chan->status;
 }
 
+static int mxs_dma_init_rpm(struct mxs_dma_engine *mxs_dma)
+{
+	struct device *dev = &mxs_dma->pdev->dev;
+
+	pm_runtime_enable(dev);
+	pm_runtime_set_autosuspend_delay(dev, MXS_DMA_RPM_TIMEOUT);
+	pm_runtime_use_autosuspend(dev);
+
+	return 0;
+}
+
 static int mxs_dma_init(struct mxs_dma_engine *mxs_dma)
 {
+	struct device *dev = &mxs_dma->pdev->dev;
 	int ret;
 
-	ret = clk_prepare_enable(mxs_dma->clk);
+	ret = mxs_dma_init_rpm(mxs_dma);
 	if (ret)
 		return ret;
 
-	if (mxs_dma->dev_id == IMX7D_DMA) {
-		ret = clk_prepare_enable(mxs_dma->clk_io);
-		if (ret)
-			goto err_clk_bch;
+	ret = pm_runtime_get_sync(dev);
+	if (ret < 0) {
+		dev_err(dev, "Failed to enable clock\n");
+		return ret;
 	}
 
 	ret = stmp_reset_block(mxs_dma->base);
 	if (ret)
-		goto err_clk_io;
+		goto err_clk;
 
 	/* enable apbh burst */
 	if (dma_is_apbh(mxs_dma)) {
@@ -747,11 +758,10 @@ static int mxs_dma_init(struct mxs_dma_engine *mxs_dma)
 	writel(MXS_DMA_CHANNELS_MASK << MXS_DMA_CHANNELS,
 		mxs_dma->base + HW_APBHX_CTRL1 + STMP_OFFSET_REG_SET);
 
-err_clk_io:
-	if (mxs_dma->dev_id == IMX7D_DMA)
-		clk_disable_unprepare(mxs_dma->clk_io);
-err_clk_bch:
-	clk_disable_unprepare(mxs_dma->clk);
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
+
+err_clk:
 	return ret;
 }
 
@@ -839,19 +849,9 @@ static int __init mxs_dma_probe(struct platform_device *pdev)
 	if (IS_ERR(mxs_dma->base))
 		return PTR_ERR(mxs_dma->base);
 
-	if (mxs_dma->dev_id == IMX7D_DMA) {
-		mxs_dma->clk = devm_clk_get(&pdev->dev, "dma_apbh_bch");
-		if (IS_ERR(mxs_dma->clk))
-			return PTR_ERR(mxs_dma->clk);
-		mxs_dma->clk_io = devm_clk_get(&pdev->dev, "dma_apbh_io");
-		if (IS_ERR(mxs_dma->clk_io))
-			return PTR_ERR(mxs_dma->clk_io);
-
-	} else {
-		mxs_dma->clk = devm_clk_get(&pdev->dev, NULL);
-		if (IS_ERR(mxs_dma->clk))
-			return PTR_ERR(mxs_dma->clk);
-	}
+	mxs_dma->clk = devm_clk_get(&pdev->dev, NULL);
+	if (IS_ERR(mxs_dma->clk))
+		return PTR_ERR(mxs_dma->clk);
 
 	dma_cap_set(DMA_SLAVE, mxs_dma->dma_device.cap_mask);
 	dma_cap_set(DMA_CYCLIC, mxs_dma->dma_device.cap_mask);
@@ -875,11 +875,13 @@ static int __init mxs_dma_probe(struct platform_device *pdev)
 			&mxs_dma->dma_device.channels);
 	}
 
+	platform_set_drvdata(pdev, mxs_dma);
+	mxs_dma->pdev = pdev;
+
 	ret = mxs_dma_init(mxs_dma);
 	if (ret)
 		return ret;
 
-	mxs_dma->pdev = pdev;
 	mxs_dma->dma_device.dev = &pdev->dev;
 	dev_set_drvdata(&pdev->dev, mxs_dma);
 
@@ -921,11 +923,11 @@ static int __init mxs_dma_probe(struct platform_device *pdev)
 
 static int mxs_dma_pm_suspend(struct device *dev)
 {
-	/*
-	 * We do not save any registers here, since the gpmi will release its
-	 * DMA channel.
-	 */
-	return 0;
+	int ret;
+
+	ret = pm_runtime_force_suspend(dev);
+
+	return ret;
 }
 
 static int mxs_dma_pm_resume(struct device *dev)
@@ -936,10 +938,35 @@ static int mxs_dma_pm_resume(struct device *dev)
 	ret = mxs_dma_init(mxs_dma);
 	if (ret)
 		return ret;
+
+	return 0;
+}
+
+int mxs_dma_runtime_suspend(struct device *dev)
+{
+	struct mxs_dma_engine *mxs_dma = dev_get_drvdata(dev);
+
+	clk_disable_unprepare(mxs_dma->clk);
+
+	return 0;
+}
+
+int mxs_dma_runtime_resume(struct device *dev)
+{
+	struct mxs_dma_engine *mxs_dma = dev_get_drvdata(dev);
+	int ret;
+
+	ret = clk_prepare_enable(mxs_dma->clk);
+	if (ret) {
+		dev_err(&mxs_dma->pdev->dev, "failed to enable the clock\n");
+		return ret;
+	}
+
 	return 0;
 }
 
 static const struct dev_pm_ops mxs_dma_pm_ops = {
+	SET_RUNTIME_PM_OPS(mxs_dma_runtime_suspend, mxs_dma_runtime_resume, NULL)
 	SET_SYSTEM_SLEEP_PM_OPS(mxs_dma_pm_suspend, mxs_dma_pm_resume)
 };
 
