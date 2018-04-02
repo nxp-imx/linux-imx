@@ -42,7 +42,7 @@ static sc_rsrc_t early_power_on_rsrc[] = {
 };
 static sc_rsrc_t rsrc_debug_console;
 
-#define IMX8_WU_MAX_IRQS	512
+#define IMX8_WU_MAX_IRQS	(((SC_R_LAST + 31) / 32 ) * 32 )
 static sc_rsrc_t irq2rsrc[IMX8_WU_MAX_IRQS];
 static sc_rsrc_t wakeup_rsrc_id[IMX8_WU_MAX_IRQS / 32];
 static DEFINE_SPINLOCK(imx8_wu_lock);
@@ -54,6 +54,7 @@ enum imx_pd_state {
 
 struct clk_stat {
 	struct clk *clk;
+	struct clk *parent;
 	unsigned long rate;
 };
 
@@ -146,15 +147,22 @@ static int imx8_pd_power_on(struct generic_pm_domain *domain)
 
 			list_for_each_entry(imx8_rsrc_clk, &pd->clks, node) {
 				clk_stats[i].clk = imx8_rsrc_clk->clk;
+				clk_stats[i].parent = clk_get_parent(imx8_rsrc_clk->clk);
 				clk_stats[i].rate = clk_hw_get_rate(__clk_get_hw(imx8_rsrc_clk->clk));
 				i++;
 			}
 
-			for (i = 0; i <= count; i++) {
-				/* invalid cached rate first by get rate once */
-				clk_get_rate(clk_stats[i].clk);
-				/* restore the lost rate */
-				clk_set_rate(clk_stats[i].clk, clk_stats[i].rate);
+			for (i = 0; i < count; i++) {
+				/* restore parent first */
+				if (clk_stats[i].parent)
+					clk_set_parent(clk_stats[i].clk, clk_stats[i].parent);
+
+				if (clk_stats[i].rate) {
+					/* invalid cached rate first by get rate once */
+					clk_get_rate(clk_stats[i].clk);
+					/* restore the lost rate */
+					clk_set_rate(clk_stats[i].clk, clk_stats[i].rate);
+				}
 			}
 
 			kfree(clk_stats);
@@ -200,7 +208,6 @@ static int imx8_attach_dev(struct generic_pm_domain *genpd, struct device *dev)
 	int rc, index, num_clks;
 
 	pd = container_of(genpd, struct imx8_pm_domain, pd);
-	INIT_LIST_HEAD(&pd->clks);
 
 	num_clks = of_count_phandle_with_args(node, "assigned-clocks",
 						"#clock-cells");

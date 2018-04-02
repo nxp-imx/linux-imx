@@ -520,8 +520,10 @@ static int mxsfb_runtime_suspend(struct device *dev)
 	if (!drm->registered)
 		return 0;
 
-	mxsfb_crtc_disable(mxsfb);
-	mxsfb->suspended = true;
+	if (mxsfb->enabled) {
+		mxsfb_crtc_disable(mxsfb);
+		mxsfb->suspended = true;
+	}
 
 	return 0;
 }
@@ -535,6 +537,7 @@ static int mxsfb_runtime_resume(struct device *dev)
 		return 0;
 
 	mxsfb_crtc_enable(mxsfb);
+	mxsfb->suspended = false;
 
 	return 0;
 }
@@ -544,9 +547,10 @@ static int mxsfb_suspend(struct device *dev)
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
 
-	mxsfb->saved_enabled = mxsfb->enabled;
-	mxsfb_crtc_disable(mxsfb);
-	mxsfb->suspended = true;
+	if (mxsfb->enabled) {
+		mxsfb_crtc_disable(mxsfb);
+		mxsfb->suspended = true;
+	}
 
 	return 0;
 }
@@ -559,9 +563,8 @@ static int mxsfb_resume(struct device *dev)
 	if (!mxsfb->suspended)
 		return 0;
 
-	/* only enable it when needed */
-	if (mxsfb->saved_enabled)
-		mxsfb_crtc_enable(mxsfb);
+	mxsfb_crtc_enable(mxsfb);
+	mxsfb->suspended = false;
 
 	return 0;
 }

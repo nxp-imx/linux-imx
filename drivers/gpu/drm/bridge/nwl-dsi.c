@@ -1000,11 +1000,14 @@ static void nwl_dsi_bridge_detach(struct drm_bridge *bridge)
 	if (dsi->panel) {
 		drm_panel_detach(dsi->panel);
 		drm_connector_cleanup(&dsi->connector);
+		dsi->panel = NULL;
 	} else if (dsi->next_bridge) {
 		drm_bridge_detach(dsi->next_bridge);
 		nwl_dsi_del_bridge(dsi->next_bridge->encoder, dsi->next_bridge);
+		dsi->next_bridge = NULL;
 	}
-	mipi_dsi_host_unregister(&dsi->host);
+	if (dsi->host.dev)
+		mipi_dsi_host_unregister(&dsi->host);
 }
 
 static void nwl_dsi_bridge_enable(struct drm_bridge *bridge)
@@ -1171,24 +1174,17 @@ static int nwl_dsi_probe(struct platform_device *pdev)
 	dsi->bridge.of_node = dev->of_node;
 
 	ret = drm_bridge_add(&dsi->bridge);
-	if (ret < 0) {
+	if (ret < 0)
 		dev_err(dev, "Failed to add nwl-dsi bridge (%d)\n", ret);
-		goto err_host;
-	}
 
-	return 0;
-
-err_host:
-	mipi_dsi_host_unregister(&dsi->host);
 	return ret;
-
 }
 
 static int nwl_dsi_remove(struct platform_device *pdev)
 {
 	struct nwl_mipi_dsi *dsi = platform_get_drvdata(pdev);
 
-	mipi_dsi_host_unregister(&dsi->host);
+	drm_bridge_remove(&dsi->bridge);
 
 	return 0;
 }

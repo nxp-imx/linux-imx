@@ -288,6 +288,12 @@ OnError:
     {
         gcmkOS_SAFE_FREE(os, pagearray);
     }
+
+    if(sgt)
+    {
+        dma_buf_unmap_attachment(attachment, sgt, DMA_BIDIRECTIONAL);
+    }
+
     gcmkFOOTER();
     return status;
 }
