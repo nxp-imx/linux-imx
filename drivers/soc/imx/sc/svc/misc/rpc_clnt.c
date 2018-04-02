@@ -296,4 +296,19 @@ sc_err_t sc_misc_get_temp(sc_ipc_t ipc, sc_rsrc_t resource,
 	return (sc_err_t)result;
 }
 
+void sc_misc_get_button_status(sc_ipc_t ipc, bool *status)
+{
+	sc_rpc_msg_t msg;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = SC_RPC_SVC_MISC;
+	RPC_FUNC(&msg) = MISC_FUNC_GET_BUTTON_STATUS;
+	RPC_SIZE(&msg) = 1;
+
+	sc_call_rpc(ipc, &msg, false);
+
+	if (status != NULL)
+		*status = RPC_U8(&msg, 0);
+}
+
 /**@}*/

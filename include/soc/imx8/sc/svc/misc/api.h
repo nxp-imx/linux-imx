@@ -360,6 +360,14 @@ sc_err_t sc_misc_get_temp(sc_ipc_t ipc, sc_rsrc_t resource,
 			  sc_misc_temp_t temp, int16_t * celsius,
 			  int8_t * tenths);
 
+/*!
+ * This function returns the current status of the ON/OFF button.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[out]    status      pointer to return button status
+ */
+void sc_misc_get_button_status(sc_ipc_t ipc, bool *status);
+
 /* @} */
 
 #endif				/* _SC_MISC_API_H */

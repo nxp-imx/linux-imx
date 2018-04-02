@@ -40,6 +40,8 @@ typedef enum misc_func_e {
 	MISC_FUNC_OTP_FUSE_READ = 11,	/* Index for misc_otp_fuse_read() RPC call */
 	MISC_FUNC_SET_TEMP = 12,	/* Index for misc_set_temp() RPC call */
 	MISC_FUNC_GET_TEMP = 13,	/* Index for misc_get_temp() RPC call */
+	MISC_FUNC_GET_BUTTON_STATUS = 18,       /* Index for misc_get_button_status() RPC call */
+
 } misc_func_t;
 
 /* Functions */

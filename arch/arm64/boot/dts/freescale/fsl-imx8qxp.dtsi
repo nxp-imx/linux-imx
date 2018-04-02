@@ -19,6 +19,7 @@
 #include <dt-bindings/soc/imx8_hsio.h>
 #include <dt-bindings/soc/imx8_pd.h>
 #include <dt-bindings/clock/imx8qxp-clock.h>
+#include <dt-bindings/input/input.h>
 #include <dt-bindings/pinctrl/pads-imx8qxp.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/thermal/thermal.h>
@@ -2017,8 +2018,8 @@
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_CLK>,
 			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK1_CLK>,
-			<&clk IMX8QXP_CLK_DUMMY>,
-			<&clk IMX8QXP_CLK_DUMMY>,
+			<&clk IMX8QXP_ACM_AUD_CLK0_SEL>,
+			<&clk IMX8QXP_ACM_AUD_CLK1_SEL>,
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_CLK_DUMMY>,
@@ -2057,8 +2058,8 @@
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK0_CLK>,
 			<&clk IMX8QXP_AUD_ACM_AUD_PLL_CLK1_CLK>,
-			<&clk IMX8QXP_CLK_DUMMY>,
-			<&clk IMX8QXP_CLK_DUMMY>,
+			<&clk IMX8QXP_ACM_AUD_CLK0_CLK>,
+			<&clk IMX8QXP_ACM_AUD_CLK1_CLK>,
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_CLK_DUMMY>,
 			<&clk IMX8QXP_CLK_DUMMY>,
@@ -2265,6 +2266,7 @@
 		clocks = <&clk IMX8QXP_LSIO_FSPI0_CLK>;
 		assigned-clock-rates = <29000000>;
 		clock-names = "fspi";
+		power-domains = <&pd_lsio>;
 		status = "disabled";
 	};
 
@@ -2316,8 +2318,9 @@
 		clocks = <&clk IMX8QXP_HSIO_PCIE_MSTR_AXI_CLK>,
 			 <&clk IMX8QXP_HSIO_PCIE_SLV_AXI_CLK>,
 			 <&clk IMX8QXP_HSIO_PHY_X1_PCLK>,
+			 <&clk IMX8QXP_HSIO_PCIE_X1_PER_CLK>,
 			 <&clk IMX8QXP_HSIO_PCIE_DBI_AXI_CLK>;
-		clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_inbound_axi";
+		clock-names = "pcie", "pcie_bus", "pcie_phy", "pcie_per", "pcie_inbound_axi";
 
 		interrupt-map-mask = <0 0 0 0x7>;
 		interrupt-map =  <0 0 0 1 &gic 0 105 4>,
@@ -2413,6 +2416,12 @@
 	caam_sm: caam-sm@31800000 {
 		compatible = "fsl,imx6q-caam-sm";
 		reg = <0 0x31800000 0 0x1ffff>;
+	};
+
+	sc_pwrkey: sc-powerkey {
+		compatible = "fsl,imx8-pwrkey";
+		linux,keycode = <KEY_POWER>;
+		wakeup-source;
 	};
 
 	wdog: wdog {

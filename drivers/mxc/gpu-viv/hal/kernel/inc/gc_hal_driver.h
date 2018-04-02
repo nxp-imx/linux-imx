@@ -235,6 +235,7 @@ typedef enum _gceHAL_COMMAND_CODES
 
     /* Wrap a user memory into a video memory node. */
     gcvHAL_WRAP_USER_MEMORY,
+    gcvHAL_RELEASE_USER_MEMORY,
 
     /* Wait until GPU finishes access to a resource. */
     gcvHAL_WAIT_FENCE,
@@ -1267,6 +1268,12 @@ typedef struct _gcsHAL_INTERFACE
 
         }
         WrapUserMemory;
+
+        struct _gcsHAL_RELEASE_USER_MEMORY
+        {
+            IN gctUINT32               node;
+        }
+        ReleaseUserMemory;
 
         struct _gcsHAL_WAIT_FENCE
         {

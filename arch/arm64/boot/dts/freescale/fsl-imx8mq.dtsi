@@ -42,6 +42,22 @@
 		gpio4 = &gpio5;
 	};
 
+	cpus {
+		idle-states {
+			entry-method = "psci";
+
+			CPU_SLEEP: cpu-sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0010033>;
+				local-timer-stop;
+				entry-latency-us = <1000>;
+				exit-latency-us = <700>;
+				min-residency-us = <2700>;
+				wakeup-latency-us = <1500>;
+			};
+		};
+	};
+
 	memory@40000000 {
 		device_type = "memory";
 		reg = <0x00000000 0x40000000 0 0xc0000000>;
@@ -56,7 +72,7 @@
 		linux,cma {
 			compatible = "shared-dma-pool";
 			reusable;
-			size = <0 0x28000000>;
+			size = <0 0x40000000>;
 			alloc-ranges = <0 0x40000000 0 0x70000000>;
 			linux,cma-default;
 		};
@@ -70,7 +86,8 @@
 	gic: interrupt-controller@38800000 {
 		compatible = "arm,gic-v3";
 		reg = <0x0 0x38800000 0 0x10000>, /* GIC Dist */
-		      <0x0 0x38880000 0 0xC0000>; /* GICR (RD_base + SGI_base) */
+		      <0x0 0x38880000 0 0xC0000>, /* GICR (RD_base + SGI_base) */
+		      <0x0 0x30340000 0x0 0x10000>; /* IOMUXC_GPR */
 		#interrupt-cells = <3>;
 		interrupt-controller;
 		interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
@@ -85,6 +102,7 @@
 			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(6) | IRQ_TYPE_LEVEL_LOW)>; /* Hypervisor */
 		clock-frequency = <8333333>;
 		interrupt-parent = <&gic>;
+		arm,no-tick-in-suspend;
 	};
 
 	busfreq { /* BUSFREQ */
@@ -93,10 +111,14 @@
 			 <&clk IMX8MQ_CLK_DRAM_APB_SRC>, <&clk IMX8MQ_CLK_DRAM_APB_PRE_DIV>,
 		         <&clk IMX8MQ_CLK_DRAM_CORE>, <&clk IMX8MQ_CLK_DRAM_ALT_ROOT>,
 			 <&clk IMX8MQ_SYS1_PLL_40M>, <&clk IMX8MQ_SYS1_PLL_400M>,
-			 <&clk IMX8MQ_SYS1_PLL_100M>, <&clk IMX8MQ_SYS1_PLL_800M>;
+			 <&clk IMX8MQ_SYS1_PLL_100M>, <&clk IMX8MQ_SYS1_PLL_800M>,
+			 <&clk IMX8MQ_CLK_NOC_DIV>, <&clk IMX8MQ_CLK_MAIN_AXI_SRC>,
+			 <&clk IMX8MQ_CLK_AHB_DIV>, <&clk IMX8MQ_CLK_25M>,
+			 <&clk IMX8MQ_SYS2_PLL_333M>, <&clk IMX8MQ_SYS1_PLL_133M>;
 		clock-names = "dram_pll", "dram_alt_src", "dram_apb_src", "dram_apb_pre_div",
 			      "dram_core", "dram_alt_root", "sys1_pll_40m", "sys1_pll_400m",
-			      "sys1_pll_100m", "sys1_pll_800m";
+			      "sys1_pll_100m", "sys1_pll_800m", "noc_div", "main_axi_src",
+			      "ahb_div", "osc_25m", "sys2_pll_333m", "sys1_pll_133m";
 		interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 110 IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI 111 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-name = "irq_busfreq_0", "irq_busfreq_1", "irq_busfreq_2", "irq_busfreq_3";
@@ -592,24 +614,14 @@
 		interrupt-parent = <&gic>;
 	};
 
-	system_counter_rd: system-counter-rd@306a0000 {
-		compatible = "fsl,imx8mq-system-counter-rd";
-		reg = <0x0 0x306a0000 0x0 0x10000>;
-		status = "disabled";
-	};
-
-	system_counter_cmp: system-counter-cmp@306b0000 {
-		compatible = "fsl,imx8mq-system-counter-cmp";
-		reg = <0x0 0x306b0000 0x0 0x10000>;
-		status = "disabled";
-	};
-
-	system_counter_ctrl: system-counter-ctrl@306c0000 {
-		compatible = "fsl,imx8mq-system-counter-ctrl";
-		reg = <0x0 0x306c0000 0x0 0x10000>;
+	system_counter: system-counter@3036a0000 {
+		compatible = "nxp,sysctr-timer";
+		reg = <0x0 0x306a0000 0x0 0x10000>, /* system-counter-rd base */
+		      <0x0 0x306b0000 0x0 0x10000>, /* system-counter-cmp base */
+		      <0x0 0x306c0000 0x0 0x10000>; /* system-counter-ctrl base */
+		clock-frequency = <8333333>;
 		interrupts = <GIC_SPI 47 IRQ_TYPE_LEVEL_HIGH>,
-			<GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
-		status = "disabled";
+			     <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
 	spdif1: spdif@30810000 {
@@ -945,6 +957,7 @@
 		clock-names = "ipg", "ahb";
 		#dma-cells = <3>;
 		fsl,sdma-ram-script-name = "imx/sdma/sdma-imx7d.bin";
+		fsl,ratio-1-1;
 		status = "okay";
 	};
 
@@ -1095,7 +1108,7 @@
 
 	hdmi: hdmi@32c00000 {
 		compatible = "fsl,imx8mq-fb-hdmi";
-		reg = <0x0 0x32c00000 0x0 0x100000>,	/* HDP registers */
+		reg = <0x0 0x32c00000 0x0 0x33800>,	/* HDP registers */
 				<0x0 0x32e40000 0x0 0x40000>;   /* HDP SEC register */
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
 		video-mode = <16>;	/* <default_mode: #16>
@@ -1104,6 +1117,12 @@
 					 * #97: 3840x2160p@60Hz 16:9
 					 */
 		power-domains = <&disp_pd>;
+		status = "disabled";
+	};
+
+	hdmi_cec: hdmi_cec@32c33800 {
+		compatible = "fsl,imx8-hdp-cec";
+		reg = <0x0 0x32c33800 0x0 0x200>;
 		status = "disabled";
 	};
 
