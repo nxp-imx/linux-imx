@@ -16,29 +16,111 @@
 #include <linux/gpio/consumer.h>
 #include <linux/of_device.h>
 #include <linux/i2c.h>
+#include <linux/of_gpio.h>
+#include <linux/clk.h>
 #include <sound/soc.h>
 #include <sound/pcm_params.h>
 #include <sound/pcm.h>
 #include <sound/soc-dapm.h>
 
+#include "fsl_sai.h"
+
 struct imx_ak4458_data {
 	struct snd_soc_card card;
 	int num_codec_conf;
 	struct snd_soc_codec_conf *codec_conf;
+	bool tdm_mode;
+	int pdn_gpio;
+	unsigned long freq;
+	unsigned int slots;
+	unsigned int slot_width;
+};
+
+struct imx_ak4458_fs_mul {
+	unsigned int min;
+	unsigned int max;
+	unsigned int mul;
 };
 
 static struct snd_soc_dapm_widget imx_ak4458_dapm_widgets[] = {
 	SND_SOC_DAPM_LINE("Line Out", NULL),
 };
 
+static const struct imx_ak4458_fs_mul fs_mul[] = {
+	/*
+	 * Table 2      - mapping multiplier and speed mode
+	 * Tables 3 & 4 - mapping speed mode and LRCK fs
+	 */
+	{ .min = 8000,   .max = 48000,  .mul = 1024  }, /* Normal */
+	{ .min = 88200,  .max = 96000,  .mul = 512  }, /* Double */
+	{ .min = 176400, .max = 192000, .mul = 256  }, /* Quad */
+	{ .min = 384000, .max = 384000, .mul = 128   }, /* Oct */
+	{ .min = 768000, .max = 768000, .mul = 64   }, /* Hex */
+};
+
+static const struct imx_ak4458_fs_mul fs_mul_tdm[] = {
+	/*
+	 * Table 13	- Audio Interface Format
+	 * For TDM mode, MCLK should is set to
+	 * obtained from 2 * slots * slot_width
+	 */
+	{ .min = 128,	.max = 128,	.mul = 256  }, /* TDM128 */
+	{ .min = 256,	.max = 256,	.mul = 512  }, /* TDM256 */
+	{ .min = 512,	.max = 512,	.mul = 1024  }, /* TDM512 */
+};
+
 static const u32 ak4458_rates[] = {
 	8000, 16000, 32000,
 	48000, 96000, 192000,
+	384000, 768000,
+};
+
+static const u32 ak4458_rates_tdm[] = {
+	8000, 16000, 32000,
+	48000, 96000,
 };
 
 static const u32 ak4458_channels[] = {
 	1, 2, 4, 6, 8, 10, 12, 14, 16,
 };
+
+static const u32 ak4458_channels_tdm[] = {
+	1, 2, 3, 4, 5, 6, 7, 8,
+};
+
+static unsigned long ak4458_get_mclk_rate(struct snd_pcm_substream *substream,
+					  struct snd_pcm_hw_params *params)
+{
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct imx_ak4458_data *data = snd_soc_card_get_drvdata(rtd->card);
+	unsigned int rate = params_rate(params);
+	int i;
+	int mode;
+	unsigned int freq = data->freq;
+
+	if (data->tdm_mode) {
+		/* can be 128, 256 or 512 */
+		mode = data->slots * data->slot_width;
+
+		for (i = 0; i < ARRAY_SIZE(fs_mul_tdm); i++) {
+			/* min = max = slots * slots_width */
+			if (mode != fs_mul_tdm[i].min)
+				continue;
+			freq = rate * fs_mul_tdm[i].mul;
+			break;
+		}
+	} else {
+		for (i = 0; i < ARRAY_SIZE(fs_mul); i++) {
+			if (rate < fs_mul[i].min || rate > fs_mul[i].max)
+				continue;
+			/* rate is within min and max */
+			freq = rate * fs_mul[i].mul;
+			break;
+		}
+	}
+
+	return freq;
+}
 
 static int imx_aif_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params)
@@ -46,13 +128,20 @@ static int imx_aif_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct device *dev = card->dev;
+	struct imx_ak4458_data *data = snd_soc_card_get_drvdata(card);
 	unsigned int channels = params_channels(params);
 	unsigned int fmt;
+	unsigned long mclk_freq;
 	int ret;
 	int i;
 
-	fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
+	if (data->tdm_mode)
+		fmt = SND_SOC_DAIFMT_DSP_B | SND_SOC_DAIFMT_NB_NF |
+			SND_SOC_DAIFMT_CBS_CFS;
+	else
+		fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBS_CFS;
 
 	ret = snd_soc_dai_set_fmt(cpu_dai, fmt);
@@ -71,11 +160,37 @@ static int imx_aif_hw_params(struct snd_pcm_substream *substream,
 		}
 	}
 
+	if (data->tdm_mode) {
+		data->slots = 8;
+		data->slot_width = 32;
+
+		ret = snd_soc_dai_set_tdm_slot(codec_dai,
+				       BIT(channels) - 1, BIT(channels) - 1,
+				       data->slots, data->slot_width);
+		if (ret) {
+			dev_err(dev, "failed to set codec dai tdm slot: %d\n", ret);
+			return ret;
+		}
+	} else {
+		data->slots = 2;
+		data->slot_width = params_physical_width(params);
+	}
+
 	ret = snd_soc_dai_set_tdm_slot(cpu_dai,
 				       BIT(channels) - 1, BIT(channels) - 1,
-				       2, params_physical_width(params));
+				       data->slots, data->slot_width);
 	if (ret) {
 		dev_err(dev, "failed to set cpu dai tdm slot: %d\n", ret);
+		return ret;
+	}
+
+	/* set MCLK freq */
+	mclk_freq = ak4458_get_mclk_rate(substream, params);
+	ret = snd_soc_dai_set_sysclk(cpu_dai, FSL_SAI_CLK_MAST1, mclk_freq,
+				     SND_SOC_CLOCK_OUT);
+	if (ret < 0) {
+		dev_err(dev, "failed to set cpui dai mclk1 rate (%lu): %d\n",
+			mclk_freq, ret);
 		return ret;
 	}
 
@@ -85,23 +200,32 @@ static int imx_aif_hw_params(struct snd_pcm_substream *substream,
 static int imx_aif_startup(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct imx_ak4458_data *data = snd_soc_card_get_drvdata(card);
 	static struct snd_pcm_hw_constraint_list constraint_rates;
 	static struct snd_pcm_hw_constraint_list constraint_channels;
 	int ret;
 
-	constraint_rates.list = ak4458_rates;
-	constraint_rates.count = ARRAY_SIZE(ak4458_rates);
-
-	ret = snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_RATE,
-						&constraint_rates);
-	if (ret)
-		return ret;
-
-	constraint_channels.list = ak4458_channels;
-	constraint_channels.count = ARRAY_SIZE(ak4458_channels);
+	if (data->tdm_mode) {
+		constraint_channels.list = ak4458_channels_tdm;
+		constraint_channels.count = ARRAY_SIZE(ak4458_channels_tdm);
+		constraint_rates.list = ak4458_rates_tdm;
+		constraint_rates.count = ARRAY_SIZE(ak4458_rates_tdm);
+	} else {
+		constraint_channels.list = ak4458_channels;
+		constraint_channels.count = ARRAY_SIZE(ak4458_channels);
+		constraint_rates.list = ak4458_rates;
+		constraint_rates.count = ARRAY_SIZE(ak4458_rates);
+	}
 
 	ret = snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
 						&constraint_channels);
+	if (ret)
+		return ret;
+
+	ret = snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_RATE,
+						&constraint_rates);
 	if (ret)
 		return ret;
 
@@ -139,6 +263,7 @@ static int imx_ak4458_probe(struct platform_device *pdev)
 	struct imx_ak4458_data *priv;
 	struct device_node *cpu_np, *codec_np_0 = NULL, *codec_np_1 = NULL;
 	struct platform_device *cpu_pdev;
+	struct clk *mclk;
 	int ret;
 
 
@@ -174,13 +299,17 @@ static int imx_ak4458_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	if (of_find_property(pdev->dev.of_node, "fsl,tdm", NULL))
+		priv->tdm_mode = true;
+
 	priv->num_codec_conf = 2;
 	priv->codec_conf = devm_kzalloc(&pdev->dev,
 		priv->num_codec_conf * sizeof(struct snd_soc_codec_conf),
 		GFP_KERNEL);
-	if (!priv->codec_conf)
-		return -ENOMEM;
-
+	if (!priv->codec_conf) {
+		ret = -ENOMEM;
+		goto fail;
+	}
 
 	priv->codec_conf[0].name_prefix = "0";
 	priv->codec_conf[0].of_node = codec_np_0;
@@ -201,6 +330,30 @@ static int imx_ak4458_probe(struct platform_device *pdev)
 	priv->card.num_dapm_widgets = ARRAY_SIZE(imx_ak4458_dapm_widgets);
 	priv->card.codec_conf = priv->codec_conf;
 	priv->card.num_configs = priv->num_codec_conf;
+
+	priv->pdn_gpio = of_get_named_gpio(pdev->dev.of_node, "ak4458,pdn-gpio", 0);
+	if (gpio_is_valid(priv->pdn_gpio)) {
+		ret = devm_gpio_request_one(&pdev->dev, priv->pdn_gpio,
+				GPIOF_OUT_INIT_LOW, "ak4458,pdn");
+		if (ret) {
+			dev_err(&pdev->dev, "unable to get pdn gpio\n");
+			goto fail;
+		}
+
+		gpio_set_value_cansleep(priv->pdn_gpio, 0);
+		usleep_range(1000, 2000);
+		gpio_set_value_cansleep(priv->pdn_gpio, 1);
+		usleep_range(1000, 2000);
+	}
+
+	mclk = devm_clk_get(&cpu_pdev->dev, "mclk1");
+	if (IS_ERR(mclk)) {
+		ret = PTR_ERR(mclk);
+		dev_err(&pdev->dev, "failed to get DAI mclk1: %d\n", ret);
+		return -EINVAL;
+	}
+
+	priv->freq = clk_get_rate(mclk);
 
 	ret = snd_soc_of_parse_card_name(&priv->card, "model");
 	if (ret)

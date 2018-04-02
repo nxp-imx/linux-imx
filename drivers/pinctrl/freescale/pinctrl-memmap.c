@@ -30,16 +30,12 @@
 
 #define IMX_PAD_SION 0x40000000		/* set SION */
 
-#define IOMUXC_IBE	(1 << 16)
-#define IOMUXC_OBE	(1 << 17)
-
 int imx_pmx_set_one_pin_mem(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 {
 	const struct imx_pinctrl_soc_info *info = ipctl->info;
 	unsigned int pin_id = pin->pin;
 	struct imx_pin_reg *pin_reg;
 	struct imx_pin_memmap *pin_memmap;
-	u32 mux_shift = info->mux_mask ? ffs(info->mux_mask) - 1 : 0;
 	pin_reg = &info->pin_regs[pin_id];
 	pin_memmap = &pin->pin_conf.pin_memmap;
 
@@ -53,13 +49,15 @@ int imx_pmx_set_one_pin_mem(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 		u32 reg;
 		reg = readl(ipctl->base + pin_reg->mux_reg);
 		reg &= ~info->mux_mask;
-		reg |= (pin_memmap->mux_mode << mux_shift);
+		reg |= (pin_memmap->mux_mode << info->mux_shift);
 		writel(reg, ipctl->base + pin_reg->mux_reg);
+		dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%x\n",
+			pin_reg->mux_reg, reg);
 	} else {
 		writel(pin_memmap->mux_mode, ipctl->base + pin_reg->mux_reg);
+		dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%x\n",
+			pin_reg->mux_reg, pin_memmap->mux_mode);
 	}
-	dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%x\n",
-		pin_reg->mux_reg, pin_memmap->mux_mode);
 
 	/*
 	 * If the select input value begins with 0xff, it's a quirky
@@ -107,74 +105,6 @@ int imx_pmx_set_one_pin_mem(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 	return 0;
 }
 
-int imx_pmx_backend_gpio_request_enable_mem(struct pinctrl_dev *pctldev,
-			struct pinctrl_gpio_range *range, unsigned offset)
-{
-	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
-	const struct imx_pinctrl_soc_info *info = ipctl->info;
-	const struct imx_pin_reg *pin_reg;
-	struct imx_pin_group *grp;
-	struct imx_pin *imx_pin;
-	unsigned int pin, group;
-	u32 reg, mux_shift;
-
-	/* Currently implementation only for shared mux/conf register */
-	if (!(info->flags & SHARE_MUX_CONF_REG))
-		return 0;
-
-	pin_reg = &info->pin_regs[offset];
-	if (pin_reg->mux_reg == -1)
-		return -EINVAL;
-
-	/* Find the pinctrl config with GPIO mux mode for the requested pin */
-	for (group = 0; group < info->ngroups; group++) {
-		grp = &info->groups[group];
-		for (pin = 0; pin < grp->npins; pin++) {
-			imx_pin = &grp->pins[pin];
-			if (imx_pin->pin == offset)
-				goto mux_pin;
-		}
-	}
-
-	return -EINVAL;
-
-mux_pin:
-	reg = readl(ipctl->base + pin_reg->mux_reg);
-	reg &= ~info->mux_mask;
-	mux_shift = info->mux_mask ? ffs(info->mux_mask) - 1 : 0;
-	reg |= (imx_pin->pin_conf.pin_memmap.mux_mode << mux_shift);
-	imx_pin->pin_conf.pin_memmap.config &= ~info->mux_mask;
-	reg |= imx_pin->pin_conf.pin_memmap.config;
-	writel(reg, ipctl->base + pin_reg->mux_reg);
-
-	return 0;
-}
-
-void imx_pmx_backend_gpio_disable_free_mem(struct pinctrl_dev *pctldev,
-				       struct pinctrl_gpio_range *range,
-				       unsigned offset)
-{
-	struct imx_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
-	const struct imx_pinctrl_soc_info *info = ipctl->info;
-	const struct imx_pin_reg *pin_reg;
-	u32 reg;
-	/*
-	 * Only Vybrid has the input/output buffer enable flags (IBE/OBE)
-	 * They are part of the shared mux/conf register.
-	 */
-	if (!(info->flags & SHARE_MUX_CONF_REG))
-		return;
-
-	pin_reg = &info->pin_regs[offset];
-	if (pin_reg->mux_reg == -1)
-		return;
-
-	/* Clear IBE/OBE/PUE to disable the pin (Hi-Z) */
-	reg = readl(ipctl->base + pin_reg->mux_reg);
-	reg &= ~0x7;
-	writel(reg, ipctl->base + pin_reg->mux_reg);
-}
-
 int imx_pmx_backend_gpio_set_direction_mem(struct pinctrl_dev *pctldev,
 	   struct pinctrl_gpio_range *range, unsigned offset, bool input)
 {
@@ -184,8 +114,8 @@ int imx_pmx_backend_gpio_set_direction_mem(struct pinctrl_dev *pctldev,
 	u32 reg;
 
 	/*
-	 * Only Vybrid has the input/output buffer enable flags (IBE/OBE)
-	 * They are part of the shared mux/conf register.
+	 * Only Vybrid and iMX ULP has the input/output buffer enable flags
+	 * (IBE/OBE) They are part of the shared mux/conf register.
 	 */
 	if (!(info->flags & SHARE_MUX_CONF_REG))
 		return 0;
@@ -194,23 +124,11 @@ int imx_pmx_backend_gpio_set_direction_mem(struct pinctrl_dev *pctldev,
 	if (pin_reg->mux_reg == -1)
 		return -EINVAL;
 
-	/* IBE always enabled allows us to read the value "on the wire" */
 	reg = readl(ipctl->base + pin_reg->mux_reg);
-	if (input) {
-		if (info->flags & CONFIG_IBE_OBE) {
-			reg &= ~IOMUXC_OBE;
-			reg |= IOMUXC_IBE;
-		} else {
-			reg &= ~0x2;
-		}
-	} else {
-		if (info->flags & CONFIG_IBE_OBE) {
-			reg &= ~IOMUXC_IBE;
-			reg |= IOMUXC_OBE;
-		} else {
-			reg |= 0x2;
-		}
-	}
+	if (input)
+		reg = (reg & ~info->obe_bit) | info->ibe_bit;
+	else
+		reg = (reg & ~info->ibe_bit) | info->obe_bit;
 	writel(reg, ipctl->base + pin_reg->mux_reg);
 
 	return 0;
@@ -262,11 +180,13 @@ int imx_pinconf_backend_set_mem(struct pinctrl_dev *pctldev,
 			reg &= info->mux_mask;
 			reg |= configs[i];
 			writel(reg, ipctl->base + pin_reg->conf_reg);
+			dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%x\n",
+				pin_reg->conf_reg, reg);
 		} else {
 			writel(configs[i], ipctl->base + pin_reg->conf_reg);
+			dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%lx\n",
+				pin_reg->conf_reg, configs[i]);
 		}
-		dev_dbg(ipctl->dev, "write: offset 0x%x val 0x%lx\n",
-			pin_reg->conf_reg, configs[i]);
 	} /* for each config */
 
 	return 0;

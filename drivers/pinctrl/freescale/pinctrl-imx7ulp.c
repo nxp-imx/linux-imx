@@ -363,16 +363,27 @@ static const struct pinctrl_pin_desc imx7ulp_pinctrl_pads_1[] = {
 	IMX_PINCTRL_PIN(ULP1_PAD_PTF19),
 };
 
+#define BM_MUX_MODE		0xf00
+#define BP_MUX_MODE		8
+
 static struct imx_pinctrl_soc_info imx7ulp_pinctrl_info_0 = {
 	.pins = imx7ulp_pinctrl_pads_0,
 	.npins = ARRAY_SIZE(imx7ulp_pinctrl_pads_0),
-	.flags = ZERO_OFFSET_VALID | SHARE_MUX_CONF_REG | CONFIG_IBE_OBE,
+	.flags = ZERO_OFFSET_VALID | SHARE_MUX_CONF_REG,
+	.mux_mask = BM_MUX_MODE,
+	.mux_shift = BP_MUX_MODE,
+	.ibe_bit = BIT(16),
+	.obe_bit = BIT(17),
 };
 
 static struct imx_pinctrl_soc_info imx7ulp_pinctrl_info_1 = {
 	.pins = imx7ulp_pinctrl_pads_1,
 	.npins = ARRAY_SIZE(imx7ulp_pinctrl_pads_1),
-	.flags = ZERO_OFFSET_VALID | SHARE_MUX_CONF_REG | CONFIG_IBE_OBE,
+	.flags = ZERO_OFFSET_VALID | SHARE_MUX_CONF_REG,
+	.mux_mask = BM_MUX_MODE,
+	.mux_shift = BP_MUX_MODE,
+	.ibe_bit = BIT(16),
+	.obe_bit = BIT(17),
 };
 
 static struct of_device_id imx7ulp_pinctrl_of_match[] = {

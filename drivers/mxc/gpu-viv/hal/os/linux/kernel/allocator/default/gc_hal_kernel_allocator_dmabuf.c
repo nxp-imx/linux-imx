@@ -361,7 +361,7 @@ _DmabufMapUser(
                     0L,
                     Mdl->numPages << PAGE_SHIFT,
                     PROT_READ | PROT_WRITE,
-                    MAP_SHARED,
+                    MAP_SHARED | MAP_NORESERVE,
                     0);
 
     if (IS_ERR(userLogical))

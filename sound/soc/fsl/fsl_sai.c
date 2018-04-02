@@ -246,7 +246,29 @@ static int fsl_sai_set_dai_sysclk(struct snd_soc_dai *cpu_dai,
 	if (dir == SND_SOC_CLOCK_IN)
 		return 0;
 
-	sai->bitclk_freq = freq;
+	if (clk_id == FSL_SAI_CLK_BIT) {
+		sai->bitclk_freq = freq;
+		return 0;
+	}
+
+	if (freq > 0) {
+		if (clk_id < 0 || clk_id >= FSL_SAI_MCLK_MAX) {
+			dev_err(cpu_dai->dev, "Unknown clock id: %d\n", clk_id);
+			return -EINVAL;
+		}
+
+		if (IS_ERR_OR_NULL(sai->mclk_clk[clk_id])) {
+			dev_err(cpu_dai->dev, "Unassigned clock: %d\n", clk_id);
+			return -EINVAL;
+		}
+
+		ret = clk_set_rate(sai->mclk_clk[clk_id], freq);
+		if (ret < 0) {
+			dev_err(cpu_dai->dev, "failed to set clock rate (%u): %d\n",
+					freq, ret);
+			return ret;
+		}
+	}
 
 	ret = fsl_sai_set_dai_sysclk_tr(cpu_dai, clk_id, freq,
 					FSL_FMT_TRANSMITTER);
@@ -732,9 +754,8 @@ static int fsl_sai_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 
-		for (i = 0; tx && i < channels; i++) {
-		while (tx && i < channels)
-			if (sai->dataline[tx] & (1 << j)) {
+		while (tx && i < channels) {
+			if ((sai->is_dsd ? sai->dataline_dsd[tx] : sai->dataline[tx]) & (1 << j)) {
 				regmap_write(sai->regmap, FSL_SAI_TDR0 + j * 0x4, 0x0);
 				i++;
 				k++;
@@ -890,12 +911,31 @@ static int fsl_sai_dai_probe(struct snd_soc_dai *cpu_dai)
 	return 0;
 }
 
+static int fsl_sai_dai_resume(struct snd_soc_dai *cpu_dai)
+{
+	struct fsl_sai *sai = snd_soc_dai_get_drvdata(cpu_dai);
+	int ret;
+
+	if (sai->is_dsd && !IS_ERR_OR_NULL(sai->pins_dsd)) {
+		ret = pinctrl_select_state(sai->pinctrl, sai->pins_dsd);
+		if (ret) {
+			dev_err(cpu_dai->dev,
+				"failed to set proper pins state: %d\n", ret);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
 static struct snd_soc_dai_driver fsl_sai_dai = {
 	.probe = fsl_sai_dai_probe,
 	.playback = {
 		.stream_name = "CPU-Playback",
 		.channels_min = 1,
 		.channels_max = 32,
+		.rate_min = 8000,
+		.rate_max = 2822400,
 		.rates = SNDRV_PCM_RATE_KNOT,
 		.formats = FSL_SAI_FORMATS,
 	},
@@ -903,9 +943,12 @@ static struct snd_soc_dai_driver fsl_sai_dai = {
 		.stream_name = "CPU-Capture",
 		.channels_min = 1,
 		.channels_max = 32,
+		.rate_min = 8000,
+		.rate_max = 2822400,
 		.rates = SNDRV_PCM_RATE_KNOT,
 		.formats = FSL_SAI_FORMATS,
 	},
+	.resume  = fsl_sai_dai_resume,
 	.ops = &fsl_sai_pcm_dai_ops,
 };
 
@@ -938,6 +981,12 @@ static struct reg_default fsl_sai_v3_reg_defaults[] = {
 	{FSL_SAI_TCR5(8), 0},
 	{FSL_SAI_TDR0, 0},
 	{FSL_SAI_TDR1, 0},
+	{FSL_SAI_TDR2, 0},
+	{FSL_SAI_TDR3, 0},
+	{FSL_SAI_TDR4, 0},
+	{FSL_SAI_TDR5, 0},
+	{FSL_SAI_TDR6, 0},
+	{FSL_SAI_TDR7, 0},
 	{FSL_SAI_TMR,  0},
 	{FSL_SAI_RCR1(8), 0},
 	{FSL_SAI_RCR2(8), 0},
@@ -970,6 +1019,12 @@ static bool fsl_sai_readable_reg(struct device *dev, unsigned int reg)
 	case FSL_SAI_TMR:
 	case FSL_SAI_RDR0:
 	case FSL_SAI_RDR1:
+	case FSL_SAI_RDR2:
+	case FSL_SAI_RDR3:
+	case FSL_SAI_RDR4:
+	case FSL_SAI_RDR5:
+	case FSL_SAI_RDR6:
+	case FSL_SAI_RDR7:
 	case FSL_SAI_RFR0:
 	case FSL_SAI_RFR1:
 	case FSL_SAI_RFR2:
@@ -1012,6 +1067,12 @@ static bool fsl_sai_volatile_reg(struct device *dev, unsigned int reg)
 	case FSL_SAI_RFR7:
 	case FSL_SAI_RDR0:
 	case FSL_SAI_RDR1:
+	case FSL_SAI_RDR2:
+	case FSL_SAI_RDR3:
+	case FSL_SAI_RDR4:
+	case FSL_SAI_RDR5:
+	case FSL_SAI_RDR6:
+	case FSL_SAI_RDR7:
 		return true;
 	default:
 		return false;
@@ -1032,6 +1093,12 @@ static bool fsl_sai_writeable_reg(struct device *dev, unsigned int reg)
 	switch (reg) {
 	case FSL_SAI_TDR0:
 	case FSL_SAI_TDR1:
+	case FSL_SAI_TDR2:
+	case FSL_SAI_TDR3:
+	case FSL_SAI_TDR4:
+	case FSL_SAI_TDR5:
+	case FSL_SAI_TDR6:
+	case FSL_SAI_TDR7:
 	case FSL_SAI_TMR:
 	case FSL_SAI_RMR:
 		return true;

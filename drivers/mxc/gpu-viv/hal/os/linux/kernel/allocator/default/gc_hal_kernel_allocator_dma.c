@@ -403,7 +403,7 @@ _DmaMapUser(
                     0L,
                     Mdl->numPages * PAGE_SIZE,
                     PROT_READ | PROT_WRITE,
-                    MAP_SHARED,
+                    MAP_SHARED | MAP_NORESERVE,
                     0);
 #else
     down_write(&current->mm->mmap_sem);

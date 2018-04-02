@@ -16,6 +16,7 @@
  */
 
 #include <linux/bitops.h>
+#include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/gpio.h>
 #include <linux/init.h>
@@ -97,8 +98,6 @@ static void vf610_gpio_set(struct gpio_chip *gc, unsigned int gpio, int val)
 	struct vf610_gpio_port *port = gpiochip_get_data(gc);
 	unsigned long mask = BIT(gpio);
 
-	vf610_gpio_writel(mask, port->gpio_base + GPIO_PDDR);
-
 	if (val)
 		vf610_gpio_writel(mask, port->gpio_base + GPIO_PSOR);
 	else
@@ -120,6 +119,11 @@ static int vf610_gpio_direction_input(struct gpio_chip *chip, unsigned gpio)
 static int vf610_gpio_direction_output(struct gpio_chip *chip, unsigned gpio,
 				       int value)
 {
+	struct vf610_gpio_port *port = gpiochip_get_data(chip);
+	unsigned long mask = BIT(gpio);
+
+	vf610_gpio_writel(mask, port->gpio_base + GPIO_PDDR);
+
 	vf610_gpio_set(chip, gpio, value);
 
 	return pinctrl_gpio_direction_output(chip->base + gpio);
@@ -236,6 +240,7 @@ static int vf610_gpio_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
+	struct clk *clk_port, *clk_gpio;
 	struct vf610_gpio_port *port;
 	struct resource *iores;
 	struct gpio_chip *gc;
@@ -258,6 +263,23 @@ static int vf610_gpio_probe(struct platform_device *pdev)
 	port->irq = platform_get_irq(pdev, 0);
 	if (port->irq < 0)
 		return port->irq;
+
+	clk_port = devm_clk_get(&pdev->dev, "port");
+	clk_gpio = devm_clk_get(&pdev->dev, "gpio");
+	if (PTR_ERR(clk_port) == -EPROBE_DEFER ||
+	    PTR_ERR(clk_gpio) == -EPROBE_DEFER)
+		return -EPROBE_DEFER;
+
+	if (!IS_ERR(clk_port) && !IS_ERR(clk_gpio)) {
+		ret = clk_prepare_enable(clk_port);
+		if (ret)
+			return ret;
+		ret = clk_prepare_enable(clk_gpio);
+		if (ret) {
+			clk_disable_unprepare(clk_port);
+			return ret;
+		}
+	}
 
 	gc = &port->gc;
 	gc->of_node = np;

@@ -37,7 +37,6 @@ struct ak4497_priv {
 	struct regmap *regmap;
 	int fs1;	/* Sampling Frequency */
 	int nBickFreq;	/* 0: 48fs for 24bit,  1: 64fs or more for 32bit */
-	int nDSDSel;
 	int nTdmSds;
 	int pdn_gpio;
 	int mute_gpio;
@@ -170,9 +169,15 @@ static int ak4497_get_dsdsel(struct snd_kcontrol *kcontrol,
 			     struct snd_ctl_elem_value  *ucontrol)
 {
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct ak4497_priv *ak4497 = snd_soc_codec_get_drvdata(codec);
+	u8 dsdsel0, dsdsel1;
 
-	ucontrol->value.enumerated.item[0] = ak4497->nDSDSel;
+	dsdsel0 = snd_soc_read(codec, AK4497_06_DSD1);
+	dsdsel0 &= AK4497_DSDSEL0;
+
+	dsdsel1 = snd_soc_read(codec, AK4497_09_DSD2);
+	dsdsel1 &= AK4497_DSDSEL1;
+
+	ucontrol->value.enumerated.item[0] = ((dsdsel1 << 1) | dsdsel0);
 
 	return 0;
 }
@@ -181,19 +186,27 @@ static int ak4497_set_dsdsel(struct snd_kcontrol *kcontrol,
 			     struct snd_ctl_elem_value  *ucontrol)
 {
 	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct ak4497_priv *ak4497 = snd_soc_codec_get_drvdata(codec);
+	unsigned int dsdsel = ucontrol->value.enumerated.item[0];
 
-	ak4497->nDSDSel = ucontrol->value.enumerated.item[0];
-
-	if (ak4497->nDSDSel == 0) { /* 2.8224MHz */
+	switch (dsdsel) {
+	case 0: /* 2.8224MHz */
 		snd_soc_update_bits(codec, AK4497_06_DSD1, 0x01, 0x00);
 		snd_soc_update_bits(codec, AK4497_09_DSD2, 0x01, 0x00);
-	} else if (ak4497->nDSDSel == 1) { /* 5.6448MHz */
+		break;
+	case 1:  /* 5.6448MHz */
 		snd_soc_update_bits(codec, AK4497_06_DSD1, 0x01, 0x01);
 		snd_soc_update_bits(codec, AK4497_09_DSD2, 0x01, 0x00);
-	} else { /* 11.2896MHz */
+		break;
+	case 2: /* 11.2896MHz */
 		snd_soc_update_bits(codec, AK4497_06_DSD1, 0x01, 0x00);
 		snd_soc_update_bits(codec, AK4497_09_DSD2, 0x01, 0x01);
+		break;
+	case 3: /* 22.5792MHz */
+		snd_soc_update_bits(codec, AK4497_06_DSD1, 0x01, 0x01);
+		snd_soc_update_bits(codec, AK4497_09_DSD2, 0x01, 0x01);
+		break;
+	default:
+		return -EINVAL;
 	}
 
 	return 0;
@@ -488,6 +501,8 @@ static int ak4497_hw_params(struct snd_pcm_substream *substream,
 	u8 dfs2;
 	int nfs1;
 	bool is_dsd = false;
+	int dsd_bclk;
+	u8 dsdsel0, dsdsel1;
 
 	if (pcm_format == SNDRV_PCM_FORMAT_DSD_U8 ||
 		pcm_format == SNDRV_PCM_FORMAT_DSD_U16_LE ||
@@ -504,6 +519,13 @@ static int ak4497_hw_params(struct snd_pcm_substream *substream,
 
 	dfs2 = snd_soc_read(codec, AK4497_05_CONTROL4);
 	dfs2 &= ~AK4497_DFS2;
+
+
+	dsdsel0 = snd_soc_read(codec, AK4497_06_DSD1);
+	dsdsel0 &= ~AK4497_DSDSEL0;
+
+	dsdsel1 = snd_soc_read(codec, AK4497_09_DSD2);
+	dsdsel1 &= ~AK4497_DSDSEL1;
 
 	if (!is_dsd) {
 		switch (nfs1) {
@@ -539,6 +561,33 @@ static int ak4497_hw_params(struct snd_pcm_substream *substream,
 		default:
 			return -EINVAL;
 		}
+	} else {
+		dsd_bclk = params_rate(params) *
+			params_physical_width(params);
+
+		switch (dsd_bclk) {
+		case 2822400:
+			dsdsel0 |= AK4497_DSDSEL0_2MHZ;
+			dsdsel1 |= AK4497_DSDSEL1_2MHZ;
+			break;
+		case 5644800:
+			dsdsel0 |= AK4497_DSDSEL0_5MHZ;
+			dsdsel1 |= AK4497_DSDSEL1_5MHZ;
+			break;
+		case 11289600:
+			dsdsel0 |= AK4497_DSDSEL0_11MHZ;
+			dsdsel1 |= AK4497_DSDSEL1_11MHZ;
+			break;
+		case 22579200:
+			dsdsel0 |= AK4497_DSDSEL0_22MHZ;
+			dsdsel1 |= AK4497_DSDSEL1_22MHZ;
+			break;
+		default:
+			return -EINVAL;
+		}
+
+		snd_soc_write(codec, AK4497_06_DSD1, dsdsel0);
+		snd_soc_write(codec, AK4497_09_DSD2, dsdsel1);
 	}
 
 	snd_soc_write(codec, AK4497_01_CONTROL2, dfs);
@@ -837,7 +886,6 @@ static int ak4497_probe(struct snd_soc_codec *codec)
 
 	ak4497->fs1 = 48000;
 	ak4497->nBickFreq = 1;
-	ak4497->nDSDSel = 0;
 	ak4497->nTdmSds = 0;
 
 	return ret;
@@ -867,6 +915,7 @@ static int ak4497_runtime_suspend(struct device *dev)
 
 	if (ak4497->pdn_gpio > 0) {
 		gpio_set_value(ak4497->pdn_gpio, 0);
+		usleep_range(1000, 2000);
 	}
 
 	if (ak4497->mute_gpio > 0)
@@ -882,8 +931,10 @@ static int ak4497_runtime_resume(struct device *dev)
 	if (ak4497->mute_gpio > 0)
 		gpio_set_value(ak4497->mute_gpio, 1); /* External Mute ON */
 
-	if (ak4497->pdn_gpio > 0)
+	if (ak4497->pdn_gpio > 0) {
 		gpio_set_value(ak4497->pdn_gpio, 1);
+		usleep_range(1000, 2000);
+	}
 
 	regcache_cache_only(ak4497->regmap, false);
 	regcache_mark_dirty(ak4497->regmap);

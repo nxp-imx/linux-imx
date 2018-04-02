@@ -28,12 +28,12 @@
 #define RPC_SVC(MSG)            ((MSG)->svc)
 #define RPC_FUNC(MSG)           ((MSG)->func)
 #define RPC_R8(MSG)             ((MSG)->func)
-#define RPC_I32(MSG, IDX)       ((MSG)->DATA.i32[IDX / 4])
-#define RPC_I16(MSG, IDX)       ((MSG)->DATA.i16[IDX / 2])
-#define RPC_I8(MSG, IDX)        ((MSG)->DATA.i8[IDX])
-#define RPC_U32(MSG, IDX)       ((MSG)->DATA.u32[IDX / 4])
-#define RPC_U16(MSG, IDX)       ((MSG)->DATA.u16[IDX / 2])
-#define RPC_U8(MSG, IDX)        ((MSG)->DATA.u8[IDX])
+#define RPC_I32(MSG, IDX)       ((MSG)->DATA.i32[(IDX) / 4])
+#define RPC_I16(MSG, IDX)       ((MSG)->DATA.i16[(IDX) / 2])
+#define RPC_I8(MSG, IDX)        ((MSG)->DATA.i8[(IDX)])
+#define RPC_U32(MSG, IDX)       ((MSG)->DATA.u32[(IDX) / 4])
+#define RPC_U16(MSG, IDX)       ((MSG)->DATA.u16[(IDX) / 2])
+#define RPC_U8(MSG, IDX)        ((MSG)->DATA.u8[(IDX)])
 
 /* Types */
 
