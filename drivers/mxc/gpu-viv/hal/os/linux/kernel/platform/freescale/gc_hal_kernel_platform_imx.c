@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2017 Vivante Corporation
+*    Copyright (c) 2014 - 2018 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2017 Vivante Corporation
+*    Copyright (C) 2014 - 2018 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -423,8 +423,8 @@ static struct imx_priv imxPriv;
 static ssize_t show_gpuMode(struct device_driver *dev, char *buf)
 {
     struct imx_priv *priv = &imxPriv;
-    char buffer[512] = {0};
-    char mode[16] = {0};
+    char buffer[512];
+    char mode[16];
     int i;
 
     unsigned long core_freq = 0;
@@ -607,6 +607,7 @@ int remove_gpu_opp_table(void)
 #endif
 
 #ifdef IMX_GPU_SUBSYSTEM
+
 static int use_imx_gpu_subsystem;
 
 /* sub device component ops. */
@@ -628,7 +629,7 @@ static const struct component_ops mxc_gpu_sub_ops =
 };
 
 /* sub device driver. */
-static const struct of_device_id gpu_sub_match[] =
+static const struct of_device_id mxc_gpu_sub_match[] =
 {
     { .compatible = "fsl,imx8-gpu"},
     { /* sentinel */ }
@@ -650,97 +651,23 @@ struct platform_driver mxc_gpu_sub_driver =
     .driver = {
         .name  = "mxc-gpu",
         .owner = THIS_MODULE,
-        .of_match_table = gpu_sub_match,
+        .of_match_table = mxc_gpu_sub_match,
     },
 
     .probe  = mxc_gpu_sub_probe,
     .remove = mxc_gpu_sub_remove,
 };
 
-static int register_imx_gpu_sub_driver(void)
+static int register_mxc_gpu_sub_driver(void)
 {
-    if (use_imx_gpu_subsystem)
-        return platform_driver_register(&mxc_gpu_sub_driver);
-
-    return 0;
+    return use_imx_gpu_subsystem ? platform_driver_register(&mxc_gpu_sub_driver) : 0;
 }
 
-static void unregister_imx_gpu_sub_driver(void)
+static void unregister_mxc_gpu_sub_driver(void)
 {
-    if (use_imx_gpu_subsystem)
+    if (use_imx_gpu_subsystem) {
         platform_driver_unregister(&mxc_gpu_sub_driver);
-}
-
-/* master device component ops. */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-static int (* gpu_probe_real)(struct platform_device *pdev);
-static int (* gpu_remove_real)(struct platform_device *pdev);
-#else
-static int __devinit (* gpu_probe_real)(struct platform_device *pdev);
-static int __devexit (* gpu_remove_real)(struct platform_device *pdev);
-#endif
-
-static int mxc_gpu_master_bind(struct device *dev)
-{
-    int ret;
-
-    ret = component_bind_all(dev, 0);
-    if (ret < 0)
-        return ret;
-
-    /* Call real probe. */
-    ret = gpu_probe_real(to_platform_device(dev));
-    if (!ret)
-        return 0;
-
-    /* error. */
-    component_unbind_all(dev, 0);
-    return ret;
-}
-
-static void mxc_gpu_master_unbind(struct device *dev)
-{
-    /* Call real remove. */
-    gpu_remove_real(to_platform_device(dev));
-    component_unbind_all(dev, 0);
-}
-
-static const struct component_master_ops mxc_gpu_master_ops =
-{
-    .bind   = mxc_gpu_master_bind,
-    .unbind = mxc_gpu_master_unbind,
-};
-
-static int compare_dev(struct device *dev, void *data)
-{
-    struct device_node *np = data;
-
-    return dev->of_node == np;
-}
-
-/* master device probe and remove. */
-static int mxc_gpu_master_probe(struct platform_device *pdev)
-{
-    struct component_match *match = NULL;
-    struct device_node * node = pdev->dev.of_node;
-    struct device_node *core_node;
-    int i = 0;
-
-    while ((core_node = of_parse_phandle(node, "cores", i++)) != NULL) {
-        if (of_device_is_available(core_node))
-            component_match_add(&pdev->dev, &match, compare_dev, core_node);
-
-        of_node_put(core_node);
     }
-
-    return component_master_add_with_match(&pdev->dev, &mxc_gpu_master_ops, match);
-}
-
-static int mxc_gpu_master_remove(struct platform_device *pdev)
-{
-    component_master_del(&pdev->dev, &mxc_gpu_master_ops);
-
-    return 0;
 }
 
 static int patch_param_imx8_subsystem(struct platform_device *pdev,
@@ -789,6 +716,114 @@ static int patch_param_imx8_subsystem(struct platform_device *pdev,
 
     return 0;
 }
+
+static inline int get_power_imx8_subsystem(struct device *pdev)
+{
+    struct imx_priv *priv = &imxPriv;
+    struct clk *clk_core = NULL;
+    struct clk *clk_shader = NULL;
+    struct clk *clk_axi = NULL;
+
+    /* Initialize the clock structure */
+    int i = 0;
+    struct device_node *node = pdev->of_node;
+    struct device_node *core_node;
+    int core = gcvCORE_MAJOR;
+
+#if defined(IMX8_SCU_CONTROL)
+    sc_err_t sciErr;
+    uint32_t mu_id;
+
+    sciErr = sc_ipc_getMuID(&mu_id);
+
+    if (sciErr != SC_ERR_NONE) {
+        printk("galcore; cannot obtain mu id\n");
+        return -EINVAL;
+    }
+
+    sciErr = sc_ipc_open(&gpu_ipcHandle, mu_id);
+
+    if (sciErr != SC_ERR_NONE) {
+        printk("galcore: cannot open MU channel to SCU\n");
+        return -EINVAL;
+    }
+#endif
+
+    while ((core_node = of_parse_phandle(node, "cores", i++)) != NULL) {
+        struct platform_device *pdev_gpu = NULL;
+        clk_shader = NULL;
+        clk_core = NULL;
+        clk_axi = NULL;
+
+        if (!of_device_is_available(core_node)) {
+            of_node_put(core_node);
+            continue;
+        }
+
+        pdev_gpu = of_find_device_by_node(core_node);
+
+        if (!pdev_gpu)
+            break;
+
+        clk_core = clk_get(&pdev_gpu->dev, "core");
+
+        if (IS_ERR(clk_core)) {
+            printk("galcore: clk_get clk_core failed\n");
+            break;
+        }
+
+        clk_axi = clk_get(&pdev_gpu->dev, "bus");
+
+        if (IS_ERR(clk_axi))
+            clk_axi = NULL;
+
+        clk_shader = clk_get(&pdev_gpu->dev, "shader");
+
+        if (IS_ERR(clk_shader)) {
+            printk("galcore: clk_get clk_3d_shader failed\n");
+            continue;
+        }
+
+#if defined(CONFIG_ANDROID) && LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
+        /* TODO: freescale BSP issue in some platform like imx8dv. */
+        clk_prepare(clk_core);
+        clk_set_rate(clk_core, 800000000);
+        clk_unprepare(clk_core);
+
+        clk_prepare(clk_shader);
+        clk_set_rate(clk_shader, 800000000);
+        clk_unprepare(clk_shader);
+#endif
+
+        priv->imx_gpu_clks[core].clk_shader = clk_shader;
+        priv->imx_gpu_clks[core].clk_core   = clk_core;
+        priv->imx_gpu_clks[core].clk_axi    = clk_axi;
+
+#if defined(IMX8_SCU_CONTROL)
+        if (of_property_read_u32(core_node, "fsl,sc_gpu_pid", &priv->sc_gpu_pid[core])) {
+            priv->sc_gpu_pid[core] = 0;
+        }
+#endif
+
+#ifdef CONFIG_PM
+        pm_runtime_get_noresume(&pdev_gpu->dev);
+        pm_runtime_set_active(&pdev_gpu->dev);
+        pm_runtime_enable(&pdev_gpu->dev);
+        pm_runtime_put_sync(&pdev_gpu->dev);
+        priv->pmdev[core] = &pdev_gpu->dev;
+#endif
+        of_node_put(core_node);
+        ++core;
+    }
+
+    priv->gpu3dCount = core;
+
+    if (core_node)
+        of_node_put(core_node);
+
+    return 0;
+}
+
 #endif
 
 static int patch_param_imx6(struct platform_device *pdev,
@@ -986,115 +1021,6 @@ static void imx6sx_optimize_qosc_for_GPU(void)
 }
 #endif
 
-#ifdef IMX_GPU_SUBSYSTEM
-static inline int get_power_imx8_subsystem(struct device *pdev)
-{
-    struct imx_priv *priv = &imxPriv;
-    struct clk *clk_core = NULL;
-    struct clk *clk_shader = NULL;
-    struct clk *clk_axi = NULL;
-
-    /* Initialize the clock structure */
-    int i = 0;
-    struct device_node *node = pdev->of_node;
-    struct device_node *core_node;
-    int core = gcvCORE_MAJOR;
-
-#if defined(IMX8_SCU_CONTROL)
-    sc_err_t sciErr;
-    uint32_t mu_id;
-
-    sciErr = sc_ipc_getMuID(&mu_id);
-
-    if (sciErr != SC_ERR_NONE) {
-        printk("galcore; cannot obtain mu id\n");
-        return -EINVAL;
-    }
-
-    sciErr = sc_ipc_open(&gpu_ipcHandle, mu_id);
-
-    if (sciErr != SC_ERR_NONE) {
-        printk("galcore: cannot open MU channel to SCU\n");
-        return -EINVAL;
-    }
-#endif
-
-    while ((core_node = of_parse_phandle(node, "cores", i++)) != NULL) {
-        struct platform_device *pdev_gpu = NULL;
-        clk_shader = NULL;
-        clk_core = NULL;
-        clk_axi = NULL;
-
-        if (!of_device_is_available(core_node)) {
-            of_node_put(core_node);
-            continue;
-        }
-
-        pdev_gpu = of_find_device_by_node(core_node);
-
-        if (!pdev_gpu)
-            break;
-
-        clk_core = clk_get(&pdev_gpu->dev, "core");
-
-        if (IS_ERR(clk_core)) {
-            printk("galcore: clk_get clk_core failed\n");
-            break;
-        }
-
-        clk_axi = clk_get(&pdev_gpu->dev, "bus");
-
-        if (IS_ERR(clk_axi))
-            clk_axi = NULL;
-
-        clk_shader = clk_get(&pdev_gpu->dev, "shader");
-
-        if (IS_ERR(clk_shader)) {
-            printk("galcore: clk_get clk_3d_shader failed\n");
-            continue;
-        }
-
-#if defined(CONFIG_ANDROID) && LINUX_VERSION_CODE < KERNEL_VERSION(4,9,0)
-        /* TODO: freescale BSP issue in some platform like imx8dv. */
-        clk_prepare(clk_core);
-        clk_set_rate(clk_core, 800000000);
-        clk_unprepare(clk_core);
-
-        clk_prepare(clk_shader);
-        clk_set_rate(clk_shader, 800000000);
-        clk_unprepare(clk_shader);
-#endif
-
-        priv->imx_gpu_clks[core].clk_shader = clk_shader;
-        priv->imx_gpu_clks[core].clk_core   = clk_core;
-        priv->imx_gpu_clks[core].clk_axi    = clk_axi;
-
-#if defined(IMX8_SCU_CONTROL)
-        if (of_property_read_u32(core_node, "fsl,sc_gpu_pid", &priv->sc_gpu_pid[core])) {
-            priv->sc_gpu_pid[core] = 0;
-        }
-#endif
-
-#ifdef CONFIG_PM
-        pm_runtime_get_noresume(&pdev_gpu->dev);
-        pm_runtime_set_active(&pdev_gpu->dev);
-        pm_runtime_enable(&pdev_gpu->dev);
-        pm_runtime_put_sync(&pdev_gpu->dev);
-        priv->pmdev[core] = &pdev_gpu->dev;
-#endif
-        of_node_put(core_node);
-        core++;
-    }
-
-    priv->gpu3dCount = core;
-
-    if (core_node)
-        of_node_put(core_node);
-
-    return 0;
-}
-#endif
-
 static inline int get_power_imx6(struct device *pdev)
 {
     struct imx_priv *priv = &imxPriv;
@@ -1208,9 +1134,7 @@ static inline int get_power(struct device *pdev)
 
     /*Initialize the clock structure*/
 #ifdef IMX_GPU_SUBSYSTEM
-    struct device_node *node = pdev->of_node;
-
-    if (node && use_imx_gpu_subsystem)
+    if (pdev->of_node && use_imx_gpu_subsystem)
         ret = get_power_imx8_subsystem(pdev);
     else
 #endif
@@ -1468,17 +1392,6 @@ static int adjust_platform_driver(struct platform_driver *driver)
 #endif
 #endif
 
-#ifdef IMX_GPU_SUBSYSTEM
-    if (use_imx_gpu_subsystem) {
-        /* Save old probe and remove. */
-        gpu_probe_real  = driver->probe;
-        gpu_remove_real = driver->remove;
-
-        driver->probe  = mxc_gpu_master_probe;
-        driver->remove = mxc_gpu_master_remove;
-    }
-#endif
-
     return 0;
 }
 
@@ -1617,8 +1530,9 @@ int soc_platform_init(struct platform_driver *pdrv,
             struct soc_platform **platform)
 {
 #ifdef IMX_GPU_SUBSYSTEM
-    if (of_find_compatible_node(NULL, NULL, "fsl,imx8-gpu-ss"))
+    if (of_find_compatible_node(NULL, NULL, "fsl,imx8-gpu-ss")) {
         use_imx_gpu_subsystem = 1;
+    }
 
     if (of_find_compatible_node(NULL, NULL, "fsl,imx8x-gpu")) {
         printk(KERN_ERR "Incorrect device-tree, please update dtb.");
@@ -1630,7 +1544,7 @@ int soc_platform_init(struct platform_driver *pdrv,
     init_priv();
 
 #ifdef IMX_GPU_SUBSYSTEM
-    register_imx_gpu_sub_driver();
+    register_mxc_gpu_sub_driver();
 #endif
 
     *platform = &imx_platform;
@@ -1640,7 +1554,7 @@ int soc_platform_init(struct platform_driver *pdrv,
 int soc_platform_terminate(struct soc_platform *platform)
 {
 #ifdef IMX_GPU_SUBSYSTEM
-    unregister_imx_gpu_sub_driver();
+    unregister_mxc_gpu_sub_driver();
 #endif
 
     free_priv();

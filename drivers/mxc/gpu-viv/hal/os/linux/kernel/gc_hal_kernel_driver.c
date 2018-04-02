@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2017 Vivante Corporation
+*    Copyright (c) 2014 - 2018 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2017 Vivante Corporation
+*    Copyright (C) 2014 - 2018 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -56,6 +56,7 @@
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/miscdevice.h>
+#include <linux/uaccess.h>
 
 #include "gc_hal_kernel_linux.h"
 #include "gc_hal_driver.h"
@@ -1111,23 +1112,18 @@ static int gpu_resume(struct platform_device *dev)
             {
                 return -1;
             }
+
             /* Convert global state to crossponding internal state. */
             switch(device->statesStored[i])
             {
             case gcvPOWER_OFF:
                 statesStored = gcvPOWER_OFF_BROADCAST;
-                if(device->kernels[i]->hardware)
-                    device->kernels[i]->hardware->forcePowerOff = gcvTRUE;
                 break;
             case gcvPOWER_IDLE:
                 statesStored = gcvPOWER_IDLE_BROADCAST;
-                if(device->kernels[i]->hardware)
-                    device->kernels[i]->hardware->forcePowerOff = gcvTRUE;
                 break;
             case gcvPOWER_SUSPEND:
                 statesStored = gcvPOWER_SUSPEND_BROADCAST;
-                if(device->kernels[i]->hardware)
-                    device->kernels[i]->hardware->forcePowerOff = gcvTRUE;
                 break;
             case gcvPOWER_ON:
                 statesStored = gcvPOWER_ON_AUTO;

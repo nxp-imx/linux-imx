@@ -2978,7 +2978,7 @@
 		cores = <&gpu_3d0>, <&gpu_3d1>;
 		reg = <0x0 0x80000000 0x0 0x80000000>, <0x0 0x0 0x0 0x8000000>;
 		reg-names = "phys_baseaddr", "contiguous_mem";
-		depth-compression = <1>;
+		depth-compression = <0>;
 		status = "disabled";
 	};
 
