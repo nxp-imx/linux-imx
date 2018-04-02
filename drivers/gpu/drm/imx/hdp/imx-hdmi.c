@@ -13,14 +13,16 @@
  */
 
 #include <linux/clk.h>
+#ifdef DEBUG_FW_LOAD
 #include "hdmitx_firmware.h"
+#endif
 #include "imx-hdp.h"
 #include "imx-hdmi.h"
 #include "API_AFE_ss28fdsoi_kiran_hdmitx.h"
 #include "API_AFE_t28hpc_hdmitx.h"
 
 static int character_freq_khz;
-
+#ifdef DEBUG_FW_LOAD
 void hdmi_fw_load(state_struct *state)
 {
 	pr_info("loading hdmi firmware\n");
@@ -30,8 +32,8 @@ void hdmi_fw_load(state_struct *state)
 		(u8 *)hdmitx_dram0_get_ptr(),
 		hdmitx_dram0_get_size());
 }
-
-void hdmi_fw_init(state_struct *state)
+#endif
+int hdmi_fw_init(state_struct *state)
 {
 	u8 echo_msg[] = "echo test";
 	u8 echo_resp[sizeof(echo_msg) + 1];
@@ -51,7 +53,11 @@ void hdmi_fw_init(state_struct *state)
 	pr_info("Started firmware!\n");
 
 	ret = CDN_API_CheckAlive_blocking(state);
-	pr_info("CDN_API_CheckAlive returned ret = %d\n", ret);
+	if (ret != 0) {
+		pr_err("CDN_API_CheckAlive failed - check firmware!\n");
+		return -ENXIO;
+	} else
+		pr_info("CDN_API_CheckAlive returned ret = %d\n", ret);
 
 	/* turn on IP activity */
 	ret = CDN_API_MainControl_blocking(state, 1, &sts);
@@ -59,8 +65,15 @@ void hdmi_fw_init(state_struct *state)
 
 	ret = CDN_API_General_Test_Echo_Ext_blocking(state, echo_msg, echo_resp,
 		 sizeof(echo_msg), CDN_BUS_TYPE_APB);
-	 pr_info("CDN_API_General_Test_Echo_Ext_blocking - APB(ret = %d echo_resp = %s)\n",
-		 ret, echo_resp);
+
+	if (0 != strncmp(echo_msg, echo_resp, sizeof(echo_msg))) {
+		pr_err("CDN_API_General_Test_Echo_Ext_blocking - echo test failed, check firmware!");
+		return -ENXIO;
+	}
+	pr_info("CDN_API_General_Test_Echo_Ext_blocking - APB(ret = %d echo_resp = %s)\n",
+		  ret, echo_resp);
+
+	return 0;
 }
 
 int hdmi_phy_init(state_struct *state, int vic, int format, int color_depth)
@@ -101,17 +114,29 @@ void hdmi_mode_set(state_struct *state, int vic, int format, int color_depth, in
 		ptype = 2;
 
 	ret = CDN_API_HDMITX_Init_blocking(state);
-	pr_info("CDN_API_STATUS CDN_API_HDMITX_Init_blocking  ret = %d\n", ret);
+	if (ret != CDN_OK) {
+		pr_info("CDN_API_STATUS CDN_API_HDMITX_Init_blocking  ret = %d\n", ret);
+		return;
+	}
 
 	/* Set HDMI TX Mode */
 	ret = CDN_API_HDMITX_Set_Mode_blocking(state, ptype, character_freq_khz);
-	pr_info("CDN_API_HDMITX_Set_Mode_blocking ret = %d\n", ret);
+	if (ret != CDN_OK) {
+		pr_info("CDN_API_HDMITX_Set_Mode_blocking ret = %d\n", ret);
+		return;
+	}
 
 	ret = CDN_API_Set_AVI(state, vic, format, bw_type);
-	pr_info("CDN_API_Set_AVI  ret = %d\n", ret);
+	if (ret != CDN_OK) {
+		pr_info("CDN_API_Set_AVI  ret = %d\n", ret);
+		return;
+	}
 
 	ret =  CDN_API_HDMITX_SetVic_blocking(state, vic, color_depth, format);
-	pr_info("CDN_API_HDMITX_SetVic_blocking ret = %d\n", ret);
+	if (ret != CDN_OK) {
+		pr_info("CDN_API_HDMITX_SetVic_blocking ret = %d\n", ret);
+		return;
+	}
 
 	msleep(50);
 }
@@ -178,17 +203,29 @@ void hdmi_mode_set_t28hpc(state_struct *state, int vic, int format, int color_de
 		ptype = 2;
 
 	ret = CDN_API_HDMITX_Init_blocking(state);
-	pr_info("CDN_API_STATUS CDN_API_HDMITX_Init_blocking  ret = %d\n", ret);
+	if (ret != CDN_OK) {
+		pr_info("CDN_API_STATUS CDN_API_HDMITX_Init_blocking  ret = %d\n", ret);
+		return;
+	}
 
 	/* Set HDMI TX Mode */
 	ret = CDN_API_HDMITX_Set_Mode_blocking(state, ptype, character_freq_khz);
-	pr_info("CDN_API_HDMITX_Set_Mode_blocking ret = %d\n", ret);
+	if (ret != CDN_OK) {
+		pr_info("CDN_API_HDMITX_Set_Mode_blocking ret = %d\n", ret);
+		return;
+	}
 
 	ret = CDN_API_Set_AVI(state, vic, format, bw_type);
-	pr_info("CDN_API_Set_AVI  ret = %d\n", ret);
+	if (ret != CDN_OK) {
+		pr_info("CDN_API_Set_AVI  ret = %d\n", ret);
+		return;
+	}
 
 	ret = CDN_API_HDMITX_SetVic_blocking(state, vic, color_depth, format);
-	pr_info("CDN_API_HDMITX_SetVic_blocking ret = %d\n", ret);
+	if (ret != CDN_OK) {
+		pr_info("CDN_API_HDMITX_SetVic_blocking ret = %d\n", ret);
+		return;
+	}
 
 	msleep(200);
 }

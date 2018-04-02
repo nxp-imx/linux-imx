@@ -80,7 +80,7 @@
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0)
 #  include <mach/viv_gpu.h>
-#else
+#elif defined (CONFIG_PM)
 #  include <linux/pm_runtime.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
 #    include <mach/busfreq.h>
