@@ -249,7 +249,12 @@ void dcss_dtg_sync_set(struct dcss_soc *dcss, struct videomode *vm)
 	dtg->dis_ulc_x = dis_ulc_x;
 	dtg->dis_ulc_y = dis_ulc_y;
 
-	dcss_dtg_write(dtg, dis_ulc_y, DCSS_DTG_TC_CTXLD);
+	/*
+	 * If the dis_ulc_y is too small, then the context loader will not have
+	 * time to load the DB context. This happens with LCD panels which have
+	 * small vfront_porch, vback_porch and/or vsync_len.
+	 */
+	dcss_dtg_write(dtg, dis_ulc_y < 50 ? 50 : dis_ulc_y, DCSS_DTG_TC_CTXLD);
 }
 EXPORT_SYMBOL(dcss_dtg_sync_set);
 
@@ -304,8 +309,7 @@ bool dcss_dtg_global_alpha_changed(struct dcss_soc *dcss, int ch_num,
 	if (ch_num)
 		return false;
 
-	return dcss_dtg_global_alpha_needed(pix_format) &&
-	       (alpha != dtg->alpha || use_global_alpha != dtg->use_global);
+	return alpha != dtg->alpha || use_global_alpha != dtg->use_global;
 }
 EXPORT_SYMBOL(dcss_dtg_global_alpha_changed);
 

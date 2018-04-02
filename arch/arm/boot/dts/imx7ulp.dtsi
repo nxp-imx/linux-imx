@@ -43,8 +43,8 @@
 
 		operating-points = <
 			/* KHz	uV */
-			531648	1125000
-			416072	1025000
+			720000	1125000
+			500210	1025000
 		>;
 		clocks = <&clks IMX7ULP_CLK_ARM>,
 			 <&clks IMX7ULP_CLK_CORE_DIV>,
@@ -53,9 +53,11 @@
 			 <&clks IMX7ULP_CLK_HSRUN_CORE>,
 			 <&clks IMX7ULP_CLK_SPLL_PFD0>,
 			 <&clks IMX7ULP_CLK_SPLL_SEL>,
-			 <&clks IMX7ULP_CLK_FIRC>;
+			 <&clks IMX7ULP_CLK_FIRC>,
+			 <&clks IMX7ULP_CLK_SPLL>;
 		clock-names = "arm", "core_div", "sys_sel", "hsrun_sys_sel",
-			      "hsrun_core", "spll_pfd0", "spll_sel", "firc";
+			      "hsrun_core", "spll_pfd0", "spll_sel", "firc",
+			      "spll";
 		};
 	};
 
@@ -176,7 +178,7 @@
 		nmi: nmi@40220000 {
 			compatible = "fsl,imx7ulp-nmi";
 			reg = <0x40220000 0x1000>;
-			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+			interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
 			status = "okay";
 		};
 
@@ -184,20 +186,6 @@
 			compatible = "fsl,imx7ulp-rpmsg";
 			memory-region = <&rpmsg_reserved>;
 			status = "disabled";
-		};
-
-		snvs: snvs@40230000 {
-			compatible = "fsl,sec-v4.0-mon","syscon", "simple-mfd";
-			reg = <0x40230000 0x10000>;
-
-			snvs_rtc: snvs-rtc-lp{
-				compatible = "fsl,sec-v4.0-mon-rtc-lp";
-				regmap =<&snvs>;
-				offset = <0x34>;
-				interrupts = <GIC_SPI 69 IRQ_TYPE_LEVEL_HIGH>;
-				clock-names = "snvs-rtc";
-				clocks = <&clks IMX7ULP_CLK_SNVS>;
-			};
 		};
 
 		pwm0: tpm@40250000 {
@@ -622,6 +610,10 @@
 
 	heartbeat-rpmsg {
 		compatible = "fsl,heartbeat-rpmsg";
+	};
+
+	rtc-rpmsg {
+		compatible = "fsl,imx-rpmsg-rtc";
 	};
 
   imx_ion {
