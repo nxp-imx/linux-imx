@@ -52,6 +52,7 @@
 #include "address.h"
 #include "source_car.h"
 #include "source_vif.h"
+#include <soc/imx8/soc.h>
 
 CDN_API_STATUS CDN_API_HDMITX_DDC_READ(state_struct *state,
 				       HDMITX_TRANS_DATA *data_in,
@@ -159,7 +160,11 @@ CDN_API_HDMITX_Set_Mode_blocking(state_struct *state,
 	data_in.len = 1;
 	data_in.slave = 0x54;
 	data_in.offset = 0x20;	/* TMDS config */
-	ret = CDN_API_HDMITX_DDC_WRITE_blocking(state, &data_in, &data_out);
+	/* Workaround for imx8qm DDC R/W failed issue */
+	if (!cpu_is_imx8qm()) {
+		ret = CDN_API_HDMITX_DDC_WRITE_blocking(state, &data_in, &data_out);
+		pr_info("CDN_API_HDMITX_DDC_WRITE_blocking ret = %d\n", ret);
+	}
 
 	ret = CDN_API_General_Read_Register_blocking(
 				state, ADDR_SOURCE_MHL_HD + (HDTX_CONTROLLER << 2), &resp);
@@ -282,7 +287,7 @@ CDN_API_STATUS CDN_API_HDMITX_SetVic_blocking(state_struct *state,
 	u32 hsync = hblank - hfront - hback;
 	u32 vsync = vsync_lines;
 	u32 vback = sof_lines;
-	u32 v_h_polarity = ((vic_table[vicMode][HSYNC_POL] == ACTIVE_LOW) ? F_HPOL(0) : F_HPOL(1)) + ((vic_table[vicMode][VSYNC_POL] == ACTIVE_LOW) ? F_VPOL(0) : F_VPOL(1));	//bit invert ??? Sandor
+	u32 v_h_polarity = ((vic_table[vicMode][HSYNC_POL] == ACTIVE_LOW) ? 0 : 1) + ((vic_table[vicMode][VSYNC_POL] == ACTIVE_LOW) ? 0 : 2);
 
 	ret =
 	    CDN_API_General_Write_Register_blocking(state, ADDR_SOURCE_MHL_HD +

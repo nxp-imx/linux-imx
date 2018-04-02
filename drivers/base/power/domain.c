@@ -112,6 +112,9 @@ static int genpd_power_on(struct generic_pm_domain *genpd, bool timed)
 	if (!genpd->power_on)
 		return 0;
 
+	pr_debug("%s: Power-%s (idle state %d timed %s)\n", genpd->name, "on",
+		 state_idx, timed ? "true" : "false");
+
 	if (!timed)
 		return genpd->power_on(genpd);
 
@@ -141,6 +144,9 @@ static int genpd_power_off(struct generic_pm_domain *genpd, bool timed)
 
 	if (!genpd->power_off)
 		return 0;
+
+	pr_debug("%s: Power-%s (idle state %d timed %s)\n", genpd->name, "off",
+		 state_idx, timed ? "true" : "false");
 
 	if (!timed)
 		return genpd->power_off(genpd);
@@ -313,6 +319,13 @@ static int genpd_poweroff(struct generic_pm_domain *genpd, bool is_async)
 	if (genpd->gov && genpd->gov->power_down_ok) {
 		if (!genpd->gov->power_down_ok(&genpd->domain))
 			return -EAGAIN;
+	} else {
+		/*
+		 * if no valid state idx specified by governor, we use
+		 * the default state_idx 0 to enter in case the domain
+		 * has multi low power states.
+		 */
+		genpd->state_idx = 0;
 	}
 
 	if (genpd->power_off) {
@@ -320,6 +333,10 @@ static int genpd_poweroff(struct generic_pm_domain *genpd, bool is_async)
 
 		if (atomic_read(&genpd->sd_count) > 0)
 			return -EBUSY;
+
+		if (!genpd->device_count)
+			/* Choose the deepest state if no devices using this domain */
+			genpd->state_idx = genpd->state_count - 1;
 
 		/*
 		 * If sd_count > 0 at this point, one of the subdomains hasn't
@@ -632,7 +649,17 @@ static void genpd_sync_poweroff(struct generic_pm_domain *genpd)
 {
 	struct gpd_link *link;
 
-	if (genpd->status == GPD_STATE_POWER_OFF)
+	/*
+	 * Give the power domain a chance to switch to the deepest state in
+	 * case it's already off but in an intermediate low power state.
+	 * Due to power domain is alway off, so no need to check device wakeup
+	 * here anymore
+	 */
+
+	genpd->state_idx_saved = genpd->state_idx;
+
+	if (genpd->status == GPD_STATE_POWER_OFF &&
+	    genpd->state_idx == (genpd->state_count - 1))
 		return;
 
 	if (genpd->suspended_count != genpd->device_count
@@ -642,6 +669,9 @@ static void genpd_sync_poweroff(struct generic_pm_domain *genpd)
 	/* Choose the deepest state when suspending */
 	genpd->state_idx = genpd->state_count - 1;
 	genpd_power_off(genpd, false);
+
+	if (genpd->status == GPD_STATE_POWER_OFF)
+		return;
 
 	genpd->status = GPD_STATE_POWER_OFF;
 
@@ -674,6 +704,8 @@ static void genpd_sync_poweron(struct generic_pm_domain *genpd)
 
 	genpd_power_on(genpd, false);
 
+	/* restore save power domain state after resume */
+	genpd->state_idx = genpd->state_idx_saved;
 	genpd->status = GPD_STATE_ACTIVE;
 }
 

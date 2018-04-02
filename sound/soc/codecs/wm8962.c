@@ -87,6 +87,7 @@ struct wm8962_priv {
 #endif
 
 	int irq;
+	u32 cache_clocking2_reg;
 };
 
 /* We can't use the same notifier block for more than one supply and
@@ -3830,6 +3831,10 @@ static int wm8962_runtime_resume(struct device *dev)
 
 	regcache_sync(wm8962->regmap);
 
+	regmap_update_bits(wm8962->regmap, WM8962_CLOCKING2,
+				WM8962_SYSCLK_SRC_MASK,
+				wm8962->cache_clocking2_reg);
+
 	regmap_update_bits(wm8962->regmap, WM8962_ANTI_POP,
 			   WM8962_STARTUP_BIAS_ENA | WM8962_VMID_BUF_ENA,
 			   WM8962_STARTUP_BIAS_ENA | WM8962_VMID_BUF_ENA);
@@ -3859,6 +3864,9 @@ static int wm8962_runtime_suspend(struct device *dev)
 			   WM8962_STARTUP_BIAS_ENA |
 			   WM8962_VMID_BUF_ENA, 0);
 
+	regmap_read(wm8962->regmap, WM8962_CLOCKING2,
+				&wm8962->cache_clocking2_reg);
+
 	regcache_cache_only(wm8962->regmap, true);
 
 	regulator_bulk_disable(ARRAY_SIZE(wm8962->supplies),
@@ -3871,6 +3879,7 @@ static int wm8962_runtime_suspend(struct device *dev)
 #endif
 
 static const struct dev_pm_ops wm8962_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
 	SET_RUNTIME_PM_OPS(wm8962_runtime_suspend, wm8962_runtime_resume, NULL)
 };
 

@@ -1113,7 +1113,7 @@ int ath10k_core_fetch_firmware_api_n(struct ath10k *ar, const char *name,
 	fw_file->firmware = ath10k_fetch_fw_file(ar, ar->hw_params.fw.dir,
 						 name);
 	if (IS_ERR(fw_file->firmware)) {
-		ath10k_err(ar, "could not fetch firmware file '%s/%s': %ld\n",
+		ath10k_dbg(ar, ATH10K_DBG_BOOT, "could not fetch firmware file '%s/%s': %ld\n",
 			   ar->hw_params.fw.dir, name,
 			   PTR_ERR(fw_file->firmware));
 		return PTR_ERR(fw_file->firmware);
@@ -2087,7 +2087,7 @@ static int ath10k_core_probe_fw(struct ath10k *ar)
 
 	ret = ath10k_core_fetch_firmware_files(ar);
 	if (ret) {
-		ath10k_err(ar, "could not fetch firmware files (%d)\n", ret);
+		ath10k_dbg(ar, ATH10K_DBG_BOOT, "could not fetch firmware files (%d)\n", ret);
 		goto err_power_down;
 	}
 

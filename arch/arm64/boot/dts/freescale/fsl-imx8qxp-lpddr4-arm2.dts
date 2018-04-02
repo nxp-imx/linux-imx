@@ -465,6 +465,13 @@
 				SC_P_USB_SS3_TC0_CONN_USB_OTG1_PWR		0x00000021
 			>;
 		};
+
+		pinctrl_mipi_csi0_gpio: mipicsi0gpiogrp{
+			fsl,pins = <
+				SC_P_MIPI_CSI0_GPIO0_00_MIPI_CSI0_GPIO0_IO00	0x00000021
+				SC_P_MIPI_CSI0_GPIO0_01_MIPI_CSI0_GPIO0_IO01	0x00000021
+			>;
+		};
 	};
 };
 
@@ -555,6 +562,11 @@
 			data-lanes = <1 2 3 4>;
 		};
 	};
+};
+
+&gpio0_mipi_csi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_mipi_csi0_gpio>;
 };
 
 &isi_0 {
@@ -719,6 +731,66 @@
 	adp-disable;
 	power-polarity-active-high;
 	disable-over-current;
+	status = "okay";
+};
+
+&prg1 {
+	status = "okay";
+};
+
+&prg2 {
+	status = "okay";
+};
+
+&prg3 {
+	status = "okay";
+};
+
+&prg4 {
+	status = "okay";
+};
+
+&prg5 {
+	status = "okay";
+};
+
+&prg6 {
+	status = "okay";
+};
+
+&prg7 {
+	status = "okay";
+};
+
+&prg8 {
+	status = "okay";
+};
+
+&prg9 {
+	status = "okay";
+};
+
+&dpr1_channel1 {
+	status = "okay";
+};
+
+&dpr1_channel2 {
+	status = "okay";
+};
+
+&dpr1_channel3 {
+	status = "okay";
+};
+
+&dpr2_channel1 {
+	status = "okay";
+};
+
+&dpr2_channel2 {
+	status = "okay";
+};
+
+&dpr2_channel3 {
 	status = "okay";
 };
 

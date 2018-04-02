@@ -47,6 +47,16 @@ static sc_rsrc_t irq2rsrc[IMX8_WU_MAX_IRQS];
 static sc_rsrc_t wakeup_rsrc_id[IMX8_WU_MAX_IRQS / 32];
 static DEFINE_SPINLOCK(imx8_wu_lock);
 
+enum imx_pd_state {
+	PD_LP,
+	PD_OFF,
+};
+
+struct clk_stat {
+	struct clk *clk;
+	unsigned long rate;
+};
+
 static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 {
 	struct imx8_pm_domain *pd;
@@ -69,7 +79,7 @@ static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 
 	sci_err = sc_pm_set_resource_power_mode(pm_ipc_handle, pd->rsrc_id,
 		(power_on) ? SC_PM_PW_MODE_ON :
-		(pd->runtime_idle_active) ? SC_PM_PW_MODE_LP : SC_PM_PW_MODE_OFF);
+		pd->pd.state_idx ? SC_PM_PW_MODE_OFF : SC_PM_PW_MODE_LP);
 	if (sci_err)
 		pr_err("Failed power operation on resource %d\n", pd->rsrc_id);
 
@@ -86,31 +96,70 @@ static int imx8_pd_power_on(struct generic_pm_domain *domain)
 
 	ret = imx8_pd_power(domain, true);
 
-	if (!list_empty(&pd->clks) && domain->status == GPD_STATE_POWER_OFF
-		&& !pd->runtime_idle_active) {
-		/*
-		 * The SS is powered on restore the clock rates that
-		 * may be lost.
-		 */
-		list_for_each_entry(imx8_rsrc_clk, &pd->clks, node) {
+	if (!list_empty(&pd->clks) && (pd->pd.state_idx == PD_OFF)) {
 
-			if (imx8_rsrc_clk->parent)
-				clk_set_parent(imx8_rsrc_clk->clk,
-					imx8_rsrc_clk->parent);
+		if (pd->clk_state_saved) {
+			/*
+			 * The SS is powered on restore the clock rates that
+			 * may be lost.
+			 */
+			list_for_each_entry(imx8_rsrc_clk, &pd->clks, node) {
 
-			if (imx8_rsrc_clk->rate) {
-				/*
-				 * Need to read the clock so that rate in
-				 * Linux is reset.
-				 */
-				clk_get_rate(imx8_rsrc_clk->clk);
-				/* Restore the clock rate. */
-				clk_set_rate(imx8_rsrc_clk->clk,
-					imx8_rsrc_clk->rate);
+				if (imx8_rsrc_clk->parent)
+					clk_set_parent(imx8_rsrc_clk->clk,
+						imx8_rsrc_clk->parent);
+
+				if (imx8_rsrc_clk->rate) {
+					/*
+					 * Need to read the clock so that rate in
+					 * Linux is reset.
+					 */
+					clk_get_rate(imx8_rsrc_clk->clk);
+					/* Restore the clock rate. */
+					clk_set_rate(imx8_rsrc_clk->clk,
+						imx8_rsrc_clk->rate);
+				}
 			}
+		} else if (pd->clk_state_may_lost) {
+			struct clk_stat *clk_stats;
+			int count = 0;
+			int i = 0;
+			/*
+			 * The SS is powered down before without saving clk rates,
+			 * try to restore the lost clock rates if any
+			 *
+			 * As a parent clk rate restore will cause the clk recalc
+			 * to all possible child clks which may result in child clk
+			 * previous state lost due to power domain lost before,  we
+			 * have to first walk through all child clks to retrieve the
+			 * state via clk_hw_get_rate which bypassed the clk recalc,
+			 * then we can restore them one by one.
+			 */
+			list_for_each_entry(imx8_rsrc_clk, &pd->clks, node)
+				count++;
+
+			clk_stats = kzalloc(count * sizeof(*clk_stats), GFP_KERNEL);
+			if (!clk_stats) {
+				pr_warn("%s: failed to alloc mem for clk state recovery\n", pd->name);
+				return -ENOMEM;
+			}
+
+			list_for_each_entry(imx8_rsrc_clk, &pd->clks, node) {
+				clk_stats[i].clk = imx8_rsrc_clk->clk;
+				clk_stats[i].rate = clk_hw_get_rate(__clk_get_hw(imx8_rsrc_clk->clk));
+				i++;
+			}
+
+			for (i = 0; i <= count; i++) {
+				/* invalid cached rate first by get rate once */
+				clk_get_rate(clk_stats[i].clk);
+				/* restore the lost rate */
+				clk_set_rate(clk_stats[i].clk, clk_stats[i].rate);
+			}
+
+			kfree(clk_stats);
 		}
 	}
-	pd->runtime_idle_active = false;
 
 	return ret;
 }
@@ -122,8 +171,7 @@ static int imx8_pd_power_off(struct generic_pm_domain *domain)
 
 	pd = container_of(domain, struct imx8_pm_domain, pd);
 
-	if (!list_empty(&pd->clks) && (domain->status != GPD_STATE_POWER_OFF)
-		&& (!pd->runtime_idle_active)) {
+	if (!list_empty(&pd->clks) && (pd->pd.state_idx == PD_OFF)) {
 		/*
 		 * The SS is going to be powered off, store the clock rates
 		 * that may be lost.
@@ -132,40 +180,16 @@ static int imx8_pd_power_off(struct generic_pm_domain *domain)
 			imx8_rsrc_clk->parent = clk_get_parent(imx8_rsrc_clk->clk);
 			imx8_rsrc_clk->rate = clk_hw_get_rate(__clk_get_hw(imx8_rsrc_clk->clk));
 		}
+		pd->clk_state_saved = true;
+		pd->clk_state_may_lost = false;
+	} else if (pd->pd.state_idx == PD_OFF) {
+		pd->clk_state_saved = false;
+		pd->clk_state_may_lost = true;
+	} else {
+		pd->clk_state_saved = false;
+		pd->clk_state_may_lost = false;
 	}
 	return imx8_pd_power(domain, false);
-}
-
-static int imx8_pd_dev_start(struct device *dev)
-{
-	struct generic_pm_domain *genpd = pd_to_genpd(dev->pm_domain);
-	struct imx8_pm_domain *pd;
-
-	pd = container_of(genpd, struct imx8_pm_domain, pd);
-	pd->runtime_idle_active = false;
-	return 0;
-}
-
-static int imx8_pd_dev_stop(struct device *dev)
-{
-	struct generic_pm_domain *genpd = pd_to_genpd(dev->pm_domain);
-	struct imx8_pm_domain *pd;
-
-	pd = container_of(genpd, struct imx8_pm_domain, pd);
-	if (pm_runtime_enabled(dev))
-		pd->runtime_idle_active = true;
-	return 0;
-}
-
-static int imx8_pm_runtime_idle(struct device *dev)
-{
-	struct generic_pm_domain *genpd = pd_to_genpd(dev->pm_domain);
-	struct imx8_pm_domain *pd;
-
-	pd = container_of(genpd, struct imx8_pm_domain, pd);
-	if (pm_runtime_enabled(dev))
-		pd->runtime_idle_active = true;
-	return pm_runtime_autosuspend(dev);
 }
 
 static int imx8_attach_dev(struct generic_pm_domain *genpd, struct device *dev)
@@ -249,6 +273,21 @@ struct syscore_ops imx8_pm_domains_syscore_ops = {
 	.resume = imx8_pm_domains_resume,
 };
 
+static void imx8_pd_setup(struct imx8_pm_domain *pd)
+{
+	pd->pd.power_off = imx8_pd_power_off;
+	pd->pd.power_on = imx8_pd_power_on;
+	pd->pd.attach_dev = imx8_attach_dev;
+	pd->pd.detach_dev = imx8_detach_dev;
+
+	pd->pd.states[0].power_off_latency_ns = 25000;
+	pd->pd.states[0].power_on_latency_ns =  25000;
+	pd->pd.states[1].power_off_latency_ns = 2500000;
+	pd->pd.states[1].power_on_latency_ns =  2500000;
+
+	pd->pd.state_count = 2;
+}
+
 static int __init imx8_add_pm_domains(struct device_node *parent,
 					struct generic_pm_domain *genpd_parent)
 {
@@ -274,12 +313,7 @@ static int __init imx8_add_pm_domains(struct device_node *parent,
 			imx8_pd->rsrc_id = rsrc_id;
 
 		if (imx8_pd->rsrc_id != SC_R_LAST) {
-			imx8_pd->pd.power_off = imx8_pd_power_off;
-			imx8_pd->pd.power_on = imx8_pd_power_on;
-			imx8_pd->pd.dev_ops.start = imx8_pd_dev_start;
-			imx8_pd->pd.dev_ops.stop = imx8_pd_dev_stop;
-			imx8_pd->pd.attach_dev = imx8_attach_dev;
-			imx8_pd->pd.detach_dev = imx8_detach_dev;
+			imx8_pd_setup(imx8_pd);
 
 			if (of_property_read_bool(np, "early_power_on")
 				&& index < (sizeof(early_power_on_rsrc) /
@@ -294,8 +328,6 @@ static int __init imx8_add_pm_domains(struct device_node *parent,
 		}
 		INIT_LIST_HEAD(&imx8_pd->clks);
 		pm_genpd_init(&imx8_pd->pd, NULL, true);
-
-		imx8_pd->pd.domain.ops.runtime_idle = imx8_pm_runtime_idle;
 
 		if (genpd_parent)
 			pm_genpd_add_subdomain(genpd_parent, &imx8_pd->pd);
@@ -338,10 +370,9 @@ static int __init imx8_init_pm_domains(void)
 		if (!of_property_read_u32(np, "reg", &rsrc_id))
 			imx8_pd->rsrc_id = rsrc_id;
 
-		if (imx8_pd->rsrc_id != SC_R_LAST) {
-			imx8_pd->pd.power_off = imx8_pd_power_off;
-			imx8_pd->pd.power_on = imx8_pd_power_on;
-		}
+		if (imx8_pd->rsrc_id != SC_R_LAST)
+			imx8_pd_setup(imx8_pd);
+
 		INIT_LIST_HEAD(&imx8_pd->clks);
 
 		pm_genpd_init(&imx8_pd->pd, NULL, true);

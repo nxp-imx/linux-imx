@@ -45,6 +45,7 @@ struct dpu_fetcheco {
 	struct mutex mutex;
 	int id;
 	bool inuse;
+	bool pin_off;
 	struct dpu_soc *dpu;
 	/* see DPU_PLANE_SRC_xxx */
 	unsigned int stream_id;
@@ -87,6 +88,37 @@ void fetcheco_shden(struct dpu_fetcheco *fe, bool enable)
 }
 EXPORT_SYMBOL_GPL(fetcheco_shden);
 
+void fetcheco_set_burstlength(struct dpu_fetcheco *fe, dma_addr_t baddr,
+			      bool use_prefetch)
+{
+	struct dpu_soc *dpu = fe->dpu;
+	unsigned int burst_size, burst_length;
+	u32 val;
+
+	if (use_prefetch) {
+		/*
+		 * address TKT343664:
+		 * fetch unit base address has to align to burst size
+		 */
+		burst_size = 1 << (ffs(baddr) - 1);
+		burst_size = min(burst_size, 128U);
+		burst_length = burst_size / 8;
+	} else {
+		burst_length = 16;
+	}
+
+	mutex_lock(&fe->mutex);
+	val = dpu_fe_read(fe, BURSTBUFFERMANAGEMENT);
+	val &= ~SETBURSTLENGTH_MASK;
+	val |= SETBURSTLENGTH(burst_length);
+	dpu_fe_write(fe, val, BURSTBUFFERMANAGEMENT);
+	mutex_unlock(&fe->mutex);
+
+	dev_dbg(dpu->dev, "FetchEco%d burst length is %u\n",
+						fe->id, burst_length);
+}
+EXPORT_SYMBOL_GPL(fetcheco_set_burstlength);
+
 void fetcheco_baseaddress(struct dpu_fetcheco *fe, dma_addr_t paddr)
 {
 	mutex_lock(&fe->mutex);
@@ -108,9 +140,34 @@ void fetcheco_source_bpp(struct dpu_fetcheco *fe, int bpp)
 }
 EXPORT_SYMBOL_GPL(fetcheco_source_bpp);
 
-void fetcheco_source_stride(struct dpu_fetcheco *fe, int stride)
+/*
+ * The arguments width and bpp are valid only when use_prefetch is true.
+ * Since the pixel format has to be NV12 or NV21 when use_prefetch is true,
+ * we assume width stands for how many UV we have in bytes for one line,
+ * while bpp should be 8bits for every U or V component.
+ */
+void fetcheco_source_stride(struct dpu_fetcheco *fe, unsigned int width,
+			    int bpp, unsigned int stride,
+			    dma_addr_t baddr, bool use_prefetch)
 {
+	unsigned int burst_size;
 	u32 val;
+
+	if (use_prefetch) {
+		/*
+		 * address TKT343664:
+		 * fetch unit base address has to align to burst size
+		 */
+		burst_size = 1 << (ffs(baddr) - 1);
+		burst_size = min(burst_size, 128U);
+
+		stride = width * (bpp >> 3);
+		/*
+		 * address TKT339017:
+		 * fixup for burst size vs stride mismatch
+		 */
+		stride = round_up(stride, burst_size);
+	}
 
 	mutex_lock(&fe->mutex);
 	val = dpu_fe_read(fe, SOURCEBUFFERATTRIBUTES0);
@@ -438,6 +495,24 @@ void fetcheco_set_stream_id(struct dpu_fetcheco *fe, unsigned int id)
 	}
 }
 EXPORT_SYMBOL_GPL(fetcheco_set_stream_id);
+
+void fetcheco_pin_off(struct dpu_fetcheco *fe)
+{
+	fe->pin_off = true;
+}
+EXPORT_SYMBOL_GPL(fetcheco_pin_off);
+
+void fetcheco_unpin_off(struct dpu_fetcheco *fe)
+{
+	fe->pin_off = false;
+}
+EXPORT_SYMBOL_GPL(fetcheco_unpin_off);
+
+bool fetcheco_is_pinned_off(struct dpu_fetcheco *fe)
+{
+	return fe->pin_off;
+}
+EXPORT_SYMBOL_GPL(fetcheco_is_pinned_off);
 
 struct dpu_fetcheco *dpu_fe_get(struct dpu_soc *dpu, int id)
 {

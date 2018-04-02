@@ -87,9 +87,13 @@ struct imx_mipi_dsi {
 	u32 pxl2dpi_reg;
 
 	unsigned long			bit_clk;
+	unsigned long			pix_clk;
 	u32				phyref_rate;
 	u32				instance;
+	u32				sync_pol;
+	u32				power_on_delay;
 	bool				enabled;
+	bool				suspended;
 };
 
 struct clk_config {
@@ -464,12 +468,48 @@ static void imx_nwl_dsi_enable(struct imx_mipi_dsi *dsi)
 	const struct of_device_id *of_id = of_match_device(imx_nwl_dsi_dt_ids,
 							   dev);
 	const struct devtype *devtype = of_id->data;
+	unsigned long bit_clk, min_sleep, max_sleep;
 	int ret;
 
 	if (dsi->enabled)
 		return;
 
 	DRM_DEV_INFO(dev, "id = %s\n", (dsi->instance)?"DSI1":"DSI0");
+
+	/*
+	 * TODO: we are doing this here, because the ADV7535 which is a drm
+	 * bridge, may change the DSI parameters in mode_set. One of the
+	 * changed parameter is DSI lanes, which affects the PHY settings.
+	 * This is why, we need run this function again, here, in order
+	 * to correctly set-up the PHY. Since we can't do anything here, we
+	 * will ignore it's status.
+	 * In the future, maybe it will be best to move the PHY handling
+	 * into the DSI host driver.
+	 */
+	bit_clk = nwl_dsi_get_bit_clock(dsi->next_bridge, dsi->pix_clk);
+	if (bit_clk != dsi->bit_clk) {
+		mixel_phy_mipi_set_phy_speed(dsi->phy,
+			bit_clk,
+			dsi->phyref_rate,
+			false);
+		dsi->bit_clk = bit_clk;
+	}
+
+	/*
+	 * On some systems we need to wait some time before enabling the
+	 * phy_ref clock, in order to allow the parent PLL to become stable
+	 */
+	if (dsi->power_on_delay > 20) {
+		msleep(dsi->power_on_delay);
+	} else if (dsi->power_on_delay > 0) {
+		max_sleep = dsi->power_on_delay * 1000;
+		min_sleep = 1000;
+		if (max_sleep > 6000)
+			min_sleep = max_sleep - 5000;
+		usleep_range(min_sleep, max_sleep);
+	}
+
+	request_bus_freq(BUS_FREQ_HIGH);
 
 	imx_nwl_dsi_set_clocks(dsi, true);
 
@@ -498,7 +538,25 @@ static void imx_nwl_dsi_disable(struct imx_mipi_dsi *dsi)
 
 	imx_nwl_dsi_set_clocks(dsi, false);
 
+	release_bus_freq(BUS_FREQ_HIGH);
+
 	dsi->enabled = false;
+}
+
+static void imx_nwl_update_sync_polarity(unsigned int *flags, u32 sync_pol)
+{
+	/* Make sure all flags are set-up accordingly */
+	if (sync_pol) {
+		*flags |= DRM_MODE_FLAG_PHSYNC;
+		*flags |= DRM_MODE_FLAG_PVSYNC;
+		*flags &= ~DRM_MODE_FLAG_NHSYNC;
+		*flags &= ~DRM_MODE_FLAG_NVSYNC;
+	} else {
+		*flags &= ~DRM_MODE_FLAG_PHSYNC;
+		*flags &= ~DRM_MODE_FLAG_PVSYNC;
+		*flags |= DRM_MODE_FLAG_NHSYNC;
+		*flags |= DRM_MODE_FLAG_NVSYNC;
+	}
 }
 
 /*
@@ -546,8 +604,10 @@ static int imx_nwl_try_phy_speed(struct imx_mipi_dsi *dsi,
 			mode->clock);
 		DRM_DEV_ERROR(dev, "PHY_REF clk: %u, bit clk: %lu\n",
 			dsi->phyref_rate, bit_clk);
-	} else
+	} else {
 		dsi->bit_clk = bit_clk;
+		dsi->pix_clk = pixclock;
+	}
 
 	return ret;
 }
@@ -574,8 +634,10 @@ static int imx_nwl_dsi_encoder_atomic_check(struct drm_encoder *encoder,
 {
 	struct imx_crtc_state *imx_crtc_state = to_imx_crtc_state(crtc_state);
 	struct imx_mipi_dsi *dsi = encoder_to_dsi(encoder);
+	unsigned int *flags = &crtc_state->adjusted_mode.flags;
 
 	imx_crtc_state->bus_format = MEDIA_BUS_FMT_RGB101010_1X30;
+	imx_nwl_update_sync_polarity(flags, dsi->sync_pol);
 
 	/* Try to see if the phy can satisfy the current mode */
 	return imx_nwl_try_phy_speed(dsi, &crtc_state->adjusted_mode);
@@ -619,6 +681,9 @@ static bool imx_nwl_dsi_bridge_mode_fixup(struct drm_bridge *bridge,
 			   struct drm_display_mode *adjusted_mode)
 {
 	struct imx_mipi_dsi *dsi = bridge->driver_private;
+	unsigned int *flags = &adjusted_mode->flags;
+
+	imx_nwl_update_sync_polarity(flags, dsi->sync_pol);
 
 	return (imx_nwl_try_phy_speed(dsi, adjusted_mode) == 0);
 }
@@ -726,6 +791,9 @@ static int imx_nwl_dsi_parse_of(struct device *dev, bool as_bridge)
 	dsi->tx_ulps_reg = devtype->tx_ulps_reg;
 	dsi->pxl2dpi_reg = devtype->pxl2dpi_reg;
 
+	of_property_read_u32(np, "sync-pol", &dsi->sync_pol);
+	of_property_read_u32(np, "pwr-delay", &dsi->power_on_delay);
+
 	/* Look for optional regmaps */
 	dsi->csr = syscon_regmap_lookup_by_phandle(np, "csr");
 	if (IS_ERR(dsi->csr) && (devtype->ext_regs & IMX_REG_CSR)) {
@@ -812,11 +880,12 @@ static void imx_nwl_dsi_unbind(struct device *dev,
 
 	DRM_DEV_INFO(dev, "id = %s\n", (dsi->instance)?"DSI1":"DSI0");
 
+	drm_bridge_detach(dsi->next_bridge);
+
 	imx_nwl_dsi_encoder_disable(&dsi->encoder);
 
 	drm_encoder_cleanup(&dsi->encoder);
 
-	drm_bridge_detach(dsi->next_bridge);
 }
 
 static const struct component_ops imx_nwl_dsi_component_ops = {
@@ -896,12 +965,14 @@ static int imx_nwl_dsi_remove(struct platform_device *pdev)
 static int imx_nwl_suspend(struct device *dev)
 {
 	struct imx_mipi_dsi *dsi = dev_get_drvdata(dev);
-	bool enabled = dsi->enabled;
 
-	if (enabled && dsi->next_bridge)
+	if (!dsi->enabled)
+		return 0;
+
+	if (dsi->next_bridge)
 		drm_bridge_disable(dsi->next_bridge);
 	imx_nwl_dsi_disable(dsi);
-	release_bus_freq(BUS_FREQ_HIGH);
+	dsi->suspended = true;
 
 	return 0;
 }
@@ -909,12 +980,14 @@ static int imx_nwl_suspend(struct device *dev)
 static int imx_nwl_resume(struct device *dev)
 {
 	struct imx_mipi_dsi *dsi = dev_get_drvdata(dev);
-	bool enabled = dsi->enabled;
 
-	request_bus_freq(BUS_FREQ_HIGH);
+	if (!dsi->suspended)
+		return 0;
+
 	imx_nwl_dsi_enable(dsi);
-	if (!enabled && dsi->next_bridge)
+	if (dsi->next_bridge)
 		drm_bridge_enable(dsi->next_bridge);
+	dsi->suspended = false;
 
 	return 0;
 }
