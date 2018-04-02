@@ -1209,17 +1209,19 @@ int ttm_bo_init(struct ttm_bo_device *bdev,
 	if (likely(!ret))
 		ret = ttm_bo_validate(bo, placement, interruptible, false);
 
-	if (!resv) {
+	if (!resv)
 		ttm_bo_unreserve(bo);
 
-	} else if (!(bo->mem.placement & TTM_PL_FLAG_NO_EVICT)) {
+	if (unlikely(ret)) {
+		ttm_bo_unref(&bo);
+		return ret;
+	}
+
+	if (resv && !(bo->mem.placement & TTM_PL_FLAG_NO_EVICT)) {
 		spin_lock(&bo->glob->lru_lock);
 		ttm_bo_add_to_lru(bo);
 		spin_unlock(&bo->glob->lru_lock);
 	}
-
-	if (unlikely(ret))
-		ttm_bo_unref(&bo);
 
 	return ret;
 }
@@ -1604,7 +1606,14 @@ EXPORT_SYMBOL(ttm_bo_unmap_virtual);
 int ttm_bo_wait(struct ttm_buffer_object *bo,
 		bool interruptible, bool no_wait)
 {
-	long timeout = no_wait ? 0 : 15 * HZ;
+	long timeout = 15 * HZ;
+
+	if (no_wait) {
+		if (reservation_object_test_signaled_rcu(bo->resv, true))
+			return 0;
+		else
+			return -EBUSY;
+	}
 
 	timeout = reservation_object_wait_timeout_rcu(bo->resv, true,
 						      interruptible, timeout);
