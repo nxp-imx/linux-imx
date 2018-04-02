@@ -143,8 +143,8 @@ static irqreturn_t dcss_ctxld_irq_handler_thread(int irq, void *data)
 		ctxld->in_use = false;
 
 		if (ctxld->run_again) {
-			__dcss_ctxld_enable(ctxld);
 			ctxld->run_again = false;
+			__dcss_ctxld_enable(ctxld);
 			goto exit;
 		}
 
@@ -315,6 +315,12 @@ static int __dcss_ctxld_enable(struct dcss_ctxld_priv *ctxld)
 	u32 db_base, sb_base, sb_count;
 	u32 sb_hp_cnt, sb_lp_cnt, db_cnt;
 
+	if (dcss_dtrc_is_running(ctxld->dcss, 1) ||
+	    dcss_dtrc_is_running(ctxld->dcss, 2)) {
+		dcss_dtrc_switch_banks(ctxld->dcss);
+		ctxld->run_again = true;
+	}
+
 	sb_hp_cnt = ctxld->ctx_size[curr_ctx][CTX_SB_HP];
 	sb_lp_cnt = ctxld->ctx_size[curr_ctx][CTX_SB_LP];
 	db_cnt = ctxld->ctx_size[curr_ctx][CTX_DB];
@@ -391,7 +397,8 @@ int dcss_ctxld_enable(struct dcss_soc *dcss)
 }
 EXPORT_SYMBOL(dcss_ctxld_enable);
 
-void dcss_ctxld_write(struct dcss_soc *dcss, u32 ctx_id, u32 val, u32 reg_ofs)
+void dcss_ctxld_write_irqsafe(struct dcss_soc *dcss, u32 ctx_id, u32 val,
+			      u32 reg_ofs)
 {
 	struct dcss_ctxld_priv *ctxld = dcss->ctxld_priv;
 	int curr_ctx = ctxld->current_ctx;
@@ -405,10 +412,17 @@ void dcss_ctxld_write(struct dcss_soc *dcss, u32 ctx_id, u32 val, u32 reg_ofs)
 	/* if we hit this, we've got to increase the maximum context size */
 	BUG_ON(dcss_ctxld_ctx_size[ctx_id] - 1 < item_idx);
 
-	mutex_lock(&ctxld->mutex);
 	ctx[ctx_id][item_idx].val = val;
 	ctx[ctx_id][item_idx].ofs = reg_ofs;
 	ctxld->ctx_size[curr_ctx][ctx_id] += 1;
+}
+
+void dcss_ctxld_write(struct dcss_soc *dcss, u32 ctx_id, u32 val, u32 reg_ofs)
+{
+	struct dcss_ctxld_priv *ctxld = dcss->ctxld_priv;
+
+	mutex_lock(&ctxld->mutex);
+	dcss_ctxld_write_irqsafe(dcss, ctx_id, val, reg_ofs);
 	mutex_unlock(&ctxld->mutex);
 }
 

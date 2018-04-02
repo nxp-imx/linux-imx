@@ -77,6 +77,8 @@ void dcss_ctxld_update(struct dcss_soc *dcss, u32 ctx_id, u32 val, u32 mask,
 void dcss_ctxld_dump(struct seq_file *s, void *data);
 int dcss_ctxld_resume(struct dcss_soc *dcss);
 int dcss_ctxld_suspend(struct dcss_soc *dcss);
+void dcss_ctxld_write_irqsafe(struct dcss_soc *dcss, u32 ctx_id, u32 val,
+			      u32 reg_ofs);
 
 /* DPR */
 int dcss_dpr_init(struct dcss_soc *dcss, unsigned long dpr_base);
@@ -104,6 +106,8 @@ void dcss_scaler_exit(struct dcss_soc *dcss);
 /* DTRC */
 int dcss_dtrc_init(struct dcss_soc *dcss, unsigned long dtrc_base);
 void dcss_dtrc_exit(struct dcss_soc *dcss);
+void dcss_dtrc_switch_banks(struct dcss_soc *dcss);
+bool dcss_dtrc_is_running(struct dcss_soc *dcss, int ch_num);
 
 /* DEC400d */
 int dcss_dec400d_init(struct dcss_soc *dcss, unsigned long dec400d_base);

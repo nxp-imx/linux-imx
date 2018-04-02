@@ -3740,10 +3740,13 @@ fec_probe(struct platform_device *pdev)
 		if (ret) {
 			dev_err(&pdev->dev,
 				"Failed to enable phy regulator: %d\n", ret);
-			clk_disable_unprepare(fep->clk_ipg);
 			goto failed_regulator;
 		}
 	} else {
+		if (PTR_ERR(fep->reg_phy) == -EPROBE_DEFER) {
+			ret = -EPROBE_DEFER;
+			goto failed_regulator;
+		}
 		fep->reg_phy = NULL;
 	}
 
@@ -3792,10 +3795,8 @@ fec_probe(struct platform_device *pdev)
 	if (!of_get_property(np, "fsl,mii-exclusive", NULL))
 		fep->quirks |= FEC_QUIRK_SINGLE_MDIO;
 	ret = fec_enet_mii_init(pdev);
-	if (ret) {
-		dev_id = 0;
+	if (ret)
 		goto failed_mii_init;
-	}
 
 	/* Carrier starts down, phylib will bring it up */
 	netif_carrier_off(ndev);
@@ -3834,9 +3835,9 @@ failed_init:
 	if (fep->reg_phy)
 		regulator_disable(fep->reg_phy);
 failed_reset:
-	pm_runtime_put(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 failed_regulator:
+	clk_disable_unprepare(fep->clk_ahb);
 failed_clk_ahb:
 	clk_disable_unprepare(fep->clk_ipg);
 failed_clk_ipg:
@@ -3844,8 +3845,9 @@ failed_clk_ipg:
 failed_clk:
 	if (of_phy_is_fixed_link(np))
 		of_phy_deregister_fixed_link(np);
-failed_phy:
 	of_node_put(phy_node);
+failed_phy:
+	dev_id--;
 failed_ioremap:
 	free_netdev(ndev);
 

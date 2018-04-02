@@ -534,7 +534,11 @@ wl_cfg80211_add_iw_ie(struct bcm_cfg80211 *cfg, struct net_device *ndev, s32 bss
 static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *dev, void *data);
 static void wl_free_wdev(struct bcm_cfg80211 *cfg);
 #ifdef CONFIG_CFG80211_INTERNAL_REGDB
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0))
 static int
+#else
+static void
+#endif /* kernel version < 3.10.11 */
 wl_cfg80211_reg_notifier(struct wiphy *wiphy, struct regulatory_request *request);
 #endif /* CONFIG_CFG80211_INTERNAL_REGDB */
 
@@ -8074,7 +8078,11 @@ s32 wl_mode_to_nl80211_iftype(s32 mode)
 }
 
 #ifdef CONFIG_CFG80211_INTERNAL_REGDB
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0))
 static int
+#else
+static void
+#endif /* kernel version < 3.9.0 */
 wl_cfg80211_reg_notifier(
 	struct wiphy *wiphy,
 	struct regulatory_request *request)
@@ -8084,7 +8092,11 @@ wl_cfg80211_reg_notifier(
 
 	if (!request || !cfg) {
 		WL_ERR(("Invalid arg\n"));
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0))
 		return -EINVAL;
+#else
+		return;
+#endif /* kernel version < 3.9.0 */
 	}
 
 	WL_DBG(("ccode: %c%c Initiator: %d\n",
@@ -8109,7 +8121,11 @@ wl_cfg80211_reg_notifier(
 		WL_ERR(("set country Failed :%d\n", ret));
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0))
 	return ret;
+#else
+	return;
+#endif /* kernel version < 3.9.0 */
 }
 #endif /* CONFIG_CFG80211_INTERNAL_REGDB */
 
