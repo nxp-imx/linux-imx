@@ -993,6 +993,14 @@
 };
 
 &vpu {
+	status = "disabled";
+};
+
+&vpu_decoder {
+	status = "okay";
+};
+
+&vpu_encoder {
 	status = "okay";
 };
 
