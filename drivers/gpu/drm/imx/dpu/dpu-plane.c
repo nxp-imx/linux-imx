@@ -198,6 +198,7 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	struct drm_framebuffer *fb = state->fb;
 	struct dpu_fetchdecode *fd = NULL;
 	struct dpu_fetchlayer *fl = NULL;
+	struct dpu_fetchwarp *fw = NULL;
 	dma_addr_t baseaddr, uv_baseaddr = 0;
 	u32 src_w = state->src_w >> 16, src_h = state->src_h >> 16,
 	    src_x = state->src_x >> 16, src_y = state->src_y >> 16;
@@ -319,14 +320,17 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	case DPU_PLANE_SRC_FL:
 		fl = res->fl[fu_id];
 		break;
+	case DPU_PLANE_SRC_FW:
+		fw = res->fw[fu_id];
+		break;
 	default:
 		return -EINVAL;
 	}
 
-	if (fetchunit_has_prefetch(fd, fl, NULL) &&
-	    fetchunit_prefetch_format_supported(fd, fl, NULL, fb->pixel_format,
+	if (fetchunit_has_prefetch(fd, fl, fw) &&
+	    fetchunit_prefetch_format_supported(fd, fl, fw, fb->pixel_format,
 						fb->modifier[0]) &&
-	    fetchunit_prefetch_stride_supported(fd, fl, NULL, fb->pitches[0],
+	    fetchunit_prefetch_stride_supported(fd, fl, fw, fb->pitches[0],
 						fb->pitches[1],
 						src_w,
 						fb->pixel_format))
@@ -377,8 +381,7 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	}
 
 	if (dpstate->use_prefetch &&
-	    !fetchunit_prefetch_stride_double_check(fd, fl, NULL,
-						    fb->pitches[0],
+	    !fetchunit_prefetch_stride_double_check(fd, fl, fw, fb->pitches[0],
 						    fb->pitches[1],
 						    src_w, fb->pixel_format,
 						    baseaddr, uv_baseaddr)) {
@@ -407,6 +410,7 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	struct dpu_plane_res *res = &dplane->grp->res;
 	struct dpu_fetchdecode *fd = NULL;
 	struct dpu_fetchlayer *fl = NULL;
+	struct dpu_fetchwarp *fw = NULL;
 	struct dpu_fetcheco *fe = NULL;
 	struct dpu_hscaler *hs = NULL;
 	struct dpu_vscaler *vs = NULL;
@@ -421,7 +425,8 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	unsigned int depth, src_w, src_h, src_x, src_y;
 	int bpp, fu_id, lb_id, fu_type;
 	bool need_fetcheco = false, need_hscaler = false, need_vscaler = false;
-	bool need_fetchdecode = false, need_fetchlayer = false;
+	bool need_fetchdecode = false, need_fetchlayer = false,
+	     need_fetchwarp = false;
 	bool prefetch_start = false, aux_prefetch_start = false;
 	bool need_modeset;
 	bool is_overlay = plane->type == DRM_PLANE_TYPE_OVERLAY;
@@ -448,6 +453,10 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	case DPU_PLANE_SRC_FL:
 		need_fetchlayer = true;
 		fl = res->fl[fu_id];
+		break;
+	case DPU_PLANE_SRC_FW:
+		need_fetchwarp = true;
+		fw = res->fw[fu_id];
 		break;
 	default:
 		WARN_ON(1);
@@ -516,6 +525,11 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 		    (fetchlayer_get_stream_id(fl) == DPU_PLANE_SRC_DISABLED ||
 		     need_modeset))
 			prefetch_start = true;
+
+		if (need_fetchwarp &&
+		    (fetchwarp_get_stream_id(fw) == DPU_PLANE_SRC_DISABLED ||
+		     need_modeset))
+			prefetch_start = true;
 	}
 
 	if (need_fetchdecode) {
@@ -554,6 +568,25 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 		fetchlayer_unpin_off(fl);
 
 		dev_dbg(dev, "[PLANE:%d:%s] fetchlayer-0x%02x\n",
+					plane->base.id, plane->name, fu_id);
+	}
+
+	if (need_fetchwarp) {
+		fetchwarp_set_burstlength(fw, baseaddr, dpstate->use_prefetch);
+		fetchwarp_source_bpp(fw, 0, bpp);
+		fetchwarp_source_stride(fw, 0, src_w, bpp, fb->pitches[0],
+					baseaddr, dpstate->use_prefetch);
+		fetchwarp_src_buf_dimensions(fw, 0, src_w, src_h);
+		fetchwarp_set_fmt(fw, 0, fb->pixel_format);
+		fetchwarp_source_buffer_enable(fw, 0);
+		fetchwarp_framedimensions(fw, src_w, src_h);
+		fetchwarp_baseaddress(fw, 0, baseaddr);
+		fetchwarp_set_stream_id(fw, dplane->stream_id ?
+						DPU_PLANE_SRC_TO_DISP_STREAM1 :
+						DPU_PLANE_SRC_TO_DISP_STREAM0);
+		fetchwarp_unpin_off(fw);
+
+		dev_dbg(dev, "[PLANE:%d:%s] fetchwarp-0x%02x\n",
 					plane->base.id, plane->name, fu_id);
 	}
 
@@ -643,7 +676,7 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	}
 
 	if (dpstate->use_prefetch) {
-		fetchunit_configure_prefetch(fd, fl, NULL, dplane->stream_id,
+		fetchunit_configure_prefetch(fd, fl, fw, dplane->stream_id,
 					     src_w, src_h, src_x, src_y,
 					     fb->pitches[0], fb->pixel_format,
 					     fb->modifier[0],
@@ -651,12 +684,12 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 					     prefetch_start,
 					     aux_prefetch_start);
 		if (prefetch_start || aux_prefetch_start)
-			fetchunit_enable_prefetch(fd, fl, NULL);
+			fetchunit_enable_prefetch(fd, fl, fw);
 
-		fetchunit_reg_update_prefetch(fd, fl, NULL);
+		fetchunit_reg_update_prefetch(fd, fl, fw);
 
 		if (prefetch_start || aux_prefetch_start) {
-			fetchunit_prefetch_first_frame_handle(fd, fl, NULL);
+			fetchunit_prefetch_first_frame_handle(fd, fl, fw);
 
 			if (!need_modeset && is_overlay)
 				framegen_wait_for_frame_counter_moving(fg);
@@ -664,8 +697,8 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 
 		dev_dbg(dev, "[PLANE:%d:%s] use prefetch\n",
 					plane->base.id, plane->name);
-	} else if (fetchunit_has_prefetch(fd, fl, NULL)) {
-		fetchunit_disable_prefetch(fd, fl, NULL);
+	} else if (fetchunit_has_prefetch(fd, fl, fw)) {
+		fetchunit_disable_prefetch(fd, fl, fw);
 
 		dev_dbg(dev, "[PLANE:%d:%s] bypass prefetch\n",
 					plane->base.id, plane->name);
