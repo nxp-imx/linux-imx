@@ -328,6 +328,7 @@ static void dpu_crtc_atomic_begin(struct drm_crtc *crtc,
 		struct dpu_plane_res *res;
 		struct dpu_fetchdecode *fd = NULL;
 		struct dpu_fetchlayer *fl = NULL;
+		struct dpu_fetchwarp *fw = NULL;
 		struct dpu_fetcheco *fe = NULL;
 		struct dpu_hscaler *hs = NULL;
 		struct dpu_vscaler *vs = NULL;
@@ -356,6 +357,9 @@ static void dpu_crtc_atomic_begin(struct drm_crtc *crtc,
 			break;
 		case DPU_PLANE_SRC_FL:
 			fl = res->fl[fu_id];
+			break;
+		case DPU_PLANE_SRC_FW:
+			fw = res->fw[fu_id];
 			break;
 		default:
 			WARN_ON(1);
@@ -395,8 +399,11 @@ static void dpu_crtc_atomic_begin(struct drm_crtc *crtc,
 				fetchdecode_pin_off(fd);
 				if (fetcheco_is_enabled(fe))
 					fetcheco_pin_off(fe);
-			} else if (fl)
+			} else if (fl) {
 				fetchlayer_pin_off(fl);
+			} else if (fw) {
+				fetchwarp_pin_off(fw);
+			}
 		} else {
 			if (fd) {
 				fetchdecode_source_buffer_disable(fd);
@@ -408,6 +415,9 @@ static void dpu_crtc_atomic_begin(struct drm_crtc *crtc,
 			} else if (fl) {
 				fetchlayer_source_buffer_disable(fl, 0);
 				fetchlayer_unpin_off(fl);
+			} else if (fw) {
+				fetchwarp_source_buffer_disable(fw, 0);
+				fetchwarp_unpin_off(fw);
 			}
 		}
 	}
@@ -463,6 +473,7 @@ static void dpu_crtc_atomic_flush(struct drm_crtc *crtc,
 		struct dpu_plane_res *res;
 		struct dpu_fetchdecode *fd = NULL;
 		struct dpu_fetchlayer *fl = NULL;
+		struct dpu_fetchwarp *fw = NULL;
 		struct dpu_fetcheco *fe;
 		struct dpu_hscaler *hs;
 		struct dpu_vscaler *vs;
@@ -487,6 +498,9 @@ static void dpu_crtc_atomic_flush(struct drm_crtc *crtc,
 			break;
 		case DPU_PLANE_SRC_FL:
 			fl = res->fl[fu_id];
+			break;
+		case DPU_PLANE_SRC_FW:
+			fw = res->fw[fu_id];
 			break;
 		default:
 			WARN_ON(1);
@@ -518,6 +532,11 @@ static void dpu_crtc_atomic_flush(struct drm_crtc *crtc,
 			if (!fetchlayer_is_enabled(fl, 0) ||
 			     fetchlayer_is_pinned_off(fl))
 				fetchlayer_set_stream_id(fl,
+							DPU_PLANE_SRC_DISABLED);
+		} else if (fw) {
+			if (!fetchwarp_is_enabled(fw, 0) ||
+			     fetchwarp_is_pinned_off(fw))
+				fetchwarp_set_stream_id(fw,
 							DPU_PLANE_SRC_DISABLED);
 		}
 	}
