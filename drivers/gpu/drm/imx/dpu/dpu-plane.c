@@ -323,10 +323,10 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 		return -EINVAL;
 	}
 
-	if (fetchunit_has_prefetch(fd, fl) &&
-	    fetchunit_prefetch_format_supported(fd, fl, fb->pixel_format,
+	if (fetchunit_has_prefetch(fd, fl, NULL) &&
+	    fetchunit_prefetch_format_supported(fd, fl, NULL, fb->pixel_format,
 						fb->modifier[0]) &&
-	    fetchunit_prefetch_stride_supported(fd, fl, fb->pitches[0],
+	    fetchunit_prefetch_stride_supported(fd, fl, NULL, fb->pitches[0],
 						fb->pitches[1],
 						src_w,
 						fb->pixel_format))
@@ -377,7 +377,8 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	}
 
 	if (dpstate->use_prefetch &&
-	    !fetchunit_prefetch_stride_double_check(fd, fl, fb->pitches[0],
+	    !fetchunit_prefetch_stride_double_check(fd, fl, NULL,
+						    fb->pitches[0],
 						    fb->pitches[1],
 						    src_w, fb->pixel_format,
 						    baseaddr, uv_baseaddr)) {
@@ -642,7 +643,7 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	}
 
 	if (dpstate->use_prefetch) {
-		fetchunit_configure_prefetch(fd, fl, dplane->stream_id,
+		fetchunit_configure_prefetch(fd, fl, NULL, dplane->stream_id,
 					     src_w, src_h, src_x, src_y,
 					     fb->pitches[0], fb->pixel_format,
 					     fb->modifier[0],
@@ -650,12 +651,12 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 					     prefetch_start,
 					     aux_prefetch_start);
 		if (prefetch_start || aux_prefetch_start)
-			fetchunit_enable_prefetch(fd, fl);
+			fetchunit_enable_prefetch(fd, fl, NULL);
 
-		fetchunit_reg_update_prefetch(fd, fl);
+		fetchunit_reg_update_prefetch(fd, fl, NULL);
 
 		if (prefetch_start || aux_prefetch_start) {
-			fetchunit_prefetch_first_frame_handle(fd, fl);
+			fetchunit_prefetch_first_frame_handle(fd, fl, NULL);
 
 			if (!need_modeset && is_overlay)
 				framegen_wait_for_frame_counter_moving(fg);
@@ -663,8 +664,8 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 
 		dev_dbg(dev, "[PLANE:%d:%s] use prefetch\n",
 					plane->base.id, plane->name);
-	} else if (fetchunit_has_prefetch(fd, fl)) {
-		fetchunit_disable_prefetch(fd, fl);
+	} else if (fetchunit_has_prefetch(fd, fl, NULL)) {
+		fetchunit_disable_prefetch(fd, fl, NULL);
 
 		dev_dbg(dev, "[PLANE:%d:%s] bypass prefetch\n",
 					plane->base.id, plane->name);
