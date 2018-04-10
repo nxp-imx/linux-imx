@@ -175,6 +175,11 @@
 	xen,passthrough;
 };
 
+&crypto {
+	/* Met CAAM failure on A0, disable it first */
+	status = "disabled";
+};
+
 &dpu2_intsteer {
 	xen,passthrough;
 };
