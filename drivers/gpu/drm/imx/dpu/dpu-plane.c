@@ -169,6 +169,9 @@ drm_plane_state_to_baseaddr(struct drm_plane_state *state)
 	if (fb->modifier[0])
 		return cma_obj->paddr + fb->offsets[0];
 
+	if (fb->flags & DRM_MODE_FB_INTERLACED)
+		y /= 2;
+
 	return cma_obj->paddr + fb->offsets[0] + fb->pitches[0] * y +
 	       drm_format_plane_cpp(fb->pixel_format, 0) * x;
 }
@@ -190,6 +193,9 @@ drm_plane_state_to_uvbaseaddr(struct drm_plane_state *state)
 	x /= drm_format_horz_chroma_subsampling(fb->pixel_format);
 	y /= drm_format_vert_chroma_subsampling(fb->pixel_format);
 
+	if (fb->flags & DRM_MODE_FB_INTERLACED)
+		y /= 2;
+
 	return cma_obj->paddr + fb->offsets[1] + fb->pitches[1] * y +
 	       drm_format_plane_cpp(fb->pixel_format, 1) * x;
 }
@@ -210,6 +216,7 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	    src_x = state->src_x >> 16, src_y = state->src_y >> 16;
 	unsigned int depth;
 	int bpp, fu_id, fu_type;
+	bool fb_is_interlaced;
 
 	/* pure software check */
 	if (plane->type != DRM_PLANE_TYPE_PRIMARY)
@@ -235,6 +242,8 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 
 	if (!state->crtc)
 		return -EINVAL;
+
+	fb_is_interlaced = !!(fb->flags & DRM_MODE_FB_INTERLACED);
 
 	if (fb->modifier[0] &&
 	    fb->modifier[0] != DRM_FORMAT_MOD_AMPHION_TILED &&
@@ -287,9 +296,12 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	if (drm_format_horz_chroma_subsampling(fb->pixel_format) == 2 &&
 	    ((src_w % 2) || (src_x % 2)))
 		return -EINVAL;
-	if (drm_format_vert_chroma_subsampling(fb->pixel_format) == 2 &&
-	    ((src_h % 2) || (src_y % 2)))
-		return -EINVAL;
+	if (drm_format_vert_chroma_subsampling(fb->pixel_format) == 2) {
+		if (src_h % (fb_is_interlaced ? 4 : 2))
+			return -EINVAL;
+		if (src_y % (fb_is_interlaced ? 4 : 2))
+			return -EINVAL;
+	}
 
 	/* for tile formats, framebuffer has to be tile aligned */
 	switch (fb->modifier[0]) {
@@ -437,6 +449,7 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	bool prefetch_start = false, aux_prefetch_start = false;
 	bool need_modeset;
 	bool is_overlay = plane->type == DRM_PLANE_TYPE_OVERLAY;
+	bool fb_is_interlaced;
 
 	/*
 	 * Do nothing since the plane is disabled by
@@ -446,6 +459,7 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 		return;
 
 	need_modeset = drm_atomic_crtc_needs_modeset(state->crtc->state);
+	fb_is_interlaced = !!(fb->flags & DRM_MODE_FB_INTERLACED);
 
 	fu_type = source_to_type(dpstate->source);
 	fu_id = source_to_id(dpstate->source);
@@ -496,7 +510,7 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 				return;
 		}
 
-		if (src_h != state->crtc_h) {
+		if ((src_h != state->crtc_h) || fb_is_interlaced) {
 			need_vscaler = true;
 			vs = fetchdecode_get_vscaler(fd);
 			if (IS_ERR(vs))
@@ -545,10 +559,12 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 		fetchdecode_source_bpp(fd, bpp);
 		fetchdecode_source_stride(fd, src_w, bpp, fb->pitches[0],
 					baseaddr, dpstate->use_prefetch);
-		fetchdecode_src_buf_dimensions(fd, src_w, src_h);
-		fetchdecode_set_fmt(fd, fb->pixel_format);
+		fetchdecode_src_buf_dimensions(fd, src_w, src_h,
+					fb_is_interlaced);
+		fetchdecode_set_fmt(fd, fb->pixel_format, fb_is_interlaced);
 		fetchdecode_source_buffer_enable(fd);
-		fetchdecode_framedimensions(fd, src_w, src_h);
+		fetchdecode_framedimensions(fd, src_w, src_h,
+					fb_is_interlaced);
 		fetchdecode_baseaddress(fd, baseaddr);
 		fetchdecode_set_stream_id(fd, dplane->stream_id ?
 						DPU_PLANE_SRC_TO_DISP_STREAM1 :
@@ -615,8 +631,9 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 		fetcheco_source_stride(fe, src_w, bpp, fb->pitches[1],
 					uv_baseaddr, dpstate->use_prefetch);
 		fetcheco_set_fmt(fe, fb->pixel_format);
-		fetcheco_src_buf_dimensions(fe, src_w, src_h, fb->pixel_format);
-		fetcheco_framedimensions(fe, src_w, src_h);
+		fetcheco_src_buf_dimensions(fe, src_w, src_h,
+					fb->pixel_format, fb_is_interlaced);
+		fetcheco_framedimensions(fe, src_w, src_h, fb_is_interlaced);
 		fetcheco_baseaddress(fe, uv_baseaddr);
 		fetcheco_source_buffer_enable(fe);
 		fetcheco_set_stream_id(fe, dplane->stream_id ?
@@ -641,9 +658,12 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 		vscaler_pixengcfg_dynamic_src_sel(vs,
 					(vs_src_sel_t)(dpstate->source));
 		vscaler_pixengcfg_clken(vs, CLKEN__AUTOMATIC);
-		vscaler_setup1(vs, src_h, state->crtc_h);
+		vscaler_setup1(vs, src_h, state->crtc_h, fb_is_interlaced);
+		vscaler_setup2(vs, fb_is_interlaced);
+		vscaler_setup3(vs, fb_is_interlaced);
 		vscaler_output_size(vs, state->crtc_h);
-		vscaler_field_mode(vs, SCALER_INPUT);
+		vscaler_field_mode(vs, fb_is_interlaced ?
+						SCALER_ALWAYS0 : SCALER_INPUT);
 		vscaler_filter_mode(vs, SCALER_LINEAR);
 		vscaler_scale_mode(vs, SCALER_UPSCALE);
 		vscaler_mode(vs, SCALER_ACTIVE);
@@ -689,7 +709,8 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 					     fb->modifier[0],
 					     baseaddr, uv_baseaddr,
 					     prefetch_start,
-					     aux_prefetch_start);
+					     aux_prefetch_start,
+					     fb_is_interlaced);
 		if (prefetch_start || aux_prefetch_start)
 			fetchunit_enable_prefetch(fd, fl, fw);
 
