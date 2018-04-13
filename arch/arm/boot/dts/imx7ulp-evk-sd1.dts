@@ -38,5 +38,6 @@
 	vmmc-supply = <&reg_vsd_3v3b>;
 	/delete-property/pm-ignore-notify;
 	/delete-property/keep-power-in-suspend;
+	/delete-property/non-removable;
 	status = "okay";
 };
