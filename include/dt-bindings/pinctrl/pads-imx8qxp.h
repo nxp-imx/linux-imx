@@ -421,6 +421,7 @@
 #define SC_P_SPDIF0_EXT_CLK_ADMA_LCDIF_D12                      SC_P_SPDIF0_EXT_CLK                2
 #define SC_P_SPDIF0_EXT_CLK_CONN_ENET1_REFCLK_125M_25M          SC_P_SPDIF0_EXT_CLK                3
 #define SC_P_SPDIF0_EXT_CLK_LSIO_GPIO0_IO12                     SC_P_SPDIF0_EXT_CLK                4
+#define SC_P_COMP_CTL_GPIO_1V8_3V3_GPIORHB_PAD			SC_P_COMP_CTL_GPIO_1V8_3V3_GPIORHB 0
 #define SC_P_SPI3_SCK_ADMA_SPI3_SCK                             SC_P_SPI3_SCK                      0
 #define SC_P_SPI3_SCK_ADMA_LCDIF_D13                            SC_P_SPI3_SCK                      2
 #define SC_P_SPI3_SCK_LSIO_GPIO0_IO13                           SC_P_SPI3_SCK                      4
