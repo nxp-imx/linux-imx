@@ -354,26 +354,14 @@ static void __init __map_memblock(pgd_t *pgd, phys_addr_t start, phys_addr_t end
 				     !debug_pagealloc_enabled());
 
 	/*
-	 * Map the linear alias of the [_text, __init_begin) interval
-	 * as non-executable now, and remove the write permission in
-	 * mark_linear_text_alias_ro() below (which will be called after
-	 * alternative patching has completed). This makes the contents
-	 * of the region accessible to subsystems such as hibernate,
-	 * but protects it from inadvertent modification or execution.
+	 * Map the linear alias of the [_text, __init_begin) interval as
+	 * read-only/non-executable. This makes the contents of the
+	 * region accessible to subsystems such as hibernate, but
+	 * protects it from inadvertent modification or execution.
 	 */
 	__create_pgd_mapping(pgd, kernel_start, __phys_to_virt(kernel_start),
-			     kernel_end - kernel_start, PAGE_KERNEL,
+			     kernel_end - kernel_start, PAGE_KERNEL_RO,
 			     early_pgtable_alloc, !debug_pagealloc_enabled());
-}
-
-void __init mark_linear_text_alias_ro(void)
-{
-	/*
-	 * Remove the write permissions from the linear alias of .text/.rodata
-	 */
-	create_mapping_late(__pa_symbol(_text), (unsigned long)lm_alias(_text),
-			    (unsigned long)__init_begin - (unsigned long)_text,
-			    PAGE_KERNEL_RO);
 }
 
 static void __init map_mem(pgd_t *pgd)
@@ -430,37 +418,6 @@ static void __init map_kernel_segment(pgd_t *pgd, void *va_start, void *va_end,
 
 	vm_area_add_early(vma);
 }
-
-#ifdef CONFIG_UNMAP_KERNEL_AT_EL0
-static int __init map_entry_trampoline(void)
-{
-	extern char __entry_tramp_text_start[];
-
-	pgprot_t prot = rodata_enabled ? PAGE_KERNEL_ROX : PAGE_KERNEL_EXEC;
-	phys_addr_t pa_start = __pa_symbol(__entry_tramp_text_start);
-
-	/* The trampoline is always mapped and can therefore be global */
-	pgprot_val(prot) &= ~PTE_NG;
-
-	/* Map only the text into the trampoline page table */
-	memset(tramp_pg_dir, 0, PGD_SIZE);
-	__create_pgd_mapping(tramp_pg_dir, pa_start, TRAMP_VALIAS, PAGE_SIZE,
-			     prot, pgd_pgtable_alloc, 0);
-
-	/* Map both the text and data into the kernel page table */
-	__set_fixmap(FIX_ENTRY_TRAMP_TEXT, pa_start, prot);
-	if (IS_ENABLED(CONFIG_RANDOMIZE_BASE)) {
-		extern char __entry_tramp_data_start[];
-
-		__set_fixmap(FIX_ENTRY_TRAMP_DATA,
-			     __pa_symbol(__entry_tramp_data_start),
-			     PAGE_KERNEL_RO);
-	}
-
-	return 0;
-}
-core_initcall(map_entry_trampoline);
-#endif
 
 /*
  * Create fine-grained mappings for the kernel.

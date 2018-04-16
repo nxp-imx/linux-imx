@@ -24,7 +24,6 @@
 #include <linux/sched.h>
 #include <asm/cputype.h>
 #include <soc/imx8/soc.h>
-#include <asm/mmu.h>
 
 /*
  * Raw TLBI operations.
@@ -43,11 +42,6 @@
 #define __TLBI_N(op, arg, n, ...)	__TLBI_##n(op, arg)
 
 #define __tlbi(op, ...)		__TLBI_N(op, ##__VA_ARGS__, 1, 0)
-
-#define __tlbi_user(op, arg) do {						\
-	if (arm64_kernel_unmapped_at_el0())					\
-		__tlbi(op, (arg) | USER_ASID_FLAG);				\
-} while (0)
 
 /*
  *	TLB Management
@@ -111,10 +105,8 @@ static inline void flush_tlb_mm(struct mm_struct *mm)
 	dsb(ishst);
 	if (TKT340553_SW_WORKAROUND && ASID(mm) >> 11)
 		__tlbi(vmalle1is);
-	else {
+	else
 		__tlbi(aside1is, asid);
-		__tlbi_user(aside1is, asid);
-	}
 	dsb(ish);
 }
 
@@ -126,10 +118,8 @@ static inline void flush_tlb_page(struct vm_area_struct *vma,
 	dsb(ishst);
 	if (TKT340553_SW_WORKAROUND && (uaddr >> 36 || (ASID(vma->vm_mm) >> 12)))
 		__tlbi(vmalle1is);
-	else {
+	else
 		__tlbi(vale1is, addr);
-		__tlbi_user(vale1is, addr);
-	}
 	dsb(ish);
 }
 
@@ -161,14 +151,10 @@ static inline void __flush_tlb_range(struct vm_area_struct *vma,
 	for (addr = start; addr < end; addr += 1 << (PAGE_SHIFT - 12)) {
 		if (TKT340553_SW_WORKAROUND && (addr & mask || (ASID(vma->vm_mm) >> 12)))
 			__tlbi(vmalle1is);
-		else if (last_level) {
+		else if (last_level)
 			__tlbi(vale1is, addr);
-			__tlbi_user(vale1is, addr);
-		}
-		else {
+		else
 			__tlbi(vae1is, addr);
-			__tlbi_user(vae1is, addr);
-		}
 	}
 	dsb(ish);
 }
@@ -213,10 +199,8 @@ static inline void __flush_tlb_pgtable(struct mm_struct *mm,
 
 	if (TKT340553_SW_WORKAROUND && (uaddr >> 36 || (ASID(mm) >> 12)))
 		__tlbi(vmalle1is);
-	else {
+	else
 		__tlbi(vae1is, addr);
-		__tlbi_user(vae1is, addr);
-	}
 
 	dsb(ish);
 }

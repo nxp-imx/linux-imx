@@ -541,7 +541,7 @@ asmlinkage long do_ni_syscall(struct pt_regs *regs)
 
 	if (show_unhandled_signals_ratelimited()) {
 		pr_info("%s[%d]: syscall %d\n", current->comm,
-			task_pid_nr(current), regs->syscallno);
+			task_pid_nr(current), (int)regs->syscallno);
 		dump_instr("", regs);
 		if (user_mode(regs))
 			__show_regs(regs);
@@ -635,20 +635,6 @@ asmlinkage void bad_el0_sync(struct pt_regs *regs, int reason, unsigned int esr)
 	current->thread.fault_code = 0;
 
 	force_sig_info(info.si_signo, &info, current);
-}
-
-
-asmlinkage void do_serror(struct pt_regs *regs, unsigned int esr)
-{
-	nmi_enter();
-
-	console_verbose();
-
-	pr_crit("SError Interrupt on CPU%d, code 0x%08x -- %s\n",
-		smp_processor_id(), esr, esr_get_class_string(esr));
-	__show_regs(regs);
-
-	panic("Asynchronous SError Interrupt");
 }
 
 void __pte_error(const char *file, int line, unsigned long val)
