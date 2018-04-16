@@ -54,7 +54,6 @@
 
 
 #include "gc_hal_kernel_linux.h"
-#include "gc_hal_kernel_allocator.h"
 #include <linux/pagemap.h>
 #include <linux/seq_file.h>
 #include <linux/mman.h>
@@ -853,8 +852,6 @@ _SetupVidMem(
 
                     if (gcmIS_SUCCESS(status))
                     {
-                        gckALLOCATOR allocator = ((PLINUX_MDL)device->contiguousPhysical)->allocator;
-                        device->contiguousVidMem->capability = allocator->capability | gcvALLOC_FLAG_MEMLIMIT;
                         device->contiguousVidMem->physical = device->contiguousPhysical;
                         device->contiguousBase = physAddr;
                         break;
@@ -899,8 +896,6 @@ _SetupVidMem(
             }
             else
             {
-                gckALLOCATOR allocator;
-
                 gcmkONERROR(gckOS_RequestReservedMemory(
                     device->os, ContiguousBase, ContiguousSize,
                     "galcore contiguous memory",
@@ -908,8 +903,6 @@ _SetupVidMem(
                     &device->contiguousPhysical
                     ));
 
-                allocator = ((PLINUX_MDL)device->contiguousPhysical)->allocator;
-                device->contiguousVidMem->capability = allocator->capability | gcvALLOC_FLAG_MEMLIMIT;
                 device->contiguousVidMem->physical = device->contiguousPhysical;
                 device->requestedContiguousBase = ContiguousBase;
                 device->requestedContiguousSize = ContiguousSize;

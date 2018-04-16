@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,6 +17,7 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <video/imx8-prefetch.h>
 
@@ -66,13 +67,27 @@ enum {
 #define PRG_WIDTH		0x70
 #define WIDTH(n)		(((n) - 1) & 0xffff)
 
+struct prg_devtype {
+	bool has_dprc_fixup;
+};
+
+static const struct prg_devtype prg_type_v1 = {
+	.has_dprc_fixup = false,
+};
+
+static const struct prg_devtype prg_type_v2 = {
+	.has_dprc_fixup = true,
+};
+
 struct prg {
 	struct device *dev;
+	const struct prg_devtype *devtype;
 	void __iomem *base;
 	struct list_head list;
 	struct clk *clk_apb;
 	struct clk *clk_rtram;
 	bool is_auxiliary;
+	bool is_blit;
 };
 
 static DEFINE_MUTEX(prg_list_mutex);
@@ -120,6 +135,8 @@ void prg_configure(struct prg *prg, unsigned int width, unsigned int height,
 		   bool start)
 {
 	unsigned int burst_size;
+	unsigned int mt_w = 0, mt_h = 0;	/* w/h in a micro-tile */
+	bool is_tkt342628_case = false;
 	u32 val;
 
 	if (WARN_ON(!prg))
@@ -146,39 +163,37 @@ void prg_configure(struct prg *prg, unsigned int width, unsigned int height,
 	 * when prg stride is less or equals to burst size,
 	 * the auxiliary prg height needs to be a half
 	 */
-	if (prg->is_auxiliary && stride <= burst_size)
+	if (prg->is_auxiliary && stride <= burst_size) {
 		height /= 2;
+		is_tkt342628_case = true;
+	}
 
-	/* prg finer cropping into tile block - top/left start point */
+	/* prg finer cropping into micro-tile block - top/left start point */
 	switch (modifier) {
 	case DRM_FORMAT_MOD_NONE:
 		break;
 	case DRM_FORMAT_MOD_AMPHION_TILED:
-		x_offset %= AMPHION_STRIPE_WIDTH;
-		y_offset %= (prg->is_auxiliary ?
-			AMPHION_UV_STRIPE_HEIGHT : AMPHION_Y_STRIPE_HEIGHT);
+		mt_w = 8;
+		mt_h = 8;
 		break;
 	case DRM_FORMAT_MOD_VIVANTE_TILED:
-		x_offset %= VIVANTE_TILE_WIDTH;
-		y_offset %= VIVANTE_TILE_HEIGHT;
-		break;
 	case DRM_FORMAT_MOD_VIVANTE_SUPER_TILED:
-		x_offset %= VIVANTE_SUPER_TILE_WIDTH;
-		y_offset %= VIVANTE_SUPER_TILE_HEIGHT;
+		mt_w = (bits_per_pixel == 16) ? 8 : 4;
+		mt_h = 4;
 		break;
 	default:
-		dev_err(prg->dev, "unsupported modifier 0x%016llx\n",
-								modifier);
+		dev_err(prg->dev, "unsupported modifier 0x%016llx\n", modifier);
 		return;
 	}
 
-	if (y_offset >
-	    ((format == DRM_FORMAT_NV21 || format == DRM_FORMAT_NV12) ?
-		(PRG_HANDSHAKE_8LINES - 1) : (PRG_HANDSHAKE_4LINES - 1))) {
-		dev_err(prg->dev,
-			"unsupported crop line %d for modifier 0x%016llx\n",
-							y_offset, modifier);
-		return;
+	if (prg->devtype->has_dprc_fixup && modifier) {
+		x_offset %= mt_w;
+		y_offset %= mt_h;
+		if (is_tkt342628_case)
+			y_offset /= 2;
+	} else {
+		x_offset = 0;
+		y_offset = 0;
 	}
 
 	prg_write(prg, STRIDE(stride), PRG_STRIDE);
@@ -288,6 +303,15 @@ void prg_set_auxiliary(struct prg *prg)
 }
 EXPORT_SYMBOL_GPL(prg_set_auxiliary);
 
+void prg_set_blit(struct prg *prg)
+{
+	if (WARN_ON(!prg))
+		return;
+
+	prg->is_blit = true;
+}
+EXPORT_SYMBOL_GPL(prg_set_blit);
+
 struct prg *
 prg_lookup_by_phandle(struct device *dev, const char *name, int index)
 {
@@ -309,8 +333,16 @@ prg_lookup_by_phandle(struct device *dev, const char *name, int index)
 }
 EXPORT_SYMBOL_GPL(prg_lookup_by_phandle);
 
+static const struct of_device_id prg_dt_ids[] = {
+	{ .compatible = "fsl,imx8qm-prg", .data = &prg_type_v1, },
+	{ .compatible = "fsl,imx8qxp-prg", .data = &prg_type_v2, },
+	{ /* sentinel */ },
+};
+
 static int prg_probe(struct platform_device *pdev)
 {
+	const struct of_device_id *of_id =
+			of_match_device(prg_dt_ids, &pdev->dev);
 	struct device *dev = &pdev->dev;
 	struct resource *res;
 	struct prg *prg;
@@ -318,6 +350,8 @@ static int prg_probe(struct platform_device *pdev)
 	prg = devm_kzalloc(dev, sizeof(*prg), GFP_KERNEL);
 	if (!prg)
 		return -ENOMEM;
+
+	prg->devtype = of_id->data;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	prg->base = devm_ioremap_resource(&pdev->dev, res);
@@ -358,12 +392,6 @@ static int prg_remove(struct platform_device *pdev)
 
 	return 0;
 }
-
-static const struct of_device_id prg_dt_ids[] = {
-	{ .compatible = "fsl,imx8qm-prg", },
-	{ .compatible = "fsl,imx8qxp-prg", },
-	{ /* sentinel */ },
-};
 
 struct platform_driver prg_drv = {
 	.probe = prg_probe,

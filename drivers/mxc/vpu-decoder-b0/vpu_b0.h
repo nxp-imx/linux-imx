@@ -45,7 +45,7 @@ extern unsigned int vpu_dbg_level_decoder;
 
 #define VPU_MAX_FORMATS 4
 #define VPU_MAX_BUFFER 32
-#define M0FW_FILENAME "decoder_main.bin"
+#define M0FW_FILENAME "vpu_fw_imx8qxp_dec.bin"
 #define MMAP_BUF_TYPE_SHIFT 28
 #define MMAP_BUF_TYPE_MASK 0xF0000000
 #define M0_BOOT_SIZE 0x1000000
@@ -218,10 +218,12 @@ struct vpu_ctx {
 	struct queue_data q_data[2];
 //	struct work_struct msg_work;
 	struct completion completion;
+	struct completion stop_cmp;
 	MediaIPFW_Video_SeqInfo *pSeqinfo;
 	bool b_firstseq;
 	bool start_flag;
 	bool wait_rst_done;
+	bool buffer_null;
 	bool firmware_stopped;
 	wait_queue_head_t buffer_wq;
 	void *dpb_dma_virt;

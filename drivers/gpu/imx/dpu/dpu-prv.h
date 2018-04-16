@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -20,6 +20,8 @@
 #define NA				0xDEADBEEF	/* not available */
 
 #define STATICCONTROL			0x8
+#define SHDLDREQSTICKY(lm)		(((lm) & 0xFF) << 24)
+#define SHDLDREQSTICKY_MASK		(0xFF << 24)
 #define BASEADDRESSAUTOUPDATE(lm)	(((lm) & 0xFF) << 16)
 #define BASEADDRESSAUTOUPDATE_MASK	(0xFF << 16)
 #define SHDEN				BIT(0)
@@ -131,6 +133,8 @@ typedef enum {
 #define SHDTOKGEN			BIT(0)
 #define FETCHTYPE_MASK			0xF
 
+#define DPU_FRAC_PLANE_LAYER_NUM	8
+
 enum {
 	DPU_V1,
 	DPU_V2,
@@ -184,6 +188,7 @@ struct dpu_devtype {
 	const struct dpu_unit *fes;
 	const struct dpu_unit *fgs;
 	const struct dpu_unit *fls;
+	const struct dpu_unit *fws;
 	const struct dpu_unit *hss;
 	const struct dpu_unit *lbs;
 	const struct dpu_unit *tcons;
@@ -194,8 +199,14 @@ struct dpu_devtype {
 	const unsigned long *unused_irq;
 	const unsigned int *sw2hw_irq_map;	/* NULL means linear */
 	const unsigned int *sw2hw_block_id_map;	/* NULL means linear */
+	/*
+	 * index:     0         1         2       3   4   5   6
+	 * source: fl0(sub0) fl1(sub0) fw2(sub0) fd0 fd1 fd2 fd3
+	 */
+	const u32 plane_src_na_mask;
 	bool has_capture;
 	bool has_prefetch;
+	bool has_prefetch_fixup;
 	bool pixel_link_quirks;
 	bool pixel_link_nhvsync;	/* HSYNC and VSYNC high active */
 	unsigned int version;
@@ -231,6 +242,7 @@ struct dpu_soc {
 	struct dpu_fetcheco	*fe_priv[4];
 	struct dpu_framegen	*fg_priv[2];
 	struct dpu_fetchlayer	*fl_priv[2];
+	struct dpu_fetchwarp	*fw_priv[1];
 	struct dpu_hscaler	*hs_priv[3];
 	struct dpu_layerblend	*lb_priv[7];
 	struct dpu_tcon		*tcon_priv[2];
@@ -253,6 +265,7 @@ _DECLARE_DPU_UNIT_INIT_FUNC(fd);
 _DECLARE_DPU_UNIT_INIT_FUNC(fe);
 _DECLARE_DPU_UNIT_INIT_FUNC(fg);
 _DECLARE_DPU_UNIT_INIT_FUNC(fl);
+_DECLARE_DPU_UNIT_INIT_FUNC(fw);
 _DECLARE_DPU_UNIT_INIT_FUNC(hs);
 _DECLARE_DPU_UNIT_INIT_FUNC(lb);
 _DECLARE_DPU_UNIT_INIT_FUNC(tcon);
@@ -269,12 +282,15 @@ DECLARE_DPU_UNIT_INIT_FUNC(fd);
 DECLARE_DPU_UNIT_INIT_FUNC(fe);
 DECLARE_DPU_UNIT_INIT_FUNC(fg);
 DECLARE_DPU_UNIT_INIT_FUNC(fl);
+DECLARE_DPU_UNIT_INIT_FUNC(fw);
 DECLARE_DPU_UNIT_INIT_FUNC(hs);
 DECLARE_DPU_UNIT_INIT_FUNC(lb);
 DECLARE_DPU_UNIT_INIT_FUNC(tcon);
 DECLARE_DPU_UNIT_INIT_FUNC(vs);
 
 void fetchdecode_get_dprc(struct dpu_fetchdecode *fd, void *data);
+void fetchlayer_get_dprc(struct dpu_fetchlayer *fl, void *data);
+void fetchwarp_get_dprc(struct dpu_fetchwarp *fw, void *data);
 
 static const unsigned int cf_ids[] = {0, 1, 4, 5};
 static const unsigned int dec_ids[] = {0, 1};
@@ -283,12 +299,15 @@ static const unsigned int fd_ids[] = {0, 1, 2, 3};
 static const unsigned int fe_ids[] = {0, 1, 2, 9};
 static const unsigned int fg_ids[] = {0, 1};
 static const unsigned int fl_ids[] = {0, 1};
+static const unsigned int fw_ids[] = {2};
 static const unsigned int hs_ids[] = {4, 5, 9};
 static const unsigned int lb_ids[] = {0, 1, 2, 3, 4, 5, 6};
 static const unsigned int tcon_ids[] = {0, 1};
 static const unsigned int vs_ids[] = {4, 5, 9};
 
 static const unsigned int fd_dprc_ids[] = {3, 4};
+static const unsigned int fl_dprc_ids[] = {2};
+static const unsigned int fw_dprc_ids[] = {5};
 
 struct dpu_pixel_format {
 	u32 pixel_format;

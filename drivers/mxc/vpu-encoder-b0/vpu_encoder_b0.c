@@ -90,7 +90,7 @@ static struct vpu_v4l2_fmt  formats_compressed_enc[] = {
 	},
 	{
 		.name       = "MPEG4 ASP Encoded Stream",
-		.fourcc     = VPU_PIX_FMT_ASP,
+		.fourcc     = V4L2_PIX_FMT_MPEG4,
 		.num_planes = 1,
 		.venc_std   = VPU_VIDEO_ASP,
 	},
@@ -1006,7 +1006,7 @@ static void enc_mem_alloc(struct vpu_ctx *ctx, MEDIAIP_ENC_MEM_REQ_DATA *req_dat
 			ctx->dev->shared_mem.base_offset);
 
 	for (i = 0; i < req_data->uEncFrmNum; i++) {
-		ctx->encFrame[i].size = ((req_data->uEncFrmSize + (~req_data->uAlignmentMask))&req_data->uAlignmentMask);
+		ctx->encFrame[i].size = req_data->uEncFrmSize;
 		ctx->encFrame[i].virt_addr = dma_alloc_coherent(&ctx->dev->plat_dev->dev,
 				ctx->encFrame[i].size,
 				(dma_addr_t *)&ctx->encFrame[i].phy_addr,
@@ -1027,7 +1027,7 @@ static void enc_mem_alloc(struct vpu_ctx *ctx, MEDIAIP_ENC_MEM_REQ_DATA *req_dat
 	}
 
 	for (i = 0; i < req_data->uRefFrmNum; i++) {
-		ctx->refFrame[i].size = ((req_data->uRefFrmSize + (~req_data->uAlignmentMask))&req_data->uAlignmentMask);
+		ctx->refFrame[i].size = req_data->uRefFrmSize;
 		ctx->refFrame[i].virt_addr = dma_alloc_coherent(&ctx->dev->plat_dev->dev,
 				ctx->refFrame[i].size,
 				(dma_addr_t *)&ctx->refFrame[i].phy_addr,
@@ -1048,7 +1048,7 @@ static void enc_mem_alloc(struct vpu_ctx *ctx, MEDIAIP_ENC_MEM_REQ_DATA *req_dat
 		pEncMemPool->tRefFrameBuffers[i].uMemSize = ctx->refFrame[i].size;
 	}
 
-	ctx->actFrame.size = ((req_data->uActBufSize + (~req_data->uAlignmentMask))&req_data->uAlignmentMask);
+	ctx->actFrame.size = req_data->uActBufSize;
 	ctx->actFrame.virt_addr = dma_alloc_coherent(&ctx->dev->plat_dev->dev,
 			ctx->actFrame.size,
 			(dma_addr_t *)&ctx->actFrame.phy_addr,
@@ -1083,7 +1083,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		case VID_API_ENC_EVENT_MEM_REQUEST: {
 			MEDIAIP_ENC_MEM_REQ_DATA *req_data = (MEDIAIP_ENC_MEM_REQ_DATA *)event_data;
 			vpu_dbg(LVL_INFO, "VID_API_ENC_EVENT_MEM_REQUEST: need to request memory\n");
-			vpu_dbg(LVL_INFO, "uEncFrmSize = %d, uEncFrmNum=%d, uRefFrmSize=%d, uRefFrmNum=%d, uActBufSize=%d, uAlignmentMask=0x%x\n", req_data->uEncFrmSize, req_data->uEncFrmNum, req_data->uRefFrmSize, req_data->uRefFrmNum, req_data->uActBufSize, req_data->uAlignmentMask);
+			vpu_dbg(LVL_INFO, "uEncFrmSize = %d, uEncFrmNum=%d, uRefFrmSize=%d, uRefFrmNum=%d, uActBufSize=%d\n", req_data->uEncFrmSize, req_data->uEncFrmNum, req_data->uRefFrmSize, req_data->uRefFrmNum, req_data->uActBufSize);
 			enc_mem_alloc(ctx, req_data);
 			//update_yuv_addr(ctx,0);
 			v4l2_vpu_send_cmd(ctx, 0, GTB_ENC_CMD_STREAM_START, 0, NULL);
@@ -1308,7 +1308,8 @@ static void vpu_stop_streaming(struct vb2_queue *q)
 	}
 	if (!list_empty(&q->queued_list))
 		list_for_each_entry(vb, &q->queued_list, queued_entry)
-			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
+			if (vb->state == VB2_BUF_STATE_ACTIVE)
+				vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
 	INIT_LIST_HEAD(&This->drv_q);
 	up(&This->drv_q_lock);
 }
@@ -1442,7 +1443,7 @@ static int boot_CM4_up(struct vpu_dev *dev, void *boot_addr)
 	aux_core_ram = 0x34FE0000;
 	size = SZ_128K;
 
-	core_ram_vir = ioremap(aux_core_ram,
+	core_ram_vir = ioremap_wc(aux_core_ram,
 			size
 			);
 	if (!core_ram_vir)
@@ -1542,7 +1543,7 @@ static int v4l2_open(struct file *filp)
 		if (ret) {
 			vpu_dbg(LVL_ERR, "error: vpu_firmware_download fail\n");
 			mutex_unlock(&dev->dev_mutex);
-			return ret;
+			goto err_firmware_load;
 		}
 		dev->fw_is_ready = true;
 	}
@@ -1579,6 +1580,15 @@ static int v4l2_open(struct file *filp)
 	ctx->actFrame.size = 0;
 
 	return 0;
+
+err_firmware_load:
+	release_queue_data(ctx);
+	ctrls_delete_encoder(ctx);
+	v4l2_fh_del(&ctx->fh);
+	v4l2_fh_exit(&ctx->fh);
+	clear_bit(ctx->str_index, &dev->instance_mask);
+	kfree(ctx);
+	return ret;
 }
 
 static int v4l2_release(struct file *filp)
@@ -1972,7 +1982,7 @@ static int vpu_probe(struct platform_device *pdev)
 		return ret;
 	}
 	//firmware space for M0
-	dev->m0_p_fw_space_vir = ioremap(dev->m0_p_fw_space_phy,
+	dev->m0_p_fw_space_vir = ioremap_wc(dev->m0_p_fw_space_phy,
 			M0_BOOT_SIZE
 			);
 	if (!dev->m0_p_fw_space_vir)
@@ -1980,7 +1990,7 @@ static int vpu_probe(struct platform_device *pdev)
 
 	memset_io(dev->m0_p_fw_space_vir, 0, M0_BOOT_SIZE);
 
-	dev->m0_rpc_virt = ioremap(dev->m0_rpc_phy,
+	dev->m0_rpc_virt = ioremap_wc(dev->m0_rpc_phy,
 			SHARED_SIZE
 			);
 	if (!dev->m0_rpc_virt)
@@ -2050,8 +2060,8 @@ static const struct dev_pm_ops vpu_pm_ops = {
 };
 
 static const struct of_device_id vpu_of_match[] = {
-	{ .compatible = "nxp,imx8qm-vpu-encoder", },
-	{ .compatible = "nxp,imx8qxp-vpu-encoder", },
+	{ .compatible = "nxp,imx8qm-b0-vpuenc", },
+	{ .compatible = "nxp,imx8qxp-b0-vpuenc", },
 	{}
 }
 MODULE_DEVICE_TABLE(of, vpu_of_match);

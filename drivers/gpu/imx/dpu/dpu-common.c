@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -180,6 +180,12 @@ static const unsigned long fl_ofss_v2[] = {0x8400};
 static const unsigned long fl_pec_ofss_v1[] = {0xba0, 0xbb0};
 static const unsigned long fl_pec_ofss_v2[] = {0xac0};
 
+/* Fetch Warp Unit */
+static const unsigned long fw_ofss_v1[] = {0x8400};
+static const unsigned long fw_ofss_v2[] = {0x6400};
+static const unsigned long fw_pec_ofss_v1[] = {0xb40};
+static const unsigned long fw_pec_ofss_v2[] = {0xa60};
+
 /* Horizontal Scaler Unit */
 static const unsigned long hs_ofss_v1[] = {0xbc00, 0xd000, 0x3000};
 static const unsigned long hs_ofss_v2[] = {0x9000, 0x9c00, 0x3000};
@@ -315,6 +321,24 @@ static const struct dpu_unit fls_v2 = {
 	.ids = fl_ids,
 	.pec_ofss = fl_pec_ofss_v2,
 	.ofss = fl_ofss_v2,
+	.dprc_ids = fl_dprc_ids,
+};
+
+static const struct dpu_unit fws_v1 = {
+	.name = "FetchWarp",
+	.num = ARRAY_SIZE(fw_ids),
+	.ids = fw_ids,
+	.pec_ofss = fw_pec_ofss_v1,
+	.ofss = fw_ofss_v1,
+};
+
+static const struct dpu_unit fws_v2 = {
+	.name = "FetchWarp",
+	.num = ARRAY_SIZE(fw_ids),
+	.ids = fw_ids,
+	.pec_ofss = fw_pec_ofss_v2,
+	.ofss = fw_ofss_v2,
+	.dprc_ids = fw_dprc_ids,
 };
 
 static const struct dpu_unit hss_v1 = {
@@ -506,6 +530,7 @@ static const struct dpu_devtype dpu_type_v1 = {
 	.fes = &fes_v1,
 	.fgs = &fgs_v1,
 	.fls = &fls_v1,
+	.fws = &fws_v1,
 	.hss = &hss_v1,
 	.lbs = &lbs_v1,
 	.tcons = &tcons_v1,
@@ -514,8 +539,10 @@ static const struct dpu_devtype dpu_type_v1 = {
 	.intsteer_map = intsteer_map_v1,
 	.intsteer_map_size = ARRAY_SIZE(intsteer_map_v1),
 	.unused_irq = unused_irq_v1,
+	.plane_src_na_mask = 0xffffff80,
 	.has_capture = true,
 	.has_prefetch = false,
+	.has_prefetch_fixup = false,
 	.pixel_link_quirks = false,
 	.pixel_link_nhvsync = false,
 	.version = DPU_V1,
@@ -530,6 +557,7 @@ static const struct dpu_devtype dpu_type_v2 = {
 	.fes = &fes_v2,
 	.fgs = &fgs_v2,
 	.fls = &fls_v2,
+	.fws = &fws_v2,
 	.hss = &hss_v2,
 	.lbs = &lbs_v2,
 	.tcons = &tcons_v2,
@@ -540,19 +568,62 @@ static const struct dpu_devtype dpu_type_v2 = {
 	.unused_irq = unused_irq_v2,
 	.sw2hw_irq_map = sw2hw_irq_map_v2,
 	.sw2hw_block_id_map = sw2hw_block_id_map_v2,
+	.plane_src_na_mask = 0xffffffe2,
 	.has_capture = false,
 	.has_prefetch = true,
+	.has_prefetch_fixup = false,
+	.pixel_link_quirks = true,
+	.pixel_link_nhvsync = true,
+	.version = DPU_V2,
+};
+
+static const struct dpu_devtype dpu_type_v2_with_prefetch_fixup = {
+	.cm_ofs = 0x0,
+	.cfs = &cfs_v2,
+	.decs = &decs_v2,
+	.eds = &eds_v2,
+	.fds = &fds_v2,
+	.fes = &fes_v2,
+	.fgs = &fgs_v2,
+	.fls = &fls_v2,
+	.fws = &fws_v2,
+	.hss = &hss_v2,
+	.lbs = &lbs_v2,
+	.tcons = &tcons_v2,
+	.vss = &vss_v2,
+	.cm_reg_ofs = &cm_reg_ofs_v2,
+	.intsteer_map = intsteer_map_v2,
+	.intsteer_map_size = ARRAY_SIZE(intsteer_map_v2),
+	.unused_irq = unused_irq_v2,
+	.sw2hw_irq_map = sw2hw_irq_map_v2,
+	.sw2hw_block_id_map = sw2hw_block_id_map_v2,
+	.plane_src_na_mask = 0xffffffe2,
+	.has_capture = false,
+	.has_prefetch = true,
+	.has_prefetch_fixup = true,
 	.pixel_link_quirks = true,
 	.pixel_link_nhvsync = true,
 	.version = DPU_V2,
 };
 
 static const struct of_device_id dpu_dt_ids[] = {
-	{ .compatible = "fsl,imx8qm-dpu", .data = &dpu_type_v2, },
-	{ .compatible = "fsl,imx8qxp-dpu", .data = &dpu_type_v2, },
-	{ /* sentinel */ }
+	{
+		.compatible = "fsl,imx8qm-dpu",
+		.data = &dpu_type_v2,
+	}, {
+		.compatible = "fsl,imx8qxp-dpu",
+		.data = &dpu_type_v2_with_prefetch_fixup,
+	}, {
+		/* sentinel */
+	}
 };
 MODULE_DEVICE_TABLE(of, dpu_dt_ids);
+
+bool dpu_has_prefetch_fixup(struct dpu_soc *dpu)
+{
+	return dpu->devtype->has_prefetch_fixup;
+}
+EXPORT_SYMBOL_GPL(dpu_has_prefetch_fixup);
 
 bool dpu_vproc_has_fetcheco_cap(u32 cap_mask)
 {
@@ -589,6 +660,157 @@ u32 dpu_vproc_get_vscale_cap(u32 cap_mask)
 	return cap_mask & DPU_VPROC_CAP_VSCALE;
 }
 EXPORT_SYMBOL_GPL(dpu_vproc_get_vscale_cap);
+
+bool fetchunit_has_prefetch(struct dpu_fetchdecode *fd,
+			    struct dpu_fetchlayer *fl,
+			    struct dpu_fetchwarp *fw)
+{
+	if (fd)
+		return fetchdecode_has_prefetch(fd);
+	else if (fl)
+		return fetchlayer_has_prefetch(fl);
+	else
+		return fetchwarp_has_prefetch(fw);
+}
+EXPORT_SYMBOL_GPL(fetchunit_has_prefetch);
+
+bool fetchunit_prefetch_format_supported(struct dpu_fetchdecode *fd,
+					 struct dpu_fetchlayer *fl,
+					 struct dpu_fetchwarp *fw,
+					 u32 format, u64 modifier)
+{
+	if (fd)
+		return fetchdecode_prefetch_format_supported(fd,
+							format, modifier);
+	else if (fl)
+		return fetchlayer_prefetch_format_supported(fl,
+							format, modifier);
+	else
+		return fetchwarp_prefetch_format_supported(fw,
+							format, modifier);
+}
+EXPORT_SYMBOL_GPL(fetchunit_prefetch_format_supported);
+
+bool fetchunit_prefetch_stride_supported(struct dpu_fetchdecode *fd,
+					 struct dpu_fetchlayer *fl,
+					 struct dpu_fetchwarp *fw,
+					 unsigned int stride,
+					 unsigned int uv_stride,
+					 unsigned int width,
+					 u32 format)
+{
+	if (fd)
+		return fetchdecode_prefetch_stride_supported(fd,
+					stride, uv_stride, width, format);
+	else if (fl)
+		return fetchlayer_prefetch_stride_supported(fl,
+					stride, width, format);
+	else
+		return fetchwarp_prefetch_stride_supported(fw,
+					stride, width, format);
+}
+EXPORT_SYMBOL_GPL(fetchunit_prefetch_stride_supported);
+
+bool fetchunit_prefetch_stride_double_check(struct dpu_fetchdecode *fd,
+					    struct dpu_fetchlayer *fl,
+					    struct dpu_fetchwarp *fw,
+					    unsigned int stride,
+					    unsigned int uv_stride,
+					    unsigned int width,
+					    u32 format,
+					    dma_addr_t baseaddr,
+					    dma_addr_t uv_baseaddr)
+{
+	if (fd)
+		return fetchdecode_prefetch_stride_double_check(fd, stride,
+			uv_stride, width, format, baseaddr, uv_baseaddr);
+	else if (fl)
+		return fetchlayer_prefetch_stride_double_check(fl, stride,
+						width, format, baseaddr);
+	else
+		return fetchwarp_prefetch_stride_double_check(fw, stride,
+						width, format, baseaddr);
+}
+EXPORT_SYMBOL_GPL(fetchunit_prefetch_stride_double_check);
+
+void fetchunit_configure_prefetch(struct dpu_fetchdecode *fd,
+				  struct dpu_fetchlayer *fl,
+				  struct dpu_fetchwarp *fw,
+				  unsigned int stream_id,
+				  unsigned int width, unsigned int height,
+				  unsigned int x_offset, unsigned int y_offset,
+				  unsigned int stride, u32 format, u64 modifier,
+				  unsigned long baddr, unsigned long uv_baddr,
+				  bool start, bool aux_start,
+				  bool fb_is_interlaced)
+{
+	if (fd)
+		fetchdecode_configure_prefetch(fd, stream_id, width, height,
+					x_offset, y_offset, stride,
+					format, modifier, baddr, uv_baddr,
+					start, aux_start, fb_is_interlaced);
+	else if (fl)
+		fetchlayer_configure_prefetch(fl, stream_id, width, height,
+					x_offset, y_offset, stride,
+					format, modifier, baddr, start);
+	else
+		fetchwarp_configure_prefetch(fw, stream_id, width, height,
+					x_offset, y_offset, stride,
+					format, modifier, baddr, start);
+}
+EXPORT_SYMBOL_GPL(fetchunit_configure_prefetch);
+
+void fetchunit_enable_prefetch(struct dpu_fetchdecode *fd,
+			       struct dpu_fetchlayer *fl,
+			       struct dpu_fetchwarp *fw)
+{
+	if (fd)
+		fetchdecode_enable_prefetch(fd);
+	else if (fl)
+		fetchlayer_enable_prefetch(fl);
+	else
+		fetchwarp_enable_prefetch(fw);
+}
+EXPORT_SYMBOL_GPL(fetchunit_enable_prefetch);
+
+void fetchunit_reg_update_prefetch(struct dpu_fetchdecode *fd,
+				   struct dpu_fetchlayer *fl,
+				   struct dpu_fetchwarp *fw)
+{
+	if (fd)
+		fetchdecode_reg_update_prefetch(fd);
+	else if (fl)
+		fetchlayer_reg_update_prefetch(fl);
+	else
+		fetchwarp_reg_update_prefetch(fw);
+}
+EXPORT_SYMBOL_GPL(fetchunit_reg_update_prefetch);
+
+void fetchunit_prefetch_first_frame_handle(struct dpu_fetchdecode *fd,
+					   struct dpu_fetchlayer *fl,
+					   struct dpu_fetchwarp *fw)
+{
+	if (fd)
+		fetchdecode_prefetch_first_frame_handle(fd);
+	else if (fl)
+		fetchlayer_prefetch_first_frame_handle(fl);
+	else
+		fetchwarp_prefetch_first_frame_handle(fw);
+}
+EXPORT_SYMBOL_GPL(fetchunit_prefetch_first_frame_handle);
+
+void fetchunit_disable_prefetch(struct dpu_fetchdecode *fd,
+				struct dpu_fetchlayer *fl,
+				struct dpu_fetchwarp *fw)
+{
+	if (fd)
+		fetchdecode_disable_prefetch(fd);
+	else if (fl)
+		fetchlayer_disable_prefetch(fl);
+	else
+		fetchwarp_disable_prefetch(fw);
+}
+EXPORT_SYMBOL_GPL(fetchunit_disable_prefetch);
 
 int dpu_format_horz_chroma_subsampling(u32 format)
 {
@@ -678,6 +900,7 @@ _dpu_submodules_init(struct dpu_soc *dpu, struct platform_device *pdev)
 	_DPU_UNITS_INIT(fe);
 	_DPU_UNITS_INIT(fg);
 	_DPU_UNITS_INIT(fl);
+	_DPU_UNITS_INIT(fw);
 	_DPU_UNITS_INIT(hs);
 	_DPU_UNITS_INIT(lb);
 	_DPU_UNITS_INIT(tcon);
@@ -720,6 +943,8 @@ static int dpu_submodules_init(struct dpu_soc *dpu,
 {
 	const struct dpu_devtype *devtype = dpu->devtype;
 	const struct dpu_unit *fds = devtype->fds;
+	const struct dpu_unit *fls = devtype->fls;
+	const struct dpu_unit *fws = devtype->fws;
 
 	DPU_UNITS_INIT(cf);
 	DPU_UNITS_INIT(dec);
@@ -728,6 +953,7 @@ static int dpu_submodules_init(struct dpu_soc *dpu,
 	DPU_UNITS_INIT(fe);
 	DPU_UNITS_INIT(fg);
 	DPU_UNITS_INIT(fl);
+	DPU_UNITS_INIT(fw);
 	DPU_UNITS_INIT(hs);
 	DPU_UNITS_INIT(lb);
 	DPU_UNITS_INIT(tcon);
@@ -736,6 +962,8 @@ static int dpu_submodules_init(struct dpu_soc *dpu,
 	/* get DPR channel for submodules */
 	if (devtype->has_prefetch) {
 		struct dpu_fetchdecode *fd;
+		struct dpu_fetchlayer *fl;
+		struct dpu_fetchwarp *fw;
 		struct dprc *dprc;
 		int i;
 
@@ -749,6 +977,30 @@ static int dpu_submodules_init(struct dpu_soc *dpu,
 			fd = dpu_fd_get(dpu, i);
 			fetchdecode_get_dprc(fd, dprc);
 			dpu_fd_put(fd);
+		}
+
+		for (i = 0; i < fls->num; i++) {
+			dprc = dprc_lookup_by_phandle(dpu->dev,
+						      "fsl,dpr-channels",
+						      fls->dprc_ids[i]);
+			if (!dprc)
+				return -EPROBE_DEFER;
+
+			fl = dpu_fl_get(dpu, i);
+			fetchlayer_get_dprc(fl, dprc);
+			dpu_fl_put(fl);
+		}
+
+		for (i = 0; i < fws->num; i++) {
+			dprc = dprc_lookup_by_phandle(dpu->dev,
+						      "fsl,dpr-channels",
+						      fws->dprc_ids[i]);
+			if (!dprc)
+				return -EPROBE_DEFER;
+
+			fw = dpu_fw_get(dpu, fw_ids[i]);
+			fetchwarp_get_dprc(fw, dprc);
+			dpu_fw_put(fw);
 		}
 	}
 
@@ -909,6 +1161,8 @@ static int dpu_get_plane_resource(struct dpu_soc *dpu,
 				  struct dpu_plane_res *res)
 {
 	const struct dpu_unit *fds = dpu->devtype->fds;
+	const struct dpu_unit *fls = dpu->devtype->fls;
+	const struct dpu_unit *fws = dpu->devtype->fws;
 	const struct dpu_unit *lbs = dpu->devtype->lbs;
 	struct dpu_plane_grp *grp = plane_res_to_grp(res);
 	int i;
@@ -934,6 +1188,16 @@ static int dpu_get_plane_resource(struct dpu_soc *dpu,
 			return PTR_ERR(res->fe[i]);
 		grp->hw_plane_fetcheco_num = ARRAY_SIZE(res->fe);
 	}
+	for (i = 0; i < fls->num; i++) {
+		res->fl[i] = dpu_fl_get(dpu, i);
+		if (IS_ERR(res->fl[i]))
+			return PTR_ERR(res->fl[i]);
+	}
+	for (i = 0; i < fws->num; i++) {
+		res->fw[i] = dpu_fw_get(dpu, fw_ids[i]);
+		if (IS_ERR(res->fw[i]))
+			return PTR_ERR(res->fw[i]);
+	}
 	/* HScaler could be shared with capture. */
 	if (display_plane_video_proc) {
 		for (i = 0; i < ARRAY_SIZE(res->hs); i++) {
@@ -958,7 +1222,7 @@ static int dpu_get_plane_resource(struct dpu_soc *dpu,
 		grp->hw_plane_vscaler_num = ARRAY_SIZE(res->vs);
 	}
 
-	grp->hw_plane_num = fds->num;
+	grp->hw_plane_num = fds->num + fls->num + fws->num;
 
 	return 0;
 }
@@ -983,6 +1247,14 @@ static void dpu_put_plane_resource(struct dpu_plane_res *res)
 	for (i = 0; i < ARRAY_SIZE(res->fe); i++) {
 		if (!IS_ERR_OR_NULL(res->fe[i]))
 			dpu_fe_put(res->fe[i]);
+	}
+	for (i = 0; i < ARRAY_SIZE(res->fl); i++) {
+		if (!IS_ERR_OR_NULL(res->fl[i]))
+			dpu_fl_put(res->fl[i]);
+	}
+	for (i = 0; i < ARRAY_SIZE(res->fw); i++) {
+		if (!IS_ERR_OR_NULL(res->fw[i]))
+			dpu_fw_put(res->fw[i]);
 	}
 	for (i = 0; i < ARRAY_SIZE(res->hs); i++) {
 		if (!IS_ERR_OR_NULL(res->hs[i]))
@@ -1034,6 +1306,7 @@ static int dpu_add_client_devices(struct dpu_soc *dpu)
 	else
 		memcpy(reg, &client_reg[2], reg_size);
 
+	plane_grp->src_na_mask = devtype->plane_src_na_mask;
 	plane_grp->id = id / client_num;
 	plane_grp->has_vproc = display_plane_video_proc;
 
@@ -1263,14 +1536,30 @@ irq_set_chained_handler_and_data(dpu->irq_##name, NULL, NULL)
 	irq_domain_remove(dpu->domain);
 }
 
+static irqreturn_t dpu_dpr0_irq_handler(int irq, void *desc)
+{
+	struct dpu_soc *dpu = desc;
+	const struct dpu_unit *fls = dpu->devtype->fls;
+	int i;
+
+	for (i = 0; i < fls->num; i++)
+		fetchlayer_prefetch_irq_handle(dpu->fl_priv[i]);
+
+	return IRQ_HANDLED;
+}
+
 static irqreturn_t dpu_dpr1_irq_handler(int irq, void *desc)
 {
 	struct dpu_soc *dpu = desc;
 	const struct dpu_unit *fds = dpu->devtype->fds;
+	const struct dpu_unit *fws = dpu->devtype->fws;
 	int i;
 
 	for (i = 0; i < fds->num; i++)
 		fetchdecode_prefetch_irq_handle(dpu->fd_priv[i]);
+
+	for (i = 0; i < fws->num; i++)
+		fetchwarp_prefetch_irq_handle(dpu->fw_priv[i]);
 
 	return IRQ_HANDLED;
 }
@@ -1541,6 +1830,13 @@ static int dpu_probe(struct platform_device *pdev)
 		if (dpu->irq_dpr0 < 0 || dpu->irq_dpr1 < 0)
 			return -ENODEV;
 
+		ret = devm_request_irq(dpu->dev, dpu->irq_dpr0,
+				dpu_dpr0_irq_handler, 0, pdev->name, dpu);
+		if (ret) {
+			dev_err(dpu->dev, "request dpr0 interrupt failed\n");
+			return ret;
+		}
+
 		ret = devm_request_irq(dpu->dev, dpu->irq_dpr1,
 				dpu_dpr1_irq_handler, 0, pdev->name, dpu);
 		if (ret) {
@@ -1560,6 +1856,7 @@ static int dpu_probe(struct platform_device *pdev)
 	DPU_UNITS_ADDR_DBG(fe);
 	DPU_UNITS_ADDR_DBG(fg);
 	DPU_UNITS_ADDR_DBG(fl);
+	DPU_UNITS_ADDR_DBG(fw);
 	DPU_UNITS_ADDR_DBG(hs);
 	DPU_UNITS_ADDR_DBG(lb);
 	DPU_UNITS_ADDR_DBG(tcon);

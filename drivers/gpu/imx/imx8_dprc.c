@@ -17,6 +17,7 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <soc/imx8/sc/sci.h>
 #include <video/imx8-prefetch.h>
@@ -108,10 +109,14 @@ enum {
 #define FRAME_1P_PIX_X_CTRL			0xa0
 #define FRAME_2P_PIX_X_CTRL			0xf0
 #define NUM_X_PIX_WIDE(n)			((n) & 0xffff)
+#define FRAME_PIX_X_ULC_CTRL			0xf0
+#define CROP_ULC_X(n)				((n) & 0xffff)
 
 #define FRAME_1P_PIX_Y_CTRL			0xb0
 #define FRAME_2P_PIX_Y_CTRL			0x100
 #define NUM_Y_PIX_HIGH(n)			((n) & 0xffff)
+#define FRAME_PIX_Y_ULC_CTRL			0x100
+#define CROP_ULC_Y(n)				((n) & 0xffff)
 
 #define FRAME_1P_BASE_ADDR_CTRL0		0xc0
 #define FRAME_2P_BASE_ADDR_CTRL0		0x110
@@ -141,8 +146,21 @@ enum {
 #define ROWS_0_6				BIT(0)
 #define ROWS_0_4				0
 
+struct dprc_devtype {
+	bool has_fixup;
+};
+
+static const struct dprc_devtype dprc_type_v1 = {
+	.has_fixup = false,
+};
+
+static const struct dprc_devtype dprc_type_v2 = {
+	.has_fixup = true,
+};
+
 struct dprc {
 	struct device *dev;
+	const struct dprc_devtype *devtype;
 	void __iomem *base;
 	struct list_head list;
 	struct clk *clk_apb;
@@ -301,13 +319,16 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 		    unsigned int x_offset, unsigned int y_offset,
 		    unsigned int stride, u32 format, u64 modifier,
 		    unsigned long baddr, unsigned long uv_baddr,
-		    bool start, bool aux_start)
+		    bool start, bool aux_start, bool interlace_frame)
 {
 	const struct dprc_format_info *info = dprc_format_info(format);
+	unsigned int dprc_width = width + x_offset;
+	unsigned int dprc_height;
 	unsigned int p1_w, p1_h, p2_w, p2_h;
 	unsigned int prg_stride = width * info->cpp[0];
 	unsigned int bpp = 8 * info->cpp[0];
 	unsigned int preq;
+	unsigned int mt_w = 0, mt_h = 0;	/* w/h in a micro-tile */
 	u32 val;
 
 	if (WARN_ON(!dprc))
@@ -322,48 +343,72 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 			dprc_dpu_gpr_configure(dprc, stream_id);
 	}
 
+	if (interlace_frame) {
+		height /= 2;
+		y_offset /= 2;
+	}
+
+	dprc_height = height + y_offset;
+
 	/* disable all control irqs and enable all error irqs */
 	dprc_write(dprc, IRQ_CTRL_MASK, IRQ_MASK);
 
 	if (info->num_planes > 1) {
-		p1_w = round_up(width, modifier ? 8 : 64);
-		p1_h = modifier ? height : round_up(height, 8);
+		p1_w = round_up(dprc_width, modifier ? 8 : 64);
+		p1_h = round_up(dprc_height, 8);
 
 		p2_w = p1_w;
 		if (modifier)
-			p2_h = height / info->vsub;
+			p2_h = dprc_height / info->vsub;
 		else
-			p2_h = round_up((height / info->vsub), 8);
+			p2_h = round_up((dprc_height / info->vsub), 8);
 
 		preq = modifier ? BYTE_64 : BYTE_1K;
 
 		dprc_write(dprc, preq, FRAME_2P_CTRL0);
-		dprc_write(dprc, NUM_X_PIX_WIDE(p2_w), FRAME_2P_PIX_X_CTRL);
-		dprc_write(dprc, NUM_Y_PIX_HIGH(p2_h), FRAME_2P_PIX_Y_CTRL);
+		if (!dprc->devtype->has_fixup) {
+			dprc_write(dprc,
+				NUM_X_PIX_WIDE(p2_w), FRAME_2P_PIX_X_CTRL);
+			dprc_write(dprc,
+				NUM_Y_PIX_HIGH(p2_h), FRAME_2P_PIX_Y_CTRL);
+		}
 		dprc_write(dprc, uv_baddr, FRAME_2P_BASE_ADDR_CTRL0);
 	} else {
 		switch (modifier) {
 		case DRM_FORMAT_MOD_VIVANTE_TILED:
-			p1_w = round_up(width, info->cpp[0] == 2 ? 8 : 4);
+			p1_w = round_up(dprc_width, info->cpp[0] == 2 ? 8 : 4);
 			break;
 		case DRM_FORMAT_MOD_VIVANTE_SUPER_TILED:
-			p1_w = round_up(width, 64);
+			p1_w = round_up(dprc_width, 64);
 			break;
 		default:
-			p1_w = round_up(width, info->cpp[0] == 2 ? 32 : 16);
+			p1_w = round_up(dprc_width,
+					info->cpp[0] == 2 ? 32 : 16);
 			break;
 		}
-		p1_h = round_up(height, 4);
+		p1_h = round_up(dprc_height, 4);
 	}
 
 	dprc_write(dprc, PITCH(stride), FRAME_CTRL0);
 	switch (modifier) {
 	case DRM_FORMAT_MOD_AMPHION_TILED:
 		preq = BYTE_64;
+		mt_w = 8;
+		mt_h = 8;
 		break;
 	case DRM_FORMAT_MOD_VIVANTE_TILED:
 	case DRM_FORMAT_MOD_VIVANTE_SUPER_TILED:
-		preq = (bpp == 16) ? BYTE_64 : BYTE_128;
+		if (bpp == 16) {
+			preq = BYTE_64;
+			mt_w = 8;
+		} else {
+			if (dprc->devtype->has_fixup)
+				preq = (x_offset % 8) ? BYTE_64 : BYTE_128;
+			else
+				preq = BYTE_128;
+			mt_w = 4;
+		}
+		mt_h = 4;
 		break;
 	default:
 		preq = BYTE_1K;
@@ -373,6 +418,12 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 	dprc_write(dprc, NUM_X_PIX_WIDE(p1_w), FRAME_1P_PIX_X_CTRL);
 	dprc_write(dprc, NUM_Y_PIX_HIGH(p1_h), FRAME_1P_PIX_Y_CTRL);
 	dprc_write(dprc, baddr, FRAME_1P_BASE_ADDR_CTRL0);
+	if (dprc->devtype->has_fixup && modifier) {
+		dprc_write(dprc, CROP_ULC_X(round_down(x_offset, mt_w)),
+							FRAME_PIX_X_ULC_CTRL);
+		dprc_write(dprc, CROP_ULC_Y(round_down(y_offset, mt_h)),
+							FRAME_PIX_Y_ULC_CTRL);
+	}
 
 	val = dprc_read(dprc, RTRAM_CTRL0);
 	val &= ~THRES_LOW_MASK;
@@ -573,9 +624,23 @@ bool dprc_format_supported(struct dprc *dprc, u32 format, u64 modifier)
 			modifier == DRM_FORMAT_MOD_VIVANTE_SUPER_TILED);
 	case DRM_FORMAT_YUYV:
 	case DRM_FORMAT_UYVY:
+		switch (dprc->sc_resource) {
+		case SC_R_DC_0_FRAC0:
+		case SC_R_DC_1_FRAC0:
+		case SC_R_DC_0_WARP:
+		case SC_R_DC_1_WARP:
+			return false;
+		}
 		return modifier == DRM_FORMAT_MOD_NONE;
 	case DRM_FORMAT_NV12:
 	case DRM_FORMAT_NV21:
+		switch (dprc->sc_resource) {
+		case SC_R_DC_0_FRAC0:
+		case SC_R_DC_1_FRAC0:
+		case SC_R_DC_0_WARP:
+		case SC_R_DC_1_WARP:
+			return false;
+		}
 		return (dprc->has_aux_prg &&
 			(modifier == DRM_FORMAT_MOD_NONE ||
 			 modifier == DRM_FORMAT_MOD_AMPHION_TILED));
@@ -604,30 +669,6 @@ bool dprc_stride_supported(struct dprc *dprc,
 	return prg_stride_supported(dprc->prgs[0], prg_stride);
 }
 EXPORT_SYMBOL_GPL(dprc_stride_supported);
-
-bool dprc_crop_supported(struct dprc *dprc, u64 modifier, u32 y_offset)
-{
-	if (WARN_ON(!dprc))
-		return false;
-
-	switch (modifier) {
-	case DRM_FORMAT_MOD_AMPHION_TILED:
-		if ((y_offset % AMPHION_Y_STRIPE_HEIGHT) >
-					(PRG_HANDSHAKE_8LINES - 1))
-			return false;
-		break;
-	case DRM_FORMAT_MOD_VIVANTE_SUPER_TILED:
-		if ((y_offset % VIVANTE_SUPER_TILE_HEIGHT) >
-					(PRG_HANDSHAKE_4LINES - 1))
-			return false;
-		break;
-	default:
-		break;
-	}
-
-	return true;
-}
-EXPORT_SYMBOL_GPL(dprc_crop_supported);
 
 bool dprc_stride_double_check(struct dprc *dprc,
 			      unsigned int stride, unsigned int uv_stride,
@@ -672,8 +713,16 @@ dprc_lookup_by_phandle(struct device *dev, const char *name, int index)
 }
 EXPORT_SYMBOL_GPL(dprc_lookup_by_phandle);
 
+static const struct of_device_id dprc_dt_ids[] = {
+	{ .compatible = "fsl,imx8qm-dpr-channel", .data = &dprc_type_v1, },
+	{ .compatible = "fsl,imx8qxp-dpr-channel", .data = &dprc_type_v2, },
+	{ /* sentinel */ },
+};
+
 static int dprc_probe(struct platform_device *pdev)
 {
+	const struct of_device_id *of_id =
+			of_match_device(dprc_dt_ids, &pdev->dev);
 	struct device *dev = &pdev->dev;
 	struct resource *res;
 	struct dprc *dprc;
@@ -682,6 +731,8 @@ static int dprc_probe(struct platform_device *pdev)
 	dprc = devm_kzalloc(dev, sizeof(*dprc), GFP_KERNEL);
 	if (!dprc)
 		return -ENOMEM;
+
+	dprc->devtype = of_id->data;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dprc->base = devm_ioremap_resource(&pdev->dev, res);
@@ -743,6 +794,9 @@ static int dprc_probe(struct platform_device *pdev)
 
 		if (i == 1)
 			prg_set_auxiliary(dprc->prgs[i]);
+
+		if (dprc->is_blit_chan)
+			prg_set_blit(dprc->prgs[i]);
 	}
 
 	dprc->dev = dev;
@@ -771,12 +825,6 @@ static int dprc_remove(struct platform_device *pdev)
 
 	return 0;
 }
-
-static const struct of_device_id dprc_dt_ids[] = {
-	{ .compatible = "fsl,imx8qm-dpr-channel", },
-	{ .compatible = "fsl,imx8qxp-dpr-channel", },
-	{ /* sentinel */ },
-};
 
 struct platform_driver dprc_drv = {
 	.probe = dprc_probe,
