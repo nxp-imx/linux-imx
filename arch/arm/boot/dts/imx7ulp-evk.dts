@@ -204,10 +204,9 @@
 			linux,code = <KEY_VOLUMEDOWN>;
 		};
 
-		power-on {
-			label = "PowerOn";
-			linux,code = <KEY_POWER>;
-			rpmsg-key,wakeup;
+		volume-up {
+			label = "Volume Up";
+			linux,code = <KEY_VOLUMEUP>;
 		};
 	};
 
