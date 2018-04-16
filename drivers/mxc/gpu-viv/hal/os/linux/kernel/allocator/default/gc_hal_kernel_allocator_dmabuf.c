@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -76,6 +76,7 @@ typedef struct _gcsDMABUF
     struct dma_buf_attachment * attachment;
     struct sg_table           * sgtable;
     unsigned long             * pagearray;
+    int                         fd;
 
     int                         npages;
     int                         pid;
@@ -92,7 +93,7 @@ struct allocator_priv
 /*
 * Debugfs support.
 */
-static int dma_buf_info_show(struct seq_file* m, void* data)
+int dma_buf_info_show(struct seq_file* m, void* data)
 {
     int ret;
     gcsDMABUF *buf_desc;
@@ -131,9 +132,9 @@ static int dma_buf_info_show(struct seq_file* m, void* data)
         exp_name = "unknown";
 #endif
 
-        seq_printf(m, "%6d %p %8d %8zu %10s",
+        seq_printf(m, "%6d %6d %8d %8zu %10s",
                 buf_desc->pid,
-                buf_desc->dmabuf,
+                buf_desc->fd,
                 buf_desc->npages,
                 buf_obj->size,
                 exp_name);
@@ -203,7 +204,9 @@ _DmabufAttach(
 
     gckOS os = Allocator->os;
 
-    struct dma_buf *dmabuf = Desc->dmaBuf.dmabuf;
+    int fd = (int) Desc->handle;
+
+    struct dma_buf *dmabuf = NULL;
     struct sg_table *sgt = NULL;
     struct dma_buf_attachment *attachment = NULL;
     int npages = 0;
@@ -217,12 +220,14 @@ _DmabufAttach(
 
     gcmkVERIFY_OBJECT(os, gcvOBJ_OS);
 
+    /* Import dma buf handle. */
+    dmabuf = dma_buf_get(fd);
+
     if (!dmabuf)
     {
         gcmkONERROR(gcvSTATUS_NOT_SUPPORTED);
     }
 
-    get_dma_buf(dmabuf);
     attachment = dma_buf_attach(dmabuf, &os->device->platform->device->dev);
 
     if (!attachment)
@@ -259,6 +264,7 @@ _DmabufAttach(
     /* Prepare descriptor. */
     gcmkONERROR(gckOS_Allocate(os, sizeof(gcsDMABUF), (gctPOINTER *)&buf_desc));
 
+    buf_desc->fd = fd;
     buf_desc->dmabuf = dmabuf;
     buf_desc->pagearray = pagearray;
     buf_desc->attachment = attachment;
@@ -288,12 +294,6 @@ OnError:
     {
         gcmkOS_SAFE_FREE(os, pagearray);
     }
-
-    if (sgt)
-    {
-        dma_buf_unmap_attachment(attachment, sgt, DMA_BIDIRECTIONAL);
-    }
-
     gcmkFOOTER();
     return status;
 }
@@ -324,28 +324,7 @@ _DmabufFree(
     gckOS_Free(os, buf_desc);
 }
 
-static void
-_DmabufUnmapUser(
-    IN gckALLOCATOR Allocator,
-    IN PLINUX_MDL Mdl,
-    IN gctPOINTER Logical,
-    IN gctUINT32 Size
-    )
-{
-    gcsDMABUF *buf_desc = Mdl->priv;
-    gctINT8_PTR userLogical = Logical;
-
-    if (unlikely(current->mm == gcvNULL))
-    {
-        /* Do nothing if process is exiting. */
-        return;
-    }
-
-    userLogical -= buf_desc->sgtable->sgl->offset;
-    vm_munmap((unsigned long)userLogical, Mdl->numPages << PAGE_SHIFT);
-}
-
-static gceSTATUS
+static gctINT
 _DmabufMapUser(
     IN gckALLOCATOR Allocator,
     IN PLINUX_MDL Mdl,
@@ -354,39 +333,51 @@ _DmabufMapUser(
     )
 {
     gcsDMABUF *buf_desc = Mdl->priv;
-    gctINT8_PTR userLogical = gcvNULL;
-    gceSTATUS status = gcvSTATUS_OK;
+    gceSTATUS       status;
+    PLINUX_MDL      mdl = Mdl;
+    struct file *   file = buf_desc->dmabuf->file;
 
-    userLogical = (gctINT8_PTR)vm_mmap(buf_desc->dmabuf->file,
+    *UserLogical = (gctSTRING)vm_mmap(file,
                     0L,
-                    Mdl->numPages << PAGE_SHIFT,
+                    mdl->numPages * PAGE_SIZE,
                     PROT_READ | PROT_WRITE,
-                    MAP_SHARED | MAP_NORESERVE,
+                    MAP_SHARED,
                     0);
 
-    if (IS_ERR(userLogical))
+    if (IS_ERR(*UserLogical))
     {
         gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
     }
-    userLogical += buf_desc->sgtable->sgl->offset;
 
     /* To make sure the mapping is created. */
-    if (access_ok(VERIFY_READ, userLogical, 4))
+    if (access_ok(VERIFY_READ, *UserLogical, 4))
     {
         uint32_t mem;
-        get_user(mem, (uint32_t *)userLogical);
+        get_user(mem, (uint32_t *) *UserLogical);
 
-        (void)mem;
+        (void) mem;
     }
 
-    *UserLogical = (gctPOINTER)userLogical;
+    return gcvSTATUS_OK;
 
 OnError:
-    if (gcmIS_ERROR(status) && userLogical)
-    {
-        _DmabufUnmapUser(Allocator, Mdl, userLogical, Mdl->numPages << PAGE_SHIFT);
-    }
     return status;
+}
+
+static void
+_DmabufUnmapUser(
+    IN gckALLOCATOR Allocator,
+    IN gctPOINTER Logical,
+    IN gctUINT32 Size
+    )
+{
+    if (unlikely(current->mm == gcvNULL))
+    {
+        /* Do nothing if process is exiting. */
+        return;
+    }
+
+    vm_munmap((unsigned long)Logical, Size);
 }
 
 static gceSTATUS
@@ -457,26 +448,15 @@ static gcsALLOCATOR_OPERATIONS DmabufAllocatorOperations =
     .Physical           = _DmabufPhysical,
 };
 
-static void
-_DmabufAllocatorDestructor(
-    gcsALLOCATOR *Allocator
-    )
-{
-    _DebugfsCleanup(Allocator);
-
-    if (Allocator->privateData)
-    {
-        kfree(Allocator->privateData);
-    }
-
-    kfree(Allocator);
-}
+extern void
+_DefaultAllocatorDestructor(
+    IN void* PrivateData
+    );
 
 /* Default allocator entry. */
 gceSTATUS
 _DmabufAlloctorInit(
     IN gckOS Os,
-    IN gcsDEBUGFS_DIR *Parent,
     OUT gckALLOCATOR * Allocator
     )
 {
@@ -497,15 +477,15 @@ _DmabufAlloctorInit(
     gcmkONERROR(
         gckALLOCATOR_Construct(Os, &DmabufAllocatorOperations, &allocator));
 
-    allocator->capability = gcvALLOC_FLAG_DMABUF
-                          | gcvALLOC_FLAG_DMABUF_EXPORTABLE
-                          ;
+    allocator->capability = gcvALLOC_FLAG_DMABUF;
 
     /* Register private data. */
-    allocator->privateData = priv;
-    allocator->destructor  = _DmabufAllocatorDestructor;
+    allocator->privateData           = priv;
+    allocator->privateDataDestructor = _DefaultAllocatorDestructor;
 
-    _DebugfsInit(allocator, Parent);
+    /* Register debugfs callbacks. */
+    allocator->debugfsInit    = _DebugfsInit;
+    allocator->debugfsCleanup = _DebugfsCleanup;
 
     *Allocator = allocator;
 

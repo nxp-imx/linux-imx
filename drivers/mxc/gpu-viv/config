@@ -2,7 +2,7 @@
 #
 #    The MIT License (MIT)
 #
-#    Copyright (c) 2014 - 2018 Vivante Corporation
+#    Copyright (c) 2014 - 2017 Vivante Corporation
 #
 #    Permission is hereby granted, free of charge, to any person obtaining a
 #    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 #
 #    The GPL License (GPL)
 #
-#    Copyright (C) 2014 - 2018 Vivante Corporation
+#    Copyright (C) 2014 - 2017 Vivante Corporation
 #
 #    This program is free software; you can redistribute it and/or
 #    modify it under the terms of the GNU General Public License
@@ -58,7 +58,6 @@ SDK_DIR                           ?= $(AQROOT)/build/sdk
 VIVANTE_ENABLE_3D                 ?= 1
 VIVANTE_ENABLE_2D                 ?= 1
 VIVANTE_ENABLE_VG                 ?= 1
-VIVANTE_ENABLE_DRM                ?= 1
 NO_DMA_COHERENT                   ?= 0
 USE_PLATFORM_DRIVER               ?= 1
 ENABLE_GPU_CLOCK_BY_DRIVER        ?= 0
@@ -71,4 +70,4 @@ BANK_BIT_START                    ?= 13
 BANK_BIT_END                      ?= 15
 BANK_CHANNEL_BIT                  ?= 12
 SECURITY                          ?= 0
-SOC_PLATFORM                      ?= freescale-imx
+SOC_PLATFORM                      ?= freescale-imx6

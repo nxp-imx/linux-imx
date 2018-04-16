@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -245,13 +245,12 @@ gckASYNC_COMMAND_Commit(
     gctUINT         commandBufferSize;
     gctUINT32       commandBufferAddress;
     gcsFEDescriptor descriptor;
-    gctUINT32       skipFlushBytes;
+    gctUINT32       pipeBytes;
     gctUINT32       fenceBytes;
     gctBOOL         needCopy;
-    gctUINT32       oldValue;
-    gctUINT32       flushBytes;
-
     gcmkHEADER();
+
+    gckHARDWARE_PipeSelect(Command->hardware, gcvNULL, gcvPIPE_3D, &pipeBytes);
 
     gckOS_QueryNeedCopy(Command->os, 0, &needCopy);
 
@@ -269,39 +268,17 @@ gckASYNC_COMMAND_Commit(
 
     gcmkVERIFY_OBJECT(commandBufferObject, gcvOBJ_COMMANDBUFFER);
 
-    gckHARDWARE_FlushAsyncMMU(Command->hardware, gcvNULL, &flushBytes);
-
-    gcmkONERROR(gckOS_AtomicExchange(Command->os,
-                                     Command->hardware->pageTableDirty[gcvENGINE_BLT],
-                                     0,
-                                     &oldValue));
-
-    if (oldValue)
-    {
-        commandBufferLogical
-            = (gctUINT8_PTR) gcmUINT64_TO_PTR(commandBufferObject->logical)
-            +                commandBufferObject->startOffset;
-
-        gckHARDWARE_FlushAsyncMMU(Command->hardware, commandBufferLogical, &flushBytes);
-
-        skipFlushBytes = 0;
-    }
-    else
-    {
-        skipFlushBytes = flushBytes;
-    }
-
     /* Compute the command buffer entry and the size. */
     commandBufferLogical
         = (gctUINT8_PTR) gcmUINT64_TO_PTR(commandBufferObject->logical)
         +                commandBufferObject->startOffset
-        +                skipFlushBytes;
+        +                pipeBytes;
 
     commandBufferSize
         = commandBufferObject->offset
         + Command->reservedTail
         - commandBufferObject->startOffset
-        - skipFlushBytes;
+        - pipeBytes;
 
     commandBufferTail
         = commandBufferLogical
@@ -354,7 +331,7 @@ gckASYNC_COMMAND_Commit(
         Command->os,
         commandBufferLogical,
         commandBufferSize,
-        gcvDUMP_BUFFER_USER,
+        gceDUMP_BUFFER_USER,
         gcvFALSE
         );
 

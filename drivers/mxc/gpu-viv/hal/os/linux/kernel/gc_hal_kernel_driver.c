@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -56,12 +56,12 @@
 #include <linux/device.h>
 #include <linux/slab.h>
 #include <linux/miscdevice.h>
-#include <linux/uaccess.h>
 
 #include "gc_hal_kernel_linux.h"
 #include "gc_hal_driver.h"
 
 #include <linux/platform_device.h>
+#include <linux/component.h>
 
 /* Zone used for header/footer. */
 #define _GC_OBJ_ZONE    gcvZONE_DRIVER
@@ -69,16 +69,9 @@
 MODULE_DESCRIPTION("Vivante Graphics Driver");
 MODULE_LICENSE("Dual MIT/GPL");
 
-/* Disable MSI for internal FPGA build except PPC */
-#if gcdFPGA_BUILD && !defined(CONFIG_PPC)
-#define USE_MSI     0
-#else
-#define USE_MSI     1
-#endif
-
 static struct class* gpuClass;
 
-static gcsPLATFORM *platform;
+static gcsPLATFORM platform;
 
 static gckGALDEVICE galDevice;
 
@@ -140,14 +133,6 @@ MODULE_PARM_DESC(contiguousSize, "Size of memory reserved for GC");
 static ulong contiguousBase = 0;
 module_param(contiguousBase, ulong, 0644);
 MODULE_PARM_DESC(contiguousBase, "Base address of memory reserved for GC, if it is 0, GC driver will try to allocate a buffer whose size defined by contiguousSize");
-
-static ulong externalSize = 0;
-module_param(externalSize, ulong, 0644);
-MODULE_PARM_DESC(externalSize, "Size of external memory, if it is 0, means there is no external pool");
-
-static ulong externalBase = 0;
-module_param(externalBase, ulong, 0644);
-MODULE_PARM_DESC(externalBase, "Base address of external memory");
 
 static int fastClear = -1;
 module_param(fastClear, int, 0644);
@@ -241,11 +226,9 @@ _UpdateModuleParam(
 #endif
     contiguousSize    = Param->contiguousSize;
     contiguousBase    = Param->contiguousBase;
-    externalSize      = Param->externalSize;
-    externalBase      = Param->externalBase;
     bankSize          = Param->bankSize;
     fastClear         = Param->fastClear;
-    compression       = (gctINT)Param->compression;
+    compression       = Param->compression;
     powerManagement   = Param->powerManagement;
     gpuProfiler       = Param->gpuProfiler;
     signal            = Param->signal;
@@ -302,8 +285,6 @@ gckOS_DumpParam(
 
     printk("  contiguousSize    = 0x%08lX\n", contiguousSize);
     printk("  contiguousBase    = 0x%08lX\n", contiguousBase);
-    printk("  externalSize      = 0x%08lX\n", externalSize);
-    printk("  externalBase      = 0x%08lX\n", externalBase);
     printk("  bankSize          = 0x%08lX\n", bankSize);
     printk("  fastClear         = %d\n",      fastClear);
     printk("  compression       = %d\n",      compression);
@@ -387,6 +368,8 @@ static int drv_open(
     }
 
     data->device             = galDevice;
+    data->mappedMemory       = gcvNULL;
+    data->contiguousLogical  = gcvNULL;
     data->pidOpen            = _GetProcessID();
 
     /* Attached the process. */
@@ -399,6 +382,19 @@ static int drv_open(
     }
     attached = gcvTRUE;
 
+    if (!galDevice->contiguousMapped)
+    {
+        if (galDevice->contiguousPhysical != gcvNULL)
+        {
+            gcmkONERROR(gckOS_MapMemory(
+                galDevice->os,
+                galDevice->contiguousPhysical,
+                galDevice->contiguousSize,
+                &data->contiguousLogical
+                ));
+        }
+    }
+
     filp->private_data = data;
 
     /* Success. */
@@ -408,6 +404,16 @@ static int drv_open(
 OnError:
     if (data != gcvNULL)
     {
+        if (data->contiguousLogical != gcvNULL)
+        {
+            gcmkVERIFY_OK(gckOS_UnmapMemory(
+                galDevice->os,
+                galDevice->contiguousPhysical,
+                galDevice->contiguousSize,
+                data->contiguousLogical
+                ));
+        }
+
         kfree(data);
     }
 
@@ -475,6 +481,22 @@ static int drv_release(
         gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
     }
 
+    if (!device->contiguousMapped)
+    {
+        if (data->contiguousLogical != gcvNULL)
+        {
+            gcmkONERROR(gckOS_UnmapMemoryEx(
+                galDevice->os,
+                galDevice->contiguousPhysical,
+                galDevice->contiguousSize,
+                data->contiguousLogical,
+                data->pidOpen
+                ));
+
+            data->contiguousLogical = gcvNULL;
+        }
+    }
+
     /* A process gets detached. */
     for (i = 0; i < gcdMAX_GPU_COUNT; i++)
     {
@@ -508,6 +530,8 @@ static long drv_ioctl(
     DRIVER_ARGS drvArgs;
     gckGALDEVICE device;
     gcsHAL_PRIVATE_DATA_PTR data;
+    gckVIDMEM_NODE nodeObject;
+    gctUINT32 i;
 
     gcmkHEADER_ARG(
         "filp=0x%08X ioctlCode=0x%08X arg=0x%08X",
@@ -619,6 +643,43 @@ static long drv_ioctl(
         return -ERESTARTSYS;
     }
 
+    if (gcmIS_SUCCESS(status) && (iface.command == gcvHAL_LOCK_VIDEO_MEMORY))
+    {
+        gcuVIDMEM_NODE_PTR node;
+
+        for (i = 0; i < gcvCORE_COUNT; i++)
+        {
+            if (device->kernels[i] != gcvNULL)
+            {
+                break;
+            }
+        }
+
+        if(i == gcvCORE_COUNT)
+            goto OnError;
+
+        gcmkONERROR(gckVIDMEM_HANDLE_Lookup(device->kernels[i],
+                                _GetProcessID(),
+                                (gctUINT32)iface.u.LockVideoMemory.node,
+                                &nodeObject));
+        node = nodeObject->node;
+
+        /* Special case for mapped memory. */
+        if ((data->mappedMemory != gcvNULL)
+        &&  (node->VidMem.memory->object.type == gcvOBJ_VIDMEM)
+        )
+        {
+            /* Compute offset into mapped memory. */
+            gctUINT32 offset
+                = (gctUINT8 *) gcmUINT64_TO_PTR(iface.u.LockVideoMemory.memory)
+                - (gctUINT8 *) device->contiguousBase;
+
+            /* Compute offset into user-mapped region. */
+            iface.u.LockVideoMemory.memory =
+                gcmPTR_TO_UINT64((gctUINT8 *) data->mappedMemory + offset);
+        }
+    }
+
     /* Copy data back to the user. */
     copyLen = copy_to_user(
         gcmUINT64_TO_PTR(drvArgs.OutputBuffer), &iface, sizeof(gcsHAL_INTERFACE)
@@ -644,6 +705,110 @@ OnError:
     return -ENOTTY;
 }
 
+static int drv_mmap(
+    struct file* filp,
+    struct vm_area_struct* vma
+    )
+{
+    gceSTATUS status = gcvSTATUS_OK;
+    gcsHAL_PRIVATE_DATA_PTR data;
+    gckGALDEVICE device;
+
+    gcmkHEADER_ARG("filp=0x%08X vma=0x%08X", filp, vma);
+
+    if (filp == gcvNULL)
+    {
+        gcmkTRACE_ZONE(
+            gcvLEVEL_ERROR, gcvZONE_DRIVER,
+            "%s(%d): filp is NULL\n",
+            __FUNCTION__, __LINE__
+            );
+
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+    }
+
+    data = filp->private_data;
+
+    if (data == gcvNULL)
+    {
+        gcmkTRACE_ZONE(
+            gcvLEVEL_ERROR, gcvZONE_DRIVER,
+            "%s(%d): private_data is NULL\n",
+            __FUNCTION__, __LINE__
+            );
+
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+    }
+
+    device = data->device;
+
+    if (device == gcvNULL)
+    {
+        gcmkTRACE_ZONE(
+            gcvLEVEL_ERROR, gcvZONE_DRIVER,
+            "%s(%d): device is NULL\n",
+            __FUNCTION__, __LINE__
+            );
+
+        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+    }
+
+#if !gcdPAGED_MEMORY_CACHEABLE
+    vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+    vma->vm_flags    |= gcdVM_FLAGS;
+#endif
+    vma->vm_pgoff     = 0;
+
+    if (device->contiguousMapped)
+    {
+        unsigned long size = vma->vm_end - vma->vm_start;
+        int ret = 0;
+
+        if (size > device->contiguousSize)
+        {
+            gcmkTRACE_ZONE(
+                gcvLEVEL_ERROR, gcvZONE_DRIVER,
+                "%s(%d): Invalid mapping size.\n",
+                __FUNCTION__, __LINE__
+                );
+
+            gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
+        }
+
+        ret = io_remap_pfn_range(
+            vma,
+            vma->vm_start,
+            device->requestedContiguousBase >> PAGE_SHIFT,
+            size,
+            vma->vm_page_prot
+            );
+
+        if (ret != 0)
+        {
+            gcmkTRACE_ZONE(
+                gcvLEVEL_ERROR, gcvZONE_DRIVER,
+                "%s(%d): io_remap_pfn_range failed %d\n",
+                __FUNCTION__, __LINE__,
+                ret
+                );
+
+            data->mappedMemory = gcvNULL;
+
+            gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+        }
+
+        data->mappedMemory = (gctPOINTER) vma->vm_start;
+
+        /* Success. */
+        gcmkFOOTER_NO();
+        return 0;
+    }
+
+OnError:
+    gcmkFOOTER();
+    return -ENOTTY;
+}
+
 static struct file_operations driver_fops =
 {
     .owner      = THIS_MODULE,
@@ -653,6 +818,7 @@ static struct file_operations driver_fops =
 #ifdef HAVE_COMPAT_IOCTL
     .compat_ioctl = drv_ioctl,
 #endif
+    .mmap       = drv_mmap,
 };
 
 static struct miscdevice gal_device = {
@@ -674,7 +840,7 @@ static int drv_init(void)
         .stuckDump          = stuckDump,
         .gpu3DMinClock      = gpu3DMinClock,
         .contiguousRequested = contiguousRequested,
-        .platform           = platform,
+        .platform           = &platform,
         .mmu                = mmu,
         .registerMemMapped = registerMemMapped,
         .registerMemAddress = registerMemAddress,
@@ -693,6 +859,14 @@ static int drv_init(void)
 
     printk(KERN_INFO "Galcore version %d.%d.%d.%d\n",
         gcvVERSION_MAJOR, gcvVERSION_MINOR, gcvVERSION_PATCH, gcvVERSION_BUILD);
+
+#if !VIVANTE_PROFILER_PM
+    /* when enable gpu profiler, we need to turn off gpu powerMangement */
+    if (gpuProfiler)
+    {
+        powerManagement = 0;
+    }
+#endif
 
     args.powerManagement = powerManagement;
     args.gpuProfiler = gpuProfiler;
@@ -716,7 +890,6 @@ static int drv_init(void)
         irqLineVG,
         registerMemBaseVG, registerMemSizeVG,
         contiguousBase, contiguousSize,
-        externalBase, externalSize,
         bankSize, fastClear, compression, baseAddress, physSize, signal,
         logFileSize,
         powerManagement,
@@ -864,21 +1037,40 @@ static void drv_exit(void)
 
     gcmkFOOTER_NO();
 }
+static int gpu_platform_bind(struct device *dev)
+{
+	int ret;
 
-#if gcdENABLE_DRM
-int viv_drm_probe(struct device *dev);
-int viv_drm_remove(struct device *dev);
-#endif
+	ret = component_bind_all(dev, 0);
+	if (ret < 0) {
+		return ret;
+    }
 
-#if USE_LINUX_PCIE
-static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
-#else /* USE_LINUX_PCIE */
+    ret = drv_init();
+    if (!ret)  {
+        platform_set_drvdata(to_platform_device(dev), galDevice);
+
+        return ret;
+    }
+	component_unbind_all(dev, 0);
+	return ret;
+}
+
+static void gpu_platform_unbind(struct device *dev)
+{
+	component_unbind_all(dev, 0);
+}
+
+extern struct component_match *match;
+static const struct component_master_ops gpu_platform_master_ops = {
+	.bind = gpu_platform_bind,
+	.unbind = gpu_platform_unbind,
+};
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-    static int gpu_probe(struct platform_device *pdev)
+static int gpu_probe(struct platform_device *pdev)
 #else
-    static int __devinit gpu_probe(struct platform_device *pdev)
+static int __devinit gpu_probe(struct platform_device *pdev)
 #endif
-#endif /* USE_LINUX_PCIE */
 {
     int ret = -ENODEV;
     gcsMODULE_PARAMETERS moduleParam = {
@@ -893,10 +1085,9 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
         .registerMemSizeVG  = registerMemSizeVG,
         .contiguousSize     = contiguousSize,
         .contiguousBase     = contiguousBase,
-        .externalSize       = externalSize,
-        .externalBase       = externalBase,
         .bankSize           = bankSize,
         .fastClear          = fastClear,
+        .compression        = compression,
         .powerManagement    = powerManagement,
         .gpuProfiler        = gpuProfiler,
         .signal             = signal,
@@ -910,117 +1101,74 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
         .registerMemMapped    = registerMemMapped,
     };
 
+
     gcmkHEADER();
 
     memcpy(moduleParam.irqs, irqs, gcmSIZEOF(gctINT) * gcvCORE_COUNT);
     memcpy(moduleParam.registerBases, registerBases, gcmSIZEOF(gctUINT) * gcvCORE_COUNT);
     memcpy(moduleParam.registerSizes, registerSizes, gcmSIZEOF(gctUINT) * gcvCORE_COUNT);
     memcpy(moduleParam.chipIDs, chipIDs, gcmSIZEOF(gctUINT) * gcvCORE_COUNT);
-    moduleParam.compression = compression;
-    platform->device = pdev;
-#if USE_LINUX_PCIE
-    if (pci_enable_device(pdev)) {
-        printk(KERN_ERR "galcore: pci_enable_device() failed.\n");
-    }
 
-    if (pci_set_dma_mask(pdev, DMA_BIT_MASK(32))) {
-        printk(KERN_ERR "galcore: Failed to set DMA mask.\n");
-    }
+    platform.device = pdev;
 
-    pci_set_master(pdev);
-
-    if (pci_request_regions(pdev, "galcore")) {
-        printk(KERN_ERR "galcore: Failed to get ownership of BAR region.\n");
-    }
-
-#if USE_MSI
-    if (pci_enable_msi(pdev)) {
-        printk(KERN_ERR "galcore: Failed to enable MSI.\n");
-    }
-#endif
-#endif
-
-    if (platform->ops->getPower)
+    if (platform.ops->getPower)
     {
-        if (gcmIS_ERROR(platform->ops->getPower(platform)))
+        if (gcmIS_ERROR(platform.ops->getPower(&platform)))
         {
             gcmkFOOTER_NO();
             return ret;
         }
     }
 
-    if (platform->ops->adjustParam)
+    if (platform.ops->adjustParam)
     {
         /* Override default module param. */
-        platform->ops->adjustParam(platform, &moduleParam);
+        platform.ops->adjustParam(&platform, &moduleParam);
 
         /* Update module param because drv_init() uses them directly. */
         _UpdateModuleParam(&moduleParam);
     }
-
-    ret = drv_init();
-
-    if (!ret)
-    {
-#if USE_LINUX_PCIE
-        pci_set_drvdata(pdev, galDevice);
-#else
-        platform_set_drvdata(pdev, galDevice);
-#endif
-
-#if gcdENABLE_DRM
-        ret = viv_drm_probe(&pdev->dev);
-#endif
+    if (platform.ops->registerDevice) {
+        /*drv_init() will be called during binding*/
+        ret = component_master_add_with_match(&pdev->dev, &gpu_platform_master_ops, match);
+        if(ret !=0)
+        {
+            gcmkFOOTER_NO();
+            return ret;
+        }
+    }
+    else {
+        ret = drv_init();
+        if (!ret) {
+            platform_set_drvdata(pdev, galDevice);
+            gcmkFOOTER_NO();
+            return ret;
+        }
     }
 
-    if (ret < 0)
-    {
-        gcmkFOOTER_ARG(KERN_INFO "Failed to register gpu driver: %d\n", ret);
-    }
-    else
-    {
-        gcmkFOOTER_NO();
-    }
+    gcmkFOOTER_ARG(KERN_INFO "Failed to register gpu driver: %d\n", ret);
     return ret;
 }
 
-#if USE_LINUX_PCIE
-static void gpu_remove(struct pci_dev *pdev)
-#else /* USE_LINUX_PCIE */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-    static int gpu_remove(struct platform_device *pdev)
+static int gpu_remove(struct platform_device *pdev)
 #else
-    static int __devexit gpu_remove(struct platform_device *pdev)
+static int __devexit gpu_remove(struct platform_device *pdev)
 #endif
-#endif /* USE_LINUX_PCIE */
 {
     gcmkHEADER();
 
-#if gcdENABLE_DRM
-    viv_drm_remove(&pdev->dev);
-#endif
-
     drv_exit();
 
-    if (platform->ops->putPower)
+    if (platform.ops->putPower)
     {
-        platform->ops->putPower(platform);
+        platform.ops->putPower(&platform);
     }
-
-#if USE_LINUX_PCIE
-    pci_set_drvdata(pdev, NULL);
-#if USE_MSI
-    pci_disable_msi(pdev);
-#endif
-    pci_clear_master(pdev);
-    pci_release_regions(pdev);
-    pci_disable_device(pdev);
-    gcmkFOOTER_NO();
-    return;
-#else
+    if (platform.ops->registerDevice) {
+        component_master_del(&pdev->dev, &gpu_platform_master_ops);
+    }
     gcmkFOOTER_NO();
     return 0;
-#endif
 }
 
 static int gpu_suspend(struct platform_device *dev, pm_message_t state)
@@ -1174,30 +1322,6 @@ static const struct dev_pm_ops gpu_pm_ops = {
 };
 #endif
 
-#if USE_LINUX_PCIE
-static const struct pci_device_id vivpci_ids[] = {
-  {
-    .class = 0x000000,
-    .class_mask = 0x000000,
-    .vendor = 0x10ee,
-    .device = 0x7012,
-    .subvendor = PCI_ANY_ID,
-    .subdevice = PCI_ANY_ID,
-    .driver_data = 0
-  }, { /* End: all zeroes */ }
-};
-
-MODULE_DEVICE_TABLE(pci, vivpci_ids);
-
-static struct pci_driver gpu_driver = {
-    .name = DEVICE_NAME,
-    .id_table = vivpci_ids,
-    .probe = gpu_probe,
-    .remove = gpu_remove
-};
-
-#else /* USE_LINUX_PCIE */
-
 static struct platform_driver gpu_driver = {
     .probe      = gpu_probe,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
@@ -1217,49 +1341,103 @@ static struct platform_driver gpu_driver = {
 #endif
     }
 };
-#endif /* USE_LINUX_PCIE */
 
 static int __init gpu_init(void)
 {
     int ret = 0;
 
-    ret = soc_platform_init(&gpu_driver, &platform);
+    memset(&platform, 0, sizeof(gcsPLATFORM));
 
-    if (ret || !platform)
+    gckPLATFORM_QueryOperations(&platform.ops);
+
+    if (platform.ops == gcvNULL)
     {
-        printk(KERN_ERR "galcore: Soc platform init failed.\n");
-        return -ENODEV;
+        printk(KERN_ERR "galcore: No platform specific operations.\n");
+        ret = -ENODEV;
+        goto out;
     }
 
-#if USE_LINUX_PCIE
-    ret = pci_register_driver(&gpu_driver);
-#else /* USE_LINUX_PCIE */
+    if (platform.ops->allocPriv)
+    {
+        /* Allocate platform private data. */
+        if (gcmIS_ERROR(platform.ops->allocPriv(&platform)))
+        {
+            ret = -ENOMEM;
+            goto out;
+        }
+    }
+
+    if (platform.ops->needAddDevice
+     && platform.ops->needAddDevice(&platform))
+    {
+        /* Allocate device */
+        platform.device = platform_device_alloc(DEVICE_NAME, -1);
+        if (!platform.device)
+        {
+            printk(KERN_ERR "galcore: platform_device_alloc failed.\n");
+            ret = -ENOMEM;
+            goto out;
+        }
+
+        /* Add device */
+        ret = platform_device_add(platform.device);
+        if (ret)
+        {
+            printk(KERN_ERR "galcore: platform_device_add failed.\n");
+            goto put_dev;
+        }
+    }
+
+    platform.driver = &gpu_driver;
+
+    if (platform.ops->adjustDriver)
+    {
+        /* Override default platform_driver struct. */
+        platform.ops->adjustDriver(&platform);
+    }
+
+    if (platform.ops->registerDevice)
+    {
+        ret = platform.ops->registerDevice(&platform);
+        if (ret != 0) {
+            goto out;
+        }
+    }
+
     ret = platform_driver_register(&gpu_driver);
-#endif /* USE_LINUX_PCIE */
-
-    if (ret)
+    if (!ret)
     {
-        printk(KERN_ERR "galcore: gpu_init() failed to register driver!\n");
-        soc_platform_terminate(platform);
-        platform = NULL;
-        return ret;
+        goto out;
     }
 
-    platform->driver = &gpu_driver;
+    platform_device_del(platform.device);
+put_dev:
+    platform_device_put(platform.device);
 
-    return 0;
+out:
+    return ret;
 }
 
 static void __exit gpu_exit(void)
 {
-#if USE_LINUX_PCIE
-    pci_unregister_driver(&gpu_driver);
-#else
     platform_driver_unregister(&gpu_driver);
-#endif /* USE_LINUX_PCIE */
 
-    soc_platform_terminate(platform);
-    platform = NULL;
+    if (platform.ops->unRegisterDevice)
+    {
+        platform.ops->unRegisterDevice(&platform);
+    }
+
+    if (platform.ops->needAddDevice
+     && platform.ops->needAddDevice(&platform))
+    {
+        platform_device_unregister(platform.device);
+    }
+
+    if (platform.priv)
+    {
+        /* Free platform private data. */
+        platform.ops->freePriv(&platform);
+    }
 }
 
 module_init(gpu_init);

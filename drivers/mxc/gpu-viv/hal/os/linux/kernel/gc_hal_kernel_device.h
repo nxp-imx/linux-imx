@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -101,36 +101,28 @@ typedef struct _gckGALDEVICE
     gctUINT32           internalPhysicalName;
     gctPOINTER          internalLogical;
     gckVIDMEM           internalVidMem;
-
-    gctUINT32           externalBase;
     gctSIZE_T           externalSize;
     gctPHYS_ADDR        externalPhysical;
     gctUINT32           externalPhysicalName;
     gctPOINTER          externalLogical;
     gckVIDMEM           externalVidMem;
-
-    gctPHYS_ADDR_T      contiguousBase;
-    gctSIZE_T           contiguousSize;
-
     gckVIDMEM           contiguousVidMem;
-    gctPOINTER          contiguousLogical;
+    gctPOINTER          contiguousBase;
     gctPHYS_ADDR        contiguousPhysical;
     gctUINT32           contiguousPhysicalName;
-
+    gctSIZE_T           contiguousSize;
+    gctBOOL             contiguousMapped;
+    gctPOINTER          contiguousMappedUser;
+    gctBOOL             contiguousRequested;
     gctSIZE_T           systemMemorySize;
     gctUINT32           systemMemoryBaseAddress;
     gctPOINTER          registerBases[gcdMAX_GPU_COUNT];
     gctSIZE_T           registerSizes[gcdMAX_GPU_COUNT];
-
     gctUINT32           baseAddress;
     gctUINT32           physBase;
     gctUINT32           physSize;
-
-    /* By request_mem_region. */
     gctUINT32           requestedRegisterMemBases[gcdMAX_GPU_COUNT];
     gctSIZE_T           requestedRegisterMemSizes[gcdMAX_GPU_COUNT];
-
-    /* By request_mem_region. */
     gctUINT32           requestedContiguousBase;
     gctSIZE_T           requestedContiguousSize;
 
@@ -161,21 +153,15 @@ typedef struct _gckGALDEVICE
 
     /* gctsOs object for trust application. */
     gctaOS              taos;
-
-#if gcdENABLE_DRM
-    void*               drm;
-#endif
 }
 * gckGALDEVICE;
 
 typedef struct _gcsHAL_PRIVATE_DATA
 {
     gckGALDEVICE        device;
-    /*
-     * 'fput' schedules actual work in '__fput' in a different thread.
-     * So the process opens the device may not be the same as the one that
-     * closes it.
-     */
+    gctPOINTER          mappedMemory;
+    gctPOINTER          contiguousLogical;
+    /* The process opening the device may not be the same as the one that closes it. */
     gctUINT32           pidOpen;
 }
 gcsHAL_PRIVATE_DATA, * gcsHAL_PRIVATE_DATA_PTR;
@@ -224,8 +210,6 @@ gceSTATUS gckGALDEVICE_Construct(
     IN gctSIZE_T RegisterMemSizeVG,
     IN gctUINT32 ContiguousBase,
     IN gctSIZE_T ContiguousSize,
-    IN gctUINT32 ExternalBase,
-    IN gctSIZE_T ExternalSize,
     IN gctSIZE_T BankSize,
     IN gctINT FastClear,
     IN gctINT Compression,

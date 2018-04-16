@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -141,10 +141,8 @@ extern "C" {
 ******************************** Useful Macro *********************************
 \******************************************************************************/
 
-#define gcvINVALID_ADDRESS              ~0U
-#define gcvINVALID_VALUE                0xCCCCCCCC
-
-#define gcvINVALID_PHYSICAL_ADDRESS     ~0U
+#define gcvINVALID_ADDRESS          ~0U
+#define gcvINVALID_VALUE            0xCCCCCCCC
 
 #define gcmGET_PRE_ROTATION(rotate) \
     ((rotate) & (~(gcvSURF_POST_FLIP_X | gcvSURF_POST_FLIP_Y)))
@@ -309,14 +307,6 @@ typedef struct _gckHARDWARE *       gckHARDWARE;
 #   define gcmVERIFY_OBJECT_RETURN(obj, t)     do {} while (gcvFALSE)
 #   define gcmVERIFY_OBJECT_RETURN(obj, t)    do {} while (gcvFALSE)
 #endif
-
-typedef struct _gcsContiguousBlock
-{
-    gctUINT32   ptr;
-    gctSIZE_T   size;
-}
-gcsContiguousBlock;
-
 
 /******************************************************************************\
 ********************************** gckOS Object *********************************
@@ -1170,26 +1160,6 @@ gckOS_UnmapUserMemory(
     IN gctUINT32 Address
     );
 
-/* Get scatter-gather table from memory. */
-gceSTATUS
-gckOS_MemoryGetSGT(
-    IN gckOS Os,
-    IN gctPHYS_ADDR Physical,
-    IN gctSIZE_T Offset,
-    IN gctSIZE_T Bytes,
-    OUT gctPOINTER *SGT
-    );
-
-/* Map a page range of memory to user space. */
-gceSTATUS
-gckOS_MemoryMmap(
-    IN gckOS Os,
-    IN gctPHYS_ADDR Physical,
-    IN gctSIZE_T skipPages,
-    IN gctSIZE_T numPages,
-    INOUT gctPOINTER Vma
-    );
-
 /* Wrap a user memory to gctPHYS_ADDR. */
 gceSTATUS
 gckOS_WrapMemory(
@@ -1808,17 +1778,6 @@ gckKERNEL_QueryVideoMemory(
     OUT struct _gcsHAL_INTERFACE * Interface
     );
 
-/* Query used memory nodes of a specific pool. */
-gceSTATUS
-gckKERNEL_QueryVidMemPoolNodes(
-    gckKERNEL            Kernel,
-    gcePOOL              Pool,
-    gctUINT32          * TotalSize,     /* sum of the sizes of the contiguous blocks (i.e. total memory used at current time) : to be filled by the called function */
-    gcsContiguousBlock * MemoryBlocks,  /* previously allocated by the calling function : to be filled by the called function */
-    gctUINT32            NumMaxBlocks,  /* provided by the calling function */
-    gctUINT32          * NumBlocks      /* actual number of contiguous blocks : to be filled by the called function */
-    );
-
 /* Lookup the gckVIDMEM object for a pool. */
 gceSTATUS
 gckKERNEL_GetVideoMemoryPool(
@@ -1894,7 +1853,6 @@ gckKERNEL_MapVideoMemoryEx(
     IN gctUINT32 Pid,
     IN gctUINT32 Bytes,
 #endif
-    IN gcePOOL Pool,
     OUT gctPOINTER * Logical
     );
 
@@ -1924,8 +1882,7 @@ gckKERNEL_UnmapMemory(
     IN gckKERNEL Kernel,
     IN gctPHYS_ADDR Physical,
     IN gctSIZE_T Bytes,
-    IN gctPOINTER Logical,
-    IN gctUINT32 ProcessID
+    IN gctPOINTER Logical
     );
 
 /* Notification of events. */
@@ -2154,12 +2111,6 @@ gckHARDWARE_QueryChipIdentity(
     OUT gcsHAL_QUERY_CHIP_IDENTITY_PTR Identity
     );
 
-gceSTATUS
-gckHARDWARE_QueryChipOptions(
-    IN gckHARDWARE Hardware,
-    OUT gcsHAL_QUERY_CHIP_OPTIONS_PTR Options
-    );
-
 /* Query the shader uniforms support. */
 gceSTATUS
 gckHARDWARE_QueryShaderCaps(
@@ -2213,13 +2164,6 @@ gckHARDWARE_SetMMU(
 gceSTATUS
 gckHARDWARE_FlushMMU(
     IN gckHARDWARE Hardware
-    );
-
-gceSTATUS
-gckHARDWARE_FlushAsyncMMU(
-    IN gckHARDWARE Hardware,
-    IN gctPOINTER Logical,
-    IN OUT gctUINT32 * Bytes
     );
 
 /* Set the page table base address. */
@@ -2354,6 +2298,28 @@ gckHARDWARE_InitializeHardware(
 gceSTATUS
 gckHARDWARE_Reset(
     IN gckHARDWARE Hardware
+    );
+
+typedef gceSTATUS (*gctISRMANAGERFUNC)(gctPOINTER Context);
+
+gceSTATUS
+gckHARDWARE_SetIsrManager(
+    IN gckHARDWARE Hardware,
+    IN gctISRMANAGERFUNC StartIsr,
+    IN gctISRMANAGERFUNC StopIsr,
+    IN gctPOINTER Context
+    );
+
+/* Start a composition. */
+gceSTATUS
+gckHARDWARE_Compose(
+    IN gckHARDWARE Hardware,
+    IN gctUINT32 ProcessID,
+    IN gctPHYS_ADDR Physical,
+    IN gctPOINTER Logical,
+    IN gctSIZE_T Offset,
+    IN gctSIZE_T Size,
+    IN gctUINT8 EventID
     );
 
 /* Check for Hardware features. */
@@ -2549,6 +2515,13 @@ gckEVENT_Unlock(
     IN gceSURF_TYPE Type
     );
 
+gceSTATUS
+gckEVENT_CommitDone(
+    IN gckEVENT Event,
+    IN gceKERNEL_WHERE FromWhere,
+    IN gckCONTEXT Context
+    );
+
 /* Schedule a FreeVirtualCommandBuffer event. */
 gceSTATUS
 gckEVENT_DestroyVirtualCommandBuffer(
@@ -2569,8 +2542,14 @@ gckEVENT_Submit(
 gceSTATUS
 gckEVENT_Commit(
     IN gckEVENT Event,
-    IN gcsQUEUE_PTR Queue,
-    IN gctBOOL Forced
+    IN gcsQUEUE_PTR Queue
+    );
+
+/* Schedule a composition event. */
+gceSTATUS
+gckEVENT_Compose(
+    IN gckEVENT Event,
+    IN gcsHAL_COMPOSE_PTR Info
     );
 
 /* Event callback routine. */
@@ -2642,6 +2621,7 @@ gckCOMMAND_Commit(
     IN gckCONTEXT Context,
     IN gcoCMDBUF CommandBuffer,
     IN gcsSTATE_DELTA_PTR StateDelta,
+    IN gcsQUEUE_PTR EventQueue,
     IN gctUINT32 ProcessID,
     IN gctBOOL Shared,
     IN gctUINT32 Index,
@@ -2786,17 +2766,42 @@ gckMMU_IsFlatMapped(
     );
 
 
+#if VIVANTE_PROFILER
+gceSTATUS
+gckHARDWARE_QueryProfileRegisters(
+    IN gckHARDWARE Hardware,
+    IN gctBOOL Reset,
+    OUT gcsPROFILER_COUNTERS * Counters
+    );
+#endif
+
+#if VIVANTE_PROFILER_CONTEXT
 gceSTATUS
 gckHARDWARE_QueryContextProfile(
     IN gckHARDWARE Hardware,
     IN gctBOOL Reset,
     IN gckCONTEXT Context,
-    OUT gcsPROFILER_COUNTERS_PART1 * Counters_part1,
-    OUT gcsPROFILER_COUNTERS_PART2 * Counters_part2
+    OUT gcsPROFILER_COUNTERS * Counters
     );
 
 gceSTATUS
 gckHARDWARE_UpdateContextProfile(
+    IN gckHARDWARE Hardware,
+    IN gckCONTEXT Context
+    );
+#endif
+
+gceSTATUS
+gckHARDWARE_QueryContextNewProfile(
+    IN gckHARDWARE Hardware,
+    IN gctBOOL Reset,
+    IN gckCONTEXT Context,
+    OUT gcsPROFILER_NEW_COUNTERS_PART1 * Counters_part1,
+    OUT gcsPROFILER_NEW_COUNTERS_PART2 * Counters_part2
+    );
+
+gceSTATUS
+gckHARDWARE_UpdateContextNewProfile(
     IN gckHARDWARE Hardware,
     IN gckCONTEXT Context
     );

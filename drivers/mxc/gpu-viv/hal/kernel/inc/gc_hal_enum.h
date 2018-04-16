@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -169,6 +169,7 @@ typedef enum _gceFEATURE
     gcvFEATURE_TEXTURE_ARRAY,
     gcvFEATURE_TILE_FILLER,
     gcvFEATURE_LOGIC_OP,
+    gcvFEATURE_COMPOSITION,
     gcvFEATURE_MIXED_STREAMS,
     gcvFEATURE_2D_MULTI_SOURCE_BLT,
     gcvFEATURE_END_EVENT,
@@ -366,8 +367,7 @@ typedef enum _gceFEATURE
     gcvFEATURE_TX_8BPP_TS_FIX,
     gcvFEATURE_HW_TFB,
     gcvFEATURE_COMPRESSION_V4,
-    gcvFEATURE_FENCE_32BIT,
-    gcvFEATURE_FENCE_64BIT,
+    gcvFEATURE_FENCE,
     gcvFEATURE_R8_UNORM,
     gcvFEATURE_TX_DEFAULT_VALUE_FIX,
     gcvFEATURE_TX_8bit_UVFrac,
@@ -505,15 +505,6 @@ typedef enum _gceFEATURE
     gcvFEATURE_PE_VMSAA_COVERAGE_CACHE_FIX,
     gcvFEATURE_SECURITY_AHB,
     gcvFEATURE_TX_LERP_LESS_BIT,
-    gcvFEATURE_VIP_V7,
-    gcvFEATURE_ASYNC_BLIT,
-    gcvFEATURE_ASYNC_FE_FENCE_FIX,
-    gcvFEATURE_PSCS_THROTTLE,
-    gcvFEATURE_WIDELINE_TRIANGLE_EMU,
-    gcvFEATURE_FENCE,
-    gcvFEATURE_PE_DEPTH_ONLY_OQFIX,
-    gcvFEATURE_VG_RESOLUTION_8K,
-    gcvFEATURE_IMAGE_LS_NO_FULLMASK_FIX, 
     /* Insert features above this comment only. */
     gcvFEATURE_COUNT                /* Not a feature. */
 }
@@ -551,7 +542,6 @@ typedef enum _gceOPTION
     gcvOPTION_PREFER_TPG_TRIVIALMODEL = 3,
     gcvOPTION_PREFER_RA_DEPTH_WRITE = 4,
     gcvOPTION_PREFER_USC_RECONFIG = 5,
-    gcvOPTION_PREFER_DISALBE_HZ = 6,
 
     /* SW options */
     gcvOPTION_HW_NULL = 50,
@@ -561,9 +551,6 @@ typedef enum _gceOPTION
     gcvOPTION_FBO_PREFER_MEM = 54,
     gcvOPTION_GPU_TEX_UPLOAD = 55,
     gcvOPTION_GPU_BUFOBJ_UPLOAD = 56,
-    gcvOPTION_OCL_ASYNC_BLT = 57,
-    gcvOPTION_OCL_IN_THREAD = 58,
-    gcvOPTION_COMPRESSION_DEC400 = 59,
 
     /* Insert option above this comment only */
     gcvOPTION_COUNT                     /* Not a OPTION*/
@@ -649,23 +636,35 @@ typedef enum _gceSURF_TYPE
     gcvSURF_NUM_TYPES, /* Make sure this is the last one! */
 
     /* Combinations. */
-    gcvSURF_NO_TILE_STATUS          = 0x100,
-    gcvSURF_NO_VIDMEM               = 0x200,    /* Used to allocate surfaces with no underlying vidmem node.
-                                                   In Android, vidmem node is allocated by another process. */
-    gcvSURF_CACHEABLE               = 0x400,    /* Used to allocate a cacheable surface */
-    gcvSURF_TILE_RLV_FENCE          = 0x800,    /* create texture fence as tile */
-    gcvSURF_TILE_STATUS_DIRTY       = 0x1000,   /* Init tile status to all dirty */
-    gcvSURF_LINEAR                  = 0x2000,
-    gcvSURF_CREATE_AS_TEXTURE       = 0x4000,   /* create it as a texture */
-    gcvSURF_PROTECTED_CONTENT       = 0x8000,   /* create it as content protected */
-    gcvSURF_CREATE_AS_DISPLAYBUFFER = 0x10000,  /*create it as a display buffer surface */
-    gcvSURF_CONTIGUOUS              = 0x20000,  /*create it as contiguous */
-    gcvSURF_NO_COMPRESSION          = 0x40000,  /* Create it as no compression, valid on when it has tile status. */
-    gcvSURF_DEC                     = 0x80000,  /* Surface is DEC compressed */
-    gcvSURF_NO_HZ                   = 0x100000,
-    gcvSURF_3D                      = 0x200000, /* It's 3d surface */
-    gcvSURF_DMABUF_EXPORTABLE       = 0x400000, /* master node can be exported as dma-buf fd */
-    gcvSURF_CMA_LIMIT               = 0x800000,
+    gcvSURF_NO_TILE_STATUS = 0x100,
+    gcvSURF_NO_VIDMEM      = 0x200, /* Used to allocate surfaces with no underlying vidmem node.
+                                       In Android, vidmem node is allocated by another process. */
+    gcvSURF_CACHEABLE      = 0x400, /* Used to allocate a cacheable surface */
+
+    gcvSURF_TILE_RLV_FENCE = 0x800, /* create texture fence as tile */
+
+    gcvSURF_TILE_STATUS_DIRTY  = 0x1000, /* Init tile status to all dirty */
+
+    gcvSURF_LINEAR             = 0x2000,
+
+    gcvSURF_CREATE_AS_TEXTURE  = 0x4000,  /* create it as a texture */
+
+    gcvSURF_PROTECTED_CONTENT  = 0x8000,  /* create it as content protected */
+
+    gcvSURF_CREATE_AS_DISPLAYBUFFER = 0x10000, /*create it as a display buffer surface */
+
+    gcvSURF_CONTIGUOUS         = 0x20000,      /*create it as contiguous */
+
+    /* Create it as no compression, valid on when it has tile status. */
+    gcvSURF_NO_COMPRESSION     = 0x40000,
+
+    gcvSURF_DEC                = 0x80000,  /* Surface is DEC compressed */
+
+    gcvSURF_NO_HZ              = 0x100000,
+
+    gcvSURF_3D                  = 0x200000, /* It's 3d surface */
+
+    gcvSURF_CMA_LIMIT           = 0x400000,
 
     gcvSURF_TEXTURE_LINEAR               = gcvSURF_TEXTURE
                                          | gcvSURF_LINEAR,
@@ -911,8 +910,6 @@ typedef enum _gceSURF_FORMAT
     gcvSURF_A16,
     gcvSURF_A32,
     gcvSURF_A1,
-
-    gcvSURF_A8_1_A8R8G8B8,
 
     /* Luminance formats. */
     gcvSURF_L4                  = 800,
@@ -2008,21 +2005,14 @@ typedef enum _gceCHIP_FLAG
 {
     gcvCHIP_FLAG_MSAA_COHERENCEY_ECO_FIX = 1 << 0,
     gcvCHIP_FLAG_GC2000_R2               = 1 << 1,
-    gcvCHIP_AXI_BUS128_BITS              = 1 << 2,
 }
 gceCHIP_FLAG;
 
-/* If different, choose render engine */
-#define PRIORITY_ENGINE(a, b) gcmMIN(a,b)
-
 typedef enum
 {
-    gcvENGINE_RENDER            = 0,
-    gcvENGINE_BLT               = 1,
-    gcvENGINE_GPU_ENGINE_COUNT  = 2,
-    gcvENGINE_CPU               = gcvENGINE_GPU_ENGINE_COUNT,
-    gcvENGINE_ALL_COUNT         = gcvENGINE_CPU + 1,
-    gcvENGINE_INVALID           = gcvENGINE_ALL_COUNT + 0x100
+    gcvENGINE_RENDER   = 0,
+    gcvENGINE_BLT      = 1,
+    gcvENGINE_COUNT    = 2,
 }
 gceENGINE;
 
@@ -2073,60 +2063,45 @@ typedef enum _gceSECURE_MODE
 }
 gceSECURE_MODE;
 
-/* kernel driver compression option, as it's a system global option,
-** it means kernel driver allows the options, NOT necessarily means it must be on.
+/*
+* Bit of a requirement is 1 means requirement is a must, 0 means requirement can
+* be ignored.
 */
-typedef enum _gceCOMPRESSION_OPTION
-{
-    gcvCOMPRESSION_OPTION_NONE       = 0x0, /* No any compression */
-    gcvCOMPRESSION_OPTION_COLOR      = 0x1, /* Compression for non-msaa color format */
-    gcvCOMPRESSION_OPTION_DEPTH      = 0x2, /* Compression for non-msaa depth format */
-    gcvCOMPRESSION_OPTION_MSAA_COLOR = 0x4, /* Compression for msaa color */
-    gcvCOMPRESSION_OPTION_MSAA_DEPTH = 0x8, /* Compression for msaa depth */
-
-    /* default compressio option */
-    gcvCOMPRESSION_OPTION_DEFAULT    = gcvCOMPRESSION_OPTION_DEPTH      |
-                                       gcvCOMPRESSION_OPTION_COLOR      |
-                                       gcvCOMPRESSION_OPTION_MSAA_COLOR |
-                                       gcvCOMPRESSION_OPTION_MSAA_DEPTH,
-}
-gceCOMPRESSION_OPTION;
+#define gcvALLOC_FLAG_CONTIGUOUS_BIT        0
+#define gcvALLOC_FLAG_CACHEABLE_BIT         1
+#define gcvALLOC_FLAG_SECURITY_BIT          2
+#define gcvALLOC_FLAG_NON_CONTIGUOUS_BIT    3
+#define gcvALLOC_FLAG_MEMLIMIT_BIT          4
+#define gcvALLOC_FLAG_DMABUF_BIT            5
+#define gcvALLOC_FLAG_USERMEMORY_BIT        6
+#define gcvALLOC_FLAG_EXTERNAL_MEMORY_BIT   7
+#define gcvALLOC_FLAG_ALLOC_ON_FAULT_BIT    8
+#define gcvALLOC_FLAG_CMA_LIMIT_BIT         9
 
 /* No special needs. */
-#define gcvALLOC_FLAG_NONE                  0x00000000
-
+#define gcvALLOC_FLAG_NONE              (0)
 /* Physical contiguous. */
-#define gcvALLOC_FLAG_CONTIGUOUS            0x00000001
+#define gcvALLOC_FLAG_CONTIGUOUS        (1 << gcvALLOC_FLAG_CONTIGUOUS_BIT)
 /* Can be remapped as cacheable. */
-#define gcvALLOC_FLAG_CACHEABLE             0x00000002
+#define gcvALLOC_FLAG_CACHEABLE         (1 << gcvALLOC_FLAG_CACHEABLE_BIT)
 /* Secure buffer. */
-#define gcvALLOC_FLAG_SECURITY              0x00000004
+#define gcvALLOC_FLAG_SECURITY          (1 << gcvALLOC_FLAG_SECURITY_BIT)
 /* Physical non contiguous. */
-#define gcvALLOC_FLAG_NON_CONTIGUOUS        0x00000008
-/* Can be exported as dmabuf-fd */
-#define gcvALLOC_FLAG_DMABUF_EXPORTABLE     0x00000010
-
-/* Do not try slow pools (gcvPOOL_VIRTUAL/gcvPOOL_CONTIGUOUS) */
-#define gcvALLOC_FLAG_FAST_POOLS            0x00000100
+#define gcvALLOC_FLAG_NON_CONTIGUOUS    (1 << gcvALLOC_FLAG_NON_CONTIGUOUS_BIT)
+#define gcvALLOC_FLAG_MEMLIMIT          (1 << gcvALLOC_FLAG_MEMLIMIT_BIT)
 
 /* Import DMABUF. */
-#define gcvALLOC_FLAG_DMABUF                0x00001000
+#define gcvALLOC_FLAG_DMABUF            (1 << gcvALLOC_FLAG_DMABUF_BIT)
 /* Import USERMEMORY. */
-#define gcvALLOC_FLAG_USERMEMORY            0x00002000
+#define gcvALLOC_FLAG_USERMEMORY        (1 << gcvALLOC_FLAG_USERMEMORY_BIT)
 /* Import an External Buffer. */
-#define gcvALLOC_FLAG_EXTERNAL_MEMORY       0x00004000
-/* Import linux reserved memory. */
-#define gcvALLOC_FLAG_LINUX_RESERVED_MEM    0x00008000
+#define gcvALLOC_FLAG_EXTERNAL_MEMORY   (1 << gcvALLOC_FLAG_EXTERNAL_MEMORY_BIT)
 
 /* Real allocation happens when GPU page fault. */
-#define gcvALLOC_FLAG_ALLOC_ON_FAULT        0x01000000
-/* Alloc with memory limit. */
-#define gcvALLOC_FLAG_MEMLIMIT              0x02000000
+#define gcvALLOC_FLAG_ALLOC_ON_FAULT    (1 << gcvALLOC_FLAG_ALLOC_ON_FAULT_BIT)
 
 /* CMA allocator only */
-#define gcvALLOC_FLAG_CMA_LIMIT             0x04000000
-
-#define gcvALLOC_FLAG_CMA_PREEMPT           0x08000000
+#define gcvALLOC_FLAG_CMA_LIMIT          (1 << gcvALLOC_FLAG_CMA_LIMIT_BIT)
 
 /* GL_VIV internal usage */
 #ifndef GL_MAP_BUFFER_OBJ_VIV

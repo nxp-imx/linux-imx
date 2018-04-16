@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -105,11 +105,11 @@ typedef enum {
     gcvFENCE_TYPE_READ          = 0x1,
     gcvFENCE_TYPE_WRITE         = 0x2,
     gcvFENCE_TYPE_ALL           = gcvFENCE_TYPE_READ | gcvFENCE_TYPE_WRITE,
-    gcvFNECE_TYPE_INVALID       = 0x10000,
 }
 gceFENCE_TYPE;
 
 typedef struct _gcsUSER_MEMORY_DESC *   gcsUSER_MEMORY_DESC_PTR;
+
 
 
 /******************************************************************************\
@@ -142,7 +142,6 @@ gcsSystemInfo;
 
 
 #if gcdENABLE_3D
-#if gcdSYNC
 #define gcPLS_INITIALIZER \
 { \
     gcvNULL,         /* gcoOS object.      */ \
@@ -167,39 +166,8 @@ gcsSystemInfo;
     gcvNULL,         /* destructor         */ \
     gcvNULL,         /* accessLock         */ \
     gcvNULL,         /* GL FE compiler lock*/ \
-    gcvNULL,         /* CL FE compiler lock*/ \
-    gcvPATCH_NOTINIT,/* global patchID     */ \
-    gcvNULL,         /* global fenceID*/ \
-}
-#else
-#define gcPLS_INITIALIZER \
-{ \
-    gcvNULL,         /* gcoOS object.      */ \
-    gcvNULL,         /* gcoHAL object.     */ \
-    0,               /* internalSize       */ \
-    gcvNULL,         /* internalPhysical   */ \
-    gcvNULL,         /* internalLogical    */ \
-    0,               /* externalSize       */ \
-    gcvNULL,         /* externalPhysical   */ \
-    gcvNULL,         /* externalLogical    */ \
-    0,               /* contiguousSize     */ \
-    gcvNULL,         /* contiguousPhysical */ \
-    gcvNULL,         /* contiguousLogical  */ \
-    gcvNULL,         /* eglDisplayInfo     */ \
-    gcvNULL,         /* eglSurfaceInfo     */ \
-    gcvSURF_A8R8G8B8,/* eglConfigFormat    */ \
-    gcvNULL,         /* reference          */ \
-    0,               /* processID          */ \
-    0,               /* threadID           */ \
-    gcvFALSE,        /* exiting            */ \
-    gcvFALSE,        /* Special flag for NP2 texture. */ \
-    gcvNULL,         /* destructor         */ \
-    gcvNULL,         /* accessLock         */ \
-    gcvNULL,         /* GL FE compiler lock*/ \
-    gcvNULL,         /* CL FE compiler lock*/ \
     gcvPATCH_NOTINIT,/* global patchID     */ \
 }
-#endif
 #else
 #define gcPLS_INITIALIZER \
 { \
@@ -467,6 +435,68 @@ typedef struct _gcsEXTERNAL_MEMORY_INFO
 gcsEXTERNAL_MEMORY_INFO;
 
 /******************************************************************************\
+*********** Generic Memory Allocation Optimization Using Containers ************
+\******************************************************************************/
+
+/* Generic container definition. */
+typedef struct _gcsCONTAINER_LINK * gcsCONTAINER_LINK_PTR;
+typedef struct _gcsCONTAINER_LINK
+{
+    /* Points to the next container. */
+    gcsCONTAINER_LINK_PTR           next;
+}
+gcsCONTAINER_LINK;
+
+typedef struct _gcsCONTAINER_RECORD * gcsCONTAINER_RECORD_PTR;
+typedef struct _gcsCONTAINER_RECORD
+{
+    gcsCONTAINER_RECORD_PTR         prev;
+    gcsCONTAINER_RECORD_PTR         next;
+}
+gcsCONTAINER_RECORD;
+
+typedef struct _gcsCONTAINER * gcsCONTAINER_PTR;
+typedef struct _gcsCONTAINER
+{
+    gctUINT                         containerSize;
+    gctUINT                         recordSize;
+    gctUINT                         recordCount;
+    gcsCONTAINER_LINK_PTR           containers;
+    gcsCONTAINER_RECORD             freeList;
+    gcsCONTAINER_RECORD             allocList;
+}
+gcsCONTAINER;
+
+gceSTATUS
+gcsCONTAINER_Construct(
+    IN gcsCONTAINER_PTR Container,
+    gctUINT RecordsPerContainer,
+    gctUINT RecordSize
+    );
+
+gceSTATUS
+gcsCONTAINER_Destroy(
+    IN gcsCONTAINER_PTR Container
+    );
+
+gceSTATUS
+gcsCONTAINER_AllocateRecord(
+    IN gcsCONTAINER_PTR Container,
+    OUT gctPOINTER * Record
+    );
+
+gceSTATUS
+gcsCONTAINER_FreeRecord(
+    IN gcsCONTAINER_PTR Container,
+    IN gctPOINTER Record
+    );
+
+gceSTATUS
+gcsCONTAINER_FreeAll(
+    IN gcsCONTAINER_PTR Container
+    );
+
+/******************************************************************************\
 ********************************* gcoHAL Object *********************************
 \******************************************************************************/
 
@@ -577,13 +607,6 @@ gcoHAL_SetBltNP2Texture(
     );
 
 gceSTATUS
-gcoHAL_ExportVideoMemory(
-    IN gctUINT32 Handle,
-    IN gctUINT32 Flags,
-    OUT gctINT32 * FD
-    );
-
-gceSTATUS
 gcoHAL_NameVideoMemory(
     IN gctUINT32 Handle,
     OUT gctUINT32 * Name
@@ -634,11 +657,6 @@ gcoHAL_QueryChipIdentity(
 gceSTATUS
 gcoHAL_QuerySuperTileMode(
     OUT gctUINT32_PTR SuperTileMode
-    );
-
-gceSTATUS
-gcoHAL_QueryChipAxiBusWidth(
-    OUT gctBOOL * AXI128Bits
     );
 
 gceSTATUS
@@ -998,7 +1016,6 @@ gceSTATUS
 gcoHAL_LockVideoMemory(
     IN gctUINT32 Node,
     IN gctBOOL Cacheable,
-    IN gceENGINE engine,
     OUT gctUINT32 * Physical,
     OUT gctPOINTER * Logical
     );
@@ -1006,8 +1023,7 @@ gcoHAL_LockVideoMemory(
 gceSTATUS
 gcoHAL_UnlockVideoMemory(
     IN gctUINT32 Node,
-    IN gceSURF_TYPE Type,
-    IN gceENGINE engine
+    IN gceSURF_TYPE Type
     );
 
 gceSTATUS
@@ -1077,14 +1093,6 @@ gcoHAL_ScheduleSignal(
     IN gceKERNEL_WHERE FromWhere
     );
 
-gceSTATUS
-gcoHAL_GetGraphicBufferFd(
-    IN gctUINT32 Node[3],
-    IN gctSHBUF ShBuf,
-    IN gctSIGNAL Signal,
-    OUT gctINT32 * Fd
-    );
-
 /******************************************************************************\
 ********************************** gcoOS Object *********************************
 \******************************************************************************/
@@ -1122,18 +1130,6 @@ gcoOS_LockGLFECompiler(
 /* Unlock GL FE compiler access */
 gceSTATUS
 gcoOS_UnLockGLFECompiler(
-    void
-    );
-
-/* Lock CL FE compiler access */
-gceSTATUS
-gcoOS_LockCLFECompiler(
-    void
-    );
-
-/* Unlock CL FE compiler access */
-gceSTATUS
-gcoOS_UnLockCLFECompiler(
     void
     );
 
@@ -2002,6 +1998,7 @@ gcoOS_QuerySystemInfo(
     IN gcoOS Os,
     OUT gcsSystemInfo *Info
     );
+
 
 /*----------------------------------------------------------------------------*/
 /*----- Profile --------------------------------------------------------------*/
@@ -4012,12 +4009,12 @@ gcoOS_Print(
 
 typedef enum _gceDUMP_BUFFER
 {
-    gcvDUMP_BUFFER_CONTEXT,
-    gcvDUMP_BUFFER_USER,
-    gcvDUMP_BUFFER_KERNEL,
-    gcvDUMP_BUFFER_LINK,
-    gcvDUMP_BUFFER_WAITLINK,
-    gcvDUMP_BUFFER_FROM_USER,
+    gceDUMP_BUFFER_CONTEXT,
+    gceDUMP_BUFFER_USER,
+    gceDUMP_BUFFER_KERNEL,
+    gceDUMP_BUFFER_LINK,
+    gceDUMP_BUFFER_WAITLINK,
+    gceDUMP_BUFFER_FROM_USER,
 }
 gceDUMP_BUFFER;
 
@@ -4092,8 +4089,7 @@ gckOS_DebugFlush(
 **
 **      ...         Optional arguments.
 */
-
-#if gcdDUMP || gcdDUMP_2DVG
+#if gcdDUMP
     gceSTATUS
     gcfDump(
         IN gcoOS Os,
@@ -4181,7 +4177,7 @@ gckOS_DebugFlush(
 **          Number of bytes.
 */
 
-#if gcdDUMP || gcdDUMP_COMMAND || gcdDUMP_2DVG
+#if gcdDUMP || gcdDUMP_COMMAND
 gceSTATUS
 gcfDumpBuffer(
     IN gcoOS Os,

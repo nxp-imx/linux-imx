@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -56,91 +56,26 @@
 #include "gc_hal_kernel_linux.h"
 #include "gc_hal_kernel_platform.h"
 
-
-gceSTATUS
-_AdjustParam(
-    IN gcsPLATFORM *Platform,
-    OUT gcsMODULE_PARAMETERS *Args
+gctBOOL
+_NeedAddDevice(
+    IN gckPLATFORM Platform
     )
 {
-#if USE_LINUX_PCIE
-    struct pci_dev *pdev = Platform->device;
-    unsigned char   irqline = pdev->irq;
-
-    if ((Args->irqLine2D != -1) && (Args->irqLine2D != irqline))
-    {
-        Args->irqLine2D = irqline;
-    }
-    if ((Args->irqLine != -1) && (Args->irqLine != irqline))
-    {
-        Args->irqLine = irqline;
-    }
-#endif
-    return gcvSTATUS_OK;
+    return gcvTRUE;
 }
 
-static struct soc_platform_ops default_ops =
+gcmkPLATFROM_Name
+
+gcsPLATFORM_OPERATIONS platformOperations =
 {
-    .adjustParam   = _AdjustParam,
+    .needAddDevice = _NeedAddDevice,
+    .name          = _Name,
 };
 
-static struct soc_platform default_platform =
+void
+gckPLATFORM_QueryOperations(
+    IN gcsPLATFORM_OPERATIONS ** Operations
+    )
 {
-    .name = __FILE__,
-    .ops  = &default_ops,
-};
-
-#if USE_LINUX_PCIE
-
-int soc_platform_init(struct pci_driver *pdrv,
-            struct soc_platform **platform)
-{
-    *platform = &default_platform;
-    return 0;
+     *Operations = &platformOperations;
 }
-
-int soc_platform_terminate(struct soc_platform *platform)
-{
-    return 0;
-}
-
-#else
-static struct platform_device *default_dev;
-
-int soc_platform_init(struct platform_driver *pdrv,
-            struct soc_platform **platform)
-{
-    int ret;
-    default_dev = platform_device_alloc(pdrv->driver.name, -1);
-
-    if (!default_dev) {
-        printk(KERN_ERR "galcore: platform_device_alloc failed.\n");
-        return -ENOMEM;
-    }
-
-    /* Add device */
-    ret = platform_device_add(default_dev);
-    if (ret) {
-        printk(KERN_ERR "galcore: platform_device_add failed.\n");
-        goto put_dev;
-    }
-
-    *platform = &default_platform;
-    return 0;
-
-put_dev:
-    platform_device_put(default_dev);
-
-    return ret;
-}
-
-int soc_platform_terminate(struct soc_platform *platform)
-{
-    if (default_dev) {
-        platform_device_unregister(default_dev);
-        default_dev = NULL;
-    }
-
-    return 0;
-}
-#endif

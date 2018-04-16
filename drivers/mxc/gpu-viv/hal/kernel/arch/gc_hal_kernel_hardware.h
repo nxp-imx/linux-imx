@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -170,7 +170,8 @@ struct _gckHARDWARE
 
     /* Chip characteristics. */
     gcsHAL_QUERY_CHIP_IDENTITY  identity;
-    gcsHAL_QUERY_CHIP_OPTIONS   options;
+    gctBOOL                     allowFastClear;
+    gctBOOL                     allowCompression;
     gctUINT32                   powerBaseAddress;
     gctBOOL                     extraEventStates;
 
@@ -191,7 +192,16 @@ struct _gckHARDWARE
     gctBOOL                     powerState;
     gctPOINTER                  globalSemaphore;
 
+    gctISRMANAGERFUNC           startIsr;
+    gctISRMANAGERFUNC           stopIsr;
+    gctPOINTER                  isrContext;
+
     gctUINT32                   mmuVersion;
+
+    /* Whether use new MMU. It is meaningless
+    ** for old MMU since old MMU is always enabled.
+    */
+    gctBOOL                     enableMMU;
 
     /* Type */
     gceHARDWARE_TYPE            type;
@@ -205,11 +215,15 @@ struct _gckHARDWARE
 #if gcdENABLE_FSCALE_VAL_ADJUST
     gctUINT32                   powerOnFscaleVal;
 #endif
-    gctPOINTER                  pageTableDirty[gcvENGINE_GPU_ENGINE_COUNT];
+    gctPOINTER                  pageTableDirty;
 
 #if gcdLINK_QUEUE_SIZE
     struct _gckQUEUE            linkQueue;
 #endif
+
+    gctBOOL                     powerManagement;
+    gctBOOL                     gpuProfiler;
+
     gctBOOL                     stallFEPrefetch;
 
     gctUINT32                   minFscaleValue;
@@ -243,6 +257,8 @@ struct _gckHARDWARE
     gctUINT32                   maxOutstandingReads;
 
     gcsHARDWARE_PAGETABLE_ARRAY pagetableArray;
+
+    gceSECURE_MODE              secureMode;
 
     gctUINT64                   contextID;
 };

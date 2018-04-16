@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -1223,14 +1223,13 @@ if (halti5){    vsConstBase  = 0xD000;
         index += _State(Context, index, 0x038C0 >> 2, 0x00000000, 16, gcvFALSE, gcvFALSE);
         index += _State(Context, index, 0x03884 >> 2, ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  2:0) - (0 ? 2:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 2:0) - (0 ? 2:0) + 1))))))) << (0 ?
- 2:0))) | (((gctUINT32) ((gctUINT32) (hardware->options.uscL1CacheRatio) & ((gctUINT32) ((((1 ?
- 2:0) - (0 ? 2:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 2:0) - (0 ? 2:0) + 1))))))) << (0 ?
- 2:0))) | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ? 20:16) - (0 ?
- 20:16) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 20:16) - (0 ? 20:16) + 1))))))) << (0 ?
- 20:16))) | (((gctUINT32) ((gctUINT32) (2) & ((gctUINT32) ((((1 ? 20:16) - (0 ?
- 20:16) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 20:16) - (0 ? 20:16) + 1))))))) << (0 ?
- 20:16))), 1, gcvFALSE, gcvFALSE);
-    }
+ 2:0))) | (((gctUINT32) (0x2 & ((gctUINT32) ((((1 ? 2:0) - (0 ? 2:0) + 1) == 32) ?
+ ~0U : (~(~0U << ((1 ? 2:0) - (0 ? 2:0) + 1))))))) << (0 ? 2:0))) | ((((gctUINT32) (0)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
+ 20:16) - (0 ? 20:16) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 20:16) - (0 ?
+ 20:16) + 1))))))) << (0 ? 20:16))) | (((gctUINT32) ((gctUINT32) (2) & ((gctUINT32) ((((1 ?
+ 20:16) - (0 ? 20:16) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 20:16) - (0 ?
+ 20:16) + 1))))))) << (0 ? 20:16))), 1, gcvFALSE, gcvFALSE);
+        }
     else
     {
         index += _State(Context, index, 0x03820 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
@@ -1911,6 +1910,9 @@ if (halti5){    vsConstBase  = 0xD000;
     {
         index += _State(Context, index, 0x0103C >> 2, 0x76543210, 1, gcvFALSE, gcvFALSE);
     }
+    /* Composition states. */
+    index += _State(Context, index, 0x03008 >> 2, 0x00000000, 1, gcvFALSE, gcvFALSE);
+
 
     index += _State(Context, index, (0x01460 >> 2) + (0 << 3), 0x00000000, Context->hardware->identity.pixelPipes, gcvFALSE, gcvTRUE);
 
@@ -2625,6 +2627,7 @@ gckCONTEXT_Update(
     gcsCONTEXT_PTR buffer;
     gcsSTATE_MAP_PTR map;
     gctBOOL needCopy = gcvFALSE;
+    gcsSTATE_DELTA_PTR nDelta;
     gcsSTATE_DELTA_PTR uDelta = gcvNULL;
     gcsSTATE_DELTA_PTR kDelta = gcvNULL;
     gcsSTATE_DELTA_RECORD_PTR record;
@@ -2675,18 +2678,20 @@ gckCONTEXT_Update(
         = (gctUINT32)gcmPTR2INT32(Context);
 #endif
 
-    if (StateDelta != gcvNULL)
+    /* Are there any pending deltas? */
+    if (buffer->deltaCount != 0)
     {
         /* Get the state map. */
         map = Context->map;
 
         /* Get the first delta item. */
-        uDelta = StateDelta;
+        uDelta = buffer->delta;
 
         /* Reset the vertex stream count. */
         elementCount = 0;
 
         /* Merge all pending deltas. */
+        for (i = 0; i < buffer->deltaCount; i += 1)
         {
             /* Get access to the state delta. */
             gcmkONERROR(gckKERNEL_OpenUserData(
@@ -2804,6 +2809,13 @@ gckCONTEXT_Update(
                 elementCount = kDelta->elementCount;
             }
 
+            /* Dereference delta. */
+            kDelta->refCount -= 1;
+            gcmkASSERT(kDelta->refCount >= 0);
+
+            /* Get the next state delta. */
+            nDelta = gcmUINT64_TO_PTR(kDelta->next);
+
             if (dirtyRecordArraySize)
             {
                 /* Get access to the state records. */
@@ -2824,6 +2836,9 @@ gckCONTEXT_Update(
                 uDelta, gcmSIZEOF(gcsSTATE_DELTA),
                 (gctPOINTER *) &kDelta
                 ));
+
+            /* Update the user delta pointer. */
+            uDelta = nDelta;
         }
 
         /* Hardware disables all input attribute when the attribute 0 is programmed,
@@ -2960,8 +2975,73 @@ gckCONTEXT_Update(
                 nop += 2;
             }
         }
+        /* Reset pending deltas. */
+        buffer->deltaCount = 0;
+        buffer->delta      = gcvNULL;
     }
 
+    if (StateDelta)
+    {
+        /* Set state delta user pointer. */
+        uDelta = StateDelta;
+
+        /* Get access to the state delta. */
+        gcmkONERROR(gckKERNEL_OpenUserData(
+            kernel, needCopy,
+            &_stateDelta,
+            uDelta, gcmSIZEOF(gcsSTATE_DELTA),
+            (gctPOINTER *) &kDelta
+            ));
+
+        /* State delta cannot be attached to anything yet. */
+        if (kDelta->refCount != 0)
+        {
+            gcmkTRACE(
+                gcvLEVEL_ERROR,
+                "%s(%d): kDelta->refCount = %d (has to be 0).\n",
+                __FUNCTION__, __LINE__,
+                kDelta->refCount
+                );
+        }
+
+        /* Attach to all contexts. */
+        buffer = Context->buffer;
+
+        do
+        {
+            /* Attach to the context if nothing is attached yet. If a delta
+               is allready attached, all we need to do is to increment
+               the number of deltas in the context. */
+            if (buffer->delta == gcvNULL)
+            {
+                buffer->delta = uDelta;
+            }
+
+            /* Update reference count. */
+            kDelta->refCount += 1;
+
+            /* Update counters. */
+            buffer->deltaCount += 1;
+
+            /* Get the next context buffer. */
+            buffer = buffer->next;
+
+            if (buffer == gcvNULL)
+            {
+                gcmkONERROR(gcvSTATUS_NOT_FOUND);
+            }
+        }
+        while (Context->buffer != buffer);
+
+        /* Close access to the current state delta. */
+        gcmkONERROR(gckKERNEL_CloseUserData(
+            kernel, needCopy,
+            gcvTRUE,
+            uDelta, gcmSIZEOF(gcsSTATE_DELTA),
+            (gctPOINTER *) &kDelta
+            ));
+
+    }
     /* Schedule an event to mark the context buffer as available. */
     gcmkONERROR(gckEVENT_Signal(
         buffer->eventObj, buffer->signal, gcvKERNEL_PIXEL

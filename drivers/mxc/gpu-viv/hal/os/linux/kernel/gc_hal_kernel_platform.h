@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -56,10 +56,6 @@
 #ifndef _gc_hal_kernel_platform_h_
 #define _gc_hal_kernel_platform_h_
 #include <linux/mm.h>
-#include <linux/platform_device.h>
-#if USE_LINUX_PCIE
-#include <linux/pci.h>
-#endif
 
 typedef struct _gcsMODULE_PARAMETERS
 {
@@ -75,11 +71,9 @@ typedef struct _gcsMODULE_PARAMETERS
     gctUINT contiguousSize;
     gctUINT contiguousBase;
     gctUINT contiguousRequested;
-    gctUINT externalSize;
-    gctUINT externalBase;
     gctUINT bankSize;
     gctINT  fastClear;
-    gceCOMPRESSION_OPTION compression;
+    gctINT  compression;
     gctINT  powerManagement;
     gctINT  gpuProfiler;
     gctINT  signal;
@@ -99,10 +93,43 @@ typedef struct _gcsMODULE_PARAMETERS
 }
 gcsMODULE_PARAMETERS;
 
-typedef struct soc_platform gcsPLATFORM;
+typedef struct _gcsPLATFORM * gckPLATFORM;
 
-typedef struct soc_platform_ops
+typedef struct _gcsPLATFORM_OPERATIONS
 {
+    /*******************************************************************************
+    **
+    **  needAddDevice
+    **
+    **  Determine whether platform_device is created by initialization code.
+    **  If platform_device is created by BSP, return gcvFLASE here.
+    */
+    gctBOOL
+    (*needAddDevice)(
+        IN gckPLATFORM Platform
+        );
+
+    /*******************************************************************************
+    **
+    **  registerDevice
+    **
+    **  Determine whether platform device need to be registered
+    */
+    gceSTATUS
+    (*registerDevice)(
+        IN gckPLATFORM Platform
+        );
+
+    /*******************************************************************************
+    **
+    **  runRegisterDevice
+    **
+    **  Unregister platform device
+    */
+    gceSTATUS
+    (*unRegisterDevice)(
+        IN gckPLATFORM Platform
+        );
 
     /*******************************************************************************
     **
@@ -113,8 +140,19 @@ typedef struct soc_platform_ops
     */
     gceSTATUS
     (*adjustParam)(
-        IN gcsPLATFORM * Platform,
+        IN gckPLATFORM Platform,
         OUT gcsMODULE_PARAMETERS *Args
+        );
+
+    /*******************************************************************************
+    **
+    **  adjustDriver
+    **
+    **  Override content of platform_driver which will be registered.
+    */
+    gceSTATUS
+    (*adjustDriver)(
+        IN gckPLATFORM Platform
         );
 
     /*******************************************************************************
@@ -125,7 +163,7 @@ typedef struct soc_platform_ops
     */
     gceSTATUS
     (*getPower)(
-        IN gcsPLATFORM * Platform
+        IN gckPLATFORM Platform
         );
 
     /*******************************************************************************
@@ -136,7 +174,29 @@ typedef struct soc_platform_ops
     */
     gceSTATUS
     (*putPower)(
-        IN gcsPLATFORM * Platform
+        IN gckPLATFORM Platform
+        );
+
+    /*******************************************************************************
+    **
+    **  allocPriv
+    **
+    **  Construct platform private data.
+    */
+    gceSTATUS
+    (*allocPriv)(
+        IN gckPLATFORM Platform
+        );
+
+    /*******************************************************************************
+    **
+    **  freePriv
+    **
+    **  free platform private data.
+    */
+    gceSTATUS
+    (*freePriv)(
+        IN gckPLATFORM Platform
         );
 
     /*******************************************************************************
@@ -155,7 +215,7 @@ typedef struct soc_platform_ops
     */
     gceSTATUS
     (*setPower)(
-        IN gcsPLATFORM * Platform,
+        IN gckPLATFORM Platform,
         IN gceCORE GPU,
         IN gctBOOL Enable
         );
@@ -176,7 +236,7 @@ typedef struct soc_platform_ops
     */
     gceSTATUS
     (*setClock)(
-        IN gcsPLATFORM * Platform,
+        IN gckPLATFORM Platform,
         IN gceCORE GPU,
         IN gctBOOL Enable
         );
@@ -194,7 +254,7 @@ typedef struct soc_platform_ops
     */
     gceSTATUS
     (*reset)(
-        IN gcsPLATFORM * Platform,
+        IN gckPLATFORM Platform,
         IN gceCORE GPU
         );
 
@@ -207,21 +267,21 @@ typedef struct soc_platform_ops
     */
     gceSTATUS
     (*getGPUPhysical)(
-        IN gcsPLATFORM * Platform,
+        IN gckPLATFORM Platform,
         IN gctPHYS_ADDR_T CPUPhysical,
         OUT gctPHYS_ADDR_T * GPUPhysical
         );
 
     /*******************************************************************************
     **
-    **  getCPUPhysical
+    **  getGPUPhysical
     **
     **  Convert GPU physical address to CPU physical address if they are
     **  different.
     */
     gceSTATUS
     (*getCPUPhysical)(
-        IN gcsPLATFORM * Platform,
+        IN gckPLATFORM Platform,
         IN gctUINT32 GPUPhysical,
         OUT gctPHYS_ADDR_T * CPUPhysical
         );
@@ -245,7 +305,7 @@ typedef struct soc_platform_ops
     */
     gceSTATUS
     (*shrinkMemory)(
-        IN gcsPLATFORM * Platform
+        IN gckPLATFORM Platform
         );
 
     /*******************************************************************************
@@ -256,7 +316,7 @@ typedef struct soc_platform_ops
     */
     gceSTATUS
     (*cache)(
-        IN gcsPLATFORM * Platform,
+        IN gckPLATFORM Platform,
         IN gctUINT32 ProcessID,
         IN gctPHYS_ADDR Handle,
         IN gctUINT32 Physical,
@@ -267,13 +327,28 @@ typedef struct soc_platform_ops
 
     /*******************************************************************************
     **
+    **  name
+    **
+    **  Get name of platform code.
+    **
+    **  There is a helper macro gcmkPLATFORM_Name which defines a default callback
+    **  function _Name() which uses code path as name.
+    */
+    gceSTATUS
+    (*name)(
+        IN gckPLATFORM Platform,
+        IN gctCONST_STRING * Name
+        );
+
+    /*******************************************************************************
+    **
     ** getPolicyID
     **
     ** Get policyID for a specified surface type.
     */
     gceSTATUS
     (*getPolicyID)(
-        IN gcsPLATFORM * Platform,
+        IN gckPLATFORM Platform,
         IN gceSURF_TYPE Type,
         OUT gctUINT32_PTR PolicyID,
         OUT gctUINT32_PTR AXIConfig
@@ -281,25 +356,31 @@ typedef struct soc_platform_ops
 }
 gcsPLATFORM_OPERATIONS;
 
-struct soc_platform
+typedef struct _gcsPLATFORM
 {
-#if USE_LINUX_PCIE
-    struct pci_dev* device;
-    struct pci_driver* driver;
-#else
     struct platform_device* device;
     struct platform_driver* driver;
-#endif
 
-    const char *name;
     gcsPLATFORM_OPERATIONS* ops;
-};
 
-#if USE_LINUX_PCIE
-int soc_platform_init(struct pci_driver *pdrv, gcsPLATFORM **platform);
-#else
-int soc_platform_init(struct platform_driver *pdrv, gcsPLATFORM **platform);
-#endif
-int soc_platform_terminate(gcsPLATFORM *platform);
+    void*                   priv;
+}
+gcsPLATFORM;
+
+void
+gckPLATFORM_QueryOperations(
+    IN gcsPLATFORM_OPERATIONS ** Operations
+    );
+
+#define gcmkPLATFROM_Name               \
+static gceSTATUS                        \
+_Name(                                  \
+    IN gckPLATFORM Platform,            \
+    IN gctCONST_STRING * Name           \
+    )                                   \
+{                                       \
+    * Name = __FILE__;                  \
+    return gcvSTATUS_OK;                \
+}                                       \
 
 #endif

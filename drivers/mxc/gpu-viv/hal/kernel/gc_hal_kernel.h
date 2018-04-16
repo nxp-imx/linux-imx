@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -254,12 +254,6 @@ typedef struct _gcsDATABASE
 
     /* Process ID. */
     gctUINT32                           processID;
-
-    /* Open-Close ref count */
-    gctPOINTER                          refs;
-
-    /* Already mark for delete and cannot reenter */
-    gctBOOL                             deleted;
 
     /* Sizes to query. */
     gcsDATABASE_COUNTERS                vidMem;
@@ -586,6 +580,8 @@ struct _gckKERNEL
 #if VIVANTE_PROFILER
     /* Enable profiling */
     gctBOOL                     profileEnable;
+    /* profiling sync mode*/
+    gctBOOL                     profileSyncMode;
     /* Clear profile register or not*/
     gctBOOL                     profileCleanRegister;
 #endif
@@ -645,7 +641,7 @@ struct _gckKERNEL
     gctUINT32                   lastCommitStamp;
     gctUINT32                   timer;
     gctUINT32                   restoreAddress;
-    gctINT32                    restoreMask;
+    gctINT32                   restoreMask;
 
     /* 3DBLIT */
     gckASYNC_COMMAND            asyncCommand;
@@ -655,9 +651,6 @@ struct _gckKERNEL
     gckDEVICE                   device;
 
     gctUINT                     chipID;
-
-    gctUINT32                   contiguousBaseAddress;
-    gctUINT32                   externalBaseAddress;
 };
 
 struct _FrequencyHistory
@@ -741,8 +734,10 @@ struct _gckCOMMAND
     /* Context switching mutex. */
     gctPOINTER                  mutexContext;
 
+#if VIVANTE_PROFILER_CONTEXT
     /* Context sequence mutex. */
     gctPOINTER                  mutexContextSeq;
+#endif
 
     /* Command queue power semaphore. */
     gctPOINTER                  powerSemaphore;
@@ -1071,14 +1066,10 @@ struct _gckVIDMEM
     /* Pointer to gckOS object. */
     gckOS                       os;
 
-    /* mdl record pointer... a kmalloc address. Process agnostic. */
-    gctPHYS_ADDR                physical;
-
     /* Information for this video memory heap. */
     gctUINT32                   baseAddress;
     gctSIZE_T                   bytes;
     gctSIZE_T                   freeBytes;
-    gctSIZE_T                   minFreeBytes;
 
     /* Mapping for each type of surface. */
     gctINT                      mapping[gcvSURF_NUM_TYPES];
@@ -1098,9 +1089,6 @@ typedef struct _gcsVIDMEM_NODE
     /* Pointer to gcuVIDMEM_NODE. */
     gcuVIDMEM_NODE_PTR          node;
 
-    /* Pointer to gckKERNEL object. */
-    gckKERNEL                   kernel;
-
     /* Mutex to protect node. */
     gctPOINTER                  mutex;
 
@@ -1109,9 +1097,6 @@ typedef struct _gcsVIDMEM_NODE
 
     /* Name for client to import. */
     gctUINT32                   name;
-
-    /* dma_buf */
-    gctPOINTER                  dmabuf;
 
 #if gcdPROCESS_ADDRESS_SPACE
     /* Head of mapping list. */
@@ -1129,14 +1114,7 @@ typedef struct _gcsVIDMEM_NODE
     /* Pool from which node is allocated. */
     gcePOOL                     pool;
 
-    gcsFENCE_SYNC               sync[gcvENGINE_GPU_ENGINE_COUNT];
-
-    /* For DRM usage */
-    gctUINT64                   timeStamp;
-    gckVIDMEM_NODE              tsNode;
-    gctUINT32                   tilingMode;
-    gctUINT32                   tsMode;
-    gctUINT64                   clearValue;
+    gcsFENCE_SYNC               sync[gcvENGINE_COUNT];
 }
 gcsVIDMEM_NODE;
 
@@ -1193,7 +1171,6 @@ typedef struct _gcsDEVICE
     gcsCORE_INFO                coreInfoArray[gcvCORE_COUNT];
     gctUINT32                   coreNum;
     gcsCORE_LIST                map[gcvHARDWARE_NUM_TYPES];
-    gceHARDWARE_TYPE            defaultHwType;
 
     gckOS                       os;
 
@@ -1210,13 +1187,6 @@ typedef struct _gcsDEVICE
     gctPOINTER                  commitMutex;
 }
 gcsDEVICE;
-
-gceSTATUS
-gckVIDMEM_HANDLE_Allocate(
-    IN gckKERNEL Kernel,
-    IN gckVIDMEM_NODE Node,
-    OUT gctUINT32 * Handle
-    );
 
 gceSTATUS
 gckVIDMEM_HANDLE_Reference(
@@ -1256,38 +1226,23 @@ gckVIDMEM_NODE_Unlock(
     );
 
 gceSTATUS
-gckVIDMEM_NODE_Reference(
-    IN gckKERNEL Kernel,
-    IN gckVIDMEM_NODE Node
-    );
-
-gceSTATUS
 gckVIDMEM_NODE_Dereference(
     IN gckKERNEL Kernel,
     IN gckVIDMEM_NODE Node
     );
 
 gceSTATUS
-gckVIDMEM_NODE_Export(
-    IN gckKERNEL Kernel,
-    IN gctUINT32 Handle,
-    IN gctINT32 Flags,
-    OUT gctPOINTER *DmaBuf,
-    OUT gctINT32 *FD
-    );
-
-gceSTATUS
 gckVIDMEM_NODE_Name(
     IN gckKERNEL Kernel,
     IN gctUINT32 Handle,
-    OUT gctUINT32 * Name
+    IN gctUINT32 * Name
     );
 
 gceSTATUS
 gckVIDMEM_NODE_Import(
     IN gckKERNEL Kernel,
     IN gctUINT32 Name,
-    OUT gctUINT32 * Handle
+    IN gctUINT32 * Handle
     );
 
 gceSTATUS
@@ -1313,11 +1268,10 @@ gckVIDMEM_HANDLE_Lookup(
     );
 
 gceSTATUS
-gckVIDMEM_NODE_WrapUserMemory(
+gckVIDMEM_ConstructVirtualFromUserMemory(
     IN gckKERNEL Kernel,
     IN gcsUSER_MEMORY_DESC_PTR Desc,
-    OUT gctUINT32 * Handle,
-    OUT gctUINT64 * Bytes
+    OUT gcuVIDMEM_NODE_PTR * Node
     );
 
 gceSTATUS
@@ -1328,13 +1282,6 @@ gckVIDMEM_FindVIDMEM(
     OUT gctUINT32_PTR PageTableEntryValue
     );
 
-gceSTATUS
-gckVIDMEM_QueryNodes(
-    IN gckKERNEL Kernel,
-    IN gcePOOL   Pool,
-    OUT gctINT32 *Count,
-    OUT gcuVIDMEM_NODE_PTR *Nodes
-    );
 
 #if gcdPROCESS_ADDRESS_SPACE
 gceSTATUS
@@ -1387,6 +1334,8 @@ struct _gckMMU
     gctUINT32                   mtlbEntries;
 
     gctPOINTER                  staticSTLB;
+    /*Track all static STLB allocations */
+    gctPOINTER			staticStlbAllocs;
     gctBOOL                     enabled;
 
 #if gcdPROCESS_ADDRESS_SPACE
@@ -1400,8 +1349,8 @@ struct _gckMMU
     gctSIZE_T                   safePageSize;
 
     /* physBase,physSize flat mapping area. */
-    gctUINT32                   flatMappingRangeCount;
-    gcsFLAT_MAPPING_RANGE       flatMappingRanges[gcdMAX_FLAT_MAPPING_COUNT];
+    gctUINT64                   flatMappingStart;
+    gctUINT64                   flatMappingEnd;
 
     /* List of hardware which uses this MMU. */
     gcsLISTHEAD                 hardwareList;
@@ -1409,9 +1358,6 @@ struct _gckMMU
     struct _gckQUEUE            recentFreedAddresses;
 
     gcsADDRESS_AREA             area[gcvADDRESS_AREA_COUNT];
-
-    gctUINT32                   contiguousBaseAddress;
-    gctUINT32                   externalBaseAddress;
 };
 
 typedef struct _gcsASYNC_COMMAND

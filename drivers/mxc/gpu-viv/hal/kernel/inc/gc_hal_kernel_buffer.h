@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -74,8 +74,7 @@ extern "C" {
 #define gcdRESERVED_PAUSE_XFBWRITTEN_QUERY_LENGTH   (4 * gcmSIZEOF(gctUINT32))
 #define gcdRESERVED_PAUSE_PRIMGEN_QUERY_LENGTH      (4 * gcmSIZEOF(gctUINT32))
 #define gcdRESERVED_PAUSE_XFB_LENGTH                (2 * gcmSIZEOF(gctUINT32))
-#define gcdRESERVED_HW_FENCE_32BIT                  (4 * gcmSIZEOF(gctUINT32))
-#define gcdRESERVED_HW_FENCE_64BIT                  (6 * gcmSIZEOF(gctUINT32))
+#define gcdRESERVED_HW_FENCE                        (4 * gcmSIZEOF(gctUINT32))
 #define gcdRESERVED_PAUSE_PROBE_LENGTH              (TOTAL_PROBE_NUMBER * 2 * gcmSIZEOF(gctUINT32))
 
 #define gcdRESUME_OQ_LENGTH                         (2 * gcmSIZEOF(gctUINT32))
@@ -112,6 +111,9 @@ typedef struct _gcsSTATE_DELTA
        the overflow.*/
     gctUINT                     id;
 
+    /* The number of contexts pending modification by the delta. */
+    gctINT                      refCount;
+
     /* Vertex element count for the delta buffer. */
     gctUINT                     elementCount;
 
@@ -120,7 +122,6 @@ typedef struct _gcsSTATE_DELTA
 
     /* Record array; holds all modified states in gcsSTATE_DELTA_RECORD. */
     gctUINT64                   recordArray;
-    gctUINT                     recordSize;
 
     /* Map entry ID is used for map entry validation. If map entry ID does not
        match the main state delta ID, the entry and the corresponding state are
@@ -131,6 +132,10 @@ typedef struct _gcsSTATE_DELTA
     /* If the map entry ID matches the main state delta ID, index points to
        the state record in the record array. */
     gctUINT64                   mapEntryIndex;
+
+    /* Previous and next state deltas in gcsSTATE_DELTA. */
+    gctUINT64                   prev;
+    gctUINT64                   next;
 }
 gcsSTATE_DELTA;
 
@@ -160,33 +165,6 @@ typedef struct _gcsPATCH_LIST
     struct _gcsPATCH_LIST       *next;
 }
 gcsPATCH_LIST;
-
-#define FENCE_NODE_LIST_INIT_COUNT         100
-
-typedef struct _gcsFENCE_APPEND_NODE
-{
-    gcsSURF_NODE_PTR    node;
-    gceFENCE_TYPE       type;
-
-}gcsFENCE_APPEND_NODE;
-
-typedef gcsFENCE_APPEND_NODE   *   gcsFENCE_APPEND_NODE_PTR;
-
-typedef struct _gcsFENCE_LIST    *   gcsFENCE_LIST_PTR;
-
-typedef struct _gcsFENCE_LIST
-{
-    /* Resource that need get fence, but command used this resource not generated */
-    gcsFENCE_APPEND_NODE_PTR        pendingList;
-    gctUINT                         pendingCount;
-    gctUINT                         pendingAllocCount;
-
-    /* Resoure that already generated command in this command buffer but not get fence */
-    gcsFENCE_APPEND_NODE_PTR        onIssueList;
-    gctUINT                         onIssueCount;
-    gctUINT                         onIssueAllocCount;
-}
-gcsFENCE_LIST;
 
 /* Command buffer object. */
 struct _gcoCMDBUF
@@ -293,9 +271,6 @@ struct _gcoQUEUE
     #define gcdIN_QUEUE_RECORD_LIMIT 16
     /* Number of records currently in queue */
     gctUINT32                   recordCount;
-
-    /* Max size of pending unlock node in vidmem pool not committed */
-    gctUINT                     maxUnlockBytes;
 
     gceENGINE                   engine;
 };

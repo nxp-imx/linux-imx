@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -340,19 +340,27 @@ struct fence * viv_fence_create(struct viv_sync_timeline *timeline,
      * Reference fence in signal.
      * Be aware of recursive reference!!
      */
-    spin_lock(&signal->lock);
+#ifdef gcdRT_KERNEL
+    raw_spin_lock_irq(&signal->obj.wait.lock);
+#else
+    spin_lock_irq(&signal->obj.wait.lock);
+#endif
 
     if (signal->fence) {
         old_fence = signal->fence;
         signal->fence = NULL;
     }
 
-    if (!signal->done) {
+#ifdef gcdRT_KERNEL
+    raw_spin_unlock_irq(&signal->obj.wait.lock);
+#else
+    spin_unlock_irq(&signal->obj.wait.lock);
+#endif
+
+    if (!completion_done(&signal->obj)) {
         signal->fence = (struct fence*)fence;
         fence_get((struct fence*)fence);
     }
-
-    spin_unlock(&signal->lock);
 
     if (old_fence)
         fence_put(old_fence);

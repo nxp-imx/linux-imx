@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -123,7 +123,6 @@ typedef struct _gcoVERTEXARRAY *        gcoVERTEXARRAY;
 typedef struct _gcoBUFOBJ *             gcoBUFOBJ;
 
 #define gcdATTRIBUTE_COUNT              32
-#define gcdVERTEXARRAY_POOL_CAPACITY    32
 
 typedef enum _gcePROGRAM_STAGE
 {
@@ -324,8 +323,6 @@ typedef enum _gceSPLIT_DRAW_TYPE
     gcvSPLIT_DRAW_XFB,
     gcvSPLIT_DRAW_INDEX_FETCH,
     gcvSPLIT_DRAW_TCS,
-    gcvSPLIT_DRAW_WIDE_LINE,
-    gcvSPLIT_DRAW_STIPPLE,
     gcvSPLIT_DRAW_LAST
 }
 gceSPLIT_DRAW_TYPE;
@@ -533,6 +530,12 @@ gcoBUFOBJ_IsFenceEnabled(
     );
 
 gceSTATUS
+gcoSURF_SetSharedLock(
+    IN gcoSURF Surface,
+    IN gctPOINTER SharedLock
+    );
+
+gceSTATUS
 gcoSURF_GetFence(
     IN gcoSURF Surface,
     IN gceFENCE_TYPE Type
@@ -562,6 +565,12 @@ gceSTATUS
 gcoINDEX_WaitFence(
     IN gcoINDEX Index,
     IN gceFENCE_TYPE Type
+    );
+
+gceSTATUS
+gcoINDEX_SetSharedLock(
+    IN gcoINDEX Index,
+    IN gctPOINTER SharedLock
     );
 
 gceSTATUS
@@ -1670,10 +1679,6 @@ typedef struct _gcsVX_THREAD_WALKER_PARAMETERS
 
     gctUINT32   globalOffsetY;
     gctUINT32   globalScaleY;
-
-#if gcdVX_OPTIMIZER > 1
-    gctBOOL     tileMode;
-#endif
 }
 gcsVX_THREAD_WALKER_PARAMETERS;
 
@@ -1685,11 +1690,6 @@ typedef struct _gcsVX_IMAGE_INFO
     gctUINT32       rect[4];
     gctUINT32       width;
     gctUINT32       height;
-
-    /*arraySize, sliceSize is for imageArray / image3D */
-    gctUINT32       arraySize;
-    gctUINT32       sliceSize;
-
     gctUINT32       bpp;
     gctUINT32       planes;
     gctUINT32       componentCount;
@@ -1712,7 +1712,6 @@ typedef struct _gcsVX_IMAGE_INFO
 
     gcsSURF_NODE_PTR nodes[3];
 
-    gctBOOL         isVXC;
 #if gcdVX_OPTIMIZER
     gctUINT32       uniformData[3][4];
 #endif
@@ -2322,13 +2321,6 @@ gcoTEXTURE_IsComplete(
     );
 
 gceSTATUS
-gcoTEXTURE_CheckTexLevel0Attrib(
-    IN gcoTEXTURE Texture,
-    IN gctINT MaxLevel,
-    IN gctINT usedLevel
-    );
-
-gceSTATUS
 gcoTEXTURE_BindTexture(
     IN gcoTEXTURE Texture,
     IN gctINT Target,
@@ -2422,6 +2414,12 @@ typedef enum _gceATTRIB_SCHEME
 } gceATTRIB_SCHEME;
 
 gceSTATUS
+gcoSTREAM_SetSharedLock(
+    IN gcoSTREAM Stream,
+    IN gctPOINTER sharedLock
+    );
+
+gceSTATUS
 gcoSTREAM_Construct(
     IN gcoHAL Hal,
     OUT gcoSTREAM * Stream
@@ -2442,14 +2440,15 @@ gcoSTREAM_Upload(
     );
 
 gceSTATUS
-gcoSTREAM_ReAllocBufNode(
-    IN gcoSTREAM Stream
-    );
-
-gceSTATUS
 gcoSTREAM_SetStride(
     IN gcoSTREAM Stream,
     IN gctUINT32 Stride
+    );
+
+gceSTATUS
+gcoSTREAM_Size(
+    IN gcoSTREAM Stream,
+    OUT gctSIZE_T *Size
     );
 
 gceSTATUS
@@ -2481,6 +2480,14 @@ gcoSTREAM_Flush(
     IN gcoSTREAM Stream
     );
 
+/* Dynamic buffer API. */
+gceSTATUS
+gcoSTREAM_SetDynamic(
+    IN gcoSTREAM Stream,
+    IN gctSIZE_T Bytes,
+    IN gctUINT Buffers
+    );
+
 typedef struct _gcsSTREAM_INFO
 {
     gctUINT             index;
@@ -2492,6 +2499,15 @@ typedef struct _gcsSTREAM_INFO
     gctUINT             stride;
 }
 gcsSTREAM_INFO, * gcsSTREAM_INFO_PTR;
+
+gceSTATUS
+gcoSTREAM_UploadDynamic(
+    IN gcoSTREAM Stream,
+    IN gctUINT VertexCount,
+    IN gctUINT InfoCount,
+    IN gcsSTREAM_INFO_PTR Info,
+    IN gcoVERTEX Vertex
+    );
 
 gceSTATUS
 gcoSTREAM_CPUCacheOperation(
@@ -2778,6 +2794,84 @@ gcoVERTEXARRAY_Bind(
 #endif
     );
 
+/*******************************************************************************
+***** Composition *************************************************************/
+
+typedef enum _gceCOMPOSITION
+{
+    gcvCOMPOSE_CLEAR = 1,
+    gcvCOMPOSE_BLUR,
+    gcvCOMPOSE_DIM,
+    gcvCOMPOSE_LAYER
+}
+gceCOMPOSITION;
+
+typedef struct _gcsCOMPOSITION * gcsCOMPOSITION_PTR;
+typedef struct _gcsCOMPOSITION
+{
+    /* Structure size. */
+    gctUINT                         structSize;
+
+    /* Composition operation. */
+    gceCOMPOSITION                  operation;
+
+    /* Layer to be composed. */
+    gcoSURF                         layer;
+
+    /* Source and target coordinates. */
+    gcsRECT                         srcRect;
+    gcsRECT                         trgRect;
+
+    /* Target rectangle */
+    gcsPOINT                        v0;
+    gcsPOINT                        v1;
+    gcsPOINT                        v2;
+
+    /* Blending parameters. */
+    gctBOOL                         enableBlending;
+    gctBOOL                         premultiplied;
+    gctUINT8                        alphaValue;
+
+    /* Clear color. */
+    gctFLOAT                        r;
+    gctFLOAT                        g;
+    gctFLOAT                        b;
+    gctFLOAT                        a;
+}
+gcsCOMPOSITION;
+
+gceSTATUS
+gco3D_ProbeComposition(
+    IN gcoHARDWARE Hardware,
+    IN gctBOOL ResetIfEmpty
+    );
+
+gceSTATUS
+gco3D_CompositionBegin(
+    IN gcoHARDWARE Hardware
+    );
+
+gceSTATUS
+gco3D_ComposeLayer(
+    IN gcoHARDWARE Hardware,
+    IN gcsCOMPOSITION_PTR Layer
+    );
+
+gceSTATUS
+gco3D_CompositionSignals(
+    IN gcoHARDWARE Hardware,
+    IN gctHANDLE Process,
+    IN gctSIGNAL Signal1,
+    IN gctSIGNAL Signal2
+    );
+
+gceSTATUS
+gco3D_CompositionEnd(
+    IN gcoHARDWARE Hardware,
+    IN gcoSURF Target,
+    IN gctBOOL Synchronous
+    );
+
 /* Frame Database */
 gceSTATUS
 gcoHAL_AddFrameDB(
@@ -2942,11 +3036,6 @@ gceSTATUS
 gcoBUFOBJ_GetNode(
     IN gcoBUFOBJ BufObj,
     OUT gcsSURF_NODE_PTR * Node
-    );
-
-gceSTATUS
-gcoBUFOBJ_ReAllocBufNode(
-    IN gcoBUFOBJ BufObj
     );
 
 /* Handle GPU cache operations */

@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -57,11 +57,9 @@
 #define __gc_hal_kernel_allocator_h_
 
 #include "gc_hal_kernel_linux.h"
-#include <linux/slab.h>
-#include <linux/mm_types.h>
 
 typedef struct _gcsALLOCATOR * gckALLOCATOR;
-typedef union _gcsATTACH_DESC * gcsATTACH_DESC_PTR;
+typedef struct _gcsATTACH_DESC * gcsATTACH_DESC_PTR;
 
 typedef struct _gcsALLOCATOR_OPERATIONS
 {
@@ -126,40 +124,6 @@ typedef struct _gcsALLOCATOR_OPERATIONS
 
     /**************************************************************************
     **
-    ** Mmap
-    **
-    ** Map a page range of the memory to user space.
-    **
-    ** INPUT:
-    **      gckALLOCATOR Allocator
-    **          Pointer to an gckALLOCATOER object.
-    **
-    **      PLINUX_MDL Mdl
-    **          Pointer to a Mdl.
-    **
-    **      gctSIZE_T skipPages
-    **          Number of page to be skipped from beginning of this memory.
-    **
-    **      gctSIZE_T numPages
-    **          Number of pages to be mapped from skipPages.
-    **
-    ** INOUT:
-    **
-    **      struct vm_area_struct *vma
-    **          Pointer to VMM memory area.
-    **
-    */
-    gceSTATUS
-    (*Mmap)(
-        IN gckALLOCATOR Allocator,
-        IN PLINUX_MDL Mdl,
-        IN gctSIZE_T skipPages,
-        IN gctSIZE_T numPages,
-        INOUT struct vm_area_struct *vma
-        );
-
-    /**************************************************************************
-    **
     ** MapUser
     **
     ** Map memory to user space.
@@ -182,7 +146,7 @@ typedef struct _gcsALLOCATOR_OPERATIONS
     **      Nothing.
     **
     */
-    gceSTATUS
+    gctINT
     (*MapUser)(
         IN gckALLOCATOR Allocator,
         IN PLINUX_MDL Mdl,
@@ -214,7 +178,6 @@ typedef struct _gcsALLOCATOR_OPERATIONS
     void
     (*UnmapUser)(
         IN gckALLOCATOR Allocator,
-        IN PLINUX_MDL Mdl,
         IN gctPOINTER Logical,
         IN gctUINT32 Size
         );
@@ -360,38 +323,6 @@ typedef struct _gcsALLOCATOR_OPERATIONS
         IN gcsATTACH_DESC_PTR Desc,
         OUT PLINUX_MDL Mdl
         );
-
-    /**************************************************************************
-    **
-    ** GetSGT
-    **
-    ** Get scatter-gather table from a range of the memory.
-    **
-    ** INPUT:
-    **      gckALLOCATOR Allocator
-    **          Pointer to an gckALLOCATOER object.
-    **
-    **      gctUINT32 Handle
-    **          Handle of the memory.
-    **
-    **      gctSIZE_T Offset
-    **          Offset to the beginning of this mdl.
-    **
-    **      gctSIZE_T Bytes
-    **          Total bytes form Offset.
-    **
-    ** OUTPUT:
-    **      gctPOINTER *SGT
-    **          scatter-gather table
-    **
-    */
-    gceSTATUS (*GetSGT)(
-        IN gckALLOCATOR Allocator,
-        IN PLINUX_MDL Mdl,
-        IN gctSIZE_T Offset,
-        IN gctSIZE_T Bytes,
-        OUT gctPOINTER *SGT
-        );
 }
 gcsALLOCATOR_OPERATIONS;
 
@@ -404,21 +335,27 @@ typedef struct _gcsALLOCATOR
     gctSTRING                 name;
 
     /* Operations. */
-    gcsALLOCATOR_OPERATIONS * ops;
+    gcsALLOCATOR_OPERATIONS*  ops;
 
     /* Capability of this allocator. */
     gctUINT32                 capability;
 
+    struct list_head          head;
+
     /* Debugfs entry of this allocator. */
     gcsDEBUGFS_DIR            debugfsDir;
+
+    /* Init allocator debugfs. */
+    void                      (*debugfsInit)(gckALLOCATOR, gckDEBUGFS_DIR);
+
+    /* Cleanup allocator debugfs. */
+    void                      (*debugfsCleanup)(gckALLOCATOR);
 
     /* Private data used by customer allocator. */
     void *                    privateData;
 
-    /* Allocator destructor. */
-    void                      (*destructor)(struct _gcsALLOCATOR *);
-
-    struct list_head          link;
+    /* Private data destructor. */
+    void                      (*privateDataDestructor)(void *);
 }
 gcsALLOCATOR;
 
@@ -428,44 +365,21 @@ typedef struct _gcsALLOCATOR_DESC
     char *                    name;
 
     /* Entry function to construct a allocator. */
-    gceSTATUS                 (*construct)(gckOS, gcsDEBUGFS_DIR *, gckALLOCATOR *);
+    gceSTATUS                 (*construct)(gckOS, gckALLOCATOR *);
 }
 gcsALLOCATOR_DESC;
 
-typedef union _gcsATTACH_DESC
+typedef struct _gcsATTACH_DESC
 {
     /* gcvALLOC_FLAG_DMABUF */
-    struct
-    {
-        gctPOINTER              dmabuf;
-    }
-    dmaBuf;
+    gctUINT32                  handle;
 
     /* gcvALLOC_FLAG_USERMEMORY */
-    struct
-    {
-        gctPOINTER              memory;
-        gctPHYS_ADDR_T          physical;
-        gctSIZE_T               size;
-    }
-    userMem;
+    gctPOINTER                 memory;
+    gctUINT32                  physical;
+    gctSIZE_T                  size;
 
-    /* gcvALLOC_FLAG_EXTERNAL_MEMORY */
-    struct
-    {
-        gcsEXTERNAL_MEMORY_INFO info;
-    }
-    externalMem;
-
-    /* Reserved memory. */
-    struct
-    {
-        unsigned long           start;
-        unsigned long           size;
-        const char *            name;
-        int                     requested;
-    }
-    reservedMem;
+    gcsEXTERNAL_MEMORY_INFO    info;
 }
 gcsATTACH_DESC;
 
@@ -481,48 +395,12 @@ gcsATTACH_DESC;
     }
 
 /* Construct a allocator. */
-static inline gceSTATUS
+gceSTATUS
 gckALLOCATOR_Construct(
     IN gckOS Os,
     IN gcsALLOCATOR_OPERATIONS * Operations,
     OUT gckALLOCATOR * Allocator
-    )
-{
-    gceSTATUS status;
-    gckALLOCATOR allocator;
-
-    gcmkASSERT(Allocator != gcvNULL);
-    gcmkASSERT
-        (  Operations
-        && (Operations->Alloc || Operations->Attach)
-        && (Operations->Free)
-        && Operations->MapUser
-        && Operations->UnmapUser
-        && Operations->MapKernel
-        && Operations->UnmapKernel
-        && Operations->Cache
-        && Operations->Physical
-        );
-
-    allocator = kzalloc(sizeof(gcsALLOCATOR), GFP_KERNEL | gcdNOWARN);
-    if (unlikely(!allocator))
-    {
-        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
-    }
-
-    /* Record os. */
-    allocator->os = Os;
-
-    /* Set operations. */
-    allocator->ops = Operations;
-
-    *Allocator = allocator;
-
-    return gcvSTATUS_OK;
-
-OnError:
-    return status;
-}
+    );
 
 /*
     How to implement customer allocator

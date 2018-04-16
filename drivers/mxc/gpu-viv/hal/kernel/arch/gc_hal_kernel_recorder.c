@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -708,17 +708,17 @@ gckRECORDER_Dump(
             previous = _Previous(last);
 
             gcmkPRINT("#[mirror]");
-            gckOS_DumpBuffer(os, mirror->logical[previous], mirror->bytes, gcvDUMP_BUFFER_CONTEXT, gcvTRUE);
+            gckOS_DumpBuffer(os, mirror->logical[previous], mirror->bytes, gceDUMP_BUFFER_CONTEXT, gcvTRUE);
             gcmkPRINT("@[kernel.execute]");
         }
 
         if (delta->contextBytes)
         {
-            gckOS_DumpBuffer(os, delta->context, delta->contextBytes, gcvDUMP_BUFFER_CONTEXT, gcvTRUE);
+            gckOS_DumpBuffer(os, delta->context, delta->contextBytes, gceDUMP_BUFFER_CONTEXT, gcvTRUE);
             gcmkPRINT("@[kernel.execute]");
         }
 
-        gckOS_DumpBuffer(os, delta->command, delta->commandBytes, gcvDUMP_BUFFER_USER, gcvTRUE);
+        gckOS_DumpBuffer(os, delta->command, delta->commandBytes, gceDUMP_BUFFER_USER, gcvTRUE);
         gcmkPRINT("@[kernel.execute]");
 
         last = _Next(last);

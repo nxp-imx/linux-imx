@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -73,9 +73,6 @@
 **      gckCOMMAND Command
 **          Pointer to an gckCOMMAND object.
 **
-**      gctBOOL Stalled
-**          Indicate if hardware is stalled already.
-**
 **  OUTPUT:
 **
 **      gckCOMMAND Command
@@ -83,8 +80,7 @@
 */
 static gceSTATUS
 _NewQueue(
-    IN OUT gckCOMMAND Command,
-    IN gctBOOL Stalled
+    IN OUT gckCOMMAND Command
     )
 {
     gceSTATUS status;
@@ -155,23 +151,12 @@ _NewQueue(
 
     if (currentIndex != -1)
     {
-        if (Stalled)
-        {
-            gckOS_Signal(
-                Command->os,
-                Command->queues[currentIndex].signal,
-                gcvTRUE
-                );
-        }
-        else
-        {
-            /* Mark the command queue as available. */
-            gcmkONERROR(gckEVENT_Signal(
-                Command->kernel->eventObj,
-                Command->queues[currentIndex].signal,
-                gcvKERNEL_COMMAND
-                ));
-        }
+        /* Mark the command queue as available. */
+        gcmkONERROR(gckEVENT_Signal(
+            Command->kernel->eventObj,
+            Command->queues[currentIndex].signal,
+            gcvKERNEL_COMMAND
+            ));
     }
 
     /* Success. */
@@ -394,7 +379,7 @@ _FlushMMU(
     gctUINT32 waitLinkBytes;
 
     gcmkONERROR(gckOS_AtomicExchange(Command->os,
-                                     hardware->pageTableDirty[gcvENGINE_RENDER],
+                                     hardware->pageTableDirty,
                                      0,
                                      &oldValue));
 
@@ -803,7 +788,7 @@ _ParseCMDBUFTail(
 
     _GetCMDBUFTail(CommandBuffer, &tail);
 
-    if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_FENCE_64BIT))
+    if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_FENCE))
     {
         *Fence = tail;
         *Link  = tail + gcdRENDER_FENCE_LENGTH;
@@ -1084,8 +1069,10 @@ gckCOMMAND_Construct(
     /* Create the context switching mutex. */
     gcmkONERROR(gckOS_CreateMutex(os, &command->mutexContext));
 
+#if VIVANTE_PROFILER_CONTEXT
     /* Create the context switching mutex. */
     gcmkONERROR(gckOS_CreateMutex(os, &command->mutexContextSeq));
+#endif
 
     /* Create the power management semaphore. */
     gcmkONERROR(gckOS_CreateSemaphore(os, &command->powerSemaphore));
@@ -1284,8 +1271,10 @@ gckCOMMAND_Destroy(
         gcmkVERIFY_OK(gckOS_DeleteMutex(Command->os, Command->mutexContext));
     }
 
+#if VIVANTE_PROFILER_CONTEXT
     if (Command->mutexContextSeq != gcvNULL)
         gcmkVERIFY_OK(gckOS_DeleteMutex(Command->os, Command->mutexContextSeq));
+#endif
 
     if (Command->mutexQueue)
     {
@@ -1541,7 +1530,7 @@ gckCOMMAND_Start(
      )
     {
         /* Start at beginning of a new queue. */
-        gcmkONERROR(_NewQueue(Command, gcvTRUE));
+        gcmkONERROR(_NewQueue(Command));
     }
 
     logical  = (gctUINT8_PTR) Command->logical + Command->offset;
@@ -1762,6 +1751,7 @@ gckCOMMAND_Commit(
     IN gckCONTEXT Context,
     IN gcoCMDBUF CommandBuffer,
     IN gcsSTATE_DELTA_PTR StateDelta,
+    IN gcsQUEUE_PTR EventQueue,
     IN gctUINT32 ProcessID,
     IN gctBOOL Shared,
     IN gctUINT32 Index,
@@ -1774,6 +1764,9 @@ gckCOMMAND_Commit(
     gctBOOL contextAcquired = gcvFALSE;
     gckHARDWARE hardware;
     gctBOOL needCopy = gcvFALSE;
+    gcsQUEUE_PTR eventRecord = gcvNULL;
+    gcsQUEUE _eventRecord;
+    gcsQUEUE_PTR nextEventRecord;
     gctBOOL commandBufferMapped = gcvFALSE;
     gcoCMDBUF commandBufferObject = gcvNULL;
     gctBOOL stall = gcvFALSE;
@@ -1785,7 +1778,9 @@ gckCOMMAND_Commit(
     gctPHYS_ADDR_T commandBufferPhysical;
     gctUINT8_PTR commandBufferLogical = gcvNULL;
     gctUINT32 commandBufferAddress = 0;
+    gctUINT8_PTR commandBufferLink = gcvNULL;
     gctUINT8_PTR commandBufferTail = gcvNULL;
+    gctUINT8_PTR commandBufferFence = gcvNULL;
     gctUINT commandBufferSize;
     gctSIZE_T nopBytes;
     gctUINT32 pipeBytes;
@@ -1808,6 +1803,9 @@ gckCOMMAND_Commit(
     gctPOINTER waitLinkLogical;
     gctUINT32 waitLinkAddress;
     gctUINT32 waitLinkBytes;
+    gctUINT32 waitPhysical;
+    gctPOINTER waitLogical;
+    gctUINT32 waitAddress;
     gctUINT32 waitOffset;
     gctUINT32 waitSize;
 
@@ -1834,9 +1832,9 @@ gckCOMMAND_Commit(
     gckVIRTUAL_COMMAND_BUFFER_PTR virtualCommandBuffer = gcvNULL;
     gctUINT64 asyncCommandStamp = 0;
     gcoCMDBUF lastCommandBuffer = gcvNULL;
-    gctPOINTER pointer = gcvNULL;
-
 #endif
+
+    gctPOINTER pointer = gcvNULL;
 
     gcmkHEADER_ARG(
         "Command=0x%x CommandBuffer=0x%x ProcessID=%d",
@@ -2014,7 +2012,7 @@ gckCOMMAND_Commit(
         gcmkONERROR(_DummyDraw(Command));
     }
 
-    if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_FENCE_64BIT) && asyncCommandStamp != 0)
+    if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_FENCE) && asyncCommandStamp != 0)
     {
         gcmkONERROR(_WaitForAsyncCommandStamp(Command, asyncCommandStamp));
     }
@@ -2040,7 +2038,7 @@ gckCOMMAND_Commit(
     if (bytes < waitLinkBytes)
     {
         /* No, create a new one. */
-        gcmkONERROR(_NewQueue(Command, gcvFALSE));
+        gcmkONERROR(_NewQueue(Command));
 
         /* Get the new current offset. */
         offset = Command->offset;
@@ -2278,6 +2276,11 @@ gckCOMMAND_Commit(
         &waitSize
         ));
 
+    /* Compute the location if WAIT command. */
+    waitPhysical =                waitLinkPhysical + waitOffset;
+    waitLogical  = (gctUINT8_PTR) waitLinkLogical  + waitOffset;
+    waitAddress  =                waitLinkAddress  + waitOffset;
+
 #if gcdNONPAGED_MEMORY_CACHEABLE
     /* Flush the command queue cache. */
     gcmkONERROR(gckOS_CacheClean(
@@ -2296,21 +2299,33 @@ gckCOMMAND_Commit(
         + commandBufferSize
         - commandBufferObject->reservedTail;
 
+    if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_FENCE))
+    {
+        /* Determine the location of the FENCE command in the command buffer. */
+        commandBufferFence = commandBufferTail;
+
+        /* Determine the location of the LINK command in the command buffer. */
+        commandBufferLink = commandBufferTail + gcdRENDER_FENCE_LENGTH;
+    }
+    else
+    {
+        /* Determine the location of the LINK command in the command buffer. */
+        commandBufferLink = commandBufferTail;
+    }
+
     /* Generate command which writes out commit stamp. */
-    if (gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_FENCE_64BIT))
+    if (commandBufferFence)
     {
         gctUINT32 bytes;
 
         gcmkONERROR(gckHARDWARE_Fence(
             hardware,
             gcvENGINE_RENDER,
-            commandBufferTail,
+            commandBufferFence,
             Command->fence->address,
             Command->commitStamp,
             &bytes
             ));
-
-        commandBufferTail += gcdRENDER_FENCE_LENGTH;
     }
 
     /* Generate a LINK from the end of the command buffer being scheduled
@@ -2320,7 +2335,7 @@ gckCOMMAND_Commit(
     {
         gcmkONERROR(gckHARDWARE_Link(
             hardware,
-            commandBufferTail,
+            commandBufferLink,
             exitAddress,
             exitBytes,
             &linkBytes,
@@ -2330,7 +2345,7 @@ gckCOMMAND_Commit(
     }
     else
     {
-        gctUINT8_PTR link = commandBufferTail + Index * 16;
+        gctUINT8_PTR link = commandBufferLink + Index * 16;
         gctSIZE_T bytes = 8;
 
         gcmkONERROR(gckHARDWARE_ChipEnable(
@@ -2457,7 +2472,7 @@ gckCOMMAND_Commit(
         Command->os,
         Command->waitLogical,
         Command->waitSize,
-        gcvDUMP_BUFFER_LINK,
+        gceDUMP_BUFFER_LINK,
         gcvFALSE
         );
 
@@ -2465,7 +2480,7 @@ gckCOMMAND_Commit(
         Command->os,
         contextDumpLogical,
         contextDumpBytes,
-        gcvDUMP_BUFFER_CONTEXT,
+        gceDUMP_BUFFER_CONTEXT,
         gcvFALSE
         );
 
@@ -2473,7 +2488,7 @@ gckCOMMAND_Commit(
         Command->os,
         bufferDumpLogical,
         bufferDumpBytes,
-        gcvDUMP_BUFFER_USER,
+        gceDUMP_BUFFER_USER,
         gcvFALSE
         );
 
@@ -2481,7 +2496,7 @@ gckCOMMAND_Commit(
         Command->os,
         waitLinkLogical,
         waitLinkBytes,
-        gcvDUMP_BUFFER_WAITLINK,
+        gceDUMP_BUFFER_WAITLINK,
         gcvFALSE
         );
 
@@ -2493,9 +2508,9 @@ gckCOMMAND_Commit(
     Command->newQueue = gcvFALSE;
 
     /* Update address of last WAIT. */
-    Command->waitPhysical = waitLinkPhysical + waitOffset;
-    Command->waitLogical  = (gctUINT8_PTR)waitLinkLogical  + waitOffset;
-    Command->waitAddress  = waitLinkAddress  + waitOffset;
+    Command->waitPhysical = waitPhysical;
+    Command->waitLogical  = waitLogical;
+    Command->waitAddress  = waitAddress;
     Command->waitSize     = waitSize;
 
     /* Update queue tail pointer. */
@@ -2538,19 +2553,75 @@ gckCOMMAND_Commit(
     gcmkONERROR(gckCOMMAND_ExitCommit(Command, gcvFALSE));
     commitEntered = gcvFALSE;
 
-    if  ((Command->kernel->hardware->options.gpuProfiler == gcvTRUE) &&
-         (Command->kernel->profileEnable == gcvTRUE))
+    if  ((Command->kernel->hardware->gpuProfiler == gcvTRUE) &&
+         (Command->kernel->profileEnable == gcvTRUE) &&
+         (Command->kernel->profileSyncMode == gcvTRUE))
     {
         gcmkONERROR(gckCOMMAND_Stall(Command, gcvTRUE));
 
         if (Command->currContext)
         {
-            gcmkONERROR(gckHARDWARE_UpdateContextProfile(
+            gcmkONERROR(gckHARDWARE_UpdateContextNewProfile(
                         hardware,
                         Command->currContext));
         }
     }
 
+    /* Loop while there are records in the queue. */
+    while (EventQueue != gcvNULL)
+    {
+        if (needCopy)
+        {
+            /* Point to stack record. */
+            eventRecord = &_eventRecord;
+
+            /* Copy the data from the client. */
+            gcmkONERROR(gckOS_CopyFromUserData(
+                Command->os, eventRecord, EventQueue, gcmSIZEOF(gcsQUEUE)
+                ));
+        }
+        else
+        {
+            /* Map record into kernel memory. */
+            gcmkONERROR(gckOS_MapUserPointer(Command->os,
+                                             EventQueue,
+                                             gcmSIZEOF(gcsQUEUE),
+                                             &pointer));
+
+            eventRecord = pointer;
+        }
+
+        /* Append event record to event queue. */
+        gcmkONERROR(gckEVENT_AddList(
+            Command->kernel->eventObj, &eventRecord->iface, gcvKERNEL_PIXEL, gcvTRUE, gcvFALSE
+            ));
+
+        /* Next record in the queue. */
+        nextEventRecord = gcmUINT64_TO_PTR(eventRecord->next);
+
+        if (!needCopy)
+        {
+            /* Unmap record from kernel memory. */
+            gcmkONERROR(gckOS_UnmapUserPointer(
+                Command->os, EventQueue, gcmSIZEOF(gcsQUEUE), (gctPOINTER *) eventRecord
+                ));
+
+            eventRecord = gcvNULL;
+        }
+
+        EventQueue = nextEventRecord;
+    }
+
+    if (Command->kernel->eventObj->queueHead == gcvNULL
+      && Command->kernel->hardware->powerManagement == gcvTRUE)
+    {
+        /* Commit done event by which work thread knows all jobs done. */
+        gcmkVERIFY_OK(
+            gckEVENT_CommitDone(Command->kernel->eventObj, gcvKERNEL_PIXEL, Command->currContext));
+    }
+
+    /* Submit events. */
+    status = gckEVENT_Submit(Command->kernel->eventObj, gcvTRUE, gcvFALSE);
     if (status == gcvSTATUS_INTERRUPTED)
     {
         gcmkTRACE(
@@ -2596,6 +2667,17 @@ gckCOMMAND_Commit(
     return gcvSTATUS_OK;
 
 OnError:
+    if ((eventRecord != gcvNULL) && !needCopy)
+    {
+        /* Roll back. */
+        gcmkVERIFY_OK(gckOS_UnmapUserPointer(
+            Command->os,
+            EventQueue,
+            gcmSIZEOF(gcsQUEUE),
+            (gctPOINTER *) eventRecord
+            ));
+    }
+
     if (contextAcquired)
     {
         /* Release the context switching mutex. */
@@ -2703,7 +2785,7 @@ gckCOMMAND_Reserve(
     if (bytes < requiredBytes)
     {
         /* Create a new command queue. */
-        gcmkONERROR(_NewQueue(Command, gcvFALSE));
+        gcmkONERROR(_NewQueue(Command));
 
         /* Recompute the number of bytes in the new kernel command queue. */
         bytes = Command->pageSize - Command->offset;
@@ -2892,7 +2974,7 @@ gckCOMMAND_Execute(
         Command->os,
         Command->waitLogical,
         Command->waitSize,
-        gcvDUMP_BUFFER_LINK,
+        gceDUMP_BUFFER_LINK,
         gcvFALSE
         );
 
@@ -2900,7 +2982,7 @@ gckCOMMAND_Execute(
         Command->os,
         execLogical,
         execBytes,
-        gcvDUMP_BUFFER_KERNEL,
+        gceDUMP_BUFFER_KERNEL,
         gcvFALSE
         );
 

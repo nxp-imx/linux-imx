@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -441,7 +441,7 @@ gckVGHARDWARE_Construct(
         gcmkERR_BREAK(gckOS_CreateMutex(Os, &hardware->powerMutex));
 
         /* Enable power management by default. */
-        hardware->options.powerManagement = gcvTRUE;
+        hardware->powerManagement = gcvTRUE;
 
         /* Return pointer to the gckVGHARDWARE object. */
         *Hardware = hardware;
@@ -669,7 +669,6 @@ gckVGHARDWARE_QueryChipIdentity(
     OUT gctUINT32 * ChipRevision,
     OUT gctUINT32 * ProductID,
     OUT gctUINT32 * EcoID,
-    OUT gctUINT32* CustomerID,
     OUT gctUINT32* ChipFeatures,
     OUT gctUINT32* ChipMinorFeatures,
     OUT gctUINT32* ChipMinorFeatures2
@@ -702,7 +701,7 @@ gckVGHARDWARE_QueryChipIdentity(
         {
             features = ((((gctUINT32) (features)) & ~(((gctUINT32) (((gctUINT32) ((((1 ?
  0:0) - (0 ? 0:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ?
- 0:0))) | (((gctUINT32) ((gctUINT32) (Hardware->options.allowFastClear) & ((gctUINT32) ((((1 ?
+ 0:0))) | (((gctUINT32) ((gctUINT32) (Hardware->allowFastClear) & ((gctUINT32) ((((1 ?
  0:0) - (0 ? 0:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 0:0) - (0 ? 0:0) + 1))))))) << (0 ?
  0:0)));
         }
@@ -744,20 +743,8 @@ gckVGHARDWARE_QueryChipIdentity(
         *ChipMinorFeatures2 = Hardware->chipMinorFeatures2;
     }
 
-    if (ProductID != gcvNULL)
-    {
-        *ProductID = Hardware->productID;
-    }
-
-    if (EcoID != gcvNULL)
-    {
-        *EcoID = Hardware->ecoID;
-    }
-
-    if (CustomerID != gcvNULL)
-    {
-        *CustomerID = Hardware->customerID;
-    }
+    *ProductID = Hardware->productID;
+    *EcoID = Hardware->ecoID;
 
     gcmkFOOTER_NO();
     /* Success. */
@@ -1587,7 +1574,7 @@ gckVGHARDWARE_SetFastClear(
                                      0x00414,
                      debug));
 
-        Hardware->options.allowFastClear = Enable;
+        Hardware->allowFastClear = Enable;
 
         status = gcvFALSE;
     }
@@ -1787,7 +1774,7 @@ gckVGHARDWARE_SetPowerManagementState(
     command = Hardware->kernel->command;
     gcmkVERIFY_OBJECT(command, gcvOBJ_COMMAND);
 
-    if (Hardware->options.powerManagement == gcvFALSE)
+    if (Hardware->powerManagement == gcvFALSE)
     {
         gcmkFOOTER_NO();
         return gcvSTATUS_OK;
@@ -2225,7 +2212,7 @@ gckVGHARDWARE_SetPowerManagement(
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
 
-    Hardware->options.powerManagement = PowerManagement;
+    Hardware->powerManagement = PowerManagement;
 
     /* Success. */
     gcmkFOOTER_NO();

@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -100,6 +100,12 @@ typedef struct _gcsCONTEXT
     gctPOINTER                  link2D;
     gctPOINTER                  link3D;
 
+    /* The number of pending state deltas. */
+    gctUINT                     deltaCount;
+
+    /* Pointer to the first delta to be applied. */
+    gcsSTATE_DELTA_PTR          delta;
+
     /* Next context buffer. */
     gcsCONTEXT_PTR              next;
 }
@@ -172,12 +178,17 @@ struct _gckCONTEXT
     gctBOOL_PTR                 hint;
 #endif
 
-    gcsPROFILER_COUNTERS_PART1    latestProfiler_part1;
-    gcsPROFILER_COUNTERS_PART1    histroyProfiler_part1;
-    gcsPROFILER_COUNTERS_PART1    preProfiler_part1;
-    gcsPROFILER_COUNTERS_PART2    latestProfiler_part2;
-    gcsPROFILER_COUNTERS_PART2    histroyProfiler_part2;
-    gcsPROFILER_COUNTERS_PART2    preProfiler_part2;
+#if VIVANTE_PROFILER_CONTEXT
+    gcsPROFILER_COUNTERS        latestProfiler;
+    gcsPROFILER_COUNTERS        histroyProfiler;
+    gcsPROFILER_COUNTERS        preProfiler;
+#endif
+    gcsPROFILER_NEW_COUNTERS_PART1    latestNewProfiler_part1;
+    gcsPROFILER_NEW_COUNTERS_PART1    histroyNewProfiler_part1;
+    gcsPROFILER_NEW_COUNTERS_PART1    preNewProfiler_part1;
+    gcsPROFILER_NEW_COUNTERS_PART2    latestNewProfiler_part2;
+    gcsPROFILER_NEW_COUNTERS_PART2    histroyNewProfiler_part2;
+    gcsPROFILER_NEW_COUNTERS_PART2    preNewProfiler_part2;
 };
 
 #ifdef __cplusplus

@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2018 Vivante Corporation
+*    Copyright (c) 2014 - 2017 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2018 Vivante Corporation
+*    Copyright (C) 2014 - 2017 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -61,217 +61,20 @@
 
 #define _GC_OBJ_ZONE gcvZONE_ALLOCATOR
 
-enum um_desc_type
-{
-    UM_PHYSICAL_MAP,
-    UM_PAGE_MAP,
-    UM_PFN_MAP,
-};
-
 /* Descriptor of a user memory imported. */
-struct um_desc
+typedef struct _gcsUserMemory
 {
-    int type;
-
-    union
-    {
-        /* UM_PHYSICAL_MAP. */
-        unsigned long physical;
-
-        /* UM_PAGE_MAP. */
-        struct page **pages;
-
-        /* UM_PFN_MAP. */
-        struct
-        {
-            unsigned long *pfns;
-            int *refs;
-        };
-    };
-
-    /* contiguous chunks, does not include padding pages. */
-    int chunk_count;
-
-    unsigned long user_vaddr;
-    size_t size;
-    unsigned long offset;
-
-    size_t pageCount;
-    size_t extraPage;
-};
-
-static int import_physical_map(struct um_desc *um, unsigned long phys)
-{
-    um->type = UM_PHYSICAL_MAP;
-    um->physical = phys & PAGE_MASK;
-    um->chunk_count = 1;
-    return 0;
+    gctPHYS_ADDR_T           physical;
+    struct page **           pages;
+    gctUINT32                extraPage;
+    gctPOINTER               logical;
+    gctSIZE_T                pageCount;
+    gctUINT32                offset;
+    gctBOOL                  contiguous;
+    gctBOOL                  userPages;
+    gctBOOL                  *ref;
 }
-
-static int import_page_map(struct um_desc *um,
-                unsigned long addr, size_t page_count)
-{
-    int i;
-    int result;
-    struct page **pages;
-
-    pages = kzalloc(page_count * sizeof(void *), GFP_KERNEL | gcdNOWARN);
-    if (!pages)
-        return -ENOMEM;
-
-    down_read(&current->mm->mmap_sem);
-
-    result = get_user_pages(
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
-            current,
-            current->mm,
-#endif
-            addr & PAGE_MASK,
-            page_count,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
-            FOLL_WRITE,
-#else
-            1,
-            0,
-#endif
-            pages,
-            NULL);
-
-    up_read(&current->mm->mmap_sem);
-
-    if (result < page_count)
-    {
-        for (i = 0; i < result; i++)
-        {
-            if (pages[i])
-            {
-                put_page(pages[i]);
-            }
-        }
-
-        kfree(pages);
-        return -ENODEV;
-    }
-
-    um->chunk_count = 1;
-    for (i = 1; i < page_count; i++)
-    {
-        if (page_to_pfn(pages[i]) != page_to_pfn(pages[i - 1]) + 1)
-        {
-            ++um->chunk_count;
-        }
-    }
-
-    um->type = UM_PAGE_MAP;
-    um->pages = pages;
-
-    return 0;
-}
-
-
-static int import_pfn_map(struct um_desc *um,
-                unsigned long addr, size_t pfn_count)
-{
-    int i;
-    struct vm_area_struct *vma;
-    unsigned long *pfns;
-    int *refs;
-
-    if (!current->mm)
-        return -ENOTTY;
-
-    down_read(&current->mm->mmap_sem);
-    vma = find_vma(current->mm, addr);
-    up_read(&current->mm->mmap_sem);
-
-    if (!vma)
-        return -ENOTTY;
-
-    pfns = kzalloc(pfn_count * sizeof(unsigned long), GFP_KERNEL | gcdNOWARN);
-
-    if (!pfns)
-        return -ENOMEM;
-
-    refs = kzalloc(pfn_count * sizeof(int), GFP_KERNEL | gcdNOWARN);
-
-    if (!refs)
-    {
-        kfree(pfns);
-        return -ENOMEM;
-    }
-
-    for (i = 0; i < pfn_count; i++)
-    {
-        spinlock_t *ptl;
-        pgd_t *pgd;
-        pud_t *pud;
-        pmd_t *pmd;
-        pte_t *pte;
-
-        pgd = pgd_offset(current->mm, addr);
-        if (pgd_none(*pgd) || pgd_bad(*pgd))
-            goto err;
-
-        pud = pud_offset(pgd, addr);
-        if (pud_none(*pud) || pud_bad(*pud))
-            goto err;
-
-        pmd = pmd_offset(pud, addr);
-        if (pmd_none(*pmd) || pmd_bad(*pmd))
-            goto err;
-
-        pte = pte_offset_map_lock(current->mm, pmd, addr, &ptl);
-        if (!pte)
-        {
-            spin_unlock(ptl);
-            goto err;
-        }
-
-        if (!pte_present(*pte))
-        {
-            pte_unmap_unlock(pte, ptl);
-            goto err;
-        }
-
-        pfns[i] = pte_pfn(*pte);
-        pte_unmap_unlock(pte, ptl);
-
-        /* Advance to next. */
-        addr += PAGE_SIZE;
-    }
-
-    for (i = 0; i < pfn_count; i++)
-    {
-        if (pfn_valid(pfns[i]))
-        {
-            struct page *page = pfn_to_page(pfns[i]);
-            refs[i] = get_page_unless_zero(page);
-        }
-    }
-
-    um->chunk_count = 1;
-    for (i = 1; i < pfn_count; i++)
-    {
-        if (pfns[i] != pfns[i - 1] + 1)
-        {
-            ++um->chunk_count;
-        }
-    }
-
-    um->type = UM_PFN_MAP;
-    um->pfns = pfns;
-    um->refs = refs;
-    return 0;
-
-err:
-    if (pfns)
-        kfree(pfns);
-
-    if (refs)
-        kfree(refs);
-
-    return -ENOTTY;
-}
+gcsUserMemory;
 
 static gceSTATUS
 _Import(
@@ -279,25 +82,27 @@ _Import(
     IN gctPOINTER Memory,
     IN gctUINT32 Physical,
     IN gctSIZE_T Size,
-    IN struct um_desc * UserMemory
+    IN gcsUserMemory * UserMemory
     )
 {
     gceSTATUS status = gcvSTATUS_OK;
-    int pfn_map = 0;
-    unsigned long start, end, memory;
-    int result = 0;
 
+    gctUINTPTR_T start, end, memory;
+    gctINT result = 0;
+
+    struct page **pages = gcvNULL;
     gctSIZE_T extraPage;
     gctSIZE_T pageCount, i;
+    gctBOOL *ref = gcvNULL;
 
-    gcmkHEADER_ARG("Os=0x%p Memory=%p Physical=0x%x Size=%lu", Os, Memory, Physical, Size);
+    gcmkHEADER_ARG("Os=0x%x Memory=0x%x Physical=0x%x Size=%lu", Os, Memory, Physical, Size);
 
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
     gcmkVERIFY_ARGUMENT(Memory != gcvNULL || Physical != ~0U);
     gcmkVERIFY_ARGUMENT(Size > 0);
 
-    memory = (unsigned long)Memory;
+    memory = (gctUINTPTR_T) Memory;
 
     /* Get the number of required pages. */
     end = (memory + Size + PAGE_SIZE - 1) >> PAGE_SHIFT;
@@ -325,108 +130,329 @@ _Import(
         return gcvSTATUS_INVALID_ARGUMENT;
     }
 
-    if (memory)
+    /* Allocate the array of page addresses. */
+    pages = (struct page **)kmalloc((pageCount + extraPage) * sizeof(struct page *), GFP_KERNEL | gcdNOWARN);
+
+    if (pages == gcvNULL)
     {
-        struct vm_area_struct *vma = NULL;
-        unsigned long vaddr = memory;
-
-        for (i = 0; i < pageCount; i++)
-        {
-            u32 data;
-            get_user(data, (u32 *)((memory & PAGE_MASK) + PAGE_SIZE * i));
-            put_user(data, (u32 *)((memory & PAGE_MASK) + PAGE_SIZE * i));
-        }
-
-        vma = find_vma(current->mm, vaddr);
-
-        if (!vma)
-        {
-            /* No such memory, or across vmas. */
-            gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-        }
-
-        pfn_map = !!(vma->vm_flags & VM_PFNMAP);
-        vaddr = vma->vm_end;
-
-        while (vaddr < memory + Size)
-        {
-            vma = find_vma(current->mm, vaddr);
-
-            if (!vma)
-            {
-                /* No such memory. */
-                gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-            }
-
-            if (!!(vma->vm_flags & VM_PFNMAP) != pfn_map)
-            {
-                /* Can not support different map type: both PFN and PAGE detected. */
-                gcmkONERROR(gcvSTATUS_NOT_SUPPORTED);
-            }
-
-            vaddr = vma->vm_end;
-        }
+        status = gcvSTATUS_OUT_OF_MEMORY;
+        goto OnError;
     }
 
-    if (Physical != gcvINVALID_PHYSICAL_ADDRESS)
+    ref = (gctBOOL *)kzalloc((pageCount + extraPage) * sizeof(gctBOOL), GFP_KERNEL | gcdNOWARN);
+
+    if (ref == gcvNULL)
     {
-        result = import_physical_map(UserMemory, Physical);
+        status = gcvSTATUS_OUT_OF_MEMORY;
+        goto OnError;
     }
-    else
+
+    if (Physical != ~0U)
     {
-        if (pfn_map)
+        unsigned long pfn = Physical >> PAGE_SHIFT;
+
+        UserMemory->contiguous = gcvTRUE;
+
+        if (pfn_valid(pfn))
         {
-            result = import_pfn_map(UserMemory, memory, pageCount);
+            for (i = 0; i < pageCount; i++)
+            {
+                pages[i] = pfn_to_page((Physical >> PAGE_SHIFT) + i);
+            }
         }
         else
         {
-            result = import_page_map(UserMemory, memory, pageCount);
+            /* Free pages array since there is no struct page for this memory. */
+            kfree(pages);
+            pages = gcvNULL;
+        }
+    }
+    else
+    {
+        UserMemory->contiguous = gcvFALSE;
+        UserMemory->userPages = gcvTRUE;
+
+        /* Get the user pages. */
+        down_read(&current->mm->mmap_sem);
+
+        result = get_user_pages(
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+                current,
+                current->mm,
+#endif
+                memory & PAGE_MASK,
+                pageCount,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+                FOLL_WRITE,
+#else
+                1,
+                0,
+#endif
+                pages,
+                gcvNULL
+                );
+
+        up_read(&current->mm->mmap_sem);
+
+        if (result <=0 || result < pageCount)
+        {
+            struct vm_area_struct *vma;
+
+            /* Release the pages if any. */
+            if (result > 0)
+            {
+                for (i = 0; i < result; i++)
+                {
+                    if (pages[i] == gcvNULL)
+                    {
+                        break;
+                    }
+
+                    put_page(pages[i]);
+                    pages[i] = gcvNULL;
+                }
+
+                result = 0;
+            }
+
+            vma = find_vma(current->mm, memory);
+
+            if (vma && (vma->vm_flags & VM_PFNMAP))
+            {
+                pte_t       * pte;
+                spinlock_t  * ptl;
+                gctUINTPTR_T logical = memory;
+
+                for (i = 0; i < pageCount; i++)
+                {
+                    pgd_t * pgd = pgd_offset(current->mm, logical);
+                    pud_t * pud = pud_offset(pgd, logical);
+
+                    if (pud)
+                    {
+                        pmd_t * pmd = pmd_offset(pud, logical);
+                        pte = pte_offset_map_lock(current->mm, pmd, logical, &ptl);
+                        if (!pte)
+                        {
+                            gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+                        }
+                    }
+                    else
+                    {
+                        gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+                    }
+
+                    pages[i] = pte_page(*pte);
+                    pte_unmap_unlock(pte, ptl);
+
+                    /* Advance to next. */
+                    logical += PAGE_SIZE;
+                }
+            }
+            else
+            {
+                gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
+            }
+
+            /* Check whether pages are contigous. */
+            for (i = 1; i < pageCount; i++)
+            {
+                if (pages[i] != nth_page(pages[0], i))
+                {
+                    /* Non-contiguous. */
+                    break;
+                }
+            }
+
+            if (i == pageCount)
+            {
+                UserMemory->contiguous = gcvTRUE;
+            }
+
+            /* Reference pages. */
+            for (i = 0; i < pageCount; i++)
+            {
+                if (pfn_valid(page_to_pfn(pages[i])))
+                {
+                    ref[i] = get_page_unless_zero(pages[i]);
+                }
+            }
+        }
+        else
+        {
+            /* Mark feference when pages from get_user_pages. */
+            for (i = 0; i < pageCount; i++)
+            {
+                ref[i] = gcvTRUE;
+            }
         }
     }
 
-    if (result == -EINVAL)
-    {
-        gcmkONERROR(gcvSTATUS_INVALID_ARGUMENT);
-    }
-    else if (result == -ENOMEM)
-    {
-        gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
-    }
-    else if (result < 0)
-    {
-        gcmkONERROR(gcvSTATUS_OUT_OF_RESOURCES);
-    }
-
-    if (UserMemory->type == UM_PAGE_MAP)
+    if (UserMemory->userPages)
     {
         for (i = 0; i < pageCount; i++)
         {
-            gctUINT32 phys = page_to_phys(UserMemory->pages[i]);
+            gctUINT32 phys;
 
-            /* Flush(clean) the data cache. */
-            gckOS_CacheFlush(Os, _GetProcessID(), gcvNULL,
-                        phys,
-                        (gctPOINTER)(memory & PAGE_MASK) + i*PAGE_SIZE,
-                        PAGE_SIZE);
+    #ifdef CONFIG_ARM
+            gctUINT32 data;
+
+            if (memory)
+            {
+                get_user(data, (gctUINT32*)((memory & PAGE_MASK) + i * PAGE_SIZE));
+            }
+    #endif
+
+            if (pages)
+            {
+                phys = page_to_phys(pages[i]);
+            }
+            else
+            {
+                phys = Physical + i * PAGE_SIZE;
+            }
+
+            if (memory)
+            {
+                /* Flush(clean) the data cache. */
+                gcmkONERROR(gckOS_CacheFlush(Os, _GetProcessID(), gcvNULL,
+                            phys,
+                            (gctPOINTER)(memory & PAGE_MASK) + i*PAGE_SIZE,
+                            PAGE_SIZE));
+            }
         }
     }
 
-    UserMemory->user_vaddr = (unsigned long)Memory;
-    UserMemory->size  = Size;
-    UserMemory->offset = (Physical != gcvINVALID_PHYSICAL_ADDRESS)
+    if (extraPage)
+    {
+        if (pages)
+        {
+            for (i = 0; i < extraPage; i++)
+            {
+                pages[pageCount++] = Os->paddingPage;
+            }
+        }
+
+        /* Adjust pageCount to include padding page. */
+        UserMemory->extraPage = extraPage;
+    }
+
+    UserMemory->physical = Physical;
+    UserMemory->pages = pages;
+    UserMemory->pageCount = pageCount;
+    UserMemory->logical = Memory;
+    UserMemory->ref = ref;
+
+    UserMemory->offset = (Physical != ~0U)
                        ? (Physical & ~PAGE_MASK)
                        : (memory & ~PAGE_MASK);
-
-    UserMemory->pageCount = pageCount;
-    UserMemory->extraPage = extraPage;
 
     /* Success. */
     gcmkFOOTER();
     return gcvSTATUS_OK;
 
 OnError:
+
+    /* Release page array. */
+    if (result > 0 && pages != gcvNULL)
+    {
+        gcmkTRACE(
+            gcvLEVEL_ERROR,
+            "%s(%d): error: page table is freed.",
+            __FUNCTION__, __LINE__
+            );
+
+        for (i = 0; i < result; i++)
+        {
+            if (pages[i] == gcvNULL)
+            {
+                break;
+            }
+
+            put_page(pages[i]);
+        }
+    }
+
+    if (pages != gcvNULL)
+    {
+        gcmkTRACE(
+            gcvLEVEL_ERROR,
+            "%s(%d): error: pages is freed.",
+            __FUNCTION__, __LINE__
+            );
+
+        /* Free the page table. */
+        kfree(pages);
+    }
+
+    if (ref != gcvNULL)
+    {
+        /* Free the ref table. */
+        kfree(ref);
+    }
+
     gcmkFOOTER();
     return status;
+}
+
+static gceSTATUS
+_Free(
+    IN gckOS Os,
+    IN gcsUserMemory * UserMemory
+    )
+{
+    gctSIZE_T pageCount, i;
+    struct page **pages;
+    gctBOOL *ref;
+
+    gcmkHEADER_ARG("Os=0x%X", Os);
+
+    /* Verify the arguments. */
+    gcmkVERIFY_OBJECT(Os, gcvOBJ_OS);
+
+    pages = UserMemory->pages;
+
+    /* Invalid page array. */
+    if (pages == gcvNULL)
+    {
+        gcmkFOOTER_NO();
+        return gcvSTATUS_OK;
+    }
+
+    pageCount = UserMemory->pageCount;
+
+    if (UserMemory->extraPage)
+    {
+        pageCount -= UserMemory->extraPage;
+    }
+
+    ref = UserMemory->ref;
+
+    if (UserMemory->userPages)
+    {
+        /* Release the page cache. */
+        if (pages)
+        {
+            for (i = 0; i < pageCount; i++)
+            {
+                if (!PageReserved(pages[i]))
+                {
+                     SetPageDirty(pages[i]);
+                }
+
+                if (pfn_valid(page_to_pfn(pages[i])) && ref[i])
+                {
+                    put_page(pages[i]);
+                }
+            }
+        }
+    }
+
+    kfree(ref);
+    kfree(pages);
+
+    gcmkFOOTER_NO();
+    return gcvSTATUS_OK;
 }
 
 static gceSTATUS
@@ -437,7 +463,7 @@ _UserMemoryAttach(
     )
 {
     gceSTATUS status;
-    struct um_desc * userMemory = gcvNULL;
+    gcsUserMemory * userMemory = gcvNULL;
 
     gckOS os = Allocator->os;
 
@@ -446,73 +472,24 @@ _UserMemoryAttach(
     /* Handle is meangless for this importer. */
     gcmkVERIFY_ARGUMENT(Desc != gcvNULL);
 
-    gcmkONERROR(gckOS_Allocate(os, gcmSIZEOF(struct um_desc), (gctPOINTER *)&userMemory));
+    gcmkONERROR(gckOS_Allocate(os, gcmSIZEOF(gcsUserMemory), (gctPOINTER *)&userMemory));
 
-    gckOS_ZeroMemory(userMemory, gcmSIZEOF(struct um_desc));
+    gckOS_ZeroMemory(userMemory, gcmSIZEOF(gcsUserMemory));
 
-    gcmkONERROR(_Import(os, Desc->userMem.memory, Desc->userMem.physical, Desc->userMem.size, userMemory));
+    gcmkONERROR(_Import(os, Desc->memory, Desc->physical, Desc->size, userMemory));
 
     Mdl->priv = userMemory;
-    Mdl->numPages = userMemory->pageCount + userMemory->extraPage;
-    Mdl->contiguous = (userMemory->chunk_count == 1);
+    Mdl->numPages = userMemory->pageCount;
+    Mdl->contiguous = userMemory->contiguous;
 
     gcmkFOOTER_NO();
     return gcvSTATUS_OK;
 
 OnError:
-    if (userMemory != gcvNULL)
-    {
+    if(userMemory != gcvNULL)
         gckOS_Free(os,(gctPOINTER)userMemory);
-    }
     gcmkFOOTER();
     return status;
-}
-
-static void release_physical_map(struct um_desc *um)
-{
-}
-
-static void release_page_map(struct um_desc *um)
-{
-    int i;
-
-    for (i = 0; i < um->pageCount; i++)
-    {
-        if (!PageReserved(um->pages[i]))
-        {
-             SetPageDirty(um->pages[i]);
-        }
-
-        put_page(um->pages[i]);
-    }
-
-    kfree(um->pages);
-}
-
-static void release_pfn_map(struct um_desc *um)
-{
-
-    int i;
-
-    for (i = 0; i < um->pageCount; i++)
-    {
-        if (pfn_valid(um->pfns[i]))
-        {
-            struct page *page = pfn_to_page(um->pfns[i]);
-            if (!PageReserved(page))
-            {
-                SetPageDirty(page);
-            }
-
-            if (um->refs[i])
-            {
-                put_page(page);
-            }
-        }
-    }
-
-    kfree(um->pfns);
-    kfree(um->refs);
 }
 
 static void
@@ -522,24 +499,13 @@ _UserMemoryFree(
     )
 {
     gckOS os = Allocator->os;
-    struct um_desc *userMemory = Mdl->priv;
+    gcsUserMemory *userMemory = Mdl->priv;
 
     gcmkHEADER();
 
     if (userMemory)
     {
-        switch (userMemory->type)
-        {
-        case UM_PHYSICAL_MAP:
-            release_physical_map(userMemory);
-            break;
-        case UM_PAGE_MAP:
-            release_page_map(userMemory);
-            break;
-        case UM_PFN_MAP:
-            release_pfn_map(userMemory);
-            break;
-        }
+        gcmkVERIFY_OK(_Free(os, userMemory));
 
         gcmkOS_SAFE_FREE(os, userMemory);
     }
@@ -547,7 +513,7 @@ _UserMemoryFree(
     gcmkFOOTER_NO();
 }
 
-static gceSTATUS
+static gctINT
 _UserMemoryMapUser(
     IN gckALLOCATOR Allocator,
     IN PLINUX_MDL Mdl,
@@ -555,17 +521,16 @@ _UserMemoryMapUser(
     OUT gctPOINTER * UserLogical
     )
 {
-    struct um_desc *userMemory = Mdl->priv;
+    gcsUserMemory *userMemory = Mdl->priv;
 
-    *UserLogical = (gctPOINTER)userMemory->user_vaddr;
+    *UserLogical = userMemory->logical;
 
-    return gcvSTATUS_OK;
+    return 0;
 }
 
 static void
 _UserMemoryUnmapUser(
     IN gckALLOCATOR Allocator,
-    IN PLINUX_MDL Mdl,
     IN gctPOINTER Logical,
     IN gctUINT32 Size
     )
@@ -618,54 +583,29 @@ _UserMemoryPhysical(
     )
 {
     gckOS os = Allocator->os;
-    struct um_desc *userMemory = Mdl->priv;
-    unsigned long offset = Offset + userMemory->offset;
-    gctUINT32 offsetInPage = offset & ~PAGE_MASK;
-    gctUINT32 index = offset / PAGE_SIZE;
+    gcsUserMemory *userMemory = Mdl->priv;
+    gctUINT32 offsetInPage = Offset & ~PAGE_MASK;
+    gctUINT32 index = Offset / PAGE_SIZE;
 
-    if (index >= userMemory->pageCount)
+    if (userMemory->pages)
     {
-        if (index < userMemory->pageCount + userMemory->extraPage)
+        if (index == userMemory->pageCount - 1 && userMemory->extraPage)
         {
             *Physical = page_to_phys(os->paddingPage);
         }
         else
         {
-            return gcvSTATUS_INVALID_ARGUMENT;
+            *Physical = page_to_phys(userMemory->pages[index]);
         }
     }
     else
     {
-        switch (userMemory->type)
-        {
-        case UM_PHYSICAL_MAP:
-            *Physical = userMemory->physical + index * PAGE_SIZE;
-            break;
-        case UM_PAGE_MAP:
-            *Physical = page_to_phys(userMemory->pages[index]);
-            break;
-        case UM_PFN_MAP:
-            *Physical = userMemory->pfns[index] << PAGE_SHIFT;
-            break;
-        }
+        *Physical = userMemory->physical + index * PAGE_SIZE;
     }
 
     *Physical += offsetInPage;
 
     return gcvSTATUS_OK;
-}
-
-static void
-_UserMemoryAllocatorDestructor(
-    gcsALLOCATOR *Allocator
-    )
-{
-    if (Allocator->privateData)
-    {
-        kfree(Allocator->privateData);
-    }
-
-    kfree(Allocator);
 }
 
 /* User memory allocator (importer) operations. */
@@ -685,7 +625,6 @@ static gcsALLOCATOR_OPERATIONS UserMemoryAllocatorOperations =
 gceSTATUS
 _UserMemoryAlloctorInit(
     IN gckOS Os,
-    IN gcsDEBUGFS_DIR *Parent,
     OUT gckALLOCATOR * Allocator
     )
 {
@@ -694,8 +633,6 @@ _UserMemoryAlloctorInit(
 
     gcmkONERROR(
         gckALLOCATOR_Construct(Os, &UserMemoryAllocatorOperations, &allocator));
-
-    allocator->destructor  = _UserMemoryAllocatorDestructor;
 
     allocator->capability = gcvALLOC_FLAG_USERMEMORY;
 
