@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  */
 /*
  * The code contained herein is licensed under the GNU General Public
@@ -219,7 +219,8 @@ static void mxc_mipi_csi2_csr_config(struct mxc_mipi_csi2_dev *csi2dev)
 		CSI2SS_PHY_CTRL_CONT_CLK_MODE << CSI2SS_PHY_CTRL_CONT_CLK_MODE_OFFSET |
 		csi2dev->hs_settle << CSI2SS_PHY_CTRL_RX_HS_SETTLE_OFFSET |
 		CSI2SS_PHY_CTRL_PD << CSI2SS_PHY_CTRL_PD_OFFSET |
-		CSI2SS_PHY_CTRL_RTERM_SEL << CSI2SS_PHY_CTRL_RTERM_SEL_OFFSET;
+		CSI2SS_PHY_CTRL_RTERM_SEL << CSI2SS_PHY_CTRL_RTERM_SEL_OFFSET |
+		CSI2SS_PHY_CTRL_AUTO_PD_EN << CSI2SS_PHY_CTRL_AUTO_PD_EN_OFFSET;
 
 	writel(val, csi2dev->csr_regs + CSI2SS_PHY_CTRL);
 }
@@ -309,6 +310,8 @@ static int mxc_csi2_get_sensor_fmt(struct mxc_mipi_csi2_dev *csi2dev)
 	/* Get rxhs settle */
 	if (src_fmt.format.reserved[0] != 0)
 		csi2dev->hs_settle = calc_hs_settle(csi2dev, src_fmt.format.reserved[0]);
+	else if (src_fmt.format.reserved[1] != 0)
+		csi2dev->hs_settle = src_fmt.format.reserved[1];
 	else {
 		if (src_fmt.format.height * src_fmt.format.width > 1024 * 768)
 			csi2dev->hs_settle = rxhs_settle[2];
@@ -434,7 +437,69 @@ static const struct media_entity_operations mipi_csi2_sd_media_ops = {
  */
 static int mipi_csi2_s_power(struct v4l2_subdev *sd, int on)
 {
-	return 0;
+	struct mxc_mipi_csi2_dev *csi2dev = sd_to_mxc_mipi_csi2_dev(sd);
+	struct media_pad *source_pad;
+	struct v4l2_subdev *sen_sd;
+
+	/* Get remote source pad */
+	source_pad = mxc_csi2_get_remote_sensor_pad(csi2dev);
+	if (source_pad == NULL) {
+		v4l2_err(&csi2dev->v4l2_dev, "%s, No remote pad found!\n", __func__);
+		return -EINVAL;
+	}
+
+	/* Get remote source pad subdev */
+	sen_sd = media_entity_to_v4l2_subdev(source_pad->entity);
+	if (sen_sd == NULL) {
+		v4l2_err(&csi2dev->v4l2_dev, "%s, No remote subdev found!\n", __func__);
+		return -EINVAL;
+	}
+	return v4l2_subdev_call(sen_sd, core, s_power, on);
+}
+
+static int mipi_csi2_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
+{
+	struct mxc_mipi_csi2_dev *csi2dev = sd_to_mxc_mipi_csi2_dev(sd);
+	struct media_pad *source_pad;
+	struct v4l2_subdev *sen_sd;
+
+	/* Get remote source pad */
+	source_pad = mxc_csi2_get_remote_sensor_pad(csi2dev);
+	if (source_pad == NULL) {
+		v4l2_err(&csi2dev->v4l2_dev, "%s, No remote pad found!\n", __func__);
+		return -EINVAL;
+	}
+
+	/* Get remote source pad subdev */
+	sen_sd = media_entity_to_v4l2_subdev(source_pad->entity);
+	if (sen_sd == NULL) {
+		v4l2_err(&csi2dev->v4l2_dev, "%s, No remote subdev found!\n", __func__);
+		return -EINVAL;
+	}
+	return v4l2_subdev_call(sen_sd, video, s_parm, a);
+}
+
+static int mipi_csi2_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
+{
+	struct mxc_mipi_csi2_dev *csi2dev = sd_to_mxc_mipi_csi2_dev(sd);
+	struct media_pad *source_pad;
+	struct v4l2_subdev *sen_sd;
+
+	/* Get remote source pad */
+	source_pad = mxc_csi2_get_remote_sensor_pad(csi2dev);
+	if (source_pad == NULL) {
+		v4l2_err(&csi2dev->v4l2_dev, "%s, No remote pad found!\n", __func__);
+		return -EINVAL;
+	}
+
+	/* Get remote source pad subdev */
+	sen_sd = media_entity_to_v4l2_subdev(source_pad->entity);
+	if (sen_sd == NULL) {
+		v4l2_err(&csi2dev->v4l2_dev, "%s, No remote subdev found!\n", __func__);
+		return -EINVAL;
+	}
+
+	return v4l2_subdev_call(sen_sd, video, g_parm, a);
 }
 
 static int mipi_csi2_s_stream(struct v4l2_subdev *sd, int enable)
@@ -468,6 +533,56 @@ static int mipi_csi2_s_stream(struct v4l2_subdev *sd, int enable)
 	return ret;
 }
 
+static int mipi_csi2_enum_framesizes(struct v4l2_subdev *sd,
+			       struct v4l2_subdev_pad_config *cfg,
+			       struct v4l2_subdev_frame_size_enum *fse)
+{
+	struct mxc_mipi_csi2_dev *csi2dev = sd_to_mxc_mipi_csi2_dev(sd);
+	struct media_pad *source_pad;
+	struct v4l2_subdev *sen_sd;
+
+	/* Get remote source pad */
+	source_pad = mxc_csi2_get_remote_sensor_pad(csi2dev);
+	if (source_pad == NULL) {
+		v4l2_err(&csi2dev->v4l2_dev, "%s, No remote pad found!\n", __func__);
+		return -EINVAL;
+	}
+
+	/* Get remote source pad subdev */
+	sen_sd = media_entity_to_v4l2_subdev(source_pad->entity);
+	if (sen_sd == NULL) {
+		v4l2_err(&csi2dev->v4l2_dev, "%s, No remote subdev found!\n", __func__);
+		return -EINVAL;
+	}
+
+	return v4l2_subdev_call(sen_sd, pad, enum_frame_size, NULL, fse);
+}
+
+static int mipi_csi2_enum_frame_interval(struct v4l2_subdev *sd,
+				   struct v4l2_subdev_pad_config *cfg,
+				   struct v4l2_subdev_frame_interval_enum *fie)
+{
+	struct mxc_mipi_csi2_dev *csi2dev = sd_to_mxc_mipi_csi2_dev(sd);
+	struct media_pad *source_pad;
+	struct v4l2_subdev *sen_sd;
+
+	/* Get remote source pad */
+	source_pad = mxc_csi2_get_remote_sensor_pad(csi2dev);
+	if (source_pad == NULL) {
+		v4l2_err(&csi2dev->v4l2_dev, "%s, No remote pad found!\n", __func__);
+		return -EINVAL;
+	}
+
+	/* Get remote source pad subdev */
+	sen_sd = media_entity_to_v4l2_subdev(source_pad->entity);
+	if (sen_sd == NULL) {
+		v4l2_err(&csi2dev->v4l2_dev, "%s, No remote subdev found!\n", __func__);
+		return -EINVAL;
+	}
+
+	return v4l2_subdev_call(sen_sd, pad, enum_frame_interval, NULL, fie);
+}
+
 static int mipi_csi2_get_fmt(struct v4l2_subdev *sd,
 			       struct v4l2_subdev_pad_config *cfg,
 			       struct v4l2_subdev_format *fmt)
@@ -495,6 +610,8 @@ static const struct v4l2_subdev_internal_ops mipi_csi2_sd_internal_ops = {
 };
 
 static struct v4l2_subdev_pad_ops mipi_csi2_pad_ops = {
+	.enum_frame_size = mipi_csi2_enum_framesizes,
+	.enum_frame_interval = mipi_csi2_enum_frame_interval,
 	.get_fmt = mipi_csi2_get_fmt,
 	.set_fmt = mipi_csi2_set_fmt,
 };
@@ -504,6 +621,8 @@ static struct v4l2_subdev_core_ops mipi_csi2_core_ops = {
 };
 
 static struct v4l2_subdev_video_ops mipi_csi2_video_ops = {
+	.s_parm = mipi_csi2_s_parm,
+	.g_parm = mipi_csi2_g_parm,
 	.s_stream = mipi_csi2_s_stream,
 };
 

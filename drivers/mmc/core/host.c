@@ -35,14 +35,11 @@
 #define cls_dev_to_mmc_host(d)	container_of(d, struct mmc_host, class_dev)
 
 static DEFINE_IDA(mmc_host_ida);
-static DEFINE_SPINLOCK(mmc_host_lock);
 
 static void mmc_host_classdev_release(struct device *dev)
 {
 	struct mmc_host *host = cls_dev_to_mmc_host(dev);
-	spin_lock(&mmc_host_lock);
-	ida_remove(&mmc_host_ida, host->index);
-	spin_unlock(&mmc_host_lock);
+	ida_simple_remove(&mmc_host_ida, host->index);
 	kfree(host);
 }
 
@@ -346,8 +343,6 @@ int mmc_of_parse(struct mmc_host *host)
 
 EXPORT_SYMBOL(mmc_of_parse);
 
-int mmc_max_reserved_idx(void);
-
 /**
  *	mmc_alloc_host - initialise the per-host structure.
  *	@extra: sizeof private data structure
@@ -358,8 +353,8 @@ int mmc_max_reserved_idx(void);
 struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 {
 	int err;
+	int alias_id;
 	struct mmc_host *host;
-	int alias_id, min_idx, max_idx;
 
 	host = kzalloc(sizeof(struct mmc_host) + extra, GFP_KERNEL);
 	if (!host)
@@ -369,40 +364,20 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 	host->rescan_disable = 1;
 	host->parent = dev;
 
-again:
-	if (!ida_pre_get(&mmc_host_ida, GFP_KERNEL)) {
-		kfree(host);
-		return NULL;
-	}
-
 	alias_id = mmc_get_reserved_index(host);
-
-	if (alias_id >= 0) {
-		min_idx = alias_id;
-		max_idx = alias_id + 1;
-	} else {
-		min_idx = mmc_first_nonreserved_index();
-		max_idx = 0;
-	}
-
-	spin_lock(&mmc_host_lock);
-
-	err = ida_get_new_above(&mmc_host_ida, min_idx, &host->index);
-	if (!err) {
-		if (host->index > max_idx) {
-			ida_remove(&mmc_host_ida, host->index);
-			err = -ENOSPC;
-		}
-	}
-
-	spin_unlock(&mmc_host_lock);
-
-	if (err == -EAGAIN) {
-		goto again;
-	} else if (err) {
+	if (alias_id >= 0)
+		err = ida_simple_get(&mmc_host_ida, alias_id,
+					alias_id + 1, GFP_KERNEL);
+	else
+		err = ida_simple_get(&mmc_host_ida,
+					mmc_first_nonreserved_index(),
+					0, GFP_KERNEL);
+	if (err < 0) {
 		kfree(host);
 		return NULL;
 	}
+
+	host->index = err;
 
 	dev_set_name(&host->class_dev, "mmc%d", host->index);
 

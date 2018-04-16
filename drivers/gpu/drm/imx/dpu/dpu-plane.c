@@ -35,18 +35,12 @@ static const uint32_t dpu_common_formats[] = {
 	DRM_FORMAT_RGBX8888,
 	/* DRM_FORMAT_BGRA8888, */
 	DRM_FORMAT_BGRX8888,
-	DRM_FORMAT_RGB888,
-	DRM_FORMAT_BGR888,
 	DRM_FORMAT_RGB565,
 
 	DRM_FORMAT_YUYV,
 	DRM_FORMAT_UYVY,
 	DRM_FORMAT_NV12,
 	DRM_FORMAT_NV21,
-	DRM_FORMAT_NV16,
-	DRM_FORMAT_NV61,
-	DRM_FORMAT_NV24,
-	DRM_FORMAT_NV42,
 };
 
 static const uint64_t dpu_format_modifiers[] = {
@@ -130,14 +124,8 @@ static bool dpu_drm_plane_format_mod_supported(struct drm_plane *plane,
 		return false;
 
 	switch (format) {
-	case DRM_FORMAT_RGB888:
-	case DRM_FORMAT_BGR888:
 	case DRM_FORMAT_YUYV:
 	case DRM_FORMAT_UYVY:
-	case DRM_FORMAT_NV16:
-	case DRM_FORMAT_NV61:
-	case DRM_FORMAT_NV24:
-	case DRM_FORMAT_NV42:
 		return modifier == DRM_FORMAT_MOD_LINEAR;
 	case DRM_FORMAT_XRGB8888:
 	case DRM_FORMAT_XBGR8888:
@@ -372,10 +360,6 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 		break;
 	case DRM_FORMAT_NV12:
 	case DRM_FORMAT_NV21:
-	case DRM_FORMAT_NV16:
-	case DRM_FORMAT_NV61:
-	case DRM_FORMAT_NV24:
-	case DRM_FORMAT_NV42:
 		bpp = 8;
 		break;
 	default:
@@ -441,7 +425,7 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	struct dpu_layerblend *lb;
 	struct dpu_constframe *cf;
 	struct dpu_extdst *ed;
-	struct dpu_framegen *fg;
+	struct dpu_framegen *fg = res->fg[dplane->stream_id];
 	struct device *dev = plane->dev->dev;
 	dma_addr_t baseaddr, uv_baseaddr = 0;
 	dpu_block_id_t fe_id, vs_id = ID_NONE, hs_id;
@@ -450,6 +434,8 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	int bpp, fd_id, lb_id;
 	bool need_fetcheco = false, need_hscaler = false, need_vscaler = false;
 	bool prefetch_start = false, aux_prefetch_start = false;
+	bool need_modeset;
+	bool is_overlay = plane->type == DRM_PLANE_TYPE_OVERLAY;
 
 	/*
 	 * Do nothing since the plane is disabled by
@@ -457,6 +443,8 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 	 */
 	if (!fb)
 		return;
+
+	need_modeset = drm_atomic_crtc_needs_modeset(state->crtc->state);
 
 	fd_id = source_to_id(dpstate->source);
 	if (fd_id < 0)
@@ -502,10 +490,6 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 		break;
 	case DRM_FORMAT_NV12:
 	case DRM_FORMAT_NV21:
-	case DRM_FORMAT_NV16:
-	case DRM_FORMAT_NV61:
-	case DRM_FORMAT_NV24:
-	case DRM_FORMAT_NV42:
 		bpp = 8;
 		break;
 	default:
@@ -519,7 +503,7 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 
 	if (dpstate->use_prefetch &&
 	    (fetchdecode_get_stream_id(fd) == DPU_PLANE_SRC_DISABLED ||
-	     drm_atomic_crtc_needs_modeset(state->crtc->state)))
+	     need_modeset))
 		prefetch_start = true;
 
 	fetchdecode_set_burstlength(fd, baseaddr, dpstate->use_prefetch);
@@ -543,7 +527,7 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 
 		if (dpstate->use_prefetch &&
 		    (fetcheco_get_stream_id(fe) == DPU_PLANE_SRC_DISABLED ||
-		     drm_atomic_crtc_needs_modeset(state->crtc->state)))
+		     need_modeset))
 			aux_prefetch_start = true;
 
 		fetchdecode_pixengcfg_dynamic_src_sel(fd,
@@ -632,8 +616,12 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 
 		fetchdecode_reg_update_prefetch(fd);
 
-		if (prefetch_start || aux_prefetch_start)
-			fetchdecode_prefetch_enable_first_frame_irq(fd);
+		if (prefetch_start || aux_prefetch_start) {
+			fetchdecode_prefetch_first_frame_handle(fd);
+
+			if (!need_modeset && is_overlay)
+				framegen_wait_for_frame_counter_moving(fg);
+		}
 
 		dev_dbg(dev, "[PLANE:%d:%s] use prefetch\n",
 					plane->base.id, plane->name);
@@ -656,7 +644,6 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 					dpstate->base_w, dpstate->base_h);
 		constframe_constantcolor(cf, 0, 0, 0, 0);
 
-		fg = res->fg[dplane->stream_id];
 		framegen_sacfg(fg, dpstate->base_x, dpstate->base_y);
 	}
 

@@ -16,7 +16,6 @@
 #include <linux/completion.h>
 #include <linux/device.h>
 #include <linux/delay.h>
-#include <linux/of.h>
 #include <linux/pagemap.h>
 #include <linux/err.h>
 #include <linux/leds.h>
@@ -64,6 +63,8 @@
 #define MMC_ERASE_TIMEOUT_MS	(60 * 1000) /* 60 s */
 
 static const unsigned freqs[] = { 400000, 300000, 200000, 100000 };
+
+static int __mmc_max_reserved_idx = -1;
 
 /*
  * Enabling software CRCs on the data blocks can be a significant (30%)
@@ -3166,10 +3167,9 @@ void mmc_init_context_info(struct mmc_host *host)
 	init_waitqueue_head(&host->context_info.wait);
 }
 
-static int __mmc_max_reserved_idx = -1;
-
-/**
- * mmc_first_nonreserved_index() - get the first index that is not reserved
+/*
+ * mmc_first_nonreserved_index() - get the first index that
+ * is not reserved
  */
 int mmc_first_nonreserved_index(void)
 {
@@ -3177,11 +3177,10 @@ int mmc_first_nonreserved_index(void)
 }
 EXPORT_SYMBOL(mmc_first_nonreserved_index);
 
-/**
+/*
  * mmc_get_reserved_index() - get the index reserved for this host
- *
- * Return: The index reserved for this host or negative error value if
- *         no index is reserved for this host
+ * Return: The index reserved for this host or negative error value
+ * 	   if no index is reserved for this host
  */
 int mmc_get_reserved_index(struct mmc_host *host)
 {
@@ -3198,7 +3197,6 @@ static void mmc_of_reserve_idx(void)
 		return;
 
 	__mmc_max_reserved_idx = max;
-
 	pr_debug("MMC: reserving %d slots for of aliases\n",
 			__mmc_max_reserved_idx + 1);
 }
