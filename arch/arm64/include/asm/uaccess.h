@@ -18,11 +18,6 @@
 #ifndef __ASM_UACCESS_H
 #define __ASM_UACCESS_H
 
-#include <asm/alternative.h>
-#include <asm/sysreg.h>
-
-#ifndef __ASSEMBLY__
-
 /*
  * User space memory access functions
  */
@@ -31,12 +26,13 @@
 #include <linux/string.h>
 #include <linux/thread_info.h>
 
+#include <asm/alternative.h>
 #include <asm/cpufeature.h>
 #include <asm/ptrace.h>
+#include <asm/sysreg.h>
 #include <asm/errno.h>
 #include <asm/memory.h>
 #include <asm/compiler.h>
-#include <asm/processor.h>
 
 #define VERIFY_READ 0
 #define VERIFY_WRITE 1
@@ -63,19 +59,15 @@ struct exception_table_entry
 
 extern int fixup_exception(struct pt_regs *regs);
 
+#define KERNEL_DS	(-1UL)
 #define get_ds()	(KERNEL_DS)
+
+#define USER_DS		TASK_SIZE_64
 #define get_fs()	(current_thread_info()->addr_limit)
 
 static inline void set_fs(mm_segment_t fs)
 {
 	current_thread_info()->addr_limit = fs;
-
-	/*
-	 * Prevent a mispredicted conditional call to set_fs from forwarding
-	 * the wrong address limit to access_ok under speculation.
-	 */
-	dsb(nsh);
-	isb();
 
 	/*
 	 * Enable/disable UAO so that copy_to_user() etc can access
@@ -95,32 +87,22 @@ static inline void set_fs(mm_segment_t fs)
  * Returns 1 if the range is valid, 0 otherwise.
  *
  * This is equivalent to the following test:
- * (u65)addr + (u65)size <= (u65)current->addr_limit + 1
+ * (u65)addr + (u65)size <= current->addr_limit
+ *
+ * This needs 65-bit arithmetic.
  */
-static inline unsigned long __range_ok(unsigned long addr, unsigned long size)
-{
-	unsigned long limit = current_thread_info()->addr_limit;
-
-	__chk_user_ptr(addr);
-	asm volatile(
-	// A + B <= C + 1 for all A,B,C, in four easy steps:
-	// 1: X = A + B; X' = X % 2^64
-	"	adds	%0, %0, %2\n"
-	// 2: Set C = 0 if X > 2^64, to guarantee X' > C in step 4
-	"	csel	%1, xzr, %1, hi\n"
-	// 3: Set X' = ~0 if X >= 2^64. For X == 2^64, this decrements X'
-	//    to compensate for the carry flag being set in step 4. For
-	//    X > 2^64, X' merely has to remain nonzero, which it does.
-	"	csinv	%0, %0, xzr, cc\n"
-	// 4: For X < 2^64, this gives us X' - C - 1 <= 0, where the -1
-	//    comes from the carry in being clear. Otherwise, we are
-	//    testing X' - C == 0, subject to the previous adjustments.
-	"	sbcs	xzr, %0, %1\n"
-	"	cset	%0, ls\n"
-	: "+r" (addr), "+r" (limit) : "Ir" (size) : "cc");
-
-	return addr;
-}
+#define __range_ok(addr, size)						\
+({									\
+	unsigned long __addr = (unsigned long __force)(addr);		\
+	unsigned long flag, roksum;					\
+	__chk_user_ptr(addr);						\
+	asm("adds %1, %1, %3; ccmp %1, %4, #2, cc; cset %0, ls"		\
+		: "=&r" (flag), "=&r" (roksum)				\
+		: "1" (__addr), "Ir" (size),				\
+		  "r" (current_thread_info()->addr_limit)		\
+		: "cc");						\
+	flag;								\
+})
 
 /*
  * When dealing with data aborts, watchpoints, or instruction traps we may end
@@ -129,7 +111,7 @@ static inline unsigned long __range_ok(unsigned long addr, unsigned long size)
  */
 #define untagged_addr(addr)		sign_extend64(addr, 55)
 
-#define access_ok(type, addr, size)	__range_ok((unsigned long)(addr), size)
+#define access_ok(type, addr, size)	__range_ok(addr, size)
 #define user_addr_max			get_fs
 
 #define _ASM_EXTABLE(from, to)						\
@@ -137,64 +119,6 @@ static inline unsigned long __range_ok(unsigned long addr, unsigned long size)
 	"	.align		3\n"					\
 	"	.long		(" #from " - .), (" #to " - .)\n"	\
 	"	.popsection\n"
-
-/*
- * User access enabling/disabling.
- */
-#define __uaccess_disable(alt)						\
-do {									\
-	asm(ALTERNATIVE("nop", SET_PSTATE_PAN(1), alt,			\
-			CONFIG_ARM64_PAN));				\
-} while (0)
-
-#define __uaccess_enable(alt)						\
-do {									\
-	asm(ALTERNATIVE("nop", SET_PSTATE_PAN(0), alt,			\
-			CONFIG_ARM64_PAN));				\
-} while (0)
-
-static inline void uaccess_disable(void)
-{
-	__uaccess_disable(ARM64_HAS_PAN);
-}
-
-static inline void uaccess_enable(void)
-{
-	__uaccess_enable(ARM64_HAS_PAN);
-}
-
-/*
- * These functions are no-ops when UAO is present.
- */
-static inline void uaccess_disable_not_uao(void)
-{
-	__uaccess_disable(ARM64_ALT_PAN_NOT_UAO);
-}
-
-static inline void uaccess_enable_not_uao(void)
-{
-	__uaccess_enable(ARM64_ALT_PAN_NOT_UAO);
-}
-
-/*
- * Sanitise a uaccess pointer such that it becomes NULL if above the
- * current addr_limit.
- */
-#define uaccess_mask_ptr(ptr) (__typeof__(ptr))__uaccess_mask_ptr(ptr)
-static inline void __user *__uaccess_mask_ptr(const void __user *ptr)
-{
-	void __user *safe_ptr;
-
-	asm volatile(
-	"	bics	xzr, %1, %2\n"
-	"	csel	%0, %1, xzr, eq\n"
-	: "=&r" (safe_ptr)
-	: "r" (ptr), "r" (current_thread_info()->addr_limit)
-	: "cc");
-
-	csdb();
-	return safe_ptr;
-}
 
 /*
  * The "__xxx" versions of the user access functions do not verify the address
@@ -223,7 +147,8 @@ static inline void __user *__uaccess_mask_ptr(const void __user *ptr)
 do {									\
 	unsigned long __gu_val;						\
 	__chk_user_ptr(ptr);						\
-	uaccess_enable_not_uao();					\
+	asm(ALTERNATIVE("nop", SET_PSTATE_PAN(0), ARM64_ALT_PAN_NOT_UAO,\
+			CONFIG_ARM64_PAN));				\
 	switch (sizeof(*(ptr))) {					\
 	case 1:								\
 		__get_user_asm("ldrb", "ldtrb", "%w", __gu_val, (ptr),  \
@@ -244,38 +169,34 @@ do {									\
 	default:							\
 		BUILD_BUG();						\
 	}								\
-	uaccess_disable_not_uao();					\
 	(x) = (__force __typeof__(*(ptr)))__gu_val;			\
+	asm(ALTERNATIVE("nop", SET_PSTATE_PAN(1), ARM64_ALT_PAN_NOT_UAO,\
+			CONFIG_ARM64_PAN));				\
 } while (0)
 
-#define __get_user_check(x, ptr, err)					\
+#define __get_user(x, ptr)						\
 ({									\
-	__typeof__(*(ptr)) __user *__p = (ptr);				\
-	might_fault();							\
-	if (access_ok(VERIFY_READ, __p, sizeof(*__p))) {		\
-		__p = uaccess_mask_ptr(__p);				\
-		__get_user_err((x), __p, (err));			\
-	} else {							\
-		(x) = 0; (err) = -EFAULT;				\
-	}								\
+	int __gu_err = 0;						\
+	__get_user_err((x), (ptr), __gu_err);				\
+	__gu_err;							\
 })
 
 #define __get_user_error(x, ptr, err)					\
 ({									\
-	__get_user_check((x), (ptr), (err));				\
+	__get_user_err((x), (ptr), (err));				\
 	(void)0;							\
 })
 
 #define __get_user_unaligned __get_user
 
-#define __get_user(x, ptr)						\
+#define get_user(x, ptr)						\
 ({									\
-	int __gu_err = 0;						\
-	__get_user_check((x), (ptr), __gu_err);				\
-	__gu_err;							\
+	__typeof__(*(ptr)) __user *__p = (ptr);				\
+	might_fault();							\
+	access_ok(VERIFY_READ, __p, sizeof(*__p)) ?			\
+		__get_user((x), __p) :					\
+		((x) = 0, -EFAULT);					\
 })
-
-#define get_user	__get_user
 
 #define __put_user_asm(instr, alt_instr, reg, x, addr, err, feature)	\
 	asm volatile(							\
@@ -295,7 +216,8 @@ do {									\
 do {									\
 	__typeof__(*(ptr)) __pu_val = (x);				\
 	__chk_user_ptr(ptr);						\
-	uaccess_enable_not_uao();					\
+	asm(ALTERNATIVE("nop", SET_PSTATE_PAN(0), ARM64_ALT_PAN_NOT_UAO,\
+			CONFIG_ARM64_PAN));				\
 	switch (sizeof(*(ptr))) {					\
 	case 1:								\
 		__put_user_asm("strb", "sttrb", "%w", __pu_val, (ptr),	\
@@ -316,37 +238,33 @@ do {									\
 	default:							\
 		BUILD_BUG();						\
 	}								\
-	uaccess_disable_not_uao();					\
+	asm(ALTERNATIVE("nop", SET_PSTATE_PAN(1), ARM64_ALT_PAN_NOT_UAO,\
+			CONFIG_ARM64_PAN));				\
 } while (0)
 
-#define __put_user_check(x, ptr, err)					\
+#define __put_user(x, ptr)						\
 ({									\
-	__typeof__(*(ptr)) __user *__p = (ptr);				\
-	might_fault();							\
-	if (access_ok(VERIFY_WRITE, __p, sizeof(*__p))) {		\
-		__p = uaccess_mask_ptr(__p);				\
-		__put_user_err((x), __p, (err));			\
-	} else	{							\
-		(err) = -EFAULT;					\
-	}								\
+	int __pu_err = 0;						\
+	__put_user_err((x), (ptr), __pu_err);				\
+	__pu_err;							\
 })
 
 #define __put_user_error(x, ptr, err)					\
 ({									\
-	__put_user_check((x), (ptr), (err));				\
+	__put_user_err((x), (ptr), (err));				\
 	(void)0;							\
 })
 
 #define __put_user_unaligned __put_user
 
-#define __put_user(x, ptr)						\
+#define put_user(x, ptr)						\
 ({									\
-	int __pu_err = 0;						\
-	__put_user_check((x), (ptr), __pu_err);				\
-	__pu_err;							\
+	__typeof__(*(ptr)) __user *__p = (ptr);				\
+	might_fault();							\
+	access_ok(VERIFY_WRITE, __p, sizeof(*__p)) ?			\
+		__put_user((x), __p) :					\
+		-EFAULT;						\
 })
-
-#define put_user	__put_user
 
 extern unsigned long __must_check __arch_copy_from_user(void *to, const void __user *from, unsigned long n);
 extern unsigned long __must_check __arch_copy_to_user(void __user *to, const void *from, unsigned long n);
@@ -357,24 +275,24 @@ static inline unsigned long __must_check __copy_from_user(void *to, const void _
 {
 	kasan_check_write(to, n);
 	check_object_size(to, n, false);
-	return __arch_copy_from_user(to, __uaccess_mask_ptr(from), n);
+	return __arch_copy_from_user(to, from, n);
 }
 
 static inline unsigned long __must_check __copy_to_user(void __user *to, const void *from, unsigned long n)
 {
 	kasan_check_read(from, n);
 	check_object_size(from, n, true);
-	return __arch_copy_to_user(__uaccess_mask_ptr(to), from, n);
+	return __arch_copy_to_user(to, from, n);
 }
 
 static inline unsigned long __must_check copy_from_user(void *to, const void __user *from, unsigned long n)
 {
 	unsigned long res = n;
 	kasan_check_write(to, n);
-	check_object_size(to, n, false);
 
 	if (access_ok(VERIFY_READ, from, n)) {
-		res = __arch_copy_from_user(to, __uaccess_mask_ptr(from), n);
+		check_object_size(to, n, false);
+		res = __arch_copy_from_user(to, from, n);
 	}
 	if (unlikely(res))
 		memset(to + (n - res), 0, res);
@@ -384,10 +302,10 @@ static inline unsigned long __must_check copy_from_user(void *to, const void __u
 static inline unsigned long __must_check copy_to_user(void __user *to, const void *from, unsigned long n)
 {
 	kasan_check_read(from, n);
-	check_object_size(from, n, true);
 
 	if (access_ok(VERIFY_WRITE, to, n)) {
-		n = __arch_copy_to_user(__uaccess_mask_ptr(to), from, n);
+		check_object_size(from, n, true);
+		n = __arch_copy_to_user(to, from, n);
 	}
 	return n;
 }
@@ -395,7 +313,7 @@ static inline unsigned long __must_check copy_to_user(void __user *to, const voi
 static inline unsigned long __must_check copy_in_user(void __user *to, const void __user *from, unsigned long n)
 {
 	if (access_ok(VERIFY_READ, from, n) && access_ok(VERIFY_WRITE, to, n))
-		n = __copy_in_user(__uaccess_mask_ptr(to), __uaccess_mask_ptr(from), n);
+		n = __copy_in_user(to, from, n);
 	return n;
 }
 
@@ -405,7 +323,7 @@ static inline unsigned long __must_check copy_in_user(void __user *to, const voi
 static inline unsigned long __must_check clear_user(void __user *to, unsigned long n)
 {
 	if (access_ok(VERIFY_WRITE, to, n))
-		n = __clear_user(__uaccess_mask_ptr(to), n);
+		n = __clear_user(to, n);
 	return n;
 }
 
@@ -413,27 +331,5 @@ extern long strncpy_from_user(char *dest, const char __user *src, long count);
 
 extern __must_check long strlen_user(const char __user *str);
 extern __must_check long strnlen_user(const char __user *str, long n);
-
-#else	/* __ASSEMBLY__ */
-
-#include <asm/assembler.h>
-
-/*
- * User access enabling/disabling macros. These are no-ops when UAO is
- * present.
- */
-	.macro	uaccess_disable_not_uao, tmp1
-alternative_if ARM64_ALT_PAN_NOT_UAO
-	SET_PSTATE_PAN(1)
-alternative_else_nop_endif
-	.endm
-
-	.macro	uaccess_enable_not_uao, tmp1, tmp2
-alternative_if ARM64_ALT_PAN_NOT_UAO
-	SET_PSTATE_PAN(0)
-alternative_else_nop_endif
-	.endm
-
-#endif	/* __ASSEMBLY__ */
 
 #endif /* __ASM_UACCESS_H */
