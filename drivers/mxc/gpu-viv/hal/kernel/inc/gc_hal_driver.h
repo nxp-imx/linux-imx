@@ -226,6 +226,7 @@ typedef enum _gceHAL_COMMAND_CODES
      */
     gcvHAL_GET_GRAPHIC_BUFFER_FD,
 
+    gcvHAL_SET_VIDEO_MEMORY_METADATA,
 
     /* Connect a video node to an OS native fd. */
     gcvHAL_GET_VIDEO_MEMORY_FD,
@@ -1243,6 +1244,22 @@ typedef struct _gcsHAL_INTERFACE
         }
         GetGraphicBufferFd;
 
+        struct _gcsHAL_VIDEO_MEMORY_METADATA
+        {
+            /* Allocated video memory. */
+            IN gctUINT32            node;
+
+            IN gctUINT32            readback;
+
+            INOUT gctINT32          ts_fd;
+            INOUT gctUINT32         fc_enabled;
+            INOUT gctUINT32         fc_value;
+            INOUT gctUINT32         fc_value_upper;
+
+            INOUT gctUINT32         compressed;
+            INOUT gctUINT32         compress_format;
+        }
+        SetVidMemMetadata;
 
         struct _gcsHAL_GET_VIDEO_MEMORY_FD
         {
