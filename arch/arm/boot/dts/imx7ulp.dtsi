@@ -197,13 +197,14 @@
 		};
 
 		crypto: caam@40240000 {
-			compatible = "fsl,sec-v4.0";
+			compatible = "fsl,imx7d-caam", "fsl,sec-v4.0";
 			#address-cells = <1>;
 			#size-cells = <1>;
 			reg = <0x40240000 0x40000>;
 			ranges = <0 0x40240000 0x40000>;
 			clocks = <&clks IMX7ULP_CLK_CAAM>,
 				<&clks IMX7ULP_CLK_NIC1_DIV>;
+			clock-names = "ipg", "aclk";
 
 			sec_ctrl: ctrl@0 {
 				/* CAAM Page 0 only accessible */
