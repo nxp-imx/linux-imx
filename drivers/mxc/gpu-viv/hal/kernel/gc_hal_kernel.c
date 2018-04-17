@@ -146,6 +146,7 @@ gctCONST_STRING _DispatchText[] =
     gcmDEFINE2TEXT(gcvHAL_DESTROY_MMU),
     gcmDEFINE2TEXT(gcvHAL_SHBUF),
     gcmDEFINE2TEXT(gcvHAL_GET_GRAPHIC_BUFFER_FD),
+    gcmDEFINE2TEXT(gcvHAL_SET_VIDEO_MEMORY_METADATA),
     gcmDEFINE2TEXT(gcvHAL_GET_VIDEO_MEMORY_FD),
     gcmDEFINE2TEXT(gcvHAL_CONFIG_POWER_MANAGEMENT),
     gcmDEFINE2TEXT(gcvHAL_WRAP_USER_MEMORY),
@@ -1640,6 +1641,90 @@ OnError:
 
 /*******************************************************************************
 **
+**  gckKERNEL_SetVidMemMetadata
+**
+**  Set/Get metadata to/from gckVIDMEM_NODE object.
+**
+**  INPUT:
+**
+**      gckKERNEL Kernel
+**          Pointer to an gckKERNEL object.
+**
+**      gctUINT32 ProcessID
+**          ProcessID of current process.
+**
+**  INOUT:
+**
+**      gcsHAL_INTERFACE * Interface
+**          Pointer to a interface structure
+*/
+#if defined(CONFIG_DMA_SHARED_BUFFER)
+#include <linux/dma-buf.h>
+
+gceSTATUS
+gckKERNEL_SetVidMemMetadata(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 ProcessID,
+    INOUT gcsHAL_INTERFACE * Interface
+    )
+{
+    gceSTATUS status = gcvSTATUS_NOT_SUPPORTED;
+    gckVIDMEM_NODE nodeObj = gcvNULL;
+
+    gcmkHEADER_ARG("Kernel=0x%X ProcessID=%d", Kernel, ProcessID);
+
+    gcmkONERROR(gckVIDMEM_HANDLE_Lookup(Kernel, ProcessID, Interface->u.SetVidMemMetadata.node, &nodeObj));
+
+    if (Interface->u.SetVidMemMetadata.readback)
+    {
+        Interface->u.SetVidMemMetadata.ts_fd            = nodeObj->metadata.ts_fd;
+        Interface->u.SetVidMemMetadata.fc_enabled       = nodeObj->metadata.fc_enabled;
+        Interface->u.SetVidMemMetadata.fc_value         = nodeObj->metadata.fc_value;
+        Interface->u.SetVidMemMetadata.fc_value_upper   = nodeObj->metadata.fc_value_upper;
+        Interface->u.SetVidMemMetadata.compressed       = nodeObj->metadata.compressed;
+        Interface->u.SetVidMemMetadata.compress_format  = nodeObj->metadata.compress_format;
+    }
+    else
+    {
+        nodeObj->metadata.ts_fd             = Interface->u.SetVidMemMetadata.ts_fd;
+        if (nodeObj->metadata.ts_fd > 0)
+        {
+            nodeObj->metadata.ts_dma_buf    = dma_buf_get(nodeObj->metadata.ts_fd);
+            if (IS_ERR(nodeObj->metadata.ts_dma_buf))
+            {
+                gcmkONERROR(gcvSTATUS_NOT_FOUND);
+            }
+            dma_buf_put(nodeObj->metadata.ts_dma_buf);
+        }
+        nodeObj->metadata.fc_enabled        = Interface->u.SetVidMemMetadata.fc_enabled;
+        nodeObj->metadata.fc_value          = Interface->u.SetVidMemMetadata.fc_value;
+        nodeObj->metadata.fc_value_upper    = Interface->u.SetVidMemMetadata.fc_value_upper;
+        nodeObj->metadata.compressed        = Interface->u.SetVidMemMetadata.compressed;
+        nodeObj->metadata.compress_format   = Interface->u.SetVidMemMetadata.compress_format;
+    }
+
+    gcmkFOOTER();
+
+OnError:
+    return status;
+}
+
+#else
+
+gceSTATUS
+gckKERNEL_SetVidMemMetadata(
+    IN gckKERNEL Kernel,
+    IN gctUINT32 ProcessID,
+    INOUT gcsHAL_INTERFACE * Interface
+    )
+{
+    gcmkFATAL("The kernel did NOT support CONFIG_DMA_SHARED_BUFFER");
+    return gcvSTATUS_NOT_SUPPORTED;
+}
+#endif
+
+/*******************************************************************************
+**
 **  gckKERNEL_QueryVidMemPoolNodes
 **
 **  Loop all databases to query used memory nodes of a specific pool.
@@ -3013,6 +3098,10 @@ gckKERNEL_Dispatch(
                                    gcmINT2PTR(Interface->u.ImportVideoMemory.handle),
                                    gcvNULL,
                                    0));
+        break;
+
+    case gcvHAL_SET_VIDEO_MEMORY_METADATA:
+        gcmkONERROR(gckKERNEL_SetVidMemMetadata(Kernel, processID, Interface));
         break;
 
     case gcvHAL_GET_VIDEO_MEMORY_FD:
