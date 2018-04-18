@@ -617,7 +617,7 @@ static int rad_panel_probe(struct mipi_dsi_device *dsi)
 	bl_props.max_brightness = 255;
 
 	panel->backlight = devm_backlight_device_register(
-				dev, dev_name(dev),
+				dev, "backlight",
 				dev, dsi,
 				&rad_bl_ops, &bl_props);
 	if (IS_ERR(panel->backlight)) {
