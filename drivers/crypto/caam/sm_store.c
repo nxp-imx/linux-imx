@@ -138,7 +138,7 @@ static int blacken_key_jobdesc(u32 **desc, void *key, u16 keysz, bool auth)
 
 	/* Load key to class 1 key register */
 	tmpdesc[idx++] = CMD_KEY | CLASS_1 | (keysz & KEY_LENGTH_MASK);
-	tmpdesc[idx++] = (u32)key;
+	tmpdesc[idx++] = (uintptr_t)key;
 
 	/* ...and write back out via FIFO store*/
 	tmpdesc[idx] = CMD_FIFO_STORE | CLASS_1 | (keysz & KEY_LENGTH_MASK);
@@ -150,7 +150,7 @@ static int blacken_key_jobdesc(u32 **desc, void *key, u16 keysz, bool auth)
 		tmpdesc[idx] |= FIFOST_TYPE_KEY_CCM_JKEK;
 
 	idx++;
-	tmpdesc[idx++] = (u32)key;
+	tmpdesc[idx++] = (uintptr_t)key;
 
 	/* finish off the job header */
 	tmpdesc[0] = CMD_DESC_HDR | HDR_ONE | (idx & HDR_DESCLEN_MASK);
@@ -271,7 +271,7 @@ static int blob_encap_jobdesc(u32 **desc, dma_addr_t keymod,
 
 	/* Input data, should be somewhere in secure memory */
 	tmpdesc[idx++] = CMD_SEQ_IN_PTR | secretsz;
-	tmpdesc[idx++] = (u32)secretbuf;
+	tmpdesc[idx++] = (uintptr_t)secretbuf;
 
 	/* Set blob encap, then color */
 	tmpdesc[idx] = CMD_OPERATION | OP_TYPE_ENCAP_PROTOCOL | OP_PCLID_BLOB;
@@ -387,7 +387,7 @@ static int blob_decap_jobdesc(u32 **desc, dma_addr_t keymod, dma_addr_t blobbuf,
 	tmpdesc[idx++] = CMD_SEQ_IN_PTR | (secretsz + BLOB_OVERHEAD);
 	tmpdesc[idx++] = (u32)blobbuf;
 	tmpdesc[idx++] = CMD_SEQ_OUT_PTR | secretsz;
-	tmpdesc[idx++] = (u32)outbuf;
+	tmpdesc[idx++] = (uintptr_t)outbuf;
 
 	/* Decapsulate from secure memory partition to black blob */
 	tmpdesc[idx] = CMD_OPERATION | OP_TYPE_DECAP_PROTOCOL | OP_PCLID_BLOB;
@@ -566,7 +566,7 @@ u32 slot_get_base(struct device *dev, u32 unit, u32 slot)
 		slot, (u32)ksdata->base_address);
 #endif
 
-	return (u32)(ksdata->base_address);
+	return (uintptr_t)(ksdata->base_address);
 }
 
 u32 slot_get_offset(struct device *dev, u32 unit, u32 slot)
@@ -786,7 +786,6 @@ int sm_keystore_slot_load(struct device *dev, u32 unit, u32 slot,
 	struct caam_drv_private_sm *smpriv = dev_get_drvdata(dev);
 	int retval = -EINVAL;
 	u32 slot_size;
-	u32 i;
 	u8 __iomem *slot_location;
 
 	spin_lock(&smpriv->kslock);
