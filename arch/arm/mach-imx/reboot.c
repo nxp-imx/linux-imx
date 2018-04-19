@@ -28,8 +28,6 @@ void do_switch_mode(char mode)
 		snvs_base_addr = MX6_SNVS_BASE_ADDR;
 	} else if (cpu_is_imx7d()) {
 		snvs_base_addr = MX7D_SNVS_BASE_ADDR;
-	} else if (cpu_is_imx7ulp()) {
-		snvs_base_addr = MX7ULP_SNVS_BASE_ADDR;
 	} else {
 		pr_warn("do not support mode switch!\n");
 		return;
