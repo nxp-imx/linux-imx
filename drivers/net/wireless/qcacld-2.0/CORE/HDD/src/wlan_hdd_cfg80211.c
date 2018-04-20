@@ -20392,8 +20392,9 @@ wlan_hdd_cfg80211_inform_bss_frame( hdd_adapter_t *pAdapter,
     int rssi = 0;
     hdd_context_t *pHddCtx;
     int status;
-#ifdef CONFIG_CNSS
+#ifndef CONFIG_CNSS
     struct timespec ts;
+    uint64_t boottime_ns;
 #endif
     hdd_config_t *cfg_param = NULL;
 
@@ -20411,12 +20412,15 @@ wlan_hdd_cfg80211_inform_bss_frame( hdd_adapter_t *pAdapter,
 
     memcpy(mgmt->bssid, bss_desc->bssId, ETH_ALEN);
 
-#ifdef CONFIG_CNSS
+#ifndef CONFIG_CNSS
     /* Android does not want the time stamp from the frame.
        Instead it wants a monotonic increasing value */
     vos_get_monotonic_boottime_ts(&ts);
     mgmt->u.probe_resp.timestamp =
          ((u64)ts.tv_sec * 1000000) + (ts.tv_nsec / 1000);
+
+    /* @NL80211_BSS_LAST_SEEN_BOOTTIME:  The value is (u64, nanoseconds) */
+    boottime_ns = mgmt->u.probe_resp.timestamp * 1000;
 #else
     /* keep old behavior for non-open source (for now) */
     memcpy(&mgmt->u.probe_resp.timestamp, bss_desc->timeStamp,
@@ -20517,8 +20521,7 @@ wlan_hdd_cfg80211_inform_bss_frame( hdd_adapter_t *pAdapter,
 
     bss_status = wlan_hdd_cfg80211_inform_bss_frame_data(wiphy, chan, mgmt,
                                                          frame_len, rssi,
-                                                         GFP_KERNEL,
-                                                   bss_desc->scansystimensec);
+                                                         GFP_KERNEL, boottime_ns);
     kfree(mgmt);
     return bss_status;
 }
