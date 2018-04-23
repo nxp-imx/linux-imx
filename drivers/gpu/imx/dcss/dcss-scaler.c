@@ -912,7 +912,7 @@ void dcss_scaler_setup(struct dcss_soc *dcss, int ch_num, u32 pix_format,
 {
 	enum dcss_color_space dcss_cs;
 	int planes;
-	unsigned int pixel_depth;
+	unsigned int pixel_depth = 0;
 	bool rtr_8line_en = false;
 	bool use_5_taps = false;
 	u32 bpp;
