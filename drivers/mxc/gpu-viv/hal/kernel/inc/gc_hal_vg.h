@@ -293,14 +293,6 @@ typedef gctTHREADFUNCRESULT (gctTHREADFUNCTYPE * gctTHREADFUNC) (
 ****************************** Kernel Debug Macro ******************************
 \******************************************************************************/
 
-/* Set signal to signaled state for specified process. */
-gceSTATUS
-gckOS_SetSignal(
-    IN gckOS Os,
-    IN gctHANDLE Process,
-    IN gctSIGNAL Signal
-    );
-
 /* Return the kernel logical pointer for the given physical one. */
 gceSTATUS
 gckOS_GetKernelLogical(
