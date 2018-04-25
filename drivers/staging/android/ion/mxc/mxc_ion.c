@@ -41,9 +41,10 @@ static struct ion_heap **heaps;
 static int cacheable;
 
 static struct ion_of_heap mxc_heaps[] = {
-	PLATFORM_HEAP("fsl,user-heap", 0, ION_HEAP_TYPE_DMA, "user"),
+	PLATFORM_HEAP("fsl,user-heap", ION_CMA_HEAP_ID, ION_HEAP_TYPE_DMA, "user"),
 	PLATFORM_HEAP("fsl,display-heap", 1, ION_HEAP_TYPE_UNMAPPED, "display"),
 	PLATFORM_HEAP("fsl,vpu-heap", 2, ION_HEAP_TYPE_UNMAPPED, "vpu"),
+	PLATFORM_HEAP("fsl,carveout-heap", ION_CARVEOUT_HEAP_ID, ION_HEAP_TYPE_CARVEOUT, "carveout"),
 	{}
 };
 

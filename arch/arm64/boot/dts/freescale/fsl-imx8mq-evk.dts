@@ -967,3 +967,19 @@
 		};
 	};
 };
+
+&resmem {
+	carveout_region: imx_ion@0 {
+		compatible = "imx-ion-pool";
+		reg = <0x0 0xf8000000 0 0x8000000>;
+	};
+};
+
+&imx_ion {
+	compatible = "fsl,mxc-ion", "linux,ion";
+
+	ion-carveout-region {
+		compatible = "fsl,carveout-heap", "linux,ion-heap-carveout";
+		memory-region = <&carveout_region>;
+	};
+};

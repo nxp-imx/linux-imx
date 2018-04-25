@@ -15,6 +15,10 @@
 #include "fsl-imx8mq-evk.dts"
 
 &resmem {
+	carveout_region {
+		status = "disabled";
+	};
+
 	display_region: imx_ion@1 {
 		compatible = "imx-ion-pool";
 		reg = <0x0 0xe6000000 0 0x18000000>;
@@ -28,6 +32,10 @@
 
 &imx_ion {
 	compatible = "fsl,mxc-ion", "linux,ion";
+
+	ion-carveout-region {
+		status = "disabled";
+	};
 
 	ion-display-region {
 		compatible = "fsl,display-heap", "linux,ion-heap-unmapped";
