@@ -191,16 +191,32 @@ static const struct dprc_format_info formats[] = {
 	  .depth = 16, .num_planes = 1, .cpp = { 2, 0, 0 },
 	  .hsub = 1,   .vsub = 1,
 	}, {
+	  .format = DRM_FORMAT_ARGB8888,
+	  .depth = 32, .num_planes = 1, .cpp = { 4, 0, 0 },
+	  .hsub = 1,   .vsub = 1,
+	}, {
 	  .format = DRM_FORMAT_XRGB8888,
 	  .depth = 24, .num_planes = 1, .cpp = { 4, 0, 0 },
+	  .hsub = 1,   .vsub = 1,
+	}, {
+	  .format = DRM_FORMAT_ABGR8888,
+	  .depth = 32, .num_planes = 1, .cpp = { 4, 0, 0 },
 	  .hsub = 1,   .vsub = 1,
 	}, {
 	  .format = DRM_FORMAT_XBGR8888,
 	  .depth = 24, .num_planes = 1, .cpp = { 4, 0, 0 },
 	  .hsub = 1,   .vsub = 1,
 	}, {
+	  .format = DRM_FORMAT_RGBA8888,
+	  .depth = 32, .num_planes = 1, .cpp = { 4, 0, 0 },
+	  .hsub = 1,   .vsub = 1,
+	}, {
 	  .format = DRM_FORMAT_RGBX8888,
 	  .depth = 24, .num_planes = 1, .cpp = { 4, 0, 0 },
+	  .hsub = 1,   .vsub = 1,
+	}, {
+	  .format = DRM_FORMAT_BGRA8888,
+	  .depth = 32, .num_planes = 1, .cpp = { 4, 0, 0 },
 	  .hsub = 1,   .vsub = 1,
 	}, {
 	  .format = DRM_FORMAT_BGRX8888,
@@ -314,6 +330,34 @@ static void dprc_dpu_gpr_configure(struct dprc *dprc, unsigned int stream_id)
 	sc_ipc_close(mu_id);
 }
 
+static void dprc_prg_sel_configure(struct dprc *dprc, u32 resource, bool enable)
+{
+	sc_err_t sciErr;
+	sc_ipc_t ipcHndl = 0;
+	u32 mu_id;
+
+	if (WARN_ON(!dprc))
+		return;
+
+	sciErr = sc_ipc_getMuID(&mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		dev_err(dprc->dev, "cannot obtain MU ID %d\n", sciErr);
+		return;
+	}
+
+	sciErr = sc_ipc_open(&ipcHndl, mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		dev_err(dprc->dev, "sc_ipc_open failed %d\n", sciErr);
+		return;
+	}
+
+	sciErr = sc_misc_set_control(ipcHndl, resource, SC_C_SEL0, enable);
+	if (sciErr != SC_ERR_NONE)
+		dev_err(dprc->dev, "sc_misc_set_control failed %d\n", sciErr);
+
+	sc_ipc_close(mu_id);
+}
+
 void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 		    unsigned int width, unsigned int height,
 		    unsigned int x_offset, unsigned int y_offset,
@@ -371,9 +415,31 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 				NUM_X_PIX_WIDE(p2_w), FRAME_2P_PIX_X_CTRL);
 			dprc_write(dprc,
 				NUM_Y_PIX_HIGH(p2_h), FRAME_2P_PIX_Y_CTRL);
+		} else {
+			if (dprc->sc_resource == SC_R_DC_0_BLIT1) {
+				dprc_prg_sel_configure(dprc,
+						       SC_R_DC_0_BLIT0, true);
+				prg_set_auxiliary(dprc->prgs[1]);
+				dprc->has_aux_prg = true;
+			}
 		}
 		dprc_write(dprc, uv_baddr, FRAME_2P_BASE_ADDR_CTRL0);
 	} else {
+		if (dprc->devtype->has_fixup) {
+			switch (dprc->sc_resource) {
+			case SC_R_DC_0_BLIT0:
+				dprc_prg_sel_configure(dprc,
+						       SC_R_DC_0_BLIT0, false);
+				prg_set_primary(dprc->prgs[0]);
+				break;
+			case SC_R_DC_0_BLIT1:
+				dprc->has_aux_prg = false;
+				break;
+			default:
+				break;
+			}
+		}
+
 		switch (modifier) {
 		case DRM_FORMAT_MOD_VIVANTE_TILED:
 			p1_w = round_up(dprc_width, info->cpp[0] == 2 ? 8 : 4);
@@ -461,9 +527,13 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 	val |= BUF2;
 	val &= ~(PIX_COMP_SEL_MASK | PIX_SIZE);
 	switch (format) {
+	case DRM_FORMAT_ARGB8888:
 	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ABGR8888:
 	case DRM_FORMAT_XBGR8888:
+	case DRM_FORMAT_RGBA8888:
 	case DRM_FORMAT_RGBX8888:
+	case DRM_FORMAT_BGRA8888:
 	case DRM_FORMAT_BGRX8888:
 		/*
 		 * It turns out pixel components are mapped directly
@@ -614,9 +684,13 @@ bool dprc_format_supported(struct dprc *dprc, u32 format, u64 modifier)
 		return false;
 
 	switch (format) {
+	case DRM_FORMAT_ARGB8888:
 	case DRM_FORMAT_XRGB8888:
+	case DRM_FORMAT_ABGR8888:
 	case DRM_FORMAT_XBGR8888:
+	case DRM_FORMAT_RGBA8888:
 	case DRM_FORMAT_RGBX8888:
+	case DRM_FORMAT_BGRA8888:
 	case DRM_FORMAT_BGRX8888:
 	case DRM_FORMAT_RGB565:
 		return (modifier == DRM_FORMAT_MOD_NONE ||
@@ -640,6 +714,12 @@ bool dprc_format_supported(struct dprc *dprc, u32 format, u64 modifier)
 		case SC_R_DC_0_WARP:
 		case SC_R_DC_1_WARP:
 			return false;
+		case SC_R_DC_0_BLIT1:
+			if (!dprc->devtype->has_fixup)
+				break;
+
+			return (modifier == DRM_FORMAT_MOD_NONE ||
+				modifier == DRM_FORMAT_MOD_AMPHION_TILED);
 		}
 		return (dprc->has_aux_prg &&
 			(modifier == DRM_FORMAT_MOD_NONE ||
@@ -762,8 +842,11 @@ static int dprc_probe(struct platform_device *pdev)
 	}
 
 	switch (dprc->sc_resource) {
-	case SC_R_DC_0_BLIT0:
 	case SC_R_DC_0_BLIT1:
+		if (dprc->devtype->has_fixup)
+			dprc->has_aux_prg = true;
+		/* fall-through */
+	case SC_R_DC_0_BLIT0:
 	case SC_R_DC_1_BLIT0:
 	case SC_R_DC_1_BLIT1:
 		dprc->is_blit_chan = true;
