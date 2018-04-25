@@ -82,7 +82,7 @@
 
 		reg_sd1_vmmc: sd1_regulator {
 			compatible = "regulator-fixed";
-			regulator-name = "VSD_3V3";
+			regulator-name = "WLAN_EN";
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			gpio = <&rpmsg_gpio0 14 GPIO_ACTIVE_HIGH>;
@@ -343,7 +343,7 @@
 		pinctrl_usdhc1: usdhc1grp {
 			fsl,pins = <
 				IMX7ULP_PAD_PTE3__SDHC1_CMD		0x43
-				IMX7ULP_PAD_PTE2__SDHC1_CLK		0x43
+				IMX7ULP_PAD_PTE2__SDHC1_CLK		0x10042
 				IMX7ULP_PAD_PTE1__SDHC1_D0		0x43
 				IMX7ULP_PAD_PTE0__SDHC1_D1		0x43
 				IMX7ULP_PAD_PTE5__SDHC1_D2		0x43
@@ -558,6 +558,7 @@
 	pinctrl-0 = <&pinctrl_usdhc1>;
 	pinctrl-1 = <&pinctrl_usdhc1>;
 	bus-width = <4>;
+	no-1-8-v;
 	vmmc-supply = <&reg_sd1_vmmc>;
 	pm-ignore-notify;
 	keep-power-in-suspend;
