@@ -13,13 +13,30 @@
  * GNU General Public License for more details.
  */
 
-/dts-v1/;
-
-#include "fsl-imx8qp.dtsi"
-
-#include "fsl-imx8q-arm2.dtsi"
+#include "fsl-imx8qm.dtsi"
 
 / {
-        model = "Freescale i.MX8QP ARM2";
-        compatible = "fsl,imx8qp-arm2", "fsl,imx8qp", "fsl,imx8qm";
+        model = "Freescale i.MX8DM";
+        compatible = "fsl, imx8dm", "fsl,imx8qm";
+
+};
+
+&A53_0 {
+        device_type = "";
+};
+
+&A53_1 {
+        device_type = "";
+};
+
+&A53_2 {
+        device_type = "";
+};
+
+&A53_3 {
+        device_type = "";
+};
+
+&A53_L2 {
+        compatible = "";
 };
