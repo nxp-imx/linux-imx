@@ -13,39 +13,23 @@
  * GNU General Public License for more details.
  */
 
+/dts-v1/;
+
 #include "fsl-imx8dxp.dtsi"
 
+#include "fsl-imx8x-arm2.dtsi"
+
 / {
-	model = "Freescale i.MX8QXP";
-	compatible = "fsl,imx8qxp";
-
-	cpus {
-		A35_2: cpu@2 {
-			device_type = "cpu";
-			compatible = "arm,cortex-a35";
-			reg = <0x0 0x2>;
-			enable-method = "psci";
-			next-level-cache = <&A35_L2>;
-		};
-
-		A35_3: cpu@3 {
-			device_type = "cpu";
-			compatible = "arm,cortex-a35";
-			reg = <0x0 0x3>;
-			enable-method = "psci";
-			next-level-cache = <&A35_L2>;
-		};
-	};
-
-	pmu {
-		interrupt-affinity = <&A35_0>, <&A35_1>, <&A35_2>, <&A35_3>;
-	};
+		model = "Freescale i.MX8DXP ARM2";
+		compatible = "fsl,imx8dxp-arm2", "fsl,imx8dxp", "fsl,imx8qxp";
 };
 
-&A35_2 {
-        device_type = "cpu";
+&usbotg3 {
+	dr_mode = "otg";
+	extcon = <&typec_ptn5150>;
+	status = "okay";
 };
 
-&A35_3 {
-        device_type = "cpu";
+&vpu_decoder {
+	status = "okay";
 };
