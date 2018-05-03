@@ -250,10 +250,17 @@ void prg_set_auxiliary(struct prg *prg)
 {
 	if (WARN_ON(!prg))
 		return;
-
 	prg->is_auxiliary = true;
 }
 EXPORT_SYMBOL_GPL(prg_set_auxiliary);
+
+void prg_put_auxiliary(struct prg *prg)
+{
+	if (WARN_ON(!prg))
+		return;
+	prg->is_auxiliary = false;
+}
+EXPORT_SYMBOL_GPL(prg_put_auxiliary);
 
 struct prg *
 prg_lookup_by_phandle(struct device *dev, const char *name, int index)
