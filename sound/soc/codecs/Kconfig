@@ -798,7 +798,8 @@ config SND_SOC_RT5640
 	tristate
 
 config SND_SOC_RT5645
-        tristate
+	tristate "Realtek ALC5645/ACL5650 CODEC"
+	depends on I2C
 
 config SND_SOC_RT5651
 	tristate
