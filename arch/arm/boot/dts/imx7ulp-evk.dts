@@ -87,7 +87,7 @@
 
 		reg_sd1_vmmc: sd1_regulator {
 			compatible = "regulator-fixed";
-			regulator-name = "VSD_3V3";
+			regulator-name = "WLAN_EN";
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			gpio = <&rpmsg_gpio0 14 GPIO_ACTIVE_HIGH>;
@@ -365,7 +365,7 @@
 		pinctrl_usdhc1: usdhc1grp {
 			fsl,pins = <
 				IMX7ULP_PAD_PTE3__SDHC1_CMD		0x43
-				IMX7ULP_PAD_PTE2__SDHC1_CLK		0x43
+				IMX7ULP_PAD_PTE2__SDHC1_CLK		0x10042
 				IMX7ULP_PAD_PTE1__SDHC1_D0		0x43
 				IMX7ULP_PAD_PTE0__SDHC1_D1		0x43
 				IMX7ULP_PAD_PTE5__SDHC1_D2		0x43
@@ -439,14 +439,13 @@
 		focaltech,reset-gpio = <&gpio_ptf 1 0x01>;
 		focaltech,irq-gpio = <&gpio_ptf 0 0x02>;
 		focaltech,max-touch-number = <5>;
-		focaltech,display-coords =  <0 0 240 426>;
+		focaltech,display-coords =  <0 0 480 854>;
 
 		focaltech,have-key;
 		focaltech,key-number = <3>;
 		focaltech,keys = <139 102 158>;
 		focaltech,key-y-coord = <2000>;
 		focaltech,key-x-coords = <200 600 800>;
-		focaltech,scaling-down-half;
 	};
 };
 
@@ -580,6 +579,7 @@
 	pinctrl-0 = <&pinctrl_usdhc1>;
 	pinctrl-1 = <&pinctrl_usdhc1>;
 	bus-width = <4>;
+	no-1-8-v;
 	vmmc-supply = <&reg_sd1_vmmc>;
 	pm-ignore-notify;
 	keep-power-in-suspend;

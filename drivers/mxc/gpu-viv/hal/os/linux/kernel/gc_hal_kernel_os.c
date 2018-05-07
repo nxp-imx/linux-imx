@@ -4891,6 +4891,11 @@ gckOS_Broadcast(
     )
 {
     gceSTATUS status;
+#if gcdPOWER_SUSPEND_WHEN_IDLE
+    gceCHIPPOWERSTATE state = gcvPOWER_SUSPEND_BROADCAST;
+#else
+    gceCHIPPOWERSTATE state = gcvPOWER_IDLE_BROADCAST;
+#endif
 
     gcmkHEADER_ARG("Os=0x%X Hardware=0x%X Reason=%d", Os, Hardware, Reason);
 
@@ -4918,12 +4923,7 @@ gckOS_Broadcast(
 
         /* Put GPU IDLE. */
         gcmkONERROR(
-            gckHARDWARE_SetPowerManagementState(Hardware,
-#if gcdPOWER_SUSPEND_WHEN_IDLE
-                                                gcvPOWER_SUSPEND_BROADCAST));
-#else
-                                                gcvPOWER_IDLE_BROADCAST));
-#endif
+            gckHARDWARE_SetPowerManagementState(Hardware, state));
 
         /* Add idle process DB. */
         gcmkONERROR(gckKERNEL_AddProcessDB(Hardware->kernel,
@@ -5965,66 +5965,6 @@ OnError:
     return status;
 }
 
-#if gcdENABLE_VG
-gceSTATUS
-gckOS_SetSignalVG(
-    IN gckOS Os,
-    IN gctHANDLE Process,
-    IN gctSIGNAL Signal
-    )
-{
-    gceSTATUS status;
-    gctINT result;
-    struct task_struct * userTask;
-    struct siginfo info;
-
-    userTask = FIND_TASK_BY_PID((pid_t)(gctUINTPTR_T) Process);
-
-    if (userTask != gcvNULL)
-    {
-        info.si_signo = 48;
-        info.si_code  = __SI_CODE(__SI_RT, SI_KERNEL);
-        info.si_pid   = 0;
-        info.si_uid   = 0;
-        info.si_ptr   = (gctPOINTER) Signal;
-
-        /* Signals with numbers between 32 and 63 are real-time,
-           send a real-time signal to the user process. */
-        result = send_sig_info(48, &info, userTask);
-
-        printk("gckOS_SetSignalVG:0x%x\n", result);
-        /* Error? */
-        if (result < 0)
-        {
-            status = gcvSTATUS_GENERIC_IO;
-
-            gcmkTRACE(
-                gcvLEVEL_ERROR,
-                "%s(%d): an error has occurred.\n",
-                __FUNCTION__, __LINE__
-                );
-        }
-        else
-        {
-            status = gcvSTATUS_OK;
-        }
-    }
-    else
-    {
-        status = gcvSTATUS_GENERIC_IO;
-
-        gcmkTRACE(
-            gcvLEVEL_ERROR,
-            "%s(%d): an error has occurred.\n",
-            __FUNCTION__, __LINE__
-            );
-    }
-
-    /* Return status. */
-    return status;
-}
-#endif
-
 /*******************************************************************************
 **
 **  gckOS_UserSignal
@@ -6517,84 +6457,6 @@ gckOS_DecrementSemaphore(
 
     gcmkFOOTER();
     /* Return the status. */
-    return status;
-}
-
-/*******************************************************************************
-**
-**  gckOS_SetSignal
-**
-**  Set the specified signal to signaled state.
-**
-**  INPUT:
-**
-**      gckOS Os
-**          Pointer to the gckOS object.
-**
-**      gctHANDLE Process
-**          Handle of process owning the signal.
-**
-**      gctSIGNAL Signal
-**          Pointer to the gctSIGNAL.
-**
-**  OUTPUT:
-**
-**      Nothing.
-*/
-gceSTATUS
-gckOS_SetSignal(
-    IN gckOS Os,
-    IN gctHANDLE Process,
-    IN gctSIGNAL Signal
-    )
-{
-    gceSTATUS status;
-    gctINT result;
-    struct task_struct * userTask;
-    struct siginfo info;
-
-    userTask = FIND_TASK_BY_PID((pid_t)(gctUINTPTR_T) Process);
-
-    if (userTask != gcvNULL)
-    {
-        info.si_signo = 48;
-        info.si_code  = __SI_CODE(__SI_RT, SI_KERNEL);
-        info.si_pid   = 0;
-        info.si_uid   = 0;
-        info.si_ptr   = (gctPOINTER) Signal;
-
-        /* Signals with numbers between 32 and 63 are real-time,
-           send a real-time signal to the user process. */
-        result = send_sig_info(48, &info, userTask);
-
-        /* Error? */
-        if (result < 0)
-        {
-            status = gcvSTATUS_GENERIC_IO;
-
-            gcmkTRACE(
-                gcvLEVEL_ERROR,
-                "%s(%d): an error has occurred.\n",
-                __FUNCTION__, __LINE__
-                );
-        }
-        else
-        {
-            status = gcvSTATUS_OK;
-        }
-    }
-    else
-    {
-        status = gcvSTATUS_GENERIC_IO;
-
-        gcmkTRACE(
-            gcvLEVEL_ERROR,
-            "%s(%d): an error has occurred.\n",
-            __FUNCTION__, __LINE__
-            );
-    }
-
-    /* Return status. */
     return status;
 }
 
