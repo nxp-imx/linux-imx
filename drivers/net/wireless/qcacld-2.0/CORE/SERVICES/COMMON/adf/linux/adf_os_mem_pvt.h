@@ -76,6 +76,11 @@ static inline void *
 __adf_os_mem_alloc_consistent(
     adf_os_device_t osdev, adf_os_size_t size, adf_os_dma_addr_t *paddr, adf_os_dma_context_t memctx)
 {
+   int ret;
+   ret = dma_set_mask_and_coherent(osdev->dev, DMA_BIT_MASK(32));
+   if (ret)
+       return NULL;
+
 #if defined(A_SIMOS_DEVHOST)
     static int first = 1;
     void *vaddr;
