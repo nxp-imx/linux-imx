@@ -2,12 +2,13 @@
  * Controller-level driver, kernel property detection, initialization
  *
  * Copyright 2008-2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  */
 
 #include <linux/device.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
+#include <linux/pm_domain.h>
 
 #include "compat.h"
 #include "regs.h"
@@ -445,6 +446,8 @@ static int enable_jobrings(struct caam_drv_private *ctrlpriv, int block_offset)
 					ring);
 				continue;
 			}
+			/* Power up the job ring.*/
+			genpd_dev_pm_attach(&ctrlpriv->jrpdev[ring]->dev);
 
 			if (of_property_read_u32_index(np, "reg", 0, &index)) {
 				pr_warn("%s read reg property error %d.",

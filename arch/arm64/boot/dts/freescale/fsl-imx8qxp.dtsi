@@ -125,7 +125,7 @@
 	mu: mu@5d1c0000 {
 		compatible = "fsl,imx8-mu";
 		reg = <0x0 0x5d1c0000 0x0 0x10000>;
-		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&wu>;
 		fsl,scu_ap_mu_id = <0>;
 		status = "okay";
@@ -329,13 +329,17 @@
 				reg = <SC_R_USB_0>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_conn>;
+				#address-cells = <1>;
+				#size-cells = <0>;
 				wakeup-irq = <267>;
-			};
-			pd_conn_usbotg0_phy: PD_CONN_USB_0_PHY {
-				reg = <SC_R_USB_0_PHY>;
-				#power-domain-cells = <0>;
-				power-domains = <&pd_conn>;
-				wakeup-irq = <267>;
+
+				pd_conn_usbotg0_phy: PD_CONN_USB_0_PHY {
+					reg = <SC_R_USB_0_PHY>;
+					#power-domain-cells = <0>;
+					power-domains = <&pd_conn_usbotg0>;
+					wakeup-irq = <267>;
+				};
+
 			};
 			pd_conn_usbotg1: PD_CONN_USB_1 {
 				reg = <SC_R_USB_1>;
@@ -345,14 +349,18 @@
 			pd_conn_usb2: PD_CONN_USB_2 {
 				reg = <SC_R_USB_2>;
 				#power-domain-cells = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
 				power-domains = <&pd_conn>;
 				wakeup-irq = <271>;
-			};
-			pd_conn_usb2_phy: PD_CONN_USB_2_PHY {
-				reg = <SC_R_USB_2_PHY>;
-				#power-domain-cells = <0>;
-				power-domains = <&pd_conn>;
-				wakeup-irq = <271>;
+
+				pd_conn_usb2_phy: PD_CONN_USB_2_PHY {
+					reg = <SC_R_USB_2_PHY>;
+					#power-domain-cells = <0>;
+					power-domains = <&pd_conn_usb2>;
+					wakeup-irq = <271>;
+				};
+
 			};
 			pd_conn_sdch0: PD_CONN_SDHC_0 {
 				reg = <SC_R_SDHC_0>;
@@ -727,17 +735,25 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			pd_serdes1: PD_HSIO_SERDES_1 {
-				reg = <SC_R_SERDES_1>;
+			pd_hsio_gpio: PD_HSIO_GPIO {
+				reg = <SC_R_HSIO_GPIO>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_hsio>;
 				#address-cells = <1>;
 				#size-cells = <0>;
 
-				pd_pcie: PD_HSIO_PCIE_B {
-					reg = <SC_R_PCIE_B>;
+				pd_serdes1: PD_HSIO_SERDES_1 {
+					reg = <SC_R_SERDES_1>;
 					#power-domain-cells = <0>;
-					power-domains =<&pd_serdes1>;
+					power-domains =<&pd_hsio_gpio>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					pd_pcie: PD_HSIO_PCIE_B {
+						reg = <SC_R_PCIE_B>;
+						#power-domain-cells = <0>;
+						power-domains =<&pd_serdes1>;
+					};
 				};
 			};
 		};
@@ -960,6 +976,29 @@
 				reg = <SC_R_MJPEG_ENC_S0>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_isi_ch0>;
+			};
+		};
+		pd_caam: PD_CAAM {
+			compatible = "nxp,imx8-pd";
+			reg = <SC_R_LAST>;
+			#power-domain-cells = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pd_caam_jr1: PD_CAAM_JR1 {
+				reg = <SC_R_CAAM_JR1>;
+				#power-domain-cells = <0>;
+				power-domains = <&pd_caam>;
+			};
+			pd_caam_jr2: PD_CAAM_JR2 {
+				reg = <SC_R_CAAM_JR2>;
+				#power-domain-cells = <0>;
+				power-domains = <&pd_caam>;
+			};
+			pd_caam_jr3: PD_CAAM_JR3 {
+				reg = <SC_R_CAAM_JR3>;
+				#power-domain-cells = <0>;
+				power-domains = <&pd_caam>;
 			};
 		};
 	};
@@ -1794,6 +1833,7 @@
 					<&clk IMX8QXP_IMG_JPEG_DEC_CLK >;
 			assigned-clock-rates = <200000000>;
 			power-domains =<&pd_jpgdec>;
+			status = "okay";
 		};
 
 		jpegenc: jpegenc@58450000 {
@@ -1807,6 +1847,7 @@
 					<&clk IMX8QXP_IMG_JPEG_ENC_CLK >;
 			assigned-clock-rates = <200000000>;
 			power-domains =<&pd_jpgenc>;
+			status = "okay";
 		};
 	};
 
@@ -2030,6 +2071,8 @@
                 power-domains = <&pd_lsio_gpio0>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QXP_LSIO_GPIO0_IPG_S_CLK>;
+		clock-names = "ipg";
 	};
 
 	gpio1: gpio@5d090000 {
@@ -2041,6 +2084,8 @@
                 power-domains = <&pd_lsio_gpio1>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QXP_LSIO_GPIO1_IPG_S_CLK>;
+		clock-names = "ipg";
 	};
 
 	gpio2: gpio@5d0a0000 {
@@ -2052,6 +2097,8 @@
                 power-domains = <&pd_lsio_gpio2>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QXP_LSIO_GPIO2_IPG_S_CLK>;
+		clock-names = "ipg";
 	};
 
 	gpio3: gpio@5d0b0000 {
@@ -2063,6 +2110,8 @@
                 power-domains = <&pd_lsio_gpio3>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QXP_LSIO_GPIO3_IPG_S_CLK>;
+		clock-names = "ipg";
 	};
 
 	gpio4: gpio@5d0c0000 {
@@ -2071,9 +2120,11 @@
 		interrupts = <GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>;
 		gpio-controller;
 		#gpio-cells = <2>;
-                power-domains = <&pd_lsio_gpio4>;
+        		power-domains = <&pd_lsio_gpio4>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QXP_LSIO_GPIO4_IPG_S_CLK>;
+		clock-names = "ipg";
 	};
 
 	gpio5: gpio@5d0d0000 {
@@ -2085,6 +2136,8 @@
                 power-domains = <&pd_lsio_gpio5>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QXP_LSIO_GPIO5_IPG_S_CLK>;
+		clock-names = "ipg";
 	};
 
 	gpio6: gpio@5d0e0000 {
@@ -2096,6 +2149,8 @@
                 power-domains = <&pd_lsio_gpio6>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QXP_LSIO_GPIO6_IPG_S_CLK>;
+		clock-names = "ipg";
 	};
 
 	gpio7: gpio@5d0f0000 {
@@ -2107,6 +2162,8 @@
                 power-domains = <&pd_lsio_gpio7>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QXP_LSIO_GPIO7_IPG_S_CLK>;
+		clock-names = "ipg";
 	};
 
 	gpio0_mipi_csi0: gpio@58222000 {
@@ -2811,7 +2868,6 @@
 			clocks = <&clk IMX8QXP_CM40_IPG_CLK>;
 			clock-names = "ipg";
 			power-domains = <&pd_cm40_mu0a0>;
-			status = "okay";
 		};
 
 		rpmsg: rpmsg{
@@ -2833,6 +2889,7 @@
 			compatible = "fsl,sec-v4.0-job-ring";
 			reg = <0x20000 0x1000>;
 			interrupts = <GIC_SPI 452 IRQ_TYPE_LEVEL_HIGH>;
+			power-domains = <&pd_caam_jr1>;
 			status = "disabled";
 		};
 
@@ -2840,6 +2897,7 @@
 			compatible = "fsl,sec-v4.0-job-ring";
 			reg = <0x30000 0x1000>;
 			interrupts = <GIC_SPI 453 IRQ_TYPE_LEVEL_HIGH>;
+			power-domains = <&pd_caam_jr2>;
 			status = "okay";
 		};
 
@@ -2847,6 +2905,7 @@
 			compatible = "fsl,sec-v4.0-job-ring";
 			reg = <0x40000 0x1000>;
 			interrupts = <GIC_SPI 454 IRQ_TYPE_LEVEL_HIGH>;
+			power-domains = <&pd_caam_jr3>;
 			status = "okay";
 		};
 	};
