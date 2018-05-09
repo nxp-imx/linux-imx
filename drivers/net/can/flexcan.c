@@ -363,6 +363,9 @@ struct flexcan_priv {
 
 	u32 mb_size;
 	u32 mb_num;
+
+	/* Selects the clock source to PE, 1 by default */
+	u32 clk_src;
 };
 
 static struct flexcan_devtype_data fsl_p1010_devtype_data = {
@@ -1422,9 +1425,11 @@ static int register_flexcandev(struct net_device *dev)
 	if (err)
 		return err;
 
-	reg = flexcan_read(priv, FLEXCAN_CTRL);
-	reg |= FLEXCAN_CTRL_CLK_SRC;
-	flexcan_write(priv, FLEXCAN_CTRL, reg);
+	if (priv->clk_src) {
+		reg = flexcan_read(priv, FLEXCAN_CTRL);
+		reg |= FLEXCAN_CTRL_CLK_SRC;
+		flexcan_write(priv, FLEXCAN_CTRL, reg);
+	}
 
 	err = flexcan_chip_enable(priv);
 	if (err)
@@ -1546,6 +1551,7 @@ static int flexcan_probe(struct platform_device *pdev)
 	void __iomem *regs;
 	int err, irq;
 	u32 clock_freq = 0;
+	u32 clk_src = 1;
 	int wakeup = 1;
 
 	reg_xceiver = devm_regulator_get(&pdev->dev, "xceiver");
@@ -1554,9 +1560,12 @@ static int flexcan_probe(struct platform_device *pdev)
 	else if (IS_ERR(reg_xceiver))
 		reg_xceiver = NULL;
 
-	if (pdev->dev.of_node)
+	if (pdev->dev.of_node) {
 		of_property_read_u32(pdev->dev.of_node,
 				     "clock-frequency", &clock_freq);
+		of_property_read_u32(pdev->dev.of_node,
+				     "clk-src", &clk_src);
+	}
 
 	if (!clock_freq) {
 		clk_ipg = devm_clk_get(&pdev->dev, "ipg");
@@ -1602,6 +1611,7 @@ static int flexcan_probe(struct platform_device *pdev)
 
 	priv = netdev_priv(dev);
 	priv->dev = &pdev->dev;
+	priv->clk_src = clk_src;
 	priv->can.clock.freq = clock_freq;
 	priv->can.bittiming_const = &flexcan_bittiming_const;
 	priv->can.data_bittiming_const = &flexcan_fd_data_bittiming_const;
