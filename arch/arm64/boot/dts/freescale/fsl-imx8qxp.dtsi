@@ -801,19 +801,24 @@
 				#power-domain-cells = <0>;
 				power-domains = <&pd_dma>;
 				wakeup-irq = <235>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				pd_dma_flexcan1: PD_DMA_CAN_1 {
+					reg = <SC_R_CAN_1>;
+					#power-domain-cells = <0>;
+					power-domains = <&pd_dma_flexcan0>;
+					wakeup-irq = <236>;
+				};
+
+				pd_dma_flexcan2: PD_DMA_CAN_2 {
+					reg = <SC_R_CAN_2>;
+					#power-domain-cells = <0>;
+					power-domains = <&pd_dma_flexcan0>;
+					wakeup-irq = <237>;
+				};
 			};
-			pd_dma_flexcan1: PD_DMA_CAN_1 {
-				reg = <SC_R_CAN_1>;
-				#power-domain-cells = <0>;
-				power-domains = <&pd_dma>;
-				wakeup-irq = <236>;
-			};
-			pd_dma_flexcan2: PD_DMA_CAN_2 {
-				reg = <SC_R_CAN_2>;
-				#power-domain-cells = <0>;
-				power-domains = <&pd_dma>;
-				wakeup-irq = <237>;
-			};
+
 			pd_dma_ftm0: PD_DMA_FTM_0 {
 				reg = <SC_R_FTM_0>;
 				#power-domain-cells = <0>;
@@ -2273,7 +2278,7 @@
 		clock-names = "ipg", "per";
 		assigned-clocks = <&clk IMX8QXP_CAN0_CLK>;
 		assigned-clock-rates = <40000000>;
-		power-domains = <&pd_dma_flexcan0>;
+		power-domains = <&pd_dma_flexcan1>;
 		status = "disabled";
 	};
 
@@ -2288,7 +2293,7 @@
 		clock-names = "ipg", "per";
 		assigned-clocks = <&clk IMX8QXP_CAN0_CLK>;
 		assigned-clock-rates = <40000000>;
-		power-domains = <&pd_dma_flexcan0>;
+		power-domains = <&pd_dma_flexcan2>;
 		status = "disabled";
 	};
 
