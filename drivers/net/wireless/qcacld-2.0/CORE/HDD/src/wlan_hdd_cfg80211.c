@@ -7480,7 +7480,7 @@ static int __wlan_hdd_cfg80211_ll_stats_get(struct wiphy *wiphy,
     int status;
 
     //Currently work around here, need firmware support this vendor command feature.
-    printk("Current work around this vendor command and direct return 0\n");
+    hddLog(VOS_TRACE_LEVEL_INFO,"%s: Current work around this vendor command and direct return 0\n",__func__);
     return 0;
 
     if (VOS_FTM_MODE == hdd_get_conparam()) {
