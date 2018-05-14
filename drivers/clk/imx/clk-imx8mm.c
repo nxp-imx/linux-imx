@@ -922,6 +922,8 @@ static void __init imx8mm_clocks_init(struct device_node *ccm_node)
 
 	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
 		clk_prepare_enable(clks[clks_init_on[i]]);
+	clk_prepare_enable(clks[IMX8MM_CLK_DISP_AXI_ROOT]);
+	clk_prepare_enable(clks[IMX8MM_CLK_DISP_APB_ROOT]);
 
 	/* increase NOC clock to design target */
 	clk_set_rate(clks[IMX8MM_SYS_PLL3], 750000000);
