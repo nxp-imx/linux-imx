@@ -62,5 +62,6 @@ static struct platform_driver gen_pci_driver = {
 		.of_match_table = gen_pci_of_match,
 	},
 	.probe = gen_pci_probe,
+	.remove = pci_host_common_remove,
 };
 builtin_platform_driver(gen_pci_driver);
