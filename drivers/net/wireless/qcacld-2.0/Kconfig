@@ -9,6 +9,10 @@ config QCA_CLD_WLAN
 
 if QCA_CLD_WLAN != n
 
+config CLD_HL_SDIO_CORE
+	bool "Build the WLAN Driver For SDIO Interface Module"
+	default n
+
 config QCACLD_WLAN_LFR3
 	bool "Enable the WLAN Legacy Fast Roaming feature Version 3"
 	default n
