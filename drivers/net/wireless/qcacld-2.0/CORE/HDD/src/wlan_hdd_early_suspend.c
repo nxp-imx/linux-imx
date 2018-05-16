@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -1551,9 +1551,40 @@ static void hdd_conf_resume_ind(hdd_adapter_t *pAdapter)
                   pHddCtx->configuredMcastBcastFilter);
 }
 
+#ifdef FEATURE_WLAN_THERMAL_SHUTDOWN
+static void hdd_thermal_off_carrier(hdd_adapter_t *pAdapter)
+{
+	if (netif_carrier_ok(pAdapter->dev)) {
+		pAdapter->netif_carrier_on = TRUE;
+		wlan_hdd_netif_queue_control(pAdapter,
+		  WLAN_NETIF_CARRIER_OFF, WLAN_CONTROL_PATH);
+	} else {
+		pAdapter->netif_carrier_on = FALSE;
+	}
+}
+
+static void hdd_thermal_on_carrier(hdd_adapter_t *pAdapter)
+{
+	if (pAdapter->netif_carrier_on) {
+	/* Thermal shutdown is an urgent accident visible to user space. */
+		wlan_hdd_netif_queue_control(pAdapter,
+			WLAN_NETIF_CARRIER_ON, WLAN_CONTROL_PATH);
+	}
+}
+#else
+static inline void hdd_thermal_off_carrier(hdd_adapter_t *pAdapter)
+{
+	return;
+}
+
+static inline void hdd_thermal_on_carrier(hdd_adapter_t *pAdapter)
+{
+	return;
+}
+#endif
 //Suspend routine registered with Android OS
 void hdd_suspend_wlan(void (*callback)(void *callbackContext, boolean suspended),
-                      void *callbackContext)
+                      void *callbackContext, bool thermal)
 {
    hdd_context_t *pHddCtx = NULL;
    v_CONTEXT_t pVosContext = NULL;
@@ -1634,8 +1665,16 @@ void hdd_suspend_wlan(void (*callback)(void *callbackContext, boolean suspended)
 send_suspend_ind:
        //stop all TX queues before suspend
        hddLog(LOG1, FL("Disabling queues"));
+
+      /* Thermal shutdown is an urgent accident visible to user space. */
+        if (thermal) {
+            hdd_thermal_off_carrier(pAdapter);
+        }
+
        wlan_hdd_netif_queue_control(pAdapter, WLAN_NETIF_TX_DISABLE,
-                  WLAN_CONTROL_PATH);
+                      WLAN_CONTROL_PATH);
+
+
        WLANTL_PauseUnPauseQs(pVosContext, true);
 
       /* Keep this suspend indication at the end (before processing next adaptor)
@@ -1788,7 +1827,7 @@ void hdd_unregister_mcast_bcast_filter(hdd_context_t *pHddCtx)
    }
 }
 
-void hdd_resume_wlan(void)
+void hdd_resume_wlan(bool thermal)
 {
    hdd_context_t *pHddCtx = NULL;
    hdd_adapter_t *pAdapter = NULL;
@@ -1882,11 +1921,16 @@ void hdd_resume_wlan(void)
 send_resume_ind:
       //wake the tx queues
       hddLog(LOG1, FL("Enabling queues"));
+
       WLANTL_PauseUnPauseQs(pVosContext, false);
 
       wlan_hdd_netif_queue_control(pAdapter,
-            WLAN_WAKE_ALL_NETIF_QUEUE,
-            WLAN_CONTROL_PATH);
+                WLAN_WAKE_ALL_NETIF_QUEUE,
+                WLAN_CONTROL_PATH);
+
+      if (thermal) {
+        hdd_thermal_on_carrier(pAdapter);
+      }
 
       hdd_conf_resume_ind(pAdapter);
 

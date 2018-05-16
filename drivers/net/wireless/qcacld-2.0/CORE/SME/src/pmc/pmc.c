@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014, 2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2014, 2016-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -3326,9 +3326,14 @@ eHalStatus pmcOffloadExitPowersaveState(tpAniSirGlobal pMac, tANI_U32 sessionId)
      /* Call Full Power Req Cbs */
      pmcOffloadDoFullPowerCallbacks(pMac, sessionId, eHAL_STATUS_SUCCESS);
 
-     if (pmc->configStaPsEnabled || pmc->configDefStaPsEnabled)
+     if (pmc->configStaPsEnabled || pmc->configDefStaPsEnabled) {
+        if (true == vos_is_mon_enable()) {
+           smsLog(pMac, LOGE, FL("Montior is enabled, skip start StaPsTimer"));
+           return eHAL_STATUS_SUCCESS;
+        }
         pmcOffloadStartAutoStaPsTimer(pMac, sessionId,
                                       pmc->autoPsEntryTimerPeriod);
+        }
      else
         smsLog(pMac, LOGE, FL("Master Sta Ps Disabled"));
      return eHAL_STATUS_SUCCESS;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2014-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011, 2014-2016, 2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -181,7 +181,7 @@
 /*
  * total number of descriptors to use in the target
  */
-#define CFG_TGT_NUM_MSDU_DESC    (1024 + 32)
+#define CFG_TGT_NUM_MSDU_DESC    (2048 + 32)
 
 /*
  * Maximum number of frag table entries

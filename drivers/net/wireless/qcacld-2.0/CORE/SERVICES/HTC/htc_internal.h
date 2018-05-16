@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -212,6 +212,10 @@ typedef struct _HTC_TARGET {
     * Besides, nodrop pkts have higher priority than normal pkts.
     */
     A_BOOL                      is_nodrop_pkt;
+#ifdef HIF_SDIO
+    /* RX: enable bundle different SDIO block frames */
+    A_BOOL                      enable_b2b;
+#endif
 } HTC_TARGET;
 
 #define HTC_ENABLE_BUNDLE(target) (target->MaxMsgsPerHTCBundle > 1)

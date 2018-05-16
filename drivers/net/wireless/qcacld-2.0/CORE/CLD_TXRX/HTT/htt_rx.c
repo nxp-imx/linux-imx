@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -1291,6 +1291,13 @@ htt_rx_frag_pop_hl(
 }
 
 int
+htt_rx_offload_msdu_cnt_ll(
+    htt_pdev_handle pdev)
+{
+    return htt_rx_ring_elems(pdev);
+}
+
+int
 htt_rx_offload_msdu_pop_ll(
     htt_pdev_handle pdev,
     adf_nbuf_t offload_deliver_msg,
@@ -1591,15 +1598,81 @@ unsigned char get_nr_antenna(struct htt_host_rx_desc_base *rx_desc)
 }
 
 /**
- * htt_get_radiotap_rx_status() - Update information about the rx status, which
- * is used later for radiotap updation.
+ * get_ht_vht_info_ll() - get ht/vht information
+ * @rx_desc: pointer to PPDU start
+ * @rx_status: pointer to mon_rx_status.
+ *
+ * This function retrieve MCS/VHT info by parsing preamble,
+ * vht_sig_a1 and vht_sig_a2, which follows ieee80211 spec.
+ *
+ * Return: None.
+ */
+static void get_ht_vht_info_ll(struct rx_ppdu_start rx_desc,
+                              struct mon_rx_status *rx_status)
+{
+	uint8_t preamble_type =
+		(uint8_t)rx_desc.preamble_type;
+	uint32_t ht_sig_vht_sig_a_1 = rx_desc.ht_sig_vht_sig_a_1;
+	uint32_t ht_sig_vht_sig_a_2 = rx_desc.ht_sig_vht_sig_a_2;
+	switch (preamble_type) {
+	case 8:
+	case 9:
+		rx_status->mcs_info.valid = 1;
+		rx_status->vht_info.valid = 0;
+		rx_status->mcs_info.mcs = ht_sig_vht_sig_a_1 & 0x7f;
+		rx_status->nr_ant = rx_status->mcs_info.mcs >> 3;
+		rx_status->mcs_info.bw = (ht_sig_vht_sig_a_1 >> 7) & 0x1;
+		rx_status->mcs_info.smoothing = ht_sig_vht_sig_a_2 & 0x1;
+		rx_status->mcs_info.not_sounding =
+			(ht_sig_vht_sig_a_2 >> 1) & 0x1;
+		rx_status->mcs_info.aggregation =
+			(ht_sig_vht_sig_a_2 >> 3) & 0x1;
+		rx_status->mcs_info.stbc = (ht_sig_vht_sig_a_2 >> 4) & 0x3;
+		rx_status->mcs_info.fec = (ht_sig_vht_sig_a_2 >> 6) & 0x1;
+		rx_status->mcs_info.sgi = (ht_sig_vht_sig_a_2 >> 7) & 0x1;
+		rx_status->mcs_info.ness = (ht_sig_vht_sig_a_2 >> 8) & 0x3;
+		break;
+	case 0x0c: /* VHT w/o TxBF */
+	case 0x0d: /* VHT w/ TxBF */
+		rx_status->vht_info.valid = 1;
+		rx_status->mcs_info.valid = 0;
+		rx_status->vht_info.bw = ht_sig_vht_sig_a_1 & 0x3;
+		rx_status->vht_info.stbc = (ht_sig_vht_sig_a_1 >> 3) & 0x1;
+		/* Currently only handle SU case */
+		rx_status->vht_info.gid = (ht_sig_vht_sig_a_1 >> 4) & 0x3f;
+		rx_status->vht_info.nss = (ht_sig_vht_sig_a_1 >> 10) & 0x7;
+		rx_status->nr_ant = (ht_sig_vht_sig_a_1 >> 10) & 0x7;
+		rx_status->vht_info.paid = (ht_sig_vht_sig_a_1 >> 13) & 0x1ff;
+		rx_status->vht_info.txps_forbidden =
+			(ht_sig_vht_sig_a_1 >> 22) & 0x1;
+		rx_status->vht_info.sgi = ht_sig_vht_sig_a_2 & 0x1;
+		rx_status->vht_info.sgi_disambiguation =
+			(ht_sig_vht_sig_a_2 >> 1) & 0x1;
+		rx_status->vht_info.coding = (ht_sig_vht_sig_a_2 >> 2) & 0x1;
+		rx_status->vht_info.ldpc_extra_symbol =
+			(ht_sig_vht_sig_a_2 >> 3) & 0x1;
+		rx_status->vht_info.mcs = (ht_sig_vht_sig_a_2 >> 4) & 0xf;
+		rx_status->vht_info.beamformed =
+			(ht_sig_vht_sig_a_2 >> 8) & 0x1;
+		break;
+	default:
+		rx_status->mcs_info.valid = 0;
+		rx_status->vht_info.valid = 0;
+		rx_status->nr_ant = 1;
+		break;
+	}
+}
+
+/**
+ * htt_get_radiotap_rx_status_ll() - Update information about the rx status,
+ * which is used later for radiotap updation.
  * @rx_desc: Pointer to struct htt_host_rx_desc_base
  * @rx_status: Return variable updated with rx_status
  *
  * Return: None
  */
-void htt_get_radiotap_rx_status(struct htt_host_rx_desc_base *rx_desc, struct
-		       mon_rx_status *rx_status)
+void htt_get_radiotap_rx_status_ll(struct htt_host_rx_desc_base *rx_desc,
+			struct mon_rx_status *rx_status)
 {
 	uint16_t channel_flags = 0;
 
@@ -1613,7 +1686,10 @@ void htt_get_radiotap_rx_status(struct htt_host_rx_desc_base *rx_desc, struct
 	rx_status->chan_flags = channel_flags;
 	rx_status->ant_signal_db = rx_desc->ppdu_start.rssi_comb;
 	rx_status->nr_ant = get_nr_antenna(rx_desc);
+	get_ht_vht_info_ll(rx_desc->ppdu_start, rx_status);
 }
+
+struct mon_rx_status g_ll_rx_status;
 
 /**
  * htt_rx_mon_amsdu_rx_in_order_pop_ll() - Monitor mode HTT Rx in order pop
@@ -1639,14 +1715,18 @@ htt_rx_mon_amsdu_rx_in_order_pop_ll(htt_pdev_handle pdev, adf_nbuf_t rx_ind_msg,
 	uint32_t msdu_count = 0;
 	struct htt_host_rx_desc_base *rx_desc;
 	struct mon_rx_status rx_status = {0};
+	struct htt_rx_in_ord_paddr_ind_hdr_t *host_msg_hdr;
 	uint32_t amsdu_len;
 	uint32_t len;
 	uint32_t last_frag;
+	uint32_t ch_freq;
 
 	HTT_ASSERT1(htt_rx_in_order_ring_elems(pdev) != 0);
 
 	rx_ind_data = adf_nbuf_data(rx_ind_msg);
 	msg_word = (uint32_t *)rx_ind_data;
+	host_msg_hdr = (struct htt_rx_in_ord_paddr_ind_hdr_t *)rx_ind_data;
+	ch_freq = vos_chan_to_freq(host_msg_hdr->reserved_1);
 
 	HTT_PKT_DUMP(vos_trace_hex_dump(VOS_MODULE_ID_TXRX,
 					VOS_TRACE_LEVEL_FATAL,
@@ -1688,12 +1768,17 @@ htt_rx_mon_amsdu_rx_in_order_pop_ll(htt_pdev_handle pdev, adf_nbuf_t rx_ind_msg,
 		 * Make the netbuf's data pointer point to the payload rather
 		 * than the descriptor.
 		 */
-		htt_get_radiotap_rx_status(rx_desc, &rx_status);
+		if(rx_desc->attention.first_mpdu) {
+			memset(&rx_status, 0, sizeof(struct mon_rx_status));
+			rx_status.chan = (uint16_t)ch_freq;
+			htt_get_radiotap_rx_status_ll(rx_desc, &rx_status);
+			memcpy(&g_ll_rx_status,&rx_status,sizeof(struct mon_rx_status));
+		}
 		/*
 		 * 250 bytes of RX_STD_DESC size should be sufficient for
 		 * radiotap.
 		 */
-		adf_nbuf_update_radiotap(&rx_status, msdu,
+		adf_nbuf_update_radiotap(&g_ll_rx_status, msdu,
 						  HTT_RX_STD_DESC_RESERVATION);
 		amsdu_len = HTT_RX_IN_ORD_PADDR_IND_MSDU_LEN_GET(*(msg_word
 								  + 1));
@@ -1912,6 +1997,107 @@ htt_rx_mon_amsdu_pop_hl(
 
 	adf_nbuf_set_next(*tail_msdu, NULL);
 	return 0;
+}
+
+int
+htt_rx_mac_header_mon_process(
+		htt_pdev_handle pdev,
+		adf_nbuf_t rx_ind_msg,
+		adf_nbuf_t *head_msdu,
+		adf_nbuf_t *tail_msdu)
+{
+	struct htt_hw_rx_desc_base *hw_desc;
+	struct ieee80211_frame_addr4 *mac_array;
+	uint8_t rtap_buf[sizeof(struct ieee80211_radiotap_header) + 100] = {0};
+	uint16_t rtap_len;
+	uint32_t *msg_word;
+	uint8_t *rx_ind_data;
+	adf_nbuf_t msdu = NULL;
+
+	/* num of mac header in rx_ind_msg */
+	int num_elems;
+	int elem;
+	uint32_t tsf;
+	uint32_t rssi_comb;
+
+	rx_ind_data = adf_nbuf_data(rx_ind_msg);
+	msg_word = (uint32_t *)rx_ind_data;
+	msg_word++;
+	num_elems = HTT_T2H_MONITOR_MAC_HEADER_NUM_MPDU_GET(*msg_word);
+
+	/* what's the num_elem max value? */
+	if (num_elems <= 0)
+		return 0;
+
+	/* get htt_hw_rx_desc_base_rx_desc pointer */
+	hw_desc = (struct htt_hw_rx_desc_base *)
+			(rx_ind_data + HTT_T2H_MONITOR_MAC_HEADER_IND_HDR_SIZE);
+
+	rssi_comb = hw_desc->ppdu_start.rssi_comb;
+	tsf = hw_desc->ppdu_end.tsf_timestamp;
+
+	/* construct one radiotap header */
+	rtap_len = adf_nbuf_construct_radiotap(
+					rtap_buf,
+					tsf,
+					rssi_comb);
+
+	/* get ieee80211_frame_addr4 array pointer*/
+	mac_array = (struct ieee80211_frame_addr4 *)
+			(rx_ind_data + HTT_T2H_MONITOR_MAC_HEADER_IND_HDR_SIZE +
+			 sizeof(struct htt_hw_rx_desc_base));
+
+	for (elem = 0; elem < num_elems; elem++) {
+		uint8_t *dest = NULL;
+		/*
+		 * copy each mac header +
+		 * radiotap header into single msdu buff
+		 */
+		msdu = adf_nbuf_alloc(
+			pdev->osdev,
+			rtap_len + sizeof(struct ieee80211_frame_addr4),
+			0, 4, TRUE);
+		if (!msdu)
+			return A_NO_MEMORY;
+
+		dest = adf_nbuf_put_tail(msdu, rtap_len);
+		if (!dest) {
+			adf_os_print("%s: No buffer to save radiotap len %d\n",
+				     __func__, rtap_len);
+			return	A_NO_MEMORY;
+		}
+		adf_os_mem_copy(dest, rtap_buf, rtap_len);
+
+		dest = adf_nbuf_put_tail(msdu,
+					 sizeof(struct ieee80211_frame_addr4));
+		if (!dest) {
+			adf_os_print("%s: No buffer for mac header %u\n",
+				     __func__,
+				     (unsigned int)
+				     sizeof(struct ieee80211_frame_addr4));
+			return	A_NO_MEMORY;
+		}
+		adf_os_mem_copy(dest, &mac_array[elem],
+				sizeof(struct ieee80211_frame_addr4));
+
+		adf_nbuf_set_next(msdu, NULL);
+		if (*head_msdu == NULL) {
+			*head_msdu = msdu;
+			*tail_msdu = msdu;
+		} else {
+			adf_nbuf_set_next(*tail_msdu, msdu);
+			*tail_msdu = msdu;
+		}
+	}
+
+	return 0;
+}
+
+int
+htt_rx_offload_msdu_cnt_hl(
+    htt_pdev_handle pdev)
+{
+    return 1;
 }
 
 /* Return values: 1 - success, 0 - failure */
@@ -2575,6 +2761,10 @@ int (*htt_rx_frag_pop)(
     adf_nbuf_t rx_ind_msg,
     adf_nbuf_t *head_msdu,
     adf_nbuf_t *tail_msdu);
+
+int
+(*htt_rx_offload_msdu_cnt)(
+    htt_pdev_handle pdev);
 
 int
 (*htt_rx_offload_msdu_pop)(
@@ -3404,6 +3594,7 @@ htt_rx_attach(struct htt_pdev_t *pdev)
         if (VOS_MONITOR_MODE == vos_get_conparam())
             htt_rx_amsdu_pop = htt_rx_mon_amsdu_rx_in_order_pop_ll;
 
+        htt_rx_offload_msdu_cnt = htt_rx_offload_msdu_cnt_ll;
         htt_rx_offload_msdu_pop = htt_rx_offload_msdu_pop_ll;
         htt_rx_mpdu_desc_retry = htt_rx_mpdu_desc_retry_ll;
         htt_rx_mpdu_desc_seq_num = htt_rx_mpdu_desc_seq_num_ll;
@@ -3430,6 +3621,7 @@ htt_rx_attach(struct htt_pdev_t *pdev)
         if (VOS_MONITOR_MODE == vos_get_conparam())
             htt_rx_amsdu_pop = htt_rx_mon_amsdu_pop_hl;
         htt_rx_frag_pop = htt_rx_frag_pop_hl;
+        htt_rx_offload_msdu_cnt = htt_rx_offload_msdu_cnt_hl;
         htt_rx_offload_msdu_pop = htt_rx_offload_msdu_pop_hl;
         htt_rx_mpdu_desc_list_next = htt_rx_mpdu_desc_list_next_hl;
         htt_rx_mpdu_desc_retry = htt_rx_mpdu_desc_retry_hl;

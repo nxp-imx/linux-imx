@@ -58,9 +58,6 @@ config WLAN_SYNC_TSF
 	bool "Enable QCOM sync multi devices tsf feature"
 	default n
 
-config WLAN_FEATURE_MEMDUMP
-	bool "Enable MEMDUMP feature"
-	default n
 
 config WLAN_OFFLOAD_PACKETS
 	bool "Enable offload packets feature"

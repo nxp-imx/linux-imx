@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -2357,7 +2357,7 @@ static VOS_STATUS sap_check_mcc_valid(
 	/*
 	 * 3. Don't support MCC on DFS channel.
 	 */
-	if (chan_cnt > 1) {
+	if (chan_cnt > 0) {
 		for (j = 0; j < chan_cnt; j++) {
 			if (channels[j] != 0
 			    && vos_nv_getChannelEnabledState(channels[j])
@@ -2386,6 +2386,9 @@ static VOS_STATUS sap_check_mcc_valid(
 * gWlanMccToSccSwitchMode = 1: override to SCC if channel overlap in
 *    same band.
 * gWlanMccToSccSwitchMode = 2: force to SCC in same band.
+*
+* gWlanBandSwitchEnable = false: disabled.
+* gWlanBandSwitchEnable = true:  enable band switch for MCC to SCC
 *
 * Return: VOS_STATUS_SUCCESS: Success
 *             other value will fail the sap start request
@@ -2448,8 +2451,19 @@ sap_concurrency_chan_override(
 		    "%s: mode %d band %d och %d lf %d hf %d cf %d hbw %d",
 		    __func__, info->con_mode, info->band, info->och,
 		    info->lfreq, info->hfreq, info->cfreq, info->hbw);
-		if (info->band != target_band)
-			continue;
+		if (info->band != target_band) {
+			if (sap_context->band_switch_enable) {
+				if (info->band == eCSR_BAND_5G) {
+					sap_context->ch_width_orig =
+						sap_context->ch_width_5g_orig;
+				} else {
+					sap_context->ch_width_orig =
+						sap_context->ch_width_24g_orig;
+				}
+			} else {
+				continue;
+			}
+		}
 		if (cc_switch_mode == VOS_MCC_TO_SCC_SWITCH_ENABLE
 			&& target_chan != 0
 			&& sap_overlap_check(&target_info, info))
@@ -2468,8 +2482,19 @@ sap_concurrency_chan_override(
 			    __func__, info->con_mode, info->band,
 			    info->och, info->lfreq, info->hfreq,
 			    info->cfreq, info->hbw);
-			if (info->band != target_band)
-				continue;
+			if (info->band != target_band) {
+				if (sap_context->band_switch_enable) {
+					if (info->band == eCSR_BAND_5G) {
+						sap_context->ch_width_orig =
+							sap_context->ch_width_5g_orig;
+					} else {
+						sap_context->ch_width_orig =
+							sap_context->ch_width_24g_orig;
+					}
+				} else {
+					continue;
+				}
+			}
 			candidate[candidate_count++] = info->och;
 		}
 	}
@@ -2733,6 +2758,31 @@ sapGotoChannelSel
         }
 #endif
     }
+#ifdef FEATURE_WLAN_MCC_TO_SCC_SWITCH
+    else if (sapContext->ap_p2pclient_concur_enable &&
+             vos_get_concurrency_mode() == (VOS_SAP|VOS_P2P_CLIENT)) {
+#ifdef FEATURE_WLAN_STA_AP_MODE_DFS_DISABLE
+        if (sapContext->channel == AUTO_CHANNEL_SELECT)
+            sapContext->dfs_ch_disable = VOS_TRUE;
+        else if (VOS_IS_DFS_CH(sapContext->channel)) {
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_WARN,
+                       "In %s, DFS not supported in STA_AP Mode, chan=%d",
+                       __func__, sapContext->channel);
+            return VOS_STATUS_E_ABORTED;
+        }
+#endif
+        vosStatus = sap_concurrency_chan_override(
+                sapContext,
+                sapContext->cc_switch_mode,
+                &con_ch);
+        if (vosStatus != VOS_STATUS_SUCCESS) {
+            VOS_TRACE( VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
+                "%s: invalid SAP channel(%d) configuration",
+                __func__,sapContext->channel);
+            return VOS_STATUS_E_ABORTED;
+        }
+    }
+#endif
 
     if (sapContext->channel == AUTO_CHANNEL_SELECT)
     {

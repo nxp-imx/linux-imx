@@ -70,6 +70,12 @@ __adf_os_mutex_acquire(adf_os_device_t osdev, struct semaphore *m)
     return 0;
 }
 
+static inline int
+__adf_os_mutex_acquire_timeout(adf_os_device_t osdev, struct semaphore *m, long timeout)
+{
+    return down_timeout(m, timeout);
+}
+
 static inline void
 __adf_os_mutex_release(adf_os_device_t osdev, struct semaphore *m)
 {

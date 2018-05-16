@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -274,6 +274,21 @@ extern void SysProcessMmhMsg(tpAniSirGlobal pMac, tSirMsgQ* pMsg);
 static void csrSerDesUnpackDiassocRsp(tANI_U8 *pBuf, tSirSmeDisassocRsp *pRsp);
 void csrReinitPreauthCmd(tpAniSirGlobal pMac, tSmeCmd *pCommand);
 void csrInitOperatingClasses(tHalHandle hHal);
+
+void csrRoamSubstateChange(tpAniSirGlobal pMac, eCsrRoamSubState NewSubstate,
+                           tANI_U32 sessionId)
+{
+     smsLog(pMac, LOG1, FL("CSR RoamSubstate: [ %s <== %s ]"),
+                macTraceGetcsrRoamSubState(NewSubstate),
+                macTraceGetcsrRoamSubState(pMac->roam.curSubState[sessionId]));
+    if(pMac->roam.curSubState[sessionId] == NewSubstate)
+    {
+       return;
+    }
+    vos_spin_lock_acquire(&pMac->roam.roam_state_lock);
+    pMac->roam.curSubState[sessionId] = NewSubstate;
+    vos_spin_lock_release(&pMac->roam.roam_state_lock);
+}
 
 //Initialize global variables
 static void csrRoamInitGlobals(tpAniSirGlobal pMac)
@@ -755,7 +770,7 @@ eHalStatus csrStop(tpAniSirGlobal pMac, tHalStopType stopType)
 
     for (sessionId = 0; sessionId < CSR_ROAM_SESSION_MAX; sessionId++) {
        csrRoamStateChange(pMac, eCSR_ROAMING_STATE_STOP, sessionId);
-       pMac->roam.curSubState[sessionId] = eCSR_ROAM_SUBSTATE_NONE;
+       csrRoamSubstateChange(pMac, eCSR_ROAM_SUBSTATE_NONE, sessionId);
     }
 
 #ifdef WLAN_FEATURE_ROAM_SCAN_OFFLOAD
@@ -902,6 +917,7 @@ eHalStatus csrRoamOpen(tpAniSirGlobal pMac)
          smsLog(pMac, LOGE, FL("cannot allocate memory for summary Statistics timer"));
          return eHAL_STATUS_FAILURE;
       }
+      vos_spin_lock_init(&pMac->roam.roam_state_lock);
     }while (0);
     return (status);
 }
@@ -919,6 +935,7 @@ eHalStatus csrRoamClose(tpAniSirGlobal pMac)
     vos_timer_destroy(&pMac->roam.tlStatsReqInfo.hTlStatsTimer);
     vos_timer_stop(&pMac->roam.packetdump_timer);
     vos_timer_destroy(&pMac->roam.packetdump_timer);
+    vos_spin_lock_destroy(&pMac->roam.roam_state_lock);
     return (eHAL_STATUS_SUCCESS);
 }
 
@@ -1181,18 +1198,6 @@ void csrAbortCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand, tANI_BOOLEAN fStop
             break;
         }
     }
-}
-
-void csrRoamSubstateChange( tpAniSirGlobal pMac, eCsrRoamSubState NewSubstate, tANI_U32 sessionId)
-{
-     smsLog(pMac, LOG1, FL("CSR RoamSubstate: [ %s <== %s ]"),
-                           macTraceGetcsrRoamSubState(NewSubstate),
-                           macTraceGetcsrRoamSubState(pMac->roam.curSubState[sessionId]));
-    if(pMac->roam.curSubState[sessionId] == NewSubstate)
-    {
-       return;
-    }
-    pMac->roam.curSubState[sessionId] = NewSubstate;
 }
 
 eCsrRoamState csrRoamStateChange( tpAniSirGlobal pMac, eCsrRoamState NewRoamState, tANI_U8 sessionId)
@@ -2074,6 +2079,11 @@ eHalStatus csrChangeDefaultConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pPa
                                pParam->isCoalesingInIBSSAllowed;
 #ifdef FEATURE_WLAN_MCC_TO_SCC_SWITCH
         pMac->roam.configParam.cc_switch_mode = pParam->cc_switch_mode;
+        pMac->roam.configParam.band_switch_enable = pParam->band_switch_enable;
+        pMac->roam.configParam.ap_p2pgo_concurrency_enable =
+                               pParam->ap_p2pgo_concurrency_enable;
+        pMac->roam.configParam.ap_p2pclient_concur_enable =
+                               pParam->ap_p2pclient_concur_enable;
 #endif
         pMac->roam.configParam.allowDFSChannelRoam = pParam->allowDFSChannelRoam;
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
@@ -2260,6 +2270,11 @@ eHalStatus csrGetConfigParam(tpAniSirGlobal pMac, tCsrConfigParam *pParam)
 
 #ifdef FEATURE_WLAN_MCC_TO_SCC_SWITCH
         pParam->cc_switch_mode = pMac->roam.configParam.cc_switch_mode;
+        pParam->band_switch_enable = pMac->roam.configParam.band_switch_enable;
+        pParam->ap_p2pgo_concurrency_enable =
+                     pMac->roam.configParam.ap_p2pgo_concurrency_enable;
+        pParam->ap_p2pclient_concur_enable =
+                     pMac->roam.configParam.ap_p2pclient_concur_enable;
 #endif
         pParam->enableTxLdpc = pMac->roam.configParam.txLdpcEnable;
 
@@ -11877,8 +11892,14 @@ void csrRoamWaitForKeyTimeOutHandler(void *pv)
            macTraceGetcsrRoamSubState(
            pMac->roam.curSubState[pInfo->sessionId]));
 
+    vos_spin_lock_acquire(&pMac->roam.roam_state_lock);
     if( CSR_IS_WAIT_FOR_KEY( pMac, pInfo->sessionId ) )
     {
+        //Change the substate so command queue is unblocked.
+        if (CSR_ROAM_SESSION_MAX > pInfo->sessionId)
+            pMac->roam.curSubState[pInfo->sessionId] =
+                                        eCSR_ROAM_SUBSTATE_NONE;
+        vos_spin_lock_release(&pMac->roam.roam_state_lock);
 #ifdef FEATURE_WLAN_LFR
         if (csrNeighborRoamIsHandoffInProgress(pMac, pInfo->sessionId))
         {
@@ -11895,13 +11916,6 @@ void csrRoamWaitForKeyTimeOutHandler(void *pv)
         }
 #endif
         smsLog(pMac, LOGE, " SME pre-auth state timeout. ");
-
-        //Change the substate so command queue is unblocked.
-        if (CSR_ROAM_SESSION_MAX > pInfo->sessionId)
-        {
-            csrRoamSubstateChange(pMac, eCSR_ROAM_SUBSTATE_NONE,
-                                  pInfo->sessionId);
-        }
 
         if( csrIsConnStateConnectedInfra(pMac, pInfo->sessionId) )
         {
@@ -11921,6 +11935,8 @@ void csrRoamWaitForKeyTimeOutHandler(void *pv)
                    __func__, pInfo->sessionId);
         }
     }
+    else
+        vos_spin_lock_release(&pMac->roam.roam_state_lock);
 }
 
 eHalStatus csrRoamStartWaitForKeyTimer(tpAniSirGlobal pMac, tANI_U32 interval)
@@ -12236,7 +12252,6 @@ void csrRoamWmStatusChangeComplete( tpAniSirGlobal pMac )
     {
         smsLog( pMac, LOGW, "CSR: WmStatusChange Completion called but NO commands are ACTIVE ..." );
     }
-    smeProcessPendingQueue( pMac );
 }
 
 void csrRoamProcessWmStatusChangeCommand( tpAniSirGlobal pMac, tSmeCmd *pCommand )
@@ -18167,6 +18182,13 @@ eHalStatus csrRoamOffloadScan(tpAniSirGlobal pMac, tANI_U8 sessionId,
       smsLog(pMac, LOGE, FL("Supplicant disabled driver roaming"));
       return eHAL_STATUS_FAILURE;
    }
+
+   if (vos_is_mon_enable() && (ROAM_SCAN_OFFLOAD_STOP != command)) {
+       VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
+                 "%s: monitor is enabled, disable roaming", __func__);
+       return eHAL_STATUS_FAILURE;
+   }
+
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
    if (pSession->roamOffloadSynchParams.bRoamSynchInProgress
        && (ROAM_SCAN_OFFLOAD_STOP == command))
@@ -20574,6 +20596,8 @@ void csrInitOperatingClasses(tHalHandle hHal)
              if (!found) {
                  opClasses[i]= class;
                  i++;
+                 if (i >= SIR_MAC_MAX_SUPP_OPER_CLASSES)
+                     break;
              }
         }
     }

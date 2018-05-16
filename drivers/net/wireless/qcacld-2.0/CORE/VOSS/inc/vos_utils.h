@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2012, 2014-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2012, 2014-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -61,9 +61,11 @@
 
 #define VOS_24_GHZ_BASE_FREQ   2407
 #define VOS_5_GHZ_BASE_FREQ    5000
+#define VOS_24_GHZ_CHANNEL_1   1
 #define VOS_24_GHZ_CHANNEL_14  14
 #define VOS_24_GHZ_CHANNEL_15  15
 #define VOS_24_GHZ_CHANNEL_27  27
+#define VOS_5_GHZ_CHANNEL_165  165
 #define VOS_5_GHZ_CHANNEL_170  170
 #define VOS_CHAN_SPACING_5MHZ  5
 #define VOS_CHAN_SPACING_20MHZ 20

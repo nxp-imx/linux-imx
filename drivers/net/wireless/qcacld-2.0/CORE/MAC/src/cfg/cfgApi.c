@@ -1132,8 +1132,9 @@ uint8_t* cfg_get_vendor_ie_ptr_from_oui(tpAniSirGlobal mac_ctx,
 			return NULL;
 		}
 		if (SIR_MAC_EID_VENDOR == elem_id) {
-			if(memcmp(&ptr[2], oui, oui_size)==0)
-			return ptr;
+			if((elem_len>=oui_size) &&
+				(memcmp(&ptr[2], oui, oui_size)==0))
+				return ptr;
 		}
 
 		left -= elem_len;

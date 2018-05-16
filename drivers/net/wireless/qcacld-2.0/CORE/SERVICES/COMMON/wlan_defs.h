@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2004-2010, 2013-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2004-2010, 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -322,8 +322,20 @@ typedef struct {
         (_dst).flags           |= (_f);                                 \
     } while (0)
 
-/* NOTE: NUM_DYN_BW and NUM_SCHED_ENTRIES cannot be changed without breaking WMI Compatibility */
+/*
+ * NOTE: NUM_SCHED_ENTRIES is not used in the host/target interface, but for
+ * historical reasons has been defined in the host/target interface files.
+ * The NUM_SCHED_ENTRIES definition is being moved into a target-only
+ * header file for newer (Lithium) targets, but is being left here for
+ * non-Lithium cases, to avoid having to rework legacy targets to move
+ * the NUM_SCHED_ENTRIES definition into a target-only header file.
+ * Moving the NUM_SCHED_ENTRIES definition into a non-Lithium conditional
+ * block should have no impact on the host, since the host does not use
+ * NUM_SCHED_ENTRIES.
+ */
 #define NUM_SCHED_ENTRIES           2
+
+/* NOTE: NUM_DYN_BW cannot be changed without breaking WMI Compatibility */
 #define NUM_DYN_BW_MAX              4
 
 /* Some products only use 20/40/80; some use 20/40/80/160 */
@@ -848,5 +860,26 @@ struct wlan_dbg_tidq_stats{
     A_UINT32 wlan_dbg_tid_txq_status;
     struct wlan_dbg_txq_stats txq_st;
 };
+
+typedef enum {
+    WLAN_DBG_DATA_STALL_NONE = 0,
+    WLAN_DBG_DATA_STALL_VDEV_PAUSE,         /* 1 */
+    WLAN_DBG_DATA_STALL_HWSCHED_CMD_FILTER, /* 2 */
+    WLAN_DBG_DATA_STALL_HWSCHED_CMD_FLUSH,  /* 3 */
+    WLAN_DBG_DATA_STALL_RX_REFILL_FAILED,   /* 4 */
+    WLAN_DBG_DATA_STALL_RX_FCS_LEN_ERROR,   /* 5 */
+    WLAN_DBG_DATA_STALL_MAC_WDOG_ERRORS,    /* 6 */ /* Mac watch dog */
+    WLAN_DBG_DATA_STALL_PHY_BB_WDOG_ERROR,  /* 7 */ /* PHY watch dog */
+    WLAN_DBG_DATA_STALL_POST_TIM_NO_TXRX_ERROR, /* 8 */
+    WLAN_DBG_DATA_STALL_MAX,
+} wlan_dbg_data_stall_type_e;
+
+typedef enum {
+    WLAN_DBG_DATA_STALL_RECOVERY_NONE = 0,
+    WLAN_DBG_DATA_STALL_RECOVERY_CONNECT_DISCONNECT,
+    WLAN_DBG_DATA_STALL_RECOVERY_CONNECT_MAC_PHY_RESET,
+    WLAN_DBG_DATA_STALL_RECOVERY_CONNECT_PDR,
+    WLAN_DBG_DATA_STALL_RECOVERY_CONNECT_SSR,
+} wlan_dbg_data_stall_recovery_type_e;
 
 #endif /* __WLANDEFS_H__ */

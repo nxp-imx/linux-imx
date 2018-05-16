@@ -119,6 +119,9 @@ ol_tx_desc_find_check(struct ol_txrx_pdev_t *pdev, u_int16_t tx_desc_id)
 {
     struct ol_tx_desc_t *tx_desc;
 
+    if (tx_desc_id >= pdev->tx_desc.pool_size)
+        return NULL;
+
     tx_desc = ol_tx_desc_find(pdev, tx_desc_id);
 
     if (tx_desc->pkt_type == ol_tx_frm_freed) {
@@ -134,6 +137,9 @@ static inline struct ol_tx_desc_t *
 ol_tx_desc_find_check(struct ol_txrx_pdev_t *pdev, u_int16_t tx_desc_id)
 {
     struct ol_tx_desc_t *tx_desc;
+
+    if (tx_desc_id >= pdev->tx_desc.pool_size)
+        return NULL;
 
     tx_desc = ol_tx_desc_find(pdev, tx_desc_id);
 

@@ -149,7 +149,7 @@ struct fw_ramdump {
 };
 #endif
 #ifdef CONFIG_NON_QC_PLATFORM_PCI
-#define MAX_FILE_NAME        20
+#define MAX_FILE_NAME        40
 struct non_qc_platform_pci_fw_files {
     char image_file[MAX_FILE_NAME];
     char board_data[MAX_FILE_NAME];
