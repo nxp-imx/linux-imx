@@ -6,10 +6,10 @@ else
 	KERNEL_BUILD := 0
 endif
 
-#ifeq ($(CONFIG_CLD_HL_SDIO_CORE), y)
+ifeq ($(CONFIG_CLD_HL_SDIO_CORE), y)
 	CONFIG_QCA_WIFI_SDIO := 1
 	CONFIG_ROME_IF = sdio
-#endif
+endif
 
 ifndef CONFIG_ROME_IF
 	CONFIG_ROME_IF = pci
@@ -153,18 +153,15 @@ ifeq ($(KERNEL_BUILD), 0)
 		#Flag to enable offload packets feature
 		CONFIG_WLAN_OFFLOAD_PACKETS := y
 	endif
+endif
 
-        #Flag to enable 3 port concurrency feature
-        CONFIG_QCA_WIFI_AUTOMOTIVE_CONC := y
+    #Flag to enable 3 port concurrency feature
+    CONFIG_QCA_WIFI_AUTOMOTIVE_CONC := y
 
 	#Enable DSRC feature
 	ifeq ($(CONFIG_QCA_WIFI_SDIO), 1)
 	CONFIG_WLAN_FEATURE_DSRC := y
 	endif
-
-endif
-
-CONFIG_QCA_WIFI_AUTOMOTIVE_CONC := y
 
 #Enable Power debugfs feature only if debug_fs is enabled
 ifeq ($(CONFIG_DEBUG_FS), y)
