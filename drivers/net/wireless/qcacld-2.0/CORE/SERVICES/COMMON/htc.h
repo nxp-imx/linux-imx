@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2014 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -81,6 +81,9 @@
  *   properly aligned.
  *
  */
+
+#define HIF_RX_THREAD
+#define HIF_BUNDLE_DIFF_BLK_FRAMES 1
 
 /* HTC frame header */
 typedef PREPACK struct _HTC_FRAME_HDR{
@@ -266,7 +269,12 @@ typedef PREPACK struct {
 #define HTC_CONNECT_FLAGS_ENABLE_HTC_SCHEDULE               (1 << 4)
 
               ServiceMetaLength : 8,   /* length of meta data that follows */
+#ifdef HIF_SDIO
+              LookAheadV2 : 1,  /* indicate host support bundle different SDIO block number frames */
+              _Pad1 : 7;
+#else
               _Pad1 : 8;
+#endif
 
     /* service-specific meta data starts after the header */
 
@@ -284,6 +292,11 @@ typedef PREPACK struct {
 #define HTC_CONNECT_SERVICE_MSG_SERVICEMETALENGTH_LSB     16
 #define HTC_CONNECT_SERVICE_MSG_SERVICEMETALENGTH_MASK    0x00ff0000
 #define HTC_CONNECT_SERVICE_MSG_SERVICEMETALENGTH_OFFSET  0x00000004
+#ifdef HIF_SDIO
+#define HTC_CONNECT_SERVICE_MSG_LOOKAHEADV2_LSB           24
+#define HTC_CONNECT_SERVICE_MSG_LOOKAHEADV2_MASK          0x01000000
+#define HTC_CONNECT_SERVICE_MSG_LOOKAHEADV2_OFFSET        0x00000004
+#endif
 
 #define HTC_SET_RECV_ALLOC_SHIFT    8
 #define HTC_SET_RECV_ALLOC_MASK     0xFF00
@@ -299,7 +312,12 @@ typedef PREPACK struct {
               EndpointID : 8,       /* assigned endpoint ID */
               MaxMsgSize : 16;      /* maximum expected message size on this endpoint */
     A_UINT32  ServiceMetaLength : 8,    /* length of meta data that follows */
+#ifdef HIF_SDIO
+              LookAheadV2 : 1,  /* indicate firmware support bundle different SDIO block number frames */
+              _Pad1 : 7,
+#else
               _Pad1 : 8,
+#endif
               reserved : 16;
 
     /* service-specific meta data starts after the header */
@@ -324,6 +342,11 @@ typedef PREPACK struct {
 #define HTC_CONNECT_SERVICE_RESPONSE_MSG_SERVICEMETALENGTH_LSB    0
 #define HTC_CONNECT_SERVICE_RESPONSE_MSG_SERVICEMETALENGTH_MASK   0x000000ff
 #define HTC_CONNECT_SERVICE_RESPONSE_MSG_SERVICEMETALENGTH_OFFSET 0x00000008
+#ifdef HIF_SDIO
+#define HTC_CONNECT_SERVICE_RESPONSE_MSG_LOOKAHEADV2_LSB          8
+#define HTC_CONNECT_SERVICE_RESPONSE_MSG_LOOKAHEADV2_MASK         0x00000100
+#define HTC_CONNECT_SERVICE_RESPONSE_MSG_LOOKAHEADV2_OFFSET       0x00000008
+#endif
 
 typedef PREPACK struct {
     A_UINT32  MessageID : 16,
@@ -424,6 +447,27 @@ typedef PREPACK struct {
     * The PreValid bytes must equal the inverse of the PostValid byte */
 
 } POSTPACK HTC_LOOKAHEAD_REPORT;
+
+#ifdef HIF_SDIO
+typedef PREPACK struct {
+    A_UINT32 PreValid : 8,      /* pre valid guard */
+             reserved0 : 24;
+    A_UINT32 LookAhead0 : 8,    /* 4 byte lookahead */
+             LookAhead1 : 8,
+             LookAhead2 : 8,
+             LookAhead3 : 8;
+    A_UINT32 LookAhead4 : 8,    /* 4 byte lookahead */
+             LookAhead5 : 8,
+             LookAhead6 : 8,
+             LookAhead7 : 8;
+    A_UINT32 PostValid : 8,     /* post valid guard */
+             reserved1 : 24;
+
+   /* NOTE: the LookAhead array is guarded by a PreValid and Post Valid guard bytes.
+    * The PreValid bytes must equal the inverse of the PostValid byte */
+
+} POSTPACK HTC_LOOKAHEAD_REPORTV2;
+#endif
 
 #define HTC_LOOKAHEAD_REPORT_PREVALID_LSB         0
 #define HTC_LOOKAHEAD_REPORT_PREVALID_MASK        0x000000ff

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -1440,6 +1440,13 @@ static void adf_nbuf_track_memory_manager_destroy(void)
 		adf_print("%s: %d unfreed tracking memory still in use",
 			  __func__, adf_net_buf_track_used_list_count);
 
+	adf_net_buf_track_free_list = NULL;
+	adf_net_buf_track_free_list_count = 0;
+	adf_net_buf_track_used_list_count = 0;
+	adf_net_buf_track_max_used = 0;
+	adf_net_buf_track_max_free = 0;
+	adf_net_buf_track_max_allocated = 0;
+
 	spin_unlock_irqrestore(&adf_net_buf_track_free_list_lock, irq_flag);
 	kmem_cache_destroy(nbuf_tracking_cache);
 }
@@ -1857,6 +1864,57 @@ int adf_nbuf_update_radiotap(struct mon_rx_status *rx_status, adf_nbuf_t nbuf,
 	}
 
 	return rtap_len;
+}
+
+/**
+ * adf_nbuf_construct_radiotap() - fill in the info into radiotap buf
+ *
+ * @rtap_buf: pointer to radiotap buffer
+ * @tsf: timestamp of packet
+ * @rssi_comb: rssi of packet
+ *
+ * Return: length of rtap_len updated.
+ */
+uint16_t adf_nbuf_construct_radiotap(
+		uint8_t *rtap_buf,
+		uint32_t tsf,
+		uint32_t rssi_comb)
+{
+	struct ieee80211_radiotap_header *rthdr =
+		(struct ieee80211_radiotap_header *)rtap_buf;
+	uint32_t rtap_hdr_len = sizeof(struct ieee80211_radiotap_header);
+	uint32_t rtap_len = rtap_hdr_len;
+
+	/* IEEE80211_RADIOTAP_TSFT              __le64       microseconds*/
+	rthdr->it_present = cpu_to_le32(1 << IEEE80211_RADIOTAP_TSFT);
+	put_unaligned_le64((uint64_t)tsf,
+			   (void *)&rtap_buf[rtap_len]);
+	rtap_len += 8;
+
+	/* IEEE80211_RADIOTAP_FLAGS u8*/
+/*	rthdr->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_FLAGS);
+	rtap_buf[rtap_len] = 0x10;
+	rtap_len += 1; */
+
+	/* IEEE80211_RADIOTAP_DBM_ANTSIGNAL */
+	rthdr->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DBM_ANTSIGNAL);
+#define NORMALIZED_TO_NOISE_FLOOR (-96)
+	/*
+	 * rssi_comb is int dB, need to convert it to dBm.
+	 * normalize value to noise floor of -96 dBm
+	 */
+	rtap_buf[rtap_len] = rssi_comb +
+		NORMALIZED_TO_NOISE_FLOOR;
+	rtap_len += 1;
+
+	/* IEEE80211_RADIOTAP_DBM_ANTNOISE */
+	rthdr->it_present |= cpu_to_le32(1 << IEEE80211_RADIOTAP_DBM_ANTNOISE);
+	rtap_buf[rtap_len] = NORMALIZED_TO_NOISE_FLOOR;
+	rtap_len += 1;
+
+	rthdr->it_len = cpu_to_le16(rtap_len);
+
+	return rthdr->it_len;
 }
 
 /**

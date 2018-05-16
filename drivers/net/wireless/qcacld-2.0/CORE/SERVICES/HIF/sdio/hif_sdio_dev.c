@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014,2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014,2016-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -26,6 +26,7 @@
  */
 
 #define ATH_MODULE_NAME hif
+#include <linux/kthread.h>
 #include "a_debug.h"
 
 #include <adf_os_types.h>
@@ -48,9 +49,11 @@
 #include <a_osapi.h>
 #include <hif.h>
 #include <htc_services.h>
+#include <htc_internal.h>
 #include "hif_sdio_internal.h"
 #include "if_ath_sdio.h"
 #include "regtable.h"
+#include "vos_sched.h"
 
 /* under HL SDIO, with Interface Memory support, we have the following
  * reasons to support 2 mboxs: a) we need place different buffers in different
@@ -162,11 +165,91 @@ HTC_PACKET *HIFDevAllocRxBuffer(HIF_SDIO_DEVICE *pDev, size_t length)
     return pPacket;
 }
 
+#ifdef HIF_RX_THREAD
+/**
+ * rx_completion_sem_init() - initialize rx completion semaphore
+ * @device:  device handle.
+ *
+ * Initialize semaphore for RX completion thread's synchronization.
+ *
+ * Return: None.
+ */
+static inline void rx_completion_sem_init(HIF_SDIO_DEVICE *pDev)
+{
+	spin_lock_init(&pDev->pRecvTask->rx_bundle_lock);
+	spin_lock_init(&pDev->pRecvTask->rx_sync_completion_lock);
+	sema_init(&pDev->pRecvTask->sem_rx_completion, 0);
+}
+extern int rx_completion_task(void *param);
+
+/**
+ * hif_start_tx_completion_thread() - Create and start the RX compl thread
+ * @pDev:   pDev handle.
+ *
+ * This function will create the rx completion thread.
+ *
+ * Return: A_OK     thread created.
+ *         A_ERROR  thread not created.
+ */
+static inline int hif_start_rx_completion_thread(HIF_SDIO_DEVICE *pDev)
+{
+#ifdef CONFIG_PERF_NON_QC_PLATFORM
+    struct sched_param param = {.sched_priority = 99};
+#endif
+	if (!pDev->pRecvTask->rx_completion_task) {
+		pDev->pRecvTask->rx_completion_shutdown = 0;
+		pDev->pRecvTask->rx_completion_task = kthread_create(rx_completion_task,
+			(void *)pDev,	"AR6K RxCompletion");
+#ifdef CONFIG_PERF_NON_QC_PLATFORM
+                sched_setscheduler(pDev->pRecvTask->rx_completion_task, SCHED_FIFO, &param);
+#endif
+		if (IS_ERR(pDev->pRecvTask->rx_completion_task)) {
+			pDev->pRecvTask->rx_completion_shutdown = 1;
+			AR_DEBUG_PRINTF(ATH_DEBUG_ERROR,
+			("AR6000: fail to create rx_comple task\n"));
+			pDev->pRecvTask->rx_completion_task = NULL;
+			return A_ERROR;
+		}
+		AR_DEBUG_PRINTF(ATH_DEBUG_TRACE,
+			("AR6000: start rx_comple task\n"));
+		wake_up_process(pDev->pRecvTask->rx_completion_task);
+	}
+	return A_OK;
+}
+
+/*
+ * hif_stop_rx_completion_thread() - Destroy the rx compl thread
+ * @pDev: pDev handle.
+ *
+ * This function will destroy the RX completion thread.
+ *
+ * Return: None.
+ */
+static inline void hif_stop_rx_completion_thread(HIF_SDIO_DEVICE *pDev)
+{
+    HTC_PACKET *pPacket;
+    if (pDev->pRecvTask->rx_completion_task) {
+        init_completion(&pDev->pRecvTask->rx_completion_exit);
+        pDev->pRecvTask->rx_completion_shutdown = 1;
+        up(&pDev->pRecvTask->sem_rx_completion);
+        wait_for_completion(&pDev->pRecvTask->rx_completion_exit);
+        pDev->pRecvTask->rx_completion_task = NULL;
+        sema_init(&pDev->pRecvTask->sem_rx_completion, 0);
+    }
+    while(!HTC_QUEUE_EMPTY(&pDev->pRecvTask->rxAllocQueue)) {
+        pPacket = HTC_PACKET_DEQUEUE(&pDev->pRecvTask->rxAllocQueue);
+        if(pPacket == NULL)
+            break;
+        adf_nbuf_free(pPacket->pNetBufContext);
+    }
+}
+struct hif_recv_task gRecvTask;
+#endif
+
 HIF_SDIO_DEVICE* HIFDevCreate(HIF_DEVICE *hif_device,
         MSG_BASED_HIF_CALLBACKS *callbacks,
         void *target)
 {
-
     A_STATUS status;
     HIF_SDIO_DEVICE *pDev;
 
@@ -183,6 +266,17 @@ HIF_SDIO_DEVICE* HIFDevCreate(HIF_DEVICE *hif_device,
 
     pDev->HIFDevice = hif_device;
     pDev->pTarget = target;
+#ifdef HIF_RX_THREAD
+    pDev->pRecvTask = &gRecvTask;
+    pDev->pRecvTask->rx_completion_task = NULL;
+    rx_completion_sem_init(pDev);
+    INIT_HTC_PACKET_QUEUE(&pDev->pRecvTask->rxBundleQueue);
+    INIT_HTC_PACKET_QUEUE(&pDev->pRecvTask->rxSyncCompletionQueue);
+    hif_start_rx_completion_thread(pDev);
+    spin_lock_init(&pDev->pRecvTask->rx_alloc_lock);
+    INIT_HTC_PACKET_QUEUE(&pDev->pRecvTask->rxAllocQueue);
+#endif
+
     status = HIFConfigureDevice(hif_device,
             HIF_DEVICE_SET_HTC_CONTEXT,
             (void*) pDev,
@@ -200,7 +294,9 @@ HIF_SDIO_DEVICE* HIFDevCreate(HIF_DEVICE *hif_device,
 void HIFDevDestroy(HIF_SDIO_DEVICE *pDev)
 {
     A_STATUS status;
-
+#ifdef HIF_RX_THREAD
+    hif_stop_rx_completion_thread(pDev);
+#endif
     status = HIFConfigureDevice(pDev->HIFDevice,
             HIF_DEVICE_SET_HTC_CONTEXT,
             (void*) NULL,

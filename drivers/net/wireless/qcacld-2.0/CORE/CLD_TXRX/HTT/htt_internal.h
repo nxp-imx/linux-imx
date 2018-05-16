@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2016, 2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -50,6 +50,21 @@
 
 #include <rx_desc.h>
 #include <wal_rx_desc.h> /* struct rx_attention, etc */
+
+/*
+ * Define the HW descriptor information used by host,
+ * which is copied by FW into HTT msg.
+ */
+struct htt_hw_rx_desc_base {
+    struct rx_attention  attention;
+    struct rx_frag_info  frag_info;
+    struct rx_mpdu_start mpdu_start;
+    struct rx_msdu_start msdu_start;
+    struct rx_msdu_end   msdu_end;
+    struct rx_mpdu_end   mpdu_end;
+    struct rx_ppdu_start ppdu_start;
+    struct rx_ppdu_end   ppdu_end;
+};
 
 struct htt_host_fw_desc_base {
     union {

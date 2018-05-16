@@ -245,7 +245,8 @@ static A_STATUS HIFSend_internal(HIF_DEVICE *hifDevice, a_uint8_t PipeID,
 	int usb_status;
 	int i;
 	struct HIFSendContext *pSendContext;
-	int frag_count = 0, head_data_len, tmp_frag_count = 0;
+	uint8_t frag_count;
+	uint32_t head_data_len, tmp_frag_count = 0;
 	unsigned char *pData;
 
 	AR_DEBUG_PRINTF(USB_HIF_DEBUG_BULK_OUT, ("+%s pipe : %d, buf:0x%pK\n",
@@ -254,8 +255,15 @@ static A_STATUS HIFSend_internal(HIF_DEVICE *hifDevice, a_uint8_t PipeID,
 	a_mem_trace(buf);
 
 	frag_count = adf_nbuf_get_num_frags(buf);
-	if (frag_count > 1) {	/* means have extra fragment buf in skb */
-		/* header data length should be total sending length substract
+	if (frag_count == 1) {
+		/*
+		 * | HIFSendContext | netbuf->data
+		 */
+		head_data_len = sizeof(struct HIFSendContext);
+	} else if ((frag_count - 1) <= CVG_NBUF_MAX_EXTRA_FRAGS) {
+		/*
+		 * means have extra fragment buf in skb
+		 * header data length should be total sending length substract
 		 * internal data length of netbuf
 		 * | HIFSendContext | fragments except internal buffer |
 		 * netbuf->data
@@ -268,10 +276,12 @@ static A_STATUS HIFSend_internal(HIF_DEVICE *hifDevice, a_uint8_t PipeID,
 			tmp_frag_count = tmp_frag_count + 1;
 		}
 	} else {
-		/*
-		 * | HIFSendContext | netbuf->data
-		 */
-		head_data_len = sizeof(struct HIFSendContext);
+		/* Extra fragments overflow */
+		AR_DEBUG_PRINTF(ATH_DEBUG_ERR, (
+			"%s Extra fragments count overflow : %d\n",
+			__func__, frag_count));
+		status = A_ERROR;
+		goto exit;
 	}
 
 	/* Check whether head room is enough to save extra head data */
@@ -366,6 +376,7 @@ static A_STATUS HIFSend_internal(HIF_DEVICE *hifDevice, a_uint8_t PipeID,
 
 	} while (FALSE);
 
+exit:
 	if (A_FAILED(status) && (status != A_NO_RESOURCE)) {
 		AR_DEBUG_PRINTF(ATH_DEBUG_ERR,
 				("athusb send failed %d\n", status));

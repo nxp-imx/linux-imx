@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -596,9 +596,11 @@ static int tlshim_mgmt_rx_process(void *context, u_int8_t *data,
 		return 0;
 	}
 
-	if (hdr->buf_len < sizeof(struct ieee80211_frame)) {
+	if (hdr->buf_len < sizeof(struct ieee80211_frame) ||
+	   (!saved_beacon && hdr->buf_len > data_len)) {
 		adf_os_spin_unlock_bh(&tl_shim->mgmt_lock);
-		TLSHIM_LOGE("Invalid rx mgmt packet");
+		TLSHIM_LOGE("Invalid rx mgmt packet, saved_beacon %d, data_len %u, hdr->buf_len %u",
+				saved_beacon, data_len, hdr->buf_len);
 		return 0;
 	}
 
@@ -639,6 +641,17 @@ static int tlshim_mgmt_rx_process(void *context, u_int8_t *data,
 	rx_pkt->pkt_meta.mpdu_len = hdr->buf_len;
 	rx_pkt->pkt_meta.mpdu_data_len = hdr->buf_len -
 					 rx_pkt->pkt_meta.mpdu_hdr_len;
+
+	/*
+	 * If the mpdu_data_len is greater than Max (2k), drop the frame
+	 */
+	if (rx_pkt->pkt_meta.mpdu_data_len > WMA_MAX_MGMT_MPDU_LEN) {
+		adf_os_spin_unlock_bh(&tl_shim->mgmt_lock);
+		TLSHIM_LOGE("Data Len %d greater than max, dropping frame",
+			 rx_pkt->pkt_meta.mpdu_data_len);
+		vos_mem_free(rx_pkt);
+		return 0;
+	}
 
     /*
      * saved_beacon means this beacon is a duplicate of one
@@ -1171,6 +1184,29 @@ static void tl_shim_cache_flush_work(struct work_struct *work)
 
 		tl_shim_flush_rx_frames(vos_ctx, tl_shim, i, 0);
 	}
+}
+
+/*
+ * TLSHIM virtual monitor mode RX callback,
+ * registered for OL data indication.
+ */
+
+static void tl_shim_vir_mon_rx(adf_nbuf_t rx_buf_list)
+{
+	struct txrx_tl_shim_ctx *tl_shim;
+	void *vos_ctx = vos_get_global_context(VOS_MODULE_ID_TL, NULL);
+
+	tl_shim = vos_get_context(VOS_MODULE_ID_TL, vos_ctx);
+
+	if (!tl_shim) {
+		TLSHIM_LOGE("%s: Failed to get TLSHIM context", __func__);
+		return;
+	}
+
+	if (tl_shim->rx_monitor_cb)
+		tl_shim->rx_monitor_cb(vos_ctx, rx_buf_list, 0);
+	else
+		TLSHIM_LOGE("%s: tl_shim->rx_monitor_cb is NULL", __func__);
 }
 
 /*************************/
@@ -1922,6 +1958,57 @@ VOS_STATUS WLANTL_RegisterSTAClient(void *vos_ctx,
 
 	/* Schedule a worker to flush cached rx frames */
 	schedule_work(&tl_shim->cache_flush_work);
+
+	return VOS_STATUS_SUCCESS;
+}
+
+VOS_STATUS tl_register_vir_mon_cb(void *vos_ctx,
+				  WLANTL_STARxCBType rxcb)
+{
+	struct txrx_tl_shim_ctx *tl_shim;
+	ol_txrx_pdev_handle pdev;
+
+	tl_shim = vos_get_context(VOS_MODULE_ID_TL, vos_ctx);
+	if (!tl_shim) {
+		TLSHIM_LOGE("tl_shim is NULL");
+		return VOS_STATUS_E_FAULT;
+	}
+
+	pdev = vos_get_context(VOS_MODULE_ID_TXRX, vos_ctx);
+	if (!pdev) {
+		TLSHIM_LOGE("%s: Failed to find pdev", __func__);
+		return VOS_STATUS_E_FAULT;
+	}
+
+	tl_shim->rx_monitor_cb = rxcb;
+
+	/* register TLSHIM RX montior callback to OL */
+	ol_txrx_osif_pdev_mon_register_cbk(pdev, tl_shim_vir_mon_rx);
+
+	return VOS_STATUS_SUCCESS;
+}
+
+VOS_STATUS tl_deregister_vir_mon_cb(void *vos_ctx)
+{
+	struct txrx_tl_shim_ctx *tl_shim;
+	ol_txrx_pdev_handle pdev;
+
+	tl_shim = vos_get_context(VOS_MODULE_ID_TL, vos_ctx);
+	if (!tl_shim) {
+		TLSHIM_LOGE("tl_shim is NULL");
+		return VOS_STATUS_E_FAULT;
+	}
+
+	pdev = vos_get_context(VOS_MODULE_ID_TXRX, vos_ctx);
+	if (!pdev) {
+		TLSHIM_LOGE("%s: Failed to find pdev", __func__);
+		return VOS_STATUS_E_FAULT;
+	}
+
+	tl_shim->rx_monitor_cb = NULL;
+
+	/* register TLSHIM RX montior callback to OL */
+	ol_txrx_osif_pdev_mon_register_cbk(pdev, NULL);
 
 	return VOS_STATUS_SUCCESS;
 }

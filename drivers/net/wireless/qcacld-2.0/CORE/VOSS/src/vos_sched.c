@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -501,6 +501,9 @@ vos_sched_open
 )
 {
   VOS_STATUS  vStatus = VOS_STATUS_SUCCESS;
+#ifdef CONFIG_PERF_NON_QC_PLATFORM
+  struct sched_param param = {.sched_priority = 99};
+#endif
 /*-------------------------------------------------------------------------*/
   VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO_HIGH,
              "%s: Opening the VOSS Scheduler",__func__);
@@ -589,6 +592,9 @@ vos_sched_open
   pSchedContext->TlshimRxThread = kthread_create(VosTlshimRxThread,
                                                  pSchedContext,
                                                  "VosTlshimRxThread");
+#ifdef CONFIG_PERF_NON_QC_PLATFORM
+  sched_setscheduler(pSchedContext->TlshimRxThread, SCHED_FIFO, &param);
+#endif
   if (IS_ERR(pSchedContext->TlshimRxThread))
   {
 
@@ -1364,16 +1370,20 @@ void vos_free_tlshim_pkt(pVosSchedContext pSchedContext,
 struct VosTlshimPkt *vos_alloc_tlshim_pkt(pVosSchedContext pSchedContext)
 {
    struct VosTlshimPkt *pkt;
+   bool in_irq_context = (in_irq() || irqs_disabled());
 
-   spin_lock_bh(&pSchedContext->VosTlshimPktFreeQLock);
+   if (!in_irq_context)
+	spin_lock_bh(&pSchedContext->VosTlshimPktFreeQLock);
    if (list_empty(&pSchedContext->VosTlshimPktFreeQ)) {
-       spin_unlock_bh(&pSchedContext->VosTlshimPktFreeQLock);
+   	if (!in_irq_context)
+		spin_unlock_bh(&pSchedContext->VosTlshimPktFreeQLock);
        return NULL;
    }
    pkt = list_first_entry(&pSchedContext->VosTlshimPktFreeQ,
                           struct VosTlshimPkt, list);
    list_del(&pkt->list);
-   spin_unlock_bh(&pSchedContext->VosTlshimPktFreeQLock);
+   if (!in_irq_context)
+	spin_unlock_bh(&pSchedContext->VosTlshimPktFreeQLock);
    return pkt;
 }
 

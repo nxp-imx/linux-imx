@@ -724,6 +724,14 @@ static void __schBeaconProcessForSession( tpAniSirGlobal      pMac,
     else
         limReceivedHBHandler(pMac, (tANI_U8)pBeacon->channelNumber, psessionEntry);
 
+    if (pBeacon->countryInfoPresent && pMac->sta_change_cc_via_beacon) {
+        schLog(pMac, LOG1, "beacon country code %c%c ssid: %s",
+               pBeacon->countryInfoParam.countryString[0],
+               pBeacon->countryInfoParam.countryString[1],
+               pBeacon->ssId.ssId);
+        lim_check_and_change_cc(pMac, pBeacon, psessionEntry);
+    }
+
     // I don't know if any additional IE is required here. Currently, not include addIE.
     if(sendProbeReq)
         limSendProbeReqMgmtFrame(pMac, &psessionEntry->ssId,

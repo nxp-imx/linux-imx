@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -6844,8 +6844,17 @@ limUpdateIBssPropAddIEs(tpAniSirGlobal pMac, tANI_U8 **pDstData_buff,
         vos_mem_copy(vendor_ie, pModifyIE->pIEBuffer,
                      pModifyIE->ieBufferlength);
     } else {
-        uint16_t new_length = pModifyIE->ieBufferlength + *pDstDataLen;
-        uint8_t *new_ptr = vos_mem_malloc(new_length);
+	uint8_t *new_ptr;
+	uint16_t new_length;
+
+	if (USHRT_MAX - pModifyIE->ieBufferlength < *pDstDataLen) {
+			limLog(pMac,LOGE,FL("U16 overflow due to %d + %d"),
+				pModifyIE->ieBufferlength, *pDstDataLen);
+			return false;
+		}
+
+        new_length = pModifyIE->ieBufferlength + *pDstDataLen;
+        new_ptr = vos_mem_malloc(new_length);
 
         if (NULL == new_ptr) {
             limLog(pMac, LOGE, FL("Memory allocation failed."));
@@ -7219,6 +7228,21 @@ limProcessUpdateAddIEs(tpAniSirGlobal pMac, tANI_U32 *pMsg)
                 tANI_U16 new_length = pUpdateAddIEs->updateIE.ieBufferlength +
                                 psessionEntry->addIeParams.probeRespDataLen;
                 tANI_U8 *new_ptr = vos_mem_malloc(new_length);
+                /* Multiple back to back append commands
+                 * can lead to a huge length.So, check
+                 * for the validity of the length.
+                 */
+                if (psessionEntry->addIeParams.probeRespDataLen >
+                     (USHRT_MAX - pUpdateAddIEs->updateIE.ieBufferlength))
+                {
+                    limLog(pMac, LOGE,
+                           FL("IE Length overflow, curr:%d, new:%d."),
+                           psessionEntry->addIeParams.probeRespDataLen,
+                           pUpdateAddIEs->updateIE.ieBufferlength);
+                    vos_mem_free(pUpdateAddIEs->updateIE.pAdditionIEBuffer);
+                    pUpdateAddIEs->updateIE.pAdditionIEBuffer = NULL;
+                    return;
+                }
                 if (NULL == new_ptr)
                 {
                     limLog(pMac, LOGE, FL("Memory allocation failed."));
@@ -7588,8 +7612,6 @@ limProcessSmeDfsCsaIeRequest(tpAniSirGlobal pMac, tANI_U32 *pMsg)
                      psessionEntry->gLimChannelSwitch.secondarySubBand,
                      psessionEntry);
         }
-
-        psessionEntry->gLimChannelSwitch.switchCount--;
     }
     return;
 }

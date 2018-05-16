@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012, 2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -61,6 +61,10 @@ void    limReInitLfrScanResults(tpAniSirGlobal);
 #endif
 tANI_U32 limDeactivateMinChannelTimerDuringScan(tpAniSirGlobal);
 void    limCheckAndAddBssDescription(tpAniSirGlobal, tpSirProbeRespBeacon, tANI_U8 *, tANI_BOOLEAN, tANI_U8);
+void lim_check_and_change_cc(tpAniSirGlobal mac_ptr,
+			     tpSirProbeRespBeacon beacon_ptr,
+			     tpPESession session_ptr);
+
 #if defined WLAN_FEATURE_VOWIFI
 void    limCollectBssDescription(tpAniSirGlobal,
                                  tSirBssDescription *,

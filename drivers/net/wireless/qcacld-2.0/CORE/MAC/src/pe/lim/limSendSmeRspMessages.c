@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -3119,6 +3119,10 @@ void limHandleCSAoffloadMsg(tpAniSirGlobal pMac,tpSirMsgQ MsgQ)
       mmhMsg.type = eWNI_SME_CSA_OFFLOAD_EVENT;
       mmhMsg.bodyptr = pCsaOffloadInd;
       mmhMsg.bodyval = 0;
+#ifdef WLAN_FEATURE_SAP_TO_FOLLOW_STA_CHAN
+      pCsaOffloadInd->tbtt_count = csa_params->csa_tbtt_count;
+      pCsaOffloadInd->channel = csa_params->channel;
+#endif//#ifdef WLAN_FEATURE_SAP_TO_FOLLOW_STA_CHAN
       PELOG1(limLog(pMac, LOG1, FL("Sending eWNI_SME_CSA_OFFLOAD_EVENT to SME. "));)
       MTRACE(macTraceMsgTx(pMac, psessionEntry->peSessionId, mmhMsg.type));
       limDiagEventReport(pMac, WLAN_PE_DIAG_SWITCH_CHL_REQ_EVENT, psessionEntry,
@@ -3497,6 +3501,8 @@ limProcessBeaconTxSuccessInd(tpAniSirGlobal pMac, tANI_U16 msgType, void *event)
 
    if (LIM_IS_AP_ROLE(psessionEntry) &&
        VOS_TRUE == psessionEntry->dfsIncludeChanSwIe) {
+      /* Decrement the Channel Switch Count in CSAIE */
+          psessionEntry->gLimChannelSwitch.switchCount--;
       /* Send only 5 beacons with CSA IE Set in when a radar is detected */
       if (psessionEntry->gLimChannelSwitch.switchCount > 0)
       {
@@ -3513,8 +3519,6 @@ limProcessBeaconTxSuccessInd(tpAniSirGlobal pMac, tANI_U16 msgType, void *event)
                   psessionEntry);
           }
 
-          /* Decrement the IE count */
-          psessionEntry->gLimChannelSwitch.switchCount--;
       }
       else
       {

@@ -3450,12 +3450,15 @@ static void hdd_ipa_send_pkt_to_tl(struct hdd_ipa_iface_context *iface_context,
 	 * During CAC period, data packets shouldn't be sent over the air so
 	 * drop all the packets here
 	 */
-	if (WLAN_HDD_GET_AP_CTX_PTR(adapter)->dfs_cac_block_tx) {
-		ipa_free_skb(ipa_tx_desc);
-		adf_os_spin_unlock_bh(&iface_context->interface_lock);
-		iface_context->stats.num_tx_cac_drop++;
-		hdd_ipa_rm_try_release(hdd_ipa);
-		return;
+	if (WLAN_HDD_SOFTAP == adapter->device_mode ||
+	    WLAN_HDD_P2P_GO == adapter->device_mode) {
+		if (WLAN_HDD_GET_AP_CTX_PTR(adapter)->dfs_cac_block_tx) {
+			ipa_free_skb(ipa_tx_desc);
+			adf_os_spin_unlock_bh(&iface_context->interface_lock);
+			iface_context->stats.num_tx_cac_drop++;
+			hdd_ipa_rm_try_release(hdd_ipa);
+			return;
+		}
 	}
 
 	interface_id = adapter->sessionId;

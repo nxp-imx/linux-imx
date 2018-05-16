@@ -35,6 +35,8 @@
 #include "wmi_unified_api.h"
 #include "utilsApi.h"
 
+#define UINT32_MAX (0xFFFFFFFFU)
+
 /**
  * wma_ocb_resp() - send the OCB set config response via callback
  * @wma_handle: pointer to the WMA handle
@@ -82,6 +84,8 @@ int wma_ocb_set_config_resp(tp_wma_handle wma_handle, uint8_t status)
 		} else {
 			vdev->ocb_channel_info = 0;
 		}
+
+		vdev->ocb_config_flags = req->flags;
 
 		/* Default TX parameter */
 		if (!ol_txrx_set_ocb_def_tx_param(vdev,
@@ -1022,8 +1026,16 @@ int wma_dcc_stats_event_handler(void *handle, uint8_t *event_buf,
 		VOS_ASSERT(0);
 		return -EINVAL;
 	}
+
+	if (fix_param->num_channels > param_tlvs->num_stats_per_channel_list) {
+		WMA_LOGE("FW message num_chan %d more than TLV hdr %d",
+			fix_param->num_channels,
+			param_tlvs->num_stats_per_channel_list);
+		return -EINVAL;
+	}
+
 	response = vos_mem_malloc(sizeof(*response) +
-	    fix_param->num_channels * sizeof(wmi_dcc_ndl_stats_per_channel));
+		fix_param->num_channels * sizeof(wmi_dcc_ndl_stats_per_channel));
 	if (response == NULL)
 		return -ENOMEM;
 	response->vdev_id = fix_param->vdev_id;
@@ -1127,6 +1139,13 @@ static int wma_radio_chan_stats_event_handler(void *handle, u_int8_t *event,
 	chan_stats = param_tlvs->radio_chan_stats;
 	if (!chan_stats) {
 		WMA_LOGE("Invalid radio_chan_stats ptr");
+		return -EINVAL;
+	}
+
+	if (fix_param->num_chans > (UINT32_MAX - sizeof(*resp))/
+	    sizeof(struct radio_chan_stats_info)) {
+		WMA_LOGE("%s: number of channels = %d greater thanmax limit",
+			  __func__,fix_param->num_chans);
 		return -EINVAL;
 	}
 

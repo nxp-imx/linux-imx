@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -412,8 +412,8 @@ static A_STATUS HTCSendBundledNetbuf(HTC_TARGET *target,
     adf_os_print(" Send bundle EP%d buffer size:0x%x, total:0x%x, count:%d.\n",
             pEndpoint->Id,
             pEndpoint->TxCreditSize,
-            data_len,
-            data_len / pEndpoint->TxCreditSize);
+            (int)data_len,
+            (int)data_len / pEndpoint->TxCreditSize);
 #endif
 
 #if defined(DEBUG_HL_LOGGING) && defined(CONFIG_HL_SUPPORT)
@@ -526,6 +526,9 @@ static A_STATUS HTCIssuePacketsBundle(HTC_TARGET *target,
        HTC_WRITE32((A_UINT32 *)pHtcHdr + 1,
                  SM(pPacket->PktInfo.AsTx.SeqNo, HTC_FRAME_HDR_CONTROLBYTES1) |
                  SM(creditPad, HTC_FRAME_HDR_RESERVED));
+#ifdef HIF_SDIO
+       if(target->enable_b2b)
+#endif
        pHtcHdr->reserved = creditPad;
 #endif
        frag_count = adf_nbuf_get_num_frags(netbuf);
@@ -668,7 +671,7 @@ static A_STATUS HTCIssuePackets(HTC_TARGET       *target,
         adf_os_print(" Send single EP%d buffer size:0x%x, total:0x%x.\n",
             pEndpoint->Id,
             pEndpoint->TxCreditSize,
-            HTC_HDR_LENGTH + pPacket->ActualLength);
+            (int)HTC_HDR_LENGTH + pPacket->ActualLength);
 #endif
 
 #if defined(DEBUG_HL_LOGGING) && defined(CONFIG_HL_SUPPORT)
@@ -1538,7 +1541,7 @@ A_STATUS HTCSendDataPkt(HTC_HANDLE HTCHandle, HTC_PACKET *pPacket,
         adf_os_print(" Send single EP%d buffer size:0x%x, total:0x%x.\n",
             pEndpoint->Id,
             pEndpoint->TxCreditSize,
-            HTC_HDR_LENGTH + pPacket->ActualLength);
+            (int)HTC_HDR_LENGTH + pPacket->ActualLength);
 #endif
 
 #if defined(DEBUG_HL_LOGGING) && defined(CONFIG_HL_SUPPORT)

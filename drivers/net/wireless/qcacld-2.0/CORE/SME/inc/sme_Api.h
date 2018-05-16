@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -130,6 +130,7 @@ typedef struct _smeConfigParams
     uint8_t      sub20_config_info;
     uint8_t      sub20_channelwidth;
     uint8_t      sub20_dynamic_channelwidth;
+    bool         sta_change_cc_via_beacon;
 } tSmeConfigParams, *tpSmeConfigParams;
 
 typedef enum
@@ -245,7 +246,24 @@ typedef struct {
     u_int8_t smeThermalMgmtEnabled;
     u_int32_t smeThrottlePeriod;
     u_int8_t sme_throttle_duty_cycle_tbl[SME_MAX_THROTTLE_LEVELS];
+#ifdef FEATURE_WLAN_THERMAL_SHUTDOWN
+    uint8_t  thermal_shutdown_enabled;
+    uint8_t  thermal_shutdown_auto_enabled;
+    uint16_t thermal_resume_threshold;
+    uint16_t thermal_warning_threshold;
+    uint16_t thermal_suspend_threshold;
+    uint16_t thermal_sample_rate;
+#endif
+
 } tSmeThermalParams;
+
+typedef struct {
+    u_int32_t enable;
+    u_int32_t delta_degreeHigh;
+    u_int32_t delta_degreeLow;
+    u_int32_t cooling_time;
+    u_int32_t dpd_dur_max;
+} tSmeDPDRecalParams;
 
 #ifdef WLAN_FEATURE_APFIND
 struct sme_ap_find_request_req{
@@ -285,6 +303,12 @@ struct sme_5g_band_pref_params {
 	int8_t      rssi_penalize_threshold_5g;
 	uint8_t     rssi_penalize_factor_5g;
 	uint8_t     max_rssi_penalize_5g;
+};
+
+struct sme_mnt_filter_type_req{
+    u_int32_t vdev_id;
+    u_int16_t request_data_len;
+    u_int8_t* request_data;
 };
 
 /*-------------------------------------------------------------------------
@@ -3809,6 +3833,14 @@ eHalStatus sme_RoamCsaIeRequest(tHalHandle hHal, tCsrBssid bssid,
 eHalStatus sme_InitThermalInfo( tHalHandle hHal, tSmeThermalParams thermalParam );
 /* ---------------------------------------------------------------------------
     \fn sme_InitThermalInfo
+    \brief  SME API to initialize the thermal mitigation parameters
+    \param  hHal
+    \param  thermalParam : thermal mitigation parameters
+    \- return eHalStatus
+    -------------------------------------------------------------------------*/
+eHalStatus sme_InitDPDRecalInfo( tHalHandle hHal, tSmeDPDRecalParams thermalParam );
+/* ---------------------------------------------------------------------------
+    \fn sme_InitThermalInfo
     \brief  SME API to set the thermal mitigation level
     \param  hHal
     \param  level : thermal mitigation level
@@ -4310,11 +4342,6 @@ eHalStatus sme_set_ll_ext_cb(tHalHandle hal,
 
 #endif /* WLAN_FEATURE_LINK_LAYER_STATS */
 
-eHalStatus sme_fw_mem_dump(tHalHandle hHal, void *recvd_req);
-eHalStatus sme_fw_mem_dump_register_cb(tHalHandle hHal,
-    void (*callback_routine)(void *cb_context, struct fw_dump_rsp *rsp));
-eHalStatus sme_fw_mem_dump_unregister_cb(tHalHandle hHal);
-
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
 /*--------------------------------------------------------------------------
   \brief sme_UpdateRoamOffloadEnabled() - enable/disable roam offload feature
@@ -4513,6 +4540,14 @@ eHalStatus sme_set_tsfcb(tHalHandle hHal,
 VOS_STATUS sme_apfind_set_cmd(struct sme_ap_find_request_req *input);
 #endif /* WLAN_FEATURE_APFIND */
 
+#ifdef WLAN_FEATURE_SAP_TO_FOLLOW_STA_CHAN
+eHalStatus sme_AddCSAIndCallback
+(
+   tHalHandle hHal,
+   void (*pCallbackfn)(void *pAdapter, void *CSAindParam)
+);
+#endif//#ifdef
+
 /**
  * sme_enable_disable_mas() - Function to set MAS value to UMAC
  * @val:        1-Enable, 0-Disable
@@ -4609,6 +4644,17 @@ uint8_t    sme_is_any_session_in_connected_state(tHalHandle h_hal);
 typedef void ( *tSmeSetThermalLevelCallback)(void *pContext, u_int8_t level);
 void sme_add_set_thermal_level_callback(tHalHandle hHal,
                    tSmeSetThermalLevelCallback callback);
+typedef void (*tSmeThermalTempIndCb)(void *pContext, u_int32_t degree_c);
+/**
+ * sme_add_thermal_temperature_ind_callback() - Set callback fn for thermal
+ * temperature indication
+ * hHal: Handler to HAL
+ * callback: The callback function
+ *
+ * Return: void
+ */
+void sme_add_thermal_temperature_ind_callback(tHalHandle hHal,
+                   tSmeThermalTempIndCb callback);
 
 eHalStatus sme_handle_set_fcc_channel(tHalHandle hHal,
 		bool fcc_constraint,
@@ -4710,6 +4756,9 @@ void sme_update_fine_time_measurement_capab(tHalHandle hal, uint32_t val);
 eHalStatus sme_delete_all_tdls_peers(tHalHandle hal, uint8_t session_id);
 
 eHalStatus sme_update_txrate(tHalHandle hal, struct sir_txrate_update *req);
+
+eHalStatus sme_peer_flush_pending(tHalHandle hal,
+				  struct sme_flush_pending *req);
 
 void sme_send_disassoc_req_frame(tHalHandle hal, uint8_t session_id,
 		uint8_t *peer_mac, tANI_U16 reason, uint8_t wait_for_ack);
@@ -4826,4 +4875,7 @@ eHalStatus sme_clear_random_mac(tHalHandle hal, uint32_t session_id,
 eHalStatus sme_set_chip_pwr_save_fail_cb(tHalHandle hal, void (*cb)( void *,
 				struct chip_pwr_save_fail_detected_params *));
 
+eHalStatus sme_set_ac_txq_optimize(tHalHandle hal_handle, uint8_t *value);
+
+VOS_STATUS sme_mnt_filter_type_cmd(struct sme_mnt_filter_type_req *input);
 #endif //#if !defined( __SME_API_H )

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -518,6 +518,9 @@ enum wake_lock_reason {
 	WIFI_POWER_EVENT_WAKELOCK_PNO,
 	WIFI_POWER_EVENT_WAKELOCK_DEL_STA,
 	WIFI_POWER_EVENT_WAKELOCK_DFS,
+#ifdef FEATURE_WLAN_THERMAL_SHUTDOWN
+	WIFI_POWER_EVENT_WAKELOCK_THERMAL,
+#endif
 	WIFI_POWER_EVENT_WAKELOCK_MISC,
 };
 

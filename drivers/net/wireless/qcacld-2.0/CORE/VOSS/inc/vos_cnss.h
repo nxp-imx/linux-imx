@@ -53,7 +53,7 @@ enum cnss_cc_src {
 };
 
 static inline void vos_wlan_pci_link_down(void){ return; }
-#if defined(HIF_PCI)
+#ifdef HIF_PCI
 static inline int vos_pcie_shadow_control(struct pci_dev *dev, bool enable)
 {
 	return -ENODEV;

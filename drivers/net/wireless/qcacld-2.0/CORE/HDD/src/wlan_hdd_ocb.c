@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -126,7 +126,7 @@ static int dot11p_validate_qos_params(struct sir_qos_params qos_params[])
 
 #define DOT11P_TX_PWR_MAX	30
 #define DOT11P_TX_ANTENNA_MAX	6
-#define NUM_DOT11P_CHANNELS	10
+#define NUM_DOT11P_CHANNELS	ARRAY_SIZE(valid_dot11p_channels)
 /*
  * If FEATURE_STATICALLY_ADD_11P_CHANNELS
  * is defined, IEEE80211_CHAN_NO_10MHZ,
@@ -146,7 +146,7 @@ struct chan_info {
 	uint32_t max_bandwidth;
 };
 
-struct chan_info valid_dot11p_channels[NUM_DOT11P_CHANNELS] = {
+struct chan_info valid_dot11p_channels[] = {
 	{5860, 10},
 	{5870, 10},
 	{5880, 10},
@@ -156,7 +156,21 @@ struct chan_info valid_dot11p_channels[NUM_DOT11P_CHANNELS] = {
 	{5920, 10},
 	{5875, 20},
 	{5905, 20},
-	{5852, 5}
+	{5852, 5},
+	{5857, 5},
+	{5862, 5},
+	{5867, 5},
+	{5872, 5},
+	{5877, 5},
+	{5882, 5},
+	{5887, 5},
+	{5892, 5},
+	{5897, 5},
+	{5902, 5},
+	{5907, 5},
+	{5912, 5},
+	{5917, 5},
+	{5922, 5},
 };
 
 /**
@@ -596,6 +610,21 @@ end:
 	} else {
 		if (enable_chan_stats)
 			wlan_hdd_dsrc_config_radio_chan_stats(adapter, true);
+
+		/*
+		 * Net device mtu size is 1500 by default, But for OCB RAW mode,
+		 * driver need later convert 802.3 data header to IEEE802.11
+		 * data header and EPD header, which will increase total frame
+		 * length. In such case, long packet length will exceed the
+		 * target credit size. It resulted in that the packet is cut
+		 * down, data would be missed and the traffic would be broken.
+		 * So decrease the netdev mtu size to work around this issue
+		 * in IEEE80211p RAW mode.
+		 */
+		if (config->flags & OCB_CONFIG_FLAG_80211_FRAME_MODE)
+			adapter->dev->mtu = ETH_DATA_LEN - 8;
+		else
+			adapter->dev->mtu = ETH_DATA_LEN;
 	}
 	return rc;
 }
@@ -984,18 +1013,10 @@ static int __wlan_hdd_cfg80211_ocb_set_config(struct wiphy *wiphy,
 		tb[QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_SCHEDULE_SIZE]);
 
 	/* Get the ndl chan array and the ndl active state array. */
-	if (!tb[QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_NDL_CHANNEL_ARRAY]) {
-		hddLog(LOGE, FL("NDL_CHANNEL_ARRAY is not present"));
-		return -EINVAL;
-	}
 	ndl_chan_list =
 		tb[QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_NDL_CHANNEL_ARRAY];
 	ndl_chan_list_len = (ndl_chan_list ? nla_len(ndl_chan_list) : 0);
 
-	if (!tb[QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_NDL_ACTIVE_STATE_ARRAY]) {
-		hddLog(LOGE, FL("NDL_ACTIVE_STATE_ARRAY is not present"));
-		return -EINVAL;
-	}
 	ndl_active_state_list =
 		tb[QCA_WLAN_VENDOR_ATTR_OCB_SET_CONFIG_NDL_ACTIVE_STATE_ARRAY];
 	ndl_active_state_list_len = (ndl_active_state_list ?

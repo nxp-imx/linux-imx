@@ -33,6 +33,8 @@
 
 #define WLAN_OCB_CHANNEL_MAX 5
 
+#define DOT11P_CONTROL_CHANNEL 5890
+
 /**
  * struct ocb_qos_params - QoS Parameters for each AC
  * @aifsn:  Arbitration Inter-Frame Spacing

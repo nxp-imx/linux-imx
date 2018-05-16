@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2015, 2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2015, 2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -671,6 +671,15 @@ extern int
     adf_nbuf_t *tail_msdu);
 
 /**
+ * @brief Return the maximum number of available msdus currently
+ *
+ * @param pdev - the HTT instance the rx data was received on
+ */
+extern int
+(*htt_rx_offload_msdu_cnt)(
+    htt_pdev_handle pdev);
+
+/**
  * @brief Return a linked list of buffers holding one MSDU
  *  In some systems the buffers are delivered along with offload delivery
  *  indication message itself, while in other systems the buffers are uploaded
@@ -840,8 +849,8 @@ void
 htt_rx_frag_ind_flush_seq_num_range(
     htt_pdev_handle pdev,
     adf_nbuf_t rx_frag_ind_msg,
-    int *seq_num_start,
-    int *seq_num_end);
+    u_int16_t *seq_num_start,
+    u_int16_t *seq_num_end);
 /**
  * @brief Return the HL rx desc size
  * @param pdev - the HTT instance the rx data was received on
@@ -883,4 +892,19 @@ htt_rx_offload_paddr_msdu_pop_ll(
     u_int8_t *fw_desc,
     adf_nbuf_t *head_buf,
     adf_nbuf_t *tail_buf);
+
+/**
+ * @brief parse the htt msg to get necessary info
+ * @param pdev - the HTT instance the rx data was received on
+ * @param rx_ind_msg - the nbuf pointer containing the htt msg content
+ * @param head_buf - reference to the head buffer
+ * @param tail_buf - reference to the tail buffer
+ */
+int
+htt_rx_mac_header_mon_process(
+	htt_pdev_handle pdev,
+	adf_nbuf_t rx_ind_msg,
+	adf_nbuf_t *head_msdu,
+	adf_nbuf_t *tail_msdu);
+
 #endif /* _OL_HTT_RX_API__H_ */

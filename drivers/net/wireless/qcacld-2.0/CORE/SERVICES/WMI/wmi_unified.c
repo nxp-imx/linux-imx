@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -738,6 +738,7 @@ static u_int8_t* get_wmi_cmd_string(WMI_CMD_ID wmi_command)
 		CASE_RETURN_STRING(WMI_HW_DATA_FILTER_CMDID);
 		CASE_RETURN_STRING(WMI_PDEV_MULTIPLE_VDEV_RESTART_REQUEST_CMDID);
 		CASE_RETURN_STRING(WMI_LPI_OEM_REQ_CMDID);
+                CASE_RETURN_STRING(WMI_OEM_DMA_RING_CFG_REQ_CMDID);
 		CASE_RETURN_STRING(WMI_PDEV_UPDATE_PKT_ROUTING_CMDID);
 		CASE_RETURN_STRING(WMI_PDEV_CHECK_CAL_VERSION_CMDID);
 		CASE_RETURN_STRING(WMI_PDEV_SET_DIVERSITY_GAIN_CMDID);
@@ -748,7 +749,37 @@ static u_int8_t* get_wmi_cmd_string(WMI_CMD_ID wmi_command)
 		CASE_RETURN_STRING(WMI_SET_INIT_COUNTRY_CMDID);
 		CASE_RETURN_STRING(WMI_SET_SCAN_DBS_DUTY_CYCLE_CMDID);
 		CASE_RETURN_STRING(WMI_PDEV_DIV_GET_RSSI_ANTID_CMDID);
+                CASE_RETURN_STRING(WMI_PDEV_BSS_CHAN_INFO_REQUEST_CMDID);
 		CASE_RETURN_STRING(WMI_THERM_THROT_SET_CONF_CMDID);
+
+		CASE_RETURN_STRING(WMI_PDEV_UPDATE_FILS_HLP_PKT_CMDID);
+		CASE_RETURN_STRING(WMI_PDEV_UPDATE_CTLTABLE_REQUEST_CMDID);
+		CASE_RETURN_STRING(WMI_PDEV_CONFIG_VENDOR_OUI_ACTION_CMDID);
+		CASE_RETURN_STRING(WMI_PDEV_SET_AC_TX_QUEUE_OPTIMIZED_CMDID);
+		CASE_RETURN_STRING(WMI_VDEV_LIMIT_OFFCHAN_CMDID);
+		CASE_RETURN_STRING(WMI_PDEV_SEND_FD_CMDID);
+		CASE_RETURN_STRING(WMI_BCN_OFFLOAD_CTRL_CMDID);
+		CASE_RETURN_STRING(WMI_ROAM_BTM_CONFIG_CMDID);
+		CASE_RETURN_STRING(WMI_ENABLE_FILS_CMDID);
+		CASE_RETURN_STRING(WMI_HB_OIC_PING_OFFLOAD_PARAM_CMDID);
+		CASE_RETURN_STRING(WMI_HB_OIC_PING_OFFLOAD_SET_ENABLE_CMDID);
+		CASE_RETURN_STRING(WMI_HB_DHCP_LEASE_RENEW_OFFLOAD_CMDID);
+		CASE_RETURN_STRING(WMI_WLM_CONFIG_CMDID);
+		CASE_RETURN_STRING(WMI_PDEV_UPDATE_PMK_CACHE_CMDID);
+		CASE_RETURN_STRING(WMI_PEER_TID_MSDUQ_QDEPTH_THRESH_UPDATE_CMDID);
+		CASE_RETURN_STRING(WMI_PDEV_SET_RX_FILTER_PROMISCUOUS_CMDID);
+		CASE_RETURN_STRING(WMI_SAP_OBSS_DETECTION_CFG_CMDID);
+		CASE_RETURN_STRING(WMI_PDEV_DMA_RING_CFG_REQ_CMDID);
+		CASE_RETURN_STRING(WMI_SAR_GET_LIMITS_CMDID);
+		CASE_RETURN_STRING(WMI_11K_OFFLOAD_REPORT_CMDID);
+		CASE_RETURN_STRING(WMI_11K_INVOKE_NEIGHBOR_REPORT_CMDID);
+		CASE_RETURN_STRING(WMI_BPF_SET_VDEV_ENABLE_CMDID);
+		CASE_RETURN_STRING(WMI_BPF_SET_VDEV_WORK_MEMORY_CMDID);
+		CASE_RETURN_STRING(WMI_BPF_GET_VDEV_WORK_MEMORY_CMDID);
+		CASE_RETURN_STRING(WMI_BSS_COLOR_CHANGE_ENABLE_CMDID);
+                CASE_RETURN_STRING(WMI_OBSS_COLOR_COLLISION_DET_CONFIG_CMDID);
+                CASE_RETURN_STRING(WMI_RUNTIME_DPD_RECAL_CMDID);
+
 	}
 	return "Invalid WMI cmd";
 }
@@ -895,9 +926,8 @@ int wmi_unified_cmd_send(wmi_unified_t wmi_handle, wmi_buf_t buf, int len,
 	if (adf_os_atomic_read(&wmi_handle->is_target_suspended) &&
 			( (WMI_WOW_HOSTWAKEUP_FROM_SLEEP_CMDID != cmd_id) &&
 			  (WMI_PDEV_RESUME_CMDID != cmd_id)) ) {
-		adf_os_print("\nERROR: %s: Target is suspended  could not send WMI command: %d\n",
+		pr_debug("\nERROR: %s: Target is suspended  could not send WMI command: %d\n",
 				__func__, cmd_id);
-		VOS_ASSERT(0);
 		return -EBUSY;
 	} else
 		goto dont_tag;
@@ -1035,7 +1065,7 @@ int wmi_unified_unregister_event_handler(wmi_unified_t wmi_handle,
 {
     u_int32_t idx=0;
     if ( (idx = wmi_unified_get_event_handler_ix( wmi_handle, event_id)) == -1) {
-        printk("%s : event handler is not registered: event id 0x%x \n",
+        pr_debug("%s : event handler is not registered: event id 0x%x \n",
                 __func__, event_id);
         return -1;
     }
@@ -1206,7 +1236,7 @@ void __wmi_control_rx(struct wmi_unified *wmi_handle, wmi_buf_t evt_buf)
 
 		idx = wmi_unified_get_event_handler_ix(wmi_handle, id) ;
 		if (idx == -1) {
-			pr_err("%s : event handler is not registered: event id 0x%x\n",
+			pr_debug("%s : event handler is not registered: event id 0x%x\n",
 			       __func__, id);
 			goto end;
 		}
@@ -1225,15 +1255,15 @@ void __wmi_control_rx(struct wmi_unified *wmi_handle, wmi_buf_t evt_buf)
 
 	switch (id) {
 	default:
-		pr_info("%s: Unhandled WMI event %d\n", __func__, id);
+		pr_debug("%s: Unhandled WMI event %d\n", __func__, id);
 		break;
 	case WMI_SERVICE_READY_EVENTID:
-		pr_info("%s: WMI UNIFIED SERVICE READY event\n", __func__);
+		pr_debug("%s: WMI UNIFIED SERVICE READY event\n", __func__);
 		wma_rx_service_ready_event(wmi_handle->scn_handle,
 					   wmi_cmd_struct_ptr);
 		break;
 	case WMI_READY_EVENTID:
-		pr_info("%s:  WMI UNIFIED READY event\n", __func__);
+		pr_debug("%s:  WMI UNIFIED READY event\n", __func__);
 		wma_rx_ready_event(wmi_handle->scn_handle, wmi_cmd_struct_ptr);
 		break;
 	}

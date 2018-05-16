@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -286,6 +286,7 @@ enum eWniMsgTypes
 
     eWNI_SME_CHANGE_COUNTRY_CODE,
     eWNI_SME_GENERIC_CHANGE_COUNTRY_CODE,
+    eWNI_SME_CC_CHANGE_IND,
     eWNI_SME_PRE_SWITCH_CHL_IND,
     eWNI_SME_POST_SWITCH_CHL_IND,
 
@@ -385,7 +386,9 @@ enum eWniMsgTypes
 #endif
     eWNI_SME_FW_STATUS_IND,
     eWNI_SME_SET_THERMAL_LEVEL_IND,
-
+#ifdef FEATURE_WLAN_THERMAL_SHUTDOWN
+    eWNI_SME_THERMAL_TEMPERATURE_IND,
+#endif
     eWNI_SME_OCB_SET_CONFIG_RSP,
     eWNI_SME_OCB_GET_TSF_TIMER_RSP,
     eWNI_SME_DCC_GET_STATS_RSP,
@@ -394,7 +397,6 @@ enum eWniMsgTypes
     eWNI_SME_RADIO_CHAN_STATS_IND,
 
     eWNI_SME_TSF_EVENT,
-    eWNI_SME_FW_DUMP_IND,
     eWNI_SME_PDEV_SET_HT_VHT_IE,
     eWNI_SME_EXT_CHANGE_CHANNEL,
     eWNI_SME_EXT_CHANGE_CHANNEL_IND,

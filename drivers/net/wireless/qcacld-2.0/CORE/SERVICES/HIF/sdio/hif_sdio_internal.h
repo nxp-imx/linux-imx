@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014,2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014,2016-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -55,7 +55,7 @@
 #define INVALID_MAILBOX_NUMBER 0xFF
 #define MAILBOX_COUNT 4
 #define MAILBOX_FOR_BLOCK_SIZE 1
-#define MAILBOX_USED_COUNT 2
+#define MAILBOX_USED_COUNT 1
 #if defined(SDIO_3_0)
 #define MAILBOX_LOOKAHEAD_SIZE_IN_WORD 2
 #else
@@ -111,8 +111,26 @@ struct TAG_HIF_SDIO_DEVICE {
     int CurrentDSRRecvCount;
     int RecheckIRQStatusCnt;
     A_UINT32 RecvStateFlags;
-	void *pTarget;
+    void *pTarget;
+#ifdef HIF_RX_THREAD
+    struct hif_recv_task* pRecvTask;
+#endif
 };
+
+#ifdef HIF_RX_THREAD
+struct hif_recv_task {
+    struct task_struct *rx_completion_task;
+    struct semaphore sem_rx_completion;
+    int    rx_completion_shutdown;
+    struct completion rx_completion_exit;
+    spinlock_t rx_bundle_lock;
+    spinlock_t rx_sync_completion_lock;
+    HTC_PACKET_QUEUE rxBundleQueue;
+    HTC_PACKET_QUEUE rxSyncCompletionQueue;
+    spinlock_t rx_alloc_lock;
+    HTC_PACKET_QUEUE rxAllocQueue;
+};
+#endif
 
 #define LOCK_HIF_DEV(device)    A_MUTEX_LOCK(&(device)->Lock);
 #define UNLOCK_HIF_DEV(device)  A_MUTEX_UNLOCK(&(device)->Lock);

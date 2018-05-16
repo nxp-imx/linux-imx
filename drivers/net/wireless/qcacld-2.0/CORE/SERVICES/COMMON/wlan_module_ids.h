@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2014-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011, 2014-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -101,7 +101,14 @@ typedef enum {
   WLAN_MODULE_P2P_LISTEN_OFFLOAD,       /* 0x42 */
   WLAN_MODULE_HALPHY,                   /* 0x43 */
   WAL_MODULE_ENQ,                       /* 0x44 */
-
+  WLAN_MODULE_GNSS,                     /* 0x45 */
+  WLAN_MODULE_WAL_MEM,                  /* 0x46 */
+  WLAN_MODULE_SCHED_ALGO,               /* 0x47 */
+  WLAN_MODULE_TX,                       /* 0x48 */
+  WLAN_MODULE_RX,                       /* 0x49 */
+  WLAN_MODULE_WLM,                      /* 0x4a */
+  WLAN_MODULE_RU_ALLOCATOR,             /* 0x4b */
+  WLAN_MODULE_11K_OFFLOAD,              /* 0x4c */
   WLAN_MODULE_ID_MAX,
   WLAN_MODULE_ID_INVALID = WLAN_MODULE_ID_MAX,
 } WLAN_MODULE_ID;

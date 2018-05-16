@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -222,5 +222,16 @@ enum wlan_tp_level {
         WLAN_SVC_TP_MEDIUM,
         WLAN_SVC_TP_HIGH,
 };
+#ifdef WLAN_FEATURE_SAP_TO_FOLLOW_STA_CHAN
+typedef enum sta_sap_notifications
+{
+    STA_NOTIFY_DISCONNECTED,
+    STA_NOTIFY_CONNECTED,
+    STA_NOTIFY_CSA,
+}sta_sap_notifications;
 
+struct wlan_sap_csa_info {
+   uint32_t sta_channel;
+};
+#endif//#ifdef WLAN_FEATURE_SAP_TO_FOLLOW_STA_CHAN
 #endif //WLAN_NLINK_COMMON_H__

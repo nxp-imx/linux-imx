@@ -742,6 +742,10 @@ limSendSmeProbeReqInd(tpAniSirGlobal pMac,
 
     MTRACE(macTrace(pMac, TRACE_CODE_TX_SME_MSG, psessionEntry->peSessionId,
                                                                msgQ.type));
+
+    if (ProbeReqIELen > sizeof(pSirSmeProbeReqInd->WPSPBCProbeReq.probeReqIE))
+        ProbeReqIELen = sizeof(pSirSmeProbeReqInd->WPSPBCProbeReq.probeReqIE);
+
     pSirSmeProbeReqInd->WPSPBCProbeReq.probeReqIELen = (tANI_U16)ProbeReqIELen;
     vos_mem_copy(pSirSmeProbeReqInd->WPSPBCProbeReq.probeReqIE, pProbeReqIE, ProbeReqIELen);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -1143,29 +1143,37 @@ bool drop_ip6_mcast(struct sk_buff *skb)
  * For HL monitor mode, radiotap is appended to tail when update radiotap
  * info in htt layer. Need to copy it ahead of skb before indicating to OS.
  */
-static void hdd_move_radiotap_header_forward(struct sk_buff *skb)
+static VOS_STATUS hdd_move_radiotap_header_forward(struct sk_buff *skb)
 {
 	adf_nbuf_t msdu = (adf_nbuf_t)skb;
 	struct ieee80211_radiotap_header *rthdr;
 	uint8_t rtap_len;
 
-	adf_nbuf_put_tail(msdu,
+	if (!adf_nbuf_put_tail(msdu,
+		sizeof(struct ieee80211_radiotap_header)))
+		return VOS_STATUS_E_NOMEM;
+	else {
+		rthdr = (struct ieee80211_radiotap_header *)
+		(adf_nbuf_data(msdu) + adf_nbuf_len(msdu) -
 		sizeof(struct ieee80211_radiotap_header));
-	rthdr = (struct ieee80211_radiotap_header *)
-	    (adf_nbuf_data(msdu) + adf_nbuf_len(msdu) -
-	     sizeof(struct ieee80211_radiotap_header));
-	rtap_len = rthdr->it_len;
-	adf_nbuf_put_tail(msdu,
+		rtap_len = rthdr->it_len;
+		if (!adf_nbuf_put_tail(msdu,
 			  rtap_len -
-			  sizeof(struct ieee80211_radiotap_header));
-	adf_nbuf_push_head(msdu, rtap_len);
-	adf_os_mem_copy(adf_nbuf_data(msdu), rthdr, rtap_len);
-	adf_nbuf_trim_tail(msdu, rtap_len);
+			  sizeof(struct ieee80211_radiotap_header)))
+			return VOS_STATUS_E_NOMEM;
+		else {
+			adf_nbuf_push_head(msdu, rtap_len);
+			adf_os_mem_copy(adf_nbuf_data(msdu), rthdr, rtap_len);
+			adf_nbuf_trim_tail(msdu, rtap_len);
+		}
+	}
+	return VOS_STATUS_SUCCESS;
 }
 #else
-static inline void hdd_move_radiotap_header_forward(struct sk_buff *skb)
+static inline VOS_STATUS hdd_move_radiotap_header_forward(struct sk_buff *skb)
 {
     /* no-op */
+	return VOS_STATUS_SUCCESS;
 }
 #endif
 
@@ -1218,10 +1226,13 @@ VOS_STATUS hdd_mon_rx_packet_cbk(v_VOID_t *vos_ctx, adf_nbuf_t rx_buf,
 	/* walk the chain until all are processed */
 	skb = (struct sk_buff *) rx_buf;
 	while (NULL != skb) {
-		hdd_move_radiotap_header_forward(skb);
-
 		skb_next = skb->next;
 		skb->dev = adapter->dev;
+
+		if(hdd_move_radiotap_header_forward(skb)) {
+			skb = skb_next;
+			continue;
+		}
 
 		++adapter->hdd_stats.hddTxRxStats.rxPackets[cpu_index];
 		++adapter->stats.rx_packets;
@@ -1245,6 +1256,64 @@ VOS_STATUS hdd_mon_rx_packet_cbk(v_VOID_t *vos_ctx, adf_nbuf_t rx_buf,
 				hdd_stats.hddTxRxStats.rxDelivered[cpu_index];
 		else
 			++adapter->hdd_stats.hddTxRxStats.rxRefused[cpu_index];
+
+		skb = skb_next;
+	}
+
+	adapter->dev->last_rx = jiffies;
+
+	return VOS_STATUS_SUCCESS;
+}
+
+VOS_STATUS hdd_vir_mon_rx_cbk(v_VOID_t *vos_ctx, adf_nbuf_t rx_buf,
+			      uint8_t sta_id)
+{
+	hdd_adapter_t *adapter = NULL;
+	hdd_context_t *hdd_ctx = NULL;
+	int rxstat;
+	struct sk_buff *skb = NULL;
+	struct sk_buff *skb_next;
+
+	/* Sanity check on inputs */
+	if ((NULL == vos_ctx) || (NULL == rx_buf)) {
+		VOS_TRACE(VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
+			  "%s: Null params being passed", __func__);
+		return VOS_STATUS_E_FAILURE;
+	}
+
+	hdd_ctx = vos_get_context(VOS_MODULE_ID_HDD, vos_ctx);
+	if (NULL == hdd_ctx) {
+		VOS_TRACE(VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
+			  "%s: HDD adapter context is Null", __func__);
+		return VOS_STATUS_E_FAILURE;
+	}
+
+	adapter = hdd_get_adapter(hdd_ctx, WLAN_HDD_MONITOR);
+	if ((NULL == adapter) || (WLAN_HDD_ADAPTER_MAGIC != adapter->magic)) {
+		VOS_TRACE(VOS_MODULE_ID_HDD_DATA, VOS_TRACE_LEVEL_ERROR,
+			  "invalid adapter %p for sta Id %d", adapter, sta_id);
+		return VOS_STATUS_E_FAILURE;
+	}
+
+	/* walk the chain until all are processed */
+	skb = (struct sk_buff *)rx_buf;
+	while (NULL != skb) {
+		skb_next = skb->next;
+		skb->dev = adapter->dev;
+
+		/*
+		 * If this is not a last packet on the chain
+		 * Just put packet into backlog queue, not scheduling RX sirq
+		 */
+		if (skb->next) {
+			rxstat = netif_rx(skb);
+		} else {
+			/*
+			 * This is the last packet on the chain
+			 * Scheduling rx sirq
+			 */
+			rxstat = netif_rx_ni(skb);
+		}
 
 		skb = skb_next;
 	}

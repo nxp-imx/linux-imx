@@ -54,6 +54,12 @@ ifeq ($(KERNEL_BUILD), 0)
 		endif
 	endif
 
+	ifeq ($(CONFIG_ARCH_MSM8909), y)
+		ifeq ($(CONFIG_ROME_IF), sdio)
+			CONFIG_WLAN_SYNC_TSF_PLUS := y
+		endif
+	endif
+
 	# As per target team, build is done as follows:
 	# Defconfig : build with default flags
 	# Slub      : defconfig  + CONFIG_SLUB_DEBUG=y +
@@ -147,9 +153,6 @@ ifeq ($(KERNEL_BUILD), 0)
         endif
 
 	ifneq ($(CONFIG_ARCH_MDM9607), y)
-		#Flag to enable memdump feature
-		CONFIG_WLAN_FEATURE_MEMDUMP := y
-
 		#Flag to enable offload packets feature
 		CONFIG_WLAN_OFFLOAD_PACKETS := y
 	endif
@@ -197,7 +200,7 @@ endif
 # BUILD_DIAG_VERSION := 1
 
 #Do we panic on bug?  default is to warn
-PANIC_ON_BUG := 1
+#PANIC_ON_BUG := 1
 
 #Re-enable wifi on WDI timeout
 RE_ENABLE_WIFI_ON_WDI_TIMEOUT := 0
@@ -222,6 +225,8 @@ ifeq ($(CONFIG_ROME_IF),usb)
 endif
 ifeq ($(CONFIG_QCA_WIFI_SDIO), 1)
 CONFIG_ATH_11AC_TXCOMPACT := 0
+CONFIG_WLAN_SYNC_TSF := y
+#CONFIG_WLAN_SYNC_TSF_PLUS := y
 endif
 
 #Enable per vdev Tx desc pool
@@ -346,6 +351,9 @@ CONFIG_FEATURE_STATS_EXT := 1
 #for these channels has not yet been added to the kernel.
 CONFIG_STATICALLY_ADD_11P_CHANNELS := n
 
+#Enable thermal shutdown
+CONFIG_WLAN_THERMAL_SHUTDOWN := 1
+
 ifeq ($(CONFIG_CFG80211),y)
 HAVE_CFG80211 := 1
 else
@@ -437,6 +445,7 @@ HDD_OBJS := 	$(HDD_SRC_DIR)/wlan_hdd_assoc.o \
 		$(HDD_SRC_DIR)/wlan_hdd_ftm.o \
 		$(HDD_SRC_DIR)/wlan_hdd_hostapd.o \
 		$(HDD_SRC_DIR)/wlan_hdd_main.o \
+		$(HDD_SRC_DIR)/wlan_hdd_memdump.o \
 		$(HDD_SRC_DIR)/wlan_hdd_oemdata.o \
 		$(HDD_SRC_DIR)/wlan_hdd_scan.o \
 		$(HDD_SRC_DIR)/wlan_hdd_softap_tx_rx.o \
@@ -474,10 +483,6 @@ endif
 
 ifeq ($(CONFIG_WLAN_SYNC_TSF),y)
 HDD_OBJS +=	$(HDD_SRC_DIR)/wlan_hdd_tsf.o
-endif
-
-ifeq ($(CONFIG_WLAN_FEATURE_MEMDUMP),y)
-HDD_OBJS += $(HDD_SRC_DIR)/wlan_hdd_memdump.o
 endif
 
 ifeq ($(CONFIG_WLAN_FEATURE_NAN_DATAPATH),y)
@@ -1064,6 +1069,11 @@ ifeq ($(CONFIG_FEATURE_COEX_PTA_CONFIG_ENABLE), y)
 CDEFINES += -DFEATURE_COEX_PTA_CONFIG_ENABLE
 endif
 
+ifeq ($(CONFIG_QCA_SUPPORT_TXRX_DRIVER_TCP_DEL_ACK), y)
+CDEFINES += -DQCA_SUPPORT_TXRX_DRIVER_TCP_DEL_ACK
+CDEFINES += -DFEATURE_BUS_BANDWIDTH
+endif
+
 ifeq ($(CONFIG_WLAN_FEATURE_FILS),y)
 CDEFINES += -DWLAN_FEATURE_FILS_SK
 endif
@@ -1076,7 +1086,8 @@ ifeq ($(CONFIG_QCA_WIFI_AUTOMOTIVE_CONC), y)
 CDEFINES +=     -DWLAN_FEATURE_MBSSID \
 		-DFEATURE_WLAN_MCC_TO_SCC_SWITCH \
 		-DFEATURE_WLAN_CH_AVOID \
-		-DFEATURE_WLAN_STA_AP_MODE_DFS_DISABLE
+		-DFEATURE_WLAN_STA_AP_MODE_DFS_DISABLE \
+		-DWLAN_FEATURE_SAP_TO_FOLLOW_STA_CHAN
 endif
 
 ifeq ($(CONFIG_QCA_WIFI_SDIO), 1)
@@ -1149,7 +1160,7 @@ CDEFINES += -DMDNS_OFFLOAD
 endif
 
 ifeq (y,$(findstring y,$(CONFIG_ARCH_MSM) $(CONFIG_ARCH_QCOM)))
-CDEFINES += -DMSM_PLATFORM
+#CDEFINES += -DMSM_PLATFORM
 ifeq ($(CONFIG_CNSS), y)
 ifeq ($(CONFIG_HIF_PCI), 1)
 CDEFINES += -DFEATURE_BUS_BANDWIDTH
@@ -1462,7 +1473,9 @@ endif
 
 #Mark it as SMP Kernel
 ifeq ($(CONFIG_SMP),y)
+ifneq ($(CONFIG_ROME_IF), sdio)
 CDEFINES += -DQCA_CONFIG_SMP
+endif
 endif
 
 #rps feature
@@ -1655,10 +1668,6 @@ ifeq ($(CONFIG_STATICALLY_ADD_11P_CHANNELS),y)
 CDEFINES += -DFEATURE_STATICALLY_ADD_11P_CHANNELS
 endif
 
-ifeq ($(CONFIG_WLAN_FEATURE_MEMDUMP),y)
-CDEFINES += -DWLAN_FEATURE_MEMDUMP
-endif
-
 ifeq ($(CONFIG_WLAN_OFFLOAD_PACKETS),y)
 CDEFINES += -DWLAN_FEATURE_OFFLOAD_PACKETS
 endif
@@ -1683,6 +1692,15 @@ endif
 
 ifeq ($(CONFIG_HIF_PCI), 1)
 CDEFINES += -DFORCE_LEGACY_PCI_INTERRUPTS
+endif
+
+ifeq ($(CONFIG_WLAN_THERMAL_SHUTDOWN), 1)
+CDEFINES += -DFEATURE_WLAN_THERMAL_SHUTDOWN
+CDEFINES += -DFEATURE_WLAN_AUTO_SHUTDOWN
+endif
+
+ifeq ($(CONFIG_FEATURE_WLAN_WAPI_MODE_11AC_DISABLE), 1)
+CDEFINES += -DFEATURE_WLAN_WAPI_MODE_11AC_DISABLE
 endif
 
 KBUILD_CPPFLAGS += $(CDEFINES)

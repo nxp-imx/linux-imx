@@ -539,8 +539,11 @@ HIF_PCI_CE_recv_data(struct CE_handle *copyeng, void *ce_context, void *transfer
         adf_os_spin_lock(&pipe_info->completion_freeq_lock);
         compl_state = pipe_info->completion_freeq_head;
 
-        if (!compl_state)
+        if (!compl_state) {
+            adf_os_spin_unlock(&pipe_info->completion_freeq_lock);
             ce_target_reset(sc);
+            break;
+        }
 
         pipe_info->completion_freeq_head = compl_state->next;
         adf_os_spin_unlock(&pipe_info->completion_freeq_lock);
@@ -2030,9 +2033,9 @@ HIFExchangeBMIMsg(HIF_DEVICE *hif_device,
     struct CE_handle *ce_recv = recv_pipe_info->ce_hdl;
 
 #ifdef BMI_RSP_POLLING
+    int i;
     CE_addr_t buf;
     unsigned int completed_nbytes, id, flags;
-    int i;
 #endif
 
     AR_DEBUG_PRINTF(ATH_DEBUG_TRC, (" %s\n",__FUNCTION__));
@@ -2089,8 +2092,9 @@ HIFExchangeBMIMsg(HIF_DEVICE *hif_device,
 
     /* Wait for BMI request/response transaction to complete */
     /* Always just wait for BMI request here if BMI_RSP_POLLING is defined */
-    while (adf_os_mutex_acquire(scn->adf_dev, &transaction->bmi_transaction_sem)) {
-        /*need some break out condition(time out?)*/
+    if (adf_os_mutex_acquire_timeout(scn->adf_dev, &transaction->bmi_transaction_sem, HZ)) {
+	printk("%s:error, can't get bmi response\n", __func__);
+	status = A_EBUSY;
     }
 
     if (bmi_response) {
@@ -2863,13 +2867,14 @@ HIFTargetSleepStateAdjust(A_target_id_t targid,
 
                     printk("%s:error, can't wakeup target\n", __func__);
                     hif_msm_pcie_debug_info(sc);
-                    if (!sc->ol_sc->enable_self_recovery)
-                            VOS_BUG(0);
 
                     if (!vos_is_logp_in_progress(VOS_MODULE_ID_VOSS, NULL)) {
                         sc->recovery = true;
                         vos_set_logp_in_progress(VOS_MODULE_ID_VOSS, TRUE);
-                        vos_wlan_pci_link_down();
+                        if (!sc->ol_sc->enable_self_recovery)
+                            vos_device_crashed(sc->dev);
+                        else
+                            vos_wlan_pci_link_down();
                     } else {
                         adf_os_print("%s- %d: SSR is in progress!!!!\n",
                                      __func__, __LINE__);

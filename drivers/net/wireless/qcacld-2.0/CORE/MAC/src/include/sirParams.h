@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -734,7 +734,7 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_DCC_GET_STATS_CMD           (SIR_HAL_ITC_MSG_TYPES_BEGIN + 324)
 #define SIR_HAL_DCC_CLEAR_STATS_CMD         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 325)
 #define SIR_HAL_DCC_UPDATE_NDL_CMD          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 326)
-#define SIR_HAL_FW_MEM_DUMP_REQ            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 327)
+/* FW Memory Dump feature is deprecated */
 #define SIR_HAL_START_STOP_LOGGING          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 328)
 #define SIR_HAL_EXTSCAN_STATUS_IND          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 329)
 
@@ -795,7 +795,12 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_GET_PEER_INFO_EXT_IND       (SIR_HAL_ITC_MSG_TYPES_BEGIN + 373)
 #define SIR_HAL_ACTION_FRAME_RANDOM_MAC     (SIR_HAL_ITC_MSG_TYPES_BEGIN + 374)
 
-#define SIR_HAL_MSG_TYPES_END              (SIR_HAL_MSG_TYPES_BEGIN + 0x1FF)
+#define SIR_HAL_PEER_FLUSH_PENDING          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 375)
+#define SIR_HAL_SET_AC_TXQ_OPTIMIZE         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 376)
+#define SIR_HAL_MNT_FILTER_TYPE_CMD         (SIR_HAL_ITC_MSG_TYPES_BEGIN + 377)
+
+#define SIR_HAL_INIT_DPD_RECAL_INFO_CMD     (SIR_HAL_ITC_MSG_TYPES_BEGIN + 378)
+#define SIR_HAL_MSG_TYPES_END               (SIR_HAL_MSG_TYPES_BEGIN + 0x1FF)
 
 // CFG message types
 #define SIR_CFG_MSG_TYPES_BEGIN        (SIR_CFG_MODULE_ID << 8)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -297,6 +297,45 @@ ol_rx_mon_indication_handler(
 
 	if (peer)
 		ol_txrx_peer_unref_delete(peer);
+}
+
+/*
+ * ol_rx_mon_mac_header_handler() - htt rx mac header msg handler
+ * @pdev: pointer to struct ol_txrx_pdev_handle
+ * @rx_ind_msg: htt rx indication message
+ */
+void
+ol_rx_mon_mac_header_handler(
+	ol_txrx_pdev_handle pdev,
+	adf_nbuf_t rx_ind_msg)
+{
+	adf_nbuf_t head_msdu = NULL;
+	adf_nbuf_t tail_msdu = NULL;
+	adf_nbuf_t next;
+	htt_pdev_handle htt_pdev;
+
+	htt_pdev = pdev->htt_pdev;
+
+	/* only if the rx callback is ready */
+	if (NULL == pdev->osif_rx_mon_cb)
+	    return;
+
+	htt_rx_mac_header_mon_process(htt_pdev,
+				      rx_ind_msg,
+				      &head_msdu,
+				      &tail_msdu);
+
+	if (head_msdu) {
+	   if (pdev->osif_rx_mon_cb) {
+	       pdev->osif_rx_mon_cb(head_msdu);
+	   } else {
+	      while (head_msdu) {
+		next = adf_nbuf_next(head_msdu);
+		adf_nbuf_free(head_msdu);
+		head_msdu = next;
+		}
+	   }
+	}
 }
 
 void
@@ -815,7 +854,7 @@ void
 ol_rx_offload_deliver_ind_handler(
     ol_txrx_pdev_handle pdev,
     adf_nbuf_t msg,
-    int msdu_cnt)
+    u_int16_t msdu_cnt)
 {
     int vdev_id, peer_id, tid;
     adf_nbuf_t head_buf, tail_buf, buf;
@@ -823,6 +862,17 @@ ol_rx_offload_deliver_ind_handler(
     struct ol_txrx_vdev_t *vdev = NULL;
     u_int8_t fw_desc;
     htt_pdev_handle htt_pdev = pdev->htt_pdev;
+
+    if (msdu_cnt > htt_rx_offload_msdu_cnt(htt_pdev)) {
+        TXRX_PRINT(TXRX_PRINT_LEVEL_ERR,
+            "%s: invalid msdu_cnt=%u\n",
+            __func__,
+            msdu_cnt);
+        if (pdev->cfg.is_high_latency)
+            htt_rx_desc_frame_free(htt_pdev, msg);
+
+        return;
+    }
 
     while (msdu_cnt) {
         if (!htt_rx_offload_msdu_pop(
@@ -1012,6 +1062,47 @@ static inline void ol_rx_timestamp(ol_pdev_handle pdev,
 }
 #endif
 
+/**
+ * ol_convert_ieee80211_to_8023() - handle data header transition.
+ * @msdu - Received packet.
+ *
+ * This function try to convert the IEEE80211 data frame to 802.3 frame.
+ * When DSRC OCB interface works in RAW mode, driver received data frame
+ * started with IEEE802.11 header, before this packet is delivered to
+ * network stack, it is needed to do transition. But for QCOM specific
+ * frame, this function do nothing change.
+ */
+static A_STATUS ol_convert_ieee80211_to_8023(adf_nbuf_t msdu)
+{
+	int hdr_size;
+	uint16_t epd_hdr_type;
+	struct ether_header eth_hdr;
+	struct ieee80211_frame *wh;
+
+	wh = (struct ieee80211_frame *)adf_nbuf_data(msdu);
+	if (!IEEE80211_IS_DATA(wh))
+		return A_ERROR;
+
+	hdr_size = ol_txrx_ieee80211_hdrsize(wh);
+	if (adf_nbuf_len(msdu) < (hdr_size + sizeof(epd_hdr_type)))
+		return A_ERROR;
+
+	epd_hdr_type = *(uint16_t *)(adf_nbuf_data(msdu) + hdr_size);
+	if (epd_hdr_type == adf_os_htons(ETHERTYPE_WSMP))
+		return A_ENOTSUP;
+
+	adf_os_mem_zero(&eth_hdr, sizeof(struct ether_header));
+	adf_os_mem_copy(eth_hdr.ether_dhost, wh->i_addr1, IEEE80211_ADDR_LEN);
+	adf_os_mem_copy(eth_hdr.ether_shost, wh->i_addr2, IEEE80211_ADDR_LEN);
+	eth_hdr.ether_type = epd_hdr_type;
+
+	adf_nbuf_pull_head(msdu, hdr_size + sizeof(epd_hdr_type));
+	adf_nbuf_push_head(msdu, sizeof(eth_hdr));
+	adf_os_mem_copy(adf_nbuf_data(msdu), &eth_hdr, sizeof(eth_hdr));
+
+	return A_OK;
+}
+
 void
 ol_rx_deliver(
     struct ol_txrx_vdev_t *vdev,
@@ -1100,13 +1191,31 @@ DONE:
                 int i;
                 struct ol_txrx_ocb_chan_info *chan_info = 0;
                 int packet_freq = peer->last_pkt_center_freq;
+                bool need_rx_stats_hdr = false;
+
                 for (i = 0; i < vdev->ocb_channel_count; i++) {
                     if (vdev->ocb_channel_info[i].chan_freq == packet_freq) {
                         chan_info = &vdev->ocb_channel_info[i];
                         break;
                     }
                 }
-                if (!chan_info || !chan_info->disable_rx_stats_hdr) {
+
+                if (NULL != chan_info)
+                    need_rx_stats_hdr = !chan_info->disable_rx_stats_hdr;
+
+                if (vdev->ocb_config_flags & OCB_CONFIG_FLAG_80211_FRAME_MODE) {
+                    /*
+                     * When DSRC OCB interface works in raw mode,
+                     * and received packets started with 802.11 data header,
+                     * it is required to driver convert the header to
+                     * 802.3 header, except specific WSMP data frame.
+                     */
+                    A_STATUS status = ol_convert_ieee80211_to_8023(msdu);
+                    if (A_SUCCESS(status))
+                        need_rx_stats_hdr = false;
+                }
+
+                if (need_rx_stats_hdr) {
                     struct ether_header eth_header = { {0} };
                     struct ocb_rx_stats_hdr_t rx_header = {0};
 

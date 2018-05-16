@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011, 2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -56,6 +56,10 @@ struct vlan_hdr {
     u_int16_t  h_vlan_encapsulated_proto;
 } __packed;
 #define VLAN_VID_MASK   0xfff
+#endif
+
+#ifndef ETHERTYPE_WSMP
+#define ETHERTYPE_WSMP   0x88dc    /* WSMP protocol */
 #endif
 
 #ifndef ETHERTYPE_PAE

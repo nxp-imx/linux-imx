@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2014, 2016 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012, 2014, 2016, 2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -87,6 +87,16 @@ enum suspend_resume_state {
 	 HDD_WLAN_EARLY_RESUME,
 	 HDD_WLAN_RESUME
 };
+
+#ifdef FEATURE_WLAN_THERMAL_SHUTDOWN
+enum thermal_suspend_state {
+	HDD_WLAN_THERMAL_ACTIVE,
+	HDD_WLAN_THERMAL_SUSPENDING,
+	HDD_WLAN_THERMAL_SUSPENDED,
+	HDD_WLAN_THERMAL_RESUMING,
+	HDD_WLAN_THERMAL_DEINIT
+};
+#endif
 
 /*-------------------------------------------------------------------------
  * Function declarations and documentation

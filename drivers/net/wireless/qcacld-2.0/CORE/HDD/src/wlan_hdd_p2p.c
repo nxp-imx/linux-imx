@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -668,9 +668,15 @@ wlan_hdd_remain_on_channel_callback(tHalHandle hHal, void* pCtx,
     hdd_cfg80211_state_t *cfgState = WLAN_HDD_GET_CFG_STATE_PTR( pAdapter );
     hdd_remain_on_chan_ctx_t *pRemainChanCtx;
     hdd_context_t *hdd_ctx = WLAN_HDD_GET_CTX(pAdapter);
+    int ret_code;
 
-    if (0 != wlan_hdd_validate_context(hdd_ctx))
-        return eHAL_STATUS_FAILURE;
+    ret_code = wlan_hdd_validate_context(hdd_ctx);
+    if (0 != ret_code) {
+        /* If ssr is inprogress, do not return, resource release is necessary */
+        if (!(-EAGAIN == ret_code && hdd_ctx->isLogpInProgress)) {
+            return eHAL_STATUS_FAILURE;
+        }
+    }
 
     mutex_lock(&cfgState->remain_on_chan_ctx_lock);
     pRemainChanCtx = cfgState->remain_on_chan_ctx;
@@ -736,7 +742,9 @@ wlan_hdd_remain_on_channel_callback(tHalHandle hHal, void* pCtx,
      * after sending any cancel remain on channel event will also
      * ensure that the cancel roc is sent without any delays.
      */
-    schedule_delayed_work(&hdd_ctx->rocReqWork, 0);
+     /* If ssr is inprogress, do not schedule next roc req */
+     if (!hdd_ctx->isLogpInProgress)
+        schedule_delayed_work(&hdd_ctx->rocReqWork, 0);
 
     if ( ( WLAN_HDD_INFRA_STATION == pAdapter->device_mode ) ||
          ( WLAN_HDD_P2P_CLIENT == pAdapter->device_mode ) ||
@@ -2957,6 +2965,25 @@ struct wireless_dev* __wlan_hdd_add_virtual_intf(
         hddLog(VOS_TRACE_LEVEL_ERROR,"%s: hdd_open_adapter failed",__func__);
         return ERR_PTR(-ENOSPC);
     }
+#ifdef WLAN_FEATURE_SAP_TO_FOLLOW_STA_CHAN
+    if(pAdapter->device_mode == WLAN_HDD_SOFTAP)
+    {
+	    if(pHddCtx->ch_switch_ctx.chan_sw_timer_initialized == VOS_FALSE)
+	    {
+		    //Initialize the channel switch timer
+		    ret = vos_timer_init(&pHddCtx->ch_switch_ctx.hdd_ap_chan_switch_timer, VOS_TIMER_TYPE_SW,
+				    hdd_hostapd_chan_switch_cb, (v_PVOID_t)pAdapter);
+		    if(!VOS_IS_STATUS_SUCCESS(ret))
+		    {
+			    hddLog(LOGE, FL("Failed to initialize AP channel switch timer!!\n"));
+			    EXIT();
+			    return ERR_PTR(ret);
+		    }
+		    pHddCtx->ch_switch_ctx.chan_sw_timer_initialized = VOS_TRUE;
+	    }
+    }
+#endif //WLAN_FEATURE_SAP_TO_FOLLOW_STA_CHAN
+
     EXIT();
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0)) || defined(WITH_BACKPORTS)
     return pAdapter->dev->ieee80211_ptr;

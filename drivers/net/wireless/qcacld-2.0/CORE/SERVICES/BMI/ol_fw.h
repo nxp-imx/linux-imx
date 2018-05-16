@@ -117,7 +117,7 @@
 #ifdef CONFIG_NON_QC_PLATFORM_PCI
 #define REG_SIZE		0x0007F820
 #endif
-#elif defined(HIF_SDIO)
+#elif defined(HIF_SDIO) || defined(HIF_USB)
 #define IRAM_LOCATION           0x00980000
 #define IRAM_SIZE               0x000C0000
 #else /* ELSE HIF_PCI */
@@ -162,11 +162,11 @@ void ol_target_failure(void *instance, A_STATUS status);
 u_int8_t ol_get_number_of_peers_supported(struct ol_softc *scn);
 
 #ifdef REMOVE_PKT_LOG
-static inline void ol_pktlog_init(void *)
+static inline void ol_pktlog_init(void *hif_sc)
 {
 }
 #else
-void ol_pktlog_init(void *);
+void ol_pktlog_init(void *hif_sc);
 #endif
 
 #if defined(HIF_SDIO)

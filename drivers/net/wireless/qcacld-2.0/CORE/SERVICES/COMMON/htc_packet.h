@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -115,6 +115,7 @@ typedef struct _HTC_PACKET {
                                               can pass the network buffer corresponding to the HTC packet
                                               lower layers may optimized the transfer knowing this is
                                               a network buffer */
+    A_UINT8                BundlePktnum;
 } HTC_PACKET;
 
 

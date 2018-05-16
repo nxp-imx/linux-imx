@@ -694,6 +694,9 @@ typedef struct tagCsrConfig
     tANI_U8 isCoalesingInIBSSAllowed;
 #ifdef FEATURE_WLAN_MCC_TO_SCC_SWITCH
     tANI_U8 cc_switch_mode;
+    bool    band_switch_enable;
+    bool    ap_p2pgo_concurrency_enable;
+    bool    ap_p2pclient_concur_enable;
 #endif
     tANI_U8 allowDFSChannelRoam;
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
@@ -1120,6 +1123,7 @@ typedef struct tagCsrRoamStruct
 #endif
     vos_timer_t packetdump_timer;
     tANI_BOOLEAN pending_roam_disable;
+    vos_spin_lock_t roam_state_lock;
 }tCsrRoamStruct;
 
 

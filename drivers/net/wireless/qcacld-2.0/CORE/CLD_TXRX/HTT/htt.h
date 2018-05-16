@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -4068,6 +4068,7 @@ enum htt_t2h_msg_type {
     HTT_T2H_MSG_TYPE_FLOW_POOL_MAP            = 0x18,
     HTT_T2H_MSG_TYPE_FLOW_POOL_UNMAP          = 0x19,
     HTT_T2H_MSG_TYPE_SRING_SETUP_DONE         = 0x1a,
+    HTT_T2H_MSG_TYPE_MONITOR_MAC_HEADER_IND   = 0x20,
 
     HTT_T2H_MSG_TYPE_TEST,
     /* keep this last */
@@ -6365,6 +6366,9 @@ PREPACK struct htt_txq_group {
 #define HTT_TX_COMPL_IND_APPEND2_GET(_info)                              \
     (((_info) & HTT_TX_COMPL_IND_APPEND2_M) >> HTT_TX_COMPL_IND_APPEND2_S)
 
+#define HTT_TX_COMPL_HEAD_SZ                4
+#define HTT_TX_COMPL_BYTES_PER_MSDU_ID      2
+
 #define HTT_TX_COMPL_CTXT_SZ                sizeof(A_UINT16)
 #define HTT_TX_COMPL_CTXT_NUM(_bytes)       ((_bytes) >> 1)
 
@@ -8184,5 +8188,77 @@ enum htt_ring_setup_status {
         HTT_CHECK_SET_VAL(HTT_SRING_SETUP_DONE_STATUS, _val); \
         ((_var) |= ((_val) << HTT_SRING_SETUP_DONE_STATUS_S)); \
     } while (0)
+
+/**
+ * @brief target -> host monitor mac header indication message
+ *
+ * @details
+ * The following diagram shows the format of the monitor mac header message
+ * sent from the target to the host, while enable rx filter promiscuous.
+ *
+ *          |31          24|23           16|15            8|7            0|
+ *          |-------------------------------------------------------------|
+ *          |            peer_id           |    reserved0  |    msg_type  |
+ *          |-------------------------------------------------------------|
+ *          |            reserved1         |           num_mpdu           |
+ *          |-------------------------------------------------------------|
+ *          |                       struct hw_rx_desc                     |
+ *          |                      (see wal_rx_desc.h)                    |
+ *          |-------------------------------------------------------------|
+ *          |                   struct ieee80211_frame_addr4              |
+ *          |                      (see ieee80211_defs.h)                 |
+ *          |                            ......                           |
+ *          |-------------------------------------------------------------|
+ *
+ * Header fields:
+ *  - msg_type
+ *    Bits 7:0
+ *    Purpose: Identifies this is a monitor mac header indication
+ *             message.
+ *    Value: 0x20
+ *   - reserved0
+ *     Bits 15:8
+ *     Purpose:
+ *     value:
+ *  - peer_id
+ *    Bits 31:16
+ *    Purpose: Software peer id given by host during association,
+               in this case it should be set to invalid(0xFF)
+ *    Value:
+ *  - num_mpdu
+ *    Bits 15:0
+ *    Purpose: numbers of mpdu mac header (struct ieee80211_frame_addr4) per rx ppdu
+ *             the maximum num_mpdu is limited to 32.
+ *    Value:
+ *   - reserved1
+ *     Bits 31:16
+ *     Purpose:
+ *     value:
+ */
+#define HTT_T2H_MONITOR_MAC_HEADER_IND_HDR_SIZE       8
+
+#define HTT_T2H_MONITOR_MAC_HEADER_PEER_ID_M          0xFFFF0000
+#define HTT_T2H_MONITOR_MAC_HEADER_PEER_ID_S          16
+
+#define HTT_T2H_MONITOR_MAC_HEADER_NUM_MPDU_M         0x0000FFFF
+#define HTT_T2H_MONITOR_MAC_HEADER_NUM_MPDU_S         0
+
+#define HTT_T2H_MONITOR_MAC_HEADER_PEER_ID_SET(word, value)             \
+    do {                                                         \
+        HTT_CHECK_SET_VAL(HTT_T2H_MONITOR_MAC_HEADER_PEER_ID, value);   \
+        (word) |= (value)  << HTT_T2H_MONITOR_MAC_HEADER_PEER_ID_S;     \
+    } while (0)
+#define HTT_T2H_MONITOR_MAC_HEADER_PEER_ID_GET(word) \
+    (((word) & HTT_T2H_MONITOR_MAC_HEADER_PEER_ID_M) >> \
+    HTT_T2H_MONITOR_MAC_HEADER_PEER_ID_S)
+
+#define HTT_T2H_MONITOR_MAC_HEADER_NUM_MPDU_SET(word, value)             \
+    do {                                                         \
+        HTT_CHECK_SET_VAL(HTT_T2H_MONITOR_MAC_HEADER_NUM_MPDU, value);   \
+        (word) |= (value)  << HTT_T2H_MONITOR_MAC_HEADER_NUM_MPDU_S;     \
+    } while (0)
+#define HTT_T2H_MONITOR_MAC_HEADER_NUM_MPDU_GET(word) \
+    (((word) & HTT_T2H_MONITOR_MAC_HEADER_NUM_MPDU_M) >> \
+    HTT_T2H_MONITOR_MAC_HEADER_NUM_MPDU_S)
 
 #endif

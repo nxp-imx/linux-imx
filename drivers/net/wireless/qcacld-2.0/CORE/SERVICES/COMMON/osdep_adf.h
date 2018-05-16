@@ -277,6 +277,26 @@ typedef rwlock_t usb_readwrite_lock_t;
 
 #ifdef CONFIG_SMP
 /* Undo the one provided by the kernel to debug spin locks */
+#undef spin_lock_bh
+#undef spin_unlock_bh
+
+#define spin_lock_bh(x) do { \
+    if (irqs_disabled() || in_irq()) {\
+        spin_lock(x); \
+    } else {\
+        spin_lock_bh(x); \
+    }\
+}while (0)
+
+#define spin_unlock_bh(x) do { \
+    if (irqs_disabled() || in_irq()) {\
+        spin_unlock(x); \
+    } else {\
+        spin_unlock_bh(x); \
+    }\
+}while (0)
+
+#if 0
 #undef spin_lock
 #undef spin_unlock
 #undef spin_trylock
@@ -297,6 +317,7 @@ spin_unlock_bh(x);\
 } while (0)
 
 #define spin_trylock(x) spin_trylock_bh(x)
+#endif
 
 #define OS_SUPPORT_ASYNC_Q 1 /* support for handling asyn function calls */
 

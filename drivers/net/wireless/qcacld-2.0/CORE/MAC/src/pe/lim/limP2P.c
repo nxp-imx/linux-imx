@@ -1087,7 +1087,6 @@ send_frame1:
         }
         else
         {
-             pMac->lim.mgmtFrameSessionId = pMbMsg->sessionId;
              limLog( pMac, LOG2, FL("lim.actionFrameSessionId = %u" ),
                      pMac->lim.mgmtFrameSessionId);
 
