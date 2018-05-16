@@ -119,6 +119,8 @@ static v_BOOL_t init_by_reg_core = VOS_FALSE;
 #define WORLD_SKU_MASK          0x00F0
 #define WORLD_SKU_PREFIX        0x0060
 
+#define REG_SET_WAIT_MS        100
+
 /**
  * struct bonded_chan
  * @start_ch: start channel
@@ -974,7 +976,7 @@ static void vos_set_5g_channel_params(uint16_t oper_ch,
 				      struct ch_params_s *ch_params)
 {
 	eNVChannelEnabledType chan_state = NV_CHANNEL_ENABLE;
-	const struct bonded_chan *bonded_chan_ptr;
+	const struct bonded_chan *bonded_chan_ptr = NULL;
 	uint16_t center_chan;
 
 	if (CH_WIDTH_MAX <= ch_params->ch_width)
@@ -1780,7 +1782,7 @@ bool vos_is_channel_support_sub20(uint16_t operation_channel,
 	eNVChannelEnabledType channel_state;
 
 	if (VOS_IS_CHANNEL_5GHZ(operation_channel)) {
-		const struct bonded_chan *bonded_chan_ptr;
+		const struct bonded_chan *bonded_chan_ptr = NULL;
 
 		channel_state =
 		    vos_search_5g_bonded_channel(operation_channel,
@@ -2264,6 +2266,19 @@ static void restore_custom_reg_settings(struct wiphy *wiphy)
 }
 #endif
 
+static void hdd_debug_cc_timer_expired_handler(void *arg)
+{
+	hdd_context_t *pHddCtx;
+	VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
+		  ("%s ENTER "), __func__);
+
+	if (!arg)
+		return;
+	pHddCtx = (hdd_context_t *)arg;
+	vos_timer_destroy(&(pHddCtx->reg.reg_set_timer));
+	regdmn_set_regval(&pHddCtx->reg);
+}
+
 /*
  * Function: wlan_hdd_linux_reg_notifier
  * This function is called from cfg80211 core to provide regulatory settings
@@ -2285,6 +2300,7 @@ int __wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
     int i;
     v_BOOL_t isVHT80Allowed;
     bool reset = false;
+    VOS_TIMER_STATE timer_status;
 
     VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO,
               FL("country: %c%c, initiator %d, dfs_region: %d"),
@@ -2453,8 +2469,27 @@ int __wlan_hdd_linux_reg_notifier(struct wiphy *wiphy,
                                          temp_reg_domain);
         }
 
-        /* send CTL info to firmware */
-        regdmn_set_regval(&pHddCtx->reg);
+        if (pHddCtx->cfg_ini->sta_change_cc_via_beacon) {
+            /* Due the firmware process, host side need to send
+             * WMI_SCAN_CHAN_LIST_CMDID before WMI_PDEV_SET_REGDOMAIN_CMDID, so
+             * that tx-power setting for operation channel can be applied,
+             * so use timer to postpone SET_REGDOMAIN_CMDID
+             */
+            if (pHddCtx->reg.reg_set_timer.state == 0)
+                timer_status = VOS_TIMER_STATE_UNUSED;
+            else {
+                do {
+                    timer_status =
+                    vos_timer_getCurrentState(&(pHddCtx->reg.reg_set_timer));
+                } while(timer_status != VOS_TIMER_STATE_UNUSED);
+            }
+            vos_timer_init(&(pHddCtx->reg.reg_set_timer), VOS_TIMER_TYPE_SW,
+                           hdd_debug_cc_timer_expired_handler,
+                           (void *)pHddCtx);
+            vos_timer_start(&(pHddCtx->reg.reg_set_timer), REG_SET_WAIT_MS);
+        } else {
+            regdmn_set_regval(&pHddCtx->reg);
+        }
 
         /* set dfs_region info */
         vos_nv_set_dfs_region(request->dfs_region);

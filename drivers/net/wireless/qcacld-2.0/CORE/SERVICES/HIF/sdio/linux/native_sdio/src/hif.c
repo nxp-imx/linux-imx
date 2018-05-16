@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -114,7 +114,7 @@ unsigned int forcecard = 0;
 module_param(forcecard, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(forcecard, "Ignore card capabilities information to switch bus mode");
 
-unsigned int debugcccr = 1;
+unsigned int debugcccr = 0;
 module_param(debugcccr, uint, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 MODULE_PARM_DESC(debugcccr, "Output this cccr values");
 
@@ -882,12 +882,18 @@ static inline void hif_free_bus_request(HIF_DEVICE *device,
  */
 static inline int hif_start_tx_completion_thread(HIF_DEVICE *device)
 {
+#ifdef CONFIG_PERF_NON_QC_PLATFORM
+	struct sched_param param = {.sched_priority = 99};
+#endif
 	if (!device->tx_completion_task) {
 		device->tx_completion_req = NULL;
 		device->last_tx_completion = &device->tx_completion_req;
 		device->tx_completion_shutdown = 0;
 		device->tx_completion_task = kthread_create(tx_completion_task,
 			(void *)device,	"AR6K TxCompletion");
+#ifdef CONFIG_PERF_NON_QC_PLATFORM
+		sched_setscheduler(device->tx_completion_task, SCHED_FIFO, &param);
+#endif
 		if (IS_ERR(device->tx_completion_task)) {
 			device->tx_completion_shutdown = 1;
 			AR_DEBUG_PRINTF(ATH_DEBUG_ERROR,
@@ -2030,7 +2036,9 @@ static A_STATUS hifDisableFunc(HIF_DEVICE *device, struct sdio_func *func)
 static A_STATUS hifEnableFunc(HIF_DEVICE *device, struct sdio_func *func)
 {
     int ret = A_OK;
-
+#ifdef CONFIG_PERF_NON_QC_PLATFORM
+    struct sched_param param = {.sched_priority = 99};
+#endif
     ENTER("sdio_func 0x%pK", func);
 
     AR_DEBUG_PRINTF(ATH_DEBUG_TRACE, ("AR6000: +hifEnableFunc\n"));
@@ -2142,6 +2150,9 @@ static A_STATUS hifEnableFunc(HIF_DEVICE *device, struct sdio_func *func)
             device->async_task = kthread_create(async_task,
                                            (void *)device,
                                            "AR6K Async");
+#ifdef CONFIG_PERF_NON_QC_PLATFORM
+           sched_setscheduler(device->async_task, SCHED_FIFO, &param);
+#endif
            if (IS_ERR(device->async_task)) {
                AR_DEBUG_PRINTF(ATH_DEBUG_ERROR, ("AR6000: %s(), to create async task\n", __FUNCTION__));
                device->async_task = NULL;

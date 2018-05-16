@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2014, 2016-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2014, 2016-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -448,7 +448,7 @@ void
 ol_rx_offload_deliver_ind_handler(
     ol_txrx_pdev_handle pdev,
     adf_nbuf_t msg,
-    int msdu_cnt);
+    u_int16_t msdu_cnt);
 
 /**
  * @brief Process a peer map message sent by the target.
@@ -670,8 +670,8 @@ ol_rx_pn_ind_handler(
     ol_txrx_pdev_handle pdev,
     u_int16_t peer_id,
     u_int8_t tid,
-    int seq_num_start,
-    int seq_num_end,
+    u_int16_t seq_num_start,
+    u_int16_t seq_num_end,
     u_int8_t pn_ie_cnt,
     u_int8_t *pn_ie);
 
@@ -834,4 +834,19 @@ ol_tx_failure_indication(struct ol_txrx_pdev_t *pdev, uint8_t tid,
 {
 }
 #endif
+
+/**
+ * @brief Process an rx indication message sent by the target.
+ * @details
+ *  The target send a rx indication message containing thw HW descriptor
+ *  info and a list of Mac header. HTT layer parse this message, get
+ *  each Mac header, radiotap header info to fill in monitor nbuf,
+ *  then deliver these nbuf to upper layer.
+ *
+ * @param pdev - the data physical device that received the frames
+ *      (registered with HTT as a context pointer during attach time)
+ * @param rx_ind_msg - the network buffer holding the rx indication message
+ */
+void
+ol_rx_mon_mac_header_handler(ol_txrx_pdev_handle pdev, adf_nbuf_t rx_ind_msg);
 #endif /* _OL_TXRX_HTT_API__H_ */

@@ -323,6 +323,10 @@ process_tx_info(struct ol_txrx_pdev_t *txrx_pdev,
 		 */
 		txctl_log.priv.frm_hdr = frm_hdr;
 		adf_os_assert(txctl_log.priv.txdesc_ctl);
+		adf_os_assert(pl_hdr.size < sizeof(txctl_log.priv.txdesc_ctl));
+		pl_hdr.size = (pl_hdr.size > sizeof(txctl_log.priv.txdesc_ctl))
+			       ? sizeof(txctl_log.priv.txdesc_ctl) :
+			       pl_hdr.size;
 		adf_os_mem_copy((void *)&txctl_log.priv.txdesc_ctl,
 				((void *)data + sizeof(struct ath_pktlog_hdr)),
 				pl_hdr.size);

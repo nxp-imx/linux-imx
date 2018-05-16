@@ -227,7 +227,7 @@ ath_hif_sdio_probe(void *context, void *hif_handle)
     ol_sc->hif_hdl = hif_handle;
 
     /* Get RAM dump memory address and size */
-    ol_sc->ramdump_base = hif_get_virt_ramdump_mem(&ol_sc->ramdump_size);
+    ol_sc->ramdump_base = NULL;//hif_get_virt_ramdump_mem(&ol_sc->ramdump_size);
     if (ol_sc->ramdump_base == NULL || !ol_sc->ramdump_size) {
         VOS_TRACE(VOS_MODULE_ID_HIF, VOS_TRACE_LEVEL_ERROR,
             "%s: Failed to get RAM dump memory address or size!\n",

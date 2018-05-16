@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -152,21 +152,28 @@ static int ol_get_fw_files_for_target(struct ol_fw_files *pfw_files,
 #endif
 
 #ifdef CONFIG_NON_QC_PLATFORM_PCI
+
+#ifdef MULTI_IF_NAME
+#define PREFIX MULTI_IF_NAME "/"
+#else
+#define PREFIX ""
+#endif
+
 static struct non_qc_platform_pci_fw_files FW_FILES_QCA6174_FW_1_1 = {
-"qwlan11.bin", "bdwlan11.bin", "otp11.bin", "utf11.bin",
-"utfbd11.bin", "epping11.bin", "evicted11.bin"};
+	PREFIX "qwlan11.bin", PREFIX "bdwlan11.bin", PREFIX "otp11.bin",  PREFIX "utf11.bin",
+	PREFIX "utfbd11.bin", PREFIX "epping11.bin", PREFIX "evicted11.bin"};
 static struct non_qc_platform_pci_fw_files FW_FILES_QCA6174_FW_2_0 = {
-"qwlan20.bin", "bdwlan20.bin", "otp20.bin", "utf20.bin",
-"utfbd20.bin", "epping20.bin", "evicted20.bin"};
+	PREFIX "qwlan20.bin", PREFIX "bdwlan20.bin", PREFIX "otp20.bin", PREFIX "utf20.bin",
+	PREFIX "utfbd20.bin", PREFIX "epping20.bin", PREFIX "evicted20.bin"};
 static struct non_qc_platform_pci_fw_files FW_FILES_QCA6174_FW_1_3 = {
-"qwlan13.bin", "bdwlan13.bin", "otp13.bin", "utf13.bin",
-"utfbd13.bin", "epping13.bin", "evicted13.bin"};
+	PREFIX "qwlan13.bin", PREFIX "bdwlan13.bin", PREFIX "otp13.bin", PREFIX "utf13.bin",
+	PREFIX "utfbd13.bin", PREFIX "epping13.bin", PREFIX "evicted13.bin"};
 static struct non_qc_platform_pci_fw_files FW_FILES_QCA6174_FW_3_0 = {
-"qwlan30.bin", "bdwlan30.bin", "otp30.bin", "utf30.bin",
-"utfbd30.bin", "epping30.bin", "evicted30.bin"};
+	PREFIX "qwlan30.bin", PREFIX "bdwlan30.bin", PREFIX "otp30.bin", PREFIX "utf30.bin",
+	PREFIX "utfbd30.bin", PREFIX "epping30.bin", PREFIX "evicted30.bin"};
 static struct non_qc_platform_pci_fw_files FW_FILES_DEFAULT = {
-"qwlan.bin", "bdwlan.bin", "otp.bin", "utf.bin",
-"utfbd.bin", "epping.bin", "evicted.bin"};
+	PREFIX "qwlan.bin", PREFIX "bdwlan.bin", PREFIX "otp.bin", PREFIX "utf.bin",
+	PREFIX "utfbd.bin", PREFIX "epping.bin", PREFIX "evicted.bin"};
 
 static
 int get_fw_files_for_non_qc_pci_target(struct non_qc_platform_pci_fw_files *pfw_files,
@@ -202,6 +209,12 @@ int get_fw_files_for_non_qc_pci_target(struct non_qc_platform_pci_fw_files *pfw_
 				__func__, target_type, target_version);
 			break;
 	}
+
+	pr_debug("%s:%d: pfw_files:%s, %s, %s, %s, %s, %s, %s\n", __func__, __LINE__,
+		pfw_files->image_file, pfw_files->board_data, pfw_files->otp_data,
+		pfw_files->utf_file, pfw_files->utf_board_data, pfw_files->epping_file,
+		pfw_files->evicted_data);
+
 	return 0;
 }
 #endif
@@ -552,7 +565,7 @@ static char *ol_board_id_to_filename(struct ol_softc *scn, uint16_t board_id)
 	if (board_id > 0xFF)
 		board_id = 0x0;
 
-	snprintf(&dest[input_len - 2], 3, "%.2x", board_id);
+	//snprintf(&dest[input_len - 2], 3, "%.2x", board_id);
 out:
 	return dest;
 }
@@ -669,11 +682,7 @@ defined(CONFIG_NON_QC_PLATFORM_PCI)
 		}
 #ifdef QCA_WIFI_FTM
 		if (vos_get_conparam() == VOS_FTM_MODE) {
-#if defined(CONFIG_CNSS) || defined(HIF_SDIO)
 			filename = scn->fw_files.utf_file;
-#else
-			filename = QCA_UTF_FIRMWARE_FILE;
-#endif
 #ifdef QCA_SIGNED_SPLIT_BINARY_SUPPORT
 			bin_sign = TRUE;
 #endif
@@ -744,7 +753,7 @@ defined(CONFIG_NON_QC_PLATFORM_PCI)
        status = request_firmware(&fw_entry, filename, scn->sc_osdev->device);
 	if (status)
 	{
-		pr_err("%s: Failed to get %s:%d\n", __func__, filename, status);
+		pr_debug("%s: Failed to get %s:%d\n", __func__, filename, status);
 
 		if (file == ATH_OTP_FILE)
 			return -ENOENT;
@@ -759,7 +768,7 @@ defined(CONFIG_NON_QC_PLATFORM_PCI)
 				return -1;
 			}
 
-			pr_info("%s: Trying to load default %s\n",
+			pr_debug("%s: Trying to load default %s\n",
 							__func__, filename);
 
 			status = request_firmware(&fw_entry, filename,
@@ -836,7 +845,7 @@ defined(CONFIG_NON_QC_PLATFORM_PCI)
 		BMIReadMemory(scn->hif_hdl,
 				HOST_INTEREST_ITEM_ADDRESS(scn->target_type, hi_board_ext_data),
 				(u_int8_t *)&board_ext_address, 4, scn);
-		printk("Board extended Data download address: 0x%x\n", board_ext_address);
+		pr_debug("Board extended Data download address: 0x%x\n", board_ext_address);
 
 		/*
 		 * Check whether the target has allocated memory for extended board
@@ -1194,11 +1203,11 @@ static void ramdump_work_handler(struct work_struct *ramdump)
 	ol_fw_axi_addr = (void *)(byte_ptr + DRAM_SIZE);
 	ol_fw_iram_addr = (void *)(byte_ptr + DRAM_SIZE + AXI_SIZE);
 
-	pr_err("%s: DRAM => mem = %p, len = %d\n", __func__,
+	pr_err("%s: DRAM => mem = %pK, len = %d\n", __func__,
 				ol_fw_dram_addr, DRAM_SIZE);
-	pr_err("%s: AXI  => mem = %p, len = %d\n", __func__,
+	pr_err("%s: AXI  => mem = %pK, len = %d\n", __func__,
 				ol_fw_axi_addr, AXI_SIZE);
-	pr_err("%s: IRAM => mem = %p, len = %d\n", __func__,
+	pr_err("%s: IRAM => mem = %pK, len = %d\n", __func__,
 				ol_fw_iram_addr, IRAM_SIZE);
 #endif
 #endif
@@ -1326,14 +1335,15 @@ void ol_ramdump_handler(struct ol_softc *scn)
 			return;
 		}
 
+		if (scn->enableFwSelfRecovery || scn->enableRamdumpCollection)
+			vos_set_logp_in_progress(VOS_MODULE_ID_VOSS, TRUE);
+
 		reg = (A_UINT32 *) (data + 4);
 		print_hex_dump(KERN_DEBUG, " ", DUMP_PREFIX_OFFSET, 16, 4, reg,
 				min_t(A_UINT32, len - 4, FW_REG_DUMP_CNT * 4),
 				false);
 		scn->fw_ram_dumping = 0;
 
-		if (scn->enableFwSelfRecovery || scn->enableRamdumpCollection)
-			vos_set_logp_in_progress(VOS_MODULE_ID_VOSS, TRUE);
 	}
 	else if (pattern == FW_REG_PATTERN) {
 		reg = (A_UINT32 *) (data + 4);
@@ -1358,8 +1368,6 @@ void ol_ramdump_handler(struct ol_softc *scn)
 			remaining -= 16;
 			reg += 4;
 		}
-		if ((scn->enableFwSelfRecovery || scn->enableRamdumpCollection) && (scn->fw_ram_dumping == 0))
-                        vos_set_logp_in_progress(VOS_MODULE_ID_VOSS, FALSE);
 	}
 	else if ((!scn->enableFwSelfRecovery)&&
 			((pattern & FW_RAMDUMP_PATTERN_MASK) ==
@@ -1382,7 +1390,7 @@ void ol_ramdump_handler(struct ol_softc *scn)
 			fw_ram_seg_addr[i] = (scn->ramdump[i])->mem;
 			pr_err("FW %s start addr = %#08x\n",
 				fw_ram_seg_name[i], *reg);
-			pr_err("Memory addr for %s = %p\n",
+			pr_err("Memory addr for %s = %pK\n",
 				fw_ram_seg_name[i],
 				(scn->ramdump[i])->mem);
 			(scn->ramdump[i])->start_addr = *reg;
@@ -2241,7 +2249,7 @@ int ol_download_firmware(struct ol_softc *scn)
 	} else {
 		/* Transfer One Time Programmable data */
 		address = BMI_SEGMENTED_WRITE_ADDR;
-		printk("%s: Using 0x%x for the remainder of init\n", __func__, address);
+		pr_debug("%s: Using 0x%x for the remainder of init\n", __func__, address);
 
 		if ( scn->enablesinglebinary == FALSE ) {
 #ifdef HIF_PCI
@@ -2259,7 +2267,7 @@ int ol_download_firmware(struct ol_softc *scn)
 				bdf_ret = param & 0xff;
 				if (!bdf_ret)
 					scn->board_id = (param >> 8) & 0xffff;
-				pr_err("%s: chip_id:0x%0x board_id:0x%0x\n",
+				pr_debug("%s: chip_id:0x%0x board_id:0x%0x\n",
 						__func__, scn->target_version,
 							scn->board_id);
 			} else if (status < 0) {
@@ -2315,6 +2323,7 @@ int ol_download_firmware(struct ol_softc *scn)
 	}
 
 	address = BMI_SEGMENTED_WRITE_ADDR;
+#if 0
 	if (scn->enablesinglebinary == FALSE) {
 		if (ol_transfer_bin_file(scn, ATH_SETUP_FILE,
 					BMI_SEGMENTED_WRITE_ADDR, TRUE) == EOK) {
@@ -2323,6 +2332,7 @@ int ol_download_firmware(struct ol_softc *scn)
 			BMIExecute(scn->hif_hdl, address, &param, scn);
 		}
 	}
+#endif
 
 	/* Download Target firmware - TODO point to target specific files in runtime */
 	if (ol_transfer_bin_file(scn, ATH_FIRMWARE_FILE, address, TRUE) != EOK) {
@@ -2807,9 +2817,7 @@ int ol_target_coredump(void *inst, void *memoryBlock, u_int32_t blockLength)
 		pr_info("%s: Section:%d Bytes Read:%0x\n", __func__,
 			sectionCount, result);
 #ifdef CONFIG_NON_QC_PLATFORM_PCI
-		printk("\nMemory addr for %s = 0x%p\n",fw_ram_seg_name[sectionCount], bufferLoc);
-		print_hex_dump(KERN_DEBUG, fw_ram_seg_name[sectionCount],
-				DUMP_PREFIX_ADDRESS, 16, 4, bufferLoc, result, false);
+		printk("\nMemory addr for %s = 0x%p (size: %x)\n",fw_ram_seg_name[sectionCount], bufferLoc, result);
 #endif
 		amountRead += result;
 		bufferLoc += result;

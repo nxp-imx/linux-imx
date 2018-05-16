@@ -1958,6 +1958,22 @@ struct cgstatic cfg_static[WNI_CFG_MAX] = {
 	{WNI_CFG_EDCA_ETSI_ACVO,
 	 CFG_CTL_VALID | CFG_CTL_RE | CFG_CTL_WE | CFG_CTL_RESTART,
 	 0, 0, 0},
+
+	{WNI_CFG_EDCA_HOSTAPD_ACBK_LOCAL,
+	 CFG_CTL_VALID | CFG_CTL_RE | CFG_CTL_WE | CFG_CTL_RESTART,
+	 0, 0, 0},
+
+	{WNI_CFG_EDCA_HOSTAPD_ACBE_LOCAL,
+	 CFG_CTL_VALID | CFG_CTL_RE | CFG_CTL_WE | CFG_CTL_RESTART,
+	 0, 0, 0},
+
+	{WNI_CFG_EDCA_HOSTAPD_ACVI_LOCAL,
+	 CFG_CTL_VALID | CFG_CTL_RE | CFG_CTL_WE | CFG_CTL_RESTART,
+	 0, 0, 0},
+
+	{WNI_CFG_EDCA_HOSTAPD_ACVO_LOCAL,
+	 CFG_CTL_VALID | CFG_CTL_RE | CFG_CTL_WE | CFG_CTL_RESTART,
+	 0, 0, 0},
 };
 
 struct cfgstatic_string cfg_static_string[CFG_MAX_STATIC_STRING] = {
@@ -2213,6 +2229,29 @@ struct cfgstatic_string cfg_static_string[CFG_MAX_STATIC_STRING] = {
 	 {0x0, 0x2, 0x0, 0x3, 0x0, 0x7, 0x3e, 0x0, 0x3, 0x0, 0x7, 0x66, 0x0,
 	  0x3, 0x0, 0x7, 0x2f}},
 
+	{WNI_CFG_EDCA_HOSTAPD_ACVO_LOCAL,
+	 WNI_CFG_EDCA_HOSTAPD_ACVO_LOCAL_LEN,
+	 18,
+	 {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0}},
+
+	{WNI_CFG_EDCA_HOSTAPD_ACVI_LOCAL,
+	 WNI_CFG_EDCA_HOSTAPD_ACVI_LOCAL_LEN,
+	 18,
+	 {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0}},
+
+	{WNI_CFG_EDCA_HOSTAPD_ACBK_LOCAL,
+	 WNI_CFG_EDCA_HOSTAPD_ACBK_LOCAL_LEN,
+	 18,
+	 {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0}},
+
+	{WNI_CFG_EDCA_HOSTAPD_ACBE_LOCAL,
+	 WNI_CFG_EDCA_HOSTAPD_ACBE_LOCAL_LEN,
+	 18,
+	 {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+	  0, 0, 0, 0, 0}},
 
 	{WNI_CFG_RADAR_CHANNEL_LIST,
 	 WNI_CFG_RADAR_CHANNEL_LIST_LEN,
@@ -2794,7 +2833,8 @@ ProcSetReqInternal(tpAniSirGlobal pMac, tANI_U16 length, tANI_U32 *pParam, tANI_
                 // Process string parameter
                 else
                 {
-                    if (valueLenRoundedUp4 > length)
+                    if ((valueLenRoundedUp4 > length) ||
+                        (valueLen > CFG_MAX_STR_LEN))
                     {
                        PELOGE(cfgLog(pMac, LOGE, FL("Invalid string length %d"
                               "in set param %d (tot %d)"), valueLen,

@@ -72,6 +72,16 @@ static inline int adf_os_mutex_acquire(adf_os_device_t osdev, adf_os_mutex_t *m)
 }
 
 /**
+ * @brief Take the mutex
+ *
+ * @param[in] m mutex to take
+ */
+static inline int adf_os_mutex_acquire_timeout(adf_os_device_t osdev, adf_os_mutex_t *m, long timeout)
+{
+    return (__adf_os_mutex_acquire_timeout(osdev, m, timeout));
+}
+
+/**
  * @brief Give the mutex
  *
  * @param[in] m mutex to give

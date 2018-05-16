@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -549,6 +549,18 @@ wlan_hdd_start_stop_tdls_source_timer(hdd_context_t *pHddCtx,
 {
 }
 
+static inline int hdd_set_tdls_offchannel(hdd_context_t *pHddCtx, int offchannel)
+{
+	return 0;
+}
+static inline int hdd_set_tdls_offchannelmode(hdd_adapter_t *pAdapter, int offchanmode)
+{
+	return 0;
+}
+static inline int hdd_set_tdls_secoffchanneloffset(hdd_context_t *pHddCtx, int offchanoffset)
+{
+	return 0;
+}
 #endif
 
 #endif // __HDD_TDSL_H

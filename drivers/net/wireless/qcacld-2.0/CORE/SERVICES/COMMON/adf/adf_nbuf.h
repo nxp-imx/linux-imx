@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014, 2016-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014, 2016-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -2089,6 +2089,20 @@ bool adf_nbuf_data_is_ipv6_tcp_pkt(uint8_t *data)
  */
 int adf_nbuf_update_radiotap(struct mon_rx_status *rx_status, adf_nbuf_t nbuf,
 			     u_int32_t headroom_sz);
+
+/**
+ * adf_nbuf_construct_radiotap() - fill in the info into radiotap buf
+ *
+ * @rtap_buf: pointer to radiotap buffer
+ * @tsf: timestamp of packet
+ * @rssi_comb: rssi of packet
+ *
+ * Return: length of rtap_len updated.
+ */
+uint16_t adf_nbuf_construct_radiotap(
+		uint8_t *rtap_buf,
+		uint32_t tsf,
+		uint32_t rssi_comb);
 
 /**
  * adf_nbuf_update_skb_mark() - update skb->mark.

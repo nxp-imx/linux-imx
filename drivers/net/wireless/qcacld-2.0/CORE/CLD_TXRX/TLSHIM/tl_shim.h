@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014,2016-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014,2016-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -112,6 +112,7 @@ struct deferred_iapp_work iapp_work;
 	ipa_uc_fw_op_cb fw_op_cb;
 	void *usr_ctxt;
 #endif /* IPA_UC_OFFLOAD */
+	WLANTL_STARxCBType rx_monitor_cb;
 };
 
 /*
@@ -200,5 +201,20 @@ static inline void tlshim_driver_del_ack_disable(void)
 {
 }
 #endif
+
+static inline void *tlshim_get_rxmon_cbk(void)
+{
+	void *vos_ctx = vos_get_global_context(VOS_MODULE_ID_TL, NULL);
+	struct txrx_tl_shim_ctx *tlshim;
+
+	if (!vos_ctx)
+		return NULL;
+
+	tlshim = vos_get_context(VOS_MODULE_ID_TL, vos_ctx);
+	if (tlshim)
+		return (void *)tlshim->rx_monitor_cb;
+
+	return NULL;
+}
 
 #endif

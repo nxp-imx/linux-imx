@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014,2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2014,2017-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -375,6 +375,7 @@ wmitlv_check_and_pad_tlvs(
     wmitlv_cmd_param_info *cmd_param_tlvs_ptr = NULL;
     A_UINT32  remaining_expected_tlvs=0xFFFFFFFF;
     A_UINT32 len_wmi_cmd_struct_buf;
+    A_UINT32 free_buf_len;
 
     /* Get the number of TLVs for this command/event */
     if (wmitlv_get_attributes(is_cmd_id, wmi_cmd_event_id, WMITLV_GET_ATTRIB_NUM_TLVS, &attr_struct_ptr) != 0)
@@ -425,6 +426,12 @@ wmitlv_check_and_pad_tlvs(
         A_UINT32 curr_tlv_tag = WMITLV_GET_TLVTAG(WMITLV_GET_HDR(buf_ptr));
         A_UINT32 curr_tlv_len = WMITLV_GET_TLVLEN(WMITLV_GET_HDR(buf_ptr));
         int      num_padding_bytes = 0;
+
+        free_buf_len = param_buf_len - (buf_idx + WMI_TLV_HDR_SIZE);
+        if (curr_tlv_len > free_buf_len) {
+            wmi_tlv_print_error("%s: TLV length overflow", __func__);
+            goto Error_wmitlv_check_and_pad_tlvs;
+        }
 
         /* Get the attributes of the TLV with the given order in "tlv_index" */
         wmi_tlv_OS_MEMZERO(&attr_struct_ptr,sizeof(wmitlv_attributes_struc));
@@ -479,17 +486,19 @@ wmitlv_check_and_pad_tlvs(
             {
                 A_UINT32 in_tlv_len = 0;
 
-                if (curr_tlv_len != 0)
-                {
+                if (curr_tlv_len != 0) {
                     in_tlv_len = WMITLV_GET_TLVLEN(WMITLV_GET_HDR(buf_ptr));
                     in_tlv_len += WMI_TLV_HDR_SIZE;
+                    if (in_tlv_len > curr_tlv_len) {
+                        wmi_tlv_print_error("%s: Invalid in_tlv_len=%d",
+                                            __func__, in_tlv_len);
+                        goto Error_wmitlv_check_and_pad_tlvs;
+                    }
                     tlv_size_diff = in_tlv_len - attr_struct_ptr.tag_struct_size;
                     num_of_elems = curr_tlv_len/in_tlv_len;
                     wmi_tlv_print_verbose("%s: WARN: TLV array of structures in_tlv_len=%d struct_size:%d diff:%d num_of_elems=%d \n",
                            __func__, in_tlv_len, attr_struct_ptr.tag_struct_size, tlv_size_diff, num_of_elems);
-                }
-                else
-                {
+                } else {
                     tlv_size_diff = 0;
                     num_of_elems   = 0;
                 }
@@ -568,40 +577,54 @@ wmitlv_check_and_pad_tlvs(
 
                 if (tlv_size_diff < 0)
                 {
-                    /* Incoming structure size is smaller than expected size then this needs padding for each element in the array */
+                    /*
+                     * Incoming structure size is smaller than expected size
+                     * then this needs padding for each element in the array
+                     */
 
                     /* Find amount of bytes to be padded for one element */
                     num_padding_bytes = tlv_size_diff * -1;
 
-                    /* Move subsequent TLVs by number of bytes to be padded for all elements */
-                    if (param_buf_len > (buf_idx + curr_tlv_len))
-                    {
+                    /*
+                     * Move subsequent TLVs by number of bytes to be
+                     * padded for all elements
+                     */
+                    if (free_buf_len < attr_struct_ptr.tag_struct_size *
+                                        num_of_elems ||
+                        param_buf_len <  buf_idx + curr_tlv_len +
+                                        num_padding_bytes * num_of_elems) {
+                        wmi_tlv_print_error("%s: Insufficent buffer\n",
+                                            __func__);
+                        goto Error_wmitlv_check_and_pad_tlvs;
+                    } else {
                         src_addr = buf_ptr + curr_tlv_len;
-                        dst_addr = buf_ptr + curr_tlv_len + (num_padding_bytes * num_of_elems);
+                        dst_addr = buf_ptr + curr_tlv_len +
+                                   num_padding_bytes * num_of_elems;
                         buf_mov_len  = param_buf_len - (buf_idx + curr_tlv_len);
 
                         wmi_tlv_OS_MEMMOVE(dst_addr, src_addr, buf_mov_len);
                     }
 
-                    /* Move subsequent elements of array down by number of bytes to be padded for one element and alse set padding bytes to zero */
+                    /*
+                     * Move subsequent elements of array down by number of bytes
+                     * to be padded for one element and alse set padding bytes
+                     * to zero
+                     */
                     tlv_buf_ptr = buf_ptr;
-                    for(i=0; i<num_of_elems; i++)
+                    for (i = 0; i < num_of_elems - 1; i++)
                     {
                         src_addr = tlv_buf_ptr + in_tlv_len;
-                        if (i != (num_of_elems-1))
-                        {
-                            /* Need not move anything for last element in the array */
-                            dst_addr = tlv_buf_ptr + in_tlv_len + num_padding_bytes;
-                            buf_mov_len  = curr_tlv_len - ((i+1) * in_tlv_len);
-
-                            wmi_tlv_OS_MEMMOVE(dst_addr, src_addr, buf_mov_len);
-                        }
+                        dst_addr = tlv_buf_ptr + in_tlv_len + num_padding_bytes;
+                        buf_mov_len  = curr_tlv_len - ((i + 1) * in_tlv_len);
+                        wmi_tlv_OS_MEMMOVE(dst_addr, src_addr, buf_mov_len);
 
                         /* Set the padding bytes to zeroes */
                         wmi_tlv_OS_MEMZERO(src_addr, num_padding_bytes);
 
                         tlv_buf_ptr += attr_struct_ptr.tag_struct_size;
                     }
+                    src_addr = tlv_buf_ptr + in_tlv_len;
+                    wmi_tlv_OS_MEMZERO(src_addr, num_padding_bytes);
 
                     /* Update the number of padding bytes to total number of bytes padded for all elements in the array */
                     num_padding_bytes = num_padding_bytes * num_of_elems;

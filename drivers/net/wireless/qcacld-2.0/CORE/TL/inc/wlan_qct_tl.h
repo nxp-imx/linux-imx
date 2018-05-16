@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2014, 2016-2017 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2014, 2016-2018 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -2946,6 +2946,25 @@ bool WLANTL_disable_intrabss_fwd(void *vdev);
 ==============================================================================*/
 VOS_STATUS WLANTL_RegisterOCBPeer(void *vos_ctx, uint8_t *mac_addr,
     uint8_t *peer_id);
+
+/**
+ * tl_register_vir_mon_cb() - register the HDD monitor callback to TL.
+ * @vos_ctx: pointer to vos context
+ * @rxcb: HDD rx callback function
+ *
+ * Return:VOS_STATUS_SUCCESS on success, or others failure.
+ */
+VOS_STATUS
+tl_register_vir_mon_cb(void *vos_ctx, WLANTL_STARxCBType rxcb);
+
+/**
+ * tl_deregister_vir_mon_cb() - deregister the HDD monitor callback to TL.
+ * @vos_ctx: pointer to vos context
+ *
+ * Return:VOS_STATUS_SUCCESS on success, or others failure.
+ */
+VOS_STATUS
+tl_deregister_vir_mon_cb(void *vos_ctx);
 
 void WLANTL_display_datapath_stats(void *vos_ctx, uint16_t bitmap);
 void WLANTL_clear_datapath_stats(void *vos_ctx, uint16_t bitmap);

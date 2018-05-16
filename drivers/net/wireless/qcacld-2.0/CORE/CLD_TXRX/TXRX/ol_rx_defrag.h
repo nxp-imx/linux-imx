@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2014 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2014, 2017 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -165,7 +165,7 @@ ol_rx_reorder_flush_frag(
     htt_pdev_handle htt_pdev,
     struct ol_txrx_peer_t *peer,
     unsigned tid,
-    int seq_num);
+    u_int16_t seq_num);
 
 static inline void
 xor_block(

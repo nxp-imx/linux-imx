@@ -1601,11 +1601,16 @@ hif_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     u_int16_t device_id;
     u_int16_t revision_id;
     u_int32_t lcr_val;
+    static int devid = 0;
 
     printk(KERN_INFO "%s:, con_mode= 0x%x\n", __func__, vos_get_conparam());
 
 again:
     ret = 0;
+
+    /* CLD driver only support one instance */
+    if (devid)
+	return -EIO;
 
 #define BAR_NUM 0
     /*
@@ -1854,6 +1859,9 @@ again:
     if (ol_sc->ramdump_base == NULL || !ol_sc->ramdump_size) {
         pr_info("%s: Failed to get RAM dump memory address or size!\n",
                 __func__);
+    } else {
+        pr_info("%s: ramdump base 0x%p size %d\n", __func__,
+		ol_sc->ramdump_base, (int)ol_sc->ramdump_size);
     }
 
     adf_os_atomic_init(&sc->tasklet_from_intr);
@@ -1883,6 +1891,7 @@ again:
     pci_write_config_dword(pdev, 0x80, lcr_val);
 
     hif_pci_pm_runtime_init(sc);
+    devid++;
 
     return 0;
 
