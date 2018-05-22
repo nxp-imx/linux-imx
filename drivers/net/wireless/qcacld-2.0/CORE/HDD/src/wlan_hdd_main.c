@@ -17627,7 +17627,7 @@ success:
 
 /* accommodate the request firmware bin time out 2 min */
 #define REQUEST_FWR_TIMEOUT 120000
-#define HDD_WLAN_START_WAIT_TIME (VOS_WDA_TIMEOUT + 5000 + REQUEST_FWR_TIMEOUT)
+#define HDD_WLAN_START_WAIT_TIME 5000
 /**
  * hdd_hif_register_driver() - API for HDD to register with HIF
  *
