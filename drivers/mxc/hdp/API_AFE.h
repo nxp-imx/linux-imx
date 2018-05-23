@@ -83,6 +83,7 @@ typedef struct {
 	u32 value;
 	u8 lsb;
 	u8 msb;
+	u8 *label;
 } reg_field_t;
 
 u8 AFE_check_rate_supported(ENUM_AFE_LINK_RATE rate);
