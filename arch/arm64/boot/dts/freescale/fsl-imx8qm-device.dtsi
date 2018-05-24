@@ -1202,10 +1202,24 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 
-				pd_hdmi_rx_i2c0: PD_HDMI_RX_I2C {
-					reg = <SC_R_HDMI_RX_I2C_0>;
+				pd_hdmi_rx_bypass: PD_HDMI_RX_BYPASS {
+					reg = <SC_R_HDMI_RX_BYPASS>;
 					#power-domain-cells = <0>;
 					power-domains =<&pd_hdmi_rx>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					pd_hdmi_rx_i2c0: PD_HDMI_RX_I2C {
+						reg = <SC_R_HDMI_RX_I2C_0>;
+						#power-domain-cells = <0>;
+						power-domains =<&pd_hdmi_rx_bypass>;
+					};
+
+					pd_hdmi_rx_pwm0: PD_HDMI_RX_PWM {
+						reg = <SC_R_HDMI_RX_PWM_0>;
+						#power-domain-cells = <0>;
+						power-domains =<&pd_hdmi_rx_bypass>;
+					};
 				};
 			};
 
@@ -2506,6 +2520,29 @@
 			status = "disabled";
 		};
 
+		hdmi_rx: hdmi_rx@58268000 {
+			compatible = "fsl,imx-hdmi-rx";
+			reg = <0x0 0x58268000 0x0 0x10000>, /* HDP Controller */
+					<0x0 0x58261000 0x0 0x1000>; /* HDP SubSystem CSR  */
+			interrupts = <10 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-parent = <&irqsteer_hdmi_rx>;
+			clocks = <&clk IMX8QM_HDMI_RX_HD_REF_CLK>,
+						<&clk IMX8QM_HDMI_RX_HD_CORE_CLK>,
+						<&clk IMX8QM_HDMI_RX_PXL_CLK>,
+						<&clk IMX8QM_HDMI_RX_SINK_PCLK>,
+						<&clk IMX8QM_HDMI_RX_SINK_SCLK>,
+						<&clk IMX8QM_HDMI_RX_PXL_ENC_CLK>,
+						<&clk IMX8QM_HDMI_RX_I2S_CLK>,
+						<&clk IMX8QM_HDMI_RX_SPDIF_CLK>,
+						<&clk IMX8QM_IMG_PXL_LINK_HDMI_IN_CLK>;
+			clock-names = "ref_clk", "core_clk", "pxl_clk",
+							"pclk", "sclk", "enc_clk",
+							"i2s_clk", "spdif_clk",
+							"pxl_link_clk";
+			power-domains = <&pd_hdmi_rx_bypass>;
+			status = "disabled";
+		};
+
 		jpegdec: jpegdec@58400000 {
 			compatible = "fsl,imx8-jpgdec";
 			reg = <0x0 0x58400000 0x0 0x00040020 >;
@@ -2531,6 +2568,34 @@
 			assigned-clock-rates = <200000000>;
 			power-domains =<&pd_jpgenc>;
 		};
+	};
+
+	adc0: adc@5a880000 {
+		compatible = "fsl,imx8qxp-adc";
+		reg = <0x0 0x5a880000 0x0 0x10000>;
+		interrupts = <GIC_SPI 240 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&gic>;
+		clocks = <&clk IMX8QM_ADC0_CLK>,
+			 <&clk IMX8QM_ADC0_IPG_CLK>;
+		clock-names = "per", "ipg";
+		assigned-clocks = <&clk IMX8QM_ADC0_CLK>;
+		assigned-clock-rates = <24000000>;
+		power-domains = <&pd_dma_adc0>;
+		status = "disabled";
+	};
+
+	adc1: adc@5a890000 {
+		compatible = "fsl,imx8qxp-adc";
+		reg = <0x0 0x5a890000 0x0 0x10000>;
+		interrupts = <GIC_SPI 241 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&gic>;
+		clocks = <&clk IMX8QM_ADC1_CLK>,
+			 <&clk IMX8QM_ADC1_IPG_CLK>;
+		clock-names = "per", "ipg";
+		assigned-clocks = <&clk IMX8QM_ADC1_CLK>;
+		assigned-clock-rates = <24000000>;
+		power-domains = <&pd_dma_adc1>;
+		status = "disabled";
 	};
 
 	i2c0: i2c@5a800000 {
@@ -2642,9 +2707,21 @@
 		clock-names = "ipg";
 		assigned-clocks = <&clk IMX8QM_HDMI_DIG_PLL_CLK>,
 							<&clk IMX8QM_HDMI_LIS_IPG_CLK>;
-		assigned-clock-rates = <1188000000>, <85000000>;
+		assigned-clock-rates = <675000000>, <85000000>;
 		power-domains = <&pd_hdmi>;
 	};
+
+	irqsteer_hdmi_rx: irqsteer@58260000 {
+		compatible = "nxp,imx-irqsteer";
+		reg = <0x0 0x58260000 0x0 0x1000>;
+		interrupts = <GIC_SPI 322 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QM_HDMI_RX_IPG_CLK>;
+		clock-names = "ipg";
+		power-domains = <&pd_hdmi_rx>;
+	};
+
 
 	i2c0_hdmi: i2c@56266000 {
 		compatible = "fsl,imx8qm-lpi2c";
@@ -2899,6 +2976,42 @@
 		dma-names = "tx","rx";
 		dmas = <&edma0 21 0 0>,
 			<&edma0 20 0 1>;
+		status = "disabled";
+	};
+
+	ftmpwm0: ftmpwm@0x05a8a0000 {
+		compatible = "fsl,vf610-ftm-pwm";
+		reg = <0 0x5A8A0000 0 0x1000>;
+		#pwm-cells = <3>;
+		clock-names = "ftm_sys", "ftm_ext",
+				"ftm_fix", "ftm_cnt_clk_en", "ipg";
+		clocks = <&clk IMX8QM_FTM0_CLK>,
+			<&clk IMX8QM_CLK_DUMMY>,
+			<&clk IMX8QM_FTM0_CLK>,
+			<&clk IMX8QM_CLK_DUMMY>,
+			<&clk IMX8QM_FTM0_IPG_CLK>;
+		assigned-clocks = <&clk IMX8QM_FTM0_CLK>;
+		assigned-clock-rates = <8000000>;
+		power-domains = <&pd_dma_ftm0>;
+		ftm-has-pwmen-bits;
+		status = "disabled";
+	};
+
+	ftmpwm1: ftmpwm@0x05a8b0000 {
+		compatible = "fsl,vf610-ftm-pwm";
+		reg = <0 0x5A8B0000 0 0x1000>;
+		#pwm-cells = <3>;
+		clock-names = "ftm_sys", "ftm_ext",
+				"ftm_fix", "ftm_cnt_clk_en", "ipg";
+		clocks = <&clk IMX8QM_FTM1_CLK>,
+			<&clk IMX8QM_CLK_DUMMY>,
+			<&clk IMX8QM_FTM1_CLK>,
+			<&clk IMX8QM_CLK_DUMMY>,
+			<&clk IMX8QM_FTM0_IPG_CLK>;
+		assigned-clocks = <&clk IMX8QM_FTM1_CLK>;
+		assigned-clock-rates = <8000000>;
+		power-domains = <&pd_dma_ftm1>;
+		ftm-has-pwmen-bits;
 		status = "disabled";
 	};
 

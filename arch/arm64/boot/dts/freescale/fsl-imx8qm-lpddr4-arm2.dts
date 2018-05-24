@@ -1120,7 +1120,6 @@
 &rpmsg{
 	/*
 	 * 64K for one rpmsg instance:
-	 * --0x90000000~0x9000ffff: pingpong
 	 */
 	vdev-nums = <1>;
 	reg = <0x0 0x90000000 0x0 0x10000>;
@@ -1134,7 +1133,6 @@
 &rpmsg1{
 	/*
 	 * 64K for one rpmsg instance:
-	 * --0x90100000~0x9010ffff: pingpong
 	 */
 	vdev-nums = <1>;
 	reg = <0x0 0x90100000 0x0 0x10000>;
