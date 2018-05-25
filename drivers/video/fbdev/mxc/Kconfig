@@ -43,7 +43,6 @@ config FB_MXC_MIPI_DSI
 
 config FB_MXC_MIPI_DSI_SAMSUNG
 	tristate "MXC MIPI_DSI_SAMSUNG"
-	depends on FB_MXC_SYNC_PANEL
 	depends on FB_MXS
 
 config FB_MXC_MIPI_DSI_NORTHWEST
@@ -99,7 +98,7 @@ config FB_MXC_DCIC
 config FB_MXC_ADV7535
 	tristate "ADI ADV7535 support"
 	depends on I2C
-	depends on FB_MXC_MIPI_DSI || FB_MXC_MIPI_DSI_NORTHWEST
+	depends on FB_MXC_MIPI_DSI || FB_MXC_MIPI_DSI_NORTHWEST || FB_MXC_MIPI_DSI_SAMSUNG
 	help
 	  Driver support for the ADV7535 DSI-to-HDMI module
 

@@ -194,6 +194,9 @@ static const char *imx8mm_ahb_sels[] = {"osc_24m", "sys_pll1_133m", "sys_pll1_80
 static const char *imx8mm_audio_ahb_sels[] = {"osc_24m", "sys_pll2_500m", "sys_pll1_800m", "sys_pll2_1000m",
 					      "sys_pll2_166m", "sys_pll3_out", "audio_pll1_out", "video_pll1_out", };
 
+static const char *imx8mm_dsi_ahb_sels[] = {"osc_24m", "sys2_pll_100m", "sys_pll1_80m", "sys1_pll_800m",
+                                            "sys2_pll_1000m", "sys_pll3_out", "clk_ext3", "audio_pll2_out"};
+
 static const char *imx8mm_dram_alt_sels[] = {"osc_24m", "sys_pll1_800m", "sys_pll1_100m", "sys_pll2_500m",
 					     "sys_pll2_1000m", "sys_pll3_out", "audio_pll1_out", "sys_pll1_266m", };
 
@@ -631,6 +634,7 @@ static void __init imx8mm_clocks_init(struct device_node *ccm_node)
 	clks[IMX8MM_CLK_DSI_CORE_SRC] = imx_clk_mux2("dsi_core_src", base + 0xbb00, 24, 3, imx8mm_dsi_core_sels, ARRAY_SIZE(imx8mm_dsi_core_sels));
 	clks[IMX8MM_CLK_DSI_PHY_REF_SRC] = imx_clk_mux2("dsi_phy_ref_src", base + 0xbb80, 24, 3, imx8mm_dsi_phy_sels, ARRAY_SIZE(imx8mm_dsi_phy_sels));
 	clks[IMX8MM_CLK_DSI_DBI_SRC] = imx_clk_mux2("dsi_dbi_src", base + 0xbc00, 24, 3, imx8mm_dsi_dbi_sels, ARRAY_SIZE(imx8mm_dsi_dbi_sels));
+	clks[IMX8MM_CLK_DSI_AHB_SRC] = imx_clk_mux2("dsi_ahb_src", base + 0x9200, 24, 3, imx8mm_dsi_ahb_sels, ARRAY_SIZE(imx8mm_dsi_ahb_sels));
 	clks[IMX8MM_CLK_USDHC3_SRC] = imx_clk_mux2("usdhc3_src", base + 0xbc80, 24, 3, imx8mm_usdhc3_sels, ARRAY_SIZE(imx8mm_usdhc3_sels));
 	clks[IMX8MM_CLK_CSI1_CORE_SRC] = imx_clk_mux2("csi1_core_src", base + 0xbd00, 24, 3, imx8mm_csi1_core_sels, ARRAY_SIZE(imx8mm_csi1_core_sels));
 	clks[IMX8MM_CLK_CSI1_PHY_REF_SRC] = imx_clk_mux2("csi1_phy_ref_src", base + 0xbd80, 24, 3, imx8mm_csi1_phy_sels, ARRAY_SIZE(imx8mm_csi1_phy_sels));
@@ -694,6 +698,7 @@ static void __init imx8mm_clocks_init(struct device_node *ccm_node)
 	clks[IMX8MM_CLK_DSI_CORE_CG] = imx_clk_gate3("dsi_core_cg", "dsi_core_src", base + 0xbb00, 28);
 	clks[IMX8MM_CLK_DSI_PHY_REF_CG] = imx_clk_gate3("dsi_phy_ref_cg", "dsi_phy_ref_src", base + 0xbb80, 28);
 	clks[IMX8MM_CLK_DSI_DBI_CG] = imx_clk_gate3("dsi_dbi_cg", "dsi_dbi_src", base + 0xbc00, 28);
+	clks[IMX8MM_CLK_DSI_AHB_CG] = imx_clk_gate3("dsi_ahb_cg", "dsi_ahb_src", base + 0x9200, 28);
 	clks[IMX8MM_CLK_USDHC3_CG] = imx_clk_gate3("usdhc3_cg", "usdhc3_src", base + 0xbc80, 28);
 	clks[IMX8MM_CLK_CSI1_CORE_CG] = imx_clk_gate3("csi1_core_cg", "csi1_core_src", base + 0xbd00, 28);
 	clks[IMX8MM_CLK_CSI1_PHY_REF_CG] = imx_clk_gate3("csi1_phy_ref_cg", "csi1_phy_ref_src", base + 0xbd80, 28);
@@ -757,6 +762,7 @@ static void __init imx8mm_clocks_init(struct device_node *ccm_node)
 	clks[IMX8MM_CLK_DSI_CORE_PRE_DIV] = imx_clk_divider2("dsi_core_pre_div", "dsi_core_cg", base + 0xbb00, 16, 3);
 	clks[IMX8MM_CLK_DSI_PHY_REF_PRE_DIV] = imx_clk_divider2("dsi_phy_ref_pre_div", "dsi_phy_ref_cg", base + 0xbb80, 16, 3);
 	clks[IMX8MM_CLK_DSI_DBI_PRE_DIV] = imx_clk_divider2("dsi_dbi_pre_div", "dsi_dbi_cg", base + 0xbc00, 16, 3);
+	clks[IMX8MM_CLK_DSI_AHB_PRE_DIV] = imx_clk_divider2("dsi_ahb_pre_div", "dsi_ahb_cg", base + 0x9200, 16, 3);
 	clks[IMX8MM_CLK_USDHC3_PRE_DIV] = imx_clk_divider2("usdhc3_pre_div", "usdhc3_cg", base + 0xbc80, 16, 3);
 	clks[IMX8MM_CLK_CSI1_CORE_PRE_DIV] = imx_clk_divider2("csi1_core_pre_div", "csi1_core_cg", base + 0xbd00, 16, 3);
 	clks[IMX8MM_CLK_CSI1_PHY_REF_PRE_DIV] = imx_clk_divider2("csi1_phy_ref_pre_div", "csi1_phy_ref_cg", base + 0xbd80, 16, 3);
@@ -820,6 +826,8 @@ static void __init imx8mm_clocks_init(struct device_node *ccm_node)
 	clks[IMX8MM_CLK_DSI_CORE_DIV] = imx_clk_divider2("dsi_core_div", "dsi_core_pre_div", base + 0xbb00, 0, 6);
 	clks[IMX8MM_CLK_DSI_PHY_REF_DIV] = imx_clk_divider2("dsi_phy_ref_div", "dsi_phy_ref_pre_div", base + 0xbb80, 0, 6);
 	clks[IMX8MM_CLK_DSI_DBI_DIV] = imx_clk_divider2("dsi_dbi_div", "dsi_dbi_pre_div", base + 0xbc00, 0, 6);
+	clks[IMX8MM_CLK_DSI_AHB_DIV] = imx_clk_divider2("dsi_ahb_div", "dsi_ahb_pre_div", base + 0x9200, 0, 6);
+	clks[IMX8MM_CLK_DSI_IPG_DIV] = imx_clk_divider2("dsi_ipg_div", "dsi_ahb_div", base + 0x9280, 0, 6);
 	clks[IMX8MM_CLK_USDHC3_DIV] = imx_clk_divider2("usdhc3_div", "usdhc3_pre_div", base + 0xbc80, 0, 6);
 	clks[IMX8MM_CLK_CSI1_CORE_DIV] = imx_clk_divider2("csi1_core_div", "csi1_core_pre_div", base + 0xbd00, 0, 6);
 	clks[IMX8MM_CLK_CSI1_PHY_REF_DIV] = imx_clk_divider2("csi1_phy_ref_div", "csi1_phy_ref_pre_div", base + 0xbd80, 0, 6);
@@ -917,6 +925,7 @@ static void __init imx8mm_clocks_init(struct device_node *ccm_node)
 
 	/* increase NOC clock to design target */
 	clk_set_rate(clks[IMX8MM_SYS_PLL3], 750000000);
+	clk_set_rate(clks[IMX8MM_VIDEO_PLL1], 594000000);
 	clk_set_parent(clks[IMX8MM_CLK_NOC_SRC], clks[IMX8MM_SYS_PLL3_OUT]);
 	clk_set_parent(clks[IMX8MM_CLK_PCIE1_CTRL_SRC], clks[IMX8MM_SYS_PLL2_250M]);
 	clk_set_parent(clks[IMX8MM_CLK_PCIE1_PHY_SRC], clks[IMX8MM_SYS_PLL2_100M]);

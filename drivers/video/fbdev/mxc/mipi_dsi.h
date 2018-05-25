@@ -89,17 +89,14 @@ struct mipi_dsi_info {
 	char				*lcd_panel;
 	int				irq;
 	uint32_t			phy_ref_clkfreq;
-#ifdef CONFIG_FB_IMX64
 	struct clk			*core_clk;
 	struct clk			*phy_ref_clk;
 	struct clk			*dbi_clk;
 	struct clk			*rxesc_clk;
 	struct clk			*txesc_clk;
-#else
 	struct clk			*dphy_clk;
 	struct clk			*cfg_clk;
 	struct clk			*esc_clk;
-#endif
 	struct mxc_dispdrv_handle	*disp_mipi;
 	int				vmode_index;
 	struct  fb_videomode		*mode;

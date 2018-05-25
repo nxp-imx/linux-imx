@@ -462,6 +462,14 @@
 #define	IMX8MM_CLK_CLKO1_CG			450
 #define	IMX8MM_CLK_CLKO1_PRE_DIV		451
 #define	IMX8MM_CLK_CLKO1_DIV			452
+/* DSI AHB/IPG clocks */
+/* rxesc clock */
+#define IMX8MM_CLK_DSI_AHB_SRC                  453
+#define IMX8MM_CLK_DSI_AHB_CG                   454
+#define IMX8MM_CLK_DSI_AHB_PRE_DIV              455
+#define IMX8MM_CLK_DSI_AHB_DIV                  456
+/* txesc clock */
+#define IMX8MM_CLK_DSI_IPG_DIV                  457
 
-#define	IMX8MM_CLK_END				453
+#define	IMX8MM_CLK_END				458
 #endif

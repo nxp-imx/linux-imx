@@ -604,6 +604,23 @@
 	pinctrl-0 = <&pinctrl_i2c2>;
 	status = "okay";
 
+	adv7535: adv7535@3d {
+		compatible = "adi,adv7535";
+		reg = <0x3d>;
+		adi,addr-cec = <0x3b>;
+		adi,dsi-lanes = <4>;
+		video-mode = <16>;      /* 1920x1080@60HZ */
+		dsi-traffic-mode = <0>;
+		bpp = <24>;
+		status = "okay";
+
+		port {
+			dsi_to_hdmi: endpoint {
+				remote-endpoint = <&mipi_dsi_ep>;
+			};
+		};
+	};
+
 	typec1_ptn5110: tcpci@50 {
 		compatible = "usb,tcpci";
 		pinctrl-names = "default";
@@ -643,6 +660,46 @@
 	};
 };
 
+&lcdif {
+       status = "okay";
+       disp-dev = "mipi_dsi_samsung";
+       display = <&display0>;
+	disp-videomode = "TRUULY-WVGA-SYNC-LOW";
+
+       display0: display@0 {
+               bits-per-pixel = <24>;
+               bus-width = <24>;
+
+               display-timings {
+                       native-mode = <&timing0>;
+                       timing0: timing0 {
+                       clock-frequency = <9200000>;
+                       hactive = <480>;
+                       vactive = <272>;
+                       hfront-porch = <8>;
+                       hback-porch = <4>;
+                       hsync-len = <41>;
+                       vback-porch = <2>;
+                       vfront-porch = <4>;
+                       vsync-len = <10>;
+
+                       hsync-active = <0>;
+                       vsync-active = <0>;
+                       de-active = <1>;
+                       pixelclk-active = <0>;
+                       };
+               };
+       };
+};
+
+&mipi_dsi {
+	status = "okay";
+	port {
+		mipi_dsi_ep: endpoint {
+			remote-endpoint = <&dsi_to_hdmi>;
+		};
+	};
+};
 
 &mipi_csi_1 {
 	#address-cells = <1>;
