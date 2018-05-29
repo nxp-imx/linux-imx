@@ -142,6 +142,19 @@
 	pinctrl-names = "default";
 
 	imx8mm-evk {
+		pinctrl_csi_pwn: csi_pwn_grp {
+			fsl,pins = <
+				MX8MM_IOMUXC_GPIO1_IO07_GPIO1_IO7		0x19
+			>;
+		};
+
+		pinctrl_csi_rst: csi_rst_grp {
+			fsl,pins = <
+				MX8MM_IOMUXC_GPIO1_IO06_GPIO1_IO6		0x19
+				MX8MM_IOMUXC_GPIO1_IO14_CCMSRCGPCMIX_CLKO1	0x59
+			>;
+		};
+
 		pinctrl_fec1: fec1grp {
 			fsl,pins = <
 				MX8MM_IOMUXC_ENET_MDC_ENET1_MDC		0x3
@@ -159,6 +172,17 @@
 				MX8MM_IOMUXC_ENET_RX_CTL_ENET1_RGMII_RX_CTL	0x91
 				MX8MM_IOMUXC_ENET_TX_CTL_ENET1_RGMII_TX_CTL	0x1f
 				MX8MM_IOMUXC_SAI2_RXC_GPIO4_IO22	0x19
+			>;
+		};
+
+		pinctrl_flexspi0: flexspi0grp {
+			fsl,pins = <
+				MX8MM_IOMUXC_NAND_ALE_QSPI_A_SCLK		0x1c2
+				MX8MM_IOMUXC_NAND_CE0_B_QSPI_A_SS0_B		0x82
+				MX8MM_IOMUXC_NAND_DATA00_QSPI_A_DATA0		0x82
+				MX8MM_IOMUXC_NAND_DATA01_QSPI_A_DATA1		0x82
+				MX8MM_IOMUXC_NAND_DATA02_QSPI_A_DATA2		0x82
+				MX8MM_IOMUXC_NAND_DATA03_QSPI_A_DATA3		0x82
 			>;
 		};
 
@@ -418,6 +442,31 @@
 	};
 };
 
+&csi1_bridge {
+	fsl,mipi-mode;
+	status = "okay";
+	port {
+		csi1_ep: endpoint {
+			remote-endpoint = <&csi1_mipi_ep>;
+		};
+	};
+};
+
+&flexspi {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_flexspi0>;
+	status = "okay";
+
+	flash0: mt25qu256aba@0 {
+		reg = <0>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "micron,mt25qu256aba";
+		spi-max-frequency = <29000000>;
+		spi-nor,ddr-quad-read-dummy = <8>;
+	};
+};
+
 &i2c1 {
 	clock-frequency = <400000>;
 	pinctrl-names = "default";
@@ -580,6 +629,23 @@
 	pinctrl-0 = <&pinctrl_i2c2>;
 	status = "okay";
 
+	adv7535: adv7535@3d {
+		compatible = "adi,adv7535";
+		reg = <0x3d>;
+		adi,addr-cec = <0x3b>;
+		adi,dsi-lanes = <4>;
+		video-mode = <16>;      /* 1920x1080@60HZ */
+		dsi-traffic-mode = <0>;
+		bpp = <24>;
+		status = "okay";
+
+		port {
+			dsi_to_hdmi: endpoint {
+				remote-endpoint = <&mipi_dsi_ep>;
+			};
+		};
+	};
+
 	typec1_ptn5110: tcpci@50 {
 		compatible = "usb,tcpci";
 		pinctrl-names = "default";
@@ -619,6 +685,66 @@
 	};
 };
 
+&lcdif {
+       status = "okay";
+       disp-dev = "mipi_dsi_samsung";
+       display = <&display0>;
+	disp-videomode = "TRUULY-WVGA-SYNC-LOW";
+
+       display0: display@0 {
+               bits-per-pixel = <24>;
+               bus-width = <24>;
+
+               display-timings {
+                       native-mode = <&timing0>;
+                       timing0: timing0 {
+                       clock-frequency = <9200000>;
+                       hactive = <480>;
+                       vactive = <272>;
+                       hfront-porch = <8>;
+                       hback-porch = <4>;
+                       hsync-len = <41>;
+                       vback-porch = <2>;
+                       vfront-porch = <4>;
+                       vsync-len = <10>;
+
+                       hsync-active = <0>;
+                       vsync-active = <0>;
+                       de-active = <1>;
+                       pixelclk-active = <0>;
+                       };
+               };
+       };
+};
+
+&mipi_dsi {
+	status = "okay";
+	port {
+		mipi_dsi_ep: endpoint {
+			remote-endpoint = <&dsi_to_hdmi>;
+		};
+	};
+};
+
+&mipi_csi_1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	port {
+		mipi1_sensor_ep: endpoint1 {
+			remote-endpoint = <&ov5640_mipi1_ep>;
+			data-lanes = <2>;
+			csis-hs-settle = <13>;
+			csis-clk-settle = <2>;
+			csis-wclk;
+		};
+
+		csi1_mipi_ep: endpoint2 {
+			remote-endpoint = <&csi1_ep>;
+		};
+	};
+};
+
 &i2c3 {
 	clock-frequency = <100000>;
 	pinctrl-names = "default";
@@ -652,6 +778,29 @@
 		compatible = "asahi-kasei,ak4497";
 		reg = <0x11>;
 		ak4497,pdn-gpio = <&pca6416 3 GPIO_ACTIVE_HIGH>;
+	};
+
+	ov5640_mipi: ov5640_mipi@3c {
+		compatible = "ovti,ov5640_mipi";
+		reg = <0x3c>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_csi_pwn>, <&pinctrl_csi_rst>;
+		clocks = <&clk IMX8MM_CLK_CLKO1_DIV>;
+		clock-names = "csi_mclk";
+		assigned-clocks = <&clk IMX8MM_CLK_CLKO1_SRC>,
+				  <&clk IMX8MM_CLK_CLKO1_DIV>;
+		assigned-clock-parents = <&clk IMX8MM_SYS_PLL1_200M>;
+		assigned-clock-rates = <0>, <25000000>;
+		csi_id = <0>;
+		pwn-gpios = <&gpio1 7 GPIO_ACTIVE_HIGH>;
+		mclk = <25000000>;
+		mclk_source = <0>;
+		port {
+			ov5640_mipi1_ep: endpoint {
+				remote-endpoint = <&mipi1_sensor_ep>;
+			};
+		};
 	};
 };
 

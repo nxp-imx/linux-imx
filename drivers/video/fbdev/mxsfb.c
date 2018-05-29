@@ -754,13 +754,6 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 		}
 	}
 
-	if (host->dispdrv && host->dispdrv->drv->enable) {
-		ret = host->dispdrv->drv->enable(host->dispdrv, fb_info);
-		if (ret < 0)
-			dev_err(&host->pdev->dev, "failed to enable "
-				"dispdrv:%s\n", host->dispdrv->drv->name);
-	}
-
 #ifdef CONFIG_FB_IMX64_DEBUG
 	if (unlikely(!pix_enable)) {
 		/* the pixel clock should be disabled before
@@ -771,7 +764,7 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 #endif
 		ret = clk_set_rate(host->clk_pix,
 				PICOS2KHZ(fb_info->var.pixclock) * 1000U);
-		if (ret) {
+	if (ret) {
 			dev_err(&host->pdev->dev,
 				"lcd pixel rate set failed: %d\n", ret);
 
@@ -790,6 +783,7 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 	}
 #endif
 
+	writel((0x7 << 21), host->base + LCDC_V4_CTRL2 + REG_CLR);
 	reg = CTRL2_OUTSTANDING_REQS__REQ_16;
 	if (need_swizzle_rgb(&(fb_info->var)))
 		reg |= CTRL2_ODD_LINE_PATTERN_BGR | CTRL2_EVEN_LINE_PATTERN_BGR;
@@ -805,6 +799,13 @@ static void mxsfb_enable_controller(struct fb_info *fb_info)
 
 	writel(CTRL_MASTER, host->base + LCDC_CTRL + REG_SET);
 	writel(CTRL_RUN, host->base + LCDC_CTRL + REG_SET);
+
+	if (host->dispdrv && host->dispdrv->drv->enable) {
+		ret = host->dispdrv->drv->enable(host->dispdrv, fb_info);
+		if (ret < 0)
+			dev_err(&host->pdev->dev, "failed to enable "
+				"dispdrv:%s\n", host->dispdrv->drv->name);
+	}
 
 	/* Recovery on underflow */
 	writel(CTRL1_RECOVERY_ON_UNDERFLOW, host->base + LCDC_CTRL1 + REG_SET);
@@ -988,16 +989,17 @@ static int mxsfb_set_par(struct fb_info *fb_info)
 		VDCTRL0_VSYNC_PULSE_WIDTH_UNIT |
 		VDCTRL0_SET_VSYNC_PULSE_WIDTH(fb_info->var.vsync_len);
 	/* use the saved sync to avoid wrong sync information */
-	if (host->sync & FB_SYNC_HOR_HIGH_ACT)
-		vdctrl0 |= VDCTRL0_HSYNC_ACT_HIGH;
-	if (host->sync & FB_SYNC_VERT_HIGH_ACT)
-		vdctrl0 |= VDCTRL0_VSYNC_ACT_HIGH;
+//	if (host->sync & FB_SYNC_HOR_HIGH_ACT)
+//		vdctrl0 |= VDCTRL0_HSYNC_ACT_HIGH;
+//	if (host->sync & FB_SYNC_VERT_HIGH_ACT)
+//		vdctrl0 |= VDCTRL0_VSYNC_ACT_HIGH;
 #ifndef CONFIG_FB_IMX64_DEBUG
 	if (!(host->sync & FB_SYNC_OE_LOW_ACT))
 		vdctrl0 |= VDCTRL0_ENABLE_ACT_HIGH;
 #endif
-	if (host->sync & FB_SYNC_CLK_LAT_FALL)
-		vdctrl0 |= VDCTRL0_DOTCLK_ACT_FALLING;
+//	vdctrl0 |= VDCTRL0_ENABLE_ACT_HIGH;
+//	if (host->sync & FB_SYNC_CLK_LAT_FALL)
+//		vdctrl0 |= VDCTRL0_DOTCLK_ACT_FALLING;
 
 	writel(vdctrl0, host->base + LCDC_VDCTRL0);
 
