@@ -81,7 +81,7 @@
 #define RAMDUMP_EVENT_TIMEOUT 2500
 #define MAX_REG_READ_RETRIES 10
 
-unsigned int msienable = 0;
+unsigned int msienable = 1;
 module_param(msienable, int, S_IRUSR | S_IRGRP | S_IROTH);
 
 int hif_pci_configure(struct hif_pci_softc *sc, hif_handle_t *hif_hdl);
@@ -788,6 +788,7 @@ wlan_tasklet(unsigned long data)
     struct HIF_CE_state *hif_state = (struct HIF_CE_state *)sc->hif_device;
     volatile int tmp;
     bool hif_init_done = sc->hif_init_done;
+    A_target_id_t targid = hif_state->targid;
 
     if (hif_init_done == FALSE) {
          goto irq_handled;
@@ -809,7 +810,7 @@ wlan_tasklet(unsigned long data)
          goto irq_handled;
 
     CE_per_engine_service_any(sc->irq_event, sc);
-    adf_os_atomic_set(&sc->tasklet_from_intr, 0);
+    adf_os_atomic_set(&sc->tasklet_from_intr, 1);
     if (CE_get_rx_pending(sc)) {
         if (vos_is_load_unload_in_progress(VOS_MODULE_ID_HIF, NULL)) {
             pr_err("%s: Load/Unload in Progress\n", __func__);
@@ -835,6 +836,21 @@ end:
         adf_os_atomic_set(&sc->ce_suspend, 1);
         return;
     }
+    if(!LEGACY_INTERRUPTS(sc)) {
+        if(CE_INTERRUPT_SUMMARY(targid)) {
+            if (vos_is_load_unload_in_progress(VOS_MODULE_ID_HIF, NULL)) {
+                goto msiend;
+            }
+            if (vos_is_logp_in_progress(VOS_MODULE_ID_HIF, NULL)) {
+                goto msiend;
+            }
+            tasklet_schedule(&sc->intr_tq);
+msiend:
+            adf_os_atomic_set(&sc->ce_suspend, 1);
+            return;
+        }
+    }
+
 irq_handled:
     /* use cached value for hif_init_done to prevent
      * unlocking an unlocked spinlock if hif init finishes
