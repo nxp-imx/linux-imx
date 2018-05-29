@@ -40,9 +40,9 @@
 #define GPC_M4_PU_PDN_FLG		0x1bc
 
 
-#define PGC_MIPI			4
-#define PGC_PCIE			5
-#define PGC_USB_HSIC			8
+#define PGC_MIPI			16
+#define PGC_PCIE			17
+#define PGC_USB_HSIC			20
 #define GPC_PGC_CTRL(n)			(0x800 + (n) * 0x40)
 #define GPC_PGC_SR(n)			(GPC_PGC_CTRL(n) + 0xc)
 
