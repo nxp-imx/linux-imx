@@ -1618,7 +1618,8 @@ static void imx_pcie_regions_setup(struct device *dev)
 		 * RPMSG reserved 4Mbytes, but only used up to 2Mbytes.
 		 * The left 2Mbytes can be used here.
 		 */
-		ddr_test_region = 0xb8200000;
+		if (ddr_test_region == 0)
+			dev_err(pp->dev, "invalid ddr test region.\n");
 		break;
 	case IMX6SX:
 	case IMX7D:
@@ -1630,6 +1631,7 @@ static void imx_pcie_regions_setup(struct device *dev)
 		ddr_test_region = 0x40000000;
 		break;
 	}
+	dev_info(pp->dev, "ddr_test_region is 0x%08x.\n", ddr_test_region);
 
 	dw_pcie_prog_outbound_atu(pp, 2, 0, pp->mem_base,
 				  ddr_test_region, test_region_size);
@@ -2143,7 +2145,7 @@ static int imx_pcie_probe(struct platform_device *pdev)
 	struct imx_pcie *imx_pcie;
 	struct pcie_port *pp;
 	struct resource *res;
-	struct device_node *node = dev->of_node;
+	struct device_node *reserved_node, *node = dev->of_node;
 	int ret;
 
 	imx_pcie = devm_kzalloc(dev, sizeof(*imx_pcie), GFP_KERNEL);
@@ -2180,6 +2182,17 @@ static int imx_pcie_probe(struct platform_device *pdev)
 		dev_err(dev, "missing *dbi* reg space\n");
 	if (IS_ERR(pp->dbi_base))
 		return PTR_ERR(pp->dbi_base);
+
+	reserved_node = of_parse_phandle(node, "reserved-region", 0);
+	if (!reserved_node) {
+		dev_info(dev, "no reserved region node.\n");
+	} else {
+		if (of_address_to_resource(reserved_node, 0, res)) {
+			dev_err(dev, "failed to get reserved region address\n");
+			return -EINVAL;
+		}
+		ddr_test_region = res->start + SZ_2M;
+	}
 
 	/* Fetch GPIOs */
 	imx_pcie->clkreq_gpio = of_get_named_gpio(node, "clkreq-gpio", 0);
