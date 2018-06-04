@@ -1,7 +1,7 @@
 /*
  * caam - Freescale FSL CAAM support for ahash functions of crypto API
  *
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  * Based on caamalg.c crypto API driver.
  *
@@ -819,10 +819,20 @@ static inline void ahash_unmap(struct device *dev,
 			struct ahash_edesc *edesc,
 			struct ahash_request *req, int dst_len)
 {
+	struct caam_hash_state *state = ahash_request_ctx(req);
+
 	if (edesc->src_nents)
 		dma_unmap_sg(dev, req->src, edesc->src_nents, DMA_TO_DEVICE);
 	if (edesc->dst_dma)
 		dma_unmap_single(dev, edesc->dst_dma, dst_len, DMA_FROM_DEVICE);
+
+	if (state->buf_dma) {
+		dma_unmap_single(dev, state->buf_dma,
+			(state->current_buf ?
+				state->buflen_1 : state->buflen_0),
+			DMA_TO_DEVICE);
+		state->buf_dma = 0;
+	}
 
 	if (edesc->sec4_sg_bytes)
 		dma_unmap_single(dev, edesc->sec4_sg_dma,
