@@ -73,14 +73,6 @@
 		ranges;
 
 		/* global autoconfigured region for contiguous allocations */
-		linux,cma {
-			compatible = "shared-dma-pool";
-			reusable;
-			size = <0 0x28000000>;
-			alloc-ranges = <0 0x40000000 0 0x60000000>;
-			linux,cma-default;
-		};
-
 		rpmsg_reserved: rpmsg@0xb8000000 {
 			no-map;
 			reg = <0 0xb8000000 0 0x400000>;
