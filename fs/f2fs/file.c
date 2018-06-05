@@ -112,8 +112,8 @@ mapped:
 	/* fill the page */
 	f2fs_wait_on_page_writeback(page, DATA, false);
 
-	/* wait for GCed encrypted page writeback */
-	if (f2fs_encrypted_file(inode))
+	/* wait for GCed page writeback via META_MAPPING */
+	if (f2fs_post_read_required(inode))
 		f2fs_wait_on_block_writeback(sbi, dn.data_blkaddr);
 
 out_sem:
@@ -308,7 +308,7 @@ sync_nodes:
 	remove_ino_entry(sbi, ino, APPEND_INO);
 	clear_inode_flag(inode, FI_APPEND_WRITE);
 flush_out:
-	if (!atomic)
+	if (!atomic && F2FS_OPTION(sbi).fsync_mode != FSYNC_MODE_NOBARRIER)
 		ret = f2fs_issue_flush(sbi, inode->i_ino);
 	if (!ret) {
 		remove_ino_entry(sbi, ino, UPDATE_INO);
