@@ -1684,40 +1684,53 @@ gckOS_ReadRegisterEx(
     OUT gctUINT32 * Data
     )
 {
-    unsigned long flags;
-
-    spin_lock_irqsave(&Os->registerAccessLock, flags);
-
-    if (unlikely(Os->clockStates[Core] == gcvFALSE))
+    if (in_irq())
     {
-        spin_unlock_irqrestore(&Os->registerAccessLock, flags);
+        spin_lock(&Os->registerAccessLock);
 
-        /*
-         * Read register when power off:
-         * 1. In shared IRQ, read register may be called and that's not our irq.
-         * 2. In non-irq context, register access should not be called,
-         *    otherwise it's driver bug.
-         */
-        if (!in_irq())
+        if (unlikely(Os->clockStates[Core] == gcvFALSE))
         {
-            gcmkPRINT("[galcore]: %s(%d) GPU[%d] external clock off",
-                      __func__, __LINE__, Core);
-            gcmkBUG_ON(1);
+            spin_unlock(&Os->registerAccessLock);
+
+            /*
+             * Read register when power off:
+             * 1. In shared IRQ, read register may be called and that's not our irq.
+             */
+            return gcvSTATUS_GENERIC_IO;
         }
 
-        return gcvSTATUS_GENERIC_IO;
+        *Data = readl((gctUINT8 *)Os->device->registerBases[Core] + Address);
+        spin_unlock(&Os->registerAccessLock);
     }
+    else
+    {
+        unsigned long flags;
 
-    *Data = readl((gctUINT8 *)Os->device->registerBases[Core] + Address);
-    spin_unlock_irqrestore(&Os->registerAccessLock, flags);
+        spin_lock_irqsave(&Os->registerAccessLock, flags);
+
+        if (unlikely(Os->clockStates[Core] == gcvFALSE))
+        {
+            spin_unlock_irqrestore(&Os->registerAccessLock, flags);
+
+            /*
+             * Read register when power off:
+             * 2. In non-irq context, register access should not be called,
+             *    otherwise it's driver bug.
+             */
+            printk(KERN_ERR "[galcore]: %s(%d) GPU[%d] external clock off",
+                   __func__, __LINE__, Core);
+            gcmkBUG_ON(1);
+            return gcvSTATUS_GENERIC_IO;
+        }
+
+        *Data = readl((gctUINT8 *)Os->device->registerBases[Core] + Address);
+        spin_unlock_irqrestore(&Os->registerAccessLock, flags);
 
 #if gcdDUMP_AHB_ACCESS
-    if (!in_irq())
-    {
         /* Dangerous to print in interrupt context, skip. */
         gcmkPRINT("@[RD %d] %08x %08x", Core, Address, *Data);
-    }
 #endif
+    }
 
     /* Success. */
     return gcvSTATUS_OK;
@@ -1762,32 +1775,51 @@ gckOS_WriteRegisterEx(
     IN gctUINT32 Data
     )
 {
-    unsigned long flags;
-
-    spin_lock_irqsave(&Os->registerAccessLock, flags);
-
-    if (unlikely(Os->clockStates[Core] == gcvFALSE))
+    if (in_irq())
     {
+        spin_lock(&Os->registerAccessLock);
+
+        if (unlikely(Os->clockStates[Core] == gcvFALSE))
+        {
+            spin_unlock(&Os->registerAccessLock);
+
+            printk(KERN_ERR "[galcore]: %s(%d) GPU[%d] external clock off",
+                   __func__, __LINE__, Core);
+
+            /* Driver bug: register write when clock off. */
+            gcmkBUG_ON(1);
+            return gcvSTATUS_GENERIC_IO;
+        }
+
+        writel(Data, (gctUINT8 *)Os->device->registerBases[Core] + Address);
+        spin_unlock(&Os->registerAccessLock);
+    }
+    else
+    {
+        unsigned long flags;
+
+        spin_lock_irqsave(&Os->registerAccessLock, flags);
+
+        if (unlikely(Os->clockStates[Core] == gcvFALSE))
+        {
+            spin_unlock_irqrestore(&Os->registerAccessLock, flags);
+
+            printk(KERN_ERR "[galcore]: %s(%d) GPU[%d] external clock off",
+                      __func__, __LINE__, Core);
+
+            /* Driver bug: register write when clock off. */
+            gcmkBUG_ON(1);
+            return gcvSTATUS_GENERIC_IO;
+        }
+
+        writel(Data, (gctUINT8 *)Os->device->registerBases[Core] + Address);
         spin_unlock_irqrestore(&Os->registerAccessLock, flags);
 
-        gcmkPRINT("[galcore]: %s(%d) GPU[%d] external clock off",
-                  __func__, __LINE__, Core);
-
-        /* Driver bug: register write when clock off. */
-        gcmkBUG_ON(1);
-        return gcvSTATUS_GENERIC_IO;
-    }
-
-    writel(Data, (gctUINT8 *)Os->device->registerBases[Core] + Address);
-    spin_unlock_irqrestore(&Os->registerAccessLock, flags);
-
 #if gcdDUMP_AHB_ACCESS
-    if (!in_irq())
-    {
         /* Dangerous to print in interrupt context, skip. */
         gcmkPRINT("@[WR %d] %08x %08x", Core, Address, Data);
-    }
 #endif
+    }
 
     /* Success. */
     return gcvSTATUS_OK;
@@ -5385,18 +5417,6 @@ gckOS_SetGPUPower(
 
     clockChange = (Clock != Os->clockStates[Core]);
 
-    if (clockChange)
-    {
-        unsigned long flags;
-
-        spin_lock_irqsave(&Os->registerAccessLock, flags);
-
-        /* Record clock states, ahead. */
-        Os->clockStates[Core] = Clock;
-
-        spin_unlock_irqrestore(&Os->registerAccessLock, flags);
-    }
-
     if (powerChange && (Power == gcvTRUE))
     {
         if (platform && platform->ops->setPower)
@@ -5409,9 +5429,31 @@ gckOS_SetGPUPower(
 
     if (clockChange)
     {
+        unsigned long flags;
+
+        if (!Clock)
+        {
+            spin_lock_irqsave(&Os->registerAccessLock, flags);
+
+            /* Record clock off, ahead. */
+            Os->clockStates[Core] = gcvFALSE;
+
+            spin_unlock_irqrestore(&Os->registerAccessLock, flags);
+        }
+
         if (platform && platform->ops->setClock)
         {
             gcmkVERIFY_OK(platform->ops->setClock(platform, Core, Clock));
+        }
+
+        if (Clock)
+        {
+            spin_lock_irqsave(&Os->registerAccessLock, flags);
+
+            /* Record clock on, behind. */
+            Os->clockStates[Core] = gcvTRUE;
+
+            spin_unlock_irqrestore(&Os->registerAccessLock, flags);
         }
     }
 
