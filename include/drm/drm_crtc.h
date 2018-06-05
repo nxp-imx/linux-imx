@@ -84,6 +84,12 @@ struct drm_crtc_helper_funcs;
 struct drm_encoder_helper_funcs;
 struct drm_plane_helper_funcs;
 
+/* drm fence event */
+struct drm_fence_event {
+	struct fence *fence;
+	struct list_head link;
+};
+
 /**
  * struct drm_crtc_state - mutable CRTC state
  * @crtc: backpointer to the CRTC
@@ -198,6 +204,7 @@ struct drm_crtc_state {
 	 * safely.
 	 */
 	struct drm_pending_vblank_event *event;
+	struct drm_fence_event *fence;
 
 	struct drm_atomic_state *state;
 };
@@ -695,6 +702,14 @@ struct drm_crtc {
 	 */
 
 	spinlock_t fence_lock;
+	/**
+	 * Fence queue used to store android out fence list.
+	 */
+	struct list_head fence_queue;
+	/**
+         * The fence belongs to buffer which is on screen now.
+         */
+	struct drm_fence_event *on_screen;
 	/**
 	 * @fence_seqno:
 	 *
@@ -1206,6 +1221,13 @@ struct drm_mode_config {
 	 * value of type s32, and then cast that pointer to u64.
 	 */
 	struct drm_property *prop_out_fence_ptr;
+	/**
+	 * @prop_android_out_fence_ptr: Sync File fd pointer representing the
+	 * outgoing fences for a CRTC. Userspace should provide a pointer to a
+	 * value of type s32, and then cast that pointer to u64.
+	 * Android out fence is signaled when relevant buffer is off screen.
+	 */
+	struct drm_property *prop_android_out_fence_ptr;
 	/**
 	 * @prop_crtc_id: Default atomic plane property to specify the
 	 * &drm_crtc.

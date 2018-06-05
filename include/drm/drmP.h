@@ -164,6 +164,7 @@ void drm_printk(const char *level, unsigned int category,
 #define DRIVER_RENDER			0x8000
 #define DRIVER_ATOMIC			0x10000
 #define DRIVER_KMS_LEGACY_CONTEXT	0x20000
+#define DRIVER_ATOMIC_ANDROID_FENCE	0x40000
 
 /***********************************************************************/
 /** \name Macros to make printk easier */
