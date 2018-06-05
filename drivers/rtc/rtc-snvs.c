@@ -139,11 +139,14 @@ static int snvs_rtc_set_time(struct device *dev, struct rtc_time *tm)
 {
 	struct snvs_rtc_data *data = dev_get_drvdata(dev);
 	unsigned long time;
+	int ret;
 
 	rtc_tm_to_time(tm, &time);
 
 	/* Disable RTC first */
-	snvs_rtc_enable(data, false);
+	ret = snvs_rtc_enable(data, false);
+	if (ret)
+		return ret;
 
 	udelay(50);
 
@@ -152,9 +155,9 @@ static int snvs_rtc_set_time(struct device *dev, struct rtc_time *tm)
 	regmap_write(data->regmap, data->offset + SNVS_LPSRTCMR, time >> (32 - CNTR_TO_SECS_SH));
 
 	/* Enable RTC again */
-	snvs_rtc_enable(data, true);
+	ret = snvs_rtc_enable(data, true);
 
-	return 0;
+	return ret;
 }
 
 static int snvs_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alrm)
@@ -297,7 +300,11 @@ static int snvs_rtc_probe(struct platform_device *pdev)
 	regmap_write(data->regmap, data->offset + SNVS_LPSR, 0xffffffff);
 
 	/* Enable RTC */
-	snvs_rtc_enable(data, true);
+	ret = snvs_rtc_enable(data, true);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to enable rtc %d\n", ret);
+		goto error_rtc_device_register;
+	}
 
 	device_init_wakeup(&pdev->dev, true);
 

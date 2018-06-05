@@ -740,6 +740,10 @@ static int parse_options(struct super_block *sb, char *options)
 			} else if (strlen(name) == 6 &&
 					!strncmp(name, "strict", 6)) {
 				F2FS_OPTION(sbi).fsync_mode = FSYNC_MODE_STRICT;
+			} else if (strlen(name) == 9 &&
+					!strncmp(name, "nobarrier", 9)) {
+				F2FS_OPTION(sbi).fsync_mode =
+							FSYNC_MODE_NOBARRIER;
 			} else {
 				kfree(name);
 				return -EINVAL;
@@ -3096,8 +3100,13 @@ static int __init init_f2fs_fs(void)
 	err = f2fs_create_root_stats();
 	if (err)
 		goto free_filesystem;
+	err = f2fs_init_post_read_processing();
+	if (err)
+		goto free_root_stats;
 	return 0;
 
+free_root_stats:
+	f2fs_destroy_root_stats();
 free_filesystem:
 	unregister_filesystem(&f2fs_fs_type);
 free_shrinker:
@@ -3120,6 +3129,7 @@ fail:
 
 static void __exit exit_f2fs_fs(void)
 {
+	f2fs_destroy_post_read_processing();
 	f2fs_destroy_root_stats();
 	unregister_filesystem(&f2fs_fs_type);
 	unregister_shrinker(&f2fs_shrinker_info);
