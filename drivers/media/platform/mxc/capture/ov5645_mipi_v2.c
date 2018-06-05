@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2011-2016 Freescale Semiconductor, Inc. All Rights Reserved.
- * Copyright 2017 NXP
  */
 
 /*
@@ -38,6 +37,7 @@
 
 #define OV5645_XCLK_MIN 6000000
 #define OV5645_XCLK_MAX 24000000
+#define OV5645_XCLK_20MHZ 20000000
 
 #define OV5645_CHIP_ID_HIGH_BYTE	0x300A
 #define OV5645_CHIP_ID_LOW_BYTE		0x300B
@@ -49,8 +49,7 @@ enum ov5645_mode {
 	ov5645_mode_720P_1280_720 = 2,
 	ov5645_mode_1080P_1920_1080 = 3,
 	ov5645_mode_QSXGA_2592_1944 = 4,
-	ov5645_mode_QCIF_176_144 = 5,
-	ov5645_mode_MAX = 6,
+	ov5645_mode_MAX = 5,
 	ov5645_mode_INIT = 0xff, /*only for sensor init*/
 };
 
@@ -118,11 +117,25 @@ struct ov5645 {
 
 	void (*io_init)(void);
 };
+
+struct ov5645_res {
+	int width;
+	int height;
+};
+
 /*!
  * Maintains the information on the current state of the sesor.
  */
 static struct ov5645 ov5645_data;
 static int pwn_gpio, rst_gpio;
+
+struct ov5645_res ov5645_valid_res[] = {
+	[0] = {640, 480},
+	[1] = {720, 480},
+	[2] = {1280, 720},
+	[3] = {1920, 1080},
+	[4] = {2592, 1944},
+};
 
 static struct reg_value ov5645_init_setting_30fps_VGA[] = {
 
@@ -344,28 +357,6 @@ static struct reg_value ov5645_setting_15fps_QSXGA_2592_1944[] = {
 	{0x4202, 0x00, 0, 0},	/* stream on the sensor */
 };
 
-static struct reg_value ov5645_setting_30fps_QCIF_176_144[] = {
-	{0x3008, 0x42, 0, 0},
-	{0x3035, 0x14, 0, 0}, {0x3036, 0x38, 0, 0}, {0x3c07, 0x08, 0, 0},
-	{0x3c09, 0x1c, 0, 0}, {0x3c0a, 0x9c, 0, 0}, {0x3c0b, 0x40, 0, 0},
-	{0x3820, 0x41, 0, 0}, {0x3821, 0x07, 0, 0}, {0x3814, 0x31, 0, 0},
-	{0x3815, 0x31, 0, 0}, {0x3800, 0x00, 0, 0}, {0x3801, 0x00, 0, 0},
-	{0x3802, 0x00, 0, 0}, {0x3803, 0x04, 0, 0}, {0x3804, 0x0a, 0, 0},
-	{0x3805, 0x3f, 0, 0}, {0x3806, 0x07, 0, 0}, {0x3807, 0x9b, 0, 0},
-	{0x3808, 0x00, 0, 0}, {0x3809, 0xb0, 0, 0}, {0x380a, 0x00, 0, 0},
-	{0x380b, 0x90, 0, 0}, {0x380c, 0x07, 0, 0}, {0x380d, 0x68, 0, 0},
-	{0x380e, 0x03, 0, 0}, {0x380f, 0xd8, 0, 0}, {0x3810, 0x00, 0, 0},
-	{0x3811, 0x10, 0, 0}, {0x3812, 0x00, 0, 0}, {0x3813, 0x06, 0, 0},
-	{0x3618, 0x00, 0, 0}, {0x3612, 0x29, 0, 0}, {0x3708, 0x64, 0, 0},
-	{0x3709, 0x52, 0, 0}, {0x370c, 0x03, 0, 0}, {0x3a02, 0x03, 0, 0},
-	{0x3a03, 0xd8, 0, 0}, {0x3a08, 0x01, 0, 0}, {0x3a09, 0x27, 0, 0},
-	{0x3a0a, 0x00, 0, 0}, {0x3a0b, 0xf6, 0, 0}, {0x3a0e, 0x03, 0, 0},
-	{0x3a0d, 0x04, 0, 0}, {0x3a14, 0x03, 0, 0}, {0x3a15, 0xd8, 0, 0},
-	{0x4001, 0x02, 0, 0}, {0x4004, 0x02, 0, 0}, {0x4713, 0x03, 0, 0},
-	{0x4407, 0x04, 0, 0}, {0x460b, 0x35, 0, 0}, {0x460c, 0x22, 0, 0},
-	{0x3824, 0x02, 0, 0}, {0x5001, 0xa3, 0, 0},
-};
-
 static struct ov5645_mode_info ov5645_mode_info_data[2][ov5645_mode_MAX + 1] = {
 	{
 		{ov5645_mode_VGA_640_480, -1, 0, 0, NULL, 0},
@@ -375,7 +366,6 @@ static struct ov5645_mode_info ov5645_mode_info_data[2][ov5645_mode_MAX + 1] = {
 		{ov5645_mode_QSXGA_2592_1944, SCALING, 2592, 1944,
 		ov5645_setting_15fps_QSXGA_2592_1944,
 		ARRAY_SIZE(ov5645_setting_15fps_QSXGA_2592_1944)},
-		{ov5645_mode_QCIF_176_144, -1, 0, 0, NULL, 0},
 	},
 	{
 		{ov5645_mode_VGA_640_480, SUBSAMPLING, 640,  480,
@@ -391,9 +381,6 @@ static struct ov5645_mode_info ov5645_mode_info_data[2][ov5645_mode_MAX + 1] = {
 		ov5645_setting_30fps_1080P_1920_1080,
 		ARRAY_SIZE(ov5645_setting_30fps_1080P_1920_1080)},
 		{ov5645_mode_QSXGA_2592_1944, -1, 0, 0, NULL, 0},
-		{ov5645_mode_QCIF_176_144, SUBSAMPLING, 176, 144,
-		 ov5645_setting_30fps_QCIF_176_144,
-		 ARRAY_SIZE(ov5645_setting_30fps_QCIF_176_144)},
 	},
 };
 
@@ -410,7 +397,7 @@ static s32 ov5645_read_reg(u16 reg, u8 *val);
 static s32 ov5645_write_reg(u16 reg, u8 val);
 
 static const struct i2c_device_id ov5645_id[] = {
-	{"ov5645_mipisubdev", 0},
+	{"ov5645_mipi", 0},
 	{},
 };
 
@@ -419,7 +406,7 @@ MODULE_DEVICE_TABLE(i2c, ov5645_id);
 static struct i2c_driver ov5645_i2c_driver = {
 	.driver = {
 		  .owner = THIS_MODULE,
-		  .name  = "ov5645_mipisubdev",
+		  .name  = "ov5645_mipi",
 		  },
 	.probe  = ov5645_probe,
 	.remove = ov5645_remove,
@@ -429,6 +416,19 @@ static struct i2c_driver ov5645_i2c_driver = {
 static const struct ov5645_datafmt ov5645_colour_fmts[] = {
 	{MEDIA_BUS_FMT_YUYV8_2X8, V4L2_COLORSPACE_JPEG},
 };
+
+static int get_capturemode(int width, int height)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(ov5645_valid_res); i++) {
+		if ((ov5645_valid_res[i].width == width) &&
+		     (ov5645_valid_res[i].height == height))
+			return i;
+	}
+
+	return -1;
+}
 
 static struct ov5645 *to_ov5645(const struct i2c_client *client)
 {
@@ -481,7 +481,6 @@ static void ov5645_reset(void)
 
 	gpio_set_value(rst_gpio, 1);
 	msleep(5);
-
 }
 
 static int ov5645_regulator_enable(struct device *dev)
@@ -1331,6 +1330,7 @@ static int ov5645_set_fmt(struct v4l2_subdev *sd,
 	const struct ov5645_datafmt *fmt = ov5645_find_datafmt(mf->code);
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	struct ov5645 *sensor = to_ov5645(client);
+	int capturemode;
 
 	if (!fmt) {
 		mf->code	= ov5645_colour_fmts[0].code;
@@ -1344,7 +1344,16 @@ static int ov5645_set_fmt(struct v4l2_subdev *sd,
 
 	sensor->fmt = fmt;
 
-	return 0;
+	capturemode = get_capturemode(mf->width, mf->height);
+	if (capturemode >= 0) {
+		ov5645_data.streamcap.capturemode = capturemode;
+		ov5645_data.pix.width = mf->width;
+		ov5645_data.pix.height = mf->height;
+		return 0;
+	}
+
+	dev_err(&client->dev, "%s set fail\n", __func__);
+	return -EINVAL;
 }
 
 
@@ -1363,6 +1372,9 @@ static int ov5645_get_fmt(struct v4l2_subdev *sd,
 	mf->code	= fmt->code;
 	mf->colorspace	= fmt->colorspace;
 	mf->field	= V4L2_FIELD_NONE;
+
+	mf->width	= ov5645_data.pix.width;
+	mf->height	= ov5645_data.pix.height;
 
 	return 0;
 }
@@ -1523,6 +1535,19 @@ static struct v4l2_subdev_ops ov5645_subdev_ops = {
 	.pad	= &ov5645_subdev_pad_ops,
 };
 
+static void ov5645_adjust_setting_20mhz(void)
+{
+	struct reg_value *regsetting;
+	int i, array_size;
+
+	/* adjust for INIT mode */
+	regsetting = ov5645_init_setting_30fps_VGA;
+	array_size = ARRAY_SIZE(ov5645_init_setting_30fps_VGA);
+
+	for (i = 0; i < array_size; i++, regsetting++)
+		if (regsetting->u16RegAddr == 0x3037)
+			regsetting->u8Val = 0x17;
+}
 
 /*!
  * ov5645 I2C probe function
@@ -1586,6 +1611,9 @@ static int ov5645_probe(struct i2c_client *client,
 		dev_err(dev, "mclk missing or invalid\n");
 		return retval;
 	}
+
+	if (ov5645_data.mclk == OV5645_XCLK_20MHZ)
+		ov5645_adjust_setting_20mhz();
 
 	retval = of_property_read_u32(dev->of_node, "mclk_source",
 					(u32 *) &(ov5645_data.mclk_source));
