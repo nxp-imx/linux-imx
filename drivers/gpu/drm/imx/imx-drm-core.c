@@ -271,6 +271,8 @@ static int imx_drm_bind(struct device *dev)
 
 	if (has_dpu(dev))
 		imx_drm_driver.driver_features |= DRIVER_RENDER;
+       if (has_dcss(dev))
+               imx_drm_driver.driver_features |= DRIVER_ATOMIC_ANDROID_FENCE;
 
 	drm = drm_dev_alloc(&imx_drm_driver, dev);
 	if (IS_ERR(drm))
