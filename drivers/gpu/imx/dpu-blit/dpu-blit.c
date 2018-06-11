@@ -110,30 +110,27 @@ void dpu_be_configure_prefetch(struct dpu_bliteng *dpu_be,
 	static bool start = true;
 	static bool need_handle_start;
 	struct dprc *dprc;
-	static bool tiled_work_unfinished = true;
 
 	/* Enable DPR, dprc1 is connected to plane0 */
 	dprc = dpu_be->dprc[1];
 
 	/*
-	 * Waiting for the previous tiled command finished
-	 * before disable the dpr.
+	 * Force sync command sequncer in conditions:
+	 * 1. tile work with dprc/prg (baddr)
+	 * 2. switch tile to linear (!start)
 	 */
-	if (tiled_work_unfinished || baddr) {
+	if (!start || baddr) {
 		dpu_be_wait(dpu_be);
-		dpu_cs_wait_idle(dpu_be);
-		udelay(10);
-		tiled_work_unfinished = false;
 	}
 
 	if (baddr == 0x0) {
-		if (!start)
+		if (!start) {
 			dprc_disable(dprc);
+			need_handle_start = false;
+		}
 		start = true;
 		return;
 	}
-
-	tiled_work_unfinished = true;
 
 	if (need_handle_start) {
 		dprc_first_frame_handle(dprc);
@@ -148,14 +145,12 @@ void dpu_be_configure_prefetch(struct dpu_bliteng *dpu_be,
 		       start, start,
 		       false);
 
-	if (start)
-		dprc_enable(dprc);
-
-	dprc_reg_update(dprc);
-
 	if (start) {
+		dprc_enable(dprc);
 		need_handle_start = true;
 	}
+
+	dprc_reg_update(dprc);
 
 	start = false;
 }
@@ -247,7 +242,11 @@ EXPORT_SYMBOL(dpu_be_blit);
 #define STORE9_SEQCOMPLETE_IRQ_MASK	(1U<<STORE9_SEQCOMPLETE_IRQ)
 void dpu_be_wait(struct dpu_bliteng *dpu_be)
 {
-	dpu_be_write(dpu_be, 0x10, PIXENGCFG_STORE9_TRIGGER);
+	dpu_cs_wait_fifo_space(dpu_be);
+
+	dpu_be_write(dpu_be, 0x14000001, CMDSEQ_HIF);
+	dpu_be_write(dpu_be, PIXENGCFG_STORE9_TRIGGER, CMDSEQ_HIF);
+	dpu_be_write(dpu_be, 0x10, CMDSEQ_HIF);
 
 	while ((dpu_be_read(dpu_be, COMCTRL_INTERRUPTSTATUS0) &
 		STORE9_SEQCOMPLETE_IRQ_MASK) == 0)
