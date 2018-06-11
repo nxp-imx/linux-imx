@@ -648,19 +648,16 @@
 	pinctrl-0 = <&pinctrl_i2c2>;
 	status = "okay";
 
-	adv7535: adv7535@3d {
-		compatible = "adi,adv7535";
+	adv_bridge: adv7535@3d {
+		compatible = "adi,adv7533";
 		reg = <0x3d>;
 		adi,addr-cec = <0x3b>;
 		adi,dsi-lanes = <4>;
-		video-mode = <16>;      /* 1920x1080@60HZ */
-		dsi-traffic-mode = <0>;
-		bpp = <24>;
 		status = "okay";
 
 		port {
-			dsi_to_hdmi: endpoint {
-				remote-endpoint = <&mipi_dsi_ep>;
+			adv7535_from_dsim: endpoint {
+				remote-endpoint = <&dsim_to_adv7535>;
 			};
 		};
 	};
@@ -704,48 +701,6 @@
 	};
 };
 
-&lcdif {
-       status = "okay";
-       disp-dev = "mipi_dsi_samsung";
-       display = <&display0>;
-	disp-videomode = "TRUULY-WVGA-SYNC-LOW";
-
-       display0: display@0 {
-               bits-per-pixel = <24>;
-               bus-width = <24>;
-               fbpix = "ABGR32";
-
-               display-timings {
-                       native-mode = <&timing0>;
-                       timing0: timing0 {
-                       clock-frequency = <9200000>;
-                       hactive = <480>;
-                       vactive = <272>;
-                       hfront-porch = <8>;
-                       hback-porch = <4>;
-                       hsync-len = <41>;
-                       vback-porch = <2>;
-                       vfront-porch = <4>;
-                       vsync-len = <10>;
-
-                       hsync-active = <0>;
-                       vsync-active = <0>;
-                       de-active = <1>;
-                       pixelclk-active = <0>;
-                       };
-               };
-       };
-};
-
-&mipi_dsi {
-	status = "okay";
-	port {
-		mipi_dsi_ep: endpoint {
-			remote-endpoint = <&dsi_to_hdmi>;
-		};
-	};
-};
-
 &mipi_csi_1 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -754,7 +709,7 @@
 		mipi1_sensor_ep: endpoint1 {
 			remote-endpoint = <&ov5640_mipi1_ep>;
 			data-lanes = <2>;
-			csis-hs-settle = <13>;
+			csis-hs-settle = <5>;
 			csis-clk-settle = <2>;
 			csis-wclk;
 		};
@@ -820,6 +775,20 @@
 			ov5640_mipi1_ep: endpoint {
 				remote-endpoint = <&mipi1_sensor_ep>;
 			};
+		};
+	};
+};
+
+&lcdif {
+	status = "okay";
+};
+
+&mipi_dsi {
+	status = "okay";
+
+	port@1 {
+		dsim_to_adv7535: endpoint {
+			remote-endpoint = <&adv7535_from_dsim>;
 		};
 	};
 };
@@ -1013,6 +982,6 @@
 	pinctrl-0 = <&pinctrl_pdm>;
 	assigned-clocks = <&clk IMX8MM_CLK_PDM_SRC>, <&clk IMX8MM_CLK_PDM_DIV>;
 	assigned-clock-parents = <&clk IMX8MM_AUDIO_PLL1_OUT>;
-	assigned-clock-rates = <0>, <24576000>;
+	assigned-clock-rates = <0>, <196608000>;
 	status = "okay";
 };
