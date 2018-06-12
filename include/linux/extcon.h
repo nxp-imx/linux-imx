@@ -85,6 +85,8 @@
 #define EXTCON_DISP_HMD		45	/* Head-Mounted Display */
 
 /* Miscellaneous external connector */
+#define EXTCON_CAN_RPMSG_REGISTER	58
+#define EXTCON_CAN_RPMSG_EVENT	59
 #define EXTCON_DOCK		60
 #define EXTCON_JIG		61
 #define EXTCON_MECHANICAL	62

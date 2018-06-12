@@ -13,3 +13,4 @@ obj-$(CONFIG_MX8_HDP)	+= hdp/
 obj-$(CONFIG_IMX_HDP_CEC)	+= hdp-cec/
 obj-$(CONFIG_MXC_VPU_DECODER) += vpu-decoder-b0/
 obj-$(CONFIG_MXC_VPU_ENCODER) += vpu-encoder-b0/
+obj-$(CONFIG_CAN_RPMSG) += can_rpmsg/

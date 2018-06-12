@@ -207,6 +207,12 @@
 		interrupt-parent = <&gic>;
 	};
 
+	can_rpmsg: can_rpmsg {
+		compatible = "nxp,imx-can-rpmsg";
+		power-domains = <&pd_dc0>;
+		status = "disabled";
+	};
+
 	smmu: iommu@51400000 {
 		compatible = "arm,mmu-500";
 		interrupt-parent = <&gic>;
