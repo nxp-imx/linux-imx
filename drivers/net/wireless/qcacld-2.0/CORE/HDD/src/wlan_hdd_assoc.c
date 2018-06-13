@@ -2309,6 +2309,7 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
     hdd_ap_ctx_t *hdd_ap_ctx;
     uint8_t default_sap_channel = 6;
     tSirResultCodes timeout_reason = 0;
+    struct wireless_dev *wdev = dev->ieee80211_ptr;
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
     if (pRoamInfo && pRoamInfo->roamSynchInProgress) {
        /* change logging before release */
@@ -2604,12 +2605,13 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
                     hddLog(LOG1, "%s ft_carrier_on is %d, sending connect "
                                  "indication", __FUNCTION__, ft_carrier_on);
 
-                    hdd_connect_result(dev, pRoamInfo->bssid, pRoamInfo,
-                                       pFTAssocReq, assocReqlen,
-                                       pFTAssocRsp, assocRsplen,
-                                       WLAN_STATUS_SUCCESS,
-                                       GFP_KERNEL, false,
-                                       pRoamInfo->statusCode);
+                    if(wdev->ssid_len != 0)
+                        hdd_connect_result(dev, pRoamInfo->bssid, pRoamInfo,
+                                pFTAssocReq, assocReqlen,
+                                pFTAssocRsp, assocRsplen,
+                                WLAN_STATUS_SUCCESS,
+                                GFP_KERNEL, false,
+                                pRoamInfo->statusCode);
                 }
             }
             else
@@ -2640,7 +2642,8 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
                                roamResult, roamStatus);
 
                         /* inform connect result to nl80211 */
-                        hdd_connect_result(dev, pRoamInfo->bssid, pRoamInfo,
+                        if(wdev->ssid_len != 0)
+                            hdd_connect_result(dev, pRoamInfo->bssid, pRoamInfo,
                                 reqRsnIe, reqRsnLength,
                                 rspRsnIe, rspRsnLength,
                                 WLAN_STATUS_SUCCESS,
