@@ -440,7 +440,7 @@ static void sec_mipi_dsim_bridge_detach(struct drm_bridge *bridge)
 static int sec_mipi_dsim_config_pll(struct sec_mipi_dsim *dsim)
 {
 	int ret;
-	uint32_t pllctrl = 0, status, data_lanes_en;
+	uint32_t pllctrl = 0, status, data_lanes_en, stop;
 
 	dsim_write(dsim, 0x8000, DSIM_PLLTMR);
 
@@ -465,7 +465,8 @@ static int sec_mipi_dsim_config_pll(struct sec_mipi_dsim *dsim)
 		return -EBUSY;
 	}
 
-	if (STATUS_GET_STOPSTATEDAT(status) != data_lanes_en) {
+	stop = STATUS_GET_STOPSTATEDAT(status);
+	if ((stop & data_lanes_en) != data_lanes_en) {
 		dev_err(dsim->dev,
 			"one or more data lanes is not in stop state\n");
 		return -EBUSY;
