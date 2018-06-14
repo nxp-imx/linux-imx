@@ -105,13 +105,12 @@ void HTCGetControlEndpointTxHostCredits(HTC_HANDLE HTCHandle, int *credits)
 
 static INLINE void RestoreTxPacket(HTC_TARGET *target, HTC_PACKET *pPacket)
 {
+    adf_nbuf_t netbuf = GET_HTC_PACKET_NET_BUF_CONTEXT(pPacket);
     if (pPacket->PktInfo.AsTx.Flags & HTC_TX_PACKET_FLAG_FIXUP_NETBUF) {
-        adf_nbuf_t netbuf = GET_HTC_PACKET_NET_BUF_CONTEXT(pPacket);
         adf_nbuf_unmap(target->osdev, netbuf, ADF_OS_DMA_TO_DEVICE);
-        adf_nbuf_pull_head(netbuf, sizeof(HTC_FRAME_HDR));
         pPacket->PktInfo.AsTx.Flags &= ~HTC_TX_PACKET_FLAG_FIXUP_NETBUF;
     }
-
+    adf_nbuf_pull_head(netbuf, sizeof(HTC_FRAME_HDR));
 }
 
 static void DoSendCompletion(HTC_ENDPOINT       *pEndpoint,
@@ -641,11 +640,11 @@ static A_STATUS HTCIssuePackets(HTC_TARGET       *target,
              * that is already mapped, or a non-data netbuf that needs to be
              * mapped.
              */
-            if (pPacket->PktInfo.AsTx.Flags & HTC_TX_PACKET_FLAG_FIXUP_NETBUF) {
-                adf_nbuf_map(
-                        target->osdev,
-                        GET_HTC_PACKET_NET_BUF_CONTEXT(pPacket),
-                        ADF_OS_DMA_TO_DEVICE);
+            pPacket->PktInfo.AsTx.Flags |= HTC_TX_PACKET_FLAG_FIXUP_NETBUF;
+            adf_nbuf_map(
+                    target->osdev,
+                    GET_HTC_PACKET_NET_BUF_CONTEXT(pPacket),
+                    ADF_OS_DMA_TO_DEVICE);
             }
         }
         LOCK_HTC_TX(target);
@@ -1261,12 +1260,14 @@ A_STATUS HTCSendPktsMultiple(HTC_HANDLE HTCHandle, HTC_PACKET_QUEUE *pPktQueue)
              * mapped.  This only applies to non-data frames, since data frames
              * were already mapped as they entered into the driver.
              */
-            adf_nbuf_map(
-                    target->osdev,
-                    GET_HTC_PACKET_NET_BUF_CONTEXT(pPacket),
-                    ADF_OS_DMA_TO_DEVICE);
 
-	pPacket->PktInfo.AsTx.Flags |= HTC_TX_PACKET_FLAG_FIXUP_NETBUF;
+            if(!IS_TX_CREDIT_FLOW_ENABLED(pEndpoint)) {
+                pPacket->PktInfo.AsTx.Flags |= HTC_TX_PACKET_FLAG_FIXUP_NETBUF;
+                adf_nbuf_map(
+                        target->osdev,
+                        GET_HTC_PACKET_NET_BUF_CONTEXT(pPacket),
+                        ADF_OS_DMA_TO_DEVICE);
+            }
     } HTC_PACKET_QUEUE_ITERATE_END;
 
     HTCTrySend(target,pEndpoint,pPktQueue);
