@@ -645,7 +645,6 @@ static A_STATUS HTCIssuePackets(HTC_TARGET       *target,
                     target->osdev,
                     GET_HTC_PACKET_NET_BUF_CONTEXT(pPacket),
                     ADF_OS_DMA_TO_DEVICE);
-            }
         }
         LOCK_HTC_TX(target);
             /* store in look up queue to match completions */
