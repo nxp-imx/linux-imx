@@ -19,6 +19,7 @@
 #endif
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
+#include <sound/jack.h>
 
 #include "fsl_esai.h"
 #include "fsl_sai.h"
@@ -149,6 +150,20 @@ static const struct snd_soc_dapm_widget fsl_asoc_card_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Mic Jack", NULL),
 	SND_SOC_DAPM_MIC("AMIC", NULL),
 	SND_SOC_DAPM_MIC("DMIC", NULL),
+};
+
+static struct snd_soc_jack headset_jack;
+
+static struct snd_soc_jack_pin headset_jack_pin = {
+	.pin = "Headphone Jack",
+	.mask = 0xFFFFF,
+	.invert = 0
+};
+
+static const struct snd_kcontrol_new additional_kcontrols[] = {
+	SOC_DAPM_PIN_SWITCH("Headphone Jack"),
+	SOC_DAPM_PIN_SWITCH("Ext Spk"),
+	SOC_DAPM_PIN_SWITCH("DMIC"),
 };
 
 static bool fsl_asoc_card_is_ac97(struct fsl_asoc_card_priv *priv)
@@ -516,8 +531,24 @@ static int fsl_asoc_card_late_probe(struct snd_soc_card *card)
 					RT5645_DA_MONO_L_FILTER |
 					RT5645_DA_MONO_R_FILTER,
 					RT5645_CLK_SEL_I2S1_ASRC);
+
+		ret = snd_soc_card_jack_new(card, "Headphone Jack",
+					    SND_JACK_HEADPHONE,
+					    &headset_jack,
+					    &headset_jack_pin, 1);
+		if (ret) {
+			dev_err(card->dev, "Setting up headphone jack failed! %d\n", ret);
+			return ret;
+		}
+
+		ret = rt5645_set_jack_detect(rtd->codec, &headset_jack, NULL, NULL);
+
+		if (ret) {
+			dev_err(card->dev, "Setting up jack detect failed! %d\n", ret);
+			return ret;
+		}
 #endif
-    }
+	}
 
 	ret = snd_soc_dai_set_sysclk(codec_dai, codec_priv->mclk_id,
 				     codec_priv->mclk_freq, SND_SOC_CLOCK_IN);
@@ -635,6 +666,8 @@ static int fsl_asoc_card_probe(struct platform_device *pdev)
 	} else if (of_device_is_compatible(np, "fsl,imx-audio-rt5645")) {
 		codec_dai_name = "rt5645-aif1";
 		priv->card.set_bias_level = fsl_asoc_card_set_bias_level;
+		priv->card.controls = additional_kcontrols;
+		priv->card.num_controls = ARRAY_SIZE(additional_kcontrols);
 		priv->dai_fmt |=
 		    SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF |
 		    SND_SOC_DAIFMT_CBS_CFS;
