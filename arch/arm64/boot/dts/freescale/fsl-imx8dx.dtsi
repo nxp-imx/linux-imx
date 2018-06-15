@@ -3166,7 +3166,7 @@
 		status = "disabled";
 	};
 
-	imx_ion {
+	imx_ion: imx_ion {
 		compatible = "fsl,mxc-ion";
 		fsl,heap-id = <0>;
 	};
