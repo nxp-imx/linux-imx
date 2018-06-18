@@ -3122,6 +3122,13 @@ static int rt5645_jack_detect(struct snd_soc_codec *codec, int jack_insert)
 	if (jack_insert) {
 		regmap_write(rt5645->regmap, RT5645_CHARGE_PUMP, 0x0e06);
 
+		if (rt5645->pdata.jd_low_volt_enable) {
+			/* Enable the headphone output voltage bias on the HPO_L
+			   line to improve jack detection */
+			regmap_update_bits(rt5645->regmap, RT5645_CHARGE_PUMP,
+					   3 << 11, 3 << 11);
+		}
+
 		/* for jack type detect */
 		snd_soc_dapm_force_enable_pin(dapm, "LDO2");
 		snd_soc_dapm_force_enable_pin(dapm, "Mic Det Power");
@@ -3673,9 +3680,10 @@ static struct dmi_system_id dmi_platform_minix_z83_4[] = {
 static bool rt5645_check_dp(struct device *dev)
 {
 	if (device_property_present(dev, "realtek,in2-differential") ||
-		device_property_present(dev, "realtek,dmic1-data-pin") ||
-		device_property_present(dev, "realtek,dmic2-data-pin") ||
-		device_property_present(dev, "realtek,jd-mode"))
+	    device_property_present(dev, "realtek,dmic1-data-pin") ||
+	    device_property_present(dev, "realtek,dmic2-data-pin") ||
+	    device_property_present(dev, "realtek,jd-mode") ||
+	    device_property_present(dev, "realtek,jd-low-volt-enable"))
 		return true;
 
 	return false;
@@ -3691,6 +3699,9 @@ static int rt5645_parse_dt(struct rt5645_priv *rt5645, struct device *dev)
 		"realtek,dmic2-data-pin", &rt5645->pdata.dmic2_data_pin);
 	device_property_read_u32(dev,
 		"realtek,jd-mode", &rt5645->pdata.jd_mode);
+	device_property_read_u32(dev,
+		 "realtek,jd-low-volt-enable",
+		 &rt5645->pdata.jd_low_volt_enable);
 
 	return 0;
 }

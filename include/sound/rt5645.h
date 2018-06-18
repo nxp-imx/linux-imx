@@ -25,6 +25,8 @@ struct rt5645_platform_data {
 	bool level_trigger_irq;
 	/* Invert JD1_1 status polarity */
 	bool inv_jd1_1;
+	/* Toggle HPO_L voltage low during a jack detect event */
+	bool jd_low_volt_enable;
 };
 
 #endif
