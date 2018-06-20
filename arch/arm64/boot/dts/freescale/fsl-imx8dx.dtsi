@@ -104,22 +104,14 @@
 			no-map;
 			reg = <0 0x92400000 0 0x2000000>;
 		};
-		/* global autoconfigured region for contiguous allocations */
-		linux,cma {
-			compatible = "shared-dma-pool";
-			reusable;
-			size = <0 0x28000000>;
-			alloc-ranges = <0 0x96000000 0 0x28000000>;
-			linux,cma-default;
+		ramoops@0x94400000 {
+			compatible = "ramoops";
+			reg = <0 0x94400000 0 0x00100000>;
+			record-size     = <0x00020000>;
+			console-size    = <0x00020000>;
+			ftrace-size     = <0x00020000>;
+			pmsg-size       = <0x00020000>;
 		};
-                ramoops@0x94400000 {
-                        compatible = "ramoops";
-                        reg = <0 0x94400000 0 0x00100000>;
-                        record-size     = <0x00020000>;
-                        console-size    = <0x00020000>;
-                        ftrace-size     = <0x00020000>;
-                        pmsg-size       = <0x00020000>;
-                };
 	};
 
 	gic: interrupt-controller@51a00000 {
