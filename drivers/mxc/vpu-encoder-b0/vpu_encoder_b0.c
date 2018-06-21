@@ -264,6 +264,7 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 	pMEDIA_ENC_API_CONTROL_INTERFACE pEncCtrlInterface;
 	pMEDIAIP_ENC_PARAM  pEncParam;
 	pMEDIAIP_ENC_EXPERT_MODE_PARAM pEncExpertModeParam;
+	u_int32 i;
 
 	pEncCtrlInterface = (pMEDIA_ENC_API_CONTROL_INTERFACE)phy_to_virt(pSharedInterface->pEncCtrlInterface[ctx->str_index],
 			ctx->dev->shared_mem.base_offset);
@@ -286,6 +287,9 @@ static int v4l2_ioctl_s_fmt(struct file *file,
 		q_data->rect.height = pix_mp->height;
 		q_data->sizeimage[0] = pix_mp->width * pix_mp->height;
 		q_data->sizeimage[1] = pix_mp->width * pix_mp->height / 2;
+		pix_mp->num_planes = 2;
+		for (i = 0; i < pix_mp->num_planes; i++)
+			pix_mp->plane_fmt[i].sizeimage = q_data->sizeimage[i];
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		q_data = &ctx->q_data[V4L2_DST];
 		q_data->fourcc = pix_mp->pixelformat;
@@ -660,8 +664,25 @@ static int v4l2_enc_s_ctrl(struct v4l2_ctrl *ctrl)
 	return 0;
 }
 
+static int v4l2_enc_g_ctrl(struct v4l2_ctrl *ctrl)
+{
+	vpu_dbg(LVL_INFO, "g_ctrl: id = %d\n", ctrl->id);
+
+	switch (ctrl->id) {
+	case V4L2_CID_MIN_BUFFERS_FOR_OUTPUT:
+		ctrl->val = 6;
+		break;
+	default:
+		vpu_dbg(LVL_INFO, "%s() Invalid control(%d)\n",
+				__func__, ctrl->id);
+		return -EINVAL;
+	}
+	return 0;
+}
+
 static const struct v4l2_ctrl_ops   vpu_enc_ctrl_ops = {
 	.s_ctrl             = v4l2_enc_s_ctrl,
+	.g_volatile_ctrl    = v4l2_enc_g_ctrl,
 };
 
 static void vpu_encoder_ctrls(struct vpu_ctx *ctx)
@@ -690,6 +711,8 @@ static void vpu_encoder_ctrls(struct vpu_ctx *ctx)
 		V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP, 0, 51, 1, 25);
 	v4l2_ctrl_new_std(&ctx->ctrl_handler, &vpu_enc_ctrl_ops,
 		V4L2_CID_MPEG_VIDEO_H264_B_FRAME_QP, 0, 51, 1, 25);
+	v4l2_ctrl_new_std(&ctx->ctrl_handler, &vpu_enc_ctrl_ops,
+		V4L2_CID_MIN_BUFFERS_FOR_OUTPUT, 0, 32, 1, 6);
 }
 
 static int ctrls_setup_encoder(struct vpu_ctx *ctx)
@@ -833,6 +856,8 @@ static bool update_yuv_addr(struct vpu_ctx *ctx, u_int32 uStrIdx)
  #endif
 		pphy_address = (u_int32 *)vb2_plane_cookie(p_data_req->vb2_buf, 0);
 		pParamYuvBuffDesc->uLumaBase = *pphy_address;
+		pphy_address = (u_int32 *)vb2_plane_cookie(p_data_req->vb2_buf, 1);
+		pParamYuvBuffDesc->uChromaBase = *pphy_address;
     /* Not sure what the test should be here for a valid frame return from vb2_plane_cookie */
 		if (pParamYuvBuffDesc->uLumaBase != 0)
 			bGotAFrame = TRUE;
@@ -1278,11 +1303,17 @@ static int vpu_queue_setup(struct vb2_queue *vq,
 	if ((vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) ||
 		(vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		) {
-			*plane_count = 1;
-			psize[0] = This->sizeimage[0];//check alignment
-	} else {
 		*plane_count = 1;
-		psize[0] = This->sizeimage[0] + This->sizeimage[1];
+		psize[0] = This->sizeimage[0];//check alignment
+	} else {
+		if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+			*plane_count = 2;
+			psize[0] = This->sizeimage[0];//check alignment
+			psize[1] = This->sizeimage[1];//check colocated_size
+		} else {
+			psize[0] = This->sizeimage[0] + This->sizeimage[1];
+			*plane_count = 1;
+		}
 	}
 	return 0;
 }

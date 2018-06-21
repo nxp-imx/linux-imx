@@ -15,11 +15,21 @@
 
 /dts-v1/;
 
-#include "fsl-imx8qp.dtsi"
+#include "fsl-imx8dxp.dtsi"
 
-#include "fsl-imx8q-arm2.dtsi"
+#include "fsl-imx8x-arm2.dtsi"
 
 / {
-        model = "Freescale i.MX8QP ARM2";
-        compatible = "fsl,imx8qp-arm2", "fsl,imx8qp", "fsl,imx8qm";
+		model = "Freescale i.MX8DXP ARM2";
+		compatible = "fsl,imx8dxp-arm2", "fsl,imx8dxp", "fsl,imx8qxp";
+};
+
+&usbotg3 {
+	dr_mode = "otg";
+	extcon = <&typec_ptn5150>;
+	status = "okay";
+};
+
+&vpu_decoder {
+	status = "okay";
 };
