@@ -38,9 +38,6 @@
 /* Default DAI format without Master and Slave flag */
 #define DAI_FMT_BASE (SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF)
 
-/* FIXME: pull from devicetree */
-#define PLATFORM_CLOCK 24576000
-
 enum {
 	FSL_CODEC_UNKNOWN,
 	FSL_CODEC_CS42888,
@@ -190,41 +187,6 @@ static int fsl_asoc_card_hw_params(struct snd_pcm_substream *substream,
 	priv->sample_rate = params_rate(params);
 	priv->sample_format = params_format(params);
 
-	/* Currently we do this to set the clocks appropriately for the ALC5645.
-	 * It's not clear if the bias function will be enough for this, but it
-	 * works for now.
-	 *
-	 * TODO: Remove this and migrate to the bias function?
-	 */
-	if (priv->codec_priv.codec_type == FSL_CODEC_RT5645) {
-		/* set codec PLL source to the 24.576MHz (MCLK) platform clock */
-		ret = snd_soc_dai_set_pll(rtd->codec_dai, 0, RT5645_PLL1_S_MCLK,
-					  PLATFORM_CLOCK,
-					  priv->sample_rate * 512);
-		if (ret < 0) {
-			dev_err(rtd->dev, "can't set codec pll: %d\n", ret);
-			return ret;
-		}
-
-		ret = snd_soc_dai_set_sysclk(rtd->codec_dai, RT5645_SCLK_S_PLL1,
-					     priv->sample_rate * 512,
-					     SND_SOC_CLOCK_IN);
-		if (ret < 0) {
-			dev_err(rtd->dev, "can't set codec sysclk: %d\n", ret);
-			return ret;
-		}
-
-		ret = snd_soc_dai_set_sysclk(rtd->codec_dai, RT5645_SCLK_S_PLL1,
-					     priv->sample_rate * 512,
-					     SND_SOC_CLOCK_OUT);
-		if (ret < 0) {
-			dev_err(rtd->dev, "can't set codec sysclk: %d\n", ret);
-			return ret;
-		}
-
-		return ret;
-	}
-
 	/*
 	 * If codec-dai is DAI Master and all configurations are already in the
 	 * set_bias_level(), bypass the remaining settings in hw_params().
@@ -251,6 +213,35 @@ static int fsl_asoc_card_hw_params(struct snd_pcm_substream *substream,
 			dev_err(dev, "failed to set TDM slot for cpu dai\n");
 			return ret;
 		}
+	}
+
+	if (priv->codec_priv.codec_type == FSL_CODEC_RT5645) {
+		/* set codec PLL source to the 24.576MHz (MCLK) platform clock */
+		ret = snd_soc_dai_set_pll(rtd->codec_dai, 0, RT5645_PLL1_S_MCLK,
+					  priv->codec_priv.mclk_freq,
+					  priv->sample_rate * 512);
+		if (ret < 0) {
+			dev_err(rtd->dev, "can't set codec pll: %d\n", ret);
+			return ret;
+		}
+
+		ret = snd_soc_dai_set_sysclk(rtd->codec_dai, RT5645_SCLK_S_PLL1,
+					     priv->sample_rate * 512,
+					     SND_SOC_CLOCK_IN);
+		if (ret < 0) {
+			dev_err(rtd->dev, "can't set codec sysclk: %d\n", ret);
+			return ret;
+		}
+
+		ret = snd_soc_dai_set_sysclk(rtd->codec_dai, RT5645_SCLK_S_PLL1,
+					     priv->sample_rate * 512,
+					     SND_SOC_CLOCK_OUT);
+		if (ret < 0) {
+			dev_err(rtd->dev, "can't set codec sysclk: %d\n", ret);
+			return ret;
+		}
+
+		return ret;
 	}
 
 	return 0;
@@ -695,7 +686,7 @@ static int fsl_asoc_card_probe(struct platform_device *pdev)
 		priv->codec_priv.pll_id = 0;
 		priv->codec_priv.fll_id = RT5645_SCLK_S_PLL1;
 		priv->codec_priv.mclk_id = RT5645_SCLK_S_MCLK;
-		priv->codec_priv.mclk_freq = PLATFORM_CLOCK;
+		priv->codec_priv.mclk_freq = priv->codec_priv.mclk_freq;
 	} else {
 		dev_err(&pdev->dev, "unknown Device Tree compatible\n");
 		ret = -EINVAL;
