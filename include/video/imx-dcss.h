@@ -155,5 +155,8 @@ void dcss_dec400d_read_config(struct dcss_soc *dcss,
 			      uint32_t read_id,
 			      bool compress_en,
 			      uint32_t compress_format);
+void dcss_dec400d_fast_clear_config(struct dcss_soc *dcss,
+                                    uint32_t fc_value,
+                                    bool enable);
 void dcss_dec400d_enable(struct dcss_soc *dcss);
 #endif /* __IMX_DCSS_H__ */

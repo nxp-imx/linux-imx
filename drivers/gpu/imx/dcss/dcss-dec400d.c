@@ -289,6 +289,16 @@ config:
 }
 EXPORT_SYMBOL(dcss_dec400d_read_config);
 
+void dcss_dec400d_fast_clear_config(struct dcss_soc *dcss,
+				    uint32_t fc_value,
+				    bool enable)
+{
+	struct dcss_dec400d_priv *dec400d = dcss->dec400d_priv;
+
+	dcss_dec400d_write(dec400d, fc_value, DEC400D_CLEAR);
+}
+EXPORT_SYMBOL(dcss_dec400d_fast_clear_config);
+
 void dcss_dec400d_enable(struct dcss_soc *dcss)
 {
 	uint32_t control;
