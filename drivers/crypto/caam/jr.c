@@ -3,15 +3,11 @@
  * JobR backend functionality
  *
  * Copyright 2008-2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  */
 
 #include <linux/of_irq.h>
 #include <linux/of_address.h>
-#ifdef CONFIG_HAVE_IMX8_SOC
-#include <soc/imx/revision.h>
-#include <soc/imx8/soc.h>
-#endif
 #include "compat.h"
 #include "regs.h"
 #include "jr.h"
@@ -561,33 +557,15 @@ static int caam_jr_probe(struct platform_device *pdev)
 	 * then try to instantiate RNG
 	 */
 	if (jrppriv->ridx == jrpriv->ridx) {
-		if (of_machine_is_compatible("fsl,imx8qm") ||
-			of_machine_is_compatible("fsl,imx8qxp")) {
-			/*
-			 * This is a workaround for SOC REV_A0:
-			 * i.MX8QM and i.MX8QXP reach kernel level
-			 * with RNG un-instantiated. It is instantiated
-			 * here unlike REV_B0 and later.
-			 */
-#ifdef CONFIG_HAVE_IMX8_SOC
-			if (imx8_get_soc_revision() == IMX_CHIP_REVISION_1_0)
-				error = inst_rng_imx8(pdev);
-#endif /* CONFIG_HAVE_IMX8_SOC */
-		} else {
+		if (!of_machine_is_compatible("fsl,imx8qm") &&
+		    !of_machine_is_compatible("fsl,imx8qxp"))
 			/*
 			 * This call is done for legacy SOCs:
 			 * i.MX6 i.MX7 and i.MX8M (mScale).
 			 */
-			error = inst_rng_imx6(pdev);
-		}
+			error = inst_rng_imx(pdev);
 	}
 	if (error != 0) {
-#ifdef CONFIG_HAVE_IMX8_SOC
-		if (imx8_get_soc_revision() == IMX_CHIP_REVISION_1_0)
-			dev_err(jrdev,
-				"This is a known limitation on A0 SOC revision\n"
-				"RNG instantiation failed, CAAM needs a reboot\n");
-#endif /* CONFIG_HAVE_IMX8_SOC */
 		spin_lock(&driver_data.jr_alloc_lock);
 		list_del(&jrpriv->list_node);
 		spin_unlock(&driver_data.jr_alloc_lock);

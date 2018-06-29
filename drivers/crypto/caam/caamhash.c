@@ -820,17 +820,16 @@ static inline void ahash_unmap(struct device *dev,
 			struct ahash_request *req, int dst_len)
 {
 	struct caam_hash_state *state = ahash_request_ctx(req);
+	int len;
 
 	if (edesc->src_nents)
 		dma_unmap_sg(dev, req->src, edesc->src_nents, DMA_TO_DEVICE);
 	if (edesc->dst_dma)
 		dma_unmap_single(dev, edesc->dst_dma, dst_len, DMA_FROM_DEVICE);
 
-	if (state->buf_dma) {
-		dma_unmap_single(dev, state->buf_dma,
-			(state->current_buf ?
-				state->buflen_1 : state->buflen_0),
-			DMA_TO_DEVICE);
+	len = state->current_buf ? state->buflen_1 : state->buflen_0;
+	if (state->buf_dma && len) {
+		dma_unmap_single(dev, state->buf_dma, len, DMA_TO_DEVICE);
 		state->buf_dma = 0;
 	}
 
@@ -1457,13 +1456,16 @@ static int ahash_final_no_ctx(struct ahash_request *req)
 
 	desc = edesc->hw_desc;
 
-	state->buf_dma = dma_map_single(jrdev, buf, buflen, DMA_TO_DEVICE);
-	if (dma_mapping_error(jrdev, state->buf_dma)) {
-		dev_err(jrdev, "unable to map src\n");
-		goto unmap;
-	}
+	if (buflen) {
+		state->buf_dma = dma_map_single(jrdev, buf, buflen,
+						DMA_TO_DEVICE);
+		if (dma_mapping_error(jrdev, state->buf_dma)) {
+			dev_err(jrdev, "unable to map src\n");
+			goto unmap;
+		}
 
-	append_seq_in_ptr(desc, state->buf_dma, buflen, 0);
+		append_seq_in_ptr(desc, state->buf_dma, buflen, 0);
+	}
 
 	edesc->dst_dma = map_seq_out_ptr_result(desc, jrdev, req->result,
 						digestsize);

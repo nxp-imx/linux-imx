@@ -1364,6 +1364,7 @@
 			polling-delay-passive = <250>;
 			polling-delay = <2000>;
 			thermal-sensors = <&tsens 1>;
+			status = "disabled";
 			trips {
 				drc_alert0: trip0 {
 					temperature = <85000>;
