@@ -83,6 +83,13 @@ config BT_HCIUART_SERDEV
 	depends on SERIAL_DEV_BUS && BT_HCIUART
 	default y
 
+config MACH_IMX_BLUETOOTH_RFKILL
+	tristate "i.MX Bluetooth rfkill interface support"
+	default y
+	depends on RFKILL
+	help
+          Say Y to get the standard rfkill interface of Bluetooth
+
 config BT_HCIUART_H4
 	bool "UART (H4) protocol support"
 	depends on BT_HCIUART
