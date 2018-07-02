@@ -45,13 +45,6 @@
 		#reset-cells = <0>;
 	};
 
-	modem_reset: modem-reset {
-		compatible = "gpio-reset";
-		reset-gpios = <&rpmsg_gpio0 15 GPIO_ACTIVE_LOW>;
-		reset-delay-us = <1000>;
-		#reset-cells = <0>;
-	};
-
 	regulators {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -203,6 +196,12 @@
 		compatible = "fsl,imx-audio-rpmsg";
 		model = "rpmsg-audio";
 		cpu-dai = <&rpmsg_i2s>;
+	};
+
+	bt_rfkill {
+		compatible = "fsl,mxc_bt_rfkill";
+		bt-power-gpios = <&rpmsg_gpio0 15 GPIO_ACTIVE_LOW>;
+		status ="okay";
 	};
 };
 
@@ -494,7 +493,6 @@
 	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_lpuart6>;
 	pinctrl-1 = <&pinctrl_lpuart6>;
-	resets = <&modem_reset>;
 	status = "okay";
 };
 

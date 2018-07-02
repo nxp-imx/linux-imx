@@ -80,12 +80,10 @@
 		};
 	};
 
-	modem_reset: modem-reset {
-		compatible = "gpio-reset";
-		reset-gpios = <&gpio3 5 GPIO_ACTIVE_LOW>;
-		reset-delay-us = <2000>;
-		reset-post-delay-ms = <40>;
-		#reset-cells = <0>;
+	bt_rfkill {
+		compatible = "fsl,mxc_bt_rfkill";
+		bt-power-gpios = <&gpio3 5 GPIO_ACTIVE_LOW>;
+		status ="okay";
 	};
 
 	wm8524: wm8524 {
@@ -669,7 +667,6 @@
 	assigned-clocks = <&clk IMX8MQ_CLK_UART3_SRC>;
 	assigned-clock-parents = <&clk IMX8MQ_SYS1_PLL_80M>;
 	fsl,uart-has-rtscts;
-	resets = <&modem_reset>;
 	status = "okay";
 };
 
