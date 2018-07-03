@@ -140,7 +140,8 @@ struct ion_heap *ion_carveout_heap_create(struct rmem_carveout *heap_data)
 	if (!carveout_heap)
 		return ERR_PTR(-ENOMEM);
 
-	carveout_heap->pool = gen_pool_create(PAGE_SHIFT, -1);
+	// ensure memory address align to 64K which can meet VPU requirement.
+	carveout_heap->pool = gen_pool_create(PAGE_SHIFT+4, -1);
 	if (!carveout_heap->pool) {
 		kfree(carveout_heap);
 		return ERR_PTR(-ENOMEM);
