@@ -491,8 +491,10 @@ static int caam_jr_probe(struct platform_device *pdev)
 
 	jrdev = &pdev->dev;
 	jrpriv = devm_kmalloc(jrdev, sizeof(*jrpriv), GFP_KERNEL);
-	if (!jrpriv)
-		return -ENOMEM;
+	if (!jrpriv) {
+		error = -ENOMEM;
+		goto exit;
+	}
 
 	dev_set_drvdata(jrdev, jrpriv);
 
@@ -505,7 +507,8 @@ static int caam_jr_probe(struct platform_device *pdev)
 	ctrl = of_iomap(nprop, 0);
 	if (!ctrl) {
 		dev_err(jrdev, "of_iomap() failed\n");
-		return -ENOMEM;
+		error = -ENOMEM;
+		goto exit;
 	}
 
 	jrpriv->rregs = (struct caam_job_ring __iomem __force *)ctrl;
@@ -532,8 +535,7 @@ static int caam_jr_probe(struct platform_device *pdev)
 	if (error) {
 		dev_err(jrdev, "dma_set_mask_and_coherent failed (%d)\n",
 			error);
-		iounmap(ctrl);
-		return error;
+		goto unmap_ctrl;
 	}
 
 	/* Identify the interrupt */
@@ -546,9 +548,7 @@ static int caam_jr_probe(struct platform_device *pdev)
 	/* Now do the platform independent part */
 	error = caam_jr_init(jrdev); /* now turn on hardware */
 	if (error) {
-		irq_dispose_mapping(jrpriv->irq);
-		iounmap(ctrl);
-		return error;
+		goto dispose_irq_mapping;
 	}
 
 	jrpriv->dev = jrdev;
@@ -567,7 +567,8 @@ static int caam_jr_probe(struct platform_device *pdev)
 	if (list_empty(&driver_data.jr_list)) {
 		spin_unlock(&driver_data.jr_alloc_lock);
 		dev_err(jrdev, "jr_list is empty\n");
-		return -ENODEV;
+		error = -ENODEV;
+		goto dispose_irq_mapping;
 	}
 	jrppriv = list_first_entry(&driver_data.jr_list,
 		struct caam_drv_private_jr, list_node);
@@ -585,11 +586,21 @@ static int caam_jr_probe(struct platform_device *pdev)
 			 */
 			error = inst_rng_imx(pdev);
 	}
-	if (error != 0) {
-		spin_lock(&driver_data.jr_alloc_lock);
-		list_del(&jrpriv->list_node);
-		spin_unlock(&driver_data.jr_alloc_lock);
-	}
+	if (error)
+		goto remove_jr_from_list;
+
+	goto exit;
+
+remove_jr_from_list:
+	spin_lock(&driver_data.jr_alloc_lock);
+	list_del(&jrpriv->list_node);
+	spin_unlock(&driver_data.jr_alloc_lock);
+dispose_irq_mapping:
+	irq_dispose_mapping(jrpriv->irq);
+unmap_ctrl:
+	iounmap(ctrl);
+
+exit:
 	return error;
 }
 
