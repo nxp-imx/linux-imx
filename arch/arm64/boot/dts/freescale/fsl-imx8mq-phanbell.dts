@@ -804,8 +804,9 @@
 		1300000 1000000
 		1000000 900000
 		800000  900000
+		500000  850000
 	>;
-	dc-supply = <&reg_gpio_dvfs>;
+	dc-supply = <&buck2_reg>;
 };
 
 /* Data for energy-aware-scheduling */
