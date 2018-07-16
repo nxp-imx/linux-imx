@@ -330,10 +330,10 @@ static irqreturn_t dcss_crtc_irq_handler(int irq, void *dev_id)
 
 	complete(&dcss_crtc->en_dis_completion);
 
-	if (dcss_ctxld_is_flushed(dcss))
+	if (dcss_ctxld_is_flushed(dcss)) {
 		drm_crtc_handle_vblank(&dcss_crtc->base);
 		drm_crtc_handle_fence(&dcss_crtc->base);
-
+	}
 	dcss_vblank_irq_clear(dcss);
 
 	return IRQ_HANDLED;
