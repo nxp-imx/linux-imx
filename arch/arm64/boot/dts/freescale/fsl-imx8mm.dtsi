@@ -776,6 +776,7 @@
 		clock-names = "ipg_clk", "ipg_clk_app";
 		dmas = <&sdma2 24 26 0x80000000>;
 		dma-names = "rx";
+		fsl,shared-interrupt;
 		status = "disabled";
 	};
 
