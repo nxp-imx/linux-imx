@@ -422,7 +422,7 @@ static int apex_device_cleanup(struct gasket_dev *gasket_dev)
 		gasket_dev, APEX_BAR_INDEX,
 		APEX_BAR2_REG_SCALAR_CORE_ERROR_STATUS);
 
-	gasket_log_info(
+	gasket_log_debug(
 		gasket_dev,
 		"%s 0x%p hib_error 0x%llx scalar_error "
 		"0x%llx.",
@@ -591,7 +591,7 @@ static int apex_quit_reset(struct gasket_dev *gasket_dev, uint type)
 			SCU3_RG_PWR_STATE_OVR_BIT_OFFSET);
 		val1 = gasket_dev_read_32(
 			gasket_dev, APEX_BAR_INDEX, APEX_BAR2_REG_SCU_3);
-		gasket_log_error(
+		gasket_log_debug(
 			gasket_dev, "Disallow HW clock gating 0x%x -> 0x%x",
 			val0, val1);
 	} else {
@@ -604,7 +604,7 @@ static int apex_quit_reset(struct gasket_dev *gasket_dev, uint type)
 			SCU3_RG_PWR_STATE_OVR_BIT_OFFSET);
 		val1 = gasket_dev_read_32(
 			gasket_dev, APEX_BAR_INDEX, APEX_BAR2_REG_SCU_3);
-		gasket_log_error(
+		gasket_log_debug(
 			gasket_dev, "Allow HW clock gating 0x%x -> 0x%x", val0,
 			val1);
 	}
@@ -672,7 +672,7 @@ static long apex_clock_gating(struct gasket_dev *gasket_dev,
 	if (copy_from_user(&ibuf, argp, sizeof(ibuf)))
 		return -EFAULT;
 
-	gasket_log_error(gasket_dev, "%s %llu", __func__, ibuf.enable);
+	gasket_log_debug(gasket_dev, "%s %llu", __func__, ibuf.enable);
 
 	if (ibuf.enable) {
 		/* Quiesce AXI, gate GCB clock. */
@@ -808,7 +808,7 @@ static ssize_t sysfs_show(
 					gasket_dev->page_table[0]));
 		break;
 	default:
-		gasket_log_error(
+		gasket_log_debug(
 			gasket_dev, "Unknown attribute: %s", attr->attr.name);
 		ret = 0;
 		break;
