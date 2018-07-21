@@ -1811,7 +1811,7 @@ static long gasket_ioctl(struct file *filp, uint cmd, ulong arg)
 		if (driver_desc->ioctl_handler_cb)
 			return driver_desc->ioctl_handler_cb(filp, cmd, argp);
 
-		gasket_log_error(
+		gasket_log_debug(
 			gasket_dev, "Received unknown ioctl 0x%x", cmd);
 		return -EINVAL;
 	}
