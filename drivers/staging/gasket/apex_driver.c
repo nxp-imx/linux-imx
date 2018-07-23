@@ -146,6 +146,8 @@ static long apex_ioctl(struct file *file, uint cmd, ulong arg);
 
 static long apex_clock_gating(struct gasket_dev *gasket_dev, ulong arg);
 
+static long apex_set_performance_expectation(struct gasket_dev *gasket_dev, ulong arg);
+
 static int apex_enter_reset(struct gasket_dev *gasket_dev, uint type);
 
 static int apex_quit_reset(struct gasket_dev *gasket_dev, uint type);
@@ -652,6 +654,8 @@ static long apex_ioctl(struct file *filp, uint cmd, ulong arg)
 	switch (cmd) {
 	case APEX_IOCTL_GATE_CLOCK:
 		return apex_clock_gating(gasket_dev, arg);
+	case APEX_IOCTL_PERFORMANCE_EXPECTATION:
+		return apex_set_performance_expectation(gasket_dev, arg);
 	default:
 		return -ENOTTY; /* unknown command */
 	}
@@ -694,6 +698,72 @@ static long apex_clock_gating(struct gasket_dev *gasket_dev, ulong arg)
 				APEX_BAR2_REG_AXI_QUIESCE, 0x0, 1, 16);
 		}
 	}
+	return 0;
+}
+
+/*
+ * apex_set_performance_expectation: Adjust clock rates for Apex.
+ * @gasket_dev: device pointer.
+ * @arg: User ioctl arg, in this case to an apex_performance_expectation_ioctl struct.
+ */
+static long apex_set_performance_expectation(struct gasket_dev *gasket_dev, ulong arg)
+{
+	struct apex_performance_expectation_ioctl ibuf;
+	uint32_t rg_gcb_clk_div = 0;
+	uint32_t rg_axi_clk_125m = 0;
+        const int AXI_CLK_125M_SHIFT = 2;
+        const int MCU_CLK_250M_SHIFT = 3;
+
+	// 8051 clock is always 250 MHz for PCIe, as it's not used at all.
+	const uint32_t rg_8051_clk_250m = 1;
+
+	if (bypass_top_level)
+		return 0;
+
+	if (copy_from_user(&ibuf, (void __user *)arg, sizeof(ibuf)))
+		return -EFAULT;
+
+	switch (ibuf.performance) {
+		case APEX_PERFORMANCE_LOW:
+			// - GCB clock: 62.5 MHz
+			// - AXI clock: 125 MHz
+			rg_gcb_clk_div = 3;
+			rg_axi_clk_125m = 0;
+			break;
+
+		case APEX_PERFORMANCE_MED:
+			// - GCB clock: 125 MHz
+			// - AXI clock: 125 MHz
+			rg_gcb_clk_div = 2;
+			rg_axi_clk_125m = 0;
+			break;
+
+		case APEX_PERFORMANCE_HIGH:
+			// - GCB clock: 250 MHz
+			// - AXI clock: 125 MHz
+			rg_gcb_clk_div = 1;
+			rg_axi_clk_125m = 0;
+			break;
+
+		case APEX_PERFORMANCE_MAX:
+			// - GCB clock: 500 MHz
+			// - AXI clock: 125 MHz
+			rg_gcb_clk_div = 0;
+			rg_axi_clk_125m = 0;
+			break;
+
+		default:
+			return -EINVAL;
+	}
+
+	/*
+	 * Set clock rates for GCB, AXI, and 8051:
+	 */
+	gasket_read_modify_write_32(
+		gasket_dev, APEX_BAR_INDEX, APEX_BAR2_REG_SCU_3,
+                (rg_gcb_clk_div | (rg_axi_clk_125m << AXI_CLK_125M_SHIFT) | (rg_8051_clk_250m << MCU_CLK_250M_SHIFT)),
+                /*mask_width=*/4, /*mask_shift=*/28);
+
 	return 0;
 }
 
