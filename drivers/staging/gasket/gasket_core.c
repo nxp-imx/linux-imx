@@ -620,6 +620,16 @@ static int gasket_pci_probe(
 		goto fail5;
 	}
 
+	if (driver_desc->device_close_cb) {
+		/* Perform a device cleanup, so as to place it in Power Save
+		 * Mode. */
+		ret = driver_desc->device_close_cb(gasket_dev);
+		if (ret) {
+			gasket_log_error(
+				gasket_dev, "Device cleanup cb returned %d.", ret);
+		}
+	}
+
 	return 0;
 
 fail5:
