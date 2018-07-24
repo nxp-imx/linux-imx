@@ -208,8 +208,6 @@ static int imx8_cpufreq_probe(struct platform_device *pdev)
 
 		INIT_DELAYED_WORK(&cpufreq_governor_daemon,
 			cpufreq_governor_daemon_handler);
-		schedule_delayed_work(&cpufreq_governor_daemon,
-			msecs_to_jiffies(3000));
 		first_cpu_dev = cpu_dev;
 		cpu_dev = get_cpu_device(i);
 		if (!cpu_dev) {
