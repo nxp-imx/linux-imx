@@ -2131,6 +2131,8 @@ enum {
 #define RT5645_DET_CLK_MODE2			(0x2 << 9)
 #define RT5645_MICINDET_MANU			(0x1 << 7)
 #define RT5645_RING2_SLEEVE_GND			(0x1 << 5)
+#define RT5645_EN_IBUF_BST1			(0x1 << 8)
+#define RT5645_RING2_GND			(0x1 << 15)
 
 /* Vendor ID (0xfd) */
 #define RT5645_VER_C				0x2

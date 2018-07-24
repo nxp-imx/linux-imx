@@ -3240,7 +3240,8 @@ int rt5645_set_jack_detect(struct snd_soc_codec *codec,
 
 		/* Turn on combo jack input buffer power */
 		regmap_update_bits(rt5645->regmap, RT5645_GEN_CTRL3,
-				   0x1 << 8, 0x1 << 8);
+				   RT5645_EN_IBUF_BST1,
+				   RT5645_EN_IBUF_BST1);
 
 		/* Turn on MIC input from RING2 */
 		regmap_update_bits(rt5645->regmap, RT5645_IN1_CTRL1,
@@ -3248,7 +3249,7 @@ int rt5645_set_jack_detect(struct snd_soc_codec *codec,
 
 		/* De-ground the RING2 MIC input */
 		regmap_update_bits(rt5645->regmap, RT5645_IN1_CTRL3,
-				   0x1 << 15, 0);
+				   RT5645_RING2_SLEEVE_GND, 0);
 	}
 	rt5645_irq(0, rt5645);
 
@@ -3723,7 +3724,8 @@ static int rt5645_parse_dt(struct rt5645_priv *rt5645, struct device *dev)
 		device_property_read_bool(dev, "realtek,jd-low-volt-enable");
 
 	if (rt5645->pdata.jd_low_volt_enable) {
-		printk("rt5645: Raising HP amp charge pump to prevent jack presence mis-detects.\n");
+		printk("rt5645: Raising HP charge pump threshold to prevent jack event "
+		       "mis-detects.\n");
 	}
 
 	return 0;
