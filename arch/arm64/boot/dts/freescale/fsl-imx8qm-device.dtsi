@@ -1418,7 +1418,7 @@
 			thermal-sensors = <&tsens 0>;
 			trips {
 				cpu_alert0: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
@@ -1443,7 +1443,7 @@
 			thermal-sensors = <&tsens 1>;
 			trips {
 				cpu_alert1: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
@@ -1468,7 +1468,7 @@
 			thermal-sensors = <&tsens 2>;
 			trips {
 				gpu_alert0: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
@@ -1486,7 +1486,7 @@
 			thermal-sensors = <&tsens 3>;
 			trips {
 				gpu_alert1: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
@@ -1504,7 +1504,7 @@
 			thermal-sensors = <&tsens 4>;
 			trips {
 				drc_alert0: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
