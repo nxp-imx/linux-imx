@@ -22,6 +22,10 @@
 		bt-power-gpios = <&gpio6 11 0>;
 		status = "okay";
 	};
+	usdhc3_pwrseq: usdhc3_pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&gpio6 10 GPIO_ACTIVE_LOW>;
+	};
 };
 
 &cpu0 {
@@ -96,20 +100,23 @@
 };
 
 &usdhc3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_wifi_sdio>;
 	bus-width = <4>;
-	cd-gpios = <&gpio2 10 GPIO_ACTIVE_LOW>;
-	wp-gpios = <&gpio2 15 GPIO_ACTIVE_HIGH>;
-	keep-power-in-suspend;
-	enable-sdio-wakeup;
-	vmmc-supply = <&vcc_sd3>;
-	no-1-8-v;       /* force 3.3V VIO */
-	wifi-host;      /* pull in card detect mechanism for BCMDHD driver */
-	pm-ignore-notify;
+	no-1-8-v;	/* force 3.3V VIO */
 	non-removable;
-	cd-post;
+	mmc-pwrseq = <&usdhc3_pwrseq>;
+	pm-ignore-notify;
+	cap-power-off-card;
 	status = "okay";
+
+	brcmf: bcrmf@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+	};
+
 };
 
 &uart3 { /* ttymxc2 for Murata BCM4339 V1 Bluetooth. */

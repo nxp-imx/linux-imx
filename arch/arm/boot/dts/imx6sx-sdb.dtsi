@@ -249,19 +249,6 @@
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 		};
-		wlreg_on: fixedregulator@100 {
-			compatible = "regulator-fixed";
-			regulator-min-microvolt = <5000000>;
-			regulator-max-microvolt = <5000000>;
-			regulator-name = "wlreg_on";
-			gpio = <&gpio6 10 0>;
-			startup-delay-us = <100>;
-			enable-active-high;
-		};
-		bcmdhd_wlan_1: bcmdhd_wlan@0 {
-			compatible = "android,bcmdhd_wlan";
-			wlreg_on-supply = <&wlreg_on>;
-		};
 	};
 
 	sound {
@@ -1132,6 +1119,7 @@
 				MX6SX_PAD_KEY_COL0__GPIO2_IO_10		0x17059 /* CD */
 				MX6SX_PAD_KEY_ROW0__GPIO2_IO_15		0x17059 /* WP */
 				MX6SX_PAD_SD2_DATA2__GPIO6_IO_10        0x13069 /* WL_REG_ON */
+				MX6SX_PAD_SD2_DATA1__GPIO6_IO_9         0x13069 /* WL_HOST_WAKE */
 			>;
 		};
 
