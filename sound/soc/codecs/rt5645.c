@@ -3154,7 +3154,12 @@ static int rt5645_jack_detect(struct snd_soc_codec *codec, int jack_insert)
 		regmap_update_bits(rt5645->regmap, RT5645_IN1_CTRL2,
 			RT5645_CBJ_MN_JD, RT5645_CBJ_MN_JD);
 		regmap_update_bits(rt5645->regmap, RT5645_IN1_CTRL1,
-			RT5645_CBJ_BST1_EN, RT5645_CBJ_BST1_EN);
+			RT5645_CBJ_BST1_EN, 0);
+
+		/* Toggle reserved bit to do... something? */
+		regmap_update_bits(rt5645->regmap, RT5645_IN1_CTRL2,
+				   1 << 11, 0);
+
 		msleep(100);
 		regmap_update_bits(rt5645->regmap, RT5645_IN1_CTRL2,
 			RT5645_CBJ_MN_JD, 0);
@@ -3246,10 +3251,6 @@ int rt5645_set_jack_detect(struct snd_soc_codec *codec,
 		/* Turn on MIC input from RING2 */
 		regmap_update_bits(rt5645->regmap, RT5645_IN1_CTRL1,
 				   RT5645_CBJ_MIC_SEL_L, RT5645_CBJ_MIC_SEL_L);
-
-		/* De-ground the RING2 MIC input */
-		regmap_update_bits(rt5645->regmap, RT5645_IN1_CTRL3,
-				   RT5645_RING2_SLEEVE_GND, 0);
 	}
 	rt5645_irq(0, rt5645);
 
