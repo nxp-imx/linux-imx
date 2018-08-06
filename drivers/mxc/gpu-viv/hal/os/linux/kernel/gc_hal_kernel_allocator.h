@@ -153,10 +153,9 @@ typedef struct _gcsALLOCATOR_OPERATIONS
     (*Mmap)(
         IN gckALLOCATOR Allocator,
         IN PLINUX_MDL Mdl,
-        IN gctBOOL Cacheable,
         IN gctSIZE_T skipPages,
         IN gctSIZE_T numPages,
-        IN struct vm_area_struct *vma
+        INOUT struct vm_area_struct *vma
         );
 
     /**************************************************************************
@@ -187,8 +186,8 @@ typedef struct _gcsALLOCATOR_OPERATIONS
     (*MapUser)(
         IN gckALLOCATOR Allocator,
         IN PLINUX_MDL Mdl,
-        IN PLINUX_MDL_MAP MdlMap,
-        IN gctBOOL Cacheable
+        IN gctBOOL Cacheable,
+        OUT gctPOINTER * UserLogical
         );
 
     /**************************************************************************
@@ -216,7 +215,7 @@ typedef struct _gcsALLOCATOR_OPERATIONS
     (*UnmapUser)(
         IN gckALLOCATOR Allocator,
         IN PLINUX_MDL Mdl,
-        IN PLINUX_MDL_MAP MdlMap,
+        IN gctPOINTER Logical,
         IN gctUINT32 Size
         );
 
@@ -524,19 +523,6 @@ gckALLOCATOR_Construct(
 OnError:
     return status;
 }
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION (3,6,0) \
-    || (!defined (ARCH_HAS_SG_CHAIN) && !defined (CONFIG_ARCH_HAS_SG_CHAIN))
-int
-alloc_sg_list_from_pages(
-    struct scatterlist **sgl,
-    struct page **pages,
-    unsigned int  n_pages,
-    unsigned long offset,
-    unsigned long size,
-    unsigned int  *nents
-    );
-#endif
 
 /*
     How to implement customer allocator

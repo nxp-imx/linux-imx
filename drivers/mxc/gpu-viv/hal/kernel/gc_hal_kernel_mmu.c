@@ -638,8 +638,6 @@ _AllocateStlb(
 
     gcmkONERROR(gckOS_GetPhysicalAddress(Os, stlb->logical, &stlb->physBase));
 
-    gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(Os, stlb->physBase, &stlb->physBase));
-
 #if gcdUSE_MMU_EXCEPTION
     _FillPageTable(stlb->logical, stlb->size / 4, gcdMMU_STLB_EXCEPTION);
 #else
@@ -912,11 +910,6 @@ _FillFlatMapping(
                 newStlbChunk->logical,
                 &physical));
 
-            gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(
-                Mmu->os,
-                physical,
-                &physical));
-
             gcmkSAFECASTPHYSADDRT(newStlbChunk->physBase, physical);
 
             if (newStlbChunk->physBase & (gcdMMU_STLB_64K_SIZE - 1))
@@ -1183,10 +1176,6 @@ _SetupDynamicSpace(
                 area->pageTableLogical,
                 &physical));
 
-    gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(Mmu->os,
-                physical,
-                &physical));
-
     gcmkSAFECASTPHYSADDRT(address, physical);
 
     /* Grab the mutex. */
@@ -1449,12 +1438,6 @@ _Construct(
                 &gpuPhysical
                 ));
 
-            gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(
-                mmu->os,
-                gpuPhysical,
-                &gpuPhysical
-                ));
-
             gcmkSAFECASTPHYSADDRT(gpuAddress, gpuPhysical);
 
             gcmkONERROR(gckMMU_FlatMapping(mmu, gpuAddress, 1));
@@ -1551,15 +1534,8 @@ _Construct(
         &mmu->safePageLogical
         ));
 
-    gcmkONERROR(gckOS_GetPhysicalAddress(
-        os,
+    gcmkONERROR(gckOS_GetPhysicalAddress(os,
         mmu->safePageLogical,
-        &gpuPhysical
-        ));
-
-    gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(
-        os,
-        gpuPhysical,
         &gpuPhysical
         ));
 

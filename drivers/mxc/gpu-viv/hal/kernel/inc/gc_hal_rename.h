@@ -275,5 +275,3 @@
 #endif
 
 #endif /* __gc_hal_rename_h_ */
-
-

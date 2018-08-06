@@ -326,7 +326,6 @@ gceSTATUS gckVGKERNEL_Dispatch(
         gcmkERR_BREAK(gckOS_AllocateNonPagedMemory(
             Kernel->os,
             gcvTRUE,
-            gcvALLOC_FLAG_CONTIGUOUS,
             &bytes,
             &physical,
             &logical

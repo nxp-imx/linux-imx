@@ -298,5 +298,3 @@ gcsTASK_UNMAP_USER_MEMORY;
 #endif
 
 #endif /* __gc_hal_driver_h_ */
-
-

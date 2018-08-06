@@ -65,5 +65,3 @@ extern "C" {
 #endif
 
 #endif /* __gc_hal_resource_h_ */
-
-
