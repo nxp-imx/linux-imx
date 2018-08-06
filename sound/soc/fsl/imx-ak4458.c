@@ -22,6 +22,7 @@
 #include <sound/pcm_params.h>
 #include <sound/pcm.h>
 #include <sound/soc-dapm.h>
+#include <linux/extcon.h>
 
 #include "fsl_sai.h"
 
@@ -87,6 +88,14 @@ static const u32 ak4458_channels[] = {
 static const u32 ak4458_channels_tdm[] = {
 	1, 2, 3, 4, 5, 6, 7, 8,
 };
+
+#ifdef CONFIG_EXTCON
+static const unsigned int imx_ak4458_extcon_cables[] = {
+       EXTCON_JACK_HEADPHONE,
+       EXTCON_NONE,
+};
+struct extcon_dev *ak4458_edev;
+#endif
 
 static unsigned long ak4458_get_mclk_rate(struct snd_pcm_substream *substream,
 					  struct snd_pcm_hw_params *params)
@@ -355,6 +364,20 @@ static int imx_ak4458_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
 		goto fail;
 	}
+
+#ifdef CONFIG_EXTCON
+	ak4458_edev = devm_extcon_dev_allocate(&pdev->dev, imx_ak4458_extcon_cables);
+	if (IS_ERR(ak4458_edev)) {
+		   dev_err(&pdev->dev, "failed to allocate extcon device\n");
+		   goto fail;
+	}
+	ret = devm_extcon_dev_register(&pdev->dev,ak4458_edev);
+	if (ret < 0) {
+		   dev_err(&pdev->dev, "failed to register extcon device\n");
+		   goto fail;
+	}
+	extcon_set_state_sync(ak4458_edev, EXTCON_JACK_HEADPHONE, 1);
+#endif
 
 	ret = 0;
 fail:

@@ -46,6 +46,7 @@
 
 #include <linux/console.h>
 #include <linux/types.h>
+#include <linux/extcon.h>
 
 #include "../edid.h"
 #include <video/mxc_edid.h>
@@ -90,6 +91,13 @@ static const struct fb_videomode vga_mode = {
 	NULL, 60, 640, 480, 39721, 48, 16, 33, 10, 96, 2, 0,
 	FB_VMODE_NONINTERLACED | FB_VMODE_ASPECT_4_3, FB_MODE_IS_VESA,
 };
+
+#ifdef CONFIG_EXTCON
+static const unsigned int imx_hdmi_extcon_cables[] = {
+	EXTCON_DISP_HDMI,
+	EXTCON_NONE,
+};
+#endif
 
 enum hdmi_datamap {
 	RGB444_8B = 0x01,
@@ -169,7 +177,6 @@ struct mxc_hdmi {
 	struct fb_videomode default_mode;
 	struct fb_videomode previous_non_vga_mode;
 	bool requesting_vga_for_initialization;
-
 	int *gpr_base;
 	int *gpr_hdmi_base;
 	int *gpr_sdma_base;
@@ -182,6 +189,10 @@ struct mxc_hdmi {
 
 static int hdmi_major;
 static struct class *hdmi_class;
+
+#ifdef CONFIG_EXTCON
+struct extcon_dev *hdmi_edev;
+#endif
 
 struct i2c_client *hdmi_i2c;
 struct mxc_hdmi *g_hdmi;
@@ -2032,7 +2043,9 @@ static void hotplug_worker(struct work_struct *work)
 			hdmi_writeb(val, HDMI_PHY_POL0);
 
 			hdmi_set_cable_state(1);
-
+#ifdef CONFIG_EXTCON
+			extcon_set_state_sync(hdmi_edev, EXTCON_DISP_HDMI, 1);
+#endif
 			sprintf(event_string, "EVENT=plugin");
 			kobject_uevent_env(&hdmi->pdev->dev.kobj, KOBJ_CHANGE, envp);
 #ifdef CONFIG_MXC_HDMI_CEC
@@ -2040,6 +2053,9 @@ static void hotplug_worker(struct work_struct *work)
 #endif
 		} else if (!(phy_int_pol & HDMI_PHY_HPD)) {
 			/* Plugout event */
+#ifdef CONFIG_EXTCON
+			extcon_set_state_sync(hdmi_edev, EXTCON_DISP_HDMI, 0);
+#endif
 			dev_dbg(&hdmi->pdev->dev, "EVENT=plugout\n");
 			hdmi_set_cable_state(0);
 			mxc_hdmi_abort_stream();
@@ -2842,6 +2858,18 @@ static int mxc_hdmi_probe(struct platform_device *pdev)
 		ret = (int)hdmi->disp_mxc_hdmi;
 		goto edispdrv;
 	}
+#ifdef CONFIG_EXTCON
+	hdmi_edev = devm_extcon_dev_allocate(&pdev->dev, imx_hdmi_extcon_cables);
+	if (IS_ERR(hdmi_edev)) {
+		dev_err(&pdev->dev, "failed to allocate extcon device\n");
+		goto edispdrv;
+	}
+	res = devm_extcon_dev_register(&pdev->dev,hdmi_edev);
+	if (res < 0) {
+		dev_err(&pdev->dev, "failed to register extcon device\n");
+		goto edispdrv;
+	}
+#endif
 	mxc_dispdrv_setdata(hdmi->disp_mxc_hdmi, hdmi);
 
 	platform_set_drvdata(pdev, hdmi);

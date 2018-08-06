@@ -41,6 +41,7 @@
 #include <linux/reset.h>
 #include <asm/mach-types.h>
 #include <video/mxc_edid.h>
+#include <linux/extcon.h>
 
 #define SII_EDID_LEN	512
 #define DRV_NAME "sii902x"
@@ -56,6 +57,15 @@ struct sii902x_data {
 	const char *mode_str;
 	int bits_per_pixel;
 } sii902x;
+
+#ifdef CONFIG_EXTCON
+static const unsigned int imx_hdmi_extcon_cables[] = {
+	EXTCON_DISP_HDMI,
+	EXTCON_NONE,
+};
+
+struct extcon_dev *hdmi_sii902x_edev;
+#endif
 
 static void sii902x_poweron(void);
 static void sii902x_poweroff(void);
@@ -301,11 +311,18 @@ static void det_worker(struct work_struct *work)
 		dev_dbg(&sii902x.client->dev, "EVENT=plugin\n");
 		sprintf(event_string, "EVENT=plugin");
 		sii902x_cable_connected();
+#ifdef CONFIG_EXTCON
+		if (sii902x.edid_cfg.hdmi_cap)
+			extcon_set_state_sync(hdmi_sii902x_edev, EXTCON_DISP_HDMI, 1);
+#endif
 	} else {
 		sii902x.cable_plugin = 0;
 		dev_dbg(&sii902x.client->dev, "EVENT=plugout\n");
 		sprintf(event_string, "EVENT=plugout");
 		/* Power off sii902x */
+#ifdef CONFIG_EXTCON
+		extcon_set_state_sync(hdmi_sii902x_edev, EXTCON_DISP_HDMI, 0);
+#endif
 		sii902x_poweroff();
 	}
 	kobject_uevent_env(&sii902x.client->dev.kobj, KOBJ_CHANGE, envp);
@@ -493,6 +510,19 @@ static int sii902x_probe(struct i2c_client *client,
 
 	sii902x_in_init_state = 0;
 
+#ifdef CONFIG_EXTCON
+	hdmi_sii902x_edev = devm_extcon_dev_allocate(&sii902x.client->dev, imx_hdmi_extcon_cables);
+	if (IS_ERR(hdmi_sii902x_edev)) {
+		dev_err(&sii902x.client->dev, "failed to allocate extcon device\n");
+		goto fail;
+	}
+	ret = devm_extcon_dev_register(&sii902x.client->dev, hdmi_sii902x_edev);
+	if (ret < 0) {
+		dev_err(&sii902x.client->dev, "failed to register extcon device\n");
+		goto fail;
+	}
+#endif
+fail:
 	return 0;
 }
 
