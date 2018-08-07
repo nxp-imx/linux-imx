@@ -265,9 +265,12 @@ static int thermal_hot_pm_notify(struct notifier_block *nb, unsigned long event,
        void *dummy)
 {
     static gctUINT orgFscale, minFscale, maxFscale;
-    static gctBOOL bAlreadyTooHot = gcvFALSE;
+    static unsigned long prev_event = 0xffffffff;
     gckHARDWARE hardware;
     gckGALDEVICE galDevice;
+
+    if (event == prev_event)
+        return NOTIFY_OK;
 
     galDevice = platform_get_drvdata(pdevice);
     if (!galDevice)
@@ -288,15 +291,26 @@ static int thermal_hot_pm_notify(struct notifier_block *nb, unsigned long event,
         return NOTIFY_OK;
     }
 
-    if (event && !bAlreadyTooHot) {
+    if (prev_event == 0xffffffff) /* get initial value of Fscale */
         gckHARDWARE_GetFscaleValue(hardware,&orgFscale,&minFscale, &maxFscale);
-        gckHARDWARE_SetFscaleValue(hardware, minFscale);
-        bAlreadyTooHot = gcvTRUE;
-        printk("System is too hot. GPU3D will work at %d/64 clock.\n", minFscale);
-    } else if (!event && bAlreadyTooHot) {
-        gckHARDWARE_SetFscaleValue(hardware, orgFscale);
-        printk("Hot alarm is canceled. GPU3D clock will return to %d/64\n", orgFscale);
-        bAlreadyTooHot = gcvFALSE;
+    prev_event = event;
+
+    switch (event) {
+        case 0:
+            gckHARDWARE_SetFscaleValue(hardware, orgFscale);
+            printk("Hot alarm is canceled. GPU3D clock will return to %d/64\n", orgFscale);
+            break;
+        case 1:
+            gckHARDWARE_SetFscaleValue(hardware, maxFscale >> 1); /* switch to 1/2 of max frequency */
+            printk("System is a little hot. GPU3D clock will work at %d/64\n", maxFscale >> 1);
+            break;
+        case 2:
+            gckHARDWARE_SetFscaleValue(hardware, minFscale);
+            printk("System is too hot. GPU3D will work at %d/64 clock.\n", minFscale);
+            break;
+        default:
+            printk("System don't support such event: %ld.\n", event);
+            break;
     }
     return NOTIFY_OK;
 }
