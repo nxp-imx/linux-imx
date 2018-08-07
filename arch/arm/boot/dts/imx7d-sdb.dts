@@ -89,13 +89,6 @@
 		reg = <0x80000000 0x80000000>;
 	};
 
-	modem_reset: modem-reset {
-		compatible = "gpio-reset";
-		reset-gpios = <&gpio4 23 GPIO_ACTIVE_LOW>;
-		reset-delay-us = <1000>;
-		#reset-cells = <0>;
-	};
-
 	spi4 {
 		compatible = "spi-gpio";
 		pinctrl-names = "default";
@@ -227,6 +220,12 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_brcm_reg>;
 		reset-gpios = <&gpio4 21 GPIO_ACTIVE_LOW>;
+	};
+
+	bt_rfkill {
+		compatible = "fsl,mxc_bt_rfkill";
+		bt-power-gpios = <&gpio4 23 0>;
+		status ="okay";
 	};
 };
 
@@ -771,7 +770,6 @@
 	assigned-clocks = <&clks IMX7D_UART6_ROOT_SRC>;
 	assigned-clock-parents = <&clks IMX7D_PLL_SYS_MAIN_240M_CLK>;
 	uart-has-rtscts;
-	resets = <&modem_reset>;
 	status = "okay";
 };
 
