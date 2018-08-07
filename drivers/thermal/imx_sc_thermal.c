@@ -193,7 +193,7 @@ static int imx_sc_tsens_probe(struct platform_device *pdev)
 		sensor->temp_passive = trip[0].temperature;
 		sensor->temp_critical = trip[1].temperature;
 
-		sensor->cdev = devfreq_cooling_register();
+		sensor->cdev = devfreq_cooling_register(NULL, 1);
 		if (IS_ERR(sensor->cdev)) {
 			dev_err(&pdev->dev,
 				"failed to register devfreq cooling device: %d\n",
