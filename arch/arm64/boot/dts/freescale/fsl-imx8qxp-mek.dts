@@ -1188,3 +1188,7 @@
 		};
 	};
 };
+
+&crypto {
+       status = "disabled";
+};
