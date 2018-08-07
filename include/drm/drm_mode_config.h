@@ -599,6 +599,13 @@ struct drm_mode_config {
 	 */
 	struct drm_property *prop_out_fence_ptr;
 	/**
+	 * @prop_android_out_fence_ptr: Sync File fd pointer representing the
+	 * outgoing fences for a CRTC. Userspace should provide a pointer to a
+	 * value of type s32, and then cast that pointer to u64.
+	 * Android out fence is signaled when relevant buffer is off screen.
+	 */
+	struct drm_property *prop_android_out_fence_ptr;
+	/**
 	 * @prop_crtc_id: Default atomic plane property to specify the
 	 * &drm_crtc.
 	 */

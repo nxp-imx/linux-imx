@@ -310,6 +310,8 @@ int drm_crtc_init_with_planes(struct drm_device *dev, struct drm_crtc *crtc,
 
 	crtc->fence_context = dma_fence_context_alloc(1);
 	spin_lock_init(&crtc->fence_lock);
+	INIT_LIST_HEAD(&crtc->fence_queue);
+	crtc->on_screen = NULL;
 	snprintf(crtc->timeline_name, sizeof(crtc->timeline_name),
 		 "CRTC:%d-%s", crtc->base.id, crtc->name);
 
@@ -336,6 +338,10 @@ int drm_crtc_init_with_planes(struct drm_device *dev, struct drm_crtc *crtc,
 		drm_object_attach_property(&crtc->base, config->prop_mode_id, 0);
 		drm_object_attach_property(&crtc->base,
 					   config->prop_out_fence_ptr, 0);
+	}
+	if (drm_core_check_feature(dev, DRIVER_ATOMIC_ANDROID_FENCE)) {
+		drm_object_attach_property(&crtc->base,
+					config->prop_android_out_fence_ptr, 0);
 	}
 
 	return 0;

@@ -876,6 +876,69 @@ void drm_crtc_arm_vblank_event(struct drm_crtc *crtc,
 EXPORT_SYMBOL(drm_crtc_arm_vblank_event);
 
 /**
+ * drm_crtc_arm_fence_event - arm fence event after atomic commit.
+ * @crtc: the source CRTC of the fence event
+ * @e: the fence event to send
+ *
+ * It is android out fence event sent to fence queue.
+ */
+void drm_crtc_arm_fence_event(struct drm_crtc *crtc,
+			struct drm_fence_event *e)
+{
+	unsigned long irqflags;
+
+	spin_lock_irqsave(&crtc->fence_lock, irqflags);
+	list_add_tail(&e->link, &crtc->fence_queue);
+	spin_unlock_irqrestore(&crtc->fence_lock, irqflags);
+}
+EXPORT_SYMBOL(drm_crtc_arm_fence_event);
+
+/**
+ * drm_crtc_handle_fence - helper to handle fence after atomic commit.
+ * @crtc: the source CRTC to handle fence.
+ *
+ * It is used to signal buffer's android out fence which is off screen.
+ * It will update new comming buffer on screen.
+ * So, it must be called in an irq which ensures new buffer on screen.
+ */
+bool drm_crtc_handle_fence(struct drm_crtc *crtc)
+{
+	unsigned long irqflags;
+	struct drm_fence_event *e, *t;
+	struct drm_fence_event *cur = NULL, *last = NULL;
+
+	spin_lock_irqsave(&crtc->fence_lock, irqflags);
+
+	last = crtc->on_screen;
+	list_for_each_entry_safe(e, t, &crtc->fence_queue, link) {
+		list_del(&e->link);
+		cur = e;
+		break;
+	}
+
+	// no new buffer come.
+	if (cur == NULL) {
+		spin_unlock_irqrestore(&crtc->fence_lock, irqflags);
+		return false;
+	}
+
+	// current buffer is on screen, signal last one.
+	if (last != NULL) {
+		if (last->fence != NULL) {
+			dma_fence_signal_locked(last->fence);
+			dma_fence_put(last->fence);
+		}
+		kfree(last);
+	}
+	crtc->on_screen = cur;
+
+	spin_unlock_irqrestore(&crtc->fence_lock, irqflags);
+
+	return true;
+}
+EXPORT_SYMBOL(drm_crtc_handle_fence);
+
+/**
  * drm_crtc_send_vblank_event - helper to send vblank event after pageflip
  * @crtc: the source CRTC of the vblank event
  * @e: the event to send
