@@ -829,7 +829,7 @@ static int imx_thermal_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	data->cdev[1] = devfreq_cooling_register();
+	data->cdev[1] = devfreq_cooling_register(NULL, 1);
 	if (IS_ERR(data->cdev[1])) {
 		ret = PTR_ERR(data->cdev[1]);
 		if (ret != -EPROBE_DEFER) {
