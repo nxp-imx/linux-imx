@@ -1034,3 +1034,7 @@
 	assigned-clock-rates = <0>, <196608000>;
 	status = "okay";
 };
+
+&crypto {
+       status = "disabled";
+};
