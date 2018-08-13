@@ -127,7 +127,7 @@
 #define FSL_SAI_CR2_MSEL(ID)	((ID) << 26)
 #define FSL_SAI_CR2_BCP		BIT(25)
 #define FSL_SAI_CR2_BCD_MSTR	BIT(24)
-#define FSL_SAI_CR2_BCBP	BIT(23) /* BCLK bypass */
+#define FSL_SAI_CR2_BYP		BIT(23) /* BCLK bypass */
 #define FSL_SAI_CR2_DIV_MASK	0xff
 
 /* SAI Transmit and Receive Configuration 3 Register */
@@ -208,7 +208,6 @@
 #define FSL_SAI_CLK_MAST3	3
 
 #define FSL_SAI_MCLK_MAX	4
-#define FSL_SAI_CLK_BIT		5
 
 /* SAI data transfer numbers per DMA request */
 #define FSL_SAI_MAXBURST_TX 6
@@ -245,6 +244,8 @@ struct fsl_sai {
 	struct regmap *regmap;
 	struct clk *bus_clk;
 	struct clk *mclk_clk[FSL_SAI_MCLK_MAX];
+	struct clk *pll8k_clk;
+	struct clk *pll11k_clk;
 
 	bool slave_mode[2];
 	bool is_lsb_first;
@@ -263,7 +264,7 @@ struct fsl_sai {
 	unsigned int mclk_streams;
 	unsigned int slots;
 	unsigned int slot_width;
-	unsigned int bitclk_freq;
+	unsigned int bitclk_ratio;
 
 	struct snd_dmaengine_dai_dma_data dma_params_rx;
 	struct snd_dmaengine_dai_dma_data dma_params_tx;

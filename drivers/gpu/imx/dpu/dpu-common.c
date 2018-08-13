@@ -543,12 +543,14 @@ static const struct dpu_devtype dpu_type_v1 = {
 	.has_capture = true,
 	.has_prefetch = false,
 	.has_prefetch_fixup = false,
+	.has_disp_sel_clk = false,
+	.has_dual_ldb = false,
 	.pixel_link_quirks = false,
 	.pixel_link_nhvsync = false,
 	.version = DPU_V1,
 };
 
-static const struct dpu_devtype dpu_type_v2 = {
+static const struct dpu_devtype dpu_type_v2_qm = {
 	.cm_ofs = 0x0,
 	.cfs = &cfs_v2,
 	.decs = &decs_v2,
@@ -572,12 +574,14 @@ static const struct dpu_devtype dpu_type_v2 = {
 	.has_capture = false,
 	.has_prefetch = true,
 	.has_prefetch_fixup = false,
+	.has_disp_sel_clk = true,
+	.has_dual_ldb = false,
 	.pixel_link_quirks = true,
 	.pixel_link_nhvsync = true,
 	.version = DPU_V2,
 };
 
-static const struct dpu_devtype dpu_type_v2_with_prefetch_fixup = {
+static const struct dpu_devtype dpu_type_v2_qxp = {
 	.cm_ofs = 0x0,
 	.cfs = &cfs_v2,
 	.decs = &decs_v2,
@@ -601,6 +605,8 @@ static const struct dpu_devtype dpu_type_v2_with_prefetch_fixup = {
 	.has_capture = false,
 	.has_prefetch = true,
 	.has_prefetch_fixup = true,
+	.has_disp_sel_clk = false,
+	.has_dual_ldb = true,
 	.pixel_link_quirks = true,
 	.pixel_link_nhvsync = true,
 	.version = DPU_V2,
@@ -609,10 +615,10 @@ static const struct dpu_devtype dpu_type_v2_with_prefetch_fixup = {
 static const struct of_device_id dpu_dt_ids[] = {
 	{
 		.compatible = "fsl,imx8qm-dpu",
-		.data = &dpu_type_v2,
+		.data = &dpu_type_v2_qm,
 	}, {
 		.compatible = "fsl,imx8qxp-dpu",
-		.data = &dpu_type_v2_with_prefetch_fixup,
+		.data = &dpu_type_v2_qxp,
 	}, {
 		/* sentinel */
 	}

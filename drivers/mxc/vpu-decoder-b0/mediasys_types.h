@@ -197,7 +197,7 @@ typedef enum {
 	VID_API_EVENT_RET_PING        = 0x14,      /* Temp here - rationalise debug events at bottom */
 	VID_API_EVENT_QMETER          = 0x15,
 	VID_API_EVENT_STR_FMT_CHANGE  = 0x16,
-	VID_API_EVENT_MIPS_XCPT       = 0x17,
+	VID_API_EVENT_FIRMWARE_XCPT   = 0x17,
 	VID_API_EVENT_START_DONE      = 0x18,
 	VID_API_EVENT_STOPPED         = 0x19,
 	VID_API_EVENT_ABORT_DONE      = 0x1A,
@@ -212,6 +212,7 @@ typedef enum {
 	VID_API_EVENT_DBG_FIFO_DUMP   = 0x23,
 	VID_API_EVENT_DEC_CHECK_RES   = 0x24,
 	VID_API_EVENT_DEC_CFG_INFO    = 0x25,
+	VID_API_EVENT_SNAPSHOT_DONE   = 0x40,
 	VID_API_EVENT_INVALID         = 0xFF
 
 } TB_API_DEC_EVENT;

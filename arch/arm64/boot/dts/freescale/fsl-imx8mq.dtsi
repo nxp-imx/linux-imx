@@ -433,13 +433,14 @@
 	};
 
 	gpt1: gpt@302d0000 {
-		compatible = "fsl,imx8mq-gpt";
+		compatible = "fsl,imx8mq-gpt", "fsl,imx7d-gpt";
 		reg = <0x0 0x302d0000 0x0 0x10000>;
 		interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk IMX8MQ_CLK_GPT1_ROOT>,
 			 <&clk IMX8MQ_CLK_GPT1_ROOT>,
 			 <&clk IMX8MQ_GPT_3M_CLK>;
 		clock-names = "ipg", "per", "osc_per";
+		status = "disabled";
 	};
 
 	irqsteer_dcss: irqsteer@32e2d000 {
@@ -447,7 +448,6 @@
 		reg = <0x0 0x32e2d000 0x0 0x1000>;
 		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-controller;
-		interrupt-parent = <&gpc>;
 		#interrupt-cells = <2>;
 		nxp,irqsteer_chans = <2>;
 		nxp,endian = <1>;		/* MSB */
@@ -524,12 +524,18 @@
 			     <4 IRQ_TYPE_LEVEL_HIGH>,
 			     <5 IRQ_TYPE_LEVEL_HIGH>,
 			     <6 IRQ_TYPE_LEVEL_HIGH>,
-			     <8 IRQ_TYPE_EDGE_RISING>;
+			     <8 IRQ_TYPE_EDGE_RISING>,
+				 <9 IRQ_TYPE_LEVEL_HIGH>,
+				 <16 IRQ_TYPE_LEVEL_HIGH>,
+				 <17 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "dpr_dc_ch0",
 				  "dpr_dc_ch1",
 				  "dpr_dc_ch2",
 				  "ctx_ld",
-				  "dtg_prg1";
+				  "dtg_prg1",
+				  "ctxld_kick",
+				  "dtrc_ch1",
+				  "dtrc_ch2";
 		interrupt-parent = <&irqsteer_dcss>;
 		clocks = <&clk IMX8MQ_CLK_DISP_APB_ROOT>,
 			 <&clk IMX8MQ_CLK_DISP_AXI_ROOT>,
@@ -550,7 +556,7 @@
 		assigned-clock-parents = <&clk IMX8MQ_VIDEO_PLL1_OUT>,
 					 <&clk IMX8MQ_SYS1_PLL_800M>,
 					 <&clk IMX8MQ_SYS1_PLL_800M>,
-					 <&clk IMX8MQ_VIDEO2_PHY_27MHZ>;
+					 <&clk IMX8MQ_CLK_PHY_27MHZ>;
 		assigned-clock-rates = <594000000>,
 				       <800000000>,
 				       <400000000>,
@@ -581,7 +587,6 @@
 		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "plug_in", "plug_out";
-		interrupt-parent = <&gpc>;
 		fsl,cec;
 		status = "disabled";
 
@@ -602,7 +607,6 @@
 		assigned-clock-parents = <&clk IMX8MQ_VIDEO_PLL1_OUT>;
 		assigned-clock-rate = <594000000>;
 		interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
-		max-res = <1280>, <720>;
 		status = "disabled";
 	};
 
@@ -786,7 +790,6 @@
 		clocks = <&clk IMX8MQ_CLK_ECSPI1_ROOT>,
 			 <&clk IMX8MQ_CLK_ECSPI1_ROOT>;
 		clock-names = "ipg", "per";
-		interrupt-parent = <&gpc>;
 		status = "disabled";
 	};
 
@@ -834,7 +837,6 @@
 		clocks = <&clk IMX8MQ_CLK_UART1_ROOT>,
 			<&clk IMX8MQ_CLK_UART1_ROOT>;
 		clock-names = "ipg", "per";
-		interrupt-parent = <&gpc>;
 		status = "disabled";
 	};
 
@@ -940,7 +942,6 @@
 			compatible = "snps,dwc3";
 			reg = <0x0 0x38100000 0x0 0x10000>;
 			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-parent = <&gpc>;
 			phys = <&usb3_phy0 0>, <&usb3_phy0 1>;
 			phy-names = "usb2-phy", "usb3-phy";
 			power-domains = <&usb_otg1_pd>;
@@ -981,7 +982,6 @@
 			compatible = "snps,dwc3";
 			reg = <0x0 0x38200000 0x0 0x10000>;
 			interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-parent = <&gpc>;
 			phys = <&usb3_phy1 0>, <&usb3_phy1 1>;
 			phy-names = "usb2-phy", "usb3-phy";
 			power-domains = <&usb_otg2_pd>;
@@ -1173,16 +1173,17 @@
 
 	gpu: gpu@38000000 {
 		compatible = "fsl,imx8mq-gpu", "fsl,imx6q-gpu";
-		reg = <0x0 0x38000000 0 0x40000>, <0x0 0x60000000 0x0 0x14000000>, <0x0 0x0 0x0 0x2000000>;
+		reg = <0x0 0x38000000 0 0x40000>, <0x0 0x40000000 0x0 0xC0000000>, <0x0 0x0 0x0 0x8000000>;
 		reg-names = "iobase_3d", "phys_baseaddr", "contiguous_mem";
-		interrupts = <0 3 0x4>;
+		interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "irq_3d";
-		clocks = <&clk IMX8MQ_CLK_GPU_ROOT>, <&clk IMX8MQ_CLK_GPU_SHADER_DIV>, <&clk IMX8MQ_CLK_GPU_AXI_DIV>;
-		clock-names = "gpu3d_clk", "gpu3d_shader_clk", "gpu3d_axi_clk";
+		clocks = <&clk IMX8MQ_CLK_GPU_ROOT>, <&clk IMX8MQ_CLK_GPU_SHADER_DIV>, <&clk IMX8MQ_CLK_GPU_AXI_DIV>, <&clk IMX8MQ_CLK_GPU_AHB_DIV>;
+		clock-names = "gpu3d_clk", "gpu3d_shader_clk", "gpu3d_axi_clk", "gpu3d_ahb_clk";
 		assigned-clocks = <&clk IMX8MQ_CLK_GPU_CORE_SRC>, <&clk IMX8MQ_CLK_GPU_SHADER_SRC>, <&clk IMX8MQ_CLK_GPU_AXI_SRC>, <&clk IMX8MQ_CLK_GPU_AHB_SRC>;
 		assigned-clock-parents = <&clk IMX8MQ_GPU_PLL_OUT>, <&clk IMX8MQ_GPU_PLL_OUT>, <&clk IMX8MQ_GPU_PLL_OUT>, <&clk IMX8MQ_GPU_PLL_OUT>;
 		assigned-clock-rates = <800000000>, <800000000>, <800000000>, <800000000>;
 		power-domains = <&gpu_pd>;
+		depth-compression = <0>;
 		status = "disabled";
 	};
 
@@ -1276,10 +1277,24 @@
 		only-dma-mask32 = <1>;
 	};
 
+	qspi: qspi@30bb0000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx7d-qspi";
+		reg = <0 0x30bb0000 0 0x10000>, <0 0x08000000 0 0x10000000>;
+		reg-names = "QuadSPI", "QuadSPI-memory";
+		interrupts = <GIC_SPI 107 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8MQ_CLK_QSPI_ROOT>,
+		<&clk IMX8MQ_CLK_QSPI_ROOT>;
+		clock-names = "qspi_en", "qspi";
+		status = "disabled";
+	};
+
 	pcie0: pcie@0x33800000 {
 		compatible = "fsl,imx8mq-pcie", "snps,dw-pcie";
 		reg = <0x0 0x33800000 0x0 0x400000>, <0x0 0x1ff00000 0x0 0x80000>;
 		reg-names = "dbi", "config";
+		reserved-region = <&rpmsg_reserved>;
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
@@ -1309,6 +1324,7 @@
 		compatible = "fsl,imx8mq-pcie", "snps,dw-pcie";
 		reg = <0x0 0x33c00000 0x0 0x400000>, <0x0 0x27f00000 0x0 0x80000>;
 		reg-names = "dbi", "config";
+		reserved-region = <&rpmsg_reserved>;
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
@@ -1350,6 +1366,38 @@
 			compatible = "fsl,imx8qm-rpmsg";
 			status = "disabled";
 		};
+	};
+
+	crypto: caam@30900000 {
+		compatible = "fsl,sec-v4.0";
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		reg = <0 0x30900000 0 0x40000>;
+		ranges = <0 0 0x30900000 0x40000>;
+		interrupts = <GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>;
+
+		sec_jr0: jr0@1000 {
+			 compatible = "fsl,sec-v4.0-job-ring";
+			 reg = <0x1000 0x1000>;
+			 interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		sec_jr1: jr1@2000 {
+			 compatible = "fsl,sec-v4.0-job-ring";
+			 reg = <0x2000 0x1000>;
+			 interrupts = <GIC_SPI 106 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		sec_jr2: jr2@3000 {
+			 compatible = "fsl,sec-v4.0-job-ring";
+			 reg = <0x3000 0x1000>;
+			 interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+		};
+	};
+
+	caam_sm: caam-sm@00100000 {
+		compatible = "fsl,imx6q-caam-sm";
+		reg = <0 0x00100000 0 0x8000>;
 	};
 
 	caam_snvs: caam-snvs@30370000 {

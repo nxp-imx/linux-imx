@@ -25,10 +25,10 @@
 
 / {
 	model = "Freescale i.MX8QM DOMU";
-	compatible = "fsl,imx8qm-mek", "fsl,imx8qm";
-
-	#address-cells = <2>;
-	#size-cells = <2>;
+	compatible = "fsl,imx8qm-mek", "fsl,imx8qm", "xen,xenvm-4.10", "xen,xenvm";
+	interrupt-parent = <&gic>;
+	#address-cells = <0x2>;
+	#size-cells = <0x2>;
 
 	/delete-node/ aliases;
 
@@ -39,11 +39,95 @@
 		serial1 = &lpuart1;
 	};
 
+	cpus {
+		#address-cells = <0x2>;
+		#size-cells = <0x0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			enable-method = "psci";
+			reg = <0x0 0x0>;
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,armv8";
+			enable-method = "psci";
+			reg = <0x0 0x1>;
+		};
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "hvc";
+	};
+
+	memory@80000000 {
+		device_type = "memory";
+		/* Will be updated by U-Boot or XEN TOOL */
+		reg = <0x00000000 0x40000000 0 0x40000000>;
+	};
+
+	gic: interrupt-controller@3001000 {
+		compatible = "arm,gic-v3";
+		#interrupt-cells = <3>;
+		#address-cells = <0x0>;
+		interrupt-controller;
+		redistributor-stride = <0x20000>;
+		#redistributor-regions = <0x1>;
+		reg = <0x0 0x3001000 0 0x10000>, /* GIC Dist */
+		      <0x0 0x3020000 0 0x1000000>; /* GICR */
+		interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(6) | IRQ_TYPE_LEVEL_HIGH)>;
+		interrupt-parent = <&gic>;
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(6) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(6) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(6) | IRQ_TYPE_LEVEL_LOW)>;
+		interrupt-parent = <&gic>;
+		clock-frequency = <8000000>;
+	};
+
+	hypervisor {
+		compatible = "xen,xen-4.10", "xen,xen";
+		reg = <0x0 0x38000000 0x0 0x1000000>;
+		interrupts = <GIC_PPI 15 (GIC_CPU_MASK_SIMPLE(6) | IRQ_TYPE_LEVEL_LOW)>;
+		interrupt-parent = <&gic>;
+	};
+
 	passthrough {
 		compatible = "simple-bus";
 		ranges;
 		#address-cells = <2>;
 		#size-cells = <2>;
+
+		firmware {
+			android {
+				compatible = "android,firmware";
+				fstab {
+					compatible = "android,fstab";
+					vendor {
+						compatible = "android,vendor";
+						/* emmc node which used if androidboot.storage_type=emmc */
+						dev_emmc = "/dev/block/platform/passthrough/15b010000.usdhc/by-name/vendor";
+						type = "ext4";
+						mnt_flags = "ro,barrier=1,inode_readahead_blks=8";
+						fsmgr_flags = "wait,slotselect,avb";
+					};
+				};
+
+				vbmeta {
+					/*we need use FirstStageMountVBootV2 if we enable avb*/
+					compatible = "android,vbmeta";
+					/*parts means the partition witch can be mount in first stage*/
+					parts = "vbmeta,boot,system,vendor";
+				};
+			};
+		};
+
 
 		clk: clk {
 			compatible = "fsl,imx8qm-clk";
@@ -411,6 +495,8 @@
 /delete-node/ &intmux_cm40;
 /delete-node/ &intmux_cm41;
 /delete-node/ &imx_rpmsg;
+/delete-node/ &crypto;
+/delete-node/ &caam_sm;
 /delete-node/ &sc_pwrkey;
 /delete-node/ &wdog;
 /delete-node/ &wu;

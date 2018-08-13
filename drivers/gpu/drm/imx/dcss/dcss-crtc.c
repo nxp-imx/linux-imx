@@ -28,6 +28,9 @@
 #include "imx-drm.h"
 #include "dcss-crtc.h"
 
+#define TRACE_FLUSH	0
+#define TRACE_VBLANK	1
+
 struct dcss_crtc {
 	struct device *dev;
 	struct drm_crtc		base;
@@ -35,12 +38,13 @@ struct dcss_crtc {
 	struct dcss_plane	*plane[3];
 
 	int			irq;
+	bool			irq_enabled;
 
 	struct drm_property *alpha;
 	struct drm_property *use_global;
 	struct drm_property *dtrc_table_ofs;
 
-	struct completion disable_completion;
+	struct completion en_dis_completion;
 
 	enum dcss_hdr10_nonlinearity opipe_nl;
 	enum dcss_hdr10_gamut opipe_g;
@@ -72,6 +76,9 @@ static struct drm_crtc_state *dcss_crtc_duplicate_state(struct drm_crtc *crtc)
 {
 	struct imx_crtc_state *state;
 
+	if (!crtc->state)
+		return NULL;
+
 	state = kzalloc(sizeof(*state), GFP_KERNEL);
 	if (!state)
 		return NULL;
@@ -97,6 +104,13 @@ static int dcss_enable_vblank(struct drm_crtc *crtc)
 						   base);
 	struct dcss_soc *dcss = dev_get_drvdata(dcss_crtc->dev->parent);
 
+	if (dcss_crtc->irq_enabled)
+		return 0;
+
+	dcss_crtc->irq_enabled = true;
+
+	dcss_req_pm_qos(dcss, true);
+
 	dcss_vblank_irq_enable(dcss, true);
 
 	enable_irq(dcss_crtc->irq);
@@ -113,6 +127,10 @@ static void dcss_disable_vblank(struct drm_crtc *crtc)
 	disable_irq_nosync(dcss_crtc->irq);
 
 	dcss_vblank_irq_enable(dcss, false);
+
+	dcss_req_pm_qos(dcss, false);
+
+	dcss_crtc->irq_enabled = false;
 }
 
 static const struct drm_crtc_funcs dcss_crtc_funcs = {
@@ -154,6 +172,8 @@ static void dcss_crtc_atomic_flush(struct drm_crtc *crtc,
 	struct dcss_crtc *dcss_crtc = container_of(crtc, struct dcss_crtc,
 						   base);
 	struct dcss_soc *dcss = dev_get_drvdata(dcss_crtc->dev->parent);
+
+	dcss_trace_module(TRACE_DRM_CRTC, TRACE_FLUSH);
 
 	if (dcss_dtg_is_enabled(dcss))
 		dcss_ctxld_enable(dcss);
@@ -228,6 +248,8 @@ static void dcss_crtc_atomic_enable(struct drm_crtc *crtc,
 
 	pm_runtime_get_sync(dcss_crtc->dev->parent);
 
+	dcss_enable_vblank(crtc);
+
 	dcss_dtg_sync_set(dcss, &vm);
 
 	dcss_ss_subsam_set(dcss, dcss_crtc->opipe_pix_format);
@@ -239,6 +261,10 @@ static void dcss_crtc_atomic_enable(struct drm_crtc *crtc,
 	dcss_ss_enable(dcss, true);
 	dcss_dtg_enable(dcss, true, NULL);
 	dcss_ctxld_enable(dcss);
+
+	reinit_completion(&dcss_crtc->en_dis_completion);
+	wait_for_completion_timeout(&dcss_crtc->en_dis_completion,
+				    msecs_to_jiffies(100));
 
 	crtc->enabled = true;
 }
@@ -259,16 +285,17 @@ static void dcss_crtc_atomic_disable(struct drm_crtc *crtc,
 	}
 	spin_unlock_irq(&crtc->dev->event_lock);
 
-	drm_crtc_vblank_off(crtc);
-
 	dcss_ss_enable(dcss, false);
-	dcss_dtg_enable(dcss, false, &dcss_crtc->disable_completion);
+	dcss_dtg_enable(dcss, false, &dcss_crtc->en_dis_completion);
 	dcss_ctxld_enable(dcss);
 
 	crtc->enabled = false;
 
-	wait_for_completion_timeout(&dcss_crtc->disable_completion,
+	reinit_completion(&dcss_crtc->en_dis_completion);
+	wait_for_completion_timeout(&dcss_crtc->en_dis_completion,
 				    msecs_to_jiffies(100));
+
+	drm_crtc_vblank_off(crtc);
 
 	pm_runtime_put_sync(dcss_crtc->dev->parent);
 }
@@ -286,7 +313,12 @@ static irqreturn_t dcss_crtc_irq_handler(int irq, void *dev_id)
 	struct dcss_crtc *dcss_crtc = dev_id;
 	struct dcss_soc *dcss = dev_get_drvdata(dcss_crtc->dev->parent);
 
-	drm_crtc_handle_vblank(&dcss_crtc->base);
+	dcss_trace_module(TRACE_DRM_CRTC, TRACE_VBLANK);
+
+	complete(&dcss_crtc->en_dis_completion);
+
+	if (dcss_ctxld_is_flushed(dcss))
+		drm_crtc_handle_vblank(&dcss_crtc->base);
 
 	dcss_vblank_irq_clear(dcss);
 
@@ -369,7 +401,7 @@ static int dcss_crtc_init(struct dcss_crtc *crtc,
 		return crtc->irq;
 	}
 
-	init_completion(&crtc->disable_completion);
+	init_completion(&crtc->en_dis_completion);
 
 	ret = devm_request_irq(crtc->dev, crtc->irq, dcss_crtc_irq_handler,
 			       IRQF_TRIGGER_RISING, "dcss_drm", crtc);

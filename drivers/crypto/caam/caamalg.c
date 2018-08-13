@@ -1,8 +1,8 @@
 /*
  * caam - Freescale FSL CAAM support for crypto API
  *
- * Copyright 2008-2011 Freescale Semiconductor, Inc.
- * Copyright 2016 NXP
+ * Copyright 2008-2016 Freescale Semiconductor, Inc.
+ * Copyright 2017-2018 NXP
  *
  * Based on talitos crypto API driver.
  *
@@ -3546,8 +3546,14 @@ static int __init caam_algapi_init(void)
 	 * Register crypto algorithms the device supports.
 	 * First, detect presence and attributes of DES, AES, and MD blocks.
 	 */
-	cha_vid = rd_reg32(&priv->ctrl->perfmon.cha_id_ls);
-	cha_inst = rd_reg32(&priv->ctrl->perfmon.cha_num_ls);
+	if (priv->has_seco) {
+		i = priv->first_jr_index;
+		cha_vid = rd_reg32(&priv->jr[i]->perfmon.cha_id_ls);
+		cha_inst = rd_reg32(&priv->jr[i]->perfmon.cha_num_ls);
+	} else {
+		cha_vid = rd_reg32(&priv->ctrl->perfmon.cha_id_ls);
+		cha_inst = rd_reg32(&priv->ctrl->perfmon.cha_num_ls);
+	}
 	des_inst = (cha_inst & CHA_ID_LS_DES_MASK) >> CHA_ID_LS_DES_SHIFT;
 	aes_inst = (cha_inst & CHA_ID_LS_AES_MASK) >> CHA_ID_LS_AES_SHIFT;
 	md_inst = (cha_inst & CHA_ID_LS_MD_MASK) >> CHA_ID_LS_MD_SHIFT;

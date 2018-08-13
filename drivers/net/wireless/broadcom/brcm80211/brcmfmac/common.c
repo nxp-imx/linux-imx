@@ -18,6 +18,7 @@
 #include <linux/string.h>
 #include <linux/netdevice.h>
 #include <linux/module.h>
+#include <linux/firmware.h>
 #include <brcmu_wifi.h>
 #include <brcmu_utils.h>
 #include "core.h"
@@ -28,6 +29,7 @@
 #include "tracepoint.h"
 #include "common.h"
 #include "of.h"
+#include "firmware.h"
 
 MODULE_AUTHOR("Broadcom Corporation");
 MODULE_DESCRIPTION("Broadcom 802.11 wireless LAN fullmac driver.");
@@ -73,6 +75,14 @@ static int brcmf_roamoff;
 module_param_named(roamoff, brcmf_roamoff, int, S_IRUSR);
 MODULE_PARM_DESC(roamoff, "Do not use internal roaming engine");
 
+static int brcmf_eap_restrict;
+module_param_named(eap_restrict, brcmf_eap_restrict, int, 0400);
+MODULE_PARM_DESC(eap_restrict, "Block non-802.1X frames until auth finished");
+
+static int brcmf_sdio_dpc_prio;
+module_param_named(sdio_dpc_prio, brcmf_sdio_dpc_prio, int, S_IRUSR);
+MODULE_PARM_DESC(sdio_dpc_prio, "The scheduling priority of sdio_dpc thread");
+
 #ifdef DEBUG
 /* always succeed brcmf_bus_started() */
 static int brcmf_ignore_probe_fail;
@@ -104,16 +114,141 @@ void brcmf_c_set_joinpref_default(struct brcmf_if *ifp)
 		brcmf_err("Set join_pref error (%d)\n", err);
 }
 
+static int brcmf_c_download(struct brcmf_if *ifp, u16 flag,
+			    struct brcmf_dload_data_le *dload_buf,
+			    u32 len)
+{
+	s32 err;
+
+	flag |= (DLOAD_HANDLER_VER << DLOAD_FLAG_VER_SHIFT);
+	dload_buf->flag = cpu_to_le16(flag);
+	dload_buf->dload_type = cpu_to_le16(DL_TYPE_CLM);
+	dload_buf->len = cpu_to_le32(len);
+	dload_buf->crc = cpu_to_le32(0);
+	len = sizeof(*dload_buf) + len - 1;
+
+	err = brcmf_fil_iovar_data_set(ifp, "clmload", dload_buf, len);
+
+	return err;
+}
+
+static int brcmf_c_get_clm_name(struct brcmf_if *ifp, u8 *clm_name)
+{
+	struct brcmf_bus *bus = ifp->drvr->bus_if;
+	struct brcmf_rev_info *ri = &ifp->drvr->revinfo;
+	u8 fw_name[BRCMF_FW_NAME_LEN];
+	u8 *ptr;
+	size_t len;
+	s32 err;
+
+	memset(fw_name, 0, BRCMF_FW_NAME_LEN);
+	err = brcmf_bus_get_fwname(bus, ri->chipnum, ri->chiprev, fw_name);
+	if (err) {
+		brcmf_err("get firmware name failed (%d)\n", err);
+		goto done;
+	}
+
+	/* generate CLM blob file name */
+	ptr = strrchr(fw_name, '.');
+	if (!ptr) {
+		err = -ENOENT;
+		goto done;
+	}
+
+	len = ptr - fw_name + 1;
+	if (len + strlen(".clm_blob") > BRCMF_FW_NAME_LEN) {
+		err = -E2BIG;
+	} else {
+		strlcpy(clm_name, fw_name, len);
+		strlcat(clm_name, ".clm_blob", BRCMF_FW_NAME_LEN);
+	}
+done:
+	return err;
+}
+
+static int brcmf_c_process_clm_blob(struct brcmf_if *ifp)
+{
+	struct device *dev = ifp->drvr->bus_if->dev;
+	struct brcmf_dload_data_le *chunk_buf;
+	const struct firmware *clm = NULL;
+	u8 clm_name[BRCMF_FW_NAME_LEN];
+	u32 chunk_len;
+	u32 datalen;
+	u32 cumulative_len;
+	u16 dl_flag = DL_BEGIN;
+	u32 status;
+	s32 err;
+
+	brcmf_dbg(TRACE, "Enter\n");
+
+	memset(clm_name, 0, BRCMF_FW_NAME_LEN);
+	err = brcmf_c_get_clm_name(ifp, clm_name);
+	if (err) {
+		brcmf_err("get CLM blob file name failed (%d)\n", err);
+		return err;
+	}
+
+	err = request_firmware(&clm, clm_name, dev);
+	if (err) {
+		brcmf_info("no clm_blob available(err=%d), device may have limited channels available\n",
+			   err);
+		return 0;
+	}
+
+	chunk_buf = kzalloc(sizeof(*chunk_buf) + MAX_CHUNK_LEN - 1, GFP_KERNEL);
+	if (!chunk_buf) {
+		err = -ENOMEM;
+		goto done;
+	}
+
+	datalen = clm->size;
+	cumulative_len = 0;
+	do {
+		if (datalen > MAX_CHUNK_LEN) {
+			chunk_len = MAX_CHUNK_LEN;
+		} else {
+			chunk_len = datalen;
+			dl_flag |= DL_END;
+		}
+		memcpy(chunk_buf->data, clm->data + cumulative_len, chunk_len);
+
+		err = brcmf_c_download(ifp, dl_flag, chunk_buf, chunk_len);
+
+		dl_flag &= ~DL_BEGIN;
+
+		cumulative_len += chunk_len;
+		datalen -= chunk_len;
+	} while ((datalen > 0) && (err == 0));
+
+	if (err) {
+		brcmf_err("clmload (%zu byte file) failed (%d); ",
+			  clm->size, err);
+		/* Retrieve clmload_status and print */
+		err = brcmf_fil_iovar_int_get(ifp, "clmload_status", &status);
+		if (err)
+			brcmf_err("get clmload_status failed (%d)\n", err);
+		else
+			brcmf_dbg(INFO, "clmload_status=%d\n", status);
+		err = -EIO;
+	}
+
+	kfree(chunk_buf);
+done:
+	release_firmware(clm);
+	return err;
+}
+
 int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 {
 	s8 eventmask[BRCMF_EVENTING_MASK_LEN];
 	u8 buf[BRCMF_DCMD_SMLEN];
 	struct brcmf_rev_info_le revinfo;
 	struct brcmf_rev_info *ri;
+	char *clmver;
 	char *ptr;
 	s32 err;
 
-	/* retreive mac address */
+	/* retrieve mac addresses */
 	err = brcmf_fil_iovar_data_get(ifp, "cur_etheraddr", ifp->mac_addr,
 				       sizeof(ifp->mac_addr));
 	if (err < 0) {
@@ -148,6 +283,13 @@ int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 	}
 	ri->result = err;
 
+	/* Do any CLM downloading */
+	err = brcmf_c_process_clm_blob(ifp);
+	if (err < 0) {
+		brcmf_err("download CLM blob file failed, %d\n", err);
+		goto done;
+	}
+
 	/* query for 'ver' to get version info from firmware */
 	memset(buf, 0, sizeof(buf));
 	strcpy(buf, "ver");
@@ -166,6 +308,26 @@ int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 	/* locate firmware version number for ethtool */
 	ptr = strrchr(buf, ' ') + 1;
 	strlcpy(ifp->drvr->fwver, ptr, sizeof(ifp->drvr->fwver));
+
+	/* Query for 'clmver' to get CLM version info from firmware */
+	memset(buf, 0, sizeof(buf));
+	err = brcmf_fil_iovar_data_get(ifp, "clmver", buf, sizeof(buf));
+	if (err) {
+		brcmf_dbg(TRACE, "retrieving clmver failed, %d\n", err);
+	} else {
+		clmver = (char *)buf;
+		/* store CLM version for adding it to revinfo debugfs file */
+		memcpy(ifp->drvr->clmver, clmver, sizeof(ifp->drvr->clmver));
+
+		/* Replace all newline/linefeed characters with space
+		 * character
+		 */
+		ptr = clmver;
+		while ((ptr = strnchr(ptr, '\n', sizeof(buf))) != NULL)
+			*ptr = ' ';
+
+		brcmf_dbg(INFO, "CLM version = %s\n", clmver);
+	}
 
 	/* set mpc */
 	err = brcmf_fil_iovar_int_set(ifp, "mpc", 1);
@@ -211,6 +373,12 @@ int brcmf_c_preinit_dcmds(struct brcmf_if *ifp)
 
 	/* Enable tx beamforming, errors can be ignored (not supported) */
 	(void)brcmf_fil_iovar_int_set(ifp, "txbf", 1);
+
+	/* add unicast packet filter */
+	err = brcmf_pktfilter_add_remove(ifp->ndev,
+					 BRCMF_UNICAST_FILTER_NUM, true);
+	if (err)
+		brcmf_info("Add unicast filter error (%d)\n", err);
 
 	/* do bus specific preinit here */
 	err = brcmf_bus_preinit(ifp->drvr->bus_if);
@@ -282,11 +450,13 @@ struct brcmf_mp_device *brcmf_get_module_param(struct device *dev,
 	if (!settings)
 		return NULL;
 
-	/* start by using the module paramaters */
+	/* start by using the module parameters */
 	settings->p2p_enable = !!brcmf_p2p_enable;
 	settings->feature_disable = brcmf_feature_disable;
 	settings->fcmode = brcmf_fcmode;
 	settings->roamoff = !!brcmf_roamoff;
+	settings->eap_restrict = !!brcmf_eap_restrict;
+	settings->sdio_dpc_prio = brcmf_sdio_dpc_prio;
 #ifdef DEBUG
 	settings->ignore_probe_fail = !!brcmf_ignore_probe_fail;
 #endif
@@ -368,7 +538,7 @@ static int __init brcmfmac_module_init(void)
 	if (err == -ENODEV)
 		brcmf_dbg(INFO, "No platform data available.\n");
 
-	/* Initialize global module paramaters */
+	/* Initialize global module parameters */
 	brcmf_mp_attach();
 
 	/* Continue the initialization by registering the different busses */

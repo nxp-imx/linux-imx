@@ -60,6 +60,30 @@ static int select_N_index(u32 pclk)
 	return i;
 }
 
+static void imx_hdmi_audio_avi_set(state_struct *state,
+						u32 channels)
+{
+	struct hdmi_audio_infoframe frame;
+	u8 buf[32];
+	int ret;
+
+	hdmi_audio_infoframe_init(&frame);
+
+	frame.channels = channels;
+	frame.coding_type = HDMI_AUDIO_CODING_TYPE_STREAM;
+
+	ret = hdmi_audio_infoframe_pack(&frame, buf + 1, sizeof(buf) - 1);
+	if (ret < 0) {
+		DRM_ERROR("failed to pack audio infoframe: %d\n", ret);
+		return;
+	}
+
+	buf[0] = 0;
+
+	CDN_API_InfoframeSet(state, 1, sizeof(buf),
+				    (u32 *)buf, HDMI_INFOFRAME_TYPE_AUDIO);
+}
+
 static u32 imx_hdp_audio(struct imx_hdp *hdmi, AUDIO_TYPE type, u32 sample_rate, u32 channels, u32 width)
 {
 	AUDIO_FREQ  freq;
@@ -126,6 +150,10 @@ static u32 imx_hdp_audio(struct imx_hdp *hdmi, AUDIO_TYPE type, u32 sample_rate,
 				hdmi->audio_type,
 				ncts_n,
 				AUDIO_MUTE_MODE_UNMUTE);
+
+	if (hdmi->audio_type == CDN_HDMITX_TYPHOON ||
+			hdmi->audio_type == CDN_HDMITX_KIRAN)
+		imx_hdmi_audio_avi_set(state, channels);
 	return 0;
 }
 
@@ -165,6 +193,10 @@ static int imx_hdp_audio_hw_params(struct device *dev, void *data,
 
 static void imx_hdp_audio_shutdown(struct device *dev, void *data)
 {
+	struct imx_hdp *hdmi = dev_get_drvdata(dev);
+	state_struct *state = &hdmi->state;
+
+	CDN_API_InfoframeRemovePacket(state, 0x1, 0x84);
 }
 
 static int imx_hdp_audio_get_eld(struct device *dev, void *data, uint8_t *buf, size_t len)
@@ -192,7 +224,7 @@ void imx_hdp_register_audio_driver(struct device *dev)
 	struct platform_device *pdev;
 
 	pdev = platform_device_register_data(dev, HDMI_CODEC_DRV_NAME,
-					     PLATFORM_DEVID_NONE, &codec_data,
+					     1, &codec_data,
 					     sizeof(codec_data));
 	if (IS_ERR(pdev))
 		return;

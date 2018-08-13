@@ -2,6 +2,7 @@
  * caam - Freescale FSL CAAM support for ahash functions of crypto API
  *
  * Copyright 2011 Freescale Semiconductor, Inc.
+ * Copyright 2017-2018 NXP
  *
  * Based on caamalg.c crypto API driver.
  *
@@ -700,11 +701,18 @@ static inline void ahash_unmap(struct device *dev,
 			struct ahash_request *req, int dst_len)
 {
 	struct caam_hash_state *state = ahash_request_ctx(req);
+	int len;
 
 	if (edesc->src_nents)
 		dma_unmap_sg(dev, req->src, edesc->src_nents, DMA_TO_DEVICE);
 	if (edesc->dst_dma)
 		dma_unmap_single(dev, edesc->dst_dma, dst_len, DMA_FROM_DEVICE);
+
+	len = state->current_buf ? state->buflen_1 : state->buflen_0;
+	if (state->buf_dma && len) {
+		dma_unmap_single(dev, state->buf_dma, len, DMA_TO_DEVICE);
+		state->buf_dma = 0;
+	}
 
 	if (edesc->sec4_sg_bytes)
 		dma_unmap_single(dev, edesc->sec4_sg_dma,
@@ -1326,13 +1334,16 @@ static int ahash_final_no_ctx(struct ahash_request *req)
 
 	desc = edesc->hw_desc;
 
-	state->buf_dma = dma_map_single(jrdev, buf, buflen, DMA_TO_DEVICE);
-	if (dma_mapping_error(jrdev, state->buf_dma)) {
-		dev_err(jrdev, "unable to map src\n");
-		goto unmap;
-	}
+	if (buflen) {
+		state->buf_dma = dma_map_single(jrdev, buf, buflen,
+						DMA_TO_DEVICE);
+		if (dma_mapping_error(jrdev, state->buf_dma)) {
+			dev_err(jrdev, "unable to map src\n");
+			goto unmap;
+		}
 
-	append_seq_in_ptr(desc, state->buf_dma, buflen, 0);
+		append_seq_in_ptr(desc, state->buf_dma, buflen, 0);
+	}
 
 	edesc->dst_dma = map_seq_out_ptr_result(desc, jrdev, req->result,
 						digestsize);
@@ -2146,8 +2157,14 @@ static int __init caam_algapi_hash_init(void)
 	 * Register crypto algorithms the device supports.  First, identify
 	 * presence and attributes of MD block.
 	 */
-	cha_vid = rd_reg32(&priv->ctrl->perfmon.cha_id_ls);
-	cha_inst = rd_reg32(&priv->ctrl->perfmon.cha_num_ls);
+	if (priv->has_seco) {
+		i = priv->first_jr_index;
+		cha_vid = rd_reg32(&priv->jr[i]->perfmon.cha_id_ls);
+		cha_inst = rd_reg32(&priv->jr[i]->perfmon.cha_num_ls);
+	} else {
+		cha_vid = rd_reg32(&priv->ctrl->perfmon.cha_id_ls);
+		cha_inst = rd_reg32(&priv->ctrl->perfmon.cha_num_ls);
+	}
 
 	/*
 	 * Skip registration of any hashing algorithms if MD block

@@ -25,26 +25,36 @@ struct dcss_client_platformdata {
 	struct device_node *of_node;
 };
 
-#define VIV_VIDMEM_METADATA_MAGIC fourcc_code('v', 'i', 'v', 'm')
-
-struct dma_metadata {
-	uint32_t magic;
-	int32_t  ts_buf_fd;
-	void *ts_dma_buf;
-
-	uint32_t fc_enabled;
-	uint32_t fc_value;
-	uint32_t fc_value_upper;
-
-	uint32_t compressed;
-	uint32_t compressed_format;
-};
-
 /* COMMON */
 int dcss_vblank_irq_get(struct dcss_soc *dcss);
 void dcss_vblank_irq_enable(struct dcss_soc *dcss, bool en);
 void dcss_vblank_irq_clear(struct dcss_soc *dcss);
 enum dcss_color_space dcss_drm_fourcc_to_colorspace(u32 drm_fourcc);
+void dcss_trace_write(u64 tag);
+
+
+#define TAG(x)			((x) << 56)
+
+#define TRACE_COMMON		TAG(0LL)
+#define TRACE_DTG		TAG(1LL)
+#define TRACE_SS		TAG(2LL)
+#define TRACE_DPR		TAG(3LL)
+#define TRACE_SCALER		TAG(4LL)
+#define TRACE_CTXLD		TAG(5LL)
+#define TRACE_DEC400D		TAG(6LL)
+#define TRACE_DTRC		TAG(7LL)
+#define TRACE_HDR10		TAG(8LL)
+#define TRACE_RDSRC		TAG(9LL)
+#define TRACE_WRSCL		TAG(10LL)
+
+#define TRACE_DRM_CRTC		TAG(11LL)
+#define TRACE_DRM_PLANE		TAG(12LL)
+#define TRACE_DRM_KMS		TAG(13LL)
+
+#define dcss_trace_module(mod_tag, val) dcss_trace_write((mod_tag) | (val));
+
+/* COMMON */
+void dcss_req_pm_qos(struct dcss_soc *dcss, bool en);
 
 /* BLKCTL */
 void dcss_blkctl_hdmi_secure_src_en(struct dcss_soc *dcss);
@@ -106,6 +116,7 @@ bool dcss_scaler_can_scale(struct dcss_soc *dcss, int ch_num,
 
 /* CTXLD */
 int dcss_ctxld_enable(struct dcss_soc *dcss);
+bool dcss_ctxld_is_flushed(struct dcss_soc *dcss);
 
 /* HDR10 */
 enum dcss_hdr10_nonlinearity {
@@ -167,6 +178,10 @@ void dcss_dec400d_addr_set(struct dcss_soc *dcss,
 			   uint32_t caddr);
 void dcss_dec400d_read_config(struct dcss_soc *dcss,
 			      uint32_t read_id,
-			      bool compress_en);
+			      bool compress_en,
+			      uint32_t compress_format);
+void dcss_dec400d_fast_clear_config(struct dcss_soc *dcss,
+                                    uint32_t fc_value,
+                                    bool enable);
 void dcss_dec400d_enable(struct dcss_soc *dcss);
 #endif /* __IMX_DCSS_H__ */

@@ -95,6 +95,9 @@ void arc_config(state_struct *state)
 {
 	u16 reg_val;
 
+	write16(state, TXDA_CYA_AUXDA_CYA_ADDR, 0x0001);
+
+	write16(state, TX_DIG_CTRL_REG_1_ADDR, 0x3);
 	write16(state, TX_DIG_CTRL_REG_2_ADDR, 0x0024);
 
 	reg_val = read16(state, TX_ANA_CTRL_REG_1_ADDR);
@@ -108,7 +111,7 @@ void arc_config(state_struct *state)
 	write16(state, TX_ANA_CTRL_REG_1_ADDR, 0x2018);
 	write16(state, TX_ANA_CTRL_REG_1_ADDR, 0x2098);
 	write16(state, TX_ANA_CTRL_REG_2_ADDR, 0x030C);
-	write16(state, TX_ANA_CTRL_REG_5_ADDR, 0x0000);
+	write16(state, TX_ANA_CTRL_REG_5_ADDR, 0x0010);
 	write16(state, TX_ANA_CTRL_REG_4_ADDR, 0x4001);
 	write16(state, TX_ANA_CTRL_REG_1_ADDR, 0x2198);
 	write16(state, TX_ANA_CTRL_REG_2_ADDR, 0x030D);
@@ -216,7 +219,7 @@ u32 pma_rx_clk_freq_detect(state_struct *state)
 	return rx_clk_freq;
 }
 
-void pma_pll_config(state_struct *state,
+u8 pma_pll_config(state_struct *state,
 		    u32 rx_clk_freq,
 		    clk_ratio_t clk_ratio,
 		    tmds_bit_clock_ratio_t tmds_bit_clk_ratio,
@@ -1014,8 +1017,10 @@ void pma_pll_config(state_struct *state,
 			break;
 		msleep(10);
 	}
-	if (i == 20)
-		pr_info("pma_pll_ready failed\n");
+	if (i == 20) {
+		pr_err("pma_pll_ready failed\n");
+		return -1;
+	}
 
 	/* Turn on output clocks: */
 	/* PHY_PMA_CMN_CTRL2 */
@@ -1059,8 +1064,10 @@ void pma_pll_config(state_struct *state,
 		loop++;
 	} while (!reg_val && loop < 20);
 	/* Timeout */
-	if (loop == 20)
+	if (loop == 20) {
 		pr_err("pma_pll_config() Waiting for xcvr_psm_ready... failed\n");
+		return -1;
+	}
 
 	/* Set A0 power state: */
 	/* PHY_MODE_CTL */
@@ -1080,8 +1087,10 @@ void pma_pll_config(state_struct *state,
 			break;
 		msleep(10);
 	}
-	if (i == 20)
+	if (i == 20) {
 		pr_err("Waiting for A0 power mode acknowledged failed\n");
+		return -1;
+	}
 
 	if (data_rate_change) {
 		pr_info("pma_pll_config() Enable Rx Eq Training\n");
@@ -1093,6 +1102,7 @@ void pma_pll_config(state_struct *state,
 				reg_val);
 		}
 	}
+	return 0;
 }
 
 clk_ratio_t clk_ratio_detect(state_struct *state,

@@ -100,7 +100,7 @@
 		};
 	};
 
-	port@1 {
+	port@2 {
 		mipi_dsi_bridge_out: endpoint {
 			remote-endpoint = <&panel1_in>;
 		};
@@ -132,7 +132,7 @@
 		pinctrl-0 = <&pinctrl_i2c1_synaptics_dsx_io>;
 		interrupt-parent = <&gpio5>;
 		interrupts = <7 8>;
-	/*	rest-gpios = <&gpio5 6 GPIO_ACTIVE_HIGH>;  */
-		status = "disabled";
+		synaptics,diagonal-rotation;
+		status = "okay";
 	};
 };

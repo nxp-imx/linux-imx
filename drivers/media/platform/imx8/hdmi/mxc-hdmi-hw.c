@@ -273,6 +273,7 @@ int hdmirx_startup(state_struct *state)
 	struct mxc_hdmi_rx_dev *hdmi_rx = state_to_mxc_hdmirx(state);
 	S_HDMI_SCDC_GET_MSG *scdcData = &hdmi_rx->scdcData;
 	u8 ret = 0;
+	u32 i;
 
 	/* Start from TMDS/pixel clock ratio of 1:1.
 	 * It affects only pixel clock frequency as the character/data clocks are generated based on
@@ -308,11 +309,23 @@ int hdmirx_startup(state_struct *state)
 	CDN_API_HDMIRX_SetHpd_blocking(state, 0);
 	dev_dbg(&hdmi_rx->pdev->dev, "Clear HDP\n");
 
-	/* Wait for 5v */
-	while ((event5V & (1 << HDMI_RX_EVENT_5V_VAL)) == 0) {
+	/* check for 5v to get hdmi cable state */
+	CDN_API_HDMIRX_ReadEvent(state, &event5V);
+	dev_dbg(&hdmi_rx->pdev->dev, "event5V = 0x%02X\n", event5V);
+	for (i = 0; i < 5; i++) {
+		if (event5V & (1 << HDMI_RX_EVENT_5V_VAL)) {
+			dev_info(&hdmi_rx->pdev->dev, "HDMI 5V present\n");
+			break;
+		}
+		msleep(20);
 		CDN_API_HDMIRX_ReadEvent(state, &event5V);
 		dev_dbg(&hdmi_rx->pdev->dev, "event5V = 0x%02X\n", event5V);
 	}
+	if (i == 5) {
+		dev_info(&hdmi_rx->pdev->dev, "No HDMI 5V present!!!\n");
+		return -1;
+	}
+
 	/* Got 5v, set hpd */
 	msleep(100);	/* provide minimum low pulse length (100ms) */
 	CDN_API_HDMIRX_SetHpd_blocking(state, 1);
@@ -325,21 +338,29 @@ int hdmirx_startup(state_struct *state)
 	imx8qm_hdmi_phy_reset(state, 1);
 
 	ret = pma_cmn_ready(state);
-	if (ret < 0)
+	if (ret < 0) {
 		pr_err("pma_cmn_ready failed\n");
+		return -1;
+	}
 
 	msleep(500);
 
 	arc_config(state);
 
 	ret = pma_rx_clk_signal_detect(state);
-	if (ret < 0)
+	if (ret < 0) {
 		pr_err("pma_rx_clk_signal_detect failed\n");
+		return -1;
+	}
 	/* Get TMDS clock frequency */
 	rx_clk_freq = pma_rx_clk_freq_detect(state);
 
-	pma_pll_config(state, rx_clk_freq, clk_ratio, tmds_bit_clock_ratio,
+	ret = pma_pll_config(state, rx_clk_freq, clk_ratio, tmds_bit_clock_ratio,
 		       data_rate_change);
+	if (ret < 0) {
+		pr_err("pma_pll_config failed\n");
+		return -1;
+	}
 	msleep(500);
 
 	/* Setup the scrambling mode */
@@ -410,5 +431,10 @@ int hdmirx_startup(state_struct *state)
 	dev_dbg(&hdmi_rx->pdev->dev,
 				"CDN_API_HDMIRX_Init_blocking() complete.\n");
 
+	/* Initialize HDMI RX CEC */
+	CDN_API_General_Write_Register_blocking(state,
+				ADDR_SINK_CAR + (SINK_CEC_CAR << 2),
+				F_SINK_CEC_SYS_CLK_EN(1) |
+				F_SINK_CEC_SYS_CLK_RSTN_EN(1));
 	return 0;
 }

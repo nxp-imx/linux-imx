@@ -87,7 +87,9 @@
 #define XCVR_DIAG_RX_LANE_CAL_RST_TMR_ADDR     0x40EA
 #define TX_ANA_CTRL_REG_1_ADDR                 0x5020
 #define TX_ANA_CTRL_REG_2_ADDR                 0x5021
+#define TX_DIG_CTRL_REG_1_ADDR                 0x5023
 #define TX_DIG_CTRL_REG_2_ADDR                 0x5024
+#define TXDA_CYA_AUXDA_CYA_ADDR                0x5025
 #define TX_ANA_CTRL_REG_3_ADDR                 0x5026
 #define TX_ANA_CTRL_REG_4_ADDR                 0x5027
 #define TX_ANA_CTRL_REG_5_ADDR                 0x5029
@@ -133,7 +135,7 @@ u8 pma_cmn_ready(state_struct *state);
 u8 pma_rx_clk_signal_detect(state_struct *state);
 u32 pma_rx_clk_freq_detect(state_struct *state);
 void pre_data_rate_change(state_struct *state);
-void pma_pll_config(state_struct *state, u32, clk_ratio_t, tmds_bit_clock_ratio_t, unsigned char);
+u8 pma_pll_config(state_struct *state, u32, clk_ratio_t, tmds_bit_clock_ratio_t, unsigned char);
 clk_ratio_t clk_ratio_detect(state_struct *state, u32, u32, u8, pixel_encoding_t, tmds_bit_clock_ratio_t);
 void phy_status(state_struct *state);
 

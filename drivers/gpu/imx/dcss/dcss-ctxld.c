@@ -65,6 +65,10 @@
 #define CTXLD_SB_CTX_ENTRIES		(CTXLD_SB_LP_CTX_ENTRIES + \
 					 CTXLD_SB_HP_CTX_ENTRIES)
 
+#define TRACE_ARM			(1LL << 48)
+#define TRACE_IRQ			(2LL << 48)
+#define TRACE_KICK			(3LL << 48)
+
 static struct dcss_debug_reg ctxld_debug_reg[] = {
 	DCSS_DBG_REG(DCSS_CTXLD_CONTROL_STATUS),
 	DCSS_DBG_REG(DCSS_CTXLD_DB_BASE_ADDR),
@@ -106,7 +110,7 @@ struct dcss_ctxld_priv {
 	u8 current_ctx;
 
 	bool in_use;
-	bool run_again;
+	bool armed;
 
 	spinlock_t lock; /* protects concurent access to private data */
 };
@@ -141,11 +145,8 @@ static irqreturn_t dcss_ctxld_irq_handler(int irq, void *data)
 	    !(irq_status & CTXLD_ENABLE) && priv->in_use) {
 		priv->in_use = false;
 
-		if (priv->run_again) {
-			priv->run_again = false;
-			__dcss_ctxld_enable(priv);
-			goto exit;
-		}
+		dcss_trace_module(TRACE_CTXLD,
+				  TRACE_IRQ | (priv->current_ctx ^ 1));
 
 		if (priv->dcss->dcss_disable_callback) {
 			struct dcss_dtg_priv *dtg = priv->dcss->dtg_priv;
@@ -165,9 +166,8 @@ static irqreturn_t dcss_ctxld_irq_handler(int irq, void *data)
 			priv->ctx_size[priv->current_ctx ^ 1][CTX_SB_LP]);
 	}
 
-exit:
 	dcss_clr(irq_status & (CTXLD_IRQ_ERROR | CTXLD_IRQ_COMPLETION),
-		priv->ctxld_reg + DCSS_CTXLD_CONTROL_STATUS);
+		 priv->ctxld_reg + DCSS_CTXLD_CONTROL_STATUS);
 
 	return IRQ_HANDLED;
 }
@@ -291,10 +291,13 @@ static int __dcss_ctxld_enable(struct dcss_ctxld_priv *ctxld)
 	u32 db_base, sb_base, sb_count;
 	u32 sb_hp_cnt, sb_lp_cnt, db_cnt;
 
+	dcss_dpr_write_sysctrl(ctxld->dcss);
+	dcss_scaler_write_sclctrl(ctxld->dcss);
+
 	if (dcss_dtrc_is_running(ctxld->dcss, 1) ||
 	    dcss_dtrc_is_running(ctxld->dcss, 2)) {
 		dcss_dtrc_switch_banks(ctxld->dcss);
-		ctxld->run_again = true;
+		ctxld->armed = true;
 	}
 
 	sb_hp_cnt = ctxld->ctx_size[curr_ctx][CTX_SB_HP];
@@ -328,6 +331,10 @@ static int __dcss_ctxld_enable(struct dcss_ctxld_priv *ctxld)
 	dcss_writel(sb_base, ctxld->ctxld_reg + DCSS_CTXLD_SB_BASE_ADDR);
 	dcss_writel(sb_count, ctxld->ctxld_reg + DCSS_CTXLD_SB_COUNT);
 
+	dcss_trace_module(TRACE_CTXLD,
+			  TRACE_ARM | db_cnt | (sb_count << 16) |
+			  ((u64)ctxld->current_ctx << 32));
+
 	/* enable the context loader */
 	dcss_set(CTXLD_ENABLE, ctxld->ctxld_reg + DCSS_CTXLD_CONTROL_STATUS);
 
@@ -360,19 +367,28 @@ int dcss_ctxld_enable(struct dcss_soc *dcss)
 	unsigned long flags;
 
 	spin_lock_irqsave(&ctxld->lock, flags);
-	if (ctxld->in_use) {
-		ctxld->run_again = true;
-		spin_unlock_irqrestore(&ctxld->lock, flags);
-		return 0;
-	}
-
-	__dcss_ctxld_enable(ctxld);
-
+	ctxld->armed = true;
 	spin_unlock_irqrestore(&ctxld->lock, flags);
 
 	return 0;
 }
 EXPORT_SYMBOL(dcss_ctxld_enable);
+
+void dcss_ctxld_kick(struct dcss_soc *dcss)
+{
+	struct dcss_ctxld_priv *ctxld = dcss->ctxld_priv;
+	unsigned long flags;
+
+	dcss_trace_module(TRACE_CTXLD, TRACE_KICK);
+
+	spin_lock_irqsave(&ctxld->lock, flags);
+	if (ctxld->armed) {
+		ctxld->armed = false;
+		__dcss_ctxld_enable(dcss->ctxld_priv);
+	}
+	spin_unlock_irqrestore(&ctxld->lock, flags);
+}
+EXPORT_SYMBOL(dcss_ctxld_kick);
 
 void dcss_ctxld_write_irqsafe(struct dcss_soc *dcss, u32 ctx_id, u32 val,
 			      u32 reg_ofs)
@@ -403,6 +419,16 @@ void dcss_ctxld_write(struct dcss_soc *dcss, u32 ctx_id, u32 val, u32 reg_ofs)
 	dcss_ctxld_write_irqsafe(dcss, ctx_id, val, reg_ofs);
 	spin_unlock_irqrestore(&ctxld->lock, flags);
 }
+
+bool dcss_ctxld_is_flushed(struct dcss_soc *dcss)
+{
+	struct dcss_ctxld_priv *ctxld = dcss->ctxld_priv;
+
+	return ctxld->ctx_size[ctxld->current_ctx][CTX_DB] == 0 &&
+		ctxld->ctx_size[ctxld->current_ctx][CTX_SB_HP] == 0 &&
+		ctxld->ctx_size[ctxld->current_ctx][CTX_SB_LP] == 0;
+}
+EXPORT_SYMBOL(dcss_ctxld_is_flushed);
 
 int dcss_ctxld_resume(struct dcss_soc *dcss)
 {

@@ -57,6 +57,7 @@ struct fsl_spdif_soc_data {
 	u32 rx_burst;
 	u32 interrupts;
 	u64 tx_formats;
+	u64 rx_rates;
 };
 
 /*
@@ -113,7 +114,7 @@ struct fsl_spdif_priv {
 	bool dpll_locked;
 	u32 txrate[SPDIF_TXRATE_MAX];
 	u8 txclk_df[SPDIF_TXRATE_MAX];
-	u8 sysclk_df[SPDIF_TXRATE_MAX];
+	u16 sysclk_df[SPDIF_TXRATE_MAX];
 	u8 txclk_src[SPDIF_TXRATE_MAX];
 	u8 rxclk_src;
 	struct clk *txclk[SPDIF_TXRATE_MAX];
@@ -136,6 +137,7 @@ static struct fsl_spdif_soc_data fsl_spdif_vf610 = {
 	.rx_burst = FSL_SPDIF_RXFIFO_WML,
 	.interrupts = 1,
 	.tx_formats = FSL_SPDIF_FORMATS_PLAYBACK,
+	.rx_rates = FSL_SPDIF_RATES_CAPTURE,
 	.constrain_period_size = false,
 };
 
@@ -146,6 +148,7 @@ static struct fsl_spdif_soc_data fsl_spdif_imx35 = {
 	.rx_burst = FSL_SPDIF_RXFIFO_WML,
 	.interrupts = 1,
 	.tx_formats = FSL_SPDIF_FORMATS_PLAYBACK,
+	.rx_rates = FSL_SPDIF_RATES_CAPTURE,
 	.constrain_period_size = false,
 };
 
@@ -161,6 +164,7 @@ static struct fsl_spdif_soc_data fsl_spdif_imx8qxp_v1 = {
 	.rx_burst = 2,
 	.interrupts = 2,
 	.tx_formats = SNDRV_PCM_FMTBIT_S24_LE,
+	.rx_rates = FSL_SPDIF_RATES_CAPTURE,
 	.constrain_period_size = true,
 };
 
@@ -171,7 +175,19 @@ static struct fsl_spdif_soc_data fsl_spdif_imx8qm = {
 	.rx_burst = 2,
 	.interrupts = 2,
 	.tx_formats = SNDRV_PCM_FMTBIT_S24_LE,
+	.rx_rates = (FSL_SPDIF_RATES_CAPTURE | SNDRV_PCM_RATE_192000),
 	.constrain_period_size = true,
+};
+
+static struct fsl_spdif_soc_data fsl_spdif_imx8mm = {
+	.imx = true,
+	.dma_workaround = false,
+	.tx_burst = FSL_SPDIF_TXFIFO_WML,
+	.rx_burst = FSL_SPDIF_RXFIFO_WML,
+	.interrupts = 1,
+	.tx_formats = FSL_SPDIF_FORMATS_PLAYBACK,
+	.rx_rates = (FSL_SPDIF_RATES_CAPTURE | SNDRV_PCM_RATE_192000),
+	.constrain_period_size = false,
 };
 
 /* DPLL locked and lock loss interrupt handler */
@@ -440,7 +456,8 @@ static int spdif_set_sample_rate(struct snd_pcm_substream *substream,
 	struct platform_device *pdev = spdif_priv->pdev;
 	unsigned long csfs = 0;
 	u32 stc, mask, rate;
-	u8 clk, txclk_df, sysclk_df;
+	u8 clk, txclk_df;
+	u16 sysclk_df;
 
 	switch (sample_rate) {
 	case 32000:
@@ -1200,8 +1217,9 @@ static u32 fsl_spdif_txclk_caldiv(struct fsl_spdif_priv *spdif_priv,
 	const u32 rate[] = { 32000, 44100, 48000, 96000, 192000 };
 	bool is_sysclk = clk_is_match(clk, spdif_priv->sysclk);
 	u64 rate_actual, sub;
-	u32 sysclk_dfmin, sysclk_dfmax;
-	u32 txclk_df, sysclk_df, arate;
+	u32 arate;
+	u16 sysclk_dfmin, sysclk_dfmax, sysclk_df;
+	u8 txclk_df;
 
 	/* The sysclk has an extra divisor [2, 512] */
 	sysclk_dfmin = is_sysclk ? 2 : 1;
@@ -1299,6 +1317,7 @@ static int fsl_spdif_probe_txclk(struct fsl_spdif_priv *spdif_priv,
 
 static const struct of_device_id fsl_spdif_dt_ids[] = {
 	{ .compatible = "fsl,imx8qxp-v1-spdif", .data = &fsl_spdif_imx8qxp_v1, },
+	{ .compatible = "fsl,imx8mm-spdif", .data = &fsl_spdif_imx8mm, },
 	{ .compatible = "fsl,imx8qm-spdif", .data = &fsl_spdif_imx8qm, },
 	{ .compatible = "fsl,imx35-spdif", .data = &fsl_spdif_imx35, },
 	{ .compatible = "fsl,vf610-spdif", .data = &fsl_spdif_vf610, },
@@ -1337,6 +1356,8 @@ static int fsl_spdif_probe(struct platform_device *pdev)
 	spdif_priv->cpu_dai_drv.name = dev_name(&pdev->dev);
 	spdif_priv->cpu_dai_drv.playback.formats =
 				spdif_priv->soc->tx_formats;
+	spdif_priv->cpu_dai_drv.capture.rates =
+				spdif_priv->soc->rx_rates;
 
 	/* Get the addresses and IRQ */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);

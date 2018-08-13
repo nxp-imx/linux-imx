@@ -81,6 +81,10 @@
 	model = "Freescale i.MX7 SabreSD Board";
 	compatible = "fsl,imx7d-sdb", "fsl,imx7d";
 
+	chosen {
+		stdout-path = &uart1;
+	};
+
 	memory {
 		reg = <0x80000000 0x80000000>;
 	};
@@ -132,39 +136,11 @@
 		enable-active-high;
 	};
 
-	reg_can2_3v3: regulator-can2-3v3 {
-		compatible = "regulator-fixed";
-		regulator-name = "can2-3v3";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpio = <&gpio2 13 GPIO_ACTIVE_LOW>;
-	};
-
 	reg_vref_1v8: regulator-vref-1v8 {
 		compatible = "regulator-fixed";
 		regulator-name = "vref-1v8";
 		regulator-min-microvolt = <1800000>;
 		regulator-max-microvolt = <1800000>;
-	};
-
-	reg_brcm: regulator-brcm {
-		compatible = "regulator-fixed";
-		gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		regulator-name = "brcm_reg";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_brcm_reg>;
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		startup-delay-us = <200000>;
-	};
-
-	reg_lcd_3v3: regulator-lcd-3v3 {
-		compatible = "regulator-fixed";
-		regulator-name = "lcd-3v3";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpio = <&extended_io 7 GPIO_ACTIVE_LOW>;
 	};
 
 	reg_can2_3v3: regulator-can2-3v3 {
@@ -188,28 +164,6 @@
 		enable-active-high;
 	};
 
-	wlreg_on: regulator-wl {
-		compatible = "regulator-fixed";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		regulator-name = "wlreg_on";
-		gpio = <&gpio4 21 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-	};
-
-	panel {
-		compatible = "innolux,at043tn24";
-		pinctrl-0 = <&pinctrl_backlight>;
-		enable-gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;
-		power-supply = <&reg_lcd_3v3>;
-
-		port {
-			panel_in: endpoint {
-				remote-endpoint = <&display_out>;
-			};
-		};
-	};
-
 	backlight {
 		compatible = "pwm-backlight";
 		pwms = <&pwm1 0 5000000>;
@@ -228,11 +182,6 @@
 			>;
 		default-brightness-level = <94>;
 		status = "okay";
-	};
-
-	bcmdhd_wlan_0: bcmdhd_wlan@0 {
-		compatible = "android,bcmdhd_wlan";
-		wlreg_on-supply = <&wlreg_on>;
 	};
 
 	pxp_v4l2_out {
@@ -271,6 +220,13 @@
 		model = "sii902x-audio";
 		cpu-dai = <&sai3>;
 		hdmi-controler = <&sii902x>;
+	};
+
+	usdhc2_pwrseq: usdhc2_pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_brcm_reg>;
+		reset-gpios = <&gpio4 21 GPIO_ACTIVE_LOW>;
 	};
 };
 
@@ -677,11 +633,31 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lcdif>;
 	enable-gpio = <&extended_io 7 GPIO_ACTIVE_LOW>;
+	display = <&display0>;
 	status = "okay";
 
-	port {
-		display_out: endpoint {
-			remote-endpoint = <&panel_in>;
+	display0: display {
+		bits-per-pixel = <16>;
+		bus-width = <24>;
+
+		display-timings {
+			native-mode = <&timing0>;
+
+			timing0: timing0 {
+				clock-frequency = <9200000>;
+				hactive = <480>;
+				vactive = <272>;
+				hfront-porch = <8>;
+				hback-porch = <4>;
+				hsync-len = <41>;
+				vback-porch = <2>;
+				vfront-porch = <4>;
+				vsync-len = <10>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <1>;
+				pixelclk-active = <0>;
+			};
 		};
 	};
 };
@@ -710,8 +686,10 @@
 	status = "okay";
 };
 
-&pcie_phy {
-       status = "okay";
+&pwm1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm1>;
+	status = "okay";
 };
 
 &pcie {
@@ -825,19 +803,25 @@
 };
 
 &usdhc2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
 	pinctrl-names = "default", "state_100mhz", "state_200mhz";
-	pinctrl-0 = <&pinctrl_usdhc2>;
-	pinctrl-1 = <&pinctrl_usdhc2_100mhz>;
-	pinctrl-2 = <&pinctrl_usdhc2_200mhz>;
+	pinctrl-0 = <&pinctrl_usdhc2 &pinctrl_wifi>;
+	pinctrl-1 = <&pinctrl_usdhc2_100mhz &pinctrl_wifi>;
+	pinctrl-2 = <&pinctrl_usdhc2_200mhz &pinctrl_wifi>;
 	wakeup-source;
 	keep-power-in-suspend;
 	non-removable;
-	vmmc-supply = <&reg_brcm>;
+	mmc-pwrseq = <&usdhc2_pwrseq>;
 	fsl,tuning-step = <2>;
 	pm-ignore-notify;
-	cd-post;
-	wifi-host;
+	cap-power-off-card;
 	status = "okay";
+
+	brcmf: bcrmf@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+	};
 };
 
 &usdhc3 {
@@ -1301,6 +1285,12 @@
 				MX7D_PAD_SD3_DATA6__SD3_DATA6		0x5b
 				MX7D_PAD_SD3_DATA7__SD3_DATA7		0x5b
 				MX7D_PAD_SD3_STROBE__SD3_STROBE		0x1b
+			>;
+		};
+
+		pinctrl_wifi: wifigrp {
+			fsl,pins = <
+				MX7D_PAD_ECSPI2_SCLK__GPIO4_IO20	0x19 /* WL_HOST_WAKE */
 			>;
 		};
 	};

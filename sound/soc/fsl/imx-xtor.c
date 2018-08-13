@@ -78,9 +78,9 @@ static int imx_xtor_hw_params(struct snd_pcm_substream *substream,
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
 	struct cpu_priv *cpu_priv = &data->cpu_priv;
 	struct device *dev = rtd->card->dev;
+	u32 channels = params_channels(params);
 	unsigned int fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF;
 	int ret, dir;
-	u32 freq;
 
 	/* For playback the XTOR is slave, and for record is master */
 	fmt |= tx ? SND_SOC_DAIFMT_CBS_CFS : SND_SOC_DAIFMT_CBM_CFM;
@@ -94,16 +94,15 @@ static int imx_xtor_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	/* Specific configurations of DAIs starts from here */
-	freq = params_rate(params) * params_width(params) * cpu_priv->slots;
 	ret = snd_soc_dai_set_sysclk(rtd->cpu_dai, cpu_priv->sysclk_id[tx],
-				     freq, dir);
+				     0, dir);
 	if (ret) {
 		dev_err(dev, "failed to set cpu sysclk: %d\n", ret);
 		return ret;
 	}
 
-	ret = snd_soc_dai_set_tdm_slot(rtd->cpu_dai, 0x3, 0x3, cpu_priv->slots,
-					params_width(params));
+	ret = snd_soc_dai_set_tdm_slot(rtd->cpu_dai, BIT(channels) - 1,
+		BIT(channels) - 1, cpu_priv->slots, params_width(params));
 	if (ret) {
 		dev_err(dev, "failed to set cpu dai tdm slot: %d\n", ret);
 		return ret;
@@ -149,13 +148,11 @@ static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 }
 
 static const struct snd_soc_dapm_route audio_map[] = {
-	/* Line out jack */
-	{"CPU-Playback",  NULL, "ASRC-Playback"},
-	{"Playback",  NULL, "CPU-Playback"},/* dai route for be and fe */
-	{"ASRC-Capture",  NULL, "CPU-Capture"},
+	{"Playback",  NULL, "CPU-Playback"},
 	{"CPU-Capture",  NULL, "Capture"},
+	{"CPU-Playback",  NULL, "ASRC-Playback"},
+	{"ASRC-Capture",  NULL, "CPU-Capture"},
 };
-
 
 static struct snd_soc_ops imx_xtor_ops = {
 	.startup = imx_xtor_startup,
@@ -225,6 +222,8 @@ static int imx_xtor_probe(struct platform_device *pdev)
 	data->dai[0].capture_only = false;
 	data->card.num_links = 1;
 	data->card.dai_link = data->dai;
+	data->card.dapm_routes = audio_map;
+	data->card.num_dapm_routes = 2;
 
 	/*if there is no asrc controller, we only enable one device*/
 	if (asrc_pdev) {
@@ -251,6 +250,7 @@ static int imx_xtor_probe(struct platform_device *pdev)
 		data->dai[2].be_hw_params_fixup = be_hw_params_fixup,
 		data->card.num_links = 3;
 		data->card.dai_link = &data->dai[0];
+		data->card.num_dapm_routes += 2;
 
 		ret = of_property_read_u32(asrc_np, "fsl,asrc-rate",
 						&data->asrc_rate);
@@ -273,8 +273,6 @@ static int imx_xtor_probe(struct platform_device *pdev)
 			data->asrc_format = SNDRV_PCM_FORMAT_S16_LE;
 	}
 
-	data->card.dapm_routes = audio_map,
-	data->card.num_dapm_routes = ARRAY_SIZE(audio_map),
 	data->card.dev = &pdev->dev;
 	data->card.owner = THIS_MODULE;
 	ret = snd_soc_of_parse_card_name(&data->card, "model");

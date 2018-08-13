@@ -21,6 +21,7 @@
 #include <linux/dma-buf.h>
 
 #include "video/imx-dcss.h"
+#include "video/viv-metadata.h"
 #include "dcss-plane.h"
 #include "dcss-crtc.h"
 
@@ -62,6 +63,7 @@ static const u64 dcss_video_format_modifiers[] = {
 	DRM_FORMAT_MOD_VSI_G1_TILED,
 	DRM_FORMAT_MOD_VSI_G2_TILED,
 	DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED,
+	DRM_FORMAT_MOD_LINEAR,
 	DRM_FORMAT_MOD_INVALID,
 };
 
@@ -150,7 +152,8 @@ static bool dcss_plane_format_mod_supported(struct drm_plane *plane,
 		case DRM_FORMAT_NV12:
 		case DRM_FORMAT_NV21:
 		case DRM_FORMAT_P010:
-			return modifier == DRM_FORMAT_MOD_VSI_G1_TILED ||
+			return modifier == DRM_FORMAT_MOD_LINEAR ||
+			       modifier == DRM_FORMAT_MOD_VSI_G1_TILED ||
 			       modifier == DRM_FORMAT_MOD_VSI_G2_TILED ||
 			       modifier == DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED;
 		default:
@@ -219,7 +222,9 @@ static int dcss_plane_atomic_check(struct drm_plane *plane,
 	    state->crtc_y + state->crtc_h > vdisplay) {
 		if (plane->type == DRM_PLANE_TYPE_PRIMARY)
 			return -EINVAL;
-		else if (!(fb->flags & DRM_MODE_FB_MODIFIERS))
+		else if (!(fb->flags & DRM_MODE_FB_MODIFIERS) ||
+			 (fb->flags & DRM_MODE_FB_MODIFIERS &&
+			  fb->modifier == DRM_FORMAT_MOD_LINEAR))
 			return -EINVAL;
 	}
 
@@ -265,13 +270,12 @@ static void dcss_plane_atomic_set_base(struct dcss_plane *dcss_plane)
 	struct drm_plane_state *state = plane->state;
 	struct drm_framebuffer *fb = state->fb;
 	struct drm_gem_cma_object *cma_obj = drm_fb_cma_get_gem_obj(fb, 0);
-	struct dma_buf *dma_buf;
-	struct dma_metadata *mdata;
-	struct drm_gem_object *gem_obj;
 	unsigned long p1_ba, p2_ba;
 	dma_addr_t caddr;
 	bool modifiers_present = !!(fb->flags & DRM_MODE_FB_MODIFIERS);
 	u32 pix_format = state->fb->format->format;
+	bool compressed = true;
+	uint32_t compressed_format = 0;
 
 	BUG_ON(!cma_obj);
 
@@ -308,40 +312,38 @@ static void dcss_plane_atomic_set_base(struct dcss_plane *dcss_plane)
 			dcss_dec400d_bypass(dcss_plane->dcss);
 			return;
 		case DRM_FORMAT_MOD_VIVANTE_SUPER_TILED_FC:
-			dma_buf = cma_obj->base.dma_buf;
-			if (!dma_buf) {
-				caddr = cma_obj->paddr +
-					ALIGN(fb->height, 64) * fb->pitches[0];
-				goto config;
-			}
+			do {
+				struct dma_buf *dma_buf = cma_obj->base.dma_buf;
+				struct drm_gem_object *gem_obj;
+					_VIV_VIDMEM_METADATA *mdata;
 
-			mdata = dma_buf->priv;
-			if (!mdata ||
-			    mdata->magic != VIV_VIDMEM_METADATA_MAGIC) {
-				WARN_ON(1);
-				return;
-			}
+				if (!dma_buf) {
+					caddr = cma_obj->paddr + ALIGN(fb->height, 64) * fb->pitches[0];
+					break;
+				}
 
-			if (!mdata->compressed) {
-				/* Bypass dec400d */
-				dcss_dec400d_bypass(dcss_plane->dcss);
-				return;
-			}
+				mdata = dma_buf->priv;
+				if (!mdata || mdata->magic != VIV_VIDMEM_METADATA_MAGIC) {
+					return;
+				}
+				compressed = mdata->compressed ? true : false;
+				compressed_format = mdata->compress_format;
 
-			gem_obj = dcss_plane_gem_import(plane->dev,
-							mdata->ts_dma_buf);
-			if (IS_ERR(gem_obj)) {
-				WARN_ON(1);
-				return;
-			}
+				gem_obj = dcss_plane_gem_import(plane->dev, mdata->ts_dma_buf);
+				if (IS_ERR(gem_obj)) {
+					return;
+				}
 
-			caddr = to_drm_gem_cma_obj(gem_obj)->paddr;
+				caddr = to_drm_gem_cma_obj(gem_obj)->paddr;
 
-			/* release gem_obj */
-			drm_gem_object_unreference_unlocked(gem_obj);
+				/* release gem_obj */
+				drm_gem_object_unreference_unlocked(gem_obj);
 
-config:
-			dcss_dec400d_read_config(dcss_plane->dcss, 0, true);
+				dcss_dec400d_fast_clear_config(dcss_plane->dcss,
+						mdata->fc_value,
+						mdata->fc_enabled);
+			} while (0);
+			dcss_dec400d_read_config(dcss_plane->dcss, 0, compressed, compressed_format);
 			dcss_dec400d_addr_set(dcss_plane->dcss, p1_ba, caddr);
 			break;
 		default:
@@ -352,6 +354,7 @@ config:
 		break;
 	case DRM_PLANE_TYPE_OVERLAY:
 		if (!modifiers_present ||
+		    (modifiers_present && fb->modifier == DRM_FORMAT_MOD_LINEAR) ||
 		    (pix_format != DRM_FORMAT_NV12 &&
 		     pix_format != DRM_FORMAT_NV21 &&
 		     pix_format != DRM_FORMAT_P010)) {
@@ -428,17 +431,21 @@ static void dcss_plane_atomic_update(struct drm_plane *plane,
 	struct drm_plane_state *state = plane->state;
 	struct dcss_plane *dcss_plane = to_dcss_plane(plane);
 	struct drm_framebuffer *fb = state->fb;
-	u32 pixel_format = state->fb->format->format;
-	struct drm_crtc_state *crtc_state = state->crtc->state;
-	bool modifiers_present = !!(fb->flags & DRM_MODE_FB_MODIFIERS);
+	u32 pixel_format;
+	struct drm_crtc_state *crtc_state;
+	bool modifiers_present;
 	u32 src_w, src_h, adj_w, adj_h;
 	struct drm_rect disp, crtc, src, old_src;
 	u32 scaler_w, scaler_h;
 	struct dcss_hdr10_pipe_cfg ipipe_cfg, opipe_cfg;
 	bool enable = true;
 
-	if (!state->fb)
+	if (!fb || !state->crtc)
 		return;
+
+	pixel_format = state->fb->format->format;
+	crtc_state = state->crtc->state;
+	modifiers_present = !!(fb->flags & DRM_MODE_FB_MODIFIERS);
 
 	if (old_state->fb && !drm_atomic_crtc_needs_modeset(crtc_state) &&
 	    !dcss_plane_needs_setup(state, old_state) &&
@@ -484,6 +491,10 @@ static void dcss_plane_atomic_update(struct drm_plane *plane,
 	/* DTRC has probably aligned the sizes. */
 	adj_w = src.x2 - src.x1;
 	adj_h = src.y2 - src.y1;
+
+	if (plane->type == DRM_PLANE_TYPE_OVERLAY &&
+	    modifiers_present && fb->modifier == DRM_FORMAT_MOD_LINEAR)
+		modifiers_present = false;
 
 	dcss_dpr_format_set(dcss_plane->dcss, dcss_plane->ch_num, pixel_format,
 				modifiers_present);

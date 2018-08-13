@@ -34,8 +34,7 @@ static u32 share_count_nand;
 
 static struct clk *clks[IMX8MQ_CLK_END];
 
-static const char *pll_ref_sels[] = { "osc_25m", "osc_27m", "dummy", "dummy", };
-static const char *video2_pll_ref_sels[] = { "osc_25m", "osc_27m", "phy_27m", "dummy", };
+static const char *pll_ref_sels[] = { "osc_25m", "osc_27m", "phy_27m", "dummy", };
 static const char *arm_pll_bypass_sels[] = {"arm_pll", "arm_pll_ref_sel", };
 static const char *gpu_pll_bypass_sels[] = {"gpu_pll", "gpu_pll_ref_sel", };
 static const char *vpu_pll_bypass_sels[] = {"vpu_pll", "vpu_pll_ref_sel", };
@@ -281,13 +280,39 @@ static const char *imx8mq_clko2_sels[] = {"osc_25m", "sys2_pll_200m", "sys1_pll_
 static int const clks_init_on[] __initconst = {
 	IMX8MQ_CLK_DRAM_CORE, IMX8MQ_CLK_AHB_CG,
 	IMX8MQ_CLK_NOC_CG, IMX8MQ_CLK_NOC_APB_CG,
-	IMX8MQ_CLK_USB_BUS_CG, IMX8MQ_CLK_NAND_USDHC_BUS_CG,
+	IMX8MQ_CLK_USB_BUS_CG,
 	IMX8MQ_CLK_MAIN_AXI_CG, IMX8MQ_CLK_A53_CG,
-	IMX8MQ_CLK_AUDIO_AHB_DIV, IMX8MQ_CLK_TMU_ROOT,
+	IMX8MQ_CLK_TMU_ROOT,
 	IMX8MQ_CLK_DRAM_APB_DIV,
 };
 
 static struct clk_onecell_data clk_data;
+
+static int __init imx_clk_init_on(struct device_node *np,
+				  struct clk * const clks[])
+{
+	u32 *array;
+	int i, ret, elems;
+
+	elems = of_property_count_u32_elems(np, "init-on-array");
+	if (elems < 0)
+		return elems;
+	array = kzalloc(elems * sizeof(elems), GFP_KERNEL);
+	if (IS_ERR_OR_NULL(array))
+		return PTR_ERR(array);
+
+	ret = of_property_read_u32_array(np, "init-on-array", array, elems);
+	if (ret)
+		return ret;
+
+	for (i = 0; i < elems; i++) {
+		ret = clk_prepare_enable(clks[array[i]]);
+		if (ret)
+			pr_err("clk_prepare_enable failed %d\n", array[i]);
+	}
+
+	return 0;
+}
 
 static void __init imx8mq_clocks_init(struct device_node *ccm_node)
 {
@@ -305,7 +330,7 @@ static void __init imx8mq_clocks_init(struct device_node *ccm_node)
 	clks[IMX8MQ_CLK_EXT2] = of_clk_get_by_name(ccm_node, "clk_ext2");
 	clks[IMX8MQ_CLK_EXT3] = of_clk_get_by_name(ccm_node, "clk_ext3");
 	clks[IMX8MQ_CLK_EXT4] = of_clk_get_by_name(ccm_node, "clk_ext4");
-	clks[IMX8MQ_VIDEO2_PHY_27MHZ] = imx_clk_fixed("phy_27m", 27000000);
+	clks[IMX8MQ_CLK_PHY_27MHZ] = imx_clk_fixed("phy_27m", 27000000);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx8mq-anatop");
 	base = of_iomap(np, 0);
@@ -321,7 +346,7 @@ static void __init imx8mq_clocks_init(struct device_node *ccm_node)
 	clks[IMX8MQ_SYS2_PLL1_REF_SEL]	= imx_clk_mux("sys2_pll1_ref_sel", base + 0x3c, 0, 2, pll_ref_sels, ARRAY_SIZE(pll_ref_sels));
 	clks[IMX8MQ_SYS3_PLL1_REF_SEL]	= imx_clk_mux("sys3_pll1_ref_sel", base + 0x48, 0, 2, pll_ref_sels, ARRAY_SIZE(pll_ref_sels));
 	clks[IMX8MQ_DRAM_PLL1_REF_SEL]	= imx_clk_mux("dram_pll1_ref_sel", base + 0x60, 0, 2, pll_ref_sels, ARRAY_SIZE(pll_ref_sels));
-	clks[IMX8MQ_VIDEO2_PLL1_REF_SEL] = imx_clk_mux("video2_pll1_ref_sel", base + 0x54, 0, 2, video2_pll_ref_sels, ARRAY_SIZE(video2_pll_ref_sels));
+	clks[IMX8MQ_VIDEO2_PLL1_REF_SEL] = imx_clk_mux("video2_pll1_ref_sel", base + 0x54, 0, 2, pll_ref_sels, ARRAY_SIZE(pll_ref_sels));
 
 	clks[IMX8MQ_ARM_PLL_REF_DIV]	= imx_clk_divider("arm_pll_ref_div", "arm_pll_ref_sel", base + 0x28, 5, 6);
 	clks[IMX8MQ_GPU_PLL_REF_DIV]	= imx_clk_divider("gpu_pll_ref_div", "gpu_pll_ref_sel", base + 0x18, 5, 6);
@@ -836,8 +861,10 @@ static void __init imx8mq_clocks_init(struct device_node *ccm_node)
 	of_clk_add_provider(np, of_clk_src_onecell_get, &clk_data);
 
 	/* enable all the clocks just for bringup */
-	for (i = 0; i < ARRAY_SIZE(clks_init_on);  i++)
-		clk_prepare_enable(clks[clks_init_on[i]]);
+	if (imx_clk_init_on(ccm_node, clks)) {
+		for (i = 0; i < ARRAY_SIZE(clks_init_on);  i++)
+			clk_prepare_enable(clks[clks_init_on[i]]);
+	}
 
 	clk_set_parent(clks[IMX8MQ_VIDEO2_PLL1_OUT], clks[IMX8MQ_VIDEO2_PLL1]);
 	clk_set_parent(clks[IMX8MQ_VIDEO2_PLL2_OUT], clks[IMX8MQ_VIDEO2_PLL2_DIV]);

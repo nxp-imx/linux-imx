@@ -489,7 +489,7 @@ typedef enum sc_rsrc_e {
 	SC_R_SAI_2 = 320,
 	SC_R_IRQSTR_SCU2 = 321,
 	SC_R_IRQSTR_DSP = 322,
-	SC_R_UNUSED5 = 323,
+	SC_R_ELCDIF_PLL = 323,
 	SC_R_UNUSED6 = 324,
 	SC_R_AUDIO_PLL_0 = 325,
 	SC_R_PI_0 = 326,
@@ -763,6 +763,15 @@ typedef enum sc_ctrl_e {
 	SC_C_RST0 = 43,
 	SC_C_RST1 = 44,
 	SC_C_SEL0 = 45,
+	SC_C_CALIB0 = 46,
+	SC_C_CALIB1 = 47,
+	SC_C_CALIB2 = 48,
+	SC_C_IPG_DEBUG = 49,
+	SC_C_IPG_DOZE = 50,
+	SC_C_IPG_WAIT = 51,
+	SC_C_IPG_STOP = 52,
+	SC_C_IPG_STOP_MODE = 53,
+	SC_C_IPG_STOP_ACK = 54,
 	SC_C_LAST
 } sc_ctrl_t;
 

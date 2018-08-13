@@ -148,7 +148,13 @@ _NewQueue(
     gcmkONERROR(gckOS_GetPhysicalAddress(
         Command->os,
         Command->logical,
-       &physical
+        &physical
+        ));
+
+    gcmkVERIFY_OK(gckOS_CPUPhysicalToGPUPhysical(
+        Command->os,
+        physical,
+        &physical
         ));
 
     gcmkSAFECASTPHYSADDRT(Command->physical, physical);
@@ -601,6 +607,8 @@ _DumpKernelCommandBuffer(
         entry = Command->queues[i].logical;
 
         gckOS_GetPhysicalAddress(Command->os, entry, &physical);
+
+        gckOS_CPUPhysicalToGPUPhysical(Command->os, physical, &physical);
 
         gcmkPRINT("Kernel command buffer %d\n", i);
 
@@ -1132,6 +1140,7 @@ gckCOMMAND_Construct(
             gcmkONERROR(gckOS_AllocateNonPagedMemory(
                 os,
                 gcvFALSE,
+                gcvALLOC_FLAG_CONTIGUOUS,
                 &pageSize,
                 &command->queues[i].physical,
                 &command->queues[i].logical
@@ -1991,6 +2000,7 @@ gckCOMMAND_Commit(
         commandBufferLogical,
         &commandBufferPhysical
         ));
+
 #else
     /* Get the physical address. */
     gcmkONERROR(gckOS_UserLogicalToPhysical(
@@ -2537,19 +2547,6 @@ gckCOMMAND_Commit(
     /* Release the command queue. */
     gcmkONERROR(gckCOMMAND_ExitCommit(Command, gcvFALSE));
     commitEntered = gcvFALSE;
-
-    if  ((Command->kernel->hardware->options.gpuProfiler == gcvTRUE) &&
-         (Command->kernel->profileEnable == gcvTRUE))
-    {
-        gcmkONERROR(gckCOMMAND_Stall(Command, gcvTRUE));
-
-        if (Command->currContext)
-        {
-            gcmkONERROR(gckHARDWARE_UpdateContextProfile(
-                        hardware,
-                        Command->currContext));
-        }
-    }
 
     if (status == gcvSTATUS_INTERRUPTED)
     {

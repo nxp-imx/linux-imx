@@ -421,10 +421,24 @@ static const struct of_device_id imx_gpc_dt_ids[] = {
 	{ }
 };
 
+static const struct regmap_range yes_ranges[] = {
+	regmap_reg_range(GPC_CNTR, GPC_CNTR),
+	regmap_reg_range(GPC_PGC_GPU_PDN, GPC_PGC_GPU_PDN + 0xc),
+	regmap_reg_range(GPC_PGC_DISP_PGCR_OFFSET,
+		GPC_PGC_DISP_PGCR_OFFSET + 0xc),
+};
+
+static const struct regmap_access_table access_table = {
+	.yes_ranges	= yes_ranges,
+	.n_yes_ranges	= ARRAY_SIZE(yes_ranges),
+};
+
 static const struct regmap_config imx_gpc_regmap_config = {
 	.reg_bits = 32,
 	.val_bits = 32,
 	.reg_stride = 4,
+	.rd_table = &access_table,
+	.wr_table = &access_table,
 	.max_register = 0x2ac,
 };
 

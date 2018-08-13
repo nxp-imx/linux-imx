@@ -335,6 +335,8 @@ static int egalax_ts_remove(struct i2c_client *client)
 	input_unregister_device(ts->input_dev);
 	kfree(ts);
 
+	i2c_set_clientdata(client, ts);
+
 	return 0;
 }
 

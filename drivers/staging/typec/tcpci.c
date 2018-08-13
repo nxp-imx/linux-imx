@@ -381,9 +381,8 @@ static int tcpci_set_vbus(struct tcpc_dev *tcpc, bool source, bool sink)
 	struct tcpci *tcpci = tcpc_to_tcpci(tcpc);
 	int ret;
 
-	/* Disable both source and sink first before enabling anything */
-
-	if (!source) {
+	/* Only disable source if it was enabled */
+	if (!source && tcpci->drive_vbus) {
 		ret = regmap_write(tcpci->regmap, TCPC_COMMAND,
 				   TCPC_CMD_DISABLE_SRC_VBUS);
 		if (ret < 0)
@@ -659,18 +658,13 @@ static int tcpci_parse_config(struct tcpci *tcpci)
 		return -EINVAL;
 	}
 
-	/* Get the default-role */
-	tcfg->default_role = typec_get_power_role(tcpci->dev);
-	if (tcfg->default_role == TYPEC_ROLE_UNKNOWN) {
-		dev_err(tcpci->dev, "typec power role is NOT correct!\n");
-		return -EINVAL;
-	}
+	if (tcfg->type == TYPEC_PORT_UFP)
+		goto sink;
 
 	/* Check source pdo array size */
 	tcfg->nr_src_pdo = device_property_read_u32_array(tcpci->dev,
 						"src-pdos", NULL, 0);
-	if (tcfg->nr_src_pdo <= 0 && (tcfg->type == TYPEC_PORT_DRP ||
-					tcfg->type == TYPEC_PORT_DFP)) {
+	if (tcfg->nr_src_pdo <= 0) {
 		dev_err(tcpci->dev, "typec source pdo is missing!\n");
 		return -EINVAL;
 	}
@@ -686,6 +680,16 @@ static int tcpci_parse_config(struct tcpci *tcpci)
 				tcfg->src_pdo, tcfg->nr_src_pdo);
 	if (ret) {
 		dev_err(tcpci->dev, "Failed to read src pdo!\n");
+		return -EINVAL;
+	}
+
+	if (tcfg->type == TYPEC_PORT_DFP)
+		return 0;
+
+	/* Get the default-role */
+	tcfg->default_role = typec_get_power_role(tcpci->dev);
+	if (tcfg->default_role == TYPEC_ROLE_UNKNOWN) {
+		dev_err(tcpci->dev, "typec power role is NOT correct!\n");
 		return -EINVAL;
 	}
 
@@ -722,11 +726,11 @@ static int tcpci_parse_config(struct tcpci *tcpci)
 		return 0;
 	}
 
+sink:
 	/* Check the num of snk pdo */
 	tcfg->nr_snk_pdo = device_property_read_u32_array(tcpci->dev,
 						"snk-pdos", NULL, 0);
-	if (tcfg->nr_snk_pdo <= 0 && (tcfg->type == TYPEC_PORT_DRP ||
-					tcfg->type == TYPEC_PORT_UFP)) {
+	if (tcfg->nr_snk_pdo <= 0) {
 		dev_err(tcpci->dev, "typec sink pdo is missing!\n");
 		return -EINVAL;
 	}

@@ -27,7 +27,7 @@
 #define ASRC_DMA_BUFFER_SIZE		(1024 * 48 * 4)
 #define ASRC_MAX_BUFFER_SIZE		(1024 * 48)
 #define ASRC_OUTPUT_LAST_SAMPLE_MAX	32
-#define ASRC_OUTPUT_LAST_SAMPLE		16
+#define ASRC_OUTPUT_LAST_SAMPLE		4
 
 #define IDEAL_RATIO_RATE		1000000
 
@@ -324,6 +324,7 @@ struct fsl_asrc_pair {
 	struct dma_chan *dma_chan[2];
 	struct imx_dma_data dma_data;
 	unsigned int pos;
+	unsigned int pair_streams;
 
 	void *private;
 };
@@ -367,7 +368,6 @@ struct fsl_asrc {
 	struct miscdevice asrc_miscdev;
 	unsigned int channel_bits;
 	unsigned int channel_avail;
-	unsigned int pair_streams;
 
 	int asrc_rate;
 	int asrc_width;

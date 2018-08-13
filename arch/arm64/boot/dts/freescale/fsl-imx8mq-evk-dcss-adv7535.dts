@@ -50,22 +50,6 @@
 	};
 };
 
-&i2c1 {
-	adv_bridge: adv7535@3d {
-		compatible = "adi,adv7533";
-		reg = <0x3d>;
-		adi,addr-cec = <0x3b>;
-		adi,dsi-lanes = <4>;
-		status = "okay";
-
-		port {
-			adv7535_in: endpoint {
-				remote-endpoint = <&mipi_dsi_bridge_adv>;
-			};
-		};
-	};
-};
-
 &mipi_dsi_phy {
 	status = "okay";
 };
@@ -83,10 +67,8 @@
 
 &mipi_dsi_bridge {
 	status = "okay";
+};
 
-	port@1 {
-		mipi_dsi_bridge_adv: endpoint {
-			remote-endpoint = <&adv7535_in>;
-		};
-	};
+&adv_bridge {
+	status = "okay";
 };
