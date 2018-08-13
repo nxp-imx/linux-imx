@@ -858,6 +858,7 @@
 };
 
 &gpu {
+	gpu-noc-priority = <0x80000600>;
 	status = "okay";
 };
 

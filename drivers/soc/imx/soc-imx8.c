@@ -282,8 +282,22 @@ static void __init imx8mq_noc_init(void)
 {
 	struct device_node *np;
 	const char *status;
-	int statlen;
+	int ret, statlen;
+	u32 prop;
 	struct arm_smccc_res res;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx8mq-gpu");
+	if (np) {
+		ret = of_property_read_u32(np, "gpu-noc-priority", &prop);
+		if (ret >= 0) {
+			pr_info("Config NOC for GPU to 0x%08x\n", prop);
+			arm_smccc_smc(FSL_SIP_NOC, FSL_SIP_NOC_PRIORITY,
+				NOC_GPU_PRIORITY, prop, 0, 0, 0, 0, &res);
+			if (res.a0)
+				pr_err("Config NOC for GPU fail!\n");
+			return;
+		}
+	}
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx8mq-lcdif");
 	if (!np)
