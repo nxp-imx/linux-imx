@@ -133,6 +133,7 @@ static int mxc_isi_probe(struct platform_device *pdev)
 	init_waitqueue_head(&mxc_isi->irq_queue);
 	spin_lock_init(&mxc_isi->slock);
 	mutex_init(&mxc_isi->lock);
+	atomic_set(&mxc_isi->open_count, 0);
 
 	mxc_isi->clk = devm_clk_get(dev, NULL);
 	if (IS_ERR(mxc_isi->clk)) {
@@ -180,12 +181,9 @@ static int mxc_isi_probe(struct platform_device *pdev)
 	}
 
 	mxc_isi_channel_set_chain_buf(mxc_isi);
-	mxc_isi->flags = MXC_ISI_PM_POWERED;
+	clk_disable_unprepare(mxc_isi->clk);
 
-	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
-	pm_runtime_get_sync(dev);
-	pm_runtime_put_sync(dev);
 
 	dev_dbg(dev, "mxc_isi.%d registered successfully\n", mxc_isi->id);
 
@@ -201,11 +199,7 @@ static int mxc_isi_remove(struct platform_device *pdev)
 	struct mxc_isi_dev *mxc_isi = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
 
-	pm_runtime_get_sync(&pdev->dev);
 	mxc_isi_unregister_capture_subdev(mxc_isi);
-
-	clk_disable_unprepare(mxc_isi->clk);
-	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(dev);
 
 	return 0;
@@ -214,42 +208,12 @@ static int mxc_isi_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int mxc_isi_pm_suspend(struct device *dev)
 {
-	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
-
-	pm_runtime_get_sync(dev);
-
-	if ((mxc_isi->flags & MXC_ISI_PM_SUSPENDED) ||
-		(mxc_isi->flags & MXC_ISI_RUNTIME_SUSPEND))
-		return 0;
-
-	clk_disable_unprepare(mxc_isi->clk);
-	mxc_isi->flags |= MXC_ISI_PM_SUSPENDED;
-	mxc_isi->flags &= ~MXC_ISI_PM_POWERED;
-	pm_runtime_put_sync(dev);
-
-	return 0;
+	return pm_runtime_force_suspend(dev);
 }
 
 static int mxc_isi_pm_resume(struct device *dev)
 {
-	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
-	int ret;
-
-	pm_runtime_get_sync(dev);
-	if (mxc_isi->flags & MXC_ISI_PM_POWERED)
-		return 0;
-
-	ret = clk_prepare_enable(mxc_isi->clk);
-	if (ret) {
-		pr_info("== %s ret=%d\n", __func__, ret);
-		return -EAGAIN;
-	}
-
-	mxc_isi->flags |= MXC_ISI_PM_POWERED;
-	mxc_isi->flags &= ~MXC_ISI_PM_SUSPENDED;
-	pm_runtime_put_sync(dev);
-
-	return 0;
+	return pm_runtime_force_resume(dev);
 }
 #endif
 
@@ -257,31 +221,20 @@ static int mxc_isi_runtime_suspend(struct device *dev)
 {
 	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
 
-	if (mxc_isi->flags & MXC_ISI_RUNTIME_SUSPEND)
-		return 0;
-
-	if (mxc_isi->flags & MXC_ISI_PM_POWERED) {
-		clk_disable_unprepare(mxc_isi->clk);
-		mxc_isi->flags |= MXC_ISI_RUNTIME_SUSPEND;
-		mxc_isi->flags &= ~MXC_ISI_PM_POWERED;
-	}
+	clk_disable_unprepare(mxc_isi->clk);
 	return 0;
 }
 
 static int mxc_isi_runtime_resume(struct device *dev)
 {
 	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
+	int ret;
 
-	if (mxc_isi->flags & MXC_ISI_PM_POWERED)
-		return 0;
+	ret = clk_prepare_enable(mxc_isi->clk);
+	if (ret)
+		dev_err(dev, "%s clk enable fail\n", __func__);
 
-	if (mxc_isi->flags & MXC_ISI_RUNTIME_SUSPEND) {
-		clk_prepare_enable(mxc_isi->clk);
-		mxc_isi->flags |= MXC_ISI_PM_POWERED;
-		mxc_isi->flags &= ~MXC_ISI_RUNTIME_SUSPEND;
-	}
-
-	return 0;
+	return (ret) ? ret : 0;
 }
 
 static const struct dev_pm_ops mxc_isi_pm_ops = {
@@ -306,3 +259,9 @@ static struct platform_driver mxc_isi_driver = {
 };
 
 module_platform_driver(mxc_isi_driver);
+
+MODULE_AUTHOR("Freescale Semiconductor, Inc.");
+MODULE_DESCRIPTION("MXC Image Subsystem driver");
+MODULE_LICENSE("GPL");
+MODULE_ALIAS("ISI");
+MODULE_VERSION("1.0");

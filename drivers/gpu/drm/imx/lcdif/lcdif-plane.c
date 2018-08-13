@@ -48,7 +48,9 @@ static int lcdif_plane_atomic_check(struct drm_plane *plane,
 	uint32_t bus_fmt;
 	struct lcdif_plane *lcdif_plane = to_lcdif_plane(plane);
 	struct lcdif_soc *lcdif = lcdif_plane->lcdif;
+	struct drm_plane_state *old_state = plane->state;
 	struct drm_framebuffer *fb = plane_state->fb;
+	struct drm_framebuffer *old_fb = old_state->fb;
 	struct drm_crtc_state *crtc_state;
 	struct drm_display_mode *mode;
 	struct drm_rect clip = { 0 };
@@ -92,6 +94,15 @@ static int lcdif_plane_atomic_check(struct drm_plane *plane,
 	if (!plane_state->visible)
 		return -EINVAL;
 
+	/* force 'mode_changed' when fb width changed, since
+	 * the pitch related registers configuration of LCDIF
+	 * can not be done when LCDIF is running.
+	 */
+	if (old_fb && likely(!crtc_state->mode_changed)) {
+		if (old_fb->width != fb->width)
+			crtc_state->mode_changed = true;
+	}
+
 	return 0;
 }
 
@@ -103,7 +114,8 @@ static void lcdif_plane_atomic_update(struct drm_plane *plane,
 	struct drm_plane_state *state = plane->state;
 	struct drm_framebuffer *fb = state->fb;
 	struct drm_gem_cma_object *gem_obj = NULL;
-	u32 fb_addr, src_off, fb_idx;
+	u32 fb_addr, src_off, src_w, fb_idx;
+	bool crop;
 
 	/* plane and crtc is disabling */
 	if (!fb)
@@ -131,6 +143,15 @@ static void lcdif_plane_atomic_update(struct drm_plane *plane,
 	}
 
 	lcdif_set_fb_addr(lcdif, fb_idx, fb_addr);
+
+	/* config horizontal cropping if crtc needs modeset */
+	if (unlikely(drm_atomic_crtc_needs_modeset(state->crtc->state))) {
+		src_w = state->src_w >> 16;
+		WARN_ON(src_w > fb->width);
+
+		crop  = src_w != fb->width ? true : false;
+		lcdif_set_fb_hcrop(lcdif, src_w, fb->width, crop);
+	}
 
 	lcdif_enable_controller(lcdif);
 }

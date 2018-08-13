@@ -81,6 +81,7 @@ static void imx_hdp_state_init(struct imx_hdp *hdp)
 
 	state->mem = &hdp->mem;
 	state->rw = hdp->rw;
+	state->edp = hdp->is_edp;
 }
 
 #ifdef CONFIG_IMX_HDP_CEC
@@ -153,13 +154,28 @@ void imx8qm_pixel_link_deinit(state_struct *state)
 	sc_ipc_close(hdp->mu_id);
 }
 
-void imx8qm_phy_reset(sc_ipc_t ipcHndl, u8 reset)
+void imx8qm_phy_reset(sc_ipc_t ipcHndl, struct hdp_mem *mem, u8 reset)
 {
 	sc_err_t sciErr;
 	/* set the pixel link mode and pixel type */
 	sciErr = sc_misc_set_control(ipcHndl, SC_R_HDMI, SC_C_PHY_RESET, reset);
 	if (sciErr != SC_ERR_NONE)
 		DRM_ERROR("SC_R_HDMI PHY reset failed %d!\n", sciErr);
+}
+
+void imx8mq_phy_reset(sc_ipc_t ipcHndl, struct hdp_mem *mem, u8 reset)
+{
+	void *tmp_addr = mem->rst_base;
+
+	if (reset)
+		__raw_writel(0x8,
+			     (volatile unsigned int *)(tmp_addr+0x4)); /*set*/
+	else
+		__raw_writel(0x8,
+			     (volatile unsigned int *)(tmp_addr+0x8)); /*clear*/
+
+
+	return;
 }
 
 int imx8qm_clock_init(struct hdp_clks *clks)
@@ -286,7 +302,7 @@ int imx8qm_pixel_clock_enable(struct hdp_clks *clks)
 
 	ret = clk_prepare_enable(clks->av_pll);
 	if (ret < 0) {
-		dev_err(dev, "%s, pre clk pxl error\n", __func__);
+		dev_err(dev, "%s, pre av pll  error\n", __func__);
 		return ret;
 	}
 
@@ -329,8 +345,28 @@ void imx8qm_dp_pixel_clock_set_rate(struct hdp_clks *clks)
 	struct imx_hdp *hdp = clks_to_imx_hdp(clks);
 	unsigned int pclock = hdp->video.cur_mode.clock * 1000;
 
-	/* 24MHz for DP */
-	clk_set_rate(clks->av_pll, 24000000);
+	if (!hdp->is_digpll_dp_pclock) {
+		sc_err_t sci_err = 0;
+		sc_ipc_t ipc_handle = 0;
+		u32 mu_id;
+
+		sci_err = sc_ipc_getMuID(&mu_id);
+
+		if (sci_err != SC_ERR_NONE)
+			pr_err("Failed to get MU ID (%d)\n", sci_err);
+		sci_err = sc_ipc_open(&ipc_handle, mu_id);
+
+		if (sci_err != SC_ERR_NONE)
+			pr_err("Failed to open IPC (%d)\n", sci_err);
+
+		clk_set_rate(clks->av_pll, pclock);
+
+		/* Enable the 24MHz for HDP PHY */
+		sc_misc_set_control(ipc_handle, SC_R_HDMI, SC_C_MODE, 1);
+
+		sc_ipc_close(ipc_handle);
+	} else
+		clk_set_rate(clks->av_pll, 24000000);
 
 	if (hdp->dual_mode == true) {
 		clk_set_rate(clks->clk_pxl, pclock/2);
@@ -455,21 +491,33 @@ void imx8qm_ipg_clock_disable(struct hdp_clks *clks)
 
 void imx8qm_ipg_clock_set_rate(struct hdp_clks *clks)
 {
-	u32 clk_rate;
+	struct imx_hdp *hdp = clks_to_imx_hdp(clks);
+	u32 clk_rate, desired_rate;
+
+	if (hdp->is_digpll_dp_pclock)
+		desired_rate = PLL_1188MHZ;
+	else
+		desired_rate = PLL_675MHZ;
 
 	/* hdmi/dp ipg/core clock */
 	clk_rate = clk_get_rate(clks->dig_pll);
-	if (clk_rate == PLL_1188MHZ) {
-		clk_set_rate(clks->dig_pll, PLL_1188MHZ);
-		clk_set_rate(clks->clk_core, PLL_1188MHZ/10);
-		clk_set_rate(clks->clk_ipg, PLL_1188MHZ/14);
-	} else {
-		clk_set_rate(clks->dig_pll, PLL_675MHZ);
-		clk_set_rate(clks->clk_core, PLL_675MHZ/5);
-		clk_set_rate(clks->clk_ipg, PLL_675MHZ/8);
+
+	if (clk_rate != desired_rate) {
+		pr_warn("%s, dig_pll was %u MHz, changing to %u MHz\n",
+			__func__, clk_rate/1000000,
+			desired_rate/1000000);
 	}
-	/* Set Default av pll clock */
-	clk_set_rate(clks->av_pll, 24000000);
+
+	if (hdp->is_digpll_dp_pclock) {
+		clk_set_rate(clks->dig_pll,  desired_rate);
+		clk_set_rate(clks->clk_core, desired_rate/10);
+		clk_set_rate(clks->clk_ipg,  desired_rate/12);
+		clk_set_rate(clks->av_pll, 24000000);
+	} else {
+		clk_set_rate(clks->dig_pll,  desired_rate);
+		clk_set_rate(clks->clk_core, desired_rate/5);
+		clk_set_rate(clks->clk_ipg,  desired_rate/8);
+	}
 }
 
 static u8 imx_hdp_link_rate(struct drm_display_mode *mode)
@@ -983,10 +1031,27 @@ static struct hdp_devtype imx8mq_hdmi_devtype = {
 	.rw = &imx8mq_rw,
 };
 
+static struct hdp_ops imx8mq_dp_ops = {
+	.phy_init = dp_phy_init_t28hpc,
+	.mode_set = dp_mode_set,
+	.get_edid_block = dp_get_edid_block,
+	.get_hpd_state = dp_get_hpd_state,
+	.phy_reset = imx8mq_phy_reset,
+};
+
+static struct hdp_devtype imx8mq_dp_devtype = {
+	.is_edid = true,
+	.is_4kp60 = true,
+	.audio_type = CDN_DPTX,
+	.ops = &imx8mq_dp_ops,
+	.rw = &imx8mq_rw,
+};
+
 static const struct of_device_id imx_hdp_dt_ids[] = {
 	{ .compatible = "fsl,imx8qm-hdmi", .data = &imx8qm_hdmi_devtype},
 	{ .compatible = "fsl,imx8qm-dp", .data = &imx8qm_dp_devtype},
 	{ .compatible = "fsl,imx8mq-hdmi", .data = &imx8mq_hdmi_devtype},
+	{ .compatible = "fsl,imx8mq-dp", .data = &imx8mq_dp_devtype},
 	{ }
 };
 MODULE_DEVICE_TABLE(of, imx_hdp_dt_ids);
@@ -1085,7 +1150,45 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 		return -EINVAL;
 	}
 
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	hdp->mem.rst_base = devm_ioremap_resource(dev, res);
+	if (IS_ERR(hdp->mem.rst_base)) {
+		dev_warn(dev, "Failed to get HDP RESET base register\n");
+	}
+
 	hdp->is_cec = of_property_read_bool(pdev->dev.of_node, "fsl,cec");
+
+	hdp->is_digpll_dp_pclock = of_property_read_bool(pdev->dev.of_node, "fsl,use_digpll_pclock");
+
+	hdp->is_edp = of_property_read_bool(pdev->dev.of_node, "fsl,edp");
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+				       "lane_mapping",
+				       &hdp->lane_mapping);
+	if (ret) {
+		hdp->lane_mapping = 0x1b;
+		dev_warn(dev, "Failed to get lane_mapping - using default\n");
+	}
+	dev_info(dev, "lane_mapping 0x%02x\n", hdp->lane_mapping);
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+				       "edp_link_rate",
+				       &hdp->edp_link_rate);
+	if (ret) {
+		hdp->edp_link_rate = 0;
+		dev_warn(dev, "Failed to get dp_link_rate - using default\n");
+	}
+	dev_info(dev, "edp_link_rate 0x%02x\n", hdp->edp_link_rate);
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+				       "edp_num_lanes",
+				       &hdp->edp_num_lanes);
+	if (ret) {
+		hdp->edp_num_lanes = 4;
+		dev_warn(dev, "Failed to get dp_num_lanes - using default\n");
+	}
+	dev_info(dev, "dp_num_lanes 0x%02x\n", hdp->edp_num_lanes);
+
 	hdp->is_edid = devtype->is_edid;
 	hdp->is_4kp60 = devtype->is_4kp60;
 	hdp->audio_type = devtype->audio_type;
@@ -1122,7 +1225,7 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	}
 	imx_hdp_call(hdp, pixel_clock_enable, &hdp->clks);
 
-	imx_hdp_call(hdp, phy_reset, hdp->ipcHndl, 0);
+	imx_hdp_call(hdp, phy_reset, hdp->ipcHndl, &hdp->mem, 0);
 
 	imx_hdp_call(hdp, fw_load, &hdp->state);
 

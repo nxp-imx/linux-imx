@@ -40,7 +40,7 @@ MODULE_PARM_DESC(debug, "Debug level (0-2)");
 /* 0~ 80Mbps: 0xB
  * 80~250Mbps: 0x8
  * 250~1.5Gbps: 0x6*/
-static u8 rxhs_settle[3] = {0xB, 0x8, 0x6};
+static u8 rxhs_settle[3] = {0xD, 0xA, 0x7};
 
 static struct mxc_mipi_csi2_dev *sd_to_mxc_mipi_csi2_dev(struct v4l2_subdev *sdev)
 {
@@ -61,7 +61,7 @@ static int calc_hs_settle(struct mxc_mipi_csi2_dev *csi2dev, u32 dphy_clk)
 	u32 rxhs_settle;
 
 	esc_rate = clk_get_rate(csi2dev->clk_esc) / 1000000;
-	hs_settle = 115 + 8 * 1000 / dphy_clk;
+	hs_settle = 140 + 8 * 1000 / dphy_clk;
 	rxhs_settle = hs_settle / (1000 / esc_rate) - 1;
 	return rxhs_settle;
 }
@@ -526,6 +526,7 @@ static int mipi_csi2_s_stream(struct v4l2_subdev *sd, int enable)
 
 		if (csi2dev->running)
 			mxc_mipi_csi2_disable(csi2dev);
+
 		csi2dev->running--;
 		pm_runtime_put(dev);
 	}
@@ -733,19 +734,11 @@ static int mipi_csi2_probe(struct platform_device *pdev)
 	mipi_sc_fw_init(csi2dev, 1);
 
 	csi2dev->running = 0;
-	csi2dev->flags = MXC_MIPI_CSI2_PM_POWERED;
 
-	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
-	pm_runtime_get_sync(dev);
 
-	ret = mipi_csi2_clk_enable(csi2dev);
-	if (ret < 0)
-		goto e_clkdis;
-
-	dev_info(&pdev->dev, "lanes: %d, name: %s\n",
+	dev_dbg(&pdev->dev, "lanes: %d, name: %s\n",
 		 csi2dev->num_lanes, csi2dev->sd.name);
-	pm_runtime_put_sync(dev);
 
 	return 0;
 
@@ -759,90 +752,42 @@ static int mipi_csi2_remove(struct platform_device *pdev)
 	struct v4l2_subdev *sd = platform_get_drvdata(pdev);
 	struct mxc_mipi_csi2_dev *csi2dev = sd_to_mxc_mipi_csi2_dev(sd);
 
-	pm_runtime_get_sync(&pdev->dev);
 	mipi_sc_fw_init(csi2dev, 0);
 	media_entity_cleanup(&csi2dev->sd.entity);
-	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 
-	return 0;
-}
-
-static int mipi_csi2_suspend(struct device *dev, bool runtime)
-{
-	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
-	struct v4l2_subdev *sd = &csi2dev->sd;
-
-	mutex_lock(&csi2dev->lock);
-	if (csi2dev->flags & MXC_MIPI_CSI2_PM_POWERED) {
-		if (csi2dev->running)
-			mipi_csi2_s_stream(sd, false);
-
-		mipi_csi2_clk_disable(csi2dev);
-		csi2dev->flags &= ~MXC_MIPI_CSI2_PM_POWERED;
-
-		if (runtime)
-			csi2dev->flags |= MXC_MIPI_CSI2_RUNTIME_SUSPENDED;
-		else
-			csi2dev->flags |= MXC_MIPI_CSI2_PM_SUSPENDED;
-	}
-	mutex_unlock(&csi2dev->lock);
-	return 0;
-}
-
-static int mipi_csi2_resume(struct device *dev, bool runtime)
-{
-	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
-	struct v4l2_subdev *sd = &csi2dev->sd;
-	int ret;
-
-	mutex_lock(&csi2dev->lock);
-	if (!(csi2dev->flags & MXC_MIPI_CSI2_RUNTIME_SUSPENDED) &&
-		!(csi2dev->flags & MXC_MIPI_CSI2_PM_SUSPENDED)) {
-		mutex_unlock(&csi2dev->lock);
-		return 0;
-	}
-
-	if (!(csi2dev->flags & MXC_MIPI_CSI2_PM_POWERED)) {
-		ret = mipi_csi2_clk_enable(csi2dev);
-		if (ret < 0) {
-			mutex_unlock(&csi2dev->lock);
-			dev_err(dev, "%s:%d fail\n", __func__, __LINE__);
-			return -EAGAIN;
-		}
-
-		if (csi2dev->running)
-			mipi_csi2_s_stream(sd, true);
-
-		csi2dev->flags |= MXC_MIPI_CSI2_PM_POWERED;
-		if (runtime)
-			csi2dev->flags &= ~MXC_MIPI_CSI2_RUNTIME_SUSPENDED;
-		else
-			csi2dev->flags &= ~MXC_MIPI_CSI2_PM_SUSPENDED;
-	}
-	mutex_unlock(&csi2dev->lock);
 	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP
 static int  mipi_csi2_pm_suspend(struct device *dev)
 {
-	return mipi_csi2_suspend(dev, false);
+	return pm_runtime_force_suspend(dev);
 }
 
 static int  mipi_csi2_pm_resume(struct device *dev)
 {
-	return mipi_csi2_resume(dev, false);
+	return pm_runtime_force_resume(dev);
 }
 #endif
 
 static int  mipi_csi2_runtime_suspend(struct device *dev)
 {
-	return mipi_csi2_suspend(dev, true);
+	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
+
+	mipi_csi2_clk_disable(csi2dev);
+	return 0;
 }
 static int  mipi_csi2_runtime_resume(struct device *dev)
 {
-	return mipi_csi2_resume(dev, true);
+	struct mxc_mipi_csi2_dev *csi2dev = dev_get_drvdata(dev);
+	int ret;
+
+	ret = mipi_csi2_clk_enable(csi2dev);
+	if (ret)
+		return ret;
+
+	return 0;
 }
 
 static const struct dev_pm_ops mipi_csi_pm_ops = {

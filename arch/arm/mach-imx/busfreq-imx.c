@@ -139,10 +139,19 @@ static bool check_m4_sleep(void)
 	return  true;
 }
 
+static bool busfreq_notified_low = false;
+
 static int busfreq_notify(enum busfreq_event event)
 {
 	int ret;
 
+	if (event == LOW_BUSFREQ_ENTER) {
+		WARN_ON(busfreq_notified_low);
+		busfreq_notified_low = true;
+	} else if (event == LOW_BUSFREQ_EXIT) {
+		WARN_ON(!busfreq_notified_low);
+		busfreq_notified_low = false;
+	}
 	ret = raw_notifier_call_chain(&busfreq_notifier_chain, event, NULL);
 
 	return notifier_to_errno(ret);
@@ -609,6 +618,16 @@ static void exit_lpm_imx6sl(void)
 
 static void enter_lpm_imx7d(void)
 {
+	/*
+	 * The AHB clock parent switch and divider change
+	 * needs to keep previous/current parent enabled
+	 * per design requirement, but when we switch the
+	 * clock parent, previous AHB clock parent may be
+	 * disabled by common clock framework, so here we
+	 * have to make sure AHB's previous parent pfd2_270m
+	 * is enabled during AHB set rate.
+	 */
+	clk_prepare_enable(pfd2_270m);
 	if (audio_bus_count) {
 		clk_prepare_enable(pfd0_392m);
 		update_ddr_freq_imx_smp(HIGH_AUDIO_CLK);
@@ -638,6 +657,7 @@ static void enter_lpm_imx7d(void)
 		audio_bus_freq_mode = 0;
 		cur_bus_freq_mode = BUS_FREQ_LOW;
 	}
+	clk_disable_unprepare(pfd2_270m);
 }
 
 static void exit_lpm_imx7d(void)
@@ -686,12 +706,20 @@ static void reduce_bus_freq(void)
 			high_bus_count, med_bus_count, audio_bus_count);
 }
 
+static inline void cancel_low_bus_freq_handler(void)
+{
+	cancel_delayed_work(&low_bus_freq_handler);
+	cancel_reduce_bus_freq = true;
+}
+
 static void reduce_bus_freq_handler(struct work_struct *work)
 {
 	mutex_lock(&bus_freq_mutex);
 
-	if (!cancel_reduce_bus_freq)
+	if (!cancel_reduce_bus_freq) {
 		reduce_bus_freq();
+		cancel_low_bus_freq_handler();
+	}
 
 	mutex_unlock(&bus_freq_mutex);
 }
@@ -727,12 +755,6 @@ static int set_low_bus_freq(void)
 		schedule_delayed_work(&low_bus_freq_handler,
 					usecs_to_jiffies(3000000));
 	return 0;
-}
-
-static inline void cancel_low_bus_freq_handler(void)
-{
-	cancel_delayed_work(&low_bus_freq_handler);
-	cancel_reduce_bus_freq = true;
 }
 
 /*

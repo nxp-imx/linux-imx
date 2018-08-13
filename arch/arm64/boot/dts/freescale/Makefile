@@ -48,7 +48,8 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QM) += fsl-imx8qm-lpddr4-arm2.dtb \
 				 fsl-imx8qm-lpddr4-arm2-enet2-tja1100.dtb \
 				 fsl-imx8qm-lpddr4-arm2-hsic.dtb \
 				 fsl-imx8dm-lpddr4-arm2.dtb \
-				 fsl-imx8qp-lpddr4-arm2.dtb
+				 fsl-imx8qp-lpddr4-arm2.dtb \
+				 fsl-imx8qm-lpddr4-arm2-dp-dig-pll.dtb
 dtb-$(CONFIG_ARCH_FSL_IMX8QXP) += fsl-imx8qxp-lpddr4-arm2.dtb \
 				  fsl-imx8qxp-mek.dtb \
 				  fsl-imx8qxp-mek-car.dtb \
@@ -96,14 +97,18 @@ dtb-$(CONFIG_ARCH_FSL_IMX8MQ) += fsl-imx8mq-ddr3l-arm2.dtb \
 				 fsl-imx8mq-evk-audio-tdm.dtb \
 				 fsl-imx8mq-evk-drm.dtb \
 				 fsl-imx8mq-evk-root.dtb \
-				 fsl-imx8mq-evk-inmate.dtb
+				 fsl-imx8mq-evk-inmate.dtb \
+				 fsl-imx8mq-evk-dp.dtb \
+				 fsl-imx8mq-evk-edp.dtb
 dtb-$(CONFIG_ARCH_FSL_IMX8MM) += fsl-imx8mm-evk.dtb \
 				 fsl-imx8mm-evk-ak4497.dtb \
 				 fsl-imx8mm-evk-m4.dtb \
 				 fsl-imx8mm-evk-ak5558.dtb \
 				 fsl-imx8mm-evk-audio-tdm.dtb \
 				 fsl-imx8mm-ddr4-val.dtb \
-				 fsl-imx8mm-evk-rm67191.dtb
+				 fsl-imx8mm-evk-rm67191.dtb \
+				 fsl-imx8mm-evk-root.dtb \
+				 fsl-imx8mm-evk-inmate.dtb
 always		:= $(dtb-y)
 subdir-y	:= $(dts-dirs)
 clean-files	:= *.dtb
