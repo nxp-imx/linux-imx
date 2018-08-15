@@ -1973,12 +1973,15 @@ static void ov5645_enable_af(bool enable)
 {
 	u8 temp;
 	int cnt = 40;
+	/* It typically takes 50 ms for AF to stabilize. Setting the
+	   retry count to 40 gives us enough margin to always succeed */
 	if (enable) {
 		ov5645_write_reg(0x3022, 0x12);
 		ov5645_write_reg(0x3022, 0x04);
 		do {
 			ov5645_read_reg(0x3029, &temp);
 			msleep(5);
+			// If the status reg 0x3029 reads 0x20 we have stabilized
 		} while (temp != 0x20 && cnt-- > 0);
 
 		if (temp != 0x20)
@@ -2993,7 +2996,7 @@ static int ov5645_set_regs(const char *buffer, struct kernel_param *kp)
 			break;
 
 		pr_warning("%s: Writing Reg = %04x, val = %02x\n", __func__,
-							 (unsigned int)reg_addr, (unsigned int)value);
+			(unsigned int)reg_addr, (unsigned int)value);
 		retval = ov5645_write_reg(reg_addr & 0xffff, value & 0xff);
 
 		if (retval < 0)
@@ -3025,13 +3028,13 @@ static int ov5645_get_print_reg(char *buffer, struct kernel_param *kp)
 	if (retval < 0)
 		return 0;
 	cnt = sprintf(buffer, "0x%04x: 0x%02x",
-								(unsigned int)(reg_addr_to_read & 0xfff), (unsigned int)val);
+		(unsigned int)(reg_addr_to_read & 0xfff), (unsigned int)val);
 	return cnt;
 }
 
 module_param_call(ov5645_set_regs, ov5645_set_regs, NULL, NULL, 0644);
 module_param_call(ov5645_print_reg, ov5645_set_print_reg, ov5645_get_print_reg,
-									NULL, 0644);
+		NULL, 0644);
 
 /*!
  * ov5645 I2C probe function
@@ -3111,6 +3114,13 @@ static int ov5645_probe(struct i2c_client *client,
 	if (retval) {
 		dev_err(dev, "csi id missing or invalid\n");
 		return retval;
+	}
+
+	retval = of_property_read_u32(dev->of_node, "ae_target", &(AE_Target));
+	if (retval) {
+		dev_warn(dev,
+			 "ae_target missing in dev tree, using default %d\n",
+			 AE_Target);
 	}
 
 	clk_prepare_enable(ov5645_data.sensor_clk);
