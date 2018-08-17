@@ -21,11 +21,11 @@
 #include <linux/notifier.h>
 #include <linux/spinlock.h>
 #include <linux/usb/otg.h>
+#include <linux/usb/gadget.h>
 
 #define TEMPORARY_HOLD_TIME	2000
 
 static bool enabled = true;
-static struct usb_phy *otgwl_xceiv;
 static struct notifier_block otgwl_nb;
 
 /*
@@ -99,6 +99,10 @@ static void otgwl_handle_event(unsigned long event)
 		otgwl_temporary_hold(&vbus_lock);
 		break;
 
+	case USB_EVENT_DISCONNECT:
+		otgwl_drop(&vbus_lock);
+		break;
+
 	default:
 		break;
 	}
@@ -120,9 +124,6 @@ static int set_enabled(const char *val, const struct kernel_param *kp)
 	if (rv)
 		return rv;
 
-	if (otgwl_xceiv)
-		otgwl_handle_event(otgwl_xceiv->last_event);
-
 	return 0;
 }
 
@@ -137,33 +138,21 @@ MODULE_PARM_DESC(enabled, "enable wakelock when VBUS present");
 static int __init otg_wakelock_init(void)
 {
 	int ret;
-	struct usb_phy *phy;
-
-	phy = usb_get_phy(USB_PHY_TYPE_USB2);
-
-	if (IS_ERR(phy)) {
-		pr_err("%s: No USB transceiver found\n", __func__);
-		return PTR_ERR(phy);
-	}
-	otgwl_xceiv = phy;
 
 	snprintf(vbus_lock.name, sizeof(vbus_lock.name), "vbus-%s",
-		 dev_name(otgwl_xceiv->dev));
+		 "wakelock");
 	wakeup_source_init(&vbus_lock.wakesrc, vbus_lock.name);
 
 	otgwl_nb.notifier_call = otgwl_otg_notifications;
-	ret = usb_register_notifier(otgwl_xceiv, &otgwl_nb);
+	ret = register_usb_gadget_notifier(&otgwl_nb);
 
 	if (ret) {
-		pr_err("%s: usb_register_notifier on transceiver %s"
-		       " failed\n", __func__,
-		       dev_name(otgwl_xceiv->dev));
-		otgwl_xceiv = NULL;
+		pr_err("%s: usb_register_notifier"
+		       " failed\n", __func__);
 		wakeup_source_trash(&vbus_lock.wakesrc);
 		return ret;
 	}
 
-	otgwl_handle_event(otgwl_xceiv->last_event);
 	return ret;
 }
 

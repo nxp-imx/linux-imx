@@ -25,9 +25,11 @@
 #include <linux/dma-mapping.h>
 #include <linux/sched/task_stack.h>
 #include <linux/workqueue.h>
+#include <linux/notifier.h>
 
 #include <linux/usb/ch9.h>
 #include <linux/usb/gadget.h>
+#include <linux/usb/phy.h>
 #include <linux/usb.h>
 
 #include "trace.h"
@@ -56,6 +58,7 @@ static struct class *udc_class;
 static LIST_HEAD(udc_list);
 static LIST_HEAD(gadget_driver_pending_list);
 static DEFINE_MUTEX(udc_lock);
+static RAW_NOTIFIER_HEAD(usb_gadget_chain);
 
 static int udc_bind_to_driver(struct usb_udc *udc,
 		struct usb_gadget_driver *driver);
@@ -79,6 +82,25 @@ void usb_ep_set_maxpacket_limit(struct usb_ep *ep,
 	trace_usb_ep_set_maxpacket_limit(ep, 0);
 }
 EXPORT_SYMBOL_GPL(usb_ep_set_maxpacket_limit);
+
+int register_usb_gadget_notifier(struct notifier_block *nb)
+{
+	int err;
+	err = raw_notifier_chain_register(&usb_gadget_chain, nb);
+	if (err) {
+		pr_err("register notifier failed \n");
+		return err;
+	}
+	return 0;
+}
+
+EXPORT_SYMBOL(register_usb_gadget_notifier);
+
+int call_usb_gadget_notifiers(unsigned long val)
+{
+	return raw_notifier_call_chain(&usb_gadget_chain, val, NULL);
+}
+EXPORT_SYMBOL(call_usb_gadget_notifiers);
 
 /**
  * usb_ep_enable - configure endpoint, making it usable
@@ -984,6 +1006,10 @@ void usb_gadget_set_state(struct usb_gadget *gadget,
 		enum usb_device_state state)
 {
 	gadget->state = state;
+	if (state == USB_STATE_NOTATTACHED)
+		call_usb_gadget_notifiers(USB_EVENT_DISCONNECT);
+	else
+		call_usb_gadget_notifiers(USB_EVENT_ENUMERATED);
 	schedule_work(&gadget->work);
 }
 EXPORT_SYMBOL_GPL(usb_gadget_set_state);

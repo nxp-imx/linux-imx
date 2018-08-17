@@ -816,6 +816,12 @@ extern void usb_gadget_set_state(struct usb_gadget *gadget,
 
 /*-------------------------------------------------------------------------*/
 
+/* register usb gadget notifier chain */
+
+extern int register_usb_gadget_notifier(struct notifier_block *nb);
+
+/*-------------------------------------------------------------------------*/
+
 /* utility to tell udc core that the bus reset occurs */
 extern void usb_gadget_udc_reset(struct usb_gadget *gadget,
 		struct usb_gadget_driver *driver);
