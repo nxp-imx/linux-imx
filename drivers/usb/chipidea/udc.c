@@ -1574,7 +1574,7 @@ static const struct usb_ep_ops usb_ep_ops = {
 static int ci_udc_vbus_session(struct usb_gadget *_gadget, int is_active)
 {
 	struct ci_hdrc *ci = container_of(_gadget, struct ci_hdrc, gadget);
-	unsigned long flags, status;
+	unsigned long flags;
 	int gadget_ready = 0;
 
 	spin_lock_irqsave(&ci->lock, flags);
@@ -1588,12 +1588,9 @@ static int ci_udc_vbus_session(struct usb_gadget *_gadget, int is_active)
 
 	if (ci->usb_phy) {
 		if (is_active)
-			status = USB_EVENT_VBUS;
+			usb_phy_set_event(ci->usb_phy, USB_EVENT_VBUS);
 		else
-			status = USB_EVENT_NONE;
-		usb_phy_set_event(ci->usb_phy, status);
-		atomic_notifier_call_chain(&ci->usb_phy->notifier, status,
-					   _gadget);
+			usb_phy_set_event(ci->usb_phy, USB_EVENT_NONE);
 	}
 
 	if (gadget_ready)
