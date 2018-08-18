@@ -18,8 +18,9 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/suspend.h>
+#include <linux/device_cooling.h>
 
-#define DC_VOLTAGE_MIN		900000
+#define DC_VOLTAGE_MIN		850000
 #define DC_VOLTAGE_MAX		1000000
 
 static struct device *cpu_dev;
@@ -127,6 +128,78 @@ static void imx8mq_cpufreq_ready(struct cpufreq_policy *policy)
 	of_node_put(np);
 }
 
+#define cpu_cooling_core_mask ((1 << 2) | (1 << 3))   /* offline cpu2 and cpu3 if needed*/
+static int thermal_hot_pm_notify(struct notifier_block *nb, unsigned long event,
+       void *dummy)
+{
+	static unsigned long prev_event = 0xffffffff;
+	struct device *cpu_dev = NULL;
+	static int cpus_offlined = 0;
+	int i = 0, ret = 0;
+
+	if (event == prev_event)
+		return NOTIFY_OK;
+
+	prev_event = event;
+
+	switch (event) {
+	case 0: /* default state, no trip point reached*/
+	case 1: /* trip1 temperature are lower than trip2, we can
+		   online the cpu2 and cpu3 to get better performance */
+		for (i = 0; i < num_possible_cpus(); i++) {
+			if (!(cpu_cooling_core_mask & BIT(i)))
+				continue;
+			if (!(cpus_offlined & BIT(i)))
+				continue;
+			cpus_offlined &= ~BIT(i);
+			pr_info("Allow Online CPU%d, devfreq state: %d\n",
+					i, event);
+
+			lock_device_hotplug();
+			if (cpu_online(i)) {
+				unlock_device_hotplug();
+				continue;
+			}
+			cpu_dev = get_cpu_device(i);
+			ret = device_online(cpu_dev);
+			if (ret)
+				pr_err("Error %d online core %d\n",
+						ret, i);
+			unlock_device_hotplug();
+		}
+		break;
+	case 2: /* rise above trip2 temperature, offline cpu2 and cpu3 to
+		   to limit the max online cpu cores */
+		for (i = num_possible_cpus() - 1; i >= 0; i--) {
+			if (!(cpu_cooling_core_mask & BIT(i)))
+				continue;
+			if (cpus_offlined & BIT(i) && !cpu_online(i))
+				continue;
+			pr_info("Set Offline: CPU%d, devfreq state: %d\n",
+					i, event);
+			lock_device_hotplug();
+			if (cpu_online(i)) {
+				cpu_dev = get_cpu_device(i);
+				ret = device_offline(cpu_dev);
+				if (ret < 0)
+					pr_err("Error %d offline core %d\n",
+					       ret, i);
+			}
+			unlock_device_hotplug();
+			cpus_offlined |= BIT(i);
+		}
+		break;
+	default:
+		break;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block thermal_hot_pm_notifier =
+{
+	.notifier_call = thermal_hot_pm_notify,
+};
+
 static int imx8mq_cpufreq_init(struct cpufreq_policy *policy)
 {
 	int ret;
@@ -224,6 +297,8 @@ static int imx8mq_cpufreq_probe(struct platform_device *pdev)
 	of_node_put(np);
 	dev_info(cpu_dev, "registered imx8mq-cpufreq\n");
 
+	register_devfreq_cooling_notifier(&thermal_hot_pm_notifier);
+
 	return 0;
 
 free_freq_table:
@@ -247,6 +322,7 @@ put_clk:
 
 static int imx8mq_cpufreq_remove(struct platform_device *pdev)
 {
+	unregister_devfreq_cooling_notifier(&thermal_hot_pm_notifier);
 	cpufreq_cooling_unregister(cdev);
 	cpufreq_unregister_driver(&imx8mq_cpufreq_driver);
 	dev_pm_opp_free_cpufreq_table(cpu_dev, &freq_table);
