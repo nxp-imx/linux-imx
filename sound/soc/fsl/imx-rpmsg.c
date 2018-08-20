@@ -34,6 +34,7 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 	struct device_node *cpu_np;
 	struct platform_device *cpu_pdev;
 	struct imx_rpmsg_data *data;
+	struct fsl_rpmsg_i2s         *rpmsg_i2s;
 	int ret;
 
 	cpu_np = of_parse_phandle(pdev->dev.of_node, "cpu-dai", 0);
@@ -56,19 +57,38 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 		goto fail;
 	}
 
+	rpmsg_i2s = platform_get_drvdata(cpu_pdev);
+
 	data->dai[0].name = "rpmsg hifi";
 	data->dai[0].stream_name = "rpmsg hifi";
-	data->dai[0].codec_dai_name = "rpmsg-wm8960-hifi";
-	data->dai[0].codec_name = "rpmsg-audio-codec";
+	if (rpmsg_i2s->codec_wm8960) {
+		data->dai[0].codec_dai_name = "rpmsg-wm8960-hifi";
+		data->dai[0].codec_name = "rpmsg-audio-codec-wm8960";
+	} else {
+		data->dai[0].codec_dai_name = "snd-soc-dummy-dai";
+		data->dai[0].codec_name = "snd-soc-dummy";
+	}
 	data->dai[0].cpu_dai_name = dev_name(&cpu_pdev->dev);
 	data->dai[0].platform_of_node = cpu_np;
-	data->dai[0].playback_only = false;
-	data->dai[0].capture_only = false;
+	data->dai[0].playback_only = true;
+	data->dai[0].capture_only = true;
 	data->dai[0].dai_fmt = SND_SOC_DAIFMT_I2S |
 			    SND_SOC_DAIFMT_NB_NF |
 			    SND_SOC_DAIFMT_CBM_CFM;
 	data->card.num_links = 1;
 	data->card.dai_link = data->dai;
+
+	if (of_property_read_bool(pdev->dev.of_node, "rpmsg-out"))
+		data->dai[0].capture_only = false;
+
+	if (of_property_read_bool(pdev->dev.of_node, "rpmsg-in"))
+		data->dai[0].playback_only = false;
+
+	if (data->dai[0].playback_only && data->dai[0].capture_only) {
+		dev_err(&pdev->dev, "no enabled rpmsg DAI link\n");
+		ret = -EINVAL;
+		goto fail;
+	}
 
 	data->card.dev = &pdev->dev;
 	data->card.owner = THIS_MODULE;

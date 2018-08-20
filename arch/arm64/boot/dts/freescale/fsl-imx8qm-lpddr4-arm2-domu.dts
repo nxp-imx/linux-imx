@@ -25,7 +25,7 @@
 
 / {
 	model = "Freescale i.MX8QM DOMU";
-	compatible = "fsl,imx8qm-mek", "fsl,imx8qm", "xen,xenvm-4.10", "xen,xenvm";
+	compatible = "fsl,imx8qm-lpddr4", "fsl,imx8qm", "xen,xenvm-4.10", "xen,xenvm";
 	interrupt-parent = <&gic>;
 	#address-cells = <0x2>;
 	#size-cells = <0x2>;
