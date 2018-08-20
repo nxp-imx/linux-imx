@@ -871,6 +871,7 @@ int elv_register_queue(struct request_queue *q)
 	}
 	return error;
 }
+EXPORT_SYMBOL(elv_register_queue);
 
 void elv_unregister_queue(struct request_queue *q)
 {
@@ -886,6 +887,7 @@ void elv_unregister_queue(struct request_queue *q)
 		wbt_enable_default(q);
 	}
 }
+EXPORT_SYMBOL(elv_unregister_queue);
 
 int elv_register(struct elevator_type *e)
 {
