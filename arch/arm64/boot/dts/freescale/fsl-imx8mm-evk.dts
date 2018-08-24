@@ -942,7 +942,7 @@
 &usbotg2 {
 	dr_mode = "otg";
 	extcon = <0>, <&typec2_ptn5110>;
-	status = "okay";
+	status = "disabled";
 };
 
 &usdhc1 {
