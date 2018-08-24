@@ -3028,7 +3028,7 @@ static int ov5645_get_print_reg(char *buffer, struct kernel_param *kp)
 	if (retval < 0)
 		return 0;
 	cnt = sprintf(buffer, "0x%04x: 0x%02x",
-		(unsigned int)(reg_addr_to_read & 0xfff), (unsigned int)val);
+		(unsigned int)(reg_addr_to_read & 0xffff), (unsigned int)val);
 	return cnt;
 }
 
