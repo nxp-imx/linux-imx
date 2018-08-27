@@ -191,7 +191,8 @@ void hdmi_mode_set_ss28fdsoi(state_struct *state, struct drm_display_mode *mode,
 	/* Mode = 0 - DVI, 1 - HDMI1.4, 2 HDMI 2.0 */
 	HDMI_TX_MAIL_HANDLER_PROTOCOL_TYPE ptype = 1;
 
-	if (drm_match_cea_mode(mode) == VIC_MODE_97_60Hz)
+	if (drm_match_cea_mode(mode) == VIC_MODE_97_60Hz ||
+	    drm_match_cea_mode(mode) == VIC_MODE_96_50Hz)
 		ptype = 2;
 
 	ret = CDN_API_HDMITX_Init_blocking(state);
@@ -278,6 +279,21 @@ int hdmi_phy_init_t28hpc(state_struct *state, struct drm_display_mode *mode, int
 	return true;
 }
 
+void hdmi_phy_pix_engine_reset_t28hpc(state_struct *state)
+{
+	GENERAL_Read_Register_response regresp;
+
+	CDN_API_General_Read_Register_blocking(state, ADDR_SOURCE_CAR +
+					       (SOURCE_HDTX_CAR << 2),
+					       &regresp);
+	CDN_API_General_Write_Register_blocking(state, ADDR_SOURCE_CAR +
+						(SOURCE_HDTX_CAR << 2),
+						regresp.val & 0xFD);
+	CDN_API_General_Write_Register_blocking(state, ADDR_SOURCE_CAR +
+						(SOURCE_HDTX_CAR << 2),
+						regresp.val);
+}
+
 void hdmi_mode_set_vswing(state_struct *state)
 {
 	GENERAL_Read_Register_response regresp[12];
@@ -348,7 +364,8 @@ void hdmi_mode_set_t28hpc(state_struct *state, struct drm_display_mode *mode, in
 	/* Mode = 0 - DVI, 1 - HDMI1.4, 2 HDMI 2.0 */
 	HDMI_TX_MAIL_HANDLER_PROTOCOL_TYPE ptype = 1;
 
-	if (drm_match_cea_mode(mode) == VIC_MODE_97_60Hz)
+	if (drm_match_cea_mode(mode) == VIC_MODE_97_60Hz ||
+	    drm_match_cea_mode(mode) == VIC_MODE_96_50Hz)
 		ptype = 2;
 
 	ret = CDN_API_HDMITX_Init_blocking(state);

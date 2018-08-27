@@ -59,6 +59,7 @@
 
 #define HOTPLUG_DEBOUNCE_MS		200
 
+#define VIC_MODE_96_50Hz 96
 #define VIC_MODE_97_60Hz 97
 /**
  * imx_hdp_call - Calls a struct imx hdp_operations operation on
@@ -98,6 +99,7 @@ struct hdp_ops {
 	int (*pixel_link_init)(state_struct *state);
 	void (*pixel_link_deinit)(state_struct *state);
 	void (*pixel_link_mux)(state_struct *state, struct drm_display_mode *mode);
+	void (*pixel_engine_reset)(state_struct *state);
 
 	int (*clock_init)(struct hdp_clks *clks);
 	int (*ipg_clock_enable)(struct hdp_clks *clks);
