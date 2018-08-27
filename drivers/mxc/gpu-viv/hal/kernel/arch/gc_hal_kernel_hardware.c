@@ -8946,6 +8946,7 @@ gckHARDWARE_QueryIdle(
     gceSTATUS status;
     gctUINT32 idle, address;
     gctBOOL   isIdle;
+    gctBOOL   hasL2Cache;
 
 #if gcdINTERRUPT_STATISTIC
     gctINT32 pendingInterrupt;
@@ -8993,9 +8994,11 @@ gckHARDWARE_QueryIdle(
                                              0x00664,
                                              &address));
 
+            hasL2Cache = gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_64K_L2_CACHE);
+
             /* Test if address is inside the last WAIT/LINK sequence. */
             if ((address >= Hardware->lastWaitLink)
-            &&  (address <= Hardware->lastWaitLink + (Hardware->hasL2Cache ? 16 : 8))
+            &&  (address <= Hardware->lastWaitLink + (hasL2Cache ? 16 : 8))
             )
             {
                 /* FE is in last WAIT/LINK and the pipe is idle. */
