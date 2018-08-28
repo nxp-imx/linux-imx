@@ -437,7 +437,7 @@
 					type = "passive";
 				};
 				cpu_crit0: trip3 {
-					temperature = <95000>;
+					temperature = <90000>;
 					hysteresis = <2000>;
 					type = "critical";
 				};
@@ -458,7 +458,7 @@
 				map2 {
 					trip = <&cpu_alert2>;
 					cooling-device =
-					<&throttle_devfreq 0 2>; /* Min GPU Clock */
+					<&throttle_devfreq 0 2>; /* Min GPU Clock, disable CPU2/3 */
 				};
 			};
 		};
