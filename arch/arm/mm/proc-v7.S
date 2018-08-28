@@ -163,7 +163,6 @@ ENDPROC(cpu_v7_do_resume)
 	globl_equ	cpu_ca8_dcache_clean_area, cpu_v7_dcache_clean_area
 	globl_equ	cpu_ca8_set_pte_ext,	cpu_v7_set_pte_ext
 	globl_equ	cpu_ca8_suspend_size,	cpu_v7_suspend_size
-	globl_equ	cpu_ca8_switch_mm,	cpu_v7_btbinv_switch_mm
 #ifdef CONFIG_ARM_CPU_SUSPEND
 	globl_equ	cpu_ca8_do_suspend,	cpu_v7_do_suspend
 	globl_equ	cpu_ca8_do_resume,	cpu_v7_do_resume
@@ -177,11 +176,7 @@ ENDPROC(cpu_v7_do_resume)
 	globl_equ	cpu_ca9mp_reset,	cpu_v7_reset
 	globl_equ	cpu_ca9mp_do_idle,	cpu_v7_do_idle
 	globl_equ	cpu_ca9mp_dcache_clean_area, cpu_v7_dcache_clean_area
-#ifdef CONFIG_HARDEN_BRANCH_PREDICTOR
-	globl_equ	cpu_ca9mp_switch_mm,	cpu_v7_btbinv_switch_mm
-#else
 	globl_equ	cpu_ca9mp_switch_mm,	cpu_v7_switch_mm
-#endif
 	globl_equ	cpu_ca9mp_set_pte_ext,	cpu_v7_set_pte_ext
 .globl	cpu_ca9mp_suspend_size
 .equ	cpu_ca9mp_suspend_size, cpu_v7_suspend_size + 4 * 2
@@ -205,26 +200,6 @@ ENTRY(cpu_ca9mp_do_resume)
 	mcrne	p15, 0, r5, c15, c0, 0		@ No, so restore it
 	b	cpu_v7_do_resume
 ENDPROC(cpu_ca9mp_do_resume)
-#endif
-
-/*
- * Cortex-A12/A17
- */
-	globl_equ	cpu_ca17_proc_init,	cpu_v7_proc_init
-	globl_equ	cpu_ca17_proc_fin,	cpu_v7_proc_fin
-	globl_equ	cpu_ca17_reset,		cpu_v7_reset
-	globl_equ	cpu_ca17_do_idle,	cpu_v7_do_idle
-	globl_equ	cpu_ca17_dcache_clean_area, cpu_v7_dcache_clean_area
-	globl_equ	cpu_ca17_set_pte_ext,	cpu_v7_set_pte_ext
-	globl_equ	cpu_ca17_suspend_size,	cpu_v7_suspend_size
-#ifdef CONFIG_HARDEN_BRANCH_PREDICTOR
-	globl_equ	cpu_ca17_switch_mm,	cpu_v7_btbinv_switch_mm
-#else
-	globl_equ	cpu_ca17_switch_mm,	cpu_v7_switch_mm
-#endif
-#ifdef CONFIG_ARM_CPU_SUSPEND
-	globl_equ	cpu_ca17_do_suspend,	cpu_v7_do_suspend
-	globl_equ	cpu_ca17_do_resume,	cpu_v7_do_resume
 #endif
 
 #ifdef CONFIG_CPU_PJ4B
@@ -568,7 +543,6 @@ __v7_setup_stack:
 
 	@ define struct processor (see <asm/proc-fns.h> and proc-macros.S)
 	define_processor_functions v7, dabort=v7_early_abort, pabort=v7_pabort, suspend=1
-	define_processor_functions ca17, dabort=v7_early_abort, pabort=v7_pabort, suspend=1
 #ifndef CONFIG_ARM_LPAE
 	define_processor_functions ca8, dabort=v7_early_abort, pabort=v7_pabort, suspend=1
 	define_processor_functions ca9mp, dabort=v7_early_abort, pabort=v7_pabort, suspend=1
@@ -679,7 +653,7 @@ __v7_ca7mp_proc_info:
 __v7_ca12mp_proc_info:
 	.long	0x410fc0d0
 	.long	0xff0ffff0
-	__v7_proc __v7_ca12mp_proc_info, __v7_ca12mp_setup, proc_fns = ca17_processor_functions
+	__v7_proc __v7_ca12mp_proc_info, __v7_ca12mp_setup
 	.size	__v7_ca12mp_proc_info, . - __v7_ca12mp_proc_info
 
 	/*
@@ -709,7 +683,7 @@ __v7_b15mp_proc_info:
 __v7_ca17mp_proc_info:
 	.long	0x410fc0e0
 	.long	0xff0ffff0
-	__v7_proc __v7_ca17mp_proc_info, __v7_ca17mp_setup, proc_fns = ca17_processor_functions
+	__v7_proc __v7_ca17mp_proc_info, __v7_ca17mp_setup
 	.size	__v7_ca17mp_proc_info, . - __v7_ca17mp_proc_info
 
 	/*
