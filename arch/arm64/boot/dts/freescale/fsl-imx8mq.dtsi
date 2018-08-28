@@ -427,7 +427,7 @@
 					type = "passive";
 				};
 				cpu_alert1: trip1 {
-					temperature = <85000>;
+					temperature = <80000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
@@ -447,17 +447,18 @@
 				map0 {
 					trip = <&cpu_alert0>;
 					cooling-device =
-					<&throttle_devfreq 0 1>;
+					<&throttle_devfreq 0 1>, /* 1/2 GPU Clock */
+					<&A53_0 0 1>; /* Exclude highest OPP */
 				};
 				map1 {
 					trip = <&cpu_alert1>;
 					cooling-device =
-					<&throttle_devfreq 0 2>;
+					<&A53_0 0 2>; /* Exclude two highest OPPs */
 				};
 				map2 {
 					trip = <&cpu_alert2>;
 					cooling-device =
-					<&A53_0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+					<&throttle_devfreq 0 2>; /* Min GPU Clock */
 				};
 			};
 		};
