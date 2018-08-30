@@ -61,7 +61,7 @@ typedef unsigned long u_int64;
 typedef unsigned int BOOL;
 #define FALSE 0
 #define TRUE 1
-#define VPU_MAX_NUM_STREAMS 4
+#define VPU_MAX_NUM_STREAMS 3
 #define VID_API_NUM_STREAMS 4
 #define VID_API_MAX_BUF_PER_STR 3
 #define VID_API_MAX_NUM_MVC_VIEWS 4
@@ -484,6 +484,11 @@ typedef struct {
 	u_int32 uMVCNumViews;
 	u_int32 uMVCViewList[VID_API_MAX_NUM_MVC_VIEWS];
 	u_int32 uFBCInUse;
+	u_int32 uFrameCropValid;
+	u_int32 uFrameCropLeftOffset;
+	u_int32 uFrameCropRightOffset;
+	u_int32 uFrameCropTopOffset;
+	u_int32 uFrameCropBottomOffset;
 
 } MediaIPFW_Video_SeqInfo;
 
