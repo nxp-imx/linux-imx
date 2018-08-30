@@ -15,6 +15,10 @@
 #include "fsl-imx8mq-evk.dts"
 
 &resmem {
+	carveout_region: imx_ion@0 {
+		status = "disabled";
+	};
+
 	display_region: imx_ion@1 {
 		compatible = "imx-ion-pool";
 		reg = <0x0 0xe6000000 0 0x18000000>;
