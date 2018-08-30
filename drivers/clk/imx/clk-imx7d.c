@@ -905,16 +905,6 @@ static void __init imx7d_clocks_init(struct device_node *ccm_node)
 	/* use old gpt clk setting, gpt1 root clk must be twice as gpt counter freq */
 	imx_clk_set_parent(clks[IMX7D_GPT1_ROOT_SRC], clks[IMX7D_OSC_24M_CLK]);
 
-	/*
-	 * init enet clock source:
-	 *	AXI clock source is 250Mhz
-	 *	Phy refrence clock is 25Mhz
-	 *	1588 time clock source is 100Mhz
-	 */
-	imx_clk_set_parent(clks[IMX7D_ENET_AXI_ROOT_SRC], clks[IMX7D_PLL_ENET_MAIN_250M_CLK]);
-	imx_clk_set_rate(clks[IMX7D_ENET_AXI_ROOT_CLK], 267000000);
-	imx_clk_set_parent(clks[IMX7D_ENET_PHY_REF_ROOT_SRC], clks[IMX7D_PLL_ENET_MAIN_25M_CLK]);
-
 	/* set pcie root's parent clk source */
 	imx_clk_set_parent(clks[IMX7D_PCIE_CTRL_ROOT_SRC], clks[IMX7D_PLL_ENET_MAIN_250M_CLK]);
 	imx_clk_set_parent(clks[IMX7D_PCIE_PHY_ROOT_SRC], clks[IMX7D_PLL_ENET_MAIN_100M_CLK]);

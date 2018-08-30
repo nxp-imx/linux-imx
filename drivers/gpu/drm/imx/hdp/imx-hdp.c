@@ -657,7 +657,7 @@ imx_hdp_connector_detect(struct drm_connector *connector, bool force)
 	struct imx_hdp *hdp = container_of(connector,
 						struct imx_hdp, connector);
 	int ret;
-	u8 hpd;
+	u8 hpd = 0xf;
 
 	ret = imx_hdp_call(hdp, get_hpd_state, &hdp->state, &hpd);
 	if (ret > 0)
@@ -666,9 +666,14 @@ imx_hdp_connector_detect(struct drm_connector *connector, bool force)
 	if (hpd == 1)
 		/* Cable Connected */
 		return connector_status_connected;
-	else
-		/* Cable Disconnedted  */
+	else if (hpd == 0)
+		/* Cable Disconnedted */
 		return connector_status_disconnected;
+	else {
+		/* Cable status unknown */
+		DRM_INFO("Unknow cable status, hdp=%u\n", hpd);
+		return connector_status_unknown;
+	}
 }
 
 static int imx_hdp_connector_get_modes(struct drm_connector *connector)
@@ -892,7 +897,9 @@ static struct hdp_rw_func imx8qm_rw = {
 };
 
 static struct hdp_ops imx8qm_dp_ops = {
+#ifdef DEBUG_FW_LOAD
 	.fw_load = dp_fw_load,
+#endif
 	.fw_init = dp_fw_init,
 	.phy_init = dp_phy_init,
 	.mode_set = dp_mode_set,
@@ -914,7 +921,9 @@ static struct hdp_ops imx8qm_dp_ops = {
 };
 
 static struct hdp_ops imx8qm_hdmi_ops = {
+#ifdef DEBUG_FW_LOAD
 	.fw_load = hdmi_fw_load,
+#endif
 	.fw_init = hdmi_fw_init,
 	.phy_init = hdmi_phy_init,
 	.mode_set = hdmi_mode_set,
@@ -997,7 +1006,7 @@ static void hotplug_work_func(struct work_struct *work)
 #ifdef CONFIG_EXTCON
 		extcon_set_state_sync(hdp_edev, EXTCON_DISP_HDMI, 1);
 #endif
-	} else {
+	} else if (connector->status == connector_status_disconnected) {
 		/* Cable Disconnedted  */
 		DRM_INFO("HDMI/DP Cable Plug Out\n");
 		enable_irq(hdp->irq[HPD_IRQ_IN]);
@@ -1112,7 +1121,12 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 
 	imx_hdp_call(hdp, fw_load, &hdp->state);
 
-	imx_hdp_call(hdp, fw_init, &hdp->state);
+	ret = imx_hdp_call(hdp, fw_init, &hdp->state);
+	if (ret < 0) {
+		pr_err("Failed to initialise HDP firmware\n");
+		DRM_ERROR("Failed to initialise HDP firmware\n");
+		return ret;
+	}
 
 	/* Pixel Format - 1 RGB, 2 YCbCr 444, 3 YCbCr 420 */
 	/* bpp (bits per subpixel) - 8 24bpp, 10 30bpp, 12 36bpp, 16 48bpp */

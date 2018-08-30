@@ -38,6 +38,7 @@ static int i2s_send_message(struct i2s_rpmsg_s *msg,
 	mutex_lock(&info->tx_lock);
 	if (!info->rpdev) {
 		dev_dbg(info->dev, "rpmsg channel not ready, m4 image ready?\n");
+		mutex_unlock(&info->tx_lock);
 		return -EINVAL;
 	}
 
@@ -48,6 +49,7 @@ static int i2s_send_message(struct i2s_rpmsg_s *msg,
 			 sizeof(struct i2s_rpmsg_s));
 	if (err) {
 		dev_err(&info->rpdev->dev, "rpmsg_send failed: %d\n", err);
+		mutex_unlock(&info->tx_lock);
 		return err;
 	}
 
@@ -57,6 +59,7 @@ static int i2s_send_message(struct i2s_rpmsg_s *msg,
 	if (!err) {
 		dev_err(&info->rpdev->dev, "rpmsg_send cmd %d timeout!\n",
 							msg->header.cmd);
+		mutex_unlock(&info->tx_lock);
 		return -ETIMEDOUT;
 	}
 

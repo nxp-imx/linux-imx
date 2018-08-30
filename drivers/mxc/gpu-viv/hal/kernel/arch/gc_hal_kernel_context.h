@@ -100,12 +100,6 @@ typedef struct _gcsCONTEXT
     gctPOINTER                  link2D;
     gctPOINTER                  link3D;
 
-    /* The number of pending state deltas. */
-    gctUINT                     deltaCount;
-
-    /* Pointer to the first delta to be applied. */
-    gcsSTATE_DELTA_PTR          delta;
-
     /* Next context buffer. */
     gcsCONTEXT_PTR              next;
 }

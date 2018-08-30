@@ -11,49 +11,35 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+/*
+ * MIPI CSI-2 eight cameras dts,
+ * One MIPI CSI-2 controller connected four cameras
+ * The first four cameras have enabled in mipi_csi_0.
+ * Enable the last four cameras in mipi_csi_1 here.
+ */
 
-#include "fsl-imx8qm-lpddr4-arm2.dts"
+#include "fsl-imx8qm-mek.dts"
 
-/ {
-	lvds1_panel {
-		compatible = "jdi,tx26d202vm0bwa";
-		backlight = <&lvds_backlight1>;
-
-		port {
-			panel_lvds1_in: endpoint {
-				remote-endpoint = <&lvds1_out>;
-			};
-		};
-	};
-};
-
-&ldb1_phy {
-       status = "disabled";
-};
-
-&ldb1 {
-       status = "disabled";
-};
-
-&ldb2_phy {
+&mipi_csi_1 {
 	status = "okay";
 };
 
-&ldb2 {
+&i2c0_mipi_csi1 {
 	status = "okay";
-	fsl,dual-channel;
+};
 
-	lvds-channel@0 {
-		fsl,data-mapping = "spwg";
-		fsl,data-width = <24>;
-		status = "okay";
+&isi_4 {
+	status = "okay";
+};
 
-		port@1 {
-			reg = <1>;
+&isi_5 {
+	status = "okay";
+};
 
-			lvds1_out: endpoint {
-				remote-endpoint = <&panel_lvds1_in>;
-			};
-		};
-	};
+&isi_6 {
+	status = "okay";
+};
+
+&isi_7 {
+	status = "okay";
 };
