@@ -27,6 +27,7 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/bitops.h>
+#include <linux/gcd.h>
 #include <linux/mipi_dsi_northwest.h>
 #include <linux/module.h>
 #include <linux/mxcfb.h>
@@ -51,6 +52,9 @@
 #define NS2PS_RATIO			(1000)
 #define	MIPI_LCD_SLEEP_MODE_DELAY	(120)
 #define MIPI_FIFO_TIMEOUT		msecs_to_jiffies(250)
+#define PICOS_PER_SEC			(1000000000UL)
+#define PICOS2KHZ2(a, bpp)		\
+	DIV_ROUND_CLOSEST_ULL(PICOS_PER_SEC * (bpp), (a))
 
 static struct mipi_dsi_match_lcd mipi_dsi_lcd_db[] = {
 #ifdef CONFIG_FB_MXC_TRULY_WVGA_SYNC_PANEL
@@ -93,6 +97,76 @@ struct pll_divider {
 	unsigned int cm;  /* multiplier */
 	unsigned int cn;  /* predivider */
 	unsigned int co;  /* outdivider */
+};
+
+/**
+ * 'CM' value to 'CM' reigister config value map
+ * 'CM' = [16, 255];
+ */
+static unsigned int cm_map_table[240] = {
+	0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7,	/* 16 ~ 23 */
+	0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff,	/* 24 ~ 31 */
+
+	0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7,	/* 32 ~ 39 */
+	0xc8, 0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xcf, /* 40 ~ 47 */
+
+	0xd0, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, /* 48 ~ 55 */
+	0xd8, 0xd9, 0xda, 0xdb, 0xdc, 0xdd, 0xde, 0xdf, /* 56 ~ 63 */
+
+	0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, /* 64 ~ 71 */
+	0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, /* 72 ~ 79 */
+
+	0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, /* 80 ~ 87 */
+	0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, /* 88 ~ 95 */
+
+	0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, /* 96  ~ 103 */
+	0xa8, 0xa9, 0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf, /* 104 ~ 111 */
+
+	0xb0, 0xb1, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, /* 112 ~ 119 */
+	0xb8, 0xb9, 0xba, 0xbb, 0xbc, 0xbd, 0xbe, 0xbf, /* 120 ~ 127 */
+
+	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, /* 128 ~ 135 */
+	0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, /* 136 ~ 143 */
+
+	0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, /* 144 ~ 151 */
+	0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, /* 152 ~ 159 */
+
+	0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, /* 160 ~ 167 */
+	0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, /* 168 ~ 175 */
+
+	0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, /* 176 ~ 183 */
+	0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f, /* 184 ~ 191 */
+
+	0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, /* 192 ~ 199 */
+	0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f, /* 200 ~ 207 */
+
+	0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, /* 208 ~ 215 */
+	0x58, 0x59, 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f, /* 216 ~ 223 */
+
+	0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, /* 224 ~ 231 */
+	0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6d, 0x6e, 0x6f, /* 232 ~ 239 */
+
+	0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, /* 240 ~ 247 */
+	0x78, 0x79, 0x7a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f	/* 248 ~ 255 */
+};
+
+/**
+ * map 'CN' value to 'CN' reigister config value
+ * 'CN' = [1, 32];
+ */
+static unsigned int cn_map_table[32] = {
+	0x1f, 0x00, 0x10, 0x18, 0x1c, 0x0e, 0x07, 0x13,	/* 1  ~ 8  */
+	0x09, 0x04, 0x02, 0x11, 0x08, 0x14, 0x0a, 0x15,	/* 9  ~ 16 */
+	0x1a, 0x1d, 0x1e, 0x0f, 0x17, 0x1b, 0x0d, 0x16,	/* 17 ~ 24 */
+	0x0b, 0x05, 0x12, 0x19, 0x0c, 0x06, 0x03, 0x01	/* 25 ~ 32 */
+};
+
+/**
+ * map 'CO' value to 'CO' reigister config value
+ * 'CO' = { 1, 2, 4, 8 };
+ */
+static unsigned int co_map_table[4] = {
+	0x0, 0x1, 0x2, 0x3
 };
 
 static DECLARE_COMPLETION(dsi_rx_done);
@@ -287,10 +361,16 @@ static void dphy_calc_dividers(int *cm, int *cn, int *co)
 
 static int mipi_dsi_dphy_init(struct mipi_dsi_info *mipi_dsi)
 {
+	int i, best_div = -1;
+	int64_t delta;
+	uint64_t least_delta = ~0U;
 	uint32_t bpp, time_out = 100;
 	uint32_t lock;
 	uint32_t req_bit_clk;
-	struct pll_divider div;
+	uint64_t limit, div_result;
+	uint64_t denominator, numerator, divisor;
+	uint64_t norm_denom, norm_num, split_denom;
+	struct pll_divider div = { 0 };
 	struct fb_videomode *mode = mipi_dsi->mode;
 	struct mipi_lcd_config *lcd_config = mipi_dsi->lcd_config;
 
@@ -300,7 +380,8 @@ static int mipi_dsi_dphy_init(struct mipi_dsi_info *mipi_dsi)
 #endif
 
 	bpp = fmt_to_bpp(lcd_config->dpi_fmt);
-	req_bit_clk = PICOS2KHZ(mode->pixclock) * bpp * 1000U;
+	req_bit_clk = PICOS2KHZ2(mode->pixclock, bpp) * 1000U;
+
 	switch (lcd_config->data_lane_num) {
 	case 1:
 		break;
@@ -321,39 +402,174 @@ static int mipi_dsi_dphy_init(struct mipi_dsi_info *mipi_dsi)
 			return -EINVAL;
 	}
 
-	if (!mipi_dsi->encoder) {
-		/* PLL out clock = refclk * CM / (CN * CO)
-		 * refclock = 24MHz
-		 * pll vco = 24 * 40 / (3 * 1) = 320MHz
-		 */
-		div.cn = 0x10; /* 3  */
-		div.cm = 0xc8; /* 40 */
-		div.co = 0x0;  /* 1  */
-	} else {
-#ifdef CONFIG_FB_IMX64
-		switch (mipi_dsi->vmode_index) {
-		case 34:	/* 1920x1080@30Hz */
-			/* pll vco = 27 * 33 / (1 * 2) = 445.5MHz */
-			div.cn = 0x1f; /* 1 */
-			div.cm = 0xc1; /* 33 */
-			div.co = 0x1;  /* 2 */
-			break;
-		case 16:	/* 1920x1080@60Hz */
-			/* pll vco = 27 * 33 / (1 * 1) = 891MHz */
-			div.cn = 0x1f; /* 1 */
-			div.cm = 0xc1; /* 33 */
-			div.co = 0x0;  /* 1 */
-			break;
-		default:
-			/* TODO: not support yet */
-			return -EINVAL;
+	/* calc CM, CN and CO according to PHY PLL formula:
+	 *
+	 * 'PLL out bitclk = refclk * CM / (CN * CO);'
+	 *
+	 * Let:
+	 * 'numerator   = bitclk / divisor';
+	 * 'denominator = refclk / divisor';
+	 * Then:
+	 * 'numerator / denominator = CM / (CN * CO)';
+	 *
+	 * CM is in [16, 255]
+	 * CN is in [1, 32]
+	 * CO is in { 1, 2, 4, 8 };
+	 */
+	divisor = gcd(mipi_dsi->phy_ref_clkfreq, req_bit_clk);
+	WARN_ON(divisor == 1);
+
+	div_result = req_bit_clk;
+	do_div(div_result, divisor);
+	numerator = div_result;
+
+	div_result = mipi_dsi->phy_ref_clkfreq;
+	do_div(div_result, divisor);
+	denominator = div_result;
+
+	/* denominator & numerator out of range check */
+	if (DIV_ROUND_CLOSEST_ULL(numerator, denominator) > 255 ||
+	    DIV_ROUND_CLOSEST_ULL(denominator, numerator) > 32 * 8)
+		return -EINVAL;
+
+	/* Normalization: reduce or increase
+	 * numerator	to [16, 255]
+	 * denominator	to [1, 32 * 8]
+	 * Reduce normalization result is 'approximiate'
+	 * Increase nomralization result is 'precise'
+	 */
+	if (numerator > 255 || denominator > 32 * 8) {
+		/* approximate */
+		if (likely(numerator > denominator)) {
+			/* 'numerator > 255';
+			 * 'limit' should meet below conditions:
+			 *  a. '(numerator   / limit) >= 16'
+			 *  b. '(denominator / limit) >= 1'
+			 */
+			limit = min(denominator,
+				    DIV_ROUND_CLOSEST_ULL(numerator, 16));
+
+			/* Let:
+			 * norm_num   = numerator   / i;
+			 * norm_denom = denominator / i;
+			 *
+			 * So:
+			 * delta = numerator * norm_denom -
+			 * 	   denominator * norm_num
+			 */
+			for (i = 2; i <= limit; i++) {
+				norm_num = DIV_ROUND_CLOSEST_ULL(numerator, i);
+				if (norm_num > 255)
+					continue;
+
+				norm_denom = DIV_ROUND_CLOSEST_ULL(denominator, i);
+
+				/* 'norm_num <= 255' && 'norm_num > norm_denom'
+				 * so, 'norm_denom < 256'
+				 */
+				delta = numerator * norm_denom -
+					denominator * norm_num;
+				delta = abs(delta);
+				if (delta < least_delta) {
+					least_delta = delta;
+					best_div = i;
+				} else if (delta == least_delta) {
+					/* choose better one IF:
+					 * 'norm_denom' derived from last 'best_div'
+					 * needs later split, i.e, 'norm_denom > 32'.
+					 */
+					if (DIV_ROUND_CLOSEST_ULL(denominator, best_div) > 32) {
+						least_delta = delta;
+						best_div = i;
+					}
+				}
+			}
+		} else {
+			/* 'denominator > 32 * 8';
+			 * 'limit' should meet below conditions:
+			 *  a. '(numerator   / limit >= 16'
+			 *  b. '(denominator / limit >= 1': obviously.
+			 */
+			limit = DIV_ROUND_CLOSEST_ULL(numerator, 16);
+			if (!limit ||
+			    DIV_ROUND_CLOSEST_ULL(denominator, limit) > 32 * 8)
+				return -EINVAL;
+
+			for (i = 2; i <= limit; i++) {
+				norm_denom = DIV_ROUND_CLOSEST_ULL(denominator, i);
+				if (norm_denom > 32 * 8)
+					continue;
+
+				norm_num = DIV_ROUND_CLOSEST_ULL(numerator, i);
+
+				/* 'norm_denom <= 256' && 'norm_num < norm_denom'
+				 * so, 'norm_num <= 255'
+				 */
+				delta = numerator * norm_denom -
+					denominator * norm_num;
+				delta = abs(delta);
+				if (delta < least_delta) {
+					least_delta = delta;
+					best_div = i;
+				} else if (delta == least_delta) {
+					if (DIV_ROUND_CLOSEST_ULL(denominator, best_div) > 32) {
+						least_delta = delta;
+						best_div = i;
+					}
+				}
+			}
 		}
-#else
-		/* pll vco = 24 * 63 / (5 * 1) = 302.4MHz */
-		div.cn = 0x1C; /* 5  */
-		div.cm = 0xDF; /* 63 */
-		div.co = 0x0;  /* 1  */
-#endif
+
+		numerator   = DIV_ROUND_CLOSEST_ULL(numerator, best_div);
+		denominator = DIV_ROUND_CLOSEST_ULL(denominator, best_div);
+	} else if (numerator < 16) {
+		/* precise */
+
+		/* 'limit' should meet below conditions:
+		 *  a. 'denominator * limit <= 32 * 8'
+		 *  b. '16 <= numerator * limit <= 255'
+		 *  Choose 'limit' to be the least value
+		 *  which makes 'numerator * limit' to be
+		 *  in [16, 255].
+		 */
+		limit = min(256 / (uint32_t)denominator,
+			    255 / (uint32_t)numerator);
+		if (limit == 1 || limit < DIV_ROUND_UP_ULL(16, numerator))
+			return -EINVAL;
+
+		/* choose the least available value for 'limit' */
+		limit = DIV_ROUND_UP_ULL(16, numerator);
+		numerator   = numerator * limit;
+		denominator = denominator * limit;
+
+		WARN_ON(numerator < 16 || denominator > 32 * 8);
+	}
+
+	div.cm = cm_map_table[numerator - 16];
+
+	/* split 'denominator' to 'CN' and 'CO' */
+	if (denominator > 32) {
+		/* traverse four possible values of 'CO'
+		 * there must be some value of 'CO' can be used
+		 */
+		least_delta = ~0U;
+		for (i = 0; i < 4; i++) {
+			split_denom = DIV_ROUND_CLOSEST_ULL(denominator, 1 << i);
+			if (split_denom > 32)
+				continue;
+
+			/* calc deviation to choose the best one */
+			delta = denominator - split_denom * (1 << i);
+			delta = abs(delta);
+			if (delta < least_delta) {
+				least_delta = delta;
+				div.co = co_map_table[i];
+				div.cn = cn_map_table[split_denom - 1];
+			}
+		}
+	} else {
+		div.co = co_map_table[1 >> 1];
+		div.cn = cn_map_table[denominator - 1];
 	}
 
 	writel(div.cn, mipi_dsi->mmio_base + DPHY_CN);
@@ -980,6 +1196,7 @@ static int dsi_clks_init(struct mipi_dsi_info *minfo)
 		dev_err(&pdev->dev, "invalid phy reference clock rate\n");
 		return -EINVAL;
 	}
+	minfo->phy_ref_clkfreq = phy_ref_clkfreq;
 
 	ret = clk_set_rate(minfo->phy_ref_clk, phy_ref_clkfreq);
 	if (ret < 0) {

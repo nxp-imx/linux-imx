@@ -53,22 +53,6 @@
 *****************************************************************************/
 
 
-/*
- * Copyright (C) 2015 Etnaviv Project
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 as published by
- * the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
- * more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
 #ifndef __GC_HAL_DRM_H__
 #define __GC_HAL_DRM_H__
 
@@ -76,28 +60,32 @@
 extern "C" {
 #endif
 
-enum VIV_GEM_PARAM {
-    VIV_GEM_PARAM_NODE = 0,
-    VIV_GEM_PARAM_POOL,
-    VIV_GEM_PARAM_SIZE,
-};
+/* creation flag bits. */
+#define DRM_VIV_GEM_CONTIGUOUS      0x01
+#define DRM_VIV_GEM_CACHED          0x02
+#define DRM_VIV_GEM_SECURE          0x04
 
 struct drm_viv_gem_create {
-    __u64 size;         /* in */
-    __u32 flags;        /* in */
-    __u32 handle;       /* out */
+    __u64 size;
+    __u32 flags;
+    __u32 handle;
 };
 
 struct drm_viv_gem_lock {
     __u32 handle;
     __u32 cacheable;
-    __u32 gpu_va;
-    __u64 cpu_va;
+    __u64 logical;
 };
 
 struct drm_viv_gem_unlock {
     __u32 handle;
 };
+
+
+#define DRM_VIV_GEM_CLEAN_CACHE         0x01
+#define DRM_VIV_GEM_INVALIDATE_CACHE    0x02
+#define DRM_VIV_GEM_FLUSH_CACHE         0x03
+#define DRM_VIV_GEM_MEMORY_BARRIER      0x04
 
 struct drm_viv_gem_cache {
     __u32 handle;
@@ -106,27 +94,101 @@ struct drm_viv_gem_cache {
     __u64 bytes;
 };
 
-struct drm_viv_gem_getinfo {
+
+#define DRM_VIV_GEM_PARAM_POOL      0x00
+#define DRM_VIV_GEM_PARAM_SIZE      0x01
+
+struct drm_viv_gem_query {
     __u32 handle;
     __u32 param;
     __u64 value;
 };
 
+
+struct drm_viv_gem_timestamp {
+    __u32 handle;
+    /* inc count, 0 for query current. */
+    __u32 inc;
+    /* output inc'ed timestamp. */
+    __u64 timestamp;
+};
+
+
+/* basic tiling mode. */
+#define DRM_VIV_GEM_TILING_LINEAR       0x01
+#define DRM_VIV_GEM_TILING_TILED        0x02
+#define DRM_VIV_GEM_TILING_SUPERTILED   0x04
+#define DRM_VIV_GEM_TILING_MINORTILED   0x08
+
+/* tiling mode modifiers. */
+#define DRM_VIV_GEM_TILING_SPLIT    0x10
+#define DRM_VIV_GEM_TILING_X_MAJOR  0x20
+#define DRM_VIV_GEM_TILING_Y_MAJOR  0x40
+#define DRM_VIV_GEM_TILING_SWAP     0x80
+
+/* ts mode. */
+#define DRM_VIV_GEM_TS_NONE         0x00
+#define DRM_VIV_GEM_TS_DISABLED     0x01
+#define DRM_VIV_GEM_TS_NORMAL       0x02
+#define DRM_VIV_GEM_TS_COMPRESSED   0x03
+
+struct drm_viv_gem_set_tiling {
+    __u32 handle;
+    __u32 tiling_mode;
+
+    __u32 ts_mode;
+    __u64 clear_value;
+};
+
+struct drm_viv_gem_get_tiling {
+    __u32 handle;
+    __u32 tiling_mode;
+
+    __u32 ts_mode;
+    __u64 clear_value;
+};
+
+
+struct drm_viv_gem_attach_aux {
+    __u32 handle;
+    __u32 ts_handle;
+};
+
+
+struct drm_viv_gem_ref_node {
+    __u32 handle;
+
+    /* output. */
+    __u32 node;
+    __u32 ts_node;
+};
+
+
 #define DRM_VIV_GEM_CREATE          0x00
 #define DRM_VIV_GEM_LOCK            0x01
 #define DRM_VIV_GEM_UNLOCK          0x02
 #define DRM_VIV_GEM_CACHE           0x03
-#define DRM_VIV_GEM_GETINFO         0x04
-#define DRM_VIV_NUM_IOCTLS          0x05
+#define DRM_VIV_GEM_QUERY           0x04
+#define DRM_VIV_GEM_TIMESTAMP       0x05
+#define DRM_VIV_GEM_SET_TILING      0x06
+#define DRM_VIV_GEM_GET_TILING      0x07
+#define DRM_VIV_GEM_ATTACH_AUX      0x08
+#define DRM_VIV_GEM_REF_NODE        0x09
+#define DRM_VIV_NUM_IOCTLS          0x0A
 
-#define DRM_IOCTL_VIV_GEM_CREATE    DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_CREATE,     struct drm_viv_gem_create)
-#define DRM_IOCTL_VIV_GEM_LOCK      DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_LOCK,       struct drm_viv_gem_lock)
-#define DRM_IOCTL_VIV_GEM_UNLOCK    DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_UNLOCK,     struct drm_viv_gem_unlock)
-#define DRM_IOCTL_VIV_GEM_CACHE     DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_CACHE,      struct drm_viv_gem_cache)
-#define DRM_IOCTL_VIV_GEM_GETINFO   DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_GETINFO,    struct drm_viv_gem_getinfo)
+#define DRM_IOCTL_VIV_GEM_CREATE        DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_CREATE,     struct drm_viv_gem_create)
+#define DRM_IOCTL_VIV_GEM_LOCK          DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_LOCK,       struct drm_viv_gem_lock)
+#define DRM_IOCTL_VIV_GEM_UNLOCK        DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_UNLOCK,     struct drm_viv_gem_unlock)
+#define DRM_IOCTL_VIV_GEM_CACHE         DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_CACHE,      struct drm_viv_gem_cache)
+#define DRM_IOCTL_VIV_GEM_QUERY         DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_QUERY,      struct drm_viv_gem_query)
+#define DRM_IOCTL_VIV_GEM_TIMESTAMP     DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_TIMESTAMP,  struct drm_viv_gem_timestamp)
+#define DRM_IOCTL_VIV_GEM_SET_TILING    DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_SET_TILING, struct drm_viv_gem_set_tiling)
+#define DRM_IOCTL_VIV_GEM_GET_TILING    DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_GET_TILING, struct drm_viv_gem_get_tiling)
+#define DRM_IOCTL_VIV_GEM_ATTACH_AUX    DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_ATTACH_AUX, struct drm_viv_gem_attach_aux)
+#define DRM_IOCTL_VIV_GEM_REF_NODE      DRM_IOWR(DRM_COMMAND_BASE + DRM_VIV_GEM_REF_NODE,   struct drm_viv_gem_ref_node)
 
 #if defined(__cplusplus)
 }
 #endif
 
-#endif /* __ETNAVIV_DRM_H__ */
+#endif /* __GC_HAL_DRM_H__ */

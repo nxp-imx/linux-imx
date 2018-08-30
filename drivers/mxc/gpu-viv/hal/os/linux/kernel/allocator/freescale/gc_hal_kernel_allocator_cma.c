@@ -146,7 +146,7 @@ _CMAFSLAlloc(
 
     if (os->allocatorLimitMarker)
     {
-        if (Flags & gcvALLOC_FLAG_CMA_LIMIT)
+        if ((Flags & gcvALLOC_FLAG_CMA_LIMIT) && !(Flags & gcvALLOC_FLAG_CMA_PREEMPT))
         {
             priv->cmaLimitRequest = gcvTRUE;
         }
@@ -434,7 +434,7 @@ _CMAFSLMapUser(
     }
 
 OnError:
-    if (gcmIS_ERROR(status))
+    if (gcmIS_ERROR(status) && userLogical)
     {
         _CMAFSLUnmapUser(Allocator, Mdl, userLogical, Mdl->numPages * PAGE_SIZE);
     }
@@ -564,6 +564,7 @@ _CMAFSLAlloctorInit(
     if (Os->allocatorLimitMarker)
     {
         allocator->capability |= gcvALLOC_FLAG_CMA_LIMIT;
+        allocator->capability |= gcvALLOC_FLAG_CMA_PREEMPT;
     }
 
     *Allocator = allocator;

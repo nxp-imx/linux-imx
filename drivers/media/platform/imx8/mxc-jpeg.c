@@ -225,17 +225,6 @@ static int enum_fmt(struct mxc_jpeg_fmt *mxc_formats, int n,
 	return 0;
 }
 
-static void print_output(void *addr)
-{
-	int i;
-
-	for (i = 0x0; i < 0x200; i += 4) {
-		printk(KERN_DEBUG "%02x %02x %02x %02x\n", ((char *)addr)[i],
-		       ((char *)addr)[i+1], ((char *)addr)[i+2],
-		       ((char *)addr)[i+3]);
-	}
-}
-
 void mxc_jpeg_addrs(struct mxc_jpeg_desc *desc, struct vb2_buffer *b_base0_buf,
 struct vb2_buffer *bufbase_buf, int offset)
 {
@@ -275,8 +264,6 @@ static irqreturn_t mxc_jpeg_dec_irq(int irq, void *priv)
 		q_data = &ctx->out_q;
 		desc = jpeg_src_buf->desc;
 		dma_handle = jpeg_src_buf->handle;
-		dma_free_coherent(jpeg->dev, sizeof(unsigned char) * 615,
-				  jpeg_src_buf->tbl, jpeg_src_buf->tbl_handle);
 
 		testaddri = vb2_plane_vaddr(src_buf, 0);
 		testaddro = vb2_plane_vaddr(dst_buf, 0);
@@ -294,8 +281,6 @@ static irqreturn_t mxc_jpeg_dec_irq(int irq, void *priv)
 		return IRQ_HANDLED;
 	}
 	buf_state = VB2_BUF_STATE_DONE;
-	dma_free_coherent(jpeg->dev, sizeof(struct mxc_jpeg_desc),
-			  jpeg_src_buf->desc, jpeg_src_buf->handle);
 	v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx);
 	v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
 	v4l2_m2m_buf_done(to_vb2_v4l2_buffer(src_buf), buf_state);
@@ -315,7 +300,7 @@ void mxc_jpeg_config_enc(struct vb2_buffer *out_buf,
 				  &jpeg_src_buf->tbl_handle, 0);
 	memcpy(jpeg_src_buf->tbl, &hactbl, sizeof(unsigned char) * 615);
 
-	mxc_jpeg_enc_config(jpeg->base_reg, jpeg->cfg_desc, jpeg->cfg_handle,
+	mxc_jpeg_enc_config(jpeg->base_reg, jpeg_src_buf->desc, jpeg_src_buf->handle,
 			    jpeg_src_buf->tbl_handle, jpg_handle);
 
 }
@@ -362,9 +347,6 @@ static void mxc_jpeg_device_run(void *priv)
 		mxc_jpeg_set_desc(dma_handle, jpeg->base_reg, slot);
 		mxc_jpeg_go(jpeg->base_reg);
 	}
-	//print_descriptor_info(desc);
-	////print_output(testaddro);
-	//print_cast_decoder_info(jpeg->base_reg);
 	spin_unlock_irqrestore(&ctx->mxc_jpeg->hw_lock, flags);
 }
 static int mxc_jpeg_job_ready(void *priv)
@@ -549,6 +531,23 @@ static int mxc_jpeg_buf_prepare(struct vb2_buffer *vb)
 	return 0;
 }
 
+static void mxc_jpeg_buf_clean(struct vb2_buffer *vb)
+{
+	struct mxc_jpeg_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct mxc_jpeg_src_buf *jpeg_src_buf;
+
+	jpeg_src_buf = container_of(vbuf, struct mxc_jpeg_src_buf, b);
+
+	if (ctx->mode == MXC_JPEG_ENCODE &&
+		ctx->enc_state == MXC_JPEG_ENC_CONF)
+			dma_free_coherent(ctx->mxc_jpeg->dev, sizeof(hactbl),
+					  jpeg_src_buf->tbl, jpeg_src_buf->tbl_handle);
+
+	dma_free_coherent(ctx->mxc_jpeg->dev, sizeof(struct mxc_jpeg_desc),
+			  jpeg_src_buf->desc, jpeg_src_buf->handle);
+}
+
 static const struct vb2_ops mxc_jpeg_qops = {
 	.queue_setup		= mxc_jpeg_queue_setup,
 
@@ -558,6 +557,7 @@ static const struct vb2_ops mxc_jpeg_qops = {
 	.wait_finish		= vb2_ops_wait_finish,
 	.start_streaming	= mxc_jpeg_start_streaming,
 	.stop_streaming		= mxc_jpeg_stop_streaming,
+	.buf_cleanup		= mxc_jpeg_buf_clean,
 };
 static int mxc_jpeg_queue_init(void *priv, struct vb2_queue *src_vq,
 			       struct vb2_queue *dst_vq)
@@ -632,6 +632,8 @@ static int mxc_jpeg_open(struct file *file)
 		ret = -ERESTARTSYS;
 		goto free;
 	}
+
+	pm_runtime_get_sync(mxc_jpeg->dev);
 
 	v4l2_fh_init(&ctx->fh, mxc_vfd);
 	file->private_data = &ctx->fh;
@@ -910,6 +912,8 @@ static int mxc_jpeg_release(struct file *file)
 	v4l2_fh_exit(&ctx->fh);
 	kfree(ctx);
 	mutex_unlock(&mxc_jpeg->lock);
+
+	pm_runtime_put_sync(mxc_jpeg->dev);
 	return 0;
 }
 
@@ -971,26 +975,18 @@ static int mxc_jpeg_probe(struct platform_device *pdev)
 	jpeg->mode = mode;
 
 	/* Start clock */
-	jpeg->clk = devm_clk_get(dev, "ipg");
-	if (IS_ERR(jpeg->clk)) {
+	jpeg->clk_ipg = devm_clk_get(dev, "ipg");
+	if (IS_ERR(jpeg->clk_ipg)) {
 		dev_err(dev, "failed to get clock: ipg\n");
 		goto err_clk;
 	}
-	ret = clk_prepare_enable(jpeg->clk);
-	if (ret < 0) {
-		dev_err(dev, "failed to enable clock: ipg\n");
-		goto err_clk;
-	}
-	jpeg->clk = devm_clk_get(dev, "per");
-	if (IS_ERR(jpeg->clk)) {
+
+	jpeg->clk_per = devm_clk_get(dev, "per");
+	if (IS_ERR(jpeg->clk_per)) {
 		dev_err(dev, "failed to get clock: per\n");
 		goto err_clk;
 	}
-	ret = clk_prepare_enable(jpeg->clk);
-	if (ret < 0) {
-		dev_err(dev, "failed to enable clock: per\n");
-		goto err_clk;
-	}
+
 	/* v4l2 */
 	ret = v4l2_device_register(dev, &jpeg->v4l2_dev);
 	if (ret) {
@@ -1063,6 +1059,46 @@ err_clk:
 	return ret;
 }
 
+#ifdef CONFIG_PM
+static int mxc_jpeg_runtime_resume(struct device *dev)
+{
+	struct mxc_jpeg_dev *jpeg = dev_get_drvdata(dev);
+	int ret;
+
+	ret = clk_prepare_enable(jpeg->clk_ipg);
+	if (ret < 0) {
+		dev_err(dev, "failed to enable clock: ipg\n");
+		goto err_clk;
+	}
+
+	ret = clk_prepare_enable(jpeg->clk_per);
+	if (ret < 0) {
+		dev_err(dev, "failed to enable clock: per\n");
+		goto err_clk;
+	}
+
+	return 0;
+
+err_clk:
+	return ret;
+}
+
+static int mxc_jpeg_runtime_suspend(struct device *dev)
+{
+	struct mxc_jpeg_dev *jpeg = dev_get_drvdata(dev);
+
+	clk_disable_unprepare(jpeg->clk_ipg);
+	clk_disable_unprepare(jpeg->clk_per);
+
+	return 0;
+}
+#endif
+
+static const struct dev_pm_ops	mxc_jpeg_pm_ops = {
+	SET_RUNTIME_PM_OPS(mxc_jpeg_runtime_suspend,
+			   mxc_jpeg_runtime_resume, NULL)
+};
+
 static int mxc_jpeg_remove(struct platform_device *pdev)
 {
 	struct mxc_jpeg_dev *jpeg = platform_get_drvdata(pdev);
@@ -1083,6 +1119,7 @@ static struct platform_driver mxc_jpeg_driver = {
 	.driver = {
 		.name = "mxc-jpeg",
 		.of_match_table = mxc_jpeg_match,
+		.pm = &mxc_jpeg_pm_ops,
 	},
 };
 module_platform_driver(mxc_jpeg_driver);
