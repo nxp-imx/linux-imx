@@ -69,7 +69,7 @@
 		#size-cells = <2>;
 		ranges;
 
-		hifi4_reserved: hifi4@0x8e000000 {
+		dsp_reserved: dsp@0x8e000000 {
 			no-map;
 			reg = <0 0x8e000000 0 0x1ffffff>;
 		};
@@ -122,9 +122,9 @@
 		interrupt-parent = <&gic>;
 	};
 
-	mu: mu@5d1b0000 {
+	mu: mu@5d1c0000 {
 		compatible = "fsl,imx8-mu";
-		reg = <0x0 0x5d1b0000 0x0 0x10000>;
+		reg = <0x0 0x5d1c0000 0x0 0x10000>;
 		interrupts = <GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&wu>;
 		fsl,scu_ap_mu_id = <0>;
@@ -132,12 +132,13 @@
 	};
 
 	mu13: mu13@5d280000 {
-		compatible = "fsl,imx8-mu-hifi";
+		compatible = "fsl,imx8-mu-dsp";
 		reg = <0x0 0x5d280000 0x0 0x10000>;
 		interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>;
-		fsl,hifi_ap_mu_id = <13>;
+		fsl,dsp_ap_mu_id = <13>;
 		status = "okay";
 	};
+
 	mu_m4: mu_m4@37440000 {
 		compatible = "fsl,imx8-mu0-vpu-m4";
 		reg = <0x0 0x37440000 0x0 0x10000>;
@@ -555,12 +556,12 @@
 				};
 			};
 
-			pd_hifi: PD_AUD_HIFI {
+			pd_dsp: PD_AUD_DSP {
 				reg = <SC_R_DSP>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_audio>;
 			};
-			pd_hifi_ram: PD_AUD_OCRAM {
+			pd_dsp_ram: PD_AUD_OCRAM {
 				reg = <SC_R_DSP_RAM>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_audio>;
@@ -2026,6 +2027,7 @@
 		interrupts = <GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH>;
 		gpio-controller;
 		#gpio-cells = <2>;
+                power-domains = <&pd_lsio_gpio0>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
 	};
@@ -2036,6 +2038,7 @@
 		interrupts = <GIC_SPI 137 IRQ_TYPE_LEVEL_HIGH>;
 		gpio-controller;
 		#gpio-cells = <2>;
+                power-domains = <&pd_lsio_gpio1>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
 	};
@@ -2046,6 +2049,7 @@
 		interrupts = <GIC_SPI 138 IRQ_TYPE_LEVEL_HIGH>;
 		gpio-controller;
 		#gpio-cells = <2>;
+                power-domains = <&pd_lsio_gpio2>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
 	};
@@ -2056,6 +2060,7 @@
 		interrupts = <GIC_SPI 139 IRQ_TYPE_LEVEL_HIGH>;
 		gpio-controller;
 		#gpio-cells = <2>;
+                power-domains = <&pd_lsio_gpio3>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
 	};
@@ -2066,6 +2071,7 @@
 		interrupts = <GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>;
 		gpio-controller;
 		#gpio-cells = <2>;
+                power-domains = <&pd_lsio_gpio4>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
 	};
@@ -2076,6 +2082,7 @@
 		interrupts = <GIC_SPI 141 IRQ_TYPE_LEVEL_HIGH>;
 		gpio-controller;
 		#gpio-cells = <2>;
+                power-domains = <&pd_lsio_gpio5>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
 	};
@@ -2086,6 +2093,7 @@
 		interrupts = <GIC_SPI 142 IRQ_TYPE_LEVEL_HIGH>;
 		gpio-controller;
 		#gpio-cells = <2>;
+                power-domains = <&pd_lsio_gpio6>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
 	};
@@ -2096,6 +2104,7 @@
 		interrupts = <GIC_SPI 143 IRQ_TYPE_LEVEL_HIGH>;
 		gpio-controller;
 		#gpio-cells = <2>;
+                power-domains = <&pd_lsio_gpio7>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
 	};
@@ -2605,15 +2614,15 @@
 		status = "disabled";
 	};
 
-	hifi4: hifi4@586e8000 {
-		compatible = "fsl,imx8qxp-hifi4";
+	dsp: dsp@586e8000 {
+		compatible = "fsl,imx8qxp-dsp";
 		reg = <0x0 0x596e8000 0x0 0x88000>;
-		clocks = <&clk IMX8QXP_AUD_HIFI_IPG>,
+		clocks = <&clk IMX8QXP_AUD_DSP_IPG>,
 			<&clk IMX8QXP_AUD_OCRAM_IPG>,
-			<&clk IMX8QXP_AUD_HIFI_CORE_CLK>;
+			<&clk IMX8QXP_AUD_DSP_CORE_CLK>;
 		clock-names = "ipg", "ocram", "core";
-		fsl,hifi4-firmware = "imx/hifi/hifi4.bin";
-		power-domains = <&pd_hifi>;
+		fsl,dsp-firmware = "imx/dsp/hifi4.bin";
+		power-domains = <&pd_dsp>;
 	};
 
 	esai0: esai@59010000 {

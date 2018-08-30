@@ -1842,6 +1842,9 @@ gckHARDWARE_Construct(
         hardware->stallFEPrefetch = gcvTRUE;
     }
 
+    hardware->hasAsyncFe
+        = gckHARDWARE_IsFeatureAvailable(hardware, gcvFEATURE_ASYNC_BLIT);
+
     hardware->minFscaleValue = 1;
     hardware->waitCount = 200;
 
@@ -4415,18 +4418,20 @@ gckHARDWARE_Interrupt(
     gctUINT32 data = 0;
     gctUINT32 dataEx;
     gceSTATUS status;
-
-    gcmkHEADER_ARG("Hardware=0x%x InterruptValid=%d", Hardware, InterruptValid);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
+    gceSTATUS statusEx;
 
     /* Extract gckEVENT object. */
     eventObj = Hardware->kernel->eventObj;
-    gcmkVERIFY_OBJECT(eventObj, gcvOBJ_EVENT);
 
     if (InterruptValid)
     {
+        /*
+         * Notice:
+         * In isr here.
+         * We should return success when either FE or AsyncFE reports correct
+         * interrupts, so that isr can wake up threadRoutine for either FE.
+         * That means, only need return ERROR when both FEs reports ERROR.
+         */
         /* Read AQIntrAcknowledge register. */
         gcmkONERROR(
             gckOS_ReadRegisterEx(Hardware->os,
@@ -4441,57 +4446,75 @@ gckHARDWARE_Interrupt(
         }
         else
         {
-
 #if gcdINTERRUPT_STATISTIC
             gckOS_AtomClearMask(Hardware->pendingEvent, data);
 #endif
-
             /* Inform gckEVENT of the interrupt. */
-            status = gckEVENT_Interrupt(eventObj,
-                                        data);
+            status = gckEVENT_Interrupt(eventObj, data);
         }
 
-        if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_ASYNC_BLIT))
+        if (!Hardware->hasAsyncFe)
         {
-            /* Read BLT interrupt. */
-            gcmkONERROR(gckOS_ReadRegisterEx(
-                Hardware->os,
-                Hardware->core,
-                0x000D4,
-                &dataEx
-                ));
+            /* Done. */
+            goto OnError;
+        }
 
-            /* this bit looks useless now, we can use this check if this interrupt is from FE */
-            dataEx &= ~0x80000000;
+        /* Read BLT interrupt. */
+        statusEx = gckOS_ReadRegisterEx(
+            Hardware->os,
+            Hardware->core,
+            0x000D4,
+            &dataEx
+            );
 
-            /* Descriptor fetched, update counter.
-               We can't do this at dataEx != 0 only, as read HW acknowledge register will overwrite
-               0x007E4. At one interrupt we don't read it, we will miss it.
-            */
-            gckFE_UpdateAvaiable(Hardware, &Hardware->kernel->asyncCommand->fe);
+        if (gcmIS_ERROR(statusEx))
+        {
+            /*
+             * Do not overwrite status here, so that former status from
+             * AQIntrAck is returned.
+             */
+            goto OnError;
+        }
 
-            if (dataEx)
+        /*
+         * This bit looks useless now, we can use this check if this interrupt
+         * is from FE.
+         */
+        dataEx &= ~0x80000000;
+
+        /*
+         * Descriptor fetched, update counter.
+         * We can't do this at dataEx != 0 only, because read HW acknowledge
+         * register will overwrite 0x007E4. If one
+         * interrupt we don't read it, we will miss it for ever.
+         */
+        gckFE_UpdateAvaiable(Hardware, &Hardware->kernel->asyncCommand->fe);
+
+        /* Do not need report NOT_OUT_INTERRUPT error if dataEx is 0. */
+        if (dataEx)
+        {
+            statusEx = gckEVENT_Interrupt(Hardware->kernel->asyncEvent, dataEx);
+
+            if (gcmIS_SUCCESS(statusEx))
             {
-                status = gckEVENT_Interrupt(Hardware->kernel->asyncEvent,
-                                            dataEx
-                                            );
+                /* At least AsyncFE is success, treat all as success. */
+                status = gcvSTATUS_OK;
             }
         }
     }
     else
     {
-            /* Handle events. */
-            status = gckEVENT_Notify(eventObj, 0);
+        /* Handle events. */
+        status = gckEVENT_Notify(eventObj, 0);
 
-            if (gckHARDWARE_IsFeatureAvailable(Hardware, gcvFEATURE_ASYNC_BLIT))
-            {
-                status = gckEVENT_Notify(Hardware->kernel->asyncEvent, 0);
-            }
+        if (Hardware->hasAsyncFe)
+        {
+            status = gckEVENT_Notify(Hardware->kernel->asyncEvent, 0);
+        }
     }
 
 OnError:
     /* Return the status. */
-    gcmkFOOTER();
     return status;
 }
 
@@ -7355,12 +7378,9 @@ _PowerEnum(gceCHIPPOWERSTATE State)
         gcmSTRING(gcvPOWER_OFF),
         gcmSTRING(gcvPOWER_IDLE),
         gcmSTRING(gcvPOWER_SUSPEND),
-        gcmSTRING(gcvPOWER_SUSPEND_ATPOWERON),
-        gcmSTRING(gcvPOWER_OFF_ATPOWERON),
         gcmSTRING(gcvPOWER_IDLE_BROADCAST),
         gcmSTRING(gcvPOWER_SUSPEND_BROADCAST),
         gcmSTRING(gcvPOWER_OFF_BROADCAST),
-        gcmSTRING(gcvPOWER_OFF_RECOVERY),
         gcmSTRING(gcvPOWER_OFF_TIMEOUT),
         gcmSTRING(gcvPOWER_ON_AUTO)
     };
@@ -7401,7 +7421,6 @@ gckHARDWARE_SetPowerManagementState(
     gctUINT flag, clock;
     gctBOOL acquired = gcvFALSE;
     gctBOOL mutexAcquired = gcvFALSE;
-    gctBOOL stall = gcvTRUE;
     gctBOOL broadcast = gcvFALSE;
 #if gcdPOWEROFF_TIMEOUT
     gctBOOL timeout = gcvFALSE;
@@ -7592,18 +7611,6 @@ gckHARDWARE_SetPowerManagementState(
     /* Convert the broadcast power state. */
     switch (State)
     {
-    case gcvPOWER_SUSPEND_ATPOWERON:
-        /* Convert to SUSPEND and don't wait for STALL. */
-        State = gcvPOWER_SUSPEND;
-        stall = gcvFALSE;
-        break;
-
-    case gcvPOWER_OFF_ATPOWERON:
-        /* Convert to OFF and don't wait for STALL. */
-        State = gcvPOWER_OFF;
-        stall = gcvFALSE;
-        break;
-
     case gcvPOWER_IDLE_BROADCAST:
         /* Convert to IDLE and note we are inside broadcast. */
         State     = gcvPOWER_IDLE;
@@ -7619,13 +7626,6 @@ gckHARDWARE_SetPowerManagementState(
     case gcvPOWER_OFF_BROADCAST:
         /* Convert to OFF and note we are inside broadcast. */
         State     = gcvPOWER_OFF;
-        broadcast = gcvTRUE;
-        break;
-
-    case gcvPOWER_OFF_RECOVERY:
-        /* Convert to OFF and note we are inside recovery. */
-        State     = gcvPOWER_OFF;
-        stall     = gcvFALSE;
         broadcast = gcvTRUE;
         break;
 
@@ -7673,7 +7673,11 @@ gckHARDWARE_SetPowerManagementState(
         /* Try to acquire the power mutex. */
         status = gckOS_AcquireMutex(os, Hardware->powerMutex, 0);
 
-        if (status == gcvSTATUS_TIMEOUT)
+        if (gcmIS_SUCCESS(status))
+        {
+            mutexAcquired = gcvTRUE;
+        }
+        else if (status == gcvSTATUS_TIMEOUT)
         {
             /* Check if we already own this mutex. */
             if ((Hardware->powerProcess == process)
@@ -7692,19 +7696,14 @@ gckHARDWARE_SetPowerManagementState(
                 status = gcvSTATUS_OK;
                 goto OnError;
             }
-            else
-            {
-                /* Acquire the power mutex. */
-                gcmkONERROR(gckOS_AcquireMutex(os,
-                                               Hardware->powerMutex,
-                                               gcvINFINITE));
-            }
         }
     }
-    else
+
+    if (!mutexAcquired)
     {
         /* Acquire the power mutex. */
         gcmkONERROR(gckOS_AcquireMutex(os, Hardware->powerMutex, gcvINFINITE));
+        mutexAcquired = gcvTRUE;
     }
 
     /* Get time until mtuex acquired. */
@@ -7864,6 +7863,29 @@ gckHARDWARE_SetPowerManagementState(
         /* Release the global semaphore again. */
         gcmkONERROR(gckOS_ReleaseSemaphore(os, Hardware->globalSemaphore));
         globalAcquired = gcvFALSE;
+
+        /* Try to acquire the semaphore to make sure commit is not in progress
+        ** Otherwise, we just abort. */
+        if (flag & gcvPOWER_FLAG_ACQUIRE)
+        {
+            /* ON -> Other, boardcast. */
+            /* Try to acquire the power management semaphore. */
+            status = gckOS_TryAcquireSemaphore(os, command->powerSemaphore);
+
+            if (status == gcvSTATUS_OK)
+            {
+                acquired = gcvTRUE;
+
+                /* avoid acquiring again. */
+                flag &= ~gcvPOWER_FLAG_ACQUIRE;
+            }
+            else
+            {
+                /* Not ready to swith. */
+                status = gcvSTATUS_CHIP_NOT_READY;
+                goto OnError;
+            }
+        }
     }
     else
     {
@@ -7950,7 +7972,7 @@ gckHARDWARE_SetPowerManagementState(
     /* Get time until powered on. */
     gcmkPROFILE_QUERY(time, onTime);
 
-    if ((flag & gcvPOWER_FLAG_STALL) && stall)
+    if (flag & gcvPOWER_FLAG_STALL)
     {
         gctBOOL idle;
         gctINT32 atomValue;
@@ -7987,6 +8009,18 @@ gckHARDWARE_SetPowerManagementState(
         {
             /* Wait to finish all commands. */
             gcmkONERROR(gckCOMMAND_Stall(command, gcvTRUE));
+
+            for (;;)
+            {
+                gcmkONERROR(gckHARDWARE_QueryIdle(Hardware, &idle));
+
+                if (idle)
+                {
+                    break;
+                }
+
+                gcmkVERIFY_OK(gckOS_Delay(Hardware->os, 1));
+            }
         }
     }
 
@@ -12353,21 +12387,25 @@ gckFE_UpdateAvaiable(
     OUT gckFE FE
     )
 {
+    gceSTATUS status;
     gctUINT32 data;
     gctINT32 oldValue;
 
-    gcmkVERIFY_OK(gckOS_ReadRegisterEx(
+    status = gckOS_ReadRegisterEx(
         Hardware->os,
         Hardware->core,
         0x007E4,
         &data
-        ));
+        );
 
-    data = (((((gctUINT32) (data)) >> (0 ? 6:0)) & ((gctUINT32) ((((1 ? 6:0) - (0 ? 6:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 6:0) - (0 ? 6:0) + 1)))))) );
-
-    while (data--)
+    if (gcmIS_SUCCESS(status))
     {
-        gckOS_AtomIncrement(Hardware->os, FE->freeDscriptors, &oldValue);
+        data = (((((gctUINT32) (data)) >> (0 ? 6:0)) & ((gctUINT32) ((((1 ? 6:0) - (0 ? 6:0) + 1) == 32) ? ~0U : (~(~0U << ((1 ? 6:0) - (0 ? 6:0) + 1)))))) );
+
+        while (data--)
+        {
+            gckOS_AtomIncrement(Hardware->os, FE->freeDscriptors, &oldValue);
+        }
     }
 }
 
