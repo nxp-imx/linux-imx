@@ -20,11 +20,19 @@
 	};
 };
 
-&dcss_drm {
+&irqsteer_dcss {
 	status = "disabled";
 };
 
-&hdmi_drm {
+&ov5640_mipi {
+	status = "disabled";
+};
+
+&dcss {
+	status = "disabled";
+};
+
+&hdmi {
 	status = "disabled";
 };
 
@@ -32,7 +40,7 @@
 	status = "disabled";
 };
 
-&lcdif_drm {
+&lcdif {
 	status = "okay";
 
 	port@0 {
@@ -57,11 +65,11 @@
 	};
 };
 
-&mipi_dsi_phy_drm {
+&mipi_dsi_phy {
 	status = "okay";
 };
 
-&mipi_dsi_drm {
+&mipi_dsi {
 	status = "okay";
 	as_bridge;
 
@@ -72,7 +80,7 @@
 	};
 };
 
-&mipi_dsi_bridge_drm {
+&mipi_dsi_bridge {
 	status = "okay";
 
 	port@1 {

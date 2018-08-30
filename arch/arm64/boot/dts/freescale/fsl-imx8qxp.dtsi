@@ -2306,7 +2306,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		compatible = "fsl,imx8qxp-flexspi";
-		reg = <0x0 0x5d120000 0x0 0x10000>, <0x0 0x08000000 0x0 0x19ffffff>;
+		reg = <0x0 0x5d120000 0x0 0x10000>, <0x0 0x08000000 0x0 0x10000000>;
 		reg-names = "FlexSPI", "FlexSPI-memory";
 		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk IMX8QXP_LSIO_FSPI0_CLK>;
@@ -2435,13 +2435,13 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges = <0 0 0x31400000 0x400000>;
-		fsl,first-jr-index = <1>;
+		fsl,first-jr-index = <2>;
 
 		sec_jr1: jr1@0x20000 {
 			compatible = "fsl,sec-v4.0-job-ring";
 			reg = <0x20000 0x1000>;
 			interrupts = <GIC_SPI 452 IRQ_TYPE_LEVEL_HIGH>;
-			status = "okay";
+			status = "disabled";
 		};
 
 		sec_jr2: jr2@30000 {

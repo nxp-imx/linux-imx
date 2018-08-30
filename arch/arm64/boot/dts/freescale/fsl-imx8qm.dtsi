@@ -1429,6 +1429,19 @@
 		};
 	};
 
+	lvds0_pwm: pwm@56244000 {
+		compatible = "fsl,imx8qm-pwm", "fsl,imx27-pwm";
+		reg = <0x0 0x56244000 0 0x1000>;
+		clocks = <&clk IMX8QM_LVDS0_PWM0_IPG_CLK>,
+			 <&clk IMX8QM_LVDS0_PWM0_CLK>;
+		clock-names = "ipg", "per";
+		assigned-clocks = <&clk IMX8QM_LVDS0_PWM0_CLK>;
+		assigned-clock-rates = <24000000>;
+		#pwm-cells = <2>;
+		power-domains = <&pd_lvds0_pwm>;
+		status = "disabled";
+	};
+
 	dpu2_intsteer: dpu_intsteer@57000000 {
 		compatible = "fsl,imx8qm-dpu-intsteer", "syscon";
 		reg = <0x0 0x57000000 0x0 0x10000>;
@@ -1653,6 +1666,19 @@
 				};
 			};
 		};
+	};
+
+	lvds1_pwm: pwm@57244000 {
+		compatible = "fsl,imx8qm-pwm", "fsl,imx27-pwm";
+		reg = <0x0 0x57244000 0 0x1000>;
+		clocks = <&clk IMX8QM_LVDS1_PWM0_IPG_CLK>,
+			 <&clk IMX8QM_LVDS1_PWM0_CLK>;
+		clock-names = "ipg", "per";
+		assigned-clocks = <&clk IMX8QM_LVDS1_PWM0_CLK>;
+		assigned-clock-rates = <24000000>;
+		#pwm-cells = <2>;
+		power-domains = <&pd_lvds1_pwm>;
+		status = "disabled";
 	};
 
 	camera {
@@ -2989,7 +3015,7 @@
 		#size-cells = <0>;
 		compatible = "fsl,imx8qm-flexspi";
 		reg = <0x0 0x5d120000 0x0 0x10000>,
-			<0x0 0x08000000 0x0 0x19ffffff>;
+			<0x0 0x08000000 0x0 0x10000000>;
 		reg-names = "FlexSPI", "FlexSPI-memory";
 		interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
 		clocks = <&clk IMX8QM_FSPI0_CLK>;
@@ -3213,13 +3239,13 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges = <0 0 0x31400000 0x400000>;
-		fsl,first-jr-index = <1>;
+		fsl,first-jr-index = <2>;
 
 		sec_jr1: jr1@0x20000 {
 			compatible = "fsl,sec-v4.0-job-ring";
 			reg = <0x20000 0x1000>;
 			interrupts = <GIC_SPI 452 IRQ_TYPE_LEVEL_HIGH>;
-			status = "okay";
+			status = "disabled";
 		};
 
 		sec_jr2: jr2@30000 {

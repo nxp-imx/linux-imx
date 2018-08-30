@@ -42,8 +42,8 @@
 		gpio2 = &gpio3;
 		gpio3 = &gpio4;
 		gpio4 = &gpio5;
-		dsi_phy0 = &mipi_dsi_phy_drm;
-		mipi_dsi0 = &mipi_dsi_drm;
+		dsi_phy0 = &mipi_dsi_phy;
+		mipi_dsi0 = &mipi_dsi;
 	};
 
 	cpus {
@@ -459,51 +459,6 @@
 		clock-names = "ipg";
 	};
 
-	dcss: dcss@32e00000 {
-		compatible = "fsl,imx8mq-dcss";
-		reg = <0x0 0x32e00000 0x0 0x25000>,
-		      <0x0 0x32e2f000 0x0 0x1000>;	/* blk_ctl registers */
-		clocks = <&clk IMX8MQ_CLK_DISP_AXI_ROOT>,
-			 <&clk IMX8MQ_CLK_DISP_APB_ROOT>,
-			 <&clk IMX8MQ_CLK_DISP_RTRM_ROOT>,
-			 <&clk IMX8MQ_CLK_DISP_DTRC_DIV>,
-			 <&clk IMX8MQ_CLK_DC_PIXEL_DIV>;
-		clock-names = "axi", "apb", "rtram", "dtrc", "pix";
-		assigned-clocks = <&clk IMX8MQ_CLK_DC_PIXEL_SRC>;
-		assigned-clock-parents = <&clk IMX8MQ_VIDEO_PLL1_OUT>;
-		assigned-clock-rates = <594000000>;
-		interrupt-parent = <&irqsteer_dcss>;
-		interrupts = <3 IRQ_TYPE_LEVEL_HIGH>,	/* dpr1 */
-			     <4 IRQ_TYPE_LEVEL_HIGH>,	/* dpr2 */
-			     <5 IRQ_TYPE_LEVEL_HIGH>,	/* dpr3 */
-			     <6 IRQ_TYPE_LEVEL_HIGH>,	/* ctx_ld */
-			     <7 IRQ_TYPE_LEVEL_HIGH>,	/* rd_src */
-			     <8 IRQ_TYPE_LEVEL_HIGH>,	/* dtg_programmable_1: for vsync */
-			     <15 IRQ_TYPE_LEVEL_HIGH>,	/* dec400d_1 */
-			     <16 IRQ_TYPE_LEVEL_HIGH>,	/* dtrc_2 */
-			     <17 IRQ_TYPE_LEVEL_HIGH>,	/* dtrc_3 */
-			     <18 IRQ_TYPE_LEVEL_HIGH>,	/* lut_ld */
-			     <19 IRQ_TYPE_LEVEL_HIGH>;	/* wr_scl */
-		disp-mode = <16>;			/* <default mode: #16>
-							 * #16: 1920x1080p@60Hz 16:9
-							 */
-		status = "disabled";
-	};
-
-	lcdif: lcdif@30320000 {
-		compatible = "fsl,imx8mq-lcdif", "fsl,imx28-lcdif";
-		reg = <0x0 0x30320000 0x0 0x10000>;
-		clocks = <&clk IMX8MQ_CLK_LCDIF_PIXEL_DIV>,
-			 <&clk IMX8MQ_CLK_DUMMY>,
-			 <&clk IMX8MQ_CLK_DUMMY>;
-		clock-names = "pix", "axi", "disp_axi";
-		assigned-clocks = <&clk IMX8MQ_CLK_LCDIF_PIXEL_SRC>;
-		assigned-clock-parents = <&clk IMX8MQ_VIDEO_PLL1_OUT>;
-		assigned-clock-rate = <594000000>;
-		interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
-		status = "disabled";
-	};
-
 	csi1_bridge: csi1_bridge@30a90000 {
 		compatible = "fsl,imx8mq-csi", "fsl,imx6s-csi";
 		reg = <0x0 0x30a90000 0x0 0x10000>;
@@ -564,31 +519,7 @@
 		status = "disabled";
 	};
 
-	mipi_dsi: mipi_dsi@30A00000 {
-		compatible = "fsl,imx8mq-mipi-dsi";
-		reg = <0x0 0x30a00000 0x0 0x10000>;     /* DSI registers */
-		interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
-		clocks = <&clk IMX8MQ_CLK_DSI_CORE_DIV>,
-			 <&clk IMX8MQ_CLK_DSI_PHY_REF_DIV>,
-			 <&clk IMX8MQ_CLK_DSI_DBI_DIV>,
-			 <&clk IMX8MQ_CLK_DSI_AHB_DIV>,
-			 <&clk IMX8MQ_CLK_DSI_IPG_DIV>;
-		clock-names = "core", "phy_ref", "dbi", "rxesc", "txesc";
-		assigned-clocks = <&clk IMX8MQ_CLK_DSI_PHY_REF_SRC>,
-				  <&clk IMX8MQ_CLK_DSI_CORE_SRC>,
-				  <&clk IMX8MQ_CLK_DSI_AHB_SRC>;
-		assigned-clock-parents = <&clk IMX8MQ_VIDEO_PLL1_OUT>,
-					 <&clk IMX8MQ_SYS1_PLL_266M>,
-					 <&clk IMX8MQ_SYS1_PLL_80M>;
-		assigned-clock-rate = <594000000>, <266000000>, <80000000>;
-		phy-ref-clkfreq = <27000000>;
-		data-lanes-num = <4>;
-		max-data-rate  = <1500000000>;
-		power-domains = <&mipi_pd>;
-		status = "disabled";
-	};
-
-	lcdif_drm: lcdif_drm@30320000 {
+	lcdif: lcdif@30320000 {
 		compatible = "fsl,imx8mq-lcdif", "fsl,imx28-lcdif";
 		reg = <0x0 0x30320000 0x0 0x10000>;
 		clocks = <&clk IMX8MQ_CLK_LCDIF_PIXEL_DIV>,
@@ -602,7 +533,76 @@
 		status = "disabled";
 	};
 
-	mipi_dsi_phy_drm: dsi_phy_drm@30A00300 {
+	dcss: dcss@0x32e00000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "nxp,imx8mq-dcss";
+		reg = <0x0 0x32e00000 0x0 0x30000>;
+		interrupts = <3 IRQ_TYPE_LEVEL_HIGH>,
+			     <4 IRQ_TYPE_LEVEL_HIGH>,
+			     <5 IRQ_TYPE_LEVEL_HIGH>,
+			     <6 IRQ_TYPE_LEVEL_HIGH>,
+			     <8 IRQ_TYPE_EDGE_RISING>;
+		interrupt-names = "dpr_dc_ch0",
+				  "dpr_dc_ch1",
+				  "dpr_dc_ch2",
+				  "ctx_ld",
+				  "dtg_prg1";
+		interrupt-parent = <&irqsteer_dcss>;
+		clocks = <&clk IMX8MQ_CLK_DISP_APB_ROOT>,
+			 <&clk IMX8MQ_CLK_DISP_AXI_ROOT>,
+			 <&clk IMX8MQ_CLK_DISP_RTRM_ROOT>,
+			 <&clk IMX8MQ_CLK_DC_PIXEL_DIV>,
+			 <&clk IMX8MQ_CLK_DISP_DTRC_DIV>;
+		clock-names = "apb", "axi", "rtrm", "pixel", "dtrc";
+		assigned-clocks = <&clk IMX8MQ_CLK_DC_PIXEL_SRC>,
+				  <&clk IMX8MQ_CLK_DISP_AXI_SRC>,
+				  <&clk IMX8MQ_CLK_DISP_RTRM_SRC>,
+				  <&clk IMX8MQ_CLK_DISP_RTRM_PRE_DIV>;
+		assigned-clock-parents = <&clk IMX8MQ_VIDEO_PLL1_OUT>,
+					 <&clk IMX8MQ_SYS1_PLL_800M>,
+					 <&clk IMX8MQ_SYS1_PLL_800M>;
+		assigned-clock-rates = <594000000>,
+				       <800000000>,
+				       <400000000>,
+				       <400000000>;
+		status = "disabled";
+
+		dcss_disp0: port@0 {
+			reg = <0>;
+
+			dcss_disp0_hdmi: hdmi-endpoint {
+				remote-endpoint = <&hdmi_disp>;
+			};
+		};
+	};
+
+	hdmi: hdmi@32c00000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx8mq-hdmi";
+		reg = <0x0 0x32c00000 0x0 0x33800>,	/* HDP registers */
+				<0x0 0x32e40000 0x0 0x40000>;   /* HDP SEC register */
+		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "plug_in", "plug_out";
+		interrupt-parent = <&gpc>;
+		status = "disabled";
+
+		port@0 {
+			reg = <0>;
+			hdmi_disp: endpoint {
+				remote-endpoint = <&dcss_disp0_hdmi>;
+			};
+		};
+	};
+
+	display-subsystem {
+		compatible = "fsl,imx-display-subsystem";
+		ports = <&dcss_disp0>;
+	};
+
+	mipi_dsi_phy: dsi_phy@30A00300 {
 		#address-cells = <1>;
 		#size-cells = <0>;
 		compatible = "mixel,imx8mq-mipi-dsi-phy";
@@ -611,7 +611,7 @@
 		status = "disabled";
 	};
 
-	mipi_dsi_bridge_drm: mipi_dsi_bridge_drm@30A00000 {
+	mipi_dsi_bridge: mipi_dsi_bridge@30A00000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
 		compatible = "nwl,mipi-dsi";
@@ -624,7 +624,7 @@
 		assigned-clocks = <&clk IMX8MQ_CLK_DSI_AHB_SRC>;
 		assigned-clock-parents = <&clk IMX8MQ_SYS1_PLL_80M>;
 		assigned-clock-rates = <80000000>;
-		phys = <&mipi_dsi_phy_drm>;
+		phys = <&mipi_dsi_phy>;
 		phy-names = "dphy";
 		status = "disabled";
 
@@ -635,7 +635,7 @@
 		};
 	};
 
-	mipi_dsi_drm: mipi_dsi_drm@30A00000 {
+	mipi_dsi: mipi_dsi@30A00000 {
 		compatible = "fsl,imx8mq-mipi-dsi_drm";
 		clocks = <&clk IMX8MQ_CLK_DSI_CORE_DIV>,
 			 <&clk IMX8MQ_CLK_DSI_PHY_REF_DIV>;
@@ -648,7 +648,7 @@
 		power-domains = <&mipi_pd>;
 		src = <&src>;
 		mux-sel = <&gpr>;
-		phys = <&mipi_dsi_phy_drm>;
+		phys = <&mipi_dsi_phy>;
 		phy-names = "dphy";
 		status = "disabled";
 
@@ -887,6 +887,7 @@
 			phy-names = "usb2-phy", "usb3-phy";
 			power-domains = <&usb_otg1_pd>;
 			snps,power-down-scale = <2>;
+			usb3-resume-missing-cas;
 			status = "disabled";
 		};
 	};
@@ -926,6 +927,7 @@
 			phy-names = "usb2-phy", "usb3-phy";
 			power-domains = <&usb_otg2_pd>;
 			snps,power-down-scale = <2>;
+			usb3-resume-missing-cas;
 			status = "disabled";
 		};
 	};
@@ -1226,19 +1228,6 @@
 		status = "disabled";
 	};
 
-	hdmi: hdmi@32c00000 {
-		compatible = "fsl,imx8mq-fb-hdmi";
-		reg = <0x0 0x32c00000 0x0 0x33800>,	/* HDP registers */
-				<0x0 0x32e40000 0x0 0x40000>;   /* HDP SEC register */
-		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
-		video-mode = <16>;	/* <default_mode: #16>
-					 * #16: 1920x1080p@60HZ 16:9
-					 * #95: 3840x2160p@30Hz 16:9
-					 * #97: 3840x2160p@60Hz 16:9
-					 */
-		status = "disabled";
-	};
-
 	hdmi_cec: hdmi_cec@32c33800 {
 		compatible = "fsl,imx8-hdp-cec";
 		reg = <0x0 0x32c33800 0x0 0x200>;
@@ -1331,7 +1320,6 @@
 			 compatible = "fsl,sec-v4.0-job-ring";
 			 reg = <0x1000 0x1000>;
 			 interrupts = <GIC_SPI 105 IRQ_TYPE_LEVEL_HIGH>;
-			 status = "disabled";
 		};
 
 		sec_jr1: jr1@2000 {
