@@ -265,7 +265,7 @@ typedef struct {
 	u_int32 uHeapBase;
 	u_int32 uHeapSize;
 
-	u_int32 uFSLCacheBaseAddr;
+	u_int32 uFSLCacheBaseAddr[2];
 
 } MEDIAIP_FW_SYSTEM_CONFIG, *pMEDIAIP_FW_SYSTEM_CONFIG;
 
@@ -604,6 +604,7 @@ typedef enum {
 typedef struct {
 	MEDIAIP_ENC_FMT           eCodecMode;
 	MEDIAIP_ENC_PROFILE       eProfile;
+	u_int32                   uLevel;
 
 	MEDIAIP_ENC_MEM_RESOURCE  tEncMemDesc;
 

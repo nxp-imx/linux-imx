@@ -50,7 +50,7 @@
 #include "insert_startcode.h"
 
 unsigned int vpu_dbg_level_decoder = 1;
-static unsigned int vpu_frm_depth = 100;
+static int vpu_frm_depth = 100;
 
 /* Generic End of content startcodes to differentiate from those naturally in the stream/file */
 #define EOS_GENERIC_HEVC 0x7c010000
@@ -1301,9 +1301,15 @@ static void transfer_buffer_to_firmware(struct vpu_ctx *ctx, void *input_buffer,
 	if (ctx->b_dis_reorder) {
 		/* set the shared memory space control with this */
 		MediaIPFW_Video_CodecParams *pCodecPara;
+
 		add_scode(ctx, 0, BUFFLUSH_PADDING_TYPE);
 		pCodecPara = (MediaIPFW_Video_CodecParams *)ctx->dev->shared_mem.codec_mem_vir;
 		pCodecPara[ctx->str_index].uDispImm = 1;
+	} else {
+		MediaIPFW_Video_CodecParams *pCodecPara;
+
+		pCodecPara = (MediaIPFW_Video_CodecParams *)ctx->dev->shared_mem.codec_mem_vir;
+		pCodecPara[ctx->str_index].uDispImm = 0;
 	}
 
 	/*initialize frame count*/
@@ -2395,6 +2401,7 @@ static int vpu_firmware_download(struct vpu_dev *This)
 	unsigned int FW_Size = 0;
 	void *csr_offset, *csr_cpuwait;
 	int ret = 0;
+	char *p = This->m0_p_fw_space_vir;
 
 	ret = request_firmware((const struct firmware **)&This->m0_pfw,
 			M0FW_FILENAME,
@@ -2423,10 +2430,18 @@ static int vpu_firmware_download(struct vpu_dev *This)
 #ifdef CM4
 	boot_CM4_up(This, This->m0_p_fw_space_vir);
 #else
-	csr_offset = ioremap(0x2d040000, 4);
-	writel(This->m0_p_fw_space_phy, csr_offset);
-	csr_cpuwait = ioremap(0x2d040004, 4);
-	writel(0x0, csr_cpuwait);
+	if (This->plat_type == IMX8QM) { //decoder use M core 0
+		p[16] = IMX8QM;
+		csr_offset = ioremap(0x2d080000, 4);
+		writel(This->m0_p_fw_space_phy, csr_offset);
+		csr_cpuwait = ioremap(0x2d080004, 4);
+		writel(0x0, csr_cpuwait);
+	} else {
+		csr_offset = ioremap(0x2d040000, 4);
+		writel(This->m0_p_fw_space_phy, csr_offset);
+		csr_cpuwait = ioremap(0x2d040004, 4);
+		writel(0x0, csr_cpuwait);
+	}
 #endif
 	return ret;
 }
@@ -2842,6 +2857,7 @@ static void vpu_reset(struct vpu_dev *This)
 static int vpu_enable_hw(struct vpu_dev *This)
 {
 	vpu_dbg(LVL_INFO, "%s()\n", __func__);
+#if 0
 	This->vpu_clk = clk_get(&This->plat_dev->dev, "vpu_clk");
 	if (IS_ERR(This->vpu_clk)) {
 		vpu_dbg(LVL_ERR, "vpu_clk get error\n");
@@ -2849,15 +2865,18 @@ static int vpu_enable_hw(struct vpu_dev *This)
 	}
 	clk_set_rate(This->vpu_clk, 600000000);
 	clk_prepare_enable(This->vpu_clk);
+#endif
 	vpu_setup(This);
 	return 0;
 }
 static void vpu_disable_hw(struct vpu_dev *This)
 {
 	vpu_reset(This);
+#if 0
 	if (This->vpu_clk) {
 		clk_put(This->vpu_clk);
 	}
+#endif
 }
 
 static int reset_vpu_firmware(struct vpu_dev *dev)
@@ -2889,6 +2908,7 @@ static int vpu_probe(struct platform_device *pdev)
 	struct device_node *reserved_node;
 	struct resource reserved_res;
 	unsigned int mu_id;
+	u_int32 core_type;
 	int ret;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
@@ -2906,6 +2926,15 @@ static int vpu_probe(struct platform_device *pdev)
 	}
 
 	if (np) {
+		ret = of_property_read_u32(np, "core_type", &core_type);
+		if (ret) {
+			vpu_dbg(LVL_ERR, "error: Cannot get core num %d\n", ret);
+			return -EINVAL;
+		}
+		if (core_type == 2)
+			dev->plat_type = IMX8QM;
+		else
+			dev->plat_type = IMX8QXP;
 		reserved_node = of_parse_phandle(np, "boot-region", 0);
 		if (!reserved_node) {
 			vpu_dbg(LVL_ERR, "error: boot-region of_parse_phandle error\n");
@@ -3022,6 +3051,7 @@ static int vpu_probe(struct platform_device *pdev)
 		return ret;
 	}
 #endif
+
 	ret = vpu_mu_init(dev);
 	if (ret) {
 		vpu_dbg(LVL_ERR, "error: %s vpu mu init failed\n", __func__);
