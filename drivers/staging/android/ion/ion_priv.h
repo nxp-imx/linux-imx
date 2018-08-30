@@ -388,6 +388,11 @@ void ion_chunk_heap_destroy(struct ion_heap *);
 struct ion_heap *ion_cma_heap_create(struct ion_platform_heap *);
 void ion_cma_heap_destroy(struct ion_heap *);
 
+#ifdef CONFIG_ION_UNMAPPED_HEAP
+struct ion_heap *ion_unmapped_heap_create(struct ion_platform_heap *pheap);
+void ion_unmapped_heap_destroy(struct ion_heap *heap);
+#endif
+
 /**
  * functions for creating and destroying a heap pool -- allows you
  * to keep a pool of pre allocated memory to use from your heap.  Keeping

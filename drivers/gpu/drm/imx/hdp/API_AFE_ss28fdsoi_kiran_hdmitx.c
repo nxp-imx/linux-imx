@@ -48,6 +48,7 @@
 #include <linux/io.h>
 #include "API_AFE_ss28fdsoi_kiran_hdmitx.h"
 #include "ss28fdsoi_hdmitx_table.h"
+#include "imx-hdp.h"
 
 static int inside(u32 value, u32 left_sharp_corner, u32 right_sharp_corner)
 {
@@ -105,16 +106,15 @@ int get_table_row(const u32 *array, u32 table_rows,
 	return i;
 }
 
-int phy_cfg_hdp_ss28fdsoi(state_struct *state, int num_lanes,
-			  VIC_MODES vicMode, int bpp,
-			  VIC_PXL_ENCODING_FORMAT format)
+int phy_cfg_hdp_ss28fdsoi(state_struct *state, int num_lanes, struct drm_display_mode *mode, int bpp,
+		VIC_PXL_ENCODING_FORMAT format)
 {
 	const int phy_reset_workaround = 0;
 	u32 vco_freq_khz;
 	unsigned char i;
 	u32 row, feedback_factor;
 	uint32_t reg_val;
-	int pixel_freq_khz = vic_table[vicMode][PIXEL_FREQ_KHZ];
+	int pixel_freq_khz = mode->clock;
 	uint32_t character_clock_ratio_num = 1;
 	uint32_t character_clock_ratio_den = 1;
 	int character_freq_khz;
@@ -177,8 +177,8 @@ int phy_cfg_hdp_ss28fdsoi(state_struct *state, int num_lanes,
 	charge_pump_gain.lsb = 0;
 
 	DRM_INFO
-	    ("phy_cfg_hdp() num_lanes: %0d, vicMode: %0d, color depth: %0d-bit, encoding: %0d\n",
-	     num_lanes, vicMode, bpp, format);
+	    ("phy_cfg_hdp() num_lanes: %0d, mode:%dx%dp%d, color depth: %0d-bit, encoding: %0d\n",
+	     num_lanes, mode->hdisplay, mode->vdisplay, mode->vrefresh, bpp, format);
 
 	/* register PHY_PMA_ISOLATION_CTRL
 	 * enable PHY isolation mode only for CMN */
@@ -316,6 +316,7 @@ int phy_cfg_hdp_ss28fdsoi(state_struct *state, int num_lanes,
 		DRM_INFO
 		    ("Pixel clock frequency (%u kHz) not supported for this color depth (%0d-bit), row=%d\n",
 		     ftemp, bpp, row);
+		return 0;
 	}
 	character_freq_khz =
 	    pixel_freq_khz * character_clock_ratio_num /
@@ -578,6 +579,8 @@ int phy_cfg_hdp_ss28fdsoi(state_struct *state, int num_lanes,
 
 }
 
+#define __ARC_CONFIG__
+
 int hdmi_tx_kiran_power_configuration_seq(state_struct *state, int num_lanes)
 {
 	/* Configure the power state. */
@@ -586,9 +589,9 @@ int hdmi_tx_kiran_power_configuration_seq(state_struct *state, int num_lanes)
 	while (!(Afe_read(state, 0xC008) & (1 << 6))) ;
 
 #ifdef __ARC_CONFIG__
-	arc_power_up(state);
-	arc_calibrate(state);
-	arc_config(state);
+	imx_arc_power_up(state);
+	imx_arc_calibrate(state);
+	imx_arc_config(state);
 #endif
 
 	/* PHY_DP_MODE_CTL */

@@ -28,6 +28,7 @@
 #include <linux/mfd/syscon.h>
 #include <linux/mfd/syscon/imx6q-iomuxc-gpr.h>
 
+#include "fsl_dsd.h"
 #include "fsl_sai.h"
 #include "imx-pcm.h"
 
@@ -70,7 +71,7 @@ static struct fsl_sai_soc_data fsl_sai_imx7ulp = {
 	.fifos = 2,
 	.fifo_depth = 16,
 	.flags = SAI_FLAG_PMQOS,
-	.reg_offset = 0,
+	.reg_offset = 8,
 	.constrain_period_size = false,
 };
 
@@ -527,31 +528,24 @@ static int fsl_sai_hw_params(struct snd_pcm_substream *substream,
 	int ret;
 	int i;
 	int trce_mask = 0;
-	snd_pcm_format_t format = params_format(params);
 
 	if (sai->slots)
 		slots = sai->slots;
 
 	pins = DIV_ROUND_UP(channels, slots);
+	sai->is_dsd = fsl_is_dsd(params);
 
-	if (format == SNDRV_PCM_FORMAT_DSD_U8 ||
-		format == SNDRV_PCM_FORMAT_DSD_U16_LE ||
-		format == SNDRV_PCM_FORMAT_DSD_U16_BE ||
-		format == SNDRV_PCM_FORMAT_DSD_U32_LE ||
-		format == SNDRV_PCM_FORMAT_DSD_U32_BE) {
-		sai->is_dsd = true;
+	if (!IS_ERR_OR_NULL(sai->pinctrl)) {
+		sai->pins_state = fsl_get_pins_state(sai->pinctrl, params);
 
-		if (!IS_ERR_OR_NULL(sai->pins_dsd)) {
-			ret = pinctrl_select_state(sai->pinctrl, sai->pins_dsd);
+		if (!IS_ERR_OR_NULL(sai->pins_state)) {
+			ret = pinctrl_select_state(sai->pinctrl, sai->pins_state);
 			if (ret) {
 				dev_err(cpu_dai->dev,
 					"failed to set proper pins state: %d\n", ret);
 				return ret;
 			}
 		}
-	} else {
-		pinctrl_pm_select_default_state(cpu_dai->dev);
-		sai->is_dsd = false;
 	}
 
 	if (sai->is_dsd)
@@ -593,6 +587,11 @@ static int fsl_sai_hw_params(struct snd_pcm_substream *substream,
 
 	val_cr4 |= FSL_SAI_CR4_FRSZ(slots);
 
+	/* Output Mode - data pins transmit 0 when slots are masked
+	 * or channels are disabled
+	 */
+	val_cr4 |= FSL_SAI_CR4_CHMOD;
+
 	/*
 	 * For SAI master mode, when Tx(Rx) sync with Rx(Tx) clock, Rx(Tx) will
 	 * generate bclk and frame clock for Tx(Rx), we should set RCR4(TCR4),
@@ -603,14 +602,16 @@ static int fsl_sai_hw_params(struct snd_pcm_substream *substream,
 	if (!sai->slave_mode[tx]) {
 		if (!sai->synchronous[TX] && sai->synchronous[RX] && !tx) {
 			regmap_update_bits(sai->regmap, FSL_SAI_TCR4(offset),
-				FSL_SAI_CR4_SYWD_MASK | FSL_SAI_CR4_FRSZ_MASK,
+				FSL_SAI_CR4_SYWD_MASK | FSL_SAI_CR4_FRSZ_MASK |
+				FSL_SAI_CR4_CHMOD_MASK,
 				val_cr4);
 			regmap_update_bits(sai->regmap, FSL_SAI_TCR5(offset),
 				FSL_SAI_CR5_WNW_MASK | FSL_SAI_CR5_W0W_MASK |
 				FSL_SAI_CR5_FBT_MASK, val_cr5);
 		} else if (!sai->synchronous[RX] && sai->synchronous[TX] && tx) {
 			regmap_update_bits(sai->regmap, FSL_SAI_RCR4(offset),
-				FSL_SAI_CR4_SYWD_MASK | FSL_SAI_CR4_FRSZ_MASK,
+				FSL_SAI_CR4_SYWD_MASK | FSL_SAI_CR4_FRSZ_MASK |
+				FSL_SAI_CR4_CHMOD_MASK,
 				val_cr4);
 			regmap_update_bits(sai->regmap, FSL_SAI_RCR5(offset),
 				FSL_SAI_CR5_WNW_MASK | FSL_SAI_CR5_W0W_MASK |
@@ -686,7 +687,8 @@ static int fsl_sai_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	regmap_update_bits(sai->regmap, FSL_SAI_xCR4(tx, offset),
-			   FSL_SAI_CR4_SYWD_MASK | FSL_SAI_CR4_FRSZ_MASK,
+			   FSL_SAI_CR4_SYWD_MASK | FSL_SAI_CR4_FRSZ_MASK |
+			   FSL_SAI_CR4_CHMOD_MASK,
 			   val_cr4);
 	regmap_update_bits(sai->regmap, FSL_SAI_xCR5(tx, offset),
 			   FSL_SAI_CR5_WNW_MASK | FSL_SAI_CR5_W0W_MASK |
@@ -916,8 +918,8 @@ static int fsl_sai_dai_resume(struct snd_soc_dai *cpu_dai)
 	struct fsl_sai *sai = snd_soc_dai_get_drvdata(cpu_dai);
 	int ret;
 
-	if (sai->is_dsd && !IS_ERR_OR_NULL(sai->pins_dsd)) {
-		ret = pinctrl_select_state(sai->pinctrl, sai->pins_dsd);
+	if (!IS_ERR_OR_NULL(sai->pinctrl) && !IS_ERR_OR_NULL(sai->pins_state)) {
+		ret = pinctrl_select_state(sai->pinctrl, sai->pins_state);
 		if (ret) {
 			dev_err(cpu_dai->dev,
 				"failed to set proper pins state: %d\n", ret);
@@ -1342,10 +1344,7 @@ static int fsl_sai_probe(struct platform_device *pdev)
 	sai->dma_params_rx.maxburst = FSL_SAI_MAXBURST_RX;
 	sai->dma_params_tx.maxburst = FSL_SAI_MAXBURST_TX;
 
-	sai->pinctrl  = devm_pinctrl_get(&pdev->dev);
-
-	if (!IS_ERR_OR_NULL(sai->pinctrl))
-		sai->pins_dsd = pinctrl_lookup_state(sai->pinctrl, "dsd");
+	sai->pinctrl = devm_pinctrl_get(&pdev->dev);
 
 	platform_set_drvdata(pdev, sai);
 

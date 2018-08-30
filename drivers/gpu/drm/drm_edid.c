@@ -36,6 +36,7 @@
 #include <drm/drmP.h>
 #include <drm/drm_edid.h>
 #include <drm/drm_displayid.h>
+#include <drm/drm_scdc_helper.h>
 
 #define version_greater(edid, maj, min) \
 	(((edid)->version > (maj)) || \
@@ -78,6 +79,8 @@
 #define EDID_QUIRK_FORCE_6BPC			(1 << 10)
 /* Force 10bpc */
 #define EDID_QUIRK_FORCE_10BPC			(1 << 11)
+/* Non desktop display (i.e. HMD) */
+#define EDID_QUIRK_NON_DESKTOP			(1 << 12)
 
 struct detailed_mode_closure {
 	struct drm_connector *connector;
@@ -2742,11 +2745,31 @@ add_detailed_modes(struct drm_connector *connector, struct edid *edid,
 #define VIDEO_BLOCK     0x02
 #define VENDOR_BLOCK    0x03
 #define SPEAKER_BLOCK	0x04
-#define VIDEO_CAPABILITY_BLOCK	0x07
+#define USE_EXTENDED_TAG 0x07
+#define EXT_VIDEO_CAPABILITY_BLOCK 0x00
+#define EXT_VIDEO_DATA_BLOCK_420	0x0E
+#define EXT_VIDEO_CAP_BLOCK_Y420CMDB 0x0F
 #define EDID_BASIC_AUDIO	(1 << 6)
 #define EDID_CEA_YCRCB444	(1 << 5)
 #define EDID_CEA_YCRCB422	(1 << 4)
 #define EDID_CEA_VCDB_QS	(1 << 6)
+
+#define DATA_BLOCK_EXTENDED_TAG		0x07
+#define VIDEO_CAPABILITY_DATA_BLOCK	0x0
+#define VSVD_DATA_BLOCK			0x1
+#define COLORIMETRY_DATA_BLOCK		0x5
+#define HDR_STATIC_METADATA_BLOCK	0x6
+
+/* HDR Metadata Block: Bit fields */
+#define SUPPORTED_EOTF_MASK            0x3f
+#define TRADITIONAL_GAMMA_SDR          (0x1 << 0)
+#define TRADITIONAL_GAMMA_HDR          (0x1 << 1)
+#define SMPTE_ST2084                   (0x1 << 2)
+#define BT_2100_HLG                    (0x1 << 3)
+#define FUTURE_EOTF                    (0x1 << 4)
+#define RESERVED_EOTF                  (0x3 << 5)
+
+#define STATIC_METADATA_TYPE1          (0x1 << 0)
 
 /*
  * Search EDID for CEA extension block.
@@ -3071,15 +3094,85 @@ drm_display_mode_from_vic_index(struct drm_connector *connector,
 	return newmode;
 }
 
+/*
+ * do_y420vdb_modes - Parse YCBCR 420 only modes
+ * @connector: connector corresponding to the HDMI sink
+ * @svds: start of the data block of CEA YCBCR 420 VDB
+ * @len: length of the CEA YCBCR 420 VDB
+ *
+ * Parse the CEA-861-F YCBCR 420 Video Data Block (Y420VDB)
+ * which contains modes which can be supported in YCBCR 420
+ * output format only.
+ */
+static int do_y420vdb_modes(struct drm_connector *connector,
+			    const u8 *svds, u8 svds_len)
+{
+	int modes = 0, i;
+	struct drm_device *dev = connector->dev;
+	struct drm_display_info *info = &connector->display_info;
+	struct drm_hdmi_info *hdmi = &info->hdmi;
+
+	for (i = 0; i < svds_len; i++) {
+		u8 vic = svd_to_vic(svds[i]);
+		struct drm_display_mode *newmode;
+
+		if (!drm_valid_cea_vic(vic))
+			continue;
+
+		newmode = drm_mode_duplicate(dev, &edid_cea_modes[vic]);
+		if (!newmode)
+			break;
+		bitmap_set(hdmi->y420_vdb_modes, vic, 1);
+		drm_mode_probed_add(connector, newmode);
+		modes++;
+	}
+
+	if (modes > 0)
+		info->color_formats |= DRM_COLOR_FORMAT_YCRCB420;
+	return modes;
+}
+
+/*
+ * drm_add_cmdb_modes - Add a YCBCR 420 mode into bitmap
+ * @connector: connector corresponding to the HDMI sink
+ * @vic: CEA vic for the video mode to be added in the map
+ *
+ * Makes an entry for a videomode in the YCBCR 420 bitmap
+ */
+static void
+drm_add_cmdb_modes(struct drm_connector *connector, u8 svd)
+{
+	u8 vic = svd_to_vic(svd);
+	struct drm_hdmi_info *hdmi = &connector->display_info.hdmi;
+
+	if (!drm_valid_cea_vic(vic))
+		return;
+
+	bitmap_set(hdmi->y420_cmdb_modes, vic, 1);
+}
+
 static int
 do_cea_modes(struct drm_connector *connector, const u8 *db, u8 len)
 {
 	int i, modes = 0;
+	struct drm_hdmi_info *hdmi = &connector->display_info.hdmi;
 
 	for (i = 0; i < len; i++) {
 		struct drm_display_mode *mode;
 		mode = drm_display_mode_from_vic_index(connector, db, len, i);
 		if (mode) {
+			/*
+			 * YCBCR420 capability block contains a bitmap which
+			 * gives the index of CEA modes from CEA VDB, which
+			 * can support YCBCR 420 sampling output also (apart
+			 * from RGB/YCBCR444 etc).
+			 * For example, if the bit 0 in bitmap is set,
+			 * first mode in VDB can support YCBCR420 output too.
+			 * Add YCBCR420 modes only if sink is HDMI 2.0 capable.
+			 */
+			if (i < 64 && hdmi->y420_cmdb_map & (1ULL << i))
+				drm_add_cmdb_modes(connector, db[i]);
+
 			drm_mode_probed_add(connector, mode);
 			modes++;
 		}
@@ -3361,6 +3454,12 @@ cea_db_payload_len(const u8 *db)
 }
 
 static int
+cea_db_extended_tag(const u8 *db)
+{
+	return db[1];
+}
+
+static int
 cea_db_tag(const u8 *db)
 {
 	return db[0] >> 5;
@@ -3400,8 +3499,91 @@ static bool cea_db_is_hdmi_vsdb(const u8 *db)
 	return hdmi_id == HDMI_IEEE_OUI;
 }
 
+static bool cea_db_is_hdmi_forum_vsdb(const u8 *db)
+{
+	unsigned int oui;
+
+	if (cea_db_tag(db) != VENDOR_BLOCK)
+		return false;
+
+	if (cea_db_payload_len(db) < 7)
+		return false;
+
+	oui = db[3] << 16 | db[2] << 8 | db[1];
+
+	return oui == HDMI_FORUM_IEEE_OUI;
+}
+
+static bool cea_db_is_y420cmdb(const u8 *db)
+{
+	if (cea_db_tag(db) != USE_EXTENDED_TAG)
+		return false;
+
+	if (!cea_db_payload_len(db))
+		return false;
+
+	if (cea_db_extended_tag(db) != EXT_VIDEO_CAP_BLOCK_Y420CMDB)
+		return false;
+
+	return true;
+}
+
+static bool cea_db_is_y420vdb(const u8 *db)
+{
+	if (cea_db_tag(db) != USE_EXTENDED_TAG)
+		return false;
+
+	if (!cea_db_payload_len(db))
+		return false;
+
+	if (cea_db_extended_tag(db) != EXT_VIDEO_DATA_BLOCK_420)
+		return false;
+
+	return true;
+}
+
 #define for_each_cea_db(cea, i, start, end) \
 	for ((i) = (start); (i) < (end) && (i) + cea_db_payload_len(&(cea)[(i)]) < (end); (i) += cea_db_payload_len(&(cea)[(i)]) + 1)
+
+static void drm_parse_y420cmdb_bitmap(struct drm_connector *connector,
+				      const u8 *db)
+{
+	struct drm_display_info *info = &connector->display_info;
+	struct drm_hdmi_info *hdmi = &info->hdmi;
+	u8 map_len = cea_db_payload_len(db) - 1;
+	u8 count;
+	u64 map = 0;
+
+	if (map_len == 0) {
+		/* All CEA modes support ycbcr420 sampling also.*/
+		hdmi->y420_cmdb_map = U64_MAX;
+		info->color_formats |= DRM_COLOR_FORMAT_YCRCB420;
+		return;
+	}
+
+	/*
+	 * This map indicates which of the existing CEA block modes
+	 * from VDB can support YCBCR420 output too. So if bit=0 is
+	 * set, first mode from VDB can support YCBCR420 output too.
+	 * We will parse and keep this map, before parsing VDB itself
+	 * to avoid going through the same block again and again.
+	 *
+	 * Spec is not clear about max possible size of this block.
+	 * Clamping max bitmap block size at 8 bytes. Every byte can
+	 * address 8 CEA modes, in this way this map can address
+	 * 8*8 = first 64 SVDs.
+	 */
+	if (WARN_ON_ONCE(map_len > 8))
+		map_len = 8;
+
+	for (count = 0; count < map_len; count++)
+		map |= (u64)db[2 + count] << (8 * count);
+
+	if (map)
+		info->color_formats |= DRM_COLOR_FORMAT_YCRCB420;
+
+	hdmi->y420_cmdb_map = map;
+}
 
 static int
 add_cea_modes(struct drm_connector *connector, struct edid *edid)
@@ -3425,10 +3607,16 @@ add_cea_modes(struct drm_connector *connector, struct edid *edid)
 				video = db + 1;
 				video_len = dbl;
 				modes += do_cea_modes(connector, video, dbl);
-			}
-			else if (cea_db_is_hdmi_vsdb(db)) {
+			} else if (cea_db_is_hdmi_vsdb(db)) {
 				hdmi = db;
 				hdmi_len = dbl;
+			} else if (cea_db_is_y420vdb(db)) {
+				const u8 *vdb420 = &db[2];
+
+				/* Add 4:2:0(only) modes present in EDID */
+				modes += do_y420vdb_modes(connector,
+							  vdb420,
+							  dbl - 1);
 			}
 		}
 	}
@@ -3485,6 +3673,87 @@ static void fixup_detailed_cea_mode_clock(struct drm_display_mode *mode)
 	DRM_DEBUG("detailed mode matches %s VIC %d, adjusting clock %d -> %d\n",
 		  type, vic, mode->clock, clock);
 	mode->clock = clock;
+}
+
+static bool cea_db_is_hdmi_colorimetry_data_block(const u8 *db)
+{
+	if (cea_db_tag(db) != DATA_BLOCK_EXTENDED_TAG)
+		return false;
+
+	if (db[1] != COLORIMETRY_DATA_BLOCK)
+		return false;
+
+	return true;
+}
+
+static void
+drm_parse_colorimetry_data_block(struct drm_connector *connector, const u8 *db)
+{
+	struct drm_hdmi_info *info = &connector->display_info.hdmi;
+	uint16_t len;
+
+	len = cea_db_payload_len(db);
+	info->colorimetry = db[2];
+}
+
+
+static bool cea_db_is_hdmi_hdr_metadata_block(const u8 *db)
+{
+	if (cea_db_tag(db) != DATA_BLOCK_EXTENDED_TAG)
+		return false;
+
+	if (db[1] != HDR_STATIC_METADATA_BLOCK)
+		return false;
+
+	return true;
+}
+
+static uint16_t eotf_supported(const u8 *edid_ext)
+{
+	uint16_t val = 0;
+
+	if (edid_ext[2] & TRADITIONAL_GAMMA_SDR)
+		val |= TRADITIONAL_GAMMA_SDR;
+	if (edid_ext[2] & TRADITIONAL_GAMMA_HDR)
+		val |= TRADITIONAL_GAMMA_HDR;
+	if (edid_ext[2] & SMPTE_ST2084)
+		val |= SMPTE_ST2084;
+	if (edid_ext[2] & BT_2100_HLG)
+		val |= BT_2100_HLG;
+
+	return val;
+}
+
+static uint16_t hdr_metadata_type(const u8 *edid_ext)
+{
+	uint16_t val = 0;
+
+	if (edid_ext[3] & STATIC_METADATA_TYPE1)
+		val |= STATIC_METADATA_TYPE1;
+
+	return val;
+}
+
+static void
+drm_parse_hdr_metadata_block(struct drm_connector *connector, const u8 *db)
+{
+	struct drm_hdmi_info *info = &connector->display_info.hdmi;
+	uint16_t len;
+
+	len = cea_db_payload_len(db);
+	info->hdr_panel_metadata.eotf = eotf_supported(db);
+	info->hdr_panel_metadata.type = hdr_metadata_type(db);
+
+	if (len == 6) {
+		info->hdr_panel_metadata.max_cll = db[4];
+		info->hdr_panel_metadata.max_fall = db[5];
+		info->hdr_panel_metadata.min_cll = db[6];
+	} else if (len == 5) {
+		info->hdr_panel_metadata.max_cll = db[4];
+		info->hdr_panel_metadata.max_fall = db[5];
+	} else if (len == 4) {
+		info->hdr_panel_metadata.max_cll = db[4];
+	}
 }
 
 static void
@@ -3949,8 +4218,10 @@ bool drm_rgb_quant_range_selectable(struct edid *edid)
 		return false;
 
 	for_each_cea_db(edid_ext, i, start, end) {
-		if (cea_db_tag(&edid_ext[i]) == VIDEO_CAPABILITY_BLOCK &&
-		    cea_db_payload_len(&edid_ext[i]) == 2) {
+		if (cea_db_tag(&edid_ext[i]) == USE_EXTENDED_TAG &&
+		    cea_db_payload_len(&edid_ext[i]) == 2 &&
+		    cea_db_extended_tag(&edid_ext[i]) ==
+			EXT_VIDEO_CAPABILITY_BLOCK) {
 			DRM_DEBUG_KMS("CEA VCDB 0x%02x\n", edid_ext[i + 2]);
 			return edid_ext[i + 2] & EDID_CEA_VCDB_QS;
 		}
@@ -3959,6 +4230,60 @@ bool drm_rgb_quant_range_selectable(struct edid *edid)
 	return false;
 }
 EXPORT_SYMBOL(drm_rgb_quant_range_selectable);
+
+static void drm_parse_ycbcr420_deep_color_info(struct drm_connector *connector,
+					       const u8 *db)
+{
+	u8 dc_mask;
+	struct drm_hdmi_info *hdmi = &connector->display_info.hdmi;
+
+	dc_mask = db[7] & DRM_EDID_YCBCR420_DC_MASK;
+	hdmi->y420_dc_modes |= dc_mask;
+}
+
+static void drm_parse_hdmi_forum_vsdb(struct drm_connector *connector,
+				 const u8 *hf_vsdb)
+{
+	struct drm_display_info *display = &connector->display_info;
+	struct drm_hdmi_info *hdmi = &display->hdmi;
+
+	if (hf_vsdb[6] & 0x80) {
+		hdmi->scdc.supported = true;
+		if (hf_vsdb[6] & 0x40)
+			hdmi->scdc.read_request = true;
+	}
+
+	/*
+	 * All HDMI 2.0 monitors must support scrambling at rates > 340 MHz.
+	 * And as per the spec, three factors confirm this:
+	 * * Availability of a HF-VSDB block in EDID (check)
+	 * * Non zero Max_TMDS_Char_Rate filed in HF-VSDB (let's check)
+	 * * SCDC support available (let's check)
+	 * Lets check it out.
+	 */
+
+	if (hf_vsdb[5]) {
+		/* max clock is 5000 KHz times block value */
+		u32 max_tmds_clock = hf_vsdb[5] * 5000;
+		struct drm_scdc *scdc = &hdmi->scdc;
+
+		if (max_tmds_clock > 340000) {
+			display->max_tmds_clock = max_tmds_clock;
+			DRM_DEBUG_KMS("HF-VSDB: max TMDS clock %d kHz\n",
+				display->max_tmds_clock);
+		}
+
+		if (scdc->supported) {
+			scdc->scrambling.supported = true;
+
+			/* Few sinks support scrambling for cloks < 340M */
+			if ((hf_vsdb[6] & 0x8))
+				scdc->scrambling.low_rates = true;
+		}
+	}
+
+	drm_parse_ycbcr420_deep_color_info(connector, hf_vsdb);
+}
 
 static void drm_parse_hdmi_deep_color_info(struct drm_connector *connector,
 					   const u8 *hdmi)
@@ -4074,11 +4399,19 @@ static void drm_parse_cea_ext(struct drm_connector *connector,
 
 		if (cea_db_is_hdmi_vsdb(db))
 			drm_parse_hdmi_vsdb_video(connector, db);
+		if (cea_db_is_hdmi_hdr_metadata_block(db))
+			drm_parse_hdr_metadata_block(connector, db);
+		if (cea_db_is_hdmi_forum_vsdb(db))
+			drm_parse_hdmi_forum_vsdb(connector, db);
+		if (cea_db_is_hdmi_colorimetry_data_block(db))
+			drm_parse_colorimetry_data_block(connector, db);
+		if (cea_db_is_y420cmdb(db))
+			drm_parse_y420cmdb_bitmap(connector, db);
 	}
 }
 
 static void drm_add_display_info(struct drm_connector *connector,
-				 struct edid *edid)
+				 struct edid *edid, u32 quirks)
 {
 	struct drm_display_info *info = &connector->display_info;
 
@@ -4091,6 +4424,8 @@ static void drm_add_display_info(struct drm_connector *connector,
 	info->cea_rev = 0;
 	info->max_tmds_clock = 0;
 	info->dvi_dual = false;
+
+	info->non_desktop = !!(quirks & EDID_QUIRK_NON_DESKTOP);
 
 	if (edid->revision < 3)
 		return;
@@ -4308,6 +4643,13 @@ int drm_add_edid_modes(struct drm_connector *connector, struct edid *edid)
 	quirks = edid_get_quirks(edid);
 
 	/*
+	 * CEA-861-F adds ycbcr capability map block, for HDMI 2.0 sinks.
+	 * To avoid multiple parsing of same block, lets parse that map
+	 * from sink info, before parsing CEA modes.
+	 */
+	drm_add_display_info(connector, edid, quirks);
+
+	/*
 	 * EDID spec says modes should be preferred in this order:
 	 * - preferred detailed mode
 	 * - other detailed modes from base block
@@ -4333,8 +4675,6 @@ int drm_add_edid_modes(struct drm_connector *connector, struct edid *edid)
 
 	if (quirks & (EDID_QUIRK_PREFER_LARGE_60 | EDID_QUIRK_PREFER_LARGE_75))
 		edid_fixup_preferred(connector, quirks);
-
-	drm_add_display_info(connector, edid);
 
 	if (quirks & EDID_QUIRK_FORCE_6BPC)
 		connector->display_info.bpc = 6;
@@ -4421,6 +4761,58 @@ void drm_set_preferred_mode(struct drm_connector *connector,
 	}
 }
 EXPORT_SYMBOL(drm_set_preferred_mode);
+
+/**
+ * drm_hdmi_infoframe_set_hdr_metadata() - fill an HDMI AVI infoframe with
+ *                                              HDR metadata from userspace
+ * @frame: HDMI AVI infoframe
+ * @hdr_source_metadata: hdr_source_metadata info from userspace
+ *
+ * Return: 0 on success or a negative error code on failure.
+ */
+int
+drm_hdmi_infoframe_set_hdr_metadata(struct hdmi_drm_infoframe *frame,
+				   void *hdr_metadata)
+{
+	struct hdr_static_metadata *hdr_source_metadata;
+	int err, i;
+
+	if (!frame || !hdr_metadata)
+		return -EINVAL;
+
+	err = hdmi_drm_infoframe_init(frame);
+	if (err < 0)
+		return err;
+
+	hdr_source_metadata = (struct hdr_static_metadata *)hdr_metadata;
+
+	frame->length = sizeof(struct hdr_static_metadata);
+
+	frame->eotf = hdr_source_metadata->eotf;
+	frame->metadata_type = hdr_source_metadata->type;
+
+	for (i = 0; i < 3; i++) {
+		frame->display_primaries_x[i] =
+			hdr_source_metadata->display_primaries_x[i];
+		frame->display_primaries_y[i] =
+			hdr_source_metadata->display_primaries_y[i];
+	}
+
+	frame->white_point_x = hdr_source_metadata->white_point_x;
+	frame->white_point_y = hdr_source_metadata->white_point_y;
+
+	frame->max_mastering_display_luminance =
+		hdr_source_metadata->max_mastering_display_luminance;
+	frame->min_mastering_display_luminance =
+		hdr_source_metadata->min_mastering_display_luminance;
+
+	frame->max_cll = hdr_source_metadata->max_cll;
+	frame->max_fall = hdr_source_metadata->max_fall;
+
+	return 0;
+}
+EXPORT_SYMBOL(drm_hdmi_infoframe_set_hdr_metadata);
+
 
 /**
  * drm_hdmi_avi_infoframe_from_display_mode() - fill an HDMI AVI infoframe with

@@ -1,0 +1,19 @@
+Freescale ION unmapped heap for i.MX
+
+Unmapped heap are used for security purpose, providing secure data
+path buffers for video decode and display.
+
+Required properties
+- compatible:
+  -  "fsl,display-heap" for display ion heap
+  -  "fsl,vpu-heap" for vpu decoder ion heap
+
+Required properties for Ion heaps
+- memory-region: one reserved mem region pointer.
+
+Example:
+  ion-display-region {
+    compatible = "fsl,display-heap", "linux,ion-heap-unmapped";
+    memory-region = <&display_region>;
+  };
+

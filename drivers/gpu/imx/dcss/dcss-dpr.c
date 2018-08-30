@@ -238,6 +238,9 @@ static u32 dcss_dpr_x_pix_wide_adjust(struct dcss_dpr_ch *ch, u32 pix_wide,
 
 	pix_in_64byte = pix_in_64byte_map[ch->pix_size][ch->tile];
 
+	if (pix_format == DRM_FORMAT_P010)
+		pix_wide = pix_wide * 10 / 8;
+
 	div_64byte_mod = pix_wide % pix_in_64byte;
 	offset = (div_64byte_mod == 0) ? 0 : (pix_in_64byte - div_64byte_mod);
 
@@ -266,8 +269,13 @@ void dcss_dpr_set_res(struct dcss_soc *dcss, int ch_num, u32 xres, u32 yres,
 	u32 gap = DCSS_DPR_FRAME_2P_BASE_ADDR - DCSS_DPR_FRAME_1P_BASE_ADDR;
 	u32 pix_format = dpr->ch[ch_num].pix_format;
 
-	if (pix_format == DRM_FORMAT_NV12 || pix_format == DRM_FORMAT_NV21)
+	if (pix_format == DRM_FORMAT_NV12 ||
+	    pix_format == DRM_FORMAT_NV21 ||
+	    pix_format == DRM_FORMAT_P010)
 		max_planes = 2;
+
+	if (pix_format == DRM_FORMAT_P010)
+		adj_w = adj_w * 10 / 8;
 
 	for (plane = 0; plane < max_planes; plane++) {
 		yres = plane == 1 ? yres >> 1 : yres;
@@ -276,7 +284,7 @@ void dcss_dpr_set_res(struct dcss_soc *dcss, int ch_num, u32 xres, u32 yres,
 		pix_y_high = dcss_dpr_y_pix_high_adjust(ch, yres, pix_format);
 
 		/* DTRC may need another width alignment. If it does, use it. */
-		if (pix_x_wide != adj_w)
+		if (pix_x_wide < adj_w)
 			pix_x_wide = adj_w;
 
 		if (pix_y_high != adj_h)
@@ -410,9 +418,9 @@ void dcss_dpr_enable(struct dcss_soc *dcss, int ch_num, bool en)
 {
 	struct dcss_dpr_priv *dpr = dcss->dpr_priv;
 	struct dcss_dpr_ch *ch = &dpr->ch[ch_num];
+	u32 sys_ctrl;
 
-	ch->sys_ctrl &= ~(REPEAT_EN | RUN_EN);
-	ch->sys_ctrl |= (en ? REPEAT_EN | RUN_EN : 0);
+	sys_ctrl = (en ? REPEAT_EN | RUN_EN : 0);
 
 	if (en) {
 		dcss_dpr_write(dpr, ch_num, ch->mode_ctrl, DCSS_DPR_MODE_CTRL0);
@@ -422,7 +430,11 @@ void dcss_dpr_enable(struct dcss_soc *dcss, int ch_num, bool en)
 			       DCSS_DPR_RTRAM_CTRL0);
 	}
 
-	dcss_dpr_write(dpr, ch_num, ch->sys_ctrl, DCSS_DPR_SYSTEM_CTRL0);
+	if (ch->sys_ctrl != sys_ctrl)
+		dcss_dpr_write(dpr, ch_num, sys_ctrl,
+			       DCSS_DPR_SYSTEM_CTRL0);
+
+	ch->sys_ctrl = sys_ctrl;
 }
 EXPORT_SYMBOL(dcss_dpr_enable);
 
@@ -473,6 +485,7 @@ static void dcss_dpr_rtram_set(struct dcss_soc *dcss, int ch_num,
 	switch (pix_format) {
 	case DRM_FORMAT_NV21:
 	case DRM_FORMAT_NV12:
+	case DRM_FORMAT_P010:
 		ch->rtram_3buf_en = 1;
 		ch->rtram_4line_en = 0;
 		break;
@@ -553,6 +566,7 @@ static int dcss_dpr_get_bpp(u32 pix_format)
 	switch (pix_format) {
 	case DRM_FORMAT_NV12:
 	case DRM_FORMAT_NV21:
+	case DRM_FORMAT_P010:
 		bpp = 8;
 		break;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -504,7 +504,7 @@
 				SC_P_EMMC0_DATA5_CONN_EMMC0_DATA5	0x00000021
 				SC_P_EMMC0_DATA6_CONN_EMMC0_DATA6	0x00000021
 				SC_P_EMMC0_DATA7_CONN_EMMC0_DATA7	0x00000021
-				SC_P_EMMC0_STROBE_CONN_EMMC0_STROBE	0x06000041
+				SC_P_EMMC0_STROBE_CONN_EMMC0_STROBE	0x00000041
 				SC_P_EMMC0_RESET_B_CONN_EMMC0_RESET_B	0x00000021
 			>;
 		};
@@ -521,7 +521,7 @@
 				SC_P_EMMC0_DATA5_CONN_EMMC0_DATA5	0x00000020
 				SC_P_EMMC0_DATA6_CONN_EMMC0_DATA6	0x00000020
 				SC_P_EMMC0_DATA7_CONN_EMMC0_DATA7	0x00000020
-				SC_P_EMMC0_STROBE_CONN_EMMC0_STROBE	0x06000040
+				SC_P_EMMC0_STROBE_CONN_EMMC0_STROBE	0x00000040
 				SC_P_EMMC0_RESET_B_CONN_EMMC0_RESET_B	0x00000020
 			>;
 		};
@@ -538,7 +538,7 @@
 				SC_P_EMMC0_DATA5_CONN_EMMC0_DATA5	0x00000020
 				SC_P_EMMC0_DATA6_CONN_EMMC0_DATA6	0x00000020
 				SC_P_EMMC0_DATA7_CONN_EMMC0_DATA7	0x00000020
-				SC_P_EMMC0_STROBE_CONN_EMMC0_STROBE	0x06000040
+				SC_P_EMMC0_STROBE_CONN_EMMC0_STROBE	0x00000040
 				SC_P_EMMC0_RESET_B_CONN_EMMC0_RESET_B	0x00000020
 			>;
 		};
@@ -1438,4 +1438,28 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lvds1_pwm0>;
 	status = "okay";
+};
+
+&tsens {
+	tsens-num = <6>;
+};
+
+&thermal_zones {
+	pmic-thermal0 {
+		polling-delay-passive = <250>;
+		polling-delay = <2000>;
+		thermal-sensors = <&tsens 5>;
+		trips {
+			pmic_alert0: trip0 {
+				temperature = <80000>;
+				hysteresis = <2000>;
+				type = "passive";
+			};
+			pmic_crit0: trip1 {
+				temperature = <125000>;
+				hysteresis = <2000>;
+				type = "critical";
+			};
+		};
+	};
 };

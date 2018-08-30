@@ -56,8 +56,7 @@
 
 #define CTXLD_IRQ_NAME			"ctx_ld" /* irq steer irq name */
 #define CTXLD_IRQ_COMPLETION		(DB_COMP | SB_HP_COMP | SB_LP_COMP)
-#define CTXLD_IRQ_ERROR			(RD_ERR | DB_PEND_SB_REC | \
-					 SB_PEND_DISP_ACTIVE | AHB_ERR)
+#define CTXLD_IRQ_ERROR			(RD_ERR | DB_PEND_SB_REC | AHB_ERR)
 
 /* The following sizes are in entries, 8 bytes each */
 #define CTXLD_DB_CTX_ENTRIES		1024	/* max 65536 */
@@ -203,7 +202,7 @@ void dcss_ctxld_hw_cfg(struct dcss_soc *dcss)
 {
 	struct dcss_ctxld_priv *ctxld = dcss->ctxld_priv;
 
-	dcss_writel(RD_ERR_EN | DB_COMP_EN | SB_HP_COMP_EN | SB_LP_COMP_EN |
+	dcss_writel(RD_ERR_EN | SB_HP_COMP_EN |
 		    DB_PEND_SB_REC_EN | AHB_ERR_EN | RD_ERR | AHB_ERR,
 		    ctxld->ctxld_reg + DCSS_CTXLD_CONTROL_STATUS);
 }

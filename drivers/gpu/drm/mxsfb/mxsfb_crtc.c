@@ -49,24 +49,6 @@ static u32 set_hsync_pulse_width(struct mxsfb_drm_private *mxsfb, u32 val)
 		mxsfb->devdata->hs_wdth_shift;
 }
 
-/*  Print Four-character-code (FOURCC) */
-static char *fourcc_to_str(u32 fmt)
-{
-	/* Use 10 chars so we can simultaneously print two codes */
-	static char code[10], *c = &code[0];
-
-	if (c == &code[10])
-		c = &code[0];
-
-	*(c++) = (unsigned char)(fmt & 0xff);
-	*(c++) = (unsigned char)((fmt >> 8) & 0xff);
-	*(c++) = (unsigned char)((fmt >> 16) & 0xff);
-	*(c++) = (unsigned char)((fmt >> 24) & 0xff);
-	*(c++) = '\0';
-
-	return (c - 5);
-}
-
 /* Setup the MXSFB registers for decoding the pixels out of the framebuffer */
 static int mxsfb_set_pixel_fmt(struct mxsfb_drm_private *mxsfb, bool update)
 {
@@ -75,6 +57,7 @@ static int mxsfb_set_pixel_fmt(struct mxsfb_drm_private *mxsfb, bool update)
 	const u32 format = crtc->primary->state->fb->pixel_format;
 	u32 ctrl = 0, ctrl1 = 0;
 	bool bgr_format = true;
+	char *format_name;
 
 	if (!update)
 		ctrl = CTRL_BYPASS_COUNT | CTRL_MASTER;
@@ -92,8 +75,9 @@ static int mxsfb_set_pixel_fmt(struct mxsfb_drm_private *mxsfb, bool update)
 		ctrl1 &= CTRL1_CUR_FRAME_DONE_IRQ_EN | CTRL1_CUR_FRAME_DONE_IRQ;
 	}
 
-	DRM_DEV_DEBUG_DRIVER(drm->dev, "Setting up %s mode\n",
-		fourcc_to_str(format));
+	format_name = drm_get_format_name(format);
+	DRM_DEV_DEBUG_DRIVER(drm->dev, "Setting up %s mode\n", format_name);
+	kfree(format_name);
 
 	/* Do some clean-up that we might have from a previous mode */
 	ctrl &= ~CTRL_SHIFT_DIR(1);
@@ -104,19 +88,41 @@ static int mxsfb_set_pixel_fmt(struct mxsfb_drm_private *mxsfb, bool update)
 		       mxsfb->base + LCDC_V4_CTRL2 + REG_CLR);
 
 	switch (format) {
-	case DRM_FORMAT_RGB565:
+	case DRM_FORMAT_BGR565: /* BG16 */
+		if (mxsfb->devdata->ipversion < 4)
+			goto err;
+		writel(CTRL2_ODD_LINE_PATTERN(0x5) |
+			CTRL2_EVEN_LINE_PATTERN(0x5),
+			mxsfb->base + LCDC_V4_CTRL2 + REG_SET);
+		/* Fall through */
+	case DRM_FORMAT_RGB565: /* RG16 */
 		ctrl |= CTRL_SET_WORD_LENGTH(0);
+		ctrl &= ~CTRL_DF16;
 		ctrl1 |= CTRL1_SET_BYTE_PACKAGING(0xf);
 		break;
-	case DRM_FORMAT_RGBX8888:
-	case DRM_FORMAT_RGBA8888:
+	case DRM_FORMAT_XBGR1555: /* XB15 */
+	case DRM_FORMAT_ABGR1555: /* AB15 */
+		if (mxsfb->devdata->ipversion < 4)
+			goto err;
+		writel(CTRL2_ODD_LINE_PATTERN(0x5) |
+			CTRL2_EVEN_LINE_PATTERN(0x5),
+			mxsfb->base + LCDC_V4_CTRL2 + REG_SET);
+		/* Fall through */
+	case DRM_FORMAT_XRGB1555: /* XR15 */
+	case DRM_FORMAT_ARGB1555: /* AR15 */
+		ctrl |= CTRL_SET_WORD_LENGTH(0);
+		ctrl |= CTRL_DF16;
+		ctrl1 |= CTRL1_SET_BYTE_PACKAGING(0xf);
+		break;
+	case DRM_FORMAT_RGBX8888: /* RX24 */
+	case DRM_FORMAT_RGBA8888: /* RA24 */
 		/* RGBX - > 0RGB */
 		ctrl |= CTRL_SHIFT_DIR(1);
 		ctrl |= CTRL_SHIFT_NUM(8);
 		bgr_format = false;
 		/* Fall through */
-	case DRM_FORMAT_XBGR8888:
-	case DRM_FORMAT_ABGR8888:
+	case DRM_FORMAT_XBGR8888: /* XB24 */
+	case DRM_FORMAT_ABGR8888: /* AB24 */
 		if (bgr_format) {
 			if (mxsfb->devdata->ipversion < 4)
 				goto err;
@@ -125,8 +131,8 @@ static int mxsfb_set_pixel_fmt(struct mxsfb_drm_private *mxsfb, bool update)
 			       mxsfb->base + LCDC_V4_CTRL2 + REG_SET);
 		}
 		/* Fall through */
-	case DRM_FORMAT_XRGB8888:
-	case DRM_FORMAT_ARGB8888:
+	case DRM_FORMAT_XRGB8888: /* XR24 */
+	case DRM_FORMAT_ARGB8888: /* AR24 */
 		ctrl |= CTRL_SET_WORD_LENGTH(3);
 		/* Do not use packed pixels = one pixel per word instead. */
 		ctrl1 |= CTRL1_SET_BYTE_PACKAGING(0x7);
@@ -146,20 +152,58 @@ static int mxsfb_set_pixel_fmt(struct mxsfb_drm_private *mxsfb, bool update)
 	return 0;
 
 err:
-	DRM_DEV_ERROR(drm->dev, "Unhandled pixel format: %s\n",
-		      fourcc_to_str(format));
+	format_name = drm_get_format_name(format);
+	DRM_DEV_ERROR(drm->dev, "Unhandled pixel format: %s\n", format_name);
+	kfree(format_name);
+
 	return -EINVAL;
+}
+
+static u32 get_bus_format_from_bpp(u32 bpp)
+{
+	switch (bpp) {
+	case 16:
+		return MEDIA_BUS_FMT_RGB565_1X16;
+	case 18:
+		return MEDIA_BUS_FMT_RGB666_1X18;
+	case 24:
+		return MEDIA_BUS_FMT_RGB888_1X24;
+	default:
+		return MEDIA_BUS_FMT_RGB888_1X24;
+	}
 }
 
 static void mxsfb_set_bus_fmt(struct mxsfb_drm_private *mxsfb)
 {
 	struct drm_crtc *crtc = &mxsfb->pipe.crtc;
+	unsigned int bits_per_pixel = crtc->primary->state->fb->bits_per_pixel;
 	struct drm_device *drm = crtc->dev;
 	u32 bus_format = MEDIA_BUS_FMT_RGB888_1X24;
+	int num_bus_formats = mxsfb->connector->display_info.num_bus_formats;
+	const u32 *bus_formats = mxsfb->connector->display_info.bus_formats;
 	u32 reg = 0;
+	int i = 0;
 
-	if (mxsfb->connector->display_info.num_bus_formats)
-		bus_format = mxsfb->connector->display_info.bus_formats[0];
+	/* match the user requested bus_format to one supported by the panel */
+	if (num_bus_formats) {
+		u32 user_bus_format = get_bus_format_from_bpp(bits_per_pixel);
+
+		bus_format = bus_formats[0];
+		for (i = 0; i < num_bus_formats; i++) {
+			if (user_bus_format == bus_formats[i]) {
+				bus_format = user_bus_format;
+				break;
+			}
+		}
+	}
+
+	/*
+	 * CRTC will dictate the bus format via private_flags[16:1]
+	 * and private_flags[0] will signal a bus format change
+	 */
+	crtc->mode.private_flags &= ~0x1FFFF; /* clear bus format */
+	crtc->mode.private_flags |= (bus_format << 1); /* set bus format */
+	crtc->mode.private_flags |= 0x1; /* bus format change indication*/
 
 	DRM_DEV_DEBUG_DRIVER(mxsfb->dev,
 		"Using bus_format: 0x%08X\n", bus_format);
@@ -428,10 +472,14 @@ void mxsfb_plane_atomic_update(struct mxsfb_drm_private *mxsfb,
 	 * also to care about size changes too
 	 */
 	if (old_fb->pixel_format != fb->pixel_format) {
+		char *old_fmt_name = drm_get_format_name(old_fb->pixel_format);
+		char *new_fmt_name = drm_get_format_name(fb->pixel_format);
 		DRM_DEV_DEBUG_DRIVER(drm->dev,
-				     "Switching pixel format: %s -> %s\n",
-				      fourcc_to_str(old_fb->pixel_format),
-				      fourcc_to_str(fb->pixel_format));
+				"Switching pixel format: %s -> %s\n",
+				old_fmt_name,
+				new_fmt_name);
+		kfree(old_fmt_name);
+		kfree(new_fmt_name);
 		mxsfb_set_pixel_fmt(mxsfb, true);
 	}
 
