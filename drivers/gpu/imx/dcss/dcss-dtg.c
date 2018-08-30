@@ -133,6 +133,13 @@ struct dcss_dtg_priv {
 
 	u32 control_status;
 	u32 alpha;
+
+	/*
+	 * This will be passed on by DRM CRTC so that we can signal when DTG has
+	 * been successfully stopped. Otherwise, any modesetting while DTG is
+	 * still on may result in unpredictable behavior.
+	 */
+	struct completion *dis_completion;
 };
 
 static void dcss_dtg_write(struct dcss_dtg_priv *dtg, u32 val, u32 ofs)
@@ -226,6 +233,10 @@ void dcss_dtg_sync_set(struct dcss_soc *dcss, struct videomode *vm)
 	dis_lrc_y = vm->vsync_len + vm->vfront_porch + vm->vback_porch +
 		    vm->vactive - 1;
 
+	clk_disable_unprepare(dcss->p_clk);
+	clk_set_rate(dcss->p_clk, vm->pixelclock);
+	clk_prepare_enable(dcss->p_clk);
+
 	dcss_dtg_write(dtg, ((dtg_lrc_y << TC_Y_POS) | dtg_lrc_x),
 		       DCSS_DTG_TC_DTG);
 	dcss_dtg_write(dtg, ((dis_ulc_y << TC_Y_POS) | dis_ulc_x),
@@ -239,8 +250,6 @@ void dcss_dtg_sync_set(struct dcss_soc *dcss, struct videomode *vm)
 	dcss_dtg_write(dtg,
 		       ((dis_ulc_y << TC_CTXLD_DB_Y_POS) & TC_CTXLD_DB_Y_MASK),
 		       DCSS_DTG_TC_CTXLD);
-
-	clk_set_rate(dcss->p_clk, vm->pixelclock);
 }
 EXPORT_SYMBOL(dcss_dtg_sync_set);
 
@@ -331,18 +340,23 @@ static void dcss_dtg_disable_callback(void *data)
 		    dtg->base_reg + DCSS_DTG_TC_CONTROL_STATUS);
 
 	dtg->in_use = false;
+
+	complete(dtg->dis_completion);
 }
 
-void dcss_dtg_enable(struct dcss_soc *dcss, bool en)
+void dcss_dtg_enable(struct dcss_soc *dcss, bool en,
+		     struct completion *dis_completion)
 {
 	struct dcss_dtg_priv *dtg = dcss->dtg_priv;
 
 	if (!en) {
 		dcss->dcss_disable_callback = dcss_dtg_disable_callback;
+		dtg->dis_completion = dis_completion;
 		return;
 	}
 
 	dcss->dcss_disable_callback = NULL;
+	dtg->dis_completion = NULL;
 
 	dtg->control_status |= DTG_START;
 

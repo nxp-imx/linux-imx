@@ -29,6 +29,11 @@ struct imx_hdp *g_hdp;
 struct drm_display_mode *g_mode;
 
 static const struct drm_display_mode edid_cea_modes[] = {
+	/* 3 - 720x480@60Hz */
+	{ DRM_MODE("720x480", DRM_MODE_TYPE_DRIVER, 27000, 720, 736,
+		   798, 858, 0, 480, 489, 495, 525, 0,
+		   DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC),
+	  .vrefresh = 60, .picture_aspect_ratio = HDMI_PICTURE_ASPECT_16_9, },
 	/* 4 - 1280x720@60Hz */
 	{ DRM_MODE("1280x720", DRM_MODE_TYPE_DRIVER, 74250, 1280, 1390,
 		   1430, 1650, 0, 720, 725, 730, 750, 0,
@@ -622,6 +627,7 @@ static void imx_hdp_mode_setup(struct imx_hdp *hdp, struct drm_display_mode *mod
 	hdp->vic = drm_match_cea_mode(mode);
 }
 
+#if 0
 static int imx_hdp_cable_plugin(struct imx_hdp *hdp)
 {
 	return 0;
@@ -632,7 +638,7 @@ static int imx_hdp_cable_plugout(struct imx_hdp *hdp)
 	imx_hdp_call(hdp, pixel_clock_disable, &hdp->clks);
 	return 0;
 }
-
+#endif
 
 static void imx_hdp_bridge_mode_set(struct drm_bridge *bridge,
 				    struct drm_display_mode *orig_mode,
@@ -710,6 +716,14 @@ imx_hdp_connector_mode_valid(struct drm_connector *connector,
 	struct imx_hdp *hdp = container_of(connector, struct imx_hdp,
 					     connector);
 	enum drm_mode_status mode_status = MODE_OK;
+	struct drm_cmdline_mode *cmdline_mode;
+	cmdline_mode = &connector->cmdline_mode;
+
+	/* cmdline mode is the max support video mode when edid disabled */
+	if (!hdp->is_edid)
+		if (cmdline_mode->xres != 0 &&
+			cmdline_mode->xres < mode->hdisplay)
+			return MODE_BAD_HVALUE;
 
 	if (hdp->is_4kp60 && mode->clock > 594000)
 		return MODE_CLOCK_HIGH;
@@ -963,6 +977,7 @@ static const struct of_device_id imx_hdp_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, imx_hdp_dt_ids);
 
+#if 0
 #ifdef hdp_irq
 static irqreturn_t imx_hdp_irq_handler(int irq, void *data)
 {
@@ -1034,6 +1049,7 @@ static int hpd_det_worker(void *_dp)
 	return 0;
 }
 #endif
+#endif
 
 static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 			    void *data)
@@ -1048,7 +1064,9 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	struct drm_bridge *bridge;
 	struct drm_connector *connector;
 	struct resource *res;
+#if 0
 	struct task_struct *hpd_worker;
+#endif
 	int irq;
 	int ret;
 
@@ -1175,6 +1193,7 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 		return ret;
 	}
 
+#if 0
 #ifdef hdp_irq
 	ret = devm_request_threaded_irq(dev, irq,
 					NULL, imx_hdp_irq_handler,
@@ -1190,6 +1209,7 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	}
 
 	wake_up_process(hpd_worker);	/* avoid contributing to loadavg */
+#endif
 #endif
 
 	return 0;
