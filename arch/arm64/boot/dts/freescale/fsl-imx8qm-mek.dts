@@ -632,19 +632,15 @@
 			>;
 		};
 
-		pinctrl_mipi_csi0_gpio: mipicsi0gpiogrp{
+		pinctrl_gpio1: mipi_csi_en_rst{
 			fsl,pins = <
-				SC_P_MIPI_CSI0_GPIO0_00_MIPI_CSI0_GPIO0_IO00	0x00000021
-				SC_P_MIPI_CSI0_GPIO0_01_MIPI_CSI0_GPIO0_IO01	0x00000021
+				SC_P_MIPI_CSI0_GPIO0_00_LSIO_GPIO1_IO27		0x00000021
+				SC_P_MIPI_CSI0_GPIO0_01_LSIO_GPIO1_IO28		0x00000021
+				SC_P_MIPI_CSI1_GPIO0_00_LSIO_GPIO1_IO30		0x00000021
+				SC_P_MIPI_CSI1_GPIO0_01_LSIO_GPIO1_IO31		0x00000021
 			>;
 		};
 
-		pinctrl_mipi_csi1_gpio: mipicsi1gpiogrp{
-			fsl,pins = <
-				SC_P_MIPI_CSI1_GPIO0_00_MIPI_CSI1_GPIO0_IO00	0x00000021
-				SC_P_MIPI_CSI1_GPIO0_01_MIPI_CSI1_GPIO0_IO01	0x00000021
-			>;
-		};
 	};
 };
 
@@ -1174,15 +1170,9 @@
 	status = "okay";
 };
 
-&gpio0_mipi_csi0 {
+&gpio1 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_mipi_csi0_gpio>;
-	status = "okay";
-};
-
-&gpio0_mipi_csi1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_mipi_csi1_gpio>;
+	pinctrl-0 = <&pinctrl_gpio1>;
 	status = "okay";
 };
 
@@ -1200,7 +1190,7 @@
 		clock-names = "capture_mclk";
 		mclk = <27000000>;
 		mclk_source = <0>;
-		pwn-gpios = <&gpio0_mipi_csi0 0 GPIO_ACTIVE_HIGH>;
+		pwn-gpios = <&gpio1 27 GPIO_ACTIVE_HIGH>;
 		virtual-channel;
 		port {
 			max9286_0_ep: endpoint {
@@ -1225,7 +1215,7 @@
 		clock-names = "capture_mclk";
 		mclk = <27000000>;
 		mclk_source = <0>;
-		pwn-gpios = <&gpio0_mipi_csi1 0 GPIO_ACTIVE_HIGH>;
+		pwn-gpios = <&gpio1 30 GPIO_ACTIVE_HIGH>;
 		virtual-channel;
 		port {
 			max9286_1_ep: endpoint {
@@ -1459,6 +1449,18 @@
 				temperature = <125000>;
 				hysteresis = <2000>;
 				type = "critical";
+			};
+		};
+		cooling-maps {
+			map0 {
+				trip = <&pmic_alert0>;
+				cooling-device =
+				<&A53_0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+			};
+			map1 {
+				trip = <&pmic_alert0>;
+				cooling-device =
+				<&A72_0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 			};
 		};
 	};

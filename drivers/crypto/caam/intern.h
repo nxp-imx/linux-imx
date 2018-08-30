@@ -91,6 +91,7 @@ struct caam_drv_private {
 	/* JobR's register space */
 	struct caam_job_ring __iomem *jr[JOBR_MAX_COUNT];
 	dma_addr_t __iomem *sm_base;	/* Secure memory storage base */
+	phys_addr_t sm_phy;		/* Secure memory storage physical */
 	u32 sm_size;
 
 	/*

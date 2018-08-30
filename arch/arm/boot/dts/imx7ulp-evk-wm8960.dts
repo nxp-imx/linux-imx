@@ -147,18 +147,18 @@
 	imx7ulp-evk-0 {
 		pinctrl_hog_0_1: hoggrp-0-1 {
 			fsl,pins = <
-				ULP1_PAD_PTA24__PTA24		0x127
-				ULP1_PAD_PTB0__CLKOUT		0x900
+				IMX7ULP_PAD_PTA24__PTA24		0x127
+				IMX7ULP_PAD_PTB0__CLKOUT0		0x900
 			>;
 		};
 
 		pinctrl_sai0: sai0_grp {
 			fsl,pins = <
-				ULP1_PAD_PTA4__I2S0_MCLK        0x700
-				ULP1_PAD_PTA5__I2S0_TX_BCLK     0x0700
-				ULP1_PAD_PTA2__I2S0_RXD0        0x0700
-				ULP1_PAD_PTA6__I2S0_TX_FS       0x0700
-				ULP1_PAD_PTA7__I2S0_TXD0        0x0700
+				IMX7ULP_PAD_PTA4__I2S0_MCLK        0x700
+				IMX7ULP_PAD_PTA5__I2S0_TX_BCLK     0x0700
+				IMX7ULP_PAD_PTA2__I2S0_RXD0        0x0700
+				IMX7ULP_PAD_PTA6__I2S0_TX_FS       0x0700
+				IMX7ULP_PAD_PTA7__I2S0_TXD0        0x0700
 			>;
 		};
 	};

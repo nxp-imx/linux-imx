@@ -73,12 +73,26 @@
 			no-map;
 			reg = <0 0x8e000000 0 0x1ffffff>;
 		};
-
+		decoder_boot: decoder_boot@0x88000000 {
+			no-map;
+			reg = <0 0x88000000 0 0x2000000>;
+		};
+		encoder_boot: encoder_boot@0x8A000000 {
+			no-map;
+			reg = <0 0x8A000000 0 0x2000000>;
+		};
+		/* global autoconfigured region for contiguous allocations */
+		linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0 0x28000000>;
+			alloc-ranges = <0 0x90000000 0 0x28000000>;
+			linux,cma-default;
+		};
 		rpmsg_reserved: rpmsg@0xb8000000 {
 			no-map;
 			reg = <0 0xb8000000 0 0x400000>;
 		};
-
 		ramoops@0xb7f00000 {
 			compatible = "ramoops";
 			reg = <0 0xb7f00000 0 0x00100000>;
@@ -86,6 +100,14 @@
 			console-size    = <0x00020000>;
 			ftrace-size     = <0x00020000>;
 			pmsg-size       = <0x00020000>;
+		};
+		decoder_rpc: decoder_rpc@0xB9000000 {
+			no-map;
+			reg = <0 0xB9000000 0 0x1000000>;
+		};
+		encoder_rpc: encoder_rpc@0xBA000000 {
+			no-map;
+			reg = <0 0xBA000000 0 0x1000000>;
 		};
 	};
 
@@ -116,7 +138,29 @@
 		fsl,hifi_ap_mu_id = <13>;
 		status = "okay";
 	};
+	mu_m4: mu_m4@37440000 {
+		compatible = "fsl,imx8-mu0-vpu-m4";
+		reg = <0x0 0x37440000 0x0 0x10000>;
+		interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
+		fsl,vpu_ap_mu_id = <15>;
+		status = "okay";
+	};
 
+	mu_m0: mu_m0@2d000000 {
+		compatible = "fsl,imx8-mu0-vpu-m0";
+		reg = <0x0 0x2d000000 0x0 0x10000>;
+		interrupts = <GIC_SPI 469 IRQ_TYPE_LEVEL_HIGH>;
+		fsl,vpu_ap_mu_id = <16>;
+		status = "okay";
+	};
+
+	mu1_m0: mu1_m0@2d020000 {
+		compatible = "fsl,imx8-mu1-vpu-m0";
+		reg = <0x0 0x2d020000 0x0 0x10000>;
+		interrupts = <GIC_SPI 470 IRQ_TYPE_LEVEL_HIGH>;
+		fsl,vpu_ap_mu_id = <17>;
+		status = "okay";
+	};
 	clk: clk {
 		compatible = "fsl,imx8qxp-clk";
 		#clock-cells = <1>;
@@ -378,96 +422,139 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			pd_asrc0:PD_AUD_ASRC_0 {
-				reg = <SC_R_ASRC_0>;
-				#power-domain-cells = <0>;
+			pd_audio_pll0: PD_AUD_AUDIO_PLL_0 {
+				reg = <SC_R_AUDIO_PLL_0>;
 				power-domains =<&pd_audio>;
-			};
-			pd_asrc1: PD_AUD_ASRC_1 {
-				reg = <SC_R_ASRC_1>;
 				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				pd_audio_pll1: PD_AUD_AUDIO_PLL_1 {
+					reg = <SC_R_AUDIO_PLL_1>;
+					power-domains =<&pd_audio_pll0>;
+					#power-domain-cells = <0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					pd_audio_clk0: PD_AUD_AUDIO_CLK_0 {
+						reg = <SC_R_AUDIO_CLK_0>;
+						power-domains =<&pd_audio_pll1>;
+						#power-domain-cells = <0>;
+						#address-cells = <1>;
+						#size-cells = <0>;
+
+						pd_audio_clk1: PD_AUD_AUDIO_CLK_1 {
+							reg = <SC_R_AUDIO_CLK_1>;
+							#power-domain-cells = <0>;
+							power-domains =<&pd_audio_clk0>;
+							#address-cells = <1>;
+							#size-cells = <0>;
+
+							pd_asrc0:PD_AUD_ASRC_0 {
+								reg = <SC_R_ASRC_0>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_asrc1: PD_AUD_ASRC_1 {
+								reg = <SC_R_ASRC_1>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_esai0: PD_AUD_ESAI_0 {
+								reg = <SC_R_ESAI_0>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_spdif0: PD_AUD_SPDIF_0 {
+								reg = <SC_R_SPDIF_0>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_sai0:PD_AUD_SAI_0 {
+								reg = <SC_R_SAI_0>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_sai1: PD_AUD_SAI_1 {
+								reg = <SC_R_SAI_1>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_sai2: PD_AUD_SAI_2 {
+								reg = <SC_R_SAI_2>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_sai3: PD_AUD_SAI_3 {
+								reg = <SC_R_SAI_3>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_sai4: PD_AUD_SAI_4 {
+								reg = <SC_R_SAI_4>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_sai5: PD_AUD_SAI_5 {
+								reg = <SC_R_SAI_5>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_gpt5: PD_AUD_GPT_5 {
+								reg = <SC_R_GPT_5>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_gpt6: PD_AUD_GPT_6 {
+								reg = <SC_R_GPT_6>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_gpt7: PD_AUD_GPT_7 {
+								reg = <SC_R_GPT_7>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_gpt8: PD_AUD_GPT_8 {
+								reg = <SC_R_GPT_8>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_gpt9: PD_AUD_GPT_9 {
+								reg = <SC_R_GPT_9>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_gpt10: PD_AUD_GPT_10 {
+								reg = <SC_R_GPT_10>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_amix: PD_AUD_AMIX {
+								reg = <SC_R_AMIX>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_mqs0: PD_AUD_MQS_0 {
+								reg = <SC_R_MQS_0>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_mclk_out0: PD_AUD_MCLK_OUT_0 {
+								reg = <SC_R_MCLK_OUT_0>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+							pd_mclk_out1: PD_AUD_MCLK_OUT_1 {
+								reg = <SC_R_MCLK_OUT_1>;
+								#power-domain-cells = <0>;
+								power-domains =<&pd_audio_clk1>;
+							};
+						};
+					};
+				};
 			};
-			pd_esai0: PD_AUD_ESAI_0 {
-				reg = <SC_R_ESAI_0>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_spdif0: PD_AUD_SPDIF_0 {
-				reg = <SC_R_SPDIF_0>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_sai0:PD_AUD_SAI_0 {
-				reg = <SC_R_SAI_0>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_sai1: PD_AUD_SAI_1 {
-				reg = <SC_R_SAI_1>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_sai2: PD_AUD_SAI_2 {
-				reg = <SC_R_SAI_2>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_sai3: PD_AUD_SAI_3 {
-				reg = <SC_R_SAI_3>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_sai4: PD_AUD_SAI_4 {
-				reg = <SC_R_SAI_4>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_sai5: PD_AUD_SAI_5 {
-				reg = <SC_R_SAI_5>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_gpt5: PD_AUD_GPT_5 {
-				reg = <SC_R_GPT_5>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_gpt6: PD_AUD_GPT_6 {
-				reg = <SC_R_GPT_6>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_gpt7: PD_AUD_GPT_7 {
-				reg = <SC_R_GPT_7>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_gpt8: PD_AUD_GPT_8 {
-				reg = <SC_R_GPT_8>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_gpt9: PD_AUD_GPT_9 {
-				reg = <SC_R_GPT_9>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_gpt10: PD_AUD_GPT_10 {
-				reg = <SC_R_GPT_10>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_amix: PD_AUD_AMIX {
-				reg = <SC_R_AMIX>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_mqs0: PD_AUD_MQS_0 {
-				reg = <SC_R_MQS_0>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
+
 			pd_hifi: PD_AUD_HIFI {
 				reg = <SC_R_DSP>;
 				#power-domain-cells = <0>;
@@ -475,36 +562,6 @@
 			};
 			pd_hifi_ram: PD_AUD_OCRAM {
 				reg = <SC_R_DSP_RAM>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_mclk_out0: PD_AUD_MCLK_OUT_0 {
-				reg = <SC_R_MCLK_OUT_0>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_mclk_out1: PD_AUD_MCLK_OUT_1 {
-				reg = <SC_R_MCLK_OUT_1>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_audio_pll0: PD_AUD_AUDIO_PLL_0 {
-				reg = <SC_R_AUDIO_PLL_0>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_audio_pll1: PD_AUD_AUDIO_PLL_1 {
-				reg = <SC_R_AUDIO_PLL_1>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_audio_clk0: PD_AUD_AUDIO_CLK_0 {
-				reg = <SC_R_AUDIO_CLK_0>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_audio>;
-			};
-			pd_audio_clk1: PD_AUD_AUDIO_CLK_1 {
-				reg = <SC_R_AUDIO_CLK_1>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_audio>;
 			};
@@ -818,6 +875,35 @@
 					reg = <SC_R_CSI_0_PWM_0>;
 					#power-domain-cells = <0>;
 					power-domains =<&pd_mipi_csi>;
+				};
+			};
+
+			pd_parallel_csi: PD_PARALLEL_CSI {
+				reg = <SC_R_PI_0>;
+				#power-domain-cells = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+				power-domains =<&pd_isi_ch0>;
+
+				pd_parallel_csi_i2c0: PD_PARALLEL_CSI_I2C {
+					name = "parallel_csi_i2c";
+					reg = <SC_R_PI_0_I2C_0>;
+					#power-domain-cells = <0>;
+					power-domains =<&pd_parallel_csi>;
+				};
+
+				pd_parallel_csi_pwm0: PD_PARALLEL_CSI_PWM {
+					name = "parallel_csi_pwm";
+					reg = <SC_R_PI_0_PWM_0>;
+					#power-domain-cells = <0>;
+					power-domains =<&pd_parallel_csi>;
+				};
+
+				pd_parallel_csi_pll: PD_PARALLEL_CSI_PLL {
+					name = "parallel_csi_pll";
+					reg = <SC_R_PI_0_PLL>;
+					#power-domain-cells = <0>;
+					power-domains =<&pd_parallel_csi>;
 				};
 			};
 
@@ -1548,7 +1634,7 @@
 		};
 	};
 
-	camera {
+	cameradev: camera {
 		compatible = "fsl,mxc-md", "simple-bus";
 		#address-cells = <2>;
 		#size-cells = <2>;
@@ -1676,6 +1762,23 @@
 							<&clk IMX8QXP_CSI0_ESC_CLK>;
 			assigned-clock-rates = <360000000>, <72000000>;
 			power-domains = <&pd_mipi_csi>;
+			status = "disabled";
+		};
+
+		parallel_csi: pcsi@58261000 {
+			compatible = "fsl,mxc-parallel-csi";
+			reg = <0x0 0x58261000 0x0 0x1000>;
+			clocks = <&clk IMX8QXP_PARALLEL_CSI_PIXEL_CLK>,
+				   <&clk IMX8QXP_PARALLEL_CSI_IPG_CLK>,
+				   <&clk IMX8QXP_PARALLEL_CSI_CLK_SEL>,
+				   <&clk IMX8QXP_PARALLEL_CSI_PER_CLK_DIV>,
+				   <&clk IMX8QXP_PARALLEL_CSI_CLK_DPLL>;
+			clock-names = "pixel", "ipg", "sel", "div", "dpll";
+			assigned-clocks = <&clk IMX8QXP_PARALLEL_CSI_CLK_SEL>,
+							<&clk IMX8QXP_PARALLEL_CSI_PER_CLK_DIV>;
+			assigned-clock-parents = <&clk IMX8QXP_PARALLEL_CSI_CLK_DPLL>;
+			assigned-clock-rates = <0>, <160000000>;  /* 160MHz */
+			power-domains = <&pd_parallel_csi>;
 			status = "disabled";
 		};
 
@@ -2658,6 +2761,33 @@
 		status = "disabled";
 	};
 
+	vpu_decoder: vpu_decoder@2c000000 {
+		compatible = "nxp,imx8qm-vpu-decoder", "nxp,imx8qxp-vpu-decoder";
+		boot-region = <&decoder_boot>;
+		rpc-region = <&decoder_rpc>;
+		reg = <0x0 0x2c000000 0x0 0x1000000>;
+		reg-names = "vpu_regs";
+		clocks = <&clk IMX8QXP_VPU_DEC_CLK>;
+		clock-names = "vpu_clk";
+		assigned-clocks = <&clk IMX8QXP_VPU_DEC_CLK>;
+		assigned-clock-rates = <600000000>;
+		power-domains = <&pd_vpu_dec>;
+		status = "disabled";
+	};
+
+	vpu_encoder: vpu_encoder@2d000000 {
+		compatible = "nxp,imx8qm-vpu-encoder", "nxp,imx8qxp-vpu-encoder";
+		boot-region = <&encoder_boot>;
+		rpc-region = <&encoder_rpc>;
+		reg = <0x0 0x2d000000 0x0 0x1000000>;
+		reg-names = "vpu_regs";
+		clocks = <&clk IMX8QXP_VPU_ENC_CLK>;
+		clock-names = "vpu_encoder_clk";
+		assigned-clocks = <&clk IMX8QXP_VPU_ENC_CLK>;
+		assigned-clock-rates = <600000000>;
+		power-domains = <&pd_vpu_enc>;
+		status = "disabled";
+	};
 	imx_rpmsg: imx_rpmsg {
 		compatible = "fsl,rpmsg-bus", "simple-bus";
 		#address-cells = <2>;

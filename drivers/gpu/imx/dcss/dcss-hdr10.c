@@ -357,16 +357,15 @@ static u32 *dcss_hdr10_find_tbl(u64 desc, struct list_head *head)
 {
 	struct list_head *node;
 	struct dcss_hdr10_tbl_node *tbl_node;
-	u32 *tbl = NULL;
 
 	list_for_each(node, head) {
 		tbl_node = container_of(node, struct dcss_hdr10_tbl_node, node);
 
 		if ((tbl_node->tbl_descriptor & desc) == desc)
-			tbl = tbl_node->tbl_data;
+			return tbl_node->tbl_data;
 	}
 
-	return tbl;
+	return NULL;
 }
 
 static int dcss_hdr10_get_tbls(struct dcss_hdr10_priv *hdr10, bool input,
@@ -652,6 +651,6 @@ void dcss_hdr10_setup(struct dcss_soc *dcss, int ch_num,
 	 * Input pipe configuration doesn't matter for configuring the output
 	 * pipe. So, will just mask off the input part of the descriptor.
 	 */
-	dcss_hdr10_pipe_setup(dcss, OPIPE_CH_NO, desc | 0xffff);
+	dcss_hdr10_pipe_setup(dcss, OPIPE_CH_NO, desc | 0xfffe);
 }
 EXPORT_SYMBOL(dcss_hdr10_setup);

@@ -1020,16 +1020,11 @@ int caam_sm_startup(struct platform_device *pdev)
 	spin_lock_init(&smpriv->kslock);
 
 	/* Create the dev */
-#ifdef CONFIG_OF
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx6q-caam-sm");
 	if (np)
 		of_node_clear_flag(np, OF_POPULATED);
 	sm_pdev = of_platform_device_create(np, "caam_sm", ctrldev);
-#else
-	sm_pdev = platform_device_register_data(ctrldev, "caam_sm", 0,
-						smpriv,
-					sizeof(struct caam_drv_private_sm));
-#endif
+
 	if (sm_pdev == NULL) {
 		kfree(smpriv);
 		return -EINVAL;
@@ -1126,8 +1121,8 @@ int caam_sm_startup(struct platform_device *pdev)
 				lpagedesc[page].pg_phys = (u8 *)0x20800000 +
 					(smpriv->page_size * page);
 			} else {
-/* FIXME: get base address from platform property... */
-				lpagedesc[page].pg_phys = (u8 *)0x00100000 +
+				lpagedesc[page].pg_phys =
+					(u8 *) ctrlpriv->sm_phy +
 					(smpriv->page_size * page);
 			}
 			lpagect++;
@@ -1192,7 +1187,7 @@ void caam_sm_shutdown(struct platform_device *pdev)
 	kfree(smpriv);
 }
 EXPORT_SYMBOL(caam_sm_shutdown);
-#ifdef CONFIG_OF
+
 static void  __exit caam_sm_exit(void)
 {
 	struct device_node *dev_node;
@@ -1249,4 +1244,3 @@ module_exit(caam_sm_exit);
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("FSL CAAM Secure Memory / Keystore");
 MODULE_AUTHOR("Freescale Semiconductor - NMSG/MAD");
-#endif

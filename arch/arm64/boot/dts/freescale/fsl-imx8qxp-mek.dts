@@ -258,6 +258,7 @@
 		pinctrl_hog: hoggrp {
 			fsl,pins = <
 				SC_P_MCLK_OUT0_ADMA_ACM_MCLK_OUT0	0x0600004c
+				SC_P_COMP_CTL_GPIO_1V8_3V3_GPIORHB_PAD	0x000514a0
 			>;
 		};
 
@@ -556,6 +557,14 @@
 				SC_P_MIPI_CSI0_GPIO0_01_MIPI_CSI0_GPIO0_IO01	0x00000021
 			>;
 		};
+
+		pinctrl_gpio3: gpio3grp{
+			fsl,pins = <
+				SC_P_MIPI_CSI0_GPIO0_01_LSIO_GPIO3_IO07		0xC0000041
+				SC_P_MIPI_CSI0_GPIO0_00_LSIO_GPIO3_IO08		0xC0000041
+			>;
+		};
+
 	};
 };
 
@@ -967,11 +976,6 @@
 	status = "okay";
 };
 
-&gpio0_mipi_csi0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_mipi_csi0_gpio>;
-};
-
 &mipi_csi_0 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -1004,6 +1008,11 @@
 	status = "okay";
 };
 
+&gpio3 {
+	pinctrl-name = "default";
+	pinctrl-0 = <&pinctrl_gpio3>;
+};
+
 &i2c0_csi0 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -1019,7 +1028,7 @@
 		clock-names = "capture_mclk";
 		mclk = <27000000>;
 		mclk_source = <0>;
-		pwn-gpios = <&gpio0_mipi_csi0 0 GPIO_ACTIVE_HIGH>;
+		pwn-gpios = <&gpio3 7 GPIO_ACTIVE_HIGH>;
 		virtual-channel;
 		status = "okay";
 		port {
@@ -1211,6 +1220,13 @@
 				temperature = <125000>;
 				hysteresis = <2000>;
 				type = "critical";
+			};
+		};
+		cooling-maps {
+			map0 {
+				trip = <&pmic_alert0>;
+				cooling-device =
+				<&A35_0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 			};
 		};
 	};
