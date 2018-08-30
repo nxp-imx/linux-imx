@@ -1,6 +1,7 @@
 /*
  * CAAM Secure Memory Storage Interface
  * Copyright (C) 2008-2015 Freescale Semiconductor, Inc.
+ * Copyright 2018 NXP
  *
  * Loosely based on the SHW Keystore API for SCC/SCC2
  * Experimental implementation and NOT intended for upstream use. Expect
@@ -501,7 +502,7 @@ int slot_dealloc(struct device *dev, u32 unit, u32 slot)
 
 	if (ksdata->slot[slot].allocated == 1) {
 		/* Forcibly overwrite the data from the keystore */
-		memset(ksdata->base_address + slot * smpriv->slot_size, 0,
+		memset_io(ksdata->base_address + slot * smpriv->slot_size, 0,
 		       smpriv->slot_size);
 
 		ksdata->slot[slot].allocated = 0;
@@ -798,8 +799,7 @@ int sm_keystore_slot_load(struct device *dev, u32 unit, u32 slot,
 
 	slot_location = smpriv->slot_get_address(dev, unit, slot);
 
-	for (i = 0; i < key_length; i++)
-		slot_location[i] = key_data[i];
+	memcpy_toio(slot_location, key_data, key_length);
 
 	retval = 0;
 
@@ -827,7 +827,7 @@ int sm_keystore_slot_read(struct device *dev, u32 unit, u32 slot,
 		goto out;
 	}
 
-	memcpy(key_data, slot_addr, key_length);
+	memcpy_fromio(key_data, slot_addr, key_length);
 	retval = 0;
 
 out:
@@ -1107,11 +1107,11 @@ int caam_sm_startup(struct platform_device *pdev)
 				(pgstat & SMCS_PAGE_MASK) >> SMCS_PAGE_SHIFT;
 			lpagedesc[page].own_part =
 				(pgstat & SMCS_PART_SHIFT) >> SMCS_PART_MASK;
-			lpagedesc[page].pg_base = ctrlpriv->sm_base +
-				((smpriv->page_size * page) / sizeof(u32));
+			lpagedesc[page].pg_base = (u8 *)ctrlpriv->sm_base +
+				(smpriv->page_size * page);
 			/* FIXME: get base address from platform property... */
-			lpagedesc[page].pg_phys = (u32 *)0x00100000 +
-				((smpriv->page_size * page) / sizeof(u32));
+			lpagedesc[page].pg_phys = (u8 *)0x00100000 +
+				(smpriv->page_size * page);
 			lpagect++;
 #ifdef SM_DEBUG
 			dev_info(smdev,

@@ -101,7 +101,7 @@ static int select_N_index(int vmode_index)
 	}
 
 	if (i == VIC_MODE_COUNT) {
-		pr_err("vmode is wrong!\n");
+		DRM_ERROR("vmode is wrong!\n");
 		j = 7;
 		return j;
 	}
@@ -190,8 +190,7 @@ static void imx_hdp_state_init(struct imx_hdp *hdp)
 	memset(state, 0, sizeof(state_struct));
 	mutex_init(&state->mutex);
 
-	state->mem.regs_base = hdp->regs_base;
-	state->mem.ss_base = hdp->ss_base;
+	state->mem = &hdp->mem;
 	state->rw = hdp->rw;
 }
 
@@ -208,7 +207,7 @@ static void imx8qm_pixel_link_mux(state_struct *state, struct drm_display_mode *
 	if (mode->flags & DRM_MODE_FLAG_INTERLACE)
 		val |= 0x2;
 
-	writel(val, hdp->ss_base + CSR_PIXEL_LINK_MUX_CTL);
+	writel(val, hdp->mem.ss_base + CSR_PIXEL_LINK_MUX_CTL);
 }
 
 int imx8qm_pixel_link_init(state_struct *state)
@@ -218,13 +217,13 @@ int imx8qm_pixel_link_init(state_struct *state)
 
 	sciErr = sc_ipc_getMuID(&hdp->mu_id);
 	if (sciErr != SC_ERR_NONE) {
-		pr_err("Cannot obtain MU ID\n");
+		DRM_ERROR("Cannot obtain MU ID\n");
 		return -EINVAL;
 	}
 
 	sciErr = sc_ipc_open(&hdp->ipcHndl, hdp->mu_id);
 	if (sciErr != SC_ERR_NONE) {
-		pr_err("sc_ipc_open failed! (sciError = %d)\n", sciErr);
+		DRM_ERROR("sc_ipc_open failed! (sciError = %d)\n", sciErr);
 		return -EINVAL;
 	}
 
@@ -254,7 +253,7 @@ void imx8qm_phy_reset(sc_ipc_t ipcHndl, u8 reset)
 	/* set the pixel link mode and pixel type */
 	sciErr = sc_misc_set_control(ipcHndl, SC_R_HDMI, SC_C_PHY_RESET, reset);
 	if (sciErr != SC_ERR_NONE)
-		pr_err("SC_R_HDMI PHY reset failed %d!\n", sciErr);
+		DRM_ERROR("SC_R_HDMI PHY reset failed %d!\n", sciErr);
 }
 
 int imx8qm_clock_init(struct hdp_clks *clks)
@@ -581,6 +580,16 @@ static int imx_get_vic_index(struct drm_display_mode *mode)
 	return -1;
 }
 
+static u8 imx_hdp_link_rate(struct drm_display_mode *mode)
+{
+	if (mode->clock < 297000)
+		return AFE_LINK_RATE_1_6;
+	else if (mode->clock > 297000)
+		return AFE_LINK_RATE_5_4;
+	else
+		return AFE_LINK_RATE_2_7;
+}
+
 static void imx_hdp_mode_setup(struct imx_hdp *hdp, struct drm_display_mode *mode)
 {
 	int dp_vic;
@@ -603,6 +612,7 @@ static void imx_hdp_mode_setup(struct imx_hdp *hdp, struct drm_display_mode *mod
 	/* Config pixel link mux */
 	imx_hdp_call(hdp, pixel_link_mux, &hdp->state, mode);
 
+	hdp->link_rate = imx_hdp_link_rate(mode);
 	/* mode set */
 	ret = imx_hdp_call(hdp, phy_init, &hdp->state, dp_vic, 1, 8);
 	if (ret < 0) {
@@ -709,7 +719,7 @@ imx_hdp_connector_mode_valid(struct drm_connector *connector,
 					     connector);
 	enum drm_mode_status mode_status = MODE_OK;
 	struct drm_cmdline_mode *cmdline_mode;
-	u32 hdp_vic;
+	int hdp_vic;
 
 	cmdline_mode = &connector->cmdline_mode;
 
@@ -727,7 +737,7 @@ imx_hdp_connector_mode_valid(struct drm_connector *connector,
 
 	if (hdp->is_4kp60 && mode->clock > 594000)
 		return MODE_CLOCK_HIGH;
-	else if (!hdp->is_4kp60 && mode->clock > 150000)
+	else if (!hdp->is_4kp60 && mode->clock > 297000)
 		return MODE_CLOCK_HIGH;
 
 	/* 4096x2160 is not supported now */
@@ -1062,19 +1072,20 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 
 	/* register map */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	hdp->regs_base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(hdp->regs_base)) {
+	hdp->mem.regs_base = devm_ioremap_resource(dev, res);
+	if (IS_ERR(hdp->mem.regs_base)) {
 		dev_err(dev, "Failed to get HDP CTRL base register\n");
 		return -EINVAL;
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	hdp->ss_base = devm_ioremap_resource(dev, res);
-	if (IS_ERR(hdp->ss_base)) {
+	hdp->mem.ss_base = devm_ioremap_resource(dev, res);
+	if (IS_ERR(hdp->mem.ss_base)) {
 		dev_err(dev, "Failed to get HDP CRS base register\n");
 		return -EINVAL;
 	}
 
+	hdp->is_cec = of_property_read_bool(pdev->dev.of_node, "fsl,cec");
 	hdp->is_edid = devtype->is_edid;
 	hdp->is_4kp60 = devtype->is_4kp60;
 	hdp->audio_type = devtype->audio_type;
@@ -1115,7 +1126,6 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 
 	ret = imx_hdp_call(hdp, fw_init, &hdp->state);
 	if (ret < 0) {
-		pr_err("Failed to initialise HDP firmware\n");
 		DRM_ERROR("Failed to initialise HDP firmware\n");
 		return ret;
 	}
@@ -1211,6 +1221,10 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 #endif
 		}
 	}
+#ifdef CONFIG_IMX_HDP_CEC
+	if (hdp->is_cec)
+		imx_cec_register(&hdp->cec);
+#endif
 
 	return 0;
 err_irq:
@@ -1223,6 +1237,10 @@ static void imx_hdp_imx_unbind(struct device *dev, struct device *master,
 {
 	struct imx_hdp *hdp = dev_get_drvdata(dev);
 
+#ifdef CONFIG_IMX_HDP_CEC
+	if (hdp->is_cec)
+		imx_cec_unregister(&hdp->cec);
+#endif
 	imx_hdp_call(hdp, pixel_clock_disable, &hdp->clks);
 	imx_hdp_call(hdp, pixel_link_deinit, &hdp->state);
 	drm_bridge_detach(&hdp->bridge);

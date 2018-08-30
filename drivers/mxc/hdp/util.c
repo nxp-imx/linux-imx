@@ -35,7 +35,7 @@
  * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  ******************************************************************************
  *
@@ -50,28 +50,28 @@
 
 int cdn_apb_read(state_struct *state, u32 addr, u32 *value)
 {
-	struct hdp_mem *mem = &state->mem;
+	struct hdp_mem *mem = state->mem;
 	state->rw->read_reg(mem, addr, value);
 	return 0;
 }
 
 int cdn_apb_write(state_struct *state, u32 addr, u32 value)
 {
-	struct hdp_mem *mem = &state->mem;
+	struct hdp_mem *mem = state->mem;
 	state->rw->write_reg(mem, addr, value);
 	return 0;
 }
 
 int cdn_sapb_read(state_struct *state, u32 addr, u32 *value)
 {
-	struct hdp_mem *mem = &state->mem;
+	struct hdp_mem *mem = state->mem;
 	state->rw->sread_reg(mem, addr, value);
 	return 0;
 }
 
 int cdn_sapb_write(state_struct *state, u32 addr, u32 value)
 {
-	struct hdp_mem *mem = &state->mem;
+	struct hdp_mem *mem = state->mem;
 	state->rw->swrite_reg(mem, addr, value);
 	return 0;
 }

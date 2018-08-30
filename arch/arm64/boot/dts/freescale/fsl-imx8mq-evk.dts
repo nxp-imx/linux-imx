@@ -135,6 +135,7 @@
 		model = "ak4458-audio";
 		audio-cpu = <&sai1>;
 		audio-codec = <&ak4458_1>, <&ak4458_2>;
+		ak4458,pdn-gpio = <&gpio3 18 GPIO_ACTIVE_HIGH>;
 	};
 
 	sound-ak5558 {
@@ -412,9 +413,9 @@
 				MX8MQ_IOMUXC_SAI5_RXC_SAI5_RX_BCLK	0xd6
 				MX8MQ_IOMUXC_SAI5_RXFS_SAI5_RX_SYNC	0xd6
 				MX8MQ_IOMUXC_SAI5_RXD0_SAI5_RX_DATA0	0xd6
-				MX8MQ_IOMUXC_SAI5_RXD1_SAI5_TX_SYNC	0xd6
-				MX8MQ_IOMUXC_SAI5_RXD2_SAI5_TX_BCLK	0xd6
-				MX8MQ_IOMUXC_SAI5_RXD3_SAI5_TX_DATA0	0xd6
+				MX8MQ_IOMUXC_SAI5_RXD1_SAI5_RX_DATA1    0xd6
+				MX8MQ_IOMUXC_SAI5_RXD2_SAI5_RX_DATA2    0xd6
+				MX8MQ_IOMUXC_SAI5_RXD3_SAI5_RX_DATA3    0xd6
 			>;
 		};
 
@@ -455,7 +456,7 @@
 };
 
 &i2c1 {
-	clock-frequency = <100000>;
+	clock-frequency = <400000>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_i2c1>;
 	status = "okay";
@@ -627,7 +628,6 @@
 	ak4458_1: ak4458@10 {
 		compatible = "asahi-kasei,ak4458";
 		reg = <0x10>;
-		ak4458,pdn-gpio = <&gpio3 18 GPIO_ACTIVE_HIGH>;
 	};
 
 	ak4458_2: ak4458@12 {
@@ -861,10 +861,6 @@
 };
 
 &hdmi {
-	status = "okay";
-};
-
-&hdmi_cec {
 	status = "okay";
 };
 

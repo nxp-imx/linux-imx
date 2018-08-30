@@ -18,10 +18,10 @@
 	interrupt-parent = <&intc>;
 
 	aliases {
-		gpio0 = &gpio0;
-		gpio1 = &gpio1;
-		gpio2 = &gpio2;
-		gpio3 = &gpio3;
+		gpio0 = &gpio_ptc;
+		gpio1 = &gpio_ptd;
+		gpio2 = &gpio_pte;
+		gpio3 = &gpio_ptf;
 		mmc0 = &usdhc0;
 		mmc1 = &usdhc1;
 		serial0 = &lpuart4;
@@ -85,18 +85,18 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		ckil: clock@0 {
+		rosc: clock@0 {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency = <32768>;
-			clock-output-names = "ckil";
+			clock-output-names = "rosc";
 		};
 
-		osc: clock@1 {
+		sosc: clock@1 {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency = <24000000>;
-			clock-output-names = "osc";
+			clock-output-names = "sosc";
 		};
 
 		sirc: clock@2 {
@@ -193,7 +193,7 @@
 			reg = <0x40250000 0x1000>;
 			nxp,pwm-number = <6>;
 			assigned-clocks = <&clks IMX7ULP_CLK_LPTPM4>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_OSC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_SOSC_BUS_CLK>;
 			clocks = <&clks IMX7ULP_CLK_LPTPM4>;
 			#pwm-cells = <2>;
 		};
@@ -202,7 +202,9 @@
 			compatible = "fsl,imx7ulp-tpm";
 			reg = <0x40260000 0x1000>;
 			interrupts = <GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&clks IMX7ULP_CLK_LPTPM5>;
+			clocks = <&clks IMX7ULP_CLK_LPTPM5>,
+				 <&clks IMX7ULP_CLK_NIC1_BUS_DIV>;
+			clock-names = "per", "ipg";
 		};
 
 		lpit: 1@40270000 {
@@ -213,7 +215,7 @@
 			clocks = <&clks IMX7ULP_CLK_LPIT1>;
 			assigned-clock-rates = <48000000>;
 			assigned-clocks = <&clks IMX7ULP_CLK_LPIT1>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 		};
 
 		lpi2c4: lpi2c4@402B0000 {
@@ -224,7 +226,7 @@
 				 <&clks IMX7ULP_CLK_NIC1_BUS_DIV>;
 			clock-names = "per", "ipg";
 			assigned-clocks = <&clks IMX7ULP_CLK_LPI2C4>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			assigned-clock-rates = <48000000>;
 			status = "disabled";
 		};
@@ -237,7 +239,7 @@
 				 <&clks IMX7ULP_CLK_NIC1_BUS_DIV>;
 			clock-names = "per", "ipg";
 			assigned-clocks = <&clks IMX7ULP_CLK_LPI2C5>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			assigned-clock-rates = <48000000>;
 		};
 
@@ -249,7 +251,7 @@
 				 <&clks IMX7ULP_CLK_DUMMY>;
 			clock-names = "per", "ipg";
 			assigned-clocks = <&clks IMX7ULP_CLK_LPSPI2>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			assigned-clock-rates = <48000000>;
 			status = "disabled";
 		};
@@ -262,7 +264,7 @@
 				 <&clks IMX7ULP_CLK_DUMMY>;
 			clock-names = "per", "ipg";
 			assigned-clocks = <&clks IMX7ULP_CLK_LPSPI3>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			assigned-clock-rates = <48000000>;
 			status = "disabled";
 		};
@@ -274,7 +276,7 @@
 			clocks = <&clks IMX7ULP_CLK_LPUART4>;
 			clock-names = "ipg";
 			assigned-clocks = <&clks IMX7ULP_CLK_LPUART4>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_OSC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_SOSC_BUS_CLK>;
 			assigned-clock-rates = <24000000>;
 			status = "disabled";
 		};
@@ -286,7 +288,7 @@
 			clocks = <&clks IMX7ULP_CLK_LPUART5>;
 			clock-names = "ipg";
 			assigned-clocks = <&clks IMX7ULP_CLK_LPUART5>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			assigned-clock-rates = <48000000>;
 			dmas = <&edma0 0 20>, <&edma0 0 19>;
 			dma-names = "tx","rx";
@@ -357,7 +359,7 @@
 			interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clks IMX7ULP_CLK_WDG1>;
 			assigned-clocks = <&clks IMX7ULP_CLK_WDG1>;
-			assigned-clocks-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clocks-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			/*
 			 * As the 1KHz LPO clock rate is not trimed,the actually clock
 			 * is about 667Hz, so the init timeout 60s should set 40*1000
@@ -372,21 +374,21 @@
 			interrupts = <GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&clks IMX7ULP_CLK_WDG2>;
 			assigned-clocks = <&clks IMX7ULP_CLK_WDG2>;
-			assigned-clocks-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clocks-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			timeout-sec = <40>;
 		};
 
 		clks: scg1@403E0000 {
 			compatible = "fsl,imx7ulp-scg1";
 			reg = <0x403E0000 0x10000>;
-			clocks = <&ckil>, <&osc>, <&sirc>,
+			clocks = <&rosc>, <&sosc>, <&sirc>,
 				<&firc>, <&upll>, <&mpll>;
-			clock-names = "ckil", "osc", "sirc",
+			clock-names = "rosc", "sosc", "sirc",
 				"firc", "upll", "mpll";
 			#clock-cells = <1>;
 			assigned-clocks = <&clks IMX7ULP_CLK_LPTPM5>,
 					  <&clks IMX7ULP_CLK_USDHC1>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_OSC>,
+			assigned-clock-parents = <&clks IMX7ULP_CLK_SOSC_BUS_CLK>,
 						 <&clks IMX7ULP_CLK_NIC1_DIV>;
 		};
 
@@ -422,7 +424,7 @@
 				 <&clks IMX7ULP_CLK_NIC1_BUS_DIV>;
 			clock-names = "per", "ipg";
 			assigned-clocks = <&clks IMX7ULP_CLK_LPI2C6>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			assigned-clock-rates = <48000000>;
 			status = "disabled";
 		};
@@ -435,7 +437,7 @@
 				 <&clks IMX7ULP_CLK_NIC1_BUS_DIV>;
 			clock-names = "per", "ipg";
 			assigned-clocks = <&clks IMX7ULP_CLK_LPI2C7>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			assigned-clock-rates = <48000000>;
 			status = "disabled";
 		};
@@ -447,7 +449,7 @@
 			clocks = <&clks IMX7ULP_CLK_LPUART6>;
 			clock-names = "ipg";
 			assigned-clocks = <&clks IMX7ULP_CLK_LPUART6>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			assigned-clock-rates = <48000000>;
 			dmas = <&edma0 0 22>, <&edma0 0 21>;
 			dma-names = "tx","rx";
@@ -461,7 +463,7 @@
 			clocks = <&clks IMX7ULP_CLK_LPUART7>;
 			clock-names = "ipg";
 			assigned-clocks = <&clks IMX7ULP_CLK_LPUART7>;
-			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC>;
+			assigned-clock-parents = <&clks IMX7ULP_CLK_FIRC_BUS_CLK>;
 			assigned-clock-rates = <48000000>;
 			dmas = <&edma0 0 24>, <&edma0 0 23>;
 			dma-names = "tx","rx";
@@ -505,17 +507,15 @@
 		iomuxc: iomuxc@4103D000 {
 			compatible = "fsl,imx7ulp-iomuxc-0";
 			reg = <0x4103D000 0x1000>;
-			fsl,mux_mask = <0xf00>;
 			status = "disabled";
 		};
 
 		iomuxc1: iomuxc1@40ac0000 {
 			compatible = "fsl,imx7ulp-iomuxc-1";
 			reg = <0x40ac0000 0x1000>;
-			fsl,mux_mask = <0xf00>;
 		};
 
-		gpio0: gpio@40ae0000 {
+		gpio_ptc: gpio@40ae0000 {
 			compatible = "fsl,vf610-gpio";
 			reg = <0x40ae0000 0x1000 0x400F0000 0x40>;
 			gpio-controller;
@@ -523,10 +523,13 @@
 			interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+			clocks = <&clks IMX7ULP_CLK_RGPIO2P1>,
+				 <&clks IMX7ULP_CLK_PCTLC>;
+			clock-names = "port", "gpio";
 			gpio-ranges = <&iomuxc1 0 0 32>;
 		};
 
-		gpio1: gpio@40af0000 {
+		gpio_ptd: gpio@40af0000 {
 			compatible = "fsl,vf610-gpio";
 			reg = <0x40af0000 0x1000 0x400F0040 0x40>;
 			gpio-controller;
@@ -534,10 +537,13 @@
 			interrupts = <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+			clocks = <&clks IMX7ULP_CLK_RGPIO2P1>,
+				 <&clks IMX7ULP_CLK_PCTLD>;
+			clock-names = "port", "gpio";
 			gpio-ranges = <&iomuxc1 0 32 32>;
 		};
 
-		gpio2: gpio@40b00000 {
+		gpio_pte: gpio@40b00000 {
 			compatible = "fsl,vf610-gpio";
 			reg = <0x40b00000 0x1000 0x400F0080 0x40>;
 			gpio-controller;
@@ -545,10 +551,13 @@
 			interrupts = <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+			clocks = <&clks IMX7ULP_CLK_RGPIO2P1>,
+				 <&clks IMX7ULP_CLK_PCTLE>;
+			clock-names = "port", "gpio";
 			gpio-ranges = <&iomuxc1 0 64 32>;
 		};
 
-		gpio3: gpio@40b10000 {
+		gpio_ptf: gpio@40b10000 {
 			compatible = "fsl,vf610-gpio";
 			reg = <0x40b10000 0x1000 0x400F00c0 0x40>;
 			gpio-controller;
@@ -556,6 +565,9 @@
 			interrupts = <GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+			clocks = <&clks IMX7ULP_CLK_RGPIO2P1>,
+				 <&clks IMX7ULP_CLK_PCTLF>;
+			clock-names = "port", "gpio";
 			gpio-ranges = <&iomuxc1 0 96 32>;
 		};
 
@@ -616,8 +628,8 @@
 		compatible = "fsl,imx-rpmsg-rtc";
 	};
 
-  imx_ion {
-    compatible = "fsl,mxc-ion";
-    fsl,heap-id = <0>;
-  };
+	imx_ion {
+		compatible = "fsl,mxc-ion";
+		fsl,heap-id = <0>;
+	};
 };

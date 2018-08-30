@@ -478,12 +478,12 @@
 				power-domains =<&pd_audio>;
 			};
 			pd_hifi: PD_AUD_HIFI {
-				reg = <SC_R_HIFI>;
+				reg = <SC_R_DSP>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_audio>;
 			};
 			pd_hifi_ram: PD_AUD_OCRAM {
-				reg = <SC_R_HIFI_RAM>;
+				reg = <SC_R_DSP_RAM>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_audio>;
 			};
@@ -654,18 +654,18 @@
 
 		pd_vpu: vpu-power-domain {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_VPU_PID0>;
+			reg = <SC_R_VPU>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 
 			pd_vpu_enc: VPU_ENC {
-				reg = <SC_R_VPU_ENC>;
+				reg = <SC_R_VPU_ENC_0>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_vpu>;
 			};
 			pd_vpu_dec: VPU_DEC {
-				reg = <SC_R_VPU_DEC>;
+				reg = <SC_R_VPU_DEC_0>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_vpu>;
 			};
@@ -2572,7 +2572,8 @@
 		num-lanes = <1>;
 
 		#interrupt-cells = <1>;
-		interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 104 IRQ_TYPE_LEVEL_HIGH>; /* eDMA */
 		interrupt-names = "msi";
 
 		/*

@@ -27,6 +27,7 @@
 typedef enum rm_func_e {
 	RM_FUNC_UNKNOWN = 0,	/* Unknown function */
 	RM_FUNC_PARTITION_ALLOC = 1,	/* Index for rm_partition_alloc() RPC call */
+	RM_FUNC_SET_CONFIDENTIAL = 31,	/* Index for rm_set_confidential() RPC call */
 	RM_FUNC_PARTITION_FREE = 2,	/* Index for rm_partition_free() RPC call */
 	RM_FUNC_GET_DID = 26,	/* Index for rm_get_did() RPC call */
 	RM_FUNC_PARTITION_STATIC = 3,	/* Index for rm_partition_static() RPC call */

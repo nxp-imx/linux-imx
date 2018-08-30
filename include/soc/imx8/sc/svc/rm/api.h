@@ -14,6 +14,8 @@
  *
  * Module for the Resource Management (RM) service.
  *
+ * @includedoc rm/details.dox
+ *
  * @{
  */
 
@@ -123,9 +125,8 @@ typedef uint8_t sc_rm_perm_t;
  *                             via XRDC; set true if new DID is desired
  * @param[in]     restricted   boolean indicating if this partition should be restricted; set
  *                             true if masters in this partition cannot create new partitions
- * @param[in]     confidential boolean indicating if this partition should be confidential;
- *                             set true if only this partition should be able to grant
- *                             resource access permissions to this partition
+ * @param[in]     grant        boolean indicating if this partition should always grant
+ *                             access and control to the parent
  * @param[in]     coherent     boolean indicating if this partition is coherent;
  *                             set true if only this partition will contain both AP clusters
  *                             and they will be coherent via the CCI
@@ -141,10 +142,36 @@ typedef uint8_t sc_rm_perm_t;
  * Marking as non-secure prevents subsequent functions from configuring masters in this
  * partition to assert the secure signal. If restricted then the new partition is limited
  * in what functions it can call, especially those associated with managing partitions.
+ *
+ * The grant option is usually used to isolate a bus master's traffic to specific
+ * memory without isolating the peripheral interface of the master or the API
+ * controls of that master.
  */
 sc_err_t sc_rm_partition_alloc(sc_ipc_t ipc, sc_rm_pt_t *pt, bool secure,
-			       bool isolated, bool restricted,
-			       bool confidential, bool coherent);
+			       bool isolated, bool restricted, bool grant,
+			       bool coherent);
+
+/*!
+ * This function makes a partition confidential.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[in]     pt          handle of partition that is granting
+ * @param[in]     retro       retroactive
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_PARM if \a pt out of range,
+ * - SC_ERR_NOACCESS if caller's not allowed to change \a pt
+ * - SC_ERR_LOCKED if partition \a pt is locked
+ *
+ * Call to make a partition confidential. Confidential means only this
+ * partition should be able to grant access permissions to this partition.
+ *
+ * If retroactive, then all resources owned by other partitions will have
+ * access rights for this partition removed, even if locked.
+ */
+sc_err_t sc_rm_set_confidential(sc_ipc_t ipc, sc_rm_pt_t pt, bool retro);
 
 /*!
  * This function frees a partition and assigns all resources to the caller.
@@ -612,6 +639,7 @@ sc_err_t sc_rm_assign_memreg(sc_ipc_t ipc, sc_rm_pt_t pt, sc_rm_mr_t mr);
  * - SC_ERR_NOACCESS if caller's partition is not the region owner or parent
  *   of the owner,
  * - SC_ERR_LOCKED if the owning partition is locked
+ * - SC_ERR_LOCKED if the \a pt is confidential and the caller isn't \a pt
  *
  * This function configures how the HW isolation will restrict access to a
  * memory region based on the attributes of a transaction from bus master.

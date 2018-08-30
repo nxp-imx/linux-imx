@@ -43,7 +43,7 @@
  *
  * Pads are managed as a resource by the Resource Manager (RM).  They have
  * assigned owners and only the owners can configure the pads. Some of the
- * pads are reserved for use by the SCFW itself and this can be overridden
+ * pads are reserved for use by the SCFW itself and this can be overriden
  * with the implementation of board_config_sc(). Additionally, pads may
  * be assigned to various other partitions via SCD or via the implementation
  * of board_system_config().

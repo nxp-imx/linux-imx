@@ -46,6 +46,8 @@ struct ak4458_priv {
 	int fs;		/* sampling rate */
 	int lr[4];	/* (MONO, INVL, INVR, SELLR) x4ch */
 	int fmt;
+	int slots;
+	int slot_width;
 };
 
 static const struct reg_default ak4458_reg_defaults[] = {
@@ -608,7 +610,6 @@ static const struct snd_soc_dapm_route ak4458_intercon[] = {
 
 static int ak4458_rstn_control(struct snd_soc_codec *codec, int bit)
 {
-
 	u8 rstn;
 
 	dev_dbg(codec->dev, "%s(%d)\n", __func__, __LINE__);
@@ -619,9 +620,7 @@ static int ak4458_rstn_control(struct snd_soc_codec *codec, int bit)
 	if (bit)
 		rstn |= AK4458_RSTN;
 
-	snd_soc_write(codec, AK4458_00_CONTROL1, rstn);
-
-	return 0;
+	return snd_soc_write(codec, AK4458_00_CONTROL1, rstn);
 }
 
 static int ak4458_hw_params(struct snd_pcm_substream *substream,
@@ -631,6 +630,8 @@ static int ak4458_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct ak4458_priv *ak4458 = snd_soc_codec_get_drvdata(codec);
 	u8 format;
+	int pcm_width = max(params_physical_width(params), ak4458->slot_width);
+	int ret;
 
 #ifdef AK4458_ACKS_USE_MANUAL_MODE
 	u8 dfs1, dfs2;
@@ -688,28 +689,33 @@ static int ak4458_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_write(codec, AK4458_01_CONTROL2, dfs1);
 	snd_soc_write(codec, AK4458_05_CONTROL4, dfs2);
 
-	ak4458_rstn_control(codec, 0);
-	ak4458_rstn_control(codec, 1);
+	ret = ak4458_rstn_control(codec, 0);
+	if (ret)
+		return ret;
 
+	ak4458_rstn_control(codec, 1);
+	if (ret)
+		return ret;
 #else
 	snd_soc_update_bits(codec, AK4458_00_CONTROL1, 0x80, 0x80);
 #endif
 
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
+	switch (pcm_width) {
+	case 16:
 		if (ak4458->fmt == SND_SOC_DAIFMT_I2S)
 			format |= AK4458_DIF_24BIT_I2S;
 		else
 			format |= AK4458_DIF_16BIT_LSB;
 		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
-	case SNDRV_PCM_FORMAT_S32_LE:
+	case 32:
 		if (ak4458->fmt == SND_SOC_DAIFMT_I2S)
 			format |= AK4458_DIF_32BIT_I2S;
 		else if (ak4458->fmt == SND_SOC_DAIFMT_LEFT_J)
 			format |= AK4458_DIF_32BIT_MSB;
 		else if (ak4458->fmt == SND_SOC_DAIFMT_RIGHT_J)
 			format |= AK4458_DIF_32BIT_LSB;
+		else if (ak4458->fmt == SND_SOC_DAIFMT_DSP_B)
+			format |= AK4458_DIF_32BIT_MSB;
 		else
 			return -EINVAL;
 		break;
@@ -719,8 +725,13 @@ static int ak4458_hw_params(struct snd_pcm_substream *substream,
 
 	snd_soc_write(codec, AK4458_00_CONTROL1, format);
 
-	ak4458_rstn_control(codec, 0);
-	ak4458_rstn_control(codec, 1);
+	ret = ak4458_rstn_control(codec, 0);
+	if (ret)
+		return ret;
+
+	ret = ak4458_rstn_control(codec, 1);
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -738,6 +749,7 @@ static int ak4458_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	struct snd_soc_codec *codec = dai->codec;
 	struct ak4458_priv *ak4458 = snd_soc_codec_get_drvdata(codec);
 	u8 format;
+	int ret;
 
 	/* set master/slave audio interface */
 	format = snd_soc_read(codec, AK4458_00_CONTROL1);
@@ -764,6 +776,9 @@ static int ak4458_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	case SND_SOC_DAIFMT_RIGHT_J:
 		ak4458->fmt = fmt & SND_SOC_DAIFMT_FORMAT_MASK;
 		break;
+	case SND_SOC_DAIFMT_DSP_B:
+		ak4458->fmt = fmt & SND_SOC_DAIFMT_FORMAT_MASK;
+		break;
 	default:
 		dev_err(codec->dev, "Audio format 0x%02X unsupported\n",
 			fmt & SND_SOC_DAIFMT_FORMAT_MASK);
@@ -775,8 +790,13 @@ static int ak4458_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		__func__, __LINE__, format);
 	snd_soc_write(codec, AK4458_00_CONTROL1, format);
 
-	ak4458_rstn_control(codec, 0);
-	ak4458_rstn_control(codec, 1);
+	ret = ak4458_rstn_control(codec, 0);
+	if (ret)
+		return ret;
+
+	ret = ak4458_rstn_control(codec, 1);
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -852,6 +872,43 @@ static int ak4458_set_dai_mute(struct snd_soc_dai *dai, int mute)
 	return 0;
 }
 
+static int ak4458_set_tdm_slot(struct snd_soc_dai *dai, unsigned int tx_mask,
+			       unsigned int rx_mask, int slots, int slot_width)
+{
+
+	struct snd_soc_codec *codec = dai->codec;
+	struct ak4458_priv *ak4458 = snd_soc_codec_get_drvdata(codec);
+	int tdm_mode = 0;
+	int reg;
+
+	ak4458->slots = slots;
+	ak4458->slot_width = slot_width;
+
+	switch(slots * slot_width) {
+	case 128:
+		tdm_mode = 1;
+		break;
+	case 256:
+		tdm_mode = 2;
+		break;
+	case 512:
+		tdm_mode = 3;
+		break;
+	default:
+		tdm_mode = 0;
+		break;
+	}
+
+	reg = snd_soc_read(codec, AK4458_0A_CONTROL6);
+	reg &= ~(0x3 << 6);
+	reg |= tdm_mode << 6;
+	snd_soc_write(codec, AK4458_0A_CONTROL6, reg);
+
+	return 0;
+}
+
+
+
 #define AK4458_RATES	(SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_11025 |\
 	SNDRV_PCM_RATE_16000 | SNDRV_PCM_RATE_22050 |\
 	SNDRV_PCM_RATE_32000 | SNDRV_PCM_RATE_44100 |\
@@ -892,8 +949,9 @@ static struct snd_soc_dai_ops ak4458_dai_ops = {
 	.hw_params	= ak4458_hw_params,
 	.set_sysclk	= ak4458_set_dai_sysclk,
 	.set_fmt	= ak4458_set_dai_fmt,
-	.trigger = ak4458_trigger,
-	.digital_mute = ak4458_set_dai_mute,
+	.trigger	= ak4458_trigger,
+	.digital_mute	= ak4458_set_dai_mute,
+	.set_tdm_slot	= ak4458_set_tdm_slot,
 };
 
 static struct snd_soc_dai_driver ak4458_dai = {
@@ -908,9 +966,10 @@ static struct snd_soc_dai_driver ak4458_dai = {
 	.ops = &ak4458_dai_ops,
 };
 
-static void ak4458_init_reg(struct snd_soc_codec *codec)
+static int ak4458_init_reg(struct snd_soc_codec *codec)
 {
 	struct ak4458_priv *ak4458 = snd_soc_codec_get_drvdata(codec);
+	int ret;
 
 	dev_dbg(codec->dev, "%s(%d)\n", __func__, __LINE__);
 
@@ -933,21 +992,29 @@ static void ak4458_init_reg(struct snd_soc_codec *codec)
 	dev_dbg(codec->dev, "%s ACKS bit = 1\n", __func__);
 #endif
 
-	ak4458_rstn_control(codec, 0);
-	ak4458_rstn_control(codec, 1);
+	ret = ak4458_rstn_control(codec, 0);
+	if (ret)
+		return ret;
+
+	ret = ak4458_rstn_control(codec, 1);
+	if (ret)
+		return ret;
+
+	return 0;
 }
 
 static int ak4458_codec_probe(struct snd_soc_codec *codec)
 {
 	struct ak4458_priv *ak4458 = snd_soc_codec_get_drvdata(codec);
+	int ret;
 
 	dev_dbg(codec->dev, "%s(%d)\n", __func__, __LINE__);
 
-	ak4458_init_reg(codec);
+	ret = ak4458_init_reg(codec);
 
 	ak4458->fs = 48000;
 
-	return 0;
+	return ret;
 }
 
 static int ak4458_codec_remove(struct snd_soc_codec *codec)

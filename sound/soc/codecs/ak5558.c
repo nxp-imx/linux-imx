@@ -28,6 +28,7 @@
 #include <sound/tlv.h>
 #include <linux/of_gpio.h>
 #include <linux/regmap.h>
+#include <linux/pm_runtime.h>
 
 #include "ak5558.h"
 
@@ -39,10 +40,13 @@
 /* AK5558 Codec Private Data */
 struct ak5558_priv {
 	struct snd_soc_codec codec;
+	struct regmap *regmap;
 	struct i2c_client *i2c;
 	int fs;		/* Sampling Frequency */
 	int rclk;	/* Master Clock */
 	int pdn_gpio;	/* Power on / Reset GPIO */
+	int slots;
+	int slot_width;
 };
 
 /* ak5558 register cache & default register settings */
@@ -259,8 +263,6 @@ static const struct snd_soc_dapm_widget ak5558_dapm_widgets[] = {
 
 };
 
-static int ak5558_init_reg(struct snd_soc_codec *codec);
-
 static const struct snd_soc_dapm_route ak5558_intercon[] = {
 
 	{"AK5558 Ch1 Enable", "On", "AIN1"},
@@ -402,6 +404,7 @@ static int ak5558_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct ak5558_priv *ak5558 = snd_soc_codec_get_drvdata(codec);
 	u8 bits;
+	int pcm_width = max(params_physical_width(params), ak5558->slot_width);
 
 	dev_dbg(dai->dev, "%s(%d)\n", __func__, __LINE__);
 
@@ -409,12 +412,11 @@ static int ak5558_hw_params(struct snd_pcm_substream *substream,
 	bits = snd_soc_read(codec, AK5558_02_CONTROL1);
 	bits &= ~AK5558_BITS;
 
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
-	case SNDRV_PCM_FORMAT_S24_LE:
+	switch (pcm_width) {
+	case 16:
 		bits |= AK5558_DIF_24BIT_MODE;
 		break;
-	case SNDRV_PCM_FORMAT_S32_LE:
+	case 32:
 		bits |= AK5558_DIF_32BIT_MODE;
 		break;
 	default:
@@ -478,6 +480,9 @@ static int ak5558_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	case SND_SOC_DAIFMT_LEFT_J:
 		format |= AK5558_DIF_MSB_MODE;
 		break;
+	case SND_SOC_DAIFMT_DSP_B:
+		format |= AK5558_DIF_MSB_MODE;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -518,11 +523,48 @@ static int ak5558_set_bias_level(struct snd_soc_codec *codec,
 	case SND_SOC_BIAS_STANDBY:
 		break;
 	case SND_SOC_BIAS_OFF:
-		ak5558_init_reg(codec);
+		snd_soc_write(codec, AK5558_00_POWER_MANAGEMENT1, 0x00);
 		break;
 	}
 	return 0;
 }
+
+static int ak5558_set_tdm_slot(struct snd_soc_dai *dai, unsigned int tx_mask,
+					unsigned int rx_mask, int slots,
+					int slot_width)
+{
+	struct snd_soc_codec *codec = dai->codec;
+	struct ak5558_priv *ak5558 = snd_soc_codec_get_drvdata(codec);
+	int tdm_mode = 0;
+	int reg;
+
+	ak5558->slots = slots;
+	ak5558->slot_width = slot_width;
+
+	switch (slots * slot_width) {
+	case 128:
+		tdm_mode = 1;
+		break;
+	case 256:
+		tdm_mode = 2;
+		break;
+	case 512:
+		tdm_mode = 3;
+		break;
+	default:
+		tdm_mode = 0;
+		break;
+	}
+
+	reg = snd_soc_read(codec, AK5558_03_CONTROL2);
+	reg &= ~(0x3 << 5);
+	reg |= tdm_mode << 5;
+	snd_soc_write(codec, AK5558_03_CONTROL2, reg);
+
+	return 0;
+}
+
+
 
 #define AK5558_RATES SNDRV_PCM_RATE_8000_192000
 
@@ -559,6 +601,7 @@ static struct snd_soc_dai_ops ak5558_dai_ops = {
 	.set_sysclk	= ak5558_set_dai_sysclk,
 	.set_fmt	= ak5558_set_dai_fmt,
 	.digital_mute	= ak5558_set_dai_mute,
+	.set_tdm_slot   = ak5558_set_tdm_slot,
 };
 
 static struct snd_soc_dai_driver ak5558_dai = {
@@ -629,11 +672,12 @@ static int ak5558_remove(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static int ak5558_suspend(struct snd_soc_codec *codec)
+#ifdef CONFIG_PM
+static int ak5558_runtime_suspend(struct device *dev)
 {
-	struct ak5558_priv *ak5558 = snd_soc_codec_get_drvdata(codec);
+	struct ak5558_priv *ak5558 = dev_get_drvdata(dev);
 
-	ak5558_set_bias_level(codec, SND_SOC_BIAS_OFF);
+	regcache_cache_only(ak5558->regmap, true);
 
 	if (gpio_is_valid(ak5558->pdn_gpio)) {
 		gpio_set_value_cansleep(ak5558->pdn_gpio, 0);
@@ -643,19 +687,34 @@ static int ak5558_suspend(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static int ak5558_resume(struct snd_soc_codec *codec)
+static int ak5558_runtime_resume(struct device *dev)
 {
+	struct ak5558_priv *ak5558 = dev_get_drvdata(dev);
 
-	ak5558_init_reg(codec);
+	if (gpio_is_valid(ak5558->pdn_gpio)) {
+		gpio_set_value_cansleep(ak5558->pdn_gpio, 0);
+		usleep_range(1000, 2000);
+		gpio_set_value_cansleep(ak5558->pdn_gpio, 1);
+		usleep_range(1000, 2000);
 
-	return 0;
+	}
+
+	regcache_cache_only(ak5558->regmap, false);
+	regcache_mark_dirty(ak5558->regmap);
+
+	return regcache_sync(ak5558->regmap);
 }
+#endif
+
+const struct dev_pm_ops ak5558_pm = {
+	SET_RUNTIME_PM_OPS(ak5558_runtime_suspend, ak5558_runtime_resume, NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
+};
 
 struct snd_soc_codec_driver soc_codec_dev_ak5558 = {
 	.probe = ak5558_probe,
 	.remove = ak5558_remove,
-	.suspend =	ak5558_suspend,
-	.resume =	ak5558_resume,
 	.idle_bias_off = true,
 	.set_bias_level = ak5558_set_bias_level,
 
@@ -684,7 +743,6 @@ static int ak5558_i2c_probe(struct i2c_client *i2c,
 {
 	struct device_node *np = i2c->dev.of_node;
 	struct ak5558_priv *ak5558;
-	struct regmap *regmap;
 	int ret = 0;
 
 	dev_err(&i2c->dev, "%s(%d)\n", __func__, __LINE__);
@@ -694,9 +752,9 @@ static int ak5558_i2c_probe(struct i2c_client *i2c,
 	if (ak5558 == NULL)
 		return -ENOMEM;
 
-	regmap = devm_regmap_init_i2c(i2c, &ak5558_regmap);
-	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
+	ak5558->regmap = devm_regmap_init_i2c(i2c, &ak5558_regmap);
+	if (IS_ERR(ak5558->regmap))
+		return PTR_ERR(ak5558->regmap);
 
 	i2c_set_clientdata(i2c, ak5558);
 	ak5558->i2c = i2c;
@@ -713,13 +771,19 @@ static int ak5558_i2c_probe(struct i2c_client *i2c,
 
 	ret = snd_soc_register_codec(&i2c->dev, &soc_codec_dev_ak5558,
 				     &ak5558_dai, 1);
+	if (ret)
+		return ret;
 
-	return ret;
+	pm_runtime_enable(&i2c->dev);
+
+	return 0;
 }
 
 static int ak5558_i2c_remove(struct i2c_client *client)
 {
 	snd_soc_unregister_codec(&client->dev);
+	pm_runtime_disable(&client->dev);
+
 
 	return 0;
 }
@@ -739,6 +803,7 @@ static struct i2c_driver ak5558_i2c_driver = {
 	.driver = {
 		.name = "ak5558",
 		.of_match_table = of_match_ptr(ak5558_i2c_dt_ids),
+		.pm = &ak5558_pm,
 	},
 	.probe = ak5558_i2c_probe,
 	.remove = ak5558_i2c_remove,
