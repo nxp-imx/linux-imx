@@ -381,11 +381,13 @@
 				reg = <SC_R_ENET_0>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_conn>;
+				wakeup-irq = <258>;
 			};
 			pd_conn_enet1: PD_CONN_ENET_1 {
 				reg = <SC_R_ENET_1>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_conn>;
+				fsl,wakeup_irq = <262>;
 			};
 			pd_conn_nand: PD_CONN_NAND {
 				reg = <SC_R_NAND>;
@@ -1693,13 +1695,13 @@
 				  "irq_dpr1";
 		clocks = <&clk IMX8QM_DC0_PLL0_CLK>,
 			 <&clk IMX8QM_DC0_PLL1_CLK>,
+			 <&clk IMX8QM_DC0_BYPASS_0_DIV>,
+			 <&clk IMX8QM_DC0_DISP0_SEL>,
+			 <&clk IMX8QM_DC0_DISP1_SEL>,
 			 <&clk IMX8QM_DC0_DISP0_CLK>,
 			 <&clk IMX8QM_DC0_DISP1_CLK>;
-		clock-names = "pll0", "pll1", "disp0", "disp1";
-		assigned-clocks = <&clk IMX8QM_DC0_DISP0_SEL>,
-				  <&clk IMX8QM_DC0_DISP1_SEL>;
-		assigned-clock-parents = <&clk IMX8QM_DC0_PLL0_CLK>,
-					 <&clk IMX8QM_DC0_PLL1_CLK>;
+		clock-names = "pll0", "pll1", "bypass0",
+			      "disp0_sel", "disp1_sel", "disp0", "disp1";
 		power-domains = <&pd_dc0_pll1>;
 		fsl,dpr-channels = <&dpr1_channel1>, <&dpr1_channel2>,
 				   <&dpr1_channel3>, <&dpr2_channel1>,
@@ -2157,13 +2159,13 @@
 				  "irq_dpr1";
 		clocks = <&clk IMX8QM_DC1_PLL0_CLK>,
 			 <&clk IMX8QM_DC1_PLL1_CLK>,
+			 <&clk IMX8QM_DC1_BYPASS_0_DIV>,
+			 <&clk IMX8QM_DC1_DISP0_SEL>,
+			 <&clk IMX8QM_DC1_DISP1_SEL>,
 			 <&clk IMX8QM_DC1_DISP0_CLK>,
 			 <&clk IMX8QM_DC1_DISP1_CLK>;
-		clock-names = "pll0", "pll1", "disp0", "disp1";
-		assigned-clocks = <&clk IMX8QM_DC1_DISP0_SEL>,
-				  <&clk IMX8QM_DC1_DISP1_SEL>;
-		assigned-clock-parents = <&clk IMX8QM_DC1_PLL0_CLK>,
-					 <&clk IMX8QM_DC1_PLL1_CLK>;
+		clock-names = "pll0", "pll1", "bypass0",
+			      "disp0_sel", "disp1_sel", "disp0", "disp1";
 		power-domains = <&pd_dc1_pll1>;
 		fsl,dpr-channels = <&dpr3_channel1>, <&dpr3_channel2>,
 				   <&dpr3_channel3>, <&dpr4_channel1>,
@@ -3478,6 +3480,7 @@
 	fec1: ethernet@5b040000 {
 		compatible = "fsl,imx8qm-fec";
 		reg = <0x0 0x5b040000 0x0 0x10000>;
+		interrupt-parent = <&wu>;
 		interrupts = <GIC_SPI 258 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 256 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 257 IRQ_TYPE_LEVEL_HIGH>,
@@ -3490,6 +3493,7 @@
 		assigned-clock-rates = <250000000>, <125000000>;
 		fsl,num-tx-queues=<3>;
 		fsl,num-rx-queues=<3>;
+		fsl,wakeup_irq = <0>;
 		power-domains = <&pd_conn_enet0>;
 		iommus = <&smmu 0x12 0x7f80>;
 		status = "disabled";
@@ -3498,6 +3502,7 @@
 	fec2: ethernet@5b050000 {
 		compatible = "fsl,imx8qm-fec";
 		reg = <0x0 0x5b050000 0x0 0x10000>;
+		interrupt-parent = <&wu>;
 		interrupts = <GIC_SPI 262 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 260 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 261 IRQ_TYPE_LEVEL_HIGH>,
@@ -3510,6 +3515,7 @@
 		assigned-clock-rates = <250000000>, <125000000>;
 		fsl,num-tx-queues=<3>;
 		fsl,num-rx-queues=<3>;
+		fsl,wakeup_irq = <0>;
 		power-domains = <&pd_conn_enet1>;
 		iommus = <&smmu 0x12 0x7f80>;
 		status = "disabled";
@@ -3999,6 +4005,7 @@
 		reg = <0x0 0x5f000000 0x0 0x10000>, /* Controller reg */
 		      <0x0 0x6ff00000 0x0 0x80000>; /* PCI cfg space */
 		reg-names = "dbi", "config";
+		reserved-region = <&rpmsg_reserved>;
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";
@@ -4041,6 +4048,7 @@
 		reg = <0x0 0x5f010000 0x0 0x10000>, /* Controller reg */
 		      <0x0 0x7ff00000 0x0 0x80000>; /* PCI cfg space */
 		reg-names = "dbi", "config";
+		reserved-region = <&rpmsg_reserved>;
 		#address-cells = <3>;
 		#size-cells = <2>;
 		device_type = "pci";

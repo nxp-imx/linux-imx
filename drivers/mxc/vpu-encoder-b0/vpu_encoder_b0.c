@@ -810,9 +810,14 @@ static bool update_yuv_addr(struct vpu_ctx *ctx, u_int32 uStrIdx)
 	pParamYuvBuffDesc = (pMEDIAIP_ENC_YUV_BUFFER_DESC)phy_to_virt(pEncCtrlInterface->pEncYUVBufferDesc,
 			ctx->dev->shared_mem.base_offset);
 
-	wait_event_interruptible(ctx->buffer_wq_input,
-			!list_empty(&This->drv_q) || ctx->forceStop
-			);
+	while (1) {
+		if (!wait_event_interruptible_timeout(ctx->buffer_wq_input,
+				(!list_empty(&This->drv_q)) || ctx->forceStop,
+				msecs_to_jiffies(5000)))
+			vpu_dbg(LVL_ERR, " warn: wait_event_interruptible_timeout wait 5s timeout\n");
+		else
+			break;
+	}
 
 	down(&This->drv_q_lock);
 	if (!list_empty(&This->drv_q)) {
@@ -828,6 +833,8 @@ static bool update_yuv_addr(struct vpu_ctx *ctx, u_int32 uStrIdx)
  #endif
 		pphy_address = (u_int32 *)vb2_plane_cookie(p_data_req->vb2_buf, 0);
 		pParamYuvBuffDesc->uLumaBase = *pphy_address;
+		pphy_address = (u_int32 *)vb2_plane_cookie(p_data_req->vb2_buf, 1);
+		pParamYuvBuffDesc->uChromaBase = *pphy_address;
     /* Not sure what the test should be here for a valid frame return from vb2_plane_cookie */
 		if (pParamYuvBuffDesc->uLumaBase != 0)
 			bGotAFrame = TRUE;
@@ -880,9 +887,14 @@ static void report_stream_done(struct vpu_ctx *ctx,  MEDIAIP_ENC_PIC_INFO *pEncP
 	rptr_virt = ctx->encoder_stream.virt_addr + rptr - start;
 
 	vpu_dbg(LVL_INFO, "report_stream_done eptr=%x, rptr=%x, start=%x, end=%x\n", wptr, rptr, start, end);
-	wait_event_interruptible(ctx->buffer_wq_output,
-			!list_empty(&This->drv_q) || ctx->forceStop
-			);
+	while (1) {
+		if (!wait_event_interruptible_timeout(ctx->buffer_wq_output,
+				(!list_empty(&This->drv_q)) || ctx->forceStop,
+				msecs_to_jiffies(5000)))
+			vpu_dbg(LVL_ERR, " warn: wait_event_interruptible_timeout wait 5s timeout\n");
+		else
+			break;
+	}
 	if (ctx->forceStop)
 		return;
 
@@ -1036,7 +1048,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 	if (uStrIdx < VID_API_NUM_STREAMS) {
 		switch (uEvent) {
 		case VID_API_ENC_EVENT_START_DONE: {
-		update_yuv_addr(ctx, 0);
+		update_yuv_addr(ctx, uStrIdx);
 		v4l2_vpu_send_cmd(ctx, uStrIdx, GTB_ENC_CMD_FRAME_ENCODE, 0, NULL);
 		} break;
 		case VID_API_ENC_EVENT_MEM_REQUEST: {
@@ -1124,6 +1136,9 @@ static irqreturn_t fsl_vpu_mu_isr(int irq, void *This)
 	} else if (msg == 0x55) {
 		dev->firmware_started = true;
 		complete(&dev->start_cmp);
+	}  else if (msg == 0xA5) {
+		/*receive snapshot done msg and wakeup complete to suspend*/
+		complete(&dev->snap_done_cmp);
 	} else
 		schedule_work(&dev->msg_work);
 	return IRQ_HANDLED;
@@ -1265,11 +1280,17 @@ static int vpu_queue_setup(struct vb2_queue *vq,
 	if ((vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) ||
 		(vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		) {
-			*plane_count = 1;
-			psize[0] = This->sizeimage[0];//check alignment
-	} else {
 		*plane_count = 1;
-		psize[0] = This->sizeimage[0] + This->sizeimage[1];
+		psize[0] = This->sizeimage[0];//check alignment
+	} else {
+		if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+			*plane_count = 2;
+			psize[0] = This->sizeimage[0];//check alignment
+			psize[1] = This->sizeimage[1];//check colocated_size
+		} else {
+			psize[0] = This->sizeimage[0] + This->sizeimage[1];
+			*plane_count = 1;
+		}
 	}
 	return 0;
 }
@@ -1991,6 +2012,7 @@ static int vpu_probe(struct platform_device *pdev)
 	mutex_init(&dev->dev_mutex);
 	mutex_init(&dev->cmd_mutex);
 	init_completion(&dev->start_cmp);
+	init_completion(&dev->snap_done_cmp);
 	dev->firmware_started = false;
 
 	dev->fw_is_ready = false;

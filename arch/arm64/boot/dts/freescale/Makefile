@@ -30,8 +30,9 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QM) += fsl-imx8qm-lpddr4-arm2.dtb \
 				 fsl-imx8qm-lpddr4-arm2-usb3.dtb \
 				 fsl-imx8qm-lpddr4-arm2-dsi-rm67191.dtb \
 				 fsl-imx8qm-lpddr4-arm2-enet2-tja1100.dtb \
-				 fsl-imx8qm-lpddr4-arm2-hsic.dtb
-dtb-$(CONFIG_ARCH_FSL_IMX8QP) += fsl-imx8qp-lpddr4-arm2.dtb
+				 fsl-imx8qm-lpddr4-arm2-hsic.dtb \
+				 fsl-imx8dm-lpddr4-arm2.dtb \
+				 fsl-imx8qp-lpddr4-arm2.dtb
 dtb-$(CONFIG_ARCH_FSL_IMX8QXP) += fsl-imx8qxp-lpddr4-arm2.dtb \
 				  fsl-imx8qxp-mek.dtb \
 				  fsl-imx8qxp-mek-car.dtb \
@@ -43,6 +44,8 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QXP) += fsl-imx8qxp-lpddr4-arm2.dtb \
 				  fsl-imx8qxp-mek-enet2-tja1100.dtb \
 				  fsl-imx8qxp-mek-dsi-rm67191.dtb \
 				  fsl-imx8qxp-mek-a0.dtb \
+				  fsl-imx8qxp-mek-it6263-lvds0-dual-channel.dtb \
+				  fsl-imx8qxp-mek-it6263-lvds1-dual-channel.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-enet2.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-enet2-tja1100.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-gpmi-nand.dtb \
@@ -52,7 +55,9 @@ dtb-$(CONFIG_ARCH_FSL_IMX8QXP) += fsl-imx8qxp-lpddr4-arm2.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-mqs.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-wm8962.dtb \
 				  fsl-imx8qxp-lpddr4-arm2-dsi-rm67191.dtb \
-				  fsl-imx8qxp-lpddr4-arm2-a0.dtb
+				  fsl-imx8qxp-lpddr4-arm2-a0.dtb \
+				  fsl-imx8dx-lpddr4-arm2.dtb \
+				  fsl-imx8dxp-lpddr4-arm2.dtb
 dtb-$(CONFIG_ARCH_FSL_IMX8MQ) += fsl-imx8mq-ddr3l-arm2.dtb \
 				 fsl-imx8mq-ddr4-arm2.dtb \
 				 fsl-imx8mq-ddr4-arm2-gpmi-nand.dtb \
@@ -70,7 +75,9 @@ dtb-$(CONFIG_ARCH_FSL_IMX8MQ) += fsl-imx8mq-ddr3l-arm2.dtb \
 				 fsl-imx8mq-evk-drm.dtb
 dtb-$(CONFIG_ARCH_FSL_IMX8MM) += fsl-imx8mm-evk.dtb \
 				 fsl-imx8mm-evk-ak4497.dtb \
-				 fsl-imx8mm-evk-m4.dtb
+				 fsl-imx8mm-evk-m4.dtb \
+				 fsl-imx8mm-evk-ak5558.dtb \
+				 fsl-imx8mm-evk-audio-tdm.dtb
 always		:= $(dtb-y)
 subdir-y	:= $(dts-dirs)
 clean-files	:= *.dtb

@@ -577,14 +577,27 @@ imx_hdp_connector_detect(struct drm_connector *connector, bool force)
 	}
 }
 
-static int imx_hdp_connector_get_modes(struct drm_connector *connector)
+static int imx_hdp_default_video_modes(struct drm_connector *connector)
 {
 	struct drm_display_mode *mode;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(edid_cea_modes); i++) {
+		mode = drm_mode_create(connector->dev);
+		if (!mode)
+			return -EINVAL;
+		drm_mode_copy(mode, &edid_cea_modes[i]);
+		mode->type |= DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
+		drm_mode_probed_add(connector, mode);
+	}
+	return i;
+}
+
+static int imx_hdp_connector_get_modes(struct drm_connector *connector)
+{
 	struct imx_hdp *hdp = container_of(connector, struct imx_hdp, connector);
 	struct edid *edid;
 	int num_modes = 0;
-	int ret;
-	int i;
 
 	if (hdp->is_edid == true) {
 		edid = drm_do_get_edid(connector, hdp->ops->get_edid_block, &hdp->state);
@@ -593,22 +606,21 @@ static int imx_hdp_connector_get_modes(struct drm_connector *connector)
 					edid->header[0], edid->header[1], edid->header[2], edid->header[3],
 					edid->header[4], edid->header[5], edid->header[6], edid->header[7]);
 			drm_mode_connector_update_edid_property(connector, edid);
-			ret = drm_add_edid_modes(connector, edid);
-			/* Store the ELD */
-			drm_edid_to_eld(connector, edid);
+			num_modes = drm_add_edid_modes(connector, edid);
+			if (num_modes == 0) {
+				dev_dbg(hdp->dev, "Invalid edid, use default video modes\n");
+				num_modes = imx_hdp_default_video_modes(connector);
+			} else
+				/* Store the ELD */
+				drm_edid_to_eld(connector, edid);
 			kfree(edid);
+		} else {
+				dev_dbg(hdp->dev, "failed to get edid, use default video modes\n");
+				num_modes = imx_hdp_default_video_modes(connector);
 		}
 	} else {
-		dev_dbg(hdp->dev, "failed to get edid\n");
-		for (i = 0; i < ARRAY_SIZE(edid_cea_modes); i++) {
-			mode = drm_mode_create(connector->dev);
-			if (!mode)
-				return -EINVAL;
-			drm_mode_copy(mode, &edid_cea_modes[i]);
-			mode->type |= DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
-			drm_mode_probed_add(connector, mode);
-		}
-		num_modes = i;
+		dev_dbg(hdp->dev, "No EDID function, use default video mode\n");
+		num_modes = imx_hdp_default_video_modes(connector);
 	}
 
 	return num_modes;
@@ -622,6 +634,7 @@ imx_hdp_connector_mode_valid(struct drm_connector *connector,
 					     connector);
 	enum drm_mode_status mode_status = MODE_OK;
 	struct drm_cmdline_mode *cmdline_mode;
+	int ret;
 
 	cmdline_mode = &connector->cmdline_mode;
 
@@ -637,12 +650,19 @@ imx_hdp_connector_mode_valid(struct drm_connector *connector,
 	else if (!hdp->is_4kp60 && mode->clock > 297000)
 		return MODE_CLOCK_HIGH;
 
+	ret = imx_hdp_call(hdp, pixel_clock_range, mode);
+	if (ret == 0) {
+		DRM_DEBUG("pixel clock %d out of range\n", mode->clock);
+		return MODE_CLOCK_RANGE;
+	}
+
 	/* 4096x2160 is not supported now */
 	if (mode->hdisplay > 3840)
 		return MODE_BAD_HVALUE;
 
 	if (mode->vdisplay > 2160)
 		return MODE_BAD_VVALUE;
+
 
 	return mode_status;
 }
@@ -904,8 +924,8 @@ static struct hdp_ops imx8qm_hdmi_ops = {
 	.fw_load = hdmi_fw_load,
 #endif
 	.fw_init = hdmi_fw_init,
-	.phy_init = hdmi_phy_init,
-	.mode_set = hdmi_mode_set,
+	.phy_init = hdmi_phy_init_ss28fdsoi,
+	.mode_set = hdmi_mode_set_ss28fdsoi,
 	.get_edid_block = hdmi_get_edid_block,
 	.get_hpd_state = hdmi_get_hpd_state,
 
@@ -952,6 +972,7 @@ static struct hdp_ops imx8mq_ops = {
 	.get_edid_block = hdmi_get_edid_block,
 	.get_hpd_state = hdmi_get_hpd_state,
 	.write_hdr_metadata = hdmi_write_hdr_metadata,
+	.pixel_clock_range = pixel_clock_range_t28hpc,
 };
 
 static struct hdp_devtype imx8mq_hdmi_devtype = {
