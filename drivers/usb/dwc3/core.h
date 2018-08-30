@@ -848,6 +848,7 @@ struct dwc3_scratchpad_array {
  * 	1	- -3.5dB de-emphasis
  * 	2	- No de-emphasis
  * 	3	- Reserved
+ * @otg_caps: the OTG capabilities from hardware point
  */
 struct dwc3 {
 	struct usb_ctrlrequest	*ctrl_req;
@@ -998,6 +999,7 @@ struct dwc3 {
 
 	unsigned		tx_de_emphasis_quirk:1;
 	unsigned		tx_de_emphasis:2;
+	struct usb_otg_caps otg_caps;
 };
 
 #define work_to_dwc(w)		(container_of((w), struct dwc3, drd_work))
