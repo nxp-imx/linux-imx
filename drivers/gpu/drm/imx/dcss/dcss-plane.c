@@ -55,6 +55,17 @@ static const u32 dcss_common_formats[] = {
 	DRM_FORMAT_NV21,
 };
 
+static const u64 dcss_video_format_modifiers[] = {
+	DRM_FORMAT_MOD_VSI_G1_TILED,
+	DRM_FORMAT_MOD_VSI_G2_TILED,
+	DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED,
+	DRM_FORMAT_MOD_INVALID,
+};
+
+static const u64 dcss_graphics_format_modifiers[] = {
+	DRM_FORMAT_MOD_INVALID,
+};
+
 static inline struct dcss_plane *to_dcss_plane(struct drm_plane *p)
 {
 	return container_of(p, struct dcss_plane, base);
@@ -82,6 +93,8 @@ static int dcss_plane_atomic_set_property(struct drm_plane *plane,
 		dcss_plane->alpha_val = val;
 	else if (property == dcss_plane->use_global_prop)
 		dcss_plane->use_global_val = val;
+	else if (property == dcss_plane->dtrc_table_ofs_prop)
+		dcss_plane->dtrc_table_ofs_val = val;
 	else
 		return -EINVAL;
 
@@ -99,10 +112,27 @@ static int dcss_plane_atomic_get_property(struct drm_plane *plane,
 		*val = dcss_plane->alpha_val;
 	else if (property == dcss_plane->use_global_prop)
 		*val = dcss_plane->use_global_val;
+	else if (property == dcss_plane->dtrc_table_ofs_prop)
+		*val = dcss_plane->dtrc_table_ofs_val;
 	else
 		return -EINVAL;
 
 	return 0;
+}
+
+static bool dcss_plane_format_mod_supported(struct drm_plane *plane,
+					    uint32_t format,
+					    uint64_t modifier)
+{
+	/* DTRC only supports NV12/NV32 tiled formats */
+	if (plane->type == DRM_PLANE_TYPE_OVERLAY &&
+	    (format == DRM_FORMAT_NV12 ||
+	     format == DRM_FORMAT_NV21))
+		return modifier == DRM_FORMAT_MOD_VSI_G1_TILED ||
+		       modifier == DRM_FORMAT_MOD_VSI_G2_TILED ||
+		       modifier == DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED;
+
+	return false;
 }
 
 static const struct drm_plane_funcs dcss_plane_funcs = {
@@ -115,7 +145,18 @@ static const struct drm_plane_funcs dcss_plane_funcs = {
 	.set_property = drm_atomic_helper_plane_set_property,
 	.atomic_set_property = dcss_plane_atomic_set_property,
 	.atomic_get_property = dcss_plane_atomic_get_property,
+	.format_mod_supported = dcss_plane_format_mod_supported,
 };
+
+static bool dcss_plane_mod_supported(int type, uint64_t mod)
+{
+	if (type == DRM_PLANE_TYPE_OVERLAY)
+		return mod == DRM_FORMAT_MOD_VSI_G1_TILED ||
+		       mod == DRM_FORMAT_MOD_VSI_G2_TILED ||
+		       mod == DRM_FORMAT_MOD_VSI_G2_TILED_COMPRESSED;
+
+	return false;
+}
 
 static int dcss_plane_atomic_check(struct drm_plane *plane,
 				   struct drm_plane_state *state)
@@ -154,6 +195,12 @@ static int dcss_plane_atomic_check(struct drm_plane *plane,
 		return -EINVAL;
 	}
 
+	if ((fb->flags & DRM_MODE_FB_MODIFIERS) &&
+	    !dcss_plane_mod_supported(plane->type, fb->modifier[0])) {
+		DRM_DEBUG_KMS("Invalid modifier: %llx", fb->modifier[0]);
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -186,7 +233,10 @@ static void dcss_plane_atomic_set_base(struct dcss_plane *dcss_plane)
 		return;
 	}
 
-	dcss_dtrc_addr_set(dcss_plane->dcss, dcss_plane->ch_num, p1_ba, p2_ba);
+	dcss_dtrc_set_format_mod(dcss_plane->dcss, dcss_plane->ch_num,
+				 fb->modifier[0]);
+	dcss_dtrc_addr_set(dcss_plane->dcss, dcss_plane->ch_num,
+			   p1_ba, p2_ba, dcss_plane->dtrc_table_ofs_val);
 }
 
 static bool dcss_plane_needs_setup(struct drm_plane_state *state,
@@ -251,6 +301,7 @@ static void dcss_plane_atomic_update(struct drm_plane *plane,
 				 pixel_format, dcss_plane->alpha_val,
 				 dcss_plane->use_global_val);
 
+	dcss_dtrc_enable(dcss_plane->dcss, dcss_plane->ch_num, true);
 	dcss_dpr_enable(dcss_plane->dcss, dcss_plane->ch_num, true);
 	dcss_scaler_enable(dcss_plane->dcss, dcss_plane->ch_num, true);
 	dcss_dtg_ch_enable(dcss_plane->dcss, dcss_plane->ch_num, true);
@@ -261,6 +312,7 @@ static void dcss_plane_atomic_disable(struct drm_plane *plane,
 {
 	struct dcss_plane *dcss_plane = to_dcss_plane(plane);
 
+	dcss_dtrc_enable(dcss_plane->dcss, dcss_plane->ch_num, false);
 	dcss_dpr_enable(dcss_plane->dcss, dcss_plane->ch_num, false);
 	dcss_scaler_enable(dcss_plane->dcss, dcss_plane->ch_num, false);
 	dcss_dtg_plane_pos_set(dcss_plane->dcss, dcss_plane->ch_num,
@@ -281,6 +333,7 @@ struct dcss_plane *dcss_plane_init(struct drm_device *drm,
 				   unsigned int zpos)
 {
 	struct dcss_plane *dcss_plane;
+	const u64 *format_modifiers = dcss_video_format_modifiers;
 	int ret;
 
 	if (zpos > 2)
@@ -294,10 +347,13 @@ struct dcss_plane *dcss_plane_init(struct drm_device *drm,
 
 	dcss_plane->dcss = dcss;
 
+	if (type == DRM_PLANE_TYPE_PRIMARY)
+		format_modifiers = dcss_graphics_format_modifiers;
+
 	ret = drm_universal_plane_init(drm, &dcss_plane->base, possible_crtcs,
 				       &dcss_plane_funcs, dcss_common_formats,
 				       ARRAY_SIZE(dcss_common_formats),
-				       NULL, type, NULL);
+				       format_modifiers, type, NULL);
 	if (ret) {
 		DRM_ERROR("failed to initialize plane\n");
 		kfree(dcss_plane);

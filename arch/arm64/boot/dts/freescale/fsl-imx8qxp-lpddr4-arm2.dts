@@ -103,6 +103,15 @@
 			gpio = <&gpio5 9 GPIO_ACTIVE_HIGH>;
 			enable-active-high;
 		};
+
+		reg_fec2_supply: fec2_nvcc {
+			compatible = "regulator-fixed";
+			regulator-name = "fec2_nvcc";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			gpio = <&max7322 0 GPIO_ACTIVE_HIGH>;
+			enable-active-high;
+		};
 	};
 
 	sound-cs42888 {
@@ -315,8 +324,8 @@
 
 		pinctrl_lpi2c1: lpi1cgrp {
 			fsl,pins = <
-				SC_P_USB_SS3_TC1_ADMA_I2C1_SCL	0x06000020
-				SC_P_USB_SS3_TC3_ADMA_I2C1_SDA	0x06000020
+				SC_P_USB_SS3_TC1_ADMA_I2C1_SCL	0x06000021
+				SC_P_USB_SS3_TC3_ADMA_I2C1_SDA	0x06000021
 			>;
 		};
 
@@ -509,6 +518,7 @@
 	pinctrl-0 = <&pinctrl_fec2>;
 	phy-mode = "rgmii-id";
 	phy-handle = <&ethphy1>;
+	phy-supply = <&reg_fec2_supply>;
 	fsl,magic-packet;
 	status = "disabled";
 };
@@ -634,6 +644,13 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_lpi2c1>;
 	status = "okay";
+
+	max7322: gpio@68 {
+		compatible = "maxim,max7322";
+		reg = <0x68>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
 
 	typec_ptn5150: typec@3d {
 		compatible = "nxp,ptn5150";
