@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2017 Vivante Corporation
+*    Copyright (c) 2014 - 2018 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2017 Vivante Corporation
+*    Copyright (C) 2014 - 2018 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -1692,7 +1692,6 @@ gckHARDWARE_Construct(
     hardware->object.type = gcvOBJ_HARDWARE;
     hardware->os          = Os;
     hardware->core        = Core;
-    hardware->forcePowerOff = gcvTRUE;
 
     gcmkONERROR(_GetHardwareSignature(hardware, Os, Core, &hardware->signature));
 
@@ -1814,8 +1813,6 @@ gckHARDWARE_Construct(
 
     gcmkONERROR(gckOS_CreateMutex(Os, &hardware->powerMutex));
     gcmkONERROR(gckOS_CreateSemaphore(Os, &hardware->globalSemaphore));
-    hardware->startIsr = gcvNULL;
-    hardware->stopIsr = gcvNULL;
 
 #if gcdPOWEROFF_TIMEOUT
     hardware->powerOffTimeout = gcdPOWEROFF_TIMEOUT;
@@ -7413,7 +7410,6 @@ gckHARDWARE_SetPowerManagementState(
 #endif
     gctUINT32 process, thread;
     gctBOOL commandStarted = gcvFALSE;
-    gctBOOL isrStarted = gcvFALSE;
 
 #if gcdENABLE_PROFILING
     gctUINT64 time, freq, mutexTime, onTime, stallTime, stopTime, delayTime,
@@ -7978,17 +7974,7 @@ gckHARDWARE_SetPowerManagementState(
         if (broadcast)
         {
             /* Check for idle. */
-            gctINT32 try = 0;
-            for(try = 0; try < 10; try++)
-            {
-                gcmkONERROR(gckHARDWARE_QueryIdle(Hardware, &idle));
-                if(idle || !Hardware->forcePowerOff)
-                    break;
-                else
-                    gckOS_Delay(os,1);
-            }
-
-            Hardware->forcePowerOff = gcvFALSE;
+            gcmkONERROR(gckHARDWARE_QueryIdle(Hardware, &idle));
 
             if (!idle)
             {
@@ -8018,12 +8004,6 @@ gckHARDWARE_SetPowerManagementState(
     {
         /* Stop the command parser. */
         gcmkONERROR(gckCOMMAND_Stop(command));
-
-        /* Stop the Isr. */
-        if (Hardware->stopIsr)
-        {
-            gcmkONERROR(Hardware->stopIsr(Hardware->isrContext));
-        }
     }
 
     /* Flush Cache before Power Off. */
@@ -8173,13 +8153,6 @@ gckHARDWARE_SetPowerManagementState(
         /* Start the command processor. */
         gcmkONERROR(gckCOMMAND_Start(command));
         commandStarted = gcvTRUE;
-
-        if (Hardware->startIsr)
-        {
-            /* Start the Isr. */
-            gcmkONERROR(Hardware->startIsr(Hardware->isrContext));
-            isrStarted = gcvTRUE;
-        }
     }
 
     /* Get time until started. */
@@ -8267,11 +8240,6 @@ OnError:
     if (commandStarted)
     {
         gcmkVERIFY_OK(gckCOMMAND_Stop(command));
-    }
-
-    if (isrStarted)
-    {
-        gcmkVERIFY_OK(Hardware->stopIsr(Hardware->isrContext));
     }
 
     if (acquired)
@@ -10523,41 +10491,6 @@ gckHARDWARE_NeedBaseAddress(
     /* Success. */
     gcmkFOOTER_ARG("*NeedBase=%d", *NeedBase);
     return gcvSTATUS_OK;
-}
-
-gceSTATUS
-gckHARDWARE_SetIsrManager(
-   IN gckHARDWARE Hardware,
-   IN gctISRMANAGERFUNC StartIsr,
-   IN gctISRMANAGERFUNC StopIsr,
-   IN gctPOINTER Context
-   )
-{
-    gceSTATUS status = gcvSTATUS_OK;
-
-    gcmkHEADER_ARG("Hardware=0x%x, StartIsr=0x%x, StopIsr=0x%x, Context=0x%x",
-                   Hardware, StartIsr, StopIsr, Context);
-
-    /* Verify the arguments. */
-    gcmkVERIFY_OBJECT(Hardware, gcvOBJ_HARDWARE);
-
-    if (StartIsr == gcvNULL ||
-        StopIsr == gcvNULL)
-    {
-        status = gcvSTATUS_INVALID_ARGUMENT;
-
-        gcmkFOOTER();
-        return status;
-    }
-
-    Hardware->startIsr = StartIsr;
-    Hardware->stopIsr = StopIsr;
-    Hardware->isrContext = Context;
-
-    /* Success. */
-    gcmkFOOTER();
-
-    return status;
 }
 
 /*******************************************************************************

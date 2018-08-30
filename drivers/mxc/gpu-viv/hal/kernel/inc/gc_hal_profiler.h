@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2017 Vivante Corporation
+*    Copyright (c) 2014 - 2018 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2017 Vivante Corporation
+*    Copyright (C) 2014 - 2018 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -438,6 +438,8 @@ extern "C" {
 #define VPNC_VSSTALLCOUNT                (VPNG_VS + 7)
 #define VPNC_VSPROCESSCOUNT              (VPNG_VS + 8)
 #define VPNC_VSSHADERCYCLECOUNT          (VPNG_VS + 9)
+#define VPNC_VS_COUNT                    VPNC_VSSHADERCYCLECOUNT - VPNG_VS
+
 /* HW: PS Count. */
 #define VPNC_PSINSTCOUNT                 (VPNG_PS + 1)
 #define VPNC_PSBRANCHINSTCOUNT           (VPNG_PS + 2)
@@ -448,6 +450,7 @@ extern "C" {
 #define VPNC_PSSTALLCOUNT                (VPNG_PS + 7)
 #define VPNC_PSPROCESSCOUNT              (VPNG_PS + 8)
 #define VPNC_PSSHADERCYCLECOUNT          (VPNG_PS + 9)
+#define VPNC_PS_COUNT                    VPNC_PSSHADERCYCLECOUNT - VPNG_PS
 
 /* HW: PA Counters. */
 #define VPNC_PAINVERTCOUNT               (VPNG_PA + 1)
@@ -463,6 +466,7 @@ extern "C" {
 #define VPNC_PASTARVELCOUNT              (VPNG_PA + 11)
 #define VPNC_PASTALLCOUNT                (VPNG_PA + 12)
 #define VPNC_PAPROCESSCOUNT              (VPNG_PA + 13)
+#define VPNC_PA_COUNT                    VPNC_PAPROCESSCOUNT - VPNG_PA
 
 /* HW: Setup Counters. */
 #define VPNC_SECULLTRIANGLECOUNT         (VPNG_SETUP + 1)
@@ -478,6 +482,7 @@ extern "C" {
 #define VPNC_SENONIDLESTARVECOUNT        (VPNG_SETUP + 11)
 #define VPNC_SETRIVIALREJLINECOUNT       (VPNG_SETUP + 12)
 #define VPNC_SEPROCESSCOUNT              (VPNG_SETUP + 13)
+#define VPNC_SE_COUNT                    VPNC_SEPROCESSCOUNT - VPNG_SETUP
 
 /* HW: RA Counters. */
 #define VPNC_RAVALIDPIXCOUNT             (VPNG_RA + 1)
@@ -495,6 +500,7 @@ extern "C" {
 #define VPNC_RASTARVELCOUNT              (VPNG_RA + 13)
 #define VPNC_RASTALLCOUNT                (VPNG_RA + 14)
 #define VPNC_RAPROCESSCOUNT              (VPNG_RA + 15)
+#define VPNC_RA_COUNT                    VPNC_RAPROCESSCOUNT - VPNG_RA
 
 /* HW: TEX Counters. */
 #define VPNC_TXTOTBILINEARREQ            (VPNG_TX + 1)
@@ -505,10 +511,7 @@ extern "C" {
 #define VPNC_TXMC0REQCOUNT               (VPNG_TX + 6)
 #define VPNC_TXMC1MISSCOUNT              (VPNG_TX + 7)
 #define VPNC_TXMC1REQCOUNT               (VPNG_TX + 8)
-#define VPNC_TXNONIDLESTARVECOUNT        (VPNG_TX + 9)
-#define VPNC_TXSTARVELCOUNT              (VPNG_TX + 10)
-#define VPNC_TXSTALLCOUNT                (VPNG_TX + 11)
-#define VPNC_TXPROCESSCOUNT              (VPNG_TX + 12)
+#define VPNC_TX_COUNT                    VPNC_TXMC1REQCOUNT - VPNG_TX
 
 /* HW: PE Counters. */
 #define VPNC_PE0KILLEDBYCOLOR             (VPNG_PE + 1)
@@ -519,6 +522,7 @@ extern "C" {
 #define VPNC_PE1KILLEDBYDEPTH             (VPNG_PE + 6)
 #define VPNC_PE1DRAWNBYCOLOR              (VPNG_PE + 7)
 #define VPNC_PE1DRAWNBYDEPTH              (VPNG_PE + 8)
+#define VPNC_PE_COUNT                     VPNC_PE1DRAWNBYDEPTH - VPNG_PE
 
 /* HW: MCC Counters. */
 #define VPNC_MCCREADREQ8BCOLORPIPE        (VPNG_MCC + 1)
@@ -548,7 +552,7 @@ extern "C" {
 #define VPNC_MCCBLTWRITEBANDWIDTH         (VPNG_MCC + 25)
 #define VPNC_MCCSH0WRITEBANDWIDTH         (VPNG_MCC + 26)
 #define VPNC_MCCSH1WRITEBANDWIDTH         (VPNG_MCC + 27)
-
+#define VPNC_MCC_COUNT                    VPNC_MCCSH1WRITEBANDWIDTH - VPNG_MCC
 
 /* HW: MCZ Counters. */
 #define VPNC_MCZREADREQ8BCOLORPIPE        (VPNG_MCZ + 1)
@@ -569,6 +573,7 @@ extern "C" {
 #define VPNC_MCZAXIMAXLATENCY             (VPNG_MCZ + 16)
 #define VPNC_MCZAXITOTALLATENCY           (VPNG_MCZ + 17)
 #define VPNC_MCZAXISAMPLECOUNT            (VPNG_MCZ + 18)
+#define VPNC_MCZ_COUNT                    VPNC_MCZAXISAMPLECOUNT - VPNG_MCZ
 
 /* HW: HI Counters. */
 #define VPNC_HI0READ8BYTE                (VPNG_HI + 1)
@@ -589,6 +594,7 @@ extern "C" {
 #define VPNC_HIIDLECYCLES                (VPNG_HI + 16)
 #define VPNC_HIREAD8BYTE                 (VPNG_HI + 17)
 #define VPNC_HIWRITE8BYTE                (VPNG_HI + 18)
+#define VPNC_HI_COUNT                    VPNC_HIWRITE8BYTE - VPNG_HI
 
 /* HW: L2 Counters. */
 #define VPNC_L2AXI0READREQCOUNT          (VPNG_L2 + 1)
@@ -607,6 +613,7 @@ extern "C" {
 #define VPNC_L2AXI1MAXLATENCY            (VPNG_L2 + 14)
 #define VPNC_L2AXI1TOTLATENCY            (VPNG_L2 + 15)
 #define VPNC_L2AXI1TOTREQCOUNT           (VPNG_L2 + 16)
+#define VPNC_L2_COUNT                    VPNC_L2AXI1TOTREQCOUNT - VPNG_L2
 
 /* HW: FE Counters. */
 #define VPNC_FEDRAWCOUNT                 (VPNG_FE + 1)
@@ -616,6 +623,13 @@ extern "C" {
 #define VPNC_FESTALLCOUNT                (VPNG_FE + 5)
 #define VPNC_FESTARVECOUNT               (VPNG_FE + 6)
 #define VPNC_FEPROCESSCOUNT              (VPNG_FE + 7)
+#define VPNC_FE_COUNT                    VPNC_FEPROCESSCOUNT - VPNG_FE
+
+#define TOTAL_COUNTER_NUMBER             (VPNC_FE_COUNT + VPNC_VS_COUNT + VPNC_PA_COUNT + VPNC_SE_COUNT + VPNC_RA_COUNT \
+                                          + VPNC_PS_COUNT + VPNC_TX_COUNT + VPNC_PE_COUNT + VPNC_MCC_COUNT + VPNC_MCZ_COUNT \
+                                          + VPNC_HI_COUNT + VPNC_L2_COUNT)
+
+#define TOTAL_MODULE_NUMBER              12
 
 /* PROGRAM: Shader program counters. */
 #define VPC_PVSINSTRCOUNT           (VPG_PVS + PVS_INSTRCOUNT)
@@ -701,6 +715,29 @@ extern "C" {
 #define gcmWRITE_COUNTER(Counter, Value) \
     gcmWRITE_CONST(Counter); \
     gcmWRITE_VALUE(Value)
+
+/* Write a data value. */
+#define gcmRECORD_VALUE(IntData) \
+    do \
+    { \
+        gctINT32 value = IntData; \
+        value = BIG_ENDIAN_TRANS_INT(value); \
+        counterData[counterIndex++] = value; \
+    } \
+    while (gcvFALSE)
+
+#define gcmRECORD_CONST(Const) \
+    do \
+    { \
+        gctINT32 data = Const; \
+        data = BIG_ENDIAN_TRANS_INT(data); \
+        counterData[counterIndex++] = data; \
+    } \
+    while (gcvFALSE)
+
+#define gcmRECORD_COUNTER(Counter, Value) \
+    gcmRECORD_CONST(Counter); \
+    gcmRECORD_VALUE(Value)
 
 /* Write a string value (char*). */
 #define gcmWRITE_STRING(String) \
@@ -998,7 +1035,8 @@ typedef struct _gcsPROFILER_COUNTERS
 }
 gcsPROFILER_COUNTERS;
 
-#define NumOfDrawBuf 128
+#define NumOfPerFrameBuf        16
+#define NumOfPerDrawBuf         128
 
 typedef enum _gceCOUNTER_OPTYPE
 {
@@ -1012,15 +1050,24 @@ typedef enum _gceCOUNTER_OPTYPE
 }
 gceCOUNTER_OPTYPE;
 
-typedef struct _gcsCounterBuffer
+typedef struct gcsCounterBuffer * gcsCounterBuffer_PTR;
+
+struct gcsCounterBuffer
 {
     gcsPROFILER_COUNTERS        *counters;
     gctHANDLE                   couterBufobj;
     gctUINT32                   probeAddress;
+    gctPOINTER                  logicalAddress;
     gceCOUNTER_OPTYPE           opType;
     gctUINT32                   opID;
-}
-gcsCounterBuffer;
+    gctUINT32                   startPos;
+    gctUINT32                   endPos;
+    gctUINT32                   dataSize;
+    gctBOOL                     available;
+    gctBOOL                     needDump;
+    gcsCounterBuffer_PTR        next;
+    gcsCounterBuffer_PTR        prev;
+};
 
 typedef struct _gcoPROFILER *        gcoPROFILER;
 
@@ -1034,16 +1081,21 @@ struct _gcoPROFILER
     gctFILE                     file;
     gctCHAR*                    fileName;
 
-    gcsCounterBuffer            counterBuf[NumOfDrawBuf];
-    gcsPROFILER_COUNTERS        *preCounters;
-    gctINT32                    curBufId;
+    gcsCounterBuffer_PTR        counterBuf;
+    gctUINT32                   bufferCount;
 
     gctBOOL                     perDrawMode;
     gctBOOL                     needDump;
     gctBOOL                     counterEnable;
 
     gceProfilerClient           profilerClient;
+
+    /*query some features from hw*/
     gctUINT32                   coreCount;
+    gctUINT32                   shaderCoreCount;
+    gctBOOL                     bHalti4;
+    gctBOOL                     psRenderPixelFix;
+    gctBOOL                     axiBus128bits;
 };
 
 typedef enum _gceProbeStatus

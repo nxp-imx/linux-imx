@@ -2,7 +2,7 @@
 *
 *    The MIT License (MIT)
 *
-*    Copyright (c) 2014 - 2017 Vivante Corporation
+*    Copyright (c) 2014 - 2018 Vivante Corporation
 *
 *    Permission is hereby granted, free of charge, to any person obtaining a
 *    copy of this software and associated documentation files (the "Software"),
@@ -26,7 +26,7 @@
 *
 *    The GPL License (GPL)
 *
-*    Copyright (C) 2014 - 2017 Vivante Corporation
+*    Copyright (C) 2014 - 2018 Vivante Corporation
 *
 *    This program is free software; you can redistribute it and/or
 *    modify it under the terms of the GNU General Public License
@@ -220,7 +220,12 @@ _CMAFSLGetSGT(
         gcmkONERROR(gcvSTATUS_OUT_OF_MEMORY);
     }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0)
+    page = phys_to_page (mdlPriv->physical);
+#else
     page = phys_to_page(dma_to_phys(&Allocator->os->device->platform->device->dev, mdl_priv->physical));
+#endif
+
     for (i = 0; i < numPages; ++i)
     {
         pages[i] = nth_page(page, i + skipPages);
@@ -552,7 +557,9 @@ _CMAFSLAlloctorInit(
 
     _CMAAllocatorDebugfsInit(allocator, Parent);
 
-    allocator->capability = gcvALLOC_FLAG_CONTIGUOUS;
+    allocator->capability = gcvALLOC_FLAG_CONTIGUOUS
+                          | gcvALLOC_FLAG_DMABUF_EXPORTABLE
+                          ;
 
 #if defined(CONFIG_ARM64)
     Os->allocatorLimitMarker = (Os->device->baseAddress + totalram_pages * PAGE_SIZE) > 0x100000000;
