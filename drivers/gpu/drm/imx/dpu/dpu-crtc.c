@@ -22,6 +22,7 @@
 #include <linux/device.h>
 #include <linux/errno.h>
 #include <linux/export.h>
+#include <linux/irq.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <video/dpu.h>
@@ -45,8 +46,6 @@ struct dpu_crtc {
 	int			safety_shdld_irq;
 	int			content_shdld_irq;
 	int			dec_shdld_irq;
-
-	bool			has_prefetch_fixup;
 
 	struct completion	safety_shdld_done;
 	struct completion	content_shdld_done;
@@ -627,14 +626,12 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 	struct drm_crtc *crtc = &dpu_crtc->base;
 	struct dpu_plane_grp *plane_grp = pdata->plane_grp;
 	unsigned int stream_id = pdata->stream_id;
-	bool has_prefetch_fixup = dpu_has_prefetch_fixup(dpu);
 	int i, ret;
 
 	init_completion(&dpu_crtc->safety_shdld_done);
 	init_completion(&dpu_crtc->content_shdld_done);
 	init_completion(&dpu_crtc->dec_shdld_done);
 
-	dpu_crtc->has_prefetch_fixup = has_prefetch_fixup;
 	dpu_crtc->stream_id = stream_id;
 	dpu_crtc->hw_plane_num = plane_grp->hw_plane_num;
 
@@ -651,8 +648,7 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 
 	plane_grp->res.fg[stream_id] = dpu_crtc->fg;
 	dpu_crtc->plane[0] = dpu_plane_init(drm, 0, stream_id, plane_grp,
-					DRM_PLANE_TYPE_PRIMARY,
-					has_prefetch_fixup);
+					DRM_PLANE_TYPE_PRIMARY);
 	if (IS_ERR(dpu_crtc->plane[0])) {
 		ret = PTR_ERR(dpu_crtc->plane[0]);
 		dev_err(dev, "initializing plane0 failed with %d.\n", ret);
@@ -672,8 +668,7 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 		dpu_crtc->plane[i] = dpu_plane_init(drm,
 					drm_crtc_mask(&dpu_crtc->base),
 					stream_id, plane_grp,
-					DRM_PLANE_TYPE_OVERLAY,
-					has_prefetch_fixup);
+					DRM_PLANE_TYPE_OVERLAY);
 		if (IS_ERR(dpu_crtc->plane[i])) {
 			ret = PTR_ERR(dpu_crtc->plane[i]);
 			dev_err(dev, "initializing plane%d failed with %d.\n",
@@ -685,6 +680,7 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 	dpu_crtc->vbl_irq = dpu_map_inner_irq(dpu, stream_id ?
 				IRQ_DISENGCFG_FRAMECOMPLETE1 :
 				IRQ_DISENGCFG_FRAMECOMPLETE0);
+	irq_set_status_flags(dpu_crtc->vbl_irq, IRQ_DISABLE_UNLAZY);
 	ret = devm_request_irq(dev, dpu_crtc->vbl_irq, dpu_vbl_irq_handler, 0,
 				"imx_drm", dpu_crtc);
 	if (ret < 0) {
@@ -695,6 +691,7 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 
 	dpu_crtc->safety_shdld_irq = dpu_map_inner_irq(dpu, stream_id ?
 			IRQ_EXTDST5_SHDLOAD : IRQ_EXTDST4_SHDLOAD);
+	irq_set_status_flags(dpu_crtc->safety_shdld_irq, IRQ_DISABLE_UNLAZY);
 	ret = devm_request_irq(dev, dpu_crtc->safety_shdld_irq,
 				dpu_safety_shdld_irq_handler, 0, "imx_drm",
 				dpu_crtc);
@@ -708,6 +705,7 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 
 	dpu_crtc->content_shdld_irq = dpu_map_inner_irq(dpu, stream_id ?
 			IRQ_EXTDST1_SHDLOAD : IRQ_EXTDST0_SHDLOAD);
+	irq_set_status_flags(dpu_crtc->content_shdld_irq, IRQ_DISABLE_UNLAZY);
 	ret = devm_request_irq(dev, dpu_crtc->content_shdld_irq,
 				dpu_content_shdld_irq_handler, 0, "imx_drm",
 				dpu_crtc);
@@ -721,6 +719,7 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 
 	dpu_crtc->dec_shdld_irq = dpu_map_inner_irq(dpu, stream_id ?
 			IRQ_DISENGCFG_SHDLOAD1 : IRQ_DISENGCFG_SHDLOAD0);
+	irq_set_status_flags(dpu_crtc->dec_shdld_irq, IRQ_DISABLE_UNLAZY);
 	ret = devm_request_irq(dev, dpu_crtc->dec_shdld_irq,
 				dpu_dec_shdld_irq_handler, 0, "imx_drm",
 				dpu_crtc);

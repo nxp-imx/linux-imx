@@ -1644,7 +1644,7 @@
 		compatible = "fsl,imx8qm-dpr-channel";
 		reg = <0x0 0x560e0000 0x0 0x10000>;
 		fsl,sc-resource = <SC_R_DC_0_BLIT1>;
-		fsl,prgs = <&prg2>;
+		fsl,prgs = <&prg2>, <&prg1>;
 		clocks = <&clk IMX8QM_DC0_DPR0_APB_CLK>,
 			 <&clk IMX8QM_DC0_DPR0_B_CLK>,
 			 <&clk IMX8QM_DC0_RTRAM0_CLK>;
@@ -1776,7 +1776,9 @@
 		#size-cells = <0>;
 		reg = <0x0 0x56268000 0x0 0x100000>, /* HDP Controller */
 				<0x0 0x56261000 0x0 0x1000>; /* HDP SubSystem CSR  */
-		interrupts = <10 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <10 IRQ_TYPE_LEVEL_HIGH>,
+						<13 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "plug_in", "plug_out";
 		interrupt-parent = <&irqsteer_hdmi>;
 		status = "disabled";
 		clocks = <&clk IMX8QM_HDMI_DIG_PLL_CLK>,
@@ -1826,6 +1828,48 @@
 		clocks = <&clk IMX8QM_MIPI0_LIS_IPG_CLK>;
 		clock-names = "ipg";
 		power-domains = <&pd_mipi0>;
+	};
+
+	flexcan1: can@5a8d0000 {
+		compatible = "fsl,imx8qm-flexcan", "fsl,imx6q-flexcan";
+		reg = <0x0 0x5a8d0000 0x0 0x10000>;
+		interrupts = <GIC_SPI 235 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&wu>;
+		clocks = <&clk IMX8QM_CAN0_IPG_CLK>,
+			 <&clk IMX8QM_CAN0_CLK>;
+		clock-names = "ipg", "per";
+		assigned-clocks = <&clk IMX8QM_CAN0_CLK>;
+		assigned-clock-rates = <40000000>;
+		power-domains = <&pd_dma_flexcan0>;
+		status = "disabled";
+	};
+
+	flexcan2: can@5a8e0000 {
+		compatible = "fsl,imx8qm-flexcan", "fsl,imx6q-flexcan";
+		reg = <0x0 0x5a8e0000 0x0 0x10000>;
+		interrupts = <GIC_SPI 236 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&wu>;
+		clocks = <&clk IMX8QM_CAN1_IPG_CLK>,
+			 <&clk IMX8QM_CAN1_CLK>;
+		clock-names = "ipg", "per";
+		assigned-clocks = <&clk IMX8QM_CAN1_CLK>;
+		assigned-clock-rates = <40000000>;
+		power-domains = <&pd_dma_flexcan1>;
+		status = "disabled";
+	};
+
+	flexcan3: can@5a8f0000 {
+		compatible = "fsl,imx8qm-flexcan", "fsl,imx6q-flexcan";
+		reg = <0x0 0x5a8f0000 0x0 0x10000>;
+		interrupts = <GIC_SPI 237 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&wu>;
+		clocks = <&clk IMX8QM_CAN2_IPG_CLK>,
+			 <&clk IMX8QM_CAN2_CLK>;
+		clock-names = "ipg", "per";
+		assigned-clocks = <&clk IMX8QM_CAN2_CLK>;
+		assigned-clock-rates = <40000000>;
+		power-domains = <&pd_dma_flexcan2>;
+		status = "disabled";
 	};
 
 	i2c0_mipi_dsi0: i2c@56226000 {
@@ -2108,7 +2152,7 @@
 		compatible = "fsl,imx8qm-dpr-channel";
 		reg = <0x0 0x570e0000 0x0 0x10000>;
 		fsl,sc-resource = <SC_R_DC_1_BLIT1>;
-		fsl,prgs = <&prg11>;
+		fsl,prgs = <&prg11>, <&prg10>;
 		clocks = <&clk IMX8QM_DC1_DPR0_APB_CLK>,
 			 <&clk IMX8QM_DC1_DPR0_B_CLK>,
 			 <&clk IMX8QM_DC1_RTRAM0_CLK>;

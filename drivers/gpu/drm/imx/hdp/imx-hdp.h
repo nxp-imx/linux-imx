@@ -96,8 +96,10 @@ struct hdp_ops {
 				  union hdmi_infoframe *hdr_infoframe);
 
 	void (*phy_reset)(sc_ipc_t ipcHndl, struct hdp_mem *mem, u8 reset);
-	int (*pixel_link_init)(state_struct *state);
-	void (*pixel_link_deinit)(state_struct *state);
+	int (*pixel_link_validate)(state_struct *state);
+	int (*pixel_link_invalidate)(state_struct *state);
+	int (*pixel_link_sync_ctrl_enable)(state_struct *state);
+	int (*pixel_link_sync_ctrl_disable)(state_struct *state);
 	void (*pixel_link_mux)(state_struct *state, struct drm_display_mode *mode);
 	void (*pixel_engine_reset)(state_struct *state);
 
@@ -112,7 +114,6 @@ struct hdp_ops {
 };
 
 struct hdp_devtype {
-	u8 is_edid;
 	u8 is_4kp60;
 	u8 audio_type;
 	struct hdp_ops *ops;
@@ -201,11 +202,11 @@ struct imx_hdp {
 
 	struct hdp_mem mem;
 
-	u8 is_edid;
 	u8 is_4kp60;
 	u8 is_cec;
 	u8 is_edp;
 	u8 is_digpll_dp_pclock;
+	u8 no_edid;
 	u8 audio_type;
 	u32 lane_mapping;
 	u32 edp_link_rate;

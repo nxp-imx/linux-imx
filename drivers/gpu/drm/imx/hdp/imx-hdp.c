@@ -13,6 +13,7 @@
  */
 #include <linux/clk.h>
 #include <linux/kthread.h>
+#include <linux/mutex.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/component.h>
@@ -26,6 +27,8 @@
 #include "imx-hdmi.h"
 #include "imx-dp.h"
 #include "../imx-drm.h"
+
+#define B0_SILICON_ID			0x11
 
 struct drm_display_mode *g_mode;
 
@@ -117,7 +120,7 @@ static void imx8qm_pixel_link_mux(state_struct *state, struct drm_display_mode *
 	writel(val, hdp->mem.ss_base + CSR_PIXEL_LINK_MUX_CTL);
 }
 
-int imx8qm_pixel_link_init(state_struct *state)
+static int imx8qm_pixel_link_validate(state_struct *state)
 {
 	struct imx_hdp *hdp = state_to_imx_hdp(state);
 	sc_err_t sciErr;
@@ -134,24 +137,100 @@ int imx8qm_pixel_link_init(state_struct *state)
 		return -EINVAL;
 	}
 
-	/* config dpu1 di0 to hdmi/dp mode */
-	sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_PXL_LINK_MST1_ADDR, 1);
-	sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_PXL_LINK_MST1_VLD, 1);
-	sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 1);
-
-	return true;
-}
-
-void imx8qm_pixel_link_deinit(state_struct *state)
-{
-	struct imx_hdp *hdp = state_to_imx_hdp(state);
-
-	/* config dpu1 di0 to default mode */
-	sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_PXL_LINK_MST1_ADDR, 0);
-	sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_PXL_LINK_MST1_VLD, 0);
-	sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 0);
+	sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0,
+					SC_C_PXL_LINK_MST1_VLD, 1);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("SC_R_DC_0:SC_C_PXL_LINK_MST1_VLD sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
 
 	sc_ipc_close(hdp->mu_id);
+
+	return 0;
+}
+
+static int imx8qm_pixel_link_invalidate(state_struct *state)
+{
+	struct imx_hdp *hdp = state_to_imx_hdp(state);
+	sc_err_t sciErr;
+
+	sciErr = sc_ipc_getMuID(&hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("Cannot obtain MU ID\n");
+		return -EINVAL;
+	}
+
+	sciErr = sc_ipc_open(&hdp->ipcHndl, hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("sc_ipc_open failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_PXL_LINK_MST1_VLD, 0);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("SC_R_DC_0:SC_C_PXL_LINK_MST1_VLD sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sc_ipc_close(hdp->mu_id);
+
+	return 0;
+}
+
+static int imx8qm_pixel_link_sync_ctrl_enable(state_struct *state)
+{
+	struct imx_hdp *hdp = state_to_imx_hdp(state);
+	sc_err_t sciErr;
+
+	sciErr = sc_ipc_getMuID(&hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("Cannot obtain MU ID\n");
+		return -EINVAL;
+	}
+
+	sciErr = sc_ipc_open(&hdp->ipcHndl, hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("sc_ipc_open failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 1);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("SC_R_DC_0:SC_C_SYNC_CTRL0 sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sc_ipc_close(hdp->mu_id);
+
+	return 0;
+}
+
+static int imx8qm_pixel_link_sync_ctrl_disable(state_struct *state)
+{
+	struct imx_hdp *hdp = state_to_imx_hdp(state);
+	sc_err_t sciErr;
+
+	sciErr = sc_ipc_getMuID(&hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("Cannot obtain MU ID\n");
+		return -EINVAL;
+	}
+
+	sciErr = sc_ipc_open(&hdp->ipcHndl, hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("sc_ipc_open failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 0);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("SC_R_DC_0:SC_C_SYNC_CTRL0 sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sc_ipc_close(hdp->mu_id);
+
+	return 0;
 }
 
 void imx8qm_phy_reset(sc_ipc_t ipcHndl, struct hdp_mem *mem, u8 reset)
@@ -668,7 +747,7 @@ static int imx_hdp_connector_get_modes(struct drm_connector *connector)
 	struct edid *edid;
 	int num_modes = 0;
 
-	if (hdp->is_edid == true) {
+	if (!hdp->no_edid) {
 		edid = drm_do_get_edid(connector, hdp->ops->get_edid_block, &hdp->state);
 		if (edid) {
 			dev_dbg(hdp->dev, "%x,%x,%x,%x,%x,%x,%x,%x\n",
@@ -708,7 +787,7 @@ imx_hdp_connector_mode_valid(struct drm_connector *connector,
 	cmdline_mode = &connector->cmdline_mode;
 
 	/* cmdline mode is the max support video mode when edid disabled */
-	if (!hdp->is_edid) {
+	if (hdp->no_edid) {
 		if (cmdline_mode->xres != 0 &&
 			cmdline_mode->xres < mode->hdisplay)
 			return MODE_BAD_HVALUE;
@@ -801,6 +880,10 @@ static const struct drm_bridge_funcs imx_hdp_bridge_funcs = {
 
 static void imx_hdp_imx_encoder_disable(struct drm_encoder *encoder)
 {
+	struct imx_hdp *hdp = container_of(encoder, struct imx_hdp, encoder);
+
+	imx_hdp_call(hdp, pixel_link_sync_ctrl_disable, &hdp->state);
+	imx_hdp_call(hdp, pixel_link_invalidate, &hdp->state);
 }
 
 static void imx_hdp_imx_encoder_enable(struct drm_encoder *encoder)
@@ -812,7 +895,7 @@ static void imx_hdp_imx_encoder_enable(struct drm_encoder *encoder)
 	int ret = 0;
 
 	if (!hdp->ops->write_hdr_metadata)
-		return;
+		goto out;
 
 	if (hdp->hdr_metadata_present) {
 		hdr_metadata = (struct hdr_static_metadata *)
@@ -838,6 +921,10 @@ static void imx_hdp_imx_encoder_enable(struct drm_encoder *encoder)
 	}
 
 	hdp->ops->write_hdr_metadata(&hdp->state, &frame);
+
+out:
+	imx_hdp_call(hdp, pixel_link_validate, &hdp->state);
+	imx_hdp_call(hdp, pixel_link_sync_ctrl_enable , &hdp->state);
 }
 
 static int imx_hdp_imx_encoder_atomic_check(struct drm_encoder *encoder,
@@ -870,57 +957,80 @@ static const struct drm_encoder_funcs imx_hdp_imx_encoder_funcs = {
 static int imx8mq_hdp_read(struct hdp_mem *mem, unsigned int addr, unsigned int *value)
 {
 	unsigned int temp;
-	void *tmp_addr = mem->regs_base + addr;
+	void *tmp_addr;
+
+	mutex_lock(&mem->mutex);
+	tmp_addr = mem->regs_base + addr;
 	temp = __raw_readl((volatile unsigned int *)tmp_addr);
 	*value = temp;
+	mutex_unlock(&mem->mutex);
 	return 0;
 }
 
 static int imx8mq_hdp_write(struct hdp_mem *mem, unsigned int addr, unsigned int value)
 {
-	void *tmp_addr = mem->regs_base + addr;
+	void *tmp_addr;
 
+	mutex_lock(&mem->mutex);
+	tmp_addr = mem->regs_base + addr;
 	__raw_writel(value, (volatile unsigned int *)tmp_addr);
+	mutex_unlock(&mem->mutex);
 	return 0;
 }
 
 static int imx8mq_hdp_sread(struct hdp_mem *mem, unsigned int addr, unsigned int *value)
 {
 	unsigned int temp;
-	void *tmp_addr = mem->ss_base + addr;
+	void *tmp_addr;
+
+	mutex_lock(&mem->mutex);
+	tmp_addr = mem->ss_base + addr;
 	temp = __raw_readl((volatile unsigned int *)tmp_addr);
 	*value = temp;
+	mutex_unlock(&mem->mutex);
 	return 0;
 }
 
 static int imx8mq_hdp_swrite(struct hdp_mem *mem, unsigned int addr, unsigned int value)
 {
-	void *tmp_addr = mem->ss_base + addr;
+	void *tmp_addr;
+
+	mutex_lock(&mem->mutex);
+	tmp_addr = mem->ss_base + addr;
 	__raw_writel(value, (volatile unsigned int *)tmp_addr);
+	mutex_unlock(&mem->mutex);
 	return 0;
 }
 
 static int imx8qm_hdp_read(struct hdp_mem *mem, unsigned int addr, unsigned int *value)
 {
 	unsigned int temp;
-	void *tmp_addr = (addr & 0xfff) + mem->regs_base;
-	void *off_addr = 0x8 + mem->ss_base;;
+	void *tmp_addr;
+	void *off_addr;
 
+	mutex_lock(&mem->mutex);
+	tmp_addr = (addr & 0xfff) + mem->regs_base;
+	off_addr = 0x8 + mem->ss_base;;
 	__raw_writel(addr >> 12, off_addr);
 	temp = __raw_readl((volatile unsigned int *)tmp_addr);
 
 	*value = temp;
+	mutex_unlock(&mem->mutex);
 	return 0;
 }
 
 static int imx8qm_hdp_write(struct hdp_mem *mem, unsigned int addr, unsigned int value)
 {
-	void *tmp_addr = (addr & 0xfff) + mem->regs_base;
-	void *off_addr = 0x8 + mem->ss_base;;
+	void *tmp_addr;
+	void *off_addr;
 
+	mutex_lock(&mem->mutex);
+	tmp_addr = (addr & 0xfff) + mem->regs_base;
+	off_addr = 0x8 + mem->ss_base;
 	__raw_writel(addr >> 12, off_addr);
 
 	__raw_writel(value, (volatile unsigned int *) tmp_addr);
+	mutex_unlock(&mem->mutex);
 
 	return 0;
 }
@@ -928,23 +1038,31 @@ static int imx8qm_hdp_write(struct hdp_mem *mem, unsigned int addr, unsigned int
 static int imx8qm_hdp_sread(struct hdp_mem *mem, unsigned int addr, unsigned int *value)
 {
 	unsigned int temp;
-	void *tmp_addr = (addr & 0xfff) + mem->regs_base;
-	void *off_addr = 0xc + mem->ss_base;;
+	void *tmp_addr;
+	void *off_addr;
 
+	mutex_lock(&mem->mutex);
+	tmp_addr = (addr & 0xfff) + mem->regs_base;
+	off_addr = 0xc + mem->ss_base;
 	__raw_writel(addr >> 12, off_addr);
 
 	temp = __raw_readl((volatile unsigned int *)tmp_addr);
 	*value = temp;
+	mutex_unlock(&mem->mutex);
 	return 0;
 }
 
 static int imx8qm_hdp_swrite(struct hdp_mem *mem, unsigned int addr, unsigned int value)
 {
-	void *tmp_addr = (addr & 0xfff) + mem->regs_base;
-	void *off_addr = 0xc + mem->ss_base;
+	void *tmp_addr;
+	void *off_addr;
 
+	mutex_lock(&mem->mutex);
+	tmp_addr = (addr & 0xfff) + mem->regs_base;
+	off_addr = 0xc + mem->ss_base;
 	__raw_writel(addr >> 12, off_addr);
 	__raw_writel(value, (volatile unsigned int *)tmp_addr);
+	mutex_unlock(&mem->mutex);
 
 	return 0;
 }
@@ -967,8 +1085,10 @@ static struct hdp_ops imx8qm_dp_ops = {
 	.get_hpd_state = dp_get_hpd_state,
 
 	.phy_reset = imx8qm_phy_reset,
-	.pixel_link_init = imx8qm_pixel_link_init,
-	.pixel_link_deinit = imx8qm_pixel_link_deinit,
+	.pixel_link_validate = imx8qm_pixel_link_validate,
+	.pixel_link_invalidate = imx8qm_pixel_link_invalidate,
+	.pixel_link_sync_ctrl_enable = imx8qm_pixel_link_sync_ctrl_enable,
+	.pixel_link_sync_ctrl_disable = imx8qm_pixel_link_sync_ctrl_disable,
 	.pixel_link_mux = imx8qm_pixel_link_mux,
 
 	.clock_init = imx8qm_clock_init,
@@ -991,8 +1111,10 @@ static struct hdp_ops imx8qm_hdmi_ops = {
 	.get_hpd_state = hdmi_get_hpd_state,
 
 	.phy_reset = imx8qm_phy_reset,
-	.pixel_link_init = imx8qm_pixel_link_init,
-	.pixel_link_deinit = imx8qm_pixel_link_deinit,
+	.pixel_link_validate = imx8qm_pixel_link_validate,
+	.pixel_link_invalidate = imx8qm_pixel_link_invalidate,
+	.pixel_link_sync_ctrl_enable = imx8qm_pixel_link_sync_ctrl_enable,
+	.pixel_link_sync_ctrl_disable = imx8qm_pixel_link_sync_ctrl_disable,
 	.pixel_link_mux = imx8qm_pixel_link_mux,
 
 	.clock_init = imx8qm_clock_init,
@@ -1005,7 +1127,6 @@ static struct hdp_ops imx8qm_hdmi_ops = {
 };
 
 static struct hdp_devtype imx8qm_dp_devtype = {
-	.is_edid = false,
 	.is_4kp60 = false,
 	.audio_type = CDN_DPTX,
 	.ops = &imx8qm_dp_ops,
@@ -1013,7 +1134,6 @@ static struct hdp_devtype imx8qm_dp_devtype = {
 };
 
 static struct hdp_devtype imx8qm_hdmi_devtype = {
-	.is_edid = false,
 	.is_4kp60 = false,
 	.audio_type = CDN_HDMITX_TYPHOON,
 	.ops = &imx8qm_hdmi_ops,
@@ -1038,7 +1158,6 @@ static struct hdp_ops imx8mq_ops = {
 };
 
 static struct hdp_devtype imx8mq_hdmi_devtype = {
-	.is_edid = true,
 	.is_4kp60 = true,
 	.audio_type = CDN_HDMITX_KIRAN,
 	.ops = &imx8mq_ops,
@@ -1054,7 +1173,6 @@ static struct hdp_ops imx8mq_dp_ops = {
 };
 
 static struct hdp_devtype imx8mq_dp_devtype = {
-	.is_edid = true,
 	.is_4kp60 = true,
 	.audio_type = CDN_DPTX,
 	.ops = &imx8mq_dp_ops,
@@ -1149,6 +1267,8 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	if (hdp->irq[HPD_IRQ_OUT] < 0)
 		dev_info(&pdev->dev, "No plug_out irq number\n");
 
+
+	mutex_init(&hdp->mem.mutex);
 	/* register map */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	hdp->mem.regs_base = devm_ioremap_resource(dev, res);
@@ -1175,6 +1295,12 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	hdp->is_digpll_dp_pclock = of_property_read_bool(pdev->dev.of_node, "fsl,use_digpll_pclock");
 
 	hdp->is_edp = of_property_read_bool(pdev->dev.of_node, "fsl,edp");
+
+	hdp->no_edid = of_property_read_bool(pdev->dev.of_node, "fsl,no_edid");
+
+	/* EDID function is not supported by iMX8QM A0 */
+	if (cpu_is_imx8qm() && (imx8_get_soc_revision() < B0_SILICON_ID))
+		hdp->no_edid = true;
 
 	ret = of_property_read_u32(pdev->dev.of_node,
 				       "lane_mapping",
@@ -1203,7 +1329,6 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	}
 	dev_info(dev, "dp_num_lanes 0x%02x\n", hdp->edp_num_lanes);
 
-	hdp->is_edid = devtype->is_edid;
 	hdp->is_4kp60 = devtype->is_4kp60;
 	hdp->audio_type = devtype->audio_type;
 	hdp->ops = devtype->ops;
@@ -1217,12 +1342,6 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	hdp->link_rate = AFE_LINK_RATE_1_6;
 
 	hdp->dual_mode = false;
-
-	ret = imx_hdp_call(hdp, pixel_link_init, &hdp->state);
-	if (ret < 0) {
-		DRM_ERROR("Failed to initialize clock %d\n", ret);
-		return ret;
-	}
 
 	ret = imx_hdp_call(hdp, clock_init, &hdp->clks);
 	if (ret < 0) {
@@ -1371,7 +1490,6 @@ static void imx_hdp_imx_unbind(struct device *dev, struct device *master,
 		imx_cec_unregister(&hdp->cec);
 #endif
 	imx_hdp_call(hdp, pixel_clock_disable, &hdp->clks);
-	imx_hdp_call(hdp, pixel_link_deinit, &hdp->state);
 }
 
 static const struct component_ops imx_hdp_imx_ops = {
