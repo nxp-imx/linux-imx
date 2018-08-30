@@ -107,6 +107,7 @@ static const struct snd_soc_component_driver fsl_component = {
 static const struct of_device_id fsl_rpmsg_i2s_ids[] = {
 	{ .compatible = "fsl,imx7ulp-rpmsg-i2s"},
 	{ .compatible = "fsl,imx8mq-rpmsg-i2s"},
+	{ .compatible = "fsl,imx8qxp-rpmsg-i2s"},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fsl_rpmsg_i2s_ids);
@@ -170,7 +171,7 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 
 	if (of_device_is_compatible(pdev->dev.of_node,
 				    "fsl,imx7ulp-rpmsg-i2s")) {
-		rpmsg_i2s->codec = 1;
+		rpmsg_i2s->codec_wm8960 = 1;
 		rpmsg_i2s->version = 1;
 		rpmsg_i2s->rates = SNDRV_PCM_RATE_8000 |
 				SNDRV_PCM_RATE_16000 |
@@ -183,8 +184,15 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 	}
 
 	if (of_device_is_compatible(pdev->dev.of_node,
+				    "fsl,imx8qxp-rpmsg-i2s")) {
+		rpmsg_i2s->codec_wm8960 = 1 + (1 << 16);
+		rpmsg_i2s->version = 1;
+		rpmsg_i2s->codec_cs42888 = 1 + (2 << 16);
+	}
+
+	if (of_device_is_compatible(pdev->dev.of_node,
 				    "fsl,imx8mq-rpmsg-i2s")) {
-		rpmsg_i2s->codec = 0;
+		rpmsg_i2s->codec_wm8960 = 0;
 		rpmsg_i2s->version = 2;
 		rpmsg_i2s->rates = SNDRV_PCM_RATE_32000 |
 				SNDRV_PCM_RATE_48000 |
@@ -192,8 +200,7 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 				SNDRV_PCM_RATE_192000;
 		rpmsg_i2s->formats = SNDRV_PCM_FMTBIT_S16_LE |
 					SNDRV_PCM_FMTBIT_S24_LE |
-					SNDRV_PCM_FMTBIT_S32_LE |
-					SNDRV_PCM_FMTBIT_S24_3LE;
+					SNDRV_PCM_FMTBIT_S32_LE;
 		fsl_rpmsg_i2s_dai.playback.rates = rpmsg_i2s->rates;
 		fsl_rpmsg_i2s_dai.playback.formats = rpmsg_i2s->formats;
 		fsl_rpmsg_i2s_dai.capture.rates = rpmsg_i2s->rates;

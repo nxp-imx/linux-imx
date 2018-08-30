@@ -126,9 +126,9 @@ static const char *dc1_sels[] = {
 static const char *hdmi_sels[] = {
 	"dummy",
 	"hdmi_dig_pll_clk",
-	"hdmi_av_pll_clk",
 	"dummy",
-	"hdmi_av_pll_bypass_clk",
+	"dummy",
+	"hdmi_av_pll_clk",
 };
 
 static const char *hdmi_rx_sels[] = {
@@ -332,7 +332,6 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_HDMI_IPG_DIV] = imx_clk_divider_scu("hdmi_ipg_div", SC_R_HDMI, SC_PM_CLK_MISC);
 	clks[IMX8QM_HDMI_I2S_BYPASS_CLK] = imx_clk_divider_scu("hdmi_i2s_bypass_clk", SC_R_HDMI_I2S, SC_PM_CLK_BYPASS);
 	clks[IMX8QM_HDMI_I2C0_DIV] = imx_clk_divider_scu("hdmi_i2c0_div", SC_R_HDMI_I2C_0, SC_PM_CLK_MISC2);
-	clks[IMX8QM_HDMI_AV_PLL_BYPASS_CLK] = imx_clk_divider_scu("hdmi_av_pll_bypass_clk", SC_R_HDMI, SC_PM_CLK_BYPASS);
 	clks[IMX8QM_HDMI_PXL_SEL] = imx_clk_mux2_scu("hdmi_pxl_sel", hdmi_sels, ARRAY_SIZE(hdmi_sels), SC_R_HDMI, SC_PM_CLK_MISC3);
 	clks[IMX8QM_HDMI_PXL_DIV] = imx_clk_divider2_scu("hdmi_pxl_div", "hdmi_pxl_sel", SC_R_HDMI, SC_PM_CLK_MISC3);
 	clks[IMX8QM_HDMI_PXL_LINK_SEL] = imx_clk_mux2_scu("hdmi_pxl_link_sel", hdmi_sels, ARRAY_SIZE(hdmi_sels), SC_R_HDMI, SC_PM_CLK_MISC1);
@@ -450,7 +449,7 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_SPI2_IPG_CLK]   = imx_clk_gate2_scu("spi2_ipg_clk", "ipg_dma_clk_root", LPCG_ADDR(LPSPI_2_LPCG), 16, FUNCTION_NAME(PD_DMA_SPI_2));
 	clks[IMX8QM_SPI3_IPG_CLK]   = imx_clk_gate2_scu("spi3_ipg_clk", "ipg_dma_clk_root", LPCG_ADDR(LPSPI_3_LPCG), 16, FUNCTION_NAME(PD_DMA_SPI_3));
 	clks[IMX8QM_SPI0_CLK] = imx_clk_gate_scu("spi0_clk", "spi0_div", SC_R_SPI_0, SC_PM_CLK_PER, LPCG_ADDR(LPSPI_0_LPCG), 0, 0);
-	clks[IMX8QM_SPI1_CLK] = imx_clk_gate_scu("spi1_clk", "spi1_div", SC_R_SPI_2, SC_PM_CLK_PER, LPCG_ADDR(LPSPI_1_LPCG), 0, 0);
+	clks[IMX8QM_SPI1_CLK] = imx_clk_gate_scu("spi1_clk", "spi1_div", SC_R_SPI_1, SC_PM_CLK_PER, LPCG_ADDR(LPSPI_1_LPCG), 0, 0);
 	clks[IMX8QM_SPI2_CLK] = imx_clk_gate_scu("spi2_clk", "spi2_div", SC_R_SPI_2, SC_PM_CLK_PER, LPCG_ADDR(LPSPI_2_LPCG), 0, 0);
 	clks[IMX8QM_SPI3_CLK] = imx_clk_gate_scu("spi3_clk", "spi3_div", SC_R_SPI_3, SC_PM_CLK_PER, LPCG_ADDR(LPSPI_3_LPCG), 0, 0);
 	clks[IMX8QM_EMVSIM0_IPG_CLK]   = imx_clk_gate2_scu("emvsim0_ipg_clk", "ipg_dma_clk_root", LPCG_ADDR(EMVSIM_0_LPCG), 16, FUNCTION_NAME(PD_DMA_EMVSIM_0));
@@ -684,10 +683,10 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_ACM_ASRC1_MUX_CLK_CLK] = imx_clk_gate_scu("aud_asrc1_mux_clk", "acm_asrc1_mclk_sel", SC_R_ASRC_1, SC_PM_CLK_PER, NULL, 0, 0);
 
 	/* DSP */
-	clks[IMX8QM_AUD_DSP_ADB_ACLK] = imx_clk_gate2_scu("aud_dsp_adb_aclk", "ipg_aud_clk_root", (void __iomem *)(AUD_DSP_LPCG), 16, FUNCTION_NAME(PD_AUD_DSP));
-	clks[IMX8QM_AUD_DSP_IPG] = imx_clk_gate2_scu("aud_dsp_ipg", "ipg_aud_clk_root", (void __iomem *)(AUD_DSP_LPCG), 20, FUNCTION_NAME(PD_AUD_DSP));
-	clks[IMX8QM_AUD_DSP_CORE_CLK] = imx_clk_gate2_scu("aud_dsp_core_clk", "ipg_aud_clk_root", (void __iomem *)(AUD_DSP_LPCG), 28, FUNCTION_NAME(PD_AUD_DSP));
-	clks[IMX8QM_AUD_OCRAM_IPG] = imx_clk_gate2_scu("aud_ocram_ipg", "ipg_aud_clk_root", (void __iomem *)(AUD_OCRAM_LPCG), 16, FUNCTION_NAME(PD_AUD_OCRAM));
+	clks[IMX8QM_AUD_DSP_ADB_ACLK] = imx_clk_gate2_scu("aud_dsp_adb_aclk", "ipg_aud_clk_root", LPCG_ADDR(AUD_DSP_LPCG), 16, FUNCTION_NAME(PD_AUD_DSP));
+	clks[IMX8QM_AUD_DSP_IPG] = imx_clk_gate2_scu("aud_dsp_ipg", "ipg_aud_clk_root", LPCG_ADDR(AUD_DSP_LPCG), 20, FUNCTION_NAME(PD_AUD_DSP));
+	clks[IMX8QM_AUD_DSP_CORE_CLK] = imx_clk_gate2_scu("aud_dsp_core_clk", "ipg_aud_clk_root", LPCG_ADDR(AUD_DSP_LPCG), 28, FUNCTION_NAME(PD_AUD_DSP));
+	clks[IMX8QM_AUD_OCRAM_IPG] = imx_clk_gate2_scu("aud_ocram_ipg", "ipg_aud_clk_root", LPCG_ADDR(AUD_OCRAM_LPCG), 16, FUNCTION_NAME(PD_AUD_OCRAM));
 
 	/* MIPI CSI */
 	clks[IMX8QM_CSI0_I2C0_IPG_CLK] = imx_clk_gate2_scu("mipi_csi0_i2c0_ipg_s", "ipg_mipi_csi_clk_root", LPCG_ADDR(MIPI_CSI_0_LPCG + 0x14), 16, FUNCTION_NAME(PD_MIPI_CSI0_I2C0));

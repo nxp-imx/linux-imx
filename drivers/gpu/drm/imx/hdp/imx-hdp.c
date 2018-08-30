@@ -117,7 +117,7 @@ static void imx8qm_pixel_link_mux(state_struct *state, struct drm_display_mode *
 	writel(val, hdp->mem.ss_base + CSR_PIXEL_LINK_MUX_CTL);
 }
 
-int imx8qm_pixel_link_init(state_struct *state)
+static int imx8qm_pixel_link_validate(state_struct *state)
 {
 	struct imx_hdp *hdp = state_to_imx_hdp(state);
 	sc_err_t sciErr;
@@ -134,20 +134,100 @@ int imx8qm_pixel_link_init(state_struct *state)
 		return -EINVAL;
 	}
 
-	sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_PXL_LINK_MST1_VLD, 1);
-	sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 1);
-
-	return true;
-}
-
-void imx8qm_pixel_link_deinit(state_struct *state)
-{
-	struct imx_hdp *hdp = state_to_imx_hdp(state);
-
-	sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_PXL_LINK_MST1_VLD, 0);
-	sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 0);
+	sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0,
+					SC_C_PXL_LINK_MST1_VLD, 1);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("SC_R_DC_0:SC_C_PXL_LINK_MST1_VLD sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
 
 	sc_ipc_close(hdp->mu_id);
+
+	return 0;
+}
+
+static int imx8qm_pixel_link_invalidate(state_struct *state)
+{
+	struct imx_hdp *hdp = state_to_imx_hdp(state);
+	sc_err_t sciErr;
+
+	sciErr = sc_ipc_getMuID(&hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("Cannot obtain MU ID\n");
+		return -EINVAL;
+	}
+
+	sciErr = sc_ipc_open(&hdp->ipcHndl, hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("sc_ipc_open failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_PXL_LINK_MST1_VLD, 0);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("SC_R_DC_0:SC_C_PXL_LINK_MST1_VLD sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sc_ipc_close(hdp->mu_id);
+
+	return 0;
+}
+
+static int imx8qm_pixel_link_sync_ctrl_enable(state_struct *state)
+{
+	struct imx_hdp *hdp = state_to_imx_hdp(state);
+	sc_err_t sciErr;
+
+	sciErr = sc_ipc_getMuID(&hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("Cannot obtain MU ID\n");
+		return -EINVAL;
+	}
+
+	sciErr = sc_ipc_open(&hdp->ipcHndl, hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("sc_ipc_open failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 1);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("SC_R_DC_0:SC_C_SYNC_CTRL0 sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sc_ipc_close(hdp->mu_id);
+
+	return 0;
+}
+
+static int imx8qm_pixel_link_sync_ctrl_disable(state_struct *state)
+{
+	struct imx_hdp *hdp = state_to_imx_hdp(state);
+	sc_err_t sciErr;
+
+	sciErr = sc_ipc_getMuID(&hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("Cannot obtain MU ID\n");
+		return -EINVAL;
+	}
+
+	sciErr = sc_ipc_open(&hdp->ipcHndl, hdp->mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("sc_ipc_open failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 0);
+	if (sciErr != SC_ERR_NONE) {
+		DRM_ERROR("SC_R_DC_0:SC_C_SYNC_CTRL0 sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+		return -EINVAL;
+	}
+
+	sc_ipc_close(hdp->mu_id);
+
+	return 0;
 }
 
 void imx8qm_phy_reset(sc_ipc_t ipcHndl, struct hdp_mem *mem, u8 reset)
@@ -298,7 +378,7 @@ int imx8qm_pixel_clock_enable(struct hdp_clks *clks)
 
 	ret = clk_prepare_enable(clks->av_pll);
 	if (ret < 0) {
-		dev_err(dev, "%s, pre clk pxl error\n", __func__);
+		dev_err(dev, "%s, pre av pll  error\n", __func__);
 		return ret;
 	}
 
@@ -341,8 +421,28 @@ void imx8qm_dp_pixel_clock_set_rate(struct hdp_clks *clks)
 	struct imx_hdp *hdp = clks_to_imx_hdp(clks);
 	unsigned int pclock = hdp->video.cur_mode.clock * 1000;
 
-	/* 24MHz for DP */
-	clk_set_rate(clks->av_pll, 24000000);
+	if (!hdp->is_digpll_dp_pclock) {
+		sc_err_t sci_err = 0;
+		sc_ipc_t ipc_handle = 0;
+		u32 mu_id;
+
+		sci_err = sc_ipc_getMuID(&mu_id);
+
+		if (sci_err != SC_ERR_NONE)
+			pr_err("Failed to get MU ID (%d)\n", sci_err);
+		sci_err = sc_ipc_open(&ipc_handle, mu_id);
+
+		if (sci_err != SC_ERR_NONE)
+			pr_err("Failed to open IPC (%d)\n", sci_err);
+
+		clk_set_rate(clks->av_pll, pclock);
+
+		/* Enable the 24MHz for HDP PHY */
+		sc_misc_set_control(ipc_handle, SC_R_HDMI, SC_C_MODE, 1);
+
+		sc_ipc_close(ipc_handle);
+	} else
+		clk_set_rate(clks->av_pll, 24000000);
 
 	if (hdp->dual_mode == true) {
 		clk_set_rate(clks->clk_pxl, pclock/2);
@@ -467,23 +567,33 @@ void imx8qm_ipg_clock_disable(struct hdp_clks *clks)
 
 void imx8qm_ipg_clock_set_rate(struct hdp_clks *clks)
 {
-	u32 clk_rate;
+	struct imx_hdp *hdp = clks_to_imx_hdp(clks);
+	u32 clk_rate, desired_rate;
+
+	if (hdp->is_digpll_dp_pclock)
+		desired_rate = PLL_1188MHZ;
+	else
+		desired_rate = PLL_675MHZ;
 
 	/* hdmi/dp ipg/core clock */
 	clk_rate = clk_get_rate(clks->dig_pll);
 
-	if (clk_rate != PLL_1188MHZ) {
-		pr_warn("%s, dig_pll was %u MHz, changing to 1188 MHz\n",
-			__func__, clk_rate/1000000);
+	if (clk_rate != desired_rate) {
+		pr_warn("%s, dig_pll was %u MHz, changing to %u MHz\n",
+			__func__, clk_rate/1000000,
+			desired_rate/1000000);
 	}
 
-	/* Force to 1188 MHz until we know better */
-	clk_set_rate(clks->dig_pll, PLL_1188MHZ);
-	clk_set_rate(clks->clk_core, PLL_1188MHZ/10);
-	clk_set_rate(clks->clk_ipg, PLL_1188MHZ/14);
-
-	/* Set Default av pll clock */
-	clk_set_rate(clks->av_pll, 24000000);
+	if (hdp->is_digpll_dp_pclock) {
+		clk_set_rate(clks->dig_pll,  desired_rate);
+		clk_set_rate(clks->clk_core, desired_rate/10);
+		clk_set_rate(clks->clk_ipg,  desired_rate/12);
+		clk_set_rate(clks->av_pll, 24000000);
+	} else {
+		clk_set_rate(clks->dig_pll,  desired_rate);
+		clk_set_rate(clks->clk_core, desired_rate/5);
+		clk_set_rate(clks->clk_ipg,  desired_rate/8);
+	}
 }
 
 static u8 imx_hdp_link_rate(struct drm_display_mode *mode)
@@ -756,6 +866,10 @@ static const struct drm_bridge_funcs imx_hdp_bridge_funcs = {
 
 static void imx_hdp_imx_encoder_disable(struct drm_encoder *encoder)
 {
+	struct imx_hdp *hdp = container_of(encoder, struct imx_hdp, encoder);
+
+	imx_hdp_call(hdp, pixel_link_sync_ctrl_disable, &hdp->state);
+	imx_hdp_call(hdp, pixel_link_invalidate, &hdp->state);
 }
 
 static void imx_hdp_imx_encoder_enable(struct drm_encoder *encoder)
@@ -767,7 +881,7 @@ static void imx_hdp_imx_encoder_enable(struct drm_encoder *encoder)
 	int ret = 0;
 
 	if (!hdp->ops->write_hdr_metadata)
-		return;
+		goto out;
 
 	if (hdp->hdr_metadata_present) {
 		hdr_metadata = (struct hdr_static_metadata *)
@@ -793,6 +907,10 @@ static void imx_hdp_imx_encoder_enable(struct drm_encoder *encoder)
 	}
 
 	hdp->ops->write_hdr_metadata(&hdp->state, &frame);
+
+out:
+	imx_hdp_call(hdp, pixel_link_validate, &hdp->state);
+	imx_hdp_call(hdp, pixel_link_sync_ctrl_enable , &hdp->state);
 }
 
 static int imx_hdp_imx_encoder_atomic_check(struct drm_encoder *encoder,
@@ -922,8 +1040,10 @@ static struct hdp_ops imx8qm_dp_ops = {
 	.get_hpd_state = dp_get_hpd_state,
 
 	.phy_reset = imx8qm_phy_reset,
-	.pixel_link_init = imx8qm_pixel_link_init,
-	.pixel_link_deinit = imx8qm_pixel_link_deinit,
+	.pixel_link_validate = imx8qm_pixel_link_validate,
+	.pixel_link_invalidate = imx8qm_pixel_link_invalidate,
+	.pixel_link_sync_ctrl_enable = imx8qm_pixel_link_sync_ctrl_enable,
+	.pixel_link_sync_ctrl_disable = imx8qm_pixel_link_sync_ctrl_disable,
 	.pixel_link_mux = imx8qm_pixel_link_mux,
 
 	.clock_init = imx8qm_clock_init,
@@ -946,8 +1066,10 @@ static struct hdp_ops imx8qm_hdmi_ops = {
 	.get_hpd_state = hdmi_get_hpd_state,
 
 	.phy_reset = imx8qm_phy_reset,
-	.pixel_link_init = imx8qm_pixel_link_init,
-	.pixel_link_deinit = imx8qm_pixel_link_deinit,
+	.pixel_link_validate = imx8qm_pixel_link_validate,
+	.pixel_link_invalidate = imx8qm_pixel_link_invalidate,
+	.pixel_link_sync_ctrl_enable = imx8qm_pixel_link_sync_ctrl_enable,
+	.pixel_link_sync_ctrl_disable = imx8qm_pixel_link_sync_ctrl_disable,
 	.pixel_link_mux = imx8qm_pixel_link_mux,
 
 	.clock_init = imx8qm_clock_init,
@@ -1126,6 +1248,8 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 
 	hdp->is_cec = of_property_read_bool(pdev->dev.of_node, "fsl,cec");
 
+	hdp->is_digpll_dp_pclock = of_property_read_bool(pdev->dev.of_node, "fsl,use_digpll_pclock");
+
 	hdp->is_edp = of_property_read_bool(pdev->dev.of_node, "fsl,edp");
 
 	ret = of_property_read_u32(pdev->dev.of_node,
@@ -1169,12 +1293,6 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	hdp->link_rate = AFE_LINK_RATE_1_6;
 
 	hdp->dual_mode = false;
-
-	ret = imx_hdp_call(hdp, pixel_link_init, &hdp->state);
-	if (ret < 0) {
-		DRM_ERROR("Failed to initialize clock %d\n", ret);
-		return ret;
-	}
 
 	ret = imx_hdp_call(hdp, clock_init, &hdp->clks);
 	if (ret < 0) {
@@ -1323,7 +1441,6 @@ static void imx_hdp_imx_unbind(struct device *dev, struct device *master,
 		imx_cec_unregister(&hdp->cec);
 #endif
 	imx_hdp_call(hdp, pixel_clock_disable, &hdp->clks);
-	imx_hdp_call(hdp, pixel_link_deinit, &hdp->state);
 	drm_bridge_detach(&hdp->bridge);
 }
 

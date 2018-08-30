@@ -285,10 +285,6 @@ static int dpu_plane_atomic_check(struct drm_plane *plane,
 	if (fb->modifier[2] || fb->modifier[3])
 		return -EINVAL;
 
-	if (fb->modifier[0] && (src_x || src_y) &&
-	    !dplane->has_prefetch_fixup)
-		return -EINVAL;
-
 	if (dplane->grp->has_vproc) {
 		/* no down scaling */
 		if (src_w > state->crtc_w || src_h > state->crtc_h)
@@ -495,8 +491,8 @@ static void dpu_plane_atomic_update(struct drm_plane *plane,
 
 	src_w = state->src_w >> 16;
 	src_h = state->src_h >> 16;
-	src_x = state->src_x >> 16;
-	src_y = state->src_y >> 16;
+	src_x = fb->modifier[0] ? (state->src_x >> 16) : 0;
+	src_y = fb->modifier[0] ? (state->src_y >> 16) : 0;
 
 	if (fetchunit_is_fetchdecode(fu)) {
 		if (fetchdecode_need_fetcheco(fu, fb->pixel_format)) {
@@ -733,8 +729,7 @@ struct dpu_plane *dpu_plane_init(struct drm_device *drm,
 				 unsigned int possible_crtcs,
 				 unsigned int stream_id,
 				 struct dpu_plane_grp *grp,
-				 enum drm_plane_type type,
-				 bool has_prefetch_fixup)
+				 enum drm_plane_type type)
 {
 	struct dpu_plane *dpu_plane;
 	struct drm_plane *plane;
@@ -747,7 +742,6 @@ struct dpu_plane *dpu_plane_init(struct drm_device *drm,
 
 	dpu_plane->stream_id = stream_id;
 	dpu_plane->grp = grp;
-	dpu_plane->has_prefetch_fixup = has_prefetch_fixup;
 
 	plane = &dpu_plane->base;
 

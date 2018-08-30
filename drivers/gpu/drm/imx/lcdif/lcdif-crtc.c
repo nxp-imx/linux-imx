@@ -109,6 +109,24 @@ static const struct drm_crtc_funcs lcdif_crtc_funcs = {
 static int lcdif_crtc_atomic_check(struct drm_crtc *crtc,
 				   struct drm_crtc_state *state)
 {
+	struct lcdif_crtc *lcdif_crtc = to_lcdif_crtc(crtc);
+	struct imx_crtc_state *imx_crtc_state = to_imx_crtc_state(state);
+
+	/* check the requested bus format can be
+	 * supported by LCDIF CTRC or not
+	 */
+	switch (imx_crtc_state->bus_format) {
+	case MEDIA_BUS_FMT_RGB565_1X16:
+	case MEDIA_BUS_FMT_RGB666_1X18:
+	case MEDIA_BUS_FMT_RGB888_1X24:
+		break;
+	default:
+		dev_err(lcdif_crtc->dev,
+			"unsupported bus format: %#x\n",
+			imx_crtc_state->bus_format);
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -156,6 +174,9 @@ static void lcdif_crtc_enable(struct drm_crtc *crtc)
 	pm_runtime_get_sync(lcdif_crtc->dev->parent);
 
 	lcdif_set_mode(lcdif, &vm);
+
+	/* config LCDIF output bus format */
+	lcdif_set_bus_fmt(lcdif, imx_crtc_state->bus_format);
 
 	/* defer the lcdif controller enable to plane update,
 	 * since until then the lcdif config is complete to
