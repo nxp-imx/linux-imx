@@ -575,6 +575,10 @@ struct ufs_hba {
 	bool is_urgent_bkops_lvl_checked;
 
 	struct ufs_desc_size desc_size;
+
+	int latency_hist_enabled;
+	struct io_latency_state io_lat_read;
+	struct io_latency_state io_lat_write;
 };
 
 /* Returns true if clocks can be gated. Otherwise false */

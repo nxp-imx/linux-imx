@@ -68,6 +68,8 @@ int fence_signal_locked(struct fence *fence)
 	struct fence_cb *cur, *tmp;
 	int ret = 0;
 
+	lockdep_assert_held(fence->lock);
+
 	if (WARN_ON(!fence))
 		return -EINVAL;
 
@@ -158,9 +160,6 @@ fence_wait_timeout(struct fence *fence, bool intr, signed long timeout)
 
 	if (WARN_ON(timeout < 0))
 		return -EINVAL;
-
-	if (timeout == 0)
-		return fence_is_signaled(fence);
 
 	trace_fence_wait_start(fence);
 	ret = fence->ops->wait(fence, intr, timeout);
@@ -329,8 +328,12 @@ fence_remove_callback(struct fence *fence, struct fence_cb *cb)
 	spin_lock_irqsave(fence->lock, flags);
 
 	ret = !list_empty(&cb->node);
-	if (ret)
+	if (ret) {
 		list_del_init(&cb->node);
+		if (list_empty(&fence->cb_list))
+			if (fence->ops->disable_signaling)
+				fence->ops->disable_signaling(fence);
+	}
 
 	spin_unlock_irqrestore(fence->lock, flags);
 
