@@ -74,19 +74,26 @@
 		#size-cells = <2>;
 		ranges;
 
+		/*
+		 * reserved-memory layout
+		 * 0x8800_0000 ~ 0x8FFF_FFFF is reserved for M4
+		 * Shouldn't be used at A core and Linux side.
+		 *
+		 */
+
 		rpmsg_reserved: rpmsg@0x90000000 {
 			no-map;
 			reg = <0 0x90000000 0 0x400000>;
 		};
 
-		ramoops@0x94400000 {
-			compatible = "ramoops";
-			reg = <0 0x94400000 0 0x00100000>;
-			record-size     = <0x00020000>;
-			console-size    = <0x00020000>;
-			ftrace-size     = <0x00020000>;
-			pmsg-size       = <0x00020000>;
-		};
+                ramoops@0x94400000 {
+                        compatible = "ramoops";
+                        reg = <0 0x94400000 0 0x00100000>;
+                        record-size     = <0x00020000>;
+                        console-size    = <0x00020000>;
+                        ftrace-size     = <0x00020000>;
+                        pmsg-size       = <0x00020000>;
+               }; 
 	};
 
 	gic: interrupt-controller@51a00000 {
@@ -177,6 +184,7 @@
 		/* kHz    uV */
 		/* voltage is maintained by SCFW, so no need here */
 		1200000	   0
+		1104000	   0
 		900000	   0
 		600000	   0
 	>;
@@ -191,6 +199,7 @@
 		/* voltage is maintained by SCFW, so no need here */
 		1596000	   0
 		1464000	   0
+		1300000	   0
 		1056000	   0
 		600000     0
 	>;
