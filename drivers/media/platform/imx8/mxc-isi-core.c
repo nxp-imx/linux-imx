@@ -15,6 +15,7 @@
 static irqreturn_t mxc_isi_irq_handler(int irq, void *priv)
 {
 	struct mxc_isi_dev *mxc_isi = priv;
+	struct device *dev = &mxc_isi->pdev->dev;
 	u32 status;
 
 	spin_lock(&mxc_isi->slock);
@@ -28,19 +29,19 @@ static irqreturn_t mxc_isi_irq_handler(int irq, void *priv)
 	if (status & (CHNL_STS_AXI_WR_ERR_Y_MASK |
 					CHNL_STS_AXI_WR_ERR_U_MASK |
 					CHNL_STS_AXI_WR_ERR_V_MASK))
-		printk("%s, IRQ AXI Error stat=0x%X\n", __func__, status);
+		dev_dbg(dev, "%s, IRQ AXI Error stat=0x%X\n", __func__, status);
 	if (status & (CHNL_STS_OFLW_PANIC_Y_BUF_MASK |
 					CHNL_STS_OFLW_PANIC_U_BUF_MASK |
 					CHNL_STS_OFLW_PANIC_V_BUF_MASK))
-		printk("%s, IRQ Panic OFLW Error stat=0x%X\n", __func__, status);
+		dev_dbg(dev, "%s, IRQ Panic OFLW Error stat=0x%X\n", __func__, status);
 	if (status & (CHNL_STS_OFLW_Y_BUF_MASK |
 					CHNL_STS_OFLW_U_BUF_MASK |
 					CHNL_STS_OFLW_V_BUF_MASK))
-		printk("%s, IRQ OFLW Error stat=0x%X\n", __func__, status);
+		dev_dbg(dev, "%s, IRQ OFLW Error stat=0x%X\n", __func__, status);
 	if (status & (CHNL_STS_EXCS_OFLW_Y_BUF_MASK |
 					CHNL_STS_EXCS_OFLW_U_BUF_MASK |
 					CHNL_STS_EXCS_OFLW_V_BUF_MASK))
-		printk("%s, IRQ EXCS OFLW Error stat=0x%X\n", __func__, status);
+		dev_dbg(dev, "%s, IRQ EXCS OFLW Error stat=0x%X\n", __func__, status);
 
 	spin_unlock(&mxc_isi->slock);
 	return IRQ_HANDLED;
@@ -174,6 +175,8 @@ static int mxc_isi_probe(struct platform_device *pdev)
 		goto err_sclk;
 	}
 
+	mxc_isi->flags = MXC_ISI_PM_POWERED;
+
 	dev_dbg(dev, "mxc_isi.%d registered successfully\n", mxc_isi->id);
 
 	return 0;
@@ -194,6 +197,39 @@ static int mxc_isi_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int mxc_isi_pm_suspend(struct device *dev)
+{
+	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
+
+	if (mxc_isi->flags & MXC_ISI_PM_SUSPENDED)
+		return 0;
+
+	clk_disable_unprepare(mxc_isi->clk);
+	mxc_isi->flags |= MXC_ISI_PM_SUSPENDED;
+	mxc_isi->flags &= ~MXC_ISI_PM_POWERED;
+
+	return 0;
+}
+
+static int mxc_isi_pm_resume(struct device *dev)
+{
+	struct mxc_isi_dev *mxc_isi = dev_get_drvdata(dev);
+	int ret;
+
+	if (mxc_isi->flags & MXC_ISI_PM_POWERED)
+		return 0;
+
+	mxc_isi->flags |= MXC_ISI_PM_POWERED;
+	mxc_isi->flags &= ~MXC_ISI_PM_SUSPENDED;
+
+	ret = clk_prepare_enable(mxc_isi->clk);
+	return (ret) ? -EAGAIN : 0;
+}
+
+static const struct dev_pm_ops mxc_isi_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(mxc_isi_pm_suspend, mxc_isi_pm_resume)
+};
+
 static const struct of_device_id mxc_isi_of_match[] = {
 	{.compatible = "fsl,imx8-isi",},
 	{ /* sentinel */ },
@@ -206,6 +242,7 @@ static struct platform_driver mxc_isi_driver = {
 	.driver = {
 		.of_match_table = mxc_isi_of_match,
 		.name		= MXC_ISI_DRIVER_NAME,
+		.pm		= &mxc_isi_pm_ops,
 	}
 };
 

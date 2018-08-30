@@ -91,6 +91,9 @@ static const struct file_operations imx_drm_driver_fops = {
 	.open = drm_open,
 	.release = drm_release,
 	.unlocked_ioctl = drm_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = drm_compat_ioctl,
+#endif
 	.mmap = drm_gem_cma_mmap,
 	.poll = drm_poll,
 	.read = drm_read,
@@ -432,6 +435,7 @@ err_unbind:
 #endif
 	component_unbind_all(drm->dev, drm);
 err_vblank:
+	dev_set_drvdata(dev, NULL);
 	drm_vblank_cleanup(drm);
 err_kms:
 	drm_mode_config_cleanup(drm);
