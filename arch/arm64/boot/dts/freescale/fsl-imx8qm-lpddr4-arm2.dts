@@ -115,6 +115,7 @@
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			gpio = <&gpio4 7 GPIO_ACTIVE_HIGH>;
+			off-on-delay = <3000>;
 			enable-active-high;
 		};
 
@@ -583,6 +584,20 @@
 				SC_P_LVDS1_GPIO00_LVDS1_PWM0_OUT	0x00000020
 			>;
 		};
+
+		pinctrl_mipi_csi0_gpio: mipicsi0gpiogrp{
+			fsl,pins = <
+				SC_P_MIPI_CSI0_GPIO0_00_MIPI_CSI0_GPIO0_IO00	0x00000021
+				SC_P_MIPI_CSI0_GPIO0_01_MIPI_CSI0_GPIO0_IO01	0x00000021
+			>;
+		};
+
+		pinctrl_mipi_csi1_gpio: mipicsi1gpiogrp{
+			fsl,pins = <
+				SC_P_MIPI_CSI1_GPIO0_00_MIPI_CSI1_GPIO0_IO00	0x00000021
+				SC_P_MIPI_CSI1_GPIO0_01_MIPI_CSI1_GPIO0_IO01	0x00000021
+			>;
+		};
 	};
 };
 
@@ -707,6 +722,18 @@
 	};
 };
 
+&gpio0_mipi_csi0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_mipi_csi0_gpio>;
+	status = "okay";
+};
+
+&gpio0_mipi_csi1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_mipi_csi1_gpio>;
+	status = "okay";
+};
+
 &i2c0_mipi_csi0 {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -721,6 +748,7 @@
 		clock-names = "capture_mclk";
 		mclk = <27000000>;
 		mclk_source = <0>;
+		pwn-gpios = <&gpio0_mipi_csi0 0 GPIO_ACTIVE_HIGH>;
 		virtual-channel;
 		port {
 			max9286_0_ep: endpoint {
@@ -745,6 +773,7 @@
 		clock-names = "capture_mclk";
 		mclk = <27000000>;
 		mclk_source = <0>;
+		pwn-gpios = <&gpio0_mipi_csi1 0 GPIO_ACTIVE_HIGH>;
 		virtual-channel;
 		port {
 			max9286_1_ep: endpoint {
@@ -1163,6 +1192,132 @@
 				clock-lanes = <3>;
 				data-lanes = <0 1 2 4>;
 				remote-endpoint = <&lvds0_out>;
+			};
+		};
+	};
+};
+
+&ldb2_phy {
+	status = "okay";
+};
+
+&ldb2 {
+	status = "okay";
+
+	lvds-channel@0 {
+		fsl,data-mapping = "jeida";
+		fsl,data-width = <24>;
+		status = "okay";
+
+		port@1 {
+			reg = <1>;
+
+			lvds1_out: endpoint {
+				remote-endpoint = <&it6263_1_in>;
+			};
+		};
+	};
+};
+
+&i2c1_lvds1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_lvds1_lpi2c1>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	lvds-to-hdmi-bridge@4c {
+		compatible = "ite,it6263";
+		reg = <0x4c>;
+
+		port {
+			it6263_1_in: endpoint {
+				clock-lanes = <3>;
+				data-lanes = <0 1 2 4>;
+				remote-endpoint = <&lvds1_out>;
+			};
+		};
+	};
+};
+
+&mipi_dsi_phy1 {
+	status = "okay";
+};
+
+&mipi_dsi1 {
+	status = "okay";
+};
+
+&mipi_dsi_bridge1 {
+	status = "okay";
+
+	port@1 {
+		mipi_dsi_bridge1_adv: endpoint {
+			remote-endpoint = <&adv7535_1_in>;
+		};
+	};
+};
+
+&i2c0_mipi_dsi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_mipi0_lpi2c0>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	adv_bridge1: adv7535@3d {
+		compatible = "adi,adv7535", "adi,adv7533";
+		reg = <0x3d>;
+		adi,dsi-lanes = <4>;
+		adi,dsi-channel = <1>;
+		status = "okay";
+
+		port {
+			adv7535_1_in: endpoint {
+				remote-endpoint = <&mipi_dsi_bridge1_adv>;
+			};
+		};
+	};
+};
+
+&mipi_dsi_phy2 {
+	status = "okay";
+};
+
+&mipi_dsi2 {
+	status = "okay";
+};
+
+&mipi_dsi_bridge2 {
+	status = "okay";
+
+	port@1 {
+		mipi_dsi_bridge2_adv: endpoint {
+			remote-endpoint = <&adv7535_2_in>;
+		};
+	};
+};
+
+&i2c0_mipi_dsi1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_mipi1_lpi2c0>;
+	clock-frequency = <100000>;
+	status = "okay";
+
+	adv_bridge2: adv7535@3d {
+		compatible = "adi,adv7535", "adi,adv7533";
+		reg = <0x3d>;
+		adi,dsi-lanes = <4>;
+		adi,dsi-channel = <1>;
+		status = "okay";
+
+		port {
+			adv7535_2_in: endpoint {
+				remote-endpoint = <&mipi_dsi_bridge2_adv>;
 			};
 		};
 	};

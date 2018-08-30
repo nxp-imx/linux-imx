@@ -159,6 +159,8 @@ static void cdns_set_role(struct cdns3 *cdns, enum cdns3_roles role)
 		writel(value, cdns->none_core_regs + USB3_CORE_CTRL1);
 		mdelay(1);
 		cdns3_usb_phy_init(cdns->phy_regs);
+		/* Force B Session Valid as 1 */
+		writel(0x0060, cdns->phy_regs + 0x380a4);
 		mdelay(1);
 
 		value = readl(cdns->none_core_regs + USB3_INT_REG);
@@ -192,6 +194,8 @@ static void cdns_set_role(struct cdns3 *cdns, enum cdns3_roles role)
 		writel(value, cdns->none_core_regs + USB3_CORE_CTRL1);
 
 		cdns3_usb_phy_init(cdns->phy_regs);
+		/* Force B Session Valid as 1 */
+		writel(0x0060, cdns->phy_regs + 0x380a4);
 		value = readl(cdns->none_core_regs + USB3_INT_REG);
 		value |= DEV_INT_EN;
 		writel(value, cdns->none_core_regs + USB3_INT_REG);
@@ -376,7 +380,7 @@ static void cdns3_remove_roles(struct cdns3 *cdns)
 	cdns3_host_remove(cdns);
 }
 
-static int cdsn3_do_role_switch(struct cdns3 *cdns, enum cdns3_roles role)
+static int cdns3_do_role_switch(struct cdns3 *cdns, enum cdns3_roles role)
 {
 	int ret = 0;
 	enum cdns3_roles current_role;
@@ -398,10 +402,6 @@ static int cdsn3_do_role_switch(struct cdns3 *cdns, enum cdns3_roles role)
 	}
 
 	cdns_set_role(cdns, role);
-	if (role == CDNS3_ROLE_GADGET || role == CDNS3_ROLE_HOST)
-		/* Force B Session Valid as 1 */
-		writel(0x0060, cdns->phy_regs + 0x380a4);
-
 	ret = cdns3_role_start(cdns, role);
 	if (ret) {
 		/* Back to current role */
@@ -420,6 +420,9 @@ static int cdsn3_do_role_switch(struct cdns3 *cdns, enum cdns3_roles role)
  *
  * @work: work queue item structure
  *
+ * Handles below events:
+ * - Role switch for dual-role devices
+ * - CDNS3_ROLE_GADGET <--> CDNS3_ROLE_END for peripheral-only devices
  */
 static void cdns3_role_switch(struct work_struct *work)
 {
@@ -430,12 +433,16 @@ static void cdns3_role_switch(struct work_struct *work)
 	host = extcon_get_state(cdns->extcon, EXTCON_USB_HOST);
 	device = extcon_get_state(cdns->extcon, EXTCON_USB);
 
-	if (host)
-		cdsn3_do_role_switch(cdns, CDNS3_ROLE_HOST);
-	else if (device)
-		cdsn3_do_role_switch(cdns, CDNS3_ROLE_GADGET);
+	if (host) {
+		if (cdns->roles[CDNS3_ROLE_HOST])
+			cdns3_do_role_switch(cdns, CDNS3_ROLE_HOST);
+		return;
+	}
+
+	if (device)
+		cdns3_do_role_switch(cdns, CDNS3_ROLE_GADGET);
 	else
-		cdsn3_do_role_switch(cdns, CDNS3_ROLE_END);
+		cdns3_do_role_switch(cdns, CDNS3_ROLE_END);
 }
 
 static int cdns3_extcon_notifier(struct notifier_block *nb, unsigned long event,
@@ -567,14 +574,16 @@ static int cdns3_probe(struct platform_device *pdev)
 	if (ret)
 		goto err1;
 
-	INIT_WORK(&cdns->role_switch_wq, cdns3_role_switch);
-	ret = cdns3_register_extcon(cdns);
-	if (ret)
-		goto err2;
-
 	ret = cdns3_core_init_role(cdns);
 	if (ret)
 		goto err2;
+
+	if (cdns->roles[CDNS3_ROLE_GADGET]) {
+		INIT_WORK(&cdns->role_switch_wq, cdns3_role_switch);
+		ret = cdns3_register_extcon(cdns);
+		if (ret)
+			goto err3;
+	}
 
 	cdns->role = cdns3_get_role(cdns);
 	dev_dbg(dev, "the init role is %d\n", cdns->role);
