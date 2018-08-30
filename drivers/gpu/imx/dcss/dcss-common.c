@@ -19,6 +19,7 @@
 #include <linux/clk.h>
 #include <linux/pm_runtime.h>
 #include <linux/busfreq-imx.h>
+#include <linux/pm_qos.h>
 #include <video/imx-dcss.h>
 
 #include <drm/drm_fourcc.h>
@@ -473,6 +474,8 @@ static int dcss_suspend(struct device *dev)
 
 	dcss_clocks_enable(dcss, false);
 
+	pm_qos_remove_request(&dcss->pm_qos_req);
+
 	dcss_bus_freq(dcss, false);
 
 	return 0;
@@ -483,7 +486,12 @@ static int dcss_resume(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct dcss_soc *dcss = platform_get_drvdata(pdev);
 
+	if (pm_runtime_suspended(dev))
+		return 0;
+
 	dcss_bus_freq(dcss, true);
+
+	pm_qos_add_request(&dcss->pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
 
 	dcss_clocks_enable(dcss, true);
 
@@ -509,6 +517,8 @@ static int dcss_runtime_suspend(struct device *dev)
 
 	dcss_clocks_enable(dcss, false);
 
+	pm_qos_remove_request(&dcss->pm_qos_req);
+
 	dcss_bus_freq(dcss, false);
 
 	return 0;
@@ -520,6 +530,8 @@ static int dcss_runtime_resume(struct device *dev)
 	struct dcss_soc *dcss = platform_get_drvdata(pdev);
 
 	dcss_bus_freq(dcss, true);
+
+	pm_qos_add_request(&dcss->pm_qos_req, PM_QOS_CPU_DMA_LATENCY, 0);
 
 	dcss_clocks_enable(dcss, true);
 

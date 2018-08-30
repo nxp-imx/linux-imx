@@ -144,12 +144,6 @@ static int fsl_mqs_startup(struct snd_pcm_substream *substream,
 	struct snd_soc_codec *codec = dai->codec;
 	struct fsl_mqs *mqs_priv = snd_soc_codec_get_drvdata(codec);
 
-	if (mqs_priv->ipg)
-		clk_prepare_enable(mqs_priv->ipg);
-
-	if (mqs_priv->mclk)
-		clk_prepare_enable(mqs_priv->mclk);
-
 	if (mqs_priv->use_gpr)
 		regmap_update_bits(mqs_priv->gpr, IOMUXC_GPR2, IMX6SX_GPR2_MQS_EN_MASK,
 					1 << IMX6SX_GPR2_MQS_EN_SHIFT);
@@ -172,16 +166,12 @@ static void fsl_mqs_shutdown(struct snd_pcm_substream *substream,
 	else
 		regmap_update_bits(mqs_priv->regmap, REG_MQS_CTRL,
 					MQS_EN_MASK, 0);
-
-	if (mqs_priv->mclk)
-		clk_disable_unprepare(mqs_priv->mclk);
-
-	if (mqs_priv->ipg)
-		clk_disable_unprepare(mqs_priv->ipg);
 }
 
 
-static struct snd_soc_codec_driver soc_codec_fsl_mqs;
+static struct snd_soc_codec_driver soc_codec_fsl_mqs = {
+	.idle_bias_off = true,
+};
 
 static const struct snd_soc_dai_ops fsl_mqs_dai_ops = {
 	.startup = fsl_mqs_startup,
@@ -291,13 +281,20 @@ out:
 static int fsl_mqs_remove(struct platform_device *pdev)
 {
 	snd_soc_unregister_codec(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
 	return 0;
 }
 
-#ifdef CONFIG_PM_SLEEP
-static int fsl_mqs_resume(struct device *dev)
+#ifdef CONFIG_PM
+static int fsl_mqs_runtime_resume(struct device *dev)
 {
 	struct fsl_mqs *mqs_priv = dev_get_drvdata(dev);
+
+	if (mqs_priv->ipg)
+		clk_prepare_enable(mqs_priv->ipg);
+
+	if (mqs_priv->mclk)
+		clk_prepare_enable(mqs_priv->mclk);
 
 	if (mqs_priv->use_gpr)
 		regmap_write(mqs_priv->gpr, IOMUXC_GPR2,
@@ -305,11 +302,10 @@ static int fsl_mqs_resume(struct device *dev)
 	else
 		regmap_write(mqs_priv->regmap, REG_MQS_CTRL,
 			     mqs_priv->reg_mqs_ctrl);
-
 	return 0;
 }
 
-static int fsl_mqs_suspend(struct device *dev)
+static int fsl_mqs_runtime_suspend(struct device *dev)
 {
 	struct fsl_mqs *mqs_priv = dev_get_drvdata(dev);
 
@@ -320,12 +316,21 @@ static int fsl_mqs_suspend(struct device *dev)
 		regmap_read(mqs_priv->regmap, REG_MQS_CTRL,
 			    &mqs_priv->reg_mqs_ctrl);
 
+	if (mqs_priv->mclk)
+		clk_disable_unprepare(mqs_priv->mclk);
+
+	if (mqs_priv->ipg)
+		clk_disable_unprepare(mqs_priv->ipg);
+
 	return 0;
 }
 #endif
 
 static const struct dev_pm_ops fsl_mqs_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(fsl_mqs_suspend, fsl_mqs_resume)
+	SET_RUNTIME_PM_OPS(fsl_mqs_runtime_suspend,
+			   fsl_mqs_runtime_resume,
+			   NULL)
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend, pm_runtime_force_resume)
 };
 
 static const struct of_device_id fsl_mqs_dt_ids[] = {

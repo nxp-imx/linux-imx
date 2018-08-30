@@ -27,7 +27,6 @@
 #include <linux/pm_runtime.h>
 #include <linux/reservation.h>
 #include <linux/version.h>
-#include <linux/busfreq-imx.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_atomic.h>
@@ -44,9 +43,28 @@
 #include "mxsfb_drv.h"
 #include "mxsfb_regs.h"
 
+/* The eLCDIF max possible CRTCs */
+#define MAX_CRTCS 1
+
 enum mxsfb_devtype {
 	MXSFB_V3,
 	MXSFB_V4,
+};
+
+/*
+ * When adding new formats, make sure to update the num_formats from
+ * mxsfb_devdata below.
+ */
+static const uint32_t mxsfb_formats[] = {
+	/* MXSFB_V3 */
+	DRM_FORMAT_XRGB8888,
+	DRM_FORMAT_ARGB8888,
+	DRM_FORMAT_RGB565,
+	/* MXSFB_V4 */
+	DRM_FORMAT_XBGR8888,
+	DRM_FORMAT_ABGR8888,
+	DRM_FORMAT_RGBX8888,
+	DRM_FORMAT_RGBA8888,
 };
 
 static const struct mxsfb_devdata mxsfb_devdata[] = {
@@ -59,6 +77,7 @@ static const struct mxsfb_devdata mxsfb_devdata[] = {
 		.hs_wdth_shift	= 24,
 		.ipversion	= 3,
 		.flags		= MXSFB_FLAG_NULL,
+		.num_formats	= 3,
 	},
 	[MXSFB_V4] = {
 		.transfer_count	= LCDC_V4_TRANSFER_COUNT,
@@ -69,12 +88,8 @@ static const struct mxsfb_devdata mxsfb_devdata[] = {
 		.hs_wdth_shift	= 18,
 		.ipversion	= 4,
 		.flags		= MXSFB_FLAG_BUSFREQ,
+		.num_formats	= ARRAY_SIZE(mxsfb_formats),
 	},
-};
-
-static const uint32_t mxsfb_formats[] = {
-	DRM_FORMAT_XRGB8888,
-	DRM_FORMAT_RGB565
 };
 
 static struct mxsfb_drm_private *
@@ -104,7 +119,26 @@ static const struct drm_mode_config_funcs mxsfb_mode_config_funcs = {
 static void mxsfb_pipe_enable(struct drm_simple_display_pipe *pipe,
 			      struct drm_crtc_state *crtc_state)
 {
+	struct drm_device *drm = pipe->encoder.dev;
+	struct drm_connector *connector;
 	struct mxsfb_drm_private *mxsfb = drm_pipe_to_mxsfb_drm_private(pipe);
+
+	if (!mxsfb->connector) {
+		list_for_each_entry(connector,
+				    &drm->mode_config.connector_list,
+				    head)
+			if (connector->encoder == &(mxsfb->pipe.encoder)) {
+				mxsfb->connector = connector;
+				break;
+			}
+	}
+
+	if (!mxsfb->connector) {
+		dev_warn(drm->dev, "No connector attached, using default\n");
+		mxsfb->connector = &mxsfb->panel_connector;
+	}
+
+	drm_crtc_vblank_on(&mxsfb->pipe.crtc);
 
 	mxsfb_crtc_enable(mxsfb);
 	pm_runtime_get_sync(mxsfb->dev);
@@ -113,9 +147,20 @@ static void mxsfb_pipe_enable(struct drm_simple_display_pipe *pipe,
 static void mxsfb_pipe_disable(struct drm_simple_display_pipe *pipe)
 {
 	struct mxsfb_drm_private *mxsfb = drm_pipe_to_mxsfb_drm_private(pipe);
+	struct drm_crtc *crtc = &pipe->crtc;
+
+	spin_lock_irq(&crtc->dev->event_lock);
+	if (crtc->state->event) {
+		drm_crtc_send_vblank_event(crtc, crtc->state->event);
+		crtc->state->event = NULL;
+	}
+	spin_unlock_irq(&crtc->dev->event_lock);
 
 	mxsfb_crtc_disable(mxsfb);
 	pm_runtime_put_sync(mxsfb->dev);
+
+	if (mxsfb->connector != &mxsfb->panel_connector)
+		mxsfb->connector = NULL;
 }
 
 static void mxsfb_pipe_update(struct drm_simple_display_pipe *pipe,
@@ -148,6 +193,7 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 	struct platform_device *pdev = to_platform_device(drm->dev);
 	struct mxsfb_drm_private *mxsfb;
 	struct resource *res;
+	u32 max_res[2] = {0, 0};
 	int ret;
 
 	mxsfb = devm_kzalloc(&pdev->dev, sizeof(*mxsfb), GFP_KERNEL);
@@ -183,7 +229,7 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 
 	pm_runtime_enable(drm->dev);
 
-	ret = drm_vblank_init(drm, drm->mode_config.num_crtc);
+	ret = drm_vblank_init(drm, MAX_CRTCS);
 	if (ret < 0) {
 		dev_err(drm->dev, "Failed to initialise vblank\n");
 		goto err_vblank;
@@ -199,16 +245,25 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 	}
 
 	ret = drm_simple_display_pipe_init(drm, &mxsfb->pipe, &mxsfb_funcs,
-			mxsfb_formats, ARRAY_SIZE(mxsfb_formats),
-			&mxsfb->connector);
+			mxsfb_formats, mxsfb->devdata->num_formats,
+			mxsfb->connector);
 	if (ret < 0) {
 		dev_err(drm->dev, "Cannot setup simple display pipe\n");
 		goto err_vblank;
 	}
 
-	/* Attach panel only if there is one */
+	drm_crtc_vblank_off(&mxsfb->pipe.crtc);
+
+	/*
+	 * Attach panel only if there is one.
+	 * If there is no panel attach, it must be a bridge. In this case, we
+	 * need a reference to its connector for a proper initialization.
+	 * We will do this check in pipe->enable(), since the connector won't
+	 * be attached to an encoder until then.
+	 */
+
 	if (mxsfb->panel) {
-		ret = drm_panel_attach(mxsfb->panel, &mxsfb->connector);
+		ret = drm_panel_attach(mxsfb->panel, mxsfb->connector);
 		if (ret) {
 			dev_err(drm->dev, "Cannot connect panel\n");
 			goto err_vblank;
@@ -220,13 +275,19 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 			dev_err(drm->dev, "Cannot connect bridge\n");
 			goto err_vblank;
 		}
-
 	}
+
+	of_property_read_u32_array(drm->dev->of_node, "max-res",
+				   &max_res[0], 2);
+	if (!max_res[0])
+		max_res[0] = MXSFB_MAX_XRES;
+	if (!max_res[1])
+		max_res[1] = MXSFB_MAX_YRES;
 
 	drm->mode_config.min_width	= MXSFB_MIN_XRES;
 	drm->mode_config.min_height	= MXSFB_MIN_YRES;
-	drm->mode_config.max_width	= MXSFB_MAX_XRES;
-	drm->mode_config.max_height	= MXSFB_MAX_YRES;
+	drm->mode_config.max_width	= max_res[0];
+	drm->mode_config.max_height	= max_res[1];
 	drm->mode_config.funcs		= &mxsfb_mode_config_funcs;
 
 	drm_mode_config_reset(drm);
@@ -460,9 +521,7 @@ static int mxsfb_runtime_suspend(struct device *dev)
 		return 0;
 
 	mxsfb_crtc_disable(mxsfb);
-
-	if (mxsfb->devdata->flags & MXSFB_FLAG_BUSFREQ)
-		release_bus_freq(BUS_FREQ_HIGH);
+	mxsfb->suspended = true;
 
 	return 0;
 }
@@ -472,11 +531,8 @@ static int mxsfb_runtime_resume(struct device *dev)
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
 
-	if (!drm->registered)
+	if (!drm->registered || !mxsfb->suspended)
 		return 0;
-
-	if (mxsfb->devdata->flags & MXSFB_FLAG_BUSFREQ)
-		request_bus_freq(BUS_FREQ_HIGH);
 
 	mxsfb_crtc_enable(mxsfb);
 
@@ -489,6 +545,7 @@ static int mxsfb_suspend(struct device *dev)
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
 
 	mxsfb_crtc_disable(mxsfb);
+	mxsfb->suspended = true;
 
 	return 0;
 }
@@ -497,6 +554,9 @@ static int mxsfb_resume(struct device *dev)
 {
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct mxsfb_drm_private *mxsfb = drm->dev_private;
+
+	if (!mxsfb->suspended)
+		return 0;
 
 	mxsfb_crtc_enable(mxsfb);
 

@@ -25,6 +25,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/busfreq-imx.h>
 #include <linux/pm_qos.h>
+#include <linux/usb/of.h>
 
 #include "ci.h"
 #include "ci_hdrc_imx.h"
@@ -86,6 +87,10 @@ static const struct ci_hdrc_imx_platform_flag imx7ulp_usb_data = {
 		CI_HDRC_PMQOS,
 };
 
+static const struct ci_hdrc_imx_platform_flag imx8qm_usb_data = {
+	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM,
+};
+
 static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
 	{ .compatible = "fsl,imx23-usb", .data = &imx23_usb_data},
 	{ .compatible = "fsl,imx28-usb", .data = &imx28_usb_data},
@@ -96,6 +101,7 @@ static const struct of_device_id ci_hdrc_imx_dt_ids[] = {
 	{ .compatible = "fsl,imx6ul-usb", .data = &imx6ul_usb_data},
 	{ .compatible = "fsl,imx7d-usb", .data = &imx7d_usb_data},
 	{ .compatible = "fsl,imx7ulp-usb", .data = &imx7ulp_usb_data},
+	{ .compatible = "fsl,imx8qm-usb", .data = &imx8qm_usb_data},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, ci_hdrc_imx_dt_ids);
@@ -132,32 +138,6 @@ static enum power_supply_property imx_usb_charger_power_props[] = {
 	POWER_SUPPLY_PROP_ONLINE,	/* VBUS online */
 	POWER_SUPPLY_PROP_CURRENT_MAX,	/* Maximum current in mA */
 };
-
-static inline bool is_imx6q_con(struct ci_hdrc_imx_data *imx_data)
-{
-	return imx_data->data == &imx6q_usb_data;
-}
-
-static inline bool is_imx6sl_con(struct ci_hdrc_imx_data *imx_data)
-{
-	return imx_data->data == &imx6sl_usb_data;
-}
-
-static inline bool is_imx6sx_con(struct ci_hdrc_imx_data *imx_data)
-{
-	return imx_data->data == &imx6sx_usb_data;
-}
-
-static inline bool is_imx7d_con(struct ci_hdrc_imx_data *imx_data)
-{
-	return imx_data->data == &imx7d_usb_data;
-}
-
-static inline bool imx_has_hsic_con(struct ci_hdrc_imx_data *imx_data)
-{
-	return is_imx6q_con(imx_data) ||  is_imx6sl_con(imx_data)
-		|| is_imx6sx_con(imx_data) || is_imx7d_con(imx_data);
-}
 
 /* Common functions shared by usbmisc drivers */
 
@@ -472,16 +452,17 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	int ret;
 	const struct of_device_id *of_id;
 	const struct ci_hdrc_imx_platform_flag *imx_platform_flag;
-	struct device_node *np = pdev->dev.of_node;
+	struct device *dev = &pdev->dev;
+	struct device_node *np = dev->of_node;
 	struct pinctrl_state *pinctrl_hsic_idle;
 
-	of_id = of_match_device(ci_hdrc_imx_dt_ids, &pdev->dev);
+	of_id = of_match_device(ci_hdrc_imx_dt_ids, dev);
 	if (!of_id)
 		return -ENODEV;
 
 	imx_platform_flag = of_id->data;
 
-	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
+	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
 	if (!data)
 		return -ENOMEM;
 
@@ -489,25 +470,25 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 
 	data->data = imx_platform_flag;
 	pdata.flags |= imx_platform_flag->flags;
-	data->usbmisc_data = usbmisc_get_init_data(&pdev->dev);
+	data->usbmisc_data = usbmisc_get_init_data(dev);
 	if (IS_ERR(data->usbmisc_data))
 		return PTR_ERR(data->usbmisc_data);
 
-	data->pinctrl = devm_pinctrl_get(&pdev->dev);
+	data->pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(data->pinctrl)) {
-		dev_dbg(&pdev->dev, "pinctrl get failed, err=%ld\n",
+		dev_dbg(dev, "pinctrl get failed, err=%ld\n",
 						PTR_ERR(data->pinctrl));
 	} else {
 		pinctrl_hsic_idle = pinctrl_lookup_state(data->pinctrl, "idle");
 		if (IS_ERR(pinctrl_hsic_idle)) {
-			dev_dbg(&pdev->dev,
+			dev_dbg(dev,
 				"pinctrl_hsic_idle lookup failed, err=%ld\n",
 						PTR_ERR(pinctrl_hsic_idle));
 		} else {
 			ret = pinctrl_select_state(data->pinctrl,
 						pinctrl_hsic_idle);
 			if (ret) {
-				dev_err(&pdev->dev,
+				dev_err(dev,
 					"hsic_idle select failed, err=%d\n",
 									ret);
 				return ret;
@@ -517,12 +498,12 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		data->pinctrl_hsic_active = pinctrl_lookup_state(data->pinctrl,
 								"active");
 		if (IS_ERR(data->pinctrl_hsic_active))
-			dev_dbg(&pdev->dev,
+			dev_dbg(dev,
 				"pinctrl_hsic_active lookup failed, err=%ld\n",
 					PTR_ERR(data->pinctrl_hsic_active));
 	}
 
-	ret = imx_get_clks(&pdev->dev);
+	ret = imx_get_clks(dev);
 	if (ret)
 		return ret;
 
@@ -531,11 +512,11 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		pm_qos_add_request(&data->pm_qos_req,
 			PM_QOS_CPU_DMA_LATENCY, 0);
 
-	ret = imx_prepare_enable_clks(&pdev->dev);
+	ret = imx_prepare_enable_clks(dev);
 	if (ret)
 		goto err_bus_freq;
 
-	data->phy = devm_usb_get_phy_by_phandle(&pdev->dev, "fsl,usbphy", 0);
+	data->phy = devm_usb_get_phy_by_phandle(dev, "fsl,usbphy", 0);
 	if (IS_ERR(data->phy)) {
 		ret = PTR_ERR(data->phy);
 		/* Return -EINVAL if no usbphy is available */
@@ -548,11 +529,15 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	if (pdata.flags & CI_HDRC_SUPPORTS_RUNTIME_PM)
 		data->supports_runtime_pm = true;
 
-	if (data->usbmisc_data && data->usbmisc_data->index > 1
-	    && (imx_has_hsic_con(data))) {
+	if (of_find_property(np, "ci-disable-lpm", NULL)) {
+		data->supports_runtime_pm = false;
+		pdata.flags &= ~CI_HDRC_SUPPORTS_RUNTIME_PM;
+	}
+
+	if (of_usb_get_phy_mode(dev->of_node) == USBPHY_INTERFACE_MODE_HSIC) {
 		pdata.flags |= CI_HDRC_IMX_IS_HSIC;
-		data->hsic_pad_regulator = devm_regulator_get(&pdev->dev,
-									"pad");
+		data->usbmisc_data->hsic = 1;
+		data->hsic_pad_regulator = devm_regulator_get(dev, "pad");
 		if (PTR_ERR(data->hsic_pad_regulator) == -EPROBE_DEFER) {
 			ret = -EPROBE_DEFER;
 			goto err_clk;
@@ -560,8 +545,7 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 			/* no pad regualator is needed */
 			data->hsic_pad_regulator = NULL;
 		} else if (IS_ERR(data->hsic_pad_regulator)) {
-			dev_err(&pdev->dev,
-				"Get hsic pad regulator error: %ld\n",
+			dev_err(dev, "Get hsic pad regulator error: %ld\n",
 					PTR_ERR(data->hsic_pad_regulator));
 			ret = PTR_ERR(data->hsic_pad_regulator);
 			goto err_clk;
@@ -570,7 +554,7 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		if (data->hsic_pad_regulator) {
 			ret = regulator_enable(data->hsic_pad_regulator);
 			if (ret) {
-				dev_err(&pdev->dev,
+				dev_err(dev,
 					"Fail to enable hsic pad regulator\n");
 				goto err_clk;
 			}
@@ -581,8 +565,7 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 		data->anatop = syscon_regmap_lookup_by_phandle(np,
 							"fsl,anatop");
 		if (IS_ERR(data->anatop)) {
-			dev_dbg(&pdev->dev,
-				"failed to find regmap for anatop\n");
+			dev_dbg(dev, "failed to find regmap for anatop\n");
 			ret = PTR_ERR(data->anatop);
 			goto disable_hsic_regulator;
 		}
@@ -592,43 +575,42 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	if (of_find_property(np, "imx-usb-charger-detection", NULL) &&
 							data->usbmisc_data) {
 		data->imx_usb_charger_detection = true;
-		data->charger.dev = &pdev->dev;
+		data->charger.dev = dev;
 		data->usbmisc_data->charger = &data->charger;
 		ret = imx_usb_register_charger(&data->charger,
 						"imx_usb_charger");
 		if (ret && ret != -ENODEV)
 			goto disable_hsic_regulator;
 		if (!ret)
-			dev_dbg(&pdev->dev,
-					"USB Charger is created\n");
+			dev_dbg(dev, "USB Charger is created\n");
 	}
 
 	ret = imx_usbmisc_init(data->usbmisc_data);
 	if (ret) {
-		dev_err(&pdev->dev, "usbmisc init failed, ret=%d\n", ret);
+		dev_err(dev, "usbmisc init failed, ret=%d\n", ret);
 		goto disable_hsic_regulator;
 	}
 
-	data->ci_pdev = ci_hdrc_add_device(&pdev->dev,
+	data->ci_pdev = ci_hdrc_add_device(dev,
 				pdev->resource, pdev->num_resources,
 				&pdata);
 	if (IS_ERR(data->ci_pdev)) {
 		ret = PTR_ERR(data->ci_pdev);
 		if (ret != -EPROBE_DEFER)
-			dev_err(&pdev->dev,
+			dev_err(dev,
 				"ci_hdrc_add_device failed, err=%d\n", ret);
 		goto disable_hsic_regulator;
 	}
 
 	ret = imx_usbmisc_init_post(data->usbmisc_data);
 	if (ret) {
-		dev_err(&pdev->dev, "usbmisc post failed, ret=%d\n", ret);
+		dev_err(dev, "usbmisc post failed, ret=%d\n", ret);
 		goto disable_device;
 	}
 
 	ret = imx_usbmisc_set_wakeup(data->usbmisc_data, false);
 	if (ret) {
-		dev_err(&pdev->dev, "usbmisc set_wakeup failed, ret=%d\n", ret);
+		dev_err(dev, "usbmisc set_wakeup failed, ret=%d\n", ret);
 		goto disable_device;
 	}
 
@@ -638,11 +620,11 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 			ci_hdrc_query_available_role(data->ci_pdev);
 
 	if (data->supports_runtime_pm) {
-		pm_runtime_set_active(&pdev->dev);
-		pm_runtime_enable(&pdev->dev);
+		pm_runtime_set_active(dev);
+		pm_runtime_enable(dev);
 	}
 
-	device_set_wakeup_capable(&pdev->dev, true);
+	device_set_wakeup_capable(dev, true);
 
 	return 0;
 

@@ -160,6 +160,9 @@ extern "C" {
 #define DRM_FORMAT_MOD_VENDOR_NV      0x03
 #define DRM_FORMAT_MOD_VENDOR_SAMSUNG 0x04
 #define DRM_FORMAT_MOD_VENDOR_QCOM    0x05
+#define DRM_FORMAT_MOD_VENDOR_VIVANTE 0x06
+#define DRM_FORMAT_MOD_VENDOR_BROADCOM 0x07
+#define DRM_FORMAT_MOD_VENDOR_AMPHION  0x08
 /* add more to the end as needed */
 
 #define fourcc_mod_code(vendor, val) \
@@ -233,6 +236,121 @@ extern "C" {
  * For more information: see https://linuxtv.org/downloads/v4l-dvb-apis/re32.html
  */
 #define DRM_FORMAT_MOD_SAMSUNG_64_32_TILE	fourcc_mod_code(SAMSUNG, 1)
+
+/* Vivante framebuffer modifiers */
+
+/*
+ * Vivante 4x4 tiling layout
+ *
+ * This is a simple tiled layout using tiles of 4x4 pixels in a row-major
+ * layout.
+ */
+#define DRM_FORMAT_MOD_VIVANTE_TILED		fourcc_mod_code(VIVANTE, 1)
+
+/*
+ * Vivante 64x64 super-tiling layout
+ *
+ * This is a tiled layout using 64x64 pixel super-tiles, where each super-tile
+ * contains 8x4 groups of 2x4 tiles of 4x4 pixels (like above) each, all in row-
+ * major layout.
+ *
+ * For more information: see
+ * https://github.com/etnaviv/etna_viv/blob/master/doc/hardware.md#texture-tiling
+ */
+#define DRM_FORMAT_MOD_VIVANTE_SUPER_TILED	fourcc_mod_code(VIVANTE, 2)
+
+/*
+ * Vivante 4x4 tiling layout for dual-pipe
+ *
+ * Same as the 4x4 tiling layout, except every second 4x4 pixel tile starts at a
+ * different base address. Offsets from the base addresses are therefore halved
+ * compared to the non-split tiled layout.
+ */
+#define DRM_FORMAT_MOD_VIVANTE_SPLIT_TILED	fourcc_mod_code(VIVANTE, 3)
+
+/*
+ * Vivante 64x64 super-tiling layout for dual-pipe
+ *
+ * Same as the 64x64 super-tiling layout, except every second 4x4 pixel tile
+ * starts at a different base address. Offsets from the base addresses are
+ * therefore halved compared to the non-split super-tiled layout.
+ */
+#define DRM_FORMAT_MOD_VIVANTE_SPLIT_SUPER_TILED fourcc_mod_code(VIVANTE, 4)
+
+/* NVIDIA Tegra frame buffer modifiers */
+
+/*
+ * Some modifiers take parameters, for example the number of vertical GOBs in
+ * a block. Reserve the lower 32 bits for parameters
+ */
+#define __fourcc_mod_tegra_mode_shift 32
+#define fourcc_mod_tegra_code(val, params) \
+	fourcc_mod_code(NV, ((((__u64)val) << __fourcc_mod_tegra_mode_shift) | params))
+#define fourcc_mod_tegra_mod(m) \
+	(m & ~((1ULL << __fourcc_mod_tegra_mode_shift) - 1))
+#define fourcc_mod_tegra_param(m) \
+	(m & ((1ULL << __fourcc_mod_tegra_mode_shift) - 1))
+
+/*
+ * Tegra Tiled Layout, used by Tegra 2, 3 and 4.
+ *
+ * Pixels are arranged in simple tiles of 16 x 16 bytes.
+ */
+#define NV_FORMAT_MOD_TEGRA_TILED fourcc_mod_tegra_code(1, 0)
+
+/*
+ * Tegra 16Bx2 Block Linear layout, used by TK1/TX1
+ *
+ * Pixels are arranged in 64x8 Groups Of Bytes (GOBs). GOBs are then stacked
+ * vertically by a power of 2 (1 to 32 GOBs) to form a block.
+ *
+ * Within a GOB, data is ordered as 16B x 2 lines sectors laid in Z-shape.
+ *
+ * Parameter 'v' is the log2 encoding of the number of GOBs stacked vertically.
+ * Valid values are:
+ *
+ * 0 == ONE_GOB
+ * 1 == TWO_GOBS
+ * 2 == FOUR_GOBS
+ * 3 == EIGHT_GOBS
+ * 4 == SIXTEEN_GOBS
+ * 5 == THIRTYTWO_GOBS
+ *
+ * Chapter 20 "Pixel Memory Formats" of the Tegra X1 TRM describes this format
+ * in full detail.
+ */
+#define NV_FORMAT_MOD_TEGRA_16BX2_BLOCK(v) fourcc_mod_tegra_code(2, v)
+
+/*
+ * Broadcom VC4 "T" format
+ *
+ * This is the primary layout that the V3D GPU can texture from (it
+ * can't do linear).  The T format has:
+ *
+ * - 64b utiles of pixels in a raster-order grid according to cpp.  It's 4x4
+ *   pixels at 32 bit depth.
+ *
+ * - 1k subtiles made of a 4x4 raster-order grid of 64b utiles (so usually
+ *   16x16 pixels).
+ *
+ * - 4k tiles made of a 2x2 grid of 1k subtiles (so usually 32x32 pixels).  On
+ *   even 4k tile rows, they're arranged as (BL, TL, TR, BR), and on odd rows
+ *   they're (TR, BR, BL, TL), where bottom left is start of memory.
+ *
+ * - an image made of 4k tiles in rows either left-to-right (even rows of 4k
+ *   tiles) or right-to-left (odd rows of 4k tiles).
+ */
+#define DRM_FORMAT_MOD_BROADCOM_VC4_T_TILED fourcc_mod_code(BROADCOM, 1)
+
+/* Amphion tiled layout */
+
+/*
+ * Amphion 8x128 tiling layout
+ *
+ * This is a tiled layout using 8x128 pixel vertical strips, where each strip
+ * contains 1x16 groups of 8x8 pixels in a row-major layout.
+ */
+#define DRM_FORMAT_MOD_AMPHION_TILED fourcc_mod_code(AMPHION, 1)
 
 #if defined(__cplusplus)
 }

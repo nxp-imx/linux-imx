@@ -418,7 +418,7 @@ typedef enum {
 	CLKEN__FULL = 0x3,
 } pixengcfg_clken_t;
 
-int dpu_map_irq(struct dpu_soc *dpu, int irq);
+int dpu_map_inner_irq(struct dpu_soc *dpu, int irq);
 
 /* Constant Frame Unit */
 struct dpu_constframe;
@@ -472,9 +472,13 @@ int fetchdecode_pixengcfg_dynamic_src_sel(struct dpu_fetchdecode *fd,
 					  fd_dynamic_src_sel_t src);
 void fetchdecode_shden(struct dpu_fetchdecode *fd, bool enable);
 void fetchdecode_baddr_autoupdate(struct dpu_fetchdecode *fd, u8 layer_mask);
+void fetchdecode_set_burstlength(struct dpu_fetchdecode *fd, dma_addr_t baddr,
+				 bool use_prefetch);
 void fetchdecode_baseaddress(struct dpu_fetchdecode *fd, dma_addr_t paddr);
 void fetchdecode_source_bpp(struct dpu_fetchdecode *fd, int bpp);
-void fetchdecode_source_stride(struct dpu_fetchdecode *fd, int stride);
+void fetchdecode_source_stride(struct dpu_fetchdecode *fd, unsigned int width,
+			       int bpp, unsigned int stride,
+			       dma_addr_t baddr, bool use_prefetch);
 void fetchdecode_src_buf_dimensions(struct dpu_fetchdecode *fd, unsigned int w,
 				    unsigned int h);
 void fetchdecode_set_fmt(struct dpu_fetchdecode *fd, u32 fmt);
@@ -500,15 +504,52 @@ u32 fetchdecode_get_vproc_mask(struct dpu_fetchdecode *fd);
 bool fetchdecode_need_fetcheco(struct dpu_fetchdecode *fd, u32 fmt);
 unsigned int fetchdecode_get_stream_id(struct dpu_fetchdecode *fd);
 void fetchdecode_set_stream_id(struct dpu_fetchdecode *fd, unsigned int id);
+void
+fetchdecode_configure_prefetch(struct dpu_fetchdecode *fd,
+			       unsigned int stream_id,
+			       unsigned int width, unsigned int height,
+			       unsigned int x_offset, unsigned int y_offset,
+			       unsigned int stride, u32 format, u64 modifier,
+			       unsigned long baddr, unsigned long uv_baddr,
+			       bool start, bool aux_start);
+void fetchdecode_enable_prefetch(struct dpu_fetchdecode *fd);
+void fetchdecode_disable_prefetch(struct dpu_fetchdecode *fd);
+void fetchdecode_reg_update_prefetch(struct dpu_fetchdecode *fd);
+void fetchdecode_prefetch_irq_handle(struct dpu_fetchdecode *fd);
+void fetchdecode_prefetch_enable_first_frame_irq(struct dpu_fetchdecode *fd);
+bool fetchdecode_has_prefetch(struct dpu_fetchdecode *fd);
+bool fetchdecode_prefetch_format_supported(struct dpu_fetchdecode *fd,
+					   u32 format, u64 modifier);
+bool fetchdecode_prefetch_stride_supported(struct dpu_fetchdecode *fd,
+					   unsigned int stride,
+					   unsigned int uv_stride,
+					   unsigned int width,
+					   u32 format);
+bool fetchdecode_prefetch_crop_supported(struct dpu_fetchdecode *fd,
+					 u64 modifier, u32 y_offset);
+bool fetchdecode_prefetch_stride_double_check(struct dpu_fetchdecode *fd,
+					      unsigned int stride,
+					      unsigned int uv_stride,
+					      unsigned int width,
+					      u32 format,
+					      dma_addr_t baseaddr,
+					      dma_addr_t uv_baseaddr);
+void fetchdecode_pin_off(struct dpu_fetchdecode *fd);
+void fetchdecode_unpin_off(struct dpu_fetchdecode *fd);
+bool fetchdecode_is_pinned_off(struct dpu_fetchdecode *fd);
 struct dpu_fetchdecode *dpu_fd_get(struct dpu_soc *dpu, int id);
 void dpu_fd_put(struct dpu_fetchdecode *fd);
 
 /* Fetch ECO Unit */
 struct dpu_fetcheco;
 void fetcheco_shden(struct dpu_fetcheco *fe, bool enable);
+void fetcheco_set_burstlength(struct dpu_fetcheco *fe, dma_addr_t baddr,
+			      bool use_prefetch);
 void fetcheco_baseaddress(struct dpu_fetcheco *fe, dma_addr_t paddr);
 void fetcheco_source_bpp(struct dpu_fetcheco *fe, int bpp);
-void fetcheco_source_stride(struct dpu_fetcheco *fe, int stride);
+void fetcheco_source_stride(struct dpu_fetcheco *fe, unsigned int width,
+			    int bpp, unsigned int stride,
+			    dma_addr_t baddr, bool use_prefetch);
 void fetcheco_src_buf_dimensions(struct dpu_fetcheco *fe, unsigned int w,
 				 unsigned int h, u32 fmt);
 void fetcheco_set_fmt(struct dpu_fetcheco *fe, u32 fmt);
@@ -530,6 +571,9 @@ int fetcheco_fetchtype(struct dpu_fetcheco *fe, fetchtype_t *type);
 dpu_block_id_t fetcheco_get_block_id(struct dpu_fetcheco *fe);
 unsigned int fetcheco_get_stream_id(struct dpu_fetcheco *fe);
 void fetcheco_set_stream_id(struct dpu_fetcheco *fe, unsigned int id);
+void fetcheco_pin_off(struct dpu_fetcheco *fe);
+void fetcheco_unpin_off(struct dpu_fetcheco *fe);
+bool fetcheco_is_pinned_off(struct dpu_fetcheco *fe);
 struct dpu_fetcheco *dpu_fe_get(struct dpu_soc *dpu, int id);
 void dpu_fe_put(struct dpu_fetcheco *fe);
 
@@ -559,6 +603,9 @@ void framegen_sacfg(struct dpu_framegen *fg, unsigned int x, unsigned int y);
 void framegen_displaymode(struct dpu_framegen *fg, fgdm_t mode);
 void framegen_panic_displaymode(struct dpu_framegen *fg, fgdm_t mode);
 void framegen_wait_done(struct dpu_framegen *fg);
+void framegen_read_timestamp(struct dpu_framegen *fg,
+			     u32 *frame_index, u32 *line_index);
+void framegen_wait_for_frame_counter_moving(struct dpu_framegen *fg);
 void framegen_enable_clock(struct dpu_framegen *fg);
 void framegen_disable_clock(struct dpu_framegen *fg);
 struct dpu_framegen *dpu_fg_get(struct dpu_soc *dpu, int id);
@@ -606,6 +653,7 @@ void dpu_lb_put(struct dpu_layerblend *lb);
 /* Timing Controller Unit */
 struct dpu_tcon;
 int tcon_set_fmt(struct dpu_tcon *tcon, u32 bus_format);
+void tcon_set_operation_mode(struct dpu_tcon *tcon);
 void tcon_cfg_videomode(struct dpu_tcon *tcon, struct drm_display_mode *m);
 struct dpu_tcon *dpu_tcon_get(struct dpu_soc *dpu, int id);
 void dpu_tcon_put(struct dpu_tcon *tcon);

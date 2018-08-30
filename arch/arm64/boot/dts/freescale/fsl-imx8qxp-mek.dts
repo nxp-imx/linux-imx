@@ -706,16 +706,19 @@
 			fxos8700@1e {
 				compatible = "fsl,fxos8700";
 				reg = <0x1e>;
+				interrupt-open-drain;
 			};
 
 			fxas2100x@21 {
 				compatible = "fsl,fxas2100x";
 				reg = <0x21>;
+				interrupt-open-drain;
 			};
 
 			mpl3115@60 {
 				compatible = "fsl,mpl3115";
 				reg = <0x60>;
+				interrupt-open-drain;
 			};
 		};
 
@@ -759,8 +762,8 @@
 		interrupts = <3 IRQ_TYPE_LEVEL_LOW>;
 		ss-sel-gpios = <&gpio5 9 GPIO_ACTIVE_LOW>;
 		reset-gpios = <&pca9557_a 7 GPIO_ACTIVE_HIGH>;
-		src-pdos = <0x380190c8>;
-		snk-pdos = <0x380190c8 0x3802d0c8>;
+		src-pdos = <0x380190c8 0x3803c0c8>;
+		snk-pdos = <0x380190c8>;
 		max-snk-mv = <9000>;
 		max-snk-ma = <1000>;
 		op-snk-mw = <9000>;
@@ -829,6 +832,66 @@
 	disable-gpio = <&pca9557_a 2 GPIO_ACTIVE_LOW>;
 	reset-gpio = <&gpio4 0 GPIO_ACTIVE_LOW>;
 	epdev_on-supply = <&epdev_on>;
+	status = "okay";
+};
+
+&prg1 {
+	status = "okay";
+};
+
+&prg2 {
+	status = "okay";
+};
+
+&prg3 {
+	status = "okay";
+};
+
+&prg4 {
+	status = "okay";
+};
+
+&prg5 {
+	status = "okay";
+};
+
+&prg6 {
+	status = "okay";
+};
+
+&prg7 {
+	status = "okay";
+};
+
+&prg8 {
+	status = "okay";
+};
+
+&prg9 {
+	status = "okay";
+};
+
+&dpr1_channel1 {
+	status = "okay";
+};
+
+&dpr1_channel2 {
+	status = "okay";
+};
+
+&dpr1_channel3 {
+	status = "okay";
+};
+
+&dpr2_channel1 {
+	status = "okay";
+};
+
+&dpr2_channel2 {
+	status = "okay";
+};
+
+&dpr2_channel3 {
 	status = "okay";
 };
 

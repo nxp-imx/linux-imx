@@ -73,7 +73,7 @@ struct generic_pm_domain {
 	struct genpd_power_state states[GENPD_MAX_NUM_STATES];
 	unsigned int state_count; /* number of states */
 	unsigned int state_idx; /* state that genpd will go to when off */
-
+	unsigned int state_idx_saved; /* saved power state for recovery after system suspend/resume */
 };
 
 static inline struct generic_pm_domain *pd_to_genpd(struct dev_pm_domain *pd)

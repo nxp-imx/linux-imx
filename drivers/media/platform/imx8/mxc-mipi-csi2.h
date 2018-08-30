@@ -259,8 +259,11 @@ struct mxc_mipi_csi2_dev {
 	struct v4l2_async_notifier	subdev_notifier;
 	struct v4l2_async_subdev	*async_subdevs[2];
 
+	struct mutex lock;
+
 	int	 id;
 	u32 hs_settle;
+	u32 send_level;
 	u32 num_lanes;
 	u8 data_lanes[4];
 	u8 vchannel;
@@ -270,6 +273,7 @@ struct mxc_mipi_csi2_dev {
 enum mxc_mipi_csi2_pm_state {
 	MXC_MIPI_CSI2_PM_POWERED	= 0x1,
 	MXC_MIPI_CSI2_PM_SUSPENDED	= 0x2,
+	MXC_MIPI_CSI2_RUNTIME_SUSPENDED	= 0x4,
 };
 
 #endif
