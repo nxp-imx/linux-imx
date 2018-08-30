@@ -435,7 +435,6 @@ gckVIDMEM_Construct(
     memory->bytes        = heapBytes;
     memory->freeBytes    = heapBytes;
     memory->minFreeBytes = heapBytes;
-    memory->capability   = ~0u;
     memory->threshold    = Threshold;
     memory->mutex        = gcvNULL;
 

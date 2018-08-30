@@ -2283,8 +2283,8 @@
 				<GIC_SPI 315 IRQ_TYPE_LEVEL_HIGH>,
 				<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>, /* sai1 */
 				<GIC_SPI 317 IRQ_TYPE_LEVEL_HIGH>,
-				<GIC_SPI 368 IRQ_TYPE_LEVEL_HIGH>,
-				<GIC_SPI 368 IRQ_TYPE_LEVEL_HIGH>;
+				<GIC_SPI 391 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 393 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-names = "edma2-chan0-rx", "edma2-chan1-rx", /* asrc0 */
 				"edma2-chan2-rx", "edma2-chan3-tx",
 				"edma2-chan4-tx", "edma2-chan5-tx",
@@ -2507,7 +2507,7 @@
 			<&clk IMX8QXP_CLK_DUMMY>;
 		clock-names = "ipg", "per", "ahb";
 		assigned-clocks = <&clk IMX8QXP_SDHC0_SEL>, <&clk IMX8QXP_SDHC0_DIV>;
-		assigned-clock-parents = <&clk IMX8QXP_CONN_PLL1_CLK>;
+		assigned-clock-parents = <&clk IMX8QXP_CONN_PLL0_CLK>;
 		assigned-clock-rates = <0>, <400000000>;
 		power-domains = <&pd_conn_sdch0>;
 		fsl,tuning-start-tap = <20>;
@@ -2525,7 +2525,7 @@
 			<&clk IMX8QXP_CLK_DUMMY>;
 		clock-names = "ipg", "per", "ahb";
 		assigned-clocks = <&clk IMX8QXP_SDHC1_SEL>, <&clk IMX8QXP_SDHC1_DIV>;
-		assigned-clock-parents = <&clk IMX8QXP_CONN_PLL1_CLK>;
+		assigned-clock-parents = <&clk IMX8QXP_CONN_PLL0_CLK>;
 		assigned-clock-rates = <0>, <200000000>;
 		power-domains = <&pd_conn_sdch1>;
 		fsl,tuning-start-tap = <20>;
@@ -2543,7 +2543,7 @@
 			<&clk IMX8QXP_CLK_DUMMY>;
 		clock-names = "ipg", "per", "ahb";
 		assigned-clocks = <&clk IMX8QXP_SDHC2_SEL>, <&clk IMX8QXP_SDHC2_DIV>;
-		assigned-clock-parents = <&clk IMX8QXP_CONN_PLL1_CLK>;
+		assigned-clock-parents = <&clk IMX8QXP_CONN_PLL0_CLK>;
 		assigned-clock-rates = <0>, <200000000>;
 		power-domains = <&pd_conn_sdch2>;
 		status = "disabled";
@@ -2762,7 +2762,7 @@
 	};
 
 	vpu_decoder: vpu_decoder@2c000000 {
-		compatible = "nxp,imx8qm-vpu-decoder", "nxp,imx8qxp-vpu-decoder";
+		compatible = "nxp,imx8qm-b0-vpudec", "nxp,imx8qxp-b0-vpudec";
 		boot-region = <&decoder_boot>;
 		rpc-region = <&decoder_rpc>;
 		reg = <0x0 0x2c000000 0x0 0x1000000>;
@@ -2776,7 +2776,7 @@
 	};
 
 	vpu_encoder: vpu_encoder@2d000000 {
-		compatible = "nxp,imx8qm-vpu-encoder", "nxp,imx8qxp-vpu-encoder";
+		compatible = "nxp,imx8qm-b0-vpuenc", "nxp,imx8qxp-b0-vpuenc";
 		boot-region = <&encoder_boot>;
 		rpc-region = <&encoder_rpc>;
 		reg = <0x0 0x2d000000 0x0 0x1000000>;
