@@ -31,6 +31,7 @@
 		interrupts = <9 IRQ_TYPE_LEVEL_LOW>;
 		synaptics,x-rotation;
 		synaptics,y-rotation;
+		synaptics,diagonal-rotation;
 		status = "okay";
 	};
 };

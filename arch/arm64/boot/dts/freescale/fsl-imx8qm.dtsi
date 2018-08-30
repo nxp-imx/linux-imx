@@ -86,14 +86,28 @@
 			reg = <0 0x90000000 0 0x400000>;
 		};
 
-                ramoops@0x94400000 {
-                        compatible = "ramoops";
-                        reg = <0 0x94400000 0 0x00100000>;
-                        record-size     = <0x00020000>;
-                        console-size    = <0x00020000>;
-                        ftrace-size     = <0x00020000>;
-                        pmsg-size       = <0x00020000>;
-               }; 
+		ramoops@0x94400000 {
+			compatible = "ramoops";
+			reg = <0 0x94400000 0 0x00100000>;
+			record-size     = <0x00020000>;
+			console-size    = <0x00020000>;
+			ftrace-size     = <0x00020000>;
+			pmsg-size       = <0x00020000>;
+		}; 
+		dsp_reserved: dsp@0x92400000 {
+			no-map;
+			reg = <0 0x92400000 0 0x2000000>;
+		};
+
+		/* global autoconfigured region for contiguous allocations */
+		linux,cma {
+			compatible = "shared-dma-pool";
+			reusable;
+			size = <0 0x28000000>;
+			alloc-ranges = <0 0x96000000 0 0x28000000>;
+			linux,cma-default;
+		};
+
 	};
 
 	gic: interrupt-controller@51a00000 {
@@ -116,6 +130,14 @@
 		interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&wu>;
 		fsl,scu_ap_mu_id = <0>;
+		status = "okay";
+	};
+
+	mu13: mu13@5d280000 {
+		compatible = "fsl,imx8-mu-dsp";
+		reg = <0x0 0x5d280000 0x0 0x10000>;
+		interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>;
+		fsl,dsp_ap_mu_id = <13>;
 		status = "okay";
 	};
 
@@ -198,7 +220,6 @@
 		/* kHz    uV */
 		/* voltage is maintained by SCFW, so no need here */
 		1596000	   0
-		1464000	   0
 		1296000	   0
 		1056000	   0
 		600000     0

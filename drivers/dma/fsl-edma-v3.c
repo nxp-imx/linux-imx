@@ -28,6 +28,9 @@
 #include <linux/of_irq.h>
 #include <linux/of_dma.h>
 
+#include <soc/imx/revision.h>
+#include <soc/imx8/soc.h>
+
 #include "virt-dma.h"
 
 #define EDMA_CH_CSR			0x00
@@ -812,6 +815,13 @@ static void fsl_edma3_free_chan_resources(struct dma_chan *chan)
 	fsl_chan->used = false;
 }
 
+static void fsl_edma3_synchronize(struct dma_chan *chan)
+{
+	struct fsl_edma3_chan *fsl_chan = to_fsl_edma3_chan(chan);
+
+	vchan_synchronize(&fsl_chan->vchan);
+}
+
 static int fsl_edma3_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
@@ -837,8 +847,20 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 	if (of_property_read_bool(np, "shared-interrupt"))
 		irqflag = IRQF_SHARED;
 
-	fsl_edma3->swap = of_device_is_compatible(np, "fsl,imx8qm-adma");
+	fsl_edma3->swap = false;
 	fsl_edma3->n_chans = chans;
+
+	/*
+	 * FIXUP: if this is the i.MX8QM TO1.0, need set the swap.
+	 * FIXME: This will be revisted to set the swap property
+	 * from the device-tree node later instead of revison check,
+	 * but, this will need add extra DT file, not perfect too.
+	 */
+
+	if ((of_device_is_compatible(np, "fsl,imx8qm-adma")) &&
+		cpu_is_imx8qm() &&
+		imx8_get_soc_revision() == IMX_CHIP_REVISION_1_0)
+		fsl_edma3->swap = true;
 
 	INIT_LIST_HEAD(&fsl_edma3->dma_dev.channels);
 	for (i = 0; i < fsl_edma3->n_chans; i++) {
@@ -927,6 +949,7 @@ static int fsl_edma3_probe(struct platform_device *pdev)
 	fsl_edma3->dma_dev.device_resume = fsl_edma3_resume;
 	fsl_edma3->dma_dev.device_terminate_all = fsl_edma3_terminate_all;
 	fsl_edma3->dma_dev.device_issue_pending = fsl_edma3_issue_pending;
+	fsl_edma3->dma_dev.device_synchronize = fsl_edma3_synchronize;
 
 	fsl_edma3->dma_dev.src_addr_widths = FSL_EDMA_BUSWIDTHS;
 	fsl_edma3->dma_dev.dst_addr_widths = FSL_EDMA_BUSWIDTHS;

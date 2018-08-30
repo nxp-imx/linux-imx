@@ -420,6 +420,12 @@ _Import(
     UserMemory->pageCount = pageCount;
     UserMemory->extraPage = extraPage;
 
+    if (extraPage && UserMemory->type == UM_PAGE_MAP)
+    {
+        /*Add the padding pages */
+        UserMemory->chunk_count++;
+    }
+
     /* Success. */
     gcmkFOOTER();
     return gcvSTATUS_OK;

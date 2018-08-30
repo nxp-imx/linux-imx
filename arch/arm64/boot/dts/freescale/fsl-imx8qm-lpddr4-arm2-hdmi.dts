@@ -15,7 +15,7 @@
  * HDMI only dts, disable ldb display.
  */
 
-#include "fsl-imx8qm-mek.dts"
+#include "fsl-imx8qm-lpddr4-arm2.dts"
 
 / {
 	sound-hdmi-tx {
@@ -100,3 +100,4 @@
 	assigned-clock-rates = <786432000>, <49152000>, <12288000>;
 	status = "okay";
 };
+

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  * SPDX-License-Identifier:     GPL-2.0+
  */
@@ -772,6 +772,7 @@ typedef enum sc_ctrl_e {
 	SC_C_IPG_STOP = 52,
 	SC_C_IPG_STOP_MODE = 53,
 	SC_C_IPG_STOP_ACK = 54,
+	SC_C_SYNC_CTRL = 55,
 	SC_C_LAST
 } sc_ctrl_t;
 

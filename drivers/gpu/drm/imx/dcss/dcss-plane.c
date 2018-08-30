@@ -325,14 +325,14 @@ static void dcss_plane_atomic_set_base(struct dcss_plane *dcss_plane)
 
 				mdata = dma_buf->priv;
 				if (!mdata || mdata->magic != VIV_VIDMEM_METADATA_MAGIC) {
-					break;
+					return;
 				}
 				compressed = mdata->compressed ? true : false;
 				compressed_format = mdata->compress_format;
 
 				gem_obj = dcss_plane_gem_import(plane->dev, mdata->ts_dma_buf);
 				if (IS_ERR(gem_obj)) {
-					break;
+					return;
 				}
 
 				caddr = to_drm_gem_cma_obj(gem_obj)->paddr;
@@ -432,17 +432,21 @@ static void dcss_plane_atomic_update(struct drm_plane *plane,
 	struct drm_plane_state *state = plane->state;
 	struct dcss_plane *dcss_plane = to_dcss_plane(plane);
 	struct drm_framebuffer *fb = state->fb;
-	u32 pixel_format = state->fb->pixel_format;
-	struct drm_crtc_state *crtc_state = state->crtc->state;
-	bool modifiers_present = !!(fb->flags & DRM_MODE_FB_MODIFIERS);
+	u32 pixel_format;
+	struct drm_crtc_state *crtc_state;
+	bool modifiers_present;
 	u32 src_w, src_h, adj_w, adj_h;
 	struct drm_rect disp, crtc, src, old_src;
 	u32 scaler_w, scaler_h;
 	struct dcss_hdr10_pipe_cfg ipipe_cfg, opipe_cfg;
 	bool enable = true;
 
-	if (!state->fb)
+	if (!fb || !state->crtc)
 		return;
+
+	pixel_format = state->fb->pixel_format;
+	crtc_state = state->crtc->state;
+	modifiers_present = !!(fb->flags & DRM_MODE_FB_MODIFIERS);
 
 	if (old_state->fb && !drm_atomic_crtc_needs_modeset(crtc_state) &&
 	    !dcss_plane_needs_setup(state, old_state) &&

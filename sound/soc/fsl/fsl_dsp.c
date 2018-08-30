@@ -401,17 +401,17 @@ static int fsl_dsp_close(struct inode *inode, struct file *file)
 		return PTR_ERR(client);
 
 	proxy = client->proxy;
-	if (proxy) {
-		/* ...release all pending messages */
-		xf_msg_free_all(proxy, &client->queue);
 
-		/* ...recycle client id and release memory */
-		xf_client_free(client);
-	}
+	/* release all pending messages */
+	if (proxy)
+		xf_msg_free_all(proxy, &client->queue);
 
 	dsp_priv = (struct fsl_dsp *)client->global;
 	dev = dsp_priv->dev;
 	pm_runtime_put_sync(dev);
+
+	/* ...recycle client id and release memory */
+	xf_client_free(client);
 
 	mutex_lock(&dsp_priv->dsp_mutex);
 	/* decrease reference counter when closing device */
@@ -670,6 +670,12 @@ static void dsp_load_firmware(const struct firmware *fw, void *context)
 				  (const void *)image,
 				  shdr->sh_size);
 			} else {
+				/* sh_addr is from DSP view, we need to
+				 * fixup addr because we load the firmware from
+				 * the ARM core side
+				 */
+				sh_addr -= dsp_priv->fixup_offset;
+
 				memcpy_dsp((void *)(dsp_priv->regs +
 						(sh_addr - dsp_priv->paddr)),
 						(const void *)image,
@@ -802,8 +808,8 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	sciErr = sc_misc_set_control(dsp_priv->dsp_ipcHandle, SC_R_DSP,
 				SC_C_OFS_PERIPH, 0x5A);
 	if (sciErr != SC_ERR_NONE) {
-		dev_err(&pdev->dev, "Error system address offset of PERIPH\n");
-		return -EIO;
+		dev_err(&pdev->dev, "Error system address offset of PERIPH %d\n",
+			sciErr);
 	}
 
 	sciErr = sc_misc_set_control(dsp_priv->dsp_ipcHandle, SC_R_DSP,
@@ -819,6 +825,8 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 
 	ret = of_property_read_string(np, "fsl,dsp-firmware", &fw_name);
 	dsp_priv->fw_name = fw_name;
+
+	ret = of_property_read_u32(np, "fixup-offset", &dsp_priv->fixup_offset);
 
 	platform_set_drvdata(pdev, dsp_priv);
 	pm_runtime_enable(&pdev->dev);
