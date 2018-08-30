@@ -22,9 +22,18 @@
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
+#include <linux/of.h>
+#include <linux/of_fdt.h>
+#include <linux/of_reserved_mem.h>
 #include "ion.h"
 
 #define ION_CARVEOUT_ALLOCATE_FAIL	-1
+
+struct rmem_carveout {
+	phys_addr_t base;
+	phys_addr_t size;
+};
+static struct rmem_carveout carveout_data;
 
 struct ion_carveout_heap {
 	struct ion_heap heap;
@@ -112,7 +121,7 @@ static struct ion_heap_ops carveout_heap_ops = {
 	.unmap_kernel = ion_heap_unmap_kernel,
 };
 
-struct ion_heap *ion_carveout_heap_create(struct ion_platform_heap *heap_data)
+struct ion_heap *ion_carveout_heap_create(struct rmem_carveout *heap_data)
 {
 	struct ion_carveout_heap *carveout_heap;
 	int ret;
@@ -145,3 +154,52 @@ struct ion_heap *ion_carveout_heap_create(struct ion_platform_heap *heap_data)
 
 	return &carveout_heap->heap;
 }
+
+static int ion_add_carveout_heap(void)
+{
+	struct ion_heap *heap;
+
+	if (carveout_data.base == 0 || carveout_data.size == 0)
+		return -EINVAL;
+
+	heap = ion_carveout_heap_create(&carveout_data);
+	if (IS_ERR(heap))
+		return PTR_ERR(heap);
+
+	heap->name = "carveout";
+
+	ion_device_add_heap(heap);
+	return 0;
+}
+
+static int rmem_carveout_device_init(struct reserved_mem *rmem,
+					 struct device *dev)
+{
+	dev_set_drvdata(dev, rmem);
+	return 0;
+}
+
+static void rmem_carveout_device_release(struct reserved_mem *rmem,
+					 struct device *dev)
+{
+	dev_set_drvdata(dev, NULL);
+}
+
+static const struct reserved_mem_ops rmem_dma_ops = {
+	.device_init    = rmem_carveout_device_init,
+	.device_release = rmem_carveout_device_release,
+};
+
+static int __init rmem_carveout_setup(struct reserved_mem *rmem)
+{
+	carveout_data.base = rmem->base;
+	carveout_data.size = rmem->size;
+	rmem->ops = &rmem_dma_ops;
+	pr_info("Reserved memory: ION carveout pool at %pa, size %ld MiB\n",
+			&rmem->base, (unsigned long)rmem->size / SZ_1M);
+	return 0;
+}
+
+RESERVEDMEM_OF_DECLARE(carveout, "imx-ion-pool", rmem_carveout_setup);
+
+device_initcall(ion_add_carveout_heap);
