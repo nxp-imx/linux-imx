@@ -11,6 +11,7 @@
  */
 
 #include <linux/delay.h>
+#include <linux/console.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
@@ -139,14 +140,13 @@ static void (*imx7ulp_suspend_in_ocram_fn)(void __iomem *sram_base);
 
 static u32 tpm5_regs[4];
 static u32 lpuart4_regs[4];
-static u32 pcc2_regs[25][2] = {
+static u32 pcc2_regs[24][2] = {
 	{0x20, 0}, {0x3c, 0}, {0x40, 0}, {0x6c, 0},
-	{0x84, 0}, {0x8c, 0}, {0x90, 0}, {0x94, 0},
-	{0x98, 0}, {0x9c, 0}, {0xa4, 0}, {0xa8, 0},
-	{0xac, 0}, {0xb0, 0}, {0xb4, 0}, {0xb8, 0},
-	{0xc4, 0}, {0xcc, 0}, {0xd0, 0}, {0xd4, 0},
-	{0xd8, 0}, {0xdc, 0}, {0xe0, 0}, {0xf4, 0},
-	{0x10c, 0},
+	{0x84, 0}, {0x90, 0}, {0x94, 0}, {0x98, 0},
+	{0x9c, 0}, {0xa4, 0}, {0xa8, 0}, {0xac, 0},
+	{0xb0, 0}, {0xb4, 0}, {0xb8, 0}, {0xc4, 0},
+	{0xcc, 0}, {0xd0, 0}, {0xd4, 0}, {0xd8, 0},
+	{0xdc, 0}, {0xe0, 0}, {0xf4, 0}, {0x10c, 0},
 };
 
 static u32 pcc3_regs[16][2] = {
@@ -156,11 +156,12 @@ static u32 pcc3_regs[16][2] = {
 	{0xc0, 0}, {0xc4, 0}, {0x140, 0}, {0x144, 0},
 };
 
-static u32 scg1_offset[16] = {
+static u32 scg1_offset[17] = {
 	0x14, 0x30, 0x40, 0x304,
 	0x500, 0x504, 0x508, 0x50c,
 	0x510, 0x514, 0x600, 0x604,
 	0x608, 0x60c, 0x610, 0x614,
+	0x104,
 };
 
 extern unsigned long iram_tlb_base_addr;
@@ -252,7 +253,7 @@ struct imx7ulp_cpu_pm_info {
 	void __iomem *mmdc_base;
 	void __iomem *mmdc_io_base;
 	void __iomem *smc1_base;
-	u32 scg1[16];
+	u32 scg1[17];
 	u32 ttbr1; /* Store TTBR1 */
 	u32 gpio[4][2];
 	u32 iomux_num; /* Number of IOs which need saved/restored. */
@@ -291,7 +292,7 @@ static void imx7ulp_scg1_save(void)
 {
 	int i;
 
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < 17; i++)
 		pm_info->scg1[i] = readl_relaxed(scg1_base + scg1_offset[i]);
 }
 
@@ -315,7 +316,7 @@ static void imx7ulp_pcc2_save(void)
 {
 	int i;
 
-	for (i = 0; i < 25; i++)
+	for (i = 0; i < 24; i++)
 		pcc2_regs[i][1] = readl_relaxed(pcc2_base + pcc2_regs[i][0]);
 }
 
@@ -323,7 +324,7 @@ static void imx7ulp_pcc2_restore(void)
 {
 	int i;
 
-	for (i = 0; i < 25; i++)
+	for (i = 0; i < 24; i++)
 		writel_relaxed(pcc2_regs[i][1], pcc2_base + pcc2_regs[i][0]);
 }
 
@@ -354,7 +355,6 @@ static void imx7ulp_lpuart_save(void)
 
 static void imx7ulp_lpuart_restore(void)
 {
-	writel_relaxed(0x10101, scg1_base + 0x104);
 	writel_relaxed(LPUART4_MUX_VALUE,
 		iomuxc1_base + PTC2_LPUART4_TX_OFFSET);
 	writel_relaxed(LPUART4_MUX_VALUE,
@@ -492,7 +492,8 @@ static int imx7ulp_pm_enter(suspend_state_t state)
 			imx7ulp_pcc2_save();
 			imx7ulp_pcc3_save();
 			imx7ulp_tpm_save();
-			imx7ulp_lpuart_save();
+			if (!console_suspend_enabled)
+				imx7ulp_lpuart_save();
 			imx7ulp_iomuxc_save();
 			imx7ulp_set_lpm(VLLS);
 
@@ -501,7 +502,8 @@ static int imx7ulp_pm_enter(suspend_state_t state)
 
 			imx7ulp_pcc2_restore();
 			imx7ulp_pcc3_restore();
-			imx7ulp_lpuart_restore();
+			if (!console_suspend_enabled)
+				imx7ulp_lpuart_restore();
 			imx7ulp_set_dgo(0);
 			imx7ulp_tpm_restore();
 			imx7ulp_set_lpm(RUN);
@@ -588,7 +590,7 @@ void __init imx7ulp_pm_common_init(const struct imx7ulp_pm_socdata
 				*socdata)
 {
 	struct device_node *np;
-	unsigned long sram_paddr;
+	unsigned long sram_paddr = 0;
 	const u32 *mmdc_offset_array;
 	const u32 *mmdc_io_offset_array;
 	unsigned long i, j;
