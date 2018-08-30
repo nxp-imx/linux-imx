@@ -101,6 +101,7 @@
 
 #define ENDPOINT_DIR_MASK		0x80
 
+#define ENDPOINT_ZLP_BUF_SIZE		1024
 /*-------------------------------------------------------------------------*/
 
 /**
@@ -193,6 +194,7 @@ struct usb_ss_dev {
 	dma_addr_t trb_ep0_dma;
 	u32 *trb_ep0;
 	u8 *setup;
+	void *zlp_buf;
 
 	struct usb_ss_endpoint *eps[USB_SS_ENDPOINTS_MAX_COUNT];
 	int ep_nums;
@@ -205,6 +207,7 @@ struct usb_ss_dev {
 
 	unsigned is_connected:1;
 	unsigned in_standby_mode:1;
+	unsigned status_completion_no_call:1;
 
 	u32 usb_ien;
 	u32 ep_ien;
@@ -215,6 +218,8 @@ struct usb_ss_dev {
 	int onchip_mem_allocated_size; /* KB */
 	/* Memory is allocated for OUT */
 	int out_mem_is_allocated:1;
+	struct work_struct pending_status_wq;
+	struct usb_request *pending_status_request;
 };
 
 #endif /* __DRIVERS_CDNS3_GADGET */

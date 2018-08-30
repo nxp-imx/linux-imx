@@ -50,6 +50,7 @@
 struct imx_chip {
 	struct clk	*clk_per;
 	struct clk	*clk_ipg;
+	struct clk	*clk_32k;
 
 	void __iomem	*mmio_base;
 
@@ -206,21 +207,29 @@ static int imx_pwm_config(struct pwm_chip *chip,
 	struct imx_chip *imx = to_imx_chip(chip);
 	int ret;
 
+	if (imx->clk_32k) {
+		ret = clk_prepare_enable(imx->clk_32k);
+		if (ret)
+			goto err1;
+	}
+
 	ret = clk_prepare_enable(imx->clk_per);
 	if (ret)
-		return ret;
+		goto err2;
 
 	ret = clk_prepare_enable(imx->clk_ipg);
-	if (ret) {
-		clk_disable_unprepare(imx->clk_per);
-		return ret;
-	}
+	if (ret)
+		goto err3;
 
 	ret = imx->config(chip, pwm, duty_ns, period_ns);
 
 	clk_disable_unprepare(imx->clk_ipg);
+err3:
 	clk_disable_unprepare(imx->clk_per);
-
+err2:
+	if (imx->clk_32k)
+		clk_disable_unprepare(imx->clk_32k);
+err1:
 	return ret;
 }
 
@@ -229,19 +238,30 @@ static int imx_pwm_enable(struct pwm_chip *chip, struct pwm_device *pwm)
 	struct imx_chip *imx = to_imx_chip(chip);
 	int ret;
 
+	if (imx->clk_32k) {
+		ret = clk_prepare_enable(imx->clk_32k);
+		if (ret)
+			goto err1;
+	}
+
 	ret = clk_prepare_enable(imx->clk_per);
 	if (ret)
-		return ret;
+		goto err2;
 
 	ret = clk_prepare_enable(imx->clk_ipg);
-	if (ret) {
-		clk_disable_unprepare(imx->clk_per);
-		return ret;
-	}
+	if (ret)
+		goto err3;
 
 	imx->set_enable(chip, true);
 
 	return 0;
+err3:
+	clk_disable_unprepare(imx->clk_per);
+err2:
+	if (imx->clk_32k)
+		clk_disable_unprepare(imx->clk_32k);
+err1:
+	return ret;
 }
 
 static void imx_pwm_disable(struct pwm_chip *chip, struct pwm_device *pwm)
@@ -252,6 +272,8 @@ static void imx_pwm_disable(struct pwm_chip *chip, struct pwm_device *pwm)
 
 	clk_disable_unprepare(imx->clk_ipg);
 	clk_disable_unprepare(imx->clk_per);
+	if (imx->clk_32k)
+		clk_disable_unprepare(imx->clk_32k);
 }
 
 static struct pwm_ops imx_pwm_ops = {
@@ -313,6 +335,10 @@ static int imx_pwm_probe(struct platform_device *pdev)
 				PTR_ERR(imx->clk_ipg));
 		return PTR_ERR(imx->clk_ipg);
 	}
+
+	imx->clk_32k = devm_clk_get(&pdev->dev, "32k");
+	if (IS_ERR(imx->clk_32k))
+		imx->clk_32k = NULL;
 
 	imx->chip.ops = &imx_pwm_ops;
 	imx->chip.dev = &pdev->dev;

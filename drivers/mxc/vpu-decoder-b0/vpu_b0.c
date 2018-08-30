@@ -52,7 +52,7 @@ unsigned int vpu_dbg_level_decoder = 1;
 
 static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 uEvent, u_int32 *event_data);
 static void v4l2_vpu_send_cmd(struct vpu_ctx *ctx, uint32_t idx, uint32_t cmdid, uint32_t cmdnum, uint32_t *local_cmddata);
-static void add_eos(struct vpu_ctx *ctx, u_int32 uStrBufIdx);
+static bool add_eos(struct vpu_ctx *ctx, u_int32 uStrBufIdx);
 static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx);
 static int reset_vpu_firmware(struct vpu_dev *dev);
 
@@ -404,7 +404,10 @@ static void caculate_frame_size(struct vpu_ctx *ctx)
 	q_data->stride = width;
 
 	height = ((height + uVertAlign) & ~uVertAlign);
-	chroma_height = height >> 1;
+	if (ctx->pSeqinfo->uProgressive)
+		chroma_height = height >> 1;
+	else
+		chroma_height = height;
 	luma_size = width * height;
 	chroma_size = width * chroma_height;
 	ctx->q_data[V4L2_DST].sizeimage[0] = luma_size;
@@ -607,12 +610,24 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 	ret = vb2_reqbufs(&q_data->vb2_q, reqbuf);
 	if (!ret) {
 		if (reqbuf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-			for (i = 0; i < reqbuf->count; i++)
-				q_data->vb2_reqs[i].status = FRAME_ALLOC;
-			alloc_mbi_buffer(ctx, q_data, reqbuf->count);
+			if (reqbuf->count == 0) {
+				for (i = 0; i < MAX_MBI_NUM; i++)
+					if (ctx->mbi_dma_virt[i] != NULL) {
+						dma_free_coherent(&ctx->dev->plat_dev->dev,
+								ctx->mbi_size,
+								ctx->mbi_dma_virt[i],
+								ctx->mbi_dma_phy[i]
+								);
+						ctx->mbi_dma_virt[i] = NULL;
+					}
+			} else {
+				for (i = 0; i < reqbuf->count; i++)
+					q_data->vb2_reqs[i].status = FRAME_ALLOC;
+				alloc_mbi_buffer(ctx, q_data, reqbuf->count);
+			}
 		}
 	} else if (reqbuf->count != 0)
-		vpu_dbg(LVL_ERR, "error: %s() can't request (%d) buffer\n", __func__, reqbuf->count);
+		vpu_dbg(LVL_ERR, "error: %s() can't request (%d) buffer ret=%d\n", __func__, reqbuf->count, ret);
 
 	return ret;
 }
@@ -645,7 +660,8 @@ static int v4l2_ioctl_querybuf(struct file *file,
 			} else
 				buf->m.offset |= (q_data->type << MMAP_BUF_TYPE_SHIFT);
 		}
-	}
+	} else
+		vpu_dbg(LVL_ERR, "error: %s() return ret=%d\n", __func__, ret);
 
 	return ret;
 }
@@ -670,9 +686,12 @@ static int v4l2_ioctl_qbuf(struct file *file,
 		return -EINVAL;
 
 	ret = vb2_qbuf(&q_data->vb2_q, buf);
-	if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		wake_up_interruptible(&ctx->buffer_wq);
-	v4l2_update_stream_addr(ctx, 0);
+	if (!ret) {
+		if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+			wake_up_interruptible(&ctx->buffer_wq);
+		v4l2_update_stream_addr(ctx, 0);
+	} else
+		vpu_dbg(LVL_ERR, "error: %s() return ret=%d\n", __func__, ret);
 
 	return ret;
 }
@@ -697,14 +716,17 @@ static int v4l2_ioctl_dqbuf(struct file *file,
 
 	ret = vb2_dqbuf(&q_data->vb2_q, buf, file->f_flags & O_NONBLOCK);
 
-	if (q_data->vb2_reqs[buf->index].bfield)
-		buf->field = V4L2_FIELD_INTERLACED;
-	else
-		buf->field = V4L2_FIELD_NONE;
-	v4l2_update_stream_addr(ctx, 0);
-	if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		if ((ctx->pSeqinfo->uBitDepthLuma > 8) || (ctx->pSeqinfo->uBitDepthChroma > 8))
-			buf->reserved = 1;
+	if (!ret) {
+		if (q_data->vb2_reqs[buf->index].bfield)
+			buf->field = V4L2_FIELD_INTERLACED;
+		else
+			buf->field = V4L2_FIELD_NONE;
+		v4l2_update_stream_addr(ctx, 0);
+		if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+			if ((ctx->pSeqinfo->uBitDepthLuma > 8) || (ctx->pSeqinfo->uBitDepthChroma > 8))
+				buf->reserved = 1;
+	} else
+		vpu_dbg(LVL_ERR, "error: %s() return ret=%d\n", __func__, ret);
 
 	return ret;
 }
@@ -813,10 +835,13 @@ static int v4l2_ioctl_streamon(struct file *file,
 	ctx->firmware_finished = false;
 
 	ret = vb2_streamon(&q_data->vb2_q,	i);
-	if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		wake_up_interruptible(&ctx->buffer_wq);
+	if (!ret) {
+		if (i == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+			wake_up_interruptible(&ctx->buffer_wq);
 
-	v4l2_update_stream_addr(ctx, 0);
+		v4l2_update_stream_addr(ctx, 0);
+	} else
+		vpu_dbg(LVL_ERR, "error: %s() return ret=%d\n", __func__, ret);
 
 	return ret;
 }
@@ -935,7 +960,7 @@ static int v4l2_dec_g_v_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_MIN_BUFFERS_FOR_CAPTURE:
-		ctrl->val = ctx->pSeqinfo->uNumDPBFrms;
+		ctrl->val = ctx->pSeqinfo->uNumDPBFrms + ctx->pSeqinfo->uNumRefFrms;
 		break;
 	default:
 		vpu_dbg(LVL_INFO, "%s() Invalid control(%d)\n",
@@ -1008,7 +1033,7 @@ static void ctrls_delete_decoder(struct vpu_ctx *This)
 		This->ctrls[i] = NULL;
 }
 
-static void add_eos(struct vpu_ctx *ctx, u_int32 uStrBufIdx)
+static bool add_eos(struct vpu_ctx *ctx, u_int32 uStrBufIdx)
 {
 	struct vpu_dev *dev = ctx->dev;
 	pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
@@ -1032,24 +1057,34 @@ static void add_eos(struct vpu_ctx *ctx, u_int32 uStrBufIdx)
 	rptr = pStrBufDesc->rptr;
 
 	buffer = kzalloc(MIN_SPACE, GFP_KERNEL); //for eos data
-	if (!buffer)
+	if (!buffer) {
 		vpu_dbg(LVL_ERR, "error:  eos buffer alloc fail\n");
+		return false;
+	}
 	plbuffer = (uint32_t *)buffer;
-	pbbuffer = (uint8_t *)(ctx->stream_buffer_virt + wptr - start);
+	if (wptr - start < ctx->stream_buffer_size)
+		pbbuffer = (uint8_t *)(ctx->stream_buffer_virt + wptr - start);
+	else {
+		vpu_dbg(LVL_ERR, "error: return wptr(0x%x), start(0x%x) is not valid\n", wptr, start);
+		return false;
+	}
 
 	// Word align
 	if (((u_int64)pbbuffer)%4 != 0) {
 		int i;
-
+		if (end%4 != 0) {
+			vpu_dbg(LVL_ERR, "end address of stream not aligned by 4 bytes !\n");
+			return false;
+		}
 		pad_bytes = 4 - (((u_int64)pbbuffer)%4);
 		for (i = 0; i < pad_bytes; i++)
 			pbbuffer[i] = 0;
 		pbbuffer += pad_bytes;
-		if (end%4 != 0)
-			vpu_dbg(LVL_ERR, "end address of stream not aligned by 4 bytes !\n");
 		wptr += pad_bytes;
-		if (wptr == end)
+		if (wptr == end) {
 			wptr = start;
+			pbbuffer = (uint8_t *)ctx->stream_buffer_virt;
+		}
 	}
 
 	switch (q_data->vdec_std) {
@@ -1118,6 +1153,7 @@ static void add_eos(struct vpu_ctx *ctx, u_int32 uStrBufIdx)
 		(VPU_REG_BASE + DEC_MFD_XREG_SLV_BASE + MFD_MCX + MFD_MCX_OFF * ctx->str_index);
 	kfree(buffer);
 	vpu_dbg(LVL_INFO, "add eos MCX address virt=%p, phy=0x%x, index=%d\n", pStrBufDesc, dev->shared_mem.pSharedInterface->pStreamBuffDesc[ctx->str_index][uStrBufIdx], ctx->str_index);
+	return true;
 }
 
 TB_API_DEC_FMT vpu_format_remap(uint32_t vdec_std)
@@ -1499,10 +1535,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			vpu_dbg(LVL_ERR, "error: buffer(%d) need to set FRAME_DECODED, but previous state %s is not FRAME_FREE\n",
 					buffer_id, bufstat[ctx->q_data[V4L2_DST].vb2_reqs[buffer_id].status]);
 		ctx->q_data[V4L2_DST].vb2_reqs[buffer_id].status = FRAME_DECODED;
-		if ((pDispInfo->bTopFldFirst == 1) && (pPicInfo[uStrIdx].uPicStruct == 2))//uPicStruct == 2 is field
-			ctx->q_data[V4L2_DST].vb2_reqs[buffer_id].bfield = true;
-		else
+		if (ctx->pSeqinfo->uProgressive == 1)
 			ctx->q_data[V4L2_DST].vb2_reqs[buffer_id].bfield = false;
+		else
+			ctx->q_data[V4L2_DST].vb2_reqs[buffer_id].bfield = true;
 		}
 		break;
 	case VID_API_EVENT_SEQ_HDR_FOUND: {
@@ -1610,7 +1646,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				break;
 			}
 
-			if (!list_empty(&This->drv_q)) {
+			if (!list_empty(&This->drv_q) && !ctx->wait_rst_done) {
 				down(&This->drv_q_lock);
 				list_for_each_entry_safe(p_data_req, p_temp, &This->drv_q, list) {
 					if (p_data_req->status == FRAME_ALLOC
@@ -1652,7 +1688,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 					}
 				}
 				up(&This->drv_q_lock);
-				if (buffer_flag == false)
+				if (buffer_flag == false && !ctx->firmware_finished)
 					vpu_dbg(LVL_ERR, "error: don't find the right buffer for VID_API_CMD_FS_ALLOC\n");
 			} else if (ctx->wait_rst_done) {
 				u_int32 i;
@@ -1662,8 +1698,10 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 					if (p_data_req->status == FRAME_RELEASE)
 						break;
 				}
+				if (ctx->firmware_finished)
+					break;
 				if (i == VPU_MAX_BUFFER) {
-					vpu_dbg(LVL_ERR, "error: don't find buffer when wait_rst_done is true\n"); //wait_rst_done is true when streamoff or v4l2_release is called
+					vpu_dbg(LVL_ERR, "error: don't find buffer when wait_rst_done is true, ctx->firmware_stopped=%dfin=%d\n", ctx->firmware_stopped, ctx->firmware_finished); //wait_rst_done is true when streamoff or v4l2_release is called
 					break;
 				}
 
@@ -1823,8 +1861,14 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		v4l2_event_queue_fh(&ctx->fh, &ev); //notfiy app stream eos reached
 
 	}	break;
-	case VID_API_EVENT_FIRMWARE_XCPT:
+	case VID_API_EVENT_FIRMWARE_XCPT: {
+		const struct v4l2_event ev = {
+			.type = V4L2_EVENT_EOS
+		};
+		v4l2_event_queue_fh(&ctx->fh, &ev);
 		vpu_dbg(LVL_ERR, "warning: FIRMWARE hang, and send event VID_API_EVENT_FIRMWARE_XCPT\n");
+		}
+		break;
 	case VID_API_EVENT_DEC_CFG_INFO:
 		break;
 	default:
@@ -2402,6 +2446,7 @@ static int v4l2_open(struct file *filp)
 	ctx->mbi_count = 0;
 	ctx->mbi_num = 0;
 	ctx->mbi_size = 0;
+#ifdef DYNAMIC_MEM
 	ctx->stream_buffer_size = MAX_BUFFER_SIZE;
 	ctx->stream_buffer_virt = dma_alloc_coherent(&ctx->dev->plat_dev->dev,
 			ctx->stream_buffer_size,
@@ -2413,6 +2458,11 @@ static int v4l2_open(struct file *filp)
 	else
 		vpu_dbg(LVL_INFO, "%s() stream_buffer_size(%d) stream_buffer_virt(%p) stream_buffer_phy(%p), index(%d)\n",
 				__func__, ctx->stream_buffer_size, ctx->stream_buffer_virt, (void *)ctx->stream_buffer_phy, ctx->str_index);
+#else
+	ctx->stream_buffer_size = dev->str_size/VPU_MAX_NUM_STREAMS;
+	ctx->stream_buffer_phy = dev->str_base_phy + ctx->str_index * ctx->stream_buffer_size;
+	ctx->stream_buffer_virt = dev->str_base_vir + ctx->str_index * ctx->stream_buffer_size;
+#endif
 	ctx->udata_buffer_size = UDATA_BUFFER_SIZE;
 	ctx->udata_buffer_virt = dma_alloc_coherent(&ctx->dev->plat_dev->dev,
 			ctx->udata_buffer_size,
@@ -2490,12 +2540,14 @@ static int v4l2_release(struct file *filp)
 				ctx->mbi_dma_virt[i],
 				ctx->mbi_dma_phy[i]
 				);
+#ifdef DYNAMIC_MEM
 	if (ctx->stream_buffer_virt)
 		dma_free_coherent(&ctx->dev->plat_dev->dev,
 				ctx->stream_buffer_size,
 				ctx->stream_buffer_virt,
 				ctx->stream_buffer_phy
 				);
+#endif
 	if (ctx->udata_buffer_virt)
 		dma_free_coherent(&ctx->dev->plat_dev->dev,
 				ctx->udata_buffer_size,
@@ -2795,6 +2847,20 @@ static int vpu_probe(struct platform_device *pdev)
 			return -EINVAL;
 		}
 		dev->m0_rpc_phy = reserved_res.start;
+#ifndef DYNAMIC_MEM
+		reserved_node = of_parse_phandle(np, "str-region", 0);
+		if (!reserved_node) {
+			vpu_dbg(LVL_ERR, "error: str-region of_parse_phandle error\n");
+			return -ENODEV;
+		}
+
+		if (of_address_to_resource(reserved_node, 0, &reserved_res)) {
+			vpu_dbg(LVL_ERR, "error: str-region of_address_to_resource error\n");
+			return -EINVAL;
+		}
+		dev->str_base_phy = reserved_res.start;
+		dev->str_size = resource_size(&reserved_res);
+#endif
 	} else
 		vpu_dbg(LVL_ERR, "error: %s of_node is NULL\n", __func__);
 
@@ -2898,6 +2964,17 @@ static int vpu_probe(struct platform_device *pdev)
 	}
 
 	memset_io(dev->m0_rpc_virt, 0, SHARED_SIZE);
+#ifndef DYNAMIC_MEM
+	dev->str_base_vir = ioremap_wc(dev->str_base_phy,
+			dev->str_size
+			);
+	if (!dev->str_base_vir) {
+		vpu_dbg(LVL_ERR, "error: failed to remap space for stream memory\n");
+		return -ENOMEM;
+	}
+
+	memset_io(dev->str_base_vir, 0, dev->str_size);
+#endif
 #ifdef CM4
 	rpc_init_shared_memory(&dev->shared_mem, dev->m0_rpc_phy, dev->m0_rpc_virt, SHARED_SIZE);
 #else

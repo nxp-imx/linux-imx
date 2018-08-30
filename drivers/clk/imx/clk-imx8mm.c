@@ -387,7 +387,7 @@ static int const clks_init_on[] __initconst = {
 	IMX8MM_CLK_DISP_AXI_CG, IMX8MM_CLK_DISP_APB_CG,
 };
 
-static const char *imx8mq_clko1_sels[] = {"osc_25m", "sys_pll1_800m", "osc_27m", "sys_pll1_200m", "audio_pll2_clk",
+static const char *imx8mm_clko1_sels[] = {"osc_24m", "sys_pll1_800m", "osc_27m", "sys_pll1_200m", "audio_pll2_clk",
 					 "vpu_pll", "sys_pll1_80m", };
 
 static struct clk *clks[IMX8MM_CLK_END];
@@ -627,7 +627,7 @@ static void __init imx8mm_clocks_init(struct device_node *ccm_node)
 	clks[IMX8MM_CLK_GPT1_SRC] = imx_clk_mux2("gpt1_src", base + 0xb580, 24, 3, imx8mm_gpt1_sels, ARRAY_SIZE(imx8mm_gpt1_sels));
 	clks[IMX8MM_CLK_WDOG_SRC] = imx_clk_mux2("wdog_src", base + 0xb900, 24, 3, imx8mm_wdog_sels, ARRAY_SIZE(imx8mm_wdog_sels));
 	clks[IMX8MM_CLK_WRCLK_SRC] = imx_clk_mux2("wrclk_src", base + 0xb980, 24, 3, imx8mm_wrclk_sels, ARRAY_SIZE(imx8mm_wrclk_sels));
-	clks[IMX8MM_CLK_CLKO1_SRC] = imx_clk_mux2("clko1_src", base + 0xba00, 24, 3, imx8mq_clko1_sels, ARRAY_SIZE(imx8mq_clko1_sels));
+	clks[IMX8MM_CLK_CLKO1_SRC] = imx_clk_mux2("clko1_src", base + 0xba00, 24, 3, imx8mm_clko1_sels, ARRAY_SIZE(imx8mm_clko1_sels));
 	clks[IMX8MM_CLK_DSI_CORE_SRC] = imx_clk_mux2("dsi_core_src", base + 0xbb00, 24, 3, imx8mm_dsi_core_sels, ARRAY_SIZE(imx8mm_dsi_core_sels));
 	clks[IMX8MM_CLK_DSI_PHY_REF_SRC] = imx_clk_mux2("dsi_phy_ref_src", base + 0xbb80, 24, 3, imx8mm_dsi_phy_sels, ARRAY_SIZE(imx8mm_dsi_phy_sels));
 	clks[IMX8MM_CLK_DSI_DBI_SRC] = imx_clk_mux2("dsi_dbi_src", base + 0xbc00, 24, 3, imx8mm_dsi_dbi_sels, ARRAY_SIZE(imx8mm_dsi_dbi_sels));
@@ -856,9 +856,9 @@ static void __init imx8mm_clocks_init(struct device_node *ccm_node)
 	clks[IMX8MM_CLK_SAI1_ROOT] = imx_clk_gate2_shared2("sai1_root_clk", "sai1_div", base + 0x4330, 0, &share_count_sai1);
 	clks[IMX8MM_CLK_SAI1_IPG] = imx_clk_gate2_shared2("sai1_ipg_clk", "ipg_audio_root", base + 0x4330, 0, &share_count_sai1);
 	clks[IMX8MM_CLK_SAI2_ROOT] = imx_clk_gate2_shared2("sai2_root_clk", "sai2_div", base + 0x4340, 0, &share_count_sai2);
-	clks[IMX8MM_CLK_SAI2_IPG] = imx_clk_gate2_shared2("sai2_ipg_clk", "ipg_root", base + 0x4340, 0, &share_count_sai2);
+	clks[IMX8MM_CLK_SAI2_IPG] = imx_clk_gate2_shared2("sai2_ipg_clk", "ipg_audio_root", base + 0x4340, 0, &share_count_sai2);
 	clks[IMX8MM_CLK_SAI3_ROOT] = imx_clk_gate2_shared2("sai3_root_clk", "sai3_div", base + 0x4350, 0, &share_count_sai3);
-	clks[IMX8MM_CLK_SAI3_IPG] = imx_clk_gate2_shared2("sai3_ipg_clk", "ipg_root", base + 0x4350, 0, &share_count_sai3);
+	clks[IMX8MM_CLK_SAI3_IPG] = imx_clk_gate2_shared2("sai3_ipg_clk", "ipg_audio_root", base + 0x4350, 0, &share_count_sai3);
 	clks[IMX8MM_CLK_SAI4_ROOT] = imx_clk_gate2_shared2("sai4_root_clk", "sai4_div", base + 0x4360, 0, &share_count_sai4);
 	clks[IMX8MM_CLK_SAI4_IPG] = imx_clk_gate2_shared2("sai4_ipg_clk", "ipg_audio_root", base + 0x4360, 0, &share_count_sai4);
 	clks[IMX8MM_CLK_SAI5_ROOT] = imx_clk_gate2_shared2("sai5_root_clk", "sai5_div", base + 0x4370, 0, &share_count_sai5);
@@ -915,7 +915,7 @@ static void __init imx8mm_clocks_init(struct device_node *ccm_node)
 	for (i = 0; i < ARRAY_SIZE(clks_init_on); i++)
 		clk_prepare_enable(clks[clks_init_on[i]]);
 
-	clk_set_parent(clks[IMX8MM_CLK_AUDIO_AHB_SRC], clks[IMX8MM_SYS_PLL2_500M]);
+	clk_set_parent(clks[IMX8MM_CLK_AUDIO_AHB_SRC], clks[IMX8MM_SYS_PLL1_800M]);
 
 	/* increase NOC clock to design target */
 	clk_set_rate(clks[IMX8MM_SYS_PLL3], 750000000);
@@ -924,7 +924,6 @@ static void __init imx8mm_clocks_init(struct device_node *ccm_node)
 	clk_set_parent(clks[IMX8MM_CLK_PCIE1_CTRL_SRC], clks[IMX8MM_SYS_PLL2_250M]);
 	clk_set_parent(clks[IMX8MM_CLK_PCIE1_PHY_SRC], clks[IMX8MM_SYS_PLL2_100M]);
 
-	clk_set_parent(clks[IMX8MM_CLK_CLKO1_DIV], clks[IMX8MM_CLK_24M]);
 	clk_set_parent(clks[IMX8MM_CLK_CSI1_CORE_SRC], clks[IMX8MM_SYS_PLL2_1000M]);
 	clk_set_parent(clks[IMX8MM_CLK_CSI1_PHY_REF_SRC], clks[IMX8MM_SYS_PLL2_1000M]);
 	clk_set_parent(clks[IMX8MM_CLK_CSI1_ESC_SRC], clks[IMX8MM_SYS_PLL1_800M]);

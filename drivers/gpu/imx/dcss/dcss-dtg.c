@@ -284,7 +284,7 @@ void dcss_dtg_sync_set(struct dcss_soc *dcss, struct videomode *vm)
 	clk_prepare_enable(dcss->pdiv_clk);
 	clk_prepare_enable(dcss->pout_clk);
 
-	msleep(500);
+	msleep(50);
 
 	dcss_dtg_write(dtg, ((dtg_lrc_y << TC_Y_POS) | dtg_lrc_x),
 		       DCSS_DTG_TC_DTG);
@@ -481,6 +481,8 @@ void dcss_dtg_vblank_irq_enable(struct dcss_soc *dcss, bool en)
 	reg = dtg->base_reg + DCSS_DTG_INT_MASK;
 
 	dcss_update(val, LINE0_IRQ | LINE1_IRQ, reg);
+
+	dcss_dpr_irq_enable(dcss, en);
 }
 
 void dcss_dtg_vblank_irq_clear(struct dcss_soc *dcss)

@@ -25,7 +25,7 @@
 
 struct imx_ak4497_data {
 	struct snd_soc_card card;
-	unsigned long freq;
+	bool one2one_ratio;
 };
 
 static struct snd_soc_dapm_widget imx_ak4497_dapm_widgets[] = {
@@ -68,22 +68,17 @@ static bool imx_ak4497_is_dsd(struct snd_pcm_hw_params *params)
 static unsigned long imx_ak4497_compute_freq(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct imx_ak4497_data *priv = snd_soc_card_get_drvdata(rtd->card);
 	unsigned int rate = params_rate(params);
 	int i;
-
-	if (imx_ak4497_is_dsd(params))
-		return priv->freq;
 
 	/* Find the appropriate MCLK freq */
 	for (i = 0; i < ARRAY_SIZE(fs_mul); i++) {
 		if (rate >= fs_mul[i].min && rate <= fs_mul[i].max)
-			return params_rate(params) * fs_mul[i].mul;
+			return rate * fs_mul[i].mul;
 	}
 
-	/* Return default MCLK frequency */
-	return priv->freq;
+	/* Let DAI manage MCLK frequency */
+	return 0;
 }
 
 static int imx_aif_hw_params(struct snd_pcm_substream *substream,
@@ -94,6 +89,7 @@ static int imx_aif_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
 	struct snd_soc_card *card = rtd->card;
 	struct device *dev = card->dev;
+	struct imx_ak4497_data *priv = snd_soc_card_get_drvdata(card);
 	unsigned int channels = params_channels(params);
 	unsigned int fmt = SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS;
 	unsigned long freq = imx_ak4497_compute_freq(substream, params);
@@ -101,6 +97,9 @@ static int imx_aif_hw_params(struct snd_pcm_substream *substream,
 	int ret;
 
 	fmt |= (is_dsd ? SND_SOC_DAIFMT_PDM : SND_SOC_DAIFMT_I2S);
+
+	if (is_dsd && freq > 22579200 && priv->one2one_ratio)
+		freq = 22579200;
 
 	ret = snd_soc_dai_set_sysclk(cpu_dai, FSL_SAI_CLK_MAST1, freq,
 					SND_SOC_CLOCK_OUT);
@@ -139,9 +138,10 @@ static int imx_aif_hw_params(struct snd_pcm_substream *substream,
 }
 
 static const u32 support_rates[] = {
-	11025, 22050, 44100,
-	88200, 176400, 352800,
-	705600, 1411200, 2822400,
+	8000, 11025, 16000, 22050,
+	32000, 44100, 48000, 88200,
+	96000, 176400, 192000, 352800,
+	384000, 705600, 768000,
 };
 
 static int imx_aif_startup(struct snd_pcm_substream *substream)
@@ -179,7 +179,6 @@ static int imx_ak4497_probe(struct platform_device *pdev)
 	struct imx_ak4497_data *priv;
 	struct device_node *cpu_np, *codec_np = NULL;
 	struct platform_device *cpu_pdev;
-	struct clk *mclk;
 	int ret;
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
@@ -218,15 +217,8 @@ static int imx_ak4497_probe(struct platform_device *pdev)
 	priv->card.owner = THIS_MODULE;
 	priv->card.dapm_widgets = imx_ak4497_dapm_widgets;
 	priv->card.num_dapm_widgets = ARRAY_SIZE(imx_ak4497_dapm_widgets);
-
-	mclk = devm_clk_get(&cpu_pdev->dev, "mclk1");
-	if (IS_ERR_OR_NULL(mclk)) {
-		dev_err(&pdev->dev, "failed to get DAI mclk1\n");
-		ret = -EINVAL;
-		goto fail;
-	}
-
-	priv->freq = clk_get_rate(mclk);
+	priv->one2one_ratio = !of_device_is_compatible(pdev->dev.of_node,
+					"fsl,imx-audio-ak4497-mq");
 
 	ret = snd_soc_of_parse_card_name(&priv->card, "model");
 	if (ret)
@@ -252,6 +244,7 @@ fail:
 
 static const struct of_device_id imx_ak4497_dt_ids[] = {
 	{ .compatible = "fsl,imx-audio-ak4497", },
+	{ .compatible = "fsl,imx-audio-ak4497-mq", },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, imx_ak4497_dt_ids);

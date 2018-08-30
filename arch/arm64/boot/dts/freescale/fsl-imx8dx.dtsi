@@ -104,7 +104,11 @@
 			no-map;
 			reg = <0 0x92400000 0 0x2000000>;
 		};
-		ramoops@0x94400000 {
+		decoder_str: str@0x94400000 {
+			no-map;
+			reg = <0 0x94400000 0 0x1800000>;
+		};
+		ramoops@0x96200000 {
 			compatible = "ramoops";
 			reg = <0 0x94400000 0 0x00100000>;
 			record-size     = <0x00020000>;
@@ -129,7 +133,7 @@
 		compatible = "fsl,imx8-mu";
 		reg = <0x0 0x5d1c0000 0x0 0x10000>;
 		interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>;
-		interrupt-parent = <&wu>;
+		interrupt-parent = <&gic>;
 		fsl,scu_ap_mu_id = <0>;
 		status = "okay";
 	};
@@ -316,6 +320,11 @@
 			};
 			pd_lsio_flexspi1: PD_LSIO_FSPI_1{
 				reg = <SC_R_FSPI_1>;
+				#power-domain-cells = <0>;
+				power-domains = <&pd_lsio>;
+			};
+			pd_lsio_mu5a: PD_LSIO_MU5A {
+				reg = <SC_R_MU_5A>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_lsio>;
 			};
@@ -1079,12 +1088,6 @@
 				power-domains =<&pd_cm40>;
 				early_power_on;
 			};
-
-			pd_cm40_mu0a0: PD_CM40_MU0A0{
-				reg = <SC_R_M4_0_MU_0A0>;
-				#power-domain-cells = <0>;
-				power-domains =<&pd_cm40>;
-			};
 		};
 
 
@@ -1121,6 +1124,20 @@
 					power-domains =<&pd_mipi_dsi0>;
 				};
 
+				pd_mipi_dsi_0_aux_lvds: PD_AUX_LVDS0 {
+					reg = <SC_R_LVDS_0>;
+					#power-domain-cells = <0>;
+					power-domains = <&pd_mipi_dsi0>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					pd_mipi_dsi_1_dual_lvds: PD_DUAL_LVDS1 {
+						reg = <SC_R_LVDS_1>;
+						#power-domain-cells = <0>;
+						power-domains = <&pd_mipi_dsi_0_aux_lvds>;
+					};
+				};
+
 				pd_mipi_dsi_0_i2c0: PD_MIPI_0_DSI_I2C0 {
 					reg = <SC_R_MIPI_0_I2C_0>;
 					#power-domain-cells = <0>;
@@ -1149,6 +1166,20 @@
 					reg = <SC_R_LVDS_1>;
 					#power-domain-cells = <0>;
 					power-domains =<&pd_mipi_dsi1>;
+				};
+
+				pd_mipi_dsi_1_aux_lvds: PD_AUX_LVDS1 {
+					reg = <SC_R_LVDS_1>;
+					#power-domain-cells = <0>;
+					power-domains = <&pd_mipi_dsi1>;
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					pd_mipi_dsi_0_dual_lvds: PD_DUAL_LVDS0 {
+						reg = <SC_R_LVDS_0>;
+						#power-domain-cells = <0>;
+						power-domains = <&pd_mipi_dsi_1_aux_lvds>;
+					};
 				};
 
 				pd_mipi_dsi_1_i2c0: PD_MIPI_1_DSI_I2C0 {
@@ -1360,6 +1391,7 @@
 			polling-delay-passive = <250>;
 			polling-delay = <2000>;
 			thermal-sensors = <&tsens 1>;
+			status = "disabled";
 			trips {
 				drc_alert0: trip0 {
 					temperature = <85000>;
@@ -1706,7 +1738,6 @@
 		#size-cells = <0>;
 		compatible = "mixel,imx8qxp-mipi-dsi-phy";
 		reg = <0x0 0x56228300 0x0 0x100>;
-		power-domains = <&pd_mipi_dsi0>;
 		#phy-cells = <0>;
 		status = "disabled";
 	};
@@ -1781,7 +1812,6 @@
 		#phy-cells = <0>;
 		clocks = <&clk IMX8QXP_MIPI0_LVDS_PHY_CLK>;
 		clock-names = "phy";
-		power-domains = <&pd_mipi_dsi_0_lvds>;
 		status = "disabled";
 	};
 
@@ -1794,7 +1824,7 @@
 			 <&clk IMX8QXP_MIPI1_LVDS_PIXEL_CLK>,
 			 <&clk IMX8QXP_MIPI1_LVDS_BYPASS_CLK>;
 		clock-names = "pixel", "bypass", "aux_pixel", "aux_bypass";
-		power-domains = <&pd_mipi_dsi_0_lvds>, <&pd_mipi_dsi_1_lvds>;
+		power-domains = <&pd_mipi_dsi_0_lvds>;
 		gpr = <&lvds_region1>;
 		aux-gpr = <&lvds_region2>;
 		status = "disabled";
@@ -1834,6 +1864,20 @@
 		};
 	};
 
+	pwm_mipi_lvds0: pwm@56224000 {
+		compatible = "fsl,imx8qxp-pwm", "fsl,imx27-pwm";
+		reg = <0x0 0x56224000 0 0x1000>;
+		clocks = <&clk IMX8QXP_MIPI0_PWM_IPG_CLK>,
+			 <&clk IMX8QXP_MIPI0_PWM_CLK>,
+			 <&clk IMX8QXP_MIPI0_PWM_32K_CLK>;
+		clock-names = "ipg", "per", "32k";
+		assigned-clocks = <&clk IMX8QXP_MIPI0_PWM_CLK>;
+		assigned-clock-rates = <24000000>;
+		#pwm-cells = <2>;
+		power-domains = <&pd_mipi_0_pwm0>;
+		status = "disabled";
+	};
+
 	i2c0_mipi_lvds0: i2c@56226000 {
 		compatible = "fsl,imx8qxp-lpi2c", "fsl,imx8qm-lpi2c";
 		reg = <0x0 0x56226000 0x0 0x1000>;
@@ -1870,7 +1914,6 @@
 		#size-cells = <0>;
 		compatible = "mixel,imx8qxp-mipi-dsi-phy";
 		reg = <0x0 0x56248300 0x0 0x100>;
-		power-domains = <&pd_mipi_dsi1>;
 		#phy-cells = <0>;
 		status = "disabled";
 	};
@@ -1945,7 +1988,6 @@
 		#phy-cells = <0>;
 		clocks = <&clk IMX8QXP_MIPI1_LVDS_PHY_CLK>;
 		clock-names = "phy";
-		power-domains = <&pd_mipi_dsi_1_lvds>;
 		status = "disabled";
 	};
 
@@ -1958,7 +2000,7 @@
 			 <&clk IMX8QXP_MIPI0_LVDS_PIXEL_CLK>,
 			 <&clk IMX8QXP_MIPI0_LVDS_BYPASS_CLK>;
 		clock-names = "pixel", "bypass", "aux_pixel", "aux_bypass";
-		power-domains = <&pd_mipi_dsi_1_lvds>, <&pd_mipi_dsi_0_lvds>;
+		power-domains = <&pd_mipi_dsi_1_lvds>;
 		gpr = <&lvds_region2>;
 		aux-gpr = <&lvds_region1>;
 		status = "disabled";
@@ -2173,6 +2215,20 @@
 			power-domains =<&pd_jpgenc>;
 			status = "okay";
 		};
+	};
+
+	pwm_mipi_lvds1: pwm@56244000 {
+		compatible = "fsl,imx8qxp-pwm", "fsl,imx27-pwm";
+		reg = <0x0 0x56244000 0 0x1000>;
+		clocks = <&clk IMX8QXP_MIPI1_PWM_IPG_CLK>,
+			 <&clk IMX8QXP_MIPI1_PWM_CLK>,
+			 <&clk IMX8QXP_MIPI1_PWM_32K_CLK>;
+		clock-names = "ipg", "per", "32k";
+		assigned-clocks = <&clk IMX8QXP_MIPI1_PWM_CLK>;
+		assigned-clock-rates = <24000000>;
+		#pwm-cells = <2>;
+		power-domains = <&pd_mipi_1_pwm0>;
+		status = "disabled";
 	};
 
 	i2c0_mipi_lvds1: i2c@56246000 {
@@ -3194,6 +3250,7 @@
 		compatible = "nxp,imx8qm-b0-vpudec", "nxp,imx8qxp-b0-vpudec";
 		boot-region = <&decoder_boot>;
 		rpc-region = <&decoder_rpc>;
+		str-region = <&decoder_str>;
 		reg = <0x0 0x2c000000 0x0 0x1000000>;
 		reg-names = "vpu_regs";
 		clocks = <&clk IMX8QXP_VPU_DEC_CLK>;
@@ -3212,7 +3269,6 @@
 		clocks = <&clk IMX8QXP_VPU_ENC_CLK>;
 		clock-names = "vpu_encoder_clk";
 		assigned-clocks = <&clk IMX8QXP_VPU_ENC_CLK>;
-		assigned-clock-rates = <600000000>;
 		power-domains = <&pd_vpu_enc>;
 		status = "disabled";
 	};
@@ -3222,20 +3278,19 @@
 		#size-cells = <2>;
 		ranges;
 
-		mu_rpmsg: mu_rpmsg@37440000 {
+		mu_rpmsg: mu_rpmsg@5d200000 {
 			compatible = "fsl,imx6sx-mu";
-			reg = <0x0 0x37440000 0x0 0x10000>;
-			interrupts = <31 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-parent = <&intmux_cm40>;
-			clocks = <&clk IMX8QXP_CM40_IPG_CLK>;
+			reg = <0x0 0x5d200000 0x0 0x10000>;
+			interrupts = <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&clk IMX8QXP_LSIO_MU5A_IPG_CLK>;
 			clock-names = "ipg";
-			power-domains = <&pd_cm40_mu0a0>;
+			power-domains = <&pd_lsio_mu5a>;
 		};
 
 		rpmsg: rpmsg{
 			compatible = "fsl,imx8qxp-rpmsg";
 			status = "disabled";
-			power-domains = <&pd_cm40_mu0a0>;
+			power-domains = <&pd_lsio_mu5a>;
 		};
 	};
 

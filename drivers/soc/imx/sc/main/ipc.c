@@ -6,6 +6,7 @@
  */
 
 /* Includes */
+#include <linux/arm-smccc.h>
 #include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/of.h>
@@ -16,7 +17,9 @@
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/mx8_mu.h>
+#include <linux/syscore_ops.h>
 
+#include <soc/imx/fsl_hvc.h>
 #include <soc/imx8/sc/svc/irq/api.h>
 #include <soc/imx8/sc/ipc.h>
 #include <soc/imx8/sc/sci.h>
@@ -53,6 +56,8 @@ EXPORT_SYMBOL(sc_pm_set_clock_rate);
 /*--------------------------------------------------------------------------*/
 void sc_call_rpc(sc_ipc_t handle, sc_rpc_msg_t *msg, bool no_resp)
 {
+	struct arm_smccc_res res;
+
 	if (in_interrupt()) {
 		pr_warn("Cannot make SC IPC calls from an interrupt context\n");
 		dump_stack();
@@ -60,9 +65,16 @@ void sc_call_rpc(sc_ipc_t handle, sc_rpc_msg_t *msg, bool no_resp)
 	}
 	mutex_lock(&scu_mu_mutex);
 
-	sc_ipc_write(handle, msg);
-	if (!no_resp)
-		sc_ipc_read(handle, msg);
+	if (xen_initial_domain()) {
+		arm_smccc_hvc(FSL_HVC_SC, (uint64_t)msg, no_resp, 0, 0, 0, 0,
+			      0, &res);
+		if (res.a0)
+			printk("Error FSL_HVC_SC %ld\n", res.a0);
+	} else {
+		sc_ipc_write(handle, msg);
+		if (!no_resp)
+			sc_ipc_read(handle, msg);
+	}
 
 	mutex_unlock(&scu_mu_mutex);
 }
@@ -283,6 +295,19 @@ static irqreturn_t imx8_scu_mu_isr(int irq, void *param)
 	return IRQ_HANDLED;
 }
 
+static void imx8_mu_resume(void)
+{
+	int i;
+
+	MU_Init(mu_base_virtaddr);
+	for (i = 0; i < MU_RR_COUNT; i++)
+		MU_EnableGeneralInt(mu_base_virtaddr, i);
+}
+
+struct syscore_ops imx8_mu_syscore_ops = {
+	.resume = imx8_mu_resume,
+};
+
 /*Initialization of the MU code. */
 int __init imx8_mu_init(void)
 {
@@ -382,6 +407,8 @@ int __init imx8_mu_init(void)
 
 	if (sciErr)
 		pr_info("Cannot request WDOG interrupt\n");
+
+	register_syscore_ops(&imx8_mu_syscore_ops);
 
 	pr_info("*****Initialized MU\n");
 	return scu_mu_id;

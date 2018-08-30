@@ -2,7 +2,7 @@
  * CAAM hardware register-level view
  *
  * Copyright 2008-2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  */
 
 #ifndef REGS_H
@@ -206,12 +206,26 @@ static inline u64 rd_reg64(void __iomem *reg)
 #endif
 
 /*
+ * On i.MX8 boards the arch is arm64 but the CAAM dma address size is
+ * 32 bits on 8MQ and 36 bits on 8QM and 8QX.
+ * For 8QM and 8QM there is a configurable field PS called pointer size
+ * in the MCFGR register to switch between 32 and 64 (default 32)
+ * But this register is only accessible by the SECO and is left to its
+ * default value.
+ * Here we set the CAAM dma address size to 32 bits for all i.MX8
+ */
+#ifdef CONFIG_HAVE_IMX8_SOC
+#define caam_dma_addr_t u32
+#else
+#define caam_dma_addr_t dma_addr_t
+#endif
+
+/*
  * jr_outentry
  * Represents each entry in a JobR output ring
  */
 struct jr_outentry {
-	/* CAAM Pointer Size in MCFGR[PS] is 0 by default (32bits) */
-	u32 desc;/* Pointer to completed descriptor */
+	caam_dma_addr_t desc;/* Pointer to completed descriptor */
 	u32 jrstatus;	/* Status for completed descriptor */
 } __packed;
 

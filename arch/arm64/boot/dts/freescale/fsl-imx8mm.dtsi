@@ -36,6 +36,9 @@
 		serial1 = &uart2;
 		serial2 = &uart3;
 		serial3 = &uart4;
+		spi0 = &ecspi1;
+		spi1 = &ecspi2;
+		spi2 = &ecspi3;
 		mmc0 = &usdhc1;
 		mmc1 = &usdhc2;
 		mmc2 = &usdhc3;
@@ -321,6 +324,44 @@
 		#gpio-cells = <2>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
+	};
+
+	tmu: tmu@0x30260000 {
+		compatible = "fsl,imx8mm-tmu";
+		reg = <0x0 0x30260000 0x0 0x10000>;
+		clocks = <&clk IMX8MM_CLK_TMU_ROOT>;
+		interrupt = <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>;
+		#thermal-sensor-cells = <0>;
+	};
+
+	thermal-zones {
+		/* cpu thermal */
+		cpu-thermal {
+			polling-delay-passive = <250>;
+			polling-delay = <2000>;
+			thermal-sensors = <&tmu>;
+			trips {
+				cpu_alert0: trip0 {
+					temperature = <85000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+
+				cpu_crit0: trip1 {
+					temperature = <95000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert0>;
+					cooling-device =
+					<&A53_0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
 	};
 
 	iomuxc: pinctrl@30330000 {
@@ -818,6 +859,42 @@
 		status = "disabled";
 	};
 
+	ecspi1: ecspi@30820000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx8mm-ecspi", "fsl,imx51-ecspi";
+		reg = <0x0 0x30820000 0x0 0x10000>;
+		interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8MM_CLK_ECSPI1_ROOT>,
+			<&clk IMX8MM_CLK_ECSPI1_ROOT>;
+		clock-names = "ipg", "per";
+		status = "disabled";
+	};
+
+	ecspi2: ecspi@30830000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx8mm-ecspi", "fsl,imx51-ecspi";
+		reg = <0x0 0x30830000 0x0 0x10000>;
+		interrupts = <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8MM_CLK_ECSPI2_ROOT>,
+			<&clk IMX8MM_CLK_ECSPI2_ROOT>;
+		clock-names = "ipg", "per";
+		status = "disabled";
+	};
+
+	ecspi3: ecspi@30840000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx8mm-ecspi", "fsl,imx51-ecspi";
+		reg = <0x0 0x30840000 0x0 0x10000>;
+		interrupts = <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8MM_CLK_ECSPI3_ROOT>,
+			<&clk IMX8MM_CLK_ECSPI3_ROOT>;
+		clock-names = "ipg", "per";
+		status = "disabled";
+	};
+
 	fec1: ethernet@30be0000 {
 		compatible = "fsl,imx8mm-fec", "fsl,imx8mq-fec", "fsl,imx6sx-fec";
 		reg = <0x0 0x30be0000 0x0 0x10000>;
@@ -943,6 +1020,50 @@
 		status = "disabled";
 	};
 
+	pwm1: pwm@30660000 {
+		compatible = "fsl,imx8mm-pwm", "fsl,imx27-pwm";
+		reg = <0x0 0x30660000 0x0 0x10000>;
+		interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8MM_CLK_PWM1_ROOT>,
+			<&clk IMX8MM_CLK_PWM1_ROOT>;
+		clock-names = "ipg", "per";
+		#pwm-cells = <2>;
+		status = "disabled";
+	};
+
+	pwm2: pwm@30670000 {
+		compatible = "fsl,imx8mm-pwm", "fsl,imx27-pwm";
+		reg = <0x0 0x30670000 0x0 0x10000>;
+		interrupts = <GIC_SPI 82 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8MM_CLK_PWM2_ROOT>,
+			<&clk IMX8MM_CLK_PWM2_ROOT>;
+		clock-names = "ipg", "per";
+		#pwm-cells = <2>;
+		status = "disabled";
+	};
+
+	pwm3: pwm@30680000 {
+		compatible = "fsl,imx8mm-pwm", "fsl,imx27-pwm";
+		reg = <0x0 0x30680000 0x0 0x10000>;
+		interrupts = <GIC_SPI 83 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8MM_CLK_PWM3_ROOT>,
+			<&clk IMX8MM_CLK_PWM3_ROOT>;
+		clock-names = "ipg", "per";
+		#pwm-cells = <2>;
+		status = "disabled";
+	};
+
+	pwm4: pwm@30690000 {
+		compatible = "fsl,imx8mm-pwm", "fsl,imx27-pwm";
+		reg = <0x0 0x30690000 0x0 0x10000>;
+		interrupts = <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&clk IMX8MM_CLK_PWM4_ROOT>,
+			<&clk IMX8MM_CLK_PWM4_ROOT>;
+		clock-names = "ipg", "per";
+		#pwm-cells = <2>;
+		status = "disabled";
+	};
+
 	vpu_h1: vpu_h1@38320000 {
 		compatible = "nxp,imx8mm-hantro-h1";
 		reg = <0x0 0x38320000 0x0 0x10000>;
@@ -1009,9 +1130,9 @@
 			      "gpu2d_clk", "gpu2d_axi_clk",
                               "gpu2d_ahb_clk";
 
-		assigned-clocks = <&clk IMX8MM_CLK_GPU3D_SRC>, <&clk IMX8MM_CLK_GPU2D_SRC>, <&clk IMX8MM_CLK_GPU_AXI_SRC>, <&clk IMX8MM_CLK_GPU_AHB_SRC>,<&clk IMX8MM_GPU_PLL_OUT>;
+		assigned-clocks = <&clk IMX8MM_CLK_GPU3D_SRC>, <&clk IMX8MM_CLK_GPU2D_SRC>, <&clk IMX8MM_CLK_GPU_AXI_SRC>, <&clk IMX8MM_CLK_GPU_AHB_SRC>,<&clk IMX8MM_GPU_PLL_OUT>, <&clk IMX8MM_CLK_GPU_AHB_DIV>;
 		assigned-clock-parents = <&clk IMX8MM_GPU_PLL_OUT>,<&clk IMX8MM_GPU_PLL_OUT>, <&clk IMX8MM_SYS_PLL1_800M>, <&clk IMX8MM_SYS_PLL1_800M>;
-		assigned-clock-rates = <0>, <0>, <0>,<0>,<1000000000>;
+		assigned-clock-rates = <0>, <0>, <0>,<0>,<1000000000>, <400000000>;
 
 		power-domains = <&gpu_mix_pd>;
 
