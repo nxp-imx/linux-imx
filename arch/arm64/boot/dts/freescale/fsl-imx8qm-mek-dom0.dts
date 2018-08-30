@@ -80,6 +80,9 @@
 				SC_R_MU_2A
 				>;
 			pads = <
+				/* i2c1_lvds1 */
+				SC_P_LVDS1_I2C1_SCL
+				SC_P_LVDS1_I2C1_SDA
 				/* emmc */
 				SC_P_EMMC0_CLK
 				SC_P_EMMC0_CMD
@@ -125,7 +128,7 @@
 	mu2: mu@5d1d0000 {
 		compatible = "fsl,imx8-mu";
 		reg = <0x0 0x5d1d0000 0x0 0x10000>;
-		interrupts = <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 178 IRQ_TYPE_LEVEL_HIGH>;
 		fsl,scu_ap_mu_id = <0>;
 		xen,passthrough;
 		status = "disabled";

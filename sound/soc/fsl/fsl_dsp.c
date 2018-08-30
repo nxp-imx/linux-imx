@@ -721,12 +721,6 @@ int dsp_mu_init(struct fsl_dsp *dsp_priv)
 		return -EINVAL;
 	}
 
-	if (!dsp_priv->dsp_mu_init) {
-		MU_Init(dsp_priv->mu_base_virtaddr);
-		MU_EnableRxFullInt(dsp_priv->mu_base_virtaddr, 0);
-		dsp_priv->dsp_mu_init = 1;
-	}
-
 	return ret;
 }
 
@@ -745,6 +739,8 @@ static const struct file_operations dsp_fops = {
 static int fsl_dsp_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
+	struct device_node *reserved_node;
+	struct resource reserved_res;
 	struct fsl_dsp *dsp_priv;
 	const char *fw_name;
 	struct resource *res;
@@ -835,14 +831,32 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	dsp_priv->sdram_phys_addr = SDRAM_BASE_ADDR;
+	reserved_node = of_parse_phandle(np, "reserved-region", 0);
+	if (!reserved_node) {
+		dev_err(&pdev->dev, "failed to get reserved region node\n");
+		return -ENODEV;
+	}
+
+	if (of_address_to_resource(reserved_node, 0, &reserved_res)) {
+		dev_err(&pdev->dev, "failed to get reserved region address\n");
+		return -EINVAL;
+	}
+
+	dsp_priv->sdram_phys_addr = reserved_res.start;
+	dsp_priv->sdram_reserved_size = (reserved_res.end - reserved_res.start)
+									+ 1;
+	if (dsp_priv->sdram_reserved_size <= 0) {
+		dev_err(&pdev->dev, "invalid value of reserved region size\n");
+		return -EINVAL;
+	}
+
 	dsp_priv->sdram_vir_addr = ioremap_wc(dsp_priv->sdram_phys_addr,
-							SDRAM_BASE_SIZE);
+						dsp_priv->sdram_reserved_size);
 	if (!dsp_priv->sdram_vir_addr) {
 		dev_err(&pdev->dev, "failed to remap sdram space for dsp firmware\n");
 		return -ENXIO;
 	}
-	memset_io(dsp_priv->sdram_vir_addr, 0, SDRAM_BASE_SIZE);
+	memset_io(dsp_priv->sdram_vir_addr, 0, dsp_priv->sdram_reserved_size);
 
 	size = MSG_BUF_SIZE + DSP_CONFIG_SIZE;
 
@@ -863,12 +877,16 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 	dsp_priv->dsp_config_phys = buf_phys + offset;
 	dsp_priv->dsp_config_size = DSP_CONFIG_SIZE;
 
-	/* scratch memory for dsp framework */
+	/* scratch memory for dsp framework. The sdram reserved memory
+	 * is split into two equal parts currently. The front part is
+	 * used to keep the dsp firmware, the other part is considered
+	 * as scratch memory for dsp framework.
+	 */
 	dsp_priv->scratch_buf_virt = dsp_priv->sdram_vir_addr +
-						SDRAM_CODEC_LIB_OFFSET;
+					dsp_priv->sdram_reserved_size / 2;
 	dsp_priv->scratch_buf_phys = dsp_priv->sdram_phys_addr +
-						SDRAM_CODEC_LIB_OFFSET;
-	dsp_priv->scratch_buf_size = SDRAM_BASE_SIZE - SDRAM_CODEC_LIB_OFFSET;
+					dsp_priv->sdram_reserved_size / 2;
+	dsp_priv->scratch_buf_size = dsp_priv->sdram_reserved_size / 2;
 
 	/* initialize the reference counter for dsp_priv
 	 * structure
@@ -913,10 +931,10 @@ static int fsl_dsp_runtime_resume(struct device *dev)
 	struct xf_proxy *proxy = &dsp_priv->proxy;
 	int ret;
 
-	if (sc_pm_set_resource_power_mode(dsp_priv->dsp_ipcHandle,
-			SC_R_DSP_RAM, SC_PM_PW_MODE_ON) != SC_ERR_NONE) {
-		dev_err(dev, "Error power on DSP RAM\n");
-		return -EIO;
+	if (!dsp_priv->dsp_mu_init) {
+		MU_Init(dsp_priv->mu_base_virtaddr);
+		MU_EnableRxFullInt(dsp_priv->mu_base_virtaddr, 0);
+		dsp_priv->dsp_mu_init = 1;
 	}
 
 	if (!proxy->is_ready) {
@@ -947,11 +965,7 @@ static int fsl_dsp_runtime_suspend(struct device *dev)
 	struct fsl_dsp *dsp_priv = dev_get_drvdata(dev);
 	struct xf_proxy *proxy = &dsp_priv->proxy;
 
-	if (sc_pm_set_resource_power_mode(dsp_priv->dsp_ipcHandle,
-			SC_R_DSP_RAM, SC_PM_PW_MODE_OFF) != SC_ERR_NONE) {
-		dev_err(dev, "Error power off DSP RAM\n");
-		return -EIO;
-	}
+	dsp_priv->dsp_mu_init = 0;
 	proxy->is_ready = 0;
 	return 0;
 }

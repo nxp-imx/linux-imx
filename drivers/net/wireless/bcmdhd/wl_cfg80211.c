@@ -8110,6 +8110,11 @@ wl_cfg80211_reg_notifier(
 		/* in case of no supported country by regdb
 		     lets driver setup platform default Locale
 		*/
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0))
+		return -EINVAL;
+#else
+		return;
+#endif /* kernel version < 3.9.0 */
 	}
 
 	WL_ERR(("Set country code %c%c from %s\n",

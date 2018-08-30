@@ -41,7 +41,7 @@ extern unsigned int vpu_dbg_level_decoder;
 #define v4l2_ctrl_to_ctx(__ctrl) \
 	container_of((__ctrl)->handler, struct vpu_ctx, ctrl_handler)
 
-#define MIN_SPACE 2048
+#define MIN_SPACE 4096
 
 #define VPU_MAX_FORMATS 4
 #define VPU_MAX_BUFFER 32
@@ -193,6 +193,7 @@ struct vpu_dev {
 	struct workqueue_struct *workqueue;
 	struct work_struct msg_work;
 	unsigned long instance_mask;
+	unsigned long hang_mask; //this is used to deal with hang issue to reset firmware
 	sc_ipc_t mu_ipcHandle;
 	struct clk *vpu_clk;
 	void __iomem *mu_base_virtaddr;
@@ -228,6 +229,7 @@ struct vpu_ctx {
 	bool buffer_null;
 	bool firmware_stopped;
 	bool firmware_finished;
+	bool stream_feed_complete;
 	bool eos_stop_added;
 	wait_queue_head_t buffer_wq;
 	void *dpb_dma_virt;
