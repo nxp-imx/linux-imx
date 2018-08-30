@@ -1196,6 +1196,7 @@
 		assigned-clock-parents = <&clk IMX8MQ_VPU_PLL_OUT>, <&clk IMX8MQ_VPU_PLL_OUT>, <&clk IMX8MQ_SYS1_PLL_800M>;
 		assigned-clock-rates = <600000000>, <600000000>, <800000000>;
 		power-domains = <&vpu_pd>;
+		regulator-supply = <&sw1c_reg>;
 		status = "disabled";
 	};
 
@@ -1351,6 +1352,20 @@
 	caam_sm: caam-sm@00100000 {
 		compatible = "fsl,imx6q-caam-sm";
 		reg = <0 0x00100000 0 0x3fff>;
+	};
+
+	caam_snvs: caam-snvs@30370000 {
+		compatible = "fsl,imx6q-caam-snvs";
+		reg = <0 0x30370000 0 0x10000>;
+	};
+
+	irq_sec_vio: caam_secvio {
+		compatible = "fsl,imx7d-caam-secvio", "fsl,imx6q-caam-secvio";
+		interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>;
+		jtag-tamper = "disabled";
+		watchdog-tamper = "enabled";
+		internal-boot-tamper = "enabled";
+		external-pin-tamper = "disabled";
 	};
 
 	dma_apbh: dma-apbh@33000000 {
