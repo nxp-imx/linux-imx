@@ -1642,6 +1642,14 @@ config MFD_STW481X
 	  in various ST Microelectronics and ST-Ericsson embedded
 	  Nomadik series.
 
+config MFD_BD71837
+	bool "BD71837 Power Management chip"
+	depends on I2C=y
+	select MFD_CORE
+	help
+	  if you say yes here you get support for the BD71837
+	  Power Management chips.
+
 menu "Multimedia Capabilities Port drivers"
 	depends on ARCH_SA1100
 
