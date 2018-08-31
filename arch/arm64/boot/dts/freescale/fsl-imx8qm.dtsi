@@ -209,7 +209,7 @@
 
 	can_rpmsg: can_rpmsg {
 		compatible = "nxp,imx-can-rpmsg";
-		power-domains = <&pd_dc0>;
+		power-domains = <&pd_dc1>;
 		status = "disabled";
 	};
 
