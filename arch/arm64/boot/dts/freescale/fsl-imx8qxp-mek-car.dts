@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-#include "fsl-imx8qxp-mek.dts"
+#include "fsl-imx8qxp-mek-mipi-ov5640.dts"
 
 &i2c0 {
 	clock-frequency = <1000000>;
