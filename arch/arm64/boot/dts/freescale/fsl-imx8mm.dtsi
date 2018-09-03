@@ -99,6 +99,7 @@
 			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(6) | IRQ_TYPE_LEVEL_LOW)>, /* Virtual */
 			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(6) | IRQ_TYPE_LEVEL_LOW)>; /* Hypervisor */
 		clock-frequency = <8000000>;
+		arm,no-tick-in-suspend;
 		interrupt-parent = <&gic>;
 	};
 
@@ -1143,7 +1144,7 @@
 	};
 
 	gpu: gpu@38000000 {
-		compatible ="fsl,imx6q-gpu";
+		compatible ="fsl,imx8mm-gpu", "fsl,imx6q-gpu";
 		reg = <0x0 0x38000000 0x0 0x8000>, <0x0 0x38008000 0x0 0x8000>,
                         <0x0 0x40000000 0x0 0x80000000>, <0x0 0x0 0x0 0x8000000>;
 		reg-names = "iobase_3d", "iobase_2d",
