@@ -27,7 +27,7 @@
 
 /* Constants */
 #define APEX_DEVICE_NAME "Apex"
-#define APEX_DRIVER_VERSION "1.0"
+#define APEX_DRIVER_VERSION "1.1"
 
 /* CSRs are in BAR 2. */
 #define APEX_BAR_INDEX 2
@@ -489,7 +489,9 @@ static long apex_clock_gating(struct gasket_dev *gasket_dev,
 }
 
 /* apex_set_performance_expectation: Adjust clock rates for Apex. */
-static long apex_set_performance_expectation(struct gasket_dev *gasket_dev, ulong arg)
+static long apex_set_performance_expectation(
+	struct gasket_dev *gasket_dev,
+	struct apex_performance_expectation_ioctl __user *argp)
 {
 	struct apex_performance_expectation_ioctl ibuf;
 	uint32_t rg_gcb_clk_div = 0;
@@ -503,7 +505,7 @@ static long apex_set_performance_expectation(struct gasket_dev *gasket_dev, ulon
 	if (bypass_top_level)
 		return 0;
 
-	if (copy_from_user(&ibuf, (void __user *)arg, sizeof(ibuf)))
+	if (copy_from_user(&ibuf, argp, sizeof(ibuf)))
 		return -EFAULT;
 
 	switch (ibuf.performance) {
