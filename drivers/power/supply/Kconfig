@@ -624,4 +624,10 @@ config CHARGER_RT9455
 	help
 	  Say Y to enable support for Richtek RT9455 battery charger.
 
+config BATTERY_DUMMY
+	tristate "Dummy battery driver"
+	depends on ANDROID
+	help
+	  Say Y to enable support for dummy battery and USB power.
+
 endif # POWER_SUPPLY
