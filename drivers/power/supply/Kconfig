@@ -1105,4 +1105,9 @@ config FUEL_GAUGE_MM8013
 	  the state of charge, temperature, cycle count, actual and design
 	  capacity, etc.
 
+config BATTERY_DUMMY
+	tristate "Dummy battery driver"
+	help
+	  Say Y to enable support for dummy battery and USB power.
+
 endif # POWER_SUPPLY
