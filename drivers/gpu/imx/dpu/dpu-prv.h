@@ -192,6 +192,7 @@ struct dpu_devtype {
 	const struct dpu_unit *fws;
 	const struct dpu_unit *hss;
 	const struct dpu_unit *lbs;
+	const struct dpu_unit *sts;
 	const struct dpu_unit *tcons;
 	const struct dpu_unit *vss;
 	const struct cm_reg_ofs *cm_reg_ofs;
@@ -200,6 +201,10 @@ struct dpu_devtype {
 	const unsigned long *unused_irq;
 	const unsigned int *sw2hw_irq_map;	/* NULL means linear */
 	const unsigned int *sw2hw_block_id_map;	/* NULL means linear */
+
+	const unsigned int syncmode_min_prate;	/* need pixel combiner, KHz */
+	const unsigned int singlemode_max_width;
+
 	/*
 	 * index:     0         1         2       3   4   5   6
 	 * source: fl0(sub0) fl1(sub0) fw2(sub0) fd0 fd1 fd2 fd3
@@ -209,6 +214,8 @@ struct dpu_devtype {
 	bool has_prefetch;
 	bool has_disp_sel_clk;
 	bool has_dual_ldb;
+	bool has_pc;
+	bool has_syncmode_fixup;
 	bool pixel_link_quirks;
 	bool pixel_link_nhvsync;	/* HSYNC and VSYNC high active */
 	unsigned int version;
@@ -247,6 +254,7 @@ struct dpu_soc {
 	struct dpu_fetchunit	*fw_priv[1];
 	struct dpu_hscaler	*hs_priv[3];
 	struct dpu_layerblend	*lb_priv[7];
+	struct dpu_store	*st_priv[1];
 	struct dpu_tcon		*tcon_priv[2];
 	struct dpu_vscaler	*vs_priv[3];
 };
@@ -287,6 +295,7 @@ DECLARE_DPU_UNIT_INIT_FUNC(fl);
 DECLARE_DPU_UNIT_INIT_FUNC(fw);
 DECLARE_DPU_UNIT_INIT_FUNC(hs);
 DECLARE_DPU_UNIT_INIT_FUNC(lb);
+DECLARE_DPU_UNIT_INIT_FUNC(st);
 DECLARE_DPU_UNIT_INIT_FUNC(tcon);
 DECLARE_DPU_UNIT_INIT_FUNC(vs);
 
@@ -322,6 +331,8 @@ static inline u32 yuv_color(u8 y, u8 u, u8 v)
 	return (y << 24) | (u << 16) | (v << 8);
 }
 
+void tcon_get_pc(struct dpu_tcon *tcon, void *data);
+
 static const unsigned int cf_ids[] = {0, 1, 4, 5};
 static const unsigned int dec_ids[] = {0, 1};
 static const unsigned int ed_ids[] = {0, 1, 4, 5};
@@ -332,6 +343,7 @@ static const unsigned int fl_ids[] = {0, 1};
 static const unsigned int fw_ids[] = {2};
 static const unsigned int hs_ids[] = {4, 5, 9};
 static const unsigned int lb_ids[] = {0, 1, 2, 3, 4, 5, 6};
+static const unsigned int st_ids[] = {9};
 static const unsigned int tcon_ids[] = {0, 1};
 static const unsigned int vs_ids[] = {4, 5, 9};
 

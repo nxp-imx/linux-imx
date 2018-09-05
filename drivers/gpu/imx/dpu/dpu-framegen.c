@@ -25,16 +25,6 @@
 
 #define FGSTCTRL		0x8
 #define FGSYNCMODE_MASK		0x6
-typedef enum {
-	/* No side-by-side synchronization. */
-	FGSYNCMODE__OFF = 0,
-	/* Framegen is master. */
-	FGSYNCMODE__MASTER = 1 << 1,
-	/* Runs in cyclic synchronization mode. */
-	FGSYNCMODE__SLAVE_CYC = 2 << 1,
-	/* Runs in one time synchronization mode. */
-	FGSYNCMODE__SLAVE_ONCE = 3 << 1,
-} fgsyncmode_t;
 #define HTCFG1			0xC
 #define HTOTAL(n)		((((n) - 1) & 0x3FFF) << 16)
 #define HACT(n)			((n) & 0x3FFF)
@@ -88,6 +78,7 @@ typedef enum {
 #define FRAMEINDEX_MASK		0xFFFFC000
 #define FRAMEINDEX_SHIFT	14
 #define FGCHSTAT		0x78
+#define SECSYNCSTAT		BIT(24)
 #define FGCHSTATCLR		0x7C
 #define FGSKEWMON		0x80
 #define FGSFIFOMIN		0x84
@@ -110,6 +101,7 @@ struct dpu_framegen {
 	bool inuse;
 	bool use_bypass_clk;
 	bool encoder_type_has_lvds;
+	bool side_by_side;
 	struct dpu_soc *dpu;
 };
 
@@ -228,6 +220,40 @@ static void dpu_pixel_link_set_mst_addr(int dpu_id, int stream_id, int mst_addr)
 	sc_ipc_close(mu_id);
 }
 
+/* FIXME: set dc sync mode for pixel link in a proper manner */
+static void dpu_pixel_link_set_dc_sync_mode(int dpu_id, bool enable)
+{
+	sc_err_t sciErr;
+	sc_ipc_t ipcHndl = 0;
+	u32 mu_id;
+
+	sciErr = sc_ipc_getMuID(&mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		pr_err("Cannot obtain MU ID\n");
+		return;
+	}
+
+	sciErr = sc_ipc_open(&ipcHndl, mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		pr_err("sc_ipc_open failed! (sciError = %d)\n", sciErr);
+		return;
+	}
+
+	if (dpu_id == 0) {
+		sciErr = sc_misc_set_control(ipcHndl,
+						SC_R_DC_0, SC_C_MODE, enable);
+		if (sciErr != SC_ERR_NONE)
+			pr_err("SC_R_DC_0:SC_C_MODE sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+	} else if (dpu_id == 1) {
+		sciErr = sc_misc_set_control(ipcHndl,
+						SC_R_DC_1, SC_C_MODE, enable);
+		if (sciErr != SC_ERR_NONE)
+			pr_err("SC_R_DC_1:SC_C_MODE sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+	}
+
+	sc_ipc_close(mu_id);
+}
+
 void framegen_enable(struct dpu_framegen *fg)
 {
 	struct dpu_soc *dpu = fg->dpu;
@@ -264,24 +290,50 @@ void framegen_shdtokgen(struct dpu_framegen *fg)
 }
 EXPORT_SYMBOL_GPL(framegen_shdtokgen);
 
+void framegen_syncmode(struct dpu_framegen *fg, fgsyncmode_t mode)
+{
+	struct dpu_soc *dpu = fg->dpu;
+	u32 val;
+
+	mutex_lock(&fg->mutex);
+	val = dpu_fg_read(fg, FGSTCTRL);
+	val &= ~FGSYNCMODE_MASK;
+	val |= mode;
+	dpu_fg_write(fg, val, FGSTCTRL);
+	mutex_unlock(&fg->mutex);
+
+	dpu_pixel_link_set_dc_sync_mode(dpu->id, mode != FGSYNCMODE__OFF);
+}
+EXPORT_SYMBOL_GPL(framegen_syncmode);
+
 void
-framegen_cfg_videomode(struct dpu_framegen *fg, struct drm_display_mode *m,
+framegen_cfg_videomode(struct dpu_framegen *fg,
+		       struct drm_display_mode *m, bool side_by_side,
 		       bool encoder_type_has_tmds, bool encoder_type_has_lvds)
 {
 	struct dpu_soc *dpu = fg->dpu;
 	const struct dpu_devtype *devtype = dpu->devtype;
 	u32 hact, htotal, hsync, hsbp;
 	u32 vact, vtotal, vsync, vsbp;
+	u32 kick_row, kick_col;
 	u32 val;
 	unsigned long disp_clock_rate, pll_clock_rate = 0;
 	int div = 0;
 
+	fg->side_by_side = side_by_side;
 	fg->encoder_type_has_lvds = encoder_type_has_lvds;
 
 	hact = m->crtc_hdisplay;
 	htotal = m->crtc_htotal;
 	hsync = m->crtc_hsync_end - m->crtc_hsync_start;
 	hsbp = m->crtc_htotal - m->crtc_hsync_start;
+
+	if (side_by_side) {
+		hact /= 2;
+		htotal /= 2;
+		hsync /= 2;
+		hsbp /= 2;
+	}
 
 	vact = m->crtc_vdisplay;
 	vtotal = m->crtc_vtotal;
@@ -295,11 +347,21 @@ framegen_cfg_videomode(struct dpu_framegen *fg, struct drm_display_mode *m,
 	dpu_fg_write(fg, VACT(vact) | VTOTAL(vtotal), VTCFG1);
 	dpu_fg_write(fg, VSYNC(vsync) | VSBP(vsbp) | VSEN, VTCFG2);
 
+	kick_col = hact;
+	kick_row = vact;
+	/*
+	 * FrameGen as slave needs to be kicked later for
+	 * more than 64 pixels comparing to the master.
+	 */
+	if (side_by_side && framegen_is_slave(fg) &&
+	    devtype->has_syncmode_fixup)
+		kick_col += 65;
+
 	/* pkickconfig */
-	dpu_fg_write(fg, COL(hact) | ROW(vact) | EN, PKICKCONFIG);
+	dpu_fg_write(fg, COL(kick_col) | ROW(kick_row) | EN, PKICKCONFIG);
 
 	/* skikconfig */
-	dpu_fg_write(fg, COL(hact) | ROW(vact) | EN, SKICKCONFIG);
+	dpu_fg_write(fg, COL(kick_col) | ROW(kick_row) | EN, SKICKCONFIG);
 
 	/* primary position config */
 	dpu_fg_write(fg, STARTX(0) | STARTY(0), PACFG);
@@ -327,7 +389,11 @@ framegen_cfg_videomode(struct dpu_framegen *fg, struct drm_display_mode *m,
 	 * will fail.
 	 */
 	if (devtype->has_disp_sel_clk && encoder_type_has_tmds) {
-		dpu_pixel_link_set_mst_addr(dpu->id, fg->id, 1);
+		if (side_by_side)
+			dpu_pixel_link_set_mst_addr(dpu->id, fg->id,
+							fg->id ? 2 : 1);
+		else
+			dpu_pixel_link_set_mst_addr(dpu->id, fg->id, 1);
 
 		clk_set_parent(fg->clk_disp_sel, fg->clk_bypass);
 
@@ -368,6 +434,25 @@ void framegen_pkickconfig(struct dpu_framegen *fg, bool enable)
 	mutex_unlock(&fg->mutex);
 }
 EXPORT_SYMBOL_GPL(framegen_pkickconfig);
+
+void framegen_syncmode_fixup(struct dpu_framegen *fg, bool enable)
+{
+	struct dpu_soc *dpu = fg->dpu;
+	u32 val;
+
+	if (!dpu->devtype->has_syncmode_fixup)
+		return;
+
+	mutex_lock(&fg->mutex);
+	val = dpu_fg_read(fg, SECSTATCONFIG);
+	if (enable)
+		val |= BIT(7);
+	else
+		val &= ~BIT(7);
+	dpu_fg_write(fg, val, SECSTATCONFIG);
+	mutex_unlock(&fg->mutex);
+}
+EXPORT_SYMBOL_GPL(framegen_syncmode_fixup);
 
 void framegen_sacfg(struct dpu_framegen *fg, unsigned int x, unsigned int y)
 {
@@ -415,7 +500,8 @@ void framegen_wait_done(struct dpu_framegen *fg, struct drm_display_mode *m)
 		/* fall back to display mode's clock */
 		dotclock = m->crtc_clock;
 
-		dev_warn(fg->dpu->dev,
+		if (!(fg->side_by_side && framegen_is_slave(fg)))
+			dev_warn(fg->dpu->dev,
 				"pixel clock for FrameGen%d is zero\n", fg->id);
 	}
 
@@ -496,6 +582,36 @@ void framegen_wait_for_frame_counter_moving(struct dpu_framegen *fg)
 }
 EXPORT_SYMBOL_GPL(framegen_wait_for_frame_counter_moving);
 
+bool framegen_secondary_is_syncup(struct dpu_framegen *fg)
+{
+	u32 val;
+
+	mutex_lock(&fg->mutex);
+	val = dpu_fg_read(fg, FGCHSTAT);
+	mutex_unlock(&fg->mutex);
+
+	return val & SECSYNCSTAT;
+}
+EXPORT_SYMBOL_GPL(framegen_secondary_is_syncup);
+
+void framegen_wait_for_secondary_syncup(struct dpu_framegen *fg)
+{
+	unsigned long timeout = jiffies + msecs_to_jiffies(50);
+	bool syncup;
+
+	do {
+		syncup = framegen_secondary_is_syncup(fg);
+	} while (!syncup && time_before(jiffies, timeout));
+
+	if (syncup)
+		dev_dbg(fg->dpu->dev, "FrameGen%d secondary syncup\n", fg->id);
+	else
+		dev_err(fg->dpu->dev,
+			"failed to wait for FrameGen%d secondary syncup\n",
+			fg->id);
+}
+EXPORT_SYMBOL_GPL(framegen_wait_for_secondary_syncup);
+
 void framegen_enable_clock(struct dpu_framegen *fg)
 {
 	if (!fg->use_bypass_clk)
@@ -511,6 +627,18 @@ void framegen_disable_clock(struct dpu_framegen *fg)
 	clk_disable_unprepare(fg->clk_disp);
 }
 EXPORT_SYMBOL_GPL(framegen_disable_clock);
+
+bool framegen_is_master(struct dpu_framegen *fg)
+{
+	return fg->id == 0;
+}
+EXPORT_SYMBOL_GPL(framegen_is_master);
+
+bool framegen_is_slave(struct dpu_framegen *fg)
+{
+	return fg->id == 1;
+}
+EXPORT_SYMBOL_GPL(framegen_is_slave);
 
 struct dpu_framegen *dpu_fg_get(struct dpu_soc *dpu, int id)
 {
@@ -551,10 +679,15 @@ void dpu_fg_put(struct dpu_framegen *fg)
 }
 EXPORT_SYMBOL_GPL(dpu_fg_put);
 
+struct dpu_framegen *dpu_aux_fg_peek(struct dpu_framegen *fg)
+{
+	return fg->dpu->fg_priv[fg->id ^ 1];
+}
+EXPORT_SYMBOL_GPL(dpu_aux_fg_peek);
+
 void _dpu_fg_init(struct dpu_soc *dpu, unsigned int id)
 {
 	struct dpu_framegen *fg;
-	u32 val;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(fg_ids); i++)
@@ -566,12 +699,7 @@ void _dpu_fg_init(struct dpu_soc *dpu, unsigned int id)
 
 	fg = dpu->fg_priv[i];
 
-	mutex_lock(&fg->mutex);
-	val = dpu_fg_read(fg, FGSTCTRL);
-	val &= ~FGSYNCMODE_MASK;
-	val |= FGSYNCMODE__OFF;
-	dpu_fg_write(fg, val, FGSTCTRL);
-	mutex_unlock(&fg->mutex);
+	framegen_syncmode(fg, FGSYNCMODE__OFF);
 }
 
 int dpu_fg_init(struct dpu_soc *dpu, unsigned int id,

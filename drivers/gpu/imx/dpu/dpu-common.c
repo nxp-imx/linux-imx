@@ -27,6 +27,7 @@
 #include <linux/regmap.h>
 #include <soc/imx8/sc/sci.h>
 #include <video/dpu.h>
+#include <video/imx8-pc.h>
 #include <video/imx8-prefetch.h>
 #include "dpu-prv.h"
 
@@ -199,6 +200,12 @@ static const unsigned long lb_ofss_v2[] = {0xa400, 0xa800, 0xac00, 0xb000};
 static const unsigned long lb_pec_ofss_v1[] = {0xd00, 0xd20, 0xd40, 0xd60,
 					       0xd80, 0xda0, 0xdc0};
 static const unsigned long lb_pec_ofss_v2[] = {0xba0, 0xbc0, 0xbe0, 0xc00};
+
+/* Store Unit */
+static const unsigned long st_ofss_v1[] = {0x4000};
+static const unsigned long st_ofss_v2[] = {0x4000};
+static const unsigned long st_pec_ofss_v1[] = {0x960};
+static const unsigned long st_pec_ofss_v2[] = {0x940};
 
 /* Timing Controller Unit */
 static const unsigned long tcon_ofss_v1[] = {0x12000, 0x13c00};
@@ -373,6 +380,22 @@ static const struct dpu_unit lbs_v2 = {
 	.ofss = lb_ofss_v2,
 };
 
+static const struct dpu_unit sts_v1 = {
+	.name = "Store",
+	.num = ARRAY_SIZE(st_ids),
+	.ids = st_ids,
+	.pec_ofss = st_pec_ofss_v1,
+	.ofss = st_ofss_v1,
+};
+
+static const struct dpu_unit sts_v2 = {
+	.name = "Store",
+	.num = ARRAY_SIZE(st_ids),
+	.ids = st_ids,
+	.pec_ofss = st_pec_ofss_v2,
+	.ofss = st_ofss_v2,
+};
+
 static const struct dpu_unit tcons_v1 = {
 	.name = "TCon",
 	.num = ARRAY_SIZE(tcon_ids),
@@ -533,6 +556,7 @@ static const struct dpu_devtype dpu_type_v1 = {
 	.fws = &fws_v1,
 	.hss = &hss_v1,
 	.lbs = &lbs_v1,
+	.sts = &sts_v1,
 	.tcons = &tcons_v1,
 	.vss = &vss_v1,
 	.cm_reg_ofs = &cm_reg_ofs_v1,
@@ -544,6 +568,8 @@ static const struct dpu_devtype dpu_type_v1 = {
 	.has_prefetch = false,
 	.has_disp_sel_clk = false,
 	.has_dual_ldb = false,
+	.has_pc = false,
+	.has_syncmode_fixup = false,
 	.pixel_link_quirks = false,
 	.pixel_link_nhvsync = false,
 	.version = DPU_V1,
@@ -561,6 +587,7 @@ static const struct dpu_devtype dpu_type_v2_qm = {
 	.fws = &fws_v2,
 	.hss = &hss_v2,
 	.lbs = &lbs_v2,
+	.sts = &sts_v2,
 	.tcons = &tcons_v2,
 	.vss = &vss_v2,
 	.cm_reg_ofs = &cm_reg_ofs_v2,
@@ -574,6 +601,10 @@ static const struct dpu_devtype dpu_type_v2_qm = {
 	.has_prefetch = true,
 	.has_disp_sel_clk = true,
 	.has_dual_ldb = false,
+	.has_pc = true,
+	.has_syncmode_fixup = true,
+	.syncmode_min_prate = 300000,
+	.singlemode_max_width = 1920,
 	.pixel_link_quirks = true,
 	.pixel_link_nhvsync = true,
 	.version = DPU_V2,
@@ -591,6 +622,7 @@ static const struct dpu_devtype dpu_type_v2_qxp = {
 	.fws = &fws_v2,
 	.hss = &hss_v2,
 	.lbs = &lbs_v2,
+	.sts = &sts_v2,
 	.tcons = &tcons_v2,
 	.vss = &vss_v2,
 	.cm_reg_ofs = &cm_reg_ofs_v2,
@@ -604,6 +636,10 @@ static const struct dpu_devtype dpu_type_v2_qxp = {
 	.has_prefetch = true,
 	.has_disp_sel_clk = false,
 	.has_dual_ldb = true,
+	.has_pc = true,
+	.has_syncmode_fixup = false,
+	.syncmode_min_prate = UINT_MAX,	/* pc is unused */
+	.singlemode_max_width = UINT_MAX,	/* pc is unused */
 	.pixel_link_quirks = true,
 	.pixel_link_nhvsync = true,
 	.version = DPU_V2,
@@ -621,6 +657,30 @@ static const struct of_device_id dpu_dt_ids[] = {
 	}
 };
 MODULE_DEVICE_TABLE(of, dpu_dt_ids);
+
+bool dpu_has_pc(struct dpu_soc *dpu)
+{
+	return dpu->devtype->has_pc;
+}
+EXPORT_SYMBOL_GPL(dpu_has_pc);
+
+unsigned int dpu_get_syncmode_min_prate(struct dpu_soc *dpu)
+{
+	if (dpu->devtype->has_pc)
+		return dpu->devtype->syncmode_min_prate;
+	else
+		return UINT_MAX;
+}
+EXPORT_SYMBOL_GPL(dpu_get_syncmode_min_prate);
+
+unsigned int dpu_get_singlemode_max_width(struct dpu_soc *dpu)
+{
+	if (dpu->devtype->has_pc)
+		return dpu->devtype->singlemode_max_width;
+	else
+		return UINT_MAX;
+}
+EXPORT_SYMBOL_GPL(dpu_get_singlemode_max_width);
 
 bool dpu_vproc_has_fetcheco_cap(u32 cap_mask)
 {
@@ -791,6 +851,7 @@ static int dpu_submodules_init(struct dpu_soc *dpu,
 	const struct dpu_unit *fds = devtype->fds;
 	const struct dpu_unit *fls = devtype->fls;
 	const struct dpu_unit *fws = devtype->fws;
+	const struct dpu_unit *tcons = devtype->tcons;
 
 	DPU_UNITS_INIT(cf);
 	DPU_UNITS_INIT(dec);
@@ -802,6 +863,7 @@ static int dpu_submodules_init(struct dpu_soc *dpu,
 	DPU_UNITS_INIT(fw);
 	DPU_UNITS_INIT(hs);
 	DPU_UNITS_INIT(lb);
+	DPU_UNITS_INIT(st);
 	DPU_UNITS_INIT(tcon);
 	DPU_UNITS_INIT(vs);
 
@@ -845,6 +907,23 @@ static int dpu_submodules_init(struct dpu_soc *dpu,
 			fu = dpu_fw_get(dpu, fw_ids[i]);
 			fetchunit_get_dprc(fu, dprc);
 			dpu_fw_put(fu);
+		}
+	}
+
+	/* get pixel combiner */
+	if (devtype->has_pc) {
+		struct dpu_tcon *tcon;
+		struct pc *pc =
+			pc_lookup_by_phandle(dpu->dev, "fsl,pixel-combiner");
+		int i;
+
+		if (!pc)
+			return -EPROBE_DEFER;
+
+		for (i = 0; i < tcons->num; i++) {
+			tcon = dpu_tcon_get(dpu, i);
+			tcon_get_pc(tcon, pc);
+			dpu_tcon_put(tcon);
 		}
 	}
 
@@ -1188,8 +1267,10 @@ static int dpu_add_client_devices(struct dpu_soc *dpu)
 			}
 		}
 
-		if (is_disp)
+		if (is_disp) {
 			reg[i].pdata.plane_grp = plane_grp;
+			reg[i].pdata.di_grp_id = plane_grp->id;
+		}
 
 		pdev = platform_device_alloc(reg[i].name, id++);
 		if (!pdev) {
@@ -1711,6 +1792,7 @@ static int dpu_probe(struct platform_device *pdev)
 	DPU_UNITS_ADDR_DBG(fw);
 	DPU_UNITS_ADDR_DBG(hs);
 	DPU_UNITS_ADDR_DBG(lb);
+	DPU_UNITS_ADDR_DBG(st);
 	DPU_UNITS_ADDR_DBG(tcon);
 	DPU_UNITS_ADDR_DBG(vs);
 

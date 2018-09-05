@@ -178,6 +178,25 @@ void extdst_pixengcfg_div(struct dpu_extdst *ed, u16 div)
 }
 EXPORT_SYMBOL_GPL(extdst_pixengcfg_div);
 
+void extdst_pixengcfg_syncmode_master(struct dpu_extdst *ed, bool enable)
+{
+	struct dpu_soc *dpu = ed->dpu;
+	u32 val;
+
+	if (!dpu->devtype->has_syncmode_fixup)
+		return;
+
+	mutex_lock(&ed->mutex);
+	val = dpu_pec_ed_read(ed, PIXENGCFG_STATIC);
+	if (enable)
+		val |= BIT(16);
+	else
+		val &= ~BIT(16);
+	dpu_pec_ed_write(ed, val, PIXENGCFG_STATIC);
+	mutex_unlock(&ed->mutex);
+}
+EXPORT_SYMBOL_GPL(extdst_pixengcfg_syncmode_master);
+
 int extdst_pixengcfg_src_sel(struct dpu_extdst *ed, extdst_src_sel_t src)
 {
 	struct dpu_soc *dpu = ed->dpu;
@@ -401,6 +420,12 @@ u32 extdst_perfresult(struct dpu_extdst *ed)
 }
 EXPORT_SYMBOL_GPL(extdst_perfresult);
 
+bool extdst_is_master(struct dpu_extdst *ed)
+{
+	return ed->id == 0;
+}
+EXPORT_SYMBOL_GPL(extdst_is_master);
+
 struct dpu_extdst *dpu_ed_get(struct dpu_soc *dpu, int id)
 {
 	struct dpu_extdst *ed;
@@ -439,6 +464,19 @@ void dpu_ed_put(struct dpu_extdst *ed)
 	mutex_unlock(&ed->mutex);
 }
 EXPORT_SYMBOL_GPL(dpu_ed_put);
+
+struct dpu_extdst *dpu_aux_ed_peek(struct dpu_extdst *ed)
+{
+	unsigned int aux_id = ed->id ^ 1;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(ed_ids); i++)
+		if (ed_ids[i] == aux_id)
+			return ed->dpu->ed_priv[i];
+
+	return NULL;
+}
+EXPORT_SYMBOL_GPL(dpu_aux_ed_peek);
 
 void _dpu_ed_init(struct dpu_soc *dpu, unsigned int id)
 {

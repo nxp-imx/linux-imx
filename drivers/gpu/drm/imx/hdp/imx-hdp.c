@@ -75,6 +75,12 @@ static const unsigned int imx_hdmi_extcon_cables[] = {
 struct extcon_dev *hdp_edev;
 #endif
 
+static inline bool imx_hdp_is_dual_mode(struct drm_display_mode *mode)
+{
+	return (mode->clock > HDP_DUAL_MODE_MIN_PCLK_RATE ||
+		mode->hdisplay > HDP_SINGLE_MODE_MAX_WIDTH) ? true : false;
+}
+
 static void imx_hdp_state_init(struct imx_hdp *hdp)
 {
 	state_struct *state = &hdp->state;
@@ -109,7 +115,9 @@ static void imx8qm_pixel_link_mux(state_struct *state, struct drm_display_mode *
 	struct imx_hdp *hdp = state_to_imx_hdp(state);
 	u32 val;
 
-	val = 4; /* RGB */
+	val = 0x4;	/* RGB */
+	if (hdp->dual_mode)
+		val |= 0x2;	/* pixel link 0 and 1 are active */
 	if (mode->flags & DRM_MODE_FLAG_PVSYNC)
 		val |= 1 << PL_MUX_CTL_VCP_OFFSET;
 	if (mode->flags & DRM_MODE_FLAG_PHSYNC)
@@ -143,6 +151,14 @@ static int imx8qm_pixel_link_validate(state_struct *state)
 		DRM_ERROR("SC_R_DC_0:SC_C_PXL_LINK_MST1_VLD sc_misc_set_control failed! (sciError = %d)\n", sciErr);
 		return -EINVAL;
 	}
+	if (hdp->dual_mode) {
+		sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0,
+						SC_C_PXL_LINK_MST2_VLD, 1);
+		if (sciErr != SC_ERR_NONE) {
+			DRM_ERROR("SC_R_DC_0:SC_C_PXL_LINK_MST2_VLD sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+			return -EINVAL;
+		}
+	}
 
 	sc_ipc_close(hdp->mu_id);
 
@@ -171,6 +187,14 @@ static int imx8qm_pixel_link_invalidate(state_struct *state)
 		DRM_ERROR("SC_R_DC_0:SC_C_PXL_LINK_MST1_VLD sc_misc_set_control failed! (sciError = %d)\n", sciErr);
 		return -EINVAL;
 	}
+	if (hdp->dual_mode) {
+		sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0,
+						SC_C_PXL_LINK_MST2_VLD, 0);
+		if (sciErr != SC_ERR_NONE) {
+			DRM_ERROR("SC_R_DC_0:SC_C_PXL_LINK_MST2_VLD sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+			return -EINVAL;
+		}
+	}
 
 	sc_ipc_close(hdp->mu_id);
 
@@ -194,10 +218,18 @@ static int imx8qm_pixel_link_sync_ctrl_enable(state_struct *state)
 		return -EINVAL;
 	}
 
-	sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 1);
-	if (sciErr != SC_ERR_NONE) {
-		DRM_ERROR("SC_R_DC_0:SC_C_SYNC_CTRL0 sc_misc_set_control failed! (sciError = %d)\n", sciErr);
-		return -EINVAL;
+	if (hdp->dual_mode) {
+		sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL, 3);
+		if (sciErr != SC_ERR_NONE) {
+			DRM_ERROR("SC_R_DC_0:SC_C_SYNC_CTRL sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+			return -EINVAL;
+		}
+	} else {
+		sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 1);
+		if (sciErr != SC_ERR_NONE) {
+			DRM_ERROR("SC_R_DC_0:SC_C_SYNC_CTRL0 sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+			return -EINVAL;
+		}
 	}
 
 	sc_ipc_close(hdp->mu_id);
@@ -222,10 +254,18 @@ static int imx8qm_pixel_link_sync_ctrl_disable(state_struct *state)
 		return -EINVAL;
 	}
 
-	sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 0);
-	if (sciErr != SC_ERR_NONE) {
-		DRM_ERROR("SC_R_DC_0:SC_C_SYNC_CTRL0 sc_misc_set_control failed! (sciError = %d)\n", sciErr);
-		return -EINVAL;
+	if (hdp->dual_mode) {
+		sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL, 0);
+		if (sciErr != SC_ERR_NONE) {
+			DRM_ERROR("SC_R_DC_0:SC_C_SYNC_CTRL sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+			return -EINVAL;
+		}
+	} else {
+		sciErr = sc_misc_set_control(hdp->ipcHndl, SC_R_DC_0, SC_C_SYNC_CTRL0, 0);
+		if (sciErr != SC_ERR_NONE) {
+			DRM_ERROR("SC_R_DC_0:SC_C_SYNC_CTRL0 sc_misc_set_control failed! (sciError = %d)\n", sciErr);
+			return -EINVAL;
+		}
 	}
 
 	sc_ipc_close(hdp->mu_id);
@@ -670,6 +710,8 @@ static void imx_hdp_bridge_mode_set(struct drm_bridge *bridge,
 	struct imx_hdp *hdp = bridge->driver_private;
 
 	mutex_lock(&hdp->mutex);
+
+	hdp->dual_mode = imx_hdp_is_dual_mode(mode);
 
 	memcpy(&hdp->video.cur_mode, mode, sizeof(hdp->video.cur_mode));
 	imx_hdp_mode_setup(hdp, mode);
@@ -1340,8 +1382,6 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	imx_hdp_state_init(hdp);
 
 	hdp->link_rate = AFE_LINK_RATE_1_6;
-
-	hdp->dual_mode = false;
 
 	ret = imx_hdp_call(hdp, clock_init, &hdp->clks);
 	if (ret < 0) {

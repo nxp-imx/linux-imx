@@ -278,6 +278,17 @@ typedef enum {
 } fetchtype_t;
 
 typedef enum {
+	/* No side-by-side synchronization. */
+	FGSYNCMODE__OFF = 0,
+	/* Framegen is master. */
+	FGSYNCMODE__MASTER = 1 << 1,
+	/* Runs in cyclic synchronization mode. */
+	FGSYNCMODE__SLAVE_CYC = 2 << 1,
+	/* Runs in one time synchronization mode. */
+	FGSYNCMODE__SLAVE_ONCE = 3 << 1,
+} fgsyncmode_t;
+
+typedef enum {
 	FGDM__BLACK,
 	/* Constant Color Background is shown. */
 	FGDM__CONSTCOL,
@@ -495,18 +506,21 @@ struct dpu_constframe;
 void constframe_shden(struct dpu_constframe *cf, bool enable);
 void constframe_framedimensions(struct dpu_constframe *cf, unsigned int w,
 				unsigned int h);
+void constframe_framedimensions_copy_prim(struct dpu_constframe *cf);
 void constframe_constantcolor(struct dpu_constframe *cf, unsigned int r,
 			      unsigned int g, unsigned int b, unsigned int a);
 void constframe_controltrigger(struct dpu_constframe *cf, bool trigger);
 shadow_load_req_t constframe_to_shdldreq_t(struct dpu_constframe *cf);
 struct dpu_constframe *dpu_cf_get(struct dpu_soc *dpu, int id);
 void dpu_cf_put(struct dpu_constframe *cf);
+struct dpu_constframe *dpu_aux_cf_peek(struct dpu_constframe *cf);
 
 /* Display Engine Configuration Unit */
 struct dpu_disengcfg;
 void disengcfg_polarity_ctrl(struct dpu_disengcfg *dec, unsigned int flags);
 struct dpu_disengcfg *dpu_dec_get(struct dpu_soc *dpu, int id);
 void dpu_dec_put(struct dpu_disengcfg *dec);
+struct dpu_disengcfg *dpu_aux_dec_peek(struct dpu_disengcfg *dec);
 
 /* External Destination Unit */
 struct dpu_extdst;
@@ -515,6 +529,7 @@ void extdst_pixengcfg_powerdown(struct dpu_extdst *ed, bool powerdown);
 void extdst_pixengcfg_sync_mode(struct dpu_extdst *ed, ed_sync_mode_t mode);
 void extdst_pixengcfg_reset(struct dpu_extdst *ed, bool reset);
 void extdst_pixengcfg_div(struct dpu_extdst *ed, u16 div);
+void extdst_pixengcfg_syncmode_master(struct dpu_extdst *ed, bool enable);
 int extdst_pixengcfg_src_sel(struct dpu_extdst *ed, extdst_src_sel_t src);
 void extdst_pixengcfg_sel_shdldreq(struct dpu_extdst *ed);
 void extdst_pixengcfg_shdldreq(struct dpu_extdst *ed, u32 req_mask);
@@ -533,8 +548,10 @@ u32 extdst_last_control_word(struct dpu_extdst *ed);
 void extdst_pixel_cnt(struct dpu_extdst *ed, u16 *x, u16 *y);
 void extdst_last_pixel_cnt(struct dpu_extdst *ed, u16 *x, u16 *y);
 u32 extdst_perfresult(struct dpu_extdst *ed);
+bool extdst_is_master(struct dpu_extdst *ed);
 struct dpu_extdst *dpu_ed_get(struct dpu_soc *dpu, int id);
 void dpu_ed_put(struct dpu_extdst *ed);
+struct dpu_extdst *dpu_aux_ed_peek(struct dpu_extdst *ed);
 
 /* Fetch Decode Unit */
 int fetchdecode_pixengcfg_dynamic_src_sel(struct dpu_fetchunit *fu,
@@ -591,10 +608,13 @@ struct dpu_framegen;
 void framegen_enable(struct dpu_framegen *fg);
 void framegen_disable(struct dpu_framegen *fg);
 void framegen_shdtokgen(struct dpu_framegen *fg);
+void framegen_syncmode(struct dpu_framegen *fg, fgsyncmode_t mode);
 void
-framegen_cfg_videomode(struct dpu_framegen *fg, struct drm_display_mode *m,
+framegen_cfg_videomode(struct dpu_framegen *fg,
+		       struct drm_display_mode *m, bool side_by_side,
 		       bool encoder_type_has_tmds, bool encoder_type_has_lvds);
 void framegen_pkickconfig(struct dpu_framegen *fg, bool enable);
+void framegen_syncmode_fixup(struct dpu_framegen *fg, bool enable);
 void framegen_sacfg(struct dpu_framegen *fg, unsigned int x, unsigned int y);
 void framegen_displaymode(struct dpu_framegen *fg, fgdm_t mode);
 void framegen_panic_displaymode(struct dpu_framegen *fg, fgdm_t mode);
@@ -602,10 +622,15 @@ void framegen_wait_done(struct dpu_framegen *fg, struct drm_display_mode *m);
 void framegen_read_timestamp(struct dpu_framegen *fg,
 			     u32 *frame_index, u32 *line_index);
 void framegen_wait_for_frame_counter_moving(struct dpu_framegen *fg);
+bool framegen_secondary_is_syncup(struct dpu_framegen *fg);
+void framegen_wait_for_secondary_syncup(struct dpu_framegen *fg);
 void framegen_enable_clock(struct dpu_framegen *fg);
 void framegen_disable_clock(struct dpu_framegen *fg);
+bool framegen_is_master(struct dpu_framegen *fg);
+bool framegen_is_slave(struct dpu_framegen *fg);
 struct dpu_framegen *dpu_fg_get(struct dpu_soc *dpu, int id);
 void dpu_fg_put(struct dpu_framegen *fg);
+struct dpu_framegen *dpu_aux_fg_peek(struct dpu_framegen *fg);
 
 /* Horizontal Scaler Unit */
 struct dpu_hscaler;
@@ -646,13 +671,27 @@ u32 layerblend_perfresult(struct dpu_layerblend *lb);
 struct dpu_layerblend *dpu_lb_get(struct dpu_soc *dpu, int id);
 void dpu_lb_put(struct dpu_layerblend *lb);
 
+/* Store Unit */
+struct dpu_store;
+void store_pixengcfg_syncmode_fixup(struct dpu_store *st, bool enable);
+struct dpu_store *dpu_st_get(struct dpu_soc *dpu, int id);
+void dpu_st_put(struct dpu_store *st);
+
 /* Timing Controller Unit */
 struct dpu_tcon;
 int tcon_set_fmt(struct dpu_tcon *tcon, u32 bus_format);
 void tcon_set_operation_mode(struct dpu_tcon *tcon);
-void tcon_cfg_videomode(struct dpu_tcon *tcon, struct drm_display_mode *m);
+void tcon_cfg_videomode(struct dpu_tcon *tcon,
+			struct drm_display_mode *m, bool side_by_side);
+bool tcon_is_master(struct dpu_tcon *tcon);
+bool tcon_is_slave(struct dpu_tcon *tcon);
+void tcon_configure_pc(struct dpu_tcon *tcon, unsigned int di,
+			unsigned int frame_width, u32 mode, u32 format);
+void tcon_enable_pc(struct dpu_tcon *tcon);
+void tcon_disable_pc(struct dpu_tcon *tcon);
 struct dpu_tcon *dpu_tcon_get(struct dpu_soc *dpu, int id);
 void dpu_tcon_put(struct dpu_tcon *tcon);
+struct dpu_tcon *dpu_aux_tcon_peek(struct dpu_tcon *tcon);
 
 /* Vertical Scaler Unit */
 struct dpu_vscaler;
@@ -679,6 +718,10 @@ void dpu_vs_put(struct dpu_vscaler *vs);
 struct dpu_fetchunit *fetchdecode_get_fetcheco(struct dpu_fetchunit *fu);
 struct dpu_hscaler *fetchdecode_get_hscaler(struct dpu_fetchunit *fu);
 struct dpu_vscaler *fetchdecode_get_vscaler(struct dpu_fetchunit *fu);
+
+bool dpu_has_pc(struct dpu_soc *dpu);
+unsigned int dpu_get_syncmode_min_prate(struct dpu_soc *dpu);
+unsigned int dpu_get_singlemode_max_width(struct dpu_soc *dpu);
 
 bool dpu_vproc_has_fetcheco_cap(u32 cap_mask);
 bool dpu_vproc_has_hscale_cap(u32 cap_mask);
@@ -794,6 +837,7 @@ static inline struct dpu_plane_grp *plane_res_to_grp(struct dpu_plane_res *res)
 
 struct dpu_client_platformdata {
 	const unsigned int	stream_id;
+	unsigned int		di_grp_id;
 	struct dpu_plane_grp	*plane_grp;
 
 	struct device_node	*of_node;
