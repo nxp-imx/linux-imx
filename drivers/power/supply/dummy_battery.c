@@ -19,7 +19,7 @@
 #include <linux/errno.h>
 #include <linux/slab.h>
 
-#define DUMMY_POWER_NUM 2
+#define DUMMY_POWER_NUM 1
 
 static enum power_supply_property dummy_battery_props[] = {
     POWER_SUPPLY_PROP_STATUS,
@@ -79,13 +79,6 @@ static int dummy_battery_get_property(struct power_supply *psy,
 
 static struct power_supply *dummy_power_supplies[DUMMY_POWER_NUM];
 static const struct power_supply_desc dummy_power_desc[] = {
-    {
-        .properties = dummy_battery_props,
-        .num_properties = ARRAY_SIZE(dummy_battery_props),
-        .get_property = dummy_battery_get_property,
-        .name = "battery",
-        .type = POWER_SUPPLY_TYPE_BATTERY,
-    },
     {
         .properties = dummy_usb_props,
         .num_properties = ARRAY_SIZE(dummy_usb_props),
