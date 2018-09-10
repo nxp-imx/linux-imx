@@ -3251,6 +3251,10 @@ int rt5645_set_jack_detect(struct snd_soc_codec *codec,
 		/* Turn on MIC input from RING2 */
 		regmap_update_bits(rt5645->regmap, RT5645_IN1_CTRL1,
 				   RT5645_CBJ_MIC_SEL_L, RT5645_CBJ_MIC_SEL_L);
+
+		/* Disable IN1P Tie Ground */
+		regmap_update_bits(rt5645->regmap, RT5645_IN1_CTRL3,
+				   RT5645_CBJ_TIE_G_L, 0);
 	}
 	rt5645_irq(0, rt5645);
 
@@ -3966,6 +3970,13 @@ static int rt5645_i2c_probe(struct i2c_client *i2c,
 
 	regmap_update_bits(rt5645->regmap, RT5645_ADDA_CLK1,
 		RT5645_I2S_PD1_MASK, RT5645_I2S_PD1_2);
+
+	/* Add wind filter */
+	regmap_update_bits(rt5645->regmap, RT5645_ADJ_HPF1,
+                       RT5645_2ND_HPF_MASK, RT5645_2ND_HPF_DIS);
+	regmap_write(rt5645->regmap, RT5645_ADJ_HPF2, 0x0606);
+	regmap_update_bits(rt5645->regmap, RT5645_ADJ_HPF1,
+                       RT5645_2ND_HPF_MASK, RT5645_2ND_HPF_EN);
 
 	if (rt5645->pdata.level_trigger_irq) {
 		regmap_update_bits(rt5645->regmap, RT5645_IRQ_CTRL2,
