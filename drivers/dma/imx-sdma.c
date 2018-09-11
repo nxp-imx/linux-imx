@@ -443,7 +443,6 @@ struct sdma_engine {
 	dma_addr_t			bd0_phys;
 	bool				bd0_iram;
 	struct sdma_buffer_descriptor	*bd0;
-	bool				suspend_off;
 	bool				fw_loaded;
 	int				idx;
 	/* clock ration for AHB:SDMA core. 1:1 is 1, 2:1 is 0*/
@@ -1117,23 +1116,6 @@ static int sdma_disable_channel(struct dma_chan *chan)
 	return 0;
 }
 
-static int sdma_terminate_all(struct dma_chan *chan);
-
-static int sdma_terminate_all_with_delay(struct dma_chan *chan)
-{
-	sdma_terminate_all(chan);
-
-	/*
-	 * According to NXP R&D team a delay of one BD SDMA cost time
-	 * (maximum is 1ms) should be added after disable of the channel
-	 * bit, to ensure SDMA core has really been stopped after SDMA
-	 * clients call .device_terminate_all.
-	 */
-	mdelay(1);
-
-	return 0;
-}
-
 static void sdma_set_watermarklevel_for_p2p(struct sdma_channel *sdmac)
 {
 	struct sdma_engine *sdma = sdmac->sdma;
@@ -1389,21 +1371,10 @@ static int sdma_channel_pause(struct dma_chan *chan)
 static int sdma_channel_resume(struct dma_chan *chan)
 {
 	struct sdma_channel *sdmac = to_sdma_chan(chan);
-	struct sdma_engine *sdma = sdmac->sdma;
 	unsigned long flags;
 
 	if (!(sdmac->flags & IMX_DMA_SG_LOOP))
 		return -EINVAL;
-
-	/*
-	 * restore back context since context may loss if mega/fast OFF
-	 */
-	if (sdma->suspend_off) {
-		if (sdma_load_context(sdmac)) {
-			dev_err(sdmac->sdma->dev, "context load failed.\n");
-			return -EINVAL;
-		}
-	}
 
 	sdma_enable_channel(sdmac->sdma, sdmac->channel);
 	spin_lock_irqsave(&sdmac->vc.lock, flags);
@@ -2410,7 +2381,7 @@ static int sdma_probe(struct platform_device *pdev)
 	sdma->dma_device.device_prep_slave_sg = sdma_prep_slave_sg;
 	sdma->dma_device.device_prep_dma_cyclic = sdma_prep_dma_cyclic;
 	sdma->dma_device.device_config = sdma_config;
-	sdma->dma_device.device_terminate_all = sdma_terminate_all_with_delay;
+	sdma->dma_device.device_terminate_all = sdma_terminate_all;
 	sdma->dma_device.device_pause = sdma_channel_pause;
 	sdma->dma_device.device_resume = sdma_channel_resume;
 	sdma->dma_device.src_addr_widths = SDMA_DMA_BUSWIDTHS;
@@ -2491,8 +2462,6 @@ static int sdma_suspend(struct device *dev)
 	struct sdma_engine *sdma = platform_get_drvdata(pdev);
 	int i, ret = 0;
 
-	sdma->suspend_off = false;
-
 	/* Do nothing if not i.MX6SX or i.MX7D*/
 	if (sdma->drvdata != &sdma_imx6sx && sdma->drvdata != &sdma_imx7d
 	    && sdma->drvdata != &sdma_imx6ul)
@@ -2530,6 +2499,7 @@ static int sdma_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct sdma_engine *sdma = platform_get_drvdata(pdev);
+	unsigned long timeout = jiffies + msecs_to_jiffies(2);
 	int i, ret;
 
 	/* Do nothing if not i.MX6SX or i.MX7D*/
@@ -2548,7 +2518,6 @@ static int sdma_resume(struct device *dev)
 
 	/* Firmware was lost, mark as "not ready" */
 	sdma->fw_loaded = false;
-	sdma->suspend_off = true;
 
 	/* restore regs and load firmware */
 	for (i = 0; i < MXC_SDMA_SAVED_REG_NUM; i++) {
@@ -2559,6 +2528,10 @@ static int sdma_resume(struct device *dev)
 		if (i > SDMA_XTRIG_CONF2 / 4)
 			writel_relaxed(sdma->save_regs[i], sdma->regs +
 				       MXC_SDMA_RESERVED_REG + 4 * i);
+		/* set static context switch  mode before channel0 running */
+		else if (i == SDMA_H_CONFIG / 4)
+			writel_relaxed(sdma->save_regs[i] & ~SDMA_H_CONFIG_CSM,
+					sdma->regs + SDMA_H_CONFIG);
 		else
 			writel_relaxed(sdma->save_regs[i] , sdma->regs + 4 * i);
 	}
@@ -2571,6 +2544,14 @@ static int sdma_resume(struct device *dev)
 		dev_warn(&pdev->dev, "failed to get firware\n");
 		goto out;
 	}
+	/* wait firmware loaded */
+	do {
+		if (time_after(jiffies, timeout)) {
+			dev_warn(&pdev->dev, "failed to load firmware\n");
+			break;
+		}
+		usleep_range(50, 500);
+	} while (!sdma->fw_loaded);
 
 	ret = sdma_save_restore_context(sdma, false);
 	if (ret) {

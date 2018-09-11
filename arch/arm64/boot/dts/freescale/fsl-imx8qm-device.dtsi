@@ -1363,7 +1363,6 @@
 				reg = <SC_R_M4_0_INTMUX>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_cm40>;
-				early_power_on;
 			};
 		};
 
@@ -1384,7 +1383,6 @@
 				reg = <SC_R_M4_1_INTMUX>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_cm41>;
-				early_power_on;
 			};
 		};
 
@@ -1429,7 +1427,7 @@
 			thermal-sensors = <&tsens 0>;
 			trips {
 				cpu_alert0: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
@@ -1454,7 +1452,7 @@
 			thermal-sensors = <&tsens 1>;
 			trips {
 				cpu_alert1: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
@@ -1479,7 +1477,7 @@
 			thermal-sensors = <&tsens 2>;
 			trips {
 				gpu_alert0: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
@@ -1497,7 +1495,7 @@
 			thermal-sensors = <&tsens 3>;
 			trips {
 				gpu_alert1: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
@@ -1515,7 +1513,7 @@
 			thermal-sensors = <&tsens 4>;
 			trips {
 				drc_alert0: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};

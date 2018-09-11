@@ -1087,7 +1087,6 @@
 				reg = <SC_R_M4_0_INTMUX>;
 				#power-domain-cells = <0>;
 				power-domains =<&pd_cm40>;
-				early_power_on;
 			};
 		};
 
@@ -1369,7 +1368,7 @@
 			thermal-sensors = <&tsens 0>;
 			trips {
 				cpu_alert0: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
@@ -1395,7 +1394,7 @@
 			status = "disabled";
 			trips {
 				drc_alert0: trip0 {
-					temperature = <85000>;
+					temperature = <107000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
