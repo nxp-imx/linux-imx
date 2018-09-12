@@ -2490,6 +2490,9 @@ static int pxp_as_config(struct pxp_pixmap *input,
 	uint32_t offset;
 	struct as_ctrl ctrl;
 	struct coordinate out_as_ulc, out_as_lrc;
+	struct pxp_task_info *my_task = container_of(input, struct pxp_task_info, input[1]);
+	struct pxps *my_pxp = container_of(my_task, struct pxps, task);
+	struct pxp_config_data *pxp_conf = &my_pxp->pxp_conf_state;
 
 	memset((void*)&ctrl, 0x0, sizeof(ctrl));
 
@@ -2521,7 +2524,7 @@ static int pxp_as_config(struct pxp_pixmap *input,
 	}
 
 	out_as_ulc.x = out_as_ulc.y = 0;
-	if (input->g_alpha.combine_enable) {
+	if (input->g_alpha.combine_enable || pxp_conf->proc_data.combine_enable) {
 		out_as_lrc.x = input->width - 1;
 		out_as_lrc.y = input->height - 1;
 	} else {
