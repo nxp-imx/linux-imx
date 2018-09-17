@@ -31,6 +31,7 @@
 #include <drm/drm_modeset_helper_vtables.h>
 
 #include "imx-drm.h"
+#include "sec_mipi_dphy_ln14lpp.h"
 
 #define DRIVER_NAME "imx_sec_dsim_drv"
 
@@ -50,7 +51,7 @@ struct imx_sec_dsim_device {
 	struct drm_encoder encoder;
 	struct regmap *gpr;
 
-	bool rpm_suspended;
+	atomic_t rpm_suspended;
 };
 
 #define enc_to_dsim(enc) container_of(enc, struct imx_sec_dsim_device, encoder)
@@ -101,12 +102,12 @@ static void imx_sec_dsim_lanes_reset(struct regmap *gpr, bool reset)
 	if (!reset)
 		/* release lanes reset */
 		regmap_update_bits(gpr, GPR_MIPI_RESET_DIV,
-				   GPR_MIPI_S_RESETN | GPR_MIPI_M_RESETN,
-				   GPR_MIPI_S_RESETN | GPR_MIPI_M_RESETN);
+				   GPR_MIPI_M_RESETN,
+				   GPR_MIPI_M_RESETN);
 	else
 		/* reset lanes */
 		regmap_update_bits(gpr, GPR_MIPI_RESET_DIV,
-				   GPR_MIPI_S_RESETN | GPR_MIPI_M_RESETN,
+				   GPR_MIPI_M_RESETN,
 				   0x0);
 }
 
@@ -132,10 +133,11 @@ static int imx_sec_dsim_encoder_helper_atomic_check(struct drm_encoder *encoder,
 						    struct drm_crtc_state *crtc_state,
 						    struct drm_connector_state *conn_state)
 {
-	int i;
+	int i, ret;
 	u32 bus_format;
 	unsigned int num_bus_formats;
 	struct imx_sec_dsim_device *dsim_dev = enc_to_dsim(encoder);
+	struct drm_bridge *bridge = encoder->bridge;
 	struct drm_display_mode *adjusted_mode = &crtc_state->adjusted_mode;
 	struct imx_crtc_state *imx_crtc_state = to_imx_crtc_state(crtc_state);
 	struct drm_display_info *display_info = &conn_state->connector->display_info;
@@ -156,6 +158,12 @@ static int imx_sec_dsim_encoder_helper_atomic_check(struct drm_encoder *encoder,
 		dev_err(dsim_dev->dev, "invalid bus format for connector\n");
 		return -EINVAL;
 	}
+
+	/* check pll out */
+	ret = sec_mipi_dsim_check_pll_out(bridge->driver_private,
+					  adjusted_mode);
+	if (ret)
+		return ret;
 
 	/* sec dsim can only accept active hight DE */
 	imx_crtc_state->bus_flags |= DRM_BUS_FLAG_DE_HIGH;
@@ -189,6 +197,9 @@ static const struct sec_mipi_dsim_plat_data imx8mm_mipi_dsim_plat_data = {
 	.version	= 0x1060200,
 	.max_data_lanes = 4,
 	.max_data_rate  = 1500000000ULL,
+	.dphy_timing	= dphy_timing_ln14lpp_v1p2,
+	.num_dphy_timing = ARRAY_SIZE(dphy_timing_ln14lpp_v1p2),
+	.dphy_timing_cmp = dphy_timing_default_cmp,
 	.mode_valid	= NULL,
 };
 
@@ -256,8 +267,9 @@ static int imx_sec_dsim_bind(struct device *dev, struct device *master,
 		return ret;
 	}
 
+	atomic_set(&dsim_dev->rpm_suspended, 0);
 	pm_runtime_enable(dev);
-	dsim_dev->rpm_suspended = true;
+	atomic_inc(&dsim_dev->rpm_suspended);
 
 	dev_dbg(dev, "%s: dsim bind end\n", __func__);
 
@@ -317,21 +329,25 @@ static int imx_sec_dsim_resume(struct device *dev)
 #ifdef CONFIG_PM
 static int imx_sec_dsim_runtime_suspend(struct device *dev)
 {
-	if (dsim_dev->rpm_suspended == true)
+	if (atomic_inc_return(&dsim_dev->rpm_suspended) > 1)
 		return 0;
 
 	sec_mipi_dsim_suspend(dev);
 
 	release_bus_freq(BUS_FREQ_HIGH);
 
-	dsim_dev->rpm_suspended = true;
-
 	return 0;
 }
 
 static int imx_sec_dsim_runtime_resume(struct device *dev)
 {
-	if (dsim_dev->rpm_suspended == false)
+	if (unlikely(!atomic_read(&dsim_dev->rpm_suspended))) {
+		dev_warn(dsim_dev->dev,
+			 "Unbalanced %s!\n", __func__);
+		return 0;
+	}
+
+	if (!atomic_dec_and_test(&dsim_dev->rpm_suspended))
 		return 0;
 
 	request_bus_freq(BUS_FREQ_HIGH);
@@ -342,8 +358,6 @@ static int imx_sec_dsim_runtime_resume(struct device *dev)
 	imx_sec_dsim_lanes_reset(dsim_dev->gpr, false);
 
 	sec_mipi_dsim_resume(dev);
-
-	dsim_dev->rpm_suspended = false;
 
 	return 0;
 }

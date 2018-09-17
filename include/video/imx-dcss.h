@@ -53,9 +53,6 @@ void dcss_trace_write(u64 tag);
 
 #define dcss_trace_module(mod_tag, val) dcss_trace_write((mod_tag) | (val));
 
-/* COMMON */
-void dcss_req_pm_qos(struct dcss_soc *dcss, bool en);
-
 /* BLKCTL */
 void dcss_blkctl_hdmi_secure_src_en(struct dcss_soc *dcss);
 
@@ -100,6 +97,7 @@ bool dcss_dtg_global_alpha_changed(struct dcss_soc *dcss, int ch_num,
 				   u32 pix_format, int alpha,
 				   int use_global_alpha);
 void dcss_dtg_css_set(struct dcss_soc *dcss, u32 pix_format);
+void dcss_dtg_ctxld_kick_irq_enable(struct dcss_soc *dcss, bool en);
 
 /* SUBSAM */
 void dcss_ss_sync_set(struct dcss_soc *dcss, struct videomode *vm,

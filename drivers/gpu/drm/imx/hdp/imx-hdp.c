@@ -689,7 +689,8 @@ bool imx_hdp_bridge_mode_fixup(struct drm_bridge *bridge,
 	if (vic < 0)
 		return false;
 
-	if (vic == VIC_MODE_97_60Hz &&
+	/* force output 10bit YUV420 if HDMI sink support HDR10 */
+	if (vic == VIC_MODE_97_60Hz && cpu_is_imx8mq() &&
 	    (di->color_formats & DRM_COLOR_FORMAT_YCRCB420) &&
 	    (di->hdmi.y420_dc_modes & DRM_EDID_YCBCR420_DC_30)) {
 		hdp->bpc = 10;
@@ -805,8 +806,9 @@ static int imx_hdp_connector_get_modes(struct drm_connector *connector)
 				drm_edid_to_eld(connector, edid);
 			kfree(edid);
 		} else {
-				dev_dbg(hdp->dev, "failed to get edid, use default video modes\n");
+				dev_info(hdp->dev, "failed to get edid, use default video modes\n");
 				num_modes = imx_hdp_default_video_modes(connector);
+				hdp->no_edid = true;
 		}
 	} else {
 		dev_dbg(hdp->dev, "No EDID function, use default video mode\n");
@@ -1397,6 +1399,9 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 		DRM_ERROR("Failed to initialize IPG clock\n");
 		return ret;
 	}
+
+	imx_hdp_call(hdp, pixel_clock_set_rate, &hdp->clks);
+
 	imx_hdp_call(hdp, pixel_clock_enable, &hdp->clks);
 
 	imx_hdp_call(hdp, phy_reset, hdp->ipcHndl, &hdp->mem, 0);

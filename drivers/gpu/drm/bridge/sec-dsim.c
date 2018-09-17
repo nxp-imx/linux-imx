@@ -205,6 +205,9 @@
 #define PLLCTRL_DPDNSWAP_DAT		BIT(24)
 #define PLLCTRL_PLLEN			BIT(23)
 #define PLLCTRL_SET_PMS(x)		REG_PUT(x, 19,  1)
+   #define PLLCTRL_SET_P(x)		REG_PUT(x, 18, 13)
+   #define PLLCTRL_SET_M(x)		REG_PUT(x, 12,  3)
+   #define PLLCTRL_SET_S(x)		REG_PUT(x,  2,  0)
 
 #define PHYTIMING_SET_M_TLPXCTL(x)	REG_PUT(x, 15,  8)
 #define PHYTIMING_SET_M_THSEXITCTL(x)	REG_PUT(x,  7,  0)
@@ -275,6 +278,23 @@
  *
  */
 
+/* used for CEA standard modes */
+struct dsim_hblank_par {
+	char *name;		/* drm display mode name */
+	int vrefresh;
+	int hfp_wc;
+	int hbp_wc;
+	int hsa_wc;
+	int lanes;
+};
+
+struct dsim_pll_pms {
+	uint64_t bit_clk;	/* kHz */
+	uint32_t p;
+	uint32_t m;
+	uint32_t s;
+};
+
 struct sec_mipi_dsim {
 	struct mipi_dsi_host dsi_host;
 	struct drm_connector connector;
@@ -299,6 +319,7 @@ struct sec_mipi_dsim {
 	unsigned int channel;			/* virtual channel */
 	enum mipi_dsi_pixel_format format;
 	unsigned long mode_flags;
+	const struct dsim_hblank_par *hpar;
 	unsigned int pms;
 	unsigned int p;
 	unsigned int m;
@@ -313,6 +334,122 @@ struct sec_mipi_dsim {
 	struct completion rx_done;
 	const struct sec_mipi_dsim_plat_data *pdata;
 };
+
+#define DSIM_HBLANK_PARAM(nm, vf, hfp, hbp, hsa, num)	\
+	.name	  = (nm),				\
+	.vrefresh = (vf),				\
+	.hfp_wc   = (hfp),				\
+	.hbp_wc   = (hbp),				\
+	.hsa_wc   = (hsa),				\
+	.lanes	  = (num)
+
+#define DSIM_PLL_PMS(c, pp, mm, ss)			\
+	.bit_clk = (c),					\
+	.p = (pp),					\
+	.m = (mm),					\
+	.s = (ss)
+
+static const struct dsim_hblank_par hblank_4lanes[] = {
+	/* {  88, 148, 44 } */
+	{ DSIM_HBLANK_PARAM("1920x1080", 60,  60, 105,  27, 4), },
+	/* { 528, 148, 44 } */
+	{ DSIM_HBLANK_PARAM("1920x1080", 50, 390, 105,  27, 4), },
+	/* {  88, 148, 44 } */
+	{ DSIM_HBLANK_PARAM("1920x1080", 30,  60, 105,  27, 4), },
+	/* { 110, 220, 40 } */
+	{ DSIM_HBLANK_PARAM("1280x720" , 60,  78, 159,  24, 4), },
+	/* { 440, 220, 40 } */
+	{ DSIM_HBLANK_PARAM("1280x720" , 50, 324, 159,  24, 4), },
+	/* {  16,  60, 62 } */
+	{ DSIM_HBLANK_PARAM("720x480"  , 60,   6,  39,  40, 4), },
+	/* {  12,  68, 64 } */
+	{ DSIM_HBLANK_PARAM("720x576"  , 50,   3,  45,  42, 4), },
+	/* {  16,  48, 96 } */
+	{ DSIM_HBLANK_PARAM("640x480"  , 60,   6,  30,  66, 4), },
+};
+
+static const struct dsim_hblank_par hblank_2lanes[] = {
+	/* {  88, 148, 44 } */
+	{ DSIM_HBLANK_PARAM("1920x1080", 30, 114, 210,  60, 2), },
+	/* { 110, 220, 40 } */
+	{ DSIM_HBLANK_PARAM("1280x720" , 60, 159, 320,  40, 2), },
+	/* { 440, 220, 40 } */
+	{ DSIM_HBLANK_PARAM("1280x720" , 50, 654, 320,  40, 2), },
+	/* {  16,  60, 62 } */
+	{ DSIM_HBLANK_PARAM("720x480"  , 60,  16,  66,  88, 2), },
+	/* {  12,  68, 64 } */
+	{ DSIM_HBLANK_PARAM("720x576"  , 50,  12,  96,  72, 2), },
+	/* {  16,  48, 96 } */
+	{ DSIM_HBLANK_PARAM("640x480"  , 60,  18,  66, 138, 2), },
+};
+
+static const struct dsim_pll_pms pll_pms[] = {
+	{ DSIM_PLL_PMS(891000, 1, 66, 1), },
+	{ DSIM_PLL_PMS(890112, 1, 66, 1), },
+	{ DSIM_PLL_PMS(594000, 3, 66, 0), },
+	{ DSIM_PLL_PMS(593408, 3, 66, 0), },
+	{ DSIM_PLL_PMS(445500, 1, 66, 2), },
+	{ DSIM_PLL_PMS(445056, 1, 66, 2), },
+	{ DSIM_PLL_PMS(324000, 3, 72, 1), },
+	{ DSIM_PLL_PMS(324324, 3, 72, 1), },
+	{ DSIM_PLL_PMS(162000, 3, 72, 2), },
+	{ DSIM_PLL_PMS(162162, 3, 72, 2), },
+};
+
+static const struct dsim_hblank_par *sec_mipi_dsim_get_hblank_par(const char *name,
+								  int vrefresh,
+								  int lanes)
+{
+	int i, size;
+	const struct dsim_hblank_par *hpar, *hblank;
+
+	if (unlikely(!name))
+		return NULL;
+
+	switch (lanes) {
+	case 2:
+		hblank = hblank_2lanes;
+		size   = ARRAY_SIZE(hblank_2lanes);
+		break;
+	case 4:
+		hblank = hblank_4lanes;
+		size   = ARRAY_SIZE(hblank_4lanes);
+		break;
+	default:
+		pr_err("No hblank data for mode %s with %d lanes\n",
+		       name, lanes);
+		return NULL;
+	}
+
+	for (i = 0; i < size; i++) {
+		hpar = &hblank[i];
+
+		if (!strcmp(name, hpar->name)) {
+			if (vrefresh != hpar->vrefresh)
+				continue;
+
+			/* found */
+			return hpar;
+		}
+	}
+
+	return NULL;
+}
+
+static const struct dsim_pll_pms *sec_mipi_dsim_get_pms(uint64_t bit_clk)
+{
+	int i;
+	const struct dsim_pll_pms *pms;
+
+	for (i = 0; i < ARRAY_SIZE(pll_pms); i++) {
+		pms = &pll_pms[i];
+
+		if (bit_clk == pms->bit_clk)
+			return pms;
+	}
+
+	return NULL;
+}
 
 static void sec_mipi_dsim_irq_init(struct sec_mipi_dsim *dsim);
 
@@ -366,6 +503,13 @@ static int sec_mipi_dsim_host_attach(struct mipi_dsi_host *host,
 
 		dsim->panel = panel;
 	}
+
+	/* TODO: DSIM 3 lanes has some display issue, so
+	 * avoid 3 lanes enable, and force data lanes to
+	 * be 2.
+	 */
+	if (dsi->lanes == 3)
+		dsi->lanes = 2;
 
 	dsim->lanes	 = dsi->lanes;
 	dsim->channel	 = dsi->channel;
@@ -742,12 +886,12 @@ static void sec_mipi_dsim_set_main_mode(struct sec_mipi_dsim *dsim)
 	bpp = mipi_dsi_pixel_format_to_bpp(dsim->format);
 
 	/* calculate hfp & hbp word counts */
-	if (dsim->panel) {
+	if (dsim->panel || !dsim->hpar) {
 		hfp_wc = vmode->hfront_porch * (bpp >> 3);
 		hbp_wc = vmode->hback_porch * (bpp >> 3);
 	} else {
-		hfp_wc = vmode->hfront_porch * (bpp >> 3) / dsim->lanes - 6;
-		hbp_wc = vmode->hback_porch  * (bpp >> 3) / dsim->lanes - 6;
+		hfp_wc = dsim->hpar->hfp_wc;
+		hbp_wc = dsim->hpar->hbp_wc;
 	}
 
 	mhporch |= MHPORCH_SET_MAINHFP(hfp_wc) |
@@ -756,10 +900,10 @@ static void sec_mipi_dsim_set_main_mode(struct sec_mipi_dsim *dsim)
 	dsim_write(dsim, mhporch, DSIM_MHPORCH);
 
 	/* calculate hsa word counts */
-	if (dsim->panel)
+	if (dsim->panel || !dsim->hpar)
 		hsa_wc = vmode->hsync_len * (bpp >> 3);
 	else
-		hsa_wc = vmode->hsync_len * (bpp >> 3) / dsim->lanes - 6;
+		hsa_wc = dsim->hpar->hsa_wc;
 
 	msync |= MSYNC_SET_MAINVSA(vmode->vsync_len) |
 		 MSYNC_SET_MAINHSA(hsa_wc);
@@ -847,23 +991,52 @@ static void sec_mipi_dsim_config_dpi(struct sec_mipi_dsim *dsim)
 
 static void sec_mipi_dsim_config_dphy(struct sec_mipi_dsim *dsim)
 {
+	struct sec_mipi_dsim_dphy_timing key = { 0 };
+	const struct sec_mipi_dsim_dphy_timing *match = NULL;
+	const struct sec_mipi_dsim_plat_data *pdata = dsim->pdata;
 	uint32_t phytiming = 0, phytiming1 = 0, phytiming2 = 0, timeout = 0;
+	uint32_t hactive, vactive;
+	struct videomode *vmode = &dsim->vmode;
+	struct drm_display_mode mode;
 
-	/* TODO: add a PHY timing table arranged by the pll Fout */
+	key.bit_clk = DIV_ROUND_CLOSEST_ULL(dsim->bit_clk, 1000);
 
-	phytiming  |= PHYTIMING_SET_M_TLPXCTL(6)	|
-		      PHYTIMING_SET_M_THSEXITCTL(11);
+	/* '1280x720@60Hz' mode with 2 data lanes
+	 * requires special fine tuning for DPHY
+	 * TIMING config according to the tests.
+	 */
+	if (dsim->lanes == 2) {
+		hactive = vmode->hactive;
+		vactive = vmode->vactive;
+
+		if (hactive == 1280 && vactive == 720) {
+			memset(&mode, 0x0, sizeof(mode));
+			drm_display_mode_from_videomode(vmode, &mode);
+
+			if (drm_mode_vrefresh(&mode) == 60)
+				key.bit_clk >>= 1;
+		}
+	}
+
+	match = bsearch(&key, pdata->dphy_timing, pdata->num_dphy_timing,
+			sizeof(struct sec_mipi_dsim_dphy_timing),
+			pdata->dphy_timing_cmp);
+	if (WARN_ON(!match))
+		return;
+
+	phytiming  |= PHYTIMING_SET_M_TLPXCTL(match->lpx)	|
+		      PHYTIMING_SET_M_THSEXITCTL(match->hs_exit);
 	dsim_write(dsim, phytiming, DSIM_PHYTIMING);
 
-	phytiming1 |= PHYTIMING1_SET_M_TCLKPRPRCTL(7)	|
-		      PHYTIMING1_SET_M_TCLKZEROCTL(38)	|
-		      PHYTIMING1_SET_M_TCLKPOSTCTL(13)	|
-		      PHYTIMING1_SET_M_TCLKTRAILCTL(8);
+	phytiming1 |= PHYTIMING1_SET_M_TCLKPRPRCTL(match->clk_prepare)	|
+		      PHYTIMING1_SET_M_TCLKZEROCTL(match->clk_zero)	|
+		      PHYTIMING1_SET_M_TCLKPOSTCTL(match->clk_post)	|
+		      PHYTIMING1_SET_M_TCLKTRAILCTL(match->clk_trail);
 	dsim_write(dsim, phytiming1, DSIM_PHYTIMING1);
 
-	phytiming2 |= PHYTIMING2_SET_M_THSPRPRCTL(8)	|
-		      PHYTIMING2_SET_M_THSZEROCTL(13)	|
-		      PHYTIMING2_SET_M_THSTRAILCTL(11);
+	phytiming2 |= PHYTIMING2_SET_M_THSPRPRCTL(match->hs_prepare)	|
+		      PHYTIMING2_SET_M_THSZEROCTL(match->hs_zero)	|
+		      PHYTIMING2_SET_M_THSTRAILCTL(match->hs_trail);
 	dsim_write(dsim, phytiming2, DSIM_PHYTIMING2);
 
 	timeout |= TIMEOUT_SET_BTAOUT(0xff)	|
@@ -938,12 +1111,15 @@ static void sec_mipi_dsim_set_standby(struct sec_mipi_dsim *dsim,
 	dsim_write(dsim, mdresol, DSIM_MDRESOL);
 }
 
-static int sec_mipi_dsim_check_pll_out(struct sec_mipi_dsim *dsim,
-				       const struct drm_display_mode *mode)
+int sec_mipi_dsim_check_pll_out(void *driver_private,
+				const struct drm_display_mode *mode)
 {
 	int bpp;
 	uint64_t pix_clk, bit_clk, ref_clk;
+	struct sec_mipi_dsim *dsim = driver_private;
 	const struct sec_mipi_dsim_plat_data *pdata = dsim->pdata;
+	const struct dsim_hblank_par *hpar;
+	const struct dsim_pll_pms *pms;
 
 	bpp = mipi_dsi_pixel_format_to_bpp(dsim->format);
 	if (bpp < 0)
@@ -962,17 +1138,35 @@ static int sec_mipi_dsim_check_pll_out(struct sec_mipi_dsim *dsim,
 	dsim->bit_clk = DIV_ROUND_UP_ULL(bit_clk, 1000);
 
 	dsim->pms = 0x4210;
+	dsim->hpar = NULL;
+	if (dsim->panel)
+		return 0;
+
 	if (dsim->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE) {
+		hpar = sec_mipi_dsim_get_hblank_par(mode->name,
+						    mode->vrefresh,
+						    dsim->lanes);
+		if (!hpar)
+			return -EINVAL;
+		dsim->hpar = hpar;
+
+		pms = sec_mipi_dsim_get_pms(dsim->bit_clk);
+		if (WARN_ON(!pms))
+			return -EINVAL;
+
 		ref_clk = PHY_REF_CLK / 1000;
 		/* TODO: add PMS calculate and check
 		 * Only support '1080p@60Hz' for now,
 		 * add other modes support later
 		 */
-		dsim->pms = 0x4210;
+		dsim->pms = PLLCTRL_SET_P(pms->p) |
+			    PLLCTRL_SET_M(pms->m) |
+			    PLLCTRL_SET_S(pms->s);
 	}
 
 	return 0;
 }
+EXPORT_SYMBOL(sec_mipi_dsim_check_pll_out);
 
 static void sec_mipi_dsim_bridge_enable(struct drm_bridge *bridge)
 {
@@ -993,7 +1187,7 @@ static void sec_mipi_dsim_bridge_enable(struct drm_bridge *bridge)
 	ret = sec_mipi_dsim_config_pll(dsim);
 	if (ret) {
 		dev_err(dsim->dev, "dsim pll config failed: %d\n", ret);
-		goto panel_unprepare;
+		return;
 	}
 
 	/* config dphy timings */
@@ -1093,12 +1287,8 @@ static bool sec_mipi_dsim_bridge_mode_fixup(struct drm_bridge *bridge,
 					    const struct drm_display_mode *mode,
 					    struct drm_display_mode *adjusted_mode)
 {
-	int ret, private_flags;
+	int private_flags;
 	struct sec_mipi_dsim *dsim = bridge->driver_private;
-
-	ret = sec_mipi_dsim_check_pll_out(dsim, mode);
-	if (ret)
-		return false;
 
 	/* Since mipi dsi cannot do color conversion,
 	 * so the pixel format output by mipi dsi should
@@ -1159,6 +1349,23 @@ static void sec_mipi_dsim_bridge_mode_set(struct drm_bridge *bridge,
 	 * And this hook is called only when 'mode_changed' is true,
 	 * so it is called not every time atomic commit.
 	 */
+
+	/* workaround for CEA standard mode "1280x720@60"
+	 * display on 4 data lanes with Non-burst with sync
+	 * pulse DSI mode, since use the standard horizontal
+	 * timings cannot display correctly. And this code
+	 * cannot be put into the dsim Bridge's mode_fixup,
+	 * since the DSI device lane number change always
+	 * happens after that.
+	 */
+	if (!strcmp(mode->name, "1280x720") &&
+	    mode->vrefresh == 60	    &&
+	    dsim->lanes == 4		    &&
+	    dsim->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE) {
+		adjusted_mode->hsync_start += 2;
+		adjusted_mode->hsync_end   += 2;
+		adjusted_mode->htotal      += 2;
+	}
 
 	drm_display_mode_to_videomode(adjusted_mode, &dsim->vmode);
 }

@@ -225,6 +225,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_RPMSG_WM8960
 	select SND_SOC_TAS5760 if I2C
 	select SND_SOC_RPMSG_CS42XX8
+	select SND_SOC_RPMSG_AK4497
         help
           Normally ASoC codec drivers are only built if a machine driver which
           uses them is also built since they are only usable with a machine
@@ -1184,6 +1185,8 @@ config SND_SOC_RPMSG_WM8960
 config SND_SOC_RPMSG_CS42XX8
 	tristate
 
+config SND_SOC_RPMSG_AK4497
+	tristate
 # Amp
 config SND_SOC_LM4857
 	tristate

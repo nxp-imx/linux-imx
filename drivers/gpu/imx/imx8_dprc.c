@@ -256,7 +256,12 @@ static inline void dprc_write(struct dprc *dprc, u32 value, unsigned int offset)
 static void dprc_reset(struct dprc *dprc)
 {
 	dprc_write(dprc, SOFT_RESET, SYSTEM_CTRL0 + SET);
-	usleep_range(1000, 2000);
+
+	if (dprc->is_blit_chan)
+		usleep_range(10, 20);
+	else
+		usleep_range(1000, 2000);
+
 	dprc_write(dprc, SOFT_RESET, SYSTEM_CTRL0 + CLR);
 }
 
@@ -397,8 +402,12 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 		preq = modifier ? BYTE_64 : BYTE_1K;
 
 		dprc_write(dprc, preq, FRAME_2P_CTRL0);
-		if (dprc->sc_resource == SC_R_DC_0_BLIT1) {
-			dprc_prg_sel_configure(dprc, SC_R_DC_0_BLIT0, true);
+		if (dprc->sc_resource == SC_R_DC_0_BLIT1 ||
+		    dprc->sc_resource == SC_R_DC_1_BLIT1) {
+			dprc_prg_sel_configure(dprc,
+					dprc->sc_resource == SC_R_DC_0_BLIT1 ?
+					SC_R_DC_0_BLIT0 : SC_R_DC_1_BLIT0,
+					true);
 			prg_set_auxiliary(dprc->prgs[1]);
 			dprc->has_aux_prg = true;
 		}
@@ -406,10 +415,12 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 	} else {
 		switch (dprc->sc_resource) {
 		case SC_R_DC_0_BLIT0:
-			dprc_prg_sel_configure(dprc, SC_R_DC_0_BLIT0, false);
+		case SC_R_DC_1_BLIT0:
+			dprc_prg_sel_configure(dprc, dprc->sc_resource, false);
 			prg_set_primary(dprc->prgs[0]);
 			break;
 		case SC_R_DC_0_BLIT1:
+		case SC_R_DC_1_BLIT1:
 			dprc->has_aux_prg = false;
 			break;
 		default:
@@ -544,20 +555,17 @@ void dprc_configure(struct dprc *dprc, unsigned int stream_id,
 	}
 	dprc_write(dprc, val, MODE_CTRL0);
 
-	if (start) {
+	if (dprc->is_blit_chan) {
+		val = SW_SHADOW_LOAD_SEL | RUN_EN | SHADOW_LOAD_EN;
+		dprc_write(dprc, val, SYSTEM_CTRL0);
+	} else if (start) {
 		/* software shadow load for the first frame */
-		val = SW_SHADOW_LOAD_SEL;
-		if (dprc->is_blit_chan) {
-			val |= RUN_EN | REPEAT_EN | SHADOW_LOAD_EN;
-			dprc_write(dprc, val, SYSTEM_CTRL0);
-		} else {
-			val |= SHADOW_LOAD_EN;
-			dprc_write(dprc, val, SYSTEM_CTRL0);
+		val = SW_SHADOW_LOAD_SEL | SHADOW_LOAD_EN;
+		dprc_write(dprc, val, SYSTEM_CTRL0);
 
-			/* and then, run... */
-			val |= RUN_EN | REPEAT_EN;
-			dprc_write(dprc, val, SYSTEM_CTRL0);
-		}
+		/* and then, run... */
+		val |= RUN_EN | REPEAT_EN;
+		dprc_write(dprc, val, SYSTEM_CTRL0);
 	}
 
 	prg_configure(dprc->prgs[0], width, height, x_offset, y_offset,
@@ -588,9 +596,9 @@ void dprc_first_frame_handle(struct dprc *dprc)
 		return;
 
 	if (dprc->is_blit_chan)
-		dprc_write(dprc, SW_SHADOW_LOAD_SEL, SYSTEM_CTRL0 + CLR);
-	else
-		dprc_write(dprc, REPEAT_EN, SYSTEM_CTRL0);
+		return;
+
+	dprc_write(dprc, REPEAT_EN, SYSTEM_CTRL0);
 
 	prg_shadow_enable(dprc->prgs[0]);
 	if (dprc->use_aux_prg)
@@ -692,6 +700,7 @@ bool dprc_format_supported(struct dprc *dprc, u32 format, u64 modifier)
 		case SC_R_DC_1_WARP:
 			return false;
 		case SC_R_DC_0_BLIT1:
+		case SC_R_DC_1_BLIT1:
 			return (modifier == DRM_FORMAT_MOD_NONE ||
 				modifier == DRM_FORMAT_MOD_AMPHION_TILED);
 		}
@@ -816,11 +825,11 @@ static int dprc_probe(struct platform_device *pdev)
 
 	switch (dprc->sc_resource) {
 	case SC_R_DC_0_BLIT1:
+	case SC_R_DC_1_BLIT1:
 		dprc->has_aux_prg = true;
 		/* fall-through */
 	case SC_R_DC_0_BLIT0:
 	case SC_R_DC_1_BLIT0:
-	case SC_R_DC_1_BLIT1:
 		dprc->is_blit_chan = true;
 		/* fall-through */
 	case SC_R_DC_0_FRAC0:

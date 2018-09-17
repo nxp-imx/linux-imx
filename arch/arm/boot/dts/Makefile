@@ -590,7 +590,12 @@ dtb-$(CONFIG_SOC_IMX6ULL) += \
 	imx6ull-9x9-evk.dtb \
 	imx6ull-9x9-evk-btwifi.dtb \
 	imx6ull-9x9-evk-btwifi-oob.dtb \
-	imx6ull-9x9-evk-ldo.dtb
+	imx6ull-9x9-evk-ldo.dtb		\
+	imx6ulz-14x14-evk.dtb \
+	imx6ulz-14x14-evk-btwifi.dtb \
+	imx6ulz-14x14-evk-btwifi-oob.dtb \
+	imx6ulz-14x14-evk-emmc.dtb \
+	imx6ulz-14x14-evk-gpmi-weim.dtb
 dtb-$(CONFIG_SOC_IMX6SLL) += \
 	imx6sll-lpddr2-arm2.dtb \
 	imx6sll-lpddr3-arm2.dtb \
@@ -638,6 +643,7 @@ dtb-$(CONFIG_SOC_IMX7D) += \
 dtb-$(CONFIG_SOC_IMX7ULP) += \
 	imx7ulp-14x14-arm2.dtb \
 	imx7ulp-evk.dtb \
+	imx7ulp-evk-spi-slave.dtb \
 	imx7ulp-evk-emmc.dtb \
 	imx7ulp-evk-emmc-qspi.dtb \
 	imx7ulp-evk-ft5416.dtb \

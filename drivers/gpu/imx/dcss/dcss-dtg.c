@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 NXP
+ * Copyright (C) 2017-2018 NXP
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -139,6 +139,7 @@ struct dcss_dtg_priv {
 	u32 use_global;
 
 	int ctxld_kick_irq;
+	bool ctxld_kick_irq_en;
 
 	/*
 	 * This will be passed on by DRM CRTC so that we can signal when DTG has
@@ -182,7 +183,7 @@ static irqreturn_t dcss_dtg_irq_handler(int irq, void *data)
 
 	dcss_ctxld_kick(dtg->dcss);
 
-	dcss_writel(status & LINE1_IRQ, dtg->base_reg + DCSS_DTG_INT_CONTROL);
+	dcss_writel(status & LINE0_IRQ, dtg->base_reg + DCSS_DTG_INT_CONTROL);
 
 	return IRQ_HANDLED;
 }
@@ -207,6 +208,12 @@ static int dcss_dtg_irq_config(struct dcss_dtg_priv *dtg)
 		dev_err(dcss->dev, "dtg: irq request failed.\n");
 		return ret;
 	}
+
+	disable_irq(dtg->ctxld_kick_irq);
+
+	dtg->ctxld_kick_irq_en = false;
+
+	dcss_update(LINE0_IRQ, LINE0_IRQ, dtg->base_reg + DCSS_DTG_INT_MASK);
 
 	return 0;
 }
@@ -304,10 +311,10 @@ void dcss_dtg_sync_set(struct dcss_soc *dcss, struct videomode *vm)
 	dcss_dtg_write(dtg, sb_ctxld_trig | db_ctxld_trig, DCSS_DTG_TC_CTXLD);
 
 	/* vblank trigger */
-	dcss_dtg_write(dtg, 0, DCSS_DTG_LINE0_INT);
+	dcss_dtg_write(dtg, 0, DCSS_DTG_LINE1_INT);
 
 	/* CTXLD trigger */
-	dcss_dtg_write(dtg, ((98 * dis_lrc_y) / 100) << 16, DCSS_DTG_LINE1_INT);
+	dcss_dtg_write(dtg, ((95 * dis_lrc_y) / 100) << 16, DCSS_DTG_LINE0_INT);
 }
 EXPORT_SYMBOL(dcss_dtg_sync_set);
 
@@ -469,21 +476,51 @@ EXPORT_SYMBOL(dcss_dtg_ch_enable);
 
 void dcss_dtg_vblank_irq_enable(struct dcss_soc *dcss, bool en)
 {
-	void __iomem *reg;
 	struct dcss_dtg_priv *dtg = dcss->dtg_priv;
-	u32 val = en ? (LINE0_IRQ | LINE1_IRQ) : 0;
+	u32 status;
+
+	dcss_update(LINE1_IRQ, LINE1_IRQ, dtg->base_reg + DCSS_DTG_INT_MASK);
+
+	dcss_dpr_irq_enable(dcss, en);
+
+	if (en) {
+		status = dcss_readl(dtg->base_reg + DCSS_DTG_INT_STATUS);
+		dcss_writel(status & LINE1_IRQ,
+			    dtg->base_reg + DCSS_DTG_INT_CONTROL);
+	}
+}
+
+void dcss_dtg_ctxld_kick_irq_enable(struct dcss_soc *dcss, bool en)
+{
+	struct dcss_dtg_priv *dtg = dcss->dtg_priv;
+	u32 status;
 
 	/* need to keep the CTXLD kick interrupt ON if DTRC is used */
 	if (!en && (dcss_dtrc_is_running(dcss, 1) ||
 		    dcss_dtrc_is_running(dcss, 2)))
-		val |= LINE1_IRQ;
+		return;
 
-	reg = dtg->base_reg + DCSS_DTG_INT_MASK;
+	if (en) {
+		status = dcss_readl(dtg->base_reg + DCSS_DTG_INT_STATUS);
 
-	dcss_update(val, LINE0_IRQ | LINE1_IRQ, reg);
+		if (!dtg->ctxld_kick_irq_en) {
+			dcss_writel(status & LINE0_IRQ,
+				    dtg->base_reg + DCSS_DTG_INT_CONTROL);
+			enable_irq(dtg->ctxld_kick_irq);
+			dtg->ctxld_kick_irq_en = true;
+			return;
+		}
 
-	dcss_dpr_irq_enable(dcss, en);
+		return;
+	}
+
+	if (!dtg->ctxld_kick_irq_en)
+		return;
+
+	disable_irq(dtg->ctxld_kick_irq);
+	dtg->ctxld_kick_irq_en = false;
 }
+EXPORT_SYMBOL(dcss_dtg_ctxld_kick_irq_enable);
 
 void dcss_dtg_vblank_irq_clear(struct dcss_soc *dcss)
 {
@@ -492,5 +529,5 @@ void dcss_dtg_vblank_irq_clear(struct dcss_soc *dcss)
 
 	reg = dtg->base_reg + DCSS_DTG_INT_CONTROL;
 
-	dcss_update(LINE0_IRQ, LINE0_IRQ, reg);
+	dcss_update(LINE1_IRQ, LINE1_IRQ, reg);
 }

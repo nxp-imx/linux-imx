@@ -190,7 +190,8 @@ MODULE_PARM_DESC(debug, "Debug level (0-2)");
 #define MIPI_CSIS_PKTDATA_EVEN		0x3000
 #define MIPI_CSIS_PKTDATA_SIZE		SZ_4K
 
-#define MIPI_CSIS_MISC			0x8008
+#define GPR_MIPI_RESET			0x08
+#define GPR_MIPI_S_RESETN		BIT(16)
 
 #define DEFAULT_SCLK_CSIS_FREQ	166000000UL
 
@@ -392,18 +393,20 @@ static int mipi_csis_phy_init(struct csi_state *state)
 
 static int mipi_csis_phy_reset_mx8mm(struct csi_state *state)
 {
-	struct device_node *np;
-	void __iomem *reg;
+	struct device_node *np = state->dev->of_node;
+	struct regmap *gpr;
 
-	np = of_find_compatible_node(NULL, NULL, "fsl,imx8mm-csi");
-	if (WARN_ON(!np))
-		return -ENXIO;
+	gpr = syscon_regmap_lookup_by_phandle(np, "csi-gpr");
+	if (IS_ERR(gpr))
+		return PTR_ERR(gpr);
 
-	reg  = of_iomap(np, 0);
-
-	writel(0, reg + MIPI_CSIS_MISC);
+	regmap_update_bits(gpr, GPR_MIPI_RESET,
+			   GPR_MIPI_S_RESETN,
+			   0x0);
 	usleep_range(10, 20);
-	writel(0x30000, reg + MIPI_CSIS_MISC);
+	regmap_update_bits(gpr, GPR_MIPI_RESET,
+			   GPR_MIPI_S_RESETN,
+			   GPR_MIPI_S_RESETN);
 	usleep_range(10, 20);
 
 	return 0;
@@ -1237,6 +1240,14 @@ static int mipi_csis_pm_resume(struct device *dev, bool runtime)
 #ifdef CONFIG_PM_SLEEP
 static int mipi_csis_suspend(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
+	struct csi_state *state = platform_get_drvdata(pdev);
+
+	if (state->flags & ST_STREAMING) {
+		dev_warn(dev, "running, prevent entering suspend.\n");
+		return -EAGAIN;
+	}
+
 	return mipi_csis_pm_suspend(dev, false);
 }
 
