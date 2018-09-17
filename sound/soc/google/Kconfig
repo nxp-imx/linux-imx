@@ -1,0 +1,9 @@
+menu "SoC Audio for Google boards"
+
+config SND_GOOGLE_EDGETPU_CARD
+	tristate "Google Edge TPU sound card"
+	depends on SND_SOC_RT5645
+	help
+	  Say Y if you want to add support for Google Edge TPU audio
+
+endmenu

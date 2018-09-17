@@ -99,6 +99,26 @@
 				<96000>,
 				<192000>;
 	};
+  
+	sound-rt5645 {
+		compatible = "google,edgetpu-audio-card";
+		model = "rt5645-audio";
+		audio-cpu = <&sai2>;
+		audio-codec = <&rt5645>;
+		google,model = "edgetpu-audio-card";
+		audio-routing =
+			"CPU-Playback", "AIF1 Playback",
+			"AIF1 Capture", "CPU-Capture",
+			"micbias1", "AMIC",
+			"IN1P", "micbias1",
+			"Ext Spk", "SPOL",
+			"Ext Spk", "SPOR",
+			"DMIC L1", "DMIC",
+			"DMIC R1", "DMIC",
+			"Headphone Jack", "HPOL",
+			"Headphone Jack", "HPOR";
+        status = "okay";
+	};
 
 	trusty {
 		compatible = "android,trusty-smc-v1";
@@ -123,24 +143,6 @@
 		compatible = "android,CustomIPI";
 		interrupt-controller;
 		#interrupt-cells = <1>;
-	};
-
-	sound-rt5645 {
-	compatible = "fsl,imx-audio-rt5645";
-	model = "rt5645-audio";
-	audio-cpu = <&sai2>;
-	audio-codec = <&rt5645>;
-	audio-routing =
-		"CPU-Playback", "AIF1 Playback",
-		"AIF1 Capture", "CPU-Capture",
-		"micbias1", "AMIC",
-		"IN1P", "micbias1",
-		"Ext Spk", "SPOL",
-		"Ext Spk", "SPOR",
-		"DMIC L1", "DMIC",
-		"DMIC R1", "DMIC",
-		"Headphone Jack", "HPOL",
-		"Headphone Jack", "HPOR";
 	};
 
 	fan: gpio_fan {
