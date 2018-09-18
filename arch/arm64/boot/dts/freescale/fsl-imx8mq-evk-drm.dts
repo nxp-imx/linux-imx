@@ -17,12 +17,12 @@
 &resmem {
 	display_region: imx_ion@1 {
 		compatible = "imx-ion-pool";
-		reg = <0x0 0xe6000000 0 0x18000000>;
+		reg = <0x0 0xce000000 0 0x30000000>;
 	};
 
 	vpu_region: imx_ion@2 {
-		compatible = "imx-ion-pool";
-		reg = <0x0 0xe4000000 0 0x02000000>;
+		compatible = "imx-secure-ion-pool";
+		reg = <0x0 0xcc000000 0 0x02000000>;
 	};
 };
 
@@ -30,7 +30,7 @@
 	compatible = "fsl,mxc-ion", "linux,ion";
 
 	ion-display-region {
-		compatible = "fsl,display-heap", "linux,ion-heap-unmapped";
+		compatible = "fsl,display-heap", "linux,ion-heap-carveout";
 		memory-region = <&display_region>;
 	};
 
