@@ -28,17 +28,27 @@
  */
 
 #include <linux/err.h>
+#include <linux/errno.h>
 #include <linux/genalloc.h>
+#include <linux/io.h>
+#include <linux/mm.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_fdt.h>
+#include <linux/of_reserved_mem.h>
+#include <linux/platform_device.h>
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
-
+#include <linux/spinlock.h>
+#include <linux/version.h>
+#include <linux/vmalloc.h>
 #include "ion.h"
 
-/*
- * TODO: non-contigous unammped heaps:
- * - add a flag to specify contiguity constraint?
- * - define antoher heap type that allocate to the smae pool(s)?
- */
+struct rmem_unmapped {
+	phys_addr_t base;
+	phys_addr_t size;
+};
+static struct rmem_unmapped unmapped_data;
 
 struct ion_unmapped_heap {
 	struct ion_heap heap;
@@ -144,6 +154,8 @@ static int ion_unmapped_heap_allocate(struct ion_heap *heap,
 		rc = -ENOMEM;
 		goto err;
 	}
+	pr_info("%s buffer %p size %d table 0x%08X sgl 0x%08X\n",__func__,buffer,size,buffer->sg_table,buffer->sg_table->sgl);
+
 	sg_dma_address(buffer->sg_table->sgl) = priv->base;
 	sg_dma_len(buffer->sg_table->sgl) = size;
 	return 0;
@@ -191,7 +203,7 @@ static struct ion_heap_ops unmapped_heap_ops = {
 	.unmap_kernel = ion_heap_unmap_kernel,
 };
 
-struct ion_heap *ion_unmapped_heap_create(struct ion_platform_heap *pheap)
+/*struct ion_heap *ion_unmapped_heap_create(struct ion_platform_heap *pheap)
 {
 	struct ion_unmapped_heap *umh;
 
@@ -215,8 +227,60 @@ struct ion_heap *ion_unmapped_heap_create(struct ion_platform_heap *pheap)
 	umh->heap.type = ION_HEAP_TYPE_UNMAPPED;
 
 	return &umh->heap;
+}*/
+
+struct ion_heap *ion_unmapped_heap_create(struct rmem_unmapped *heap_data)
+{
+	struct ion_unmapped_heap *unmapped_heap;
+	int ret;
+
+	struct page *page;
+	size_t size;
+
+	page = pfn_to_page(PFN_DOWN(heap_data->base));
+	size = heap_data->size;
+
+	ret = ion_heap_pages_zero(page, size, pgprot_writecombine(PAGE_KERNEL));
+	if (ret)
+		return ERR_PTR(ret);
+
+	unmapped_heap = kzalloc(sizeof(*unmapped_heap), GFP_KERNEL);
+	if (!unmapped_heap)
+		return ERR_PTR(-ENOMEM);
+
+	// ensure memory address align to 64K which can meet VPU requirement.
+	unmapped_heap->pool = gen_pool_create(PAGE_SHIFT+4, -1);
+	if (!unmapped_heap->pool) {
+		kfree(unmapped_heap);
+		return ERR_PTR(-ENOMEM);
+	}
+	unmapped_heap->base = heap_data->base;
+	unmapped_heap->size = size;
+	gen_pool_add(unmapped_heap->pool, unmapped_heap->base, heap_data->size,
+		     -1);
+	unmapped_heap->heap.ops = &unmapped_heap_ops;
+	unmapped_heap->heap.type = ION_HEAP_TYPE_UNMAPPED;
+	unmapped_heap->heap.flags = ION_HEAP_FLAG_DEFER_FREE;
+
+	return &unmapped_heap->heap;
 }
-EXPORT_SYMBOL(ion_unmapped_heap_create);
+
+static int ion_add_unmapped_heap(void)
+{
+	struct ion_heap *heap;
+
+	if (unmapped_data.base == 0 || unmapped_data.size == 0)
+		return -EINVAL;
+
+	heap = ion_unmapped_heap_create(&unmapped_data);
+	if (IS_ERR(heap))
+		return PTR_ERR(heap);
+
+	heap->name = "unmapped";
+
+	ion_device_add_heap(heap);
+	return 0;
+}
 
 void ion_unmapped_heap_destroy(struct ion_heap *heap)
 {
@@ -227,34 +291,35 @@ void ion_unmapped_heap_destroy(struct ion_heap *heap)
 	kfree(umh);
 	umh = NULL;
 }
-EXPORT_SYMBOL(ion_unmapped_heap_destroy);
 
-#if defined(CONFIG_ION_DUMMY_UNMAPPED_HEAP) && CONFIG_ION_DUMMY_UNMAPPED_SIZE
-#define DUMMY_UNAMMPED_HEAP_NAME	"unmapped_contiguous"
-
-static int ion_add_dummy_unmapped_heaps(void)
+static int rmem_unmapped_device_init(struct reserved_mem *rmem,
+					 struct device *dev)
 {
-        struct ion_heap *heap;
-	const char name[] = DUMMY_UNAMMPED_HEAP_NAME;
-	struct ion_platform_heap pheap = {
-		.type	= ION_HEAP_TYPE_UNMAPPED,
-		.base   = CONFIG_ION_DUMMY_UNMAPPED_BASE,
-		.size   = CONFIG_ION_DUMMY_UNMAPPED_SIZE,
-	};
-
-	heap = ion_unmapped_heap_create(&pheap);
-	if (IS_ERR(heap))
-		return PTR_ERR(heap);
-
-	heap->name = kzalloc(sizeof(name), GFP_KERNEL);
-	if (IS_ERR(heap->name)) {
-		kfree(heap);
-		return PTR_ERR(heap->name);
-	}
-	memcpy((char *)heap->name, name, sizeof(name));
-
-	ion_device_add_heap(heap);
-        return 0;
+	dev_set_drvdata(dev, rmem);
+	return 0;
 }
-device_initcall(ion_add_dummy_unmapped_heaps);
-#endif
+
+static void rmem_unmapped_device_release(struct reserved_mem *rmem,
+					 struct device *dev)
+{
+	dev_set_drvdata(dev, NULL);
+}
+
+static const struct reserved_mem_ops rmem_dma_ops = {
+	.device_init    = rmem_unmapped_device_init,
+	.device_release = rmem_unmapped_device_release,
+};
+
+static int __init rmem_unmapped_setup(struct reserved_mem *rmem)
+{
+	unmapped_data.base = rmem->base;
+	unmapped_data.size = rmem->size;
+	rmem->ops = &rmem_dma_ops;
+	pr_info("Reserved memory: ION unmapped pool at %pa, size %ld MiB\n",
+			&rmem->base, (unsigned long)rmem->size / SZ_1M);
+	return 0;
+}
+
+RESERVEDMEM_OF_DECLARE(unmapped, "imx-secure-ion-pool", rmem_unmapped_setup);
+
+device_initcall(ion_add_unmapped_heap);
