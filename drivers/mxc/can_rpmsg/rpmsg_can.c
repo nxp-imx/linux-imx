@@ -24,6 +24,7 @@
 #include <linux/rpmsg.h>
 #include <linux/delay.h>
 #include <linux/extcon.h>
+#include <soc/imx8/sc/sci.h>
 
 #define RPMSG_TIMEOUT 1000
 #define REGISTER_PERIOD 1000
@@ -137,6 +138,37 @@ err_out:
 	return err;
 }
 
+void open_power_domain(void)
+{
+	sc_ipc_t ipcHndl;
+	sc_err_t sciErr;
+	uint32_t mu_id;
+
+	sciErr = sc_ipc_getMuID(&mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		pr_err("Cannot obtain MU ID\n");
+		return;
+	}
+
+	sciErr = sc_ipc_open(&ipcHndl, mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		pr_err("sc_ipc_open failed! (sciError = %d)\n", sciErr);
+		return;
+	}
+
+	/*power on display/camera related power domain when A core take over control*/
+	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_LVDS_1, SC_PM_PW_MODE_ON);
+	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_LVDS_1_I2C_0, SC_PM_PW_MODE_ON);
+	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_DC_1, SC_PM_PW_MODE_ON);
+	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_DC_1_PLL_1, SC_PM_PW_MODE_ON);
+	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_CSI_0_I2C_0, SC_PM_PW_MODE_ON);
+	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH0, SC_PM_PW_MODE_ON);
+	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH1, SC_PM_PW_MODE_ON);
+	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH2, SC_PM_PW_MODE_ON);
+	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH3, SC_PM_PW_MODE_ON);
+	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_CSI_0, SC_PM_PW_MODE_ON);
+}
+
 /*can_rpmsg_cb is called once get rpmsg from M4*/
 static int can_rpmsg_cb(struct rpmsg_device *rpdev,
 	void *data, int len, void *priv, u32 src)
@@ -146,6 +178,8 @@ static int can_rpmsg_cb(struct rpmsg_device *rpdev,
 	can_rpmsg->msg = msg;
 	if (msg->header.cmd == CAN_RPMSG_REGISTER) {
 		complete(&can_rpmsg->cmd_complete);
+		if (msg->retcode == 0)
+			open_power_domain();
 #ifdef CONFIG_EXTCON
 		if (msg->retcode == 0)
 			extcon_set_state_sync(rg_edev, EXTCON_CAN_RPMSG_REGISTER, 1);
