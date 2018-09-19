@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-#include "fsl-imx8qm-mek-mipi-ov5640.dts"
+#include "fsl-imx8qm-mek.dts"
 / {
 	trusty {
 		compatible = "android,trusty-smc-v1";
@@ -100,4 +100,8 @@
 
 &i2c1_lvds1 {
 	clock-frequency = <400000>;
+};
+
+&can_rpmsg {
+	status = "okay";
 };

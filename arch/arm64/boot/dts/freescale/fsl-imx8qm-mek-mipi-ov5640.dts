@@ -42,9 +42,6 @@
 	status = "disabled";
 };
 
-&can_rpmsg {
-	status = "okay";
-};
 
 &i2c0_mipi_csi0 {
 	clock-frequency = <100000>;

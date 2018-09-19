@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-#include "fsl-imx8qxp-mek-mipi-ov5640.dts"
+#include "fsl-imx8qxp-mek.dts"
 / {
 	trusty {
 		compatible = "android,trusty-smc-v1";
