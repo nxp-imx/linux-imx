@@ -30,6 +30,22 @@
 	};
 };
 
+&iomuxc {
+	imx8qm-mek {
+		pinctrl_lvds0_gpio: lvds0gpiogrp {
+			fsl,pins = <
+				SC_P_LVDS0_I2C0_SCL_LSIO_GPIO1_IO06	0x00000021
+			>;
+		};
+	};
+};
+
+&i2c1_lvds1 {
+	lvds-to-hdmi-bridge@4c {
+		reset-gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
+	};
+};
+
 &i2c0 {
 	clock-frequency = <1000000>;
 };
