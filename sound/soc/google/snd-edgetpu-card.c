@@ -56,7 +56,7 @@ static int card_init(struct snd_soc_pcm_runtime *rtd) {
 	}
 
 	ret = snd_soc_card_jack_new(rtd->card, "Headphone Jack",
-				    SND_JACK_HEADPHONE,
+				    SND_JACK_HEADSET,
 				    &headset_jack, &headset_jack_pin, 1);
 	if (ret < 0) {
 		dev_err(rtd->card->dev, "can't add headphone jack: %d\n", ret);
@@ -117,28 +117,29 @@ static struct snd_soc_dai_link card_dai[] = {
 
 static const struct snd_soc_dapm_widget card_widgets[] = {
 	SND_SOC_DAPM_HP("Headphone Jack", NULL),
-	SND_SOC_DAPM_SPK("Ext Spk", NULL),
-	SND_SOC_DAPM_MIC("DMIC", NULL),
-	SND_SOC_DAPM_MIC("AMIC", NULL),
+	SND_SOC_DAPM_SPK("Speaker", NULL),
+	SND_SOC_DAPM_MIC("Internal Mic", NULL),
+	SND_SOC_DAPM_MIC("Headphone Mic", NULL),
 };
 
 static const struct snd_soc_dapm_route audio_routes[] = {
 	{"CPU-Playback", NULL, "AIF1 Playback"},
 	{"AIF1 Capture", NULL, "CPU-Capture"},
-	{"micbias1", NULL, "AMIC"},
+	{"micbias1", NULL, "Headphone Mic"},
 	{"IN1P", NULL, "micbias1"},
-	{"Ext Spk", NULL, "SPOL"},
-	{"Ext Spk", NULL, "SPOR"},
-	{"DMIC L1", NULL, "DMIC"},
-	{"DMIC R1", NULL, "DMIC"},
+	{"Speaker", NULL, "SPOL"},
+	{"Speaker", NULL, "SPOR"},
+	{"DMIC L1", NULL, "Internal Mic"},
+	{"DMIC R1", NULL, "Internal Mic"},
 	{"Headphone Jack", NULL, "HPOR"},
 	{"Headphone Jack", NULL, "HPOL"},
 };
 
 static const struct snd_kcontrol_new card_controls[] = {
 	SOC_DAPM_PIN_SWITCH("Headphone Jack"),
-	SOC_DAPM_PIN_SWITCH("Ext Spk"),
-	SOC_DAPM_PIN_SWITCH("DMIC"),
+	SOC_DAPM_PIN_SWITCH("Speaker"),
+	SOC_DAPM_PIN_SWITCH("Internal Mic"),
+	SOC_DAPM_PIN_SWITCH("Headphone Mic"),
 };
 
 static struct snd_soc_card snd_edgetpu_card = {
