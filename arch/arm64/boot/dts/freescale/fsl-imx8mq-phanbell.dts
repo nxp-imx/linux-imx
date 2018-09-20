@@ -102,21 +102,10 @@
   
 	sound-rt5645 {
 		compatible = "google,edgetpu-audio-card";
-		model = "rt5645-audio";
+		model = "edgetpu-audio-card";
 		audio-cpu = <&sai2>;
 		audio-codec = <&rt5645>;
 		google,model = "edgetpu-audio-card";
-		audio-routing =
-			"CPU-Playback", "AIF1 Playback",
-			"AIF1 Capture", "CPU-Capture",
-			"micbias1", "AMIC",
-			"IN1P", "micbias1",
-			"Ext Spk", "SPOL",
-			"Ext Spk", "SPOR",
-			"DMIC L1", "DMIC",
-			"DMIC R1", "DMIC",
-			"Headphone Jack", "HPOL",
-			"Headphone Jack", "HPOR";
         status = "okay";
 	};
 
