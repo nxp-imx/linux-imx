@@ -1,0 +1,41 @@
+/*
+ * Copyright 2017 NXP
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "fsl-imx8mm-evk.dts"
+
+&resmem {
+	display_region: display {
+		compatible = "imx-secure-ion-pool";
+		reg = <0x0 0xce000000 0 0x30000000>;
+	};
+
+	optee_region: optee {
+		compatible = "imx-secure-ion-pool";
+		reg = <0x0 0xcc000000 0 0x02000000>;
+	};
+};
+
+&imx_ion {
+	compatible = "fsl,mxc-ion", "linux,ion";
+
+	ion-display-region {
+		compatible = "fsl,display-heap", "linux,ion-heap-unmapped";
+		memory-region = <&display_region>;
+	};
+
+	ion-optee-region {
+		compatible = "fsl,optee-heap", "linux,ion-heap-unmapped";
+		memory-region = <&optee_region>;
+	};
+};

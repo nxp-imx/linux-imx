@@ -70,7 +70,7 @@
 		reg = <0x0 0x40000000 0 0x80000000>;
 	};
 
-	reserved-memory {
+	resmem: reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
@@ -985,7 +985,7 @@
 		only-dma-mask32 = <1>;
 	};
 
-	imx_ion {
+	imx_ion: imx_ion {
 		compatible = "fsl,mxc-ion";
 		fsl,heap-id = <0>;
 	};
