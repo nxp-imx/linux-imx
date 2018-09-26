@@ -17,12 +17,12 @@
 &resmem {
 	display_region: display {
 		compatible = "imx-secure-ion-pool";
-		reg = <0x0 0xce000000 0 0x30000000>;
+		reg = <0x0 0x8e000000 0 0x30000000>;
 	};
 
 	optee_region: optee {
 		compatible = "imx-secure-ion-pool";
-		reg = <0x0 0xcc000000 0 0x02000000>;
+		reg = <0x0 0x8c000000 0 0x02000000>;
 	};
 };
 
