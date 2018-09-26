@@ -651,12 +651,6 @@
 				SC_P_MIPI_CSI1_GPIO0_01_LSIO_GPIO1_IO31		0x00000021
 			>;
 		};
-		pinctrl_mipi_csi0_en: mipi_csi0_en{
-			fsl,pins = <
-				SC_P_MIPI_CSI0_GPIO0_00_LSIO_GPIO1_IO27		0x00000021
-				SC_P_MIPI_CSI0_GPIO0_01_LSIO_GPIO1_IO28		0x00000021
-			>;
-		};
 
 	};
 };
@@ -1219,7 +1213,6 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_mipi_csi0_en>;
 	clock-frequency = <100000>;
 	status = "okay";
 
