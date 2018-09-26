@@ -7520,10 +7520,6 @@ static int __wlan_hdd_cfg80211_ll_stats_get(struct wiphy *wiphy,
     hdd_station_ctx_t *hddstactx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
     int status;
 
-    //Currently work around here, need firmware support this vendor command feature.
-    hddLog(VOS_TRACE_LEVEL_INFO,"%s: Current work around this vendor command and direct return 0\n",__func__);
-    return 0;
-
     if (VOS_FTM_MODE == hdd_get_conparam()) {
         hddLog(LOGE, FL("Command not allowed in FTM mode"));
         return -EINVAL;
