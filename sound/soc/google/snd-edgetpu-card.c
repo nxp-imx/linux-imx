@@ -166,7 +166,7 @@ static int probe(struct platform_device *pdev) {
 	struct clk *codec_clk;
 
 	if (!dev) {
-		printk(pdev, "no device for this platform_device?!\n");
+		printk(KERN_ERR "edgetpu-audio-card: no device for this platform_device?!\n");
 		return -EINVAL;
 	}
 
