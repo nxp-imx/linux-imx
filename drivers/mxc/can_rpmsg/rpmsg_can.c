@@ -27,7 +27,7 @@
 #include <soc/imx8/sc/sci.h>
 
 #define RPMSG_TIMEOUT 1000
-#define REGISTER_PERIOD 1000
+#define REGISTER_PERIOD 50
 
 enum can_cmd {
 	CAN_RPMSG_REGISTER = 0,
