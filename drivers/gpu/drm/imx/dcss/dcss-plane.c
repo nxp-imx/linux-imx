@@ -353,7 +353,6 @@ static void dcss_plane_atomic_set_base(struct dcss_plane *dcss_plane)
 		case DRM_FORMAT_MOD_VIVANTE_SUPER_TILED_FC:
 			do {
 				struct dma_buf *dma_buf = cma_obj->base.dma_buf;
-				struct drm_gem_object *gem_obj;
 					_VIV_VIDMEM_METADATA *mdata;
 
 				if (!dma_buf) {
@@ -368,16 +367,7 @@ static void dcss_plane_atomic_set_base(struct dcss_plane *dcss_plane)
 				compressed = mdata->compressed ? true : false;
 				compressed_format = mdata->compress_format;
 
-				gem_obj = dcss_plane_gem_import(plane->dev, mdata->ts_dma_buf);
-				if (IS_ERR(gem_obj)) {
-					return;
-				}
-
-				caddr = to_drm_gem_cma_obj(gem_obj)->paddr;
-
-				/* release gem_obj */
-				drm_gem_object_unreference_unlocked(gem_obj);
-
+				caddr = mdata->ts_address;
 				dcss_dec400d_fast_clear_config(dcss_plane->dcss,
 						mdata->fc_value,
 						mdata->fc_enabled);
