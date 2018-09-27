@@ -1690,22 +1690,25 @@ gckKERNEL_SetVidMemMetadata(
     }
     else
     {
-        nodeObj->metadata.ts_fd             = Interface->u.SetVidMemMetadata.ts_fd;
-
-        if (nodeObj->metadata.ts_fd >= 0)
+        if (nodeObj->metadata.ts_address == 0 && nodeObj->tsNode != NULL)
         {
-            nodeObj->metadata.ts_dma_buf    = dma_buf_get(nodeObj->metadata.ts_fd);
+            gctUINT32 Address = 0;
+            gctUINT32 Gid = 0;
+            gctUINT64 PhysicalAddress = 0;
 
-            if (IS_ERR(nodeObj->metadata.ts_dma_buf))
-            {
-                gcmkONERROR(gcvSTATUS_NOT_FOUND);
-            }
+            gcmkONERROR(gckVIDMEM_Lock(Kernel,
+                    nodeObj->tsNode,
+                    gcvFALSE,
+                    &Address,
+                    &Gid,
+                    &PhysicalAddress));
 
-            dma_buf_put(nodeObj->metadata.ts_dma_buf);
-        }
-        else
-        {
-            nodeObj->metadata.ts_dma_buf    = NULL;
+            nodeObj->metadata.ts_address = (
+                    PhysicalAddress + Kernel->hardware->baseAddress);
+            gcmkONERROR(gckVIDMEM_Unlock(Kernel,
+                    nodeObj->tsNode,
+                    gcvSURF_TYPE_UNKNOWN,
+                    gcvNULL));
         }
 
         nodeObj->metadata.fc_enabled        = Interface->u.SetVidMemMetadata.fc_enabled;

@@ -100,6 +100,7 @@ typedef struct _VIV_VIDMEM_METADATA
 
     int32_t  ts_fd;
     void *   ts_dma_buf;
+    dma_addr_t ts_address;
 
     uint32_t fc_enabled;
     uint32_t fc_value;

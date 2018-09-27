@@ -2619,6 +2619,7 @@ gckVIDMEM_NODE_Allocate(
 
     node->metadata.magic = VIV_VIDMEM_METADATA_MAGIC;
     node->metadata.ts_fd = -1;
+    node->metadata.ts_address = 0;
 
     node->node = VideoNode;
     node->kernel = Kernel;
