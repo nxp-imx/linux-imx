@@ -26,6 +26,7 @@
 #include <sound/soc.h>
 
 #include "../codecs/rt5645.h"
+#include "../fsl/fsl_sai.h"
 
 #define PLATFORM_CLOCK 2457600
 static unsigned long codec_clock = PLATFORM_CLOCK;
@@ -92,6 +93,13 @@ static int hw_params(
 				     SND_SOC_CLOCK_OUT);
 	if (ret < 0) {
 		dev_err(rtd->dev, "can't set codec sysclk out: %d\n", ret);
+		return ret;
+	}
+
+	ret = snd_soc_dai_set_sysclk(rtd->cpu_dai, FSL_SAI_CLK_MAST1, freq,
+				     SND_SOC_CLOCK_OUT);
+	if (ret < 0) {
+		dev_err(rtd->dev, "can't set cpu sysclk out: %d\n", ret);
 		return ret;
 	}
 
