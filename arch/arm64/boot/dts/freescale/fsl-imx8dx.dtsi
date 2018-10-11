@@ -173,6 +173,18 @@
 	can_rpmsg: can_rpmsg {
 		compatible = "nxp,imx-can-rpmsg";
 		power-domains = <&pd_dc0>;
+		/*
+		 * fsl,resources is used to open the power of these resources.
+		 * m4 will power down these resources when M4 core give out the control of camera/display.
+		 * rpmsg driver will power on these reources once A core take over the control of camera/display.
+		 */
+		fsl,resources = <SC_R_LVDS_0 SC_R_MIPI_0
+				 SC_R_MIPI_0_I2C_0 SC_R_DC_0
+				 SC_R_DC_0_PLL_0 SC_R_CSI_0_I2C_0
+				 SC_R_ISI_CH0 SC_R_ISI_CH1
+				 SC_R_ISI_CH2 SC_R_ISI_CH3
+				 SC_R_CSI_0>;
+		fsl,resources-num = <11>;
 		status = "disabled";
 	};
 

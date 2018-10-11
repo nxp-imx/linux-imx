@@ -25,6 +25,7 @@
 #include <linux/delay.h>
 #include <linux/extcon.h>
 #include <soc/imx8/sc/sci.h>
+#include <linux/slab.h>
 
 #define RPMSG_TIMEOUT 1000
 #define REGISTER_PERIOD 50
@@ -68,6 +69,8 @@ struct rpmsg_can_drvdata {
 	struct pm_qos_request pm_qos_req;
 	struct delayed_work can_register_work;
 	struct completion cmd_complete;
+	u32 resources_count;
+	u32 *resource;
 };
 
 #ifdef CONFIG_EXTCON
@@ -143,6 +146,7 @@ void open_power_domain(void)
 	sc_ipc_t ipcHndl;
 	sc_err_t sciErr;
 	uint32_t mu_id;
+	uint32_t num;
 
 	sciErr = sc_ipc_getMuID(&mu_id);
 	if (sciErr != SC_ERR_NONE) {
@@ -156,17 +160,11 @@ void open_power_domain(void)
 		return;
 	}
 
-	/*power on display/camera related power domain when A core take over control*/
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_LVDS_1, SC_PM_PW_MODE_ON);
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_LVDS_1_I2C_0, SC_PM_PW_MODE_ON);
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_DC_1, SC_PM_PW_MODE_ON);
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_DC_1_PLL_1, SC_PM_PW_MODE_ON);
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_CSI_0_I2C_0, SC_PM_PW_MODE_ON);
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH0, SC_PM_PW_MODE_ON);
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH1, SC_PM_PW_MODE_ON);
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH2, SC_PM_PW_MODE_ON);
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH3, SC_PM_PW_MODE_ON);
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_CSI_0, SC_PM_PW_MODE_ON);
+	for (num = 0; num < can_rpmsg->resources_count; num++) {
+		sciErr = sc_pm_set_resource_power_mode(ipcHndl, can_rpmsg->resource[num], SC_PM_PW_MODE_ON);
+		if (sciErr)
+			pr_err("Failed power operation on resource %d sc_err %d\n", can_rpmsg->resource[num],sciErr);
+	}
 }
 
 /*can_rpmsg_cb is called once get rpmsg from M4*/
@@ -333,22 +331,41 @@ static int virtual_can_probe(struct platform_device *pdev)
 	if (IS_ERR(ddata))
 		return PTR_ERR(ddata);
 
+	err = of_property_read_u32(dev->of_node, "fsl,resources-num", &ddata->resources_count);
+	if (err) {
+		dev_err(dev, "failed to read soc name from dts\n");
+		return err;
+	}
+	ddata->resource = kzalloc(sizeof(*ddata->resource) * ddata->resources_count, GFP_KERNEL);
+	if (!ddata->resource) {
+		pr_err("failed to allocate memory for resources\n");
+		return ERR_PTR(-ENOMEM);
+	}
+	err = of_property_read_u32_array(dev->of_node, "fsl,resources", ddata->resource, ddata->resources_count);
+	if (err) {
+		dev_err(dev, "failed to read soc name from dts\n");
+		goto out_free_mem;
+	}
 	can_rpmsg = ddata;
 	platform_set_drvdata(pdev, ddata);
 
 	can_rpmsg_class = class_create(THIS_MODULE, "can_rpmsg");
 	if (IS_ERR(can_rpmsg_class)) {
 		dev_err(dev, "failed to create class.\n");
-		return PTR_ERR(can_rpmsg_class);
+		goto out_free_mem;
 	}
 	err = device_create_file(dev, &dev_attr_register);
 	if (err)
-		return err;
+		goto out_free_mem;
 	return 0;
+out_free_mem:
+	kfree(ddata->resource);
+	return ERR_PTR(-ENOMEM);
 }
 
 static void virtual_can_remove(struct platform_device *pdev)
 {
+	kfree(can_rpmsg->resource);
 	class_destroy(can_rpmsg_class);
 	unregister_rpmsg_driver(&can_rpmsg_driver);
 }
