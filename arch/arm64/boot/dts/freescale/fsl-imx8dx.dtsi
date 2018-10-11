@@ -170,6 +170,12 @@
 		compatible = "fsl,imx8qxp-iomuxc";
 	};
 
+	can_rpmsg: can_rpmsg {
+		compatible = "nxp,imx-can-rpmsg";
+		power-domains = <&pd_dc0>;
+		status = "disabled";
+	};
+
 	rtc: rtc {
 		compatible = "fsl,imx-sc-rtc";
 	};

@@ -61,3 +61,7 @@
 &i2c0_mipi_lvds1 {
 	clock-frequency = <400000>;
 };
+
+&can_rpmsg {
+	status = "okay";
+};
