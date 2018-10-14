@@ -196,7 +196,7 @@
 				 BIT(DMA_MEM_TO_DEV) | \
 				 BIT(DMA_DEV_TO_DEV))
 
-#define SDMA_WATERMARK_LEVEL_FIFOS_OFF	8
+#define SDMA_WATERMARK_LEVEL_FIFOS_OFF	12
 #define SDMA_WATERMARK_LEVEL_SW_DONE	BIT(23)
 #define SDMA_WATERMARK_LEVEL_SW_DONE_SEL_OFF 24
 
@@ -1163,7 +1163,7 @@ static void sdma_set_watermarklevel_for_p2p(struct sdma_channel *sdmac)
 
 static void sdma_set_watermarklevel_for_sais(struct sdma_channel *sdmac)
 {
-	sdmac->watermark_level &= ~(0xFFF << SDMA_WATERMARK_LEVEL_FIFOS_OFF |
+	sdmac->watermark_level &= ~(0xFF << SDMA_WATERMARK_LEVEL_FIFOS_OFF |
 				    SDMA_WATERMARK_LEVEL_SW_DONE |
 				    0xf << SDMA_WATERMARK_LEVEL_SW_DONE_SEL_OFF);
 
@@ -1173,9 +1173,9 @@ static void sdma_set_watermarklevel_for_sais(struct sdma_channel *sdmac)
 			SDMA_WATERMARK_LEVEL_SW_DONE_SEL_OFF;
 
 	/* For fifo_num
-	 * bit 0-7 is the fifo number;
-	 * bit 8-11 is the fifo offset,
-	 * so here only need to shift left fifo_num 8 bit for watermake_level
+	 * bit 12-15 is the fifo number;
+	 * bit 16-19 is the fifo offset,
+	 * so here only need to shift left fifo_num 12 bit for watermake_level
 	 */
 	sdmac->watermark_level |= sdmac->fifo_num<<
 				SDMA_WATERMARK_LEVEL_FIFOS_OFF;
@@ -1941,7 +1941,7 @@ static void sdma_issue_pending(struct dma_chan *chan)
 
 #define SDMA_SCRIPT_ADDRS_ARRAY_SIZE_V1	34
 #define SDMA_SCRIPT_ADDRS_ARRAY_SIZE_V2	38
-#define SDMA_SCRIPT_ADDRS_ARRAY_SIZE_V3	41
+#define SDMA_SCRIPT_ADDRS_ARRAY_SIZE_V3	43
 #define SDMA_SCRIPT_ADDRS_ARRAY_SIZE_V4	44
 
 static void sdma_add_scripts(struct sdma_engine *sdma,

@@ -803,15 +803,9 @@ static int v4l2_ioctl_decoder_cmd(struct file *file,
 		break;
 	case V4L2_DEC_CMD_STOP: {
 		vpu_dbg(LVL_EVENT, "ctx[%d]: receive V4L2_DEC_CMD_STOP\n", ctx->str_index);
-		if (!ctx->firmware_stopped)	{
-			vpu_dbg(LVL_EVENT, "ctx[%d]: insert eos directly\n", ctx->str_index);
-			ctx->eos_stop_added = true;
-			v4l2_update_stream_addr(ctx, 0);
-			add_scode(ctx, 0, EOS_PADDING_TYPE);
-		} else	{
-			vpu_dbg(LVL_ERR, "Firmware already stopped !\n");
-		}
-	} break;
+		ctx->eos_stop_received = true;
+		v4l2_update_stream_addr(ctx, 0);
+		} break;
 	case V4L2_DEC_CMD_PAUSE:
 		break;
 	case V4L2_DEC_CMD_RESUME:
@@ -1140,11 +1134,6 @@ static bool add_scode(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SCODE
 	plbuffer[0] = last;
 	plbuffer[1] = last2;
 
-#if 0
-	for (i = 2; i < MIN_SPACE >> 2;  i++)
-		plbuffer[i] = 0;
-#endif
-
 	if ((wptr == rptr) || (wptr > rptr)) {
 		if (end - wptr >= MIN_SPACE) {
 			memcpy(pbbuffer, buffer, MIN_SPACE);
@@ -1380,6 +1369,14 @@ static int update_stream_addr(struct vpu_ctx *ctx, void *input_buffer, uint32_t 
 
 	start = pStrBufDesc->start;
 	end = pStrBufDesc->end;
+	if (wptr < start || wptr > end) {
+		vpu_dbg(LVL_ERR, "%s(), wptr pointer cross-border\n", __func__);
+		return 0;
+	}
+	if (rptr < start || rptr > end) {
+		vpu_dbg(LVL_ERR, "%s(), rptr pointer cross-border\n", __func__);
+		return 0;
+	}
 	wptr_virt = (void *)ctx->stream_buffer_virt + wptr - start;
 
 	vpu_dbg(LVL_INFO, "update_stream_addr down\n");
@@ -1482,8 +1479,18 @@ static void v4l2_update_stream_addr(struct vpu_ctx *ctx, uint32_t uStrBufIdx)
 				VB2_BUF_STATE_DONE
 			       );
 	}
+	if (list_empty(&This->drv_q) && ctx->eos_stop_received) {
+		if (!ctx->firmware_stopped)	{
+			vpu_dbg(LVL_EVENT, "ctx[%d]: insert eos directly\n", ctx->str_index);
+			if (add_scode(ctx, 0, EOS_PADDING_TYPE)) {
+				ctx->eos_stop_received = false;
+				ctx->eos_stop_added = true;
+			}
+		} else	{
+			vpu_dbg(LVL_ERR, "Firmware already stopped !\n");
+		}
+	}
 	up(&This->drv_q_lock);
-
 }
 
 static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
@@ -1943,6 +1950,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 
 		if (ctx->eos_stop_added == false)
 			vpu_dbg(LVL_ERR, "warning: receive VID_API_EVENT_FINISHED before eos_stop_added set\n");
+		ctx->eos_stop_added = false;
 		if (ctx->firmware_finished == true)
 			vpu_dbg(LVL_ERR, "warning: receive VID_API_EVENT_FINISHED when firmware_finished == true\n");
 		ctx->firmware_finished = true;
@@ -1978,13 +1986,9 @@ static irqreturn_t fsl_vpu_mu_isr(int irq, void *This)
 
 	MU_ReceiveMsg(dev->mu_base_virtaddr, 0, &msg);
 	if (msg == 0xaa) {
-#ifdef CM4
-		MU_sendMesgToFW(dev->mu_base_virtaddr, RPC_BUF_OFFSET, dev->m0_rpc_phy); //CM4 use absolute address
-#else
 		MU_sendMesgToFW(dev->mu_base_virtaddr, PRINT_BUF_OFFSET, dev->m0_rpc_phy - dev->m0_p_fw_space_phy + M0_PRINT_OFFSET);
 		MU_sendMesgToFW(dev->mu_base_virtaddr, RPC_BUF_OFFSET, dev->m0_rpc_phy - dev->m0_p_fw_space_phy); //CM0 use relative address
 		MU_sendMesgToFW(dev->mu_base_virtaddr, BOOT_ADDRESS, dev->m0_p_fw_space_phy);
-#endif
 		MU_sendMesgToFW(dev->mu_base_virtaddr, INIT_DONE, 2);
 
 	} else if (msg == 0x55) {
@@ -2010,19 +2014,11 @@ static int vpu_mu_init(struct vpu_dev *dev)
 	/*
 	 * Get the address of MU to be used for communication with the M0 core
 	 */
-#ifdef CM4
-	np = of_find_compatible_node(NULL, NULL, "fsl,imx8-mu0-vpu-m4");
-	if (!np) {
-		vpu_dbg(LVL_ERR, "error: Cannot find MU entry in device tree\n");
-		return -EINVAL;
-	}
-#else
 	np = of_find_compatible_node(NULL, NULL, "fsl,imx8-mu0-vpu-m0");
 	if (!np) {
 		vpu_dbg(LVL_ERR, "error: Cannot find MU entry in device tree\n");
 		return -EINVAL;
 	}
-#endif
 	dev->mu_base_virtaddr = of_iomap(np, 0);
 	WARN_ON(!dev->mu_base_virtaddr);
 
@@ -2189,25 +2185,11 @@ static int vpu_start_streaming(struct vb2_queue *q,
 static void vpu_stop_streaming(struct vb2_queue *q)
 {
 	struct queue_data *This = (struct queue_data *)q->drv_priv;
-#if 0
-	struct vb2_data_req *p_data_req = NULL;
-	struct vb2_data_req *p_temp;
-#endif
 	struct vb2_buffer *vb;
 
 	vpu_dbg(LVL_INFO, "%s() is called\n", __func__);
 	down(&This->drv_q_lock);
-#if 0
-	if (!list_empty(&This->drv_q)) {
-		list_for_each_entry_safe(p_data_req, p_temp, &This->drv_q, list) {
-			vpu_dbg(LVL_INFO, "%s(%d) - list_del(%p)\n",
-					__func__,
-					p_data_req->id,
-					p_data_req);
-			list_del(&p_data_req->list);
-		}
-	}
-#endif
+
 	if (!list_empty(&q->queued_list))
 		list_for_each_entry(vb, &q->queued_list, queued_entry) {
 			if (vb->state == VB2_BUF_STATE_ACTIVE)
@@ -2347,66 +2329,16 @@ static void release_queue_data(struct vpu_ctx *ctx)
 	}
 }
 
-#ifdef CM4
-static int power_CM4_up(struct vpu_dev *dev)
+static void enable_csr_reg(struct vpu_dev *This)
 {
-	sc_ipc_t ipcHndl;
-	sc_rsrc_t core_rsrc, mu_rsrc = -1;
-
-	ipcHndl = dev->mu_ipcHandle;
-	core_rsrc = SC_R_M4_0_PID0;
-	mu_rsrc = SC_R_M4_0_MU_1A;
-
-	if (sc_pm_set_resource_power_mode(ipcHndl, core_rsrc, SC_PM_PW_MODE_ON) != SC_ERR_NONE) {
-		vpu_dbg(LVL_ERR, "error: failed to power up core_rsrc\n");
-		return -EIO;
-	}
-
-	if (mu_rsrc != -1) {
-		if (sc_pm_set_resource_power_mode(ipcHndl, mu_rsrc, SC_PM_PW_MODE_ON) != SC_ERR_NONE) {
-			vpu_dbg(LVL_ERR, "error: failed to power up mu_rsrc\n");
-			return -EIO;
-		}
-	}
-
-	return 0;
+	writel(This->m0_p_fw_space_phy, This->csr_base);
+	writel(0x0, This->csr_base + 4);
 }
-
-static int boot_CM4_up(struct vpu_dev *dev, void *boot_addr)
-{
-	sc_ipc_t ipcHndl;
-	sc_rsrc_t core_rsrc;
-	sc_faddr_t aux_core_ram;
-	void *core_ram_vir;
-	u32 size;
-
-	ipcHndl = dev->mu_ipcHandle;
-	core_rsrc = SC_R_M4_0_PID0;
-	aux_core_ram = 0x34FE0000;
-	size = SZ_128K;
-
-	core_ram_vir = ioremap_wc(aux_core_ram,
-			size
-			);
-	if (!core_ram_vir)
-		vpu_dbg(LVL_ERR, "error: failed to remap space for core ram\n");
-
-	memcpy((void *)core_ram_vir, (void *)boot_addr, size);
-
-	if (sc_pm_cpu_start(ipcHndl, core_rsrc, true, aux_core_ram) != SC_ERR_NONE) {
-		vpu_dbg(LVL_ERR, "error: failed to start core_rsrc\n");
-		return -EIO;
-	}
-
-	return 0;
-}
-#endif
 
 static int vpu_firmware_download(struct vpu_dev *This)
 {
 	unsigned char *image;
 	unsigned int FW_Size = 0;
-	void *csr_offset, *csr_cpuwait;
 	int ret = 0;
 	char *p = This->m0_p_fw_space_vir;
 
@@ -2434,22 +2366,10 @@ static int vpu_firmware_download(struct vpu_dev *This)
 			image,
 			FW_Size
 			);
-#ifdef CM4
-	boot_CM4_up(This, This->m0_p_fw_space_vir);
-#else
-	if (This->plat_type == IMX8QM) { //decoder use M core 0
-		p[16] = IMX8QM;
-		csr_offset = ioremap(0x2d080000, 4);
-		writel(This->m0_p_fw_space_phy, csr_offset);
-		csr_cpuwait = ioremap(0x2d080004, 4);
-		writel(0x0, csr_cpuwait);
-	} else {
-		csr_offset = ioremap(0x2d040000, 4);
-		writel(This->m0_p_fw_space_phy, csr_offset);
-		csr_cpuwait = ioremap(0x2d040004, 4);
-		writel(0x0, csr_cpuwait);
-	}
-#endif
+
+	p[16] = This->plat_type;
+	enable_csr_reg(This);
+
 	return ret;
 }
 
@@ -2459,7 +2379,7 @@ static int v4l2_open(struct file *filp)
 	struct vpu_dev *dev = video_get_drvdata(vdev);
 	struct vpu_ctx *ctx = NULL;
 	int idx;
-	int ret;
+	int ret = 0;
 	u_int32 i;
 
 	pm_runtime_get_sync(dev->generic_dev);
@@ -2492,7 +2412,7 @@ static int v4l2_open(struct file *filp)
 	if (!ctx->instance_wq) {
 		vpu_dbg(LVL_ERR, "error: %s unable to alloc workqueue for ctx\n", __func__);
 		ret = -ENOMEM;
-		goto err_alloc;
+		goto err_alloc_wq;
 	}
 	INIT_WORK(&ctx->instance_work, vpu_msg_instance_work);
 
@@ -2502,7 +2422,7 @@ static int v4l2_open(struct file *filp)
 				GFP_KERNEL)) {
 		vpu_dbg(LVL_ERR, "fail to alloc fifo when open\n");
 		ret = -ENOMEM;
-		goto err_alloc;
+		goto err_alloc_fifo;
 	}
 	ctx->dev = dev;
 	ctx->str_index = idx;
@@ -2512,13 +2432,16 @@ static int v4l2_open(struct file *filp)
 	ctx->wait_rst_done = false;
 	ctx->firmware_stopped = false;
 	ctx->firmware_finished = false;
-	ctx->eos_stop_added    = false;
+	ctx->eos_stop_received = false;
+	ctx->eos_stop_added = false;
 	ctx->buffer_null = true; //this flag is to judge whether the buffer is null is not, it is used for the workaround that when send stop command still can receive buffer ready event, and true means buffer is null, false not
 	ctx->ctx_released = false;
 	ctx->b_dis_reorder = false;
 	ctx->pSeqinfo = kzalloc(sizeof(MediaIPFW_Video_SeqInfo), GFP_KERNEL);
-	if (!ctx->pSeqinfo)
+	if (!ctx->pSeqinfo) {
 		vpu_dbg(LVL_ERR, "error: pSeqinfo alloc fail\n");
+		goto err_alloc_seq;
+	}
 	init_queue_data(ctx);
 	init_waitqueue_head(&ctx->buffer_wq);
 	mutex_lock(&dev->dev_mutex);
@@ -2557,8 +2480,11 @@ static int v4l2_open(struct file *filp)
 			(dma_addr_t *)&ctx->stream_buffer_phy,
 			GFP_KERNEL | GFP_DMA32
 			);
-	if (!ctx->stream_buffer_virt)
+	if (!ctx->stream_buffer_virt) {
 		vpu_dbg(LVL_ERR, "error: %s() stream buffer alloc size(%x) fail!\n", __func__, ctx->stream_buffer_size);
+		ret = -ENOMEM;
+		goto err_firmware_load;
+	}
 	else
 		vpu_dbg(LVL_INFO, "%s() stream_buffer_size(%d) stream_buffer_virt(%p) stream_buffer_phy(%p), index(%d)\n",
 				__func__, ctx->stream_buffer_size, ctx->stream_buffer_virt, (void *)ctx->stream_buffer_phy, ctx->str_index);
@@ -2574,29 +2500,43 @@ static int v4l2_open(struct file *filp)
 			GFP_KERNEL | GFP_DMA32
 			);
 
-	if (!ctx->udata_buffer_virt)
+	if (!ctx->udata_buffer_virt) {
 		vpu_dbg(LVL_ERR, "error: %s() udata buffer alloc size(%x) fail!\n", __func__, ctx->udata_buffer_size);
+		ret = -ENOMEM;
+		goto err_alloc_udata;
+	}
 	else
 		vpu_dbg(LVL_INFO, "%s() udata_buffer_size(%d) udata_buffer_virt(%p) udata_buffer_phy(%p)\n",
 				__func__, ctx->udata_buffer_size, ctx->udata_buffer_virt, (void *)ctx->udata_buffer_phy);
 
 	return 0;
 
+err_alloc_udata:
+#ifdef DYNAMIC_MEM
+	if (ctx->stream_buffer_virt)
+		dma_free_coherent(&ctx->dev->plat_dev->dev,
+				ctx->stream_buffer_size,
+				ctx->stream_buffer_virt,
+				ctx->stream_buffer_phy
+				);
+#endif
 err_firmware_load:
+	kfree(ctx->pSeqinfo);
+	ctx->pSeqinfo = NULL;
 	release_queue_data(ctx);
+err_alloc_seq:
+	kfifo_free(&ctx->msg_fifo);
+err_alloc_fifo:
+	destroy_workqueue(ctx->instance_wq);
+err_alloc_wq:
 	ctrls_delete_decoder(ctx);
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);
 	clear_bit(ctx->str_index, &dev->instance_mask);
-	kfree(ctx);
-	return ret;
 err_find_index:
-	pm_runtime_put_sync(dev->generic_dev);
 	kfree(ctx);
-	return ret;
-err_alloc:
 	pm_runtime_put_sync(dev->generic_dev);
-	kfree(ctx);
+
 	return ret;
 }
 
@@ -2864,26 +2804,12 @@ static void vpu_reset(struct vpu_dev *This)
 static int vpu_enable_hw(struct vpu_dev *This)
 {
 	vpu_dbg(LVL_INFO, "%s()\n", __func__);
-#if 0
-	This->vpu_clk = clk_get(&This->plat_dev->dev, "vpu_clk");
-	if (IS_ERR(This->vpu_clk)) {
-		vpu_dbg(LVL_ERR, "vpu_clk get error\n");
-		return -ENOENT;
-	}
-	clk_set_rate(This->vpu_clk, 600000000);
-	clk_prepare_enable(This->vpu_clk);
-#endif
 	vpu_setup(This);
 	return 0;
 }
 static void vpu_disable_hw(struct vpu_dev *This)
 {
 	vpu_reset(This);
-#if 0
-	if (This->vpu_clk) {
-		clk_put(This->vpu_clk);
-	}
-#endif
 }
 
 static int reset_vpu_firmware(struct vpu_dev *dev)
@@ -2907,130 +2833,116 @@ static int reset_vpu_firmware(struct vpu_dev *dev)
 	return ret;
 }
 
-static int vpu_probe(struct platform_device *pdev)
+static int parse_dt_info(struct vpu_dev *dev, struct device_node *np)
 {
-	struct vpu_dev *dev;
-	struct resource *res;
-	struct device_node *np = pdev->dev.of_node;
-	struct device_node *reserved_node;
-	struct resource reserved_res;
-	unsigned int mu_id;
 	u_int32 core_type;
+	struct resource reserved_res;
+	struct device_node *reserved_node;
+	u_int32 csr_base;
 	int ret;
 
-	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
-	if (!dev)
-		return -ENOMEM;
+	if (!dev || !np)
+		return -EINVAL;
 
-	dev->plat_dev = pdev;
-	dev->generic_dev = &pdev->dev;
-
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	dev->regs_base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(dev->regs_base)) {
-		vpu_dbg(LVL_ERR, "error: %s could not map regs_base\n", __func__);
-		return PTR_ERR(dev->regs_base);
+	ret = of_property_read_u32(np, "core_type", &core_type);
+	if (ret) {
+		vpu_dbg(LVL_ERR, "error: Cannot get core num %d\n", ret);
+		return -EINVAL;
+	}
+	if (core_type == 2)
+		dev->plat_type = IMX8QM;
+	else
+		dev->plat_type = IMX8QXP;
+	reserved_node = of_parse_phandle(np, "boot-region", 0);
+	if (!reserved_node) {
+		vpu_dbg(LVL_ERR, "error: boot-region of_parse_phandle error\n");
+		return -ENODEV;
 	}
 
-	if (np) {
-		ret = of_property_read_u32(np, "core_type", &core_type);
-		if (ret) {
-			vpu_dbg(LVL_ERR, "error: Cannot get core num %d\n", ret);
-			return -EINVAL;
-		}
-		if (core_type == 2)
-			dev->plat_type = IMX8QM;
-		else
-			dev->plat_type = IMX8QXP;
-		reserved_node = of_parse_phandle(np, "boot-region", 0);
-		if (!reserved_node) {
-			vpu_dbg(LVL_ERR, "error: boot-region of_parse_phandle error\n");
-			return -ENODEV;
-		}
+	if (of_address_to_resource(reserved_node, 0, &reserved_res)) {
+		vpu_dbg(LVL_ERR, "error: boot-region of_address_to_resource error\n");
+		return -EINVAL;
+	}
+	dev->m0_p_fw_space_phy = reserved_res.start;
+	dev->cm_offset = 0;
+	reserved_node = of_parse_phandle(np, "rpc-region", 0);
+	if (!reserved_node) {
+		vpu_dbg(LVL_ERR, "error: rpc-region of_parse_phandle error\n");
+		return -ENODEV;
+	}
 
-		if (of_address_to_resource(reserved_node, 0, &reserved_res)) {
-			vpu_dbg(LVL_ERR, "error: boot-region of_address_to_resource error\n");
-			return -EINVAL;
-		}
-		dev->m0_p_fw_space_phy = reserved_res.start;
-		dev->cm_offset = 0;
-		reserved_node = of_parse_phandle(np, "rpc-region", 0);
-		if (!reserved_node) {
-			vpu_dbg(LVL_ERR, "error: rpc-region of_parse_phandle error\n");
-			return -ENODEV;
-		}
-
-		if (of_address_to_resource(reserved_node, 0, &reserved_res)) {
-			vpu_dbg(LVL_ERR, "error: rpc-region of_address_to_resource error\n");
-			return -EINVAL;
-		}
-		dev->m0_rpc_phy = reserved_res.start;
+	if (of_address_to_resource(reserved_node, 0, &reserved_res)) {
+		vpu_dbg(LVL_ERR, "error: rpc-region of_address_to_resource error\n");
+		return -EINVAL;
+	}
+	dev->m0_rpc_phy = reserved_res.start;
 #ifndef DYNAMIC_MEM
-		reserved_node = of_parse_phandle(np, "str-region", 0);
-		if (!reserved_node) {
-			vpu_dbg(LVL_ERR, "error: str-region of_parse_phandle error\n");
-			return -ENODEV;
-		}
+	reserved_node = of_parse_phandle(np, "str-region", 0);
+	if (!reserved_node) {
+		vpu_dbg(LVL_ERR, "error: str-region of_parse_phandle error\n");
+		return -ENODEV;
+	}
 
-		if (of_address_to_resource(reserved_node, 0, &reserved_res)) {
-			vpu_dbg(LVL_ERR, "error: str-region of_address_to_resource error\n");
-			return -EINVAL;
-		}
-		dev->str_base_phy = reserved_res.start;
-		dev->str_size = resource_size(&reserved_res);
+	if (of_address_to_resource(reserved_node, 0, &reserved_res)) {
+		vpu_dbg(LVL_ERR, "error: str-region of_address_to_resource error\n");
+		return -EINVAL;
+	}
+	dev->str_base_phy = reserved_res.start;
+	dev->str_size = resource_size(&reserved_res);
 #endif
-	} else
-		vpu_dbg(LVL_ERR, "error: %s of_node is NULL\n", __func__);
 
-	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
+	ret = of_property_read_u32(np, "reg-csr", &csr_base);
 	if (ret) {
-		vpu_dbg(LVL_ERR, "error: %s unable to register v4l2 dev\n", __func__);
+		vpu_dbg(LVL_ERR, "error: Cannot get csr offset %d\n", ret);
+		return -EINVAL;
+	}
+	dev->csr_base = ioremap(csr_base, 8); //for csr0 offset and cpuwait
+
+	return 0;
+}
+
+static int create_vpu_video_device(struct vpu_dev *dev)
+{
+	int ret;
+
+	if (!dev)
+		return -EINVAL;
+
+	dev->pvpu_decoder_dev = video_device_alloc();
+	if (!dev->pvpu_decoder_dev) {
+		vpu_dbg(LVL_ERR, "video device alloc for decoder fail\n");
+		return -ENOMEM;
+	}
+	strncpy(dev->pvpu_decoder_dev->name, v4l2_videodevice_decoder.name, sizeof(v4l2_videodevice_decoder.name));
+	dev->pvpu_decoder_dev->fops = v4l2_videodevice_decoder.fops;
+	dev->pvpu_decoder_dev->ioctl_ops = v4l2_videodevice_decoder.ioctl_ops;
+	dev->pvpu_decoder_dev->release = video_device_release;
+	dev->pvpu_decoder_dev->vfl_dir = v4l2_videodevice_decoder.vfl_dir;
+	dev->pvpu_decoder_dev->v4l2_dev = &dev->v4l2_dev;
+
+	video_set_drvdata(dev->pvpu_decoder_dev, dev);
+
+	ret = video_register_device(dev->pvpu_decoder_dev,
+			VFL_TYPE_GRABBER,
+			DECODER_NODE_NUMBER);
+	if (ret) {
+		vpu_dbg(LVL_ERR, "error: %s unable to register video decoder device\n",
+				__func__
+				);
+		video_device_release(dev->pvpu_decoder_dev);
+		dev->pvpu_decoder_dev = NULL;
 		return ret;
 	}
 
-	platform_set_drvdata(pdev, dev);
+	return 0;
+}
 
-	dev->pvpu_decoder_dev = video_device_alloc();
-	if (dev->pvpu_decoder_dev) {
-		strncpy(dev->pvpu_decoder_dev->name, v4l2_videodevice_decoder.name, sizeof(v4l2_videodevice_decoder.name));
-		dev->pvpu_decoder_dev->fops = v4l2_videodevice_decoder.fops;
-		dev->pvpu_decoder_dev->ioctl_ops = v4l2_videodevice_decoder.ioctl_ops;
-		dev->pvpu_decoder_dev->release = video_device_release;
-		dev->pvpu_decoder_dev->vfl_dir = v4l2_videodevice_decoder.vfl_dir;
-		dev->pvpu_decoder_dev->v4l2_dev = &dev->v4l2_dev;
+static int init_vpudev_parameters(struct vpu_dev *dev)
+{
+	int ret;
 
-		video_set_drvdata(dev->pvpu_decoder_dev, dev);
-
-		if (video_register_device(dev->pvpu_decoder_dev,
-					VFL_TYPE_GRABBER,
-					-1)) {
-			vpu_dbg(LVL_ERR, "error: %s unable to register video decoder device\n",
-					__func__
-					);
-			video_device_release(dev->pvpu_decoder_dev);
-			dev->pvpu_decoder_dev = NULL;
-		} else {
-			vpu_dbg(LVL_INFO, "%s  register video decoder device\n",
-					__func__
-				   );
-		}
-	}
-
-	if (!dev->mu_ipcHandle) {
-		ret = sc_ipc_getMuID(&mu_id);
-		if (ret) {
-			vpu_dbg(LVL_ERR, "error: --- sc_ipc_getMuID() cannot obtain mu id SCI error! (%d)\n", ret);
-			return ret;
-		}
-
-		ret = sc_ipc_open(&dev->mu_ipcHandle, mu_id);
-		if (ret) {
-			vpu_dbg(LVL_ERR, "error: --- sc_ipc_getMuID() cannot open MU channel to SCU error! (%d)\n", ret);
-			return ret;
-		}
-	}
-
-	vpu_enable_hw(dev);
+	if (!dev)
+		return -EINVAL;
 
 	mutex_init(&dev->dev_mutex);
 	mutex_init(&dev->cmd_mutex);
@@ -3041,23 +2953,6 @@ static int vpu_probe(struct platform_device *pdev)
 	dev->instance_mask = 0;
 
 	dev->fw_is_ready = false;
-	dev->workqueue = alloc_workqueue("vpu", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
-	if (!dev->workqueue) {
-		vpu_dbg(LVL_ERR, "error: %s unable to alloc workqueue\n", __func__);
-		ret = -ENOMEM;
-		return ret;
-	}
-
-	INIT_WORK(&dev->msg_work, vpu_msg_run_work);
-	pm_runtime_enable(&pdev->dev);
-	pm_runtime_get_sync(&pdev->dev);
-#ifdef CM4
-	ret = power_CM4_up(dev);
-	if (ret) {
-		vpu_dbg(LVL_ERR, "error: failed to power on CM4\n");
-		return ret;
-	}
-#endif
 
 	ret = vpu_mu_init(dev);
 	if (ret) {
@@ -3069,8 +2964,10 @@ static int vpu_probe(struct platform_device *pdev)
 	dev->m0_p_fw_space_vir = ioremap_wc(dev->m0_p_fw_space_phy,
 			M0_BOOT_SIZE
 			);
-	if (!dev->m0_p_fw_space_vir)
+	if (!dev->m0_p_fw_space_vir) {
 		vpu_dbg(LVL_ERR, "error: failed to remap space for M0 firmware\n");
+		return -ENOMEM;
+	}
 
 	memset_io(dev->m0_p_fw_space_vir, 0, M0_BOOT_SIZE);
 
@@ -3094,16 +2991,114 @@ static int vpu_probe(struct platform_device *pdev)
 
 	memset_io(dev->str_base_vir, 0, dev->str_size);
 #endif
-#ifdef CM4
-	rpc_init_shared_memory(&dev->shared_mem, dev->m0_rpc_phy, dev->m0_rpc_virt, SHARED_SIZE);
-#else
 	rpc_init_shared_memory(&dev->shared_mem, dev->m0_rpc_phy - dev->m0_p_fw_space_phy, dev->m0_rpc_virt, SHARED_SIZE);
-#endif
 	rpc_set_system_cfg_value(dev->shared_mem.pSharedInterface, VPU_REG_BASE);
+
+	return 0;
+}
+
+static int vpu_probe(struct platform_device *pdev)
+{
+	struct vpu_dev *dev;
+	struct resource *res;
+	struct device_node *np = pdev->dev.of_node;
+	unsigned int mu_id;
+	int ret;
+
+	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
+	if (!dev)
+		return -ENOMEM;
+
+	dev->plat_dev = pdev;
+	dev->generic_dev = get_device(&pdev->dev);
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	dev->regs_base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(dev->regs_base)) {
+		vpu_dbg(LVL_ERR, "error: %s could not map regs_base\n", __func__);
+		ret = PTR_ERR(dev->regs_base);
+		goto err_put_dev;
+	}
+
+	ret = parse_dt_info(dev, np);
+	if (ret) {
+		vpu_dbg(LVL_ERR, "error: %s parse device tree fail\n", __func__);
+		goto err_dev_iounmap;
+	}
+
+	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
+	if (ret) {
+		vpu_dbg(LVL_ERR, "error: %s unable to register v4l2 dev\n", __func__);
+		goto err_dev_iounmap;
+	}
+
+	platform_set_drvdata(pdev, dev);
+
+	ret = create_vpu_video_device(dev);
+	if (ret) {
+		vpu_dbg(LVL_ERR, "error: %s create vpu video device fail\n", __func__);
+		goto err_unreg_v4l2;
+	}
+
+	if (!dev->mu_ipcHandle) {
+		ret = sc_ipc_getMuID(&mu_id);
+		if (ret) {
+			vpu_dbg(LVL_ERR, "error: --- sc_ipc_getMuID() cannot obtain mu id SCI error! (%d)\n", ret);
+			goto err_rm_vdev;
+		}
+
+		ret = sc_ipc_open(&dev->mu_ipcHandle, mu_id);
+		if (ret) {
+			vpu_dbg(LVL_ERR, "error: --- sc_ipc_getMuID() cannot open MU channel to SCU error! (%d)\n", ret);
+			goto err_rm_vdev;
+		}
+	}
+
+	dev->workqueue = alloc_workqueue("vpu", WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
+	if (!dev->workqueue) {
+		vpu_dbg(LVL_ERR, "error: %s unable to alloc workqueue\n", __func__);
+		ret = -ENOMEM;
+		goto err_rm_vdev;
+	}
+
+	INIT_WORK(&dev->msg_work, vpu_msg_run_work);
+
+	vpu_enable_hw(dev);
+	pm_runtime_enable(&pdev->dev);
+	pm_runtime_get_sync(&pdev->dev);
+
+	ret = init_vpudev_parameters(dev);
+	if (ret) {
+		vpu_dbg(LVL_ERR, "error: failed to init parameters for vpudev\n");
+		goto err_poweroff;
+	}
 
 	pm_runtime_put_sync(&pdev->dev);
 
 	return 0;
+
+err_poweroff:
+	destroy_workqueue(dev->workqueue);
+	vpu_disable_hw(dev);
+	pm_runtime_put_sync(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
+err_rm_vdev:
+	if (dev->pvpu_decoder_dev) {
+		video_unregister_device(dev->pvpu_decoder_dev);
+		dev->pvpu_decoder_dev = NULL;
+	}
+err_unreg_v4l2:
+	v4l2_device_unregister(&dev->v4l2_dev);
+err_dev_iounmap:
+	if (dev->regs_base)
+		iounmap(dev->regs_base);
+err_put_dev:
+	if (dev->generic_dev) {
+		put_device(dev->generic_dev);
+		dev->generic_dev = NULL;
+	}
+
+	return ret;
 }
 
 static int vpu_remove(struct platform_device *pdev)
@@ -3178,17 +3173,13 @@ static int vpu_suspend(struct device *dev)
 		}
 	}
 
-	vpu_set_power(vpudev, false);
-
 	return 0;
 }
 
 static int vpu_resume(struct device *dev)
 {
 	struct vpu_dev *vpudev = (struct vpu_dev *)dev_get_drvdata(dev);
-	void *csr_offset, *csr_cpuwait;
 
-	vpu_set_power(vpudev, true);
 	vpu_enable_hw(vpudev);
 
 	MU_Init(vpudev->mu_base_virtaddr);
@@ -3203,10 +3194,7 @@ static int vpu_resume(struct device *dev)
 		rpc_set_system_cfg_value(vpudev->shared_mem.pSharedInterface, VPU_REG_BASE);
 	} else {
 		/*resume*/
-		csr_offset = ioremap(0x2d040000, 4);
-		writel(vpudev->m0_p_fw_space_phy, csr_offset);
-		csr_cpuwait = ioremap(0x2d040004, 4);
-		writel(0x0, csr_cpuwait);
+		enable_csr_reg(vpudev);
 		/*wait for firmware resotre done*/
 		if (!wait_for_completion_timeout(&vpudev->start_cmp, msecs_to_jiffies(1000))) {
 			vpu_dbg(LVL_ERR, "error: wait for vpu decoder resume done timeout!\n");

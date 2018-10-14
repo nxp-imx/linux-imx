@@ -605,6 +605,7 @@ static const struct dpu_devtype dpu_type_v2_qm = {
 	.has_syncmode_fixup = true,
 	.syncmode_min_prate = 300000,
 	.singlemode_max_width = 1920,
+	.master_stream_id = 1,
 	.pixel_link_quirks = true,
 	.pixel_link_nhvsync = true,
 	.version = DPU_V2,
@@ -681,6 +682,15 @@ unsigned int dpu_get_singlemode_max_width(struct dpu_soc *dpu)
 		return UINT_MAX;
 }
 EXPORT_SYMBOL_GPL(dpu_get_singlemode_max_width);
+
+unsigned int dpu_get_master_stream_id(struct dpu_soc *dpu)
+{
+	if (dpu->devtype->has_pc)
+		return dpu->devtype->master_stream_id;
+	else
+		return UINT_MAX;
+}
+EXPORT_SYMBOL_GPL(dpu_get_master_stream_id);
 
 bool dpu_vproc_has_fetcheco_cap(u32 cap_mask)
 {
@@ -1201,6 +1211,7 @@ static int dpu_add_client_devices(struct dpu_soc *dpu)
 	struct device *dev = dpu->dev;
 	struct dpu_platform_reg *reg;
 	struct dpu_plane_grp *plane_grp;
+	struct dpu_store *st9 = NULL;
 	size_t client_num, reg_size;
 	int i, id, ret;
 
@@ -1237,6 +1248,18 @@ static int dpu_add_client_devices(struct dpu_soc *dpu)
 	if (ret)
 		goto err_get_plane_res;
 
+	/*
+	 * Store9 is shared bewteen display engine(for sync mode
+	 * fixup) and blit engine.
+	 */
+	if (devtype->has_syncmode_fixup) {
+		st9 = dpu_st_get(dpu, 9);
+		if (IS_ERR(st9)) {
+			ret = PTR_ERR(st9);
+			goto err_get_plane_res;
+		}
+	}
+
 	for (i = 0; i < client_num; i++) {
 		struct platform_device *pdev;
 		struct device_node *of_node = NULL;
@@ -1270,6 +1293,7 @@ static int dpu_add_client_devices(struct dpu_soc *dpu)
 		if (is_disp) {
 			reg[i].pdata.plane_grp = plane_grp;
 			reg[i].pdata.di_grp_id = plane_grp->id;
+			reg[i].pdata.st9 = st9;
 		}
 
 		pdev = platform_device_alloc(reg[i].name, id++);
@@ -1295,6 +1319,8 @@ static int dpu_add_client_devices(struct dpu_soc *dpu)
 
 err_register:
 	platform_device_unregister_children(to_platform_device(dev));
+	if (devtype->has_syncmode_fixup)
+		dpu_st_put(st9);
 err_get_plane_res:
 	dpu_put_plane_resource(&plane_grp->res);
 

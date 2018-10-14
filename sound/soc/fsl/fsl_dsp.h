@@ -5,9 +5,12 @@
  *
  */
 
+#ifndef FSL_DSP_H
+#define FSL_DSP_H
 #include <uapi/linux/mxc_dsp.h>
+#include <soc/imx8/sc/ipc.h>
 #include "fsl_dsp_proxy.h"
-
+#include "fsl_dsp_platform.h"
 
 typedef void (*memcpy_func) (void *dest, const void *src, size_t n);
 typedef void (*memset_func) (void *s, int c, size_t n);
@@ -22,22 +25,29 @@ struct xf_client {
 	struct xf_proxy     *proxy;
 
 	/* ...allocated proxy client id */
-	u32                 id;
+	u32 id;
 
 	/* ...pending response queue */
-	struct xf_msg_queue queue;
-
+	struct xf_msg_queue	queue;
 	/* ...response waiting queue */
-	wait_queue_head_t   wait;
+	wait_queue_head_t	wait;
 
 	/* ...virtual memory mapping */
-	unsigned long       vm_start;
-
+	unsigned long	vm_start;
 	/* ...counter of memory mappings (no real use of it yet - tbd) */
-	atomic_t            vm_use;
+	atomic_t	vm_use;
 
 	/* ...global structure pointer */
-	void				*global;
+	void	*global;
+	struct xf_message m;
+
+	struct snd_compr_stream *cstream;
+
+	struct work_struct work;
+	struct completion compr_complete;
+
+	int input_bytes;
+	int consume_bytes;
 };
 
 union xf_client_link {
@@ -84,6 +94,8 @@ struct fsl_dsp {
 	/* ...mutex lock */
 	struct mutex dsp_mutex;
 
+	struct dsp_data dsp_data;
+
 	/* ...global clients pool (item[0] serves as list terminator) */
 	union xf_client_link xf_client_map[XF_CFG_MAX_IPC_CLIENTS];
 };
@@ -116,3 +128,9 @@ struct fsl_dsp {
 void *memcpy_dsp(void *dest, const void *src, size_t count);
 void *memset_dsp(void *dest, int c, size_t count);
 struct xf_client *xf_client_lookup(struct fsl_dsp *dsp_priv, u32 id);
+struct xf_client *xf_client_alloc(struct fsl_dsp *dsp_priv);
+
+int fsl_dsp_open_func(struct fsl_dsp *dsp_priv, struct xf_client *client);
+int fsl_dsp_close_func(struct xf_client *client);
+
+#endif

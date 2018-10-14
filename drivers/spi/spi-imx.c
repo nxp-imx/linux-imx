@@ -77,6 +77,7 @@ struct spi_imx_devtype_data {
 	void (*trigger)(struct spi_imx_data *);
 	int (*rx_available)(struct spi_imx_data *);
 	void (*reset)(struct spi_imx_data *);
+	void (*setup_wml)(struct spi_imx_data *);
 	bool has_dmamode;
 	unsigned int fifo_size;
 	bool dynamic_burst;
@@ -218,7 +219,7 @@ static bool spi_imx_can_dma(struct spi_master *master, struct spi_device *spi,
 			 struct spi_transfer *transfer)
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(master);
-	unsigned int bytes_per_word, i;
+	unsigned int bytes_per_word;
 
 	if (!master->dma_rx)
 		return false;
@@ -228,15 +229,9 @@ static bool spi_imx_can_dma(struct spi_master *master, struct spi_device *spi,
 	if (bytes_per_word != 1 && bytes_per_word != 2 && bytes_per_word != 4)
 		return false;
 
-	for (i = spi_imx->devtype_data->fifo_size / 2; i > 0; i--) {
-		if (!(transfer->len % (i * bytes_per_word)))
-			break;
-	}
-
-	if (i == 0 || transfer->len < spi_imx->devtype_data->fifo_size / 2)
+	if (transfer->len < spi_imx->devtype_data->fifo_size / 2)
 		return false;
 
-	spi_imx->wml = i;
 	spi_imx->dynamic_burst = 0;
 
 	return true;
@@ -454,7 +449,6 @@ static int mx51_ecspi_config(struct spi_device *spi)
 	u32 ctrl = MX51_ECSPI_CTRL_ENABLE;
 	u32 clk = spi_imx->speed_hz, delay, reg;
 	u32 cfg = readl(spi_imx->base + MX51_ECSPI_CONFIG);
-	int tx_wml = 0;
 
 	/*
 	 * The hardware seems to have a race condition when changing modes. The
@@ -531,6 +525,13 @@ static int mx51_ecspi_config(struct spi_device *spi)
 	else			/* SCLK is _very_ slow */
 		usleep_range(delay, delay + 10);
 
+	return 0;
+}
+
+static void mx51_setup_wml(struct spi_imx_data *spi_imx)
+{
+	int tx_wml = 0;
+
 	/*
 	 * Configure the DMA register: setup the watermark
 	 * and enable DMA request.
@@ -544,8 +545,6 @@ static int mx51_ecspi_config(struct spi_device *spi)
 			MX51_ECSPI_DMA_RXT_WML(spi_imx->wml) |
 			MX51_ECSPI_DMA_TEDEN | MX51_ECSPI_DMA_RXDEN |
 			MX51_ECSPI_DMA_RXTDEN, spi_imx->base + MX51_ECSPI_DMA);
-
-	return 0;
 }
 
 static int mx51_ecspi_rx_available(struct spi_imx_data *spi_imx)
@@ -877,6 +876,7 @@ static struct spi_imx_devtype_data imx51_ecspi_devtype_data = {
 	.trigger = mx51_ecspi_trigger,
 	.rx_available = mx51_ecspi_rx_available,
 	.reset = mx51_ecspi_reset,
+	.setup_wml = mx51_setup_wml,
 	.fifo_size = 64,
 	.has_dmamode = true,
 	.dynamic_burst = true,
@@ -900,6 +900,7 @@ static struct spi_imx_devtype_data imx6ul_ecspi_devtype_data = {
 	.trigger = mx51_ecspi_trigger,
 	.rx_available = mx51_ecspi_rx_available,
 	.reset = mx51_ecspi_reset,
+	.setup_wml = mx51_setup_wml,
 	.fifo_size = 64,
 	.has_dmamode = true,
 	.dynamic_burst = true,
@@ -1054,7 +1055,6 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 				 struct spi_transfer *t)
 {
 	struct spi_imx_data *spi_imx = spi_master_get_devdata(spi->master);
-	int ret;
 
 	if (!t)
 		return 0;
@@ -1100,12 +1100,6 @@ static int spi_imx_setupxfer(struct spi_device *spi,
 		spi_imx->usedma = 1;
 	else
 		spi_imx->usedma = 0;
-
-	if (spi_imx->usedma) {
-		ret = spi_imx_dma_configure(spi->master);
-		if (ret)
-			return ret;
-	}
 
 	spi_imx->devtype_data->config(spi);
 
@@ -1201,6 +1195,31 @@ static int spi_imx_dma_transfer(struct spi_imx_data *spi_imx,
 	unsigned long timeout;
 	struct spi_master *master = spi_imx->bitbang.master;
 	struct sg_table *tx = &transfer->tx_sg, *rx = &transfer->rx_sg;
+	struct scatterlist *last_sg = sg_last(rx->sgl, rx->nents);
+	unsigned int bytes_per_word, i;
+	int ret;
+
+	/* Get the right burst length from the last sg to ensure no tail data */
+	bytes_per_word = spi_imx_bytes_per_word(transfer->bits_per_word);
+	for (i = spi_imx->devtype_data->fifo_size / 2; i > 0; i--) {
+		if (!(sg_dma_len(last_sg) % (i * bytes_per_word)))
+			break;
+	}
+	/* Use 1 as wml in case no available burst length got */
+	if (i == 0)
+		i = 1;
+	spi_imx->wml =  i;
+
+	ret = spi_imx_dma_configure(master);
+	if (ret)
+		return ret;
+
+	if (!spi_imx->devtype_data->setup_wml) {
+		dev_err(spi_imx->dev, "No setup_wml()?\n");
+		return -EINVAL;
+	}
+
+	spi_imx->devtype_data->setup_wml(spi_imx);
 
 	/*
 	 * The TX DMA setup starts the transfer, so make sure RX is configured

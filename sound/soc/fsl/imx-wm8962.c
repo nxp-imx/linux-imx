@@ -59,8 +59,6 @@ struct imx_priv {
 	struct platform_device *pdev;
 	struct snd_pcm_substream *first_stream;
 	struct snd_pcm_substream *second_stream;
-	struct snd_kcontrol *headphone_kctl;
-	struct snd_card *snd_card;
 	struct platform_device *asrc_pdev;
 	u32 asrc_rate;
 	u32 asrc_format;
@@ -130,7 +128,6 @@ static int hpjack_status_check(void *data)
 		extcon_set_state_sync(wm8962_edev, EXTCON_JACK_HEADPHONE, 1);
 #endif
 		ret = imx_hp_jack_gpio.report;
-		snd_kctl_jack_report(priv->snd_card, priv->headphone_kctl, 1);
 	} else {
 		snprintf(buf, 32, "STATE=%d", 0);
 		snd_soc_dapm_enable_pin(snd_soc_codec_get_dapm(priv->codec), "Ext Spk");
@@ -138,7 +135,6 @@ static int hpjack_status_check(void *data)
 		extcon_set_state_sync(wm8962_edev, EXTCON_JACK_HEADPHONE, 0);
 #endif
 		ret = 0;
-		snd_kctl_jack_report(priv->snd_card, priv->headphone_kctl, 0);
 	}
 
 	envp[0] = "NAME=headphone";
@@ -804,12 +800,6 @@ audmux_bypass:
 		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n", ret);
 		goto fail;
 	}
-
-	priv->snd_card = data->card.snd_card;
-	priv->headphone_kctl = snd_kctl_jack_new("Headphone", NULL);
-	ret = snd_ctl_add(data->card.snd_card, priv->headphone_kctl);
-	if (ret)
-		goto fail;
 
 	imx_wm8962_gpio_init(&data->card);
 

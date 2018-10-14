@@ -61,6 +61,9 @@
 		mmc1 = &usdhc2;
 		mmc2 = &usdhc3;
 		usbphy0 = &usbphy1;
+		can0 = &flexcan1;
+		can1 = &flexcan2;
+		can2 = &flexcan3;
 	};
 
 	memory@80000000 {
@@ -174,6 +177,7 @@
 		str-region = <&decoder_str>;
 		reg = <0x0 0x2c000000 0x0 0x1000000>;
 		reg-names = "vpu_regs";
+		reg-csr = <0x2d080000>;
 		power-domains = <&pd_vpu_dec>;
 		status = "disabled";
 	};
@@ -185,6 +189,7 @@
 		reg = <0x0 0x2d000000 0x0 0x1000000>;
 		reg-names = "vpu_regs";
 		power-domains = <&pd_vpu_enc>;
+		reg-fw-base = <0x90000 0xa0000>;
 		status = "disabled";
 	};
 

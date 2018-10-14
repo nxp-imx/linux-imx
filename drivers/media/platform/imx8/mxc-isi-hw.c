@@ -84,7 +84,7 @@ static bool is_rgb(u32 pix_fmt)
 {
 	if ((pix_fmt == V4L2_PIX_FMT_RGB565) ||
 		(pix_fmt == V4L2_PIX_FMT_RGB24) ||
-		(pix_fmt == V4L2_PIX_FMT_RGB32) ||
+		(pix_fmt == V4L2_PIX_FMT_XRGB32) ||
 		(pix_fmt == V4L2_PIX_FMT_BGR24) ||
 	    (pix_fmt == V4L2_PIX_FMT_ARGB32)) {
 		return true;
@@ -190,7 +190,9 @@ void mxc_isi_channel_hw_reset(struct mxc_isi_dev *mxc_isi)
 {
 	sc_ipc_t ipcHndl;
 	sc_err_t sciErr;
-	uint32_t mu_id;
+	uint32_t mu_id, ch_id, i;
+	uint8_t chan_mask = 0, temp_mask;
+	struct device_node *parent, *node;
 
 	sciErr = sc_ipc_getMuID(&mu_id);
 	if (sciErr != SC_ERR_NONE) {
@@ -204,16 +206,40 @@ void mxc_isi_channel_hw_reset(struct mxc_isi_dev *mxc_isi)
 		return;
 	}
 
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH0, SC_PM_PW_MODE_OFF);
-	if (sciErr != SC_ERR_NONE)
-		pr_err("sc_misc_MIPI reset failed! (sciError = %d)\n", sciErr);
+	parent = of_get_parent(mxc_isi->pdev->dev.of_node);
+	if (!parent) {
+		dev_err(&mxc_isi->pdev->dev, "get parent device fail\n");
+		return;
+	}
 
-	sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH0, SC_PM_PW_MODE_ON);
-	if (sciErr != SC_ERR_NONE)
-		pr_err("sc_misc_MIPI reset failed! (sciError = %d)\n", sciErr);
+	for_each_available_child_of_node(parent, node) {
+		if (!strcmp(node->name, ISI_OF_NODE_NAME)) {
+			ch_id = of_alias_get_id(node, "isi");
+			chan_mask |= 1 << ch_id;
+		}
+	}
+
+	temp_mask = chan_mask;
+	for (i = 0; i < 8; i++) {
+		if (chan_mask & 0x1) {
+			sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH0 + i, SC_PM_PW_MODE_OFF);
+			if (sciErr != SC_ERR_NONE)
+				pr_err("power on ISI%d failed! (sciError = %d)\n", i, sciErr);
+		}
+		chan_mask >>= 1;
+	}
+
+	chan_mask = temp_mask;
+	for (i = 0; i < 8; i++) {
+		if (chan_mask & 0x1) {
+			sciErr = sc_pm_set_resource_power_mode(ipcHndl, SC_R_ISI_CH0 + i, SC_PM_PW_MODE_ON);
+			if (sciErr != SC_ERR_NONE)
+				pr_err("power off ISI%d failed! (sciError = %d)\n", i, sciErr);
+		}
+		chan_mask >>= 1;
+	}
 
 	udelay(500);
-
 	sc_ipc_close(mu_id);
 }
 
@@ -445,6 +471,17 @@ void mxc_isi_channel_set_crop(struct mxc_isi_dev *mxc_isi)
 	writel(val, mxc_isi->regs + CHNL_IMG_CTRL);
 }
 
+static void mxc_isi_channel_clear_scaling(struct mxc_isi_dev *mxc_isi)
+{
+	u32 val0;
+
+	writel(0x10001000, mxc_isi->regs + CHNL_SCALE_FACTOR);
+
+	val0 = readl(mxc_isi->regs + CHNL_IMG_CTRL);
+	val0 &= ~(CHNL_IMG_CTRL_DEC_X_MASK | CHNL_IMG_CTRL_DEC_Y_MASK);
+	writel(val0, mxc_isi->regs + CHNL_IMG_CTRL);
+}
+
 void mxc_isi_channel_set_scaling(struct mxc_isi_dev *mxc_isi)
 {
 	struct mxc_isi_frame *dst_f = &mxc_isi->isi_cap.dst_f;
@@ -462,6 +499,7 @@ void mxc_isi_channel_set_scaling(struct mxc_isi_dev *mxc_isi)
 	if (dst_f->height == src_f->height ||
 			dst_f->width == src_f->width) {
 		mxc_isi->scale = 0;
+		mxc_isi_channel_clear_scaling(mxc_isi);
 		dev_dbg(&mxc_isi->pdev->dev, "%s: no scale\n", __func__);
 		return;
 	}
@@ -521,6 +559,11 @@ void mxc_isi_channel_set_scaling(struct mxc_isi_dev *mxc_isi)
 	val1 = xscale | (yscale << CHNL_SCALE_FACTOR_Y_SCALE_OFFSET);
 
 	writel(val1, mxc_isi->regs + CHNL_SCALE_FACTOR);
+
+	/* Update scale config if scaling enabled */
+	val1 = dst_f->o_width | (dst_f->o_height << CHNL_SCL_IMG_CFG_HEIGHT_OFFSET);
+	writel(val1, mxc_isi->regs + CHNL_SCL_IMG_CFG);
+
 	writel(0, mxc_isi->regs + CHNL_SCALE_OFFSET);
 
 	return;
@@ -566,6 +609,9 @@ void mxc_isi_channel_config(struct mxc_isi_dev *mxc_isi)
 	/* config output frame size and format */
 	val = src_f->o_width | (src_f->o_height << CHNL_IMG_CFG_HEIGHT_OFFSET);
 	writel(val, mxc_isi->regs + CHNL_IMG_CFG);
+
+	/* scale size need to equal input size when scaling disabled*/
+	writel(val, mxc_isi->regs + CHNL_SCL_IMG_CFG);
 
 	/* check csc and scaling  */
 	mxc_isi_channel_set_csc(mxc_isi);

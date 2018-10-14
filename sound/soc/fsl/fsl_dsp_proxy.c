@@ -1,23 +1,13 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
-/*******************************************************************************
- *
- * Copyright (C) 2017 Cadence Design Systems, Inc.
- * Copyright 2018 NXP
- *
- ******************************************************************************/
-/*******************************************************************************
- * fsl_dsp_proxy.c
- *
- * DSP proxy driver
- *
- * DSP proxy driver is used to transfer messages between dsp driver
- * and dsp framework
- ******************************************************************************/
+//
+// DSP proxy driver transfers messages between DSP driver and DSP framework
+//
+// Copyright 2018 NXP
+// Copyright (C) 2017 Cadence Design Systems, Inc.
 
 #include <soc/imx8/sc/ipc.h>
 #include "fsl_dsp_proxy.h"
 #include "fsl_dsp.h"
-
 
 /* ...initialize message queue */
 void xf_msg_queue_init(struct xf_msg_queue *queue)
@@ -581,6 +571,27 @@ struct xf_message *xf_cmd_recv(struct xf_proxy *proxy,
 	return m;
 }
 
+struct xf_message *xf_cmd_recv_timeout(struct xf_proxy *proxy,
+				       wait_queue_head_t *wq,
+				       struct xf_msg_queue *queue, int wait)
+{
+	struct xf_message *m;
+	int ret;
+
+	/* ...wait for message reception (take lock on success) */
+	ret = wait_event_interruptible_timeout(*wq,
+			(m = xf_msg_received(proxy, queue)) != NULL || !wait,
+			msecs_to_jiffies(1000));
+	if (ret < 0)
+		return ERR_PTR(-EINTR);
+
+	if (ret == 0)
+		return ERR_PTR(-ETIMEDOUT);
+
+	/* ...return message with a lock taken */
+	return m;
+}
+
 /* ...helper function for synchronous command execution */
 struct xf_message *xf_cmd_send_recv(struct xf_proxy *proxy,
 							   u32 id, u32 opcode,
@@ -598,6 +609,62 @@ struct xf_message *xf_cmd_send_recv(struct xf_proxy *proxy,
 	return xf_cmd_recv(proxy, &proxy->wait, &proxy->response, 1);
 }
 
+struct xf_message *xf_cmd_send_recv_wq(struct xf_proxy *proxy, u32 id,
+				       u32 opcode, void *buffer, u32 length,
+				       wait_queue_head_t *wq,
+				       struct xf_msg_queue *queue)
+{
+	int ret;
+
+	/* ...send command to remote proxy */
+	ret = xf_cmd_send(proxy, id, opcode, buffer, length);
+	if (ret)
+		return ERR_PTR(ret);
+
+	/* ...wait for message delivery */
+	return xf_cmd_recv(proxy, wq, queue, 1);
+}
+
+struct xf_message *xf_cmd_send_recv_complete(struct xf_client *client,
+					     struct xf_proxy *proxy,
+					     u32 id, u32 opcode, void *buffer,
+					     u32 length,
+					     struct work_struct *work,
+					     struct completion *completion)
+{
+	struct xf_message *m;
+	int ret;
+
+	/* ...retrieve message handle (take the lock on success) */
+	m = xf_msg_available(proxy);
+	if (!m)
+		return ERR_PTR(-EBUSY);
+
+	/* ...fill-in message parameters (lock is taken) */
+	m->id = id;
+	m->opcode = opcode;
+	m->length = length;
+	m->buffer = buffer;
+	m->ret = 0;
+
+	init_completion(completion);
+
+	/* ...submit command to the proxy */
+	xf_proxy_command(proxy, m);
+
+	schedule_work(work);
+
+	/* ...wait for message reception (take lock on success) */
+	ret = wait_for_completion_timeout(completion,
+					  msecs_to_jiffies(1000));
+	if (!ret)
+		return ERR_PTR(-ETIMEDOUT);
+
+	m = &client->m;
+
+	/* ...return message with a lock taken */
+	return m;
+}
 /*
  * Proxy allocate and free memory functions
  */
@@ -625,6 +692,7 @@ int xf_cmd_alloc(struct xf_proxy *proxy, void **buffer, u32 length)
 
 	/* ...free message and release proxy lock */
 	xf_msg_free(proxy, m);
+	xf_unlock(&proxy->lock);
 
 	return ret;
 }
@@ -651,6 +719,7 @@ int xf_cmd_free(struct xf_proxy *proxy, void *buffer, u32 length)
 
 	/* ...free message and release proxy lock */
 	xf_msg_free(proxy, m);
+	xf_unlock(&proxy->lock);
 
 	return ret;
 }
@@ -696,4 +765,91 @@ int xf_cmd_send_resume(struct xf_proxy *proxy)
 	ret = icm_ack_wait(proxy, msghdr.allbits);
 
 	return ret;
+}
+
+/* ...open component handle */
+int xf_open(struct xf_client *client, struct xf_proxy *proxy,
+	    struct xf_handle *handle, const char *id, u32 core,
+	    xf_response_cb response)
+{
+	void *b;
+	struct xf_message   msg;
+	struct xf_message   *rmsg;
+
+	/* ...retrieve auxiliary control buffer from proxy - need I */
+	handle->aux = xf_buffer_get(proxy->aux);
+
+	b = xf_handle_aux(handle);
+
+	msg.id = __XF_MSG_ID(__XF_AP_PROXY(0), __XF_DSP_PROXY(0));
+	msg.id = XF_MSG_AP_FROM_USER(msg.id, client->id);
+	msg.opcode = XF_REGISTER;
+	msg.buffer = b;
+	msg.length = strlen(id) + 1;
+	msg.ret = 0;
+
+	/* ...copy component identifier */
+	memcpy(b, (void *)id, xf_buffer_length(handle->aux));
+
+	/* ...execute command synchronously */
+	rmsg = xf_cmd_send_recv_complete(client, proxy, msg.id, msg.opcode,
+					 msg.buffer, msg.length, &client->work,
+					 &client->compr_complete);
+
+	if (IS_ERR(rmsg)) {
+		xf_buffer_put(handle->aux), handle->aux = NULL;
+		return PTR_ERR(rmsg);
+	}
+	/* ...save received component global client-id */
+	handle->id = XF_MSG_SRC(rmsg->id);
+	/* TODO: review cleanup */
+	/* xf_msg_free(proxy, rmsg);
+	 * xf_unlock(&proxy->lock); */
+
+	/* ...if failed, release buffer handle */
+	/* ...operation completed successfully; assign handle data */
+	handle->response = response;
+	handle->proxy = proxy;
+
+	return 0;
+}
+
+/* ...close component handle */
+int xf_close(struct xf_client *client, struct xf_handle *handle)
+{
+	struct xf_proxy *proxy = handle->proxy;
+	struct xf_message   msg;
+	struct xf_message *rmsg;
+
+	/* ...do I need to take component lock here? guess no - tbd */
+
+	/* ...buffers and stuff? - tbd */
+
+	/* ...acquire global proxy lock */
+	/* ...unregister component from remote DSP proxy (ignore result code) */
+
+	msg.id = __XF_MSG_ID(__XF_AP_PROXY(0), handle->id);
+	msg.id = XF_MSG_AP_FROM_USER(msg.id, client->id);
+	msg.opcode = XF_UNREGISTER;
+	msg.buffer = NULL;
+	msg.length = 0;
+	msg.ret = 0;
+
+	/* ...execute command synchronously */
+	rmsg = xf_cmd_send_recv_complete(client, proxy, msg.id, msg.opcode,
+					 msg.buffer, msg.length, &client->work,
+					 &client->compr_complete);
+
+	if (IS_ERR(rmsg)) {
+		xf_buffer_put(handle->aux), handle->aux = NULL;
+		return PTR_ERR(rmsg);
+	}
+	/* TODO: review cleanup */
+	/* xf_msg_free(proxy, rmsg);
+	 * xf_unlock(&proxy->lock); */
+
+	/* ...wipe out proxy pointer */
+	handle->proxy = NULL;
+
+	return 0;
 }

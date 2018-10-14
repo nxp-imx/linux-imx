@@ -32,6 +32,9 @@
 #define DSP_IPC_MSG_SEND      _IOW(DSP_IOC_MAGIC, 2, unsigned int)
 #define DSP_IPC_MSG_RECV      _IOW(DSP_IOC_MAGIC, 3, unsigned int)
 #define DSP_GET_SHMEM_INFO    _IOW(DSP_IOC_MAGIC, 4, unsigned int)
+#define DSP_LOAD_LIB          _IOW(DSP_IOC_MAGIC, 5, unsigned int)
+#define DSP_UNLOAD_LIB        _IOW(DSP_IOC_MAGIC, 6, unsigned int)
+
 
 #define CODEC_MP3_DEC		1
 #define CODEC_AAC_DEC		2
@@ -42,6 +45,9 @@
 #define CODEC_SBC_DEC		7
 #define CODEC_SBC_ENC		8
 #define CODEC_DEMO_DEC		9
+
+#define RENDER_ESAI		0x10
+#define RENDER_SAI		0x11
 
 enum DSP_ERROR_TYPE {
 	XA_SUCCESS = 0,

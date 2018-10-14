@@ -85,6 +85,10 @@
 		reg = <0x0 0x5b270000 0x0 0x10000>;
 	};
 
+	usbotg3_lpcg: usbotg3_lpcg@5b280000 {
+		reg = <0x0 0x5b280000 0x0 0x1000>;
+	};
+
 	sdhc1_lpcg: sdhc1_lpcg@5b200000 {
 		compatible = "fsl,imx8qm-lpuart-lpcg";
 		reg = <0x0 0x5b200000 0x0 0x10000>;
@@ -143,6 +147,71 @@
 	mu_7_lpcg_b: lpcg@5d6b0000 {
 		compatible = "fsl,imx8qm-mu-lpcg";
 		reg = <0x0 0x5d6b0000 0x0 0x10000>;
+	};
+
+	hsio_pcie_x2_lpcg: hsio_pcie_x2_lpcg@5f050000 {
+		reg = <0x0 0x5f050000 0x0 0x10000>;
+	};
+
+	hsio_pcie_x1_lpcg: hsio_pcie_x1_lpcg@5f060000 {
+		reg = <0x0 0x5f060000 0x0 0x10000>;
+	};
+
+	hsio_phy_x2_lpcg: hsio_phy_x2_lpcg@5f080000 {
+		reg = <0x0 0x5f080000 0x0 0x10000>;
+	};
+
+	hsio_pcie_x2_crr2_lpcg: hsio_phy_x2_lpcg@5f0c0000 {
+		reg = <0x0 0x5f0c0000 0x0 0x10000>;
+	};
+
+	mipi_csi_0_lpcg: mipi_csi_0_lpcg@58223000 {
+		reg = <0x0 0x58223000 0x0 0x1000>;
+	};
+
+	img_pxl_link_csi0_lpcg: img_pxl_link_csi0_lpcg@58580000 {
+		reg = <0x0 0x58580000 0x0 0x1000>;
+	};
+
+	img_pdma_0_lpcg: img_pdma_0_lpcg@58500000 {
+		reg = <0x0 0x58500000 0x0 0x1000>;
+	};
+
+	img_pdma_1_lpcg: img_pdma_1_lpcg@58510000 {
+		reg = <0x0 0x58510000 0x0 0x1000>;
+	};
+
+	img_pdma_2_lpcg: img_pdma_2_lpcg@58520000 {
+		reg = <0x0 0x58520000 0x0 0x1000>;
+	};
+
+	img_pdma_3_lpcg: img_pdma_3_lpcg@58530000 {
+		reg = <0x0 0x58530000 0x0 0x1000>;
+	};
+
+	vpu_decoder_csr: vpu_decoder_csr@0x2d080000 {
+		reg = <0x0 0x2d080000 0x0 0x1000>;
+	};
+
+	/* hdmi */
+	di_hdmi_lpcg: di_hdmi_lpcg@0x56263000 {
+		reg = <0x0 0x56263000 0x0 0x1000>;
+	};
+
+	rx_hdmi_lpcg: rx_hdmi_lpcg@0x58263000 {
+		reg = <0x0 0x58263000 0x0 0x1000>;
+	};
+
+	img_pxl_link_hdmi_lpcg: img_pxl_link_hdmi_lpcg@0x585a0000 {
+		reg = <0x0 0x585a0000 0x0 0x1000>;
+	};
+
+	aud_hdmi_rx_sai_0_lpcg: aud_hdmi_rx_sai_0_lpcg@0x59480000 {
+		reg = <0x0 0x59480000 0x0 0x1000>;
+	};
+
+	aud_hdmi_tx_sai_0_lpcg: aud_hdmi_tx_sai_0_lpcg@0x59490000 {
+		reg = <0x0 0x59490000 0x0 0x1000>;
 	};
 };
 

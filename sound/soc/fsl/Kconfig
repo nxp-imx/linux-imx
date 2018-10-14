@@ -94,6 +94,7 @@ config SND_SOC_FSL_RPMSG_I2S
 
 config SND_SOC_FSL_DSP
 	tristate "dsp module support"
+	select SND_SOC_COMPRESS
 	help
 	  Say Y if you want to add hifi 4 support for the Freescale CPUs.
 	  which is a DSP core for audio processing.
@@ -546,6 +547,15 @@ config SND_SOC_IMX_CDNHDMI
 	  SoC Audio support for i.MX boards with CDN HDMI audio
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  IMX CDN HDMI.
+
+config SND_SOC_IMX_DSP
+	tristate "SoC Audio support for i.MX boards with DSP port"
+	select SND_SOC_FSL_DSP
+	select SND_SOC_COMPRESS
+	help
+	  SoC Audio support for i.MX boards with DSP audio
+	  Say Y if you want to add support for SoC audio on an i.MX board with
+	  IMX DSP.
 
 config SND_SOC_IMX_PDM_MIC
 	tristate "SoC Audio support for i.MX boards with PDM mic on SAI"

@@ -722,6 +722,7 @@ struct dpu_vscaler *fetchdecode_get_vscaler(struct dpu_fetchunit *fu);
 bool dpu_has_pc(struct dpu_soc *dpu);
 unsigned int dpu_get_syncmode_min_prate(struct dpu_soc *dpu);
 unsigned int dpu_get_singlemode_max_width(struct dpu_soc *dpu);
+unsigned int dpu_get_master_stream_id(struct dpu_soc *dpu);
 
 bool dpu_vproc_has_fetcheco_cap(u32 cap_mask);
 bool dpu_vproc_has_hscale_cap(u32 cap_mask);
@@ -839,6 +840,9 @@ struct dpu_client_platformdata {
 	const unsigned int	stream_id;
 	unsigned int		di_grp_id;
 	struct dpu_plane_grp	*plane_grp;
+
+	/* Store9 could be shared bewteen display engine and blit engine */
+	struct dpu_store	*st9;
 
 	struct device_node	*of_node;
 };

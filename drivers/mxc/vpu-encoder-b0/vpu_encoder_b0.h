@@ -55,14 +55,22 @@ extern unsigned int vpu_dbg_level_encoder;
 #define MEM_SIZE  0x2800000
 #define YUV_SIZE  0x4000000
 #define STREAM_SIZE 0x300000
-#ifdef CM4
-#define VPU_REG_BASE 0x2c000000
-#else
 #define VPU_REG_BASE 0x40000000
-#endif
 #define ENC_REG_BASE 0x2c000000
-#define MIN_BUFFER_COUNT 3
-#define V4L2_MAX_CTRLS 12
+
+#define MIN_BUFFER_COUNT		3
+#define BITRATE_LOW_THRESHOLD		64
+#define BITRATE_HIGH_THRESHOLD		1048576
+#define BITRATE_DEFAULT_TARGET		2048
+#define BITRATE_DEFAULT_PEAK		4096
+#define GOP_H_THRESHOLD			300
+#define GOP_L_THRESHOLD			1
+#define GOP_DEFAULT			30
+#define QP_MAX				51
+#define QP_MIN				0
+#define QP_DEFAULT			25
+
+#define ENCODER_NODE_NUMBER 13 //use /dev/video13 as encoder node
 struct vpu_v4l2_control {
 	uint32_t id;
 	enum v4l2_ctrl_type type;
@@ -180,6 +188,7 @@ struct queue_data {
 	struct vpu_v4l2_fmt *current_fmt;
 };
 struct vpu_ctx;
+struct vpu_dev;
 struct core_device {
 	struct firmware *m0_pfw;
 	void *m0_p_fw_space_vir;
@@ -194,28 +203,31 @@ struct core_device {
 	struct completion snap_done_cmp;
 	struct workqueue_struct *workqueue;
 	struct work_struct msg_work;
-	unsigned long instance_mask;
-	unsigned long hang_mask; //this is used to deal with hang issue to reset firmware
 	void __iomem *mu_base_virtaddr;
 	unsigned int vpu_mu_id;
 	int vpu_mu_init;
 
 	struct vpu_ctx *ctx[VPU_MAX_NUM_STREAMS];
 	struct shared_addr shared_mem;
+	u32 id;
+	off_t reg_fw_base;
+	struct device *generic_dev;
+	struct vpu_dev *vdev;
 };
+
 struct vpu_dev {
 	struct device *generic_dev;
 	struct v4l2_device v4l2_dev;
 	struct video_device *pvpu_encoder_dev;
 	struct platform_device *plat_dev;
-	sc_ipc_t mu_ipcHandle;
 	struct clk *clk_m0;
 	struct firmware *m0_pfw;
-	struct clk *vpu_clk;
 	void __iomem *regs_base;
+	void __iomem *regs_enc;
 	struct mutex dev_mutex;
 	struct core_device core_dev[2];
 	u_int32 plat_type;
+	u_int32 core_num;
 //	struct vpu_ctx *ctx[VPU_MAX_NUM_STREAMS];
 };
 
@@ -225,15 +237,30 @@ struct buffer_addr {
 	u_int32 size;
 };
 
+enum {
+	VPU_ENC_STATUS_CONFIGURED = 29,
+	VPU_ENC_STATUS_HANG = 30,
+	VPU_ENC_STATUS_KEY_FRAME = 31
+};
+
+struct vpu_statistic {
+	unsigned long cmd[GTB_ENC_CMD_RESERVED + 1];
+	unsigned long event[VID_API_ENC_EVENT_RESERVED + 1];
+	unsigned long current_cmd;
+	unsigned long current_event;
+	struct timespec ts_cmd;
+	struct timespec ts_event;
+};
+
 struct vpu_ctx {
 	struct vpu_dev *dev;
 	struct v4l2_fh fh;
 
-	struct v4l2_ctrl *ctrls[V4L2_MAX_CTRLS];
 	struct v4l2_ctrl_handler ctrl_handler;
 	bool ctrl_inited;
 
 	int str_index;
+	unsigned long status;
 	struct queue_data q_data[2];
 	struct kfifo msg_fifo;
 	struct mutex instance_mutex;
@@ -241,21 +268,31 @@ struct vpu_ctx {
 	struct workqueue_struct *instance_wq;
 	struct completion completion;
 	struct completion stop_cmp;
-	bool b_firstseq;
-	bool start_flag;
 	bool firmware_stopped;
 	bool ctx_released;
 	bool forceStop;
 	wait_queue_head_t buffer_wq_output;
 	wait_queue_head_t buffer_wq_input;
-	struct buffer_addr encoder_buffer;
 	struct buffer_addr encoder_stream;
 	struct buffer_addr encoder_mem;
 	struct buffer_addr encFrame[MEDIAIP_MAX_NUM_WINDSOR_SRC_FRAMES];
 	struct buffer_addr refFrame[MEDIAIP_MAX_NUM_WINDSOR_REF_FRAMES];
 	struct buffer_addr actFrame;
-	u_int32 core_id;
+	struct core_device *core_dev;
 
+	struct vpu_statistic statistic;
+	struct device_attribute dev_attr_instance;
+	char name[64];
+
+	pMEDIAIP_ENC_YUV_BUFFER_DESC yuv_buffer_desc;
+	pBUFFER_DESCRIPTOR_TYPE stream_buffer_desc;
+	pMEDIAIP_ENC_EXPERT_MODE_PARAM expert_mode_param;
+	pMEDIAIP_ENC_PARAM enc_param;
+	pMEDIAIP_ENC_MEM_POOL mem_pool;
+	pENC_ENCODING_STATUS encoding_status;
+	pENC_DSA_STATUS_t dsa_status;
+
+	MEDIAIP_ENC_PARAM actual_param;
 };
 
 #define LVL_DEBUG	4
@@ -266,7 +303,7 @@ struct vpu_ctx {
 #define LVL_ERR		0
 
 #ifndef TAG
-#define TAG	"[DEBUG]\t "
+#define TAG	"[VPU Encoder]\t "
 #endif
 
 #define vpu_dbg(level, fmt, arg...) \
@@ -274,5 +311,6 @@ struct vpu_ctx {
 		if (vpu_dbg_level_encoder >= (level)) \
 			pr_info(TAG""fmt, ## arg); \
 	} while (0)
+
 
 #endif

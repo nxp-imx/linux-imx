@@ -62,11 +62,16 @@
 #include <soc/imx8/sc/svc/irq/api.h>
 #include <soc/imx8/sc/ipc.h>
 #include <soc/imx8/sc/sci.h>
-#include "fsl_dsp.h"
 
+#include <sound/pcm.h>
+#include <sound/soc.h>
+
+#include "fsl_dsp.h"
+#include "fsl_dsp_pool.h"
+#include "fsl_dsp_xaf_api.h"
 
 /* ...allocate new client */
-static inline struct xf_client *xf_client_alloc(struct fsl_dsp *dsp_priv)
+struct xf_client *xf_client_alloc(struct fsl_dsp *dsp_priv)
 {
 	struct xf_client *client;
 	u32             id;
@@ -346,21 +351,10 @@ void resource_release(struct fsl_dsp *dsp_priv)
 	xf_proxy_init(&dsp_priv->proxy);
 }
 
-static int fsl_dsp_open(struct inode *inode, struct file *file)
+int fsl_dsp_open_func(struct fsl_dsp *dsp_priv, struct xf_client *client)
 {
-	struct fsl_dsp *dsp_priv = dev_get_drvdata(dsp_miscdev.parent);
 	struct device *dev = dsp_priv->dev;
-	struct xf_client *client;
 	int ret = 0;
-
-	/* ...basic sanity checks */
-	if (!inode || !file)
-		return -EINVAL;
-
-	/* ...allocate new proxy client object */
-	client = xf_client_alloc(dsp_priv);
-	if (IS_ERR(client))
-		return PTR_ERR(client);
 
 	/* ...initialize waiting queue */
 	init_waitqueue_head(&client->wait);
@@ -375,8 +369,7 @@ static int fsl_dsp_open(struct inode *inode, struct file *file)
 	atomic_set(&client->vm_use, 0);
 
 	client->global = (void *)dsp_priv;
-
-	file->private_data = (void *)client;
+	dsp_priv->proxy.is_loaded = 0;
 
 	pm_runtime_get_sync(dev);
 
@@ -388,30 +381,47 @@ static int fsl_dsp_open(struct inode *inode, struct file *file)
 	return ret;
 }
 
-static int fsl_dsp_close(struct inode *inode, struct file *file)
+static int fsl_dsp_open(struct inode *inode, struct file *file)
+{
+	struct fsl_dsp *dsp_priv = dev_get_drvdata(dsp_miscdev.parent);
+	struct xf_client *client;
+	int ret = 0;
+
+	/* ...basic sanity checks */
+	if (!inode || !file)
+		return -EINVAL;
+
+	/* ...allocate new proxy client object */
+	client = xf_client_alloc(dsp_priv);
+	if (IS_ERR(client))
+		return PTR_ERR(client);
+
+	fsl_dsp_open_func(dsp_priv, client);
+
+	file->private_data = (void *)client;
+
+	return ret;
+}
+
+int fsl_dsp_close_func(struct xf_client *client)
 {
 	struct fsl_dsp *dsp_priv;
 	struct device *dev;
 	struct xf_proxy *proxy;
-	struct xf_client *client;
 
 	/* ...basic sanity checks */
-	client = xf_get_client(file);
-	if (IS_ERR(client))
-		return PTR_ERR(client);
-
 	proxy = client->proxy;
-	if (proxy) {
-		/* ...release all pending messages */
-		xf_msg_free_all(proxy, &client->queue);
 
-		/* ...recycle client id and release memory */
-		xf_client_free(client);
-	}
+	/* release all pending messages */
+	if (proxy)
+		xf_msg_free_all(proxy, &client->queue);
 
 	dsp_priv = (struct fsl_dsp *)client->global;
 	dev = dsp_priv->dev;
 	pm_runtime_put_sync(dev);
+
+	/* ...recycle client id and release memory */
+	xf_client_free(client);
 
 	mutex_lock(&dsp_priv->dsp_mutex);
 	/* decrease reference counter when closing device */
@@ -423,6 +433,20 @@ static int fsl_dsp_close(struct inode *inode, struct file *file)
 		resource_release(dsp_priv);
 
 	mutex_unlock(&dsp_priv->dsp_mutex);
+
+	return 0;
+}
+
+static int fsl_dsp_close(struct inode *inode, struct file *file)
+{
+	struct xf_client *client;
+
+	/* ...basic sanity checks */
+	client = xf_get_client(file);
+	if (IS_ERR(client))
+		return PTR_ERR(client);
+
+	fsl_dsp_close_func(client);
 
 	return 0;
 }
@@ -665,10 +689,12 @@ static void dsp_load_firmware(const struct firmware *fw, void *context)
 				(!strcmp(&strtab[shdr->sh_name], ".data"))   ||
 				(!strcmp(&strtab[shdr->sh_name], ".bss"))
 			) {
-				memcpy_dsp((void *)(dsp_priv->sdram_vir_addr
-				  + (sh_addr - dsp_priv->sdram_phys_addr)),
-				  (const void *)image,
-				  shdr->sh_size);
+				if (!dsp_priv->proxy.is_loaded) {
+					memcpy_dsp((void *)(dsp_priv->sdram_vir_addr
+				  	+ (sh_addr - dsp_priv->sdram_phys_addr)),
+				  	(const void *)image,
+				  	shdr->sh_size);
+				}
 			} else {
 				/* sh_addr is from DSP view, we need to
 				 * fixup addr because we load the firmware from
@@ -687,6 +713,7 @@ static void dsp_load_firmware(const struct firmware *fw, void *context)
 	/* start the core */
 	sc_pm_cpu_start(dsp_priv->dsp_ipcHandle,
 					SC_R_DSP, true, dsp_priv->iram);
+	dsp_priv->proxy.is_loaded = 1;
 }
 
 /* Initialization of the MU code. */
@@ -740,6 +767,12 @@ static const struct file_operations dsp_fops = {
 	.poll		= fsl_dsp_poll,
 	.mmap		= fsl_dsp_mmap,
 	.release	= fsl_dsp_close,
+};
+
+extern struct snd_compr_ops dsp_platform_compr_ops;
+
+static const struct snd_soc_platform_driver dsp_soc_platform_drv  = {
+	.compr_ops      = &dsp_platform_compr_ops,
 };
 
 static int fsl_dsp_probe(struct platform_device *pdev)
@@ -912,6 +945,12 @@ static int fsl_dsp_probe(struct platform_device *pdev)
 
 	/* ...initialize mutex */
 	mutex_init(&dsp_priv->dsp_mutex);
+
+	ret = devm_snd_soc_register_platform(&pdev->dev, &dsp_soc_platform_drv);
+	if (ret) {
+		dev_err(&pdev->dev, "registering soc platform failed\n");
+		return ret;
+	}
 
 	return 0;
 }

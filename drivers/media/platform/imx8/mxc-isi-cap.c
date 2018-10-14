@@ -52,7 +52,7 @@ struct mxc_isi_fmt mxc_isi_out_formats[] = {
 		.mbus_code  = MEDIA_BUS_FMT_RGB888_1X24,
 	}, {
 		.name		= "RGB32",
-		.fourcc		= V4L2_PIX_FMT_RGB32,
+		.fourcc		= V4L2_PIX_FMT_XRGB32,
 		.depth		= { 32 },
 		.color		= MXC_ISI_OUT_FMT_XRGB32,
 		.memplanes	= 1,
@@ -957,8 +957,8 @@ static int mxc_isi_cap_streamon(struct file *file, void *priv,
 
 	dev_dbg(&mxc_isi->pdev->dev, "%s\n", __func__);
 
-	mxc_isi_channel_enable(mxc_isi);
 	ret = vb2_ioctl_streamon(file, priv, type);
+	mxc_isi_channel_enable(mxc_isi);
 	mxc_isi_pipeline_enable(mxc_isi, 1);
 
 	return ret;
@@ -972,9 +972,9 @@ static int mxc_isi_cap_streamoff(struct file *file, void *priv,
 
 	dev_dbg(&mxc_isi->pdev->dev, "%s\n", __func__);
 
+	mxc_isi_pipeline_enable(mxc_isi, 0);
 	mxc_isi_channel_disable(mxc_isi);
 	ret = vb2_ioctl_streamoff(file, priv, type);
-	mxc_isi_pipeline_enable(mxc_isi, 0);
 
 	return ret;
 }

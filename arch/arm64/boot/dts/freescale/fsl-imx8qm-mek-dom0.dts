@@ -105,7 +105,50 @@
 				SC_R_DMA_0_CH14
 				SC_R_DMA_0_CH15
 				SC_R_MU_2A
-				>;
+				/* pcie */
+				SC_R_PCIE_B
+				SC_R_PCIE_A
+				SC_R_SERDES_0
+				SC_R_HSIO_GPIO
+				/*vpu*/
+				SC_R_VPU
+				SC_R_VPU_PID0
+				SC_R_VPU_PID1
+				SC_R_VPU_PID2
+				SC_R_VPU_PID3
+				SC_R_VPU_PID4
+				SC_R_VPU_PID5
+				SC_R_VPU_PID6
+				SC_R_VPU_PID7
+				SC_R_VPU_DEC_0
+				SC_R_VPU_ENC_0
+				SC_R_VPU_ENC_1
+				SC_R_VPU_TS_0
+				SC_R_VPU_MU_0
+				SC_R_VPU_MU_1
+				SC_R_VPU_MU_2
+				SC_R_VPU_MU_3
+				/* crypto */
+				SC_R_CAAM_JR2
+				SC_R_CAAM_JR2_OUT
+				SC_R_CAAM_JR3
+				SC_R_CAAM_JR3_OUT
+				/* Camera */
+				SC_R_ISI_CH0
+				SC_R_ISI_CH1
+				SC_R_ISI_CH2
+				SC_R_ISI_CH3
+				SC_R_MIPI_0
+				SC_R_MIPI_0_PWM_0
+				SC_R_MIPI_0_I2C_0
+				SC_R_MIPI_0_I2C_1
+				SC_R_CSI_0
+				SC_R_CSI_0_PWM_0
+				SC_R_CSI_0_I2C_0
+				/* usbotg3 */
+				SC_R_USB_2
+				SC_R_USB_2_PHY
+			>;
 			pads = <
 				/* i2c1_lvds1 */
 				SC_P_LVDS1_I2C1_SCL
@@ -131,7 +174,29 @@
 				SC_P_UART1_CTS_B
 				SC_P_UART1_RTS_B
 				SC_P_QSPI1A_DQS
+				/* pciea */
+				SC_P_PCIE_CTRL0_CLKREQ_B
+				SC_P_PCIE_CTRL0_WAKE_B
+				SC_P_PCIE_CTRL0_PERST_B
+				SC_P_LVDS1_I2C0_SDA
+				SC_P_USDHC2_RESET_B
+				/*usbotgs typec */
+				SC_P_QSPI1A_SS0_B
+				SC_P_USB_SS3_TC3
+				SC_P_QSPI1A_DATA0
+				/* isl29023 */
+				SC_P_USDHC2_WP
+
 				>;
+			gpios = <&gpio1 13 GPIO_ACTIVE_LOW>,
+				<&gpio1 27 GPIO_ACTIVE_LOW>,
+				<&gpio4 6 GPIO_ACTIVE_LOW>,
+				<&gpio4 9 GPIO_ACTIVE_LOW>,
+				<&gpio4 11 GPIO_ACTIVE_HIGH>,
+				<&gpio4 19 GPIO_ACTIVE_HIGH>,
+				<&gpio4 26 GPIO_ACTIVE_HIGH>,
+				<&gpio4 27 GPIO_ACTIVE_LOW>,
+				<&gpio4 29 GPIO_ACTIVE_LOW>;
 		};
 	};
 
@@ -181,6 +246,42 @@
 		reg = <0x0 0x5d2a0000 0x0 0x10000>;
 		xen,passthrough;
 	};
+
+	decoder_boot_mem: decoder_boot_mem@0x84000000 {
+		xen,passthrough;
+		reg = <0 0x84000000 0 0x2000000>;
+	};
+
+	encoder_boot_mem: encoder_boot_mem@0x86000000 {
+		xen,passthrough;
+		reg = <0 0x86000000 0 0x2000000>;
+	};
+
+	rpmsg_reserved_mem: rpmsg_reserved_mem@90000000 {
+		reg = <0x0 0x90000000 0x0 0x400000>;
+		xen,passthrough;
+	};
+
+	decoder_rpc_mem: decoder_rpc_mem@0x90400000 {
+		xen,passthrough;
+		reg = <0 0x90400000 0 0x1000000>;
+	};
+
+	encoder_rpc_mem: encoder_rpc_mem@0x91400000 {
+		xen,passthrough;
+		reg = <0 0x91400000 0 0x1000000>;
+	};
+
+	decoder_str_mem: str_mem@0x94400000 {
+		xen,passthrough;
+		reg = <0 0x94400000 0 0x1800000>;
+	};
+
+	gpio4_dummy: gpio4_dummy@0{
+		/* Passthrough gpio4 interrupt to DomU */
+		interrupts = <GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>;
+		xen,passthrough;
+	};
 };
 
 &mu_rpmsg1 {
@@ -188,6 +289,8 @@
 };
 
 &rpmsg1 {
+	/* Let xen not create mapping form dom0 */
+	/delete-property/ reg;
 	status = "disabled";
 };
 
@@ -247,11 +350,17 @@
 			 <SC_R_DMA_0_CH15>;
 };
 
-/* SMMU */
+/*
+ * SMMU, for simplity, we put all all the resources needs to programmed
+ * for VPU under vpu_decoder node, then in cfg file only add vpu_decoder
+ * in dt_dev is enough.
+ */
 &smmu {
 	mmu-masters = <&dpu2 0x13>, <&gpu_3d1 0x15>,
 		      <&usdhc1 0x12>, <&usbotg1 0x11>,
-		      <&edma01 0x10>, <&cm41 0x09>;
+		      <&edma01 0x10>, <&cm41 0x09>, <&pciea 0x08>,
+		      <&vpu_decoder 0x7>, <&crypto 0x6>, <&isi_0 0x5>,
+		      <&usbotg3 0x4>;
 };
 
 &lvds_region2 {
@@ -272,11 +381,6 @@
 
 &ldb2 {
 	xen,passthrough;
-};
-
-&crypto {
-	/* Met CAAM failure on A0, disable it first */
-	status = "disabled";
 };
 
 &dpu2_intsteer {
@@ -399,22 +503,241 @@
 	xen,passthrough;
 };
 
+&hsio {
+	xen,passthrough;
+};
+
+&hsio_pcie_x2_lpcg {
+	xen,passthrough;
+};
+
+&hsio_phy_x2_lpcg {
+	xen,passthrough;
+};
+
+&hsio_pcie_x2_crr2_lpcg {
+	xen,passthrough;
+};
+
+&hsio_pcie_x1_lpcg {
+	xen,passthrough;
+};
+
 &pciea {
+       #stream-id-cells = <1>;
+       iommus = <&smmu>;
        xen,passthrough;
+       fsl,sc_rsrc_id = <SC_R_PCIE_A>;
 };
 
 &pcieb {
        xen,passthrough;
 };
 
+&gpio1 {
+	xen,shared;
+};
+
+&gpt0 {
+	/delete-property/ interrupts;
+	status = "disabled";
+};
+
+&gpio4 {
+	/*
+	 * Use GPT0 interrupt for hack
+	 * This could be removed when interrupt sharing be supported.
+	 */
+	interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
+	xen,domu-irq;
+	xen,shared;
+};
+
 &dsp {
        xen,passthrough;
 };
 
+&mu_m0 {
+	xen,passthrough;
+};
+
+&mu1_m0 {
+	xen,passthrough;
+};
+
+&mu2_m0 {
+	xen,passthrough;
+};
+
 &vpu_decoder {
+       #stream-id-cells = <1>;
+       iommus = <&smmu>;
        xen,passthrough;
+       fsl,sc_rsrc_id = <SC_R_VPU>,
+			<SC_R_VPU_PID0>,
+			<SC_R_VPU_PID1>,
+			<SC_R_VPU_PID2>,
+			<SC_R_VPU_PID3>,
+			<SC_R_VPU_PID4>,
+			<SC_R_VPU_PID5>,
+			<SC_R_VPU_PID6>,
+			<SC_R_VPU_PID7>,
+			<SC_R_VPU_DEC_0>,
+			<SC_R_VPU_ENC_0>,
+			<SC_R_VPU_ENC_1>,
+			<SC_R_VPU_TS_0>,
+			<SC_R_VPU_MU_0>,
+			<SC_R_VPU_MU_1>,
+			<SC_R_VPU_MU_2>,
+			<SC_R_VPU_MU_3>;
+};
+
+&vpu_decoder_csr {
+	xen,passthrough;
 };
 
 &vpu_encoder {
+       iommus = <&smmu>;
+       #stream-id-cells = <1>;
        xen,passthrough;
+};
+
+&crypto {
+	xen,passthrough;
+	iommus = <&smmu>;
+	#stream-id-cells = <1>;
+	/* JR1 is not used by Linux */
+	fsl,sc_rsrc_id = <SC_R_CAAM_JR2>, <SC_R_CAAM_JR2_OUT>,
+			 <SC_R_CAAM_JR3>, <SC_R_CAAM_JR3_OUT>;
+};
+
+&sec_jr2 {
+	xen,passthrough;
+};
+
+&sec_jr3 {
+	xen,passthrough;
+};
+
+&caam_sm {
+	xen,passthrough;
+};
+
+&i2c0 {
+	isl29023@44 {
+		xen,passthrough;
+	};
+
+	fxos8700@1e {
+		xen,passthrough;
+	};
+
+	fxas2100x@20 {
+		xen,passthrough;
+	};
+
+	mpl3115@60 {
+		xen,passthrough;
+	};
+
+	typec_ptn5110: typec@50 {
+		xen,passthrough;
+	};
+};
+
+/* Camera */
+&img_pdma_0_lpcg {
+	xen,passthrough;
+};
+
+&img_pdma_1_lpcg {
+	xen,passthrough;
+};
+
+&img_pdma_2_lpcg {
+	xen,passthrough;
+};
+
+&img_pdma_3_lpcg {
+	xen,passthrough;
+};
+
+&mipi_csi_0_lpcg {
+	xen,passthrough;
+};
+
+&img_pxl_link_csi0_lpcg {
+	xen,passthrough;
+};
+
+&gpio0_mipi_csi0 {
+	xen,passthrough;
+};
+
+&irqsteer_csi0 {
+	xen,passthrough;
+};
+
+&isi_0 {
+	xen,passthrough;
+	#stream-id-cells = <1>;
+	iommus = <&smmu>;
+	fsl,sc_rsrc_id = <SC_R_ISI_CH0>,
+			 <SC_R_ISI_CH1>,
+			 <SC_R_ISI_CH2>,
+			 <SC_R_ISI_CH3>;
+};
+
+&isi_1 {
+	xen,passthrough;
+};
+
+&isi_2 {
+	xen,passthrough;
+};
+
+&isi_3 {
+	xen,passthrough;
+};
+
+&mipi_csi_0 {
+	xen,passthrough;
+};
+
+&i2c0_mipi_csi0 {
+	xen,passthrough;
+};
+
+&isi_4 {
+	status = "okay";
+};
+
+&isi_5 {
+	status = "okay";
+};
+
+&isi_6 {
+	status = "okay";
+};
+
+&isi_7 {
+	status = "okay";
+};
+
+&mipi_csi_1 {
+	status = "okay";
+};
+
+&i2c0_mipi_csi1 {
+	status = "okay";
+};
+
+&usbotg3_lpcg {
+	xen,passthrough;
+};
+
+&usbotg3 {
+	xen,passthrough;
+	#stream-id-cells = <1>;
+	iommus = <&smmu>;
 };

@@ -108,6 +108,7 @@ void dpu_be_configure_prefetch(struct dpu_bliteng *dpu_be,
 			       u64 baddr, u64 uv_addr)
 {
 	struct dprc *dprc;
+	bool dprc_en=false;
 
 	/* Enable DPR, dprc1 is connected to plane0 */
 	dprc = dpu_be->dprc[1];
@@ -131,6 +132,13 @@ void dpu_be_configure_prefetch(struct dpu_bliteng *dpu_be,
 		return;
 	}
 
+	if (dpu_be->modifier != modifier && !dpu_be->start) {
+		dprc_disable(dprc);
+		dprc_en = true;
+	}
+
+	dpu_be->modifier = modifier;
+
 	dprc_configure(dprc, 0,
 		       width, height,
 		       x_offset, y_offset,
@@ -140,7 +148,7 @@ void dpu_be_configure_prefetch(struct dpu_bliteng *dpu_be,
 		       dpu_be->start,
 		       false);
 
-	if (dpu_be->start) {
+	if (dpu_be->start || dprc_en) {
 		dprc_enable(dprc);
 	}
 
@@ -191,13 +199,6 @@ EXPORT_SYMBOL(dpu_bliteng_set_dev);
 int dpu_be_get(struct dpu_bliteng *dpu_be)
 {
 	mutex_lock(&dpu_be->mutex);
-	if (dpu_be->inuse) {
-		mutex_unlock(&dpu_be->mutex);
-		return -EBUSY;
-	}
-
-	dpu_be->inuse = true;
-	mutex_unlock(&dpu_be->mutex);
 
 	return 0;
 }
@@ -205,10 +206,6 @@ EXPORT_SYMBOL(dpu_be_get);
 
 void dpu_be_put(struct dpu_bliteng *dpu_be)
 {
-	mutex_lock(&dpu_be->mutex);
-
-	dpu_be->inuse = false;
-
 	mutex_unlock(&dpu_be->mutex);
 }
 EXPORT_SYMBOL(dpu_be_put);
@@ -414,6 +411,8 @@ int dpu_bliteng_init(struct dpu_bliteng *dpu_bliteng)
 
 	dpu_bliteng->start = true;
 	dpu_bliteng->sync = false;
+
+	dpu_bliteng->modifier = 0;
 
 	return 0;
 }

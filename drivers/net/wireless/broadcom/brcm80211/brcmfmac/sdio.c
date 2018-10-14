@@ -33,7 +33,6 @@
 #include <linux/bcma/bcma.h>
 #include <linux/debugfs.h>
 #include <linux/vmalloc.h>
-#include <uapi/linux/sched/types.h>
 #include <asm/unaligned.h>
 #include <defs.h>
 #include <brcmu_wifi.h>
@@ -330,15 +329,6 @@ struct rte_console {
 static void brcmf_sdio_firmware_callback(struct device *dev, int err,
 					 const struct firmware *code,
 					 void *nvram, u32 nvram_len);
-
-/*
- * Conversion of 802.1D priority to precedence level
- */
-static uint prio2prec(u32 prio)
-{
-	return (prio == PRIO_8021D_NONE || prio == PRIO_8021D_BE) ?
-	       (prio^2) : prio;
-}
 
 #ifdef DEBUG
 /* Device console log buffer state */
@@ -2706,17 +2696,8 @@ static void brcmf_sdio_dpc(struct brcmf_sdio *bus)
 	uint txlimit = bus->txbound;	/* Tx frames to send before resched */
 	uint framecnt;			/* Temporary counter of tx/rx frames */
 	int err = 0;
-	struct sched_param param;
-	struct brcmf_pub *drvr = bus->sdiodev->bus_if->drvr;
-	int sdio_dpc_prio = drvr->settings->sdio_dpc_prio;
 
 	brcmf_dbg(TRACE, "Enter\n");
-
-	if (sdio_dpc_prio > 0) {
-		param.sched_priority = (sdio_dpc_prio < MAX_RT_PRIO) ?
-				  sdio_dpc_prio : (MAX_RT_PRIO - 1);
-		sched_setscheduler(current, SCHED_FIFO, &param);
-	}
 
 	sdio_claim_host(bus->sdiodev->func[1]);
 
@@ -2936,7 +2917,13 @@ static int brcmf_sdio_bus_txdata(struct device *dev, struct sk_buff *pkt)
 	skb_push(pkt, bus->tx_hdrlen);
 	/* precondition: IS_ALIGNED((unsigned long)(pkt->data), 2) */
 
-	prec = prio2prec((pkt->priority & PRIOMASK));
+	/* In WLAN, priority is always set by the AP using WMM parameters
+	 * and this need not always follow the standard 802.1d priority.
+	 * Based on AP WMM config, map from 802.1d priority to corresponding
+	 * precedence level.
+	 */
+	prec = brcmf_map_prio_to_prec(bus_if->drvr->config,
+				      (pkt->priority & PRIOMASK));
 
 	/* Check for existing queue, current flow-control,
 			 pending event, or pending clock */
@@ -3535,13 +3522,20 @@ static void brcmf_sdio_sr_init(struct brcmf_sdio *bus)
 
 	if (bus->ci->chip == CY_CC_43012_CHIP_ID) {
 		wakeupctrl = SBSDIO_FUNC1_WCTRL_ALPWAIT_SHIFT;
-		cardcap = SDIO_CCCR_BRCM_CARDCAP_CMD_NODEC;
 		chipclkcsr = SBSDIO_HT_AVAIL_REQ;
 	} else {
 		wakeupctrl = SBSDIO_FUNC1_WCTRL_HTWAIT_SHIFT;
-		cardcap = (SDIO_CCCR_BRCM_CARDCAP_CMD14_SUPPORT |
-				   SDIO_CCCR_BRCM_CARDCAP_CMD14_EXT);
 		chipclkcsr = SBSDIO_FORCE_HT;
+	}
+
+	if (bus->ci->chip == CY_CC_43012_CHIP_ID ||
+	    bus->ci->chip == BRCM_CC_4339_CHIP_ID ||
+	    bus->ci->chip == BRCM_CC_4354_CHIP_ID ||
+	    bus->ci->chip == BRCM_CC_4345_CHIP_ID) {
+		cardcap = SDIO_CCCR_BRCM_CARDCAP_CMD_NODEC;
+	} else {
+		cardcap = (SDIO_CCCR_BRCM_CARDCAP_CMD14_SUPPORT |
+			   SDIO_CCCR_BRCM_CARDCAP_CMD14_EXT);
 	}
 
 	val = brcmf_sdiod_regrb(bus->sdiodev, SBSDIO_FUNC1_WAKEUPCTRL, &err);
@@ -4391,9 +4385,21 @@ struct brcmf_sdio *brcmf_sdio_probe(struct brcmf_sdio_dev *sdiodev)
 	bus->txminmax = BRCMF_TXMINMAX;
 	bus->tx_seq = SDPCM_SEQ_WRAP - 1;
 
+	/* attempt to attach to the dongle */
+	if (!(brcmf_sdio_probe_attach(bus))) {
+		brcmf_err("brcmf_sdio_probe_attach failed\n");
+		goto fail;
+	}
+
 	/* single-threaded workqueue */
-	wq = alloc_ordered_workqueue("brcmf_wq/%s", WQ_MEM_RECLAIM,
-				     dev_name(&sdiodev->func[1]->dev));
+	if (sdiodev->settings->sdio_wq_highpri) {
+		wq = alloc_workqueue("brcmf_wq/%s",
+				     WQ_HIGHPRI | WQ_MEM_RECLAIM | WQ_UNBOUND,
+				     1, dev_name(&sdiodev->func[1]->dev));
+	} else {
+		wq = alloc_ordered_workqueue("brcmf_wq/%s", WQ_MEM_RECLAIM,
+					     dev_name(&sdiodev->func[1]->dev));
+	}
 	if (!wq) {
 		brcmf_err("insufficient memory to create txworkqueue\n");
 		goto fail;
@@ -4401,12 +4407,6 @@ struct brcmf_sdio *brcmf_sdio_probe(struct brcmf_sdio_dev *sdiodev)
 	brcmf_sdiod_freezer_count(sdiodev);
 	INIT_WORK(&bus->datawork, brcmf_sdio_dataworker);
 	bus->brcmf_wq = wq;
-
-	/* attempt to attach to the dongle */
-	if (!(brcmf_sdio_probe_attach(bus))) {
-		brcmf_err("brcmf_sdio_probe_attach failed\n");
-		goto fail;
-	}
 
 	spin_lock_init(&bus->rxctl_lock);
 	spin_lock_init(&bus->txq_lock);
