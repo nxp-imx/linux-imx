@@ -9,6 +9,7 @@ menuconfig ARCH_MXC
 	select PM_OPP if PM
 	select SOC_BUS
 	select SRAM
+	select select CLKSRC_MMIO
 	help
 	  Support for Freescale MXC/iMX-based family of processors
 

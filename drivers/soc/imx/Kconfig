@@ -3,6 +3,7 @@ menu "i.MX SoC drivers"
 menuconfig ARCH_MXC_ARM64
 	bool "NXP i.MX family"
 	depends on ARM64
+	select CLKSRC_MMIO
 	help
 	  Support for NXP MXC/iMX-based ARM64 family of processors
 
