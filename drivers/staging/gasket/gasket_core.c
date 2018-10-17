@@ -1347,6 +1347,7 @@ static const struct file_operations gasket_file_ops = {
 	.open = gasket_open,
 	.release = gasket_release,
 	.unlocked_ioctl = gasket_ioctl,
+	.compat_ioctl = gasket_ioctl,
 };
 
 /* Perform final init and marks the device as active. */

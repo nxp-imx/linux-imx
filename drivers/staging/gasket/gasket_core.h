@@ -17,6 +17,12 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 
+#define writeq_relaxed writeq
+#define writeq(__value, __reg) \
+  (*(volatile u64 __force *)(__reg) = (cpu_to_le64(__value)))
+#define readq_relaxed readq
+#define readq(__reg) le64_to_cpu(*(volatile u64 __force *)(__reg))
+
 #include "gasket_constants.h"
 
 /**
@@ -576,7 +582,7 @@ const char *gasket_num_name_lookup(uint num,
 				   const struct gasket_num_name *table);
 
 /* Handy inlines */
-static inline ulong gasket_dev_read_64(struct gasket_dev *gasket_dev, int bar,
+static inline u64 gasket_dev_read_64(struct gasket_dev *gasket_dev, int bar,
 				       ulong location)
 {
 	return readq_relaxed(&gasket_dev->bar_data[bar].virt_base[location]);
