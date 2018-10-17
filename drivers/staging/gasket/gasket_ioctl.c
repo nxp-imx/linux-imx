@@ -191,6 +191,7 @@ static int gasket_config_coherent_allocator(
 {
 	int ret;
 	struct gasket_coherent_alloc_config_ioctl ibuf;
+	dma_addr_t dma_address;
 
 	if (copy_from_user(&ibuf, argp,
 			   sizeof(struct gasket_coherent_alloc_config_ioctl)))
@@ -206,16 +207,21 @@ static int gasket_config_coherent_allocator(
 		return -ENOMEM;
 
 	if (ibuf.enable == 0) {
+		dma_address = ibuf.dma_address;
 		ret = gasket_free_coherent_memory(gasket_dev, ibuf.size,
-						  ibuf.dma_address,
+						  dma_address,
 						  ibuf.page_table_index);
 	} else {
 		ret = gasket_alloc_coherent_memory(gasket_dev, ibuf.size,
-						   &ibuf.dma_address,
+						   &dma_address,
 						   ibuf.page_table_index);
 	}
 	if (ret)
 		return ret;
+
+	if (ibuf.enable != 0)
+		ibuf.dma_address = dma_address;
+
 	if (copy_to_user(argp, &ibuf, sizeof(ibuf)))
 		return -EFAULT;
 

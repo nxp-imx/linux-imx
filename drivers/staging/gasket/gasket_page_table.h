@@ -106,7 +106,7 @@ int gasket_page_table_map(struct gasket_page_table *page_table, ulong host_addr,
  * Description: The inverse of gasket_map_pages. Unmaps pages from the device.
  */
 void gasket_page_table_unmap(struct gasket_page_table *page_table,
-			     ulong dev_addr, uint num_pages);
+			     u64 dev_addr, uint num_pages);
 
 /*
  * Unmap ALL host pages from device memory.
@@ -146,7 +146,7 @@ void gasket_page_table_garbage_collect(struct gasket_page_table *page_table);
  *              and offset are returned through the pointers, if successful.
  */
 int gasket_page_table_lookup_page(struct gasket_page_table *page_table,
-				  ulong dev_addr, struct page **page,
+				  u64 dev_addr, struct page **page,
 				  ulong *poffset);
 
 /*
@@ -179,7 +179,7 @@ bool gasket_page_table_are_addrs_bad(struct gasket_page_table *page_table,
  * Returns true if the address is bad, false otherwise.
  */
 bool gasket_page_table_is_dev_addr_bad(struct gasket_page_table *page_table,
-				       ulong dev_addr, ulong bytes);
+				       u64 dev_addr, ulong bytes);
 
 /*
  * Gets maximum size for the given page table.
