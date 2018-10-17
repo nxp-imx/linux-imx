@@ -71,7 +71,8 @@ __adf_os_mem_free(void *buf)
     kfree(buf);
 }
 
-
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
 static inline void *
 __adf_os_mem_alloc_consistent(
     adf_os_device_t osdev, adf_os_size_t size, adf_os_dma_addr_t *paddr, adf_os_dma_context_t memctx)
@@ -101,6 +102,7 @@ __adf_os_mem_alloc_consistent(
     return alloc_mem;
 #endif
 }
+#pragma GCC diagnostic pop
 
 static inline void
 __adf_os_mem_free_consistent(
