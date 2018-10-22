@@ -81,12 +81,12 @@
 	clock-frequency = <1000000>;
 };
 
-&i2c0_mipi_csi1 {
-	clock-frequency = <1000000>;
+&i2c0_hdmi {
+	status = "disabled";
 };
 
-&i2c0_mipi_dsi0 {
-	clock-frequency = <1000000>;
+&i2c1_lvds0 {
+	status = "disabled";
 };
 
 &can_rpmsg {
@@ -160,10 +160,50 @@
 	};
 };
 
-&i2c0_hdmi {
-	clock-frequency = <1000000>;
+&lvds0_pwm {
+	status = "disabled";
 };
 
-&i2c1_lvds0 {
-	clock-frequency = <400000>;
+&ldb1_phy {
+	status = "disabled";
+};
+
+&ldb1 {
+	status = "disabled";
+};
+
+&mipi_dsi_phy1 {
+	status = "disabled";
+};
+
+&mipi_dsi1 {
+	status = "disabled";
+};
+
+&mipi_dsi_bridge1 {
+	status = "disabled";
+};
+
+&usdhc2 {
+	status = "disabled";
+};
+
+&amix {
+	status = "disabled";
+};
+
+&asrc0 {
+	status = "disabled";
+};
+
+&flexspi0 {
+	status = "disabled";
+};
+
+&i2c0_mipi_csi1 {
+	status = "disabled";
+};
+
+&i2c0_mipi_dsi0 {
+	status = "disabled";
 };

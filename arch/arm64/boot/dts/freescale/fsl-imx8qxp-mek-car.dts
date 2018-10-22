@@ -143,6 +143,42 @@
 	};
 };
 
+&pwm_mipi_lvds1 {
+	status = "disabled";
+};
+
+&ldb2_phy {
+	status = "disabled";
+};
+
+&ldb2 {
+	status = "disabled";
+};
+
+&mipi_dsi_phy2 {
+	status = "disabled";
+};
+
+&mipi_dsi2 {
+	status = "disabled";
+};
+
+&mipi_dsi_bridge2 {
+	status = "disabled";
+};
+
+&usdhc2 {
+	status = "disabled";
+};
+
+&amix {
+	status = "disabled";
+};
+
+&asrc0 {
+	status = "disabled";
+};
+
 &i2c0_mipi_lvds1 {
-	clock-frequency = <400000>;
+	status = "disabled";
 };
