@@ -26,6 +26,7 @@
 #include <linux/extcon.h>
 #include <soc/imx8/sc/sci.h>
 #include <linux/slab.h>
+#include <linux/of_platform.h>
 
 #define RPMSG_TIMEOUT 1000
 #define REGISTER_PERIOD 50
@@ -65,6 +66,7 @@ struct can_rpmsg_data {
 struct rpmsg_can_drvdata {
 	struct rpmsg_device *rpdev;
 	struct device *dev;
+	struct device *virtual_can_dev;
 	struct can_rpmsg_data *msg;
 	struct pm_qos_request pm_qos_req;
 	struct delayed_work can_register_work;
@@ -167,6 +169,17 @@ void open_power_domain(void)
 	}
 }
 
+static void notice_evs_released(struct rpmsg_device *rpdev)
+{
+	int count = of_get_available_child_count(can_rpmsg->virtual_can_dev->of_node);
+	if (count) {
+		if (of_platform_populate(can_rpmsg->virtual_can_dev->of_node,
+			NULL, NULL, can_rpmsg->virtual_can_dev)) {
+			dev_err(&rpdev->dev, "failed to populate child nodes\n");
+		}
+	}
+}
+
 /*can_rpmsg_cb is called once get rpmsg from M4*/
 static int can_rpmsg_cb(struct rpmsg_device *rpdev,
 	void *data, int len, void *priv, u32 src)
@@ -176,8 +189,10 @@ static int can_rpmsg_cb(struct rpmsg_device *rpdev,
 	can_rpmsg->msg = msg;
 	if (msg->header.cmd == CAN_RPMSG_REGISTER) {
 		complete(&can_rpmsg->cmd_complete);
-		if (msg->retcode == 0)
+		if (msg->retcode == 0) {
 			open_power_domain();
+			notice_evs_released(rpdev);
+		}
 #ifdef CONFIG_EXTCON
 		if (msg->retcode == 0)
 			extcon_set_state_sync(rg_edev, EXTCON_CAN_RPMSG_REGISTER, 1);
@@ -347,6 +362,7 @@ static int virtual_can_probe(struct platform_device *pdev)
 		goto out_free_mem;
 	}
 	can_rpmsg = ddata;
+	can_rpmsg->virtual_can_dev = dev;
 	platform_set_drvdata(pdev, ddata);
 
 	can_rpmsg_class = class_create(THIS_MODULE, "can_rpmsg");

@@ -30,6 +30,9 @@
 	};
 };
 
+/delete-node/ &i2c1_lvds1;
+/delete-node/ &i2c0_mipi_csi0;
+
 &iomuxc {
 	imx8qm-mek {
 		pinctrl_lvds0_gpio: lvds0gpiogrp {
@@ -43,12 +46,6 @@
 				SC_P_MIPI_CSI0_GPIO0_01_LSIO_GPIO1_IO28		0x00000021
 			>;
 		};
-	};
-};
-
-&i2c1_lvds1 {
-	lvds-to-hdmi-bridge@4c {
-		reset-gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
 	};
 };
 
@@ -80,9 +77,8 @@
 	clock-frequency = <1000000>;
 };
 
-&i2c0_mipi_csi0 {
+&i2c0_mipi_dsi1 {
 	clock-frequency = <1000000>;
-	pinctrl-0 = <&pinctrl_mipi_csi0_en>;
 };
 
 &i2c0_mipi_csi1 {
@@ -93,8 +89,75 @@
 	clock-frequency = <1000000>;
 };
 
-&i2c0_mipi_dsi1 {
-	clock-frequency = <1000000>;
+&can_rpmsg {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	status = "okay";
+	ranges;
+	i2c0_mipi_csi0: i2c@58226000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx8qm-lpi2c";
+		reg = <0x0 0x58226000 0x0 0x1000>;
+		interrupts = <8 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&irqsteer_csi0>;
+		clocks = <&clk IMX8QM_CSI0_I2C0_CLK>,
+			 <&clk IMX8QM_CSI0_I2C0_IPG_CLK>;
+		clock-names = "per", "ipg";
+		assigned-clocks = <&clk IMX8QM_CSI0_I2C0_CLK>;
+		assigned-clock-rates = <24000000>;
+		power-domains = <&pd_csi0_i2c0>;
+		pinctrl-names = "default";
+		status = "okay";
+		clock-frequency = <1000000>;
+		pinctrl-0 = <&pinctrl_mipi_csi0_en>;
+		max9286_mipi@6A	 {
+			compatible = "maxim,max9286_mipi";
+			reg = <0x6A>;
+			clocks = <&clk IMX8QM_CLK_DUMMY>;
+			clock-names = "capture_mclk";
+			mclk = <27000000>;
+			mclk_source = <0>;
+			pwn-gpios = <&gpio1 27 GPIO_ACTIVE_HIGH>;
+			virtual-channel;
+			port {
+				max9286_0_ep: endpoint {
+				remote-endpoint = <&mipi_csi0_ep>;
+				data-lanes = <1 2 3 4>;
+				};
+			};
+		};
+	};
+	i2c1_lvds1: i2c@57247000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx8qm-lpi2c";
+		reg = <0x0 0x57247000 0x0 0x1000>;
+		interrupts = <9 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&irqsteer_lvds1>;
+		clocks = <&clk IMX8QM_LVDS1_I2C0_CLK>,
+			 <&clk IMX8QM_LVDS1_I2C0_IPG_CLK>;
+		clock-names = "per", "ipg";
+		assigned-clocks = <&clk IMX8QM_LVDS1_I2C0_CLK>;
+		assigned-clock-rates = <24000000>;
+		power-domains = <&pd_lvds1_i2c0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lvds1_lpi2c1>;
+		clock-frequency = <400000>;
+		status = "okay";
+		lvds-to-hdmi-bridge@4c {
+			reset-gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
+			compatible = "ite,it6263";
+			reg = <0x4c>;
+			port {
+				it6263_1_in: endpoint {
+					clock-lanes = <3>;
+					data-lanes = <0 1 2 4>;
+					remote-endpoint = <&lvds1_out>;
+				};
+			};
+		};
+	};
 };
 
 &i2c0_hdmi {
@@ -103,12 +166,4 @@
 
 &i2c1_lvds0 {
 	clock-frequency = <400000>;
-};
-
-&i2c1_lvds1 {
-	clock-frequency = <400000>;
-};
-
-&can_rpmsg {
-	status = "okay";
 };

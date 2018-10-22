@@ -30,6 +30,9 @@
 	};
 };
 
+/delete-node/ &i2c0_mipi_lvds0;
+/delete-node/ &i2c0_csi0;
+
 &i2c0 {
 	clock-frequency = <1000000>;
 };
@@ -50,18 +53,96 @@
 	clock-frequency = <1000000>;
 };
 
-&i2c0_csi0 {
-	clock-frequency = <1000000>;
-};
+&can_rpmsg {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	status = "okay";
+	ranges;
+	i2c@56226000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx8qxp-lpi2c", "fsl,imx8qm-lpi2c";
+		reg = <0x0 0x56226000 0x0 0x1000>;
+		interrupts = <8 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&irqsteer_mipi_lvds0>;
+		clocks = <&clk IMX8QXP_MIPI0_I2C0_CLK>,
+			 <&clk IMX8QXP_MIPI0_I2C0_IPG_CLK>;
+		clock-names = "per", "ipg";
+		assigned-clocks = <&clk IMX8QXP_MIPI0_I2C0_DIV>;
+		assigned-clock-rates = <24000000>;
+		power-domains = <&pd_mipi_dsi_0_i2c0>;
+		clock-frequency = <400000>;
+		status = "okay";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_i2c0_mipi_lvds0>;
 
-&i2c0_mipi_lvds0 {
-	clock-frequency = <400000>;
+		lvds-to-hdmi-bridge@4c {
+			compatible = "ite,it6263";
+			reg = <0x4c>;
+			reset-gpios = <&pca9557_a 6 GPIO_ACTIVE_LOW>;
+
+			port {
+				it6263_0_in: endpoint {
+					clock-lanes = <4>;
+					data-lanes = <0 1 2 3>;
+					remote-endpoint = <&lvds0_out>;
+				};
+			};
+		};
+
+		adv_bridge1: adv7535@3d {
+			compatible = "adi,adv7535", "adi,adv7533";
+			reg = <0x3d>;
+			adi,dsi-lanes = <4>;
+			adi,dsi-channel = <1>;
+			status = "okay";
+
+			port {
+				adv7535_1_in: endpoint {
+					remote-endpoint = <&mipi_dsi_bridge1_out>;
+				};
+			};
+		};
+	};
+
+	i2c@58226000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx8qm-lpi2c";
+		reg = <0x0 0x58226000 0x0 0x1000>;
+		interrupts = <8 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&irqsteer_csi>;
+		clocks = <&clk IMX8QXP_CSI0_I2C0_CLK>,
+			<&clk IMX8QXP_CSI0_I2C0_IPG_CLK>;
+		clock-names = "per", "ipg";
+		assigned-clocks = <&clk IMX8QXP_CSI0_I2C0_CLK>;
+		assigned-clock-rates = <24000000>;
+		power-domains = <&pd_mipi_csi_i2c0>;
+		clock-frequency = <1000000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_csi0_lpi2c0>;
+		status = "okay";
+
+		max9286_mipi@6A	 {
+			compatible = "maxim,max9286_mipi";
+			reg = <0x6A>;
+			clocks = <&clk IMX8QXP_CLK_DUMMY>;
+			clock-names = "capture_mclk";
+			mclk = <27000000>;
+			mclk_source = <0>;
+			pwn-gpios = <&gpio3 7 GPIO_ACTIVE_HIGH>;
+			virtual-channel;
+			status = "okay";
+			port {
+				max9286_0_ep: endpoint {
+				remote-endpoint = <&mipi_csi0_ep>;
+				data-lanes = <1 2 3 4>;
+				};
+			};
+		};
+	};
 };
 
 &i2c0_mipi_lvds1 {
 	clock-frequency = <400000>;
-};
-
-&can_rpmsg {
-	status = "okay";
 };
