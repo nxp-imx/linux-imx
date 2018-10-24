@@ -1091,6 +1091,15 @@
 			>;
 		};
 
+		/* change MUXing on SD2 slot for control signals. */
+		pinctrl_usdhc2_2: usdhc2grp-2 {
+			fsl,pins = <
+				MX6SX_PAD_SD2_CMD__USDHC2_CMD        0x17059
+				MX6SX_PAD_SD2_CLK__USDHC2_CLK        0x10059
+				MX6SX_PAD_SD2_DATA0__USDHC2_DATA0    0x17059
+			>;
+		};
+
 		pinctrl_usdhc3: usdhc3grp {
 			fsl,pins = <
 				MX6SX_PAD_SD3_CMD__USDHC3_CMD		0x170b9

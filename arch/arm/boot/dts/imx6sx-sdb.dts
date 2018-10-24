@@ -99,6 +99,16 @@
 	fsl,tx-d-cal = <106>;
 };
 
+&usdhc2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_usdhc2_2>;
+	bus-width = <1>;
+};
+
+&vcc_sd3 {
+	regulator-always-on;
+};
+
 &usdhc3 {
 	#address-cells = <1>;
 	#size-cells = <0>;

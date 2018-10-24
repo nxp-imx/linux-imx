@@ -304,14 +304,12 @@
 
 	leds {
 		compatible = "gpio-leds";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_gpio_leds>;
+		status = "disabled";
+	};
 
-		charger-led {
-			gpios = <&gpio1 2 0>;
-			linux,default-trigger = "max8903-charger-charging";
-			retain-state-suspended;
-		};
+	usdhc2_pwrseq: usdhc2_pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		reset-gpios = <&gpio4 7 GPIO_ACTIVE_LOW>;
 	};
 
 	v4l2_cap_0 {
@@ -1001,7 +999,6 @@
 	gpio_leds {
 		pinctrl_gpio_leds: gpioledsgrp {
 			fsl,pins = <
-				MX6QDL_PAD_GPIO_2__GPIO1_IO02 0x1b0b0
 			>;
 		};
 	};
@@ -1149,18 +1146,16 @@
 };
 
 &usdhc2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc2>;
 	bus-width = <4>;
-	cd-gpios = <&gpio2 2 GPIO_ACTIVE_LOW>;
-	wp-gpios = <&gpio2 3 GPIO_ACTIVE_HIGH>;
+	mmc-pwrseq = <&usdhc2_pwrseq>;
 	no-1-8-v;
-	wifi-host;
-	pm-ignore-notify;
-	keep-power-in-suspend;
-	enable-sdio-wakeup;
 	non-removable;
-	cd-post;
+	pm-ignore-notify;
+	cap-power-off-card;
 	status = "okay";
 
 	brcmf: bcrmf@1 {
