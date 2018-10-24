@@ -1690,6 +1690,7 @@ gckKERNEL_SetVidMemMetadata(
     }
     else
     {
+#ifdef ANDROID
         if (nodeObj->metadata.ts_address == 0 && nodeObj->tsNode != NULL)
         {
             gctUINT32 Address = 0;
@@ -1710,6 +1711,25 @@ gckKERNEL_SetVidMemMetadata(
                     gcvSURF_TYPE_UNKNOWN,
                     gcvNULL));
         }
+#else
+        nodeObj->metadata.ts_fd             = Interface->u.SetVidMemMetadata.ts_fd;
+
+        if (nodeObj->metadata.ts_fd >= 0)
+        {
+            nodeObj->metadata.ts_dma_buf    = dma_buf_get(nodeObj->metadata.ts_fd);
+
+            if (IS_ERR(nodeObj->metadata.ts_dma_buf))
+            {
+                gcmkONERROR(gcvSTATUS_NOT_FOUND);
+            }
+
+            dma_buf_put(nodeObj->metadata.ts_dma_buf);
+        }
+        else
+        {
+            nodeObj->metadata.ts_dma_buf    = NULL;
+        }
+#endif
 
         nodeObj->metadata.fc_enabled        = Interface->u.SetVidMemMetadata.fc_enabled;
         nodeObj->metadata.fc_value          = Interface->u.SetVidMemMetadata.fc_value;
@@ -2311,6 +2331,9 @@ gckKERNEL_Dispatch(
 
     case gcvHAL_QUERY_CHIP_FREQUENCY:
         /* Query chip clock. */
+        gcmkONERROR(
+            gckHARDWARE_QueryFrequency(Kernel->hardware));
+
         Interface->u.QueryChipFrequency.mcClk = Kernel->hardware->mcClk;
         Interface->u.QueryChipFrequency.shClk = Kernel->hardware->shClk;
         break;
@@ -2535,12 +2558,15 @@ gckKERNEL_Dispatch(
         break;
 
     case gcvHAL_EVENT_COMMIT:
-        gcmkONERROR(gckOS_AcquireMutex(Kernel->os,
-            Kernel->device->commitMutex,
-            gcvINFINITE
-            ));
+        if (!Interface->commitMutex)
+        {
+            gcmkONERROR(gckOS_AcquireMutex(Kernel->os,
+                Kernel->device->commitMutex,
+                gcvINFINITE
+                ));
 
-        commitMutexAcquired = gcvTRUE;
+            commitMutexAcquired = gcvTRUE;
+        }
         /* Commit an event queue. */
         if (Interface->engine == gcvENGINE_BLT)
         {
@@ -2558,16 +2584,22 @@ gckKERNEL_Dispatch(
                 Kernel->eventObj, gcmUINT64_TO_PTR(Interface->u.Event.queue), gcvFALSE));
         }
 
-        gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->device->commitMutex));
-        commitMutexAcquired = gcvFALSE;
+        if (!Interface->commitMutex)
+        {
+            gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->device->commitMutex));
+            commitMutexAcquired = gcvFALSE;
+        }
         break;
 
     case gcvHAL_COMMIT:
-        gcmkONERROR(gckOS_AcquireMutex(Kernel->os,
-            Kernel->device->commitMutex,
-            gcvINFINITE
-            ));
-        commitMutexAcquired = gcvTRUE;
+        if (!Interface->commitMutex)
+        {
+            gcmkONERROR(gckOS_AcquireMutex(Kernel->os,
+                Kernel->device->commitMutex,
+                gcvINFINITE
+                ));
+            commitMutexAcquired = gcvTRUE;
+        }
 
         /* Commit a command and context buffer. */
         if (Interface->engine == gcvENGINE_BLT)
@@ -2692,9 +2724,12 @@ gckKERNEL_Dispatch(
                 }
             }
         }
-        gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->device->commitMutex));
-        commitMutexAcquired = gcvFALSE;
 
+        if (!Interface->commitMutex)
+        {
+            gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->device->commitMutex));
+            commitMutexAcquired = gcvFALSE;
+        }
         break;
 
     case gcvHAL_STALL:
@@ -3414,6 +3449,20 @@ gckKERNEL_Dispatch(
             Interface->u.WaitFence.handle,
             Interface->u.WaitFence.timeOut
             ));
+        break;
+
+    case gcvHAL_DEVICE_MUTEX:
+        if (Interface->u.DeviceMutex.isMutexLocked)
+        {
+            gcmkONERROR(gckOS_AcquireMutex(Kernel->os,
+                Kernel->device->commitMutex,
+                gcvINFINITE
+                ));
+        }
+        else
+        {
+            gcmkONERROR(gckOS_ReleaseMutex(Kernel->os, Kernel->device->commitMutex));
+        }
         break;
 
 #if gcdDEC_ENABLE_AHB
