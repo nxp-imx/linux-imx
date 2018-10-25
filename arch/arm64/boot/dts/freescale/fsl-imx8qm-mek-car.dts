@@ -35,11 +35,6 @@
 
 &iomuxc {
 	imx8qm-mek {
-		pinctrl_lvds0_gpio: lvds0gpiogrp {
-			fsl,pins = <
-				SC_P_LVDS0_I2C0_SCL_LSIO_GPIO1_IO06	0x00000021
-			>;
-		};
 		pinctrl_mipi_csi0_en: mipi_csi0_en{
 			fsl,pins = <
 				SC_P_MIPI_CSI0_GPIO0_00_LSIO_GPIO1_IO27		0x00000021
@@ -146,7 +141,6 @@
 		clock-frequency = <400000>;
 		status = "okay";
 		lvds-to-hdmi-bridge@4c {
-			reset-gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
 			compatible = "ite,it6263";
 			reg = <0x4c>;
 			port {
