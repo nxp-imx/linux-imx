@@ -608,10 +608,8 @@ int mobiveil_pcie_host_probe(struct mobiveil_pcie *pcie)
 	bridge->swizzle_irq = pci_common_swizzle;
 
 	ret = mobiveil_bringup_link(pcie);
-	if (ret) {
+	if (ret)
 		dev_info(dev, "link bring-up failed\n");
-		return ret;
-	}
 
 	/* setup the kernel resources for the newly added PCIe root bus */
 	ret = pci_scan_root_bus_bridge(bridge);
