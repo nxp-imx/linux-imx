@@ -444,11 +444,11 @@
 		gpio_intr = <&gpio1 3 GPIO_ACTIVE_LOW>;
 
 		bd71837,pmic-buck1-uses-i2c-dvs;
-		bd71837,pmic-buck1-dvs-voltage = <850000>, <850000>, <800000>; /* VDD_SOC: Run-Idle-Suspend */
+		bd71837,pmic-buck1-dvs-voltage = <900000>, <900000>, <800000>; /* VDD_SOC: Run-Idle-Suspend */
 		bd71837,pmic-buck2-uses-i2c-dvs;
-		bd71837,pmic-buck2-dvs-voltage = <1000000>, <850000>, <0>; /* VDD_ARM: Run-Idle */
+		bd71837,pmic-buck2-dvs-voltage = <1000000>, <900000>, <0>; /* VDD_ARM: Run-Idle */
 		bd71837,pmic-buck3-uses-i2c-dvs;
-		bd71837,pmic-buck3-dvs-voltage = <850000>, <0>, <0>; /* VDD_GPU: Run */
+		bd71837,pmic-buck3-dvs-voltage = <900000>, <0>, <0>; /* VDD_GPU: Run */
 		bd71837,pmic-buck4-uses-i2c-dvs;
 		bd71837,pmic-buck4-dvs-voltage = <1000000>, <0>, <0>; /* VDD_VPU: Run */
 
