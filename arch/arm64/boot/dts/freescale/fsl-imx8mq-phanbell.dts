@@ -374,6 +374,16 @@
 			>;
 		};
 
+		pinctrl_sai1: sai1grp {
+			fsl,pins = <
+					MX8MQ_IOMUXC_SAI1_TXFS_SAI1_TX_SYNC     0xd6
+					MX8MQ_IOMUXC_SAI1_TXC_SAI1_TX_BCLK      0xd6
+					MX8MQ_IOMUXC_SAI1_MCLK_SAI1_MCLK        0xd6
+					MX8MQ_IOMUXC_SAI1_TXD0_SAI1_TX_DATA0    0xd6
+					MX8MQ_IOMUXC_SAI1_RXD0_SAI1_RX_DATA0    0xd6
+				>;
+		};
+
 		pinctrl_sai2: sai2grp {
 			fsl,pins = <
 				MX8MQ_IOMUXC_SAI2_TXFS_SAI2_TX_SYNC	0xd6
@@ -737,6 +747,11 @@
 	dr_mode = "host";
 };
 
+&sai1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai1>;
+	status = "okay";
+};
 
 &sai2 {
 	pinctrl-names = "default";
