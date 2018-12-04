@@ -161,6 +161,16 @@
 	pinctrl-0 = <&pinctrl_hog>;
 
 	imx8mq-evk {
+		pinctrl_gpio: gpio_ctrlgrp{
+			fsl,pins = <
+				MX8MQ_IOMUXC_GPIO1_IO07_GPIO1_IO7		0x19
+				MX8MQ_IOMUXC_GPIO1_IO08_GPIO1_IO8		0x19
+				MX8MQ_IOMUXC_NAND_DATA03_GPIO3_IO9		0x19
+				MX8MQ_IOMUXC_NAND_DATA07_GPIO3_IO13		0x19
+				MX8MQ_IOMUXC_ECSPI2_SS0_GPIO5_IO13		0x19
+			>;
+		};
+
 		pinctrl_hog: hoggrp {
 			fsl,pins = <
 				MX8MQ_IOMUXC_NAND_READY_B_GPIO3_IO16		0x19
