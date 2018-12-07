@@ -3498,19 +3498,19 @@ static void ov5645_enable_af(bool enable)
 {
 	u8 temp;
 	int cnt = 40;
-	/* It typically takes 50 ms for AF to stabilize. Setting the
-	   retry count to 40 gives us enough margin to always succeed */
+	/* At full 5M resolution it typically takes 1600ms for AF to stabilize.
+	 * Setting the retry count to 20 gives us enough margin to always succeed */
 	if (enable) {
 		ov5645_write_reg(0x3022, 0x12);
-		ov5645_write_reg(0x3022, 0x04);
+		ov5645_write_reg(0x3022, 0x03);
 		do {
 			ov5645_read_reg(0x3029, &temp);
-			msleep(5);
+			msleep(50);
 			pr_debug("AF reg 0x3029: 0x%02x\n", temp);
-			// If the status reg 0x3029 reads 0x20 we have stabilized
-		} while (temp != 0x20 && cnt-- > 0);
+			// If the status reg 0x3029 reads 0x10 we have stabilized
+		} while (temp != 0x10 && cnt-- > 0);
 
-		if (temp != 0x20)
+		if (temp != 0x10)
 			pr_warning("%s: Failed to enable AF\n", __func__);
 	} else {
 		ov5645_write_reg(0x3022, 0x08);
@@ -3523,7 +3523,13 @@ static int AE_low, AE_high, AE_Target = 52;
 static void OV5645_stream_on(void)
 {
 	ov5645_write_reg(0x4202, 0x00);
+#ifndef OV5645_REG_TUNING_NOT_DONE
+/* Trying to focus here is rarely successful. It's better to remove it for now
+ * and set the focus from user space via the sysfs node ov5645_af to shorten
+ * the pipeline startup time
+ */
 	ov5645_enable_af(true);
+#endif
 }
 
 static void OV5645_stream_off(void)
@@ -4558,9 +4564,30 @@ static int ov5645_get_print_reg(char *buffer, struct kernel_param *kp)
 	return cnt;
 }
 
+static int ov5645_trigger_af(const char *buffer, struct kernel_param *kp)
+{
+  ov5645_enable_af(true);
+  return 0;
+}
+
+static int ov5645_read_af(char *buffer, struct kernel_param *kp)
+{
+	int cnt, retval;
+	u8 val;
+	retval = ov5645_read_reg(0x3029, &val);
+
+	if (retval < 0 || val != 0x10)
+		val = 0;
+	else
+	  val = 1;
+	cnt = sprintf(buffer, "%d", (unsigned int)val);
+	return cnt;
+}
+
 module_param_call(ov5645_set_regs, ov5645_set_regs, NULL, NULL, 0644);
 module_param_call(ov5645_print_reg, ov5645_set_print_reg, ov5645_get_print_reg,
 		NULL, 0644);
+module_param_call(ov5645_af, ov5645_trigger_af, ov5645_read_af, NULL, 0644);
 
 /*!
  * ov5645 I2C probe function
