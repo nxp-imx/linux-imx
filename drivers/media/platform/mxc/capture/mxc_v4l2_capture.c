@@ -2000,7 +2000,7 @@ static long mxc_v4l_do_ioctl(struct file *file,
 		}
 
 		if (buf->memory & V4L2_MEMORY_MMAP) {
-			memset(buf, 0, sizeof(buf));
+			memset(buf, 0, sizeof(*buf));
 			buf->index = index;
 		}
 
