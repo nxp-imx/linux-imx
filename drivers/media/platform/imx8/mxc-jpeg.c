@@ -395,11 +395,8 @@ static void mxc_jpeg_addrs(struct mxc_jpeg_desc *desc,
 	desc->buf_base0 = vb2_dma_contig_plane_dma_addr(b_base0_buf, 0);
 	desc->buf_base1 = 0;
 	if (img_fmt == STM_CTRL_IMAGE_FORMAT(MXC_JPEG_YUV420)) {
-		u32 h = desc->imgsize & 0xFFFF;
-		u32 w = (desc->imgsize >> 16) & 0xFFFF;
-		u32 luma_plane_size =  w * h;
-
-		desc->buf_base1 = desc->buf_base0 + luma_plane_size;
+		WARN_ON(b_base0_buf->num_planes < 2);
+		desc->buf_base1 = vb2_dma_contig_plane_dma_addr(b_base0_buf, 1);
 	}
 	desc->stm_bufbase = vb2_dma_contig_plane_dma_addr(bufbase_buf, 0) +
 		offset;
@@ -426,6 +423,7 @@ static irqreturn_t mxc_jpeg_dec_irq(int irq, void *priv)
 	u32 dec_ret;
 	unsigned long payload_size;
 	struct mxc_jpeg_q_data *q_data;
+	enum v4l2_buf_type cap_type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	int slot = 0; /* TODO remove hardcoded slot 0 */
 
 	spin_lock(&jpeg->hw_lock);
@@ -479,11 +477,17 @@ static irqreturn_t mxc_jpeg_dec_irq(int irq, void *priv)
 		dev_dbg(dev, "Encoding finished, payload_size: %ld\n",
 			payload_size);
 	} else {
-		q_data = mxc_jpeg_get_q_data(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE);
+		q_data = mxc_jpeg_get_q_data(ctx, cap_type);
 		payload_size = q_data->sizeimage[0];
 		vb2_set_plane_payload(dst_buf, 0, payload_size);
-		dev_dbg(dev, "Decoding finished, payload_size: %ld\n",
-			payload_size);
+		vb2_set_plane_payload(dst_buf, 1, 0);
+		if (q_data->fmt->colplanes == 2) {
+			payload_size = q_data->sizeimage[1];
+			vb2_set_plane_payload(dst_buf, 1, payload_size);
+		}
+		dev_dbg(dev, "Decoding finished, payload_size: %ld + %ld\n",
+			vb2_get_plane_payload(dst_buf, 0),
+			vb2_get_plane_payload(dst_buf, 1));
 	}
 
 	/* short preview of the results */
@@ -714,18 +718,21 @@ static int mxc_jpeg_queue_setup(struct vb2_queue *q,
 {
 	struct mxc_jpeg_ctx *ctx = vb2_get_drv_priv(q);
 	struct mxc_jpeg_q_data *q_data = NULL;
+	int i;
 
 	q_data = mxc_jpeg_get_q_data(ctx, q->type);
 	if (!q_data)
 		return -EINVAL;
-	*num_planes = 1;
 
-	/* assuming worst case jpeg compression: 6 x raw file size */
-	sizes[0] = q_data->w * q_data->h * 6;
+	*num_planes = q_data->fmt->colplanes;
 
-	if (q_data->sizeimage[0] > 0)
-		sizes[0] = q_data->sizeimage[0];
+	for (i = 0; i < *num_planes; i++) {
+		/* assuming worst case jpeg compression: 6 x raw file size */
+		sizes[i] = q_data->w * q_data->h * 6;
 
+		if (q_data->sizeimage[i] > 0)
+			sizes[i] = q_data->sizeimage[i];
+	}
 	return 0;
 }
 static int mxc_jpeg_start_streaming(struct vb2_queue *q, unsigned int count)
@@ -901,6 +908,7 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 {
 	struct device *dev = ctx->mxc_jpeg->dev;
 	struct mxc_jpeg_q_data *q_data_out, *q_data_cap;
+	enum v4l2_buf_type cap_type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	struct mxc_jpeg_stream stream;
 	bool notfound = true;
 	struct mxc_jpeg_sof sof;
@@ -936,7 +944,8 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 			notfound = true;
 		}
 	}
-	q_data_out = mxc_jpeg_get_q_data(ctx, V4L2_BUF_TYPE_VIDEO_OUTPUT);
+	q_data_out = mxc_jpeg_get_q_data(ctx,
+					 V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
 	if (sof.width != q_data_out->w || sof.height != q_data_out->h) {
 		dev_err(dev,
 			"Resolution mismatch: %dx%d (JPEG) versus %dx%d(user)",
@@ -973,7 +982,7 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 		return -EINVAL;
 	}
 
-	q_data_cap = mxc_jpeg_get_q_data(ctx, V4L2_BUF_TYPE_VIDEO_CAPTURE);
+	q_data_cap = mxc_jpeg_get_q_data(ctx, cap_type);
 	if (q_data_cap->w == 0 && q_data_cap->h == 0) {
 		dev_dbg(dev, "capture queue format is not set-up yet, using output queue settings");
 		q_data_cap->w = q_data_out->w;
@@ -997,6 +1006,11 @@ static int mxc_jpeg_parse(struct mxc_jpeg_ctx *ctx,
 	q_data_cap->stride = desc->line_pitch;
 	q_data_cap->sizeimage[0] = q_data_cap->w * q_data_cap->h *
 					q_data_cap->fmt->depth / 8;
+	q_data_cap->sizeimage[1] = 0;
+	if (q_data_cap->fmt->fourcc == V4L2_PIX_FMT_NV12) {
+		q_data_cap->sizeimage[0] = q_data_cap->sizeimage[0] * 2 / 3;
+		q_data_cap->sizeimage[1] = q_data_cap->sizeimage[0] / 2;
+	}
 
 	return 0;
 }
@@ -1008,10 +1022,10 @@ static void mxc_jpeg_buf_queue(struct vb2_buffer *vb)
 	struct mxc_jpeg_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
 	int slot = 0; /* TODO get slot*/
 
-	if (vb->vb2_queue->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (vb->vb2_queue->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		goto end;
 
-	/* for V4L2_BUF_TYPE_VIDEO_OUTPUT */
+	/* for V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE */
 	if (ctx->mode != MXC_JPEG_DECODE)
 		goto end;
 	ret = mxc_jpeg_parse(ctx,
@@ -1044,18 +1058,22 @@ static int mxc_jpeg_buf_prepare(struct vb2_buffer *vb)
 {
 	struct mxc_jpeg_ctx *ctx = vb2_get_drv_priv(vb->vb2_queue);
 	struct mxc_jpeg_q_data *q_data = NULL;
+	struct device *dev = ctx->mxc_jpeg->dev;
 	unsigned long sizeimage;
+	int i;
 
 	q_data = mxc_jpeg_get_q_data(ctx, vb->vb2_queue->type);
 	if (!q_data)
 		return -EINVAL;
-	sizeimage = q_data->sizeimage[0];
-	if (vb2_plane_size(vb, 0) < sizeimage) {
-		dev_err(ctx->mxc_jpeg->dev, "buffer too small (%lu < %lu)",
-			 vb2_plane_size(vb, 0), sizeimage);
-		return -EINVAL;
+	for (i = 0; i < q_data->fmt->colplanes; i++) {
+		sizeimage = q_data->sizeimage[i];
+		if (vb2_plane_size(vb, i) < sizeimage) {
+			dev_err(dev, "plane %d too small (%lu < %lu)",
+				i, vb2_plane_size(vb, i), sizeimage);
+			return -EINVAL;
+		}
+		vb2_set_plane_payload(vb, i, sizeimage);
 	}
-	vb2_set_plane_payload(vb, 0, sizeimage);
 	return 0;
 }
 
@@ -1080,7 +1098,7 @@ static int mxc_jpeg_queue_init(void *priv, struct vb2_queue *src_vq,
 	struct mxc_jpeg_ctx *ctx = priv;
 	int ret;
 
-	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	src_vq->io_modes = VB2_MMAP | VB2_USERPTR;
 	src_vq->drv_priv = ctx;
 	src_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
@@ -1095,7 +1113,7 @@ static int mxc_jpeg_queue_init(void *priv, struct vb2_queue *src_vq,
 	if (ret)
 		return ret;
 
-	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	dst_vq->io_modes = VB2_MMAP | VB2_USERPTR;
 	dst_vq->drv_priv = ctx;
 	dst_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
@@ -1246,7 +1264,7 @@ static int mxc_jpeg_querycap(struct file *file, void *priv,
 	strlcpy(cap->card, MXC_JPEG_NAME " decoder", sizeof(cap->card));
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "platform:%s",
 		 dev_name(mxc_jpeg->dev));
-	cap->device_caps = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_M2M;
+	cap->device_caps = V4L2_CAP_STREAMING | V4L2_CAP_VIDEO_M2M_MPLANE;
 	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 
 	return 0;
@@ -1301,10 +1319,12 @@ static int mxc_jpeg_try_fmt(struct v4l2_format *f, struct mxc_jpeg_fmt *fmt,
 			    struct mxc_jpeg_ctx *ctx, int q_type)
 {
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
-	struct v4l2_plane_pix_format *pfmt = &pix_mp->plane_fmt[0];
+	struct v4l2_plane_pix_format *pfmt;
 	u32 w = pix_mp->width;
 	u32 h = pix_mp->height;
 	unsigned int mode = ctx->mode;
+	int i;
+	bool is_nv12 = (fmt->fourcc == V4L2_PIX_FMT_NV12);
 
 	memset(pix_mp->reserved, 0, sizeof(pix_mp->reserved));
 	pix_mp->field = V4L2_FIELD_NONE;
@@ -1319,25 +1339,39 @@ static int mxc_jpeg_try_fmt(struct v4l2_format *f, struct mxc_jpeg_fmt *fmt,
 					MXC_JPEG_MAX_HEIGHT,
 					MXC_JPEG_H_ALIGN);
 
-	memset(pfmt->reserved, 0, sizeof(pfmt->reserved));
+	for (i = 0; i < pix_mp->num_planes; i++) {
+		pfmt = &pix_mp->plane_fmt[i];
+		memset(pfmt->reserved, 0, sizeof(pfmt->reserved));
 
-	/* TODO try_fmt should not modify the state, move to s_fmt */
-	if (q_type == MXC_JPEG_FMT_TYPE_ENC && mode == MXC_JPEG_DECODE) {
-		pfmt->bytesperline = 0;
-		/* Source size must be aligned to 128 */
-		pfmt->sizeimage = mxc_jpeg_align(pfmt->sizeimage, 128);
-		if (pfmt->sizeimage == 0)
-			pfmt->sizeimage = MXC_JPEG_DEFAULT_SIZEIMAGE;
-	} else if (q_type == MXC_JPEG_FMT_TYPE_RAW && mode == MXC_JPEG_DECODE) {
-		pfmt->bytesperline = w * (fmt->depth / 8);
-		pfmt->sizeimage = w * h * fmt->depth / 8;
-	} else if (q_type == MXC_JPEG_FMT_TYPE_ENC && mode == MXC_JPEG_ENCODE) {
-		pfmt->bytesperline = 0;
-		/* assuming worst jpeg compression */
-		pfmt->sizeimage = w * h * 6;
-	} else { /* MXC_JPEG_FMT_TYPE_RAW && MXC_JPEG_ENCODE */
-		pfmt->bytesperline = w * (fmt->depth / 8);
-		pfmt->sizeimage = w * h * fmt->depth / 8;
+		/* TODO try_fmt should not modify the state, move to s_fmt */
+		if (q_type == MXC_JPEG_FMT_TYPE_ENC &&
+		    mode == MXC_JPEG_DECODE) {
+			pfmt->bytesperline = 0;
+			/* Source size must be aligned to 128 */
+			pfmt->sizeimage = mxc_jpeg_align(pfmt->sizeimage, 128);
+			if (pfmt->sizeimage == 0)
+				pfmt->sizeimage = MXC_JPEG_DEFAULT_SIZEIMAGE;
+		} else if (q_type == MXC_JPEG_FMT_TYPE_RAW &&
+		    mode == MXC_JPEG_DECODE) {
+			pfmt->bytesperline = w * (fmt->depth / 8);
+			pfmt->sizeimage = w * h * fmt->depth / 8;
+			if (is_nv12 && i == 0) /* luma plane */
+				pfmt->sizeimage = pfmt->sizeimage * 2 / 3;
+			else if (is_nv12 && i == 1) /* chroma plane */
+				pfmt->sizeimage = pfmt->sizeimage * 1 / 3;
+		} else if (q_type == MXC_JPEG_FMT_TYPE_ENC &&
+		    mode == MXC_JPEG_ENCODE) {
+			pfmt->bytesperline = 0;
+			/* assuming worst jpeg compression */
+			pfmt->sizeimage = w * h * 6;
+		} else { /* MXC_JPEG_FMT_TYPE_RAW && MXC_JPEG_ENCODE */
+			pfmt->bytesperline = w * (fmt->depth / 8);
+			pfmt->sizeimage = w * h * fmt->depth / 8;
+			if (is_nv12 && i == 0) /* luma plane */
+				pfmt->sizeimage = pfmt->sizeimage * 2 / 3;
+			else if (is_nv12 && i == 1) /* chroma plane */
+				pfmt->sizeimage = pfmt->sizeimage * 1 / 3;
+		}
 	}
 
 	return 0;
@@ -1395,6 +1429,7 @@ static int mxc_jpeg_s_fmt(struct mxc_jpeg_ctx *ctx,
 	struct mxc_jpeg_q_data *q_data = NULL;
 	struct v4l2_pix_format_mplane *pix_mp = &f->fmt.pix_mp;
 	struct mxc_jpeg_dev *jpeg = ctx->mxc_jpeg;
+	int i;
 
 	vq = v4l2_m2m_get_vq(ctx->fh.m2m_ctx, f->type);
 	if (!vq)
@@ -1410,9 +1445,10 @@ static int mxc_jpeg_s_fmt(struct mxc_jpeg_ctx *ctx,
 	q_data->fmt = mxc_jpeg_find_format(ctx, pix_mp->pixelformat);
 	q_data->w = pix_mp->width;
 	q_data->h = pix_mp->height;
-	q_data->bytesperline[0] = pix_mp->plane_fmt[0].bytesperline;
-	q_data->sizeimage[0] = pix_mp->plane_fmt[0].sizeimage;
-
+	for (i = 0; i < pix_mp->num_planes; i++) {
+		q_data->bytesperline[i] = pix_mp->plane_fmt[i].bytesperline;
+		q_data->sizeimage[i] = pix_mp->plane_fmt[i].sizeimage;
+	}
 	return 0;
 }
 static int mxc_jpeg_s_fmt_vid_cap(struct file *file, void *priv,
@@ -1441,16 +1477,20 @@ static int mxc_jpeg_g_fmt_vid_cap(struct file *file, void *priv,
 				struct v4l2_format *f)
 {
 	struct mxc_jpeg_ctx *ctx = mxc_jpeg_fh_to_ctx(priv);
-	struct v4l2_pix_format   *pix = &f->fmt.pix;
+	struct v4l2_pix_format_mplane   *pix_mp = &f->fmt.pix_mp;
 	struct mxc_jpeg_q_data *q_data = mxc_jpeg_get_q_data(ctx, f->type);
+	int i;
 
-	pix->pixelformat = q_data->fmt->fourcc;
-	pix->width = q_data->w;
-	pix->height = q_data->h;
-	pix->field = V4L2_FIELD_NONE;
-	pix->colorspace = V4L2_COLORSPACE_REC709;
-	pix->bytesperline = q_data->stride;
-	pix->sizeimage = q_data->sizeimage[0];
+	pix_mp->pixelformat = q_data->fmt->fourcc;
+	pix_mp->width = q_data->w;
+	pix_mp->height = q_data->h;
+	pix_mp->field = V4L2_FIELD_NONE;
+	pix_mp->colorspace = V4L2_COLORSPACE_REC709;
+	pix_mp->num_planes = q_data->fmt->colplanes;
+	for (i = 0; i < pix_mp->num_planes; i++) {
+		pix_mp->plane_fmt[i].bytesperline = q_data->stride;
+		pix_mp->plane_fmt[i].sizeimage = q_data->sizeimage[i];
+	}
 
 	return 0;
 }
@@ -1513,17 +1553,17 @@ static int mxc_jpeg_dqbuf(struct file *file, void *priv,
 }
 static const struct v4l2_ioctl_ops mxc_jpeg_ioctl_ops = {
 	.vidioc_querycap		= mxc_jpeg_querycap,
-	.vidioc_enum_fmt_vid_cap	= mxc_jpeg_enum_fmt_vid_cap,
-	.vidioc_enum_fmt_vid_out	= mxc_jpeg_enum_fmt_vid_out,
+	.vidioc_enum_fmt_vid_cap_mplane	= mxc_jpeg_enum_fmt_vid_cap,
+	.vidioc_enum_fmt_vid_out_mplane	= mxc_jpeg_enum_fmt_vid_out,
 
-	.vidioc_try_fmt_vid_cap		= mxc_jpeg_try_fmt_vid_cap,
-	.vidioc_try_fmt_vid_out		= mxc_jpeg_try_fmt_vid_out,
+	.vidioc_try_fmt_vid_cap_mplane		= mxc_jpeg_try_fmt_vid_cap,
+	.vidioc_try_fmt_vid_out_mplane		= mxc_jpeg_try_fmt_vid_out,
 
-	.vidioc_s_fmt_vid_cap		= mxc_jpeg_s_fmt_vid_cap,
-	.vidioc_s_fmt_vid_out		= mxc_jpeg_s_fmt_vid_out,
+	.vidioc_s_fmt_vid_cap_mplane		= mxc_jpeg_s_fmt_vid_cap,
+	.vidioc_s_fmt_vid_out_mplane		= mxc_jpeg_s_fmt_vid_out,
 
-	.vidioc_g_fmt_vid_cap		= mxc_jpeg_g_fmt_vid_cap,
-	.vidioc_g_fmt_vid_out		= mxc_jpeg_g_fmt_vid_out,
+	.vidioc_g_fmt_vid_cap_mplane		= mxc_jpeg_g_fmt_vid_cap,
+	.vidioc_g_fmt_vid_out_mplane		= mxc_jpeg_g_fmt_vid_out,
 
 	.vidioc_subscribe_event		= mxc_jpeg_subscribe_event,
 	.vidioc_decoder_cmd		= mxc_jpeg_decoder_cmd,
@@ -1666,7 +1706,7 @@ static int mxc_jpeg_probe(struct platform_device *pdev)
 	jpeg->dec_vdev->v4l2_dev = &jpeg->v4l2_dev;
 	jpeg->dec_vdev->vfl_dir = VFL_DIR_M2M;
 	jpeg->dec_vdev->device_caps = V4L2_CAP_STREAMING |
-					V4L2_CAP_VIDEO_M2M;
+					V4L2_CAP_VIDEO_M2M_MPLANE;
 
 	ret = video_register_device(jpeg->dec_vdev, VFL_TYPE_GRABBER, -1);
 	if (ret) {
