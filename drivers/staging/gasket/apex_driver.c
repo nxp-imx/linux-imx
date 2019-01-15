@@ -495,12 +495,12 @@ static long apex_set_performance_expectation(
 {
 	struct apex_performance_expectation_ioctl ibuf;
 	uint32_t rg_gcb_clk_div = 0;
-	uint32_t rg_axi_clk_125m = 0;
-        const int AXI_CLK_125M_SHIFT = 2;
-        const int MCU_CLK_250M_SHIFT = 3;
+	uint32_t rg_axi_clk_fixed = 0;
+	const int AXI_CLK_FIXED_SHIFT = 2;
+	const int MCU_CLK_FIXED_SHIFT = 3;
 
-	// 8051 clock is always 250 MHz for PCIe, as it's not used at all.
-	const uint32_t rg_8051_clk_250m = 1;
+	// 8051 clock is fixed for PCIe, as it's not used at all.
+	const uint32_t rg_8051_clk_fixed = 1;
 
 	if (bypass_top_level)
 		return 0;
@@ -510,31 +510,23 @@ static long apex_set_performance_expectation(
 
 	switch (ibuf.performance) {
 		case APEX_PERFORMANCE_LOW:
-			// - GCB clock: 62.5 MHz
-			// - AXI clock: 125 MHz
 			rg_gcb_clk_div = 3;
-			rg_axi_clk_125m = 0;
+			rg_axi_clk_fixed = 0;
 			break;
 
 		case APEX_PERFORMANCE_MED:
-			// - GCB clock: 125 MHz
-			// - AXI clock: 125 MHz
 			rg_gcb_clk_div = 2;
-			rg_axi_clk_125m = 0;
+			rg_axi_clk_fixed = 0;
 			break;
 
 		case APEX_PERFORMANCE_HIGH:
-			// - GCB clock: 250 MHz
-			// - AXI clock: 125 MHz
 			rg_gcb_clk_div = 1;
-			rg_axi_clk_125m = 0;
+			rg_axi_clk_fixed = 0;
 			break;
 
 		case APEX_PERFORMANCE_MAX:
-			// - GCB clock: 500 MHz
-			// - AXI clock: 125 MHz
 			rg_gcb_clk_div = 0;
-			rg_axi_clk_125m = 0;
+			rg_axi_clk_fixed = 0;
 			break;
 
 		default:
@@ -546,7 +538,7 @@ static long apex_set_performance_expectation(
 	 */
 	gasket_read_modify_write_32(
 		gasket_dev, APEX_BAR_INDEX, APEX_BAR2_REG_SCU_3,
-                (rg_gcb_clk_div | (rg_axi_clk_125m << AXI_CLK_125M_SHIFT) | (rg_8051_clk_250m << MCU_CLK_250M_SHIFT)),
+                (rg_gcb_clk_div | (rg_axi_clk_fixed << AXI_CLK_FIXED_SHIFT) | (rg_8051_clk_fixed << MCU_CLK_FIXED_SHIFT)),
                 /*mask_width=*/4, /*mask_shift=*/28);
 
 	return 0;
