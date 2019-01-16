@@ -79,6 +79,12 @@ enum ov5645_downsize_mode {
 	SCALING,
 };
 
+enum ov5645_af_mode {
+	ov5645_af_release = 0,
+	ov5645_af_lock = 1,
+	ov5645_af_cont = 2,
+};
+
 struct reg_value {
 	u16 u16RegAddr;
 	u8 u8Val;
@@ -3494,27 +3500,36 @@ static s32 ov5645_read_reg(u16 reg, u8 *val)
 	return u8RdVal;
 }
 
-static void ov5645_enable_af(bool enable)
+static void ov5645_release_af(void)
+{
+	ov5645_write_reg(0x3022, 0x08);
+}
+
+static void ov5645_enable_cont_af(void)
+{
+	ov5645_release_af();
+	ov5645_write_reg(0x3022, 0x12);
+	ov5645_write_reg(0x3022, 0x04);
+}
+
+static void ov5645_lock_af(void)
 {
 	u8 temp;
 	int cnt = 40;
 	/* At full 5M resolution it typically takes 1600ms for AF to stabilize.
 	 * Setting the retry count to 20 gives us enough margin to always succeed */
-	if (enable) {
-		ov5645_write_reg(0x3022, 0x12);
-		ov5645_write_reg(0x3022, 0x03);
-		do {
-			ov5645_read_reg(0x3029, &temp);
-			msleep(50);
-			pr_debug("AF reg 0x3029: 0x%02x\n", temp);
-			// If the status reg 0x3029 reads 0x10 we have stabilized
-		} while (temp != 0x10 && cnt-- > 0);
+	ov5645_release_af();
+	ov5645_write_reg(0x3022, 0x12);
+	ov5645_write_reg(0x3022, 0x03);
+	do {
+		ov5645_read_reg(0x3029, &temp);
+		msleep(50);
+		pr_debug("AF reg 0x3029: 0x%02x\n", temp);
+		// If the status reg 0x3029 reads 0x10 we have stabilized
+	} while (temp != 0x10 && cnt-- > 0);
 
-		if (temp != 0x10)
-			pr_warning("%s: Failed to enable AF\n", __func__);
-	} else {
-		ov5645_write_reg(0x3022, 0x08);
-	}
+	if (temp != 0x10)
+		pr_warning("%s: Failed to enable AF\n", __func__);
 }
 
 static int prev_sysclk, prev_HTS;
@@ -3523,18 +3538,12 @@ static int AE_low, AE_high, AE_Target = 52;
 static void OV5645_stream_on(void)
 {
 	ov5645_write_reg(0x4202, 0x00);
-#ifndef OV5645_REG_TUNING_NOT_DONE
-/* Trying to focus here is rarely successful. It's better to remove it for now
- * and set the focus from user space via the sysfs node ov5645_af to shorten
- * the pipeline startup time
- */
-	ov5645_enable_af(true);
-#endif
+	ov5645_enable_cont_af();
 }
 
 static void OV5645_stream_off(void)
 {
-	ov5645_enable_af(false);
+	ov5645_release_af();
 	ov5645_write_reg(0x4202, 0x0f);
 	ov5645_write_reg(0x3008, 0x42);
 }
@@ -4564,10 +4573,26 @@ static int ov5645_get_print_reg(char *buffer, struct kernel_param *kp)
 	return cnt;
 }
 
-static int ov5645_trigger_af(const char *buffer, struct kernel_param *kp)
+static int ov5645_set_af_mode(const char *buffer, struct kernel_param *kp)
 {
-  ov5645_enable_af(true);
-  return 0;
+	int cnt, val;
+	cnt = sscanf(buffer, "%d", &val);
+
+	switch (val) {
+	case ov5645_af_release:
+		ov5645_release_af();
+		break;
+	case ov5645_af_lock:
+		ov5645_lock_af();
+		break;
+	case ov5645_af_cont:
+		ov5645_enable_cont_af();
+		break;
+	default:
+		pr_warning("%s: Incorrect value written to sysfs node\n", __func__);
+	}
+
+	return 0;
 }
 
 static int ov5645_read_af(char *buffer, struct kernel_param *kp)
@@ -4576,18 +4601,14 @@ static int ov5645_read_af(char *buffer, struct kernel_param *kp)
 	u8 val;
 	retval = ov5645_read_reg(0x3029, &val);
 
-	if (retval < 0 || val != 0x10)
-		val = 0;
-	else
-	  val = 1;
-	cnt = sprintf(buffer, "%d", (unsigned int)val);
+	cnt = sprintf(buffer, "%d", (unsigned int)val & 0xff);
 	return cnt;
 }
 
 module_param_call(ov5645_set_regs, ov5645_set_regs, NULL, NULL, 0644);
 module_param_call(ov5645_print_reg, ov5645_set_print_reg, ov5645_get_print_reg,
 		NULL, 0644);
-module_param_call(ov5645_af, ov5645_trigger_af, ov5645_read_af, NULL, 0644);
+module_param_call(ov5645_af, ov5645_set_af_mode, ov5645_read_af, NULL, 0644);
 
 /*!
  * ov5645 I2C probe function
