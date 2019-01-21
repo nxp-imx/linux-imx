@@ -865,6 +865,14 @@ static int trusty_log_init(struct platform_device *pdev, u32 api_ver)
 		goto error_std_call;
 	}
 
+	/* Disable the Trusty OS UART console to prevent synchronous IO waiting */
+	result = trusty_std_call32(s->trusty_dev,
+		SMC_SC_SHARED_CONSOLE_CTL, TRUSTY_CONSOLE_DISABLE, 0, 0);
+
+	if (result != 0) {
+		pr_err("trusty std call SMC_SC_SHARED_CONSOLE_CTL shutdown console failed\n");
+	}
+
 	init_waitqueue_head(&s->poll_waiters);
 	spin_lock_init(&s->wake_up_lock);
 
