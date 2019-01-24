@@ -131,7 +131,6 @@ static const struct snd_soc_dapm_widget card_widgets[] = {
 };
 
 static const struct snd_soc_dapm_route audio_routes[] = {
-	{"CPU-Playback", NULL, "AIF1 Playback"},
 	{"AIF1 Capture", NULL, "CPU-Capture"},
 	{"micbias1", NULL, "Headphone Mic"},
 	{"IN1P", NULL, "micbias1"},
