@@ -122,6 +122,10 @@ struct ov5645 {
 	int csi;
 
 	void (*io_init)(void);
+
+	/* Fields to keep track of loaded settings */
+	enum ov5645_frame_rate loaded_fps;
+	enum ov5645_mode loaded_mode;
 };
 
 struct ov5645_res {
@@ -2425,6 +2429,7 @@ static int AE_low, AE_high, AE_Target = 52;
 
 static void OV5645_stream_on(void)
 {
+	ov5645_write_reg(0x3008, 0x02);
 	ov5645_write_reg(0x4202, 0x00);
 	ov5645_enable_cont_af();
 }
@@ -2955,14 +2960,17 @@ static int ov5645_init_mode(enum ov5645_frame_rate frame_rate,
 		pModeSetting = ov5645_init_setting_30fps_VGA;
 		ArySize = ARRAY_SIZE(ov5645_init_setting_30fps_VGA);
 
-		ov5645_data.pix.width = 640;
-		ov5645_data.pix.height = 480;
+		ov5645_data.pix.width = 2592;
+		ov5645_data.pix.height = 1944;
+		ov5645_data.loaded_fps = ov5645_15_fps;
+		ov5645_data.loaded_mode = ov5645_mode_QSXGA_2592_1944;
+
 		retval = ov5645_download_firmware(pModeSetting, ArySize);
 		if (retval < 0)
 			goto err;
 
-		pModeSetting = ov5645_setting_30fps_VGA_640_480;
-		ArySize = ARRAY_SIZE(ov5645_setting_30fps_VGA_640_480);
+		pModeSetting = ov5645_setting_15fps_QSXGA_2592_1944;
+		ArySize = ARRAY_SIZE(ov5645_setting_15fps_QSXGA_2592_1944);
 		retval = ov5645_download_firmware(pModeSetting, ArySize);
 
 		ov5645_dnld_af_fw();
@@ -3140,16 +3148,20 @@ static int ov5645_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *a)
 			return -EINVAL;
 		}
 
-		orig_mode = sensor->streamcap.capturemode;
-		ret = ov5645_init_mode(frame_rate,
-				(u32)a->parm.capture.capturemode, orig_mode);
+		orig_mode = ov5645_data.loaded_mode;
+		if ((orig_mode != (u32)a->parm.capture.capturemode) ||
+				(frame_rate != ov5645_data.loaded_fps)) {
+			ret = ov5645_init_mode(frame_rate,
+					(u32)a->parm.capture.capturemode, orig_mode);
+		}
 		if (ret < 0)
 			return ret;
 
 		sensor->streamcap.timeperframe = *timeperframe;
 		sensor->streamcap.capturemode =
 				(u32)a->parm.capture.capturemode;
-
+		ov5645_data.loaded_mode = a->parm.capture.capturemode;
+		ov5645_data.loaded_fps = frame_rate;
 		break;
 
 	/* These are all the possible cases. */
