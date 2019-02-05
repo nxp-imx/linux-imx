@@ -275,7 +275,7 @@ static ssize_t imx8_get_soc_uid(struct device *dev,
 }
 
 static struct device_attribute imx8_uid =
-	__ATTR(soc_uid, S_IRUGO, imx8_get_soc_uid, NULL);
+	__ATTR(soc_uid, 0444, imx8_get_soc_uid, NULL);
 
 static void __init imx8mq_noc_init(void)
 {
@@ -516,7 +516,96 @@ int check_m4_enabled(void)
 	m4_is_enabled = !!res.a0;
 
 	if (m4_is_enabled)
-		printk("M4 is started\n");
+		pr_info("M4 is started\n");
 
 	return 0;
+}
+
+#define IMX8MQ_FEATURE_BITS	0x450
+#define IMX8MQ_FEATURE_HDCP	(1<<27)
+
+static bool imx8mq_soc_is_hdcp_available(void)
+{
+	struct device_node *np;
+	void __iomem *base;
+
+	u32 val = 0xffffffff; /* HDCP disabled */
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx8mq-ocotp");
+	if (!np) {
+		pr_warn("failed to find ocotp node\n");
+		return val;
+	}
+
+	base = of_iomap(np, 0);
+	if (!base) {
+		pr_warn("failed to map ocotp\n");
+		goto put_node;
+	}
+
+	val = readl_relaxed(base + IMX8MQ_FEATURE_BITS);
+	pr_debug("%s(), val 0x%08x  hdcp %u\n", __func__, val,
+		 (val & IMX8MQ_FEATURE_HDCP));
+
+	iounmap(base);
+
+put_node:
+	of_node_put(np);
+
+	if ((val & IMX8MQ_FEATURE_HDCP) == 0) {
+		pr_debug("HDCP is enabled\n");
+		return true;
+	}
+	pr_debug("HDCP is disabled\n");
+	return false;
+}
+
+#define IMX8QM_FEATURE_BITS	0x3
+#define IMX8QM_FEATURE_HDCP	(1<<3)
+
+static int imx8qm_soc_is_hdcp_available(void)
+{
+	sc_ipc_t mu_ipc;
+	sc_ipc_id_t mu_id;
+	uint32_t fuse = 0xffffffff;
+	int ret;
+
+	ret = sc_ipc_getMuID(&mu_id);
+	if (ret) {
+		pr_warn("sc_ipc_getMuID() can't obtain mu id SCI! %d\n",
+			ret);
+		return false;
+	}
+
+	ret = sc_ipc_open(&mu_ipc, mu_id);
+	if (ret) {
+		pr_warn("sc_ipc_getMuID() can't open MU channel to SCU! %d\n",
+			ret);
+		return false;
+	}
+
+	ret = sc_misc_otp_fuse_read(mu_ipc, IMX8QM_FEATURE_BITS, &fuse);
+	sc_ipc_close(mu_ipc);
+	if (ret) {
+		pr_warn("sc_misc_otp_fuse_read fail! %d\n", ret);
+		return false;
+	}
+
+	pr_debug("mu_id = %d, fuse[3] = 0x%x\n", mu_id, fuse);
+
+	if ((fuse & IMX8QM_FEATURE_HDCP) == 0) {
+		pr_debug("HDCP is enabled\n");
+		return true;
+	}
+	pr_debug("HDCP is disabled\n");
+	return false;
+}
+
+bool check_hdcp_enabled(void)
+{
+	if (cpu_is_imx8mq())
+		return imx8mq_soc_is_hdcp_available();
+	if (cpu_is_imx8qm())
+		return imx8qm_soc_is_hdcp_available();
+	return false;
 }
