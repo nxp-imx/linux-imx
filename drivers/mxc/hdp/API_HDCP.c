@@ -149,11 +149,11 @@ CDN_API_HDCP2_TX_SET_DEBUG_RANDOM_NUMBERS(state_struct *state,
 		state->bus_type = bus_type;
 		internal_tx_mkfullmsg(state, MB_MODULE_ID_HDCP_TX,
 				      HDCP2_TX_SET_DEBUG_RANDOM_NUMBERS, 5,
-				      -sizeof(val->KM), &val->KM,
-				      -sizeof(val->RN), &val->RN,
-				      -sizeof(val->KS), &val->KS,
-				      -sizeof(val->RIV), &val->RIV,
-				      -sizeof(val->RTX), &val->RTX);
+				      -sizeof(val->km), &val->km,
+				      -sizeof(val->rn), &val->rn,
+				      -sizeof(val->ks), &val->ks,
+				      -sizeof(val->riv), &val->riv,
+				      -sizeof(val->rtx), &val->rtx);
 		return CDN_STARTED;
 	}
 	if (state->txEnable && !internal_mbox_tx_process(state).txend)
@@ -183,11 +183,11 @@ CDN_API_STATUS CDN_API_HDCP2_TX_RESPOND_KM(state_struct *state,
 		if (val != NULL)
 			internal_tx_mkfullmsg(state, MB_MODULE_ID_HDCP_TX,
 					      HDCP2_TX_RESPOND_KM, 4,
-					      -sizeof(val->Receiver_ID),
-					      &val->Receiver_ID,
+					      -sizeof(val->receiver_id),
+					      &val->receiver_id,
 					      -sizeof(val->m), &val->m,
-					      -sizeof(val->KM), &val->KM,
-					      -sizeof(val->EKH), &val->EKH);
+					      -sizeof(val->km), &val->km,
+					      -sizeof(val->ekh), &val->ekh);
 		else
 			/* no pairing info found in storage */
 			internal_tx_mkfullmsg(state, MB_MODULE_ID_HDCP_TX,
@@ -291,25 +291,18 @@ CDN_API_STATUS CDN_API_HDCP2_TX_IS_KM_STORED_REQ(state_struct *state,
 						 u8 resp[5],
 						 CDN_BUS_TYPE bus_type)
 {
-	printk("_debug: 0\n");
 	if (!state->running) {
 		if (!internal_apb_available(state))
 			return CDN_BSY;
-		printk("_debug: 1\n");
 		state->bus_type = bus_type;
 		state->rxEnable = 1;
 		internal_tx_mkfullmsg(state, MB_MODULE_ID_HDCP_TX,
 				      HDCP2_TX_IS_KM_STORED, 0);
-		printk("_debug: 2\n");
 		return CDN_STARTED;
 	}
-	printk("_debug: 3\n");
 	internal_process_messages(state);
-	printk("_debug: 4\n");
 	internal_opcode_match_or_return(state);
-	printk("_debug: 5\n");
 	internal_readmsg(state, 1, -5, resp);
-	printk("_debug: 6\n");
 	return CDN_OK;
 }
 
@@ -337,10 +330,10 @@ CDN_API_STATUS CDN_API_HDCP2_TX_STORE_KM_REQ(state_struct *state,
 	internal_process_messages(state);
 	internal_opcode_match_or_return(state);
 	internal_readmsg(state, 4,
-			 -sizeof(resp->Receiver_ID), &resp->Receiver_ID,
+			 -sizeof(resp->receiver_id), &resp->receiver_id,
 			 -sizeof(resp->m), &resp->m,
-			 -sizeof(resp->KM), &resp->KM,
-			 -sizeof(resp->EKH), &resp->EKH);
+			 -sizeof(resp->km), &resp->km,
+			 -sizeof(resp->ekh), &resp->ekh);
 	return CDN_OK;
 }
 
