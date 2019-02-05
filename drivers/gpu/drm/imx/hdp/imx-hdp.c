@@ -24,6 +24,8 @@
 
 #include "imx-hdp.h"
 #include "imx-hdmi.h"
+#include "imx-hdcp.h"
+#include "imx-hdcp-private.h"
 #include "imx-dp.h"
 #include "../imx-drm.h"
 
@@ -956,7 +958,6 @@ static void imx_hdp_connector_force(struct drm_connector *connector)
 {
 	struct imx_hdp *hdp = container_of(connector, struct imx_hdp,
 					     connector);
-
 	mutex_lock(&hdp->mutex);
 	hdp->force = connector->force;
 	mutex_unlock(&hdp->mutex);
@@ -992,6 +993,34 @@ static int imx_hdp_set_property(struct drm_connector *connector,
 	return 0;
 }
 
+static int imx_hdp_connector_atomic_check(struct drm_connector *conn,
+					  struct drm_connector_state *new_state)
+{
+	struct drm_connector_state *old_state =
+		drm_atomic_get_old_connector_state(new_state->state, conn);
+	struct drm_crtc_state *crtc_state;
+
+	imx_hdcp_atomic_check(conn, old_state, new_state);
+
+	if (!new_state->crtc)
+		return 0;
+
+	crtc_state = drm_atomic_get_new_crtc_state(new_state->state,
+						   new_state->crtc);
+
+	/*
+	 * These properties are handled by fastset, and might not end up in a
+	 * modeset.
+	 */
+	if (new_state->picture_aspect_ratio !=
+	    old_state->picture_aspect_ratio ||
+	    new_state->content_type != old_state->content_type ||
+	    new_state->scaling_mode != old_state->scaling_mode)
+		crtc_state->mode_changed = true;
+
+	return 0;
+}
+
 static const struct drm_connector_funcs imx_hdp_connector_funcs = {
 	.fill_modes = drm_helper_probe_single_connector_modes,
 	.detect = imx_hdp_connector_detect,
@@ -1007,6 +1036,8 @@ static const struct drm_connector_helper_funcs
 imx_hdp_connector_helper_funcs = {
 	.get_modes = imx_hdp_connector_get_modes,
 	.mode_valid = imx_hdp_connector_mode_valid,
+	.atomic_check = imx_hdp_connector_atomic_check,
+
 };
 
 static const struct drm_bridge_funcs imx_hdp_bridge_funcs = {
@@ -1019,6 +1050,8 @@ static const struct drm_bridge_funcs imx_hdp_bridge_funcs = {
 static void imx_hdp_imx_encoder_disable(struct drm_encoder *encoder)
 {
 	struct imx_hdp *hdp = container_of(encoder, struct imx_hdp, encoder);
+
+	imx_hdcp_disable(hdp);
 
 	imx_hdp_call(hdp, pixel_link_sync_ctrl_disable, &hdp->state);
 	imx_hdp_call(hdp, pixel_link_invalidate, &hdp->state);
@@ -1059,6 +1092,10 @@ static void imx_hdp_imx_encoder_enable(struct drm_encoder *encoder)
 	}
 
 	hdp->ops->write_hdr_metadata(&hdp->state, &frame);
+
+	if (conn_state->content_protection ==
+	    DRM_MODE_CONTENT_PROTECTION_DESIRED)
+		imx_hdcp_enable(hdp);
 
 out:
 	imx_hdp_call(hdp, pixel_link_validate, &hdp->state);
@@ -1408,6 +1445,7 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 		return -ENOMEM;
 
 	hdp->dev = &pdev->dev;
+	hdp->drm_dev = drm;
 	encoder = &hdp->encoder;
 	bridge = &hdp->bridge;
 	connector = &hdp->connector;
@@ -1501,7 +1539,6 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	imx_hdp_state_init(hdp);
 
 	hdp->dual_mode = false;
-
 	ret = imx_hdp_call(hdp, clock_init, &hdp->clks);
 	if (ret < 0) {
 		DRM_ERROR("Failed to initialize clock\n");
@@ -1589,6 +1626,10 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 	if (hdp->is_dp) {
 		dp_aux_init(&hdp->state, dev);
 	}
+
+	ret = imx_hdcp_init(hdp, pdev->dev.of_node);
+	if (ret < 0)
+		DRM_WARN("Failed to initialize HDCP\n");
 
 	INIT_DELAYED_WORK(&hdp->hotplug_work, hotplug_work_func);
 
