@@ -1148,6 +1148,7 @@ static uint8_t is_yuv(uint32_t format)
 	case PXP_PIX_FMT_VYUY:
 	case PXP_PIX_FMT_YUV444:
 	case PXP_PIX_FMT_YVU444:
+	case PXP_PIX_FMT_VUY444:
 		return 1;
 	case PXP_PIX_FMT_NV12:
 	case PXP_PIX_FMT_NV21:
@@ -1209,6 +1210,7 @@ static u32 get_bpp_from_fmt(u32 pix_fmt)
 	case PXP_PIX_FMT_BGRA32:
 	case PXP_PIX_FMT_YUV444:
 	case PXP_PIX_FMT_YVU444:
+	case PXP_PIX_FMT_VUY444:
 		bpp = 32;
 		break;
 	default:
@@ -1892,6 +1894,7 @@ static bool fmt_ps_support(uint32_t format)
 	case PXP_PIX_FMT_RGB565:
 	case PXP_PIX_FMT_YUV444:
 	case PXP_PIX_FMT_UYVY:
+	case PXP_PIX_FMT_VUY444:
 	/* need word byte swap */
 	case PXP_PIX_FMT_YUYV:
 	case PXP_PIX_FMT_VYUY:
