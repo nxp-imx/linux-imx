@@ -685,13 +685,29 @@ static int mxc_isi_m2m_s_fmt_vid_cap(struct file *file, void *priv,
 	}
 
 	if (i >= ARRAY_SIZE(mxc_isi_out_formats)) {
-		dev_dbg(&mxc_isi->pdev->dev, "%s, format is not support!\n", __func__);
+		dev_err(&mxc_isi->pdev->dev, "%s, format is not support!\n", __func__);
 		return -EINVAL;
 	}
 
 	/* update out put frame size and formate */
-	if (pix->height <= 0 || pix->width <= 0)
+	if (pix->height <= 0 || pix->width <= 0) {
+		dev_err(&mxc_isi->pdev->dev,
+			"Invalid width or height(w=%d, h=%d)\n",
+			pix->width, pix->height);
 		return -EINVAL;
+	}
+
+	if ((pix->pixelformat == V4L2_PIX_FMT_NV12) && ((pix->width / 4) % 2)) {
+		dev_err(&mxc_isi->pdev->dev,
+			"Invalid width or height(w=%d, h=%d) for NV12\n",
+			pix->width, pix->height);
+		return -EINVAL;
+	} else if ((pix->pixelformat != V4L2_PIX_FMT_XBGR32) && (pix->width % 2)) {
+		dev_err(&mxc_isi->pdev->dev,
+			"Invalid width or height(w=%d, h=%d) for %.4s\n",
+			pix->width, pix->height, (char *)&pix->pixelformat);
+		return -EINVAL;
+	}
 
 	frame->fmt = fmt;
 	frame->height = pix->height;
