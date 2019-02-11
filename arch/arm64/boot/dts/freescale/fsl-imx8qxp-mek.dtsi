@@ -454,6 +454,12 @@
 			>;
 		};
 
+		pinctrl_ioexp_rst_sleep: ioexp_rst_sleep_grp {
+			fsl,pins = <
+				SC_P_SPI2_SDO_LSIO_GPIO1_IO01	0x07800021
+			>;
+		};
+
 		pinctrl_pwm_mipi_lvds0: mipi_lvds0_pwm_grp {
 			fsl,pins = <
 				SC_P_MIPI_DSI0_GPIO0_00_MIPI_DSI0_PWM0_OUT	0x00000020
@@ -841,8 +847,9 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	clock-frequency = <100000>;
-	pinctrl-names = "default";
+	pinctrl-names = "default", "sleep";
 	pinctrl-0 = <&pinctrl_lpi2c1 &pinctrl_ioexp_rst>;
+	pinctrl-1 = <&pinctrl_lpi2c1 &pinctrl_ioexp_rst_sleep>;
 	pinctrl-assert-gpios = <&gpio1 1 GPIO_ACTIVE_HIGH>;
 	status = "okay";
 
