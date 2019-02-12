@@ -16,32 +16,9 @@
 #include "pb.h"
 #include "pb_encode.h"
 #include "pb_decode.h"
-#include "rpmsg_vehicle.h"
+#include "vehicle_core.h"
 #include "vehiclehalproto.pb.h"
 #include "vehicle_protocol_callback.h"
-
-#ifdef CONFIG_VEHICLE_DRIVER_OREO
-#define HVAC_FAN_SPEED 306185472
-#define HVAC_FAN_DIRECTION 306185473
-#define HVAC_AUTO_ON 304088330
-#define HVAC_AC_ON 304088325
-#define HVAC_RECIRC_ON 304088328
-#define HVAC_DEFROSTER 320865540
-#define HVAC_TEMPERATURE_SET 308282627
-#define HVAC_POWER_ON 304088336
-#else
-#define HVAC_FAN_SPEED 356517120
-#define HVAC_FAN_DIRECTION 356517121
-#define HVAC_AUTO_ON 354419978
-#define HVAC_AC_ON 354419973
-#define HVAC_RECIRC_ON 354419976
-#define HVAC_DEFROSTER 320865540
-#define HVAC_TEMPERATURE_SET 358614275
-#define HVAC_POWER_ON 354419984
-#endif
-
-#define TURN_SIGNAL_STATE 289408008
-#define GEAR_SELECTION 289408000
 
 //VehiclePropertyType
 #define VEHICLEPROPERTYTYPE_STRING    1048576

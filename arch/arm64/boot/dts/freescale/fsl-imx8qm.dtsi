@@ -245,8 +245,19 @@
 		interrupt-parent = <&gic>;
 	};
 
-	vehicle_rpmsg: vehicle_rpmsg {
+	/*
+	 * vehicle core driver device node which open power domain dc by default
+	 */
+	vehicle_core: vehicle_core {
 		compatible = "nxp,imx-vehicle";
+		status = "disabled";
+	};
+
+	/*
+	 * vehicle M4 driver which can get info from MCU.
+	 */
+	vehicle_rpmsg_m4: vehicle_rpmsg_m4 {
+		compatible = "nxp,imx-vehicle-m4";
 		power-domains = <&pd_dc1>;
 		/*
 		 * fsl,resources is used to open the power of these resources.

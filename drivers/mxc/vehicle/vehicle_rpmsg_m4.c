@@ -12,12 +12,10 @@
  * GNU General Public License for more details.
  *
  */
-
 #include <linux/clk.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/imx_rpmsg.h>
-#include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/pm_qos.h>
@@ -29,56 +27,10 @@
 #include <soc/imx8/sc/sci.h>
 #include <linux/slab.h>
 #include <linux/of_platform.h>
-#include <linux/netlink.h>
-#include <net/sock.h>
-
-#include "pb_encode.h"
-#include "pb_decode.h"
-#include "pb.h"
-#include "vehiclehalproto.pb.h"
-#include "vehicle_protocol_callback.h"
-#include "rpmsg_vehicle.h"
+#include "vehicle_core.h"
 
 #define RPMSG_TIMEOUT 1000
 #define REGISTER_PERIOD 50
-#define PROTOCOL_ID 30
-
-struct sock *nlsk = NULL;
-extern struct net init_net;
-int user_pid;
-
-#ifdef CONFIG_VEHICLE_DRIVER_OREO
-#define HVAC_FAN_SPEED 306185472
-#define HVAC_FAN_DIRECTION 306185473
-#define HVAC_AUTO_ON 304088330
-#define HVAC_AC_ON 304088325
-#define HVAC_RECIRC_ON 304088328
-#define HVAC_DEFROSTER 320865540
-#define HVAC_TEMPERATURE_SET 308282627
-#define HVAC_POWER_ON 304088336
-#else
-#define HVAC_FAN_SPEED 356517120
-#define HVAC_FAN_DIRECTION 356517121
-#define HVAC_AUTO_ON 354419978
-#define HVAC_AC_ON 354419973
-#define HVAC_RECIRC_ON 354419976
-#define HVAC_DEFROSTER 320865540
-#define HVAC_TEMPERATURE_SET 358614275
-#define HVAC_POWER_ON 354419984
-#endif
-
-#define TURN_SIGNAL_STATE 289408008
-#define GEAR_SELECTION 289408000
-
-#define VEHICLE_GEAR_DRIVE_CLIENT 16
-#define VEHICLE_GEAR_PARK_CLIENT 8
-#define VEHICLE_GEAR_REVERSE_CLIENT 4
-
-#define VEHICLE_TURN_SIGNAL_LEFT 1
-#define VEHICLE_TURN_SIGNAL_RIGHT 2
-
-#define VEHICLE_TURN_SIGNAL_LEFT_CLIENT 4
-#define VEHICLE_TURN_SIGNAL_RIGHT_CLIENT 2
 
 /*command type which used between AP and M4 core*/
 enum vehicle_cmd {
@@ -103,50 +55,6 @@ enum vehicle_cmd_type {
 	VEHICLE_RPMSG_NOTIFICATION,
 };
 
-/*vehicle_event_type: stateType in command VSTATE*/
-enum vehicle_event_type {
-	VEHICLE_AC = 0,
-	VEHICLE_AUTO_ON,
-	VEHICLE_AC_TEMP,
-	VEHICLE_FAN_SPEED,
-	VEHICLE_FAN_DIRECTION,
-	VEHICLE_RECIRC_ON,
-	VEHICLE_HEATER,
-	VEHICLE_DEFROST,
-	VEHICLE_HVAC_POWER_ON,
-	VEHICLE_MUTE,
-	VEHICLE_VOLUME,
-	VEHICLE_DOOR,
-	VEHICLE_RVC,
-	VEHICLE_LIGHT,
-	VEHICLE_GEAR,
-	VEHICLE_TURN_SIGNAL,
-};
-
-/*vehicle_event_door_type: stateValue of type VEHICLE_DOOR*/
-enum vehicle_event_door_type {
-	VEHICLE_DOOR_UNLOCK = 0,
-	VEHICLE_DOOR_LOCK,
-};
-
-/*vehicle_event_gear: stateValue of type VEHICLE_GEAR*/
-enum vehicle_event_gear {
-	VEHICLE_GEAR_NONE = 0,
-	VEHICLE_GEAR_PARKING,
-	VEHICLE_GEAR_REVERSE,
-	VEHICLE_GEAR_NEUTRAL,
-	VEHICLE_GEAR_DRIVE,
-	VEHICLE_GEAR_FIRST,
-	VEHICLE_GEAR_SECOND,
-	VEHICLE_GEAR_SPORT,
-	VEHICLE_GEAR_MANUAL_1,
-	VEHICLE_GEAR_MANUAL_2,
-	VEHICLE_GEAR_MANUAL_3,
-	VEHICLE_GEAR_MANUAL_4,
-	VEHICLE_GEAR_MANUAL_5,
-	VEHICLE_GEAR_MANUAL_6,
-};
-
 /*mcu_state: mcuOperateMode in command REGISTER*/
 enum mcu_state {
 	RESOURCE_FREE = 0,
@@ -154,15 +62,27 @@ enum mcu_state {
 	USER_ACTIVITY_BUSY,
 };
 
-/*vehicle_power_report_type: androidPwrState in command PWR_REPORT*/
-enum vehicle_power_report_type {
-	BOOT_COMPLETE = 0,
-	DEEP_SLEEP_ENTRY,
-	DEEP_SLEEP_EXIT,
-	SHUTDOWN_POSTPONE,
-	SHUTDOWN_START,
-	DISPLAY_OFF,
-	DISPLAY_ON,
+
+struct rpmsg_vehicle_mcu_drvdata {
+	struct rpmsg_device *rpdev;
+	struct device *dev;
+	struct device *vehicle_dev;
+	struct vehicle_rpmsg_data *msg;
+	struct pm_qos_request pm_qos_req;
+	struct delayed_work vehicle_register_work;
+	struct completion cmd_complete;
+	u32 resources_count;
+	u32 *resource;
+	/*
+	 * register_ready means ap have been registered as client and been ready
+	 * load camera/display modoules. When it get the driver signal first time
+	 * and register_ready is true, it will loader related moduled.
+	 */
+	bool register_ready;
+	struct clk *clk_core;
+	struct clk *clk_esc;
+	/* register_ready means ap have been registered as client */
+	bool vehicle_client_registered;
 };
 
 struct vehicle_rpmsg_data {
@@ -201,29 +121,6 @@ struct vehicle_rpmsg_data {
 	}
 } __attribute__((packed));
 
-
-struct rpmsg_vehicle_drvdata {
-	struct rpmsg_device *rpdev;
-	struct device *dev;
-	struct device *vehicle_dev;
-	struct vehicle_rpmsg_data *msg;
-	struct pm_qos_request pm_qos_req;
-	struct delayed_work vehicle_register_work;
-	struct completion cmd_complete;
-	u32 resources_count;
-	u32 *resource;
-	/*
-	 * register_ready means ap have been registered as client and been ready
-	 * load camera/display modoules. When it get the driver signal first time
-	 * and register_ready is true, it will loader related moduled.
-	 */
-	bool register_ready;
-	struct clk *clk_core;
-	struct clk *clk_esc;
-	/* register_ready means ap have been registered as client */
-	bool vehicle_client_registered;
-};
-
 #ifdef CONFIG_EXTCON
 static const unsigned int imx_vehicle_rpmsg_extcon_register_cables[] = {
 	EXTCON_VEHICLE_RPMSG_REGISTER,
@@ -237,15 +134,15 @@ struct extcon_dev *rg_edev;
 struct extcon_dev *ev_edev;
 #endif
 
-static struct rpmsg_vehicle_drvdata *vehicle_rpmsg;
+extern void vehicle_hw_prop_ops_register(struct hw_prop_ops* prop_ops);
+extern void vehicle_hal_set_property(u16 prop, u8 index, u32 value);
+static struct rpmsg_vehicle_mcu_drvdata *vehicle_rpmsg;
 static struct class* vehicle_rpmsg_class;
 int state = 0;
-struct vehicle_property_set property_encode;
-struct vehicle_property_set property_decode;
 
 /*send message to M4 core through rpmsg*/
 static int vehicle_send_message(struct vehicle_rpmsg_data *msg,
-			struct rpmsg_vehicle_drvdata *info, bool ack)
+			struct rpmsg_vehicle_mcu_drvdata *info, bool ack)
 {
 	int err;
 
@@ -294,7 +191,7 @@ err_out:
 	return err;
 }
 
-void vehicle_send_message_from_client(u32 prop, u32 area, u32 value)
+void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 {
 	struct vehicle_rpmsg_data msg;
 
@@ -337,7 +234,6 @@ void vehicle_send_message_from_client(u32 prop, u32 area, u32 value)
 	if (vehicle_send_message(&msg, vehicle_rpmsg, true)) {
 		pr_err("send message failed!\n");
 	}
-
 }
 
 /*power on display/camera related power domain once AP get control of display/camera*/
@@ -385,153 +281,6 @@ static void sync_hw_clk(void)
 	/* clk_get_rate will sync scu clk into linux software clk tree*/
 	clk_get_rate(vehicle_rpmsg->clk_core);
 	clk_get_rate(vehicle_rpmsg->clk_esc);
-}
-
-int send_usrmsg(char *pbuf, uint16_t len)
-{
-	struct sk_buff *nl_skb;
-	struct nlmsghdr *nlh;
-
-	int ret;
-
-	nl_skb = nlmsg_new(len, GFP_ATOMIC);
-	if(!nl_skb) {
-		pr_err("netlink alloc failure\n");
-		return -1;
-	}
-
-	nlh = nlmsg_put(nl_skb, 0, 0, 0, len, 0);
-	if(nlh == NULL) {
-		pr_err("nlmsg_put failaure \n");
-		nlmsg_free(nl_skb);
-		return -1;
-	}
-
-	memcpy(nlmsg_data(nlh), pbuf, len);
-	ret = netlink_unicast(nlsk, nl_skb, user_pid, MSG_DONTWAIT);
-
-	return ret;
-}
-
-void set_property(u16 prop, u8 index, u32 value)
-{
-	char *buffer;
-
-	buffer = kmalloc(128, GFP_KERNEL);
-	property_encode.value = value;
-	switch (prop) {
-	case VEHICLE_FAN_SPEED:
-		property_encode.prop = HVAC_FAN_SPEED;
-		break;
-	case VEHICLE_FAN_DIRECTION:
-		property_encode.prop = HVAC_FAN_DIRECTION;
-		break;
-	case VEHICLE_AUTO_ON:
-		property_encode.prop = HVAC_AUTO_ON;
-		break;
-	case VEHICLE_AC:
-		property_encode.prop = HVAC_AC_ON;
-		break;
-	case VEHICLE_RECIRC_ON:
-		property_encode.prop = HVAC_RECIRC_ON;
-		break;
-	case VEHICLE_DEFROST:
-		property_encode.prop = HVAC_DEFROSTER;
-		property_encode.area_id = (u32)index;
-		break;
-	case VEHICLE_AC_TEMP:
-		property_encode.prop = HVAC_TEMPERATURE_SET;
-		property_encode.area_id = (u32)index;
-		break;
-	case VEHICLE_HVAC_POWER_ON:
-		property_encode.prop = HVAC_POWER_ON;
-		break;
-	case VEHICLE_GEAR:
-		property_encode.prop = GEAR_SELECTION;
-		if (VEHICLE_GEAR_DRIVE == value)
-			property_encode.value = VEHICLE_GEAR_DRIVE_CLIENT;
-		else if (VEHICLE_GEAR_REVERSE == value)
-			property_encode.value = VEHICLE_GEAR_REVERSE_CLIENT;
-		else if (VEHICLE_GEAR_PARKING == value)
-			property_encode.value = VEHICLE_GEAR_PARK_CLIENT;
-		break;
-	case VEHICLE_TURN_SIGNAL:
-		property_encode.prop = TURN_SIGNAL_STATE;
-		if (VEHICLE_TURN_SIGNAL_LEFT == value)
-			property_encode.value = VEHICLE_TURN_SIGNAL_LEFT_CLIENT;
-		else if (VEHICLE_TURN_SIGNAL_RIGHT == value)
-			property_encode.value = VEHICLE_TURN_SIGNAL_RIGHT_CLIENT;
-		break;
-	default:
-		pr_err("property %d is not supported \n", prop);
-	}
-
-	pb_ostream_t stream;
-	stream = pb_ostream_from_buffer(buffer, 128);
-
-	emulator_EmulatorMessage send_message = {};
-
-	send_message.msg_type = emulator_MsgType_SET_PROPERTY_CMD;
-	send_message.has_status = true;
-	send_message.status = emulator_Status_RESULT_OK;
-	send_message.value.funcs.encode = &encode_value_callback;
-	send_message.value.arg = &property_encode;
-
-	if (!pb_encode(&stream, emulator_EmulatorMessage_fields, &send_message))
-		pr_err("vehicle protocol encode fail \n");
-	send_usrmsg(buffer, stream.bytes_written);
-	kfree(buffer);
-}
-
-
-
-static void netlink_rcv_msg(struct sk_buff *skb)
-{
-	struct nlmsghdr *nlh = NULL;
-	char *umsg = NULL;
-	char *buffer;
-	bool status;
-	int i;
-	size_t len;
-	size_t encode_len;
-
-	emulator_EmulatorMessage emulator_message;
-	buffer = kmalloc(128, GFP_KERNEL);
-	if(skb->len >= nlmsg_total_size(0)) {
-		nlh = nlmsg_hdr(skb);
-		user_pid = nlh->nlmsg_pid;
-		umsg = NLMSG_DATA(nlh);
-		len = nlh->nlmsg_len - NLMSG_LENGTH(0);
-		if(umsg) {
-			memcpy(buffer, umsg, len);
-			pb_istream_t stream = pb_istream_from_buffer(buffer, len);
-			emulator_message.prop.funcs.decode = &decode_prop_callback;
-			emulator_message.config.funcs.decode = &decode_config_callback;
-			emulator_message.value.funcs.decode = &decode_value_callback;
-			emulator_message.value.arg = &property_decode;
-
-			status = pb_decode(&stream, emulator_EmulatorMessage_fields, &emulator_message);
-			if (!status)
-			{
-				pr_err("pb_decode failed \n");
-			}
-			vehicle_send_message_from_client(property_decode.prop, property_decode.area_id, property_decode.value);
-		}
-	}
-	kfree(buffer);
-}
-
-static void create_netlink_vehicle(void)
-{
-	struct netlink_kernel_cfg cfg = {
-		.input  = netlink_rcv_msg,
-	};
-
-	nlsk = netlink_kernel_create(&init_net, PROTOCOL_ID, &cfg);
-	if(nlsk == NULL) {
-		pr_err("netlink_kernel_create error !\n");
-		return;
-	}
 }
 
 static void notice_evs_released(struct rpmsg_device *rpdev)
@@ -614,7 +363,7 @@ static int vehicle_rpmsg_cb(struct rpmsg_device *rpdev,
 			}
 		}
 
-		set_property(msg->statetype, msg->index,  msg->statevalue);
+		vehicle_hal_set_property(msg->statetype, msg->index,  msg->statevalue);
 
 		if (vehicle_send_message(msg, vehicle_rpmsg, false))
 			dev_warn(&rpdev->dev, "vehicle_rpmsg_cb send message error \n");
@@ -783,10 +532,10 @@ static ssize_t register_store(struct device *dev,
 
 static DEVICE_ATTR(register, 0664, register_show, register_store);
 
-static struct rpmsg_vehicle_drvdata *
+static struct rpmsg_vehicle_mcu_drvdata *
 rpmsg_vehicle_get_devtree_pdata(struct device *dev)
 {
-	struct rpmsg_vehicle_drvdata *ddata;
+	struct rpmsg_vehicle_mcu_drvdata *ddata;
 
 	ddata = devm_kzalloc(dev,
 			     sizeof(*ddata),
@@ -797,13 +546,16 @@ rpmsg_vehicle_get_devtree_pdata(struct device *dev)
 	return ddata;
 }
 
-static int vehicle_probe(struct platform_device *pdev)
+static const struct hw_prop_ops hw_prop_mcu_ops = {
+	.set_control_commands = mcu_set_control_commands,
+};
+
+static int vehicle_mcu_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	struct rpmsg_vehicle_drvdata *ddata;
+	struct rpmsg_vehicle_mcu_drvdata *ddata;
 	int err;
 
-	create_netlink_vehicle();
 	ddata = rpmsg_vehicle_get_devtree_pdata(dev);
 	if (IS_ERR(ddata))
 		return PTR_ERR(ddata);
@@ -837,34 +589,37 @@ static int vehicle_probe(struct platform_device *pdev)
 	err = device_create_file(dev, &dev_attr_register);
 	if (err)
 		goto out_free_mem;
+
+	vehicle_hw_prop_ops_register(&hw_prop_mcu_ops);
+
 	return 0;
 out_free_mem:
 	kfree(ddata->resource);
 	return ERR_PTR(-ENOMEM);
 }
 
-static void vehicle_remove(struct platform_device *pdev)
+static void vehicle_mcu_remove(struct platform_device *pdev)
 {
 	kfree(vehicle_rpmsg->resource);
 	class_destroy(vehicle_rpmsg_class);
 	unregister_rpmsg_driver(&vehicle_rpmsg_driver);
 }
 
-static const struct of_device_id imx_vehicle_id[] = {
-	{ .compatible = "nxp,imx-vehicle", },
+static const struct of_device_id imx_vehicle_mcu_id[] = {
+	{ .compatible = "nxp,imx-vehicle-m4", },
 	{},
 };
 
 static struct platform_driver vehicle_device_driver = {
-	.probe          = vehicle_probe,
-	.remove         = vehicle_remove,
+	.probe          = vehicle_mcu_probe,
+	.remove         = vehicle_mcu_remove,
 	.driver         =  {
-		.name   = "rpmsg-vehicle",
-		.of_match_table = imx_vehicle_id,
+		.name   = "rpmsg-vehicle-m4",
+		.of_match_table = imx_vehicle_mcu_id,
 	}
 };
 
-static int vehicle_init(void)
+static int vehicle_mcu_init(void)
 {
 	int err;
 	err = platform_driver_register(&vehicle_device_driver);
@@ -878,20 +633,17 @@ static int vehicle_init(void)
 	return 0;
 }
 
-static void __exit vehicle_exit(void)
+static void __exit vehicle_mcu_exit(void)
 {
-	if (nlsk)
-		netlink_kernel_release(nlsk);
-
 	platform_driver_unregister(&vehicle_device_driver);
 	atomic_notifier_chain_unregister(&panic_notifier_list,
 				&vehicle_panic_nb);
 	unregister_reboot_notifier(&vehicle_reboot_nb);
 }
 
-postcore_initcall(vehicle_init);
-module_exit(vehicle_exit);
+postcore_initcall_sync(vehicle_mcu_init);
+module_exit(vehicle_mcu_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("NXP Semiconductor");
-MODULE_DESCRIPTION("VEHICLE driver based on rpmsg");
+MODULE_DESCRIPTION("VEHICLE M4 image");

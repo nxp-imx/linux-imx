@@ -13,4 +13,4 @@ obj-$(CONFIG_MX8_HDP)	+= hdp/
 obj-$(CONFIG_IMX_HDP_CEC)	+= hdp-cec/
 obj-$(CONFIG_MXC_VPU_DECODER) += vpu-decoder-b0/
 obj-$(CONFIG_MXC_VPU_WINDSOR) += vpu_windsor/
-obj-$(CONFIG_VEHICLE_RPMSG) += vehicle_rpmsg/
+obj-$(CONFIG_VEHICLE_CORE) += vehicle/

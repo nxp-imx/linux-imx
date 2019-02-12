@@ -98,7 +98,12 @@
 	clock-frequency = <400000>;
 };
 
-&vehicle_rpmsg {
+&vehicle_core {
+	power-domains = <&pd_dc1>;
+	status = "okay";
+};
+
+&vehicle_rpmsg_m4 {
 	#address-cells = <2>;
 	#size-cells = <2>;
 	status = "okay";

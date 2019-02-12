@@ -41,7 +41,7 @@ source "drivers/mxc/vpu/Kconfig"
 source "drivers/mxc/hdmi-cec/Kconfig"
 endif
 
-source "drivers/mxc/vehicle_rpmsg/Kconfig"
+source "drivers/mxc/vehicle/Kconfig"
 
 endmenu
 

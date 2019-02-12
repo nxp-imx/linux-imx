@@ -1,0 +1,33 @@
+#
+# vehicle configuration
+#
+
+menu "MXC vehicle setting"
+
+config VEHICLE_CORE
+       tristate "NXP VEHICLE core support"
+       help
+          If you say yes here you get support for the NXP
+          vehicle core module.
+
+config VEHICLE_RPMSG_M4
+       tristate "NXP RPMSG VEHICLE MCU support"
+       select EXTCON
+       help
+          If you say yes here you get support for the NXP MCU
+          module which communicate with AP.
+
+config VEHICLE_DUMMY
+       tristate "NXP VEHICLE DUMMY support"
+       select EXTCON
+       help
+          If you say yes here you get support for the NXP dummy MCU
+          which simulate the vehicle signal.
+
+config VEHICLE_DRIVER_OREO
+	tristate "NXP vehicle driver for android o"
+	help
+	   If you say yes here, you can get support for vehicle protocol
+	   in android o, otherwise it support android p.
+
+endmenu

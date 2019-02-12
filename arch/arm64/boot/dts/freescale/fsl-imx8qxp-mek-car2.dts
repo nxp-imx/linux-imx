@@ -138,3 +138,6 @@
 	status = "disabled";
 };
 
+&vehicle_core {
+	status = "okay";
+};
