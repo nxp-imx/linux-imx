@@ -2189,7 +2189,7 @@ static void dec_frame(struct vpu_frame_info *frame)
 		vpu_dbg(LVL_DEBUG, "-- frame : %ld\n",
 				atomic64_read(&frame->queue->frame_count));
 	}
-	vfree(frame);
+	VPU_SAFE_RELEASE(frame, vfree);
 }
 
 static struct vpu_frame_info *get_idle_frame(struct queue_data *queue)
@@ -3261,7 +3261,7 @@ static void free_instance(struct vpu_ctx *ctx)
 
 	if (is_valid_ctx(ctx))
 		ctx->core_dev->ctx[ctx->str_index] = NULL;
-	kfree(ctx);
+	VPU_SAFE_RELEASE(ctx, kfree);
 }
 
 static u32 count_free_core_slot(struct core_device *core)
@@ -3369,7 +3369,7 @@ static struct vpu_ctx *create_and_request_instance(struct vpu_dev *dev)
 
 	ret = request_instance(core, ctx);
 	if (ret < 0) {
-		kfree(ctx);
+		VPU_SAFE_RELEASE(ctx, kfree);
 		return NULL;
 	}
 
@@ -4335,7 +4335,7 @@ static int vpu_enc_v4l2_open(struct file *filp)
 error:
 	mutex_lock(&dev->dev_mutex);
 	set_bit(VPU_ENC_STATUS_FORCE_RELEASE, &ctx->status);
-	release_instance(ctx);
+	VPU_SAFE_RELEASE(ctx, release_instance);
 	mutex_unlock(&dev->dev_mutex);
 	return ret;
 }
@@ -4355,7 +4355,7 @@ static int vpu_enc_v4l2_release(struct file *filp)
 	uninit_vpu_ctx_fh(ctx);
 	filp->private_data = NULL;
 
-	release_instance(ctx);
+	VPU_SAFE_RELEASE(ctx, release_instance);
 	mutex_unlock(&dev->dev_mutex);
 
 	return 0;

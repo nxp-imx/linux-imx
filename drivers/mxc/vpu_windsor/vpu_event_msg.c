@@ -33,7 +33,7 @@ static void free_event_msg(struct vpu_event_msg *msg)
 		return;
 
 	free_msg_ext_buffer(msg);
-	vfree(msg);
+	VPU_SAFE_RELEASE(msg, vfree);
 }
 
 static void set_msg_count(struct vpu_ctx *ctx, unsigned long count)
@@ -84,13 +84,13 @@ void cleanup_ctx_msg_queue(struct vpu_ctx *ctx)
 		list_del_init(&msg->list);
 		vpu_dbg(LVL_MSG, "drop core[%d] ctx[%d] msg:[%d]\n",
 				ctx->core_dev->id, ctx->str_index, msg->msgid);
-		free_event_msg(msg);
+		VPU_SAFE_RELEASE(msg, free_event_msg);
 		dec_msg_count(ctx);
 	}
 
 	list_for_each_entry_safe(msg, tmp, &ctx->idle_q, list) {
 		list_del_init(&msg->list);
-		free_event_msg(msg);
+		VPU_SAFE_RELEASE(msg, free_event_msg);
 		dec_msg_count(ctx);
 	}
 	mutex_unlock(&ctx->instance_mutex);
@@ -160,7 +160,7 @@ void put_idle_msg(struct vpu_ctx *ctx, struct vpu_event_msg *msg)
 
 	mutex_lock(&ctx->instance_mutex);
 	if (is_msg_count_full(ctx)) {
-		free_event_msg(msg);
+		VPU_SAFE_RELEASE(msg, free_event_msg);
 		dec_msg_count(ctx);
 	} else {
 		list_add_tail(&msg->list, &ctx->idle_q);
@@ -226,8 +226,7 @@ void free_msg_ext_buffer(struct vpu_event_msg *msg)
 		return;
 
 	atomic64_sub(msg->number, &total_ext_data);
-	vfree(msg->ext_data);
-	msg->ext_data = NULL;
+	VPU_SAFE_RELEASE(msg->ext_data, vfree);
 	vpu_dbg(LVL_MSG, "----free %d msg ext data: %lld\n",
 			msg->number, get_total_ext_data_number());
 }
