@@ -6,11 +6,11 @@ DEFINES += -D REBOOT=1 \
 
 EXTRA_CFLAGS += $(DEFINES)
 
-obj-y = vpu-decoder.o
-vpu-decoder-objs = vpu_b0.o \
+obj-$(CONFIG_MXC_VPU_MALONE) = vpu-malone.o
+vpu-malone-objs = vpu_b0.o \
 	vpu_rpc.o \
 	insert_startcode.o \
 	vpu_debug_log.o
 
 clean:
-	rm -rf $(vpu-decoder-objs)
+	rm -rf $(vpu-malone-objs)

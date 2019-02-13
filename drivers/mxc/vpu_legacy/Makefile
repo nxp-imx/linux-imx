@@ -2,21 +2,21 @@
 # Makefile for VPU driver.
 #
 
-MALONE_ROOT = $(srctree)/drivers/mxc/vpu-malone/Malone_Firmware
+LEGACY_ROOT = $(srctree)/drivers/mxc/vpu_legacy/Malone_Firmware
 
 #---------------------------------------------------------------------------
 # Header Include Paths
 
-MALONE_KERN_HEADER = \
-	      -I$(MALONE_ROOT)/DecKLib/KernelIF \
-	      -I$(MALONE_ROOT)/DecKLib/Control \
-	      -I$(MALONE_ROOT)/DecKLib/Incl
+LEGACY_KERN_HEADER = \
+	      -I$(LEGACY_ROOT)/DecKLib/KernelIF \
+	      -I$(LEGACY_ROOT)/DecKLib/Control \
+	      -I$(LEGACY_ROOT)/DecKLib/Incl
 
-SYS_HEADER = -I$(MALONE_ROOT)/Incl \
-	     -I$(MALONE_ROOT)/PAL/Incl \
-	     -I$(srctree)/drivers/mxc/vpu-malone
+SYS_HEADER = -I$(LEGACY_ROOT)/Incl \
+	     -I$(LEGACY_ROOT)/PAL/Incl \
+	     -I$(srctree)/drivers/mxc/vpu_legacy
 
-MALONE_KERN_HEADER += $(SYS_HEADER)
+LEGACY_KERN_HEADER += $(SYS_HEADER)
 
 
 #---------------------------------------------------------------------------
@@ -175,17 +175,17 @@ DEFINES = -DDTV_GATHER_PERF_METRICS \
 		  -DMALONE_64BIT_ADDR \
 		  -DDISABLE_TRACE
 
-MALONE_KERN_DEFINEFLAGS = $(DEFINES)
-MALONE_KERN_DEFINEFLAGS += -DVPU_KERNEL_BUILD
+LEGACY_KERN_DEFINEFLAGS = $(DEFINES)
+LEGACY_KERN_DEFINEFLAGS += -DVPU_KERNEL_BUILD
 
-EXTRA_CFLAGS += $(MALONE_KERN_DEFINEFLAGS)
-EXTRA_CFLAGS += $(MALONE_KERN_HEADER)
+EXTRA_CFLAGS += $(LEGACY_KERN_DEFINEFLAGS)
+EXTRA_CFLAGS += $(LEGACY_KERN_HEADER)
 
-ifeq ($(CONFIG_MXC_VPU_MALONE_DEBUG),y)
+ifeq ($(CONFIG_MXC_VPU_LEGACY_DEBUG),y)
 EXTRA_CFLAGS += -DDEBUG
 endif
 
-obj-$(CONFIG_MXC_VPU_MALONE) = decoder.o
+obj-$(CONFIG_MXC_VPU_LEGACY) = decoder.o
 
 decoder-objs = mxc_vpu-malone.o \
 	       $(MAL_KERN_OBJECTS)
