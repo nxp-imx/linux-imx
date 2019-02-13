@@ -129,7 +129,6 @@ static void mxc_isi_m2m_device_run(void *priv)
 
 unlock:
 	spin_unlock_irqrestore(&mxc_isi->slock, flags);
-	msleep(50);
 }
 
 static int mxc_isi_m2m_job_ready(void *priv)
@@ -306,6 +305,7 @@ static int m2m_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	list_add_tail(&b->list, &mxc_isi->m2m.out_active);
 
 	mxc_isi->m2m.frame_count = 1;
+	mxc_isi->m2m.aborting = 0;
 unlock:
 	spin_unlock_irqrestore(&mxc_isi->slock, flags);
 
@@ -364,7 +364,7 @@ static int mxc_m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	src_vq->ops = &mxc_m2m_vb2_qops;
 	src_vq->mem_ops = &vb2_dma_contig_memops;
 	src_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
-	src_vq->lock = &mxc_isi->lock;
+	src_vq->lock = &mxc_isi->m2m_lock;
 	src_vq->dev = &mxc_isi->pdev->dev;
 
 	ret = vb2_queue_init(src_vq);
@@ -378,7 +378,7 @@ static int mxc_m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	dst_vq->ops = &mxc_m2m_vb2_qops;
 	dst_vq->mem_ops = &vb2_dma_contig_memops;
 	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
-	dst_vq->lock = &mxc_isi->lock;
+	dst_vq->lock = &mxc_isi->m2m_lock;
 	dst_vq->dev = &mxc_isi->pdev->dev;
 
 	ret = vb2_queue_init(dst_vq);
@@ -401,7 +401,7 @@ static int mxc_isi_m2m_open(struct file *file)
 		return -EBUSY;
 	}
 
-	if (mutex_lock_interruptible(&mxc_isi->lock))
+	if (mutex_lock_interruptible(&mxc_isi->m2m_lock))
 		return -ERESTARTSYS;
 	mxc_ctx = kzalloc(sizeof(*mxc_ctx), GFP_KERNEL);
 	if (!mxc_ctx) {
@@ -431,7 +431,7 @@ static int mxc_isi_m2m_open(struct file *file)
 
 	mxc_isi->is_m2m = 1;
 unlock:
-	mutex_unlock(&mxc_isi->lock);
+	mutex_unlock(&mxc_isi->m2m_lock);
 	return ret;
 }
 
@@ -446,9 +446,12 @@ static int mxc_isi_m2m_release(struct file *file)
 	v4l2_fh_del(&mxc_ctx->fh);
 	v4l2_fh_exit(&mxc_ctx->fh);
 
-	mutex_lock(&mxc_isi->lock);
+	if (mutex_is_locked(&mxc_isi->m2m_lock))
+		mutex_unlock(&mxc_isi->m2m_lock);
+
+	mutex_lock(&mxc_isi->m2m_lock);
 	v4l2_m2m_ctx_release(mxc_ctx->fh.m2m_ctx);
-	mutex_unlock(&mxc_isi->lock);
+	mutex_unlock(&mxc_isi->m2m_lock);
 
 	kfree(mxc_ctx);
 	if (atomic_dec_and_test(&mxc_isi->open_count))
@@ -1027,12 +1030,6 @@ void mxc_isi_unregister_m2m_device(struct mxc_isi_dev *mxc_isi)
 	v4l2_m2m_release(mxc_isi->m2m.m2m_dev);
 }
 
-void mxc_isi_m2m_frame_read_done(struct mxc_isi_dev *mxc_isi)
-{
-	dev_dbg(&mxc_isi->pdev->dev, "%s\n", __func__);
-	mxc_isi->m2m.read_done = 1;
-}
-
 void mxc_isi_m2m_frame_write_done(struct mxc_isi_dev *mxc_isi)
 {
 	struct v4l2_fh *fh;
@@ -1050,9 +1047,6 @@ void mxc_isi_m2m_frame_write_done(struct mxc_isi_dev *mxc_isi)
 		return;
 	}
 	fh = &curr_mxc_ctx->fh;
-
-	if (!mxc_isi->m2m.read_done)
-		return;
 
 	if (mxc_isi->m2m.aborting) {
 		mxc_isi_channel_disable(mxc_isi);
@@ -1108,5 +1102,4 @@ void mxc_isi_m2m_frame_write_done(struct mxc_isi_dev *mxc_isi)
 
 job_finish:
 	v4l2_m2m_job_finish(mxc_isi->m2m.m2m_dev, fh->m2m_ctx);
-	mxc_isi->m2m.read_done = 0;
 }

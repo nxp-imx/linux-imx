@@ -22,9 +22,6 @@ static irqreturn_t mxc_isi_irq_handler(int irq, void *priv)
 	status = mxc_isi_get_irq_status(mxc_isi);
 	mxc_isi_clean_irq_status(mxc_isi, status);
 
-	if (status & CHNL_STS_MEM_RD_DONE_MASK)
-		mxc_isi_m2m_frame_read_done(mxc_isi);
-
 	if (status & CHNL_STS_FRM_STRD_MASK) {
 		if (mxc_isi->is_m2m)
 			mxc_isi_m2m_frame_write_done(mxc_isi);
@@ -140,6 +137,7 @@ static int mxc_isi_probe(struct platform_device *pdev)
 	init_waitqueue_head(&mxc_isi->irq_queue);
 	spin_lock_init(&mxc_isi->slock);
 	mutex_init(&mxc_isi->lock);
+	mutex_init(&mxc_isi->m2m_lock);
 	atomic_set(&mxc_isi->open_count, 0);
 
 	mxc_isi->clk = devm_clk_get(dev, NULL);
