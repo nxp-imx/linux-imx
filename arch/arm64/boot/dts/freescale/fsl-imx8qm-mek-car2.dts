@@ -69,7 +69,7 @@
 };
 
 &i2c0_mipi_dsi1 {
-	clock-frequency = <1000000>;
+	status = "disabled";
 };
 
 &wm8960 {
@@ -98,6 +98,18 @@
 
 &mipi_dsi_bridge1 {
 	status = "disabled";
+};
+
+&mipi_dsi_phy2 {
+   status = "disabled";
+};
+
+&mipi_dsi2 {
+   status = "disabled";
+};
+
+&mipi_dsi_bridge2 {
+   status = "disabled";
 };
 
 &usdhc2 {

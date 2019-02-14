@@ -121,7 +121,7 @@
 			reg = <0x3d>;
 			adi,dsi-lanes = <4>;
 			adi,dsi-channel = <1>;
-			status = "okay";
+			status = "disabled";
 
 			port {
 				adv7535_1_in: endpoint {
@@ -173,6 +173,18 @@
 	status = "disabled";
 };
 
+&mipi_dsi_phy1 {
+        status = "disabled";
+};
+
+&mipi_dsi1 {
+        status = "disabled";
+};
+
+&mipi_dsi_bridge1 {
+        status = "disabled";
+};
+
 &mipi_dsi_phy2 {
 	status = "disabled";
 };
@@ -199,6 +211,9 @@
 
 &i2c0_mipi_lvds1 {
 	clock-frequency = <400000>;
+        adv_bridge2: adv7535@3d {
+                status = "disabled";
+        };
 };
 
 &jpegdec {
