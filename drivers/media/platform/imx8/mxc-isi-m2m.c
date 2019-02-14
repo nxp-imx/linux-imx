@@ -173,6 +173,7 @@ static int m2m_vb2_queue_setup(struct vb2_queue *q,
 {
 	struct mxc_isi_ctx *mxc_ctx = vb2_get_drv_priv(q);
 	struct mxc_isi_dev *mxc_isi = mxc_ctx->isi_dev;
+	struct device *dev = &mxc_isi->pdev->dev;
 	struct mxc_isi_frame *frame;
 	struct mxc_isi_fmt *fmt;
 	unsigned long wh;
@@ -180,15 +181,19 @@ static int m2m_vb2_queue_setup(struct vb2_queue *q,
 
 	dev_dbg(&mxc_isi->pdev->dev, "%s\n", __func__);
 
-	if (*num_buffers < 1) {
-		dev_err(&mxc_isi->pdev->dev, "%s at least need one buffer\n", __func__);
-		return -EINVAL;
-	}
-
-	if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+	if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		if (*num_buffers < 3) {
+			dev_err(dev, "%s at least need 3 buffer\n", __func__);
+			return -EINVAL;
+		}
 		frame = &mxc_isi->m2m.dst_f;
-	else
+	} else {
+		if (*num_buffers < 1) {
+			dev_err(dev, "%s at least need one buffer\n", __func__);
+			return -EINVAL;
+		}
 		frame = &mxc_isi->m2m.src_f;
+	}
 
 	fmt = frame->fmt;
 	if (fmt == NULL)
@@ -342,7 +347,7 @@ static void m2m_vb2_stop_streaming(struct vb2_queue *q)
 static struct vb2_ops mxc_m2m_vb2_qops = {
 	.queue_setup		= m2m_vb2_queue_setup,
 	.buf_prepare		= m2m_vb2_buffer_prepare,
-	.buf_queue			= m2m_vb2_buffer_queue,
+	.buf_queue		= m2m_vb2_buffer_queue,
 	.wait_prepare		= vb2_ops_wait_prepare,
 	.wait_finish		= vb2_ops_wait_finish,
 	.start_streaming	= m2m_vb2_start_streaming,
