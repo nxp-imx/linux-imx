@@ -601,6 +601,7 @@ void mxc_isi_clean_registers(struct mxc_isi_dev *mxc_isi)
 void mxc_isi_channel_enable(struct mxc_isi_dev *mxc_isi)
 {
 	u32 val;
+	struct mxc_isi_frame *dst_f = &mxc_isi->isi_cap.dst_f;
 
 	val = readl(mxc_isi->regs + CHNL_CTRL);
 	val |= (CHNL_CTRL_CHNL_EN_ENABLE << CHNL_CTRL_CHNL_EN_OFFSET);
@@ -609,10 +610,12 @@ void mxc_isi_channel_enable(struct mxc_isi_dev *mxc_isi)
 
 	mxc_isi_clean_registers(mxc_isi);
 	mxc_isi_enable_irq(mxc_isi);
-	if (mxc_isi->low_latency)
-		msleep(300);
+
+	if ((dst_f->width > 1920) || (dst_f->height > 1080))
+		msleep(400);
 	else
-		msleep(700);
+		msleep(250);
+
 	dump_isi_regs(mxc_isi);
 }
 

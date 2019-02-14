@@ -217,19 +217,3 @@
 	reg = <0x0 0x90000000 0x0 0x20000>;
 	status = "okay";
 };
-
-&isi_0 {
-	low_latency;
-};
-
-&isi_1 {
-	low_latency;
-};
-
-&isi_2 {
-	low_latency;
-};
-
-&isi_3 {
-	low_latency;
-};

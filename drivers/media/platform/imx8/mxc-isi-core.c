@@ -106,8 +106,6 @@ static int mxc_isi_parse_dt(struct mxc_isi_dev *mxc_isi)
 
 	mxc_isi->parallel_csi = of_property_read_bool(node, "parallel_csi");
 
-	mxc_isi->low_latency = of_property_read_bool(node, "low_latency");
-
 	dev_dbg(dev, "%s, isi_%d,interface(%d, %d, %d)\n", __func__, mxc_isi->id,
 			mxc_isi->interface[0], mxc_isi->interface[1], mxc_isi->interface[2]);
 

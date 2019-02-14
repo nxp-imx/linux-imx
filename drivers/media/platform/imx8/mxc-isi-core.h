@@ -310,7 +310,6 @@ struct mxc_isi_dev {
 	unsigned int		crop:1;
 	unsigned int		deinterlace:1;
 	unsigned int		parallel_csi:1;
-	unsigned int		low_latency:1;
 	unsigned int		is_m2m:1;
 	unsigned int		is_streaming:1;
 
