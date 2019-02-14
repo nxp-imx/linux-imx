@@ -925,7 +925,7 @@
 				reg = <SC_R_UART_0>;
 				#power-domain-cells = <0>;
 				power-domains = <&pd_dma>;
-				wakeup-irq = <225>;
+				wakeup-irq = <345>;
 			};
 			pd_dma_lpuart1: PD_DMA_UART1 {
 				reg = <SC_R_UART_1>;
@@ -933,7 +933,7 @@
 				power-domains = <&pd_dma>;
 				#address-cells = <1>;
 				#size-cells = <0>;
-				wakeup-irq = <226>;
+				wakeup-irq = <346>;
 
 				pd_dma2_chan10: PD_UART1_RX {
 					reg = <SC_R_DMA_2_CH10>;
@@ -957,7 +957,7 @@
 				power-domains = <&pd_dma>;
 				#address-cells = <1>;
 				#size-cells = <0>;
-				wakeup-irq = <227>;
+				wakeup-irq = <347>;
 
 				pd_dma2_chan12: PD_UART2_RX {
 					reg = <SC_R_DMA_2_CH12>;
@@ -981,7 +981,7 @@
 				power-domains = <&pd_dma>;
 				#address-cells = <1>;
 				#size-cells = <0>;
-				wakeup-irq = <228>;
+				wakeup-irq = <348>;
 
 				pd_dma3_chan14: PD_UART3_RX {
 					reg = <SC_R_DMA_2_CH14>;
@@ -2698,7 +2698,7 @@
 	lpuart0: serial@5a060000 {
 		compatible = "fsl,imx8qm-lpuart";
 		reg = <0x0 0x5a060000 0x0 0x1000>;
-		interrupts = <GIC_SPI 225 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 345 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&wu>;
 		clocks = <&clk IMX8QXP_UART0_CLK>,
 			 <&clk IMX8QXP_UART0_IPG_CLK>;
@@ -2712,7 +2712,7 @@
 	lpuart1: serial@5a070000 {
 		compatible = "fsl,imx8qm-lpuart";
 		reg = <0x0 0x5a070000 0x0 0x1000>;
-		interrupts = <GIC_SPI 226 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 346 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&wu>;
 		clocks = <&clk IMX8QXP_UART1_CLK>,
 			<&clk IMX8QXP_UART1_IPG_CLK>;
@@ -2729,7 +2729,7 @@
 	lpuart2: serial@5a080000 {
 		compatible = "fsl,imx8qm-lpuart";
 		reg = <0x0 0x5a080000 0x0 0x1000>;
-		interrupts = <GIC_SPI 227 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 347 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&wu>;
 		clocks = <&clk IMX8QXP_UART2_CLK>,
 			<&clk IMX8QXP_UART2_IPG_CLK>;
@@ -2746,7 +2746,7 @@
 	lpuart3: serial@5a090000 {
 		compatible = "fsl,imx8qm-lpuart";
 		reg = <0x0 0x5a090000 0x0 0x1000>;
-		interrupts = <GIC_SPI 228 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <GIC_SPI 348 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&wu>;
 		clocks = <&clk IMX8QXP_UART3_CLK>,
 			<&clk IMX8QXP_UART3_IPG_CLK>;
