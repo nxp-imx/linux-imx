@@ -885,6 +885,7 @@ static int mxc_isi_m2m_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct mxc_isi_dev *mxc_isi = ctrl_to_mxc_isi_m2m(ctrl);
 	unsigned long flags;
+	int ret = 0;
 
 	dev_dbg(&mxc_isi->pdev->dev, "%s\n", __func__);
 
@@ -895,32 +896,38 @@ static int mxc_isi_m2m_s_ctrl(struct v4l2_ctrl *ctrl)
 
 	switch (ctrl->id) {
 	case V4L2_CID_HFLIP:
-		if (ctrl->val < 0)
-			return -EINVAL;
+		if (ctrl->val < 0) {
+			ret = -EINVAL;
+			goto unlock;
+		}
 		mxc_isi->m2m.hflip = (ctrl->val > 0) ? 1 : 0;
 		break;
 
 	case V4L2_CID_VFLIP:
-		if (ctrl->val < 0)
-			return -EINVAL;
+		if (ctrl->val < 0) {
+			ret = -EINVAL;
+			goto unlock;
+		}
 		mxc_isi->m2m.vflip = (ctrl->val > 0) ? 1 : 0;
 		break;
 
 	case V4L2_CID_ALPHA_COMPONENT:
-		if (ctrl->val < 0 || ctrl->val > 255)
-			return -EINVAL;
+		if (ctrl->val < 0 || ctrl->val > 255) {
+			ret = -EINVAL;
+			goto unlock;
+		}
 		mxc_isi->m2m.alpha = ctrl->val;
 		mxc_isi->m2m.alphaen = 1;
 		break;
 
 	default:
 		dev_err(&mxc_isi->pdev->dev, "%s: Not support %d CID\n", __func__, ctrl->id);
-		return -EINVAL;
+		ret = -EINVAL;
 	}
 
+unlock:
 	spin_unlock_irqrestore(&mxc_isi->slock, flags);
-
-	return 0;
+	return ret;
 }
 
 static const struct v4l2_ctrl_ops mxc_isi_m2m_ctrl_ops = {
