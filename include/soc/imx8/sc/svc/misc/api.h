@@ -319,6 +319,23 @@ void sc_misc_build_info(sc_ipc_t ipc, uint32_t *build,
 	uint32_t *commit);
 
 /*!
+ * This function is used to return the SCFW API versions.
+ *
+ * @param[in]     ipc         IPC handle
+ * @param[out]    cl_maj      pointer to return major part of client version
+ * @param[out]    cl_min      pointer to return minor part of client version
+ * @param[out]    sv_maj      pointer to return major part of SCFW version
+ * @param[out]    sv_min      pointer to return minor part of SCFW version
+ *
+ * Client verion is the version of the API ported to and used by the caller.
+ * SCFW version is the version of the SCFW binary running on the CPU.
+ *
+ * Note a major version difference indicates a break in compatibility.
+ */
+void sc_misc_api_ver(sc_ipc_t ipc, uint16_t *cl_maj,
+    uint16_t *cl_min, uint16_t *sv_maj, uint16_t *sv_min);
+
+/*!
  * This function is used to return the device's unique ID.
  *
  * @param[in]     ipc         IPC handle

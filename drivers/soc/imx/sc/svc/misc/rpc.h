@@ -45,6 +45,7 @@
 #define MISC_FUNC_DEBUG_OUT 10U /* Index for misc_debug_out() RPC call */
 #define MISC_FUNC_WAVEFORM_CAPTURE 6U /* Index for misc_waveform_capture() RPC call */
 #define MISC_FUNC_BUILD_INFO 15U /* Index for misc_build_info() RPC call */
+#define MISC_FUNC_API_VER 35U /* Index for misc_api_ver() RPC call */
 #define MISC_FUNC_UNIQUE_ID 19U /* Index for misc_unique_id() RPC call */
 #define MISC_FUNC_SET_ARI 3U /* Index for misc_set_ari() RPC call */
 #define MISC_FUNC_BOOT_STATUS 7U /* Index for misc_boot_status() RPC call */
