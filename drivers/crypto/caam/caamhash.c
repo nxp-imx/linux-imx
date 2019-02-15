@@ -2114,9 +2114,8 @@ static int __init caam_algapi_hash_init(void)
 	 * presence and attributes of MD block.
 	 */
 	if (priv->has_seco) {
-		i = priv->first_jr_index;
-		cha_vid = rd_reg32(&priv->jr[i]->perfmon.cha_id_ls);
-		cha_inst = rd_reg32(&priv->jr[i]->perfmon.cha_num_ls);
+		cha_vid = rd_reg32(&priv->jr[0]->perfmon.cha_id_ls);
+		cha_inst = rd_reg32(&priv->jr[0]->perfmon.cha_num_ls);
 	} else {
 		cha_vid = rd_reg32(&priv->ctrl->perfmon.cha_id_ls);
 		cha_inst = rd_reg32(&priv->ctrl->perfmon.cha_num_ls);

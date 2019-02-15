@@ -40,7 +40,6 @@ static int caam_probe(struct platform_device *pdev);
 static void check_virt(struct caam_drv_private *ctrlpriv, u32 comp_params);
 static int enable_jobrings(struct caam_drv_private *ctrlpriv, int block_offset);
 static void enable_qi(struct caam_drv_private *ctrlpriv, int block_offset);
-static int read_first_jr_index(struct caam_drv_private *ctrlpriv);
 static int probe_w_seco(struct caam_drv_private *ctrlpriv);
 static void init_debugfs(struct caam_drv_private *ctrlpriv);
 
@@ -148,10 +147,8 @@ static void detect_era(struct caam_drv_private *ctrlpriv)
 		goto era_found;
 	}
 
-	i = ctrlpriv->first_jr_index;
-	/* If ccbvid has the era, use that (era 6 and onwards) */
 	if (ctrlpriv->has_seco)
-		caam_era = rd_reg32(&ctrlpriv->jr[i]->perfmon.ccb_id);
+		caam_era = rd_reg32(&ctrlpriv->jr[0]->perfmon.ccb_id);
 	else
 		caam_era = rd_reg32(&ctrlpriv->ctrl->perfmon.ccb_id);
 
@@ -163,7 +160,7 @@ static void detect_era(struct caam_drv_private *ctrlpriv)
 
 	/* If we can match caamvid to known versions, use that */
 	if (ctrlpriv->has_seco)
-		caam_id_ms = rd_reg32(&ctrlpriv->jr[i]->perfmon.caam_id_ms);
+		caam_id_ms = rd_reg32(&ctrlpriv->jr[0]->perfmon.caam_id_ms);
 	else
 		caam_id_ms = rd_reg32(&ctrlpriv->ctrl->perfmon.caam_id_ms);
 	sec_vid.ip_id = caam_id_ms >> SEC_VID_IPID_SHIFT;
@@ -537,7 +534,7 @@ static void check_virt(struct caam_drv_private *ctrlpriv, u32 comp_params)
 
 static int enable_jobrings(struct caam_drv_private *ctrlpriv, int block_offset)
 {
-	int ring, index;
+	int ring = 0;
 	int ret;
 	struct device_node *nprop, *np;
 	struct device *dev = ctrlpriv->dev;
@@ -560,26 +557,27 @@ static int enable_jobrings(struct caam_drv_private *ctrlpriv, int block_offset)
 		return -ENOMEM;
 	}
 
-	ring = 0;
+	/* Loop over the child node of the CAAM */
 	for_each_available_child_of_node(nprop, np)
 		if (of_device_is_compatible(np, "fsl,sec-v4.0-job-ring") ||
 		    of_device_is_compatible(np, "fsl,sec4.0-job-ring")) {
+			u32 reg;
 
-			if (of_property_read_u32_index(np, "reg", 0, &index)) {
-				dev_err(dev, "%s read reg property error %d.",
-					np->full_name, index);
+			/* Read the reg property of the JR */
+			if (of_property_read_u32_index(np, "reg", 0, &reg)) {
+				dev_err(dev, "%s read reg property error.",
+					np->full_name);
 				continue;
 			}
-			/* Get actual job ring index from its offset
-			 * ex: CAAM JR2 offset 0x30000 index = 2
+
+			/*
+			 * Set the address of the JR regs which is caam
+			 * address + jr reg offset
 			 */
-			while (index >= 16)
-				index = index >> 4;
-			index -= 1;
-			ctrlpriv->jr[index] = (struct caam_job_ring __force *)
-					     ((uint8_t *)ctrlpriv->ctrl +
-					     (index + JR_BLOCK_NUMBER) *
-					      block_offset);
+			ctrlpriv->jr[ring] = (struct caam_job_ring __force *)
+					     ((uint8_t *)ctrlpriv->ctrl + reg);
+
+			/* Update counters */
 			ctrlpriv->total_jobrs++;
 			ring++;
 		}
@@ -611,27 +609,10 @@ static void enable_qi(struct caam_drv_private *ctrlpriv, int block_offset)
 	}
 }
 
-static int read_first_jr_index(struct caam_drv_private *ctrlpriv)
-{
-	struct device_node *caam_node;
-	int ret;
-	u32 first_index;
-
-	caam_node = of_find_compatible_node(NULL, NULL, "fsl,sec-v4.0");
-	ret = of_property_read_u32(caam_node,
-		   "fsl,first-jr-index", &first_index);
-	of_node_put(caam_node);
-	if (ret == 0)
-		if (first_index > 0 && first_index < 4)
-			ctrlpriv->first_jr_index = first_index;
-	return ret;
-}
-
 static int probe_w_seco(struct caam_drv_private *ctrlpriv)
 {
 	int ret = 0;
 	struct device_node *np;
-	u32 idx;
 
 	ctrlpriv->has_seco = true;
 	/*
@@ -645,15 +626,6 @@ static int probe_w_seco(struct caam_drv_private *ctrlpriv)
 		dev_err(ctrlpriv->dev, "no job rings configured!\n");
 		return -ENODEV;
 	}
-
-	/*
-	 * Read first job ring index for aliased registers
-	 */
-	if (read_first_jr_index(ctrlpriv)) {
-		dev_err(ctrlpriv->dev, "missing first job ring index!\n");
-		return -ENODEV;
-	}
-	idx = ctrlpriv->first_jr_index;
 
 	caam_little_end = true;
 	ctrlpriv->assure = ((struct caam_assurance __force *)

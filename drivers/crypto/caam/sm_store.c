@@ -1104,15 +1104,11 @@ int caam_sm_startup(struct platform_device *pdev)
 
 	/* Set the Secure Memory Register Map Version */
 	if (ctrlpriv->has_seco) {
-		int i = ctrlpriv->first_jr_index;
-
-		smvid = rd_reg32(&ctrlpriv->jr[i]->perfmon.smvid);
-		smpart = rd_reg32(&ctrlpriv->jr[i]->perfmon.smpart);
-
+		smvid = rd_reg32(&ctrlpriv->jr[0]->perfmon.smvid);
+		smpart = rd_reg32(&ctrlpriv->jr[0]->perfmon.smpart);
 	} else {
 		smvid = rd_reg32(&ctrlpriv->ctrl->perfmon.smvid);
 		smpart = rd_reg32(&ctrlpriv->ctrl->perfmon.smpart);
-
 	}
 
 	if (smvid < SMVID_V2)

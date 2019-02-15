@@ -380,13 +380,11 @@ static int __init caam_rng_init(void)
 		return -ENODEV;
 
 	/* Check for an instantiated RNG before registration */
-	if (priv->has_seco) {
-		int i = priv->first_jr_index;
-
-		cha_inst = rd_reg32(&priv->jr[i]->perfmon.cha_num_ls);
-	} else {
+	if (priv->has_seco)
+		cha_inst = rd_reg32(&priv->jr[0]->perfmon.cha_num_ls);
+	else
 		cha_inst = rd_reg32(&priv->ctrl->perfmon.cha_num_ls);
-	}
+
 	if (!(cha_inst & CHA_ID_LS_RNG_MASK))
 		return -ENODEV;
 

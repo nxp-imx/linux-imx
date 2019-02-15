@@ -114,7 +114,6 @@ struct caam_drv_private {
 	struct clk *caam_emi_slow;
 
 	bool has_seco;
-	u32 first_jr_index;
 	/*
 	 * debugfs entries for developer view into driver/device
 	 * variables at runtime.
