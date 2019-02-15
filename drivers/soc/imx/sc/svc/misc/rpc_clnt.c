@@ -429,6 +429,31 @@ void sc_misc_build_info(sc_ipc_t ipc, uint32_t *build,
 	    *commit = RPC_U32(&msg, 4U);
 }
 
+void sc_misc_api_ver(sc_ipc_t ipc, uint16_t *cl_maj,
+    uint16_t *cl_min, uint16_t *sv_maj, uint16_t *sv_min)
+{
+	sc_rpc_msg_t msg;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = U8(SC_RPC_SVC_MISC);
+	RPC_FUNC(&msg) = U8(MISC_FUNC_API_VER);
+	RPC_SIZE(&msg) = 1U;
+
+	sc_call_rpc(ipc, &msg, SC_FALSE);
+
+	if (cl_maj != NULL)
+		*cl_maj = SCFW_API_VERSION_MAJOR;
+
+	if (cl_min != NULL)
+		*cl_min = SCFW_API_VERSION_MINOR;
+
+	if (sv_maj != NULL)
+		*sv_maj = RPC_U16(&msg, 4U);
+
+	if (sv_min != NULL)
+		*sv_min = RPC_U16(&msg, 6U);
+}
+
 void sc_misc_unique_id(sc_ipc_t ipc, uint32_t *id_l,
 	uint32_t *id_h)
 {

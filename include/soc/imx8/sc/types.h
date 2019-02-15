@@ -18,6 +18,8 @@
 
 /* Defines */
 
+#define SCFW_API_VERSION            100U
+
 /*!
  * @name Defines for common frequencies
  */
@@ -202,15 +204,15 @@
 #define SC_R_DC_0_BLIT1           20U
 #define SC_R_DC_0_BLIT2           21U
 #define SC_R_DC_0_BLIT_OUT        22U
-#define SC_R_DC_0_CAPTURE0        23U
-#define SC_R_DC_0_CAPTURE1        24U
+#define SC_R_PERF                 23U
+#define SC_R_UNUSED5              24U
 #define SC_R_DC_0_WARP            25U
-#define SC_R_DC_0_INTEGRAL0       26U
-#define SC_R_DC_0_INTEGRAL1       27U
+#define SC_R_UNUSED7              26U
+#define SC_R_UNUSED8              27U
 #define SC_R_DC_0_VIDEO0          28U
 #define SC_R_DC_0_VIDEO1          29U
 #define SC_R_DC_0_FRAC0           30U
-#define SC_R_DC_0_FRAC1           31U
+#define SC_R_UNUSED6              31U
 #define SC_R_DC_0                 32U
 #define SC_R_GPU_2_PID0           33U
 #define SC_R_DC_0_PLL_0           34U
@@ -219,17 +221,17 @@
 #define SC_R_DC_1_BLIT1           37U
 #define SC_R_DC_1_BLIT2           38U
 #define SC_R_DC_1_BLIT_OUT        39U
-#define SC_R_DC_1_CAPTURE0        40U
-#define SC_R_DC_1_CAPTURE1        41U
+#define SC_R_UNUSED9              40U
+#define SC_R_UNUSED10             41U
 #define SC_R_DC_1_WARP            42U
-#define SC_R_DC_1_INTEGRAL0       43U
-#define SC_R_DC_1_INTEGRAL1       44U
+#define SC_R_UNUSED11             43U
+#define SC_R_UNUSED12             44U
 #define SC_R_DC_1_VIDEO0          45U
 #define SC_R_DC_1_VIDEO1          46U
 #define SC_R_DC_1_FRAC0           47U
-#define SC_R_DC_1_FRAC1           48U
+#define SC_R_UNUSED13             48U
 #define SC_R_DC_1                 49U
-#define SC_R_GPU_3_PID0           50U
+#define SC_R_UNUSED14             50U
 #define SC_R_DC_1_PLL_0           51U
 #define SC_R_DC_1_PLL_1           52U
 #define SC_R_SPI_0                53U
@@ -469,8 +471,8 @@
 #define SC_R_M4_0_UART            287U
 #define SC_R_M4_0_I2C             288U
 #define SC_R_M4_0_INTMUX          289U
-#define SC_R_M4_0_SIM             290U
-#define SC_R_M4_0_WDOG            291U
+#define SC_R_UNUSED15             290U
+#define SC_R_UNUSED16             291U
 #define SC_R_M4_0_MU_0B           292U
 #define SC_R_M4_0_MU_0A0          293U
 #define SC_R_M4_0_MU_0A1          294U
@@ -489,8 +491,8 @@
 #define SC_R_M4_1_UART            307U
 #define SC_R_M4_1_I2C             308U
 #define SC_R_M4_1_INTMUX          309U
-#define SC_R_M4_1_SIM             310U
-#define SC_R_M4_1_WDOG            311U
+#define SC_R_UNUSED17             310U
+#define SC_R_UNUSED18             311U
 #define SC_R_M4_1_MU_0B           312U
 #define SC_R_M4_1_MU_0A0          313U
 #define SC_R_M4_1_MU_0A1          314U
@@ -725,8 +727,7 @@
 #define SC_R_DMA_5_CH2            543U
 #define SC_R_DMA_5_CH3            544U
 #define SC_R_ATTESTATION          545U
-#define SC_R_PERF                 546U
-#define SC_R_LAST                 547U
+#define SC_R_LAST                 546U
 #define SC_R_ALL                  ((sc_rsrc_t) UINT16_MAX)  /* All resources */
 /*@}*/
 

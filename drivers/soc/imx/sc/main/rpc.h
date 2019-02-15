@@ -19,6 +19,9 @@
 
 /* Defines */
 
+#define SCFW_API_VERSION_MAJOR  1U
+#define SCFW_API_VERSION_MINOR  2U
+
 #define SC_RPC_VERSION          1U
 
 #define SC_RPC_MAX_MSG          8U

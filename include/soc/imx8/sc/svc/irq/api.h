@@ -90,6 +90,7 @@
 #define SC_IRQ_PAD               (1U << 1U)    /* Pad wakeup */
 #define SC_IRQ_USR1              (1U << 2U)    /* User defined 1 */
 #define SC_IRQ_USR2              (1U << 3U)    /* User defined 2 */
+#define SC_IRQ_BC_PAD            (1U << 4U)    /* Pad wakeup (broadcast to all partitions) */
 /*@}*/
 
 /*!
