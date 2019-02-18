@@ -791,4 +791,4 @@ static int __init imx_rpmsg_init(void)
 MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_DESCRIPTION("iMX remote processor messaging virtio device");
 MODULE_LICENSE("GPL v2");
-subsys_initcall(imx_rpmsg_init);
+arch_initcall(imx_rpmsg_init);
