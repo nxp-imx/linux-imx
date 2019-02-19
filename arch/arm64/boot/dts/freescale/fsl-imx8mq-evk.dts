@@ -54,6 +54,13 @@
 		};
 	};
 
+	ir_recv: ir-receiver {
+		compatible = "gpio-ir-receiver";
+		gpios = <&gpio1 12 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ir_recv>;
+	};
+
 	brcmfmac: brcmfmac {
 		compatible = "cypress,brcmfmac";
 		pinctrl-names = "init", "idle", "default";
@@ -157,6 +164,12 @@
 				MX8MQ_IOMUXC_NAND_READY_B_GPIO3_IO16		0x19
 				MX8MQ_IOMUXC_NAND_WE_B_GPIO3_IO17		0x19
 				MX8MQ_IOMUXC_NAND_WP_B_GPIO3_IO18		0x19
+			>;
+		};
+
+		pinctrl_ir_recv: ir_recv {
+			fsl,pins = <
+				MX8MQ_IOMUXC_GPIO1_IO12_GPIO1_IO12		0x4f
 			>;
 		};
 
