@@ -70,11 +70,12 @@ static u8 clrkey[] = {
 	0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff
 };
 
-static void key_display(struct device *dev, u8 *label, u16 size, u8 *key)
+static void key_display(struct device *dev, const char *label, u16 size,
+			u8 *key)
 {
 	unsigned i;
 
-	dev_dbg(dev, label);
+	dev_dbg(dev, "%s", label);
 	for (i = 0; i < size; i += 8)
 		dev_dbg(dev,
 			"[%04d] %02x %02x %02x %02x %02x %02x %02x %02x\n",
