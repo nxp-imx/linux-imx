@@ -80,7 +80,7 @@
 
 	bt_rfkill {
 		compatible = "fsl,mxc_bt_rfkill";
-		bt-power-gpios = <&gpio3 5 GPIO_ACTIVE_LOW>;
+		bt-power-gpios = <&gpio3 6 GPIO_ACTIVE_LOW>;
 		status ="okay";
 	};
 
@@ -236,8 +236,6 @@
 		pinctrl_pcie0: pcie0grp {
 			fsl,pins = <
 				MX8MQ_IOMUXC_I2C4_SCL_PCIE1_CLKREQ_B	0x76 /* open drain, pull up */
-				MX8MQ_IOMUXC_UART4_TXD_GPIO5_IO29	0x16
-				MX8MQ_IOMUXC_UART4_RXD_GPIO5_IO28	0x16
 			>;
 		};
 
@@ -274,13 +272,13 @@
 			>;
 		};
 
-		pinctrl_uart3: uart3grp {
+		pinctrl_uart2: uart2grp {
 			fsl,pins = <
-				MX8MQ_IOMUXC_UART3_TXD_UART3_DCE_TX		0x49
-				MX8MQ_IOMUXC_UART3_RXD_UART3_DCE_RX		0x49
-				MX8MQ_IOMUXC_ECSPI1_MISO_UART3_DCE_CTS_B	0x49
-				MX8MQ_IOMUXC_ECSPI1_SS0_UART3_DCE_RTS_B		0x49
-				MX8MQ_IOMUXC_NAND_CLE_GPIO3_IO5			0x19
+				MX8MQ_IOMUXC_UART2_TXD_UART2_DCE_TX		0x49
+				MX8MQ_IOMUXC_UART2_RXD_UART2_DCE_RX		0x49
+				MX8MQ_IOMUXC_UART4_RXD_UART2_DCE_CTS_B	0x49
+				MX8MQ_IOMUXC_UART4_TXD_UART2_DCE_RTS_B	0x49
+				MX8MQ_IOMUXC_NAND_DATA00_GPIO3_IO6		0x19
 			>;
 		};
 
@@ -804,10 +802,10 @@
 	};
 };
 
-&uart3 { /* BT */
+&uart2 { /* BT */
 	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_uart3>;
-	assigned-clocks = <&clk IMX8MQ_CLK_UART3>;
+	pinctrl-0 = <&pinctrl_uart2>;
+	assigned-clocks = <&clk IMX8MQ_CLK_UART2>;
 	assigned-clock-parents = <&clk IMX8MQ_SYS1_PLL_80M>;
 	fsl,uart-has-rtscts;
 	status = "okay";
