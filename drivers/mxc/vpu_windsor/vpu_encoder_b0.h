@@ -451,4 +451,14 @@ u32 cpu_phy_to_mu(struct core_device *dev, u32 addr);
 struct vpu_attr *get_vpu_ctx_attr(struct vpu_ctx *ctx);
 struct vpu_ctx *get_vpu_attr_ctx(struct vpu_attr *attr);
 
+#ifndef VPU_SAFE_RELEASE
+#define VPU_SAFE_RELEASE(p, func)	\
+	do {\
+		if (p) {\
+			func(p);\
+			p = NULL;\
+		} \
+	} while (0)
+#endif
+
 #endif

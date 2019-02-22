@@ -43,9 +43,9 @@ void vpu_enc_release_reserved_memory(struct vpu_enc_mem_info *info)
 	spin_lock(&info->lock);
 	list_for_each_entry_safe(item, tmp, &info->memorys, list) {
 		list_del_init(&item->list);
-		vfree(item);
 		info->bytesused -= item->size;
 		vpu_dbg(LVL_MEM, "free reserved memory %ld\n", item->size);
+		VPU_SAFE_RELEASE(item, vfree);
 	}
 	spin_unlock(&info->lock);
 
@@ -139,10 +139,10 @@ int vpu_enc_free_reserved_mem(struct vpu_enc_mem_info *info,
 		if (offset + buffer->size > item->offset + item->size)
 			continue;
 		list_del_init(&item->list);
-		vfree(item);
 		info->bytesused -= item->size;
 		vpu_dbg(LVL_MEM, "free reserved memory <0x%lx 0x%lx(%ld)>\n",
 			item->phy_addr, item->size, item->size);
+		VPU_SAFE_RELEASE(item, vfree);
 		ret = 0;
 		break;
 	}

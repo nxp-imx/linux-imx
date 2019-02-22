@@ -650,9 +650,6 @@ void  mxc_isi_enable_irq(struct mxc_isi_dev *mxc_isi)
 			CHNL_IER_OFLW_PANIC_Y_BUF_EN_MASK |
 			CHNL_IER_EXCS_OFLW_Y_BUF_EN_MASK |
 			CHNL_IER_OFLW_Y_BUF_EN_MASK;
-	if (mxc_isi->is_m2m)
-		val |= CHNL_IER_MEM_RD_DONE_EN_MASK;
-
 	writel(val, mxc_isi->regs + CHNL_IER);
 }
 

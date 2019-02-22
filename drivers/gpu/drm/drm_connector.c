@@ -669,6 +669,14 @@ static const struct drm_prop_enum_list drm_aspect_ratio_enum_list[] = {
 	{ DRM_MODE_PICTURE_ASPECT_16_9, "16:9" },
 };
 
+static const struct drm_prop_enum_list drm_content_type_enum_list[] = {
+	{ DRM_MODE_CONTENT_TYPE_NO_DATA, "No Data" },
+	{ DRM_MODE_CONTENT_TYPE_GRAPHICS, "Graphics" },
+	{ DRM_MODE_CONTENT_TYPE_PHOTO, "Photo" },
+	{ DRM_MODE_CONTENT_TYPE_CINEMA, "Cinema" },
+	{ DRM_MODE_CONTENT_TYPE_GAME, "Game" },
+};
+
 static const struct drm_prop_enum_list drm_dvi_i_select_enum_list[] = {
 	{ DRM_MODE_SUBCONNECTOR_Automatic, "Automatic" }, /* DVI-I and TV-out */
 	{ DRM_MODE_SUBCONNECTOR_DVID,      "DVI-D"     }, /* DVI-I  */
@@ -702,6 +710,13 @@ static const struct drm_prop_enum_list drm_tv_subconnector_enum_list[] = {
 };
 DRM_ENUM_NAME_FN(drm_get_tv_subconnector_name,
 		 drm_tv_subconnector_enum_list)
+
+static struct drm_prop_enum_list drm_cp_enum_list[] = {
+	{ DRM_MODE_CONTENT_PROTECTION_UNDESIRED, "Undesired" },
+	{ DRM_MODE_CONTENT_PROTECTION_DESIRED, "Desired" },
+	{ DRM_MODE_CONTENT_PROTECTION_ENABLED, "Enabled" },
+};
+DRM_ENUM_NAME_FN(drm_get_content_protection_name, drm_cp_enum_list)
 
 /**
  * DOC: standard connector properties
@@ -745,6 +760,41 @@ DRM_ENUM_NAME_FN(drm_get_tv_subconnector_name,
  *      value of link-status is "GOOD". If something fails during or after modeset,
  *      the kernel driver may set this to "BAD" and issue a hotplug uevent. Drivers
  *      should update this value using drm_mode_connector_set_link_status_property().
+ * Content Protection:
+ *	This property is used by userspace to request the kernel protect future
+ *	content communicated over the link. When requested, kernel will apply
+ *	the appropriate means of protection (most often HDCP), and use the
+ *	property to tell userspace the protection is active.
+ *
+ *	Drivers can set this up by calling
+ *	drm_connector_attach_content_protection_property() on initialization.
+ *
+ *	The value of this property can be one of the following:
+ *
+ *	- DRM_MODE_CONTENT_PROTECTION_UNDESIRED = 0
+ *		The link is not protected, content is transmitted in the clear.
+ *	- DRM_MODE_CONTENT_PROTECTION_DESIRED = 1
+ *		Userspace has requested content protection, but the link is not
+ *		currently protected. When in this state, kernel should enable
+ *		Content Protection as soon as possible.
+ *	- DRM_MODE_CONTENT_PROTECTION_ENABLED = 2
+ *		Userspace has requested content protection, and the link is
+ *		protected. Only the driver can set the property to this value.
+ *		If userspace attempts to set to ENABLED, kernel will return
+ *		-EINVAL.
+ *
+ *	A few guidelines:
+ *
+ *	- DESIRED state should be preserved until userspace de-asserts it by
+ *	  setting the property to UNDESIRED. This means ENABLED should only
+ *	  transition to UNDESIRED when the user explicitly requests it.
+ *	- If the state is DESIRED, kernel should attempt to re-authenticate the
+ *	  link whenever possible. This includes across disable/enable, dpms,
+ *	  hotplug, downstream device changes, link status failures, etc..
+ *	- Userspace is responsible for polling the property to determine when
+ *	  the value transitions from ENABLED to DESIRED. This signifies the link
+ *	  is no longer protected and userspace should take appropriate action
+ *	  (whatever that might be).
  *
  * Connectors also have one standardized atomic property:
  *
@@ -838,6 +888,84 @@ int drm_mode_create_dvi_i_properties(struct drm_device *dev)
 	return 0;
 }
 EXPORT_SYMBOL(drm_mode_create_dvi_i_properties);
+
+/**
+ * DOC: HDMI connector properties
+ *
+ * content type (HDMI specific):
+ *	Indicates content type setting to be used in HDMI infoframes to indicate
+ *	content type for the external device, so that it adjusts it's display
+ *	settings accordingly.
+ *
+ *	The value of this property can be one of the following:
+ *
+ *	No Data:
+ *		Content type is unknown
+ *	Graphics:
+ *		Content type is graphics
+ *	Photo:
+ *		Content type is photo
+ *	Cinema:
+ *		Content type is cinema
+ *	Game:
+ *		Content type is game
+ *
+ *	Drivers can set up this property by calling
+ *	drm_connector_attach_content_type_property(). Decoding to
+ *	infoframe values is done through
+ *	drm_hdmi_get_content_type_from_property() and
+ *	drm_hdmi_get_itc_bit_from_property().
+ */
+
+/**
+ * drm_connector_attach_content_type_property - attach content-type property
+ * @connector: connector to attach content type property on.
+ *
+ * Called by a driver the first time a HDMI connector is made.
+ */
+int drm_connector_attach_content_type_property(struct drm_connector *connector)
+{
+	if (!drm_mode_create_content_type_property(connector->dev))
+		drm_object_attach_property(&connector->base,
+					   connector->dev->mode_config.content_type_property,
+					   DRM_MODE_CONTENT_TYPE_NO_DATA);
+	return 0;
+}
+EXPORT_SYMBOL(drm_connector_attach_content_type_property);
+
+
+/**
+ * drm_hdmi_avi_infoframe_content_type() - fill the HDMI AVI infoframe
+ *                                         content type information, based
+ *                                         on correspondent DRM property.
+ * @frame: HDMI AVI infoframe
+ * @conn_state: DRM display connector state
+ *
+ */
+void drm_hdmi_avi_infoframe_content_type(struct hdmi_avi_infoframe *frame,
+					 const struct drm_connector_state *conn_state)
+{
+	switch (conn_state->content_type) {
+	case DRM_MODE_CONTENT_TYPE_GRAPHICS:
+		frame->content_type = HDMI_CONTENT_TYPE_GRAPHICS;
+		break;
+	case DRM_MODE_CONTENT_TYPE_CINEMA:
+		frame->content_type = HDMI_CONTENT_TYPE_CINEMA;
+		break;
+	case DRM_MODE_CONTENT_TYPE_GAME:
+		frame->content_type = HDMI_CONTENT_TYPE_GAME;
+		break;
+	case DRM_MODE_CONTENT_TYPE_PHOTO:
+		frame->content_type = HDMI_CONTENT_TYPE_PHOTO;
+		break;
+	default:
+		/* Graphics is the default(0) */
+		frame->content_type = HDMI_CONTENT_TYPE_GRAPHICS;
+	}
+
+	frame->itc = conn_state->content_type != DRM_MODE_CONTENT_TYPE_NO_DATA;
+}
+EXPORT_SYMBOL(drm_hdmi_avi_infoframe_content_type);
 
 /**
  * drm_create_tv_properties - create TV specific connector properties
@@ -1041,6 +1169,42 @@ int drm_connector_attach_scaling_mode_property(struct drm_connector *connector,
 EXPORT_SYMBOL(drm_connector_attach_scaling_mode_property);
 
 /**
+ * drm_connector_attach_content_protection_property - attach content protection
+ * property
+ *
+ * @connector: connector to attach CP property on.
+ *
+ * This is used to add support for content protection on select connectors.
+ * Content Protection is intentionally vague to allow for different underlying
+ * technologies, however it is most implemented by HDCP.
+ *
+ * The content protection will be set to &drm_connector_state.content_protection
+ *
+ * Returns:
+ * Zero on success, negative errno on failure.
+ */
+int drm_connector_attach_content_protection_property(
+		struct drm_connector *connector)
+{
+	struct drm_device *dev = connector->dev;
+	struct drm_property *prop;
+
+	prop = drm_property_create_enum(dev, 0, "Content Protection",
+					drm_cp_enum_list,
+					ARRAY_SIZE(drm_cp_enum_list));
+	if (!prop)
+		return -ENOMEM;
+
+	drm_object_attach_property(&connector->base, prop,
+				   DRM_MODE_CONTENT_PROTECTION_UNDESIRED);
+
+	connector->content_protection_property = prop;
+
+	return 0;
+}
+EXPORT_SYMBOL(drm_connector_attach_content_protection_property);
+
+/**
  * drm_mode_create_aspect_ratio_property - create aspect ratio property
  * @dev: DRM device
  *
@@ -1066,6 +1230,33 @@ int drm_mode_create_aspect_ratio_property(struct drm_device *dev)
 	return 0;
 }
 EXPORT_SYMBOL(drm_mode_create_aspect_ratio_property);
+
+/**
+ * drm_mode_create_content_type_property - create content type property
+ * @dev: DRM device
+ *
+ * Called by a driver the first time it's needed, must be attached to desired
+ * connectors.
+ *
+ * Returns:
+ * Zero on success, negative errno on failure.
+ */
+int drm_mode_create_content_type_property(struct drm_device *dev)
+{
+	if (dev->mode_config.content_type_property)
+		return 0;
+
+	dev->mode_config.content_type_property =
+		drm_property_create_enum(dev, 0, "content type",
+					 drm_content_type_enum_list,
+					 ARRAY_SIZE(drm_content_type_enum_list));
+
+	if (dev->mode_config.content_type_property == NULL)
+		return -ENOMEM;
+
+	return 0;
+}
+EXPORT_SYMBOL(drm_mode_create_content_type_property);
 
 /**
  * drm_mode_create_suggested_offset_properties - create suggests offset properties

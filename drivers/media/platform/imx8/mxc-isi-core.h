@@ -241,7 +241,6 @@ struct mxc_isi_m2m_dev {
 	unsigned int	alphaen:1;
 
 	unsigned int aborting;
-	unsigned int read_done;
 	unsigned int frame_count;
 
 	struct list_head		out_active;
@@ -276,6 +275,7 @@ struct mxc_isi_cap_dev {
 struct mxc_isi_dev {
 	spinlock_t				slock;
 	struct mutex			lock;
+	struct mutex			m2m_lock;
 	wait_queue_head_t		irq_queue;
 
 	int						id;

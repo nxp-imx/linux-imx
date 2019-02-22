@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NXP
+ * Copyright 2017-2019 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -11,23 +11,15 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+#ifndef _IMX_HDCP_PRIVATE_H_
+#define _IMX_HDCP_PRIVATE_H_
 
-
-#ifndef __SOC_IMX8_SOC_H__
-#define __SOC_IMX8_SOC_H__
-
-#define IMX_SOC_IMX8QM		0x01
-#define IMX_SOC_IMX8QXP		0x02
-#define IMX_SOC_IMX8MQ		0x82
-
-bool cpu_is_imx8qm(void);
-bool cpu_is_imx8mq(void);
-bool cpu_is_imx8qxp(void);
-
-extern bool TKT340553_SW_WORKAROUND;
-unsigned int imx8_get_soc_revision(void);
-
-int check_m4_enabled(void);
-bool check_hdcp_enabled(void);
-
+struct imx_hdcp {
+	struct mutex mutex;
+	u64 value; /* protected by hdcp_mutex */
+	struct delayed_work check_work;
+	struct work_struct prop_work;
+	u8 bus_type;
+	u8 config;
+};
 #endif
