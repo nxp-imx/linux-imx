@@ -72,10 +72,8 @@ static int imx8_wdt_start(struct watchdog_device *wdog)
 			&res);
 	if (res.a0)
 		return res.a0;
-	/* TODO: change to SC_TIMER_WDOG_ACTION_PARTITION after SCFW support */
-	arm_smccc_smc(FSL_SIP_SRTC, FSL_SIP_SRTC_SET_WDOG_ACT,
-			SC_TIMER_WDOG_ACTION_PARTITION, 0, 0, 0, 0, 0, &res);
-	return res.a0;
+
+	return 0;
 }
 
 static int imx8_wdt_stop(struct watchdog_device *wdog)
