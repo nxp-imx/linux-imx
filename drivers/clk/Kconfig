@@ -226,6 +226,12 @@ config COMMON_CLK_VC5
 	  This driver supports the IDT VersaClock 5 and VersaClock 6
 	  programmable clock generators.
 
+config VEHICLE_CLK_POST_INIT
+	bool "Clock driver for shared peripherals"
+	---help---
+	  Shared peripherals are not accessible before other core release them
+	  Initialize these peripherals' clock after getting these resources.
+
 source "drivers/clk/bcm/Kconfig"
 source "drivers/clk/hisilicon/Kconfig"
 source "drivers/clk/imgtec/Kconfig"
