@@ -271,6 +271,13 @@ static void __cqhci_enable(struct cqhci_host *cq_host)
 
 	cqhci_writel(cq_host, cqcfg, CQHCI_CFG);
 
+	/* clear halt and clear all tasks */
+	cqhci_writel(cq_host, 0, CQHCI_CTL);
+	if (cqhci_readl(cq_host, CQHCI_CTL) && CQHCI_HALT) {
+		pr_err("%s: cqhci: CQE failed to exit halt state\n",
+			mmc_hostname(mmc));
+	}
+
 	mmc->cqe_on = true;
 
 	if (cq_host->ops->enable)
