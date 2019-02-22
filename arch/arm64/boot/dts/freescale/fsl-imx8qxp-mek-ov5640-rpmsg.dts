@@ -1,7 +1,7 @@
-#include "fsl-imx8qxp-mek.dts"
+#include "fsl-imx8qxp-mek-rpmsg.dts"
 #include "fsl-imx8qxp-mek-ov5640.dtsi"
 
-&i2c0_cm40 {
+&i2c_rpbus_5 {
 	ov5640: ov5640@3c {
 		compatible = "ovti,ov5640_v3";
 		reg = <0x3c>;

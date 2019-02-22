@@ -4393,6 +4393,16 @@
 		reg = <0 0x31800000 0 0x10000>;
 	};
 
+	i2c_rpbus_0: i2c-rpbus-0 {
+		compatible = "fsl,i2c-rpbus";
+		status = "disabled";
+	};
+
+	i2c_rpbus_1: i2c-rpbus-1 {
+		compatible = "fsl,i2c-rpbus";
+		status = "disabled";
+	};
+
 	sc_pwrkey: sc-powerkey {
 		compatible = "fsl,imx8-pwrkey";
 		linux,keycode = <KEY_POWER>;

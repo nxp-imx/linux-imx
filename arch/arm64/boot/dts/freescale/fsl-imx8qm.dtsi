@@ -64,6 +64,8 @@
 		can0 = &flexcan1;
 		can1 = &flexcan2;
 		can2 = &flexcan3;
+		i2c0 = &i2c_rpbus_0;
+		i2c1 = &i2c_rpbus_1;
 	};
 
 	memory@80000000 {

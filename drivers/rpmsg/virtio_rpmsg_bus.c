@@ -1067,7 +1067,7 @@ static int __init rpmsg_init(void)
 
 	return ret;
 }
-subsys_initcall(rpmsg_init);
+arch_initcall(rpmsg_init);
 
 static void __exit rpmsg_fini(void)
 {

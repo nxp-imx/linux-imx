@@ -863,6 +863,12 @@ config I2C_RK3X
 	  This driver can also be built as a module. If so, the module will
 	  be called i2c-rk3x.
 
+config I2C_RPBUS
+	tristate "I2C proxy bus over RPMSG"
+	depends on I2C && RPMSG
+	help
+	  This driver can support virtual i2c-rpmsg function.
+
 config HAVE_S3C2410_I2C
 	bool
 	help

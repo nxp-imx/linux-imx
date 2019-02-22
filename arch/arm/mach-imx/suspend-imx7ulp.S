@@ -60,8 +60,8 @@
 #define PM_INFO_MMDC_IO_NUM_OFFSET		0x3a4
 #define PM_INFO_MMDC_IO_VAL_OFFSET		0x3a8
 /* below offsets depends on MX7ULP_MAX_MMDC_IO_NUM(36) definition */
-#define PM_INFO_MMDC_NUM_OFFSET			0x4c8
-#define PM_INFO_MMDC_VAL_OFFSET			0x4cc
+#define PM_INFO_MMDC_NUM_OFFSET			0x5a8
+#define PM_INFO_MMDC_VAL_OFFSET			0x5ac
 
 #define DGO_CTRL0	0x50
 #define DGO_GPR3	0x60
@@ -330,6 +330,18 @@ poll_dvfs_set:
 	ldr	r7, [r11, #MX7ULP_MMDC_MAPSR]
 	ands	r7, r7, #(1 << 24)
 	beq	poll_dvfs_set
+
+	/* put mmdc io into lpm */
+	ldr	r11, [r0, #PM_INFO_PM_INFO_MMDC_IO_VBASE_OFFSET]
+	ldr	r10, [r0, #PM_INFO_MMDC_IO_NUM_OFFSET]
+	ldr	r7, =PM_INFO_MMDC_IO_VAL_OFFSET
+	add	r7, r7, r0
+mmdc_io_lpm:
+	ldr	r8, [r7], #0x8
+	mov	r9, #0x0
+	str	r9, [r11, r8]
+	subs	r10, r10, #0x1
+	bne	mmdc_io_lpm
 
 	/* switch NIC clock to FIRC */
 	ldr	r10, [r0, #PM_INFO_PM_INFO_SCG1_VBASE_OFFSET]

@@ -1074,6 +1074,10 @@ static void imx_hdp_imx_encoder_enable(struct drm_encoder *encoder)
 	struct drm_connector_state *conn_state = hdp->connector.state;
 	int ret = 0;
 
+	if (conn_state->content_protection ==
+	    DRM_MODE_CONTENT_PROTECTION_DESIRED)
+		imx_hdcp_enable(hdp);
+
 	if (!hdp->ops->write_hdr_metadata)
 		goto out;
 
@@ -1101,10 +1105,6 @@ static void imx_hdp_imx_encoder_enable(struct drm_encoder *encoder)
 	}
 
 	hdp->ops->write_hdr_metadata(&hdp->state, &frame);
-
-	if (conn_state->content_protection ==
-	    DRM_MODE_CONTENT_PROTECTION_DESIRED)
-		imx_hdcp_enable(hdp);
 
 out:
 	imx_hdp_call(hdp, pixel_link_validate, &hdp->state);

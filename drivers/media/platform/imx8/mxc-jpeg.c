@@ -498,7 +498,9 @@ buffers_done:
 	v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
 	v4l2_m2m_buf_done(to_vb2_v4l2_buffer(src_buf), buf_state);
 	v4l2_m2m_buf_done(to_vb2_v4l2_buffer(dst_buf), buf_state);
+	spin_unlock(&jpeg->hw_lock);
 	v4l2_m2m_job_finish(jpeg->m2m_dev, ctx->fh.m2m_ctx);
+	return IRQ_HANDLED;
 job_unlock:
 	spin_unlock(&jpeg->hw_lock);
 	return IRQ_HANDLED;
