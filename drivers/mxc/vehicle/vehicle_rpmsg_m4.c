@@ -27,6 +27,7 @@
 #include <soc/imx8/sc/sci.h>
 #include <linux/slab.h>
 #include <linux/of_platform.h>
+#include <linux/of.h>
 #include "vehicle_core.h"
 
 #define RPMSG_TIMEOUT 1000
@@ -71,16 +72,12 @@ struct rpmsg_vehicle_mcu_drvdata {
 	struct pm_qos_request pm_qos_req;
 	struct delayed_work vehicle_register_work;
 	struct completion cmd_complete;
-	u32 resources_count;
-	u32 *resource;
 	/*
 	 * register_ready means ap have been registered as client and been ready
 	 * load camera/display modoules. When it get the driver signal first time
 	 * and register_ready is true, it will loader related moduled.
 	 */
 	bool register_ready;
-	struct clk *clk_core;
-	struct clk *clk_esc;
 	/* register_ready means ap have been registered as client */
 	bool vehicle_client_registered;
 };
@@ -236,55 +233,18 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 	}
 }
 
-/*power on display/camera related power domain once AP get control of display/camera*/
-static void force_power_on(void)
-{
-	sc_ipc_t ipcHndl;
-	sc_err_t sciErr;
-	uint32_t mu_id;
-	uint32_t num;
-
-	sciErr = sc_ipc_getMuID(&mu_id);
-	if (sciErr != SC_ERR_NONE) {
-		pr_err("Cannot obtain MU ID\n");
-		return;
-	}
-
-	sciErr = sc_ipc_open(&ipcHndl, mu_id);
-	if (sciErr != SC_ERR_NONE) {
-		pr_err("sc_ipc_open failed! (sciError = %d)\n", sciErr);
-		return;
-	}
-
-	for (num = 0; num < vehicle_rpmsg->resources_count; num++) {
-		sciErr = sc_pm_set_resource_power_mode(ipcHndl, vehicle_rpmsg->resource[num], SC_PM_PW_MODE_ON);
-		if (sciErr)
-			pr_err("Failed power operation on resource %d sc_err %d\n", vehicle_rpmsg->resource[num],sciErr);
-	}
-}
-
-static void sync_hw_clk(void)
-{
-	struct device *dev = vehicle_rpmsg->vehicle_dev;
-	vehicle_rpmsg->clk_core = devm_clk_get(dev, "clk_core");
-	if (IS_ERR(vehicle_rpmsg->clk_core)) {
-		dev_err(dev, "failed to get csi core clk\n");
-		return;
-	}
-
-	vehicle_rpmsg->clk_esc = devm_clk_get(dev, "clk_esc");
-	if (IS_ERR(vehicle_rpmsg->clk_esc)) {
-		dev_err(dev, "failed to get csi esc clk\n");
-		return;
-	}
-
-	/* clk_get_rate will sync scu clk into linux software clk tree*/
-	clk_get_rate(vehicle_rpmsg->clk_core);
-	clk_get_rate(vehicle_rpmsg->clk_esc);
-}
-
 static void notice_evs_released(struct rpmsg_device *rpdev)
 {
+	struct device_node *camera;
+	camera = of_find_node_by_name (vehicle_rpmsg->vehicle_dev->of_node, "camera");
+	if (camera) {
+		if (of_platform_populate(camera, NULL, NULL, vehicle_rpmsg->vehicle_dev)) {
+			dev_err(&rpdev->dev, "failed to populate camera child nodes\n");
+		}
+		of_node_clear_flag(camera, OF_POPULATED_BUS);
+	}
+	of_node_put(camera);
+
 	int count = of_get_available_child_count(vehicle_rpmsg->vehicle_dev->of_node);
 	if (count) {
 		if (of_platform_populate(vehicle_rpmsg->vehicle_dev->of_node,
@@ -305,8 +265,6 @@ static int vehicle_rpmsg_cb(struct rpmsg_device *rpdev,
 		complete(&vehicle_rpmsg->cmd_complete);
 		if (msg->retcode == 0) {
 			if (msg->devicestate == RESOURCE_FREE) {
-				force_power_on();
-				sync_hw_clk();
 				notice_evs_released(rpdev);
 #ifdef CONFIG_EXTCON
 				extcon_set_state_sync(rg_edev, EXTCON_VEHICLE_RPMSG_REGISTER, 1);
@@ -346,8 +304,6 @@ static int vehicle_rpmsg_cb(struct rpmsg_device *rpdev,
 		if(msg->statetype == VEHICLE_GEAR) {
 			if (msg->statevalue == VEHICLE_GEAR_DRIVE) {
 				if (vehicle_rpmsg->register_ready) {
-					force_power_on();
-					sync_hw_clk();
 					notice_evs_released(rpdev);
 #ifdef CONFIG_EXTCON
 					extcon_set_state_sync(rg_edev, EXTCON_VEHICLE_RPMSG_REGISTER, 1);
@@ -523,8 +479,6 @@ static ssize_t register_store(struct device *dev,
 			pr_err("register rpmsg driver failed\n");
 			return -EINVAL;
 		}
-		/*detach the power domain pd_dc0*/
-		dev_pm_domain_detach(dev, false);
 		state = state_set;
 	}
 	return size;
@@ -560,21 +514,6 @@ static int vehicle_mcu_probe(struct platform_device *pdev)
 	if (IS_ERR(ddata))
 		return PTR_ERR(ddata);
 
-	err = of_property_read_u32(dev->of_node, "fsl,resources-num", &ddata->resources_count);
-	if (err) {
-		dev_err(dev, "failed to read soc name from dts\n");
-		return err;
-	}
-	ddata->resource = kzalloc(sizeof(*ddata->resource) * ddata->resources_count, GFP_KERNEL);
-	if (!ddata->resource) {
-		pr_err("failed to allocate memory for resources\n");
-		return ERR_PTR(-ENOMEM);
-	}
-	err = of_property_read_u32_array(dev->of_node, "fsl,resources", ddata->resource, ddata->resources_count);
-	if (err) {
-		dev_err(dev, "failed to read soc name from dts\n");
-		goto out_free_mem;
-	}
 	vehicle_rpmsg = ddata;
 	vehicle_rpmsg->vehicle_dev = dev;
 	vehicle_rpmsg->register_ready = false;
@@ -594,13 +533,11 @@ static int vehicle_mcu_probe(struct platform_device *pdev)
 
 	return 0;
 out_free_mem:
-	kfree(ddata->resource);
 	return ERR_PTR(-ENOMEM);
 }
 
 static void vehicle_mcu_remove(struct platform_device *pdev)
 {
-	kfree(vehicle_rpmsg->resource);
 	class_destroy(vehicle_rpmsg_class);
 	unregister_rpmsg_driver(&vehicle_rpmsg_driver);
 }
