@@ -260,21 +260,6 @@
 	 */
 	vehicle_rpmsg_m4: vehicle_rpmsg_m4 {
 		compatible = "nxp,imx-vehicle-m4";
-		power-domains = <&pd_dc1>;
-		/*
-		 * fsl,resources is used to open the power of these resources.
-		 * m4 will power down these resources when M4 core give out the control of camera/display.
-		 * rpmsg_can driver will power on these reources once A core take over the control of camera/display.
-		 */
-		fsl,resources = <SC_R_LVDS_1 SC_R_LVDS_1_I2C_0
-				 SC_R_DC_1 SC_R_DC_1_PLL_1
-				 SC_R_CSI_0_I2C_0 SC_R_ISI_CH0
-				 SC_R_ISI_CH1 SC_R_ISI_CH2
-				 SC_R_ISI_CH3 SC_R_CSI_0>;
-		fsl,resources-num = <10>;
-		clocks = <&clk IMX8QM_CSI0_CORE_CLK>,
-				<&clk IMX8QM_CSI0_ESC_CLK>;
-		clock-names = "clk_core", "clk_esc";
 		status = "disabled";
 	};
 
