@@ -4500,7 +4500,7 @@ _CacheOperation(
     )
 {
     PLINUX_MDL mdl = (PLINUX_MDL)Handle;
-    PLINUX_MDL_MAP mdlMap;
+    PLINUX_MDL_MAP mdlMap = gcvNULL;
     gckALLOCATOR allocator;
 
     if (!mdl || !mdl->allocator)
@@ -4513,11 +4513,14 @@ _CacheOperation(
 
     if (allocator->ops->Cache)
     {
-        mutex_lock(&mdl->mapsMutex);
+        if (ProcessID)
+        {
+            mutex_lock(&mdl->mapsMutex);
 
-        mdlMap = FindMdlMap(mdl, ProcessID);
+            mdlMap = FindMdlMap(mdl, ProcessID);
 
-        mutex_unlock(&mdl->mapsMutex);
+            mutex_unlock(&mdl->mapsMutex);
+        }
 
         if (ProcessID && mdlMap == gcvNULL)
         {
@@ -4533,8 +4536,6 @@ _CacheOperation(
             return gcvSTATUS_OK;
         }
     }
-
-    _MemoryBarrier();
 
     return gcvSTATUS_OK;
 }
