@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -221,24 +221,6 @@
 		ranges;
 		#address-cells = <2>;
 		#size-cells = <2>;
-
-		/* Android Auto Kernel will use this */
-		can_rpmsg: can_rpmsg {
-			compatible = "nxp,imx-can-rpmsg";
-			power-domains = <&pd_dc1>;
-			/*
-			 * fsl,resources is used to open the power of these resources.
-			 * m4 will power down these resources when M4 core give out the control of camera/display.
-			 * rpmsg_can driver will power on these reources once A core take over the control of camera/display.
-			 */
-			fsl,resources = <SC_R_LVDS_1 SC_R_LVDS_1_I2C_0
-					 SC_R_DC_1 SC_R_DC_1_PLL_1
-					 SC_R_CSI_0_I2C_0 SC_R_ISI_CH0
-					 SC_R_ISI_CH1 SC_R_ISI_CH2
-					 SC_R_ISI_CH3 SC_R_CSI_0>;
-			fsl,resources-num = <10>;
-			status = "disabled";
-		};
 
 		firmware {
 			android {
@@ -479,6 +461,22 @@
 			be-adapter = "3b230000.i2c";
 			status = "okay";
 		};
+	};
+
+	/*
+	 * vehicle core driver device node which open power domain dc by default
+	 */
+	vehicle_core: vehicle_core {
+		compatible = "nxp,imx-vehicle";
+		status = "disabled";
+	};
+
+	/*
+	 * vehicle M4 driver which can get info from MCU.
+	 */
+	vehicle_rpmsg_m4: vehicle_rpmsg_m4 {
+		compatible = "nxp,imx-vehicle-m4";
+		status = "disabled";
 	};
 };
 

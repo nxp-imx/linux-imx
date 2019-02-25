@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -49,6 +49,36 @@
 	};
 };
 
+/delete-node/ &i2c1_lvds1;
+/delete-node/ &camera;
+/delete-node/ &dpu2_intsteer;
+/delete-node/ &prg10;
+/delete-node/ &prg11;
+/delete-node/ &prg12;
+/delete-node/ &prg13;
+/delete-node/ &prg14;
+/delete-node/ &prg15;
+/delete-node/ &prg16;
+/delete-node/ &prg17;
+/delete-node/ &prg18;
+/delete-node/ &dpr3_channel1;
+/delete-node/ &dpr3_channel2;
+/delete-node/ &dpr3_channel3;
+/delete-node/ &dpr4_channel1;
+/delete-node/ &dpr4_channel2;
+/delete-node/ &dpr4_channel3;
+/delete-node/ &dpu2;
+/delete-node/ &pixel_combiner2;
+
+/delete-node/ &lvds_region2;
+/delete-node/ &ldb2_phy;
+/delete-node/ &ldb2;
+/delete-node/ &irqsteer_lvds1;
+
+/delete-node/ &irqsteer_csi0;
+/delete-node/ &i2c0_mipi_csi0;
+/delete-node/ &gpio0_mipi_csi0;
+
 &iomuxc {
 	imx8qm-mek {
 		pinctrl_mipi_csi0_en_rst: mipi_csi0_en_rst {
@@ -69,9 +99,6 @@
 	};
 };
 
-/delete-node/ &i2c1_lvds1;
-/delete-node/ &i2c0_mipi_csi0;
-
 &sai0 {
 	assigned-clocks = <&clk IMX8QM_AUD_PLL0_DIV>,
 			<&clk IMX8QM_AUD_ACM_AUD_PLL_CLK0_DIV>,
@@ -83,11 +110,398 @@
 	status = "okay";
 };
 
-&can_rpmsg {
+&vehicle_core {
+	status = "okay";
+};
+
+&vehicle_rpmsg_m4 {
 	#address-cells = <2>;
 	#size-cells = <2>;
 	status = "okay";
 	ranges;
+
+	clk_post: clk1 {
+		compatible = "fsl,imx8qm-post-clk";
+		#clock-cells = <1>;
+	};
+
+	dpu2_intsteer: dpu_intsteer@57000000 {
+		compatible = "fsl,imx8qm-dpu-intsteer", "syscon";
+		reg = <0x0 0x57000000 0x0 0x10000>;
+	};
+
+	pixel_combiner2: pixel-combiner@57020000 {
+		compatible = "fsl,imx8qm-pixel-combiner";
+		reg = <0x0 0x57020000 0x0 0x10000>;
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	prg10: prg@57040000 {
+		compatible = "fsl,imx8qm-prg";
+		reg = <0x0 0x57040000 0x0 0x10000>;
+		clocks = <&clk_post IMX8QM_DC1_PRG0_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_PRG0_RTRAM_CLK>;
+		clock-names = "apb", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	prg11: prg@57050000 {
+		compatible = "fsl,imx8qm-prg";
+		reg = <0x0 0x57050000 0x0 0x10000>;
+		clocks = <&clk_post IMX8QM_DC1_PRG1_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_PRG1_RTRAM_CLK>;
+		clock-names = "apb", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	prg12: prg@57060000 {
+		compatible = "fsl,imx8qm-prg";
+		reg = <0x0 0x57060000 0x0 0x10000>;
+		clocks = <&clk_post IMX8QM_DC1_PRG2_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_PRG2_RTRAM_CLK>;
+		clock-names = "apb", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	prg13: prg@57070000 {
+		compatible = "fsl,imx8qm-prg";
+		reg = <0x0 0x57070000 0x0 0x10000>;
+		clocks = <&clk_post IMX8QM_DC1_PRG3_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_PRG3_RTRAM_CLK>;
+		clock-names = "apb", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	prg14: prg@57080000 {
+		compatible = "fsl,imx8qm-prg";
+		reg = <0x0 0x57080000 0x0 0x10000>;
+		clocks = <&clk_post IMX8QM_DC1_PRG4_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_PRG4_RTRAM_CLK>;
+		clock-names = "apb", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	prg15: prg@57090000 {
+		compatible = "fsl,imx8qm-prg";
+		reg = <0x0 0x57090000 0x0 0x10000>;
+		clocks = <&clk_post IMX8QM_DC1_PRG5_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_PRG5_RTRAM_CLK>;
+		clock-names = "apb", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	prg16: prg@570a0000 {
+		compatible = "fsl,imx8qm-prg";
+		reg = <0x0 0x570a0000 0x0 0x10000>;
+		clocks = <&clk_post IMX8QM_DC1_PRG6_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_PRG6_RTRAM_CLK>;
+		clock-names = "apb", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+
+	prg17: prg@570b0000 {
+		compatible = "fsl,imx8qm-prg";
+		reg = <0x0 0x570b0000 0x0 0x10000>;
+		clocks = <&clk_post IMX8QM_DC1_PRG7_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_PRG7_RTRAM_CLK>;
+		clock-names = "apb", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	prg18: prg@570c0000 {
+		compatible = "fsl,imx8qm-prg";
+		reg = <0x0 0x570c0000 0x0 0x10000>;
+		clocks = <&clk_post IMX8QM_DC1_PRG8_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_PRG8_RTRAM_CLK>;
+		clock-names = "apb", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	dpr3_channel1: dpr-channel@570d0000 {
+		compatible = "fsl,imx8qm-dpr-channel";
+		reg = <0x0 0x570d0000 0x0 0x10000>;
+		fsl,sc-resource = <SC_R_DC_1_BLIT0>;
+		fsl,prgs = <&prg10>;
+		clocks = <&clk_post IMX8QM_DC1_DPR0_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_DPR0_B_CLK>,
+			 <&clk_post IMX8QM_DC1_RTRAM0_CLK>;
+		clock-names = "apb", "b", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	dpr3_channel2: dpr-channel@570e0000 {
+		compatible = "fsl,imx8qm-dpr-channel";
+		reg = <0x0 0x570e0000 0x0 0x10000>;
+		fsl,sc-resource = <SC_R_DC_1_BLIT1>;
+		fsl,prgs = <&prg11>, <&prg10>;
+		clocks = <&clk_post IMX8QM_DC1_DPR0_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_DPR0_B_CLK>,
+			 <&clk_post IMX8QM_DC1_RTRAM0_CLK>;
+		clock-names = "apb", "b", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	dpr3_channel3: dpr-channel@570f0000 {
+		compatible = "fsl,imx8qm-dpr-channel";
+		reg = <0x0 0x570f0000 0x0 0x10000>;
+		fsl,sc-resource = <SC_R_DC_1_FRAC0>;
+		fsl,prgs = <&prg12>;
+		clocks = <&clk_post IMX8QM_DC1_DPR0_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_DPR0_B_CLK>,
+			 <&clk_post IMX8QM_DC1_RTRAM0_CLK>;
+		clock-names = "apb", "b", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	dpr4_channel1: dpr-channel@57100000 {
+		compatible = "fsl,imx8qm-dpr-channel";
+		reg = <0x0 0x57100000 0x0 0x10000>;
+		fsl,sc-resource = <SC_R_DC_1_VIDEO0>;
+		fsl,prgs = <&prg13>, <&prg14>;
+		clocks = <&clk_post IMX8QM_DC1_DPR1_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_DPR1_B_CLK>,
+			 <&clk_post IMX8QM_DC1_RTRAM1_CLK>;
+		clock-names = "apb", "b", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	dpr4_channel2: dpr-channel@57110000 {
+		compatible = "fsl,imx8qm-dpr-channel";
+		reg = <0x0 0x57110000 0x0 0x10000>;
+		fsl,sc-resource = <SC_R_DC_1_VIDEO1>;
+		fsl,prgs = <&prg15>, <&prg16>;
+		clocks = <&clk_post IMX8QM_DC1_DPR1_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_DPR1_B_CLK>,
+			 <&clk_post IMX8QM_DC1_RTRAM1_CLK>;
+		clock-names = "apb", "b", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	dpr4_channel3: dpr-channel@56712000 {
+		compatible = "fsl,imx8qm-dpr-channel";
+		reg = <0x0 0x57120000 0x0 0x10000>;
+		fsl,sc-resource = <SC_R_DC_1_WARP>;
+		fsl,prgs = <&prg17>, <&prg18>;
+		clocks = <&clk_post IMX8QM_DC1_DPR1_APB_CLK>,
+			 <&clk_post IMX8QM_DC1_DPR1_B_CLK>,
+			 <&clk_post IMX8QM_DC1_RTRAM1_CLK>;
+		clock-names = "apb", "b", "rtram";
+		power-domains = <&pd_dc1>;
+		status = "okay";
+	};
+
+	dpu2: dpu@57180000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx8qm-dpu";
+		reg = <0x0 0x57180000 0x0 0x40000>;
+		intsteer = <&dpu2_intsteer>;
+		interrupts = <GIC_SPI 152 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 153 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 154 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 155 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 156 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 157 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 158 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 159 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 162 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 163 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-names = "irq_common",
+				  "irq_stream0a",
+				  "irq_stream0b",	/* to M4? */
+				  "irq_stream1a",
+				  "irq_stream1b",	/* to M4? */
+				  "irq_reserved0",
+				  "irq_reserved1",
+				  "irq_blit",
+				  "irq_dpr0",
+				  "irq_dpr1";
+		clocks = <&clk_post IMX8QM_DC1_PLL0_CLK>,
+			 <&clk_post IMX8QM_DC1_PLL1_CLK>,
+			 <&clk_post IMX8QM_DC1_BYPASS_0_DIV>,
+			 <&clk_post IMX8QM_DC1_DISP0_SEL>,
+			 <&clk_post IMX8QM_DC1_DISP1_SEL>,
+			 <&clk_post IMX8QM_DC1_DISP0_CLK>,
+			 <&clk_post IMX8QM_DC1_DISP1_CLK>;
+		clock-names = "pll0", "pll1", "bypass0",
+			      "disp0_sel", "disp1_sel", "disp0", "disp1";
+		power-domains = <&pd_dc1_pll1>;
+		fsl,dpr-channels = <&dpr3_channel1>, <&dpr3_channel2>,
+				   <&dpr3_channel3>, <&dpr4_channel1>,
+				   <&dpr4_channel2>, <&dpr4_channel3>;
+		fsl,pixel-combiner = <&pixel_combiner2>;
+		status = "okay";
+
+		dpu2_disp0: port@0 {
+			reg = <0>;
+
+			dpu2_disp0_mipi_dsi: mipi-dsi-endpoint {
+				/delete-property/ remote-endpoint;
+			};
+		};
+
+		dpu2_disp1: port@1 {
+			reg = <1>;
+
+			dpu2_disp1_lvds0: lvds0-endpoint {
+				remote-endpoint = <&ldb2_lvds0>;
+			};
+
+			dpu2_disp1_lvds1: lvds1-endpoint {
+				remote-endpoint = <&ldb2_lvds1>;
+			};
+		};
+	};
+
+	irqsteer_dsi1: irqsteer@57220000 {
+		compatible = "nxp,imx-irqsteer";
+		reg = <0x0 0x57220000 0x0 0x1000>;
+		interrupts = <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		interrupt-parent = <&gic>;
+		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QM_MIPI1_LIS_IPG_CLK>;
+		clock-names = "ipg";
+		power-domains = <&pd_mipi1>;
+	};
+
+	mipi_dsi_csr2: csr@57221000 {
+		compatible = "fsl,imx8qm-mipi-dsi-csr", "syscon";
+		reg = <0x0 0x57221000 0x0 0x1000>;
+	};
+
+	mipi_dsi_phy2: mipi_phy@57228300 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "mixel,imx8qm-mipi-dsi-phy";
+		reg = <0x0 0x57228300 0x0 0x100>;
+		power-domains = <&pd_mipi1>;
+		#phy-cells = <0>;
+		status = "disabled";
+	};
+
+	lvds_region2: lvds_region@57240000 {
+		compatible = "fsl,imx8qm-lvds-region", "syscon";
+		reg = <0x0 0x57240000 0x0 0x10000>;
+	};
+
+	ldb2_phy: ldb_phy@57241000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "mixel,lvds-phy";
+		reg = <0x0 0x57241000 0x0 0x100>;
+		clocks = <&clk_post IMX8QM_LVDS1_PHY_CLK>;
+		clock-names = "phy";
+		power-domains = <&pd_lvds1>;
+		status = "okay";
+
+		ldb2_phy1: port@0 {
+			reg = <0>;
+			#phy-cells = <0>;
+		};
+
+		ldb2_phy2: port@1 {
+			reg = <1>;
+			#phy-cells = <0>;
+		};
+	};
+
+	ldb2: ldb@572410e0 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "fsl,imx8qm-ldb";
+		clocks = <&clk_post IMX8QM_LVDS1_PIXEL_CLK>,
+			 <&clk_post IMX8QM_LVDS1_BYPASS_CLK>;
+		clock-names = "pixel", "bypass";
+		power-domains = <&pd_lvds1>;
+		gpr = <&lvds_region2>;
+		status = "okay";
+
+		lvds-channel@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0>;
+			phys = <&ldb2_phy1>;
+			phy-names = "ldb_phy";
+			fsl,data-mapping = "jeida";
+			fsl,data-width = <24>;
+			status = "okay";
+
+			port@0 {
+				reg = <0>;
+
+				ldb2_lvds0: endpoint {
+					remote-endpoint = <&dpu2_disp1_lvds0>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				lvds1_out: endpoint {
+					remote-endpoint = <&it6263_1_in>;
+				};
+			};
+		};
+
+		lvds-channel@1 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <1>;
+			phys = <&ldb2_phy2>;
+			phy-names = "ldb_phy";
+			status = "disabled";
+
+			port@0 {
+				reg = <0>;
+
+				ldb2_lvds1: endpoint {
+					remote-endpoint = <&dpu2_disp1_lvds1>;
+				};
+			};
+		};
+	};
+
+	irqsteer_lvds1: irqsteer@572400000 {
+		compatible = "nxp,imx-irqsteer";
+		reg = <0x0 0x57240000 0x0 0x1000>;
+		interrupts = <GIC_SPI 58 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		interrupt-parent = <&gic>;
+		#interrupt-cells = <2>;
+		clocks = <&clk_post IMX8QM_LVDS1_LIS_IPG_CLK>;
+		clock-names = "ipg";
+		power-domains = <&pd_lvds1>;
+	};
+
+	irqsteer_csi0: irqsteer@58220000 {
+		compatible = "nxp,imx-irqsteer";
+		reg = <0x0 0x58220000 0x0 0x1000>;
+		interrupts = <GIC_SPI 320 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		interrupt-parent = <&gic>;
+		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QM_CLK_DUMMY>;
+		clock-names = "ipg";
+		power-domains = <&pd_csi0>;
+	};
+
 	i2c0_mipi_csi0: i2c@58226000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -95,16 +509,16 @@
 		reg = <0x0 0x58226000 0x0 0x1000>;
 		interrupts = <8 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&irqsteer_csi0>;
-		clocks = <&clk IMX8QM_CSI0_I2C0_CLK>,
-			 <&clk IMX8QM_CSI0_I2C0_IPG_CLK>;
+		clocks = <&clk_post IMX8QM_CSI0_I2C0_CLK>,
+			 <&clk_post IMX8QM_CSI0_I2C0_IPG_CLK>;
 		clock-names = "per", "ipg";
-		assigned-clocks = <&clk IMX8QM_CSI0_I2C0_CLK>;
+		assigned-clocks = <&clk_post IMX8QM_CSI0_I2C0_CLK>;
 		assigned-clock-rates = <24000000>;
 		power-domains = <&pd_csi0_i2c0>;
 		pinctrl-names = "default";
 		status = "okay";
 		clock-frequency = <1000000>;
-		pinctrl-0 = <&pinctrl_mipi_csi0_en_rst>;
+		/*pinctrl-0 = <&pinctrl_mipi_csi0_en>;*/
 		max9286_mipi@6A	 {
 			compatible = "maxim,max9286_mipi";
 			reg = <0x6A>;
@@ -123,6 +537,44 @@
 		};
 	};
 
+	gpio0_mipi_csi0: gpio@58222000 {
+		compatible = "fsl,imx8qm-gpio", "fsl,imx35-gpio";
+		reg = <0x0 0x58222000 0x0 0x1000>;
+		interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&irqsteer_csi0>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		power-domains = <&pd_csi0>;
+		status = "disabled";
+	};
+
+	irqsteer_csi1: irqsteer@582400000 {
+		compatible = "nxp,imx-irqsteer";
+		reg = <0x0 0x58240000 0x0 0x1000>;
+		interrupts = <GIC_SPI 321 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-controller;
+		interrupt-parent = <&gic>;
+		#interrupt-cells = <2>;
+		clocks = <&clk IMX8QM_CLK_DUMMY>;
+		clock-names = "ipg";
+		power-domains = <&pd_csi1>;
+	};
+
+	gpio0_mipi_csi1: gpio@58242000 {
+		compatible = "fsl,imx8qm-gpio", "fsl,imx35-gpio";
+		reg = <0x0 0x58242000 0x0 0x1000>;
+		interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
+		interrupt-parent = <&irqsteer_csi1>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		power-domains = <&pd_csi1>;
+		status = "disabled";
+	};
+
 	i2c1_lvds1: i2c@57247000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -130,10 +582,10 @@
 		reg = <0x0 0x57247000 0x0 0x1000>;
 		interrupts = <9 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&irqsteer_lvds1>;
-		clocks = <&clk IMX8QM_LVDS1_I2C0_CLK>,
-			 <&clk IMX8QM_LVDS1_I2C0_IPG_CLK>;
+		clocks = <&clk_post IMX8QM_LVDS1_I2C0_CLK>,
+			 <&clk_post IMX8QM_LVDS1_I2C0_IPG_CLK>;
 		clock-names = "per", "ipg";
-		assigned-clocks = <&clk IMX8QM_LVDS1_I2C0_CLK>;
+		assigned-clocks = <&clk_post IMX8QM_LVDS1_I2C0_CLK>;
 		assigned-clock-rates = <24000000>;
 		power-domains = <&pd_lvds1_i2c0>;
 		pinctrl-names = "default";
@@ -148,6 +600,102 @@
 					clock-lanes = <3>;
 					data-lanes = <0 1 2 4>;
 					remote-endpoint = <&lvds1_out>;
+				};
+			};
+		};
+	};
+
+	camera: camera {
+		compatible = "fsl,mxc-md";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		isi_0: isi@58100000 {
+			compatible = "fsl,imx8-isi";
+			reg = <0x0 0x58100000 0x0 0x10000>;
+			interrupts = <0 297 0>;
+			interface = <2 0 2>;  /* <Input MIPI_VCx Output>
+						Input:  0-DC0, 1-DC1, 2-MIPI CSI0, 3-MIPI CSI1, 4-HDMI, 5-MEM
+						VCx:    0-VC0, 1-VC1, 2-VC2, 3-VC3, MIPI CSI only
+						Output: 0-DC0, 1-DC1, 2-MEM */
+			clocks = <&clk IMX8QM_IMG_PDMA_0_CLK>;
+			clock-names = "per";
+			assigned-clocks = <&clk IMX8QM_IMG_PDMA_0_CLK>;
+			assigned-clock-rates = <600000000>;
+			power-domains =<&pd_isi_ch0>;
+			low_latency;
+			status = "okay";
+		};
+
+		isi_1: isi@58110000 {
+			compatible = "fsl,imx8-isi";
+			reg = <0x0 0x58110000 0x0 0x10000>;
+			interrupts = <0 298 0>;
+			interface = <2 1 2>;
+			clocks = <&clk IMX8QM_IMG_PDMA_1_CLK>;
+			clock-names = "per";
+			assigned-clocks = <&clk IMX8QM_IMG_PDMA_1_CLK>;
+			assigned-clock-rates = <600000000>;
+			power-domains =<&pd_isi_ch1>;
+			low_latency;
+			status = "okay";
+		};
+
+		isi_2: isi@58120000 {
+			compatible = "fsl,imx8-isi";
+			reg = <0x0 0x58120000 0x0 0x10000>;
+			interrupts = <0 299 0>;
+			interface = <2 2 2>;
+			clocks = <&clk IMX8QM_IMG_PDMA_2_CLK>;
+			clock-names = "per";
+			assigned-clocks = <&clk IMX8QM_IMG_PDMA_2_CLK>;
+			assigned-clock-rates = <600000000>;
+			power-domains =<&pd_isi_ch2>;
+			low_latency;
+			status = "okay";
+		};
+
+		isi_3: isi@58130000 {
+			compatible = "fsl,imx8-isi";
+			reg = <0x0 0x58130000 0x0 0x10000>;
+			interrupts = <0 300 0>;
+			interface = <2 3 2>;
+			clocks = <&clk IMX8QM_IMG_PDMA_3_CLK>;
+			clock-names = "per";
+			assigned-clocks = <&clk IMX8QM_IMG_PDMA_3_CLK>;
+			assigned-clock-rates = <600000000>;
+			power-domains =<&pd_isi_ch3>;
+			low_latency;
+			status = "okay";
+		};
+
+		mipi_csi_0: csi@58227000 {
+			compatible = "fsl,mxc-mipi-csi2";
+			reg = <0x0 0x58227000 0x0 0x1000>, /* CSI0 Controler base addr */
+				<0x0 0x58221000 0x0 0x1000>; /* CSI0 Subsystem CSR base addr  */
+			interrupts = <10 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-parent = <&irqsteer_csi0>;
+			clocks = <&clk IMX8QM_CLK_DUMMY>,
+				 <&clk_post IMX8QM_CSI0_CORE_CLK>,
+				 <&clk_post IMX8QM_CSI0_ESC_CLK>,
+				 <&clk IMX8QM_IMG_PXL_LINK_CSI0_CLK>;
+			clock-names = "clk_apb", "clk_core", "clk_esc", "clk_pxl";
+			assigned-clocks = <&clk_post IMX8QM_CSI0_CORE_CLK>,
+					  <&clk_post IMX8QM_CSI0_ESC_CLK>;
+			assigned-clock-rates = <360000000>, <72000000>;
+			power-domains = <&pd_csi0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			virtual-channel;
+			status = "okay";
+
+			/* Camera 0  MIPI CSI-2 (CSIS0) */
+			port@0 {
+				reg = <0>;
+				mipi_csi0_ep: endpoint {
+					remote-endpoint = <&max9286_0_ep>;
+					data-lanes = <1 2 3 4>;
 				};
 			};
 		};
