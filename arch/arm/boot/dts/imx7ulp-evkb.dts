@@ -9,6 +9,9 @@
 #include "imx7ulp-evk.dts"
 
 / {
+	model = "NXP i.MX7ULP EVKB";
+	compatible = "fsl,imx7ulp-evkb", "fsl,imx7ulp", "Generic DT based system";
+
 	regulators {
 		reg_sd1_vmmc: sd1_regulator {
 			status = "disabled";
