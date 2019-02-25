@@ -174,8 +174,6 @@
 				/* HIFI DSP */
 				SC_R_DSP
 				SC_R_DSP_RAM
-				SC_R_MU_13B
-				SC_R_MU_13A
 			>;
 			pads = <
 				/* i2c1_lvds1 */
@@ -275,19 +273,6 @@
 		fsl,scu_ap_mu_id = <0>;
 		xen,passthrough;
 		status = "disabled";
-	};
-
-	cm41: cm41@1 {
-		fsl,sc_rsrc_id = <SC_R_M4_1_PID0>,
-				 <SC_R_M4_1_PID1>,
-				 <SC_R_M4_1_PID2>,
-				 <SC_R_M4_1_PID3>,
-				 <SC_R_M4_1_PID4>;
-		#stream-id-cells = <1>;
-		iommus = <&smmu>;
-		xen,passthrough;
-		/* This will be parased by xen smmu driver */
-		init-smmu-bypass;
 	};
 
 	irqsteer_cm41: irqsteer_cm41@0x51080000 {
@@ -464,7 +449,7 @@
 &smmu {
 	mmu-masters = <&dpu2 0x13>, <&gpu_3d1 0x15>, <&edma20 0x14>,
 		      <&usdhc1 0x12>, <&usbotg1 0x11>,
-		      <&edma01 0x10>, <&cm41 0x09>, <&pciea 0x08>,
+		      <&edma01 0x10>, <&pciea 0x08>,
 		      <&vpu_decoder 0x7>, <&crypto 0x6>, <&isi_0 0x5>,
 		      <&usbotg3 0x4>, <&dsp 0x3>;
 };
