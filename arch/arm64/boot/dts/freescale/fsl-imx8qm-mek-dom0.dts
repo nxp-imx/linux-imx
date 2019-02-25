@@ -68,6 +68,33 @@
 			init_on_rsrcs = <
 				SC_R_MU_2A
 			>;
+			/* Resources that will be transferred between
+			 * M41 and AP, when support android auto.
+			 */
+			rsrcs-m41-ap = <
+				SC_R_CSI_0
+				SC_R_CSI_0_PWM_0
+				SC_R_CSI_0_I2C_0
+				SC_R_LVDS_1
+				SC_R_LVDS_1_I2C_0
+				SC_R_LVDS_1_PWM_0
+				SC_R_DC_1
+				SC_R_DC_1_BLIT0
+				SC_R_DC_1_BLIT1
+				SC_R_DC_1_BLIT2
+				SC_R_DC_1_BLIT_OUT
+				SC_R_DC_1_WARP
+				SC_R_DC_1_VIDEO0
+				SC_R_DC_1_VIDEO1
+				SC_R_DC_1_FRAC0
+				SC_R_DC_1_PLL_0
+				SC_R_DC_1_PLL_1
+				SC_R_MIPI_1
+				SC_R_MIPI_1_I2C_0
+				SC_R_MIPI_1_I2C_1
+				SC_R_MIPI_1_PWM_0
+				SC_R_ISI_CH0
+			>;
 			rsrcs = <
 				SC_R_MU_6A
 				SC_R_GPU_1_PID0
@@ -174,6 +201,16 @@
 				/* HIFI DSP */
 				SC_R_DSP
 				SC_R_DSP_RAM
+			>;
+			/* Pads that will be transferred between M41 and AP */
+			pads-m41-ap = <
+				SC_P_MIPI_CSI0_MCLK_OUT
+				SC_P_MIPI_CSI0_I2C0_SCL
+				SC_P_MIPI_CSI0_I2C0_SDA
+				SC_P_MIPI_CSI0_GPIO0_00
+				SC_P_MIPI_CSI0_GPIO0_01
+				SC_P_LVDS1_I2C1_SCL
+				SC_P_LVDS1_I2C1_SDA
 			>;
 			pads = <
 				/* i2c1_lvds1 */
