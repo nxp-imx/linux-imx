@@ -129,6 +129,7 @@ static void mxc_isi_m2m_device_run(void *priv)
 
 unlock:
 	spin_unlock_irqrestore(&mxc_isi->slock, flags);
+	msleep(5);
 }
 
 static int mxc_isi_m2m_job_ready(void *priv)
