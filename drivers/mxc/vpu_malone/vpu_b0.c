@@ -160,6 +160,8 @@ static char *bufstat[] = {
 	"FRAME_RELEASE",
 };
 
+static int alloc_vpu_buffer(struct vpu_ctx *ctx);
+
 static char *get_event_str(u32 event)
 {
 	if (event == VID_API_EVENT_SNAPSHOT_DONE)
@@ -761,6 +763,7 @@ static int free_dma_buffer(struct vpu_ctx *ctx, struct dma_buffer *buffer)
 			buffer->dma_phy);
 
 	atomic64_sub(buffer->dma_size, &ctx->statistic.total_dma_size);
+	init_dma_buffer(buffer);
 	return 0;
 }
 static int alloc_mbi_buffer(struct vpu_ctx *ctx,
@@ -1661,10 +1664,16 @@ static void v4l2_transfer_buffer_to_firmware(struct queue_data *This, struct vb2
 	struct vb2_data_req *p_data_req;
 	void *data_mapped;
 	uint32_t buffer_size = vb->planes[0].bytesused;
+	int ret;
 
 	data_mapped = (void *)vb2_plane_vaddr(vb, 0);
 
 	if (ctx->start_flag == true) {
+		ret = alloc_vpu_buffer(ctx);
+		if (ret) {
+			vpu_dbg(LVL_ERR, "alloc vpu buffer fail\n");
+			return;
+		}
 		transfer_buffer_to_firmware(ctx, data_mapped, buffer_size, This->vdec_std);
 #ifdef HANDLE_EOS
 		if (vb->planes[0].bytesused < vb->planes[0].length)
@@ -3208,10 +3217,9 @@ static int remove_instance_file(struct vpu_ctx *ctx)
 	return 0;
 }
 
-static int alloc_vpu_buffer(struct vpu_ctx *ctx)
+static int init_vpu_buffer(struct vpu_ctx *ctx)
 {
 	u_int32 i;
-	u_int32 ret = 0;
 
 	if (!ctx)
 		return -EINVAL;
@@ -3226,17 +3234,36 @@ static int alloc_vpu_buffer(struct vpu_ctx *ctx)
 	init_dma_buffer(&ctx->stream_buffer);
 	init_dma_buffer(&ctx->udata_buffer);
 
-	ctx->stream_buffer.dma_size = vpu_max_bufsize;
-	ret = alloc_dma_buffer(ctx, &ctx->stream_buffer);
-	if (ret)
-		vpu_dbg(LVL_ERR, "error: alloc stream buffer fail!\n");
+	return 0;
+}
 
-	ctx->udata_buffer.dma_size = UDATA_BUFFER_SIZE;
-	ret = alloc_dma_buffer(ctx, &ctx->udata_buffer);
-	if (ret)
-		vpu_dbg(LVL_ERR, "error: alloc udata buffer fail!\n");
+static int alloc_vpu_buffer(struct vpu_ctx *ctx)
+{
+	u_int32 ret = 0;
 
-	return ret;
+	if (!ctx)
+		return -EINVAL;
+
+	if (!ctx->stream_buffer.dma_phy) {
+		ctx->stream_buffer.dma_size = vpu_max_bufsize;
+		ret = alloc_dma_buffer(ctx, &ctx->stream_buffer);
+		if (ret) {
+			vpu_dbg(LVL_ERR, "error: alloc stream buffer fail!\n");
+			return ret;
+		}
+	}
+
+	if (!ctx->udata_buffer.dma_phy) {
+		ctx->udata_buffer.dma_size = UDATA_BUFFER_SIZE;
+		ret = alloc_dma_buffer(ctx, &ctx->udata_buffer);
+		if (ret) {
+			vpu_dbg(LVL_ERR, "error: alloc udata buffer fail!\n");
+			free_dma_buffer(ctx, &ctx->stream_buffer);
+			return ret;
+		}
+	}
+
+	return 0;
 }
 
 static int open_crc_file(struct vpu_ctx *ctx)
@@ -3375,17 +3402,10 @@ static int v4l2_open(struct file *filp)
 	}
 	mutex_unlock(&dev->dev_mutex);
 	rpc_set_stream_cfg_value(dev->shared_mem.pSharedInterface, ctx->str_index, vpu_dbe_num);
-	ret = alloc_vpu_buffer(ctx);
-	if (ret)
-		goto err_alloc_buffer;
+	init_vpu_buffer(ctx);
 
 	return 0;
 
-err_alloc_buffer:
-	free_dma_buffer(ctx, &ctx->stream_buffer);
-	free_dma_buffer(ctx, &ctx->udata_buffer);
-	init_dma_buffer(&ctx->stream_buffer);
-	init_dma_buffer(&ctx->udata_buffer);
 err_firmware_load:
 	destroy_log_info_queue(ctx);
 	kfree(ctx->pSeqinfo);

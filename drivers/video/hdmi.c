@@ -452,38 +452,38 @@ ssize_t hdmi_drm_infoframe_pack(struct hdmi_drm_infoframe *frame, void *buffer,
 	ptr[2] = frame->display_primaries_x[0] & 0xff;
 	ptr[3] = frame->display_primaries_x[0] >> 8;
 
-	ptr[4] = frame->display_primaries_x[1] & 0xff;
-	ptr[5] = frame->display_primaries_x[1] >> 8;
+	ptr[4] = frame->display_primaries_y[0] & 0xff;
+	ptr[5] = frame->display_primaries_y[0] >> 8;
 
-	ptr[6] = frame->display_primaries_x[2] & 0xff;
-	ptr[7] = frame->display_primaries_x[2] >> 8;
+	ptr[6] = frame->display_primaries_x[1] & 0xff;
+	ptr[7] = frame->display_primaries_x[1] >> 8;
 
-	ptr[9] = frame->display_primaries_y[0] & 0xff;
-	ptr[10] = frame->display_primaries_y[0] >> 8;
+	ptr[8] = frame->display_primaries_y[1] & 0xff;
+	ptr[9] = frame->display_primaries_y[1] >> 8;
 
-	ptr[11] = frame->display_primaries_y[1] & 0xff;
-	ptr[12] = frame->display_primaries_y[1] >> 8;
+	ptr[10] = frame->display_primaries_x[2] & 0xff;
+	ptr[11] = frame->display_primaries_x[2] >> 8;
 
-	ptr[13] = frame->display_primaries_y[2] & 0xff;
-	ptr[14] = frame->display_primaries_y[2] >> 8;
+	ptr[12] = frame->display_primaries_y[2] & 0xff;
+	ptr[13] = frame->display_primaries_y[2] >> 8;
 
-	ptr[15] = frame->white_point_x & 0xff;
-	ptr[16] = frame->white_point_x >> 8;
+	ptr[14] = frame->white_point_x & 0xff;
+	ptr[15] = frame->white_point_x >> 8;
 
-	ptr[17] = frame->white_point_y & 0xff;
-	ptr[18] = frame->white_point_y >> 8;
+	ptr[16] = frame->white_point_y & 0xff;
+	ptr[17] = frame->white_point_y >> 8;
 
-	ptr[19] = frame->max_mastering_display_luminance & 0xff;
-	ptr[20] = frame->max_mastering_display_luminance >> 8;
+	ptr[18] = frame->max_mastering_display_luminance & 0xff;
+	ptr[19] = frame->max_mastering_display_luminance >> 8;
 
-	ptr[21] = frame->min_mastering_display_luminance & 0xff;
-	ptr[22] = frame->min_mastering_display_luminance >> 8;
+	ptr[20] = frame->min_mastering_display_luminance & 0xff;
+	ptr[21] = frame->min_mastering_display_luminance >> 8;
 
-	ptr[23] = frame->max_cll & 0xff;
-	ptr[24] = frame->max_cll >> 8;
+	ptr[22] = frame->max_cll & 0xff;
+	ptr[23] = frame->max_cll >> 8;
 
-	ptr[25] = frame->max_fall & 0xff;
-	ptr[26] = frame->max_fall >> 8;
+	ptr[24] = frame->max_fall & 0xff;
+	ptr[25] = frame->max_fall >> 8;
 
 	hdmi_infoframe_set_checksum(buffer, length);
 

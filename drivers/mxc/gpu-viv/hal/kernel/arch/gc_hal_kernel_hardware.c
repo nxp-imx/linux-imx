@@ -11727,6 +11727,11 @@ gckHARDWARE_QueryIdle(
                                          0x00664,
                                          &address));
 
+        gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                         Hardware->core,
+                                         0x00664,
+                                         &address));
+
         /* Test if address is inside the last WAIT/LINK sequence. */
         if ((address < Hardware->lastWaitLink) ||
             (address >= (gctUINT64)Hardware->lastWaitLink + 16))
@@ -11734,6 +11739,11 @@ gckHARDWARE_QueryIdle(
             /* FE is not in WAIT/LINK yet. */
             break;
         }
+
+        gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
+                                         Hardware->core,
+                                         0x00668,
+                                         &dmaLow));
 
         gcmkONERROR(gckOS_ReadRegisterEx(Hardware->os,
                                          Hardware->core,
