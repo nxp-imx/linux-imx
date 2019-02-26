@@ -109,15 +109,10 @@
 				SC_R_DC_1_BLIT1
 				SC_R_DC_1_BLIT2
 				SC_R_DC_1_BLIT_OUT
-				SC_R_UNUSED9
-				SC_R_UNUSED10
 				SC_R_DC_1_WARP
-				SC_R_UNUSED11
-				SC_R_UNUSED12
 				SC_R_DC_1_VIDEO0
 				SC_R_DC_1_VIDEO1
 				SC_R_DC_1_FRAC0
-				SC_R_UNUSED13
 				SC_R_DC_1_PLL_0
 				SC_R_DC_1_PLL_1
 				SC_R_MIPI_1
@@ -707,8 +702,7 @@
        #stream-id-cells = <1>;
        iommus = <&smmu>;
        xen,passthrough;
-       fsl,sc_rsrc_id = <SC_R_VPU>,
-			<SC_R_VPU_PID0>,
+       fsl,sc_rsrc_id = <SC_R_VPU_PID0>,
 			<SC_R_VPU_PID1>,
 			<SC_R_VPU_PID2>,
 			<SC_R_VPU_PID3>,
@@ -719,11 +713,7 @@
 			<SC_R_VPU_DEC_0>,
 			<SC_R_VPU_ENC_0>,
 			<SC_R_VPU_ENC_1>,
-			<SC_R_VPU_TS_0>,
-			<SC_R_VPU_MU_0>,
-			<SC_R_VPU_MU_1>,
-			<SC_R_VPU_MU_2>,
-			<SC_R_VPU_MU_3>;
+			<SC_R_VPU_TS_0>;
 };
 
 &vpu_decoder_csr {
