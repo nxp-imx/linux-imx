@@ -89,10 +89,6 @@
 				SC_R_DC_1_FRAC0
 				SC_R_DC_1_PLL_0
 				SC_R_DC_1_PLL_1
-				SC_R_MIPI_1
-				SC_R_MIPI_1_I2C_0
-				SC_R_MIPI_1_I2C_1
-				SC_R_MIPI_1_PWM_0
 				SC_R_ISI_CH0
 			>;
 			rsrcs = <
@@ -199,9 +195,6 @@
 			>;
 			/* Pads that will be transferred between M41 and AP */
 			pads-m41-ap = <
-				SC_P_MIPI_CSI0_MCLK_OUT
-				SC_P_MIPI_CSI0_I2C0_SCL
-				SC_P_MIPI_CSI0_I2C0_SDA
 				SC_P_MIPI_CSI0_GPIO0_00
 				SC_P_MIPI_CSI0_GPIO0_01
 				SC_P_LVDS1_I2C1_SCL
