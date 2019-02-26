@@ -52,6 +52,7 @@
 		isi2 = &isi_2;
 		isi3 = &isi_3;
 		csi0 = &mipi_csi_0;
+		i2c1 = &i2c_rpbus_1;
 	};
 
 	cpus {
