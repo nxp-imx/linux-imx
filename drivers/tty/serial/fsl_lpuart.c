@@ -2468,6 +2468,12 @@ static int lpuart_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, &sport->port);
 
+	/* reset lpuart registers before enable */
+	if (lpuart_is_32(sport))
+		lpuart32_shutdown(&sport->port);
+	else
+		lpuart_shutdown(&sport->port);
+
 	if (lpuart_is_32(sport)) {
 		lpuart_reg.cons = LPUART32_CONSOLE;
 		ret = devm_request_irq(&pdev->dev, sport->port.irq, lpuart32_int, 0,
