@@ -294,6 +294,7 @@ void hdmi_mode_set_ss28fdsoi(state_struct *state, struct drm_display_mode *mode,
 		return;
 	}
 
+	/* vendor info frame is enable only when HDMI1.4 4K mode */
 	hdmi_vendor_info_set(hdp, mode, format);
 
 	ret =  CDN_API_HDMITX_SetVic_blocking(state, mode, color_depth, format);
@@ -402,15 +403,9 @@ void hdmi_mode_set_t28hpc(state_struct *state, struct drm_display_mode *mode, in
 		DRM_ERROR("hdmi avi info set ret = %d\n", ret);
 		return;
 	}
-	ret = hdmi_avi_info_set(hdp, mode, format);
-	if (ret < 0) {
-		DRM_ERROR("hdmi avi info set ret = %d\n", ret);
-		return;
-	}
 
-	ret = hdmi_vendor_info_set(hdp, mode, format);
-	if (ret < 0)
-		DRM_WARN("Unable to configure VS infoframe\n");
+	/* vendor info frame is enable only when HDMI1.4 4K mode */
+	hdmi_vendor_info_set(hdp, mode, format);
 
 	ret = CDN_API_HDMITX_SetVic_blocking(state, mode, color_depth, format);
 	if (ret != CDN_OK) {
