@@ -430,6 +430,29 @@ sc_err_t sc_pm_boot(sc_ipc_t ipc, sc_rm_pt_t pt,
 	return (sc_err_t)result;
 }
 
+sc_err_t sc_pm_set_boot_parm(sc_ipc_t ipc,
+    sc_rsrc_t resource_cpu, sc_faddr_t boot_addr,
+    sc_rsrc_t resource_mu, sc_rsrc_t resource_dev)
+{
+	sc_rpc_msg_t msg;
+	uint8_t result;
+
+	RPC_VER(&msg) = SC_RPC_VERSION;
+	RPC_SVC(&msg) = U8(SC_RPC_SVC_PM);
+	RPC_FUNC(&msg) = U8(PM_FUNC_SET_BOOT_PARM);
+	RPC_U32(&msg, 0U) = U32(boot_addr >> 32ULL);
+	RPC_U32(&msg, 4U) = U32(boot_addr);
+	RPC_U16(&msg, 8U) = U16(resource_cpu);
+	RPC_U16(&msg, 10U) = U16(resource_mu);
+	RPC_U16(&msg, 12U) = U16(resource_dev);
+	RPC_SIZE(&msg) = 5U;
+
+	sc_call_rpc(ipc, &msg, SC_FALSE);
+
+	result = RPC_R8(&msg);
+	return (sc_err_t) result;
+}
+
 void sc_pm_reboot(sc_ipc_t ipc, sc_pm_reset_type_t type)
 {
 	sc_rpc_msg_t msg;

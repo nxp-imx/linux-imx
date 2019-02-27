@@ -653,6 +653,28 @@ sc_err_t sc_pm_boot(sc_ipc_t ipc, sc_rm_pt_t pt,
 	sc_rsrc_t resource_mu, sc_rsrc_t resource_dev);
 
 /*!
+ * This function is used to change the boot parameters for a partition.
+ *
+ * @param[in]     ipc          IPC handle
+ * @param[in]     resource_cpu ID of the CPU resource to start
+ * @param[in]     boot_addr    64-bit boot address
+ * @param[in]     resource_mu  ID of the MU that must be powered (0=none)
+ * @param[in]     resource_dev ID of the boot device that must be powered (0=none)
+ *
+ * @return Returns an error code (SC_ERR_NONE = success).
+ *
+ * Return errors:
+ * - SC_ERR_PARM if invalid resource, or addr
+ *
+ * This function can be used to change the boot parameters for a partition.
+ * This can be useful if a partitions reboots differently from the initial
+ * boot done via sc_pm_boot() or via ROM.
+ */
+sc_err_t sc_pm_set_boot_parm(sc_ipc_t ipc,
+    sc_rsrc_t resource_cpu, sc_faddr_t boot_addr,
+    sc_rsrc_t resource_mu, sc_rsrc_t resource_dev);
+
+/*!
  * This function is used to reboot the caller's partition.
  *
  * @param[in]     ipc         IPC handle
