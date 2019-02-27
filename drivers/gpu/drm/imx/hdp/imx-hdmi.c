@@ -123,7 +123,7 @@ static int hdmi_vendor_info_set(struct imx_hdp *hdp,
 	}
 
 	buf[0] = 0;
-	return CDN_API_InfoframeSet(&hdp->state, 0, sizeof(buf),
+	return CDN_API_InfoframeSet(&hdp->state, 3, sizeof(buf),
 				    buf, HDMI_INFOFRAME_TYPE_VENDOR);
 
 }
