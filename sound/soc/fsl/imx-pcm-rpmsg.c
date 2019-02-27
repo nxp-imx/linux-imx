@@ -147,8 +147,7 @@ static void imx_rpmsg_timer_callback(unsigned long data)
 	i2s_info->work_index %= WORK_MAX_NUM;
 
 	if (rpmsg_i2s->force_lpa) {
-		time_msec = min(500,
-			    (int)(runtime->period_size*1000/runtime->rate));
+		time_msec = (int)(runtime->period_size*1000/runtime->rate);
 		mod_timer(&i2s_info->stream_timer[substream->stream],
 			     jiffies + msecs_to_jiffies(time_msec));
 	}
@@ -311,8 +310,7 @@ static void imx_rpmsg_pcm_dma_complete(void *arg)
 		int time_msec;
 
 		substream->runtime->status->state = SNDRV_PCM_STATE_RUNNING;
-		time_msec = min(500,
-		    (int)(runtime->period_size*1000/runtime->rate));
+		time_msec = (int)(runtime->period_size*1000/runtime->rate);
 		mod_timer(&i2s_info->stream_timer[substream->stream],
 		     jiffies + msecs_to_jiffies(time_msec));
 	}
@@ -387,8 +385,7 @@ static void imx_rpmsg_async_issue_pending(struct snd_pcm_substream *substream)
 	i2s_info->work_index %= WORK_MAX_NUM;
 
 	if (rpmsg_i2s->force_lpa) {
-		time_msec = min(500,
-			    (int)(runtime->period_size*1000/runtime->rate));
+		time_msec = (int)(runtime->period_size*1000/runtime->rate);
 		mod_timer(&i2s_info->stream_timer[substream->stream],
 			    jiffies + msecs_to_jiffies(time_msec));
 	}
