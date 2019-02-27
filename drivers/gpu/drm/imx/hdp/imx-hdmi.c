@@ -432,6 +432,7 @@ bool hdmi_mode_fixup_t28hpc(state_struct *state,
 	struct imx_hdp *hdp = container_of(state, struct imx_hdp, state);
 	int vic = drm_match_cea_mode(mode);
 	struct drm_display_info *di = &hdp->connector.display_info;
+	u32 max_clock = di->max_tmds_clock;
 
 	hdp->bpc = 8;
 	hdp->format = PXL_RGB;
@@ -454,9 +455,12 @@ bool hdmi_mode_fixup_t28hpc(state_struct *state,
 		return true;
 	}
 
-	if (di->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_36)
+	/* Any defined maximum tmds clock limit we must not exceed*/
+	if ((di->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_36) &&
+			 (mode->clock * 3/2 <= max_clock))
 		hdp->bpc = 12;
-	else if (di->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_30)
+	else if ((di->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_30) &&
+			(mode->clock * 5/4 <= max_clock))
 		hdp->bpc = 10;
 
 	/* 10-bit color depth for the following modes is not supported */
