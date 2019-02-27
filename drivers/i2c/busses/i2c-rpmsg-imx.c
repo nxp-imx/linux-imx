@@ -369,6 +369,16 @@ static int i2c_rpbus_probe(struct platform_device *pdev)
 	adapter->dev.parent = dev;
 	adapter->dev.of_node = np;
 	adapter->nr = of_alias_get_id(np, "i2c");
+	/*
+	 * The driver will send the adapter->nr as BUS ID to the other
+	 * side, and the other side will check the BUS ID to see whether
+	 * the BUS has been registered. If there is alias id for this
+	 * virtual adapter, linux kernel will automatically allocate one
+	 * id which might be not the same number used in the other side,
+	 * cause i2c slave probe failure under this virtual I2C bus.
+	 * So let's add a BUG_ON to catch this issue earlier.
+	 */
+	BUG_ON(adapter->nr < 0);
 	adapter->quirks = &i2c_rpbus_quirks;
 	snprintf(rdata->adapter.name, sizeof(rdata->adapter.name), "%s",
 							"i2c-rpmsg-adapter");
