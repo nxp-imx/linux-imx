@@ -64,6 +64,7 @@ bool decode_int32_values_callback(pb_istream_t *stream, const pb_field_t *field,
 	if (!pb_decode_varint(stream, &value))
 		return false;
 	*(u32 *)*arg = (u32)value;
+	return true;
 }
 
 bool decode_int64_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
@@ -72,6 +73,7 @@ bool decode_int64_values_callback(pb_istream_t *stream, const pb_field_t *field,
 	if (!pb_decode_varint(stream, &value))
 		return false;
 	*(u64 *)*arg = (u64)value;
+	return true;
 }
 
 
