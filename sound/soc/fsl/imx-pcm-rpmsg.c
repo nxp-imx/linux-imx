@@ -494,7 +494,6 @@ int imx_rpmsg_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai     *cpu_dai = rtd->cpu_dai;
 	struct fsl_rpmsg_i2s   *rpmsg_i2s = dev_get_drvdata(cpu_dai->dev);
-	struct i2s_info        *i2s_info =  &rpmsg_i2s->i2s_info;
 	int ret;
 
 	switch (cmd) {
@@ -516,8 +515,7 @@ int imx_rpmsg_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 				imx_rpmsg_pause(substream);
 			else
 				imx_rpmsg_terminate_all(substream);
-		} else
-			del_timer(&i2s_info->stream_timer[substream->stream]);
+		}
 		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		imx_rpmsg_pause(substream);
