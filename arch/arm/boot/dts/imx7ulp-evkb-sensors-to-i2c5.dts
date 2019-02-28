@@ -1,5 +1,5 @@
 
-#include "imx7ulp-evk.dts"
+#include "imx7ulp-evkb.dts"
 
 &lpi2c5 {
 

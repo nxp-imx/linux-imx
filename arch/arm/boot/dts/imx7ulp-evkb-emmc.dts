@@ -7,7 +7,7 @@
  * published by the Free Software Foundation.
  */
 
-#include "imx7ulp-evk.dts"
+#include "imx7ulp-evkb.dts"
 
 /* To support eMMC HS200/HS400, need to do the following reowrk:
  * 1,remove TF sd slot, replace eMMC chip
