@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -257,6 +257,9 @@
 				SC_P_ESAI0_TX3_RX2
 				SC_P_ESAI0_TX4_RX1
 				SC_P_ESAI0_TX5_RX0
+
+				/* lvds pwm */
+				SC_P_LVDS1_GPIO00
 				>;
 
 			gpios = <&gpio1 13 GPIO_ACTIVE_LOW>,
@@ -918,5 +921,9 @@
 };
 
 &aud_rec_clk1_lpcg {
+	xen,passthrough;
+};
+
+&lvds1_pwm {
 	xen,passthrough;
 };
