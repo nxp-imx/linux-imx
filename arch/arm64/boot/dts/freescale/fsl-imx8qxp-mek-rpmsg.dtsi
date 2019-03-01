@@ -183,6 +183,14 @@
 	status = "okay";
 };
 
+&reg_can_en {
+	status = "disabled";
+};
+
+&reg_can_stby {
+	status = "disabled";
+};
+
 &intmux_cm40 {
 	status = "disabled";
 };

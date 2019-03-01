@@ -68,6 +68,22 @@
 	status = "okay";
 };
 
+&reg_can01_en {
+	status = "disabled";
+};
+
+&reg_can2_en {
+	status = "disabled";
+};
+
+&reg_can01_stby {
+	status = "disabled";
+};
+
+&reg_can2_stby {
+	status = "disabled";
+};
+
 &intmux_cm41 {
 	status = "disabled";
 };
