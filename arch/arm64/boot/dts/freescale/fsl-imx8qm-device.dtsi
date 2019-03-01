@@ -1933,7 +1933,7 @@
 		clocks =
 			<&clk IMX8QM_MIPI0_PXL_CLK>,
 			<&clk IMX8QM_MIPI0_BYPASS_CLK>,
-			<&clk IMX8QM_CLK_DUMMY>;
+			<&clk IMX8QM_MIPI0_DSI_PHY_CLK>;
 		clock-names = "pixel", "bypass", "phy_ref";
 		power-domains = <&pd_mipi0>;
 		csr = <&mipi_dsi_csr1>;
@@ -2356,7 +2356,7 @@
 		clocks =
 			<&clk IMX8QM_MIPI1_PXL_CLK>,
 			<&clk IMX8QM_MIPI1_BYPASS_CLK>,
-			<&clk IMX8QM_CLK_DUMMY>;
+			<&clk IMX8QM_MIPI1_DSI_PHY_CLK>;
 		clock-names = "pixel", "bypass", "phy_ref";
 		power-domains = <&pd_mipi1>;
 		csr = <&mipi_dsi_csr2>;
