@@ -538,6 +538,9 @@ static int imx8qxp_clk_probe(struct platform_device *pdev)
 	clks[IMX8QXP_MIPI1_DSI_RX_ESC_SEL] = imx_clk_mux2_scu("mipi1_dsi_rx_esc_sel", mipi1_sels, ARRAY_SIZE(mipi1_sels), SC_R_MIPI_1, SC_PM_CLK_SLV_BUS);
 	clks[IMX8QXP_MIPI1_DSI_RX_ESC_DIV] = imx_clk_divider2_scu("mipi1_dsi_rx_esc_div", "mipi1_dsi_rx_esc_sel", SC_R_MIPI_1, SC_PM_CLK_SLV_BUS);
 	clks[IMX8QXP_MIPI1_DSI_RX_ESC_CLK] = imx_clk_gate_scu("mipi1_dsi_rx_esc_clk", "mipi1_dsi_rx_esc_div", SC_R_MIPI_1, SC_PM_CLK_SLV_BUS, NULL, 0, 0);
+	clks[IMX8QXP_MIPI1_DSI_PHY_SEL] = imx_clk_mux2_scu("mipi1_dsi_phy_sel", mipi1_sels, ARRAY_SIZE(mipi1_sels), SC_R_MIPI_1, SC_PM_CLK_PHY);
+	clks[IMX8QXP_MIPI1_DSI_PHY_DIV] = imx_clk_divider2_scu("mipi1_dsi_phy_div", "mipi1_dsi_phy_sel", SC_R_MIPI_1, SC_PM_CLK_PHY);
+	clks[IMX8QXP_MIPI1_DSI_PHY_CLK] = imx_clk_gate_scu("mipi1_dsi_phy_clk", "mipi1_dsi_phy_div", SC_R_MIPI_1, SC_PM_CLK_PHY, NULL, 0, 0);
 
 	clks[IMX8QXP_MIPI1_I2C0_DIV] = imx_clk_divider_scu("mipi1_i2c0_div", SC_R_MIPI_1_I2C_0, SC_PM_CLK_MISC2);
 	clks[IMX8QXP_MIPI1_I2C1_DIV] = imx_clk_divider_scu("mipi1_i2c1_div", SC_R_MIPI_1_I2C_1, SC_PM_CLK_MISC2);
