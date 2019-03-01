@@ -2395,6 +2395,8 @@ static int lpuart_probe(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	struct lpuart_port *sport;
 	struct resource *res;
+	unsigned long cr_32;
+	unsigned char cr_8;
 	int ret;
 
 	sport = devm_kzalloc(&pdev->dev, sizeof(*sport), GFP_KERNEL);
@@ -2467,6 +2469,17 @@ static int lpuart_probe(struct platform_device *pdev)
 	lpuart_ports[sport->port.line] = sport;
 
 	platform_set_drvdata(pdev, &sport->port);
+
+	/* Disable interrupts before request irq */
+	if (lpuart_is_32(sport)) {
+		cr_32 = lpuart32_read(&sport->port, UARTCTRL);
+		cr_32 &= ~(UARTCTRL_TIE | UARTCTRL_TCIE | UARTCTRL_RIE | UARTCTRL_ILIE);
+		lpuart32_write(&sport->port, cr_32, UARTCTRL);
+	} else {
+		cr_8 = readb(sport->port.membase + UARTCR2);
+		cr_8 &= ~(UARTCR2_TIE | UARTCR2_TCIE | UARTCR2_RIE | UARTCR2_ILIE);
+		writeb(cr_8, sport->port.membase + UARTCR2);
+	}
 
 	if (lpuart_is_32(sport)) {
 		lpuart_reg.cons = LPUART32_CONSOLE;
