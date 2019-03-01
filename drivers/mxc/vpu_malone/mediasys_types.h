@@ -444,8 +444,8 @@ typedef struct {
 typedef struct {
 	u_int32	uDecStatusLogBase;
 	u_int32	uDecStatusLogSize;
-	u_int32 uDTVLogBase[VID_API_NUM_STREAMS];
-	u_int32 uDTVLogSize[VID_API_NUM_STREAMS];
+	u_int32 uDecStatusLogLevel;
+	u_int32   uReserved;
 
 } MediaIPFW_Video_DbgLogDesc;
 
@@ -477,6 +477,10 @@ typedef struct {
 	u_int32 uNumDPBFrms;
 	u_int32 uNumDFEAreas;
 	u_int32 uColorDesc;
+	u_int32 uTransferChars;
+	u_int32 uMatrixCoeffs;
+	u_int32 uVideoFullRangeFlag;
+	u_int32 uVUIPresent;
 	u_int32 uProgressive;
 	u_int32 uVerRes;
 	u_int32 uHorRes;
@@ -521,6 +525,8 @@ typedef struct {
 	u_int32 stream_input_mode;
 	u_int32 stream_pic_input_count;
 	u_int32 stream_pic_parsed_count;
+	u_int32 stream_buffer_threshold;
+	u_int32 stream_pic_end_flag;
 } BUFFER_INFO_TYPE, *pBUFFER_INFO_TYPE;
 
 typedef struct {
@@ -665,11 +671,7 @@ typedef struct {
 	u_int32                                StreamConfig[VID_API_NUM_STREAMS];
 	MediaIPFW_Video_CodecParamTabDesc	   CodecParamTabDesc;                       /* TODO-KMC  should we just go ahead and remove the concept of tabdesc? It is basicaly a bad coding style used for pinkys anyway */
 	MediaIPFW_Video_JpegParamTabDesc       JpegParamTabDesc;
-#ifdef COREPLAY_API
-	pBUFFER_DESCRIPTOR_TYPE                pStreamBuffDesc[VID_API_NUM_STREAMS][VID_API_MAX_BUF_PER_STR];
-#else
 	u_int32                                pStreamBuffDesc[VID_API_NUM_STREAMS][VID_API_MAX_BUF_PER_STR];
-#endif
 	MediaIPFW_Video_SeqInfoBuffTabDesc     SeqInfoTabDesc;
 	MediaIPFW_Video_PicInfoBuffTabDesc     PicInfoTabDesc;
 	MediaIPFW_Video_GopInfoBuffTabDesc     GopInfoTabDesc;
