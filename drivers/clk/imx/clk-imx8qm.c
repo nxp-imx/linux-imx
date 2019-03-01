@@ -346,11 +346,13 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_MIPI0_PWM0_DIV] = imx_clk_divider_scu("mipi0_pwm0_div", SC_R_MIPI_0_PWM_0, SC_PM_CLK_PER);
 	clks[IMX8QM_MIPI0_DSI_TX_ESC_DIV] = imx_clk_divider_scu("mipi0_dsi_tx_esc_div", SC_R_MIPI_0, SC_PM_CLK_MST_BUS);
 	clks[IMX8QM_MIPI0_DSI_RX_ESC_DIV] = imx_clk_divider_scu("mipi0_dsi_rx_esc_div", SC_R_MIPI_0, SC_PM_CLK_SLV_BUS);
+	clks[IMX8QM_MIPI0_DSI_PHY_DIV] = imx_clk_divider_scu("mipi0_dsi_phy_div", SC_R_MIPI_0, SC_PM_CLK_PHY);
 	clks[IMX8QM_MIPI0_PXL_DIV] = imx_clk_divider_scu("mipi0_pxl_div", SC_R_MIPI_0, SC_PM_CLK_PER);
 	clks[IMX8QM_MIPI1_BYPASS_CLK] = imx_clk_divider_scu("mipi1_bypass_clk", SC_R_MIPI_1, SC_PM_CLK_BYPASS);
 	clks[IMX8QM_MIPI1_PWM0_DIV] = imx_clk_divider_scu("mipi1_pwm0_div", SC_R_MIPI_1_PWM_0, SC_PM_CLK_PER);
 	clks[IMX8QM_MIPI1_DSI_TX_ESC_DIV] = imx_clk_divider_scu("mipi1_dsi_tx_esc_div", SC_R_MIPI_1, SC_PM_CLK_MST_BUS);
 	clks[IMX8QM_MIPI1_DSI_RX_ESC_DIV] = imx_clk_divider_scu("mipi1_dsi_rx_esc_div", SC_R_MIPI_1, SC_PM_CLK_SLV_BUS);
+	clks[IMX8QM_MIPI1_DSI_PHY_DIV] = imx_clk_divider_scu("mipi1_dsi_phy_div", SC_R_MIPI_1, SC_PM_CLK_PHY);
 	clks[IMX8QM_MIPI1_PXL_DIV] = imx_clk_divider_scu("mipi1_pxl_div", SC_R_MIPI_1, SC_PM_CLK_PER);
 
 	/* Fixed clocks. */
@@ -733,6 +735,7 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_MIPI0_PWM0_CLK] = imx_clk_gate_scu("mipi0_pwm0_clk", "mipi0_pwm0_div", SC_R_MIPI_0_PWM_0, SC_PM_CLK_PER, NULL, 0, 0);
 	clks[IMX8QM_MIPI0_DSI_TX_ESC_CLK] = imx_clk_gate_scu("mipi0_dsi_tx_esc_clk", "mipi0_dsi_tx_esc_div", SC_R_MIPI_0, SC_PM_CLK_MST_BUS, NULL, 0, 0);
 	clks[IMX8QM_MIPI0_DSI_RX_ESC_CLK] = imx_clk_gate_scu("mipi0_dsi_rx_esc_clk", "mipi0_dsi_rx_esc_div", SC_R_MIPI_0, SC_PM_CLK_SLV_BUS, NULL, 0, 0);
+	clks[IMX8QM_MIPI0_DSI_PHY_CLK] = imx_clk_gate_scu("mipi0_dsi_phy_clk", "mipi0_dsi_phy_div", SC_R_MIPI_0, SC_PM_CLK_PHY, NULL, 0, 0);
 	clks[IMX8QM_MIPI0_PXL_CLK] = imx_clk_gate_scu("mipi0_pxl_clk", "mipi0_pxl_div", SC_R_MIPI_0, SC_PM_CLK_PER, NULL, 0, 0);
 
 	clks[IMX8QM_MIPI1_LIS_IPG_CLK] = imx_clk_gate2_scu("mipi1_lis_ipg_clk", "mipi1_clk_root", LPCG_ADDR(MIPI_DSI_1_LPCG + 0x0), 0, FUNCTION_NAME(PD_MIPI_1_DSI));
@@ -748,6 +751,7 @@ static int imx8qm_clk_probe(struct platform_device *pdev)
 	clks[IMX8QM_MIPI1_PWM0_CLK] = imx_clk_gate_scu("mipi1_pwm0_clk", "mipi1_pwm0_div", SC_R_MIPI_1_PWM_0, SC_PM_CLK_PER, NULL, 0, 0);
 	clks[IMX8QM_MIPI1_DSI_TX_ESC_CLK] = imx_clk_gate_scu("mipi1_dsi_tx_esc_clk", "mipi1_dsi_tx_esc_div", SC_R_MIPI_1, SC_PM_CLK_MST_BUS, NULL, 0, 0);
 	clks[IMX8QM_MIPI1_DSI_RX_ESC_CLK] = imx_clk_gate_scu("mipi1_dsi_rx_esc_clk", "mipi1_dsi_rx_esc_div", SC_R_MIPI_1, SC_PM_CLK_SLV_BUS, NULL, 0, 0);
+	clks[IMX8QM_MIPI1_DSI_PHY_CLK] = imx_clk_gate_scu("mipi1_dsi_phy_clk", "mipi1_dsi_phy_div", SC_R_MIPI_1, SC_PM_CLK_PHY, NULL, 0, 0);
 	clks[IMX8QM_MIPI1_PXL_CLK] = imx_clk_gate_scu("mipi1_pxl_clk", "mipi1_pxl_div", SC_R_MIPI_1, SC_PM_CLK_PER, NULL, 0, 0);
 
 	/* Display controller */
