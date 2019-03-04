@@ -6,7 +6,7 @@
  * published by the Free Software Foundation.
  */
 
-#include "imx7ulp-evk.dts"
+#include "imx7ulp-evkb.dts"
 
 &lpi2c7 {
 	status = "disabled";

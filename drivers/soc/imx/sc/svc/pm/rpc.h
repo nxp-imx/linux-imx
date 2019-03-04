@@ -44,6 +44,7 @@
 #define PM_FUNC_RESET_REASON 10U /* Index for pm_reset_reason() RPC call */
 #define PM_FUNC_GET_RESET_PART 26U /* Index for pm_get_reset_part() RPC call */
 #define PM_FUNC_BOOT 8U /* Index for pm_boot() RPC call */
+#define PM_FUNC_SET_BOOT_PARM 27U /* Index for pm_set_boot_parm() RPC call */
 #define PM_FUNC_REBOOT 9U /* Index for pm_reboot() RPC call */
 #define PM_FUNC_REBOOT_PARTITION 12U /* Index for pm_reboot_partition() RPC call */
 #define PM_FUNC_REBOOT_CONTINUE 25U /* Index for pm_reboot_continue() RPC call */

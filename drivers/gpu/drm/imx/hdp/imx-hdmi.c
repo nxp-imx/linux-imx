@@ -123,7 +123,7 @@ static int hdmi_vendor_info_set(struct imx_hdp *hdp,
 	}
 
 	buf[0] = 0;
-	return CDN_API_InfoframeSet(&hdp->state, 0, sizeof(buf),
+	return CDN_API_InfoframeSet(&hdp->state, 3, sizeof(buf),
 				    buf, HDMI_INFOFRAME_TYPE_VENDOR);
 
 }
@@ -294,6 +294,7 @@ void hdmi_mode_set_ss28fdsoi(state_struct *state, struct drm_display_mode *mode,
 		return;
 	}
 
+	/* vendor info frame is enable only when HDMI1.4 4K mode */
 	hdmi_vendor_info_set(hdp, mode, format);
 
 	ret =  CDN_API_HDMITX_SetVic_blocking(state, mode, color_depth, format);
@@ -402,15 +403,9 @@ void hdmi_mode_set_t28hpc(state_struct *state, struct drm_display_mode *mode, in
 		DRM_ERROR("hdmi avi info set ret = %d\n", ret);
 		return;
 	}
-	ret = hdmi_avi_info_set(hdp, mode, format);
-	if (ret < 0) {
-		DRM_ERROR("hdmi avi info set ret = %d\n", ret);
-		return;
-	}
 
-	ret = hdmi_vendor_info_set(hdp, mode, format);
-	if (ret < 0)
-		DRM_WARN("Unable to configure VS infoframe\n");
+	/* vendor info frame is enable only when HDMI1.4 4K mode */
+	hdmi_vendor_info_set(hdp, mode, format);
 
 	ret = CDN_API_HDMITX_SetVic_blocking(state, mode, color_depth, format);
 	if (ret != CDN_OK) {
@@ -432,6 +427,7 @@ bool hdmi_mode_fixup_t28hpc(state_struct *state,
 	struct imx_hdp *hdp = container_of(state, struct imx_hdp, state);
 	int vic = drm_match_cea_mode(mode);
 	struct drm_display_info *di = &hdp->connector.display_info;
+	u32 max_clock = di->max_tmds_clock;
 
 	hdp->bpc = 8;
 	hdp->format = PXL_RGB;
@@ -454,9 +450,12 @@ bool hdmi_mode_fixup_t28hpc(state_struct *state,
 		return true;
 	}
 
-	if (di->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_36)
+	/* Any defined maximum tmds clock limit we must not exceed*/
+	if ((di->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_36) &&
+			 (mode->clock * 3/2 <= max_clock))
 		hdp->bpc = 12;
-	else if (di->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_30)
+	else if ((di->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_30) &&
+			(mode->clock * 5/4 <= max_clock))
 		hdp->bpc = 10;
 
 	/* 10-bit color depth for the following modes is not supported */

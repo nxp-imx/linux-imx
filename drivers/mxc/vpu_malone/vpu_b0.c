@@ -55,9 +55,11 @@ unsigned int vpu_dbg_level_decoder = 1;
 static int vpu_frm_depth = INVALID_FRAME_DEPTH;
 static int vpu_log_depth = DEFAULT_LOG_DEPTH;
 static int vpu_max_bufsize = MAX_BUFFER_SIZE;
-static int vpu_frmdbg_ena;
+static int vpu_frmdbg_ena = DEFAULT_FRMDBG_ENABLE;
+static int vpu_frmdbg_level = DEFAULT_FRMDBG_LEVEL;
 static int vpu_dbe_num = 1;
 static int vpu_frmcrcdump_ena;
+static int stream_buffer_threshold;
 
 /* Generic End of content startcodes to differentiate from those naturally in the stream/file */
 #define EOS_GENERIC_HEVC 0x7c010000
@@ -72,6 +74,8 @@ static int swreset_vpu_firmware(struct vpu_dev *dev, u_int32 idx);
 static int find_first_available_instance(struct vpu_dev *dev);
 static int remove_instance_file(struct vpu_ctx *ctx);
 static void fill_stream_buffer_info(struct vpu_ctx *ctx);
+static void set_pic_end_flag(struct vpu_ctx *ctx);
+static void clear_pic_end_flag(struct vpu_ctx *ctx);
 static void send_skip_event(struct vpu_ctx* ctx);
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
@@ -1503,6 +1507,8 @@ static int add_scode(struct vpu_ctx *ctx, u_int32 uStrBufIdx, VPU_PADDING_SCODE_
 
 	mutex_lock(&ctx->instance_mutex);
 	size = add_scode_vpu(ctx, uStrBufIdx, eScodeType, bUpdateWr);
+	if (size > 0)
+		set_pic_end_flag(ctx);
 	mutex_unlock(&ctx->instance_mutex);
 	return size;
 }
@@ -1650,7 +1656,9 @@ static void transfer_buffer_to_firmware(struct vpu_ctx *ctx, void *input_buffer,
 		pCodecPara[ctx->str_index].uDispImm = 0;
 	}
 
-	pCodecPara[ctx->str_index].uEnableDbgLog = vpu_frmdbg_ena ? 1 : 0;
+	pCodecPara[ctx->str_index].uEnableDbgLog = CHECK_BIT(vpu_frmdbg_ena, ctx->str_index) ? 1 : 0;
+	ctx->dev->shared_mem.pSharedInterface->DbgLogDesc.uDecStatusLogLevel = vpu_frmdbg_level;
+
 	/*initialize frame count*/
 	ctx->frm_dis_delay = 1;
 	ctx->frm_dec_delay = 1;
@@ -1841,6 +1849,31 @@ static void fill_stream_buffer_info(struct vpu_ctx *ctx)
 		buffer_info->stream_input_mode = FRAME_LVL;
 
 	buffer_info->stream_pic_input_count = ctx->frm_total_num;
+}
+
+static void set_pic_end_flag(struct vpu_ctx *ctx)
+{
+	pDEC_RPC_HOST_IFACE pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
+	pBUFFER_INFO_TYPE buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
+
+	if (!ctx)
+		return;
+
+	if (buffer_info->stream_input_mode == FRAME_LVL)
+		buffer_info->stream_pic_end_flag = 0x1;
+}
+
+
+static void clear_pic_end_flag(struct vpu_ctx *ctx)
+{
+	pDEC_RPC_HOST_IFACE pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
+	pBUFFER_INFO_TYPE buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
+
+	if (!ctx)
+		return;
+
+	if (buffer_info->stream_input_mode == FRAME_LVL)
+		buffer_info->stream_pic_end_flag = 0x0;
 }
 
 //warn uStrIdx need to refine how to handle it
@@ -2124,7 +2157,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		u_int32 local_cmddata[10];
 		struct vb2_data_req *p_data_req, *p_temp;
 		struct queue_data *This = &ctx->q_data[V4L2_DST];
-		u_int32 LumaAddr, ChromaAddr;
+		u_int32 LumaAddr = 0;
+		u_int32 ChromaAddr = 0;
 		u_int32 *pphy_address;
 		struct vb2_data_req;
 		bool buffer_flag = false;
@@ -2190,9 +2224,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 						if (!p_data_req->vb2_buf)
 							break;
 						pphy_address = (u_int32 *)vb2_plane_cookie(p_data_req->vb2_buf, 0);
-						LumaAddr = *pphy_address + p_data_req->data_offset[0];
+						if (pphy_address != NULL)
+							LumaAddr = *pphy_address + p_data_req->data_offset[0];
 						pphy_address = (u_int32 *)vb2_plane_cookie(p_data_req->vb2_buf, 1);
-						ChromaAddr = *pphy_address + p_data_req->data_offset[1];
+						if (pphy_address != NULL)
+							ChromaAddr = *pphy_address + p_data_req->data_offset[1];
 						vpu_dbg(LVL_INFO, "%s :LumaAddr(%x) ChromaAddr(%x) buf_id (%d)\n",
 								__func__,
 								LumaAddr,
@@ -2247,9 +2283,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				}
 
 				pphy_address = (u_int32 *)vb2_plane_cookie(p_data_req->vb2_buf, 0);
-				LumaAddr = *pphy_address + p_data_req->data_offset[0];
+				if (pphy_address != NULL)
+					LumaAddr = *pphy_address + p_data_req->data_offset[0];
 				pphy_address = (u_int32 *)vb2_plane_cookie(p_data_req->vb2_buf, 1);
-				ChromaAddr = *pphy_address + p_data_req->data_offset[1];
+				if (pphy_address != NULL)
+					ChromaAddr = *pphy_address + p_data_req->data_offset[1];
 				vpu_dbg(LVL_INFO, "%s :LumaAddr(%x) ChromaAddr(%x) buf_id (%d)\n",
 						__func__,
 						LumaAddr,
@@ -2360,7 +2398,9 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				pStrBufDesc->start,
 				pStrBufDesc->end
 				);
+
 		pStrBufDesc->wptr = pStrBufDesc->rptr;
+		clear_pic_end_flag(ctx);
 		ctx->frm_dis_delay = 0;
 		ctx->frm_dec_delay = 0;
 		ctx->frm_total_num = 0;
@@ -2423,6 +2463,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			vpu_dbg(LVL_ERR, "warning: receive VID_API_EVENT_FINISHED when firmware_finished == true\n");
 		ctx->firmware_finished = true;
 		vpu_dbg(LVL_INFO, "receive VID_API_EVENT_FINISHED and notfiy app eos\n");
+		clear_pic_end_flag(ctx);
 		v4l2_event_queue_fh(&ctx->fh, &ev); //notfiy app stream eos reached
 
 	}	break;
@@ -2577,6 +2618,9 @@ static int vpu_next_free_instance(struct vpu_dev *dev)
 	idx = ffz(dev->instance_mask);
 	if (idx < 0 || idx >= VPU_MAX_NUM_STREAMS)
 		return -EBUSY;
+
+	kfree(dev->ctx[idx]);
+	dev->ctx[idx] = NULL;
 
 	return idx;
 }
@@ -2839,7 +2883,8 @@ static void flush_drv_q(struct queue_data *This)
 			list_del(&p_data_req->list);
 			p_data_req->queued = false;
 			if (p_data_req->vb2_buf)
-				vb2_buffer_done(p_data_req->vb2_buf, VB2_BUF_STATE_ERROR);
+				if (p_data_req->vb2_buf->state == VB2_BUF_STATE_ACTIVE)
+					vb2_buffer_done(p_data_req->vb2_buf, VB2_BUF_STATE_ERROR);
 		}
 	}
 	INIT_LIST_HEAD(&This->drv_q);
@@ -2954,7 +2999,10 @@ static int create_instance_dbglog_file(struct vpu_ctx *ctx)
 			ctx->str_index);
 
 	ctx->dbglog_dir = debugfs_create_dir(ctx->dbglog_name, ctx->dev->debugfs_root);
-
+	if (!ctx->dbglog_dir) {
+		vpu_dbg(LVL_ERR, "error: %s() ctx->dbglog_dir == NULL\n", __func__);
+		return -EINVAL;
+	}
 	debugfs_create_file("dbglog", VERIFY_OCTAL_PERMISSIONS(0444),
 		ctx->dbglog_dir, ctx, &dbglog_fops);
 
@@ -3072,6 +3120,11 @@ static ssize_t show_instance_buffer_info(struct device *dev,
 
 	num += scnprintf(buf + num, PAGE_SIZE - num,
 			"\t%40s:%16x\n", "stream length", stream_length);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16x\n", "decode dealy frame", ctx->frm_dec_delay);
+	num += scnprintf(buf + num, PAGE_SIZE - num,
+			"\t%40s:%16x\n", "display delay frame", ctx->frm_dis_delay);
+
 	return num;
 }
 
@@ -3211,7 +3264,10 @@ static int remove_instance_file(struct vpu_ctx *ctx)
 	device_remove_file(ctx->dev->generic_dev, &ctx->dev_attr_instance_command);
 	device_remove_file(ctx->dev->generic_dev, &ctx->dev_attr_instance_event);
 	device_remove_file(ctx->dev->generic_dev, &ctx->dev_attr_instance_buffer);
-	debugfs_remove_recursive(ctx->dbglog_dir);
+	if (ctx->dbglog_dir != NULL) {
+		debugfs_remove_recursive(ctx->dbglog_dir);
+		ctx->dbglog_dir = NULL;
+	}
 	device_remove_file(ctx->dev->generic_dev, &ctx->dev_attr_instance_flow);
 
 	return 0;
@@ -3491,8 +3547,11 @@ static int v4l2_release(struct file *filp)
 			vpu_dbg(LVL_ERR, "error: memory leak for vpu kalloc buffer\n");
 		mutex_lock(&dev->dev_mutex);
 		clear_bit(ctx->str_index, &dev->instance_mask);
-		dev->ctx[ctx->str_index] = NULL;
-		kfree(ctx);
+		if (ctx->firmware_finished) {
+			dev->ctx[ctx->str_index] = NULL;
+			kfree(ctx);
+		}
+
 		mutex_unlock(&dev->dev_mutex);
 	} else {
 		mutex_lock(&dev->dev_mutex);
@@ -4077,10 +4136,14 @@ MODULE_PARM_DESC(vpu_frm_depth, "maximum frame number in data pool");
 module_param(vpu_log_depth, int, 0644);
 MODULE_PARM_DESC(vpu_log_depth, "maximum log number in queue(0-60)");
 module_param(vpu_frmdbg_ena, int, 0644);
-MODULE_PARM_DESC(vpu_frmdbg_ena, "enable firmware dbg log bufferl(0-1)");
+MODULE_PARM_DESC(vpu_frmdbg_ena, "enable firmware mask instance dbg log (bit N to mask instance N)");
+module_param(vpu_frmdbg_level, int, 0644);
+MODULE_PARM_DESC(vpu_frmdbg_level, "firmware debug level (0-2)");
 module_param(vpu_max_bufsize, int, 0644);
-MODULE_PARM_DESC(vpu_frmdbg_ena, "maximun stream buffer size");
+MODULE_PARM_DESC(vpu_max_bufsize, "maximun stream buffer size");
 module_param(vpu_dbe_num, int, 0644);
 MODULE_PARM_DESC(vpu_dbe_num, "vpu dbe number(1-2)");
 module_param(vpu_frmcrcdump_ena, int, 0644);
-MODULE_PARM_DESC(vpu_dbe_num, "enable frame crc dump(0-1)");
+MODULE_PARM_DESC(vpu_frmcrcdump_ena, "enable frame crc dump(0-1)");
+module_param(stream_buffer_threshold, int, 0644);
+MODULE_PARM_DESC(stream_buffer_threshold, "stream buffer threshold");
