@@ -2829,7 +2829,7 @@
 		clock-names = "ipg";
 		assigned-clocks = <&clk IMX8QM_HDMI_DIG_PLL_CLK>,
 							<&clk IMX8QM_HDMI_LIS_IPG_CLK>;
-		assigned-clock-rates = <675000000>, <84375000>;
+		assigned-clock-rates = <800000000>, <100000000>;
 		power-domains = <&pd_hdmi>;
 		status = "disabled";
 	};
