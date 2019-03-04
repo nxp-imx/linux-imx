@@ -174,7 +174,7 @@ struct vpu_v4l2_fmt {
 struct vb2_data_req {
 	struct list_head  list;
 	struct vb2_buffer *vb2_buf;
-	int id;
+	u_int32 sequence;
 	u_int32 buffer_flags;
 };
 
@@ -237,6 +237,7 @@ struct vpu_statistic {
 	} strip_sts;
 	bool fps_sts_enable;
 	struct vpu_fps_sts fps[VPU_FPS_STS_CNT];
+	unsigned long timestamp_overwrite;
 };
 
 struct vpu_attr {
@@ -417,6 +418,8 @@ struct vpu_ctx {
 
 	struct vpu_statistic sts;
 	unsigned int frozen_count;
+	u_int32 sequence;
+	s64 timestams[VPU_ENC_SEQ_CAPACITY];
 };
 
 #define LVL_ERR		(1 << 0)
@@ -432,6 +435,7 @@ struct vpu_ctx {
 #define LVL_MSG		(1 << 10)
 #define LVL_MEM		(1 << 11)
 #define LVL_BUF		(1 << 12)
+#define LVL_FRAME	(1 << 13)
 #define LVL_FUNC	(1 << 16)
 
 #ifndef TAG

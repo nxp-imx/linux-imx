@@ -68,6 +68,7 @@ struct vpu_frame_info {
 	bool is_start;
 	unsigned long index;
 	struct queue_data *queue;
+	s64 timestamp;
 };
 
 unsigned int vpu_dbg_level_encoder = LVL_ERR | LVL_WARN | LVL_ALL;
@@ -220,6 +221,19 @@ static void count_encoded_frame(struct vpu_ctx *ctx)
 		return;
 
 	attr->statistic.encoded_count++;
+}
+
+static void count_timestamp_overwrite(struct vpu_ctx *ctx)
+{
+	struct vpu_attr *attr = NULL;
+
+	WARN_ON(!ctx);
+
+	attr = get_vpu_ctx_attr(ctx);
+	if (!attr)
+		return;
+
+	attr->statistic.timestamp_overwrite++;
 }
 
 static void write_vpu_reg(struct vpu_dev *dev, u32 val, off_t reg)
@@ -1578,6 +1592,71 @@ static void update_encode_size(struct vpu_ctx *ctx)
 	pEncParam->uOutHeight           = min(dst->height, src->rect.height);
 }
 
+static void init_ctx_seq_info(struct vpu_ctx *ctx)
+{
+	int i;
+
+	if (!ctx)
+		return;
+
+	ctx->sequence = 0;
+	for (i = 0; i < ARRAY_SIZE(ctx->timestams); i++)
+		ctx->timestams[i] = VPU_ENC_INVALID_TIMESTAMP;
+}
+
+static void fill_ctx_seq(struct vpu_ctx *ctx, struct vb2_data_req *p_data_req)
+{
+	u_int32 idx;
+
+	WARN_ON(!ctx || !p_data_req);
+
+	p_data_req->sequence = ctx->sequence++;
+	idx = p_data_req->sequence % VPU_ENC_SEQ_CAPACITY;
+	if (ctx->timestams[idx] != VPU_ENC_INVALID_TIMESTAMP) {
+		count_timestamp_overwrite(ctx);
+		vpu_dbg(LVL_FRAME, "[%d.%d][%d] overwrite timestamp\n",
+			ctx->core_dev->id, ctx->str_index,
+			p_data_req->sequence);
+	}
+	ctx->timestams[idx] = p_data_req->vb2_buf->timestamp;
+}
+
+static s64 get_ctx_seq_timestamp(struct vpu_ctx *ctx, u32 sequence)
+{
+	s64 timestamp;
+	u_int32 idx;
+
+	WARN_ON(!ctx);
+
+	idx = sequence % VPU_ENC_SEQ_CAPACITY;
+	timestamp = ctx->timestams[idx];
+	ctx->timestams[idx] = VPU_ENC_INVALID_TIMESTAMP;
+
+	return timestamp;
+}
+
+static void fill_vb_sequence(struct vb2_buffer *vb, u32 sequence)
+{
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+
+	vbuf->sequence = sequence;
+}
+
+static struct vb2_data_req *find_vb2_data_by_sequence(struct queue_data *queue,
+							u32 sequence)
+{
+	int i;
+
+	for (i = 0; i < queue->vb2_q.num_buffers; i++) {
+		if (!queue->vb2_reqs[i].vb2_buf)
+			continue;
+		if (queue->vb2_reqs[i].sequence == sequence)
+			return &queue->vb2_reqs[i];
+	}
+
+	return NULL;
+}
+
 static int do_configure_codec(struct vpu_ctx *ctx)
 {
 	pBUFFER_DESCRIPTOR_TYPE pEncStrBuffDesc = NULL;
@@ -1741,7 +1820,7 @@ static bool update_yuv_addr(struct vpu_ctx *ctx)
 	 * keeps increasing,
 	 * so just a frame input count rather than a Frame buffer ID
 	 */
-	desc->uFrameID = p_data_req->id;
+	desc->uFrameID = p_data_req->sequence;
 	if (test_and_clear_bit(VPU_ENC_STATUS_KEY_FRAME, &ctx->status))
 		desc->uKeyFrame = 1;
 	else
@@ -2226,6 +2305,7 @@ static void put_frame_idle(struct vpu_frame_info *frame)
 	frame->eos = false;
 	frame->is_start = false;
 	frame->index = 0;
+	frame->timestamp = VPU_ENC_INVALID_TIMESTAMP;
 	queue = frame->queue;
 	if (queue && atomic64_read(&queue->frame_count) <= FRAME_COUNT_THD)
 		list_add_tail(&frame->list, &queue->frame_idle);
@@ -2273,6 +2353,10 @@ static bool process_frame_done(struct queue_data *queue)
 		transfer_stream_output(ctx, frame, p_data_req);
 
 	stream_buffer_desc->rptr = frame->rptr;
+	if (!frame->eos) {
+		fill_vb_sequence(p_data_req->vb2_buf, frame->info.uFrameID);
+		p_data_req->vb2_buf->timestamp = frame->timestamp;
+	}
 	if (!frame->bytesleft) {
 		put_frame_idle(frame);
 		frame = NULL;
@@ -2378,11 +2462,12 @@ static int handle_event_frame_done(struct vpu_ctx *ctx,
 	struct queue_data *queue;
 	struct vpu_frame_info *frame;
 	pBUFFER_DESCRIPTOR_TYPE stream_buffer_desc;
+	s64 timestamp;
 
 	if (!ctx || !pEncPicInfo)
 		return -EINVAL;
 
-	vpu_dbg(LVL_DEBUG, "Frame done(%d) - uFrameID = 0x%x\n",
+	vpu_dbg(LVL_DEBUG, "Frame done(%d) - uFrameID = %d\n",
 			pEncPicInfo->uPicEncodDone, pEncPicInfo->uFrameID);
 
 	queue = &ctx->q_data[V4L2_DST];
@@ -2407,8 +2492,9 @@ static int handle_event_frame_done(struct vpu_ctx *ctx,
 	}
 
 	show_enc_pic_info(pEncPicInfo);
-
 	record_start_time(ctx, V4L2_DST);
+
+	timestamp = get_ctx_seq_timestamp(ctx, pEncPicInfo->uFrameID);
 
 	down(&queue->drv_q_lock);
 	frame = get_idle_frame(queue);
@@ -2423,6 +2509,7 @@ static int handle_event_frame_done(struct vpu_ctx *ctx,
 		frame->end = get_ptr(stream_buffer_desc->end);
 		frame->eos = false;
 		frame->is_start = true;
+		frame->timestamp = timestamp;
 		if (attr)
 			frame->index = attr->statistic.encoded_count;
 
@@ -2442,14 +2529,18 @@ static int handle_event_frame_done(struct vpu_ctx *ctx,
 static int handle_event_frame_release(struct vpu_ctx *ctx, u_int32 *uFrameID)
 {
 	struct queue_data *This = &ctx->q_data[V4L2_SRC];
-	struct vb2_data_req *p_data_req;
+	struct vb2_data_req *p_data_req = NULL;
 
 	if (!ctx || !uFrameID)
 		return -EINVAL;
 
 	This = &ctx->q_data[V4L2_SRC];
-	vpu_dbg(LVL_DEBUG, "Frame release - uFrameID = 0x%x\n", *uFrameID);
-	p_data_req = &This->vb2_reqs[*uFrameID];
+	vpu_dbg(LVL_DEBUG, "Frame release - uFrameID = %d\n", *uFrameID);
+	p_data_req = find_vb2_data_by_sequence(This, *uFrameID);
+	if (!p_data_req) {
+		vpu_err("uFrameID[%d] is invalid\n", *uFrameID);
+		return -EINVAL;
+	}
 	if (p_data_req->vb2_buf->state == VB2_BUF_STATE_ACTIVE)
 		vb2_buffer_done(p_data_req->vb2_buf, VB2_BUF_STATE_DONE);
 
@@ -2482,6 +2573,7 @@ static int handle_event_stop_done(struct vpu_ctx *ctx)
 	process_stream_output(ctx);
 
 	clear_start_status(ctx);
+	init_ctx_seq_info(ctx);
 	complete(&ctx->stop_cmp);
 
 	return 0;
@@ -2890,7 +2982,7 @@ static void clear_queue(struct queue_data *queue)
 
 	list_for_each_entry_safe(p_data_req, p_temp, &queue->drv_q, list) {
 		vpu_dbg(LVL_DEBUG, "%s(%d) - list_del(%p)\n", __func__,
-				p_data_req->id, p_data_req);
+				p_data_req->sequence, p_data_req);
 		list_del(&p_data_req->list);
 	}
 	list_for_each_entry(vb, &queue->vb2_q.queued_list, queued_entry) {
@@ -2920,6 +3012,7 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 	struct vb2_queue    *vq = vb->vb2_queue;
 	struct queue_data   *This = (struct queue_data *)vq->drv_priv;
 	struct vb2_data_req *data_req;
+	struct vpu_ctx *ctx = This->ctx;
 
 	vpu_dbg(LVL_BUF, "%s(), %s, (%d, %d)\n", __func__, This->desc,
 			This->ctx->core_dev->id, This->ctx->str_index);
@@ -2927,13 +3020,15 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 	down(&This->drv_q_lock);
 	data_req = &This->vb2_reqs[vb->index];
 	data_req->vb2_buf = vb;
-	data_req->id = vb->index;
+	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
+		fill_ctx_seq(ctx, data_req);
+		fill_vb_sequence(vb, data_req->sequence);
+	}
 	list_add_tail(&data_req->list, &This->drv_q);
 
 	up(&This->drv_q_lock);
 
 	if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		struct vpu_ctx *ctx = This->ctx;
 
 		mutex_lock(&ctx->dev->dev_mutex);
 		mutex_lock(&ctx->instance_mutex);
@@ -3649,6 +3744,8 @@ static int show_frame_sts(struct vpu_statistic *statistic, char *buf, u32 size)
 	num += show_fps_info(statistic->fps, ARRAY_SIZE(statistic->fps),
 				buf + num, PAGE_SIZE - num);
 	num += scnprintf(buf + num, size - num, "\n");
+	num += scnprintf(buf + num, size - num, "\t%-24s:%ld\n",
+			"timestamp overwrite", statistic->timestamp_overwrite);
 
 	return num;
 }
@@ -4328,6 +4425,7 @@ static int vpu_enc_v4l2_open(struct file *filp)
 	vpu_enc_setup_ctrls(ctx);
 
 	init_vpu_ctx_fh(ctx, dev);
+	init_ctx_seq_info(ctx);
 	filp->private_data = &ctx->fh;
 	mutex_unlock(&dev->dev_mutex);
 
