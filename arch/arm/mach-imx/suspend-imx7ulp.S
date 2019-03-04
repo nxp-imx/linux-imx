@@ -427,7 +427,20 @@ wait_apll:
 	orr	r7, #(1 << 28)
 	str	r7, [r10, #SCG_NICCCR]
 
+	/* let mmdc io out of lpm */
+	ldr	r11, [r0, #PM_INFO_PM_INFO_MMDC_IO_VBASE_OFFSET]
+	ldr	r10, [r0, #PM_INFO_MMDC_IO_NUM_OFFSET]
+	ldr	r7, =PM_INFO_MMDC_IO_VAL_OFFSET
+	add	r7, r7, r0
+mmdc_io_exit_lpm:
+	ldr	r8, [r7], #0x4
+	ldr	r9, [r7], #0x4
+	str	r9, [r11, r8]
+	subs	r10, r10, #0x1
+	bne	mmdc_io_exit_lpm
+
 	/* let DDR out of self-refresh */
+	ldr	r11, [r0, #PM_INFO_PM_INFO_MMDC_VBASE_OFFSET]
 	ldr	r7, [r11, #MX7ULP_MMDC_MAPSR]
 	bic	r7, r7, #(1 << 20)
 	str	r7, [r11, #MX7ULP_MMDC_MAPSR]
