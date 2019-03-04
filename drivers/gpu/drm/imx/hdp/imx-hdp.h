@@ -36,7 +36,7 @@
 /* For testing hdp firmware define DEBUG_FW_LOAD */
 #undef DEBUG_FW_LOAD
 #define PLL_1188MHZ (1188000000)
-#define PLL_675MHZ (675000000)
+#define PLL_800MHZ (800000000)
 
 #define HDP_TX_SS_LIS_BASE   0x0000
 #define HDP_TX_SS_CSR_BASE   0x1000

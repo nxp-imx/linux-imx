@@ -702,7 +702,7 @@ void imx8qm_ipg_clock_set_rate(struct hdp_clks *clks)
 	if (hdp->is_digpll_dp_pclock)
 		desired_rate = PLL_1188MHZ;
 	else
-		desired_rate = PLL_675MHZ;
+		desired_rate = PLL_800MHZ;
 
 	/* hdmi/dp ipg/core clock */
 	clk_rate = clk_get_rate(clks->dig_pll);
@@ -720,7 +720,7 @@ void imx8qm_ipg_clock_set_rate(struct hdp_clks *clks)
 		clk_set_rate(clks->av_pll, 24000000);
 	} else {
 		clk_set_rate(clks->dig_pll,  desired_rate);
-		clk_set_rate(clks->clk_core, desired_rate/5);
+		clk_set_rate(clks->clk_core, desired_rate/4);
 		clk_set_rate(clks->clk_ipg,  desired_rate/8);
 	}
 }
