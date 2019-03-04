@@ -314,7 +314,7 @@ static ssize_t dp_aux_transfer(struct drm_dp_aux *aux,
 #ifdef DEBUG
 		print_bytes(read_resp.addr, read_resp.buff, read_resp.size);
 #endif
-		return  msg->size;
+		return read_resp.size;
 	}
 	return 0;
 }
