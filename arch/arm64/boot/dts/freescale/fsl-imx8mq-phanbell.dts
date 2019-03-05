@@ -124,6 +124,24 @@
 		interrupt-controller;
 		#interrupt-cells = <1>;
 	};
+
+	sound-rt5645 {
+	compatible = "fsl,imx-audio-rt5645";
+	model = "rt5645-audio";
+	audio-cpu = <&sai2>;
+	audio-codec = <&rt5645>;
+	audio-routing =
+		"CPU-Playback", "AIF1 Playback",
+		"AIF1 Capture", "CPU-Capture",
+		"micbias1", "AMIC",
+		"IN1P", "micbias1",
+		"Ext Spk", "SPOL",
+		"Ext Spk", "SPOR",
+		"DMIC L1", "DMIC",
+		"DMIC R1", "DMIC",
+		"Headphone Jack", "HPOL",
+		"Headphone Jack", "HPOR";
+	};
 };
 
 &clk {
@@ -403,7 +421,8 @@
 				MX8MQ_IOMUXC_SAI2_TXC_SAI2_TX_BCLK	0xd6
 				MX8MQ_IOMUXC_SAI2_MCLK_SAI2_MCLK	0xd6
 				MX8MQ_IOMUXC_SAI2_TXD0_SAI2_TX_DATA0	0xd6
-				MX8MQ_IOMUXC_GPIO1_IO08_GPIO1_IO8	0xd6
+				MX8MQ_IOMUXC_SAI2_RXD0_SAI2_RX_DATA0  0xd6
+				MX8MQ_IOMUXC_SPDIF_RX_GPIO5_IO4	0xd6
 			>;
 		};
 
@@ -700,6 +719,21 @@
 		pinctrl-0 = <&pinctrl_typec>;
 		reg = <0x3d>;
 		connect-gpios = <&gpio3 0 GPIO_ACTIVE_HIGH>;
+	};
+
+	rt5645: rt5645@1a {
+		compatible = "realtek,rt5645";
+		reg = <0x1a>;
+		clocks = <&clk IMX8MQ_CLK_SAI2_ROOT>;
+		clock-names = "mclk1";
+		status = "okay";
+		realtek,dmic1-data-pin = <2>; // GPIO5
+		realtek,jd-mode = <0>;
+		realtek,jd-invert;
+		realtek,jd-low-volt-enable;
+		interrupt-parent = <&gpio5>;
+		interrupts = <4 IRQ_TYPE_EDGE_BOTH>;
+		hp-detect-gpios = <&gpio5 4 GPIO_ACTIVE_HIGH>;
 	};
 };
 
