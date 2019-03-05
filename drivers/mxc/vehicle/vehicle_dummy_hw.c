@@ -85,7 +85,7 @@ struct extcon_dev *rg_edev;
 struct extcon_dev *ev_edev;
 #endif
 
-extern void vehicle_hw_prop_ops_register(struct hw_prop_ops* prop_ops);
+extern void vehicle_hw_prop_ops_register(const struct hw_prop_ops* prop_ops);
 extern void vehicle_hal_set_property(u16 prop, u8 index, u32 value);
 static struct vehicle_dummy_drvdata *vehicle_dummy;
 static struct class* vehicle_dummy_class;

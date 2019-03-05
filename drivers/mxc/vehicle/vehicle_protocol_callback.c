@@ -132,7 +132,6 @@ bool decode_config_array_callback(pb_istream_t *stream, const pb_field_t *field,
 
 bool decode_config_string_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
 {
-	uint64_t value;
 	uint8_t buffer[1024] = {0};
 	if (stream->bytes_left > sizeof(buffer) - 1)
 		return false;
@@ -142,7 +141,7 @@ bool decode_config_string_callback(pb_istream_t *stream, const pb_field_t *field
 	return true;
 }
 
-bool encode_prop_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
+bool encode_prop_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	emulator_VehiclePropGet propget;
 	//need fill arg emulator_VehiclePropGet if have this filed
@@ -154,7 +153,7 @@ bool encode_prop_callback(pb_istream_t *stream, const pb_field_t *field, void **
 	return true;
 }
 
-bool encode_area_configs_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
+bool encode_area_configs_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	emulator_VehicleAreaConfig vehicle_area;
 	if (!pb_encode(stream, emulator_VehicleAreaConfig_fields, &vehicle_area))
@@ -162,19 +161,19 @@ bool encode_area_configs_callback(pb_istream_t *stream, const pb_field_t *field,
 	return true;
 }
 
-bool encode_config_array_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
+bool encode_config_array_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	return pb_encode_tag_for_field(stream, field) &&
 		pb_encode_fixed32(stream, *arg);
 }
 
-bool encode_config_string_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
+bool encode_config_string_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	return pb_encode_tag_for_field(stream, field) &&
 		pb_encode_string(stream, *arg, strlen(*arg));
 }
 
-bool encode_config_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
+bool encode_config_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	emulator_VehiclePropConfig propconfigure;
 
@@ -187,7 +186,7 @@ bool encode_config_callback(pb_istream_t *stream, const pb_field_t *field, void 
 	return true;
 }
 
-bool encode_int32_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
+bool encode_int32_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	u32 *value = (u32 *)*arg;
 	if (!pb_encode_tag_for_field(stream, field))
@@ -195,7 +194,7 @@ bool encode_int32_values_callback(pb_istream_t *stream, const pb_field_t *field,
 	return pb_encode_varint(stream, *value);
 }
 
-bool encode_int64_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
+bool encode_int64_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	u64 *value = (u64 *)*arg;
 	if (!pb_encode_tag_for_field(stream, field))
@@ -203,14 +202,14 @@ bool encode_int64_values_callback(pb_istream_t *stream, const pb_field_t *field,
 	return pb_encode_varint(stream, *value);
 }
 
-bool encode_fix32_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
+bool encode_fix32_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	if (!pb_encode_tag_for_field(stream, field))
 		return false;
 	return pb_encode_fixed32(stream, (u32 *)*arg);
 }
 
-bool encode_value_callback(pb_istream_t *stream, const pb_field_t *field, void **arg)
+bool encode_value_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
 	struct vehicle_property_set *data = (struct vehicle_property_set*)(*arg);
 

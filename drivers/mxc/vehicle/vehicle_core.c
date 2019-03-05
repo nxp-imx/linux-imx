@@ -35,7 +35,7 @@ extern struct net init_net;
 int user_pid;
 
 struct vehicle_core_drvdata {
-	struct hw_prop_ops *prop_ops;
+	const struct hw_prop_ops *prop_ops;
 };
 
 /*vehicle_event_door_type: stateValue of type VEHICLE_DOOR*/
@@ -59,7 +59,7 @@ static struct vehicle_core_drvdata *vehicle_core;
 struct vehicle_property_set property_encode;
 struct vehicle_property_set property_decode;
 
-void vehicle_hw_prop_ops_register(struct hw_prop_ops* prop_ops)
+void vehicle_hw_prop_ops_register(const struct hw_prop_ops* prop_ops)
 {
 	if (!prop_ops)
 		return;
@@ -74,6 +74,7 @@ static int vehicle_send_message_core(u32 prop, u32 area, u32 value)
 	if(vehicle_core && vehicle_core->prop_ops &&
 			vehicle_core->prop_ops->set_control_commands)
 		vehicle_core->prop_ops->set_control_commands(prop, area, value);
+	return 0;
 }
 
 int send_usrmsg(char *pbuf, uint16_t len)
@@ -179,9 +180,7 @@ static void netlink_rcv_msg(struct sk_buff *skb)
 	char *umsg = NULL;
 	char *buffer;
 	bool status;
-	int i;
 	size_t len;
-	size_t encode_len;
 
 	emulator_EmulatorMessage emulator_message;
 	buffer = kmalloc(128, GFP_KERNEL);
@@ -253,10 +252,11 @@ static int vehicle_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static void vehicle_remove(struct platform_device *pdev)
+static int vehicle_remove(struct platform_device *pdev)
 {
 	if (nlsk)
 		netlink_kernel_release(nlsk);
+	return 0;
 }
 
 static const struct of_device_id imx_vehicle_id[] = {
@@ -279,8 +279,8 @@ static int vehicle_init(void)
 	err = platform_driver_register(&vehicle_device_driver);
 	if (err) {
 		pr_err("Failed to register vehicle driver\n");
-		return err;
 	}
+	return err;
 }
 
 static void __exit vehicle_exit(void)

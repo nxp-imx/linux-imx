@@ -24,14 +24,14 @@ bool decode_area_configs_callback(pb_istream_t *stream, const pb_field_t *field,
 bool decode_float_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
 bool decode_int64_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
 bool decode_int32_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
-bool encode_value_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
-bool encode_prop_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
-bool encode_area_configs_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
-bool encode_config_array_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
-bool encode_config_string_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
-bool encode_config_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
-bool encode_int32_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
-bool encode_int64_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
-bool encode_fix32_values_callback(pb_istream_t *stream, const pb_field_t *field, void **arg);
+bool encode_value_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
+bool encode_prop_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
+bool encode_area_configs_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
+bool encode_config_array_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
+bool encode_config_string_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
+bool encode_config_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
+bool encode_int32_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
+bool encode_int64_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
+bool encode_fix32_values_callback(pb_ostream_t *stream, const pb_field_t *field, void * const *arg);
 
 #endif

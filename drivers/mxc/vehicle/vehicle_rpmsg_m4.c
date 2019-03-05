@@ -115,7 +115,7 @@ struct vehicle_rpmsg_data {
 	union {
 		u8 index;
 		u8 reserved3;
-	}
+	};
 } __attribute__((packed));
 
 #ifdef CONFIG_EXTCON
@@ -131,7 +131,7 @@ struct extcon_dev *rg_edev;
 struct extcon_dev *ev_edev;
 #endif
 
-extern void vehicle_hw_prop_ops_register(struct hw_prop_ops* prop_ops);
+extern void vehicle_hw_prop_ops_register(const struct hw_prop_ops* prop_ops);
 extern void vehicle_hal_set_property(u16 prop, u8 index, u32 value);
 static struct rpmsg_vehicle_mcu_drvdata *vehicle_rpmsg;
 static struct class* vehicle_rpmsg_class;
@@ -379,7 +379,6 @@ static void vehicle_init_handler(struct work_struct *work)
 static void vehicle_deinit_handler(struct work_struct *work)
 {
 	struct vehicle_rpmsg_data msg;
-	sc_err_t err;
 
 	msg.header.cate = IMX_RPMSG_VEHICLE;
 	msg.header.major = IMX_RMPSG_MAJOR;
@@ -525,13 +524,14 @@ static int vehicle_mcu_probe(struct platform_device *pdev)
 
 	return 0;
 out_free_mem:
-	return ERR_PTR(-ENOMEM);
+	return -ENOMEM;
 }
 
-static void vehicle_mcu_remove(struct platform_device *pdev)
+static int vehicle_mcu_remove(struct platform_device *pdev)
 {
 	class_destroy(vehicle_rpmsg_class);
 	unregister_rpmsg_driver(&vehicle_rpmsg_driver);
+	return 0;
 }
 
 static const struct of_device_id imx_vehicle_mcu_id[] = {
