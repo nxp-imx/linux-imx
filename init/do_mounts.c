@@ -565,6 +565,8 @@ void __init prepare_namespace(void)
 	wait_for_device_probe();
 
 	md_run_setup();
+	if (root_wait)
+		wait_dm_device_ready();
 	dm_run_setup();
 
 	if (saved_root_name[0]) {

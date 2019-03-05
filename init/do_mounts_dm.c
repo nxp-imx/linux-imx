@@ -343,6 +343,33 @@ parse_fail:
 	return 0;
 }
 
+void __init wait_dm_device_ready(void)
+{
+	struct dm_device *devices;
+	struct dm_device *dev;
+	struct dm_setup_target *target;
+	int r = -EINVAL, argc;
+	char **argv;
+
+	devices = dm_parse_args();
+	for (dev = devices; dev; dev = dev->next) {
+		for (target = dev->target; target; target = target->next) {
+			r = dm_split_args(&argc, &argv, target->params);
+			if (r) {
+				pr_err("can't parse the dm parameters \n");
+				goto clean;
+			}
+			while (name_to_dev_t(argv[1]) == 0 || name_to_dev_t(argv[2]) == 0) {
+				pr_info("dm device still not ready, wait for 5 ms \n");
+				msleep(5);
+			}
+			kfree(argv);
+		}
+	}
+clean:
+	dm_setup_cleanup(devices);
+}
+
 static void __init dm_setup_drives(void)
 {
 	struct mapped_device *md = NULL;

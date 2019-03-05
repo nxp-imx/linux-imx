@@ -66,6 +66,9 @@ static inline void md_run_setup(void) {}
 
 void dm_run_setup(void);
 
+void wait_dm_device_ready(void);
+int dm_split_args(int *argc, char ***argvp, char *input);
+
 #else
 
 static inline void dm_run_setup(void) {}
