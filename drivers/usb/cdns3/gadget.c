@@ -468,11 +468,13 @@ static int cdns_ep_run_transfer(struct usb_ss_endpoint *usb_ss_ep)
 static int cdns_get_setup_ret(struct usb_ss_dev *usb_ss,
 		struct usb_ctrlrequest *ctrl_req)
 {
-	int ret;
+	int ret = 0;
 
 	spin_unlock(&usb_ss->lock);
 	usb_ss->setup_pending = 1;
-	ret = usb_ss->gadget_driver->setup(&usb_ss->gadget, ctrl_req);
+	WARN_ON(!usb_ss->gadget_driver);
+	if (usb_ss->gadget_driver && usb_ss->gadget_driver->setup)
+		ret = usb_ss->gadget_driver->setup(&usb_ss->gadget, ctrl_req);
 	usb_ss->setup_pending = 0;
 	spin_lock(&usb_ss->lock);
 	return ret;
@@ -2129,8 +2131,11 @@ static int usb_ss_gadget_udc_stop(struct usb_gadget *gadget)
 	int i;
 	u32 bEndpointAddress;
 	int ret = 0;
+	unsigned long flags;
 
-	usb_ss->gadget_driver = NULL;
+	dev_dbg(&usb_ss->dev, "%s start\n", __func__);
+
+	spin_lock_irqsave(&usb_ss->lock, flags);
 	usb_ss->status_completion_no_call = 0;
 	list_for_each_entry_safe(usb_ss_ep, temp_ss_ep,
 		&usb_ss->ep_match_list, ep_match_pending_list) {
@@ -2141,16 +2146,22 @@ static int usb_ss_gadget_udc_stop(struct usb_gadget *gadget)
 	usb_ss->onchip_mem_allocated_size = 0;
 	usb_ss->out_mem_is_allocated = 0;
 	usb_ss->gadget.speed = USB_SPEED_UNKNOWN;
+	spin_unlock_irqrestore(&usb_ss->lock, flags);
 	for (i = 0; i < usb_ss->ep_nums ; i++)
 		usb_ss_free_trb_pool(usb_ss->eps[i]);
 
-	if (!usb_ss->start_gadget)
+	spin_lock_irqsave(&usb_ss->lock, flags);
+	if (!usb_ss->start_gadget) {
+		usb_ss->gadget_driver = NULL;
+		spin_unlock_irqrestore(&usb_ss->lock, flags);
 		return 0;
+	}
 
 	list_for_each_entry(ep, &usb_ss->gadget.ep_list, ep_list) {
 		usb_ss_ep = to_usb_ss_ep(ep);
 		bEndpointAddress = usb_ss_ep->num | usb_ss_ep->dir;
 		select_ep(usb_ss, bEndpointAddress);
+		gadget_writel(usb_ss, &usb_ss->regs->ep_sts, ~0);
 		gadget_writel(usb_ss, &usb_ss->regs->ep_cmd,
 			EP_CMD__EPRST__MASK);
 		ret = wait_reg_bit_clear(usb_ss, &usb_ss->regs->ep_cmd,
@@ -2158,8 +2169,11 @@ static int usb_ss_gadget_udc_stop(struct usb_gadget *gadget)
 	}
 
 	/* disable interrupt for device */
+	gadget_writel(usb_ss, &usb_ss->regs->usb_ists, ~0);
 	gadget_writel(usb_ss, &usb_ss->regs->usb_ien, 0);
 	gadget_writel(usb_ss, &usb_ss->regs->usb_conf, USB_CONF__DEVDS__MASK);
+	usb_ss->gadget_driver = NULL;
+	spin_unlock_irqrestore(&usb_ss->lock, flags);
 
 	return ret;
 }
