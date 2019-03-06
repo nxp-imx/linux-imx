@@ -256,8 +256,28 @@ static int fsl_asoc_card_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static const u32 rt5645_support_rates[] = {48000};
+
+static int fsl_rt5645_card_startup(struct snd_pcm_substream *substream)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	int ret = 0;
+	static struct snd_pcm_hw_constraint_list constraint_rates;
+
+	constraint_rates.list = rt5645_support_rates;
+	constraint_rates.count = ARRAY_SIZE(rt5645_support_rates);
+
+	ret = snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_RATE,
+					&constraint_rates);
+
+	return ret;
+}
+
 static const struct snd_soc_ops fsl_asoc_card_ops = {
 	.hw_params = fsl_asoc_card_hw_params,
+#if IS_ENABLED(CONFIG_SND_SOC_RT5645)
+	.startup = fsl_rt5645_card_startup,
+#endif
 };
 
 static int be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
