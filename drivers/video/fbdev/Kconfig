@@ -1780,6 +1780,7 @@ config FB_MXS
 	select FB_MODE_HELPERS
 	select FB_BACKLIGHT
 	select VIDEOMODE_HELPERS
+	select FB_FENCE
 	help
 	  Framebuffer support for the MXS SoC.
 

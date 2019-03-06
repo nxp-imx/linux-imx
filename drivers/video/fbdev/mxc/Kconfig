@@ -6,6 +6,7 @@ config FB_MXC
 	select FB_CFB_IMAGEBLIT
 	select FB_MODE_HELPERS
 	select FB_IOMEM_FOPS
+	select FB_FENCE
 	default y
 	help
 	  This is a framebuffer device for the MXC LCD Controller.
@@ -106,6 +107,14 @@ config FB_MXC_EINK_V2_PANEL
 config FB_MXC_EINK_AUTO_UPDATE_MODE
 	bool "E-Ink Auto-update Mode Support"
 	depends on FB_MXC_EINK_PANEL
+
+config FB_FENCE
+	tristate "FB driver fence support"
+	default y
+	help
+	  This is in out fence function for the MXC FB driver.
+	  If you plan to use fence function with your MXC system, say
+	  Y here.
 
 config FB_MXC_HDMI
 	depends on FB_MXC_SYNC_PANEL
