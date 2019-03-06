@@ -2431,6 +2431,7 @@ config FB_MXS
 	select FB_CFB_IMAGEBLIT
 	select FB_MODE_HELPERS
 	select VIDEOMODE_HELPERS
+	select FB_FENCE
 	help
 	  Framebuffer support for the MXS SoC.
 

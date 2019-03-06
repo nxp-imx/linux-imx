@@ -173,6 +173,16 @@ struct mxcfb_buffer {
 	int stride; // in bytes.
 };
 
+struct mxcfb_datainfo {
+	struct fb_var_screeninfo screeninfo;
+	// physical address.
+	int64_t smem_start;
+	// in fence.
+	int32_t fence_fd;
+	// out fence.
+	int64_t fence_ptr;
+};
+
 #define MXCFB_WAIT_FOR_VSYNC	_IOW('F', 0x20, u_int32_t)
 #define MXCFB_SET_GBL_ALPHA     _IOW('F', 0x21, struct mxcfb_gbl_alpha)
 #define MXCFB_SET_CLR_KEY       _IOW('F', 0x22, struct mxcfb_color_key)
@@ -205,4 +215,6 @@ struct mxcfb_buffer {
 
 // update screen interface.
 #define MXCFB_UPDATE_SCREEN	_IOW('F', 0x100, struct mxcfb_buffer)
+#define MXCFB_UPDATE_OVERLAY	_IOW('F', 0x101, struct mxcfb_datainfo)
+#define MXCFB_PRESENT_SCREEN	_IOW('F', 0x102, struct mxcfb_datainfo)
 #endif

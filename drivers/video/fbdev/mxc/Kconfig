@@ -5,6 +5,7 @@ config FB_MXC
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
 	select FB_MODE_HELPERS
+	select FB_FENCE
 	default y
 	help
 	  This is a framebuffer device for the MXC LCD Controller.
@@ -144,3 +145,11 @@ config FB_DCSS
 	help
 	  Framebuffer support the DCSS controller in imx8mq platform.
 	  DCSS support 3 layer compsition.
+
+config FB_FENCE
+	tristate "FB driver fence support"
+	default y
+	help
+	  This is in out fence function for the MXC FB driver.
+	  If you plan to use fence function with your MXC system, say
+	  Y here.

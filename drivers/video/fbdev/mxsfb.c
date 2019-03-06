@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010 Juergen Beisert, Pengutronix
+ * Copyright 2019 NXP
  *
  * This code is based on:
  * Author: Vitaly Wool <vital@embeddedalley.com>
@@ -271,6 +272,10 @@ struct mxsfb_info {
 
 #ifdef CONFIG_FB_MXC_OVERLAY
 	struct mxsfb_layer overlay;
+#endif
+
+#ifdef CONFIG_FB_FENCE
+	struct fb_fence_context context;
 #endif
 };
 
@@ -631,6 +636,9 @@ static irqreturn_t mxsfb_irq_handler(int irq, void *dev_id)
 		writel(CTRL1_CUR_FRAME_DONE_IRQ_EN,
 			     host->base + LCDC_CTRL1 + REG_CLR);
 		complete(&host->flip_complete);
+#ifdef CONFIG_FB_FENCE
+		fb_handle_fence(&host->context);
+#endif
 	}
 
 	if (acked_status & CTRL1_UNDERFLOW_IRQ)
@@ -1080,7 +1088,7 @@ static int mxsfb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
 	return ret;
 }
 
-#ifdef CONFIG_ANDROID
+#if defined(CONFIG_ANDROID) || defined(CONFIG_FB_FENCE)
 static int mxsfb_update_screen(struct mxsfb_info *host, struct mxcfb_buffer *buffer)
 {
 	struct fb_info *fb_info = host->fb_info;
@@ -1131,6 +1139,21 @@ static int mxsfb_update_screen(struct mxsfb_info *host, struct mxcfb_buffer *buf
 }
 #endif
 
+#ifdef CONFIG_FB_FENCE
+static int mxsfb_update_data(int64_t dma_address, struct fb_var_screeninfo *var, struct fb_info *fb_info)
+{
+	struct mxcfb_buffer buffer;
+	struct mxsfb_info *host = fb_info->par;
+
+	buffer.phys = dma_address;
+	buffer.xoffset = var->xoffset;
+	buffer.yoffset = var->yoffset;
+	buffer.stride = fb_info->fix.line_length;
+
+	return mxsfb_update_screen(host, &buffer);
+}
+#endif
+
 static int mxsfb_wait_for_vsync(struct fb_info *fb_info)
 {
 	struct mxsfb_info *host = fb_info->par;
@@ -1176,6 +1199,30 @@ static int mxsfb_ioctl(struct fb_info *fb_info, unsigned int cmd,
 				break;
 			}
 			ret = mxsfb_update_screen(host, &buffer);
+		}
+		break;
+#endif
+#ifdef CONFIG_FB_FENCE
+	case MXCFB_UPDATE_OVERLAY:
+		{
+			struct mxcfb_datainfo buffer;
+			struct mxsfb_info *host = fb_info->par;
+			if (copy_from_user(&buffer, (void *)arg, sizeof(buffer))) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = fb_update_overlay(&host->context, &buffer);
+		}
+		break;
+	case MXCFB_PRESENT_SCREEN:
+		{
+			struct mxcfb_datainfo buffer;
+			struct mxsfb_info *host = fb_info->par;
+			if (copy_from_user(&buffer, (void *)arg, sizeof(buffer))) {
+				ret = -EFAULT;
+				break;
+			}
+			ret = fb_present_screen(&host->context, &buffer);
 		}
 		break;
 #endif
@@ -2494,6 +2541,10 @@ static int mxsfb_probe(struct platform_device *pdev)
 		mxsfb_enable_controller(fb_info);
 		pm_runtime_get_sync(&host->pdev->dev);
 	}
+
+#ifdef CONFIG_FB_FENCE
+	fb_init_fence_context(&host->context, "lcdif", fb_info, mxsfb_update_data);
+#endif
 
 	ret = register_framebuffer(fb_info);
 	if (ret != 0) {
