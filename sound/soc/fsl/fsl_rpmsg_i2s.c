@@ -149,6 +149,9 @@ static void rpmsg_i2s_work(struct work_struct *work)
 	i2s_info = work_of_rpmsg->i2s_info;
 
 	i2s_send_message(&work_of_rpmsg->msg, i2s_info);
+
+	i2s_info->work_read_index++;
+	i2s_info->work_read_index %= WORK_MAX_NUM;
 }
 
 static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
@@ -179,6 +182,7 @@ static int fsl_rpmsg_i2s_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	i2s_info->work_write_index = 1;
 	i2s_info->send_message = i2s_send_message;
 
 	for (i = 0; i < WORK_MAX_NUM; i++) {
