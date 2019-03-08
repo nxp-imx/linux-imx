@@ -1138,16 +1138,8 @@
 	status = "okay";
 };
 
-&pd_cm40_intmux {
-	early_power_on;
-};
-
 &intmux_cm40 {
 	status = "okay";
-};
-
-&pd_cm41_intmux {
-	early_power_on;
 };
 
 &intmux_cm41 {
