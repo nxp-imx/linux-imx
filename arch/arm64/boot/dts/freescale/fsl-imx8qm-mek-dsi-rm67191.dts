@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-#include "fsl-imx8qm-mek.dts"
+#include "fsl-imx8qm-mek-rpmsg.dts"
 
 &mipi_dsi_bridge1 {
 	status = "okay";

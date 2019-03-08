@@ -15,7 +15,7 @@
  * HDMI only dts, disable ldb display.
  */
 
-#include "fsl-imx8qm-mek.dts"
+#include "fsl-imx8qm-mek-rpmsg.dts"
 
 / {
 	sound-hdmi-tx {

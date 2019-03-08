@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-#include "fsl-imx8qxp-mek.dts"
+#include "fsl-imx8qxp-mek-rpmsg.dts"
 / {
 	trusty {
 		compatible = "android,trusty-smc-v1";
@@ -52,19 +52,11 @@
 	clock-frequency = <1000000>;
 };
 
-&i2c1 {
-	clock-frequency = <1000000>;
-};
-
 &i2c2 {
 	clock-frequency = <1000000>;
 };
 
 &i2c3 {
-	clock-frequency = <1000000>;
-};
-
-&i2c0_cm40 {
 	clock-frequency = <1000000>;
 };
 

@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  */
 
-#include "fsl-imx8qm-mek.dts"
+#include "fsl-imx8qm-mek-rpmsg.dts"
 / {
 	trusty {
 		compatible = "android,trusty-smc-v1";
@@ -62,10 +62,6 @@
 
 &i2c0_cm40 {
 	clock-frequency = <1000000>;
-};
-
-&i2c0_cm41 {
-	clock-frequency = <400000>;
 };
 
 &i2c0_mipi_dsi1 {
@@ -121,10 +117,6 @@
 };
 
 &asrc0 {
-	status = "disabled";
-};
-
-&flexspi0 {
 	status = "disabled";
 };
 
