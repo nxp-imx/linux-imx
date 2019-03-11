@@ -367,57 +367,6 @@
 			>;
 		};
 
-		pinctrl_sai1_pcm: sai1grp_pcm {
-			fsl,pins = <
-				MX8MQ_IOMUXC_SAI1_MCLK_SAI1_MCLK		0xd6
-				MX8MQ_IOMUXC_SAI1_TXFS_SAI1_TX_SYNC		0xd6
-				MX8MQ_IOMUXC_SAI1_RXD7_SAI1_TX_SYNC		0xd6
-				MX8MQ_IOMUXC_SAI1_TXC_SAI1_TX_BCLK		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD0_SAI1_TX_DATA0		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD1_SAI1_TX_DATA1		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD2_SAI1_TX_DATA2		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD3_SAI1_TX_DATA3		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD4_SAI1_TX_DATA4		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD5_SAI1_TX_DATA5		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD6_SAI1_TX_DATA6		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD7_SAI1_TX_DATA7		0xd6
-			>;
-		};
-
-		pinctrl_sai1_pcm_b2m: sai1grp_pcm_b2m {
-			fsl,pins = <
-				MX8MQ_IOMUXC_SAI1_MCLK_SAI1_TX_BCLK		0xd6
-				MX8MQ_IOMUXC_SAI1_TXFS_SAI1_TX_SYNC		0xd6
-				MX8MQ_IOMUXC_SAI1_RXD7_SAI1_TX_SYNC		0xd6
-				MX8MQ_IOMUXC_SAI1_TXC_SAI1_TX_BCLK		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD0_SAI1_TX_DATA0		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD1_SAI1_TX_DATA1		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD2_SAI1_TX_DATA2		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD3_SAI1_TX_DATA3		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD4_SAI1_TX_DATA4		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD5_SAI1_TX_DATA5		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD6_SAI1_TX_DATA6		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD7_SAI1_TX_DATA7		0xd6
-			>;
-		};
-
-		pinctrl_sai1_dsd: sai1grp_dsd {
-			fsl,pins = <
-				MX8MQ_IOMUXC_SAI1_MCLK_SAI1_MCLK		0xd6
-				MX8MQ_IOMUXC_SAI1_TXFS_SAI1_TX_SYNC		0xd6
-				MX8MQ_IOMUXC_SAI1_RXD7_SAI1_TX_DATA4		0xd6
-				MX8MQ_IOMUXC_SAI1_TXC_SAI1_TX_BCLK		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD0_SAI1_TX_DATA0		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD1_SAI1_TX_DATA1		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD2_SAI1_TX_DATA2		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD3_SAI1_TX_DATA3		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD4_SAI1_TX_DATA4		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD5_SAI1_TX_DATA5		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD6_SAI1_TX_DATA6		0xd6
-				MX8MQ_IOMUXC_SAI1_TXD7_SAI1_TX_DATA7		0xd6
-			>;
-		};
-
 		pinctrl_sai2: sai2grp {
 			fsl,pins = <
 				MX8MQ_IOMUXC_SAI2_TXFS_SAI2_TX_SYNC	0xd6
@@ -426,18 +375,6 @@
 				MX8MQ_IOMUXC_SAI2_TXD0_SAI2_TX_DATA0	0xd6
 				MX8MQ_IOMUXC_SAI2_RXD0_SAI2_RX_DATA0  0xd6
 				MX8MQ_IOMUXC_SPDIF_RX_GPIO5_IO4	0xd6
-			>;
-		};
-
-		pinctrl_sai5: sai5grp {
-			fsl,pins = <
-				MX8MQ_IOMUXC_SAI5_MCLK_SAI5_MCLK	0xd6
-				MX8MQ_IOMUXC_SAI5_RXC_SAI5_RX_BCLK	0xd6
-				MX8MQ_IOMUXC_SAI5_RXFS_SAI5_RX_SYNC	0xd6
-				MX8MQ_IOMUXC_SAI5_RXD0_SAI5_RX_DATA0	0xd6
-				MX8MQ_IOMUXC_SAI5_RXD1_SAI5_RX_DATA1    0xd6
-				MX8MQ_IOMUXC_SAI5_RXD2_SAI5_RX_DATA2    0xd6
-				MX8MQ_IOMUXC_SAI5_RXD3_SAI5_RX_DATA3    0xd6
 			>;
 		};
 
@@ -687,35 +624,6 @@
 	pinctrl-0 = <&pinctrl_i2c3>;
 	status = "okay";
 
-	synaptics_dsx_ts: synaptics_dsx_ts@20 {
-		compatible = "synaptics_dsx";
-		reg = <0x20>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_i2c1_dsi_ts_int>;
-		interrupt-parent = <&gpio5>;
-		interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
-		synaptics,diagonal-rotation;
-		status = "disabled";
-	};
-
-	adv_bridge: adv7535@3d {
-		compatible = "adi,adv7533";
-		reg = <0x3d>;
-		adi,addr-cec = <0x3b>;
-		adi,dsi-lanes = <4>;
-		pinctrl-0 = <&pinctrl_i2c1_dsi_ts_int>;
-		interrupt-parent = <&gpio5>;
-		interrupts = <7 IRQ_TYPE_LEVEL_LOW>;
-
-		status = "disabled";
-
-		port {
-			adv7535_in: endpoint {
-				remote-endpoint = <&mipi_dsi_bridge_adv>;
-			};
-		};
-	};
-
 	typec_ptn5150: typec@3d {
 		compatible = "nxp,ptn5150";
 		pinctrl-names = "default";
@@ -763,21 +671,6 @@
 	assigned-clocks = <&clk IMX8MQ_CLK_UART1>;
 	assigned-clock-parents = <&clk IMX8MQ_CLK_25M>;
 	status = "okay";
-};
-
-&qspi {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_qspi>;
-	status = "okay";
-
-	flash0: n25q256a@0 {
-		reg = <0>;
-		#address-cells = <1>;
-		#size-cells = <1>;
-		compatible = "micron,n25q256a";
-		spi-max-frequency = <29000000>;
-		spi-nor,ddr-quad-read-dummy = <6>;
-	};
 };
 
 &uart2 { /* BT */
@@ -837,24 +730,6 @@
 	dr_mode = "host";
 };
 
-&sai1 {
-	pinctrl-names = "default", "pcm_b2m", "dsd";
-	pinctrl-0 = <&pinctrl_sai1_pcm>;
-	pinctrl-1 = <&pinctrl_sai1_pcm_b2m>;
-	pinctrl-2 = <&pinctrl_sai1_dsd>;
-	assigned-clocks = <&clk IMX8MQ_CLK_SAI1>;
-	assigned-clock-parents = <&clk IMX8MQ_AUDIO_PLL1_OUT>;
-	assigned-clock-rates = <49152000>;
-	clocks = <&clk IMX8MQ_CLK_SAI1_IPG>, <&clk IMX8MQ_CLK_DUMMY>,
-		<&clk IMX8MQ_CLK_SAI1_ROOT>, <&clk IMX8MQ_CLK_DUMMY>,
-		<&clk IMX8MQ_CLK_DUMMY>, <&clk IMX8MQ_AUDIO_PLL1_OUT>,
-		<&clk IMX8MQ_AUDIO_PLL2_OUT>;
-	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k";
-	fsl,sai-multi-lane;
-	fsl,dataline,dsd = <0xff 0x11>;
-	dmas = <&sdma2 8 26 0>, <&sdma2 9 26 0>;
-	status = "okay";
-};
 
 &sai2 {
 	pinctrl-names = "default";
@@ -874,21 +749,6 @@
 		<&clk IMX8MQ_CLK_DUMMY>, <&clk IMX8MQ_AUDIO_PLL1_OUT>,
 		<&clk IMX8MQ_AUDIO_PLL2_OUT>;
 	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k";
-	status = "okay";
-};
-
-&sai5 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_sai5>;
-	assigned-clocks = <&clk IMX8MQ_CLK_SAI5>;
-	assigned-clock-parents = <&clk IMX8MQ_AUDIO_PLL1_OUT>;
-	assigned-clock-rates = <49152000>;
-	clocks = <&clk IMX8MQ_CLK_SAI5_IPG>, <&clk IMX8MQ_CLK_DUMMY>,
-		<&clk IMX8MQ_CLK_SAI5_ROOT>, <&clk IMX8MQ_CLK_DUMMY>,
-		<&clk IMX8MQ_CLK_DUMMY>, <&clk IMX8MQ_AUDIO_PLL1_OUT>,
-		<&clk IMX8MQ_AUDIO_PLL2_OUT>;
-	clock-names = "bus", "mclk0", "mclk1", "mclk2", "mclk3", "pll8k", "pll11k";
-	fsl,sai-asynchronous;
 	status = "okay";
 };
 
@@ -1022,14 +882,6 @@
 
 		csi1_mipi_ep: endpoint2 {
 			remote-endpoint = <&csi1_ep>;
-		};
-	};
-};
-
-&mipi_dsi_bridge {
-	port@1 {
-		mipi_dsi_bridge_adv: endpoint {
-			remote-endpoint = <&adv7535_in>;
 		};
 	};
 };
