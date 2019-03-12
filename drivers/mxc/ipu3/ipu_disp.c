@@ -1,5 +1,6 @@
 /*
  * Copyright 2005-2015 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2019 NXP
  */
 
 /*
@@ -1557,6 +1558,8 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 
 	if (!sig.clk_pol)
 		di_gen |= DI_GEN_POLARITY_DISP_CLK;
+	else
+		di_gen &= ~DI_GEN_POLARITY_DISP_CLK;
 
 	ipu_di_write(ipu, disp, di_gen, DI_GENERAL);
 
