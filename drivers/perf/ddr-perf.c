@@ -412,7 +412,7 @@ static irqreturn_t ddr_perf_irq_handler(int irq, void *p)
 	 * values, then reset the cycles counter, so the others can continue
 	 * counting.
 	 */
-	for (i = 0; i <= pmu->total_events; i++) {
+	for (i = 0; i < pmu->total_events; i++) {
 		if (pmu->active_events[i] != NULL) {
 			event = pmu->active_events[i];
 			counter = event->hw.idx;
