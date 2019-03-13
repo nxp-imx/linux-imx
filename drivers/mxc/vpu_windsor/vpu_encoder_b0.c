@@ -118,6 +118,12 @@ static int sw_reset_firmware(struct core_device *core, int resume);
 static int enable_fps_sts(struct vpu_attr *attr);
 static int disable_fps_sts(struct vpu_attr *attr);
 static int configure_codec(struct vpu_ctx *ctx);
+static struct vpu_frame_info *get_idle_frame(struct queue_data *queue);
+static void put_frame_idle(struct vpu_frame_info *frame);
+static int inc_frame(struct queue_data *queue);
+static void dec_frame(struct vpu_frame_info *frame);
+static int submit_input_and_encode(struct vpu_ctx *ctx);
+static int process_stream_output(struct vpu_ctx *ctx);
 
 static char *get_event_str(u32 event)
 {
@@ -839,6 +845,160 @@ static int vpu_enc_v4l2_ioctl_s_parm(struct file *file, void *fh,
 	return 0;
 }
 
+static int vpu_enc_queue_expbuf(struct queue_data *queue,
+				struct v4l2_exportbuffer *buf)
+{
+	int ret = -EINVAL;
+
+	down(&queue->drv_q_lock);
+	if (queue->vb2_q_inited)
+		ret = vb2_expbuf(&queue->vb2_q, buf);
+	up(&queue->drv_q_lock);
+
+	return ret;
+}
+
+static int vpu_enc_queue_reqbufs(struct queue_data *queue,
+				struct v4l2_requestbuffers *reqbuf)
+{
+	int ret = -EINVAL;
+
+	down(&queue->drv_q_lock);
+	if (queue->vb2_q_inited)
+		ret = vb2_reqbufs(&queue->vb2_q, reqbuf);
+	up(&queue->drv_q_lock);
+
+	return ret;
+}
+
+static int vpu_enc_queue_querybuf(struct queue_data *queue,
+				struct v4l2_buffer *buf)
+{
+	int ret = -EINVAL;
+
+	down(&queue->drv_q_lock);
+	if (queue->vb2_q_inited)
+		ret = vb2_querybuf(&queue->vb2_q, buf);
+	up(&queue->drv_q_lock);
+
+	return ret;
+}
+
+static int vpu_enc_queue_qbuf(struct queue_data *queue,
+				struct v4l2_buffer *buf)
+{
+	int ret = -EINVAL;
+
+	down(&queue->drv_q_lock);
+	if (queue->vb2_q_inited)
+		ret = vb2_qbuf(&queue->vb2_q, buf);
+	up(&queue->drv_q_lock);
+
+	return ret;
+}
+
+static int vpu_enc_queue_dqbuf(struct queue_data *queue,
+				struct v4l2_buffer *buf, bool nonblocking)
+{
+	int ret = -EINVAL;
+
+	down(&queue->drv_q_lock);
+	if (queue->vb2_q_inited)
+		ret = vb2_dqbuf(&queue->vb2_q, buf, nonblocking);
+	up(&queue->drv_q_lock);
+
+	return ret;
+}
+
+static int vpu_enc_queue_enable(struct queue_data *queue,
+				enum v4l2_buf_type type)
+{
+	int ret = -EINVAL;
+
+	down(&queue->drv_q_lock);
+	if (queue->vb2_q_inited)
+		ret = vb2_streamon(&queue->vb2_q, type);
+	up(&queue->drv_q_lock);
+
+	return ret;
+}
+
+static void clear_queue(struct queue_data *queue)
+{
+	struct vpu_frame_info *frame;
+	struct vpu_frame_info *tmp;
+	struct vb2_data_req *p_data_req;
+	struct vb2_data_req *p_temp;
+	struct vb2_buffer *vb;
+
+	if (!queue)
+		return;
+
+	list_for_each_entry_safe(frame, tmp, &queue->frame_q, list) {
+		vpu_dbg(LVL_INFO, "drop frame\n");
+		put_frame_idle(frame);
+	}
+
+	list_for_each_entry_safe(frame, tmp, &queue->frame_idle, list)
+		dec_frame(frame);
+
+	list_for_each_entry_safe(p_data_req, p_temp, &queue->drv_q, list) {
+		vpu_dbg(LVL_DEBUG, "%s(%d) - list_del(%p)\n", __func__,
+				p_data_req->sequence, p_data_req);
+		list_del(&p_data_req->list);
+	}
+	list_for_each_entry(vb, &queue->vb2_q.queued_list, queued_entry) {
+		if (vb->state == VB2_BUF_STATE_ACTIVE)
+			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
+	}
+
+	INIT_LIST_HEAD(&queue->drv_q);
+	INIT_LIST_HEAD(&queue->frame_q);
+	INIT_LIST_HEAD(&queue->frame_idle);
+}
+
+static int vpu_enc_queue_disable(struct queue_data *queue,
+				enum v4l2_buf_type type)
+{
+	int ret = -EINVAL;
+
+	down(&queue->drv_q_lock);
+	if (queue->vb2_q_inited) {
+		clear_queue(queue);
+		ret = vb2_streamoff(&queue->vb2_q, type);
+	}
+	up(&queue->drv_q_lock);
+
+	return ret;
+}
+
+static int vpu_enc_queue_release(struct queue_data *queue)
+{
+	int ret = -EINVAL;
+
+	down(&queue->drv_q_lock);
+	if (queue->vb2_q_inited) {
+		clear_queue(queue);
+		vb2_queue_release(&queue->vb2_q);
+	}
+	up(&queue->drv_q_lock);
+
+	return ret;
+}
+
+static int vpu_enc_queue_mmap(struct queue_data *queue,
+				struct vm_area_struct *vma)
+{
+	int ret = -EINVAL;
+
+	down(&queue->drv_q_lock);
+	if (queue->vb2_q_inited)
+		ret = vb2_mmap(&queue->vb2_q, vma);
+	up(&queue->drv_q_lock);
+
+	return ret;
+}
+
 static int vpu_enc_v4l2_ioctl_expbuf(struct file *file,
 		void *fh,
 		struct v4l2_exportbuffer *buf)
@@ -851,7 +1011,7 @@ static int vpu_enc_v4l2_ioctl_expbuf(struct file *file,
 		return -EINVAL;
 	vpu_dbg(LVL_FUNC, "%s(), %s\n", __func__, q_data->desc);
 
-	return vb2_expbuf(&q_data->vb2_q, buf);
+	return vpu_enc_queue_expbuf(q_data, buf);
 }
 
 static int vpu_enc_v4l2_ioctl_subscribe_event(struct v4l2_fh *fh,
@@ -884,7 +1044,7 @@ static int vpu_enc_v4l2_ioctl_reqbufs(struct file *file,
 	vpu_dbg(LVL_FUNC, "%s(), %s, (%d, %d)\n", __func__, q_data->desc,
 			ctx->core_dev->id, ctx->str_index);
 
-	ret = vb2_reqbufs(&q_data->vb2_q, reqbuf);
+	ret = vpu_enc_queue_reqbufs(q_data, reqbuf);
 
 	return ret;
 }
@@ -904,15 +1064,16 @@ static int vpu_enc_v4l2_ioctl_querybuf(struct file *file,
 	vpu_dbg(LVL_FUNC, "%s(), %s, (%d, %d)\n", __func__, q_data->desc,
 			ctx->core_dev->id, ctx->str_index);
 
-	ret = vb2_querybuf(&q_data->vb2_q, buf);
-	if (!ret) {
-		if (buf->memory == V4L2_MEMORY_MMAP) {
-			if (V4L2_TYPE_IS_MULTIPLANAR(buf->type)) {
-				for (i = 0; i < buf->length; i++)
-					buf->m.planes[i].m.mem_offset |= (q_data->type << MMAP_BUF_TYPE_SHIFT);
-			} else
-				buf->m.offset |= (q_data->type << MMAP_BUF_TYPE_SHIFT);
-		}
+	ret = vpu_enc_queue_querybuf(q_data, buf);
+	if (ret)
+		return ret;
+
+	if (buf->memory == V4L2_MEMORY_MMAP) {
+		if (V4L2_TYPE_IS_MULTIPLANAR(buf->type)) {
+			for (i = 0; i < buf->length; i++)
+				buf->m.planes[i].m.mem_offset |= (q_data->type << MMAP_BUF_TYPE_SHIFT);
+		} else
+			buf->m.offset |= (q_data->type << MMAP_BUF_TYPE_SHIFT);
 	}
 
 	return ret;
@@ -1029,10 +1190,24 @@ static int vpu_enc_v4l2_ioctl_qbuf(struct file *file,
 	if (ret < 0)
 		return ret;
 
-	ret = vb2_qbuf(&q_data->vb2_q, buf);
+	ret = vpu_enc_queue_qbuf(q_data, buf);
+	if (ret)
+		return ret;
 
-	if (!ret && buf->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+	if (V4L2_TYPE_IS_OUTPUT(buf->type)) {
+		mutex_lock(&ctx->dev->dev_mutex);
+		mutex_lock(&ctx->instance_mutex);
+		if (!test_bit(VPU_ENC_STATUS_CONFIGURED, &ctx->status))
+			set_bit(VPU_ENC_STATUS_DATA_READY, &ctx->status);
+		configure_codec(ctx);
+		mutex_unlock(&ctx->instance_mutex);
+		mutex_unlock(&ctx->dev->dev_mutex);
+
+		submit_input_and_encode(ctx);
 		count_yuv_input(ctx);
+	} else {
+		process_stream_output(ctx);
+	}
 
 	return ret;
 }
@@ -1082,7 +1257,7 @@ static int vpu_enc_v4l2_ioctl_dqbuf(struct file *file,
 	vpu_dbg(LVL_FUNC, "%s(), %s, (%d, %d)\n", __func__, q_data->desc,
 			ctx->core_dev->id, ctx->str_index);
 
-	ret = vb2_dqbuf(&q_data->vb2_q, buf, file->f_flags & O_NONBLOCK);
+	ret = vpu_enc_queue_dqbuf(q_data, buf, file->f_flags & O_NONBLOCK);
 
 	if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		if (!ret)
@@ -1340,10 +1515,11 @@ static int vpu_enc_v4l2_ioctl_streamon(struct file *file,
 		attr->ts_start[V4L2_DST] = 0;
 	}
 
-	ret = vb2_streamon(&q_data->vb2_q, i);
+	ret = vpu_enc_queue_enable(q_data, i);
 	if (ret)
 		return ret;
-	if (i == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+
+	if (V4L2_TYPE_IS_OUTPUT(i)) {
 		mutex_lock(&ctx->dev->dev_mutex);
 		mutex_lock(&ctx->instance_mutex);
 		set_bit(VPU_ENC_STATUS_OUTPUT_READY, &ctx->status);
@@ -1373,7 +1549,7 @@ static int vpu_enc_v4l2_ioctl_streamoff(struct file *file,
 	request_eos(ctx);
 	wait_for_stop_done(ctx);
 
-	ret = vb2_streamoff(&q_data->vb2_q, i);
+	ret = vpu_enc_queue_disable(q_data, i);
 
 	return ret;
 }
@@ -2959,52 +3135,12 @@ static int vpu_start_streaming(struct vb2_queue *q, unsigned int count)
 	return 0;
 }
 
-static void clear_queue(struct queue_data *queue)
-{
-	struct vpu_frame_info *frame;
-	struct vpu_frame_info *tmp;
-	struct vb2_data_req *p_data_req;
-	struct vb2_data_req *p_temp;
-	struct vb2_buffer *vb;
-
-	if (!queue)
-		return;
-
-	down(&queue->drv_q_lock);
-
-	list_for_each_entry_safe(frame, tmp, &queue->frame_q, list) {
-		vpu_dbg(LVL_INFO, "drop frame\n");
-		put_frame_idle(frame);
-	}
-
-	list_for_each_entry_safe(frame, tmp, &queue->frame_idle, list)
-		dec_frame(frame);
-
-	list_for_each_entry_safe(p_data_req, p_temp, &queue->drv_q, list) {
-		vpu_dbg(LVL_DEBUG, "%s(%d) - list_del(%p)\n", __func__,
-				p_data_req->sequence, p_data_req);
-		list_del(&p_data_req->list);
-	}
-	list_for_each_entry(vb, &queue->vb2_q.queued_list, queued_entry) {
-		if (vb->state == VB2_BUF_STATE_ACTIVE)
-			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
-	}
-
-	INIT_LIST_HEAD(&queue->drv_q);
-	INIT_LIST_HEAD(&queue->frame_q);
-	INIT_LIST_HEAD(&queue->frame_idle);
-
-	up(&queue->drv_q_lock);
-}
-
 static void vpu_stop_streaming(struct vb2_queue *q)
 {
 	struct queue_data *q_data = (struct queue_data *)q->drv_priv;
 
 	vpu_dbg(LVL_BUF, "%s(), %s, (%d, %d)\n", __func__, q_data->desc,
 			q_data->ctx->core_dev->id, q_data->ctx->str_index);
-
-	clear_queue(q_data);
 }
 
 static void vpu_buf_queue(struct vb2_buffer *vb)
@@ -3017,7 +3153,6 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 	vpu_dbg(LVL_BUF, "%s(), %s, (%d, %d)\n", __func__, This->desc,
 			This->ctx->core_dev->id, This->ctx->str_index);
 
-	down(&This->drv_q_lock);
 	data_req = &This->vb2_reqs[vb->index];
 	data_req->vb2_buf = vb;
 	if (V4L2_TYPE_IS_OUTPUT(vq->type)) {
@@ -3025,23 +3160,6 @@ static void vpu_buf_queue(struct vb2_buffer *vb)
 		fill_vb_sequence(vb, data_req->sequence);
 	}
 	list_add_tail(&data_req->list, &This->drv_q);
-
-	up(&This->drv_q_lock);
-
-	if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-
-		mutex_lock(&ctx->dev->dev_mutex);
-		mutex_lock(&ctx->instance_mutex);
-		if (!test_bit(VPU_ENC_STATUS_CONFIGURED, &ctx->status))
-			set_bit(VPU_ENC_STATUS_DATA_READY, &ctx->status);
-		configure_codec(ctx);
-		mutex_unlock(&ctx->instance_mutex);
-		mutex_unlock(&ctx->dev->dev_mutex);
-
-		submit_input_and_encode(ctx);
-	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		process_stream_output(This->ctx);
-	}
 }
 
 static bool is_enc_dma_buf(struct vb2_buffer *vb)
@@ -3222,13 +3340,8 @@ static void vpu_enc_init_queue_data(struct vpu_ctx *ctx)
 
 static void vpu_enc_release_queue_data(struct vpu_ctx *ctx)
 {
-	struct queue_data *This = &ctx->q_data[V4L2_SRC];
-
-	if (This->vb2_q_inited)
-		vb2_queue_release(&This->vb2_q);
-	This = &ctx->q_data[V4L2_DST];
-	if (This->vb2_q_inited)
-		vb2_queue_release(&This->vb2_q);
+	vpu_enc_queue_release(&ctx->q_data[V4L2_SRC]);
+	vpu_enc_queue_release(&ctx->q_data[V4L2_DST]);
 }
 
 static void vpu_ctx_power_on(struct vpu_ctx *ctx)
@@ -4340,9 +4453,6 @@ static int release_instance(struct vpu_ctx *ctx)
 
 	dev = ctx->dev;
 
-	clear_queue(&ctx->q_data[V4L2_SRC]);
-	clear_queue(&ctx->q_data[V4L2_DST]);
-
 	uninit_vpu_ctx(ctx);
 	vpu_enc_free_ctrls(ctx);
 	vpu_enc_release_queue_data(ctx);
@@ -4512,7 +4622,7 @@ static int vpu_enc_v4l2_mmap(struct file *filp, struct vm_area_struct *vma)
 		offset &= ~MMAP_BUF_TYPE_MASK;
 		offset = offset >> PAGE_SHIFT;
 		vma->vm_pgoff = offset;
-		ret = vb2_mmap(&q_data->vb2_q, vma);
+		ret = vpu_enc_queue_mmap(q_data, vma);
 	}
 
 	return ret;
