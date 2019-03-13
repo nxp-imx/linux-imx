@@ -314,7 +314,7 @@ static ssize_t dp_aux_transfer(struct drm_dp_aux *aux,
 #ifdef DEBUG
 		print_bytes(read_resp.addr, read_resp.buff, read_resp.size);
 #endif
-		return  msg->size;
+		return read_resp.size;
 	}
 	return 0;
 }
@@ -369,12 +369,21 @@ void dp_mode_set(state_struct *state,
 
 	DRM_INFO("dp_mode_set()\n");
 
-	drm_dp_downstream_id(&hdp->aux, linkid);
+	ret = drm_dp_downstream_id(&hdp->aux, linkid);
+	if (ret < 0) {
+		DRM_INFO("Failed to Get DP link ID: %d\n", ret);
+		return;
+	}
 	DRM_INFO("DP link id: %s, 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n",
 		 linkid, linkid[0], linkid[1], linkid[2], linkid[3], linkid[4],
 		 linkid[5]);
 
-	drm_dp_link_probe(&hdp->aux, &link);
+	/* Check dp link */
+	ret = drm_dp_link_probe(&hdp->aux, &link);
+	if (ret < 0) {
+		DRM_INFO("Failed to probe DP link: %d\n", ret);
+		return;
+	}
 	DRM_INFO("DP revision: 0x%x\n", link.revision);
 	DRM_INFO("DP rate: %d Mbps\n", link.rate/100);
 	DRM_INFO("DP number of lanes: %d\n", link.num_lanes);

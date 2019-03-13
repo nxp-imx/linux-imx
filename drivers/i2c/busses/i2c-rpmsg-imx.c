@@ -108,6 +108,7 @@ struct i2c_rpmsg_info {
 	struct device *dev;
 	struct i2c_rpmsg_msg *msg;
 	struct completion cmd_complete;
+	struct mutex lock;
 };
 
 static struct i2c_rpmsg_info i2c_rpmsg;
@@ -271,6 +272,7 @@ static int i2c_rpmsg_probe(struct rpmsg_device *rpdev)
 
 	i2c_rpmsg.rpdev = rpdev;
 
+	mutex_init(&i2c_rpmsg.lock);
 	init_completion(&i2c_rpmsg.cmd_complete);
 
 	dev_info(&rpdev->dev, "new channel: 0x%x -> 0x%x!\n",
@@ -309,6 +311,8 @@ static int i2c_rpbus_xfer(struct i2c_adapter *adapter,
 	int i, ret;
 	bool is_last = false;
 
+	mutex_lock(&i2c_rpmsg.lock);
+
 	for (i = 0; i < num; i++) {
 		if (i == num - 1)
 			is_last = true;
@@ -318,18 +322,23 @@ static int i2c_rpbus_xfer(struct i2c_adapter *adapter,
 		if (pmsg->flags & I2C_M_RD) {
 			ret = i2c_rpmsg_read(pmsg, &i2c_rpmsg,
 						rdata->adapter.nr, is_last);
-			if (ret < 0)
+			if (ret < 0) {
+				mutex_unlock(&i2c_rpmsg.lock);
 				return ret;
+			}
 
 			pmsg->len = ret;
 		} else {
 			ret = i2c_rpmsg_write(pmsg, &i2c_rpmsg,
 						rdata->adapter.nr, is_last);
-			if (ret < 0)
+			if (ret < 0) {
+				mutex_unlock(&i2c_rpmsg.lock);
 				return ret;
+			}
 		}
 	}
 
+	mutex_unlock(&i2c_rpmsg.lock);
 	return num;
 }
 

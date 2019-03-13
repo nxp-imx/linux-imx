@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 NXP
+ * Copyright 2017-2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -395,6 +395,68 @@ static void it6263_reset(struct it6263 *it6263)
 	usleep_range(5000, 6000);
 }
 
+static void it6263_lvds_reset(struct it6263 *it6263)
+{
+	/* AFE PLL reset */
+	lvds_update_bits(it6263, LVDS_REG_PLL, 0x1, 0x0);
+	usleep_range(1000, 2000);
+	lvds_update_bits(it6263, LVDS_REG_PLL, 0x1, 0x1);
+
+	/* pclk reset */
+	lvds_update_bits(it6263, LVDS_REG_SW_RST,
+				SOFT_PCLK_DM_RST, SOFT_PCLK_DM_RST);
+	usleep_range(1000, 2000);
+	lvds_update_bits(it6263, LVDS_REG_SW_RST, SOFT_PCLK_DM_RST, 0x0);
+
+	usleep_range(1000, 2000);
+}
+
+static void it6263_lvds_set_interface(struct it6263 *it6263)
+{
+	/* color depth */
+	lvds_update_bits(it6263, LVDS_REG_MODE, LVDS_COLOR_DEPTH,
+						LVDS_COLOR_DEPTH_24);
+
+	/* jeida mapping */
+	lvds_update_bits(it6263, LVDS_REG_MODE, LVDS_OUT_MAP, JEIDA);
+
+	if (it6263->split_mode) {
+		lvds_update_bits(it6263, LVDS_REG_MODE, DMODE, SPLIT_MODE);
+		lvds_update_bits(it6263, LVDS_REG_52, BIT(1), BIT(1));
+	} else {
+		lvds_update_bits(it6263, LVDS_REG_MODE, DMODE, SINGLE_MODE);
+		lvds_update_bits(it6263, LVDS_REG_52, BIT(1), 0);
+	}
+}
+
+static void it6263_lvds_set_afe(struct it6263 *it6263)
+{
+	struct regmap *regmap = it6263->lvds_regmap;
+
+	regmap_write(regmap, LVDS_REG_AFE_3E, 0xaa);
+	regmap_write(regmap, LVDS_REG_AFE_3F, 0x02);
+	regmap_write(regmap, LVDS_REG_AFE_47, 0xaa);
+	regmap_write(regmap, LVDS_REG_AFE_48, 0x02);
+	regmap_write(regmap, LVDS_REG_AFE_4F, 0x11);
+
+	lvds_update_bits(it6263, LVDS_REG_PLL, 0x07, 0);
+}
+
+static void it6263_lvds_config(struct it6263 *it6263)
+{
+	it6263_lvds_reset(it6263);
+	it6263_lvds_set_interface(it6263);
+	it6263_lvds_set_afe(it6263);
+}
+
+static void it6263_hdmi_config(struct it6263 *it6263)
+{
+	regmap_write(it6263->hdmi_regmap, HDMI_REG_INPUT_MODE, IN_RGB);
+
+	hdmi_update_bits(it6263, HDMI_REG_GCP, HDMI_COLOR_DEPTH,
+						HDMI_COLOR_DEPTH_24);
+}
+
 static enum drm_connector_status
 it6263_connector_detect(struct drm_connector *connector, bool force)
 {
@@ -565,6 +627,8 @@ static void it6263_bridge_enable(struct drm_bridge *bridge)
 	struct regmap *regmap = it6263->hdmi_regmap;
 	unsigned long timeout;
 	unsigned int status;
+	bool is_stable = false;
+	int i;
 
 	regmap_write(it6263->hdmi_regmap, HDMI_REG_BANK_CTRL, BANK_SEL(1));
 	/* set the color space to RGB in the AVI packet */
@@ -577,12 +641,26 @@ static void it6263_bridge_enable(struct drm_bridge *bridge)
 	usleep_range(1000, 2000);
 	hdmi_update_bits(it6263, HDMI_REG_SW_RST, SOFTV_RST, 0);
 
-	timeout = jiffies + msecs_to_jiffies(500);
-	do {
-		regmap_read(regmap, HDMI_REG_SYS_STATUS, &status);
-	} while (!(status & TXVIDSTABLE) && time_before(jiffies, timeout));
+	/* reconfigure LVDS and retry several times in case video is instable */
+	for (i = 0; i < 3; i++) {
+		timeout = jiffies + msecs_to_jiffies(500);
+		do {
+			regmap_read(regmap, HDMI_REG_SYS_STATUS, &status);
+		} while (!(status & TXVIDSTABLE) &&
+					time_before(jiffies, timeout));
 
-	if (!(status & TXVIDSTABLE))
+		if (status & TXVIDSTABLE) {
+			is_stable = true;
+			break;
+		}
+
+		it6263_lvds_config(it6263);
+
+		dev_dbg(&it6263->hdmi_i2c->dev,
+					"retry to lock input video %d\n", i);
+	}
+
+	if (!is_stable)
 		dev_warn(&it6263->hdmi_i2c->dev,
 				"failed to wait for video stable\n");
 
@@ -733,61 +811,6 @@ static int it6263_check_chipid(struct it6263 *it6263)
 	return ret;
 }
 
-static void it6263_lvds_reset(struct it6263 *it6263)
-{
-	/* AFE PLL reset */
-	lvds_update_bits(it6263, LVDS_REG_PLL, 0x1, 0x0);
-	usleep_range(1000, 2000);
-	lvds_update_bits(it6263, LVDS_REG_PLL, 0x1, 0x1);
-
-	/* pclk reset */
-	lvds_update_bits(it6263, LVDS_REG_SW_RST,
-				SOFT_PCLK_DM_RST, SOFT_PCLK_DM_RST);
-	usleep_range(1000, 2000);
-	lvds_update_bits(it6263, LVDS_REG_SW_RST, SOFT_PCLK_DM_RST, 0x0);
-
-	usleep_range(1000, 2000);
-}
-
-static void it6263_lvds_set_interface(struct it6263 *it6263)
-{
-	/* color depth */
-	lvds_update_bits(it6263, LVDS_REG_MODE, LVDS_COLOR_DEPTH,
-						LVDS_COLOR_DEPTH_24);
-
-	/* jeida mapping */
-	lvds_update_bits(it6263, LVDS_REG_MODE, LVDS_OUT_MAP, JEIDA);
-
-	if (it6263->split_mode) {
-		lvds_update_bits(it6263, LVDS_REG_MODE, DMODE, SPLIT_MODE);
-		lvds_update_bits(it6263, LVDS_REG_52, BIT(1), BIT(1));
-	} else {
-		lvds_update_bits(it6263, LVDS_REG_MODE, DMODE, SINGLE_MODE);
-		lvds_update_bits(it6263, LVDS_REG_52, BIT(1), 0);
-	}
-}
-
-static void it6263_lvds_set_afe(struct it6263 *it6263)
-{
-	struct regmap *regmap = it6263->lvds_regmap;
-
-	regmap_write(regmap, LVDS_REG_AFE_3E, 0xaa);
-	regmap_write(regmap, LVDS_REG_AFE_3F, 0x02);
-	regmap_write(regmap, LVDS_REG_AFE_47, 0xaa);
-	regmap_write(regmap, LVDS_REG_AFE_48, 0x02);
-	regmap_write(regmap, LVDS_REG_AFE_4F, 0x11);
-
-	lvds_update_bits(it6263, LVDS_REG_PLL, 0x07, 0);
-}
-
-static void it6263_hdmi_config(struct it6263 *it6263)
-{
-	regmap_write(it6263->hdmi_regmap, HDMI_REG_INPUT_MODE, IN_RGB);
-
-	hdmi_update_bits(it6263, HDMI_REG_GCP, HDMI_COLOR_DEPTH,
-						HDMI_COLOR_DEPTH_24);
-}
-
 static const struct regmap_range it6263_hdmi_volatile_ranges[] = {
 	{ .range_min = 0, .range_max = 0x1ff },
 };
@@ -899,9 +922,7 @@ static int it6263_probe(struct i2c_client *client,
 	if (ret)
 		goto unregister_lvds_i2c;
 
-	it6263_lvds_reset(it6263);
-	it6263_lvds_set_interface(it6263);
-	it6263_lvds_set_afe(it6263);
+	it6263_lvds_config(it6263);
 	it6263_hdmi_config(it6263);
 
 	it6263->bridge.funcs = &it6263_bridge_funcs;

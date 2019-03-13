@@ -244,7 +244,7 @@
 
 		pd_lsio: PD_LSIO {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -378,7 +378,7 @@
 
 		pd_conn: PD_CONN {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -486,7 +486,7 @@
 
 		pd_audio: PD_AUDIO {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -859,7 +859,7 @@
 
 		pd_dma: PD_DMA {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1042,7 +1042,7 @@
 
 		pd_gpu: gpu-power-domain {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1095,7 +1095,7 @@
 
 		pd_hsio: hsio-power-domain {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1125,7 +1125,7 @@
 
 		pd_cm40: PD_CM40 {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1382,7 +1382,7 @@
 		};
 		pd_caam: PD_CAAM {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1842,17 +1842,19 @@
 		interrupts = <16 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&irqsteer_mipi_lvds0>;
 		clocks =
-			<&clk IMX8QXP_MIPI0_BYPASS_CLK>,
+			<&clk IMX8QXP_MIPI0_DSI_PHY_CLK>,
 			<&clk IMX8QXP_MIPI0_DSI_TX_ESC_CLK>,
 			<&clk IMX8QXP_MIPI0_DSI_RX_ESC_CLK>;
 		clock-names = "phy_ref", "tx_esc", "rx_esc";
 		assigned-clocks =
+			<&clk IMX8QXP_MIPI0_DSI_PHY_SEL>,
 			<&clk IMX8QXP_MIPI0_DSI_TX_ESC_SEL>,
 			<&clk IMX8QXP_MIPI0_DSI_RX_ESC_SEL>,
 			<&clk IMX8QXP_MIPI0_DSI_TX_ESC_CLK>,
 			<&clk IMX8QXP_MIPI0_DSI_RX_ESC_CLK>;
-		assigned-clock-rates = <0>, <0>, <18000000>, <72000000>;
+		assigned-clock-rates = <0>, <0>, <0>, <18000000>, <72000000>;
 		assigned-clock-parents =
+			<&clk IMX8QXP_MIPI0_DSI_PLL_DIV2_CLK>,
 			<&clk IMX8QXP_MIPI0_DSI_PLL_DIV2_CLK>,
 			<&clk IMX8QXP_MIPI0_DSI_PLL_DIV2_CLK>;
 		power-domains = <&pd_mipi_dsi0>;
@@ -1872,7 +1874,7 @@
 		clocks =
 			<&clk IMX8QXP_MIPI0_PIXEL_CLK>,
 			<&clk IMX8QXP_MIPI0_BYPASS_CLK>,
-			<&clk IMX8QXP_CLK_DUMMY>;
+			<&clk IMX8QXP_MIPI0_DSI_PHY_CLK>;
 		clock-names = "pixel", "bypass", "phy_ref";
 		power-domains = <&pd_mipi_dsi0>;
 		csr = <&mipi_dsi_csr1>;
@@ -2018,17 +2020,19 @@
 		interrupts = <16 IRQ_TYPE_LEVEL_HIGH>;
 		interrupt-parent = <&irqsteer_mipi_lvds1>;
 		clocks =
-			<&clk IMX8QXP_MIPI1_BYPASS_CLK>,
+			<&clk IMX8QXP_MIPI1_DSI_PHY_CLK>,
 			<&clk IMX8QXP_MIPI1_DSI_TX_ESC_CLK>,
 			<&clk IMX8QXP_MIPI1_DSI_RX_ESC_CLK>;
 		clock-names = "phy_ref", "tx_esc", "rx_esc";
 		assigned-clocks =
+			<&clk IMX8QXP_MIPI1_DSI_PHY_SEL>,
 			<&clk IMX8QXP_MIPI1_DSI_TX_ESC_SEL>,
 			<&clk IMX8QXP_MIPI1_DSI_RX_ESC_SEL>,
 			<&clk IMX8QXP_MIPI1_DSI_TX_ESC_CLK>,
 			<&clk IMX8QXP_MIPI1_DSI_RX_ESC_CLK>;
-		assigned-clock-rates = <0>, <0>, <18000000>, <72000000>;
+		assigned-clock-rates = <0>, <0>, <0>, <18000000>, <72000000>;
 		assigned-clock-parents =
+			<&clk IMX8QXP_MIPI1_DSI_PLL_DIV2_CLK>,
 			<&clk IMX8QXP_MIPI1_DSI_PLL_DIV2_CLK>,
 			<&clk IMX8QXP_MIPI1_DSI_PLL_DIV2_CLK>;
 		power-domains = <&pd_mipi_dsi1>;
@@ -2048,7 +2052,7 @@
 		clocks =
 			<&clk IMX8QXP_MIPI1_PIXEL_CLK>,
 			<&clk IMX8QXP_MIPI1_BYPASS_CLK>,
-			<&clk IMX8QXP_CLK_DUMMY>;
+			<&clk IMX8QXP_MIPI1_DSI_PHY_CLK>;
 		clock-names = "pixel", "bypass", "phy_ref";
 		power-domains = <&pd_mipi_dsi1>;
 		csr = <&mipi_dsi_csr2>;
@@ -3463,7 +3467,6 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges = <0 0 0x31400000 0x400000>;
-		fsl,first-jr-index = <2>;
 		fsl,sec-era = <9>;
 
 		sec_jr1: jr1@0x20000 {

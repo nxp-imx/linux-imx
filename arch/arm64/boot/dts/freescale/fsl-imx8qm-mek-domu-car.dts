@@ -75,6 +75,7 @@
 /delete-node/ &lvds_region2;
 /delete-node/ &ldb2_phy;
 /delete-node/ &ldb2;
+/delete-node/ &lvds1_pwm;
 /delete-node/ &irqsteer_lvds1;
 
 /delete-node/ &irqsteer_csi0;
@@ -504,6 +505,21 @@
 				};
 			};
 		};
+	};
+
+	lvds1_pwm: pwm@57244000 {
+		compatible = "fsl,imx8qm-pwm", "fsl,imx27-pwm";
+		reg = <0x0 0x57244000 0 0x1000>;
+		clocks = <&clk_post IMX8QM_LVDS1_PWM0_IPG_CLK>,
+			 <&clk_post IMX8QM_LVDS1_PWM0_CLK>;
+		clock-names = "ipg", "per";
+		assigned-clocks = <&clk_post IMX8QM_LVDS1_PWM0_CLK>;
+		assigned-clock-rates = <24000000>;
+		#pwm-cells = <2>;
+		power-domains = <&pd_lvds1_pwm>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_lvds1_pwm0>;
+		status = "okay";
 	};
 
 	irqsteer_lvds1: irqsteer@572400000 {

@@ -37,6 +37,7 @@
 #define SOF0				0xC0
 #define SOF2				0xC2
 #define MXC_JPEG_ENC_CONF_DONE		1
+#define MXC_JPEG_MAX_PLANES		2
 
 
 /**
@@ -73,8 +74,8 @@ struct mxc_jpeg_desc {
 
 struct mxc_jpeg_q_data {
 	struct mxc_jpeg_fmt	*fmt;
-	u32			sizeimage[1];
-	u32			bytesperline[2];
+	u32			sizeimage[MXC_JPEG_MAX_PLANES];
+	u32			bytesperline[MXC_JPEG_MAX_PLANES];
 	int w;
 	int h;
 	u32			stride;

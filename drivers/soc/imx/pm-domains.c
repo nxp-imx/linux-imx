@@ -68,7 +68,7 @@ static int imx8_pd_power(struct generic_pm_domain *domain, bool power_on)
 
 	pd = container_of(domain, struct imx8_pm_domain, pd);
 
-	if (pd->rsrc_id == SC_R_LAST)
+	if (pd->rsrc_id == SC_R_NONE)
 		return 0;
 
 	/* keep uart console power on for no_console_suspend */
@@ -364,7 +364,7 @@ static int __init imx8_add_pm_domains(struct device_node *parent,
 		if (!of_property_read_u32(np, "reg", &rsrc_id))
 			imx8_pd->rsrc_id = rsrc_id;
 
-		if (imx8_pd->rsrc_id != SC_R_LAST) {
+		if (imx8_pd->rsrc_id != SC_R_NONE) {
 			imx8_pd_setup(imx8_pd);
 
 			if (of_property_read_bool(np, "early_power_on")
@@ -422,7 +422,7 @@ static int __init imx8_init_pm_domains(void)
 		if (!of_property_read_u32(np, "reg", &rsrc_id))
 			imx8_pd->rsrc_id = rsrc_id;
 
-		if (imx8_pd->rsrc_id != SC_R_LAST)
+		if (imx8_pd->rsrc_id != SC_R_NONE)
 			imx8_pd_setup(imx8_pd);
 
 		INIT_LIST_HEAD(&imx8_pd->clks);

@@ -192,7 +192,7 @@
 
 		pd_lsio: PD_LSIO {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -331,7 +331,7 @@
 
 		pd_conn: PD_CONN {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -438,7 +438,7 @@
 
 		pd_hsio: PD_HSIO {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -492,7 +492,7 @@
 
 		pd_audio: PD_AUDIO {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -943,7 +943,7 @@
 
 		pd_dma: PD_DMA {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1190,7 +1190,7 @@
 		};
 		pd_gpu: PD_GPU {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1408,7 +1408,7 @@
 
 		pd_cm40: PD_CM40 {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1428,7 +1428,7 @@
 
 		pd_cm41: PD_CM41 {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1451,7 +1451,7 @@
 
 		pd_caam: PD_CAAM {
 			compatible = "nxp,imx8-pd";
-			reg = <SC_R_LAST>;
+			reg = <SC_R_NONE>;
 			#power-domain-cells = <0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -1933,7 +1933,7 @@
 		clocks =
 			<&clk IMX8QM_MIPI0_PXL_CLK>,
 			<&clk IMX8QM_MIPI0_BYPASS_CLK>,
-			<&clk IMX8QM_CLK_DUMMY>;
+			<&clk IMX8QM_MIPI0_DSI_PHY_CLK>;
 		clock-names = "pixel", "bypass", "phy_ref";
 		power-domains = <&pd_mipi0>;
 		csr = <&mipi_dsi_csr1>;
@@ -2356,7 +2356,7 @@
 		clocks =
 			<&clk IMX8QM_MIPI1_PXL_CLK>,
 			<&clk IMX8QM_MIPI1_BYPASS_CLK>,
-			<&clk IMX8QM_CLK_DUMMY>;
+			<&clk IMX8QM_MIPI1_DSI_PHY_CLK>;
 		clock-names = "pixel", "bypass", "phy_ref";
 		power-domains = <&pd_mipi1>;
 		csr = <&mipi_dsi_csr2>;
@@ -2829,7 +2829,7 @@
 		clock-names = "ipg";
 		assigned-clocks = <&clk IMX8QM_HDMI_DIG_PLL_CLK>,
 							<&clk IMX8QM_HDMI_LIS_IPG_CLK>;
-		assigned-clock-rates = <675000000>, <84375000>;
+		assigned-clock-rates = <800000000>, <100000000>;
 		power-domains = <&pd_hdmi>;
 		status = "disabled";
 	};
@@ -4360,7 +4360,6 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges = <0 0 0x31400000 0x400000>;
-		fsl,first-jr-index = <2>;
 		fsl,sec-era = <9>;
 
 		sec_jr1: jr1@0x20000 {
