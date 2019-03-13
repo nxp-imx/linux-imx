@@ -333,6 +333,13 @@ static int mixel_mipi_phy_init(struct phy *phy)
 	phy_write(phy, PWR_OFF, DPHY_PD_PLL);
 	phy_write(phy, PWR_OFF, DPHY_PD_DPHY);
 
+	if (priv->plat_data->have_sc) {
+		int ret;
+		ret = mixel_mipi_phy_enable(phy, 0);
+		if (ret)
+			return ret;
+	}
+
 	mixel_phy_set_prg_regs(phy);
 
 	phy_write(phy, 0x00, DPHY_LOCK_BYP);
