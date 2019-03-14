@@ -79,7 +79,7 @@
 #include <linux/rpmsg.h>
 
 #define I2C_RPMSG_MAX_BUF_SIZE			16
-#define I2C_RPMSG_TIMEOUT			100 /* unit: ms */
+#define I2C_RPMSG_TIMEOUT			500 /* unit: ms */
 
 #define I2C_RPMSG_CATEGORY			0x09
 #define I2C_RPMSG_VERSION			0x0001
@@ -109,6 +109,9 @@ struct i2c_rpmsg_info {
 	struct i2c_rpmsg_msg *msg;
 	struct completion cmd_complete;
 	struct mutex lock;
+
+	u8 bus_id;
+	u16 addr;
 };
 
 static struct i2c_rpmsg_info i2c_rpmsg;
@@ -124,6 +127,13 @@ static int i2c_rpmsg_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 	if (msg->header.type != I2C_RPMSG_TYPE_RESPONSE)
 		return -EINVAL;
+
+	if (msg->bus_id != i2c_rpmsg.bus_id || msg->addr != i2c_rpmsg.addr) {
+		dev_err(&rpdev->dev,
+		"expected bus_id:%d, addr:%2x, received bus_id:%d, addr:%2x\n",
+		i2c_rpmsg.bus_id, i2c_rpmsg.addr, msg->bus_id, msg->addr);
+		return -EINVAL;
+	}
 
 	if (msg->len > I2C_RPMSG_MAX_BUF_SIZE) {
 		dev_err(&rpdev->dev,
@@ -318,6 +328,9 @@ static int i2c_rpbus_xfer(struct i2c_adapter *adapter,
 			is_last = true;
 
 		pmsg = &msgs[i];
+
+		i2c_rpmsg.bus_id = rdata->adapter.nr;
+		i2c_rpmsg.addr = pmsg->addr;
 
 		if (pmsg->flags & I2C_M_RD) {
 			ret = i2c_rpmsg_read(pmsg, &i2c_rpmsg,
