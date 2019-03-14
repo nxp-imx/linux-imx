@@ -512,7 +512,7 @@ void dcss_dtg_sync_set(struct dcss_soc *dcss, struct videomode *vm)
 	if (pixclock != actual_clk) {
 		dev_info(dcss->dev,
 			 "Pixel clock set to %u kHz instead of %u kHz, "
-			 "error is %d Hz\n",
+			 "difference is %d Hz\n",
 			 (actual_clk / 1000), (pixclock / 1000),
 			 (int)(actual_clk - pixclock));
 	}
