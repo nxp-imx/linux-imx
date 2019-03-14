@@ -1142,7 +1142,7 @@ static void flexcan_set_bittiming(struct net_device *dev)
 		reg |= FLEXCAN_CTRL_SMP;
 	flexcan_write(reg, &regs->ctrl);
 
-	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+	if (priv->can.ctrlmode_supported & CAN_CTRLMODE_FD) {
 		reg = FLEXCAN_CBT_EPRESDIV(bt->brp - 1) |
 			FLEXCAN_CBT_EPSEG1(bt->phase_seg1 - 1) |
 			FLEXCAN_CBT_EPSEG2(bt->phase_seg2 - 1) |
@@ -1155,25 +1155,27 @@ static void flexcan_set_bittiming(struct net_device *dev)
 				bt->brp - 1, bt->phase_seg1 - 1, bt->phase_seg2 - 1,
 				bt->sjw - 1, bt->prop_seg - 1);
 
-		reg = FLEXCAN_FDCBT_FPRESDIV(dbt->brp - 1) |
-			FLEXCAN_FDCBT_FPSEG1(dbt->phase_seg1 - 1) |
-			FLEXCAN_FDCBT_FPSEG2(dbt->phase_seg2 - 1) |
-			FLEXCAN_FDCBT_FRJW(dbt->sjw - 1) |
-			FLEXCAN_FDCBT_FPROPSEG(dbt->prop_seg);
-		flexcan_write(reg, &regs->fdcbt);
+		if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+			reg = FLEXCAN_FDCBT_FPRESDIV(dbt->brp - 1) |
+				FLEXCAN_FDCBT_FPSEG1(dbt->phase_seg1 - 1) |
+				FLEXCAN_FDCBT_FPSEG2(dbt->phase_seg2 - 1) |
+				FLEXCAN_FDCBT_FRJW(dbt->sjw - 1) |
+				FLEXCAN_FDCBT_FPROPSEG(dbt->prop_seg);
+			flexcan_write(reg, &regs->fdcbt);
 
-		if (bt->brp != dbt->brp)
-			netdev_warn(dev, "PRESDIV not the same, may risk transfer errors\n");
+			if (bt->brp != dbt->brp)
+				netdev_warn(dev, "PRESDIV not the same, may risk transfer errors\n");
 
-		netdev_dbg(dev, "fdbt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
-			   dbt->brp - 1, dbt->phase_seg1 - 1, dbt->phase_seg2 - 1,
-			   dbt->sjw - 1, dbt->prop_seg);
+			netdev_dbg(dev, "fdbt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
+				   dbt->brp - 1, dbt->phase_seg1 - 1, dbt->phase_seg2 - 1,
+				   dbt->sjw - 1, dbt->prop_seg);
 
-		netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x cbt=0x%08x fdcbt=0x%08x\n",
-			   __func__, flexcan_read(&regs->mcr),
-			   flexcan_read(&regs->ctrl),
-			   flexcan_read(&regs->cbt),
-			   flexcan_read(&regs->fdcbt));	
+			netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x cbt=0x%08x fdcbt=0x%08x\n",
+				   __func__, flexcan_read(&regs->mcr),
+				   flexcan_read(&regs->ctrl),
+				   flexcan_read(&regs->cbt),
+				   flexcan_read(&regs->fdcbt));
+		}
 	} else {
 		reg = flexcan_read(&regs->ctrl);
 		reg &= ~(FLEXCAN_CTRL_PRESDIV(0xff) |
@@ -1301,13 +1303,6 @@ static int flexcan_chip_start(struct net_device *dev)
 	 * disable Transceiver Delay Compensation
 	 * Configure Message Buffer according to CAN FD mode enabled or not
 	 */
-	if ((priv->can.ctrlmode_supported & CAN_CTRLMODE_FD) &&
-	    !(priv->can.ctrlmode & CAN_CTRLMODE_FD)) {
-		netdev_err(dev, "fd mode must be enabled\n");
-		err = -EOPNOTSUPP;
-		goto out_chip_disable;
-	}
-
 	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
 		reg_fdctrl = flexcan_read(&regs->fdctrl) &
 			     ~FLEXCAN_CANFD_MBDSR_MASK;
@@ -1321,6 +1316,8 @@ static int flexcan_chip_start(struct net_device *dev)
 			reg_ctrl2 = flexcan_read(&regs->ctrl2);
 			flexcan_write(reg_ctrl2 | FLEXCAN_CTRL2_ISOCANFDEN, &regs->ctrl2);
 		}
+
+		priv->offload.is_canfd = true;
 
 		priv->mb_size = FLEXCAN_MB_FD_SIZE;
 		priv->mb_num = FLEXCAN_MB_FD_NUM;
@@ -1680,7 +1677,6 @@ static int flexcan_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *of_id;
 	const struct flexcan_devtype_data *devtype_data;
-	struct device_node *np = pdev->dev.of_node;
 	struct net_device *dev;
 	struct flexcan_priv *priv;
 	struct regulator *reg_xceiver;
@@ -1771,11 +1767,8 @@ static int flexcan_probe(struct platform_device *pdev)
 
 	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_USE_OFF_TIMESTAMP) {
 		if (priv->devtype_data->quirks & FLEXCAN_QUIRK_TIMESTAMP_SUPPORT_FD) {
-			if (!(of_find_property(np, "disable-fd-mode", NULL))) {
-				priv->can.ctrlmode_supported |= CAN_CTRLMODE_FD | CAN_CTRLMODE_FD_NON_ISO;
-				priv->can.bittiming_const = &flexcan_fd_bittiming_const;
-				priv->offload.is_canfd = true;
-			}
+			priv->can.ctrlmode_supported |= CAN_CTRLMODE_FD | CAN_CTRLMODE_FD_NON_ISO;
+			priv->can.bittiming_const = &flexcan_fd_bittiming_const;
 
 			priv->tx_mb_reserved_idx = FLEXCAN_TX_MB_RESERVED_OFF_TIMESTAMP_FD;
 			priv->tx_mb_idx = FLEXCAN_TX_MB_OFF_TIMESTAMP_FD;
