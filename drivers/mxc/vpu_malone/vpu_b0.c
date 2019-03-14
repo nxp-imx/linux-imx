@@ -908,26 +908,28 @@ static int free_dma_buffer(struct vpu_ctx *ctx, struct dma_buffer *buffer)
 	init_dma_buffer(buffer);
 	return 0;
 }
-static int alloc_mbi_buffer(struct vpu_ctx *ctx,
-		struct queue_data *This,
-		u_int32 count)
+
+static u_int32 get_mbi_size(struct queue_data *queue)
 {
-	u_int32 uAlign = 0x800-1;
-	u_int32 mbi_num;
+	u_int32 uAlign = 0x800;
 	u_int32 mbi_size;
+
+	mbi_size = (queue->sizeimage[0] + queue->sizeimage[1])/4;
+	return ALIGN(mbi_size, uAlign);
+}
+
+static int alloc_mbi_buffer(struct vpu_ctx *ctx)
+{
 	u_int32 ret = 0;
 	u_int32 i;
 
-	if (count >= MAX_MBI_NUM)
-		mbi_num = MAX_MBI_NUM;
-	else
-		mbi_num = count;
-	ctx->mbi_num = mbi_num;
+	for (i = 0; i < ctx->mbi_num; i++) {
+		if (ctx->mbi_buffer[i].dma_size >= ctx->mbi_size)
+			continue;
 
-	mbi_size = (This->sizeimage[0]+This->sizeimage[1])/4;
-	mbi_size = ((mbi_size + uAlign) & ~uAlign);
-	for (i = 0; i < mbi_num; i++) {
-		ctx->mbi_buffer[i].dma_size = mbi_size;
+		free_dma_buffer(ctx, &ctx->mbi_buffer[i]);
+		init_dma_buffer(&ctx->mbi_buffer[i]);
+		ctx->mbi_buffer[i].dma_size = ctx->mbi_size;
 		ret = alloc_dma_buffer(ctx, &ctx->mbi_buffer[i]);
 		if (ret) {
 			vpu_dbg(LVL_ERR, "error: alloc mbi buffer fail\n");
@@ -936,6 +938,57 @@ static int alloc_mbi_buffer(struct vpu_ctx *ctx,
 	}
 
 	return ret;
+}
+
+static int alloc_dcp_buffer(struct vpu_ctx *ctx)
+{
+	u_int32 i;
+	int ret = 0;
+
+	for (i = 0; i < ARRAY_SIZE(ctx->dcp_buffer); i++) {
+		if (ctx->dcp_buffer[i].dma_size >= DCP_SIZE)
+			continue;
+
+		free_dma_buffer(ctx, &ctx->dcp_buffer[i]);
+		init_dma_buffer(&ctx->dcp_buffer[i]);
+		ctx->dcp_buffer[i].dma_size = DCP_SIZE;
+		ret = alloc_dma_buffer(ctx, &ctx->dcp_buffer[i]);
+		if (ret) {
+			vpu_dbg(LVL_ERR, "error: alloc dcp buffer fail\n");
+			return ret;
+		}
+	}
+
+	return ret;
+}
+
+static int alloc_decoder_buffer(struct vpu_ctx *ctx)
+{
+	int ret;
+
+	ret = alloc_mbi_buffer(ctx);
+	if (ret)
+		return ret;
+
+	ret = alloc_dcp_buffer(ctx);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
+static int free_decoeder_buffer(struct vpu_ctx *ctx)
+{
+	u_int32 i;
+
+	for (i = 0; i < ARRAY_SIZE(ctx->mbi_buffer); i++)
+		free_dma_buffer(ctx, &ctx->mbi_buffer[i]);
+	for (i = 0; i < ARRAY_SIZE(ctx->dcp_buffer); i++)
+		free_dma_buffer(ctx, &ctx->dcp_buffer[i]);
+	free_dma_buffer(ctx, &ctx->stream_buffer);
+	free_dma_buffer(ctx, &ctx->udata_buffer);
+
+	return 0;
 }
 
 void clear_vb2_buf(struct queue_data *q_data)
@@ -961,7 +1014,6 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 {
 	struct vpu_ctx *ctx = v4l2_fh_to_ctx(fh);
 	struct queue_data *q_data;
-	u_int32 i;
 	int ret;
 
 	vpu_dbg(LVL_INFO, "%s()\n", __func__);
@@ -980,23 +1032,15 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 		ctx->buffer_null = false;
 
 	ret = vpu_dec_queue_reqbufs(q_data, reqbuf);
-	if (!ret) {
-		if (reqbuf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-
-			if (reqbuf->count == 0) {
-				for (i = 0; i < MAX_MBI_NUM; i++) {
-					free_dma_buffer(ctx, &ctx->mbi_buffer[i]);
-					init_dma_buffer(&ctx->mbi_buffer[i]);
-				}
-			} else {
-				for (i = 0; i < reqbuf->count; i++)
-					q_data->vb2_reqs[i].status = FRAME_ALLOC;
-				ret = alloc_mbi_buffer(ctx, q_data, reqbuf->count);
-			}
-		}
-	} else if (reqbuf->count != 0)
-		vpu_dbg(LVL_ERR, "error: %s() can't request (%d) buffer ret=%d\n",
+	if (ret) {
+		vpu_dbg(LVL_ERR, "error: %s() can't request (%d) buffer : %d\n",
 				__func__, reqbuf->count, ret);
+		return ret;
+	}
+	if (!V4L2_TYPE_IS_OUTPUT(reqbuf->type) && reqbuf->count > 0) {
+		ctx->mbi_size = get_mbi_size(q_data);
+		ctx->mbi_num = min_t(u32, reqbuf->count, MAX_MBI_NUM);
+	}
 
 	return ret;
 }
@@ -2299,15 +2343,17 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		struct vb2_data_req;
 		bool buffer_flag = false;
 
+		if (alloc_decoder_buffer(ctx)) {
+			vpu_dbg(LVL_ERR, "alloc decoder buffer fail\n");
+			break;
+		}
+
 		vpu_dbg(LVL_INFO, "VID_API_EVENT_REQ_FRAME_BUFF, type=%d, size=%ld\n", pFSREQ->eType, sizeof(MEDIA_PLAYER_FSREQ));
 		if (pFSREQ->eType == MEDIAIP_DCP_REQ) {
 			if (ctx->dcp_count >= MAX_DCP_NUM) {
 				vpu_dbg(LVL_ERR, "error: request dcp buffers number is over MAX_DCP_NUM\n");
 				break;
 			}
-			ctx->dcp_buffer[ctx->dcp_count].dma_size = DCP_SIZE;
-			alloc_dma_buffer(ctx, &ctx->dcp_buffer[ctx->dcp_count]);
-
 			local_cmddata[0] = ctx->dcp_count;
 			local_cmddata[1] = ctx->dcp_buffer[ctx->dcp_count].dma_phy;
 			local_cmddata[2] = DCP_SIZE;
@@ -3388,6 +3434,7 @@ static int init_vpu_buffer(struct vpu_ctx *ctx)
 		init_dma_buffer(&ctx->mbi_buffer[i]);
 	ctx->mbi_count = 0;
 	ctx->mbi_num = 0;
+	ctx->mbi_size = 0;
 	init_dma_buffer(&ctx->stream_buffer);
 	init_dma_buffer(&ctx->udata_buffer);
 
@@ -3596,7 +3643,6 @@ static int v4l2_release(struct file *filp)
 	struct video_device *vdev = video_devdata(filp);
 	struct vpu_dev *dev = video_get_drvdata(vdev);
 	struct vpu_ctx *ctx = v4l2_fh_to_ctx(filp->private_data);
-	u_int32 i;
 
 	vpu_dbg(LVL_EVENT, "ctx[%d]: v4l2_release() - stopped(%d), finished(%d), eos_added(%d), total frame: %d\n",
 		ctx->str_index, ctx->firmware_stopped, ctx->firmware_finished, ctx->eos_stop_added, ctx->frm_total_num);
@@ -3612,20 +3658,20 @@ static int v4l2_release(struct file *filp)
 		}
 	} else
 		vpu_dbg(LVL_INFO, "v4l2_release() - stopped(%d): skip VID_API_CMD_STOP\n", ctx->firmware_stopped);
+
+	mutex_lock(&ctx->instance_mutex);
+	ctx->ctx_released = true;
+	kfifo_free(&ctx->msg_fifo);
+	destroy_workqueue(ctx->instance_wq);
+	mutex_unlock(&ctx->instance_mutex);
+
 	if (vpu_frmcrcdump_ena)
 		close_crc_file(ctx);
 	release_queue_data(ctx);
 	ctrls_delete_decoder(ctx);
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);
-	for (i = 0; i < MAX_DCP_NUM; i++)
-		free_dma_buffer(ctx, &ctx->dcp_buffer[i]);
-
-	for (i = 0; i < MAX_MBI_NUM; i++)
-		free_dma_buffer(ctx, &ctx->mbi_buffer[i]);
-
-	free_dma_buffer(ctx, &ctx->stream_buffer);
-	free_dma_buffer(ctx, &ctx->udata_buffer);
+	free_decoeder_buffer(ctx);
 	if (atomic64_read(&ctx->statistic.total_dma_size) != 0)
 		vpu_dbg(LVL_ERR, "error: memory leak for vpu dma alloc buffer\n");
 	if (ctx->pSeqinfo) {
@@ -3633,11 +3679,6 @@ static int v4l2_release(struct file *filp)
 		ctx->pSeqinfo = NULL;
 		atomic64_sub(sizeof(MediaIPFW_Video_SeqInfo), &ctx->statistic.total_alloc_size);
 	}
-	mutex_lock(&ctx->instance_mutex);
-	ctx->ctx_released = true;
-	kfifo_free(&ctx->msg_fifo);
-	destroy_workqueue(ctx->instance_wq);
-	mutex_unlock(&ctx->instance_mutex);
 
 	pm_runtime_put_sync(ctx->dev->generic_dev);
 
