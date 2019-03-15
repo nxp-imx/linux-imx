@@ -1,7 +1,7 @@
 /*
  * Samsung MIPI DSIM Bridge
  *
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -289,7 +289,7 @@ struct dsim_hblank_par {
 };
 
 struct dsim_pll_pms {
-	uint64_t bit_clk;	/* kHz */
+	uint32_t bit_clk;	/* kHz */
 	uint32_t p;
 	uint32_t m;
 	uint32_t s;
@@ -312,8 +312,8 @@ struct sec_mipi_dsim {
 	struct clk *pclk;			/* pixel clock */
 
 	/* kHz clocks */
-	uint64_t pix_clk;
-	uint64_t bit_clk;
+	uint32_t pix_clk;
+	uint32_t bit_clk;
 
 	unsigned int lanes;
 	unsigned int channel;			/* virtual channel */
@@ -436,7 +436,7 @@ static const struct dsim_hblank_par *sec_mipi_dsim_get_hblank_par(const char *na
 	return NULL;
 }
 
-static const struct dsim_pll_pms *sec_mipi_dsim_get_pms(uint64_t bit_clk)
+static const struct dsim_pll_pms *sec_mipi_dsim_get_pms(uint32_t bit_clk)
 {
 	int i;
 	const struct dsim_pll_pms *pms;
@@ -1061,7 +1061,7 @@ static void sec_mipi_dsim_init_fifo_pointers(struct sec_mipi_dsim *dsim)
 static void sec_mipi_dsim_config_clkctrl(struct sec_mipi_dsim *dsim)
 {
 	uint32_t clkctrl = 0, data_lanes_en;
-	uint64_t byte_clk, esc_prescaler;
+	uint32_t byte_clk, esc_prescaler;
 
 	clkctrl |= CLKCTRL_TXREQUESTHSCLK;
 
@@ -1083,7 +1083,7 @@ static void sec_mipi_dsim_config_clkctrl(struct sec_mipi_dsim *dsim)
 	 * EscClk = ByteClk / EscPrescaler;
 	 */
 	byte_clk = dsim->bit_clk >> 3;
-	esc_prescaler = DIV_ROUND_UP_ULL(byte_clk, MAX_ESC_CLK_FREQ);
+	esc_prescaler = DIV_ROUND_UP(byte_clk, MAX_ESC_CLK_FREQ);
 	clkctrl |= CLKCTRL_SET_ESCPRESCALER(esc_prescaler);
 
 	dsim_write(dsim, clkctrl, DSIM_CLKCTRL);
@@ -1108,7 +1108,7 @@ int sec_mipi_dsim_check_pll_out(void *driver_private,
 				const struct drm_display_mode *mode)
 {
 	int bpp;
-	uint64_t pix_clk, bit_clk, ref_clk;
+	uint32_t pix_clk, bit_clk, ref_clk;
 	struct sec_mipi_dsim *dsim = driver_private;
 	const struct sec_mipi_dsim_plat_data *pdata = dsim->pdata;
 	const struct dsim_hblank_par *hpar;
@@ -1118,17 +1118,17 @@ int sec_mipi_dsim_check_pll_out(void *driver_private,
 	if (bpp < 0)
 		return -EINVAL;
 
-	pix_clk = mode->clock * 1000;
-	bit_clk = DIV_ROUND_UP_ULL(pix_clk * bpp, dsim->lanes);
+	pix_clk = mode->clock;
+	bit_clk = DIV_ROUND_UP(pix_clk * bpp, dsim->lanes);
 
-	if (bit_clk > pdata->max_data_rate) {
+	if (bit_clk * 1000 > pdata->max_data_rate) {
 		dev_err(dsim->dev,
 			"reuest bit clk freq exceeds lane's maximum value\n");
 		return -EINVAL;
 	}
 
-	dsim->pix_clk = DIV_ROUND_UP_ULL(pix_clk, 1000);
-	dsim->bit_clk = DIV_ROUND_UP_ULL(bit_clk, 1000);
+	dsim->pix_clk = pix_clk;
+	dsim->bit_clk = bit_clk;
 
 	dsim->pms = 0x4210;
 	dsim->hpar = NULL;
