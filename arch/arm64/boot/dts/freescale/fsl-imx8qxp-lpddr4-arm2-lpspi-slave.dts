@@ -16,6 +16,17 @@
 
 /delete-node/&spidev0;
 
+&pinctrl_lpspi2 {
+	fsl,pins = <
+		SC_P_SPI2_SCK_ADMA_SPI2_SCK		0x0600004c
+		SC_P_SPI2_SDO_ADMA_SPI2_SDO		0x0600004c
+		SC_P_SPI2_SDI_ADMA_SPI2_SDI		0x0600004c
+		SC_P_SPI2_CS0_ADMA_SPI2_CS0		0x0600004c
+	>;
+};
+
 &lpspi2 {
+	pinctrl-0 = <&pinctrl_lpspi2>;
+	/delete-property/ cs-gpios;
 	spi-slave;
 };
