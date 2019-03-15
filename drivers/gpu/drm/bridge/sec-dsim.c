@@ -265,6 +265,10 @@
 
 #define MIPI_FIFO_TIMEOUT	msecs_to_jiffies(250)
 
+#define MIPI_HFP_PKT_OVERHEAD	6
+#define MIPI_HBP_PKT_OVERHEAD	6
+#define MIPI_HSA_PKT_OVERHEAD	6
+
 #define to_sec_mipi_dsim(dsi) container_of(dsi, struct sec_mipi_dsim, dsi_host)
 #define conn_to_sec_mipi_dsim(conn)		\
 	container_of(conn, struct sec_mipi_dsim, connector)
@@ -863,7 +867,7 @@ static int sec_mipi_dsim_config_pll(struct sec_mipi_dsim *dsim)
 
 static void sec_mipi_dsim_set_main_mode(struct sec_mipi_dsim *dsim)
 {
-	uint32_t bpp, hfp_wc, hbp_wc, hsa_wc;
+	uint32_t bpp, hfp_wc, hbp_wc, hsa_wc, wc;
 	uint32_t mdresol = 0, mvporch = 0, mhporch = 0, msync = 0;
 	struct videomode *vmode = &dsim->vmode;
 
@@ -880,8 +884,14 @@ static void sec_mipi_dsim_set_main_mode(struct sec_mipi_dsim *dsim)
 
 	/* calculate hfp & hbp word counts */
 	if (dsim->panel || !dsim->hpar) {
-		hfp_wc = vmode->hfront_porch * (bpp >> 3);
-		hbp_wc = vmode->hback_porch * (bpp >> 3);
+		wc = DIV_ROUND_UP(vmode->hfront_porch * (bpp >> 3),
+				  dsim->lanes);
+		hfp_wc = wc > MIPI_HFP_PKT_OVERHEAD ?
+			 wc - MIPI_HFP_PKT_OVERHEAD : vmode->hfront_porch;
+		wc = DIV_ROUND_UP(vmode->hback_porch * (bpp >> 3),
+				  dsim->lanes);
+		hbp_wc = wc > MIPI_HBP_PKT_OVERHEAD ?
+			 wc - MIPI_HBP_PKT_OVERHEAD : vmode->hback_porch;
 	} else {
 		hfp_wc = dsim->hpar->hfp_wc;
 		hbp_wc = dsim->hpar->hbp_wc;
@@ -893,9 +903,12 @@ static void sec_mipi_dsim_set_main_mode(struct sec_mipi_dsim *dsim)
 	dsim_write(dsim, mhporch, DSIM_MHPORCH);
 
 	/* calculate hsa word counts */
-	if (dsim->panel || !dsim->hpar)
-		hsa_wc = vmode->hsync_len * (bpp >> 3);
-	else
+	if (dsim->panel || !dsim->hpar) {
+		wc = DIV_ROUND_UP(vmode->hsync_len * (bpp >> 3),
+				  dsim->lanes);
+		hsa_wc = wc > MIPI_HSA_PKT_OVERHEAD ?
+			 wc - MIPI_HSA_PKT_OVERHEAD : vmode->hsync_len;
+	} else
 		hsa_wc = dsim->hpar->hsa_wc;
 
 	msync |= MSYNC_SET_MAINVSA(vmode->vsync_len) |
