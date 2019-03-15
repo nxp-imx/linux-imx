@@ -924,17 +924,23 @@ static int alloc_mbi_buffer(struct vpu_ctx *ctx)
 	u_int32 ret = 0;
 	u_int32 i;
 
-	for (i = 0; i < ctx->mbi_num; i++) {
-		if (ctx->mbi_buffer[i].dma_size >= ctx->mbi_size)
+	for (i = 0; i < ARRAY_SIZE(ctx->mbi_buffer); i++) {
+		if (i < ctx->mbi_num && ctx->mbi_buffer[i].dma_size >= ctx->mbi_size)
 			continue;
 
 		free_dma_buffer(ctx, &ctx->mbi_buffer[i]);
 		init_dma_buffer(&ctx->mbi_buffer[i]);
+		if (i >= ctx->mbi_num)
+			continue;
 		ctx->mbi_buffer[i].dma_size = ctx->mbi_size;
 		ret = alloc_dma_buffer(ctx, &ctx->mbi_buffer[i]);
 		if (ret) {
-			vpu_dbg(LVL_ERR, "error: alloc mbi buffer fail\n");
+			vpu_dbg(LVL_ERR, "error: %s() ctx[%d] alloc mbi buffer fail\n",
+					__func__, ctx->str_index);
 			return ret;
+		} else {
+			vpu_dbg(LVL_EVENT, "%s() ctx[%d] mbi[%d]: virt: %p, phy: %lld\n",
+					__func__, ctx->str_index, i, ctx->mbi_buffer[i].dma_virt, ctx->mbi_buffer[i].dma_phy);
 		}
 	}
 
@@ -1039,8 +1045,10 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 		return ret;
 	}
 	if (!V4L2_TYPE_IS_OUTPUT(reqbuf->type) && reqbuf->count > 0) {
+		ctx->mbi_count = 0;
 		ctx->mbi_size = get_mbi_size(q_data);
 		ctx->mbi_num = min_t(u32, reqbuf->count, MAX_MBI_NUM);
+		complete(&ctx->alloc_cmp);
 	}
 
 	return ret;
@@ -1220,7 +1228,8 @@ static int v4l2_ioctl_decoder_cmd(struct file *file,
 		vpu_dbg(LVL_EVENT, "ctx[%d]: receive V4L2_DEC_CMD_STOP\n", ctx->str_index);
 		ctx->eos_stop_received = true;
 		v4l2_update_stream_addr(ctx, 0);
-		} break;
+		}
+		break;
 	case V4L2_DEC_CMD_PAUSE:
 		break;
 	case V4L2_DEC_CMD_RESUME:
@@ -1279,7 +1288,8 @@ static int v4l2_ioctl_streamoff(struct file *file,
 	struct queue_data *q_data;
 	int ret;
 
-	vpu_dbg(LVL_EVENT, "%s(): ctx[%d]\n", __func__, ctx->str_index);
+	vpu_dbg(LVL_EVENT, "%s(): ctx[%d] buf_type: %d\n",
+			__func__, ctx->str_index, i);
 
 	if (i == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		q_data = &ctx->q_data[V4L2_SRC];
@@ -2140,9 +2150,11 @@ static void report_buffer_done(struct vpu_ctx *ctx, void *frame_info)
 	v4l2_update_stream_addr(ctx, 0);
 
 	buffer_id = find_buffer_id(ctx, FrameInfo[1]);
-
-	if (buffer_id == -1)
+	if (buffer_id == -1) {
+		vpu_dbg(LVL_ERR, "%s() ctx[%d] not find buffer id: %d, addr: 0x%x\n",
+				__func__, ctx->str_index, fs_id, FrameInfo[1]);
 		return;
+	}
 
 	if (buffer_id != fs_id) {
 		if (fs_id == MEDIA_PLAYER_SKIPPED_FRAME_ID) {
@@ -2282,8 +2294,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				pQMeterInfo, pPicInfo, pDispInfo, pPerfInfo, pPerfDcpInfo, uPicStartAddr, uDpbmcCrc);
 
 		buffer_id = find_buffer_id(ctx, event_data[0]);
-		if (buffer_id == -1)
+		if (buffer_id == -1) {
+			vpu_dbg(LVL_ERR, "error: %s() ctx[%d] not find buffer id: %d, addr: 0x%x\n",
+					__func__, ctx->str_index, uDecFrmId, event_data[0]);
 			break;
+		}
 
 		if (buffer_id != uDecFrmId) {
 			if (uDecFrmId == MEDIA_PLAYER_SKIPPED_FRAME_ID) {
@@ -2360,7 +2375,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				vpu_dbg(LVL_ERR, "error: request dcp buffers number is over MAX_DCP_NUM\n");
 				break;
 			}
-			local_cmddata[0] = ctx->dcp_count;
+			local_cmddata[0] = ctx->dcp_count | (ctx->pSeqinfo->uActiveSeqTag<<24);
 			local_cmddata[1] = ctx->dcp_buffer[ctx->dcp_count].dma_phy;
 			local_cmddata[2] = DCP_SIZE;
 			local_cmddata[3] = 0;
@@ -2368,7 +2383,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			local_cmddata[5] = 0;
 			local_cmddata[6] = pFSREQ->eType;
 			v4l2_vpu_send_cmd(ctx, uStrIdx, VID_API_CMD_FS_ALLOC, 7, local_cmddata);
-			vpu_dbg(LVL_INFO, "VID_API_CMD_FS_ALLOC, eType=%d, index=%d\n", pFSREQ->eType, ctx->dcp_count);
+			vpu_dbg(LVL_INFO, "VID_API_CMD_FS_ALLOC, ctx[%d] eType=%d, index=%d\n",
+					ctx->str_index, pFSREQ->eType, ctx->dcp_count);
 			ctx->dcp_count++;
 		} else if (pFSREQ->eType == MEDIAIP_MBI_REQ) {
 			if (ctx->mbi_count >= ctx->mbi_num) {
@@ -2376,7 +2392,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 						ctx->mbi_count, ctx->mbi_num);
 				break;
 			}
-			local_cmddata[0] = ctx->mbi_count;
+			local_cmddata[0] = ctx->mbi_count | (ctx->pSeqinfo->uActiveSeqTag<<24);
 			local_cmddata[1] = ctx->mbi_buffer[ctx->mbi_count].dma_phy;
 			local_cmddata[2] = ctx->mbi_buffer[ctx->mbi_count].dma_size;
 			local_cmddata[3] = 0;
@@ -2384,7 +2400,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 			local_cmddata[5] = 0;
 			local_cmddata[6] = pFSREQ->eType;
 			v4l2_vpu_send_cmd(ctx, uStrIdx, VID_API_CMD_FS_ALLOC, 7, local_cmddata);
-			vpu_dbg(LVL_INFO, "VID_API_CMD_FS_ALLOC, eType=%d, index=%d\n", pFSREQ->eType, ctx->mbi_count);
+			vpu_dbg(LVL_INFO, "VID_API_CMD_FS_ALLOC, ctx[%d] eType=%d, index=%d\n",
+					ctx->str_index, pFSREQ->eType, ctx->mbi_count);
 			ctx->mbi_count++;
 		} else {
 #if 1
@@ -2428,7 +2445,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 							ChromaAddr = p_data_req->phy_addr[1] + p_data_req->data_offset[1];
 						}
 
-						local_cmddata[0] = p_data_req->id;
+						local_cmddata[0] = p_data_req->id | (ctx->pSeqinfo->uActiveSeqTag<<24);
 						local_cmddata[1] = LumaAddr;
 						local_cmddata[2] = local_cmddata[1] + This->sizeimage[0]/2;
 						local_cmddata[3] = ChromaAddr;
@@ -2437,10 +2454,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 						local_cmddata[6] = pFSREQ->eType;
 						//WARN :need to check the call back VID_API_EVENT_REL_FRAME_BUFF later, when it is received, the corepond id can be released, now just do a temporary workaround
 						if (p_data_req->status == FRAME_RELEASE)
-							v4l2_vpu_send_cmd(ctx, uStrIdx, VID_API_CMD_FS_RELEASE, 1, &p_data_req->id);
+							v4l2_vpu_send_cmd(ctx, uStrIdx, VID_API_CMD_FS_RELEASE, 1, local_cmddata);
 						v4l2_vpu_send_cmd(ctx, uStrIdx, VID_API_CMD_FS_ALLOC, 7, local_cmddata);
 						p_data_req->status = FRAME_FREE;
-						vpu_dbg(LVL_INFO, "VID_API_CMD_FS_ALLOC, data_req->vb2_buf=%p, data_req->id=%d\n", p_data_req->vb2_buf, p_data_req->id);
+						vpu_dbg(LVL_INFO, "VID_API_CMD_FS_ALLOC, ctx[%d] data_req->vb2_buf=%p, data_req->id=%d\n",
+								ctx->str_index, p_data_req->vb2_buf, p_data_req->id);
 						list_del(&p_data_req->list);
 						p_data_req->queued = false;
 						buffer_flag = true;
@@ -2486,7 +2504,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 					LumaAddr = p_data_req->phy_addr[0] + p_data_req->data_offset[0];
 					ChromaAddr = p_data_req->phy_addr[1] + p_data_req->data_offset[1];
 				}
-				local_cmddata[0] = p_data_req->id;
+				local_cmddata[0] = p_data_req->id | (ctx->pSeqinfo->uActiveSeqTag<<24);
 				local_cmddata[1] = LumaAddr;
 				local_cmddata[2] = local_cmddata[1] + This->sizeimage[0]/2;
 				local_cmddata[3] = ChromaAddr;
@@ -2495,11 +2513,12 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				local_cmddata[6] = pFSREQ->eType;
 				//WARN :need to check the call back VID_API_EVENT_REL_FRAME_BUFF later, when it is received, the corepond id can be released, now just do a temporary workaround
 				if (p_data_req->status == FRAME_RELEASE)
-					v4l2_vpu_send_cmd(ctx, uStrIdx, VID_API_CMD_FS_RELEASE, 1, &p_data_req->id);
+					v4l2_vpu_send_cmd(ctx, uStrIdx, VID_API_CMD_FS_RELEASE, 1, local_cmddata);
 				v4l2_vpu_send_cmd(ctx, uStrIdx, VID_API_CMD_FS_ALLOC, 7, local_cmddata);
 				p_data_req->status = FRAME_FREE;
 				up(&This->drv_q_lock);
-				vpu_dbg(LVL_INFO, "VID_API_CMD_FS_ALLOC, data_req->vb2_buf=%p, data_req->id=%d\n", p_data_req->vb2_buf, p_data_req->id);
+				vpu_dbg(LVL_INFO, "VID_API_CMD_FS_ALLOC, ctx[%d] data_req->vb2_buf=%p, data_req->id=%d\n",
+						ctx->str_index, p_data_req->vb2_buf, p_data_req->id);
 			} else
 				vpu_dbg(LVL_ERR, "error: the list is still empty");
 		}
@@ -2533,6 +2552,15 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 				}
 			}
 			p_data_req->status = FRAME_RELEASE;
+		} else if (fsrel->eType == MEDIAIP_MBI_REQ) {
+			vpu_dbg(LVL_INFO, "ctx[%d] relase MEDIAIP_MBI_REQ frame[%d]\n",
+					ctx->str_index, fsrel->uFSIdx);
+		} else if (fsrel->eType == MEDIAIP_DCP_REQ) {
+			vpu_dbg(LVL_INFO, "ctx[%d] relase MEDIAIP_DCP_REQ frame[%d]\n",
+					ctx->str_index, fsrel->uFSIdx);
+		} else {
+			vpu_dbg(LVL_WARN, "warning: ctx[%d] release unknown type frame!\n",
+					ctx->str_index);
 		}
 		up(&This->drv_q_lock);
 		vpu_dbg(LVL_INFO, "VID_API_EVENT_REL_FRAME_BUFF uFSIdx=%d, eType=%d, size=%ld\n",
@@ -2595,17 +2623,27 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		v4l2_vpu_send_cmd(ctx, uStrIdx, VID_API_CMD_RST_BUF, 0, NULL);
 		}
 		break;
-	case VID_API_EVENT_RES_CHANGE:
-		vpu_dbg(LVL_ERR, "warning: VID_API_EVENT_RES_CHANGE is not handled\n");
-#if 0
-		{
-			const struct v4l2_event ev = {
+	case VID_API_EVENT_RES_CHANGE: {
+		const struct v4l2_event ev = {
 			.type = V4L2_EVENT_SOURCE_CHANGE,
 			.u.src_change.changes = V4L2_EVENT_SRC_CH_RESOLUTION
 		};
+		vpu_dbg(LVL_WARN, "warning: ctx[%d] VID_API_EVENT_RES_CHANGE, seq id: %d\n",
+				ctx->str_index, ctx->pSeqinfo->uActiveSeqTag);
+		vpu_log_buffer_state(ctx);
 		v4l2_event_queue_fh(&ctx->fh, &ev);
+		reinit_completion(&ctx->alloc_cmp);
+		while (1) {
+			if (!wait_for_completion_timeout(&ctx->alloc_cmp, msecs_to_jiffies(1000))) {
+				vpu_dbg(LVL_WARN, "ctx[%d] warning: wait application alloc frame timeout\n",
+						ctx->str_index);
+			} else {
+				vpu_dbg(LVL_WARN, "ctx[%d] application alloc frame done\n",
+						ctx->str_index);
+				break;
+			}
 		}
-#endif
+		}
 		break;
 	case VID_API_EVENT_STR_BUF_RST: {
 		pSTREAM_BUFFER_DESCRIPTOR_TYPE pStrBufDesc;
@@ -2652,6 +2690,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		ctx->firmware_finished = true;
 		vpu_dbg(LVL_INFO, "receive VID_API_EVENT_FINISHED and notfiy app eos\n");
 		clear_pic_end_flag(ctx);
+		vpu_log_buffer_state(ctx);
 		v4l2_event_queue_fh(&ctx->fh, &ev); //notfiy app stream eos reached
 
 	}	break;
@@ -3535,6 +3574,7 @@ static int v4l2_open(struct file *filp)
 	init_completion(&ctx->completion);
 	init_completion(&ctx->stop_cmp);
 	init_completion(&ctx->eos_cmp);
+	init_completion(&ctx->alloc_cmp);
 
 	v4l2_fh_init(&ctx->fh, video_devdata(filp));
 	filp->private_data = &ctx->fh;
