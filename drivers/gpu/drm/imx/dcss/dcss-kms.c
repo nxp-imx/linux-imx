@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NXP
+ * Copyright 2017-2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -186,7 +186,7 @@ static int dcss_drm_atomic_commit(struct drm_device *dev,
 
 	drm_atomic_state_get(state);
 	if (nonblock)
-		queue_work(imxdrm->wq, &commit->work);
+		queue_work(imxdrm->dcss_nonblock_commit_wq, &commit->work);
 	else
 		dcss_drm_atomic_commit_tail(commit);
 
