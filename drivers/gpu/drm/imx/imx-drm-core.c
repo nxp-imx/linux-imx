@@ -285,12 +285,22 @@ static int imx_drm_bind(struct device *dev)
 	imxdrm->drm = drm;
 	drm->dev_private = imxdrm;
 
+	if (has_dpu(dev)) {
+		imxdrm->dpu_nonblock_commit_wq =
+				alloc_workqueue("dpu_nonblock_commit_wq",
+						WQ_UNBOUND | WQ_FREEZABLE, 0);
+		if (!imxdrm->dpu_nonblock_commit_wq) {
+			ret = -ENOMEM;
+			goto err_wq;
+		}
+	}
+
 	if (has_dcss(dev)) {
 		imxdrm->dcss_nonblock_commit_wq =
 			alloc_ordered_workqueue("dcss_nonblock_commit_wq", 0);
 		if (!imxdrm->dcss_nonblock_commit_wq) {
 			ret = -ENOMEM;
-			goto err_unref;
+			goto err_wq;
 		}
 	}
 
@@ -378,8 +388,11 @@ err_unbind:
 err_kms:
 	dev_set_drvdata(dev, NULL);
 	drm_mode_config_cleanup(drm);
+err_wq:
 	if (imxdrm->dcss_nonblock_commit_wq)
 		destroy_workqueue(imxdrm->dcss_nonblock_commit_wq);
+	if (imxdrm->dpu_nonblock_commit_wq)
+		destroy_workqueue(imxdrm->dpu_nonblock_commit_wq);
 err_unref:
 	drm_dev_unref(drm);
 
@@ -391,8 +404,10 @@ static void imx_drm_unbind(struct device *dev)
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct imx_drm_device *imxdrm = drm->dev_private;
 
-	if (has_dpu(dev))
+	if (has_dpu(dev)) {
 		imx_drm_driver.driver_features &= ~DRIVER_RENDER;
+		flush_workqueue(imxdrm->dpu_nonblock_commit_wq);
+	}
 
 	if (has_dcss(dev))
 		flush_workqueue(imxdrm->dcss_nonblock_commit_wq);
@@ -408,6 +423,9 @@ static void imx_drm_unbind(struct device *dev)
 
 	component_unbind_all(drm->dev, drm);
 	dev_set_drvdata(dev, NULL);
+
+	if (has_dpu(dev))
+		destroy_workqueue(imxdrm->dpu_nonblock_commit_wq);
 
 	if (has_dcss(dev))
 		destroy_workqueue(imxdrm->dcss_nonblock_commit_wq);
