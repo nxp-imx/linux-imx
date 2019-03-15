@@ -276,14 +276,15 @@ static int find_buffer_id(struct vpu_ctx *ctx, u_int32 addr)
 					up(&This->drv_q_lock);
 					return i;
 				}
-			} else
-				vpu_dbg(LVL_ERR, "error: %s() buffer (%d) is NULL\n",
-						__func__, i);
+			} else {
+				vpu_dbg(LVL_INFO, "error: %s() ctx[%d] buffer (%d) is NULL\n",
+						__func__, ctx->str_index, i);
+			}
 		}
 	}
 	up(&This->drv_q_lock);
-	vpu_dbg(LVL_ERR, "error: %s() can't find suitable id based on address(0x%x)\n",
-			__func__, addr);
+	vpu_dbg(LVL_ERR, "error: %s() ctx[%d] can't find suitable id based on address(0x%x)\n",
+			__func__, ctx->str_index, addr);
 	return -1;
 }
 
@@ -2033,24 +2034,29 @@ static void fill_stream_buffer_info(struct vpu_ctx *ctx)
 
 static void set_pic_end_flag(struct vpu_ctx *ctx)
 {
-	pDEC_RPC_HOST_IFACE pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
-	pBUFFER_INFO_TYPE buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
+	pDEC_RPC_HOST_IFACE pSharedInterface;
+	pBUFFER_INFO_TYPE buffer_info;
 
 	if (!ctx)
 		return;
+
+	pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
+	buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
 
 	if (buffer_info->stream_input_mode == FRAME_LVL)
 		buffer_info->stream_pic_end_flag = 0x1;
 }
 
-
 static void clear_pic_end_flag(struct vpu_ctx *ctx)
 {
-	pDEC_RPC_HOST_IFACE pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
-	pBUFFER_INFO_TYPE buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
+	pDEC_RPC_HOST_IFACE pSharedInterface;
+	pBUFFER_INFO_TYPE buffer_info;
 
 	if (!ctx)
 		return;
+
+	pSharedInterface = ctx->dev->shared_mem.pSharedInterface;
+	buffer_info = &pSharedInterface->StreamBuffInfo[ctx->str_index];
 
 	if (buffer_info->stream_input_mode == FRAME_LVL)
 		buffer_info->stream_pic_end_flag = 0x0;
