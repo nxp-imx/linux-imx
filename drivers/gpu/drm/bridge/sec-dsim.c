@@ -225,7 +225,7 @@
 #define dsim_write(dsim, val, reg)	writel(val, dsim->base + reg)
 
 /* fixed phy ref clk rate */
-#define PHY_REF_CLK		27000000
+#define PHY_REF_CLK		27000
 
 #define MAX_MAIN_HRESOL		2047
 #define MAX_MAIN_VRESOL		2047
@@ -318,6 +318,7 @@ struct sec_mipi_dsim {
 	/* kHz clocks */
 	uint32_t pix_clk;
 	uint32_t bit_clk;
+	uint32_t pref_clk;			/* phy ref clock rate in KHz */
 
 	unsigned int lanes;
 	unsigned int channel;			/* virtual channel */
@@ -438,6 +439,58 @@ static const struct dsim_hblank_par *sec_mipi_dsim_get_hblank_par(const char *na
 	}
 
 	return NULL;
+}
+
+static int sec_mipi_dsim_set_pref_rate(struct sec_mipi_dsim *dsim)
+{
+	int ret;
+	uint32_t rate;
+	struct device *dev = dsim->dev;
+
+	ret = of_property_read_u32(dev->of_node, "pref-rate", &rate);
+	if (ret < 0) {
+		dev_dbg(dev, "no valid rate assigned for pref clock\n");
+		dsim->pref_clk = PHY_REF_CLK;
+	} else {
+		if (unlikely(rate < 6000 || rate > 300000)) {
+			dev_warn(dev, "pref-rate get is invalid: %uKHz\n",
+				 rate);
+			dsim->pref_clk = PHY_REF_CLK;
+		} else
+			dsim->pref_clk = rate;
+	}
+
+set_rate:
+	ret = clk_set_rate(dsim->clk_pllref,
+			   ((unsigned long)dsim->pref_clk) * 1000);
+	if (ret) {
+		dev_err(dev, "failed to set pll ref clock rate\n");
+		return ret;
+	}
+
+	rate = clk_get_rate(dsim->clk_pllref) / 1000;
+	if (unlikely(!rate)) {
+		dev_err(dev, "failed to get pll ref clock rate\n");
+		return -EINVAL;
+	}
+
+	if (rate != dsim->pref_clk) {
+		if (unlikely(dsim->pref_clk == PHY_REF_CLK)) {
+			/* set default rate failed */
+			dev_err(dev, "no valid pll ref clock rate\n");
+			return -EINVAL;
+		}
+
+		dev_warn(dev, "invalid assigned rate for pref: %uKHz\n",
+			 dsim->pref_clk);
+		dev_warn(dev, "use default pref rate instead: %uKHz\n",
+			 PHY_REF_CLK);
+
+		dsim->pref_clk = PHY_REF_CLK;
+		goto set_rate;
+	}
+
+	return 0;
 }
 
 static const struct dsim_pll_pms *sec_mipi_dsim_get_pms(uint32_t bit_clk)
@@ -1160,7 +1213,7 @@ int sec_mipi_dsim_check_pll_out(void *driver_private,
 		if (WARN_ON(!pms))
 			return -EINVAL;
 
-		ref_clk = PHY_REF_CLK / 1000;
+		ref_clk = PHY_REF_CLK;
 		/* TODO: add PMS calculate and check
 		 * Only support '1080p@60Hz' for now,
 		 * add other modes support later
@@ -1714,8 +1767,8 @@ int sec_mipi_dsim_bind(struct device *dev, struct device *master, void *data,
 
 	dev_info(dev, "version number is %#x\n", version);
 
-	/* TODO: set pll ref clock rate to be fixed with 27MHz */
-	ret = clk_set_rate(dsim->clk_pllref, PHY_REF_CLK);
+	/* set suitable rate for phy ref clock */
+	ret = sec_mipi_dsim_set_pref_rate(dsim);
 	if (ret) {
 		dev_err(dev, "failed to set pll ref clock rate\n");
 		return ret;
