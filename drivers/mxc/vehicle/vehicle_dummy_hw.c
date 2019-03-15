@@ -53,8 +53,13 @@
 // right turn signal
 #define TURN_2 2
 
+// temperature set from hardware on Android OREO and PIE uses below indexs
 #define AC_TEMP_LEFT_INDEX 1
 #define AC_TEMP_RIGHT_INDEX 4
+
+// temperature set from APP on Android PIE uses below indexs
+#define PIE_AC_TEMP_LEFT_INDEX 49
+#define PIE_AC_TEMP_RIGHT_INDEX 68
 
 struct vehicle_dummy_drvdata {
 	struct device *dev;
@@ -122,10 +127,17 @@ void mcu_set_control_commands(u32 prop, u32 area, u32 value)
 		break;
 	case HVAC_TEMPERATURE_SET:
 		pr_info("set temp index %d with value %d\n", area, value);
+#ifdef CONFIG_VEHICLE_DRIVER_OREO
 		if (area == AC_TEMP_LEFT_INDEX)
 			vehicle_dummy->temp_left = value;
 		else if (area == AC_TEMP_RIGHT_INDEX)
 			vehicle_dummy->temp_right = value;
+#else
+		if (area == PIE_AC_TEMP_LEFT_INDEX)
+			vehicle_dummy->temp_left = value;
+		else if (area == PIE_AC_TEMP_RIGHT_INDEX)
+			vehicle_dummy->temp_right = value;
+#endif
 		break;
 	case HVAC_POWER_ON:
 		pr_info("set hvac power on with value %d\n", value);
