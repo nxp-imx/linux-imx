@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include <linux/bsearch.h>
 
 struct sec_mipi_dsim_dphy_timing;
+struct sec_mipi_dsim_pll;
 
 struct sec_mipi_dsim_plat_data {
 	uint32_t version;
@@ -26,9 +27,26 @@ struct sec_mipi_dsim_plat_data {
 	uint64_t max_data_rate;
 	const struct sec_mipi_dsim_dphy_timing *dphy_timing;
 	uint32_t num_dphy_timing;
+	const struct sec_mipi_dsim_pll *dphy_pll;
 	int (*dphy_timing_cmp)(const void *key, const void *elt);
 	enum drm_mode_status (*mode_valid)(struct drm_connector *connector,
 					   struct drm_display_mode *mode);
+};
+
+/* DPHY PLL structure */
+struct sec_mipi_dsim_range {
+	uint32_t min;
+	uint32_t max;
+};
+
+struct sec_mipi_dsim_pll {
+	struct sec_mipi_dsim_range p;
+	struct sec_mipi_dsim_range m;
+	struct sec_mipi_dsim_range s;
+	struct sec_mipi_dsim_range k;
+	struct sec_mipi_dsim_range fin;
+	struct sec_mipi_dsim_range fpref;
+	struct sec_mipi_dsim_range fvco;
 };
 
 /* DPHY timings structure */
