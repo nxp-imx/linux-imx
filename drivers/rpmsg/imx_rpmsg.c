@@ -105,6 +105,14 @@ struct imx_rpmsg_vproc {
 
 #define to_imx_virdev(vd) container_of(vd, struct imx_virdev, vdev)
 
+/* Flag 0 of ASR, 1 indicated that remote processor is ready */
+#define REMOTE_IS_READY			BIT(0)
+/*
+ * The time consumption by remote ready is less than 1ms in the
+ * evaluation. Set the max wait timeout as 50ms here.
+ */
+#define REMOTE_READY_WAIT_MAX_RETRIES	500
+
 struct imx_rpmsg_vq_info {
 	__u16 num;	/* number of entries in the virtio_ring */
 	__u16 vq_id;	/* a globaly unique index of this virtqueue */
@@ -149,10 +157,12 @@ static bool imx_rpmsg_notify(struct virtqueue *vq)
 	 * is running normally or in the suspend mode. Only use
 	 * the timeout mechanism by the first notify when the vdev is
 	 * registered.
+	 * ~14ms is required by M4 ready to process the MU message from
+	 * cold boot. Set the wait time 20ms here.
 	 */
 	if (unlikely(rpvq->rpdev->first_notify > 0)) {
 		rpvq->rpdev->first_notify--;
-		MU_SendMessageTimeout(rpvq->rpdev->mu_base, 1, mu_rpmsg, 200);
+		MU_SendMessageTimeout(rpvq->rpdev->mu_base, 1, mu_rpmsg, 2000);
 	} else {
 		MU_SendMessage(rpvq->rpdev->mu_base, 1, mu_rpmsg);
 	}
@@ -503,6 +513,7 @@ static int imx_rpmsg_mu_init(struct imx_rpmsg_vproc *rpdev)
 void imx_rpmsg_restore(struct imx_rpmsg_vproc *rpdev)
 {
 	int i;
+	u32 flags;
 	int vdev_nums = rpdev->vdev_nums;
 
 	for (i = 0; i < vdev_nums; i++) {
@@ -510,8 +521,22 @@ void imx_rpmsg_restore(struct imx_rpmsg_vproc *rpdev)
 		kfree(rpdev->ivdev[i]);
 	}
 
-	/* Wait a while for remote bootup */
-	usleep_range(10000, 20000);
+	/* Make a double check that remote processor is ready or not */
+	for (i = 0; i < REMOTE_READY_WAIT_MAX_RETRIES; i++) {
+		flags = MU_ReadStatus(rpdev->mu_base);
+		if (flags & REMOTE_IS_READY)
+			break;
+		usleep_range(100, 200);
+	}
+	if (unlikely((flags & REMOTE_IS_READY) == 0)) {
+		pr_err("Wait for remote ready timeout, assume it's dead.\n");
+		/*
+		 * In order to make the codes to be robust and back compatible.
+		 * When wait remote ready timeout, use the MU_SendMessageTimeout
+		 * to send the first kick-off message when register the vdev.
+		 */
+		rpdev->first_notify = rpdev->vdev_nums;
+	}
 
 	/* Allocate and setup ivdev again to register virtio devices */
 	if (set_vring_phy_buf(rpdev->pdev, rpdev, rpdev->vdev_nums))
