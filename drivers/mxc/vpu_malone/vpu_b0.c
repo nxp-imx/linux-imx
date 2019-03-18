@@ -165,7 +165,6 @@ static char *bufstat[] = {
 };
 
 static int alloc_vpu_buffer(struct vpu_ctx *ctx);
-static void flush_drv_q(struct queue_data *This);
 
 static char *get_event_str(u32 event)
 {
@@ -802,7 +801,7 @@ static int vpu_dec_queue_release(struct queue_data *queue)
 
 	down(&queue->drv_q_lock);
 	if (queue->vb2_q_inited) {
-		flush_drv_q(queue);
+		clear_queue(queue);
 		vb2_queue_release(&queue->vb2_q);
 	}
 	up(&queue->drv_q_lock);
@@ -3070,28 +3069,6 @@ static void init_queue_data(struct vpu_ctx *ctx)
 	init_vb2_queue(&ctx->q_data[V4L2_DST], V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, ctx);
 	ctx->q_data[V4L2_DST].type = V4L2_DST;
 	sema_init(&ctx->q_data[V4L2_DST].drv_q_lock, 1);
-}
-
-static void flush_drv_q(struct queue_data *This)
-{
-	struct vb2_data_req *p_data_req = NULL;
-	struct vb2_data_req *p_temp;
-
-	vpu_dbg(LVL_INFO, "%s() is called\n", __func__);
-	if (!list_empty(&This->drv_q)) {
-		list_for_each_entry_safe(p_data_req, p_temp, &This->drv_q, list) {
-			vpu_dbg(LVL_INFO, "%s(%d) - list_del(%p)\n",
-					__func__,
-					p_data_req->id,
-					p_data_req);
-			list_del(&p_data_req->list);
-			p_data_req->queued = false;
-			if (p_data_req->vb2_buf)
-				if (p_data_req->vb2_buf->state == VB2_BUF_STATE_ACTIVE)
-					vb2_buffer_done(p_data_req->vb2_buf, VB2_BUF_STATE_ERROR);
-		}
-	}
-	INIT_LIST_HEAD(&This->drv_q);
 }
 
 static void release_queue_data(struct vpu_ctx *ctx)
