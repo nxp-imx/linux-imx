@@ -206,3 +206,7 @@
 &flexspi0 {
 	status = "disabled";
 };
+
+&lpuart3 {
+	status = "disabled";
+};
