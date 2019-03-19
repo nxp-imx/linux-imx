@@ -81,7 +81,7 @@
 **      gckCOMMAND Command
 **          gckCOMMAND object has been updated with a new command queue.
 */
-static gceSTATUS
+gceSTATUS
 _NewQueue(
     IN OUT gckCOMMAND Command,
     IN gctBOOL Stalled
@@ -206,7 +206,7 @@ OnError:
     return status;
 }
 
-static gceSTATUS
+gceSTATUS
 _IncrementCommitAtom(
     IN gckCOMMAND Command,
     IN gctBOOL Increment
@@ -268,7 +268,7 @@ OnError:
 }
 
 #if gcdSECURE_USER
-static gceSTATUS
+gceSTATUS
 _ProcessHints(
     IN gckCOMMAND Command,
     IN gctUINT32 ProcessID,
@@ -394,7 +394,7 @@ OnError:
 #endif
 
 #if !gcdNULL_DRIVER
-static gceSTATUS
+gceSTATUS
 _FlushMMU(
     IN gckCOMMAND Command
     )
@@ -499,7 +499,7 @@ OnError:
 #endif
 }
 
-static gceSTATUS
+gceSTATUS
 _DummyDraw(
     IN gckCOMMAND Command
     )
@@ -608,7 +608,7 @@ _DumpBuffer(
     }
 }
 
-static void
+void
 _DumpKernelCommandBuffer(
     IN gckCOMMAND Command
     )
@@ -635,7 +635,7 @@ _DumpKernelCommandBuffer(
 }
 
 #if !gcdNULL_DRIVER
-static gceSTATUS
+gceSTATUS
 _HandlePatchList(
     IN gckCOMMAND Command,
     IN gcoCMDBUF CommandBuffer,
@@ -732,7 +732,7 @@ OnError:
     return status;
 }
 
-static gceSTATUS
+gceSTATUS
 _WaitForAsyncCommandStamp(
     IN gckCOMMAND Command,
     IN gctUINT64 Stamp
@@ -839,7 +839,7 @@ _ParseCMDBUFTail(
     }
 }
 
-static gceSTATUS
+gceSTATUS
 _GetCMDBUFEntry(
     IN gckCOMMAND Command,
     IN gcoCMDBUF CommandBuffer,
@@ -909,7 +909,7 @@ OnError:
 **  Link a list of command buffer together to make them atomic.
 **  Fence will be added in the last command buffer.
 */
-static gceSTATUS
+gceSTATUS
 _ProcessUserCommandBufferList(
     IN gckCOMMAND Command,
     IN gcoCMDBUF CommandBufferListHead,
@@ -919,9 +919,7 @@ _ProcessUserCommandBufferList(
     gceSTATUS           status;
     gctBOOL             needCopy;
 
-    struct _gcoCMDBUF   _commandBufferObject;
     gcoCMDBUF           currentCMDBUF;
-    struct _gcoCMDBUF   _nextCMDBUF;
     gcoCMDBUF           currentCMDBUFUser = CommandBufferListHead;
 
     gckOS_QueryNeedCopy(Command->os, 0, &needCopy);
@@ -930,7 +928,7 @@ _ProcessUserCommandBufferList(
     gcmkONERROR(gckKERNEL_OpenUserData(
         Command->kernel,
         needCopy,
-        &_commandBufferObject,
+        &Command->_commandBufferObject,
         currentCMDBUFUser,
         gcmSIZEOF(struct _gcoCMDBUF),
         (gctPOINTER *)&currentCMDBUF
@@ -957,7 +955,7 @@ _ProcessUserCommandBufferList(
         gcmkONERROR(gckKERNEL_OpenUserData(
             Command->kernel,
             needCopy,
-            &_nextCMDBUF,
+            &Command->_nextCMDBUF,
             nextCMDBUFUser,
             gcmSIZEOF(struct _gcoCMDBUF),
             (gctPOINTER *)&nextCMDBUF

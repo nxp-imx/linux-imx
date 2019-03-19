@@ -826,6 +826,8 @@ struct _gckCOMMAND
      * avoid occupyting stack space.
      */
     struct _gcoCMDBUF           _commandBufferObject;
+
+    struct _gcoCMDBUF           _nextCMDBUF;
 };
 
 typedef struct _gcsEVENT *      gcsEVENT_PTR;
