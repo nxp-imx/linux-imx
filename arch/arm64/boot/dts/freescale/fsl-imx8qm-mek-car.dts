@@ -887,12 +887,12 @@
 			interrupts = <10 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-parent = <&irqsteer_csi1>;
 			clocks = <&clk IMX8QM_CLK_DUMMY>,
-				 <&clk_post IMX8QM_CSI1_CORE_CLK>,
-				 <&clk_post IMX8QM_CSI1_ESC_CLK>,
+				 <&clk IMX8QM_CSI1_CORE_CLK>,
+				 <&clk IMX8QM_CSI1_ESC_CLK>,
 				 <&clk IMX8QM_IMG_PXL_LINK_CSI1_CLK>;
 			clock-names = "clk_apb", "clk_core", "clk_esc", "clk_pxl";
-			assigned-clocks = <&clk_post IMX8QM_CSI1_CORE_CLK>,
-					  <&clk_post IMX8QM_CSI1_ESC_CLK>;
+			assigned-clocks = <&clk IMX8QM_CSI1_CORE_CLK>,
+					  <&clk IMX8QM_CSI1_ESC_CLK>;
 			assigned-clock-rates = <360000000>, <72000000>;
 			power-domains = <&pd_csi1>;
 			#address-cells = <1>;
