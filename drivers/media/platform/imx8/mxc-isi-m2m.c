@@ -187,12 +187,14 @@ static int m2m_vb2_queue_setup(struct vb2_queue *q,
 			return -EINVAL;
 		}
 		frame = &mxc_isi->m2m.dst_f;
+		mxc_isi->req_cap_buf_num = *num_buffers;
 	} else {
 		if (*num_buffers < 1) {
 			dev_err(dev, "%s at least need one buffer\n", __func__);
 			return -EINVAL;
 		}
 		frame = &mxc_isi->m2m.src_f;
+		mxc_isi->req_out_buf_num = *num_buffers;
 	}
 
 	fmt = frame->fmt;
@@ -935,8 +937,35 @@ unlock:
 	return ret;
 }
 
+static int mxc_isi_m2m_g_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct mxc_isi_dev *mxc_isi = ctrl_to_mxc_isi_m2m(ctrl);
+	unsigned long flags;
+	int ret = 0;
+
+	spin_lock_irqsave(&mxc_isi->slock, flags);
+
+	switch (ctrl->id) {
+	case V4L2_CID_MIN_BUFFERS_FOR_CAPTURE:
+		ctrl->val = mxc_isi->req_cap_buf_num;
+		break;
+	case V4L2_CID_MIN_BUFFERS_FOR_OUTPUT:
+		ctrl->val = mxc_isi->req_out_buf_num;
+		break;
+	default:
+		dev_err(&mxc_isi->pdev->dev, "%s: Not support %d CID\n",
+					__func__, ctrl->id);
+		ret = -EINVAL;
+	}
+
+	spin_unlock_irqrestore(&mxc_isi->slock, flags);
+	return ret;
+
+}
+
 static const struct v4l2_ctrl_ops mxc_isi_m2m_ctrl_ops = {
 	.s_ctrl = mxc_isi_m2m_s_ctrl,
+	.g_volatile_ctrl = mxc_isi_m2m_g_ctrl,
 };
 
 static int mxc_isi_m2m_ctrls_create(struct mxc_isi_dev *mxc_isi)
@@ -955,6 +984,10 @@ static int mxc_isi_m2m_ctrls_create(struct mxc_isi_dev *mxc_isi)
 					V4L2_CID_VFLIP, 0, 1, 1, 0);
 	ctrls->alpha = v4l2_ctrl_new_std(handler, &mxc_isi_m2m_ctrl_ops,
 					V4L2_CID_ALPHA_COMPONENT, 0, 0xff, 1, 0);
+	ctrls->num_cap_buf = v4l2_ctrl_new_std(handler, &mxc_isi_m2m_ctrl_ops,
+					V4L2_CID_MIN_BUFFERS_FOR_CAPTURE, 3, 16, 1, 3);
+	ctrls->num_out_buf = v4l2_ctrl_new_std(handler, &mxc_isi_m2m_ctrl_ops,
+					V4L2_CID_MIN_BUFFERS_FOR_OUTPUT, 1, 16, 1, 1);
 
 	if (!handler->error)
 		ctrls->ready = true;

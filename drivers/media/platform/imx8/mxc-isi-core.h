@@ -173,6 +173,8 @@ struct mxc_isi_ctrls {
 	struct v4l2_ctrl *hflip;
 	struct v4l2_ctrl *vflip;
 	struct v4l2_ctrl *alpha;
+	struct v4l2_ctrl *num_cap_buf;
+	struct v4l2_ctrl *num_out_buf;
 	bool ready;
 };
 
@@ -291,6 +293,8 @@ struct mxc_isi_dev {
 	u32 interface[MAX_PORTS];
 	u32 flags;
 	u32 skip_m2m;
+	u32 req_cap_buf_num;
+	u32 req_out_buf_num;
 	u8 chain_buf;
 
 	atomic_t open_count;
