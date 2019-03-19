@@ -197,8 +197,10 @@ static int imx8_pd_power_off(struct generic_pm_domain *domain)
 		 * that may be lost.
 		 */
 		list_for_each_entry(imx8_rsrc_clk, &pd->clks, node) {
-			imx8_rsrc_clk->parent = clk_get_parent(imx8_rsrc_clk->clk);
-			imx8_rsrc_clk->rate = clk_hw_get_rate(__clk_get_hw(imx8_rsrc_clk->clk));
+			if (imx8_rsrc_clk->clk != NULL) {
+				imx8_rsrc_clk->parent = clk_get_parent(imx8_rsrc_clk->clk);
+				imx8_rsrc_clk->rate = clk_hw_get_rate(__clk_get_hw(imx8_rsrc_clk->clk));
+			}
 		}
 		pd->clk_state_saved = true;
 		pd->clk_state_may_lost = false;
