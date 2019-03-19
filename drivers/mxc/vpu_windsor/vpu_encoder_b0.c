@@ -963,10 +963,8 @@ static int vpu_enc_queue_disable(struct queue_data *queue,
 	int ret = -EINVAL;
 
 	down(&queue->drv_q_lock);
-	if (queue->vb2_q_inited) {
-		clear_queue(queue);
+	if (queue->vb2_q_inited)
 		ret = vb2_streamoff(&queue->vb2_q, type);
-	}
 	up(&queue->drv_q_lock);
 
 	return ret;
@@ -3141,6 +3139,7 @@ static void vpu_stop_streaming(struct vb2_queue *q)
 
 	vpu_dbg(LVL_BUF, "%s(), %s, (%d, %d)\n", __func__, q_data->desc,
 			q_data->ctx->core_dev->id, q_data->ctx->str_index);
+	clear_queue(q_data);
 }
 
 static void vpu_buf_queue(struct vb2_buffer *vb)

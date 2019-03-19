@@ -786,10 +786,8 @@ static int vpu_dec_queue_disable(struct queue_data *queue,
 	int ret = -EINVAL;
 
 	down(&queue->drv_q_lock);
-	if (queue->vb2_q_inited) {
-		clear_queue(queue);
+	if (queue->vb2_q_inited)
 		ret = vb2_streamoff(&queue->vb2_q, type);
-	}
 	up(&queue->drv_q_lock);
 
 	return ret;
@@ -923,14 +921,7 @@ static int alloc_mbi_buffer(struct vpu_ctx *ctx)
 	u_int32 ret = 0;
 	u_int32 i;
 
-	for (i = 0; i < ARRAY_SIZE(ctx->mbi_buffer); i++) {
-		if (i < ctx->mbi_num && ctx->mbi_buffer[i].dma_size >= ctx->mbi_size)
-			continue;
-
-		free_dma_buffer(ctx, &ctx->mbi_buffer[i]);
-		init_dma_buffer(&ctx->mbi_buffer[i]);
-		if (i >= ctx->mbi_num)
-			continue;
+	for (i = 0; i < ctx->mbi_num; i++) {
 		ctx->mbi_buffer[i].dma_size = ctx->mbi_size;
 		ret = alloc_dma_buffer(ctx, &ctx->mbi_buffer[i]);
 		if (ret) {
@@ -946,53 +937,58 @@ static int alloc_mbi_buffer(struct vpu_ctx *ctx)
 	return ret;
 }
 
-static int alloc_dcp_buffer(struct vpu_ctx *ctx)
+static int alloc_dcp_buffer(struct vpu_ctx *ctx, uint32_t index)
 {
-	u_int32 i;
+	struct dma_buffer *dcp_buffer = NULL;
 	int ret = 0;
 
-	for (i = 0; i < ARRAY_SIZE(ctx->dcp_buffer); i++) {
-		if (ctx->dcp_buffer[i].dma_size >= DCP_SIZE)
-			continue;
+	if (index >= ARRAY_SIZE(ctx->dcp_buffer))
+		return -EINVAL;
 
-		free_dma_buffer(ctx, &ctx->dcp_buffer[i]);
-		init_dma_buffer(&ctx->dcp_buffer[i]);
-		ctx->dcp_buffer[i].dma_size = DCP_SIZE;
-		ret = alloc_dma_buffer(ctx, &ctx->dcp_buffer[i]);
-		if (ret) {
-			vpu_dbg(LVL_ERR, "error: alloc dcp buffer fail\n");
-			return ret;
-		}
+	dcp_buffer = &ctx->dcp_buffer[index];
+	if (dcp_buffer->dma_virt && dcp_buffer->dma_size >= DCP_SIZE)
+		return 0;
+
+	free_dma_buffer(ctx, dcp_buffer);
+	dcp_buffer->dma_size = DCP_SIZE;
+	ret = alloc_dma_buffer(ctx, dcp_buffer);
+	if (ret) {
+		vpu_dbg(LVL_ERR, "error: alloc dcp buffer fail\n");
+		return ret;
 	}
-
-	return ret;
-}
-
-static int alloc_decoder_buffer(struct vpu_ctx *ctx)
-{
-	int ret;
-
-	ret = alloc_mbi_buffer(ctx);
-	if (ret)
-		return ret;
-
-	ret = alloc_dcp_buffer(ctx);
-	if (ret)
-		return ret;
 
 	return 0;
 }
 
-static int free_decoeder_buffer(struct vpu_ctx *ctx)
+static int free_mbi_buffers(struct vpu_ctx *ctx)
 {
 	u_int32 i;
 
 	for (i = 0; i < ARRAY_SIZE(ctx->mbi_buffer); i++)
 		free_dma_buffer(ctx, &ctx->mbi_buffer[i]);
+
+	return 0;
+}
+
+static int free_decoder_buffer(struct vpu_ctx *ctx)
+{
+	struct queue_data *queue;
+	u_int32 i;
+
+	queue = &ctx->q_data[V4L2_DST];
+	down(&queue->drv_q_lock);
+	for (i = 0; i < ARRAY_SIZE(ctx->mbi_buffer); i++)
+		free_dma_buffer(ctx, &ctx->mbi_buffer[i]);
+	up(&queue->drv_q_lock);
+
 	for (i = 0; i < ARRAY_SIZE(ctx->dcp_buffer); i++)
 		free_dma_buffer(ctx, &ctx->dcp_buffer[i]);
+
+	queue = &ctx->q_data[V4L2_SRC];
+	down(&queue->drv_q_lock);
 	free_dma_buffer(ctx, &ctx->stream_buffer);
 	free_dma_buffer(ctx, &ctx->udata_buffer);
+	up(&queue->drv_q_lock);
 
 	return 0;
 }
@@ -1043,12 +1039,20 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 				__func__, reqbuf->count, ret);
 		return ret;
 	}
-	if (!V4L2_TYPE_IS_OUTPUT(reqbuf->type) && reqbuf->count > 0) {
-		ctx->mbi_count = 0;
+	if (V4L2_TYPE_IS_OUTPUT(reqbuf->type))
+		return ret;
+
+	down(&q_data->drv_q_lock);
+	free_mbi_buffers(ctx);
+	ctx->mbi_count = 0;
+	ctx->mbi_num = min_t(u32, reqbuf->count, MAX_MBI_NUM);
+	if (ctx->mbi_num > 0) {
 		ctx->mbi_size = get_mbi_size(q_data);
-		ctx->mbi_num = min_t(u32, reqbuf->count, MAX_MBI_NUM);
-		complete(&ctx->alloc_cmp);
+		alloc_mbi_buffer(ctx);
 	}
+	up(&q_data->drv_q_lock);
+	if (reqbuf->count > 0)
+		complete(&ctx->alloc_cmp);
 
 	return ret;
 }
@@ -2363,17 +2367,15 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		struct vb2_data_req;
 		bool buffer_flag = false;
 
-		if (alloc_decoder_buffer(ctx)) {
-			vpu_dbg(LVL_ERR, "alloc decoder buffer fail\n");
-			break;
-		}
-
 		vpu_dbg(LVL_INFO, "VID_API_EVENT_REQ_FRAME_BUFF, type=%d, size=%ld\n", pFSREQ->eType, sizeof(MEDIA_PLAYER_FSREQ));
 		if (pFSREQ->eType == MEDIAIP_DCP_REQ) {
 			if (ctx->dcp_count >= MAX_DCP_NUM) {
 				vpu_dbg(LVL_ERR, "error: request dcp buffers number is over MAX_DCP_NUM\n");
 				break;
 			}
+			if (alloc_dcp_buffer(ctx, ctx->dcp_count))
+				break;
+
 			local_cmddata[0] = ctx->dcp_count | (ctx->pSeqinfo->uActiveSeqTag<<24);
 			local_cmddata[1] = ctx->dcp_buffer[ctx->dcp_count].dma_phy;
 			local_cmddata[2] = DCP_SIZE;
@@ -2980,7 +2982,10 @@ static int vpu_start_streaming(struct vb2_queue *q,
 
 static void vpu_stop_streaming(struct vb2_queue *q)
 {
+	struct queue_data *queue = (struct queue_data *)q->drv_priv;
+
 	vpu_dbg(LVL_INFO, "%s() is called\n", __func__);
+	clear_queue(queue);
 }
 
 static void vpu_buf_queue(struct vb2_buffer *vb)
@@ -3694,7 +3699,7 @@ static int v4l2_release(struct file *filp)
 	ctrls_delete_decoder(ctx);
 	v4l2_fh_del(&ctx->fh);
 	v4l2_fh_exit(&ctx->fh);
-	free_decoeder_buffer(ctx);
+	free_decoder_buffer(ctx);
 	if (atomic64_read(&ctx->statistic.total_dma_size) != 0)
 		vpu_dbg(LVL_ERR, "error: memory leak for vpu dma alloc buffer\n");
 	if (ctx->pSeqinfo) {
