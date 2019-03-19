@@ -2,7 +2,7 @@
  * Controller-level driver, kernel property detection, initialization
  *
  * Copyright 2008-2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2018 NXP
+ * Copyright 2017-2019 NXP
  */
 
 #include <linux/device.h>
@@ -42,6 +42,12 @@ static int enable_jobrings(struct caam_drv_private *ctrlpriv, int block_offset);
 static void enable_qi(struct caam_drv_private *ctrlpriv, int block_offset);
 static int probe_w_seco(struct caam_drv_private *ctrlpriv);
 static void init_debugfs(struct caam_drv_private *ctrlpriv);
+static void caam_ctrl_hw_configuration(struct caam_drv_private *ctrlpriv);
+static void enable_virt(struct caam_drv_private *ctrlpriv);
+
+#ifdef CONFIG_PM_SLEEP
+static int caam_off_during_pm(void);
+#endif
 
 /*
  * i.MX targets tend to have clock control subsystems that can
@@ -296,6 +302,27 @@ exit:
 	return ret;
 }
 
+static void caam_ctrl_hw_configuration(struct caam_drv_private *ctrlpriv)
+{
+	/*
+	 * Enable DECO watchdogs and, if this is a PHYS_ADDR_T_64BIT kernel,
+	 * long pointers in master configuration register.
+	 * In case of DPAA 2.x, Management Complex firmware performs
+	 * the configuration.
+	 */
+	if (!caam_dpaa2)
+		clrsetbits_32(&ctrlpriv->ctrl->mcr,
+			      MCFGR_AWCACHE_MASK | MCFGR_LONG_PTR,
+			      MCFGR_AWCACHE_CACH | MCFGR_AWCACHE_BUFF |
+			      MCFGR_WDENABLE | MCFGR_LARGE_BURST |
+			      (sizeof(dma_addr_t) == sizeof(u64) ?
+			       MCFGR_LONG_PTR : 0));
+
+	handle_imx6_err005766(ctrlpriv);
+
+	enable_virt(ctrlpriv);
+}
+
 /* Probe routine for CAAM top (controller) level */
 static int caam_probe(struct platform_device *pdev)
 {
@@ -346,15 +373,29 @@ static int caam_probe(struct platform_device *pdev)
 	}
 	ctrlpriv->ctrl = (struct caam_ctrl __force *)ctrl;
 
+	if (of_find_compatible_node(NULL, NULL, "linaro,optee-tz"))
+		ctrlpriv->has_optee = 1;
+
 	if (of_machine_is_compatible("fsl,imx8qm") ||
-		 of_machine_is_compatible("fsl,imx8qxp")) {
+	    of_machine_is_compatible("fsl,imx8qxp"))
+		ctrlpriv->has_seco = 1;
+
+	/*
+	 * The driver does not have access to Page 0 of the CAAM if there
+	 * is a secure component managing the CAAM as optee or SECO.
+	 */
+	ctrlpriv->has_access_p0 = !(ctrlpriv->has_optee || ctrlpriv->has_seco);
+
+#ifdef CONFIG_PM_SLEEP
+	ctrlpriv->caam_off_during_pm = caam_off_during_pm();
+#endif
+
+	if (ctrlpriv->has_seco) {
 		ret = probe_w_seco(ctrlpriv);
 		if (ret)
 			goto iounmap_ctrl;
 		return ret;
 	}
-
-	ctrlpriv->has_seco = false;
 
 	if (caam_imx)
 		caam_little_end = true;
@@ -414,23 +455,11 @@ static int caam_probe(struct platform_device *pdev)
 		ctrlpriv->sm_size = PG_SIZE_64K;
 	}
 
-	/*
-	 * Enable DECO watchdogs and, if this is a PHYS_ADDR_T_64BIT kernel,
-	 * long pointers in master configuration register.
-	 * In case of DPAA 2.x, Management Complex firmware performs
-	 * the configuration.
-	 */
 	caam_dpaa2 = !!(comp_params & CTPR_MS_DPAA2);
-	if (!caam_dpaa2)
-		clrsetbits_32(&ctrl->mcr, MCFGR_AWCACHE_MASK | MCFGR_LONG_PTR,
-			      MCFGR_AWCACHE_CACH | MCFGR_AWCACHE_BUFF |
-			      MCFGR_WDENABLE | MCFGR_LARGE_BURST |
-			      (sizeof(dma_addr_t) == sizeof(u64) ?
-			       MCFGR_LONG_PTR : 0));
-
-	handle_imx6_err005766(ctrlpriv);
-
 	check_virt(ctrlpriv, comp_params);
+
+	if (ctrlpriv->has_access_p0)
+		caam_ctrl_hw_configuration(ctrlpriv);
 
 	/* Set DMA masks according to platform ranging */
 	if (of_machine_is_compatible("fsl,imx8mm") ||
@@ -501,6 +530,14 @@ exit:
 	return ret;
 }
 
+static void enable_virt(struct caam_drv_private *ctrlpriv)
+{
+	if (ctrlpriv->virt_en == 1)
+		clrsetbits_32(&ctrlpriv->ctrl->jrstart, 0, JRSTART_JR0_START |
+			      JRSTART_JR1_START | JRSTART_JR2_START |
+			      JRSTART_JR3_START);
+}
+
 static void check_virt(struct caam_drv_private *ctrlpriv, u32 comp_params)
 {
 	/*
@@ -525,11 +562,6 @@ static void check_virt(struct caam_drv_private *ctrlpriv, u32 comp_params)
 		if (comp_params & CTPR_MS_VIRT_EN_POR)
 			ctrlpriv->virt_en = 1;
 	}
-
-	if (ctrlpriv->virt_en == 1)
-		clrsetbits_32(&ctrlpriv->ctrl->jrstart, 0, JRSTART_JR0_START |
-			      JRSTART_JR1_START | JRSTART_JR2_START |
-			      JRSTART_JR3_START);
 }
 
 static int enable_jobrings(struct caam_drv_private *ctrlpriv, int block_offset)
@@ -776,10 +808,107 @@ static const struct of_device_id caam_match[] = {
 };
 MODULE_DEVICE_TABLE(of, caam_match);
 
+#ifdef CONFIG_PM_SLEEP
+
+/*
+ * Indicate if the internal state of the CAAM is lost during PM
+ */
+static int caam_off_during_pm(void)
+{
+	if (IS_ENABLED(CONFIG_ARM64))
+		return 1;
+
+	if (of_machine_is_compatible("fsl,imx6sx") ||
+	    of_machine_is_compatible("fsl,imx6ul") ||
+	    of_machine_is_compatible("fsl,imx7ulp") ||
+	    of_machine_is_compatible("fsl,imx7d") ||
+	    of_machine_is_compatible("fsl,imx7s"))
+		return 1;
+
+	return 0;
+}
+
+static void caam_state_save(struct device *dev)
+{
+	int idx;
+	struct caam_drv_private *ctrlpriv = dev_get_drvdata(dev);
+	struct caam_ctl_state *state = &ctrlpriv->state;
+	struct caam_ctrl *ctrl = ctrlpriv->ctrl;
+
+	/* Save SCFGR */
+	state->scfgr = rd_reg32(&ctrl->scfgr);
+
+	/* Save DECO mid */
+	state->deco_mid[0].liodn_ms = rd_reg32(&ctrl->deco_mid[0].liodn_ms);
+	state->deco_mid[0].liodn_ls = rd_reg32(&ctrl->deco_mid[0].liodn_ls);
+
+	/* Save the MID for JR assigned to linux */
+	for (idx = 0; idx < JOBR_MAX_COUNT; idx++)
+		if (ctrlpriv->jr[idx]) {
+			state->jr_mid[idx].liodn_ms =
+				rd_reg32(&ctrl->jr_mid[idx].liodn_ms);
+			state->jr_mid[idx].liodn_ls =
+				rd_reg32(&ctrl->jr_mid[idx].liodn_ls);
+		}
+}
+
+static void caam_state_restore(const struct device *dev)
+{
+	int idx;
+	const struct caam_drv_private *ctrlpriv = dev_get_drvdata(dev);
+	const struct caam_ctl_state *state = &ctrlpriv->state;
+	struct caam_ctrl *ctrl = ctrlpriv->ctrl;
+
+	/* Restore SCFGR */
+	wr_reg32(&ctrl->scfgr, state->scfgr);
+
+	/* Restore DECO mid */
+	wr_reg32(&ctrl->deco_mid[0].liodn_ms, state->deco_mid[0].liodn_ms);
+	wr_reg32(&ctrl->deco_mid[0].liodn_ls, state->deco_mid[0].liodn_ls);
+
+	/* Restore the MID for JR assigned to linux */
+	for (idx = 0; idx < JOBR_MAX_COUNT; idx++)
+		if (ctrlpriv->jr[idx]) {
+			wr_reg32(&ctrl->jr_mid[idx].liodn_ms,
+				 state->jr_mid[idx].liodn_ms);
+			wr_reg32(&ctrl->jr_mid[idx].liodn_ls,
+				 state->jr_mid[idx].liodn_ls);
+		}
+}
+
+static int caam_ctrl_suspend(struct device *dev)
+{
+	const struct caam_drv_private *ctrlpriv = dev_get_drvdata(dev);
+
+	if (ctrlpriv->caam_off_during_pm && ctrlpriv->has_access_p0)
+		caam_state_save(dev);
+
+	return 0;
+}
+
+static int caam_ctrl_resume(struct device *dev)
+{
+	struct caam_drv_private *ctrlpriv = dev_get_drvdata(dev);
+
+	if (ctrlpriv->caam_off_during_pm && ctrlpriv->has_access_p0) {
+		caam_state_restore(dev);
+		caam_ctrl_hw_configuration(ctrlpriv);
+	}
+
+	return 0;
+}
+
+SIMPLE_DEV_PM_OPS(caam_ctrl_pm_ops, caam_ctrl_suspend, caam_ctrl_resume);
+
+#endif /* CONFIG_PM_SLEEP */
+
 static struct platform_driver caam_driver = {
 	.driver = {
 		.name = "caam",
 		.of_match_table = caam_match,
+#ifdef CONFIG_PM_SLEEP
+		.pm = &caam_ctrl_pm_ops,
+#endif
 	},
 	.probe       = caam_probe,
 	.remove      = caam_remove,
