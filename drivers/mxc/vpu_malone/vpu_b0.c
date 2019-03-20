@@ -1275,9 +1275,6 @@ static int v4l2_ioctl_streamon(struct file *file,
 	if (ctx->hang_status) {
 		vpu_dbg(LVL_ERR, "%s(): not succeed and some instance are blocked\n", __func__);
 		return -EINVAL;
-	} else if (ctx->firmware_stopped) {
-		vpu_dbg(LVL_ERR, "%s(): not succeed and firmware is stopped\n", __func__);
-		return -EINVAL;
 	} else
 		return ret;
 }
@@ -1331,9 +1328,6 @@ static int v4l2_ioctl_streamoff(struct file *file,
 
 	if (ctx->hang_status) {
 		vpu_dbg(LVL_ERR, "%s(): not succeed and some instance are blocked\n", __func__);
-		return -EINVAL;
-	} else if (ctx->firmware_stopped) {
-		vpu_dbg(LVL_ERR, "%s(): not succeed and firmware is stopped\n", __func__);
 		return -EINVAL;
 	} else
 		return ret;
@@ -2244,7 +2238,7 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		return;
 	}
 
-	if (ctx->firmware_stopped) {
+	if (ctx->firmware_stopped && uEvent != VID_API_EVENT_START_DONE) {
 		vpu_dbg(LVL_ERR, "receive event: 0x%X after stopped, ignore it\n", uEvent);
 		return;
 	}
@@ -2253,10 +2247,13 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 
 	switch (uEvent) {
 	case VID_API_EVENT_START_DONE:
+		ctx->firmware_stopped = false;
+		ctx->firmware_finished = false;
 		break;
 	case VID_API_EVENT_STOPPED: {
 		vpu_dbg(LVL_INFO, "receive VID_API_EVENT_STOPPED\n");
 		ctx->firmware_stopped = true;
+		ctx->start_flag = true;
 		complete(&ctx->completion);//reduce possibility of abort hang if decoder enter stop automatically
 		complete(&ctx->stop_cmp);
 		}
@@ -2671,7 +2668,11 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 							i, bufstat[p_data_req->status]);
 		}
 		up(&This->drv_q_lock);
-		complete(&ctx->completion);
+		if (ctx->b_firstseq)
+			v4l2_vpu_send_cmd(ctx, ctx->str_index,
+					VID_API_CMD_STOP, 0, NULL);
+		else
+			complete(&ctx->completion);
 		}
 		break;
 	case VID_API_EVENT_RET_PING:
