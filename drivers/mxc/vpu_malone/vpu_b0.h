@@ -276,6 +276,7 @@ struct vpu_ctx {
 	struct completion completion;
 	struct completion stop_cmp;
 	struct completion eos_cmp;
+	struct completion alloc_cmp;
 	MediaIPFW_Video_SeqInfo *pSeqinfo;
 	bool b_dis_reorder;
 	bool b_firstseq;
@@ -293,6 +294,7 @@ struct vpu_ctx {
 	wait_queue_head_t buffer_wq;
 	u_int32 mbi_count;
 	u_int32 mbi_num;
+	u_int32 mbi_size;
 	u_int32 dcp_count;
 	struct dma_buffer dpb_buffer;
 	struct dma_buffer dcp_buffer[MAX_DCP_NUM];

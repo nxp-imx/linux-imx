@@ -246,6 +246,31 @@ static int imx8q_dsi_poweron(struct imx_mipi_dsi *dsi, bool v2)
 			     mipi_id,
 			     dc_id);
 
+	/* Assert DPI and MIPI bits */
+	sci_err = sc_misc_set_control(ipc_handle,
+				      mipi_id,
+				      SC_C_DPI_RESET,
+				      0);
+	if (sci_err != SC_ERR_NONE) {
+		DRM_DEV_ERROR(dev,
+			      "Failed to assert DPI reset (%d)\n",
+			      sci_err);
+		ret = -ENODEV;
+		goto err_ipc;
+	}
+
+	sci_err = sc_misc_set_control(ipc_handle,
+				      mipi_id,
+				      SC_C_MIPI_RESET,
+				      0);
+	if (sci_err != SC_ERR_NONE) {
+		DRM_DEV_ERROR(dev,
+			      "Failed to assert MIPI reset (%d)\n",
+			      sci_err);
+		ret = -ENODEV;
+		goto err_ipc;
+	}
+
 	if (v2) {
 		sci_err = sc_misc_set_control(ipc_handle,
 				mipi_id, SC_C_MODE, 0);
@@ -310,14 +335,14 @@ static int imx8q_dsi_poweron(struct imx_mipi_dsi *dsi, bool v2)
 		goto err_ipc;
 	}
 
-	/* Assert DPI and MIPI bits */
+	/* De-Assert DPI and MIPI bits */
 	sci_err = sc_misc_set_control(ipc_handle,
 				      mipi_id,
 				      SC_C_DPI_RESET,
 				      1);
 	if (sci_err != SC_ERR_NONE) {
 		DRM_DEV_ERROR(dev,
-			"Failed to assert DPI reset (%d)\n",
+			"Failed to deassert DPI reset (%d)\n",
 			sci_err);
 		ret = -ENODEV;
 		goto err_ipc;
@@ -329,7 +354,7 @@ static int imx8q_dsi_poweron(struct imx_mipi_dsi *dsi, bool v2)
 				      1);
 	if (sci_err != SC_ERR_NONE) {
 		DRM_DEV_ERROR(dev,
-			"Failed to assert MIPI reset (%d)\n",
+			"Failed to deassert MIPI reset (%d)\n",
 			sci_err);
 		ret = -ENODEV;
 		goto err_ipc;

@@ -185,6 +185,7 @@ void mipid_hx8369_get_lcd_videomode(struct fb_videomode **mode, int *size,
 	*size = ARRAY_SIZE(truly_lcd_modedb);
 	*data = &lcd_config;
 }
+EXPORT_SYMBOL(mipid_hx8369_get_lcd_videomode);
 
 int mipid_hx8369_lcd_setup(struct mipi_dsi_info *mipi_dsi)
 {
@@ -383,6 +384,7 @@ int mipid_hx8369_lcd_setup(struct mipi_dsi_info *mipi_dsi)
 	err = mipid_init_backlight(mipi_dsi);
 	return err;
 }
+EXPORT_SYMBOL(mipid_hx8369_lcd_setup);
 
 static int mipid_bl_update_status(struct backlight_device *bl)
 {

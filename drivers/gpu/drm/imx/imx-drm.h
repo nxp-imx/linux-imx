@@ -22,7 +22,8 @@ struct imx_drm_device {
 	struct drm_fbdev_cma			*fbhelper;
 	struct drm_atomic_state			*state;
 
-	struct workqueue_struct *wq;
+	struct workqueue_struct			*dpu_nonblock_commit_wq;
+	struct workqueue_struct			*dcss_nonblock_commit_wq;
 	struct {
 		wait_queue_head_t wait;
 		bool pending;

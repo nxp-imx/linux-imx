@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 NXP
+ * Copyright 2017-2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -772,9 +772,89 @@ static int dpu_drm_atomic_check(struct drm_device *dev,
 	return ret;
 }
 
+static void dpu_drm_commit_tail(struct drm_atomic_state *old_state)
+{
+	struct drm_device *dev = old_state->dev;
+
+	drm_atomic_helper_wait_for_fences(dev, old_state, false);
+
+	drm_atomic_helper_wait_for_dependencies(old_state);
+
+	drm_atomic_helper_commit_tail(old_state);
+
+	drm_atomic_helper_commit_cleanup_done(old_state);
+
+	drm_atomic_state_put(old_state);
+}
+
+static void dpu_drm_commit_work(struct work_struct *work)
+{
+	struct drm_atomic_state *state = container_of(work,
+						      struct drm_atomic_state,
+						      commit_work);
+	dpu_drm_commit_tail(state);
+}
+
+/*
+ * This is almost a copy of drm_atomic_helper_commit().
+ * For nonblock commits, we queue the work on a freezable and unbound work queue
+ * of our own instead of system_unbound_wq to make sure work items on the work
+ * queue are drained in the freeze phase of the system suspend operations.
+ */
+static int dpu_drm_atomic_commit(struct drm_device *dev,
+				 struct drm_atomic_state *state,
+				 bool nonblock)
+{
+	struct imx_drm_device *imxdrm = dev->dev_private;
+	int ret;
+
+	if (state->async_update) {
+		ret = drm_atomic_helper_prepare_planes(dev, state);
+		if (ret)
+			return ret;
+
+		drm_atomic_helper_async_commit(dev, state);
+		drm_atomic_helper_cleanup_planes(dev, state);
+
+		return 0;
+	}
+
+	ret = drm_atomic_helper_setup_commit(state, nonblock);
+	if (ret)
+		return ret;
+
+	INIT_WORK(&state->commit_work, dpu_drm_commit_work);
+
+	ret = drm_atomic_helper_prepare_planes(dev, state);
+	if (ret)
+		return ret;
+
+	if (!nonblock) {
+		ret = drm_atomic_helper_wait_for_fences(dev, state, true);
+		if (ret)
+			goto err;
+	}
+
+	ret = drm_atomic_helper_swap_state(state, true);
+	if (ret)
+		goto err;
+
+	drm_atomic_state_get(state);
+	if (nonblock)
+		queue_work(imxdrm->dpu_nonblock_commit_wq, &state->commit_work);
+	else
+		dpu_drm_commit_tail(state);
+
+	return 0;
+
+err:
+	drm_atomic_helper_cleanup_planes(dev, state);
+	return ret;
+}
+
 const struct drm_mode_config_funcs dpu_drm_mode_config_funcs = {
 	.fb_create = drm_fb_cma_create,
 	.output_poll_changed = dpu_drm_output_poll_changed,
 	.atomic_check = dpu_drm_atomic_check,
-	.atomic_commit = drm_atomic_helper_commit,
+	.atomic_commit = dpu_drm_atomic_commit,
 };

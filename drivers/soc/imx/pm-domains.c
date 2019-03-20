@@ -38,10 +38,6 @@
 #include "pm-domain-imx8.h"
 
 static sc_ipc_t pm_ipc_handle;
-static sc_rsrc_t early_power_on_rsrc[] = {
-	SC_R_LAST, SC_R_LAST, SC_R_LAST, SC_R_LAST, SC_R_LAST,
-	SC_R_LAST, SC_R_LAST, SC_R_LAST, SC_R_LAST, SC_R_LAST,
-};
 static sc_rsrc_t rsrc_debug_console;
 
 #define IMX8_WU_MAX_IRQS	(((SC_R_LAST + 31) / 32 ) * 32 )
@@ -300,26 +296,8 @@ static int imx8_pm_domains_suspend(void)
 	return 0;
 }
 
-static void imx8_pm_domains_resume(void)
-{
-	sc_err_t sci_err = SC_ERR_NONE;
-	int i;
-
-	for (i = 0; i < (sizeof(early_power_on_rsrc) /
-		sizeof(sc_rsrc_t)); i++) {
-		if (early_power_on_rsrc[i] != SC_R_LAST) {
-			sci_err = sc_pm_set_resource_power_mode(pm_ipc_handle,
-				early_power_on_rsrc[i], SC_PM_PW_MODE_ON);
-			if (sci_err != SC_ERR_NONE)
-				pr_err("fail to power on resource %d\n",
-					early_power_on_rsrc[i]);
-		}
-	}
-}
-
 struct syscore_ops imx8_pm_domains_syscore_ops = {
 	.suspend = imx8_pm_domains_suspend,
-	.resume = imx8_pm_domains_resume,
 };
 
 static void imx8_pd_setup(struct imx8_pm_domain *pd)
@@ -344,7 +322,6 @@ static int __init imx8_add_pm_domains(struct device_node *parent,
 					struct generic_pm_domain *genpd_parent)
 {
 	struct device_node *np;
-	static int index;
 
 	for_each_child_of_node(parent, np) {
 		struct imx8_pm_domain *imx8_pd;
@@ -366,12 +343,6 @@ static int __init imx8_add_pm_domains(struct device_node *parent,
 
 		if (imx8_pd->rsrc_id != SC_R_NONE) {
 			imx8_pd_setup(imx8_pd);
-
-			if (of_property_read_bool(np, "early_power_on")
-				&& index < (sizeof(early_power_on_rsrc) /
-				sizeof(sc_rsrc_t))) {
-				early_power_on_rsrc[index++] = imx8_pd->rsrc_id;
-			}
 			if (of_property_read_bool(np, "debug_console"))
 				rsrc_debug_console = imx8_pd->rsrc_id;
 			if (!of_property_read_u32(np, "wakeup-irq",

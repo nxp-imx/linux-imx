@@ -976,7 +976,7 @@ CDN_API_STATUS CDN_API_DPTX_ForceLanes_blocking(state_struct *state,
 						u8 preemphasis_l3, u8 pattern,
 						u8 ssc)
 {
-	internal_block_function(&state->mutex, CDN_API_DPTX_ForceLanes_blocking
+	internal_block_function(&state->mutex, CDN_API_DPTX_ForceLanes
 				(state, linkRate, numOfLanes, voltageSwing_l0,
 				 preemphasis_l0, voltageSwing_l1,
 				 preemphasis_l1, voltageSwing_l2,

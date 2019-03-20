@@ -499,7 +499,7 @@ typedef struct {
 	u_int32 uBitDepthChroma;
 	u_int32 uMVCNumViews;
 	u_int32 uMVCViewList[VID_API_MAX_NUM_MVC_VIEWS];
-	u_int32 uFBCInUse;
+	u_int32 uActiveSeqTag;
 	u_int32 uFrameCropValid;
 	u_int32 uFrameCropLeftOffset;
 	u_int32 uFrameCropRightOffset;

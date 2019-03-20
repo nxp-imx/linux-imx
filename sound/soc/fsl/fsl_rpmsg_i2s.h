@@ -309,7 +309,7 @@
 
 #define         I2S_TYPE_A_NUM          0x18
 
-#define         WORK_MAX_NUM		0x18
+#define         WORK_MAX_NUM		0x30
 
 #define		I2S_TX_PERIOD_DONE	0x0
 #define		I2S_RX_PERIOD_DONE	0x1
@@ -397,7 +397,9 @@ struct i2s_info {
 
 	struct workqueue_struct  *rpmsg_wq;
 	struct work_of_rpmsg	 work_list[WORK_MAX_NUM];
-	int                      work_index;
+	int                      work_write_index;
+	int                      work_read_index;
+	int                      msg_drop_count[2];
 	int                      num_period[2];
 	void                     *callback_param[2];
 	int (*send_message)(struct i2s_rpmsg *msg, struct i2s_info *info);
