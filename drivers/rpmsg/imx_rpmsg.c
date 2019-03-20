@@ -694,6 +694,8 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 		uint32_t mu_id;
 		sc_err_t sciErr;
 		static sc_ipc_t mu_ipchandle;
+		uint32_t irq_status;
+
 		/* Get muB partition id and enable irq in SCFW then */
 		if (of_property_read_u32(np, "mub-partition",
 					&rpdev->mub_partition))
@@ -711,6 +713,15 @@ static int imx_rpmsg_probe(struct platform_device *pdev)
 			pr_err("can't get ipc handler: %d\n", sciErr);
 			return sciErr;
 		};
+
+		/* Clear any pending partition reset interrupt during
+		 * rpmsg probe.
+		 */
+		sciErr = sc_irq_status(mu_ipchandle, SC_R_MU_1A,
+				       SC_IRQ_GROUP_REBOOTED,
+				       &irq_status);
+		if (sciErr != SC_ERR_NONE)
+			pr_info("Cannot get partition reboot interrupt status\n");
 
 		/* Request for the partition reset interrupt. */
 		sciErr = sc_irq_enable(mu_ipchandle, SC_R_MU_1A,
