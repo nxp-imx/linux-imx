@@ -574,6 +574,7 @@ static void imx8_ipg_stop_enable(struct flexcan_priv *priv, bool enabled)
 	struct device_node *np = priv->dev->of_node;
 	u32 rsrc_id, val;
 	int idx;
+	sc_err_t sciErr;
 
 	idx = of_alias_get_id(np, "can");
 	if (idx == 0)
@@ -584,7 +585,10 @@ static void imx8_ipg_stop_enable(struct flexcan_priv *priv, bool enabled)
 		rsrc_id = SC_R_CAN_2;
 
 	val = enabled ? 1 : 0;
-	sc_misc_set_control(priv->ipc_handle, rsrc_id, SC_C_IPG_STOP, val);
+	sciErr = sc_misc_set_control(priv->ipc_handle, rsrc_id, SC_C_IPG_STOP, val);
+	if (sciErr != SC_ERR_NONE) {
+		pr_err("failed to set ipg stop flag for resource id %d!\n", rsrc_id);
+	}
 }
 #else
 static void imx8_ipg_stop_enable(struct flexcan_priv *priv, bool enabled) {}

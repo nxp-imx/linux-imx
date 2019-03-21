@@ -576,7 +576,9 @@ void imx8qm_dp_pixel_clock_set_rate(struct hdp_clks *clks)
 		clk_set_rate(clks->av_pll, pclock);
 
 		/* Enable the 24MHz for HDP PHY */
-		sc_misc_set_control(ipc_handle, SC_R_HDMI, SC_C_MODE, 1);
+		sci_err = sc_misc_set_control(ipc_handle, SC_R_HDMI, SC_C_MODE, 1);
+		if (sci_err != SC_ERR_NONE)
+			pr_err("Failed to enable HDP PHY (%d)\n", sci_err);
 
 		sc_ipc_close(ipc_handle);
 	} else

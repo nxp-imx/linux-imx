@@ -378,23 +378,31 @@ static void clk_gate3_scu_unprepare(struct clk_hw *hw)
 {
 	struct clk_gate3_scu *gate = to_clk_gate3_scu(hw);
 	uint32_t val;
+	sc_err_t sciErr;
 
 	if (!ccm_ipc_handle)
 		return;
 
 	val = (gate->invert) ? 1 : 0;
-	sc_misc_set_control(ccm_ipc_handle, gate->rsrc_id, gate->gpr_id, val);
+	sciErr = sc_misc_set_control(ccm_ipc_handle, gate->rsrc_id, gate->gpr_id, val);
+	if (sciErr != SC_ERR_NONE) {
+		pr_err("failed to write LPCG for resource id %d!\n", gate->rsrc_id);
+	}
 }
 
 static int clk_gate3_scu_is_prepared(struct clk_hw *hw)
 {
 	struct clk_gate3_scu *gate = to_clk_gate3_scu(hw);
 	uint32_t val;
+	sc_err_t sciErr;
 
 	if (!ccm_ipc_handle)
 		return -1;
 
-	sc_misc_get_control(ccm_ipc_handle, gate->rsrc_id, gate->gpr_id, &val);
+	sciErr = sc_misc_get_control(ccm_ipc_handle, gate->rsrc_id, gate->gpr_id, &val);
+	if (sciErr != SC_ERR_NONE) {
+		pr_err("%s: failed to get control for resource id %d!\n", __func__, gate->rsrc_id);
+	}
 	val &= 1;
 
 	if (gate->invert)

@@ -174,6 +174,9 @@ static unsigned long clk_divider3_scu_recalc_rate(struct clk_hw *hw,
 
 	sci_err = sc_misc_get_control(ccm_ipc_handle, clk->rsrc_id,
 		clk->gpr_id, &val);
+	if (sci_err != SC_ERR_NONE) {
+		pr_err("%s: failed to get control for resource id %d\n", __func__, clk->rsrc_id);
+	}
 
 	rate  = (val) ? parent_rate / 2 : parent_rate;
 

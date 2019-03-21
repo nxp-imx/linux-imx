@@ -299,12 +299,16 @@ static u8 clk_mux_gpr_scu_get_parent(struct clk_hw *hw)
 {
 	struct clk_mux_gpr_scu *gpr_mux = to_clk_mux_gpr_scu(hw);
 	u32 val = 0;
+	sc_err_t sciErr;
 
 	if (!ccm_ipc_handle)
 		return 0;
 
-	sc_misc_get_control(ccm_ipc_handle,
+	sciErr = sc_misc_get_control(ccm_ipc_handle,
 		gpr_mux->rsrc_id, gpr_mux->gpr_id, &val);
+	if (sciErr != SC_ERR_NONE) {
+		pr_err("%s: failed to get control for reource id %d \n", __func__, gpr_mux->rsrc_id);
+	}
 
 	return (u8)val;
 }
@@ -312,12 +316,16 @@ static u8 clk_mux_gpr_scu_get_parent(struct clk_hw *hw)
 static int clk_mux_gpr_scu_set_parent(struct clk_hw *hw, u8 index)
 {
 	struct clk_mux_gpr_scu *gpr_mux = to_clk_mux_gpr_scu(hw);
+	sc_err_t sciErr;
 
 	if (!ccm_ipc_handle)
 		return -1;
 
-	sc_misc_set_control(ccm_ipc_handle,
+	sciErr = sc_misc_set_control(ccm_ipc_handle,
 		gpr_mux->rsrc_id, gpr_mux->gpr_id, index);
+	if (sciErr != SC_ERR_NONE) {
+		pr_err("failed to set parent for resource id %d!\n", gpr_mux->rsrc_id);
+	}
 
 	return 0;
 }
