@@ -51,6 +51,10 @@ static int hdmi_avi_info_set(struct imx_hdp *hdp,
 	allowed_colorimetry = format == PXL_RGB ? RGB_ALLOWED_COLORIMETRY :
 						  YCC_ALLOWED_COLORIMETRY;
 
+	if (hdp->bpc == 8)
+		allowed_colorimetry &= ~(BIT(HDMI_EXTENDED_COLORIMETRY_BT2020) |
+			      BIT(HDMI_EXTENDED_COLORIMETRY_BT2020_CONST_LUM));
+
 	sink_colorimetry = di->hdmi.colorimetry & allowed_colorimetry;
 
 	if (sink_colorimetry & BIT(HDMI_EXTENDED_COLORIMETRY_BT2020))
