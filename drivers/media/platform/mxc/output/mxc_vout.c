@@ -321,7 +321,7 @@ static void update_display_setting(void)
 {
 	int i;
 	struct fb_info *fbi;
-	struct v4l2_rect bg_crop_bounds[2];
+	struct v4l2_rect bg_crop_bounds[2] = { { 0, 0, 0, 0 }, { 0, 0, 0, 0} };
 
 	mutex_lock(&gfb_mutex);
 	for (i = 0; i < num_registered_fb; i++) {
