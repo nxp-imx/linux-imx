@@ -335,7 +335,7 @@ CDN_API_STATUS CDN_API_HDMITX_SetVic_blocking(state_struct *state,
 		return ret;
 
 	/* Reset Data Enable */
-	CDN_API_General_Read_Register_blocking(state, ADDR_SOURCE_MHL_HD +
+	ret = CDN_API_General_Read_Register_blocking(state, ADDR_SOURCE_MHL_HD +
 					       (HDTX_CONTROLLER << 2), &resp);
 	if (ret != CDN_OK)
 		return ret;
