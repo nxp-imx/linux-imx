@@ -751,8 +751,9 @@ static void imx_hdp_mode_setup(struct imx_hdp *hdp,
 	imx_hdp_call(hdp, pixel_link_mux, &hdp->state, mode);
 
 	hdp->link_rate = imx_hdp_link_rate(mode);
-	if (hdp->link_rate > hdp->dp_link_rate) {
-		DRM_WARN("Link rate is too high - forcing link to lower rate\n");
+	if (hdp->is_dp && hdp->link_rate > hdp->dp_link_rate) {
+		DRM_DEBUG("Lowering DP link rate from %d to %d\n",
+			  hdp->link_rate, hdp->dp_link_rate);
 		hdp->link_rate = hdp->dp_link_rate;
 	}
 
