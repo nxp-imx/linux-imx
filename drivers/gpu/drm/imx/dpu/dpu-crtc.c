@@ -244,6 +244,8 @@ static void dpu_crtc_atomic_enable(struct drm_crtc *crtc,
 		framegen_wait_for_frame_counter_moving(dpu_crtc->fg);
 		tcon_set_operation_mode(dpu_crtc->tcon);
 
+		framegen_wait_for_secondary_syncup(dpu_crtc->fg);
+
 		if (framegen_secondary_requests_to_read_empty_fifo(dpu_crtc->fg)) {
 			framegen_secondary_clear_channel_status(dpu_crtc->fg);
 			dev_warn(dpu_crtc->dev,
