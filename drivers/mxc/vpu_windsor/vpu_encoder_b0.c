@@ -332,7 +332,7 @@ static int vpu_enc_v4l2_ioctl_querycap(struct file *file,
 		struct v4l2_capability *cap)
 {
 	vpu_log_func();
-	strncpy(cap->driver, "vpu encoder", sizeof(cap->driver) - 1);
+	strlcpy(cap->driver, "vpu encoder", sizeof(cap->driver));
 	strlcpy(cap->card, "vpu encoder", sizeof(cap->card));
 	strlcpy(cap->bus_info, "platform:", sizeof(cap->bus_info));
 	cap->version = KERNEL_VERSION(0, 0, 1);
@@ -4926,9 +4926,9 @@ static int create_vpu_video_device(struct vpu_dev *dev)
 		return -ENOMEM;
 	}
 
-	strncpy(dev->pvpu_encoder_dev->name,
+	strlcpy(dev->pvpu_encoder_dev->name,
 		vpu_enc_v4l2_videodevice.name,
-		sizeof(vpu_enc_v4l2_videodevice.name));
+		sizeof(dev->pvpu_encoder_dev->name));
 	dev->pvpu_encoder_dev->fops = vpu_enc_v4l2_videodevice.fops;
 	dev->pvpu_encoder_dev->ioctl_ops = vpu_enc_v4l2_videodevice.ioctl_ops;
 	dev->pvpu_encoder_dev->release = video_device_release;

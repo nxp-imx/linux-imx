@@ -454,7 +454,7 @@ static int v4l2_ioctl_querycap(struct file *file,
 		)
 {
 	vpu_dbg(LVL_INFO, "%s()\n", __func__);
-	strncpy(cap->driver, "vpu B0", sizeof(cap->driver) - 1);
+	strlcpy(cap->driver, "vpu B0", sizeof(cap->driver));
 	strlcpy(cap->card, "vpu B0", sizeof(cap->card));
 	strlcpy(cap->bus_info, "platform:", sizeof(cap->bus_info));
 	cap->version = KERNEL_VERSION(0, 0, 1);
@@ -3936,7 +3936,9 @@ static int create_vpu_video_device(struct vpu_dev *dev)
 		vpu_dbg(LVL_ERR, "video device alloc for decoder fail\n");
 		return -ENOMEM;
 	}
-	strncpy(dev->pvpu_decoder_dev->name, v4l2_videodevice_decoder.name, sizeof(v4l2_videodevice_decoder.name));
+	strlcpy(dev->pvpu_decoder_dev->name,
+			v4l2_videodevice_decoder.name,
+			sizeof(dev->pvpu_decoder_dev->name));
 	dev->pvpu_decoder_dev->fops = v4l2_videodevice_decoder.fops;
 	dev->pvpu_decoder_dev->ioctl_ops = v4l2_videodevice_decoder.ioctl_ops;
 	dev->pvpu_decoder_dev->release = video_device_release;
