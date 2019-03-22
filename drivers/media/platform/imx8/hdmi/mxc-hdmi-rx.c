@@ -401,7 +401,7 @@ static int mxc_hdmi_enum_frame_interval(struct v4l2_subdev *sd,
 {
 	struct mxc_hdmi_rx_dev *hdmi_rx = imx_sd_to_hdmi(sd);
 
-	if (fie->index < 0 || fie->index > 8)
+	if (fie->index > 8)
 		return -EINVAL;
 
 	if (fie->width == 0 || fie->height == 0 ||
