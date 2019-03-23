@@ -772,7 +772,7 @@ vdev_err_out:
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int imx_rpmsg_suspend(struct device *dev)
+static int imx_rpmsg_noirq_suspend(struct device *dev)
 {
 	struct imx_rpmsg_vproc *rpdev = dev_get_drvdata(dev);
 
@@ -782,7 +782,7 @@ static int imx_rpmsg_suspend(struct device *dev)
 	return 0;
 }
 
-static int imx_rpmsg_resume(struct device *dev)
+static int imx_rpmsg_noirq_resume(struct device *dev)
 {
 	struct imx_rpmsg_vproc *rpdev = dev_get_drvdata(dev);
 	int ret;
@@ -799,7 +799,10 @@ static int imx_rpmsg_resume(struct device *dev)
 }
 #endif
 
-static SIMPLE_DEV_PM_OPS(imx_rpmsg_pm_ops, imx_rpmsg_suspend, imx_rpmsg_resume);
+static const struct dev_pm_ops imx_rpmsg_pm_ops = {
+	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(imx_rpmsg_noirq_suspend,
+				      imx_rpmsg_noirq_resume)
+};
 
 static struct platform_driver imx_rpmsg_driver = {
 	.driver = {
