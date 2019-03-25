@@ -65,6 +65,7 @@ struct imx_rpmsg_vproc {
 	enum imx_rpmsg_variants variant;
 	int vdev_nums;
 	int first_notify;
+	u32 none_suspend;
 #define MAX_VDEV_NUMS  8
 	struct imx_virdev *ivdev[MAX_VDEV_NUMS];
 	void __iomem *mu_base;
@@ -513,7 +514,7 @@ static int imx_rpmsg_mu_init(struct imx_rpmsg_vproc *rpdev)
 void imx_rpmsg_restore(struct imx_rpmsg_vproc *rpdev)
 {
 	int i;
-	u32 flags;
+	u32 flags = 0;
 	int vdev_nums = rpdev->vdev_nums;
 
 	for (i = 0; i < vdev_nums; i++) {
@@ -523,7 +524,8 @@ void imx_rpmsg_restore(struct imx_rpmsg_vproc *rpdev)
 
 	/* Make a double check that remote processor is ready or not */
 	for (i = 0; i < REMOTE_READY_WAIT_MAX_RETRIES; i++) {
-		flags = MU_ReadStatus(rpdev->mu_base);
+		if (rpdev->none_suspend)
+			flags = MU_ReadStatus(rpdev->mu_base);
 		if (flags & REMOTE_IS_READY)
 			break;
 		usleep_range(100, 200);
@@ -776,6 +778,7 @@ static int imx_rpmsg_noirq_suspend(struct device *dev)
 {
 	struct imx_rpmsg_vproc *rpdev = dev_get_drvdata(dev);
 
+	rpdev->none_suspend = 0;
 	if (rpdev->mu_clk)
 		clk_disable_unprepare(rpdev->mu_clk);
 
@@ -794,8 +797,10 @@ static int imx_rpmsg_noirq_resume(struct device *dev)
 			return ret;
 		}
 	}
+	ret = imx_rpmsg_mu_init(rpdev);
+	rpdev->none_suspend = 1;
 
-	return imx_rpmsg_mu_init(rpdev);
+	return ret;
 }
 #endif
 
