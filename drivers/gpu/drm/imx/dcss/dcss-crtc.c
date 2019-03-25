@@ -358,6 +358,9 @@ static irqreturn_t dcss_crtc_irq_handler(int irq, void *dev_id)
 
 	dcss_trace_module(TRACE_DRM_CRTC, TRACE_VBLANK);
 
+	if (!dcss_dtg_vblank_irq_valid(dcss))
+		return IRQ_HANDLED;
+
 	complete(&dcss_crtc->en_completion);
 
 	if (dcss_ctxld_is_flushed(dcss))
