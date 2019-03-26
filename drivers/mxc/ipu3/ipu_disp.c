@@ -1159,6 +1159,10 @@ int32_t ipu_init_sync_panel(struct ipu_soc *ipu, int disp, uint32_t pixel_clk,
 		}
 	}
 	rounded_pixel_clk = clk_round_rate(ipu->pixel_clk[disp], pixel_clk);
+	if (rounded_pixel_clk == 0) {
+		dev_err(ipu->dev, "rounded pixel clock should not be zero\n");
+		return -EINVAL;
+	}
 	dev_dbg(ipu->dev, "round pixel clk:%d\n", rounded_pixel_clk);
 	ret = clk_set_rate(ipu->pixel_clk[disp], rounded_pixel_clk);
 	if (ret) {
