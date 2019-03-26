@@ -1389,6 +1389,13 @@ static void put_vdoa_ipu_res(struct ipu_task_entry *tsk, int vdoa_only)
 		}
 	}
 
+	if (tsk->ipu_id != 0 && tsk->ipu_id != 1) {
+		dev_err(tsk->dev,
+			"%s:invalid ipu id, no:0x%x, rel_vdoa:%d, rel_ipu:%d\n",
+			 __func__, tsk->task_no, rel_vdoa, rel_ipu);
+		goto out;
+	}
+
 	tbl->used[tsk->ipu_id][tsk->task_id - 1] = 0;
 	rel_ipu = 1;
 	ret = atomic_inc_return(&tsk->res_free);
