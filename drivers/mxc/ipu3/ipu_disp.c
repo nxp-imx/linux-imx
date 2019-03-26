@@ -1611,6 +1611,11 @@ int ipu_init_async_panel(struct ipu_soc *ipu, int disp, int type, uint32_t cycle
 	u32 div;
 	u32 di_clk = clk_get_rate(ipu->ipu_clk);
 
+	if (di_clk == 0) {
+		dev_err(ipu->dev, "di clock rate should not be zero\n");
+		return -EINVAL;
+	}
+
 	/* round up cycle_time, then calcalate the divider using scaled math */
 	cycle_time += (1000000000UL / di_clk) - 1;
 	div = (cycle_time * (di_clk / 256UL)) / (1000000000UL / 256UL);
