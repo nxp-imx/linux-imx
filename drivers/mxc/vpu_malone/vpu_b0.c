@@ -1035,7 +1035,7 @@ static int v4l2_ioctl_reqbufs(struct file *file,
 
 	ret = vpu_dec_queue_reqbufs(q_data, reqbuf);
 	if (ret) {
-		vpu_dbg(LVL_ERR, "error: %s() can't request (%d) buffer : %d\n",
+		vpu_dbg(LVL_WARN, "warning: %s() can't request (%d) buffer : %d\n",
 				__func__, reqbuf->count, ret);
 		return ret;
 	}
@@ -2633,6 +2633,8 @@ static void vpu_api_event_handler(struct vpu_ctx *ctx, u_int32 uStrIdx, u_int32 
 		reinit_completion(&ctx->alloc_cmp);
 		while (1) {
 			if (!wait_for_completion_timeout(&ctx->alloc_cmp, msecs_to_jiffies(1000))) {
+				if (ctx->ctx_released == true)
+					break;
 				vpu_dbg(LVL_WARN, "ctx[%d] warning: wait application alloc frame timeout\n",
 						ctx->str_index);
 			} else {
