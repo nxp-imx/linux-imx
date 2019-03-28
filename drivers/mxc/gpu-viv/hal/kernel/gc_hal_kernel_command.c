@@ -1872,14 +1872,6 @@ gckCOMMAND_Commit(
     /* Verify the arguments. */
     gcmkVERIFY_OBJECT(Command, gcvOBJ_COMMAND);
 
-#if !gcdNULL_DRIVER
-    gcmkONERROR(_ProcessUserCommandBufferList(
-        Command,
-        CommandBuffer,
-        &lastCommandBuffer
-        ));
-#endif
-
 #if gcdPROCESS_ADDRESS_SPACE
     gcmkONERROR(gckKERNEL_GetProcessMMU(Command->kernel, &mmu));
 
@@ -1893,6 +1885,14 @@ gckCOMMAND_Commit(
     /* Acquire the command queue. */
     gcmkONERROR(gckCOMMAND_EnterCommit(Command, gcvFALSE));
     commitEntered = gcvTRUE;
+
+#if !gcdNULL_DRIVER
+    gcmkONERROR(_ProcessUserCommandBufferList(
+        Command,
+        CommandBuffer,
+        &lastCommandBuffer
+        ));
+#endif
 
     /* Acquire the context switching mutex. */
     gcmkONERROR(gckOS_AcquireMutex(
